@@ -54,13 +54,14 @@ inductive boot.BootError where
 | TooManyCaps : boot.BootError
 
 /-- [fl4_core::boot::Boot]
-    Source: 'crates/fl4-core/src/boot.rs', lines 92:0-99:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 92:0-101:1 -/
 structure boot.Boot where
   root_cnode : Std.U64
   slot_pos : Std.U64
   bi_frame : Std.U64
   next : Std.U64
   «end» : Std.U64
+  full : Bool
 
 /-- Trait declaration: [fl4_core::machine::Store]
     Source: 'crates/fl4-core/src/machine.rs', lines 10:0-21:1
@@ -78,22 +79,22 @@ structure machine.Store (Self : Type _) where
 @[reducible]
 def obj.Slot := Std.U64
 
-/-- [fl4_core::cap::FrameSize]
-    Source: 'crates/fl4-core/src/cap.rs', lines 6:0-10:1
+/-- [fl4_core::capability::FrameSize]
+    Source: 'crates/fl4-core/src/capability.rs', lines 6:0-10:1
     Visibility: public -/
 @[discriminant isize]
-inductive cap.FrameSize where
-| Small : cap.FrameSize
-| Large : cap.FrameSize
-| Huge : cap.FrameSize
+inductive capability.FrameSize where
+| Small : capability.FrameSize
+| Large : capability.FrameSize
+| Huge : capability.FrameSize
 
-/-- [fl4_core::cap::Cap]
-    Source: 'crates/fl4-core/src/cap.rs', lines 47:0-70:1
+/-- [fl4_core::capability::Cap]
+    Source: 'crates/fl4-core/src/capability.rs', lines 47:0-70:1
     Visibility: public -/
 @[discriminant isize]
-inductive cap.Cap where
-| Null : cap.Cap
-| Untyped : Std.U64 → Std.U64 → Std.U64 → Bool → cap.Cap
+inductive capability.Cap where
+| Null : capability.Cap
+| Untyped : Std.U64 → Std.U64 → Std.U64 → Bool → capability.Cap
 | Endpoint :
   Std.U64 →
   Std.U64 →
@@ -101,34 +102,34 @@ inductive cap.Cap where
   Bool →
   Bool →
   Bool →
-  cap.Cap
-| Notification : Std.U64 → Std.U64 → Bool → Bool → cap.Cap
-| Reply : Std.U64 → Bool → cap.Cap
-| CNode : Std.U64 → Std.U64 → Std.U64 → Std.U64 → cap.Cap
-| Thread : Std.U64 → cap.Cap
-| IrqControl : cap.Cap
-| IrqHandler : Std.U64 → cap.Cap
-| Zombie : Std.U64 → Std.U64 → Std.U64 → cap.Cap
-| Domain : cap.Cap
-| SchedContext : Std.U64 → Std.U64 → cap.Cap
-| SchedControl : Std.U64 → cap.Cap
+  capability.Cap
+| Notification : Std.U64 → Std.U64 → Bool → Bool → capability.Cap
+| Reply : Std.U64 → Bool → capability.Cap
+| CNode : Std.U64 → Std.U64 → Std.U64 → Std.U64 → capability.Cap
+| Thread : Std.U64 → capability.Cap
+| IrqControl : capability.Cap
+| IrqHandler : Std.U64 → capability.Cap
+| Zombie : Std.U64 → Std.U64 → Std.U64 → capability.Cap
+| Domain : capability.Cap
+| SchedContext : Std.U64 → Std.U64 → capability.Cap
+| SchedControl : Std.U64 → capability.Cap
 | Frame :
   Std.U64 →
-  cap.FrameSize →
+  capability.FrameSize →
   Std.U64 →
   Bool →
   Bool →
   Std.U64 →
   Std.U64 →
-  cap.Cap
-| PageTable : Std.U64 → Bool → Std.U64 → Std.U64 → cap.Cap
-| PageDirectory : Std.U64 → Bool → Std.U64 → Std.U64 → cap.Cap
-| Pdpt : Std.U64 → Bool → Std.U64 → Std.U64 → cap.Cap
-| Pml4 : Std.U64 → Bool → Std.U64 → cap.Cap
-| AsidControl : cap.Cap
-| AsidPool : Std.U64 → Std.U64 → cap.Cap
-| IoPortControl : cap.Cap
-| IoPort : Std.U64 → Std.U64 → cap.Cap
+  capability.Cap
+| PageTable : Std.U64 → Bool → Std.U64 → Std.U64 → capability.Cap
+| PageDirectory : Std.U64 → Bool → Std.U64 → Std.U64 → capability.Cap
+| Pdpt : Std.U64 → Bool → Std.U64 → Std.U64 → capability.Cap
+| Pml4 : Std.U64 → Bool → Std.U64 → capability.Cap
+| AsidControl : capability.Cap
+| AsidPool : Std.U64 → Std.U64 → capability.Cap
+| IoPortControl : capability.Cap
+| IoPort : Std.U64 → Std.U64 → capability.Cap
 
 /-- [fl4_core::obj::Sc]
     Source: 'crates/fl4-core/src/obj.rs', lines 34:0-34:23
@@ -150,7 +151,7 @@ structure sporadic.Refill where
 def obj.Tcb := Std.U64
 
 /-- Trait declaration: [fl4_core::machine::Arch]
-    Source: 'crates/fl4-core/src/machine.rs', lines 25:0-77:1
+    Source: 'crates/fl4-core/src/machine.rs', lines 25:0-80:1
     Visibility: public -/
 structure machine.Arch (Self : Type _) where
   now : Self → Result (Std.U64 × Self)
@@ -160,6 +161,7 @@ structure machine.Arch (Self : Type _) where
   max_us : Self → Result Std.U64
   kernel_wcet_ticks : Self → Result Std.U64
   irq_pending : Self → Result (Bool × Self)
+  take_pending_irq : Self → Result (Std.U64 × Self)
   mask_irq : Self → Std.U64 → Bool → Result Self
   ack_irq : Self → Std.U64 → Result Self
   set_vspace : Self → Std.U64 → Std.U64 → Result Self
@@ -231,10 +233,10 @@ inductive error.Exc where
 | Sys : error.SysError → error.Exc
 | Preempted : error.Exc
 
-/-- [fl4_core::cap::Rights]
-    Source: 'crates/fl4-core/src/cap.rs', lines 248:0-253:1
+/-- [fl4_core::capability::Rights]
+    Source: 'crates/fl4-core/src/capability.rs', lines 248:0-253:1
     Visibility: public -/
-structure cap.Rights where
+structure capability.Rights where
   write : Bool
   read : Bool
   grant : Bool
@@ -244,7 +246,7 @@ structure cap.Rights where
     Source: 'crates/fl4-core/src/cdt.rs', lines 232:0-235:1 -/
 structure cdt.Finalised where
   success : Bool
-  cleanup : cap.Cap
+  cleanup : capability.Cap
 
 /-- [fl4_core::msginfo::MessageInfo]
     Source: 'crates/fl4-core/src/msginfo.rs', lines 5:0-10:1
@@ -273,6 +275,14 @@ def obj.Ntfn := Std.U64
 structure tcbqueue.Queue where
   head : obj.Tcb
   «end» : obj.Tcb
+
+/-- [fl4_core::tcbqueue::Link]
+    Source: 'crates/fl4-core/src/tcbqueue.rs', lines 17:0-20:1
+    Visibility: public -/
+@[discriminant isize]
+inductive tcbqueue.Link where
+| Sched : tcbqueue.Link
+| Ep : tcbqueue.Link
 
 /-- [fl4_core::obj::Ep]
     Source: 'crates/fl4-core/src/obj.rs', lines 28:0-28:23

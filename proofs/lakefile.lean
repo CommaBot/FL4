@@ -2,7 +2,7 @@ import Lake
 open Lake DSL
 
 -- `.deps/aeneas` links to Aeneas's Lean backend (backends/lean of the
--- Aeneas checkout that extracted Fl4Core); `cargo xtask prove` creates it.
+-- Aeneas checkout that extracted Fl4Core); `cargo xtask gate` creates it.
 require aeneas from "./.deps/aeneas"
 
 package fl4proofs

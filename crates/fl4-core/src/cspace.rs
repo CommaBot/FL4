@@ -1,6 +1,6 @@
 //! CSpace addressing (seL4 kernel/cspace.c).
 
-use crate::cap::Cap;
+use crate::capability::Cap;
 use crate::error::{Exc, KResult, LookupFault, SysError};
 use crate::layout::tcb as t;
 use crate::machine::Store;

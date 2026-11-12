@@ -1,7 +1,7 @@
 //! TCB invocations (seL4 object/tcb.c, MCS), plus the l4h extensions
 //! TCB_SetTimer, TCB_ReadFPU, TCB_WriteFPU and the trapSyscalls flag.
 
-use crate::cap::{Cap, VM_KERNEL_ONLY, VM_READ_WRITE};
+use crate::capability::{Cap, VM_KERNEL_ONLY, VM_READ_WRITE};
 use crate::cdt;
 use crate::debug;
 use crate::error::{illegal, invalid_arg, invalid_cap, range, sys, truncated, Exc, KResult, SysError};
@@ -307,6 +307,16 @@ fn write_registers<S: Store, A: Arch>(s: &mut S, a: &mut A, dest: Tcb, resume: b
     }
 }
 
+/// Copy `n` words from `src` to `dst`.
+fn copy_words<S: Store>(s: &mut S, src: u64, dst: u64, n: u64) {
+    let mut i = 0;
+    while i < n {
+        let v = s.read(src.wrapping_add(i * 8));
+        s.write(dst.wrapping_add(i * 8), v);
+        i += 1;
+    }
+}
+
 /// l4h 0002: copy the FPU image between the TCB and a frame.
 fn fpu_transfer<S: Store, A: Arch>(s: &mut S, a: &mut A, target: Tcb, c: &Ctx, to_frame: bool) -> KResult<()> {
     let fslot = match extra(c, 0) {
@@ -330,18 +340,11 @@ fn fpu_transfer<S: Store, A: Arch>(s: &mut S, a: &mut A, target: Tcb, c: &Ctx, t
     restart_caller(s);
     a.fpu_flush(target.0);
     let words = (n + 7) / 8;
-    let mut i = 0;
-    while i < words {
-        let fa = target.fpu_addr().wrapping_add(i * 8);
-        let ua = base.wrapping_add(offset).wrapping_add(i * 8);
-        if to_frame {
-            let v = s.read(fa);
-            s.write(ua, v);
-        } else {
-            let v = s.read(ua);
-            s.write(fa, v);
-        }
-        i += 1;
+    let frame = base.wrapping_add(offset);
+    if to_frame {
+        copy_words(s, target.fpu_addr(), frame, words);
+    } else {
+        copy_words(s, frame, target.fpu_addr(), words);
     }
     if !to_frame {
         a.fpu_sanitise(target.0);

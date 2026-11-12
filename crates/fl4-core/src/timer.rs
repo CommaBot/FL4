@@ -36,17 +36,17 @@ fn parent<S: Store>(s: &S, t: Tcb) -> Tcb {
     Tcb(t.timer_parent(s))
 }
 
-fn root<S: Store>(s: &S, core: u64) -> Tcb {
-    Tcb(node_get(s, core, node::TIMER_ROOT))
+fn root<S: Store>(s: &S, cpu: u64) -> Tcb {
+    Tcb(node_get(s, cpu, node::TIMER_ROOT))
 }
 
-fn set_root<S: Store>(s: &mut S, core: u64, t: Tcb) {
-    node_set(s, core, node::TIMER_ROOT, t.0)
+fn set_root<S: Store>(s: &mut S, cpu: u64, t: Tcb) {
+    node_set(s, cpu, node::TIMER_ROOT, t.0)
 }
 
-fn replace_child<S: Store>(s: &mut S, core: u64, p: Tcb, old: Tcb, new: Tcb) {
+fn replace_child<S: Store>(s: &mut S, cpu: u64, p: Tcb, old: Tcb, new: Tcb) {
     if p.is_null() {
-        set_root(s, core, new);
+        set_root(s, cpu, new);
     } else if left(s, p) == old {
         p.set_timer_left(s, new.0);
     } else {
@@ -54,7 +54,7 @@ fn replace_child<S: Store>(s: &mut S, core: u64, p: Tcb, old: Tcb, new: Tcb) {
     }
 }
 
-fn rotate_left<S: Store>(s: &mut S, core: u64, x: Tcb) {
+fn rotate_left<S: Store>(s: &mut S, cpu: u64, x: Tcb) {
     let y = right(s, x);
     let yl = left(s, y);
     x.set_timer_right(s, yl.0);
@@ -63,12 +63,12 @@ fn rotate_left<S: Store>(s: &mut S, core: u64, x: Tcb) {
     }
     let xp = parent(s, x);
     y.set_timer_parent(s, xp.0);
-    replace_child(s, core, xp, x, y);
+    replace_child(s, cpu, xp, x, y);
     y.set_timer_left(s, x.0);
     x.set_timer_parent(s, y.0);
 }
 
-fn rotate_right<S: Store>(s: &mut S, core: u64, x: Tcb) {
+fn rotate_right<S: Store>(s: &mut S, cpu: u64, x: Tcb) {
     let y = left(s, x);
     let yr = right(s, y);
     x.set_timer_left(s, yr.0);
@@ -77,12 +77,12 @@ fn rotate_right<S: Store>(s: &mut S, core: u64, x: Tcb) {
     }
     let xp = parent(s, x);
     y.set_timer_parent(s, xp.0);
-    replace_child(s, core, xp, x, y);
+    replace_child(s, cpu, xp, x, y);
     y.set_timer_right(s, x.0);
     x.set_timer_parent(s, y.0);
 }
 
-fn insert_fixup<S: Store>(s: &mut S, core: u64, z0: Tcb) {
+fn insert_fixup<S: Store>(s: &mut S, cpu: u64, z0: Tcb) {
     let mut z = z0;
     // Each round moves z two levels up or ends the loop.
     let mut fuel: u64 = 128;
@@ -104,13 +104,13 @@ fn insert_fixup<S: Store>(s: &mut S, core: u64, z0: Tcb) {
             }
             let mut pp = p;
             if z == right(s, p) {
-                rotate_left(s, core, p);
+                rotate_left(s, cpu, p);
                 z = p;
                 pp = parent(s, z);
             }
             set_red(s, pp, false);
             set_red(s, g, true);
-            rotate_right(s, core, g);
+            rotate_right(s, cpu, g);
         } else {
             let u = left(s, g);
             if is_red(s, u) {
@@ -122,31 +122,31 @@ fn insert_fixup<S: Store>(s: &mut S, core: u64, z0: Tcb) {
             }
             let mut pp = p;
             if z == left(s, p) {
-                rotate_right(s, core, p);
+                rotate_right(s, cpu, p);
                 z = p;
                 pp = parent(s, z);
             }
             set_red(s, pp, false);
             set_red(s, g, true);
-            rotate_left(s, core, g);
+            rotate_left(s, cpu, g);
         }
     }
-    let r = root(s, core);
+    let r = root(s, cpu);
     set_red(s, r, false);
 }
 
-fn remove_fixup<S: Store>(s: &mut S, core: u64, x0: Tcb, parent0: Tcb) {
+fn remove_fixup<S: Store>(s: &mut S, cpu: u64, x0: Tcb, parent0: Tcb) {
     let mut x = x0;
     let mut p = parent0;
     let mut fuel: u64 = 256;
-    while x != root(s, core) && !is_red(s, x) && !p.is_null() && fuel > 0 {
+    while x != root(s, cpu) && !is_red(s, x) && !p.is_null() && fuel > 0 {
         fuel -= 1;
         if x == left(s, p) {
             let mut w = right(s, p);
             if is_red(s, w) {
                 set_red(s, w, false);
                 set_red(s, p, true);
-                rotate_left(s, core, p);
+                rotate_left(s, cpu, p);
                 w = right(s, p);
             }
             if !is_red(s, left(s, w)) && !is_red(s, right(s, w)) {
@@ -158,7 +158,7 @@ fn remove_fixup<S: Store>(s: &mut S, core: u64, x0: Tcb, parent0: Tcb) {
                     let wl = left(s, w);
                     set_red(s, wl, false);
                     set_red(s, w, true);
-                    rotate_right(s, core, w);
+                    rotate_right(s, cpu, w);
                     w = right(s, p);
                 }
                 let pr = is_red(s, p);
@@ -166,8 +166,8 @@ fn remove_fixup<S: Store>(s: &mut S, core: u64, x0: Tcb, parent0: Tcb) {
                 set_red(s, p, false);
                 let wr = right(s, w);
                 set_red(s, wr, false);
-                rotate_left(s, core, p);
-                x = root(s, core);
+                rotate_left(s, cpu, p);
+                x = root(s, cpu);
                 p = Tcb(0);
             }
         } else {
@@ -175,7 +175,7 @@ fn remove_fixup<S: Store>(s: &mut S, core: u64, x0: Tcb, parent0: Tcb) {
             if is_red(s, w) {
                 set_red(s, w, false);
                 set_red(s, p, true);
-                rotate_right(s, core, p);
+                rotate_right(s, cpu, p);
                 w = left(s, p);
             }
             if !is_red(s, left(s, w)) && !is_red(s, right(s, w)) {
@@ -187,7 +187,7 @@ fn remove_fixup<S: Store>(s: &mut S, core: u64, x0: Tcb, parent0: Tcb) {
                     let wr = right(s, w);
                     set_red(s, wr, false);
                     set_red(s, w, true);
-                    rotate_left(s, core, w);
+                    rotate_left(s, cpu, w);
                     w = left(s, p);
                 }
                 let pr = is_red(s, p);
@@ -195,8 +195,8 @@ fn remove_fixup<S: Store>(s: &mut S, core: u64, x0: Tcb, parent0: Tcb) {
                 set_red(s, p, false);
                 let wl = left(s, w);
                 set_red(s, wl, false);
-                rotate_right(s, core, p);
-                x = root(s, core);
+                rotate_right(s, cpu, p);
+                x = root(s, cpu);
                 p = Tcb(0);
             }
         }
@@ -211,8 +211,8 @@ pub fn remove<S: Store>(s: &mut S, t: Tcb) {
     if t.timer_deadline(s) == 0 {
         return;
     }
-    let core = core_of(s, t);
-    if node_get(s, core, node::TIMER_MIN) == t.0 {
+    let cpu = core_of(s, t);
+    if node_get(s, cpu, node::TIMER_MIN) == t.0 {
         let mut next = right(s, t);
         if !next.is_null() {
             while !left(s, next).is_null() {
@@ -221,7 +221,7 @@ pub fn remove<S: Store>(s: &mut S, t: Tcb) {
         } else {
             next = parent(s, t);
         }
-        node_set(s, core, node::TIMER_MIN, next.0);
+        node_set(s, cpu, node::TIMER_MIN, next.0);
     }
     let x;
     let x_parent;
@@ -231,7 +231,7 @@ pub fn remove<S: Store>(s: &mut S, t: Tcb) {
     if tl.is_null() || tr.is_null() {
         x = if !tl.is_null() { tl } else { tr };
         x_parent = parent(s, t);
-        replace_child(s, core, x_parent, t, x);
+        replace_child(s, cpu, x_parent, t, x);
         if !x.is_null() {
             x.set_timer_parent(s, x_parent.0);
         }
@@ -254,7 +254,7 @@ pub fn remove<S: Store>(s: &mut S, t: Tcb) {
             tr.set_timer_parent(s, y.0);
         }
         let tp = parent(s, t);
-        replace_child(s, core, tp, t, y);
+        replace_child(s, cpu, tp, t, y);
         y.set_timer_parent(s, tp.0);
         y.set_timer_left(s, tl.0);
         tl.set_timer_parent(s, y.0);
@@ -262,7 +262,7 @@ pub fn remove<S: Store>(s: &mut S, t: Tcb) {
         set_red(s, y, tred);
     }
     if !removed_red {
-        remove_fixup(s, core, x, x_parent);
+        remove_fixup(s, cpu, x, x_parent);
     }
     t.set_timer_parent(s, 0);
     t.set_timer_left(s, 0);
@@ -278,9 +278,9 @@ pub fn insert<S: Store>(s: &mut S, t: Tcb, deadline: u64, badge: u64) {
     if deadline == 0 {
         return;
     }
-    let core = s.cur_cpu();
+    let cpu = s.cur_cpu();
     let mut p = Tcb(0);
-    let mut cur = root(s, core);
+    let mut cur = root(s, cpu);
     let mut go_left = false;
     let mut first = true;
     while !cur.is_null() {
@@ -295,7 +295,7 @@ pub fn insert<S: Store>(s: &mut S, t: Tcb, deadline: u64, badge: u64) {
         }
     }
     if p.is_null() {
-        set_root(s, core, t);
+        set_root(s, cpu, t);
     } else if go_left {
         p.set_timer_left(s, t.0);
     } else {
@@ -306,11 +306,11 @@ pub fn insert<S: Store>(s: &mut S, t: Tcb, deadline: u64, badge: u64) {
     t.set_timer_parent(s, p.0);
     t.set_timer_left(s, 0);
     t.set_timer_right(s, 0);
-    t.set_timer_height(s, (core << 8) | RED);
-    insert_fixup(s, core, t);
+    t.set_timer_height(s, (cpu << 8) | RED);
+    insert_fixup(s, cpu, t);
     if first {
-        node_set(s, core, node::TIMER_MIN, t.0);
-        node_set(s, core, node::REPROGRAM, 1);
+        node_set(s, cpu, node::TIMER_MIN, t.0);
+        node_set(s, cpu, node::REPROGRAM, 1);
     }
 }
 

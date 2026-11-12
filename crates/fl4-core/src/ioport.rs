@@ -1,6 +1,6 @@
 //! I/O port capabilities (seL4 arch/x86/object/ioport.c).
 
-use crate::cap::Cap;
+use crate::capability::Cap;
 use crate::cdt;
 use crate::cspace;
 use crate::error::{illegal, invalid_arg, truncated, Exc, KResult, SysError};
@@ -126,7 +126,13 @@ pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: u64, ca
     } else {
         return illegal();
     };
-    let is_in = lbl == label::X86IOPortIn8 || lbl == label::X86IOPortIn16 || lbl == label::X86IOPortIn32;
+    // Literal results rather than `a || b == c`: Aeneas types a boolean
+    // whose last operand is a comparison as a Lean Prop.
+    let is_in = if lbl == label::X86IOPortIn8 || lbl == label::X86IOPortIn16 || lbl == label::X86IOPortIn32 {
+        true
+    } else {
+        false
+    };
     if is_in {
         if length < 1 {
             return truncated();

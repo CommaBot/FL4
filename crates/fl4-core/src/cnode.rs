@@ -1,6 +1,6 @@
 //! CNode invocations (seL4 decodeCNodeInvocation, MCS).
 
-use crate::cap::{Cap, Rights};
+use crate::capability::{Cap, Rights};
 use crate::cdt;
 use crate::cspace;
 use crate::endpoint;
@@ -46,7 +46,7 @@ pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: u64, ca
                 return truncated();
             }
             let r = Rights::from_word(msg::syscall_arg(s, ct, buf, 4));
-            let c = crate::cap::mask_cap_rights(r, src_cap);
+            let c = crate::capability::mask_cap_rights(r, src_cap);
             (objects::derive_cap(s, src, c)?, false)
         } else if lbl == label::CNodeMint {
             if length < 6 {
@@ -54,7 +54,7 @@ pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: u64, ca
             }
             let r = Rights::from_word(msg::syscall_arg(s, ct, buf, 4));
             let data = msg::syscall_arg(s, ct, buf, 5);
-            let c = crate::cap::mask_cap_rights(r, src_cap);
+            let c = crate::capability::mask_cap_rights(r, src_cap);
             (objects::derive_cap(s, src, objects::update_cap_data(false, data, c))?, false)
         } else if lbl == label::CNodeMove {
             (src_cap, true)

@@ -3,7 +3,7 @@
 //! current TCB and calls one of the `handle_*` functions; when it returns,
 //! the glue restores whichever thread is now current.
 
-use crate::cap::Cap;
+use crate::capability::Cap;
 use crate::cnode;
 use crate::cspace;
 use crate::debug;
@@ -132,11 +132,11 @@ fn decode_invocation<S: Store, A: Arch>(
         Cap::Untyped { .. } => untyped::decode(s, a, lbl, length, slot, cap, buf, extra),
         Cap::IrqControl => interrupt::decode_irq_control(s, a, lbl, length, slot, buf, extra),
         Cap::IrqHandler { irq } => interrupt::decode_irq_handler(s, a, lbl, irq, extra),
-        Cap::SchedControl { core } => {
+        Cap::SchedControl { cpu } => {
             if first_phase {
                 return Err(Exc::Sys(SysError::InvalidCapability { arg: 0 }));
             }
-            schedcontext::decode_sched_control(s, a, lbl, core, length, buf, extra)
+            schedcontext::decode_sched_control(s, a, lbl, cpu, length, buf, extra)
         }
         Cap::SchedContext { ptr, .. } => {
             if first_phase {

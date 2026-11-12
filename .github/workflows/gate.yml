@@ -1,0 +1,21 @@
+# The extractability gate (DESIGN.md §6): fl4-core must go through Charon
+# and Aeneas without errors, typecheck in Lean, and keep its proofs green.
+#
+# Runs on a self-hosted runner labelled `fl4` that has the toolchain in
+# ~/Projects/fl4-deps: Aeneas 0d21a9ec7bbbb110110cacc14464a47fd71c8705 with
+# its pinned Charon (see charon-pin there), and elan for Lean.
+name: gate
+on: [push, pull_request]
+jobs:
+  gate:
+    runs-on: [self-hosted, fl4]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build the kernel crates
+        run: cargo build -p fl4-core && cargo build --release -p fl4-kernel --target x86_64-unknown-none
+      - name: Host tests
+        run: cargo test -p xtask
+      - name: Extract and prove
+        run: cargo xtask gate

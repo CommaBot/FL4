@@ -1,6 +1,6 @@
 //! Untyped_Retype (seL4 object/untyped.c). Free indices are byte offsets.
 
-use crate::cap::Cap;
+use crate::capability::Cap;
 use crate::cdt;
 use crate::cspace;
 use crate::error::{illegal, invalid_arg, range, truncated, Exc, KResult, LookupFault, SysError};
@@ -81,11 +81,7 @@ pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: u64, sl
     if node_window > node_size - node_offset {
         return range(1, node_size - node_offset);
     }
-    let mut i = node_offset;
-    while i < node_offset + node_window {
-        cdt::ensure_empty_slot(s, Slot::index(dest, i))?;
-        i += 1;
-    }
+    ensure_empty_slots(s, dest, node_offset, node_offset + node_window)?;
     let (ptr, block, free_index, device) = match cap {
         Cap::Untyped { ptr, size_bits, free_index, is_device } => (ptr, size_bits, free_index, is_device),
         _ => return illegal(),
@@ -105,6 +101,18 @@ pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: u64, sl
     let aligned = align_up(free_ref, obj_size);
     sched::set_thread_state(s, ct, sched::TS_RESTART);
     retype(s, a, slot, reset, aligned, new_type, user_size, dest, node_offset, node_window, device)
+}
+
+/// Every slot of `cnode` in [from, to) is empty. (The loop has no early
+/// exit, which Aeneas cannot translate yet.)
+fn ensure_empty_slots<S: Store>(s: &S, cnode: u64, from: u64, to: u64) -> KResult<()> {
+    let mut r = Ok(());
+    let mut i = from;
+    while i < to && r.is_ok() {
+        r = cdt::ensure_empty_slot(s, Slot::index(cnode, i));
+        i += 1;
+    }
+    r
 }
 
 /// seL4 `resetUntypedCap`: clear the used part, top down, in chunks.

@@ -3,7 +3,7 @@
 //! The IPC buffer layout (seL4_IPCBuffer): tag, msg[120], userData,
 //! caps_or_badges[3], receiveCNode, receiveIndex, receiveDepth.
 
-use crate::cap::{Cap, VM_READ_ONLY, VM_READ_WRITE};
+use crate::capability::{Cap, VM_READ_ONLY, VM_READ_WRITE};
 use crate::layout::{reg, tcb as tl};
 use crate::machine::Store;
 use crate::msginfo::MessageInfo;

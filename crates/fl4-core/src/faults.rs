@@ -2,7 +2,7 @@
 //! fault messages and applying fault replies (seL4 api/faults.c,
 //! kernel/faulthandler.c).
 
-use crate::cap::Cap;
+use crate::capability::Cap;
 use crate::endpoint;
 use crate::error::{Fault, LookupFault};
 use crate::layout::{reg, tcb as tl};

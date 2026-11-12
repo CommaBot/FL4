@@ -1,7 +1,7 @@
 //! Typed object handles. Each handle is the kernel virtual address of the
 //! object; fields are words at fixed offsets (see `layout`).
 
-use crate::cap::Cap;
+use crate::capability::Cap;
 use crate::layout;
 use crate::machine::Store;
 
@@ -186,7 +186,7 @@ use layout::sc as c;
 fields!(Sc {
     period / set_period = c::PERIOD;
     consumed / set_consumed = c::CONSUMED;
-    core / set_core = c::CORE;
+    cpu / set_cpu = c::CORE;
     tcb / set_tcb = c::TCB;
     reply / set_reply = c::REPLY;
     ntfn / set_ntfn = c::NTFN;
@@ -297,15 +297,15 @@ pub fn ks_set<S: Store>(s: &mut S, off: u64, v: u64) {
     s.write(b.wrapping_add(off), v)
 }
 
-pub fn node_base<S: Store>(s: &S, core: u64) -> u64 {
-    s.ks_base().wrapping_add(layout::ks::NODES).wrapping_add(core.wrapping_mul(layout::node::SIZE))
+pub fn node_base<S: Store>(s: &S, cpu: u64) -> u64 {
+    s.ks_base().wrapping_add(layout::ks::NODES).wrapping_add(cpu.wrapping_mul(layout::node::SIZE))
 }
 
-pub fn node_get<S: Store>(s: &S, core: u64, off: u64) -> u64 {
-    s.read(node_base(s, core).wrapping_add(off))
+pub fn node_get<S: Store>(s: &S, cpu: u64, off: u64) -> u64 {
+    s.read(node_base(s, cpu).wrapping_add(off))
 }
 
-pub fn node_set<S: Store>(s: &mut S, core: u64, off: u64, v: u64) {
-    let b = node_base(s, core);
+pub fn node_set<S: Store>(s: &mut S, cpu: u64, off: u64, v: u64) {
+    let b = node_base(s, cpu);
     s.write(b.wrapping_add(off), v)
 }

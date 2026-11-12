@@ -1,7 +1,7 @@
 //! Object rules shared by all capability types (seL4 object/objecttype.c
 //! and the x86/x86_64 Arch_ and Mode_ variants).
 
-use crate::cap::{Cap, FrameSize, Rights, VM_READ_WRITE, ZOMBIE_TCB};
+use crate::capability::{Cap, FrameSize, Rights, VM_READ_WRITE, ZOMBIE_TCB};
 use crate::cdt;
 use crate::error::{Exc, KResult, SysError};
 use crate::interrupt;
@@ -214,7 +214,7 @@ pub fn is_cap_revocable(derived: Cap, src: Cap) -> bool {
 }
 
 pub fn mask_rights(r: Rights, c: Cap) -> Cap {
-    crate::cap::mask_cap_rights(r, c)
+    crate::capability::mask_cap_rights(r, c)
 }
 
 /// seL4 `deriveCap`.
@@ -389,23 +389,23 @@ pub fn post_cap_deletion<S: Store, A: Arch>(s: &mut S, a: &mut A, cleanup: Cap) 
 // ---- debug list of TCBs ----------------------------------------------------
 
 pub fn debug_append<S: Store>(s: &mut S, t: Tcb) {
-    let core = t.affinity(s);
-    let head = crate::obj::node_get(s, core, layout::node::DEBUG_TCBS);
+    let cpu = t.affinity(s);
+    let head = crate::obj::node_get(s, cpu, layout::node::DEBUG_TCBS);
     t.set_debug_prev(s, 0);
     t.set_debug_next(s, head);
     if head != 0 {
         Tcb(head).set_debug_prev(s, t.0);
     }
-    crate::obj::node_set(s, core, layout::node::DEBUG_TCBS, t.0);
+    crate::obj::node_set(s, cpu, layout::node::DEBUG_TCBS, t.0);
 }
 
 pub fn debug_remove<S: Store>(s: &mut S, t: Tcb) {
-    let core = t.affinity(s);
-    let head = crate::obj::node_get(s, core, layout::node::DEBUG_TCBS);
+    let cpu = t.affinity(s);
+    let head = crate::obj::node_get(s, cpu, layout::node::DEBUG_TCBS);
     let next = t.debug_next(s);
     let prev = t.debug_prev(s);
     if head == t.0 {
-        crate::obj::node_set(s, core, layout::node::DEBUG_TCBS, next);
+        crate::obj::node_set(s, cpu, layout::node::DEBUG_TCBS, next);
     } else if prev != 0 {
         Tcb(prev).set_debug_next(s, next);
     }
@@ -472,36 +472,54 @@ pub fn create_object<S: Store, A: Arch>(s: &mut S, a: &mut A, t: u64, base: u64,
     }
 }
 
+/// "child of" and ": '", little-endian.
+const CHILD_PREFIX0: u64 = 0x666f_2064_6c69_6863;
+const CHILD_PREFIX1: u64 = 0x0027_203a;
+const CHILD_PREFIX_LEN: u64 = 11;
+/// Room for the parent's name: the prefix, the closing quote and the NUL
+/// take the rest of the 64 bytes.
+const CHILD_NAME_MAX: u64 = 51;
+
+fn name_byte<S: Store>(s: &S, t: Tcb, i: u64) -> u64 {
+    (s.read(t.name_addr().wrapping_add(i & !7)) >> ((i & 7) * 8)) & 0xff
+}
+
+/// Byte `i` of "child of: '<first len bytes of parent's name>'".
+fn child_name_byte<S: Store>(s: &S, parent: Tcb, len: u64, i: u64) -> u64 {
+    if i < 8 {
+        (CHILD_PREFIX0 >> (i * 8)) & 0xff
+    } else if i < CHILD_PREFIX_LEN {
+        (CHILD_PREFIX1 >> ((i - 8) * 8)) & 0xff
+    } else if i < CHILD_PREFIX_LEN + len {
+        name_byte(s, parent, i - CHILD_PREFIX_LEN)
+    } else if i == CHILD_PREFIX_LEN + len {
+        0x27
+    } else {
+        0
+    }
+}
+
 /// "child of: '<parent name>'", as seL4 names new TCBs in debug builds.
+/// Built a byte at a time (no local arrays, so it translates to Lean).
 fn set_child_name<S: Store>(s: &mut S, child: Tcb, parent: Tcb) {
     if !fl4_abi::config::DEBUG_BUILD || parent.is_null() {
         return;
     }
-    let prefix: [u8; 11] = *b"child of: '";
-    let mut buf: [u8; 64] = [0; 64];
-    let mut n: usize = 0;
-    while n < 11 {
-        buf[n] = prefix[n];
-        n += 1;
-    }
-    let mut i: u64 = 0;
-    while i < 64 && n < 62 {
-        let w = s.read(parent.name_addr().wrapping_add(i & !7));
-        let c = ((w >> ((i & 7) * 8)) & 0xff) as u8;
-        if c == 0 {
-            break;
+    let mut len: u64 = 0;
+    let mut done = false;
+    while len < CHILD_NAME_MAX && !done {
+        if name_byte(s, parent, len) == 0 {
+            done = true;
+        } else {
+            len += 1;
         }
-        buf[n] = c;
-        n += 1;
-        i += 1;
     }
-    buf[n] = b'\'';
     let mut w: u64 = 0;
     while w < 8 {
         let mut v: u64 = 0;
         let mut k: u64 = 0;
         while k < 8 {
-            v |= (buf[(w * 8 + k) as usize] as u64) << (k * 8);
+            v |= child_name_byte(s, parent, len, w * 8 + k) << (k * 8);
             k += 1;
         }
         s.write(child.name_addr().wrapping_add(w * 8), v);

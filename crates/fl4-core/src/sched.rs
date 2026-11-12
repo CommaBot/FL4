@@ -76,8 +76,8 @@ fn set_consumed<S: Store>(s: &mut S, v: u64) {
     node_set(s, c, node::CONSUMED, v)
 }
 
-pub fn set_reprogram_on<S: Store>(s: &mut S, core: u64) {
-    node_set(s, core, node::REPROGRAM, 1)
+pub fn set_reprogram_on<S: Store>(s: &mut S, cpu: u64) {
+    node_set(s, cpu, node::REPROGRAM, 1)
 }
 
 pub fn set_reprogram<S: Store>(s: &mut S) {
@@ -183,25 +183,25 @@ fn bitmap_dom(dom: u64) -> u64 {
     }
 }
 
-fn add_to_bitmap<S: Store>(s: &mut S, core: u64, dom: u64, prio: u64) {
+fn add_to_bitmap<S: Store>(s: &mut S, cpu: u64, dom: u64, prio: u64) {
     let d = bitmap_dom(dom);
     let l1 = prio >> 6;
     let inv = 3 - (l1 & 3);
-    let v1 = node_get(s, core, l1_off(d));
-    node_set(s, core, l1_off(d), v1 | (1u64 << l1));
-    let v2 = node_get(s, core, l2_off(d, inv));
-    node_set(s, core, l2_off(d, inv), v2 | (1u64 << (prio & 63)));
+    let v1 = node_get(s, cpu, l1_off(d));
+    node_set(s, cpu, l1_off(d), v1 | (1u64 << l1));
+    let v2 = node_get(s, cpu, l2_off(d, inv));
+    node_set(s, cpu, l2_off(d, inv), v2 | (1u64 << (prio & 63)));
 }
 
-fn remove_from_bitmap<S: Store>(s: &mut S, core: u64, dom: u64, prio: u64) {
+fn remove_from_bitmap<S: Store>(s: &mut S, cpu: u64, dom: u64, prio: u64) {
     let d = bitmap_dom(dom);
     let l1 = prio >> 6;
     let inv = 3 - (l1 & 3);
-    let v2 = node_get(s, core, l2_off(d, inv)) & !(1u64 << (prio & 63));
-    node_set(s, core, l2_off(d, inv), v2);
+    let v2 = node_get(s, cpu, l2_off(d, inv)) & !(1u64 << (prio & 63));
+    node_set(s, cpu, l2_off(d, inv), v2);
     if v2 == 0 {
-        let v1 = node_get(s, core, l1_off(d));
-        node_set(s, core, l1_off(d), v1 & !(1u64 << l1));
+        let v1 = node_get(s, cpu, l1_off(d));
+        node_set(s, cpu, l1_off(d), v1 & !(1u64 << l1));
     }
 }
 
@@ -210,12 +210,12 @@ fn highest_set_bit(w: u64) -> u64 {
 }
 
 pub fn highest_prio<S: Store>(s: &S, dom: u64) -> u64 {
-    let core = s.cur_cpu();
+    let cpu = s.cur_cpu();
     let d = bitmap_dom(dom);
-    let l1 = node_get(s, core, l1_off(d));
+    let l1 = node_get(s, cpu, l1_off(d));
     let l1i = highest_set_bit(l1);
     let inv = 3 - (l1i & 3);
-    let l2 = node_get(s, core, l2_off(d, inv));
+    let l2 = node_get(s, cpu, l2_off(d, inv));
     (l1i << 6) | highest_set_bit(l2)
 }
 
@@ -224,13 +224,13 @@ pub fn is_highest_prio<S: Store>(s: &S, dom: u64, prio: u64) -> bool {
     node_get(s, s.cur_cpu(), l1_off(d)) == 0 || prio >= highest_prio(s, dom)
 }
 
-fn q_get<S: Store>(s: &S, core: u64, off: u64) -> Queue {
-    Queue { head: Tcb(node_get(s, core, off)), end: Tcb(node_get(s, core, off.wrapping_add(8))) }
+fn q_get<S: Store>(s: &S, cpu: u64, off: u64) -> Queue {
+    Queue { head: Tcb(node_get(s, cpu, off)), end: Tcb(node_get(s, cpu, off.wrapping_add(8))) }
 }
 
-fn q_set<S: Store>(s: &mut S, core: u64, off: u64, q: Queue) {
-    node_set(s, core, off, q.head.0);
-    node_set(s, core, off.wrapping_add(8), q.end.0);
+fn q_set<S: Store>(s: &mut S, cpu: u64, off: u64, q: Queue) {
+    node_set(s, cpu, off, q.head.0);
+    node_set(s, cpu, off.wrapping_add(8), q.end.0);
 }
 
 /// seL4 `tcbSchedEnqueue`.
@@ -238,16 +238,16 @@ pub fn enqueue<S: Store>(s: &mut S, t: Tcb) {
     if queued(s, t) {
         return;
     }
-    let core = t.affinity(s);
+    let cpu = t.affinity(s);
     let dom = t.domain(s);
     let prio = t.prio(s);
     let off = rq_head_off(dom, prio);
-    let q = q_get(s, core, off);
+    let q = q_get(s, cpu, off);
     if q.is_empty() {
-        add_to_bitmap(s, core, dom, prio);
+        add_to_bitmap(s, cpu, dom, prio);
     }
     let q = tcbqueue::prepend(s, Link::Sched, q, t);
-    q_set(s, core, off, q);
+    q_set(s, cpu, off, q);
     set_flag(s, t, Q_QUEUED, true);
 }
 
@@ -256,16 +256,16 @@ pub fn append<S: Store>(s: &mut S, t: Tcb) {
     if queued(s, t) {
         return;
     }
-    let core = t.affinity(s);
+    let cpu = t.affinity(s);
     let dom = t.domain(s);
     let prio = t.prio(s);
     let off = rq_head_off(dom, prio);
-    let q = q_get(s, core, off);
+    let q = q_get(s, cpu, off);
     if q.is_empty() {
-        add_to_bitmap(s, core, dom, prio);
+        add_to_bitmap(s, cpu, dom, prio);
     }
     let q = tcbqueue::append(s, Link::Sched, q, t);
-    q_set(s, core, off, q);
+    q_set(s, cpu, off, q);
     set_flag(s, t, Q_QUEUED, true);
 }
 
@@ -274,16 +274,16 @@ pub fn dequeue<S: Store>(s: &mut S, t: Tcb) {
     if !queued(s, t) {
         return;
     }
-    let core = t.affinity(s);
+    let cpu = t.affinity(s);
     let dom = t.domain(s);
     let prio = t.prio(s);
     let off = rq_head_off(dom, prio);
-    let q = q_get(s, core, off);
+    let q = q_get(s, cpu, off);
     let q = tcbqueue::remove(s, Link::Sched, q, t);
-    q_set(s, core, off, q);
+    q_set(s, cpu, off, q);
     set_flag(s, t, Q_QUEUED, false);
     if q.is_empty() {
-        remove_from_bitmap(s, core, dom, prio);
+        remove_from_bitmap(s, cpu, dom, prio);
     }
 }
 
@@ -298,27 +298,27 @@ pub fn release_remove<S: Store>(s: &mut S, t: Tcb) {
     if !in_release_queue(s, t) {
         return;
     }
-    let core = t.affinity(s);
-    if node_get(s, core, node::RELEASE_HEAD) == t.0 {
-        set_reprogram_on(s, core);
+    let cpu = t.affinity(s);
+    if node_get(s, cpu, node::RELEASE_HEAD) == t.0 {
+        set_reprogram_on(s, cpu);
     }
-    let q = q_get(s, core, node::RELEASE_HEAD);
+    let q = q_get(s, cpu, node::RELEASE_HEAD);
     let q = tcbqueue::remove(s, Link::Sched, q, t);
-    q_set(s, core, node::RELEASE_HEAD, q);
+    q_set(s, cpu, node::RELEASE_HEAD, q);
     set_flag(s, t, Q_RELEASE, false);
 }
 
 /// seL4 `tcbReleaseEnqueue`: the release queue is ordered by ready time.
 pub fn release_enqueue<S: Store>(s: &mut S, t: Tcb) {
-    let core = t.affinity(s);
-    let q = q_get(s, core, node::RELEASE_HEAD);
+    let cpu = t.affinity(s);
+    let q = q_get(s, cpu, node::RELEASE_HEAD);
     let new_time = ready_time(s, t);
     if q.is_empty() || new_time < ready_time(s, q.head) {
         let nq = tcbqueue::prepend(s, Link::Sched, q, t);
-        q_set(s, core, node::RELEASE_HEAD, nq);
+        q_set(s, cpu, node::RELEASE_HEAD, nq);
     } else if ready_time(s, q.end) <= new_time {
         let nq = tcbqueue::append(s, Link::Sched, q, t);
-        q_set(s, core, node::RELEASE_HEAD, nq);
+        q_set(s, cpu, node::RELEASE_HEAD, nq);
     } else {
         // The first thread released after new_time exists and is not the
         // head, because of the checks above.
@@ -329,8 +329,8 @@ pub fn release_enqueue<S: Store>(s: &mut S, t: Tcb) {
         tcbqueue::insert_before(s, Link::Sched, t, after);
     }
     set_flag(s, t, Q_RELEASE, true);
-    if node_get(s, core, node::RELEASE_HEAD) != q.head.0 {
-        set_reprogram_on(s, core);
+    if node_get(s, cpu, node::RELEASE_HEAD) != q.head.0 {
+        set_reprogram_on(s, cpu);
     }
 }
 
@@ -365,8 +365,8 @@ pub fn postpone<S: Store>(s: &mut S, sc: Sc) {
     let t = Tcb(sc.tcb(s));
     dequeue(s, t);
     release_enqueue(s, t);
-    let core = sc.core(s);
-    set_reprogram_on(s, core);
+    let cpu = sc.cpu(s);
+    set_reprogram_on(s, cpu);
 }
 
 /// seL4 `setNextInterrupt`.
@@ -575,10 +575,10 @@ fn switch_to_idle_thread<S: Store, A: Arch>(s: &mut S, a: &mut A) {
 
 fn choose_thread<S: Store, A: Arch>(s: &mut S, a: &mut A) {
     let dom = if NUM_DOMAINS > 1 { cur_domain(s) } else { 0 };
-    let core = s.cur_cpu();
-    if node_get(s, core, l1_off(bitmap_dom(dom))) != 0 {
+    let cpu = s.cur_cpu();
+    if node_get(s, cpu, l1_off(bitmap_dom(dom))) != 0 {
         let prio = highest_prio(s, dom);
-        let t = q_get(s, core, rq_head_off(dom, prio)).head;
+        let t = q_get(s, cpu, rq_head_off(dom, prio)).head;
         switch_to_thread(s, a, t);
     } else {
         switch_to_idle_thread(s, a);
@@ -624,7 +624,8 @@ pub fn schedule<S: Store, A: Arch>(s: &mut S, a: &mut A) {
         } else {
             let cand = Tcb(act);
             let ct = cur_thread(s);
-            let fastfail = ct == idle_thread(s) || cand.prio(s) < ct.prio(s);
+            // (An if, not `||`: see ioport::decode.)
+            let fastfail = if ct == idle_thread(s) || cand.prio(s) < ct.prio(s) { true } else { false };
             if fastfail && !is_highest_prio(s, cur_domain(s), cand.prio(s)) {
                 enqueue(s, cand);
                 set_action(s, ACTION_CHOOSE_NEW);

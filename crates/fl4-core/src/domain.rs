@@ -1,7 +1,7 @@
 //! The domain capability (seL4 object/domain.c, with the runtime domain
 //! schedule of seL4 17.0).
 
-use crate::cap::Cap;
+use crate::capability::Cap;
 use crate::error::{illegal, invalid_arg, range, truncated, KResult};
 use crate::layout::{ks, NUM_DOMAINS, NUM_DOMAIN_SCHEDULES};
 use crate::machine::Store;

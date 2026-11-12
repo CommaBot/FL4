@@ -1,7 +1,7 @@
 //! Message transfer, cancellation, and replies (seL4 kernel/thread.c
 //! doIPCTransfer and friends, endpoint.c cancelIPC, MCS reply.c).
 
-use crate::cap::Cap;
+use crate::capability::Cap;
 use crate::cdt;
 use crate::cspace;
 use crate::endpoint;
@@ -261,7 +261,7 @@ pub fn do_reply_transfer<S: Store, A: Arch>(s: &mut S, a: &mut A, sender: Tcb, r
     }
     reply_remove(s, a, r, receiver);
     let rsc = Sc(receiver.sc(s));
-    if sporadic::sc_sporadic(s, rsc) && rsc.0 != crate::obj::node_get(s, rsc.core(s), crate::layout::node::CUR_SC) {
+    if sporadic::sc_sporadic(s, rsc) && rsc.0 != crate::obj::node_get(s, rsc.cpu(s), crate::layout::node::CUR_SC) {
         sporadic::unblock_check(s, rsc);
     }
     let fault_type = receiver.fault_type(s);

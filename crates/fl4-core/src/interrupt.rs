@@ -1,7 +1,7 @@
 //! IRQControl, IRQHandler and interrupt delivery (seL4 object/interrupt.c,
 //! arch/x86/object/interrupt.c, l4h 0025).
 
-use crate::cap::Cap;
+use crate::capability::Cap;
 use crate::cdt;
 use crate::cspace;
 use crate::error::{illegal, invalid_cap, range, truncated, Exc, KResult, SysError};

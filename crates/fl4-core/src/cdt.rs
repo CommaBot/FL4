@@ -5,7 +5,7 @@
 //! children follow it, and `is_mdb_parent_of` decides where its subtree
 //! ends.
 
-use crate::cap::Cap;
+use crate::capability::Cap;
 use crate::error::{Exc, KResult, SysError};
 use crate::machine::{Arch, Store};
 use crate::objects;
@@ -234,24 +234,26 @@ struct Finalised {
     cleanup: Cap,
 }
 
+/// seL4 `finaliseSlot`. Recursive rather than a loop: it is mutually
+/// recursive with `reduce_zombie`, which Lean accepts for functions but not
+/// for loops. Each round either finishes or reduces the zombie in `slot`.
 fn finalise_slot<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot, immediate: bool) -> KResult<Finalised> {
-    loop {
-        let cap = slot.cap(s);
-        if cap.is_null() {
-            return Ok(Finalised { success: true, cleanup: Cap::Null });
-        }
-        let fin = is_final_capability(s, slot);
-        let (remainder, cleanup) = objects::finalise_cap(s, a, cap, fin, false);
-        if cap_removable(remainder, slot) {
-            return Ok(Finalised { success: true, cleanup });
-        }
-        slot.set_cap(s, remainder);
-        if !immediate && cap_cyclic_zombie(remainder, slot) {
-            return Ok(Finalised { success: false, cleanup });
-        }
-        reduce_zombie(s, a, slot, immediate)?;
-        sched::preemption_point(s, a)?;
+    let cap = slot.cap(s);
+    if cap.is_null() {
+        return Ok(Finalised { success: true, cleanup: Cap::Null });
     }
+    let fin = is_final_capability(s, slot);
+    let (remainder, cleanup) = objects::finalise_cap(s, a, cap, fin, false);
+    if cap_removable(remainder, slot) {
+        return Ok(Finalised { success: true, cleanup });
+    }
+    slot.set_cap(s, remainder);
+    if !immediate && cap_cyclic_zombie(remainder, slot) {
+        return Ok(Finalised { success: false, cleanup });
+    }
+    reduce_zombie(s, a, slot, immediate)?;
+    sched::preemption_point(s, a)?;
+    finalise_slot(s, a, slot, immediate)
 }
 
 fn reduce_zombie<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot, immediate: bool) -> KResult<()> {

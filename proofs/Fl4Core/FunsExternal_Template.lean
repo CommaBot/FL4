@@ -43,29 +43,3 @@ axiom core.num.U64.trailing_zeros : Std.U64 → Result Std.U32
 axiom core.result.Result.is_err
   {T : Type _} {E : Type _} : core.result.Result T E → Result Bool
 
-/-- [fl4_core::boot::create_it_address_space]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 178:0-211:1 -/
-axiom boot.create_it_address_space
-  {S : Type _} (machineStoreInst : machine.Store S) :
-  S → boot.Boot → boot.Region → Std.U64 → Result ((core.result.Result
-    cap.Cap boot.BootError) × S × boot.Boot)
-
-/-- [fl4_core::boot::create_root_task]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 305:0-494:1
-    Visibility: public -/
-axiom boot.create_root_task
-  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) :
-  S → A → boot.BootParams → Result ((core.result.Result obj.Tcb
-    boot.BootError) × S × A × boot.BootParams)
-
-/-- [fl4_core::untyped::decode]:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 25:0-108:1
-    Visibility: public -/
-axiom untyped.decode
-  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) :
-  S → A → Std.U64 → Std.U64 → obj.Slot → cap.Cap → Std.U64 →
-    Array obj.Slot 3#usize → Result ((core.result.Result Unit error.Exc) × S
-    × A)
-

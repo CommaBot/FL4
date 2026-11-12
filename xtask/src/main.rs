@@ -314,7 +314,7 @@ fn sel4test_results(out: &str) -> (usize, Vec<String>) {
             if let Some(n) = n.and_then(|n| n.parse().ok()) {
                 passed = n;
             }
-        } else if (l.starts_with("\tError:") || l.starts_with("\tFailure:") || (l.starts_with("Test ") && l.ends_with(" failed"))) {
+        } else if l.starts_with("\tError:") || l.starts_with("\tFailure:") || (l.starts_with("Test ") && l.ends_with(" failed")) {
             if let Some(c) = &current {
                 if !failed.contains(c) {
                     failed.push(c.clone());
@@ -323,6 +323,23 @@ fn sel4test_results(out: &str) -> (usize, Vec<String>) {
         }
     }
     (passed, failed)
+}
+
+/// The extractability gate (DESIGN.md §6): all of fl4-core goes through
+/// Charon and Aeneas without errors, the result typechecks in Lean, and so
+/// do the proofs about it. `extract` already fails on any Aeneas error.
+fn gate() {
+    extract();
+    // proofs/lakefile.lean requires Aeneas's Lean library from .deps/aeneas.
+    let link = root().join("proofs/.deps/aeneas");
+    if !link.exists() {
+        fs::create_dir_all(link.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(deps().join("aeneas/backends/lean"), &link).unwrap();
+    }
+    let mut c = Command::new("lake");
+    c.current_dir(root().join("proofs")).arg("build");
+    run(&mut c);
+    eprintln!("xtask: gate passed");
 }
 
 fn extract() {
@@ -354,8 +371,9 @@ fn main() {
         }
         "sel4test" => sel4test(&o),
         "extract" => extract(),
+        "gate" => gate(),
         _ => {
-            eprintln!("usage: cargo xtask <kernel|run|sel4test-build|sel4test|extract> [--release] [--setup kvm|kvm-reduced|tcg] [--smp N] [--timeout S]");
+            eprintln!("usage: cargo xtask <kernel|run|sel4test-build|sel4test|extract|gate> [--release] [--setup kvm|kvm-reduced|tcg] [--smp N] [--timeout S]");
             exit(2);
         }
     }

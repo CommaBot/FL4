@@ -10,7 +10,7 @@
 #![allow(clippy::too_many_arguments, clippy::needless_range_loop)]
 
 pub mod boot;
-pub mod cap;
+pub mod capability;
 pub mod cdt;
 pub mod cnode;
 pub mod cspace;

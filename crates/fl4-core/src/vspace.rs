@@ -3,7 +3,7 @@
 //! l4h's ExecuteNever (0009), DeferFlush and PML4_Flush (0017),
 //! TestAndClearAccessed (0023) and DeriveSubframe (0029).
 
-use crate::cap::{mask_vm_rights, Cap, FrameSize, Rights, VM_KERNEL_ONLY, VM_READ_ONLY};
+use crate::capability::{mask_vm_rights, Cap, FrameSize, Rights, VM_KERNEL_ONLY, VM_READ_ONLY};
 use crate::cdt;
 use crate::cspace;
 use crate::error::{illegal, invalid_arg, invalid_cap, range, truncated, Exc, KResult, LookupFault, SysError};

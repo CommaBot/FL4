@@ -57,7 +57,7 @@ pub enum Cap {
     Zombie { ptr: u64, ztype: u64, number: u64 },
     Domain,
     SchedContext { ptr: u64, size_bits: u64 },
-    SchedControl { core: u64 },
+    SchedControl { cpu: u64 },
     Frame { ptr: u64, size: FrameSize, rights: u64, is_device: bool, mapped: bool, asid: u64, vaddr: u64 },
     PageTable { ptr: u64, mapped: bool, asid: u64, vaddr: u64 },
     PageDirectory { ptr: u64, mapped: bool, asid: u64, vaddr: u64 },
@@ -128,7 +128,7 @@ impl Cap {
             9 => Cap::Zombie { ptr: p, ztype: (w0 >> 48) & 0xff, number: w1 },
             10 => Cap::Domain,
             11 => Cap::SchedContext { ptr: p, size_bits: (w0 >> 48) & 0x3f },
-            12 => Cap::SchedControl { core: w1 },
+            12 => Cap::SchedControl { cpu: w1 },
             13 => Cap::Frame {
                 ptr: p,
                 size: FrameSize::from_code((w0 >> 48) & 3),
@@ -174,7 +174,7 @@ impl Cap {
             Cap::Zombie { ptr, ztype, number } => (tag(9) | pack_ptr(ptr) | ((ztype & 0xff) << 48), number),
             Cap::Domain => (tag(10), 0),
             Cap::SchedContext { ptr, size_bits } => (tag(11) | pack_ptr(ptr) | ((size_bits & 0x3f) << 48), 0),
-            Cap::SchedControl { core } => (tag(12), core),
+            Cap::SchedControl { cpu } => (tag(12), cpu),
             Cap::Frame { ptr, size, rights, is_device, mapped, asid, vaddr } => (
                 tag(13)
                     | pack_ptr(ptr)

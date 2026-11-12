@@ -1,7 +1,7 @@
 //! Scheduling contexts and SchedControl (seL4 object/schedcontext.c,
 //! object/schedcontrol.c).
 
-use crate::cap::Cap;
+use crate::capability::Cap;
 use crate::error::{illegal, invalid_cap, range, truncated, KResult};
 use crate::machine::{Arch, Store};
 use crate::msg;
@@ -26,7 +26,7 @@ pub fn resume<S: Store, A: Arch>(s: &mut S, a: &mut A, sc: Sc) {
 pub fn bind_tcb<S: Store, A: Arch>(s: &mut S, a: &mut A, sc: Sc, t: Tcb) {
     t.set_sc(s, sc.0);
     sc.set_tcb(s, t.0);
-    crate::smp::migrate_tcb(s, a, t, sc.core(s));
+    crate::smp::migrate_tcb(s, a, t, sc.cpu(s));
     if sporadic::sc_sporadic(s, sc) && sporadic::sc_active(s, sc) && sc != sched::cur_sc(s) {
         sporadic::unblock_check(s, sc);
     }
@@ -71,7 +71,7 @@ pub fn donate<S: Store, A: Arch>(s: &mut S, a: &mut A, sc: Sc, to: Tcb) {
     }
     sc.set_tcb(s, to.0);
     to.set_sc(s, sc.0);
-    crate::smp::migrate_tcb(s, a, to, sc.core(s));
+    crate::smp::migrate_tcb(s, a, to, sc.cpu(s));
 }
 
 pub fn bind_ntfn<S: Store>(s: &mut S, sc: Sc, n: Ntfn) {
@@ -158,7 +158,7 @@ fn yield_to<S: Store, A: Arch>(s: &mut S, a: &mut A, sc: Sc, call: bool) {
     let ct = sched::cur_thread(s);
     let return_now;
     if sched::is_schedulable(s, t) {
-        if sc.core(s) != s.cur_cpu() || t.prio(s) < ct.prio(s) {
+        if sc.cpu(s) != s.cur_cpu() || t.prio(s) < ct.prio(s) {
             sched::dequeue(s, t);
             sched::enqueue(s, t);
             return_now = true;
@@ -269,7 +269,7 @@ fn configure_flags<S: Store, A: Arch>(
     s: &mut S,
     a: &mut A,
     target: Sc,
-    core: u64,
+    cpu: u64,
     budget: u64,
     period: u64,
     max_refills: u64,
@@ -287,7 +287,7 @@ fn configure_flags<S: Store, A: Arch>(
     }
     if budget == period {
         sporadic::refill_new(s, target, MIN_REFILLS, budget, 0);
-    } else if core == target.core(s)
+    } else if cpu == target.cpu(s)
         && sporadic::sc_active(s, target)
         && !thread.is_null()
         && sched::is_runnable(s, thread)
@@ -296,11 +296,11 @@ fn configure_flags<S: Store, A: Arch>(
     } else {
         sporadic::refill_new(s, target, max_refills, budget, period);
     }
-    target.set_core(s, core);
+    target.set_cpu(s, cpu);
     if !thread.is_null() {
-        crate::smp::migrate_tcb(s, a, thread, core);
+        crate::smp::migrate_tcb(s, a, thread, cpu);
         resume(s, a, target);
-        if core == s.cur_cpu() {
+        if cpu == s.cur_cpu() {
             if sched::is_runnable(s, thread) && thread != sched::cur_thread(s) {
                 sched::possible_switch_to(s, thread);
             }
@@ -308,10 +308,10 @@ fn configure_flags<S: Store, A: Arch>(
             // l4h 0013: only a schedulable thread joins a remote ready
             // queue; the remote core still reprograms its timer.
             sched::enqueue(s, thread);
-            crate::smp::remote_reschedule(s, a, core);
+            crate::smp::remote_reschedule(s, a, cpu);
         } else {
-            sched::set_reprogram_on(s, core);
-            crate::smp::remote_reschedule(s, a, core);
+            sched::set_reprogram_on(s, cpu);
+            crate::smp::remote_reschedule(s, a, cpu);
         }
         if thread == sched::cur_thread(s) {
             sched::reschedule_required(s);
@@ -326,7 +326,7 @@ pub fn decode_sched_control<S: Store, A: Arch>(
     s: &mut S,
     a: &mut A,
     lbl: u64,
-    core: u64,
+    cpu: u64,
     length: u64,
     buf: u64,
     extra: &[Slot; 3],
@@ -373,6 +373,6 @@ pub fn decode_sched_control<S: Store, A: Arch>(
     let badge = msg::syscall_arg(s, ct, buf, 3);
     let flags = msg::syscall_arg(s, ct, buf, 4);
     sched::set_thread_state(s, ct, sched::TS_RESTART);
-    configure_flags(s, a, Sc(sc_ptr), core, budget, period, extra_refills + MIN_REFILLS, badge, flags);
+    configure_flags(s, a, Sc(sc_ptr), cpu, budget, period, extra_refills + MIN_REFILLS, badge, flags);
     Ok(())
 }

@@ -3,7 +3,7 @@
 //! loads the root task's image and builds the extra BootInfo records; this
 //! module turns that into the root task's capabilities.
 
-use crate::cap::{Cap, FrameSize, VM_READ_WRITE};
+use crate::capability::{Cap, FrameSize, VM_READ_WRITE};
 use crate::cdt;
 use crate::interrupt;
 use crate::layout::{self, irq, ks, node, tcb as tl};
@@ -96,6 +96,8 @@ struct Boot {
     /// Bump allocator over the root server's memory.
     next: u64,
     end: u64,
+    /// The root CNode overflowed.
+    full: bool,
 }
 
 fn bi_set<S: Store>(s: &mut S, b: &Boot, word: u64, v: u64) {
@@ -114,13 +116,16 @@ fn root_slot(b: &Boot, i: u64) -> Slot {
     Slot::index(b.root_cnode, i)
 }
 
-fn provide_cap<S: Store>(s: &mut S, b: &mut Boot, c: Cap) -> Result<(), BootError> {
+/// Put `c` in the next free root CNode slot. When the CNode is full the
+/// cap is dropped and `b.full` set; `create_root_task` then fails. (No
+/// early exit, so the loops that call this translate to Lean.)
+fn provide_cap<S: Store>(s: &mut S, b: &mut Boot, c: Cap) {
     if b.slot_pos >= (1u64 << ROOT_CNODE_BITS) {
-        return Err(BootError::TooManyCaps);
+        b.full = true;
+    } else {
+        write_slot(s, root_slot(b, b.slot_pos), c);
+        b.slot_pos += 1;
     }
-    write_slot(s, root_slot(b, b.slot_pos), c);
-    b.slot_pos += 1;
-    Ok(())
 }
 
 fn alloc<S: Store>(s: &mut S, b: &mut Boot, size_bits: u64, n: u64) -> u64 {
@@ -175,7 +180,7 @@ fn it_frame_cap(pptr: u64, vaddr: u64, mapped: bool) -> Cap {
 }
 
 /// seL4 `create_it_address_space` (x86_64).
-fn create_it_address_space<S: Store>(s: &mut S, b: &mut Boot, it: Region, pml4: u64) -> Result<Cap, BootError> {
+fn create_it_address_space<S: Store>(s: &mut S, b: &mut Boot, it: Region, pml4: u64) -> Cap {
     vspace::copy_global_mappings(s, pml4);
     let cap = Cap::Pml4 { ptr: pml4, mapped: true, asid: IT_ASID };
     write_slot(s, root_slot(b, rs::InitThreadVSpace), cap);
@@ -200,30 +205,30 @@ fn create_it_address_space<S: Store>(s: &mut S, b: &mut Boot, it: Region, pml4: 
                 s.write(pd + ((v >> 21) & 511) * 8, e);
                 Cap::PageTable { ptr: t, mapped: true, asid: IT_ASID, vaddr: v }
             };
-            provide_cap(s, b, c)?;
+            provide_cap(s, b, c);
             v = v.wrapping_add(1u64 << level);
         }
         level -= 9;
     }
     bi_set(s, b, bi::USER_IMAGE_PAGING, first);
     bi_set(s, b, bi::USER_IMAGE_PAGING + 1, b.slot_pos);
-    Ok(cap)
+    cap
 }
 
-fn create_frames<S: Store>(s: &mut S, b: &mut Boot, reg: Region, pml4: u64, pv_offset: u64) -> Result<(u64, u64), BootError> {
+fn create_frames<S: Store>(s: &mut S, b: &mut Boot, reg: Region, pml4: u64, pv_offset: u64) -> (u64, u64) {
     let before = b.slot_pos;
     let mut f = reg.start;
     while f < reg.end {
         let paddr = layout::paddr(f);
         let vaddr = paddr.wrapping_sub(pv_offset);
         map_it_frame(s, pml4, vaddr, paddr);
-        provide_cap(s, b, it_frame_cap(f, vaddr, true))?;
+        provide_cap(s, b, it_frame_cap(f, vaddr, true));
         f += 4096;
     }
-    Ok((before, b.slot_pos))
+    (before, b.slot_pos)
 }
 
-fn create_untypeds_for_region<S: Store>(s: &mut S, b: &mut Boot, device: bool, reg: Region, first: u64) -> Result<(), BootError> {
+fn create_untypeds_for_region<S: Store>(s: &mut S, b: &mut Boot, device: bool, reg: Region, first: u64) {
     let mut start = reg.start;
     while start < reg.end {
         let mut size_bits = 63 - (reg.end - start).leading_zeros() as u64;
@@ -248,12 +253,11 @@ fn create_untypeds_for_region<S: Store>(s: &mut S, b: &mut Boot, device: bool, r
                 if !device {
                     s.zero(start, 1u64 << size_bits);
                 }
-                provide_cap(s, b, Cap::Untyped { ptr, size_bits, free_index: 0, is_device: device })?;
+                provide_cap(s, b, Cap::Untyped { ptr, size_bits, free_index: 0, is_device: device });
             }
         }
         start = start.wrapping_add(1u64 << size_bits);
     }
-    Ok(())
 }
 
 fn configure_sched_context<S: Store>(s: &mut S, t: Tcb, sc: Sc, budget: u64) {
@@ -325,7 +329,7 @@ pub fn create_root_task<S: Store, A: Arch>(s: &mut S, a: &mut A, p: &mut BootPar
         Some(x) => x,
         None => return Err(BootError::NoMemory),
     };
-    let mut b = Boot { root_cnode: 0, slot_pos: 0, bi_frame: 0, next: start, end: start + size + (1u64 << max_bits) };
+    let mut b = Boot { root_cnode: 0, slot_pos: 0, bi_frame: 0, next: start, end: start + size + (1u64 << max_bits), full: false };
     let extra_bi = if ebits >= cnode_bits && ebits > 0 { alloc(s, &mut b, ebits, 1) } else { 0 };
     b.root_cnode = alloc(s, &mut b, cnode_bits, 1);
     let extra_bi = if extra_bi == 0 && ebits > 0 { alloc(s, &mut b, ebits, 1) } else { extra_bi };
@@ -374,25 +378,25 @@ pub fn create_root_task<S: Store, A: Arch>(s: &mut S, a: &mut A, p: &mut BootPar
     let first = b.slot_pos;
     let mut n = 0;
     while n < p.num_nodes {
-        provide_cap(s, &mut b, Cap::SchedControl { core: n })?;
+        provide_cap(s, &mut b, Cap::SchedControl { cpu: n });
         n += 1;
     }
     bi_set(s, &b, bi::SCHED_CONTROL, first);
     bi_set(s, &b, bi::SCHED_CONTROL + 1, b.slot_pos);
 
     // Address space, BootInfo frame, extra BootInfo, IPC buffer, image.
-    let vcap = create_it_address_space(s, &mut b, it, pml4)?;
+    let vcap = create_it_address_space(s, &mut b, it, pml4);
     map_it_frame(s, pml4, bi_frame_vptr, layout::paddr(b.bi_frame));
     write_slot(s, root_slot(&b, rs::BootInfoFrame), it_frame_cap(b.bi_frame, bi_frame_vptr, true));
     let extra_off = layout::paddr(extra_bi).wrapping_sub(extra_bi_vptr);
-    let (ef, el) = create_frames(s, &mut b, Region { start: extra_bi, end: extra_bi + ebytes }, pml4, extra_off)?;
+    let (ef, el) = create_frames(s, &mut b, Region { start: extra_bi, end: extra_bi + ebytes }, pml4, extra_off);
     bi_set(s, &b, bi::EXTRA_BI_PAGES, ef);
     bi_set(s, &b, bi::EXTRA_BI_PAGES + 1, el);
     map_it_frame(s, pml4, ipcbuf_vptr, layout::paddr(ipc_buf));
     let ipc_cap = it_frame_cap(ipc_buf, ipcbuf_vptr, true);
     write_slot(s, root_slot(&b, rs::InitThreadIPCBuffer), ipc_cap);
     let ui = Region { start: layout::pptr(p.ui_p_start), end: layout::pptr(p.ui_p_end) };
-    let (uf, ul) = create_frames(s, &mut b, ui, pml4, p.pv_offset)?;
+    let (uf, ul) = create_frames(s, &mut b, ui, pml4, p.pv_offset);
     bi_set(s, &b, bi::USER_IMAGE_FRAMES, uf);
     bi_set(s, &b, bi::USER_IMAGE_FRAMES + 1, ul);
 
@@ -429,7 +433,7 @@ pub fn create_root_task<S: Store, A: Arch>(s: &mut S, a: &mut A, p: &mut BootPar
         let saved = node_get(s, 0, node::CUR_TIME);
         configure_sched_context(s, idle, isc, max_ticks);
         let _ = saved;
-        isc.set_core(s, c);
+        isc.set_cpu(s, c);
         node_set(s, c, node::IDLE_SC, isc.0);
         node_set(s, c, node::CUR_THREAD, idle.0);
         node_set(s, c, node::CUR_SC, isc.0);
@@ -481,19 +485,22 @@ pub fn create_root_task<S: Store, A: Arch>(s: &mut S, a: &mut A, p: &mut BootPar
     let mut i = 0;
     while i < p.n_device {
         let r = p.device[i as usize];
-        create_untypeds_for_region(s, &mut b, true, r, first)?;
+        create_untypeds_for_region(s, &mut b, true, r, first);
         i += 1;
     }
     let mut i = 0;
     while i < p.n_free {
         let r = p.free[i as usize];
-        create_untypeds_for_region(s, &mut b, false, r, first)?;
+        create_untypeds_for_region(s, &mut b, false, r, first);
         i += 1;
     }
     bi_set(s, &b, bi::UNTYPED, first);
     bi_set(s, &b, bi::UNTYPED + 1, b.slot_pos);
     bi_set(s, &b, bi::EMPTY, b.slot_pos);
     bi_set(s, &b, bi::EMPTY + 1, 1u64 << ROOT_CNODE_BITS);
+    if b.full {
+        return Err(BootError::TooManyCaps);
+    }
     Ok(tcb)
 }
 

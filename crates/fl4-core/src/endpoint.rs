@@ -1,6 +1,6 @@
 //! Endpoints (seL4 object/endpoint.c, MCS).
 
-use crate::cap::Cap;
+use crate::capability::Cap;
 use crate::ipc;
 use crate::machine::{Arch, Store};
 use crate::notification;
