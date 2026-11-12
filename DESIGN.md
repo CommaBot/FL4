@@ -311,6 +311,15 @@ flowchart LR
 
 The CDT stays seL4's doubly linked list in derivation order, so the "is this the final cap" check and inserts only need the slot and its two neighbors. Neighbors are discovered in `prepare` and added to the footprint like any other object. With MCS, IPC uses reply objects instead of reply caps, so the IPC path never touches the CDT. This is one of the main reasons FL4 builds on MCS.
 
+### Implementation: a transactional Store
+
+FL4 builds this protocol into `fl4-store` rather than into a `prepare`/`perform` split of every operation in `fl4-core`. The core keeps its serial form, the one the proofs are about, and each kernel entry runs against a transactional `Store`:
+
+- **Reads** look up the object's entry in the striped seqlock table and are valid only if the entry is unlocked and its version is no newer than the version clock read when the transaction began (TL2). A failed check aborts the entry at once, so the core only ever sees a consistent snapshot. Every loop in the core is bounded (P0), so a snapshot can never make it run away.
+- **Writes** go to a per-core write buffer. At commit, the entries covering the write set are locked in table order, the read set is validated, the buffer is applied, and the versions are bumped and released.
+- **Arch effects** that other cores could observe (IPIs, timer programming, interrupt acknowledgement, TLB invalidation, console output) are queued and run after commit. Effects that cannot be deferred or undone (port I/O, remote stalls, FPU transfers between cores) abort the transaction and rerun it under the serial gate, which is also where a transaction goes after N failed attempts.
+- The footprint of an entry is the set of entries it actually touched, exact by construction. The footprint lemmas planned as P2 become a property of this runtime, tested in the simulator by the footprint and serializability oracles (§10), rather than one Lean lemma per entry point. The argument in §9 is unchanged: each committed transaction behaves like a serial kernel entry on a consistent snapshot, and two-phase locking with validated reads makes the history conflict-serializable.
+
 ### Ownership of running threads
 
 A TCB whose thread is running on core C has its register context owned by C. A remote operation that changes that context, such as `TCB_WriteRegisters` or suspend, locks the TCB and then stalls C with an IPI, like seL4's `remoteTCBStall`. When the kernel finds only one core, lock operations, the serial gate and IPIs are skipped behind a flag set at boot, which keeps uniprocessor IPC free of atomic operations.

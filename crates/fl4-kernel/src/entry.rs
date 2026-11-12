@@ -2,8 +2,7 @@
 //! dispatch to fl4-core, and restore whichever thread is current after.
 use crate::kprintln;
 use fl4_arch_x86_64::arch::PhysArch;
-use fl4_arch_x86_64::arch::TIMER_VECTOR;
-use fl4_arch_x86_64::{apic, cpu, fpu, percpu, timer};
+use fl4_arch_x86_64::{cpu, fpu, percpu};
 use fl4_core::layout::{irq, node, reg, tcb as tl};
 use fl4_core::machine::Store;
 use fl4_core::obj::{node_get, Tcb};
@@ -171,11 +170,6 @@ extern "C" fn fl4_entry(f: &mut Frame) {
                 f.rflags &= !RFLAGS_IF;
                 return;
             }
-            if pc.idle && v == TIMER_VECTOR as u64 && timer::early() {
-                // Back to idle (l4h 0012); fl4_idle's loop halts again.
-                apic::eoi();
-                return;
-            }
             if pc.idle {
                 pc.idle = false;
                 if v == smp::REMOTE_CALL_VECTOR as u64 {
@@ -194,12 +188,6 @@ extern "C" fn fl4_entry(f: &mut Frame) {
             return;
         }
         kernel_fault(f);
-    }
-    // A timer interrupt before the armed deadline needs no kernel entry
-    // (l4h 0012): acknowledge it and go back to the thread.
-    if v == TIMER_VECTOR as u64 && timer::early() {
-        apic::eoi();
-        return;
     }
     let mut s = store();
     let mut a = PhysArch;

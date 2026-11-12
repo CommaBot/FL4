@@ -34,8 +34,6 @@ pub struct PerCpu {
     pub apic_id: u32,
     /// This core holds the serial gate.
     pub gate_held: bool,
-    /// The deadline the timer is armed for (TSC ticks; 0 = none).
-    pub armed: u64,
 }
 
 impl PerCpu {
@@ -55,7 +53,6 @@ impl PerCpu {
             asid: 0,
             apic_id: 0,
             gate_held: false,
-            armed: 0,
         }
     }
 }
