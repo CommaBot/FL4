@@ -64,15 +64,38 @@ pub fn now() -> u64 {
 
 /// Interrupt at TSC value `ticks` (or as soon as possible if it passed).
 pub fn set_deadline(ticks: u64) {
+    crate::percpu::get().armed = ticks;
     if DEADLINE.load(Ordering::Relaxed) {
         wrmsr(msr::TSC_DEADLINE, if ticks == 0 { 1 } else { ticks });
     } else {
-        let now = rdtsc();
-        let delta = ticks.saturating_sub(now);
-        let a = ((delta as u128 * APIC_RATIO.load(Ordering::Relaxed) as u128) >> 32) as u64;
-        let a = a.clamp(1, u32::MAX as u64);
-        apic::write(apic::REG_TIMER_INIT, a as u32);
+        arm_countdown(ticks);
     }
+}
+
+/// APIC countdown mode (l4h 0014): convert with both rates, rounding up so
+/// the count never runs out before the deadline. A delay longer than the
+/// 32-bit count expires early and is re-armed by `early`.
+fn arm_countdown(ticks: u64) {
+    let delta = ticks.saturating_sub(rdtsc());
+    let r = APIC_RATIO.load(Ordering::Relaxed) as u128;
+    let a = ((delta as u128 * r + (1 << 32) - 1) >> 32) as u64;
+    apic::write(apic::REG_TIMER_INIT, a.clamp(1, u32::MAX as u64) as u32);
+}
+
+/// A timer interrupt arrived: is it before the armed deadline (l4h 0012)?
+/// Then it belongs to a deadline since replaced (TSC-deadline mode, where
+/// the new deadline is already armed) or to a countdown that ran out of
+/// count (re-armed here), and the kernel need not run. The time is checked
+/// first, so a due interrupt costs no extra work.
+pub fn early() -> bool {
+    let armed = crate::percpu::get().armed;
+    if armed == 0 || rdtsc() >= armed {
+        return false;
+    }
+    if !DEADLINE.load(Ordering::Relaxed) {
+        arm_countdown(armed);
+    }
+    true
 }
 
 pub fn us_to_ticks(us: u64) -> u64 {
