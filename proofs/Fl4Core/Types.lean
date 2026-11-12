@@ -20,6 +20,232 @@ set_option maxRecDepth 2048
 
 namespace fl4_core
 
+/-- [fl4_core::boot::Region]
+    Source: 'crates/fl4-core/src/boot.rs', lines 31:0-34:1
+    Visibility: public -/
+structure boot.Region where
+  start : Std.U64
+  «end» : Std.U64
+
+/-- [fl4_core::boot::BootParams]
+    Source: 'crates/fl4-core/src/boot.rs', lines 44:0-66:1
+    Visibility: public -/
+structure boot.BootParams where
+  free : Array boot.Region 32#usize
+  n_free : Std.U64
+  device : Array boot.Region 32#usize
+  n_device : Std.U64
+  ui_p_start : Std.U64
+  ui_p_end : Std.U64
+  pv_offset : Std.U64
+  v_entry : Std.U64
+  extra_bi : Std.U64
+  extra_bi_len : Std.U64
+  num_nodes : Std.U64
+  idle_base : Std.U64
+  idle_stride : Std.U64
+
+/-- [fl4_core::boot::BootError]
+    Source: 'crates/fl4-core/src/boot.rs', lines 69:0-72:1
+    Visibility: public -/
+@[discriminant isize]
+inductive boot.BootError where
+| NoMemory : boot.BootError
+| TooManyCaps : boot.BootError
+
+/-- [fl4_core::boot::Boot]
+    Source: 'crates/fl4-core/src/boot.rs', lines 92:0-99:1 -/
+structure boot.Boot where
+  root_cnode : Std.U64
+  slot_pos : Std.U64
+  bi_frame : Std.U64
+  next : Std.U64
+  «end» : Std.U64
+
+/-- Trait declaration: [fl4_core::machine::Store]
+    Source: 'crates/fl4-core/src/machine.rs', lines 10:0-21:1
+    Visibility: public -/
+structure machine.Store (Self : Type _) where
+  read : Self → Std.U64 → Result Std.U64
+  write : Self → Std.U64 → Std.U64 → Result Self
+  zero : Self → Std.U64 → Std.U64 → Result Self
+  ks_base : Self → Result Std.U64
+  cur_cpu : Self → Result Std.U64
+
+/-- [fl4_core::obj::Slot]
+    Source: 'crates/fl4-core/src/obj.rs', lines 37:0-37:25
+    Visibility: public -/
+@[reducible]
+def obj.Slot := Std.U64
+
+/-- [fl4_core::cap::FrameSize]
+    Source: 'crates/fl4-core/src/cap.rs', lines 6:0-10:1
+    Visibility: public -/
+@[discriminant isize]
+inductive cap.FrameSize where
+| Small : cap.FrameSize
+| Large : cap.FrameSize
+| Huge : cap.FrameSize
+
+/-- [fl4_core::cap::Cap]
+    Source: 'crates/fl4-core/src/cap.rs', lines 47:0-70:1
+    Visibility: public -/
+@[discriminant isize]
+inductive cap.Cap where
+| Null : cap.Cap
+| Untyped : Std.U64 → Std.U64 → Std.U64 → Bool → cap.Cap
+| Endpoint :
+  Std.U64 →
+  Std.U64 →
+  Bool →
+  Bool →
+  Bool →
+  Bool →
+  cap.Cap
+| Notification : Std.U64 → Std.U64 → Bool → Bool → cap.Cap
+| Reply : Std.U64 → Bool → cap.Cap
+| CNode : Std.U64 → Std.U64 → Std.U64 → Std.U64 → cap.Cap
+| Thread : Std.U64 → cap.Cap
+| IrqControl : cap.Cap
+| IrqHandler : Std.U64 → cap.Cap
+| Zombie : Std.U64 → Std.U64 → Std.U64 → cap.Cap
+| Domain : cap.Cap
+| SchedContext : Std.U64 → Std.U64 → cap.Cap
+| SchedControl : Std.U64 → cap.Cap
+| Frame :
+  Std.U64 →
+  cap.FrameSize →
+  Std.U64 →
+  Bool →
+  Bool →
+  Std.U64 →
+  Std.U64 →
+  cap.Cap
+| PageTable : Std.U64 → Bool → Std.U64 → Std.U64 → cap.Cap
+| PageDirectory : Std.U64 → Bool → Std.U64 → Std.U64 → cap.Cap
+| Pdpt : Std.U64 → Bool → Std.U64 → Std.U64 → cap.Cap
+| Pml4 : Std.U64 → Bool → Std.U64 → cap.Cap
+| AsidControl : cap.Cap
+| AsidPool : Std.U64 → Std.U64 → cap.Cap
+| IoPortControl : cap.Cap
+| IoPort : Std.U64 → Std.U64 → cap.Cap
+
+/-- [fl4_core::obj::Sc]
+    Source: 'crates/fl4-core/src/obj.rs', lines 34:0-34:23
+    Visibility: public -/
+@[reducible]
+def obj.Sc := Std.U64
+
+/-- [fl4_core::sporadic::Refill]
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 11:0-14:1
+    Visibility: public -/
+structure sporadic.Refill where
+  time : Std.U64
+  amount : Std.U64
+
+/-- [fl4_core::obj::Tcb]
+    Source: 'crates/fl4-core/src/obj.rs', lines 26:0-26:24
+    Visibility: public -/
+@[reducible]
+def obj.Tcb := Std.U64
+
+/-- Trait declaration: [fl4_core::machine::Arch]
+    Source: 'crates/fl4-core/src/machine.rs', lines 25:0-77:1
+    Visibility: public -/
+structure machine.Arch (Self : Type _) where
+  now : Self → Result (Std.U64 × Self)
+  set_deadline : Self → Std.U64 → Result Self
+  us_to_ticks : Self → Std.U64 → Result Std.U64
+  ticks_to_us : Self → Std.U64 → Result Std.U64
+  max_us : Self → Result Std.U64
+  kernel_wcet_ticks : Self → Result Std.U64
+  irq_pending : Self → Result (Bool × Self)
+  mask_irq : Self → Std.U64 → Bool → Result Self
+  ack_irq : Self → Std.U64 → Result Self
+  set_vspace : Self → Std.U64 → Std.U64 → Result Self
+  invalidate_page : Self → Std.U64 → Std.U64 → Result Self
+  invalidate_asid : Self → Std.U64 → Result Self
+  invalidate_page_structures : Self → Std.U64 → Result Self
+  ioapic_map : Self → Std.U64 → Std.U64 → Std.U64 → Std.U64 → Std.U64
+    → Result (Bool × Self)
+  ioapic_map_remapped : Self → Std.U64 → Std.U64 → Std.U64 → Std.U64
+    → Std.U64 → Std.U64 → Result (Bool × Self)
+  num_ioapics : Self → Result Std.U64
+  ioapic_pins : Self → Std.U64 → Result Std.U64
+  port_in : Self → Std.U64 → Std.U64 → Result (Std.U64 × Self)
+  port_out : Self → Std.U64 → Std.U64 → Std.U64 → Result Self
+  fpu_flush : Self → Std.U64 → Result Self
+  fpu_sanitise : Self → Std.U64 → Result Self
+  fpu_reload : Self → Std.U64 → Result Self
+  fpu_release : Self → Std.U64 → Result Self
+  putc : Self → Std.U64 → Result Self
+  get_char : Self → Result (Std.U64 × Self)
+  halt : Self → Result Self
+
+/-- [fl4_core::error::LookupFault]
+    Source: 'crates/fl4-core/src/error.rs', lines 6:0-11:1
+    Visibility: public -/
+@[discriminant isize]
+inductive error.LookupFault where
+| InvalidRoot : error.LookupFault
+| MissingCapability : Std.U64 → error.LookupFault
+| DepthMismatch : Std.U64 → Std.U64 → error.LookupFault
+| GuardMismatch : Std.U64 → Std.U64 → Std.U64 → error.LookupFault
+
+/-- [fl4_core::error::Fault]
+    Source: 'crates/fl4-core/src/error.rs', lines 28:0-36:1
+    Visibility: public -/
+@[discriminant isize]
+inductive error.Fault where
+| Null : error.Fault
+| Cap : Std.U64 → Bool → error.LookupFault → error.Fault
+| UnknownSyscall : Std.U64 → error.Fault
+| UserException : Std.U64 → Std.U64 → error.Fault
+| Debug : Std.U64 → Std.U64 → Std.U64 → error.Fault
+| Timeout : Std.U64 → error.Fault
+| VmFault : Std.U64 → Std.U64 → Bool → error.Fault
+
+/-- [fl4_core::error::SysError]
+    Source: 'crates/fl4-core/src/error.rs', lines 14:0-25:1
+    Visibility: public -/
+@[discriminant isize]
+inductive error.SysError where
+| InvalidArgument : Std.U64 → error.SysError
+| InvalidCapability : Std.U64 → error.SysError
+| IllegalOperation : error.SysError
+| RangeError : Std.U64 → Std.U64 → error.SysError
+| AlignmentError : error.SysError
+| FailedLookup : Bool → error.LookupFault → error.SysError
+| TruncatedMessage : error.SysError
+| DeleteFirst : error.SysError
+| RevokeFirst : error.SysError
+| NotEnoughMemory : Std.U64 → error.SysError
+
+/-- [fl4_core::error::Exc]
+    Source: 'crates/fl4-core/src/error.rs', lines 39:0-44:1
+    Visibility: public -/
+@[discriminant isize]
+inductive error.Exc where
+| Fault : error.Fault → error.Exc
+| Lookup : error.LookupFault → error.Exc
+| Sys : error.SysError → error.Exc
+| Preempted : error.Exc
+
+/-- [fl4_core::cap::Rights]
+    Source: 'crates/fl4-core/src/cap.rs', lines 248:0-253:1
+    Visibility: public -/
+structure cap.Rights where
+  write : Bool
+  read : Bool
+  grant : Bool
+  grant_reply : Bool
+
+/-- [fl4_core::cdt::Finalised]
+    Source: 'crates/fl4-core/src/cdt.rs', lines 232:0-235:1 -/
+structure cdt.Finalised where
+  success : Bool
+  cleanup : cap.Cap
+
 /-- [fl4_core::msginfo::MessageInfo]
     Source: 'crates/fl4-core/src/msginfo.rs', lines 5:0-10:1
     Visibility: public -/
@@ -28,5 +254,57 @@ structure msginfo.MessageInfo where
   caps_unwrapped : Std.U64
   extra_caps : Std.U64
   length : Std.U64
+
+/-- [fl4_core::obj::Reply]
+    Source: 'crates/fl4-core/src/obj.rs', lines 32:0-32:26
+    Visibility: public -/
+@[reducible]
+def obj.Reply := Std.U64
+
+/-- [fl4_core::obj::Ntfn]
+    Source: 'crates/fl4-core/src/obj.rs', lines 30:0-30:25
+    Visibility: public -/
+@[reducible]
+def obj.Ntfn := Std.U64
+
+/-- [fl4_core::tcbqueue::Queue]
+    Source: 'crates/fl4-core/src/tcbqueue.rs', lines 10:0-13:1
+    Visibility: public -/
+structure tcbqueue.Queue where
+  head : obj.Tcb
+  «end» : obj.Tcb
+
+/-- [fl4_core::obj::Ep]
+    Source: 'crates/fl4-core/src/obj.rs', lines 28:0-28:23
+    Visibility: public -/
+@[reducible]
+def obj.Ep := Std.U64
+
+/-- [fl4_core::cspace::Resolved]
+    Source: 'crates/fl4-core/src/cspace.rs', lines 13:0-16:1
+    Visibility: public -/
+structure cspace.Resolved where
+  slot : obj.Slot
+  bits_left : Std.U64
+
+/-- [fl4_core::debug::Breakpoint]
+    Source: 'crates/fl4-core/src/debug.rs', lines 90:0-96:1
+    Visibility: public -/
+structure debug.Breakpoint where
+  vaddr : Std.U64
+  ty : Std.U64
+  size : Std.U64
+  rw : Std.U64
+  enabled : Bool
+
+/-- [fl4_core::tcb::Ctx]
+    Source: 'crates/fl4-core/src/tcb.rs', lines 29:0-35:1
+    Visibility: public -/
+structure tcb.Ctx where
+  length : Std.U64
+  buf : Std.U64
+  call : Bool
+  slot : obj.Slot
+  extra : Array obj.Slot 3#usize
 
 end fl4_core

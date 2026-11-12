@@ -26,7 +26,7 @@ fn default_config(debug: bool) -> Config {
     c.insert("KERNEL_INVOCATION_REPORT_ERROR_IPC".into(), b(debug));
     c.insert("IRQ_REPORTING".into(), b(debug));
     c.insert("ENABLE_SMP_SUPPORT".into(), b(true));
-    c.insert("SET_TLS_BASE_SELF".into(), b(false));
+    c.insert("SET_TLS_BASE_SELF".into(), b(true));
     c.insert("NUM_DOMAINS".into(), "1".into());
     c.insert("NUM_DOMAIN_SCHEDULES".into(), "2".into());
     c.insert("MAX_NUM_NODES".into(), "64".into());
@@ -71,7 +71,7 @@ fn method_condition<'a>(m: roxmltree::Node<'a, 'a>) -> Option<roxmltree::Node<'a
     m.descendants().find(|d| d.has_tag_name("condition"))
 }
 
-fn labels(c: &Config, path: &Path, out: &mut Vec<String>) {
+fn labels(c: &Config, path: &Path, out: &mut Vec<String>, disabled: &mut Vec<String>) {
     let text = fs::read_to_string(path).unwrap();
     let doc = roxmltree::Document::parse(&text).unwrap();
     let mut seen = HashSet::new();
@@ -84,10 +84,14 @@ fn labels(c: &Config, path: &Path, out: &mut Vec<String>) {
         }
         if cond.map_or(true, |n| eval(c, n)) {
             out.push(id);
+        } else {
+            disabled.push(id);
         }
     }
 }
 
+/// Syscalls in configuration order; disabled ones get `i64::MIN`, a number
+/// no caller can pass.
 fn syscalls(c: &Config, path: &Path) -> Vec<(String, i64)> {
     let text = fs::read_to_string(path).unwrap();
     let doc = roxmltree::Document::parse(&text).unwrap();
@@ -102,6 +106,8 @@ fn syscalls(c: &Config, path: &Path) -> Vec<(String, i64)> {
                 if on {
                     v.push((sc.attribute("name").unwrap().to_string(), n));
                     n -= 1;
+                } else {
+                    v.push((sc.attribute("name").unwrap().to_string(), i64::MIN));
                 }
             }
         }
@@ -131,15 +137,22 @@ fn main() {
 
     // Invocation labels: generic, then sel4_arch, then arch, as in seL4.
     let mut all = vec!["InvalidInvocation".to_string()];
-    labels(&config, &ifaces.join("object-api.xml"), &mut all);
+    let mut disabled = Vec::new();
+    labels(&config, &ifaces.join("object-api.xml"), &mut all, &mut disabled);
     let n_generic = all.len();
-    labels(&config, &ifaces.join("object-api-sel4-arch-x86_64.xml"), &mut all);
+    labels(&config, &ifaces.join("object-api-sel4-arch-x86_64.xml"), &mut all, &mut disabled);
     let n_sel4_arch = all.len();
-    labels(&config, &ifaces.join("object-api-arch-x86.xml"), &mut all);
+    labels(&config, &ifaces.join("object-api-arch-x86.xml"), &mut all, &mut disabled);
     writeln!(o, "/// Invocation labels (`seL4_MessageInfo` label field).").unwrap();
     writeln!(o, "#[allow(non_upper_case_globals)]\npub mod label {{").unwrap();
     for (i, l) in all.iter().enumerate() {
         writeln!(o, "    pub const {l}: u64 = {i};").unwrap();
+    }
+    // Methods this configuration leaves out: no message carries them.
+    for l in &disabled {
+        if !all.contains(l) {
+            writeln!(o, "    pub const {l}: u64 = u64::MAX;").unwrap();
+        }
     }
     writeln!(o, "    pub const nInvocationLabels: u64 = {n_generic};").unwrap();
     writeln!(o, "    pub const nSeL4ArchInvocationLabels: u64 = {n_sel4_arch};").unwrap();
