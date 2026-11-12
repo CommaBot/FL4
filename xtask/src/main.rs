@@ -256,7 +256,7 @@ fn sel4test_build(o: &Opts) -> PathBuf {
         c.arg(format!("-DRELEASE={}", if o.release { "ON" } else { "OFF" }));
         c.arg(format!("-DSMP={}", if o.smp > 1 { "ON" } else { "OFF" }));
         if o.smp > 1 {
-            c.arg(format!("-DKernelMaxNumNodes={}", o.smp));
+            c.arg(format!("-DNUM_NODES={}", o.smp));
         }
         c.arg(format!("-DLibSel4TestPrinterRegex={}", sel4test_filter()));
         for a in &o.rest {

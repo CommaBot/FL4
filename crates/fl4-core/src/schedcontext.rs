@@ -52,8 +52,11 @@ pub fn unbind_tcb<S: Store>(s: &mut S, sc: Sc) {
     sc.set_tcb(s, 0);
 }
 
-pub fn unbind_all_tcbs<S: Store>(s: &mut S, sc: Sc) {
+/// seL4 `schedContext_unbindAllTCBs`: the thread is stalled first if it
+/// runs on another core.
+pub fn unbind_all_tcbs<S: Store, A: Arch>(s: &mut S, a: &mut A, sc: Sc) {
     if sc.tcb(s) != 0 {
+        crate::smp::remote_tcb_stall(s, a, Tcb(sc.tcb(s)));
         unbind_tcb(s, sc);
     }
 }
@@ -62,6 +65,7 @@ pub fn unbind_all_tcbs<S: Store>(s: &mut S, sc: Sc) {
 pub fn donate<S: Store, A: Arch>(s: &mut S, a: &mut A, sc: Sc, to: Tcb) {
     let from = Tcb(sc.tcb(s));
     if !from.is_null() {
+        crate::smp::remote_tcb_stall(s, a, from);
         sched::dequeue(s, from);
         sched::release_remove(s, from);
         from.set_sc(s, 0);
@@ -182,6 +186,10 @@ fn yield_to<S: Store, A: Arch>(s: &mut S, a: &mut A, sc: Sc, call: bool) {
 
 /// seL4 `decodeSchedContextInvocation`.
 pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, sc: Sc, call: bool, extra: &[Slot; 3]) -> KResult<()> {
+    // seL4 maybeStallSC: the bound thread may be running on another core.
+    if sc.tcb(s) != 0 {
+        crate::smp::remote_tcb_stall(s, a, Tcb(sc.tcb(s)));
+    }
     let ct = sched::cur_thread(s);
     if lbl == label::SchedContextConsumed {
         sched::set_thread_state(s, ct, sched::TS_RESTART);
@@ -246,7 +254,7 @@ pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, sc: Sc, call: b
             return illegal();
         }
         sched::set_thread_state(s, ct, sched::TS_RESTART);
-        unbind_all_tcbs(s, sc);
+        unbind_all_tcbs(s, a, sc);
         unbind_ntfn(s, sc);
         unbind_reply(s, sc);
         Ok(())

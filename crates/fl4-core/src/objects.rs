@@ -352,7 +352,7 @@ pub fn finalise_cap<S: Store, A: Arch>(s: &mut S, a: &mut A, c: Cap, fin: bool, 
         Cap::SchedContext { ptr, .. } => {
             if fin {
                 let sc = Sc(ptr);
-                schedcontext::unbind_all_tcbs(s, sc);
+                schedcontext::unbind_all_tcbs(s, a, sc);
                 schedcontext::unbind_ntfn(s, sc);
                 schedcontext::unbind_reply(s, sc);
                 let yf = Tcb(sc.yield_from(s));
