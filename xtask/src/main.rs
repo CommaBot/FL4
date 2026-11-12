@@ -56,11 +56,12 @@ struct Opts {
     setup: String,
     smp: u32,
     timeout: u64,
+    seeds: u64,
     rest: Vec<String>,
 }
 
 fn parse(args: &[String]) -> Opts {
-    let mut o = Opts { release: false, setup: "kvm".into(), smp: 1, timeout: 1800, rest: vec![] };
+    let mut o = Opts { release: false, setup: "kvm".into(), smp: 1, timeout: 1800, seeds: 200, rest: vec![] };
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -72,6 +73,10 @@ fn parse(args: &[String]) -> Opts {
             "--smp" => {
                 i += 1;
                 o.smp = args[i].parse().unwrap();
+            }
+            "--seeds" => {
+                i += 1;
+                o.seeds = args[i].parse().unwrap();
             }
             "--timeout" => {
                 i += 1;
@@ -325,6 +330,24 @@ fn sel4test_results(out: &str) -> (usize, Vec<String>) {
     (passed, failed)
 }
 
+/// Seeds that once found bugs (DESIGN.md §4, "Fixes found while building
+/// FL4"): (seed, cores, steps).
+const SIM_REGRESSIONS: &[(u64, u64, u64)] = &[(113, 4, 20000)];
+
+/// Deterministic simulation (DESIGN.md §10): the regression seeds, then
+/// --seeds seeds (default 200) on --smp cores (default 4), 20000 steps
+/// each.
+fn sim(o: &Opts) {
+    let r = root();
+    run(Command::new("cargo").current_dir(&r).args(["build", "--release", "-p", "fl4-sim"]));
+    let bin = r.join("target/release/fl4-sim");
+    for &(seed, cores, steps) in SIM_REGRESSIONS {
+        run(Command::new(&bin).args(["--seeds", "1", "--first", &seed.to_string(), "--cores", &cores.to_string(), "--steps", &steps.to_string()]));
+    }
+    let cores = if o.smp > 1 { o.smp } else { 4 };
+    run(Command::new(&bin).args(["--seeds", &o.seeds.to_string(), "--cores", &cores.to_string(), "--steps", "20000"]));
+}
+
 /// The extractability gate (DESIGN.md §6): all of fl4-core goes through
 /// Charon and Aeneas without errors, the result typechecks in Lean, and so
 /// do the proofs about it. `extract` already fails on any Aeneas error.
@@ -382,8 +405,9 @@ fn main() {
         "sel4test" => sel4test(&o),
         "extract" => extract(),
         "gate" => gate(),
+        "sim" => sim(&o),
         _ => {
-            eprintln!("usage: cargo xtask <kernel|run|sel4test-build|sel4test|extract|gate> [--release] [--setup kvm|kvm-reduced|tcg] [--smp N] [--timeout S]");
+            eprintln!("usage: cargo xtask <kernel|run|sel4test-build|sel4test|extract|gate|sim> [--release] [--setup kvm|kvm-reduced|tcg] [--smp N] [--timeout S] [--seeds N]");
             exit(2);
         }
     }

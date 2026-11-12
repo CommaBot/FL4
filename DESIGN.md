@@ -163,6 +163,15 @@ l4h's new methods, constants, flags and BootInfo records keep their l4h names an
 | 0022, 0024 | Timer-rate sources and the Meltdown check, now boot-time detection (§3)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | 0015, 0016 | AArch64 port: broadcast inner-shareable TLBI instead of IPIs, 16-bit ASIDs required (`TCR_EL1.AS`), APs that fail init stop, and MCS uses the CNTFRQ rate read at boot (§11)                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
+### Fixes found while building FL4
+
+Behavior where FL4 differs from seL4 17.0 only by closing a race or an overflow. They were found by the simulator (§10) or the P0 proofs (§9).
+
+| Where                  | Behavior in FL4                                                                                                                                                                                                                                       |
+|------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `TCB_CopyRegisters`    | The source thread is stalled like the target when it runs on another core. seL4 stalls only the target, so it copies a stale register context and, with `suspendSource`, leaves the other core running a suspended thread until its next kernel entry |
+| Domain time accounting | The check that the domain's time has run out saturates, so a very long interval cannot wrap the sum and underflow the remaining time                                                                                                               |
+
 ### Left out
 
 - **Debug syscall MCP threshold** (0008, `KernelDebugSyscallMinMCP`). FL4 does not gate debug syscalls or kernel error messages by MCP. Debug syscalls exist only in the debug profile, which is not for running untrusted code.

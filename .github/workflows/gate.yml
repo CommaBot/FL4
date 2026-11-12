@@ -17,5 +17,7 @@ jobs:
         run: cargo build -p fl4-core && cargo build --release -p fl4-kernel --target x86_64-unknown-none
       - name: Host tests
         run: cargo test -p xtask
+      - name: Simulation
+        run: cargo xtask sim --seeds 200
       - name: Extract and prove
         run: cargo xtask gate

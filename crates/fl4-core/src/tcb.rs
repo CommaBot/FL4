@@ -438,6 +438,11 @@ pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, target: Tcb, c:
             Cap::Thread { ptr } => Tcb(ptr),
             _ => return invalid_cap(1),
         };
+        // The source may be running on another core too: stop it before
+        // reading (and maybe suspending) it. seL4 stalls only the target;
+        // a running source's registers would be stale and a suspended one
+        // would keep running until that core next entered the kernel.
+        crate::smp::remote_tcb_stall(s, a, src);
         restart_caller(s);
         copy_registers(s, a, target, src, flags)
     } else if lbl == label::TCBSuspend {
