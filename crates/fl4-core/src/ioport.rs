@@ -12,11 +12,12 @@ use crate::sched;
 use fl4_abi::label;
 
 fn pattern(start: u64, end: u64) -> u64 {
-    let n = end - start;
+    // start <= 63 and end <= 64 (both come from `& 63`).
+    let n = end.wrapping_sub(start);
     if n >= 64 {
         u64::MAX
     } else {
-        ((1u64 << n) - 1) << start
+        ((1u64 << (n & 63)).wrapping_sub(1)) << (start & 63)
     }
 }
 
@@ -36,7 +37,7 @@ pub fn set_mask<S: Store>(s: &mut S, low: u64, high: u64, set: bool) {
     let li = low & 63;
     let hi = high & 63;
     if lw == hw {
-        apply(s, lw, pattern(li, hi + 1), set);
+        apply(s, lw, pattern(li, hi.wrapping_add(1)), set);
     } else {
         apply(s, lw, pattern(li, 64), set);
         let mut w = lw + 1;
@@ -44,7 +45,7 @@ pub fn set_mask<S: Store>(s: &mut S, low: u64, high: u64, set: bool) {
             apply(s, w, u64::MAX, set);
             w += 1;
         }
-        apply(s, hw, pattern(0, hi + 1), set);
+        apply(s, hw, pattern(0, hi.wrapping_add(1)), set);
     }
 }
 
@@ -54,7 +55,7 @@ fn range_free<S: Store>(s: &S, low: u64, high: u64) -> bool {
     let li = low & 63;
     let hi = high & 63;
     if lw == hw {
-        return ks_get(s, word_off(lw)) & pattern(li, hi + 1) == 0;
+        return ks_get(s, word_off(lw)) & pattern(li, hi.wrapping_add(1)) == 0;
     }
     if ks_get(s, word_off(lw)) & pattern(li, 64) != 0 {
         return false;
@@ -66,7 +67,7 @@ fn range_free<S: Store>(s: &S, low: u64, high: u64) -> bool {
         }
         w += 1;
     }
-    ks_get(s, word_off(hw)) & pattern(0, hi + 1) == 0
+    ks_get(s, word_off(hw)) & pattern(0, hi.wrapping_add(1)) == 0
 }
 
 pub fn free_ioports<S: Store>(s: &mut S, first: u64, last: u64) {
@@ -103,7 +104,7 @@ pub fn decode_control<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length:
 }
 
 fn allowed(first: u64, last: u64, port: u64, size: u64) -> KResult<()> {
-    let end = port + size - 1;
+    let end = port.wrapping_add(size).wrapping_sub(1);
     if port < first || end > last {
         return illegal();
     }

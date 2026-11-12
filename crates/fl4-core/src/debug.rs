@@ -31,16 +31,18 @@ const DR6_SINGLE_STEP: u64 = 1 << 14;
 const EFLAGS_TF: u64 = 1 << 8;
 const EFLAGS_RF: u64 = 1 << 16;
 
+// The breakpoint number is below N_REGS (callers check), so these stay
+// below 64; the masks make that evident to the P0 proofs.
 fn type_shift(bp: u64) -> u64 {
-    16 + 4 * bp
+    16u64.wrapping_add(bp.wrapping_mul(4)) & 63
 }
 
 fn size_shift(bp: u64) -> u64 {
-    18 + 4 * bp
+    18u64.wrapping_add(bp.wrapping_mul(4)) & 63
 }
 
 fn enable_bit(bp: u64) -> u64 {
-    1u64 << (2 * bp + 1)
+    1u64 << (bp.wrapping_mul(2).wrapping_add(1) & 63)
 }
 
 fn dr7<S: Store>(s: &S, t: Tcb) -> u64 {
@@ -169,7 +171,7 @@ pub fn debug_exception<S: Store>(s: &mut S, t: Tcb, vector: u64, dr6: u64) -> Op
     let mut bp: u64 = 4;
     let mut i = 0;
     while i < 4 {
-        if dr6 & (1u64 << i) != 0 {
+        if dr6 & (1u64 << (i & 63)) != 0 {
             bp = i;
             break;
         }

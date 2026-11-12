@@ -311,8 +311,8 @@ fn write_registers<S: Store, A: Arch>(s: &mut S, a: &mut A, dest: Tcb, resume: b
 fn copy_words<S: Store>(s: &mut S, src: u64, dst: u64, n: u64) {
     let mut i = 0;
     while i < n {
-        let v = s.read(src.wrapping_add(i * 8));
-        s.write(dst.wrapping_add(i * 8), v);
+        let v = s.read(src.wrapping_add(i.wrapping_mul(8)));
+        s.write(dst.wrapping_add(i.wrapping_mul(8)), v);
         i += 1;
     }
 }
@@ -329,7 +329,7 @@ fn fpu_transfer<S: Store, A: Arch>(s: &mut S, a: &mut A, target: Tcb, c: &Ctx, t
             if is_device || rights == VM_KERNEL_ONLY || (to_frame && rights != VM_READ_WRITE) {
                 return invalid_cap(1);
             }
-            (ptr, 1u64 << size.bits())
+            (ptr, 1u64 << (size.bits() & 63))
         }
         _ => return invalid_cap(1),
     };

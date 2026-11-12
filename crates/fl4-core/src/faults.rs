@@ -140,13 +140,13 @@ fn set_mrs_lookup_failure<S: Store>(s: &mut S, receiver: Tcb, buf: u64, lf: Look
     let i = msg::set_mr(s, receiver, buf, offset, lf.type_code());
     match lf {
         LookupFault::InvalidRoot => i,
-        LookupFault::MissingCapability { bits_left } => msg::set_mr(s, receiver, buf, offset + 1, bits_left),
+        LookupFault::MissingCapability { bits_left } => msg::set_mr(s, receiver, buf, offset.wrapping_add(1), bits_left),
         LookupFault::DepthMismatch { bits_found, bits_left } => {
-            msg::set_mr(s, receiver, buf, offset + 1, bits_left);
+            msg::set_mr(s, receiver, buf, offset.wrapping_add(1), bits_left);
             msg::set_mr(s, receiver, buf, offset + 2, bits_found)
         }
         LookupFault::GuardMismatch { guard_found, bits_left, guard_size } => {
-            msg::set_mr(s, receiver, buf, offset + 1, bits_left);
+            msg::set_mr(s, receiver, buf, offset.wrapping_add(1), bits_left);
             msg::set_mr(s, receiver, buf, offset + 2, guard_found);
             msg::set_mr(s, receiver, buf, offset + 3, guard_size)
         }

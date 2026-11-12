@@ -1,0 +1,561 @@
+{
+ "functions": 830,
+ "proved": 696,
+ "manual": [],
+ "loops_automatic": [
+  "boot.create_it_address_space_loop0",
+  "boot.create_root_task_loop2",
+  "boot.create_root_task_loop4",
+  "cspace.resolve_address_bits_loop",
+  "ioport.range_free_loop",
+  "ioport.set_mask_loop",
+  "msg.copy_mrs_loop1",
+  "objects.create_new_objects_loop",
+  "sporadic.budget_check_loop1",
+  "sporadic.unblock_check_loop",
+  "tcb.copy_words_loop",
+  "untyped.ensure_empty_slots_loop",
+  "vspace.derive_subframe_loop0",
+  "vspace.derive_subframe_loop0_loop0",
+  "vspace.derive_subframe_loop1",
+  "vspace.derive_subframe_loop1_loop0"
+ ],
+ "sorry": {
+  "boot.create_frames_loop": [
+   "loop",
+   "\u2191x2 + 4096 \u2264 U64.max"
+  ],
+  "boot.create_it_address_space": [
+   "fun",
+   "12 \u2264 U64.max"
+  ],
+  "boot.create_it_address_space_loop0_loop0": [
+   "loop",
+   "(do let (s2, b2, c) \u2190 if level = 39#u64 then do let i3 \u2190 x2 >>> 39#i32 let i4 \u2190 lift (i3 &&& 511#u64) let i5 \u2190 i4 * 8#u64 let i6 \u2190 pml4 + i5 let s3 \u2190 machineStoreInst.write s1 i6 e ok (s3, b1, capability.Cap.Pdpt t true boot.IT_ASID x2) else do let (t1, c1) \u2190 if level = 30#u64 then do let i3 \u2190 x2 >>"
+  ],
+  "boot.create_root_task": [
+   "fun",
+   ": Tactic `simp` failed with a nested error:"
+  ],
+  "boot.create_root_task_loop0": [
+   "loop",
+   "(do let st \u2190 if x1 = i2 then ok interrupt.IRQ_TIMER else do let i3 \u2190 layout.irq.REMOTE_CALL_IPI if x1 = i3 then ok interrupt.IRQ_IPI else do let i4 \u2190 layout.irq.RESCHEDULE_IPI if x1 = i4 then ok interrupt.IRQ_IPI else ok interrupt.IRQ_INACTIVE let i3 \u2190 lift (core.num.U64.wrapping_mul x1 8#u64) let i"
+  ],
+  "boot.create_root_task_loop1": [
+   "loop",
+   "\u2191i1 + 7 \u2264 U64.max"
+  ],
+  "boot.create_root_task_loop3": [
+   "loop",
+   "(\u2191i1 + \u2191x1 * \u2191i2) % U64.size + 4096 \u2264 U64.max"
+  ],
+  "boot.create_root_task_loop5": [
+   "loop",
+   "\u2191x2 % 2 ^ System.Platform.numBits < 32"
+  ],
+  "boot.create_root_task_loop6": [
+   "loop",
+   "\u2191x2 % 2 ^ System.Platform.numBits < 32"
+  ],
+  "boot.create_root_task_loop7": [
+   "loop",
+   "\u2191x2 % 2 ^ System.Platform.numBits < 32"
+  ],
+  "boot.create_root_task_loop8": [
+   "loop",
+   "\u2191x2 % 2 ^ System.Platform.numBits < 32"
+  ],
+  "boot.create_untypeds_for_region_loop": [
+   "loop",
+   "\u2191(core.num.U64.leading_zeros i1) \u2264 63"
+  ],
+  "boot.provide_cap": [
+   "fun",
+   "\u2191boot.ROOT_CNODE_BITS < 64"
+  ],
+  "boot.set_name_loop0": [
+   "loop",
+   "False"
+  ],
+  "boot.set_name_loop0_loop0": [
+   "loop",
+   "\u2191w * 8 \u2264 U64.max"
+  ],
+  "boot.take_rootserver_mem_loop": [
+   "loop",
+   "(\u2191x0 - 1) % 2 ^ System.Platform.numBits < 32"
+  ],
+  "capability.Cap.Insts.CoreCmpPartialEqCap.eq": [
+   "fun",
+   "(if capability.Cap.Null.read_discriminant = other.read_discriminant then ok true else ok false) \u2983 x\u271d => True \u2984"
+  ],
+  "cdt.delete": [
+   "rec",
+   ""
+  ],
+  "cdt.delete_one": [
+   "rec",
+   ""
+  ],
+  "cdt.finalise_slot": [
+   "rec",
+   ""
+  ],
+  "cdt.is_final_capability": [
+   "fun",
+   "(do let next \u2190 obj.Slot.next machineStoreInst slot s let b1 \u2190 obj.Slot.is_null next if b1 = true then ok true else do let c \u2190 obj.Slot.cap machineStoreInst next s let b2 \u2190 objects.same_object_as cap c ok !b2) \u2983 x\u271d => True \u2984"
+  ],
+  "cdt.is_mdb_parent_of": [
+   "fun",
+   "(if badge\u271d\u00b9 = badge\u271d then do let b3 \u2190 obj.Slot.first_badged machineStoreInst b s ok !b3 else ok false) \u2983 x\u271d => True \u2984"
+  ],
+  "cdt.reduce_zombie": [
+   "rec",
+   ""
+  ],
+  "cdt.revoke_loop": [
+   "loop",
+   ""
+  ],
+  "cnode.decode": [
+   "fun",
+   "(if lbl < fl4_abi.label.CNodeRevoke then do let r \u2190 error.illegal Unit ok (r, s, a) else if lbl > fl4_abi.label.CNodeRotate then do let r \u2190 error.illegal Unit ok (r, s, a) else if length < 2#u64 then do let r \u2190 error.truncated Unit ok (r, s, a) else do let ct \u2190 sched.cur_thread machineStoreInst s le"
+  ],
+  "cspace.lookup_slot_for_cnode_op": [
+   "fun",
+   "(do let r \u2190 cspace.resolve_address_bits machineStoreInst s (capability.Cap.CNode ptr\u271d radix\u271d guard_size\u271d guard\u271d) cptr depth match r with | core.result.Result.Ok r1 => if \u2191r1.bits_left = 0 then ok (core.result.Result.Ok r1.slot) else ok (core.result.Result.Err (error.Exc.Sys (error.SysError.FailedLoo"
+  ],
+  "debug.debug_exception_loop": [
+   "loop",
+   "False"
+  ],
+  "debug.get_breakpoint": [
+   "fun",
+   "\u2191i < 64"
+  ],
+  "debug.init_context_loop": [
+   "loop",
+   "False"
+  ],
+  "debug.set_breakpoint": [
+   "fun",
+   "\u2191i1 < 64"
+  ],
+  "debug.type_and_access": [
+   "fun",
+   "\u2191i < 64"
+  ],
+  "debug.unset_breakpoint": [
+   "fun",
+   "\u2191i4 < 64"
+  ],
+  "domain.decode": [
+   "fun",
+   "1 \u2264 \u2191layout.NUM_DOMAIN_SCHEDULES"
+  ],
+  "endpoint.cancel_all_ipc_loop": [
+   "loop",
+   ""
+  ],
+  "endpoint.cancel_badged_sends_loop": [
+   "loop",
+   ""
+  ],
+  "endpoint.receive_ipc": [
+   "fun",
+   ": (kernel) unknown constant 'Fl4Proofs.P0.endpoint.receive_ipc.p0'"
+  ],
+  "endpoint.unblock_sporadic": [
+   "fun",
+   "b = true \u2194 i = s1"
+  ],
+  "error.Fault.Insts.CoreCmpPartialEqFault.eq": [
+   "fun",
+   "(if error.Fault.Null.read_discriminant = other.read_discriminant then ok true else ok false) \u2983 x\u271d => True \u2984"
+  ],
+  "error.LookupFault.Insts.CoreCmpPartialEqLookupFault.eq": [
+   "fun",
+   "(if error.LookupFault.InvalidRoot.read_discriminant = other.read_discriminant then ok true else ok false) \u2983 x\u271d => True \u2984"
+  ],
+  "error.SysError.Insts.CoreCmpPartialEqSysError.eq": [
+   "fun",
+   "(if (error.SysError.InvalidArgument __self_0\u271d\u00b9).read_discriminant = (error.SysError.InvalidArgument __self_0\u271d).read_discriminant then lift (decide (__self_0\u271d\u00b9 = __self_0\u271d)) else ok false) \u2983 x\u271d => True \u2984"
+  ],
+  "faults.copy_mrs_fault_loop0": [
+   "loop",
+   "\u2191x1 % 2 ^ System.Platform.numBits < (\u2191regs_list).length"
+  ],
+  "faults.copy_mrs_fault_loop1": [
+   "loop",
+   "\u2191x1 % 2 ^ System.Platform.numBits < (\u2191regs_list).length"
+  ],
+  "faults.copy_mrs_fault_reply_loop0": [
+   "loop",
+   "\u2191x1 % 2 ^ System.Platform.numBits < (\u2191regs_list).length"
+  ],
+  "faults.copy_mrs_fault_reply_loop1": [
+   "loop",
+   "\u2191x1 % 2 ^ System.Platform.numBits < (\u2191regs_list).length"
+  ],
+  "faults.set_fault": [
+   "fun",
+   "(do let (s1, ty, w0, w1, w2) \u2190 let (lt, l0, l1) := s1 do let s2 \u2190 obj.Tcb.set_lf_type machineStoreInst t s lt let s3 \u2190 obj.Tcb.set_lf_w0 machineStoreInst t s2 l0 let s4 \u2190 obj.Tcb.set_lf_w1 machineStoreInst t s3 l1 ok (s4, fl4_abi.consts.fault.CapFault, __self_0\u271d, 1#u64, 0#u64) let s2 \u2190 obj.Tcb.set_f"
+  ],
+  "faults.set_mrs_lookup_failure": [
+   "fun",
+   "\u2191offset + 2 \u2264 U64.max"
+  ],
+  "interrupt.decode_irq_control": [
+   "fun",
+   "(if lbl = fl4_abi.label.IRQIssueIRQHandler then do let o \u2190 interrupt.extra0 machineStoreInst s extra match o with | none => do let r \u2190 error.truncated Unit ok (r, s, a) | some c => if length \u2265 3#u64 then do let irq \u2190 msg.syscall_arg machineStoreInst s ct buf 0#u64 let index \u2190 msg.syscall_arg machine"
+  ],
+  "interrupt.deleting_irq_handler": [
+   "rec",
+   ""
+  ],
+  "interrupt.handle_interrupt": [
+   "fun",
+   "(do let (s1, a1) \u2190 let (s3, a2) := x do let a3 \u2190 machineArchInst.mask_irq a2 irq true ok (s3, a3) let a2 \u2190 machineArchInst.ack_irq a1 irq ok (s1, a2)) \u2983 x\u271d => True \u2984"
+  ],
+  "ioport.decode": [
+   "fun",
+   "(if lbl = fl4_abi.label.X86IOPortIn8 then do let is_in \u2190 if lbl = fl4_abi.label.X86IOPortIn8 then ok true else if lbl = fl4_abi.label.X86IOPortIn16 then ok true else if lbl = fl4_abi.label.X86IOPortIn32 then ok true else ok false if is_in = true then if length < 1#u64 then do let r \u2190 error.truncated"
+  ],
+  "ipc.do_reply_transfer": [
+   "fun",
+   "(do let (s3, a2) \u2190 let (restart, s4, a3) := s3 do let s5 \u2190 faults.clear_fault machineStoreInst s4 i if restart = true then do let s6 \u2190 sched.set_thread_state machineStoreInst s5 i sched.TS_RESTART ok (s6, a3) else do let s6 \u2190 sched.set_thread_state machineStoreInst s5 i sched.TS_INACTIVE ok (s6, a3)"
+  ],
+  "ipc.lookup_extra_caps_loop": [
+   "loop",
+   "\u2191i1 + \u2191x1 \u2264 U64.max"
+  ],
+  "ipc.transfer_caps_loop": [
+   "loop",
+   "\u2191x3 % 2 ^ System.Platform.numBits < 3"
+  ],
+  "msg.copy_mrs_loop0": [
+   "loop",
+   "\u2191x1 % 2 ^ System.Platform.numBits < 4"
+  ],
+  "msg.set_mr": [
+   "fun",
+   "\u2191i % 2 ^ System.Platform.numBits < 4"
+  ],
+  "msg.syscall_arg": [
+   "fun",
+   "\u2191i % 2 ^ System.Platform.numBits < 4"
+  ],
+  "notification.cancel_all_signals_loop": [
+   "loop",
+   ""
+  ],
+  "notification.complete_signal": [
+   "fun",
+   "b = true \u2194 i2 = s4"
+  ],
+  "notification.receive_signal": [
+   "fun",
+   "b = true \u2194 i = s4"
+  ],
+  "notification.unblock_sporadic": [
+   "fun",
+   "b = true \u2194 i = s1"
+  ],
+  "objects.child_name_byte": [
+   "fun",
+   "(\u2191i - 8) * 8 \u2264 U64.max"
+  ],
+  "objects.finalise_cap": [
+   "rec",
+   ""
+  ],
+  "objects.mask": [
+   "fun",
+   "1 \u2264 1 <<< (\u2191b &&& 63) % U64.size"
+  ],
+  "objects.same_object_as": [
+   "fun",
+   "objects.same_region_as capability.Cap.IoPortControl capability.Cap.Null \u2983 x\u271d => True \u2984"
+  ],
+  "objects.set_child_name_loop0": [
+   "loop",
+   "False"
+  ],
+  "objects.set_child_name_loop1": [
+   "loop",
+   "False"
+  ],
+  "objects.set_child_name_loop1_loop0": [
+   "loop",
+   "\u2191w * 8 \u2264 U64.max"
+  ],
+  "regs.init_context_loop": [
+   "loop",
+   "False"
+  ],
+  "sched.awaken_loop": [
+   "loop",
+   ""
+  ],
+  "sched.charge_budget": [
+   "fun",
+   "b = true \u2194 sc = s1"
+  ],
+  "sched.commit_time": [
+   "fun",
+   "b = true \u2194 sc = s1"
+  ],
+  "sched.highest_set_bit": [
+   "fun",
+   "\u2191(core.num.U64.leading_zeros w) \u2264 63"
+  ],
+  "sched.release_enqueue_loop": [
+   "loop",
+   ""
+  ],
+  "sched.restart": [
+   "fun",
+   "b = true \u2194 i = s3"
+  ],
+  "sched.schedule": [
+   "fun",
+   "(do let x \u2190 sched.cur_domain machineStoreInst x\u271d\u00b9 let x_1 \u2190 obj.Tcb.prio machineStoreInst act x\u271d\u00b9 let x \u2190 sched.is_highest_prio machineStoreInst x\u271d\u00b9 x x_1 let (s3, a2) \u2190 if x = true then do let i2 \u2190 obj.Tcb.prio machineStoreInst s3 x\u271d\u00b9 if x_1 = i2 then do let s5 \u2190 sched.append machineStoreInst x\u271d\u00b9 a"
+  ],
+  "sched.switch_sched_context": [
+   "fun",
+   "b = true \u2194 s1 = i"
+  ],
+  "sched.update_timestamp": [
+   "fun",
+   "(\u2191now + (U64.size - \u2191prev)) % U64.size \u2264 \u2191dt"
+  ],
+  "schedcontext.bind_tcb": [
+   "fun",
+   "b = true \u2194 sc = s4"
+  ],
+  "schedcontext.configure_flags": [
+   "fun",
+   "(do let (s1, a1) \u2190 let (s2, a2) := s1 do let s3 \u2190 sched.release_remove machineStoreInst s2 i let s4 \u2190 sched.dequeue machineStoreInst s3 i let s5 \u2190 sched.cur_sc machineStoreInst s4 let b1 \u2190 obj.Sc.Insts.CoreCmpPartialEqSc.eq s5 target let t \u2190 if b1 = true then sched.commit_time machineStoreInst machi"
+  ],
+  "schedcontext.extra_cap": [
+   "fun",
+   "\u2191i < 3"
+  ],
+  "schedcontext.yield_to": [
+   "fun",
+   "(do let s4 \u2190 schedcontext.set_consumed machineStoreInst machineArchInst s1 a1 sc ct call let s5 \u2190 sched.set_thread_state machineStoreInst s4 ct sched.TS_RUNNING ok (s5, a1)) \u2983 x\u271d => True \u2984"
+  ],
+  "sporadic.budget_check_loop0": [
+   "loop",
+   "(do let s1 \u2190 if b = true then do let i1 \u2190 lift (core.num.U64.wrapping_add h.time period) sporadic.set_head machineStoreInst x0 i { time := i1, amount := h.amount } else do let (old, s2) \u2190 sporadic.pop_head machineStoreInst x0 i let i1 \u2190 lift (core.num.U64.wrapping_add old.time period) sporadic.sched"
+  ],
+  "syscall.after_invocation": [
+   "fun",
+   "(do let b \u2190 core.result.Result.is_err r if b = true then do let (s1, a1) \u2190 syscall.mcs_preemption_point machineStoreInst machineArchInst s a let (irq, a2) \u2190 machineArchInst.take_pending_irq a1 let (s2, a3) \u2190 syscall.check_interrupt machineStoreInst machineArchInst s1 a2 irq ok (false, s2, a3) else o"
+  ],
+  "syscall.handle_syscall": [
+   "fun",
+   "(if (i2 != 0#u64) = true then do let i3 \u2190 lift (IScalar.hcast UScalarTy.U64 number) syscall.unknown_syscall_fault machineStoreInst machineArchInst s1 a i3 else if number < fl4_abi.syscall.SYSCALL_MIN then syscall.handle_unknown_syscall machineStoreInst machineArchInst s1 a number else if number > fl"
+  ],
+  "syscall.handle_unknown_syscall": [
+   "fun",
+   "(if fl4_abi.config.PRINTING = true then if number = fl4_abi.syscall.SysDebugPutChar then do let c \u2190 obj.Tcb.reg machineStoreInst t s layout.reg.CAP let i \u2190 lift (c &&& 255#u64) let a1 \u2190 machineArchInst.putc a i ok (s, a1) else if fl4_abi.config.PRINTING = true then if number = fl4_abi.syscall.SysDeb"
+  ],
+  "syscall.name_thread_loop0": [
+   "loop",
+   "(do let v \u2190 if x2 = true then ok 0#u64 else do let i \u2190 x1 * 8#u64 let i1 \u2190 lift (core.num.U64.wrapping_add src i) machineStoreInst.read x0 i1 if x2 = true then do let v1 \u2190 if x1 = 7#u64 then ok (v &&& 72057594037927935#u64) else ok v let i \u2190 t.name_addr let i1 \u2190 x1 * 8#u64 let i2 \u2190 lift (core.num.U6"
+  ],
+  "syscall.name_thread_loop0_loop0": [
+   "loop",
+   ""
+  ],
+  "syscall.reply_error": [
+   "fun",
+   "(do let (s2, len) \u2190 let (len1, s3) := s2 ok (s3, len1) let x \u2190 syscall.DEBUG_MESSAGE_START + 1#u64 let x_1 \u2190 msg.buf_get machineStoreInst s2 buf x let x_2 \u2190 lift (18446744073709551360#64#uscalar) let x_3 \u2190 lift (x_1 &&& x_2) let x \u2190 msg.buf_set machineStoreInst s2 buf x x_3 let x_4 \u2190 len + 1#u64 let"
+  ],
+  "tcb.copy_registers_loop0": [
+   "loop",
+   "\u2191x1 % 2 ^ System.Platform.numBits < 18"
+  ],
+  "tcb.copy_registers_loop1": [
+   "loop",
+   "\u2191x1 % 2 ^ System.Platform.numBits \u2264 1"
+  ],
+  "tcb.copy_registers_loop2": [
+   "loop",
+   "\u2191x1 % 2 ^ System.Platform.numBits \u2264 1"
+  ],
+  "tcb.decode": [
+   "fun",
+   "(if lbl = fl4_abi.label.TCBReadRegisters then if c.length < 2#u64 then do let r \u2190 error.truncated Unit ok (r, s1, a1) else do let flags \u2190 tcb.arg machineStoreInst s1 c 0#u64 let n \u2190 tcb.arg machineStoreInst s1 c 1#u64 if n < 1#u64 then do let i \u2190 tcb.N_FRAME + tcb.N_GP let r \u2190 error.range Unit 1#u64"
+  ],
+  "tcb.derive_roots": [
+   "fun",
+   "error.illegal (capability.Cap \u00d7 capability.Cap) \u2983 x\u271d => True \u2984"
+  ],
+  "tcb.extra": [
+   "fun",
+   "\u2191i < 3"
+  ],
+  "tcb.fpu_transfer": [
+   "fun",
+   "(if c.length \u2265 1#u64 then do let offset \u2190 tcb.arg machineStoreInst s c 0#u64 let c1 \u2190 obj.Slot.cap machineStoreInst x\u271d s match c1 with | capability.Cap.Null => do let r \u2190 error.invalid_cap Unit 1#u64 ok (r, s, a) | capability.Cap.Untyped a_1 a_2 a_3 a_4 => do let r \u2190 error.invalid_cap Unit 1#u64 ok "
+  ],
+  "tcb.post_modify_registers": [
+   "fun",
+   "b = true \u2194 t = t1"
+  ],
+  "tcb.read_registers": [
+   "fun",
+   "\u2191k + 18 \u2264 U64.max"
+  ],
+  "tcb.read_registers_loop0": [
+   "loop",
+   "\u2191x1 % 2 ^ System.Platform.numBits < 18"
+  ],
+  "tcb.read_registers_loop1": [
+   "loop",
+   "\u2191x1 % 2 ^ System.Platform.numBits < 18"
+  ],
+  "tcb.read_registers_loop2": [
+   "loop",
+   "\u2191x1 + 18 \u2264 U64.max"
+  ],
+  "tcb.read_registers_loop3": [
+   "loop",
+   "\u2191x1 + 18 \u2264 U64.max"
+  ],
+  "tcb.read_registers_loop4": [
+   "loop",
+   "\u2191x1 + 18 \u2264 U64.max"
+  ],
+  "tcb.read_registers_loop5": [
+   "loop",
+   "\u2191x1 + 18 \u2264 U64.max"
+  ],
+  "tcb.read_registers_loop6": [
+   "loop",
+   "\u2191x1 + 18 \u2264 U64.max"
+  ],
+  "tcb.read_registers_loop7": [
+   "loop",
+   "\u2191x1 + 18 \u2264 U64.max"
+  ],
+  "tcb.read_registers_loop8": [
+   "loop",
+   "\u2191x1 + 18 \u2264 U64.max"
+  ],
+  "tcb.read_registers_loop9": [
+   "loop",
+   "\u2191x1 + 18 \u2264 U64.max"
+  ],
+  "tcb.thread_control_caps": [
+   "fun",
+   "(let (c, s1) := fh do let (r, s2, a1) \u2190 tcb.install_tcb_cap machineStoreInst machineArchInst s a target slot layout.tcb.SLOT_FAULT_HANDLER c s1 let cf \u2190 core.result.Result.Insts.CoreOpsTry.branch r match cf with | core.ops.control_flow.ControlFlow.Continue a => do let i1 \u2190 lift (flags &&& tcb.UPDATE"
+  ],
+  "tcb.thread_control_sched": [
+   "fun",
+   "(let (c, s1) := fh do let (r, s2, a1) \u2190 tcb.install_tcb_cap machineStoreInst machineArchInst s a target slot layout.tcb.SLOT_FAULT_HANDLER c s1 let cf \u2190 core.result.Result.Insts.CoreOpsTry.branch r match cf with | core.ops.control_flow.ControlFlow.Continue a => do let i1 \u2190 lift (flags &&& tcb.SCHED_"
+  ],
+  "tcb.write_registers": [
+   "fun",
+   "20 \u2264 U64.max"
+  ],
+  "tcb.write_registers_loop0": [
+   "loop",
+   "\u2191x1 % 2 ^ System.Platform.numBits < 18"
+  ],
+  "tcb.write_registers_loop1": [
+   "loop",
+   "\u2191x1 + 18 \u2264 U64.max"
+  ],
+  "tcbqueue.append_by_prio_loop": [
+   "loop",
+   ""
+  ],
+  "timer.fire_loop": [
+   "loop",
+   "(do let (s2, a1) \u2190 if \u2191n = 0 then ok (s1, x1) else notification.send_signal machineStoreInst machineArchInst s1 x1 n badge let c \u2190 machineStoreInst.cur_cpu s2 let s3 \u2190 obj.node_set machineStoreInst s2 c layout.node.REPROGRAM 1#u64 let i4 \u2190 x2 + 1#u64 ok (ControlFlow.cont (s3, a1, i4))) \u2983 r => match "
+  ],
+  "timer.insert_fixup_loop": [
+   "loop",
+   "(do let (s1, z1, pp) \u2190 if b4 = true then do let s2 \u2190 timer.rotate_left machineStoreInst x0 cpu p let pp1 \u2190 timer.parent machineStoreInst s2 p ok (s2, p, pp1) else ok (x0, x1, p) let s2 \u2190 timer.set_red machineStoreInst s1 pp false let s3 \u2190 timer.set_red machineStoreInst s2 g true let s4 \u2190 timer.rotat"
+  ],
+  "timer.insert_loop": [
+   "loop",
+   ""
+  ],
+  "timer.remove_fixup_loop": [
+   "loop",
+   "obj.Tcb.Insts.CoreCmpPartialEqTcb.eq x1 t \u2983 b => b = true \u2194 x1 = t \u2984"
+  ],
+  "timer.remove_loop0": [
+   "loop",
+   ""
+  ],
+  "timer.remove_loop1": [
+   "loop",
+   ""
+  ],
+  "timer.remove_loop2": [
+   "loop",
+   ""
+  ],
+  "timer.remove_loop3": [
+   "loop",
+   ""
+  ],
+  "untyped.decode": [
+   "fun",
+   "(if (lbl != fl4_abi.label.UntypedRetype) = true then do let r \u2190 error.illegal Unit ok (r, s, a) else if length < 6#u64 then do let r \u2190 error.truncated Unit ok (r, s, a) else do let s1 \u2190 extra.index_usize 0#usize let b \u2190 s1.is_null if b = true then do let r \u2190 error.truncated Unit ok (r, s, a) else do"
+  ],
+  "untyped.reset_untyped": [
+   "fun",
+   "1 \u2264 65536 % U64.size"
+  ],
+  "untyped.reset_untyped_loop": [
+   "loop",
+   "\u2191chunk \u2264 \u2191x2"
+  ],
+  "vspace.check_valid_ipc_buffer": [
+   "fun",
+   "1 \u2264 1024 % U64.size"
+  ],
+  "vspace.copy_global_mappings_loop": [
+   "loop",
+   "False"
+  ],
+  "vspace.decode_frame": [
+   "fun",
+   "(if lbl = fl4_abi.label.X86PageMap then do let o \u2190 vspace.extra ex 0#usize match o with | none => do let r \u2190 error.truncated Unit ok (r, s, a) | some x => if length \u2265 3#u64 then do let vaddr1 \u2190 msg.syscall_arg machineStoreInst s ct buf 0#u64 let rights_mask \u2190 msg.syscall_arg machineStoreInst s ct bu"
+  ],
+  "vspace.decode_loop0": [
+   "loop",
+   "False"
+  ],
+  "vspace.decode_loop1": [
+   "loop",
+   "False"
+  ],
+  "vspace.decode_table": [
+   "fun",
+   "(if lbl = fl4_abi.label.X86PageTableUnmap then do let b \u2190 cdt.is_final_capability machineStoreInst s slot if b = true then do let s1 \u2190 sched.set_thread_state machineStoreInst s ct sched.TS_RESTART let (s2, a1) \u2190 if mapped\u271d = true then do let (s3, a2) \u2190 vspace.unmap_page_table machineStoreInst machin"
+  ],
+  "vspace.delete_asid_pool_loop": [
+   "loop",
+   "(do let a1 \u2190 if \u2191i3 = 0 then ok x0 else do let i4 \u2190 base + x1 machineArchInst.invalidate_asid x0 i4 let i4 \u2190 x1 + 1#u64 ok (ControlFlow.cont (a1, i4))) \u2983 r => match r with | ControlFlow.done y => True | ControlFlow.cont x' => \u2191x'.2 < \u2191x1 \u2984"
+  ],
+  "vspace.derive_subframe": [
+   "fun",
+   "(if length \u2265 6#u64 then match cap with | capability.Cap.Null => do let r \u2190 error.illegal Unit ok (r, s, a) | capability.Cap.Untyped a_1 a_2 a_3 a_4 => do let r \u2190 error.illegal Unit ok (r, s, a) | capability.Cap.Endpoint a_1 a_2 a_3 a_4 a_5 a_6 => do let r \u2190 error.illegal Unit ok (r, s, a) | capabili"
+  ],
+  "vspace.extra": [
+   "fun",
+   "\u2191i < 3"
+  ],
+  "vspace.reply1": [
+   "fun",
+   "(do let s1 \u2190 let (n, s3) := x do let mi \u2190 msginfo.MessageInfo.new 0#u64 0#u64 0#u64 n msg.set_msg_info machineStoreInst s3 t mi sched.set_thread_state machineStoreInst s1 t sched.TS_RUNNING) \u2983 x\u271d => True \u2984"
+  ]
+ }
+}

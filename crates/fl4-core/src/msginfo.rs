@@ -1,7 +1,7 @@
 //! `seL4_MessageInfo_t`: label 52 bits, capsUnwrapped 3, extraCaps 2,
 //! length 7 (libsel4 shared_types.bf).
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct MessageInfo {
     pub label: u64,
     pub caps_unwrapped: u64,

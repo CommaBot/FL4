@@ -7,7 +7,7 @@ use crate::obj::{node_get, node_set, Sc};
 
 pub const MIN_REFILLS: u64 = 2;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Refill {
     pub time: u64,
     pub amount: u64,
@@ -41,7 +41,7 @@ pub fn refill_absolute_max(size_bits: u64) -> u64 {
     if size_bits >= 64 {
         return 0;
     }
-    let bytes = 1u64 << size_bits;
+    let bytes = 1u64 << (size_bits & 63);
     if bytes < scl::REFILLS {
         0
     } else {
@@ -88,7 +88,7 @@ pub fn size<S: Store>(s: &S, sc: Sc) -> u64 {
     let h = sc.refill_head(s);
     let t = sc.refill_tail(s);
     if h <= t {
-        t - h + 1
+        t.wrapping_sub(h).wrapping_add(1)
     } else {
         t.wrapping_add(1).wrapping_add(sc.refill_max(s).wrapping_sub(h))
     }

@@ -188,7 +188,7 @@ fn add_to_bitmap<S: Store>(s: &mut S, cpu: u64, dom: u64, prio: u64) {
     let l1 = prio >> 6;
     let inv = 3 - (l1 & 3);
     let v1 = node_get(s, cpu, l1_off(d));
-    node_set(s, cpu, l1_off(d), v1 | (1u64 << l1));
+    node_set(s, cpu, l1_off(d), v1 | (1u64 << (l1 & 63)));
     let v2 = node_get(s, cpu, l2_off(d, inv));
     node_set(s, cpu, l2_off(d, inv), v2 | (1u64 << (prio & 63)));
 }
@@ -201,7 +201,7 @@ fn remove_from_bitmap<S: Store>(s: &mut S, cpu: u64, dom: u64, prio: u64) {
     node_set(s, cpu, l2_off(d, inv), v2);
     if v2 == 0 {
         let v1 = node_get(s, cpu, l1_off(d));
-        node_set(s, cpu, l1_off(d), v1 & !(1u64 << l1));
+        node_set(s, cpu, l1_off(d), v1 & !(1u64 << (l1 & 63)));
     }
 }
 

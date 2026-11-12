@@ -94,7 +94,7 @@ fn mask(b: u64) -> u64 {
     if b >= 64 {
         u64::MAX
     } else {
-        (1u64 << b) - 1
+        (1u64 << (b & 63)) - 1
     }
 }
 
@@ -481,7 +481,7 @@ const CHILD_PREFIX_LEN: u64 = 11;
 const CHILD_NAME_MAX: u64 = 51;
 
 fn name_byte<S: Store>(s: &S, t: Tcb, i: u64) -> u64 {
-    (s.read(t.name_addr().wrapping_add(i & !7)) >> ((i & 7) * 8)) & 0xff
+    (s.read(t.name_addr().wrapping_add(i & !7)) >> ((i & 7).wrapping_mul(8) & 63)) & 0xff
 }
 
 /// Byte `i` of "child of: '<first len bytes of parent's name>'".

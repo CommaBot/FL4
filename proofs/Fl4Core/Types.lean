@@ -298,7 +298,7 @@ structure cspace.Resolved where
   bits_left : Std.U64
 
 /-- [fl4_core::debug::Breakpoint]
-    Source: 'crates/fl4-core/src/debug.rs', lines 90:0-96:1
+    Source: 'crates/fl4-core/src/debug.rs', lines 92:0-98:1
     Visibility: public -/
 structure debug.Breakpoint where
   vaddr : Std.U64

@@ -27,7 +27,7 @@ pub const PADDR_USER_DEVICE_TOP: u64 = 1 << 47;
 
 /// A half-open range of kernel virtual (or, for devices, physical)
 /// addresses.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Region {
     pub start: u64,
     pub end: u64,
@@ -65,7 +65,7 @@ pub struct BootParams {
     pub idle_stride: u64,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum BootError {
     NoMemory,
     TooManyCaps,
@@ -101,7 +101,7 @@ struct Boot {
 }
 
 fn bi_set<S: Store>(s: &mut S, b: &Boot, word: u64, v: u64) {
-    s.write(b.bi_frame.wrapping_add(word * 8), v)
+    s.write(b.bi_frame.wrapping_add(word.wrapping_mul(8)), v)
 }
 
 /// seL4 `write_slot`.
@@ -130,7 +130,7 @@ fn provide_cap<S: Store>(s: &mut S, b: &mut Boot, c: Cap) {
 
 fn alloc<S: Store>(s: &mut S, b: &mut Boot, size_bits: u64, n: u64) -> u64 {
     let p = b.next;
-    let len = n << size_bits;
+    let len = n << (size_bits & 63);
     b.next = b.next.wrapping_add(len);
     s.zero(p, len);
     p
@@ -138,22 +138,23 @@ fn alloc<S: Store>(s: &mut S, b: &mut Boot, size_bits: u64, n: u64) -> u64 {
 
 /// Number of tables of the level covering 2^bits needed for `r`.
 fn n_paging(r: Region, bits: u64) -> u64 {
-    let start = r.start >> bits;
-    let end = (r.end.wrapping_add((1u64 << bits) - 1)) >> bits;
-    end - start
+    let b = bits & 63;
+    let start = r.start >> b;
+    let end = (r.end.wrapping_add((1u64 << (b & 63)).wrapping_sub(1))) >> b;
+    end.wrapping_sub(start)
 }
 
 fn arch_n_paging(r: Region) -> u64 {
-    n_paging(r, 21) + n_paging(r, 30) + n_paging(r, 39)
+    n_paging(r, 21).wrapping_add(n_paging(r, 30)).wrapping_add(n_paging(r, 39))
 }
 
 fn extra_bi_size_bits(len: u64) -> u64 {
     if len == 0 {
         return 0;
     }
-    let rounded = (len + 4095) & !4095;
-    let mut msb = 63 - rounded.leading_zeros() as u64;
-    if rounded > (1u64 << msb) {
+    let rounded = len.wrapping_add(4095) & !4095;
+    let mut msb = 63u64.wrapping_sub(rounded.leading_zeros() as u64) & 63;
+    if rounded > (1u64 << (msb & 63)) {
         msb += 1;
     }
     msb
@@ -161,10 +162,10 @@ fn extra_bi_size_bits(len: u64) -> u64 {
 
 /// Map a page of the initial address space (seL4 `map_it_frame_cap`).
 fn map_it_frame<S: Store>(s: &mut S, pml4: u64, vaddr: u64, paddr: u64) {
-    let pdpt = layout::pptr(s.read(pml4 + ((vaddr >> 39) & 511) * 8) & 0x000f_ffff_ffff_f000);
-    let pd = layout::pptr(s.read(pdpt + ((vaddr >> 30) & 511) * 8) & 0x000f_ffff_ffff_f000);
-    let pt = layout::pptr(s.read(pd + ((vaddr >> 21) & 511) * 8) & 0x000f_ffff_ffff_f000);
-    s.write(pt + ((vaddr >> 12) & 511) * 8, (paddr & 0x000f_ffff_ffff_f000) | 0x7);
+    let pdpt = layout::pptr(s.read(pml4.wrapping_add(((vaddr >> 39) & 511).wrapping_mul(8))) & 0x000f_ffff_ffff_f000);
+    let pd = layout::pptr(s.read(pdpt.wrapping_add(((vaddr >> 30) & 511).wrapping_mul(8))) & 0x000f_ffff_ffff_f000);
+    let pt = layout::pptr(s.read(pd.wrapping_add(((vaddr >> 21) & 511).wrapping_mul(8))) & 0x000f_ffff_ffff_f000);
+    s.write(pt.wrapping_add(((vaddr >> 12) & 511).wrapping_mul(8)), (paddr & 0x000f_ffff_ffff_f000) | 0x7);
 }
 
 fn it_frame_cap(pptr: u64, vaddr: u64, mapped: bool) -> Cap {
@@ -188,7 +189,7 @@ fn create_it_address_space<S: Store>(s: &mut S, b: &mut Boot, it: Region, pml4: 
     // PDPTs, then page directories, then page tables, as seL4 does.
     let mut level: u64 = 39;
     while level >= 21 {
-        let mut v = it.start & !((1u64 << level) - 1);
+        let mut v = it.start & !((1u64 << (level & 63)).wrapping_sub(1));
         while v < it.end {
             let t = alloc(s, b, 12, 1);
             let e = (layout::paddr(t) & 0x000f_ffff_ffff_f000) | 0x7;
@@ -206,7 +207,7 @@ fn create_it_address_space<S: Store>(s: &mut S, b: &mut Boot, it: Region, pml4: 
                 Cap::PageTable { ptr: t, mapped: true, asid: IT_ASID, vaddr: v }
             };
             provide_cap(s, b, c);
-            v = v.wrapping_add(1u64 << level);
+            v = v.wrapping_add(1u64 << (level & 63));
         }
         level -= 9;
     }
@@ -251,12 +252,12 @@ fn create_untypeds_for_region<S: Store>(s: &mut S, b: &mut Boot, device: bool, r
                 // Boot untypeds are clean (l4h 0019): RAM is cleared here so
                 // the free index can start at 0.
                 if !device {
-                    s.zero(start, 1u64 << size_bits);
+                    s.zero(start, 1u64 << (size_bits & 63));
                 }
                 provide_cap(s, b, Cap::Untyped { ptr, size_bits, free_index: 0, is_device: device });
             }
         }
-        start = start.wrapping_add(1u64 << size_bits);
+        start = start.wrapping_add(1u64 << (size_bits & 63));
     }
 }
 
@@ -267,7 +268,7 @@ fn configure_sched_context<S: Store>(s: &mut S, t: Tcb, sc: Sc, budget: u64) {
 }
 
 fn set_name<S: Store>(s: &mut S, t: Tcb, name: &[u8]) {
-    let mut w = 0;
+    let mut w: u64 = 0;
     while w < 8 {
         let mut v: u64 = 0;
         let mut k = 0;
@@ -278,7 +279,7 @@ fn set_name<S: Store>(s: &mut S, t: Tcb, name: &[u8]) {
             }
             k += 1;
         }
-        s.write(t.name_addr().wrapping_add(w * 8), v);
+        s.write(t.name_addr().wrapping_add(w.wrapping_mul(8)), v);
         w += 1;
     }
 }
@@ -291,7 +292,7 @@ fn take_rootserver_mem(p: &mut BootParams, size: u64, align_bits: u64) -> Option
         i -= 1;
         let r = p.free[i as usize];
         if r.end > r.start && r.end - r.start >= size {
-            let start = (r.end - size) & !((1u64 << align_bits) - 1);
+            let start = (r.end - size) & !((1u64 << (align_bits & 63)) - 1);
             if start >= r.start {
                 // Split the region around the allocation.
                 let tail = Region { start: start + size, end: r.end };
@@ -317,19 +318,19 @@ pub fn create_root_task<S: Store, A: Arch>(s: &mut S, a: &mut A, p: &mut BootPar
     let bi_frame_vptr = ipcbuf_vptr + 4096;
     let extra_bi_vptr = bi_frame_vptr + 4096;
     let ebits = extra_bi_size_bits(p.extra_bi_len);
-    let ebytes = if ebits > 0 { 1u64 << ebits } else { 0 };
+    let ebytes = if ebits > 0 { 1u64 << (ebits & 63) } else { 0 };
     let it = Region { start: ui_v_start, end: (extra_bi_vptr + ebytes + 4095) & !4095 };
 
     // seL4 calculate_rootserver_size / create_rootserver_objects.
     let cnode_bits = ROOT_CNODE_BITS + bits::SLOT;
     let n_paging = arch_n_paging(it);
-    let size = (1u64 << cnode_bits) + (1u64 << bits::TCB) + 4096 * 3 + ebytes + 4096 + (1u64 << bits::MIN_SCHED_CONTEXT) + n_paging * 4096;
+    let size = (1u64 << (cnode_bits & 63)) + (1u64 << bits::TCB) + 4096 * 3 + ebytes + 4096 + (1u64 << bits::MIN_SCHED_CONTEXT) + n_paging * 4096;
     let max_bits = if cnode_bits > ebits { cnode_bits } else { ebits };
-    let start = match take_rootserver_mem(p, size + (1u64 << max_bits), max_bits) {
+    let start = match take_rootserver_mem(p, size + (1u64 << (max_bits & 63)), max_bits) {
         Some(x) => x,
         None => return Err(BootError::NoMemory),
     };
-    let mut b = Boot { root_cnode: 0, slot_pos: 0, bi_frame: 0, next: start, end: start + size + (1u64 << max_bits), full: false };
+    let mut b = Boot { root_cnode: 0, slot_pos: 0, bi_frame: 0, next: start, end: start + size + (1u64 << (max_bits & 63)), full: false };
     let extra_bi = if ebits >= cnode_bits && ebits > 0 { alloc(s, &mut b, ebits, 1) } else { 0 };
     b.root_cnode = alloc(s, &mut b, cnode_bits, 1);
     let extra_bi = if extra_bi == 0 && ebits > 0 { alloc(s, &mut b, ebits, 1) } else { extra_bi };
@@ -353,7 +354,7 @@ pub fn create_root_task<S: Store, A: Arch>(s: &mut S, a: &mut A, p: &mut BootPar
         } else {
             interrupt::IRQ_INACTIVE
         };
-        ks_set(s, ks::IRQ_STATE + i * 8, st);
+        ks_set(s, ks::IRQ_STATE.wrapping_add(i.wrapping_mul(8)), st);
         i += 1;
     }
     write_slot(s, root_slot(&b, rs::IRQControl), Cap::IrqControl);
@@ -369,8 +370,8 @@ pub fn create_root_task<S: Store, A: Arch>(s: &mut S, a: &mut A, p: &mut BootPar
     b.slot_pos = rs::NumInitialCaps;
     let mut w = 0;
     while w < (p.extra_bi_len + 7) / 8 {
-        let v = s.read(p.extra_bi + w * 8);
-        s.write(extra_bi + w * 8, v);
+        let v = s.read(p.extra_bi.wrapping_add(w.wrapping_mul(8)));
+        s.write(extra_bi.wrapping_add(w.wrapping_mul(8)), v);
         w += 1;
     }
 
@@ -419,7 +420,7 @@ pub fn create_root_task<S: Store, A: Arch>(s: &mut S, a: &mut A, p: &mut BootPar
     let mut c = 0;
     while c < p.num_nodes {
         node_set(s, c, node::CUR_TIME, now);
-        let base = p.idle_base + c * p.idle_stride;
+        let base = p.idle_base.wrapping_add(c.wrapping_mul(p.idle_stride));
         let idle = Tcb(base);
         let isc = Sc(base + 4096);
         s.zero(base, 4096 + 256);

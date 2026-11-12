@@ -304,7 +304,11 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
     ks_set(&mut s, ks::FEATURES, if nx { ks::FEATURE_NX } else { 0 });
     let mut a = PhysArch;
     if let Err(e) = fl4_core::boot::create_root_task(&mut s, &mut a, &mut p) {
-        kprintln!("FL4: creating the root task failed: {:?}", e);
+        let why = match e {
+            fl4_core::boot::BootError::NoMemory => "not enough memory",
+            fl4_core::boot::BootError::TooManyCaps => "root CNode too small",
+        };
+        kprintln!("FL4: creating the root task failed: {}", why);
         fail("root task");
     }
     kprintln!("FL4: starting the root task at {:#x}", image.entry);

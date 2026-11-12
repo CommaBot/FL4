@@ -9,7 +9,7 @@ use crate::obj::{Slot, Tcb};
 pub const WORD_BITS: u64 = 64;
 
 /// Result of `resolveAddressBits`: the slot reached and the bits left.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Resolved {
     pub slot: Slot,
     pub bits_left: u64,
@@ -19,7 +19,7 @@ fn mask(bits: u64) -> u64 {
     if bits >= 64 {
         u64::MAX
     } else {
-        (1u64 << bits).wrapping_sub(1)
+        (1u64 << (bits & 63)).wrapping_sub(1)
     }
 }
 

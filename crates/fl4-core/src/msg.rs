@@ -32,7 +32,7 @@ pub fn lookup_ipc_buffer<S: Store>(s: &S, is_receiver: bool, t: Tcb) -> u64 {
             }
             if rights == VM_READ_WRITE || (!is_receiver && rights == VM_READ_ONLY) {
                 let bits = size.bits();
-                ptr.wrapping_add(w & ((1u64 << bits) - 1))
+                ptr.wrapping_add(w & (1u64 << (bits & 63)).wrapping_sub(1))
             } else {
                 0
             }

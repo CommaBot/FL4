@@ -2,7 +2,7 @@
 //! encoding (capability layout is not part of the API); the kernel works
 //! on the decoded `Cap`.
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum FrameSize {
     Small,
     Large,
@@ -43,7 +43,7 @@ pub const VM_READ_WRITE: u64 = 3;
 /// Zombie type for a TCB (otherwise the type is the CNode radix).
 pub const ZOMBIE_TCB: u64 = 65;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Cap {
     Null,
     Untyped { ptr: u64, size_bits: u64, free_index: u64, is_device: bool },
@@ -85,12 +85,12 @@ fn unpack_ptr(w: u64) -> u64 {
 }
 
 fn bit(w: u64, n: u64) -> bool {
-    (w >> n) & 1 != 0
+    (w >> (n & 63)) & 1 != 0
 }
 
 fn b(v: bool, n: u64) -> u64 {
     if v {
-        1u64 << n
+        1u64 << (n & 63)
     } else {
         0
     }
@@ -244,7 +244,7 @@ impl Cap {
 }
 
 /// `seL4_CapRights_t`: bit 0 write, 1 read, 2 grant, 3 grantReply.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Rights {
     pub write: bool,
     pub read: bool,

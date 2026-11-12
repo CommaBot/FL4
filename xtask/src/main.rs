@@ -336,10 +336,20 @@ fn gate() {
         fs::create_dir_all(link.parent().unwrap()).unwrap();
         std::os::unix::fs::symlink(deps().join("aeneas/backends/lean"), &link).unwrap();
     }
+    // P0: constant values, then a theorem per function (DESIGN.md §9).
+    let scripts = root().join("xtask/scripts");
+    for g in ["gen_const_specs.py", "gen_p0.py"] {
+        run(Command::new("python3").arg(scripts.join(g)).arg(root().join("proofs")));
+    }
     let mut c = Command::new("lake");
     c.current_dir(root().join("proofs")).arg("build");
     run(&mut c);
-    eprintln!("xtask: gate passed");
+    let status = fs::read_to_string(root().join("proofs/Fl4Proofs/P0/status.json")).unwrap();
+    let left = status.matches("\"sorry\": {}").count() == 0;
+    eprintln!("xtask: gate passed (proofs/Fl4Proofs/P0/status.json lists the P0 theorems still to prove)");
+    if left && env::var_os("FL4_P0_STRICT").is_some() {
+        fail("P0 is not complete");
+    }
 }
 
 fn extract() {

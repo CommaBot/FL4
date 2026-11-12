@@ -50,7 +50,7 @@ fn entry_addr(table: u64, i: u64) -> u64 {
 }
 
 fn idx(vaddr: u64, shift: u64) -> u64 {
-    (vaddr >> shift) & 511
+    (vaddr >> (shift & 63)) & 511
 }
 
 fn table_of(e: u64) -> u64 {
@@ -452,14 +452,14 @@ fn decode_frame<S: Store, A: Arch>(
                 return invalid_arg(0);
             }
         } else {
-            let vtop = vaddr.wrapping_add(1u64 << size.bits());
+            let vtop = vaddr.wrapping_add(1u64 << (size.bits() & 63));
             if vaddr > USER_TOP || vtop > USER_TOP {
                 return invalid_arg(0);
             }
         }
         check_vspace(s, vcap)?;
         let vm = mask_vm_rights(rights, Rights::from_word(rights_mask));
-        if vaddr & ((1u64 << size.bits()) - 1) != 0 {
+        if vaddr & (1u64 << (size.bits() & 63)).wrapping_sub(1) != 0 {
             return Err(Exc::Sys(SysError::AlignmentError));
         }
         let paddr = layout::paddr(ptr);
@@ -599,7 +599,7 @@ fn derive_subframe<S: Store, A: Arch>(s: &mut S, a: &mut A, length: u64, src: Sl
     }
     let mut i = 0;
     while i < count {
-        cdt::ensure_empty_slot(s, Slot::index(dest, node_offset + i))?;
+        cdt::ensure_empty_slot(s, Slot::index(dest, node_offset.wrapping_add(i)))?;
         i += 1;
     }
     let mask = msg::syscall_arg(s, ct, buf, 5);
@@ -617,7 +617,7 @@ fn derive_subframe<S: Store, A: Arch>(s: &mut S, a: &mut A, length: u64, src: Sl
             asid: 0,
             vaddr: 0,
         };
-        cdt::insert(s, c, src, Slot::index(dest, node_offset + i));
+        cdt::insert(s, c, src, Slot::index(dest, node_offset.wrapping_add(i)));
         i += 1;
     }
     Ok(())
@@ -672,7 +672,7 @@ fn decode_table<S: Store, A: Arch>(
     if mapped {
         return invalid_cap(0);
     }
-    let vaddr = msg::syscall_arg(s, ct, buf, 0) & !((1u64 << level) - 1);
+    let vaddr = msg::syscall_arg(s, ct, buf, 0) & !((1u64 << (level & 63)) - 1);
     let attr = msg::syscall_arg(s, ct, buf, 1);
     let vcap = vslot.cap(s);
     if !is_valid_vtable_root(vcap) {
@@ -774,7 +774,7 @@ pub fn decode<S: Store, A: Arch>(
             cdt::ensure_empty_slot(s, dest)?;
             sched::set_thread_state(s, ct, sched::TS_RESTART);
             if let Cap::Untyped { ptr, size_bits, is_device, .. } = untyped {
-                parent.set_cap(s, Cap::Untyped { ptr, size_bits, free_index: 1u64 << size_bits, is_device });
+                parent.set_cap(s, Cap::Untyped { ptr, size_bits, free_index: 1u64 << (size_bits & 63), is_device });
             }
             s.zero(frame, 4096);
             cdt::insert(s, Cap::AsidPool { ptr: frame, asid_base: base }, parent, dest);
@@ -801,13 +801,13 @@ pub fn decode<S: Store, A: Arch>(
                 return invalid_cap(0);
             }
             let mut i = 0;
-            while i < 512 && (asid_base + i == 0 || s.read(pool.wrapping_add(i * 8)) != 0) {
+            while i < 512 && (asid_base.wrapping_add(i) == 0 || s.read(pool.wrapping_add(i * 8)) != 0) {
                 i += 1;
             }
             if i == 512 {
                 return Err(Exc::Sys(SysError::DeleteFirst));
             }
-            let asid = asid_base + i;
+            let asid = asid_base.wrapping_add(i);
             sched::set_thread_state(s, ct, sched::TS_RESTART);
             vslot.set_cap(s, Cap::Pml4 { ptr: vroot, mapped: true, asid });
             s.write(pool.wrapping_add((asid & 511) * 8), vroot);

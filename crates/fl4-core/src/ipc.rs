@@ -90,7 +90,7 @@ fn transfer_caps<S: Store>(s: &mut S, info: MessageInfo, extra: &ExtraCaps, ep: 
         match unwrap {
             Some(badge) => {
                 msg::buf_set(s, recv_buf, msg::BUF_CAPS + i, badge);
-                out.caps_unwrapped |= 1u64 << i;
+                out.caps_unwrapped |= 1u64 << (i & 63);
             }
             None => {
                 if dest.is_null() {

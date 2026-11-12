@@ -6,14 +6,14 @@
 use crate::machine::Store;
 use crate::obj::Tcb;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Queue {
     pub head: Tcb,
     pub end: Tcb,
 }
 
 /// Which pair of TCB fields links the queue.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Link {
     Sched,
     Ep,

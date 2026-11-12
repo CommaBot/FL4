@@ -2,7 +2,7 @@
 //! `current_syscall_error`, `current_fault` and `current_lookup_fault`,
 //! carried as values instead.
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum LookupFault {
     InvalidRoot,
     MissingCapability { bits_left: u64 },
@@ -10,7 +10,7 @@ pub enum LookupFault {
     GuardMismatch { guard_found: u64, bits_left: u64, guard_size: u64 },
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum SysError {
     InvalidArgument { arg: u64 },
     InvalidCapability { arg: u64 },
@@ -24,7 +24,7 @@ pub enum SysError {
     NotEnoughMemory { bytes: u64 },
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Fault {
     Null,
     Cap { addr: u64, in_recv: bool, lf: LookupFault },
@@ -35,7 +35,7 @@ pub enum Fault {
     VmFault { addr: u64, fsr: u64, instruction: bool },
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Exc {
     Fault(Fault),
     Lookup(LookupFault),

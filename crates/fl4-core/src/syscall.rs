@@ -468,7 +468,7 @@ fn name_thread<S: Store>(s: &mut S, t: Tcb, src: u64) {
             while k < 8 {
                 if (v >> (k * 8)) & 0xff == 0 {
                     done = true;
-                    v &= if k == 0 { 0 } else { (1u64 << (k * 8)) - 1 };
+                    v &= if k == 0 { 0 } else { (1u64 << ((k * 8) & 63)).wrapping_sub(1) };
                     break;
                 }
                 k += 1;

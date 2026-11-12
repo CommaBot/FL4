@@ -373,6 +373,6 @@ pub fn decode_sched_control<S: Store, A: Arch>(
     let badge = msg::syscall_arg(s, ct, buf, 3);
     let flags = msg::syscall_arg(s, ct, buf, 4);
     sched::set_thread_state(s, ct, sched::TS_RESTART);
-    configure_flags(s, a, Sc(sc_ptr), cpu, budget, period, extra_refills + MIN_REFILLS, badge, flags);
+    configure_flags(s, a, Sc(sc_ptr), cpu, budget, period, extra_refills.wrapping_add(MIN_REFILLS), badge, flags);
     Ok(())
 }
