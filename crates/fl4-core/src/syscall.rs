@@ -57,6 +57,16 @@ fn reply_error<S: Store>(s: &mut S, t: Tcb, e: SysError) {
         SysError::NotEnoughMemory { bytes } => msg::set_mr(s, t, buf, 0, bytes),
         _ => 0,
     };
+    // KernelInvocationReportErrorIPC: the error string follows. FL4 keeps
+    // no error strings, so it is always empty (l4h 0008: never the string
+    // of an earlier invocation); like strlcpy, only its NUL byte is written.
+    let len = if fl4_abi::config::KERNEL_INVOCATION_REPORT_ERROR_IPC && buf != 0 {
+        let w = msg::buf_get(s, buf, DEBUG_MESSAGE_START + 1);
+        msg::buf_set(s, buf, DEBUG_MESSAGE_START + 1, w & !0xff);
+        len + 1
+    } else {
+        len
+    };
     msg::set_msg_info(s, t, MessageInfo::new(e.code(), 0, 0, len));
 }
 
@@ -173,8 +183,6 @@ fn handle_invocation<S: Store, A: Arch>(s: &mut S, a: &mut A, is_call: bool, blo
     if length > msg::N_MSG_REGISTERS && buf == 0 {
         length = msg::N_MSG_REGISTERS;
     }
-    // l4h 0008: every invocation starts with an empty error-message buffer.
-    clear_debug_message(s, buf);
     match decode_invocation(s, a, info.label, length, slot, cap, blocking, is_call, can_donate, first_phase, buf, &extra) {
         Err(Exc::Preempted) => return Err(Exc::Preempted),
         Err(Exc::Sys(e)) => {
@@ -195,13 +203,8 @@ fn handle_invocation<S: Store, A: Arch>(s: &mut S, a: &mut A, is_call: bool, blo
     Ok(())
 }
 
-/// The debug message area of the IPC buffer (seL4 DEBUG_MESSAGE_START).
-fn clear_debug_message<S: Store>(s: &mut S, buf: u64) {
-    if buf != 0 && fl4_abi::config::KERNEL_INVOCATION_REPORT_ERROR_IPC {
-        msg::buf_set(s, buf, DEBUG_MESSAGE_START + 1, 0);
-    }
-}
-
+/// Where KernelInvocationReportErrorIPC puts the error string (seL4
+/// DEBUG_MESSAGE_START).
 const DEBUG_MESSAGE_START: u64 = 6;
 
 fn cap_fault_recv<S: Store, A: Arch>(s: &mut S, a: &mut A, cptr: u64, lf: LookupFault) {

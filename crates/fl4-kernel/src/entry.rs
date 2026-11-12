@@ -206,15 +206,20 @@ fn load_debug_state(s: &mut PhysStore, t: Tcb) {
     }
 }
 
-const TRACE_N: usize = 64;
-static mut TRACE: [[u64; 6]; TRACE_N] = [[0; 6]; TRACE_N];
+const TRACE_N: usize = 8192;
+static mut TRACE: [[u64; 8]; TRACE_N] = [[0; 8]; TRACE_N];
 static mut TRACE_I: usize = 0;
 
 fn trace(f: &Frame) {
     unsafe {
         let s = store();
         let ct = sched::cur_thread(&s).0;
-        TRACE[TRACE_I % TRACE_N] = [f.vector, f.rip, f.rdi, f.rsi, f.rdx, ct];
+        let e = [f.vector, f.rip, f.rdi, f.rsi, f.rdx, ct, f.rbx, f.rbp];
+        // Collapse loops of period 1 and 2.
+        if TRACE_I >= 2 && (TRACE[(TRACE_I - 1) % TRACE_N] == e || TRACE[(TRACE_I - 2) % TRACE_N] == e) {
+            return;
+        }
+        TRACE[TRACE_I % TRACE_N] = e;
         TRACE_I += 1;
     }
 }
@@ -223,7 +228,7 @@ fn trace(f: &Frame) {
 pub fn dump_trace() {
     unsafe {
         let n = TRACE_I;
-        let start = n.saturating_sub(TRACE_N);
+        let start = n.saturating_sub(64);
         for i in start..n {
             let t = TRACE[i % TRACE_N];
             kprintln!("  #{} vec {:#x} rip {:#x} rdi {:#x} rsi {:#x} rdx {:#x} tcb {:#x}", i, t[0], t[1], t[2], t[3], t[4] as i64, t[5]);

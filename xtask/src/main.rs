@@ -107,6 +107,10 @@ fn qemu_cmd(setup: &str, smp: u32, kernel: &Path, initrd: Option<&Path>) -> Comm
     };
     c.args(["-m", "3G", "-smp"]).arg(smp.to_string());
     c.args(["-display", "none", "-serial", "stdio", "-no-reboot", "-monitor", "none"]);
+    // Extra arguments for debugging, e.g. FL4_QEMU_ARGS=-s for gdb.
+    if let Ok(extra) = env::var("FL4_QEMU_ARGS") {
+        c.args(extra.split_whitespace());
+    }
     c.arg("-kernel").arg(kernel);
     if let Some(i) = initrd {
         c.arg("-initrd").arg(i);
