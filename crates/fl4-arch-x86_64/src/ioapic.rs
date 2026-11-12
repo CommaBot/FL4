@@ -57,9 +57,12 @@ pub fn pins(i: u64) -> u64 {
 }
 
 /// Route `pin` of `ioapic` to `vector` on the boot CPU (`dest`), masked.
-pub fn map(ioapic: u64, pin: u64, level: u64, polarity: u64, vector: u64, dest: u32, high: u32) {
+/// A nonzero `high` replaces the destination word and `lo_extra` is ORed
+/// into the low word (remappable-format entries, l4h 0025).
+#[allow(clippy::too_many_arguments)]
+pub fn map(ioapic: u64, pin: u64, level: u64, polarity: u64, vector: u64, dest: u32, high: u32, lo_extra: u32) {
     let i = ioapic as usize;
-    let lo = (1u32 << 16) | ((level as u32) << 15) | ((polarity as u32) << 13) | vector as u32;
+    let lo = (1u32 << 16) | ((level as u32) << 15) | ((polarity as u32) << 13) | lo_extra | vector as u32;
     write(i, 0x10 + 2 * pin as u32, 1 << 16);
     write(i, 0x11 + 2 * pin as u32, if high != 0 { high } else { dest << 24 });
     write(i, 0x10 + 2 * pin as u32, lo);

@@ -8,7 +8,7 @@ use crate::obj::{Ep, Ntfn, Reply, Sc, Tcb, EP_IDLE, EP_RECV, EP_SEND};
 use crate::sched;
 use crate::schedcontext;
 use crate::sporadic;
-use crate::tcbqueue::{self, Queue};
+use crate::tcbqueue::{self, Link, Queue};
 
 const FLAG_GRANT: u64 = 1;
 const FLAG_GRANT_REPLY: u64 = 2;
@@ -25,7 +25,7 @@ fn set_queue<S: Store>(s: &mut S, ep: Ep, q: Queue, state: u64) {
 /// seL4 `tcbEPAppend`.
 fn ep_append<S: Store>(s: &mut S, ep: Ep, t: Tcb, state: u64) {
     let q = get_queue(s, ep);
-    let q = tcbqueue::append_by_prio(s, q, t);
+    let q = tcbqueue::append_by_prio(s, Link::Ep, q, t);
     set_queue(s, ep, q, state);
 }
 
@@ -34,7 +34,7 @@ pub fn ep_dequeue<S: Store>(s: &mut S, ep_ptr: u64, t: Tcb) {
     let ep = Ep(ep_ptr);
     let q = get_queue(s, ep);
     let st = ep.state(s);
-    let q = tcbqueue::remove(s, q, t);
+    let q = tcbqueue::remove(s, Link::Ep, q, t);
     set_queue(s, ep, q, if q.is_empty() { EP_IDLE } else { st });
 }
 
@@ -43,8 +43,8 @@ pub fn reorder_ep<S: Store>(s: &mut S, ep_ptr: u64, t: Tcb) {
     let ep = Ep(ep_ptr);
     let st = ep.state(s);
     let q = get_queue(s, ep);
-    let q = tcbqueue::remove(s, q, t);
-    let q = tcbqueue::append_by_prio(s, q, t);
+    let q = tcbqueue::remove(s, Link::Ep, q, t);
+    let q = tcbqueue::append_by_prio(s, Link::Ep, q, t);
     set_queue(s, ep, q, st);
 }
 
@@ -186,7 +186,7 @@ pub fn cancel_all_ipc<S: Store>(s: &mut S, ep_ptr: u64) {
     }
     let mut t = get_queue(s, ep).head;
     while !t.is_null() {
-        let next = Tcb(t.sched_next(s));
+        let next = tcbqueue::next_of(s, Link::Ep, t);
         ep_dequeue(s, ep_ptr, t);
         if t.state(s) == sched::TS_BLOCKED_ON_RECV {
             let r = Reply(t.reply_obj(s));
@@ -208,7 +208,7 @@ pub fn cancel_badged_sends<S: Store>(s: &mut S, ep_ptr: u64, badge: u64) {
     }
     let mut t = get_queue(s, ep).head;
     while !t.is_null() {
-        let next = Tcb(t.sched_next(s));
+        let next = tcbqueue::next_of(s, Link::Ep, t);
         if t.block_badge(s) == badge {
             ep_dequeue(s, ep_ptr, t);
             restart_thread_if_no_fault(s, t);

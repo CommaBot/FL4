@@ -91,7 +91,7 @@ fn labels(c: &Config, path: &Path, out: &mut Vec<String>, disabled: &mut Vec<Str
 }
 
 /// Syscalls in configuration order; disabled ones get `i64::MIN`, a number
-/// no caller can pass.
+/// no caller can pass (their positional number stays unused).
 fn syscalls(c: &Config, path: &Path) -> Vec<(String, i64)> {
     let text = fs::read_to_string(path).unwrap();
     let doc = roxmltree::Document::parse(&text).unwrap();
@@ -103,12 +103,10 @@ fn syscalls(c: &Config, path: &Path) -> Vec<(String, i64)> {
             let cond = config.children().find(|e| e.has_tag_name("condition"));
             let on = cond.map_or(true, |k| eval(c, k));
             for sc in config.children().filter(|e| e.has_tag_name("syscall")) {
-                if on {
-                    v.push((sc.attribute("name").unwrap().to_string(), n));
-                    n -= 1;
-                } else {
-                    v.push((sc.attribute("name").unwrap().to_string(), i64::MIN));
-                }
+                // Numbers are positional whatever the condition, as in
+                // syscall_header_gen.py.
+                v.push((sc.attribute("name").unwrap().to_string(), if on { n } else { i64::MIN }));
+                n -= 1;
             }
         }
     }

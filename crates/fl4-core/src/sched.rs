@@ -8,7 +8,7 @@ use crate::machine::{Arch, Store};
 use crate::obj::{ks_get, ks_set, node_get, node_set, Sc, Tcb};
 use crate::schedcontext;
 use crate::sporadic;
-use crate::tcbqueue::{self, Queue};
+use crate::tcbqueue::{self, Link, Queue};
 
 pub const TS_INACTIVE: u64 = 0;
 pub const TS_RUNNING: u64 = 1;
@@ -246,7 +246,7 @@ pub fn enqueue<S: Store>(s: &mut S, t: Tcb) {
     if q.is_empty() {
         add_to_bitmap(s, core, dom, prio);
     }
-    let q = tcbqueue::prepend(s, q, t);
+    let q = tcbqueue::prepend(s, Link::Sched, q, t);
     q_set(s, core, off, q);
     set_flag(s, t, Q_QUEUED, true);
 }
@@ -264,7 +264,7 @@ pub fn append<S: Store>(s: &mut S, t: Tcb) {
     if q.is_empty() {
         add_to_bitmap(s, core, dom, prio);
     }
-    let q = tcbqueue::append(s, q, t);
+    let q = tcbqueue::append(s, Link::Sched, q, t);
     q_set(s, core, off, q);
     set_flag(s, t, Q_QUEUED, true);
 }
@@ -279,7 +279,7 @@ pub fn dequeue<S: Store>(s: &mut S, t: Tcb) {
     let prio = t.prio(s);
     let off = rq_head_off(dom, prio);
     let q = q_get(s, core, off);
-    let q = tcbqueue::remove(s, q, t);
+    let q = tcbqueue::remove(s, Link::Sched, q, t);
     q_set(s, core, off, q);
     set_flag(s, t, Q_QUEUED, false);
     if q.is_empty() {
@@ -303,7 +303,7 @@ pub fn release_remove<S: Store>(s: &mut S, t: Tcb) {
         set_reprogram_on(s, core);
     }
     let q = q_get(s, core, node::RELEASE_HEAD);
-    let q = tcbqueue::remove(s, q, t);
+    let q = tcbqueue::remove(s, Link::Sched, q, t);
     q_set(s, core, node::RELEASE_HEAD, q);
     set_flag(s, t, Q_RELEASE, false);
 }
@@ -314,10 +314,10 @@ pub fn release_enqueue<S: Store>(s: &mut S, t: Tcb) {
     let q = q_get(s, core, node::RELEASE_HEAD);
     let new_time = ready_time(s, t);
     if q.is_empty() || new_time < ready_time(s, q.head) {
-        let nq = tcbqueue::prepend(s, q, t);
+        let nq = tcbqueue::prepend(s, Link::Sched, q, t);
         q_set(s, core, node::RELEASE_HEAD, nq);
     } else if ready_time(s, q.end) <= new_time {
-        let nq = tcbqueue::append(s, q, t);
+        let nq = tcbqueue::append(s, Link::Sched, q, t);
         q_set(s, core, node::RELEASE_HEAD, nq);
     } else {
         // The first thread released after new_time exists and is not the
@@ -326,7 +326,7 @@ pub fn release_enqueue<S: Store>(s: &mut S, t: Tcb) {
         while !after.is_null() && new_time >= ready_time(s, after) {
             after = Tcb(after.sched_next(s));
         }
-        tcbqueue::insert_before(s, t, after);
+        tcbqueue::insert_before(s, Link::Sched, t, after);
     }
     set_flag(s, t, Q_RELEASE, true);
     if node_get(s, core, node::RELEASE_HEAD) != q.head.0 {

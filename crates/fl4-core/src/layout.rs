@@ -151,8 +151,9 @@ pub mod reply {
     pub const NEXT: u64 = 16;
 }
 
-/// Scheduling context: a 128-byte header (seL4_CoreSchedContextBytes)
-/// followed by the refill ring.
+/// Scheduling context: a 96-byte header (sizeof(sched_context_t)) followed
+/// by the refill ring; the smallest SC (2^7 bytes) holds the header and
+/// MIN_REFILLS refills (seL4_CoreSchedContextBytes).
 pub mod sc {
     pub const PERIOD: u64 = 0;
     pub const CONSUMED: u64 = 8;
@@ -166,7 +167,7 @@ pub mod sc {
     pub const REFILL_MAX: u64 = 72;
     pub const REFILL_HEAD: u64 = 80;
     pub const REFILL_TAIL: u64 = 88;
-    pub const REFILLS: u64 = 128;
+    pub const REFILLS: u64 = 96;
     pub const REFILL_SIZE: u64 = 16;
     pub const R_TIME: u64 = 0;
     pub const R_AMOUNT: u64 = 8;

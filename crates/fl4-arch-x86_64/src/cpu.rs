@@ -168,7 +168,8 @@ pub fn write_dr(i: u64, v: u64) {
 
 #[inline]
 pub fn enable_interrupts_briefly() {
-    unsafe { asm!("sti", "nop", "nop", "cli", options(nomem, nostack)) }
+    // Not `nomem`: interrupt handlers run here and touch kernel state.
+    unsafe { asm!("sti", "nop", "nop", "cli", options(nostack)) }
 }
 
 pub mod msr {

@@ -3,8 +3,12 @@
 #![no_std]
 
 pub mod apic;
+pub mod arch;
 pub mod cpu;
+pub mod fpu;
 pub mod ioapic;
+pub mod percpu;
 pub mod pic;
 pub mod pit;
 pub mod serial;
+pub mod timer;

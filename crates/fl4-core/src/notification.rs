@@ -7,7 +7,7 @@ use crate::obj::{Ntfn, Sc, Tcb, NTFN_ACTIVE, NTFN_IDLE, NTFN_WAITING};
 use crate::sched;
 use crate::schedcontext;
 use crate::sporadic;
-use crate::tcbqueue::{self, Queue};
+use crate::tcbqueue::{self, Link, Queue};
 
 fn get_queue<S: Store>(s: &S, n: Ntfn) -> Queue {
     Queue { head: Tcb(n.head(s)), end: Tcb(n.tail(s)) }
@@ -19,14 +19,14 @@ fn set_queue<S: Store>(s: &mut S, n: Ntfn, q: Queue, state: u64) {
 
 fn ntfn_append<S: Store>(s: &mut S, n: Ntfn, t: Tcb) {
     let q = get_queue(s, n);
-    let q = tcbqueue::append_by_prio(s, q, t);
+    let q = tcbqueue::append_by_prio(s, Link::Ep, q, t);
     set_queue(s, n, q, NTFN_WAITING);
 }
 
 fn ntfn_dequeue<S: Store>(s: &mut S, n: Ntfn, t: Tcb) {
     let st = n.state(s);
     let q = get_queue(s, n);
-    let q = tcbqueue::remove(s, q, t);
+    let q = tcbqueue::remove(s, Link::Ep, q, t);
     set_queue(s, n, q, if q.is_empty() { NTFN_IDLE } else { st });
 }
 
@@ -34,8 +34,8 @@ pub fn reorder_ntfn<S: Store>(s: &mut S, n_ptr: u64, t: Tcb) {
     let n = Ntfn(n_ptr);
     let st = n.state(s);
     let q = get_queue(s, n);
-    let q = tcbqueue::remove(s, q, t);
-    let q = tcbqueue::append_by_prio(s, q, t);
+    let q = tcbqueue::remove(s, Link::Ep, q, t);
+    let q = tcbqueue::append_by_prio(s, Link::Ep, q, t);
     set_queue(s, n, q, st);
 }
 
@@ -141,7 +141,7 @@ pub fn cancel_all_signals<S: Store>(s: &mut S, n_ptr: u64) {
     }
     let mut t = get_queue(s, n).head;
     while !t.is_null() {
-        let next = Tcb(t.sched_next(s));
+        let next = tcbqueue::next_of(s, Link::Ep, t);
         ntfn_dequeue(s, n, t);
         sched::set_thread_state(s, t, sched::TS_RESTART);
         unblock_sporadic(s, t);

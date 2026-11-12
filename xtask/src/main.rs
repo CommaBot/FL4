@@ -146,10 +146,14 @@ fn run_qemu(mut c: Command, timeout: u64, stop: &[&str], log: &Path) -> String {
                 f.write_all(&b).ok();
                 all.extend_from_slice(&b);
                 let s = String::from_utf8_lossy(&all);
-                for p in stop {
-                    if s.contains(p) {
-                        break 'outer;
+                if stop.iter().any(|p| s.contains(p)) {
+                    // Keep what follows the stop marker (a panic message).
+                    while let Ok(b) = rx.recv_timeout(Duration::from_millis(300)) {
+                        std::io::stdout().write_all(&b).ok();
+                        f.write_all(&b).ok();
+                        all.extend_from_slice(&b);
                     }
+                    break 'outer;
                 }
             }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}

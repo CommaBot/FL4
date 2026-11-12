@@ -75,7 +75,7 @@ pub fn set_mr<S: Store>(s: &mut S, t: Tcb, buf: u64, i: u64, v: u64) -> u64 {
         buf_set(s, buf, i.wrapping_add(1), v);
         i + 1
     } else {
-        N_MSG_REGISTERS
+        i
     }
 }
 

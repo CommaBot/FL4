@@ -243,7 +243,11 @@ fn create_untypeds_for_region<S: Store>(s: &mut S, b: &mut Boot, device: bool, r
                 bi_set(s, b, bi::UNTYPED_LIST + 2 * i, paddr);
                 bi_set(s, b, bi::UNTYPED_LIST + 2 * i + 1, size_bits | (if device { 1 << 8 } else { 0 }));
                 let ptr = if device { layout::pptr(start) } else { start };
-                // Boot untypeds are clean (l4h 0019): the free index starts at 0.
+                // Boot untypeds are clean (l4h 0019): RAM is cleared here so
+                // the free index can start at 0.
+                if !device {
+                    s.zero(start, 1u64 << size_bits);
+                }
                 provide_cap(s, b, Cap::Untyped { ptr, size_bits, free_index: 0, is_device: device })?;
             }
         }
