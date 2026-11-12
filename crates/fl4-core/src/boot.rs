@@ -160,12 +160,23 @@ fn extra_bi_size_bits(len: u64) -> u64 {
     msb
 }
 
+/// Address of the entry for `vaddr` in the table at `table` whose entries
+/// each cover 2^shift bytes.
+fn entry_addr(table: u64, vaddr: u64, shift: u64) -> u64 {
+    table.wrapping_add(((vaddr >> (shift & 63)) & 511).wrapping_mul(8))
+}
+
+/// The table the entry for `vaddr` points to.
+fn next_table<S: Store>(s: &S, table: u64, vaddr: u64, shift: u64) -> u64 {
+    layout::pptr(s.read(entry_addr(table, vaddr, shift)) & 0x000f_ffff_ffff_f000)
+}
+
 /// Map a page of the initial address space (seL4 `map_it_frame_cap`).
 fn map_it_frame<S: Store>(s: &mut S, pml4: u64, vaddr: u64, paddr: u64) {
-    let pdpt = layout::pptr(s.read(pml4.wrapping_add(((vaddr >> 39) & 511).wrapping_mul(8))) & 0x000f_ffff_ffff_f000);
-    let pd = layout::pptr(s.read(pdpt.wrapping_add(((vaddr >> 30) & 511).wrapping_mul(8))) & 0x000f_ffff_ffff_f000);
-    let pt = layout::pptr(s.read(pd.wrapping_add(((vaddr >> 21) & 511).wrapping_mul(8))) & 0x000f_ffff_ffff_f000);
-    s.write(pt.wrapping_add(((vaddr >> 12) & 511).wrapping_mul(8)), (paddr & 0x000f_ffff_ffff_f000) | 0x7);
+    let pdpt = next_table(s, pml4, vaddr, 39);
+    let pd = next_table(s, pdpt, vaddr, 30);
+    let pt = next_table(s, pd, vaddr, 21);
+    s.write(entry_addr(pt, vaddr, 12), (paddr & 0x000f_ffff_ffff_f000) | 0x7);
 }
 
 fn it_frame_cap(pptr: u64, vaddr: u64, mapped: bool) -> Cap {
@@ -186,30 +197,35 @@ fn create_it_address_space<S: Store>(s: &mut S, b: &mut Boot, it: Region, pml4: 
     let cap = Cap::Pml4 { ptr: pml4, mapped: true, asid: IT_ASID };
     write_slot(s, root_slot(b, rs::InitThreadVSpace), cap);
     let first = b.slot_pos;
-    // PDPTs, then page directories, then page tables, as seL4 does.
-    let mut level: u64 = 39;
-    while level >= 21 {
-        let mut v = it.start & !((1u64 << (level & 63)).wrapping_sub(1));
-        while v < it.end {
+    // PDPTs, then page directories, then page tables, as seL4 does. The
+    // loops count tables rather than step addresses, so they cannot wrap.
+    let mut k: u64 = 0;
+    while k < 3 {
+        let level = 39 - 9 * k;
+        let n = n_paging(it, level);
+        let base = it.start & !((1u64 << (level & 63)).wrapping_sub(1));
+        let mut j: u64 = 0;
+        while j < n {
+            let v = base.wrapping_add(j << (level & 63));
             let t = alloc(s, b, 12, 1);
             let e = (layout::paddr(t) & 0x000f_ffff_ffff_f000) | 0x7;
             let c = if level == 39 {
-                s.write(pml4 + ((v >> 39) & 511) * 8, e);
+                s.write(entry_addr(pml4, v, 39), e);
                 Cap::Pdpt { ptr: t, mapped: true, asid: IT_ASID, vaddr: v }
             } else if level == 30 {
-                let pdpt = layout::pptr(s.read(pml4 + ((v >> 39) & 511) * 8) & 0x000f_ffff_ffff_f000);
-                s.write(pdpt + ((v >> 30) & 511) * 8, e);
+                let pdpt = next_table(s, pml4, v, 39);
+                s.write(entry_addr(pdpt, v, 30), e);
                 Cap::PageDirectory { ptr: t, mapped: true, asid: IT_ASID, vaddr: v }
             } else {
-                let pdpt = layout::pptr(s.read(pml4 + ((v >> 39) & 511) * 8) & 0x000f_ffff_ffff_f000);
-                let pd = layout::pptr(s.read(pdpt + ((v >> 30) & 511) * 8) & 0x000f_ffff_ffff_f000);
-                s.write(pd + ((v >> 21) & 511) * 8, e);
+                let pdpt = next_table(s, pml4, v, 39);
+                let pd = next_table(s, pdpt, v, 30);
+                s.write(entry_addr(pd, v, 21), e);
                 Cap::PageTable { ptr: t, mapped: true, asid: IT_ASID, vaddr: v }
             };
             provide_cap(s, b, c);
-            v = v.wrapping_add(1u64 << (level & 63));
+            j += 1;
         }
-        level -= 9;
+        k += 1;
     }
     bi_set(s, b, bi::USER_IMAGE_PAGING, first);
     bi_set(s, b, bi::USER_IMAGE_PAGING + 1, b.slot_pos);
@@ -218,21 +234,28 @@ fn create_it_address_space<S: Store>(s: &mut S, b: &mut Boot, it: Region, pml4: 
 
 fn create_frames<S: Store>(s: &mut S, b: &mut Boot, reg: Region, pml4: u64, pv_offset: u64) -> (u64, u64) {
     let before = b.slot_pos;
-    let mut f = reg.start;
-    while f < reg.end {
+    // `reg` is page aligned; count pages so the loop cannot wrap.
+    let n = if reg.end > reg.start { (reg.end - reg.start) / 4096 } else { 0 };
+    let mut i: u64 = 0;
+    while i < n {
+        let f = reg.start.wrapping_add(i.wrapping_mul(4096));
         let paddr = layout::paddr(f);
         let vaddr = paddr.wrapping_sub(pv_offset);
         map_it_frame(s, pml4, vaddr, paddr);
         provide_cap(s, b, it_frame_cap(f, vaddr, true));
-        f += 4096;
+        i += 1;
     }
     (before, b.slot_pos)
 }
 
 fn create_untypeds_for_region<S: Store>(s: &mut S, b: &mut Boot, device: bool, reg: Region, first: u64) {
     let mut start = reg.start;
-    while start < reg.end {
-        let mut size_bits = 63 - (reg.end - start).leading_zeros() as u64;
+    // Each round takes the largest aligned block at `start`, so a region
+    // splits into at most 128 blocks; the fuel makes that bound explicit.
+    let mut fuel: u64 = 128;
+    while start < reg.end && fuel > 0 {
+        fuel -= 1;
+        let mut size_bits = 63u64.wrapping_sub((reg.end - start).leading_zeros() as u64) & 63;
         if size_bits > bits::MAX_UNTYPED {
             size_bits = bits::MAX_UNTYPED;
         }

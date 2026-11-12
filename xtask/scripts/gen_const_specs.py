@@ -77,14 +77,28 @@ for n, (hexv, _bits) in zip(results, vals):
     ]
 # Plain (non-Result) constants: their values as simp lemmas, so goals such
 # as `↑ASID_LOW_BITS < 64` close by simp or scalar_tac.
-for n in order:
+def plain_value(n):
+    """The value of a plain constant: a literal or another plain constant."""
     is_result, ty, body = defs[n]
-    lit = body.strip()
-    if is_result or ty not in suffix or not re.fullmatch(r"\d+#(u64|u32|usize)", lit):
+    b = body.strip()
+    if is_result or ty not in suffix:
+        return None
+    if re.fullmatch(r"\d+#(u64|u32|usize)", b):
+        return int(b.split("#")[0])
+    if b in defs:
+        return plain_value(b)
+    return None
+
+
+for n in order:
+    v = plain_value(n)
+    if v is None:
         continue
+    b = defs[n][2].strip()
+    proof = f"unfold {n}; rfl" if b not in defs else f"unfold {n}; exact {b}.val_eq"
     lines += [
-        f"@[simp] theorem {n}.val_eq : {n}.val = {lit.split('#')[0]} := by",
-        f"  unfold {n}; rfl",
+        f"@[simp] theorem {n}.val_eq : {n}.val = {v} := by",
+        f"  {proof}",
         "",
     ]
 lines.append("end Fl4Proofs.P0.Consts")

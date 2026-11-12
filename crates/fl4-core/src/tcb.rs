@@ -8,7 +8,7 @@ use crate::error::{illegal, invalid_arg, invalid_cap, range, sys, truncated, Exc
 use crate::faults;
 use crate::layout::{reg, tcb as tl};
 use crate::machine::{Arch, Store};
-use crate::msg::{self, MSG_REGISTERS, N_MSG_REGISTERS};
+use crate::msg::{self, N_MSG_REGISTERS};
 use crate::msginfo::MessageInfo;
 use crate::notification;
 use crate::obj::{Ntfn, Sc, Slot, Tcb};
@@ -250,7 +250,7 @@ fn read_registers<S: Store, A: Arch>(s: &mut S, a: &mut A, src: Tcb, suspend: bo
         let mut i: u64 = 0;
         while i < n && i < N_FRAME && i < N_MSG_REGISTERS {
             let v = src.reg(s, FRAME_REGISTERS[i as usize]);
-            ct.set_reg(s, MSG_REGISTERS[i as usize], v);
+            ct.set_reg(s, msg::msg_register(i), v);
             i += 1;
         }
         if buf != 0 && i < n && i < N_FRAME {
@@ -264,7 +264,7 @@ fn read_registers<S: Store, A: Arch>(s: &mut S, a: &mut A, src: Tcb, suspend: bo
         let mut k: u64 = 0;
         while k < N_GP && k + N_FRAME < n && k + N_FRAME < N_MSG_REGISTERS {
             let v = src.reg(s, GP_REGISTERS[k as usize]);
-            ct.set_reg(s, MSG_REGISTERS[(k + N_FRAME) as usize], v);
+            ct.set_reg(s, msg::msg_register(k + N_FRAME), v);
             k += 1;
         }
         if buf != 0 && k < N_GP && k + N_FRAME < n {

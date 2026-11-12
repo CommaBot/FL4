@@ -89,11 +89,25 @@ end
 
 end Fl4Proofs.P0
 
+/-- `x as usize` keeps small values: usize has at least 32 bits. -/
+theorem mod_numBits_of_lt {x : Nat} (h : x < 2 ^ 32) : x % 2 ^ System.Platform.numBits = x := by
+  apply Nat.mod_eq_of_lt
+  have : 2 ^ 32 ≤ 2 ^ System.Platform.numBits := by
+    rcases System.Platform.numBits_eq with h' | h' <;> simp [h']
+  omega
+
+/-- Close a side condition left by `step*`, or leave it untouched. -/
+macro "p0_close" : tactic =>
+  `(tactic| try (first
+    | scalar_tac
+    | (simp_all; done)
+    | (simp (disch := scalar_tac) only [mod_numBits_of_lt, Array.length_eq] at *; scalar_tac)
+    | (simp_all <;> scalar_tac)))
+
 /-- The automatic P0 proof: step through the body, then close arithmetic
 side conditions. -/
-macro "p0_auto" : tactic => `(tactic| (step* <;> (try scalar_tac) <;> (try simp_all)))
+macro "p0_auto" : tactic => `(tactic| (step* <;> p0_close))
 
 /-- The fallback for large matches on literals, where `step*` times out in
 `whnf`: split the matches explicitly. -/
-macro "p0_split" : tactic =>
-  `(tactic| ((repeat' (first | step | split)) <;> (try scalar_tac) <;> (try simp_all)))
+macro "p0_split" : tactic => `(tactic| ((repeat' (first | step | split)) <;> p0_close))

@@ -7,7 +7,7 @@ use crate::endpoint;
 use crate::error::{Fault, LookupFault};
 use crate::layout::{reg, tcb as tl};
 use crate::machine::{Arch, Store};
-use crate::msg::{self, MSG_REGISTERS, N_MSG_REGISTERS};
+use crate::msg::{self, N_MSG_REGISTERS};
 use crate::obj::{Sc, Tcb};
 use crate::regs;
 use crate::sched;
@@ -163,7 +163,7 @@ fn copy_mrs_fault<S: Store>(s: &mut S, sender: Tcb, receiver: Tcb, regs_list: &[
     let mut i: u64 = 0;
     while i < n && i < N_MSG_REGISTERS {
         let v = sender.reg(s, regs_list[i as usize]);
-        receiver.set_reg(s, MSG_REGISTERS[i as usize], v);
+        receiver.set_reg(s, msg::msg_register(i), v);
         i += 1;
     }
     if buf != 0 {
@@ -228,7 +228,7 @@ fn copy_mrs_fault_reply<S: Store>(s: &mut S, sender: Tcb, receiver: Tcb, regs_li
     let mut i: u64 = 0;
     while i < n && i < N_MSG_REGISTERS {
         let r = regs_list[i as usize];
-        let v = sender.reg(s, MSG_REGISTERS[i as usize]);
+        let v = sender.reg(s, msg::msg_register(i));
         receiver.set_reg(s, r, regs::sanitise(r, v));
         i += 1;
     }
@@ -267,7 +267,7 @@ pub fn handle_fault_reply<S: Store, A: Arch>(s: &mut S, a: &mut A, receiver: Tcb
         if receiver.fault_w0(s) != crate::debug::SINGLE_STEP {
             return lbl == 0;
         }
-        let n_instrs = if len < 1 { 1 } else { sender.reg(s, MSG_REGISTERS[0]) };
+        let n_instrs = if len < 1 { 1 } else { sender.reg(s, msg::msg_register(0)) };
         crate::debug::configure_single_stepping(s, a, receiver, 0, n_instrs, true);
         lbl == 0
     } else {

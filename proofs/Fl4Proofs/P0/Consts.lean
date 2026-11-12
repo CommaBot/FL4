@@ -684,6 +684,9 @@ open fl4_core
 @[simp] theorem boot.MAX_REGIONS.val_eq : boot.MAX_REGIONS.val = 32 := by
   unfold boot.MAX_REGIONS; rfl
 
+@[simp] theorem boot.ROOT_CNODE_BITS.val_eq : boot.ROOT_CNODE_BITS.val = 13 := by
+  unfold boot.ROOT_CNODE_BITS; exact fl4_abi.config.ROOT_CNODE_SIZE_BITS.val_eq
+
 @[simp] theorem boot.MAX_BOOTINFO_UNTYPEDS.val_eq : boot.MAX_BOOTINFO_UNTYPEDS.val = 230 := by
   unfold boot.MAX_BOOTINFO_UNTYPEDS; rfl
 
@@ -777,8 +780,14 @@ open fl4_core
 @[simp] theorem layout.WORD.val_eq : layout.WORD.val = 8 := by
   unfold layout.WORD; rfl
 
+@[simp] theorem layout.NUM_DOMAIN_SCHEDULES.val_eq : layout.NUM_DOMAIN_SCHEDULES.val = 2 := by
+  unfold layout.NUM_DOMAIN_SCHEDULES; exact fl4_abi.config.NUM_DOMAIN_SCHEDULES.val_eq
+
 @[simp] theorem layout.node.L1_BITMAP.val_eq : layout.node.L1_BITMAP.val = 128 := by
   unfold layout.node.L1_BITMAP; rfl
+
+@[simp] theorem layout.NUM_DOMAINS.val_eq : layout.NUM_DOMAINS.val = 1 := by
+  unfold layout.NUM_DOMAINS; exact fl4_abi.config.NUM_DOMAINS.val_eq
 
 @[simp] theorem layout.NUM_PRIORITIES.val_eq : layout.NUM_PRIORITIES.val = 256 := by
   unfold layout.NUM_PRIORITIES; rfl
@@ -840,6 +849,9 @@ open fl4_core
 @[simp] theorem layout.sc.CORE.val_eq : layout.sc.CORE.val = 16 := by
   unfold layout.sc.CORE; rfl
 
+@[simp] theorem layout.tcb.STATE.val_eq : layout.tcb.STATE.val = 3328 := by
+  unfold layout.tcb.STATE; exact layout.tcb.F.val_eq
+
 @[simp] theorem layout.ks.DOMAIN_TIME.val_eq : layout.ks.DOMAIN_TIME.val = 16 := by
   unfold layout.ks.DOMAIN_TIME; rfl
 
@@ -869,6 +881,9 @@ open fl4_core
 
 @[simp] theorem layout.reg.RDI.val_eq : layout.reg.RDI.val = 0 := by
   unfold layout.reg.RDI; rfl
+
+@[simp] theorem layout.reg.CAP.val_eq : layout.reg.CAP.val = 0 := by
+  unfold layout.reg.CAP; exact layout.reg.RDI.val_eq
 
 @[simp] theorem layout.reg.FAULT_IP.val_eq : layout.reg.FAULT_IP.val = 17 := by
   unfold layout.reg.FAULT_IP; rfl
@@ -954,6 +969,9 @@ open fl4_core
 @[simp] theorem layout.reg.RSI.val_eq : layout.reg.RSI.val = 1 := by
   unfold layout.reg.RSI; rfl
 
+@[simp] theorem layout.reg.MSG_INFO.val_eq : layout.reg.MSG_INFO.val = 1 := by
+  unfold layout.reg.MSG_INFO; exact layout.reg.RSI.val_eq
+
 @[simp] theorem msg.N_MSG_REGISTERS.val_eq : msg.N_MSG_REGISTERS.val = 4 := by
   unfold msg.N_MSG_REGISTERS; rfl
 
@@ -968,6 +986,9 @@ open fl4_core
 
 @[simp] theorem layout.reg.R10.val_eq : layout.reg.R10.val = 9 := by
   unfold layout.reg.R10; rfl
+
+@[simp] theorem layout.reg.BADGE.val_eq : layout.reg.BADGE.val = 0 := by
+  unfold layout.reg.BADGE; exact layout.reg.RDI.val_eq
 
 @[simp] theorem layout.sc.REPLY.val_eq : layout.sc.REPLY.val = 32 := by
   unfold layout.sc.REPLY; rfl
@@ -1155,6 +1176,9 @@ open fl4_core
 @[simp] theorem layout.reg.FS_BASE.val_eq : layout.reg.FS_BASE.val = 22 := by
   unfold layout.reg.FS_BASE; rfl
 
+@[simp] theorem layout.reg.TLS_BASE.val_eq : layout.reg.TLS_BASE.val = 22 := by
+  unfold layout.reg.TLS_BASE; exact layout.reg.FS_BASE.val_eq
+
 @[simp] theorem layout.tcb.SLOT_TIMEOUT_HANDLER.val_eq : layout.tcb.SLOT_TIMEOUT_HANDLER.val = 4 := by
   unfold layout.tcb.SLOT_TIMEOUT_HANDLER; rfl
 
@@ -1214,6 +1238,12 @@ open fl4_core
 
 @[simp] theorem layout.reg.ERROR.val_eq : layout.reg.ERROR.val = 15 := by
   unfold layout.reg.ERROR; rfl
+
+@[simp] theorem layout.reg.REPLY.val_eq : layout.reg.REPLY.val = 5 := by
+  unfold layout.reg.REPLY; exact layout.reg.R12.val_eq
+
+@[simp] theorem layout.reg.NBSEND_RECV_DEST.val_eq : layout.reg.NBSEND_RECV_DEST.val = 6 := by
+  unfold layout.reg.NBSEND_RECV_DEST; exact layout.reg.R13.val_eq
 
 @[simp] theorem layout.sc.R_TIME.val_eq : layout.sc.R_TIME.val = 0 := by
   unfold layout.sc.R_TIME; rfl

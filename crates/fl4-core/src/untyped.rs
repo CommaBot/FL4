@@ -140,7 +140,8 @@ fn reset_untyped<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot) -> KResult
             return Ok(());
         }
         sched::preemption_point(s, a)?;
-        offset -= chunk;
+        // `offset` is a nonzero multiple of `chunk` here.
+        offset = offset.saturating_sub(chunk);
     }
 }
 

@@ -45,6 +45,9 @@ if mpath.exists():
         manual[m.group(1)] = block
 
 consts = set(re.findall(r"theorem ([A-Za-z0-9_.']+)\.spec :", (proofs / "Fl4Proofs/P0/Consts.lean").read_text()))
+# Functions with a precise step spec (Eq.lean): their P0 theorem follows
+# from it and must not be a step lemma, or step would pick the weaker one.
+specs = set(re.findall(r"theorem ([A-Za-z0-9_.']+)\.spec\b", (proofs / "Fl4Proofs/P0/Eq.lean").read_text()))
 
 # Every `def NAME BINDERS : TYPE := BODY` in Funs.lean, in order.
 defs = {}
@@ -118,6 +121,23 @@ for name in order:
             pv = [f"x{i}" for i in range(k)]
             scope = [a for a, t in args if t in INTS]
             cands = []
+            # Bounds the body tests against (`if i < n`), tried first.
+            names = {sn: pv[i] for i, (sn, _) in enumerate(state)}
+            btext = defs[m.group(2)][1]
+            for v, b in re.findall(r"\bif (\w+) < ([\w.#]+)\s*$", btext, re.M):
+                if v not in names:
+                    continue
+                if re.fullmatch(r"\d+#\w+", b):
+                    bound = b.split("#")[0]
+                elif b in names:
+                    bound = f"{names[b]}.val"
+                elif b in [a for a, _ in args] or "." in b:
+                    bound = f"{b}.val"
+                else:
+                    continue
+                c = f"{bound} - {names[v]}.val"
+                if c not in cands:
+                    cands.append(c)
             for i, (_, t) in enumerate(state):
                 if t not in INTS:
                     continue
@@ -139,6 +159,8 @@ def proof_of(e):
     n = e["name"]
     if e["kind"] == "const":
         return f"  exact WP.spec_mono Consts.{n}.spec (fun _ _ => trivial)"
+    if n in specs:
+        return f"  exact WP.spec_mono ({n}.spec _ _) (fun _ _ => trivial)"
     if e["kind"] == "fun":
         i = attempt.get(n, 0)
         if i < len(FUN_TACTICS):
@@ -184,8 +206,9 @@ def render():
         if n in manual:
             out += manual[n].rstrip("\n").split("\n") + [""]
         else:
+            attr = "" if n in specs else "@[step] "
             out += [
-                f"@[step] theorem {n}.p0 {e['binders']} :",
+                f"{attr}theorem {n}.p0 {e['binders']} :",
                 f"    {e['call']} ⦃ _ => True ⦄ := by",
                 *proof_of(e).split("\n"),
                 "",

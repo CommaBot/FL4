@@ -205,8 +205,9 @@ fn remove_from_bitmap<S: Store>(s: &mut S, cpu: u64, dom: u64, prio: u64) {
     }
 }
 
+/// Index of the highest set bit; `w` is nonzero (callers check).
 fn highest_set_bit(w: u64) -> u64 {
-    63 - (w.leading_zeros() as u64)
+    63u64.wrapping_sub(w.leading_zeros() as u64) & 63
 }
 
 pub fn highest_prio<S: Store>(s: &S, dom: u64) -> u64 {
@@ -439,7 +440,8 @@ pub fn update_timestamp<S: Store, A: Arch>(s: &mut S, a: &mut A) {
     set_consumed(s, total);
     if NUM_DOMAINS > 1 {
         let dt = domain_time(s);
-        if used.wrapping_add(sporadic::min_budget(a)) >= dt {
+        // Saturating: a wrapped sum would make `dt - used` underflow.
+        if used.saturating_add(sporadic::min_budget(a)) >= dt {
             ks_set(s, ks::DOMAIN_TIME, 0);
         } else {
             ks_set(s, ks::DOMAIN_TIME, dt - used);

@@ -9,7 +9,19 @@ use crate::machine::Store;
 use crate::msginfo::MessageInfo;
 use crate::obj::Tcb;
 
-pub const MSG_REGISTERS: [u64; 4] = [reg::R10, reg::R8, reg::R9, reg::R15];
+/// The message registers R10, R8, R9 and R15: register `i` for i < 4. A
+/// function rather than an array, so P0 proofs need no u64-to-usize step.
+pub fn msg_register(i: u64) -> u64 {
+    if i == 0 {
+        reg::R10
+    } else if i == 1 {
+        reg::R8
+    } else if i == 2 {
+        reg::R9
+    } else {
+        reg::R15
+    }
+}
 pub const N_MSG_REGISTERS: u64 = 4;
 pub const MSG_MAX_LENGTH: u64 = 120;
 pub const MSG_MAX_EXTRA_CAPS: u64 = 3;
@@ -52,7 +64,7 @@ pub fn buf_set<S: Store>(s: &mut S, buf: u64, i: u64, v: u64) {
 /// `getSyscallArg`: argument `i` of the current invocation.
 pub fn syscall_arg<S: Store>(s: &S, t: Tcb, buf: u64, i: u64) -> u64 {
     if i < N_MSG_REGISTERS {
-        t.reg(s, MSG_REGISTERS[i as usize])
+        t.reg(s, msg_register(i))
     } else if buf != 0 {
         buf_get(s, buf, i.wrapping_add(1))
     } else {
@@ -69,7 +81,7 @@ pub fn get_mr<S: Store>(s: &S, t: Tcb, buf: u64, i: u64) -> u64 {
 /// when the value had nowhere to go.
 pub fn set_mr<S: Store>(s: &mut S, t: Tcb, buf: u64, i: u64, v: u64) -> u64 {
     if i < N_MSG_REGISTERS {
-        t.set_reg(s, MSG_REGISTERS[i as usize], v);
+        t.set_reg(s, msg_register(i), v);
         i + 1
     } else if buf != 0 {
         buf_set(s, buf, i.wrapping_add(1), v);
@@ -83,8 +95,8 @@ pub fn set_mr<S: Store>(s: &mut S, t: Tcb, buf: u64, i: u64, v: u64) -> u64 {
 pub fn copy_mrs<S: Store>(s: &mut S, sender: Tcb, send_buf: u64, receiver: Tcb, recv_buf: u64, n: u64) -> u64 {
     let mut i = 0;
     while i < n && i < N_MSG_REGISTERS {
-        let v = sender.reg(s, MSG_REGISTERS[i as usize]);
-        receiver.set_reg(s, MSG_REGISTERS[i as usize], v);
+        let v = sender.reg(s, msg_register(i));
+        receiver.set_reg(s, msg_register(i), v);
         i += 1;
     }
     if recv_buf == 0 || send_buf == 0 {
