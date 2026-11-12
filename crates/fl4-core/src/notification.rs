@@ -1,5 +1,6 @@
 //! Notifications (seL4 object/notification.c, MCS).
 
+use crate::layout::WALK_FUEL;
 use crate::ipc;
 use crate::layout::reg;
 use crate::machine::{Arch, Store};
@@ -140,7 +141,9 @@ pub fn cancel_all_signals<S: Store>(s: &mut S, n_ptr: u64) {
         return;
     }
     let mut t = get_queue(s, n).head;
-    while !t.is_null() {
+    let mut fuel: u64 = WALK_FUEL;
+    while !t.is_null() && fuel > 0 {
+        fuel -= 1;
         let next = tcbqueue::next_of(s, Link::Ep, t);
         ntfn_dequeue(s, n, t);
         sched::set_thread_state(s, t, sched::TS_RESTART);

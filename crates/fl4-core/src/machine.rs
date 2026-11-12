@@ -72,6 +72,13 @@ pub trait Arch {
     /// `tcb` is being deleted or moved away: forget any live FPU state.
     fn fpu_release(&mut self, tcb: u64);
 
+    /// Stop core `cpu` running its current thread: that core moves the
+    /// thread back to its ready queue and switches to its idle thread (seL4
+    /// `doRemoteStall`), and has done so when this returns.
+    fn remote_stall(&mut self, cpu: u64);
+    /// Ask the cores in `mask` to reschedule (seL4 `doMaskReschedule`).
+    fn send_reschedule(&mut self, mask: u64);
+
     /// Debug console.
     fn putc(&mut self, c: u64);
     fn get_char(&mut self) -> u64;

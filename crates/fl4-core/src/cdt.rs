@@ -5,6 +5,7 @@
 //! children follow it, and `is_mdb_parent_of` decides where its subtree
 //! ends.
 
+use crate::layout::WALK_FUEL;
 use crate::capability::Cap;
 use crate::error::{Exc, KResult, SysError};
 use crate::machine::{Arch, Store};
@@ -297,7 +298,11 @@ pub fn delete_one<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot) {
 
 /// seL4 `cteRevoke`.
 pub fn revoke<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot) -> KResult<()> {
-    loop {
+    // The fuel never runs out on a well-formed CDT; if it did, the caller
+    // would restart the revoke, as after any preemption.
+    let mut fuel: u64 = WALK_FUEL;
+    while fuel > 0 {
+        fuel -= 1;
         let next = slot.next(s);
         if next.is_null() || !is_mdb_parent_of(s, slot, next) {
             return Ok(());
@@ -305,4 +310,5 @@ pub fn revoke<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot) -> KResult<()
         delete(s, a, next, true)?;
         sched::preemption_point(s, a)?;
     }
+    Err(Exc::Preempted)
 }

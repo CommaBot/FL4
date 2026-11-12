@@ -2,8 +2,8 @@
 //! entry stub through KERNEL_GS_BASE (kernel stack top, scratch).
 use core::cell::UnsafeCell;
 
-/// Cores the backend has room for; the SMP milestone raises this.
-pub const MAX_CPUS: usize = 8;
+/// Cores the backend has room for.
+pub const MAX_CPUS: usize = 16;
 pub const KSTACK_SIZE: usize = 64 * 1024;
 pub const NO_IRQ: u64 = u64::MAX;
 
@@ -32,6 +32,8 @@ pub struct PerCpu {
     pub cr3: u64,
     pub asid: u64,
     pub apic_id: u32,
+    /// This core holds the serial gate.
+    pub gate_held: bool,
 }
 
 impl PerCpu {
@@ -50,6 +52,7 @@ impl PerCpu {
             cr3: 0,
             asid: 0,
             apic_id: 0,
+            gate_held: false,
         }
     }
 }
@@ -65,10 +68,20 @@ pub struct Stacks(pub UnsafeCell<[[u8; KSTACK_SIZE]; MAX_CPUS]>);
 unsafe impl Sync for Stacks {}
 pub static KSTACKS: Stacks = Stacks(UnsafeCell::new([[0; KSTACK_SIZE]; MAX_CPUS]));
 
-/// The calling core's index. One core until the SMP milestone.
+/// The calling core's index. Every core runs the kernel on its own stack
+/// in KSTACKS, so the stack pointer identifies it; the boot core's early
+/// boot stack lies elsewhere and is core 0.
 #[inline]
 pub fn cpu_index() -> usize {
-    0
+    let rsp: u64;
+    unsafe { core::arch::asm!("mov {}, rsp", out(reg) rsp, options(nomem, nostack, preserves_flags)) };
+    let base = KSTACKS.0.get() as u64;
+    let off = rsp.wrapping_sub(base);
+    if off < (MAX_CPUS * KSTACK_SIZE) as u64 {
+        (off / KSTACK_SIZE as u64) as usize
+    } else {
+        0
+    }
 }
 
 /// This core's state. Callers run with interrupts disabled and must not

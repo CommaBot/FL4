@@ -960,6 +960,9 @@ open fl4_core
 @[simp] theorem layout.node.TIMER_MIN.val_eq : layout.node.TIMER_MIN.val = 112 := by
   unfold layout.node.TIMER_MIN; rfl
 
+@[simp] theorem layout.TREE_FUEL.val_eq : layout.TREE_FUEL.val = 128 := by
+  unfold layout.TREE_FUEL; rfl
+
 @[simp] theorem layout.sc.YIELD_FROM.val_eq : layout.sc.YIELD_FROM.val = 56 := by
   unfold layout.sc.YIELD_FROM; rfl
 

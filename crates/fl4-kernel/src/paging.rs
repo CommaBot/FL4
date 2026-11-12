@@ -23,6 +23,11 @@ struct Tables {
     pml4: Table,
     pdpt: Table,
     pds: [Table; SMALL_WINDOW_GIB],
+    /// Application processors start on this: the kernel's mappings plus
+    /// an identity map of the first GiB, for the trampoline.
+    ap_pml4: Table,
+    ap_pdpt: Table,
+    ap_pd: Table,
 }
 
 struct Cell(UnsafeCell<Tables>);
@@ -32,6 +37,9 @@ static TABLES: Cell = Cell(UnsafeCell::new(Tables {
     pml4: Table([0; 512]),
     pdpt: Table([0; 512]),
     pds: [const { Table([0; 512]) }; SMALL_WINDOW_GIB],
+    ap_pml4: Table([0; 512]),
+    ap_pdpt: Table([0; 512]),
+    ap_pd: Table([0; 512]),
 }));
 
 /// Physical address of something in the kernel image.
@@ -80,4 +88,16 @@ pub fn init(nx: bool) -> (u64, u64) {
 pub fn root_paddr() -> u64 {
     let t = unsafe { &*TABLES.0.get() };
     image_paddr(&t.pml4 as *const Table as u64)
+}
+
+/// Physical address of the page table application processors start on.
+pub fn ap_boot_root() -> u64 {
+    let t = unsafe { &mut *TABLES.0.get() };
+    for (j, e) in t.ap_pd.0.iter_mut().enumerate() {
+        *e = ((j as u64) << 21) | P | RW | PS;
+    }
+    t.ap_pdpt.0[0] = image_paddr(&t.ap_pd as *const Table as u64) | P | RW;
+    t.ap_pml4.0[0] = image_paddr(&t.ap_pdpt as *const Table as u64) | P | RW;
+    t.ap_pml4.0[511] = t.pml4.0[511];
+    image_paddr(&t.ap_pml4 as *const Table as u64)
 }

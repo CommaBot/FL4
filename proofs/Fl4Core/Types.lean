@@ -243,7 +243,7 @@ structure capability.Rights where
   grant_reply : Bool
 
 /-- [fl4_core::cdt::Finalised]
-    Source: 'crates/fl4-core/src/cdt.rs', lines 232:0-235:1 -/
+    Source: 'crates/fl4-core/src/cdt.rs', lines 233:0-236:1 -/
 structure cdt.Finalised where
   success : Bool
   cleanup : capability.Cap
@@ -270,14 +270,14 @@ def obj.Reply := Std.U64
 def obj.Ntfn := Std.U64
 
 /-- [fl4_core::tcbqueue::Queue]
-    Source: 'crates/fl4-core/src/tcbqueue.rs', lines 10:0-13:1
+    Source: 'crates/fl4-core/src/tcbqueue.rs', lines 11:0-14:1
     Visibility: public -/
 structure tcbqueue.Queue where
   head : obj.Tcb
   «end» : obj.Tcb
 
 /-- [fl4_core::tcbqueue::Link]
-    Source: 'crates/fl4-core/src/tcbqueue.rs', lines 17:0-20:1
+    Source: 'crates/fl4-core/src/tcbqueue.rs', lines 18:0-21:1
     Visibility: public -/
 @[discriminant isize]
 inductive tcbqueue.Link where

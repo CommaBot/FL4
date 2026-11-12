@@ -1131,21 +1131,41 @@ theorem obj.Tcb.Insts.CoreCmpPartialEqTcb.eq.p0 (self : obj.Tcb) (other : obj.Tc
     obj.Tcb.timer_deadline machineStoreInst self s ⦃ _ => True ⦄ := by
   unfold obj.Tcb.timer_deadline; p0_auto
 
-@[step] theorem timer.remove_loop0.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (y : obj.Tcb) (hS : StoreTotal machineStoreInst) :
-    timer.remove_loop0 machineStoreInst s y ⦃ _ => True ⦄ := by
-  sorry
+@[step] theorem timer.remove_loop0.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (y : obj.Tcb) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
+    timer.remove_loop0 machineStoreInst s y fuel ⦃ _ => True ⦄ := by
+  unfold timer.remove_loop0
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold timer.remove_loop0.body
+    p0_auto
+  · trivial
 
-@[step] theorem timer.remove_loop1.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (next : obj.Tcb) (hS : StoreTotal machineStoreInst) :
-    timer.remove_loop1 machineStoreInst s next ⦃ _ => True ⦄ := by
-  sorry
+@[step] theorem timer.remove_loop1.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (next : obj.Tcb) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
+    timer.remove_loop1 machineStoreInst s next fuel ⦃ _ => True ⦄ := by
+  unfold timer.remove_loop1
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold timer.remove_loop1.body
+    p0_auto
+  · trivial
 
-@[step] theorem timer.remove_loop2.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (y : obj.Tcb) (hS : StoreTotal machineStoreInst) :
-    timer.remove_loop2 machineStoreInst s y ⦃ _ => True ⦄ := by
-  sorry
+@[step] theorem timer.remove_loop2.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (y : obj.Tcb) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
+    timer.remove_loop2 machineStoreInst s y fuel ⦃ _ => True ⦄ := by
+  unfold timer.remove_loop2
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold timer.remove_loop2.body
+    p0_auto
+  · trivial
 
-@[step] theorem timer.remove_loop3.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (y : obj.Tcb) (hS : StoreTotal machineStoreInst) :
-    timer.remove_loop3 machineStoreInst s y ⦃ _ => True ⦄ := by
-  sorry
+@[step] theorem timer.remove_loop3.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (y : obj.Tcb) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
+    timer.remove_loop3 machineStoreInst s y fuel ⦃ _ => True ⦄ := by
+  unfold timer.remove_loop3
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold timer.remove_loop3.body
+    p0_auto
+  · trivial
 
 @[step] theorem timer.remove.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
     timer.remove machineStoreInst s t ⦃ _ => True ⦄ := by
@@ -1764,9 +1784,14 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
     notification.unblock_sporadic machineStoreInst s t ⦃ _ => True ⦄ := by
   unfold notification.unblock_sporadic; p0_split
 
-@[step] theorem notification.cancel_all_signals_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (n_ptr : Std.U64) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
-    notification.cancel_all_signals_loop machineStoreInst s n_ptr t ⦃ _ => True ⦄ := by
-  sorry
+@[step] theorem notification.cancel_all_signals_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (n_ptr : Std.U64) (t : obj.Tcb) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
+    notification.cancel_all_signals_loop machineStoreInst s n_ptr t fuel ⦃ _ => True ⦄ := by
+  unfold notification.cancel_all_signals_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1, x2) => x2.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1, x2⟩ -
+    unfold notification.cancel_all_signals_loop.body
+    p0_auto
+  · trivial
 
 @[step] theorem notification.cancel_all_signals.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (n_ptr : Std.U64) (hS : StoreTotal machineStoreInst) :
     notification.cancel_all_signals machineStoreInst s n_ptr ⦃ _ => True ⦄ := by
@@ -1808,8 +1833,8 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
     endpoint.restart_thread_if_no_fault machineStoreInst s t ⦃ _ => True ⦄ := by
   unfold endpoint.restart_thread_if_no_fault; p0_auto
 
-@[step] theorem endpoint.cancel_all_ipc_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ep_ptr : Std.U64) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
-    endpoint.cancel_all_ipc_loop machineStoreInst s ep_ptr t ⦃ _ => True ⦄ := by
+@[step] theorem endpoint.cancel_all_ipc_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ep_ptr : Std.U64) (t : obj.Tcb) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
+    endpoint.cancel_all_ipc_loop machineStoreInst s ep_ptr t fuel ⦃ _ => True ⦄ := by
   sorry
 
 @[step] theorem endpoint.cancel_all_ipc.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ep_ptr : Std.U64) (hS : StoreTotal machineStoreInst) :
@@ -1840,9 +1865,14 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
     cdt.delete machineStoreInst machineArchInst s a slot exposed ⦃ _ => True ⦄ := by
   sorry
 
-@[step] theorem cdt.revoke_loop.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
-    cdt.revoke_loop machineStoreInst machineArchInst s a slot ⦃ _ => True ⦄ := by
-  sorry
+@[step] theorem cdt.revoke_loop.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    cdt.revoke_loop machineStoreInst machineArchInst s a slot fuel ⦃ _ => True ⦄ := by
+  unfold cdt.revoke_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1, x2) => x2.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1, x2⟩ -
+    unfold cdt.revoke_loop.body
+    p0_auto
+  · trivial
 
 @[step] theorem cdt.revoke.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     cdt.revoke machineStoreInst machineArchInst s a slot ⦃ _ => True ⦄ := by
@@ -1880,9 +1910,14 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
     obj.Tcb.block_badge machineStoreInst self s ⦃ _ => True ⦄ := by
   unfold obj.Tcb.block_badge; p0_auto
 
-@[step] theorem endpoint.cancel_badged_sends_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ep_ptr : Std.U64) (badge : Std.U64) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
-    endpoint.cancel_badged_sends_loop machineStoreInst s ep_ptr badge t ⦃ _ => True ⦄ := by
-  sorry
+@[step] theorem endpoint.cancel_badged_sends_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ep_ptr : Std.U64) (badge : Std.U64) (t : obj.Tcb) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
+    endpoint.cancel_badged_sends_loop machineStoreInst s ep_ptr badge t fuel ⦃ _ => True ⦄ := by
+  unfold endpoint.cancel_badged_sends_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1, x2) => x2.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1, x2⟩ -
+    unfold endpoint.cancel_badged_sends_loop.body
+    p0_auto
+  · trivial
 
 @[step] theorem endpoint.cancel_badged_sends.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ep_ptr : Std.U64) (badge : Std.U64) (hS : StoreTotal machineStoreInst) :
     endpoint.cancel_badged_sends machineStoreInst s ep_ptr badge ⦃ _ => True ⦄ := by
@@ -2058,9 +2093,14 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
     tcbqueue.append machineStoreInst s l q t ⦃ _ => True ⦄ := by
   unfold tcbqueue.append; p0_auto
 
-@[step] theorem tcbqueue.append_by_prio_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (l : tcbqueue.Link) (p : Std.U64) (before : obj.Tcb) (hS : StoreTotal machineStoreInst) :
-    tcbqueue.append_by_prio_loop machineStoreInst s l p before ⦃ _ => True ⦄ := by
-  sorry
+@[step] theorem tcbqueue.append_by_prio_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (l : tcbqueue.Link) (p : Std.U64) (before : obj.Tcb) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
+    tcbqueue.append_by_prio_loop machineStoreInst s l p before fuel ⦃ _ => True ⦄ := by
+  unfold tcbqueue.append_by_prio_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold tcbqueue.append_by_prio_loop.body
+    p0_auto
+  · trivial
 
 @[step] theorem tcbqueue.append_by_prio.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (l : tcbqueue.Link) (q : tcbqueue.Queue) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
     tcbqueue.append_by_prio machineStoreInst s l q t ⦃ _ => True ⦄ := by
@@ -2292,9 +2332,14 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
     sched.ready_time machineStoreInst s t ⦃ _ => True ⦄ := by
   unfold sched.ready_time; p0_auto
 
-@[step] theorem sched.release_enqueue_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (new_time : Std.U64) (after : obj.Tcb) (hS : StoreTotal machineStoreInst) :
-    sched.release_enqueue_loop machineStoreInst s new_time after ⦃ _ => True ⦄ := by
-  sorry
+@[step] theorem sched.release_enqueue_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (new_time : Std.U64) (after : obj.Tcb) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
+    sched.release_enqueue_loop machineStoreInst s new_time after fuel ⦃ _ => True ⦄ := by
+  unfold sched.release_enqueue_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold sched.release_enqueue_loop.body
+    p0_auto
+  · trivial
 
 @[step] theorem sched.release_enqueue.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
     sched.release_enqueue machineStoreInst s t ⦃ _ => True ⦄ := by
@@ -2414,7 +2459,7 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
 
 @[step] theorem faults.set_fault.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (f : error.Fault) (hS : StoreTotal machineStoreInst) :
     faults.set_fault machineStoreInst s t f ⦃ _ => True ⦄ := by
-  sorry
+  unfold faults.set_fault; p0_split
 
 @[step] theorem faults.valid_fault_handler.p0 (cap : capability.Cap) :
     faults.valid_fault_handler cap ⦃ _ => True ⦄ := by
@@ -2518,7 +2563,7 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
 
 @[step] theorem interrupt.handle_interrupt.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (irq : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     interrupt.handle_interrupt machineStoreInst machineArchInst s a irq ⦃ _ => True ⦄ := by
-  sorry
+  unfold interrupt.handle_interrupt; p0_split
 
 @[step] theorem ioport.range_free_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (hw : Std.U64) (hi : Std.U64) (w : Std.U64) (hS : StoreTotal machineStoreInst) :
     ioport.range_free_loop machineStoreInst s hw hi w ⦃ _ => True ⦄ := by
@@ -2551,7 +2596,7 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
 
 @[step] theorem ipc.do_reply_transfer.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (sender : obj.Tcb) (r : obj.Reply) (grant : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     ipc.do_reply_transfer machineStoreInst machineArchInst s a sender r grant ⦃ _ => True ⦄ := by
-  sorry
+  unfold ipc.do_reply_transfer; p0_split
 
 @[step] theorem layout.PADDR_TOP.p0  :
     layout.PADDR_TOP ⦃ _ => True ⦄ := by
@@ -2876,9 +2921,14 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
     timer.fire machineStoreInst machineArchInst s a ⦃ _ => True ⦄ := by
   unfold timer.fire; p0_auto
 
-@[step] theorem sched.awaken_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (hS : StoreTotal machineStoreInst) :
-    sched.awaken_loop machineStoreInst s ⦃ _ => True ⦄ := by
-  sorry
+@[step] theorem sched.awaken_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
+    sched.awaken_loop machineStoreInst s fuel ⦃ _ => True ⦄ := by
+  unfold sched.awaken_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold sched.awaken_loop.body
+    p0_auto
+  · trivial
 
 @[step] theorem sched.awaken.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     sched.awaken machineStoreInst machineArchInst s a ⦃ _ => True ⦄ := by
@@ -2966,7 +3016,7 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
 
 @[step] theorem schedcontext.configure_flags.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Sc) (cpu : Std.U64) (budget : Std.U64) (period : Std.U64) (max_refills : Std.U64) (badge : Std.U64) (flags : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     schedcontext.configure_flags machineStoreInst machineArchInst s a target cpu budget period max_refills badge flags ⦃ _ => True ⦄ := by
-  sorry
+  unfold schedcontext.configure_flags; p0_split
 
 @[step] theorem sporadic.refill_absolute_max.p0 (size_bits : Std.U64) :
     sporadic.refill_absolute_max size_bits ⦃ _ => True ⦄ := by
@@ -3122,7 +3172,7 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
 
 @[step] theorem vspace.reply1.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (call : Bool) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
     vspace.reply1 machineStoreInst s t call v ⦃ _ => True ⦄ := by
-  sorry
+  unfold vspace.reply1; p0_split
 
 @[step] theorem vspace.nx_enabled.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (hS : StoreTotal machineStoreInst) :
     vspace.nx_enabled machineStoreInst s ⦃ _ => True ⦄ := by
@@ -3215,9 +3265,14 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
     timer.insert_fixup machineStoreInst s cpu z0 ⦃ _ => True ⦄ := by
   unfold timer.insert_fixup; p0_auto
 
-@[step] theorem timer.insert_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (deadline : Std.U64) (p : obj.Tcb) (cur : obj.Tcb) (go_left : Bool) (first : Bool) (hS : StoreTotal machineStoreInst) :
-    timer.insert_loop machineStoreInst s deadline p cur go_left first ⦃ _ => True ⦄ := by
-  sorry
+@[step] theorem timer.insert_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (deadline : Std.U64) (p : obj.Tcb) (cur : obj.Tcb) (go_left : Bool) (first : Bool) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
+    timer.insert_loop machineStoreInst s deadline p cur go_left first fuel ⦃ _ => True ⦄ := by
+  unfold timer.insert_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1, x2, x3, x4) => x4.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1, x2, x3, x4⟩ -
+    unfold timer.insert_loop.body
+    p0_auto
+  · trivial
 
 @[step] theorem timer.insert.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (deadline : Std.U64) (badge : Std.U64) (hS : StoreTotal machineStoreInst) :
     timer.insert machineStoreInst s t deadline badge ⦃ _ => True ⦄ := by
@@ -3370,7 +3425,7 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
 
 @[step] theorem tcb.thread_control_sched.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (slot : obj.Slot) (fh : (capability.Cap × obj.Slot)) (mcp : Std.U64) (prio : Std.U64) (sc : obj.Sc) (flags : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     tcb.thread_control_sched machineStoreInst machineArchInst s a target slot fh mcp prio sc flags ⦃ _ => True ⦄ := by
-  sorry
+  unfold tcb.thread_control_sched; p0_split
 
 @[step] theorem tcb.thread_control_caps.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (slot : obj.Slot) (fh : (capability.Cap × obj.Slot)) (th : (capability.Cap × obj.Slot)) (croot : (capability.Cap × obj.Slot)) (vroot : (capability.Cap × obj.Slot)) (buffer_addr : Std.U64) (buffer : (capability.Cap × obj.Slot)) (flags : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     tcb.thread_control_caps machineStoreInst machineArchInst s a target slot fh th croot vroot buffer_addr buffer flags ⦃ _ => True ⦄ := by
@@ -3390,7 +3445,7 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
 
 @[step] theorem syscall.decode_invocation.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (length : Std.U64) (slot : obj.Slot) (cap : capability.Cap) (block : Bool) (call : Bool) (can_donate : Bool) (first_phase : Bool) (buf : Std.U64) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.decode_invocation machineStoreInst machineArchInst s a lbl length slot cap block call can_donate first_phase buf extra ⦃ _ => True ⦄ := by
-  unfold syscall.decode_invocation; p0_split
+  unfold syscall.decode_invocation; p0_auto
 
 @[step] theorem syscall.handle_invocation.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (is_call : Bool) (blocking : Bool) (can_donate : Bool) (first_phase : Bool) (cptr : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.handle_invocation machineStoreInst machineArchInst s a is_call blocking can_donate first_phase cptr ⦃ _ => True ⦄ := by
@@ -3402,7 +3457,7 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
 
 @[step] theorem syscall.handle_recv.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (blocking : Bool) (can_reply : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.handle_recv machineStoreInst machineArchInst s a blocking can_reply ⦃ _ => True ⦄ := by
-  unfold syscall.handle_recv; p0_split
+  unfold syscall.handle_recv; p0_auto
 
 @[step] theorem syscall.mcs_preemption_point.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.mcs_preemption_point machineStoreInst machineArchInst s a ⦃ _ => True ⦄ := by

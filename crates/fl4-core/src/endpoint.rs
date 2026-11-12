@@ -1,5 +1,6 @@
 //! Endpoints (seL4 object/endpoint.c, MCS).
 
+use crate::layout::WALK_FUEL;
 use crate::capability::Cap;
 use crate::ipc;
 use crate::machine::{Arch, Store};
@@ -185,7 +186,9 @@ pub fn cancel_all_ipc<S: Store>(s: &mut S, ep_ptr: u64) {
         return;
     }
     let mut t = get_queue(s, ep).head;
-    while !t.is_null() {
+    let mut fuel: u64 = WALK_FUEL;
+    while !t.is_null() && fuel > 0 {
+        fuel -= 1;
         let next = tcbqueue::next_of(s, Link::Ep, t);
         ep_dequeue(s, ep_ptr, t);
         if t.state(s) == sched::TS_BLOCKED_ON_RECV {
@@ -207,7 +210,9 @@ pub fn cancel_badged_sends<S: Store>(s: &mut S, ep_ptr: u64, badge: u64) {
         return;
     }
     let mut t = get_queue(s, ep).head;
-    while !t.is_null() {
+    let mut fuel: u64 = WALK_FUEL;
+    while !t.is_null() && fuel > 0 {
+        fuel -= 1;
         let next = tcbqueue::next_of(s, Link::Ep, t);
         if t.block_badge(s) == badge {
             ep_dequeue(s, ep_ptr, t);

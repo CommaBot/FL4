@@ -1,6 +1,6 @@
 {
  "functions": 833,
- "proved": 733,
+ "proved": 750,
  "manual": [],
  "loops_automatic": [
   "boot.create_frames_loop",
@@ -8,16 +8,21 @@
   "boot.create_root_task_loop2",
   "boot.create_root_task_loop4",
   "boot.set_name_loop0",
+  "cdt.revoke_loop",
   "cspace.resolve_address_bits_loop",
   "debug.debug_exception_loop",
   "debug.init_context_loop",
+  "endpoint.cancel_badged_sends_loop",
   "ioport.range_free_loop",
   "ioport.set_mask_loop",
   "msg.copy_mrs_loop0",
   "msg.copy_mrs_loop1",
+  "notification.cancel_all_signals_loop",
   "objects.create_new_objects_loop",
   "objects.set_child_name_loop1",
   "regs.init_context_loop",
+  "sched.awaken_loop",
+  "sched.release_enqueue_loop",
   "sporadic.budget_check_loop1",
   "sporadic.unblock_check_loop",
   "tcb.copy_words_loop",
@@ -25,6 +30,12 @@
   "tcb.read_registers_loop4",
   "tcb.read_registers_loop6",
   "tcb.read_registers_loop8",
+  "tcbqueue.append_by_prio_loop",
+  "timer.insert_loop",
+  "timer.remove_loop0",
+  "timer.remove_loop1",
+  "timer.remove_loop2",
+  "timer.remove_loop3",
   "untyped.ensure_empty_slots_loop",
   "vspace.copy_global_mappings_loop",
   "vspace.decode_loop0",
@@ -111,10 +122,6 @@
    "rec",
    ""
   ],
-  "cdt.revoke_loop": [
-   "loop",
-   ""
-  ],
   "cnode.decode": [
    "fun",
    "(if lbl < fl4_abi.label.CNodeRevoke then do let r \u2190 error.illegal Unit ok (r, s, a) else if lbl > fl4_abi.label.CNodeRotate then do let r \u2190 error.illegal Unit ok (r, s, a) else if length < 2#u64 then do let r \u2190 error.truncated Unit ok (r, s, a) else do let ct \u2190 sched.cur_thread machineStoreInst s le"
@@ -141,11 +148,7 @@
   ],
   "endpoint.cancel_all_ipc_loop": [
    "loop",
-   ""
-  ],
-  "endpoint.cancel_badged_sends_loop": [
-   "loop",
-   ""
+   "(do let s2 \u2190 if i = sched.TS_BLOCKED_ON_RECV then do let i1 \u2190 obj.Tcb.reply_obj machineStoreInst x1 s1 if (i1 != 0#u64) = true then ipc.reply_unlink machineStoreInst s1 i1 x1 else ok s1 else ok s1 let s3 \u2190 endpoint.restart_thread_if_no_fault machineStoreInst s2 x1 ok (ControlFlow.cont (s3, next, fue"
   ],
   "endpoint.receive_ipc": [
    "fun",
@@ -179,10 +182,6 @@
    "loop",
    "\u2191i1 < regs_list.length"
   ],
-  "faults.set_fault": [
-   "fun",
-   "(do let (s1, ty, w0, w1, w2) \u2190 let (lt, l0, l1) := s1 do let s2 \u2190 obj.Tcb.set_lf_type machineStoreInst t s lt let s3 \u2190 obj.Tcb.set_lf_w0 machineStoreInst t s2 l0 let s4 \u2190 obj.Tcb.set_lf_w1 machineStoreInst t s3 l1 let i \u2190 ok 1#u64 ok (s4, fl4_abi.consts.fault.CapFault, __self_0\u271d, i, 0#u64) let s2 \u2190 "
-  ],
   "faults.set_mrs_lookup_failure": [
    "fun",
    "\u2191offset + \u21912#u64 \u2264 U64.max"
@@ -195,17 +194,9 @@
    "rec",
    ""
   ],
-  "interrupt.handle_interrupt": [
-   "fun",
-   "(do let (s1, a1) \u2190 let (s3, a2) := x do let a3 \u2190 machineArchInst.mask_irq a2 irq true ok (s3, a3) let a2 \u2190 machineArchInst.ack_irq a1 irq ok (s1, a2)) \u2983 x\u271d => True \u2984"
-  ],
   "ioport.decode": [
    "fun",
    "(if lbl = fl4_abi.label.X86IOPortIn8 then do let is_in \u2190 if lbl = fl4_abi.label.X86IOPortIn8 then ok true else if lbl = fl4_abi.label.X86IOPortIn16 then ok true else if lbl = fl4_abi.label.X86IOPortIn32 then ok true else ok false if is_in = true then if length < 1#u64 then do let r \u2190 error.truncated"
-  ],
-  "ipc.do_reply_transfer": [
-   "fun",
-   "(do let (s3, a2) \u2190 let (restart, s4, a3) := s3 do let s5 \u2190 faults.clear_fault machineStoreInst s4 i if restart = true then do let s6 \u2190 sched.set_thread_state machineStoreInst s5 i sched.TS_RESTART ok (s6, a3) else do let s6 \u2190 sched.set_thread_state machineStoreInst s5 i sched.TS_INACTIVE ok (s6, a3)"
   ],
   "ipc.lookup_extra_caps_loop": [
    "loop",
@@ -218,10 +209,6 @@
   "msg.set_mr": [
    "fun",
    "\u2191i + \u21911#u64 \u2264 U64.max"
-  ],
-  "notification.cancel_all_signals_loop": [
-   "loop",
-   ""
   ],
   "objects.child_name_byte": [
    "fun",
@@ -247,21 +234,9 @@
    "loop",
    "\u2191w * \u21918#u64 \u2264 U64.max"
   ],
-  "sched.awaken_loop": [
-   "loop",
-   ""
-  ],
-  "sched.release_enqueue_loop": [
-   "loop",
-   ""
-  ],
   "sched.schedule": [
    "fun",
    "(do let x \u2190 ok true let (s3, a2) \u2190 if x = true then do let i \u2190 sched.cur_domain machineStoreInst x\u271d\u00b9 let i1 \u2190 obj.Tcb.prio machineStoreInst act x\u271d\u00b9 let b1 \u2190 sched.is_highest_prio machineStoreInst x\u271d\u00b9 i i1 if b1 = true then do let i2 \u2190 obj.Tcb.prio machineStoreInst s3 x\u271d\u00b9 if i1 = i2 then do let s5 \u2190 "
-  ],
-  "schedcontext.configure_flags": [
-   "fun",
-   "(do let (s1, a1) \u2190 let (s2, a2) := s1 do let s3 \u2190 sched.release_remove machineStoreInst s2 i let s4 \u2190 sched.dequeue machineStoreInst s3 i let s5 \u2190 sched.cur_sc machineStoreInst s4 let b1 \u2190 obj.Sc.Insts.CoreCmpPartialEqSc.eq s5 target let t \u2190 if b1 = true then sched.commit_time machineStoreInst machi"
   ],
   "schedcontext.extra_cap": [
    "fun",
@@ -293,11 +268,11 @@
   ],
   "syscall.name_thread_loop0_loop0": [
    "loop",
-   ": maximum number of errors (100; from option `maxErrors`) reached, exiting"
+   "I32.min \u2264 \u2191x0 * \u21918#i32"
   ],
   "syscall.reply_error": [
    "fun",
-   "(do let (s2, len) \u2190 let (len1, s3) := s2 ok (s3, len1) let (s3, len1) \u2190 do let i \u2190 syscall.DEBUG_MESSAGE_START + 1#u64 let w \u2190 msg.buf_get machineStoreInst s2 buf i let i1 \u2190 lift (~~~255#u64) let i2 \u2190 lift (w &&& i1) let s4 \u2190 msg.buf_set machineStoreInst s2 buf i i2 let len2 \u2190 len + 1#u64 ok (s4, le"
+   ": Tactic `simp` failed with a nested error:"
   ],
   "tcb.copy_registers_loop0": [
    "loop",
@@ -353,11 +328,7 @@
   ],
   "tcb.thread_control_caps": [
    "fun",
-   "(let (c, s1) := fh do let (r, s2, a1) \u2190 tcb.install_tcb_cap machineStoreInst machineArchInst s a target slot layout.tcb.SLOT_FAULT_HANDLER c s1 let cf \u2190 core.result.Result.Insts.CoreOpsTry.branch r match cf with | core.ops.control_flow.ControlFlow.Continue a => do let i1 \u2190 lift (flags &&& tcb.UPDATE"
-  ],
-  "tcb.thread_control_sched": [
-   "fun",
-   "(let (c, s1) := fh do let (r, s2, a1) \u2190 tcb.install_tcb_cap machineStoreInst machineArchInst s a target slot layout.tcb.SLOT_FAULT_HANDLER c s1 let cf \u2190 core.result.Result.Insts.CoreOpsTry.branch r match cf with | core.ops.control_flow.ControlFlow.Continue a => do let i1 \u2190 lift (flags &&& tcb.SCHED_"
+   ": (kernel) unknown constant 'Fl4Proofs.P0.tcb.thread_control_caps.p0'"
   ],
   "tcb.write_registers_loop0": [
    "loop",
@@ -367,10 +338,6 @@
    "loop",
    "\u2191i1 < regs.GP_REGISTERS.length"
   ],
-  "tcbqueue.append_by_prio_loop": [
-   "loop",
-   ""
-  ],
   "timer.fire_loop": [
    "loop",
    "(do let (s2, a1) \u2190 if (n != 0#u64) = true then notification.send_signal machineStoreInst machineArchInst s1 x1 n badge else ok (s1, x1) let c \u2190 machineStoreInst.cur_cpu s2 let s3 \u2190 obj.node_set machineStoreInst s2 c layout.node.REPROGRAM 1#u64 let i4 \u2190 x2 + 1#u64 ok (ControlFlow.cont (s3, a1, i4))) "
@@ -379,29 +346,9 @@
    "loop",
    "(do let (s1, z1, pp) \u2190 if b4 = true then do let s2 \u2190 timer.rotate_left machineStoreInst x0 cpu p let pp1 \u2190 timer.parent machineStoreInst s2 p ok (s2, p, pp1) else ok (x0, x1, p) let s2 \u2190 timer.set_red machineStoreInst s1 pp false let s3 \u2190 timer.set_red machineStoreInst s2 g true let s4 \u2190 timer.rotat"
   ],
-  "timer.insert_loop": [
-   "loop",
-   ""
-  ],
   "timer.remove_fixup_loop": [
    "loop",
    "obj.Tcb.Insts.CoreCmpPartialEqTcb.eq x1 t \u2983 b => b = true \u2194 x1 = t \u2984"
-  ],
-  "timer.remove_loop0": [
-   "loop",
-   ""
-  ],
-  "timer.remove_loop1": [
-   "loop",
-   ""
-  ],
-  "timer.remove_loop2": [
-   "loop",
-   ""
-  ],
-  "timer.remove_loop3": [
-   "loop",
-   ""
   ],
   "untyped.decode": [
    "fun",
@@ -430,10 +377,6 @@
   "vspace.extra": [
    "fun",
    "\u2191i < extra.length"
-  ],
-  "vspace.reply1": [
-   "fun",
-   "(do let s1 \u2190 let (n, s3) := x do let mi \u2190 msginfo.MessageInfo.new 0#u64 0#u64 0#u64 n msg.set_msg_info machineStoreInst s3 t mi sched.set_thread_state machineStoreInst s1 t sched.TS_RUNNING) \u2983 x\u271d => True \u2984"
   ]
  }
 }

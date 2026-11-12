@@ -108,6 +108,20 @@ macro "p0_close" : tactic =>
 side conditions. -/
 macro "p0_auto" : tactic => `(tactic| (step* <;> p0_close))
 
+open Lean Elab Tactic Meta in
+/-- Split the first local of a product type into its components, so that
+`let (a, b) := x` in the goal reduces. -/
+elab "p0_cases_prod" : tactic => withMainContext do
+  for d in (← getLCtx) do
+    if d.isImplementationDetail then continue
+    let t ← whnfR (← instantiateMVars d.type)
+    if t.isAppOfArity ``Prod 2 then
+      liftMetaTactic fun g => do
+        let gs ← g.cases d.fvarId
+        return gs.toList.map (·.mvarId)
+      return
+  throwError "p0_cases_prod: no local of a product type"
+
 /-- The fallback for large matches on literals, where `step*` times out in
 `whnf`: split the matches explicitly. -/
-macro "p0_split" : tactic => `(tactic| ((repeat' (first | step | split)) <;> p0_close))
+macro "p0_split" : tactic => `(tactic| ((repeat' (first | step | split | p0_cases_prod)) <;> p0_close))

@@ -7,6 +7,7 @@ mod entry;
 mod gdt;
 mod mboot;
 mod paging;
+mod smp;
 
 use core::cell::UnsafeCell;
 use core::fmt::Write;
@@ -231,6 +232,12 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
         fpu::xcr0()
     );
 
+    // The other cores, if any (each sets itself up and waits).
+    let ncpus = smp::start_aps(&acpi.cpus[..acpi.n_cpus], smp::Features { cr4: cpu::read_cr4(), efer_nx: nx });
+    if ncpus > 1 {
+        kprintln!("FL4: {} cores running", ncpus);
+    }
+
     // The root task: the first module, loaded after everything else.
     if mb.n_modules == 0 {
         fail("no boot module (root task)");
@@ -282,7 +289,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
         v_entry: image.entry,
         extra_bi: st.extra.0.as_ptr() as u64,
         extra_bi_len: extra_len as u64,
-        num_nodes: 1,
+        num_nodes: ncpus as u64,
         idle_base: st.idle.0.as_ptr() as u64,
         idle_stride: 8192,
     };
@@ -312,6 +319,8 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
         fail("root task");
     }
     kprintln!("FL4: starting the root task at {:#x}", image.entry);
+    entry::lock();
+    smp::release_aps();
     sched::schedule(&mut s, &mut a);
     sched::activate_thread(&mut s, &mut a);
     entry::exit(&mut s)

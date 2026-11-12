@@ -5,6 +5,14 @@ use fl4_abi::config;
 
 pub const WORD: u64 = 8;
 
+/// Bound on walks over kernel lists (endpoint, notification, ready and
+/// release queues, the CDT). It is never reached when the lists are well
+/// formed (a P1 invariant); it makes termination evident to P0.
+pub const WALK_FUEL: u64 = u64::MAX;
+/// Bound on descents of a deadline-timer tree: a red-black tree of 2^64
+/// nodes is at most 128 deep.
+pub const TREE_FUEL: u64 = 128;
+
 /// x86_64 kernel window: physical address `p` is at `PPTR_BASE + p`.
 pub const PPTR_BASE: u64 = 0xffff_ff80_0000_0000;
 /// End of the kernel window (the kernel image is mapped from here).
@@ -215,6 +223,9 @@ pub mod node {
     pub const RELEASE_TAIL: u64 = 104;
     /// l4h 0003: the armed TCB with the earliest deadline.
     pub const TIMER_MIN: u64 = 112;
+    /// Cores this entry must send a reschedule IPI to (seL4
+    /// ipiReschedulePending).
+    pub const IPI_PENDING: u64 = 120;
     pub const L1_BITMAP: u64 = 128;
     pub const L2_BITMAP: u64 = L1_BITMAP + NUM_DOMAINS * WORD;
     pub const READY_QUEUES: u64 = L2_BITMAP + NUM_DOMAINS * L2_BITMAP_WORDS * WORD;

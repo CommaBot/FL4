@@ -1,5 +1,5 @@
 //! `fl4_core::machine::Arch` on x86_64 hardware.
-use crate::{apic, cpu, fpu, ioapic, percpu, serial, timer};
+use crate::{apic, cpu, fpu, ioapic, percpu, serial, smp, timer};
 use fl4_core::layout::{irq, PPTR_BASE};
 use fl4_core::machine::Arch;
 
@@ -66,15 +66,19 @@ impl Arch for PhysArch {
         }
         pc.asid = asid;
     }
+    // Other cores running the address space invalidate too (TLB
+    // shootdown); without PCIDs a core not running it holds no entries.
     fn invalidate_page(&mut self, asid: u64, vaddr: u64) {
         if percpu::get().asid == asid {
             cpu::invlpg(vaddr);
         }
+        smp::remote_call(smp::CALL_INVLPG, asid, vaddr, smp::cores_on_asid(asid));
     }
     fn invalidate_asid(&mut self, asid: u64) {
         if percpu::get().asid == asid {
             cpu::write_cr3(cpu::read_cr3());
         }
+        smp::remote_call(smp::CALL_FLUSH_TLB, asid, 0, smp::cores_on_asid(asid));
     }
     fn invalidate_page_structures(&mut self, asid: u64) {
         self.invalidate_asid(asid)
@@ -131,6 +135,13 @@ impl Arch for PhysArch {
     }
     fn fpu_release(&mut self, tcb: u64) {
         fpu::forget(tcb)
+    }
+
+    fn remote_stall(&mut self, cpu: u64) {
+        smp::remote_call(smp::CALL_STALL, 0, 0, 1u64 << (cpu & 63));
+    }
+    fn send_reschedule(&mut self, mask: u64) {
+        smp::reschedule(mask)
     }
 
     fn putc(&mut self, c: u64) {

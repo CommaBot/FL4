@@ -1,6 +1,7 @@
 //! Thread states, ready and release queues, the scheduler, and MCS budget
 //! accounting (seL4 kernel/thread.c, object/tcb.c queues, thread.h).
 
+use crate::layout::WALK_FUEL;
 use crate::error::{Exc, KResult};
 use crate::faults;
 use crate::layout::{ks, node, NUM_DOMAINS, NUM_PRIORITIES};
@@ -250,6 +251,7 @@ pub fn enqueue<S: Store>(s: &mut S, t: Tcb) {
     let q = tcbqueue::prepend(s, Link::Sched, q, t);
     q_set(s, cpu, off, q);
     set_flag(s, t, Q_QUEUED, true);
+    crate::smp::remote_queue_update(s, t);
 }
 
 /// seL4 `tcbSchedAppend`.
@@ -268,6 +270,7 @@ pub fn append<S: Store>(s: &mut S, t: Tcb) {
     let q = tcbqueue::append(s, Link::Sched, q, t);
     q_set(s, cpu, off, q);
     set_flag(s, t, Q_QUEUED, true);
+    crate::smp::remote_queue_update(s, t);
 }
 
 /// seL4 `tcbSchedDequeue`.
@@ -324,7 +327,9 @@ pub fn release_enqueue<S: Store>(s: &mut S, t: Tcb) {
         // The first thread released after new_time exists and is not the
         // head, because of the checks above.
         let mut after = q.head;
-        while !after.is_null() && new_time >= ready_time(s, after) {
+        let mut fuel: u64 = WALK_FUEL;
+        while !after.is_null() && new_time >= ready_time(s, after) && fuel > 0 {
+            fuel -= 1;
             after = Tcb(after.sched_next(s));
         }
         tcbqueue::insert_before(s, Link::Sched, t, after);
@@ -333,6 +338,7 @@ pub fn release_enqueue<S: Store>(s: &mut S, t: Tcb) {
     if node_get(s, cpu, node::RELEASE_HEAD) != q.head.0 {
         set_reprogram_on(s, cpu);
     }
+    crate::smp::remote_queue_update(s, t);
 }
 
 // ---- scheduling decisions --------------------------------------------------
@@ -526,7 +532,9 @@ pub fn check_budget_restart<S: Store, A: Arch>(s: &mut S, a: &mut A) -> bool {
 /// seL4 `awaken`: move released threads from the release queue.
 pub fn awaken<S: Store, A: Arch>(s: &mut S, a: &mut A) {
     crate::timer::fire(s, a);
-    loop {
+    let mut fuel: u64 = WALK_FUEL;
+    while fuel > 0 {
+        fuel -= 1;
         let h = Tcb(node_get(s, s.cur_cpu(), node::RELEASE_HEAD));
         if h.is_null() || !sporadic::ready(s, Sc(h.sc(s))) {
             return;
@@ -569,7 +577,7 @@ fn switch_to_thread<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
     set_cur_thread(s, t);
 }
 
-fn switch_to_idle_thread<S: Store, A: Arch>(s: &mut S, a: &mut A) {
+pub fn switch_to_idle_thread<S: Store, A: Arch>(s: &mut S, a: &mut A) {
     let idle = idle_thread(s);
     crate::vspace::set_kernel_vm_root(s, a);
     set_cur_thread(s, idle);
@@ -648,6 +656,7 @@ pub fn schedule<S: Store, A: Arch>(s: &mut S, a: &mut A) {
         set_next_interrupt(s, a);
         node_set(s, c, node::REPROGRAM, 0);
     }
+    crate::smp::send_pending(s, a);
 }
 
 /// seL4 `activateThread`.

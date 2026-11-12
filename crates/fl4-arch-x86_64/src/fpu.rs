@@ -111,19 +111,43 @@ pub fn switch_to(t: u64, fpu_disabled: bool) {
     }
 }
 
-/// Write `t`'s live state, if any, back to its TCB.
-pub fn flush(t: u64) {
+/// Write `t`'s state back to its TCB if it is live on this core.
+pub fn flush_local(t: u64) {
     if percpu::get().fpu_owner == t {
         set_ts(false);
         save(t);
     }
 }
 
-/// `t`'s state is no longer (or no longer only) in the registers.
-pub fn forget(t: u64) {
+/// Forget `t`'s state if it is live on this core.
+pub fn forget_local(t: u64) {
     let pc = percpu::get();
     if pc.fpu_owner == t {
         pc.fpu_owner = 0;
+    }
+}
+
+/// The core whose registers hold `t`'s FPU state, if any.
+fn owner_core(t: u64) -> Option<usize> {
+    (0..percpu::MAX_CPUS).find(|&c| unsafe { core::ptr::read_volatile(&percpu::get_for(c).fpu_owner) } == t)
+}
+
+/// Write `t`'s live state, wherever it is, back to its TCB. The caller
+/// holds the serial gate when another core may hold the state.
+pub fn flush(t: u64) {
+    match owner_core(t) {
+        Some(c) if c == percpu::cpu_index() => flush_local(t),
+        Some(c) => crate::smp::remote_call(crate::smp::CALL_FPU_SAVE, t, 0, 1 << c),
+        None => {}
+    }
+}
+
+/// `t`'s state is no longer (or no longer only) in some core's registers.
+pub fn forget(t: u64) {
+    match owner_core(t) {
+        Some(c) if c == percpu::cpu_index() => forget_local(t),
+        Some(c) => crate::smp::remote_call(crate::smp::CALL_FPU_DROP, t, 0, 1 << c),
+        None => {}
     }
 }
 

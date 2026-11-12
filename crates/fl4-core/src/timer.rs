@@ -3,6 +3,7 @@
 //! cached. Insert and remove are O(log n); at most `FIRE_BATCH` timers fire
 //! per kernel entry.
 
+use crate::layout::TREE_FUEL;
 use crate::layout::node;
 use crate::machine::{Arch, Store};
 use crate::obj::{node_get, node_set, Tcb};
@@ -215,7 +216,9 @@ pub fn remove<S: Store>(s: &mut S, t: Tcb) {
     if node_get(s, cpu, node::TIMER_MIN) == t.0 {
         let mut next = right(s, t);
         if !next.is_null() {
-            while !left(s, next).is_null() {
+            let mut fuel: u64 = TREE_FUEL;
+            while !left(s, next).is_null() && fuel > 0 {
+                fuel -= 1;
                 next = left(s, next);
             }
         } else {
@@ -237,7 +240,9 @@ pub fn remove<S: Store>(s: &mut S, t: Tcb) {
         }
     } else {
         let mut y = tr;
-        while !left(s, y).is_null() {
+        let mut fuel: u64 = TREE_FUEL;
+        while !left(s, y).is_null() && fuel > 0 {
+            fuel -= 1;
             y = left(s, y);
         }
         removed_red = is_red(s, y);
@@ -283,7 +288,9 @@ pub fn insert<S: Store>(s: &mut S, t: Tcb, deadline: u64, badge: u64) {
     let mut cur = root(s, cpu);
     let mut go_left = false;
     let mut first = true;
-    while !cur.is_null() {
+    let mut fuel: u64 = TREE_FUEL;
+    while !cur.is_null() && fuel > 0 {
+        fuel -= 1;
         p = cur;
         if deadline < cur.timer_deadline(s) {
             go_left = true;

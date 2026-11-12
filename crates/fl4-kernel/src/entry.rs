@@ -8,6 +8,8 @@ use fl4_core::machine::Store;
 use fl4_core::obj::{node_get, Tcb};
 use fl4_core::{debug, sched, syscall};
 use fl4_store::PhysStore;
+use fl4_sync::SerialGate;
+use fl4_arch_x86_64::smp;
 
 core::arch::global_asm!(include_str!("entry.S"), options(att_syntax));
 
@@ -53,6 +55,10 @@ const RFLAGS_TF: u64 = 1 << 8;
 
 static mut KS_BASE: u64 = 0;
 
+/// The serial gate (DESIGN.md §7): with more than one core, every kernel
+/// entry runs holding it, until fine-grained locking replaces it.
+pub static GATE: SerialGate = SerialGate::new();
+
 pub fn set_ks_base(b: u64) {
     unsafe { KS_BASE = b };
 }
@@ -82,7 +88,9 @@ fn save_user(s: &mut PhysStore, f: &Frame) {
     w(s, reg::NEXT_IP, f.rip);
     w(s, reg::ERROR, f.error);
     w(s, reg::RSP, f.rsp);
-    w(s, reg::FAULT_IP, f.rip);
+    // A syscall restarts at the syscall instruction (two bytes long), for
+    // when a remote stall cancels the entry before handle_syscall runs.
+    w(s, reg::FAULT_IP, if f.vector == VEC_SYSCALL { f.rip.wrapping_sub(2) } else { f.rip });
     w(s, reg::R11, f.r11);
     w(s, reg::RCX, f.rcx);
 }
@@ -108,18 +116,54 @@ fn kernel_fault(f: &Frame) -> ! {
     )
 }
 
+/// Service a remote call addressed to this core (a stall runs the kernel's
+/// stall logic on behalf of the core that holds the gate). Returns whether
+/// this core's current thread was stalled.
+fn service_remote() -> bool {
+    smp::service(|| {
+        let mut s = store();
+        let mut a = PhysArch;
+        fl4_core::smp::stall(&mut s, &mut a);
+    })
+}
+
+/// Take the serial gate when more than one core runs, servicing remote
+/// calls while waiting. Returns false when a stall cancelled the entry:
+/// this core then runs its idle thread, and the entry must not proceed for
+/// the thread that made it (which restarts it later).
+pub fn lock() -> bool {
+    let mut stalled = false;
+    if smp::multi() {
+        GATE.acquire(percpu::cpu_index() as u64, || {
+            if service_remote() {
+                stalled = true;
+            }
+        });
+        percpu::get().gate_held = true;
+    }
+    !stalled
+}
+
+fn unlock() {
+    let pc = percpu::get();
+    if pc.gate_held {
+        pc.gate_held = false;
+        GATE.release();
+    }
+}
+
 /// Called by entry.S for every kernel entry.
 #[no_mangle]
 extern "C" fn fl4_entry(f: &mut Frame) {
     let v = f.vector;
-    let mut s = store();
-    let mut a = PhysArch;
+    let irq = (VEC_IRQ_MIN..=VEC_IRQ_MAX).contains(&v);
     if f.cs & 3 == 0 {
         let pc = percpu::get();
         if (VEC_IRQ_MIN..=VEC_SPURIOUS).contains(&v) {
             if pc.polling {
                 // take_pending_irq accepted an interrupt: record it and
-                // go back with interrupts off so only one is taken.
+                // go back with interrupts off so only one is taken. (This
+                // core holds the gate, so no remote call is meant for it.)
                 if v <= VEC_IRQ_MAX {
                     pc.polled_irq = v - VEC_IRQ_MIN;
                 }
@@ -128,7 +172,13 @@ extern "C" fn fl4_entry(f: &mut Frame) {
             }
             if pc.idle {
                 pc.idle = false;
-                if v <= VEC_IRQ_MAX {
+                if v == smp::REMOTE_CALL_VECTOR as u64 {
+                    service_remote();
+                }
+                lock();
+                let mut s = store();
+                let mut a = PhysArch;
+                if irq {
                     syscall::handle_interrupt_entry(&mut s, &mut a, v - VEC_IRQ_MIN);
                 }
                 exit(&mut s);
@@ -139,11 +189,21 @@ extern "C" fn fl4_entry(f: &mut Frame) {
         }
         kernel_fault(f);
     }
+    let mut s = store();
+    let mut a = PhysArch;
     save_user(&mut s, f);
     trace(f);
+    if v == smp::REMOTE_CALL_VECTOR as u64 {
+        service_remote();
+    }
+    // An interrupt is handled even if a stall cancelled the entry: it has
+    // been accepted and needs its EOI.
+    if !lock() && !irq {
+        exit(&mut s);
+    }
     if v == VEC_SYSCALL {
         syscall::handle_syscall(&mut s, &mut a, f.rdx as i64);
-    } else if (VEC_IRQ_MIN..=VEC_IRQ_MAX).contains(&v) {
+    } else if irq {
         syscall::handle_interrupt_entry(&mut s, &mut a, v - VEC_IRQ_MIN);
     } else if v == 14 {
         syscall::handle_vm_fault(&mut s, &mut a, cpu::read_cr2(), f.error);
@@ -161,12 +221,16 @@ extern "C" fn fl4_entry(f: &mut Frame) {
     exit(&mut s)
 }
 
-/// Leave the kernel to the current thread (or the idle loop).
+/// Leave the kernel to the current thread (or the idle loop), giving up
+/// the serial gate. What follows touches only this core's thread, whose
+/// context no other core changes without stalling this one first.
 pub fn exit(s: &mut PhysStore) -> ! {
     let ct = sched::cur_thread(s);
     let core = s.cur_cpu();
+    let idle = ct.0 == node_get(s, core, node::IDLE_THREAD);
+    unlock();
     let stack_top = percpu::get().stack_top;
-    if ct.0 == node_get(s, core, node::IDLE_THREAD) {
+    if idle {
         percpu::get().idle = true;
         unsafe { fl4_idle(stack_top) }
     }

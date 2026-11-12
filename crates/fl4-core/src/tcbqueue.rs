@@ -3,6 +3,7 @@
 //! through `ep_next`/`ep_prev`, as in seL4. Operations take and return the
 //! queue by value; the caller stores it back.
 
+use crate::layout::WALK_FUEL;
 use crate::machine::Store;
 use crate::obj::Tcb;
 
@@ -137,7 +138,9 @@ pub fn append_by_prio<S: Store>(s: &mut S, l: Link, q: Queue, t: Tcb) -> Queue {
         append(s, l, q, t)
     } else {
         let mut before = q.end;
-        while !before.is_null() && p > before.prio(s) {
+        let mut fuel: u64 = WALK_FUEL;
+        while !before.is_null() && p > before.prio(s) && fuel > 0 {
+            fuel -= 1;
             before = Tcb(prev(s, l, before));
         }
         insert_after(s, l, t, before);
