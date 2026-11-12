@@ -211,6 +211,9 @@ static mut TRACE: [[u64; 8]; TRACE_N] = [[0; 8]; TRACE_N];
 static mut TRACE_I: usize = 0;
 
 fn trace(f: &Frame) {
+    if !fl4_abi::config::DEBUG_BUILD {
+        return;
+    }
     unsafe {
         let s = store();
         let ct = sched::cur_thread(&s).0;
