@@ -1,0 +1,9 @@
+[package]
+name = "fl4-sync"
+description = "FL4 transaction runtime: lock table, serial gate (sim-tested)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+fl4-core = { path = "../fl4-core" }

@@ -1,0 +1,5 @@
+/target
+/build
+/proofs/.lake
+*.llbc
+/proofs/.deps

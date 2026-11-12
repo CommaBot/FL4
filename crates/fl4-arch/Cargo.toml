@@ -1,0 +1,9 @@
+[package]
+name = "fl4-arch"
+description = "Architecture and platform traits shared by FL4 backends"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+fl4-core = { path = "../fl4-core" }

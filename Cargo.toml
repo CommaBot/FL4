@@ -1,0 +1,29 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/fl4-abi",
+    "crates/fl4-core",
+    "crates/fl4-sync",
+    "crates/fl4-store",
+    "crates/fl4-arch",
+    "crates/fl4-arch-x86_64",
+    "crates/fl4-arch-aarch64",
+    "crates/fl4-kernel",
+    "crates/fl4-sim",
+    "xtask",
+]
+default-members = ["crates/fl4-core", "crates/fl4-sync", "crates/fl4-sim", "xtask"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-2.0-only"
+
+[profile.dev]
+panic = "abort"
+opt-level = 1
+
+[profile.release]
+panic = "abort"
+debug = true
+codegen-units = 1
