@@ -1,3 +1,19 @@
 -- Hand-written P0 theorems, spliced into Auto.lean by xtask/scripts/gen_p0.py
 -- at each function's place in dependency order. Each block starts with
 -- `theorem NAME.p0` and states the same P0 property the generator would.
+
+-- The loop clears chunks downwards; `offset` is nonzero where it goes on,
+-- so taking a chunk off (saturating) makes it smaller.
+@[step] theorem untyped.reset_untyped_loop.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot) (ptr : Std.U64) (block : Std.U64) (device : Bool) (offset : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    untyped.reset_untyped_loop machineStoreInst machineArchInst s a slot ptr block device offset ⦃ _ => True ⦄ := by
+  unfold untyped.reset_untyped_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, _, x2) => x2.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1, x2⟩ -
+    unfold untyped.reset_untyped_loop.body
+    p0_body
+    all_goals
+      simp only [lift, bind_ok, WP.spec_ok, saturating_sub_u64_val]
+      have h0 : x2.val ≠ 0 := by intro h; apply ‹¬x2 = 0#u64›; scalar_tac
+      have : untyped.RESET_CHUNK.val = 65536 := by simp [untyped.RESET_CHUNK]
+      omega
+  · trivial

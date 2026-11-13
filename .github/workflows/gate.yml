@@ -21,6 +21,8 @@ jobs:
         run: cargo xtask trusted
       - name: Simulation
         run: cargo xtask sim --seeds 200
+      - name: Mutation testing (the simulator catches known-broken runtimes)
+        run: cargo xtask mutants
       - name: sel4test and fl4test under QEMU/KVM (DESIGN.md §12)
         run: |
           for setup in kvm kvm-reduced; do
@@ -31,5 +33,5 @@ jobs:
             cargo xtask fl4test --setup $setup
             cargo xtask fl4test --setup $setup --smp 4
           done
-      - name: Extract and prove
-        run: cargo xtask gate
+      - name: Extract and prove (P0 must be complete)
+        run: FL4_P0_STRICT=1 cargo xtask gate

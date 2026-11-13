@@ -231,6 +231,9 @@ open fl4_core
 @[step] theorem layout.tcb.END.spec : layout.tcb.END ⦃ v => v = 3664#u64 ⦄ := by
   unfold layout.tcb.END; simp only [layout.tcb.NAME_LEN]; step*
 
+@[step] theorem layout.node.RELEASE_TAIL.spec : layout.node.RELEASE_TAIL ⦃ v => v = 72#u64 ⦄ := by
+  unfold layout.node.RELEASE_TAIL; simp only [layout.node.RELEASE_HEAD]; step*
+
 @[step] theorem layout.ks.SIZE.spec : layout.ks.SIZE ⦃ v => v = 288000#u64 ⦄ := by
   unfold layout.ks.SIZE; simp only [fl4_abi.config.MAX_NUM_NODES, layout.MAX_NODES]; step*
 
@@ -260,9 +263,6 @@ open fl4_core
 
 @[step] theorem vspace.P_XD.spec : vspace.P_XD ⦃ v => v = 9223372036854775808#u64 ⦄ := by
   unfold vspace.P_XD; step*
-
-@[step] theorem untyped.RESET_CHUNK.spec : untyped.RESET_CHUNK ⦃ v => v = 65536#u64 ⦄ := by
-  unfold untyped.RESET_CHUNK; simp only [untyped.RESET_CHUNK_BITS]; step*
 
 @[simp, scalar_tac_simps] theorem fl4_abi.consts.error.InvalidArgument.val_eq : fl4_abi.consts.error.InvalidArgument.val = 1 := by
   unfold fl4_abi.consts.error.InvalidArgument; rfl
@@ -954,7 +954,7 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem vspace.PD_INDEX_OFFSET.val_eq : vspace.PD_INDEX_OFFSET.val = 21 := by
   unfold vspace.PD_INDEX_OFFSET; rfl
 
-@[simp, scalar_tac_simps] theorem layout.node.TIMER_ROOT.val_eq : layout.node.TIMER_ROOT.val = 72 := by
+@[simp, scalar_tac_simps] theorem layout.node.TIMER_ROOT.val_eq : layout.node.TIMER_ROOT.val = 104 := by
   unfold layout.node.TIMER_ROOT; rfl
 
 @[simp, scalar_tac_simps] theorem timer.RED.val_eq : timer.RED.val = 1 := by
@@ -1263,9 +1263,6 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem layout.node.SCHED_CONTROL_USED.val_eq : layout.node.SCHED_CONTROL_USED.val = 96 := by
   unfold layout.node.SCHED_CONTROL_USED; rfl
 
-@[simp, scalar_tac_simps] theorem layout.node.RELEASE_TAIL.val_eq : layout.node.RELEASE_TAIL.val = 104 := by
-  unfold layout.node.RELEASE_TAIL; rfl
-
 @[simp, scalar_tac_simps] theorem layout.ks.BOOT_TIME.val_eq : layout.ks.BOOT_TIME.val = 56 := by
   unfold layout.ks.BOOT_TIME; rfl
 
@@ -1301,6 +1298,9 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem vspace.N_ASID_POOLS.val_eq : vspace.N_ASID_POOLS.val = 8 := by
   unfold vspace.N_ASID_POOLS; rfl
+
+@[simp, scalar_tac_simps] theorem untyped.RESET_CHUNK.val_eq : untyped.RESET_CHUNK.val = 65536 := by
+  unfold untyped.RESET_CHUNK; rfl
 
 @[simp, scalar_tac_simps] theorem untyped.RESET_CHUNK_BITS.val_eq : untyped.RESET_CHUNK_BITS.val = 16 := by
   unfold untyped.RESET_CHUNK_BITS; rfl

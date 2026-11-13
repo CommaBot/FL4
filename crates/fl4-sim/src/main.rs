@@ -104,12 +104,54 @@ struct Baton {
     turn: u64,
     rng: Rng,
     done: Vec<bool>,
+    pct: Option<Pct>,
+    /// Per core: spins since the core last finished a kernel entry.
+    spins: Vec<u64>,
 }
 
+/// PCT, probabilistic concurrency testing (Burckhardt et al., ASPLOS
+/// 2010): the live core with the highest priority runs. Priorities start
+/// as a random order above `depth`; at `depth - 1` scheduling points drawn
+/// at random the running core drops to a priority below every start
+/// priority. A bug that needs `depth` ordering constraints is found with
+/// probability at least 1/(n k^(depth-1)) per run, for n cores and k
+/// scheduling points. A spinning core drops below everyone else, since it
+/// waits for another core.
+struct Pct {
+    prio: Vec<i64>,
+    change_points: Vec<u64>,
+    next_low: i64,
+    points: u64,
+}
+
+impl Pct {
+    /// Below every other core.
+    fn demote(&mut self, cpu: u64) {
+        self.prio[cpu as usize] = self.next_low;
+        self.next_low -= 1;
+    }
+}
+
+/// Spins without finishing an entry after which a core is taken to be
+/// livelocked or deadlocked (DESIGN.md §10, liveness oracle).
+const SPIN_LIMIT: u64 = 2_000_000;
+
 impl Conc {
-    fn new(n: u64, seed: u64) -> Conc {
+    /// `pct`: run PCT of that depth over about `points` scheduling points.
+    fn new(n: u64, seed: u64, pct: Option<(u64, u64)>) -> Conc {
+        let mut rng = Rng(seed ^ 0x5DEE_CE66_D1CE_4E5B | 1);
+        let pct = pct.map(|(depth, points)| {
+            let mut prio: Vec<i64> = (0..n as i64).map(|i| depth as i64 + 1 + i).collect();
+            for i in (1..prio.len()).rev() {
+                let j = rng.below(i as u64 + 1) as usize;
+                prio.swap(i, j);
+            }
+            let change_points = (1..depth).map(|_| 1 + rng.below(points.max(1))).collect();
+            Pct { prio, change_points, next_low: depth as i64 - 1, points: 0 }
+        });
+        let turn = pct.as_ref().map_or(0, |p| (0..n).max_by_key(|&c| p.prio[c as usize]).unwrap());
         Conc {
-            baton: Mutex::new(Baton { turn: 0, rng: Rng(seed ^ 0x5DEE_CE66_D1CE_4E5B | 1), done: vec![false; n as usize] }),
+            baton: Mutex::new(Baton { turn, rng, done: vec![false; n as usize], pct, spins: vec![0; n as usize] }),
             cv: Condvar::new(),
             call_pending: AtomicU64::new(0),
             in_kernel: (0..n).map(|_| AtomicBool::new(false)).collect(),
@@ -124,7 +166,10 @@ impl Conc {
     fn pass(&self, b: &mut Baton) {
         let live: Vec<u64> = (0..b.done.len() as u64).filter(|&c| !b.done[c as usize]).collect();
         if !live.is_empty() {
-            b.turn = live[b.rng.below(live.len() as u64) as usize];
+            b.turn = match &b.pct {
+                Some(p) => *live.iter().max_by_key(|&&c| p.prio[c as usize]).unwrap(),
+                None => live[b.rng.below(live.len() as u64) as usize],
+            };
         }
         self.cv.notify_all();
     }
@@ -138,16 +183,48 @@ impl Conc {
     /// A scheduling point: maybe let another core run.
     fn pause(&self, cpu: u64) {
         let mut b = self.baton.lock().unwrap();
-        if b.rng.below(4) != 0 {
+        if let Some(p) = &mut b.pct {
+            p.points += 1;
+            if !p.change_points.contains(&p.points) {
+                return;
+            }
+            p.demote(cpu);
+        } else if b.rng.below(4) != 0 {
             return;
         }
         self.pass(&mut b);
         self.wait_turn(cpu, b);
     }
 
-    /// A spinning core always lets another core run.
+    /// A core waiting for another (the gate, a stripe, a stall it asked
+    /// for): a scheduling point, counted for the liveness oracle.
+    fn spin(&self, cpu: u64) {
+        let mut b = self.baton.lock().unwrap();
+        b.spins[cpu as usize] += 1;
+        assert!(b.spins[cpu as usize] < SPIN_LIMIT, "liveness: core {cpu} spun {SPIN_LIMIT} times without finishing a kernel entry");
+        match &mut b.pct {
+            Some(p) => p.demote(cpu),
+            None => {
+                if b.rng.below(4) != 0 {
+                    return;
+                }
+            }
+        }
+        self.pass(&mut b);
+        self.wait_turn(cpu, b);
+    }
+
+    /// The core finished a kernel entry.
+    fn progress(&self, cpu: u64) {
+        self.baton.lock().unwrap().spins[cpu as usize] = 0;
+    }
+
+    /// A core with nothing to do always lets another core run.
     fn relax(&self, cpu: u64) {
         let mut b = self.baton.lock().unwrap();
+        if let Some(p) = &mut b.pct {
+            p.demote(cpu);
+        }
         self.pass(&mut b);
         self.wait_turn(cpu, b);
     }
@@ -231,7 +308,9 @@ impl tx::Mem for SimStore {
         self.mem.set(addr, v)
     }
     fn relax(&self) {
-        self.pause();
+        if let Some(c) = &self.conc {
+            c.spin(self.cpu);
+        }
     }
 }
 
@@ -449,7 +528,7 @@ impl Arch for SimArch {
                 // Ask the target and wait until it has serviced the stall.
                 c.call_pending.fetch_or(1 << cpu, Ordering::SeqCst);
                 while c.call_pending.load(Ordering::SeqCst) & (1 << cpu) != 0 {
-                    c.pause(self.cpu);
+                    c.spin(self.cpu);
                 }
             }
         }
@@ -541,9 +620,10 @@ impl fl4_sync::EntryEnv for SimEnv {
     fn mem(&self) -> &SimStore {
         &self.s
     }
+    // Called while waiting for the serial gate.
     fn service_remote(&self) -> bool {
         let r = self.service();
-        self.s.pause();
+        self.conc.spin(self.s.cpu);
         r
     }
     fn set_tx(&self, on: bool) {
@@ -832,7 +912,8 @@ impl Sim {
             (ot::Notification, 0, 4),
             (ot::Reply, 0, 4),
             (ot::Tcb, 0, 6),
-            (ot::SchedContext, bits::MIN_SCHED_CONTEXT, 6),
+            // Room for 10 refills.
+            (ot::SchedContext, bits::MIN_SCHED_CONTEXT + 1, 6),
             (ot::CapTable, 4, 2),
             (ot::X86Page4K, 0, 4),
         ];
@@ -862,8 +943,14 @@ impl Sim {
             if let Some(&scap) = scs.get(k) {
                 let core = k as u64 % self.ncores;
                 let ctrl = self.sched_control(core);
-                self.invoke(0, ctrl, label::SchedControlConfigureFlags, &[1000 * TICKS_PER_US, 1000 * TICKS_PER_US, 0, k as u64, 0], &[scap]);
+                // Full budget, or 30% of the period, some sporadic, so
+                // threads run out of budget and the refill code runs.
+                let budget = if k % 2 == 1 { 300 } else { 1000 } * TICKS_PER_US;
+                let flags = if k % 3 == 1 { 1 } else { 0 };
+                self.invoke(0, ctrl, label::SchedControlConfigureFlags, &[budget, 1000 * TICKS_PER_US, k as u64 % 4, k as u64, flags], &[scap]);
                 self.after("sc configure");
+                let sc = fl4_core::obj::Sc(Slot::index(self.root_cnode(), scap).cap(&self.s).ptr());
+                assert!(fl4_core::sporadic::sc_active(&self.s, sc), "setup: SchedControl_ConfigureFlags failed");
                 self.invoke(0, scap, label::SchedContextBind, &[], &[t]);
                 self.after("sc bind");
             }
@@ -1065,6 +1152,7 @@ impl Sim {
         q.check(what);
         q.check_cdt(what);
         q.check_queues(what);
+        q.check_refills(what);
     }
 
     // ---- oracles ----------------------------------------------------------
@@ -1198,6 +1286,47 @@ impl Sim {
         }
     }
 
+    /// The refill invariants of P1 (seL4's `valid_refills`): an active
+    /// scheduling context's ring fits its object and has head and tail
+    /// inside it; the refills of a periodic one are in time order without
+    /// overlap and together no more than its period.
+    fn check_refills(&self, what: &str) {
+        use fl4_core::sporadic;
+        let s = &self.s;
+        let mut seen = HashSet::new();
+        for sl in self.slots() {
+            let Cap::SchedContext { ptr, size_bits } = sl.cap(s) else { continue };
+            if !seen.insert(ptr) {
+                continue;
+            }
+            let sc = fl4_core::obj::Sc(ptr);
+            let max = sc.refill_max(s);
+            if max == 0 {
+                continue;
+            }
+            let (h, tl) = (sc.refill_head(s), sc.refill_tail(s));
+            assert!(max >= sporadic::MIN_REFILLS, "{what}: SC {ptr:#x} has refill_max {max}");
+            assert!(max <= sporadic::refill_absolute_max(size_bits), "{what}: SC {ptr:#x}: {max} refills do not fit 2^{size_bits} bytes");
+            assert!(h < max && tl < max, "{what}: SC {ptr:#x}: head {h} or tail {tl} outside {max} refills");
+            let period = sc.period(s);
+            if period == 0 {
+                continue;
+            }
+            let n = sporadic::size(s, sc);
+            let mut i = h;
+            let mut sum = 0u64;
+            let mut end = 0u64;
+            for k in 0..n {
+                let r = sporadic::get(s, sc, i);
+                assert!(k == 0 || r.time >= end, "{what}: SC {ptr:#x}: refill {i} at {} overlaps the one before, which ends at {end}", r.time);
+                end = r.time.saturating_add(r.amount);
+                sum = sum.saturating_add(r.amount);
+                i = if i + 1 == max { 0 } else { i + 1 };
+            }
+            assert!(sum <= period, "{what}: SC {ptr:#x}: refills total {sum}, more than the period {period}");
+        }
+    }
+
     /// Endpoint and notification queues hold exactly threads blocked on
     /// them; release queues are in ready-time order.
     fn check_queues(&self, what: &str) {
@@ -1232,10 +1361,14 @@ impl Sim {
         for c in 0..self.ncores {
             let mut t = node_get(s, c, node::RELEASE_HEAD);
             let mut last = 0;
+            let mut prev = 0;
             let mut n = 0;
             while t != 0 {
                 let tt = Tcb(t);
                 assert!(sched::in_release_queue(s, tt), "{what}: thread in core {c}'s release queue without its flag");
+                assert_eq!(tt.affinity(s), c, "{what}: thread {t:#x} in core {c}'s release queue belongs to another core");
+                assert_eq!(tt.sched_prev(s), prev, "{what}: release queue of core {c} badly linked at {t:#x}");
+                prev = t;
                 let rtime = fl4_core::sporadic::head(s, fl4_core::obj::Sc(tt.sc(s))).time;
                 assert!(rtime >= last, "{what}: release queue of core {c} out of order");
                 last = rtime;
@@ -1243,6 +1376,7 @@ impl Sim {
                 n += 1;
                 assert!(n < 10_000, "{what}: release queue does not end");
             }
+            assert_eq!(node_get(s, c, node::RELEASE_TAIL), prev, "{what}: release queue of core {c} has a wrong tail");
         }
     }
 }
@@ -1318,7 +1452,7 @@ impl Sim {
     }
 }
 
-fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool) {
+fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool, pct: Option<u64>) {
     let mut sim = Sim::new(seed, ncores);
     sim.boot();
     sim.setup();
@@ -1346,7 +1480,7 @@ fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool) 
     }
     if concurrent && ncores > 1 {
         // One host thread per core, interleaved at memory accesses.
-        let conc = Arc::new(Conc::new(ncores, seed));
+        let conc = Arc::new(Conc::new(ncores, seed, pct.map(|d| (d, steps * 50))));
         sim.s.conc = Some(conc.clone());
         sim.a.conc = Some(conc.clone());
         let per_core = steps / ncores;
@@ -1362,6 +1496,7 @@ fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool) 
                             break;
                         }
                         core_sim.step(cpu);
+                        conc.progress(cpu);
                         conc.pause(cpu);
                     }
                     // Out of steps, the core still answers remote stalls, as
@@ -1388,6 +1523,9 @@ fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool) 
             println!("seed {seed}: {} transactions committed, {} aborted, {} serial entries", st.0, st.1, st.2);
             let k = conc.check.lock().unwrap();
             println!("seed {seed}: snapshot checker: {} reads checked, {} of unversioned words skipped", k.checked, k.skipped);
+            if let Some(p) = &conc.baton.lock().unwrap().pct {
+                println!("seed {seed}: PCT: {} scheduling points, change points {:?}", p.points, p.change_points);
+            }
         }
     } else {
         for _ in 0..steps {
@@ -1403,6 +1541,103 @@ fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool) 
     }
 }
 
+/// One campaign run: a seed and how to run it.
+#[derive(Clone)]
+struct Run {
+    seed: u64,
+    cores: u64,
+    steps: u64,
+    conc: bool,
+    pct: Option<u64>,
+}
+
+impl Run {
+    fn args(&self) -> Vec<String> {
+        let mut v = vec!["--one".into(), self.seed.to_string(), "--cores".into(), self.cores.to_string(), "--steps".into(), self.steps.to_string()];
+        if self.conc {
+            v.push("--conc".into());
+        }
+        if let Some(d) = self.pct {
+            v.push("--pct".into());
+            v.push(d.to_string());
+        }
+        v
+    }
+
+    /// Run in a child process (the kernel crates build with panic = abort,
+    /// so a failed oracle aborts only the child). Returns why it failed.
+    fn exec(&self, timeout: u64, verbose: bool) -> Option<String> {
+        let me = std::env::current_exe().unwrap();
+        let mut child = std::process::Command::new(&me)
+            .args(self.args())
+            .args(if verbose { vec!["--verbose"] } else { vec![] })
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        // A run that never ends is a hang (deadlock or livelock) and fails.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout);
+        let hung = loop {
+            if child.try_wait().unwrap().is_some() {
+                break false;
+            }
+            if std::time::Instant::now() > deadline {
+                let _ = child.kill();
+                break true;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        };
+        let out = child.wait_with_output().unwrap();
+        if verbose {
+            print!("{}", String::from_utf8_lossy(&out.stdout));
+        }
+        if hung {
+            return Some(format!("no progress after {timeout} s"));
+        }
+        if out.status.success() {
+            return None;
+        }
+        let err = String::from_utf8_lossy(&out.stderr);
+        Some(err.lines().find(|l| !l.is_empty() && !l.starts_with("thread") && !l.starts_with("note:")).unwrap_or("").to_string())
+    }
+
+    /// The shortest run of the same seed that still fails: a prefix of
+    /// the failing run, which ends at the failure.
+    fn shrink(&self, timeout: u64) -> Run {
+        let (mut lo, mut hi) = (0, self.steps);
+        while lo + 1 < hi {
+            let mid = (lo + hi) / 2;
+            if (Run { steps: mid, ..self.clone() }).exec(timeout, false).is_some() {
+                hi = mid;
+            } else {
+                lo = mid;
+            }
+        }
+        Run { steps: hi, ..self.clone() }
+    }
+
+    fn line(&self) -> String {
+        format!("{} {} {} {} {}", self.seed, self.cores, self.steps, if self.conc { "conc" } else { "serial" }, self.pct.map_or("random".to_string(), |d| format!("pct{d}")))
+    }
+
+    fn parse(l: &str) -> Option<Run> {
+        let f: Vec<&str> = l.split_whitespace().collect();
+        if f.len() != 5 || l.starts_with('#') {
+            return None;
+        }
+        Some(Run {
+            seed: f[0].parse().ok()?,
+            cores: f[1].parse().ok()?,
+            steps: f[2].parse().ok()?,
+            conc: f[3] == "conc",
+            pct: f[4].strip_prefix("pct").and_then(|d| d.parse().ok()),
+        })
+    }
+}
+
+/// Failing runs, shrunk, that every campaign replays first (DESIGN.md §10).
+const REGRESSIONS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/regressions");
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let opt = |name: &str, def: u64| -> u64 {
@@ -1411,56 +1646,45 @@ fn main() {
     let cores = opt("--cores", 4);
     let steps = opt("--steps", 2000);
     let verbose = args.iter().any(|a| a == "--verbose");
-    // The kernel crates build with panic = abort, so each seed runs in a
-    // child process; a failed oracle aborts only that child.
+    let conc = args.iter().any(|a| a == "--conc");
+    let pct = args.iter().position(|a| a == "--pct").map(|_| opt("--pct", 3));
     if let Some(i) = args.iter().position(|a| a == "--one") {
         let seed = args[i + 1].parse().unwrap();
         TRACE.store(args.iter().any(|a| a == "--trace"), Ordering::Relaxed);
-        run_one(seed, cores, steps, verbose, args.iter().any(|a| a == "--conc"));
+        run_one(seed, cores, steps, verbose, conc, pct);
         return;
     }
     let seeds = opt("--seeds", 100);
     let first = opt("--first", 1);
     let timeout = opt("--timeout", 120);
-    let me = std::env::current_exe().unwrap();
+    let record = args.iter().any(|a| a == "--record");
     let mut failed = 0;
-    for seed in first..first + seeds {
-        let mut out = std::process::Command::new(&me)
-            .args(["--one", &seed.to_string(), "--cores", &cores.to_string(), "--steps", &steps.to_string()])
-            .args(if verbose { vec!["--verbose"] } else { vec![] })
-            .args(if args.iter().any(|a| a == "--conc") { vec!["--conc"] } else { vec![] })
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .unwrap();
-        // A run that never ends is a hang (deadlock or livelock) and fails.
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout);
-        let hung = loop {
-            if out.try_wait().unwrap().is_some() {
-                break false;
-            }
-            if std::time::Instant::now() > deadline {
-                let _ = out.kill();
-                break true;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        };
-        let out = out.wait_with_output().unwrap();
-        if verbose {
-            print!("{}", String::from_utf8_lossy(&out.stdout));
-        }
-        if hung || !out.status.success() {
+    // Regressions first, whatever this campaign's settings.
+    let known: Vec<Run> = std::fs::read_to_string(REGRESSIONS).unwrap_or_default().lines().filter_map(Run::parse).collect();
+    for r in &known {
+        if let Some(why) = r.exec(timeout, verbose) {
             failed += 1;
-            let err = String::from_utf8_lossy(&out.stderr);
-            let why = if hung {
-                format!("no progress after {timeout} s")
-            } else {
-                err.lines().find(|l| !l.is_empty() && !l.starts_with("thread") && !l.starts_with("note:")).unwrap_or("").to_string()
-            };
-            println!("fl4-sim: seed {seed} ({cores} cores) failed: {why}");
+            println!("fl4-sim: regression {} failed: {why}", r.line());
         }
     }
-    println!("fl4-sim: {seeds} seeds, {cores} cores, {steps} steps each: {failed} failed");
+    for seed in first..first + seeds {
+        let r = Run { seed, cores, steps, conc, pct };
+        if let Some(why) = r.exec(timeout, verbose) {
+            failed += 1;
+            println!("fl4-sim: seed {seed} ({cores} cores) failed: {why}");
+            if args.iter().any(|a| a == "--no-shrink") {
+                continue;
+            }
+            let small = r.shrink(timeout);
+            println!("fl4-sim: shrunk to {} steps; replay with: fl4-sim {}", small.steps, small.args().join(" "));
+            if record {
+                use std::io::Write;
+                let mut f = std::fs::OpenOptions::new().create(true).append(true).open(REGRESSIONS).unwrap();
+                writeln!(f, "{}", small.line()).unwrap();
+            }
+        }
+    }
+    println!("fl4-sim: {} regressions, {seeds} seeds, {cores} cores, {steps} steps each{}: {failed} failed", known.len(), pct.map_or(String::new(), |d| format!(", PCT depth {d}")));
     if failed > 0 {
         std::process::exit(1);
     }

@@ -66,7 +66,8 @@ impl SerialGate {
         }
         self.closed.store(true, Ordering::SeqCst);
         for (c, a) in self.active.iter().enumerate() {
-            if c as u64 == cpu {
+            // (Mutation test: `mutant-gate-no-wait` does not wait.)
+            if c as u64 == cpu || cfg!(feature = "mutant-gate-no-wait") {
                 continue;
             }
             while a.load(Ordering::SeqCst) {

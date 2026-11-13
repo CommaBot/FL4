@@ -213,14 +213,16 @@ pub mod node {
     pub const CONSUMED: u64 = 40;
     pub const CUR_TIME: u64 = 48;
     pub const REPROGRAM: u64 = 56;
+    /// The release queue: (head, tail), adjacent like every queue that
+    /// sched.rs reads as a pair.
     pub const RELEASE_HEAD: u64 = 64;
-    /// l4h 0003: root of this core's deadline-timer tree.
-    pub const TIMER_ROOT: u64 = 72;
+    pub const RELEASE_TAIL: u64 = RELEASE_HEAD + 8;
     /// l4h 0006: the deadline the hardware timer is armed for (0 = none).
     pub const ARMED: u64 = 80;
     pub const DEBUG_TCBS: u64 = 88;
     pub const SCHED_CONTROL_USED: u64 = 96;
-    pub const RELEASE_TAIL: u64 = 104;
+    /// l4h 0003: root of this core's deadline-timer tree.
+    pub const TIMER_ROOT: u64 = 104;
     /// l4h 0003: the armed TCB with the earliest deadline.
     pub const TIMER_MIN: u64 = 112;
     /// Cores this entry must send a reschedule IPI to (seL4

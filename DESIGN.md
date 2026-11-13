@@ -9,7 +9,7 @@ FL4 re-implements the seL4 17.0 kernel in Rust. Every seL4 program builds and ru
 | Baseline | seL4 17.0.0-dev (c98d70ad) |
 | First target | x86_64, tested only inside QEMU/KVM |
 | API | MCS only |
-| Next target | AArch64 |
+| Next target | AArch64 (future work, not part of the current plan) |
 | License | GPL-2.0, same as seL4 |
 
 Assurance levels used below: **Verified** (extracted by Aeneas, proven in Lean), **Sim-tested** (checked by deterministic simulation), **Trusted** (small unsafe or hardware code, reviewed and tested).
@@ -328,7 +328,7 @@ The proof is staged so each level is useful by itself and later levels build on 
 
 | Level | Statement                                                                                                                                                                                                                                       | Scope                                                                                           |
 |-------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
-| P0    | Every extracted function terminates without failure (no panic, overflow or out-of-bounds) when the invariants hold                                                                                                                              | All of `fl4-core`                                                                               |
+| P0    | Every extracted function terminates without failure (no panic, overflow or out-of-bounds) when the invariants hold. Complete: all 924 functions, one proved by hand; CI fails if any is left (`FL4_P0_STRICT`)                                                                                                                              | All of `fl4-core`                                                                               |
 | P1    | Each kernel entry preserves the invariants: well-typed heap, object alignment and non-overlap, CDT well-formed (including subframe aliases), queues consistent with thread states, refill invariants, deadline-timer trees, untyped bookkeeping | All of `fl4-core`                                                                               |
 | P2    | Transaction soundness: over an abstract model of `fl4-store` and `fl4-sync`, a committed transaction observed one consistent snapshot, its writes are applied atomically, and any history of committed transactions is equivalent to running them one after another: writers and serial entries in commit order, each read-only transaction on the memory at its start. Proved in `proofs/Fl4Proofs/P2/Runtime.lean` (`sound`, `snapshot`) | Once, for the runtime; required before fine-grained locking ships |
 | P3    | Functional refinement: every kernel entry refines the abstract spec                                                                                                                                                                             | One subsystem at a time: CSpace, then IPC and notifications, scheduler and MCS, untyped, VSpace |
@@ -370,20 +370,20 @@ The proof assumes: Rust, LLVM and the linker; Charon, Aeneas and the Lean kernel
 |-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
 | **Snapshot checker.** Simulated memory keeps every version of every word. Each value a transaction read must be the value at its start clock, and each write must land only at commit.  | Validation and buffering bugs, found on the first run that executes the path, with no unlucky interleaving needed |
 | **Serializability.** Record the commit order, replay the same transactions on a single-core FL4 (the proven configuration), compare every syscall result and the final state. | Lost updates, stale reads, validation bugs                                                        |
-| **Invariants.** Executable Rust versions of the P1 invariants, checked after every commit.                                                                                    | Corruption, close to where it starts                                                              |
-| **Liveness.** Wait-for graph with cycle detection, bounded retry counts, IPI acknowledgement deadlines.                                                                       | Deadlock, livelock, missed IPIs                                                                   |
+| **Invariants.** Executable Rust versions of the P1 invariants, checked after every commit: CDT links, endpoint, notification and release queues (links, tails, owning core), and refills (ring bounds; for periodic SCs, time order without overlap and a total within the period). The workload gives SCs partial and sporadic budgets so the refill paths run. The release-queue checks found a layout bug: the release queue's tail word was the deadline-timer tree root | Corruption, close to where it starts                                                              |
+| **Liveness.** Wait-for graph with cycle detection, bounded retry counts, IPI acknowledgement deadlines. As implemented: every wait (for the serial gate, a stripe lock, or a remote stall to be acknowledged) is a counted spin, and a core that spins 2,000,000 times without finishing a kernel entry fails the run. The only blocking waits are on the gate, the stripes and stall acknowledgements, so a deadlock shows up as such a spin. A run that hangs anyway fails on the per-seed timeout | Deadlock, livelock, missed IPIs                                                                   |
 
 ### Exploration
 
-- Random walks and PCT (probabilistic concurrency testing) at scale, millions of seeds per night.
+- Random walks and PCT (probabilistic concurrency testing) at scale, millions of seeds per night. In PCT (`fl4-sim --pct D`), the live core with the highest priority runs. Priorities start in random order, and at D−1 random scheduling points the running core drops below the others. A spinning core also drops below the others, because it is waiting for another core. Each step of a run has about 50 scheduling points. PCT preempts rarely, so a transaction it preempts usually reads what the other core wrote meanwhile and aborts. As a result PCT catches the runtime mutants below in only 1–2 seeds in 100, and the random scheduler remains the main campaign.
 - Bounded exhaustive search with partial-order reduction for small scenarios of 2 to 3 CPUs and a few syscalls each. These cover the hand-picked races completely.
 - An eighth of transactions are doomed to the serial path at random, so serial entries overlap running transactions often enough to test the gate.
-- Mutation testing checks that the simulator can fail: each known-broken runtime must fail seeds in a 100-seed concurrent campaign. Measured so far: commit skips read validation (57/100 seeds fail before the snapshot checker; with it 50/100, every one at the faulty commit), the gate does not wait for running transactions (14/100), commit does not publish new stripe versions (53/100; with the checker 52/100, every one at the commit).
+- Mutation testing checks that the simulator can fail: each known-broken runtime must fail seeds in a 100-seed concurrent campaign. The mutants are test-only Cargo features of `fl4-store` and `fl4-sync` (`mutant-skip-validation`, `mutant-no-publish`, `mutant-gate-no-wait`), and `cargo xtask mutants` runs them in CI. Measured so far: commit skips read validation (57/100 seeds fail before the snapshot checker; with it 50/100, every one at the faulty commit), the gate does not wait for running transactions (14/100), commit does not publish new stripe versions (53/100; with the checker 52/100, every one at the commit).
 - The snapshot checker is implemented as: each word's history tagged with the commit version that wrote it (serial entries take the current clock); a committed writer's reads must match memory just before its commit version, a read-only transaction's its start version. Words a core writes directly outside the gate (its own thread's context, §7) carry no version and are left unchecked; about a tenth of reads fall there.
-- Failing seeds shrink automatically and become regression tests.
+- Failing seeds shrink automatically and become regression tests. A failing run is cut to the shortest prefix of the same seed that still fails, found by bisecting the step count; one mutant's 4000-step failure shrank to 12 steps. `--record` appends shrunk runs to `crates/fl4-sim/regressions`, which every campaign replays first.
 - For bugs seen only in QEMU, QEMU record and replay reproduces the full-system run. The simulator remains the main tool.
 
-## 11. x86_64 now, AArch64 next
+## 11. x86_64 now, AArch64 later (future work)
 
 ### x86_64 backend
 
@@ -472,7 +472,9 @@ Ordered by dependency. Each milestone ends with a check that can be run.
 - **M3 SMP in serial-gate mode** — APs, per-core scheduling, IPIs, migration, and the remaining l4h extensions. Every transaction takes the serial gate, which behaves like a big lock. Simulator with oracles running. *Exit: sel4test passes with 2 and 4 cores.*
 - **M4 Fine-grained locking** — The transactional store over the lock table, deferred Arch effects, escalation of irrevocable entries to the serial gate, and the simulator interleaving transactions inside kernel entries. P2 for the runtime. Serial-gate mode stays as a test-only Cargo feature for differential runs. It is not a user-facing option. *Exit: P2 complete; nightly simulation clean for two weeks; sel4test passes; scaling target met.*
 - **M5 P1 completion and performance** — Full invariant set. Speed up the general IPC path in `fl4-core` without adding a second copy of it. *Exit: P1 complete; uniprocessor IPC within target.*
-- **M6 Refinement and breadth** — P3 per subsystem against the ported spec, AArch64 backend. *Exit: each subsystem's refinement proof lands separately.*
+- **M6 Refinement** — P3 per subsystem against the ported spec. *Exit: each subsystem's refinement proof lands separately.*
+
+AArch64 is future work, outside M1–M6. The boundary rules in §11 still apply, so the port stays a new backend crate when it happens.
 
 ## 14. Risks
 

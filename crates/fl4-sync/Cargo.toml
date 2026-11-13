@@ -13,3 +13,5 @@ fl4-store = { path = "../fl4-store" }
 # Test only (DESIGN.md §13, M4): every entry takes the serial gate, as with
 # a big lock, for differential runs against the transactional runtime.
 serial-gate = []
+# Mutation testing only (DESIGN.md §10).
+mutant-gate-no-wait = []

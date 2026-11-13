@@ -291,7 +291,8 @@ pub fn commit<M: Mem>(cpu: u64, m: &M) -> bool {
     }
     let wv = CLOCK.fetch_add(2, Ordering::AcqRel) + 2;
     // Unless no other writer committed since we began, check the reads.
-    if wv != t.rv + 2 {
+    // (Mutation test: `mutant-skip-validation` leaves the check out.)
+    if wv != t.rv + 2 && !cfg!(feature = "mutant-skip-validation") {
         for i in 0..t.nreads {
             let e = t.reads[i] as usize;
             let ok = if t.wstamp[e] == t.gen {
@@ -315,7 +316,9 @@ pub fn commit<M: Mem>(cpu: u64, m: &M) -> bool {
         m.store(t.wkey[i], t.wval[i]);
     }
     for &e in t.wstripes[..t.nwstripes].iter() {
-        TABLE[e as usize].0.store(wv, Ordering::Release);
+        // (Mutation test: `mutant-no-publish` unlocks at the old version.)
+        let v = if cfg!(feature = "mutant-no-publish") { t.wsaved[e as usize] } else { wv };
+        TABLE[e as usize].0.store(v, Ordering::Release);
     }
     true
 }

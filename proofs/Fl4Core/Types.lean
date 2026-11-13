@@ -256,6 +256,19 @@ structure boot.Root where
   ebytes : Std.U64
   it : boot.Region
 
+/-- [fl4_core::boot::RootLayout]
+    Source: 'crates/fl4-core/src/boot.rs', lines 426:0-436:1 -/
+structure boot.RootLayout where
+  ipcbuf_vptr : Std.U64
+  bi_frame_vptr : Std.U64
+  extra_bi_vptr : Std.U64
+  ebits : Std.U64
+  ebytes : Std.U64
+  it : boot.Region
+  cnode_bits : Std.U64
+  max_bits : Std.U64
+  total : Std.U64
+
 /-- [fl4_core::capability::Rights]
     Source: 'crates/fl4-core/src/capability.rs', lines 248:0-253:1
     Visibility: public -/

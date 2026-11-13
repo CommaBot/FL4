@@ -387,3 +387,25 @@ static int test_copy_registers_stalls_source(env_t env)
 }
 DEFINE_TEST(FL4SMP0001, "CopyRegisters with suspendSource stops a source on another core", test_copy_registers_stalls_source,
             config_set(CONFIG_ENABLE_SMP_SUPPORT))
+
+/* ---- l4h 0008: error replies start with an empty message ------------ */
+
+/* With KernelInvocationReportErrorIPC, the error string in the IPC buffer
+ * belongs to the invocation that failed: whatever the buffer held before,
+ * a failed invocation leaves it empty (FL4 keeps no error strings). */
+static int test_error_string_empty(env_t env)
+{
+#ifdef CONFIG_KERNEL_INVOCATION_REPORT_ERROR_IPC
+    char *s = seL4_GetDebugError();
+    strcpy(s, "stale");
+    char old = seL4_CanPrintError();
+    seL4_SetPrintError(0);
+    /* Slot 0 is always empty: suspending it fails with InvalidCapability. */
+    int error = seL4_TCB_Suspend(seL4_CapNull);
+    seL4_SetPrintError(old);
+    test_eq(error, seL4_InvalidCapability);
+    test_eq(s[0], 0);
+#endif
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4ERR0001, "A failed invocation reports no stale error string (l4h 0008)", test_error_string_empty, true)

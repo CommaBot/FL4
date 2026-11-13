@@ -1,7 +1,9 @@
 {
- "functions": 921,
- "proved": 919,
- "manual": [],
+ "functions": 925,
+ "proved": 925,
+ "manual": [
+  "untyped.reset_untyped_loop"
+ ],
  "loops_automatic": [
   "boot.all_zero_loop",
   "boot.clear_dirty_loop",
@@ -83,14 +85,5 @@
   "vspace.ensure_empty_run_loop",
   "vspace.insert_subframes_loop"
  ],
- "sorry": {
-  "boot.rootserver_objects": [
-   "fun",
-   "(do let ui_v_start \u2190 lift (core.num.U64.wrapping_sub p.ui_p_start p.pv_offset) let ui_v_end \u2190 lift (core.num.U64.wrapping_sub p.ui_p_end p.pv_offset) let bi_frame_vptr \u2190 lift (core.num.U64.wrapping_add ui_v_end 4096#u64) let extra_bi_vptr \u2190 lift (core.num.U64.wrapping_add bi_frame_vptr 4096#u64) let"
-  ],
-  "untyped.reset_untyped_loop": [
-   "loop",
-   "(do let offset1 \u2190 lift (core.num.U64.saturating_sub x2 i) ok (ControlFlow.cont (s3, a1, offset1))) \u2983 r => match r with | ControlFlow.done y => True | ControlFlow.cont x' => \u2191x'.2.2 < \u2191x2 \u2984"
-  ]
- }
+ "sorry": {}
 }

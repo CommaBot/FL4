@@ -838,13 +838,25 @@ theorem layout.irq.TIMER.p0  :
     boot.init_root_cnode machineStoreInst s b ⦃ _ => True ⦄ := by
   unfold boot.init_root_cnode; p0_auto
 
+@[step] theorem boot.alloc_root_objects.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot) (ebits : Std.U64) (cnode_bits : Std.U64) (hS : StoreTotal machineStoreInst) :
+    boot.alloc_root_objects machineStoreInst s b ebits cnode_bits ⦃ _ => True ⦄ := by
+  unfold boot.alloc_root_objects; p0_split
+
+@[step] theorem boot.root_layout.p0 (p : boot.BootParams) :
+    boot.root_layout p ⦃ _ => True ⦄ := by
+  unfold boot.root_layout; p0_split
+
 @[step] theorem boot.rootserver_objects.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (p : boot.BootParams) (hS : StoreTotal machineStoreInst) :
     boot.rootserver_objects machineStoreInst s p ⦃ _ => True ⦄ := by
-  sorry
+  unfold boot.rootserver_objects; p0_auto
 
 @[step] theorem boot.create_root_task.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (p : boot.BootParams) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     boot.create_root_task machineStoreInst machineArchInst s a p ⦃ _ => True ⦄ := by
   unfold boot.create_root_task; p0_split
+
+@[step] theorem boot.RootLayout.Insts.CoreCloneClone.clone.p0 (self : boot.RootLayout) :
+    boot.RootLayout.Insts.CoreCloneClone.clone self ⦃ _ => True ⦄ := by
+  unfold boot.RootLayout.Insts.CoreCloneClone.clone; p0_auto
 
 @[step] theorem capability.FrameSize.Insts.CoreCloneClone.clone.p0 (self : capability.FrameSize) :
     capability.FrameSize.Insts.CoreCloneClone.clone self ⦃ _ => True ⦄ := by
@@ -2881,6 +2893,10 @@ theorem layout.tcb.END.p0  :
     layout.tcb.END ⦃ _ => True ⦄ := by
   exact WP.spec_mono Consts.layout.tcb.END.spec (fun _ _ => trivial)
 
+theorem layout.node.RELEASE_TAIL.p0  :
+    layout.node.RELEASE_TAIL ⦃ _ => True ⦄ := by
+  exact WP.spec_mono Consts.layout.node.RELEASE_TAIL.spec (fun _ _ => trivial)
+
 theorem layout.ks.SIZE.p0  :
     layout.ks.SIZE ⦃ _ => True ⦄ := by
   exact WP.spec_mono Consts.layout.ks.SIZE.spec (fun _ _ => trivial)
@@ -3573,17 +3589,23 @@ theorem vspace.P_XD.p0  :
     vspace.decode machineStoreInst machineArchInst s a lbl length slot cap call buf ex ⦃ _ => True ⦄ := by
   unfold vspace.decode; p0_auto
 
-theorem untyped.RESET_CHUNK.p0  :
-    untyped.RESET_CHUNK ⦃ _ => True ⦄ := by
-  exact WP.spec_mono Consts.untyped.RESET_CHUNK.spec (fun _ _ => trivial)
-
 @[step] theorem untyped.as_untyped.p0 (c : capability.Cap) :
     untyped.as_untyped c ⦃ _ => True ⦄ := by
   unfold untyped.as_untyped; p0_auto
 
-@[step] theorem untyped.reset_untyped_loop.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (i : Std.U64) (s : S) (a : A) (slot : obj.Slot) (ptr : Std.U64) (block : Std.U64) (device : Bool) (offset : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
-    untyped.reset_untyped_loop machineStoreInst machineArchInst i s a slot ptr block device offset ⦃ _ => True ⦄ := by
-  sorry
+@[step] theorem untyped.reset_untyped_loop.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot) (ptr : Std.U64) (block : Std.U64) (device : Bool) (offset : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    untyped.reset_untyped_loop machineStoreInst machineArchInst s a slot ptr block device offset ⦃ _ => True ⦄ := by
+  unfold untyped.reset_untyped_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, _, x2) => x2.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1, x2⟩ -
+    unfold untyped.reset_untyped_loop.body
+    p0_body
+    all_goals
+      simp only [lift, bind_ok, WP.spec_ok, saturating_sub_u64_val]
+      have h0 : x2.val ≠ 0 := by intro h; apply ‹¬x2 = 0#u64›; scalar_tac
+      have : untyped.RESET_CHUNK.val = 65536 := by simp [untyped.RESET_CHUNK]
+      omega
+  · trivial
 
 @[step] theorem untyped.reset_untyped.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     untyped.reset_untyped machineStoreInst machineArchInst s a slot ⦃ _ => True ⦄ := by
@@ -4105,6 +4127,10 @@ theorem untyped.RESET_CHUNK.p0  :
 @[step] theorem untyped.UntypedCap.Insts.CoreCloneClone.clone.p0 (self : untyped.UntypedCap) :
     untyped.UntypedCap.Insts.CoreCloneClone.clone self ⦃ _ => True ⦄ := by
   unfold untyped.UntypedCap.Insts.CoreCloneClone.clone; p0_auto
+
+@[step] theorem untyped._.p0  :
+    untyped._ ⦃ _ => True ⦄ := by
+  unfold untyped._; p0_auto
 
 @[step] theorem vspace.FrameCap.Insts.CoreCloneClone.clone.p0 (self : vspace.FrameCap) :
     vspace.FrameCap.Insts.CoreCloneClone.clone self ⦃ _ => True ⦄ := by

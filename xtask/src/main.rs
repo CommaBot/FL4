@@ -441,28 +441,57 @@ fn sel4test_results(out: &str) -> (usize, Vec<String>) {
 
 /// Seeds that once found bugs (DESIGN.md §4, "Fixes found while building
 /// FL4"): (seed, cores, steps).
-const SIM_REGRESSIONS: &[(u64, u64, u64)] = &[(113, 4, 20000)];
-
-/// Deterministic simulation (DESIGN.md §10): the regression seeds, then
-/// --seeds seeds (default 200) on --smp cores (default 4), 20000 steps
-/// each, serially and then with the cores' kernel entries interleaved
-/// (transactions, 8000 steps), and interleaved again with every entry
-/// under the serial gate.
+/// Deterministic simulation (DESIGN.md §10). Each campaign replays
+/// crates/fl4-sim/regressions first, then runs --seeds seeds (default 200)
+/// on --smp cores (default 4): serially, 20000 steps each; with the cores'
+/// kernel entries interleaved (transactions, 8000 steps), under the random
+/// scheduler and under PCT; and interleaved again with every entry under
+/// the serial gate.
 fn sim(o: &Opts) {
     let r = root();
     run(Command::new("cargo").current_dir(&r).args(["build", "--release", "-p", "fl4-sim"]));
     let bin = r.join("target/release/fl4-sim");
-    for &(seed, cores, steps) in SIM_REGRESSIONS {
-        run(Command::new(&bin).args(["--seeds", "1", "--first", &seed.to_string(), "--cores", &cores.to_string(), "--steps", &steps.to_string()]));
-    }
     let cores = if o.smp > 1 { o.smp } else { 4 };
-    run(Command::new(&bin).args(["--seeds", &o.seeds.to_string(), "--cores", &cores.to_string(), "--steps", "20000"]));
-    run(Command::new(&bin).args(["--seeds", &o.seeds.to_string(), "--cores", &cores.to_string(), "--steps", "8000", "--conc"]));
+    let (seeds, cores) = (o.seeds.to_string(), cores.to_string());
+    let base = ["--seeds", seeds.as_str(), "--cores", cores.as_str()];
+    run(Command::new(&bin).args(base).args(["--steps", "20000"]));
+    run(Command::new(&bin).args(base).args(["--steps", "8000", "--conc"]));
+    run(Command::new(&bin).args(base).args(["--steps", "8000", "--conc", "--pct", "3"]));
     // The same campaign with every entry under the serial gate, the
     // test-only differential configuration.
     let dir = r.join("target/serial-gate");
     run(Command::new("cargo").current_dir(&r).args(["build", "--release", "-p", "fl4-sim", "--features", "serial-gate", "--target-dir"]).arg(&dir));
-    run(Command::new(dir.join("release/fl4-sim")).args(["--seeds", &o.seeds.to_string(), "--cores", &cores.to_string(), "--steps", "8000", "--conc"]));
+    run(Command::new(dir.join("release/fl4-sim")).args(base).args(["--steps", "8000", "--conc"]));
+}
+
+/// Mutation testing (DESIGN.md §10): the simulator must fail each
+/// known-broken runtime in a 100-seed concurrent campaign under the random
+/// scheduler; the PCT campaign's catch rate is reported too.
+fn mutants() {
+    let r = root();
+    let mut ok = true;
+    for m in ["mutant-skip-validation", "mutant-no-publish", "mutant-gate-no-wait"] {
+        let dir = r.join("target").join(m);
+        run(Command::new("cargo").current_dir(&r).args(["build", "--quiet", "--release", "-p", "fl4-sim", "--features", m, "--target-dir"]).arg(&dir));
+        for sched in [&[][..], &["--pct", "3"][..]] {
+            let out = Command::new(dir.join("release/fl4-sim"))
+                .args(["--seeds", "100", "--cores", "4", "--steps", "4000", "--conc", "--timeout", "60", "--no-shrink"])
+                .args(sched)
+                .output()
+                .unwrap();
+            let text = String::from_utf8_lossy(&out.stdout);
+            let failed = text.lines().filter(|l| l.contains("failed:") && l.starts_with("fl4-sim: seed")).count();
+            let name = if sched.is_empty() { "random" } else { "PCT" };
+            eprintln!("xtask: {m} ({name}): {failed}/100 seeds fail");
+            // PCT preempts rarely, so a preempted transaction usually reads
+            // something another core wrote meanwhile and aborts: it is
+            // reported, but only the random scheduler must catch each one.
+            ok &= failed > 0 || !sched.is_empty();
+        }
+    }
+    if !ok {
+        fail("a mutant survived the simulator");
+    }
 }
 
 /// The trusted base (TRUSTED, DESIGN.md §9): every listed path exists;
@@ -563,10 +592,11 @@ fn main() {
         "extract" => extract(),
         "gate" => gate(),
         "sim" => sim(&o),
+        "mutants" => mutants(),
         "trusted" => trusted(),
         "bench" => bench(&o),
         _ => {
-            eprintln!("usage: cargo xtask <kernel|run|sel4test-build|sel4test|fl4test|extract|gate|sim|trusted|bench [fl4|sel4]> [--release] [--setup kvm|kvm-reduced|tcg] [--smp N] [--timeout S] [--seeds N]");
+            eprintln!("usage: cargo xtask <kernel|run|sel4test-build|sel4test|fl4test|extract|gate|sim|mutants|trusted|bench [fl4|sel4]> [--release] [--setup kvm|kvm-reduced|tcg] [--smp N] [--timeout S] [--seeds N]");
             exit(2);
         }
     }
