@@ -391,6 +391,7 @@ The proof assumes: Rust, LLVM and the linker; Charon, Aeneas and the Lean kernel
 - x2APIC or xAPIC, chosen at boot (§3). In xAPIC mode IPIs use physical destination mode, so more than 8 cores can be addressed.
 - MCS timer: TSC-deadline mode when CPUID reports it, otherwise the LAPIC one-shot timer with a TSC-to-APIC ratio calibrated at boot. seL4 has the same fallback in `apic.c`. Both are first-class paths, and the test setups in §12 exercise each one.
 - IOAPIC and MSI routing, ACPI MADT parsing, IO port caps.
+- The PIT is used only for calibration, on channel 2. Channel 0 is put in one-shot mode at boot, because firmware leaves it interrupting at 18.2 Hz on ISA IRQ 0, which is IOAPIC pin 2, where user space may route an HPET timer.
 - Eager XSAVE FPU switching. VT-x is out of scope.
 
 ### IOMMU left to user space
@@ -438,9 +439,11 @@ KVM emulates both x2APIC and the TSC-deadline timer for guests, even though this
 
 | Setup                 | QEMU options                                        | Purpose                                                                         |
 |-----------------------|-----------------------------------------------------|---------------------------------------------------------------------------------|
-| KVM, full features    | `-enable-kvm -cpu host`                             | Fast main loop; x2APIC and TSC-deadline paths. Same kernel image in every setup |
-| KVM, reduced features | `-enable-kvm -cpu host,-x2apic,-tsc-deadline`       | xAPIC and the calibrated one-shot timer paths                                   |
-| TCG                   | `-accel tcg -icount`, record and replay when needed | Deterministic reruns of failures seen under KVM                                 |
+| KVM, full features    | `-enable-kvm -machine kernel-irqchip=split -cpu host`                       | Fast main loop; x2APIC and TSC-deadline paths. Same kernel image in every setup |
+| KVM, reduced features | `-enable-kvm -machine kernel-irqchip=split -cpu host,-x2apic,-tsc-deadline` | xAPIC and the calibrated one-shot timer paths                                   |
+| TCG                   | `-accel tcg`, record and replay when needed                                 | An independent CPU and device model, for failures seen under KVM               |
+
+The KVM setups keep the IOAPIC in QEMU (`kernel-irqchip=split`). With KVM's in-kernel IOAPIC, QEMU routes GSI 0 (the PIT) to pin 2 and gives GSI 2 no route. sel4test's timer driver puts the HPET on pin 2, so its interrupts never arrive. That was the cause of SCHED0000 failing ("flaky") and INTERRUPT0005 hanging under KVM: the driver ran only on stray PIT interrupts every 55 ms instead of its own 10 ms ones. Since the change no sel4test test is skipped or excused. Under `-icount`, QEMU 10.0 currently stops with "Bad icount read" during boot, so the TCG setup runs without it until that is resolved.
 
 Performance numbers come from KVM with pinned vCPUs and are labelled that way. They are compared with upstream seL4 measured in the same setup, never with bare-metal figures.
 

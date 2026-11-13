@@ -19,3 +19,12 @@ pub fn wait(ticks: u16, mut during: impl FnMut()) {
         during();
     }
 }
+
+/// Stop channel 0's periodic interrupt (left running by the firmware):
+/// mode 0 counts down once and then holds its output, so ISA IRQ 0
+/// (IOAPIC pin 2, which an HPET timer may also be routed to) stays quiet.
+pub fn quiet_channel0() {
+    outb(0x43, 0x30); // channel 0, lobyte/hibyte, mode 0
+    outb(0x40, 1);
+    outb(0x40, 0);
+}

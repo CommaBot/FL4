@@ -19,15 +19,6 @@ const SEL4TEST_MANIFEST: &[(&str, &str, &str)] = &[
     ("projects/util_libs", "https://github.com/seL4/util_libs.git", "ef49a397b7044fc38b609a99a8c6265a97913b8e"),
 ];
 
-/// Tests that hang on upstream seL4 too under QEMU (sel4test marks them
-/// flaky in simulation).
-const QEMU_FLAKY: &[&str] = &["INTERRUPT0005"];
-
-/// Tests that fail intermittently on upstream seL4 under QEMU/KVM in the
-/// same way (sel4test names them "flaky"): a failure of one of these is
-/// reported but does not fail the run.
-const UPSTREAM_FLAKY: &[&str] = &["SCHED0000"];
-
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf()
 }
@@ -110,9 +101,13 @@ fn build_kernel(o: &Opts) -> PathBuf {
 fn qemu_cmd(setup: &str, smp: u32, kernel: &Path, initrd: Option<&Path>) -> Command {
     let mut c = Command::new("qemu-system-x86_64");
     match setup {
-        "kvm" => c.args(["-enable-kvm", "-cpu", "host,+invtsc"]),
-        "kvm-reduced" => c.args(["-enable-kvm", "-cpu", "host,-x2apic,-tsc-deadline"]),
-        "tcg" => c.args(["-accel", "tcg", "-cpu", "max", "-icount", "shift=auto"]),
+        // The IOAPIC runs in QEMU (split irqchip): with KVM's in-kernel
+        // IOAPIC, QEMU gives GSI 2 no route, so an HPET timer routed to pin
+        // 2 (where sel4test's driver puts it) never interrupts.
+        "kvm" => c.args(["-enable-kvm", "-machine", "kernel-irqchip=split", "-cpu", "host,+invtsc"]),
+        "kvm-reduced" => c.args(["-enable-kvm", "-machine", "kernel-irqchip=split", "-cpu", "host,-x2apic,-tsc-deadline"]),
+        // -icount stops QEMU 10.0 with "Bad icount read" during boot.
+        "tcg" => c.args(["-accel", "tcg", "-cpu", "max"]),
         s => fail(&format!("unknown setup {s} (kvm, kvm-reduced, tcg)")),
     };
     c.args(["-m", "3G", "-smp"]).arg(smp.to_string());
@@ -238,21 +233,15 @@ fn python_env(c: &mut Command) {
     }
 }
 
-fn sel4test_filter() -> String {
-    // POSIX ERE has no negative lookahead: match every name that differs
-    // from each skipped name at some position.
-    let name = QEMU_FLAKY[0];
-    assert_eq!(QEMU_FLAKY.len(), 1);
-    let mut alts = vec![];
-    for i in 0..name.len() {
-        alts.push(format!("{}[^{}]", &name[..i], &name[i..i + 1]));
-    }
-    format!("^({})", alts.join("|"))
-}
-
 fn sel4test_build(o: &Opts) -> PathBuf {
     let ws = sel4test_ws();
-    let name = format!("build-{}-smp{}", if o.release { "release" } else { "debug" }, o.smp);
+    // FL4_TESTS=<regex> runs only the matching tests, in its own build.
+    let only = env::var("FL4_TESTS").ok();
+    let mut name = format!("build-{}-smp{}", if o.release { "release" } else { "debug" }, o.smp);
+    if let Some(r) = &only {
+        name += "-";
+        name.extend(r.chars().filter(|c| c.is_ascii_alphanumeric()));
+    }
     let b = ws.join(&name);
     if !b.join("build.ninja").exists() {
         fs::create_dir_all(&b).unwrap();
@@ -263,7 +252,7 @@ fn sel4test_build(o: &Opts) -> PathBuf {
         if o.smp > 1 {
             c.arg(format!("-DNUM_NODES={}", o.smp));
         }
-        c.arg(format!("-DLibSel4TestPrinterRegex={}", sel4test_filter()));
+        c.arg(format!("-DLibSel4TestPrinterRegex={}", only.clone().unwrap_or_else(|| ".*".into())));
         for a in &o.rest {
             c.arg(a);
         }
@@ -285,17 +274,15 @@ fn sel4test(o: &Opts) {
     let stop = ["All is well in the universe", "Test suite failed", "Halting...", "FL4 panic"];
     let out = run_qemu(qemu_cmd(&o.setup, o.smp, &k, Some(&i)), o.timeout, &stop, &log);
     let (passed, failed) = sel4test_results(&out);
-    let unexpected: Vec<_> = failed.iter().filter(|t| !UPSTREAM_FLAKY.contains(&t.as_str())).collect();
     eprintln!("\nxtask: sel4test {}: {passed} passed, {} failed", o.setup, failed.len());
     for f in &failed {
-        let note = if UPSTREAM_FLAKY.contains(&f.as_str()) { " (flaky upstream too)" } else { "" };
-        eprintln!("  {f}{note}");
+        eprintln!("  {f}");
     }
     let finished = out.contains("All is well in the universe") || out.contains("Test suite failed");
     if !finished {
         fail("sel4test did not complete");
     }
-    if !unexpected.is_empty() {
+    if !failed.is_empty() {
         fail("sel4test failed");
     }
 }

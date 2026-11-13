@@ -23,6 +23,7 @@ pub fn has_tsc_deadline() -> bool {
 
 /// Calibrate and arm the timer on the boot core, delivering `vector`.
 pub fn init(vector: u32) {
+    pit::quiet_channel0();
     let deadline = has_tsc_deadline();
     DEADLINE.store(deadline, Ordering::Relaxed);
     apic::write(apic::REG_LVT_TIMER, 1 << 16);
