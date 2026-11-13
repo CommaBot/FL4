@@ -323,7 +323,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
     smp::release_aps();
     sched::schedule(&mut s, &mut a);
     sched::activate_thread(&mut s, &mut a);
-    entry::exit(&mut s)
+    entry::exit()
 }
 
 #[panic_handler]

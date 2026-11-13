@@ -15,6 +15,11 @@ pub const CALL_FLUSH_TLB: u64 = 3;
 pub const CALL_FPU_SAVE: u64 = 4;
 pub const CALL_FPU_DROP: u64 = 5;
 
+/// Kernel entries by how they ran, on all cores (DESIGN.md §7).
+pub static TX_COMMITS: AtomicU64 = AtomicU64::new(0);
+pub static TX_ABORTS: AtomicU64 = AtomicU64::new(0);
+pub static SERIAL_ENTRIES: AtomicU64 = AtomicU64::new(0);
+
 /// Cores that have finished starting.
 static ONLINE: AtomicU64 = AtomicU64::new(1);
 static NUM_ONLINE: AtomicU64 = AtomicU64::new(1);

@@ -29,6 +29,7 @@ name = "fl4-arch-x86_64"
 version = "0.1.0"
 dependencies = [
  "fl4-core",
+ "fl4-store",
 ]
 
 [[package]]

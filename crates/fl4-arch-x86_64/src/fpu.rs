@@ -132,6 +132,11 @@ fn owner_core(t: u64) -> Option<usize> {
     (0..percpu::MAX_CPUS).find(|&c| unsafe { core::ptr::read_volatile(&percpu::get_for(c).fpu_owner) } == t)
 }
 
+/// Whether some core's registers hold `t`'s FPU state.
+pub fn is_live(t: u64) -> bool {
+    owner_core(t).is_some()
+}
+
 /// Write `t`'s live state, wherever it is, back to its TCB. The caller
 /// holds the serial gate when another core may hold the state.
 pub fn flush(t: u64) {

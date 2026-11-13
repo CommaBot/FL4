@@ -7,7 +7,8 @@ use fl4_core::layout::{irq, node, reg, tcb as tl};
 use fl4_core::machine::Store;
 use fl4_core::obj::{node_get, Tcb};
 use fl4_core::{debug, sched, syscall};
-use fl4_store::PhysStore;
+use fl4_arch_x86_64::arch;
+use fl4_store::{tx, Phys, PhysStore};
 use fl4_sync::SerialGate;
 use fl4_arch_x86_64::smp;
 
@@ -55,16 +56,21 @@ const RFLAGS_TF: u64 = 1 << 8;
 
 static mut KS_BASE: u64 = 0;
 
-/// The serial gate (DESIGN.md §7): with more than one core, every kernel
-/// entry runs holding it, until fine-grained locking replaces it.
+/// The serial gate (DESIGN.md §7): kernel entries that cannot run as
+/// transactions run holding it, with no transaction running.
 pub static GATE: SerialGate = SerialGate::new();
+
+/// Transaction attempts before an entry runs under the serial gate.
+const TX_ATTEMPTS: u32 = 4;
 
 pub fn set_ks_base(b: u64) {
     unsafe { KS_BASE = b };
 }
 
+/// Direct access to kernel memory (one core, the serial gate, or this
+/// core's own thread context).
 pub fn store() -> PhysStore {
-    PhysStore { ks_base: unsafe { KS_BASE }, cpu: percpu::cpu_index() as u64 }
+    PhysStore { ks_base: unsafe { KS_BASE }, cpu: percpu::cpu_index() as u64, tx: false }
 }
 
 fn save_user(s: &mut PhysStore, f: &Frame) {
@@ -127,21 +133,21 @@ fn service_remote() -> bool {
     })
 }
 
-/// Take the serial gate when more than one core runs, servicing remote
-/// calls while waiting. Returns false when a stall cancelled the entry:
-/// this core then runs its idle thread, and the entry must not proceed for
-/// the thread that made it (which restarts it later).
+/// Take the serial gate (on a multi-core system), servicing remote calls
+/// while waiting. Returns false when a stall cancelled the entry: this core
+/// then runs its idle thread, and the entry must not proceed for the thread
+/// that made it (which restarts it later).
 pub fn lock() -> bool {
-    let mut stalled = false;
+    let stalled = core::cell::Cell::new(false);
     if smp::multi() {
         GATE.acquire(percpu::cpu_index() as u64, || {
             if service_remote() {
-                stalled = true;
+                stalled.set(true);
             }
         });
         percpu::get().gate_held = true;
     }
-    !stalled
+    !stalled.get()
 }
 
 fn unlock() {
@@ -150,6 +156,64 @@ fn unlock() {
         pc.gate_held = false;
         GATE.release();
     }
+}
+
+/// Run the kernel's part of an entry (DESIGN.md §7). On one core it runs
+/// directly. Otherwise it runs as a transaction, rerun on conflict, and
+/// under the serial gate if it cannot run as one or keeps conflicting; the
+/// gate is then released by `exit`. `body` must be repeatable: everything
+/// it reads or writes goes through the store and Arch it is given. Returns
+/// false when a stall cancelled a non-interrupt entry before it ran.
+pub fn run_entry(irq: bool, mut body: impl FnMut(&mut PhysStore, &mut PhysArch)) -> bool {
+    let mut a = PhysArch;
+    let cpu = percpu::cpu_index() as u64;
+    if !smp::multi() {
+        body(&mut store(), &mut a);
+        percpu::get().held_irq = percpu::NO_IRQ;
+        return true;
+    }
+    let stalled = core::cell::Cell::new(false);
+    for _ in 0..TX_ATTEMPTS {
+        GATE.enter_tx(cpu, || {
+            if service_remote() {
+                stalled.set(true);
+            }
+        });
+        if stalled.get() && !irq {
+            GATE.leave_tx(cpu);
+            return false;
+        }
+        tx::begin(cpu);
+        percpu::get().tx = true;
+        let mut s = PhysStore { ks_base: unsafe { KS_BASE }, cpu, tx: true };
+        body(&mut s, &mut a);
+        percpu::get().tx = false;
+        let ok = tx::commit(cpu, &Phys);
+        let serial = tx::needs_serial(cpu);
+        tx::end(cpu);
+        GATE.leave_tx(cpu);
+        if ok {
+            let c = smp::TX_COMMITS.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+            if fl4_abi::config::DEBUG_BUILD && c & 0x3ffff == 0x3ffff {
+                arch::print_stats();
+            }
+            arch::apply_effects();
+            percpu::get().held_irq = percpu::NO_IRQ;
+            return true;
+        }
+        smp::TX_ABORTS.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+        arch::discard_effects();
+        if serial {
+            break;
+        }
+    }
+    smp::SERIAL_ENTRIES.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+    if !lock() && !irq {
+        return false;
+    }
+    body(&mut store(), &mut a);
+    percpu::get().held_irq = percpu::NO_IRQ;
+    true
 }
 
 /// Called by entry.S for every kernel entry.
@@ -175,13 +239,10 @@ extern "C" fn fl4_entry(f: &mut Frame) {
                 if v == smp::REMOTE_CALL_VECTOR as u64 {
                     service_remote();
                 }
-                lock();
-                let mut s = store();
-                let mut a = PhysArch;
                 if irq {
-                    syscall::handle_interrupt_entry(&mut s, &mut a, v - VEC_IRQ_MIN);
+                    run_entry(true, |s, a| syscall::handle_interrupt_entry(s, a, v - VEC_IRQ_MIN));
                 }
-                exit(&mut s);
+                exit();
             }
         }
         if v == 2 {
@@ -189,42 +250,47 @@ extern "C" fn fl4_entry(f: &mut Frame) {
         }
         kernel_fault(f);
     }
-    let mut s = store();
-    let mut a = PhysArch;
-    save_user(&mut s, f);
+    save_user(&mut store(), f);
     trace(f);
     if v == smp::REMOTE_CALL_VECTOR as u64 {
         service_remote();
     }
+    // Machine state the entry reads once, outside the repeatable part.
+    let cr2 = if v == 14 { cpu::read_cr2() } else { 0 };
+    let dr6 = if v == 1 && fl4_abi::config::HARDWARE_DEBUG_API {
+        let d = cpu::read_dr6();
+        cpu::write_dr6(0xffff_0ff0);
+        d
+    } else {
+        0
+    };
     // An interrupt is handled even if a stall cancelled the entry: it has
     // been accepted and needs its EOI.
-    if !lock() && !irq {
-        exit(&mut s);
-    }
-    if v == VEC_SYSCALL {
-        syscall::handle_syscall(&mut s, &mut a, f.rdx as i64);
-    } else if irq {
-        syscall::handle_interrupt_entry(&mut s, &mut a, v - VEC_IRQ_MIN);
-    } else if v == 14 {
-        syscall::handle_vm_fault(&mut s, &mut a, cpu::read_cr2(), f.error);
-    } else if (v == 1 || v == 3) && fl4_abi::config::HARDWARE_DEBUG_API {
-        let dr6 = if v == 1 { cpu::read_dr6() } else { 0 };
-        cpu::write_dr6(0xffff_0ff0);
-        syscall::handle_debug_exception(&mut s, &mut a, v, dr6);
-    } else if v == 2 || v == VEC_SPURIOUS {
-        // NMI or spurious interrupt: nothing to do.
-    } else if v < 32 {
-        syscall::handle_user_exception(&mut s, &mut a, v, f.error);
-    } else if v >= VEC_TRAP_MIN {
-        syscall::handle_trap_syscall(&mut s, &mut a, v);
-    }
-    exit(&mut s)
+    run_entry(irq, |s, a| {
+        if v == VEC_SYSCALL {
+            syscall::handle_syscall(s, a, f.rdx as i64);
+        } else if irq {
+            syscall::handle_interrupt_entry(s, a, v - VEC_IRQ_MIN);
+        } else if v == 14 {
+            syscall::handle_vm_fault(s, a, cr2, f.error);
+        } else if (v == 1 || v == 3) && fl4_abi::config::HARDWARE_DEBUG_API {
+            syscall::handle_debug_exception(s, a, v, dr6);
+        } else if v == 2 || v == VEC_SPURIOUS {
+            // NMI or spurious interrupt: nothing to do.
+        } else if v < 32 {
+            syscall::handle_user_exception(s, a, v, f.error);
+        } else if v >= VEC_TRAP_MIN {
+            syscall::handle_trap_syscall(s, a, v);
+        }
+    });
+    exit()
 }
 
 /// Leave the kernel to the current thread (or the idle loop), giving up
 /// the serial gate. What follows touches only this core's thread, whose
 /// context no other core changes without stalling this one first.
-pub fn exit(s: &mut PhysStore) -> ! {
+pub fn exit() -> ! {
+    let s = &mut store();
     let ct = sched::cur_thread(s);
     let core = s.cur_cpu();
     let idle = ct.0 == node_get(s, core, node::IDLE_THREAD);

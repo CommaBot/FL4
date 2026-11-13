@@ -34,6 +34,13 @@ pub struct PerCpu {
     pub apic_id: u32,
     /// This core holds the serial gate.
     pub gate_held: bool,
+    /// A transaction runs on this core (Arch effects are queued).
+    pub tx: bool,
+    pub effects: [crate::arch::Effect; crate::arch::MAX_EFFECTS],
+    pub neffects: usize,
+    /// An interrupt accepted during the current entry, offered again if
+    /// the entry's transaction reruns.
+    pub held_irq: u64,
 }
 
 impl PerCpu {
@@ -53,6 +60,10 @@ impl PerCpu {
             asid: 0,
             apic_id: 0,
             gate_held: false,
+            tx: false,
+            effects: [crate::arch::Effect::Ack; crate::arch::MAX_EFFECTS],
+            neffects: 0,
+            held_irq: NO_IRQ,
         }
     }
 }

@@ -118,5 +118,5 @@ extern "C" fn fl4_ap_main(c: u64) -> ! {
     let mut a = fl4_arch_x86_64::arch::PhysArch;
     sched::schedule(&mut s, &mut a);
     sched::activate_thread(&mut s, &mut a);
-    entry::exit(&mut s)
+    entry::exit()
 }
