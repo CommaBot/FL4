@@ -15,7 +15,7 @@ other subsystems: scheduler state, SCs, endpoints, ...; left abstract) with
 the hypotheses `SchedHyps`:
 
 * `stable`: `SR` ignores what the notification code itself changes: FL4
-  words in the footprint `NFoot` and, in the spec, `ntfn_obj` of
+  words the notification code writes (`NWrite`) and, in the spec, `ntfn_obj` of
   notifications and the state and user context of TCBs (`NtfnStep`);
 * `scheduleTcb`: `schedule_tcb t` refines `set_thread_state_act t` (whose
   single outcome is `stsAct`), keeping the footprint;
@@ -89,7 +89,7 @@ variable {S A : Type} (st : machine.Store S) (ar : machine.Arch A) [L : LawfulSt
 /-- What the notification proofs assume of the other subsystems' relation
 `SR` (see the module docstring). -/
 structure SchedHyps (N T : Set U64) (SR : S → Fl4Spec.State Unit → Prop) : Prop where
-  stable : ∀ s s' σ σ', SR s σ → WritesIn st s s' (NFoot N T) → NtfnStep σ σ' → SR s' σ'
+  stable : ∀ s s' σ σ', SR s σ → WritesIn st s s' (NWrite N T) → NtfnStep σ σ' → SR s' σ'
   scheduleTcb : ∀ s σ (t : U64), NtfnStateRel N T (L.mem s) σ → SR s σ → t ∈ T →
     sched.schedule_tcb st s t ⦃ s' => FootEq N T (L.mem s) (L.mem s') ∧ SR s' (stsAct σ t.bv) ⦄
   wakeTail : ∀ s (a : A) σ (t n : U64) (x : Fl4Spec.Tcb), NtfnStateRel N T (L.mem s) σ → SR s σ → t ∈ T →

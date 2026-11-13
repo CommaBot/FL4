@@ -77,7 +77,7 @@ theorem set_active_rel (hP : NPlaced T N) {s : S} {σ : Fl4Spec.State Unit}
       (nBadgeA n) b
     NtfnStateRel N T (L.mem s')
         (updK σ n.bv (.notification (Fl4Spec.ntfnObjUpdate (fun _ => .activeNtfn b.bv) x))) ∧
-      WritesIn st s s' (NFoot N T) := by
+      WritesIn st s s' (NWrite N T) := by
   intro s'
   have hna := hP.ntfn n hn
   have h1 : NWr st N T n s (L.wr s (epTSA n) ((L.mem s (epTSA n) &&& ~~~3#u64) ||| (obj.NTFN_ACTIVE &&& 3#u64))) := by
@@ -141,7 +141,7 @@ theorem set_badge_rel (hP : NPlaced T N) {s : S} {σ : Fl4Spec.State Unit}
     let s' := L.wr s (nBadgeA n) b
     NtfnStateRel N T (L.mem s')
         (updK σ n.bv (.notification (Fl4Spec.ntfnObjUpdate (fun _ => .activeNtfn b.bv) x))) ∧
-      WritesIn st s s' (NFoot N T) := by
+      WritesIn st s s' (NWrite N T) := by
   intro s'
   have hna := hP.ntfn n hn
   have h : NWr st N T n s s' := by show NWr st N T n s (L.wr s _ b); rw [nBadgeA_eq]; exact nwr_wr hP hn (by simp) (by simp) _ _
@@ -222,7 +222,7 @@ theorem sendSignal_active_eq {σ : Fl4Spec.State Unit} {p : Fl4Spec.ObjRef} {x :
 def SingleRel (N T : Set U64) (s : S) (σ : Fl4Spec.State Unit) (spec : Set (Unit × Fl4Spec.State Unit) × Prop)
     (s' : S) : Prop :=
   ∃ σ', spec = ({((), σ')}, False) ∧ NtfnStateRel N T (L.mem s') σ' ∧ NtfnStep σ σ' ∧
-    WritesIn st s s' (NFoot N T)
+    WritesIn st s s' (NWrite N T)
 
 /-- **Idle, no bound TCB**: the notification becomes active with the badge. -/
 theorem send_signal_idle_unbound (hP : NPlaced T N) (s : S) (a : A) (σ : Fl4Spec.State Unit)

@@ -21,7 +21,7 @@ variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {N T : Set U64
 theorem framed_keeps (hP : NPlaced T N) {W : List U64} (hW : ∀ w ∈ W, w ∈ T) {s s1 : S}
     (hf : Framed st .Ep W s s1) :
     (∀ n ∈ N, NWordsEq (L.mem s) (L.mem s1) n) ∧ (∀ y ∈ T, TFieldsEq (L.mem s) (L.mem s1) y) ∧
-    (∀ y ∈ T, y ∉ W → TLinksEq (L.mem s) (L.mem s1) y) ∧ WritesIn st s s1 (NFoot N T) := by
+    (∀ y ∈ T, y ∉ W → TLinksEq (L.mem s) (L.mem s1) y) ∧ WritesIn st s s1 (NWrite N T) := by
   have hWa : ∀ w ∈ W, TcbAddr w := fun w hw => hP.tcb w (hW w hw)
   have hn : ∀ n ∈ N, ∀ K : U64, K.val < 40 → K.val % 8 = 0 →
       L.mem s1 (core.num.U64.wrapping_add n K) = L.mem s (core.num.U64.wrapping_add n K) := by
@@ -51,8 +51,8 @@ theorem framed_keeps (hP : NPlaced T N) {W : List U64} (hW : ∀ w ∈ W, w ∈ 
   · exact hf.2.2.next_eq hWa (hP.tcb y hy) (fun _ => hyW)
   · refine hf.writesIn.mono fun b ⟨w, hw, hb⟩ => Or.inr ⟨w, hW w hw, ?_⟩
     rcases hb with hb | hb
-    · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl hb))))
-    · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr hb))))
+    · exact Or.inr (Or.inr (Or.inr (Or.inl hb)))
+    · exact Or.inr (Or.inr (Or.inr (Or.inr hb)))
 
 /-- `set_queue` on the notification `n`: the two words written are its head
 and tail/state words. -/
@@ -93,7 +93,7 @@ structure QKeeps (st : machine.Store S) [L : LawfulStore st] (N T : Set U64) (n 
   sc : L.mem s' (nScA n) = L.mem s (nScA n)
   tcb : ∀ y ∈ T, TFieldsEq (L.mem s) (L.mem s') y
   links : ∀ y ∈ T, y ∉ W → TLinksEq (L.mem s) (L.mem s') y
-  foot : WritesIn st s s' (NFoot N T)
+  foot : WritesIn st s s' (NWrite N T)
 
 theorem qkeeps_of (hP : NPlaced T N) {n : U64} (hn : n ∈ N) {W : List U64} (hW : ∀ w ∈ W, w ∈ T) {s s1 : S}
     (hf : Framed st .Ep W s s1) (h v : U64) :

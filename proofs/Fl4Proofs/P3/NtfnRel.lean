@@ -291,6 +291,18 @@ def NFoot (N T : Set U64) (a : U64) : Prop :=
   (∃ n ∈ N, n.val ≤ a.val ∧ a.val < n.val + 40) ∨
   (∃ t ∈ T, a = tStA t ∨ a = tBlockA t ∨ a = badgeRegA t ∨ a = prioA t ∨ a = nextA .Ep t ∨ a = prevA .Ep t)
 
+/-- The words the notification code writes: the footprint without the
+priorities (which the scheduler relation may read). -/
+def NWrite (N T : Set U64) (a : U64) : Prop :=
+  (∃ n ∈ N, n.val ≤ a.val ∧ a.val < n.val + 40) ∨
+  (∃ t ∈ T, a = tStA t ∨ a = tBlockA t ∨ a = badgeRegA t ∨ a = nextA .Ep t ∨ a = prevA .Ep t)
+
+theorem NWrite.foot {N T : Set U64} {a : U64} : NWrite N T a → NFoot N T a := by
+  rintro (h | ⟨t, ht, h | h | h | h | h⟩)
+  · exact Or.inl h
+  all_goals simp_all [NFoot]
+  all_goals exact Or.inr ⟨t, ht, by simp⟩
+
 /-- What the relation reads of the spec's heap: notifications, and TCBs'
 state, badge register and priority. -/
 def KView {Z : Type} (σ σ' : State Z) : Prop :=

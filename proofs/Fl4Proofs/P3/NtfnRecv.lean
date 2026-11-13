@@ -124,7 +124,7 @@ theorem set_badge_reg_rel (hP : NPlaced T N) {s : S} {σ : Fl4Spec.State Unit}
     (hR : NtfnStateRel N T (L.mem s) σ) {t : U64} (ht : t ∈ T) {x : Fl4Spec.Tcb}
     (hk : σ.kheap t.bv = some (.tcb x)) (v : U64) :
     NtfnStateRel N T (L.mem (L.wr s (badgeRegA t) v)) (updK σ t.bv (.tcb (setReg x Fl4Spec.badge_register v.bv))) ∧
-      WritesIn st s (L.wr s (badgeRegA t) v) (NFoot N T) ∧
+      WritesIn st s (L.wr s (badgeRegA t) v) (NWrite N T) ∧
       NtfnStep σ (updK σ t.bv (.tcb (setReg x Fl4Spec.badge_register v.bv))) := by
   have hx := hR.at_tcb ht hk
   obtain ⟨hw, hoth⟩ := twr_wr (st := st) hP ht (K := 256#u64) (Or.inr (Or.inr rfl)) s v
@@ -151,7 +151,7 @@ theorem set_idle_rel (hP : NPlaced T N) {s : S} {σ : Fl4Spec.State Unit}
     (hk : σ.kheap n.bv = some (.notification x)) {b0 : Fl4Spec.Badge} (hact : x.ntfnObj = .activeNtfn b0) :
     let s' := L.wr s (epTSA n) ((L.mem s (epTSA n) &&& ~~~3#u64) ||| (obj.NTFN_IDLE &&& 3#u64))
     NtfnStateRel N T (L.mem s') (updK σ n.bv (.notification (Fl4Spec.ntfnObjUpdate (fun _ => .idleNtfn) x))) ∧
-      WritesIn st s s' (NFoot N T) ∧
+      WritesIn st s s' (NWrite N T) ∧
       NtfnStep σ (updK σ n.bv (.notification (Fl4Spec.ntfnObjUpdate (fun _ => .idleNtfn) x))) := by
   intro s'
   have hna := hP.ntfn n hn
@@ -288,7 +288,7 @@ theorem recv_active_prefix (hP : NPlaced T N) {s : S} {σ : Fl4Spec.State Unit}
     Fl4Spec.asUser (Z := Unit) t.bv (Fl4Spec.setRegister Fl4Spec.badge_register b0) σ = ({((), σ1)}, False) ∧
     Fl4Spec.setNotification (Z := Unit) n.bv (Fl4Spec.ntfnObjUpdate (fun _ => .idleNtfn) x) σ1 =
       ({((), σ2)}, False) ∧
-    NtfnStateRel N T (L.mem s2) σ2 ∧ WritesIn st s s2 (NFoot N T) ∧ NtfnStep σ σ2 := by
+    NtfnStateRel N T (L.mem s2) σ2 ∧ WritesIn st s s2 (NWrite N T) ∧ NtfnStep σ σ2 := by
   intro s1 s2 σ1 σ2
   have hx := hR.at_ntfn hn hk
   have hb0 : (L.mem s (nBadgeA n)).bv = b0 := by

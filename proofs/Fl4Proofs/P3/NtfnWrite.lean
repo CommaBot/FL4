@@ -45,7 +45,7 @@ theorem TLinksEq.rfl' {m : U64 → U64} {t : U64} : TLinksEq m m t := ⟨rfl, rf
 structure NWr (st : machine.Store S) [L : LawfulStore st] (N T : Set U64) (n : U64) (s s' : S) : Prop where
   ntfn : ∀ n' ∈ N, n' ≠ n → NWordsEq (L.mem s) (L.mem s') n'
   tcb : ∀ y ∈ T, TFieldsEq (L.mem s) (L.mem s') y ∧ TLinksEq (L.mem s) (L.mem s') y
-  foot : WritesIn st s s' (NFoot N T)
+  foot : WritesIn st s s' (NWrite N T)
 
 theorem NWr.trans {n : U64} {s₁ s₂ s₃ : S} (h₁ : NWr st N T n s₁ s₂) (h₂ : NWr st N T n s₂ s₃) :
     NWr st N T n s₁ s₃ :=
@@ -69,7 +69,10 @@ theorem nwr_wr (hP : NPlaced T N) {n K : U64} (hn : n ∈ N) (hK : K.val < 40) (
         L.mem s (core.num.U64.wrapping_add y K') := by
     intro y hy K' h1 h2
     exact rd_wr_ne ha (tword hP hy h1 h2) (tn_ne (hP.tcb y hy) hna (hP.disj n hn y hy) h1 (by omega)).symm
-  refine ⟨fun n' hn' e => ?_, fun y hy => ?_, (writesIn_wr ha).mono fun b hb => hb ▸ hf⟩
+  have hf' : NWrite N T (core.num.U64.wrapping_add n K) := by
+    refine Or.inl ⟨n, hn, ?_⟩
+    rw [nfield_val hna (by omega)]; omega
+  refine ⟨fun n' hn' e => ?_, fun y hy => ?_, (writesIn_wr ha).mono fun b hb => hb ▸ hf'⟩
   · refine ⟨?_, ?_, ?_, ?_, ?_⟩
     · rw [epHeadA_eq]; exact hnn n' hn' e _ (by simp) (by simp)
     · rw [epTSA_eq]; exact hnn n' hn' e _ (by simp) (by simp)
@@ -96,7 +99,7 @@ structure TWr (st : machine.Store S) [L : LawfulStore st] (N T : Set U64) (t : U
   ntfn : ∀ n ∈ N, NWordsEq (L.mem s) (L.mem s') n
   tcb : ∀ y ∈ T, y ≠ t → TFieldsEq (L.mem s) (L.mem s') y
   links : ∀ y ∈ T, TLinksEq (L.mem s) (L.mem s') y
-  foot : WritesIn st s s' (NFoot N T)
+  foot : WritesIn st s s' (NWrite N T)
 
 theorem TWr.trans {t : U64} {s₁ s₂ s₃ : S} (h₁ : TWr st N T t s₁ s₂) (h₂ : TWr st N T t s₂ s₃) :
     TWr st N T t s₁ s₃ :=
@@ -117,7 +120,7 @@ theorem twr_wr (hP : NPlaced T N) {t K : U64} (ht : t ∈ T)
   have hK1 : K.val < 4096 := by rcases hK with rfl | rfl | rfl <;> simp
   have hK8 : K.val % 8 = 0 := by rcases hK with rfl | rfl | rfl <;> simp
   have ha := tword hP ht hK1 hK8
-  have hf : NFoot N T (core.num.U64.wrapping_add t K) := by
+  have hf : NWrite N T (core.num.U64.wrapping_add t K) := by
     refine Or.inr ⟨t, ht, ?_⟩
     rcases hK with rfl | rfl | rfl
     · exact Or.inl (tStA_eq t).symm
