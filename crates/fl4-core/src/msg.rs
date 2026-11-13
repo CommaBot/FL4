@@ -82,10 +82,10 @@ pub fn get_mr<S: Store>(s: &S, t: Tcb, buf: u64, i: u64) -> u64 {
 pub fn set_mr<S: Store>(s: &mut S, t: Tcb, buf: u64, i: u64, v: u64) -> u64 {
     if i < N_MSG_REGISTERS {
         t.set_reg(s, msg_register(i), v);
-        i + 1
+        i.wrapping_add(1)
     } else if buf != 0 {
         buf_set(s, buf, i.wrapping_add(1), v);
-        i + 1
+        i.wrapping_add(1)
     } else {
         i
     }

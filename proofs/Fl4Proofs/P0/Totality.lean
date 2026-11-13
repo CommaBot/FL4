@@ -41,6 +41,8 @@ structure ArchTotal {A : Type _} (ar : machine.Arch A) : Prop where
   fpu_sanitise : ∀ a t, ar.fpu_sanitise a t ⦃ _ => True ⦄
   fpu_reload : ∀ a t, ar.fpu_reload a t ⦃ _ => True ⦄
   fpu_release : ∀ a t, ar.fpu_release a t ⦃ _ => True ⦄
+  remote_stall : ∀ a c, ar.remote_stall a c ⦃ _ => True ⦄
+  send_reschedule : ∀ a m, ar.send_reschedule a m ⦃ _ => True ⦄
   putc : ∀ a c, ar.putc a c ⦃ _ => True ⦄
   get_char : ∀ a, ar.get_char a ⦃ _ => True ⦄
   halt : ∀ a, ar.halt a ⦃ _ => True ⦄
@@ -82,6 +84,8 @@ variable {A : Type _} {ar : machine.Arch A}
 @[step] theorem ArchTotal.fpu_sanitise_spec (h : ArchTotal ar) a t : ar.fpu_sanitise a t ⦃ _ => True ⦄ := h.fpu_sanitise a t
 @[step] theorem ArchTotal.fpu_reload_spec (h : ArchTotal ar) a t : ar.fpu_reload a t ⦃ _ => True ⦄ := h.fpu_reload a t
 @[step] theorem ArchTotal.fpu_release_spec (h : ArchTotal ar) a t : ar.fpu_release a t ⦃ _ => True ⦄ := h.fpu_release a t
+@[step] theorem ArchTotal.remote_stall_spec (h : ArchTotal ar) a c : ar.remote_stall a c ⦃ _ => True ⦄ := h.remote_stall a c
+@[step] theorem ArchTotal.send_reschedule_spec (h : ArchTotal ar) a m : ar.send_reschedule a m ⦃ _ => True ⦄ := h.send_reschedule a m
 @[step] theorem ArchTotal.putc_spec (h : ArchTotal ar) a c : ar.putc a c ⦃ _ => True ⦄ := h.putc a c
 @[step] theorem ArchTotal.get_char_spec (h : ArchTotal ar) a : ar.get_char a ⦃ _ => True ⦄ := h.get_char a
 @[step] theorem ArchTotal.halt_spec (h : ArchTotal ar) a : ar.halt a ⦃ _ => True ⦄ := h.halt a
@@ -102,7 +106,12 @@ macro "p0_close" : tactic =>
     | scalar_tac
     | (simp_all; done)
     | (simp (disch := scalar_tac) only [mod_numBits_of_lt, Array.length_eq] at *; scalar_tac)
-    | (simp_all <;> scalar_tac)))
+    | (simp_all <;> scalar_tac)
+    -- Constants first (their `val_eq` simp lemmas), then `as usize`.
+    | (simp_all <;> simp (disch := scalar_tac) only [mod_numBits_of_lt, Array.length_eq] at * <;> scalar_tac)
+    -- Comparisons with named constants, as comparisons of their values.
+    | (simp only [UScalar.lt_equiv, UScalar.le_equiv] at * <;> simp_all <;>
+        simp (disch := scalar_tac) only [mod_numBits_of_lt, Array.length_eq] at * <;> scalar_tac)))
 
 /-- The automatic P0 proof: step through the body, then close arithmetic
 side conditions. -/

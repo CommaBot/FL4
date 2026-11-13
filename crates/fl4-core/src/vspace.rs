@@ -337,7 +337,7 @@ pub fn vm_fault(addr: u64, code: u64, instruction: bool) -> crate::error::Fault 
 // ---- invocations -----------------------------------------------------------------
 
 fn extra(extra: &[Slot; 3], i: usize) -> Option<Slot> {
-    if extra[i].is_null() {
+    if i >= 3 || extra[i].is_null() {
         None
     } else {
         Some(extra[i])

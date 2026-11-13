@@ -266,7 +266,7 @@ fn create_untypeds_for_region<S: Store>(s: &mut S, b: &mut Boot, device: bool, r
             }
         }
         if size_bits >= bits::MIN_UNTYPED {
-            let i = b.slot_pos - first;
+            let i = b.slot_pos.wrapping_sub(first);
             if i < MAX_BOOTINFO_UNTYPEDS {
                 let paddr = if device { start } else { layout::paddr(start) };
                 bi_set(s, b, bi::UNTYPED_LIST + 2 * i, paddr);
@@ -296,9 +296,9 @@ fn set_name<S: Store>(s: &mut S, t: Tcb, name: &[u8]) {
         let mut v: u64 = 0;
         let mut k = 0;
         while k < 8 {
-            let i = (w * 8 + k) as usize;
+            let i = w.wrapping_mul(8).wrapping_add(k) as usize;
             if i < name.len() {
-                v |= (name[i] as u64) << (k * 8);
+                v |= (name[i] as u64) << (k.wrapping_mul(8) & 63);
             }
             k += 1;
         }
@@ -310,15 +310,15 @@ fn set_name<S: Store>(s: &mut S, t: Tcb, name: &[u8]) {
 /// Pick the root server's memory: the top of the highest free region that
 /// fits `size` bytes aligned to `align_bits`.
 fn take_rootserver_mem(p: &mut BootParams, size: u64, align_bits: u64) -> Option<u64> {
-    let mut i = p.n_free;
+    let mut i = if (p.n_free as usize) < MAX_REGIONS { p.n_free } else { MAX_REGIONS as u64 };
     while i > 0 {
         i -= 1;
         let r = p.free[i as usize];
         if r.end > r.start && r.end - r.start >= size {
-            let start = (r.end - size) & !((1u64 << (align_bits & 63)) - 1);
+            let start = (r.end - size) & !((1u64 << (align_bits & 63)).wrapping_sub(1));
             if start >= r.start {
                 // Split the region around the allocation.
-                let tail = Region { start: start + size, end: r.end };
+                let tail = Region { start: start.wrapping_add(size), end: r.end };
                 p.free[i as usize] = Region { start: r.start, end: start };
                 if !tail.is_empty() && (p.n_free as usize) < MAX_REGIONS {
                     let n = p.n_free as usize;
@@ -338,22 +338,24 @@ pub fn create_root_task<S: Store, A: Arch>(s: &mut S, a: &mut A, p: &mut BootPar
     let ui_v_start = p.ui_p_start.wrapping_sub(p.pv_offset);
     let ui_v_end = p.ui_p_end.wrapping_sub(p.pv_offset);
     let ipcbuf_vptr = ui_v_end;
-    let bi_frame_vptr = ipcbuf_vptr + 4096;
-    let extra_bi_vptr = bi_frame_vptr + 4096;
+    let bi_frame_vptr = ipcbuf_vptr.wrapping_add(4096);
+    let extra_bi_vptr = bi_frame_vptr.wrapping_add(4096);
     let ebits = extra_bi_size_bits(p.extra_bi_len);
     let ebytes = if ebits > 0 { 1u64 << (ebits & 63) } else { 0 };
-    let it = Region { start: ui_v_start, end: (extra_bi_vptr + ebytes + 4095) & !4095 };
+    let it = Region { start: ui_v_start, end: extra_bi_vptr.wrapping_add(ebytes).wrapping_add(4095) & !4095 };
 
     // seL4 calculate_rootserver_size / create_rootserver_objects.
     let cnode_bits = ROOT_CNODE_BITS + bits::SLOT;
     let n_paging = arch_n_paging(it);
-    let size = (1u64 << (cnode_bits & 63)) + (1u64 << bits::TCB) + 4096 * 3 + ebytes + 4096 + (1u64 << bits::MIN_SCHED_CONTEXT) + n_paging * 4096;
+    let fixed = (1u64 << (cnode_bits & 63)) + (1u64 << bits::TCB) + 4096 * 3 + 4096 + (1u64 << bits::MIN_SCHED_CONTEXT);
+    let size = fixed.wrapping_add(ebytes).wrapping_add(n_paging.wrapping_mul(4096));
     let max_bits = if cnode_bits > ebits { cnode_bits } else { ebits };
-    let start = match take_rootserver_mem(p, size + (1u64 << (max_bits & 63)), max_bits) {
+    let total = size.wrapping_add(1u64 << (max_bits & 63));
+    let start = match take_rootserver_mem(p, total, max_bits) {
         Some(x) => x,
         None => return Err(BootError::NoMemory),
     };
-    let mut b = Boot { root_cnode: 0, slot_pos: 0, bi_frame: 0, next: start, end: start + size + (1u64 << (max_bits & 63)), full: false };
+    let mut b = Boot { root_cnode: 0, slot_pos: 0, bi_frame: 0, next: start, end: start.wrapping_add(total), full: false };
     let extra_bi = if ebits >= cnode_bits && ebits > 0 { alloc(s, &mut b, ebits, 1) } else { 0 };
     b.root_cnode = alloc(s, &mut b, cnode_bits, 1);
     let extra_bi = if extra_bi == 0 && ebits > 0 { alloc(s, &mut b, ebits, 1) } else { extra_bi };
@@ -392,7 +394,7 @@ pub fn create_root_task<S: Store, A: Arch>(s: &mut S, a: &mut A, p: &mut BootPar
     bi_set(s, &b, bi::EXTRA_LEN, p.extra_bi_len);
     b.slot_pos = rs::NumInitialCaps;
     let mut w = 0;
-    while w < (p.extra_bi_len + 7) / 8 {
+    while w < p.extra_bi_len.wrapping_add(7) / 8 {
         let v = s.read(p.extra_bi.wrapping_add(w.wrapping_mul(8)));
         s.write(extra_bi.wrapping_add(w.wrapping_mul(8)), v);
         w += 1;
@@ -413,7 +415,7 @@ pub fn create_root_task<S: Store, A: Arch>(s: &mut S, a: &mut A, p: &mut BootPar
     map_it_frame(s, pml4, bi_frame_vptr, layout::paddr(b.bi_frame));
     write_slot(s, root_slot(&b, rs::BootInfoFrame), it_frame_cap(b.bi_frame, bi_frame_vptr, true));
     let extra_off = layout::paddr(extra_bi).wrapping_sub(extra_bi_vptr);
-    let (ef, el) = create_frames(s, &mut b, Region { start: extra_bi, end: extra_bi + ebytes }, pml4, extra_off);
+    let (ef, el) = create_frames(s, &mut b, Region { start: extra_bi, end: extra_bi.wrapping_add(ebytes) }, pml4, extra_off);
     bi_set(s, &b, bi::EXTRA_BI_PAGES, ef);
     bi_set(s, &b, bi::EXTRA_BI_PAGES + 1, el);
     map_it_frame(s, pml4, ipcbuf_vptr, layout::paddr(ipc_buf));
@@ -436,7 +438,7 @@ pub fn create_root_task<S: Store, A: Arch>(s: &mut S, a: &mut A, p: &mut BootPar
     write_slot(s, root_slot(&b, rs::InitThreadASIDPool), Cap::AsidPool { ptr: asid_pool, asid_base: base });
     write_slot(s, root_slot(&b, rs::ASIDControl), Cap::AsidControl);
     ks_set(s, ks::ASID_TABLE + (IT_ASID >> vspace::ASID_LOW_BITS) * 8, asid_pool);
-    s.write(asid_pool + (IT_ASID & 511) * 8, pml4);
+    s.write(asid_pool.wrapping_add((IT_ASID & 511) * 8), pml4);
 
     // Idle threads, one per core.
     let now = a.now();
@@ -445,7 +447,7 @@ pub fn create_root_task<S: Store, A: Arch>(s: &mut S, a: &mut A, p: &mut BootPar
         node_set(s, c, node::CUR_TIME, now);
         let base = p.idle_base.wrapping_add(c.wrapping_mul(p.idle_stride));
         let idle = Tcb(base);
-        let isc = Sc(base + 4096);
+        let isc = Sc(base.wrapping_add(4096));
         s.zero(base, 4096 + 256);
         regs::init_context(s, idle);
         idle.set_flags(s, fl4_abi::consts::tcb_flag::FPU_DISABLED);
@@ -507,13 +509,13 @@ pub fn create_root_task<S: Store, A: Arch>(s: &mut S, a: &mut A, p: &mut BootPar
     // Untypeds: device memory first, then free RAM (seL4 create_untypeds).
     let first = b.slot_pos;
     let mut i = 0;
-    while i < p.n_device {
+    while i < p.n_device && (i as usize) < MAX_REGIONS {
         let r = p.device[i as usize];
         create_untypeds_for_region(s, &mut b, true, r, first);
         i += 1;
     }
     let mut i = 0;
-    while i < p.n_free {
+    while i < p.n_free && (i as usize) < MAX_REGIONS {
         let r = p.free[i as usize];
         create_untypeds_for_region(s, &mut b, false, r, first);
         i += 1;

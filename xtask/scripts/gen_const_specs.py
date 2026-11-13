@@ -97,7 +97,7 @@ for n in order:
     b = defs[n][2].strip()
     proof = f"unfold {n}; rfl" if b not in defs else f"unfold {n}; exact {b}.val_eq"
     lines += [
-        f"@[simp] theorem {n}.val_eq : {n}.val = {v} := by",
+        f"@[simp, scalar_tac_simps] theorem {n}.val_eq : {n}.val = {v} := by",
         f"  {proof}",
         "",
     ]

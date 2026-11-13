@@ -143,12 +143,12 @@ fn set_mrs_lookup_failure<S: Store>(s: &mut S, receiver: Tcb, buf: u64, lf: Look
         LookupFault::MissingCapability { bits_left } => msg::set_mr(s, receiver, buf, offset.wrapping_add(1), bits_left),
         LookupFault::DepthMismatch { bits_found, bits_left } => {
             msg::set_mr(s, receiver, buf, offset.wrapping_add(1), bits_left);
-            msg::set_mr(s, receiver, buf, offset + 2, bits_found)
+            msg::set_mr(s, receiver, buf, offset.wrapping_add(2), bits_found)
         }
         LookupFault::GuardMismatch { guard_found, bits_left, guard_size } => {
             msg::set_mr(s, receiver, buf, offset.wrapping_add(1), bits_left);
-            msg::set_mr(s, receiver, buf, offset + 2, guard_found);
-            msg::set_mr(s, receiver, buf, offset + 3, guard_size)
+            msg::set_mr(s, receiver, buf, offset.wrapping_add(2), guard_found);
+            msg::set_mr(s, receiver, buf, offset.wrapping_add(3), guard_size)
         }
     }
 }
@@ -159,17 +159,16 @@ pub fn set_mrs_lookup_failure_at<S: Store>(s: &mut S, receiver: Tcb, buf: u64, l
 }
 
 fn copy_mrs_fault<S: Store>(s: &mut S, sender: Tcb, receiver: Tcb, regs_list: &[u64], buf: u64) {
-    let n = regs_list.len() as u64;
-    let mut i: u64 = 0;
-    while i < n && i < N_MSG_REGISTERS {
-        let v = sender.reg(s, regs_list[i as usize]);
-        receiver.set_reg(s, msg::msg_register(i), v);
+    let mut i: usize = 0;
+    while i < regs_list.len() && (i as u64) < N_MSG_REGISTERS {
+        let v = sender.reg(s, regs_list[i]);
+        receiver.set_reg(s, msg::msg_register(i as u64), v);
         i += 1;
     }
     if buf != 0 {
-        while i < n {
-            let v = sender.reg(s, regs_list[i as usize]);
-            msg::buf_set(s, buf, i + 1, v);
+        while i < regs_list.len() {
+            let v = sender.reg(s, regs_list[i]);
+            msg::buf_set(s, buf, (i as u64).wrapping_add(1), v);
             i += 1;
         }
     }
@@ -224,20 +223,20 @@ pub fn set_mrs_fault<S: Store, A: Arch>(s: &mut S, a: &A, sender: Tcb, receiver:
 }
 
 fn copy_mrs_fault_reply<S: Store>(s: &mut S, sender: Tcb, receiver: Tcb, regs_list: &[u64], length: u64) {
-    let n = if length < regs_list.len() as u64 { length } else { regs_list.len() as u64 };
-    let mut i: u64 = 0;
-    while i < n && i < N_MSG_REGISTERS {
-        let r = regs_list[i as usize];
-        let v = sender.reg(s, msg::msg_register(i));
+    let n = if length < regs_list.len() as u64 { length as usize } else { regs_list.len() };
+    let mut i: usize = 0;
+    while i < n && i < regs_list.len() && (i as u64) < N_MSG_REGISTERS {
+        let r = regs_list[i];
+        let v = sender.reg(s, msg::msg_register(i as u64));
         receiver.set_reg(s, r, regs::sanitise(r, v));
         i += 1;
     }
     if i < n {
         let buf = msg::lookup_ipc_buffer(s, false, sender);
         if buf != 0 {
-            while i < n {
-                let r = regs_list[i as usize];
-                let v = msg::buf_get(s, buf, i + 1);
+            while i < n && i < regs_list.len() {
+                let r = regs_list[i];
+                let v = msg::buf_get(s, buf, (i as u64).wrapping_add(1));
                 receiver.set_reg(s, r, regs::sanitise(r, v));
                 i += 1;
             }

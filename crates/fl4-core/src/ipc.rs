@@ -32,7 +32,7 @@ pub fn lookup_extra_caps<S: Store>(s: &S, thread: Tcb, buf: u64, info: MessageIn
     let n = info.extra_caps;
     let mut i: u64 = 0;
     while i < n && i < 3 {
-        let cptr = msg::buf_get(s, buf, msg::BUF_CAPS + i);
+        let cptr = msg::buf_get(s, buf, msg::BUF_CAPS.wrapping_add(i));
         match cspace::lookup_slot(s, thread, cptr) {
             Ok(r) => caps[i as usize] = r.slot,
             Err(lf) => return Err(Fault::Cap { addr: cptr, in_recv: false, lf }),
@@ -67,6 +67,17 @@ fn get_receive_slot<S: Store>(s: &S, thread: Tcb, buf: u64) -> Slot {
 }
 
 /// seL4 `transferCaps`.
+/// The badge of `cap` if it is a cap to `ep`: transferring it to a
+/// receiver on `ep` unwraps it.
+fn unwrapped_badge(cap: Cap, ep: u64) -> Option<u64> {
+    if let Cap::Endpoint { ptr, badge, .. } = cap {
+        if ptr == ep {
+            return Some(badge);
+        }
+    }
+    None
+}
+
 fn transfer_caps<S: Store>(s: &mut S, info: MessageInfo, extra: &ExtraCaps, ep: u64, receiver: Tcb, recv_buf: u64) -> MessageInfo {
     let mut out = MessageInfo::new(info.label, 0, 0, info.length);
     if extra[0].is_null() || recv_buf == 0 {
@@ -77,19 +88,9 @@ fn transfer_caps<S: Store>(s: &mut S, info: MessageInfo, extra: &ExtraCaps, ep: 
     while i < 3 && !extra[i as usize].is_null() {
         let slot = extra[i as usize];
         let cap = slot.cap(s);
-        let unwrap = match cap {
-            Cap::Endpoint { ptr, badge, .. } => {
-                if ptr == ep {
-                    Some(badge)
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        };
-        match unwrap {
+        match unwrapped_badge(cap, ep) {
             Some(badge) => {
-                msg::buf_set(s, recv_buf, msg::BUF_CAPS + i, badge);
+                msg::buf_set(s, recv_buf, msg::BUF_CAPS.wrapping_add(i), badge);
                 out.caps_unwrapped |= 1u64 << (i & 63);
             }
             None => {

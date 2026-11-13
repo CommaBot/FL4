@@ -45,9 +45,12 @@ if mpath.exists():
         manual[m.group(1)] = block
 
 consts = set(re.findall(r"theorem ([A-Za-z0-9_.']+)\.spec :", (proofs / "Fl4Proofs/P0/Consts.lean").read_text()))
-# Functions with a precise step spec (Eq.lean): their P0 theorem follows
-# from it and must not be a step lemma, or step would pick the weaker one.
-specs = set(re.findall(r"theorem ([A-Za-z0-9_.']+)\.spec\b", (proofs / "Fl4Proofs/P0/Eq.lean").read_text()))
+# Functions with a precise step spec (Eq.lean, Specs.lean): their P0
+# theorem follows from it and must not be a step lemma, or step would pick
+# the weaker one.
+specs = set()
+for f in ("Eq.lean", "Specs.lean"):
+    specs |= set(re.findall(r"theorem ([A-Za-z0-9_.']+)\.spec\b", (proofs / "Fl4Proofs/P0" / f).read_text()))
 
 # Every `def NAME BINDERS : TYPE := BODY` in Funs.lean, in order.
 defs = {}
@@ -160,7 +163,8 @@ def proof_of(e):
     if e["kind"] == "const":
         return f"  exact WP.spec_mono Consts.{n}.spec (fun _ _ => trivial)"
     if n in specs:
-        return f"  exact WP.spec_mono ({n}.spec _ _) (fun _ _ => trivial)"
+        # A spec takes the function's explicit arguments.
+        return f"  exact WP.spec_mono ({e['call'].replace(n, n + '.spec', 1)}) (fun _ _ => trivial)"
     if e["kind"] == "fun":
         i = attempt.get(n, 0)
         if i < len(FUN_TACTICS):
@@ -189,6 +193,7 @@ def render():
         "import Fl4Proofs.P0.Totality",
         "import Fl4Proofs.P0.Consts",
         "import Fl4Proofs.P0.Eq",
+        "import Fl4Proofs.P0.Specs",
         "open Aeneas Aeneas.Std Result",
         "set_option maxHeartbeats 400000",
         "set_option linter.unusedVariables false",
@@ -219,7 +224,7 @@ def render():
 
 
 auto_path = proofs / "Fl4Proofs/P0/Auto.lean"
-subprocess.run(["lake", "build", "Fl4Proofs.P0.Totality", "Fl4Proofs.P0.Consts", "Fl4Proofs.P0.Eq"], cwd=proofs, check=True)
+subprocess.run(["lake", "build", "Fl4Proofs.P0.Totality", "Fl4Proofs.P0.Consts", "Fl4Proofs.P0.Eq", "Fl4Proofs.P0.Specs"], cwd=proofs, check=True)
 by_name = {e["name"]: e for e in entries}
 for round_ in range(40):
     text, spans = render()

@@ -1,35 +1,58 @@
 {
- "functions": 836,
- "proved": 751,
+ "functions": 841,
+ "proved": 796,
  "manual": [],
  "loops_automatic": [
   "boot.create_frames_loop",
   "boot.create_it_address_space_loop0",
+  "boot.create_root_task_loop1",
   "boot.create_root_task_loop2",
+  "boot.create_root_task_loop3",
   "boot.create_root_task_loop4",
+  "boot.create_root_task_loop5",
+  "boot.create_root_task_loop6",
+  "boot.create_root_task_loop7",
+  "boot.create_root_task_loop8",
   "boot.set_name_loop0",
   "cdt.revoke_loop",
   "cspace.resolve_address_bits_loop",
   "debug.debug_exception_loop",
   "debug.init_context_loop",
   "endpoint.cancel_badged_sends_loop",
+  "faults.copy_mrs_fault_reply_loop0",
+  "faults.copy_mrs_fault_reply_loop1",
   "ioport.range_free_loop",
   "ioport.set_mask_loop",
+  "ipc.lookup_extra_caps_loop",
+  "ipc.transfer_caps_loop",
   "msg.copy_mrs_loop0",
   "msg.copy_mrs_loop1",
   "notification.cancel_all_signals_loop",
   "objects.create_new_objects_loop",
+  "objects.set_child_name_loop0",
   "objects.set_child_name_loop1",
+  "objects.set_child_name_loop1_loop0",
   "regs.init_context_loop",
   "sched.awaken_loop",
   "sched.release_enqueue_loop",
   "sporadic.budget_check_loop1",
   "sporadic.unblock_check_loop",
+  "tcb.copy_registers_loop0",
+  "tcb.copy_registers_loop1",
+  "tcb.copy_registers_loop2",
   "tcb.copy_words_loop",
+  "tcb.read_registers_loop0",
+  "tcb.read_registers_loop1",
   "tcb.read_registers_loop2",
+  "tcb.read_registers_loop3",
   "tcb.read_registers_loop4",
+  "tcb.read_registers_loop5",
   "tcb.read_registers_loop6",
+  "tcb.read_registers_loop7",
   "tcb.read_registers_loop8",
+  "tcb.read_registers_loop9",
+  "tcb.write_registers_loop0",
+  "tcb.write_registers_loop1",
   "tcbqueue.append_by_prio_loop",
   "timer.insert_loop",
   "timer.remove_loop0",
@@ -58,57 +81,33 @@
    "loop",
    "(do let st \u2190 if x1 = i2 then ok interrupt.IRQ_TIMER else do let i3 \u2190 layout.irq.REMOTE_CALL_IPI if x1 = i3 then ok interrupt.IRQ_IPI else do let i4 \u2190 layout.irq.RESCHEDULE_IPI if x1 = i4 then ok interrupt.IRQ_IPI else ok interrupt.IRQ_INACTIVE let i3 \u2190 lift (core.num.U64.wrapping_mul x1 8#u64) let i"
   ],
-  "boot.create_root_task_loop1": [
-   "loop",
-   "\u2191i1 + \u21917#u64 \u2264 U64.max"
-  ],
-  "boot.create_root_task_loop3": [
-   "loop",
-   "\u2191base + \u21914096#u64 \u2264 U64.max"
-  ],
-  "boot.create_root_task_loop5": [
-   "loop",
-   "\u2191i2 < a.length"
-  ],
-  "boot.create_root_task_loop6": [
-   "loop",
-   "\u2191i2 < a.length"
-  ],
-  "boot.create_root_task_loop7": [
-   "loop",
-   "\u2191i2 < a.length"
-  ],
-  "boot.create_root_task_loop8": [
-   "loop",
-   "\u2191i2 < a.length"
-  ],
   "boot.create_untypeds_for_region_loop": [
    "loop",
    "(do let size_bits1 \u2190 if size_bits > fl4_abi.consts.bits.MAX_UNTYPED then ok fl4_abi.consts.bits.MAX_UNTYPED else ok size_bits let size_bits2 \u2190 if (x2 != 0#u64) = true then do let i5 \u2190 core.num.U64.trailing_zeros x2 let align \u2190 lift (UScalar.cast UScalarTy.U64 i5) if size_bits1 > align then ok align "
   ],
   "boot.set_name_loop0_loop0": [
    "loop",
-   "\u2191w * \u21918#u64 \u2264 U64.max"
+   "(do let v1 \u2190 if i2 < \u00abname\u00bb.len then do let i4 \u2190 \u00abname\u00bb.index_usize i2 let i5 \u2190 lift (UScalar.cast UScalarTy.U64 i4) let i6 \u2190 lift (core.num.U64.wrapping_mul x1 8#u64) let i7 \u2190 lift (i6 &&& 63#u64) let i8 \u2190 i5 <<< i7 ok (x0 ||| i8) else ok x0 let k1 \u2190 x1 + 1#u64 ok (ControlFlow.cont (v1, k1))) \u2983 r ="
+  ],
+  "boot.take_rootserver_mem": [
+   "fun",
+   ": (kernel) unknown constant 'Fl4Proofs.P0.boot.take_rootserver_mem_loop.p0'"
   ],
   "boot.take_rootserver_mem_loop": [
    "loop",
-   "\u2191i3 < a.length"
+   ": (kernel) unknown constant 'Fl4Proofs.P0.boot.take_rootserver_mem_loop.p0'"
   ],
   "capability.Cap.Insts.CoreCmpPartialEqCap.eq": [
    "fun",
    ": (kernel) unknown constant 'Fl4Proofs.P0.capability.Cap.Insts.CoreCmpPartialEqCap.eq.p0'"
   ],
-  "cdt.delete": [
-   "rec",
-   ""
+  "cdt.finalise_slot_deferred_loop": [
+   "loop",
+   "(let (remainder, cleanup) := x\u271d do let b1 \u2190 cdt.cap_removable remainder slot if b1 = true then ok (ControlFlow.done (core.result.Result.Ok { success := true, cleanup := cleanup }, s1, a1)) else do let s2 \u2190 obj.Slot.set_cap machineStoreInst slot s1 remainder let b2 \u2190 cdt.cap_cyclic_zombie remainder s"
   ],
-  "cdt.delete_one": [
-   "rec",
-   ""
-  ],
-  "cdt.finalise_slot": [
-   "rec",
-   ""
+  "cdt.finalise_slot_immediate_loop": [
+   "loop",
+   "(let (remainder, cleanup) := x\u271d do let b1 \u2190 cdt.cap_removable remainder slot if b1 = true then ok (ControlFlow.done (core.result.Result.Ok { success := true, cleanup := cleanup }, s1, a1)) else do let s2 \u2190 obj.Slot.set_cap machineStoreInst slot s1 remainder match remainder with | capability.Cap.Null"
   ],
   "cdt.is_final_capability": [
    "fun",
@@ -118,10 +117,6 @@
    "fun",
    "(do let bb \u2190 ok badge\u271d if badge\u271d\u00b9 = bb then do let b3 \u2190 obj.Slot.first_badged machineStoreInst b s ok (decide \u00acb3 = true) else ok false) \u2983 x\u271d => True \u2984"
   ],
-  "cdt.reduce_zombie": [
-   "rec",
-   ""
-  ],
   "cnode.decode": [
    "fun",
    "(if lbl < fl4_abi.label.CNodeRevoke then do let r \u2190 error.illegal Unit ok (r, s, a) else if lbl > fl4_abi.label.CNodeRotate then do let r \u2190 error.illegal Unit ok (r, s, a) else if length < 2#u64 then do let r \u2190 error.truncated Unit ok (r, s, a) else do let ct \u2190 sched.cur_thread machineStoreInst s le"
@@ -129,22 +124,6 @@
   "cspace.lookup_slot_for_cnode_op": [
    "fun",
    "(do let b \u2190 ok true if b = true then do let r \u2190 cspace.resolve_address_bits machineStoreInst s (capability.Cap.CNode ptr\u271d radix\u271d guard_size\u271d guard\u271d) cptr depth match r with | core.result.Result.Ok r1 => if (r1.bits_left != 0#u64) = true then ok (core.result.Result.Err (error.Exc.Sys (error.SysError."
-  ],
-  "debug.get_breakpoint": [
-   "fun",
-   "\u2191i < 64"
-  ],
-  "debug.set_breakpoint": [
-   "fun",
-   "\u2191i1 < 64"
-  ],
-  "debug.type_and_access": [
-   "fun",
-   "\u2191i < 64"
-  ],
-  "debug.unset_breakpoint": [
-   "fun",
-   "\u2191i4 < 64"
   ],
   "endpoint.cancel_all_ipc_loop": [
    "loop",
@@ -168,91 +147,31 @@
   ],
   "faults.copy_mrs_fault_loop0": [
    "loop",
-   "\u2191i1 < regs_list.length"
+   "\u2191i6 < \u2191x1"
   ],
   "faults.copy_mrs_fault_loop1": [
    "loop",
-   "\u2191i1 < regs_list.length"
-  ],
-  "faults.copy_mrs_fault_reply_loop0": [
-   "loop",
-   "\u2191i1 < regs_list.length"
-  ],
-  "faults.copy_mrs_fault_reply_loop1": [
-   "loop",
-   "\u2191i1 < regs_list.length"
-  ],
-  "faults.set_mrs_lookup_failure": [
-   "fun",
-   "\u2191offset + \u21912#u64 \u2264 U64.max"
+   "\u2191i5 < \u2191x1"
   ],
   "interrupt.decode_irq_control": [
    "fun",
    "(if lbl = fl4_abi.label.IRQIssueIRQHandler then do let o \u2190 interrupt.extra0 machineStoreInst s extra match o with | none => do let r \u2190 error.truncated Unit ok (r, s, a) | some c => if length \u2265 3#u64 then do let irq \u2190 msg.syscall_arg machineStoreInst s ct buf 0#u64 let index \u2190 msg.syscall_arg machine"
   ],
-  "interrupt.deleting_irq_handler": [
-   "rec",
-   ""
-  ],
   "ioport.decode": [
    "fun",
    "(if lbl = fl4_abi.label.X86IOPortIn8 then do let is_in \u2190 if lbl = fl4_abi.label.X86IOPortIn8 then ok true else if lbl = fl4_abi.label.X86IOPortIn16 then ok true else if lbl = fl4_abi.label.X86IOPortIn32 then ok true else ok false if is_in = true then if length < 1#u64 then do let r \u2190 error.truncated"
-  ],
-  "ipc.lookup_extra_caps_loop": [
-   "loop",
-   "\u2191i1 + \u2191x1 \u2264 U64.max"
-  ],
-  "ipc.transfer_caps_loop": [
-   "loop",
-   "\u2191i1 < extra.length"
-  ],
-  "msg.set_mr": [
-   "fun",
-   "\u2191i + \u21911#u64 \u2264 U64.max"
-  ],
-  "objects.child_name_byte": [
-   "fun",
-   "\u2191objects.CHILD_PREFIX_LEN + \u2191len \u2264 U64.max"
-  ],
-  "objects.finalise_cap": [
-   "rec",
-   ""
-  ],
-  "objects.mask": [
-   "fun",
-   "\u21911#u64 \u2264 \u2191i1"
   ],
   "objects.same_object_as": [
    "fun",
    "(do let b1 \u2190 ok false if b1 = true then ok false else objects.same_region_as capability.Cap.IoPortControl capability.Cap.Null) \u2983 x\u271d => True \u2984"
   ],
-  "objects.set_child_name_loop0": [
-   "loop",
-   "\u2191x0 < \u2191x0"
-  ],
-  "objects.set_child_name_loop1_loop0": [
-   "loop",
-   "\u2191w * \u21918#u64 \u2264 U64.max"
-  ],
   "sched.schedule": [
    "fun",
    "(do let x \u2190 ok true let (s3, a2) \u2190 if x = true then do let i \u2190 sched.cur_domain machineStoreInst x\u271d\u00b9 let i1 \u2190 obj.Tcb.prio machineStoreInst act x\u271d\u00b9 let b1 \u2190 sched.is_highest_prio machineStoreInst x\u271d\u00b9 i i1 if b1 = true then do let i2 \u2190 obj.Tcb.prio machineStoreInst s3 x\u271d\u00b9 if i1 = i2 then do let s5 \u2190 "
   ],
-  "schedcontext.extra_cap": [
-   "fun",
-   "\u2191i < extra.length"
-  ],
   "schedcontext.yield_to": [
    "fun",
    "(do let (s3, sc1, ct1, return_now) \u2190 ok (s1, sc, ct, true) if return_now = true then do let s4 \u2190 schedcontext.set_consumed machineStoreInst machineArchInst s3 a1 sc1 ct1 call let s5 \u2190 sched.set_thread_state machineStoreInst s4 ct1 sched.TS_RUNNING ok (s5, a1) else ok (s3, a1)) \u2983 x\u271d => True \u2984"
-  ],
-  "smp.remote_tcb_stall": [
-   "fun",
-   "(do let a1 \u2190 machineArchInst.remote_stall a cpu smp.remote_reschedule machineStoreInst machineArchInst s a1 cpu) \u2983 x\u271d => True \u2984"
-  ],
-  "smp.send_pending": [
-   "fun",
-   "(do let a1 \u2190 machineArchInst.send_reschedule a m ok (s1, a1)) \u2983 x\u271d => True \u2984"
   ],
   "sporadic.budget_check_loop0": [
    "loop",
@@ -264,11 +183,11 @@
   ],
   "syscall.handle_syscall": [
    "fun",
-   "(if (i2 != 0#u64) = true then do let i3 \u2190 lift (IScalar.hcast UScalarTy.U64 number) syscall.unknown_syscall_fault machineStoreInst machineArchInst s1 a i3 else if number < fl4_abi.syscall.SYSCALL_MIN then syscall.handle_unknown_syscall machineStoreInst machineArchInst s1 a number else if number > fl"
+   ": Tactic `simp` failed with a nested error:"
   ],
   "syscall.handle_unknown_syscall": [
    "fun",
-   "(if fl4_abi.config.PRINTING = true then if number = fl4_abi.syscall.SysDebugPutChar then do let c \u2190 obj.Tcb.reg machineStoreInst t s layout.reg.CAP let i \u2190 lift (c &&& 255#u64) let a1 \u2190 machineArchInst.putc a i ok (s, a1) else if fl4_abi.config.PRINTING = true then if number = fl4_abi.syscall.SysDeb"
+   ": Tactic `simp` failed with a nested error:"
   ],
   "syscall.name_thread_loop0": [
    "loop",
@@ -282,69 +201,17 @@
    "fun",
    ": Tactic `simp` failed with a nested error:"
   ],
-  "tcb.copy_registers_loop0": [
-   "loop",
-   "\u2191i1 < regs.FRAME_REGISTERS.length"
-  ],
-  "tcb.copy_registers_loop1": [
-   "loop",
-   "\u2191i1 < regs.GP_REGISTERS.length"
-  ],
-  "tcb.copy_registers_loop2": [
-   "loop",
-   "\u2191i1 < regs.GP_REGISTERS.length"
-  ],
   "tcb.decode": [
    "fun",
    "(if lbl = fl4_abi.label.TCBReadRegisters then if c.length < 2#u64 then do let r \u2190 error.truncated Unit ok (r, s1, a1) else do let flags \u2190 tcb.arg machineStoreInst s1 c 0#u64 let n \u2190 tcb.arg machineStoreInst s1 c 1#u64 if n < 1#u64 then do let i \u2190 tcb.N_FRAME + tcb.N_GP let r \u2190 error.range Unit 1#u64"
   ],
   "tcb.derive_roots": [
    "fun",
-   "(do let b2 \u2190 ok false if b2 = true then do let vcap \u2190 obj.Slot.cap machineStoreInst vslot s let vcap1 \u2190 objects.update_cap_data false vdata vcap let r1 \u2190 objects.derive_cap machineStoreInst s vslot vcap1 let cf1 \u2190 core.result.Result.Insts.CoreOpsTry.branch r1 match cf1 with | core.ops.control_flow.C"
-  ],
-  "tcb.extra": [
-   "fun",
-   "\u2191i < c.extra.length"
-  ],
-  "tcb.read_registers": [
-   "fun",
-   "\u2191k1 + \u2191i1 \u2264 U64.max"
-  ],
-  "tcb.read_registers_loop0": [
-   "loop",
-   "\u2191i1 < regs.FRAME_REGISTERS.length"
-  ],
-  "tcb.read_registers_loop1": [
-   "loop",
-   "\u2191i1 < regs.FRAME_REGISTERS.length"
-  ],
-  "tcb.read_registers_loop3": [
-   "loop",
-   "\u2191i1 < regs.GP_REGISTERS.length"
-  ],
-  "tcb.read_registers_loop5": [
-   "loop",
-   "\u2191i1 < regs.GP_REGISTERS.length"
-  ],
-  "tcb.read_registers_loop7": [
-   "loop",
-   "\u2191i1 < regs.GP_REGISTERS.length"
-  ],
-  "tcb.read_registers_loop9": [
-   "loop",
-   "\u2191i1 < regs.GP_REGISTERS.length"
+   ": (kernel) unknown constant 'Fl4Proofs.P0.tcb.derive_roots.p0'"
   ],
   "tcb.thread_control_caps": [
    "fun",
    ": (kernel) unknown constant 'Fl4Proofs.P0.tcb.thread_control_caps.p0'"
-  ],
-  "tcb.write_registers_loop0": [
-   "loop",
-   "\u2191i1 < regs.FRAME_REGISTERS.length"
-  ],
-  "tcb.write_registers_loop1": [
-   "loop",
-   "\u2191i1 < regs.GP_REGISTERS.length"
   ],
   "timer.fire_loop": [
    "loop",
@@ -368,11 +235,11 @@
   ],
   "vspace.decode_frame": [
    "fun",
-   "(if lbl = fl4_abi.label.X86PageMap then do let o \u2190 vspace.extra ex 0#usize match o with | none => do let r \u2190 error.truncated Unit ok (r, s, a) | some x => if length \u2265 3#u64 then do let vaddr1 \u2190 msg.syscall_arg machineStoreInst s ct buf 0#u64 let rights_mask \u2190 msg.syscall_arg machineStoreInst s ct bu"
+   ": Tactic `simp` failed with a nested error:"
   ],
   "vspace.decode_table": [
    "fun",
-   "(if lbl = fl4_abi.label.X86PageTableUnmap then do let b \u2190 cdt.is_final_capability machineStoreInst s slot if b = true then do let s1 \u2190 sched.set_thread_state machineStoreInst s ct sched.TS_RESTART let (s2, a1) \u2190 if mapped\u271d = true then do let (s3, a2) \u2190 if True then vspace.unmap_page_table machineSto"
+   ": Tactic `simp` failed with a nested error:"
   ],
   "vspace.delete_asid_pool_loop": [
    "loop",
@@ -381,10 +248,6 @@
   "vspace.derive_subframe": [
    "fun",
    "(if length \u2265 6#u64 then match cap with | capability.Cap.Null => do let r \u2190 error.illegal Unit ok (r, s, a) | capability.Cap.Untyped a_1 a_2 a_3 a_4 => do let r \u2190 error.illegal Unit ok (r, s, a) | capability.Cap.Endpoint a_1 a_2 a_3 a_4 a_5 a_6 => do let r \u2190 error.illegal Unit ok (r, s, a) | capabili"
-  ],
-  "vspace.extra": [
-   "fun",
-   "\u2191i < extra.length"
   ]
  }
 }

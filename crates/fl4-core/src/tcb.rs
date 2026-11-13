@@ -39,7 +39,7 @@ fn arg<S: Store>(s: &S, c: &Ctx, i: u64) -> u64 {
 }
 
 fn extra(c: &Ctx, i: usize) -> Option<Slot> {
-    if c.extra[i].is_null() {
+    if i >= 3 || c.extra[i].is_null() {
         None
     } else {
         Some(c.extra[i])
@@ -274,7 +274,7 @@ fn read_registers<S: Store, A: Arch>(s: &mut S, a: &mut A, src: Tcb, suspend: bo
                 k += 1;
             }
         }
-        msg::set_msg_info(s, ct, MessageInfo::new(0, 0, 0, k + j));
+        msg::set_msg_info(s, ct, MessageInfo::new(0, 0, 0, k.wrapping_add(j)));
     }
     sched::set_thread_state(s, ct, sched::TS_RUNNING);
 }

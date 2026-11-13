@@ -145,7 +145,7 @@ pub fn complete_yield_to<S: Store, A: Arch>(s: &mut S, a: &mut A, yielder: Tcb) 
 }
 
 fn extra_cap<S: Store>(s: &S, extra: &[Slot; 3], i: usize) -> Option<Cap> {
-    if extra[i].is_null() {
+    if i >= 3 || extra[i].is_null() {
         None
     } else {
         Some(extra[i].cap(s))

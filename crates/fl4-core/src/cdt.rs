@@ -235,63 +235,93 @@ struct Finalised {
     cleanup: Cap,
 }
 
-/// seL4 `finaliseSlot`. Recursive rather than a loop: it is mutually
-/// recursive with `reduce_zombie`, which Lean accepts for functions but not
-/// for loops. Each round either finishes or reduces the zombie in `slot`.
-fn finalise_slot<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot, immediate: bool) -> KResult<Finalised> {
-    let cap = slot.cap(s);
-    if cap.is_null() {
-        return Ok(Finalised { success: true, cleanup: Cap::Null });
+/// seL4 `finaliseSlot(slot, false)`, for a cap inside a zombie being
+/// deleted: it never deletes, it reduces a zombie by swapping it into the
+/// first slot of what it covers, so it needs no recursion. The fuel never
+/// runs out on a well-formed CDT; if it did, the caller would restart the
+/// operation, as after any preemption.
+fn finalise_slot_deferred<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot) -> KResult<Finalised> {
+    let mut fuel: u64 = WALK_FUEL;
+    while fuel > 0 {
+        fuel -= 1;
+        let cap = slot.cap(s);
+        if cap.is_null() {
+            return Ok(Finalised { success: true, cleanup: Cap::Null });
+        }
+        let fin = is_final_capability(s, slot);
+        let (remainder, cleanup) = objects::finalise_cap(s, a, cap, fin, false);
+        if cap_removable(remainder, slot) {
+            return Ok(Finalised { success: true, cleanup });
+        }
+        slot.set_cap(s, remainder);
+        if cap_cyclic_zombie(remainder, slot) {
+            return Ok(Finalised { success: false, cleanup });
+        }
+        // seL4 `reduceZombie(slot, false)`.
+        if let Cap::Zombie { ptr, .. } = remainder {
+            cap_swap_for_delete(s, Slot(ptr), slot);
+        }
+        sched::preemption_point(s, a)?;
     }
-    let fin = is_final_capability(s, slot);
-    let (remainder, cleanup) = objects::finalise_cap(s, a, cap, fin, false);
-    if cap_removable(remainder, slot) {
-        return Ok(Finalised { success: true, cleanup });
-    }
-    slot.set_cap(s, remainder);
-    if !immediate && cap_cyclic_zombie(remainder, slot) {
-        return Ok(Finalised { success: false, cleanup });
-    }
-    reduce_zombie(s, a, slot, immediate)?;
-    sched::preemption_point(s, a)?;
-    finalise_slot(s, a, slot, immediate)
+    Err(Exc::Preempted)
 }
 
-fn reduce_zombie<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot, immediate: bool) -> KResult<()> {
-    let (ptr, ztype, n) = match slot.cap(s) {
-        Cap::Zombie { ptr, ztype, number } => (ptr, ztype, number),
-        _ => return Ok(()),
-    };
-    if immediate {
-        let end = Slot::index(ptr, n.wrapping_sub(1));
-        delete(s, a, end, false)?;
-        if let Cap::Zombie { ptr: p2, ztype: t2, number: n2 } = slot.cap(s) {
-            if p2 == ptr && n2 == n && t2 == ztype {
-                slot.set_cap(s, Cap::Zombie { ptr, ztype, number: n - 1 });
+/// seL4 `finaliseSlot(slot, true)`: each round finishes or deletes the
+/// last cap a zombie covers (seL4 `reduceZombie(slot, true)`).
+fn finalise_slot_immediate<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot) -> KResult<Finalised> {
+    let mut fuel: u64 = WALK_FUEL;
+    while fuel > 0 {
+        fuel -= 1;
+        let cap = slot.cap(s);
+        if cap.is_null() {
+            return Ok(Finalised { success: true, cleanup: Cap::Null });
+        }
+        let fin = is_final_capability(s, slot);
+        let (remainder, cleanup) = objects::finalise_cap(s, a, cap, fin, false);
+        if cap_removable(remainder, slot) {
+            return Ok(Finalised { success: true, cleanup });
+        }
+        slot.set_cap(s, remainder);
+        if let Cap::Zombie { ptr, ztype, number: n } = remainder {
+            let end = Slot::index(ptr, n.wrapping_sub(1));
+            delete_deferred(s, a, end)?;
+            if let Cap::Zombie { ptr: p2, ztype: t2, number: n2 } = slot.cap(s) {
+                if p2 == ptr && n2 == n && t2 == ztype {
+                    slot.set_cap(s, Cap::Zombie { ptr, ztype, number: n.wrapping_sub(1) });
+                }
             }
         }
-        Ok(())
-    } else {
-        cap_swap_for_delete(s, Slot(ptr), slot);
-        Ok(())
+        sched::preemption_point(s, a)?;
     }
+    Err(Exc::Preempted)
 }
 
-/// seL4 `cteDelete`.
-pub fn delete<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot, exposed: bool) -> KResult<()> {
-    let f = finalise_slot(s, a, slot, exposed)?;
-    if exposed || f.success {
+/// seL4 `cteDelete(slot, false)`.
+fn delete_deferred<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot) -> KResult<()> {
+    let f = finalise_slot_deferred(s, a, slot)?;
+    if f.success {
         empty_slot(s, a, slot, f.cleanup);
     }
     Ok(())
 }
 
-/// seL4 `cteDeleteOne`: delete a cap that finalises immediately.
+/// seL4 `cteDelete`.
+pub fn delete<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot, exposed: bool) -> KResult<()> {
+    if !exposed {
+        return delete_deferred(s, a, slot);
+    }
+    let f = finalise_slot_immediate(s, a, slot)?;
+    empty_slot(s, a, slot, f.cleanup);
+    Ok(())
+}
+
+/// seL4 `cteDeleteOne`, for the caps it is used on (an IRQ slot's
+/// notification cap): they finalise immediately.
 pub fn delete_one<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot) {
     let cap = slot.cap(s);
     if !cap.is_null() {
         let fin = is_final_capability(s, slot);
-        let _ = objects::finalise_cap(s, a, cap, fin, true);
+        let _ = objects::finalise_cap_object(s, a, cap, fin);
         empty_slot(s, a, slot, Cap::Null);
     }
 }

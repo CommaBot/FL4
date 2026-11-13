@@ -94,7 +94,7 @@ fn mask(b: u64) -> u64 {
     if b >= 64 {
         u64::MAX
     } else {
-        (1u64 << (b & 63)) - 1
+        (1u64 << (b & 63)).wrapping_sub(1)
     }
 }
 
@@ -245,6 +245,17 @@ pub fn derive_cap<S: Store>(s: &S, slot: Slot, c: Cap) -> KResult<Cap> {
 /// seL4 `finaliseCap`: returns (remainder, cleanup info).
 pub fn finalise_cap<S: Store, A: Arch>(s: &mut S, a: &mut A, c: Cap, fin: bool, exposed: bool) -> (Cap, Cap) {
     let _ = exposed;
+    if let Cap::IrqHandler { irq } = c {
+        if fin {
+            interrupt::deleting_irq_handler(s, a, irq);
+        }
+    }
+    finalise_cap_object(s, a, c, fin)
+}
+
+/// `finalise_cap` without the IRQ handler's deletion of the IRQ slot, so
+/// that deleting the slot's cap (always a notification cap) cannot recurse.
+pub fn finalise_cap_object<S: Store, A: Arch>(s: &mut S, a: &mut A, c: Cap, fin: bool) -> (Cap, Cap) {
     match c {
         Cap::Frame { ptr, size, mapped, asid, vaddr, .. } => {
             if mapped && asid != 0 {
@@ -365,9 +376,8 @@ pub fn finalise_cap<S: Store, A: Arch>(s: &mut S, a: &mut A, c: Cap, fin: bool, 
             (Cap::Null, Cap::Null)
         }
         Cap::Zombie { .. } => (c, Cap::Null),
-        Cap::IrqHandler { irq } => {
+        Cap::IrqHandler { .. } => {
             if fin {
-                interrupt::deleting_irq_handler(s, a, irq);
                 (Cap::Null, c)
             } else {
                 (Cap::Null, Cap::Null)
@@ -490,9 +500,9 @@ fn child_name_byte<S: Store>(s: &S, parent: Tcb, len: u64, i: u64) -> u64 {
         (CHILD_PREFIX0 >> (i * 8)) & 0xff
     } else if i < CHILD_PREFIX_LEN {
         (CHILD_PREFIX1 >> ((i - 8) * 8)) & 0xff
-    } else if i < CHILD_PREFIX_LEN + len {
+    } else if i - CHILD_PREFIX_LEN < len {
         name_byte(s, parent, i - CHILD_PREFIX_LEN)
-    } else if i == CHILD_PREFIX_LEN + len {
+    } else if i - CHILD_PREFIX_LEN == len {
         0x27
     } else {
         0
@@ -506,23 +516,18 @@ fn set_child_name<S: Store>(s: &mut S, child: Tcb, parent: Tcb) {
         return;
     }
     let mut len: u64 = 0;
-    let mut done = false;
-    while len < CHILD_NAME_MAX && !done {
-        if name_byte(s, parent, len) == 0 {
-            done = true;
-        } else {
-            len += 1;
-        }
+    while len < CHILD_NAME_MAX && name_byte(s, parent, len) != 0 {
+        len += 1;
     }
     let mut w: u64 = 0;
     while w < 8 {
         let mut v: u64 = 0;
         let mut k: u64 = 0;
         while k < 8 {
-            v |= child_name_byte(s, parent, len, w * 8 + k) << (k * 8);
+            v |= child_name_byte(s, parent, len, w.wrapping_mul(8).wrapping_add(k)) << (k.wrapping_mul(8) & 63);
             k += 1;
         }
-        s.write(child.name_addr().wrapping_add(w * 8), v);
+        s.write(child.name_addr().wrapping_add(w.wrapping_mul(8)), v);
         w += 1;
     }
 }
