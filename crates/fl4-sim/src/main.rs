@@ -869,6 +869,10 @@ struct Sim {
     /// reply object: the root task serves the workers' faults.
     fault_ep: u64,
     reply: u64,
+    /// A targeted scenario (`--scenario`, DESIGN.md §10): the root CNode
+    /// slot most calls go to, and the object type the root task keeps
+    /// deleting and retyping there.
+    focus: Option<(u64, u64)>,
 }
 
 fn pptr(p: u64) -> u64 {
@@ -889,7 +893,7 @@ impl Sim {
         }));
         let s = SimStore { mem: mem.clone(), ks_base, cpu: 0, tx: false, conc: None };
         let a = SimArch { m, mem, ks_base, cpu: 0, conc: None };
-        Sim { s, a, ncores, objs: Vec::new(), next_slot: 0, fault_ep: 0, reply: 0 }
+        Sim { s, a, ncores, objs: Vec::new(), next_slot: 0, fault_ep: 0, reply: 0, focus: None }
     }
 
     /// Run the kernel part of an entry: directly, or (concurrent mode)
@@ -1174,6 +1178,20 @@ impl Sim {
         let t = sched::cur_thread(&self.s);
         t.set_reg(&mut self.s, reg::REPLY, self.reply);
         let _ = serve;
+        if let Some((slot, ty)) = self.focus {
+            if self.a.m.lock().unwrap().rng.below(2) == 0 {
+                // Delete the focus object's capability (its last one, so
+                // the object is finalised while other cores use it), or
+                // make a new object in the empty slot.
+                if Slot::index(self.root_cnode(), slot).cap(&self.s).is_null() {
+                    let ut = self.first_untyped();
+                    self.invoke(cpu, ut, label::UntypedRetype, &[ty, 0, rs::InitThreadCNode, 0, slot, 1], &[rs::InitThreadCNode]);
+                } else {
+                    self.invoke(cpu, rs::InitThreadCNode, label::CNodeDelete, &[slot, 64], &[]);
+                }
+                return;
+            }
+        }
         if mode < 3 {
             // Reply to the last fault (label 0: restart the faulter).
             let r = self.reply;
@@ -1207,7 +1225,11 @@ impl Sim {
         let rng = &mut guard.rng;
         let pick = rng.below(100);
         let n = self.objs.len() as u64;
-        let cptr = if n > 0 && rng.below(10) < 8 { self.objs[rng.below(n) as usize] } else { rng.below(64) };
+        let cptr = match self.focus {
+            Some((slot, _)) if rng.below(10) < 8 => slot,
+            _ if n > 0 && rng.below(10) < 8 => self.objs[rng.below(n) as usize],
+            _ => rng.below(64),
+        };
         let other = if n > 0 { self.objs[rng.below(n) as usize] } else { 0 };
         let lbl = rng.below(80);
         let len = rng.below(8);
@@ -1635,10 +1657,18 @@ impl Sim {
     }
 }
 
-fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool, pct: Option<u64>, tso: bool, switches: Option<Vec<u64>>) {
+#[allow(clippy::too_many_arguments)]
+fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool, pct: Option<u64>, tso: bool, switches: Option<Vec<u64>>, scenario: Option<&str>) {
     let mut sim = Sim::new(seed, ncores);
     sim.boot();
     sim.setup();
+    sim.focus = match scenario {
+        // An endpoint other than the workers' fault endpoint.
+        Some("ep") => sim.objs_of(|c| matches!(c, Cap::Endpoint { .. })).get(1).map(|&s| (s, ot::Endpoint)),
+        Some("ntfn") => sim.objs_of(|c| matches!(c, Cap::Notification { .. })).first().map(|&s| (s, ot::Notification)),
+        Some(other) => panic!("unknown scenario {other}"),
+        None => None,
+    };
     if verbose {
         println!("seed {seed} after setup: {}", sim.summary());
         for c in 0..ncores {
@@ -1736,6 +1766,7 @@ struct Run {
     conc: bool,
     pct: Option<u64>,
     tso: bool,
+    scenario: Option<String>,
 }
 
 impl Run {
@@ -1746,6 +1777,10 @@ impl Run {
         }
         if self.tso {
             v.push("--tso".into());
+        }
+        if let Some(s) = &self.scenario {
+            v.push("--scenario".into());
+            v.push(s.clone());
         }
         if let Some(d) = self.pct {
             v.push("--pct".into());
@@ -1807,12 +1842,12 @@ impl Run {
     }
 
     fn line(&self) -> String {
-        format!("{} {} {} {} {}", self.seed, self.cores, self.steps, if self.tso { "tso" } else if self.conc { "conc" } else { "serial" }, self.pct.map_or("random".to_string(), |d| format!("pct{d}")))
+        format!("{} {} {} {} {}{}", self.seed, self.cores, self.steps, if self.tso { "tso" } else if self.conc { "conc" } else { "serial" }, self.pct.map_or("random".to_string(), |d| format!("pct{d}")), self.scenario.as_ref().map_or(String::new(), |s| format!(" {s}")))
     }
 
     fn parse(l: &str) -> Option<Run> {
         let f: Vec<&str> = l.split_whitespace().collect();
-        if f.len() != 5 || l.starts_with('#') {
+        if f.len() < 5 || f.len() > 6 || l.starts_with('#') {
             return None;
         }
         Some(Run {
@@ -1822,6 +1857,7 @@ impl Run {
             conc: f[3] == "conc" || f[3] == "tso",
             pct: f[4].strip_prefix("pct").and_then(|d| d.parse().ok()),
             tso: f[3] == "tso",
+            scenario: f.get(5).map(|s| s.to_string()),
         })
     }
 }
@@ -1941,7 +1977,8 @@ fn main() {
         let switches = args.iter().position(|a| a == "--switches").map(|i| {
             args[i + 1].split(',').filter(|s| !s.is_empty() && *s != "none").map(|s| s.parse().unwrap()).collect::<Vec<u64>>()
         });
-        run_one(seed, cores, steps, verbose, conc || tso || switches.is_some(), pct, tso, switches);
+        let scenario = args.iter().position(|a| a == "--scenario").map(|i| args[i + 1].as_str());
+        run_one(seed, cores, steps, verbose, conc || tso || switches.is_some(), pct, tso, switches, scenario);
         return;
     }
     if let Some(i) = args.iter().position(|a| a == "--explore") {
@@ -1962,7 +1999,8 @@ fn main() {
         }
     }
     for seed in first..first + seeds {
-        let r = Run { seed, cores, steps, conc: conc || tso, pct, tso };
+        let scenario = args.iter().position(|a| a == "--scenario").map(|i| args[i + 1].clone());
+        let r = Run { seed, cores, steps, conc: conc || tso, pct, tso, scenario };
         if let Some(why) = r.exec(timeout, verbose) {
             failed += 1;
             println!("fl4-sim: seed {seed} ({cores} cores) failed: {why}");

@@ -551,6 +551,14 @@ fn sim(o: &Opts) {
     run(Command::new(&bin).args(base).args(["--steps", "8000", "--conc"]));
     run(Command::new(&bin).args(base).args(["--steps", "8000", "--conc", "--pct", "3"]));
     run(Command::new(&bin).args(base).args(["--steps", "8000", "--tso"]));
+    // Targeted races (DESIGN.md §10): most calls on one endpoint or
+    // notification while the root task deletes and recreates it.
+    let quarter = (o.seeds / 4).max(1).to_string();
+    for sc in ["ep", "ntfn"] {
+        for m in ["--conc", "--tso"] {
+            run(Command::new(&bin).args(["--seeds", quarter.as_str(), "--cores", cores.as_str(), "--steps", "8000", m, "--scenario", sc]));
+        }
+    }
     // Every schedule with one preemption at a runtime atomic, for small
     // two-core scenarios.
     for seed in 1..=4 {
