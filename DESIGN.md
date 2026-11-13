@@ -536,7 +536,7 @@ Two experiments with 16-byte stripes failed:
 - A hashed table of 16384 entries made the curve smooth (159 to 757, 4.8×) but raised the abort rate to about 15%, through hash collisions.
 - An adjacency-preserving table raised serial entries tenfold.
 
-Near-linear scaling is not met yet. The next steps are pinned vCPUs (`taskset` per vCPU thread), abort counts per phase rather than over the whole run, and a stripe granularity matched to object sizes.
+Near-linear scaling is not met yet. `FL4_PIN=c0,c1,...` pins each vCPU thread to a host CPU; xtask gets the thread IDs from QEMU over QMP. A pinned run on this host was inconclusive, though. From 5 pairs on, both kernels slowed down by more than 20× (seL4 to 2–5 round trips per million ticks), because the host CPUs are shared with another project's 8-vCPU VM. Clean scaling numbers need dedicated cores. The other next steps are abort counts per phase rather than over the whole run, and a stripe granularity matched to object sizes.
 
 ## 13. Milestones
 

@@ -117,6 +117,11 @@ fn qemu_cmd(setup: &str, smp: u32, kernel: &Path, initrd: Option<&Path>) -> Comm
     };
     c.args(["-m", "3G", "-smp"]).arg(smp.to_string());
     c.args(["-display", "none", "-serial", "stdio", "-no-reboot", "-monitor", "none"]);
+    // FL4_PIN=c0,c1,...: pin vCPU i to host CPU ci (run_qemu asks QEMU
+    // for its vCPU threads over QMP), for performance measurements.
+    if env::var_os("FL4_PIN").is_some() {
+        c.arg("-qmp").arg(format!("unix:{},server=on,wait=off", qmp_socket().display()));
+    }
     // Extra arguments for debugging, e.g. FL4_QEMU_ARGS=-s for gdb.
     if let Ok(extra) = env::var("FL4_QEMU_ARGS") {
         c.args(extra.split_whitespace());
@@ -128,12 +133,64 @@ fn qemu_cmd(setup: &str, smp: u32, kernel: &Path, initrd: Option<&Path>) -> Comm
     c
 }
 
+fn qmp_socket() -> PathBuf {
+    root().join("build/qmp.sock")
+}
+
+/// Pin each vCPU thread of the QEMU just started to the host CPUs listed
+/// in FL4_PIN (DESIGN.md §12: performance numbers come from pinned vCPUs).
+fn pin_vcpus() {
+    use std::io::{BufRead, BufReader, Write};
+    let cpus: Vec<String> = env::var("FL4_PIN").unwrap().split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+    let path = qmp_socket();
+    let start = Instant::now();
+    let sock = loop {
+        if let Ok(s) = std::os::unix::net::UnixStream::connect(&path) {
+            break s;
+        }
+        if start.elapsed() > Duration::from_secs(20) {
+            eprintln!("xtask: FL4_PIN: no QMP socket");
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    };
+    let mut w = sock.try_clone().unwrap();
+    let mut r = BufReader::new(sock);
+    let mut line = String::new();
+    let mut read = |r: &mut BufReader<std::os::unix::net::UnixStream>| {
+        line.clear();
+        r.read_line(&mut line).ok();
+        line.clone()
+    };
+    read(&mut r);
+    writeln!(w, r#"{{"execute":"qmp_capabilities"}}"#).ok();
+    read(&mut r);
+    writeln!(w, r#"{{"execute":"query-cpus-fast"}}"#).ok();
+    let reply = read(&mut r);
+    let mut tids: Vec<String> = Vec::new();
+    for s in reply.split("\"thread-id\":").skip(1) {
+        let tid: String = s.trim_start().chars().take_while(|c| c.is_ascii_digit()).collect();
+        if !tid.is_empty() && !tids.contains(&tid) {
+            tids.push(tid);
+        }
+    }
+    for (i, tid) in tids.iter().enumerate() {
+        let cpu = cpus.get(i).cloned().unwrap_or_else(|| cpus[i % cpus.len()].clone());
+        let _ = Command::new("taskset").args(["-pc", &cpu, tid]).stdout(Stdio::null()).status();
+    }
+    eprintln!("xtask: pinned {} vCPU threads to host CPUs {}", tids.len(), cpus.join(","));
+}
+
 /// Run QEMU, echo serial output, stop at `stop` or after `timeout`.
 /// Returns the captured output.
 fn run_qemu(mut c: Command, timeout: u64, stop: &[&str], log: &Path) -> String {
     use std::io::Read;
     eprintln!("+ {:?}", c);
+    let _ = fs::remove_file(qmp_socket());
     let mut child = c.stdout(Stdio::piped()).stdin(Stdio::null()).spawn().unwrap();
+    if env::var_os("FL4_PIN").is_some() {
+        std::thread::spawn(pin_vcpus);
+    }
     let mut out = child.stdout.take().unwrap();
     let (tx, rx) = std::sync::mpsc::channel::<Vec<u8>>();
     std::thread::spawn(move || {
