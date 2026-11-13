@@ -377,6 +377,8 @@ The proof assumes: Rust, LLVM and the linker; Charon, Aeneas and the Lean kernel
 
 - Random walks and PCT (probabilistic concurrency testing) at scale, millions of seeds per night.
 - Bounded exhaustive search with partial-order reduction for small scenarios of 2 to 3 CPUs and a few syscalls each. These cover the hand-picked races completely.
+- An eighth of transactions are doomed to the serial path at random, so serial entries overlap running transactions often enough to test the gate.
+- Mutation testing checks that the simulator can fail: each known-broken runtime must fail seeds in a 100-seed concurrent campaign. Measured so far: commit skips read validation (57/100 seeds fail), the gate does not wait for running transactions (14/100), commit does not publish new stripe versions (53/100).
 - Failing seeds shrink automatically and become regression tests.
 - For bugs seen only in QEMU, QEMU record and replay reproduces the full-system run. The simulator remains the main tool.
 

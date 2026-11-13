@@ -963,6 +963,9 @@ open fl4_core
 @[simp] theorem layout.TREE_FUEL.val_eq : layout.TREE_FUEL.val = 128 := by
   unfold layout.TREE_FUEL; rfl
 
+@[simp] theorem layout.node.IPI_PENDING.val_eq : layout.node.IPI_PENDING.val = 120 := by
+  unfold layout.node.IPI_PENDING; rfl
+
 @[simp] theorem layout.sc.YIELD_FROM.val_eq : layout.sc.YIELD_FROM.val = 56 := by
   unfold layout.sc.YIELD_FROM; rfl
 

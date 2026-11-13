@@ -72,6 +72,7 @@ name = "fl4-sync"
 version = "0.1.0"
 dependencies = [
  "fl4-core",
+ "fl4-store",
 ]
 
 [[package]]

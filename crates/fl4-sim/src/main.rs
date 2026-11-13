@@ -10,10 +10,10 @@
 //! the serial gate; a remote stall runs the target core's stall logic
 //! before the initiator continues, which is what the gate protocol does.
 //!
-//! Usage: fl4-sim [--seeds N] [--first S] [--cores C] [--steps K]
+//! Usage: fl4-sim [--seeds N] [--first S] [--cores C] [--steps K] [--conc]
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
 
 use fl4_abi::consts::{bits, object as ot, root_slot as rs};
 use fl4_abi::{label, syscall as sc};
@@ -23,6 +23,8 @@ use fl4_core::layout::{self, irq, ks, node, reg, tcb as tl, PPTR_BASE};
 use fl4_core::machine::{Arch, Store};
 use fl4_core::obj::{node_get, Slot, Tcb};
 use fl4_core::{sched, syscall};
+use fl4_store::tx;
+use fl4_sync::SerialGate;
 
 /// Simulated physical memory: 0..MEM_BYTES, seen through the kernel window.
 const MEM_BYTES: u64 = 96 << 20;
@@ -31,7 +33,7 @@ const MEM_BYTES: u64 = 96 << 20;
 const IMAGE_BYTES: u64 = 8 << 20;
 
 struct Memory {
-    words: Vec<u64>,
+    words: Vec<AtomicU64>,
 }
 
 impl Memory {
@@ -41,34 +43,150 @@ impl Memory {
         assert!(p < MEM_BYTES, "fl4-sim: kernel access outside memory at {addr:#x}");
         (p / 8) as usize
     }
+    fn get(&self, addr: u64) -> u64 {
+        self.words[self.index(addr)].load(Ordering::Relaxed)
+    }
+    fn set(&self, addr: u64, v: u64) {
+        self.words[self.index(addr)].store(v, Ordering::Relaxed)
+    }
+}
+
+/// Concurrent mode: one host thread per simulated core, run one at a time
+/// in an order the seed decides, switching at memory accesses and spins.
+struct Conc {
+    baton: Mutex<Baton>,
+    cv: Condvar,
+    /// Cores asked to service a remote stall.
+    call_pending: AtomicU64,
+    in_kernel: Vec<AtomicBool>,
+    gate_held: Vec<AtomicBool>,
+    /// Cores that have run all their steps.
+    out_of_steps: AtomicU64,
+}
+
+struct Baton {
+    turn: u64,
+    rng: Rng,
+    done: Vec<bool>,
+}
+
+impl Conc {
+    fn new(n: u64, seed: u64) -> Conc {
+        Conc {
+            baton: Mutex::new(Baton { turn: 0, rng: Rng(seed ^ 0x5DEE_CE66_D1CE_4E5B | 1), done: vec![false; n as usize] }),
+            cv: Condvar::new(),
+            call_pending: AtomicU64::new(0),
+            in_kernel: (0..n).map(|_| AtomicBool::new(false)).collect(),
+            gate_held: (0..n).map(|_| AtomicBool::new(false)).collect(),
+            out_of_steps: AtomicU64::new(0),
+        }
+    }
+
+    fn pass(&self, b: &mut Baton) {
+        let live: Vec<u64> = (0..b.done.len() as u64).filter(|&c| !b.done[c as usize]).collect();
+        if !live.is_empty() {
+            b.turn = live[b.rng.below(live.len() as u64) as usize];
+        }
+        self.cv.notify_all();
+    }
+
+    fn wait_turn(&self, cpu: u64, mut b: std::sync::MutexGuard<'_, Baton>) {
+        while b.turn != cpu {
+            b = self.cv.wait(b).unwrap();
+        }
+    }
+
+    /// A scheduling point: maybe let another core run.
+    fn pause(&self, cpu: u64) {
+        let mut b = self.baton.lock().unwrap();
+        if b.rng.below(4) != 0 {
+            return;
+        }
+        self.pass(&mut b);
+        self.wait_turn(cpu, b);
+    }
+
+    /// A spinning core always lets another core run.
+    fn relax(&self, cpu: u64) {
+        let mut b = self.baton.lock().unwrap();
+        self.pass(&mut b);
+        self.wait_turn(cpu, b);
+    }
+
+    fn start(&self, cpu: u64) {
+        let b = self.baton.lock().unwrap();
+        self.wait_turn(cpu, b);
+    }
+
+    fn finish(&self, cpu: u64) {
+        let mut b = self.baton.lock().unwrap();
+        b.done[cpu as usize] = true;
+        self.pass(&mut b);
+    }
 }
 
 #[derive(Clone)]
 struct SimStore {
-    mem: Rc<RefCell<Memory>>,
+    mem: Arc<Memory>,
     ks_base: u64,
     cpu: u64,
+    /// Accesses go through this core's transaction.
+    tx: bool,
+    conc: Option<Arc<Conc>>,
+}
+
+impl SimStore {
+    fn pause(&self) {
+        if let Some(c) = &self.conc {
+            c.pause(self.cpu);
+        }
+    }
+}
+
+impl tx::Mem for SimStore {
+    fn load(&self, addr: u64) -> u64 {
+        self.pause();
+        self.mem.get(addr)
+    }
+    fn store(&self, addr: u64, v: u64) {
+        self.pause();
+        self.mem.set(addr, v)
+    }
+    fn relax(&self) {
+        self.pause();
+    }
 }
 
 impl Store for SimStore {
     fn read(&self, addr: u64) -> u64 {
-        let m = self.mem.borrow();
-        m.words[m.index(addr)]
+        if self.tx {
+            tx::read(self.cpu, self, addr)
+        } else {
+            self.pause();
+            self.mem.get(addr)
+        }
     }
     fn write(&mut self, addr: u64, v: u64) {
-        let mut m = self.mem.borrow_mut();
-        let i = m.index(addr);
-        m.words[i] = v;
+        if self.tx {
+            self.pause();
+            tx::write(self.cpu, addr, v)
+        } else {
+            self.pause();
+            self.mem.set(addr, v)
+        }
     }
     fn zero(&mut self, addr: u64, len: u64) {
-        let mut m = self.mem.borrow_mut();
         assert!(len % 8 == 0);
-        if len == 0 {
+        if self.tx {
+            tx::zero(self.cpu, addr, len);
             return;
         }
-        let i = m.index(addr);
-        let j = m.index(addr + len - 8);
-        m.words[i..=j].iter_mut().for_each(|w| *w = 0);
+        self.pause();
+        let mut a = addr;
+        while a < addr + len {
+            self.mem.set(a, 0);
+            a += 8;
+        }
     }
     fn ks_base(&self) -> u64 {
         self.ks_base
@@ -78,12 +196,24 @@ impl Store for SimStore {
     }
 }
 
+#[derive(Clone, Copy)]
+enum Effect {
+    Deadline(u64),
+    Reschedule(u64),
+    Putc(u8),
+}
+
 /// Per-core machine state.
 #[derive(Default, Clone)]
 struct Core {
     deadline: u64,
     /// Pending IRQs (bit = irq number, up to 191).
     pending: [u64; 3],
+    /// Inside a transaction: Arch effects are queued.
+    tx: bool,
+    effects: Vec<Effect>,
+    /// An interrupt taken during the current entry.
+    held_irq: Option<u64>,
 }
 
 struct Machine {
@@ -96,16 +226,48 @@ struct Machine {
 
 #[derive(Clone)]
 struct SimArch {
-    m: Rc<RefCell<Machine>>,
-    mem: Rc<RefCell<Memory>>,
+    m: Arc<Mutex<Machine>>,
+    mem: Arc<Memory>,
     ks_base: u64,
     cpu: u64,
+    conc: Option<Arc<Conc>>,
 }
 
 impl SimArch {
     fn raise(&self, cpu: u64, irq: u64) {
-        let mut m = self.m.borrow_mut();
+        let mut m = self.m.lock().unwrap();
         m.cores[cpu as usize].pending[(irq / 64) as usize] |= 1 << (irq % 64);
+    }
+
+    fn in_tx(&self) -> bool {
+        self.m.lock().unwrap().cores[self.cpu as usize].tx
+    }
+
+    /// Queue `e` inside a transaction; returns whether it did.
+    fn defer(&self, e: Effect) -> bool {
+        let mut m = self.m.lock().unwrap();
+        let c = &mut m.cores[self.cpu as usize];
+        if c.tx {
+            c.effects.push(e);
+            true
+        } else {
+            false
+        }
+    }
+
+    fn apply(&self, e: Effect) {
+        match e {
+            Effect::Deadline(t) => self.m.lock().unwrap().cores[self.cpu as usize].deadline = t,
+            Effect::Reschedule(mask) => {
+                let n = self.m.lock().unwrap().cores.len() as u64;
+                for c in 0..n {
+                    if mask & (1 << c) != 0 && c != self.cpu {
+                        self.raise(c, irq::RESCHEDULE_IPI);
+                    }
+                }
+            }
+            Effect::Putc(b) => self.m.lock().unwrap().console.push(b),
+        }
     }
 }
 
@@ -114,14 +276,16 @@ const TICKS_PER_US: u64 = 100;
 
 impl Arch for SimArch {
     fn now(&mut self) -> u64 {
-        let mut m = self.m.borrow_mut();
+        let mut m = self.m.lock().unwrap();
         // Time passes during kernel entries too.
         let d = 1 + m.rng.below(50);
         m.now += d;
         m.now
     }
     fn set_deadline(&mut self, ticks: u64) {
-        self.m.borrow_mut().cores[self.cpu as usize].deadline = ticks;
+        if !self.defer(Effect::Deadline(ticks)) {
+            self.apply(Effect::Deadline(ticks));
+        }
     }
     fn us_to_ticks(&self, us: u64) -> u64 {
         us.saturating_mul(TICKS_PER_US)
@@ -136,17 +300,22 @@ impl Arch for SimArch {
         10 * TICKS_PER_US
     }
     fn irq_pending(&mut self) -> bool {
-        let m = self.m.borrow();
+        let m = self.m.lock().unwrap();
         m.cores[self.cpu as usize].pending.iter().any(|w| *w != 0)
     }
     fn take_pending_irq(&mut self) -> u64 {
-        let mut m = self.m.borrow_mut();
+        let mut m = self.m.lock().unwrap();
         let c = &mut m.cores[self.cpu as usize];
+        if let Some(i) = c.held_irq {
+            return i;
+        }
         for w in 0..3 {
             if c.pending[w] != 0 {
                 let b = c.pending[w].trailing_zeros() as u64;
                 c.pending[w] &= !(1 << b);
-                return w as u64 * 64 + b;
+                let i = w as u64 * 64 + b;
+                c.held_irq = Some(i);
+                return i;
             }
         }
         syscall::NO_IRQ
@@ -178,31 +347,134 @@ impl Arch for SimArch {
     fn fpu_reload(&mut self, _tcb: u64) {}
     fn fpu_release(&mut self, _tcb: u64) {}
     fn remote_stall(&mut self, cpu: u64) {
-        // The target services the stall on the gate holder's behalf.
-        let mut s = SimStore { mem: self.mem.clone(), ks_base: self.ks_base, cpu };
-        let mut a = SimArch { cpu, ..self.clone() };
-        fl4_core::smp::stall(&mut s, &mut a);
-    }
-    fn send_reschedule(&mut self, mask: u64) {
-        let n = self.m.borrow().cores.len() as u64;
-        for c in 0..n {
-            if mask & (1 << c) != 0 && c != self.cpu {
-                self.raise(c, irq::RESCHEDULE_IPI);
+        match &self.conc {
+            // Entries run one at a time: the target services the stall at
+            // once, on the gate holder's behalf.
+            None => {
+                let mut s = SimStore { mem: self.mem.clone(), ks_base: self.ks_base, cpu, tx: false, conc: None };
+                let mut a = SimArch { cpu, ..self.clone() };
+                fl4_core::smp::stall(&mut s, &mut a);
+            }
+            Some(c) => {
+                if self.in_tx() {
+                    tx::doom_serial(self.cpu);
+                    return;
+                }
+                // Ask the target and wait until it has serviced the stall.
+                c.call_pending.fetch_or(1 << cpu, Ordering::SeqCst);
+                while c.call_pending.load(Ordering::SeqCst) & (1 << cpu) != 0 {
+                    c.pause(self.cpu);
+                }
             }
         }
     }
+    fn send_reschedule(&mut self, mask: u64) {
+        if !self.defer(Effect::Reschedule(mask)) {
+            self.apply(Effect::Reschedule(mask));
+        }
+    }
     fn putc(&mut self, c: u64) {
-        self.m.borrow_mut().console.push(c as u8);
+        if !self.defer(Effect::Putc(c as u8)) {
+            self.apply(Effect::Putc(c as u8));
+        }
     }
     fn get_char(&mut self) -> u64 {
         u64::MAX
     }
     fn halt(&mut self) {
+        if self.conc.is_some() && self.in_tx() {
+            tx::doom_serial(self.cpu);
+            return;
+        }
         // seL4_DebugHalt (or a debug call that halts on bad arguments)
         // stops the machine: the run ends there.
-        self.m.borrow_mut().halted = true;
+        self.m.lock().unwrap().halted = true;
     }
 }
+
+/// The serial gate of the simulated machine.
+static GATE: SerialGate = SerialGate::new();
+
+/// The simulator's side of `fl4_sync::run_entry`.
+struct SimEnv {
+    s: SimStore,
+    a: SimArch,
+    conc: Arc<Conc>,
+}
+
+impl SimEnv {
+    /// Service a remote stall addressed to this core, if any.
+    fn service(&self) -> bool {
+        let me = 1u64 << self.s.cpu;
+        if self.conc.call_pending.load(Ordering::SeqCst) & me == 0 {
+            return false;
+        }
+        let mut s = SimStore { tx: false, ..self.s.clone() };
+        let mut a = self.a.clone();
+        fl4_core::smp::stall(&mut s, &mut a);
+        self.conc.call_pending.fetch_and(!me, Ordering::SeqCst);
+        true
+    }
+}
+
+impl fl4_sync::EntryEnv for SimEnv {
+    type S = SimStore;
+    type A = SimArch;
+    type M = SimStore;
+    fn cpu(&self) -> u64 {
+        self.s.cpu
+    }
+    fn multi(&self) -> bool {
+        true
+    }
+    fn store(&self, tx: bool) -> SimStore {
+        SimStore { tx, ..self.s.clone() }
+    }
+    fn arch(&self) -> SimArch {
+        self.a.clone()
+    }
+    fn mem(&self) -> &SimStore {
+        &self.s
+    }
+    fn service_remote(&self) -> bool {
+        let r = self.service();
+        self.s.pause();
+        r
+    }
+    fn set_tx(&self, on: bool) {
+        self.a.m.lock().unwrap().cores[self.s.cpu as usize].tx = on;
+        // Send some entries down the serial path, so serial entries overlap
+        // transactions often enough to test the gate.
+        if on && self.conc.baton.lock().unwrap().rng.below(8) == 0 {
+            tx::doom_serial(self.s.cpu);
+        }
+    }
+    fn finish_effects(&self, committed: bool) {
+        let effects = std::mem::take(&mut self.a.m.lock().unwrap().cores[self.s.cpu as usize].effects);
+        if committed {
+            for e in effects {
+                self.a.apply(e);
+            }
+        }
+    }
+    fn entry_done(&self) {
+        self.a.m.lock().unwrap().cores[self.s.cpu as usize].held_irq = None;
+    }
+    fn holding_gate(&self) {
+        self.conc.gate_held[self.s.cpu as usize].store(true, Ordering::SeqCst);
+    }
+    fn count(&self, what: fl4_sync::Count) {
+        let mut st = STATS.lock().unwrap();
+        match what {
+            fl4_sync::Count::Commit => st.0 += 1,
+            fl4_sync::Count::Abort => st.1 += 1,
+            fl4_sync::Count::Serial => st.2 += 1,
+        }
+    }
+}
+
+/// Transactions committed, aborted, and entries run serially.
+static STATS: Mutex<(u64, u64, u64)> = Mutex::new((0, 0, 0));
 
 /// xorshift64*, seeded.
 #[derive(Clone)]
@@ -226,6 +498,7 @@ impl Rng {
     }
 }
 
+#[derive(Clone)]
 struct Sim {
     s: SimStore,
     a: SimArch,
@@ -245,19 +518,44 @@ fn pptr(p: u64) -> u64 {
 
 impl Sim {
     fn new(seed: u64, ncores: u64) -> Sim {
-        let mem = Rc::new(RefCell::new(Memory { words: vec![0; (MEM_BYTES / 8) as usize] }));
+        let mem = Arc::new(Memory { words: (0..MEM_BYTES / 8).map(|_| AtomicU64::new(0)).collect() });
         let image = MEM_BYTES - IMAGE_BYTES;
         let ks_base = pptr(image);
-        let m = Rc::new(RefCell::new(Machine {
+        let m = Arc::new(Mutex::new(Machine {
             now: 1_000_000,
             cores: vec![Core::default(); ncores as usize],
             console: Vec::new(),
             halted: false,
             rng: Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1),
         }));
-        let s = SimStore { mem: mem.clone(), ks_base, cpu: 0 };
-        let a = SimArch { m, mem, ks_base, cpu: 0 };
+        let s = SimStore { mem: mem.clone(), ks_base, cpu: 0, tx: false, conc: None };
+        let a = SimArch { m, mem, ks_base, cpu: 0, conc: None };
         Sim { s, a, ncores, objs: Vec::new(), next_slot: 0, fault_ep: 0, reply: 0 }
+    }
+
+    /// Run the kernel part of an entry: directly, or (concurrent mode)
+    /// through fl4_sync::run_entry as the kernel does.
+    fn enter(&mut self, irq: bool, body: impl FnMut(&mut SimStore, &mut SimArch)) {
+        let mut body = body;
+        let Some(conc) = self.s.conc.clone() else {
+            return body(&mut self.s, &mut self.a);
+        };
+        let cpu = self.s.cpu as usize;
+        conc.in_kernel[cpu].store(true, Ordering::SeqCst);
+        let env = SimEnv { s: self.s.clone(), a: self.a.clone(), conc: conc.clone() };
+        fl4_sync::run_entry(&env, &GATE, irq, &mut body);
+        if conc.gate_held[cpu].swap(false, Ordering::SeqCst) {
+            GATE.release();
+        }
+        conc.in_kernel[cpu].store(false, Ordering::SeqCst);
+    }
+
+    /// Oracles may run: no other core is inside the kernel.
+    fn quiet(&self) -> bool {
+        match &self.s.conc {
+            None => true,
+            Some(c) => (0..self.ncores).all(|i| i == self.s.cpu || !c.in_kernel[i as usize].load(Ordering::SeqCst)),
+        }
     }
 
     fn on(&mut self, cpu: u64) {
@@ -361,7 +659,7 @@ impl Sim {
     fn syscall(&mut self, cpu: u64, number: i64, cptr: u64, info: u64, mrs: [u64; 4]) {
         self.on(cpu);
         let t = sched::cur_thread(&self.s);
-        if TRACE.with(|t| *t.borrow()) {
+        if TRACE.load(Ordering::Relaxed) {
             let c = self.objs.iter().position(|&o| o == cptr).map(|_| {
                 let cap = Slot::index(self.root_cnode(), cptr).cap(&self.s);
                 cap_kind(cap)
@@ -385,7 +683,7 @@ impl Sim {
         t.set_reg(&mut self.s, reg::RDX, number as u64);
         let ip = t.reg(&self.s, reg::NEXT_IP);
         t.set_reg(&mut self.s, reg::NEXT_IP, ip.wrapping_add(2));
-        syscall::handle_syscall(&mut self.s, &mut self.a, number);
+        self.enter(false, |s, a| syscall::handle_syscall(s, a, number));
     }
 
     /// Message words beyond the registers go in the IPC buffer.
@@ -447,7 +745,7 @@ impl Sim {
         for (k, &t) in tcbs.iter().enumerate() {
             self.invoke(0, t, label::TCBSetSpace, &[0, 0], &[fault_ep, rs::InitThreadCNode, rs::InitThreadVSpace]);
             self.after("set space");
-            self.invoke(0, t, label::TCBSetSchedParams, &[100, 100 + k as u64 % 3], &[rs::InitThreadTCB, 0]);
+            self.invoke(0, t, label::TCBSetPriority, &[100 + k as u64 % 3], &[rs::InitThreadTCB]);
             self.after("sched params");
             if let Some(&scap) = scs.get(k) {
                 let core = k as u64 % self.ncores;
@@ -496,13 +794,13 @@ impl Sim {
         // for good (nobody would serve faults then): it invokes other objects.
         let targets = self.objs_of(|c| !matches!(c, Cap::Endpoint { .. } | Cap::Notification { .. } | Cap::Reply { .. }));
         let (serve, lbl, len, target, other) = {
-            let mut g = self.a.m.borrow_mut();
+            let mut g = self.a.m.lock().unwrap();
             let r = &mut g.rng;
             let n = self.objs.len() as u64;
             let t = if targets.is_empty() { 0 } else { targets[r.below(targets.len() as u64) as usize] };
             (r.below(10) < 7 || targets.is_empty(), r.below(80), r.below(6), t, self.objs[r.below(n) as usize])
         };
-        let mode = self.a.m.borrow_mut().rng.below(10);
+        let mode = self.a.m.lock().unwrap().rng.below(10);
         self.on(cpu);
         let t = sched::cur_thread(&self.s);
         t.set_reg(&mut self.s, reg::REPLY, self.reply);
@@ -518,7 +816,7 @@ impl Sim {
         } else if mode < 7 {
             // Resume a worker (stuck or stopped ones run again).
             let tcbs = self.objs_of(|c| matches!(c, Cap::Thread { .. }));
-            let w = tcbs[self.a.m.borrow_mut().rng.below(tcbs.len() as u64) as usize];
+            let w = tcbs[self.a.m.lock().unwrap().rng.below(tcbs.len() as u64) as usize];
             self.invoke(cpu, w, label::TCBResume, &[], &[]);
         } else {
             let mrs = [other, 1, 0, 4];
@@ -536,7 +834,7 @@ impl Sim {
         if self.is_root(sched::cur_thread(&self.s)) {
             return self.root_turn(cpu);
         }
-        let mut guard = self.a.m.borrow_mut();
+        let mut guard = self.a.m.lock().unwrap();
         let rng = &mut guard.rng;
         let pick = rng.below(100);
         let n = self.objs.len() as u64;
@@ -592,9 +890,13 @@ impl Sim {
     /// The next thing that happens on core `cpu`.
     fn step(&mut self, cpu: u64) {
         self.on(cpu);
+        // At user level a core takes a remote stall's IPI at once.
+        if let Some(conc) = self.s.conc.clone() {
+            SimEnv { s: self.s.clone(), a: self.a.clone(), conc }.service();
+        }
         // A due timer raises its interrupt.
         {
-            let mut m = self.a.m.borrow_mut();
+            let mut m = self.a.m.lock().unwrap();
             let now = m.now;
             let core = &mut m.cores[cpu as usize];
             if core.deadline != 0 && core.deadline <= now {
@@ -602,19 +904,32 @@ impl Sim {
                 core.pending[(irq::TIMER / 64) as usize] |= 1 << (irq::TIMER % 64);
             }
         }
-        let pending = self.a.take_pending_irq();
+        // The interrupt the core takes now (not one the kernel polls for,
+        // so it is not held for the entry).
+        let pending = {
+            let mut m = self.a.m.lock().unwrap();
+            let c = &mut m.cores[cpu as usize];
+            match (0..3).find(|&w| c.pending[w] != 0) {
+                Some(w) => {
+                    let b = c.pending[w].trailing_zeros() as u64;
+                    c.pending[w] &= !(1 << b);
+                    w as u64 * 64 + b
+                }
+                None => syscall::NO_IRQ,
+            }
+        };
         if pending != syscall::NO_IRQ {
-            if TRACE.with(|t| *t.borrow()) {
+            if TRACE.load(Ordering::Relaxed) {
                 println!("  core {cpu} irq {pending}");
             }
-            syscall::handle_interrupt_entry(&mut self.s, &mut self.a, pending);
+            self.enter(true, |s, a| syscall::handle_interrupt_entry(s, a, pending));
             self.after("interrupt");
             return;
         }
         let ct = sched::cur_thread(&self.s);
         if ct == sched::idle_thread(&self.s) {
             // Idle: time passes to this core's next deadline.
-            let mut m = self.a.m.borrow_mut();
+            let mut m = self.a.m.lock().unwrap();
             let d = m.cores[cpu as usize].deadline;
             if d > m.now {
                 m.now = d.min(m.now + 100 * TICKS_PER_US);
@@ -628,9 +943,16 @@ impl Sim {
     }
 
     fn after(&mut self, what: &str) {
-        self.check(what);
-        self.check_cdt(what);
-        self.check_queues(what);
+        if !self.quiet() {
+            return;
+        }
+        // Check on a copy that does not let other cores run meanwhile.
+        let mut q = self.clone();
+        q.s.conc = None;
+        q.a.conc = None;
+        q.check(what);
+        q.check_cdt(what);
+        q.check_queues(what);
     }
 
     // ---- oracles ----------------------------------------------------------
@@ -650,6 +972,18 @@ impl Sim {
                 );
                 assert!(ct.sc(s) != 0, "{what}: core {c} runs thread {:#x} without an SC", ct.0);
                 assert_eq!(ct.affinity(s), c, "{what}: core {c} runs a thread of core {}", ct.affinity(s));
+            }
+            // Liveness: an idle core with ready threads has been asked to
+            // reschedule (or will choose at its next entry).
+            if ct == idle && node_get(s, c, node::SCHED_ACTION) == sched::ACTION_RESUME_CURRENT {
+                let ready = (0..layout::NUM_PRIORITIES).any(|p| node_get(s, c, node::READY_QUEUES + p * 16) != 0);
+                if ready {
+                    let m = self.a.m.lock().unwrap();
+                    let pend = m.cores[c as usize].pending;
+                    let ipi = pend[(irq::RESCHEDULE_IPI / 64) as usize] & (1 << (irq::RESCHEDULE_IPI % 64)) != 0;
+                    let timer = pend[(irq::TIMER / 64) as usize] & (1 << (irq::TIMER % 64)) != 0;
+                    assert!(ipi || timer || m.halted, "{what}: core {c} is idle with ready threads and no reschedule pending");
+                }
             }
             // Ready queues: well linked, runnable, on this core.
             for prio in 0..layout::NUM_PRIORITIES {
@@ -801,9 +1135,8 @@ impl Sim {
     }
 }
 
-thread_local! {
-    static TRACE: RefCell<bool> = const { RefCell::new(false) };
-}
+/// Print every kernel entry (--trace).
+static TRACE: AtomicBool = AtomicBool::new(false);
 
 fn cap_kind(c: Cap) -> &'static str {
     match c {
@@ -857,31 +1190,99 @@ impl Sim {
                 name_of(&self.s, t)
             })
             .collect();
+        let (console, now) = {
+            let m = self.a.m.lock().unwrap();
+            (m.console.len(), m.now)
+        };
         format!(
             "{} objects, {} threads (inactive/running/restart/recv/send/reply/ntfn/idle {:?}), current {:?}, {} console bytes, time {}",
             self.objs.len(),
             threads.len(),
             states,
             cur,
-            self.a.m.borrow().console.len(),
-            self.a.m.borrow().now
+            console,
+            now
         )
     }
 }
 
-fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool) {
+fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool) {
     let mut sim = Sim::new(seed, ncores);
     sim.boot();
     sim.setup();
     if verbose {
         println!("seed {seed} after setup: {}", sim.summary());
-    }
-    for _ in 0..steps {
-        if sim.a.m.borrow().halted {
-            break;
+        for c in 0..ncores {
+            let m = sim.a.m.lock().unwrap();
+            println!("  core {c}: pending {:x?} deadline {} ipi-pending {:#x}", m.cores[c as usize].pending, m.cores[c as usize].deadline, node_get(&sim.s, c, node::IPI_PENDING));
         }
-        let cpu = sim.a.m.borrow_mut().rng.below(ncores);
-        sim.step(cpu);
+        for t in sim.threads() {
+            let sc = fl4_core::obj::Sc(t.sc(&sim.s));
+            println!(
+                "  thread {:#x} {:?} state {} core {} prio {} sc {:#x} active {} release-queued {} queued {}",
+                t.0,
+                name_of(&sim.s, t),
+                t.state(&sim.s),
+                t.affinity(&sim.s),
+                t.prio(&sim.s),
+                sc.0,
+                sc.0 != 0 && fl4_core::sporadic::sc_active(&sim.s, sc),
+                sched::in_release_queue(&sim.s, t),
+                sched::queued(&sim.s, t)
+            );
+        }
+    }
+    if concurrent && ncores > 1 {
+        // One host thread per core, interleaved at memory accesses.
+        let conc = Arc::new(Conc::new(ncores, seed));
+        sim.s.conc = Some(conc.clone());
+        sim.a.conc = Some(conc.clone());
+        let per_core = steps / ncores;
+        let threads: Vec<_> = (0..ncores)
+            .map(|cpu| {
+                let mut core_sim = sim.clone();
+                let conc = conc.clone();
+                std::thread::spawn(move || {
+                    core_sim.on(cpu);
+                    conc.start(cpu);
+                    for _ in 0..per_core {
+                        if core_sim.a.m.lock().unwrap().halted {
+                            break;
+                        }
+                        core_sim.step(cpu);
+                        conc.pause(cpu);
+                    }
+                    // Out of steps, the core still answers remote stalls, as
+                    // an idle core would, until every core is out of steps.
+                    conc.out_of_steps.fetch_add(1, Ordering::SeqCst);
+                    while conc.out_of_steps.load(Ordering::SeqCst) < ncores {
+                        SimEnv { s: core_sim.s.clone(), a: core_sim.a.clone(), conc: conc.clone() }.service();
+                        conc.relax(cpu);
+                    }
+                    conc.finish(cpu);
+                })
+            })
+            .collect();
+        for t in threads {
+            if t.join().is_err() {
+                std::process::exit(101);
+            }
+        }
+        sim.s.conc = None;
+        sim.a.conc = None;
+        sim.after("end");
+        if verbose {
+            let st = STATS.lock().unwrap();
+            println!("seed {seed}: {} transactions committed, {} aborted, {} serial entries", st.0, st.1, st.2);
+        }
+    } else {
+        for _ in 0..steps {
+            if sim.a.m.lock().unwrap().halted {
+                break;
+            }
+            let cpu = sim.a.m.lock().unwrap().rng.below(ncores);
+            sim.step(cpu);
+        }
     }
     if verbose {
         println!("seed {seed} at the end: {}", sim.summary());
@@ -900,27 +1301,48 @@ fn main() {
     // child process; a failed oracle aborts only that child.
     if let Some(i) = args.iter().position(|a| a == "--one") {
         let seed = args[i + 1].parse().unwrap();
-        TRACE.with(|t| *t.borrow_mut() = args.iter().any(|a| a == "--trace"));
-        run_one(seed, cores, steps, verbose);
+        TRACE.store(args.iter().any(|a| a == "--trace"), Ordering::Relaxed);
+        run_one(seed, cores, steps, verbose, args.iter().any(|a| a == "--conc"));
         return;
     }
     let seeds = opt("--seeds", 100);
     let first = opt("--first", 1);
+    let timeout = opt("--timeout", 120);
     let me = std::env::current_exe().unwrap();
     let mut failed = 0;
     for seed in first..first + seeds {
-        let out = std::process::Command::new(&me)
+        let mut out = std::process::Command::new(&me)
             .args(["--one", &seed.to_string(), "--cores", &cores.to_string(), "--steps", &steps.to_string()])
             .args(if verbose { vec!["--verbose"] } else { vec![] })
-            .output()
+            .args(if args.iter().any(|a| a == "--conc") { vec!["--conc"] } else { vec![] })
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
             .unwrap();
+        // A run that never ends is a hang (deadlock or livelock) and fails.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout);
+        let hung = loop {
+            if out.try_wait().unwrap().is_some() {
+                break false;
+            }
+            if std::time::Instant::now() > deadline {
+                let _ = out.kill();
+                break true;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        };
+        let out = out.wait_with_output().unwrap();
         if verbose {
             print!("{}", String::from_utf8_lossy(&out.stdout));
         }
-        if !out.status.success() {
+        if hung || !out.status.success() {
             failed += 1;
             let err = String::from_utf8_lossy(&out.stderr);
-            let why = err.lines().find(|l| !l.starts_with("thread") && !l.starts_with("note:")).unwrap_or("").to_string();
+            let why = if hung {
+                format!("no progress after {timeout} s")
+            } else {
+                err.lines().find(|l| !l.is_empty() && !l.starts_with("thread") && !l.starts_with("note:")).unwrap_or("").to_string()
+            };
             println!("fl4-sim: seed {seed} ({cores} cores) failed: {why}");
         }
     }

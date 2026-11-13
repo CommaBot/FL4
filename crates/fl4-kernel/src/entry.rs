@@ -8,7 +8,7 @@ use fl4_core::machine::Store;
 use fl4_core::obj::{node_get, Tcb};
 use fl4_core::{debug, sched, syscall};
 use fl4_arch_x86_64::arch;
-use fl4_store::{tx, Phys, PhysStore};
+use fl4_store::{Phys, PhysStore};
 use fl4_sync::SerialGate;
 use fl4_arch_x86_64::smp;
 
@@ -59,9 +59,6 @@ static mut KS_BASE: u64 = 0;
 /// The serial gate (DESIGN.md §7): kernel entries that cannot run as
 /// transactions run holding it, with no transaction running.
 pub static GATE: SerialGate = SerialGate::new();
-
-/// Transaction attempts before an entry runs under the serial gate.
-const TX_ATTEMPTS: u32 = 4;
 
 pub fn set_ks_base(b: u64) {
     unsafe { KS_BASE = b };
@@ -158,62 +155,69 @@ fn unlock() {
     }
 }
 
-/// Run the kernel's part of an entry (DESIGN.md §7). On one core it runs
-/// directly. Otherwise it runs as a transaction, rerun on conflict, and
-/// under the serial gate if it cannot run as one or keeps conflicting; the
-/// gate is then released by `exit`. `body` must be repeatable: everything
-/// it reads or writes goes through the store and Arch it is given. Returns
-/// false when a stall cancelled a non-interrupt entry before it ran.
-pub fn run_entry(irq: bool, mut body: impl FnMut(&mut PhysStore, &mut PhysArch)) -> bool {
-    let mut a = PhysArch;
-    let cpu = percpu::cpu_index() as u64;
-    if !smp::multi() {
-        body(&mut store(), &mut a);
-        percpu::get().held_irq = percpu::NO_IRQ;
-        return true;
+/// The kernel's side of `fl4_sync::run_entry`.
+struct KernelEnv;
+
+impl fl4_sync::EntryEnv for KernelEnv {
+    type S = PhysStore;
+    type A = PhysArch;
+    type M = Phys;
+    fn cpu(&self) -> u64 {
+        percpu::cpu_index() as u64
     }
-    let stalled = core::cell::Cell::new(false);
-    for _ in 0..TX_ATTEMPTS {
-        GATE.enter_tx(cpu, || {
-            if service_remote() {
-                stalled.set(true);
-            }
-        });
-        if stalled.get() && !irq {
-            GATE.leave_tx(cpu);
-            return false;
-        }
-        tx::begin(cpu);
-        percpu::get().tx = true;
-        let mut s = PhysStore { ks_base: unsafe { KS_BASE }, cpu, tx: true };
-        body(&mut s, &mut a);
-        percpu::get().tx = false;
-        let ok = tx::commit(cpu, &Phys);
-        let serial = tx::needs_serial(cpu);
-        tx::end(cpu);
-        GATE.leave_tx(cpu);
-        if ok {
-            let c = smp::TX_COMMITS.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
-            if fl4_abi::config::DEBUG_BUILD && c & 0x3ffff == 0x3ffff {
-                arch::print_stats();
-            }
+    fn multi(&self) -> bool {
+        smp::multi()
+    }
+    fn store(&self, tx: bool) -> PhysStore {
+        PhysStore { ks_base: unsafe { KS_BASE }, cpu: self.cpu(), tx }
+    }
+    fn arch(&self) -> PhysArch {
+        PhysArch
+    }
+    fn mem(&self) -> &Phys {
+        &Phys
+    }
+    fn service_remote(&self) -> bool {
+        service_remote()
+    }
+    fn set_tx(&self, on: bool) {
+        percpu::get().tx = on;
+    }
+    fn finish_effects(&self, committed: bool) {
+        if committed {
             arch::apply_effects();
-            percpu::get().held_irq = percpu::NO_IRQ;
-            return true;
-        }
-        smp::TX_ABORTS.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
-        arch::discard_effects();
-        if serial {
-            break;
+        } else {
+            arch::discard_effects();
         }
     }
-    smp::SERIAL_ENTRIES.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
-    if !lock() && !irq {
-        return false;
+    fn entry_done(&self) {
+        percpu::get().held_irq = percpu::NO_IRQ;
     }
-    body(&mut store(), &mut a);
-    percpu::get().held_irq = percpu::NO_IRQ;
-    true
+    fn holding_gate(&self) {
+        percpu::get().gate_held = true;
+    }
+    fn count(&self, what: fl4_sync::Count) {
+        use core::sync::atomic::Ordering::Relaxed;
+        match what {
+            fl4_sync::Count::Commit => {
+                let c = smp::TX_COMMITS.fetch_add(1, Relaxed);
+                if fl4_abi::config::DEBUG_BUILD && c & 0x3ffff == 0x3ffff {
+                    arch::print_stats();
+                }
+            }
+            fl4_sync::Count::Abort => {
+                smp::TX_ABORTS.fetch_add(1, Relaxed);
+            }
+            fl4_sync::Count::Serial => {
+                smp::SERIAL_ENTRIES.fetch_add(1, Relaxed);
+            }
+        }
+    }
+}
+
+/// Run the kernel's part of an entry (DESIGN.md §7, `fl4_sync::run_entry`).
+fn run_entry(irq: bool, body: impl FnMut(&mut PhysStore, &mut PhysArch)) -> bool {
+    fl4_sync::run_entry(&KernelEnv, &GATE, irq, body)
 }
 
 /// Called by entry.S for every kernel entry.

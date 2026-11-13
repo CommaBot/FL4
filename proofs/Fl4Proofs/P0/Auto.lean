@@ -1171,9 +1171,13 @@ theorem obj.Tcb.Insts.CoreCmpPartialEqTcb.eq.p0 (self : obj.Tcb) (other : obj.Tc
     timer.remove machineStoreInst s t ⦃ _ => True ⦄ := by
   unfold timer.remove; p0_split
 
+@[step] theorem smp.remote_reschedule.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (cpu : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    smp.remote_reschedule machineStoreInst machineArchInst s a cpu ⦃ _ => True ⦄ := by
+  unfold smp.remote_reschedule; p0_auto
+
 @[step] theorem smp.remote_tcb_stall.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     smp.remote_tcb_stall machineStoreInst machineArchInst s a t ⦃ _ => True ⦄ := by
-  unfold smp.remote_tcb_stall; p0_auto
+  sorry
 
 @[step] theorem obj.Sc.set_yield_from.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Sc) (s : S) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
     obj.Sc.set_yield_from machineStoreInst self s v ⦃ _ => True ⦄ := by
@@ -1343,6 +1347,22 @@ theorem obj.Tcb.Insts.CoreCmpPartialEqTcb.eq.p0 (self : obj.Tcb) (other : obj.Tc
     tcbqueue.prepend machineStoreInst s l q t ⦃ _ => True ⦄ := by
   unfold tcbqueue.prepend; p0_auto
 
+@[step] theorem sched.cur_domain.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (hS : StoreTotal machineStoreInst) :
+    sched.cur_domain machineStoreInst s ⦃ _ => True ⦄ := by
+  unfold sched.cur_domain; p0_auto
+
+@[step] theorem obj.Tcb.prio.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) (hS : StoreTotal machineStoreInst) :
+    obj.Tcb.prio machineStoreInst self s ⦃ _ => True ⦄ := by
+  unfold obj.Tcb.prio; p0_auto
+
+@[step] theorem obj.Tcb.domain.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) (hS : StoreTotal machineStoreInst) :
+    obj.Tcb.domain machineStoreInst self s ⦃ _ => True ⦄ := by
+  unfold obj.Tcb.domain; p0_auto
+
+@[step] theorem smp.remote_queue_update.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
+    smp.remote_queue_update machineStoreInst s t ⦃ _ => True ⦄ := by
+  unfold smp.remote_queue_update; p0_auto
+
 @[step] theorem sched.q_set.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (off : Std.U64) (q : tcbqueue.Queue) (hS : StoreTotal machineStoreInst) :
     sched.q_set machineStoreInst s cpu off q ⦃ _ => True ⦄ := by
   unfold sched.q_set; p0_auto
@@ -1394,14 +1414,6 @@ theorem obj.Tcb.Insts.CoreCmpPartialEqTcb.eq.p0 (self : obj.Tcb) (other : obj.Tc
 @[step] theorem sched.queued.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
     sched.queued machineStoreInst s t ⦃ _ => True ⦄ := by
   unfold sched.queued; p0_auto
-
-@[step] theorem obj.Tcb.prio.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) (hS : StoreTotal machineStoreInst) :
-    obj.Tcb.prio machineStoreInst self s ⦃ _ => True ⦄ := by
-  unfold obj.Tcb.prio; p0_auto
-
-@[step] theorem obj.Tcb.domain.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) (hS : StoreTotal machineStoreInst) :
-    obj.Tcb.domain machineStoreInst self s ⦃ _ => True ⦄ := by
-  unfold obj.Tcb.domain; p0_auto
 
 @[step] theorem sched.enqueue.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
     sched.enqueue machineStoreInst s t ⦃ _ => True ⦄ := by
@@ -1495,8 +1507,8 @@ theorem obj.Tcb.Insts.CoreCmpPartialEqTcb.eq.p0 (self : obj.Tcb) (other : obj.Tc
     schedcontext.unbind_tcb machineStoreInst s sc ⦃ _ => True ⦄ := by
   unfold schedcontext.unbind_tcb; p0_split
 
-@[step] theorem schedcontext.unbind_all_tcbs.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) (hS : StoreTotal machineStoreInst) :
-    schedcontext.unbind_all_tcbs machineStoreInst s sc ⦃ _ => True ⦄ := by
+@[step] theorem schedcontext.unbind_all_tcbs.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (sc : obj.Sc) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    schedcontext.unbind_all_tcbs machineStoreInst machineArchInst s a sc ⦃ _ => True ⦄ := by
   unfold schedcontext.unbind_all_tcbs; p0_auto
 
 @[step] theorem sched.schedule_tcb.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
@@ -1727,10 +1739,6 @@ theorem obj.Tcb.Insts.CoreCmpPartialEqTcb.eq.p0 (self : obj.Tcb) (other : obj.Tc
     tcbqueue.next_of machineStoreInst s l t ⦃ _ => True ⦄ := by
   unfold tcbqueue.next_of; p0_auto
 
-@[step] theorem sched.cur_domain.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (hS : StoreTotal machineStoreInst) :
-    sched.cur_domain machineStoreInst s ⦃ _ => True ⦄ := by
-  unfold sched.cur_domain; p0_auto
-
 @[step] theorem sched.possible_switch_to.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
     sched.possible_switch_to machineStoreInst s t ⦃ _ => True ⦄ := by
   unfold sched.possible_switch_to; p0_auto
@@ -1799,7 +1807,7 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
 
 @[step] theorem smp.migrate_tcb.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (cpu : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     smp.migrate_tcb machineStoreInst machineArchInst s a t cpu ⦃ _ => True ⦄ := by
-  unfold smp.migrate_tcb; p0_auto
+  unfold smp.migrate_tcb; p0_split
 
 @[step] theorem obj.Sc.cpu.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Sc) (s : S) (hS : StoreTotal machineStoreInst) :
     obj.Sc.cpu machineStoreInst self s ⦃ _ => True ⦄ := by
@@ -2343,7 +2351,7 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
 
 @[step] theorem sched.release_enqueue.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
     sched.release_enqueue machineStoreInst s t ⦃ _ => True ⦄ := by
-  unfold sched.release_enqueue; p0_auto
+  unfold sched.release_enqueue; p0_split
 
 @[step] theorem sched.postpone.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) (hS : StoreTotal machineStoreInst) :
     sched.postpone machineStoreInst s sc ⦃ _ => True ⦄ := by
@@ -2966,6 +2974,10 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
     sched.switch_sched_context machineStoreInst machineArchInst s a ⦃ _ => True ⦄ := by
   unfold sched.switch_sched_context; p0_split
 
+@[step] theorem smp.send_pending.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    smp.send_pending machineStoreInst machineArchInst s a ⦃ _ => True ⦄ := by
+  sorry
+
 @[step] theorem sched.schedule.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     sched.schedule machineStoreInst machineArchInst s a ⦃ _ => True ⦄ := by
   sorry
@@ -3004,15 +3016,11 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
 
 @[step] theorem schedcontext.decode.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (sc : obj.Sc) (call : Bool) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     schedcontext.decode machineStoreInst machineArchInst s a lbl sc call extra ⦃ _ => True ⦄ := by
-  unfold schedcontext.decode; p0_auto
+  unfold schedcontext.decode; p0_split
 
 @[step] theorem sporadic.refill_update.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) (new_period : Std.U64) (new_budget : Std.U64) (new_max_refills : Std.U64) (hS : StoreTotal machineStoreInst) :
     sporadic.refill_update machineStoreInst s sc new_period new_budget new_max_refills ⦃ _ => True ⦄ := by
   unfold sporadic.refill_update; p0_split
-
-@[step] theorem smp.remote_reschedule.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (cpu : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
-    smp.remote_reschedule machineStoreInst machineArchInst s a cpu ⦃ _ => True ⦄ := by
-  unfold smp.remote_reschedule; p0_auto
 
 @[step] theorem schedcontext.configure_flags.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Sc) (cpu : Std.U64) (budget : Std.U64) (period : Std.U64) (max_refills : Std.U64) (badge : Std.U64) (flags : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     schedcontext.configure_flags machineStoreInst machineArchInst s a target cpu budget period max_refills badge flags ⦃ _ => True ⦄ := by
@@ -3029,6 +3037,10 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
 @[step] theorem schedcontext.decode_sched_control.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (cpu : Std.U64) (length : Std.U64) (buf : Std.U64) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     schedcontext.decode_sched_control machineStoreInst machineArchInst s a lbl cpu length buf extra ⦃ _ => True ⦄ := by
   unfold schedcontext.decode_sched_control; p0_auto
+
+@[step] theorem smp.stall.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    smp.stall machineStoreInst machineArchInst s a ⦃ _ => True ⦄ := by
+  unfold smp.stall; p0_split
 
 @[step] theorem sporadic.Refill.Insts.CoreCloneClone.clone.p0 (self : sporadic.Refill) :
     sporadic.Refill.Insts.CoreCloneClone.clone self ⦃ _ => True ⦄ := by

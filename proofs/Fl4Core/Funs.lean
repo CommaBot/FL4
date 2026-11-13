@@ -1980,7 +1980,7 @@ def obj.ks_get
   machineStoreInst.read s i1
 
 /-- [fl4_core::layout::ks::KERNEL_ROOT]
-    Source: 'crates/fl4-core/src/layout.rs', lines 243:4-243:36
+    Source: 'crates/fl4-core/src/layout.rs', lines 246:4-246:36
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.KERNEL_ROOT : Std.U64 := 48#u64
 
@@ -2567,18 +2567,18 @@ def sporadic.maybe_add_empty_tail
   else ok s
 
 /-- [fl4_core::layout::ks::IOPORT_WORDS]
-    Source: 'crates/fl4-core/src/layout.rs', lines 258:4-258:45
+    Source: 'crates/fl4-core/src/layout.rs', lines 261:4-261:45
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.ks.IOPORT_WORDS : Result Std.U64 := 65536#u64 / 64#u64
 
 /-- [fl4_core::layout::ks::NUM_ASID_POOLS]
-    Source: 'crates/fl4-core/src/layout.rs', lines 251:4-251:38
+    Source: 'crates/fl4-core/src/layout.rs', lines 254:4-254:38
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.NUM_ASID_POOLS : Std.U64 := 8#u64
 
 /-- [fl4_core::layout::ks::ASID_TABLE]
-    Source: 'crates/fl4-core/src/layout.rs', lines 250:4-250:36
+    Source: 'crates/fl4-core/src/layout.rs', lines 253:4-253:36
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.ASID_TABLE : Std.U64 := 128#u64
 
@@ -2588,7 +2588,7 @@ def layout.ks.IOPORT_WORDS : Result Std.U64 := 65536#u64 / 64#u64
 @[global_simps, irreducible] def layout.WORD : Std.U64 := 8#u64
 
 /-- [fl4_core::layout::ks::DOM_SCHEDULE]
-    Source: 'crates/fl4-core/src/layout.rs', lines 253:4-253:69
+    Source: 'crates/fl4-core/src/layout.rs', lines 256:4-256:69
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.ks.DOM_SCHEDULE : Result Std.U64 := do
@@ -2603,7 +2603,7 @@ def layout.NUM_DOMAIN_SCHEDULES : Std.U64 :=
   fl4_abi.config.NUM_DOMAIN_SCHEDULES
 
 /-- [fl4_core::layout::ks::IRQ_STATE]
-    Source: 'crates/fl4-core/src/layout.rs', lines 254:4-254:78
+    Source: 'crates/fl4-core/src/layout.rs', lines 257:4-257:78
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.ks.IRQ_STATE : Result Std.U64 := do
@@ -2626,7 +2626,7 @@ def layout.irq.COUNT : Result Std.U64 := do let i ← layout.irq.MAX
                                             i + 1#u64
 
 /-- [fl4_core::layout::ks::IRQ_NODE]
-    Source: 'crates/fl4-core/src/layout.rs', lines 256:4-256:77
+    Source: 'crates/fl4-core/src/layout.rs', lines 259:4-259:77
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.ks.IRQ_NODE : Result Std.U64 := do
@@ -2639,7 +2639,7 @@ def layout.ks.IRQ_NODE : Result Std.U64 := do
   i5 * 32#u64
 
 /-- [fl4_core::layout::ks::IOPORT_BITMAP]
-    Source: 'crates/fl4-core/src/layout.rs', lines 257:4-257:69
+    Source: 'crates/fl4-core/src/layout.rs', lines 260:4-260:69
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.ks.IOPORT_BITMAP : Result Std.U64 := do
@@ -2649,7 +2649,7 @@ def layout.ks.IOPORT_BITMAP : Result Std.U64 := do
   i2 + i1
 
 /-- [fl4_core::layout::ks::NODES]
-    Source: 'crates/fl4-core/src/layout.rs', lines 259:4-259:80
+    Source: 'crates/fl4-core/src/layout.rs', lines 262:4-262:80
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.ks.NODES : Result Std.U64 := do
@@ -2662,7 +2662,7 @@ def layout.ks.NODES : Result Std.U64 := do
   i5 * 64#u64
 
 /-- [fl4_core::layout::node::L1_BITMAP]
-    Source: 'crates/fl4-core/src/layout.rs', lines 226:4-226:35
+    Source: 'crates/fl4-core/src/layout.rs', lines 229:4-229:35
     Visibility: public -/
 @[global_simps, irreducible] def layout.node.L1_BITMAP : Std.U64 := 128#u64
 
@@ -2673,7 +2673,7 @@ def layout.ks.NODES : Result Std.U64 := do
 def layout.NUM_DOMAINS : Std.U64 := fl4_abi.config.NUM_DOMAINS
 
 /-- [fl4_core::layout::node::L2_BITMAP]
-    Source: 'crates/fl4-core/src/layout.rs', lines 227:4-227:62
+    Source: 'crates/fl4-core/src/layout.rs', lines 230:4-230:62
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.node.L2_BITMAP : Result Std.U64 := do
@@ -2692,7 +2692,7 @@ def layout.node.L2_BITMAP : Result Std.U64 := do
 def layout.L2_BITMAP_WORDS : Result Std.U64 := layout.NUM_PRIORITIES / 64#u64
 
 /-- [fl4_core::layout::node::READY_QUEUES]
-    Source: 'crates/fl4-core/src/layout.rs', lines 228:4-228:83
+    Source: 'crates/fl4-core/src/layout.rs', lines 231:4-231:83
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.node.READY_QUEUES : Result Std.U64 := do
@@ -2703,7 +2703,7 @@ def layout.node.READY_QUEUES : Result Std.U64 := do
   i3 + i2
 
 /-- [fl4_core::layout::node::SIZE_RAW]
-    Source: 'crates/fl4-core/src/layout.rs', lines 230:4-230:85
+    Source: 'crates/fl4-core/src/layout.rs', lines 233:4-233:85
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.node.SIZE_RAW : Result Std.U64 := do
@@ -2714,7 +2714,7 @@ def layout.node.SIZE_RAW : Result Std.U64 := do
   i3 + i2
 
 /-- [fl4_core::layout::node::SIZE]
-    Source: 'crates/fl4-core/src/layout.rs', lines 231:4-231:52
+    Source: 'crates/fl4-core/src/layout.rs', lines 234:4-234:52
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.node.SIZE : Result Std.U64 := do
@@ -3064,7 +3064,7 @@ def obj.ks_set
   machineStoreInst.write s i v
 
 /-- [fl4_core::sched::set_dom_sched]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 566:0-569:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 569:0-572:1
     Visibility: public -/
 def sched.set_dom_sched
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64)
@@ -4445,17 +4445,17 @@ def obj.Tcb.set_flags
   machineStoreInst.write s i1 v
 
 /-- [fl4_core::layout::ks::DOMAIN_TIME]
-    Source: 'crates/fl4-core/src/layout.rs', lines 239:4-239:36
+    Source: 'crates/fl4-core/src/layout.rs', lines 242:4-242:36
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.DOMAIN_TIME : Std.U64 := 16#u64
 
 /-- [fl4_core::layout::ks::CUR_DOMAIN]
-    Source: 'crates/fl4-core/src/layout.rs', lines 238:4-238:34
+    Source: 'crates/fl4-core/src/layout.rs', lines 241:4-241:34
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.CUR_DOMAIN : Std.U64 := 8#u64
 
 /-- [fl4_core::layout::ks::NUM_NODES]
-    Source: 'crates/fl4-core/src/layout.rs', lines 237:4-237:33
+    Source: 'crates/fl4-core/src/layout.rs', lines 240:4-240:33
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.NUM_NODES : Std.U64 := 0#u64
 
@@ -7116,7 +7116,7 @@ def sched.domain_time
   obj.ks_get machineStoreInst s layout.ks.DOMAIN_TIME
 
 /-- [fl4_core::sched::is_cur_domain_expired]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 455:0-457:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 458:0-460:1
     Visibility: public -/
 def sched.is_cur_domain_expired
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) : Result Bool := do
@@ -7160,7 +7160,7 @@ def sched.cur_time
   obj.node_get machineStoreInst s i layout.node.CUR_TIME
 
 /-- [fl4_core::sched::update_timestamp]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 436:0-453:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 439:0-456:1
     Visibility: public -/
 def sched.update_timestamp
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -7208,12 +7208,12 @@ def sched.cur_sc
 def sched.MAX_WORK_UNITS_PER_PREEMPTION : Std.U64 := 100#u64
 
 /-- [fl4_core::layout::ks::WORK_UNITS]
-    Source: 'crates/fl4-core/src/layout.rs', lines 242:4-242:35
+    Source: 'crates/fl4-core/src/layout.rs', lines 245:4-245:35
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.WORK_UNITS : Std.U64 := 40#u64
 
 /-- [fl4_core::sched::preemption_point]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 708:0-722:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 712:0-726:1
     Visibility: public -/
 def sched.preemption_point
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -8759,15 +8759,49 @@ def timer.remove
           let s11 ← obj.Tcb.set_timer_height machineStoreInst t s10 0#u64
           obj.Tcb.set_timer_deadline machineStoreInst t s11 0#u64
 
+/-- [fl4_core::layout::node::IPI_PENDING]
+    Source: 'crates/fl4-core/src/layout.rs', lines 228:4-228:37
+    Visibility: public -/
+@[global_simps, irreducible] def layout.node.IPI_PENDING : Std.U64 := 120#u64
+
+/-- [fl4_core::smp::remote_reschedule]:
+    Source: 'crates/fl4-core/src/smp.rs', lines 51:0-58:1
+    Visibility: public -/
+def smp.remote_reschedule
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (cpu : Std.U64) :
+  Result (S × A)
+  := do
+  let i ← machineStoreInst.cur_cpu s
+  if cpu != i
+  then
+    let i1 ← obj.node_get machineStoreInst s i layout.node.IPI_PENDING
+    let i2 ← lift (cpu &&& 63#u64)
+    let i3 ← 1#u64 <<< i2
+    let m ← lift (i1 ||| i3)
+    let s1 ← obj.node_set machineStoreInst s i layout.node.IPI_PENDING m
+    ok (s1, a)
+  else ok (s, a)
+
 /-- [fl4_core::smp::remote_tcb_stall]:
-    Source: 'crates/fl4-core/src/smp.rs', lines 15:0-17:1
+    Source: 'crates/fl4-core/src/smp.rs', lines 24:0-30:1
     Visibility: public -/
 def smp.remote_tcb_stall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) :
   Result (S × A)
   := do
-  ok (s, a)
+  let cpu ← obj.Tcb.affinity machineStoreInst t s
+  let i ← machineStoreInst.cur_cpu s
+  if cpu != i
+  then
+    let i1 ← obj.node_get machineStoreInst s cpu layout.node.CUR_THREAD
+    if i1 = t
+    then
+      let a1 ← machineArchInst.remote_stall a cpu
+      smp.remote_reschedule machineStoreInst machineArchInst s a1 cpu
+    else ok (s, a)
+  else ok (s, a)
 
 /-- [fl4_core::layout::sc::YIELD_FROM]
     Source: 'crates/fl4-core/src/layout.rs', lines 173:4-173:35
@@ -8815,7 +8849,7 @@ def obj.Tcb.yield_to
   machineStoreInst.read s i1
 
 /-- [fl4_core::schedcontext::cancel_yield_to]:
-    Source: 'crates/fl4-core/src/schedcontext.rs', lines 127:0-132:1
+    Source: 'crates/fl4-core/src/schedcontext.rs', lines 131:0-136:1
     Visibility: public -/
 def schedcontext.cancel_yield_to
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -8859,7 +8893,7 @@ def obj.Sc.consumed
   machineStoreInst.read s i
 
 /-- [fl4_core::schedcontext::update_consumed]:
-    Source: 'crates/fl4-core/src/schedcontext.rs', lines 105:0-115:1
+    Source: 'crates/fl4-core/src/schedcontext.rs', lines 109:0-119:1
     Visibility: public -/
 def schedcontext.update_consumed
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -9075,7 +9109,7 @@ def msg.lookup_ipc_buffer
 @[global_simps, irreducible] def layout.reg.BADGE : Std.U64 := layout.reg.RDI
 
 /-- [fl4_core::schedcontext::set_consumed]:
-    Source: 'crates/fl4-core/src/schedcontext.rs', lines 117:0-125:1 -/
+    Source: 'crates/fl4-core/src/schedcontext.rs', lines 121:0-129:1 -/
 def schedcontext.set_consumed
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (sc : obj.Sc)
@@ -9094,7 +9128,7 @@ def schedcontext.set_consumed
   else ok s1
 
 /-- [fl4_core::schedcontext::complete_yield_to]:
-    Source: 'crates/fl4-core/src/schedcontext.rs', lines 135:0-141:1
+    Source: 'crates/fl4-core/src/schedcontext.rs', lines 139:0-145:1
     Visibility: public -/
 def schedcontext.complete_yield_to
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -9182,7 +9216,7 @@ def obj.Reply.set_next
     obj.Reply.set_next_raw machineStoreInst self s i2
 
 /-- [fl4_core::schedcontext::unbind_reply]:
-    Source: 'crates/fl4-core/src/schedcontext.rs', lines 96:0-102:1
+    Source: 'crates/fl4-core/src/schedcontext.rs', lines 100:0-106:1
     Visibility: public -/
 def schedcontext.unbind_reply
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
@@ -9242,7 +9276,7 @@ def obj.Ntfn.set_sc
   machineStoreInst.write s i v
 
 /-- [fl4_core::schedcontext::unbind_ntfn]:
-    Source: 'crates/fl4-core/src/schedcontext.rs', lines 82:0-87:1
+    Source: 'crates/fl4-core/src/schedcontext.rs', lines 86:0-91:1
     Visibility: public -/
 def schedcontext.unbind_ntfn
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
@@ -9270,7 +9304,7 @@ def obj.Ntfn.sc
   machineStoreInst.read s i
 
 /-- [fl4_core::schedcontext::maybe_unbind_ntfn]:
-    Source: 'crates/fl4-core/src/schedcontext.rs', lines 89:0-94:1
+    Source: 'crates/fl4-core/src/schedcontext.rs', lines 93:0-98:1
     Visibility: public -/
 def schedcontext.maybe_unbind_ntfn
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (n : obj.Ntfn) :
@@ -9402,6 +9436,85 @@ def tcbqueue.prepend
     let s2 ← tcbqueue.set_prev machineStoreInst s1 l t 0#u64
     let s3 ← tcbqueue.set_prev machineStoreInst s2 l q.head t
     ok ({ q with head := t }, s3)
+
+/-- [fl4_core::sched::cur_domain]:
+    Source: 'crates/fl4-core/src/sched.rs', lines 89:0-91:1
+    Visibility: public -/
+def sched.cur_domain
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) :
+  Result Std.U64
+  := do
+  obj.ks_get machineStoreInst s layout.ks.CUR_DOMAIN
+
+/-- [fl4_core::obj::{fl4_core::obj::Tcb}::prio]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
+    Visibility: public -/
+def obj.Tcb.prio
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
+  Result Std.U64
+  := do
+  let i ← layout.tcb.PRIO
+  let i1 ← lift (core.num.U64.wrapping_add self i)
+  machineStoreInst.read s i1
+
+/-- [fl4_core::obj::{fl4_core::obj::Tcb}::domain]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
+    Visibility: public -/
+def obj.Tcb.domain
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
+  Result Std.U64
+  := do
+  let i ← layout.tcb.DOMAIN
+  let i1 ← lift (core.num.U64.wrapping_add self i)
+  machineStoreInst.read s i1
+
+/-- [fl4_core::smp::remote_queue_update]:
+    Source: 'crates/fl4-core/src/smp.rs', lines 63:0-75:1
+    Visibility: public -/
+def smp.remote_queue_update
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
+  Result S
+  := do
+  let cpu ← obj.Tcb.affinity machineStoreInst t s
+  let i ← machineStoreInst.cur_cpu s
+  if cpu = i
+  then ok s
+  else
+    let i1 ← obj.Tcb.domain machineStoreInst t s
+    let i2 ← sched.cur_domain machineStoreInst s
+    if i1 != i2
+    then ok s
+    else
+      let i3 ← obj.node_get machineStoreInst s cpu layout.node.CUR_THREAD
+      let idle ← obj.node_get machineStoreInst s cpu layout.node.IDLE_THREAD
+      if i3 = idle
+      then
+        let i4 ← obj.node_get machineStoreInst s i layout.node.IPI_PENDING
+        let i5 ← lift (cpu &&& 63#u64)
+        let i6 ← 1#u64 <<< i5
+        let m ← lift (i4 ||| i6)
+        obj.node_set machineStoreInst s i layout.node.IPI_PENDING m
+      else
+        let i4 ← obj.Tcb.prio machineStoreInst t s
+        let i5 ← obj.Tcb.prio machineStoreInst i3 s
+        if i4 > i5
+        then
+          let i6 ← obj.node_get machineStoreInst s i layout.node.IPI_PENDING
+          let i7 ← lift (cpu &&& 63#u64)
+          let i8 ← 1#u64 <<< i7
+          let m ← lift (i6 ||| i8)
+          obj.node_set machineStoreInst s i layout.node.IPI_PENDING m
+        else
+          let i6 ← obj.node_get machineStoreInst s cpu layout.node.REPROGRAM
+          if i6 != 0#u64
+          then
+            let i7 ←
+              obj.node_get machineStoreInst s i layout.node.IPI_PENDING
+            let i8 ← lift (cpu &&& 63#u64)
+            let i9 ← 1#u64 <<< i8
+            let m ← lift (i7 ||| i9)
+            obj.node_set machineStoreInst s i layout.node.IPI_PENDING m
+          else ok s
 
 /-- [fl4_core::sched::q_set]:
     Source: 'crates/fl4-core/src/sched.rs', lines 233:0-236:1 -/
@@ -9551,30 +9664,8 @@ def sched.queued
   let i1 ← lift (i &&& sched.Q_QUEUED)
   ok (i1 != 0#u64)
 
-/-- [fl4_core::obj::{fl4_core::obj::Tcb}::prio]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
-    Visibility: public -/
-def obj.Tcb.prio
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
-  Result Std.U64
-  := do
-  let i ← layout.tcb.PRIO
-  let i1 ← lift (core.num.U64.wrapping_add self i)
-  machineStoreInst.read s i1
-
-/-- [fl4_core::obj::{fl4_core::obj::Tcb}::domain]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
-    Visibility: public -/
-def obj.Tcb.domain
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
-  Result Std.U64
-  := do
-  let i ← layout.tcb.DOMAIN
-  let i1 ← lift (core.num.U64.wrapping_add self i)
-  machineStoreInst.read s i1
-
 /-- [fl4_core::sched::enqueue]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 239:0-254:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 239:0-255:1
     Visibility: public -/
 def sched.enqueue
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -9597,7 +9688,8 @@ def sched.enqueue
     let (q1, s2) ←
       tcbqueue.prepend machineStoreInst s1 tcbqueue.Link.Sched q t
     let s3 ← sched.q_set machineStoreInst s2 cpu off q1
-    sched.set_flag machineStoreInst s3 t sched.Q_QUEUED true
+    let s4 ← sched.set_flag machineStoreInst s3 t sched.Q_QUEUED true
+    smp.remote_queue_update machineStoreInst s4 t
 
 /-- [fl4_core::sched::Q_RELEASE]
     Source: 'crates/fl4-core/src/sched.rs', lines 27:0-27:25 -/
@@ -9700,7 +9792,7 @@ def sched.action
 @[global_simps, irreducible] def sched.ACTION_CHOOSE_NEW : Std.U64 := 1#u64
 
 /-- [fl4_core::sched::reschedule_required]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 344:0-350:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 347:0-353:1
     Visibility: public -/
 def sched.reschedule_required
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) : Result S := do
@@ -9875,7 +9967,7 @@ def sched.set_reprogram_on
 @[global_simps, irreducible] def layout.node.RELEASE_HEAD : Std.U64 := 64#u64
 
 /-- [fl4_core::sched::release_remove]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 299:0-311:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 301:0-313:1
     Visibility: public -/
 def sched.release_remove
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -9927,7 +10019,7 @@ def sched.remove_from_bitmap
   else ok s1
 
 /-- [fl4_core::sched::dequeue]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 275:0-290:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 277:0-292:1
     Visibility: public -/
 def sched.dequeue
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -9984,16 +10076,21 @@ def schedcontext.unbind_tcb
     obj.Sc.set_tcb machineStoreInst sc s4 0#u64
 
 /-- [fl4_core::schedcontext::unbind_all_tcbs]:
-    Source: 'crates/fl4-core/src/schedcontext.rs', lines 55:0-59:1
+    Source: 'crates/fl4-core/src/schedcontext.rs', lines 57:0-62:1
     Visibility: public -/
 def schedcontext.unbind_all_tcbs
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
-  Result S
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (sc : obj.Sc) :
+  Result (S × A)
   := do
   let i ← obj.Sc.tcb machineStoreInst sc s
   if i != 0#u64
-  then schedcontext.unbind_tcb machineStoreInst s sc
-  else ok s
+  then
+    let (s1, a1) ←
+      smp.remote_tcb_stall machineStoreInst machineArchInst s a i
+    let s2 ← schedcontext.unbind_tcb machineStoreInst s1 sc
+    ok (s2, a1)
+  else ok (s, a)
 
 /-- [fl4_core::sched::schedule_tcb]:
     Source: 'crates/fl4-core/src/sched.rs', lines 139:0-143:1
@@ -10590,7 +10687,7 @@ def ipc.cancel_ipc
         else ok (s1, a)
 
 /-- [fl4_core::sched::suspend]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 725:0-735:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 729:0-739:1
     Visibility: public -/
 def sched.suspend
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -10791,17 +10888,8 @@ def tcbqueue.next_of
   let i ← tcbqueue.next machineStoreInst s l t
   ok i
 
-/-- [fl4_core::sched::cur_domain]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 89:0-91:1
-    Visibility: public -/
-def sched.cur_domain
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) :
-  Result Std.U64
-  := do
-  obj.ks_get machineStoreInst s layout.ks.CUR_DOMAIN
-
 /-- [fl4_core::sched::possible_switch_to]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 353:0-365:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 356:0-368:1
     Visibility: public -/
 def sched.possible_switch_to
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -11084,7 +11172,7 @@ def notification.cancel_all_signals
 @[global_simps, irreducible] def layout.tcb.NUM_SLOTS : Std.U64 := 5#u64
 
 /-- [fl4_core::smp::migrate_tcb]:
-    Source: 'crates/fl4-core/src/smp.rs', lines 9:0-12:1
+    Source: 'crates/fl4-core/src/smp.rs', lines 11:0-17:1
     Visibility: public -/
 def smp.migrate_tcb
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -11092,8 +11180,17 @@ def smp.migrate_tcb
   (cpu : Std.U64) :
   Result (S × A)
   := do
-  let s1 ← obj.Tcb.set_affinity machineStoreInst t s cpu
-  ok (s1, a)
+  let i ← obj.Tcb.affinity machineStoreInst t s
+  let (a1, t1) ←
+    if i != cpu
+    then
+      do
+      let a2 ← machineArchInst.fpu_flush a t
+      let a3 ← machineArchInst.fpu_release a2 t
+      ok (a3, t)
+    else ok (a, t)
+  let s1 ← obj.Tcb.set_affinity machineStoreInst t1 s cpu
+  ok (s1, a1)
 
 /-- [fl4_core::obj::{fl4_core::obj::Sc}::cpu]:
     Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 186:0-199:2
@@ -11106,7 +11203,7 @@ def obj.Sc.cpu
   machineStoreInst.read s i
 
 /-- [fl4_core::schedcontext::donate]:
-    Source: 'crates/fl4-core/src/schedcontext.rs', lines 62:0-75:1
+    Source: 'crates/fl4-core/src/schedcontext.rs', lines 65:0-79:1
     Visibility: public -/
 def schedcontext.donate
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -11116,27 +11213,32 @@ def schedcontext.donate
   := do
   let i ← obj.Sc.tcb machineStoreInst sc s
   let b ← obj.Tcb.is_null i
-  let s1 ←
+  let (s1, a1) ←
     if b
-    then ok s
+    then ok (s, a)
     else
       do
-      let s2 ← sched.dequeue machineStoreInst s i
-      let s3 ← sched.release_remove machineStoreInst s2 i
-      let s4 ← obj.Tcb.set_sc machineStoreInst i s3 0#u64
-      let t ← sched.cur_thread machineStoreInst s4
+      let (s2, a2) ←
+        smp.remote_tcb_stall machineStoreInst machineArchInst s a i
+      let s3 ← sched.dequeue machineStoreInst s2 i
+      let s4 ← sched.release_remove machineStoreInst s3 i
+      let s5 ← obj.Tcb.set_sc machineStoreInst i s4 0#u64
+      let t ← sched.cur_thread machineStoreInst s5
       let b1 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq i t
-      if b1
-      then sched.reschedule_required machineStoreInst s4
-      else
-        let i1 ← sched.action machineStoreInst s4
-        if i = i1
-        then sched.reschedule_required machineStoreInst s4
-        else ok s4
+      let t1 ←
+        if b1
+        then sched.reschedule_required machineStoreInst s5
+        else
+          do
+          let i1 ← sched.action machineStoreInst s5
+          if i = i1
+          then sched.reschedule_required machineStoreInst s5
+          else ok s5
+      ok (t1, a2)
   let s2 ← obj.Sc.set_tcb machineStoreInst sc s1 «to»
   let s3 ← obj.Tcb.set_sc machineStoreInst «to» s2 sc
   let i1 ← obj.Sc.cpu machineStoreInst sc s3
-  smp.migrate_tcb machineStoreInst machineArchInst s3 a «to» i1
+  smp.migrate_tcb machineStoreInst machineArchInst s3 a1 «to» i1
 
 /-- [fl4_core::ipc::reply_pop]:
     Source: 'crates/fl4-core/src/ipc.rs', lines 179:0-193:1
@@ -11464,20 +11566,21 @@ def objects.finalise_cap
   | capability.Cap.SchedContext ptr _ =>
     if fin
     then
-      let s1 ← schedcontext.unbind_all_tcbs machineStoreInst s ptr
+      let (s1, a1) ←
+        schedcontext.unbind_all_tcbs machineStoreInst machineArchInst s a ptr
       let s2 ← schedcontext.unbind_ntfn machineStoreInst s1 ptr
       let s3 ← schedcontext.unbind_reply machineStoreInst s2 ptr
       let i ← obj.Sc.yield_from machineStoreInst ptr s3
       let b ← obj.Tcb.is_null i
-      let (s4, a1) ←
+      let (s4, a2) ←
         if b
-        then ok (s3, a)
+        then ok (s3, a1)
         else
-          schedcontext.complete_yield_to machineStoreInst machineArchInst s3 a
+          schedcontext.complete_yield_to machineStoreInst machineArchInst s3 a1
             i
       let s5 ← obj.Sc.set_refill_max machineStoreInst ptr s4 0#u64
       let s6 ← obj.Sc.set_sporadic machineStoreInst ptr s5 0#u64
-      ok ((capability.Cap.Null, capability.Cap.Null), s6, a1)
+      ok ((capability.Cap.Null, capability.Cap.Null), s6, a2)
     else ok ((capability.Cap.Null, capability.Cap.Null), s, a)
   | capability.Cap.SchedControl _ =>
     ok ((capability.Cap.Null, capability.Cap.Null), s, a)
@@ -13651,7 +13754,7 @@ def domain.MAX_DURATION : Result Std.U64 := do
   i - 1#u64
 
 /-- [fl4_core::sched::set_domain]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 673:0-682:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 677:0-686:1
     Visibility: public -/
 def sched.set_domain
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -13671,7 +13774,7 @@ def sched.set_domain
   else ok s3
 
 /-- [fl4_core::sched::dom_sched_duration]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 562:0-564:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 565:0-567:1
     Visibility: public -/
 def sched.dom_sched_duration
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) :
@@ -13684,12 +13787,12 @@ def sched.dom_sched_duration
   obj.ks_get machineStoreInst s i4
 
 /-- [fl4_core::layout::ks::DOM_SCHED_START]
-    Source: 'crates/fl4-core/src/layout.rs', lines 241:4-241:40
+    Source: 'crates/fl4-core/src/layout.rs', lines 244:4-244:40
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.DOM_SCHED_START : Std.U64 := 32#u64
 
 /-- [fl4_core::layout::ks::DOM_SCHED_IDX]
-    Source: 'crates/fl4-core/src/layout.rs', lines 240:4-240:38
+    Source: 'crates/fl4-core/src/layout.rs', lines 243:4-243:38
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.DOM_SCHED_IDX : Std.U64 := 24#u64
 
@@ -15210,7 +15313,7 @@ def tcbqueue.insert_before
   tcbqueue.set_next machineStoreInst s3 l i t
 
 /-- [fl4_core::sched::ready_time]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 294:0-296:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 296:0-298:1 -/
 def sched.ready_time
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
   Result Std.U64
@@ -15220,7 +15323,7 @@ def sched.ready_time
   ok r.time
 
 /-- [fl4_core::sched::release_enqueue]: loop body 0:
-    Source: 'crates/fl4-core/src/sched.rs', lines 329:8-332:9
+    Source: 'crates/fl4-core/src/sched.rs', lines 331:8-334:9
     Visibility: public -/
 @[rust_loop_body]
 def sched.release_enqueue_loop.body
@@ -15244,7 +15347,7 @@ def sched.release_enqueue_loop.body
     else ok (done after)
 
 /-- [fl4_core::sched::release_enqueue]: loop 0:
-    Source: 'crates/fl4-core/src/sched.rs', lines 329:8-332:9
+    Source: 'crates/fl4-core/src/sched.rs', lines 331:8-334:9
     Visibility: public -/
 @[rust_loop]
 def sched.release_enqueue_loop
@@ -15258,7 +15361,7 @@ def sched.release_enqueue_loop
     (after, fuel)
 
 /-- [fl4_core::sched::release_enqueue]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 314:0-339:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 316:0-342:1
     Visibility: public -/
 def sched.release_enqueue
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -15276,9 +15379,11 @@ def sched.release_enqueue
     let s3 ← sched.set_flag machineStoreInst s2 t sched.Q_RELEASE true
     let i ← obj.node_get machineStoreInst s3 cpu layout.node.RELEASE_HEAD
     let i1 := q.head
-    if i != i1
-    then sched.set_reprogram_on machineStoreInst s3 cpu
-    else ok s3
+    let s4 ←
+      if i != i1
+      then sched.set_reprogram_on machineStoreInst s3 cpu
+      else ok s3
+    smp.remote_queue_update machineStoreInst s4 t
   else
     let i ← sched.ready_time machineStoreInst s q.head
     if new_time < i
@@ -15290,9 +15395,11 @@ def sched.release_enqueue
       let s3 ← sched.set_flag machineStoreInst s2 t sched.Q_RELEASE true
       let i1 ← obj.node_get machineStoreInst s3 cpu layout.node.RELEASE_HEAD
       let i2 := q.head
-      if i1 != i2
-      then sched.set_reprogram_on machineStoreInst s3 cpu
-      else ok s3
+      let s4 ←
+        if i1 != i2
+        then sched.set_reprogram_on machineStoreInst s3 cpu
+        else ok s3
+      smp.remote_queue_update machineStoreInst s4 t
     else
       let i1 ← sched.ready_time machineStoreInst s q.end
       if i1 <= new_time
@@ -15305,9 +15412,11 @@ def sched.release_enqueue
         let i2 ←
           obj.node_get machineStoreInst s3 cpu layout.node.RELEASE_HEAD
         let i3 := q.head
-        if i2 != i3
-        then sched.set_reprogram_on machineStoreInst s3 cpu
-        else ok s3
+        let s4 ←
+          if i2 != i3
+          then sched.set_reprogram_on machineStoreInst s3 cpu
+          else ok s3
+        smp.remote_queue_update machineStoreInst s4 t
       else
         let after ←
           sched.release_enqueue_loop machineStoreInst s new_time q.head
@@ -15317,12 +15426,14 @@ def sched.release_enqueue
         let s2 ← sched.set_flag machineStoreInst s1 t sched.Q_RELEASE true
         let i2 ←
           obj.node_get machineStoreInst s2 cpu layout.node.RELEASE_HEAD
-        if i2 != q.head
-        then sched.set_reprogram_on machineStoreInst s2 cpu
-        else ok s2
+        let s3 ←
+          if i2 != q.head
+          then sched.set_reprogram_on machineStoreInst s2 cpu
+          else ok s2
+        smp.remote_queue_update machineStoreInst s3 t
 
 /-- [fl4_core::sched::postpone]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 368:0-374:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 371:0-377:1
     Visibility: public -/
 def sched.postpone
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
@@ -17665,14 +17776,18 @@ def interrupt.decode_irq_handler
            ok (r, s, a)
 
 /-- [fl4_core::smp::handle_ipi]:
-    Source: 'crates/fl4-core/src/smp.rs', lines 24:0-26:1
+    Source: 'crates/fl4-core/src/smp.rs', lines 90:0-95:1
     Visibility: public -/
 def smp.handle_ipi
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (irq : Std.U64) :
   Result (S × A)
   := do
-  ok (s, a)
+  let i ← layout.irq.RESCHEDULE_IPI
+  if irq = i
+  then let s1 ← sched.reschedule_required machineStoreInst s
+       ok (s1, a)
+  else ok (s, a)
 
 /-- [fl4_core::obj::{fl4_core::obj::Ntfn}::set_badge]:
     Source: 'crates/fl4-core/src/obj.rs', lines 17:16-19:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 128:0-134:2
@@ -18734,27 +18849,27 @@ def layout.node.SCHED_CONTROL_USED : Std.U64 := 96#u64
 @[global_simps, irreducible] def layout.node.RELEASE_TAIL : Std.U64 := 104#u64
 
 /-- [fl4_core::layout::ks::BOOT_TIME]
-    Source: 'crates/fl4-core/src/layout.rs', lines 244:4-244:34
+    Source: 'crates/fl4-core/src/layout.rs', lines 247:4-247:34
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.BOOT_TIME : Std.U64 := 56#u64
 
 /-- [fl4_core::layout::ks::BOOT_SCRATCH]
-    Source: 'crates/fl4-core/src/layout.rs', lines 246:4-246:37
+    Source: 'crates/fl4-core/src/layout.rs', lines 249:4-249:37
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.BOOT_SCRATCH : Std.U64 := 64#u64
 
 /-- [fl4_core::layout::ks::FEATURES]
-    Source: 'crates/fl4-core/src/layout.rs', lines 248:4-248:33
+    Source: 'crates/fl4-core/src/layout.rs', lines 251:4-251:33
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.FEATURES : Std.U64 := 72#u64
 
 /-- [fl4_core::layout::ks::FEATURE_NX]
-    Source: 'crates/fl4-core/src/layout.rs', lines 249:4-249:34
+    Source: 'crates/fl4-core/src/layout.rs', lines 252:4-252:34
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.FEATURE_NX : Std.U64 := 1#u64
 
 /-- [fl4_core::layout::ks::SIZE]
-    Source: 'crates/fl4-core/src/layout.rs', lines 260:4-260:57
+    Source: 'crates/fl4-core/src/layout.rs', lines 263:4-263:57
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.ks.SIZE : Result Std.U64 := do
@@ -19914,7 +20029,7 @@ def sched.is_highest_prio
        ok (prio >= i3)
 
 /-- [fl4_core::sched::append]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 257:0-272:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 258:0-274:1
     Visibility: public -/
 def sched.append
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -19937,7 +20052,8 @@ def sched.append
     let (q1, s2) ←
       tcbqueue.append machineStoreInst s1 tcbqueue.Link.Sched q t
     let s3 ← sched.q_set machineStoreInst s2 cpu off q1
-    sched.set_flag machineStoreInst s3 t sched.Q_QUEUED true
+    let s4 ← sched.set_flag machineStoreInst s3 t sched.Q_QUEUED true
+    smp.remote_queue_update machineStoreInst s4 t
 
 /-- [fl4_core::timer::earliest]:
     Source: 'crates/fl4-core/src/timer.rs', lines 325:0-332:1
@@ -19954,7 +20070,7 @@ def timer.earliest
   else obj.Tcb.timer_deadline machineStoreInst i1 s
 
 /-- [fl4_core::sched::set_next_interrupt]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 377:0-410:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 380:0-413:1
     Visibility: public -/
 def sched.set_next_interrupt
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -20227,7 +20343,7 @@ def sporadic.budget_check
   sporadic.budget_check_loop1 machineStoreInst s2 i1 mb fuel2
 
 /-- [fl4_core::sched::commit_time]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 413:0-433:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 416:0-436:1
     Visibility: public -/
 def sched.commit_time
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -20273,7 +20389,7 @@ def sched.commit_time
   sched.set_consumed machineStoreInst s1 0#u64
 
 /-- [fl4_core::sched::check_domain_time]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 459:0-464:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 462:0-467:1 -/
 def sched.check_domain_time
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) : Result S := do
   let b ← sched.is_cur_domain_expired machineStoreInst s
@@ -20284,7 +20400,7 @@ def sched.check_domain_time
   else ok s
 
 /-- [fl4_core::sched::end_timeslice]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 467:0-480:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 470:0-483:1
     Visibility: public -/
 def sched.end_timeslice
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -20346,7 +20462,7 @@ def sched.end_timeslice
          ok (s1, a)
 
 /-- [fl4_core::sched::charge_budget]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 483:0-506:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 486:0-509:1
     Visibility: public -/
 def sched.charge_budget
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -20394,7 +20510,7 @@ def sched.charge_budget
   else ok (s3, a)
 
 /-- [fl4_core::sched::check_budget]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 509:0-517:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 512:0-520:1
     Visibility: public -/
 def sched.check_budget
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -20414,7 +20530,7 @@ def sched.check_budget
     ok (false, s1, a1)
 
 /-- [fl4_core::sched::check_budget_restart]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 520:0-527:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 523:0-530:1
     Visibility: public -/
 def sched.check_budget_restart
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -20504,7 +20620,7 @@ def timer.fire
   timer.fire_loop machineStoreInst machineArchInst s a now 0#u64
 
 /-- [fl4_core::sched::awaken]: loop body 0:
-    Source: 'crates/fl4-core/src/sched.rs', lines 533:4-542:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 536:4-545:1
     Visibility: public -/
 @[rust_loop_body]
 def sched.awaken_loop.body
@@ -20531,7 +20647,7 @@ def sched.awaken_loop.body
   else ok (done s)
 
 /-- [fl4_core::sched::awaken]: loop 0:
-    Source: 'crates/fl4-core/src/sched.rs', lines 533:4-542:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 536:4-545:1
     Visibility: public -/
 @[rust_loop]
 def sched.awaken_loop
@@ -20543,7 +20659,7 @@ def sched.awaken_loop
     (s, fuel)
 
 /-- [fl4_core::sched::awaken]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 530:0-542:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 533:0-545:1
     Visibility: public -/
 def sched.awaken
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -20555,7 +20671,7 @@ def sched.awaken
   ok (s2, a1)
 
 /-- [fl4_core::sched::dom_sched_domain]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 558:0-560:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 561:0-563:1
     Visibility: public -/
 def sched.dom_sched_domain
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) :
@@ -20567,7 +20683,7 @@ def sched.dom_sched_domain
   obj.ks_get machineStoreInst s i3
 
 /-- [fl4_core::sched::next_domain]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 544:0-556:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 547:0-559:1 -/
 def sched.next_domain
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) : Result S := do
   let i ← obj.ks_get machineStoreInst s layout.ks.DOM_SCHED_IDX
@@ -20590,7 +20706,7 @@ def sched.next_domain
   obj.ks_set machineStoreInst s4 layout.ks.DOMAIN_TIME t
 
 /-- [fl4_core::sched::switch_to_thread]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 571:0-575:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 574:0-578:1 -/
 def sched.switch_to_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) :
@@ -20602,7 +20718,8 @@ def sched.switch_to_thread
   ok (s3, a1)
 
 /-- [fl4_core::sched::switch_to_idle_thread]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 577:0-581:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 580:0-584:1
+    Visibility: public -/
 def sched.switch_to_idle_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) :
@@ -20615,7 +20732,7 @@ def sched.switch_to_idle_thread
   ok (s2, a1)
 
 /-- [fl4_core::sched::choose_thread]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 583:0-593:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 586:0-596:1 -/
 def sched.choose_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) :
@@ -20638,7 +20755,7 @@ def sched.choose_thread
   else sched.switch_to_idle_thread machineStoreInst machineArchInst s a
 
 /-- [fl4_core::sched::schedule_choose_new_thread]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 595:0-600:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 598:0-603:1 -/
 def sched.schedule_choose_new_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) :
@@ -20661,7 +20778,7 @@ def sporadic.sc_constant_bandwidth
   ok (i = 0#u64)
 
 /-- [fl4_core::sched::switch_sched_context]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 602:0-616:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 605:0-619:1 -/
 def sched.switch_sched_context
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) :
@@ -20692,8 +20809,25 @@ def sched.switch_sched_context
   let s4 ← obj.node_set machineStoreInst s3 c layout.node.CUR_SC i
   ok (s4, a)
 
+/-- [fl4_core::smp::send_pending]:
+    Source: 'crates/fl4-core/src/smp.rs', lines 78:0-85:1
+    Visibility: public -/
+def smp.send_pending
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) :
+  Result (S × A)
+  := do
+  let c ← machineStoreInst.cur_cpu s
+  let m ← obj.node_get machineStoreInst s c layout.node.IPI_PENDING
+  if m != 0#u64
+  then
+    let s1 ← obj.node_set machineStoreInst s c layout.node.IPI_PENDING 0#u64
+    let a1 ← machineArchInst.send_reschedule a m
+    ok (s1, a1)
+  else ok (s, a)
+
 /-- [fl4_core::sched::schedule]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 619:0-656:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 622:0-660:1
     Visibility: public -/
 def sched.schedule
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -20780,16 +20914,19 @@ def sched.schedule
     sched.switch_sched_context machineStoreInst machineArchInst s4 a2
   let c ← machineStoreInst.cur_cpu s5
   let i ← obj.node_get machineStoreInst s5 c layout.node.REPROGRAM
-  if i != 0#u64
-  then
-    let (s6, a4) ←
-      sched.set_next_interrupt machineStoreInst machineArchInst s5 a3
-    let s7 ← obj.node_set machineStoreInst s6 c layout.node.REPROGRAM 0#u64
-    ok (s7, a4)
-  else ok (s5, a3)
+  let (s6, a4) ←
+    if i != 0#u64
+    then
+      do
+      let (s7, a5) ←
+        sched.set_next_interrupt machineStoreInst machineArchInst s5 a3
+      let s8 ← obj.node_set machineStoreInst s7 c layout.node.REPROGRAM 0#u64
+      ok (s8, a5)
+    else ok (s5, a3)
+  smp.send_pending machineStoreInst machineArchInst s6 a4
 
 /-- [fl4_core::sched::activate_thread]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 659:0-670:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 663:0-674:1
     Visibility: public -/
 def sched.activate_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -20812,7 +20949,7 @@ def sched.activate_thread
   else ok (s1, a1)
 
 /-- [fl4_core::sched::set_priority]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 685:0-705:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 689:0-709:1
     Visibility: public -/
 def sched.set_priority
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -20880,7 +21017,7 @@ def sched.set_priority
           else obj.Tcb.set_prio machineStoreInst t s prio
 
 /-- [fl4_core::sched::restart]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 738:0-751:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 742:0-755:1
     Visibility: public -/
 def sched.restart
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -20956,7 +21093,7 @@ def schedcontext.bind_tcb
   else ok (s5, a2)
 
 /-- [fl4_core::schedcontext::bind_ntfn]:
-    Source: 'crates/fl4-core/src/schedcontext.rs', lines 77:0-80:1
+    Source: 'crates/fl4-core/src/schedcontext.rs', lines 81:0-84:1
     Visibility: public -/
 def schedcontext.bind_ntfn
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc)
@@ -20967,7 +21104,7 @@ def schedcontext.bind_ntfn
   obj.Sc.set_ntfn machineStoreInst sc s1 n
 
 /-- [fl4_core::schedcontext::extra_cap]:
-    Source: 'crates/fl4-core/src/schedcontext.rs', lines 143:0-149:1 -/
+    Source: 'crates/fl4-core/src/schedcontext.rs', lines 147:0-153:1 -/
 def schedcontext.extra_cap
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (extra : Array obj.Slot 3#usize) (i : Std.Usize) :
@@ -20981,7 +21118,7 @@ def schedcontext.extra_cap
        ok (some c)
 
 /-- [fl4_core::schedcontext::yield_to]:
-    Source: 'crates/fl4-core/src/schedcontext.rs', lines 151:0-181:1 -/
+    Source: 'crates/fl4-core/src/schedcontext.rs', lines 155:0-185:1 -/
 def schedcontext.yield_to
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (sc : obj.Sc)
@@ -21049,7 +21186,7 @@ def sporadic.sc_released
   else ok false
 
 /-- [fl4_core::schedcontext::decode]:
-    Source: 'crates/fl4-core/src/schedcontext.rs', lines 184:0-264:1
+    Source: 'crates/fl4-core/src/schedcontext.rs', lines 188:0-272:1
     Visibility: public -/
 def schedcontext.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -21057,273 +21194,282 @@ def schedcontext.decode
   (sc : obj.Sc) (call : Bool) (extra : Array obj.Slot 3#usize) :
   Result ((core.result.Result Unit error.Exc) × S × A)
   := do
-  let ct ← sched.cur_thread machineStoreInst s
+  let i ← obj.Sc.tcb machineStoreInst sc s
+  let (s1, a1) ←
+    if i != 0#u64
+    then smp.remote_tcb_stall machineStoreInst machineArchInst s a i
+    else ok (s, a)
+  let ct ← sched.cur_thread machineStoreInst s1
   if lbl = fl4_abi.label.SchedContextConsumed
   then
-    let s1 ← sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
-    let s2 ←
-      schedcontext.set_consumed machineStoreInst machineArchInst s1 a sc ct
+    let s2 ← sched.set_thread_state machineStoreInst s1 ct sched.TS_RESTART
+    let s3 ←
+      schedcontext.set_consumed machineStoreInst machineArchInst s2 a1 sc ct
         call
-    let s3 ← sched.set_thread_state machineStoreInst s2 ct sched.TS_RUNNING
-    ok (core.result.Result.Ok (), s3, a)
+    let s4 ← sched.set_thread_state machineStoreInst s3 ct sched.TS_RUNNING
+    ok (core.result.Result.Ok (), s4, a1)
   else
     if lbl = fl4_abi.label.SchedContextBind
     then
-      let o ← schedcontext.extra_cap machineStoreInst s extra 0#usize
+      let o ← schedcontext.extra_cap machineStoreInst s1 extra 0#usize
       match o with
       | none => let r ← error.truncated Unit
-                ok (r, s, a)
+                ok (r, s1, a1)
       | some c =>
         match c with
         | capability.Cap.Null =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
         | capability.Cap.Untyped _ _ _ _ =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
         | capability.Cap.Endpoint _ _ _ _ _ _ =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
         | capability.Cap.Notification ptr _ _ _ =>
-          let i ← obj.Sc.ntfn machineStoreInst sc s
-          if i != 0#u64
+          let i1 ← obj.Sc.ntfn machineStoreInst sc s1
+          if i1 != 0#u64
           then let r ← error.illegal Unit
-               ok (r, s, a)
+               ok (r, s1, a1)
           else
-            let i1 ← obj.Ntfn.sc machineStoreInst ptr s
-            if i1 != 0#u64
+            let i2 ← obj.Ntfn.sc machineStoreInst ptr s1
+            if i2 != 0#u64
             then let r ← error.illegal Unit
-                 ok (r, s, a)
+                 ok (r, s1, a1)
             else
-              let s1 ←
-                sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
-              let s2 ← schedcontext.bind_ntfn machineStoreInst s1 sc ptr
-              ok (core.result.Result.Ok (), s2, a)
+              let s2 ←
+                sched.set_thread_state machineStoreInst s1 ct sched.TS_RESTART
+              let s3 ← schedcontext.bind_ntfn machineStoreInst s2 sc ptr
+              ok (core.result.Result.Ok (), s3, a1)
         | capability.Cap.Reply _ _ =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
         | capability.Cap.CNode _ _ _ _ =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
         | capability.Cap.Thread ptr =>
-          let i ← obj.Sc.tcb machineStoreInst sc s
-          if i != 0#u64
+          let i1 ← obj.Sc.tcb machineStoreInst sc s1
+          if i1 != 0#u64
           then let r ← error.illegal Unit
-               ok (r, s, a)
+               ok (r, s1, a1)
           else
-            let i1 ← obj.Tcb.sc machineStoreInst ptr s
-            if i1 != 0#u64
+            let i2 ← obj.Tcb.sc machineStoreInst ptr s1
+            if i2 != 0#u64
             then let r ← error.illegal Unit
-                 ok (r, s, a)
+                 ok (r, s1, a1)
             else
-              let b ← sched.is_blocked machineStoreInst s ptr
+              let b ← sched.is_blocked machineStoreInst s1 ptr
               if b
               then
-                let b1 ← sporadic.sc_released machineStoreInst s sc
+                let b1 ← sporadic.sc_released machineStoreInst s1 sc
                 if b1
                 then
-                  let s1 ←
-                    sched.set_thread_state machineStoreInst s ct
+                  let s2 ←
+                    sched.set_thread_state machineStoreInst s1 ct
                       sched.TS_RESTART
-                  let (s2, a1) ←
-                    schedcontext.bind_tcb machineStoreInst machineArchInst s1 a
-                      sc ptr
-                  ok (core.result.Result.Ok (), s2, a1)
+                  let (s3, a2) ←
+                    schedcontext.bind_tcb machineStoreInst machineArchInst s2
+                      a1 sc ptr
+                  ok (core.result.Result.Ok (), s3, a2)
                 else let r ← error.illegal Unit
-                     ok (r, s, a)
+                     ok (r, s1, a1)
               else
-                let s1 ←
-                  sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
-                let (s2, a1) ←
-                  schedcontext.bind_tcb machineStoreInst machineArchInst s1 a
+                let s2 ←
+                  sched.set_thread_state machineStoreInst s1 ct
+                    sched.TS_RESTART
+                let (s3, a2) ←
+                  schedcontext.bind_tcb machineStoreInst machineArchInst s2 a1
                     sc ptr
-                ok (core.result.Result.Ok (), s2, a1)
+                ok (core.result.Result.Ok (), s3, a2)
         | capability.Cap.IrqControl =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
         | capability.Cap.IrqHandler _ =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
         | capability.Cap.Zombie _ _ _ =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
         | capability.Cap.Domain =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
         | capability.Cap.SchedContext _ _ =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
         | capability.Cap.SchedControl _ =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
         | capability.Cap.Frame _ _ _ _ _ _ _ =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
         | capability.Cap.PageTable _ _ _ _ =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
         | capability.Cap.PageDirectory _ _ _ _ =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
         | capability.Cap.Pdpt _ _ _ _ =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
         | capability.Cap.Pml4 _ _ _ =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
         | capability.Cap.AsidControl =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
         | capability.Cap.AsidPool _ _ =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
         | capability.Cap.IoPortControl =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
         | capability.Cap.IoPort _ _ =>
           let r ← error.invalid_cap Unit 1#u64
-          ok (r, s, a)
+          ok (r, s1, a1)
     else
       if lbl = fl4_abi.label.SchedContextUnbindObject
       then
-        let o ← schedcontext.extra_cap machineStoreInst s extra 0#usize
+        let o ← schedcontext.extra_cap machineStoreInst s1 extra 0#usize
         match o with
         | none => let r ← error.truncated Unit
-                  ok (r, s, a)
+                  ok (r, s1, a1)
         | some c =>
           match c with
           | capability.Cap.Null =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
           | capability.Cap.Untyped _ _ _ _ =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
           | capability.Cap.Endpoint _ _ _ _ _ _ =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
           | capability.Cap.Notification ptr _ _ _ =>
-            let i ← obj.Sc.ntfn machineStoreInst sc s
-            if i != ptr
+            let i1 ← obj.Sc.ntfn machineStoreInst sc s1
+            if i1 != ptr
             then let r ← error.illegal Unit
-                 ok (r, s, a)
+                 ok (r, s1, a1)
             else
-              let s1 ←
-                sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
-              let s2 ← schedcontext.unbind_ntfn machineStoreInst s1 sc
-              ok (core.result.Result.Ok (), s2, a)
+              let s2 ←
+                sched.set_thread_state machineStoreInst s1 ct sched.TS_RESTART
+              let s3 ← schedcontext.unbind_ntfn machineStoreInst s2 sc
+              ok (core.result.Result.Ok (), s3, a1)
           | capability.Cap.Reply _ _ =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
           | capability.Cap.CNode _ _ _ _ =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
           | capability.Cap.Thread ptr =>
-            let i ← obj.Sc.tcb machineStoreInst sc s
-            if i != ptr
+            let i1 ← obj.Sc.tcb machineStoreInst sc s1
+            if i1 != ptr
             then let r ← error.illegal Unit
-                 ok (r, s, a)
+                 ok (r, s1, a1)
             else
               if ptr = ct
               then let r ← error.illegal Unit
-                   ok (r, s, a)
+                   ok (r, s1, a1)
               else
-                let s1 ←
-                  sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
-                let s2 ← schedcontext.unbind_tcb machineStoreInst s1 sc
-                ok (core.result.Result.Ok (), s2, a)
+                let s2 ←
+                  sched.set_thread_state machineStoreInst s1 ct
+                    sched.TS_RESTART
+                let s3 ← schedcontext.unbind_tcb machineStoreInst s2 sc
+                ok (core.result.Result.Ok (), s3, a1)
           | capability.Cap.IrqControl =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
           | capability.Cap.IrqHandler _ =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
           | capability.Cap.Zombie _ _ _ =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
           | capability.Cap.Domain =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
           | capability.Cap.SchedContext _ _ =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
           | capability.Cap.SchedControl _ =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
           | capability.Cap.Frame _ _ _ _ _ _ _ =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
           | capability.Cap.PageTable _ _ _ _ =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
           | capability.Cap.PageDirectory _ _ _ _ =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
           | capability.Cap.Pdpt _ _ _ _ =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
           | capability.Cap.Pml4 _ _ _ =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
           | capability.Cap.AsidControl =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
           | capability.Cap.AsidPool _ _ =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
           | capability.Cap.IoPortControl =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
           | capability.Cap.IoPort _ _ =>
             let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
+            ok (r, s1, a1)
       else
         if lbl = fl4_abi.label.SchedContextUnbind
         then
-          let i ← obj.Sc.tcb machineStoreInst sc s
-          if i = ct
+          let i1 ← obj.Sc.tcb machineStoreInst sc s1
+          if i1 = ct
           then let r ← error.illegal Unit
-               ok (r, s, a)
+               ok (r, s1, a1)
           else
-            let s1 ←
-              sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
-            let s2 ← schedcontext.unbind_all_tcbs machineStoreInst s1 sc
-            let s3 ← schedcontext.unbind_ntfn machineStoreInst s2 sc
-            let s4 ← schedcontext.unbind_reply machineStoreInst s3 sc
-            ok (core.result.Result.Ok (), s4, a)
+            let s2 ←
+              sched.set_thread_state machineStoreInst s1 ct sched.TS_RESTART
+            let (s3, a2) ←
+              schedcontext.unbind_all_tcbs machineStoreInst machineArchInst s2
+                a1 sc
+            let s4 ← schedcontext.unbind_ntfn machineStoreInst s3 sc
+            let s5 ← schedcontext.unbind_reply machineStoreInst s4 sc
+            ok (core.result.Result.Ok (), s5, a2)
         else
           if lbl = fl4_abi.label.SchedContextYieldTo
           then
-            let i ← obj.Sc.tcb machineStoreInst sc s
-            let b ← obj.Tcb.is_null i
+            let i1 ← obj.Sc.tcb machineStoreInst sc s1
+            let b ← obj.Tcb.is_null i1
             if b
             then let r ← error.illegal Unit
-                 ok (r, s, a)
+                 ok (r, s1, a1)
             else
-              let b1 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq i ct
+              let b1 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq i1 ct
               if b1
               then let r ← error.illegal Unit
-                   ok (r, s, a)
+                   ok (r, s1, a1)
               else
-                let i1 ← obj.Tcb.prio machineStoreInst i s
-                let i2 ← obj.Tcb.mcp machineStoreInst ct s
-                if i1 > i2
+                let i2 ← obj.Tcb.prio machineStoreInst i1 s1
+                let i3 ← obj.Tcb.mcp machineStoreInst ct s1
+                if i2 > i3
                 then let r ← error.illegal Unit
-                     ok (r, s, a)
+                     ok (r, s1, a1)
                 else
-                  let i3 ← obj.Tcb.yield_to machineStoreInst ct s
-                  if i3 != 0#u64
+                  let i4 ← obj.Tcb.yield_to machineStoreInst ct s1
+                  if i4 != 0#u64
                   then let r ← error.illegal Unit
-                       ok (r, s, a)
+                       ok (r, s1, a1)
                   else
-                    let s1 ←
-                      sched.set_thread_state machineStoreInst s ct
+                    let s2 ←
+                      sched.set_thread_state machineStoreInst s1 ct
                         sched.TS_RESTART
-                    let (s2, a1) ←
-                      schedcontext.yield_to machineStoreInst machineArchInst s1
-                        a sc call
-                    ok (core.result.Result.Ok (), s2, a1)
+                    let (s3, a2) ←
+                      schedcontext.yield_to machineStoreInst machineArchInst s2
+                        a1 sc call
+                    ok (core.result.Result.Ok (), s3, a2)
           else let r ← error.illegal Unit
-               ok (r, s, a)
+               ok (r, s1, a1)
 
 /-- [fl4_core::sporadic::refill_update]:
     Source: 'crates/fl4-core/src/sporadic.rs', lines 176:0-196:1
@@ -21359,18 +21505,8 @@ def sporadic.refill_update
     let i1 ← new_budget - hd.amount
     sporadic.add_tail machineStoreInst s6 sc { time := i, amount := i1 }
 
-/-- [fl4_core::smp::remote_reschedule]:
-    Source: 'crates/fl4-core/src/smp.rs', lines 20:0-22:1
-    Visibility: public -/
-def smp.remote_reschedule
-  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (cpu : Std.U64) :
-  Result (S × A)
-  := do
-  ok (s, a)
-
 /-- [fl4_core::schedcontext::configure_flags]:
-    Source: 'crates/fl4-core/src/schedcontext.rs', lines 268:0-322:1 -/
+    Source: 'crates/fl4-core/src/schedcontext.rs', lines 276:0-330:1 -/
 def schedcontext.configure_flags
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Sc)
@@ -21505,7 +21641,7 @@ def sporadic.min_budget_us : Result Std.U64 := do
   2#u64 * 10#u64
 
 /-- [fl4_core::schedcontext::decode_sched_control]:
-    Source: 'crates/fl4-core/src/schedcontext.rs', lines 325:0-378:1
+    Source: 'crates/fl4-core/src/schedcontext.rs', lines 333:0-386:1
     Visibility: public -/
 def schedcontext.decode_sched_control
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -21649,6 +21785,35 @@ def schedcontext.decode_sched_control
                   | capability.Cap.IoPort _ _ =>
                     let r ← error.invalid_cap Unit 1#u64
                     ok (r, s, a)
+
+/-- [fl4_core::smp::stall]:
+    Source: 'crates/fl4-core/src/smp.rs', lines 35:0-47:1
+    Visibility: public -/
+def smp.stall
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) :
+  Result (S × A)
+  := do
+  let ct ← sched.cur_thread machineStoreInst s
+  let t ← sched.idle_thread machineStoreInst s
+  let b ←
+    core.cmp.PartialEq.ne.trait_default obj.Tcb.Insts.CoreCmpPartialEqTcb ct t
+  if b
+  then
+    let i ← obj.Tcb.state machineStoreInst ct s
+    let s1 ←
+      if i = sched.TS_RUNNING
+      then sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
+      else ok s
+    let b1 ← sched.is_schedulable machineStoreInst s1 ct
+    let s2 ← if b1
+               then sched.enqueue machineStoreInst s1 ct
+               else ok s1
+    let (s3, a1) ←
+      sched.switch_to_idle_thread machineStoreInst machineArchInst s2 a
+    let s4 ← sched.set_action machineStoreInst s3 sched.ACTION_RESUME_CURRENT
+    ok (s4, a1)
+  else ok (s, a)
 
 /-- [fl4_core::sporadic::{impl core::clone::Clone for fl4_core::sporadic::Refill}::clone]:
     Source: 'crates/fl4-core/src/sporadic.rs', lines 10:9-10:14
@@ -35503,7 +35668,7 @@ def tcb.check_prio
   else ok (core.result.Result.Ok ())
 
 /-- [fl4_core::tcb::decode]:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 398:0-719:1
+    Source: 'crates/fl4-core/src/tcb.rs', lines 398:0-724:1
     Visibility: public -/
 def tcb.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -35601,8 +35766,10 @@ def tcb.decode
               let r ← error.invalid_cap Unit 1#u64
               ok (r, s1, a1)
             | capability.Cap.Thread ptr =>
-              let s2 ← tcb.restart_caller machineStoreInst s1
-              tcb.copy_registers machineStoreInst machineArchInst s2 a1 target
+              let (s2, a2) ←
+                smp.remote_tcb_stall machineStoreInst machineArchInst s1 a1 ptr
+              let s3 ← tcb.restart_caller machineStoreInst s2
+              tcb.copy_registers machineStoreInst machineArchInst s3 a2 target
                 ptr flags
             | capability.Cap.IrqControl =>
               let r ← error.invalid_cap Unit 1#u64

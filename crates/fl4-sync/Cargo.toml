@@ -7,3 +7,4 @@ license.workspace = true
 
 [dependencies]
 fl4-core = { path = "../fl4-core" }
+fl4-store = { path = "../fl4-store" }

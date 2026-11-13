@@ -98,3 +98,103 @@ impl Default for SerialGate {
         Self::new()
     }
 }
+
+/// What a kernel entry needs from its environment: the kernel on hardware,
+/// or the simulator.
+pub trait EntryEnv {
+    type S: fl4_core::machine::Store;
+    type A: fl4_core::machine::Arch;
+    type M: fl4_store::tx::Mem;
+    fn cpu(&self) -> u64;
+    /// More than one core runs the kernel.
+    fn multi(&self) -> bool;
+    /// The store, inside this core's transaction or direct.
+    fn store(&self, tx: bool) -> Self::S;
+    fn arch(&self) -> Self::A;
+    fn mem(&self) -> &Self::M;
+    /// Service a remote call; true if it stalled this core's thread.
+    fn service_remote(&self) -> bool;
+    /// Arch operations are queued (inside a transaction) or run directly.
+    fn set_tx(&self, on: bool);
+    /// Run (`committed`) or drop the queued Arch effects.
+    fn finish_effects(&self, committed: bool);
+    /// The entry has completed (it will not run again).
+    fn entry_done(&self);
+    /// This core now holds the serial gate (released when it leaves the
+    /// kernel).
+    fn holding_gate(&self);
+    fn count(&self, _what: Count) {}
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Count {
+    Commit,
+    Abort,
+    Serial,
+}
+
+/// Transaction attempts before an entry runs under the serial gate.
+pub const TX_ATTEMPTS: u32 = 4;
+
+/// Run the kernel's part of an entry (DESIGN.md §7): directly on one core;
+/// otherwise as a transaction, rerun on conflict, and under the serial gate
+/// if it cannot run as one or keeps conflicting. `body` must be repeatable:
+/// everything it reads or writes goes through the store and Arch it is
+/// given. Returns false when a stall cancelled a non-interrupt entry before
+/// it ran.
+pub fn run_entry<E: EntryEnv>(
+    env: &E,
+    gate: &SerialGate,
+    irq: bool,
+    mut body: impl FnMut(&mut E::S, &mut E::A),
+) -> bool {
+    use fl4_store::tx;
+    let cpu = env.cpu();
+    let mut a = env.arch();
+    if !env.multi() {
+        body(&mut env.store(false), &mut a);
+        env.entry_done();
+        return true;
+    }
+    let stalled = core::cell::Cell::new(false);
+    let wait = || {
+        if env.service_remote() {
+            stalled.set(true);
+        }
+    };
+    for _ in 0..TX_ATTEMPTS {
+        gate.enter_tx(cpu, wait);
+        if stalled.get() && !irq {
+            gate.leave_tx(cpu);
+            return false;
+        }
+        tx::begin(cpu);
+        env.set_tx(true);
+        let mut s = env.store(true);
+        body(&mut s, &mut a);
+        env.set_tx(false);
+        let ok = tx::commit(cpu, env.mem());
+        let serial = tx::needs_serial(cpu);
+        tx::end(cpu);
+        gate.leave_tx(cpu);
+        env.finish_effects(ok);
+        if ok {
+            env.count(Count::Commit);
+            env.entry_done();
+            return true;
+        }
+        env.count(Count::Abort);
+        if serial {
+            break;
+        }
+    }
+    env.count(Count::Serial);
+    gate.acquire(cpu, wait);
+    env.holding_gate();
+    if stalled.get() && !irq {
+        return false;
+    }
+    body(&mut env.store(false), &mut a);
+    env.entry_done();
+    true
+}

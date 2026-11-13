@@ -18,10 +18,14 @@ pub fn migrate_tcb<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb, cpu: u64) {
 
 /// seL4 `remoteTCBStall`: a thread running on another core is stopped
 /// there before its state changes.
+/// The stalled core is left idle with the thread back in its ready queue;
+/// it is asked to reschedule once this entry is done (seL4 leaves it to the
+/// core's next interrupt).
 pub fn remote_tcb_stall<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
     let cpu = t.affinity(s);
     if cpu != s.cur_cpu() && node_get(s, cpu, node::CUR_THREAD) == t.0 {
         a.remote_stall(cpu);
+        remote_reschedule(s, a, cpu);
     }
 }
 

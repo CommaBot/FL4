@@ -336,7 +336,8 @@ const SIM_REGRESSIONS: &[(u64, u64, u64)] = &[(113, 4, 20000)];
 
 /// Deterministic simulation (DESIGN.md §10): the regression seeds, then
 /// --seeds seeds (default 200) on --smp cores (default 4), 20000 steps
-/// each.
+/// each, serially and then with the cores' kernel entries interleaved
+/// (transactions, 8000 steps).
 fn sim(o: &Opts) {
     let r = root();
     run(Command::new("cargo").current_dir(&r).args(["build", "--release", "-p", "fl4-sim"]));
@@ -346,6 +347,7 @@ fn sim(o: &Opts) {
     }
     let cores = if o.smp > 1 { o.smp } else { 4 };
     run(Command::new(&bin).args(["--seeds", &o.seeds.to_string(), "--cores", &cores.to_string(), "--steps", "20000"]));
+    run(Command::new(&bin).args(["--seeds", &o.seeds.to_string(), "--cores", &cores.to_string(), "--steps", "8000", "--conc"]));
 }
 
 /// The extractability gate (DESIGN.md §6): all of fl4-core goes through

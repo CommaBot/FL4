@@ -151,7 +151,7 @@ structure sporadic.Refill where
 def obj.Tcb := Std.U64
 
 /-- Trait declaration: [fl4_core::machine::Arch]
-    Source: 'crates/fl4-core/src/machine.rs', lines 25:0-80:1
+    Source: 'crates/fl4-core/src/machine.rs', lines 25:0-87:1
     Visibility: public -/
 structure machine.Arch (Self : Type _) where
   now : Self → Result (Std.U64 × Self)
@@ -180,6 +180,8 @@ structure machine.Arch (Self : Type _) where
   fpu_sanitise : Self → Std.U64 → Result Self
   fpu_reload : Self → Std.U64 → Result Self
   fpu_release : Self → Std.U64 → Result Self
+  remote_stall : Self → Std.U64 → Result Self
+  send_reschedule : Self → Std.U64 → Result Self
   putc : Self → Std.U64 → Result Self
   get_char : Self → Result (Std.U64 × Self)
   halt : Self → Result Self

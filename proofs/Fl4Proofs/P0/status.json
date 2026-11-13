@@ -1,6 +1,6 @@
 {
- "functions": 833,
- "proved": 750,
+ "functions": 836,
+ "proved": 751,
  "manual": [],
  "loops_automatic": [
   "boot.create_frames_loop",
@@ -245,6 +245,14 @@
   "schedcontext.yield_to": [
    "fun",
    "(do let (s3, sc1, ct1, return_now) \u2190 ok (s1, sc, ct, true) if return_now = true then do let s4 \u2190 schedcontext.set_consumed machineStoreInst machineArchInst s3 a1 sc1 ct1 call let s5 \u2190 sched.set_thread_state machineStoreInst s4 ct1 sched.TS_RUNNING ok (s5, a1) else ok (s3, a1)) \u2983 x\u271d => True \u2984"
+  ],
+  "smp.remote_tcb_stall": [
+   "fun",
+   "(do let a1 \u2190 machineArchInst.remote_stall a cpu smp.remote_reschedule machineStoreInst machineArchInst s a1 cpu) \u2983 x\u271d => True \u2984"
+  ],
+  "smp.send_pending": [
+   "fun",
+   "(do let a1 \u2190 machineArchInst.send_reschedule a m ok (s1, a1)) \u2983 x\u271d => True \u2984"
   ],
   "sporadic.budget_check_loop0": [
    "loop",

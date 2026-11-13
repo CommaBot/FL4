@@ -29,6 +29,11 @@ const MAX_TX_ZERO: u64 = 512;
 pub trait Mem {
     fn load(&self, addr: u64) -> u64;
     fn store(&self, addr: u64, v: u64);
+    /// Called while spinning for a table entry (the simulator switches
+    /// cores here).
+    fn relax(&self) {
+        core::hint::spin_loop();
+    }
 }
 
 #[repr(C, align(64))]
@@ -262,7 +267,7 @@ pub fn commit<M: Mem>(cpu: u64, m: &M) -> bool {
                 t.wsaved[e] = v;
                 break;
             }
-            core::hint::spin_loop();
+            m.relax();
         }
     }
     let wv = CLOCK.fetch_add(2, Ordering::AcqRel) + 2;
