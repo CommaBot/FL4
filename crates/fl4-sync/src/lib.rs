@@ -9,17 +9,21 @@
 //! another core's acknowledgement.
 #![no_std]
 
-use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use core::sync::atomic::{AtomicU64, Ordering};
+use fl4_store::tx::Mem;
 
 pub const MAX_CPUS: usize = 64;
 
 pub struct SerialGate {
-    next: AtomicU32,
-    serving: AtomicU32,
-    /// A serial entry holds, or is waiting to hold, the gate.
-    closed: AtomicBool,
-    /// Cores running a transaction.
-    active: [AtomicBool; MAX_CPUS],
+    next: AtomicU64,
+    serving: AtomicU64,
+    /// A serial entry holds, or is waiting to hold, the gate (0 or 1).
+    closed: AtomicU64,
+    /// Cores running a transaction (0 or 1). Its store and the gate
+    /// holder's store of `closed` are SeqCst, followed by a load of the
+    /// other: a Dekker handshake, which needs the store-load order that
+    /// x86 gives only to locked stores.
+    active: [AtomicU64; MAX_CPUS],
     /// Core holding the gate, or u64::MAX.
     owner: AtomicU64,
 }
@@ -27,66 +31,69 @@ pub struct SerialGate {
 impl SerialGate {
     pub const fn new() -> SerialGate {
         SerialGate {
-            next: AtomicU32::new(0),
-            serving: AtomicU32::new(0),
-            closed: AtomicBool::new(false),
-            active: [const { AtomicBool::new(false) }; MAX_CPUS],
+            next: AtomicU64::new(0),
+            serving: AtomicU64::new(0),
+            closed: AtomicU64::new(0),
+            active: [const { AtomicU64::new(0) }; MAX_CPUS],
             owner: AtomicU64::new(u64::MAX),
         }
     }
 
     /// Start a transaction on core `cpu`: wait while the gate is closed.
-    pub fn enter_tx(&self, cpu: u64, mut wait: impl FnMut()) {
+    pub fn enter_tx<M: Mem>(&self, m: &M, cpu: u64, mut wait: impl FnMut()) {
         let a = &self.active[cpu as usize];
         loop {
-            while self.closed.load(Ordering::Acquire) {
+            while m.a_load(&self.closed, Ordering::Acquire) != 0 {
                 wait();
                 core::hint::spin_loop();
             }
-            a.store(true, Ordering::SeqCst);
-            if !self.closed.load(Ordering::SeqCst) {
+            // (Mutation test: `mutant-gate-release` drops the store-load
+            // order, which only the store-buffer model can show.)
+            let o = if cfg!(feature = "mutant-gate-release") { Ordering::Release } else { Ordering::SeqCst };
+            m.a_store(a, 1, o);
+            if m.a_load(&self.closed, Ordering::SeqCst) == 0 {
                 return;
             }
-            a.store(false, Ordering::Release);
+            m.a_store(a, 0, Ordering::Release);
         }
     }
 
     /// The transaction on `cpu` has committed or given up.
-    pub fn leave_tx(&self, cpu: u64) {
-        self.active[cpu as usize].store(false, Ordering::Release);
+    pub fn leave_tx<M: Mem>(&self, m: &M, cpu: u64) {
+        m.a_store(&self.active[cpu as usize], 0, Ordering::Release);
     }
 
     /// Take the gate for core `cpu`: wait for earlier serial entries, close
     /// the gate, and wait for running transactions to finish.
-    pub fn acquire(&self, cpu: u64, mut wait: impl FnMut()) {
-        let ticket = self.next.fetch_add(1, Ordering::Relaxed);
-        while self.serving.load(Ordering::Acquire) != ticket {
+    pub fn acquire<M: Mem>(&self, m: &M, cpu: u64, mut wait: impl FnMut()) {
+        let ticket = m.a_add(&self.next, 1, Ordering::Relaxed);
+        while m.a_load(&self.serving, Ordering::Acquire) != ticket {
             wait();
             core::hint::spin_loop();
         }
-        self.closed.store(true, Ordering::SeqCst);
+        m.a_store(&self.closed, 1, Ordering::SeqCst);
         for (c, a) in self.active.iter().enumerate() {
             // (Mutation test: `mutant-gate-no-wait` does not wait.)
             if c as u64 == cpu || cfg!(feature = "mutant-gate-no-wait") {
                 continue;
             }
-            while a.load(Ordering::SeqCst) {
+            while m.a_load(a, Ordering::SeqCst) != 0 {
                 wait();
                 core::hint::spin_loop();
             }
         }
-        self.owner.store(cpu, Ordering::Relaxed);
+        m.a_store(&self.owner, cpu, Ordering::Relaxed);
     }
 
-    pub fn release(&self) {
-        self.owner.store(u64::MAX, Ordering::Relaxed);
-        let s = self.serving.load(Ordering::Relaxed);
+    pub fn release<M: Mem>(&self, m: &M) {
+        m.a_store(&self.owner, u64::MAX, Ordering::Relaxed);
+        let s = m.a_load(&self.serving, Ordering::Relaxed);
         let next = s.wrapping_add(1);
         // Keep the gate closed if another serial entry is waiting.
-        if self.next.load(Ordering::Relaxed) == next {
-            self.closed.store(false, Ordering::Release);
+        if m.a_load(&self.next, Ordering::Relaxed) == next {
+            m.a_store(&self.closed, 0, Ordering::Release);
         }
-        self.serving.store(next, Ordering::Release);
+        m.a_store(&self.serving, next, Ordering::Release);
     }
 
     pub fn owner(&self) -> u64 {
@@ -165,12 +172,12 @@ pub fn run_entry<E: EntryEnv>(
         }
     };
     for _ in 0..TX_ATTEMPTS {
-        gate.enter_tx(cpu, wait);
+        gate.enter_tx(env.mem(), cpu, wait);
         if stalled.get() && !irq {
-            gate.leave_tx(cpu);
+            gate.leave_tx(env.mem(), cpu);
             return false;
         }
-        tx::begin(cpu);
+        tx::begin(cpu, env.mem());
         env.set_tx(true);
         let mut s = env.store(true);
         body(&mut s, &mut a);
@@ -178,7 +185,7 @@ pub fn run_entry<E: EntryEnv>(
         let ok = tx::commit(cpu, env.mem());
         let serial = tx::needs_serial(cpu);
         tx::end(cpu);
-        gate.leave_tx(cpu);
+        gate.leave_tx(env.mem(), cpu);
         env.finish_effects(ok);
         if ok {
             env.count(Count::Commit);
@@ -191,7 +198,7 @@ pub fn run_entry<E: EntryEnv>(
         }
     }
     env.count(Count::Serial);
-    gate.acquire(cpu, wait);
+    gate.acquire(env.mem(), cpu, wait);
     env.holding_gate();
     if stalled.get() && !irq {
         return false;

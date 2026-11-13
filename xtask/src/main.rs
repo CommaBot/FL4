@@ -550,6 +550,7 @@ fn sim(o: &Opts) {
     run(Command::new(&bin).args(base).args(["--steps", "20000"]));
     run(Command::new(&bin).args(base).args(["--steps", "8000", "--conc"]));
     run(Command::new(&bin).args(base).args(["--steps", "8000", "--conc", "--pct", "3"]));
+    run(Command::new(&bin).args(base).args(["--steps", "8000", "--tso"]));
     // The same campaign with every entry under the serial gate, the
     // test-only differential configuration.
     let dir = r.join("target/serial-gate");
@@ -557,30 +558,30 @@ fn sim(o: &Opts) {
     run(Command::new(dir.join("release/fl4-sim")).args(base).args(["--steps", "8000", "--conc"]));
 }
 
-/// Mutation testing (DESIGN.md §10): the simulator must fail each
-/// known-broken runtime in a 100-seed concurrent campaign under the random
-/// scheduler; the PCT campaign's catch rate is reported too.
+/// Mutation testing (DESIGN.md §10): each known-broken runtime must fail
+/// seeds of a 100-seed concurrent campaign under at least one of the
+/// schedulers (random, PCT, random on the x86-TSO store-buffer model); the
+/// catch rate of each is reported.
 fn mutants() {
     let r = root();
     let mut ok = true;
-    for m in ["mutant-skip-validation", "mutant-no-publish", "mutant-gate-no-wait"] {
+    for m in ["mutant-skip-validation", "mutant-no-publish", "mutant-gate-no-wait", "mutant-gate-release"] {
         let dir = r.join("target").join(m);
         run(Command::new("cargo").current_dir(&r).args(["build", "--quiet", "--release", "-p", "fl4-sim", "--features", m, "--target-dir"]).arg(&dir));
-        for sched in [&[][..], &["--pct", "3"][..]] {
+        let mut caught = false;
+        for sched in [&["--conc"][..], &["--conc", "--pct", "3"][..], &["--tso"][..]] {
             let out = Command::new(dir.join("release/fl4-sim"))
-                .args(["--seeds", "100", "--cores", "4", "--steps", "4000", "--conc", "--timeout", "60", "--no-shrink"])
+                .args(["--seeds", "100", "--cores", "4", "--steps", "4000", "--timeout", "60", "--no-shrink"])
                 .args(sched)
                 .output()
                 .unwrap();
             let text = String::from_utf8_lossy(&out.stdout);
             let failed = text.lines().filter(|l| l.contains("failed:") && l.starts_with("fl4-sim: seed")).count();
-            let name = if sched.is_empty() { "random" } else { "PCT" };
+            let name = sched[1..].first().map_or(if sched[0] == "--tso" { "TSO" } else { "random" }, |_| "PCT");
             eprintln!("xtask: {m} ({name}): {failed}/100 seeds fail");
-            // PCT preempts rarely, so a preempted transaction usually reads
-            // something another core wrote meanwhile and aborts: it is
-            // reported, but only the random scheduler must catch each one.
-            ok &= failed > 0 || !sched.is_empty();
+            caught |= failed > 0;
         }
+        ok &= caught;
     }
     if !ok {
         fail("a mutant survived the simulator");

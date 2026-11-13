@@ -146,7 +146,7 @@ fn service_remote() -> bool {
 pub fn lock() -> bool {
     let stalled = core::cell::Cell::new(false);
     if smp::multi() {
-        GATE.acquire(percpu::cpu_index() as u64, || {
+        GATE.acquire(&Phys, percpu::cpu_index() as u64, || {
             if service_remote() {
                 stalled.set(true);
             }
@@ -160,7 +160,7 @@ fn unlock() {
     let pc = percpu::get();
     if pc.gate_held {
         pc.gate_held = false;
-        GATE.release();
+        GATE.release(&Phys);
     }
 }
 

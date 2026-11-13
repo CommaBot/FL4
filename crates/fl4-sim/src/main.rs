@@ -68,6 +68,18 @@ struct Conc {
     /// writes.
     rlog: Vec<Mutex<Vec<(u64, u64)>>>,
     wlog: Vec<Mutex<HashMap<u64, u64>>>,
+    /// x86-TSO (DESIGN.md §10): per core, the stores not yet visible to
+    /// other cores, oldest first. Off unless `--tso`.
+    tso: bool,
+    sb: Vec<Mutex<std::collections::VecDeque<(Target, u64)>>>,
+}
+
+/// What a buffered store writes: a word of simulated memory, or one of the
+/// runtime's atomics (version table, clock, serial gate).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Target {
+    Word(u64),
+    Atomic(usize),
 }
 
 /// The snapshot checker (DESIGN.md §10): every value a committed
@@ -138,7 +150,7 @@ const SPIN_LIMIT: u64 = 2_000_000;
 
 impl Conc {
     /// `pct`: run PCT of that depth over about `points` scheduling points.
-    fn new(n: u64, seed: u64, pct: Option<(u64, u64)>) -> Conc {
+    fn new(n: u64, seed: u64, pct: Option<(u64, u64)>, tso: bool) -> Conc {
         let mut rng = Rng(seed ^ 0x5DEE_CE66_D1CE_4E5B | 1);
         let pct = pct.map(|(depth, points)| {
             let mut prio: Vec<i64> = (0..n as i64).map(|i| depth as i64 + 1 + i).collect();
@@ -160,6 +172,8 @@ impl Conc {
             check: Mutex::new(Checker::default()),
             rlog: (0..n).map(|_| Mutex::new(Vec::new())).collect(),
             wlog: (0..n).map(|_| Mutex::new(HashMap::new())).collect(),
+            tso,
+            sb: (0..n).map(|_| Mutex::new(std::collections::VecDeque::new())).collect(),
         }
     }
 
@@ -262,14 +276,19 @@ impl SimStore {
     /// under the serial gate (no transaction runs), unversioned otherwise.
     fn direct_set(&self, addr: u64, v: u64) {
         if let Some(c) = &self.conc {
-            let old = self.mem.get(addr);
+            let old = self.mem_get(addr);
             let mut k = c.check.lock().unwrap();
             if !c.gate_held[self.cpu as usize].load(Ordering::SeqCst) {
                 k.unversioned.insert(addr);
             }
             k.record(addr, old, v, tx::clock());
         }
-        self.mem.set(addr, v)
+        if self.tso().is_some() {
+            // In order with this core's buffered commit stores.
+            self.buffer(Target::Word(addr), v);
+        } else {
+            self.mem.set(addr, v)
+        }
     }
 
     fn log_read(&self, addr: u64, v: u64) {
@@ -293,23 +312,116 @@ impl SimStore {
     }
 }
 
+impl SimStore {
+    fn tso(&self) -> Option<&Arc<Conc>> {
+        self.conc.as_ref().filter(|c| c.tso)
+    }
+
+    /// This core's newest buffered store to `t`, if any (store forwarding).
+    fn forward(&self, t: Target) -> Option<u64> {
+        let c = self.tso()?;
+        let sb = c.sb[self.cpu as usize].lock().unwrap();
+        sb.iter().rev().find(|(x, _)| *x == t).map(|(_, v)| *v)
+    }
+
+    fn buffer(&self, t: Target, v: u64) {
+        self.tso().unwrap().sb[self.cpu as usize].lock().unwrap().push_back((t, v));
+    }
+
+    fn apply(&self, t: Target, v: u64) {
+        match t {
+            Target::Word(a) => self.mem.set(a, v),
+            Target::Atomic(p) => unsafe { (*(p as *const AtomicU64)).store(v, Ordering::SeqCst) },
+        }
+    }
+
+    /// Make this core's buffered stores visible, oldest first (a locked
+    /// instruction, MFENCE, or the end of a kernel entry).
+    fn drain(&self) {
+        if let Some(c) = self.tso() {
+            let pending: Vec<_> = c.sb[self.cpu as usize].lock().unwrap().drain(..).collect();
+            for (t, v) in pending {
+                self.apply(t, v);
+            }
+        }
+    }
+
+    /// Now and then the oldest buffered store becomes visible by itself.
+    fn maybe_drain_one(&self) {
+        if let Some(c) = self.tso() {
+            if c.baton.lock().unwrap().rng.below(8) == 0 {
+                let e = c.sb[self.cpu as usize].lock().unwrap().pop_front();
+                if let Some((t, v)) = e {
+                    self.apply(t, v);
+                }
+            }
+        }
+    }
+
+    /// A plain load of kernel memory: this core's own buffered stores
+    /// first.
+    fn mem_get(&self, addr: u64) -> u64 {
+        self.forward(Target::Word(addr)).unwrap_or_else(|| self.mem.get(addr))
+    }
+}
+
 impl tx::Mem for SimStore {
     fn load(&self, addr: u64) -> u64 {
         self.pause();
-        self.mem.get(addr)
+        self.maybe_drain_one();
+        self.mem_get(addr)
     }
     // Only commits write memory through `Mem`.
     fn store(&self, addr: u64, v: u64) {
         self.pause();
         if let Some(c) = &self.conc {
-            let old = self.mem.get(addr);
+            let old = self.mem_get(addr);
             c.check.lock().unwrap().record(addr, old, v, tx::commit_version(self.cpu));
         }
-        self.mem.set(addr, v)
+        if self.tso().is_some() {
+            self.buffer(Target::Word(addr), v);
+        } else {
+            self.mem.set(addr, v)
+        }
     }
     fn relax(&self) {
+        // A spinning core's stores reach memory eventually; let them.
+        self.drain();
         if let Some(c) = &self.conc {
             c.spin(self.cpu);
+        }
+    }
+    fn a_load(&self, a: &AtomicU64, o: Ordering) -> u64 {
+        self.pause();
+        self.maybe_drain_one();
+        let _ = o;
+        self.forward(Target::Atomic(a as *const _ as usize)).unwrap_or_else(|| a.load(Ordering::SeqCst))
+    }
+    fn a_store(&self, a: &AtomicU64, v: u64, o: Ordering) {
+        self.pause();
+        // On x86 only a SeqCst store is a locked instruction (XCHG);
+        // release and relaxed stores are plain MOVs into the buffer.
+        if self.tso().is_some() && o != Ordering::SeqCst {
+            self.buffer(Target::Atomic(a as *const _ as usize), v);
+        } else {
+            self.drain();
+            a.store(v, Ordering::SeqCst)
+        }
+    }
+    fn a_cas(&self, a: &AtomicU64, old: u64, new: u64, _ok: Ordering, _err: Ordering) -> Result<u64, u64> {
+        self.pause();
+        self.drain();
+        a.compare_exchange(old, new, Ordering::SeqCst, Ordering::SeqCst)
+    }
+    fn a_add(&self, a: &AtomicU64, v: u64, _o: Ordering) -> u64 {
+        self.pause();
+        self.drain();
+        a.fetch_add(v, Ordering::SeqCst)
+    }
+    fn fence(&self, o: Ordering) {
+        // Acquire and release fences are free on x86; only SeqCst drains.
+        if o == Ordering::SeqCst {
+            self.drain();
         }
     }
 }
@@ -322,7 +434,7 @@ impl Store for SimStore {
             v
         } else {
             self.pause();
-            self.mem.get(addr)
+            self.mem_get(addr)
         }
     }
     fn write(&mut self, addr: u64, v: u64) {
@@ -598,6 +710,8 @@ impl SimEnv {
         let mut s = SimStore { tx: false, ..self.s.clone() };
         let mut a = self.a.clone();
         fl4_core::smp::stall(&mut s, &mut a);
+        // The acknowledgement is a locked instruction: it drains.
+        s.drain();
         self.conc.call_pending.fetch_and(!me, Ordering::SeqCst);
         true
     }
@@ -739,8 +853,11 @@ impl Sim {
         let env = SimEnv { s: self.s.clone(), a: self.a.clone(), conc: conc.clone() };
         fl4_sync::run_entry(&env, &GATE, irq, &mut body);
         if conc.gate_held[cpu].swap(false, Ordering::SeqCst) {
-            GATE.release();
+            GATE.release(&self.s);
         }
+        // Leaving the kernel (IRET, SYSRET after a serializing write)
+        // drains the store buffer.
+        self.s.drain();
         conc.in_kernel[cpu].store(false, Ordering::SeqCst);
     }
 
@@ -1467,7 +1584,7 @@ impl Sim {
     }
 }
 
-fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool, pct: Option<u64>) {
+fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool, pct: Option<u64>, tso: bool) {
     let mut sim = Sim::new(seed, ncores);
     sim.boot();
     sim.setup();
@@ -1495,7 +1612,7 @@ fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool, 
     }
     if concurrent && ncores > 1 {
         // One host thread per core, interleaved at memory accesses.
-        let conc = Arc::new(Conc::new(ncores, seed, pct.map(|d| (d, steps * 50))));
+        let conc = Arc::new(Conc::new(ncores, seed, pct.map(|d| (d, steps * 50)), tso));
         sim.s.conc = Some(conc.clone());
         sim.a.conc = Some(conc.clone());
         let per_core = steps / ncores;
@@ -1564,6 +1681,7 @@ struct Run {
     steps: u64,
     conc: bool,
     pct: Option<u64>,
+    tso: bool,
 }
 
 impl Run {
@@ -1571,6 +1689,9 @@ impl Run {
         let mut v = vec!["--one".into(), self.seed.to_string(), "--cores".into(), self.cores.to_string(), "--steps".into(), self.steps.to_string()];
         if self.conc {
             v.push("--conc".into());
+        }
+        if self.tso {
+            v.push("--tso".into());
         }
         if let Some(d) = self.pct {
             v.push("--pct".into());
@@ -1632,7 +1753,7 @@ impl Run {
     }
 
     fn line(&self) -> String {
-        format!("{} {} {} {} {}", self.seed, self.cores, self.steps, if self.conc { "conc" } else { "serial" }, self.pct.map_or("random".to_string(), |d| format!("pct{d}")))
+        format!("{} {} {} {} {}", self.seed, self.cores, self.steps, if self.tso { "tso" } else if self.conc { "conc" } else { "serial" }, self.pct.map_or("random".to_string(), |d| format!("pct{d}")))
     }
 
     fn parse(l: &str) -> Option<Run> {
@@ -1644,8 +1765,9 @@ impl Run {
             seed: f[0].parse().ok()?,
             cores: f[1].parse().ok()?,
             steps: f[2].parse().ok()?,
-            conc: f[3] == "conc",
+            conc: f[3] == "conc" || f[3] == "tso",
             pct: f[4].strip_prefix("pct").and_then(|d| d.parse().ok()),
+            tso: f[3] == "tso",
         })
     }
 }
@@ -1663,10 +1785,11 @@ fn main() {
     let verbose = args.iter().any(|a| a == "--verbose");
     let conc = args.iter().any(|a| a == "--conc");
     let pct = args.iter().position(|a| a == "--pct").map(|_| opt("--pct", 3));
+    let tso = args.iter().any(|a| a == "--tso");
     if let Some(i) = args.iter().position(|a| a == "--one") {
         let seed = args[i + 1].parse().unwrap();
         TRACE.store(args.iter().any(|a| a == "--trace"), Ordering::Relaxed);
-        run_one(seed, cores, steps, verbose, conc, pct);
+        run_one(seed, cores, steps, verbose, conc || tso, pct, tso);
         return;
     }
     let seeds = opt("--seeds", 100);
@@ -1683,7 +1806,7 @@ fn main() {
         }
     }
     for seed in first..first + seeds {
-        let r = Run { seed, cores, steps, conc, pct };
+        let r = Run { seed, cores, steps, conc: conc || tso, pct, tso };
         if let Some(why) = r.exec(timeout, verbose) {
             failed += 1;
             println!("fl4-sim: seed {seed} ({cores} cores) failed: {why}");

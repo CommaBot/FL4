@@ -15,3 +15,4 @@ fl4-store = { path = "../fl4-store" }
 serial-gate = []
 # Mutation testing only (DESIGN.md §10).
 mutant-gate-no-wait = []
+mutant-gate-release = []

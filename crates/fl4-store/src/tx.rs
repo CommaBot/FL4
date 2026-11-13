@@ -34,6 +34,30 @@ pub trait Mem {
     fn relax(&self) {
         core::hint::spin_loop();
     }
+    // The runtime's own atomics (version table, clock, serial gate) go
+    // through these too, so the simulator can run them on a store-buffer
+    // model of x86-TSO (DESIGN.md §10). On hardware they are the
+    // operations themselves.
+    #[inline(always)]
+    fn a_load(&self, a: &AtomicU64, o: Ordering) -> u64 {
+        a.load(o)
+    }
+    #[inline(always)]
+    fn a_store(&self, a: &AtomicU64, v: u64, o: Ordering) {
+        a.store(v, o)
+    }
+    #[inline(always)]
+    fn a_cas(&self, a: &AtomicU64, old: u64, new: u64, ok: Ordering, err: Ordering) -> Result<u64, u64> {
+        a.compare_exchange_weak(old, new, ok, err)
+    }
+    #[inline(always)]
+    fn a_add(&self, a: &AtomicU64, v: u64, o: Ordering) -> u64 {
+        a.fetch_add(v, o)
+    }
+    #[inline(always)]
+    fn fence(&self, o: Ordering) {
+        core::sync::atomic::fence(o)
+    }
 }
 
 #[repr(C, align(64))]
@@ -132,7 +156,7 @@ fn st(cpu: u64) -> &'static mut TxState {
 }
 
 /// Start a transaction on `cpu`.
-pub fn begin(cpu: u64) {
+pub fn begin<M: Mem>(cpu: u64, m: &M) {
     let t = st(cpu);
     t.gen = t.gen.wrapping_add(1);
     if t.gen == 0 {
@@ -145,7 +169,7 @@ pub fn begin(cpu: u64) {
     t.nwstripes = 0;
     t.nw = 0;
     t.doom = DOOM_NONE;
-    t.rv = CLOCK.load(Ordering::Acquire);
+    t.rv = m.a_load(&CLOCK, Ordering::Acquire);
     t.active = true;
 }
 
@@ -221,15 +245,15 @@ pub fn read<M: Mem>(cpu: u64, m: &M, addr: u64) -> u64 {
         }
     }
     let e = stripe(addr);
-    let v1 = TABLE[e].0.load(Ordering::Acquire);
+    let v1 = m.a_load(&TABLE[e].0, Ordering::Acquire);
     if v1 & 1 != 0 || v1 > t.rv {
         t.doom = DOOM_CONFLICT;
         log_conflict(cpu, addr);
         return 0;
     }
     let v = m.load(addr);
-    core::sync::atomic::fence(Ordering::Acquire);
-    if TABLE[e].0.load(Ordering::Relaxed) != v1 {
+    m.fence(Ordering::Acquire);
+    if m.a_load(&TABLE[e].0, Ordering::Relaxed) != v1 {
         t.doom = DOOM_CONFLICT;
         log_conflict(cpu, addr);
         return 0;
@@ -301,15 +325,15 @@ pub fn commit<M: Mem>(cpu: u64, m: &M) -> bool {
     for &e in ws.iter() {
         let e = e as usize;
         loop {
-            let v = TABLE[e].0.load(Ordering::Relaxed);
-            if v & 1 == 0 && TABLE[e].0.compare_exchange_weak(v, v | 1, Ordering::Acquire, Ordering::Relaxed).is_ok() {
+            let v = m.a_load(&TABLE[e].0, Ordering::Relaxed);
+            if v & 1 == 0 && m.a_cas(&TABLE[e].0, v, v | 1, Ordering::Acquire, Ordering::Relaxed).is_ok() {
                 t.wsaved[e] = v;
                 break;
             }
             m.relax();
         }
     }
-    let wv = CLOCK.fetch_add(2, Ordering::AcqRel) + 2;
+    let wv = m.a_add(&CLOCK, 2, Ordering::AcqRel) + 2;
     // Unless no other writer committed since we began, check the reads.
     // (Mutation test: `mutant-skip-validation` leaves the check out.)
     if wv != t.rv + 2 && !cfg!(feature = "mutant-skip-validation") {
@@ -318,13 +342,13 @@ pub fn commit<M: Mem>(cpu: u64, m: &M) -> bool {
             let ok = if t.wstamp[e] == t.gen {
                 t.wsaved[e] <= t.rv
             } else {
-                let v = TABLE[e].0.load(Ordering::Acquire);
+                let v = m.a_load(&TABLE[e].0, Ordering::Acquire);
                 v & 1 == 0 && v <= t.rv
             };
             if !ok {
                 log_conflict(cpu, (1 << 63) | e as u64);
                 for &e in t.wstripes[..t.nwstripes].iter() {
-                    TABLE[e as usize].0.store(t.wsaved[e as usize], Ordering::Release);
+                    m.a_store(&TABLE[e as usize].0, t.wsaved[e as usize], Ordering::Release);
                 }
                 t.doom = DOOM_CONFLICT;
                 return false;
@@ -339,7 +363,7 @@ pub fn commit<M: Mem>(cpu: u64, m: &M) -> bool {
     for &e in t.wstripes[..t.nwstripes].iter() {
         // (Mutation test: `mutant-no-publish` unlocks at the old version.)
         let v = if cfg!(feature = "mutant-no-publish") { t.wsaved[e as usize] } else { wv };
-        TABLE[e as usize].0.store(v, Ordering::Release);
+        m.a_store(&TABLE[e as usize].0, v, Ordering::Release);
     }
     true
 }
