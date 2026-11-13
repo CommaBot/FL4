@@ -41,7 +41,9 @@ theorem SlotRel.cap_eq {mem : U64 → U64} {a : U64} {o : Option Fl4Spec.Cap} {c
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
-theorem insert_refines (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+/-- `insert_refines` with `hsib` assumed only for the outcome (the
+computation itself terminates regardless). -/
+theorem insert_refines' (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
     (hM : MdbLinks th (L.mem s) G) (hC : CdtRel th (L.mem s) σ G)
     {ps pd : U64} {rs rd : Nat} (hps : th ps = some (.cnode rs)) (hpd : th pd = some (.cnode rd))
@@ -50,11 +52,11 @@ theorem insert_refines (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : M
     (hsnn : srcC ≠ .Null)
     (hdst : capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null)
     (c : capability.Cap) (a : Fl4Spec.Cap) (hca : CapRel c a) (hcv : CapValid th c) (he : EncWf c)
-    (hcnn : c ≠ .Null) (hk : SameBadgeKind c srcC)
-    (hsib : ¬ Fl4Spec.shouldBeParentOf (absCap srcC) (σ.isOriginalCap (ps.bv, idxs)) a
-        (decide (Fl4Spec.isCapRevocable a (absCap srcC))) →
-      ∀ y, ¬ Mdb.Desc G.par y (cslotAddr (ps.bv, idxs))) :
+    (hcnn : c ≠ .Null) (hk : SameBadgeKind c srcC) :
     cdt.insert st s c (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd)) ⦃ s' =>
+      (¬ Fl4Spec.shouldBeParentOf (absCap srcC) (σ.isOriginalCap (ps.bv, idxs)) a
+        (decide (Fl4Spec.isCapRevocable a (absCap srcC))) →
+        ∀ y, ¬ Mdb.Desc G.par y (cslotAddr (ps.bv, idxs))) →
       ∃ σ' G', Fl4Spec.capInsert (Z := Unit) a (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False) ∧
         StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
         CdtRel th (L.mem s') σ' G' ⦄ := by
@@ -102,7 +104,7 @@ theorem insert_refines (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : M
   have hgs : Fl4Spec.getCap (Z := Unit) (ps.bv, idxs) σ = ({(absCap srcC, σ)}, False) := getCap_cnode hks hwfs hsA
   have hgd : Fl4Spec.getCap (Z := Unit) (pd.bv, idxd) σ = ({(.nullCap, σ)}, False) := getCap_cnode hkd hwfd hdA
   apply WP.spec_mono (insert_mem hP s c src dest hs hd hne srcC hsrcC hnx)
-  intro s' hW
+  intro s' hW hsib
   -- the intermediate state after `set_untyped_cap_as_full`
   obtain ⟨σ1, mem1, h1, hR1, hV1, hcap1, hk1, hio1, hcdt1⟩ : ∃ σ1 mem1,
       Fl4Spec.setUntypedCapAsFull (Z := Unit) (absCap srcC) a (ps.bv, idxs) σ = ({((), σ1)}, False) ∧
@@ -183,6 +185,26 @@ theorem insert_refines (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : M
     have := revF_spec c srcC hk
     cases hr : revF c srcC <;> simp_all
   · rw [if_neg h, if_neg h]
+
+theorem insert_refines (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+    (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
+    (hM : MdbLinks th (L.mem s) G) (hC : CdtRel th (L.mem s) σ G)
+    {ps pd : U64} {rs rd : Nat} (hps : th ps = some (.cnode rs)) (hpd : th pd = some (.cnode rd))
+    {idxs idxd : List Bool} (hls : idxs.length = rs) (hld : idxd.length = rd)
+    {srcC : capability.Cap} (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok srcC)
+    (hsnn : srcC ≠ .Null)
+    (hdst : capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null)
+    (c : capability.Cap) (a : Fl4Spec.Cap) (hca : CapRel c a) (hcv : CapValid th c) (he : EncWf c)
+    (hcnn : c ≠ .Null) (hk : SameBadgeKind c srcC)
+    (hsib : ¬ Fl4Spec.shouldBeParentOf (absCap srcC) (σ.isOriginalCap (ps.bv, idxs)) a
+        (decide (Fl4Spec.isCapRevocable a (absCap srcC))) →
+      ∀ y, ¬ Mdb.Desc G.par y (cslotAddr (ps.bv, idxs))) :
+    cdt.insert st s c (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd)) ⦃ s' =>
+      ∃ σ' G', Fl4Spec.capInsert (Z := Unit) a (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False) ∧
+        StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
+        CdtRel th (L.mem s') σ' G' ⦄ :=
+  WP.spec_mono (insert_refines' th s σ G hR hV hP hM hC hps hpd hls hld hsrcC hsnn hdst c a hca hcv he hcnn hk)
+    (fun _ h => h hsib)
 
 end
 

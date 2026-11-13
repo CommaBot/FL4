@@ -194,6 +194,42 @@ theorem emptySlot_eq {σ σ2 : State Unit} {slot : CslotPtr} {c : Cap}
   rw [nd_bind_one h2]
   rfl
 
+/-- The state after `cap_swap`, from the state `σ2` after its two `set_cap`s. -/
+def capSwapState (σ σ2 : State Unit) (s1 s2 : CslotPtr) : State Unit :=
+  let cdt' := fun n => if σ.cdt n = some s1 then some s2 else if σ.cdt n = some s2 then some s1 else σ.cdt n
+  { σ2 with
+    cdt := Function.update (Function.update cdt' s1 (cdt' s2)) s2 (cdt' s1),
+    isOriginalCap := Function.update (Function.update σ.isOriginalCap s1 (σ.isOriginalCap s2)) s2
+      (σ.isOriginalCap s1) }
+
+theorem capSwap_eq {σ σ1 σ2 : State Unit} {a1 a2 : Cap} {s1 s2 : CslotPtr}
+    (h1 : setCap (Z := Unit) a2 s1 σ = ({((), σ1)}, False))
+    (h2 : setCap (Z := Unit) a1 s2 σ1 = ({((), σ2)}, False))
+    (hio : σ2.isOriginalCap = σ.isOriginalCap) (hcdt : σ2.cdt = σ.cdt) :
+    capSwap (Z := Unit) a1 s1 a2 s2 σ = ({((), capSwapState σ σ2 s1 s2)}, False) := by
+  unfold capSwap
+  show (setCap _ _ >>= _) σ = _
+  rw [nd_bind_one h1]
+  show (setCap _ _ >>= _) σ1 = _
+  rw [nd_bind_one h2]
+  show (NonDet.gets _ >>= _) σ2 = _
+  rw [nd_bind_single (gets_eq _ σ2)]
+  show (NonDet.gets _ >>= _) σ2 = _
+  rw [nd_bind_single (gets_eq _ σ2)]
+  show (NonDet.gets _ >>= _) σ2 = _
+  rw [nd_bind_single (gets_eq _ σ2)]
+  show ((pure _ : NonDet (State Unit) _) >>= _) σ2 = _
+  rw [nd_pure_bind]
+  show (setCdt _ >>= _) σ2 = _
+  rw [nd_bind_one (setCdt_eq _ σ2)]
+  show (doExtendedOp _ >>= _) _ = _
+  rw [nd_bind_single (doExtendedOp_unit _ _)]
+  show (NonDet.gets _ >>= _) _ = _
+  rw [nd_bind_single (gets_eq _ _)]
+  show (setOriginal _ _ >>= _) _ = _
+  rw [nd_bind_one (setOriginal_eq _ _ _), setOriginal_eq]
+  simp only [hio, hcdt, capSwapState]
+
 end
 
 end

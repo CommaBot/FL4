@@ -674,11 +674,16 @@ theorem lookup_cap_and_slot_refines (th : TypedHeap) (s : S) (σ : Fl4Spec.State
       simp only [WP.spec_ok]
       exact ⟨.error lf', run_bind_error he _, hrel⟩
 
-/-- Syscall errors (the cases `lookup_slot_for_cnode_op` produces; the other
-constructors are related as later subsystems need them). -/
+/-- Syscall errors (the cases `lookup_slot_for_cnode_op` and the CNode
+invocations produce; the other constructors are related as later
+subsystems need them). -/
 def SysErrRel : error.Exc → Fl4Spec.SyscallError → Prop
   | .Sys (.RangeError mn mx), .rangeError mn' mx' => mn' = mn.bv ∧ mx' = mx.bv
   | .Sys (.FailedLookup src lf), .failedLookup src' lf' => src' = src ∧ LookupFaultRel lf lf'
+  | .Sys .IllegalOperation, .illegalOperation => True
+  | .Sys .TruncatedMessage, .truncatedMessage => True
+  | .Sys .DeleteFirst, .deleteFirst => True
+  | .Sys .RevokeFirst, .revokeFirst => True
   | _, _ => False
 
 /-- `lookup_slot_for_cnode_op` results: the slot's address (a slot of a

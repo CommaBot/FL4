@@ -6,7 +6,15 @@ import Fl4Proofs.P1.QueuePrio
 import Fl4Proofs.P1.QueueSched
 import Fl4Proofs.P1.QueueRelease
 import Fl4Proofs.P1.QueueEp
+import Fl4Proofs.P1.QueueInv
+import Fl4Proofs.P1.QueueSchedInv
+import Fl4Proofs.P1.QueueCallers
+import Fl4Proofs.P1.QueueChoose
+import Fl4Proofs.P1.QueueSwitch
 import Fl4Proofs.P2.Runtime
 import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine
 import Fl4Proofs.P3.EmptyRefine
+import Fl4Proofs.P3.SwapRefine
+import Fl4Proofs.P3.CnodeCopy
+import Fl4Proofs.P3.Delete
