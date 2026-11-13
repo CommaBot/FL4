@@ -490,6 +490,21 @@ Against the like-for-like baseline FL4 is now at 1.14–1.7×. Cross-address-spa
 
 Closing the gap is M5 work on the general path in `fl4-core`: fewer capability decodes and encodes, repeated loads of the current thread and its fields, and the many small helper calls of a direct transliteration.
 
+Multi-core scaling is measured by fl4test's FL4PERF0002 (`fl4test/perf.c`). It uses only the seL4 API, so it also runs on upstream seL4 with `FL4_KERNEL=sel4`. It runs k independent client/server pairs, pair i on core i, for k = 1 to the number of cores, and prints round trips per million TSC ticks. These are debug builds with 8 unpinned vCPUs on a host shared with other VMs, so expect noise:
+
+| Pairs | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|-------|---|---|---|---|---|---|---|---|
+| seL4  | 96 | 112 | 109 | 109 | 108 | 83 | 65 | 78 |
+| FL4   | 186 | 325 | 347 | 318 | 742 | 861 | 706 | 279 |
+
+seL4 stays flat behind its kernel lock. FL4 reaches 4.6× at 6 pairs, but not smoothly. The transaction log (`fl4_store::tx::conflicts`, printed with the debug statistics) shows why: most aborts come from small objects of *different* pairs sharing a 64-byte stripe. Endpoints are 16 bytes and reply objects 32, both fixed by the seL4 API, and allocators place them next to each other.
+
+Two experiments with 16-byte stripes failed:
+- A hashed table of 16384 entries made the curve smooth (159 to 757, 4.8×) but raised the abort rate to about 15%, through hash collisions.
+- An adjacency-preserving table raised serial entries tenfold.
+
+Near-linear scaling is not met yet. The next steps are pinned vCPUs (`taskset` per vCPU thread), abort counts per phase rather than over the whole run, and a stripe granularity matched to object sizes.
+
 ## 13. Milestones
 
 Ordered by dependency. Each milestone ends with a check that can be run.

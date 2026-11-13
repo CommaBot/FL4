@@ -50,6 +50,24 @@ pub fn stripe(addr: u64) -> usize {
     ((l ^ (l >> 12)) as usize) & (ENTRIES - 1)
 }
 
+/// Per core, the last few conflicts, for diagnosing contention: the word
+/// whose read saw a newer version, or (top bit set) the stripe a commit's
+/// validation failed on. Written only when a transaction aborts.
+pub const CONFLICT_LOG: usize = 8;
+static CONFLICTS: [[AtomicU64; CONFLICT_LOG]; MAX_CPUS] = [const { [const { AtomicU64::new(0) }; CONFLICT_LOG] }; MAX_CPUS];
+static CONFLICT_I: [AtomicU64; MAX_CPUS] = [const { AtomicU64::new(0) }; MAX_CPUS];
+
+fn log_conflict(cpu: u64, what: u64) {
+    let i = CONFLICT_I[cpu as usize].fetch_add(1, Ordering::Relaxed) as usize;
+    CONFLICTS[cpu as usize][i % CONFLICT_LOG].store(what, Ordering::Relaxed);
+}
+
+/// The conflict log of `cpu` (see `CONFLICTS`), most recent last.
+pub fn conflicts(cpu: u64) -> [u64; CONFLICT_LOG] {
+    let n = CONFLICT_I[cpu as usize].load(Ordering::Relaxed) as usize;
+    core::array::from_fn(|k| CONFLICTS[cpu as usize][(n + k) % CONFLICT_LOG].load(Ordering::Relaxed))
+}
+
 const DOOM_NONE: u8 = 0;
 /// A read saw a concurrent commit: retry.
 const DOOM_CONFLICT: u8 = 1;
@@ -206,12 +224,14 @@ pub fn read<M: Mem>(cpu: u64, m: &M, addr: u64) -> u64 {
     let v1 = TABLE[e].0.load(Ordering::Acquire);
     if v1 & 1 != 0 || v1 > t.rv {
         t.doom = DOOM_CONFLICT;
+        log_conflict(cpu, addr);
         return 0;
     }
     let v = m.load(addr);
     core::sync::atomic::fence(Ordering::Acquire);
     if TABLE[e].0.load(Ordering::Relaxed) != v1 {
         t.doom = DOOM_CONFLICT;
+        log_conflict(cpu, addr);
         return 0;
     }
     if t.rstamp[e] != t.gen {
@@ -302,6 +322,7 @@ pub fn commit<M: Mem>(cpu: u64, m: &M) -> bool {
                 v & 1 == 0 && v <= t.rv
             };
             if !ok {
+                log_conflict(cpu, (1 << 63) | e as u64);
                 for &e in t.wstripes[..t.nwstripes].iter() {
                     TABLE[e as usize].0.store(t.wsaved[e as usize], Ordering::Release);
                 }

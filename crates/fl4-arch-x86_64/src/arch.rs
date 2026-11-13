@@ -310,6 +310,20 @@ pub fn print_stats() {
     for &b in &line[..n] {
         serial::putc(b);
     }
+    // This core's recent conflicts (fl4_store::tx::conflicts), in hex.
+    let hex = |v: u64| {
+        for i in (0..16).rev() {
+            serial::putc(b"0123456789abcdef"[((v >> (4 * i)) & 15) as usize]);
+        }
+    };
+    for b in b"FL4: recent conflicts:" {
+        serial::putc(*b);
+    }
+    for c in fl4_store::tx::conflicts(percpu::cpu_index() as u64) {
+        serial::putc(b' ');
+        hex(c);
+    }
+    serial::putc(b'\n');
 }
 
 /// "FL4: N transactions committed, N aborted, N serial entries\n".

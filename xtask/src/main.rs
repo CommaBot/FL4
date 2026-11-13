@@ -347,6 +347,11 @@ fn sel4test_build(o: &Opts, fl4test: bool) -> PathBuf {
     if fs::symlink_metadata(&link).is_err() && !upstream() {
         std::os::unix::fs::symlink(root().join("fl4test/fl4test.c"), &link).unwrap();
     }
+    // perf.c uses only the seL4 API: both kernels build it.
+    let perf = ws.join("projects/sel4test/apps/sel4test-tests/src/tests/fl4perf.c");
+    if fs::symlink_metadata(&perf).is_err() {
+        std::os::unix::fs::symlink(root().join("fl4test/perf.c"), &perf).unwrap();
+    }
     // FL4_TESTS=<regex> runs only the matching tests, in its own build.
     let only = env::var("FL4_TESTS").ok().or(if fl4test { Some(FL4TEST_REGEX.into()) } else { None });
     let mut name = format!("build-{}-smp{}", if o.release { "release" } else { "debug" }, o.smp);
