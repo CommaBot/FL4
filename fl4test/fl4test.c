@@ -409,3 +409,96 @@ static int test_error_string_empty(env_t env)
     return sel4test_get_result();
 }
 DEFINE_TEST(FL4ERR0001, "A failed invocation reports no stale error string (l4h 0008)", test_error_string_empty, true)
+
+/* ---- IPC round trips (DESIGN.md §12, performance) ------------------- */
+
+static int ipc_server(seL4_Word ep, seL4_Word reply, seL4_Word c, seL4_Word d)
+{
+    seL4_Word badge;
+    seL4_Recv(ep, &badge, reply);
+    while (1) {
+        seL4_ReplyRecv(ep, seL4_MessageInfo_new(0, 0, 0, 0), &badge, reply);
+    }
+    return 0;
+}
+
+/* Not a pass/fail check: prints the cost of a same-address-space
+ * Call/ReplyRecv round trip, and gives a profiler a steady IPC loop. */
+static int test_ipc_round_trip(env_t env)
+{
+    enum { N = 2000000 };
+    helper_thread_t server;
+    vka_object_t reply;
+    test_error_eq(vka_alloc_reply(&env->vka, &reply), 0);
+    seL4_CPtr ep = vka_alloc_endpoint_leaky(&env->vka);
+    create_helper_thread(env, &server);
+    set_helper_priority(env, &server, env->priority);
+    start_helper(env, &server, ipc_server, ep, reply.cptr, 0, 0);
+    seL4_Call(ep, seL4_MessageInfo_new(0, 0, 0, 0));
+    uint64_t t0 = rdtsc();
+    for (int i = 0; i < N; i++) {
+        seL4_Call(ep, seL4_MessageInfo_new(0, 0, 0, 0));
+    }
+    uint64_t t1 = rdtsc();
+    printf("FL4 IPC: %lu TSC ticks per Call/ReplyRecv round trip\n", (unsigned long)((t1 - t0) / N));
+    cleanup_helper(env, &server);
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4PERF0001, "IPC round trip cost (printed, not checked)", test_ipc_round_trip, true)
+
+/* ---- Lazy FPU switching (DESIGN.md §3) ------------------------------ */
+
+static inline void xmm1_set(uint64_t v)
+{
+    __asm__ volatile("movq %0, %%xmm1" :: "r"(v) : "xmm1");
+}
+
+static inline uint64_t xmm1_get(void)
+{
+    uint64_t v;
+    __asm__ volatile("movq %%xmm1, %0" : "=r"(v));
+    return v;
+}
+
+static int fpu_pong(seL4_Word ep, seL4_Word reply, seL4_Word c, seL4_Word d)
+{
+    seL4_Word badge;
+    seL4_Recv(ep, &badge, reply);
+    xmm1_set(0x5e5e5e5e00000000ull);
+    seL4_Word bad = 0;
+    while (1) {
+        if (xmm1_get() != 0x5e5e5e5e00000000ull) {
+            bad++;
+        }
+        seL4_SetMR(0, bad);
+        seL4_ReplyRecv(ep, seL4_MessageInfo_new(0, 0, 0, 1), &badge, reply);
+    }
+    return 0;
+}
+
+/* Two threads keep different values in xmm1 across IPCs: each must see its
+ * own after every switch, whichever way the FPU is switched. */
+static int test_fpu_ping_pong(env_t env)
+{
+    helper_thread_t server;
+    vka_object_t reply;
+    test_error_eq(vka_alloc_reply(&env->vka, &reply), 0);
+    seL4_CPtr ep = vka_alloc_endpoint_leaky(&env->vka);
+    create_helper_thread(env, &server);
+    set_helper_priority(env, &server, env->priority);
+    start_helper(env, &server, fpu_pong, ep, reply.cptr, 0, 0);
+    seL4_Call(ep, seL4_MessageInfo_new(0, 0, 0, 0));
+    int mine_bad = 0;
+    for (int i = 0; i < 10000; i++) {
+        xmm1_set(0xc1c1c1c100000000ull + i);
+        seL4_Call(ep, seL4_MessageInfo_new(0, 0, 0, 0));
+        if (xmm1_get() != 0xc1c1c1c100000000ull + i) {
+            mine_bad++;
+        }
+    }
+    test_eq(mine_bad, 0);
+    test_eq((int) seL4_GetMR(0), 0);
+    cleanup_helper(env, &server);
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4FPU0003, "Threads keep their own FPU registers across IPC", test_fpu_ping_pong, true)

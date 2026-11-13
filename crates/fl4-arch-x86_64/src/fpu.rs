@@ -4,6 +4,15 @@
 //! switch to and from the idle thread or an FPU-less thread costs nothing.
 //! Threads with seL4_TCBFlag_fpuDisabled run with CR0.TS set and get #NM.
 //!
+//! On CPUs that LazyFP (CVE-2018-3665) does not affect, the switch is lazy
+//! (DESIGN.md §3): a thread that does not own the registers runs with
+//! CR0.TS set, and its first FPU instruction traps (#NM) to `lazy_load`,
+//! which saves the owner's state and loads the thread's. A thread that
+//! never touches the FPU between IPCs then costs no FPU work at all. On
+//! Intel CPUs, where #NM-deferred state can leak through speculation, the
+//! switch stays eager: the incoming thread's state is loaded on the way
+//! out of the kernel, whether it uses the FPU or not.
+//!
 //! The save instruction is the best the CPU has (DESIGN.md §3): XSAVES,
 //! XSAVEC, XSAVEOPT, XSAVE, then FXSAVE. The first two write the compacted
 //! format; an image leaves the FPU code (`flush`, for TCB_ReadFPU and
@@ -15,6 +24,7 @@ use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicU8, Ordering};
 use fl4_core::layout::tcb;
 
 static XSAVE: AtomicBool = AtomicBool::new(false);
+static LAZY: AtomicBool = AtomicBool::new(false);
 static XCR0: AtomicU64 = AtomicU64::new(0);
 static MXCSR_MASK: AtomicU64 = AtomicU64::new(0xffbf);
 static INSN: AtomicU8 = AtomicU8::new(Insn::Fxsave as u8);
@@ -130,6 +140,10 @@ pub fn init() {
         };
         INSN.store(i as u8, Ordering::Relaxed);
     }
+    // LazyFP is an Intel erratum; AMD (and Hygon) are not affected.
+    let v = cpuid(0, 0);
+    let intel = v.ebx == 0x756e_6547 && v.edx == 0x4965_6e69 && v.ecx == 0x6c65_746e;
+    LAZY.store(!intel, Ordering::Relaxed);
     unsafe { asm!("fninit", options(nomem, nostack)) };
     let mut f = Scratch([0; 512]);
     unsafe { asm!("fxsave64 [{}]", in(reg) f.0.as_mut_ptr(), options(nostack)) };
@@ -150,6 +164,11 @@ pub fn save_insn() -> &'static str {
         Insn::Xsavec => "xsavec",
         Insn::Xsaves => "xsaves",
     }
+}
+
+/// FPU switching is lazy on this CPU.
+pub fn lazy() -> bool {
+    LAZY.load(Ordering::Relaxed)
 }
 
 /// Saves write the compacted format.
@@ -278,14 +297,37 @@ pub fn switch_to(t: u64, fpu_disabled: bool) {
         set_ts(true);
         return;
     }
-    set_ts(false);
     let pc = percpu::get();
-    if pc.fpu_owner != t {
-        if pc.fpu_owner != 0 {
-            save(pc.fpu_owner);
-        }
-        restore(t);
-        percpu::get().fpu_owner = t;
+    if pc.fpu_owner == t {
+        set_ts(false);
+        return;
+    }
+    if lazy() {
+        // The swap waits for the thread's first FPU instruction.
+        set_ts(true);
+        return;
+    }
+    set_ts(false);
+    load(t);
+}
+
+/// Save the owner's state, if any, and load `t`'s.
+fn load(t: u64) {
+    let pc = percpu::get();
+    if pc.fpu_owner != 0 {
+        save(pc.fpu_owner);
+    }
+    restore(t);
+    percpu::get().fpu_owner = t;
+}
+
+/// #NM from thread `t` on the lazy path: give it the FPU. Runs in the
+/// entry glue with interrupts off, so no remote FPU call (`flush`,
+/// `forget`) for this core can run in between.
+pub fn lazy_load(t: u64) {
+    set_ts(false);
+    if percpu::get().fpu_owner != t {
+        load(t);
     }
 }
 

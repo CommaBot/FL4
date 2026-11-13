@@ -393,7 +393,7 @@ The proof assumes: Rust, LLVM and the linker; Charon, Aeneas and the Lean kernel
 - MCS timer: TSC-deadline mode when CPUID reports it, otherwise the LAPIC one-shot timer with a TSC-to-APIC ratio calibrated at boot. seL4 has the same fallback in `apic.c`. Both are first-class paths, and the test setups in §12 exercise each one.
 - IOAPIC and MSI routing, ACPI MADT parsing, IO port caps.
 - The PIT is used only for calibration, on channel 2. Channel 0 is put in one-shot mode at boot, because firmware leaves it interrupting at 18.2 Hz on ISA IRQ 0, which is IOAPIC pin 2, where user space may route an HPET timer.
-- Eager XSAVE FPU switching. VT-x is out of scope.
+- XSAVE-family FPU switching, chosen at boot like the other mitigations (§3). On Intel CPUs it is eager: the incoming thread's state is loaded on every switch, because lazy switching is what LazyFP (CVE-2018-3665) exploits. On CPUs LazyFP does not affect (AMD) it is lazy, as in seL4. A thread that doesn't own the FPU registers runs with CR0.TS set. Its first FPU instruction raises #NM, and the entry glue swaps the state and returns to the thread without entering the core. fl4test FL4FPU0003 checks that two threads keep their own registers across IPC; it fails on a mutant that leaves TS clear. VT-x is out of scope.
 
 ### IOMMU left to user space
 
@@ -473,7 +473,7 @@ The baseline seL4 must have the same mitigations as FL4 on the test CPU. seL4's 
 
 Against the like-for-like baseline FL4 is at 1.3–2.1×, not yet 1.2×. Instrumentation (TSC and retired-instruction counts at stage boundaries) shows where the rest goes:
 - About 1800 kernel instructions per Call or ReplyRecv. The capability lookup takes about 200 and the extra-caps lookup about 200 even with no extra caps; budget charging takes about 85, scheduling 90–210, and the exit path about 150.
-- Eager FPU switching costs about 130 cycles per switch between threads: XSAVES and XRSTORS, because the owner changes on every IPC round trip. It stays: lazy switching is what LazyFP (CVE-2018-3665) exploits.
+- Eager FPU switching cost about 130 cycles per switch between threads, for XSAVES and XRSTORS, because the owner changes on every IPC round trip. Lazy switching on CPUs without LazyFP (§11) removed it: on this machine, Call went from 836 to 722 cycles (same address space) and from 1064 to 950 (cross).
 - One CR3 write plus the TLB refill after it costs about 280 cycles. That is the whole cross-address-space difference; this CPU has no PCIDs.
 
 Closing the gap is M5 work on the general path in `fl4-core`: fewer capability decodes and encodes, repeated loads of the current thread and its fields, and the many small helper calls of a direct transliteration.

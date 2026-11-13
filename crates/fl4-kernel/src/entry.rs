@@ -288,6 +288,18 @@ extern "C" fn fl4_entry(f: &mut Frame) {
         resume_user();
         return;
     }
+    // #NM on the lazy FPU path (fpu.rs): load the thread's FPU state and
+    // let it retry the instruction. A thread with the FPU disabled gets
+    // the fault instead.
+    if v == 7 && fpu::lazy() {
+        let s = store();
+        let ct = sched::cur_thread(&s);
+        if ct.flags(&s) & fl4_abi::consts::tcb_flag::FPU_DISABLED == 0 {
+            fpu::lazy_load(ct.0);
+            resume_user();
+            return;
+        }
+    }
     // The bench profile's MSR syscalls (DESIGN.md §3) touch only the
     // caller's registers and the MSR: answered here, outside the core.
     if fl4_abi::config::KERNEL_X86_DANGEROUS_MSR && v == VEC_SYSCALL {
