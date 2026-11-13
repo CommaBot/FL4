@@ -64,9 +64,10 @@ def SwapFields (th : TypedHeap) (s s' : S) (c1 : capability.Cap) (s1 : U64) (c2 
       else if x = s1 then pB s2 else pB x) ∧
     nextOf (L.mem s') x = (if pB s2 ≠ 0#u64 ∧ x = pB s2 then s1 else if x = s2 then nextOf m s1
       else if x = s1 then nB s2 else nB x) ∧
-    revOf (L.mem s') x = (if x = s2 then revOf m s1 else if x = s1 then revOf m s2 else revOf m x)
+    revOf (L.mem s') x = (if x = s2 then revOf m s1 else if x = s1 then revOf m s2 else revOf m x) ∧
+    fbOf (L.mem s') x = (if x = s2 then fbOf m s1 else if x = s1 then fbOf m s2 else fbOf m x)
 
-set_option maxHeartbeats 8000000 in
+set_option maxHeartbeats 16000000 in
 theorem swap_fields (hP : Placed th) (s : S) (c1 c2 : capability.Cap) (s1 s2 : U64)
     (hs1 : IsSlot th s1) (hs2 : IsSlot th s2) (hne : s1 ≠ s2) (he1 : EncWf c1) (he2 : EncWf c2)
     (hP1 : prevOf (L.mem s) s1 = 0#u64 ∨ IsSlot th (prevOf (L.mem s) s1))
@@ -112,7 +113,7 @@ theorem swap_fields (hP : Placed th) (s : S) (c1 c2 : capability.Cap) (s1 s2 : U
       decide_false, decide_true, Bool.false_eq_true, ↓reduceIte, ite_self, hP1d, hN1d, hP2d, hN2d, he1, he2, *]
   all_goals rw [WP.spec_ok]
   all_goals try intro x hx
-  all_goals try refine ⟨?_, ?_, ?_, ?_⟩
+  all_goals try refine ⟨?_, ?_, ?_, ?_, ?_⟩
   all_goals try simp only [prevOf_wrCap hP, nextOf_wrCap hP, revOf_wrCap hP, fbOf_wrCap hP, prevOf_setPrev hP,
       nextOf_setPrev hP, revOf_setPrev hP, fbOf_setPrev hP, prevOf_setNext hP, nextOf_setNext hP,
       revOf_setNext hP, fbOf_setNext hP, prevOf_setBit hP, nextOf_setBit hP, revOf_setBit hP, fbOf_setBit hP,

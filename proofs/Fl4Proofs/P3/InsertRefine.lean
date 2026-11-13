@@ -38,6 +38,10 @@ theorem SlotRel.cap_eq {mem : U64 → U64} {a : U64} {o : Option Fl4Spec.Cap} {c
   have : c = c' := by simpa using hc'
   subst this; exact ⟨ac, ho, hr⟩
 
+/-- The ghost tree after inserting `dest` after `src` (as `src`'s child iff `b`). -/
+def insG (G : MdbGhost) (src dest : U64) (b : Bool) : MdbGhost :=
+  ⟨G.chains.map (Mdb.insAfter src dest), Function.update G.par dest (if b then some src else G.par src)⟩
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
@@ -59,7 +63,10 @@ theorem insert_refines' (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
         ∀ y, ¬ Mdb.Desc G.par y (cslotAddr (ps.bv, idxs))) →
       ∃ σ' G', Fl4Spec.capInsert (Z := Unit) a (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False) ∧
         StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
-        CdtRel th (L.mem s') σ' G' ⦄ := by
+        CdtRel th (L.mem s') σ' G' ∧
+        G' = insG G (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd))
+          (decide (Fl4Spec.shouldBeParentOf (absCap srcC) (σ.isOriginalCap (ps.bv, idxs)) a
+            (decide (Fl4Spec.isCapRevocable a (absCap srcC))))) ⦄ := by
   -- the two slots
   have hAs : AbsSlot th (ps.bv, idxs) := ⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩
   have hAd : AbsSlot th (pd.bv, idxd) := ⟨pd, rfl, Or.inl (by simpa [hld] using hpd)⟩
@@ -174,7 +181,7 @@ theorem insert_refines' (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
         | some c' => simpa using (fullF_some hf hes).2.2
     · intro x hx hxd hxs
       rw [hcap' x hx, hcap1 x hx]; simp [hxd, hxs]
-  refine ⟨_, _, hins, StateRel.of_kheap hR2 rfl, hV2, MdbLinks.insert hP hM hsrcm hd hdestm hcase hL, ?_⟩
+  refine ⟨_, _, hins, StateRel.of_kheap hR2 rfl, hV2, MdbLinks.insert hP hM hsrcm hd hdestm hcase hL, ?_, rfl⟩
   refine CdtRel.insert hP hC _ hAs hAd b (decide (Fl4Spec.isCapRevocable a (absCap srcC))) rfl rfl ?_
   intro x hx
   rw [hW.revOf' hx hne]
@@ -202,7 +209,10 @@ theorem insert_refines (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : M
     cdt.insert st s c (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd)) ⦃ s' =>
       ∃ σ' G', Fl4Spec.capInsert (Z := Unit) a (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False) ∧
         StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
-        CdtRel th (L.mem s') σ' G' ⦄ :=
+        CdtRel th (L.mem s') σ' G' ∧
+        G' = insG G (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd))
+          (decide (Fl4Spec.shouldBeParentOf (absCap srcC) (σ.isOriginalCap (ps.bv, idxs)) a
+            (decide (Fl4Spec.isCapRevocable a (absCap srcC))))) ⦄ :=
   WP.spec_mono (insert_refines' th s σ G hR hV hP hM hC hps hpd hls hld hsrcC hsnn hdst c a hca hcv he hcnn hk)
     (fun _ h => h hsib)
 

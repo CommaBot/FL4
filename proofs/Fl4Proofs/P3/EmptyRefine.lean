@@ -56,6 +56,9 @@ theorem MdbLinks.prev_ne_next {th : TypedHeap} (hP : Placed th) {mem : U64 → U
       have := (Mdb.nodup_mid hnd0).2
       exact this (by simp [hb])
 
+/-- The ghost tree after emptying `x`. -/
+def remG (G : MdbGhost) (x : U64) : MdbGhost := ⟨Mdb.removeChains x G.chains, Mdb.removePar x G.par⟩
+
 section
 variable {S A : Type} {st : machine.Store S} [L : P1.LawfulStore st] {ar : machine.Arch A}
 
@@ -67,7 +70,7 @@ theorem empty_slot_refines (th : TypedHeap) (s : S) (a : A) (σ : Fl4Spec.State 
     cdt.empty_slot st ar s a (cslotAddr (px.bv, idx)) .Null ⦃ r => r.2 = a ∧
       ∃ σ' G', Fl4Spec.emptySlot (Z := Unit) (px.bv, idx) .nullCap σ = ({((), σ')}, False) ∧
         StateRel th (L.mem r.1) σ' ∧ SlotsValid th (L.mem r.1) ∧ MdbLinks th (L.mem r.1) G' ∧
-        CdtRel th (L.mem r.1) σ' G' ⦄ := by
+        CdtRel th (L.mem r.1) σ' G' ∧ G' = remG G (cslotAddr (px.bv, idx)) ⦄ := by
   have hAx : AbsSlot th (px.bv, idx) := ⟨px, rfl, Or.inl (by simpa [hl] using hpx)⟩
   have hx : IsSlot th (cslotAddr (px.bv, idx)) := hAx.isSlot
   have hxm : cslotAddr (px.bv, idx) ∈ G.chains.flatten := (hM.members _).2 ⟨hx, c, hc, hcn⟩
@@ -112,7 +115,7 @@ theorem empty_slot_refines (th : TypedHeap) (s : S) (a : A) (σ : Fl4Spec.State 
     (show CapRel .Null .nullCap from ⟨trivial, rfl⟩) trivial hcap'
   have h2 := setCap_cnode (Z := Unit) .nullCap hk1 hwf hl
   refine ⟨_, ⟨Mdb.removeChains (cslotAddr (px.bv, idx)) G.chains,
-    Mdb.removePar (cslotAddr (px.bv, idx)) G.par⟩, emptySlot_eq hget hacn h2, hR2, hV2, ?_, ?_⟩
+    Mdb.removePar (cslotAddr (px.bv, idx)) G.par⟩, emptySlot_eq hget hacn h2, hR2, hV2, ?_, ?_, rfl⟩
   · refine MdbLinks.remove hP hM hxm ⟨fun y hy => hW.prevOf' hy, fun y hy => hW.nextOf' hy hNc hPN, ?_, ?_⟩
     · rw [hW.capAt' hx]; simp
     · intro y hy hyx; rw [hW.capAt' hy]; simp [hyx]

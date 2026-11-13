@@ -9,7 +9,7 @@ from the caps and the revocable/first-badged bits. That the bit-level test
 agrees with the ghost tree for adjacent slots is the remaining MDB
 invariant (`ParentAdj`, the content of seL4's `mdb_chunked`/`valid_badges`
 reasoning); it is not a consequence of `MdbLinks`, which constrains the
-links but not the caps.
+links but not the caps, but of the MDB invariant `MdbInv` (`MdbInv.parentAdj`).
 -/
 import Fl4Proofs.P3.CnodeCaps
 import Fl4Proofs.P3.Move

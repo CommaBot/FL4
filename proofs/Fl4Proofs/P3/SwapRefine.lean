@@ -68,6 +68,7 @@ theorem swap_refines (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : Mdb
     (hcn2 : c2 ≠ .Null) :
     cdt.swap st s c1 (cslotAddr (p1.bv, i1)) c2 (cslotAddr (p2.bv, i2)) ⦃ s' =>
       ∃ σ' G', Fl4Spec.capSwap (Z := Unit) a1 (p1.bv, i1) a2 (p2.bv, i2) σ = ({((), σ')}, False) ∧
+        G' = renG G (Equiv.swap (cslotAddr (p1.bv, i1)) (cslotAddr (p2.bv, i2))) ∧
         StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
         CdtRel th (L.mem s') σ' G' ⦄ := by
   have hA1 : AbsSlot th (p1.bv, i1) := ⟨p1, rfl, Or.inl (by simpa [hl1] using hp1)⟩
@@ -105,7 +106,7 @@ theorem swap_refines (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : Mdb
   have h2 := setCap_cnode (Z := Unit) a1 hk2 hwf2 hl2
   have hsw := capSwap_eq h1 h2 (by simp [setCnodeSlot]) (by simp [setCnodeSlot])
   refine ⟨_, ⟨G.chains.map (List.map (Equiv.swap (cslotAddr (p1.bv, i1)) (cslotAddr (p2.bv, i2)))),
-    Mdb.conjPar (Equiv.swap (cslotAddr (p1.bv, i1)) (cslotAddr (p2.bv, i2))) G.par⟩, hsw,
+    Mdb.conjPar (Equiv.swap (cslotAddr (p1.bv, i1)) (cslotAddr (p2.bv, i2))) G.par⟩, hsw, rfl,
     StateRel.of_kheap hR2 rfl, hV2,
     MdbLinks.rename (e := Equiv.swap (cslotAddr (p1.bv, i1)) (cslotAddr (p2.bv, i2))) hM ?_, ?_⟩
   · exact RenLinks.swap hP hM hm1 hm2 hAne hcn1 hcn2 (fun x hx => ⟨(hW x hx).1, (hW x hx).2.1, (hW x hx).2.2.1⟩)
@@ -113,7 +114,7 @@ theorem swap_refines (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : Mdb
     · exact swap_cdt_eq σ _ _ hne
     · exact swap_io_eq σ _ _ hne
     · intro x hx
-      rw [(hW x hx).2.2.2]
+      rw [(hW x hx).2.2.2.1]
       by_cases e2 : x = cslotAddr (p2.bv, i2)
       · rw [if_pos e2, e2, Equiv.swap_apply_right]
       · by_cases e1 : x = cslotAddr (p1.bv, i1)

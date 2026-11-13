@@ -13,18 +13,17 @@ Hypotheses beyond the CSpace relation, all explicit:
   provides (`getMRs`, with the length clipped when there is no buffer);
 * extra caps: `extra[0]` is null and there are none, or is the slot of the
   first extra cap (`ExtraRel`);
-* `ParentAdj` (NoChildren.lean): FL4's `is_mdb_parent_of` decides the
-  ghost tree for adjacent slots; it gives `NoChildrenRel` at the source
-  slot (for deriving untyped caps);
+* `MdbInv` (MdbInv.lean), the MDB invariant, which gives `ParentAdj` and
+  so `NoChildrenRel` at the source slot (for deriving untyped caps), and the
+  sibling condition of `insert_refines`; it holds again afterwards;
 * `OutsideObjects` for the current core's scheduler-action word
-  (StateFrame.lean), which gives `SlotsSame` across `set_thread_state`;
-* for Copy and Mint, the `hsib` hypothesis of `insert_refines`
-  (`InsertPre`), in the conclusion.
+  (StateFrame.lean), which gives `SlotsSame` across `set_thread_state`.
 -/
 import Fl4Proofs.P3.CnodeSpec
 import Fl4Proofs.P3.MoveRefine
 import Fl4Proofs.P3.StateFrame
 import Fl4Proofs.P3.NoChildren
+import Fl4Proofs.P3.CnodeShape
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -203,14 +202,6 @@ def ExtraRel (th : TypedHeap) (mem : U64 → U64) (x0 : U64) (excaps : List Fl4S
   (x0 = 0#u64 ∧ excaps = []) ∨
   (x0 ≠ 0#u64 ∧ ∃ c a rest, capAt mem x0 = ok c ∧ CapRel c a ∧ CapValid th c ∧ excaps = a :: rest)
 
-/-- The extra hypothesis of `insert_refines` (`hsib`) for an insert
-invocation, at the state after `set_thread_state`. -/
-def InsertPre (G : MdbGhost) (σ1 : Fl4Spec.State Unit) : Fl4Spec.CnodeInvocation → Prop
-  | .insertCall c src _ => ∀ srcA, Fl4Spec.getCap (Z := Unit) src σ1 = ({(srcA, σ1)}, False) →
-      ¬ Fl4Spec.shouldBeParentOf srcA (σ1.isOriginalCap src) c (decide (Fl4Spec.isCapRevocable c srcA)) →
-      ∀ y, ¬ Mdb.Desc G.par y (cslotAddr src)
-  | _ => True
-
 
 theorem run_liftE' {σ α ε : Type} {m : Fl4Spec.NonDet σ α} {s s' : σ} {a : α} (h : m s = ({(a, s')}, False)) :
     (Fl4Spec.NonDetE.liftE (ε := ε) m).run s = ({(.ok a, s')}, False) := by
@@ -232,16 +223,17 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
 /-- The outcome of a Copy/Mint/Move/Mutate against a spec decode `m`: the
 same error with the state unchanged, or an invocation after which (with
-`set_thread_state Restart` first) `invoke_cnode` ends in a related state. -/
-def InvPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+`set_thread_state Restart` first) `invoke_cnode` ends in a related state,
+with the MDB invariant. -/
+def InvPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (_G : MdbGhost)
     (m : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation) (s : S) :
     core.result.Result Unit error.Exc × S → Prop
   | (.Err e, s') => s' = s ∧ ∃ e', m.run σ = ({(.error e', σ)}, False) ∧ SysErrRel e e'
   | (.Ok (), s') => ∃ inv, m.run σ = ({(.ok inv, σ)}, False) ∧ ∃ σ1,
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
-      (InsertPre G σ1 inv → ∃ σ' G', (Fl4Spec.invokeCnode (Z := Unit) inv).run σ1 = ({(.ok (), σ')}, False) ∧
+      ∃ σ' G', (Fl4Spec.invokeCnode (Z := Unit) inv).run σ1 = ({(.ok (), σ')}, False) ∧
         StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
-        CdtRel th (L.mem s') σ' G')
+        CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G'
 
 theorem InvPost.of_run {th : TypedHeap} {σ : Fl4Spec.State Unit} {G : MdbGhost}
     {m m' : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation} (h : m.run σ = m'.run σ) {s : S}
@@ -288,7 +280,7 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List Fl4Spec.Cap) (hex : ExtraRel th (L.mem s) x0 excaps)
-    (hPA : ParentAdj (L := L) th s G)
+    (hI : MdbInv (L.mem s) G)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (dsl : Fl4Spec.CslotPtr) (pd : U64) (hpd1 : dsl.1 = pd.bv) (hpd : th pd = some (.cnode dsl.2.length)) :
@@ -392,9 +384,10 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
         apply hargs i x
         have : i.val = (i.val - 4) + 4 := by omega
         rw [this]; simpa using hx
+      have hnc0 := noChildren_of_adj th hP s σ G hM hC (hI.parentAdj (th := th)) sl hAs
+        ((hM.members _).2 ⟨hAs.isSlot, srcC, hsc, hsn⟩)
       obtain ⟨r2, hr2, R, hR2, hrel2⟩ := copied_rel th s σ lbl slbl hlbl hl length buf ct hct rest hlen' hargs'
-        sl dsl srcC hsw hse hscv
-        (noChildren_of_adj th hP s σ G hM hC hPA sl hAs ((hM.members _).2 ⟨hAs.isSlot, srcC, hsc, hsn⟩))
+        sl dsl srcC hsw hse hscv hnc0
       rw [← hsca.abs] at hR2
       refine InvPost.congr (hR2.trans (run_ofExcept R σ).symm) ?_
       rw [hr2]; simp only [bind_ok, core.result.Result.Insts.CoreOpsTry.branch]
@@ -418,6 +411,7 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
           rw [WP.spec_ok]
           exact ⟨rfl, .illegalOperation, by rw [run_ofExcept]; simp [finishRes, absCap], trivial⟩
         have hann : absCap nc ≠ .nullCap := fun h => hnn ((show CapRel nc (absCap nc) from ⟨hw', rfl⟩).null_iff.1 h)
+        obtain ⟨hsh, hbm, hbi⟩ := copied_shape hr2 hnn hnc0
         rw [cap_is_null_ne hnn]
         simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
         -- set_thread_state
@@ -426,6 +420,7 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
         obtain ⟨tcb, hk, -⟩ := hR.tcb ct htcb
         rw [← hcur] at hk
         obtain ⟨σ1, hst, hR1, hV1, hM1, hC1, -, hio1⟩ := restart_rel hR hV hM hC hS hk .restart
+        have hI1 := MdbInv.of_same hM hI hS
         -- the slots, after `set_thread_state`
         obtain ⟨sa, sb⟩ := sl
         simp only at hps1; subst hps1
@@ -437,37 +432,35 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
         cases mv
         · -- insert
           simp only [Bool.false_eq_true, ↓reduceIte]
-          obtain ⟨s3, hs3, hpost⟩ := spec_exists
-            (insert_refines' th s2 σ1 G hR1 hV1 hP hM1 hC1 hps hpd rfl rfl hsc2 hsn hdc2 nc (absCap nc) ⟨hw', rfl⟩
-              hv' he' hnn hk')
+          obtain ⟨hbd, hzb, hut⟩ := hbi rfl
+          have hut' : isUt srcC = true → ∀ y, ¬ Mdb.Desc G.par y (cslotAddr (ps.bv, sb)) := by
+            intro hu y hy
+            obtain ⟨z, hz⟩ := desc_tail_child hy
+            exact hut hu ((hC.has_child_iff hP hAs).2 ⟨z, hz⟩)
+          obtain ⟨s3, hs3, σ', G', hins, hR', hV', hM', hC', hI'⟩ := spec_exists
+            (insert_full th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hps hpd rfl rfl hsc2 hsn hdc2 nc (absCap nc)
+              ⟨hw', rfl⟩ hv' he' hnn hsh hbd hut' hzb)
           rw [hs3]; simp only [bind_ok]
           rw [WP.spec_ok]
-          refine ⟨.insertCall (absCap nc) (ps.bv, sb) (pd.bv, db), ?_, σ1, hst, fun hpre => ?_⟩
-          · rw [run_ofExcept]; simp [finishRes, hann]
-          -- the source cap in the state after `set_thread_state`
-          obtain ⟨c1', a1', hc1', hca1', hg1⟩ := hR1.slot_cap (Z := Unit) (sl := (ps.bv, sb)) rfl hps
-          rw [hsc2] at hc1'
-          have : c1' = srcC := by simpa using hc1'.symm
-          subst this
-          rw [hca1'.abs] at hg1
-          obtain ⟨σ', G', hins, hR', hV', hM', hC'⟩ := hpost (fun h => hpre (absCap c1') hg1 h)
-          exact ⟨σ', G', run_liftE' hins, hR', hV', hM', hC'⟩
+          refine ⟨.insertCall (absCap nc) (ps.bv, sb) (pd.bv, db), ?_, σ1, hst,
+            σ', G', run_liftE' hins, hR', hV', hM', hC', hI'⟩
+          rw [run_ofExcept]; simp [finishRes, hann]
         · -- move
           simp only [↓reduceIte]
-          obtain ⟨s3, hs3, σ', G', hmv, hR', hV', hM', hC'⟩ := spec_exists
-            (move_refines th s2 σ1 G hR1 hV1 hP hM1 hC1 hps hpd rfl rfl hsc2 hsn hdc2 nc (absCap nc) ⟨hw', rfl⟩
-              hv' he' hnn)
+          obtain ⟨s3, hs3, σ', G', hmv, hR', hV', hM', hC', hI'⟩ := spec_exists
+            (move_full th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hps hpd rfl rfl hsc2 hsn hdc2 nc (absCap nc) ⟨hw', rfl⟩
+              hv' he' hnn hsh (hbm rfl))
           rw [hs3]; simp only [bind_ok]
           rw [WP.spec_ok]
           refine ⟨.moveCall (absCap nc) (ps.bv, sb) (pd.bv, db), ?_, σ1, hst,
-            fun _ => ⟨σ', G', run_liftE' hmv, hR', hV', hM', hC'⟩⟩
+            σ', G', run_liftE' hmv, hR', hV', hM', hC', hI'⟩
           rw [run_ofExcept]; simp [finishRes, hann]
 
 /-- **FL4's CNode Copy, Mint, Move and Mutate refine l4v's**: for labels
 28..31, `cnode::decode` ends with the error `decode_cnode_invocation`
 throws (state unchanged), or, when the spec decodes an invocation, in a
 state related to the spec's after `set_thread_state Restart` and
-`invoke_cnode` (for an insert, given `InsertPre`). -/
+`invoke_cnode`, with the MDB invariant kept. -/
 theorem cnode_copy_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
@@ -480,7 +473,7 @@ theorem cnode_copy_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s
     (cap : capability.Cap) (a : Fl4Spec.Cap) (hca : CapRel cap a) (hcv : CapValid th cap)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List Fl4Spec.Cap) (hex : ExtraRel th (L.mem s) x0 excaps)
-    (hPA : ParentAdj (L := L) th s G)
+    (hI : MdbInv (L.mem s) G)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb) :
     cnode.decode st arI s ar lbl length cap buf extra ⦃ res =>
@@ -534,7 +527,7 @@ theorem cnode_copy_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s
       simp only [g1, g2, ↓reduceIte, bind_ok]
       obtain ⟨⟨r2, s2⟩, hdc, hpost⟩ := spec_exists
         (decode_copy_rel th s σ G hR hV hP hM hC lbl slbl hlbl hl length buf ct hct (y0 :: y1 :: rest) hlen
-          (by simp) hargs extra x0 hx0 excaps hex hPA hact hcur htcb dsl pd hpd1 hpd)
+          (by simp) hargs extra x0 hx0 excaps hex hI hact hcur htcb dsl pd hpd1 hpd)
       rw [hdc]; simp only [bind_ok, uncurry_apply_pair]
       rw [WP.spec_ok]
       simp only [List.map_cons, List.drop_succ_cons, List.drop_zero] at hpost

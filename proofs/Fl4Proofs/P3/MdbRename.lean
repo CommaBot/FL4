@@ -49,6 +49,9 @@ theorem MdbLinks.no_self_par {th : TypedHeap} {mem : U64 → U64} {G : MdbGhost}
 
 /-! ## Renaming -/
 
+/-- The ghost tree with its slots renamed by `e`. -/
+def renG (G : MdbGhost) (e : U64 ≃ U64) : MdbGhost := ⟨G.chains.map (List.map e), Mdb.conjPar e G.par⟩
+
 /-- How the slot words change when the linked slots are renamed by `e`
 (fixing 0). -/
 structure RenLinks (th : TypedHeap) (mem mem' : U64 → U64) (e : U64 ≃ U64) (G : MdbGhost) : Prop where
