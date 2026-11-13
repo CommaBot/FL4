@@ -37,6 +37,8 @@ pub struct PerCpu {
     pub apic_id: u32,
     /// This core holds the serial gate.
     pub gate_held: bool,
+    /// The deadline the timer is armed for (TSC ticks; 0 = none).
+    pub armed: u64,
     /// A transaction runs on this core (Arch effects are queued).
     pub tx: bool,
     pub effects: [crate::arch::Effect; crate::arch::MAX_EFFECTS],
@@ -64,6 +66,7 @@ impl PerCpu {
             tlb_seen: [0; crate::tlb::ASIDS],
             apic_id: 0,
             gate_held: false,
+            armed: 0,
             tx: false,
             effects: [crate::arch::Effect::Ack; crate::arch::MAX_EFFECTS],
             neffects: 0,

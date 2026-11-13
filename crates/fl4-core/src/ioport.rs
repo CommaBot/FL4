@@ -112,28 +112,40 @@ fn allowed(first: u64, last: u64, port: u64, size: u64) -> KResult<()> {
 }
 
 /// seL4 `decodeX86PortInvocation`.
-pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: u64, cap: Cap, call: bool, buf: u64) -> KResult<()> {
-    let (first, last) = match cap {
-        Cap::IoPort { first, last } => (first, last),
-        _ => return illegal(),
-    };
-    let ct = sched::cur_thread(s);
-    let size = if lbl == label::X86IOPortIn8 || lbl == label::X86IOPortOut8 {
+/// The access size of an IO port invocation, or 0 if `lbl` is not one.
+fn port_size(lbl: u64) -> u64 {
+    if lbl == label::X86IOPortIn8 || lbl == label::X86IOPortOut8 {
         1
     } else if lbl == label::X86IOPortIn16 || lbl == label::X86IOPortOut16 {
         2
     } else if lbl == label::X86IOPortIn32 || lbl == label::X86IOPortOut32 {
         4
     } else {
-        return illegal();
-    };
-    // Literal results rather than `a || b == c`: Aeneas types a boolean
-    // whose last operand is a comparison as a Lean Prop.
-    let is_in = if lbl == label::X86IOPortIn8 || lbl == label::X86IOPortIn16 || lbl == label::X86IOPortIn32 {
+        0
+    }
+}
+
+// Literal results rather than `a || b == c`: Aeneas types a boolean whose
+// last operand is a comparison as a Lean Prop.
+fn is_port_in(lbl: u64) -> bool {
+    if lbl == label::X86IOPortIn8 || lbl == label::X86IOPortIn16 || lbl == label::X86IOPortIn32 {
         true
     } else {
         false
+    }
+}
+
+pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: u64, cap: Cap, call: bool, buf: u64) -> KResult<()> {
+    let (first, last) = match cap {
+        Cap::IoPort { first, last } => (first, last),
+        _ => return illegal(),
     };
+    let ct = sched::cur_thread(s);
+    let size = port_size(lbl);
+    if size == 0 {
+        return illegal();
+    }
+    let is_in = is_port_in(lbl);
     if is_in {
         if length < 1 {
             return truncated();

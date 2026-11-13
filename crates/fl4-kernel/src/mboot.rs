@@ -5,7 +5,8 @@ use fl4_core::layout::pptr;
 pub const MB1_MAGIC: u32 = 0x2bad_b002;
 pub const MB2_MAGIC: u32 = 0x36d7_6289;
 pub const MAX_MMAP: usize = 50;
-pub const MAX_MODULES: usize = 4;
+/// The root task's image and up to eight more modules (l4h 0021).
+pub const MAX_MODULES: usize = 9;
 
 #[derive(Clone, Copy, Default)]
 pub struct MemRegion {
@@ -14,13 +15,37 @@ pub struct MemRegion {
     pub ty: u32,
 }
 
+#[derive(Clone, Copy, Default)]
+pub struct Module {
+    pub start: u64,
+    pub end: u64,
+    /// The boot loader's string for the module (a C string's physical
+    /// address), or 0.
+    pub name: u64,
+}
+
 pub struct BootInfo {
     pub mmap: [MemRegion; MAX_MMAP],
     pub n_mmap: usize,
-    pub modules: [(u64, u64); MAX_MODULES],
+    pub modules: [Module; MAX_MODULES],
     pub n_modules: usize,
     /// RSDP copied from Multiboot 2 tags, if any.
     pub rsdp: Option<u64>,
+    /// The command line (a C string's physical address), or 0.
+    pub cmdline: u64,
+    /// The framebuffer the boot loader set up, if any.
+    pub fb: Option<Framebuffer>,
+}
+
+/// seL4's `multiboot2_fb_t`.
+#[derive(Clone, Copy)]
+pub struct Framebuffer {
+    pub addr: u64,
+    pub pitch: u32,
+    pub width: u32,
+    pub height: u32,
+    pub bpp: u8,
+    pub ty: u8,
 }
 
 fn rd8(p: u64) -> u8 {
@@ -39,17 +64,87 @@ fn rd64(p: u64) -> u64 {
     unsafe { core::ptr::read_unaligned(pptr(p) as *const u64) }
 }
 
+impl BootInfo {
+    /// Note a module. One that ends before it starts is ignored (l4h 0021:
+    /// its 32-bit difference looks positive), as are any past the limit.
+    fn add_module(&mut self, m: Module) {
+        if m.end < m.start {
+            crate::kprintln!("FL4: boot module ends before it starts: ignored");
+            return;
+        }
+        if self.n_modules == MAX_MODULES {
+            crate::kprintln!("FL4: more than {} boot modules: the rest are ignored", MAX_MODULES - 1);
+            return;
+        }
+        self.modules[self.n_modules] = m;
+        self.n_modules += 1;
+    }
+}
+
+/// Whether the command line has the word `opt` (a boolean option such as
+/// `fb_console`; `opt=1`, `opt=true` and `opt=on` count too).
+pub fn has_option(b: &BootInfo, opt: &[u8]) -> bool {
+    if b.cmdline == 0 {
+        return false;
+    }
+    let mut p = b.cmdline;
+    loop {
+        while rd8(p) == b' ' {
+            p += 1;
+        }
+        if rd8(p) == 0 {
+            return false;
+        }
+        let start = p;
+        while rd8(p) != 0 && rd8(p) != b' ' {
+            p += 1;
+        }
+        let word = |i: u64| rd8(start + i);
+        let len = p - start;
+        let n = opt.len() as u64;
+        if len >= n && (0..n).all(|i| word(i) == opt[i as usize]) {
+            if len == n {
+                return true;
+            }
+            if word(n) == b'=' {
+                let v = |s: &[u8]| len == n + 1 + s.len() as u64 && (0..s.len() as u64).all(|i| word(n + 1 + i) == s[i as usize]);
+                return v(b"1") || v(b"true") || v(b"on");
+            }
+        }
+    }
+}
+
+/// The module's name, NUL-terminated and cut to fit `out`.
+pub fn module_name(m: &Module, out: &mut [u8]) {
+    let mut i = 0;
+    if m.name != 0 {
+        while i + 1 < out.len() && rd8(m.name + i as u64) != 0 {
+            out[i] = rd8(m.name + i as u64);
+            i += 1;
+        }
+    }
+    while i < out.len() {
+        out[i] = 0;
+        i += 1;
+    }
+}
+
 pub fn parse(magic: u32, info: u64) -> Option<BootInfo> {
-    let mut b = BootInfo { mmap: [MemRegion::default(); MAX_MMAP], n_mmap: 0, modules: [(0, 0); MAX_MODULES], n_modules: 0, rsdp: None };
+    let mut b = BootInfo { mmap: [MemRegion::default(); MAX_MMAP], n_mmap: 0, modules: [Module::default(); MAX_MODULES], n_modules: 0, rsdp: None, cmdline: 0, fb: None };
     if magic == MB1_MAGIC {
         let flags = rd32(info);
+        if flags & (1 << 2) != 0 {
+            b.cmdline = rd32(info + 16) as u64;
+        }
+        if flags & (1 << 12) != 0 {
+            b.fb = Some(Framebuffer { addr: rd64(info + 88), pitch: rd32(info + 96), width: rd32(info + 100), height: rd32(info + 104), bpp: rd8(info + 108), ty: rd8(info + 109) });
+        }
         if flags & (1 << 3) != 0 {
             let n = rd32(info + 20) as u64;
             let addr = rd32(info + 24) as u64;
-            for i in 0..n.min(MAX_MODULES as u64) {
+            for i in 0..n {
                 let m = addr + 16 * i;
-                b.modules[b.n_modules] = (rd32(m) as u64, rd32(m + 4) as u64);
-                b.n_modules += 1;
+                b.add_module(Module { start: rd32(m) as u64, end: rd32(m + 4) as u64, name: rd32(m + 8) as u64 });
             }
         }
         if flags & (1 << 6) == 0 {
@@ -73,12 +168,9 @@ pub fn parse(magic: u32, info: u64) -> Option<BootInfo> {
             let size = rd32(t + 4) as u64;
             match ty {
                 0 => break,
-                3 => {
-                    if b.n_modules < MAX_MODULES {
-                        b.modules[b.n_modules] = (rd32(t + 8) as u64, rd32(t + 12) as u64);
-                        b.n_modules += 1;
-                    }
-                }
+                1 => b.cmdline = t + 8,
+                8 => b.fb = Some(Framebuffer { addr: rd64(t + 8), pitch: rd32(t + 16), width: rd32(t + 20), height: rd32(t + 24), bpp: rd8(t + 28), ty: rd8(t + 29) }),
+                3 => b.add_module(Module { start: rd32(t + 8) as u64, end: rd32(t + 12) as u64, name: t + 16 }),
                 6 => {
                     let esz = rd32(t + 8) as u64;
                     let mut e = t + 16;

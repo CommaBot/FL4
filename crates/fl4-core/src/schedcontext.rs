@@ -158,30 +158,32 @@ fn yield_to<S: Store, A: Arch>(s: &mut S, a: &mut A, sc: Sc, call: bool) {
         complete_yield_to(s, a, yf);
     }
     resume(s, a, sc);
-    let t = Tcb(sc.tcb(s));
     let ct = sched::cur_thread(s);
-    let return_now;
-    if sched::is_schedulable(s, t) {
-        if sc.cpu(s) != s.cur_cpu() || t.prio(s) < ct.prio(s) {
-            sched::dequeue(s, t);
-            sched::enqueue(s, t);
-            return_now = true;
-        } else {
-            ct.set_yield_to(s, sc.0);
-            sc.set_yield_from(s, ct.0);
-            sched::dequeue(s, t);
-            sched::enqueue(s, ct);
-            sched::enqueue(s, t);
-            sched::reschedule_required(s);
-            return_now = false;
-        }
-    } else {
-        return_now = true;
-    }
-    if return_now {
+    if !yield_switches(s, sc, ct) {
         set_consumed(s, a, sc, ct, call);
         sched::set_thread_state(s, ct, sched::TS_RUNNING);
     }
+}
+
+/// The scheduling part of `YieldTo`: true if the caller now waits for the
+/// SC's thread to run, false if the call returns at once.
+fn yield_switches<S: Store>(s: &mut S, sc: Sc, ct: Tcb) -> bool {
+    let t = Tcb(sc.tcb(s));
+    if !sched::is_schedulable(s, t) {
+        return false;
+    }
+    if sc.cpu(s) != s.cur_cpu() || t.prio(s) < ct.prio(s) {
+        sched::dequeue(s, t);
+        sched::enqueue(s, t);
+        return false;
+    }
+    ct.set_yield_to(s, sc.0);
+    sc.set_yield_from(s, ct.0);
+    sched::dequeue(s, t);
+    sched::enqueue(s, ct);
+    sched::enqueue(s, t);
+    sched::reschedule_required(s);
+    true
 }
 
 /// seL4 `decodeSchedContextInvocation`.

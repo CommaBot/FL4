@@ -129,9 +129,28 @@ fn decode_rotate<S: Store>(s: &mut S, length: u64, buf: u64, extra: &[Slot; 3], 
     }
     let ct = sched::cur_thread(s);
     let pivot_data = msg::syscall_arg(s, ct, buf, 2);
+    let src_data = msg::syscall_arg(s, ct, buf, 5);
+    let (src, pivot) = rotate_slots(s, buf, extra, dest)?;
+    let new_src = objects::update_cap_data(true, src_data, src.cap(s));
+    let new_pivot = objects::update_cap_data(true, pivot_data, pivot.cap(s));
+    if new_src.is_null() || new_pivot.is_null() {
+        return illegal();
+    }
+    sched::set_thread_state(s, ct, sched::TS_RESTART);
+    if src == dest {
+        cdt::swap(s, new_src, src, new_pivot, pivot);
+    } else {
+        cdt::move_cap(s, new_pivot, pivot, dest);
+        cdt::move_cap(s, new_src, src, pivot);
+    }
+    Ok(())
+}
+
+/// The source and pivot slots of a Rotate, with seL4's checks on them.
+fn rotate_slots<S: Store>(s: &S, buf: u64, extra: &[Slot; 3], dest: Slot) -> KResult<(Slot, Slot)> {
+    let ct = sched::cur_thread(s);
     let pivot_index = msg::syscall_arg(s, ct, buf, 3);
     let pivot_depth = msg::syscall_arg(s, ct, buf, 4);
-    let src_data = msg::syscall_arg(s, ct, buf, 5);
     let src_index = msg::syscall_arg(s, ct, buf, 6);
     let src_depth = msg::syscall_arg(s, ct, buf, 7);
     let pivot_root = extra[0].cap(s);
@@ -150,17 +169,5 @@ fn decode_rotate<S: Store>(s: &mut S, length: u64, buf: u64, extra: &[Slot; 3], 
     if pivot.cap(s).is_null() {
         return missing_source(pivot_depth, false);
     }
-    let new_src = objects::update_cap_data(true, src_data, src.cap(s));
-    let new_pivot = objects::update_cap_data(true, pivot_data, pivot.cap(s));
-    if new_src.is_null() || new_pivot.is_null() {
-        return illegal();
-    }
-    sched::set_thread_state(s, ct, sched::TS_RESTART);
-    if src == dest {
-        cdt::swap(s, new_src, src, new_pivot, pivot);
-    } else {
-        cdt::move_cap(s, new_pivot, pivot, dest);
-        cdt::move_cap(s, new_src, src, pivot);
-    }
-    Ok(())
+    Ok((src, pivot))
 }

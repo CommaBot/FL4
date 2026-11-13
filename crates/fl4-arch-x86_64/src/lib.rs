@@ -5,6 +5,7 @@
 pub mod apic;
 pub mod arch;
 pub mod cpu;
+pub mod fbcon;
 pub mod fpu;
 pub mod ioapic;
 pub mod percpu;

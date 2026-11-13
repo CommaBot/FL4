@@ -44,7 +44,10 @@ if mpath.exists():
             block = "@[step] " + block
         manual[m.group(1)] = block
 
-consts = set(re.findall(r"theorem ([A-Za-z0-9_.']+)\.spec :", (proofs / "Fl4Proofs/P0/Consts.lean").read_text()))
+ctext = (proofs / "Fl4Proofs/P0/Consts.lean").read_text()
+consts = set(re.findall(r"theorem ([A-Za-z0-9_.']+)\.spec :", ctext))
+# Values of the Result-valued constants, for loop bounds.
+const_vals = dict(re.findall(r"theorem ([A-Za-z0-9_.']+)\.spec : \S+ ⦃ v => v = (\d+)#\w+ ⦄", ctext))
 # Functions with a precise step spec (Eq.lean, Specs.lean): their P0
 # theorem follows from it and must not be a step lemma, or step would pick
 # the weaker one.
@@ -127,8 +130,23 @@ for name in order:
             # Bounds the body tests against (`if i < n`), tried first.
             names = {sn: pv[i] for i, (sn, _) in enumerate(state)}
             btext = defs[m.group(2)][1]
-            for v, b in re.findall(r"\bif (\w+) < ([\w.#]+)\s*$", btext, re.M):
+            # Locals bound to a slice's length (`let n := Slice.len xs`), or
+            # to a computed constant (`let n ← C`).
+            lens = dict(re.findall(r"let (\w+) := Slice\.len (\w+)", btext))
+            cvals = {l: const_vals[c] for l, c in re.findall(r"let (\w+) ← ([\w.]+)\s*$", btext, re.M) if c in const_vals}
+            for v, op, b in re.findall(r"\bif (\w+) (<=?) ([\w.#]+)\s*$", btext, re.M):
                 if v not in names:
+                    continue
+                plus = " + 1" if op == "<=" else ""
+                if b in lens:
+                    c = f"{lens[b]}.length{plus} - {names[v]}.val"
+                    if c not in cands:
+                        cands.append(c)
+                    continue
+                if b in cvals:
+                    c = f"{cvals[b]}{plus} - {names[v]}.val"
+                    if c not in cands:
+                        cands.append(c)
                     continue
                 if re.fullmatch(r"\d+#\w+", b):
                     bound = b.split("#")[0]
@@ -138,7 +156,7 @@ for name in order:
                     bound = f"{b}.val"
                 else:
                     continue
-                c = f"{bound} - {names[v]}.val"
+                c = f"{bound}{plus} - {names[v]}.val"
                 if c not in cands:
                     cands.append(c)
             for i, (_, t) in enumerate(state):
@@ -186,7 +204,7 @@ def proof_of(e):
                 f"  apply loop.spec_decr_nat (measure := {meas}) (inv := fun _ => True)",
                 f"  · rintro {pat} -",
                 f"    unfold {e['body']}",
-                "    p0_auto",
+                "    p0_body",
                 "  · trivial",
             ])
     return "  sorry"
@@ -217,7 +235,10 @@ def render():
         if n in manual:
             out += manual[n].rstrip("\n").split("\n") + [""]
         else:
-            attr = "" if n in specs else "@[step] "
+            # A theorem derived from a stronger spec (a constant's value,
+            # Eq.lean, Specs.lean) is not a step lemma: step would pick it
+            # over the spec.
+            attr = "" if n in specs or e["kind"] == "const" else "@[step] "
             out += [
                 f"{attr}theorem {n}.p0 {e['binders']} :",
                 f"    {e['call']} ⦃ _ => True ⦄ := by",

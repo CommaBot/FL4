@@ -278,13 +278,14 @@ fn handle_yield<S: Store, A: Arch>(s: &mut S, a: &mut A) {
 }
 
 fn after_invocation<S: Store, A: Arch>(s: &mut S, a: &mut A, r: KResult<()>) -> bool {
-    if r.is_err() {
-        mcs_preemption_point(s, a);
-        let irq = a.take_pending_irq();
-        check_interrupt(s, a, irq);
-        false
-    } else {
-        true
+    match r {
+        Ok(()) => true,
+        Err(_) => {
+            mcs_preemption_point(s, a);
+            let irq = a.take_pending_irq();
+            check_interrupt(s, a, irq);
+            false
+        }
     }
 }
 

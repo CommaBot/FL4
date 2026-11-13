@@ -34,8 +34,17 @@ fl4_force(KernelFastpath OFF)
 fl4_force(KernelExceptionFastpath OFF)
 fl4_force(KernelSignalFastpath OFF)
 fl4_force(KernelDangerousCodeInjection OFF)
-fl4_force(KernelX86DangerousMSR OFF)
 fl4_force(KernelBenchmarks none)
+# The bench profile (DESIGN.md section 3): a project that asks for user
+# access to the performance counters or for the MSR syscalls, as sel4bench
+# does, gets both; every other build gets neither.
+if(KernelX86DangerousMSR OR KernelExportPMCUser)
+  fl4_force(KernelX86DangerousMSR ON)
+  fl4_force(KernelExportPMCUser ON)
+else()
+  fl4_force(KernelX86DangerousMSR OFF)
+  fl4_force(KernelExportPMCUser OFF)
+endif()
 # Untyped resets clear 64 KiB per preemption point (l4h 0030).
 fl4_force(KernelResetChunkBits 16)
 # Detected at boot: the values here only decide what CONFIG_* user code

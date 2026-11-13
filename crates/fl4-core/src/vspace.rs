@@ -472,9 +472,15 @@ fn decode_frame<S: Store, A: Arch>(
 }
 
 /// The mapped PML4 a map invocation names, and its ASID.
-fn mapped_root(c: Cap) -> Option<(u64, u64)> {
+#[derive(Clone, Copy)]
+struct VRoot {
+    pml4: u64,
+    asid: u64,
+}
+
+fn mapped_root(c: Cap) -> Option<VRoot> {
     match c {
-        Cap::Pml4 { ptr, mapped: true, asid } => Some((ptr, asid)),
+        Cap::Pml4 { ptr, mapped: true, asid } => Some(VRoot { pml4: ptr, asid }),
         _ => None,
     }
 }
@@ -491,10 +497,12 @@ fn decode_page_map<S: Store, A: Arch>(s: &mut S, a: &mut A, length: u64, slot: S
     let defer = raw_attr & vm_attr::DEFER_FLUSH != 0;
     let attr = raw_attr & !vm_attr::DEFER_FLUSH;
     let vcap = vslot.cap(s);
-    let (root, asid) = match mapped_root(vcap) {
-        Some(x) => x,
+    let vr = match mapped_root(vcap) {
+        Some(r) => r,
         None => return invalid_cap(1),
     };
+    let root = vr.pml4;
+    let asid = vr.asid;
     if f.mapped && f.asid != 0 {
         if f.asid != asid {
             return invalid_cap(1);
@@ -676,11 +684,26 @@ fn insert_subframes<S: Store>(s: &mut S, src: Slot, dest: u64, first: u64, base:
 
 /// A page table, page directory or PDPT cap: its map and unmap labels,
 /// the shift of the region it covers (21, 30 or 39), and its fields.
-fn as_table(c: Cap) -> Option<(u64, u64, u64, u64, bool, u64, u64)> {
+#[derive(Clone, Copy)]
+struct TableCap {
+    map_lbl: u64,
+    unmap_lbl: u64,
+    level: u64,
+    ptr: u64,
+    mapped: bool,
+    asid: u64,
+    vaddr: u64,
+}
+
+fn as_table(c: Cap) -> Option<TableCap> {
     match c {
-        Cap::PageTable { ptr, mapped, asid, vaddr } => Some((label::X86PageTableMap, label::X86PageTableUnmap, 21u64, ptr, mapped, asid, vaddr)),
-        Cap::PageDirectory { ptr, mapped, asid, vaddr } => Some((label::X86PageDirectoryMap, label::X86PageDirectoryUnmap, 30u64, ptr, mapped, asid, vaddr)),
-        Cap::Pdpt { ptr, mapped, asid, vaddr } => Some((label::X86PDPTMap, label::X86PDPTUnmap, 39u64, ptr, mapped, asid, vaddr)),
+        Cap::PageTable { ptr, mapped, asid, vaddr } => {
+            Some(TableCap { map_lbl: label::X86PageTableMap, unmap_lbl: label::X86PageTableUnmap, level: 21, ptr, mapped, asid, vaddr })
+        }
+        Cap::PageDirectory { ptr, mapped, asid, vaddr } => {
+            Some(TableCap { map_lbl: label::X86PageDirectoryMap, unmap_lbl: label::X86PageDirectoryUnmap, level: 30, ptr, mapped, asid, vaddr })
+        }
+        Cap::Pdpt { ptr, mapped, asid, vaddr } => Some(TableCap { map_lbl: label::X86PDPTMap, unmap_lbl: label::X86PDPTUnmap, level: 39, ptr, mapped, asid, vaddr }),
         _ => None,
     }
 }
@@ -696,20 +719,20 @@ fn decode_table<S: Store, A: Arch>(
     buf: u64,
     ex: &[Slot; 3],
 ) -> KResult<()> {
-    let (map_lbl, unmap_lbl, level, ptr, mapped, masid, mvaddr) = match as_table(cap) {
-        Some(x) => x,
+    let t = match as_table(cap) {
+        Some(t) => t,
         None => return illegal(),
     };
-    if lbl == unmap_lbl {
-        decode_table_unmap(s, a, slot, cap, level, ptr, mapped, masid, mvaddr)
-    } else if lbl == map_lbl {
-        if mapped {
-            if extra(ex, 0).is_none() || length < 2 {
-                return truncated();
-            }
-            return invalid_cap(0);
+    if lbl == t.unmap_lbl {
+        decode_table_unmap(s, a, slot, cap, t.level, t.ptr, t.mapped, t.asid, t.vaddr)
+    } else if lbl == t.map_lbl {
+        if t.mapped {
+            return match extra(ex, 0) {
+                Some(_) if length >= 2 => invalid_cap(0),
+                _ => truncated(),
+            };
         }
-        decode_table_map(s, a, length, slot, cap, level, ptr, buf, ex)
+        decode_table_map(s, a, length, slot, cap, t.level, t.ptr, buf, ex)
     } else {
         illegal()
     }

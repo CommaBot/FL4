@@ -39,10 +39,14 @@ pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: u64, sl
     let obj_size = retype_size(new_type, user_size)?;
     let dest = retype_dest(s, extra[0], node_index, node_depth, node_offset, node_window)?;
     ensure_empty_slots(s, dest, node_offset, node_offset.wrapping_add(node_window))?;
-    let (ptr, block, free_index, device) = match as_untyped(cap) {
-        Some(x) => x,
+    let u = match as_untyped(cap) {
+        Some(u) => u,
         None => return illegal(),
     };
+    let ptr = u.ptr;
+    let block = u.size_bits;
+    let free_index = u.free_index;
+    let device = u.is_device;
     let (free_index, reset) = match cdt::ensure_no_children(s, slot) {
         Err(_) => (free_index, false),
         Ok(()) => (0, true),
@@ -122,10 +126,18 @@ fn cnode_of(c: Cap) -> Option<(u64, u64)> {
     }
 }
 
-/// An untyped cap's address, size, free index and device flag.
-fn as_untyped(c: Cap) -> Option<(u64, u64, u64, bool)> {
+/// An untyped cap's fields.
+#[derive(Clone, Copy)]
+struct UntypedCap {
+    ptr: u64,
+    size_bits: u64,
+    free_index: u64,
+    is_device: bool,
+}
+
+fn as_untyped(c: Cap) -> Option<UntypedCap> {
     match c {
-        Cap::Untyped { ptr, size_bits, free_index, is_device } => Some((ptr, size_bits, free_index, is_device)),
+        Cap::Untyped { ptr, size_bits, free_index, is_device } => Some(UntypedCap { ptr, size_bits, free_index, is_device }),
         _ => None,
     }
 }
@@ -147,10 +159,14 @@ fn ensure_empty_slots<S: Store>(s: &S, cnode: u64, from: u64, to: u64) -> KResul
 const RESET_CHUNK: u64 = 1 << RESET_CHUNK_BITS;
 
 fn reset_untyped<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot) -> KResult<()> {
-    let (ptr, block, free_index, device) = match slot.cap(s) {
-        Cap::Untyped { ptr, size_bits, free_index, is_device } => (ptr, size_bits, free_index, is_device),
-        _ => return Ok(()),
+    let u = match as_untyped(slot.cap(s)) {
+        Some(u) => u,
+        None => return Ok(()),
     };
+    let ptr = u.ptr;
+    let block = u.size_bits;
+    let free_index = u.free_index;
+    let device = u.is_device;
     if free_index == 0 {
         return Ok(());
     }

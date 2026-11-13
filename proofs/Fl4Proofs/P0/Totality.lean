@@ -138,3 +138,6 @@ macro "p0_split" : tactic => `(tactic| ((repeat' (first | step | (simp only [bin
 /-- The fallback for a match on the arguments with a call in each branch:
 split the outer matches, then step through each branch. -/
 macro "p0_match" : tactic => `(tactic| (split <;> (try split) <;> p0_auto))
+
+/-- A loop body: the automatic proof, or splitting when it gets stuck. -/
+macro "p0_body" : tactic => `(tactic| first | (p0_auto; done) | p0_split)

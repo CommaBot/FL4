@@ -35,11 +35,3 @@ axiom Bool.Insts.CoreCmpPartialEqBool.ne : Bool → Bool → Result Bool
 @[rust_fun "core::num::{u64}::trailing_zeros"]
 axiom core.num.U64.trailing_zeros : Std.U64 → Result Std.U32
 
-/-- [core::result::{core::result::Result<T, E>}::is_err]:
-    Source: '/rustc/library/core/src/result.rs', lines 647:4-647:38
-    Name pattern: [core::result::{core::result::Result<@T, @E>}::is_err]
-    Visibility: public -/
-@[rust_fun "core::result::{core::result::Result<@T, @E>}::is_err"]
-axiom core.result.Result.is_err
-  {T : Type _} {E : Type _} : core.result.Result T E → Result Bool
-

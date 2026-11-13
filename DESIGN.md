@@ -96,12 +96,12 @@ These are accepted only at the value FL4 supports. The CMake shim fails the buil
 - API shape: `KernelIsMCS` on, `KernelIOMMU` off, `KernelVTX` off, `KernelHugePage` on, SYSCALL as the entry method, `KernelPTLevels` 4.
 - Kernel limits at seL4's defaults: `KernelNumPriorities`, `KernelRootCNodeSizeBits`, `KernelMaxNumBootinfoUntypedCaps`, `KernelRetypeFanOutLimit`, `KernelMaxNumWorkUnitsPerPreemption`, `KernelStaticMaxPeriodUs`, `KernelWcetScale`, `KernelTimeSlice`, `KernelBootThreadTimeSlice`, `KernelStackBits`.
 - `KernelResetChunkBits` is 16: untyped resets clear 64 KiB, then check for preemption, as in l4h patch 0030.
-- Always off: fastpaths (`KernelFastpath`, `KernelExceptionFastpath`, `KernelSignalFastpath`), `KernelDangerousCodeInjection`, `KernelX86DangerousMSR`. Fastpaths are left out because a second, hand-optimized copy of IPC is hard to verify (see §1). User programs cannot tell the difference, since the fastpath only changes speed.
+- Always off: fastpaths (`KernelFastpath`, `KernelExceptionFastpath`, `KernelSignalFastpath`) and `KernelDangerousCodeInjection`. `KernelX86DangerousMSR` is on only in the bench profile. Fastpaths are left out because a second, hand-optimized copy of IPC is hard to verify (see §1). User programs cannot tell the difference, since the fastpath only changes speed.
 - Compiler options (`KernelOptimisation` and similar) do not apply. Cargo profiles replace them.
 
 ### Set by the build profile
 
-There are two profiles, **debug** and **release**. Debug turns on `KernelDebugBuild`, `KernelPrinting`, the hardware debug API (breakpoints and single-step, which sel4test turns on for debug builds), invocation error reporting and IRQ reporting. Release turns them all off. Benchmark support stays out until sel4bench needs it, and then becomes a third profile, not separate options.
+There are three profiles, **debug**, **release** and **bench**. Debug turns on `KernelDebugBuild`, `KernelPrinting`, the hardware debug API (breakpoints and single-step, which sel4test turns on for debug builds), invocation error reporting and IRQ reporting. Release turns them all off. Bench is release plus what sel4bench needs to read the performance counters: user-mode `rdpmc` (`KernelExportPMCUser`) and the `seL4_X86DangerousRDMSR`/`WRMSR` syscalls (`KernelX86DangerousMSR`), which the kernel's entry glue answers without entering the core. A project that asks for either gets both; every other build gets neither.
 
 ### Read from the user-program configuration
 
@@ -420,7 +420,7 @@ sel4test finds the kernel through `find_package(seL4)` in its `kernel/` director
 - It reuses upstream seL4's CMake configuration from `vendor/seL4`, so sel4test's settings work unchanged, but builds libsel4 from FL4's `libsel4/` and generators instead of upstream's.
 - It replaces only the `kernel.elf` target with a `cargo build` that reads the generated configuration and checks it against §3.
 - sel4test runs with `SIMULATION=OFF`, because its `SIMULATION` mode turns on `KernelIOMMU` for x86. With `SIMULATION` off, a debug build also turns on the hardware debug API, so FL4 implements breakpoints and single-step in the debug profile. KVM passes debug registers through to the guest.
-- FL4's extensions get their own suite, `fl4test`, built on the same test framework and run in the same QEMU setups. It covers every extension and fix taken from l4h. sel4test itself stays unmodified.
+- FL4's extensions get their own suite, `fl4test`, built on the same test framework and run in the same QEMU setups. It covers every extension and fix taken from l4h. sel4test itself stays unmodified: `fl4test/fl4test.c` is linked into sel4test's test application, its tests are named `FL4…`, sel4test runs filter them out and `cargo xtask fl4test` runs only them.
 - l4h user space, rebuilt against FL4's libsel4, runs under QEMU/KVM as a second compatibility check. Parts that depend on multikernel boot are skipped.
 - `xtask sel4test` links the checkout at `~/Projects/sel4test` with this kernel directory, builds, runs under QEMU and parses the test summary. sel4test has 228 test definitions. Each one is tracked separately so progress is visible.
 

@@ -63,9 +63,12 @@ pub fn switch(cr3: u64, asid: u64) {
         // Still current: invalidations of it reached this core by IPI.
         return;
     }
-    // Publish the ASID before looking at its generation (module comment).
+    // Publish the ASID before looking at its generation (module comment);
+    // with one core there is no one to race with.
     unsafe { core::ptr::write_volatile(&mut pc.asid, asid) };
-    fence(Ordering::SeqCst);
+    if crate::smp::multi() {
+        fence(Ordering::SeqCst);
+    }
     let mut flush = true;
     if pcid() {
         let g = GEN[t as usize].load(Ordering::SeqCst);

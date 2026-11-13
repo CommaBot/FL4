@@ -1,8 +1,8 @@
 //! Kernel entry and exit: save the user registers into the current TCB,
 //! dispatch to fl4-core, and restore whichever thread is current after.
 use crate::kprintln;
-use fl4_arch_x86_64::arch::PhysArch;
-use fl4_arch_x86_64::{cpu, fpu, percpu};
+use fl4_arch_x86_64::arch::{PhysArch, TIMER_VECTOR};
+use fl4_arch_x86_64::{apic, cpu, fpu, percpu, timer};
 use fl4_core::layout::{irq, node, reg, tcb as tl};
 use fl4_core::machine::Store;
 use fl4_core::obj::{node_get, Tcb};
@@ -246,6 +246,11 @@ extern "C" fn fl4_entry(f: &mut Frame) {
                 f.rflags &= !RFLAGS_IF;
                 return;
             }
+            if pc.idle && v == TIMER_VECTOR as u64 && timer::early() {
+                // Back to idle (l4h 0012); fl4_idle's loop halts again.
+                apic::eoi();
+                return;
+            }
             if pc.idle {
                 pc.idle = false;
                 if v == smp::REMOTE_CALL_VECTOR as u64 {
@@ -261,6 +266,27 @@ extern "C" fn fl4_entry(f: &mut Frame) {
             return;
         }
         kernel_fault(f);
+    }
+    // A timer interrupt before the armed deadline needs no kernel entry
+    // (l4h 0012): acknowledge it and go back to the thread.
+    if v == TIMER_VECTOR as u64 && timer::early() {
+        apic::eoi();
+        return;
+    }
+    // The bench profile's MSR syscalls (DESIGN.md §3) touch only the
+    // caller's registers and the MSR: answered here, outside the core.
+    if fl4_abi::config::KERNEL_X86_DANGEROUS_MSR && v == VEC_SYSCALL {
+        let n = f.rdx as i64;
+        if n == fl4_abi::syscall::SysX86DangerousRDMSR {
+            f.r10 = cpu::rdmsr(f.rdi as u32);
+            // seL4_MessageInfo_new(0, 0, 0, 1).
+            f.rsi = 1;
+            return;
+        }
+        if n == fl4_abi::syscall::SysX86DangerousWRMSR {
+            cpu::wrmsr(f.rdi as u32, f.r10);
+            return;
+        }
     }
     save_user(&mut store(), f);
     trace(f);

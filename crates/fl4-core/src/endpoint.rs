@@ -112,15 +112,7 @@ pub fn send_ipc<S: Store, A: Arch>(
 /// seL4 `receiveIPC` (MCS).
 pub fn receive_ipc<S: Store, A: Arch>(s: &mut S, a: &mut A, thread: Tcb, cap: Cap, blocking: bool, reply_cap: Cap) {
     let ep_ptr = cap.ptr();
-    let ep = Ep(ep_ptr);
-    let mut reply = Reply(0);
-    if let Cap::Reply { ptr, .. } = reply_cap {
-        reply = Reply(ptr);
-        let rt = Tcb(reply.tcb(s));
-        if !rt.is_null() && rt != thread {
-            ipc::cancel_ipc(s, a, rt);
-        }
-    }
+    let reply = take_reply(s, a, thread, reply_cap);
     let ntfn = Ntfn(thread.bound_ntfn(s));
     if ntfn.0 != 0 && ntfn.state(s) == crate::obj::NTFN_ACTIVE {
         notification::complete_signal(s, a, ntfn, thread);
@@ -129,24 +121,46 @@ pub fn receive_ipc<S: Store, A: Arch>(s: &mut S, a: &mut A, thread: Tcb, cap: Ca
     if ntfn.0 != 0 && blocking {
         notification::maybe_return_sched_context(s, ntfn, thread);
     }
-    let st = ep.state(s);
+    let st = Ep(ep_ptr).state(s);
     if st == EP_IDLE || st == EP_RECV {
-        if blocking {
-            thread.set_state(s, sched::TS_BLOCKED_ON_RECV);
-            thread.set_block_obj(s, ep_ptr);
-            thread.set_reply_obj(s, reply.0);
-            sched::schedule_tcb(s, thread);
-            if reply.0 != 0 {
-                reply.set_tcb(s, thread.0);
-            }
-            ep_append(s, ep, thread, EP_RECV);
-        } else {
-            thread.set_reg(s, crate::layout::reg::BADGE, 0);
+        wait_for_sender(s, thread, ep_ptr, blocking, reply);
+    } else {
+        receive_from_sender(s, a, thread, ep_ptr, reply);
+    }
+}
+
+/// The reply object a receive will use, taken from whoever waits on it.
+fn take_reply<S: Store, A: Arch>(s: &mut S, a: &mut A, thread: Tcb, reply_cap: Cap) -> Reply {
+    if let Cap::Reply { ptr, .. } = reply_cap {
+        let reply = Reply(ptr);
+        let rt = Tcb(reply.tcb(s));
+        if !rt.is_null() && rt != thread {
+            ipc::cancel_ipc(s, a, rt);
         }
+        return reply;
+    }
+    Reply(0)
+}
+
+/// No sender waits: block on the endpoint, or return for a polling receive.
+fn wait_for_sender<S: Store>(s: &mut S, thread: Tcb, ep_ptr: u64, blocking: bool, reply: Reply) {
+    if !blocking {
+        thread.set_reg(s, crate::layout::reg::BADGE, 0);
         return;
     }
-    // Send: a sender is waiting.
-    let sender = get_queue(s, ep).head;
+    thread.set_state(s, sched::TS_BLOCKED_ON_RECV);
+    thread.set_block_obj(s, ep_ptr);
+    thread.set_reply_obj(s, reply.0);
+    sched::schedule_tcb(s, thread);
+    if reply.0 != 0 {
+        reply.set_tcb(s, thread.0);
+    }
+    ep_append(s, Ep(ep_ptr), thread, EP_RECV);
+}
+
+/// A sender is waiting: take its message.
+fn receive_from_sender<S: Store, A: Arch>(s: &mut S, a: &mut A, thread: Tcb, ep_ptr: u64, reply: Reply) {
+    let sender = get_queue(s, Ep(ep_ptr)).head;
     ep_dequeue(s, ep_ptr, sender);
     let badge = sender.block_badge(s);
     let flags = sender.block_flags(s);

@@ -12,7 +12,7 @@ mod smp;
 use core::cell::UnsafeCell;
 use core::fmt::Write;
 use fl4_arch_x86_64::arch::{PhysArch, TIMER_VECTOR};
-use fl4_arch_x86_64::{apic, cpu, fpu, ioapic, percpu, pic, serial, timer, tlb};
+use fl4_arch_x86_64::{apic, cpu, fbcon, fpu, ioapic, percpu, pic, serial, timer, tlb};
 use fl4_core::boot::{BootParams, Region, MAX_REGIONS, PADDR_USER_DEVICE_TOP};
 use fl4_core::layout::{ks, pptr, PADDR_TOP};
 use fl4_core::machine::Store;
@@ -64,6 +64,7 @@ struct Statics {
     ks: KsArea,
     idle: IdleArea,
     extra: ExtraBi,
+    mods: KeptModules,
 }
 
 struct Cell(UnsafeCell<Statics>);
@@ -73,6 +74,7 @@ static STATICS: Cell = Cell(UnsafeCell::new(Statics {
     ks: KsArea([0; ks::SIZE as usize]),
     idle: IdleArea([[0; 8192]; percpu::MAX_CPUS]),
     extra: ExtraBi([0; 4096]),
+    mods: KeptModules { n: 0, paddr: [0; mboot::MAX_MODULES], size: [0; mboot::MAX_MODULES] },
 }));
 
 fn fail(msg: &str) -> ! {
@@ -142,9 +144,38 @@ fn put_bytes(buf: &mut [u8], off: &mut usize, b: &[u8]) {
     *off += b.len();
 }
 
+/// Where the extra boot modules went, for BootInfo.
+pub struct KeptModules {
+    n: usize,
+    paddr: [u64; mboot::MAX_MODULES],
+    size: [u64; mboot::MAX_MODULES],
+}
+
+/// Copy modules 1.. to page-aligned memory from `start`, which lies above
+/// every module; returns the end of the copies.
+fn keep_modules(mb: &mboot::BootInfo, start: u64, ram: &Ranges, k: &mut KeptModules) -> u64 {
+    let mut dst = start;
+    k.n = 0;
+    for i in 1..mb.n_modules {
+        let m = mb.modules[i];
+        let size = m.end - m.start;
+        let end = dst + ((size + PAGE - 1) & !(PAGE - 1));
+        if !(0..ram.n).any(|j| ram.r[j].start <= dst && end <= ram.r[j].end) {
+            fail("no memory for the extra boot modules");
+        }
+        unsafe { core::ptr::copy_nonoverlapping(pptr(m.start) as *const u8, pptr(dst) as *mut u8, size as usize) };
+        k.paddr[k.n] = dst;
+        k.size[k.n] = size;
+        k.n += 1;
+        kprintln!("FL4: boot module {}: {:#x} bytes at {:#x}", i, size, dst);
+        dst = end;
+    }
+    dst
+}
+
 /// Extra BootInfo records in the order seL4 writes them: ACPI RSDP,
-/// Multiboot memory map, TSC frequency.
-fn build_extra_bi(buf: &mut [u8], a: &acpi::Info, mb: &mboot::BootInfo) -> usize {
+/// Multiboot memory map, TSC frequency; then l4h's boot modules record.
+fn build_extra_bi(buf: &mut [u8], a: &acpi::Info, mb: &mboot::BootInfo, k: &KeptModules) -> usize {
     let mut off = 0;
     let hdr = |buf: &mut [u8], off: &mut usize, id: u64, len: u64| {
         put_bytes(buf, off, &id.to_le_bytes());
@@ -152,6 +183,16 @@ fn build_extra_bi(buf: &mut [u8], a: &acpi::Info, mb: &mboot::BootInfo) -> usize
     };
     hdr(buf, &mut off, 3, 16 + acpi::RSDP_LEN as u64);
     put_bytes(buf, &mut off, &a.rsdp);
+    if let Some(f) = mb.fb {
+        if f.addr != 0 {
+            hdr(buf, &mut off, fl4_abi::consts::bootinfo_header::X86_FRAMEBUFFER, 16 + 22);
+            put_bytes(buf, &mut off, &f.addr.to_le_bytes());
+            put_bytes(buf, &mut off, &f.pitch.to_le_bytes());
+            put_bytes(buf, &mut off, &f.width.to_le_bytes());
+            put_bytes(buf, &mut off, &f.height.to_le_bytes());
+            put_bytes(buf, &mut off, &[f.bpp, f.ty]);
+        }
+    }
     let mmap_size = 16 + 4 + 24 * mboot::MAX_MMAP;
     hdr(buf, &mut off, 2, mmap_size as u64);
     put_bytes(buf, &mut off, &((mb.n_mmap * 24) as u32).to_le_bytes());
@@ -164,6 +205,18 @@ fn build_extra_bi(buf: &mut [u8], a: &acpi::Info, mb: &mboot::BootInfo) -> usize
     }
     hdr(buf, &mut off, 5, 20);
     put_bytes(buf, &mut off, &(timer::tsc_mhz() as u32).to_le_bytes());
+    if k.n > 0 {
+        // seL4_X86_BootModules_t: count, then (paddr, size, name[64]).
+        hdr(buf, &mut off, fl4_abi::consts::bootinfo_header::X86_BOOT_MODULES, 16 + 8 + 80 * k.n as u64);
+        put_bytes(buf, &mut off, &(k.n as u64).to_le_bytes());
+        for i in 0..k.n {
+            put_bytes(buf, &mut off, &k.paddr[i].to_le_bytes());
+            put_bytes(buf, &mut off, &k.size[i].to_le_bytes());
+            let mut name = [0u8; 64];
+            mboot::module_name(&mb.modules[i + 1], &mut name);
+            put_bytes(buf, &mut off, &name);
+        }
+    }
     off
 }
 
@@ -202,6 +255,10 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
         cpu::set_fsgsbase(true);
     }
     cr4 |= tlb::init();
+    // The bench profile lets user code read the performance counters.
+    if fl4_abi::config::EXPORT_PMC_USER {
+        cr4 |= 1 << 8;
+    }
     cpu::write_cr4(cr4);
     let (kernel_root, window_top) = paging::init(nx);
     let stack_top = percpu::init(0);
@@ -252,10 +309,10 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
     let kernel_end = paging::image_paddr(unsafe { &__kernel_end as *const u8 as u64 });
     let mut mods_end = kernel_end;
     for i in 0..mb.n_modules {
-        mods_end = mods_end.max(mb.modules[i].1);
+        mods_end = mods_end.max(mb.modules[i].end);
     }
     let load = (mods_end + PAGE - 1) & !(PAGE - 1);
-    let image = match mboot::load_elf(mb.modules[0].0, load) {
+    let image = match mboot::load_elf(mb.modules[0].start, load) {
         Some(i) => i,
         None => fail("root task is not an x86_64 ELF image"),
     };
@@ -280,11 +337,35 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
     for i in 0..acpi.n_ioapics {
         dev.remove(acpi.ioapics[i], acpi.ioapics[i] + PAGE);
     }
-    let mut free = ram;
-    free.remove(KERNEL_PHYS_START, image.p_end);
-
+    // The other modules (l4h 0021): copied above the image, out of the way
+    // of everything, and handed over as device untypeds, which retype
+    // without clearing.
     let st = unsafe { &mut *STATICS.0.get() };
-    let extra_len = build_extra_bi(&mut st.extra.0, &acpi, &mb);
+    let mods = keep_modules(&mb, image.p_end, &ram, &mut st.mods);
+    dev.add(image.p_end, mods);
+    // The framebuffer console (l4h 0020), if asked for: never on RAM or low
+    // memory (which holds the APs' boot code).
+    if mboot::has_option(&mb, b"fb_console") {
+        let ok = match mb.fb {
+            Some(f) => {
+                let end = f.addr.saturating_add(f.pitch as u64 * f.height as u64);
+                let on_ram = (0..ram.n).any(|j| f.addr < ram.r[j].end && ram.r[j].start < end);
+                f.addr >= HIGHMEM_PADDR && !on_ram && fbcon::init(f.addr, f.pitch, f.width, f.height, f.bpp, f.ty)
+            }
+            None => false,
+        };
+        match mb.fb {
+            Some(f) if !ok => kprintln!(
+                "FL4: framebuffer not usable as a console ({}x{}, {} bpp, type {}, at {:#x})",
+                f.width, f.height, f.bpp, f.ty, f.addr
+            ),
+            _ => kprintln!("FL4: {}", if ok { "console copied to the framebuffer" } else { "no framebuffer for the console" }),
+        }
+    }
+    let mut free = ram;
+    free.remove(KERNEL_PHYS_START, mods);
+
+    let extra_len = build_extra_bi(&mut st.extra.0, &acpi, &mb, &st.mods);
     let mut p = BootParams {
         free: [Region::EMPTY; MAX_REGIONS],
         n_free: 0,

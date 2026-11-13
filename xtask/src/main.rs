@@ -200,6 +200,93 @@ fn clone_at(ws: &Path, path: &str, url: &str, rev: &str) {
     run(Command::new("git").arg("-C").arg(&dst).args(["checkout", "-q", rev]));
 }
 
+/// sel4bench's own projects, on top of the sel4test manifest (the same
+/// library revisions, from seL4/sel4bench-manifest).
+const SEL4BENCH_MANIFEST: &[(&str, &str, &str)] = &[
+    ("projects/projects_libs", "https://github.com/seL4/projects_libs.git", "d2511a75ffadc5550c7f303a7641c0f731c30320"),
+    ("projects/sel4bench", "https://github.com/seL4/sel4bench.git", "18f9d5f079bc23551eccbdc2202cae95c72c69d7"),
+];
+
+/// A sel4bench workspace whose kernel is FL4 (`cmake/`) or upstream seL4
+/// (`vendor/seL4`, the revision sel4bench pins), for the comparison of
+/// DESIGN.md §12.
+fn sel4bench_ws(kernel: &str) -> PathBuf {
+    let r = root();
+    let ws = r.join(format!("build/sel4bench-{kernel}-ws"));
+    fs::create_dir_all(ws.join(".gitdirs")).unwrap();
+    fs::create_dir_all(ws.join("projects")).unwrap();
+    fs::create_dir_all(ws.join("tools")).unwrap();
+    for (path, url, rev) in SEL4TEST_MANIFEST.iter().chain(SEL4BENCH_MANIFEST) {
+        clone_at(&ws, path, url, rev);
+    }
+    let link = |src: &Path, dst: &Path| {
+        let _ = fs::remove_file(dst);
+        std::os::unix::fs::symlink(src, dst).unwrap();
+    };
+    let k = match kernel {
+        "fl4" => r.join("cmake"),
+        "sel4" => r.join("vendor/seL4"),
+        k => fail(&format!("unknown kernel {k} (fl4, sel4)")),
+    };
+    link(&k, &ws.join("kernel"));
+    link(Path::new("tools/seL4/cmake-tool/init-build.sh"), &ws.join("init-build.sh"));
+    link(Path::new("projects/sel4bench/easy-settings.cmake"), &ws.join("easy-settings.cmake"));
+    // sel4bench's manifest has nanopb at the top of the workspace.
+    link(Path::new("tools/nanopb"), &ws.join("nanopb"));
+    ws
+}
+
+/// Build and run sel4bench's IPC benchmarks on FL4 or seL4
+/// (`--kernel`), both without a fastpath, release builds, one core.
+fn bench(o: &Opts) {
+    let kernel = o.rest.first().map(String::as_str).unwrap_or("fl4");
+    let ws = sel4bench_ws(kernel);
+    let b = ws.join("build");
+    if !b.join("build.ninja").exists() {
+        fs::create_dir_all(&b).unwrap();
+        let mut c = Command::new("../init-build.sh");
+        c.current_dir(&b).args([
+            "-DPLATFORM=x86_64",
+            "-DMCS=ON",
+            "-DFASTPATH=OFF",
+            "-DRELEASE=ON",
+            "-DSIMULATION=OFF",
+            "-DSMP=OFF",
+            "-DIPC=ON",
+            "-DSIGNAL=OFF",
+            "-DHARDWARE=OFF",
+            "-DFAULT=OFF",
+            "-DSCHED=OFF",
+            "-DSYNC=OFF",
+            "-DMAPPING=OFF",
+            "-DIRQUSER=OFF",
+            "-DVCPU=OFF",
+        ]);
+        if kernel == "sel4" {
+            // seL4 refuses to boot without PCIDs unless built without them;
+            // the development machine's CPU has none (FL4 detects that).
+            c.arg("-DKernelSupportPCID=OFF");
+        }
+        python_env(&mut c);
+        run(&mut c);
+    }
+    let mut c = Command::new("ninja");
+    c.current_dir(&b);
+    python_env(&mut c);
+    run(&mut c);
+    let k = b.join("images/kernel-x86_64-pc99");
+    let i = b.join("images/sel4benchapp-image-x86_64-pc99");
+    let log = b.join("sel4bench.log");
+    // One vCPU pinned to one host core: performance numbers come from KVM
+    // with pinned vCPUs (DESIGN.md §12).
+    let mut q = Command::new("taskset");
+    q.args(["-c", "2"]).arg("qemu-system-x86_64");
+    let base = qemu_cmd(&o.setup, 1, &k, Some(&i));
+    q.args(base.get_args());
+    run_qemu(q, o.timeout, &["All is well in the universe", "FL4 panic"], &log);
+    eprintln!("xtask: sel4bench results in {}", log.display());
+}
+
 /// The sel4test workspace: the pinned seL4 projects, sel4test itself and
 /// FL4's cmake/ as the kernel.
 fn sel4test_ws() -> PathBuf {
@@ -235,10 +322,20 @@ fn python_env(c: &mut Command) {
     }
 }
 
-fn sel4test_build(o: &Opts) -> PathBuf {
+/// fl4test's tests (DESIGN.md §12) are compiled into sel4test's test
+/// application; their names start with FL4. A sel4test run leaves them out
+/// and an fl4test run runs only them.
+const FL4TEST_REGEX: &str = "^FL4";
+const SEL4TEST_REGEX: &str = "^([^F]|F[^L]|FL[^4])";
+
+fn sel4test_build(o: &Opts, fl4test: bool) -> PathBuf {
     let ws = sel4test_ws();
+    let link = ws.join("projects/sel4test/apps/sel4test-tests/src/tests/fl4test.c");
+    if fs::symlink_metadata(&link).is_err() {
+        std::os::unix::fs::symlink(root().join("fl4test/fl4test.c"), &link).unwrap();
+    }
     // FL4_TESTS=<regex> runs only the matching tests, in its own build.
-    let only = env::var("FL4_TESTS").ok();
+    let only = env::var("FL4_TESTS").ok().or(if fl4test { Some(FL4TEST_REGEX.into()) } else { None });
     let mut name = format!("build-{}-smp{}", if o.release { "release" } else { "debug" }, o.smp);
     if let Some(r) = &only {
         name += "-";
@@ -260,13 +357,23 @@ fn sel4test_build(o: &Opts) -> PathBuf {
         if o.smp > 1 {
             c.arg(format!("-DNUM_NODES={}", o.smp));
         }
-        c.arg(format!("-DLibSel4TestPrinterRegex={}", only.clone().unwrap_or_else(|| ".*".into())));
+        c.arg(format!("-DLibSel4TestPrinterRegex={}", only.clone().unwrap_or_else(|| SEL4TEST_REGEX.into())));
         if serial_gate {
             c.arg("-DFL4_SERIAL_GATE=ON");
         }
         for a in &o.rest {
             c.arg(a);
         }
+        python_env(&mut c);
+        run(&mut c);
+    }
+    // A build configured with another test filter (or before fl4test
+    // existed) gets the one this run wants.
+    let regex = only.clone().unwrap_or_else(|| SEL4TEST_REGEX.into());
+    let cache = fs::read_to_string(b.join("CMakeCache.txt")).unwrap_or_default();
+    if !cache.contains(&format!("LibSel4TestPrinterRegex:STRING={regex}\n")) {
+        let mut c = Command::new("cmake");
+        c.current_dir(&b).arg(format!("-DLibSel4TestPrinterRegex={regex}")).arg(".");
         python_env(&mut c);
         run(&mut c);
     }
@@ -277,24 +384,25 @@ fn sel4test_build(o: &Opts) -> PathBuf {
     b
 }
 
-fn sel4test(o: &Opts) {
-    let b = sel4test_build(o);
+fn sel4test(o: &Opts, fl4test: bool) {
+    let b = sel4test_build(o, fl4test);
     let k = b.join("images/kernel-x86_64-pc99");
     let i = b.join("images/sel4test-driver-image-x86_64-pc99");
     let log = b.join("sel4test.log");
     let stop = ["All is well in the universe", "Test suite failed", "Halting...", "FL4 panic"];
     let out = run_qemu(qemu_cmd(&o.setup, o.smp, &k, Some(&i)), o.timeout, &stop, &log);
     let (passed, failed) = sel4test_results(&out);
-    eprintln!("\nxtask: sel4test {}: {passed} passed, {} failed", o.setup, failed.len());
+    let suite = if fl4test { "fl4test" } else { "sel4test" };
+    eprintln!("\nxtask: {suite} {}: {passed} passed, {} failed", o.setup, failed.len());
     for f in &failed {
         eprintln!("  {f}");
     }
     let finished = out.contains("All is well in the universe") || out.contains("Test suite failed");
     if !finished {
-        fail("sel4test did not complete");
+        fail(&format!("{suite} did not complete"));
     }
     if !failed.is_empty() {
-        fail("sel4test failed");
+        fail(&format!("{suite} failed"));
     }
 }
 
@@ -445,15 +553,17 @@ fn main() {
             run_qemu(qemu_cmd(&o.setup, o.smp, &k, initrd.as_deref()), o.timeout, &["FL4 halted", "FL4 panic"], &root().join("build/run.log"));
         }
         "sel4test-build" => {
-            sel4test_build(&o);
+            sel4test_build(&o, false);
         }
-        "sel4test" => sel4test(&o),
+        "sel4test" => sel4test(&o, false),
+        "fl4test" => sel4test(&o, true),
         "extract" => extract(),
         "gate" => gate(),
         "sim" => sim(&o),
         "trusted" => trusted(),
+        "bench" => bench(&o),
         _ => {
-            eprintln!("usage: cargo xtask <kernel|run|sel4test-build|sel4test|extract|gate|sim|trusted> [--release] [--setup kvm|kvm-reduced|tcg] [--smp N] [--timeout S] [--seeds N]");
+            eprintln!("usage: cargo xtask <kernel|run|sel4test-build|sel4test|fl4test|extract|gate|sim|trusted|bench [fl4|sel4]> [--release] [--setup kvm|kvm-reduced|tcg] [--smp N] [--timeout S] [--seeds N]");
             exit(2);
         }
     }

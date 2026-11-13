@@ -235,6 +235,21 @@ inductive error.Exc where
 | Sys : error.SysError → error.Exc
 | Preempted : error.Exc
 
+/-- [fl4_core::boot::Root]
+    Source: 'crates/fl4-core/src/boot.rs', lines 391:0-403:1 -/
+structure boot.Root where
+  b : boot.Boot
+  extra_bi : Std.U64
+  pml4 : Std.U64
+  asid_pool : Std.U64
+  ipc_buf : Std.U64
+  tcb : obj.Tcb
+  ipcbuf_vptr : Std.U64
+  bi_frame_vptr : Std.U64
+  extra_bi_vptr : Std.U64
+  ebytes : Std.U64
+  it : boot.Region
+
 /-- [fl4_core::capability::Rights]
     Source: 'crates/fl4-core/src/capability.rs', lines 248:0-253:1
     Visibility: public -/

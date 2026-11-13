@@ -21,5 +21,15 @@ jobs:
         run: cargo xtask trusted
       - name: Simulation
         run: cargo xtask sim --seeds 200
+      - name: sel4test and fl4test under QEMU/KVM (DESIGN.md §12)
+        run: |
+          for setup in kvm kvm-reduced; do
+            for n in 1 2 4; do
+              cargo xtask sel4test --smp $n --setup $setup
+              cargo xtask sel4test --smp $n --setup $setup --release
+            done
+            cargo xtask fl4test --setup $setup
+            cargo xtask fl4test --setup $setup --smp 4
+          done
       - name: Extract and prove
         run: cargo xtask gate

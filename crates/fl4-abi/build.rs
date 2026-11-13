@@ -27,6 +27,8 @@ fn default_config(debug: bool) -> Config {
     c.insert("IRQ_REPORTING".into(), b(debug));
     c.insert("ENABLE_SMP_SUPPORT".into(), b(true));
     c.insert("SET_TLS_BASE_SELF".into(), b(true));
+    c.insert("KERNEL_X86_DANGEROUS_MSR".into(), b(false));
+    c.insert("EXPORT_PMC_USER".into(), b(false));
     c.insert("NUM_DOMAINS".into(), "1".into());
     c.insert("NUM_DOMAIN_SCHEDULES".into(), "2".into());
     c.insert("MAX_NUM_NODES".into(), "64".into());
@@ -164,13 +166,19 @@ fn main() {
     for (name, n) in &sc {
         writeln!(o, "    pub const Sys{name}: i64 = {n};").unwrap();
     }
+    // The bench profile's syscalls, numbers that never match when absent.
+    for name in ["X86DangerousWRMSR", "X86DangerousRDMSR"] {
+        if !sc.iter().any(|(n, _)| n == name) {
+            writeln!(o, "    pub const Sys{name}: i64 = i64::MIN;").unwrap();
+        }
+    }
     writeln!(o, "    pub const SYSCALL_MAX: i64 = -1;").unwrap();
     writeln!(o, "    pub const SYSCALL_MIN: i64 = -{n_api};").unwrap();
     writeln!(o, "}}\n").unwrap();
 
     writeln!(o, "/// Settings read from the user-program configuration (DESIGN.md §3).").unwrap();
     writeln!(o, "pub mod config {{").unwrap();
-    for k in ["DEBUG_BUILD", "PRINTING", "HARDWARE_DEBUG_API", "KERNEL_INVOCATION_REPORT_ERROR_IPC", "IRQ_REPORTING", "ENABLE_SMP_SUPPORT", "SET_TLS_BASE_SELF"] {
+    for k in ["DEBUG_BUILD", "PRINTING", "HARDWARE_DEBUG_API", "KERNEL_INVOCATION_REPORT_ERROR_IPC", "IRQ_REPORTING", "ENABLE_SMP_SUPPORT", "SET_TLS_BASE_SELF", "KERNEL_X86_DANGEROUS_MSR", "EXPORT_PMC_USER"] {
         writeln!(o, "    pub const {k}: bool = {};", cfg_bool(&config, k)).unwrap();
     }
     for k in ["NUM_DOMAINS", "NUM_DOMAIN_SCHEDULES", "MAX_NUM_NODES", "ROOT_CNODE_SIZE_BITS"] {

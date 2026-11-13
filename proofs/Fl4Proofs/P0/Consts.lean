@@ -66,15 +66,6 @@ open fl4_core
 @[step] theorem layout.tcb.NAME.spec : layout.tcb.NAME ⦃ v => v = 3600#u64 ⦄ := by
   unfold layout.tcb.NAME; simp only [layout.tcb.F]; step*
 
-@[step] theorem regs.FLAGS_HIGH.spec : regs.FLAGS_HIGH ⦃ v => v = 2#u64 ⦄ := by
-  unfold regs.FLAGS_HIGH; step*
-
-@[step] theorem regs.FLAGS_IF.spec : regs.FLAGS_IF ⦃ v => v = 512#u64 ⦄ := by
-  unfold regs.FLAGS_IF; step*
-
-@[step] theorem regs.FLAGS_USER_DEFAULT.spec : regs.FLAGS_USER_DEFAULT ⦃ v => v = 514#u64 ⦄ := by
-  unfold regs.FLAGS_USER_DEFAULT; step*
-
 @[step] theorem layout.tcb.DEBUG_PREV.spec : layout.tcb.DEBUG_PREV ⦃ v => v = 3584#u64 ⦄ := by
   unfold layout.tcb.DEBUG_PREV; simp only [layout.tcb.F]; step*
 
@@ -83,6 +74,15 @@ open fl4_core
 
 @[step] theorem layout.tcb.AFFINITY.spec : layout.tcb.AFFINITY ⦃ v => v = 3520#u64 ⦄ := by
   unfold layout.tcb.AFFINITY; simp only [layout.tcb.F]; step*
+
+@[step] theorem regs.FLAGS_HIGH.spec : regs.FLAGS_HIGH ⦃ v => v = 2#u64 ⦄ := by
+  unfold regs.FLAGS_HIGH; step*
+
+@[step] theorem regs.FLAGS_IF.spec : regs.FLAGS_IF ⦃ v => v = 512#u64 ⦄ := by
+  unfold regs.FLAGS_IF; step*
+
+@[step] theorem regs.FLAGS_USER_DEFAULT.spec : regs.FLAGS_USER_DEFAULT ⦃ v => v = 514#u64 ⦄ := by
+  unfold regs.FLAGS_USER_DEFAULT; step*
 
 @[step] theorem layout.tcb.DOMAIN.spec : layout.tcb.DOMAIN ⦃ v => v = 3432#u64 ⦄ := by
   unfold layout.tcb.DOMAIN; simp only [layout.tcb.F]; step*
@@ -807,14 +807,23 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem layout.tcb.F.val_eq : layout.tcb.F.val = 3328 := by
   unfold layout.tcb.F; rfl
 
-@[simp, scalar_tac_simps] theorem vspace.ASID_LOW_BITS.val_eq : vspace.ASID_LOW_BITS.val = 9 := by
-  unfold vspace.ASID_LOW_BITS; rfl
+@[simp, scalar_tac_simps] theorem layout.node.DEBUG_TCBS.val_eq : layout.node.DEBUG_TCBS.val = 88 := by
+  unfold layout.node.DEBUG_TCBS; rfl
 
-@[simp, scalar_tac_simps] theorem sched.ACTION_RESUME_CURRENT.val_eq : sched.ACTION_RESUME_CURRENT.val = 0 := by
-  unfold sched.ACTION_RESUME_CURRENT; rfl
+@[simp, scalar_tac_simps] theorem layout.ks.DOMAIN_TIME.val_eq : layout.ks.DOMAIN_TIME.val = 16 := by
+  unfold layout.ks.DOMAIN_TIME; rfl
 
-@[simp, scalar_tac_simps] theorem sched.TS_IDLE.val_eq : sched.TS_IDLE.val = 7 := by
-  unfold sched.TS_IDLE; rfl
+@[simp, scalar_tac_simps] theorem layout.ks.CUR_DOMAIN.val_eq : layout.ks.CUR_DOMAIN.val = 8 := by
+  unfold layout.ks.CUR_DOMAIN; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ks.NUM_NODES.val_eq : layout.ks.NUM_NODES.val = 0 := by
+  unfold layout.ks.NUM_NODES; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.SCHED_ACTION.val_eq : layout.node.SCHED_ACTION.val = 16 := by
+  unfold layout.node.SCHED_ACTION; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.IDLE_THREAD.val_eq : layout.node.IDLE_THREAD.val = 8 := by
+  unfold layout.node.IDLE_THREAD; rfl
 
 @[simp, scalar_tac_simps] theorem sched.TS_RUNNING.val_eq : sched.TS_RUNNING.val = 1 := by
   unfold sched.TS_RUNNING; rfl
@@ -840,47 +849,14 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem layout.reg.FLAGS.val_eq : layout.reg.FLAGS.val = 13 := by
   unfold layout.reg.FLAGS; rfl
 
-@[simp, scalar_tac_simps] theorem layout.node.DEBUG_TCBS.val_eq : layout.node.DEBUG_TCBS.val = 88 := by
-  unfold layout.node.DEBUG_TCBS; rfl
-
 @[simp, scalar_tac_simps] theorem obj.MDB_PTR_MASK.val_eq : obj.MDB_PTR_MASK.val = 281474976710655 := by
   unfold obj.MDB_PTR_MASK; rfl
 
 @[simp, scalar_tac_simps] theorem capability.ZOMBIE_TCB.val_eq : capability.ZOMBIE_TCB.val = 65 := by
   unfold capability.ZOMBIE_TCB; rfl
 
-@[simp, scalar_tac_simps] theorem layout.sc.CORE.val_eq : layout.sc.CORE.val = 16 := by
-  unfold layout.sc.CORE; rfl
-
 @[simp, scalar_tac_simps] theorem layout.tcb.STATE.val_eq : layout.tcb.STATE.val = 3328 := by
   unfold layout.tcb.STATE; exact layout.tcb.F.val_eq
-
-@[simp, scalar_tac_simps] theorem layout.ks.DOMAIN_TIME.val_eq : layout.ks.DOMAIN_TIME.val = 16 := by
-  unfold layout.ks.DOMAIN_TIME; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ks.CUR_DOMAIN.val_eq : layout.ks.CUR_DOMAIN.val = 8 := by
-  unfold layout.ks.CUR_DOMAIN; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ks.NUM_NODES.val_eq : layout.ks.NUM_NODES.val = 0 := by
-  unfold layout.ks.NUM_NODES; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.REPROGRAM.val_eq : layout.node.REPROGRAM.val = 56 := by
-  unfold layout.node.REPROGRAM; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.IDLE_SC.val_eq : layout.node.IDLE_SC.val = 32 := by
-  unfold layout.node.IDLE_SC; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.CUR_SC.val_eq : layout.node.CUR_SC.val = 24 := by
-  unfold layout.node.CUR_SC; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.SCHED_ACTION.val_eq : layout.node.SCHED_ACTION.val = 16 := by
-  unfold layout.node.SCHED_ACTION; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.IDLE_THREAD.val_eq : layout.node.IDLE_THREAD.val = 8 := by
-  unfold layout.node.IDLE_THREAD; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.CUR_THREAD.val_eq : layout.node.CUR_THREAD.val = 0 := by
-  unfold layout.node.CUR_THREAD; rfl
 
 @[simp, scalar_tac_simps] theorem layout.reg.RDI.val_eq : layout.reg.RDI.val = 0 := by
   unfold layout.reg.RDI; rfl
@@ -903,15 +879,6 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem layout.tcb.SLOT_CTABLE.val_eq : layout.tcb.SLOT_CTABLE.val = 0 := by
   unfold layout.tcb.SLOT_CTABLE; rfl
 
-@[simp, scalar_tac_simps] theorem interrupt.IRQ_IPI.val_eq : interrupt.IRQ_IPI.val = 3 := by
-  unfold interrupt.IRQ_IPI; rfl
-
-@[simp, scalar_tac_simps] theorem interrupt.IRQ_TIMER.val_eq : interrupt.IRQ_TIMER.val = 2 := by
-  unfold interrupt.IRQ_TIMER; rfl
-
-@[simp, scalar_tac_simps] theorem interrupt.IRQ_INACTIVE.val_eq : interrupt.IRQ_INACTIVE.val = 0 := by
-  unfold interrupt.IRQ_INACTIVE; rfl
-
 @[simp, scalar_tac_simps] theorem layout.tcb.DEBUG.val_eq : layout.tcb.DEBUG.val = 448 := by
   unfold layout.tcb.DEBUG; rfl
 
@@ -926,6 +893,39 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem layout.tcb.FPU.val_eq : layout.tcb.FPU.val = 512 := by
   unfold layout.tcb.FPU; rfl
+
+@[simp, scalar_tac_simps] theorem sched.ACTION_RESUME_CURRENT.val_eq : sched.ACTION_RESUME_CURRENT.val = 0 := by
+  unfold sched.ACTION_RESUME_CURRENT; rfl
+
+@[simp, scalar_tac_simps] theorem sched.TS_IDLE.val_eq : sched.TS_IDLE.val = 7 := by
+  unfold sched.TS_IDLE; rfl
+
+@[simp, scalar_tac_simps] theorem layout.sc.CORE.val_eq : layout.sc.CORE.val = 16 := by
+  unfold layout.sc.CORE; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.REPROGRAM.val_eq : layout.node.REPROGRAM.val = 56 := by
+  unfold layout.node.REPROGRAM; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.IDLE_SC.val_eq : layout.node.IDLE_SC.val = 32 := by
+  unfold layout.node.IDLE_SC; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.CUR_SC.val_eq : layout.node.CUR_SC.val = 24 := by
+  unfold layout.node.CUR_SC; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.CUR_THREAD.val_eq : layout.node.CUR_THREAD.val = 0 := by
+  unfold layout.node.CUR_THREAD; rfl
+
+@[simp, scalar_tac_simps] theorem vspace.ASID_LOW_BITS.val_eq : vspace.ASID_LOW_BITS.val = 9 := by
+  unfold vspace.ASID_LOW_BITS; rfl
+
+@[simp, scalar_tac_simps] theorem interrupt.IRQ_IPI.val_eq : interrupt.IRQ_IPI.val = 3 := by
+  unfold interrupt.IRQ_IPI; rfl
+
+@[simp, scalar_tac_simps] theorem interrupt.IRQ_TIMER.val_eq : interrupt.IRQ_TIMER.val = 2 := by
+  unfold interrupt.IRQ_TIMER; rfl
+
+@[simp, scalar_tac_simps] theorem interrupt.IRQ_INACTIVE.val_eq : interrupt.IRQ_INACTIVE.val = 0 := by
+  unfold interrupt.IRQ_INACTIVE; rfl
 
 @[simp, scalar_tac_simps] theorem capability.VM_KERNEL_ONLY.val_eq : capability.VM_KERNEL_ONLY.val = 1 := by
   unfold capability.VM_KERNEL_ONLY; rfl

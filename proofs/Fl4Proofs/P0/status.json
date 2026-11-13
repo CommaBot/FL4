@@ -1,24 +1,34 @@
 {
- "functions": 897,
- "proved": 870,
+ "functions": 917,
+ "proved": 911,
  "manual": [],
  "loops_automatic": [
+  "boot.all_zero_loop",
+  "boot.clear_dirty_loop",
   "boot.create_frames_loop",
+  "boot.create_idle_threads_loop",
   "boot.create_it_address_space_loop0",
-  "boot.create_root_task_loop1",
-  "boot.create_root_task_loop2",
-  "boot.create_root_task_loop3",
-  "boot.create_root_task_loop4",
-  "boot.create_root_task_loop5",
-  "boot.create_root_task_loop6",
-  "boot.create_root_task_loop7",
-  "boot.create_root_task_loop8",
+  "boot.create_it_address_space_loop0_loop0",
+  "boot.create_untypeds_for_region_loop",
+  "boot.create_untypeds_loop0",
+  "boot.create_untypeds_loop1",
+  "boot.init_bootinfo_loop0",
+  "boot.init_bootinfo_loop1",
+  "boot.init_core_state_loop",
+  "boot.init_irq_states_loop",
   "boot.set_name_loop0",
+  "boot.set_name_loop0_loop0",
+  "boot.take_rootserver_mem_loop",
+  "cdt.finalise_slot_deferred_loop",
+  "cdt.finalise_slot_immediate_loop",
   "cdt.revoke_loop",
   "cspace.resolve_address_bits_loop",
   "debug.debug_exception_loop",
   "debug.init_context_loop",
+  "endpoint.cancel_all_ipc_loop",
   "endpoint.cancel_badged_sends_loop",
+  "faults.copy_mrs_fault_loop0",
+  "faults.copy_mrs_fault_loop1",
   "faults.copy_mrs_fault_reply_loop0",
   "faults.copy_mrs_fault_reply_loop1",
   "ioport.range_free_loop",
@@ -35,8 +45,10 @@
   "regs.init_context_loop",
   "sched.awaken_loop",
   "sched.release_enqueue_loop",
+  "sporadic.budget_check_loop0",
   "sporadic.budget_check_loop1",
   "sporadic.unblock_check_loop",
+  "syscall.name_thread_loop",
   "syscall.nonzero_bytes_loop",
   "tcb.copy_registers_loop0",
   "tcb.copy_registers_loop1",
@@ -55,7 +67,10 @@
   "tcb.write_registers_loop0",
   "tcb.write_registers_loop1",
   "tcbqueue.append_by_prio_loop",
+  "timer.fire_loop",
+  "timer.insert_fixup_loop",
   "timer.insert_loop",
+  "timer.remove_fixup_loop",
   "timer.remove_loop0",
   "timer.remove_loop1",
   "timer.remove_loop2",
@@ -64,101 +79,22 @@
   "vspace.copy_global_mappings_loop",
   "vspace.decode_loop0",
   "vspace.decode_loop1",
+  "vspace.delete_asid_pool_loop",
   "vspace.ensure_empty_run_loop",
   "vspace.insert_subframes_loop"
  ],
  "sorry": {
-  "boot.create_it_address_space_loop0_loop0": [
-   "loop",
-   "(do let (s2, b2, c) \u2190 if level = 39#u64 then do let i4 \u2190 boot.entry_addr pml4 v 39#u64 let s3 \u2190 machineStoreInst.write s1 i4 e ok (s3, b1, capability.Cap.Pdpt t true boot.IT_ASID v) else do let (t1, c1) \u2190 if level = 30#u64 then do let pdpt \u2190 boot.next_table machineStoreInst s1 pml4 v 39#u64 let i4 \u2190"
-  ],
-  "boot.create_root_task": [
+  "boot.rootserver_objects": [
    "fun",
-   ": Tactic `simp` failed with a nested error:"
+   "(do let ui_v_start \u2190 lift (core.num.U64.wrapping_sub p.ui_p_start p.pv_offset) let ui_v_end \u2190 lift (core.num.U64.wrapping_sub p.ui_p_end p.pv_offset) let bi_frame_vptr \u2190 lift (core.num.U64.wrapping_add ui_v_end 4096#u64) let extra_bi_vptr \u2190 lift (core.num.U64.wrapping_add bi_frame_vptr 4096#u64) let"
   ],
-  "boot.create_root_task_loop0": [
-   "loop",
-   "(do let st \u2190 if x1 = i2 then ok interrupt.IRQ_TIMER else do let i3 \u2190 layout.irq.REMOTE_CALL_IPI if x1 = i3 then ok interrupt.IRQ_IPI else do let i4 \u2190 layout.irq.RESCHEDULE_IPI if x1 = i4 then ok interrupt.IRQ_IPI else ok interrupt.IRQ_INACTIVE let i3 \u2190 lift (core.num.U64.wrapping_mul x1 8#u64) let i"
-  ],
-  "boot.create_untypeds_for_region_loop": [
-   "loop",
-   "(do let size_bits1 \u2190 if size_bits > fl4_abi.consts.bits.MAX_UNTYPED then ok fl4_abi.consts.bits.MAX_UNTYPED else ok size_bits let size_bits2 \u2190 if (x2 != 0#u64) = true then do let i5 \u2190 core.num.U64.trailing_zeros x2 let align \u2190 lift (UScalar.cast UScalarTy.U64 i5) if size_bits1 > align then ok align "
-  ],
-  "boot.set_name_loop0_loop0": [
-   "loop",
-   "(do let v1 \u2190 if i2 < \u00abname\u00bb.len then do let i4 \u2190 \u00abname\u00bb.index_usize i2 let i5 \u2190 lift (UScalar.cast UScalarTy.U64 i4) let i6 \u2190 lift (core.num.U64.wrapping_mul x1 8#u64) let i7 \u2190 lift (i6 &&& 63#u64) let i8 \u2190 i5 <<< i7 ok (x0 ||| i8) else ok x0 let k1 \u2190 x1 + 1#u64 ok (ControlFlow.cont (v1, k1))) \u2983 r ="
-  ],
-  "boot.take_rootserver_mem_loop": [
-   "loop",
-   "\u2191i + \u21911#u64 \u2264 U64.max"
-  ],
-  "cdt.finalise_slot_deferred_loop": [
-   "loop",
-   "(let (remainder, cleanup) := x\u271d do let b1 \u2190 cdt.cap_removable remainder slot if b1 = true then ok (ControlFlow.done (core.result.Result.Ok { success := true, cleanup := cleanup }, s1, a1)) else do let s2 \u2190 obj.Slot.set_cap machineStoreInst slot s1 remainder let b2 \u2190 cdt.cap_cyclic_zombie remainder s"
-  ],
-  "cdt.finalise_slot_immediate_loop": [
-   "loop",
-   "(let (remainder, cleanup) := x\u271d do let b1 \u2190 cdt.cap_removable remainder slot if b1 = true then ok (ControlFlow.done (core.result.Result.Ok { success := true, cleanup := cleanup }, s1, a1)) else do let s2 \u2190 obj.Slot.set_cap machineStoreInst slot s1 remainder match remainder with | capability.Cap.Null"
-  ],
-  "cnode.decode_rotate": [
+  "boot.take_rootserver_mem": [
    "fun",
-   ": `simp` failed: maximum number of steps exceeded"
-  ],
-  "endpoint.cancel_all_ipc_loop": [
-   "loop",
-   "(do let s2 \u2190 if i = sched.TS_BLOCKED_ON_RECV then do let i1 \u2190 obj.Tcb.reply_obj machineStoreInst x1 s1 if (i1 != 0#u64) = true then ipc.reply_unlink machineStoreInst s1 i1 x1 else ok s1 else ok s1 let s3 \u2190 endpoint.restart_thread_if_no_fault machineStoreInst s2 x1 ok (ControlFlow.cont (s3, next, fue"
-  ],
-  "endpoint.receive_ipc": [
-   "fun",
-   ": (kernel) unknown constant 'Fl4Proofs.P0.endpoint.receive_ipc.p0'"
-  ],
-  "faults.copy_mrs_fault_loop0": [
-   "loop",
-   "\u2191i6 < \u2191x1"
-  ],
-  "faults.copy_mrs_fault_loop1": [
-   "loop",
-   "\u2191i5 < \u2191x1"
-  ],
-  "interrupt.decode_irq_control": [
-   "fun",
-   "\u2191layout.irq.USER_MIN \u2264 \u2191i"
-  ],
-  "ioport.decode": [
-   "fun",
-   "(if True then if length < 1#u64 then do let r \u2190 error.truncated Unit ok (r, s, a) else do let i \u2190 msg.syscall_arg machineStoreInst s ct buf 0#u64 let port \u2190 lift (i &&& 65535#u64) let r \u2190 ioport.allowed first\u271d last\u271d port 1#u64 let cf \u2190 core.result.Result.Insts.CoreOpsTry.branch r match cf with | cor"
-  ],
-  "schedcontext.yield_to": [
-   "fun",
-   "(do let i \u2190 obj.Sc.yield_from machineStoreInst sc s let b \u2190 obj.Tcb.is_null i let (s1, a1) \u2190 if b = true then ok (s, a) else schedcontext.complete_yield_to machineStoreInst machineArchInst s a i let (s2, a2) \u2190 schedcontext.resume machineStoreInst machineArchInst s1 a1 sc let i1 \u2190 obj.Sc.tcb machineS"
-  ],
-  "sporadic.budget_check_loop0": [
-   "loop",
-   "(do let s1 \u2190 if b = true then do let i1 \u2190 lift (core.num.U64.wrapping_add h.time period) sporadic.set_head machineStoreInst x0 i { time := i1, amount := h.amount } else do let (old, s2) \u2190 sporadic.pop_head machineStoreInst x0 i let i1 \u2190 lift (core.num.U64.wrapping_add old.time period) sporadic.sched"
-  ],
-  "syscall.after_invocation": [
-   "fun",
-   "(do let b \u2190 core.result.Result.is_err r if b = true then do let (s1, a1) \u2190 syscall.mcs_preemption_point machineStoreInst machineArchInst s a let (irq, a2) \u2190 machineArchInst.take_pending_irq a1 let (s2, a3) \u2190 syscall.check_interrupt machineStoreInst machineArchInst s1 a2 irq ok (false, s2, a3) else o"
-  ],
-  "syscall.name_thread_loop": [
-   "loop",
-   "(do let v \u2190 if x2 = true then ok 0#u64 else do let i \u2190 x1 * 8#u64 let i1 \u2190 lift (core.num.U64.wrapping_add src i) machineStoreInst.read x0 i1 let (done2, v1) \u2190 if x2 = true then ok (x2, v) else do let n \u2190 syscall.nonzero_bytes v if n < 8#u64 then do let i \u2190 if n = 0#u64 then ok 0#u64 else do let i1 "
-  ],
-  "timer.fire_loop": [
-   "loop",
-   "(do let (s2, a1) \u2190 if (n != 0#u64) = true then notification.send_signal machineStoreInst machineArchInst s1 x1 n badge else ok (s1, x1) let c \u2190 machineStoreInst.cur_cpu s2 let s3 \u2190 obj.node_set machineStoreInst s2 c layout.node.REPROGRAM 1#u64 let i4 \u2190 x2 + 1#u64 ok (ControlFlow.cont (s3, a1, i4))) "
-  ],
-  "timer.insert_fixup_loop": [
-   "loop",
-   "(do let (s1, z1, pp) \u2190 if b4 = true then do let s2 \u2190 timer.rotate_left machineStoreInst x0 cpu p let pp1 \u2190 timer.parent machineStoreInst s2 p ok (s2, p, pp1) else ok (x0, x1, p) let s2 \u2190 timer.set_red machineStoreInst s1 pp false let s3 \u2190 timer.set_red machineStoreInst s2 g true let s4 \u2190 timer.rotat"
-  ],
-  "timer.remove_fixup_loop": [
-   "loop",
-   "obj.Tcb.Insts.CoreCmpPartialEqTcb.eq x1 t \u2983 b => b = true \u2194 x1 = t \u2984"
+   "(do let (o, a, i) \u2190 boot.take_rootserver_mem_loop p.free p.n_free size align_bits p.n_free ok (o, { free := a, n_free := i, device := p.device, n_device := p.n_device, ui_p_start := p.ui_p_start, ui_p_end := p.ui_p_end, pv_offset := p.pv_offset, v_entry := p.v_entry, extra_bi := p.extra_bi, extra_bi"
   ],
   "untyped.reset_untyped": [
    "fun",
-   "(do let c \u2190 obj.Slot.cap machineStoreInst slot s match c with | capability.Cap.Null => ok (core.result.Result.Ok (), s, a) | capability.Cap.Untyped ptr size_bits free_index is_device => if free_index = 0#u64 then ok (core.result.Result.Ok (), s, a) else if is_device = true then do let s1 \u2190 if is_dev"
+   "(do let c \u2190 obj.Slot.cap machineStoreInst slot s let o \u2190 untyped.as_untyped c match o with | none => ok (core.result.Result.Ok (), s, a) | some x => let (ptr, block, free_index, device) := x if free_index = 0#u64 then ok (core.result.Result.Ok (), s, a) else if device = true then do let s1 \u2190 if devi"
   ],
   "untyped.reset_untyped_loop": [
    "loop",
@@ -170,11 +106,7 @@
   ],
   "vspace.decode_table": [
    "fun",
-   "(let (map_lbl, unmap_lbl, level, ptr, mapped, masid, mvaddr) := x if lbl = unmap_lbl then vspace.decode_table_unmap machineStoreInst machineArchInst s a slot cap level ptr mapped masid mvaddr else if lbl = map_lbl then if mapped = true then do let o1 \u2190 vspace.extra ex 0#usize if o1.isNone = true the"
-  ],
-  "vspace.delete_asid_pool_loop": [
-   "loop",
-   "(do let a1 \u2190 if (i3 != 0#u64) = true then do let i4 \u2190 lift (core.num.U64.wrapping_add base x1) machineArchInst.invalidate_asid x0 i4 else ok x0 let i4 \u2190 x1 + 1#u64 ok (ControlFlow.cont (a1, i4))) \u2983 r => match r with | ControlFlow.done y => True | ControlFlow.cont x' => \u2191x'.2 < \u2191x1 \u2984"
+   "(let (map_lbl, unmap_lbl, level, ptr, mapped, masid, mvaddr) := x if lbl = unmap_lbl then vspace.decode_table_unmap machineStoreInst machineArchInst s a slot cap level ptr mapped masid mvaddr else if lbl = map_lbl then if mapped = true then do let o1 \u2190 vspace.extra ex 0#usize match o1 with | none =>"
   ]
  }
 }

@@ -14,6 +14,7 @@ pub fn init() {
 }
 
 pub fn putc(c: u8) {
+    crate::fbcon::putc(c);
     if c == b'\n' {
         putc_raw(b'\r');
     }

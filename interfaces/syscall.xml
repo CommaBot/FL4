@@ -55,5 +55,11 @@
             <condition><config var="CONFIG_SET_TLS_BASE_SELF"/></condition>
             <syscall name="SetTLSBase"/>
         </config>
+        <!-- FL4's bench profile only (DESIGN.md section 3), for sel4bench. -->
+        <config>
+            <condition><config var="CONFIG_KERNEL_X86_DANGEROUS_MSR"/></condition>
+            <syscall name="X86DangerousWRMSR"/>
+            <syscall name="X86DangerousRDMSR"/>
+        </config>
     </debug>
 </syscalls>
