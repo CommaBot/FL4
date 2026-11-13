@@ -1,7 +1,7 @@
 //! MCS refills (seL4 kernel/sporadic.c and kernel/sporadic.h). The refill
 //! ring lives after the scheduling context's 128-byte header.
 
-use crate::layout::{node, sc as scl};
+use crate::layout::{node, sc as scl, WALK_FUEL};
 use crate::machine::{Arch, Store};
 use crate::obj::{node_get, node_set, Sc};
 
@@ -222,8 +222,11 @@ pub fn budget_check<S: Store, A: Arch>(s: &mut S, a: &A, usage_in: u64) {
     let mrt = max_release_time(a);
     let period = sc.period(s);
     let mut usage = usage_in;
-    // handle_overrun: each round removes one refill's worth of usage.
-    let mut fuel = sc.refill_max(s).wrapping_add(2);
+    // handle_overrun: each round removes one refill's worth of usage or
+    // moves the head on by a period, so it ends; seL4 has no bound. (A
+    // bound of a few rounds once cut a long overrun short, after which
+    // the head's amount went below zero: found by P1.)
+    let mut fuel: u64 = WALK_FUEL;
     loop {
         let h = head(s, sc);
         if !(h.amount <= usage && h.time < mrt) || fuel == 0 {
@@ -238,8 +241,10 @@ pub fn budget_check<S: Store, A: Arch>(s: &mut S, a: &A, usage_in: u64) {
         }
         usage = usage.wrapping_sub(h.amount);
     }
+    // seL4 asserts here that the head holds more than the usage left,
+    // which the loop's exit condition gives whenever h.time < mrt.
     let h = head(s, sc);
-    if usage > 0 && h.time < mrt {
+    if usage > 0 && h.time < mrt && h.amount > usage {
         let used = Refill { time: h.time.wrapping_add(period), amount: usage };
         set_head(s, sc, Refill { time: h.time.wrapping_add(usage), amount: h.amount.wrapping_sub(usage) });
         schedule_used(s, sc, used);

@@ -18,8 +18,8 @@ budget):
   `ordered_disjoint`, `no_overflow` and `window`. Established by
   `refill_new` and `refill_update` (periodic), preserved by
   `refill_unblock_check`, `schedule_used`, both loops of
-  `refill_budget_check`, and `refill_budget_check` itself when there is no
-  overrun; side conditions bound times away from overflow as l4v's
+  `refill_budget_check`, and `refill_budget_check` itself (any usage,
+  overrun included); side conditions bound times away from overflow as l4v's
   `MAX_RELEASE_TIME` / `MAX_PERIOD` assumptions do.
 
 Memory is a `LawfulStore` (Store.lean). The only word outside the SC that
@@ -557,7 +557,9 @@ theorem sporadic.budget_check.wf {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
   subst e
   step*
   split
-  · split <;> step*
+  · split
+    · split <;> step*
+    · step*
   · step*
 
 end ops
@@ -1637,35 +1639,29 @@ theorem amt_head_le {s : S} {sc : obj.Sc} (h1 : 1 ≤ L.size s sc) :
     (L.rf s sc 0).amount.val ≤ L.amtSum s sc := by
   unfold LawfulStore.amtSum; rw [sum_range_one _ h1]; omega
 
-/-- `refill_budget_check` preserves the ordering invariant of the current SC
-when the usage is below the head refill's amount (no overrun), the period
-and the sum of the amounts are at most `B`, and the maximum release time is
-at least `3 B` from overflow. (With an overrun, see `sporadic.budget_check_loop0.ordered`
-and the report: the loop's fuel can run out before seL4's loop would stop.) -/
+/-- `refill_budget_check` preserves the ordering invariant of the current SC,
+for any usage (overrun included), if the period and the sum of the amounts
+are at most `B` and the maximum release time is at least `3 B` from
+overflow. The charge after the overrun loop only runs when the head holds
+more than the remaining usage (seL4's assertion, a guard in FL4). -/
 theorem sporadic.budget_check.ordered {S : Type _} {st : machine.Store S} [L : LawfulStore st] {s : S}
     {sc : obj.Sc} {sb : Nat} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (a : A)
     (usage : U64) (B : Nat) (hW : RefillsWF st s sc sb) (hO : RefillsOrdered st s sc)
     (hcur : L.mem s (L.nodeA s layout.node.CUR_SC) = sc)
     (hpB : (L.rperiod s sc).val ≤ B) (hsB : L.amtSum s sc ≤ B)
-    (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.val + 3 * B < 2 ^ 64 ⦄)
-    (hno : usage.val < (L.rf s sc 0).amount.val) :
+    (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.val + 3 * B < 2 ^ 64 ⦄) :
     sporadic.budget_check st ar s a usage ⦃ s' => RefillsWF st s' sc sb ∧ RefillsOrdered st s' sc ⦄ := by
   unfold sporadic.budget_check
   step; step
   have e : i1 = sc := by subst i_post i1_post; exact hcur
   subst e
   step with hmrt
-  step; step; step
-  have e0 : L.refill s i1 (L.rhead s i1) = L.rf s i1 0 := by rw [LawfulStore.rf, hW.ix_zero]
-  have hfuel : fuel.val ≠ 0 := by
-    rw [fuel_post, wadd_val (by have := absMax_lt sb; have := hW.le_abs; rw [i2_post]; simp; omega)]; simp
-  step with WP.spec_and (sporadic.budget_check_loop0.ordered mrt period usage fuel B hW hO period_post.symm
-    (by rw [period_post]; exact hpB) hsB mrt_post) (sporadic.budget_check_loop0.exit mrt period usage fuel hW)
+  step
+  step with sporadic.budget_check_loop0.ordered mrt period usage layout.WALK_FUEL B hW hO period_post.symm
+    (by rw [period_post]; exact hpB) hsB mrt_post
   rename_i usage0 hP1
   have hW1 := s1_post; have hO1 := s1_post1; have hS1 := s1_post2
   have e1 : L.refill s1 i1 (L.rhead s1 i1) = L.rf s1 i1 0 := by rw [LawfulStore.rf, hW1.ix_zero]
-  have hex := s1_post3
-  rw [e1, e0] at hex
   have tail : ∀ s2, RefillsWF st s2 i1 sb → RefillsOrdered st s2 i1 →
       (do
         let mb ← sporadic.min_budget ar a
@@ -1679,70 +1675,67 @@ theorem sporadic.budget_check.ordered {S : Type _} {st : machine.Store S} [L : L
   rw [e1] at h_post
   split
   · split
-    · rename_i hu hT
-      simp only [UScalar.lt_equiv, gt_iff_lt] at hu hT
-      have hlt : usage.val < (L.rf s1 i1 0).amount.val := by
-        rcases hex with (h | h) | h | h
-        · exact h
-        · subst h_post; omega
-        · exact absurd h hfuel
-        · omega
-      subst h_post
-      have hPv : (L.rperiod s1 i1).val = period.val := by rw [period_post]
-      have hPv' : period.val = (L.rperiod s i1).val := by rw [hP1]
-      have hSB : L.amtSum s1 i1 ≤ B := by rw [hS1]; exact hsB
-      have hn1 := hW1.size_pos; have hnle := hW1.size_le
-      have hA0 := amt_head_le (L := L) (s := s1) (sc := i1) hn1
-      have no0 := hO1.no_overflow 0 (by omega)
-      have win1 := hO1.window
-      have hhl := hW1.head_lt
-      obtain ⟨h8, hb, hfit⟩ := hW1.bounds
-      refine WP.spec_bind (Pₘ := fun s2 => RefillsWF st s2 i1 sb ∧ RefillsOrdered st s2 i1) ?_
-        (fun s2 h => tail s2 h.1 h.2)
-      simp only [lift, bind_ok]
-      refine WP.spec_bind (sporadic.set_head.eq _ _ _) ?_
-      rintro s3 rfl
-      have htu : (core.num.U64.wrapping_add (L.rf s1 i1 0).time usage).val =
-          (L.rf s1 i1 0).time.val + usage.val := wadd_val (by omega)
-      have hau : (core.num.U64.wrapping_sub (L.rf s1 i1 0).amount usage).val =
-          (L.rf s1 i1 0).amount.val - usage.val := wsub_val (by omega)
-      have htp : (core.num.U64.wrapping_add (L.rf s1 i1 0).time period).val =
-          (L.rf s1 i1 0).time.val + period.val := wadd_val (by omega)
-      generalize hnr : ({ time := core.num.U64.wrapping_add (L.rf s1 i1 0).time usage, amount := core.num.U64.wrapping_sub (L.rf s1 i1 0).amount usage } : sporadic.Refill) = nr
-      have hnt : nr.time.val = (L.rf s1 i1 0).time.val + usage.val := by rw [← hnr]; exact htu
-      have hna : nr.amount.val = (L.rf s1 i1 0).amount.val - usage.val := by rw [← hnr]; exact hau
-      have hW3 := hW1.putS (r := nr) hhl
-      have hn3 := hW1.size_putS (r := nr) hhl
-      have hp3 : L.rperiod (L.putS s1 i1 (L.rhead s1 i1) nr) i1 = L.rperiod s1 i1 :=
-        rperiod_putS h8 (by omega)
-      have hR : ∀ k, k < L.size s1 i1 → L.rf (L.putS s1 i1 (L.rhead s1 i1)
-          nr) i1 k =
-          if k = 0 then nr else L.rf s1 i1 k :=
-        fun k hk => hW1.rf_set_head (by omega)
-      have hO3 : RefillsOrdered st (L.putS s1 i1 (L.rhead s1 i1)
-          nr) i1 := by
-        refine ⟨fun k hk => ?_, fun k hk => ?_, ?_⟩
-        · rw [hn3] at hk; rw [hR k (by omega), hR (k + 1) hk]
-          simp only [show k + 1 ≠ 0 by omega, ite_false]
+    · split
+      · rename_i hu hT hlt
+        simp only [UScalar.lt_equiv, gt_iff_lt] at hu hT hlt
+        rw [h_post] at hlt
+        subst h_post
+        have hPv : (L.rperiod s1 i1).val = period.val := by rw [period_post]
+        have hPv' : period.val = (L.rperiod s i1).val := by rw [hP1]
+        have hSB : L.amtSum s1 i1 ≤ B := by rw [hS1]; exact hsB
+        have hn1 := hW1.size_pos; have hnle := hW1.size_le
+        have hA0 := amt_head_le (L := L) (s := s1) (sc := i1) hn1
+        have no0 := hO1.no_overflow 0 (by omega)
+        have win1 := hO1.window
+        have hhl := hW1.head_lt
+        obtain ⟨h8, hb, hfit⟩ := hW1.bounds
+        refine WP.spec_bind (Pₘ := fun s2 => RefillsWF st s2 i1 sb ∧ RefillsOrdered st s2 i1) ?_
+          (fun s2 h => tail s2 h.1 h.2)
+        simp only [lift, bind_ok]
+        refine WP.spec_bind (sporadic.set_head.eq _ _ _) ?_
+        rintro s3 rfl
+        have htu : (core.num.U64.wrapping_add (L.rf s1 i1 0).time usage).val =
+            (L.rf s1 i1 0).time.val + usage.val := wadd_val (by omega)
+        have hau : (core.num.U64.wrapping_sub (L.rf s1 i1 0).amount usage).val =
+            (L.rf s1 i1 0).amount.val - usage.val := wsub_val (by omega)
+        have htp : (core.num.U64.wrapping_add (L.rf s1 i1 0).time period).val =
+            (L.rf s1 i1 0).time.val + period.val := wadd_val (by omega)
+        generalize hnr : ({ time := core.num.U64.wrapping_add (L.rf s1 i1 0).time usage, amount := core.num.U64.wrapping_sub (L.rf s1 i1 0).amount usage } : sporadic.Refill) = nr
+        have hnt : nr.time.val = (L.rf s1 i1 0).time.val + usage.val := by rw [← hnr]; exact htu
+        have hna : nr.amount.val = (L.rf s1 i1 0).amount.val - usage.val := by rw [← hnr]; exact hau
+        have hW3 := hW1.putS (r := nr) hhl
+        have hn3 := hW1.size_putS (r := nr) hhl
+        have hp3 : L.rperiod (L.putS s1 i1 (L.rhead s1 i1) nr) i1 = L.rperiod s1 i1 :=
+          rperiod_putS h8 (by omega)
+        have hR : ∀ k, k < L.size s1 i1 → L.rf (L.putS s1 i1 (L.rhead s1 i1)
+            nr) i1 k =
+            if k = 0 then nr else L.rf s1 i1 k :=
+          fun k hk => hW1.rf_set_head (by omega)
+        have hO3 : RefillsOrdered st (L.putS s1 i1 (L.rhead s1 i1)
+            nr) i1 := by
+          refine ⟨fun k hk => ?_, fun k hk => ?_, ?_⟩
+          · rw [hn3] at hk; rw [hR k (by omega), hR (k + 1) hk]
+            simp only [show k + 1 ≠ 0 by omega, ite_false]
+            split
+            · subst k; rw [hnt, hna]
+              have := hO1.disjoint 0 hk; simp only [Nat.zero_add] at this ⊢; omega
+            · exact hO1.disjoint k hk
+          · rw [hn3] at hk; rw [hR k hk]; split
+            · rw [hnt, hna]; omega
+            · exact hO1.no_overflow k hk
+          · rw [hn3, hp3, hR _ (by omega), hR 0 hn1]; simp only [ite_true]
+            split
+            · omega
+            · rw [hnt]; omega
+        refine WP.spec_mono (sporadic.schedule_used.ordered _ hW3 hO3 ?_ ?_ ?_) (fun _ h => ⟨h.1, h.2.1⟩)
+        · rw [hR 0 hn1, hp3]; simp only [ite_true]; rw [hnt, htp]; omega
+        · dsimp only; rw [htp]; omega
+        · rw [hn3, hR _ (by omega)]
           split
-          · subst k; rw [hnt, hna]
-            have := hO1.disjoint 0 hk; simp only [Nat.zero_add] at this ⊢; omega
-          · exact hO1.disjoint k hk
-        · rw [hn3] at hk; rw [hR k hk]; split
-          · rw [hnt, hna]; omega
-          · exact hO1.no_overflow k hk
-        · rw [hn3, hp3, hR _ (by omega), hR 0 hn1]; simp only [ite_true]
-          split
-          · omega
-          · rw [hnt]; omega
-      refine WP.spec_mono (sporadic.schedule_used.ordered _ hW3 hO3 ?_ ?_ ?_) (fun _ h => ⟨h.1, h.2.1⟩)
-      · rw [hR 0 hn1, hp3]; simp only [ite_true]; rw [hnt, htp]; omega
-      · dsimp only; rw [htp]; omega
-      · rw [hn3, hR _ (by omega)]
-        split
-        · rename_i h0; (try dsimp only); rw [hnt, hna]; omega
-        · have := amt_head_tail_le (L := L) (s := s1) (sc := i1) (by omega)
-          (try dsimp only); omega
+          · rename_i h0; (try dsimp only); rw [hnt, hna]; omega
+          · have := amt_head_tail_le (L := L) (s := s1) (sc := i1) (by omega)
+            (try dsimp only); omega
+      · simp only [bind_ok]; exact tail s1 hW1 hO1
     · simp only [bind_ok]; exact tail s1 hW1 hO1
   · simp only [bind_ok]; exact tail s1 hW1 hO1
 

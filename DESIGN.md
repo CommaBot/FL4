@@ -172,6 +172,18 @@ Behavior where FL4 differs from seL4 17.0 only by closing a race or an overflow.
 | `TCB_CopyRegisters`    | The source thread is stalled like the target when it runs on another core. seL4 stalls only the target, so it copies a stale register context and, with `suspendSource`, leaves the other core running a suspended thread until its next kernel entry |
 | Domain time accounting | The check that the domain's time has run out saturates, so a very long interval cannot wrap the sum and underflow the remaining time                                                                                                               |
 
+### FL4 bugs the verification work found
+
+Bugs in FL4's own code, not differences from seL4, kept here because each one shows which check catches what:
+
+| Bug | Found by | Fix |
+|-----|----------|-----|
+| The release queue's tail was read from the word after its head, which was the deadline-timer tree root (l4h 0003), so arming a TCB timer corrupted the release queue | fl4-sim's release-queue oracle (tail and links), once the workload gave SCs partial and sporadic budgets | `RELEASE_TAIL` follows `RELEASE_HEAD` |
+| `budget_check`'s overrun loop gave up after `refill_max + 2` rounds; seL4's has no bound. Charging more budgets than that at once (a long vCPU stall) then took the usage off a smaller head refill, which wrapped, so the SC had an effectively unbounded budget | P1: the ordering proof for `budget_check` would not go through; fl4-sim then reproduced it with 2 s stalls (seed 25 in the regressions) | Walk fuel for the loop, and the post-loop charge guarded by seL4's own assertion (`head.amount > usage`) |
+| Finalising a CNode recursed once per level, so deep zombie chains could overflow the kernel stack | P0 (recursion has no measure) | Loops |
+| Clearing dirty memory divided by the region size, which can be zero | P0 | Guard |
+| An NMI, #DB or #MC between SYSCALL and the stack switch pushed its frame on the user's RSP in ring 0 | Review while adding the SYSRET exit | IST stacks |
+
 ### Left out
 
 - **Debug syscall MCP threshold** (0008, `KernelDebugSyscallMinMCP`). FL4 does not gate debug syscalls or kernel error messages by MCP. Debug syscalls exist only in the debug profile, which is not for running untrusted code.
@@ -393,7 +405,7 @@ The proof assumes: Rust, LLVM and the linker; Charon, Aeneas and the Lean kernel
 - MCS timer: TSC-deadline mode when CPUID reports it, otherwise the LAPIC one-shot timer with a TSC-to-APIC ratio calibrated at boot. seL4 has the same fallback in `apic.c`. Both are first-class paths, and the test setups in §12 exercise each one.
 - IOAPIC and MSI routing, ACPI MADT parsing, IO port caps.
 - The PIT is used only for calibration, on channel 2. Channel 0 is put in one-shot mode at boot, because firmware leaves it interrupting at 18.2 Hz on ISA IRQ 0, which is IOAPIC pin 2, where user space may route an HPET timer.
-- XSAVE-family FPU switching, chosen at boot like the other mitigations (§3). On Intel CPUs it is eager: the incoming thread's state is loaded on every switch, because lazy switching is what LazyFP (CVE-2018-3665) exploits. On CPUs LazyFP does not affect (AMD) it is lazy, as in seL4. A thread that doesn't own the FPU registers runs with CR0.TS set. Its first FPU instruction raises #NM, and the entry glue swaps the state and returns to the thread without entering the core. fl4test FL4FPU0003 checks that two threads keep their own registers across IPC; it fails on a mutant that leaves TS clear. VT-x is out of scope.
+- XSAVE-family FPU switching, chosen at boot like the other mitigations (§3). On Intel CPUs it is eager: the incoming thread's state is loaded on every switch, because lazy switching is what LazyFP (CVE-2018-3665) exploits. On CPUs LazyFP does not affect (AMD) it is lazy, as in seL4. A thread that doesn't own the FPU registers runs with CR0.TS set. Its first FPU instruction raises #NM, and the entry glue swaps the state and returns to the thread without entering the core. fl4test FL4FPU0003 checks that two threads keep their own registers across IPC; it fails on a mutant that leaves TS clear. A thread that keeps using the FPU would pay a trap and two CR0 writes per switch, more than the eager switch costs (CR0 writes are slow under KVM). So each thread counts its #NM traps in a byte after its FPU image. From the third trap on it is switched eagerly; the byte keeps counting and wraps, so after 256 switches the thread is tried lazily again (Linux once did the same with `fpu_counter`). VT-x is out of scope.
 
 ### IOMMU left to user space
 
@@ -464,14 +476,14 @@ Performance targets: uniprocessor IPC within 1.2× of seL4 built with `KernelFas
 
 The baseline seL4 must have the same mitigations as FL4 on the test CPU. seL4's x86_64 default turns on `KernelSkimWindow`, which switches CR3 on every entry and exit. FL4 turns the skim window on only where the CPU needs it (§3). The development machine (AMD Zen 4) doesn't, so `cargo xtask bench sel4` builds seL4 with `KernelSkimWindow=OFF` (and `KernelSupportPCID=OFF`, `KernelFSGSBase=msr`). Measured on that machine (cycles, medians, `cargo xtask bench`, one pinned vCPU):
 
-| IPC                        | seL4, skim on (default) | seL4, skim off | FL4 before | FL4 now (SYSRET exit, LTO) |
-|----------------------------|-------------------------|----------------|------------|----------------------------|
-| Call, same address space   | 1026                    | 494            | 950–988    | 836                        |
-| ReplyRecv, same            | 1064–1102               | 494–513        | 1102       | 1026                       |
-| Call, cross address space  | 1026                    | 798–817        | 1216–1254  | 1064                       |
-| ReplyRecv, cross           | 1064–1102               | 798–836        | 1349–1368  | 1254                       |
+| IPC                        | seL4, skim on (default) | seL4, skim off | FL4 before | FL4, SYSRET exit and LTO | FL4, also lazy FPU |
+|----------------------------|-------------------------|----------------|------------|--------------------------|--------------------|
+| Call, same address space   | 1026                    | 494            | 950–988    | 836                      | 684–722            |
+| ReplyRecv, same            | 1064–1102               | 494–513        | 1102       | 1026                     | 874                |
+| Call, cross address space  | 1026                    | 798–817        | 1216–1254  | 1064                     | 912–950            |
+| ReplyRecv, cross           | 1064–1102               | 798–836        | 1349–1368  | 1254                     | 1102               |
 
-Against the like-for-like baseline FL4 is at 1.3–2.1×, not yet 1.2×. Instrumentation (TSC and retired-instruction counts at stage boundaries) shows where the rest goes:
+Against the like-for-like baseline FL4 is now at 1.14–1.7×. Cross-address-space Call is the closest; same-address-space Call and ReplyRecv are the furthest. That is not yet 1.2×. Instrumentation (TSC and retired-instruction counts at stage boundaries) shows where the rest goes:
 - About 1800 kernel instructions per Call or ReplyRecv. The capability lookup takes about 200 and the extra-caps lookup about 200 even with no extra caps; budget charging takes about 85, scheduling 90–210, and the exit path about 150.
 - Eager FPU switching cost about 130 cycles per switch between threads, for XSAVES and XRSTORS, because the owner changes on every IPC round trip. Lazy switching on CPUs without LazyFP (§11) removed it: on this machine, Call went from 836 to 722 cycles (same address space) and from 1064 to 950 (cross).
 - One CR3 write plus the TLB refill after it costs about 280 cycles. That is the whole cross-address-space difference; this CPU has no PCIDs.

@@ -2885,6 +2885,10 @@ theorem layout.PADDR_TOP.p0  :
     layout.PADDR_TOP ⦃ _ => True ⦄ := by
   exact WP.spec_mono Consts.layout.PADDR_TOP.spec (fun _ _ => trivial)
 
+theorem layout.tcb.FPU_USE.p0  :
+    layout.tcb.FPU_USE ⦃ _ => True ⦄ := by
+  exact WP.spec_mono Consts.layout.tcb.FPU_USE.spec (fun _ _ => trivial)
+
 theorem layout.tcb.TIMER_BADGE.p0  :
     layout.tcb.TIMER_BADGE ⦃ _ => True ⦄ := by
   exact WP.spec_mono Consts.layout.tcb.TIMER_BADGE.spec (fun _ _ => trivial)

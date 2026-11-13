@@ -225,6 +225,9 @@ open fl4_core
 @[step] theorem layout.PADDR_TOP.spec : layout.PADDR_TOP ⦃ v => v = 547608330240#u64 ⦄ := by
   unfold layout.PADDR_TOP; simp only [layout.PPTR_BASE, layout.PPTR_TOP]; step*
 
+@[step] theorem layout.tcb.FPU_USE.spec : layout.tcb.FPU_USE ⦃ v => v = 3264#u64 ⦄ := by
+  unfold layout.tcb.FPU_USE; simp only [layout.tcb.FPU, layout.tcb.FPU_SIZE]; step*
+
 @[step] theorem layout.tcb.TIMER_BADGE.spec : layout.tcb.TIMER_BADGE ⦃ v => v = 3536#u64 ⦄ := by
   unfold layout.tcb.TIMER_BADGE; simp only [layout.tcb.F]; step*
 

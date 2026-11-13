@@ -442,8 +442,10 @@ const TICKS_PER_US: u64 = 100;
 impl Arch for SimArch {
     fn now(&mut self) -> u64 {
         let mut m = self.m.lock().unwrap();
-        // Time passes during kernel entries too.
-        let d = 1 + m.rng.below(50);
+        // Time passes during kernel entries too, and now and then a lot
+        // of it: a core descheduled by its hypervisor for 2 s, which
+        // charges the running SC dozens of budgets at once.
+        let d = if m.rng.below(4000) == 0 { 2_000_000 * TICKS_PER_US } else { 1 + m.rng.below(50) };
         m.now += d;
         m.now
     }

@@ -13,6 +13,13 @@
 //! switch stays eager: the incoming thread's state is loaded on the way
 //! out of the kernel, whether it uses the FPU or not.
 //!
+//! A thread that uses the FPU every time it runs would pay a trap and two
+//! CR0.TS writes on top of the swap, which costs more than the eager
+//! switch (CR0 writes are slow under a hypervisor). So, like Linux's old
+//! `fpu_counter`, each thread counts its traps; from `EAGER_AFTER` on it is
+//! switched eagerly. The counter is a byte that keeps counting and wraps,
+//! so every 256 switches the thread is tried lazily again.
+//!
 //! The save instruction is the best the CPU has (DESIGN.md §3): XSAVES,
 //! XSAVEC, XSAVEOPT, XSAVE, then FXSAVE. The first two write the compacted
 //! format; an image leaves the FPU code (`flush`, for TCB_ReadFPU and
@@ -166,6 +173,13 @@ pub fn save_insn() -> &'static str {
     }
 }
 
+/// Traps after which a thread's FPU state is loaded eagerly.
+const EAGER_AFTER: u8 = 3;
+
+fn use_count(t: u64) -> *mut u8 {
+    (t + tcb::FPU_USE) as *mut u8
+}
+
 /// FPU switching is lazy on this CPU.
 pub fn lazy() -> bool {
     LAZY.load(Ordering::Relaxed)
@@ -303,9 +317,13 @@ pub fn switch_to(t: u64, fpu_disabled: bool) {
         return;
     }
     if lazy() {
-        // The swap waits for the thread's first FPU instruction.
-        set_ts(true);
-        return;
+        let n = unsafe { core::ptr::read_volatile(use_count(t)) };
+        if n < EAGER_AFTER {
+            // The swap waits for the thread's first FPU instruction.
+            set_ts(true);
+            return;
+        }
+        unsafe { core::ptr::write_volatile(use_count(t), n.wrapping_add(1)) };
     }
     set_ts(false);
     load(t);
@@ -325,6 +343,10 @@ fn load(t: u64) {
 /// entry glue with interrupts off, so no remote FPU call (`flush`,
 /// `forget`) for this core can run in between.
 pub fn lazy_load(t: u64) {
+    unsafe {
+        let n = core::ptr::read_volatile(use_count(t));
+        core::ptr::write_volatile(use_count(t), n.saturating_add(1).max(1));
+    }
     set_ts(false);
     if percpu::get().fpu_owner != t {
         load(t);
