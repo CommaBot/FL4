@@ -27,8 +27,10 @@ The relation itself:
 Pointers are the identity (`U64.bv`): FL4's object handles are kernel
 virtual addresses and so are l4v `obj_ref`s.
 
-Nothing here relates the CDT, the other objects or the scheduler state;
-that is for the later P3 subsystems.
+The layout hypotheses writes need (`Placed`) are in Layout.lean, the CDT
+part of the relation (`MdbLinks`, `CdtRel`) in Mdb.lean. Nothing here relates
+the other objects or the scheduler state; that is for the later P3
+subsystems.
 -/
 import Fl4Proofs.P3.CapRel
 open Aeneas Aeneas.Std Result
@@ -59,11 +61,12 @@ def SlotRel (mem : U64 → U64) (a : U64) (oc : Option Fl4Spec.Cap) : Prop :=
 /-! ## The typed heap (ghost) -/
 
 /-- The kind of object at a pointer. Only CNodes and TCBs matter to CSpace;
-the rest are `other` until their subsystems are related. -/
+the rest are `other` (with their size in bytes) until their subsystems are
+related. -/
 inductive ObjKind where
   | cnode (radix : Nat)
   | tcb
-  | other
+  | other (size : Nat)
 deriving DecidableEq
 
 /-- Ghost typed heap: which pointers are objects, and of which kind. -/
