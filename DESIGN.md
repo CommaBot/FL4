@@ -469,7 +469,7 @@ Performance numbers come from KVM with pinned vCPUs and are labelled that way. T
 | Extract and check proofs          | Charon → Aeneas → `lake build`                                                                             | Every PR                   |
 | Simulation, short                 | 10⁴ seeds plus all regression seeds                                                             | Every PR                   |
 | Simulation, long                  | Millions of seeds, PCT, exhaustive small scenarios, TSO and weak modes                                     | Nightly                    |
-| Differential fuzzing against seL4 | Same generated programs on seL4 and FL4, compare traces                                                    | Nightly                    |
+| Differential fuzzing against seL4 | Same generated programs on seL4 and FL4, compare traces (`cargo xtask fuzz`, fl4test/fuzz.c)               | Nightly                    |
 | Performance                       | sel4bench IPC and signal latency; multi-core scaling on independent endpoints; FL4 and seL4 both under KVM | Nightly, tracked over time |
 
 Performance targets: uniprocessor IPC within 1.2× of seL4 built with `KernelFastpath` off (seL4 with its fastpath is also measured and reported, for reference), and near-linear throughput scaling for independent IPC pairs where seL4's big lock stays flat. The machine has 8 physical cores, so scaling is measured up to 8 vCPUs pinned one per physical core.
@@ -489,6 +489,15 @@ Against the like-for-like baseline FL4 is now at 1.14–1.7×. Cross-address-spa
 - One CR3 write plus the TLB refill after it costs about 280 cycles. That is the whole cross-address-space difference; this CPU has no PCIDs.
 
 Closing the gap is M5 work on the general path in `fl4-core`: fewer capability decodes and encodes, repeated loads of the current thread and its fields, and the many small helper calls of a direct transliteration.
+
+The differential fuzzer (`cargo xtask fuzz`) builds `fl4test/fuzz.c` against upstream seL4 and against FL4 and runs both in the KVM setup.
+- Each of 40 seeds generates a program of 400 calls. It runs in a thread whose CSpace is a fresh 256-slot CNode holding only that CNode and a private 64 KiB untyped. Capability pointers are therefore slot numbers, and nothing depends on the root task's memory layout.
+- The calls are retypes of endpoints, notifications, replies, CNodes, untypeds and scheduling contexts; CNode Copy, Mint, Move, Mutate, Delete, Revoke, Rotate and CancelBadgedSends; and non-blocking sends.
+- The trace records each call's arguments, its error, the message registers a failure returns, and the types of the capabilities in the slots it touched (`seL4_DebugCapIdentify`).
+- The first run gave 16,000 identical trace lines. Every call kind both succeeded and failed in several ways: success, InvalidCapability, FailedLookup, DeleteFirst, IllegalOperation, RangeError, NotEnoughMemory.
+- Left out for now:
+  - Receives. A receive through a capability without the Read right is a capability fault, which the program would need a fault handler to survive.
+  - TCB and frame objects, whose sizes differ between the kernels.
 
 Multi-core scaling is measured by fl4test's FL4PERF0002 (`fl4test/perf.c`). It uses only the seL4 API, so it also runs on upstream seL4 with `FL4_KERNEL=sel4`. It runs k independent client/server pairs, pair i on core i, for k = 1 to the number of cores, and prints round trips per million TSC ticks. These are debug builds with 8 unpinned vCPUs on a host shared with other VMs, so expect noise:
 

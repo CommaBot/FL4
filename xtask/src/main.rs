@@ -347,10 +347,12 @@ fn sel4test_build(o: &Opts, fl4test: bool) -> PathBuf {
     if fs::symlink_metadata(&link).is_err() && !upstream() {
         std::os::unix::fs::symlink(root().join("fl4test/fl4test.c"), &link).unwrap();
     }
-    // perf.c uses only the seL4 API: both kernels build it.
-    let perf = ws.join("projects/sel4test/apps/sel4test-tests/src/tests/fl4perf.c");
-    if fs::symlink_metadata(&perf).is_err() {
-        std::os::unix::fs::symlink(root().join("fl4test/perf.c"), &perf).unwrap();
+    // perf.c and fuzz.c use only the seL4 API: both kernels build them.
+    for (src, dst) in [("perf.c", "fl4perf.c"), ("fuzz.c", "fl4fuzz.c")] {
+        let l = ws.join("projects/sel4test/apps/sel4test-tests/src/tests").join(dst);
+        if fs::symlink_metadata(&l).is_err() {
+            std::os::unix::fs::symlink(root().join("fl4test").join(src), &l).unwrap();
+        }
     }
     // FL4_TESTS=<regex> runs only the matching tests, in its own build.
     let only = env::var("FL4_TESTS").ok().or(if fl4test { Some(FL4TEST_REGEX.into()) } else { None });
@@ -437,6 +439,41 @@ fn sel4test(o: &Opts, fl4test: bool) {
     if sel4test_once(o, fl4test).is_err() {
         fail(&format!("{} failed", if fl4test { "fl4test" } else { "sel4test" }));
     }
+}
+
+/// Differential fuzzing (DESIGN.md §12): run fl4test/fuzz.c's generated
+/// programs on upstream seL4 and on FL4 and compare their traces.
+fn fuzz(o: &Opts) {
+    let mut traces = Vec::new();
+    for kernel in ["sel4", "fl4"] {
+        env::set_var("FL4_KERNEL", kernel);
+        env::set_var("FL4_TESTS", "^FL4FUZZ0001$");
+        let b = sel4test_build(o, false);
+        if sel4test_once(o, false).is_err() {
+            fail(&format!("the fuzz programs did not finish on {kernel}"));
+        }
+        let log = fs::read_to_string(b.join("sel4test.log")).unwrap();
+        let lines: Vec<String> = log.lines().filter(|l| l.starts_with("FUZZ ")).map(|l| l.trim_end().to_string()).collect();
+        eprintln!("xtask: fuzz: {} trace lines from {kernel}", lines.len());
+        traces.push(lines);
+    }
+    env::remove_var("FL4_KERNEL");
+    env::remove_var("FL4_TESTS");
+    let (a, b) = (&traces[0], &traces[1]);
+    let mut diffs = 0;
+    for i in 0..a.len().max(b.len()) {
+        let (x, y) = (a.get(i).map(String::as_str).unwrap_or("<none>"), b.get(i).map(String::as_str).unwrap_or("<none>"));
+        if x != y {
+            if diffs < 20 {
+                eprintln!("  seL4: {x}\n  FL4:  {y}");
+            }
+            diffs += 1;
+        }
+    }
+    if a.is_empty() || diffs > 0 {
+        fail(&format!("fuzz: {diffs} of {} trace lines differ", a.len()));
+    }
+    eprintln!("xtask: fuzz: {} trace lines, seL4 and FL4 agree", a.len());
 }
 
 /// One run; Err holds the failed tests' names (empty if the run did not
@@ -649,10 +686,11 @@ fn main() {
         "gate" => gate(),
         "sim" => sim(&o),
         "mutants" => mutants(),
+        "fuzz" => fuzz(&o),
         "trusted" => trusted(),
         "bench" => bench(&o),
         _ => {
-            eprintln!("usage: cargo xtask <kernel|run|sel4test-build|sel4test|fl4test|extract|gate|sim|mutants|trusted|bench [fl4|sel4]> [--release] [--setup kvm|kvm-reduced|tcg] [--smp N] [--timeout S] [--seeds N]");
+            eprintln!("usage: cargo xtask <kernel|run|sel4test-build|sel4test|fl4test|extract|gate|sim|mutants|fuzz|trusted|bench [fl4|sel4]> [--release] [--setup kvm|kvm-reduced|tcg] [--smp N] [--timeout S] [--seeds N]");
             exit(2);
         }
     }

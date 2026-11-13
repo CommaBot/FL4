@@ -33,5 +33,7 @@ jobs:
             cargo xtask fl4test --setup $setup
             cargo xtask fl4test --setup $setup --smp 4
           done
+      - name: Differential fuzzing against seL4 (DESIGN.md §12)
+        run: cargo xtask fuzz --setup kvm
       - name: Extract and prove (P0 must be complete)
         run: FL4_P0_STRICT=1 cargo xtask gate
