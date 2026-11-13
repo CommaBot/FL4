@@ -100,6 +100,12 @@ def assocs {w : Nat} {β : Type} (f : BitVec w → β) : List (BitVec w × β) :
 /-- l4v `[i..j]` on `int`. -/
 def intUpto (i j : Int) : List Int := (List.range (j - i + 1).toNat).map fun k : Nat => i + (k : Int)
 
+/-- l4v: Word_Lib.More_Word_Operations.ptr_add. -/
+def ptrAdd {w : Nat} (ptr : BitVec w) (n : Nat) : BitVec w := ptr + BitVec.ofNat w n
+
+/-- l4v: Word_Lib.Aligned.is_aligned (`2 ^ n dvd unat w`). -/
+def isAligned {w : Nat} (x : BitVec w) (n : Nat) : Prop := 2 ^ n ∣ x.toNat
+
 /-- Isabelle/HOL `undefined`: an unspecified value of a (nonempty) type. -/
 def undefined {α : Sort _} [h : Nonempty α] : α := Classical.choice h
 
@@ -116,6 +122,17 @@ def The {α : Type} [Nonempty α] (P : α → Prop) : α :=
 /-- l4v: Lib.partial_inv. -/
 def partialInv {α β : Type} [Nonempty α] (f : α → β) (x : β) : Option α :=
   if ∃! y, f y = x then some (The fun y => f y = x) else none
+
+/-- Isabelle/HOL `Max` on a finite set: its greatest element (an
+unspecified value for the empty set, as in Isabelle). -/
+def setMax {α : Type} [LE α] [Nonempty α] (S : Set α) : α :=
+  The fun m => m ∈ S ∧ ∀ x ∈ S, x ≤ m
+
+/-- l4v: Word_Lib.Enumeration.the_index (`primrec (nonexhaustive)`): the
+position of the first occurrence of `y` in a list. -/
+def theIndex {α : Type} [DecidableEq α] : List α → α → Nat
+  | [], _ => undefined
+  | x :: xs, y => if x = y then 0 else theIndex xs y + 1
 
 /-- Isabelle/HOL `dom` of a partial map. -/
 def dom {α β : Type} (m : α → Option β) : Set α := {a | m a ≠ none}
@@ -136,8 +153,10 @@ structure KernelConfig where
   numDomains : Nat
   numDomains_not_zero : 0 < numDomains
   numDomains_fits_domainBits : numDomains ≤ 2 ^ 8
+  /-- `CONFIG_RESET_CHUNK_BITS` (no lemmas about it in l4v) -/
+  resetChunkBits : Nat
 
-instance : Inhabited KernelConfig := ⟨⟨1, by decide, by decide⟩⟩
+instance : Inhabited KernelConfig := ⟨⟨1, by decide, by decide, 8⟩⟩
 
 /-- The build configuration (stands for the generated `Kernel_Config`). -/
 opaque kernelConfig : KernelConfig
@@ -154,6 +173,11 @@ def domainBits : Nat := 8
 /-- l4v: Kernel_Config_Lemmas.numDomains_fits_domainBits. -/
 theorem numDomains_fits_domainBits : numDomains ≤ 2 ^ domainBits :=
   kernelConfig.numDomains_fits_domainBits
+
+/-- l4v: Kernel_Config.resetChunkBits (generated from
+`CONFIG_RESET_CHUNK_BITS`; unspecified here): the size in bits of the chunks
+of memory to zero before checking a preemption point. -/
+def resetChunkBits : Nat := kernelConfig.resetChunkBits
 
 /-- l4v: Kernel_Config.config_HAVE_FPU. Always set on x86-64. -/
 def config_HAVE_FPU : Bool := true
@@ -923,6 +947,13 @@ kernel window. -/
 def kernelBase : VSpaceRef := 0xffffffff80000000
 /-- l4v: Machine_A.X64_A.idle_thread_ptr. -/
 def idleThreadPtr : VSpaceRef := kernelBase + 0x1000
+
+/-- l4v: Machine_A.X64_A.idle_sc_ptr (rt X64 gap; RISCV64 `idle_sc_ptr =
+pptr_base + 0x3000`): the idle thread's scheduling context. The RISCV64
+offset would overlap X64's 8KiB `init_irq_node_ptr` region (`kernel_base +
+0x2000`, X64 Init_A) and the global paging structures follow up to
+`kernel_base + 0x6000`, so this uses the next free page. -/
+def idleScPtr : VSpaceRef := kernelBase + 0x7000
 
 /-- l4v: Machine_A.X64_A.nat_to_cref. -/
 def natToCref (len n : Nat) : CapRef := (toBl (BitVec.ofNat 64 n)).drop (wordBits - len)

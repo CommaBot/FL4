@@ -103,6 +103,12 @@ deriving DecidableEq, Repr, Inhabited
 /-- l4v: Arch_Structs_B.X64_H.parseTimeArg. -/
 def parseTimeArg (i : Nat) (args : List Word) : Ticks := the args[i]?
 
+/-- l4v: Arch_Structs_B.X64_H.timerPrecision (rt X64 gap; RISCV64
+`Arch_Structs_B` includes Haskell `timerPrecision = usToTicks 1`, with
+`usToTicks` the abbreviation for `us_to_ticks`). The C kernel's x86
+`getTimerPrecision` is also `usToTicks(1)`. -/
+def timerPrecision : Word64 := usToTicks 1
+
 /-! ## Arch_Structs_A -/
 
 /-- l4v: Arch_Structs_A.X64_A.io_port. -/

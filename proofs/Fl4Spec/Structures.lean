@@ -710,6 +710,74 @@ def capOf (kobj : KernelObject) : CnodeIndex → Option Cap :=
 /-- l4v: Structures_A.caps_of: the caps held by a kernel object. -/
 def capsOf (kobj : KernelObject) : Set Cap := ran (capOf kobj)
 
+/-! ## Record field updates
+
+Isabelle generates an update function `f_update :: ('a ⇒ 'a) ⇒ 'r ⇒ 'r` for
+every record field. The spec passes the ones below as arguments
+(`set_tcb_obj_ref tcb_sched_context_update`, `set_sc_obj_ref
+sc_refills_update`, ...), so they are explicit functions here. -/
+
+/-- Isabelle record update `tcb_sched_context_update`. -/
+def tcbSchedContextUpdate (f : Option ObjRef → Option ObjRef) (t : Tcb) : Tcb :=
+  { t with tcbSchedContext := f t.tcbSchedContext }
+/-- Isabelle record update `tcb_yield_to_update`. -/
+def tcbYieldToUpdate (f : Option ObjRef → Option ObjRef) (t : Tcb) : Tcb :=
+  { t with tcbYieldTo := f t.tcbYieldTo }
+/-- Isabelle record update `tcb_bound_notification_update`. -/
+def tcbBoundNotificationUpdate (f : Option ObjRef → Option ObjRef) (t : Tcb) : Tcb :=
+  { t with tcbBoundNotification := f t.tcbBoundNotification }
+
+/-- Isabelle record update `sc_period_update`. -/
+def scPeriodUpdate (f : Ticks → Ticks) (sc : SchedContext) : SchedContext :=
+  { sc with scPeriod := f sc.scPeriod }
+/-- Isabelle record update `sc_budget_update`. -/
+def scBudgetUpdate (f : Ticks → Ticks) (sc : SchedContext) : SchedContext :=
+  { sc with scBudget := f sc.scBudget }
+/-- Isabelle record update `sc_consumed_update`. -/
+def scConsumedUpdate (f : Ticks → Ticks) (sc : SchedContext) : SchedContext :=
+  { sc with scConsumed := f sc.scConsumed }
+/-- Isabelle record update `sc_tcb_update`. -/
+def scTcbUpdate (f : Option ObjRef → Option ObjRef) (sc : SchedContext) : SchedContext :=
+  { sc with scTcb := f sc.scTcb }
+/-- Isabelle record update `sc_ntfn_update`. -/
+def scNtfnUpdate (f : Option ObjRef → Option ObjRef) (sc : SchedContext) : SchedContext :=
+  { sc with scNtfn := f sc.scNtfn }
+/-- Isabelle record update `sc_refills_update`. -/
+def scRefillsUpdate (f : List Refill → List Refill) (sc : SchedContext) : SchedContext :=
+  { sc with scRefills := f sc.scRefills }
+/-- Isabelle record update `sc_refill_max_update`. -/
+def scRefillMaxUpdate (f : Nat → Nat) (sc : SchedContext) : SchedContext :=
+  { sc with scRefillMax := f sc.scRefillMax }
+/-- Isabelle record update `sc_badge_update`. -/
+def scBadgeUpdate (f : Badge → Badge) (sc : SchedContext) : SchedContext :=
+  { sc with scBadge := f sc.scBadge }
+/-- Isabelle record update `sc_yield_from_update`. -/
+def scYieldFromUpdate (f : Option ObjRef → Option ObjRef) (sc : SchedContext) : SchedContext :=
+  { sc with scYieldFrom := f sc.scYieldFrom }
+/-- Isabelle record update `sc_replies_update`. -/
+def scRepliesUpdate (f : List ObjRef → List ObjRef) (sc : SchedContext) : SchedContext :=
+  { sc with scReplies := f sc.scReplies }
+/-- Isabelle record update `sc_sporadic_update`. -/
+def scSporadicUpdate (f : Bool → Bool) (sc : SchedContext) : SchedContext :=
+  { sc with scSporadic := f sc.scSporadic }
+
+/-- Isabelle record update `ntfn_obj_update`. -/
+def ntfnObjUpdate (f : Ntfn → Ntfn) (n : Notification) : Notification :=
+  { n with ntfnObj := f n.ntfnObj }
+/-- Isabelle record update `ntfn_bound_tcb_update`. -/
+def ntfnBoundTcbUpdate (f : Option ObjRef → Option ObjRef) (n : Notification) : Notification :=
+  { n with ntfnBoundTcb := f n.ntfnBoundTcb }
+/-- Isabelle record update `ntfn_sc_update`. -/
+def ntfnScUpdate (f : Option ObjRef → Option ObjRef) (n : Notification) : Notification :=
+  { n with ntfnSc := f n.ntfnSc }
+
+/-- Isabelle record update `reply_tcb_update`. -/
+def replyTcbUpdate (f : Option ObjRef → Option ObjRef) (r : Reply) : Reply :=
+  { r with replyTcb := f r.replyTcb }
+/-- Isabelle record update `reply_sc_update`. -/
+def replyScUpdate (f : Option ObjRef → Option ObjRef) (r : Reply) : Reply :=
+  { r with replySc := f r.replySc }
+
 /-! ## Cap transfers -/
 
 /-- l4v: Structures_A.captransfer. -/

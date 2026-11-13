@@ -61,16 +61,30 @@ executable-spec types these import (`spec/design/skel`, `spec/haskell`).
 | `Fl4Spec/Structures.lean`    | Structures_A                                                         |
 | `Fl4Spec/Deterministic.lean` | List_Lib helpers, Deterministic_A, Exceptions_A (KHeap_A imports them) |
 | `Fl4Spec/KHeap.lean`         | KHeap_A, X64/ArchVSpaceAcc_A                                         |
-| `Fl4Spec/CSpace.lean`        | CSpaceAcc_A, CSpace_A, X64/ArchCSpace_A                              |
-| `Fl4Spec/Tcb.lean`           | TcbAcc_A, Tcb_A, X64/ArchTcb_A                                       |
-| `Fl4Spec/Sched.lean`         | Sporadic_A, SchedContext_A, Schedule_A                               |
-| `Fl4Spec/Ipc.lean`           | IpcCancel_A, Ipc_A, X64/ArchIpcCancel_A                              |
-| `Fl4Spec/Retype.lean`        | Retype_A, X64/ArchRetype_A                                           |
-| `Fl4Spec/VSpace.lean`        | X64/ArchVSpace_A, X64/Arch_A                                         |
-| `Fl4Spec/Interrupt.lean`     | Interrupt_A, X64/ArchInterrupt_A                                     |
-| `Fl4Spec/Decode.lean`        | Invocations_A, X64/ArchInvocation_A, Decode_A, X64/ArchDecode_A      |
-| `Fl4Spec/Syscall.lean`       | Syscall_A                                                            |
-| `Fl4Spec/Init.lean`          | KernelInit_A, X64/Init_A                                             |
+| `Fl4Spec/CSpaceAcc.lean`     | CSpaceAcc_A, Sporadic_A                                              |
+| `Fl4Spec/Invocations.lean`   | X64/ArchInvocation_A, Invocations_A                                  |
+| `Fl4Spec/Retype.lean`        | X64/ArchRetype_A, X64/ArchIpcCancel_A, Retype_A                      |
+| `Fl4Spec/X64/VSpace.lean`    | X64/FPU_A, X64/ArchVSpace_A, X64/ArchCSpace_A                        |
+| `Fl4Spec/TcbAcc.lean`        | TcbAcc_A                                                             |
+| `Fl4Spec/IpcCancel.lean`     | IpcCancel_A                                                          |
+| `Fl4Spec/SchedContext.lean`  | SchedContext_A                                                       |
+| `Fl4Spec/CSpace.lean`        | CSpace_A                                                             |
+| `Fl4Spec/X64/Arch.lean`      | X64/Arch_A                                                           |
+| `Fl4Spec/Schedule.lean`      | Schedule_A                                                           |
+| `Fl4Spec/Tcb.lean`           | X64/ArchTcb_A, Tcb_A, X64/ArchFault_A                                |
+| `Fl4Spec/Ipc.lean`           | Ipc_A (to do)                                                        |
+| `Fl4Spec/Interrupt.lean`     | X64/ArchInterrupt_A, Interrupt_A (to do)                             |
+| `Fl4Spec/Decode.lean`        | X64/ArchDecode_A, Decode_A (to do)                                   |
+| `Fl4Spec/Init.lean`          | X64/Init_A, KernelInit_A (to do)                                     |
+| `Fl4Spec/Syscall.lean`       | Syscall_A (to do)                                                    |
+
+The order is the MCS import graph of l4v `rt` (taken from RISCV64, since
+the X64 theories on `rt` still carry the non-MCS imports): KHeap_A →
+CSpaceAcc_A → Sporadic_A → ArchInvocation_A/Invocations_A → ArchRetype_A,
+ArchIpcCancel_A → Retype_A → FPU_A → ArchVSpace_A → ArchCSpace_A → TcbAcc_A
+→ IpcCancel_A → SchedContext_A → CSpace_A → Arch_A → Schedule_A → ArchTcb_A
+→ Tcb_A → ArchFault_A → Ipc_A → ArchInterrupt_A → Interrupt_A → ... X64
+Init_A only needs Retype_A; nothing up to Tcb needs it (see Deviations).
 
 Split a module into several files if it grows past about 1500 lines; keep
 the theory order.
@@ -132,6 +146,54 @@ Conventions of the ported base layer that later modules rely on.
   `Register.rax`, `VMPageSize.x64SmallPage`, `Tcb.tcbSchedContext`,
   `AbstractState.curThread`).
 
+- **Record updates.** Isabelle's generated `f_update` functions, passed as
+  arguments to `set_tcb_obj_ref`, `set_sc_obj_ref`, `set_ntfn_obj_ref`,
+  `set_reply_obj_ref` and `update_sched_context`, are explicit functions in
+  Structures (`tcbSchedContextUpdate`, `scRefillsUpdate`, `ntfnScUpdate`,
+  `replyScUpdate`, ...). Add more there as needed. A record update written
+  inline in the spec (`s⦇reprogram_timer := True⦈`, `r⦇r_amount := x⦈`) is
+  `{ s with ... }`.
+- **Datatype discriminators** (`is_WaitingNtfn`) are `Bool` functions in the
+  type's namespace (`Ntfn.isWaitingNtfn`); `is_ArchObjectCap` is the existing
+  `isArchCap`. Datatypes holding caps (`Invocation`, `TcbInvocation`,
+  `RecDelCall`, ...) derive only `Inhabited` (caps have no `DecidableEq`).
+- **Prop vs Bool, continued.** Cap predicates that compare caps or
+  quantify are `Prop`: `sameRegionAs`, `sameObjectAs`, `sameAobjectAs`,
+  `archSameRegionAs`, `shouldBeParentOf`, `isCapRevocable`,
+  `archIsCapRevocable`, `shouldBeArchParentOf`, `capRemoveable`,
+  `capCyclicZombie`, `hasCancelSendRights`, `isValidVtableRoot`,
+  `inUserFrame`, `isFinalCap'`, `isHighestPrio`, `isAligned`,
+  `canMergeRefill`. Case functions are `Bool`: `isPhysical`,
+  `archIsPhysical`, `isIrqControlDescendant`, `longRunningDelete`,
+  `canFastFinalise`, `checkMappingPptr`, `isDeviceUntypedCap`. Monadic
+  results the spec branches on are `Bool` (`isFinalCap`, `isRoundRobin`,
+  `refillFull`, `noReplyInTs`, the `r_monad` readers); `cap_insert` turns its
+  `Prop`s into `Bool` with `decide`.
+- **Loops.** l4v `whileLoop (λ_ s. the (f s))` with an `r_monad` condition is
+  `NonDet.whileLoop (fun _ s => the (f s) = true)`.
+- **List idioms.** `[a ..< b]` is `List.range' a (b - a)`; `[a ..< Suc b]`
+  is `List.range' a (b + 1 - a)`; `butlast` is `List.dropLast`; `removeAll`
+  is `Fl4Spec.removeAll` (IpcCancel); `xs[i := v]` is `List.set`; the list
+  comprehension `[i ← xs. P i]` is `xs.filter (decide ∘ P)`; prefix `≤` on
+  lists (HOL-Library.Prefix_Order) is `<+:`; Isabelle `Max S` is
+  `Fl4Spec.setMax S` (Machine); `the_index` is `theIndex`; `the_pred_option P`
+  is `partialInv P true`; `ptr_add` is `ptrAdd`; `is_aligned` is
+  `isAligned`.
+- **Partial recursive functions.** Isabelle `function`s without a
+  termination proof (`rec_del`, `cap_revoke`) are `NonDet.lfp` of a
+  functional (`recDelF`, `capRevokeF`) that transliterates the equations with
+  the recursive calls as a parameter. Terminating ones (`resolve_address_bits'`)
+  use Lean well-founded recursion on the Isabelle measure; the `let` of the
+  recursion argument replaces `← returnOk` so the measure proof can see it.
+- **Nested `do` results.** Inside a nested `do` used as a value
+  (`return_now ← do ...` in `sched_context_yield_to`) write `pure`, never
+  `return`.
+- **Match statements in `do`.** A non-final Isabelle `case ... ;` is a Lean
+  `match` statement whose arms are `SMonad Z Unit` (`| none => pure ()`),
+  followed by the rest of the block at the outer indentation. Put a
+  multi-line argument on its own lines, indented past the function name, or
+  Lean parses it as a new statement.
+
 ## Deviations
 
 - **X64 is not MCS on l4v `rt`.** The X64 machine and arch theories on the
@@ -161,3 +223,40 @@ Conventions of the ported base layer that later modules rely on.
   declarations left in X64 Arch_Structs_A and ArchVSpaceAcc_A (no IOMMU).
 - **Module map:** Deterministic_A and Exceptions_A moved before KHeap
   (`Fl4Spec/Deterministic.lean`), since KHeap_A imports them.
+- **Chunk A (CSpaceAcc_A … ArchFault_A) rt X64 gaps:**
+  - X64 `Arch_A` on `rt` imports TcbAcc_A but uses `cap_insert` and
+    `max_free_index_update` from CSpace_A, and `Schedule_A` uses
+    SchedContext_A; the X64 import graph on `rt` is the non-MCS one and does
+    not build. The MCS order of RISCV64 `rt` is used, so IpcCancel_A,
+    SchedContext_A and CSpace_A are ported before Arch_A (module map).
+  - `idle_sc_ptr` (RISCV64 Machine_A, `pptr_base + 0x3000`) is
+    `idleScPtr = kernel_base + 0x7000` in Machine: X64 Init_A puts the 8KiB
+    IRQ node at `kernel_base + 0x2000` and the global paging structures up to
+    `kernel_base + 0x6000`. IpcCancel_A imports Init_A only for it, so
+    X64/Init_A is not a prerequisite of IpcCancel here.
+  - `timerPrecision` (RISCV64 Arch_Structs_B, Haskell `usToTicks 1`) is in
+    X64/Structs; the C kernel's x86 `getTimerPrecision` is `usToTicks(1)`.
+  - `make_arch_fault_msg` uses label 6 (C x86 `seL4_Fault_VMFault` with
+    `CONFIG_KERNEL_MCS`, RISCV64 `rt`), not X64 `rt`'s non-MCS 5.
+  - No other MCS-specific arch definition differs: RISCV64 `rt`'s
+    ArchVSpace_A, ArchCSpace_A, ArchRetype_A, ArchIpcCancel_A, ArchTcb_A and
+    Arch_A have the same set of definitions as X64's.
+- **Kernel_Config `resetChunkBits`** is a field of `kernelConfig` (C default
+  8, unspecified here; l4v states no lemmas about it).
+- **`rec_del`, `cap_revoke`** (partial `function`s) are least fixed points
+  (`NonDet.lfp`): equal to Isabelle's definition on its domain (where l4v's
+  proofs use them); outside it Isabelle's value is unspecified and the lfp
+  is the partial-correctness value (results of terminating runs, failure
+  only if a terminating run fails). The monotonicity of the functionals is
+  not proved.
+- **`resolve_address_bits'`** drops the `'z itself` argument (it only fixes
+  the state type) and binds `rest` with `let` (for the termination proof)
+  instead of `← returnOk`.
+- **`update_cap_data`**: Isabelle `size guard''` (the word length of a
+  `data` word) is the literal 64.
+- **Not ported:** lemmas (`fast_finalise_def2`, `rab_termination`,
+  `sc_with_reply_def2`, `msg_align_bits`), Sporadic_A's `thm` checks, the
+  CSpaceAcc_A notations (plain `parentOf`, `parentOfTrancl`,
+  `parentOfRtrancl` instead). IOMMU: `PageIOMap`, `io_pt_invocation`,
+  `InvokeIOPT`, and the IOSpace/IO page table cases of `arch_derive_cap`,
+  `arch_finalise_cap`, `arch_same_region_as` (commented out in l4v).

@@ -10,6 +10,7 @@ monad of l4v (`('s, 'e + 'a) nondet_monad`, `bindE`, `throwError`,
 `liftE`) is `ExceptT ε (NonDet σ)`.
 -/
 import Mathlib.Data.Set.Basic
+import Mathlib.Order.CompleteLattice.Basic
 
 namespace Fl4Spec
 
@@ -65,6 +66,9 @@ def mapMx (f : α → NonDet σ β) : List α → NonDet σ Unit
   | [] => NonDet.pure ()
   | a :: as => NonDet.bind (f a) fun _ => mapMx f as
 
+/-- l4v `forM_x` (`mapM_x` with the arguments swapped). -/
+def forMx (xs : List α) (f : α → NonDet σ β) : NonDet σ Unit := mapMx f xs
+
 /-- Results of l4v `whileLoop C B` from `r, s`: the states where the
 condition first fails, after any number of rounds of the body. -/
 inductive WhileResults (C : α → σ → Prop) (B : α → NonDet σ α) : α → σ → α × σ → Prop
@@ -113,6 +117,24 @@ def mapM (f : α → NonDet σ β) : List α → NonDet σ (List β)
 def zipWithMx {γ : Type} (f : α → β → NonDet σ γ) : List α → List β → NonDet σ Unit
   | a :: as, b :: bs => NonDet.bind (f a b) fun _ => zipWithMx f as bs
   | _, _ => NonDet.pure ()
+
+/-- l4v `zipWithM`. -/
+def zipWithM {γ : Type} (f : α → β → NonDet σ γ) : List α → List β → NonDet σ (List γ)
+  | a :: as, b :: bs => NonDet.bind (f a b) fun c =>
+      NonDet.bind (zipWithM f as bs) fun cs => NonDet.pure (c :: cs)
+  | _, _ => NonDet.pure []
+
+/-- The meaning of a recursive monadic definition made with Isabelle's
+`function` package without a termination proof (`rec_del`, `cap_revoke`):
+the least fixed point of its defining functional `F` (results ordered by
+inclusion, failure by implication). `F` is built from `bind`, `if` and
+`case`, which are monotone, so this is a fixed point. On the domain of the
+Isabelle function (the arguments from which every recursion terminates) it
+is the unique solution of the defining equations, so it agrees with
+Isabelle's definition there; outside the domain Isabelle's value is
+unspecified. -/
+def lfp {ι : Type} (F : (ι → NonDet σ α) → ι → NonDet σ α) : ι → NonDet σ α :=
+  (sInf {f : ι → σ → Set (α × σ) × Prop | ∀ i s, F f i s ≤ f i s} : ι → σ → Set (α × σ) × Prop)
 
 /-- The computation never fails from `s` (l4v `no_fail` at one state). -/
 def NoFail (m : NonDet σ α) (s : σ) : Prop := ¬(m s).2
