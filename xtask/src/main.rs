@@ -551,6 +551,11 @@ fn sim(o: &Opts) {
     run(Command::new(&bin).args(base).args(["--steps", "8000", "--conc"]));
     run(Command::new(&bin).args(base).args(["--steps", "8000", "--conc", "--pct", "3"]));
     run(Command::new(&bin).args(base).args(["--steps", "8000", "--tso"]));
+    // Every schedule with one preemption at a runtime atomic, for small
+    // two-core scenarios.
+    for seed in 1..=4 {
+        run(Command::new(&bin).args(["--explore", "1", "--cores", "2", "--steps", "6", "--first", &seed.to_string()]));
+    }
     // The same campaign with every entry under the serial gate, the
     // test-only differential configuration.
     let dir = r.join("target/serial-gate");

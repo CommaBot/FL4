@@ -119,6 +119,18 @@ struct Baton {
     pct: Option<Pct>,
     /// Per core: spins since the core last finished a kernel entry.
     spins: Vec<u64>,
+    explore: Option<Explore>,
+}
+
+/// Bounded exhaustive search (DESIGN.md §10, `--explore`): the schedule is
+/// fixed by the list of scheduling points at which the running core is
+/// preempted. Points are the runtime's atomic operations only (version
+/// table, clock, gate): data accesses are bracketed by version checks, so
+/// their order against another core's matters only at those. Otherwise a
+/// core runs until it spins or runs out of steps, then the next one runs.
+struct Explore {
+    points: u64,
+    switches: Vec<u64>,
 }
 
 /// PCT, probabilistic concurrency testing (Burckhardt et al., ASPLOS
@@ -150,7 +162,7 @@ const SPIN_LIMIT: u64 = 2_000_000;
 
 impl Conc {
     /// `pct`: run PCT of that depth over about `points` scheduling points.
-    fn new(n: u64, seed: u64, pct: Option<(u64, u64)>, tso: bool) -> Conc {
+    fn new(n: u64, seed: u64, pct: Option<(u64, u64)>, tso: bool, explore: Option<Vec<u64>>) -> Conc {
         let mut rng = Rng(seed ^ 0x5DEE_CE66_D1CE_4E5B | 1);
         let pct = pct.map(|(depth, points)| {
             let mut prio: Vec<i64> = (0..n as i64).map(|i| depth as i64 + 1 + i).collect();
@@ -163,7 +175,14 @@ impl Conc {
         });
         let turn = pct.as_ref().map_or(0, |p| (0..n).max_by_key(|&c| p.prio[c as usize]).unwrap());
         Conc {
-            baton: Mutex::new(Baton { turn, rng, done: vec![false; n as usize], pct, spins: vec![0; n as usize] }),
+            baton: Mutex::new(Baton {
+                turn,
+                rng,
+                done: vec![false; n as usize],
+                pct,
+                spins: vec![0; n as usize],
+                explore: explore.map(|switches| Explore { points: 0, switches }),
+            }),
             cv: Condvar::new(),
             call_pending: AtomicU64::new(0),
             in_kernel: (0..n).map(|_| AtomicBool::new(false)).collect(),
@@ -180,9 +199,14 @@ impl Conc {
     fn pass(&self, b: &mut Baton) {
         let live: Vec<u64> = (0..b.done.len() as u64).filter(|&c| !b.done[c as usize]).collect();
         if !live.is_empty() {
-            b.turn = match &b.pct {
-                Some(p) => *live.iter().max_by_key(|&&c| p.prio[c as usize]).unwrap(),
-                None => live[b.rng.below(live.len() as u64) as usize],
+            b.turn = if b.explore.is_some() {
+                // The next live core after the current one.
+                *live.iter().find(|&&c| c > b.turn).unwrap_or(&live[0])
+            } else {
+                match &b.pct {
+                    Some(p) => *live.iter().max_by_key(|&&c| p.prio[c as usize]).unwrap(),
+                    None => live[b.rng.below(live.len() as u64) as usize],
+                }
             };
         }
         self.cv.notify_all();
@@ -197,6 +221,9 @@ impl Conc {
     /// A scheduling point: maybe let another core run.
     fn pause(&self, cpu: u64) {
         let mut b = self.baton.lock().unwrap();
+        if b.explore.is_some() {
+            return;
+        }
         if let Some(p) = &mut b.pct {
             p.points += 1;
             if !p.change_points.contains(&p.points) {
@@ -219,13 +246,25 @@ impl Conc {
         match &mut b.pct {
             Some(p) => p.demote(cpu),
             None => {
-                if b.rng.below(4) != 0 {
+                if b.explore.is_none() && b.rng.below(4) != 0 {
                     return;
                 }
             }
         }
         self.pass(&mut b);
         self.wait_turn(cpu, b);
+    }
+
+    /// A scheduling point of the exhaustive search (a runtime atomic).
+    fn explore_point(&self, cpu: u64) {
+        let mut b = self.baton.lock().unwrap();
+        let Some(e) = &mut b.explore else { return };
+        let k = e.points;
+        e.points += 1;
+        if e.switches.contains(&k) {
+            self.pass(&mut b);
+            self.wait_turn(cpu, b);
+        }
     }
 
     /// The core finished a kernel entry.
@@ -393,12 +432,18 @@ impl tx::Mem for SimStore {
     }
     fn a_load(&self, a: &AtomicU64, o: Ordering) -> u64 {
         self.pause();
+        if let Some(c) = &self.conc {
+            c.explore_point(self.cpu);
+        }
         self.maybe_drain_one();
         let _ = o;
         self.forward(Target::Atomic(a as *const _ as usize)).unwrap_or_else(|| a.load(Ordering::SeqCst))
     }
     fn a_store(&self, a: &AtomicU64, v: u64, o: Ordering) {
         self.pause();
+        if let Some(c) = &self.conc {
+            c.explore_point(self.cpu);
+        }
         // On x86 only a SeqCst store is a locked instruction (XCHG);
         // release and relaxed stores are plain MOVs into the buffer.
         if self.tso().is_some() && o != Ordering::SeqCst {
@@ -410,11 +455,17 @@ impl tx::Mem for SimStore {
     }
     fn a_cas(&self, a: &AtomicU64, old: u64, new: u64, _ok: Ordering, _err: Ordering) -> Result<u64, u64> {
         self.pause();
+        if let Some(c) = &self.conc {
+            c.explore_point(self.cpu);
+        }
         self.drain();
         a.compare_exchange(old, new, Ordering::SeqCst, Ordering::SeqCst)
     }
     fn a_add(&self, a: &AtomicU64, v: u64, _o: Ordering) -> u64 {
         self.pause();
+        if let Some(c) = &self.conc {
+            c.explore_point(self.cpu);
+        }
         self.drain();
         a.fetch_add(v, Ordering::SeqCst)
     }
@@ -1584,7 +1635,7 @@ impl Sim {
     }
 }
 
-fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool, pct: Option<u64>, tso: bool) {
+fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool, pct: Option<u64>, tso: bool, switches: Option<Vec<u64>>) {
     let mut sim = Sim::new(seed, ncores);
     sim.boot();
     sim.setup();
@@ -1612,7 +1663,7 @@ fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool, 
     }
     if concurrent && ncores > 1 {
         // One host thread per core, interleaved at memory accesses.
-        let conc = Arc::new(Conc::new(ncores, seed, pct.map(|d| (d, steps * 50)), tso));
+        let conc = Arc::new(Conc::new(ncores, seed, pct.map(|d| (d, steps * 50)), tso, switches.clone()));
         sim.s.conc = Some(conc.clone());
         sim.a.conc = Some(conc.clone());
         let per_core = steps / ncores;
@@ -1650,6 +1701,9 @@ fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool, 
         sim.s.conc = None;
         sim.a.conc = None;
         sim.after("end");
+        if let Some(e) = &conc.baton.lock().unwrap().explore {
+            println!("explore: {} points", e.points);
+        }
         if verbose {
             let st = STATS.lock().unwrap();
             println!("seed {seed}: {} transactions committed, {} aborted, {} serial entries", st.0, st.1, st.2);
@@ -1772,6 +1826,101 @@ impl Run {
     }
 }
 
+/// Bounded exhaustive search (DESIGN.md §10): every schedule of `seed`'s
+/// small scenario with at most `bound` preemptions at runtime atomics.
+fn explore(bound: u64, seed: u64, cores: u64, steps: u64, max_runs: u64, timeout: u64) {
+    let me = std::env::current_exe().unwrap();
+    let run = |sw: &[u64]| -> (bool, String) {
+        let list = if sw.is_empty() { "none".to_string() } else { sw.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",") };
+        let mut child = std::process::Command::new(&me)
+            .args(["--one", &seed.to_string(), "--cores", &cores.to_string(), "--steps", &steps.to_string(), "--switches", &list])
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout);
+        loop {
+            if child.try_wait().unwrap().is_some() {
+                break;
+            }
+            if std::time::Instant::now() > deadline {
+                let _ = child.kill();
+                return (false, format!("switches {list}: no progress after {timeout} s"));
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        let out = child.wait_with_output().unwrap();
+        let text = String::from_utf8_lossy(&out.stdout).to_string();
+        if out.status.success() {
+            (true, text)
+        } else {
+            let err = String::from_utf8_lossy(&out.stderr);
+            (false, format!("switches {list}: {}", err.lines().find(|l| !l.is_empty() && !l.starts_with("thread") && !l.starts_with("note:")).unwrap_or("")))
+        }
+    };
+    let (ok, out) = run(&[]);
+    if !ok {
+        println!("fl4-sim: explore: the unpreempted schedule fails: {out}");
+        std::process::exit(1);
+    }
+    let points: u64 = out.lines().find_map(|l| l.strip_prefix("explore: ")?.strip_suffix(" points")?.parse().ok()).unwrap();
+    // All sets of at most `bound` preemption points, smallest first.
+    fn next(set: &mut [u64], n: u64) -> bool {
+        // The next combination of 0..n in lexicographic order.
+        let k = set.len();
+        let mut i = k;
+        while i > 0 {
+            i -= 1;
+            if set[i] < n - (k - i) as u64 {
+                set[i] += 1;
+                for j in i + 1..k {
+                    set[j] = set[j - 1] + 1;
+                }
+                return true;
+            }
+        }
+        false
+    }
+    let mut sets: Vec<Vec<u64>> = Vec::new();
+    'outer: for k in 1..=(bound.min(points)) as usize {
+        let mut set: Vec<u64> = (0..k as u64).collect();
+        loop {
+            if sets.len() as u64 == max_runs {
+                println!("fl4-sim: explore: stopped at --max-runs {max_runs}");
+                break 'outer;
+            }
+            sets.push(set.clone());
+            if !next(&mut set, points) {
+                break;
+            }
+        }
+    }
+    let runs = sets.len() as u64;
+    let jobs = std::thread::available_parallelism().map_or(4, |n| n.get()).max(2) / 2;
+    let work = Mutex::new(sets.into_iter());
+    let failures = Mutex::new(Vec::new());
+    std::thread::scope(|sc| {
+        for _ in 0..jobs {
+            sc.spawn(|| loop {
+                let Some(set) = work.lock().unwrap().next() else { break };
+                let (ok, why) = run(&set);
+                if !ok {
+                    failures.lock().unwrap().push(why);
+                }
+            });
+        }
+    });
+    let failures = failures.into_inner().unwrap();
+    for f in failures.iter().take(20) {
+        println!("fl4-sim: explore: seed {seed}: {f}");
+    }
+    let failed = failures.len();
+    println!("fl4-sim: explore: seed {seed}, {cores} cores, {steps} steps, {points} scheduling points, preemption bound {bound}: {runs} schedules, {failed} failed");
+    if failed > 0 {
+        std::process::exit(1);
+    }
+}
+
 /// Failing runs, shrunk, that every campaign replays first (DESIGN.md §10).
 const REGRESSIONS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/regressions");
 
@@ -1789,7 +1938,14 @@ fn main() {
     if let Some(i) = args.iter().position(|a| a == "--one") {
         let seed = args[i + 1].parse().unwrap();
         TRACE.store(args.iter().any(|a| a == "--trace"), Ordering::Relaxed);
-        run_one(seed, cores, steps, verbose, conc || tso, pct, tso);
+        let switches = args.iter().position(|a| a == "--switches").map(|i| {
+            args[i + 1].split(',').filter(|s| !s.is_empty() && *s != "none").map(|s| s.parse().unwrap()).collect::<Vec<u64>>()
+        });
+        run_one(seed, cores, steps, verbose, conc || tso || switches.is_some(), pct, tso, switches);
+        return;
+    }
+    if let Some(i) = args.iter().position(|a| a == "--explore") {
+        explore(args[i + 1].parse().unwrap(), opt("--first", 1), cores, steps, opt("--max-runs", 50_000), opt("--timeout", 60));
         return;
     }
     let seeds = opt("--seeds", 100);
