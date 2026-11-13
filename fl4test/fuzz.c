@@ -6,8 +6,8 @@
  * under QEMU and compares the traces it prints.
  *
  * A program runs in a helper thread whose CSpace is a fresh 256-slot
- * CNode holding only itself (slot 1) and a private 64 KiB untyped
- * (slot 2), so capability pointers are slot numbers on both kernels and
+ * CNode holding only itself (slot 1), a private 64 KiB untyped (slot 2)
+ * and two unconfigured TCBs (slots 3 and 4, made by the root task), so capability pointers are slot numbers on both kernels and
  * nothing depends on how the root task's memory was laid out. The trace
  * records each call, its error code, the message registers a failed call
  * returns, and in debug builds the type of the capability in the slot it
@@ -60,6 +60,10 @@ static uint32_t identify(seL4_CPtr slot)
 #endif
 }
 
+/* seL4_DebugCapIdentify's value for a thread capability (the C kernel's
+ * cap_thread_cap tag). */
+#define FUZZ_CAP_THREAD 12
+
 static const seL4_Word fuzz_types[] = {
     seL4_EndpointObject, seL4_NotificationObject, seL4_ReplyObject,
     seL4_CapTableObject, seL4_UntypedObject, seL4_SchedContextObject,
@@ -71,13 +75,19 @@ static int fuzz_program(seL4_Word arg, seL4_Word b, seL4_Word c, seL4_Word d)
     uint64_t s = run->seed * 0x9E3779B97F4A7C15ull | 1;
     for (int i = 0; i < FUZZ_STEPS; i++) {
         struct fuzz_rec *r = &run->rec[i];
-        int op = rnd(&s) % 10;
+        int op = rnd(&s) % 16;
         /* Mostly slots that are in use, sometimes any slot. */
         seL4_Word x = rnd(&s) % 4 ? rnd(&s) % 24 : rnd(&s) % 256;
         seL4_Word y = rnd(&s) % 4 ? rnd(&s) % 24 : rnd(&s) % 256;
         seL4_Word z = rnd(&s) % 24;
         seL4_Word w = rnd(&s);
         int err = 0;
+        /* An invocation is a Call on the capability: on an endpoint it is
+         * an IPC that waits forever. Thread operations only go to slots
+         * known to hold a thread capability (debug builds). */
+        if (op >= 10 && op <= 15 && identify(x) != FUZZ_CAP_THREAD) {
+            op = 8;
+        }
         r->mr0 = r->mr1 = 0;
         r->op = op;
         r->a = x;
@@ -100,11 +110,12 @@ static int fuzz_program(seL4_Word arg, seL4_Word b, seL4_Word c, seL4_Word d)
                                   (w >> 8) % 3);
             break;
         case 3:
-            /* Slot 1 is the program's CNode: never moved away. */
-            err = y != 1 ? seL4_CNode_Move(1, x, FUZZ_DEPTH, 1, y, FUZZ_DEPTH) : -1;
+            /* Slots 1 and 2 (the program's CNode and untyped) are never
+             * moved away. */
+            err = y > 2 ? seL4_CNode_Move(1, x, FUZZ_DEPTH, 1, y, FUZZ_DEPTH) : -1;
             break;
         case 4:
-            err = y != 1 ? seL4_CNode_Mutate(1, x, FUZZ_DEPTH, 1, y, FUZZ_DEPTH, (w >> 8) % 3) : -1;
+            err = y > 2 ? seL4_CNode_Mutate(1, x, FUZZ_DEPTH, 1, y, FUZZ_DEPTH, (w >> 8) % 3) : -1;
             break;
         case 5:
             /* Never the two capabilities the program runs on. */
@@ -114,7 +125,7 @@ static int fuzz_program(seL4_Word arg, seL4_Word b, seL4_Word c, seL4_Word d)
             err = x > 2 ? seL4_CNode_Revoke(1, x, FUZZ_DEPTH) : -1;
             break;
         case 7:
-            err = x > 2 && z > 2 && y != 1 ? seL4_CNode_Rotate(1, x, FUZZ_DEPTH, (w >> 8) % 3, 1, y, FUZZ_DEPTH, 1, z, FUZZ_DEPTH,
+            err = x > 2 && z > 2 && y > 2 ? seL4_CNode_Rotate(1, x, FUZZ_DEPTH, (w >> 8) % 3, 1, y, FUZZ_DEPTH, 1, z, FUZZ_DEPTH,
                                                     (w >> 16) % 3) : -1;
             break;
         case 8:
@@ -125,6 +136,38 @@ static int fuzz_program(seL4_Word arg, seL4_Word b, seL4_Word c, seL4_Word d)
              * does nothing; never an object invocation. */
             seL4_SetMR(0, w);
             seL4_NBSend(x, seL4_MessageInfo_new(0, 0, 0, 1));
+            break;
+        case 10: {
+            /* The values too: register initialisation and sanitising
+             * must match. */
+            seL4_UserContext regs;
+            err = seL4_TCB_ReadRegisters(x, 0, 0, 1 + w % (sizeof(regs) / sizeof(seL4_Word)), &regs);
+            if (err == 0) {
+                r->mr0 = regs.rip ^ regs.rsp << 1 ^ regs.rflags << 2 ^ regs.rax << 3;
+                r->mr1 = regs.fs_base ^ regs.gs_base << 1 ^ regs.r15;
+            }
+            break;
+        }
+        case 11: {
+            seL4_UserContext regs;
+            seL4_Word *v = (seL4_Word *) &regs;
+            for (int k = 0; k < sizeof(regs) / sizeof(seL4_Word); k++) {
+                v[k] = rnd(&s) % 3 == 0 ? rnd(&s) : rnd(&s) % 4096;
+            }
+            err = seL4_TCB_WriteRegisters(x, 0, 0, 1 + w % (sizeof(regs) / sizeof(seL4_Word)), &regs);
+            break;
+        }
+        case 12:
+            err = seL4_TCB_Suspend(x);
+            break;
+        case 13:
+            err = seL4_TCB_SetPriority(x, y, w % 300);
+            break;
+        case 14:
+            err = seL4_TCB_BindNotification(x, y);
+            break;
+        case 15:
+            err = seL4_TCB_UnbindNotification(x);
             break;
         default:
             /* Receives are left out: one through an endpoint or
@@ -157,6 +200,12 @@ static int test_fuzz(env_t env)
                                       seL4_AllRights), seL4_NoError);
         test_error_eq(seL4_CNode_Copy(cn.cptr, 2, FUZZ_DEPTH, env->cspace_root, ut.cptr, seL4_WordBits,
                                       seL4_AllRights), seL4_NoError);
+        for (int k = 0; k < 2; k++) {
+            vka_object_t tcb;
+            test_error_eq(vka_alloc_tcb(&env->vka, &tcb), 0);
+            test_error_eq(seL4_CNode_Move(cn.cptr, 3 + k, FUZZ_DEPTH, env->cspace_root, tcb.cptr, seL4_WordBits),
+                          seL4_NoError);
+        }
         helper_thread_t t;
         create_helper_thread(env, &t);
         set_helper_priority(env, &t, env->priority);
