@@ -347,6 +347,21 @@ The proof is staged so each level is useful by itself and later levels build on 
 | P3x   | Conservative extension: on any state reachable by seL4 calls alone, every seL4 call behaves exactly as in the ported seL4 spec                                                                                                                  | Proven once for the spec, then again for each extension that touches shared state               |
 | P4    | Integrity, then confidentiality                                                                                                                                                                                                                 | After P3                                                                                        |
 
+### Status
+
+- **P0**: complete (926 functions), enforced in CI.
+- **P1**, in `proofs/Fl4Proofs/P1`, over a `LawfulStore` (a total store with read-after-write laws and a model instance):
+  - Refill rings: the structural invariants are preserved by every refill operation; ordering, no-overflow and window by all of them, overruns included.
+  - Thread queues: the five queue primitives refine list operations; priority and time ordering are kept.
+  - A combined scheduler-queue invariant (exact queued flags, located membership, ready and release queues exclusive) is preserved by the queue operations and their callers, up to `choose_thread`; `schedule` itself is still open.
+  - CDT, typed-heap and untyped invariants appear so far only as hypotheses of P2/P3 theorems.
+- **P2**: complete.
+- **P3**, in `proofs/Fl4Proofs/P3`, against `Fl4Spec` (the l4v rt abstract spec ported to Lean, up to `call_kernel`; KernelInit_A is dead in l4v and left out):
+  - CSpace: capability lookups; set_cap, insert, move, swap and empty_slot; the CNode Copy, Mint, Move and Mutate invocations; delete of capabilities whose finalisation does nothing.
+  - Notifications: in progress.
+  - The hypotheses still to discharge are named in each file: no-children decided by `ensure_no_children`, a scheduler frame for `set_thread_state`, insert's sibling condition, and the typed-heap layout.
+  - The proofs so far found no disagreement between FL4 and the spec.
+
 ### The abstract spec
 
 Decided: we port seL4's Isabelle abstract specification (the MCS version, from `l4v/spec/abstract`) to Lean 4 as a nondeterministic state monad. It is long but close to a transliteration, and it keeps FL4 tied to the meaning the seL4 proofs have already validated. Only the parts FL4 builds are ported: no non-MCS paths, no IO page tables, no VCPUs. Where FL4 must differ, such as per-core state, the difference is written down in the spec and listed in one place.
