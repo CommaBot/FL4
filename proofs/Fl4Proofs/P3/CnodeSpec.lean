@@ -214,18 +214,18 @@ theorem IsCopyLabel.facts {g : GenInvocationLabels} (h : IsCopyLabel g) :
 section
 variable (label : Data) (cap : Cap) (excaps : List Cap) (σ : State Unit)
 
-theorem decode_short (hg : IsCopyLabel (genInvocationType label)) (args : List Data) (hl : args.length < 2) :
+theorem decode_short (h1 : genInvocationType label ∈ GenInvocationLabels.uptoEnum .cnodeRevoke .cnodeRotate)
+    (args : List Data) (hl : args.length < 2) :
     (decodeCnodeInvocation (Z := Unit) label args cap excaps).run σ = ({(.error .truncatedMessage, σ)}, False) := by
-  obtain ⟨h1, -⟩ := hg.facts
   rw [cnodeDecode_eq]
   simp only [NonDetE.unlessE, h1, ↓reduceIte, ndE_pure_bind, NonDetE.whenE, hl, NonDetE.throwError,
     ndE_throw_bind]
   rfl
 
-theorem decode_lookup (hg : IsCopyLabel (genInvocationType label)) (x0 x1 : Data) (rest : List Data) :
+theorem decode_lookup (h1 : genInvocationType label ∈ GenInvocationLabels.uptoEnum .cnodeRevoke .cnodeRotate)
+    (x0 x1 : Data) (rest : List Data) :
     decodeCnodeInvocation (Z := Unit) label (x0 :: x1 :: rest) cap excaps =
       (lookupTargetSlot cap (dataToCptr x0) (dataToNat x1) >>= fun d => copyTail label rest excaps d) := by
-  obtain ⟨h1, -⟩ := hg.facts
   rw [cnodeDecode_eq]
   simp [NonDetE.unlessE, h1, NonDetE.whenE, NonDetE.returnOk, the]
 

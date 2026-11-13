@@ -13,13 +13,18 @@ Hypotheses beyond the CSpace relation, all explicit:
   provides (`getMRs`, with the length clipped when there is no buffer);
 * extra caps: `extra[0]` is null and there are none, or is the slot of the
   first extra cap (`ExtraRel`);
-* `NoChildrenRel` at every slot (for deriving untyped caps);
-* `SlotsSame` across FL4's `set_thread_state` (see Restart.lean);
+* `ParentAdj` (NoChildren.lean): FL4's `is_mdb_parent_of` decides the
+  ghost tree for adjacent slots; it gives `NoChildrenRel` at the source
+  slot (for deriving untyped caps);
+* `OutsideObjects` for the current core's scheduler-action word
+  (StateFrame.lean), which gives `SlotsSame` across `set_thread_state`;
 * for Copy and Mint, the `hsib` hypothesis of `insert_refines`
   (`InsertPre`), in the conclusion.
 -/
 import Fl4Proofs.P3.CnodeSpec
 import Fl4Proofs.P3.MoveRefine
+import Fl4Proofs.P3.StateFrame
+import Fl4Proofs.P3.NoChildren
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -283,12 +288,13 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List Fl4Spec.Cap) (hex : ExtraRel th (L.mem s) x0 excaps)
-    (hnc : ∀ sl, AbsSlot th sl → NoChildrenRel (st := st) s σ (cslotAddr sl) sl)
-    (hts : sched.set_thread_state st s ct sched.TS_RESTART ⦃ s2 => SlotsSame th (L.mem s) (L.mem s2) ⦄)
+    (hPA : ParentAdj (L := L) th s G)
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (dsl : Fl4Spec.CslotPtr) (pd : U64) (hpd1 : dsl.1 = pd.bv) (hpd : th pd = some (.cnode dsl.2.length)) :
     cnode.decode_copy st s lbl length buf extra (cslotAddr dsl) ⦃ res =>
       InvPost (L := L) th σ G (copyTail slbl ((args.map UScalar.bv).drop 2) excaps dsl) s res ⦄ := by
+  have hts := set_thread_state_slots th hP s ct sched.TS_RESTART htcb hact
   have hgl : IsCopyLabel (Fl4Spec.genInvocationType slbl) := by
     rw [hlbl]; unfold cnodeLabelOf IsCopyLabel
     have : lbl.val = 28 ∨ lbl.val = 29 ∨ lbl.val = 30 ∨ lbl.val = 31 := by omega
@@ -387,7 +393,8 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
         have : i.val = (i.val - 4) + 4 := by omega
         rw [this]; simpa using hx
       obtain ⟨r2, hr2, R, hR2, hrel2⟩ := copied_rel th s σ lbl slbl hlbl hl length buf ct hct rest hlen' hargs'
-        sl dsl srcC hsw hse hscv (hnc sl hAs)
+        sl dsl srcC hsw hse hscv
+        (noChildren_of_adj th hP s σ G hM hC hPA sl hAs ((hM.members _).2 ⟨hAs.isSlot, srcC, hsc, hsn⟩))
       rw [← hsca.abs] at hR2
       refine InvPost.congr (hR2.trans (run_ofExcept R σ).symm) ?_
       rw [hr2]; simp only [bind_ok, core.result.Result.Insts.CoreOpsTry.branch]
@@ -473,8 +480,8 @@ theorem cnode_copy_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s
     (cap : capability.Cap) (a : Fl4Spec.Cap) (hca : CapRel cap a) (hcv : CapValid th cap)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List Fl4Spec.Cap) (hex : ExtraRel th (L.mem s) x0 excaps)
-    (hnc : ∀ sl, AbsSlot th sl → NoChildrenRel (st := st) s σ (cslotAddr sl) sl)
-    (hts : sched.set_thread_state st s ct sched.TS_RESTART ⦃ s2 => SlotsSame th (L.mem s) (L.mem s2) ⦄)
+    (hPA : ParentAdj (L := L) th s G)
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb) :
     cnode.decode st arI s ar lbl length cap buf extra ⦃ res =>
       InvPost (L := L) th σ G (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
@@ -491,7 +498,7 @@ theorem cnode_copy_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s
   · rw [if_pos h2]
     simp only [error.truncated, bind_ok]
     rw [WP.spec_ok]
-    exact ⟨rfl, .truncatedMessage, decode_short _ _ _ σ hgl _ (by simp; scalar_tac), trivial⟩
+    exact ⟨rfl, .truncatedMessage, decode_short _ _ _ σ hgl.facts.1 _ (by simp; scalar_tac), trivial⟩
   rw [if_neg h2]
   obtain ⟨y0, y1, rest, rfl⟩ : ∃ y0 y1 rest, args = y0 :: y1 :: rest := by
     match args with
@@ -505,7 +512,7 @@ theorem cnode_copy_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s
   rw [hr1]; simp only [bind_ok, core.result.Result.Insts.CoreOpsTry.branch]
   have hlt : (Fl4Spec.lookupTargetSlot (Z := Unit) a (Fl4Spec.dataToCptr y0.bv) (Fl4Spec.dataToNat y1.bv)).run σ =
       ({(e1, σ)}, False) := he1
-  have hdec := decode_lookup slbl a excaps hgl y0.bv y1.bv (rest.map UScalar.bv)
+  have hdec := decode_lookup slbl a excaps hgl.facts.1 y0.bv y1.bv (rest.map UScalar.bv)
   simp only [List.map_cons]
   rw [hdec]
   cases r1 with
@@ -527,7 +534,7 @@ theorem cnode_copy_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s
       simp only [g1, g2, ↓reduceIte, bind_ok]
       obtain ⟨⟨r2, s2⟩, hdc, hpost⟩ := spec_exists
         (decode_copy_rel th s σ G hR hV hP hM hC lbl slbl hlbl hl length buf ct hct (y0 :: y1 :: rest) hlen
-          (by simp) hargs extra x0 hx0 excaps hex hnc hts hcur htcb dsl pd hpd1 hpd)
+          (by simp) hargs extra x0 hx0 excaps hex hPA hact hcur htcb dsl pd hpd1 hpd)
       rw [hdc]; simp only [bind_ok, uncurry_apply_pair]
       rw [WP.spec_ok]
       simp only [List.map_cons, List.drop_succ_cons, List.drop_zero] at hpost
