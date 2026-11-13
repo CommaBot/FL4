@@ -55,21 +55,109 @@ executable-spec types these import (`spec/design/skel`, `spec/haskell`).
 | Lean module                  | l4v theories                                                         |
 |------------------------------|----------------------------------------------------------------------|
 | `Fl4Spec/Monad.lean`         | lib/Monads/nondet/Nondet_Monad                                       |
-| `Fl4Spec/Machine.lean`       | spec/machine (MachineTypes, Time, X64/MachineOps, X64/Platform)      |
-| `Fl4Spec/Types.lean`         | ExceptionTypes_A, VMRights_A, CapRights_A, InvocationLabels_A        |
-| `Fl4Spec/X64/Structs.lean`   | X64/Arch_Structs_A, X64/ArchVMAttributes_A (+ Arch_Structs_B)        |
+| `Fl4Spec/Machine.lean`       | Lib/Word_Lib helpers, Kernel_Config, spec/machine (X64/Platform, Time, MachineTypes, MachineMonad, X64/MachineOps), X64/Machine_A, MiscMachine_A |
+| `Fl4Spec/Types.lean`         | CapRights_A, VMRights_A, ExceptionTypes_A, (Arch)InvocationLabels_H, InvocationLabels_A |
+| `Fl4Spec/X64/Structs.lean`   | X64/ArchVMAttributes_A, Structs_B, X64/Arch_Structs_B, X64/Arch_Structs_A |
 | `Fl4Spec/Structures.lean`    | Structures_A                                                         |
+| `Fl4Spec/Deterministic.lean` | List_Lib helpers, Deterministic_A, Exceptions_A (KHeap_A imports them) |
 | `Fl4Spec/KHeap.lean`         | KHeap_A, X64/ArchVSpaceAcc_A                                         |
 | `Fl4Spec/CSpace.lean`        | CSpaceAcc_A, CSpace_A, X64/ArchCSpace_A                              |
 | `Fl4Spec/Tcb.lean`           | TcbAcc_A, Tcb_A, X64/ArchTcb_A                                       |
-| `Fl4Spec/Sched.lean`         | Sporadic_A, SchedContext_A, Schedule_A, Deterministic_A              |
+| `Fl4Spec/Sched.lean`         | Sporadic_A, SchedContext_A, Schedule_A                               |
 | `Fl4Spec/Ipc.lean`           | IpcCancel_A, Ipc_A, X64/ArchIpcCancel_A                              |
 | `Fl4Spec/Retype.lean`        | Retype_A, X64/ArchRetype_A                                           |
 | `Fl4Spec/VSpace.lean`        | X64/ArchVSpace_A, X64/Arch_A                                         |
 | `Fl4Spec/Interrupt.lean`     | Interrupt_A, X64/ArchInterrupt_A                                     |
 | `Fl4Spec/Decode.lean`        | Invocations_A, X64/ArchInvocation_A, Decode_A, X64/ArchDecode_A      |
-| `Fl4Spec/Syscall.lean`       | Exceptions_A, Syscall_A                                              |
+| `Fl4Spec/Syscall.lean`       | Syscall_A                                                            |
 | `Fl4Spec/Init.lean`          | KernelInit_A, X64/Init_A                                             |
 
 Split a module into several files if it grows past about 1500 lines; keep
 the theory order.
+
+## Encodings
+
+Conventions of the ported base layer that later modules rely on.
+
+- **Namespace.** Everything is in `Fl4Spec`, flat: arch (`X64_A`, `X64_H`,
+  `X64`) and generic names share it. Where a camelCase name would clash, the
+  l4v name stays: `pptr_base` (Machine_A) vs `pptrBase` (Platform),
+  `msg_info_register`, `msg_registers`, `cap_register`, `badge_register`,
+  `frame_registers`, `gp_registers`, `exception_message`, `syscall_message`
+  (Machine_A) vs the Haskell `msgInfoRegister` etc.; `Platform.Cr3`
+  (Platform `cr3`) vs `Cr3` (Arch_Structs_A `cr3`); `parseTimeArgA`
+  (Arch_Structs_A `parse_time_arg`) vs `parseTimeArg` (Arch_Structs_B).
+  Datatype selectors that Isabelle generates (`acap_rights`, `pte_frame`,
+  `ep_queue`, `the_arch_cap`, ...) are explicit functions in the type's
+  namespace (`ArchCap.acapRights`, `Endpoint.epQueue`), `undefined` on the
+  other constructors.
+- **Decidability.** Every file has `open Classical` and `noncomputable
+  section`; tests on `Set`s, `∃` and equality of caps use classical
+  decidability. Isabelle `bool` functions are `Bool` when the spec computes
+  with them (`runnable`, `schedulable`, `scActive`, `refillReady`,
+  `isCnodeCap`, `inReleaseQueue`, `isCurDomainExpired`) and `Prop` when they
+  are quantified statements (`isBlockedOnReceive`, `wellFormedCnodeN`,
+  `validSchedContextSize`, `isSimpleType`, `validList2`).
+- **Partiality.** Isabelle `undefined`, `the`, `THE`, `partial_inv`,
+  nonexhaustive `primrec`/`case` are `Fl4Spec.undefined` (a fixed
+  unspecified value, `Classical.choice`), `Fl4Spec.the`, `Fl4Spec.The`,
+  `Fl4Spec.partialInv`, and an explicit `| _ => undefined` case. `hd`,
+  `last` and `xs ! i` are `the xs.head?`, `the xs.getLast?`, `the xs[i]?`.
+- **Maps.** Partial maps are `α → Option β`; `f(x := v)` is
+  `Function.update f x v`; `dom`/`ran` are `Fl4Spec.dom`/`Fl4Spec.ran`.
+  `opt_map` (`|>`), `opt_map_Some` (`||>`), `opt_pred` (`|<`) are `optMap`,
+  `optMapSome`, `optPred` (Lean's `|>` is the pipe).
+- **State.** `AbstractState` is l4v `abstract_state`; `State Z` extends it
+  with `exst : Z` (`'z state`). `[StateExt Z]` is l4v `'z::state_ext`, with
+  instances for `DetExt` (deterministic spec: `workUnitsCompletedInternal`,
+  `cdtListInternal`) and `Unit`. MCS scheduler state is in `AbstractState`
+  (`readyQueues : Domain → Priority → List ObjRef`, `releaseQueue`,
+  `schedulerAction`, `curSc`, `curTime`, `consumedTime`, `reprogramTimer`,
+  `domainList`, `domainIndex`, `domainStartIndex`, `curDomain`,
+  `domainTime`); only the CDT sibling lists and the work units are in
+  `DetExt`. `kheap : ObjRef → Option KernelObject`; `cdt : CslotPtr → Option
+  CslotPtr`; `CslotPtr = ObjRef × List Bool`. CNode contents are
+  `List Bool → Option Cap`; TCB slots are `tcbCnodeIndex n` (3-bit
+  big-endian bit lists) via `tcbCnodeMap`.
+- **Monads.** `SMonad Z α`, `FMonad`, `SEMonad`, `LFMonad`, `PMonad` (Exceptions_A)
+  are `NonDet (State Z) α` and `NonDetE (State Z) ε α`. The reader option
+  monad (`r_monad`, `lookup`) is `Lookup σ α = ReaderT σ Option α`
+  (`RMonad Z α`). In `do` blocks write `x ← pure e` for l4v `x ← return e`
+  and `pure ()` for a non-final `return ()`: Lean's `return` exits the whole
+  block.
+- **Words.** `mask`, `ucast`, `unat`, `testBit` (`!!`), `toBl`, `ofBl`,
+  `wordRcat`, `wordRsplit`, `uptoEnum` (`[a .e. b]`), `uptoEnumStep`
+  (`[a, b .e. c]`), `assocs`, `intUpto` (`[i..j]` on int) are in Machine.
+- **Constructors and fields** are lowerCamelCase (`Cap.endpointCap`,
+  `Register.rax`, `VMPageSize.x64SmallPage`, `Tcb.tcbSchedContext`,
+  `AbstractState.curThread`).
+
+## Deviations
+
+- **X64 is not MCS on l4v `rt`.** The X64 machine and arch theories on the
+  `rt` branch are the non-MCS ones. Taken from RISCV64 on `rt` (the 64-bit
+  architecture without hypervisor), with X64 values from the C kernel where
+  they differ, each marked "rt X64 gap": `time_state` and
+  `last_machine_time` in `machine_state`, `time_oracle`, `getCurrentTime`,
+  `setDeadline`, `deadlineIRQ`, `ackDeadlineIRQ`, `timerIRQ` (= 125, C
+  `irq_timer`), `replyRegister` (R12), `nbsendRecvDest` (R13),
+  `timeoutMessage` (C `TIMEOUT_REPLY_MESSAGE`), `arch_cap_badge`,
+  `reply_bits` (5), `parse_time_arg`, `words_from_time`; `ntfn_bits` is the
+  MCS value 6, not X64's non-MCS 5.
+- **Kernel_Config** is generated from a C build; here `numDomains` is an
+  unspecified constant (`opaque kernelConfig`) constrained by exactly the
+  facts of `Kernel_Config_Lemmas`; `config_HAVE_FPU` is `true` (x86-64).
+- **Time.thy's `consts` + `axiomatization`** (`kernelWCET_us`,
+  `ticks_per_timer_unit`, `timer_unit` and their ten axioms) are one opaque
+  structure `timeConsts`, inhabited by the witness of Time.thy's consistency
+  `notepad`; the axioms are theorems projected from it. No Lean `axiom`.
+- **`typedecl machine_state_rest`** is an opaque nonempty type.
+- **`next_not_child`** (`function (domintros)`, partial) is `THE` of its
+  inductively defined graph, as Isabelle's function package defines it.
+- **`upto_enum` on words** uses l4v's lemma `upto_enum_word`
+  (`map of_nat [unat a ..< Suc (unat b)]`) as its definition.
+- **Not ported:** lemmas, `translations`, the Haskell `FPUState` synonym
+  (unused), `MiscMachine_A.ipa_size` (ARM-only config), the VT-d
+  declarations left in X64 Arch_Structs_A and ArchVSpaceAcc_A (no IOMMU).
+- **Module map:** Deterministic_A and Exceptions_A moved before KHeap
+  (`Fl4Spec/Deterministic.lean`), since KHeap_A imports them.

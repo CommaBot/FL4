@@ -83,6 +83,37 @@ def whileLoop (C : α → σ → Prop) (B : α → NonDet σ α) (r : α) : NonD
    (∃ r' s', WhileReach C B r s r' s' ∧ C r' s' ∧ (B r' s').2) ∨
    (∃ f : ℕ → α × σ, f 0 = (r, s) ∧ ∀ n, C (f n).1 (f n).2 ∧ f (n + 1) ∈ (B (f n).1 (f n).2).1))
 
+instance : Inhabited (NonDet σ α) := ⟨fail⟩
+
+/-- l4v `select_f`: run a precomputed result set (with failure flag) of
+some other computation, leaving the state unchanged. -/
+def selectF (S : Set α × Prop) : NonDet σ α := fun s => ({x | x.1 ∈ S.1 ∧ x.2 = s}, S.2)
+
+/-- l4v `Nondet_Empty_Fail.mk_ef`: an empty result set counts as failure. -/
+def mkEf (S : Set α × Prop) : Set α × Prop := (S.1, S.1 = ∅ ∨ S.2)
+
+/-- l4v `liftM`. -/
+def liftM (f : α → β) (m : NonDet σ α) : NonDet σ β := NonDet.bind m fun x => NonDet.pure (f x)
+
+/-- l4v `gets_map`. -/
+def getsMap {γ : Type} (f : σ → γ → Option α) (p : γ) : NonDet σ α :=
+  NonDet.bind (gets f) fun m => assertOpt (m p)
+
+/-- l4v `maybeM`. -/
+def maybeM (f : α → NonDet σ Unit) : Option α → NonDet σ Unit
+  | some x => f x
+  | none => NonDet.pure ()
+
+/-- l4v `mapM`. -/
+def mapM (f : α → NonDet σ β) : List α → NonDet σ (List β)
+  | [] => NonDet.pure []
+  | a :: as => NonDet.bind (f a) fun b => NonDet.bind (mapM f as) fun bs => NonDet.pure (b :: bs)
+
+/-- l4v `zipWithM_x`. -/
+def zipWithMx {γ : Type} (f : α → β → NonDet σ γ) : List α → List β → NonDet σ Unit
+  | a :: as, b :: bs => NonDet.bind (f a b) fun _ => zipWithMx f as bs
+  | _, _ => NonDet.pure ()
+
 /-- The computation never fails from `s` (l4v `no_fail` at one state). -/
 def NoFail (m : NonDet σ α) (s : σ) : Prop := ¬(m s).2
 
@@ -128,6 +159,54 @@ def handleE {ε' : Type} (m : NonDetE σ ε α) (h : ε → NonDetE σ ε' α) :
 def mapMEx {β : Type} (f : α → NonDetE σ ε β) : List α → NonDetE σ ε Unit
   | [] => pure ()
   | a :: as => do let _ ← f a; mapMEx f as
+/-- l4v `liftME`. -/
+def liftME {β : Type} (f : α → β) (m : NonDetE σ ε α) : NonDetE σ ε β := do
+  let x ← m
+  pure (f x)
 end NonDetE
+
+/-- l4v `Reader_Option_Monad.lookup`: the reader option monad
+`'s ⇒ 'a option`. Its bind is l4v `obind`; `do` notation works. -/
+abbrev Lookup (σ α : Type) := ReaderT σ Option α
+
+namespace Lookup
+variable {σ α β : Type}
+/-- l4v `ofail`. -/
+def ofail : Lookup σ α := fun _ => none
+/-- l4v `oreturn`. -/
+def oreturn (a : α) : Lookup σ α := fun _ => some a
+/-- l4v `oassert`. -/
+def oassert (P : Prop) [Decidable P] : Lookup σ Unit := if P then oreturn () else ofail
+/-- l4v `oassert_opt`. -/
+def oassertOpt : Option α → Lookup σ α
+  | none => ofail
+  | some x => oreturn x
+/-- l4v `oliftM`. -/
+def oliftM (f : α → β) (m : Lookup σ α) : Lookup σ β := do let x ← m; oreturn (f x)
+/-- l4v `owhen`. -/
+def owhen (P : Prop) [Decidable P] (f : Lookup σ Unit) : Lookup σ Unit := if P then f else oreturn ()
+/-- l4v `ounless`. -/
+def ounless (P : Prop) [Decidable P] (f : Lookup σ Unit) : Lookup σ Unit := if P then oreturn () else f
+/-- l4v `asks`. -/
+def asks (f : σ → α) : Lookup σ α := fun s => some (f s)
+end Lookup
+
+/-- l4v `opt_map` (infix `|>`): compose a partial map with a partial
+projection. -/
+def optMap {σ α β : Type} (f : σ → Option α) (g : α → Option β) : σ → Option β :=
+  fun s => match f s with
+    | none => none
+    | some x => g x
+
+/-- l4v `opt_map_Some` (infix `||>`). -/
+abbrev optMapSome {σ α β : Type} (f : σ → Option α) (g : α → β) : σ → Option β :=
+  optMap f fun s => some (g s)
+
+/-- l4v `opt_pred` (infix `|<`): a predicate through a partial projection,
+false where the projection is undefined. -/
+def optPred {α β : Type} (P : α → Prop) (proj : β → Option α) : β → Prop :=
+  fun x => match proj x with
+    | none => False
+    | some y => P y
 
 end Fl4Spec
