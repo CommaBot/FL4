@@ -185,6 +185,17 @@ def mapMEx {β : Type} (f : α → NonDetE σ ε β) : List α → NonDetE σ ε
 def liftME {β : Type} (f : α → β) (m : NonDetE σ ε α) : NonDetE σ ε β := do
   let x ← m
   pure (f x)
+/-- l4v `mapME`. -/
+def mapME {β : Type} (f : α → NonDetE σ ε β) : List α → NonDetE σ ε (List β)
+  | [] => pure []
+  | a :: as => do
+    let b ← f a
+    let bs ← mapME f as
+    pure (b :: bs)
+/-- For `Fl4Spec.undefined` at monadic types (Isabelle `undefined` in a
+nonexhaustive `case` whose arms are computations): the witness is irrelevant,
+`undefined` is `Classical.choice`. -/
+instance : Nonempty (NonDetE σ ε α) := ⟨liftE NonDet.fail⟩
 end NonDetE
 
 /-- l4v `Reader_Option_Monad.lookup`: the reader option monad

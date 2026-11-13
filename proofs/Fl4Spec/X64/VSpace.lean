@@ -118,10 +118,14 @@ def ensureSafeMapping : VMPageEntry × ObjRef → SEMonad Z Unit
   | (.vmPDPTE (.pageDirectoryPDPTE _ _ _), _) => NonDetE.liftE NonDet.fail
 
 /-- l4v: ArchVSpace_A.X64_A.lookup_ipc_buffer: a thread's IPC buffer, if the
-thread may read it (or, as receiver, write it). -/
+thread may read it (or, as receiver, write it). rt X64 gap: X64 `rt` reads
+the non-MCS slot `tcb_cnode_index 4` (after `tcb_reply`, `tcb_caller`); in the
+MCS TCB (`tcb_cnode_map`) the IPC frame cap is at `tcb_cnode_index 2` and slot
+4 is the timeout handler, so this uses 2, as RISCV64 `rt` `lookup_ipc_buffer`
+does. -/
 def lookupIpcBuffer (isReceiver : Bool) (thread : ObjRef) : SMonad Z (Option ObjRef) := do
   let bufferPtr ← threadGet Tcb.tcbIpcBuffer thread
-  let bufferFrameSlot ← pure (thread, tcbCnodeIndex 4)
+  let bufferFrameSlot ← pure (thread, tcbCnodeIndex 2)
   let bufferCap ← getCap bufferFrameSlot
   match bufferCap with
   | .archObjectCap (.pageCap _ p R _ vms _) =>

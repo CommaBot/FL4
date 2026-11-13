@@ -72,19 +72,25 @@ executable-spec types these import (`spec/design/skel`, `spec/haskell`).
 | `Fl4Spec/X64/Arch.lean`      | X64/Arch_A                                                           |
 | `Fl4Spec/Schedule.lean`      | Schedule_A                                                           |
 | `Fl4Spec/Tcb.lean`           | X64/ArchTcb_A, Tcb_A, X64/ArchFault_A                                |
-| `Fl4Spec/Ipc.lean`           | Ipc_A (to do)                                                        |
-| `Fl4Spec/Interrupt.lean`     | X64/ArchInterrupt_A, Interrupt_A (to do)                             |
-| `Fl4Spec/Decode.lean`        | X64/ArchDecode_A, Decode_A (to do)                                   |
-| `Fl4Spec/Init.lean`          | X64/Init_A, KernelInit_A (to do)                                     |
-| `Fl4Spec/Syscall.lean`       | Syscall_A (to do)                                                    |
+| `Fl4Spec/Ipc.lean`           | Ipc_A                                                                |
+| `Fl4Spec/Interrupt.lean`     | X64/ArchInterrupt_A, Interrupt_A                                     |
+| `Fl4Spec/Decode.lean`        | X64/ArchDecode_A, Decode_A                                           |
+| `Fl4Spec/Init.lean`          | X64/Init_A (MCS fields from RISCV64/Init_A); KernelInit_A not ported |
+| `Fl4Spec/Syscall.lean`       | Event_H (`Event`, `Syscall`), X64/Hypervisor_A, Syscall_A            |
+
+The single entry point of the port is `Fl4Spec.callKernel` (l4v Syscall_A
+`call_kernel : event ⇒ (unit, 'z) s_monad`); the dummy initial state is
+`Fl4Spec.initASt` (X64 Init_A `init_A_st`).
 
 The order is the MCS import graph of l4v `rt` (taken from RISCV64, since
 the X64 theories on `rt` still carry the non-MCS imports): KHeap_A →
 CSpaceAcc_A → Sporadic_A → ArchInvocation_A/Invocations_A → ArchRetype_A,
 ArchIpcCancel_A → Retype_A → FPU_A → ArchVSpace_A → ArchCSpace_A → TcbAcc_A
 → IpcCancel_A → SchedContext_A → CSpace_A → Arch_A → Schedule_A → ArchTcb_A
-→ Tcb_A → ArchFault_A → Ipc_A → ArchInterrupt_A → Interrupt_A → ... X64
-Init_A only needs Retype_A; nothing up to Tcb needs it (see Deviations).
+→ Tcb_A → ArchFault_A → Ipc_A → ArchInterrupt_A → Interrupt_A →
+ArchDecode_A → Decode_A → Syscall_A (which also imports Event_H, Init_A and
+Hypervisor_A). X64 Init_A only needs Retype_A; nothing up to Tcb needs it
+(see Deviations).
 
 Split a module into several files if it grows past about 1500 lines; keep
 the theory order.
@@ -188,6 +194,28 @@ Conventions of the ported base layer that later modules rely on.
 - **Nested `do` results.** Inside a nested `do` used as a value
   (`return_now ← do ...` in `sched_context_yield_to`) write `pure`, never
   `return`.
+- **`mapME`** is `NonDetE.mapME` (Monad). Isabelle `undefined` at a monadic
+  type (a nonexhaustive `case cap of ThreadCap p ⇒ returnOk p` in
+  `decode_read_registers`) is `Fl4Spec.undefined` via the `Nonempty
+  (NonDetE σ ε α)` instance (Monad); the witness is irrelevant.
+- **Sum results.** Where the spec binds the `'e + 'a` result of an
+  exception computation in the plain monad (`r_fault ← without_preemption $
+  m_fault` in `syscall`, the `handle_event ev <handle> ...` statement of
+  `call_kernel`), the Lean code binds `ExceptT.run m` and matches on
+  `.error`/`.ok` (or discards it). `<handle>` is `NonDetE.handleE`.
+- **Enumerations of labels.** `[CNodeRevoke .e. CNodeRotate]` on
+  `gen_invocation_labels` is `GenInvocationLabels.uptoEnum` (Decode), defined
+  as Enumeration's `map toEnum [fromEnum a ..< Suc (fromEnum b)]` over
+  `GenInvocationLabels.enum`.
+- **Word intervals.** `{a..b}` on words is `{x | a ≤ x ∧ x ≤ b}` (unsigned
+  `BitVec` order), as in `detype` and `is_ioport_range_free`.
+- **Recursion arguments that change** (`transfer_caps_loop`'s `n`) go after
+  the colon, so structural recursion on the list sees them; the partially
+  applied recursive call is bound with `← returnOk` as in Isabelle.
+- **Nested exception blocks** whose type Lean cannot infer (an `if` or
+  `match` bound with `←`, a `doE` passed to `const_on_failure` or `<catch>`)
+  carry a type ascription (`(... : SEMonad Z Cap)`, `show FMonad Z Unit
+  from do ...`).
 - **Match statements in `do`.** A non-final Isabelle `case ... ;` is a Lean
   `match` statement whose arms are `SMonad Z Unit` (`| none => pure ()`),
   followed by the rest of the block at the outer indentation. Put a
@@ -260,3 +288,44 @@ Conventions of the ported base layer that later modules rely on.
   `parentOfRtrancl` instead). IOMMU: `PageIOMap`, `io_pt_invocation`,
   `InvokeIOPT`, and the IOSpace/IO page table cases of `arch_derive_cap`,
   `arch_finalise_cap`, `arch_same_region_as` (commented out in l4v).
+- **Chunk C (Ipc_A … Syscall_A, Init_A):**
+  - **Fix in chunk A, rt X64 gap:** X64 `rt` `lookup_ipc_buffer` reads the
+    non-MCS slot `tcb_cnode_index 4`; in the MCS TCB that slot is the timeout
+    handler and the IPC frame cap is at `tcb_cnode_index 2` (`tcb_cnode_map`,
+    C MCS `tcbBuffer = 2`). `lookupIpcBuffer` (X64/VSpace) now uses 2, as
+    RISCV64 `rt` does.
+  - **X64 Init_A** on `rt` is non-MCS (idle TCB with `tcb_reply`,
+    `tcb_caller`, `tcb_time_slice`, a `cap_ref` fault handler; no time or SC
+    fields). `initKheap` and `initASt` take the idle TCB, the idle scheduling
+    context at `idle_sc_ptr` and the MCS state fields from RISCV64 `rt`
+    Init_A; the X64 layout and `init_arch_state` are X64's.
+  - **`idle_sc_ptr`** stays `kernel_base + 0x7000` (Machine): the C kernel has
+    no fixed address (`ksIdleSC = &ksIdleThreadSC`, a BSS array aligned to
+    `seL4_MinSchedContextBits`), and l4v's MCS architectures all use
+    `idle_thread_ptr + 0x2000`, which on X64 is inside the 8KiB IRQ node
+    (`kernel_base + 0x2000 .. 0x3fff`); 0x7000 is the first free page after
+    the global paging structures.
+  - **KernelInit_A is not ported.** l4v marks it "FIXME: unused, out of
+    date" and comments it out of `spec/ROOT` (it does not build); it is an
+    ARM32/iMX31 boot model (32-bit words, `tcb_reply`, `tcb_caller`,
+    `arm_global_pd`, `CPSR`, `ARMSection`) with no X64 or MCS counterpart.
+    The proofs use Init_A's `init_A_st` instead (`KernelInit_AI`).
+  - **Hypervisor_A**: X64 `handle_hypervisor_fault` (the only case,
+    `X64NoHypFaults`, does nothing) is in Syscall; no VCPU code exists.
+  - **Event_H**: `Event` and `Syscall` are ported from the Haskell
+    (`#INCLUDE_HASKELL SEL4/API/Syscall.lhs ONLY Event Syscall`); Haskell
+    `Int` (`UnknownSyscall`) is Isabelle `nat`.
+  - **Kernel_Config `retypeFanOutLimit`** (C `CONFIG_RETYPE_FAN_OUT_LIMIT`,
+    default 256, a `machine_word` in l4v's generated Kernel_Config) is a field
+    of `kernelConfig`, unspecified. `alignUp` (Word_Lib More_Word_Operations)
+    is in Machine.
+  - **Omitted (no IOMMU):** ArchDecode_A's commented-out VT-d decoders
+    (`pci_request_id_from_cap`, `decode_io_pt_invocation`,
+    `decode_io_frame_map_invocation`, `decode_io_map_invocation`) and the
+    cancelled `VMIOSpaceMap`/`X64PageMapIO` branches of
+    `decode_page_invocation`. `decode_io_unmap_invocation` (an l4v `X64STUB`,
+    `undefined`), `page_cap_set_vmmap_type` and `get_iovm_rights` are live
+    l4v definitions and are ported.
+  - **ArchInterrupt_A, ArchDecode_A** on X64 `rt` have no MCS-specific
+    content (RISCV64 `rt` differs only in machine operations and in
+    `arch_check_irq`'s range check), so they are ported as they are.

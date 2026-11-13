@@ -58,6 +58,11 @@ def mask {w : Nat} (n : Nat) : BitVec w := (1 <<< n) - 1
 /-- l4v: Word_Lib.ucast, unsigned cast between word lengths. -/
 abbrev ucast {v : Nat} (w : Nat) (x : BitVec v) : BitVec w := x.setWidth w
 
+/-- l4v: Word_Lib.alignUp (More_Word_Operations), `x + 2 ^ n - 1 AND NOT
+(2 ^ n - 1)`: round up to a multiple of `2 ^ n`. -/
+def alignUp {w : Nat} (x : BitVec w) (n : Nat) : BitVec w :=
+  (x + BitVec.ofNat w (2 ^ n) - 1) &&& ~~~(BitVec.ofNat w (2 ^ n) - 1)
+
 /-- l4v: Word_Lib.unat. -/
 abbrev unat {w : Nat} (x : BitVec w) : Nat := x.toNat
 
@@ -155,8 +160,10 @@ structure KernelConfig where
   numDomains_fits_domainBits : numDomains ≤ 2 ^ 8
   /-- `CONFIG_RESET_CHUNK_BITS` (no lemmas about it in l4v) -/
   resetChunkBits : Nat
+  /-- `CONFIG_RETYPE_FAN_OUT_LIMIT` (no lemmas about it in l4v) -/
+  retypeFanOutLimit : Word64
 
-instance : Inhabited KernelConfig := ⟨⟨1, by decide, by decide, 8⟩⟩
+instance : Inhabited KernelConfig := ⟨⟨1, by decide, by decide, 8, 256⟩⟩
 
 /-- The build configuration (stands for the generated `Kernel_Config`). -/
 opaque kernelConfig : KernelConfig
@@ -178,6 +185,11 @@ theorem numDomains_fits_domainBits : numDomains ≤ 2 ^ domainBits :=
 `CONFIG_RESET_CHUNK_BITS`; unspecified here): the size in bits of the chunks
 of memory to zero before checking a preemption point. -/
 def resetChunkBits : Nat := kernelConfig.resetChunkBits
+
+/-- l4v: Kernel_Config.retypeFanOutLimit (generated from
+`CONFIG_RETYPE_FAN_OUT_LIMIT`, C default 256; unspecified here): the most
+objects one `Retype` invocation can create. -/
+def retypeFanOutLimit : Word64 := kernelConfig.retypeFanOutLimit
 
 /-- l4v: Kernel_Config.config_HAVE_FPU. Always set on x86-64. -/
 def config_HAVE_FPU : Bool := true
@@ -949,10 +961,15 @@ def kernelBase : VSpaceRef := 0xffffffff80000000
 def idleThreadPtr : VSpaceRef := kernelBase + 0x1000
 
 /-- l4v: Machine_A.X64_A.idle_sc_ptr (rt X64 gap; RISCV64 `idle_sc_ptr =
-pptr_base + 0x3000`): the idle thread's scheduling context. The RISCV64
-offset would overlap X64's 8KiB `init_irq_node_ptr` region (`kernel_base +
-0x2000`, X64 Init_A) and the global paging structures follow up to
-`kernel_base + 0x6000`, so this uses the next free page. -/
+pptr_base + 0x3000`): the idle thread's scheduling context. The C kernel
+has no fixed address for it (x86-64 MCS `ksIdleSC` points at the BSS array
+`ksIdleThreadSC`, aligned to `seL4_MinSchedContextBits`), and l4v picks an
+arbitrary aligned address next to the idle TCB: every MCS architecture on
+`rt` (RISCV64, AARCH64, ARM) uses `idle_thread_ptr + 0x2000`. On X64 that
+address is inside the 8KiB `init_irq_node_ptr` region (`kernel_base +
+0x2000 .. 0x3fff`, X64 Init_A), and the global paging structures follow up
+to `kernel_base + 0x6000`, so this uses the next free page (aligned for
+the idle SC's `min_sched_context_bits + 0` bits). -/
 def idleScPtr : VSpaceRef := kernelBase + 0x7000
 
 /-- l4v: Machine_A.X64_A.nat_to_cref. -/
