@@ -153,8 +153,8 @@ for name in order:
     entries.append(e)
 
 attempt = {}      # name -> index of the measure (loops) or tactic (functions) to try
-# p0_auto and p0_split are defined in Totality.lean.
-FUN_TACTICS = ["p0_auto", "p0_split"]
+# p0_auto, p0_split and p0_match are defined in Totality.lean.
+FUN_TACTICS = ["p0_auto", "p0_split", "p0_match"]
 reasons = {}
 
 
@@ -165,6 +165,12 @@ def proof_of(e):
     if n in specs:
         # A spec takes the function's explicit arguments.
         return f"  exact WP.spec_mono ({e['call'].replace(n, n + '.spec', 1)}) (fun _ _ => trivial)"
+    if e["kind"] == "fun" and re.search(r"\.Insts\.CoreCmpPartialEq\w+\.eq$", n) and attempt.get(n, 0) == 0:
+        # Derived `PartialEq` on an enum: split both sides; every branch
+        # compares fields.
+        a, b = e["call"].split()[1:3]
+        return (f"  unfold {n}\n  cases {a} <;> cases {b} <;> simp [lift, core.cmp.impls.PartialEqBool.eq] <;>\n"
+                f"    (repeat' split) <;> (try simp [lift, core.cmp.impls.PartialEqBool.eq]) <;> (try step*)")
     if e["kind"] == "fun":
         i = attempt.get(n, 0)
         if i < len(FUN_TACTICS):

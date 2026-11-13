@@ -43,7 +43,23 @@ fn finish<S: Store, A: Arch>(s: &mut S, a: &mut A) {
 fn reply_error<S: Store>(s: &mut S, t: Tcb, e: SysError) {
     let buf = msg::lookup_ipc_buffer(s, true, t);
     t.set_reg(s, reg::BADGE, 0);
-    let len = match e {
+    let len = error_mrs(s, t, buf, e);
+    // KernelInvocationReportErrorIPC: the error string follows. FL4 keeps
+    // no error strings, so it is always empty (l4h 0008: never the string
+    // of an earlier invocation); like strlcpy, only its NUL byte is written.
+    let len = if fl4_abi::config::KERNEL_INVOCATION_REPORT_ERROR_IPC && buf != 0 {
+        let w = msg::buf_get(s, buf, DEBUG_MESSAGE_START + 1);
+        msg::buf_set(s, buf, DEBUG_MESSAGE_START + 1, w & !0xff);
+        len.wrapping_add(1)
+    } else {
+        len
+    };
+    msg::set_msg_info(s, t, MessageInfo::new(e.code(), 0, 0, len));
+}
+
+/// The message registers describing a syscall error; returns the length.
+fn error_mrs<S: Store>(s: &mut S, t: Tcb, buf: u64, e: SysError) -> u64 {
+    match e {
         SysError::InvalidArgument { arg } => msg::set_mr(s, t, buf, 0, arg),
         SysError::InvalidCapability { arg } => msg::set_mr(s, t, buf, 0, arg),
         SysError::RangeError { min, max } => {
@@ -56,18 +72,7 @@ fn reply_error<S: Store>(s: &mut S, t: Tcb, e: SysError) {
         }
         SysError::NotEnoughMemory { bytes } => msg::set_mr(s, t, buf, 0, bytes),
         _ => 0,
-    };
-    // KernelInvocationReportErrorIPC: the error string follows. FL4 keeps
-    // no error strings, so it is always empty (l4h 0008: never the string
-    // of an earlier invocation); like strlcpy, only its NUL byte is written.
-    let len = if fl4_abi::config::KERNEL_INVOCATION_REPORT_ERROR_IPC && buf != 0 {
-        let w = msg::buf_get(s, buf, DEBUG_MESSAGE_START + 1);
-        msg::buf_set(s, buf, DEBUG_MESSAGE_START + 1, w & !0xff);
-        len + 1
-    } else {
-        len
-    };
-    msg::set_msg_info(s, t, MessageInfo::new(e.code(), 0, 0, len));
+    }
 }
 
 /// seL4 `decodeInvocation` (MCS).
@@ -309,47 +314,52 @@ pub fn handle_syscall<S: Store, A: Arch>(s: &mut S, a: &mut A, number: i64) {
         return;
     }
     if budget_ok(s, a) {
-        let t = sched::cur_thread(s);
-        let cptr = t.reg(s, reg::CAP);
-        let reply = t.reg(s, reg::REPLY);
-        if number == sc::SysSend {
-            let r = handle_invocation(s, a, false, true, false, false, cptr);
-            after_invocation(s, a, r);
-        } else if number == sc::SysNBSend {
-            let r = handle_invocation(s, a, false, false, false, false, cptr);
-            after_invocation(s, a, r);
-        } else if number == sc::SysCall {
-            let r = handle_invocation(s, a, true, true, true, false, cptr);
-            after_invocation(s, a, r);
-        } else if number == sc::SysRecv {
-            handle_recv(s, a, true, true);
-        } else if number == sc::SysNBRecv {
-            handle_recv(s, a, false, true);
-        } else if number == sc::SysWait {
-            handle_recv(s, a, true, false);
-        } else if number == sc::SysNBWait {
-            handle_recv(s, a, false, false);
-        } else if number == sc::SysReplyRecv {
-            let r = handle_invocation(s, a, false, false, true, true, reply);
-            if after_invocation(s, a, r) {
-                handle_recv(s, a, true, true);
-            }
-        } else if number == sc::SysNBSendRecv {
-            let dest = t.reg(s, reg::NBSEND_RECV_DEST);
-            let r = handle_invocation(s, a, false, false, true, true, dest);
-            if after_invocation(s, a, r) {
-                handle_recv(s, a, true, true);
-            }
-        } else if number == sc::SysNBSendWait {
-            let r = handle_invocation(s, a, false, false, true, true, reply);
-            if after_invocation(s, a, r) {
-                handle_recv(s, a, true, false);
-            }
-        } else if number == sc::SysYield {
-            handle_yield(s, a);
-        }
+        dispatch_syscall(s, a, number);
     }
     finish(s, a);
+}
+
+/// The API syscalls, once the caller's budget is checked.
+fn dispatch_syscall<S: Store, A: Arch>(s: &mut S, a: &mut A, number: i64) {
+    let t = sched::cur_thread(s);
+    let cptr = t.reg(s, reg::CAP);
+    let reply = t.reg(s, reg::REPLY);
+    if number == sc::SysSend {
+        let r = handle_invocation(s, a, false, true, false, false, cptr);
+        after_invocation(s, a, r);
+    } else if number == sc::SysNBSend {
+        let r = handle_invocation(s, a, false, false, false, false, cptr);
+        after_invocation(s, a, r);
+    } else if number == sc::SysCall {
+        let r = handle_invocation(s, a, true, true, true, false, cptr);
+        after_invocation(s, a, r);
+    } else if number == sc::SysRecv {
+        handle_recv(s, a, true, true);
+    } else if number == sc::SysNBRecv {
+        handle_recv(s, a, false, true);
+    } else if number == sc::SysWait {
+        handle_recv(s, a, true, false);
+    } else if number == sc::SysNBWait {
+        handle_recv(s, a, false, false);
+    } else if number == sc::SysReplyRecv {
+        let r = handle_invocation(s, a, false, false, true, true, reply);
+        if after_invocation(s, a, r) {
+            handle_recv(s, a, true, true);
+        }
+    } else if number == sc::SysNBSendRecv {
+        let dest = t.reg(s, reg::NBSEND_RECV_DEST);
+        let r = handle_invocation(s, a, false, false, true, true, dest);
+        if after_invocation(s, a, r) {
+            handle_recv(s, a, true, true);
+        }
+    } else if number == sc::SysNBSendWait {
+        let r = handle_invocation(s, a, false, false, true, true, reply);
+        if after_invocation(s, a, r) {
+            handle_recv(s, a, true, false);
+        }
+    } else if number == sc::SysYield {
+        handle_yield(s, a);
+    }
 }
 
 fn unknown_syscall_fault<S: Store, A: Arch>(s: &mut S, a: &mut A, number: u64) {
@@ -377,56 +387,68 @@ fn handle_unknown_syscall<S: Store, A: Arch>(s: &mut S, a: &mut A, number: i64) 
     if fl4_abi::config::PRINTING && number == sc::SysDebugDumpScheduler {
         return;
     }
-    if fl4_abi::config::DEBUG_BUILD {
-        if number == sc::SysDebugHalt {
+    if fl4_abi::config::DEBUG_BUILD && debug_syscall(s, a, t, number) {
+        return;
+    }
+    unknown_syscall_fault(s, a, number as u64);
+}
+
+/// The debug syscalls of a debug build; false if `number` is none of them.
+fn debug_syscall<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb, number: i64) -> bool {
+    if number == sc::SysDebugHalt {
+        a.halt();
+    } else if number == sc::SysDebugSnapshot {
+    } else if number == sc::SysDebugCapIdentify {
+        let c = invoked_cap(s, t);
+        t.set_reg(s, reg::CAP, cap_type_code(c));
+    } else if number == sc::SysDebugNameThread {
+        debug_name_thread(s, a, t);
+    } else if fl4_abi::config::ENABLE_SMP_SUPPORT && number == sc::SysDebugGetThreadAffinity {
+        match thread_of(invoked_cap(s, t)) {
+            Some(target) => {
+                let aff = target.affinity(s);
+                t.set_reg(s, reg::CAP, aff);
+            }
+            None => a.halt(),
+        }
+    } else if fl4_abi::config::ENABLE_SMP_SUPPORT && number == sc::SysDebugSendIPI {
+    } else {
+        return false;
+    }
+    true
+}
+
+/// The cap a debug syscall names in the CAP register (null if none).
+fn invoked_cap<S: Store>(s: &S, t: Tcb) -> Cap {
+    let cptr = t.reg(s, reg::CAP);
+    match cspace::lookup_cap_and_slot(s, t, cptr) {
+        Ok((c, _)) => c,
+        Err(_) => Cap::Null,
+    }
+}
+
+fn thread_of(c: Cap) -> Option<Tcb> {
+    match c {
+        Cap::Thread { ptr } => Some(Tcb(ptr)),
+        _ => None,
+    }
+}
+
+/// `seL4_DebugNameThread`: halts on a bad cap or a missing IPC buffer.
+fn debug_name_thread<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
+    let target = match thread_of(invoked_cap(s, t)) {
+        Some(x) => x,
+        None => {
             a.halt();
             return;
         }
-        if number == sc::SysDebugSnapshot {
-            return;
-        }
-        if number == sc::SysDebugCapIdentify {
-            let cptr = t.reg(s, reg::CAP);
-            let c = match cspace::lookup_cap_and_slot(s, t, cptr) {
-                Ok((c, _)) => c,
-                Err(_) => Cap::Null,
-            };
-            t.set_reg(s, reg::CAP, cap_type_code(c));
-            return;
-        }
-        if number == sc::SysDebugNameThread {
-            let cptr = t.reg(s, reg::CAP);
-            let target = match cspace::lookup_cap_and_slot(s, t, cptr) {
-                Ok((Cap::Thread { ptr }, _)) => Tcb(ptr),
-                _ => {
-                    a.halt();
-                    return;
-                }
-            };
-            let buf = msg::lookup_ipc_buffer(s, true, t);
-            if buf == 0 {
-                a.halt();
-                return;
-            }
-            name_thread(s, target, buf.wrapping_add(8));
-            return;
-        }
-        if fl4_abi::config::ENABLE_SMP_SUPPORT && number == sc::SysDebugGetThreadAffinity {
-            let cptr = t.reg(s, reg::CAP);
-            match cspace::lookup_cap_and_slot(s, t, cptr) {
-                Ok((Cap::Thread { ptr }, _)) => {
-                    let aff = Tcb(ptr).affinity(s);
-                    t.set_reg(s, reg::CAP, aff);
-                }
-                _ => a.halt(),
-            }
-            return;
-        }
-        if fl4_abi::config::ENABLE_SMP_SUPPORT && number == sc::SysDebugSendIPI {
-            return;
-        }
+    };
+    let buf = msg::lookup_ipc_buffer(s, true, t);
+    if buf == 0 {
+        a.halt();
+        return;
     }
-    unknown_syscall_fault(s, a, number as u64);
+    name_thread(s, target, buf.wrapping_add(8));
 }
 
 /// seL4 `cap_get_capType` numbering, as DebugCapIdentify reports it.
@@ -459,19 +481,16 @@ fn cap_type_code(c: Cap) -> u64 {
 
 /// Copy a NUL-terminated name of at most 63 bytes into the TCB.
 fn name_thread<S: Store>(s: &mut S, t: Tcb, src: u64) {
-    let mut w = 0;
+    let mut w: u64 = 0;
     let mut done = false;
     while w < 8 {
         let mut v = if done { 0 } else { s.read(src.wrapping_add(w * 8)) };
         if !done {
-            let mut k = 0;
-            while k < 8 {
-                if (v >> (k * 8)) & 0xff == 0 {
-                    done = true;
-                    v &= if k == 0 { 0 } else { (1u64 << ((k * 8) & 63)).wrapping_sub(1) };
-                    break;
-                }
-                k += 1;
+            let n = nonzero_bytes(v);
+            if n < 8 {
+                // The name ends in this word: keep the bytes before the NUL.
+                done = true;
+                v &= if n == 0 { 0 } else { (1u64 << ((n * 8) & 63)).wrapping_sub(1) };
             }
         }
         if w == 7 {
@@ -480,6 +499,16 @@ fn name_thread<S: Store>(s: &mut S, t: Tcb, src: u64) {
         s.write(t.name_addr().wrapping_add(w * 8), v);
         w += 1;
     }
+}
+
+/// How many bytes of `v`, from the lowest, come before the first zero
+/// byte (8 if none is zero).
+fn nonzero_bytes(v: u64) -> u64 {
+    let mut k: u64 = 0;
+    while k < 8 && (v >> (k * 8)) & 0xff != 0 {
+        k += 1;
+    }
+    k
 }
 
 /// An interrupt arrived while user code ran (seL4 `handleInterruptEntry`).

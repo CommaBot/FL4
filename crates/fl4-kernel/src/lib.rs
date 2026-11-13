@@ -12,7 +12,7 @@ mod smp;
 use core::cell::UnsafeCell;
 use core::fmt::Write;
 use fl4_arch_x86_64::arch::{PhysArch, TIMER_VECTOR};
-use fl4_arch_x86_64::{apic, cpu, fpu, ioapic, percpu, pic, serial, timer};
+use fl4_arch_x86_64::{apic, cpu, fpu, ioapic, percpu, pic, serial, timer, tlb};
 use fl4_core::boot::{BootParams, Region, MAX_REGIONS, PADDR_USER_DEVICE_TOP};
 use fl4_core::layout::{ks, pptr, PADDR_TOP};
 use fl4_core::machine::Store;
@@ -197,6 +197,11 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
     if smap {
         cr4 |= 1 << 21;
     }
+    if cpu::has_fsgsbase() {
+        cr4 |= 1 << 16;
+        cpu::set_fsgsbase(true);
+    }
+    cr4 |= tlb::init();
     cpu::write_cr4(cr4);
     let (kernel_root, window_top) = paging::init(nx);
     let stack_top = percpu::init(0);
@@ -223,13 +228,15 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
     }
     timer::init(TIMER_VECTOR);
     kprintln!(
-        "FL4: {} core(s), {} IOAPIC(s), {}, timer {} at {} MHz, xcr0 {:#x}",
+        "FL4: {} core(s), {} IOAPIC(s), {}, timer {} at {} MHz (from the {}), xcr0 {:#x} ({})",
         acpi.n_cpus,
         acpi.n_ioapics,
         if apic::is_x2apic() { "x2APIC" } else { "xAPIC" },
         if timer::deadline_mode() { "TSC-deadline" } else { "APIC one-shot" },
         timer::tsc_mhz(),
-        fpu::xcr0()
+        timer::source(),
+        fpu::xcr0(),
+        fpu::save_insn()
     );
 
     // The other cores, if any (each sets itself up and waits).

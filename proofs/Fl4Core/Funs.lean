@@ -2964,7 +2964,7 @@ def boot.set_name
   boot.set_name_loop0 machineStoreInst s t «name» 0#u64
 
 /-- [fl4_core::boot::take_rootserver_mem]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 314:4-333:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 314:4-336:1 -/
 @[rust_loop_body]
 def boot.take_rootserver_mem_loop.body
   (a : Array boot.Region 32#usize) (i : Std.U64) (size : Std.U64)
@@ -2975,48 +2975,50 @@ def boot.take_rootserver_mem_loop.body
   if i1 > 0#u64
   then
     let i2 ← i1 - 1#u64
-    let i3 ← lift (UScalar.cast .Usize i2)
-    let r ← Array.index_usize a i3
-    if r.end > r.start
+    let k ← lift (UScalar.cast .Usize i2)
+    if k < boot.MAX_REGIONS
     then
-      let i4 ← r.end - r.start
-      if i4 >= size
+      let r ← Array.index_usize a k
+      if r.end > r.start
       then
-        let i5 ← r.end - size
-        let i6 ← lift (align_bits &&& 63#u64)
-        let i7 ← 1#u64 <<< i6
-        let i8 ← lift (core.num.U64.wrapping_sub i7 1#u64)
-        let i9 ← lift (~~~ i8)
-        let start ← lift (i5 &&& i9)
-        if start >= r.start
+        let i3 ← r.end - r.start
+        if i3 >= size
         then
-          let i10 ← lift (core.num.U64.wrapping_add start size)
-          let i11 ← lift (UScalar.cast .Usize i2)
-          let (_, index_mut_back) ← Array.index_mut_usize a i11
-          let b ← boot.Region.is_empty { r with start := i10 }
-          if b
+          let i4 ← r.end - size
+          let i5 ← lift (align_bits &&& 63#u64)
+          let i6 ← 1#u64 <<< i5
+          let i7 ← lift (core.num.U64.wrapping_sub i6 1#u64)
+          let i8 ← lift (~~~ i7)
+          let start ← lift (i4 &&& i8)
+          if start >= r.start
           then
-            let a1 := index_mut_back { r with «end» := start }
-            ok (done (some start, a1, i))
-          else
-            let i12 ← lift (UScalar.cast .Usize i)
-            if i12 < boot.MAX_REGIONS
+            let i9 ← lift (core.num.U64.wrapping_add start size)
+            let (_, index_mut_back) ← Array.index_mut_usize a k
+            let b ← boot.Region.is_empty { r with start := i9 }
+            if b
             then
-              let n ← lift (UScalar.cast .Usize i)
-              let a1 := index_mut_back { r with «end» := start }
-              let a2 ← Array.update a1 n { r with start := i10 }
-              let i13 ← i + 1#u64
-              ok (done (some start, a2, i13))
-            else
               let a1 := index_mut_back { r with «end» := start }
               ok (done (some start, a1, i))
+            else
+              let i10 ← lift (UScalar.cast .Usize i)
+              if i10 < boot.MAX_REGIONS
+              then
+                let n ← lift (UScalar.cast .Usize i)
+                let a1 := index_mut_back { r with «end» := start }
+                let a2 ← Array.update a1 n { r with start := i9 }
+                let i11 ← i + 1#u64
+                ok (done (some start, a2, i11))
+              else
+                let a1 := index_mut_back { r with «end» := start }
+                ok (done (some start, a1, i))
+          else ok (cont i2)
         else ok (cont i2)
       else ok (cont i2)
     else ok (cont i2)
   else ok (done (none, a, i))
 
 /-- [fl4_core::boot::take_rootserver_mem]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 314:4-333:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 314:4-336:1 -/
 @[rust_loop]
 def boot.take_rootserver_mem_loop
   (a : Array boot.Region 32#usize) (i : Std.U64) (size : Std.U64)
@@ -3028,19 +3030,14 @@ def boot.take_rootserver_mem_loop
     i1
 
 /-- [fl4_core::boot::take_rootserver_mem]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 312:0-333:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 312:0-336:1 -/
 def boot.take_rootserver_mem
   (p : boot.BootParams) (size : Std.U64) (align_bits : Std.U64) :
   Result ((Option Std.U64) × boot.BootParams)
   := do
-  let i ← lift (UScalar.cast .Usize p.n_free)
-  let i1 ←
-    if i < boot.MAX_REGIONS
-    then ok p.n_free
-    else ok (UScalar.cast .U64 boot.MAX_REGIONS)
-  let (o, a, i2) ←
-    boot.take_rootserver_mem_loop p.free p.n_free size align_bits i1
-  ok (o, { p with free := a, n_free := i2 })
+  let (o, a, i) ←
+    boot.take_rootserver_mem_loop p.free p.n_free size align_bits p.n_free
+  ok (o, { p with free := a, n_free := i })
 
 /-- [fl4_core::vspace::ASID_LOW_BITS]
     Source: 'crates/fl4-core/src/vspace.rs', lines 31:0-31:33
@@ -4883,7 +4880,7 @@ def obj.Tcb.fpu_addr (self : obj.Tcb) : Result Std.U64 := do
   ok (core.num.U64.wrapping_add self layout.tcb.FPU)
 
 /-- [fl4_core::boot::objects_init_fpu]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 533:0-537:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 536:0-540:1 -/
 def boot.objects_init_fpu
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
   Result S
@@ -4894,7 +4891,7 @@ def boot.objects_init_fpu
   machineStoreInst.write s1 i 281470681751424#u64
 
 /-- [fl4_core::boot::create_root_task]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 374:4-384:5
+    Source: 'crates/fl4-core/src/boot.rs', lines 377:4-387:5
     Visibility: public -/
 @[rust_loop_body]
 def boot.create_root_task_loop0.body
@@ -4927,7 +4924,7 @@ def boot.create_root_task_loop0.body
   else ok (done s)
 
 /-- [fl4_core::boot::create_root_task]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 374:4-384:5
+    Source: 'crates/fl4-core/src/boot.rs', lines 377:4-387:5
     Visibility: public -/
 @[rust_loop]
 def boot.create_root_task_loop0
@@ -4939,7 +4936,7 @@ def boot.create_root_task_loop0
     (s, i)
 
 /-- [fl4_core::boot::create_root_task]: loop body 1:
-    Source: 'crates/fl4-core/src/boot.rs', lines 397:4-401:5
+    Source: 'crates/fl4-core/src/boot.rs', lines 400:4-404:5
     Visibility: public -/
 @[rust_loop_body]
 def boot.create_root_task_loop1.body
@@ -4962,7 +4959,7 @@ def boot.create_root_task_loop1.body
   else ok (done s)
 
 /-- [fl4_core::boot::create_root_task]: loop 1:
-    Source: 'crates/fl4-core/src/boot.rs', lines 397:4-401:5
+    Source: 'crates/fl4-core/src/boot.rs', lines 400:4-404:5
     Visibility: public -/
 @[rust_loop]
 def boot.create_root_task_loop1
@@ -4976,7 +4973,7 @@ def boot.create_root_task_loop1
     (s, w)
 
 /-- [fl4_core::boot::create_root_task]: loop body 2:
-    Source: 'crates/fl4-core/src/boot.rs', lines 406:4-409:5
+    Source: 'crates/fl4-core/src/boot.rs', lines 409:4-412:5
     Visibility: public -/
 @[rust_loop_body]
 def boot.create_root_task_loop2.body
@@ -4993,7 +4990,7 @@ def boot.create_root_task_loop2.body
   else ok (done (s, b))
 
 /-- [fl4_core::boot::create_root_task]: loop 2:
-    Source: 'crates/fl4-core/src/boot.rs', lines 406:4-409:5
+    Source: 'crates/fl4-core/src/boot.rs', lines 409:4-412:5
     Visibility: public -/
 @[rust_loop]
 def boot.create_root_task_loop2
@@ -5007,7 +5004,7 @@ def boot.create_root_task_loop2
     (s, b, n)
 
 /-- [fl4_core::boot::create_root_task]: loop body 3:
-    Source: 'crates/fl4-core/src/boot.rs', lines 446:4-469:5
+    Source: 'crates/fl4-core/src/boot.rs', lines 449:4-472:5
     Visibility: public -/
 @[rust_loop_body]
 def boot.create_root_task_loop3.body
@@ -5056,7 +5053,7 @@ def boot.create_root_task_loop3.body
   else ok (done s)
 
 /-- [fl4_core::boot::create_root_task]: loop 3:
-    Source: 'crates/fl4-core/src/boot.rs', lines 446:4-469:5
+    Source: 'crates/fl4-core/src/boot.rs', lines 449:4-472:5
     Visibility: public -/
 @[rust_loop]
 def boot.create_root_task_loop3
@@ -5071,7 +5068,7 @@ def boot.create_root_task_loop3
     (s, c)
 
 /-- [fl4_core::boot::create_root_task]: loop body 4:
-    Source: 'crates/fl4-core/src/boot.rs', lines 497:8-501:9
+    Source: 'crates/fl4-core/src/boot.rs', lines 500:8-504:9
     Visibility: public -/
 @[rust_loop_body]
 def boot.create_root_task_loop4.body
@@ -5088,7 +5085,7 @@ def boot.create_root_task_loop4.body
   else ok (done s)
 
 /-- [fl4_core::boot::create_root_task]: loop 4:
-    Source: 'crates/fl4-core/src/boot.rs', lines 497:8-501:9
+    Source: 'crates/fl4-core/src/boot.rs', lines 500:8-504:9
     Visibility: public -/
 @[rust_loop]
 def boot.create_root_task_loop4
@@ -5101,7 +5098,7 @@ def boot.create_root_task_loop4
     (s, c)
 
 /-- [fl4_core::boot::create_root_task]: loop body 5:
-    Source: 'crates/fl4-core/src/boot.rs', lines 512:4-516:5
+    Source: 'crates/fl4-core/src/boot.rs', lines 515:4-519:5
     Visibility: public -/
 @[rust_loop_body]
 def boot.create_root_task_loop5.body
@@ -5125,7 +5122,7 @@ def boot.create_root_task_loop5.body
   else ok (done (s, b))
 
 /-- [fl4_core::boot::create_root_task]: loop 5:
-    Source: 'crates/fl4-core/src/boot.rs', lines 512:4-516:5
+    Source: 'crates/fl4-core/src/boot.rs', lines 515:4-519:5
     Visibility: public -/
 @[rust_loop]
 def boot.create_root_task_loop5
@@ -5140,7 +5137,7 @@ def boot.create_root_task_loop5
     (s, b, i1)
 
 /-- [fl4_core::boot::create_root_task]: loop body 6:
-    Source: 'crates/fl4-core/src/boot.rs', lines 518:4-522:5
+    Source: 'crates/fl4-core/src/boot.rs', lines 521:4-525:5
     Visibility: public -/
 @[rust_loop_body]
 def boot.create_root_task_loop6.body
@@ -5164,7 +5161,7 @@ def boot.create_root_task_loop6.body
   else ok (done (s, b))
 
 /-- [fl4_core::boot::create_root_task]: loop 6:
-    Source: 'crates/fl4-core/src/boot.rs', lines 518:4-522:5
+    Source: 'crates/fl4-core/src/boot.rs', lines 521:4-525:5
     Visibility: public -/
 @[rust_loop]
 def boot.create_root_task_loop6
@@ -5179,7 +5176,7 @@ def boot.create_root_task_loop6
     (s, b, i1)
 
 /-- [fl4_core::boot::create_root_task]: loop body 7:
-    Source: 'crates/fl4-core/src/boot.rs', lines 512:4-516:5
+    Source: 'crates/fl4-core/src/boot.rs', lines 515:4-519:5
     Visibility: public -/
 @[rust_loop_body]
 def boot.create_root_task_loop7.body
@@ -5203,7 +5200,7 @@ def boot.create_root_task_loop7.body
   else ok (done (s, b))
 
 /-- [fl4_core::boot::create_root_task]: loop 7:
-    Source: 'crates/fl4-core/src/boot.rs', lines 512:4-516:5
+    Source: 'crates/fl4-core/src/boot.rs', lines 515:4-519:5
     Visibility: public -/
 @[rust_loop]
 def boot.create_root_task_loop7
@@ -5218,7 +5215,7 @@ def boot.create_root_task_loop7
     (s, b, i1)
 
 /-- [fl4_core::boot::create_root_task]: loop body 8:
-    Source: 'crates/fl4-core/src/boot.rs', lines 518:4-522:5
+    Source: 'crates/fl4-core/src/boot.rs', lines 521:4-525:5
     Visibility: public -/
 @[rust_loop_body]
 def boot.create_root_task_loop8.body
@@ -5242,7 +5239,7 @@ def boot.create_root_task_loop8.body
   else ok (done (s, b))
 
 /-- [fl4_core::boot::create_root_task]: loop 8:
-    Source: 'crates/fl4-core/src/boot.rs', lines 518:4-522:5
+    Source: 'crates/fl4-core/src/boot.rs', lines 521:4-525:5
     Visibility: public -/
 @[rust_loop]
 def boot.create_root_task_loop8
@@ -5257,7 +5254,7 @@ def boot.create_root_task_loop8
     (s, b, i1)
 
 /-- [fl4_core::boot::create_root_task]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 337:0-531:1
+    Source: 'crates/fl4-core/src/boot.rs', lines 340:0-534:1
     Visibility: public -/
 def boot.create_root_task
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -6938,7 +6935,7 @@ def interrupt.set_irq_state
   ok (s1, a1)
 
 /-- [fl4_core::interrupt::deleted_irq_handler]:
-    Source: 'crates/fl4-core/src/interrupt.rs', lines 196:0-198:1
+    Source: 'crates/fl4-core/src/interrupt.rs', lines 214:0-216:1
     Visibility: public -/
 def interrupt.deleted_irq_handler
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -7418,9 +7415,10 @@ def vspace.delete_asid_pool_loop.body
     let i3 ← machineStoreInst.read s i2
     let a1 ←
       if i3 != 0#u64
-      then do
-           let i4 ← base + i
-           machineArchInst.invalidate_asid a i4
+      then
+        do
+        let i4 ← lift (core.num.U64.wrapping_add base i)
+        machineArchInst.invalidate_asid a i4
       else ok a
     let i4 ← i + 1#u64
     ok (cont (a1, i4))
@@ -11657,7 +11655,7 @@ def cdt.delete_one
       capability.Cap.Null
 
 /-- [fl4_core::interrupt::deleting_irq_handler]:
-    Source: 'crates/fl4-core/src/interrupt.rs', lines 191:0-194:1
+    Source: 'crates/fl4-core/src/interrupt.rs', lines 209:0-212:1
     Visibility: public -/
 def interrupt.deleting_irq_handler
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -12309,67 +12307,6 @@ def cnode.missing_source
   ok (core.result.Result.Err (error.Exc.Sys (error.SysError.FailedLookup source
     (error.LookupFault.MissingCapability depth))))
 
-/-- [fl4_core::objects::update_cap_data]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 169:0-196:1
-    Visibility: public -/
-def objects.update_cap_data
-  (preserve : Bool) (data : Std.U64) (c : capability.Cap) :
-  Result capability.Cap
-  := do
-  match c with
-  | capability.Cap.Null => ok capability.Cap.Null
-  | capability.Cap.Untyped _ _ _ _ => ok c
-  | capability.Cap.Endpoint ptr badge send recv grant grant_reply =>
-    if preserve
-    then ok capability.Cap.Null
-    else
-      if badge = 0#u64
-      then ok (capability.Cap.Endpoint ptr data send recv grant grant_reply)
-      else ok capability.Cap.Null
-  | capability.Cap.Notification ptr badge send recv =>
-    if preserve
-    then ok capability.Cap.Null
-    else
-      if badge = 0#u64
-      then ok (capability.Cap.Notification ptr data send recv)
-      else ok capability.Cap.Null
-  | capability.Cap.Reply _ _ => ok c
-  | capability.Cap.CNode ptr radix _ _ =>
-    let guard_size ← lift (data &&& 63#u64)
-    let i ← lift (core.num.U64.wrapping_add guard_size radix)
-    if i > 64#u64
-    then ok capability.Cap.Null
-    else
-      let i1 ← data >>> 6#i32
-      let i2 ← objects.mask guard_size
-      let guard ← lift (i1 &&& i2)
-      ok (capability.Cap.CNode ptr radix guard_size guard)
-  | capability.Cap.Thread _ => ok c
-  | capability.Cap.IrqControl => ok capability.Cap.IrqControl
-  | capability.Cap.IrqHandler _ => ok c
-  | capability.Cap.Zombie _ _ _ => ok c
-  | capability.Cap.Domain => ok capability.Cap.Domain
-  | capability.Cap.SchedContext _ _ => ok c
-  | capability.Cap.SchedControl _ => ok c
-  | capability.Cap.Frame _ _ _ _ _ _ _ => ok c
-  | capability.Cap.PageTable _ _ _ _ => ok c
-  | capability.Cap.PageDirectory _ _ _ _ => ok c
-  | capability.Cap.Pdpt _ _ _ _ => ok c
-  | capability.Cap.Pml4 _ _ _ => ok c
-  | capability.Cap.AsidControl => ok capability.Cap.AsidControl
-  | capability.Cap.AsidPool _ _ => ok c
-  | capability.Cap.IoPortControl => ok capability.Cap.IoPortControl
-  | capability.Cap.IoPort _ _ => ok c
-
-/-- Trait implementation: [fl4_core::obj::{impl core::cmp::PartialEq<fl4_core::obj::Slot> for fl4_core::obj::Slot}]
-    Source: 'crates/fl4-core/src/obj.rs', lines 36:22-36:31 -/
-@[reducible]
-impl_def obj.Slot.Insts.CoreCmpPartialEqSlot : core.cmp.PartialEq obj.Slot
-  obj.Slot := {
-  eq := obj.Slot.Insts.CoreCmpPartialEqSlot.eq
-  ne := core.cmp.PartialEq.ne.trait_default obj.Slot.Insts.CoreCmpPartialEqSlot
-}
-
 /-- [fl4_core::msg::buf_get]:
     Source: 'crates/fl4-core/src/msg.rs', lines 56:0-58:1
     Visibility: public -/
@@ -12412,86 +12349,6 @@ def error.truncated
     Visibility: public -/
 def error.illegal (T : Type _) : Result (core.result.Result T error.Exc) := do
   ok (core.result.Result.Err (error.Exc.Sys error.SysError.IllegalOperation))
-
-/-- [fl4_core::obj::EP_SEND]
-    Source: 'crates/fl4-core/src/obj.rs', lines 111:0-111:27
-    Visibility: public -/
-@[global_simps, irreducible] def obj.EP_SEND : Std.U64 := 1#u64
-
-/-- [fl4_core::layout::tcb::BLOCK_BADGE]
-    Source: 'crates/fl4-core/src/layout.rs', lines 61:4-61:40
-    Visibility: public -/
-@[global_simps, irreducible]
-def layout.tcb.BLOCK_BADGE : Result Std.U64 := layout.tcb.F + 16#u64
-
-/-- [fl4_core::obj::{fl4_core::obj::Tcb}::block_badge]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
-    Visibility: public -/
-def obj.Tcb.block_badge
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
-  Result Std.U64
-  := do
-  let i ← layout.tcb.BLOCK_BADGE
-  let i1 ← lift (core.num.U64.wrapping_add self i)
-  machineStoreInst.read s i1
-
-/-- [fl4_core::endpoint::cancel_badged_sends]: loop body 0:
-    Source: 'crates/fl4-core/src/endpoint.rs', lines 214:4-222:5
-    Visibility: public -/
-@[rust_loop_body]
-def endpoint.cancel_badged_sends_loop.body
-  {S : Type _} (machineStoreInst : machine.Store S) (ep_ptr : Std.U64)
-  (badge : Std.U64) (s : S) (t : obj.Tcb) (fuel : Std.U64) :
-  Result (ControlFlow (S × obj.Tcb × Std.U64) S)
-  := do
-  let b ← obj.Tcb.is_null t
-  if b
-  then ok (done s)
-  else
-    if fuel > 0#u64
-    then
-      let fuel1 ← fuel - 1#u64
-      let next ← tcbqueue.next_of machineStoreInst s tcbqueue.Link.Ep t
-      let i ← obj.Tcb.block_badge machineStoreInst t s
-      if i = badge
-      then
-        let s1 ← endpoint.ep_dequeue machineStoreInst s ep_ptr t
-        let s2 ← endpoint.restart_thread_if_no_fault machineStoreInst s1 t
-        ok (cont (s2, next, fuel1))
-      else ok (cont (s, next, fuel1))
-    else ok (done s)
-
-/-- [fl4_core::endpoint::cancel_badged_sends]: loop 0:
-    Source: 'crates/fl4-core/src/endpoint.rs', lines 214:4-222:5
-    Visibility: public -/
-@[rust_loop]
-def endpoint.cancel_badged_sends_loop
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ep_ptr : Std.U64)
-  (badge : Std.U64) (t : obj.Tcb) (fuel : Std.U64) :
-  Result S
-  := do
-  loop
-    (fun (s1, t1, fuel1) => endpoint.cancel_badged_sends_loop.body
-      machineStoreInst ep_ptr badge s1 t1 fuel1)
-    (s, t, fuel)
-
-/-- [fl4_core::endpoint::cancel_badged_sends]:
-    Source: 'crates/fl4-core/src/endpoint.rs', lines 207:0-224:1
-    Visibility: public -/
-def endpoint.cancel_badged_sends
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ep_ptr : Std.U64)
-  (badge : Std.U64) :
-  Result S
-  := do
-  let i ← obj.Ep.state machineStoreInst ep_ptr s
-  if i != obj.EP_SEND
-  then ok s
-  else
-    let q ← endpoint.get_queue machineStoreInst s ep_ptr
-    let s1 ←
-      endpoint.cancel_badged_sends_loop machineStoreInst s ep_ptr badge 
-        q.head layout.WALK_FUEL
-    sched.reschedule_required machineStoreInst s1
 
 /-- [fl4_core::cspace::mask]:
     Source: 'crates/fl4-core/src/cspace.rs', lines 18:0-24:1 -/
@@ -12733,16 +12590,6 @@ def cspace.lookup_slot_for_cnode_op
     ok (core.result.Result.Err (error.Exc.Sys (error.SysError.FailedLookup
       is_source error.LookupFault.InvalidRoot)))
 
-/-- [fl4_core::cspace::lookup_pivot_slot]:
-    Source: 'crates/fl4-core/src/cspace.rs', lines 118:0-120:1
-    Visibility: public -/
-def cspace.lookup_pivot_slot
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S)
-  (root : capability.Cap) (cptr : Std.U64) (depth : Std.U64) :
-  Result (core.result.Result obj.Slot error.Exc)
-  := do
-  cspace.lookup_slot_for_cnode_op machineStoreInst s true root cptr depth
-
 /-- [fl4_core::cspace::lookup_target_slot]:
     Source: 'crates/fl4-core/src/cspace.rs', lines 114:0-116:1
     Visibility: public -/
@@ -12752,6 +12599,77 @@ def cspace.lookup_target_slot
   Result (core.result.Result obj.Slot error.Exc)
   := do
   cspace.lookup_slot_for_cnode_op machineStoreInst s false root cptr depth
+
+/-- [fl4_core::objects::update_cap_data]:
+    Source: 'crates/fl4-core/src/objects.rs', lines 169:0-196:1
+    Visibility: public -/
+def objects.update_cap_data
+  (preserve : Bool) (data : Std.U64) (c : capability.Cap) :
+  Result capability.Cap
+  := do
+  match c with
+  | capability.Cap.Null => ok capability.Cap.Null
+  | capability.Cap.Untyped _ _ _ _ => ok c
+  | capability.Cap.Endpoint ptr badge send recv grant grant_reply =>
+    if preserve
+    then ok capability.Cap.Null
+    else
+      if badge = 0#u64
+      then ok (capability.Cap.Endpoint ptr data send recv grant grant_reply)
+      else ok capability.Cap.Null
+  | capability.Cap.Notification ptr badge send recv =>
+    if preserve
+    then ok capability.Cap.Null
+    else
+      if badge = 0#u64
+      then ok (capability.Cap.Notification ptr data send recv)
+      else ok capability.Cap.Null
+  | capability.Cap.Reply _ _ => ok c
+  | capability.Cap.CNode ptr radix _ _ =>
+    let guard_size ← lift (data &&& 63#u64)
+    let i ← lift (core.num.U64.wrapping_add guard_size radix)
+    if i > 64#u64
+    then ok capability.Cap.Null
+    else
+      let i1 ← data >>> 6#i32
+      let i2 ← objects.mask guard_size
+      let guard ← lift (i1 &&& i2)
+      ok (capability.Cap.CNode ptr radix guard_size guard)
+  | capability.Cap.Thread _ => ok c
+  | capability.Cap.IrqControl => ok capability.Cap.IrqControl
+  | capability.Cap.IrqHandler _ => ok c
+  | capability.Cap.Zombie _ _ _ => ok c
+  | capability.Cap.Domain => ok capability.Cap.Domain
+  | capability.Cap.SchedContext _ _ => ok c
+  | capability.Cap.SchedControl _ => ok c
+  | capability.Cap.Frame _ _ _ _ _ _ _ => ok c
+  | capability.Cap.PageTable _ _ _ _ => ok c
+  | capability.Cap.PageDirectory _ _ _ _ => ok c
+  | capability.Cap.Pdpt _ _ _ _ => ok c
+  | capability.Cap.Pml4 _ _ _ => ok c
+  | capability.Cap.AsidControl => ok capability.Cap.AsidControl
+  | capability.Cap.AsidPool _ _ => ok c
+  | capability.Cap.IoPortControl => ok capability.Cap.IoPortControl
+  | capability.Cap.IoPort _ _ => ok c
+
+/-- Trait implementation: [fl4_core::obj::{impl core::cmp::PartialEq<fl4_core::obj::Slot> for fl4_core::obj::Slot}]
+    Source: 'crates/fl4-core/src/obj.rs', lines 36:22-36:31 -/
+@[reducible]
+impl_def obj.Slot.Insts.CoreCmpPartialEqSlot : core.cmp.PartialEq obj.Slot
+  obj.Slot := {
+  eq := obj.Slot.Insts.CoreCmpPartialEqSlot.eq
+  ne := core.cmp.PartialEq.ne.trait_default obj.Slot.Insts.CoreCmpPartialEqSlot
+}
+
+/-- [fl4_core::cspace::lookup_pivot_slot]:
+    Source: 'crates/fl4-core/src/cspace.rs', lines 118:0-120:1
+    Visibility: public -/
+def cspace.lookup_pivot_slot
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S)
+  (root : capability.Cap) (cptr : Std.U64) (depth : Std.U64) :
+  Result (core.result.Result obj.Slot error.Exc)
+  := do
+  cspace.lookup_slot_for_cnode_op machineStoreInst s true root cptr depth
 
 /-- [fl4_core::cspace::lookup_source_slot]:
     Source: 'crates/fl4-core/src/cspace.rs', lines 110:0-112:1
@@ -12763,8 +12681,448 @@ def cspace.lookup_source_slot
   := do
   cspace.lookup_slot_for_cnode_op machineStoreInst s true root cptr depth
 
+/-- [fl4_core::cnode::decode_rotate]:
+    Source: 'crates/fl4-core/src/cnode.rs', lines 126:0-166:1 -/
+def cnode.decode_rotate
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (length : Std.U64)
+  (buf : Std.U64) (extra : Array obj.Slot 3#usize) (dest : obj.Slot) :
+  Result ((core.result.Result Unit error.Exc) × S)
+  := do
+  if length < 8#u64
+  then let r ← error.truncated Unit
+       ok (r, s)
+  else
+    let s1 ← Array.index_usize extra 0#usize
+    let b ← obj.Slot.is_null s1
+    if b
+    then let r ← error.truncated Unit
+         ok (r, s)
+    else
+      let s2 ← Array.index_usize extra 1#usize
+      let b1 ← obj.Slot.is_null s2
+      if b1
+      then let r ← error.truncated Unit
+           ok (r, s)
+      else
+        let ct ← sched.cur_thread machineStoreInst s
+        let pivot_data ← msg.syscall_arg machineStoreInst s ct buf 2#u64
+        let pivot_index ← msg.syscall_arg machineStoreInst s ct buf 3#u64
+        let pivot_depth ← msg.syscall_arg machineStoreInst s ct buf 4#u64
+        let src_data ← msg.syscall_arg machineStoreInst s ct buf 5#u64
+        let src_index ← msg.syscall_arg machineStoreInst s ct buf 6#u64
+        let src_depth ← msg.syscall_arg machineStoreInst s ct buf 7#u64
+        let pivot_root ← obj.Slot.cap machineStoreInst s1 s
+        let src_root ← obj.Slot.cap machineStoreInst s2 s
+        let r ←
+          cspace.lookup_source_slot machineStoreInst s src_root src_index
+            src_depth
+        let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+        match cf with
+        | core.ops.control_flow.ControlFlow.Continue val =>
+          let r1 ←
+            cspace.lookup_pivot_slot machineStoreInst s pivot_root pivot_index
+              pivot_depth
+          let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+          match cf1 with
+          | core.ops.control_flow.ControlFlow.Continue val1 =>
+            let b2 ← obj.Slot.Insts.CoreCmpPartialEqSlot.eq val1 val
+            if b2
+            then let r2 ← error.illegal Unit
+                 ok (r2, s)
+            else
+              let b3 ← obj.Slot.Insts.CoreCmpPartialEqSlot.eq val1 dest
+              if b3
+              then let r2 ← error.illegal Unit
+                   ok (r2, s)
+              else
+                let b4 ←
+                  core.cmp.PartialEq.ne.trait_default
+                    obj.Slot.Insts.CoreCmpPartialEqSlot val dest
+                if b4
+                then
+                  let r2 ← cdt.ensure_empty_slot machineStoreInst s dest
+                  let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+                  match cf2 with
+                  | core.ops.control_flow.ControlFlow.Continue _ =>
+                    let c ← obj.Slot.cap machineStoreInst val s
+                    let b5 ← capability.Cap.is_null c
+                    if b5
+                    then
+                      let r3 ← cnode.missing_source Unit src_depth true
+                      ok (r3, s)
+                    else
+                      let c1 ← obj.Slot.cap machineStoreInst val1 s
+                      let b6 ← capability.Cap.is_null c1
+                      if b6
+                      then
+                        let r3 ← cnode.missing_source Unit pivot_depth false
+                        ok (r3, s)
+                      else
+                        let new_src ← objects.update_cap_data true src_data c
+                        let new_pivot ←
+                          objects.update_cap_data true pivot_data c1
+                        let b7 ← capability.Cap.is_null new_src
+                        if b7
+                        then let r3 ← error.illegal Unit
+                             ok (r3, s)
+                        else
+                          let b8 ← capability.Cap.is_null new_pivot
+                          if b8
+                          then let r3 ← error.illegal Unit
+                               ok (r3, s)
+                          else
+                            let s3 ←
+                              sched.set_thread_state machineStoreInst s ct
+                                sched.TS_RESTART
+                            let b9 ←
+                              obj.Slot.Insts.CoreCmpPartialEqSlot.eq val dest
+                            if b9
+                            then
+                              let s4 ←
+                                cdt.swap machineStoreInst s3 new_src val
+                                  new_pivot val1
+                              ok (core.result.Result.Ok (), s4)
+                            else
+                              let s4 ←
+                                cdt.move_cap machineStoreInst s3 new_pivot val1
+                                  dest
+                              let s5 ←
+                                cdt.move_cap machineStoreInst s4 new_src val
+                                  val1
+                              ok (core.result.Result.Ok (), s5)
+                  | core.ops.control_flow.ControlFlow.Break residual =>
+                    let r3 ←
+                      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                        Unit (core.convert.FromSame error.Exc) residual
+                    ok (r3, s)
+                else
+                  let c ← obj.Slot.cap machineStoreInst val s
+                  let b5 ← capability.Cap.is_null c
+                  if b5
+                  then
+                    let r2 ← cnode.missing_source Unit src_depth true
+                    ok (r2, s)
+                  else
+                    let c1 ← obj.Slot.cap machineStoreInst val1 s
+                    let b6 ← capability.Cap.is_null c1
+                    if b6
+                    then
+                      let r2 ← cnode.missing_source Unit pivot_depth false
+                      ok (r2, s)
+                    else
+                      let new_src ← objects.update_cap_data true src_data c
+                      let new_pivot ←
+                        objects.update_cap_data true pivot_data c1
+                      let b7 ← capability.Cap.is_null new_src
+                      if b7
+                      then let r2 ← error.illegal Unit
+                           ok (r2, s)
+                      else
+                        let b8 ← capability.Cap.is_null new_pivot
+                        if b8
+                        then let r2 ← error.illegal Unit
+                             ok (r2, s)
+                        else
+                          let s3 ←
+                            sched.set_thread_state machineStoreInst s ct
+                              sched.TS_RESTART
+                          let b9 ←
+                            obj.Slot.Insts.CoreCmpPartialEqSlot.eq val dest
+                          if b9
+                          then
+                            let s4 ←
+                              cdt.swap machineStoreInst s3 new_src val
+                                new_pivot val1
+                            ok (core.result.Result.Ok (), s4)
+                          else
+                            let s4 ←
+                              cdt.move_cap machineStoreInst s3 new_pivot val1
+                                dest
+                            let s5 ←
+                              cdt.move_cap machineStoreInst s4 new_src val val1
+                            ok (core.result.Result.Ok (), s5)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r2 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                Unit (core.convert.FromSame error.Exc) residual
+            ok (r2, s)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r1 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              Unit (core.convert.FromSame error.Exc) residual
+          ok (r1, s)
+
+/-- [fl4_core::obj::EP_SEND]
+    Source: 'crates/fl4-core/src/obj.rs', lines 111:0-111:27
+    Visibility: public -/
+@[global_simps, irreducible] def obj.EP_SEND : Std.U64 := 1#u64
+
+/-- [fl4_core::layout::tcb::BLOCK_BADGE]
+    Source: 'crates/fl4-core/src/layout.rs', lines 61:4-61:40
+    Visibility: public -/
+@[global_simps, irreducible]
+def layout.tcb.BLOCK_BADGE : Result Std.U64 := layout.tcb.F + 16#u64
+
+/-- [fl4_core::obj::{fl4_core::obj::Tcb}::block_badge]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
+    Visibility: public -/
+def obj.Tcb.block_badge
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
+  Result Std.U64
+  := do
+  let i ← layout.tcb.BLOCK_BADGE
+  let i1 ← lift (core.num.U64.wrapping_add self i)
+  machineStoreInst.read s i1
+
+/-- [fl4_core::endpoint::cancel_badged_sends]: loop body 0:
+    Source: 'crates/fl4-core/src/endpoint.rs', lines 214:4-222:5
+    Visibility: public -/
+@[rust_loop_body]
+def endpoint.cancel_badged_sends_loop.body
+  {S : Type _} (machineStoreInst : machine.Store S) (ep_ptr : Std.U64)
+  (badge : Std.U64) (s : S) (t : obj.Tcb) (fuel : Std.U64) :
+  Result (ControlFlow (S × obj.Tcb × Std.U64) S)
+  := do
+  let b ← obj.Tcb.is_null t
+  if b
+  then ok (done s)
+  else
+    if fuel > 0#u64
+    then
+      let fuel1 ← fuel - 1#u64
+      let next ← tcbqueue.next_of machineStoreInst s tcbqueue.Link.Ep t
+      let i ← obj.Tcb.block_badge machineStoreInst t s
+      if i = badge
+      then
+        let s1 ← endpoint.ep_dequeue machineStoreInst s ep_ptr t
+        let s2 ← endpoint.restart_thread_if_no_fault machineStoreInst s1 t
+        ok (cont (s2, next, fuel1))
+      else ok (cont (s, next, fuel1))
+    else ok (done s)
+
+/-- [fl4_core::endpoint::cancel_badged_sends]: loop 0:
+    Source: 'crates/fl4-core/src/endpoint.rs', lines 214:4-222:5
+    Visibility: public -/
+@[rust_loop]
+def endpoint.cancel_badged_sends_loop
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ep_ptr : Std.U64)
+  (badge : Std.U64) (t : obj.Tcb) (fuel : Std.U64) :
+  Result S
+  := do
+  loop
+    (fun (s1, t1, fuel1) => endpoint.cancel_badged_sends_loop.body
+      machineStoreInst ep_ptr badge s1 t1 fuel1)
+    (s, t, fuel)
+
+/-- [fl4_core::endpoint::cancel_badged_sends]:
+    Source: 'crates/fl4-core/src/endpoint.rs', lines 207:0-224:1
+    Visibility: public -/
+def endpoint.cancel_badged_sends
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ep_ptr : Std.U64)
+  (badge : Std.U64) :
+  Result S
+  := do
+  let i ← obj.Ep.state machineStoreInst ep_ptr s
+  if i != obj.EP_SEND
+  then ok s
+  else
+    let q ← endpoint.get_queue machineStoreInst s ep_ptr
+    let s1 ←
+      endpoint.cancel_badged_sends_loop machineStoreInst s ep_ptr badge 
+        q.head layout.WALK_FUEL
+    sched.reschedule_required machineStoreInst s1
+
+/-- [fl4_core::cnode::full_endpoint]:
+    Source: 'crates/fl4-core/src/cnode.rs', lines 106:0-111:1 -/
+def cnode.full_endpoint
+  (c : capability.Cap) : Result (Option (Std.U64 × Std.U64)) := do
+  match c with
+  | capability.Cap.Null => ok none
+  | capability.Cap.Untyped _ _ _ _ => ok none
+  | capability.Cap.Endpoint ptr badge b b1 b2 b3 =>
+    if b
+    then
+      if b1
+      then
+        if b2
+        then if b3
+             then ok (some (ptr, badge))
+             else ok none
+        else ok none
+      else ok none
+    else ok none
+  | capability.Cap.Notification _ _ _ _ => ok none
+  | capability.Cap.Reply _ _ => ok none
+  | capability.Cap.CNode _ _ _ _ => ok none
+  | capability.Cap.Thread _ => ok none
+  | capability.Cap.IrqControl => ok none
+  | capability.Cap.IrqHandler _ => ok none
+  | capability.Cap.Zombie _ _ _ => ok none
+  | capability.Cap.Domain => ok none
+  | capability.Cap.SchedContext _ _ => ok none
+  | capability.Cap.SchedControl _ => ok none
+  | capability.Cap.Frame _ _ _ _ _ _ _ => ok none
+  | capability.Cap.PageTable _ _ _ _ => ok none
+  | capability.Cap.PageDirectory _ _ _ _ => ok none
+  | capability.Cap.Pdpt _ _ _ _ => ok none
+  | capability.Cap.Pml4 _ _ _ => ok none
+  | capability.Cap.AsidControl => ok none
+  | capability.Cap.AsidPool _ _ => ok none
+  | capability.Cap.IoPortControl => ok none
+  | capability.Cap.IoPort _ _ => ok none
+
+/-- [fl4_core::cnode::decode_cancel_badged_sends]:
+    Source: 'crates/fl4-core/src/cnode.rs', lines 113:0-124:1 -/
+def cnode.decode_cancel_badged_sends
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : obj.Slot) :
+  Result ((core.result.Result Unit error.Exc) × S)
+  := do
+  let c ← obj.Slot.cap machineStoreInst dest s
+  let o ← cnode.full_endpoint c
+  match o with
+  | none => let r ← error.illegal Unit
+            ok (r, s)
+  | some x =>
+    let (ptr, badge) := x
+    let ct ← sched.cur_thread machineStoreInst s
+    let s1 ← sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
+    if badge != 0#u64
+    then
+      let s2 ← endpoint.cancel_badged_sends machineStoreInst s1 ptr badge
+      ok (core.result.Result.Ok (), s2)
+    else ok (core.result.Result.Ok (), s1)
+
+/-- [fl4_core::cnode::copied_cap]:
+    Source: 'crates/fl4-core/src/cnode.rs', lines 77:0-103:1 -/
+def cnode.copied_cap
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (lbl : Std.U64)
+  (length : Std.U64) (buf : Std.U64) (src : obj.Slot)
+  (src_cap : capability.Cap) :
+  Result (core.result.Result (capability.Cap × Bool) error.Exc)
+  := do
+  let ct ← sched.cur_thread machineStoreInst s
+  if lbl = fl4_abi.label.CNodeCopy
+  then
+    if length < 5#u64
+    then error.truncated (capability.Cap × Bool)
+    else
+      let i ← msg.syscall_arg machineStoreInst s ct buf 4#u64
+      let r ← capability.Rights.from_word i
+      let c ← capability.mask_cap_rights r src_cap
+      let r1 ← objects.derive_cap machineStoreInst s src c
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch r1
+      match cf with
+      | core.ops.control_flow.ControlFlow.Continue val =>
+        ok (core.result.Result.Ok (val, false))
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          (capability.Cap × Bool) (core.convert.FromSame error.Exc) residual
+  else
+    if lbl = fl4_abi.label.CNodeMint
+    then
+      if length < 6#u64
+      then error.truncated (capability.Cap × Bool)
+      else
+        let i ← msg.syscall_arg machineStoreInst s ct buf 4#u64
+        let r ← capability.Rights.from_word i
+        let data ← msg.syscall_arg machineStoreInst s ct buf 5#u64
+        let c ← capability.mask_cap_rights r src_cap
+        let c1 ← objects.update_cap_data false data c
+        let r1 ← objects.derive_cap machineStoreInst s src c1
+        let cf ← core.result.Result.Insts.CoreOpsTry.branch r1
+        match cf with
+        | core.ops.control_flow.ControlFlow.Continue val =>
+          ok (core.result.Result.Ok (val, false))
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            (capability.Cap × Bool) (core.convert.FromSame error.Exc) residual
+    else
+      if lbl = fl4_abi.label.CNodeMove
+      then ok (core.result.Result.Ok (src_cap, true))
+      else
+        if length < 5#u64
+        then error.truncated (capability.Cap × Bool)
+        else
+          let data ← msg.syscall_arg machineStoreInst s ct buf 4#u64
+          let c ← objects.update_cap_data true data src_cap
+          ok (core.result.Result.Ok (c, true))
+
+/-- [fl4_core::cnode::decode_copy]:
+    Source: 'crates/fl4-core/src/cnode.rs', lines 48:0-73:1 -/
+def cnode.decode_copy
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (lbl : Std.U64)
+  (length : Std.U64) (buf : Std.U64) (extra : Array obj.Slot 3#usize)
+  (dest : obj.Slot) :
+  Result ((core.result.Result Unit error.Exc) × S)
+  := do
+  if length < 4#u64
+  then let r ← error.truncated Unit
+       ok (r, s)
+  else
+    let s1 ← Array.index_usize extra 0#usize
+    let b ← obj.Slot.is_null s1
+    if b
+    then let r ← error.truncated Unit
+         ok (r, s)
+    else
+      let ct ← sched.cur_thread machineStoreInst s
+      let src_index ← msg.syscall_arg machineStoreInst s ct buf 2#u64
+      let src_depth ← msg.syscall_arg machineStoreInst s ct buf 3#u64
+      let src_root ← obj.Slot.cap machineStoreInst s1 s
+      let r ← cdt.ensure_empty_slot machineStoreInst s dest
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+      match cf with
+      | core.ops.control_flow.ControlFlow.Continue _ =>
+        let r1 ←
+          cspace.lookup_source_slot machineStoreInst s src_root src_index
+            src_depth
+        let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+        match cf1 with
+        | core.ops.control_flow.ControlFlow.Continue val =>
+          let src_cap ← obj.Slot.cap machineStoreInst val s
+          let b1 ← capability.Cap.is_null src_cap
+          if b1
+          then let r2 ← cnode.missing_source Unit src_depth true
+               ok (r2, s)
+          else
+            let r2 ←
+              cnode.copied_cap machineStoreInst s lbl length buf val src_cap
+            let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+            match cf2 with
+            | core.ops.control_flow.ControlFlow.Continue val1 =>
+              let (new_cap, is_move) := val1
+              let b2 ← capability.Cap.is_null new_cap
+              if b2
+              then let r3 ← error.illegal Unit
+                   ok (r3, s)
+              else
+                let s2 ←
+                  sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
+                if is_move
+                then
+                  let s3 ← cdt.move_cap machineStoreInst s2 new_cap val dest
+                  ok (core.result.Result.Ok (), s3)
+                else
+                  let s3 ← cdt.insert machineStoreInst s2 new_cap val dest
+                  ok (core.result.Result.Ok (), s3)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r3 ←
+                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                  Unit (core.convert.FromSame error.Exc) residual
+              ok (r3, s)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r2 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              Unit (core.convert.FromSame error.Exc) residual
+          ok (r2, s)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r1 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            Unit (core.convert.FromSame error.Exc) residual
+        ok (r1, s)
+
 /-- [fl4_core::cnode::decode]:
-    Source: 'crates/fl4-core/src/cnode.rs', lines 19:0-142:1
+    Source: 'crates/fl4-core/src/cnode.rs', lines 19:0-45:1
     Visibility: public -/
 def cnode.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -12796,162 +13154,9 @@ def cnode.decode
           then
             if lbl <= fl4_abi.label.CNodeMutate
             then
-              if length < 4#u64
-              then let r1 ← error.truncated Unit
-                   ok (r1, s, a)
-              else
-                let s1 ← Array.index_usize extra 0#usize
-                let b ← obj.Slot.is_null s1
-                if b
-                then let r1 ← error.truncated Unit
-                     ok (r1, s, a)
-                else
-                  let src_index ←
-                    msg.syscall_arg machineStoreInst s ct buf 2#u64
-                  let src_depth ←
-                    msg.syscall_arg machineStoreInst s ct buf 3#u64
-                  let src_root ← obj.Slot.cap machineStoreInst s1 s
-                  let r1 ← cdt.ensure_empty_slot machineStoreInst s val
-                  let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
-                  match cf1 with
-                  | core.ops.control_flow.ControlFlow.Continue _ =>
-                    let r2 ←
-                      cspace.lookup_source_slot machineStoreInst s src_root
-                        src_index src_depth
-                    let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
-                    match cf2 with
-                    | core.ops.control_flow.ControlFlow.Continue val1 =>
-                      let src_cap ← obj.Slot.cap machineStoreInst val1 s
-                      let b1 ← capability.Cap.is_null src_cap
-                      if b1
-                      then
-                        let r3 ← cnode.missing_source Unit src_depth true
-                        ok (r3, s, a)
-                      else
-                        if lbl = fl4_abi.label.CNodeCopy
-                        then
-                          if length < 5#u64
-                          then let r3 ← error.truncated Unit
-                               ok (r3, s, a)
-                          else
-                            let i ←
-                              msg.syscall_arg machineStoreInst s ct buf 4#u64
-                            let r3 ← capability.Rights.from_word i
-                            let c ← capability.mask_cap_rights r3 src_cap
-                            let r4 ←
-                              objects.derive_cap machineStoreInst s val1 c
-                            let cf3 ←
-                              core.result.Result.Insts.CoreOpsTry.branch r4
-                            match cf3 with
-                            | core.ops.control_flow.ControlFlow.Continue val2
-                              =>
-                              let b2 ← capability.Cap.is_null val2
-                              if b2
-                              then let r5 ← error.illegal Unit
-                                   ok (r5, s, a)
-                              else
-                                let s2 ←
-                                  sched.set_thread_state machineStoreInst s ct
-                                    sched.TS_RESTART
-                                let s3 ←
-                                  cdt.insert machineStoreInst s2 val2 val1 val
-                                ok (core.result.Result.Ok (), s3, a)
-                            | core.ops.control_flow.ControlFlow.Break residual
-                              =>
-                              let r5 ←
-                                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                  Unit (core.convert.FromSame error.Exc)
-                                  residual
-                              ok (r5, s, a)
-                        else
-                          if lbl = fl4_abi.label.CNodeMint
-                          then
-                            if length < 6#u64
-                            then let r3 ← error.truncated Unit
-                                 ok (r3, s, a)
-                            else
-                              let i ←
-                                msg.syscall_arg machineStoreInst s ct buf 4#u64
-                              let r3 ← capability.Rights.from_word i
-                              let data ←
-                                msg.syscall_arg machineStoreInst s ct buf 5#u64
-                              let c ← capability.mask_cap_rights r3 src_cap
-                              let c1 ← objects.update_cap_data false data c
-                              let r4 ←
-                                objects.derive_cap machineStoreInst s val1 c1
-                              let cf3 ←
-                                core.result.Result.Insts.CoreOpsTry.branch r4
-                              match cf3 with
-                              | core.ops.control_flow.ControlFlow.Continue val2
-                                =>
-                                let b2 ← capability.Cap.is_null val2
-                                if b2
-                                then
-                                  let r5 ← error.illegal Unit
-                                  ok (r5, s, a)
-                                else
-                                  let s2 ←
-                                    sched.set_thread_state machineStoreInst s
-                                      ct sched.TS_RESTART
-                                  let s3 ←
-                                    cdt.insert machineStoreInst s2 val2 val1
-                                      val
-                                  ok (core.result.Result.Ok (), s3, a)
-                              | core.ops.control_flow.ControlFlow.Break
-                                residual =>
-                                let r5 ←
-                                  core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                    Unit (core.convert.FromSame error.Exc)
-                                    residual
-                                ok (r5, s, a)
-                          else
-                            if lbl = fl4_abi.label.CNodeMove
-                            then
-                              if b1
-                              then let r3 ← error.illegal Unit
-                                   ok (r3, s, a)
-                              else
-                                let s2 ←
-                                  sched.set_thread_state machineStoreInst s ct
-                                    sched.TS_RESTART
-                                let s3 ←
-                                  cdt.move_cap machineStoreInst s2 src_cap val1
-                                    val
-                                ok (core.result.Result.Ok (), s3, a)
-                            else
-                              if length < 5#u64
-                              then
-                                let r3 ← error.truncated Unit
-                                ok (r3, s, a)
-                              else
-                                let data ←
-                                  msg.syscall_arg machineStoreInst s ct buf
-                                    4#u64
-                                let new_cap ←
-                                  objects.update_cap_data true data src_cap
-                                let b2 ← capability.Cap.is_null new_cap
-                                if b2
-                                then
-                                  let r3 ← error.illegal Unit
-                                  ok (r3, s, a)
-                                else
-                                  let s2 ←
-                                    sched.set_thread_state machineStoreInst s
-                                      ct sched.TS_RESTART
-                                  let s3 ←
-                                    cdt.move_cap machineStoreInst s2 new_cap
-                                      val1 val
-                                  ok (core.result.Result.Ok (), s3, a)
-                    | core.ops.control_flow.ControlFlow.Break residual =>
-                      let r3 ←
-                        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                          Unit (core.convert.FromSame error.Exc) residual
-                      ok (r3, s, a)
-                  | core.ops.control_flow.ControlFlow.Break residual =>
-                    let r2 ←
-                      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                        Unit (core.convert.FromSame error.Exc) residual
-                    ok (r2, s, a)
+              let (r1, s1) ←
+                cnode.decode_copy machineStoreInst s lbl length buf extra val
+              ok (r1, s1, a)
             else
               if lbl = fl4_abi.label.CNodeRevoke
               then
@@ -12968,335 +13173,16 @@ def cnode.decode
                 else
                   if lbl = fl4_abi.label.CNodeCancelBadgedSends
                   then
-                    let dc ← obj.Slot.cap machineStoreInst val s
-                    let ok1 ←
-                      match dc with
-                      | capability.Cap.Null => ok false
-                      | capability.Cap.Untyped _ _ _ _ => ok false
-                      | capability.Cap.Endpoint _ _ b b1 b2 b3 =>
-                        if b
-                        then
-                          if b1
-                          then
-                            if b2
-                            then if b3
-                                 then ok true
-                                 else ok false
-                            else ok false
-                          else ok false
-                        else ok false
-                      | capability.Cap.Notification _ _ _ _ => ok false
-                      | capability.Cap.Reply _ _ => ok false
-                      | capability.Cap.CNode _ _ _ _ => ok false
-                      | capability.Cap.Thread _ => ok false
-                      | capability.Cap.IrqControl => ok false
-                      | capability.Cap.IrqHandler _ => ok false
-                      | capability.Cap.Zombie _ _ _ => ok false
-                      | capability.Cap.Domain => ok false
-                      | capability.Cap.SchedContext _ _ => ok false
-                      | capability.Cap.SchedControl _ => ok false
-                      | capability.Cap.Frame _ _ _ _ _ _ _ => ok false
-                      | capability.Cap.PageTable _ _ _ _ => ok false
-                      | capability.Cap.PageDirectory _ _ _ _ => ok false
-                      | capability.Cap.Pdpt _ _ _ _ => ok false
-                      | capability.Cap.Pml4 _ _ _ => ok false
-                      | capability.Cap.AsidControl => ok false
-                      | capability.Cap.AsidPool _ _ => ok false
-                      | capability.Cap.IoPortControl => ok false
-                      | capability.Cap.IoPort _ _ => ok false
-                    if ok1
-                    then
-                      let s1 ←
-                        sched.set_thread_state machineStoreInst s ct
-                          sched.TS_RESTART
-                      match dc with
-                      | capability.Cap.Null =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.Untyped _ _ _ _ =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.Endpoint ptr badge _ _ _ _ =>
-                        if badge != 0#u64
-                        then
-                          let s2 ←
-                            endpoint.cancel_badged_sends machineStoreInst s1
-                              ptr badge
-                          ok (core.result.Result.Ok (), s2, a)
-                        else ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.Notification _ _ _ _ =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.Reply _ _ =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.CNode _ _ _ _ =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.Thread _ =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.IrqControl =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.IrqHandler _ =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.Zombie _ _ _ =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.Domain =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.SchedContext _ _ =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.SchedControl _ =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.PageTable _ _ _ _ =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.PageDirectory _ _ _ _ =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.Pdpt _ _ _ _ =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.Pml4 _ _ _ =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.AsidControl =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.AsidPool _ _ =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.IoPortControl =>
-                        ok (core.result.Result.Ok (), s1, a)
-                      | capability.Cap.IoPort _ _ =>
-                        ok (core.result.Result.Ok (), s1, a)
-                    else let r1 ← error.illegal Unit
-                         ok (r1, s, a)
+                    let (r1, s1) ←
+                      cnode.decode_cancel_badged_sends machineStoreInst s val
+                    ok (r1, s1, a)
                   else
                     if lbl = fl4_abi.label.CNodeRotate
                     then
-                      if length < 8#u64
-                      then let r1 ← error.truncated Unit
-                           ok (r1, s, a)
-                      else
-                        let s1 ← Array.index_usize extra 0#usize
-                        let b ← obj.Slot.is_null s1
-                        if b
-                        then let r1 ← error.truncated Unit
-                             ok (r1, s, a)
-                        else
-                          let s2 ← Array.index_usize extra 1#usize
-                          let b1 ← obj.Slot.is_null s2
-                          if b1
-                          then let r1 ← error.truncated Unit
-                               ok (r1, s, a)
-                          else
-                            let pivot_data ←
-                              msg.syscall_arg machineStoreInst s ct buf 2#u64
-                            let pivot_index ←
-                              msg.syscall_arg machineStoreInst s ct buf 3#u64
-                            let pivot_depth ←
-                              msg.syscall_arg machineStoreInst s ct buf 4#u64
-                            let src_data ←
-                              msg.syscall_arg machineStoreInst s ct buf 5#u64
-                            let src_index ←
-                              msg.syscall_arg machineStoreInst s ct buf 6#u64
-                            let src_depth ←
-                              msg.syscall_arg machineStoreInst s ct buf 7#u64
-                            let pivot_root ←
-                              obj.Slot.cap machineStoreInst s1 s
-                            let src_root ← obj.Slot.cap machineStoreInst s2 s
-                            let r1 ←
-                              cspace.lookup_source_slot machineStoreInst s
-                                src_root src_index src_depth
-                            let cf1 ←
-                              core.result.Result.Insts.CoreOpsTry.branch r1
-                            match cf1 with
-                            | core.ops.control_flow.ControlFlow.Continue val1
-                              =>
-                              let r2 ←
-                                cspace.lookup_pivot_slot machineStoreInst s
-                                  pivot_root pivot_index pivot_depth
-                              let cf2 ←
-                                core.result.Result.Insts.CoreOpsTry.branch r2
-                              match cf2 with
-                              | core.ops.control_flow.ControlFlow.Continue val2
-                                =>
-                                let b2 ←
-                                  obj.Slot.Insts.CoreCmpPartialEqSlot.eq val2
-                                    val1
-                                if b2
-                                then
-                                  let r3 ← error.illegal Unit
-                                  ok (r3, s, a)
-                                else
-                                  let b3 ←
-                                    obj.Slot.Insts.CoreCmpPartialEqSlot.eq val2
-                                      val
-                                  if b3
-                                  then
-                                    let r3 ← error.illegal Unit
-                                    ok (r3, s, a)
-                                  else
-                                    let b4 ←
-                                      core.cmp.PartialEq.ne.trait_default
-                                        obj.Slot.Insts.CoreCmpPartialEqSlot
-                                        val1 val
-                                    if b4
-                                    then
-                                      let r3 ←
-                                        cdt.ensure_empty_slot machineStoreInst
-                                          s val
-                                      let cf3 ←
-                                        core.result.Result.Insts.CoreOpsTry.branch
-                                          r3
-                                      match cf3 with
-                                      |
-                                        core.ops.control_flow.ControlFlow.Continue
-                                        _ =>
-                                        let c ←
-                                          obj.Slot.cap machineStoreInst val1 s
-                                        let b5 ← capability.Cap.is_null c
-                                        if b5
-                                        then
-                                          let r4 ←
-                                            cnode.missing_source Unit src_depth
-                                              true
-                                          ok (r4, s, a)
-                                        else
-                                          let c1 ←
-                                            obj.Slot.cap machineStoreInst val2
-                                              s
-                                          let b6 ← capability.Cap.is_null c1
-                                          if b6
-                                          then
-                                            let r4 ←
-                                              cnode.missing_source Unit
-                                                pivot_depth false
-                                            ok (r4, s, a)
-                                          else
-                                            let new_src ←
-                                              objects.update_cap_data true
-                                                src_data c
-                                            let new_pivot ←
-                                              objects.update_cap_data true
-                                                pivot_data c1
-                                            let b7 ←
-                                              capability.Cap.is_null new_src
-                                            if b7
-                                            then
-                                              let r4 ← error.illegal Unit
-                                              ok (r4, s, a)
-                                            else
-                                              let b8 ←
-                                                capability.Cap.is_null
-                                                  new_pivot
-                                              if b8
-                                              then
-                                                let r4 ← error.illegal Unit
-                                                ok (r4, s, a)
-                                              else
-                                                let s3 ←
-                                                  sched.set_thread_state
-                                                    machineStoreInst s ct
-                                                    sched.TS_RESTART
-                                                let b9 ←
-                                                  obj.Slot.Insts.CoreCmpPartialEqSlot.eq
-                                                    val1 val
-                                                if b9
-                                                then
-                                                  let s4 ←
-                                                    cdt.swap machineStoreInst
-                                                      s3 new_src val1 new_pivot
-                                                      val2
-                                                  ok (core.result.Result.Ok (),
-                                                    s4, a)
-                                                else
-                                                  let s4 ←
-                                                    cdt.move_cap
-                                                      machineStoreInst s3
-                                                      new_pivot val2 val
-                                                  let s5 ←
-                                                    cdt.move_cap
-                                                      machineStoreInst s4
-                                                      new_src val1 val2
-                                                  ok (core.result.Result.Ok (),
-                                                    s5, a)
-                                      | core.ops.control_flow.ControlFlow.Break
-                                        residual =>
-                                        let r4 ←
-                                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                            Unit (core.convert.FromSame
-                                            error.Exc) residual
-                                        ok (r4, s, a)
-                                    else
-                                      let c ←
-                                        obj.Slot.cap machineStoreInst val1 s
-                                      let b5 ← capability.Cap.is_null c
-                                      if b5
-                                      then
-                                        let r3 ←
-                                          cnode.missing_source Unit src_depth
-                                            true
-                                        ok (r3, s, a)
-                                      else
-                                        let c1 ←
-                                          obj.Slot.cap machineStoreInst val2 s
-                                        let b6 ← capability.Cap.is_null c1
-                                        if b6
-                                        then
-                                          let r3 ←
-                                            cnode.missing_source Unit
-                                              pivot_depth false
-                                          ok (r3, s, a)
-                                        else
-                                          let new_src ←
-                                            objects.update_cap_data true
-                                              src_data c
-                                          let new_pivot ←
-                                            objects.update_cap_data true
-                                              pivot_data c1
-                                          let b7 ←
-                                            capability.Cap.is_null new_src
-                                          if b7
-                                          then
-                                            let r3 ← error.illegal Unit
-                                            ok (r3, s, a)
-                                          else
-                                            let b8 ←
-                                              capability.Cap.is_null new_pivot
-                                            if b8
-                                            then
-                                              let r3 ← error.illegal Unit
-                                              ok (r3, s, a)
-                                            else
-                                              let s3 ←
-                                                sched.set_thread_state
-                                                  machineStoreInst s ct
-                                                  sched.TS_RESTART
-                                              let b9 ←
-                                                obj.Slot.Insts.CoreCmpPartialEqSlot.eq
-                                                  val1 val
-                                              if b9
-                                              then
-                                                let s4 ←
-                                                  cdt.swap machineStoreInst s3
-                                                    new_src val1 new_pivot val2
-                                                ok (core.result.Result.Ok (),
-                                                  s4, a)
-                                              else
-                                                let s4 ←
-                                                  cdt.move_cap machineStoreInst
-                                                    s3 new_pivot val2 val
-                                                let s5 ←
-                                                  cdt.move_cap machineStoreInst
-                                                    s4 new_src val1 val2
-                                                ok (core.result.Result.Ok (),
-                                                  s5, a)
-                              | core.ops.control_flow.ControlFlow.Break
-                                residual =>
-                                let r3 ←
-                                  core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                    Unit (core.convert.FromSame error.Exc)
-                                    residual
-                                ok (r3, s, a)
-                            | core.ops.control_flow.ControlFlow.Break residual
-                              =>
-                              let r2 ←
-                                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                  Unit (core.convert.FromSame error.Exc)
-                                  residual
-                              ok (r2, s, a)
+                      let (r1, s1) ←
+                        cnode.decode_rotate machineStoreInst s length buf extra
+                          val
+                      ok (r1, s1, a)
                     else ok (core.result.Result.Ok (), s, a)
           else
             if lbl = fl4_abi.label.CNodeRevoke
@@ -13313,325 +13199,16 @@ def cnode.decode
               else
                 if lbl = fl4_abi.label.CNodeCancelBadgedSends
                 then
-                  let dc ← obj.Slot.cap machineStoreInst val s
-                  let ok1 ←
-                    match dc with
-                    | capability.Cap.Null => ok false
-                    | capability.Cap.Untyped _ _ _ _ => ok false
-                    | capability.Cap.Endpoint _ _ b b1 b2 b3 =>
-                      if b
-                      then
-                        if b1
-                        then
-                          if b2
-                          then if b3
-                               then ok true
-                               else ok false
-                          else ok false
-                        else ok false
-                      else ok false
-                    | capability.Cap.Notification _ _ _ _ => ok false
-                    | capability.Cap.Reply _ _ => ok false
-                    | capability.Cap.CNode _ _ _ _ => ok false
-                    | capability.Cap.Thread _ => ok false
-                    | capability.Cap.IrqControl => ok false
-                    | capability.Cap.IrqHandler _ => ok false
-                    | capability.Cap.Zombie _ _ _ => ok false
-                    | capability.Cap.Domain => ok false
-                    | capability.Cap.SchedContext _ _ => ok false
-                    | capability.Cap.SchedControl _ => ok false
-                    | capability.Cap.Frame _ _ _ _ _ _ _ => ok false
-                    | capability.Cap.PageTable _ _ _ _ => ok false
-                    | capability.Cap.PageDirectory _ _ _ _ => ok false
-                    | capability.Cap.Pdpt _ _ _ _ => ok false
-                    | capability.Cap.Pml4 _ _ _ => ok false
-                    | capability.Cap.AsidControl => ok false
-                    | capability.Cap.AsidPool _ _ => ok false
-                    | capability.Cap.IoPortControl => ok false
-                    | capability.Cap.IoPort _ _ => ok false
-                  if ok1
-                  then
-                    let s1 ←
-                      sched.set_thread_state machineStoreInst s ct
-                        sched.TS_RESTART
-                    match dc with
-                    | capability.Cap.Null =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.Untyped _ _ _ _ =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.Endpoint ptr badge _ _ _ _ =>
-                      if badge != 0#u64
-                      then
-                        let s2 ←
-                          endpoint.cancel_badged_sends machineStoreInst s1 ptr
-                            badge
-                        ok (core.result.Result.Ok (), s2, a)
-                      else ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.Notification _ _ _ _ =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.Reply _ _ =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.CNode _ _ _ _ =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.Thread _ =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.IrqControl =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.IrqHandler _ =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.Zombie _ _ _ =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.Domain =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.SchedContext _ _ =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.SchedControl _ =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.PageTable _ _ _ _ =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.PageDirectory _ _ _ _ =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.Pdpt _ _ _ _ =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.Pml4 _ _ _ =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.AsidControl =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.AsidPool _ _ =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.IoPortControl =>
-                      ok (core.result.Result.Ok (), s1, a)
-                    | capability.Cap.IoPort _ _ =>
-                      ok (core.result.Result.Ok (), s1, a)
-                  else let r1 ← error.illegal Unit
-                       ok (r1, s, a)
+                  let (r1, s1) ←
+                    cnode.decode_cancel_badged_sends machineStoreInst s val
+                  ok (r1, s1, a)
                 else
                   if lbl = fl4_abi.label.CNodeRotate
                   then
-                    if length < 8#u64
-                    then let r1 ← error.truncated Unit
-                         ok (r1, s, a)
-                    else
-                      let s1 ← Array.index_usize extra 0#usize
-                      let b ← obj.Slot.is_null s1
-                      if b
-                      then let r1 ← error.truncated Unit
-                           ok (r1, s, a)
-                      else
-                        let s2 ← Array.index_usize extra 1#usize
-                        let b1 ← obj.Slot.is_null s2
-                        if b1
-                        then let r1 ← error.truncated Unit
-                             ok (r1, s, a)
-                        else
-                          let pivot_data ←
-                            msg.syscall_arg machineStoreInst s ct buf 2#u64
-                          let pivot_index ←
-                            msg.syscall_arg machineStoreInst s ct buf 3#u64
-                          let pivot_depth ←
-                            msg.syscall_arg machineStoreInst s ct buf 4#u64
-                          let src_data ←
-                            msg.syscall_arg machineStoreInst s ct buf 5#u64
-                          let src_index ←
-                            msg.syscall_arg machineStoreInst s ct buf 6#u64
-                          let src_depth ←
-                            msg.syscall_arg machineStoreInst s ct buf 7#u64
-                          let pivot_root ← obj.Slot.cap machineStoreInst s1 s
-                          let src_root ← obj.Slot.cap machineStoreInst s2 s
-                          let r1 ←
-                            cspace.lookup_source_slot machineStoreInst s
-                              src_root src_index src_depth
-                          let cf1 ←
-                            core.result.Result.Insts.CoreOpsTry.branch r1
-                          match cf1 with
-                          | core.ops.control_flow.ControlFlow.Continue val1 =>
-                            let r2 ←
-                              cspace.lookup_pivot_slot machineStoreInst s
-                                pivot_root pivot_index pivot_depth
-                            let cf2 ←
-                              core.result.Result.Insts.CoreOpsTry.branch r2
-                            match cf2 with
-                            | core.ops.control_flow.ControlFlow.Continue val2
-                              =>
-                              let b2 ←
-                                obj.Slot.Insts.CoreCmpPartialEqSlot.eq val2
-                                  val1
-                              if b2
-                              then let r3 ← error.illegal Unit
-                                   ok (r3, s, a)
-                              else
-                                let b3 ←
-                                  obj.Slot.Insts.CoreCmpPartialEqSlot.eq val2
-                                    val
-                                if b3
-                                then
-                                  let r3 ← error.illegal Unit
-                                  ok (r3, s, a)
-                                else
-                                  let b4 ←
-                                    core.cmp.PartialEq.ne.trait_default
-                                      obj.Slot.Insts.CoreCmpPartialEqSlot val1
-                                      val
-                                  if b4
-                                  then
-                                    let r3 ←
-                                      cdt.ensure_empty_slot machineStoreInst s
-                                        val
-                                    let cf3 ←
-                                      core.result.Result.Insts.CoreOpsTry.branch
-                                        r3
-                                    match cf3 with
-                                    |
-                                      core.ops.control_flow.ControlFlow.Continue
-                                      _ =>
-                                      let c ←
-                                        obj.Slot.cap machineStoreInst val1 s
-                                      let b5 ← capability.Cap.is_null c
-                                      if b5
-                                      then
-                                        let r4 ←
-                                          cnode.missing_source Unit src_depth
-                                            true
-                                        ok (r4, s, a)
-                                      else
-                                        let c1 ←
-                                          obj.Slot.cap machineStoreInst val2 s
-                                        let b6 ← capability.Cap.is_null c1
-                                        if b6
-                                        then
-                                          let r4 ←
-                                            cnode.missing_source Unit
-                                              pivot_depth false
-                                          ok (r4, s, a)
-                                        else
-                                          let new_src ←
-                                            objects.update_cap_data true
-                                              src_data c
-                                          let new_pivot ←
-                                            objects.update_cap_data true
-                                              pivot_data c1
-                                          let b7 ←
-                                            capability.Cap.is_null new_src
-                                          if b7
-                                          then
-                                            let r4 ← error.illegal Unit
-                                            ok (r4, s, a)
-                                          else
-                                            let b8 ←
-                                              capability.Cap.is_null new_pivot
-                                            if b8
-                                            then
-                                              let r4 ← error.illegal Unit
-                                              ok (r4, s, a)
-                                            else
-                                              let s3 ←
-                                                sched.set_thread_state
-                                                  machineStoreInst s ct
-                                                  sched.TS_RESTART
-                                              let b9 ←
-                                                obj.Slot.Insts.CoreCmpPartialEqSlot.eq
-                                                  val1 val
-                                              if b9
-                                              then
-                                                let s4 ←
-                                                  cdt.swap machineStoreInst s3
-                                                    new_src val1 new_pivot val2
-                                                ok (core.result.Result.Ok (),
-                                                  s4, a)
-                                              else
-                                                let s4 ←
-                                                  cdt.move_cap machineStoreInst
-                                                    s3 new_pivot val2 val
-                                                let s5 ←
-                                                  cdt.move_cap machineStoreInst
-                                                    s4 new_src val1 val2
-                                                ok (core.result.Result.Ok (),
-                                                  s5, a)
-                                    | core.ops.control_flow.ControlFlow.Break
-                                      residual =>
-                                      let r4 ←
-                                        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                          Unit (core.convert.FromSame
-                                          error.Exc) residual
-                                      ok (r4, s, a)
-                                  else
-                                    let c ←
-                                      obj.Slot.cap machineStoreInst val1 s
-                                    let b5 ← capability.Cap.is_null c
-                                    if b5
-                                    then
-                                      let r3 ←
-                                        cnode.missing_source Unit src_depth
-                                          true
-                                      ok (r3, s, a)
-                                    else
-                                      let c1 ←
-                                        obj.Slot.cap machineStoreInst val2 s
-                                      let b6 ← capability.Cap.is_null c1
-                                      if b6
-                                      then
-                                        let r3 ←
-                                          cnode.missing_source Unit pivot_depth
-                                            false
-                                        ok (r3, s, a)
-                                      else
-                                        let new_src ←
-                                          objects.update_cap_data true src_data
-                                            c
-                                        let new_pivot ←
-                                          objects.update_cap_data true
-                                            pivot_data c1
-                                        let b7 ←
-                                          capability.Cap.is_null new_src
-                                        if b7
-                                        then
-                                          let r3 ← error.illegal Unit
-                                          ok (r3, s, a)
-                                        else
-                                          let b8 ←
-                                            capability.Cap.is_null new_pivot
-                                          if b8
-                                          then
-                                            let r3 ← error.illegal Unit
-                                            ok (r3, s, a)
-                                          else
-                                            let s3 ←
-                                              sched.set_thread_state
-                                                machineStoreInst s ct
-                                                sched.TS_RESTART
-                                            let b9 ←
-                                              obj.Slot.Insts.CoreCmpPartialEqSlot.eq
-                                                val1 val
-                                            if b9
-                                            then
-                                              let s4 ←
-                                                cdt.swap machineStoreInst s3
-                                                  new_src val1 new_pivot val2
-                                              ok (core.result.Result.Ok (), s4,
-                                                a)
-                                            else
-                                              let s4 ←
-                                                cdt.move_cap machineStoreInst
-                                                  s3 new_pivot val2 val
-                                              let s5 ←
-                                                cdt.move_cap machineStoreInst
-                                                  s4 new_src val1 val2
-                                              ok (core.result.Result.Ok (), s5,
-                                                a)
-                            | core.ops.control_flow.ControlFlow.Break residual
-                              =>
-                              let r3 ←
-                                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                  Unit (core.convert.FromSame error.Exc)
-                                  residual
-                              ok (r3, s, a)
-                          | core.ops.control_flow.ControlFlow.Break residual =>
-                            let r2 ←
-                              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                Unit (core.convert.FromSame error.Exc) residual
-                            ok (r2, s, a)
+                    let (r1, s1) ←
+                      cnode.decode_rotate machineStoreInst s length buf extra
+                        val
+                    ok (r1, s1, a)
                   else ok (core.result.Result.Ok (), s, a)
         | core.ops.control_flow.ControlFlow.Break residual =>
           let r1 ←
@@ -17469,6 +17046,97 @@ def layout.irq.USER_MAX : Result Std.U64 := 155#u64 - 32#u64
     Visibility: public -/
 @[global_simps, irreducible] def layout.irq.USER_MIN : Std.U64 := 16#u64
 
+/-- [fl4_core::layout::irq::INT_OFFSET]
+    Source: 'crates/fl4-core/src/layout.rs', lines 193:4-193:37
+    Visibility: public -/
+@[global_simps, irreducible] def layout.irq.INT_OFFSET : Std.U64 := 32#u64
+
+/-- [fl4_core::interrupt::map_ioapic]:
+    Source: 'crates/fl4-core/src/interrupt.rs', lines 144:0-175:1 -/
+def interrupt.map_ioapic
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (buf : Std.U64)
+  (vector : Std.U64) (remapped : Bool) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  let ct ← sched.cur_thread machineStoreInst s
+  let ioapic ← msg.syscall_arg machineStoreInst s ct buf 2#u64
+  let pin ← msg.syscall_arg machineStoreInst s ct buf 3#u64
+  let level ← msg.syscall_arg machineStoreInst s ct buf 4#u64
+  let polarity ← msg.syscall_arg machineStoreInst s ct buf 5#u64
+  let n ← machineArchInst.num_ioapics a
+  if n = 0#u64
+  then let r ← error.illegal Unit
+       ok (r, s, a)
+  else
+    if ioapic >= n
+    then let i ← n - 1#u64
+         let r ← error.range Unit 0#u64 i
+         ok (r, s, a)
+    else
+      let pins ← machineArchInst.ioapic_pins a ioapic
+      if pin >= pins
+      then
+        let i ← lift (core.num.U64.wrapping_sub pins 1#u64)
+        let r ← error.range Unit 0#u64 i
+        ok (r, s, a)
+      else
+        if level > 1#u64
+        then let r ← error.range Unit 0#u64 1#u64
+             ok (r, s, a)
+        else
+          if polarity > 1#u64
+          then let r ← error.range Unit 0#u64 1#u64
+               ok (r, s, a)
+          else
+            let handle ←
+              if remapped
+              then msg.syscall_arg machineStoreInst s ct buf 7#u64
+              else ok 0#u64
+            let i ← 1#u64 <<< 16#i32
+            if handle >= i
+            then let r ← error.range Unit 0#u64 65535#u64
+                 ok (r, s, a)
+            else
+              let s1 ←
+                sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
+              if remapped
+              then
+                let (_, a1) ←
+                  machineArchInst.ioapic_map_remapped a ioapic pin level
+                    polarity vector handle
+                ok (core.result.Result.Ok (), s1, a1)
+              else
+                let (_, a1) ←
+                  machineArchInst.ioapic_map a ioapic pin level polarity vector
+                ok (core.result.Result.Ok (), s1, a1)
+
+/-- [fl4_core::interrupt::check_msi]:
+    Source: 'crates/fl4-core/src/interrupt.rs', lines 125:0-141:1 -/
+def interrupt.check_msi
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (buf : Std.U64) :
+  Result ((core.result.Result Unit error.Exc) × S)
+  := do
+  let ct ← sched.cur_thread machineStoreInst s
+  let bus ← msg.syscall_arg machineStoreInst s ct buf 2#u64
+  let dev ← msg.syscall_arg machineStoreInst s ct buf 3#u64
+  let func ← msg.syscall_arg machineStoreInst s ct buf 4#u64
+  if bus > interrupt.PCI_BUS_MAX
+  then let r ← error.range Unit 0#u64 interrupt.PCI_BUS_MAX
+       ok (r, s)
+  else
+    if dev > interrupt.PCI_DEV_MAX
+    then let r ← error.range Unit 0#u64 interrupt.PCI_DEV_MAX
+         ok (r, s)
+    else
+      if func > interrupt.PCI_FUNC_MAX
+      then let r ← error.range Unit 0#u64 interrupt.PCI_FUNC_MAX
+           ok (r, s)
+      else
+        let s1 ←
+          sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
+        ok (core.result.Result.Ok (), s1)
+
 /-- [fl4_core::layout::irq::ISA_MAX]
     Source: 'crates/fl4-core/src/layout.rs', lines 195:4-195:32
     Visibility: public -/
@@ -17479,13 +17147,71 @@ def layout.irq.USER_MAX : Result Std.U64 := 155#u64 - 32#u64
     Visibility: public -/
 @[global_simps, irreducible] def layout.irq.ISA_MIN : Std.U64 := 0#u64
 
-/-- [fl4_core::layout::irq::INT_OFFSET]
-    Source: 'crates/fl4-core/src/layout.rs', lines 193:4-193:37
-    Visibility: public -/
-@[global_simps, irreducible] def layout.irq.INT_OFFSET : Std.U64 := 32#u64
+/-- [fl4_core::interrupt::decode_issue_isa]:
+    Source: 'crates/fl4-core/src/interrupt.rs', lines 99:0-122:1 -/
+def interrupt.decode_issue_isa
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64)
+  (src : obj.Slot) (buf : Std.U64) (extra : Array obj.Slot 3#usize) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  let o ← interrupt.extra0 machineStoreInst s extra
+  match o with
+  | none => let r ← error.truncated Unit
+            ok (r, s, a)
+  | some c =>
+    if length >= 3#u64
+    then
+      let ct ← sched.cur_thread machineStoreInst s
+      let irq ← msg.syscall_arg machineStoreInst s ct buf 0#u64
+      let index ← msg.syscall_arg machineStoreInst s ct buf 1#u64
+      let depth ← msg.syscall_arg machineStoreInst s ct buf 2#u64
+      let i ← machineArchInst.num_ioapics a
+      if i != 0#u64
+      then let r ← error.illegal Unit
+           ok (r, s, a)
+      else
+        if irq > layout.irq.ISA_MAX
+        then
+          let r ← error.range Unit layout.irq.ISA_MIN layout.irq.ISA_MAX
+          ok (r, s, a)
+        else
+          let b ← interrupt.is_irq_active machineStoreInst s irq
+          if b
+          then
+            ok (core.result.Result.Err (error.Exc.Sys
+              error.SysError.RevokeFirst), s, a)
+          else
+            let r ←
+              cspace.lookup_target_slot machineStoreInst s c index depth
+            let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+            match cf with
+            | core.ops.control_flow.ControlFlow.Continue val =>
+              let r1 ← cdt.ensure_empty_slot machineStoreInst s val
+              let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+              match cf1 with
+              | core.ops.control_flow.ControlFlow.Continue _ =>
+                let s1 ←
+                  sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
+                let (s2, a1) ←
+                  interrupt.invoke_irq_control machineStoreInst machineArchInst
+                    s1 a irq val src
+                ok (core.result.Result.Ok (), s2, a1)
+              | core.ops.control_flow.ControlFlow.Break residual =>
+                let r2 ←
+                  core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                    Unit (core.convert.FromSame error.Exc) residual
+                ok (r2, s, a)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r1 ←
+                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                  Unit (core.convert.FromSame error.Exc) residual
+              ok (r1, s, a)
+    else let r ← error.truncated Unit
+         ok (r, s, a)
 
 /-- [fl4_core::interrupt::decode_irq_control]:
-    Source: 'crates/fl4-core/src/interrupt.rs', lines 62:0-157:1
+    Source: 'crates/fl4-core/src/interrupt.rs', lines 62:0-95:1
     Visibility: public -/
 def interrupt.decode_irq_control
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -17494,63 +17220,10 @@ def interrupt.decode_irq_control
   (extra : Array obj.Slot 3#usize) :
   Result ((core.result.Result Unit error.Exc) × S × A)
   := do
-  let ct ← sched.cur_thread machineStoreInst s
   if lbl = fl4_abi.label.IRQIssueIRQHandler
   then
-    let o ← interrupt.extra0 machineStoreInst s extra
-    match o with
-    | none => let r ← error.truncated Unit
-              ok (r, s, a)
-    | some c =>
-      if length >= 3#u64
-      then
-        let irq ← msg.syscall_arg machineStoreInst s ct buf 0#u64
-        let index ← msg.syscall_arg machineStoreInst s ct buf 1#u64
-        let depth ← msg.syscall_arg machineStoreInst s ct buf 2#u64
-        let i ← machineArchInst.num_ioapics a
-        if i != 0#u64
-        then let r ← error.illegal Unit
-             ok (r, s, a)
-        else
-          if irq > layout.irq.ISA_MAX
-          then
-            let r ← error.range Unit layout.irq.ISA_MIN layout.irq.ISA_MAX
-            ok (r, s, a)
-          else
-            let b ← interrupt.is_irq_active machineStoreInst s irq
-            if b
-            then
-              ok (core.result.Result.Err (error.Exc.Sys
-                error.SysError.RevokeFirst), s, a)
-            else
-              let r ←
-                cspace.lookup_target_slot machineStoreInst s c index depth
-              let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-              match cf with
-              | core.ops.control_flow.ControlFlow.Continue val =>
-                let r1 ← cdt.ensure_empty_slot machineStoreInst s val
-                let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
-                match cf1 with
-                | core.ops.control_flow.ControlFlow.Continue _ =>
-                  let s1 ←
-                    sched.set_thread_state machineStoreInst s ct
-                      sched.TS_RESTART
-                  let (s2, a1) ←
-                    interrupt.invoke_irq_control machineStoreInst
-                      machineArchInst s1 a irq val src
-                  ok (core.result.Result.Ok (), s2, a1)
-                | core.ops.control_flow.ControlFlow.Break residual =>
-                  let r2 ←
-                    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                      Unit (core.convert.FromSame error.Exc) residual
-                  ok (r2, s, a)
-              | core.ops.control_flow.ControlFlow.Break residual =>
-                let r1 ←
-                  core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                    Unit (core.convert.FromSame error.Exc) residual
-                ok (r1, s, a)
-      else let r ← error.truncated Unit
-           ok (r, s, a)
+    interrupt.decode_issue_isa machineStoreInst machineArchInst s a length src
+      buf extra
   else
     if lbl != fl4_abi.label.X86IRQIssueIRQHandlerIOAPIC
     then
@@ -17569,6 +17242,7 @@ def interrupt.decode_irq_control
           | some c =>
             if length >= min_len
             then
+              let ct ← sched.cur_thread machineStoreInst s
               let index ← msg.syscall_arg machineStoreInst s ct buf 0#u64
               let depth ← msg.syscall_arg machineStoreInst s ct buf 1#u64
               let irq ← msg.syscall_arg machineStoreInst s ct buf 6#u64
@@ -17587,7 +17261,6 @@ def interrupt.decode_irq_control
                   ok (core.result.Result.Err (error.Exc.Sys
                     error.SysError.RevokeFirst), s, a)
                 else
-                  let vector ← irq1 + layout.irq.INT_OFFSET
                   let r ←
                     cspace.lookup_target_slot machineStoreInst s c index depth
                   let cf ← core.result.Result.Insts.CoreOpsTry.branch r
@@ -17599,112 +17272,40 @@ def interrupt.decode_irq_control
                     | core.ops.control_flow.ControlFlow.Continue _ =>
                       if lbl = fl4_abi.label.X86IRQIssueIRQHandlerMSI
                       then
-                        let bus ←
-                          msg.syscall_arg machineStoreInst s ct buf 2#u64
-                        let dev ←
-                          msg.syscall_arg machineStoreInst s ct buf 3#u64
-                        let func ←
-                          msg.syscall_arg machineStoreInst s ct buf 4#u64
-                        if bus > interrupt.PCI_BUS_MAX
-                        then
-                          let r2 ←
-                            error.range Unit 0#u64 interrupt.PCI_BUS_MAX
-                          ok (r2, s, a)
-                        else
-                          if dev > interrupt.PCI_DEV_MAX
-                          then
-                            let r2 ←
-                              error.range Unit 0#u64 interrupt.PCI_DEV_MAX
-                            ok (r2, s, a)
-                          else
-                            if func > interrupt.PCI_FUNC_MAX
-                            then
-                              let r2 ←
-                                error.range Unit 0#u64 interrupt.PCI_FUNC_MAX
-                              ok (r2, s, a)
-                            else
-                              let s1 ←
-                                sched.set_thread_state machineStoreInst s ct
-                                  sched.TS_RESTART
-                              let (s2, a1) ←
-                                interrupt.invoke_irq_control machineStoreInst
-                                  machineArchInst s1 a irq1 val src
-                              ok (core.result.Result.Ok (), s2, a1)
+                        let (r2, s1) ←
+                          interrupt.check_msi machineStoreInst s buf
+                        let cf2 ←
+                          core.result.Result.Insts.CoreOpsTry.branch r2
+                        match cf2 with
+                        | core.ops.control_flow.ControlFlow.Continue _ =>
+                          let (s2, a1) ←
+                            interrupt.invoke_irq_control machineStoreInst
+                              machineArchInst s1 a irq1 val src
+                          ok (core.result.Result.Ok (), s2, a1)
+                        | core.ops.control_flow.ControlFlow.Break residual =>
+                          let r3 ←
+                            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                              Unit (core.convert.FromSame error.Exc) residual
+                          ok (r3, s1, a)
                       else
-                        let ioapic ←
-                          msg.syscall_arg machineStoreInst s ct buf 2#u64
-                        let pin ←
-                          msg.syscall_arg machineStoreInst s ct buf 3#u64
-                        let level ←
-                          msg.syscall_arg machineStoreInst s ct buf 4#u64
-                        let polarity ←
-                          msg.syscall_arg machineStoreInst s ct buf 5#u64
-                        let n ← machineArchInst.num_ioapics a
-                        if n = 0#u64
-                        then let r2 ← error.illegal Unit
-                             ok (r2, s, a)
-                        else
-                          if ioapic >= n
-                          then
-                            let i2 ← n - 1#u64
-                            let r2 ← error.range Unit 0#u64 i2
-                            ok (r2, s, a)
-                          else
-                            let pins ← machineArchInst.ioapic_pins a ioapic
-                            if pin >= pins
-                            then
-                              let i2 ←
-                                lift (core.num.U64.wrapping_sub pins 1#u64)
-                              let r2 ← error.range Unit 0#u64 i2
-                              ok (r2, s, a)
-                            else
-                              if level > 1#u64
-                              then
-                                let r2 ← error.range Unit 0#u64 1#u64
-                                ok (r2, s, a)
-                              else
-                                if polarity > 1#u64
-                                then
-                                  let r2 ← error.range Unit 0#u64 1#u64
-                                  ok (r2, s, a)
-                                else
-                                  let handle ←
-                                    if lbl =
-                                      fl4_abi.label.X86IRQIssueIRQHandlerIOAPICRemapped
-                                    then
-                                      msg.syscall_arg machineStoreInst s ct buf
-                                        7#u64
-                                    else ok 0#u64
-                                  let i2 ← 1#u64 <<< 16#i32
-                                  if handle >= i2
-                                  then
-                                    let r2 ← error.range Unit 0#u64 65535#u64
-                                    ok (r2, s, a)
-                                  else
-                                    let s1 ←
-                                      sched.set_thread_state machineStoreInst s
-                                        ct sched.TS_RESTART
-                                    let a1 ←
-                                      if lbl =
-                                        fl4_abi.label.X86IRQIssueIRQHandlerIOAPICRemapped
-                                      then
-                                        do
-                                        let (_, a2) ←
-                                          machineArchInst.ioapic_map_remapped a
-                                            ioapic pin level polarity vector
-                                            handle
-                                        ok a2
-                                      else
-                                        do
-                                        let (_, a2) ←
-                                          machineArchInst.ioapic_map a ioapic
-                                            pin level polarity vector
-                                        ok a2
-                                    let (s2, a2) ←
-                                      interrupt.invoke_irq_control
-                                        machineStoreInst machineArchInst s1 a1
-                                        irq1 val src
-                                    ok (core.result.Result.Ok (), s2, a2)
+                        let i2 ← irq1 + layout.irq.INT_OFFSET
+                        let (r2, s1, a1) ←
+                          interrupt.map_ioapic machineStoreInst machineArchInst
+                            s a buf i2 (lbl =
+                            fl4_abi.label.X86IRQIssueIRQHandlerIOAPICRemapped)
+                        let cf2 ←
+                          core.result.Result.Insts.CoreOpsTry.branch r2
+                        match cf2 with
+                        | core.ops.control_flow.ControlFlow.Continue _ =>
+                          let (s2, a2) ←
+                            interrupt.invoke_irq_control machineStoreInst
+                              machineArchInst s1 a1 irq1 val src
+                          ok (core.result.Result.Ok (), s2, a2)
+                        | core.ops.control_flow.ControlFlow.Break residual =>
+                          let r3 ←
+                            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                              Unit (core.convert.FromSame error.Exc) residual
+                          ok (r3, s1, a1)
                     | core.ops.control_flow.ControlFlow.Break residual =>
                       let r2 ←
                         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
@@ -17731,6 +17332,7 @@ def interrupt.decode_irq_control
         | some c =>
           if length >= min_len
           then
+            let ct ← sched.cur_thread machineStoreInst s
             let index ← msg.syscall_arg machineStoreInst s ct buf 0#u64
             let depth ← msg.syscall_arg machineStoreInst s ct buf 1#u64
             let irq ← msg.syscall_arg machineStoreInst s ct buf 6#u64
@@ -17749,7 +17351,6 @@ def interrupt.decode_irq_control
                 ok (core.result.Result.Err (error.Exc.Sys
                   error.SysError.RevokeFirst), s, a)
               else
-                let vector ← irq1 + layout.irq.INT_OFFSET
                 let r ←
                   cspace.lookup_target_slot machineStoreInst s c index depth
                 let cf ← core.result.Result.Insts.CoreOpsTry.branch r
@@ -17761,111 +17362,38 @@ def interrupt.decode_irq_control
                   | core.ops.control_flow.ControlFlow.Continue _ =>
                     if lbl = fl4_abi.label.X86IRQIssueIRQHandlerMSI
                     then
-                      let bus ←
-                        msg.syscall_arg machineStoreInst s ct buf 2#u64
-                      let dev ←
-                        msg.syscall_arg machineStoreInst s ct buf 3#u64
-                      let func ←
-                        msg.syscall_arg machineStoreInst s ct buf 4#u64
-                      if bus > interrupt.PCI_BUS_MAX
-                      then
-                        let r2 ← error.range Unit 0#u64 interrupt.PCI_BUS_MAX
-                        ok (r2, s, a)
-                      else
-                        if dev > interrupt.PCI_DEV_MAX
-                        then
-                          let r2 ←
-                            error.range Unit 0#u64 interrupt.PCI_DEV_MAX
-                          ok (r2, s, a)
-                        else
-                          if func > interrupt.PCI_FUNC_MAX
-                          then
-                            let r2 ←
-                              error.range Unit 0#u64 interrupt.PCI_FUNC_MAX
-                            ok (r2, s, a)
-                          else
-                            let s1 ←
-                              sched.set_thread_state machineStoreInst s ct
-                                sched.TS_RESTART
-                            let (s2, a1) ←
-                              interrupt.invoke_irq_control machineStoreInst
-                                machineArchInst s1 a irq1 val src
-                            ok (core.result.Result.Ok (), s2, a1)
+                      let (r2, s1) ←
+                        interrupt.check_msi machineStoreInst s buf
+                      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+                      match cf2 with
+                      | core.ops.control_flow.ControlFlow.Continue _ =>
+                        let (s2, a1) ←
+                          interrupt.invoke_irq_control machineStoreInst
+                            machineArchInst s1 a irq1 val src
+                        ok (core.result.Result.Ok (), s2, a1)
+                      | core.ops.control_flow.ControlFlow.Break residual =>
+                        let r3 ←
+                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                            Unit (core.convert.FromSame error.Exc) residual
+                        ok (r3, s1, a)
                     else
-                      let ioapic ←
-                        msg.syscall_arg machineStoreInst s ct buf 2#u64
-                      let pin ←
-                        msg.syscall_arg machineStoreInst s ct buf 3#u64
-                      let level ←
-                        msg.syscall_arg machineStoreInst s ct buf 4#u64
-                      let polarity ←
-                        msg.syscall_arg machineStoreInst s ct buf 5#u64
-                      let n ← machineArchInst.num_ioapics a
-                      if n = 0#u64
-                      then let r2 ← error.illegal Unit
-                           ok (r2, s, a)
-                      else
-                        if ioapic >= n
-                        then
-                          let i2 ← n - 1#u64
-                          let r2 ← error.range Unit 0#u64 i2
-                          ok (r2, s, a)
-                        else
-                          let pins ← machineArchInst.ioapic_pins a ioapic
-                          if pin >= pins
-                          then
-                            let i2 ←
-                              lift (core.num.U64.wrapping_sub pins 1#u64)
-                            let r2 ← error.range Unit 0#u64 i2
-                            ok (r2, s, a)
-                          else
-                            if level > 1#u64
-                            then
-                              let r2 ← error.range Unit 0#u64 1#u64
-                              ok (r2, s, a)
-                            else
-                              if polarity > 1#u64
-                              then
-                                let r2 ← error.range Unit 0#u64 1#u64
-                                ok (r2, s, a)
-                              else
-                                let handle ←
-                                  if lbl =
-                                    fl4_abi.label.X86IRQIssueIRQHandlerIOAPICRemapped
-                                  then
-                                    msg.syscall_arg machineStoreInst s ct buf
-                                      7#u64
-                                  else ok 0#u64
-                                let i2 ← 1#u64 <<< 16#i32
-                                if handle >= i2
-                                then
-                                  let r2 ← error.range Unit 0#u64 65535#u64
-                                  ok (r2, s, a)
-                                else
-                                  let s1 ←
-                                    sched.set_thread_state machineStoreInst s
-                                      ct sched.TS_RESTART
-                                  let a1 ←
-                                    if lbl =
-                                      fl4_abi.label.X86IRQIssueIRQHandlerIOAPICRemapped
-                                    then
-                                      do
-                                      let (_, a2) ←
-                                        machineArchInst.ioapic_map_remapped a
-                                          ioapic pin level polarity vector
-                                          handle
-                                      ok a2
-                                    else
-                                      do
-                                      let (_, a2) ←
-                                        machineArchInst.ioapic_map a ioapic pin
-                                          level polarity vector
-                                      ok a2
-                                  let (s2, a2) ←
-                                    interrupt.invoke_irq_control
-                                      machineStoreInst machineArchInst s1 a1
-                                      irq1 val src
-                                  ok (core.result.Result.Ok (), s2, a2)
+                      let i2 ← irq1 + layout.irq.INT_OFFSET
+                      let (r2, s1, a1) ←
+                        interrupt.map_ioapic machineStoreInst machineArchInst s
+                          a buf i2 (lbl =
+                          fl4_abi.label.X86IRQIssueIRQHandlerIOAPICRemapped)
+                      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+                      match cf2 with
+                      | core.ops.control_flow.ControlFlow.Continue _ =>
+                        let (s2, a2) ←
+                          interrupt.invoke_irq_control machineStoreInst
+                            machineArchInst s1 a1 irq1 val src
+                        ok (core.result.Result.Ok (), s2, a2)
+                      | core.ops.control_flow.ControlFlow.Break residual =>
+                        let r3 ←
+                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                            Unit (core.convert.FromSame error.Exc) residual
+                        ok (r3, s1, a1)
                   | core.ops.control_flow.ControlFlow.Break residual =>
                     let r2 ←
                       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
@@ -17890,6 +17418,7 @@ def interrupt.decode_irq_control
       | some c =>
         if length >= min_len
         then
+          let ct ← sched.cur_thread machineStoreInst s
           let index ← msg.syscall_arg machineStoreInst s ct buf 0#u64
           let depth ← msg.syscall_arg machineStoreInst s ct buf 1#u64
           let irq ← msg.syscall_arg machineStoreInst s ct buf 6#u64
@@ -17908,7 +17437,6 @@ def interrupt.decode_irq_control
               ok (core.result.Result.Err (error.Exc.Sys
                 error.SysError.RevokeFirst), s, a)
             else
-              let vector ← irq1 + layout.irq.INT_OFFSET
               let r ←
                 cspace.lookup_target_slot machineStoreInst s c index depth
               let cf ← core.result.Result.Insts.CoreOpsTry.branch r
@@ -17920,105 +17448,37 @@ def interrupt.decode_irq_control
                 | core.ops.control_flow.ControlFlow.Continue _ =>
                   if lbl = fl4_abi.label.X86IRQIssueIRQHandlerMSI
                   then
-                    let bus ← msg.syscall_arg machineStoreInst s ct buf 2#u64
-                    let dev ← msg.syscall_arg machineStoreInst s ct buf 3#u64
-                    let func ←
-                      msg.syscall_arg machineStoreInst s ct buf 4#u64
-                    if bus > interrupt.PCI_BUS_MAX
-                    then
-                      let r2 ← error.range Unit 0#u64 interrupt.PCI_BUS_MAX
-                      ok (r2, s, a)
-                    else
-                      if dev > interrupt.PCI_DEV_MAX
-                      then
-                        let r2 ← error.range Unit 0#u64 interrupt.PCI_DEV_MAX
-                        ok (r2, s, a)
-                      else
-                        if func > interrupt.PCI_FUNC_MAX
-                        then
-                          let r2 ←
-                            error.range Unit 0#u64 interrupt.PCI_FUNC_MAX
-                          ok (r2, s, a)
-                        else
-                          let s1 ←
-                            sched.set_thread_state machineStoreInst s ct
-                              sched.TS_RESTART
-                          let (s2, a1) ←
-                            interrupt.invoke_irq_control machineStoreInst
-                              machineArchInst s1 a irq1 val src
-                          ok (core.result.Result.Ok (), s2, a1)
+                    let (r2, s1) ← interrupt.check_msi machineStoreInst s buf
+                    let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+                    match cf2 with
+                    | core.ops.control_flow.ControlFlow.Continue _ =>
+                      let (s2, a1) ←
+                        interrupt.invoke_irq_control machineStoreInst
+                          machineArchInst s1 a irq1 val src
+                      ok (core.result.Result.Ok (), s2, a1)
+                    | core.ops.control_flow.ControlFlow.Break residual =>
+                      let r3 ←
+                        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                          Unit (core.convert.FromSame error.Exc) residual
+                      ok (r3, s1, a)
                   else
-                    let ioapic ←
-                      msg.syscall_arg machineStoreInst s ct buf 2#u64
-                    let pin ← msg.syscall_arg machineStoreInst s ct buf 3#u64
-                    let level ←
-                      msg.syscall_arg machineStoreInst s ct buf 4#u64
-                    let polarity ←
-                      msg.syscall_arg machineStoreInst s ct buf 5#u64
-                    let n ← machineArchInst.num_ioapics a
-                    if n = 0#u64
-                    then let r2 ← error.illegal Unit
-                         ok (r2, s, a)
-                    else
-                      if ioapic >= n
-                      then
-                        let i2 ← n - 1#u64
-                        let r2 ← error.range Unit 0#u64 i2
-                        ok (r2, s, a)
-                      else
-                        let pins ← machineArchInst.ioapic_pins a ioapic
-                        if pin >= pins
-                        then
-                          let i2 ←
-                            lift (core.num.U64.wrapping_sub pins 1#u64)
-                          let r2 ← error.range Unit 0#u64 i2
-                          ok (r2, s, a)
-                        else
-                          if level > 1#u64
-                          then
-                            let r2 ← error.range Unit 0#u64 1#u64
-                            ok (r2, s, a)
-                          else
-                            if polarity > 1#u64
-                            then
-                              let r2 ← error.range Unit 0#u64 1#u64
-                              ok (r2, s, a)
-                            else
-                              let handle ←
-                                if lbl =
-                                  fl4_abi.label.X86IRQIssueIRQHandlerIOAPICRemapped
-                                then
-                                  msg.syscall_arg machineStoreInst s ct buf
-                                    7#u64
-                                else ok 0#u64
-                              let i2 ← 1#u64 <<< 16#i32
-                              if handle >= i2
-                              then
-                                let r2 ← error.range Unit 0#u64 65535#u64
-                                ok (r2, s, a)
-                              else
-                                let s1 ←
-                                  sched.set_thread_state machineStoreInst s ct
-                                    sched.TS_RESTART
-                                let a1 ←
-                                  if lbl =
-                                    fl4_abi.label.X86IRQIssueIRQHandlerIOAPICRemapped
-                                  then
-                                    do
-                                    let (_, a2) ←
-                                      machineArchInst.ioapic_map_remapped a
-                                        ioapic pin level polarity vector handle
-                                    ok a2
-                                  else
-                                    do
-                                    let (_, a2) ←
-                                      machineArchInst.ioapic_map a ioapic pin
-                                        level polarity vector
-                                    ok a2
-                                let (s2, a2) ←
-                                  interrupt.invoke_irq_control machineStoreInst
-                                    machineArchInst s1 a1 irq1 val src
-                                ok (core.result.Result.Ok (), s2, a2)
+                    let i2 ← irq1 + layout.irq.INT_OFFSET
+                    let (r2, s1, a1) ←
+                      interrupt.map_ioapic machineStoreInst machineArchInst s a
+                        buf i2 (lbl =
+                        fl4_abi.label.X86IRQIssueIRQHandlerIOAPICRemapped)
+                    let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+                    match cf2 with
+                    | core.ops.control_flow.ControlFlow.Continue _ =>
+                      let (s2, a2) ←
+                        interrupt.invoke_irq_control machineStoreInst
+                          machineArchInst s1 a1 irq1 val src
+                      ok (core.result.Result.Ok (), s2, a2)
+                    | core.ops.control_flow.ControlFlow.Break residual =>
+                      let r3 ←
+                        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                          Unit (core.convert.FromSame error.Exc) residual
+                      ok (r3, s1, a1)
                 | core.ops.control_flow.ControlFlow.Break residual =>
                   let r2 ←
                     core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
@@ -18033,7 +17493,7 @@ def interrupt.decode_irq_control
              ok (r, s, a)
 
 /-- [fl4_core::interrupt::decode_irq_handler]:
-    Source: 'crates/fl4-core/src/interrupt.rs', lines 160:0-189:1
+    Source: 'crates/fl4-core/src/interrupt.rs', lines 178:0-207:1
     Visibility: public -/
 def interrupt.decode_irq_handler
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -18250,7 +17710,7 @@ def notification.send_signal
 @[global_simps, irreducible] def layout.node.ARMED : Std.U64 := 80#u64
 
 /-- [fl4_core::interrupt::handle_interrupt]:
-    Source: 'crates/fl4-core/src/interrupt.rs', lines 201:0-224:1
+    Source: 'crates/fl4-core/src/interrupt.rs', lines 219:0-242:1
     Visibility: public -/
 def interrupt.handle_interrupt
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -22268,11 +21728,42 @@ def syscall.finish
   sched.activate_thread machineStoreInst machineArchInst s1 a1
 
 /-- [fl4_core::syscall::DEBUG_MESSAGE_START]
-    Source: 'crates/fl4-core/src/syscall.rs', lines 208:0-208:35 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 213:0-213:35 -/
 @[global_simps, irreducible] def syscall.DEBUG_MESSAGE_START : Std.U64 := 6#u64
 
+/-- [fl4_core::syscall::error_mrs]:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 61:0-76:1 -/
+def syscall.error_mrs
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
+  (buf : Std.U64) (e : error.SysError) :
+  Result (Std.U64 × S)
+  := do
+  match e with
+  | error.SysError.InvalidArgument arg =>
+    msg.set_mr machineStoreInst s t buf 0#u64 arg
+  | error.SysError.InvalidCapability arg =>
+    msg.set_mr machineStoreInst s t buf 0#u64 arg
+  | error.SysError.IllegalOperation => ok (0#u64, s)
+  | error.SysError.RangeError min max =>
+    let (_, s1) ← msg.set_mr machineStoreInst s t buf 0#u64 min
+    msg.set_mr machineStoreInst s1 t buf 1#u64 max
+  | error.SysError.AlignmentError => ok (0#u64, s)
+  | error.SysError.FailedLookup source lf =>
+    if source
+    then
+      let (_, s1) ← msg.set_mr machineStoreInst s t buf 0#u64 1#u64
+      faults.set_mrs_lookup_failure_at machineStoreInst s1 t buf lf 1#u64
+    else
+      let (_, s1) ← msg.set_mr machineStoreInst s t buf 0#u64 0#u64
+      faults.set_mrs_lookup_failure_at machineStoreInst s1 t buf lf 1#u64
+  | error.SysError.TruncatedMessage => ok (0#u64, s)
+  | error.SysError.DeleteFirst => ok (0#u64, s)
+  | error.SysError.RevokeFirst => ok (0#u64, s)
+  | error.SysError.NotEnoughMemory bytes =>
+    msg.set_mr machineStoreInst s t buf 0#u64 bytes
+
 /-- [fl4_core::syscall::reply_error]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 43:0-71:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 43:0-58:1 -/
 def syscall.reply_error
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
   (e : error.SysError) :
@@ -22280,44 +21771,7 @@ def syscall.reply_error
   := do
   let buf ← msg.lookup_ipc_buffer machineStoreInst s true t
   let s1 ← obj.Tcb.set_reg machineStoreInst t s layout.reg.BADGE 0#u64
-  let (s2, len) ←
-    match e with
-    | error.SysError.InvalidArgument arg =>
-      do
-      let (len1, s3) ← msg.set_mr machineStoreInst s1 t buf 0#u64 arg
-      ok (s3, len1)
-    | error.SysError.InvalidCapability arg =>
-      do
-      let (len1, s3) ← msg.set_mr machineStoreInst s1 t buf 0#u64 arg
-      ok (s3, len1)
-    | error.SysError.IllegalOperation => ok (s1, 0#u64)
-    | error.SysError.RangeError min max =>
-      do
-      let (_, s3) ← msg.set_mr machineStoreInst s1 t buf 0#u64 min
-      let (len1, s4) ← msg.set_mr machineStoreInst s3 t buf 1#u64 max
-      ok (s4, len1)
-    | error.SysError.AlignmentError => ok (s1, 0#u64)
-    | error.SysError.FailedLookup source lf =>
-      if source
-      then
-        do
-        let (_, s3) ← msg.set_mr machineStoreInst s1 t buf 0#u64 1#u64
-        let (len1, s4) ←
-          faults.set_mrs_lookup_failure_at machineStoreInst s3 t buf lf 1#u64
-        ok (s4, len1)
-      else
-        do
-        let (_, s3) ← msg.set_mr machineStoreInst s1 t buf 0#u64 0#u64
-        let (len1, s4) ←
-          faults.set_mrs_lookup_failure_at machineStoreInst s3 t buf lf 1#u64
-        ok (s4, len1)
-    | error.SysError.TruncatedMessage => ok (s1, 0#u64)
-    | error.SysError.DeleteFirst => ok (s1, 0#u64)
-    | error.SysError.RevokeFirst => ok (s1, 0#u64)
-    | error.SysError.NotEnoughMemory bytes =>
-      do
-      let (len1, s3) ← msg.set_mr machineStoreInst s1 t buf 0#u64 bytes
-      ok (s3, len1)
+  let (len, s2) ← syscall.error_mrs machineStoreInst s1 t buf e
   let (s3, len1) ←
     if fl4_abi.config.KERNEL_INVOCATION_REPORT_ERROR_IPC
     then
@@ -22329,7 +21783,7 @@ def syscall.reply_error
         let i1 ← lift (~~~ 255#u64)
         let i2 ← lift (w &&& i1)
         let s4 ← msg.buf_set machineStoreInst s2 buf i i2
-        let len2 ← len + 1#u64
+        let len2 ← lift (core.num.U64.wrapping_add len 1#u64)
         ok (s4, len2)
       else ok (s2, len)
     else ok (s2, len)
@@ -22338,7 +21792,7 @@ def syscall.reply_error
   msg.set_msg_info machineStoreInst s3 t mi
 
 /-- [fl4_core::vspace::with_mapping]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 709:0-717:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 783:0-791:1 -/
 def vspace.with_mapping
   (c : capability.Cap) (mapped : Bool) (asid : Std.U64) (vaddr : Std.U64) :
   Result capability.Cap
@@ -22382,6 +21836,28 @@ def vspace.failed_lookup
   := do
   ok (core.result.Result.Err (error.Exc.Sys (error.SysError.FailedLookup false
     lf)))
+
+/-- [fl4_core::vspace::table_entry_slot]:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 740:0-752:1 -/
+def vspace.table_entry_slot
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64)
+  (vaddr : Std.U64) (level : Std.U64) :
+  Result (core.result.Result Std.U64 error.Exc)
+  := do
+  let r ←
+    if level = 21#u64
+    then vspace.lookup_pd_slot machineStoreInst s root vaddr
+    else
+      if level = 30#u64
+      then vspace.lookup_pdpt_slot machineStoreInst s root vaddr
+      else
+        do
+        let i ← vspace.idx vaddr 39#u64
+        let i1 ← vspace.entry_addr root i
+        ok (core.result.Result.Ok i1)
+  match r with
+  | core.result.Result.Ok x => ok (core.result.Result.Ok x)
+  | core.result.Result.Err lf => vspace.failed_lookup Std.U64 lf
 
 /-- [fl4_core::vspace::check_vspace]:
     Source: 'crates/fl4-core/src/vspace.rs', lines 349:0-364:1 -/
@@ -22533,8 +22009,160 @@ def vspace.make_user_table
   let i7 ← vspace.P_PRESENT
   ok (i6 ||| i7)
 
+/-- [fl4_core::vspace::decode_table_map]:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 755:0-781:1 -/
+def vspace.decode_table_map
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64)
+  (slot : obj.Slot) (cap : capability.Cap) (level : Std.U64) (ptr : Std.U64)
+  (buf : Std.U64) (ex : Array obj.Slot 3#usize) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  let ct ← sched.cur_thread machineStoreInst s
+  let o ← vspace.extra ex 0#usize
+  match o with
+  | none => let r ← error.truncated Unit
+            ok (r, s, a)
+  | some x =>
+    if length >= 2#u64
+    then
+      let i ← msg.syscall_arg machineStoreInst s ct buf 0#u64
+      let i1 ← lift (level &&& 63#u64)
+      let i2 ← 1#u64 <<< i1
+      let i3 ← lift (core.num.U64.wrapping_sub i2 1#u64)
+      let i4 ← lift (~~~ i3)
+      let vaddr ← lift (i &&& i4)
+      let attr ← msg.syscall_arg machineStoreInst s ct buf 1#u64
+      let vcap ← obj.Slot.cap machineStoreInst x s
+      let b ← vspace.is_valid_vtable_root vcap
+      if b
+      then
+        if vaddr > fl4_abi.consts.USER_TOP
+        then let r ← error.invalid_arg Unit 0#u64
+             ok (r, s, a)
+        else
+          let r ← vspace.check_vspace machineStoreInst s vcap
+          let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+          match cf with
+          | core.ops.control_flow.ControlFlow.Continue val =>
+            let (root, asid) := val
+            let r1 ←
+              vspace.table_entry_slot machineStoreInst s root vaddr level
+            let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+            match cf1 with
+            | core.ops.control_flow.ControlFlow.Continue val1 =>
+              let i5 ← machineStoreInst.read s val1
+              let i6 ← vspace.P_PRESENT
+              let i7 ← lift (i5 &&& i6)
+              if i7 != 0#u64
+              then
+                ok (core.result.Result.Err (error.Exc.Sys
+                  error.SysError.DeleteFirst), s, a)
+              else
+                let i8 ← layout.paddr ptr
+                let e ← vspace.make_user_table i8 attr
+                let s1 ←
+                  sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
+                let c ← vspace.with_mapping cap true asid vaddr
+                let s2 ← obj.Slot.set_cap machineStoreInst slot s1 c
+                let s3 ← machineStoreInst.write s2 val1 e
+                let a1 ← machineArchInst.invalidate_page_structures a asid
+                ok (core.result.Result.Ok (), s3, a1)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r2 ←
+                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                  Unit (core.convert.FromSame error.Exc) residual
+              ok (r2, s, a)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r1 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                Unit (core.convert.FromSame error.Exc) residual
+            ok (r1, s, a)
+      else let r ← error.invalid_cap Unit 1#u64
+           ok (r, s, a)
+    else let r ← error.truncated Unit
+         ok (r, s, a)
+
+/-- [fl4_core::vspace::decode_table_unmap]:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 719:0-737:1 -/
+def vspace.decode_table_unmap
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot)
+  (cap : capability.Cap) (level : Std.U64) (ptr : Std.U64) (mapped : Bool)
+  (masid : Std.U64) (mvaddr : Std.U64) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  let b ← cdt.is_final_capability machineStoreInst s slot
+  if b
+  then
+    let ct ← sched.cur_thread machineStoreInst s
+    let s1 ← sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
+    let (s2, a1) ←
+      if mapped
+      then
+        do
+        let (s3, a2) ←
+          if level = 21#u64
+          then
+            vspace.unmap_page_table machineStoreInst machineArchInst s1 a masid
+              mvaddr ptr
+          else
+            if level = 30#u64
+            then
+              vspace.unmap_page_directory machineStoreInst machineArchInst s1 a
+                masid mvaddr ptr
+            else
+              vspace.unmap_pdpt machineStoreInst machineArchInst s1 a masid
+                mvaddr ptr
+        let s4 ← machineStoreInst.zero s3 ptr 4096#u64
+        ok (s4, a2)
+      else ok (s1, a)
+    let c ← vspace.with_mapping cap false masid mvaddr
+    let s3 ← obj.Slot.set_cap machineStoreInst slot s2 c
+    ok (core.result.Result.Ok (), s3, a1)
+  else
+    ok (core.result.Result.Err (error.Exc.Sys error.SysError.RevokeFirst), s,
+      a)
+
+/-- [fl4_core::vspace::as_table]:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 679:0-686:1 -/
+def vspace.as_table
+  (c : capability.Cap) :
+  Result (Option (Std.U64 × Std.U64 × Std.U64 × Std.U64 × Bool × Std.U64
+    × Std.U64))
+  := do
+  match c with
+  | capability.Cap.Null => ok none
+  | capability.Cap.Untyped _ _ _ _ => ok none
+  | capability.Cap.Endpoint _ _ _ _ _ _ => ok none
+  | capability.Cap.Notification _ _ _ _ => ok none
+  | capability.Cap.Reply _ _ => ok none
+  | capability.Cap.CNode _ _ _ _ => ok none
+  | capability.Cap.Thread _ => ok none
+  | capability.Cap.IrqControl => ok none
+  | capability.Cap.IrqHandler _ => ok none
+  | capability.Cap.Zombie _ _ _ => ok none
+  | capability.Cap.Domain => ok none
+  | capability.Cap.SchedContext _ _ => ok none
+  | capability.Cap.SchedControl _ => ok none
+  | capability.Cap.Frame _ _ _ _ _ _ _ => ok none
+  | capability.Cap.PageTable ptr mapped asid vaddr =>
+    ok (some (fl4_abi.label.X86PageTableMap, fl4_abi.label.X86PageTableUnmap,
+      21#u64, ptr, mapped, asid, vaddr))
+  | capability.Cap.PageDirectory ptr mapped asid vaddr =>
+    ok (some (fl4_abi.label.X86PageDirectoryMap,
+      fl4_abi.label.X86PageDirectoryUnmap, 30#u64, ptr, mapped, asid, vaddr))
+  | capability.Cap.Pdpt ptr mapped asid vaddr =>
+    ok (some (fl4_abi.label.X86PDPTMap, fl4_abi.label.X86PDPTUnmap, 39#u64,
+      ptr, mapped, asid, vaddr))
+  | capability.Cap.Pml4 _ _ _ => ok none
+  | capability.Cap.AsidControl => ok none
+  | capability.Cap.AsidPool _ _ => ok none
+  | capability.Cap.IoPortControl => ok none
+  | capability.Cap.IoPort _ _ => ok none
+
 /-- [fl4_core::vspace::decode_table]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 628:0-707:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 689:0-716:1 -/
 def vspace.decode_table
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64)
@@ -22542,554 +22170,52 @@ def vspace.decode_table
   (ex : Array obj.Slot 3#usize) :
   Result ((core.result.Result Unit error.Exc) × S × A)
   := do
-  let ct ← sched.cur_thread machineStoreInst s
-  match cap with
-  | capability.Cap.Null => let r ← error.illegal Unit
-                           ok (r, s, a)
-  | capability.Cap.Untyped _ _ _ _ => let r ← error.illegal Unit
-                                      ok (r, s, a)
-  | capability.Cap.Endpoint _ _ _ _ _ _ =>
-    let r ← error.illegal Unit
-    ok (r, s, a)
-  | capability.Cap.Notification _ _ _ _ =>
-    let r ← error.illegal Unit
-    ok (r, s, a)
-  | capability.Cap.Reply _ _ => let r ← error.illegal Unit
-                                ok (r, s, a)
-  | capability.Cap.CNode _ _ _ _ => let r ← error.illegal Unit
-                                    ok (r, s, a)
-  | capability.Cap.Thread _ => let r ← error.illegal Unit
-                               ok (r, s, a)
-  | capability.Cap.IrqControl => let r ← error.illegal Unit
-                                 ok (r, s, a)
-  | capability.Cap.IrqHandler _ => let r ← error.illegal Unit
-                                   ok (r, s, a)
-  | capability.Cap.Zombie _ _ _ => let r ← error.illegal Unit
-                                   ok (r, s, a)
-  | capability.Cap.Domain => let r ← error.illegal Unit
-                             ok (r, s, a)
-  | capability.Cap.SchedContext _ _ =>
-    let r ← error.illegal Unit
-    ok (r, s, a)
-  | capability.Cap.SchedControl _ => let r ← error.illegal Unit
-                                     ok (r, s, a)
-  | capability.Cap.Frame _ _ _ _ _ _ _ =>
-    let r ← error.illegal Unit
-    ok (r, s, a)
-  | capability.Cap.PageTable ptr mapped asid vaddr =>
-    if lbl = fl4_abi.label.X86PageTableUnmap
+  let o ← vspace.as_table cap
+  match o with
+  | none => let r ← error.illegal Unit
+            ok (r, s, a)
+  | some x =>
+    let (map_lbl, unmap_lbl, level, ptr, mapped, masid, mvaddr) := x
+    if lbl = unmap_lbl
     then
-      let b ← cdt.is_final_capability machineStoreInst s slot
-      if b
-      then
-        let s1 ←
-          sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
-        let (s2, a1) ←
-          if mapped
-          then
-            do
-            let (s3, a2) ←
-              if 21#u64 = 21#u64
-              then
-                vspace.unmap_page_table machineStoreInst machineArchInst s1 a
-                  asid vaddr ptr
-              else
-                if 21#u64 = 30#u64
-                then
-                  vspace.unmap_page_directory machineStoreInst machineArchInst
-                    s1 a asid vaddr ptr
-                else
-                  vspace.unmap_pdpt machineStoreInst machineArchInst s1 a asid
-                    vaddr ptr
-            let s4 ← machineStoreInst.zero s3 ptr 4096#u64
-            ok (s4, a2)
-          else ok (s1, a)
-        let c ← vspace.with_mapping cap false asid vaddr
-        let s3 ← obj.Slot.set_cap machineStoreInst slot s2 c
-        ok (core.result.Result.Ok (), s3, a1)
-      else
-        ok (core.result.Result.Err (error.Exc.Sys error.SysError.RevokeFirst),
-          s, a)
+      vspace.decode_table_unmap machineStoreInst machineArchInst s a slot cap
+        level ptr mapped masid mvaddr
     else
-      if lbl != fl4_abi.label.X86PageTableMap
-      then let r ← error.illegal Unit
-           ok (r, s, a)
-      else
-        let o ← vspace.extra ex 0#usize
-        match o with
-        | none => let r ← error.truncated Unit
-                  ok (r, s, a)
-        | some x =>
-          if length >= 2#u64
-          then
-            if mapped
-            then let r ← error.invalid_cap Unit 0#u64
-                 ok (r, s, a)
-            else
-              let i ← msg.syscall_arg machineStoreInst s ct buf 0#u64
-              let i1 ← lift (21#u64 &&& 63#u64)
-              let i2 ← 1#u64 <<< i1
-              let i3 ← i2 - 1#u64
-              let i4 ← lift (~~~ i3)
-              let vaddr1 ← lift (i &&& i4)
-              let attr ← msg.syscall_arg machineStoreInst s ct buf 1#u64
-              let vcap ← obj.Slot.cap machineStoreInst x s
-              let b ← vspace.is_valid_vtable_root vcap
-              if b
-              then
-                if vaddr1 > fl4_abi.consts.USER_TOP
-                then let r ← error.invalid_arg Unit 0#u64
-                     ok (r, s, a)
-                else
-                  let r ← vspace.check_vspace machineStoreInst s vcap
-                  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-                  match cf with
-                  | core.ops.control_flow.ControlFlow.Continue val =>
-                    let (root, asid1) := val
-                    if 21#u64 = 21#u64
-                    then
-                      let r1 ←
-                        vspace.lookup_pd_slot machineStoreInst s root vaddr1
-                      match r1 with
-                      | core.result.Result.Ok x1 =>
-                        let i5 ← machineStoreInst.read s x1
-                        let i6 ← vspace.P_PRESENT
-                        let i7 ← lift (i5 &&& i6)
-                        if i7 != 0#u64
-                        then
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            error.SysError.DeleteFirst), s, a)
-                        else
-                          let i8 ← layout.paddr ptr
-                          let e ← vspace.make_user_table i8 attr
-                          let s1 ←
-                            sched.set_thread_state machineStoreInst s ct
-                              sched.TS_RESTART
-                          let c ← vspace.with_mapping cap true asid1 vaddr1
-                          let s2 ←
-                            obj.Slot.set_cap machineStoreInst slot s1 c
-                          let s3 ← machineStoreInst.write s2 x1 e
-                          let a1 ←
-                            machineArchInst.invalidate_page_structures a asid1
-                          ok (core.result.Result.Ok (), s3, a1)
-                      | core.result.Result.Err lf =>
-                        let r2 ← vspace.failed_lookup Unit lf
-                        ok (r2, s, a)
-                    else
-                      if 21#u64 = 30#u64
-                      then
-                        let r1 ←
-                          vspace.lookup_pdpt_slot machineStoreInst s root
-                            vaddr1
-                        match r1 with
-                        | core.result.Result.Ok x1 =>
-                          let i5 ← machineStoreInst.read s x1
-                          let i6 ← vspace.P_PRESENT
-                          let i7 ← lift (i5 &&& i6)
-                          if i7 != 0#u64
-                          then
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              error.SysError.DeleteFirst), s, a)
-                          else
-                            let i8 ← layout.paddr ptr
-                            let e ← vspace.make_user_table i8 attr
-                            let s1 ←
-                              sched.set_thread_state machineStoreInst s ct
-                                sched.TS_RESTART
-                            let c ← vspace.with_mapping cap true asid1 vaddr1
-                            let s2 ←
-                              obj.Slot.set_cap machineStoreInst slot s1 c
-                            let s3 ← machineStoreInst.write s2 x1 e
-                            let a1 ←
-                              machineArchInst.invalidate_page_structures a
-                                asid1
-                            ok (core.result.Result.Ok (), s3, a1)
-                        | core.result.Result.Err lf =>
-                          let r2 ← vspace.failed_lookup Unit lf
-                          ok (r2, s, a)
-                      else
-                        let i5 ← vspace.idx vaddr1 39#u64
-                        let e_addr ← vspace.entry_addr root i5
-                        let i6 ← machineStoreInst.read s e_addr
-                        let i7 ← vspace.P_PRESENT
-                        let i8 ← lift (i6 &&& i7)
-                        if i8 != 0#u64
-                        then
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            error.SysError.DeleteFirst), s, a)
-                        else
-                          let i9 ← layout.paddr ptr
-                          let e ← vspace.make_user_table i9 attr
-                          let s1 ←
-                            sched.set_thread_state machineStoreInst s ct
-                              sched.TS_RESTART
-                          let c ← vspace.with_mapping cap true asid1 vaddr1
-                          let s2 ←
-                            obj.Slot.set_cap machineStoreInst slot s1 c
-                          let s3 ← machineStoreInst.write s2 e_addr e
-                          let a1 ←
-                            machineArchInst.invalidate_page_structures a asid1
-                          ok (core.result.Result.Ok (), s3, a1)
-                  | core.ops.control_flow.ControlFlow.Break residual =>
-                    let r1 ←
-                      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                        Unit (core.convert.FromSame error.Exc) residual
-                    ok (r1, s, a)
-              else let r ← error.invalid_cap Unit 1#u64
-                   ok (r, s, a)
-          else let r ← error.truncated Unit
-               ok (r, s, a)
-  | capability.Cap.PageDirectory ptr mapped asid vaddr =>
-    if lbl = fl4_abi.label.X86PageDirectoryUnmap
-    then
-      let b ← cdt.is_final_capability machineStoreInst s slot
-      if b
+      if lbl = map_lbl
       then
-        let s1 ←
-          sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
-        let (s2, a1) ←
-          if mapped
-          then
-            do
-            let (s3, a2) ←
-              if 30#u64 = 21#u64
-              then
-                vspace.unmap_page_table machineStoreInst machineArchInst s1 a
-                  asid vaddr ptr
-              else
-                if 30#u64 = 30#u64
-                then
-                  vspace.unmap_page_directory machineStoreInst machineArchInst
-                    s1 a asid vaddr ptr
-                else
-                  vspace.unmap_pdpt machineStoreInst machineArchInst s1 a asid
-                    vaddr ptr
-            let s4 ← machineStoreInst.zero s3 ptr 4096#u64
-            ok (s4, a2)
-          else ok (s1, a)
-        let c ← vspace.with_mapping cap false asid vaddr
-        let s3 ← obj.Slot.set_cap machineStoreInst slot s2 c
-        ok (core.result.Result.Ok (), s3, a1)
-      else
-        ok (core.result.Result.Err (error.Exc.Sys error.SysError.RevokeFirst),
-          s, a)
-    else
-      if lbl != fl4_abi.label.X86PageDirectoryMap
-      then let r ← error.illegal Unit
-           ok (r, s, a)
-      else
-        let o ← vspace.extra ex 0#usize
-        match o with
-        | none => let r ← error.truncated Unit
-                  ok (r, s, a)
-        | some x =>
-          if length >= 2#u64
-          then
-            if mapped
-            then let r ← error.invalid_cap Unit 0#u64
-                 ok (r, s, a)
-            else
-              let i ← msg.syscall_arg machineStoreInst s ct buf 0#u64
-              let i1 ← lift (30#u64 &&& 63#u64)
-              let i2 ← 1#u64 <<< i1
-              let i3 ← i2 - 1#u64
-              let i4 ← lift (~~~ i3)
-              let vaddr1 ← lift (i &&& i4)
-              let attr ← msg.syscall_arg machineStoreInst s ct buf 1#u64
-              let vcap ← obj.Slot.cap machineStoreInst x s
-              let b ← vspace.is_valid_vtable_root vcap
-              if b
-              then
-                if vaddr1 > fl4_abi.consts.USER_TOP
-                then let r ← error.invalid_arg Unit 0#u64
-                     ok (r, s, a)
-                else
-                  let r ← vspace.check_vspace machineStoreInst s vcap
-                  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-                  match cf with
-                  | core.ops.control_flow.ControlFlow.Continue val =>
-                    let (root, asid1) := val
-                    if 30#u64 = 21#u64
-                    then
-                      let r1 ←
-                        vspace.lookup_pd_slot machineStoreInst s root vaddr1
-                      match r1 with
-                      | core.result.Result.Ok x1 =>
-                        let i5 ← machineStoreInst.read s x1
-                        let i6 ← vspace.P_PRESENT
-                        let i7 ← lift (i5 &&& i6)
-                        if i7 != 0#u64
-                        then
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            error.SysError.DeleteFirst), s, a)
-                        else
-                          let i8 ← layout.paddr ptr
-                          let e ← vspace.make_user_table i8 attr
-                          let s1 ←
-                            sched.set_thread_state machineStoreInst s ct
-                              sched.TS_RESTART
-                          let c ← vspace.with_mapping cap true asid1 vaddr1
-                          let s2 ←
-                            obj.Slot.set_cap machineStoreInst slot s1 c
-                          let s3 ← machineStoreInst.write s2 x1 e
-                          let a1 ←
-                            machineArchInst.invalidate_page_structures a asid1
-                          ok (core.result.Result.Ok (), s3, a1)
-                      | core.result.Result.Err lf =>
-                        let r2 ← vspace.failed_lookup Unit lf
-                        ok (r2, s, a)
-                    else
-                      if 30#u64 = 30#u64
-                      then
-                        let r1 ←
-                          vspace.lookup_pdpt_slot machineStoreInst s root
-                            vaddr1
-                        match r1 with
-                        | core.result.Result.Ok x1 =>
-                          let i5 ← machineStoreInst.read s x1
-                          let i6 ← vspace.P_PRESENT
-                          let i7 ← lift (i5 &&& i6)
-                          if i7 != 0#u64
-                          then
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              error.SysError.DeleteFirst), s, a)
-                          else
-                            let i8 ← layout.paddr ptr
-                            let e ← vspace.make_user_table i8 attr
-                            let s1 ←
-                              sched.set_thread_state machineStoreInst s ct
-                                sched.TS_RESTART
-                            let c ← vspace.with_mapping cap true asid1 vaddr1
-                            let s2 ←
-                              obj.Slot.set_cap machineStoreInst slot s1 c
-                            let s3 ← machineStoreInst.write s2 x1 e
-                            let a1 ←
-                              machineArchInst.invalidate_page_structures a
-                                asid1
-                            ok (core.result.Result.Ok (), s3, a1)
-                        | core.result.Result.Err lf =>
-                          let r2 ← vspace.failed_lookup Unit lf
-                          ok (r2, s, a)
-                      else
-                        let i5 ← vspace.idx vaddr1 39#u64
-                        let e_addr ← vspace.entry_addr root i5
-                        let i6 ← machineStoreInst.read s e_addr
-                        let i7 ← vspace.P_PRESENT
-                        let i8 ← lift (i6 &&& i7)
-                        if i8 != 0#u64
-                        then
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            error.SysError.DeleteFirst), s, a)
-                        else
-                          let i9 ← layout.paddr ptr
-                          let e ← vspace.make_user_table i9 attr
-                          let s1 ←
-                            sched.set_thread_state machineStoreInst s ct
-                              sched.TS_RESTART
-                          let c ← vspace.with_mapping cap true asid1 vaddr1
-                          let s2 ←
-                            obj.Slot.set_cap machineStoreInst slot s1 c
-                          let s3 ← machineStoreInst.write s2 e_addr e
-                          let a1 ←
-                            machineArchInst.invalidate_page_structures a asid1
-                          ok (core.result.Result.Ok (), s3, a1)
-                  | core.ops.control_flow.ControlFlow.Break residual =>
-                    let r1 ←
-                      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                        Unit (core.convert.FromSame error.Exc) residual
-                    ok (r1, s, a)
-              else let r ← error.invalid_cap Unit 1#u64
-                   ok (r, s, a)
-          else let r ← error.truncated Unit
+        if mapped
+        then
+          let o1 ← vspace.extra ex 0#usize
+          let b := core.option.Option.is_none o1
+          if b
+          then let r ← error.truncated Unit
                ok (r, s, a)
-  | capability.Cap.Pdpt ptr mapped asid vaddr =>
-    if lbl = fl4_abi.label.X86PDPTUnmap
-    then
-      let b ← cdt.is_final_capability machineStoreInst s slot
-      if b
-      then
-        let s1 ←
-          sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
-        let (s2, a1) ←
-          if mapped
-          then
-            do
-            let (s3, a2) ←
-              if 39#u64 = 21#u64
-              then
-                vspace.unmap_page_table machineStoreInst machineArchInst s1 a
-                  asid vaddr ptr
-              else
-                if 39#u64 = 30#u64
-                then
-                  vspace.unmap_page_directory machineStoreInst machineArchInst
-                    s1 a asid vaddr ptr
-                else
-                  vspace.unmap_pdpt machineStoreInst machineArchInst s1 a asid
-                    vaddr ptr
-            let s4 ← machineStoreInst.zero s3 ptr 4096#u64
-            ok (s4, a2)
-          else ok (s1, a)
-        let c ← vspace.with_mapping cap false asid vaddr
-        let s3 ← obj.Slot.set_cap machineStoreInst slot s2 c
-        ok (core.result.Result.Ok (), s3, a1)
-      else
-        ok (core.result.Result.Err (error.Exc.Sys error.SysError.RevokeFirst),
-          s, a)
-    else
-      if lbl != fl4_abi.label.X86PDPTMap
-      then let r ← error.illegal Unit
-           ok (r, s, a)
-      else
-        let o ← vspace.extra ex 0#usize
-        match o with
-        | none => let r ← error.truncated Unit
-                  ok (r, s, a)
-        | some x =>
-          if length >= 2#u64
-          then
-            if mapped
-            then let r ← error.invalid_cap Unit 0#u64
+          else
+            if length < 2#u64
+            then let r ← error.truncated Unit
                  ok (r, s, a)
-            else
-              let i ← msg.syscall_arg machineStoreInst s ct buf 0#u64
-              let i1 ← lift (39#u64 &&& 63#u64)
-              let i2 ← 1#u64 <<< i1
-              let i3 ← i2 - 1#u64
-              let i4 ← lift (~~~ i3)
-              let vaddr1 ← lift (i &&& i4)
-              let attr ← msg.syscall_arg machineStoreInst s ct buf 1#u64
-              let vcap ← obj.Slot.cap machineStoreInst x s
-              let b ← vspace.is_valid_vtable_root vcap
-              if b
-              then
-                if vaddr1 > fl4_abi.consts.USER_TOP
-                then let r ← error.invalid_arg Unit 0#u64
-                     ok (r, s, a)
-                else
-                  let r ← vspace.check_vspace machineStoreInst s vcap
-                  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-                  match cf with
-                  | core.ops.control_flow.ControlFlow.Continue val =>
-                    let (root, asid1) := val
-                    if 39#u64 = 21#u64
-                    then
-                      let r1 ←
-                        vspace.lookup_pd_slot machineStoreInst s root vaddr1
-                      match r1 with
-                      | core.result.Result.Ok x1 =>
-                        let i5 ← machineStoreInst.read s x1
-                        let i6 ← vspace.P_PRESENT
-                        let i7 ← lift (i5 &&& i6)
-                        if i7 != 0#u64
-                        then
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            error.SysError.DeleteFirst), s, a)
-                        else
-                          let i8 ← layout.paddr ptr
-                          let e ← vspace.make_user_table i8 attr
-                          let s1 ←
-                            sched.set_thread_state machineStoreInst s ct
-                              sched.TS_RESTART
-                          let c ← vspace.with_mapping cap true asid1 vaddr1
-                          let s2 ←
-                            obj.Slot.set_cap machineStoreInst slot s1 c
-                          let s3 ← machineStoreInst.write s2 x1 e
-                          let a1 ←
-                            machineArchInst.invalidate_page_structures a asid1
-                          ok (core.result.Result.Ok (), s3, a1)
-                      | core.result.Result.Err lf =>
-                        let r2 ← vspace.failed_lookup Unit lf
-                        ok (r2, s, a)
-                    else
-                      if 39#u64 = 30#u64
-                      then
-                        let r1 ←
-                          vspace.lookup_pdpt_slot machineStoreInst s root
-                            vaddr1
-                        match r1 with
-                        | core.result.Result.Ok x1 =>
-                          let i5 ← machineStoreInst.read s x1
-                          let i6 ← vspace.P_PRESENT
-                          let i7 ← lift (i5 &&& i6)
-                          if i7 != 0#u64
-                          then
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              error.SysError.DeleteFirst), s, a)
-                          else
-                            let i8 ← layout.paddr ptr
-                            let e ← vspace.make_user_table i8 attr
-                            let s1 ←
-                              sched.set_thread_state machineStoreInst s ct
-                                sched.TS_RESTART
-                            let c ← vspace.with_mapping cap true asid1 vaddr1
-                            let s2 ←
-                              obj.Slot.set_cap machineStoreInst slot s1 c
-                            let s3 ← machineStoreInst.write s2 x1 e
-                            let a1 ←
-                              machineArchInst.invalidate_page_structures a
-                                asid1
-                            ok (core.result.Result.Ok (), s3, a1)
-                        | core.result.Result.Err lf =>
-                          let r2 ← vspace.failed_lookup Unit lf
-                          ok (r2, s, a)
-                      else
-                        let i5 ← vspace.idx vaddr1 39#u64
-                        let e_addr ← vspace.entry_addr root i5
-                        let i6 ← machineStoreInst.read s e_addr
-                        let i7 ← vspace.P_PRESENT
-                        let i8 ← lift (i6 &&& i7)
-                        if i8 != 0#u64
-                        then
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            error.SysError.DeleteFirst), s, a)
-                        else
-                          let i9 ← layout.paddr ptr
-                          let e ← vspace.make_user_table i9 attr
-                          let s1 ←
-                            sched.set_thread_state machineStoreInst s ct
-                              sched.TS_RESTART
-                          let c ← vspace.with_mapping cap true asid1 vaddr1
-                          let s2 ←
-                            obj.Slot.set_cap machineStoreInst slot s1 c
-                          let s3 ← machineStoreInst.write s2 e_addr e
-                          let a1 ←
-                            machineArchInst.invalidate_page_structures a asid1
-                          ok (core.result.Result.Ok (), s3, a1)
-                  | core.ops.control_flow.ControlFlow.Break residual =>
-                    let r1 ←
-                      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                        Unit (core.convert.FromSame error.Exc) residual
-                    ok (r1, s, a)
-              else let r ← error.invalid_cap Unit 1#u64
-                   ok (r, s, a)
-          else let r ← error.truncated Unit
-               ok (r, s, a)
-  | capability.Cap.Pml4 _ _ _ => let r ← error.illegal Unit
-                                 ok (r, s, a)
-  | capability.Cap.AsidControl => let r ← error.illegal Unit
-                                  ok (r, s, a)
-  | capability.Cap.AsidPool _ _ => let r ← error.illegal Unit
-                                   ok (r, s, a)
-  | capability.Cap.IoPortControl => let r ← error.illegal Unit
-                                    ok (r, s, a)
-  | capability.Cap.IoPort _ _ => let r ← error.illegal Unit
-                                 ok (r, s, a)
+            else let r ← error.invalid_cap Unit 0#u64
+                 ok (r, s, a)
+        else
+          vspace.decode_table_map machineStoreInst machineArchInst s a length
+            slot cap level ptr buf ex
+      else let r ← error.illegal Unit
+           ok (r, s, a)
 
-/-- [fl4_core::vspace::derive_subframe]: loop body 1:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 610:4-622:5 -/
+/-- [fl4_core::vspace::insert_subframes]: loop body 0:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 662:4-674:5 -/
 @[rust_loop_body]
-def vspace.derive_subframe_loop0_loop0.body
+def vspace.insert_subframes_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Slot)
-  (node_offset : Std.U64) (count : Std.U64) (dest : Std.U64) (vm : Std.U64)
-  (base : Std.U64) (s : S) (i : Std.U64) :
+  (dest : Std.U64) (first : Std.U64) (base : Std.U64) (count : Std.U64)
+  (vm : Std.U64) (s : S) (i : Std.U64) :
   Result (ControlFlow (S × Std.U64) S)
   := do
   if i < count
   then
     let i1 ← i <<< 12#i32
     let i2 ← lift (core.num.U64.wrapping_add base i1)
-    let i3 ← lift (core.num.U64.wrapping_add node_offset i)
+    let i3 ← lift (core.num.U64.wrapping_add first i)
     let s1 ← obj.Slot.index dest i3
     let s2 ←
       cdt.insert machineStoreInst s (capability.Cap.Frame i2
@@ -23098,33 +22224,43 @@ def vspace.derive_subframe_loop0_loop0.body
     ok (cont (s2, i4))
   else ok (done s)
 
-/-- [fl4_core::vspace::derive_subframe]: loop 1:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 610:4-622:5 -/
+/-- [fl4_core::vspace::insert_subframes]: loop 0:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 662:4-674:5 -/
 @[rust_loop]
-def vspace.derive_subframe_loop0_loop0
+def vspace.insert_subframes_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot)
-  (node_offset : Std.U64) (count : Std.U64) (dest : Std.U64) (vm : Std.U64)
-  (base : Std.U64) (i : Std.U64) :
+  (dest : Std.U64) (first : Std.U64) (base : Std.U64) (count : Std.U64)
+  (vm : Std.U64) (i : Std.U64) :
   Result S
   := do
   loop
-    (fun (s1, i1) => vspace.derive_subframe_loop0_loop0.body machineStoreInst
-      src node_offset count dest vm base s1 i1)
+    (fun (s1, i1) => vspace.insert_subframes_loop.body machineStoreInst src
+      dest first base count vm s1 i1)
     (s, i)
 
-/-- [fl4_core::vspace::derive_subframe]: loop body 0:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 601:4-624:1 -/
-@[rust_loop_body]
-def vspace.derive_subframe_loop0.body
+/-- [fl4_core::vspace::insert_subframes]:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 660:0-675:1 -/
+@[reducible]
+def vspace.insert_subframes
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot)
-  (buf : Std.U64) (ct : obj.Tcb) (ptr : Std.U64) (rights : Std.U64)
-  (node_offset : Std.U64) (offset : Std.U64) (count : Std.U64) (dest : Std.U64)
-  (i : Std.U64) :
-  Result (ControlFlow Std.U64 ((core.result.Result Unit error.Exc) × S))
+  (dest : Std.U64) (first : Std.U64) (base : Std.U64) (count : Std.U64)
+  (vm : Std.U64) :
+  Result S
+  := do
+  vspace.insert_subframes_loop machineStoreInst s src dest first base count vm
+    0#u64
+
+/-- [fl4_core::vspace::ensure_empty_run]: loop body 0:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 653:4-658:1 -/
+@[rust_loop_body]
+def vspace.ensure_empty_run_loop.body
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64)
+  (first : Std.U64) (count : Std.U64) (i : Std.U64) :
+  Result (ControlFlow Std.U64 (core.result.Result Unit error.Exc))
   := do
   if i < count
   then
-    let i1 ← lift (core.num.U64.wrapping_add node_offset i)
+    let i1 ← lift (core.num.U64.wrapping_add first i)
     let s1 ← obj.Slot.index dest i1
     let r ← cdt.ensure_empty_slot machineStoreInst s s1
     let cf ← core.result.Result.Insts.CoreOpsTry.branch r
@@ -23136,122 +22272,162 @@ def vspace.derive_subframe_loop0.body
       let r1 ←
         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
           Unit (core.convert.FromSame error.Exc) residual
-      ok (done (r1, s))
-  else
-    let mask ← msg.syscall_arg machineStoreInst s ct buf 5#u64
-    let r ← capability.Rights.from_word mask
-    let vm ← capability.mask_vm_rights rights r
-    let s1 ← sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
-    let base ← lift (core.num.U64.wrapping_add ptr offset)
-    let s2 ←
-      vspace.derive_subframe_loop0_loop0 machineStoreInst s1 src node_offset
-        count dest vm base 0#u64
-    ok (done (core.result.Result.Ok (), s2))
+      ok (done r1)
+  else ok (done (core.result.Result.Ok ()))
 
-/-- [fl4_core::vspace::derive_subframe]: loop 0:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 601:4-624:1 -/
+/-- [fl4_core::vspace::ensure_empty_run]: loop 0:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 653:4-658:1 -/
 @[rust_loop]
-def vspace.derive_subframe_loop0
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot)
-  (buf : Std.U64) (ct : obj.Tcb) (ptr : Std.U64) (rights : Std.U64)
-  (node_offset : Std.U64) (offset : Std.U64) (count : Std.U64) (dest : Std.U64)
-  (i : Std.U64) :
-  Result ((core.result.Result Unit error.Exc) × S)
+def vspace.ensure_empty_run_loop
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64)
+  (first : Std.U64) (count : Std.U64) (i : Std.U64) :
+  Result (core.result.Result Unit error.Exc)
   := do
   loop
-    (fun i1 => vspace.derive_subframe_loop0.body machineStoreInst s src buf ct
-      ptr rights node_offset offset count dest i1)
+    (fun i1 => vspace.ensure_empty_run_loop.body machineStoreInst s dest first
+      count i1)
     i
 
-/-- [fl4_core::vspace::derive_subframe]: loop body 3:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 610:4-622:5 -/
-@[rust_loop_body]
-def vspace.derive_subframe_loop1_loop0.body
-  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Slot)
-  (node_offset : Std.U64) (count : Std.U64) (dest : Std.U64) (vm : Std.U64)
-  (base : Std.U64) (s : S) (i : Std.U64) :
-  Result (ControlFlow (S × Std.U64) S)
+/-- [fl4_core::vspace::ensure_empty_run]:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 651:0-658:1 -/
+@[reducible]
+def vspace.ensure_empty_run
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64)
+  (first : Std.U64) (count : Std.U64) :
+  Result (core.result.Result Unit error.Exc)
   := do
-  if i < count
-  then
-    let i1 ← i <<< 12#i32
-    let i2 ← lift (core.num.U64.wrapping_add base i1)
-    let i3 ← lift (core.num.U64.wrapping_add node_offset i)
-    let s1 ← obj.Slot.index dest i3
-    let s2 ←
-      cdt.insert machineStoreInst s (capability.Cap.Frame i2
-        capability.FrameSize.Small vm false false 0#u64 0#u64) src s1
-    let i4 ← i + 1#u64
-    ok (cont (s2, i4))
-  else ok (done s)
+  vspace.ensure_empty_run_loop machineStoreInst s dest first count 0#u64
 
-/-- [fl4_core::vspace::derive_subframe]: loop 3:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 610:4-622:5 -/
-@[rust_loop]
-def vspace.derive_subframe_loop1_loop0
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot)
-  (node_offset : Std.U64) (count : Std.U64) (dest : Std.U64) (vm : Std.U64)
-  (base : Std.U64) (i : Std.U64) :
-  Result S
-  := do
-  loop
-    (fun (s1, i1) => vspace.derive_subframe_loop1_loop0.body machineStoreInst
-      src node_offset count dest vm base s1 i1)
-    (s, i)
+/-- [fl4_core::vspace::cnode_of]:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 590:0-595:1 -/
+def vspace.cnode_of
+  (c : capability.Cap) : Result (Option (Std.U64 × Std.U64)) := do
+  match c with
+  | capability.Cap.Null => ok none
+  | capability.Cap.Untyped _ _ _ _ => ok none
+  | capability.Cap.Endpoint _ _ _ _ _ _ => ok none
+  | capability.Cap.Notification _ _ _ _ => ok none
+  | capability.Cap.Reply _ _ => ok none
+  | capability.Cap.CNode ptr radix _ _ => ok (some (ptr, radix))
+  | capability.Cap.Thread _ => ok none
+  | capability.Cap.IrqControl => ok none
+  | capability.Cap.IrqHandler _ => ok none
+  | capability.Cap.Zombie _ _ _ => ok none
+  | capability.Cap.Domain => ok none
+  | capability.Cap.SchedContext _ _ => ok none
+  | capability.Cap.SchedControl _ => ok none
+  | capability.Cap.Frame _ _ _ _ _ _ _ => ok none
+  | capability.Cap.PageTable _ _ _ _ => ok none
+  | capability.Cap.PageDirectory _ _ _ _ => ok none
+  | capability.Cap.Pdpt _ _ _ _ => ok none
+  | capability.Cap.Pml4 _ _ _ => ok none
+  | capability.Cap.AsidControl => ok none
+  | capability.Cap.AsidPool _ _ => ok none
+  | capability.Cap.IoPortControl => ok none
+  | capability.Cap.IoPort _ _ => ok none
 
-/-- [fl4_core::vspace::derive_subframe]: loop body 2:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 601:4-624:1 -/
-@[rust_loop_body]
-def vspace.derive_subframe_loop1.body
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot)
-  (buf : Std.U64) (ct : obj.Tcb) (ptr : Std.U64) (rights : Std.U64)
-  (node_offset : Std.U64) (offset : Std.U64) (count : Std.U64) (dest : Std.U64)
-  (i : Std.U64) :
-  Result (ControlFlow Std.U64 ((core.result.Result Unit error.Exc) × S))
+/-- [fl4_core::vspace::subframe_dest]:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 632:0-649:1 -/
+def vspace.subframe_dest
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S)
+  (node_slot : obj.Slot) (node_index : Std.U64) (node_depth : Std.U64)
+  (node_offset : Std.U64) (count : Std.U64) :
+  Result (core.result.Result Std.U64 error.Exc)
   := do
-  if i < count
+  let node_cap ← obj.Slot.cap machineStoreInst node_slot s
+  if node_depth != 0#u64
   then
-    let i1 ← lift (core.num.U64.wrapping_add node_offset i)
-    let s1 ← obj.Slot.index dest i1
-    let r ← cdt.ensure_empty_slot machineStoreInst s s1
+    let r ←
+      cspace.lookup_target_slot machineStoreInst s node_cap node_index
+        node_depth
     let cf ← core.result.Result.Insts.CoreOpsTry.branch r
     match cf with
-    | core.ops.control_flow.ControlFlow.Continue _ =>
-      let i2 ← i + 1#u64
-      ok (cont i2)
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let node_cap1 ← obj.Slot.cap machineStoreInst val s
+      let o ← vspace.cnode_of node_cap1
+      match o with
+      | none =>
+        vspace.failed_lookup Std.U64 (error.LookupFault.MissingCapability
+          node_depth)
+      | some x =>
+        let (dest, radix) := x
+        let i ← lift (radix &&& 63#u64)
+        let node_size ← 1#u64 <<< i
+        let i1 ← lift (core.num.U64.wrapping_sub node_size 1#u64)
+        if node_offset > i1
+        then
+          let i2 ← lift (core.num.U64.wrapping_sub node_size 1#u64)
+          error.range Std.U64 0#u64 i2
+        else
+          let i2 ← lift (core.num.U64.wrapping_sub node_size node_offset)
+          if count > i2
+          then
+            let i3 ← lift (core.num.U64.wrapping_sub node_size node_offset)
+            error.range Std.U64 1#u64 i3
+          else ok (core.result.Result.Ok dest)
     | core.ops.control_flow.ControlFlow.Break residual =>
-      let r1 ←
-        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-          Unit (core.convert.FromSame error.Exc) residual
-      ok (done (r1, s))
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        Std.U64 (core.convert.FromSame error.Exc) residual
   else
-    let mask ← msg.syscall_arg machineStoreInst s ct buf 5#u64
-    let r ← capability.Rights.from_word mask
-    let vm ← capability.mask_vm_rights rights r
-    let s1 ← sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
-    let base ← lift (core.num.U64.wrapping_add ptr offset)
-    let s2 ←
-      vspace.derive_subframe_loop1_loop0 machineStoreInst s1 src node_offset
-        count dest vm base 0#u64
-    ok (done (core.result.Result.Ok (), s2))
+    let o ← vspace.cnode_of node_cap
+    match o with
+    | none =>
+      vspace.failed_lookup Std.U64 (error.LookupFault.MissingCapability
+        node_depth)
+    | some x =>
+      let (dest, radix) := x
+      let i ← lift (radix &&& 63#u64)
+      let node_size ← 1#u64 <<< i
+      let i1 ← lift (core.num.U64.wrapping_sub node_size 1#u64)
+      if node_offset > i1
+      then
+        let i2 ← lift (core.num.U64.wrapping_sub node_size 1#u64)
+        error.range Std.U64 0#u64 i2
+      else
+        let i2 ← lift (core.num.U64.wrapping_sub node_size node_offset)
+        if count > i2
+        then
+          let i3 ← lift (core.num.U64.wrapping_sub node_size node_offset)
+          error.range Std.U64 1#u64 i3
+        else ok (core.result.Result.Ok dest)
 
-/-- [fl4_core::vspace::derive_subframe]: loop 2:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 601:4-624:1 -/
-@[rust_loop]
-def vspace.derive_subframe_loop1
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot)
-  (buf : Std.U64) (ct : obj.Tcb) (ptr : Std.U64) (rights : Std.U64)
-  (node_offset : Std.U64) (offset : Std.U64) (count : Std.U64) (dest : Std.U64)
-  (i : Std.U64) :
-  Result ((core.result.Result Unit error.Exc) × S)
-  := do
-  loop
-    (fun i1 => vspace.derive_subframe_loop1.body machineStoreInst s src buf ct
-      ptr rights node_offset offset count dest i1)
-    i
+/-- [fl4_core::vspace::large_ram_frame]:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 582:0-587:1 -/
+def vspace.large_ram_frame
+  (c : capability.Cap) : Result (Option (Std.U64 × Std.U64)) := do
+  match c with
+  | capability.Cap.Null => ok none
+  | capability.Cap.Untyped _ _ _ _ => ok none
+  | capability.Cap.Endpoint _ _ _ _ _ _ => ok none
+  | capability.Cap.Notification _ _ _ _ => ok none
+  | capability.Cap.Reply _ _ => ok none
+  | capability.Cap.CNode _ _ _ _ => ok none
+  | capability.Cap.Thread _ => ok none
+  | capability.Cap.IrqControl => ok none
+  | capability.Cap.IrqHandler _ => ok none
+  | capability.Cap.Zombie _ _ _ => ok none
+  | capability.Cap.Domain => ok none
+  | capability.Cap.SchedContext _ _ => ok none
+  | capability.Cap.SchedControl _ => ok none
+  | capability.Cap.Frame ptr fs rights b _ _ _ =>
+    match fs with
+    | capability.FrameSize.Small => ok none
+    | capability.FrameSize.Large =>
+      if b
+      then ok none
+      else ok (some (ptr, rights))
+    | capability.FrameSize.Huge => ok none
+  | capability.Cap.PageTable _ _ _ _ => ok none
+  | capability.Cap.PageDirectory _ _ _ _ => ok none
+  | capability.Cap.Pdpt _ _ _ _ => ok none
+  | capability.Cap.Pml4 _ _ _ => ok none
+  | capability.Cap.AsidControl => ok none
+  | capability.Cap.AsidPool _ _ => ok none
+  | capability.Cap.IoPortControl => ok none
+  | capability.Cap.IoPort _ _ => ok none
 
 /-- [fl4_core::vspace::derive_subframe]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 562:0-624:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 598:0-628:1 -/
 def vspace.derive_subframe
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64)
@@ -23267,368 +22443,262 @@ def vspace.derive_subframe
   | some x =>
     if length >= 6#u64
     then
-      match cap with
-      | capability.Cap.Null => let r ← error.illegal Unit
-                               ok (r, s, a)
-      | capability.Cap.Untyped _ _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s, a)
-      | capability.Cap.Endpoint _ _ _ _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s, a)
-      | capability.Cap.Notification _ _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s, a)
-      | capability.Cap.Reply _ _ => let r ← error.illegal Unit
-                                    ok (r, s, a)
-      | capability.Cap.CNode _ _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s, a)
-      | capability.Cap.Thread _ => let r ← error.illegal Unit
-                                   ok (r, s, a)
-      | capability.Cap.IrqControl => let r ← error.illegal Unit
-                                     ok (r, s, a)
-      | capability.Cap.IrqHandler _ =>
-        let r ← error.illegal Unit
-        ok (r, s, a)
-      | capability.Cap.Zombie _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s, a)
-      | capability.Cap.Domain => let r ← error.illegal Unit
-                                 ok (r, s, a)
-      | capability.Cap.SchedContext _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s, a)
-      | capability.Cap.SchedControl _ =>
-        let r ← error.illegal Unit
-        ok (r, s, a)
-      | capability.Cap.Frame ptr fs rights b _ _ _ =>
-        match fs with
-        | capability.FrameSize.Small =>
-          let r ← error.illegal Unit
-          ok (r, s, a)
-        | capability.FrameSize.Large =>
-          if b
-          then let r ← error.illegal Unit
+      let o1 ← vspace.large_ram_frame cap
+      match o1 with
+      | none => let r ← error.illegal Unit
+                ok (r, s, a)
+      | some x1 =>
+        let (ptr, rights) := x1
+        let node_index ← msg.syscall_arg machineStoreInst s ct buf 0#u64
+        let node_depth ← msg.syscall_arg machineStoreInst s ct buf 1#u64
+        let node_offset ← msg.syscall_arg machineStoreInst s ct buf 2#u64
+        let offset ← msg.syscall_arg machineStoreInst s ct buf 3#u64
+        let count ← msg.syscall_arg machineStoreInst s ct buf 4#u64
+        let i ← 1#u64 <<< 21#i32
+        if offset >= i
+        then let r ← error.invalid_arg Unit 3#u64
+             ok (r, s, a)
+        else
+          let i1 ← lift (offset &&& 4095#u64)
+          if i1 != 0#u64
+          then let r ← error.invalid_arg Unit 3#u64
                ok (r, s, a)
           else
-            let node_index ← msg.syscall_arg machineStoreInst s ct buf 0#u64
-            let node_depth ← msg.syscall_arg machineStoreInst s ct buf 1#u64
-            let node_offset ← msg.syscall_arg machineStoreInst s ct buf 2#u64
-            let offset ← msg.syscall_arg machineStoreInst s ct buf 3#u64
-            let count ← msg.syscall_arg machineStoreInst s ct buf 4#u64
-            let i ← 1#u64 <<< 21#i32
-            if offset >= i
-            then let r ← error.invalid_arg Unit 3#u64
+            let i2 ← i - offset
+            let max ← i2 >>> 12#i32
+            if count < 1#u64
+            then let r ← error.range Unit 1#u64 max
                  ok (r, s, a)
             else
-              let i1 ← lift (offset &&& 4095#u64)
-              if i1 != 0#u64
-              then let r ← error.invalid_arg Unit 3#u64
+              if count > max
+              then let r ← error.range Unit 1#u64 max
                    ok (r, s, a)
               else
-                let i2 ← i - offset
-                let max ← i2 >>> 12#i32
-                if count < 1#u64
-                then let r ← error.range Unit 1#u64 max
-                     ok (r, s, a)
-                else
-                  if count > max
-                  then let r ← error.range Unit 1#u64 max
-                       ok (r, s, a)
-                  else
-                    let node_cap ← obj.Slot.cap machineStoreInst x s
-                    if node_depth != 0#u64
-                    then
-                      let r ←
-                        cspace.lookup_target_slot machineStoreInst s node_cap
-                          node_index node_depth
-                      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-                      match cf with
-                      | core.ops.control_flow.ControlFlow.Continue val =>
-                        let node_cap1 ← obj.Slot.cap machineStoreInst val s
-                        match node_cap1 with
-                        | capability.Cap.Null =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.Untyped _ _ _ _ =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.Notification _ _ _ _ =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.Reply _ _ =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.CNode ptr1 radix _ _ =>
-                          let i3 ← lift (radix &&& 63#u64)
-                          let node_size ← 1#u64 <<< i3
-                          let i4 ← node_size - 1#u64
-                          if node_offset > i4
-                          then
-                            let r1 ← error.range Unit 0#u64 i4
-                            ok (r1, s, a)
-                          else
-                            let i5 ← node_size - node_offset
-                            if count > i5
-                            then
-                              let r1 ← error.range Unit 1#u64 i5
-                              ok (r1, s, a)
-                            else
-                              let (r1, s1) ←
-                                vspace.derive_subframe_loop0 machineStoreInst s
-                                  src buf ct ptr rights node_offset offset
-                                  count ptr1 0#u64
-                              ok (r1, s1, a)
-                        | capability.Cap.Thread _ =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.IrqControl =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.IrqHandler _ =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.Zombie _ _ _ =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.Domain =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.SchedContext _ _ =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.SchedControl _ =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.PageTable _ _ _ _ =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.PageDirectory _ _ _ _ =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.Pdpt _ _ _ _ =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.Pml4 _ _ _ =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.AsidControl =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.AsidPool _ _ =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.IoPortControl =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                        | capability.Cap.IoPort _ _ =>
-                          let r1 ←
-                            vspace.failed_lookup Unit
-                              (error.LookupFault.MissingCapability node_depth)
-                          ok (r1, s, a)
-                      | core.ops.control_flow.ControlFlow.Break residual =>
-                        let r1 ←
-                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                            Unit (core.convert.FromSame error.Exc) residual
-                        ok (r1, s, a)
-                    else
-                      match node_cap with
-                      | capability.Cap.Null =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.Untyped _ _ _ _ =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.Notification _ _ _ _ =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.Reply _ _ =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.CNode ptr1 radix _ _ =>
-                        let i3 ← lift (radix &&& 63#u64)
-                        let node_size ← 1#u64 <<< i3
-                        let i4 ← node_size - 1#u64
-                        if node_offset > i4
-                        then let r ← error.range Unit 0#u64 i4
-                             ok (r, s, a)
-                        else
-                          let i5 ← node_size - node_offset
-                          if count > i5
-                          then let r ← error.range Unit 1#u64 i5
-                               ok (r, s, a)
-                          else
-                            let (r, s1) ←
-                              vspace.derive_subframe_loop1 machineStoreInst s
-                                src buf ct ptr rights node_offset offset count
-                                ptr1 0#u64
-                            ok (r, s1, a)
-                      | capability.Cap.Thread _ =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.IrqControl =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.IrqHandler _ =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.Zombie _ _ _ =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.Domain =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.SchedContext _ _ =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.SchedControl _ =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.PageTable _ _ _ _ =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.PageDirectory _ _ _ _ =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.Pdpt _ _ _ _ =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.Pml4 _ _ _ =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.AsidControl =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.AsidPool _ _ =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.IoPortControl =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-                      | capability.Cap.IoPort _ _ =>
-                        let r ←
-                          vspace.failed_lookup Unit
-                            (error.LookupFault.MissingCapability node_depth)
-                        ok (r, s, a)
-        | capability.FrameSize.Huge =>
-          let r ← error.illegal Unit
-          ok (r, s, a)
-      | capability.Cap.PageTable _ _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s, a)
-      | capability.Cap.PageDirectory _ _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s, a)
-      | capability.Cap.Pdpt _ _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s, a)
-      | capability.Cap.Pml4 _ _ _ => let r ← error.illegal Unit
-                                     ok (r, s, a)
-      | capability.Cap.AsidControl => let r ← error.illegal Unit
-                                      ok (r, s, a)
-      | capability.Cap.AsidPool _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s, a)
-      | capability.Cap.IoPortControl =>
-        let r ← error.illegal Unit
-        ok (r, s, a)
-      | capability.Cap.IoPort _ _ => let r ← error.illegal Unit
-                                     ok (r, s, a)
+                let r ←
+                  vspace.subframe_dest machineStoreInst s x node_index
+                    node_depth node_offset count
+                let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+                match cf with
+                | core.ops.control_flow.ControlFlow.Continue val =>
+                  let r1 ←
+                    vspace.ensure_empty_run machineStoreInst s val node_offset
+                      count
+                  let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+                  match cf1 with
+                  | core.ops.control_flow.ControlFlow.Continue _ =>
+                    let mask ←
+                      msg.syscall_arg machineStoreInst s ct buf 5#u64
+                    let r2 ← capability.Rights.from_word mask
+                    let vm ← capability.mask_vm_rights rights r2
+                    let s1 ←
+                      sched.set_thread_state machineStoreInst s ct
+                        sched.TS_RESTART
+                    let i3 ← lift (core.num.U64.wrapping_add ptr offset)
+                    let s2 ←
+                      vspace.insert_subframes machineStoreInst s1 src val
+                        node_offset i3 count vm
+                    ok (core.result.Result.Ok (), s2, a)
+                  | core.ops.control_flow.ControlFlow.Break residual =>
+                    let r2 ←
+                      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                        Unit (core.convert.FromSame error.Exc) residual
+                    ok (r2, s, a)
+                | core.ops.control_flow.ControlFlow.Break residual =>
+                  let r1 ←
+                    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                      Unit (core.convert.FromSame error.Exc) residual
+                  ok (r1, s, a)
     else let r ← error.truncated Unit
          ok (r, s, a)
+
+/-- [fl4_core::vspace::mapped_entry]:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 547:0-560:1 -/
+def vspace.mapped_entry
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S)
+  (f : vspace.FrameCap) (root : Std.U64) :
+  Result (Option Std.U64)
+  := do
+  let pa ← layout.paddr f.ptr
+  let large ←
+    match f.size with
+    | capability.FrameSize.Small => ok false
+    | capability.FrameSize.Large => ok true
+    | capability.FrameSize.Huge => ok false
+  let r ←
+    if large
+    then vspace.lookup_pd_slot machineStoreInst s root f.vaddr
+    else vspace.lookup_pt_slot machineStoreInst s root f.vaddr
+  match r with
+  | core.result.Result.Ok x =>
+    let e ← machineStoreInst.read s x
+    let i ← vspace.P_PRESENT
+    let i1 ← lift (e &&& i)
+    if i1 = 0#u64
+    then ok none
+    else
+      if large
+      then
+        let i2 ← vspace.P_PS
+        let i3 ← lift (e &&& i2)
+        if i3 = 0#u64
+        then ok none
+        else
+          let i4 ← lift (e &&& vspace.ADDR_MASK)
+          if i4 != pa
+          then ok none
+          else ok (some x)
+      else
+        let i2 ← lift (e &&& vspace.ADDR_MASK)
+        if i2 != pa
+        then ok none
+        else ok (some x)
+  | core.result.Result.Err _ => ok none
+
+/-- [fl4_core::vspace::reply1]:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 370:0-378:1 -/
+def vspace.reply1
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
+  (call : Bool) (v : Std.U64) :
+  Result S
+  := do
+  let s1 ←
+    if call
+    then
+      do
+      let buf ← msg.lookup_ipc_buffer machineStoreInst s true t
+      let s2 ← obj.Tcb.set_reg machineStoreInst t s layout.reg.BADGE 0#u64
+      let (n, s3) ← msg.set_mr machineStoreInst s2 t buf 0#u64 v
+      let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 n
+      msg.set_msg_info machineStoreInst s3 t mi
+    else ok s
+  sched.set_thread_state machineStoreInst s1 t sched.TS_RUNNING
+
+/-- [fl4_core::vspace::P_ACCESSED]
+    Source: 'crates/fl4-core/src/vspace.rs', lines 24:0-24:31 -/
+@[global_simps, irreducible]
+def vspace.P_ACCESSED : Result Std.U64 := 1#u64 <<< 5#i32
+
+/-- [fl4_core::vspace::decode_test_and_clear_accessed]:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 562:0-579:1 -/
+def vspace.decode_test_and_clear_accessed
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S)
+  (f : vspace.FrameCap) (call : Bool) :
+  Result ((core.result.Result Unit error.Exc) × S)
+  := do
+  let (fs, b) ←
+    match f.size with
+    | capability.FrameSize.Small => ok (capability.FrameSize.Small, false)
+    | capability.FrameSize.Large => ok (capability.FrameSize.Large, false)
+    | capability.FrameSize.Huge => ok (capability.FrameSize.Huge, true)
+  if b
+  then let r ← error.illegal Unit
+       ok (r, s)
+  else
+    if f.mapped
+    then
+      if f.asid = 0#u64
+      then let r ← error.illegal Unit
+           ok (r, s)
+      else
+        let r ← vspace.find_vspace_for_asid machineStoreInst s f.asid
+        match r with
+        | core.result.Result.Ok r1 =>
+          let o ←
+            vspace.mapped_entry machineStoreInst s { f with size := fs } r1
+          match o with
+          | none => let r2 ← error.invalid_cap Unit 0#u64
+                    ok (r2, s)
+          | some x =>
+            let ct ← sched.cur_thread machineStoreInst s
+            let old ← machineStoreInst.read s x
+            let i ← vspace.P_ACCESSED
+            let i1 ← lift (~~~ i)
+            let i2 ← lift (old &&& i1)
+            let s1 ← machineStoreInst.write s x i2
+            let i3 ← lift (old &&& i)
+            if i3 != 0#u64
+            then
+              let s2 ← vspace.reply1 machineStoreInst s1 ct call 1#u64
+              ok (core.result.Result.Ok (), s2)
+            else
+              let s2 ← vspace.reply1 machineStoreInst s1 ct call 0#u64
+              ok (core.result.Result.Ok (), s2)
+        | core.result.Result.Err _ =>
+          let r1 ← error.invalid_cap Unit 0#u64
+          ok (r1, s)
+    else let r ← error.illegal Unit
+         ok (r, s)
+
+/-- [fl4_core::vspace::page_entry_slot]:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 527:0-544:1 -/
+def vspace.page_entry_slot
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64)
+  (vaddr : Std.U64) (size : capability.FrameSize) :
+  Result (core.result.Result Std.U64 error.Exc)
+  := do
+  let r ←
+    match size with
+    | capability.FrameSize.Small =>
+      vspace.lookup_pt_slot machineStoreInst s root vaddr
+    | capability.FrameSize.Large =>
+      vspace.lookup_pd_slot machineStoreInst s root vaddr
+    | capability.FrameSize.Huge =>
+      vspace.lookup_pdpt_slot machineStoreInst s root vaddr
+  match r with
+  | core.result.Result.Ok x =>
+    let b ←
+      match size with
+      | capability.FrameSize.Small => ok true
+      | capability.FrameSize.Large => ok false
+      | capability.FrameSize.Huge => ok false
+    if b
+    then ok (core.result.Result.Ok x)
+    else
+      let old ← machineStoreInst.read s x
+      let i ← vspace.P_PRESENT
+      let i1 ← lift (old &&& i)
+      if i1 != 0#u64
+      then
+        let i2 ← vspace.P_PS
+        let i3 ← lift (old &&& i2)
+        if i3 = 0#u64
+        then
+          ok (core.result.Result.Err (error.Exc.Sys
+            error.SysError.DeleteFirst))
+        else ok (core.result.Result.Ok x)
+      else ok (core.result.Result.Ok x)
+  | core.result.Result.Err lf => vspace.failed_lookup Std.U64 lf
+
+/-- [fl4_core::vspace::mapped_root]:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 475:0-480:1 -/
+def vspace.mapped_root
+  (c : capability.Cap) : Result (Option (Std.U64 × Std.U64)) := do
+  match c with
+  | capability.Cap.Null => ok none
+  | capability.Cap.Untyped _ _ _ _ => ok none
+  | capability.Cap.Endpoint _ _ _ _ _ _ => ok none
+  | capability.Cap.Notification _ _ _ _ => ok none
+  | capability.Cap.Reply _ _ => ok none
+  | capability.Cap.CNode _ _ _ _ => ok none
+  | capability.Cap.Thread _ => ok none
+  | capability.Cap.IrqControl => ok none
+  | capability.Cap.IrqHandler _ => ok none
+  | capability.Cap.Zombie _ _ _ => ok none
+  | capability.Cap.Domain => ok none
+  | capability.Cap.SchedContext _ _ => ok none
+  | capability.Cap.SchedControl _ => ok none
+  | capability.Cap.Frame _ _ _ _ _ _ _ => ok none
+  | capability.Cap.PageTable _ _ _ _ => ok none
+  | capability.Cap.PageDirectory _ _ _ _ => ok none
+  | capability.Cap.Pdpt _ _ _ _ => ok none
+  | capability.Cap.Pml4 ptr b asid =>
+    if b
+    then ok (some (ptr, asid))
+    else ok none
+  | capability.Cap.AsidControl => ok none
+  | capability.Cap.AsidPool _ _ => ok none
+  | capability.Cap.IoPortControl => ok none
+  | capability.Cap.IoPort _ _ => ok none
 
 /-- [fl4_core::vspace::P_PAT_LARGE]
     Source: 'crates/fl4-core/src/vspace.rs', lines 27:0-27:33 -/
@@ -23741,25 +22811,6 @@ def vspace.write_mapping
       else let a1 ← machineArchInst.invalidate_asid a asid
            ok (s1, a1)
 
-/-- [fl4_core::vspace::reply1]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 370:0-378:1 -/
-def vspace.reply1
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
-  (call : Bool) (v : Std.U64) :
-  Result S
-  := do
-  let s1 ←
-    if call
-    then
-      do
-      let buf ← msg.lookup_ipc_buffer machineStoreInst s true t
-      let s2 ← obj.Tcb.set_reg machineStoreInst t s layout.reg.BADGE 0#u64
-      let (n, s3) ← msg.set_mr machineStoreInst s2 t buf 0#u64 v
-      let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 n
-      msg.set_msg_info machineStoreInst s3 t mi
-    else ok s
-  sched.set_thread_state machineStoreInst s1 t sched.TS_RUNNING
-
 /-- [fl4_core::vspace::nx_enabled]:
     Source: 'crates/fl4-core/src/vspace.rs', lines 40:0-42:1 -/
 def vspace.nx_enabled
@@ -23823,13 +22874,268 @@ def vspace.make_user_page
   let i11 ← vspace.xd_bit machineStoreInst s attr
   ok (i10 ||| i11)
 
-/-- [fl4_core::vspace::P_ACCESSED]
-    Source: 'crates/fl4-core/src/vspace.rs', lines 24:0-24:31 -/
-@[global_simps, irreducible]
-def vspace.P_ACCESSED : Result Std.U64 := 1#u64 <<< 5#i32
+/-- [fl4_core::vspace::decode_page_map]:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 482:0-523:1 -/
+def vspace.decode_page_map
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64)
+  (slot : obj.Slot) (f : vspace.FrameCap) (buf : Std.U64)
+  (ex : Array obj.Slot 3#usize) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  let ct ← sched.cur_thread machineStoreInst s
+  let o ← vspace.extra ex 0#usize
+  match o with
+  | none => let r ← error.truncated Unit
+            ok (r, s, a)
+  | some x =>
+    if length >= 3#u64
+    then
+      let vaddr ← msg.syscall_arg machineStoreInst s ct buf 0#u64
+      let rights_mask ← msg.syscall_arg machineStoreInst s ct buf 1#u64
+      let raw_attr ← msg.syscall_arg machineStoreInst s ct buf 2#u64
+      let i ← lift (raw_attr &&& fl4_abi.consts.vm_attr.DEFER_FLUSH)
+      let i1 ← lift (~~~ fl4_abi.consts.vm_attr.DEFER_FLUSH)
+      let attr ← lift (raw_attr &&& i1)
+      let vcap ← obj.Slot.cap machineStoreInst x s
+      let o1 ← vspace.mapped_root vcap
+      match o1 with
+      | none => let r ← error.invalid_cap Unit 1#u64
+                ok (r, s, a)
+      | some x1 =>
+        let (root, asid) := x1
+        if f.mapped
+        then
+          if f.asid != 0#u64
+          then
+            if f.asid != asid
+            then let r ← error.invalid_cap Unit 1#u64
+                 ok (r, s, a)
+            else
+              if f.vaddr != vaddr
+              then let r ← error.invalid_arg Unit 0#u64
+                   ok (r, s, a)
+              else
+                let r ← vspace.check_vspace machineStoreInst s vcap
+                let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+                match cf with
+                | core.ops.control_flow.ControlFlow.Continue _ =>
+                  let r1 ← capability.Rights.from_word rights_mask
+                  let vm ← capability.mask_vm_rights f.rights r1
+                  let i2 ← capability.FrameSize.bits f.size
+                  let i3 ← lift (i2 &&& 63#u64)
+                  let i4 ← 1#u64 <<< i3
+                  let i5 ← lift (core.num.U64.wrapping_sub i4 1#u64)
+                  let i6 ← lift (vaddr &&& i5)
+                  if i6 != 0#u64
+                  then
+                    ok (core.result.Result.Err (error.Exc.Sys
+                      error.SysError.AlignmentError), s, a)
+                  else
+                    let (fs, b) ←
+                      match f.size with
+                      | capability.FrameSize.Small =>
+                        ok (capability.FrameSize.Small, true)
+                      | capability.FrameSize.Large =>
+                        ok (capability.FrameSize.Large, false)
+                      | capability.FrameSize.Huge =>
+                        ok (capability.FrameSize.Huge, false)
+                    let r2 ←
+                      vspace.page_entry_slot machineStoreInst s root vaddr fs
+                    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r2
+                    match cf1 with
+                    | core.ops.control_flow.ControlFlow.Continue val =>
+                      let i7 ← layout.paddr f.ptr
+                      let e ←
+                        vspace.make_user_page machineStoreInst s i7 attr vm (¬
+                          b)
+                      let s1 ←
+                        sched.set_thread_state machineStoreInst s ct
+                          sched.TS_RESTART
+                      let s2 ←
+                        obj.Slot.set_cap machineStoreInst slot s1
+                          (capability.Cap.Frame f.ptr fs f.rights f.is_device
+                          true asid vaddr)
+                      let (s3, a1) ←
+                        vspace.write_mapping machineStoreInst machineArchInst
+                          s2 a val e asid vaddr (i != 0#u64)
+                      ok (core.result.Result.Ok (), s3, a1)
+                    | core.ops.control_flow.ControlFlow.Break residual =>
+                      let r3 ←
+                        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                          Unit (core.convert.FromSame error.Exc) residual
+                      ok (r3, s, a)
+                | core.ops.control_flow.ControlFlow.Break residual =>
+                  let r1 ←
+                    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                      Unit (core.convert.FromSame error.Exc) residual
+                  ok (r1, s, a)
+          else
+            let i2 ← capability.FrameSize.bits f.size
+            let i3 ← lift (i2 &&& 63#u64)
+            let i4 ← 1#u64 <<< i3
+            let vtop ← lift (core.num.U64.wrapping_add vaddr i4)
+            if vaddr > fl4_abi.consts.USER_TOP
+            then let r ← error.invalid_arg Unit 0#u64
+                 ok (r, s, a)
+            else
+              if vtop > fl4_abi.consts.USER_TOP
+              then let r ← error.invalid_arg Unit 0#u64
+                   ok (r, s, a)
+              else
+                let r ← vspace.check_vspace machineStoreInst s vcap
+                let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+                match cf with
+                | core.ops.control_flow.ControlFlow.Continue _ =>
+                  let r1 ← capability.Rights.from_word rights_mask
+                  let vm ← capability.mask_vm_rights f.rights r1
+                  let i5 ← lift (i2 &&& 63#u64)
+                  let i6 ← 1#u64 <<< i5
+                  let i7 ← lift (core.num.U64.wrapping_sub i6 1#u64)
+                  let i8 ← lift (vaddr &&& i7)
+                  if i8 != 0#u64
+                  then
+                    ok (core.result.Result.Err (error.Exc.Sys
+                      error.SysError.AlignmentError), s, a)
+                  else
+                    let (fs, b) ←
+                      match f.size with
+                      | capability.FrameSize.Small =>
+                        ok (capability.FrameSize.Small, true)
+                      | capability.FrameSize.Large =>
+                        ok (capability.FrameSize.Large, false)
+                      | capability.FrameSize.Huge =>
+                        ok (capability.FrameSize.Huge, false)
+                    let r2 ←
+                      vspace.page_entry_slot machineStoreInst s root vaddr fs
+                    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r2
+                    match cf1 with
+                    | core.ops.control_flow.ControlFlow.Continue val =>
+                      let i9 ← layout.paddr f.ptr
+                      let e ←
+                        vspace.make_user_page machineStoreInst s i9 attr vm (¬
+                          b)
+                      let s1 ←
+                        sched.set_thread_state machineStoreInst s ct
+                          sched.TS_RESTART
+                      let s2 ←
+                        obj.Slot.set_cap machineStoreInst slot s1
+                          (capability.Cap.Frame f.ptr fs f.rights f.is_device
+                          true asid vaddr)
+                      let (s3, a1) ←
+                        vspace.write_mapping machineStoreInst machineArchInst
+                          s2 a val e asid vaddr (i != 0#u64)
+                      ok (core.result.Result.Ok (), s3, a1)
+                    | core.ops.control_flow.ControlFlow.Break residual =>
+                      let r3 ←
+                        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                          Unit (core.convert.FromSame error.Exc) residual
+                      ok (r3, s, a)
+                | core.ops.control_flow.ControlFlow.Break residual =>
+                  let r1 ←
+                    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                      Unit (core.convert.FromSame error.Exc) residual
+                  ok (r1, s, a)
+        else
+          let i2 ← capability.FrameSize.bits f.size
+          let i3 ← lift (i2 &&& 63#u64)
+          let i4 ← 1#u64 <<< i3
+          let vtop ← lift (core.num.U64.wrapping_add vaddr i4)
+          if vaddr > fl4_abi.consts.USER_TOP
+          then let r ← error.invalid_arg Unit 0#u64
+               ok (r, s, a)
+          else
+            if vtop > fl4_abi.consts.USER_TOP
+            then let r ← error.invalid_arg Unit 0#u64
+                 ok (r, s, a)
+            else
+              let r ← vspace.check_vspace machineStoreInst s vcap
+              let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+              match cf with
+              | core.ops.control_flow.ControlFlow.Continue _ =>
+                let r1 ← capability.Rights.from_word rights_mask
+                let vm ← capability.mask_vm_rights f.rights r1
+                let i5 ← lift (i2 &&& 63#u64)
+                let i6 ← 1#u64 <<< i5
+                let i7 ← lift (core.num.U64.wrapping_sub i6 1#u64)
+                let i8 ← lift (vaddr &&& i7)
+                if i8 != 0#u64
+                then
+                  ok (core.result.Result.Err (error.Exc.Sys
+                    error.SysError.AlignmentError), s, a)
+                else
+                  let (fs, b) ←
+                    match f.size with
+                    | capability.FrameSize.Small =>
+                      ok (capability.FrameSize.Small, true)
+                    | capability.FrameSize.Large =>
+                      ok (capability.FrameSize.Large, false)
+                    | capability.FrameSize.Huge =>
+                      ok (capability.FrameSize.Huge, false)
+                  let r2 ←
+                    vspace.page_entry_slot machineStoreInst s root vaddr fs
+                  let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r2
+                  match cf1 with
+                  | core.ops.control_flow.ControlFlow.Continue val =>
+                    let i9 ← layout.paddr f.ptr
+                    let e ←
+                      vspace.make_user_page machineStoreInst s i9 attr vm (¬
+                        b)
+                    let s1 ←
+                      sched.set_thread_state machineStoreInst s ct
+                        sched.TS_RESTART
+                    let s2 ←
+                      obj.Slot.set_cap machineStoreInst slot s1
+                        (capability.Cap.Frame f.ptr fs f.rights f.is_device
+                        true asid vaddr)
+                    let (s3, a1) ←
+                      vspace.write_mapping machineStoreInst machineArchInst s2
+                        a val e asid vaddr (i != 0#u64)
+                    ok (core.result.Result.Ok (), s3, a1)
+                  | core.ops.control_flow.ControlFlow.Break residual =>
+                    let r3 ←
+                      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                        Unit (core.convert.FromSame error.Exc) residual
+                    ok (r3, s, a)
+              | core.ops.control_flow.ControlFlow.Break residual =>
+                let r1 ←
+                  core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                    Unit (core.convert.FromSame error.Exc) residual
+                ok (r1, s, a)
+    else let r ← error.truncated Unit
+         ok (r, s, a)
+
+/-- [fl4_core::vspace::as_frame]:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 428:0-433:1 -/
+def vspace.as_frame
+  (c : capability.Cap) : Result (Option vspace.FrameCap) := do
+  match c with
+  | capability.Cap.Null => ok none
+  | capability.Cap.Untyped _ _ _ _ => ok none
+  | capability.Cap.Endpoint _ _ _ _ _ _ => ok none
+  | capability.Cap.Notification _ _ _ _ => ok none
+  | capability.Cap.Reply _ _ => ok none
+  | capability.Cap.CNode _ _ _ _ => ok none
+  | capability.Cap.Thread _ => ok none
+  | capability.Cap.IrqControl => ok none
+  | capability.Cap.IrqHandler _ => ok none
+  | capability.Cap.Zombie _ _ _ => ok none
+  | capability.Cap.Domain => ok none
+  | capability.Cap.SchedContext _ _ => ok none
+  | capability.Cap.SchedControl _ => ok none
+  | capability.Cap.Frame ptr size rights is_device mapped asid vaddr =>
+    ok (some { ptr, size, rights, is_device, mapped, asid, vaddr })
+  | capability.Cap.PageTable _ _ _ _ => ok none
+  | capability.Cap.PageDirectory _ _ _ _ => ok none
+  | capability.Cap.Pdpt _ _ _ _ => ok none
+  | capability.Cap.Pml4 _ _ _ => ok none
+  | capability.Cap.AsidControl => ok none
+  | capability.Cap.AsidPool _ _ => ok none
+  | capability.Cap.IoPortControl => ok none
+  | capability.Cap.IoPort _ _ => ok none
 
 /-- [fl4_core::vspace::decode_frame]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 416:0-559:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 435:0-472:1 -/
 def vspace.decode_frame
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64)
@@ -23837,785 +23143,49 @@ def vspace.decode_frame
   (buf : Std.U64) (ex : Array obj.Slot 3#usize) :
   Result ((core.result.Result Unit error.Exc) × S × A)
   := do
-  let ct ← sched.cur_thread machineStoreInst s
-  match cap with
-  | capability.Cap.Null => let r ← error.illegal Unit
-                           ok (r, s, a)
-  | capability.Cap.Untyped _ _ _ _ => let r ← error.illegal Unit
-                                      ok (r, s, a)
-  | capability.Cap.Endpoint _ _ _ _ _ _ =>
-    let r ← error.illegal Unit
-    ok (r, s, a)
-  | capability.Cap.Notification _ _ _ _ =>
-    let r ← error.illegal Unit
-    ok (r, s, a)
-  | capability.Cap.Reply _ _ => let r ← error.illegal Unit
-                                ok (r, s, a)
-  | capability.Cap.CNode _ _ _ _ => let r ← error.illegal Unit
-                                    ok (r, s, a)
-  | capability.Cap.Thread _ => let r ← error.illegal Unit
-                               ok (r, s, a)
-  | capability.Cap.IrqControl => let r ← error.illegal Unit
-                                 ok (r, s, a)
-  | capability.Cap.IrqHandler _ => let r ← error.illegal Unit
-                                   ok (r, s, a)
-  | capability.Cap.Zombie _ _ _ => let r ← error.illegal Unit
-                                   ok (r, s, a)
-  | capability.Cap.Domain => let r ← error.illegal Unit
-                             ok (r, s, a)
-  | capability.Cap.SchedContext _ _ =>
-    let r ← error.illegal Unit
-    ok (r, s, a)
-  | capability.Cap.SchedControl _ => let r ← error.illegal Unit
-                                     ok (r, s, a)
-  | capability.Cap.Frame ptr size rights is_device mapped asid vaddr =>
+  let o ← vspace.as_frame cap
+  match o with
+  | none => let r ← error.illegal Unit
+            ok (r, s, a)
+  | some f =>
     if lbl = fl4_abi.label.X86PageMap
     then
-      let o ← vspace.extra ex 0#usize
-      match o with
-      | none => let r ← error.truncated Unit
-                ok (r, s, a)
-      | some x =>
-        if length >= 3#u64
-        then
-          let vaddr1 ← msg.syscall_arg machineStoreInst s ct buf 0#u64
-          let rights_mask ← msg.syscall_arg machineStoreInst s ct buf 1#u64
-          let raw_attr ← msg.syscall_arg machineStoreInst s ct buf 2#u64
-          let i ← lift (raw_attr &&& fl4_abi.consts.vm_attr.DEFER_FLUSH)
-          let i1 ← lift (~~~ fl4_abi.consts.vm_attr.DEFER_FLUSH)
-          let attr ← lift (raw_attr &&& i1)
-          let vcap ← obj.Slot.cap machineStoreInst x s
-          match vcap with
-          | capability.Cap.Null =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.Untyped _ _ _ _ =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.Endpoint _ _ _ _ _ _ =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.Notification _ _ _ _ =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.Reply _ _ =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.CNode _ _ _ _ =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.Thread _ =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.IrqControl =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.IrqHandler _ =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.Zombie _ _ _ =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.Domain =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.SchedContext _ _ =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.SchedControl _ =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.Frame _ _ _ _ _ _ _ =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.PageTable _ _ _ _ =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.PageDirectory _ _ _ _ =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.Pdpt _ _ _ _ =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.Pml4 ptr1 b asid1 =>
-            if b
-            then
-              if mapped
-              then
-                if asid != 0#u64
-                then
-                  if asid != asid1
-                  then let r ← error.invalid_cap Unit 1#u64
-                       ok (r, s, a)
-                  else
-                    if vaddr != vaddr1
-                    then let r ← error.invalid_arg Unit 0#u64
-                         ok (r, s, a)
-                    else
-                      let r ← vspace.check_vspace machineStoreInst s vcap
-                      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-                      match cf with
-                      | core.ops.control_flow.ControlFlow.Continue _ =>
-                        let r1 ← capability.Rights.from_word rights_mask
-                        let vm ← capability.mask_vm_rights rights r1
-                        let i2 ← capability.FrameSize.bits size
-                        let i3 ← lift (i2 &&& 63#u64)
-                        let i4 ← 1#u64 <<< i3
-                        let i5 ← lift (core.num.U64.wrapping_sub i4 1#u64)
-                        let i6 ← lift (vaddr1 &&& i5)
-                        if i6 != 0#u64
-                        then
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            error.SysError.AlignmentError), s, a)
-                        else
-                          let paddr ← layout.paddr ptr
-                          match size with
-                          | capability.FrameSize.Small =>
-                            let r2 ←
-                              vspace.lookup_pt_slot machineStoreInst s ptr1
-                                vaddr1
-                            match r2 with
-                            | core.result.Result.Ok x1 =>
-                              let e ←
-                                vspace.make_user_page machineStoreInst s paddr
-                                  attr vm false
-                              let s1 ←
-                                sched.set_thread_state machineStoreInst s ct
-                                  sched.TS_RESTART
-                              let s2 ←
-                                obj.Slot.set_cap machineStoreInst slot s1
-                                  (capability.Cap.Frame ptr size rights
-                                  is_device true asid1 vaddr1)
-                              let (s3, a1) ←
-                                vspace.write_mapping machineStoreInst
-                                  machineArchInst s2 a x1 e asid1 vaddr1 (i !=
-                                  0#u64)
-                              ok (core.result.Result.Ok (), s3, a1)
-                            | core.result.Result.Err lf =>
-                              let r3 ← vspace.failed_lookup Unit lf
-                              ok (r3, s, a)
-                          | capability.FrameSize.Large =>
-                            let r2 ←
-                              vspace.lookup_pd_slot machineStoreInst s ptr1
-                                vaddr1
-                            match r2 with
-                            | core.result.Result.Ok x1 =>
-                              let old ← machineStoreInst.read s x1
-                              let i7 ← vspace.P_PRESENT
-                              let i8 ← lift (old &&& i7)
-                              if i8 != 0#u64
-                              then
-                                let i9 ← vspace.P_PS
-                                let i10 ← lift (old &&& i9)
-                                if i10 = 0#u64
-                                then
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    error.SysError.DeleteFirst), s, a)
-                                else
-                                  let e ←
-                                    vspace.make_user_page machineStoreInst s
-                                      paddr attr vm true
-                                  let s1 ←
-                                    sched.set_thread_state machineStoreInst s
-                                      ct sched.TS_RESTART
-                                  let s2 ←
-                                    obj.Slot.set_cap machineStoreInst slot s1
-                                      (capability.Cap.Frame ptr size rights
-                                      is_device true asid1 vaddr1)
-                                  let (s3, a1) ←
-                                    vspace.write_mapping machineStoreInst
-                                      machineArchInst s2 a x1 e asid1 vaddr1 (i
-                                      != 0#u64)
-                                  ok (core.result.Result.Ok (), s3, a1)
-                              else
-                                let e ←
-                                  vspace.make_user_page machineStoreInst s
-                                    paddr attr vm true
-                                let s1 ←
-                                  sched.set_thread_state machineStoreInst s ct
-                                    sched.TS_RESTART
-                                let s2 ←
-                                  obj.Slot.set_cap machineStoreInst slot s1
-                                    (capability.Cap.Frame ptr size rights
-                                    is_device true asid1 vaddr1)
-                                let (s3, a1) ←
-                                  vspace.write_mapping machineStoreInst
-                                    machineArchInst s2 a x1 e asid1 vaddr1 (i
-                                    != 0#u64)
-                                ok (core.result.Result.Ok (), s3, a1)
-                            | core.result.Result.Err lf =>
-                              let r3 ← vspace.failed_lookup Unit lf
-                              ok (r3, s, a)
-                          | capability.FrameSize.Huge =>
-                            let r2 ←
-                              vspace.lookup_pdpt_slot machineStoreInst s ptr1
-                                vaddr1
-                            match r2 with
-                            | core.result.Result.Ok x1 =>
-                              let old ← machineStoreInst.read s x1
-                              let i7 ← vspace.P_PRESENT
-                              let i8 ← lift (old &&& i7)
-                              if i8 != 0#u64
-                              then
-                                let i9 ← vspace.P_PS
-                                let i10 ← lift (old &&& i9)
-                                if i10 = 0#u64
-                                then
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    error.SysError.DeleteFirst), s, a)
-                                else
-                                  let e ←
-                                    vspace.make_user_page machineStoreInst s
-                                      paddr attr vm true
-                                  let s1 ←
-                                    sched.set_thread_state machineStoreInst s
-                                      ct sched.TS_RESTART
-                                  let s2 ←
-                                    obj.Slot.set_cap machineStoreInst slot s1
-                                      (capability.Cap.Frame ptr size rights
-                                      is_device true asid1 vaddr1)
-                                  let (s3, a1) ←
-                                    vspace.write_mapping machineStoreInst
-                                      machineArchInst s2 a x1 e asid1 vaddr1 (i
-                                      != 0#u64)
-                                  ok (core.result.Result.Ok (), s3, a1)
-                              else
-                                let e ←
-                                  vspace.make_user_page machineStoreInst s
-                                    paddr attr vm true
-                                let s1 ←
-                                  sched.set_thread_state machineStoreInst s ct
-                                    sched.TS_RESTART
-                                let s2 ←
-                                  obj.Slot.set_cap machineStoreInst slot s1
-                                    (capability.Cap.Frame ptr size rights
-                                    is_device true asid1 vaddr1)
-                                let (s3, a1) ←
-                                  vspace.write_mapping machineStoreInst
-                                    machineArchInst s2 a x1 e asid1 vaddr1 (i
-                                    != 0#u64)
-                                ok (core.result.Result.Ok (), s3, a1)
-                            | core.result.Result.Err lf =>
-                              let r3 ← vspace.failed_lookup Unit lf
-                              ok (r3, s, a)
-                      | core.ops.control_flow.ControlFlow.Break residual =>
-                        let r1 ←
-                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                            Unit (core.convert.FromSame error.Exc) residual
-                        ok (r1, s, a)
-                else
-                  let i2 ← capability.FrameSize.bits size
-                  let i3 ← lift (i2 &&& 63#u64)
-                  let i4 ← 1#u64 <<< i3
-                  let vtop ← lift (core.num.U64.wrapping_add vaddr1 i4)
-                  if vaddr1 > fl4_abi.consts.USER_TOP
-                  then let r ← error.invalid_arg Unit 0#u64
-                       ok (r, s, a)
-                  else
-                    if vtop > fl4_abi.consts.USER_TOP
-                    then let r ← error.invalid_arg Unit 0#u64
-                         ok (r, s, a)
-                    else
-                      let r ← vspace.check_vspace machineStoreInst s vcap
-                      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-                      match cf with
-                      | core.ops.control_flow.ControlFlow.Continue _ =>
-                        let r1 ← capability.Rights.from_word rights_mask
-                        let vm ← capability.mask_vm_rights rights r1
-                        let i5 ← lift (i2 &&& 63#u64)
-                        let i6 ← 1#u64 <<< i5
-                        let i7 ← lift (core.num.U64.wrapping_sub i6 1#u64)
-                        let i8 ← lift (vaddr1 &&& i7)
-                        if i8 != 0#u64
-                        then
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            error.SysError.AlignmentError), s, a)
-                        else
-                          let paddr ← layout.paddr ptr
-                          match size with
-                          | capability.FrameSize.Small =>
-                            let r2 ←
-                              vspace.lookup_pt_slot machineStoreInst s ptr1
-                                vaddr1
-                            match r2 with
-                            | core.result.Result.Ok x1 =>
-                              let e ←
-                                vspace.make_user_page machineStoreInst s paddr
-                                  attr vm false
-                              let s1 ←
-                                sched.set_thread_state machineStoreInst s ct
-                                  sched.TS_RESTART
-                              let s2 ←
-                                obj.Slot.set_cap machineStoreInst slot s1
-                                  (capability.Cap.Frame ptr size rights
-                                  is_device true asid1 vaddr1)
-                              let (s3, a1) ←
-                                vspace.write_mapping machineStoreInst
-                                  machineArchInst s2 a x1 e asid1 vaddr1 (i !=
-                                  0#u64)
-                              ok (core.result.Result.Ok (), s3, a1)
-                            | core.result.Result.Err lf =>
-                              let r3 ← vspace.failed_lookup Unit lf
-                              ok (r3, s, a)
-                          | capability.FrameSize.Large =>
-                            let r2 ←
-                              vspace.lookup_pd_slot machineStoreInst s ptr1
-                                vaddr1
-                            match r2 with
-                            | core.result.Result.Ok x1 =>
-                              let old ← machineStoreInst.read s x1
-                              let i9 ← vspace.P_PRESENT
-                              let i10 ← lift (old &&& i9)
-                              if i10 != 0#u64
-                              then
-                                let i11 ← vspace.P_PS
-                                let i12 ← lift (old &&& i11)
-                                if i12 = 0#u64
-                                then
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    error.SysError.DeleteFirst), s, a)
-                                else
-                                  let e ←
-                                    vspace.make_user_page machineStoreInst s
-                                      paddr attr vm true
-                                  let s1 ←
-                                    sched.set_thread_state machineStoreInst s
-                                      ct sched.TS_RESTART
-                                  let s2 ←
-                                    obj.Slot.set_cap machineStoreInst slot s1
-                                      (capability.Cap.Frame ptr size rights
-                                      is_device true asid1 vaddr1)
-                                  let (s3, a1) ←
-                                    vspace.write_mapping machineStoreInst
-                                      machineArchInst s2 a x1 e asid1 vaddr1 (i
-                                      != 0#u64)
-                                  ok (core.result.Result.Ok (), s3, a1)
-                              else
-                                let e ←
-                                  vspace.make_user_page machineStoreInst s
-                                    paddr attr vm true
-                                let s1 ←
-                                  sched.set_thread_state machineStoreInst s ct
-                                    sched.TS_RESTART
-                                let s2 ←
-                                  obj.Slot.set_cap machineStoreInst slot s1
-                                    (capability.Cap.Frame ptr size rights
-                                    is_device true asid1 vaddr1)
-                                let (s3, a1) ←
-                                  vspace.write_mapping machineStoreInst
-                                    machineArchInst s2 a x1 e asid1 vaddr1 (i
-                                    != 0#u64)
-                                ok (core.result.Result.Ok (), s3, a1)
-                            | core.result.Result.Err lf =>
-                              let r3 ← vspace.failed_lookup Unit lf
-                              ok (r3, s, a)
-                          | capability.FrameSize.Huge =>
-                            let r2 ←
-                              vspace.lookup_pdpt_slot machineStoreInst s ptr1
-                                vaddr1
-                            match r2 with
-                            | core.result.Result.Ok x1 =>
-                              let old ← machineStoreInst.read s x1
-                              let i9 ← vspace.P_PRESENT
-                              let i10 ← lift (old &&& i9)
-                              if i10 != 0#u64
-                              then
-                                let i11 ← vspace.P_PS
-                                let i12 ← lift (old &&& i11)
-                                if i12 = 0#u64
-                                then
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    error.SysError.DeleteFirst), s, a)
-                                else
-                                  let e ←
-                                    vspace.make_user_page machineStoreInst s
-                                      paddr attr vm true
-                                  let s1 ←
-                                    sched.set_thread_state machineStoreInst s
-                                      ct sched.TS_RESTART
-                                  let s2 ←
-                                    obj.Slot.set_cap machineStoreInst slot s1
-                                      (capability.Cap.Frame ptr size rights
-                                      is_device true asid1 vaddr1)
-                                  let (s3, a1) ←
-                                    vspace.write_mapping machineStoreInst
-                                      machineArchInst s2 a x1 e asid1 vaddr1 (i
-                                      != 0#u64)
-                                  ok (core.result.Result.Ok (), s3, a1)
-                              else
-                                let e ←
-                                  vspace.make_user_page machineStoreInst s
-                                    paddr attr vm true
-                                let s1 ←
-                                  sched.set_thread_state machineStoreInst s ct
-                                    sched.TS_RESTART
-                                let s2 ←
-                                  obj.Slot.set_cap machineStoreInst slot s1
-                                    (capability.Cap.Frame ptr size rights
-                                    is_device true asid1 vaddr1)
-                                let (s3, a1) ←
-                                  vspace.write_mapping machineStoreInst
-                                    machineArchInst s2 a x1 e asid1 vaddr1 (i
-                                    != 0#u64)
-                                ok (core.result.Result.Ok (), s3, a1)
-                            | core.result.Result.Err lf =>
-                              let r3 ← vspace.failed_lookup Unit lf
-                              ok (r3, s, a)
-                      | core.ops.control_flow.ControlFlow.Break residual =>
-                        let r1 ←
-                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                            Unit (core.convert.FromSame error.Exc) residual
-                        ok (r1, s, a)
-              else
-                let i2 ← capability.FrameSize.bits size
-                let i3 ← lift (i2 &&& 63#u64)
-                let i4 ← 1#u64 <<< i3
-                let vtop ← lift (core.num.U64.wrapping_add vaddr1 i4)
-                if vaddr1 > fl4_abi.consts.USER_TOP
-                then let r ← error.invalid_arg Unit 0#u64
-                     ok (r, s, a)
-                else
-                  if vtop > fl4_abi.consts.USER_TOP
-                  then let r ← error.invalid_arg Unit 0#u64
-                       ok (r, s, a)
-                  else
-                    let r ← vspace.check_vspace machineStoreInst s vcap
-                    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-                    match cf with
-                    | core.ops.control_flow.ControlFlow.Continue _ =>
-                      let r1 ← capability.Rights.from_word rights_mask
-                      let vm ← capability.mask_vm_rights rights r1
-                      let i5 ← lift (i2 &&& 63#u64)
-                      let i6 ← 1#u64 <<< i5
-                      let i7 ← lift (core.num.U64.wrapping_sub i6 1#u64)
-                      let i8 ← lift (vaddr1 &&& i7)
-                      if i8 != 0#u64
-                      then
-                        ok (core.result.Result.Err (error.Exc.Sys
-                          error.SysError.AlignmentError), s, a)
-                      else
-                        let paddr ← layout.paddr ptr
-                        match size with
-                        | capability.FrameSize.Small =>
-                          let r2 ←
-                            vspace.lookup_pt_slot machineStoreInst s ptr1
-                              vaddr1
-                          match r2 with
-                          | core.result.Result.Ok x1 =>
-                            let e ←
-                              vspace.make_user_page machineStoreInst s paddr
-                                attr vm false
-                            let s1 ←
-                              sched.set_thread_state machineStoreInst s ct
-                                sched.TS_RESTART
-                            let s2 ←
-                              obj.Slot.set_cap machineStoreInst slot s1
-                                (capability.Cap.Frame ptr size rights is_device
-                                true asid1 vaddr1)
-                            let (s3, a1) ←
-                              vspace.write_mapping machineStoreInst
-                                machineArchInst s2 a x1 e asid1 vaddr1 (i !=
-                                0#u64)
-                            ok (core.result.Result.Ok (), s3, a1)
-                          | core.result.Result.Err lf =>
-                            let r3 ← vspace.failed_lookup Unit lf
-                            ok (r3, s, a)
-                        | capability.FrameSize.Large =>
-                          let r2 ←
-                            vspace.lookup_pd_slot machineStoreInst s ptr1
-                              vaddr1
-                          match r2 with
-                          | core.result.Result.Ok x1 =>
-                            let old ← machineStoreInst.read s x1
-                            let i9 ← vspace.P_PRESENT
-                            let i10 ← lift (old &&& i9)
-                            if i10 != 0#u64
-                            then
-                              let i11 ← vspace.P_PS
-                              let i12 ← lift (old &&& i11)
-                              if i12 = 0#u64
-                              then
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  error.SysError.DeleteFirst), s, a)
-                              else
-                                let e ←
-                                  vspace.make_user_page machineStoreInst s
-                                    paddr attr vm true
-                                let s1 ←
-                                  sched.set_thread_state machineStoreInst s ct
-                                    sched.TS_RESTART
-                                let s2 ←
-                                  obj.Slot.set_cap machineStoreInst slot s1
-                                    (capability.Cap.Frame ptr size rights
-                                    is_device true asid1 vaddr1)
-                                let (s3, a1) ←
-                                  vspace.write_mapping machineStoreInst
-                                    machineArchInst s2 a x1 e asid1 vaddr1 (i
-                                    != 0#u64)
-                                ok (core.result.Result.Ok (), s3, a1)
-                            else
-                              let e ←
-                                vspace.make_user_page machineStoreInst s paddr
-                                  attr vm true
-                              let s1 ←
-                                sched.set_thread_state machineStoreInst s ct
-                                  sched.TS_RESTART
-                              let s2 ←
-                                obj.Slot.set_cap machineStoreInst slot s1
-                                  (capability.Cap.Frame ptr size rights
-                                  is_device true asid1 vaddr1)
-                              let (s3, a1) ←
-                                vspace.write_mapping machineStoreInst
-                                  machineArchInst s2 a x1 e asid1 vaddr1 (i !=
-                                  0#u64)
-                              ok (core.result.Result.Ok (), s3, a1)
-                          | core.result.Result.Err lf =>
-                            let r3 ← vspace.failed_lookup Unit lf
-                            ok (r3, s, a)
-                        | capability.FrameSize.Huge =>
-                          let r2 ←
-                            vspace.lookup_pdpt_slot machineStoreInst s ptr1
-                              vaddr1
-                          match r2 with
-                          | core.result.Result.Ok x1 =>
-                            let old ← machineStoreInst.read s x1
-                            let i9 ← vspace.P_PRESENT
-                            let i10 ← lift (old &&& i9)
-                            if i10 != 0#u64
-                            then
-                              let i11 ← vspace.P_PS
-                              let i12 ← lift (old &&& i11)
-                              if i12 = 0#u64
-                              then
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  error.SysError.DeleteFirst), s, a)
-                              else
-                                let e ←
-                                  vspace.make_user_page machineStoreInst s
-                                    paddr attr vm true
-                                let s1 ←
-                                  sched.set_thread_state machineStoreInst s ct
-                                    sched.TS_RESTART
-                                let s2 ←
-                                  obj.Slot.set_cap machineStoreInst slot s1
-                                    (capability.Cap.Frame ptr size rights
-                                    is_device true asid1 vaddr1)
-                                let (s3, a1) ←
-                                  vspace.write_mapping machineStoreInst
-                                    machineArchInst s2 a x1 e asid1 vaddr1 (i
-                                    != 0#u64)
-                                ok (core.result.Result.Ok (), s3, a1)
-                            else
-                              let e ←
-                                vspace.make_user_page machineStoreInst s paddr
-                                  attr vm true
-                              let s1 ←
-                                sched.set_thread_state machineStoreInst s ct
-                                  sched.TS_RESTART
-                              let s2 ←
-                                obj.Slot.set_cap machineStoreInst slot s1
-                                  (capability.Cap.Frame ptr size rights
-                                  is_device true asid1 vaddr1)
-                              let (s3, a1) ←
-                                vspace.write_mapping machineStoreInst
-                                  machineArchInst s2 a x1 e asid1 vaddr1 (i !=
-                                  0#u64)
-                              ok (core.result.Result.Ok (), s3, a1)
-                          | core.result.Result.Err lf =>
-                            let r3 ← vspace.failed_lookup Unit lf
-                            ok (r3, s, a)
-                    | core.ops.control_flow.ControlFlow.Break residual =>
-                      let r1 ←
-                        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                          Unit (core.convert.FromSame error.Exc) residual
-                      ok (r1, s, a)
-            else let r ← error.invalid_cap Unit 1#u64
-                 ok (r, s, a)
-          | capability.Cap.AsidControl =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.AsidPool _ _ =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.IoPortControl =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-          | capability.Cap.IoPort _ _ =>
-            let r ← error.invalid_cap Unit 1#u64
-            ok (r, s, a)
-        else let r ← error.truncated Unit
-             ok (r, s, a)
+      vspace.decode_page_map machineStoreInst machineArchInst s a length slot f
+        buf ex
     else
       if lbl = fl4_abi.label.X86PageUnmap
       then
+        let ct ← sched.cur_thread machineStoreInst s
         let s1 ←
           sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
         let (s2, a1) ←
-          if mapped
+          if f.mapped
           then
-            if asid != 0#u64
+            if f.asid != 0#u64
             then
-              vspace.unmap_page machineStoreInst machineArchInst s1 a size asid
-                vaddr ptr
+              vspace.unmap_page machineStoreInst machineArchInst s1 a 
+                f.size f.asid f.vaddr f.ptr
             else ok (s1, a)
           else ok (s1, a)
         let s3 ←
-          obj.Slot.set_cap machineStoreInst slot s2 (capability.Cap.Frame ptr
-            size rights is_device false 0#u64 0#u64)
+          obj.Slot.set_cap machineStoreInst slot s2 (capability.Cap.Frame 
+            f.ptr f.size f.rights f.is_device false 0#u64 0#u64)
         ok (core.result.Result.Ok (), s3, a1)
       else
         if lbl = fl4_abi.label.X86PageGetAddress
         then
+          let ct ← sched.cur_thread machineStoreInst s
           let s1 ←
             sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
-          let i ← layout.paddr ptr
+          let i ← layout.paddr f.ptr
           let s2 ← vspace.reply1 machineStoreInst s1 ct call i
           ok (core.result.Result.Ok (), s2, a)
         else
           if lbl = fl4_abi.label.X86PageTestAndClearAccessed
           then
-            let b ←
-              match size with
-              | capability.FrameSize.Small => ok true
-              | capability.FrameSize.Large => ok true
-              | capability.FrameSize.Huge => ok false
-            if b
-            then
-              if mapped
-              then
-                if asid = 0#u64
-                then let r ← error.illegal Unit
-                     ok (r, s, a)
-                else
-                  let r ← vspace.find_vspace_for_asid machineStoreInst s asid
-                  match r with
-                  | core.result.Result.Ok r1 =>
-                    let pa ← layout.paddr ptr
-                    match size with
-                    | capability.FrameSize.Small =>
-                      let r2 ←
-                        vspace.lookup_pt_slot machineStoreInst s r1 vaddr
-                      match r2 with
-                      | core.result.Result.Ok x =>
-                        let e ← machineStoreInst.read s x
-                        let i ← vspace.P_PRESENT
-                        let i1 ← lift (e &&& i)
-                        if i1 = 0#u64
-                        then
-                          let r3 ← error.invalid_cap Unit 0#u64
-                          ok (r3, s, a)
-                        else
-                          let i2 ← lift (e &&& vspace.ADDR_MASK)
-                          if i2 != pa
-                          then
-                            let r3 ← error.invalid_cap Unit 0#u64
-                            ok (r3, s, a)
-                          else
-                            let i3 ← vspace.P_ACCESSED
-                            let i4 ← lift (~~~ i3)
-                            let i5 ← lift (e &&& i4)
-                            let s1 ← machineStoreInst.write s x i5
-                            let i6 ← lift (e &&& i3)
-                            if i6 != 0#u64
-                            then
-                              let s2 ←
-                                vspace.reply1 machineStoreInst s1 ct call 1#u64
-                              ok (core.result.Result.Ok (), s2, a)
-                            else
-                              let s2 ←
-                                vspace.reply1 machineStoreInst s1 ct call 0#u64
-                              ok (core.result.Result.Ok (), s2, a)
-                      | core.result.Result.Err _ =>
-                        let r3 ← error.invalid_cap Unit 0#u64
-                        ok (r3, s, a)
-                    | capability.FrameSize.Large =>
-                      let r2 ←
-                        vspace.lookup_pd_slot machineStoreInst s r1 vaddr
-                      match r2 with
-                      | core.result.Result.Ok x =>
-                        let e ← machineStoreInst.read s x
-                        let i ← vspace.P_PRESENT
-                        let i1 ← lift (e &&& i)
-                        if i1 = 0#u64
-                        then
-                          let r3 ← error.invalid_cap Unit 0#u64
-                          ok (r3, s, a)
-                        else
-                          let i2 ← vspace.P_PS
-                          let i3 ← lift (e &&& i2)
-                          if i3 = 0#u64
-                          then
-                            let r3 ← error.invalid_cap Unit 0#u64
-                            ok (r3, s, a)
-                          else
-                            let i4 ← lift (e &&& vspace.ADDR_MASK)
-                            if i4 != pa
-                            then
-                              let r3 ← error.invalid_cap Unit 0#u64
-                              ok (r3, s, a)
-                            else
-                              let i5 ← vspace.P_ACCESSED
-                              let i6 ← lift (~~~ i5)
-                              let i7 ← lift (e &&& i6)
-                              let s1 ← machineStoreInst.write s x i7
-                              let i8 ← lift (e &&& i5)
-                              if i8 != 0#u64
-                              then
-                                let s2 ←
-                                  vspace.reply1 machineStoreInst s1 ct call
-                                    1#u64
-                                ok (core.result.Result.Ok (), s2, a)
-                              else
-                                let s2 ←
-                                  vspace.reply1 machineStoreInst s1 ct call
-                                    0#u64
-                                ok (core.result.Result.Ok (), s2, a)
-                      | core.result.Result.Err _ =>
-                        let r3 ← error.invalid_cap Unit 0#u64
-                        ok (r3, s, a)
-                    | capability.FrameSize.Huge =>
-                      let r2 ←
-                        vspace.lookup_pt_slot machineStoreInst s r1 vaddr
-                      match r2 with
-                      | core.result.Result.Ok x =>
-                        let e ← machineStoreInst.read s x
-                        let i ← vspace.P_PRESENT
-                        let i1 ← lift (e &&& i)
-                        if i1 = 0#u64
-                        then
-                          let r3 ← error.invalid_cap Unit 0#u64
-                          ok (r3, s, a)
-                        else
-                          let i2 ← lift (e &&& vspace.ADDR_MASK)
-                          if i2 != pa
-                          then
-                            let r3 ← error.invalid_cap Unit 0#u64
-                            ok (r3, s, a)
-                          else
-                            let i3 ← vspace.P_ACCESSED
-                            let i4 ← lift (~~~ i3)
-                            let i5 ← lift (e &&& i4)
-                            let s1 ← machineStoreInst.write s x i5
-                            let i6 ← lift (e &&& i3)
-                            if i6 != 0#u64
-                            then
-                              let s2 ←
-                                vspace.reply1 machineStoreInst s1 ct call 1#u64
-                              ok (core.result.Result.Ok (), s2, a)
-                            else
-                              let s2 ←
-                                vspace.reply1 machineStoreInst s1 ct call 0#u64
-                              ok (core.result.Result.Ok (), s2, a)
-                      | core.result.Result.Err _ =>
-                        let r3 ← error.invalid_cap Unit 0#u64
-                        ok (r3, s, a)
-                  | core.result.Result.Err _ =>
-                    let r1 ← error.invalid_cap Unit 0#u64
-                    ok (r1, s, a)
-              else let r ← error.illegal Unit
-                   ok (r, s, a)
-            else let r ← error.illegal Unit
-                 ok (r, s, a)
+            let (r, s1) ←
+              vspace.decode_test_and_clear_accessed machineStoreInst s f call
+            ok (r, s1, a)
           else
             if lbl = fl4_abi.label.X86PageDeriveSubframe
             then
@@ -24623,24 +23193,6 @@ def vspace.decode_frame
                 length slot cap buf ex
             else let r ← error.illegal Unit
                  ok (r, s, a)
-  | capability.Cap.PageTable _ _ _ _ =>
-    let r ← error.illegal Unit
-    ok (r, s, a)
-  | capability.Cap.PageDirectory _ _ _ _ =>
-    let r ← error.illegal Unit
-    ok (r, s, a)
-  | capability.Cap.Pdpt _ _ _ _ => let r ← error.illegal Unit
-                                   ok (r, s, a)
-  | capability.Cap.Pml4 _ _ _ => let r ← error.illegal Unit
-                                 ok (r, s, a)
-  | capability.Cap.AsidControl => let r ← error.illegal Unit
-                                  ok (r, s, a)
-  | capability.Cap.AsidPool _ _ => let r ← error.illegal Unit
-                                   ok (r, s, a)
-  | capability.Cap.IoPortControl => let r ← error.illegal Unit
-                                    ok (r, s, a)
-  | capability.Cap.IoPort _ _ => let r ← error.illegal Unit
-                                 ok (r, s, a)
 
 /-- [fl4_core::vspace::N_ASID_POOLS]
     Source: 'crates/fl4-core/src/vspace.rs', lines 32:0-32:32
@@ -24648,7 +23200,7 @@ def vspace.decode_frame
 @[global_simps, irreducible] def vspace.N_ASID_POOLS : Std.U64 := 8#u64
 
 /-- [fl4_core::vspace::decode]: loop body 0:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 761:12-763:13
+    Source: 'crates/fl4-core/src/vspace.rs', lines 835:12-837:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop0.body
@@ -24665,7 +23217,7 @@ def vspace.decode_loop0.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 0:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 761:12-763:13
+    Source: 'crates/fl4-core/src/vspace.rs', lines 835:12-837:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop0
@@ -24677,7 +23229,7 @@ def vspace.decode_loop0
     i
 
 /-- [fl4_core::vspace::decode]: loop body 1:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 804:12-806:13
+    Source: 'crates/fl4-core/src/vspace.rs', lines 878:12-880:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop1.body
@@ -24702,7 +23254,7 @@ def vspace.decode_loop1.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 1:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 804:12-806:13
+    Source: 'crates/fl4-core/src/vspace.rs', lines 878:12-880:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop1
@@ -24715,7 +23267,7 @@ def vspace.decode_loop1
     i
 
 /-- [fl4_core::vspace::decode]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 721:0-818:1
+    Source: 'crates/fl4-core/src/vspace.rs', lines 795:0-892:1
     Visibility: public -/
 def vspace.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -25061,19 +23613,24 @@ def vspace.decode
     Visibility: public -/
 @[global_simps, irreducible] def untyped.RESET_CHUNK_BITS : Std.U64 := 16#u64
 
+/-- [fl4_core::untyped::RESET_CHUNK]
+    Source: 'crates/fl4-core/src/untyped.rs', lines 147:0-147:47 -/
+@[global_simps, irreducible]
+def untyped.RESET_CHUNK : Result Std.U64 := 1#u64 <<< untyped.RESET_CHUNK_BITS
+
 /-- [fl4_core::untyped::reset_untyped]: loop body 0:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 136:4-145:5 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 165:4-174:5 -/
 @[rust_loop_body]
 def untyped.reset_untyped_loop.body
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (slot : obj.Slot) (ptr : Std.U64)
-  (block : Std.U64) (device : Bool) (chunk : Std.U64) (s : S) (a : A)
+  (machineArchInst : machine.Arch A) (i : Std.U64) (slot : obj.Slot)
+  (ptr : Std.U64) (block : Std.U64) (device : Bool) (s : S) (a : A)
   (offset : Std.U64) :
   Result (ControlFlow (S × A × Std.U64) ((core.result.Result Unit error.Exc)
     × S × A))
   := do
-  let i ← lift (core.num.U64.wrapping_add ptr offset)
-  let s1 ← machineStoreInst.zero s i chunk
+  let i1 ← lift (core.num.U64.wrapping_add ptr offset)
+  let s1 ← machineStoreInst.zero s i1 i
   let s2 ←
     obj.Slot.set_cap machineStoreInst slot s1 (capability.Cap.Untyped ptr block
       offset device)
@@ -25085,7 +23642,7 @@ def untyped.reset_untyped_loop.body
     let cf ← core.result.Result.Insts.CoreOpsTry.branch r
     match cf with
     | core.ops.control_flow.ControlFlow.Continue _ =>
-      let offset1 ← lift (core.num.U64.saturating_sub offset chunk)
+      let offset1 ← lift (core.num.U64.saturating_sub offset i)
       ok (cont (s3, a1, offset1))
     | core.ops.control_flow.ControlFlow.Break residual =>
       let r1 ←
@@ -25094,22 +23651,22 @@ def untyped.reset_untyped_loop.body
       ok (done (r1, s3, a1))
 
 /-- [fl4_core::untyped::reset_untyped]: loop 0:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 136:4-145:5 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 165:4-174:5 -/
 @[rust_loop]
 def untyped.reset_untyped_loop
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot)
-  (ptr : Std.U64) (block : Std.U64) (device : Bool) (chunk : Std.U64)
+  (machineArchInst : machine.Arch A) (i : Std.U64) (s : S) (a : A)
+  (slot : obj.Slot) (ptr : Std.U64) (block : Std.U64) (device : Bool)
   (offset : Std.U64) :
   Result ((core.result.Result Unit error.Exc) × S × A)
   := do
   loop
     (fun (s1, a1, offset1) => untyped.reset_untyped_loop.body machineStoreInst
-      machineArchInst slot ptr block device chunk s1 a1 offset1)
+      machineArchInst i slot ptr block device s1 a1 offset1)
     (s, a, offset)
 
 /-- [fl4_core::untyped::reset_untyped]:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 119:0-146:1 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 149:0-175:1 -/
 def untyped.reset_untyped
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot) :
@@ -25152,13 +23709,13 @@ def untyped.reset_untyped
               ptr size_bits 0#u64 is_device)
           ok (core.result.Result.Ok (), s2, a)
         else
-          let chunk ← 1#u64 <<< untyped.RESET_CHUNK_BITS
           let i ← free_index - 1#u64
-          let i1 ← chunk - 1#u64
-          let i2 ← lift (~~~ i1)
-          let offset ← lift (i &&& i2)
-          untyped.reset_untyped_loop machineStoreInst machineArchInst s a slot
-            ptr size_bits is_device chunk offset
+          let i1 ← untyped.RESET_CHUNK
+          let i2 ← i1 - 1#u64
+          let i3 ← lift (~~~ i2)
+          let offset ← lift (i &&& i3)
+          untyped.reset_untyped_loop machineStoreInst machineArchInst i1 s a
+            slot ptr size_bits is_device offset
   | capability.Cap.Endpoint _ _ _ _ _ _ => ok (core.result.Result.Ok (), s, a)
   | capability.Cap.Notification _ _ _ _ => ok (core.result.Result.Ok (), s, a)
   | capability.Cap.Reply _ _ => ok (core.result.Result.Ok (), s, a)
@@ -25181,7 +23738,7 @@ def untyped.reset_untyped
   | capability.Cap.IoPort _ _ => ok (core.result.Result.Ok (), s, a)
 
 /-- [fl4_core::untyped::retype]:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 149:0-173:1 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 178:0-202:1 -/
 def untyped.retype
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot)
@@ -25280,7 +23837,7 @@ def untyped.retype
     ok (core.result.Result.Ok (), s2, a1)
 
 /-- [fl4_core::untyped::ensure_empty_slots]: loop body 0:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 111:4-114:5 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 138:4-141:5 -/
 @[rust_loop_body]
 def untyped.ensure_empty_slots_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cnode : Std.U64)
@@ -25301,7 +23858,7 @@ def untyped.ensure_empty_slots_loop.body
   else ok (done r)
 
 /-- [fl4_core::untyped::ensure_empty_slots]: loop 0:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 111:4-114:5 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 138:4-141:5 -/
 @[rust_loop]
 def untyped.ensure_empty_slots_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cnode : Std.U64)
@@ -25314,7 +23871,7 @@ def untyped.ensure_empty_slots_loop
     (r, i)
 
 /-- [fl4_core::untyped::ensure_empty_slots]:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 108:0-116:1 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 135:0-143:1 -/
 @[reducible]
 def untyped.ensure_empty_slots
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cnode : Std.U64)
@@ -25323,6 +23880,211 @@ def untyped.ensure_empty_slots
   := do
   untyped.ensure_empty_slots_loop machineStoreInst s cnode «to»
     (core.result.Result.Ok ()) «from»
+
+/-- [fl4_core::untyped::as_untyped]:
+    Source: 'crates/fl4-core/src/untyped.rs', lines 126:0-131:1 -/
+def untyped.as_untyped
+  (c : capability.Cap) :
+  Result (Option (Std.U64 × Std.U64 × Std.U64 × Bool))
+  := do
+  match c with
+  | capability.Cap.Null => ok none
+  | capability.Cap.Untyped ptr size_bits free_index is_device =>
+    ok (some (ptr, size_bits, free_index, is_device))
+  | capability.Cap.Endpoint _ _ _ _ _ _ => ok none
+  | capability.Cap.Notification _ _ _ _ => ok none
+  | capability.Cap.Reply _ _ => ok none
+  | capability.Cap.CNode _ _ _ _ => ok none
+  | capability.Cap.Thread _ => ok none
+  | capability.Cap.IrqControl => ok none
+  | capability.Cap.IrqHandler _ => ok none
+  | capability.Cap.Zombie _ _ _ => ok none
+  | capability.Cap.Domain => ok none
+  | capability.Cap.SchedContext _ _ => ok none
+  | capability.Cap.SchedControl _ => ok none
+  | capability.Cap.Frame _ _ _ _ _ _ _ => ok none
+  | capability.Cap.PageTable _ _ _ _ => ok none
+  | capability.Cap.PageDirectory _ _ _ _ => ok none
+  | capability.Cap.Pdpt _ _ _ _ => ok none
+  | capability.Cap.Pml4 _ _ _ => ok none
+  | capability.Cap.AsidControl => ok none
+  | capability.Cap.AsidPool _ _ => ok none
+  | capability.Cap.IoPortControl => ok none
+  | capability.Cap.IoPort _ _ => ok none
+
+/-- [fl4_core::untyped::cnode_of]:
+    Source: 'crates/fl4-core/src/untyped.rs', lines 118:0-123:1 -/
+def untyped.cnode_of
+  (c : capability.Cap) : Result (Option (Std.U64 × Std.U64)) := do
+  match c with
+  | capability.Cap.Null => ok none
+  | capability.Cap.Untyped _ _ _ _ => ok none
+  | capability.Cap.Endpoint _ _ _ _ _ _ => ok none
+  | capability.Cap.Notification _ _ _ _ => ok none
+  | capability.Cap.Reply _ _ => ok none
+  | capability.Cap.CNode ptr radix _ _ => ok (some (ptr, radix))
+  | capability.Cap.Thread _ => ok none
+  | capability.Cap.IrqControl => ok none
+  | capability.Cap.IrqHandler _ => ok none
+  | capability.Cap.Zombie _ _ _ => ok none
+  | capability.Cap.Domain => ok none
+  | capability.Cap.SchedContext _ _ => ok none
+  | capability.Cap.SchedControl _ => ok none
+  | capability.Cap.Frame _ _ _ _ _ _ _ => ok none
+  | capability.Cap.PageTable _ _ _ _ => ok none
+  | capability.Cap.PageDirectory _ _ _ _ => ok none
+  | capability.Cap.Pdpt _ _ _ _ => ok none
+  | capability.Cap.Pml4 _ _ _ => ok none
+  | capability.Cap.AsidControl => ok none
+  | capability.Cap.AsidPool _ _ => ok none
+  | capability.Cap.IoPortControl => ok none
+  | capability.Cap.IoPort _ _ => ok none
+
+/-- [fl4_core::untyped::RETYPE_FAN_OUT_LIMIT]
+    Source: 'crates/fl4-core/src/untyped.rs', lines 15:0-15:42
+    Visibility: public -/
+@[global_simps, irreducible]
+def untyped.RETYPE_FAN_OUT_LIMIT : Std.U64 := 256#u64
+
+/-- [fl4_core::untyped::retype_dest]:
+    Source: 'crates/fl4-core/src/untyped.rs', lines 89:0-116:1 -/
+def untyped.retype_dest
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S)
+  (root_slot : obj.Slot) (node_index : Std.U64) (node_depth : Std.U64)
+  (node_offset : Std.U64) (node_window : Std.U64) :
+  Result (core.result.Result Std.U64 error.Exc)
+  := do
+  if node_depth = 0#u64
+  then
+    let node_cap ← obj.Slot.cap machineStoreInst root_slot s
+    let o ← untyped.cnode_of node_cap
+    match o with
+    | none =>
+      ok (core.result.Result.Err (error.Exc.Sys (error.SysError.FailedLookup
+        false (error.LookupFault.MissingCapability node_depth))))
+    | some x =>
+      let (dest, radix) := x
+      let i ← lift (radix &&& 63#u64)
+      let node_size ← 1#u64 <<< i
+      let i1 ← lift (core.num.U64.wrapping_sub node_size 1#u64)
+      if node_offset > i1
+      then
+        let i2 ← lift (core.num.U64.wrapping_sub node_size 1#u64)
+        error.range Std.U64 0#u64 i2
+      else
+        if node_window < 1#u64
+        then error.range Std.U64 1#u64 untyped.RETYPE_FAN_OUT_LIMIT
+        else
+          if node_window > untyped.RETYPE_FAN_OUT_LIMIT
+          then error.range Std.U64 1#u64 untyped.RETYPE_FAN_OUT_LIMIT
+          else
+            let i2 ← lift (core.num.U64.wrapping_sub node_size node_offset)
+            if node_window > i2
+            then
+              let i3 ← lift (core.num.U64.wrapping_sub node_size node_offset)
+              error.range Std.U64 1#u64 i3
+            else ok (core.result.Result.Ok dest)
+  else
+    let root ← obj.Slot.cap machineStoreInst root_slot s
+    let r ←
+      cspace.lookup_target_slot machineStoreInst s root node_index node_depth
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let node_cap ← obj.Slot.cap machineStoreInst val s
+      let o ← untyped.cnode_of node_cap
+      match o with
+      | none =>
+        ok (core.result.Result.Err (error.Exc.Sys (error.SysError.FailedLookup
+          false (error.LookupFault.MissingCapability node_depth))))
+      | some x =>
+        let (dest, radix) := x
+        let i ← lift (radix &&& 63#u64)
+        let node_size ← 1#u64 <<< i
+        let i1 ← lift (core.num.U64.wrapping_sub node_size 1#u64)
+        if node_offset > i1
+        then
+          let i2 ← lift (core.num.U64.wrapping_sub node_size 1#u64)
+          error.range Std.U64 0#u64 i2
+        else
+          if node_window < 1#u64
+          then error.range Std.U64 1#u64 untyped.RETYPE_FAN_OUT_LIMIT
+          else
+            if node_window > untyped.RETYPE_FAN_OUT_LIMIT
+            then error.range Std.U64 1#u64 untyped.RETYPE_FAN_OUT_LIMIT
+            else
+              let i2 ← lift (core.num.U64.wrapping_sub node_size node_offset)
+              if node_window > i2
+              then
+                let i3 ←
+                  lift (core.num.U64.wrapping_sub node_size node_offset)
+                error.range Std.U64 1#u64 i3
+              else ok (core.result.Result.Ok dest)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        Std.U64 (core.convert.FromSame error.Exc) residual
+
+/-- [fl4_core::untyped::retype_size]:
+    Source: 'crates/fl4-core/src/untyped.rs', lines 65:0-86:1 -/
+def untyped.retype_size
+  (new_type : Std.U64) (user_size : Std.U64) :
+  Result (core.result.Result Std.U64 error.Exc)
+  := do
+  if new_type >= fl4_abi.consts.object.Count
+  then error.invalid_arg Std.U64 0#u64
+  else
+    let o ← objects.object_size new_type user_size
+    match o with
+    | none => error.invalid_arg Std.U64 0#u64
+    | some z =>
+      if user_size >= 64#u64
+      then error.range Std.U64 0#u64 fl4_abi.consts.bits.MAX_UNTYPED
+      else
+        if z > fl4_abi.consts.bits.MAX_UNTYPED
+        then error.range Std.U64 0#u64 fl4_abi.consts.bits.MAX_UNTYPED
+        else
+          if new_type = fl4_abi.consts.object.CapTable
+          then
+            if user_size = 0#u64
+            then error.invalid_arg Std.U64 1#u64
+            else
+              if new_type = fl4_abi.consts.object.Untyped
+              then
+                if user_size < fl4_abi.consts.bits.MIN_UNTYPED
+                then error.invalid_arg Std.U64 1#u64
+                else
+                  if new_type = fl4_abi.consts.object.SchedContext
+                  then
+                    if user_size < fl4_abi.consts.bits.MIN_SCHED_CONTEXT
+                    then error.invalid_arg Std.U64 1#u64
+                    else ok (core.result.Result.Ok z)
+                  else ok (core.result.Result.Ok z)
+              else
+                if new_type = fl4_abi.consts.object.SchedContext
+                then
+                  if user_size < fl4_abi.consts.bits.MIN_SCHED_CONTEXT
+                  then error.invalid_arg Std.U64 1#u64
+                  else ok (core.result.Result.Ok z)
+                else ok (core.result.Result.Ok z)
+          else
+            if new_type = fl4_abi.consts.object.Untyped
+            then
+              if user_size < fl4_abi.consts.bits.MIN_UNTYPED
+              then error.invalid_arg Std.U64 1#u64
+              else
+                if new_type = fl4_abi.consts.object.SchedContext
+                then
+                  if user_size < fl4_abi.consts.bits.MIN_SCHED_CONTEXT
+                  then error.invalid_arg Std.U64 1#u64
+                  else ok (core.result.Result.Ok z)
+                else ok (core.result.Result.Ok z)
+            else
+              if new_type = fl4_abi.consts.object.SchedContext
+              then
+                if user_size < fl4_abi.consts.bits.MIN_SCHED_CONTEXT
+                then error.invalid_arg Std.U64 1#u64
+                else ok (core.result.Result.Ok z)
+              else ok (core.result.Result.Ok z)
 
 /-- [fl4_core::untyped::align_up]:
     Source: 'crates/fl4-core/src/untyped.rs', lines 19:0-22:1 -/
@@ -25334,14 +24096,8 @@ def untyped.align_up (v : Std.U64) (align : Std.U64) : Result Std.U64 := do
   let i3 ← lift (~~~ m)
   ok (i2 &&& i3)
 
-/-- [fl4_core::untyped::RETYPE_FAN_OUT_LIMIT]
-    Source: 'crates/fl4-core/src/untyped.rs', lines 15:0-15:42
-    Visibility: public -/
-@[global_simps, irreducible]
-def untyped.RETYPE_FAN_OUT_LIMIT : Std.U64 := 256#u64
-
 /-- [fl4_core::untyped::decode]:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 25:0-104:1
+    Source: 'crates/fl4-core/src/untyped.rs', lines 25:0-61:1
     Visibility: public -/
 def untyped.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -25371,5181 +24127,99 @@ def untyped.decode
         let node_depth ← msg.syscall_arg machineStoreInst s ct buf 3#u64
         let node_offset ← msg.syscall_arg machineStoreInst s ct buf 4#u64
         let node_window ← msg.syscall_arg machineStoreInst s ct buf 5#u64
-        if new_type >= fl4_abi.consts.object.Count
-        then let r ← error.invalid_arg Unit 0#u64
-             ok (r, s, a)
-        else
-          let o ← objects.object_size new_type user_size
-          match o with
-          | none => let r ← error.invalid_arg Unit 0#u64
-                    ok (r, s, a)
-          | some z =>
-            if user_size >= 64#u64
-            then
-              let r ← error.range Unit 0#u64 fl4_abi.consts.bits.MAX_UNTYPED
-              ok (r, s, a)
-            else
-              if z > fl4_abi.consts.bits.MAX_UNTYPED
-              then
-                let r ←
-                  error.range Unit 0#u64 fl4_abi.consts.bits.MAX_UNTYPED
-                ok (r, s, a)
-              else
-                if new_type = fl4_abi.consts.object.CapTable
+        let r ← untyped.retype_size new_type user_size
+        let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+        match cf with
+        | core.ops.control_flow.ControlFlow.Continue val =>
+          let r1 ←
+            untyped.retype_dest machineStoreInst s s1 node_index node_depth
+              node_offset node_window
+          let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+          match cf1 with
+          | core.ops.control_flow.ControlFlow.Continue val1 =>
+            let i ← lift (core.num.U64.wrapping_add node_offset node_window)
+            let r2 ←
+              untyped.ensure_empty_slots machineStoreInst s val1 node_offset i
+            let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+            match cf2 with
+            | core.ops.control_flow.ControlFlow.Continue _ =>
+              let o ← untyped.as_untyped cap
+              match o with
+              | none => let r3 ← error.illegal Unit
+                        ok (r3, s, a)
+              | some x =>
+                let (ptr, block, free_index, device) := x
+                let r3 ← cdt.ensure_no_children machineStoreInst s slot
+                let (free_index1, reset) ←
+                  match r3 with
+                  | core.result.Result.Ok _ => ok (0#u64, true)
+                  | core.result.Result.Err _ => ok (free_index, false)
+                let free_ref ←
+                  lift (core.num.U64.wrapping_add ptr free_index1)
+                let i1 ← lift (block &&& 63#u64)
+                let i2 ← 1#u64 <<< i1
+                let free_bytes ←
+                  lift (core.num.U64.wrapping_sub i2 free_index1)
+                let i3 ← lift (val &&& 63#u64)
+                let i4 ← free_bytes >>> i3
+                if i4 < node_window
                 then
-                  if user_size = 0#u64
-                  then let r ← error.invalid_arg Unit 1#u64
-                       ok (r, s, a)
-                  else
-                    if new_type = fl4_abi.consts.object.Untyped
-                    then
-                      if user_size < fl4_abi.consts.bits.MIN_UNTYPED
-                      then let r ← error.invalid_arg Unit 1#u64
-                           ok (r, s, a)
-                      else
-                        if new_type = fl4_abi.consts.object.SchedContext
-                        then
-                          if user_size < fl4_abi.consts.bits.MIN_SCHED_CONTEXT
-                          then
-                            let r ← error.invalid_arg Unit 1#u64
-                            ok (r, s, a)
-                          else
-                            if node_depth = 0#u64
-                            then
-                              let node_cap ←
-                                obj.Slot.cap machineStoreInst s1 s
-                              match node_cap with
-                              | capability.Cap.Null =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Untyped _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Notification _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Reply _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.CNode ptr radix _ _ =>
-                                let i ← lift (radix &&& 63#u64)
-                                let node_size ← 1#u64 <<< i
-                                let i1 ← node_size - 1#u64
-                                if node_offset > i1
-                                then
-                                  let r ← error.range Unit 0#u64 i1
-                                  ok (r, s, a)
-                                else
-                                  if node_window < 1#u64
-                                  then
-                                    let r ←
-                                      error.range Unit 1#u64
-                                        untyped.RETYPE_FAN_OUT_LIMIT
-                                    ok (r, s, a)
-                                  else
-                                    if node_window >
-                                      untyped.RETYPE_FAN_OUT_LIMIT
-                                    then
-                                      let r ←
-                                        error.range Unit 1#u64
-                                          untyped.RETYPE_FAN_OUT_LIMIT
-                                      ok (r, s, a)
-                                    else
-                                      let i2 ← node_size - node_offset
-                                      if node_window > i2
-                                      then
-                                        let r ← error.range Unit 1#u64 i2
-                                        ok (r, s, a)
-                                      else
-                                        let i3 ← node_offset + node_window
-                                        let r ←
-                                          untyped.ensure_empty_slots
-                                            machineStoreInst s ptr node_offset
-                                            i3
-                                        let cf ←
-                                          core.result.Result.Insts.CoreOpsTry.branch
-                                            r
-                                        match cf with
-                                        |
-                                          core.ops.control_flow.ControlFlow.Continue
-                                          _ =>
-                                          match cap with
-                                          | capability.Cap.Null =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.Untyped ptr1
-                                            size_bits free_index is_device =>
-                                            let r1 ←
-                                              cdt.ensure_no_children
-                                                machineStoreInst s slot
-                                            let (free_index1, reset) ←
-                                              match r1 with
-                                              | core.result.Result.Ok _ =>
-                                                ok (0#u64, true)
-                                              | core.result.Result.Err _ =>
-                                                ok (free_index, false)
-                                            let free_ref ←
-                                              lift (core.num.U64.wrapping_add
-                                                ptr1 free_index1)
-                                            let i4 ←
-                                              lift (size_bits &&& 63#u64)
-                                            let i5 ← 1#u64 <<< i4
-                                            let free_bytes ←
-                                              lift (core.num.U64.wrapping_sub
-                                                i5 free_index1)
-                                            let i6 ← lift (z &&& 63#u64)
-                                            let i7 ← free_bytes >>> i6
-                                            if i7 < node_window
-                                            then
-                                              ok (core.result.Result.Err
-                                                (error.Exc.Sys
-                                                (error.SysError.NotEnoughMemory
-                                                free_bytes)), s, a)
-                                            else
-                                              if z >= 64#u64
-                                              then
-                                                ok (core.result.Result.Err
-                                                  (error.Exc.Sys
-                                                  (error.SysError.NotEnoughMemory
-                                                  free_bytes)), s, a)
-                                              else
-                                                if is_device
-                                                then
-                                                  let b1 ←
-                                                    objects.is_frame_type
-                                                      new_type
-                                                  if b1
-                                                  then
-                                                    let aligned ←
-                                                      untyped.align_up free_ref
-                                                        z
-                                                    let s2 ←
-                                                      sched.set_thread_state
-                                                        machineStoreInst s ct
-                                                        sched.TS_RESTART
-                                                    untyped.retype
-                                                      machineStoreInst
-                                                      machineArchInst s2 a slot
-                                                      reset aligned new_type
-                                                      user_size ptr node_offset
-                                                      node_window is_device
-                                                  else
-                                                    if new_type !=
-                                                      fl4_abi.consts.object.Untyped
-                                                    then
-                                                      let r2 ←
-                                                        error.invalid_arg Unit
-                                                          1#u64
-                                                      ok (r2, s, a)
-                                                    else
-                                                      let aligned ←
-                                                        untyped.align_up
-                                                          free_ref z
-                                                      let s2 ←
-                                                        sched.set_thread_state
-                                                          machineStoreInst s ct
-                                                          sched.TS_RESTART
-                                                      untyped.retype
-                                                        machineStoreInst
-                                                        machineArchInst s2 a
-                                                        slot reset aligned
-                                                        new_type user_size ptr
-                                                        node_offset node_window
-                                                        is_device
-                                                else
-                                                  let aligned ←
-                                                    untyped.align_up free_ref z
-                                                  let s2 ←
-                                                    sched.set_thread_state
-                                                      machineStoreInst s ct
-                                                      sched.TS_RESTART
-                                                  untyped.retype
-                                                    machineStoreInst
-                                                    machineArchInst s2 a slot
-                                                    reset aligned new_type
-                                                    user_size ptr node_offset
-                                                    node_window is_device
-                                          | capability.Cap.Endpoint _ _ _ _ _ _
-                                            =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.Notification _ _ _ _
-                                            =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.Reply _ _ =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.CNode _ _ _ _ =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.Thread _ =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.IrqControl =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.IrqHandler _ =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.Zombie _ _ _ =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.Domain =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.SchedContext _ _ =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.SchedControl _ =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.Frame _ _ _ _ _ _ _
-                                            =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.PageTable _ _ _ _ =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.PageDirectory _ _ _
-                                            _ =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.Pdpt _ _ _ _ =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.Pml4 _ _ _ =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.AsidControl =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.AsidPool _ _ =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.IoPortControl =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                          | capability.Cap.IoPort _ _ =>
-                                            let r1 ← error.illegal Unit
-                                            ok (r1, s, a)
-                                        |
-                                          core.ops.control_flow.ControlFlow.Break
-                                          residual =>
-                                          let r1 ←
-                                            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                              Unit (core.convert.FromSame
-                                              error.Exc) residual
-                                          ok (r1, s, a)
-                              | capability.Cap.Thread _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.IrqControl =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.IrqHandler _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Zombie _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Domain =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.SchedContext _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.SchedControl _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.PageTable _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.PageDirectory _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Pdpt _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Pml4 _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.AsidControl =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.AsidPool _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.IoPortControl =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.IoPort _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                            else
-                              let root ← obj.Slot.cap machineStoreInst s1 s
-                              let r ←
-                                cspace.lookup_target_slot machineStoreInst s
-                                  root node_index node_depth
-                              let cf ←
-                                core.result.Result.Insts.CoreOpsTry.branch r
-                              match cf with
-                              | core.ops.control_flow.ControlFlow.Continue val
-                                =>
-                                let node_cap ←
-                                  obj.Slot.cap machineStoreInst val s
-                                match node_cap with
-                                | capability.Cap.Null =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.Untyped _ _ _ _ =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.Notification _ _ _ _ =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.Reply _ _ =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.CNode ptr radix _ _ =>
-                                  let i ← lift (radix &&& 63#u64)
-                                  let node_size ← 1#u64 <<< i
-                                  let i1 ← node_size - 1#u64
-                                  if node_offset > i1
-                                  then
-                                    let r1 ← error.range Unit 0#u64 i1
-                                    ok (r1, s, a)
-                                  else
-                                    if node_window < 1#u64
-                                    then
-                                      let r1 ←
-                                        error.range Unit 1#u64
-                                          untyped.RETYPE_FAN_OUT_LIMIT
-                                      ok (r1, s, a)
-                                    else
-                                      if node_window >
-                                        untyped.RETYPE_FAN_OUT_LIMIT
-                                      then
-                                        let r1 ←
-                                          error.range Unit 1#u64
-                                            untyped.RETYPE_FAN_OUT_LIMIT
-                                        ok (r1, s, a)
-                                      else
-                                        let i2 ← node_size - node_offset
-                                        if node_window > i2
-                                        then
-                                          let r1 ← error.range Unit 1#u64 i2
-                                          ok (r1, s, a)
-                                        else
-                                          let i3 ← node_offset + node_window
-                                          let r1 ←
-                                            untyped.ensure_empty_slots
-                                              machineStoreInst s ptr
-                                              node_offset i3
-                                          let cf1 ←
-                                            core.result.Result.Insts.CoreOpsTry.branch
-                                              r1
-                                          match cf1 with
-                                          |
-                                            core.ops.control_flow.ControlFlow.Continue
-                                            _ =>
-                                            match cap with
-                                            | capability.Cap.Null =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.Untyped ptr1
-                                              size_bits free_index is_device =>
-                                              let r2 ←
-                                                cdt.ensure_no_children
-                                                  machineStoreInst s slot
-                                              let (free_index1, reset) ←
-                                                match r2 with
-                                                | core.result.Result.Ok _ =>
-                                                  ok (0#u64, true)
-                                                | core.result.Result.Err _ =>
-                                                  ok (free_index, false)
-                                              let free_ref ←
-                                                lift (core.num.U64.wrapping_add
-                                                  ptr1 free_index1)
-                                              let i4 ←
-                                                lift (size_bits &&& 63#u64)
-                                              let i5 ← 1#u64 <<< i4
-                                              let free_bytes ←
-                                                lift (core.num.U64.wrapping_sub
-                                                  i5 free_index1)
-                                              let i6 ← lift (z &&& 63#u64)
-                                              let i7 ← free_bytes >>> i6
-                                              if i7 < node_window
-                                              then
-                                                ok (core.result.Result.Err
-                                                  (error.Exc.Sys
-                                                  (error.SysError.NotEnoughMemory
-                                                  free_bytes)), s, a)
-                                              else
-                                                if z >= 64#u64
-                                                then
-                                                  ok (core.result.Result.Err
-                                                    (error.Exc.Sys
-                                                    (error.SysError.NotEnoughMemory
-                                                    free_bytes)), s, a)
-                                                else
-                                                  if is_device
-                                                  then
-                                                    let b1 ←
-                                                      objects.is_frame_type
-                                                        new_type
-                                                    if b1
-                                                    then
-                                                      let aligned ←
-                                                        untyped.align_up
-                                                          free_ref z
-                                                      let s2 ←
-                                                        sched.set_thread_state
-                                                          machineStoreInst s ct
-                                                          sched.TS_RESTART
-                                                      untyped.retype
-                                                        machineStoreInst
-                                                        machineArchInst s2 a
-                                                        slot reset aligned
-                                                        new_type user_size ptr
-                                                        node_offset node_window
-                                                        is_device
-                                                    else
-                                                      if new_type !=
-                                                        fl4_abi.consts.object.Untyped
-                                                      then
-                                                        let r3 ←
-                                                          error.invalid_arg
-                                                            Unit 1#u64
-                                                        ok (r3, s, a)
-                                                      else
-                                                        let aligned ←
-                                                          untyped.align_up
-                                                            free_ref z
-                                                        let s2 ←
-                                                          sched.set_thread_state
-                                                            machineStoreInst s
-                                                            ct sched.TS_RESTART
-                                                        untyped.retype
-                                                          machineStoreInst
-                                                          machineArchInst s2 a
-                                                          slot reset aligned
-                                                          new_type user_size
-                                                          ptr node_offset
-                                                          node_window is_device
-                                                  else
-                                                    let aligned ←
-                                                      untyped.align_up free_ref
-                                                        z
-                                                    let s2 ←
-                                                      sched.set_thread_state
-                                                        machineStoreInst s ct
-                                                        sched.TS_RESTART
-                                                    untyped.retype
-                                                      machineStoreInst
-                                                      machineArchInst s2 a slot
-                                                      reset aligned new_type
-                                                      user_size ptr node_offset
-                                                      node_window is_device
-                                            | capability.Cap.Endpoint _ _ _ _ _
-                                              _ =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.Notification _ _ _
-                                              _ =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.Reply _ _ =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.CNode _ _ _ _ =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.Thread _ =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.IrqControl =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.IrqHandler _ =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.Zombie _ _ _ =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.Domain =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.SchedContext _ _
-                                              =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.SchedControl _ =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.Frame _ _ _ _ _ _
-                                              _ =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.PageTable _ _ _ _
-                                              =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.PageDirectory _ _
-                                              _ _ =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.Pdpt _ _ _ _ =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.Pml4 _ _ _ =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.AsidControl =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.AsidPool _ _ =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.IoPortControl =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                            | capability.Cap.IoPort _ _ =>
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s, a)
-                                          |
-                                            core.ops.control_flow.ControlFlow.Break
-                                            residual =>
-                                            let r2 ←
-                                              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                                Unit (core.convert.FromSame
-                                                error.Exc) residual
-                                            ok (r2, s, a)
-                                | capability.Cap.Thread _ =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.IrqControl =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.IrqHandler _ =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.Zombie _ _ _ =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.Domain =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.SchedContext _ _ =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.SchedControl _ =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.PageTable _ _ _ _ =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.PageDirectory _ _ _ _ =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.Pdpt _ _ _ _ =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.Pml4 _ _ _ =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.AsidControl =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.AsidPool _ _ =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.IoPortControl =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                                | capability.Cap.IoPort _ _ =>
-                                  ok (core.result.Result.Err (error.Exc.Sys
-                                    (error.SysError.FailedLookup false
-                                    (error.LookupFault.MissingCapability
-                                    node_depth))), s, a)
-                              | core.ops.control_flow.ControlFlow.Break
-                                residual =>
-                                let r1 ←
-                                  core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                    Unit (core.convert.FromSame error.Exc)
-                                    residual
-                                ok (r1, s, a)
-                        else
-                          if node_depth = 0#u64
-                          then
-                            let node_cap ← obj.Slot.cap machineStoreInst s1 s
-                            match node_cap with
-                            | capability.Cap.Null =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Untyped _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Notification _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Reply _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.CNode ptr radix _ _ =>
-                              let i ← lift (radix &&& 63#u64)
-                              let node_size ← 1#u64 <<< i
-                              let i1 ← node_size - 1#u64
-                              if node_offset > i1
-                              then
-                                let r ← error.range Unit 0#u64 i1
-                                ok (r, s, a)
-                              else
-                                if node_window < 1#u64
-                                then
-                                  let r ←
-                                    error.range Unit 1#u64
-                                      untyped.RETYPE_FAN_OUT_LIMIT
-                                  ok (r, s, a)
-                                else
-                                  if node_window > untyped.RETYPE_FAN_OUT_LIMIT
-                                  then
-                                    let r ←
-                                      error.range Unit 1#u64
-                                        untyped.RETYPE_FAN_OUT_LIMIT
-                                    ok (r, s, a)
-                                  else
-                                    let i2 ← node_size - node_offset
-                                    if node_window > i2
-                                    then
-                                      let r ← error.range Unit 1#u64 i2
-                                      ok (r, s, a)
-                                    else
-                                      let i3 ← node_offset + node_window
-                                      let r ←
-                                        untyped.ensure_empty_slots
-                                          machineStoreInst s ptr node_offset i3
-                                      let cf ←
-                                        core.result.Result.Insts.CoreOpsTry.branch
-                                          r
-                                      match cf with
-                                      |
-                                        core.ops.control_flow.ControlFlow.Continue
-                                        _ =>
-                                        match cap with
-                                        | capability.Cap.Null =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Untyped ptr1 size_bits
-                                          free_index is_device =>
-                                          let r1 ←
-                                            cdt.ensure_no_children
-                                              machineStoreInst s slot
-                                          let (free_index1, reset) ←
-                                            match r1 with
-                                            | core.result.Result.Ok _ =>
-                                              ok (0#u64, true)
-                                            | core.result.Result.Err _ =>
-                                              ok (free_index, false)
-                                          let free_ref ←
-                                            lift (core.num.U64.wrapping_add
-                                              ptr1 free_index1)
-                                          let i4 ←
-                                            lift (size_bits &&& 63#u64)
-                                          let i5 ← 1#u64 <<< i4
-                                          let free_bytes ←
-                                            lift (core.num.U64.wrapping_sub i5
-                                              free_index1)
-                                          let i6 ← lift (z &&& 63#u64)
-                                          let i7 ← free_bytes >>> i6
-                                          if i7 < node_window
-                                          then
-                                            ok (core.result.Result.Err
-                                              (error.Exc.Sys
-                                              (error.SysError.NotEnoughMemory
-                                              free_bytes)), s, a)
-                                          else
-                                            if z >= 64#u64
-                                            then
-                                              ok (core.result.Result.Err
-                                                (error.Exc.Sys
-                                                (error.SysError.NotEnoughMemory
-                                                free_bytes)), s, a)
-                                            else
-                                              if is_device
-                                              then
-                                                let b1 ←
-                                                  objects.is_frame_type
-                                                    new_type
-                                                if b1
-                                                then
-                                                  let aligned ←
-                                                    untyped.align_up free_ref z
-                                                  let s2 ←
-                                                    sched.set_thread_state
-                                                      machineStoreInst s ct
-                                                      sched.TS_RESTART
-                                                  untyped.retype
-                                                    machineStoreInst
-                                                    machineArchInst s2 a slot
-                                                    reset aligned new_type
-                                                    user_size ptr node_offset
-                                                    node_window is_device
-                                                else
-                                                  if new_type !=
-                                                    fl4_abi.consts.object.Untyped
-                                                  then
-                                                    let r2 ←
-                                                      error.invalid_arg Unit
-                                                        1#u64
-                                                    ok (r2, s, a)
-                                                  else
-                                                    let aligned ←
-                                                      untyped.align_up free_ref
-                                                        z
-                                                    let s2 ←
-                                                      sched.set_thread_state
-                                                        machineStoreInst s ct
-                                                        sched.TS_RESTART
-                                                    untyped.retype
-                                                      machineStoreInst
-                                                      machineArchInst s2 a slot
-                                                      reset aligned new_type
-                                                      user_size ptr node_offset
-                                                      node_window is_device
-                                              else
-                                                let aligned ←
-                                                  untyped.align_up free_ref z
-                                                let s2 ←
-                                                  sched.set_thread_state
-                                                    machineStoreInst s ct
-                                                    sched.TS_RESTART
-                                                untyped.retype machineStoreInst
-                                                  machineArchInst s2 a slot
-                                                  reset aligned new_type
-                                                  user_size ptr node_offset
-                                                  node_window is_device
-                                        | capability.Cap.Endpoint _ _ _ _ _ _
-                                          =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Notification _ _ _ _
-                                          =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Reply _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.CNode _ _ _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Thread _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.IrqControl =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.IrqHandler _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Zombie _ _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Domain =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.SchedContext _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.SchedControl _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.PageTable _ _ _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.PageDirectory _ _ _ _
-                                          =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Pdpt _ _ _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Pml4 _ _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.AsidControl =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.AsidPool _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.IoPortControl =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.IoPort _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                      | core.ops.control_flow.ControlFlow.Break
-                                        residual =>
-                                        let r1 ←
-                                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                            Unit (core.convert.FromSame
-                                            error.Exc) residual
-                                        ok (r1, s, a)
-                            | capability.Cap.Thread _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IrqControl =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IrqHandler _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Zombie _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Domain =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.SchedContext _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.SchedControl _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.PageTable _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.PageDirectory _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Pdpt _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Pml4 _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.AsidControl =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.AsidPool _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IoPortControl =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IoPort _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                          else
-                            let root ← obj.Slot.cap machineStoreInst s1 s
-                            let r ←
-                              cspace.lookup_target_slot machineStoreInst s root
-                                node_index node_depth
-                            let cf ←
-                              core.result.Result.Insts.CoreOpsTry.branch r
-                            match cf with
-                            | core.ops.control_flow.ControlFlow.Continue val =>
-                              let node_cap ←
-                                obj.Slot.cap machineStoreInst val s
-                              match node_cap with
-                              | capability.Cap.Null =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Untyped _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Notification _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Reply _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.CNode ptr radix _ _ =>
-                                let i ← lift (radix &&& 63#u64)
-                                let node_size ← 1#u64 <<< i
-                                let i1 ← node_size - 1#u64
-                                if node_offset > i1
-                                then
-                                  let r1 ← error.range Unit 0#u64 i1
-                                  ok (r1, s, a)
-                                else
-                                  if node_window < 1#u64
-                                  then
-                                    let r1 ←
-                                      error.range Unit 1#u64
-                                        untyped.RETYPE_FAN_OUT_LIMIT
-                                    ok (r1, s, a)
-                                  else
-                                    if node_window >
-                                      untyped.RETYPE_FAN_OUT_LIMIT
-                                    then
-                                      let r1 ←
-                                        error.range Unit 1#u64
-                                          untyped.RETYPE_FAN_OUT_LIMIT
-                                      ok (r1, s, a)
-                                    else
-                                      let i2 ← node_size - node_offset
-                                      if node_window > i2
-                                      then
-                                        let r1 ← error.range Unit 1#u64 i2
-                                        ok (r1, s, a)
-                                      else
-                                        let i3 ← node_offset + node_window
-                                        let r1 ←
-                                          untyped.ensure_empty_slots
-                                            machineStoreInst s ptr node_offset
-                                            i3
-                                        let cf1 ←
-                                          core.result.Result.Insts.CoreOpsTry.branch
-                                            r1
-                                        match cf1 with
-                                        |
-                                          core.ops.control_flow.ControlFlow.Continue
-                                          _ =>
-                                          match cap with
-                                          | capability.Cap.Null =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Untyped ptr1
-                                            size_bits free_index is_device =>
-                                            let r2 ←
-                                              cdt.ensure_no_children
-                                                machineStoreInst s slot
-                                            let (free_index1, reset) ←
-                                              match r2 with
-                                              | core.result.Result.Ok _ =>
-                                                ok (0#u64, true)
-                                              | core.result.Result.Err _ =>
-                                                ok (free_index, false)
-                                            let free_ref ←
-                                              lift (core.num.U64.wrapping_add
-                                                ptr1 free_index1)
-                                            let i4 ←
-                                              lift (size_bits &&& 63#u64)
-                                            let i5 ← 1#u64 <<< i4
-                                            let free_bytes ←
-                                              lift (core.num.U64.wrapping_sub
-                                                i5 free_index1)
-                                            let i6 ← lift (z &&& 63#u64)
-                                            let i7 ← free_bytes >>> i6
-                                            if i7 < node_window
-                                            then
-                                              ok (core.result.Result.Err
-                                                (error.Exc.Sys
-                                                (error.SysError.NotEnoughMemory
-                                                free_bytes)), s, a)
-                                            else
-                                              if z >= 64#u64
-                                              then
-                                                ok (core.result.Result.Err
-                                                  (error.Exc.Sys
-                                                  (error.SysError.NotEnoughMemory
-                                                  free_bytes)), s, a)
-                                              else
-                                                if is_device
-                                                then
-                                                  let b1 ←
-                                                    objects.is_frame_type
-                                                      new_type
-                                                  if b1
-                                                  then
-                                                    let aligned ←
-                                                      untyped.align_up free_ref
-                                                        z
-                                                    let s2 ←
-                                                      sched.set_thread_state
-                                                        machineStoreInst s ct
-                                                        sched.TS_RESTART
-                                                    untyped.retype
-                                                      machineStoreInst
-                                                      machineArchInst s2 a slot
-                                                      reset aligned new_type
-                                                      user_size ptr node_offset
-                                                      node_window is_device
-                                                  else
-                                                    if new_type !=
-                                                      fl4_abi.consts.object.Untyped
-                                                    then
-                                                      let r3 ←
-                                                        error.invalid_arg Unit
-                                                          1#u64
-                                                      ok (r3, s, a)
-                                                    else
-                                                      let aligned ←
-                                                        untyped.align_up
-                                                          free_ref z
-                                                      let s2 ←
-                                                        sched.set_thread_state
-                                                          machineStoreInst s ct
-                                                          sched.TS_RESTART
-                                                      untyped.retype
-                                                        machineStoreInst
-                                                        machineArchInst s2 a
-                                                        slot reset aligned
-                                                        new_type user_size ptr
-                                                        node_offset node_window
-                                                        is_device
-                                                else
-                                                  let aligned ←
-                                                    untyped.align_up free_ref z
-                                                  let s2 ←
-                                                    sched.set_thread_state
-                                                      machineStoreInst s ct
-                                                      sched.TS_RESTART
-                                                  untyped.retype
-                                                    machineStoreInst
-                                                    machineArchInst s2 a slot
-                                                    reset aligned new_type
-                                                    user_size ptr node_offset
-                                                    node_window is_device
-                                          | capability.Cap.Endpoint _ _ _ _ _ _
-                                            =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Notification _ _ _ _
-                                            =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Reply _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.CNode _ _ _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Thread _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.IrqControl =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.IrqHandler _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Zombie _ _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Domain =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.SchedContext _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.SchedControl _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Frame _ _ _ _ _ _ _
-                                            =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.PageTable _ _ _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.PageDirectory _ _ _
-                                            _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Pdpt _ _ _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Pml4 _ _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.AsidControl =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.AsidPool _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.IoPortControl =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.IoPort _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                        |
-                                          core.ops.control_flow.ControlFlow.Break
-                                          residual =>
-                                          let r2 ←
-                                            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                              Unit (core.convert.FromSame
-                                              error.Exc) residual
-                                          ok (r2, s, a)
-                              | capability.Cap.Thread _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.IrqControl =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.IrqHandler _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Zombie _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Domain =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.SchedContext _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.SchedControl _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.PageTable _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.PageDirectory _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Pdpt _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Pml4 _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.AsidControl =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.AsidPool _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.IoPortControl =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.IoPort _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                            | core.ops.control_flow.ControlFlow.Break residual
-                              =>
-                              let r1 ←
-                                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                  Unit (core.convert.FromSame error.Exc)
-                                  residual
-                              ok (r1, s, a)
-                    else
-                      if new_type = fl4_abi.consts.object.SchedContext
-                      then
-                        if user_size < fl4_abi.consts.bits.MIN_SCHED_CONTEXT
-                        then
-                          let r ← error.invalid_arg Unit 1#u64
-                          ok (r, s, a)
-                        else
-                          if node_depth = 0#u64
-                          then
-                            let node_cap ← obj.Slot.cap machineStoreInst s1 s
-                            match node_cap with
-                            | capability.Cap.Null =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Untyped _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Notification _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Reply _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.CNode ptr radix _ _ =>
-                              let i ← lift (radix &&& 63#u64)
-                              let node_size ← 1#u64 <<< i
-                              let i1 ← node_size - 1#u64
-                              if node_offset > i1
-                              then
-                                let r ← error.range Unit 0#u64 i1
-                                ok (r, s, a)
-                              else
-                                if node_window < 1#u64
-                                then
-                                  let r ←
-                                    error.range Unit 1#u64
-                                      untyped.RETYPE_FAN_OUT_LIMIT
-                                  ok (r, s, a)
-                                else
-                                  if node_window > untyped.RETYPE_FAN_OUT_LIMIT
-                                  then
-                                    let r ←
-                                      error.range Unit 1#u64
-                                        untyped.RETYPE_FAN_OUT_LIMIT
-                                    ok (r, s, a)
-                                  else
-                                    let i2 ← node_size - node_offset
-                                    if node_window > i2
-                                    then
-                                      let r ← error.range Unit 1#u64 i2
-                                      ok (r, s, a)
-                                    else
-                                      let i3 ← node_offset + node_window
-                                      let r ←
-                                        untyped.ensure_empty_slots
-                                          machineStoreInst s ptr node_offset i3
-                                      let cf ←
-                                        core.result.Result.Insts.CoreOpsTry.branch
-                                          r
-                                      match cf with
-                                      |
-                                        core.ops.control_flow.ControlFlow.Continue
-                                        _ =>
-                                        match cap with
-                                        | capability.Cap.Null =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Untyped ptr1 size_bits
-                                          free_index is_device =>
-                                          let r1 ←
-                                            cdt.ensure_no_children
-                                              machineStoreInst s slot
-                                          let (free_index1, reset) ←
-                                            match r1 with
-                                            | core.result.Result.Ok _ =>
-                                              ok (0#u64, true)
-                                            | core.result.Result.Err _ =>
-                                              ok (free_index, false)
-                                          let free_ref ←
-                                            lift (core.num.U64.wrapping_add
-                                              ptr1 free_index1)
-                                          let i4 ←
-                                            lift (size_bits &&& 63#u64)
-                                          let i5 ← 1#u64 <<< i4
-                                          let free_bytes ←
-                                            lift (core.num.U64.wrapping_sub i5
-                                              free_index1)
-                                          let i6 ← lift (z &&& 63#u64)
-                                          let i7 ← free_bytes >>> i6
-                                          if i7 < node_window
-                                          then
-                                            ok (core.result.Result.Err
-                                              (error.Exc.Sys
-                                              (error.SysError.NotEnoughMemory
-                                              free_bytes)), s, a)
-                                          else
-                                            if z >= 64#u64
-                                            then
-                                              ok (core.result.Result.Err
-                                                (error.Exc.Sys
-                                                (error.SysError.NotEnoughMemory
-                                                free_bytes)), s, a)
-                                            else
-                                              if is_device
-                                              then
-                                                let b1 ←
-                                                  objects.is_frame_type
-                                                    new_type
-                                                if b1
-                                                then
-                                                  let aligned ←
-                                                    untyped.align_up free_ref z
-                                                  let s2 ←
-                                                    sched.set_thread_state
-                                                      machineStoreInst s ct
-                                                      sched.TS_RESTART
-                                                  untyped.retype
-                                                    machineStoreInst
-                                                    machineArchInst s2 a slot
-                                                    reset aligned new_type
-                                                    user_size ptr node_offset
-                                                    node_window is_device
-                                                else
-                                                  if new_type !=
-                                                    fl4_abi.consts.object.Untyped
-                                                  then
-                                                    let r2 ←
-                                                      error.invalid_arg Unit
-                                                        1#u64
-                                                    ok (r2, s, a)
-                                                  else
-                                                    let aligned ←
-                                                      untyped.align_up free_ref
-                                                        z
-                                                    let s2 ←
-                                                      sched.set_thread_state
-                                                        machineStoreInst s ct
-                                                        sched.TS_RESTART
-                                                    untyped.retype
-                                                      machineStoreInst
-                                                      machineArchInst s2 a slot
-                                                      reset aligned new_type
-                                                      user_size ptr node_offset
-                                                      node_window is_device
-                                              else
-                                                let aligned ←
-                                                  untyped.align_up free_ref z
-                                                let s2 ←
-                                                  sched.set_thread_state
-                                                    machineStoreInst s ct
-                                                    sched.TS_RESTART
-                                                untyped.retype machineStoreInst
-                                                  machineArchInst s2 a slot
-                                                  reset aligned new_type
-                                                  user_size ptr node_offset
-                                                  node_window is_device
-                                        | capability.Cap.Endpoint _ _ _ _ _ _
-                                          =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Notification _ _ _ _
-                                          =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Reply _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.CNode _ _ _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Thread _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.IrqControl =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.IrqHandler _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Zombie _ _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Domain =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.SchedContext _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.SchedControl _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.PageTable _ _ _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.PageDirectory _ _ _ _
-                                          =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Pdpt _ _ _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Pml4 _ _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.AsidControl =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.AsidPool _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.IoPortControl =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.IoPort _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                      | core.ops.control_flow.ControlFlow.Break
-                                        residual =>
-                                        let r1 ←
-                                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                            Unit (core.convert.FromSame
-                                            error.Exc) residual
-                                        ok (r1, s, a)
-                            | capability.Cap.Thread _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IrqControl =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IrqHandler _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Zombie _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Domain =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.SchedContext _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.SchedControl _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.PageTable _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.PageDirectory _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Pdpt _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Pml4 _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.AsidControl =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.AsidPool _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IoPortControl =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IoPort _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                          else
-                            let root ← obj.Slot.cap machineStoreInst s1 s
-                            let r ←
-                              cspace.lookup_target_slot machineStoreInst s root
-                                node_index node_depth
-                            let cf ←
-                              core.result.Result.Insts.CoreOpsTry.branch r
-                            match cf with
-                            | core.ops.control_flow.ControlFlow.Continue val =>
-                              let node_cap ←
-                                obj.Slot.cap machineStoreInst val s
-                              match node_cap with
-                              | capability.Cap.Null =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Untyped _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Notification _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Reply _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.CNode ptr radix _ _ =>
-                                let i ← lift (radix &&& 63#u64)
-                                let node_size ← 1#u64 <<< i
-                                let i1 ← node_size - 1#u64
-                                if node_offset > i1
-                                then
-                                  let r1 ← error.range Unit 0#u64 i1
-                                  ok (r1, s, a)
-                                else
-                                  if node_window < 1#u64
-                                  then
-                                    let r1 ←
-                                      error.range Unit 1#u64
-                                        untyped.RETYPE_FAN_OUT_LIMIT
-                                    ok (r1, s, a)
-                                  else
-                                    if node_window >
-                                      untyped.RETYPE_FAN_OUT_LIMIT
-                                    then
-                                      let r1 ←
-                                        error.range Unit 1#u64
-                                          untyped.RETYPE_FAN_OUT_LIMIT
-                                      ok (r1, s, a)
-                                    else
-                                      let i2 ← node_size - node_offset
-                                      if node_window > i2
-                                      then
-                                        let r1 ← error.range Unit 1#u64 i2
-                                        ok (r1, s, a)
-                                      else
-                                        let i3 ← node_offset + node_window
-                                        let r1 ←
-                                          untyped.ensure_empty_slots
-                                            machineStoreInst s ptr node_offset
-                                            i3
-                                        let cf1 ←
-                                          core.result.Result.Insts.CoreOpsTry.branch
-                                            r1
-                                        match cf1 with
-                                        |
-                                          core.ops.control_flow.ControlFlow.Continue
-                                          _ =>
-                                          match cap with
-                                          | capability.Cap.Null =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Untyped ptr1
-                                            size_bits free_index is_device =>
-                                            let r2 ←
-                                              cdt.ensure_no_children
-                                                machineStoreInst s slot
-                                            let (free_index1, reset) ←
-                                              match r2 with
-                                              | core.result.Result.Ok _ =>
-                                                ok (0#u64, true)
-                                              | core.result.Result.Err _ =>
-                                                ok (free_index, false)
-                                            let free_ref ←
-                                              lift (core.num.U64.wrapping_add
-                                                ptr1 free_index1)
-                                            let i4 ←
-                                              lift (size_bits &&& 63#u64)
-                                            let i5 ← 1#u64 <<< i4
-                                            let free_bytes ←
-                                              lift (core.num.U64.wrapping_sub
-                                                i5 free_index1)
-                                            let i6 ← lift (z &&& 63#u64)
-                                            let i7 ← free_bytes >>> i6
-                                            if i7 < node_window
-                                            then
-                                              ok (core.result.Result.Err
-                                                (error.Exc.Sys
-                                                (error.SysError.NotEnoughMemory
-                                                free_bytes)), s, a)
-                                            else
-                                              if z >= 64#u64
-                                              then
-                                                ok (core.result.Result.Err
-                                                  (error.Exc.Sys
-                                                  (error.SysError.NotEnoughMemory
-                                                  free_bytes)), s, a)
-                                              else
-                                                if is_device
-                                                then
-                                                  let b1 ←
-                                                    objects.is_frame_type
-                                                      new_type
-                                                  if b1
-                                                  then
-                                                    let aligned ←
-                                                      untyped.align_up free_ref
-                                                        z
-                                                    let s2 ←
-                                                      sched.set_thread_state
-                                                        machineStoreInst s ct
-                                                        sched.TS_RESTART
-                                                    untyped.retype
-                                                      machineStoreInst
-                                                      machineArchInst s2 a slot
-                                                      reset aligned new_type
-                                                      user_size ptr node_offset
-                                                      node_window is_device
-                                                  else
-                                                    if new_type !=
-                                                      fl4_abi.consts.object.Untyped
-                                                    then
-                                                      let r3 ←
-                                                        error.invalid_arg Unit
-                                                          1#u64
-                                                      ok (r3, s, a)
-                                                    else
-                                                      let aligned ←
-                                                        untyped.align_up
-                                                          free_ref z
-                                                      let s2 ←
-                                                        sched.set_thread_state
-                                                          machineStoreInst s ct
-                                                          sched.TS_RESTART
-                                                      untyped.retype
-                                                        machineStoreInst
-                                                        machineArchInst s2 a
-                                                        slot reset aligned
-                                                        new_type user_size ptr
-                                                        node_offset node_window
-                                                        is_device
-                                                else
-                                                  let aligned ←
-                                                    untyped.align_up free_ref z
-                                                  let s2 ←
-                                                    sched.set_thread_state
-                                                      machineStoreInst s ct
-                                                      sched.TS_RESTART
-                                                  untyped.retype
-                                                    machineStoreInst
-                                                    machineArchInst s2 a slot
-                                                    reset aligned new_type
-                                                    user_size ptr node_offset
-                                                    node_window is_device
-                                          | capability.Cap.Endpoint _ _ _ _ _ _
-                                            =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Notification _ _ _ _
-                                            =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Reply _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.CNode _ _ _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Thread _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.IrqControl =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.IrqHandler _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Zombie _ _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Domain =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.SchedContext _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.SchedControl _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Frame _ _ _ _ _ _ _
-                                            =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.PageTable _ _ _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.PageDirectory _ _ _
-                                            _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Pdpt _ _ _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Pml4 _ _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.AsidControl =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.AsidPool _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.IoPortControl =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.IoPort _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                        |
-                                          core.ops.control_flow.ControlFlow.Break
-                                          residual =>
-                                          let r2 ←
-                                            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                              Unit (core.convert.FromSame
-                                              error.Exc) residual
-                                          ok (r2, s, a)
-                              | capability.Cap.Thread _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.IrqControl =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.IrqHandler _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Zombie _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Domain =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.SchedContext _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.SchedControl _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.PageTable _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.PageDirectory _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Pdpt _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Pml4 _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.AsidControl =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.AsidPool _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.IoPortControl =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.IoPort _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                            | core.ops.control_flow.ControlFlow.Break residual
-                              =>
-                              let r1 ←
-                                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                  Unit (core.convert.FromSame error.Exc)
-                                  residual
-                              ok (r1, s, a)
-                      else
-                        if node_depth = 0#u64
-                        then
-                          let node_cap ← obj.Slot.cap machineStoreInst s1 s
-                          match node_cap with
-                          | capability.Cap.Null =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Untyped _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Notification _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Reply _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.CNode ptr radix _ _ =>
-                            let i ← lift (radix &&& 63#u64)
-                            let node_size ← 1#u64 <<< i
-                            let i1 ← node_size - 1#u64
-                            if node_offset > i1
-                            then
-                              let r ← error.range Unit 0#u64 i1
-                              ok (r, s, a)
-                            else
-                              if node_window < 1#u64
-                              then
-                                let r ←
-                                  error.range Unit 1#u64
-                                    untyped.RETYPE_FAN_OUT_LIMIT
-                                ok (r, s, a)
-                              else
-                                if node_window > untyped.RETYPE_FAN_OUT_LIMIT
-                                then
-                                  let r ←
-                                    error.range Unit 1#u64
-                                      untyped.RETYPE_FAN_OUT_LIMIT
-                                  ok (r, s, a)
-                                else
-                                  let i2 ← node_size - node_offset
-                                  if node_window > i2
-                                  then
-                                    let r ← error.range Unit 1#u64 i2
-                                    ok (r, s, a)
-                                  else
-                                    let i3 ← node_offset + node_window
-                                    let r ←
-                                      untyped.ensure_empty_slots
-                                        machineStoreInst s ptr node_offset i3
-                                    let cf ←
-                                      core.result.Result.Insts.CoreOpsTry.branch
-                                        r
-                                    match cf with
-                                    |
-                                      core.ops.control_flow.ControlFlow.Continue
-                                      _ =>
-                                      match cap with
-                                      | capability.Cap.Null =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Untyped ptr1 size_bits
-                                        free_index is_device =>
-                                        let r1 ←
-                                          cdt.ensure_no_children
-                                            machineStoreInst s slot
-                                        let (free_index1, reset) ←
-                                          match r1 with
-                                          | core.result.Result.Ok _ =>
-                                            ok (0#u64, true)
-                                          | core.result.Result.Err _ =>
-                                            ok (free_index, false)
-                                        let free_ref ←
-                                          lift (core.num.U64.wrapping_add ptr1
-                                            free_index1)
-                                        let i4 ← lift (size_bits &&& 63#u64)
-                                        let i5 ← 1#u64 <<< i4
-                                        let free_bytes ←
-                                          lift (core.num.U64.wrapping_sub i5
-                                            free_index1)
-                                        let i6 ← lift (z &&& 63#u64)
-                                        let i7 ← free_bytes >>> i6
-                                        if i7 < node_window
-                                        then
-                                          ok (core.result.Result.Err
-                                            (error.Exc.Sys
-                                            (error.SysError.NotEnoughMemory
-                                            free_bytes)), s, a)
-                                        else
-                                          if z >= 64#u64
-                                          then
-                                            ok (core.result.Result.Err
-                                              (error.Exc.Sys
-                                              (error.SysError.NotEnoughMemory
-                                              free_bytes)), s, a)
-                                          else
-                                            if is_device
-                                            then
-                                              let b1 ←
-                                                objects.is_frame_type new_type
-                                              if b1
-                                              then
-                                                let aligned ←
-                                                  untyped.align_up free_ref z
-                                                let s2 ←
-                                                  sched.set_thread_state
-                                                    machineStoreInst s ct
-                                                    sched.TS_RESTART
-                                                untyped.retype machineStoreInst
-                                                  machineArchInst s2 a slot
-                                                  reset aligned new_type
-                                                  user_size ptr node_offset
-                                                  node_window is_device
-                                              else
-                                                if new_type !=
-                                                  fl4_abi.consts.object.Untyped
-                                                then
-                                                  let r2 ←
-                                                    error.invalid_arg Unit
-                                                      1#u64
-                                                  ok (r2, s, a)
-                                                else
-                                                  let aligned ←
-                                                    untyped.align_up free_ref z
-                                                  let s2 ←
-                                                    sched.set_thread_state
-                                                      machineStoreInst s ct
-                                                      sched.TS_RESTART
-                                                  untyped.retype
-                                                    machineStoreInst
-                                                    machineArchInst s2 a slot
-                                                    reset aligned new_type
-                                                    user_size ptr node_offset
-                                                    node_window is_device
-                                            else
-                                              let aligned ←
-                                                untyped.align_up free_ref z
-                                              let s2 ←
-                                                sched.set_thread_state
-                                                  machineStoreInst s ct
-                                                  sched.TS_RESTART
-                                              untyped.retype machineStoreInst
-                                                machineArchInst s2 a slot reset
-                                                aligned new_type user_size ptr
-                                                node_offset node_window
-                                                is_device
-                                      | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Notification _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Reply _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.CNode _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Thread _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.IrqControl =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.IrqHandler _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Zombie _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Domain =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.SchedContext _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.SchedControl _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.PageTable _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.PageDirectory _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Pdpt _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Pml4 _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.AsidControl =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.AsidPool _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.IoPortControl =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.IoPort _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                    | core.ops.control_flow.ControlFlow.Break
-                                      residual =>
-                                      let r1 ←
-                                        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                          Unit (core.convert.FromSame
-                                          error.Exc) residual
-                                      ok (r1, s, a)
-                          | capability.Cap.Thread _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.IrqControl =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.IrqHandler _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Zombie _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Domain =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.SchedContext _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.SchedControl _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.PageTable _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.PageDirectory _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Pdpt _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Pml4 _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.AsidControl =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.AsidPool _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.IoPortControl =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.IoPort _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                        else
-                          let root ← obj.Slot.cap machineStoreInst s1 s
-                          let r ←
-                            cspace.lookup_target_slot machineStoreInst s root
-                              node_index node_depth
-                          let cf ←
-                            core.result.Result.Insts.CoreOpsTry.branch r
-                          match cf with
-                          | core.ops.control_flow.ControlFlow.Continue val =>
-                            let node_cap ←
-                              obj.Slot.cap machineStoreInst val s
-                            match node_cap with
-                            | capability.Cap.Null =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Untyped _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Notification _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Reply _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.CNode ptr radix _ _ =>
-                              let i ← lift (radix &&& 63#u64)
-                              let node_size ← 1#u64 <<< i
-                              let i1 ← node_size - 1#u64
-                              if node_offset > i1
-                              then
-                                let r1 ← error.range Unit 0#u64 i1
-                                ok (r1, s, a)
-                              else
-                                if node_window < 1#u64
-                                then
-                                  let r1 ←
-                                    error.range Unit 1#u64
-                                      untyped.RETYPE_FAN_OUT_LIMIT
-                                  ok (r1, s, a)
-                                else
-                                  if node_window > untyped.RETYPE_FAN_OUT_LIMIT
-                                  then
-                                    let r1 ←
-                                      error.range Unit 1#u64
-                                        untyped.RETYPE_FAN_OUT_LIMIT
-                                    ok (r1, s, a)
-                                  else
-                                    let i2 ← node_size - node_offset
-                                    if node_window > i2
-                                    then
-                                      let r1 ← error.range Unit 1#u64 i2
-                                      ok (r1, s, a)
-                                    else
-                                      let i3 ← node_offset + node_window
-                                      let r1 ←
-                                        untyped.ensure_empty_slots
-                                          machineStoreInst s ptr node_offset i3
-                                      let cf1 ←
-                                        core.result.Result.Insts.CoreOpsTry.branch
-                                          r1
-                                      match cf1 with
-                                      |
-                                        core.ops.control_flow.ControlFlow.Continue
-                                        _ =>
-                                        match cap with
-                                        | capability.Cap.Null =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Untyped ptr1 size_bits
-                                          free_index is_device =>
-                                          let r2 ←
-                                            cdt.ensure_no_children
-                                              machineStoreInst s slot
-                                          let (free_index1, reset) ←
-                                            match r2 with
-                                            | core.result.Result.Ok _ =>
-                                              ok (0#u64, true)
-                                            | core.result.Result.Err _ =>
-                                              ok (free_index, false)
-                                          let free_ref ←
-                                            lift (core.num.U64.wrapping_add
-                                              ptr1 free_index1)
-                                          let i4 ←
-                                            lift (size_bits &&& 63#u64)
-                                          let i5 ← 1#u64 <<< i4
-                                          let free_bytes ←
-                                            lift (core.num.U64.wrapping_sub i5
-                                              free_index1)
-                                          let i6 ← lift (z &&& 63#u64)
-                                          let i7 ← free_bytes >>> i6
-                                          if i7 < node_window
-                                          then
-                                            ok (core.result.Result.Err
-                                              (error.Exc.Sys
-                                              (error.SysError.NotEnoughMemory
-                                              free_bytes)), s, a)
-                                          else
-                                            if z >= 64#u64
-                                            then
-                                              ok (core.result.Result.Err
-                                                (error.Exc.Sys
-                                                (error.SysError.NotEnoughMemory
-                                                free_bytes)), s, a)
-                                            else
-                                              if is_device
-                                              then
-                                                let b1 ←
-                                                  objects.is_frame_type
-                                                    new_type
-                                                if b1
-                                                then
-                                                  let aligned ←
-                                                    untyped.align_up free_ref z
-                                                  let s2 ←
-                                                    sched.set_thread_state
-                                                      machineStoreInst s ct
-                                                      sched.TS_RESTART
-                                                  untyped.retype
-                                                    machineStoreInst
-                                                    machineArchInst s2 a slot
-                                                    reset aligned new_type
-                                                    user_size ptr node_offset
-                                                    node_window is_device
-                                                else
-                                                  if new_type !=
-                                                    fl4_abi.consts.object.Untyped
-                                                  then
-                                                    let r3 ←
-                                                      error.invalid_arg Unit
-                                                        1#u64
-                                                    ok (r3, s, a)
-                                                  else
-                                                    let aligned ←
-                                                      untyped.align_up free_ref
-                                                        z
-                                                    let s2 ←
-                                                      sched.set_thread_state
-                                                        machineStoreInst s ct
-                                                        sched.TS_RESTART
-                                                    untyped.retype
-                                                      machineStoreInst
-                                                      machineArchInst s2 a slot
-                                                      reset aligned new_type
-                                                      user_size ptr node_offset
-                                                      node_window is_device
-                                              else
-                                                let aligned ←
-                                                  untyped.align_up free_ref z
-                                                let s2 ←
-                                                  sched.set_thread_state
-                                                    machineStoreInst s ct
-                                                    sched.TS_RESTART
-                                                untyped.retype machineStoreInst
-                                                  machineArchInst s2 a slot
-                                                  reset aligned new_type
-                                                  user_size ptr node_offset
-                                                  node_window is_device
-                                        | capability.Cap.Endpoint _ _ _ _ _ _
-                                          =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Notification _ _ _ _
-                                          =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Reply _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.CNode _ _ _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Thread _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.IrqControl =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.IrqHandler _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Zombie _ _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Domain =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.SchedContext _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.SchedControl _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.PageTable _ _ _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.PageDirectory _ _ _ _
-                                          =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Pdpt _ _ _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Pml4 _ _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.AsidControl =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.AsidPool _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.IoPortControl =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.IoPort _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                      | core.ops.control_flow.ControlFlow.Break
-                                        residual =>
-                                        let r2 ←
-                                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                            Unit (core.convert.FromSame
-                                            error.Exc) residual
-                                        ok (r2, s, a)
-                            | capability.Cap.Thread _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IrqControl =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IrqHandler _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Zombie _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Domain =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.SchedContext _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.SchedControl _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.PageTable _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.PageDirectory _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Pdpt _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Pml4 _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.AsidControl =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.AsidPool _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IoPortControl =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IoPort _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                          | core.ops.control_flow.ControlFlow.Break residual =>
-                            let r1 ←
-                              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                Unit (core.convert.FromSame error.Exc) residual
-                            ok (r1, s, a)
+                  ok (core.result.Result.Err (error.Exc.Sys
+                    (error.SysError.NotEnoughMemory free_bytes)), s, a)
                 else
-                  if new_type = fl4_abi.consts.object.Untyped
+                  if val >= 64#u64
                   then
-                    if user_size < fl4_abi.consts.bits.MIN_UNTYPED
-                    then let r ← error.invalid_arg Unit 1#u64
-                         ok (r, s, a)
-                    else
-                      if new_type = fl4_abi.consts.object.SchedContext
-                      then
-                        if user_size < fl4_abi.consts.bits.MIN_SCHED_CONTEXT
-                        then
-                          let r ← error.invalid_arg Unit 1#u64
-                          ok (r, s, a)
-                        else
-                          if node_depth = 0#u64
-                          then
-                            let node_cap ← obj.Slot.cap machineStoreInst s1 s
-                            match node_cap with
-                            | capability.Cap.Null =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Untyped _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Notification _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Reply _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.CNode ptr radix _ _ =>
-                              let i ← lift (radix &&& 63#u64)
-                              let node_size ← 1#u64 <<< i
-                              let i1 ← node_size - 1#u64
-                              if node_offset > i1
-                              then
-                                let r ← error.range Unit 0#u64 i1
-                                ok (r, s, a)
-                              else
-                                if node_window < 1#u64
-                                then
-                                  let r ←
-                                    error.range Unit 1#u64
-                                      untyped.RETYPE_FAN_OUT_LIMIT
-                                  ok (r, s, a)
-                                else
-                                  if node_window > untyped.RETYPE_FAN_OUT_LIMIT
-                                  then
-                                    let r ←
-                                      error.range Unit 1#u64
-                                        untyped.RETYPE_FAN_OUT_LIMIT
-                                    ok (r, s, a)
-                                  else
-                                    let i2 ← node_size - node_offset
-                                    if node_window > i2
-                                    then
-                                      let r ← error.range Unit 1#u64 i2
-                                      ok (r, s, a)
-                                    else
-                                      let i3 ← node_offset + node_window
-                                      let r ←
-                                        untyped.ensure_empty_slots
-                                          machineStoreInst s ptr node_offset i3
-                                      let cf ←
-                                        core.result.Result.Insts.CoreOpsTry.branch
-                                          r
-                                      match cf with
-                                      |
-                                        core.ops.control_flow.ControlFlow.Continue
-                                        _ =>
-                                        match cap with
-                                        | capability.Cap.Null =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Untyped ptr1 size_bits
-                                          free_index is_device =>
-                                          let r1 ←
-                                            cdt.ensure_no_children
-                                              machineStoreInst s slot
-                                          let (free_index1, reset) ←
-                                            match r1 with
-                                            | core.result.Result.Ok _ =>
-                                              ok (0#u64, true)
-                                            | core.result.Result.Err _ =>
-                                              ok (free_index, false)
-                                          let free_ref ←
-                                            lift (core.num.U64.wrapping_add
-                                              ptr1 free_index1)
-                                          let i4 ←
-                                            lift (size_bits &&& 63#u64)
-                                          let i5 ← 1#u64 <<< i4
-                                          let free_bytes ←
-                                            lift (core.num.U64.wrapping_sub i5
-                                              free_index1)
-                                          let i6 ← lift (z &&& 63#u64)
-                                          let i7 ← free_bytes >>> i6
-                                          if i7 < node_window
-                                          then
-                                            ok (core.result.Result.Err
-                                              (error.Exc.Sys
-                                              (error.SysError.NotEnoughMemory
-                                              free_bytes)), s, a)
-                                          else
-                                            if z >= 64#u64
-                                            then
-                                              ok (core.result.Result.Err
-                                                (error.Exc.Sys
-                                                (error.SysError.NotEnoughMemory
-                                                free_bytes)), s, a)
-                                            else
-                                              if is_device
-                                              then
-                                                let b1 ←
-                                                  objects.is_frame_type
-                                                    new_type
-                                                if b1
-                                                then
-                                                  let aligned ←
-                                                    untyped.align_up free_ref z
-                                                  let s2 ←
-                                                    sched.set_thread_state
-                                                      machineStoreInst s ct
-                                                      sched.TS_RESTART
-                                                  untyped.retype
-                                                    machineStoreInst
-                                                    machineArchInst s2 a slot
-                                                    reset aligned new_type
-                                                    user_size ptr node_offset
-                                                    node_window is_device
-                                                else
-                                                  if new_type !=
-                                                    fl4_abi.consts.object.Untyped
-                                                  then
-                                                    let r2 ←
-                                                      error.invalid_arg Unit
-                                                        1#u64
-                                                    ok (r2, s, a)
-                                                  else
-                                                    let aligned ←
-                                                      untyped.align_up free_ref
-                                                        z
-                                                    let s2 ←
-                                                      sched.set_thread_state
-                                                        machineStoreInst s ct
-                                                        sched.TS_RESTART
-                                                    untyped.retype
-                                                      machineStoreInst
-                                                      machineArchInst s2 a slot
-                                                      reset aligned new_type
-                                                      user_size ptr node_offset
-                                                      node_window is_device
-                                              else
-                                                let aligned ←
-                                                  untyped.align_up free_ref z
-                                                let s2 ←
-                                                  sched.set_thread_state
-                                                    machineStoreInst s ct
-                                                    sched.TS_RESTART
-                                                untyped.retype machineStoreInst
-                                                  machineArchInst s2 a slot
-                                                  reset aligned new_type
-                                                  user_size ptr node_offset
-                                                  node_window is_device
-                                        | capability.Cap.Endpoint _ _ _ _ _ _
-                                          =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Notification _ _ _ _
-                                          =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Reply _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.CNode _ _ _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Thread _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.IrqControl =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.IrqHandler _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Zombie _ _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Domain =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.SchedContext _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.SchedControl _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.PageTable _ _ _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.PageDirectory _ _ _ _
-                                          =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Pdpt _ _ _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.Pml4 _ _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.AsidControl =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.AsidPool _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.IoPortControl =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                        | capability.Cap.IoPort _ _ =>
-                                          let r1 ← error.illegal Unit
-                                          ok (r1, s, a)
-                                      | core.ops.control_flow.ControlFlow.Break
-                                        residual =>
-                                        let r1 ←
-                                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                            Unit (core.convert.FromSame
-                                            error.Exc) residual
-                                        ok (r1, s, a)
-                            | capability.Cap.Thread _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IrqControl =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IrqHandler _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Zombie _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Domain =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.SchedContext _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.SchedControl _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.PageTable _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.PageDirectory _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Pdpt _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Pml4 _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.AsidControl =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.AsidPool _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IoPortControl =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IoPort _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                          else
-                            let root ← obj.Slot.cap machineStoreInst s1 s
-                            let r ←
-                              cspace.lookup_target_slot machineStoreInst s root
-                                node_index node_depth
-                            let cf ←
-                              core.result.Result.Insts.CoreOpsTry.branch r
-                            match cf with
-                            | core.ops.control_flow.ControlFlow.Continue val =>
-                              let node_cap ←
-                                obj.Slot.cap machineStoreInst val s
-                              match node_cap with
-                              | capability.Cap.Null =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Untyped _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Notification _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Reply _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.CNode ptr radix _ _ =>
-                                let i ← lift (radix &&& 63#u64)
-                                let node_size ← 1#u64 <<< i
-                                let i1 ← node_size - 1#u64
-                                if node_offset > i1
-                                then
-                                  let r1 ← error.range Unit 0#u64 i1
-                                  ok (r1, s, a)
-                                else
-                                  if node_window < 1#u64
-                                  then
-                                    let r1 ←
-                                      error.range Unit 1#u64
-                                        untyped.RETYPE_FAN_OUT_LIMIT
-                                    ok (r1, s, a)
-                                  else
-                                    if node_window >
-                                      untyped.RETYPE_FAN_OUT_LIMIT
-                                    then
-                                      let r1 ←
-                                        error.range Unit 1#u64
-                                          untyped.RETYPE_FAN_OUT_LIMIT
-                                      ok (r1, s, a)
-                                    else
-                                      let i2 ← node_size - node_offset
-                                      if node_window > i2
-                                      then
-                                        let r1 ← error.range Unit 1#u64 i2
-                                        ok (r1, s, a)
-                                      else
-                                        let i3 ← node_offset + node_window
-                                        let r1 ←
-                                          untyped.ensure_empty_slots
-                                            machineStoreInst s ptr node_offset
-                                            i3
-                                        let cf1 ←
-                                          core.result.Result.Insts.CoreOpsTry.branch
-                                            r1
-                                        match cf1 with
-                                        |
-                                          core.ops.control_flow.ControlFlow.Continue
-                                          _ =>
-                                          match cap with
-                                          | capability.Cap.Null =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Untyped ptr1
-                                            size_bits free_index is_device =>
-                                            let r2 ←
-                                              cdt.ensure_no_children
-                                                machineStoreInst s slot
-                                            let (free_index1, reset) ←
-                                              match r2 with
-                                              | core.result.Result.Ok _ =>
-                                                ok (0#u64, true)
-                                              | core.result.Result.Err _ =>
-                                                ok (free_index, false)
-                                            let free_ref ←
-                                              lift (core.num.U64.wrapping_add
-                                                ptr1 free_index1)
-                                            let i4 ←
-                                              lift (size_bits &&& 63#u64)
-                                            let i5 ← 1#u64 <<< i4
-                                            let free_bytes ←
-                                              lift (core.num.U64.wrapping_sub
-                                                i5 free_index1)
-                                            let i6 ← lift (z &&& 63#u64)
-                                            let i7 ← free_bytes >>> i6
-                                            if i7 < node_window
-                                            then
-                                              ok (core.result.Result.Err
-                                                (error.Exc.Sys
-                                                (error.SysError.NotEnoughMemory
-                                                free_bytes)), s, a)
-                                            else
-                                              if z >= 64#u64
-                                              then
-                                                ok (core.result.Result.Err
-                                                  (error.Exc.Sys
-                                                  (error.SysError.NotEnoughMemory
-                                                  free_bytes)), s, a)
-                                              else
-                                                if is_device
-                                                then
-                                                  let b1 ←
-                                                    objects.is_frame_type
-                                                      new_type
-                                                  if b1
-                                                  then
-                                                    let aligned ←
-                                                      untyped.align_up free_ref
-                                                        z
-                                                    let s2 ←
-                                                      sched.set_thread_state
-                                                        machineStoreInst s ct
-                                                        sched.TS_RESTART
-                                                    untyped.retype
-                                                      machineStoreInst
-                                                      machineArchInst s2 a slot
-                                                      reset aligned new_type
-                                                      user_size ptr node_offset
-                                                      node_window is_device
-                                                  else
-                                                    if new_type !=
-                                                      fl4_abi.consts.object.Untyped
-                                                    then
-                                                      let r3 ←
-                                                        error.invalid_arg Unit
-                                                          1#u64
-                                                      ok (r3, s, a)
-                                                    else
-                                                      let aligned ←
-                                                        untyped.align_up
-                                                          free_ref z
-                                                      let s2 ←
-                                                        sched.set_thread_state
-                                                          machineStoreInst s ct
-                                                          sched.TS_RESTART
-                                                      untyped.retype
-                                                        machineStoreInst
-                                                        machineArchInst s2 a
-                                                        slot reset aligned
-                                                        new_type user_size ptr
-                                                        node_offset node_window
-                                                        is_device
-                                                else
-                                                  let aligned ←
-                                                    untyped.align_up free_ref z
-                                                  let s2 ←
-                                                    sched.set_thread_state
-                                                      machineStoreInst s ct
-                                                      sched.TS_RESTART
-                                                  untyped.retype
-                                                    machineStoreInst
-                                                    machineArchInst s2 a slot
-                                                    reset aligned new_type
-                                                    user_size ptr node_offset
-                                                    node_window is_device
-                                          | capability.Cap.Endpoint _ _ _ _ _ _
-                                            =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Notification _ _ _ _
-                                            =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Reply _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.CNode _ _ _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Thread _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.IrqControl =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.IrqHandler _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Zombie _ _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Domain =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.SchedContext _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.SchedControl _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Frame _ _ _ _ _ _ _
-                                            =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.PageTable _ _ _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.PageDirectory _ _ _
-                                            _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Pdpt _ _ _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.Pml4 _ _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.AsidControl =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.AsidPool _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.IoPortControl =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                          | capability.Cap.IoPort _ _ =>
-                                            let r2 ← error.illegal Unit
-                                            ok (r2, s, a)
-                                        |
-                                          core.ops.control_flow.ControlFlow.Break
-                                          residual =>
-                                          let r2 ←
-                                            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                              Unit (core.convert.FromSame
-                                              error.Exc) residual
-                                          ok (r2, s, a)
-                              | capability.Cap.Thread _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.IrqControl =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.IrqHandler _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Zombie _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Domain =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.SchedContext _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.SchedControl _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.PageTable _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.PageDirectory _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Pdpt _ _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.Pml4 _ _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.AsidControl =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.AsidPool _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.IoPortControl =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                              | capability.Cap.IoPort _ _ =>
-                                ok (core.result.Result.Err (error.Exc.Sys
-                                  (error.SysError.FailedLookup false
-                                  (error.LookupFault.MissingCapability
-                                  node_depth))), s, a)
-                            | core.ops.control_flow.ControlFlow.Break residual
-                              =>
-                              let r1 ←
-                                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                  Unit (core.convert.FromSame error.Exc)
-                                  residual
-                              ok (r1, s, a)
-                      else
-                        if node_depth = 0#u64
-                        then
-                          let node_cap ← obj.Slot.cap machineStoreInst s1 s
-                          match node_cap with
-                          | capability.Cap.Null =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Untyped _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Notification _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Reply _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.CNode ptr radix _ _ =>
-                            let i ← lift (radix &&& 63#u64)
-                            let node_size ← 1#u64 <<< i
-                            let i1 ← node_size - 1#u64
-                            if node_offset > i1
-                            then
-                              let r ← error.range Unit 0#u64 i1
-                              ok (r, s, a)
-                            else
-                              if node_window < 1#u64
-                              then
-                                let r ←
-                                  error.range Unit 1#u64
-                                    untyped.RETYPE_FAN_OUT_LIMIT
-                                ok (r, s, a)
-                              else
-                                if node_window > untyped.RETYPE_FAN_OUT_LIMIT
-                                then
-                                  let r ←
-                                    error.range Unit 1#u64
-                                      untyped.RETYPE_FAN_OUT_LIMIT
-                                  ok (r, s, a)
-                                else
-                                  let i2 ← node_size - node_offset
-                                  if node_window > i2
-                                  then
-                                    let r ← error.range Unit 1#u64 i2
-                                    ok (r, s, a)
-                                  else
-                                    let i3 ← node_offset + node_window
-                                    let r ←
-                                      untyped.ensure_empty_slots
-                                        machineStoreInst s ptr node_offset i3
-                                    let cf ←
-                                      core.result.Result.Insts.CoreOpsTry.branch
-                                        r
-                                    match cf with
-                                    |
-                                      core.ops.control_flow.ControlFlow.Continue
-                                      _ =>
-                                      match cap with
-                                      | capability.Cap.Null =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Untyped ptr1 size_bits
-                                        free_index is_device =>
-                                        let r1 ←
-                                          cdt.ensure_no_children
-                                            machineStoreInst s slot
-                                        let (free_index1, reset) ←
-                                          match r1 with
-                                          | core.result.Result.Ok _ =>
-                                            ok (0#u64, true)
-                                          | core.result.Result.Err _ =>
-                                            ok (free_index, false)
-                                        let free_ref ←
-                                          lift (core.num.U64.wrapping_add ptr1
-                                            free_index1)
-                                        let i4 ← lift (size_bits &&& 63#u64)
-                                        let i5 ← 1#u64 <<< i4
-                                        let free_bytes ←
-                                          lift (core.num.U64.wrapping_sub i5
-                                            free_index1)
-                                        let i6 ← lift (z &&& 63#u64)
-                                        let i7 ← free_bytes >>> i6
-                                        if i7 < node_window
-                                        then
-                                          ok (core.result.Result.Err
-                                            (error.Exc.Sys
-                                            (error.SysError.NotEnoughMemory
-                                            free_bytes)), s, a)
-                                        else
-                                          if z >= 64#u64
-                                          then
-                                            ok (core.result.Result.Err
-                                              (error.Exc.Sys
-                                              (error.SysError.NotEnoughMemory
-                                              free_bytes)), s, a)
-                                          else
-                                            if is_device
-                                            then
-                                              let b1 ←
-                                                objects.is_frame_type new_type
-                                              if b1
-                                              then
-                                                let aligned ←
-                                                  untyped.align_up free_ref z
-                                                let s2 ←
-                                                  sched.set_thread_state
-                                                    machineStoreInst s ct
-                                                    sched.TS_RESTART
-                                                untyped.retype machineStoreInst
-                                                  machineArchInst s2 a slot
-                                                  reset aligned new_type
-                                                  user_size ptr node_offset
-                                                  node_window is_device
-                                              else
-                                                if new_type !=
-                                                  fl4_abi.consts.object.Untyped
-                                                then
-                                                  let r2 ←
-                                                    error.invalid_arg Unit
-                                                      1#u64
-                                                  ok (r2, s, a)
-                                                else
-                                                  let aligned ←
-                                                    untyped.align_up free_ref z
-                                                  let s2 ←
-                                                    sched.set_thread_state
-                                                      machineStoreInst s ct
-                                                      sched.TS_RESTART
-                                                  untyped.retype
-                                                    machineStoreInst
-                                                    machineArchInst s2 a slot
-                                                    reset aligned new_type
-                                                    user_size ptr node_offset
-                                                    node_window is_device
-                                            else
-                                              let aligned ←
-                                                untyped.align_up free_ref z
-                                              let s2 ←
-                                                sched.set_thread_state
-                                                  machineStoreInst s ct
-                                                  sched.TS_RESTART
-                                              untyped.retype machineStoreInst
-                                                machineArchInst s2 a slot reset
-                                                aligned new_type user_size ptr
-                                                node_offset node_window
-                                                is_device
-                                      | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Notification _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Reply _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.CNode _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Thread _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.IrqControl =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.IrqHandler _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Zombie _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Domain =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.SchedContext _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.SchedControl _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.PageTable _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.PageDirectory _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Pdpt _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Pml4 _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.AsidControl =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.AsidPool _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.IoPortControl =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.IoPort _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                    | core.ops.control_flow.ControlFlow.Break
-                                      residual =>
-                                      let r1 ←
-                                        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                          Unit (core.convert.FromSame
-                                          error.Exc) residual
-                                      ok (r1, s, a)
-                          | capability.Cap.Thread _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.IrqControl =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.IrqHandler _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Zombie _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Domain =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.SchedContext _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.SchedControl _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.PageTable _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.PageDirectory _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Pdpt _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Pml4 _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.AsidControl =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.AsidPool _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.IoPortControl =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.IoPort _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                        else
-                          let root ← obj.Slot.cap machineStoreInst s1 s
-                          let r ←
-                            cspace.lookup_target_slot machineStoreInst s root
-                              node_index node_depth
-                          let cf ←
-                            core.result.Result.Insts.CoreOpsTry.branch r
-                          match cf with
-                          | core.ops.control_flow.ControlFlow.Continue val =>
-                            let node_cap ←
-                              obj.Slot.cap machineStoreInst val s
-                            match node_cap with
-                            | capability.Cap.Null =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Untyped _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Notification _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Reply _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.CNode ptr radix _ _ =>
-                              let i ← lift (radix &&& 63#u64)
-                              let node_size ← 1#u64 <<< i
-                              let i1 ← node_size - 1#u64
-                              if node_offset > i1
-                              then
-                                let r1 ← error.range Unit 0#u64 i1
-                                ok (r1, s, a)
-                              else
-                                if node_window < 1#u64
-                                then
-                                  let r1 ←
-                                    error.range Unit 1#u64
-                                      untyped.RETYPE_FAN_OUT_LIMIT
-                                  ok (r1, s, a)
-                                else
-                                  if node_window > untyped.RETYPE_FAN_OUT_LIMIT
-                                  then
-                                    let r1 ←
-                                      error.range Unit 1#u64
-                                        untyped.RETYPE_FAN_OUT_LIMIT
-                                    ok (r1, s, a)
-                                  else
-                                    let i2 ← node_size - node_offset
-                                    if node_window > i2
-                                    then
-                                      let r1 ← error.range Unit 1#u64 i2
-                                      ok (r1, s, a)
-                                    else
-                                      let i3 ← node_offset + node_window
-                                      let r1 ←
-                                        untyped.ensure_empty_slots
-                                          machineStoreInst s ptr node_offset i3
-                                      let cf1 ←
-                                        core.result.Result.Insts.CoreOpsTry.branch
-                                          r1
-                                      match cf1 with
-                                      |
-                                        core.ops.control_flow.ControlFlow.Continue
-                                        _ =>
-                                        match cap with
-                                        | capability.Cap.Null =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Untyped ptr1 size_bits
-                                          free_index is_device =>
-                                          let r2 ←
-                                            cdt.ensure_no_children
-                                              machineStoreInst s slot
-                                          let (free_index1, reset) ←
-                                            match r2 with
-                                            | core.result.Result.Ok _ =>
-                                              ok (0#u64, true)
-                                            | core.result.Result.Err _ =>
-                                              ok (free_index, false)
-                                          let free_ref ←
-                                            lift (core.num.U64.wrapping_add
-                                              ptr1 free_index1)
-                                          let i4 ←
-                                            lift (size_bits &&& 63#u64)
-                                          let i5 ← 1#u64 <<< i4
-                                          let free_bytes ←
-                                            lift (core.num.U64.wrapping_sub i5
-                                              free_index1)
-                                          let i6 ← lift (z &&& 63#u64)
-                                          let i7 ← free_bytes >>> i6
-                                          if i7 < node_window
-                                          then
-                                            ok (core.result.Result.Err
-                                              (error.Exc.Sys
-                                              (error.SysError.NotEnoughMemory
-                                              free_bytes)), s, a)
-                                          else
-                                            if z >= 64#u64
-                                            then
-                                              ok (core.result.Result.Err
-                                                (error.Exc.Sys
-                                                (error.SysError.NotEnoughMemory
-                                                free_bytes)), s, a)
-                                            else
-                                              if is_device
-                                              then
-                                                let b1 ←
-                                                  objects.is_frame_type
-                                                    new_type
-                                                if b1
-                                                then
-                                                  let aligned ←
-                                                    untyped.align_up free_ref z
-                                                  let s2 ←
-                                                    sched.set_thread_state
-                                                      machineStoreInst s ct
-                                                      sched.TS_RESTART
-                                                  untyped.retype
-                                                    machineStoreInst
-                                                    machineArchInst s2 a slot
-                                                    reset aligned new_type
-                                                    user_size ptr node_offset
-                                                    node_window is_device
-                                                else
-                                                  if new_type !=
-                                                    fl4_abi.consts.object.Untyped
-                                                  then
-                                                    let r3 ←
-                                                      error.invalid_arg Unit
-                                                        1#u64
-                                                    ok (r3, s, a)
-                                                  else
-                                                    let aligned ←
-                                                      untyped.align_up free_ref
-                                                        z
-                                                    let s2 ←
-                                                      sched.set_thread_state
-                                                        machineStoreInst s ct
-                                                        sched.TS_RESTART
-                                                    untyped.retype
-                                                      machineStoreInst
-                                                      machineArchInst s2 a slot
-                                                      reset aligned new_type
-                                                      user_size ptr node_offset
-                                                      node_window is_device
-                                              else
-                                                let aligned ←
-                                                  untyped.align_up free_ref z
-                                                let s2 ←
-                                                  sched.set_thread_state
-                                                    machineStoreInst s ct
-                                                    sched.TS_RESTART
-                                                untyped.retype machineStoreInst
-                                                  machineArchInst s2 a slot
-                                                  reset aligned new_type
-                                                  user_size ptr node_offset
-                                                  node_window is_device
-                                        | capability.Cap.Endpoint _ _ _ _ _ _
-                                          =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Notification _ _ _ _
-                                          =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Reply _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.CNode _ _ _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Thread _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.IrqControl =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.IrqHandler _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Zombie _ _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Domain =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.SchedContext _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.SchedControl _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.PageTable _ _ _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.PageDirectory _ _ _ _
-                                          =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Pdpt _ _ _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Pml4 _ _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.AsidControl =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.AsidPool _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.IoPortControl =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.IoPort _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                      | core.ops.control_flow.ControlFlow.Break
-                                        residual =>
-                                        let r2 ←
-                                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                            Unit (core.convert.FromSame
-                                            error.Exc) residual
-                                        ok (r2, s, a)
-                            | capability.Cap.Thread _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IrqControl =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IrqHandler _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Zombie _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Domain =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.SchedContext _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.SchedControl _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.PageTable _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.PageDirectory _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Pdpt _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Pml4 _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.AsidControl =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.AsidPool _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IoPortControl =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IoPort _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                          | core.ops.control_flow.ControlFlow.Break residual =>
-                            let r1 ←
-                              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                Unit (core.convert.FromSame error.Exc) residual
-                            ok (r1, s, a)
+                    ok (core.result.Result.Err (error.Exc.Sys
+                      (error.SysError.NotEnoughMemory free_bytes)), s, a)
                   else
-                    if new_type = fl4_abi.consts.object.SchedContext
+                    if device
                     then
-                      if user_size < fl4_abi.consts.bits.MIN_SCHED_CONTEXT
-                      then let r ← error.invalid_arg Unit 1#u64
-                           ok (r, s, a)
-                      else
-                        if node_depth = 0#u64
-                        then
-                          let node_cap ← obj.Slot.cap machineStoreInst s1 s
-                          match node_cap with
-                          | capability.Cap.Null =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Untyped _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Notification _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Reply _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.CNode ptr radix _ _ =>
-                            let i ← lift (radix &&& 63#u64)
-                            let node_size ← 1#u64 <<< i
-                            let i1 ← node_size - 1#u64
-                            if node_offset > i1
-                            then
-                              let r ← error.range Unit 0#u64 i1
-                              ok (r, s, a)
-                            else
-                              if node_window < 1#u64
-                              then
-                                let r ←
-                                  error.range Unit 1#u64
-                                    untyped.RETYPE_FAN_OUT_LIMIT
-                                ok (r, s, a)
-                              else
-                                if node_window > untyped.RETYPE_FAN_OUT_LIMIT
-                                then
-                                  let r ←
-                                    error.range Unit 1#u64
-                                      untyped.RETYPE_FAN_OUT_LIMIT
-                                  ok (r, s, a)
-                                else
-                                  let i2 ← node_size - node_offset
-                                  if node_window > i2
-                                  then
-                                    let r ← error.range Unit 1#u64 i2
-                                    ok (r, s, a)
-                                  else
-                                    let i3 ← node_offset + node_window
-                                    let r ←
-                                      untyped.ensure_empty_slots
-                                        machineStoreInst s ptr node_offset i3
-                                    let cf ←
-                                      core.result.Result.Insts.CoreOpsTry.branch
-                                        r
-                                    match cf with
-                                    |
-                                      core.ops.control_flow.ControlFlow.Continue
-                                      _ =>
-                                      match cap with
-                                      | capability.Cap.Null =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Untyped ptr1 size_bits
-                                        free_index is_device =>
-                                        let r1 ←
-                                          cdt.ensure_no_children
-                                            machineStoreInst s slot
-                                        let (free_index1, reset) ←
-                                          match r1 with
-                                          | core.result.Result.Ok _ =>
-                                            ok (0#u64, true)
-                                          | core.result.Result.Err _ =>
-                                            ok (free_index, false)
-                                        let free_ref ←
-                                          lift (core.num.U64.wrapping_add ptr1
-                                            free_index1)
-                                        let i4 ← lift (size_bits &&& 63#u64)
-                                        let i5 ← 1#u64 <<< i4
-                                        let free_bytes ←
-                                          lift (core.num.U64.wrapping_sub i5
-                                            free_index1)
-                                        let i6 ← lift (z &&& 63#u64)
-                                        let i7 ← free_bytes >>> i6
-                                        if i7 < node_window
-                                        then
-                                          ok (core.result.Result.Err
-                                            (error.Exc.Sys
-                                            (error.SysError.NotEnoughMemory
-                                            free_bytes)), s, a)
-                                        else
-                                          if z >= 64#u64
-                                          then
-                                            ok (core.result.Result.Err
-                                              (error.Exc.Sys
-                                              (error.SysError.NotEnoughMemory
-                                              free_bytes)), s, a)
-                                          else
-                                            if is_device
-                                            then
-                                              let b1 ←
-                                                objects.is_frame_type new_type
-                                              if b1
-                                              then
-                                                let aligned ←
-                                                  untyped.align_up free_ref z
-                                                let s2 ←
-                                                  sched.set_thread_state
-                                                    machineStoreInst s ct
-                                                    sched.TS_RESTART
-                                                untyped.retype machineStoreInst
-                                                  machineArchInst s2 a slot
-                                                  reset aligned new_type
-                                                  user_size ptr node_offset
-                                                  node_window is_device
-                                              else
-                                                if new_type !=
-                                                  fl4_abi.consts.object.Untyped
-                                                then
-                                                  let r2 ←
-                                                    error.invalid_arg Unit
-                                                      1#u64
-                                                  ok (r2, s, a)
-                                                else
-                                                  let aligned ←
-                                                    untyped.align_up free_ref z
-                                                  let s2 ←
-                                                    sched.set_thread_state
-                                                      machineStoreInst s ct
-                                                      sched.TS_RESTART
-                                                  untyped.retype
-                                                    machineStoreInst
-                                                    machineArchInst s2 a slot
-                                                    reset aligned new_type
-                                                    user_size ptr node_offset
-                                                    node_window is_device
-                                            else
-                                              let aligned ←
-                                                untyped.align_up free_ref z
-                                              let s2 ←
-                                                sched.set_thread_state
-                                                  machineStoreInst s ct
-                                                  sched.TS_RESTART
-                                              untyped.retype machineStoreInst
-                                                machineArchInst s2 a slot reset
-                                                aligned new_type user_size ptr
-                                                node_offset node_window
-                                                is_device
-                                      | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Notification _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Reply _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.CNode _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Thread _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.IrqControl =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.IrqHandler _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Zombie _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Domain =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.SchedContext _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.SchedControl _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.PageTable _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.PageDirectory _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Pdpt _ _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.Pml4 _ _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.AsidControl =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.AsidPool _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.IoPortControl =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                      | capability.Cap.IoPort _ _ =>
-                                        let r1 ← error.illegal Unit
-                                        ok (r1, s, a)
-                                    | core.ops.control_flow.ControlFlow.Break
-                                      residual =>
-                                      let r1 ←
-                                        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                          Unit (core.convert.FromSame
-                                          error.Exc) residual
-                                      ok (r1, s, a)
-                          | capability.Cap.Thread _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.IrqControl =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.IrqHandler _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Zombie _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Domain =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.SchedContext _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.SchedControl _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.PageTable _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.PageDirectory _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Pdpt _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Pml4 _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.AsidControl =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.AsidPool _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.IoPortControl =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.IoPort _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                        else
-                          let root ← obj.Slot.cap machineStoreInst s1 s
-                          let r ←
-                            cspace.lookup_target_slot machineStoreInst s root
-                              node_index node_depth
-                          let cf ←
-                            core.result.Result.Insts.CoreOpsTry.branch r
-                          match cf with
-                          | core.ops.control_flow.ControlFlow.Continue val =>
-                            let node_cap ←
-                              obj.Slot.cap machineStoreInst val s
-                            match node_cap with
-                            | capability.Cap.Null =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Untyped _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Notification _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Reply _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.CNode ptr radix _ _ =>
-                              let i ← lift (radix &&& 63#u64)
-                              let node_size ← 1#u64 <<< i
-                              let i1 ← node_size - 1#u64
-                              if node_offset > i1
-                              then
-                                let r1 ← error.range Unit 0#u64 i1
-                                ok (r1, s, a)
-                              else
-                                if node_window < 1#u64
-                                then
-                                  let r1 ←
-                                    error.range Unit 1#u64
-                                      untyped.RETYPE_FAN_OUT_LIMIT
-                                  ok (r1, s, a)
-                                else
-                                  if node_window > untyped.RETYPE_FAN_OUT_LIMIT
-                                  then
-                                    let r1 ←
-                                      error.range Unit 1#u64
-                                        untyped.RETYPE_FAN_OUT_LIMIT
-                                    ok (r1, s, a)
-                                  else
-                                    let i2 ← node_size - node_offset
-                                    if node_window > i2
-                                    then
-                                      let r1 ← error.range Unit 1#u64 i2
-                                      ok (r1, s, a)
-                                    else
-                                      let i3 ← node_offset + node_window
-                                      let r1 ←
-                                        untyped.ensure_empty_slots
-                                          machineStoreInst s ptr node_offset i3
-                                      let cf1 ←
-                                        core.result.Result.Insts.CoreOpsTry.branch
-                                          r1
-                                      match cf1 with
-                                      |
-                                        core.ops.control_flow.ControlFlow.Continue
-                                        _ =>
-                                        match cap with
-                                        | capability.Cap.Null =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Untyped ptr1 size_bits
-                                          free_index is_device =>
-                                          let r2 ←
-                                            cdt.ensure_no_children
-                                              machineStoreInst s slot
-                                          let (free_index1, reset) ←
-                                            match r2 with
-                                            | core.result.Result.Ok _ =>
-                                              ok (0#u64, true)
-                                            | core.result.Result.Err _ =>
-                                              ok (free_index, false)
-                                          let free_ref ←
-                                            lift (core.num.U64.wrapping_add
-                                              ptr1 free_index1)
-                                          let i4 ←
-                                            lift (size_bits &&& 63#u64)
-                                          let i5 ← 1#u64 <<< i4
-                                          let free_bytes ←
-                                            lift (core.num.U64.wrapping_sub i5
-                                              free_index1)
-                                          let i6 ← lift (z &&& 63#u64)
-                                          let i7 ← free_bytes >>> i6
-                                          if i7 < node_window
-                                          then
-                                            ok (core.result.Result.Err
-                                              (error.Exc.Sys
-                                              (error.SysError.NotEnoughMemory
-                                              free_bytes)), s, a)
-                                          else
-                                            if z >= 64#u64
-                                            then
-                                              ok (core.result.Result.Err
-                                                (error.Exc.Sys
-                                                (error.SysError.NotEnoughMemory
-                                                free_bytes)), s, a)
-                                            else
-                                              if is_device
-                                              then
-                                                let b1 ←
-                                                  objects.is_frame_type
-                                                    new_type
-                                                if b1
-                                                then
-                                                  let aligned ←
-                                                    untyped.align_up free_ref z
-                                                  let s2 ←
-                                                    sched.set_thread_state
-                                                      machineStoreInst s ct
-                                                      sched.TS_RESTART
-                                                  untyped.retype
-                                                    machineStoreInst
-                                                    machineArchInst s2 a slot
-                                                    reset aligned new_type
-                                                    user_size ptr node_offset
-                                                    node_window is_device
-                                                else
-                                                  if new_type !=
-                                                    fl4_abi.consts.object.Untyped
-                                                  then
-                                                    let r3 ←
-                                                      error.invalid_arg Unit
-                                                        1#u64
-                                                    ok (r3, s, a)
-                                                  else
-                                                    let aligned ←
-                                                      untyped.align_up free_ref
-                                                        z
-                                                    let s2 ←
-                                                      sched.set_thread_state
-                                                        machineStoreInst s ct
-                                                        sched.TS_RESTART
-                                                    untyped.retype
-                                                      machineStoreInst
-                                                      machineArchInst s2 a slot
-                                                      reset aligned new_type
-                                                      user_size ptr node_offset
-                                                      node_window is_device
-                                              else
-                                                let aligned ←
-                                                  untyped.align_up free_ref z
-                                                let s2 ←
-                                                  sched.set_thread_state
-                                                    machineStoreInst s ct
-                                                    sched.TS_RESTART
-                                                untyped.retype machineStoreInst
-                                                  machineArchInst s2 a slot
-                                                  reset aligned new_type
-                                                  user_size ptr node_offset
-                                                  node_window is_device
-                                        | capability.Cap.Endpoint _ _ _ _ _ _
-                                          =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Notification _ _ _ _
-                                          =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Reply _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.CNode _ _ _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Thread _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.IrqControl =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.IrqHandler _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Zombie _ _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Domain =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.SchedContext _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.SchedControl _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.PageTable _ _ _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.PageDirectory _ _ _ _
-                                          =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Pdpt _ _ _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.Pml4 _ _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.AsidControl =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.AsidPool _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.IoPortControl =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                        | capability.Cap.IoPort _ _ =>
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s, a)
-                                      | core.ops.control_flow.ControlFlow.Break
-                                        residual =>
-                                        let r2 ←
-                                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                            Unit (core.convert.FromSame
-                                            error.Exc) residual
-                                        ok (r2, s, a)
-                            | capability.Cap.Thread _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IrqControl =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IrqHandler _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Zombie _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Domain =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.SchedContext _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.SchedControl _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.PageTable _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.PageDirectory _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Pdpt _ _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.Pml4 _ _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.AsidControl =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.AsidPool _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IoPortControl =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                            | capability.Cap.IoPort _ _ =>
-                              ok (core.result.Result.Err (error.Exc.Sys
-                                (error.SysError.FailedLookup false
-                                (error.LookupFault.MissingCapability
-                                node_depth))), s, a)
-                          | core.ops.control_flow.ControlFlow.Break residual =>
-                            let r1 ←
-                              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                Unit (core.convert.FromSame error.Exc) residual
-                            ok (r1, s, a)
-                    else
-                      if node_depth = 0#u64
+                      let b1 ← objects.is_frame_type new_type
+                      if b1
                       then
-                        let node_cap ← obj.Slot.cap machineStoreInst s1 s
-                        match node_cap with
-                        | capability.Cap.Null =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.Untyped _ _ _ _ =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.Notification _ _ _ _ =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.Reply _ _ =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.CNode ptr radix _ _ =>
-                          let i ← lift (radix &&& 63#u64)
-                          let node_size ← 1#u64 <<< i
-                          let i1 ← node_size - 1#u64
-                          if node_offset > i1
-                          then let r ← error.range Unit 0#u64 i1
-                               ok (r, s, a)
-                          else
-                            if node_window < 1#u64
-                            then
-                              let r ←
-                                error.range Unit 1#u64
-                                  untyped.RETYPE_FAN_OUT_LIMIT
-                              ok (r, s, a)
-                            else
-                              if node_window > untyped.RETYPE_FAN_OUT_LIMIT
-                              then
-                                let r ←
-                                  error.range Unit 1#u64
-                                    untyped.RETYPE_FAN_OUT_LIMIT
-                                ok (r, s, a)
-                              else
-                                let i2 ← node_size - node_offset
-                                if node_window > i2
-                                then
-                                  let r ← error.range Unit 1#u64 i2
-                                  ok (r, s, a)
-                                else
-                                  let i3 ← node_offset + node_window
-                                  let r ←
-                                    untyped.ensure_empty_slots machineStoreInst
-                                      s ptr node_offset i3
-                                  let cf ←
-                                    core.result.Result.Insts.CoreOpsTry.branch
-                                      r
-                                  match cf with
-                                  | core.ops.control_flow.ControlFlow.Continue
-                                    _ =>
-                                    match cap with
-                                    | capability.Cap.Null =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.Untyped ptr1 size_bits
-                                      free_index is_device =>
-                                      let r1 ←
-                                        cdt.ensure_no_children machineStoreInst
-                                          s slot
-                                      let (free_index1, reset) ←
-                                        match r1 with
-                                        | core.result.Result.Ok _ =>
-                                          ok (0#u64, true)
-                                        | core.result.Result.Err _ =>
-                                          ok (free_index, false)
-                                      let free_ref ←
-                                        lift (core.num.U64.wrapping_add ptr1
-                                          free_index1)
-                                      let i4 ← lift (size_bits &&& 63#u64)
-                                      let i5 ← 1#u64 <<< i4
-                                      let free_bytes ←
-                                        lift (core.num.U64.wrapping_sub i5
-                                          free_index1)
-                                      let i6 ← lift (z &&& 63#u64)
-                                      let i7 ← free_bytes >>> i6
-                                      if i7 < node_window
-                                      then
-                                        ok (core.result.Result.Err
-                                          (error.Exc.Sys
-                                          (error.SysError.NotEnoughMemory
-                                          free_bytes)), s, a)
-                                      else
-                                        if z >= 64#u64
-                                        then
-                                          ok (core.result.Result.Err
-                                            (error.Exc.Sys
-                                            (error.SysError.NotEnoughMemory
-                                            free_bytes)), s, a)
-                                        else
-                                          if is_device
-                                          then
-                                            let b1 ←
-                                              objects.is_frame_type new_type
-                                            if b1
-                                            then
-                                              let aligned ←
-                                                untyped.align_up free_ref z
-                                              let s2 ←
-                                                sched.set_thread_state
-                                                  machineStoreInst s ct
-                                                  sched.TS_RESTART
-                                              untyped.retype machineStoreInst
-                                                machineArchInst s2 a slot reset
-                                                aligned new_type user_size ptr
-                                                node_offset node_window
-                                                is_device
-                                            else
-                                              if new_type !=
-                                                fl4_abi.consts.object.Untyped
-                                              then
-                                                let r2 ←
-                                                  error.invalid_arg Unit 1#u64
-                                                ok (r2, s, a)
-                                              else
-                                                let aligned ←
-                                                  untyped.align_up free_ref z
-                                                let s2 ←
-                                                  sched.set_thread_state
-                                                    machineStoreInst s ct
-                                                    sched.TS_RESTART
-                                                untyped.retype machineStoreInst
-                                                  machineArchInst s2 a slot
-                                                  reset aligned new_type
-                                                  user_size ptr node_offset
-                                                  node_window is_device
-                                          else
-                                            let aligned ←
-                                              untyped.align_up free_ref z
-                                            let s2 ←
-                                              sched.set_thread_state
-                                                machineStoreInst s ct
-                                                sched.TS_RESTART
-                                            untyped.retype machineStoreInst
-                                              machineArchInst s2 a slot reset
-                                              aligned new_type user_size ptr
-                                              node_offset node_window is_device
-                                    | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.Notification _ _ _ _ =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.Reply _ _ =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.CNode _ _ _ _ =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.Thread _ =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.IrqControl =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.IrqHandler _ =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.Zombie _ _ _ =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.Domain =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.SchedContext _ _ =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.SchedControl _ =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.PageTable _ _ _ _ =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.PageDirectory _ _ _ _ =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.Pdpt _ _ _ _ =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.Pml4 _ _ _ =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.AsidControl =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.AsidPool _ _ =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.IoPortControl =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                    | capability.Cap.IoPort _ _ =>
-                                      let r1 ← error.illegal Unit
-                                      ok (r1, s, a)
-                                  | core.ops.control_flow.ControlFlow.Break
-                                    residual =>
-                                    let r1 ←
-                                      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                        Unit (core.convert.FromSame error.Exc)
-                                        residual
-                                    ok (r1, s, a)
-                        | capability.Cap.Thread _ =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.IrqControl =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.IrqHandler _ =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.Zombie _ _ _ =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.Domain =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.SchedContext _ _ =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.SchedControl _ =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.PageTable _ _ _ _ =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.PageDirectory _ _ _ _ =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.Pdpt _ _ _ _ =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.Pml4 _ _ _ =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.AsidControl =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.AsidPool _ _ =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.IoPortControl =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
-                        | capability.Cap.IoPort _ _ =>
-                          ok (core.result.Result.Err (error.Exc.Sys
-                            (error.SysError.FailedLookup false
-                            (error.LookupFault.MissingCapability node_depth))),
-                            s, a)
+                        let aligned ← untyped.align_up free_ref val
+                        let s2 ←
+                          sched.set_thread_state machineStoreInst s ct
+                            sched.TS_RESTART
+                        untyped.retype machineStoreInst machineArchInst s2 a
+                          slot reset aligned new_type user_size val1
+                          node_offset node_window device
                       else
-                        let root ← obj.Slot.cap machineStoreInst s1 s
-                        let r ←
-                          cspace.lookup_target_slot machineStoreInst s root
-                            node_index node_depth
-                        let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-                        match cf with
-                        | core.ops.control_flow.ControlFlow.Continue val =>
-                          let node_cap ← obj.Slot.cap machineStoreInst val s
-                          match node_cap with
-                          | capability.Cap.Null =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Untyped _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Notification _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Reply _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.CNode ptr radix _ _ =>
-                            let i ← lift (radix &&& 63#u64)
-                            let node_size ← 1#u64 <<< i
-                            let i1 ← node_size - 1#u64
-                            if node_offset > i1
-                            then
-                              let r1 ← error.range Unit 0#u64 i1
-                              ok (r1, s, a)
-                            else
-                              if node_window < 1#u64
-                              then
-                                let r1 ←
-                                  error.range Unit 1#u64
-                                    untyped.RETYPE_FAN_OUT_LIMIT
-                                ok (r1, s, a)
-                              else
-                                if node_window > untyped.RETYPE_FAN_OUT_LIMIT
-                                then
-                                  let r1 ←
-                                    error.range Unit 1#u64
-                                      untyped.RETYPE_FAN_OUT_LIMIT
-                                  ok (r1, s, a)
-                                else
-                                  let i2 ← node_size - node_offset
-                                  if node_window > i2
-                                  then
-                                    let r1 ← error.range Unit 1#u64 i2
-                                    ok (r1, s, a)
-                                  else
-                                    let i3 ← node_offset + node_window
-                                    let r1 ←
-                                      untyped.ensure_empty_slots
-                                        machineStoreInst s ptr node_offset i3
-                                    let cf1 ←
-                                      core.result.Result.Insts.CoreOpsTry.branch
-                                        r1
-                                    match cf1 with
-                                    |
-                                      core.ops.control_flow.ControlFlow.Continue
-                                      _ =>
-                                      match cap with
-                                      | capability.Cap.Null =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.Untyped ptr1 size_bits
-                                        free_index is_device =>
-                                        let r2 ←
-                                          cdt.ensure_no_children
-                                            machineStoreInst s slot
-                                        let (free_index1, reset) ←
-                                          match r2 with
-                                          | core.result.Result.Ok _ =>
-                                            ok (0#u64, true)
-                                          | core.result.Result.Err _ =>
-                                            ok (free_index, false)
-                                        let free_ref ←
-                                          lift (core.num.U64.wrapping_add ptr1
-                                            free_index1)
-                                        let i4 ← lift (size_bits &&& 63#u64)
-                                        let i5 ← 1#u64 <<< i4
-                                        let free_bytes ←
-                                          lift (core.num.U64.wrapping_sub i5
-                                            free_index1)
-                                        let i6 ← lift (z &&& 63#u64)
-                                        let i7 ← free_bytes >>> i6
-                                        if i7 < node_window
-                                        then
-                                          ok (core.result.Result.Err
-                                            (error.Exc.Sys
-                                            (error.SysError.NotEnoughMemory
-                                            free_bytes)), s, a)
-                                        else
-                                          if z >= 64#u64
-                                          then
-                                            ok (core.result.Result.Err
-                                              (error.Exc.Sys
-                                              (error.SysError.NotEnoughMemory
-                                              free_bytes)), s, a)
-                                          else
-                                            if is_device
-                                            then
-                                              let b1 ←
-                                                objects.is_frame_type new_type
-                                              if b1
-                                              then
-                                                let aligned ←
-                                                  untyped.align_up free_ref z
-                                                let s2 ←
-                                                  sched.set_thread_state
-                                                    machineStoreInst s ct
-                                                    sched.TS_RESTART
-                                                untyped.retype machineStoreInst
-                                                  machineArchInst s2 a slot
-                                                  reset aligned new_type
-                                                  user_size ptr node_offset
-                                                  node_window is_device
-                                              else
-                                                if new_type !=
-                                                  fl4_abi.consts.object.Untyped
-                                                then
-                                                  let r3 ←
-                                                    error.invalid_arg Unit
-                                                      1#u64
-                                                  ok (r3, s, a)
-                                                else
-                                                  let aligned ←
-                                                    untyped.align_up free_ref z
-                                                  let s2 ←
-                                                    sched.set_thread_state
-                                                      machineStoreInst s ct
-                                                      sched.TS_RESTART
-                                                  untyped.retype
-                                                    machineStoreInst
-                                                    machineArchInst s2 a slot
-                                                    reset aligned new_type
-                                                    user_size ptr node_offset
-                                                    node_window is_device
-                                            else
-                                              let aligned ←
-                                                untyped.align_up free_ref z
-                                              let s2 ←
-                                                sched.set_thread_state
-                                                  machineStoreInst s ct
-                                                  sched.TS_RESTART
-                                              untyped.retype machineStoreInst
-                                                machineArchInst s2 a slot reset
-                                                aligned new_type user_size ptr
-                                                node_offset node_window
-                                                is_device
-                                      | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.Notification _ _ _ _ =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.Reply _ _ =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.CNode _ _ _ _ =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.Thread _ =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.IrqControl =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.IrqHandler _ =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.Zombie _ _ _ =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.Domain =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.SchedContext _ _ =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.SchedControl _ =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.PageTable _ _ _ _ =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.PageDirectory _ _ _ _ =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.Pdpt _ _ _ _ =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.Pml4 _ _ _ =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.AsidControl =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.AsidPool _ _ =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.IoPortControl =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                      | capability.Cap.IoPort _ _ =>
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s, a)
-                                    | core.ops.control_flow.ControlFlow.Break
-                                      residual =>
-                                      let r2 ←
-                                        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                          Unit (core.convert.FromSame
-                                          error.Exc) residual
-                                      ok (r2, s, a)
-                          | capability.Cap.Thread _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.IrqControl =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.IrqHandler _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Zombie _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Domain =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.SchedContext _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.SchedControl _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.PageTable _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.PageDirectory _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Pdpt _ _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.Pml4 _ _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.AsidControl =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.AsidPool _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.IoPortControl =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                          | capability.Cap.IoPort _ _ =>
-                            ok (core.result.Result.Err (error.Exc.Sys
-                              (error.SysError.FailedLookup false
-                              (error.LookupFault.MissingCapability
-                              node_depth))), s, a)
-                        | core.ops.control_flow.ControlFlow.Break residual =>
-                          let r1 ←
-                            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                              Unit (core.convert.FromSame error.Exc) residual
-                          ok (r1, s, a)
+                        if new_type != fl4_abi.consts.object.Untyped
+                        then
+                          let r4 ← error.invalid_arg Unit 1#u64
+                          ok (r4, s, a)
+                        else
+                          let aligned ← untyped.align_up free_ref val
+                          let s2 ←
+                            sched.set_thread_state machineStoreInst s ct
+                              sched.TS_RESTART
+                          untyped.retype machineStoreInst machineArchInst s2 a
+                            slot reset aligned new_type user_size val1
+                            node_offset node_window device
+                    else
+                      let aligned ← untyped.align_up free_ref val
+                      let s2 ←
+                        sched.set_thread_state machineStoreInst s ct
+                          sched.TS_RESTART
+                      untyped.retype machineStoreInst machineArchInst s2 a slot
+                        reset aligned new_type user_size val1 node_offset
+                        node_window device
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r3 ←
+                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                  Unit (core.convert.FromSame error.Exc) residual
+              ok (r3, s, a)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r2 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                Unit (core.convert.FromSame error.Exc) residual
+            ok (r2, s, a)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r1 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              Unit (core.convert.FromSame error.Exc) residual
+          ok (r1, s, a)
 
 /-- [fl4_core::timer::insert_fixup]: loop body 0:
     Source: 'crates/fl4-core/src/timer.rs', lines 90:4-134:5 -/
@@ -30732,6 +24406,17 @@ def timer.insert
       obj.node_set machineStoreInst s10 cpu layout.node.REPROGRAM 1#u64
     else ok s9
 
+/-- [fl4_core::tcb::reply_words]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 63:0-66:1 -/
+def tcb.reply_words
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
+  (n : Std.U64) :
+  Result S
+  := do
+  let s1 ← obj.Tcb.set_reg machineStoreInst t s layout.reg.BADGE 0#u64
+  let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 n
+  msg.set_msg_info machineStoreInst s1 t mi
+
 /-- [fl4_core::tcb::restart_caller]:
     Source: 'crates/fl4-core/src/tcb.rs', lines 49:0-52:1 -/
 def tcb.restart_caller
@@ -30749,8 +24434,2316 @@ def tcb.arg
   let t ← sched.cur_thread machineStoreInst s
   msg.syscall_arg machineStoreInst s t c.buf i
 
+/-- [fl4_core::tcb::decode_set_flags]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 730:0-752:1 -/
+def tcb.decode_set_flags
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb)
+  (c : tcb.Ctx) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  if c.length < 2#u64
+  then let r ← error.truncated Unit
+       ok (r, s, a)
+  else
+    let ct ← sched.cur_thread machineStoreInst s
+    let clear ← tcb.arg machineStoreInst s c 0#u64
+    let set ← tcb.arg machineStoreInst s c 1#u64
+    let s1 ← tcb.restart_caller machineStoreInst s
+    let f ← obj.Tcb.flags machineStoreInst target s1
+    let i ← lift (~~~ clear)
+    let f1 ← lift (f &&& i)
+    let i1 ← lift (set &&& fl4_abi.consts.tcb_flag.MASK)
+    let f2 ← lift (f1 ||| i1)
+    let s2 ← obj.Tcb.set_flags machineStoreInst target s1 f2
+    let i2 ← lift (f2 &&& fl4_abi.consts.tcb_flag.FPU_DISABLED)
+    if i2 != 0#u64
+    then
+      let a1 ← machineArchInst.fpu_release a target
+      if c.call
+      then
+        let buf ← msg.lookup_ipc_buffer machineStoreInst s2 true ct
+        let (len, s3) ← msg.set_mr machineStoreInst s2 ct buf 0#u64 f2
+        let s4 ← tcb.reply_words machineStoreInst s3 ct len
+        let s5 ←
+          sched.set_thread_state machineStoreInst s4 ct sched.TS_RUNNING
+        ok (core.result.Result.Ok (), s5, a1)
+      else
+        let s3 ←
+          sched.set_thread_state machineStoreInst s2 ct sched.TS_RUNNING
+        ok (core.result.Result.Ok (), s3, a1)
+    else
+      if c.call
+      then
+        let buf ← msg.lookup_ipc_buffer machineStoreInst s2 true ct
+        let (len, s3) ← msg.set_mr machineStoreInst s2 ct buf 0#u64 f2
+        let s4 ← tcb.reply_words machineStoreInst s3 ct len
+        let s5 ←
+          sched.set_thread_state machineStoreInst s4 ct sched.TS_RUNNING
+        ok (core.result.Result.Ok (), s5, a)
+      else
+        let s3 ←
+          sched.set_thread_state machineStoreInst s2 ct sched.TS_RUNNING
+        ok (core.result.Result.Ok (), s3, a)
+
+/-- [fl4_core::tcb::decode_set_tls_base]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 717:0-728:1 -/
+def tcb.decode_set_tls_base
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (target : obj.Tcb)
+  (c : tcb.Ctx) :
+  Result ((core.result.Result Unit error.Exc) × S)
+  := do
+  if c.length < 1#u64
+  then let r ← error.truncated Unit
+       ok (r, s)
+  else
+    let base ← tcb.arg machineStoreInst s c 0#u64
+    let s1 ← tcb.restart_caller machineStoreInst s
+    let i ← regs.sanitise layout.reg.TLS_BASE base
+    let s2 ← obj.Tcb.set_reg machineStoreInst target s1 layout.reg.TLS_BASE i
+    let t ← sched.cur_thread machineStoreInst s2
+    let b ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq target t
+    if b
+    then
+      let s3 ← sched.reschedule_required machineStoreInst s2
+      ok (core.result.Result.Ok (), s3)
+    else ok (core.result.Result.Ok (), s2)
+
+/-- [fl4_core::tcb::decode_get_breakpoint]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 698:0-715:1 -/
+def tcb.decode_get_breakpoint
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (target : obj.Tcb)
+  (c : tcb.Ctx) :
+  Result ((core.result.Result Unit error.Exc) × S)
+  := do
+  let ct ← sched.cur_thread machineStoreInst s
+  let bp ← tcb.arg machineStoreInst s c 0#u64
+  let r ← debug.check_bp_num bp
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    let s1 ← tcb.restart_caller machineStoreInst s
+    let r1 ← debug.get_breakpoint machineStoreInst s1 target bp
+    if c.call
+    then
+      let buf ← msg.lookup_ipc_buffer machineStoreInst s1 true ct
+      let (_, s2) ← msg.set_mr machineStoreInst s1 ct buf 0#u64 r1.vaddr
+      let (_, s3) ← msg.set_mr machineStoreInst s2 ct buf 1#u64 r1.ty
+      let (_, s4) ← msg.set_mr machineStoreInst s3 ct buf 2#u64 r1.size
+      let (_, s5) ← msg.set_mr machineStoreInst s4 ct buf 3#u64 r1.rw
+      if r1.enabled
+      then
+        let (len, s6) ← msg.set_mr machineStoreInst s5 ct buf 4#u64 1#u64
+        let s7 ← tcb.reply_words machineStoreInst s6 ct len
+        let s8 ←
+          sched.set_thread_state machineStoreInst s7 ct sched.TS_RUNNING
+        ok (core.result.Result.Ok (), s8)
+      else
+        let (len, s6) ← msg.set_mr machineStoreInst s5 ct buf 4#u64 0#u64
+        let s7 ← tcb.reply_words machineStoreInst s6 ct len
+        let s8 ←
+          sched.set_thread_state machineStoreInst s7 ct sched.TS_RUNNING
+        ok (core.result.Result.Ok (), s8)
+    else
+      let s2 ← sched.set_thread_state machineStoreInst s1 ct sched.TS_RUNNING
+      ok (core.result.Result.Ok (), s2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        Unit (core.convert.FromSame error.Exc) residual
+    ok (r1, s)
+
+/-- [fl4_core::tcb::decode_configure_single_stepping]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 683:0-696:1 -/
+def tcb.decode_configure_single_stepping
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb)
+  (c : tcb.Ctx) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  let ct ← sched.cur_thread machineStoreInst s
+  let bp ← tcb.arg machineStoreInst s c 0#u64
+  let n ← tcb.arg machineStoreInst s c 1#u64
+  let s1 ← tcb.restart_caller machineStoreInst s
+  let (consumed, s2, a1) ←
+    debug.configure_single_stepping machineStoreInst machineArchInst s1 a
+      target bp n false
+  if c.call
+  then
+    let buf ← msg.lookup_ipc_buffer machineStoreInst s2 true ct
+    if n != 0#u64
+    then
+      if consumed
+      then
+        let (len, s3) ← msg.set_mr machineStoreInst s2 ct buf 0#u64 1#u64
+        let s4 ← tcb.reply_words machineStoreInst s3 ct len
+        let s5 ←
+          sched.set_thread_state machineStoreInst s4 ct sched.TS_RUNNING
+        ok (core.result.Result.Ok (), s5, a1)
+      else
+        let (len, s3) ← msg.set_mr machineStoreInst s2 ct buf 0#u64 0#u64
+        let s4 ← tcb.reply_words machineStoreInst s3 ct len
+        let s5 ←
+          sched.set_thread_state machineStoreInst s4 ct sched.TS_RUNNING
+        ok (core.result.Result.Ok (), s5, a1)
+    else
+      let (len, s3) ← msg.set_mr machineStoreInst s2 ct buf 0#u64 0#u64
+      let s4 ← tcb.reply_words machineStoreInst s3 ct len
+      let s5 ← sched.set_thread_state machineStoreInst s4 ct sched.TS_RUNNING
+      ok (core.result.Result.Ok (), s5, a1)
+  else
+    let s3 ← sched.set_thread_state machineStoreInst s2 ct sched.TS_RUNNING
+    ok (core.result.Result.Ok (), s3, a1)
+
+/-- [fl4_core::tcb::bindable_ntfn]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 656:0-670:1 -/
+def tcb.bindable_ntfn
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ns : obj.Slot) :
+  Result (core.result.Result obj.Ntfn error.Exc)
+  := do
+  let c ← obj.Slot.cap machineStoreInst ns s
+  match c with
+  | capability.Cap.Null => error.illegal obj.Ntfn
+  | capability.Cap.Untyped _ _ _ _ => error.illegal obj.Ntfn
+  | capability.Cap.Endpoint _ _ _ _ _ _ => error.illegal obj.Ntfn
+  | capability.Cap.Notification ptr _ _ recv =>
+    if recv
+    then
+      let i ← obj.Ntfn.head machineStoreInst ptr s
+      if i != 0#u64
+      then error.illegal obj.Ntfn
+      else
+        let i1 ← obj.Ntfn.bound_tcb machineStoreInst ptr s
+        if i1 != 0#u64
+        then error.illegal obj.Ntfn
+        else ok (core.result.Result.Ok ptr)
+    else error.illegal obj.Ntfn
+  | capability.Cap.Reply _ _ => error.illegal obj.Ntfn
+  | capability.Cap.CNode _ _ _ _ => error.illegal obj.Ntfn
+  | capability.Cap.Thread _ => error.illegal obj.Ntfn
+  | capability.Cap.IrqControl => error.illegal obj.Ntfn
+  | capability.Cap.IrqHandler _ => error.illegal obj.Ntfn
+  | capability.Cap.Zombie _ _ _ => error.illegal obj.Ntfn
+  | capability.Cap.Domain => error.illegal obj.Ntfn
+  | capability.Cap.SchedContext _ _ => error.illegal obj.Ntfn
+  | capability.Cap.SchedControl _ => error.illegal obj.Ntfn
+  | capability.Cap.Frame _ _ _ _ _ _ _ => error.illegal obj.Ntfn
+  | capability.Cap.PageTable _ _ _ _ => error.illegal obj.Ntfn
+  | capability.Cap.PageDirectory _ _ _ _ => error.illegal obj.Ntfn
+  | capability.Cap.Pdpt _ _ _ _ => error.illegal obj.Ntfn
+  | capability.Cap.Pml4 _ _ _ => error.illegal obj.Ntfn
+  | capability.Cap.AsidControl => error.illegal obj.Ntfn
+  | capability.Cap.AsidPool _ _ => error.illegal obj.Ntfn
+  | capability.Cap.IoPortControl => error.illegal obj.Ntfn
+  | capability.Cap.IoPort _ _ => error.illegal obj.Ntfn
+
+/-- [fl4_core::tcb::extra]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 41:0-47:1 -/
+def tcb.extra (c : tcb.Ctx) (i : Std.Usize) : Result (Option obj.Slot) := do
+  if i >= 3#usize
+  then ok none
+  else
+    let s ← Array.index_usize c.extra i
+    let b ← obj.Slot.is_null s
+    if b
+    then ok none
+    else ok (some s)
+
+/-- [fl4_core::tcb::extra_with_length]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 492:0-497:1 -/
+def tcb.extra_with_length
+  (c : tcb.Ctx) (i : Std.Usize) (min_length : Std.U64) :
+  Result (core.result.Result obj.Slot error.Exc)
+  := do
+  let o ← tcb.extra c i
+  match o with
+  | none => error.truncated obj.Slot
+  | some x =>
+    if c.length >= min_length
+    then ok (core.result.Result.Ok x)
+    else error.truncated obj.Slot
+
+/-- [fl4_core::tcb::decode_bind_notification]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 672:0-681:1 -/
+def tcb.decode_bind_notification
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (target : obj.Tcb)
+  (c : tcb.Ctx) :
+  Result ((core.result.Result Unit error.Exc) × S)
+  := do
+  let r ← tcb.extra_with_length c 0#usize 0#u64
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let i ← obj.Tcb.bound_ntfn machineStoreInst target s
+    if i != 0#u64
+    then let r1 ← error.illegal Unit
+         ok (r1, s)
+    else
+      let r1 ← tcb.bindable_ntfn machineStoreInst s val
+      let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+      match cf1 with
+      | core.ops.control_flow.ControlFlow.Continue val1 =>
+        let s1 ← tcb.restart_caller machineStoreInst s
+        let s2 ←
+          notification.bind_notification machineStoreInst s1 target val1
+        ok (core.result.Result.Ok (), s2)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r2 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            Unit (core.convert.FromSame error.Exc) residual
+        ok (r2, s)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        Unit (core.convert.FromSame error.Exc) residual
+    ok (r1, s)
+
+/-- [fl4_core::tcb::UPDATE_IPC_BUFFER]
+    Source: 'crates/fl4-core/src/tcb.rs', lines 105:0-105:33 -/
+@[global_simps, irreducible] def tcb.UPDATE_IPC_BUFFER : Std.U64 := 8#u64
+
+/-- [fl4_core::tcb::UPDATE_SPACE]
+    Source: 'crates/fl4-core/src/tcb.rs', lines 104:0-104:28 -/
+@[global_simps, irreducible] def tcb.UPDATE_SPACE : Std.U64 := 4#u64
+
+/-- [fl4_core::tcb::UPDATE_TIMEOUT]
+    Source: 'crates/fl4-core/src/tcb.rs', lines 103:0-103:30 -/
+@[global_simps, irreducible] def tcb.UPDATE_TIMEOUT : Std.U64 := 2#u64
+
+/-- [fl4_core::tcb::UPDATE_FAULT]
+    Source: 'crates/fl4-core/src/tcb.rs', lines 102:0-102:28 -/
+@[global_simps, irreducible] def tcb.UPDATE_FAULT : Std.U64 := 1#u64
+
+/-- [fl4_core::tcb::still_valid]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 81:0-86:1 -/
+def tcb.still_valid
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (target : obj.Tcb)
+  (slot : obj.Slot) (new_cap : capability.Cap) (src : obj.Slot) :
+  Result Bool
+  := do
+  let b ← obj.Slot.is_null src
+  if b
+  then ok false
+  else
+    let c ← obj.Slot.cap machineStoreInst src s
+    let b1 ← objects.same_object_as new_cap c
+    if b1
+    then
+      let c1 ← obj.Slot.cap machineStoreInst slot s
+      objects.same_object_as (capability.Cap.Thread target) c1
+    else ok false
+
+/-- [fl4_core::tcb::install_buffer]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 89:0-100:1 -/
+def tcb.install_buffer
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb)
+  (slot : obj.Slot) (buffer_addr : Std.U64)
+  (buffer : (capability.Cap × obj.Slot)) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  let bslot ← obj.Tcb.slot target layout.tcb.SLOT_BUFFER
+  let (r, s1, a1) ←
+    cdt.delete machineStoreInst machineArchInst s a bslot true
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    let s2 ← obj.Tcb.set_ipc_buffer machineStoreInst target s1 buffer_addr
+    let (c, s3) := buffer
+    let b ← tcb.still_valid machineStoreInst s2 target slot c s3
+    let s4 ← if b
+               then cdt.insert machineStoreInst s2 c s3 bslot
+               else ok s2
+    let t ← sched.cur_thread machineStoreInst s4
+    let b1 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq target t
+    if b1
+    then
+      let s5 ← sched.reschedule_required machineStoreInst s4
+      ok (core.result.Result.Ok (), s5, a1)
+    else ok (core.result.Result.Ok (), s4, a1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        Unit (core.convert.FromSame error.Exc) residual
+    ok (r1, s1, a1)
+
+/-- [fl4_core::tcb::install_tcb_cap]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 69:0-76:1 -/
+def tcb.install_tcb_cap
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb)
+  (slot : obj.Slot) (index : Std.U64) (new_cap : capability.Cap)
+  (src : obj.Slot) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  let root ← obj.Tcb.slot target index
+  let (r, s1, a1) ← cdt.delete machineStoreInst machineArchInst s a root true
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    let b ← capability.Cap.is_null new_cap
+    if b
+    then ok (core.result.Result.Ok (), s1, a1)
+    else
+      let b1 ← tcb.still_valid machineStoreInst s1 target slot new_cap src
+      if b1
+      then
+        let s2 ← cdt.insert machineStoreInst s1 new_cap src root
+        ok (core.result.Result.Ok (), s2, a1)
+      else ok (core.result.Result.Ok (), s1, a1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        Unit (core.convert.FromSame error.Exc) residual
+    ok (r1, s1, a1)
+
+/-- [fl4_core::tcb::thread_control_caps]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 108:0-135:1 -/
+def tcb.thread_control_caps
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb)
+  (slot : obj.Slot) (fh : (capability.Cap × obj.Slot))
+  (th : (capability.Cap × obj.Slot)) (croot : (capability.Cap × obj.Slot))
+  (vroot : (capability.Cap × obj.Slot)) (buffer_addr : Std.U64)
+  (buffer : (capability.Cap × obj.Slot)) (flags : Std.U64) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  let i ← lift (flags &&& tcb.UPDATE_FAULT)
+  if i != 0#u64
+  then
+    let (c, s1) := fh
+    let (r, s2, a1) ←
+      tcb.install_tcb_cap machineStoreInst machineArchInst s a target slot
+        layout.tcb.SLOT_FAULT_HANDLER c s1
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue _ =>
+      let i1 ← lift (flags &&& tcb.UPDATE_TIMEOUT)
+      if i1 != 0#u64
+      then
+        let (c1, s3) := th
+        let (r1, s4, a2) ←
+          tcb.install_tcb_cap machineStoreInst machineArchInst s2 a1 target
+            slot layout.tcb.SLOT_TIMEOUT_HANDLER c1 s3
+        let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+        match cf1 with
+        | core.ops.control_flow.ControlFlow.Continue _ =>
+          let i2 ← lift (flags &&& tcb.UPDATE_SPACE)
+          if i2 != 0#u64
+          then
+            let (c2, s5) := croot
+            let (r2, s6, a3) ←
+              tcb.install_tcb_cap machineStoreInst machineArchInst s4 a2 target
+                slot layout.tcb.SLOT_CTABLE c2 s5
+            let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+            match cf2 with
+            | core.ops.control_flow.ControlFlow.Continue _ =>
+              let (c3, s7) := vroot
+              let (r3, s8, a4) ←
+                tcb.install_tcb_cap machineStoreInst machineArchInst s6 a3
+                  target slot layout.tcb.SLOT_VTABLE c3 s7
+              let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+              match cf3 with
+              | core.ops.control_flow.ControlFlow.Continue _ =>
+                let i3 ← lift (flags &&& tcb.UPDATE_IPC_BUFFER)
+                if i3 != 0#u64
+                then
+                  let (r4, s9, a5) ←
+                    tcb.install_buffer machineStoreInst machineArchInst s8 a4
+                      target slot buffer_addr buffer
+                  let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r4
+                  match cf4 with
+                  | core.ops.control_flow.ControlFlow.Continue _ =>
+                    ok (core.result.Result.Ok (), s9, a5)
+                  | core.ops.control_flow.ControlFlow.Break residual =>
+                    let r5 ←
+                      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                        Unit (core.convert.FromSame error.Exc) residual
+                    ok (r5, s9, a5)
+                else ok (core.result.Result.Ok (), s8, a4)
+              | core.ops.control_flow.ControlFlow.Break residual =>
+                let r4 ←
+                  core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                    Unit (core.convert.FromSame error.Exc) residual
+                ok (r4, s8, a4)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r3 ←
+                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                  Unit (core.convert.FromSame error.Exc) residual
+              ok (r3, s6, a3)
+          else
+            let i3 ← lift (flags &&& tcb.UPDATE_IPC_BUFFER)
+            if i3 != 0#u64
+            then
+              let (r2, s5, a3) ←
+                tcb.install_buffer machineStoreInst machineArchInst s4 a2
+                  target slot buffer_addr buffer
+              let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+              match cf2 with
+              | core.ops.control_flow.ControlFlow.Continue _ =>
+                ok (core.result.Result.Ok (), s5, a3)
+              | core.ops.control_flow.ControlFlow.Break residual =>
+                let r3 ←
+                  core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                    Unit (core.convert.FromSame error.Exc) residual
+                ok (r3, s5, a3)
+            else ok (core.result.Result.Ok (), s4, a2)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r2 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              Unit (core.convert.FromSame error.Exc) residual
+          ok (r2, s4, a2)
+      else
+        let i2 ← lift (flags &&& tcb.UPDATE_SPACE)
+        if i2 != 0#u64
+        then
+          let (c1, s3) := croot
+          let (r1, s4, a2) ←
+            tcb.install_tcb_cap machineStoreInst machineArchInst s2 a1 target
+              slot layout.tcb.SLOT_CTABLE c1 s3
+          let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+          match cf1 with
+          | core.ops.control_flow.ControlFlow.Continue _ =>
+            let (c2, s5) := vroot
+            let (r2, s6, a3) ←
+              tcb.install_tcb_cap machineStoreInst machineArchInst s4 a2 target
+                slot layout.tcb.SLOT_VTABLE c2 s5
+            let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+            match cf2 with
+            | core.ops.control_flow.ControlFlow.Continue _ =>
+              let i3 ← lift (flags &&& tcb.UPDATE_IPC_BUFFER)
+              if i3 != 0#u64
+              then
+                let (r3, s7, a4) ←
+                  tcb.install_buffer machineStoreInst machineArchInst s6 a3
+                    target slot buffer_addr buffer
+                let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+                match cf3 with
+                | core.ops.control_flow.ControlFlow.Continue _ =>
+                  ok (core.result.Result.Ok (), s7, a4)
+                | core.ops.control_flow.ControlFlow.Break residual =>
+                  let r4 ←
+                    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                      Unit (core.convert.FromSame error.Exc) residual
+                  ok (r4, s7, a4)
+              else ok (core.result.Result.Ok (), s6, a3)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r3 ←
+                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                  Unit (core.convert.FromSame error.Exc) residual
+              ok (r3, s6, a3)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r2 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                Unit (core.convert.FromSame error.Exc) residual
+            ok (r2, s4, a2)
+        else
+          let i3 ← lift (flags &&& tcb.UPDATE_IPC_BUFFER)
+          if i3 != 0#u64
+          then
+            let (r1, s3, a2) ←
+              tcb.install_buffer machineStoreInst machineArchInst s2 a1 target
+                slot buffer_addr buffer
+            let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+            match cf1 with
+            | core.ops.control_flow.ControlFlow.Continue _ =>
+              ok (core.result.Result.Ok (), s3, a2)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r2 ←
+                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                  Unit (core.convert.FromSame error.Exc) residual
+              ok (r2, s3, a2)
+          else ok (core.result.Result.Ok (), s2, a1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r1 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          Unit (core.convert.FromSame error.Exc) residual
+      ok (r1, s2, a1)
+  else
+    let i1 ← lift (flags &&& tcb.UPDATE_TIMEOUT)
+    if i1 != 0#u64
+    then
+      let (c, s1) := th
+      let (r, s2, a1) ←
+        tcb.install_tcb_cap machineStoreInst machineArchInst s a target slot
+          layout.tcb.SLOT_TIMEOUT_HANDLER c s1
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+      match cf with
+      | core.ops.control_flow.ControlFlow.Continue _ =>
+        let i2 ← lift (flags &&& tcb.UPDATE_SPACE)
+        if i2 != 0#u64
+        then
+          let (c1, s3) := croot
+          let (r1, s4, a2) ←
+            tcb.install_tcb_cap machineStoreInst machineArchInst s2 a1 target
+              slot layout.tcb.SLOT_CTABLE c1 s3
+          let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+          match cf1 with
+          | core.ops.control_flow.ControlFlow.Continue _ =>
+            let (c2, s5) := vroot
+            let (r2, s6, a3) ←
+              tcb.install_tcb_cap machineStoreInst machineArchInst s4 a2 target
+                slot layout.tcb.SLOT_VTABLE c2 s5
+            let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+            match cf2 with
+            | core.ops.control_flow.ControlFlow.Continue _ =>
+              let i3 ← lift (flags &&& tcb.UPDATE_IPC_BUFFER)
+              if i3 != 0#u64
+              then
+                let (r3, s7, a4) ←
+                  tcb.install_buffer machineStoreInst machineArchInst s6 a3
+                    target slot buffer_addr buffer
+                let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+                match cf3 with
+                | core.ops.control_flow.ControlFlow.Continue _ =>
+                  ok (core.result.Result.Ok (), s7, a4)
+                | core.ops.control_flow.ControlFlow.Break residual =>
+                  let r4 ←
+                    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                      Unit (core.convert.FromSame error.Exc) residual
+                  ok (r4, s7, a4)
+              else ok (core.result.Result.Ok (), s6, a3)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r3 ←
+                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                  Unit (core.convert.FromSame error.Exc) residual
+              ok (r3, s6, a3)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r2 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                Unit (core.convert.FromSame error.Exc) residual
+            ok (r2, s4, a2)
+        else
+          let i3 ← lift (flags &&& tcb.UPDATE_IPC_BUFFER)
+          if i3 != 0#u64
+          then
+            let (r1, s3, a2) ←
+              tcb.install_buffer machineStoreInst machineArchInst s2 a1 target
+                slot buffer_addr buffer
+            let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+            match cf1 with
+            | core.ops.control_flow.ControlFlow.Continue _ =>
+              ok (core.result.Result.Ok (), s3, a2)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r2 ←
+                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                  Unit (core.convert.FromSame error.Exc) residual
+              ok (r2, s3, a2)
+          else ok (core.result.Result.Ok (), s2, a1)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r1 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            Unit (core.convert.FromSame error.Exc) residual
+        ok (r1, s2, a1)
+    else
+      let i2 ← lift (flags &&& tcb.UPDATE_SPACE)
+      if i2 != 0#u64
+      then
+        let (c, s1) := croot
+        let (r, s2, a1) ←
+          tcb.install_tcb_cap machineStoreInst machineArchInst s a target slot
+            layout.tcb.SLOT_CTABLE c s1
+        let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+        match cf with
+        | core.ops.control_flow.ControlFlow.Continue _ =>
+          let (c1, s3) := vroot
+          let (r1, s4, a2) ←
+            tcb.install_tcb_cap machineStoreInst machineArchInst s2 a1 target
+              slot layout.tcb.SLOT_VTABLE c1 s3
+          let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+          match cf1 with
+          | core.ops.control_flow.ControlFlow.Continue _ =>
+            let i3 ← lift (flags &&& tcb.UPDATE_IPC_BUFFER)
+            if i3 != 0#u64
+            then
+              let (r2, s5, a3) ←
+                tcb.install_buffer machineStoreInst machineArchInst s4 a2
+                  target slot buffer_addr buffer
+              let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+              match cf2 with
+              | core.ops.control_flow.ControlFlow.Continue _ =>
+                ok (core.result.Result.Ok (), s5, a3)
+              | core.ops.control_flow.ControlFlow.Break residual =>
+                let r3 ←
+                  core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                    Unit (core.convert.FromSame error.Exc) residual
+                ok (r3, s5, a3)
+            else ok (core.result.Result.Ok (), s4, a2)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r2 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                Unit (core.convert.FromSame error.Exc) residual
+            ok (r2, s4, a2)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r1 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              Unit (core.convert.FromSame error.Exc) residual
+          ok (r1, s2, a1)
+      else
+        let i3 ← lift (flags &&& tcb.UPDATE_IPC_BUFFER)
+        if i3 != 0#u64
+        then
+          let (r, s1, a1) ←
+            tcb.install_buffer machineStoreInst machineArchInst s a target slot
+              buffer_addr buffer
+          let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+          match cf with
+          | core.ops.control_flow.ControlFlow.Continue _ =>
+            ok (core.result.Result.Ok (), s1, a1)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r1 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                Unit (core.convert.FromSame error.Exc) residual
+            ok (r1, s1, a1)
+        else ok (core.result.Result.Ok (), s, a)
+
+/-- [fl4_core::tcb::decode_set_timeout_endpoint]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 644:0-653:1 -/
+def tcb.decode_set_timeout_endpoint
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb)
+  (c : tcb.Ctx) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  let r ← tcb.extra_with_length c 0#usize 0#u64
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let th ← obj.Slot.cap machineStoreInst val s
+    let b ← faults.valid_fault_handler th
+    if b
+    then
+      let s1 ← tcb.restart_caller machineStoreInst s
+      tcb.thread_control_caps machineStoreInst machineArchInst s1 a target
+        c.slot (capability.Cap.Null, 0#u64) (th, val) (capability.Cap.Null,
+        0#u64) (capability.Cap.Null, 0#u64) 0#u64 (capability.Cap.Null, 0#u64)
+        tcb.UPDATE_TIMEOUT
+    else let r1 ← error.invalid_cap Unit 1#u64
+         ok (r1, s, a)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        Unit (core.convert.FromSame error.Exc) residual
+    ok (r1, s, a)
+
+/-- [fl4_core::tcb::is_cnode]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 211:0-213:1 -/
+def tcb.is_cnode (c : capability.Cap) : Result Bool := do
+  match c with
+  | capability.Cap.Null => ok false
+  | capability.Cap.Untyped _ _ _ _ => ok false
+  | capability.Cap.Endpoint _ _ _ _ _ _ => ok false
+  | capability.Cap.Notification _ _ _ _ => ok false
+  | capability.Cap.Reply _ _ => ok false
+  | capability.Cap.CNode _ _ _ _ => ok true
+  | capability.Cap.Thread _ => ok false
+  | capability.Cap.IrqControl => ok false
+  | capability.Cap.IrqHandler _ => ok false
+  | capability.Cap.Zombie _ _ _ => ok false
+  | capability.Cap.Domain => ok false
+  | capability.Cap.SchedContext _ _ => ok false
+  | capability.Cap.SchedControl _ => ok false
+  | capability.Cap.Frame _ _ _ _ _ _ _ => ok false
+  | capability.Cap.PageTable _ _ _ _ => ok false
+  | capability.Cap.PageDirectory _ _ _ _ => ok false
+  | capability.Cap.Pdpt _ _ _ _ => ok false
+  | capability.Cap.Pml4 _ _ _ => ok false
+  | capability.Cap.AsidControl => ok false
+  | capability.Cap.AsidPool _ _ => ok false
+  | capability.Cap.IoPortControl => ok false
+  | capability.Cap.IoPort _ _ => ok false
+
+/-- [fl4_core::tcb::derive_with_data]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 203:0-209:1 -/
+def tcb.derive_with_data
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (slot : obj.Slot)
+  (data : Std.U64) :
+  Result (core.result.Result capability.Cap error.Exc)
+  := do
+  let c ← obj.Slot.cap machineStoreInst slot s
+  let c1 ←
+    if data != 0#u64
+    then objects.update_cap_data false data c
+    else ok c
+  objects.derive_cap machineStoreInst s slot c1
+
+/-- [fl4_core::tcb::derive_roots]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 185:0-200:1 -/
+def tcb.derive_roots
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (target : obj.Tcb)
+  (cdata : Std.U64) (vdata : Std.U64) (cslot : obj.Slot) (vslot : obj.Slot) :
+  Result (core.result.Result (capability.Cap × capability.Cap) error.Exc)
+  := do
+  let s1 ← obj.Tcb.slot target layout.tcb.SLOT_CTABLE
+  let b ← cdt.slot_cap_long_running_delete machineStoreInst s s1
+  if b
+  then error.illegal (capability.Cap × capability.Cap)
+  else
+    let s2 ← obj.Tcb.slot target layout.tcb.SLOT_VTABLE
+    let b1 ← cdt.slot_cap_long_running_delete machineStoreInst s s2
+    if b1
+    then error.illegal (capability.Cap × capability.Cap)
+    else
+      let r ← tcb.derive_with_data machineStoreInst s cslot cdata
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+      match cf with
+      | core.ops.control_flow.ControlFlow.Continue val =>
+        let b2 ← tcb.is_cnode val
+        if b2
+        then
+          let r1 ← tcb.derive_with_data machineStoreInst s vslot vdata
+          let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+          match cf1 with
+          | core.ops.control_flow.ControlFlow.Continue val1 =>
+            let b3 ← vspace.is_valid_vtable_root val1
+            if b3
+            then ok (core.result.Result.Ok (val, val1))
+            else error.illegal (capability.Cap × capability.Cap)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              (capability.Cap × capability.Cap) (core.convert.FromSame
+              error.Exc) residual
+        else error.illegal (capability.Cap × capability.Cap)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          (capability.Cap × capability.Cap) (core.convert.FromSame error.Exc)
+          residual
+
+/-- [fl4_core::tcb::decode_set_space]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 628:0-642:1 -/
+def tcb.decode_set_space
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb)
+  (c : tcb.Ctx) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  let r ← tcb.extra_with_length c 0#usize 2#u64
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let r1 ← tcb.extra_with_length c 1#usize 2#u64
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val1 =>
+      let r2 ← tcb.extra_with_length c 2#usize 2#u64
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val2 =>
+        let cdata ← tcb.arg machineStoreInst s c 0#u64
+        let vdata ← tcb.arg machineStoreInst s c 1#u64
+        let r3 ←
+          tcb.derive_roots machineStoreInst s target cdata vdata val1 val2
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue val3 =>
+          let (ccap, vcap) := val3
+          let fh ← obj.Slot.cap machineStoreInst val s
+          let b ← faults.valid_fault_handler fh
+          if b
+          then
+            let s1 ← tcb.restart_caller machineStoreInst s
+            let i ← lift (tcb.UPDATE_SPACE ||| tcb.UPDATE_FAULT)
+            tcb.thread_control_caps machineStoreInst machineArchInst s1 a
+              target c.slot (fh, val) (capability.Cap.Null, 0#u64) (ccap, val1)
+              (vcap, val2) 0#u64 (capability.Cap.Null, 0#u64) i
+          else let r4 ← error.invalid_cap Unit 1#u64
+               ok (r4, s, a)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r4 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              Unit (core.convert.FromSame error.Exc) residual
+          ok (r4, s, a)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            Unit (core.convert.FromSame error.Exc) residual
+        ok (r3, s, a)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          Unit (core.convert.FromSame error.Exc) residual
+      ok (r2, s, a)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        Unit (core.convert.FromSame error.Exc) residual
+    ok (r1, s, a)
+
+/-- [fl4_core::vspace::check_valid_ipc_buffer]:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 162:0-175:1
+    Visibility: public -/
+def vspace.check_valid_ipc_buffer
+  (vptr : Std.U64) (c : capability.Cap) :
+  Result (core.result.Result Unit error.Exc)
+  := do
+  match c with
+  | capability.Cap.Null => error.illegal Unit
+  | capability.Cap.Untyped _ _ _ _ => error.illegal Unit
+  | capability.Cap.Endpoint _ _ _ _ _ _ => error.illegal Unit
+  | capability.Cap.Notification _ _ _ _ => error.illegal Unit
+  | capability.Cap.Reply _ _ => error.illegal Unit
+  | capability.Cap.CNode _ _ _ _ => error.illegal Unit
+  | capability.Cap.Thread _ => error.illegal Unit
+  | capability.Cap.IrqControl => error.illegal Unit
+  | capability.Cap.IrqHandler _ => error.illegal Unit
+  | capability.Cap.Zombie _ _ _ => error.illegal Unit
+  | capability.Cap.Domain => error.illegal Unit
+  | capability.Cap.SchedContext _ _ => error.illegal Unit
+  | capability.Cap.SchedControl _ => error.illegal Unit
+  | capability.Cap.Frame _ _ _ is_device _ _ _ =>
+    if is_device
+    then error.illegal Unit
+    else
+      let i ← 1#u64 <<< fl4_abi.consts.bits.IPC_BUFFER
+      let i1 ← i - 1#u64
+      let i2 ← lift (vptr &&& i1)
+      if i2 != 0#u64
+      then
+        ok (core.result.Result.Err (error.Exc.Sys
+          error.SysError.AlignmentError))
+      else ok (core.result.Result.Ok ())
+  | capability.Cap.PageTable _ _ _ _ => error.illegal Unit
+  | capability.Cap.PageDirectory _ _ _ _ => error.illegal Unit
+  | capability.Cap.Pdpt _ _ _ _ => error.illegal Unit
+  | capability.Cap.Pml4 _ _ _ => error.illegal Unit
+  | capability.Cap.AsidControl => error.illegal Unit
+  | capability.Cap.AsidPool _ _ => error.illegal Unit
+  | capability.Cap.IoPortControl => error.illegal Unit
+  | capability.Cap.IoPort _ _ => error.illegal Unit
+
+/-- [fl4_core::tcb::derive_for_buffer]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 176:0-183:1 -/
+def tcb.derive_for_buffer
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S)
+  (buffer_addr : Std.U64) (bslot : obj.Slot) :
+  Result (core.result.Result (capability.Cap × obj.Slot) error.Exc)
+  := do
+  if buffer_addr = 0#u64
+  then
+    let c ← obj.Slot.cap machineStoreInst bslot s
+    ok (core.result.Result.Ok (c, 0#u64))
+  else
+    let c ← obj.Slot.cap machineStoreInst bslot s
+    let r ← objects.derive_cap machineStoreInst s bslot c
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let r1 ← vspace.check_valid_ipc_buffer buffer_addr val
+      let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+      match cf1 with
+      | core.ops.control_flow.ControlFlow.Continue _ =>
+        ok (core.result.Result.Ok (val, bslot))
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          (capability.Cap × obj.Slot) (core.convert.FromSame error.Exc)
+          residual
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        (capability.Cap × obj.Slot) (core.convert.FromSame error.Exc) residual
+
+/-- [fl4_core::tcb::decode_set_ipc_buffer]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 619:0-626:1 -/
+def tcb.decode_set_ipc_buffer
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb)
+  (c : tcb.Ctx) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  let r ← tcb.extra_with_length c 0#usize 1#u64
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let baddr ← tcb.arg machineStoreInst s c 0#u64
+    let r1 ← tcb.derive_for_buffer machineStoreInst s baddr val
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val1 =>
+      let s1 ← tcb.restart_caller machineStoreInst s
+      tcb.thread_control_caps machineStoreInst machineArchInst s1 a target
+        c.slot (capability.Cap.Null, 0#u64) (capability.Cap.Null, 0#u64)
+        (capability.Cap.Null, 0#u64) (capability.Cap.Null, 0#u64) baddr val1
+        tcb.UPDATE_IPC_BUFFER
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          Unit (core.convert.FromSame error.Exc) residual
+      ok (r2, s, a)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        Unit (core.convert.FromSame error.Exc) residual
+    ok (r1, s, a)
+
+/-- [fl4_core::tcb::sched_params_sc]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 575:0-595:1 -/
+def tcb.sched_params_sc
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (target : obj.Tcb)
+  (sc_slot : obj.Slot) :
+  Result (core.result.Result obj.Sc error.Exc)
+  := do
+  let c ← obj.Slot.cap machineStoreInst sc_slot s
+  match c with
+  | capability.Cap.Null =>
+    let t ← sched.cur_thread machineStoreInst s
+    let b ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq target t
+    if b
+    then error.illegal obj.Sc
+    else ok (core.result.Result.Ok 0#u64)
+  | capability.Cap.Untyped _ _ _ _ => error.invalid_cap obj.Sc 2#u64
+  | capability.Cap.Endpoint _ _ _ _ _ _ => error.invalid_cap obj.Sc 2#u64
+  | capability.Cap.Notification _ _ _ _ => error.invalid_cap obj.Sc 2#u64
+  | capability.Cap.Reply _ _ => error.invalid_cap obj.Sc 2#u64
+  | capability.Cap.CNode _ _ _ _ => error.invalid_cap obj.Sc 2#u64
+  | capability.Cap.Thread _ => error.invalid_cap obj.Sc 2#u64
+  | capability.Cap.IrqControl => error.invalid_cap obj.Sc 2#u64
+  | capability.Cap.IrqHandler _ => error.invalid_cap obj.Sc 2#u64
+  | capability.Cap.Zombie _ _ _ => error.invalid_cap obj.Sc 2#u64
+  | capability.Cap.Domain => error.invalid_cap obj.Sc 2#u64
+  | capability.Cap.SchedContext ptr _ =>
+    let i ← obj.Tcb.sc machineStoreInst target s
+    if i != ptr
+    then
+      if i != 0#u64
+      then error.illegal obj.Sc
+      else
+        let i1 ← obj.Sc.tcb machineStoreInst ptr s
+        if i1 != 0#u64
+        then error.illegal obj.Sc
+        else
+          let b ← sched.is_blocked machineStoreInst s target
+          if b
+          then
+            let b1 ← sporadic.sc_released machineStoreInst s ptr
+            if b1
+            then ok (core.result.Result.Ok ptr)
+            else error.illegal obj.Sc
+          else ok (core.result.Result.Ok ptr)
+    else
+      let b ← sched.is_blocked machineStoreInst s target
+      if b
+      then
+        let b1 ← sporadic.sc_released machineStoreInst s ptr
+        if b1
+        then ok (core.result.Result.Ok ptr)
+        else error.illegal obj.Sc
+      else ok (core.result.Result.Ok ptr)
+  | capability.Cap.SchedControl _ => error.invalid_cap obj.Sc 2#u64
+  | capability.Cap.Frame _ _ _ _ _ _ _ => error.invalid_cap obj.Sc 2#u64
+  | capability.Cap.PageTable _ _ _ _ => error.invalid_cap obj.Sc 2#u64
+  | capability.Cap.PageDirectory _ _ _ _ => error.invalid_cap obj.Sc 2#u64
+  | capability.Cap.Pdpt _ _ _ _ => error.invalid_cap obj.Sc 2#u64
+  | capability.Cap.Pml4 _ _ _ => error.invalid_cap obj.Sc 2#u64
+  | capability.Cap.AsidControl => error.invalid_cap obj.Sc 2#u64
+  | capability.Cap.AsidPool _ _ => error.invalid_cap obj.Sc 2#u64
+  | capability.Cap.IoPortControl => error.invalid_cap obj.Sc 2#u64
+  | capability.Cap.IoPort _ _ => error.invalid_cap obj.Sc 2#u64
+
+/-- [fl4_core::tcb::thread_arg]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 484:0-489:1 -/
+def tcb.thread_arg
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (slot : obj.Slot)
+  (pos : Std.U64) :
+  Result (core.result.Result obj.Tcb error.Exc)
+  := do
+  let c ← obj.Slot.cap machineStoreInst slot s
+  match c with
+  | capability.Cap.Null => error.invalid_cap obj.Tcb pos
+  | capability.Cap.Untyped _ _ _ _ => error.invalid_cap obj.Tcb pos
+  | capability.Cap.Endpoint _ _ _ _ _ _ => error.invalid_cap obj.Tcb pos
+  | capability.Cap.Notification _ _ _ _ => error.invalid_cap obj.Tcb pos
+  | capability.Cap.Reply _ _ => error.invalid_cap obj.Tcb pos
+  | capability.Cap.CNode _ _ _ _ => error.invalid_cap obj.Tcb pos
+  | capability.Cap.Thread ptr => ok (core.result.Result.Ok ptr)
+  | capability.Cap.IrqControl => error.invalid_cap obj.Tcb pos
+  | capability.Cap.IrqHandler _ => error.invalid_cap obj.Tcb pos
+  | capability.Cap.Zombie _ _ _ => error.invalid_cap obj.Tcb pos
+  | capability.Cap.Domain => error.invalid_cap obj.Tcb pos
+  | capability.Cap.SchedContext _ _ => error.invalid_cap obj.Tcb pos
+  | capability.Cap.SchedControl _ => error.invalid_cap obj.Tcb pos
+  | capability.Cap.Frame _ _ _ _ _ _ _ => error.invalid_cap obj.Tcb pos
+  | capability.Cap.PageTable _ _ _ _ => error.invalid_cap obj.Tcb pos
+  | capability.Cap.PageDirectory _ _ _ _ => error.invalid_cap obj.Tcb pos
+  | capability.Cap.Pdpt _ _ _ _ => error.invalid_cap obj.Tcb pos
+  | capability.Cap.Pml4 _ _ _ => error.invalid_cap obj.Tcb pos
+  | capability.Cap.AsidControl => error.invalid_cap obj.Tcb pos
+  | capability.Cap.AsidPool _ _ => error.invalid_cap obj.Tcb pos
+  | capability.Cap.IoPortControl => error.invalid_cap obj.Tcb pos
+  | capability.Cap.IoPort _ _ => error.invalid_cap obj.Tcb pos
+
+/-- [fl4_core::tcb::SCHED_UPDATE_PRIO]
+    Source: 'crates/fl4-core/src/tcb.rs', lines 140:0-140:33 -/
+@[global_simps, irreducible] def tcb.SCHED_UPDATE_PRIO : Std.U64 := 8#u64
+
+/-- [fl4_core::tcb::SCHED_UPDATE_MCP]
+    Source: 'crates/fl4-core/src/tcb.rs', lines 139:0-139:32 -/
+@[global_simps, irreducible] def tcb.SCHED_UPDATE_MCP : Std.U64 := 4#u64
+
+/-- [fl4_core::tcb::SCHED_UPDATE_FAULT]
+    Source: 'crates/fl4-core/src/tcb.rs', lines 138:0-138:34 -/
+@[global_simps, irreducible] def tcb.SCHED_UPDATE_FAULT : Std.U64 := 2#u64
+
+/-- [fl4_core::tcb::SCHED_UPDATE_SC]
+    Source: 'crates/fl4-core/src/tcb.rs', lines 137:0-137:31 -/
+@[global_simps, irreducible] def tcb.SCHED_UPDATE_SC : Std.U64 := 1#u64
+
+/-- [fl4_core::tcb::thread_control_sched]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 143:0-174:1 -/
+def tcb.thread_control_sched
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb)
+  (slot : obj.Slot) (fh : (capability.Cap × obj.Slot)) (mcp : Std.U64)
+  (prio : Std.U64) (sc : obj.Sc) (flags : Std.U64) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  let i ← lift (flags &&& tcb.SCHED_UPDATE_FAULT)
+  if i != 0#u64
+  then
+    let (c, s1) := fh
+    let (r, s2, a1) ←
+      tcb.install_tcb_cap machineStoreInst machineArchInst s a target slot
+        layout.tcb.SLOT_FAULT_HANDLER c s1
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue _ =>
+      let i1 ← lift (flags &&& tcb.SCHED_UPDATE_MCP)
+      let s3 ←
+        if i1 != 0#u64
+        then obj.Tcb.set_mcp machineStoreInst target s2 mcp
+        else ok s2
+      let i2 ← lift (flags &&& tcb.SCHED_UPDATE_PRIO)
+      let s4 ←
+        if i2 != 0#u64
+        then sched.set_priority machineStoreInst s3 target prio
+        else ok s3
+      let i3 ← lift (flags &&& tcb.SCHED_UPDATE_SC)
+      if i3 != 0#u64
+      then
+        let b ← obj.Sc.is_null sc
+        if b
+        then
+          let i4 ← obj.Tcb.sc machineStoreInst target s4
+          let b1 ← obj.Sc.is_null i4
+          if b1
+          then ok (core.result.Result.Ok (), s4, a1)
+          else
+            let s5 ← schedcontext.unbind_tcb machineStoreInst s4 i4
+            ok (core.result.Result.Ok (), s5, a1)
+        else
+          let (s5, a2) ←
+            schedcontext.bind_tcb machineStoreInst machineArchInst s4 a1 sc
+              target
+          ok (core.result.Result.Ok (), s5, a2)
+      else ok (core.result.Result.Ok (), s4, a1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r1 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          Unit (core.convert.FromSame error.Exc) residual
+      ok (r1, s2, a1)
+  else
+    let i1 ← lift (flags &&& tcb.SCHED_UPDATE_MCP)
+    let s1 ←
+      if i1 != 0#u64
+      then obj.Tcb.set_mcp machineStoreInst target s mcp
+      else ok s
+    let i2 ← lift (flags &&& tcb.SCHED_UPDATE_PRIO)
+    let s2 ←
+      if i2 != 0#u64
+      then sched.set_priority machineStoreInst s1 target prio
+      else ok s1
+    let i3 ← lift (flags &&& tcb.SCHED_UPDATE_SC)
+    if i3 != 0#u64
+    then
+      let b ← obj.Sc.is_null sc
+      if b
+      then
+        let i4 ← obj.Tcb.sc machineStoreInst target s2
+        let b1 ← obj.Sc.is_null i4
+        if b1
+        then ok (core.result.Result.Ok (), s2, a)
+        else
+          let s3 ← schedcontext.unbind_tcb machineStoreInst s2 i4
+          ok (core.result.Result.Ok (), s3, a)
+      else
+        let (s3, a1) ←
+          schedcontext.bind_tcb machineStoreInst machineArchInst s2 a sc target
+        ok (core.result.Result.Ok (), s3, a1)
+    else ok (core.result.Result.Ok (), s2, a)
+
+/-- [fl4_core::tcb::check_prio]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 54:0-60:1 -/
+def tcb.check_prio
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (prio : Std.U64)
+  (auth : obj.Tcb) :
+  Result (core.result.Result Unit error.Exc)
+  := do
+  let mcp ← obj.Tcb.mcp machineStoreInst auth s
+  if prio > mcp
+  then error.range Unit 0#u64 mcp
+  else ok (core.result.Result.Ok ())
+
+/-- [fl4_core::tcb::decode_set_sched_params]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 597:0-617:1 -/
+def tcb.decode_set_sched_params
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb)
+  (c : tcb.Ctx) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  let r ← tcb.extra_with_length c 0#usize 2#u64
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let r1 ← tcb.extra_with_length c 1#usize 2#u64
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val1 =>
+      let r2 ← tcb.extra_with_length c 2#usize 2#u64
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val2 =>
+        let mcp ← tcb.arg machineStoreInst s c 0#u64
+        let prio ← tcb.arg machineStoreInst s c 1#u64
+        let r3 ← tcb.thread_arg machineStoreInst s val 1#u64
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue val3 =>
+          let r4 ← tcb.check_prio machineStoreInst s mcp val3
+          let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r4
+          match cf4 with
+          | core.ops.control_flow.ControlFlow.Continue _ =>
+            let r5 ← tcb.check_prio machineStoreInst s prio val3
+            let cf5 ← core.result.Result.Insts.CoreOpsTry.branch r5
+            match cf5 with
+            | core.ops.control_flow.ControlFlow.Continue _ =>
+              let r6 ← tcb.sched_params_sc machineStoreInst s target val1
+              let cf6 ← core.result.Result.Insts.CoreOpsTry.branch r6
+              match cf6 with
+              | core.ops.control_flow.ControlFlow.Continue val4 =>
+                let i ← lift (tcb.SCHED_UPDATE_MCP ||| tcb.SCHED_UPDATE_PRIO)
+                let flags ← lift (i ||| tcb.SCHED_UPDATE_FAULT)
+                let i1 ← obj.Tcb.sc machineStoreInst target s
+                if i1 != val4
+                then
+                  let flags1 ← lift (flags ||| tcb.SCHED_UPDATE_SC)
+                  let fh ← obj.Slot.cap machineStoreInst val2 s
+                  let b ← faults.valid_fault_handler fh
+                  if b
+                  then
+                    let s1 ← tcb.restart_caller machineStoreInst s
+                    tcb.thread_control_sched machineStoreInst machineArchInst
+                      s1 a target c.slot (fh, val2) mcp prio val4 flags1
+                  else let r7 ← error.invalid_cap Unit 3#u64
+                       ok (r7, s, a)
+                else
+                  let fh ← obj.Slot.cap machineStoreInst val2 s
+                  let b ← faults.valid_fault_handler fh
+                  if b
+                  then
+                    let s1 ← tcb.restart_caller machineStoreInst s
+                    tcb.thread_control_sched machineStoreInst machineArchInst
+                      s1 a target c.slot (fh, val2) mcp prio val4 flags
+                  else let r7 ← error.invalid_cap Unit 3#u64
+                       ok (r7, s, a)
+              | core.ops.control_flow.ControlFlow.Break residual =>
+                let r7 ←
+                  core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                    Unit (core.convert.FromSame error.Exc) residual
+                ok (r7, s, a)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r6 ←
+                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                  Unit (core.convert.FromSame error.Exc) residual
+              ok (r6, s, a)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r5 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                Unit (core.convert.FromSame error.Exc) residual
+            ok (r5, s, a)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r4 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              Unit (core.convert.FromSame error.Exc) residual
+          ok (r4, s, a)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            Unit (core.convert.FromSame error.Exc) residual
+        ok (r3, s, a)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          Unit (core.convert.FromSame error.Exc) residual
+      ok (r2, s, a)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        Unit (core.convert.FromSame error.Exc) residual
+    ok (r1, s, a)
+
+/-- [fl4_core::tcb::decode_set_priority]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 560:0-572:1 -/
+def tcb.decode_set_priority
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb)
+  (c : tcb.Ctx) (prio : Bool) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  let r ← tcb.extra_with_length c 0#usize 1#u64
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let p ← tcb.arg machineStoreInst s c 0#u64
+    let r1 ← tcb.thread_arg machineStoreInst s val 1#u64
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val1 =>
+      let r2 ← tcb.check_prio machineStoreInst s p val1
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue _ =>
+        let s1 ← tcb.restart_caller machineStoreInst s
+        if prio
+        then
+          tcb.thread_control_sched machineStoreInst machineArchInst s1 a target
+            0#u64 (capability.Cap.Null, 0#u64) 0#u64 p 0#u64
+            tcb.SCHED_UPDATE_PRIO
+        else
+          tcb.thread_control_sched machineStoreInst machineArchInst s1 a target
+            0#u64 (capability.Cap.Null, 0#u64) p 0#u64 0#u64
+            tcb.SCHED_UPDATE_MCP
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            Unit (core.convert.FromSame error.Exc) residual
+        ok (r3, s, a)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          Unit (core.convert.FromSame error.Exc) residual
+      ok (r2, s, a)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        Unit (core.convert.FromSame error.Exc) residual
+    ok (r1, s, a)
+
+/-- [fl4_core::tcb::decode_configure]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 546:0-558:1 -/
+def tcb.decode_configure
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb)
+  (c : tcb.Ctx) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  let r ← tcb.extra_with_length c 0#usize 3#u64
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let r1 ← tcb.extra_with_length c 1#usize 3#u64
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val1 =>
+      let r2 ← tcb.extra_with_length c 2#usize 3#u64
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val2 =>
+        let cdata ← tcb.arg machineStoreInst s c 0#u64
+        let vdata ← tcb.arg machineStoreInst s c 1#u64
+        let baddr ← tcb.arg machineStoreInst s c 2#u64
+        let r3 ← tcb.derive_for_buffer machineStoreInst s baddr val2
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue val3 =>
+          let r4 ←
+            tcb.derive_roots machineStoreInst s target cdata vdata val val1
+          let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r4
+          match cf4 with
+          | core.ops.control_flow.ControlFlow.Continue val4 =>
+            let (ccap, vcap) := val4
+            let s1 ← tcb.restart_caller machineStoreInst s
+            let i ← lift (tcb.UPDATE_SPACE ||| tcb.UPDATE_IPC_BUFFER)
+            tcb.thread_control_caps machineStoreInst machineArchInst s1 a
+              target c.slot (capability.Cap.Null, 0#u64) (capability.Cap.Null,
+              0#u64) (ccap, val) (vcap, val1) baddr val3 i
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r5 ←
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                Unit (core.convert.FromSame error.Exc) residual
+            ok (r5, s, a)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r4 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              Unit (core.convert.FromSame error.Exc) residual
+          ok (r4, s, a)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            Unit (core.convert.FromSame error.Exc) residual
+        ok (r3, s, a)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          Unit (core.convert.FromSame error.Exc) residual
+      ok (r2, s, a)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        Unit (core.convert.FromSame error.Exc) residual
+    ok (r1, s, a)
+
+/-- [fl4_core::tcb::post_modify_registers]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 250:0-254:1 -/
+def tcb.post_modify_registers
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
+  Result S
+  := do
+  let t1 ← sched.cur_thread machineStoreInst s
+  let b ←
+    core.cmp.PartialEq.ne.trait_default obj.Tcb.Insts.CoreCmpPartialEqTcb t t1
+  if b
+  then obj.Tcb.set_reg machineStoreInst t s layout.reg.ERROR 0#u64
+  else ok s
+
+/-- [fl4_core::tcb::N_GP]
+    Source: 'crates/fl4-core/src/tcb.rs', lines 26:0-26:20 -/
+@[global_simps, irreducible] def tcb.N_GP : Std.U64 := 2#u64
+
+/-- [fl4_core::tcb::N_FRAME]
+    Source: 'crates/fl4-core/src/tcb.rs', lines 25:0-25:24 -/
+@[global_simps, irreducible] def tcb.N_FRAME : Std.U64 := 18#u64
+
+/-- [fl4_core::tcb::copy_registers]: loop body 0:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 224:8-229:9 -/
+@[rust_loop_body]
+def tcb.copy_registers_loop0.body
+  {S : Type _} (machineStoreInst : machine.Store S) (dest : obj.Tcb)
+  (src : obj.Tcb) (s : S) (i : Std.U64) :
+  Result (ControlFlow (S × Std.U64) S)
+  := do
+  if i < tcb.N_FRAME
+  then
+    let i1 ← lift (UScalar.cast .Usize i)
+    let r ← Array.index_usize regs.FRAME_REGISTERS i1
+    let v ← obj.Tcb.reg machineStoreInst src s r
+    let i2 ← regs.sanitise r v
+    let s1 ← obj.Tcb.set_reg machineStoreInst dest s r i2
+    let i3 ← i + 1#u64
+    ok (cont (s1, i3))
+  else ok (done s)
+
+/-- [fl4_core::tcb::copy_registers]: loop 0:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 224:8-229:9 -/
+@[rust_loop]
+def tcb.copy_registers_loop0
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : obj.Tcb)
+  (src : obj.Tcb) (i : Std.U64) :
+  Result S
+  := do
+  loop
+    (fun (s1, i1) => tcb.copy_registers_loop0.body machineStoreInst dest src s1
+      i1)
+    (s, i)
+
+/-- [fl4_core::tcb::copy_registers]: loop body 1:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 235:8-240:9 -/
+@[rust_loop_body]
+def tcb.copy_registers_loop1.body
+  {S : Type _} (machineStoreInst : machine.Store S) (dest : obj.Tcb)
+  (src : obj.Tcb) (s : S) (i : Std.U64) :
+  Result (ControlFlow (S × Std.U64) S)
+  := do
+  if i < tcb.N_GP
+  then
+    let i1 ← lift (UScalar.cast .Usize i)
+    let r ← Array.index_usize regs.GP_REGISTERS i1
+    let v ← obj.Tcb.reg machineStoreInst src s r
+    let i2 ← regs.sanitise r v
+    let s1 ← obj.Tcb.set_reg machineStoreInst dest s r i2
+    let i3 ← i + 1#u64
+    ok (cont (s1, i3))
+  else ok (done s)
+
+/-- [fl4_core::tcb::copy_registers]: loop 1:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 235:8-240:9 -/
+@[rust_loop]
+def tcb.copy_registers_loop1
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : obj.Tcb)
+  (src : obj.Tcb) (i : Std.U64) :
+  Result S
+  := do
+  loop
+    (fun (s1, i1) => tcb.copy_registers_loop1.body machineStoreInst dest src s1
+      i1)
+    (s, i)
+
+/-- [fl4_core::tcb::copy_registers]: loop body 2:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 235:8-240:9 -/
+@[rust_loop_body]
+def tcb.copy_registers_loop2.body
+  {S : Type _} (machineStoreInst : machine.Store S) (dest : obj.Tcb)
+  (src : obj.Tcb) (s : S) (i : Std.U64) :
+  Result (ControlFlow (S × Std.U64) S)
+  := do
+  if i < tcb.N_GP
+  then
+    let i1 ← lift (UScalar.cast .Usize i)
+    let r ← Array.index_usize regs.GP_REGISTERS i1
+    let v ← obj.Tcb.reg machineStoreInst src s r
+    let i2 ← regs.sanitise r v
+    let s1 ← obj.Tcb.set_reg machineStoreInst dest s r i2
+    let i3 ← i + 1#u64
+    ok (cont (s1, i3))
+  else ok (done s)
+
+/-- [fl4_core::tcb::copy_registers]: loop 2:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 235:8-240:9 -/
+@[rust_loop]
+def tcb.copy_registers_loop2
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : obj.Tcb)
+  (src : obj.Tcb) (i : Std.U64) :
+  Result S
+  := do
+  loop
+    (fun (s1, i1) => tcb.copy_registers_loop2.body machineStoreInst dest src s1
+      i1)
+    (s, i)
+
+/-- [fl4_core::tcb::copy_registers]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 215:0-247:1 -/
+def tcb.copy_registers
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (dest : obj.Tcb)
+  (src : obj.Tcb) (flags : Std.U64) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  let i ← lift (flags &&& 1#u64)
+  let (s1, a1) ←
+    if i != 0#u64
+    then sched.suspend machineStoreInst machineArchInst s a src
+    else ok (s, a)
+  let i1 ← lift (flags &&& 2#u64)
+  let (s2, a2) ←
+    if i1 != 0#u64
+    then sched.restart machineStoreInst machineArchInst s1 a1 dest
+    else ok (s1, a1)
+  let i2 ← lift (flags &&& 4#u64)
+  if i2 != 0#u64
+  then
+    let s3 ← tcb.copy_registers_loop0 machineStoreInst s2 dest src 0#u64
+    let pc ← obj.Tcb.reg machineStoreInst dest s3 layout.reg.FAULT_IP
+    let s4 ← obj.Tcb.set_reg machineStoreInst dest s3 layout.reg.NEXT_IP pc
+    let i3 ← lift (flags &&& 8#u64)
+    if i3 != 0#u64
+    then
+      let s5 ← tcb.copy_registers_loop1 machineStoreInst s4 dest src 0#u64
+      let s6 ← tcb.post_modify_registers machineStoreInst s5 dest
+      let t ← sched.cur_thread machineStoreInst s6
+      let b ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq dest t
+      if b
+      then
+        let s7 ← sched.reschedule_required machineStoreInst s6
+        ok (core.result.Result.Ok (), s7, a2)
+      else ok (core.result.Result.Ok (), s6, a2)
+    else
+      let s5 ← tcb.post_modify_registers machineStoreInst s4 dest
+      let t ← sched.cur_thread machineStoreInst s5
+      let b ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq dest t
+      if b
+      then
+        let s6 ← sched.reschedule_required machineStoreInst s5
+        ok (core.result.Result.Ok (), s6, a2)
+      else ok (core.result.Result.Ok (), s5, a2)
+  else
+    let i3 ← lift (flags &&& 8#u64)
+    if i3 != 0#u64
+    then
+      let s3 ← tcb.copy_registers_loop2 machineStoreInst s2 dest src 0#u64
+      let s4 ← tcb.post_modify_registers machineStoreInst s3 dest
+      let t ← sched.cur_thread machineStoreInst s4
+      let b ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq dest t
+      if b
+      then
+        let s5 ← sched.reschedule_required machineStoreInst s4
+        ok (core.result.Result.Ok (), s5, a2)
+      else ok (core.result.Result.Ok (), s4, a2)
+    else
+      let s3 ← tcb.post_modify_registers machineStoreInst s2 dest
+      let t ← sched.cur_thread machineStoreInst s3
+      let b ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq dest t
+      if b
+      then
+        let s4 ← sched.reschedule_required machineStoreInst s3
+        ok (core.result.Result.Ok (), s4, a2)
+      else ok (core.result.Result.Ok (), s3, a2)
+
+/-- [fl4_core::tcb::decode_copy_registers]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 533:0-544:1 -/
+def tcb.decode_copy_registers
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb)
+  (c : tcb.Ctx) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  let r ← tcb.extra_with_length c 0#usize 1#u64
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let flags ← tcb.arg machineStoreInst s c 0#u64
+    let r1 ← tcb.thread_arg machineStoreInst s val 1#u64
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val1 =>
+      let (s1, a1) ←
+        smp.remote_tcb_stall machineStoreInst machineArchInst s a val1
+      let s2 ← tcb.restart_caller machineStoreInst s1
+      tcb.copy_registers machineStoreInst machineArchInst s2 a1 target val1
+        flags
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          Unit (core.convert.FromSame error.Exc) residual
+      ok (r2, s, a)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        Unit (core.convert.FromSame error.Exc) residual
+    ok (r1, s, a)
+
+/-- [fl4_core::tcb::write_registers]: loop body 0:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 300:4-305:5 -/
+@[rust_loop_body]
+def tcb.write_registers_loop0.body
+  {S : Type _} (machineStoreInst : machine.Store S) (dest : obj.Tcb)
+  (buf : Std.U64) (ct : obj.Tcb) (n : Std.U64) (s : S) (i : Std.U64) :
+  Result (ControlFlow (S × Std.U64) S)
+  := do
+  if i < tcb.N_FRAME
+  then
+    if i < n
+    then
+      let i1 ← lift (UScalar.cast .Usize i)
+      let r ← Array.index_usize regs.FRAME_REGISTERS i1
+      let i2 ← i + 2#u64
+      let v ← msg.syscall_arg machineStoreInst s ct buf i2
+      let i3 ← regs.sanitise r v
+      let s1 ← obj.Tcb.set_reg machineStoreInst dest s r i3
+      let i4 ← i + 1#u64
+      ok (cont (s1, i4))
+    else ok (done s)
+  else ok (done s)
+
+/-- [fl4_core::tcb::write_registers]: loop 0:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 300:4-305:5 -/
+@[rust_loop]
+def tcb.write_registers_loop0
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : obj.Tcb)
+  (buf : Std.U64) (ct : obj.Tcb) (n : Std.U64) (i : Std.U64) :
+  Result S
+  := do
+  loop
+    (fun (s1, i1) => tcb.write_registers_loop0.body machineStoreInst dest buf
+      ct n s1 i1)
+    (s, i)
+
+/-- [fl4_core::tcb::write_registers]: loop body 1:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 307:4-312:5 -/
+@[rust_loop_body]
+def tcb.write_registers_loop1.body
+  {S : Type _} (machineStoreInst : machine.Store S) (dest : obj.Tcb)
+  (buf : Std.U64) (ct : obj.Tcb) (n : Std.U64) (s : S) (k : Std.U64) :
+  Result (ControlFlow (S × Std.U64) S)
+  := do
+  if k < tcb.N_GP
+  then
+    let i ← k + tcb.N_FRAME
+    if i < n
+    then
+      let i1 ← lift (UScalar.cast .Usize k)
+      let r ← Array.index_usize regs.GP_REGISTERS i1
+      let i2 ← i + 2#u64
+      let v ← msg.syscall_arg machineStoreInst s ct buf i2
+      let i3 ← regs.sanitise r v
+      let s1 ← obj.Tcb.set_reg machineStoreInst dest s r i3
+      let k1 ← k + 1#u64
+      ok (cont (s1, k1))
+    else ok (done s)
+  else ok (done s)
+
+/-- [fl4_core::tcb::write_registers]: loop 1:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 307:4-312:5 -/
+@[rust_loop]
+def tcb.write_registers_loop1
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : obj.Tcb)
+  (buf : Std.U64) (ct : obj.Tcb) (n : Std.U64) (k : Std.U64) :
+  Result S
+  := do
+  loop
+    (fun (s1, k1) => tcb.write_registers_loop1.body machineStoreInst dest buf
+      ct n s1 k1)
+    (s, k)
+
+/-- [fl4_core::tcb::write_registers]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 296:0-322:1 -/
+def tcb.write_registers
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (dest : obj.Tcb)
+  (resume : Bool) (n_in : Std.U64) (buf : Std.U64) :
+  Result (S × A)
+  := do
+  let ct ← sched.cur_thread machineStoreInst s
+  let i ← tcb.N_FRAME + tcb.N_GP
+  let n ← if n_in > i
+            then ok i
+            else ok n_in
+  let s1 ← tcb.write_registers_loop0 machineStoreInst s dest buf ct n 0#u64
+  let s2 ← tcb.write_registers_loop1 machineStoreInst s1 dest buf ct n 0#u64
+  let pc ← obj.Tcb.reg machineStoreInst dest s2 layout.reg.FAULT_IP
+  let s3 ← obj.Tcb.set_reg machineStoreInst dest s2 layout.reg.NEXT_IP pc
+  let s4 ← tcb.post_modify_registers machineStoreInst s3 dest
+  let (s5, a1) ←
+    if resume
+    then sched.restart machineStoreInst machineArchInst s4 a dest
+    else ok (s4, a)
+  let t ← sched.cur_thread machineStoreInst s5
+  let b ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq dest t
+  if b
+  then let s6 ← sched.reschedule_required machineStoreInst s5
+       ok (s6, a1)
+  else ok (s5, a1)
+
+/-- [fl4_core::tcb::decode_write_registers]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 516:0-531:1 -/
+def tcb.decode_write_registers
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb)
+  (c : tcb.Ctx) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  if c.length < 2#u64
+  then let r ← error.truncated Unit
+       ok (r, s, a)
+  else
+    let flags ← tcb.arg machineStoreInst s c 0#u64
+    let w ← tcb.arg machineStoreInst s c 1#u64
+    let i ← c.length - 2#u64
+    if i < w
+    then let r ← error.truncated Unit
+         ok (r, s, a)
+    else
+      let t ← sched.cur_thread machineStoreInst s
+      let b ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq target t
+      if b
+      then let r ← error.illegal Unit
+           ok (r, s, a)
+      else
+        let s1 ← tcb.restart_caller machineStoreInst s
+        let i1 ← lift (flags &&& 1#u64)
+        let (s2, a1) ←
+          tcb.write_registers machineStoreInst machineArchInst s1 a target (i1
+            != 0#u64) w c.buf
+        ok (core.result.Result.Ok (), s2, a1)
+
+/-- [fl4_core::tcb::read_registers]: loop body 0:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 265:8-269:9 -/
+@[rust_loop_body]
+def tcb.read_registers_loop0.body
+  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
+  (n : Std.U64) (ct : obj.Tcb) (s : S) (i : Std.U64) :
+  Result (ControlFlow (S × Std.U64) (S × Std.U64))
+  := do
+  if i < n
+  then
+    if i < tcb.N_FRAME
+    then
+      if i < msg.N_MSG_REGISTERS
+      then
+        let i1 ← lift (UScalar.cast .Usize i)
+        let i2 ← Array.index_usize regs.FRAME_REGISTERS i1
+        let v ← obj.Tcb.reg machineStoreInst src s i2
+        let i3 ← msg.msg_register i
+        let s1 ← obj.Tcb.set_reg machineStoreInst ct s i3 v
+        let i4 ← i + 1#u64
+        ok (cont (s1, i4))
+      else ok (done (s, i))
+    else ok (done (s, i))
+  else ok (done (s, i))
+
+/-- [fl4_core::tcb::read_registers]: loop 0:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 265:8-269:9 -/
+@[rust_loop]
+def tcb.read_registers_loop0
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
+  (n : Std.U64) (ct : obj.Tcb) (i : Std.U64) :
+  Result (S × Std.U64)
+  := do
+  loop
+    (fun (s1, i1) => tcb.read_registers_loop0.body machineStoreInst src n ct s1
+      i1)
+    (s, i)
+
+/-- [fl4_core::tcb::read_registers]: loop body 1:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 271:12-275:13 -/
+@[rust_loop_body]
+def tcb.read_registers_loop1.body
+  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
+  (n : Std.U64) (buf : Std.U64) (s : S) (i : Std.U64) :
+  Result (ControlFlow (S × Std.U64) (S × Std.U64))
+  := do
+  if i < n
+  then
+    if i < tcb.N_FRAME
+    then
+      let i1 ← lift (UScalar.cast .Usize i)
+      let i2 ← Array.index_usize regs.FRAME_REGISTERS i1
+      let v ← obj.Tcb.reg machineStoreInst src s i2
+      let i3 ← i + 1#u64
+      let s1 ← msg.buf_set machineStoreInst s buf i3 v
+      ok (cont (s1, i3))
+    else ok (done (s, i))
+  else ok (done (s, i))
+
+/-- [fl4_core::tcb::read_registers]: loop 1:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 271:12-275:13 -/
+@[rust_loop]
+def tcb.read_registers_loop1
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
+  (n : Std.U64) (buf : Std.U64) (i : Std.U64) :
+  Result (S × Std.U64)
+  := do
+  loop
+    (fun (s1, i1) => tcb.read_registers_loop1.body machineStoreInst src n buf
+      s1 i1)
+    (s, i)
+
+/-- [fl4_core::tcb::read_registers]: loop body 2:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 279:8-283:9 -/
+@[rust_loop_body]
+def tcb.read_registers_loop2.body
+  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
+  (n : Std.U64) (ct : obj.Tcb) (s : S) (k : Std.U64) :
+  Result (ControlFlow (S × Std.U64) (S × Std.U64))
+  := do
+  if k < tcb.N_GP
+  then
+    let i ← k + tcb.N_FRAME
+    if i < n
+    then
+      if i < msg.N_MSG_REGISTERS
+      then
+        let i1 ← lift (UScalar.cast .Usize k)
+        let i2 ← Array.index_usize regs.GP_REGISTERS i1
+        let v ← obj.Tcb.reg machineStoreInst src s i2
+        let i3 ← msg.msg_register i
+        let s1 ← obj.Tcb.set_reg machineStoreInst ct s i3 v
+        let k1 ← k + 1#u64
+        ok (cont (s1, k1))
+      else ok (done (s, k))
+    else ok (done (s, k))
+  else ok (done (s, k))
+
+/-- [fl4_core::tcb::read_registers]: loop 2:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 279:8-283:9 -/
+@[rust_loop]
+def tcb.read_registers_loop2
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
+  (n : Std.U64) (ct : obj.Tcb) (k : Std.U64) :
+  Result (S × Std.U64)
+  := do
+  loop
+    (fun (s1, k1) => tcb.read_registers_loop2.body machineStoreInst src n ct s1
+      k1)
+    (s, k)
+
+/-- [fl4_core::tcb::read_registers]: loop body 3:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 285:12-289:13 -/
+@[rust_loop_body]
+def tcb.read_registers_loop3.body
+  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
+  (n : Std.U64) (buf : Std.U64) (s : S) (k : Std.U64) :
+  Result (ControlFlow (S × Std.U64) (S × Std.U64))
+  := do
+  if k < tcb.N_GP
+  then
+    let i ← k + tcb.N_FRAME
+    if i < n
+    then
+      let i1 ← lift (UScalar.cast .Usize k)
+      let i2 ← Array.index_usize regs.GP_REGISTERS i1
+      let v ← obj.Tcb.reg machineStoreInst src s i2
+      let i3 ← i + 1#u64
+      let s1 ← msg.buf_set machineStoreInst s buf i3 v
+      let k1 ← k + 1#u64
+      ok (cont (s1, k1))
+    else ok (done (s, k))
+  else ok (done (s, k))
+
+/-- [fl4_core::tcb::read_registers]: loop 3:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 285:12-289:13 -/
+@[rust_loop]
+def tcb.read_registers_loop3
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
+  (n : Std.U64) (buf : Std.U64) (k : Std.U64) :
+  Result (S × Std.U64)
+  := do
+  loop
+    (fun (s1, k1) => tcb.read_registers_loop3.body machineStoreInst src n buf
+      s1 k1)
+    (s, k)
+
+/-- [fl4_core::tcb::read_registers]: loop body 4:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 279:8-283:9 -/
+@[rust_loop_body]
+def tcb.read_registers_loop4.body
+  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
+  (n : Std.U64) (ct : obj.Tcb) (s : S) (k : Std.U64) :
+  Result (ControlFlow (S × Std.U64) (S × Std.U64))
+  := do
+  if k < tcb.N_GP
+  then
+    let i ← k + tcb.N_FRAME
+    if i < n
+    then
+      if i < msg.N_MSG_REGISTERS
+      then
+        let i1 ← lift (UScalar.cast .Usize k)
+        let i2 ← Array.index_usize regs.GP_REGISTERS i1
+        let v ← obj.Tcb.reg machineStoreInst src s i2
+        let i3 ← msg.msg_register i
+        let s1 ← obj.Tcb.set_reg machineStoreInst ct s i3 v
+        let k1 ← k + 1#u64
+        ok (cont (s1, k1))
+      else ok (done (s, k))
+    else ok (done (s, k))
+  else ok (done (s, k))
+
+/-- [fl4_core::tcb::read_registers]: loop 4:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 279:8-283:9 -/
+@[rust_loop]
+def tcb.read_registers_loop4
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
+  (n : Std.U64) (ct : obj.Tcb) (k : Std.U64) :
+  Result (S × Std.U64)
+  := do
+  loop
+    (fun (s1, k1) => tcb.read_registers_loop4.body machineStoreInst src n ct s1
+      k1)
+    (s, k)
+
+/-- [fl4_core::tcb::read_registers]: loop body 5:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 285:12-289:13 -/
+@[rust_loop_body]
+def tcb.read_registers_loop5.body
+  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
+  (n : Std.U64) (buf : Std.U64) (s : S) (k : Std.U64) :
+  Result (ControlFlow (S × Std.U64) (S × Std.U64))
+  := do
+  if k < tcb.N_GP
+  then
+    let i ← k + tcb.N_FRAME
+    if i < n
+    then
+      let i1 ← lift (UScalar.cast .Usize k)
+      let i2 ← Array.index_usize regs.GP_REGISTERS i1
+      let v ← obj.Tcb.reg machineStoreInst src s i2
+      let i3 ← i + 1#u64
+      let s1 ← msg.buf_set machineStoreInst s buf i3 v
+      let k1 ← k + 1#u64
+      ok (cont (s1, k1))
+    else ok (done (s, k))
+  else ok (done (s, k))
+
+/-- [fl4_core::tcb::read_registers]: loop 5:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 285:12-289:13 -/
+@[rust_loop]
+def tcb.read_registers_loop5
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
+  (n : Std.U64) (buf : Std.U64) (k : Std.U64) :
+  Result (S × Std.U64)
+  := do
+  loop
+    (fun (s1, k1) => tcb.read_registers_loop5.body machineStoreInst src n buf
+      s1 k1)
+    (s, k)
+
+/-- [fl4_core::tcb::read_registers]: loop body 6:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 279:8-283:9 -/
+@[rust_loop_body]
+def tcb.read_registers_loop6.body
+  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
+  (n : Std.U64) (ct : obj.Tcb) (s : S) (k : Std.U64) :
+  Result (ControlFlow (S × Std.U64) (S × Std.U64))
+  := do
+  if k < tcb.N_GP
+  then
+    let i ← k + tcb.N_FRAME
+    if i < n
+    then
+      if i < msg.N_MSG_REGISTERS
+      then
+        let i1 ← lift (UScalar.cast .Usize k)
+        let i2 ← Array.index_usize regs.GP_REGISTERS i1
+        let v ← obj.Tcb.reg machineStoreInst src s i2
+        let i3 ← msg.msg_register i
+        let s1 ← obj.Tcb.set_reg machineStoreInst ct s i3 v
+        let k1 ← k + 1#u64
+        ok (cont (s1, k1))
+      else ok (done (s, k))
+    else ok (done (s, k))
+  else ok (done (s, k))
+
+/-- [fl4_core::tcb::read_registers]: loop 6:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 279:8-283:9 -/
+@[rust_loop]
+def tcb.read_registers_loop6
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
+  (n : Std.U64) (ct : obj.Tcb) (k : Std.U64) :
+  Result (S × Std.U64)
+  := do
+  loop
+    (fun (s1, k1) => tcb.read_registers_loop6.body machineStoreInst src n ct s1
+      k1)
+    (s, k)
+
+/-- [fl4_core::tcb::read_registers]: loop body 7:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 285:12-289:13 -/
+@[rust_loop_body]
+def tcb.read_registers_loop7.body
+  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
+  (n : Std.U64) (buf : Std.U64) (s : S) (k : Std.U64) :
+  Result (ControlFlow (S × Std.U64) (S × Std.U64))
+  := do
+  if k < tcb.N_GP
+  then
+    let i ← k + tcb.N_FRAME
+    if i < n
+    then
+      let i1 ← lift (UScalar.cast .Usize k)
+      let i2 ← Array.index_usize regs.GP_REGISTERS i1
+      let v ← obj.Tcb.reg machineStoreInst src s i2
+      let i3 ← i + 1#u64
+      let s1 ← msg.buf_set machineStoreInst s buf i3 v
+      let k1 ← k + 1#u64
+      ok (cont (s1, k1))
+    else ok (done (s, k))
+  else ok (done (s, k))
+
+/-- [fl4_core::tcb::read_registers]: loop 7:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 285:12-289:13 -/
+@[rust_loop]
+def tcb.read_registers_loop7
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
+  (n : Std.U64) (buf : Std.U64) (k : Std.U64) :
+  Result (S × Std.U64)
+  := do
+  loop
+    (fun (s1, k1) => tcb.read_registers_loop7.body machineStoreInst src n buf
+      s1 k1)
+    (s, k)
+
+/-- [fl4_core::tcb::read_registers]: loop body 8:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 279:8-283:9 -/
+@[rust_loop_body]
+def tcb.read_registers_loop8.body
+  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
+  (n : Std.U64) (ct : obj.Tcb) (s : S) (k : Std.U64) :
+  Result (ControlFlow (S × Std.U64) (S × Std.U64))
+  := do
+  if k < tcb.N_GP
+  then
+    let i ← k + tcb.N_FRAME
+    if i < n
+    then
+      if i < msg.N_MSG_REGISTERS
+      then
+        let i1 ← lift (UScalar.cast .Usize k)
+        let i2 ← Array.index_usize regs.GP_REGISTERS i1
+        let v ← obj.Tcb.reg machineStoreInst src s i2
+        let i3 ← msg.msg_register i
+        let s1 ← obj.Tcb.set_reg machineStoreInst ct s i3 v
+        let k1 ← k + 1#u64
+        ok (cont (s1, k1))
+      else ok (done (s, k))
+    else ok (done (s, k))
+  else ok (done (s, k))
+
+/-- [fl4_core::tcb::read_registers]: loop 8:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 279:8-283:9 -/
+@[rust_loop]
+def tcb.read_registers_loop8
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
+  (n : Std.U64) (ct : obj.Tcb) (k : Std.U64) :
+  Result (S × Std.U64)
+  := do
+  loop
+    (fun (s1, k1) => tcb.read_registers_loop8.body machineStoreInst src n ct s1
+      k1)
+    (s, k)
+
+/-- [fl4_core::tcb::read_registers]: loop body 9:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 285:12-289:13 -/
+@[rust_loop_body]
+def tcb.read_registers_loop9.body
+  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
+  (n : Std.U64) (buf : Std.U64) (s : S) (k : Std.U64) :
+  Result (ControlFlow (S × Std.U64) (S × Std.U64))
+  := do
+  if k < tcb.N_GP
+  then
+    let i ← k + tcb.N_FRAME
+    if i < n
+    then
+      let i1 ← lift (UScalar.cast .Usize k)
+      let i2 ← Array.index_usize regs.GP_REGISTERS i1
+      let v ← obj.Tcb.reg machineStoreInst src s i2
+      let i3 ← i + 1#u64
+      let s1 ← msg.buf_set machineStoreInst s buf i3 v
+      let k1 ← k + 1#u64
+      ok (cont (s1, k1))
+    else ok (done (s, k))
+  else ok (done (s, k))
+
+/-- [fl4_core::tcb::read_registers]: loop 9:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 285:12-289:13 -/
+@[rust_loop]
+def tcb.read_registers_loop9
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
+  (n : Std.U64) (buf : Std.U64) (k : Std.U64) :
+  Result (S × Std.U64)
+  := do
+  loop
+    (fun (s1, k1) => tcb.read_registers_loop9.body machineStoreInst src n buf
+      s1 k1)
+    (s, k)
+
+/-- [fl4_core::tcb::read_registers]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 256:0-294:1 -/
+def tcb.read_registers
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (src : obj.Tcb)
+  (suspend : Bool) (n : Std.U64) (call : Bool) :
+  Result (S × A)
+  := do
+  let ct ← sched.cur_thread machineStoreInst s
+  let (s1, a1) ←
+    if suspend
+    then sched.suspend machineStoreInst machineArchInst s a src
+    else ok (s, a)
+  if call
+  then
+    let buf ← msg.lookup_ipc_buffer machineStoreInst s1 true ct
+    let s2 ← obj.Tcb.set_reg machineStoreInst ct s1 layout.reg.BADGE 0#u64
+    let (s3, i) ← tcb.read_registers_loop0 machineStoreInst s2 src n ct 0#u64
+    if buf != 0#u64
+    then
+      if i < n
+      then
+        if i < tcb.N_FRAME
+        then
+          let (s4, i1) ←
+            tcb.read_registers_loop1 machineStoreInst s3 src n buf i
+          let (s5, k) ←
+            tcb.read_registers_loop2 machineStoreInst s4 src n ct 0#u64
+          if buf != 0#u64
+          then
+            if k < tcb.N_GP
+            then
+              let i2 ← k + tcb.N_FRAME
+              if i2 < n
+              then
+                let (s6, k1) ←
+                  tcb.read_registers_loop3 machineStoreInst s5 src n buf k
+                let i3 ← lift (core.num.U64.wrapping_add k1 i1)
+                let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i3
+                let s7 ← msg.set_msg_info machineStoreInst s6 ct mi
+                let s8 ←
+                  sched.set_thread_state machineStoreInst s7 ct
+                    sched.TS_RUNNING
+                ok (s8, a1)
+              else
+                let i3 ← lift (core.num.U64.wrapping_add k i1)
+                let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i3
+                let s6 ← msg.set_msg_info machineStoreInst s5 ct mi
+                let s7 ←
+                  sched.set_thread_state machineStoreInst s6 ct
+                    sched.TS_RUNNING
+                ok (s7, a1)
+            else
+              let i2 ← lift (core.num.U64.wrapping_add k i1)
+              let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i2
+              let s6 ← msg.set_msg_info machineStoreInst s5 ct mi
+              let s7 ←
+                sched.set_thread_state machineStoreInst s6 ct sched.TS_RUNNING
+              ok (s7, a1)
+          else
+            let i2 ← lift (core.num.U64.wrapping_add k i1)
+            let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i2
+            let s6 ← msg.set_msg_info machineStoreInst s5 ct mi
+            let s7 ←
+              sched.set_thread_state machineStoreInst s6 ct sched.TS_RUNNING
+            ok (s7, a1)
+        else
+          let (s4, k) ←
+            tcb.read_registers_loop4 machineStoreInst s3 src n ct 0#u64
+          if buf != 0#u64
+          then
+            if k < tcb.N_GP
+            then
+              let i1 ← k + tcb.N_FRAME
+              if i1 < n
+              then
+                let (s5, k1) ←
+                  tcb.read_registers_loop5 machineStoreInst s4 src n buf k
+                let i2 ← lift (core.num.U64.wrapping_add k1 i)
+                let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i2
+                let s6 ← msg.set_msg_info machineStoreInst s5 ct mi
+                let s7 ←
+                  sched.set_thread_state machineStoreInst s6 ct
+                    sched.TS_RUNNING
+                ok (s7, a1)
+              else
+                let i2 ← lift (core.num.U64.wrapping_add k i)
+                let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i2
+                let s5 ← msg.set_msg_info machineStoreInst s4 ct mi
+                let s6 ←
+                  sched.set_thread_state machineStoreInst s5 ct
+                    sched.TS_RUNNING
+                ok (s6, a1)
+            else
+              let i1 ← lift (core.num.U64.wrapping_add k i)
+              let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i1
+              let s5 ← msg.set_msg_info machineStoreInst s4 ct mi
+              let s6 ←
+                sched.set_thread_state machineStoreInst s5 ct sched.TS_RUNNING
+              ok (s6, a1)
+          else
+            let i1 ← lift (core.num.U64.wrapping_add k i)
+            let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i1
+            let s5 ← msg.set_msg_info machineStoreInst s4 ct mi
+            let s6 ←
+              sched.set_thread_state machineStoreInst s5 ct sched.TS_RUNNING
+            ok (s6, a1)
+      else
+        let (s4, k) ←
+          tcb.read_registers_loop6 machineStoreInst s3 src n ct 0#u64
+        if buf != 0#u64
+        then
+          if k < tcb.N_GP
+          then
+            let i1 ← k + tcb.N_FRAME
+            if i1 < n
+            then
+              let (s5, k1) ←
+                tcb.read_registers_loop7 machineStoreInst s4 src n buf k
+              let i2 ← lift (core.num.U64.wrapping_add k1 i)
+              let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i2
+              let s6 ← msg.set_msg_info machineStoreInst s5 ct mi
+              let s7 ←
+                sched.set_thread_state machineStoreInst s6 ct sched.TS_RUNNING
+              ok (s7, a1)
+            else
+              let i2 ← lift (core.num.U64.wrapping_add k i)
+              let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i2
+              let s5 ← msg.set_msg_info machineStoreInst s4 ct mi
+              let s6 ←
+                sched.set_thread_state machineStoreInst s5 ct sched.TS_RUNNING
+              ok (s6, a1)
+          else
+            let i1 ← lift (core.num.U64.wrapping_add k i)
+            let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i1
+            let s5 ← msg.set_msg_info machineStoreInst s4 ct mi
+            let s6 ←
+              sched.set_thread_state machineStoreInst s5 ct sched.TS_RUNNING
+            ok (s6, a1)
+        else
+          let i1 ← lift (core.num.U64.wrapping_add k i)
+          let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i1
+          let s5 ← msg.set_msg_info machineStoreInst s4 ct mi
+          let s6 ←
+            sched.set_thread_state machineStoreInst s5 ct sched.TS_RUNNING
+          ok (s6, a1)
+    else
+      let (s4, k) ←
+        tcb.read_registers_loop8 machineStoreInst s3 src n ct 0#u64
+      if buf != 0#u64
+      then
+        if k < tcb.N_GP
+        then
+          let i1 ← k + tcb.N_FRAME
+          if i1 < n
+          then
+            let (s5, k1) ←
+              tcb.read_registers_loop9 machineStoreInst s4 src n buf k
+            let i2 ← lift (core.num.U64.wrapping_add k1 i)
+            let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i2
+            let s6 ← msg.set_msg_info machineStoreInst s5 ct mi
+            let s7 ←
+              sched.set_thread_state machineStoreInst s6 ct sched.TS_RUNNING
+            ok (s7, a1)
+          else
+            let i2 ← lift (core.num.U64.wrapping_add k i)
+            let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i2
+            let s5 ← msg.set_msg_info machineStoreInst s4 ct mi
+            let s6 ←
+              sched.set_thread_state machineStoreInst s5 ct sched.TS_RUNNING
+            ok (s6, a1)
+        else
+          let i1 ← lift (core.num.U64.wrapping_add k i)
+          let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i1
+          let s5 ← msg.set_msg_info machineStoreInst s4 ct mi
+          let s6 ←
+            sched.set_thread_state machineStoreInst s5 ct sched.TS_RUNNING
+          ok (s6, a1)
+      else
+        let i1 ← lift (core.num.U64.wrapping_add k i)
+        let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i1
+        let s5 ← msg.set_msg_info machineStoreInst s4 ct mi
+        let s6 ←
+          sched.set_thread_state machineStoreInst s5 ct sched.TS_RUNNING
+        ok (s6, a1)
+  else
+    let s2 ← sched.set_thread_state machineStoreInst s1 ct sched.TS_RUNNING
+    ok (s2, a1)
+
+/-- [fl4_core::tcb::decode_read_registers]:
+    Source: 'crates/fl4-core/src/tcb.rs', lines 499:0-514:1 -/
+def tcb.decode_read_registers
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb)
+  (c : tcb.Ctx) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  if c.length < 2#u64
+  then let r ← error.truncated Unit
+       ok (r, s, a)
+  else
+    let flags ← tcb.arg machineStoreInst s c 0#u64
+    let n ← tcb.arg machineStoreInst s c 1#u64
+    if n < 1#u64
+    then
+      let i ← tcb.N_FRAME + tcb.N_GP
+      let r ← error.range Unit 1#u64 i
+      ok (r, s, a)
+    else
+      let i ← tcb.N_FRAME + tcb.N_GP
+      if n > i
+      then let r ← error.range Unit 1#u64 i
+           ok (r, s, a)
+      else
+        let t ← sched.cur_thread machineStoreInst s
+        let b ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq target t
+        if b
+        then let r ← error.illegal Unit
+             ok (r, s, a)
+        else
+          let s1 ← tcb.restart_caller machineStoreInst s
+          let i1 ← lift (flags &&& 1#u64)
+          let (s2, a1) ←
+            tcb.read_registers machineStoreInst machineArchInst s1 a target (i1
+              != 0#u64) n c.call
+          ok (core.result.Result.Ok (), s2, a1)
+
 /-- [fl4_core::tcb::set_breakpoint_checked]:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 356:0-395:1 -/
+    Source: 'crates/fl4-core/src/tcb.rs', lines 370:0-409:1 -/
 def tcb.set_breakpoint_checked
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
   (c : tcb.Ctx) :
@@ -34095,7 +30088,7 @@ def tcb.set_breakpoint_checked
                   ok (r1, s)
 
 /-- [fl4_core::tcb::copy_words]: loop body 0:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 313:4-317:5 -/
+    Source: 'crates/fl4-core/src/tcb.rs', lines 327:4-331:5 -/
 @[rust_loop_body]
 def tcb.copy_words_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (src : Std.U64)
@@ -34115,7 +30108,7 @@ def tcb.copy_words_loop.body
   else ok (done s)
 
 /-- [fl4_core::tcb::copy_words]: loop 0:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 313:4-317:5 -/
+    Source: 'crates/fl4-core/src/tcb.rs', lines 327:4-331:5 -/
 @[rust_loop]
 def tcb.copy_words_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : Std.U64)
@@ -34127,7 +30120,7 @@ def tcb.copy_words_loop
     (s, i)
 
 /-- [fl4_core::tcb::copy_words]:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 311:0-318:1 -/
+    Source: 'crates/fl4-core/src/tcb.rs', lines 325:0-332:1 -/
 @[reducible]
 def tcb.copy_words
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : Std.U64)
@@ -34136,20 +30129,8 @@ def tcb.copy_words
   := do
   tcb.copy_words_loop machineStoreInst s src dst n 0#u64
 
-/-- [fl4_core::tcb::extra]:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 41:0-47:1 -/
-def tcb.extra (c : tcb.Ctx) (i : Std.Usize) : Result (Option obj.Slot) := do
-  if i >= 3#usize
-  then ok none
-  else
-    let s ← Array.index_usize c.extra i
-    let b ← obj.Slot.is_null s
-    if b
-    then ok none
-    else ok (some s)
-
 /-- [fl4_core::tcb::fpu_transfer]:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 321:0-354:1 -/
+    Source: 'crates/fl4-core/src/tcb.rs', lines 335:0-368:1 -/
 def tcb.fpu_transfer
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb)
@@ -34334,1715 +30315,8 @@ def tcb.fpu_transfer
     else let r ← error.truncated Unit
          ok (r, s, a)
 
-/-- [fl4_core::tcb::post_modify_registers]:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 236:0-240:1 -/
-def tcb.post_modify_registers
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
-  Result S
-  := do
-  let t1 ← sched.cur_thread machineStoreInst s
-  let b ←
-    core.cmp.PartialEq.ne.trait_default obj.Tcb.Insts.CoreCmpPartialEqTcb t t1
-  if b
-  then obj.Tcb.set_reg machineStoreInst t s layout.reg.ERROR 0#u64
-  else ok s
-
-/-- [fl4_core::tcb::N_GP]
-    Source: 'crates/fl4-core/src/tcb.rs', lines 26:0-26:20 -/
-@[global_simps, irreducible] def tcb.N_GP : Std.U64 := 2#u64
-
-/-- [fl4_core::tcb::N_FRAME]
-    Source: 'crates/fl4-core/src/tcb.rs', lines 25:0-25:24 -/
-@[global_simps, irreducible] def tcb.N_FRAME : Std.U64 := 18#u64
-
-/-- [fl4_core::tcb::write_registers]: loop body 0:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 286:4-291:5 -/
-@[rust_loop_body]
-def tcb.write_registers_loop0.body
-  {S : Type _} (machineStoreInst : machine.Store S) (dest : obj.Tcb)
-  (buf : Std.U64) (ct : obj.Tcb) (n : Std.U64) (s : S) (i : Std.U64) :
-  Result (ControlFlow (S × Std.U64) S)
-  := do
-  if i < tcb.N_FRAME
-  then
-    if i < n
-    then
-      let i1 ← lift (UScalar.cast .Usize i)
-      let r ← Array.index_usize regs.FRAME_REGISTERS i1
-      let i2 ← i + 2#u64
-      let v ← msg.syscall_arg machineStoreInst s ct buf i2
-      let i3 ← regs.sanitise r v
-      let s1 ← obj.Tcb.set_reg machineStoreInst dest s r i3
-      let i4 ← i + 1#u64
-      ok (cont (s1, i4))
-    else ok (done s)
-  else ok (done s)
-
-/-- [fl4_core::tcb::write_registers]: loop 0:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 286:4-291:5 -/
-@[rust_loop]
-def tcb.write_registers_loop0
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : obj.Tcb)
-  (buf : Std.U64) (ct : obj.Tcb) (n : Std.U64) (i : Std.U64) :
-  Result S
-  := do
-  loop
-    (fun (s1, i1) => tcb.write_registers_loop0.body machineStoreInst dest buf
-      ct n s1 i1)
-    (s, i)
-
-/-- [fl4_core::tcb::write_registers]: loop body 1:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 293:4-298:5 -/
-@[rust_loop_body]
-def tcb.write_registers_loop1.body
-  {S : Type _} (machineStoreInst : machine.Store S) (dest : obj.Tcb)
-  (buf : Std.U64) (ct : obj.Tcb) (n : Std.U64) (s : S) (k : Std.U64) :
-  Result (ControlFlow (S × Std.U64) S)
-  := do
-  if k < tcb.N_GP
-  then
-    let i ← k + tcb.N_FRAME
-    if i < n
-    then
-      let i1 ← lift (UScalar.cast .Usize k)
-      let r ← Array.index_usize regs.GP_REGISTERS i1
-      let i2 ← i + 2#u64
-      let v ← msg.syscall_arg machineStoreInst s ct buf i2
-      let i3 ← regs.sanitise r v
-      let s1 ← obj.Tcb.set_reg machineStoreInst dest s r i3
-      let k1 ← k + 1#u64
-      ok (cont (s1, k1))
-    else ok (done s)
-  else ok (done s)
-
-/-- [fl4_core::tcb::write_registers]: loop 1:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 293:4-298:5 -/
-@[rust_loop]
-def tcb.write_registers_loop1
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : obj.Tcb)
-  (buf : Std.U64) (ct : obj.Tcb) (n : Std.U64) (k : Std.U64) :
-  Result S
-  := do
-  loop
-    (fun (s1, k1) => tcb.write_registers_loop1.body machineStoreInst dest buf
-      ct n s1 k1)
-    (s, k)
-
-/-- [fl4_core::tcb::write_registers]:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 282:0-308:1 -/
-def tcb.write_registers
-  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (dest : obj.Tcb)
-  (resume : Bool) (n_in : Std.U64) (buf : Std.U64) :
-  Result (S × A)
-  := do
-  let ct ← sched.cur_thread machineStoreInst s
-  let i ← tcb.N_FRAME + tcb.N_GP
-  let n ← if n_in > i
-            then ok i
-            else ok n_in
-  let s1 ← tcb.write_registers_loop0 machineStoreInst s dest buf ct n 0#u64
-  let s2 ← tcb.write_registers_loop1 machineStoreInst s1 dest buf ct n 0#u64
-  let pc ← obj.Tcb.reg machineStoreInst dest s2 layout.reg.FAULT_IP
-  let s3 ← obj.Tcb.set_reg machineStoreInst dest s2 layout.reg.NEXT_IP pc
-  let s4 ← tcb.post_modify_registers machineStoreInst s3 dest
-  let (s5, a1) ←
-    if resume
-    then sched.restart machineStoreInst machineArchInst s4 a dest
-    else ok (s4, a)
-  let t ← sched.cur_thread machineStoreInst s5
-  let b ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq dest t
-  if b
-  then let s6 ← sched.reschedule_required machineStoreInst s5
-       ok (s6, a1)
-  else ok (s5, a1)
-
-/-- [fl4_core::tcb::read_registers]: loop body 0:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 251:8-255:9 -/
-@[rust_loop_body]
-def tcb.read_registers_loop0.body
-  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
-  (n : Std.U64) (ct : obj.Tcb) (s : S) (i : Std.U64) :
-  Result (ControlFlow (S × Std.U64) (S × Std.U64))
-  := do
-  if i < n
-  then
-    if i < tcb.N_FRAME
-    then
-      if i < msg.N_MSG_REGISTERS
-      then
-        let i1 ← lift (UScalar.cast .Usize i)
-        let i2 ← Array.index_usize regs.FRAME_REGISTERS i1
-        let v ← obj.Tcb.reg machineStoreInst src s i2
-        let i3 ← msg.msg_register i
-        let s1 ← obj.Tcb.set_reg machineStoreInst ct s i3 v
-        let i4 ← i + 1#u64
-        ok (cont (s1, i4))
-      else ok (done (s, i))
-    else ok (done (s, i))
-  else ok (done (s, i))
-
-/-- [fl4_core::tcb::read_registers]: loop 0:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 251:8-255:9 -/
-@[rust_loop]
-def tcb.read_registers_loop0
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
-  (n : Std.U64) (ct : obj.Tcb) (i : Std.U64) :
-  Result (S × Std.U64)
-  := do
-  loop
-    (fun (s1, i1) => tcb.read_registers_loop0.body machineStoreInst src n ct s1
-      i1)
-    (s, i)
-
-/-- [fl4_core::tcb::read_registers]: loop body 1:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 257:12-261:13 -/
-@[rust_loop_body]
-def tcb.read_registers_loop1.body
-  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
-  (n : Std.U64) (buf : Std.U64) (s : S) (i : Std.U64) :
-  Result (ControlFlow (S × Std.U64) (S × Std.U64))
-  := do
-  if i < n
-  then
-    if i < tcb.N_FRAME
-    then
-      let i1 ← lift (UScalar.cast .Usize i)
-      let i2 ← Array.index_usize regs.FRAME_REGISTERS i1
-      let v ← obj.Tcb.reg machineStoreInst src s i2
-      let i3 ← i + 1#u64
-      let s1 ← msg.buf_set machineStoreInst s buf i3 v
-      ok (cont (s1, i3))
-    else ok (done (s, i))
-  else ok (done (s, i))
-
-/-- [fl4_core::tcb::read_registers]: loop 1:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 257:12-261:13 -/
-@[rust_loop]
-def tcb.read_registers_loop1
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
-  (n : Std.U64) (buf : Std.U64) (i : Std.U64) :
-  Result (S × Std.U64)
-  := do
-  loop
-    (fun (s1, i1) => tcb.read_registers_loop1.body machineStoreInst src n buf
-      s1 i1)
-    (s, i)
-
-/-- [fl4_core::tcb::read_registers]: loop body 2:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 265:8-269:9 -/
-@[rust_loop_body]
-def tcb.read_registers_loop2.body
-  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
-  (n : Std.U64) (ct : obj.Tcb) (s : S) (k : Std.U64) :
-  Result (ControlFlow (S × Std.U64) (S × Std.U64))
-  := do
-  if k < tcb.N_GP
-  then
-    let i ← k + tcb.N_FRAME
-    if i < n
-    then
-      if i < msg.N_MSG_REGISTERS
-      then
-        let i1 ← lift (UScalar.cast .Usize k)
-        let i2 ← Array.index_usize regs.GP_REGISTERS i1
-        let v ← obj.Tcb.reg machineStoreInst src s i2
-        let i3 ← msg.msg_register i
-        let s1 ← obj.Tcb.set_reg machineStoreInst ct s i3 v
-        let k1 ← k + 1#u64
-        ok (cont (s1, k1))
-      else ok (done (s, k))
-    else ok (done (s, k))
-  else ok (done (s, k))
-
-/-- [fl4_core::tcb::read_registers]: loop 2:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 265:8-269:9 -/
-@[rust_loop]
-def tcb.read_registers_loop2
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
-  (n : Std.U64) (ct : obj.Tcb) (k : Std.U64) :
-  Result (S × Std.U64)
-  := do
-  loop
-    (fun (s1, k1) => tcb.read_registers_loop2.body machineStoreInst src n ct s1
-      k1)
-    (s, k)
-
-/-- [fl4_core::tcb::read_registers]: loop body 3:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 271:12-275:13 -/
-@[rust_loop_body]
-def tcb.read_registers_loop3.body
-  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
-  (n : Std.U64) (buf : Std.U64) (s : S) (k : Std.U64) :
-  Result (ControlFlow (S × Std.U64) (S × Std.U64))
-  := do
-  if k < tcb.N_GP
-  then
-    let i ← k + tcb.N_FRAME
-    if i < n
-    then
-      let i1 ← lift (UScalar.cast .Usize k)
-      let i2 ← Array.index_usize regs.GP_REGISTERS i1
-      let v ← obj.Tcb.reg machineStoreInst src s i2
-      let i3 ← i + 1#u64
-      let s1 ← msg.buf_set machineStoreInst s buf i3 v
-      let k1 ← k + 1#u64
-      ok (cont (s1, k1))
-    else ok (done (s, k))
-  else ok (done (s, k))
-
-/-- [fl4_core::tcb::read_registers]: loop 3:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 271:12-275:13 -/
-@[rust_loop]
-def tcb.read_registers_loop3
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
-  (n : Std.U64) (buf : Std.U64) (k : Std.U64) :
-  Result (S × Std.U64)
-  := do
-  loop
-    (fun (s1, k1) => tcb.read_registers_loop3.body machineStoreInst src n buf
-      s1 k1)
-    (s, k)
-
-/-- [fl4_core::tcb::read_registers]: loop body 4:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 265:8-269:9 -/
-@[rust_loop_body]
-def tcb.read_registers_loop4.body
-  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
-  (n : Std.U64) (ct : obj.Tcb) (s : S) (k : Std.U64) :
-  Result (ControlFlow (S × Std.U64) (S × Std.U64))
-  := do
-  if k < tcb.N_GP
-  then
-    let i ← k + tcb.N_FRAME
-    if i < n
-    then
-      if i < msg.N_MSG_REGISTERS
-      then
-        let i1 ← lift (UScalar.cast .Usize k)
-        let i2 ← Array.index_usize regs.GP_REGISTERS i1
-        let v ← obj.Tcb.reg machineStoreInst src s i2
-        let i3 ← msg.msg_register i
-        let s1 ← obj.Tcb.set_reg machineStoreInst ct s i3 v
-        let k1 ← k + 1#u64
-        ok (cont (s1, k1))
-      else ok (done (s, k))
-    else ok (done (s, k))
-  else ok (done (s, k))
-
-/-- [fl4_core::tcb::read_registers]: loop 4:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 265:8-269:9 -/
-@[rust_loop]
-def tcb.read_registers_loop4
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
-  (n : Std.U64) (ct : obj.Tcb) (k : Std.U64) :
-  Result (S × Std.U64)
-  := do
-  loop
-    (fun (s1, k1) => tcb.read_registers_loop4.body machineStoreInst src n ct s1
-      k1)
-    (s, k)
-
-/-- [fl4_core::tcb::read_registers]: loop body 5:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 271:12-275:13 -/
-@[rust_loop_body]
-def tcb.read_registers_loop5.body
-  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
-  (n : Std.U64) (buf : Std.U64) (s : S) (k : Std.U64) :
-  Result (ControlFlow (S × Std.U64) (S × Std.U64))
-  := do
-  if k < tcb.N_GP
-  then
-    let i ← k + tcb.N_FRAME
-    if i < n
-    then
-      let i1 ← lift (UScalar.cast .Usize k)
-      let i2 ← Array.index_usize regs.GP_REGISTERS i1
-      let v ← obj.Tcb.reg machineStoreInst src s i2
-      let i3 ← i + 1#u64
-      let s1 ← msg.buf_set machineStoreInst s buf i3 v
-      let k1 ← k + 1#u64
-      ok (cont (s1, k1))
-    else ok (done (s, k))
-  else ok (done (s, k))
-
-/-- [fl4_core::tcb::read_registers]: loop 5:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 271:12-275:13 -/
-@[rust_loop]
-def tcb.read_registers_loop5
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
-  (n : Std.U64) (buf : Std.U64) (k : Std.U64) :
-  Result (S × Std.U64)
-  := do
-  loop
-    (fun (s1, k1) => tcb.read_registers_loop5.body machineStoreInst src n buf
-      s1 k1)
-    (s, k)
-
-/-- [fl4_core::tcb::read_registers]: loop body 6:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 265:8-269:9 -/
-@[rust_loop_body]
-def tcb.read_registers_loop6.body
-  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
-  (n : Std.U64) (ct : obj.Tcb) (s : S) (k : Std.U64) :
-  Result (ControlFlow (S × Std.U64) (S × Std.U64))
-  := do
-  if k < tcb.N_GP
-  then
-    let i ← k + tcb.N_FRAME
-    if i < n
-    then
-      if i < msg.N_MSG_REGISTERS
-      then
-        let i1 ← lift (UScalar.cast .Usize k)
-        let i2 ← Array.index_usize regs.GP_REGISTERS i1
-        let v ← obj.Tcb.reg machineStoreInst src s i2
-        let i3 ← msg.msg_register i
-        let s1 ← obj.Tcb.set_reg machineStoreInst ct s i3 v
-        let k1 ← k + 1#u64
-        ok (cont (s1, k1))
-      else ok (done (s, k))
-    else ok (done (s, k))
-  else ok (done (s, k))
-
-/-- [fl4_core::tcb::read_registers]: loop 6:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 265:8-269:9 -/
-@[rust_loop]
-def tcb.read_registers_loop6
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
-  (n : Std.U64) (ct : obj.Tcb) (k : Std.U64) :
-  Result (S × Std.U64)
-  := do
-  loop
-    (fun (s1, k1) => tcb.read_registers_loop6.body machineStoreInst src n ct s1
-      k1)
-    (s, k)
-
-/-- [fl4_core::tcb::read_registers]: loop body 7:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 271:12-275:13 -/
-@[rust_loop_body]
-def tcb.read_registers_loop7.body
-  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
-  (n : Std.U64) (buf : Std.U64) (s : S) (k : Std.U64) :
-  Result (ControlFlow (S × Std.U64) (S × Std.U64))
-  := do
-  if k < tcb.N_GP
-  then
-    let i ← k + tcb.N_FRAME
-    if i < n
-    then
-      let i1 ← lift (UScalar.cast .Usize k)
-      let i2 ← Array.index_usize regs.GP_REGISTERS i1
-      let v ← obj.Tcb.reg machineStoreInst src s i2
-      let i3 ← i + 1#u64
-      let s1 ← msg.buf_set machineStoreInst s buf i3 v
-      let k1 ← k + 1#u64
-      ok (cont (s1, k1))
-    else ok (done (s, k))
-  else ok (done (s, k))
-
-/-- [fl4_core::tcb::read_registers]: loop 7:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 271:12-275:13 -/
-@[rust_loop]
-def tcb.read_registers_loop7
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
-  (n : Std.U64) (buf : Std.U64) (k : Std.U64) :
-  Result (S × Std.U64)
-  := do
-  loop
-    (fun (s1, k1) => tcb.read_registers_loop7.body machineStoreInst src n buf
-      s1 k1)
-    (s, k)
-
-/-- [fl4_core::tcb::read_registers]: loop body 8:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 265:8-269:9 -/
-@[rust_loop_body]
-def tcb.read_registers_loop8.body
-  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
-  (n : Std.U64) (ct : obj.Tcb) (s : S) (k : Std.U64) :
-  Result (ControlFlow (S × Std.U64) (S × Std.U64))
-  := do
-  if k < tcb.N_GP
-  then
-    let i ← k + tcb.N_FRAME
-    if i < n
-    then
-      if i < msg.N_MSG_REGISTERS
-      then
-        let i1 ← lift (UScalar.cast .Usize k)
-        let i2 ← Array.index_usize regs.GP_REGISTERS i1
-        let v ← obj.Tcb.reg machineStoreInst src s i2
-        let i3 ← msg.msg_register i
-        let s1 ← obj.Tcb.set_reg machineStoreInst ct s i3 v
-        let k1 ← k + 1#u64
-        ok (cont (s1, k1))
-      else ok (done (s, k))
-    else ok (done (s, k))
-  else ok (done (s, k))
-
-/-- [fl4_core::tcb::read_registers]: loop 8:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 265:8-269:9 -/
-@[rust_loop]
-def tcb.read_registers_loop8
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
-  (n : Std.U64) (ct : obj.Tcb) (k : Std.U64) :
-  Result (S × Std.U64)
-  := do
-  loop
-    (fun (s1, k1) => tcb.read_registers_loop8.body machineStoreInst src n ct s1
-      k1)
-    (s, k)
-
-/-- [fl4_core::tcb::read_registers]: loop body 9:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 271:12-275:13 -/
-@[rust_loop_body]
-def tcb.read_registers_loop9.body
-  {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Tcb)
-  (n : Std.U64) (buf : Std.U64) (s : S) (k : Std.U64) :
-  Result (ControlFlow (S × Std.U64) (S × Std.U64))
-  := do
-  if k < tcb.N_GP
-  then
-    let i ← k + tcb.N_FRAME
-    if i < n
-    then
-      let i1 ← lift (UScalar.cast .Usize k)
-      let i2 ← Array.index_usize regs.GP_REGISTERS i1
-      let v ← obj.Tcb.reg machineStoreInst src s i2
-      let i3 ← i + 1#u64
-      let s1 ← msg.buf_set machineStoreInst s buf i3 v
-      let k1 ← k + 1#u64
-      ok (cont (s1, k1))
-    else ok (done (s, k))
-  else ok (done (s, k))
-
-/-- [fl4_core::tcb::read_registers]: loop 9:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 271:12-275:13 -/
-@[rust_loop]
-def tcb.read_registers_loop9
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb)
-  (n : Std.U64) (buf : Std.U64) (k : Std.U64) :
-  Result (S × Std.U64)
-  := do
-  loop
-    (fun (s1, k1) => tcb.read_registers_loop9.body machineStoreInst src n buf
-      s1 k1)
-    (s, k)
-
-/-- [fl4_core::tcb::read_registers]:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 242:0-280:1 -/
-def tcb.read_registers
-  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (src : obj.Tcb)
-  (suspend : Bool) (n : Std.U64) (call : Bool) :
-  Result (S × A)
-  := do
-  let ct ← sched.cur_thread machineStoreInst s
-  let (s1, a1) ←
-    if suspend
-    then sched.suspend machineStoreInst machineArchInst s a src
-    else ok (s, a)
-  if call
-  then
-    let buf ← msg.lookup_ipc_buffer machineStoreInst s1 true ct
-    let s2 ← obj.Tcb.set_reg machineStoreInst ct s1 layout.reg.BADGE 0#u64
-    let (s3, i) ← tcb.read_registers_loop0 machineStoreInst s2 src n ct 0#u64
-    if buf != 0#u64
-    then
-      if i < n
-      then
-        if i < tcb.N_FRAME
-        then
-          let (s4, i1) ←
-            tcb.read_registers_loop1 machineStoreInst s3 src n buf i
-          let (s5, k) ←
-            tcb.read_registers_loop2 machineStoreInst s4 src n ct 0#u64
-          if buf != 0#u64
-          then
-            if k < tcb.N_GP
-            then
-              let i2 ← k + tcb.N_FRAME
-              if i2 < n
-              then
-                let (s6, k1) ←
-                  tcb.read_registers_loop3 machineStoreInst s5 src n buf k
-                let i3 ← lift (core.num.U64.wrapping_add k1 i1)
-                let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i3
-                let s7 ← msg.set_msg_info machineStoreInst s6 ct mi
-                let s8 ←
-                  sched.set_thread_state machineStoreInst s7 ct
-                    sched.TS_RUNNING
-                ok (s8, a1)
-              else
-                let i3 ← lift (core.num.U64.wrapping_add k i1)
-                let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i3
-                let s6 ← msg.set_msg_info machineStoreInst s5 ct mi
-                let s7 ←
-                  sched.set_thread_state machineStoreInst s6 ct
-                    sched.TS_RUNNING
-                ok (s7, a1)
-            else
-              let i2 ← lift (core.num.U64.wrapping_add k i1)
-              let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i2
-              let s6 ← msg.set_msg_info machineStoreInst s5 ct mi
-              let s7 ←
-                sched.set_thread_state machineStoreInst s6 ct sched.TS_RUNNING
-              ok (s7, a1)
-          else
-            let i2 ← lift (core.num.U64.wrapping_add k i1)
-            let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i2
-            let s6 ← msg.set_msg_info machineStoreInst s5 ct mi
-            let s7 ←
-              sched.set_thread_state machineStoreInst s6 ct sched.TS_RUNNING
-            ok (s7, a1)
-        else
-          let (s4, k) ←
-            tcb.read_registers_loop4 machineStoreInst s3 src n ct 0#u64
-          if buf != 0#u64
-          then
-            if k < tcb.N_GP
-            then
-              let i1 ← k + tcb.N_FRAME
-              if i1 < n
-              then
-                let (s5, k1) ←
-                  tcb.read_registers_loop5 machineStoreInst s4 src n buf k
-                let i2 ← lift (core.num.U64.wrapping_add k1 i)
-                let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i2
-                let s6 ← msg.set_msg_info machineStoreInst s5 ct mi
-                let s7 ←
-                  sched.set_thread_state machineStoreInst s6 ct
-                    sched.TS_RUNNING
-                ok (s7, a1)
-              else
-                let i2 ← lift (core.num.U64.wrapping_add k i)
-                let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i2
-                let s5 ← msg.set_msg_info machineStoreInst s4 ct mi
-                let s6 ←
-                  sched.set_thread_state machineStoreInst s5 ct
-                    sched.TS_RUNNING
-                ok (s6, a1)
-            else
-              let i1 ← lift (core.num.U64.wrapping_add k i)
-              let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i1
-              let s5 ← msg.set_msg_info machineStoreInst s4 ct mi
-              let s6 ←
-                sched.set_thread_state machineStoreInst s5 ct sched.TS_RUNNING
-              ok (s6, a1)
-          else
-            let i1 ← lift (core.num.U64.wrapping_add k i)
-            let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i1
-            let s5 ← msg.set_msg_info machineStoreInst s4 ct mi
-            let s6 ←
-              sched.set_thread_state machineStoreInst s5 ct sched.TS_RUNNING
-            ok (s6, a1)
-      else
-        let (s4, k) ←
-          tcb.read_registers_loop6 machineStoreInst s3 src n ct 0#u64
-        if buf != 0#u64
-        then
-          if k < tcb.N_GP
-          then
-            let i1 ← k + tcb.N_FRAME
-            if i1 < n
-            then
-              let (s5, k1) ←
-                tcb.read_registers_loop7 machineStoreInst s4 src n buf k
-              let i2 ← lift (core.num.U64.wrapping_add k1 i)
-              let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i2
-              let s6 ← msg.set_msg_info machineStoreInst s5 ct mi
-              let s7 ←
-                sched.set_thread_state machineStoreInst s6 ct sched.TS_RUNNING
-              ok (s7, a1)
-            else
-              let i2 ← lift (core.num.U64.wrapping_add k i)
-              let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i2
-              let s5 ← msg.set_msg_info machineStoreInst s4 ct mi
-              let s6 ←
-                sched.set_thread_state machineStoreInst s5 ct sched.TS_RUNNING
-              ok (s6, a1)
-          else
-            let i1 ← lift (core.num.U64.wrapping_add k i)
-            let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i1
-            let s5 ← msg.set_msg_info machineStoreInst s4 ct mi
-            let s6 ←
-              sched.set_thread_state machineStoreInst s5 ct sched.TS_RUNNING
-            ok (s6, a1)
-        else
-          let i1 ← lift (core.num.U64.wrapping_add k i)
-          let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i1
-          let s5 ← msg.set_msg_info machineStoreInst s4 ct mi
-          let s6 ←
-            sched.set_thread_state machineStoreInst s5 ct sched.TS_RUNNING
-          ok (s6, a1)
-    else
-      let (s4, k) ←
-        tcb.read_registers_loop8 machineStoreInst s3 src n ct 0#u64
-      if buf != 0#u64
-      then
-        if k < tcb.N_GP
-        then
-          let i1 ← k + tcb.N_FRAME
-          if i1 < n
-          then
-            let (s5, k1) ←
-              tcb.read_registers_loop9 machineStoreInst s4 src n buf k
-            let i2 ← lift (core.num.U64.wrapping_add k1 i)
-            let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i2
-            let s6 ← msg.set_msg_info machineStoreInst s5 ct mi
-            let s7 ←
-              sched.set_thread_state machineStoreInst s6 ct sched.TS_RUNNING
-            ok (s7, a1)
-          else
-            let i2 ← lift (core.num.U64.wrapping_add k i)
-            let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i2
-            let s5 ← msg.set_msg_info machineStoreInst s4 ct mi
-            let s6 ←
-              sched.set_thread_state machineStoreInst s5 ct sched.TS_RUNNING
-            ok (s6, a1)
-        else
-          let i1 ← lift (core.num.U64.wrapping_add k i)
-          let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i1
-          let s5 ← msg.set_msg_info machineStoreInst s4 ct mi
-          let s6 ←
-            sched.set_thread_state machineStoreInst s5 ct sched.TS_RUNNING
-          ok (s6, a1)
-      else
-        let i1 ← lift (core.num.U64.wrapping_add k i)
-        let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 i1
-        let s5 ← msg.set_msg_info machineStoreInst s4 ct mi
-        let s6 ←
-          sched.set_thread_state machineStoreInst s5 ct sched.TS_RUNNING
-        ok (s6, a1)
-  else
-    let s2 ← sched.set_thread_state machineStoreInst s1 ct sched.TS_RUNNING
-    ok (s2, a1)
-
-/-- [fl4_core::tcb::copy_registers]: loop body 0:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 210:8-215:9 -/
-@[rust_loop_body]
-def tcb.copy_registers_loop0.body
-  {S : Type _} (machineStoreInst : machine.Store S) (dest : obj.Tcb)
-  (src : obj.Tcb) (s : S) (i : Std.U64) :
-  Result (ControlFlow (S × Std.U64) S)
-  := do
-  if i < tcb.N_FRAME
-  then
-    let i1 ← lift (UScalar.cast .Usize i)
-    let r ← Array.index_usize regs.FRAME_REGISTERS i1
-    let v ← obj.Tcb.reg machineStoreInst src s r
-    let i2 ← regs.sanitise r v
-    let s1 ← obj.Tcb.set_reg machineStoreInst dest s r i2
-    let i3 ← i + 1#u64
-    ok (cont (s1, i3))
-  else ok (done s)
-
-/-- [fl4_core::tcb::copy_registers]: loop 0:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 210:8-215:9 -/
-@[rust_loop]
-def tcb.copy_registers_loop0
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : obj.Tcb)
-  (src : obj.Tcb) (i : Std.U64) :
-  Result S
-  := do
-  loop
-    (fun (s1, i1) => tcb.copy_registers_loop0.body machineStoreInst dest src s1
-      i1)
-    (s, i)
-
-/-- [fl4_core::tcb::copy_registers]: loop body 1:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 221:8-226:9 -/
-@[rust_loop_body]
-def tcb.copy_registers_loop1.body
-  {S : Type _} (machineStoreInst : machine.Store S) (dest : obj.Tcb)
-  (src : obj.Tcb) (s : S) (i : Std.U64) :
-  Result (ControlFlow (S × Std.U64) S)
-  := do
-  if i < tcb.N_GP
-  then
-    let i1 ← lift (UScalar.cast .Usize i)
-    let r ← Array.index_usize regs.GP_REGISTERS i1
-    let v ← obj.Tcb.reg machineStoreInst src s r
-    let i2 ← regs.sanitise r v
-    let s1 ← obj.Tcb.set_reg machineStoreInst dest s r i2
-    let i3 ← i + 1#u64
-    ok (cont (s1, i3))
-  else ok (done s)
-
-/-- [fl4_core::tcb::copy_registers]: loop 1:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 221:8-226:9 -/
-@[rust_loop]
-def tcb.copy_registers_loop1
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : obj.Tcb)
-  (src : obj.Tcb) (i : Std.U64) :
-  Result S
-  := do
-  loop
-    (fun (s1, i1) => tcb.copy_registers_loop1.body machineStoreInst dest src s1
-      i1)
-    (s, i)
-
-/-- [fl4_core::tcb::copy_registers]: loop body 2:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 221:8-226:9 -/
-@[rust_loop_body]
-def tcb.copy_registers_loop2.body
-  {S : Type _} (machineStoreInst : machine.Store S) (dest : obj.Tcb)
-  (src : obj.Tcb) (s : S) (i : Std.U64) :
-  Result (ControlFlow (S × Std.U64) S)
-  := do
-  if i < tcb.N_GP
-  then
-    let i1 ← lift (UScalar.cast .Usize i)
-    let r ← Array.index_usize regs.GP_REGISTERS i1
-    let v ← obj.Tcb.reg machineStoreInst src s r
-    let i2 ← regs.sanitise r v
-    let s1 ← obj.Tcb.set_reg machineStoreInst dest s r i2
-    let i3 ← i + 1#u64
-    ok (cont (s1, i3))
-  else ok (done s)
-
-/-- [fl4_core::tcb::copy_registers]: loop 2:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 221:8-226:9 -/
-@[rust_loop]
-def tcb.copy_registers_loop2
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : obj.Tcb)
-  (src : obj.Tcb) (i : Std.U64) :
-  Result S
-  := do
-  loop
-    (fun (s1, i1) => tcb.copy_registers_loop2.body machineStoreInst dest src s1
-      i1)
-    (s, i)
-
-/-- [fl4_core::tcb::copy_registers]:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 201:0-233:1 -/
-def tcb.copy_registers
-  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (dest : obj.Tcb)
-  (src : obj.Tcb) (flags : Std.U64) :
-  Result ((core.result.Result Unit error.Exc) × S × A)
-  := do
-  let i ← lift (flags &&& 1#u64)
-  let (s1, a1) ←
-    if i != 0#u64
-    then sched.suspend machineStoreInst machineArchInst s a src
-    else ok (s, a)
-  let i1 ← lift (flags &&& 2#u64)
-  let (s2, a2) ←
-    if i1 != 0#u64
-    then sched.restart machineStoreInst machineArchInst s1 a1 dest
-    else ok (s1, a1)
-  let i2 ← lift (flags &&& 4#u64)
-  if i2 != 0#u64
-  then
-    let s3 ← tcb.copy_registers_loop0 machineStoreInst s2 dest src 0#u64
-    let pc ← obj.Tcb.reg machineStoreInst dest s3 layout.reg.FAULT_IP
-    let s4 ← obj.Tcb.set_reg machineStoreInst dest s3 layout.reg.NEXT_IP pc
-    let i3 ← lift (flags &&& 8#u64)
-    if i3 != 0#u64
-    then
-      let s5 ← tcb.copy_registers_loop1 machineStoreInst s4 dest src 0#u64
-      let s6 ← tcb.post_modify_registers machineStoreInst s5 dest
-      let t ← sched.cur_thread machineStoreInst s6
-      let b ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq dest t
-      if b
-      then
-        let s7 ← sched.reschedule_required machineStoreInst s6
-        ok (core.result.Result.Ok (), s7, a2)
-      else ok (core.result.Result.Ok (), s6, a2)
-    else
-      let s5 ← tcb.post_modify_registers machineStoreInst s4 dest
-      let t ← sched.cur_thread machineStoreInst s5
-      let b ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq dest t
-      if b
-      then
-        let s6 ← sched.reschedule_required machineStoreInst s5
-        ok (core.result.Result.Ok (), s6, a2)
-      else ok (core.result.Result.Ok (), s5, a2)
-  else
-    let i3 ← lift (flags &&& 8#u64)
-    if i3 != 0#u64
-    then
-      let s3 ← tcb.copy_registers_loop2 machineStoreInst s2 dest src 0#u64
-      let s4 ← tcb.post_modify_registers machineStoreInst s3 dest
-      let t ← sched.cur_thread machineStoreInst s4
-      let b ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq dest t
-      if b
-      then
-        let s5 ← sched.reschedule_required machineStoreInst s4
-        ok (core.result.Result.Ok (), s5, a2)
-      else ok (core.result.Result.Ok (), s4, a2)
-    else
-      let s3 ← tcb.post_modify_registers machineStoreInst s2 dest
-      let t ← sched.cur_thread machineStoreInst s3
-      let b ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq dest t
-      if b
-      then
-        let s4 ← sched.reschedule_required machineStoreInst s3
-        ok (core.result.Result.Ok (), s4, a2)
-      else ok (core.result.Result.Ok (), s3, a2)
-
-/-- [fl4_core::tcb::derive_roots]:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 176:0-199:1 -/
-def tcb.derive_roots
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (target : obj.Tcb)
-  (cdata : Std.U64) (vdata : Std.U64) (cslot : obj.Slot) (vslot : obj.Slot) :
-  Result (core.result.Result (capability.Cap × capability.Cap) error.Exc)
-  := do
-  let s1 ← obj.Tcb.slot target layout.tcb.SLOT_CTABLE
-  let b ← cdt.slot_cap_long_running_delete machineStoreInst s s1
-  if b
-  then error.illegal (capability.Cap × capability.Cap)
-  else
-    let s2 ← obj.Tcb.slot target layout.tcb.SLOT_VTABLE
-    let b1 ← cdt.slot_cap_long_running_delete machineStoreInst s s2
-    if b1
-    then error.illegal (capability.Cap × capability.Cap)
-    else
-      let ccap ← obj.Slot.cap machineStoreInst cslot s
-      let ccap1 ←
-        if cdata != 0#u64
-        then objects.update_cap_data false cdata ccap
-        else ok ccap
-      let r ← objects.derive_cap machineStoreInst s cslot ccap1
-      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-      match cf with
-      | core.ops.control_flow.ControlFlow.Continue val =>
-        let b2 ←
-          match val with
-          | capability.Cap.Null => ok false
-          | capability.Cap.Untyped _ _ _ _ => ok false
-          | capability.Cap.Endpoint _ _ _ _ _ _ => ok false
-          | capability.Cap.Notification _ _ _ _ => ok false
-          | capability.Cap.Reply _ _ => ok false
-          | capability.Cap.CNode _ _ _ _ => ok true
-          | capability.Cap.Thread _ => ok false
-          | capability.Cap.IrqControl => ok false
-          | capability.Cap.IrqHandler _ => ok false
-          | capability.Cap.Zombie _ _ _ => ok false
-          | capability.Cap.Domain => ok false
-          | capability.Cap.SchedContext _ _ => ok false
-          | capability.Cap.SchedControl _ => ok false
-          | capability.Cap.Frame _ _ _ _ _ _ _ => ok false
-          | capability.Cap.PageTable _ _ _ _ => ok false
-          | capability.Cap.PageDirectory _ _ _ _ => ok false
-          | capability.Cap.Pdpt _ _ _ _ => ok false
-          | capability.Cap.Pml4 _ _ _ => ok false
-          | capability.Cap.AsidControl => ok false
-          | capability.Cap.AsidPool _ _ => ok false
-          | capability.Cap.IoPortControl => ok false
-          | capability.Cap.IoPort _ _ => ok false
-        if b2
-        then
-          let vcap ← obj.Slot.cap machineStoreInst vslot s
-          let vcap1 ←
-            if vdata != 0#u64
-            then objects.update_cap_data false vdata vcap
-            else ok vcap
-          let r1 ← objects.derive_cap machineStoreInst s vslot vcap1
-          let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
-          match cf1 with
-          | core.ops.control_flow.ControlFlow.Continue val1 =>
-            let b3 ← vspace.is_valid_vtable_root val1
-            if b3
-            then ok (core.result.Result.Ok (val, val1))
-            else error.illegal (capability.Cap × capability.Cap)
-          | core.ops.control_flow.ControlFlow.Break residual =>
-            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-              (capability.Cap × capability.Cap) (core.convert.FromSame
-              error.Exc) residual
-        else error.illegal (capability.Cap × capability.Cap)
-      | core.ops.control_flow.ControlFlow.Break residual =>
-        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-          (capability.Cap × capability.Cap) (core.convert.FromSame error.Exc)
-          residual
-
-/-- [fl4_core::vspace::check_valid_ipc_buffer]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 162:0-175:1
-    Visibility: public -/
-def vspace.check_valid_ipc_buffer
-  (vptr : Std.U64) (c : capability.Cap) :
-  Result (core.result.Result Unit error.Exc)
-  := do
-  match c with
-  | capability.Cap.Null => error.illegal Unit
-  | capability.Cap.Untyped _ _ _ _ => error.illegal Unit
-  | capability.Cap.Endpoint _ _ _ _ _ _ => error.illegal Unit
-  | capability.Cap.Notification _ _ _ _ => error.illegal Unit
-  | capability.Cap.Reply _ _ => error.illegal Unit
-  | capability.Cap.CNode _ _ _ _ => error.illegal Unit
-  | capability.Cap.Thread _ => error.illegal Unit
-  | capability.Cap.IrqControl => error.illegal Unit
-  | capability.Cap.IrqHandler _ => error.illegal Unit
-  | capability.Cap.Zombie _ _ _ => error.illegal Unit
-  | capability.Cap.Domain => error.illegal Unit
-  | capability.Cap.SchedContext _ _ => error.illegal Unit
-  | capability.Cap.SchedControl _ => error.illegal Unit
-  | capability.Cap.Frame _ _ _ is_device _ _ _ =>
-    if is_device
-    then error.illegal Unit
-    else
-      let i ← 1#u64 <<< fl4_abi.consts.bits.IPC_BUFFER
-      let i1 ← i - 1#u64
-      let i2 ← lift (vptr &&& i1)
-      if i2 != 0#u64
-      then
-        ok (core.result.Result.Err (error.Exc.Sys
-          error.SysError.AlignmentError))
-      else ok (core.result.Result.Ok ())
-  | capability.Cap.PageTable _ _ _ _ => error.illegal Unit
-  | capability.Cap.PageDirectory _ _ _ _ => error.illegal Unit
-  | capability.Cap.Pdpt _ _ _ _ => error.illegal Unit
-  | capability.Cap.Pml4 _ _ _ => error.illegal Unit
-  | capability.Cap.AsidControl => error.illegal Unit
-  | capability.Cap.AsidPool _ _ => error.illegal Unit
-  | capability.Cap.IoPortControl => error.illegal Unit
-  | capability.Cap.IoPort _ _ => error.illegal Unit
-
-/-- [fl4_core::tcb::derive_for_buffer]:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 167:0-174:1 -/
-def tcb.derive_for_buffer
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S)
-  (buffer_addr : Std.U64) (bslot : obj.Slot) :
-  Result (core.result.Result (capability.Cap × obj.Slot) error.Exc)
-  := do
-  if buffer_addr = 0#u64
-  then
-    let c ← obj.Slot.cap machineStoreInst bslot s
-    ok (core.result.Result.Ok (c, 0#u64))
-  else
-    let c ← obj.Slot.cap machineStoreInst bslot s
-    let r ← objects.derive_cap machineStoreInst s bslot c
-    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-    match cf with
-    | core.ops.control_flow.ControlFlow.Continue val =>
-      let r1 ← vspace.check_valid_ipc_buffer buffer_addr val
-      let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
-      match cf1 with
-      | core.ops.control_flow.ControlFlow.Continue _ =>
-        ok (core.result.Result.Ok (val, bslot))
-      | core.ops.control_flow.ControlFlow.Break residual =>
-        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-          (capability.Cap × obj.Slot) (core.convert.FromSame error.Exc)
-          residual
-    | core.ops.control_flow.ControlFlow.Break residual =>
-      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-        (capability.Cap × obj.Slot) (core.convert.FromSame error.Exc) residual
-
-/-- [fl4_core::tcb::SCHED_UPDATE_PRIO]
-    Source: 'crates/fl4-core/src/tcb.rs', lines 131:0-131:33 -/
-@[global_simps, irreducible] def tcb.SCHED_UPDATE_PRIO : Std.U64 := 8#u64
-
-/-- [fl4_core::tcb::SCHED_UPDATE_MCP]
-    Source: 'crates/fl4-core/src/tcb.rs', lines 130:0-130:32 -/
-@[global_simps, irreducible] def tcb.SCHED_UPDATE_MCP : Std.U64 := 4#u64
-
-/-- [fl4_core::tcb::SCHED_UPDATE_FAULT]
-    Source: 'crates/fl4-core/src/tcb.rs', lines 129:0-129:34 -/
-@[global_simps, irreducible] def tcb.SCHED_UPDATE_FAULT : Std.U64 := 2#u64
-
-/-- [fl4_core::tcb::SCHED_UPDATE_SC]
-    Source: 'crates/fl4-core/src/tcb.rs', lines 128:0-128:31 -/
-@[global_simps, irreducible] def tcb.SCHED_UPDATE_SC : Std.U64 := 1#u64
-
-/-- [fl4_core::tcb::install_tcb_cap]:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 69:0-79:1 -/
-def tcb.install_tcb_cap
-  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb)
-  (slot : obj.Slot) (index : Std.U64) (new_cap : capability.Cap)
-  (src : obj.Slot) :
-  Result ((core.result.Result Unit error.Exc) × S × A)
-  := do
-  let root ← obj.Tcb.slot target index
-  let (r, s1, a1) ← cdt.delete machineStoreInst machineArchInst s a root true
-  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-  match cf with
-  | core.ops.control_flow.ControlFlow.Continue _ =>
-    let b ← capability.Cap.is_null new_cap
-    if b
-    then ok (core.result.Result.Ok (), s1, a1)
-    else
-      let b1 ← obj.Slot.is_null src
-      if b1
-      then ok (core.result.Result.Ok (), s1, a1)
-      else
-        let c ← obj.Slot.cap machineStoreInst src s1
-        let b2 ← objects.same_object_as new_cap c
-        if b2
-        then
-          let c1 ← obj.Slot.cap machineStoreInst slot s1
-          let b3 ← objects.same_object_as (capability.Cap.Thread target) c1
-          if b3
-          then
-            let s2 ← cdt.insert machineStoreInst s1 new_cap src root
-            ok (core.result.Result.Ok (), s2, a1)
-          else ok (core.result.Result.Ok (), s1, a1)
-        else ok (core.result.Result.Ok (), s1, a1)
-  | core.ops.control_flow.ControlFlow.Break residual =>
-    let r1 ←
-      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-        Unit (core.convert.FromSame error.Exc) residual
-    ok (r1, s1, a1)
-
-/-- [fl4_core::tcb::thread_control_sched]:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 134:0-165:1 -/
-def tcb.thread_control_sched
-  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb)
-  (slot : obj.Slot) (fh : (capability.Cap × obj.Slot)) (mcp : Std.U64)
-  (prio : Std.U64) (sc : obj.Sc) (flags : Std.U64) :
-  Result ((core.result.Result Unit error.Exc) × S × A)
-  := do
-  let i ← lift (flags &&& tcb.SCHED_UPDATE_FAULT)
-  if i != 0#u64
-  then
-    let (c, s1) := fh
-    let (r, s2, a1) ←
-      tcb.install_tcb_cap machineStoreInst machineArchInst s a target slot
-        layout.tcb.SLOT_FAULT_HANDLER c s1
-    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-    match cf with
-    | core.ops.control_flow.ControlFlow.Continue _ =>
-      let i1 ← lift (flags &&& tcb.SCHED_UPDATE_MCP)
-      let s3 ←
-        if i1 != 0#u64
-        then obj.Tcb.set_mcp machineStoreInst target s2 mcp
-        else ok s2
-      let i2 ← lift (flags &&& tcb.SCHED_UPDATE_PRIO)
-      let s4 ←
-        if i2 != 0#u64
-        then sched.set_priority machineStoreInst s3 target prio
-        else ok s3
-      let i3 ← lift (flags &&& tcb.SCHED_UPDATE_SC)
-      if i3 != 0#u64
-      then
-        let b ← obj.Sc.is_null sc
-        if b
-        then
-          let i4 ← obj.Tcb.sc machineStoreInst target s4
-          let b1 ← obj.Sc.is_null i4
-          if b1
-          then ok (core.result.Result.Ok (), s4, a1)
-          else
-            let s5 ← schedcontext.unbind_tcb machineStoreInst s4 i4
-            ok (core.result.Result.Ok (), s5, a1)
-        else
-          let (s5, a2) ←
-            schedcontext.bind_tcb machineStoreInst machineArchInst s4 a1 sc
-              target
-          ok (core.result.Result.Ok (), s5, a2)
-      else ok (core.result.Result.Ok (), s4, a1)
-    | core.ops.control_flow.ControlFlow.Break residual =>
-      let r1 ←
-        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-          Unit (core.convert.FromSame error.Exc) residual
-      ok (r1, s2, a1)
-  else
-    let i1 ← lift (flags &&& tcb.SCHED_UPDATE_MCP)
-    let s1 ←
-      if i1 != 0#u64
-      then obj.Tcb.set_mcp machineStoreInst target s mcp
-      else ok s
-    let i2 ← lift (flags &&& tcb.SCHED_UPDATE_PRIO)
-    let s2 ←
-      if i2 != 0#u64
-      then sched.set_priority machineStoreInst s1 target prio
-      else ok s1
-    let i3 ← lift (flags &&& tcb.SCHED_UPDATE_SC)
-    if i3 != 0#u64
-    then
-      let b ← obj.Sc.is_null sc
-      if b
-      then
-        let i4 ← obj.Tcb.sc machineStoreInst target s2
-        let b1 ← obj.Sc.is_null i4
-        if b1
-        then ok (core.result.Result.Ok (), s2, a)
-        else
-          let s3 ← schedcontext.unbind_tcb machineStoreInst s2 i4
-          ok (core.result.Result.Ok (), s3, a)
-      else
-        let (s3, a1) ←
-          schedcontext.bind_tcb machineStoreInst machineArchInst s2 a sc target
-        ok (core.result.Result.Ok (), s3, a1)
-    else ok (core.result.Result.Ok (), s2, a)
-
-/-- [fl4_core::tcb::UPDATE_IPC_BUFFER]
-    Source: 'crates/fl4-core/src/tcb.rs', lines 84:0-84:33 -/
-@[global_simps, irreducible] def tcb.UPDATE_IPC_BUFFER : Std.U64 := 8#u64
-
-/-- [fl4_core::tcb::UPDATE_SPACE]
-    Source: 'crates/fl4-core/src/tcb.rs', lines 83:0-83:28 -/
-@[global_simps, irreducible] def tcb.UPDATE_SPACE : Std.U64 := 4#u64
-
-/-- [fl4_core::tcb::UPDATE_TIMEOUT]
-    Source: 'crates/fl4-core/src/tcb.rs', lines 82:0-82:30 -/
-@[global_simps, irreducible] def tcb.UPDATE_TIMEOUT : Std.U64 := 2#u64
-
-/-- [fl4_core::tcb::UPDATE_FAULT]
-    Source: 'crates/fl4-core/src/tcb.rs', lines 81:0-81:28 -/
-@[global_simps, irreducible] def tcb.UPDATE_FAULT : Std.U64 := 1#u64
-
-/-- [fl4_core::tcb::thread_control_caps]:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 87:0-126:1 -/
-def tcb.thread_control_caps
-  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb)
-  (slot : obj.Slot) (fh : (capability.Cap × obj.Slot))
-  (th : (capability.Cap × obj.Slot)) (croot : (capability.Cap × obj.Slot))
-  (vroot : (capability.Cap × obj.Slot)) (buffer_addr : Std.U64)
-  (buffer : (capability.Cap × obj.Slot)) (flags : Std.U64) :
-  Result ((core.result.Result Unit error.Exc) × S × A)
-  := do
-  let i ← lift (flags &&& tcb.UPDATE_FAULT)
-  if i != 0#u64
-  then
-    let (c, s1) := fh
-    let (r, s2, a1) ←
-      tcb.install_tcb_cap machineStoreInst machineArchInst s a target slot
-        layout.tcb.SLOT_FAULT_HANDLER c s1
-    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-    match cf with
-    | core.ops.control_flow.ControlFlow.Continue _ =>
-      let i1 ← lift (flags &&& tcb.UPDATE_TIMEOUT)
-      if i1 != 0#u64
-      then
-        let (c1, s3) := th
-        let (r1, s4, a2) ←
-          tcb.install_tcb_cap machineStoreInst machineArchInst s2 a1 target
-            slot layout.tcb.SLOT_TIMEOUT_HANDLER c1 s3
-        let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
-        match cf1 with
-        | core.ops.control_flow.ControlFlow.Continue _ =>
-          let i2 ← lift (flags &&& tcb.UPDATE_SPACE)
-          if i2 != 0#u64
-          then
-            let (c2, s5) := croot
-            let (r2, s6, a3) ←
-              tcb.install_tcb_cap machineStoreInst machineArchInst s4 a2 target
-                slot layout.tcb.SLOT_CTABLE c2 s5
-            let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
-            match cf2 with
-            | core.ops.control_flow.ControlFlow.Continue _ =>
-              let (c3, s7) := vroot
-              let (r3, s8, a4) ←
-                tcb.install_tcb_cap machineStoreInst machineArchInst s6 a3
-                  target slot layout.tcb.SLOT_VTABLE c3 s7
-              let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
-              match cf3 with
-              | core.ops.control_flow.ControlFlow.Continue _ =>
-                let i3 ← lift (flags &&& tcb.UPDATE_IPC_BUFFER)
-                if i3 != 0#u64
-                then
-                  let bslot ← obj.Tcb.slot target layout.tcb.SLOT_BUFFER
-                  let (r4, s9, a5) ←
-                    cdt.delete machineStoreInst machineArchInst s8 a4 bslot
-                      true
-                  let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r4
-                  match cf4 with
-                  | core.ops.control_flow.ControlFlow.Continue _ =>
-                    let s10 ←
-                      obj.Tcb.set_ipc_buffer machineStoreInst target s9
-                        buffer_addr
-                    let (c4, s11) := buffer
-                    let b ← obj.Slot.is_null s11
-                    let (s12, a6) ←
-                      if b
-                      then ok (s10, a5)
-                      else
-                        do
-                        let c5 ← obj.Slot.cap machineStoreInst s11 s10
-                        let b1 ← objects.same_object_as c4 c5
-                        if b1
-                        then
-                          let c6 ← obj.Slot.cap machineStoreInst slot s10
-                          let b2 ←
-                            objects.same_object_as (capability.Cap.Thread
-                              target) c6
-                          let t ←
-                            if b2
-                            then cdt.insert machineStoreInst s10 c4 s11 bslot
-                            else ok s10
-                          ok (t, a5)
-                        else ok (s10, a5)
-                    let t ← sched.cur_thread machineStoreInst s12
-                    let b1 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq target t
-                    if b1
-                    then
-                      let s13 ←
-                        sched.reschedule_required machineStoreInst s12
-                      ok (core.result.Result.Ok (), s13, a6)
-                    else ok (core.result.Result.Ok (), s12, a6)
-                  | core.ops.control_flow.ControlFlow.Break residual =>
-                    let r5 ←
-                      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                        Unit (core.convert.FromSame error.Exc) residual
-                    ok (r5, s9, a5)
-                else ok (core.result.Result.Ok (), s8, a4)
-              | core.ops.control_flow.ControlFlow.Break residual =>
-                let r4 ←
-                  core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                    Unit (core.convert.FromSame error.Exc) residual
-                ok (r4, s8, a4)
-            | core.ops.control_flow.ControlFlow.Break residual =>
-              let r3 ←
-                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                  Unit (core.convert.FromSame error.Exc) residual
-              ok (r3, s6, a3)
-          else
-            let i3 ← lift (flags &&& tcb.UPDATE_IPC_BUFFER)
-            if i3 != 0#u64
-            then
-              let bslot ← obj.Tcb.slot target layout.tcb.SLOT_BUFFER
-              let (r2, s5, a3) ←
-                cdt.delete machineStoreInst machineArchInst s4 a2 bslot true
-              let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
-              match cf2 with
-              | core.ops.control_flow.ControlFlow.Continue _ =>
-                let s6 ←
-                  obj.Tcb.set_ipc_buffer machineStoreInst target s5 buffer_addr
-                let (c2, s7) := buffer
-                let b ← obj.Slot.is_null s7
-                let (s8, a4) ←
-                  if b
-                  then ok (s6, a3)
-                  else
-                    do
-                    let c3 ← obj.Slot.cap machineStoreInst s7 s6
-                    let b1 ← objects.same_object_as c2 c3
-                    if b1
-                    then
-                      let c4 ← obj.Slot.cap machineStoreInst slot s6
-                      let b2 ←
-                        objects.same_object_as (capability.Cap.Thread target)
-                          c4
-                      let t ←
-                        if b2
-                        then cdt.insert machineStoreInst s6 c2 s7 bslot
-                        else ok s6
-                      ok (t, a3)
-                    else ok (s6, a3)
-                let t ← sched.cur_thread machineStoreInst s8
-                let b1 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq target t
-                if b1
-                then
-                  let s9 ← sched.reschedule_required machineStoreInst s8
-                  ok (core.result.Result.Ok (), s9, a4)
-                else ok (core.result.Result.Ok (), s8, a4)
-              | core.ops.control_flow.ControlFlow.Break residual =>
-                let r3 ←
-                  core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                    Unit (core.convert.FromSame error.Exc) residual
-                ok (r3, s5, a3)
-            else ok (core.result.Result.Ok (), s4, a2)
-        | core.ops.control_flow.ControlFlow.Break residual =>
-          let r2 ←
-            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-              Unit (core.convert.FromSame error.Exc) residual
-          ok (r2, s4, a2)
-      else
-        let i2 ← lift (flags &&& tcb.UPDATE_SPACE)
-        if i2 != 0#u64
-        then
-          let (c1, s3) := croot
-          let (r1, s4, a2) ←
-            tcb.install_tcb_cap machineStoreInst machineArchInst s2 a1 target
-              slot layout.tcb.SLOT_CTABLE c1 s3
-          let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
-          match cf1 with
-          | core.ops.control_flow.ControlFlow.Continue _ =>
-            let (c2, s5) := vroot
-            let (r2, s6, a3) ←
-              tcb.install_tcb_cap machineStoreInst machineArchInst s4 a2 target
-                slot layout.tcb.SLOT_VTABLE c2 s5
-            let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
-            match cf2 with
-            | core.ops.control_flow.ControlFlow.Continue _ =>
-              let i3 ← lift (flags &&& tcb.UPDATE_IPC_BUFFER)
-              if i3 != 0#u64
-              then
-                let bslot ← obj.Tcb.slot target layout.tcb.SLOT_BUFFER
-                let (r3, s7, a4) ←
-                  cdt.delete machineStoreInst machineArchInst s6 a3 bslot true
-                let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
-                match cf3 with
-                | core.ops.control_flow.ControlFlow.Continue _ =>
-                  let s8 ←
-                    obj.Tcb.set_ipc_buffer machineStoreInst target s7
-                      buffer_addr
-                  let (c3, s9) := buffer
-                  let b ← obj.Slot.is_null s9
-                  let (s10, a5) ←
-                    if b
-                    then ok (s8, a4)
-                    else
-                      do
-                      let c4 ← obj.Slot.cap machineStoreInst s9 s8
-                      let b1 ← objects.same_object_as c3 c4
-                      if b1
-                      then
-                        let c5 ← obj.Slot.cap machineStoreInst slot s8
-                        let b2 ←
-                          objects.same_object_as (capability.Cap.Thread target)
-                            c5
-                        let t ←
-                          if b2
-                          then cdt.insert machineStoreInst s8 c3 s9 bslot
-                          else ok s8
-                        ok (t, a4)
-                      else ok (s8, a4)
-                  let t ← sched.cur_thread machineStoreInst s10
-                  let b1 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq target t
-                  if b1
-                  then
-                    let s11 ← sched.reschedule_required machineStoreInst s10
-                    ok (core.result.Result.Ok (), s11, a5)
-                  else ok (core.result.Result.Ok (), s10, a5)
-                | core.ops.control_flow.ControlFlow.Break residual =>
-                  let r4 ←
-                    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                      Unit (core.convert.FromSame error.Exc) residual
-                  ok (r4, s7, a4)
-              else ok (core.result.Result.Ok (), s6, a3)
-            | core.ops.control_flow.ControlFlow.Break residual =>
-              let r3 ←
-                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                  Unit (core.convert.FromSame error.Exc) residual
-              ok (r3, s6, a3)
-          | core.ops.control_flow.ControlFlow.Break residual =>
-            let r2 ←
-              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                Unit (core.convert.FromSame error.Exc) residual
-            ok (r2, s4, a2)
-        else
-          let i3 ← lift (flags &&& tcb.UPDATE_IPC_BUFFER)
-          if i3 != 0#u64
-          then
-            let bslot ← obj.Tcb.slot target layout.tcb.SLOT_BUFFER
-            let (r1, s3, a2) ←
-              cdt.delete machineStoreInst machineArchInst s2 a1 bslot true
-            let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
-            match cf1 with
-            | core.ops.control_flow.ControlFlow.Continue _ =>
-              let s4 ←
-                obj.Tcb.set_ipc_buffer machineStoreInst target s3 buffer_addr
-              let (c1, s5) := buffer
-              let b ← obj.Slot.is_null s5
-              let (s6, a3) ←
-                if b
-                then ok (s4, a2)
-                else
-                  do
-                  let c2 ← obj.Slot.cap machineStoreInst s5 s4
-                  let b1 ← objects.same_object_as c1 c2
-                  if b1
-                  then
-                    let c3 ← obj.Slot.cap machineStoreInst slot s4
-                    let b2 ←
-                      objects.same_object_as (capability.Cap.Thread target) c3
-                    let t ←
-                      if b2
-                      then cdt.insert machineStoreInst s4 c1 s5 bslot
-                      else ok s4
-                    ok (t, a2)
-                  else ok (s4, a2)
-              let t ← sched.cur_thread machineStoreInst s6
-              let b1 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq target t
-              if b1
-              then
-                let s7 ← sched.reschedule_required machineStoreInst s6
-                ok (core.result.Result.Ok (), s7, a3)
-              else ok (core.result.Result.Ok (), s6, a3)
-            | core.ops.control_flow.ControlFlow.Break residual =>
-              let r2 ←
-                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                  Unit (core.convert.FromSame error.Exc) residual
-              ok (r2, s3, a2)
-          else ok (core.result.Result.Ok (), s2, a1)
-    | core.ops.control_flow.ControlFlow.Break residual =>
-      let r1 ←
-        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-          Unit (core.convert.FromSame error.Exc) residual
-      ok (r1, s2, a1)
-  else
-    let i1 ← lift (flags &&& tcb.UPDATE_TIMEOUT)
-    if i1 != 0#u64
-    then
-      let (c, s1) := th
-      let (r, s2, a1) ←
-        tcb.install_tcb_cap machineStoreInst machineArchInst s a target slot
-          layout.tcb.SLOT_TIMEOUT_HANDLER c s1
-      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-      match cf with
-      | core.ops.control_flow.ControlFlow.Continue _ =>
-        let i2 ← lift (flags &&& tcb.UPDATE_SPACE)
-        if i2 != 0#u64
-        then
-          let (c1, s3) := croot
-          let (r1, s4, a2) ←
-            tcb.install_tcb_cap machineStoreInst machineArchInst s2 a1 target
-              slot layout.tcb.SLOT_CTABLE c1 s3
-          let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
-          match cf1 with
-          | core.ops.control_flow.ControlFlow.Continue _ =>
-            let (c2, s5) := vroot
-            let (r2, s6, a3) ←
-              tcb.install_tcb_cap machineStoreInst machineArchInst s4 a2 target
-                slot layout.tcb.SLOT_VTABLE c2 s5
-            let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
-            match cf2 with
-            | core.ops.control_flow.ControlFlow.Continue _ =>
-              let i3 ← lift (flags &&& tcb.UPDATE_IPC_BUFFER)
-              if i3 != 0#u64
-              then
-                let bslot ← obj.Tcb.slot target layout.tcb.SLOT_BUFFER
-                let (r3, s7, a4) ←
-                  cdt.delete machineStoreInst machineArchInst s6 a3 bslot true
-                let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
-                match cf3 with
-                | core.ops.control_flow.ControlFlow.Continue _ =>
-                  let s8 ←
-                    obj.Tcb.set_ipc_buffer machineStoreInst target s7
-                      buffer_addr
-                  let (c3, s9) := buffer
-                  let b ← obj.Slot.is_null s9
-                  let (s10, a5) ←
-                    if b
-                    then ok (s8, a4)
-                    else
-                      do
-                      let c4 ← obj.Slot.cap machineStoreInst s9 s8
-                      let b1 ← objects.same_object_as c3 c4
-                      if b1
-                      then
-                        let c5 ← obj.Slot.cap machineStoreInst slot s8
-                        let b2 ←
-                          objects.same_object_as (capability.Cap.Thread target)
-                            c5
-                        let t ←
-                          if b2
-                          then cdt.insert machineStoreInst s8 c3 s9 bslot
-                          else ok s8
-                        ok (t, a4)
-                      else ok (s8, a4)
-                  let t ← sched.cur_thread machineStoreInst s10
-                  let b1 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq target t
-                  if b1
-                  then
-                    let s11 ← sched.reschedule_required machineStoreInst s10
-                    ok (core.result.Result.Ok (), s11, a5)
-                  else ok (core.result.Result.Ok (), s10, a5)
-                | core.ops.control_flow.ControlFlow.Break residual =>
-                  let r4 ←
-                    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                      Unit (core.convert.FromSame error.Exc) residual
-                  ok (r4, s7, a4)
-              else ok (core.result.Result.Ok (), s6, a3)
-            | core.ops.control_flow.ControlFlow.Break residual =>
-              let r3 ←
-                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                  Unit (core.convert.FromSame error.Exc) residual
-              ok (r3, s6, a3)
-          | core.ops.control_flow.ControlFlow.Break residual =>
-            let r2 ←
-              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                Unit (core.convert.FromSame error.Exc) residual
-            ok (r2, s4, a2)
-        else
-          let i3 ← lift (flags &&& tcb.UPDATE_IPC_BUFFER)
-          if i3 != 0#u64
-          then
-            let bslot ← obj.Tcb.slot target layout.tcb.SLOT_BUFFER
-            let (r1, s3, a2) ←
-              cdt.delete machineStoreInst machineArchInst s2 a1 bslot true
-            let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
-            match cf1 with
-            | core.ops.control_flow.ControlFlow.Continue _ =>
-              let s4 ←
-                obj.Tcb.set_ipc_buffer machineStoreInst target s3 buffer_addr
-              let (c1, s5) := buffer
-              let b ← obj.Slot.is_null s5
-              let (s6, a3) ←
-                if b
-                then ok (s4, a2)
-                else
-                  do
-                  let c2 ← obj.Slot.cap machineStoreInst s5 s4
-                  let b1 ← objects.same_object_as c1 c2
-                  if b1
-                  then
-                    let c3 ← obj.Slot.cap machineStoreInst slot s4
-                    let b2 ←
-                      objects.same_object_as (capability.Cap.Thread target) c3
-                    let t ←
-                      if b2
-                      then cdt.insert machineStoreInst s4 c1 s5 bslot
-                      else ok s4
-                    ok (t, a2)
-                  else ok (s4, a2)
-              let t ← sched.cur_thread machineStoreInst s6
-              let b1 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq target t
-              if b1
-              then
-                let s7 ← sched.reschedule_required machineStoreInst s6
-                ok (core.result.Result.Ok (), s7, a3)
-              else ok (core.result.Result.Ok (), s6, a3)
-            | core.ops.control_flow.ControlFlow.Break residual =>
-              let r2 ←
-                core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                  Unit (core.convert.FromSame error.Exc) residual
-              ok (r2, s3, a2)
-          else ok (core.result.Result.Ok (), s2, a1)
-      | core.ops.control_flow.ControlFlow.Break residual =>
-        let r1 ←
-          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-            Unit (core.convert.FromSame error.Exc) residual
-        ok (r1, s2, a1)
-    else
-      let i2 ← lift (flags &&& tcb.UPDATE_SPACE)
-      if i2 != 0#u64
-      then
-        let (c, s1) := croot
-        let (r, s2, a1) ←
-          tcb.install_tcb_cap machineStoreInst machineArchInst s a target slot
-            layout.tcb.SLOT_CTABLE c s1
-        let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-        match cf with
-        | core.ops.control_flow.ControlFlow.Continue _ =>
-          let (c1, s3) := vroot
-          let (r1, s4, a2) ←
-            tcb.install_tcb_cap machineStoreInst machineArchInst s2 a1 target
-              slot layout.tcb.SLOT_VTABLE c1 s3
-          let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
-          match cf1 with
-          | core.ops.control_flow.ControlFlow.Continue _ =>
-            let i3 ← lift (flags &&& tcb.UPDATE_IPC_BUFFER)
-            if i3 != 0#u64
-            then
-              let bslot ← obj.Tcb.slot target layout.tcb.SLOT_BUFFER
-              let (r2, s5, a3) ←
-                cdt.delete machineStoreInst machineArchInst s4 a2 bslot true
-              let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
-              match cf2 with
-              | core.ops.control_flow.ControlFlow.Continue _ =>
-                let s6 ←
-                  obj.Tcb.set_ipc_buffer machineStoreInst target s5 buffer_addr
-                let (c2, s7) := buffer
-                let b ← obj.Slot.is_null s7
-                let (s8, a4) ←
-                  if b
-                  then ok (s6, a3)
-                  else
-                    do
-                    let c3 ← obj.Slot.cap machineStoreInst s7 s6
-                    let b1 ← objects.same_object_as c2 c3
-                    if b1
-                    then
-                      let c4 ← obj.Slot.cap machineStoreInst slot s6
-                      let b2 ←
-                        objects.same_object_as (capability.Cap.Thread target)
-                          c4
-                      let t ←
-                        if b2
-                        then cdt.insert machineStoreInst s6 c2 s7 bslot
-                        else ok s6
-                      ok (t, a3)
-                    else ok (s6, a3)
-                let t ← sched.cur_thread machineStoreInst s8
-                let b1 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq target t
-                if b1
-                then
-                  let s9 ← sched.reschedule_required machineStoreInst s8
-                  ok (core.result.Result.Ok (), s9, a4)
-                else ok (core.result.Result.Ok (), s8, a4)
-              | core.ops.control_flow.ControlFlow.Break residual =>
-                let r3 ←
-                  core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                    Unit (core.convert.FromSame error.Exc) residual
-                ok (r3, s5, a3)
-            else ok (core.result.Result.Ok (), s4, a2)
-          | core.ops.control_flow.ControlFlow.Break residual =>
-            let r2 ←
-              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                Unit (core.convert.FromSame error.Exc) residual
-            ok (r2, s4, a2)
-        | core.ops.control_flow.ControlFlow.Break residual =>
-          let r1 ←
-            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-              Unit (core.convert.FromSame error.Exc) residual
-          ok (r1, s2, a1)
-      else
-        let i3 ← lift (flags &&& tcb.UPDATE_IPC_BUFFER)
-        if i3 != 0#u64
-        then
-          let bslot ← obj.Tcb.slot target layout.tcb.SLOT_BUFFER
-          let (r, s1, a1) ←
-            cdt.delete machineStoreInst machineArchInst s a bslot true
-          let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-          match cf with
-          | core.ops.control_flow.ControlFlow.Continue _ =>
-            let s2 ←
-              obj.Tcb.set_ipc_buffer machineStoreInst target s1 buffer_addr
-            let (c, s3) := buffer
-            let b ← obj.Slot.is_null s3
-            let (s4, a2) ←
-              if b
-              then ok (s2, a1)
-              else
-                do
-                let c1 ← obj.Slot.cap machineStoreInst s3 s2
-                let b1 ← objects.same_object_as c c1
-                if b1
-                then
-                  let c2 ← obj.Slot.cap machineStoreInst slot s2
-                  let b2 ←
-                    objects.same_object_as (capability.Cap.Thread target) c2
-                  let t ←
-                    if b2
-                    then cdt.insert machineStoreInst s2 c s3 bslot
-                    else ok s2
-                  ok (t, a1)
-                else ok (s2, a1)
-            let t ← sched.cur_thread machineStoreInst s4
-            let b1 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq target t
-            if b1
-            then
-              let s5 ← sched.reschedule_required machineStoreInst s4
-              ok (core.result.Result.Ok (), s5, a2)
-            else ok (core.result.Result.Ok (), s4, a2)
-          | core.ops.control_flow.ControlFlow.Break residual =>
-            let r1 ←
-              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                Unit (core.convert.FromSame error.Exc) residual
-            ok (r1, s1, a1)
-        else ok (core.result.Result.Ok (), s, a)
-
-/-- [fl4_core::tcb::reply_words]:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 63:0-66:1 -/
-def tcb.reply_words
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
-  (n : Std.U64) :
-  Result S
-  := do
-  let s1 ← obj.Tcb.set_reg machineStoreInst t s layout.reg.BADGE 0#u64
-  let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 n
-  msg.set_msg_info machineStoreInst s1 t mi
-
-/-- [fl4_core::tcb::check_prio]:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 54:0-60:1 -/
-def tcb.check_prio
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (prio : Std.U64)
-  (auth : obj.Tcb) :
-  Result (core.result.Result Unit error.Exc)
-  := do
-  let mcp ← obj.Tcb.mcp machineStoreInst auth s
-  if prio > mcp
-  then error.range Unit 0#u64 mcp
-  else ok (core.result.Result.Ok ())
-
 /-- [fl4_core::tcb::decode]:
-    Source: 'crates/fl4-core/src/tcb.rs', lines 398:0-724:1
+    Source: 'crates/fl4-core/src/tcb.rs', lines 412:0-481:1
     Visibility: public -/
 def tcb.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -36052,146 +30326,19 @@ def tcb.decode
   := do
   let (s1, a1) ←
     smp.remote_tcb_stall machineStoreInst machineArchInst s a target
-  let ct ← sched.cur_thread machineStoreInst s1
   if lbl = fl4_abi.label.TCBReadRegisters
   then
-    if c.length < 2#u64
-    then let r ← error.truncated Unit
-         ok (r, s1, a1)
-    else
-      let flags ← tcb.arg machineStoreInst s1 c 0#u64
-      let n ← tcb.arg machineStoreInst s1 c 1#u64
-      if n < 1#u64
-      then
-        let i ← tcb.N_FRAME + tcb.N_GP
-        let r ← error.range Unit 1#u64 i
-        ok (r, s1, a1)
-      else
-        let i ← tcb.N_FRAME + tcb.N_GP
-        if n > i
-        then let r ← error.range Unit 1#u64 i
-             ok (r, s1, a1)
-        else
-          let b ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq target ct
-          if b
-          then let r ← error.illegal Unit
-               ok (r, s1, a1)
-          else
-            let s2 ← tcb.restart_caller machineStoreInst s1
-            let i1 ← lift (flags &&& 1#u64)
-            let (s3, a2) ←
-              tcb.read_registers machineStoreInst machineArchInst s2 a1 target
-                (i1 != 0#u64) n c.call
-            ok (core.result.Result.Ok (), s3, a2)
+    tcb.decode_read_registers machineStoreInst machineArchInst s1 a1 target c
   else
     if lbl = fl4_abi.label.TCBWriteRegisters
     then
-      if c.length < 2#u64
-      then let r ← error.truncated Unit
-           ok (r, s1, a1)
-      else
-        let flags ← tcb.arg machineStoreInst s1 c 0#u64
-        let w ← tcb.arg machineStoreInst s1 c 1#u64
-        let i ← c.length - 2#u64
-        if i < w
-        then let r ← error.truncated Unit
-             ok (r, s1, a1)
-        else
-          let b ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq target ct
-          if b
-          then let r ← error.illegal Unit
-               ok (r, s1, a1)
-          else
-            let s2 ← tcb.restart_caller machineStoreInst s1
-            let i1 ← lift (flags &&& 1#u64)
-            let (s3, a2) ←
-              tcb.write_registers machineStoreInst machineArchInst s2 a1 target
-                (i1 != 0#u64) w c.buf
-            ok (core.result.Result.Ok (), s3, a2)
+      tcb.decode_write_registers machineStoreInst machineArchInst s1 a1 target
+        c
     else
       if lbl = fl4_abi.label.TCBCopyRegisters
       then
-        let o ← tcb.extra c 0#usize
-        match o with
-        | none => let r ← error.truncated Unit
-                  ok (r, s1, a1)
-        | some x =>
-          if c.length >= 1#u64
-          then
-            let flags ← tcb.arg machineStoreInst s1 c 0#u64
-            let c1 ← obj.Slot.cap machineStoreInst x s1
-            match c1 with
-            | capability.Cap.Null =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.Untyped _ _ _ _ =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.Endpoint _ _ _ _ _ _ =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.Notification _ _ _ _ =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.Reply _ _ =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.CNode _ _ _ _ =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.Thread ptr =>
-              let (s2, a2) ←
-                smp.remote_tcb_stall machineStoreInst machineArchInst s1 a1 ptr
-              let s3 ← tcb.restart_caller machineStoreInst s2
-              tcb.copy_registers machineStoreInst machineArchInst s3 a2 target
-                ptr flags
-            | capability.Cap.IrqControl =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.IrqHandler _ =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.Zombie _ _ _ =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.Domain =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.SchedContext _ _ =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.SchedControl _ =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.Frame _ _ _ _ _ _ _ =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.PageTable _ _ _ _ =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.PageDirectory _ _ _ _ =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.Pdpt _ _ _ _ =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.Pml4 _ _ _ =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.AsidControl =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.AsidPool _ _ =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.IoPortControl =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-            | capability.Cap.IoPort _ _ =>
-              let r ← error.invalid_cap Unit 1#u64
-              ok (r, s1, a1)
-          else let r ← error.truncated Unit
-               ok (r, s1, a1)
+        tcb.decode_copy_registers machineStoreInst machineArchInst s1 a1 target
+          c
       else
         if lbl = fl4_abi.label.TCBSuspend
         then
@@ -36209,937 +30356,45 @@ def tcb.decode
           else
             if lbl = fl4_abi.label.TCBConfigure
             then
-              let o ← tcb.extra c 0#usize
-              let o1 ← tcb.extra c 1#usize
-              let o2 ← tcb.extra c 2#usize
-              match o with
-              | none => let r ← error.truncated Unit
-                        ok (r, s1, a1)
-              | some x =>
-                match o1 with
-                | none => let r ← error.truncated Unit
-                          ok (r, s1, a1)
-                | some y =>
-                  match o2 with
-                  | none => let r ← error.truncated Unit
-                            ok (r, s1, a1)
-                  | some z =>
-                    if c.length >= 3#u64
-                    then
-                      let cdata ← tcb.arg machineStoreInst s1 c 0#u64
-                      let vdata ← tcb.arg machineStoreInst s1 c 1#u64
-                      let baddr ← tcb.arg machineStoreInst s1 c 2#u64
-                      let r ←
-                        tcb.derive_for_buffer machineStoreInst s1 baddr z
-                      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-                      match cf with
-                      | core.ops.control_flow.ControlFlow.Continue val =>
-                        let r1 ←
-                          tcb.derive_roots machineStoreInst s1 target cdata
-                            vdata x y
-                        let cf1 ←
-                          core.result.Result.Insts.CoreOpsTry.branch r1
-                        match cf1 with
-                        | core.ops.control_flow.ControlFlow.Continue val1 =>
-                          let (ccap, vcap) := val1
-                          let s2 ← tcb.restart_caller machineStoreInst s1
-                          let i ←
-                            lift (tcb.UPDATE_SPACE ||| tcb.UPDATE_IPC_BUFFER)
-                          tcb.thread_control_caps machineStoreInst
-                            machineArchInst s2 a1 target c.slot
-                            (capability.Cap.Null, 0#u64) (capability.Cap.Null,
-                            0#u64) (ccap, x) (vcap, y) baddr val i
-                        | core.ops.control_flow.ControlFlow.Break residual =>
-                          let r2 ←
-                            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                              Unit (core.convert.FromSame error.Exc) residual
-                          ok (r2, s1, a1)
-                      | core.ops.control_flow.ControlFlow.Break residual =>
-                        let r1 ←
-                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                            Unit (core.convert.FromSame error.Exc) residual
-                        ok (r1, s1, a1)
-                    else let r ← error.truncated Unit
-                         ok (r, s1, a1)
+              tcb.decode_configure machineStoreInst machineArchInst s1 a1
+                target c
             else
               if lbl = fl4_abi.label.TCBSetPriority
               then
-                let o ← tcb.extra c 0#usize
-                match o with
-                | none => let r ← error.truncated Unit
-                          ok (r, s1, a1)
-                | some x =>
-                  if c.length >= 1#u64
-                  then
-                    let p ← tcb.arg machineStoreInst s1 c 0#u64
-                    let c1 ← obj.Slot.cap machineStoreInst x s1
-                    match c1 with
-                    | capability.Cap.Null =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.Untyped _ _ _ _ =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.Notification _ _ _ _ =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.Reply _ _ =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.CNode _ _ _ _ =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.Thread ptr =>
-                      let r ← tcb.check_prio machineStoreInst s1 p ptr
-                      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-                      match cf with
-                      | core.ops.control_flow.ControlFlow.Continue _ =>
-                        let s2 ← tcb.restart_caller machineStoreInst s1
-                        if lbl = fl4_abi.label.TCBSetPriority
-                        then
-                          tcb.thread_control_sched machineStoreInst
-                            machineArchInst s2 a1 target 0#u64
-                            (capability.Cap.Null, 0#u64) 0#u64 p 0#u64
-                            tcb.SCHED_UPDATE_PRIO
-                        else
-                          tcb.thread_control_sched machineStoreInst
-                            machineArchInst s2 a1 target 0#u64
-                            (capability.Cap.Null, 0#u64) p 0#u64 0#u64
-                            tcb.SCHED_UPDATE_MCP
-                      | core.ops.control_flow.ControlFlow.Break residual =>
-                        let r1 ←
-                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                            Unit (core.convert.FromSame error.Exc) residual
-                        ok (r1, s1, a1)
-                    | capability.Cap.IrqControl =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.IrqHandler _ =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.Zombie _ _ _ =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.Domain =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.SchedContext _ _ =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.SchedControl _ =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.PageTable _ _ _ _ =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.PageDirectory _ _ _ _ =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.Pdpt _ _ _ _ =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.Pml4 _ _ _ =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.AsidControl =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.AsidPool _ _ =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.IoPortControl =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                    | capability.Cap.IoPort _ _ =>
-                      let r ← error.invalid_cap Unit 1#u64
-                      ok (r, s1, a1)
-                  else let r ← error.truncated Unit
-                       ok (r, s1, a1)
+                tcb.decode_set_priority machineStoreInst machineArchInst s1 a1
+                  target c (lbl = fl4_abi.label.TCBSetPriority)
               else
                 if lbl = fl4_abi.label.TCBSetMCPriority
                 then
-                  let o ← tcb.extra c 0#usize
-                  match o with
-                  | none => let r ← error.truncated Unit
-                            ok (r, s1, a1)
-                  | some x =>
-                    if c.length >= 1#u64
-                    then
-                      let p ← tcb.arg machineStoreInst s1 c 0#u64
-                      let c1 ← obj.Slot.cap machineStoreInst x s1
-                      match c1 with
-                      | capability.Cap.Null =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.Untyped _ _ _ _ =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.Notification _ _ _ _ =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.Reply _ _ =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.CNode _ _ _ _ =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.Thread ptr =>
-                        let r ← tcb.check_prio machineStoreInst s1 p ptr
-                        let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-                        match cf with
-                        | core.ops.control_flow.ControlFlow.Continue _ =>
-                          let s2 ← tcb.restart_caller machineStoreInst s1
-                          if lbl = fl4_abi.label.TCBSetPriority
-                          then
-                            tcb.thread_control_sched machineStoreInst
-                              machineArchInst s2 a1 target 0#u64
-                              (capability.Cap.Null, 0#u64) 0#u64 p 0#u64
-                              tcb.SCHED_UPDATE_PRIO
-                          else
-                            tcb.thread_control_sched machineStoreInst
-                              machineArchInst s2 a1 target 0#u64
-                              (capability.Cap.Null, 0#u64) p 0#u64 0#u64
-                              tcb.SCHED_UPDATE_MCP
-                        | core.ops.control_flow.ControlFlow.Break residual =>
-                          let r1 ←
-                            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                              Unit (core.convert.FromSame error.Exc) residual
-                          ok (r1, s1, a1)
-                      | capability.Cap.IrqControl =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.IrqHandler _ =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.Zombie _ _ _ =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.Domain =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.SchedContext _ _ =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.SchedControl _ =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.PageTable _ _ _ _ =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.PageDirectory _ _ _ _ =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.Pdpt _ _ _ _ =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.Pml4 _ _ _ =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.AsidControl =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.AsidPool _ _ =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.IoPortControl =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                      | capability.Cap.IoPort _ _ =>
-                        let r ← error.invalid_cap Unit 1#u64
-                        ok (r, s1, a1)
-                    else let r ← error.truncated Unit
-                         ok (r, s1, a1)
+                  tcb.decode_set_priority machineStoreInst machineArchInst s1
+                    a1 target c (lbl = fl4_abi.label.TCBSetPriority)
                 else
                   if lbl = fl4_abi.label.TCBSetSchedParams
                   then
-                    let o ← tcb.extra c 0#usize
-                    let o1 ← tcb.extra c 1#usize
-                    let o2 ← tcb.extra c 2#usize
-                    match o with
-                    | none => let r ← error.truncated Unit
-                              ok (r, s1, a1)
-                    | some x =>
-                      match o1 with
-                      | none => let r ← error.truncated Unit
-                                ok (r, s1, a1)
-                      | some y =>
-                        match o2 with
-                        | none => let r ← error.truncated Unit
-                                  ok (r, s1, a1)
-                        | some z =>
-                          if c.length >= 2#u64
-                          then
-                            let mcp ← tcb.arg machineStoreInst s1 c 0#u64
-                            let prio ← tcb.arg machineStoreInst s1 c 1#u64
-                            let c1 ← obj.Slot.cap machineStoreInst x s1
-                            match c1 with
-                            | capability.Cap.Null =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.Untyped _ _ _ _ =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.Notification _ _ _ _ =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.Reply _ _ =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.CNode _ _ _ _ =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.Thread ptr =>
-                              let r ←
-                                tcb.check_prio machineStoreInst s1 mcp ptr
-                              let cf ←
-                                core.result.Result.Insts.CoreOpsTry.branch r
-                              match cf with
-                              | core.ops.control_flow.ControlFlow.Continue _ =>
-                                let r1 ←
-                                  tcb.check_prio machineStoreInst s1 prio ptr
-                                let cf1 ←
-                                  core.result.Result.Insts.CoreOpsTry.branch r1
-                                match cf1 with
-                                | core.ops.control_flow.ControlFlow.Continue _
-                                  =>
-                                  let i ←
-                                    lift (tcb.SCHED_UPDATE_MCP |||
-                                      tcb.SCHED_UPDATE_PRIO)
-                                  let flags ←
-                                    lift (i ||| tcb.SCHED_UPDATE_FAULT)
-                                  let c2 ← obj.Slot.cap machineStoreInst y s1
-                                  match c2 with
-                                  | capability.Cap.Null =>
-                                    let b ←
-                                      obj.Tcb.Insts.CoreCmpPartialEqTcb.eq
-                                        target ct
-                                    if b
-                                    then
-                                      let r2 ← error.illegal Unit
-                                      ok (r2, s1, a1)
-                                    else
-                                      let i1 ←
-                                        obj.Tcb.sc machineStoreInst target s1
-                                      if i1 != 0#u64
-                                      then
-                                        let flags1 ←
-                                          lift (flags ||| tcb.SCHED_UPDATE_SC)
-                                        let fh ←
-                                          obj.Slot.cap machineStoreInst z s1
-                                        let b1 ←
-                                          faults.valid_fault_handler fh
-                                        if b1
-                                        then
-                                          let s2 ←
-                                            tcb.restart_caller machineStoreInst
-                                              s1
-                                          tcb.thread_control_sched
-                                            machineStoreInst machineArchInst s2
-                                            a1 target c.slot (fh, z) mcp prio
-                                            0#u64 flags1
-                                        else
-                                          let r2 ←
-                                            error.invalid_cap Unit 3#u64
-                                          ok (r2, s1, a1)
-                                      else
-                                        let fh ←
-                                          obj.Slot.cap machineStoreInst z s1
-                                        let b1 ←
-                                          faults.valid_fault_handler fh
-                                        if b1
-                                        then
-                                          let s2 ←
-                                            tcb.restart_caller machineStoreInst
-                                              s1
-                                          tcb.thread_control_sched
-                                            machineStoreInst machineArchInst s2
-                                            a1 target c.slot (fh, z) mcp prio
-                                            0#u64 flags
-                                        else
-                                          let r2 ←
-                                            error.invalid_cap Unit 3#u64
-                                          ok (r2, s1, a1)
-                                  | capability.Cap.Untyped _ _ _ _ =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                  | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                  | capability.Cap.Notification _ _ _ _ =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                  | capability.Cap.Reply _ _ =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                  | capability.Cap.CNode _ _ _ _ =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                  | capability.Cap.Thread _ =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                  | capability.Cap.IrqControl =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                  | capability.Cap.IrqHandler _ =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                  | capability.Cap.Zombie _ _ _ =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                  | capability.Cap.Domain =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                  | capability.Cap.SchedContext ptr1 _ =>
-                                    let i1 ←
-                                      obj.Tcb.sc machineStoreInst target s1
-                                    if i1 != ptr1
-                                    then
-                                      if i1 != 0#u64
-                                      then
-                                        let r2 ← error.illegal Unit
-                                        ok (r2, s1, a1)
-                                      else
-                                        let i2 ←
-                                          obj.Sc.tcb machineStoreInst ptr1 s1
-                                        if i2 != 0#u64
-                                        then
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s1, a1)
-                                        else
-                                          let b ←
-                                            sched.is_blocked machineStoreInst
-                                              s1 target
-                                          if b
-                                          then
-                                            let b1 ←
-                                              sporadic.sc_released
-                                                machineStoreInst s1 ptr1
-                                            if b1
-                                            then
-                                              if i1 != ptr1
-                                              then
-                                                let flags1 ←
-                                                  lift (flags |||
-                                                    tcb.SCHED_UPDATE_SC)
-                                                let fh ←
-                                                  obj.Slot.cap machineStoreInst
-                                                    z s1
-                                                let b2 ←
-                                                  faults.valid_fault_handler fh
-                                                if b2
-                                                then
-                                                  let s2 ←
-                                                    tcb.restart_caller
-                                                      machineStoreInst s1
-                                                  tcb.thread_control_sched
-                                                    machineStoreInst
-                                                    machineArchInst s2 a1
-                                                    target c.slot (fh, z) mcp
-                                                    prio ptr1 flags1
-                                                else
-                                                  let r2 ←
-                                                    error.invalid_cap Unit
-                                                      3#u64
-                                                  ok (r2, s1, a1)
-                                              else
-                                                let fh ←
-                                                  obj.Slot.cap machineStoreInst
-                                                    z s1
-                                                let b2 ←
-                                                  faults.valid_fault_handler fh
-                                                if b2
-                                                then
-                                                  let s2 ←
-                                                    tcb.restart_caller
-                                                      machineStoreInst s1
-                                                  tcb.thread_control_sched
-                                                    machineStoreInst
-                                                    machineArchInst s2 a1
-                                                    target c.slot (fh, z) mcp
-                                                    prio ptr1 flags
-                                                else
-                                                  let r2 ←
-                                                    error.invalid_cap Unit
-                                                      3#u64
-                                                  ok (r2, s1, a1)
-                                            else
-                                              let r2 ← error.illegal Unit
-                                              ok (r2, s1, a1)
-                                          else
-                                            if i1 != ptr1
-                                            then
-                                              let flags1 ←
-                                                lift (flags |||
-                                                  tcb.SCHED_UPDATE_SC)
-                                              let fh ←
-                                                obj.Slot.cap machineStoreInst z
-                                                  s1
-                                              let b1 ←
-                                                faults.valid_fault_handler fh
-                                              if b1
-                                              then
-                                                let s2 ←
-                                                  tcb.restart_caller
-                                                    machineStoreInst s1
-                                                tcb.thread_control_sched
-                                                  machineStoreInst
-                                                  machineArchInst s2 a1 target
-                                                  c.slot (fh, z) mcp prio ptr1
-                                                  flags1
-                                              else
-                                                let r2 ←
-                                                  error.invalid_cap Unit 3#u64
-                                                ok (r2, s1, a1)
-                                            else
-                                              let fh ←
-                                                obj.Slot.cap machineStoreInst z
-                                                  s1
-                                              let b1 ←
-                                                faults.valid_fault_handler fh
-                                              if b1
-                                              then
-                                                let s2 ←
-                                                  tcb.restart_caller
-                                                    machineStoreInst s1
-                                                tcb.thread_control_sched
-                                                  machineStoreInst
-                                                  machineArchInst s2 a1 target
-                                                  c.slot (fh, z) mcp prio ptr1
-                                                  flags
-                                              else
-                                                let r2 ←
-                                                  error.invalid_cap Unit 3#u64
-                                                ok (r2, s1, a1)
-                                    else
-                                      let b ←
-                                        sched.is_blocked machineStoreInst s1
-                                          target
-                                      if b
-                                      then
-                                        let b1 ←
-                                          sporadic.sc_released machineStoreInst
-                                            s1 ptr1
-                                        if b1
-                                        then
-                                          if i1 != ptr1
-                                          then
-                                            let flags1 ←
-                                              lift (flags |||
-                                                tcb.SCHED_UPDATE_SC)
-                                            let fh ←
-                                              obj.Slot.cap machineStoreInst z
-                                                s1
-                                            let b2 ←
-                                              faults.valid_fault_handler fh
-                                            if b2
-                                            then
-                                              let s2 ←
-                                                tcb.restart_caller
-                                                  machineStoreInst s1
-                                              tcb.thread_control_sched
-                                                machineStoreInst
-                                                machineArchInst s2 a1 target
-                                                c.slot (fh, z) mcp prio ptr1
-                                                flags1
-                                            else
-                                              let r2 ←
-                                                error.invalid_cap Unit 3#u64
-                                              ok (r2, s1, a1)
-                                          else
-                                            let fh ←
-                                              obj.Slot.cap machineStoreInst z
-                                                s1
-                                            let b2 ←
-                                              faults.valid_fault_handler fh
-                                            if b2
-                                            then
-                                              let s2 ←
-                                                tcb.restart_caller
-                                                  machineStoreInst s1
-                                              tcb.thread_control_sched
-                                                machineStoreInst
-                                                machineArchInst s2 a1 target
-                                                c.slot (fh, z) mcp prio ptr1
-                                                flags
-                                            else
-                                              let r2 ←
-                                                error.invalid_cap Unit 3#u64
-                                              ok (r2, s1, a1)
-                                        else
-                                          let r2 ← error.illegal Unit
-                                          ok (r2, s1, a1)
-                                      else
-                                        if i1 != ptr1
-                                        then
-                                          let flags1 ←
-                                            lift (flags |||
-                                              tcb.SCHED_UPDATE_SC)
-                                          let fh ←
-                                            obj.Slot.cap machineStoreInst z s1
-                                          let b1 ←
-                                            faults.valid_fault_handler fh
-                                          if b1
-                                          then
-                                            let s2 ←
-                                              tcb.restart_caller
-                                                machineStoreInst s1
-                                            tcb.thread_control_sched
-                                              machineStoreInst machineArchInst
-                                              s2 a1 target c.slot (fh, z) mcp
-                                              prio ptr1 flags1
-                                          else
-                                            let r2 ←
-                                              error.invalid_cap Unit 3#u64
-                                            ok (r2, s1, a1)
-                                        else
-                                          let fh ←
-                                            obj.Slot.cap machineStoreInst z s1
-                                          let b1 ←
-                                            faults.valid_fault_handler fh
-                                          if b1
-                                          then
-                                            let s2 ←
-                                              tcb.restart_caller
-                                                machineStoreInst s1
-                                            tcb.thread_control_sched
-                                              machineStoreInst machineArchInst
-                                              s2 a1 target c.slot (fh, z) mcp
-                                              prio ptr1 flags
-                                          else
-                                            let r2 ←
-                                              error.invalid_cap Unit 3#u64
-                                            ok (r2, s1, a1)
-                                  | capability.Cap.SchedControl _ =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                  | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                  | capability.Cap.PageTable _ _ _ _ =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                  | capability.Cap.PageDirectory _ _ _ _ =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                  | capability.Cap.Pdpt _ _ _ _ =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                  | capability.Cap.Pml4 _ _ _ =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                  | capability.Cap.AsidControl =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                  | capability.Cap.AsidPool _ _ =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                  | capability.Cap.IoPortControl =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                  | capability.Cap.IoPort _ _ =>
-                                    let r2 ← error.invalid_cap Unit 2#u64
-                                    ok (r2, s1, a1)
-                                | core.ops.control_flow.ControlFlow.Break
-                                  residual =>
-                                  let r2 ←
-                                    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                      Unit (core.convert.FromSame error.Exc)
-                                      residual
-                                  ok (r2, s1, a1)
-                              | core.ops.control_flow.ControlFlow.Break
-                                residual =>
-                                let r1 ←
-                                  core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                    Unit (core.convert.FromSame error.Exc)
-                                    residual
-                                ok (r1, s1, a1)
-                            | capability.Cap.IrqControl =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.IrqHandler _ =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.Zombie _ _ _ =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.Domain =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.SchedContext _ _ =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.SchedControl _ =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.PageTable _ _ _ _ =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.PageDirectory _ _ _ _ =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.Pdpt _ _ _ _ =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.Pml4 _ _ _ =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.AsidControl =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.AsidPool _ _ =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.IoPortControl =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                            | capability.Cap.IoPort _ _ =>
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
-                          else let r ← error.truncated Unit
-                               ok (r, s1, a1)
+                    tcb.decode_set_sched_params machineStoreInst
+                      machineArchInst s1 a1 target c
                   else
                     if lbl = fl4_abi.label.TCBSetIPCBuffer
                     then
-                      let o ← tcb.extra c 0#usize
-                      match o with
-                      | none => let r ← error.truncated Unit
-                                ok (r, s1, a1)
-                      | some x =>
-                        if c.length >= 1#u64
-                        then
-                          let baddr ← tcb.arg machineStoreInst s1 c 0#u64
-                          let r ←
-                            tcb.derive_for_buffer machineStoreInst s1 baddr x
-                          let cf ←
-                            core.result.Result.Insts.CoreOpsTry.branch r
-                          match cf with
-                          | core.ops.control_flow.ControlFlow.Continue val =>
-                            let s2 ← tcb.restart_caller machineStoreInst s1
-                            tcb.thread_control_caps machineStoreInst
-                              machineArchInst s2 a1 target c.slot
-                              (capability.Cap.Null, 0#u64)
-                              (capability.Cap.Null, 0#u64)
-                              (capability.Cap.Null, 0#u64)
-                              (capability.Cap.Null, 0#u64) baddr val
-                              tcb.UPDATE_IPC_BUFFER
-                          | core.ops.control_flow.ControlFlow.Break residual =>
-                            let r1 ←
-                              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                Unit (core.convert.FromSame error.Exc) residual
-                            ok (r1, s1, a1)
-                        else let r ← error.truncated Unit
-                             ok (r, s1, a1)
+                      tcb.decode_set_ipc_buffer machineStoreInst
+                        machineArchInst s1 a1 target c
                     else
                       if lbl = fl4_abi.label.TCBSetSpace
                       then
-                        let o ← tcb.extra c 0#usize
-                        let o1 ← tcb.extra c 1#usize
-                        let o2 ← tcb.extra c 2#usize
-                        match o with
-                        | none => let r ← error.truncated Unit
-                                  ok (r, s1, a1)
-                        | some x =>
-                          match o1 with
-                          | none =>
-                            let r ← error.truncated Unit
-                            ok (r, s1, a1)
-                          | some y =>
-                            match o2 with
-                            | none =>
-                              let r ← error.truncated Unit
-                              ok (r, s1, a1)
-                            | some z =>
-                              if c.length >= 2#u64
-                              then
-                                let cdata ←
-                                  tcb.arg machineStoreInst s1 c 0#u64
-                                let vdata ←
-                                  tcb.arg machineStoreInst s1 c 1#u64
-                                let r ←
-                                  tcb.derive_roots machineStoreInst s1 target
-                                    cdata vdata y z
-                                let cf ←
-                                  core.result.Result.Insts.CoreOpsTry.branch r
-                                match cf with
-                                | core.ops.control_flow.ControlFlow.Continue
-                                  val =>
-                                  let (ccap, vcap) := val
-                                  let fh ← obj.Slot.cap machineStoreInst x s1
-                                  let b ← faults.valid_fault_handler fh
-                                  if b
-                                  then
-                                    let s2 ←
-                                      tcb.restart_caller machineStoreInst s1
-                                    let i ←
-                                      lift (tcb.UPDATE_SPACE |||
-                                        tcb.UPDATE_FAULT)
-                                    tcb.thread_control_caps machineStoreInst
-                                      machineArchInst s2 a1 target c.slot (fh,
-                                      x) (capability.Cap.Null, 0#u64) (ccap, y)
-                                      (vcap, z) 0#u64 (capability.Cap.Null,
-                                      0#u64) i
-                                  else
-                                    let r1 ← error.invalid_cap Unit 1#u64
-                                    ok (r1, s1, a1)
-                                | core.ops.control_flow.ControlFlow.Break
-                                  residual =>
-                                  let r1 ←
-                                    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                      Unit (core.convert.FromSame error.Exc)
-                                      residual
-                                  ok (r1, s1, a1)
-                              else
-                                let r ← error.truncated Unit
-                                ok (r, s1, a1)
+                        tcb.decode_set_space machineStoreInst machineArchInst
+                          s1 a1 target c
                       else
                         if lbl = fl4_abi.label.TCBSetTimeoutEndpoint
                         then
-                          let o ← tcb.extra c 0#usize
-                          match o with
-                          | none =>
-                            let r ← error.truncated Unit
-                            ok (r, s1, a1)
-                          | some x =>
-                            let th ← obj.Slot.cap machineStoreInst x s1
-                            let b ← faults.valid_fault_handler th
-                            if b
-                            then
-                              let s2 ← tcb.restart_caller machineStoreInst s1
-                              tcb.thread_control_caps machineStoreInst
-                                machineArchInst s2 a1 target c.slot
-                                (capability.Cap.Null, 0#u64) (th, x)
-                                (capability.Cap.Null, 0#u64)
-                                (capability.Cap.Null, 0#u64) 0#u64
-                                (capability.Cap.Null, 0#u64) tcb.UPDATE_TIMEOUT
-                            else
-                              let r ← error.invalid_cap Unit 1#u64
-                              ok (r, s1, a1)
+                          tcb.decode_set_timeout_endpoint machineStoreInst
+                            machineArchInst s1 a1 target c
                         else
                           if lbl = fl4_abi.label.TCBBindNotification
                           then
-                            let o ← tcb.extra c 0#usize
-                            match o with
-                            | none =>
-                              let r ← error.truncated Unit
-                              ok (r, s1, a1)
-                            | some x =>
-                              let i ←
-                                obj.Tcb.bound_ntfn machineStoreInst target s1
-                              if i != 0#u64
-                              then let r ← error.illegal Unit
-                                   ok (r, s1, a1)
-                              else
-                                let c1 ← obj.Slot.cap machineStoreInst x s1
-                                match c1 with
-                                | capability.Cap.Null =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Untyped _ _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Notification ptr _ _ recv =>
-                                  if recv
-                                  then
-                                    let i1 ←
-                                      obj.Ntfn.head machineStoreInst ptr s1
-                                    if i1 != 0#u64
-                                    then
-                                      let r ← error.illegal Unit
-                                      ok (r, s1, a1)
-                                    else
-                                      let i2 ←
-                                        obj.Ntfn.bound_tcb machineStoreInst ptr
-                                          s1
-                                      if i2 != 0#u64
-                                      then
-                                        let r ← error.illegal Unit
-                                        ok (r, s1, a1)
-                                      else
-                                        let s2 ←
-                                          tcb.restart_caller machineStoreInst
-                                            s1
-                                        let s3 ←
-                                          notification.bind_notification
-                                            machineStoreInst s2 target ptr
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                  else
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                | capability.Cap.Reply _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.CNode _ _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Thread _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.IrqControl =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.IrqHandler _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Zombie _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Domain =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.SchedContext _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.SchedControl _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.PageTable _ _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.PageDirectory _ _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Pdpt _ _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Pml4 _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.AsidControl =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.AsidPool _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.IoPortControl =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.IoPort _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
+                            let (r, s2) ←
+                              tcb.decode_bind_notification machineStoreInst s1
+                                target c
+                            ok (r, s2, a1)
                           else
                             if lbl = fl4_abi.label.TCBUnbindNotification
                             then
@@ -37158,60 +30413,9 @@ def tcb.decode
                             else
                               if lbl = fl4_abi.label.TCBConfigureSingleStepping
                               then
-                                let bp ← tcb.arg machineStoreInst s1 c 0#u64
-                                let n ← tcb.arg machineStoreInst s1 c 1#u64
-                                let s2 ←
-                                  tcb.restart_caller machineStoreInst s1
-                                let (consumed, s3, a2) ←
-                                  debug.configure_single_stepping
-                                    machineStoreInst machineArchInst s2 a1
-                                    target bp n false
-                                if c.call
-                                then
-                                  let buf ←
-                                    msg.lookup_ipc_buffer machineStoreInst s3
-                                      true ct
-                                  if n = 0#u64
-                                  then
-                                    let (len, s4) ←
-                                      msg.set_mr machineStoreInst s3 ct buf
-                                        0#u64 0#u64
-                                    let s5 ←
-                                      tcb.reply_words machineStoreInst s4 ct
-                                        len
-                                    let s6 ←
-                                      sched.set_thread_state machineStoreInst
-                                        s5 ct sched.TS_RUNNING
-                                    ok (core.result.Result.Ok (), s6, a2)
-                                  else
-                                    if consumed
-                                    then
-                                      let (len, s4) ←
-                                        msg.set_mr machineStoreInst s3 ct buf
-                                          0#u64 1#u64
-                                      let s5 ←
-                                        tcb.reply_words machineStoreInst s4 ct
-                                          len
-                                      let s6 ←
-                                        sched.set_thread_state machineStoreInst
-                                          s5 ct sched.TS_RUNNING
-                                      ok (core.result.Result.Ok (), s6, a2)
-                                    else
-                                      let (len, s4) ←
-                                        msg.set_mr machineStoreInst s3 ct buf
-                                          0#u64 0#u64
-                                      let s5 ←
-                                        tcb.reply_words machineStoreInst s4 ct
-                                          len
-                                      let s6 ←
-                                        sched.set_thread_state machineStoreInst
-                                          s5 ct sched.TS_RUNNING
-                                      ok (core.result.Result.Ok (), s6, a2)
-                                else
-                                  let s4 ←
-                                    sched.set_thread_state machineStoreInst s3
-                                      ct sched.TS_RUNNING
-                                  ok (core.result.Result.Ok (), s4, a2)
+                                tcb.decode_configure_single_stepping
+                                  machineStoreInst machineArchInst s1 a1 target
+                                  c
                               else
                                 if lbl = fl4_abi.label.TCBSetBreakpoint
                                 then
@@ -37222,76 +30426,10 @@ def tcb.decode
                                 else
                                   if lbl = fl4_abi.label.TCBGetBreakpoint
                                   then
-                                    let bp ←
-                                      tcb.arg machineStoreInst s1 c 0#u64
-                                    let r ← debug.check_bp_num bp
-                                    let cf ←
-                                      core.result.Result.Insts.CoreOpsTry.branch
-                                        r
-                                    match cf with
-                                    |
-                                      core.ops.control_flow.ControlFlow.Continue
-                                      _ =>
-                                      let s2 ←
-                                        tcb.restart_caller machineStoreInst s1
-                                      let r1 ←
-                                        debug.get_breakpoint machineStoreInst
-                                          s2 target bp
-                                      if c.call
-                                      then
-                                        let buf ←
-                                          msg.lookup_ipc_buffer
-                                            machineStoreInst s2 true ct
-                                        let (_, s3) ←
-                                          msg.set_mr machineStoreInst s2 ct buf
-                                            0#u64 r1.vaddr
-                                        let (_, s4) ←
-                                          msg.set_mr machineStoreInst s3 ct buf
-                                            1#u64 r1.ty
-                                        let (_, s5) ←
-                                          msg.set_mr machineStoreInst s4 ct buf
-                                            2#u64 r1.size
-                                        let (_, s6) ←
-                                          msg.set_mr machineStoreInst s5 ct buf
-                                            3#u64 r1.rw
-                                        if r1.enabled
-                                        then
-                                          let (len, s7) ←
-                                            msg.set_mr machineStoreInst s6 ct
-                                              buf 4#u64 1#u64
-                                          let s8 ←
-                                            tcb.reply_words machineStoreInst s7
-                                              ct len
-                                          let s9 ←
-                                            sched.set_thread_state
-                                              machineStoreInst s8 ct
-                                              sched.TS_RUNNING
-                                          ok (core.result.Result.Ok (), s9, a1)
-                                        else
-                                          let (len, s7) ←
-                                            msg.set_mr machineStoreInst s6 ct
-                                              buf 4#u64 0#u64
-                                          let s8 ←
-                                            tcb.reply_words machineStoreInst s7
-                                              ct len
-                                          let s9 ←
-                                            sched.set_thread_state
-                                              machineStoreInst s8 ct
-                                              sched.TS_RUNNING
-                                          ok (core.result.Result.Ok (), s9, a1)
-                                      else
-                                        let s3 ←
-                                          sched.set_thread_state
-                                            machineStoreInst s2 ct
-                                            sched.TS_RUNNING
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                    | core.ops.control_flow.ControlFlow.Break
-                                      residual =>
-                                      let r1 ←
-                                        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                                          Unit (core.convert.FromSame
-                                          error.Exc) residual
-                                      ok (r1, s1, a1)
+                                    let (r, s2) ←
+                                      tcb.decode_get_breakpoint
+                                        machineStoreInst s1 target c
+                                    ok (r, s2, a1)
                                   else
                                     if lbl = fl4_abi.label.TCBUnsetBreakpoint
                                     then
@@ -37322,121 +30460,15 @@ def tcb.decode
                                     else
                                       if lbl = fl4_abi.label.TCBSetTLSBase
                                       then
-                                        if c.length < 1#u64
-                                        then
-                                          let r ← error.truncated Unit
-                                          ok (r, s1, a1)
-                                        else
-                                          let base ←
-                                            tcb.arg machineStoreInst s1 c 0#u64
-                                          let s2 ←
-                                            tcb.restart_caller machineStoreInst
-                                              s1
-                                          let i ←
-                                            regs.sanitise layout.reg.TLS_BASE
-                                              base
-                                          let s3 ←
-                                            obj.Tcb.set_reg machineStoreInst
-                                              target s2 layout.reg.TLS_BASE i
-                                          let b ←
-                                            obj.Tcb.Insts.CoreCmpPartialEqTcb.eq
-                                              target ct
-                                          if b
-                                          then
-                                            let s4 ←
-                                              sched.reschedule_required
-                                                machineStoreInst s3
-                                            ok (core.result.Result.Ok (), s4,
-                                              a1)
-                                          else
-                                            ok (core.result.Result.Ok (), s3,
-                                              a1)
+                                        let (r, s2) ←
+                                          tcb.decode_set_tls_base
+                                            machineStoreInst s1 target c
+                                        ok (r, s2, a1)
                                       else
                                         if lbl = fl4_abi.label.TCBSetFlags
                                         then
-                                          if c.length < 2#u64
-                                          then
-                                            let r ← error.truncated Unit
-                                            ok (r, s1, a1)
-                                          else
-                                            let clear ←
-                                              tcb.arg machineStoreInst s1 c
-                                                0#u64
-                                            let set ←
-                                              tcb.arg machineStoreInst s1 c
-                                                1#u64
-                                            let s2 ←
-                                              tcb.restart_caller
-                                                machineStoreInst s1
-                                            let f ←
-                                              obj.Tcb.flags machineStoreInst
-                                                target s2
-                                            let i ← lift (~~~ clear)
-                                            let f1 ← lift (f &&& i)
-                                            let i1 ←
-                                              lift (set &&&
-                                                fl4_abi.consts.tcb_flag.MASK)
-                                            let f2 ← lift (f1 ||| i1)
-                                            let s3 ←
-                                              obj.Tcb.set_flags
-                                                machineStoreInst target s2 f2
-                                            let i2 ←
-                                              lift (f2 &&&
-                                                fl4_abi.consts.tcb_flag.FPU_DISABLED)
-                                            if i2 != 0#u64
-                                            then
-                                              let a2 ←
-                                                machineArchInst.fpu_release a1
-                                                  target
-                                              if c.call
-                                              then
-                                                let buf ←
-                                                  msg.lookup_ipc_buffer
-                                                    machineStoreInst s3 true ct
-                                                let (len, s4) ←
-                                                  msg.set_mr machineStoreInst
-                                                    s3 ct buf 0#u64 f2
-                                                let s5 ←
-                                                  tcb.reply_words
-                                                    machineStoreInst s4 ct len
-                                                let s6 ←
-                                                  sched.set_thread_state
-                                                    machineStoreInst s5 ct
-                                                    sched.TS_RUNNING
-                                                ok (core.result.Result.Ok (),
-                                                  s6, a2)
-                                              else
-                                                let s4 ←
-                                                  sched.set_thread_state
-                                                    machineStoreInst s3 ct
-                                                    sched.TS_RUNNING
-                                                ok (core.result.Result.Ok (),
-                                                  s4, a2)
-                                            else
-                                              if c.call
-                                              then
-                                                let buf ←
-                                                  msg.lookup_ipc_buffer
-                                                    machineStoreInst s3 true ct
-                                                let (len, s4) ←
-                                                  msg.set_mr machineStoreInst
-                                                    s3 ct buf 0#u64 f2
-                                                let s5 ←
-                                                  tcb.reply_words
-                                                    machineStoreInst s4 ct len
-                                                let s6 ←
-                                                  sched.set_thread_state
-                                                    machineStoreInst s5 ct
-                                                    sched.TS_RUNNING
-                                                ok (core.result.Result.Ok (),
-                                                  s6, a1)
-                                              else
-                                                let s4 ←
-                                                  sched.set_thread_state
-                                                    machineStoreInst s3 ct
-                                                    sched.TS_RUNNING
-                                                ok (core.result.Result.Ok (),
-                                                  s4, a1)
+                                          tcb.decode_set_flags machineStoreInst
+                                            machineArchInst s1 a1 target c
                                         else
                                           if lbl = fl4_abi.label.TCBSetTimer
                                           then
@@ -37480,7 +30512,7 @@ def tcb.decode
                                                   s1, a1)
 
 /-- [fl4_core::syscall::decode_invocation]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 75:0-157:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 80:0-162:1 -/
 def syscall.decode_invocation
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64)
@@ -37601,7 +30633,7 @@ def syscall.decode_invocation
     ioport.decode machineStoreInst machineArchInst s a lbl length cap call buf
 
 /-- [fl4_core::syscall::handle_invocation]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 160:0-204:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 165:0-209:1 -/
 def syscall.handle_invocation
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (is_call : Bool)
@@ -37669,7 +30701,7 @@ def syscall.handle_invocation
     else ok (core.result.Result.Ok (), s, a)
 
 /-- [fl4_core::syscall::cap_fault_recv]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 210:0-213:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 215:0-218:1 -/
 def syscall.cap_fault_recv
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (cptr : Std.U64)
@@ -37681,7 +30713,7 @@ def syscall.cap_fault_recv
     cptr true lf)
 
 /-- [fl4_core::syscall::handle_recv]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 216:0-251:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 221:0-256:1 -/
 def syscall.handle_recv
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (blocking : Bool)
@@ -37872,7 +30904,7 @@ def syscall.handle_recv
     | error.Exc.Preempted => ok (s, a)
 
 /-- [fl4_core::syscall::mcs_preemption_point]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 254:0-265:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 259:0-270:1 -/
 def syscall.mcs_preemption_point
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) :
@@ -37897,7 +30929,7 @@ def syscall.mcs_preemption_point
       ok (s2, a)
 
 /-- [fl4_core::syscall::handle_yield]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 267:0-273:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 272:0-278:1 -/
 def syscall.handle_yield
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) :
@@ -37914,12 +30946,12 @@ def syscall.handle_yield
   ok (s2, a1)
 
 /-- [fl4_core::syscall::NO_IRQ]
-    Source: 'crates/fl4-core/src/syscall.rs', lines 293:0-293:33
+    Source: 'crates/fl4-core/src/syscall.rs', lines 298:0-298:33
     Visibility: public -/
 @[global_simps, irreducible] def syscall.NO_IRQ : Std.U64 := core.num.U64.MAX
 
 /-- [fl4_core::syscall::check_interrupt]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 286:0-290:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 291:0-295:1 -/
 def syscall.check_interrupt
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (irq : Std.U64) :
@@ -37930,7 +30962,7 @@ def syscall.check_interrupt
   else ok (s, a)
 
 /-- [fl4_core::syscall::after_invocation]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 275:0-284:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 280:0-289:1 -/
 def syscall.after_invocation
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A)
@@ -37948,110 +30980,8 @@ def syscall.after_invocation
     ok (false, s2, a3)
   else ok (true, s, a)
 
-/-- [fl4_core::syscall::name_thread]: loop body 1:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 468:12-475:13 -/
-@[rust_loop_body]
-def syscall.name_thread_loop0_loop0.body
-  (done1 : Bool) (v : Std.U64) (k : Std.I32) :
-  Result (ControlFlow Std.I32 (Bool × Std.U64))
-  := do
-  if k < 8#i32
-  then
-    let i ← k * 8#i32
-    let i1 ← v >>> i
-    let i2 ← lift (i1 &&& 255#u64)
-    if i2 = 0#u64
-    then
-      let i3 ←
-        if k = 0#i32
-        then ok 0#u64
-        else
-          do
-          let i4 ← lift (i &&& 63#i32)
-          let i5 ← 1#u64 <<< i4
-          ok (core.num.U64.wrapping_sub i5 1#u64)
-      let v1 ← lift (v &&& i3)
-      ok (done (true, v1))
-    else let k1 ← k + 1#i32
-         ok (cont k1)
-  else ok (done (done1, v))
-
-/-- [fl4_core::syscall::name_thread]: loop 1:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 468:12-475:13 -/
-@[rust_loop]
-def syscall.name_thread_loop0_loop0
-  (done1 : Bool) (v : Std.U64) (k : Std.I32) : Result (Bool × Std.U64) := do
-  loop
-    (fun k1 => syscall.name_thread_loop0_loop0.body done1 v k1)
-    k
-
-/-- [fl4_core::syscall::name_thread]: loop body 0:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 464:4-482:5 -/
-@[rust_loop_body]
-def syscall.name_thread_loop0.body
-  {S : Type _} (machineStoreInst : machine.Store S) (t : obj.Tcb)
-  (src : Std.U64) (s : S) (w : Std.U64) (done1 : Bool) :
-  Result (ControlFlow (S × Std.U64 × Bool) S)
-  := do
-  if w < 8#u64
-  then
-    let v ←
-      if done1
-      then ok 0#u64
-      else
-        do
-        let i ← w * 8#u64
-        let i1 ← lift (core.num.U64.wrapping_add src i)
-        machineStoreInst.read s i1
-    if done1
-    then
-      let v1 ← if w = 7#u64
-                 then ok (v &&& 72057594037927935#u64)
-                 else ok v
-      let i ← obj.Tcb.name_addr t
-      let i1 ← w * 8#u64
-      let i2 ← lift (core.num.U64.wrapping_add i i1)
-      let s1 ← machineStoreInst.write s i2 v1
-      let w1 ← w + 1#u64
-      ok (cont (s1, w1, done1))
-    else
-      let (done2, v1) ← syscall.name_thread_loop0_loop0 done1 v 0#i32
-      let v2 ← if w = 7#u64
-                 then ok (v1 &&& 72057594037927935#u64)
-                 else ok v1
-      let i ← obj.Tcb.name_addr t
-      let i1 ← w * 8#u64
-      let i2 ← lift (core.num.U64.wrapping_add i i1)
-      let s1 ← machineStoreInst.write s i2 v2
-      let w1 ← w + 1#u64
-      ok (cont (s1, w1, done2))
-  else ok (done s)
-
-/-- [fl4_core::syscall::name_thread]: loop 0:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 464:4-482:5 -/
-@[rust_loop]
-def syscall.name_thread_loop0
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
-  (src : Std.U64) (w : Std.U64) (done1 : Bool) :
-  Result S
-  := do
-  loop
-    (fun (s1, w1, done2) => syscall.name_thread_loop0.body machineStoreInst t
-      src s1 w1 done2)
-    (s, w, done1)
-
-/-- [fl4_core::syscall::name_thread]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 461:0-483:1 -/
-@[reducible]
-def syscall.name_thread
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
-  (src : Std.U64) :
-  Result S
-  := do
-  syscall.name_thread_loop0 machineStoreInst s t src 0#u64 false
-
 /-- [fl4_core::syscall::cap_type_code]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 433:0-458:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 455:0-480:1 -/
 def syscall.cap_type_code (c : capability.Cap) : Result Std.U64 := do
   match c with
   | capability.Cap.Null => ok 0#u64
@@ -38077,8 +31007,230 @@ def syscall.cap_type_code (c : capability.Cap) : Result Std.U64 := do
   | capability.Cap.IoPortControl => ok 31#u64
   | capability.Cap.IoPort _ _ => ok 19#u64
 
+/-- [fl4_core::syscall::nonzero_bytes]: loop body 0:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 508:4-510:5 -/
+@[rust_loop_body]
+def syscall.nonzero_bytes_loop.body
+  (v : Std.U64) (k : Std.U64) : Result (ControlFlow Std.U64 Std.U64) := do
+  if k < 8#u64
+  then
+    let i ← k * 8#u64
+    let i1 ← v >>> i
+    let i2 ← lift (i1 &&& 255#u64)
+    if i2 != 0#u64
+    then let k1 ← k + 1#u64
+         ok (cont k1)
+    else ok (done k)
+  else ok (done k)
+
+/-- [fl4_core::syscall::nonzero_bytes]: loop 0:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 508:4-510:5 -/
+@[rust_loop]
+def syscall.nonzero_bytes_loop
+  (v : Std.U64) (k : Std.U64) : Result Std.U64 := do
+  loop
+    (fun k1 => syscall.nonzero_bytes_loop.body v k1)
+    k
+
+/-- [fl4_core::syscall::nonzero_bytes]:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 506:0-512:1 -/
+@[reducible]
+def syscall.nonzero_bytes (v : Std.U64) : Result Std.U64 := do
+  syscall.nonzero_bytes_loop v 0#u64
+
+/-- [fl4_core::syscall::name_thread]: loop body 0:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 486:4-501:5 -/
+@[rust_loop_body]
+def syscall.name_thread_loop.body
+  {S : Type _} (machineStoreInst : machine.Store S) (t : obj.Tcb)
+  (src : Std.U64) (s : S) (w : Std.U64) (done1 : Bool) :
+  Result (ControlFlow (S × Std.U64 × Bool) S)
+  := do
+  if w < 8#u64
+  then
+    let v ←
+      if done1
+      then ok 0#u64
+      else
+        do
+        let i ← w * 8#u64
+        let i1 ← lift (core.num.U64.wrapping_add src i)
+        machineStoreInst.read s i1
+    let (done2, v1) ←
+      if done1
+      then ok (done1, v)
+      else
+        do
+        let n ← syscall.nonzero_bytes v
+        if n < 8#u64
+        then
+          let i ←
+            if n = 0#u64
+            then ok 0#u64
+            else
+              do
+              let i1 ← n * 8#u64
+              let i2 ← lift (i1 &&& 63#u64)
+              let i3 ← 1#u64 <<< i2
+              ok (core.num.U64.wrapping_sub i3 1#u64)
+          let v2 ← lift (v &&& i)
+          ok (true, v2)
+        else ok (done1, v)
+    let v2 ← if w = 7#u64
+               then ok (v1 &&& 72057594037927935#u64)
+               else ok v1
+    let i ← obj.Tcb.name_addr t
+    let i1 ← w * 8#u64
+    let i2 ← lift (core.num.U64.wrapping_add i i1)
+    let s1 ← machineStoreInst.write s i2 v2
+    let w1 ← w + 1#u64
+    ok (cont (s1, w1, done2))
+  else ok (done s)
+
+/-- [fl4_core::syscall::name_thread]: loop 0:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 486:4-501:5 -/
+@[rust_loop]
+def syscall.name_thread_loop
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
+  (src : Std.U64) (w : Std.U64) (done1 : Bool) :
+  Result S
+  := do
+  loop
+    (fun (s1, w1, done2) => syscall.name_thread_loop.body machineStoreInst t
+      src s1 w1 done2)
+    (s, w, done1)
+
+/-- [fl4_core::syscall::name_thread]:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 483:0-502:1 -/
+@[reducible]
+def syscall.name_thread
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
+  (src : Std.U64) :
+  Result S
+  := do
+  syscall.name_thread_loop machineStoreInst s t src 0#u64 false
+
+/-- [fl4_core::syscall::thread_of]:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 430:0-435:1 -/
+def syscall.thread_of (c : capability.Cap) : Result (Option obj.Tcb) := do
+  match c with
+  | capability.Cap.Null => ok none
+  | capability.Cap.Untyped _ _ _ _ => ok none
+  | capability.Cap.Endpoint _ _ _ _ _ _ => ok none
+  | capability.Cap.Notification _ _ _ _ => ok none
+  | capability.Cap.Reply _ _ => ok none
+  | capability.Cap.CNode _ _ _ _ => ok none
+  | capability.Cap.Thread ptr => ok (some ptr)
+  | capability.Cap.IrqControl => ok none
+  | capability.Cap.IrqHandler _ => ok none
+  | capability.Cap.Zombie _ _ _ => ok none
+  | capability.Cap.Domain => ok none
+  | capability.Cap.SchedContext _ _ => ok none
+  | capability.Cap.SchedControl _ => ok none
+  | capability.Cap.Frame _ _ _ _ _ _ _ => ok none
+  | capability.Cap.PageTable _ _ _ _ => ok none
+  | capability.Cap.PageDirectory _ _ _ _ => ok none
+  | capability.Cap.Pdpt _ _ _ _ => ok none
+  | capability.Cap.Pml4 _ _ _ => ok none
+  | capability.Cap.AsidControl => ok none
+  | capability.Cap.AsidPool _ _ => ok none
+  | capability.Cap.IoPortControl => ok none
+  | capability.Cap.IoPort _ _ => ok none
+
+/-- [fl4_core::syscall::invoked_cap]:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 422:0-428:1 -/
+def syscall.invoked_cap
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
+  Result capability.Cap
+  := do
+  let cptr ← obj.Tcb.reg machineStoreInst t s layout.reg.CAP
+  let r ← cspace.lookup_cap_and_slot machineStoreInst s t cptr
+  match r with
+  | core.result.Result.Ok p => let (c, _) := p
+                               ok c
+  | core.result.Result.Err _ => ok capability.Cap.Null
+
+/-- [fl4_core::syscall::debug_name_thread]:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 438:0-452:1 -/
+def syscall.debug_name_thread
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) :
+  Result (S × A)
+  := do
+  let c ← syscall.invoked_cap machineStoreInst s t
+  let o ← syscall.thread_of c
+  match o with
+  | none => let a1 ← machineArchInst.halt a
+            ok (s, a1)
+  | some x =>
+    let buf ← msg.lookup_ipc_buffer machineStoreInst s true t
+    if buf = 0#u64
+    then let a1 ← machineArchInst.halt a
+         ok (s, a1)
+    else
+      let i ← lift (core.num.U64.wrapping_add buf 8#u64)
+      let s1 ← syscall.name_thread machineStoreInst s x i
+      ok (s1, a)
+
+/-- [fl4_core::syscall::debug_syscall]:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 397:0-419:1 -/
+def syscall.debug_syscall
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb)
+  (number : Std.I64) :
+  Result (Bool × S × A)
+  := do
+  if number = fl4_abi.syscall.SysDebugHalt
+  then let a1 ← machineArchInst.halt a
+       ok (true, s, a1)
+  else
+    if number = fl4_abi.syscall.SysDebugSnapshot
+    then ok (true, s, a)
+    else
+      if number = fl4_abi.syscall.SysDebugCapIdentify
+      then
+        let c ← syscall.invoked_cap machineStoreInst s t
+        let i ← syscall.cap_type_code c
+        let s1 ← obj.Tcb.set_reg machineStoreInst t s layout.reg.CAP i
+        ok (true, s1, a)
+      else
+        if number = fl4_abi.syscall.SysDebugNameThread
+        then
+          let (s1, a1) ←
+            syscall.debug_name_thread machineStoreInst machineArchInst s a t
+          ok (true, s1, a1)
+        else
+          if fl4_abi.config.ENABLE_SMP_SUPPORT
+          then
+            if number = fl4_abi.syscall.SysDebugGetThreadAffinity
+            then
+              let c ← syscall.invoked_cap machineStoreInst s t
+              let o ← syscall.thread_of c
+              match o with
+              | none => let a1 ← machineArchInst.halt a
+                        ok (true, s, a1)
+              | some target =>
+                let aff ← obj.Tcb.affinity machineStoreInst target s
+                let s1 ←
+                  obj.Tcb.set_reg machineStoreInst t s layout.reg.CAP aff
+                ok (true, s1, a)
+            else
+              if fl4_abi.config.ENABLE_SMP_SUPPORT
+              then
+                if number = fl4_abi.syscall.SysDebugSendIPI
+                then ok (true, s, a)
+                else ok (false, s, a)
+              else ok (false, s, a)
+          else
+            if fl4_abi.config.ENABLE_SMP_SUPPORT
+            then
+              if number = fl4_abi.syscall.SysDebugSendIPI
+              then ok (true, s, a)
+              else ok (false, s, a)
+            else ok (false, s, a)
+
 /-- [fl4_core::syscall::unknown_syscall_fault]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 355:0-366:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 365:0-376:1 -/
 def syscall.unknown_syscall_fault
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.U64) :
@@ -38110,7 +31262,7 @@ def syscall.unknown_syscall_fault
   syscall.finish machineStoreInst machineArchInst s2 a2
 
 /-- [fl4_core::syscall::handle_unknown_syscall]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 370:0-430:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 380:0-394:1 -/
 def syscall.handle_unknown_syscall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) :
@@ -38133,226 +31285,15 @@ def syscall.handle_unknown_syscall
         else
           if fl4_abi.config.DEBUG_BUILD
           then
-            if number = fl4_abi.syscall.SysDebugHalt
-            then let a1 ← machineArchInst.halt a
-                 ok (s, a1)
+            let (b, s1, a1) ←
+              syscall.debug_syscall machineStoreInst machineArchInst s a t
+                number
+            if b
+            then ok (s1, a1)
             else
-              if number = fl4_abi.syscall.SysDebugSnapshot
-              then ok (s, a)
-              else
-                if number = fl4_abi.syscall.SysDebugCapIdentify
-                then
-                  let cptr ← obj.Tcb.reg machineStoreInst t s layout.reg.CAP
-                  let r ←
-                    cspace.lookup_cap_and_slot machineStoreInst s t cptr
-                  let c ←
-                    match r with
-                    | core.result.Result.Ok p => let (c1, _) := p
-                                                 ok c1
-                    | core.result.Result.Err _ => ok capability.Cap.Null
-                  let i ← syscall.cap_type_code c
-                  let s1 ←
-                    obj.Tcb.set_reg machineStoreInst t s layout.reg.CAP i
-                  ok (s1, a)
-                else
-                  if number = fl4_abi.syscall.SysDebugNameThread
-                  then
-                    let cptr ←
-                      obj.Tcb.reg machineStoreInst t s layout.reg.CAP
-                    let r ←
-                      cspace.lookup_cap_and_slot machineStoreInst s t cptr
-                    match r with
-                    | core.result.Result.Ok p =>
-                      let (c, _) := p
-                      match c with
-                      | capability.Cap.Null =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Untyped _ _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Notification _ _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Reply _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.CNode _ _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Thread ptr =>
-                        let buf ←
-                          msg.lookup_ipc_buffer machineStoreInst s true t
-                        if buf = 0#u64
-                        then let a1 ← machineArchInst.halt a
-                             ok (s, a1)
-                        else
-                          let i ← lift (core.num.U64.wrapping_add buf 8#u64)
-                          let s1 ←
-                            syscall.name_thread machineStoreInst s ptr i
-                          ok (s1, a)
-                      | capability.Cap.IrqControl =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.IrqHandler _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Zombie _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Domain =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.SchedContext _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.SchedControl _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.PageTable _ _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.PageDirectory _ _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Pdpt _ _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Pml4 _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.AsidControl =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.AsidPool _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.IoPortControl =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.IoPort _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                    | core.result.Result.Err _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                  else
-                    if fl4_abi.config.ENABLE_SMP_SUPPORT
-                    then
-                      if number = fl4_abi.syscall.SysDebugGetThreadAffinity
-                      then
-                        let cptr ←
-                          obj.Tcb.reg machineStoreInst t s layout.reg.CAP
-                        let r ←
-                          cspace.lookup_cap_and_slot machineStoreInst s t cptr
-                        match r with
-                        | core.result.Result.Ok p =>
-                          let (c, _) := p
-                          match c with
-                          | capability.Cap.Null =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.Untyped _ _ _ _ =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.Notification _ _ _ _ =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.Reply _ _ =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.CNode _ _ _ _ =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.Thread ptr =>
-                            let aff ← obj.Tcb.affinity machineStoreInst ptr s
-                            let s1 ←
-                              obj.Tcb.set_reg machineStoreInst t s
-                                layout.reg.CAP aff
-                            ok (s1, a)
-                          | capability.Cap.IrqControl =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.IrqHandler _ =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.Zombie _ _ _ =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.Domain =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.SchedContext _ _ =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.SchedControl _ =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.PageTable _ _ _ _ =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.PageDirectory _ _ _ _ =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.Pdpt _ _ _ _ =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.Pml4 _ _ _ =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.AsidControl =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.AsidPool _ _ =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.IoPortControl =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                          | capability.Cap.IoPort _ _ =>
-                            let a1 ← machineArchInst.halt a
-                            ok (s, a1)
-                        | core.result.Result.Err _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                      else
-                        if fl4_abi.config.ENABLE_SMP_SUPPORT
-                        then
-                          if number = fl4_abi.syscall.SysDebugSendIPI
-                          then ok (s, a)
-                          else
-                            let i ← lift (IScalar.hcast .U64 number)
-                            syscall.unknown_syscall_fault machineStoreInst
-                              machineArchInst s a i
-                        else
-                          let i ← lift (IScalar.hcast .U64 number)
-                          syscall.unknown_syscall_fault machineStoreInst
-                            machineArchInst s a i
-                    else
-                      if fl4_abi.config.ENABLE_SMP_SUPPORT
-                      then
-                        if number = fl4_abi.syscall.SysDebugSendIPI
-                        then ok (s, a)
-                        else
-                          let i ← lift (IScalar.hcast .U64 number)
-                          syscall.unknown_syscall_fault machineStoreInst
-                            machineArchInst s a i
-                      else
-                        let i ← lift (IScalar.hcast .U64 number)
-                        syscall.unknown_syscall_fault machineStoreInst
-                          machineArchInst s a i
+              let i ← lift (IScalar.hcast .U64 number)
+              syscall.unknown_syscall_fault machineStoreInst machineArchInst s1
+                a1 i
           else
             let i ← lift (IScalar.hcast .U64 number)
             syscall.unknown_syscall_fault machineStoreInst machineArchInst s a
@@ -38360,223 +31301,14 @@ def syscall.handle_unknown_syscall
       else
         if fl4_abi.config.DEBUG_BUILD
         then
-          if number = fl4_abi.syscall.SysDebugHalt
-          then let a1 ← machineArchInst.halt a
-               ok (s, a1)
+          let (b, s1, a1) ←
+            syscall.debug_syscall machineStoreInst machineArchInst s a t number
+          if b
+          then ok (s1, a1)
           else
-            if number = fl4_abi.syscall.SysDebugSnapshot
-            then ok (s, a)
-            else
-              if number = fl4_abi.syscall.SysDebugCapIdentify
-              then
-                let cptr ← obj.Tcb.reg machineStoreInst t s layout.reg.CAP
-                let r ← cspace.lookup_cap_and_slot machineStoreInst s t cptr
-                let c ←
-                  match r with
-                  | core.result.Result.Ok p => let (c1, _) := p
-                                               ok c1
-                  | core.result.Result.Err _ => ok capability.Cap.Null
-                let i ← syscall.cap_type_code c
-                let s1 ←
-                  obj.Tcb.set_reg machineStoreInst t s layout.reg.CAP i
-                ok (s1, a)
-              else
-                if number = fl4_abi.syscall.SysDebugNameThread
-                then
-                  let cptr ← obj.Tcb.reg machineStoreInst t s layout.reg.CAP
-                  let r ←
-                    cspace.lookup_cap_and_slot machineStoreInst s t cptr
-                  match r with
-                  | core.result.Result.Ok p =>
-                    let (c, _) := p
-                    match c with
-                    | capability.Cap.Null =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Untyped _ _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Notification _ _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Reply _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.CNode _ _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Thread ptr =>
-                      let buf ←
-                        msg.lookup_ipc_buffer machineStoreInst s true t
-                      if buf = 0#u64
-                      then let a1 ← machineArchInst.halt a
-                           ok (s, a1)
-                      else
-                        let i ← lift (core.num.U64.wrapping_add buf 8#u64)
-                        let s1 ← syscall.name_thread machineStoreInst s ptr i
-                        ok (s1, a)
-                    | capability.Cap.IrqControl =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.IrqHandler _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Zombie _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Domain =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.SchedContext _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.SchedControl _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.PageTable _ _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.PageDirectory _ _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Pdpt _ _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Pml4 _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.AsidControl =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.AsidPool _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.IoPortControl =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.IoPort _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                  | core.result.Result.Err _ =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                else
-                  if fl4_abi.config.ENABLE_SMP_SUPPORT
-                  then
-                    if number = fl4_abi.syscall.SysDebugGetThreadAffinity
-                    then
-                      let cptr ←
-                        obj.Tcb.reg machineStoreInst t s layout.reg.CAP
-                      let r ←
-                        cspace.lookup_cap_and_slot machineStoreInst s t cptr
-                      match r with
-                      | core.result.Result.Ok p =>
-                        let (c, _) := p
-                        match c with
-                        | capability.Cap.Null =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Untyped _ _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Notification _ _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Reply _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.CNode _ _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Thread ptr =>
-                          let aff ← obj.Tcb.affinity machineStoreInst ptr s
-                          let s1 ←
-                            obj.Tcb.set_reg machineStoreInst t s layout.reg.CAP
-                              aff
-                          ok (s1, a)
-                        | capability.Cap.IrqControl =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.IrqHandler _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Zombie _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Domain =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.SchedContext _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.SchedControl _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.PageTable _ _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.PageDirectory _ _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Pdpt _ _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Pml4 _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.AsidControl =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.AsidPool _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.IoPortControl =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.IoPort _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                      | core.result.Result.Err _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                    else
-                      if fl4_abi.config.ENABLE_SMP_SUPPORT
-                      then
-                        if number = fl4_abi.syscall.SysDebugSendIPI
-                        then ok (s, a)
-                        else
-                          let i ← lift (IScalar.hcast .U64 number)
-                          syscall.unknown_syscall_fault machineStoreInst
-                            machineArchInst s a i
-                      else
-                        let i ← lift (IScalar.hcast .U64 number)
-                        syscall.unknown_syscall_fault machineStoreInst
-                          machineArchInst s a i
-                  else
-                    if fl4_abi.config.ENABLE_SMP_SUPPORT
-                    then
-                      if number = fl4_abi.syscall.SysDebugSendIPI
-                      then ok (s, a)
-                      else
-                        let i ← lift (IScalar.hcast .U64 number)
-                        syscall.unknown_syscall_fault machineStoreInst
-                          machineArchInst s a i
-                    else
-                      let i ← lift (IScalar.hcast .U64 number)
-                      syscall.unknown_syscall_fault machineStoreInst
-                        machineArchInst s a i
+            let i ← lift (IScalar.hcast .U64 number)
+            syscall.unknown_syscall_fault machineStoreInst machineArchInst s1
+              a1 i
         else
           let i ← lift (IScalar.hcast .U64 number)
           syscall.unknown_syscall_fault machineStoreInst machineArchInst s a i
@@ -38588,449 +31320,139 @@ def syscall.handle_unknown_syscall
       else
         if fl4_abi.config.DEBUG_BUILD
         then
-          if number = fl4_abi.syscall.SysDebugHalt
-          then let a1 ← machineArchInst.halt a
-               ok (s, a1)
+          let (b, s1, a1) ←
+            syscall.debug_syscall machineStoreInst machineArchInst s a t number
+          if b
+          then ok (s1, a1)
           else
-            if number = fl4_abi.syscall.SysDebugSnapshot
-            then ok (s, a)
-            else
-              if number = fl4_abi.syscall.SysDebugCapIdentify
-              then
-                let cptr ← obj.Tcb.reg machineStoreInst t s layout.reg.CAP
-                let r ← cspace.lookup_cap_and_slot machineStoreInst s t cptr
-                let c ←
-                  match r with
-                  | core.result.Result.Ok p => let (c1, _) := p
-                                               ok c1
-                  | core.result.Result.Err _ => ok capability.Cap.Null
-                let i ← syscall.cap_type_code c
-                let s1 ←
-                  obj.Tcb.set_reg machineStoreInst t s layout.reg.CAP i
-                ok (s1, a)
-              else
-                if number = fl4_abi.syscall.SysDebugNameThread
-                then
-                  let cptr ← obj.Tcb.reg machineStoreInst t s layout.reg.CAP
-                  let r ←
-                    cspace.lookup_cap_and_slot machineStoreInst s t cptr
-                  match r with
-                  | core.result.Result.Ok p =>
-                    let (c, _) := p
-                    match c with
-                    | capability.Cap.Null =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Untyped _ _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Notification _ _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Reply _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.CNode _ _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Thread ptr =>
-                      let buf ←
-                        msg.lookup_ipc_buffer machineStoreInst s true t
-                      if buf = 0#u64
-                      then let a1 ← machineArchInst.halt a
-                           ok (s, a1)
-                      else
-                        let i ← lift (core.num.U64.wrapping_add buf 8#u64)
-                        let s1 ← syscall.name_thread machineStoreInst s ptr i
-                        ok (s1, a)
-                    | capability.Cap.IrqControl =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.IrqHandler _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Zombie _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Domain =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.SchedContext _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.SchedControl _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.PageTable _ _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.PageDirectory _ _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Pdpt _ _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.Pml4 _ _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.AsidControl =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.AsidPool _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.IoPortControl =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                    | capability.Cap.IoPort _ _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                  | core.result.Result.Err _ =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                else
-                  if fl4_abi.config.ENABLE_SMP_SUPPORT
-                  then
-                    if number = fl4_abi.syscall.SysDebugGetThreadAffinity
-                    then
-                      let cptr ←
-                        obj.Tcb.reg machineStoreInst t s layout.reg.CAP
-                      let r ←
-                        cspace.lookup_cap_and_slot machineStoreInst s t cptr
-                      match r with
-                      | core.result.Result.Ok p =>
-                        let (c, _) := p
-                        match c with
-                        | capability.Cap.Null =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Untyped _ _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Notification _ _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Reply _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.CNode _ _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Thread ptr =>
-                          let aff ← obj.Tcb.affinity machineStoreInst ptr s
-                          let s1 ←
-                            obj.Tcb.set_reg machineStoreInst t s layout.reg.CAP
-                              aff
-                          ok (s1, a)
-                        | capability.Cap.IrqControl =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.IrqHandler _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Zombie _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Domain =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.SchedContext _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.SchedControl _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.PageTable _ _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.PageDirectory _ _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Pdpt _ _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.Pml4 _ _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.AsidControl =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.AsidPool _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.IoPortControl =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                        | capability.Cap.IoPort _ _ =>
-                          let a1 ← machineArchInst.halt a
-                          ok (s, a1)
-                      | core.result.Result.Err _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                    else
-                      if fl4_abi.config.ENABLE_SMP_SUPPORT
-                      then
-                        if number = fl4_abi.syscall.SysDebugSendIPI
-                        then ok (s, a)
-                        else
-                          let i ← lift (IScalar.hcast .U64 number)
-                          syscall.unknown_syscall_fault machineStoreInst
-                            machineArchInst s a i
-                      else
-                        let i ← lift (IScalar.hcast .U64 number)
-                        syscall.unknown_syscall_fault machineStoreInst
-                          machineArchInst s a i
-                  else
-                    if fl4_abi.config.ENABLE_SMP_SUPPORT
-                    then
-                      if number = fl4_abi.syscall.SysDebugSendIPI
-                      then ok (s, a)
-                      else
-                        let i ← lift (IScalar.hcast .U64 number)
-                        syscall.unknown_syscall_fault machineStoreInst
-                          machineArchInst s a i
-                    else
-                      let i ← lift (IScalar.hcast .U64 number)
-                      syscall.unknown_syscall_fault machineStoreInst
-                        machineArchInst s a i
+            let i ← lift (IScalar.hcast .U64 number)
+            syscall.unknown_syscall_fault machineStoreInst machineArchInst s1
+              a1 i
         else
           let i ← lift (IScalar.hcast .U64 number)
           syscall.unknown_syscall_fault machineStoreInst machineArchInst s a i
     else
       if fl4_abi.config.DEBUG_BUILD
       then
-        if number = fl4_abi.syscall.SysDebugHalt
-        then let a1 ← machineArchInst.halt a
-             ok (s, a1)
+        let (b, s1, a1) ←
+          syscall.debug_syscall machineStoreInst machineArchInst s a t number
+        if b
+        then ok (s1, a1)
         else
-          if number = fl4_abi.syscall.SysDebugSnapshot
-          then ok (s, a)
-          else
-            if number = fl4_abi.syscall.SysDebugCapIdentify
-            then
-              let cptr ← obj.Tcb.reg machineStoreInst t s layout.reg.CAP
-              let r ← cspace.lookup_cap_and_slot machineStoreInst s t cptr
-              let c ←
-                match r with
-                | core.result.Result.Ok p => let (c1, _) := p
-                                             ok c1
-                | core.result.Result.Err _ => ok capability.Cap.Null
-              let i ← syscall.cap_type_code c
-              let s1 ← obj.Tcb.set_reg machineStoreInst t s layout.reg.CAP i
-              ok (s1, a)
-            else
-              if number = fl4_abi.syscall.SysDebugNameThread
-              then
-                let cptr ← obj.Tcb.reg machineStoreInst t s layout.reg.CAP
-                let r ← cspace.lookup_cap_and_slot machineStoreInst s t cptr
-                match r with
-                | core.result.Result.Ok p =>
-                  let (c, _) := p
-                  match c with
-                  | capability.Cap.Null =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.Untyped _ _ _ _ =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.Notification _ _ _ _ =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.Reply _ _ =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.CNode _ _ _ _ =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.Thread ptr =>
-                    let buf ← msg.lookup_ipc_buffer machineStoreInst s true t
-                    if buf = 0#u64
-                    then let a1 ← machineArchInst.halt a
-                         ok (s, a1)
-                    else
-                      let i ← lift (core.num.U64.wrapping_add buf 8#u64)
-                      let s1 ← syscall.name_thread machineStoreInst s ptr i
-                      ok (s1, a)
-                  | capability.Cap.IrqControl =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.IrqHandler _ =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.Zombie _ _ _ =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.Domain =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.SchedContext _ _ =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.SchedControl _ =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.PageTable _ _ _ _ =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.PageDirectory _ _ _ _ =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.Pdpt _ _ _ _ =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.Pml4 _ _ _ =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.AsidControl =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.AsidPool _ _ =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.IoPortControl =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                  | capability.Cap.IoPort _ _ =>
-                    let a1 ← machineArchInst.halt a
-                    ok (s, a1)
-                | core.result.Result.Err _ =>
-                  let a1 ← machineArchInst.halt a
-                  ok (s, a1)
-              else
-                if fl4_abi.config.ENABLE_SMP_SUPPORT
-                then
-                  if number = fl4_abi.syscall.SysDebugGetThreadAffinity
-                  then
-                    let cptr ←
-                      obj.Tcb.reg machineStoreInst t s layout.reg.CAP
-                    let r ←
-                      cspace.lookup_cap_and_slot machineStoreInst s t cptr
-                    match r with
-                    | core.result.Result.Ok p =>
-                      let (c, _) := p
-                      match c with
-                      | capability.Cap.Null =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Untyped _ _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Notification _ _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Reply _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.CNode _ _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Thread ptr =>
-                        let aff ← obj.Tcb.affinity machineStoreInst ptr s
-                        let s1 ←
-                          obj.Tcb.set_reg machineStoreInst t s layout.reg.CAP
-                            aff
-                        ok (s1, a)
-                      | capability.Cap.IrqControl =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.IrqHandler _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Zombie _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Domain =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.SchedContext _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.SchedControl _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Frame _ _ _ _ _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.PageTable _ _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.PageDirectory _ _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Pdpt _ _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.Pml4 _ _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.AsidControl =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.AsidPool _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.IoPortControl =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                      | capability.Cap.IoPort _ _ =>
-                        let a1 ← machineArchInst.halt a
-                        ok (s, a1)
-                    | core.result.Result.Err _ =>
-                      let a1 ← machineArchInst.halt a
-                      ok (s, a1)
-                  else
-                    if fl4_abi.config.ENABLE_SMP_SUPPORT
-                    then
-                      if number = fl4_abi.syscall.SysDebugSendIPI
-                      then ok (s, a)
-                      else
-                        let i ← lift (IScalar.hcast .U64 number)
-                        syscall.unknown_syscall_fault machineStoreInst
-                          machineArchInst s a i
-                    else
-                      let i ← lift (IScalar.hcast .U64 number)
-                      syscall.unknown_syscall_fault machineStoreInst
-                        machineArchInst s a i
-                else
-                  if fl4_abi.config.ENABLE_SMP_SUPPORT
-                  then
-                    if number = fl4_abi.syscall.SysDebugSendIPI
-                    then ok (s, a)
-                    else
-                      let i ← lift (IScalar.hcast .U64 number)
-                      syscall.unknown_syscall_fault machineStoreInst
-                        machineArchInst s a i
-                  else
-                    let i ← lift (IScalar.hcast .U64 number)
-                    syscall.unknown_syscall_fault machineStoreInst
-                      machineArchInst s a i
+          let i ← lift (IScalar.hcast .U64 number)
+          syscall.unknown_syscall_fault machineStoreInst machineArchInst s1 a1
+            i
       else
         let i ← lift (IScalar.hcast .U64 number)
         syscall.unknown_syscall_fault machineStoreInst machineArchInst s a i
 
+/-- [fl4_core::syscall::dispatch_syscall]:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 323:0-363:1 -/
+def syscall.dispatch_syscall
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) :
+  Result (S × A)
+  := do
+  let t ← sched.cur_thread machineStoreInst s
+  let cptr ← obj.Tcb.reg machineStoreInst t s layout.reg.CAP
+  let reply ← obj.Tcb.reg machineStoreInst t s layout.reg.REPLY
+  if number = fl4_abi.syscall.SysSend
+  then
+    let (r, s1, a1) ←
+      syscall.handle_invocation machineStoreInst machineArchInst s a false true
+        false false cptr
+    let (_, s2, a2) ←
+      syscall.after_invocation machineStoreInst machineArchInst s1 a1 r
+    ok (s2, a2)
+  else
+    if number = fl4_abi.syscall.SysNBSend
+    then
+      let (r, s1, a1) ←
+        syscall.handle_invocation machineStoreInst machineArchInst s a false
+          false false false cptr
+      let (_, s2, a2) ←
+        syscall.after_invocation machineStoreInst machineArchInst s1 a1 r
+      ok (s2, a2)
+    else
+      if number = fl4_abi.syscall.SysCall
+      then
+        let (r, s1, a1) ←
+          syscall.handle_invocation machineStoreInst machineArchInst s a true
+            true true false cptr
+        let (_, s2, a2) ←
+          syscall.after_invocation machineStoreInst machineArchInst s1 a1 r
+        ok (s2, a2)
+      else
+        if number = fl4_abi.syscall.SysRecv
+        then syscall.handle_recv machineStoreInst machineArchInst s a true true
+        else
+          if number = fl4_abi.syscall.SysNBRecv
+          then
+            syscall.handle_recv machineStoreInst machineArchInst s a false true
+          else
+            if number = fl4_abi.syscall.SysWait
+            then
+              syscall.handle_recv machineStoreInst machineArchInst s a true
+                false
+            else
+              if number = fl4_abi.syscall.SysNBWait
+              then
+                syscall.handle_recv machineStoreInst machineArchInst s a false
+                  false
+              else
+                if number = fl4_abi.syscall.SysReplyRecv
+                then
+                  let (r, s1, a1) ←
+                    syscall.handle_invocation machineStoreInst machineArchInst
+                      s a false false true true reply
+                  let (b, s2, a2) ←
+                    syscall.after_invocation machineStoreInst machineArchInst
+                      s1 a1 r
+                  if b
+                  then
+                    syscall.handle_recv machineStoreInst machineArchInst s2 a2
+                      true true
+                  else ok (s2, a2)
+                else
+                  if number = fl4_abi.syscall.SysNBSendRecv
+                  then
+                    let dest ←
+                      obj.Tcb.reg machineStoreInst t s
+                        layout.reg.NBSEND_RECV_DEST
+                    let (r, s1, a1) ←
+                      syscall.handle_invocation machineStoreInst
+                        machineArchInst s a false false true true dest
+                    let (b, s2, a2) ←
+                      syscall.after_invocation machineStoreInst machineArchInst
+                        s1 a1 r
+                    if b
+                    then
+                      syscall.handle_recv machineStoreInst machineArchInst s2
+                        a2 true true
+                    else ok (s2, a2)
+                  else
+                    if number = fl4_abi.syscall.SysNBSendWait
+                    then
+                      let (r, s1, a1) ←
+                        syscall.handle_invocation machineStoreInst
+                          machineArchInst s a false false true true reply
+                      let (b, s2, a2) ←
+                        syscall.after_invocation machineStoreInst
+                          machineArchInst s1 a1 r
+                      if b
+                      then
+                        syscall.handle_recv machineStoreInst machineArchInst s2
+                          a2 true false
+                      else ok (s2, a2)
+                    else
+                      if number = fl4_abi.syscall.SysYield
+                      then
+                        syscall.handle_yield machineStoreInst machineArchInst s
+                          a
+                      else ok (s, a)
+
 /-- [fl4_core::syscall::handle_syscall]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 297:0-353:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 302:0-320:1
     Visibility: public -/
 def syscall.handle_syscall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -39063,118 +31485,13 @@ def syscall.handle_syscall
         let (s3, a2) ←
           if b
           then
-            do
-            let t1 ← sched.cur_thread machineStoreInst s2
-            let cptr ← obj.Tcb.reg machineStoreInst t1 s2 layout.reg.CAP
-            let reply ← obj.Tcb.reg machineStoreInst t1 s2 layout.reg.REPLY
-            if number = fl4_abi.syscall.SysSend
-            then
-              let (r, s4, a3) ←
-                syscall.handle_invocation machineStoreInst machineArchInst s2
-                  a1 false true false false cptr
-              let (_, s5, a4) ←
-                syscall.after_invocation machineStoreInst machineArchInst s4 a3
-                  r
-              ok (s5, a4)
-            else
-              if number = fl4_abi.syscall.SysNBSend
-              then
-                let (r, s4, a3) ←
-                  syscall.handle_invocation machineStoreInst machineArchInst s2
-                    a1 false false false false cptr
-                let (_, s5, a4) ←
-                  syscall.after_invocation machineStoreInst machineArchInst s4
-                    a3 r
-                ok (s5, a4)
-              else
-                if number = fl4_abi.syscall.SysCall
-                then
-                  let (r, s4, a3) ←
-                    syscall.handle_invocation machineStoreInst machineArchInst
-                      s2 a1 true true true false cptr
-                  let (_, s5, a4) ←
-                    syscall.after_invocation machineStoreInst machineArchInst
-                      s4 a3 r
-                  ok (s5, a4)
-                else
-                  if number = fl4_abi.syscall.SysRecv
-                  then
-                    syscall.handle_recv machineStoreInst machineArchInst s2 a1
-                      true true
-                  else
-                    if number = fl4_abi.syscall.SysNBRecv
-                    then
-                      syscall.handle_recv machineStoreInst machineArchInst s2
-                        a1 false true
-                    else
-                      if number = fl4_abi.syscall.SysWait
-                      then
-                        syscall.handle_recv machineStoreInst machineArchInst s2
-                          a1 true false
-                      else
-                        if number = fl4_abi.syscall.SysNBWait
-                        then
-                          syscall.handle_recv machineStoreInst machineArchInst
-                            s2 a1 false false
-                        else
-                          if number = fl4_abi.syscall.SysReplyRecv
-                          then
-                            let (r, s4, a3) ←
-                              syscall.handle_invocation machineStoreInst
-                                machineArchInst s2 a1 false false true true
-                                reply
-                            let (b1, s5, a4) ←
-                              syscall.after_invocation machineStoreInst
-                                machineArchInst s4 a3 r
-                            if b1
-                            then
-                              syscall.handle_recv machineStoreInst
-                                machineArchInst s5 a4 true true
-                            else ok (s5, a4)
-                          else
-                            if number = fl4_abi.syscall.SysNBSendRecv
-                            then
-                              let dest ←
-                                obj.Tcb.reg machineStoreInst t1 s2
-                                  layout.reg.NBSEND_RECV_DEST
-                              let (r, s4, a3) ←
-                                syscall.handle_invocation machineStoreInst
-                                  machineArchInst s2 a1 false false true true
-                                  dest
-                              let (b1, s5, a4) ←
-                                syscall.after_invocation machineStoreInst
-                                  machineArchInst s4 a3 r
-                              if b1
-                              then
-                                syscall.handle_recv machineStoreInst
-                                  machineArchInst s5 a4 true true
-                              else ok (s5, a4)
-                            else
-                              if number = fl4_abi.syscall.SysNBSendWait
-                              then
-                                let (r, s4, a3) ←
-                                  syscall.handle_invocation machineStoreInst
-                                    machineArchInst s2 a1 false false true true
-                                    reply
-                                let (b1, s5, a4) ←
-                                  syscall.after_invocation machineStoreInst
-                                    machineArchInst s4 a3 r
-                                if b1
-                                then
-                                  syscall.handle_recv machineStoreInst
-                                    machineArchInst s5 a4 true false
-                                else ok (s5, a4)
-                              else
-                                if number = fl4_abi.syscall.SysYield
-                                then
-                                  syscall.handle_yield machineStoreInst
-                                    machineArchInst s2 a1
-                                else ok (s2, a1)
+            syscall.dispatch_syscall machineStoreInst machineArchInst s2 a1
+              number
           else ok (s2, a1)
         syscall.finish machineStoreInst machineArchInst s3 a2
 
 /-- [fl4_core::syscall::handle_interrupt_entry]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 486:0-491:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 515:0-520:1
     Visibility: public -/
 def syscall.handle_interrupt_entry
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -39188,7 +31505,7 @@ def syscall.handle_interrupt_entry
   syscall.finish machineStoreInst machineArchInst s3 a3
 
 /-- [fl4_core::syscall::handle_user_exception]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 495:0-501:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 524:0-530:1
     Visibility: public -/
 def syscall.handle_user_exception
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -39217,7 +31534,7 @@ def vspace.vm_fault
   ok (error.Fault.VmFault addr code instruction)
 
 /-- [fl4_core::syscall::handle_vm_fault]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 504:0-511:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 533:0-540:1
     Visibility: public -/
 def syscall.handle_vm_fault
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -39239,7 +31556,7 @@ def syscall.handle_vm_fault
   syscall.finish machineStoreInst machineArchInst s2 a2
 
 /-- [fl4_core::syscall::handle_trap_syscall]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 515:0-522:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 544:0-551:1
     Visibility: public -/
 def syscall.handle_trap_syscall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -39258,7 +31575,7 @@ def syscall.handle_trap_syscall
   syscall.handle_unknown_syscall machineStoreInst machineArchInst s1 a i3
 
 /-- [fl4_core::syscall::handle_debug_exception]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 525:0-534:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 554:0-563:1
     Visibility: public -/
 def syscall.handle_debug_exception
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -39392,6 +31709,29 @@ impl_def tcbqueue.Link.Insts.CoreCmpEq : core.cmp.Eq tcbqueue.Link := {
   partialEqInst := tcbqueue.Link.Insts.CoreCmpPartialEqLink
   assert_fields_are_eq := core.cmp.Eq.assert_fields_are_eq.default
     tcbqueue.Link.Insts.CoreCmpEq
+}
+
+/-- [fl4_core::vspace::{impl core::clone::Clone for fl4_core::vspace::FrameCap}::clone]:
+    Source: 'crates/fl4-core/src/vspace.rs', lines 417:9-417:14
+    Visibility: public -/
+def vspace.FrameCap.Insts.CoreCloneClone.clone
+  (self : vspace.FrameCap) : Result vspace.FrameCap := do
+  ok self
+
+/-- Trait implementation: [fl4_core::vspace::{impl core::clone::Clone for fl4_core::vspace::FrameCap}]
+    Source: 'crates/fl4-core/src/vspace.rs', lines 417:9-417:14 -/
+@[reducible]
+def vspace.FrameCap.Insts.CoreCloneClone : core.clone.Clone vspace.FrameCap
+  := {
+  clone := vspace.FrameCap.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [fl4_core::vspace::{impl core::marker::Copy for fl4_core::vspace::FrameCap}]
+    Source: 'crates/fl4-core/src/vspace.rs', lines 417:16-417:20 -/
+@[reducible]
+def vspace.FrameCap.Insts.CoreMarkerCopy : core.marker.Copy vspace.FrameCap
+  := {
+  cloneInst := vspace.FrameCap.Insts.CoreCloneClone
 }
 
 end fl4_core

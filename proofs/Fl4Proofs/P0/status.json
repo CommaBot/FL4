@@ -1,6 +1,6 @@
 {
- "functions": 841,
- "proved": 796,
+ "functions": 897,
+ "proved": 870,
  "manual": [],
  "loops_automatic": [
   "boot.create_frames_loop",
@@ -37,6 +37,7 @@
   "sched.release_enqueue_loop",
   "sporadic.budget_check_loop1",
   "sporadic.unblock_check_loop",
+  "syscall.nonzero_bytes_loop",
   "tcb.copy_registers_loop0",
   "tcb.copy_registers_loop1",
   "tcb.copy_registers_loop2",
@@ -63,10 +64,8 @@
   "vspace.copy_global_mappings_loop",
   "vspace.decode_loop0",
   "vspace.decode_loop1",
-  "vspace.derive_subframe_loop0",
-  "vspace.derive_subframe_loop0_loop0",
-  "vspace.derive_subframe_loop1",
-  "vspace.derive_subframe_loop1_loop0"
+  "vspace.ensure_empty_run_loop",
+  "vspace.insert_subframes_loop"
  ],
  "sorry": {
   "boot.create_it_address_space_loop0_loop0": [
@@ -89,17 +88,9 @@
    "loop",
    "(do let v1 \u2190 if i2 < \u00abname\u00bb.len then do let i4 \u2190 \u00abname\u00bb.index_usize i2 let i5 \u2190 lift (UScalar.cast UScalarTy.U64 i4) let i6 \u2190 lift (core.num.U64.wrapping_mul x1 8#u64) let i7 \u2190 lift (i6 &&& 63#u64) let i8 \u2190 i5 <<< i7 ok (x0 ||| i8) else ok x0 let k1 \u2190 x1 + 1#u64 ok (ControlFlow.cont (v1, k1))) \u2983 r ="
   ],
-  "boot.take_rootserver_mem": [
-   "fun",
-   ": (kernel) unknown constant 'Fl4Proofs.P0.boot.take_rootserver_mem_loop.p0'"
-  ],
   "boot.take_rootserver_mem_loop": [
    "loop",
-   ": (kernel) unknown constant 'Fl4Proofs.P0.boot.take_rootserver_mem_loop.p0'"
-  ],
-  "capability.Cap.Insts.CoreCmpPartialEqCap.eq": [
-   "fun",
-   ": (kernel) unknown constant 'Fl4Proofs.P0.capability.Cap.Insts.CoreCmpPartialEqCap.eq.p0'"
+   "\u2191i + \u21911#u64 \u2264 U64.max"
   ],
   "cdt.finalise_slot_deferred_loop": [
    "loop",
@@ -109,21 +100,9 @@
    "loop",
    "(let (remainder, cleanup) := x\u271d do let b1 \u2190 cdt.cap_removable remainder slot if b1 = true then ok (ControlFlow.done (core.result.Result.Ok { success := true, cleanup := cleanup }, s1, a1)) else do let s2 \u2190 obj.Slot.set_cap machineStoreInst slot s1 remainder match remainder with | capability.Cap.Null"
   ],
-  "cdt.is_final_capability": [
+  "cnode.decode_rotate": [
    "fun",
-   "(do let prev_same \u2190 ok false if prev_same = true then ok false else do let next \u2190 obj.Slot.next machineStoreInst slot s let b1 \u2190 obj.Slot.is_null next if b1 = true then ok true else do let c \u2190 obj.Slot.cap machineStoreInst next s let b2 \u2190 objects.same_object_as cap c ok (decide \u00acb2 = true)) \u2983 x\u271d => "
-  ],
-  "cdt.is_mdb_parent_of": [
-   "fun",
-   "(do let bb \u2190 ok badge\u271d if badge\u271d\u00b9 = bb then do let b3 \u2190 obj.Slot.first_badged machineStoreInst b s ok (decide \u00acb3 = true) else ok false) \u2983 x\u271d => True \u2984"
-  ],
-  "cnode.decode": [
-   "fun",
-   "(if lbl < fl4_abi.label.CNodeRevoke then do let r \u2190 error.illegal Unit ok (r, s, a) else if lbl > fl4_abi.label.CNodeRotate then do let r \u2190 error.illegal Unit ok (r, s, a) else if length < 2#u64 then do let r \u2190 error.truncated Unit ok (r, s, a) else do let ct \u2190 sched.cur_thread machineStoreInst s le"
-  ],
-  "cspace.lookup_slot_for_cnode_op": [
-   "fun",
-   "(do let b \u2190 ok true if b = true then do let r \u2190 cspace.resolve_address_bits machineStoreInst s (capability.Cap.CNode ptr\u271d radix\u271d guard_size\u271d guard\u271d) cptr depth match r with | core.result.Result.Ok r1 => if (r1.bits_left != 0#u64) = true then ok (core.result.Result.Err (error.Exc.Sys (error.SysError."
+   ": `simp` failed: maximum number of steps exceeded"
   ],
   "endpoint.cancel_all_ipc_loop": [
    "loop",
@@ -132,18 +111,6 @@
   "endpoint.receive_ipc": [
    "fun",
    ": (kernel) unknown constant 'Fl4Proofs.P0.endpoint.receive_ipc.p0'"
-  ],
-  "error.Fault.Insts.CoreCmpPartialEqFault.eq": [
-   "fun",
-   "(have self1 := error.Fault.Null.read_discriminant; have other1 := other.read_discriminant; if self1 = other1 then ok true else ok false) \u2983 x\u271d => True \u2984"
-  ],
-  "error.LookupFault.Insts.CoreCmpPartialEqLookupFault.eq": [
-   "fun",
-   "(have self1 := error.LookupFault.InvalidRoot.read_discriminant; have other1 := other.read_discriminant; if self1 = other1 then ok true else ok false) \u2983 x\u271d => True \u2984"
-  ],
-  "error.SysError.Insts.CoreCmpPartialEqSysError.eq": [
-   "fun",
-   "(have self1 := (error.SysError.InvalidArgument __self_0\u271d\u00b9).read_discriminant; have other1 := (error.SysError.InvalidArgument __self_0\u271d).read_discriminant; if self1 = other1 then lift (core.cmp.impls.PartialEqU64.eq __self_0\u271d\u00b9 __self_0\u271d) else ok false) \u2983 x\u271d => True \u2984"
   ],
   "faults.copy_mrs_fault_loop0": [
    "loop",
@@ -155,23 +122,15 @@
   ],
   "interrupt.decode_irq_control": [
    "fun",
-   "(if lbl = fl4_abi.label.IRQIssueIRQHandler then do let o \u2190 interrupt.extra0 machineStoreInst s extra match o with | none => do let r \u2190 error.truncated Unit ok (r, s, a) | some c => if length \u2265 3#u64 then do let irq \u2190 msg.syscall_arg machineStoreInst s ct buf 0#u64 let index \u2190 msg.syscall_arg machine"
+   "\u2191layout.irq.USER_MIN \u2264 \u2191i"
   ],
   "ioport.decode": [
    "fun",
-   "(if lbl = fl4_abi.label.X86IOPortIn8 then do let is_in \u2190 if lbl = fl4_abi.label.X86IOPortIn8 then ok true else if lbl = fl4_abi.label.X86IOPortIn16 then ok true else if lbl = fl4_abi.label.X86IOPortIn32 then ok true else ok false if is_in = true then if length < 1#u64 then do let r \u2190 error.truncated"
-  ],
-  "objects.same_object_as": [
-   "fun",
-   "(do let b1 \u2190 ok false if b1 = true then ok false else objects.same_region_as capability.Cap.IoPortControl capability.Cap.Null) \u2983 x\u271d => True \u2984"
-  ],
-  "sched.schedule": [
-   "fun",
-   "(do let x \u2190 ok true let (s3, a2) \u2190 if x = true then do let i \u2190 sched.cur_domain machineStoreInst x\u271d\u00b9 let i1 \u2190 obj.Tcb.prio machineStoreInst act x\u271d\u00b9 let b1 \u2190 sched.is_highest_prio machineStoreInst x\u271d\u00b9 i i1 if b1 = true then do let i2 \u2190 obj.Tcb.prio machineStoreInst s3 x\u271d\u00b9 if i1 = i2 then do let s5 \u2190 "
+   "(if True then if length < 1#u64 then do let r \u2190 error.truncated Unit ok (r, s, a) else do let i \u2190 msg.syscall_arg machineStoreInst s ct buf 0#u64 let port \u2190 lift (i &&& 65535#u64) let r \u2190 ioport.allowed first\u271d last\u271d port 1#u64 let cf \u2190 core.result.Result.Insts.CoreOpsTry.branch r match cf with | cor"
   ],
   "schedcontext.yield_to": [
    "fun",
-   "(do let (s3, sc1, ct1, return_now) \u2190 ok (s1, sc, ct, true) if return_now = true then do let s4 \u2190 schedcontext.set_consumed machineStoreInst machineArchInst s3 a1 sc1 ct1 call let s5 \u2190 sched.set_thread_state machineStoreInst s4 ct1 sched.TS_RUNNING ok (s5, a1) else ok (s3, a1)) \u2983 x\u271d => True \u2984"
+   "(do let i \u2190 obj.Sc.yield_from machineStoreInst sc s let b \u2190 obj.Tcb.is_null i let (s1, a1) \u2190 if b = true then ok (s, a) else schedcontext.complete_yield_to machineStoreInst machineArchInst s a i let (s2, a2) \u2190 schedcontext.resume machineStoreInst machineArchInst s1 a1 sc let i1 \u2190 obj.Sc.tcb machineS"
   ],
   "sporadic.budget_check_loop0": [
    "loop",
@@ -181,37 +140,9 @@
    "fun",
    "(do let b \u2190 core.result.Result.is_err r if b = true then do let (s1, a1) \u2190 syscall.mcs_preemption_point machineStoreInst machineArchInst s a let (irq, a2) \u2190 machineArchInst.take_pending_irq a1 let (s2, a3) \u2190 syscall.check_interrupt machineStoreInst machineArchInst s1 a2 irq ok (false, s2, a3) else o"
   ],
-  "syscall.handle_syscall": [
-   "fun",
-   ": Tactic `simp` failed with a nested error:"
-  ],
-  "syscall.handle_unknown_syscall": [
-   "fun",
-   ": Tactic `simp` failed with a nested error:"
-  ],
-  "syscall.name_thread_loop0": [
+  "syscall.name_thread_loop": [
    "loop",
-   "(do let v \u2190 if x2 = true then ok 0#u64 else do let i \u2190 x1 * 8#u64 let i1 \u2190 lift (core.num.U64.wrapping_add src i) machineStoreInst.read x0 i1 if x2 = true then do let v1 \u2190 if x1 = 7#u64 then ok (v &&& 72057594037927935#u64) else ok v let i \u2190 t.name_addr let i1 \u2190 x1 * 8#u64 let i2 \u2190 lift (core.num.U6"
-  ],
-  "syscall.name_thread_loop0_loop0": [
-   "loop",
-   "I32.min \u2264 \u2191x0 * \u21918#i32"
-  ],
-  "syscall.reply_error": [
-   "fun",
-   ": Tactic `simp` failed with a nested error:"
-  ],
-  "tcb.decode": [
-   "fun",
-   "(if lbl = fl4_abi.label.TCBReadRegisters then if c.length < 2#u64 then do let r \u2190 error.truncated Unit ok (r, s1, a1) else do let flags \u2190 tcb.arg machineStoreInst s1 c 0#u64 let n \u2190 tcb.arg machineStoreInst s1 c 1#u64 if n < 1#u64 then do let i \u2190 tcb.N_FRAME + tcb.N_GP let r \u2190 error.range Unit 1#u64"
-  ],
-  "tcb.derive_roots": [
-   "fun",
-   ": (kernel) unknown constant 'Fl4Proofs.P0.tcb.derive_roots.p0'"
-  ],
-  "tcb.thread_control_caps": [
-   "fun",
-   ": (kernel) unknown constant 'Fl4Proofs.P0.tcb.thread_control_caps.p0'"
+   "(do let v \u2190 if x2 = true then ok 0#u64 else do let i \u2190 x1 * 8#u64 let i1 \u2190 lift (core.num.U64.wrapping_add src i) machineStoreInst.read x0 i1 let (done2, v1) \u2190 if x2 = true then ok (x2, v) else do let n \u2190 syscall.nonzero_bytes v if n < 8#u64 then do let i \u2190 if n = 0#u64 then ok 0#u64 else do let i1 "
   ],
   "timer.fire_loop": [
    "loop",
@@ -225,29 +156,25 @@
    "loop",
    "obj.Tcb.Insts.CoreCmpPartialEqTcb.eq x1 t \u2983 b => b = true \u2194 x1 = t \u2984"
   ],
-  "untyped.decode": [
+  "untyped.reset_untyped": [
    "fun",
-   "(if (lbl != fl4_abi.label.UntypedRetype) = true then do let r \u2190 error.illegal Unit ok (r, s, a) else if length < 6#u64 then do let r \u2190 error.truncated Unit ok (r, s, a) else do let s1 \u2190 extra.index_usize 0#usize let b \u2190 s1.is_null if b = true then do let r \u2190 error.truncated Unit ok (r, s, a) else do"
+   "(do let c \u2190 obj.Slot.cap machineStoreInst slot s match c with | capability.Cap.Null => ok (core.result.Result.Ok (), s, a) | capability.Cap.Untyped ptr size_bits free_index is_device => if free_index = 0#u64 then ok (core.result.Result.Ok (), s, a) else if is_device = true then do let s1 \u2190 if is_dev"
   ],
   "untyped.reset_untyped_loop": [
    "loop",
-   "(do let offset1 \u2190 lift (core.num.U64.saturating_sub x2 chunk) ok (ControlFlow.cont (s3, a1, offset1))) \u2983 r => match r with | ControlFlow.done y => True | ControlFlow.cont x' => \u2191x'.2.2 < \u2191x2 \u2984"
+   "(do let offset1 \u2190 lift (core.num.U64.saturating_sub x2 i) ok (ControlFlow.cont (s3, a1, offset1))) \u2983 r => match r with | ControlFlow.done y => True | ControlFlow.cont x' => \u2191x'.2.2 < \u2191x2 \u2984"
   ],
-  "vspace.decode_frame": [
+  "vspace.decode_page_map": [
    "fun",
-   ": Tactic `simp` failed with a nested error:"
+   "(let (root, asid) := x1 if f.mapped = true then if (f.asid != 0#u64) = true then if (f.asid != asid) = true then do let r \u2190 error.invalid_cap Unit 1#u64 ok (r, s, a) else if (f.vaddr != vaddr) = true then do let r \u2190 error.invalid_arg Unit 0#u64 ok (r, s, a) else do let r \u2190 vspace.check_vspace machin"
   ],
   "vspace.decode_table": [
    "fun",
-   ": Tactic `simp` failed with a nested error:"
+   "(let (map_lbl, unmap_lbl, level, ptr, mapped, masid, mvaddr) := x if lbl = unmap_lbl then vspace.decode_table_unmap machineStoreInst machineArchInst s a slot cap level ptr mapped masid mvaddr else if lbl = map_lbl then if mapped = true then do let o1 \u2190 vspace.extra ex 0#usize if o1.isNone = true the"
   ],
   "vspace.delete_asid_pool_loop": [
    "loop",
-   "(do let a1 \u2190 if (i3 != 0#u64) = true then do let i4 \u2190 base + x1 machineArchInst.invalidate_asid x0 i4 else ok x0 let i4 \u2190 x1 + 1#u64 ok (ControlFlow.cont (a1, i4))) \u2983 r => match r with | ControlFlow.done y => True | ControlFlow.cont x' => \u2191x'.2 < \u2191x1 \u2984"
-  ],
-  "vspace.derive_subframe": [
-   "fun",
-   "(if length \u2265 6#u64 then match cap with | capability.Cap.Null => do let r \u2190 error.illegal Unit ok (r, s, a) | capability.Cap.Untyped a_1 a_2 a_3 a_4 => do let r \u2190 error.illegal Unit ok (r, s, a) | capability.Cap.Endpoint a_1 a_2 a_3 a_4 a_5 a_6 => do let r \u2190 error.illegal Unit ok (r, s, a) | capabili"
+   "(do let a1 \u2190 if (i3 != 0#u64) = true then do let i4 \u2190 lift (core.num.U64.wrapping_add base x1) machineArchInst.invalidate_asid x0 i4 else ok x0 let i4 \u2190 x1 + 1#u64 ok (ControlFlow.cont (a1, i4))) \u2983 r => match r with | ControlFlow.done y => True | ControlFlow.cont x' => \u2191x'.2 < \u2191x1 \u2984"
   ]
  }
 }

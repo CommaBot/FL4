@@ -2,7 +2,7 @@
 //! and reschedule IPIs. A remote call is made with the serial gate held;
 //! targets service it in their interrupt handler or while spinning on the
 //! gate (fl4-kernel), and the caller waits for every acknowledgement.
-use crate::{apic, cpu, percpu};
+use crate::{apic, percpu};
 use core::sync::atomic::{AtomicU64, Ordering};
 use fl4_core::layout::irq;
 
@@ -90,20 +90,11 @@ pub fn service(stall: impl FnOnce()) -> bool {
     let kind = CALL.kind.load(Ordering::Relaxed);
     let a0 = CALL.arg0.load(Ordering::Relaxed);
     let a1 = CALL.arg1.load(Ordering::Relaxed);
-    let pc = percpu::get();
     let stalled = kind == CALL_STALL;
     match kind {
         CALL_STALL => stall(),
-        CALL_INVLPG => {
-            if pc.asid == a0 {
-                cpu::invlpg(a1);
-            }
-        }
-        CALL_FLUSH_TLB => {
-            if pc.asid == a0 {
-                cpu::write_cr3(cpu::read_cr3());
-            }
-        }
+        CALL_INVLPG => crate::tlb::remote_invalidate_page(a0, a1),
+        CALL_FLUSH_TLB => crate::tlb::remote_invalidate_asid(a0),
         CALL_FPU_SAVE => crate::fpu::flush_local(a0),
         CALL_FPU_DROP => crate::fpu::forget_local(a0),
         _ => {}
@@ -123,14 +114,3 @@ pub fn reschedule(mask: u64) {
     }
 }
 
-/// Cores other than this one whose current address space is `asid`.
-pub fn cores_on_asid(asid: u64) -> u64 {
-    let me = percpu::cpu_index();
-    let mut m = 0;
-    for c in 0..percpu::MAX_CPUS {
-        if c != me && online_mask() & (1 << c) != 0 && unsafe { core::ptr::read_volatile(&percpu::get_for(c).asid) } == asid {
-            m |= 1 << c;
-        }
-    }
-    m
-}

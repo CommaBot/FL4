@@ -36,7 +36,33 @@ pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: u64, sl
     let node_depth = msg::syscall_arg(s, ct, buf, 3);
     let node_offset = msg::syscall_arg(s, ct, buf, 4);
     let node_window = msg::syscall_arg(s, ct, buf, 5);
-    let root_slot = extra[0];
+    let obj_size = retype_size(new_type, user_size)?;
+    let dest = retype_dest(s, extra[0], node_index, node_depth, node_offset, node_window)?;
+    ensure_empty_slots(s, dest, node_offset, node_offset.wrapping_add(node_window))?;
+    let (ptr, block, free_index, device) = match as_untyped(cap) {
+        Some(x) => x,
+        None => return illegal(),
+    };
+    let (free_index, reset) = match cdt::ensure_no_children(s, slot) {
+        Err(_) => (free_index, false),
+        Ok(()) => (0, true),
+    };
+    let free_ref = ptr.wrapping_add(free_index);
+    let free_bytes = (1u64 << (block & 63)).wrapping_sub(free_index);
+    if (free_bytes >> (obj_size & 63)) < node_window || obj_size >= 64 {
+        return Err(Exc::Sys(SysError::NotEnoughMemory { bytes: free_bytes }));
+    }
+    if device && !objects::is_frame_type(new_type) && new_type != ot::Untyped {
+        return invalid_arg(1);
+    }
+    let aligned = align_up(free_ref, obj_size);
+    sched::set_thread_state(s, ct, sched::TS_RESTART);
+    retype(s, a, slot, reset, aligned, new_type, user_size, dest, node_offset, node_window, device)
+}
+
+/// The size in bits of each new object, with seL4's checks on the type
+/// and size arguments.
+fn retype_size(new_type: u64, user_size: u64) -> KResult<u64> {
     if new_type >= ot::Count {
         return invalid_arg(0);
     }
@@ -56,15 +82,20 @@ pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: u64, sl
     if new_type == ot::SchedContext && user_size < bits::MIN_SCHED_CONTEXT {
         return invalid_arg(1);
     }
+    Ok(obj_size)
+}
+
+/// The CNode the new caps go in, checked to have room for the window.
+fn retype_dest<S: Store>(s: &S, root_slot: Slot, node_index: u64, node_depth: u64, node_offset: u64, node_window: u64) -> KResult<u64> {
     let node_cap = if node_depth == 0 {
         root_slot.cap(s)
     } else {
         let root = root_slot.cap(s);
         cspace::lookup_target_slot(s, root, node_index, node_depth)?.cap(s)
     };
-    let (dest, radix) = match node_cap {
-        Cap::CNode { ptr, radix, .. } => (ptr, radix),
-        _ => {
+    let (dest, radix) = match cnode_of(node_cap) {
+        Some(x) => x,
+        None => {
             return Err(Exc::Sys(SysError::FailedLookup {
                 source: false,
                 lf: LookupFault::MissingCapability { bits_left: node_depth },
@@ -72,35 +103,31 @@ pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: u64, sl
         }
     };
     let node_size = 1u64 << (radix & 63);
-    if node_offset > node_size - 1 {
-        return range(0, node_size - 1);
+    if node_offset > node_size.wrapping_sub(1) {
+        return range(0, node_size.wrapping_sub(1));
     }
     if node_window < 1 || node_window > RETYPE_FAN_OUT_LIMIT {
         return range(1, RETYPE_FAN_OUT_LIMIT);
     }
-    if node_window > node_size - node_offset {
-        return range(1, node_size - node_offset);
+    if node_window > node_size.wrapping_sub(node_offset) {
+        return range(1, node_size.wrapping_sub(node_offset));
     }
-    ensure_empty_slots(s, dest, node_offset, node_offset + node_window)?;
-    let (ptr, block, free_index, device) = match cap {
-        Cap::Untyped { ptr, size_bits, free_index, is_device } => (ptr, size_bits, free_index, is_device),
-        _ => return illegal(),
-    };
-    let (free_index, reset) = match cdt::ensure_no_children(s, slot) {
-        Err(_) => (free_index, false),
-        Ok(()) => (0, true),
-    };
-    let free_ref = ptr.wrapping_add(free_index);
-    let free_bytes = (1u64 << (block & 63)).wrapping_sub(free_index);
-    if (free_bytes >> (obj_size & 63)) < node_window || obj_size >= 64 {
-        return Err(Exc::Sys(SysError::NotEnoughMemory { bytes: free_bytes }));
+    Ok(dest)
+}
+
+fn cnode_of(c: Cap) -> Option<(u64, u64)> {
+    match c {
+        Cap::CNode { ptr, radix, .. } => Some((ptr, radix)),
+        _ => None,
     }
-    if device && !objects::is_frame_type(new_type) && new_type != ot::Untyped {
-        return invalid_arg(1);
+}
+
+/// An untyped cap's address, size, free index and device flag.
+fn as_untyped(c: Cap) -> Option<(u64, u64, u64, bool)> {
+    match c {
+        Cap::Untyped { ptr, size_bits, free_index, is_device } => Some((ptr, size_bits, free_index, is_device)),
+        _ => None,
     }
-    let aligned = align_up(free_ref, obj_size);
-    sched::set_thread_state(s, ct, sched::TS_RESTART);
-    retype(s, a, slot, reset, aligned, new_type, user_size, dest, node_offset, node_window, device)
 }
 
 /// Every slot of `cnode` in [from, to) is empty. (The loop has no early
@@ -116,6 +143,9 @@ fn ensure_empty_slots<S: Store>(s: &S, cnode: u64, from: u64, to: u64) -> KResul
 }
 
 /// seL4 `resetUntypedCap`: clear the used part, top down, in chunks.
+/// Bytes cleared between preemption points.
+const RESET_CHUNK: u64 = 1 << RESET_CHUNK_BITS;
+
 fn reset_untyped<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot) -> KResult<()> {
     let (ptr, block, free_index, device) = match slot.cap(s) {
         Cap::Untyped { ptr, size_bits, free_index, is_device } => (ptr, size_bits, free_index, is_device),
@@ -131,17 +161,16 @@ fn reset_untyped<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot) -> KResult
         slot.set_cap(s, Cap::Untyped { ptr, size_bits: block, free_index: 0, is_device: device });
         return Ok(());
     }
-    let chunk = 1u64 << RESET_CHUNK_BITS;
-    let mut offset = (free_index - 1) & !(chunk - 1);
+    let mut offset = (free_index - 1) & !(RESET_CHUNK - 1);
     loop {
-        s.zero(ptr.wrapping_add(offset), chunk);
+        s.zero(ptr.wrapping_add(offset), RESET_CHUNK);
         slot.set_cap(s, Cap::Untyped { ptr, size_bits: block, free_index: offset, is_device: device });
         if offset == 0 {
             return Ok(());
         }
         sched::preemption_point(s, a)?;
-        // `offset` is a nonzero multiple of `chunk` here.
-        offset = offset.saturating_sub(chunk);
+        // `offset` is a nonzero multiple of the chunk here.
+        offset = offset.saturating_sub(RESET_CHUNK);
     }
 }
 

@@ -1,0 +1,27 @@
+# FL4's trusted base (DESIGN.md §9): what the proofs assume rather than
+# prove. `cargo xtask trusted` checks that every path exists and reports the
+# size of each entry; CI prints the report, so growth shows in review.
+#
+# Lines are `<group>: <path>`; a directory counts all its source files.
+# Tools (Rust, LLVM, the linker, Charon, Aeneas, Lean) and the processor's
+# memory model are trusted too but are not in this repository.
+
+# Boot and entry: assembly and the glue around it.
+entry: crates/fl4-kernel/src
+
+# Hardware backends.
+hardware: crates/fl4-arch-x86_64/src
+hardware: crates/fl4-arch-aarch64/src
+
+# The transaction runtime (tested by fl4-sim, modelled in P2).
+runtime: crates/fl4-store/src
+runtime: crates/fl4-sync/src
+
+# The interface between the verified core and the trusted world: what P0
+# assumes the Store and Arch implementations do.
+interface: crates/fl4-core/src/machine.rs
+interface: proofs/Fl4Proofs/P0/Totality.lean
+interface: proofs/Fl4Core/FunsExternal.lean
+
+# The abstract runtime model P2 is proved about.
+model: proofs/Fl4Proofs/P2/Runtime.lean

@@ -317,7 +317,7 @@ pub fn delete_asid_pool<S: Store, A: Arch>(s: &mut S, a: &mut A, base: u64, pool
     let mut i = 0;
     while i < 512 {
         if s.read(pool.wrapping_add(i * 8)) != 0 {
-            a.invalidate_asid(base + i);
+            a.invalidate_asid(base.wrapping_add(i));
         }
         i += 1;
     }
@@ -413,6 +413,25 @@ fn write_mapping<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: u64, e: u64, asi
     a.invalidate_asid(asid);
 }
 
+/// A frame cap's fields.
+#[derive(Clone, Copy)]
+struct FrameCap {
+    ptr: u64,
+    size: FrameSize,
+    rights: u64,
+    is_device: bool,
+    mapped: bool,
+    asid: u64,
+    vaddr: u64,
+}
+
+fn as_frame(c: Cap) -> Option<FrameCap> {
+    match c {
+        Cap::Frame { ptr, size, rights, is_device, mapped, asid, vaddr } => Some(FrameCap { ptr, size, rights, is_device, mapped, asid, vaddr }),
+        _ => None,
+    }
+}
+
 fn decode_frame<S: Store, A: Arch>(
     s: &mut S,
     a: &mut A,
@@ -424,137 +443,154 @@ fn decode_frame<S: Store, A: Arch>(
     buf: u64,
     ex: &[Slot; 3],
 ) -> KResult<()> {
-    let ct = sched::cur_thread(s);
-    let (ptr, size, rights, is_device, mapped, mapped_asid, mapped_vaddr) = match cap {
-        Cap::Frame { ptr, size, rights, is_device, mapped, asid, vaddr } => (ptr, size, rights, is_device, mapped, asid, vaddr),
-        _ => return illegal(),
+    let f = match as_frame(cap) {
+        Some(f) => f,
+        None => return illegal(),
     };
     if lbl == label::X86PageMap {
-        let vslot = match extra(ex, 0) {
-            Some(x) if length >= 3 => x,
-            _ => return truncated(),
-        };
-        let vaddr = msg::syscall_arg(s, ct, buf, 0);
-        let rights_mask = msg::syscall_arg(s, ct, buf, 1);
-        let raw_attr = msg::syscall_arg(s, ct, buf, 2);
-        let defer = raw_attr & vm_attr::DEFER_FLUSH != 0;
-        let attr = raw_attr & !vm_attr::DEFER_FLUSH;
-        let vcap = vslot.cap(s);
-        let (root, asid) = match vcap {
-            Cap::Pml4 { ptr, mapped: true, asid } => (ptr, asid),
-            _ => return invalid_cap(1),
-        };
-        if mapped && mapped_asid != 0 {
-            if mapped_asid != asid {
-                return invalid_cap(1);
-            }
-            if mapped_vaddr != vaddr {
-                return invalid_arg(0);
-            }
-        } else {
-            let vtop = vaddr.wrapping_add(1u64 << (size.bits() & 63));
-            if vaddr > USER_TOP || vtop > USER_TOP {
-                return invalid_arg(0);
-            }
-        }
-        check_vspace(s, vcap)?;
-        let vm = mask_vm_rights(rights, Rights::from_word(rights_mask));
-        if vaddr & (1u64 << (size.bits() & 63)).wrapping_sub(1) != 0 {
-            return Err(Exc::Sys(SysError::AlignmentError));
-        }
-        let paddr = layout::paddr(ptr);
-        let new_cap = Cap::Frame { ptr, size, rights, is_device, mapped: true, asid, vaddr };
-        match size {
-            FrameSize::Small => {
-                let pt_slot = match lookup_pt_slot(s, root, vaddr) {
-                    Ok(x) => x,
-                    Err(lf) => return failed_lookup(lf),
-                };
-                let e = make_user_page(s, paddr, attr, vm, false);
-                sched::set_thread_state(s, ct, sched::TS_RESTART);
-                slot.set_cap(s, new_cap);
-                write_mapping(s, a, pt_slot, e, asid, vaddr, defer);
-            }
-            FrameSize::Large => {
-                let pd_slot = match lookup_pd_slot(s, root, vaddr) {
-                    Ok(x) => x,
-                    Err(lf) => return failed_lookup(lf),
-                };
-                let old = s.read(pd_slot);
-                if old & P_PRESENT != 0 && old & P_PS == 0 {
-                    return Err(Exc::Sys(SysError::DeleteFirst));
-                }
-                let e = make_user_page(s, paddr, attr, vm, true);
-                sched::set_thread_state(s, ct, sched::TS_RESTART);
-                slot.set_cap(s, new_cap);
-                write_mapping(s, a, pd_slot, e, asid, vaddr, defer);
-            }
-            FrameSize::Huge => {
-                let pdpt_slot = match lookup_pdpt_slot(s, root, vaddr) {
-                    Ok(x) => x,
-                    Err(lf) => return failed_lookup(lf),
-                };
-                let old = s.read(pdpt_slot);
-                if old & P_PRESENT != 0 && old & P_PS == 0 {
-                    return Err(Exc::Sys(SysError::DeleteFirst));
-                }
-                let e = make_user_page(s, paddr, attr, vm, true);
-                sched::set_thread_state(s, ct, sched::TS_RESTART);
-                slot.set_cap(s, new_cap);
-                write_mapping(s, a, pdpt_slot, e, asid, vaddr, defer);
-            }
-        }
-        Ok(())
+        decode_page_map(s, a, length, slot, f, buf, ex)
     } else if lbl == label::X86PageUnmap {
+        let ct = sched::cur_thread(s);
         sched::set_thread_state(s, ct, sched::TS_RESTART);
-        if mapped && mapped_asid != 0 {
-            unmap_page(s, a, size, mapped_asid, mapped_vaddr, ptr);
+        if f.mapped && f.asid != 0 {
+            unmap_page(s, a, f.size, f.asid, f.vaddr, f.ptr);
         }
-        slot.set_cap(s, Cap::Frame { ptr, size, rights, is_device, mapped: false, asid: 0, vaddr: 0 });
+        slot.set_cap(s, Cap::Frame { ptr: f.ptr, size: f.size, rights: f.rights, is_device: f.is_device, mapped: false, asid: 0, vaddr: 0 });
         Ok(())
     } else if lbl == label::X86PageGetAddress {
+        let ct = sched::cur_thread(s);
         sched::set_thread_state(s, ct, sched::TS_RESTART);
-        reply1(s, ct, call, layout::paddr(ptr));
+        reply1(s, ct, call, layout::paddr(f.ptr));
         Ok(())
     } else if lbl == label::X86PageTestAndClearAccessed {
-        if !matches!(size, FrameSize::Small | FrameSize::Large) || !mapped || mapped_asid == 0 {
-            return illegal();
-        }
-        let root = match find_vspace_for_asid(s, mapped_asid) {
-            Ok(r) => r,
-            Err(_) => return invalid_cap(0),
-        };
-        let pa = layout::paddr(ptr);
-        let e_addr = match size {
-            FrameSize::Large => match lookup_pd_slot(s, root, mapped_vaddr) {
-                Ok(x) => {
-                    let e = s.read(x);
-                    if e & P_PRESENT == 0 || e & P_PS == 0 || e & ADDR_MASK != pa {
-                        return invalid_cap(0);
-                    }
-                    x
-                }
-                Err(_) => return invalid_cap(0),
-            },
-            _ => match lookup_pt_slot(s, root, mapped_vaddr) {
-                Ok(x) => {
-                    let e = s.read(x);
-                    if e & P_PRESENT == 0 || e & ADDR_MASK != pa {
-                        return invalid_cap(0);
-                    }
-                    x
-                }
-                Err(_) => return invalid_cap(0),
-            },
-        };
-        let old = s.read(e_addr);
-        s.write(e_addr, old & !P_ACCESSED);
-        reply1(s, ct, call, if old & P_ACCESSED != 0 { 1 } else { 0 });
-        Ok(())
+        decode_test_and_clear_accessed(s, f, call)
     } else if lbl == label::X86PageDeriveSubframe {
         derive_subframe(s, a, length, slot, cap, buf, ex)
     } else {
         illegal()
+    }
+}
+
+/// The mapped PML4 a map invocation names, and its ASID.
+fn mapped_root(c: Cap) -> Option<(u64, u64)> {
+    match c {
+        Cap::Pml4 { ptr, mapped: true, asid } => Some((ptr, asid)),
+        _ => None,
+    }
+}
+
+fn decode_page_map<S: Store, A: Arch>(s: &mut S, a: &mut A, length: u64, slot: Slot, f: FrameCap, buf: u64, ex: &[Slot; 3]) -> KResult<()> {
+    let ct = sched::cur_thread(s);
+    let vslot = match extra(ex, 0) {
+        Some(x) if length >= 3 => x,
+        _ => return truncated(),
+    };
+    let vaddr = msg::syscall_arg(s, ct, buf, 0);
+    let rights_mask = msg::syscall_arg(s, ct, buf, 1);
+    let raw_attr = msg::syscall_arg(s, ct, buf, 2);
+    let defer = raw_attr & vm_attr::DEFER_FLUSH != 0;
+    let attr = raw_attr & !vm_attr::DEFER_FLUSH;
+    let vcap = vslot.cap(s);
+    let (root, asid) = match mapped_root(vcap) {
+        Some(x) => x,
+        None => return invalid_cap(1),
+    };
+    if f.mapped && f.asid != 0 {
+        if f.asid != asid {
+            return invalid_cap(1);
+        }
+        if f.vaddr != vaddr {
+            return invalid_arg(0);
+        }
+    } else {
+        let vtop = vaddr.wrapping_add(1u64 << (f.size.bits() & 63));
+        if vaddr > USER_TOP || vtop > USER_TOP {
+            return invalid_arg(0);
+        }
+    }
+    check_vspace(s, vcap)?;
+    let vm = mask_vm_rights(f.rights, Rights::from_word(rights_mask));
+    if vaddr & (1u64 << (f.size.bits() & 63)).wrapping_sub(1) != 0 {
+        return Err(Exc::Sys(SysError::AlignmentError));
+    }
+    let large = !matches!(f.size, FrameSize::Small);
+    let e_addr = page_entry_slot(s, root, vaddr, f.size)?;
+    let e = make_user_page(s, layout::paddr(f.ptr), attr, vm, large);
+    sched::set_thread_state(s, ct, sched::TS_RESTART);
+    slot.set_cap(s, Cap::Frame { ptr: f.ptr, size: f.size, rights: f.rights, is_device: f.is_device, mapped: true, asid, vaddr });
+    write_mapping(s, a, e_addr, e, asid, vaddr, defer);
+    Ok(())
+}
+
+/// The entry that maps a frame of `size` at `vaddr`. A large or huge
+/// frame cannot replace a table there.
+fn page_entry_slot<S: Store>(s: &S, root: u64, vaddr: u64, size: FrameSize) -> KResult<u64> {
+    let r = match size {
+        FrameSize::Small => lookup_pt_slot(s, root, vaddr),
+        FrameSize::Large => lookup_pd_slot(s, root, vaddr),
+        FrameSize::Huge => lookup_pdpt_slot(s, root, vaddr),
+    };
+    let e_addr = match r {
+        Ok(x) => x,
+        Err(lf) => return failed_lookup(lf),
+    };
+    if !matches!(size, FrameSize::Small) {
+        let old = s.read(e_addr);
+        if old & P_PRESENT != 0 && old & P_PS == 0 {
+            return Err(Exc::Sys(SysError::DeleteFirst));
+        }
+    }
+    Ok(e_addr)
+}
+
+/// The entry mapping the frame `f` (small or large), if it still does.
+fn mapped_entry<S: Store>(s: &S, f: FrameCap, root: u64) -> Option<u64> {
+    let pa = layout::paddr(f.ptr);
+    let large = matches!(f.size, FrameSize::Large);
+    let r = if large { lookup_pd_slot(s, root, f.vaddr) } else { lookup_pt_slot(s, root, f.vaddr) };
+    let x = match r {
+        Ok(x) => x,
+        Err(_) => return None,
+    };
+    let e = s.read(x);
+    if e & P_PRESENT == 0 || (large && e & P_PS == 0) || e & ADDR_MASK != pa {
+        return None;
+    }
+    Some(x)
+}
+
+fn decode_test_and_clear_accessed<S: Store>(s: &mut S, f: FrameCap, call: bool) -> KResult<()> {
+    if matches!(f.size, FrameSize::Huge) || !f.mapped || f.asid == 0 {
+        return illegal();
+    }
+    let root = match find_vspace_for_asid(s, f.asid) {
+        Ok(r) => r,
+        Err(_) => return invalid_cap(0),
+    };
+    let e_addr = match mapped_entry(s, f, root) {
+        Some(x) => x,
+        None => return invalid_cap(0),
+    };
+    let ct = sched::cur_thread(s);
+    let old = s.read(e_addr);
+    s.write(e_addr, old & !P_ACCESSED);
+    reply1(s, ct, call, if old & P_ACCESSED != 0 { 1 } else { 0 });
+    Ok(())
+}
+
+/// A RAM-backed 2 MiB frame's address and rights.
+fn large_ram_frame(c: Cap) -> Option<(u64, u64)> {
+    match c {
+        Cap::Frame { ptr, size: FrameSize::Large, rights, is_device: false, .. } => Some((ptr, rights)),
+        _ => None,
+    }
+}
+
+/// A CNode cap's object and radix.
+fn cnode_of(c: Cap) -> Option<(u64, u64)> {
+    match c {
+        Cap::CNode { ptr, radix, .. } => Some((ptr, radix)),
+        _ => None,
     }
 }
 
@@ -566,9 +602,9 @@ fn derive_subframe<S: Store, A: Arch>(s: &mut S, a: &mut A, length: u64, src: Sl
         Some(x) if length >= 6 => x,
         _ => return truncated(),
     };
-    let (ptr, rights) = match cap {
-        Cap::Frame { ptr, size: FrameSize::Large, rights, is_device: false, .. } => (ptr, rights),
-        _ => return illegal(),
+    let (ptr, rights) = match large_ram_frame(cap) {
+        Some(x) => x,
+        None => return illegal(),
     };
     let node_index = msg::syscall_arg(s, ct, buf, 0);
     let node_depth = msg::syscall_arg(s, ct, buf, 1);
@@ -582,30 +618,46 @@ fn derive_subframe<S: Store, A: Arch>(s: &mut S, a: &mut A, length: u64, src: Sl
     if count < 1 || count > max {
         return range(1, max);
     }
+    let dest = subframe_dest(s, node_slot, node_index, node_depth, node_offset, count)?;
+    ensure_empty_run(s, dest, node_offset, count)?;
+    let mask = msg::syscall_arg(s, ct, buf, 5);
+    let vm = mask_vm_rights(rights, Rights::from_word(mask));
+    sched::set_thread_state(s, ct, sched::TS_RESTART);
+    insert_subframes(s, src, dest, node_offset, ptr.wrapping_add(offset), count, vm);
+    Ok(())
+}
+
+/// The CNode the subframe caps go in, checked to have room for `count`
+/// slots from `node_offset`.
+fn subframe_dest<S: Store>(s: &S, node_slot: Slot, node_index: u64, node_depth: u64, node_offset: u64, count: u64) -> KResult<u64> {
     let mut node_cap = node_slot.cap(s);
     if node_depth != 0 {
         node_cap = cspace::lookup_target_slot(s, node_cap, node_index, node_depth)?.cap(s);
     }
-    let (dest, radix) = match node_cap {
-        Cap::CNode { ptr, radix, .. } => (ptr, radix),
-        _ => return failed_lookup(LookupFault::MissingCapability { bits_left: node_depth }),
+    let (dest, radix) = match cnode_of(node_cap) {
+        Some(x) => x,
+        None => return failed_lookup(LookupFault::MissingCapability { bits_left: node_depth }),
     };
     let node_size = 1u64 << (radix & 63);
-    if node_offset > node_size - 1 {
-        return range(0, node_size - 1);
+    if node_offset > node_size.wrapping_sub(1) {
+        return range(0, node_size.wrapping_sub(1));
     }
-    if count > node_size - node_offset {
-        return range(1, node_size - node_offset);
+    if count > node_size.wrapping_sub(node_offset) {
+        return range(1, node_size.wrapping_sub(node_offset));
     }
+    Ok(dest)
+}
+
+fn ensure_empty_run<S: Store>(s: &S, dest: u64, first: u64, count: u64) -> KResult<()> {
     let mut i = 0;
     while i < count {
-        cdt::ensure_empty_slot(s, Slot::index(dest, node_offset.wrapping_add(i)))?;
+        cdt::ensure_empty_slot(s, Slot::index(dest, first.wrapping_add(i)))?;
         i += 1;
     }
-    let mask = msg::syscall_arg(s, ct, buf, 5);
-    let vm = mask_vm_rights(rights, Rights::from_word(mask));
-    sched::set_thread_state(s, ct, sched::TS_RESTART);
-    let base = ptr.wrapping_add(offset);
+    Ok(())
+}
+
+fn insert_subframes<S: Store>(s: &mut S, src: Slot, dest: u64, first: u64, base: u64, count: u64, vm: u64) {
     let mut i = 0;
     while i < count {
         let c = Cap::Frame {
@@ -617,14 +669,23 @@ fn derive_subframe<S: Store, A: Arch>(s: &mut S, a: &mut A, length: u64, src: Sl
             asid: 0,
             vaddr: 0,
         };
-        cdt::insert(s, c, src, Slot::index(dest, node_offset.wrapping_add(i)));
+        cdt::insert(s, c, src, Slot::index(dest, first.wrapping_add(i)));
         i += 1;
     }
-    Ok(())
 }
 
-/// Shared shape of PT, PD and PDPT map/unmap. `level` is the shift of the
-/// region the table covers (21, 30 or 39).
+/// A page table, page directory or PDPT cap: its map and unmap labels,
+/// the shift of the region it covers (21, 30 or 39), and its fields.
+fn as_table(c: Cap) -> Option<(u64, u64, u64, u64, bool, u64, u64)> {
+    match c {
+        Cap::PageTable { ptr, mapped, asid, vaddr } => Some((label::X86PageTableMap, label::X86PageTableUnmap, 21u64, ptr, mapped, asid, vaddr)),
+        Cap::PageDirectory { ptr, mapped, asid, vaddr } => Some((label::X86PageDirectoryMap, label::X86PageDirectoryUnmap, 30u64, ptr, mapped, asid, vaddr)),
+        Cap::Pdpt { ptr, mapped, asid, vaddr } => Some((label::X86PDPTMap, label::X86PDPTUnmap, 39u64, ptr, mapped, asid, vaddr)),
+        _ => None,
+    }
+}
+
+/// Shared shape of PT, PD and PDPT map/unmap.
 fn decode_table<S: Store, A: Arch>(
     s: &mut S,
     a: &mut A,
@@ -635,44 +696,69 @@ fn decode_table<S: Store, A: Arch>(
     buf: u64,
     ex: &[Slot; 3],
 ) -> KResult<()> {
-    let ct = sched::cur_thread(s);
-    let (map_lbl, unmap_lbl, level, ptr, mapped, masid, mvaddr) = match cap {
-        Cap::PageTable { ptr, mapped, asid, vaddr } => (label::X86PageTableMap, label::X86PageTableUnmap, 21u64, ptr, mapped, asid, vaddr),
-        Cap::PageDirectory { ptr, mapped, asid, vaddr } => {
-            (label::X86PageDirectoryMap, label::X86PageDirectoryUnmap, 30u64, ptr, mapped, asid, vaddr)
-        }
-        Cap::Pdpt { ptr, mapped, asid, vaddr } => (label::X86PDPTMap, label::X86PDPTUnmap, 39u64, ptr, mapped, asid, vaddr),
-        _ => return illegal(),
+    let (map_lbl, unmap_lbl, level, ptr, mapped, masid, mvaddr) = match as_table(cap) {
+        Some(x) => x,
+        None => return illegal(),
     };
     if lbl == unmap_lbl {
-        if !cdt::is_final_capability(s, slot) {
-            return Err(Exc::Sys(SysError::RevokeFirst));
-        }
-        sched::set_thread_state(s, ct, sched::TS_RESTART);
+        decode_table_unmap(s, a, slot, cap, level, ptr, mapped, masid, mvaddr)
+    } else if lbl == map_lbl {
         if mapped {
-            if level == 21 {
-                unmap_page_table(s, a, masid, mvaddr, ptr);
-            } else if level == 30 {
-                unmap_page_directory(s, a, masid, mvaddr, ptr);
-            } else {
-                unmap_pdpt(s, a, masid, mvaddr, ptr);
+            if extra(ex, 0).is_none() || length < 2 {
+                return truncated();
             }
-            s.zero(ptr, 4096);
+            return invalid_cap(0);
         }
-        slot.set_cap(s, with_mapping(cap, false, masid, mvaddr));
-        return Ok(());
+        decode_table_map(s, a, length, slot, cap, level, ptr, buf, ex)
+    } else {
+        illegal()
     }
-    if lbl != map_lbl {
-        return illegal();
+}
+
+#[allow(clippy::too_many_arguments)]
+fn decode_table_unmap<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot, cap: Cap, level: u64, ptr: u64, mapped: bool, masid: u64, mvaddr: u64) -> KResult<()> {
+    if !cdt::is_final_capability(s, slot) {
+        return Err(Exc::Sys(SysError::RevokeFirst));
     }
+    let ct = sched::cur_thread(s);
+    sched::set_thread_state(s, ct, sched::TS_RESTART);
+    if mapped {
+        if level == 21 {
+            unmap_page_table(s, a, masid, mvaddr, ptr);
+        } else if level == 30 {
+            unmap_page_directory(s, a, masid, mvaddr, ptr);
+        } else {
+            unmap_pdpt(s, a, masid, mvaddr, ptr);
+        }
+        s.zero(ptr, 4096);
+    }
+    slot.set_cap(s, with_mapping(cap, false, masid, mvaddr));
+    Ok(())
+}
+
+/// The entry a table covering `1 << level` bytes at `vaddr` goes in.
+fn table_entry_slot<S: Store>(s: &S, root: u64, vaddr: u64, level: u64) -> KResult<u64> {
+    let r = if level == 21 {
+        lookup_pd_slot(s, root, vaddr)
+    } else if level == 30 {
+        lookup_pdpt_slot(s, root, vaddr)
+    } else {
+        Ok(entry_addr(root, idx(vaddr, 39)))
+    };
+    match r {
+        Ok(x) => Ok(x),
+        Err(lf) => failed_lookup(lf),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn decode_table_map<S: Store, A: Arch>(s: &mut S, a: &mut A, length: u64, slot: Slot, cap: Cap, level: u64, ptr: u64, buf: u64, ex: &[Slot; 3]) -> KResult<()> {
+    let ct = sched::cur_thread(s);
     let vslot = match extra(ex, 0) {
         Some(x) if length >= 2 => x,
         _ => return truncated(),
     };
-    if mapped {
-        return invalid_cap(0);
-    }
-    let vaddr = msg::syscall_arg(s, ct, buf, 0) & !((1u64 << (level & 63)) - 1);
+    let vaddr = msg::syscall_arg(s, ct, buf, 0) & !((1u64 << (level & 63)).wrapping_sub(1));
     let attr = msg::syscall_arg(s, ct, buf, 1);
     let vcap = vslot.cap(s);
     if !is_valid_vtable_root(vcap) {
@@ -682,19 +768,7 @@ fn decode_table<S: Store, A: Arch>(
         return invalid_arg(0);
     }
     let (root, asid) = check_vspace(s, vcap)?;
-    let e_addr = if level == 21 {
-        match lookup_pd_slot(s, root, vaddr) {
-            Ok(x) => x,
-            Err(lf) => return failed_lookup(lf),
-        }
-    } else if level == 30 {
-        match lookup_pdpt_slot(s, root, vaddr) {
-            Ok(x) => x,
-            Err(lf) => return failed_lookup(lf),
-        }
-    } else {
-        entry_addr(root, idx(vaddr, 39))
-    };
+    let e_addr = table_entry_slot(s, root, vaddr, level)?;
     if s.read(e_addr) & P_PRESENT != 0 {
         return Err(Exc::Sys(SysError::DeleteFirst));
     }

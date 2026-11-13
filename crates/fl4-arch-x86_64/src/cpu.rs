@@ -58,6 +58,59 @@ pub fn rdmsr(msr: u32) -> u64 {
     ((hi as u64) << 32) | lo as u64
 }
 
+/// CR4.FSGSBASE is set: user code may change its FS and GS bases itself.
+static FSGSBASE: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+
+pub fn has_fsgsbase() -> bool {
+    cpuid(7, 0).ebx & 1 != 0
+}
+
+pub fn set_fsgsbase(on: bool) {
+    FSGSBASE.store(on, core::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn fsgsbase() -> bool {
+    FSGSBASE.load(core::sync::atomic::Ordering::Relaxed)
+}
+
+/// The current FS base (RDFSBASE when enabled, else the MSR).
+pub fn fs_base() -> u64 {
+    if fsgsbase() {
+        let v: u64;
+        unsafe { asm!("rdfsbase {}", out(reg) v, options(nomem, nostack, preserves_flags)) }
+        v
+    } else {
+        rdmsr(msr::FS_BASE)
+    }
+}
+
+/// The current GS base. The kernel runs with the user's GS live.
+pub fn gs_base() -> u64 {
+    if fsgsbase() {
+        let v: u64;
+        unsafe { asm!("rdgsbase {}", out(reg) v, options(nomem, nostack, preserves_flags)) }
+        v
+    } else {
+        rdmsr(msr::GS_BASE)
+    }
+}
+
+pub fn set_fs_base(v: u64) {
+    if fsgsbase() {
+        unsafe { asm!("wrfsbase {}", in(reg) v, options(nomem, nostack, preserves_flags)) }
+    } else {
+        wrmsr(msr::FS_BASE, v)
+    }
+}
+
+pub fn set_gs_base(v: u64) {
+    if fsgsbase() {
+        unsafe { asm!("wrgsbase {}", in(reg) v, options(nomem, nostack, preserves_flags)) }
+    } else {
+        wrmsr(msr::GS_BASE, v)
+    }
+}
+
 #[inline]
 pub fn wrmsr(msr: u32, v: u64) {
     unsafe {
@@ -184,4 +237,5 @@ pub mod msr {
     pub const FS_BASE: u32 = 0xc000_0100;
     pub const GS_BASE: u32 = 0xc000_0101;
     pub const KERNEL_GS_BASE: u32 = 0xc000_0102;
+    pub const XSS: u32 = 0xda0;
 }

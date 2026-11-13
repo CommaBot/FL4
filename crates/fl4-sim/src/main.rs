@@ -12,6 +12,7 @@
 //!
 //! Usage: fl4-sim [--seeds N] [--first S] [--cores C] [--steps K] [--conc]
 
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 
@@ -62,7 +63,42 @@ struct Conc {
     gate_held: Vec<AtomicBool>,
     /// Cores that have run all their steps.
     out_of_steps: AtomicU64,
+    check: Mutex<Checker>,
+    /// Per core: the current transaction's reads from memory, and its own
+    /// writes.
+    rlog: Vec<Mutex<Vec<(u64, u64)>>>,
+    wlog: Vec<Mutex<HashMap<u64, u64>>>,
 }
+
+/// The snapshot checker (DESIGN.md §10): every value a committed
+/// transaction read from memory must be the word's value where the
+/// transaction serializes (P2): a writer just before its commit version, a
+/// read-only transaction at its start version.
+#[derive(Default)]
+struct Checker {
+    /// Each word written during the run: (version, value), oldest first,
+    /// from its value before the first write. Versions never decrease: two
+    /// commits writing a word hold its stripe's lock in turn.
+    hist: HashMap<u64, Vec<(u64, u64)>>,
+    /// Words written directly while transactions may run (a core's own
+    /// thread context, DESIGN.md §7): not versioned, so not checked.
+    unversioned: HashSet<u64>,
+    checked: u64,
+    skipped: u64,
+}
+
+impl Checker {
+    fn record(&mut self, addr: u64, old: u64, new: u64, version: u64) {
+        self.hist.entry(addr).or_insert_with(|| vec![(0, old)]).push((version, new));
+    }
+
+    /// The value of `addr` at version `rv`, if it was written in the run.
+    fn at(&self, addr: u64, rv: u64) -> Option<u64> {
+        let h = self.hist.get(&addr)?;
+        h.iter().rev().find(|(v, _)| *v <= rv).map(|(_, x)| *x)
+    }
+}
+
 
 struct Baton {
     turn: u64,
@@ -79,6 +115,9 @@ impl Conc {
             in_kernel: (0..n).map(|_| AtomicBool::new(false)).collect(),
             gate_held: (0..n).map(|_| AtomicBool::new(false)).collect(),
             out_of_steps: AtomicU64::new(0),
+            check: Mutex::new(Checker::default()),
+            rlog: (0..n).map(|_| Mutex::new(Vec::new())).collect(),
+            wlog: (0..n).map(|_| Mutex::new(HashMap::new())).collect(),
         }
     }
 
@@ -141,6 +180,40 @@ impl SimStore {
             c.pause(self.cpu);
         }
     }
+
+    /// A write outside any transaction: versioned at the current clock
+    /// under the serial gate (no transaction runs), unversioned otherwise.
+    fn direct_set(&self, addr: u64, v: u64) {
+        if let Some(c) = &self.conc {
+            let old = self.mem.get(addr);
+            let mut k = c.check.lock().unwrap();
+            if !c.gate_held[self.cpu as usize].load(Ordering::SeqCst) {
+                k.unversioned.insert(addr);
+            }
+            k.record(addr, old, v, tx::clock());
+        }
+        self.mem.set(addr, v)
+    }
+
+    fn log_read(&self, addr: u64, v: u64) {
+        let Some(c) = &self.conc else { return };
+        if tx::doomed(self.cpu) {
+            return;
+        }
+        let own = c.wlog[self.cpu as usize].lock().unwrap().get(&addr).copied();
+        match own {
+            Some(w) => assert_eq!(v, w, "snapshot checker: core {} read {addr:#x} = {v:#x} after writing {w:#x}", self.cpu),
+            None => c.rlog[self.cpu as usize].lock().unwrap().push((addr, v)),
+        }
+    }
+
+    fn log_write(&self, addr: u64, v: u64) {
+        if let Some(c) = &self.conc {
+            if !tx::doomed(self.cpu) {
+                c.wlog[self.cpu as usize].lock().unwrap().insert(addr, v);
+            }
+        }
+    }
 }
 
 impl tx::Mem for SimStore {
@@ -148,8 +221,13 @@ impl tx::Mem for SimStore {
         self.pause();
         self.mem.get(addr)
     }
+    // Only commits write memory through `Mem`.
     fn store(&self, addr: u64, v: u64) {
         self.pause();
+        if let Some(c) = &self.conc {
+            let old = self.mem.get(addr);
+            c.check.lock().unwrap().record(addr, old, v, tx::commit_version(self.cpu));
+        }
         self.mem.set(addr, v)
     }
     fn relax(&self) {
@@ -160,7 +238,9 @@ impl tx::Mem for SimStore {
 impl Store for SimStore {
     fn read(&self, addr: u64) -> u64 {
         if self.tx {
-            tx::read(self.cpu, self, addr)
+            let v = tx::read(self.cpu, self, addr);
+            self.log_read(addr, v);
+            v
         } else {
             self.pause();
             self.mem.get(addr)
@@ -169,22 +249,28 @@ impl Store for SimStore {
     fn write(&mut self, addr: u64, v: u64) {
         if self.tx {
             self.pause();
-            tx::write(self.cpu, addr, v)
+            tx::write(self.cpu, addr, v);
+            self.log_write(addr, v);
         } else {
             self.pause();
-            self.mem.set(addr, v)
+            self.direct_set(addr, v)
         }
     }
     fn zero(&mut self, addr: u64, len: u64) {
         assert!(len % 8 == 0);
         if self.tx {
             tx::zero(self.cpu, addr, len);
+            let mut a = addr;
+            while a < addr + len {
+                self.log_write(a, 0);
+                a += 8;
+            }
             return;
         }
         self.pause();
         let mut a = addr;
         while a < addr + len {
-            self.mem.set(a, 0);
+            self.direct_set(a, 0);
             a += 8;
         }
     }
@@ -403,6 +489,25 @@ struct SimEnv {
 }
 
 impl SimEnv {
+    /// The committed transaction read one snapshot, where it serializes.
+    fn check_snapshot(&self) {
+        let cpu = self.s.cpu;
+        let wrote = !self.conc.wlog[cpu as usize].lock().unwrap().is_empty();
+        let rv = if wrote { tx::commit_version(cpu) - 1 } else { tx::read_version(cpu) };
+        let reads = std::mem::take(&mut *self.conc.rlog[cpu as usize].lock().unwrap());
+        let mut k = self.conc.check.lock().unwrap();
+        for (addr, v) in reads {
+            if k.unversioned.contains(&addr) {
+                k.skipped += 1;
+                continue;
+            }
+            k.checked += 1;
+            if let Some(want) = k.at(addr, rv) {
+                assert_eq!(v, want, "snapshot checker: core {cpu} committed after reading {addr:#x} = {v:#x}, but at version {rv}, where it serializes, the word held {want:#x}");
+            }
+        }
+    }
+
     /// Service a remote stall addressed to this core, if any.
     fn service(&self) -> bool {
         let me = 1u64 << self.s.cpu;
@@ -443,6 +548,10 @@ impl fl4_sync::EntryEnv for SimEnv {
     }
     fn set_tx(&self, on: bool) {
         self.a.m.lock().unwrap().cores[self.s.cpu as usize].tx = on;
+        if on {
+            self.conc.rlog[self.s.cpu as usize].lock().unwrap().clear();
+            self.conc.wlog[self.s.cpu as usize].lock().unwrap().clear();
+        }
         // Send some entries down the serial path, so serial entries overlap
         // transactions often enough to test the gate.
         if on && self.conc.baton.lock().unwrap().rng.below(8) == 0 {
@@ -450,6 +559,9 @@ impl fl4_sync::EntryEnv for SimEnv {
         }
     }
     fn finish_effects(&self, committed: bool) {
+        if committed {
+            self.check_snapshot();
+        }
         let effects = std::mem::take(&mut self.a.m.lock().unwrap().cores[self.s.cpu as usize].effects);
         if committed {
             for e in effects {
@@ -1274,6 +1386,8 @@ fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool) 
         if verbose {
             let st = STATS.lock().unwrap();
             println!("seed {seed}: {} transactions committed, {} aborted, {} serial entries", st.0, st.1, st.2);
+            let k = conc.check.lock().unwrap();
+            println!("seed {seed}: snapshot checker: {} reads checked, {} of unversioned words skipped", k.checked, k.skipped);
         }
     } else {
         for _ in 0..steps {

@@ -29,7 +29,9 @@ open fl4_core Fl4Proofs.P0.Consts
 
 @[step] theorem boot.Region.Insts.CoreCmpPartialEqRegion.eq.p0 (self : boot.Region) (other : boot.Region) :
     boot.Region.Insts.CoreCmpPartialEqRegion.eq self other ⦃ _ => True ⦄ := by
-  unfold boot.Region.Insts.CoreCmpPartialEqRegion.eq; p0_auto
+  unfold boot.Region.Insts.CoreCmpPartialEqRegion.eq
+  cases self <;> cases other <;> simp [lift, core.cmp.impls.PartialEqBool.eq] <;>
+    (repeat' split) <;> (try simp [lift, core.cmp.impls.PartialEqBool.eq]) <;> (try step*)
 
 @[step] theorem boot.Region.Insts.CoreCmpEq.assert_fields_are_eq.p0 (self : boot.Region) :
     boot.Region.Insts.CoreCmpEq.assert_fields_are_eq self ⦃ _ => True ⦄ := by
@@ -45,7 +47,9 @@ open fl4_core Fl4Proofs.P0.Consts
 
 @[step] theorem boot.BootError.Insts.CoreCmpPartialEqBootError.eq.p0 (self : boot.BootError) (other : boot.BootError) :
     boot.BootError.Insts.CoreCmpPartialEqBootError.eq self other ⦃ _ => True ⦄ := by
-  unfold boot.BootError.Insts.CoreCmpPartialEqBootError.eq; p0_auto
+  unfold boot.BootError.Insts.CoreCmpPartialEqBootError.eq
+  cases self <;> cases other <;> simp [lift, core.cmp.impls.PartialEqBool.eq] <;>
+    (repeat' split) <;> (try simp [lift, core.cmp.impls.PartialEqBool.eq]) <;> (try step*)
 
 @[step] theorem boot.bi_set.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot) (word : Std.U64) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
     boot.bi_set machineStoreInst s b word v ⦃ _ => True ⦄ := by
@@ -417,7 +421,7 @@ open fl4_core Fl4Proofs.P0.Consts
 
 @[step] theorem boot.take_rootserver_mem.p0 (p : boot.BootParams) (size : Std.U64) (align_bits : Std.U64) :
     boot.take_rootserver_mem p size align_bits ⦃ _ => True ⦄ := by
-  sorry
+  unfold boot.take_rootserver_mem; p0_auto
 
 @[step] theorem sporadic.max_period_us.p0 {A : Type _} (machineArchInst : machine.Arch A) (a : A) (hA : ArchTotal machineArchInst) :
     sporadic.max_period_us machineArchInst a ⦃ _ => True ⦄ := by
@@ -558,7 +562,7 @@ open fl4_core Fl4Proofs.P0.Consts
 
 @[step] theorem cdt.is_mdb_parent_of.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (a : obj.Slot) (b : obj.Slot) (hS : StoreTotal machineStoreInst) :
     cdt.is_mdb_parent_of machineStoreInst s a b ⦃ _ => True ⦄ := by
-  sorry
+  unfold cdt.is_mdb_parent_of; p0_split
 
 @[step] theorem cdt.ensure_no_children.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (slot : obj.Slot) (hS : StoreTotal machineStoreInst) :
     cdt.ensure_no_children machineStoreInst s slot ⦃ _ => True ⦄ := by
@@ -767,7 +771,9 @@ open fl4_core Fl4Proofs.P0.Consts
 
 @[step] theorem capability.FrameSize.Insts.CoreCmpPartialEqFrameSize.eq.p0 (self : capability.FrameSize) (other : capability.FrameSize) :
     capability.FrameSize.Insts.CoreCmpPartialEqFrameSize.eq self other ⦃ _ => True ⦄ := by
-  unfold capability.FrameSize.Insts.CoreCmpPartialEqFrameSize.eq; p0_auto
+  unfold capability.FrameSize.Insts.CoreCmpPartialEqFrameSize.eq
+  cases self <;> cases other <;> simp [lift, core.cmp.impls.PartialEqBool.eq] <;>
+    (repeat' split) <;> (try simp [lift, core.cmp.impls.PartialEqBool.eq]) <;> (try step*)
 
 @[step] theorem capability.Cap.Insts.CoreCloneClone.clone.p0 (self : capability.Cap) :
     capability.Cap.Insts.CoreCloneClone.clone self ⦃ _ => True ⦄ := by
@@ -775,7 +781,9 @@ open fl4_core Fl4Proofs.P0.Consts
 
 @[step] theorem capability.Cap.Insts.CoreCmpPartialEqCap.eq.p0 (self : capability.Cap) (other : capability.Cap) :
     capability.Cap.Insts.CoreCmpPartialEqCap.eq self other ⦃ _ => True ⦄ := by
-  sorry
+  unfold capability.Cap.Insts.CoreCmpPartialEqCap.eq
+  cases self <;> cases other <;> simp [lift, core.cmp.impls.PartialEqBool.eq] <;>
+    (repeat' split) <;> (try simp [lift, core.cmp.impls.PartialEqBool.eq]) <;> (try step*)
 
 @[step] theorem capability.Cap.Insts.CoreCmpEq.assert_fields_are_eq.p0 (self : capability.Cap) :
     capability.Cap.Insts.CoreCmpEq.assert_fields_are_eq self ⦃ _ => True ⦄ := by
@@ -795,7 +803,9 @@ open fl4_core Fl4Proofs.P0.Consts
 
 @[step] theorem capability.Rights.Insts.CoreCmpPartialEqRights.eq.p0 (self : capability.Rights) (other : capability.Rights) :
     capability.Rights.Insts.CoreCmpPartialEqRights.eq self other ⦃ _ => True ⦄ := by
-  unfold capability.Rights.Insts.CoreCmpPartialEqRights.eq; p0_auto
+  unfold capability.Rights.Insts.CoreCmpPartialEqRights.eq
+  cases self <;> cases other <;> simp [lift, core.cmp.impls.PartialEqBool.eq] <;>
+    (repeat' split) <;> (try simp [lift, core.cmp.impls.PartialEqBool.eq]) <;> (try step*)
 
 @[step] theorem capability.Rights.Insts.CoreCmpEq.assert_fields_are_eq.p0 (self : capability.Rights) :
     capability.Rights.Insts.CoreCmpEq.assert_fields_are_eq self ⦃ _ => True ⦄ := by
@@ -843,11 +853,11 @@ theorem obj.Slot.Insts.CoreCmpPartialEqSlot.eq.p0 (self : obj.Slot) (other : obj
 
 @[step] theorem objects.same_object_as.p0 (a : capability.Cap) (b : capability.Cap) :
     objects.same_object_as a b ⦃ _ => True ⦄ := by
-  sorry
+  unfold objects.same_object_as; p0_split
 
 @[step] theorem cdt.is_final_capability.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (slot : obj.Slot) (hS : StoreTotal machineStoreInst) :
     cdt.is_final_capability machineStoreInst s slot ⦃ _ => True ⦄ := by
-  sorry
+  unfold cdt.is_final_capability; p0_split
 
 @[step] theorem cdt.slot_cap_long_running_delete.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (slot : obj.Slot) (hS : StoreTotal machineStoreInst) :
     cdt.slot_cap_long_running_delete machineStoreInst s slot ⦃ _ => True ⦄ := by
@@ -1937,10 +1947,6 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
     cnode.missing_source T depth source ⦃ _ => True ⦄ := by
   unfold cnode.missing_source; p0_auto
 
-@[step] theorem objects.update_cap_data.p0 (preserve : Bool) (data : Std.U64) (c : capability.Cap) :
-    objects.update_cap_data preserve data c ⦃ _ => True ⦄ := by
-  unfold objects.update_cap_data; p0_auto
-
 @[step] theorem msg.buf_get.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (buf : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
     msg.buf_get machineStoreInst s buf i ⦃ _ => True ⦄ := by
   unfold msg.buf_get; p0_auto
@@ -1956,6 +1962,47 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
 @[step] theorem error.illegal.p0 (T : Type _) :
     error.illegal T ⦃ _ => True ⦄ := by
   unfold error.illegal; p0_auto
+
+@[step] theorem cspace.mask.p0 (bits : Std.U64) :
+    cspace.mask bits ⦃ _ => True ⦄ := by
+  unfold cspace.mask; p0_auto
+
+@[step] theorem cspace.resolve_address_bits_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (cap : capability.Cap) (s : S) (cptr : Std.U64) (n : Std.U64) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
+    cspace.resolve_address_bits_loop machineStoreInst cap s cptr n fuel ⦃ _ => True ⦄ := by
+  unfold cspace.resolve_address_bits_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1, x2) => x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1, x2⟩ -
+    unfold cspace.resolve_address_bits_loop.body
+    p0_auto
+  · trivial
+
+@[step] theorem cspace.resolve_address_bits.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (node_cap : capability.Cap) (cptr : Std.U64) (n_bits : Std.U64) (hS : StoreTotal machineStoreInst) :
+    cspace.resolve_address_bits machineStoreInst s node_cap cptr n_bits ⦃ _ => True ⦄ := by
+  unfold cspace.resolve_address_bits; p0_auto
+
+@[step] theorem cspace.lookup_slot_for_cnode_op.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (is_source : Bool) (root : capability.Cap) (cptr : Std.U64) (depth : Std.U64) (hS : StoreTotal machineStoreInst) :
+    cspace.lookup_slot_for_cnode_op machineStoreInst s is_source root cptr depth ⦃ _ => True ⦄ := by
+  unfold cspace.lookup_slot_for_cnode_op; p0_split
+
+@[step] theorem cspace.lookup_target_slot.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : capability.Cap) (cptr : Std.U64) (depth : Std.U64) (hS : StoreTotal machineStoreInst) :
+    cspace.lookup_target_slot machineStoreInst s root cptr depth ⦃ _ => True ⦄ := by
+  unfold cspace.lookup_target_slot; p0_auto
+
+@[step] theorem objects.update_cap_data.p0 (preserve : Bool) (data : Std.U64) (c : capability.Cap) :
+    objects.update_cap_data preserve data c ⦃ _ => True ⦄ := by
+  unfold objects.update_cap_data; p0_auto
+
+@[step] theorem cspace.lookup_pivot_slot.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : capability.Cap) (cptr : Std.U64) (depth : Std.U64) (hS : StoreTotal machineStoreInst) :
+    cspace.lookup_pivot_slot machineStoreInst s root cptr depth ⦃ _ => True ⦄ := by
+  unfold cspace.lookup_pivot_slot; p0_auto
+
+@[step] theorem cspace.lookup_source_slot.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : capability.Cap) (cptr : Std.U64) (depth : Std.U64) (hS : StoreTotal machineStoreInst) :
+    cspace.lookup_source_slot machineStoreInst s root cptr depth ⦃ _ => True ⦄ := by
+  unfold cspace.lookup_source_slot; p0_auto
+
+@[step] theorem cnode.decode_rotate.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (length : Std.U64) (buf : Std.U64) (extra : Array obj.Slot 3#usize) (dest : obj.Slot) (hS : StoreTotal machineStoreInst) :
+    cnode.decode_rotate machineStoreInst s length buf extra dest ⦃ _ => True ⦄ := by
+  sorry
 
 @[step] theorem layout.tcb.BLOCK_BADGE.p0  :
     layout.tcb.BLOCK_BADGE ⦃ _ => True ⦄ := by
@@ -1978,42 +2025,25 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
     endpoint.cancel_badged_sends machineStoreInst s ep_ptr badge ⦃ _ => True ⦄ := by
   unfold endpoint.cancel_badged_sends; p0_auto
 
-@[step] theorem cspace.mask.p0 (bits : Std.U64) :
-    cspace.mask bits ⦃ _ => True ⦄ := by
-  unfold cspace.mask; p0_auto
+@[step] theorem cnode.full_endpoint.p0 (c : capability.Cap) :
+    cnode.full_endpoint c ⦃ _ => True ⦄ := by
+  unfold cnode.full_endpoint; p0_auto
 
-@[step] theorem cspace.resolve_address_bits_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (cap : capability.Cap) (s : S) (cptr : Std.U64) (n : Std.U64) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
-    cspace.resolve_address_bits_loop machineStoreInst cap s cptr n fuel ⦃ _ => True ⦄ := by
-  unfold cspace.resolve_address_bits_loop
-  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1, x2) => x1.val) (inv := fun _ => True)
-  · rintro ⟨x0, x1, x2⟩ -
-    unfold cspace.resolve_address_bits_loop.body
-    p0_auto
-  · trivial
+@[step] theorem cnode.decode_cancel_badged_sends.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : obj.Slot) (hS : StoreTotal machineStoreInst) :
+    cnode.decode_cancel_badged_sends machineStoreInst s dest ⦃ _ => True ⦄ := by
+  unfold cnode.decode_cancel_badged_sends; p0_split
 
-@[step] theorem cspace.resolve_address_bits.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (node_cap : capability.Cap) (cptr : Std.U64) (n_bits : Std.U64) (hS : StoreTotal machineStoreInst) :
-    cspace.resolve_address_bits machineStoreInst s node_cap cptr n_bits ⦃ _ => True ⦄ := by
-  unfold cspace.resolve_address_bits; p0_auto
+@[step] theorem cnode.copied_cap.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (lbl : Std.U64) (length : Std.U64) (buf : Std.U64) (src : obj.Slot) (src_cap : capability.Cap) (hS : StoreTotal machineStoreInst) :
+    cnode.copied_cap machineStoreInst s lbl length buf src src_cap ⦃ _ => True ⦄ := by
+  unfold cnode.copied_cap; p0_auto
 
-@[step] theorem cspace.lookup_slot_for_cnode_op.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (is_source : Bool) (root : capability.Cap) (cptr : Std.U64) (depth : Std.U64) (hS : StoreTotal machineStoreInst) :
-    cspace.lookup_slot_for_cnode_op machineStoreInst s is_source root cptr depth ⦃ _ => True ⦄ := by
-  sorry
-
-@[step] theorem cspace.lookup_pivot_slot.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : capability.Cap) (cptr : Std.U64) (depth : Std.U64) (hS : StoreTotal machineStoreInst) :
-    cspace.lookup_pivot_slot machineStoreInst s root cptr depth ⦃ _ => True ⦄ := by
-  unfold cspace.lookup_pivot_slot; p0_auto
-
-@[step] theorem cspace.lookup_target_slot.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : capability.Cap) (cptr : Std.U64) (depth : Std.U64) (hS : StoreTotal machineStoreInst) :
-    cspace.lookup_target_slot machineStoreInst s root cptr depth ⦃ _ => True ⦄ := by
-  unfold cspace.lookup_target_slot; p0_auto
-
-@[step] theorem cspace.lookup_source_slot.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : capability.Cap) (cptr : Std.U64) (depth : Std.U64) (hS : StoreTotal machineStoreInst) :
-    cspace.lookup_source_slot machineStoreInst s root cptr depth ⦃ _ => True ⦄ := by
-  unfold cspace.lookup_source_slot; p0_auto
+@[step] theorem cnode.decode_copy.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (lbl : Std.U64) (length : Std.U64) (buf : Std.U64) (extra : Array obj.Slot 3#usize) (dest : obj.Slot) (hS : StoreTotal machineStoreInst) :
+    cnode.decode_copy machineStoreInst s lbl length buf extra dest ⦃ _ => True ⦄ := by
+  unfold cnode.decode_copy; p0_split
 
 @[step] theorem cnode.decode.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (length : Std.U64) (cap : capability.Cap) (buf : Std.U64) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     cnode.decode machineStoreInst machineArchInst s a lbl length cap buf extra ⦃ _ => True ⦄ := by
-  sorry
+  unfold cnode.decode; p0_auto
 
 @[step] theorem cspace.Resolved.Insts.CoreCloneClone.clone.p0 (self : cspace.Resolved) :
     cspace.Resolved.Insts.CoreCloneClone.clone self ⦃ _ => True ⦄ := by
@@ -2021,7 +2051,9 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
 
 @[step] theorem cspace.Resolved.Insts.CoreCmpPartialEqResolved.eq.p0 (self : cspace.Resolved) (other : cspace.Resolved) :
     cspace.Resolved.Insts.CoreCmpPartialEqResolved.eq self other ⦃ _ => True ⦄ := by
-  unfold cspace.Resolved.Insts.CoreCmpPartialEqResolved.eq; p0_auto
+  unfold cspace.Resolved.Insts.CoreCmpPartialEqResolved.eq
+  cases self <;> cases other <;> simp [lift, core.cmp.impls.PartialEqBool.eq] <;>
+    (repeat' split) <;> (try simp [lift, core.cmp.impls.PartialEqBool.eq]) <;> (try step*)
 
 @[step] theorem cspace.Resolved.Insts.CoreCmpEq.assert_fields_are_eq.p0 (self : cspace.Resolved) :
     cspace.Resolved.Insts.CoreCmpEq.assert_fields_are_eq self ⦃ _ => True ⦄ := by
@@ -2444,7 +2476,9 @@ theorem debug.size_shift.p0 (bp : Std.U64) :
 
 @[step] theorem error.LookupFault.Insts.CoreCmpPartialEqLookupFault.eq.p0 (self : error.LookupFault) (other : error.LookupFault) :
     error.LookupFault.Insts.CoreCmpPartialEqLookupFault.eq self other ⦃ _ => True ⦄ := by
-  sorry
+  unfold error.LookupFault.Insts.CoreCmpPartialEqLookupFault.eq
+  cases self <;> cases other <;> simp [lift, core.cmp.impls.PartialEqBool.eq] <;>
+    (repeat' split) <;> (try simp [lift, core.cmp.impls.PartialEqBool.eq]) <;> (try step*)
 
 @[step] theorem error.LookupFault.Insts.CoreCmpEq.assert_fields_are_eq.p0 (self : error.LookupFault) :
     error.LookupFault.Insts.CoreCmpEq.assert_fields_are_eq self ⦃ _ => True ⦄ := by
@@ -2456,7 +2490,9 @@ theorem debug.size_shift.p0 (bp : Std.U64) :
 
 @[step] theorem error.SysError.Insts.CoreCmpPartialEqSysError.eq.p0 (self : error.SysError) (other : error.SysError) :
     error.SysError.Insts.CoreCmpPartialEqSysError.eq self other ⦃ _ => True ⦄ := by
-  sorry
+  unfold error.SysError.Insts.CoreCmpPartialEqSysError.eq
+  cases self <;> cases other <;> simp [lift, core.cmp.impls.PartialEqBool.eq] <;>
+    (repeat' split) <;> (try simp [lift, core.cmp.impls.PartialEqBool.eq]) <;> (try step*)
 
 @[step] theorem error.SysError.Insts.CoreCmpEq.assert_fields_are_eq.p0 (self : error.SysError) :
     error.SysError.Insts.CoreCmpEq.assert_fields_are_eq self ⦃ _ => True ⦄ := by
@@ -2468,7 +2504,9 @@ theorem debug.size_shift.p0 (bp : Std.U64) :
 
 @[step] theorem error.Fault.Insts.CoreCmpPartialEqFault.eq.p0 (self : error.Fault) (other : error.Fault) :
     error.Fault.Insts.CoreCmpPartialEqFault.eq self other ⦃ _ => True ⦄ := by
-  sorry
+  unfold error.Fault.Insts.CoreCmpPartialEqFault.eq
+  cases self <;> cases other <;> simp [lift, core.cmp.impls.PartialEqBool.eq] <;>
+    (repeat' split) <;> (try simp [lift, core.cmp.impls.PartialEqBool.eq]) <;> (try step*)
 
 @[step] theorem error.Fault.Insts.CoreCmpEq.assert_fields_are_eq.p0 (self : error.Fault) :
     error.Fault.Insts.CoreCmpEq.assert_fields_are_eq self ⦃ _ => True ⦄ := by
@@ -2480,7 +2518,9 @@ theorem debug.size_shift.p0 (bp : Std.U64) :
 
 @[step] theorem error.Exc.Insts.CoreCmpPartialEqExc.eq.p0 (self : error.Exc) (other : error.Exc) :
     error.Exc.Insts.CoreCmpPartialEqExc.eq self other ⦃ _ => True ⦄ := by
-  unfold error.Exc.Insts.CoreCmpPartialEqExc.eq; p0_auto
+  unfold error.Exc.Insts.CoreCmpPartialEqExc.eq
+  cases self <;> cases other <;> simp [lift, core.cmp.impls.PartialEqBool.eq] <;>
+    (repeat' split) <;> (try simp [lift, core.cmp.impls.PartialEqBool.eq]) <;> (try step*)
 
 @[step] theorem error.Exc.Insts.CoreCmpEq.assert_fields_are_eq.p0 (self : error.Exc) :
     error.Exc.Insts.CoreCmpEq.assert_fields_are_eq self ⦃ _ => True ⦄ := by
@@ -2616,6 +2656,18 @@ theorem debug.size_shift.p0 (bp : Std.U64) :
     layout.irq.USER_MAX ⦃ _ => True ⦄ := by
   exact WP.spec_mono Consts.layout.irq.USER_MAX.spec (fun _ _ => trivial)
 
+@[step] theorem interrupt.map_ioapic.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (buf : Std.U64) (vector : Std.U64) (remapped : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    interrupt.map_ioapic machineStoreInst machineArchInst s a buf vector remapped ⦃ _ => True ⦄ := by
+  unfold interrupt.map_ioapic; p0_split
+
+@[step] theorem interrupt.check_msi.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (buf : Std.U64) (hS : StoreTotal machineStoreInst) :
+    interrupt.check_msi machineStoreInst s buf ⦃ _ => True ⦄ := by
+  unfold interrupt.check_msi; p0_auto
+
+@[step] theorem interrupt.decode_issue_isa.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64) (src : obj.Slot) (buf : Std.U64) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    interrupt.decode_issue_isa machineStoreInst machineArchInst s a length src buf extra ⦃ _ => True ⦄ := by
+  unfold interrupt.decode_issue_isa; p0_auto
+
 @[step] theorem interrupt.decode_irq_control.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (length : Std.U64) (src : obj.Slot) (buf : Std.U64) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     interrupt.decode_irq_control machineStoreInst machineArchInst s a lbl length src buf extra ⦃ _ => True ⦄ := by
   sorry
@@ -2707,7 +2759,9 @@ theorem debug.size_shift.p0 (bp : Std.U64) :
 
 @[step] theorem msginfo.MessageInfo.Insts.CoreCmpPartialEqMessageInfo.eq.p0 (self : msginfo.MessageInfo) (other : msginfo.MessageInfo) :
     msginfo.MessageInfo.Insts.CoreCmpPartialEqMessageInfo.eq self other ⦃ _ => True ⦄ := by
-  unfold msginfo.MessageInfo.Insts.CoreCmpPartialEqMessageInfo.eq; p0_auto
+  unfold msginfo.MessageInfo.Insts.CoreCmpPartialEqMessageInfo.eq
+  cases self <;> cases other <;> simp [lift, core.cmp.impls.PartialEqBool.eq] <;>
+    (repeat' split) <;> (try simp [lift, core.cmp.impls.PartialEqBool.eq]) <;> (try step*)
 
 @[step] theorem msginfo.MessageInfo.Insts.CoreCmpEq.assert_fields_are_eq.p0 (self : msginfo.MessageInfo) :
     msginfo.MessageInfo.Insts.CoreCmpEq.assert_fields_are_eq self ⦃ _ => True ⦄ := by
@@ -3061,7 +3115,7 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
 
 @[step] theorem sched.schedule.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     sched.schedule machineStoreInst machineArchInst s a ⦃ _ => True ⦄ := by
-  sorry
+  unfold sched.schedule; p0_split
 
 @[step] theorem sched.activate_thread.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     sched.activate_thread machineStoreInst machineArchInst s a ⦃ _ => True ⦄ := by
@@ -3129,7 +3183,9 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
 
 @[step] theorem sporadic.Refill.Insts.CoreCmpPartialEqRefill.eq.p0 (self : sporadic.Refill) (other : sporadic.Refill) :
     sporadic.Refill.Insts.CoreCmpPartialEqRefill.eq self other ⦃ _ => True ⦄ := by
-  unfold sporadic.Refill.Insts.CoreCmpPartialEqRefill.eq; p0_auto
+  unfold sporadic.Refill.Insts.CoreCmpPartialEqRefill.eq
+  cases self <;> cases other <;> simp [lift, core.cmp.impls.PartialEqBool.eq] <;>
+    (repeat' split) <;> (try simp [lift, core.cmp.impls.PartialEqBool.eq]) <;> (try step*)
 
 @[step] theorem sporadic.Refill.Insts.CoreCmpEq.assert_fields_are_eq.p0 (self : sporadic.Refill) :
     sporadic.Refill.Insts.CoreCmpEq.assert_fields_are_eq self ⦃ _ => True ⦄ := by
@@ -3143,9 +3199,13 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
     syscall.finish machineStoreInst machineArchInst s a ⦃ _ => True ⦄ := by
   unfold syscall.finish; p0_auto
 
+@[step] theorem syscall.error_mrs.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (buf : Std.U64) (e : error.SysError) (hS : StoreTotal machineStoreInst) :
+    syscall.error_mrs machineStoreInst s t buf e ⦃ _ => True ⦄ := by
+  unfold syscall.error_mrs; p0_auto
+
 @[step] theorem syscall.reply_error.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (e : error.SysError) (hS : StoreTotal machineStoreInst) :
     syscall.reply_error machineStoreInst s t e ⦃ _ => True ⦄ := by
-  sorry
+  unfold syscall.reply_error; p0_split
 
 @[step] theorem vspace.with_mapping.p0 (c : capability.Cap) (mapped : Bool) (asid : Std.U64) (vaddr : Std.U64) :
     vspace.with_mapping c mapped asid vaddr ⦃ _ => True ⦄ := by
@@ -3154,6 +3214,10 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
 @[step] theorem vspace.failed_lookup.p0 (T : Type _) (lf : error.LookupFault) :
     vspace.failed_lookup T lf ⦃ _ => True ⦄ := by
   unfold vspace.failed_lookup; p0_auto
+
+@[step] theorem vspace.table_entry_slot.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64) (vaddr : Std.U64) (level : Std.U64) (hS : StoreTotal machineStoreInst) :
+    vspace.table_entry_slot machineStoreInst s root vaddr level ⦃ _ => True ⦄ := by
+  unfold vspace.table_entry_slot; p0_split
 
 @[step] theorem vspace.check_vspace.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vcap : capability.Cap) (hS : StoreTotal machineStoreInst) :
     vspace.check_vspace machineStoreInst s vcap ⦃ _ => True ⦄ := by
@@ -3191,49 +3255,87 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
     vspace.make_user_table paddr attr ⦃ _ => True ⦄ := by
   unfold vspace.make_user_table; p0_auto
 
+@[step] theorem vspace.decode_table_map.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64) (slot : obj.Slot) (cap : capability.Cap) (level : Std.U64) (ptr : Std.U64) (buf : Std.U64) (ex : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    vspace.decode_table_map machineStoreInst machineArchInst s a length slot cap level ptr buf ex ⦃ _ => True ⦄ := by
+  unfold vspace.decode_table_map; p0_split
+
+@[step] theorem vspace.decode_table_unmap.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot) (cap : capability.Cap) (level : Std.U64) (ptr : Std.U64) (mapped : Bool) (masid : Std.U64) (mvaddr : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    vspace.decode_table_unmap machineStoreInst machineArchInst s a slot cap level ptr mapped masid mvaddr ⦃ _ => True ⦄ := by
+  unfold vspace.decode_table_unmap; p0_split
+
+@[step] theorem vspace.as_table.p0 (c : capability.Cap) :
+    vspace.as_table c ⦃ _ => True ⦄ := by
+  unfold vspace.as_table; p0_auto
+
 @[step] theorem vspace.decode_table.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (length : Std.U64) (slot : obj.Slot) (cap : capability.Cap) (buf : Std.U64) (ex : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     vspace.decode_table machineStoreInst machineArchInst s a lbl length slot cap buf ex ⦃ _ => True ⦄ := by
   sorry
 
-@[step] theorem vspace.derive_subframe_loop0_loop0.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot) (node_offset : Std.U64) (count : Std.U64) (dest : Std.U64) (vm : Std.U64) (base : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
-    vspace.derive_subframe_loop0_loop0 machineStoreInst s src node_offset count dest vm base i ⦃ _ => True ⦄ := by
-  unfold vspace.derive_subframe_loop0_loop0
+@[step] theorem vspace.insert_subframes_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot) (dest : Std.U64) (first : Std.U64) (base : Std.U64) (count : Std.U64) (vm : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
+    vspace.insert_subframes_loop machineStoreInst s src dest first base count vm i ⦃ _ => True ⦄ := by
+  unfold vspace.insert_subframes_loop
   apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => count.val - x1.val) (inv := fun _ => True)
   · rintro ⟨x0, x1⟩ -
-    unfold vspace.derive_subframe_loop0_loop0.body
+    unfold vspace.insert_subframes_loop.body
     p0_auto
   · trivial
 
-@[step] theorem vspace.derive_subframe_loop0.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot) (buf : Std.U64) (ct : obj.Tcb) (ptr : Std.U64) (rights : Std.U64) (node_offset : Std.U64) (offset : Std.U64) (count : Std.U64) (dest : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
-    vspace.derive_subframe_loop0 machineStoreInst s src buf ct ptr rights node_offset offset count dest i ⦃ _ => True ⦄ := by
-  unfold vspace.derive_subframe_loop0
+@[step] theorem vspace.insert_subframes.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot) (dest : Std.U64) (first : Std.U64) (base : Std.U64) (count : Std.U64) (vm : Std.U64) (hS : StoreTotal machineStoreInst) :
+    vspace.insert_subframes machineStoreInst s src dest first base count vm ⦃ _ => True ⦄ := by
+  unfold vspace.insert_subframes; p0_auto
+
+@[step] theorem vspace.ensure_empty_run_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64) (first : Std.U64) (count : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
+    vspace.ensure_empty_run_loop machineStoreInst s dest first count i ⦃ _ => True ⦄ := by
+  unfold vspace.ensure_empty_run_loop
   apply loop.spec_decr_nat (measure := fun x => match x with | (x0) => count.val - x0.val) (inv := fun _ => True)
   · rintro x0 -
-    unfold vspace.derive_subframe_loop0.body
+    unfold vspace.ensure_empty_run_loop.body
     p0_auto
   · trivial
 
-@[step] theorem vspace.derive_subframe_loop1_loop0.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot) (node_offset : Std.U64) (count : Std.U64) (dest : Std.U64) (vm : Std.U64) (base : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
-    vspace.derive_subframe_loop1_loop0 machineStoreInst s src node_offset count dest vm base i ⦃ _ => True ⦄ := by
-  unfold vspace.derive_subframe_loop1_loop0
-  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => count.val - x1.val) (inv := fun _ => True)
-  · rintro ⟨x0, x1⟩ -
-    unfold vspace.derive_subframe_loop1_loop0.body
-    p0_auto
-  · trivial
+@[step] theorem vspace.ensure_empty_run.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64) (first : Std.U64) (count : Std.U64) (hS : StoreTotal machineStoreInst) :
+    vspace.ensure_empty_run machineStoreInst s dest first count ⦃ _ => True ⦄ := by
+  unfold vspace.ensure_empty_run; p0_auto
 
-@[step] theorem vspace.derive_subframe_loop1.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot) (buf : Std.U64) (ct : obj.Tcb) (ptr : Std.U64) (rights : Std.U64) (node_offset : Std.U64) (offset : Std.U64) (count : Std.U64) (dest : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
-    vspace.derive_subframe_loop1 machineStoreInst s src buf ct ptr rights node_offset offset count dest i ⦃ _ => True ⦄ := by
-  unfold vspace.derive_subframe_loop1
-  apply loop.spec_decr_nat (measure := fun x => match x with | (x0) => count.val - x0.val) (inv := fun _ => True)
-  · rintro x0 -
-    unfold vspace.derive_subframe_loop1.body
-    p0_auto
-  · trivial
+@[step] theorem vspace.cnode_of.p0 (c : capability.Cap) :
+    vspace.cnode_of c ⦃ _ => True ⦄ := by
+  unfold vspace.cnode_of; p0_auto
+
+@[step] theorem vspace.subframe_dest.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (node_slot : obj.Slot) (node_index : Std.U64) (node_depth : Std.U64) (node_offset : Std.U64) (count : Std.U64) (hS : StoreTotal machineStoreInst) :
+    vspace.subframe_dest machineStoreInst s node_slot node_index node_depth node_offset count ⦃ _ => True ⦄ := by
+  unfold vspace.subframe_dest; p0_split
+
+@[step] theorem vspace.large_ram_frame.p0 (c : capability.Cap) :
+    vspace.large_ram_frame c ⦃ _ => True ⦄ := by
+  unfold vspace.large_ram_frame; p0_auto
 
 @[step] theorem vspace.derive_subframe.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64) (src : obj.Slot) (cap : capability.Cap) (buf : Std.U64) (ex : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     vspace.derive_subframe machineStoreInst machineArchInst s a length src cap buf ex ⦃ _ => True ⦄ := by
-  sorry
+  unfold vspace.derive_subframe; p0_split
+
+@[step] theorem vspace.mapped_entry.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (f : vspace.FrameCap) (root : Std.U64) (hS : StoreTotal machineStoreInst) :
+    vspace.mapped_entry machineStoreInst s f root ⦃ _ => True ⦄ := by
+  unfold vspace.mapped_entry; p0_split
+
+@[step] theorem vspace.reply1.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (call : Bool) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
+    vspace.reply1 machineStoreInst s t call v ⦃ _ => True ⦄ := by
+  unfold vspace.reply1; p0_split
+
+@[step] theorem vspace.P_ACCESSED.p0  :
+    vspace.P_ACCESSED ⦃ _ => True ⦄ := by
+  exact WP.spec_mono Consts.vspace.P_ACCESSED.spec (fun _ _ => trivial)
+
+@[step] theorem vspace.decode_test_and_clear_accessed.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (f : vspace.FrameCap) (call : Bool) (hS : StoreTotal machineStoreInst) :
+    vspace.decode_test_and_clear_accessed machineStoreInst s f call ⦃ _ => True ⦄ := by
+  unfold vspace.decode_test_and_clear_accessed; p0_match
+
+@[step] theorem vspace.page_entry_slot.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64) (vaddr : Std.U64) (size : capability.FrameSize) (hS : StoreTotal machineStoreInst) :
+    vspace.page_entry_slot machineStoreInst s root vaddr size ⦃ _ => True ⦄ := by
+  unfold vspace.page_entry_slot; p0_split
+
+@[step] theorem vspace.mapped_root.p0 (c : capability.Cap) :
+    vspace.mapped_root c ⦃ _ => True ⦄ := by
+  unfold vspace.mapped_root; p0_auto
 
 @[step] theorem vspace.P_PAT_LARGE.p0  :
     vspace.P_PAT_LARGE ⦃ _ => True ⦄ := by
@@ -3263,10 +3365,6 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
     vspace.write_mapping machineStoreInst machineArchInst s a slot e asid vaddr defer ⦃ _ => True ⦄ := by
   unfold vspace.write_mapping; p0_auto
 
-@[step] theorem vspace.reply1.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (call : Bool) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
-    vspace.reply1 machineStoreInst s t call v ⦃ _ => True ⦄ := by
-  unfold vspace.reply1; p0_split
-
 @[step] theorem vspace.nx_enabled.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (hS : StoreTotal machineStoreInst) :
     vspace.nx_enabled machineStoreInst s ⦃ _ => True ⦄ := by
   unfold vspace.nx_enabled; p0_auto
@@ -3287,13 +3385,17 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
     vspace.make_user_page machineStoreInst s paddr attr rights large ⦃ _ => True ⦄ := by
   unfold vspace.make_user_page; p0_split
 
-@[step] theorem vspace.P_ACCESSED.p0  :
-    vspace.P_ACCESSED ⦃ _ => True ⦄ := by
-  exact WP.spec_mono Consts.vspace.P_ACCESSED.spec (fun _ _ => trivial)
+@[step] theorem vspace.decode_page_map.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64) (slot : obj.Slot) (f : vspace.FrameCap) (buf : Std.U64) (ex : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    vspace.decode_page_map machineStoreInst machineArchInst s a length slot f buf ex ⦃ _ => True ⦄ := by
+  sorry
+
+@[step] theorem vspace.as_frame.p0 (c : capability.Cap) :
+    vspace.as_frame c ⦃ _ => True ⦄ := by
+  unfold vspace.as_frame; p0_auto
 
 @[step] theorem vspace.decode_frame.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (length : Std.U64) (slot : obj.Slot) (cap : capability.Cap) (call : Bool) (buf : Std.U64) (ex : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     vspace.decode_frame machineStoreInst machineArchInst s a lbl length slot cap call buf ex ⦃ _ => True ⦄ := by
-  sorry
+  unfold vspace.decode_frame; p0_split
 
 @[step] theorem vspace.decode_loop0.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
     vspace.decode_loop0 machineStoreInst s i ⦃ _ => True ⦄ := by
@@ -3315,15 +3417,19 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
 
 @[step] theorem vspace.decode.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (length : Std.U64) (slot : obj.Slot) (cap : capability.Cap) (call : Bool) (buf : Std.U64) (ex : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     vspace.decode machineStoreInst machineArchInst s a lbl length slot cap call buf ex ⦃ _ => True ⦄ := by
-  unfold vspace.decode; p0_split
+  unfold vspace.decode; p0_auto
 
-@[step] theorem untyped.reset_untyped_loop.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot) (ptr : Std.U64) (block : Std.U64) (device : Bool) (chunk : Std.U64) (offset : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
-    untyped.reset_untyped_loop machineStoreInst machineArchInst s a slot ptr block device chunk offset ⦃ _ => True ⦄ := by
+@[step] theorem untyped.RESET_CHUNK.p0  :
+    untyped.RESET_CHUNK ⦃ _ => True ⦄ := by
+  exact WP.spec_mono Consts.untyped.RESET_CHUNK.spec (fun _ _ => trivial)
+
+@[step] theorem untyped.reset_untyped_loop.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (i : Std.U64) (s : S) (a : A) (slot : obj.Slot) (ptr : Std.U64) (block : Std.U64) (device : Bool) (offset : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    untyped.reset_untyped_loop machineStoreInst machineArchInst i s a slot ptr block device offset ⦃ _ => True ⦄ := by
   sorry
 
 @[step] theorem untyped.reset_untyped.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     untyped.reset_untyped machineStoreInst machineArchInst s a slot ⦃ _ => True ⦄ := by
-  unfold untyped.reset_untyped; p0_auto
+  sorry
 
 @[step] theorem untyped.retype.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot) (reset : Bool) (base : Std.U64) (new_type : Std.U64) (user_size : Std.U64) (dest : Std.U64) (offset : Std.U64) (length : Std.U64) (device : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     untyped.retype machineStoreInst machineArchInst s a slot reset base new_type user_size dest offset length device ⦃ _ => True ⦄ := by
@@ -3342,13 +3448,29 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
     untyped.ensure_empty_slots machineStoreInst s cnode «from» «to» ⦃ _ => True ⦄ := by
   unfold untyped.ensure_empty_slots; p0_auto
 
+@[step] theorem untyped.as_untyped.p0 (c : capability.Cap) :
+    untyped.as_untyped c ⦃ _ => True ⦄ := by
+  unfold untyped.as_untyped; p0_auto
+
+@[step] theorem untyped.cnode_of.p0 (c : capability.Cap) :
+    untyped.cnode_of c ⦃ _ => True ⦄ := by
+  unfold untyped.cnode_of; p0_auto
+
+@[step] theorem untyped.retype_dest.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root_slot : obj.Slot) (node_index : Std.U64) (node_depth : Std.U64) (node_offset : Std.U64) (node_window : Std.U64) (hS : StoreTotal machineStoreInst) :
+    untyped.retype_dest machineStoreInst s root_slot node_index node_depth node_offset node_window ⦃ _ => True ⦄ := by
+  unfold untyped.retype_dest; p0_split
+
+@[step] theorem untyped.retype_size.p0 (new_type : Std.U64) (user_size : Std.U64) :
+    untyped.retype_size new_type user_size ⦃ _ => True ⦄ := by
+  unfold untyped.retype_size; p0_auto
+
 @[step] theorem untyped.align_up.p0 (v : Std.U64) (align : Std.U64) :
     untyped.align_up v align ⦃ _ => True ⦄ := by
   unfold untyped.align_up; p0_auto
 
 @[step] theorem untyped.decode.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (length : Std.U64) (slot : obj.Slot) (cap : capability.Cap) (buf : Std.U64) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     untyped.decode machineStoreInst machineArchInst s a lbl length slot cap buf extra ⦃ _ => True ⦄ := by
-  sorry
+  unfold untyped.decode; p0_split
 
 @[step] theorem timer.insert_fixup_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (z : obj.Tcb) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
     timer.insert_fixup_loop machineStoreInst s cpu z fuel ⦃ _ => True ⦄ := by
@@ -3371,6 +3493,10 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
     timer.insert machineStoreInst s t deadline badge ⦃ _ => True ⦄ := by
   unfold timer.insert; p0_split
 
+@[step] theorem tcb.reply_words.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (n : Std.U64) (hS : StoreTotal machineStoreInst) :
+    tcb.reply_words machineStoreInst s t n ⦃ _ => True ⦄ := by
+  unfold tcb.reply_words; p0_auto
+
 @[step] theorem tcb.restart_caller.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (hS : StoreTotal machineStoreInst) :
     tcb.restart_caller machineStoreInst s ⦃ _ => True ⦄ := by
   unfold tcb.restart_caller; p0_auto
@@ -3379,34 +3505,152 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
     tcb.arg machineStoreInst s c i ⦃ _ => True ⦄ := by
   unfold tcb.arg; p0_auto
 
-@[step] theorem tcb.set_breakpoint_checked.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (c : tcb.Ctx) (hS : StoreTotal machineStoreInst) :
-    tcb.set_breakpoint_checked machineStoreInst s t c ⦃ _ => True ⦄ := by
-  unfold tcb.set_breakpoint_checked; p0_auto
+@[step] theorem tcb.decode_set_flags.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (c : tcb.Ctx) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tcb.decode_set_flags machineStoreInst machineArchInst s a target c ⦃ _ => True ⦄ := by
+  unfold tcb.decode_set_flags; p0_auto
 
-@[step] theorem tcb.copy_words_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : Std.U64) (dst : Std.U64) (n : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
-    tcb.copy_words_loop machineStoreInst s src dst n i ⦃ _ => True ⦄ := by
-  unfold tcb.copy_words_loop
-  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => n.val - x1.val) (inv := fun _ => True)
-  · rintro ⟨x0, x1⟩ -
-    unfold tcb.copy_words_loop.body
-    p0_auto
-  · trivial
+@[step] theorem tcb.decode_set_tls_base.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (target : obj.Tcb) (c : tcb.Ctx) (hS : StoreTotal machineStoreInst) :
+    tcb.decode_set_tls_base machineStoreInst s target c ⦃ _ => True ⦄ := by
+  unfold tcb.decode_set_tls_base; p0_auto
 
-@[step] theorem tcb.copy_words.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : Std.U64) (dst : Std.U64) (n : Std.U64) (hS : StoreTotal machineStoreInst) :
-    tcb.copy_words machineStoreInst s src dst n ⦃ _ => True ⦄ := by
-  unfold tcb.copy_words; p0_auto
+@[step] theorem tcb.decode_get_breakpoint.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (target : obj.Tcb) (c : tcb.Ctx) (hS : StoreTotal machineStoreInst) :
+    tcb.decode_get_breakpoint machineStoreInst s target c ⦃ _ => True ⦄ := by
+  unfold tcb.decode_get_breakpoint; p0_auto
+
+@[step] theorem tcb.decode_configure_single_stepping.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (c : tcb.Ctx) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tcb.decode_configure_single_stepping machineStoreInst machineArchInst s a target c ⦃ _ => True ⦄ := by
+  unfold tcb.decode_configure_single_stepping; p0_auto
+
+@[step] theorem tcb.bindable_ntfn.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ns : obj.Slot) (hS : StoreTotal machineStoreInst) :
+    tcb.bindable_ntfn machineStoreInst s ns ⦃ _ => True ⦄ := by
+  unfold tcb.bindable_ntfn; p0_auto
 
 @[step] theorem tcb.extra.p0 (c : tcb.Ctx) (i : Std.Usize) :
     tcb.extra c i ⦃ _ => True ⦄ := by
   unfold tcb.extra; p0_auto
 
-@[step] theorem tcb.fpu_transfer.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (c : tcb.Ctx) (to_frame : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
-    tcb.fpu_transfer machineStoreInst machineArchInst s a target c to_frame ⦃ _ => True ⦄ := by
-  unfold tcb.fpu_transfer; p0_auto
+@[step] theorem tcb.extra_with_length.p0 (c : tcb.Ctx) (i : Std.Usize) (min_length : Std.U64) :
+    tcb.extra_with_length c i min_length ⦃ _ => True ⦄ := by
+  unfold tcb.extra_with_length; p0_auto
+
+@[step] theorem tcb.decode_bind_notification.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (target : obj.Tcb) (c : tcb.Ctx) (hS : StoreTotal machineStoreInst) :
+    tcb.decode_bind_notification machineStoreInst s target c ⦃ _ => True ⦄ := by
+  unfold tcb.decode_bind_notification; p0_auto
+
+@[step] theorem tcb.still_valid.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (target : obj.Tcb) (slot : obj.Slot) (new_cap : capability.Cap) (src : obj.Slot) (hS : StoreTotal machineStoreInst) :
+    tcb.still_valid machineStoreInst s target slot new_cap src ⦃ _ => True ⦄ := by
+  unfold tcb.still_valid; p0_auto
+
+@[step] theorem tcb.install_buffer.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (slot : obj.Slot) (buffer_addr : Std.U64) (buffer : (capability.Cap × obj.Slot)) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tcb.install_buffer machineStoreInst machineArchInst s a target slot buffer_addr buffer ⦃ _ => True ⦄ := by
+  unfold tcb.install_buffer; p0_split
+
+@[step] theorem tcb.install_tcb_cap.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (slot : obj.Slot) (index : Std.U64) (new_cap : capability.Cap) (src : obj.Slot) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tcb.install_tcb_cap machineStoreInst machineArchInst s a target slot index new_cap src ⦃ _ => True ⦄ := by
+  unfold tcb.install_tcb_cap; p0_auto
+
+@[step] theorem tcb.thread_control_caps.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (slot : obj.Slot) (fh : (capability.Cap × obj.Slot)) (th : (capability.Cap × obj.Slot)) (croot : (capability.Cap × obj.Slot)) (vroot : (capability.Cap × obj.Slot)) (buffer_addr : Std.U64) (buffer : (capability.Cap × obj.Slot)) (flags : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tcb.thread_control_caps machineStoreInst machineArchInst s a target slot fh th croot vroot buffer_addr buffer flags ⦃ _ => True ⦄ := by
+  unfold tcb.thread_control_caps; p0_split
+
+@[step] theorem tcb.decode_set_timeout_endpoint.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (c : tcb.Ctx) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tcb.decode_set_timeout_endpoint machineStoreInst machineArchInst s a target c ⦃ _ => True ⦄ := by
+  unfold tcb.decode_set_timeout_endpoint; p0_auto
+
+@[step] theorem tcb.is_cnode.p0 (c : capability.Cap) :
+    tcb.is_cnode c ⦃ _ => True ⦄ := by
+  unfold tcb.is_cnode; p0_auto
+
+@[step] theorem tcb.derive_with_data.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (slot : obj.Slot) (data : Std.U64) (hS : StoreTotal machineStoreInst) :
+    tcb.derive_with_data machineStoreInst s slot data ⦃ _ => True ⦄ := by
+  unfold tcb.derive_with_data; p0_split
+
+@[step] theorem tcb.derive_roots.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (target : obj.Tcb) (cdata : Std.U64) (vdata : Std.U64) (cslot : obj.Slot) (vslot : obj.Slot) (hS : StoreTotal machineStoreInst) :
+    tcb.derive_roots machineStoreInst s target cdata vdata cslot vslot ⦃ _ => True ⦄ := by
+  unfold tcb.derive_roots; p0_auto
+
+@[step] theorem tcb.decode_set_space.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (c : tcb.Ctx) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tcb.decode_set_space machineStoreInst machineArchInst s a target c ⦃ _ => True ⦄ := by
+  unfold tcb.decode_set_space; p0_split
+
+@[step] theorem vspace.check_valid_ipc_buffer.p0 (vptr : Std.U64) (c : capability.Cap) :
+    vspace.check_valid_ipc_buffer vptr c ⦃ _ => True ⦄ := by
+  unfold vspace.check_valid_ipc_buffer; p0_auto
+
+@[step] theorem tcb.derive_for_buffer.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (buffer_addr : Std.U64) (bslot : obj.Slot) (hS : StoreTotal machineStoreInst) :
+    tcb.derive_for_buffer machineStoreInst s buffer_addr bslot ⦃ _ => True ⦄ := by
+  unfold tcb.derive_for_buffer; p0_auto
+
+@[step] theorem tcb.decode_set_ipc_buffer.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (c : tcb.Ctx) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tcb.decode_set_ipc_buffer machineStoreInst machineArchInst s a target c ⦃ _ => True ⦄ := by
+  unfold tcb.decode_set_ipc_buffer; p0_auto
+
+@[step] theorem tcb.sched_params_sc.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (target : obj.Tcb) (sc_slot : obj.Slot) (hS : StoreTotal machineStoreInst) :
+    tcb.sched_params_sc machineStoreInst s target sc_slot ⦃ _ => True ⦄ := by
+  unfold tcb.sched_params_sc; p0_auto
+
+@[step] theorem tcb.thread_arg.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (slot : obj.Slot) (pos : Std.U64) (hS : StoreTotal machineStoreInst) :
+    tcb.thread_arg machineStoreInst s slot pos ⦃ _ => True ⦄ := by
+  unfold tcb.thread_arg; p0_auto
+
+@[step] theorem tcb.thread_control_sched.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (slot : obj.Slot) (fh : (capability.Cap × obj.Slot)) (mcp : Std.U64) (prio : Std.U64) (sc : obj.Sc) (flags : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tcb.thread_control_sched machineStoreInst machineArchInst s a target slot fh mcp prio sc flags ⦃ _ => True ⦄ := by
+  unfold tcb.thread_control_sched; p0_split
+
+@[step] theorem tcb.check_prio.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (prio : Std.U64) (auth : obj.Tcb) (hS : StoreTotal machineStoreInst) :
+    tcb.check_prio machineStoreInst s prio auth ⦃ _ => True ⦄ := by
+  unfold tcb.check_prio; p0_auto
+
+@[step] theorem tcb.decode_set_sched_params.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (c : tcb.Ctx) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tcb.decode_set_sched_params machineStoreInst machineArchInst s a target c ⦃ _ => True ⦄ := by
+  unfold tcb.decode_set_sched_params; p0_auto
+
+@[step] theorem tcb.decode_set_priority.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (c : tcb.Ctx) (prio : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tcb.decode_set_priority machineStoreInst machineArchInst s a target c prio ⦃ _ => True ⦄ := by
+  unfold tcb.decode_set_priority; p0_auto
+
+@[step] theorem tcb.decode_configure.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (c : tcb.Ctx) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tcb.decode_configure machineStoreInst machineArchInst s a target c ⦃ _ => True ⦄ := by
+  unfold tcb.decode_configure; p0_split
 
 @[step] theorem tcb.post_modify_registers.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
     tcb.post_modify_registers machineStoreInst s t ⦃ _ => True ⦄ := by
   unfold tcb.post_modify_registers; p0_split
+
+@[step] theorem tcb.copy_registers_loop0.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : obj.Tcb) (src : obj.Tcb) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
+    tcb.copy_registers_loop0 machineStoreInst s dest src i ⦃ _ => True ⦄ := by
+  unfold tcb.copy_registers_loop0
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => tcb.N_FRAME.val - x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold tcb.copy_registers_loop0.body
+    p0_auto
+  · trivial
+
+@[step] theorem tcb.copy_registers_loop1.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : obj.Tcb) (src : obj.Tcb) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
+    tcb.copy_registers_loop1 machineStoreInst s dest src i ⦃ _ => True ⦄ := by
+  unfold tcb.copy_registers_loop1
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => tcb.N_GP.val - x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold tcb.copy_registers_loop1.body
+    p0_auto
+  · trivial
+
+@[step] theorem tcb.copy_registers_loop2.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : obj.Tcb) (src : obj.Tcb) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
+    tcb.copy_registers_loop2 machineStoreInst s dest src i ⦃ _ => True ⦄ := by
+  unfold tcb.copy_registers_loop2
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => tcb.N_GP.val - x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold tcb.copy_registers_loop2.body
+    p0_auto
+  · trivial
+
+@[step] theorem tcb.copy_registers.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (dest : obj.Tcb) (src : obj.Tcb) (flags : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tcb.copy_registers machineStoreInst machineArchInst s a dest src flags ⦃ _ => True ⦄ := by
+  unfold tcb.copy_registers; p0_split
+
+@[step] theorem tcb.decode_copy_registers.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (c : tcb.Ctx) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tcb.decode_copy_registers machineStoreInst machineArchInst s a target c ⦃ _ => True ⦄ := by
+  unfold tcb.decode_copy_registers; p0_auto
 
 @[step] theorem tcb.write_registers_loop0.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : obj.Tcb) (buf : Std.U64) (ct : obj.Tcb) (n : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
     tcb.write_registers_loop0 machineStoreInst s dest buf ct n i ⦃ _ => True ⦄ := by
@@ -3429,6 +3673,10 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
 @[step] theorem tcb.write_registers.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (dest : obj.Tcb) (resume : Bool) (n_in : Std.U64) (buf : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     tcb.write_registers machineStoreInst machineArchInst s a dest resume n_in buf ⦃ _ => True ⦄ := by
   unfold tcb.write_registers; p0_split
+
+@[step] theorem tcb.decode_write_registers.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (c : tcb.Ctx) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tcb.decode_write_registers machineStoreInst machineArchInst s a target c ⦃ _ => True ⦄ := by
+  unfold tcb.decode_write_registers; p0_auto
 
 @[step] theorem tcb.read_registers_loop0.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Tcb) (n : Std.U64) (ct : obj.Tcb) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
     tcb.read_registers_loop0 machineStoreInst s src n ct i ⦃ _ => True ⦄ := by
@@ -3524,76 +3772,38 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
     tcb.read_registers machineStoreInst machineArchInst s a src suspend n call ⦃ _ => True ⦄ := by
   unfold tcb.read_registers; p0_split
 
-@[step] theorem tcb.copy_registers_loop0.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : obj.Tcb) (src : obj.Tcb) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
-    tcb.copy_registers_loop0 machineStoreInst s dest src i ⦃ _ => True ⦄ := by
-  unfold tcb.copy_registers_loop0
-  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => tcb.N_FRAME.val - x1.val) (inv := fun _ => True)
+@[step] theorem tcb.decode_read_registers.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (c : tcb.Ctx) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tcb.decode_read_registers machineStoreInst machineArchInst s a target c ⦃ _ => True ⦄ := by
+  unfold tcb.decode_read_registers; p0_auto
+
+@[step] theorem tcb.set_breakpoint_checked.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (c : tcb.Ctx) (hS : StoreTotal machineStoreInst) :
+    tcb.set_breakpoint_checked machineStoreInst s t c ⦃ _ => True ⦄ := by
+  unfold tcb.set_breakpoint_checked; p0_auto
+
+@[step] theorem tcb.copy_words_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : Std.U64) (dst : Std.U64) (n : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
+    tcb.copy_words_loop machineStoreInst s src dst n i ⦃ _ => True ⦄ := by
+  unfold tcb.copy_words_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => n.val - x1.val) (inv := fun _ => True)
   · rintro ⟨x0, x1⟩ -
-    unfold tcb.copy_registers_loop0.body
+    unfold tcb.copy_words_loop.body
     p0_auto
   · trivial
 
-@[step] theorem tcb.copy_registers_loop1.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : obj.Tcb) (src : obj.Tcb) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
-    tcb.copy_registers_loop1 machineStoreInst s dest src i ⦃ _ => True ⦄ := by
-  unfold tcb.copy_registers_loop1
-  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => tcb.N_GP.val - x1.val) (inv := fun _ => True)
-  · rintro ⟨x0, x1⟩ -
-    unfold tcb.copy_registers_loop1.body
-    p0_auto
-  · trivial
+@[step] theorem tcb.copy_words.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : Std.U64) (dst : Std.U64) (n : Std.U64) (hS : StoreTotal machineStoreInst) :
+    tcb.copy_words machineStoreInst s src dst n ⦃ _ => True ⦄ := by
+  unfold tcb.copy_words; p0_auto
 
-@[step] theorem tcb.copy_registers_loop2.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : obj.Tcb) (src : obj.Tcb) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
-    tcb.copy_registers_loop2 machineStoreInst s dest src i ⦃ _ => True ⦄ := by
-  unfold tcb.copy_registers_loop2
-  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => tcb.N_GP.val - x1.val) (inv := fun _ => True)
-  · rintro ⟨x0, x1⟩ -
-    unfold tcb.copy_registers_loop2.body
-    p0_auto
-  · trivial
-
-@[step] theorem tcb.copy_registers.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (dest : obj.Tcb) (src : obj.Tcb) (flags : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
-    tcb.copy_registers machineStoreInst machineArchInst s a dest src flags ⦃ _ => True ⦄ := by
-  unfold tcb.copy_registers; p0_split
-
-@[step] theorem tcb.derive_roots.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (target : obj.Tcb) (cdata : Std.U64) (vdata : Std.U64) (cslot : obj.Slot) (vslot : obj.Slot) (hS : StoreTotal machineStoreInst) :
-    tcb.derive_roots machineStoreInst s target cdata vdata cslot vslot ⦃ _ => True ⦄ := by
-  sorry
-
-@[step] theorem vspace.check_valid_ipc_buffer.p0 (vptr : Std.U64) (c : capability.Cap) :
-    vspace.check_valid_ipc_buffer vptr c ⦃ _ => True ⦄ := by
-  unfold vspace.check_valid_ipc_buffer; p0_auto
-
-@[step] theorem tcb.derive_for_buffer.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (buffer_addr : Std.U64) (bslot : obj.Slot) (hS : StoreTotal machineStoreInst) :
-    tcb.derive_for_buffer machineStoreInst s buffer_addr bslot ⦃ _ => True ⦄ := by
-  unfold tcb.derive_for_buffer; p0_auto
-
-@[step] theorem tcb.install_tcb_cap.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (slot : obj.Slot) (index : Std.U64) (new_cap : capability.Cap) (src : obj.Slot) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
-    tcb.install_tcb_cap machineStoreInst machineArchInst s a target slot index new_cap src ⦃ _ => True ⦄ := by
-  unfold tcb.install_tcb_cap; p0_auto
-
-@[step] theorem tcb.thread_control_sched.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (slot : obj.Slot) (fh : (capability.Cap × obj.Slot)) (mcp : Std.U64) (prio : Std.U64) (sc : obj.Sc) (flags : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
-    tcb.thread_control_sched machineStoreInst machineArchInst s a target slot fh mcp prio sc flags ⦃ _ => True ⦄ := by
-  unfold tcb.thread_control_sched; p0_split
-
-@[step] theorem tcb.thread_control_caps.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (slot : obj.Slot) (fh : (capability.Cap × obj.Slot)) (th : (capability.Cap × obj.Slot)) (croot : (capability.Cap × obj.Slot)) (vroot : (capability.Cap × obj.Slot)) (buffer_addr : Std.U64) (buffer : (capability.Cap × obj.Slot)) (flags : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
-    tcb.thread_control_caps machineStoreInst machineArchInst s a target slot fh th croot vroot buffer_addr buffer flags ⦃ _ => True ⦄ := by
-  sorry
-
-@[step] theorem tcb.reply_words.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (n : Std.U64) (hS : StoreTotal machineStoreInst) :
-    tcb.reply_words machineStoreInst s t n ⦃ _ => True ⦄ := by
-  unfold tcb.reply_words; p0_auto
-
-@[step] theorem tcb.check_prio.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (prio : Std.U64) (auth : obj.Tcb) (hS : StoreTotal machineStoreInst) :
-    tcb.check_prio machineStoreInst s prio auth ⦃ _ => True ⦄ := by
-  unfold tcb.check_prio; p0_auto
+@[step] theorem tcb.fpu_transfer.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (target : obj.Tcb) (c : tcb.Ctx) (to_frame : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tcb.fpu_transfer machineStoreInst machineArchInst s a target c to_frame ⦃ _ => True ⦄ := by
+  unfold tcb.fpu_transfer; p0_auto
 
 @[step] theorem tcb.decode.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (target : obj.Tcb) (c : tcb.Ctx) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     tcb.decode machineStoreInst machineArchInst s a lbl target c ⦃ _ => True ⦄ := by
-  sorry
+  unfold tcb.decode; p0_auto
 
 @[step] theorem syscall.decode_invocation.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (length : Std.U64) (slot : obj.Slot) (cap : capability.Cap) (block : Bool) (call : Bool) (can_donate : Bool) (first_phase : Bool) (buf : Std.U64) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.decode_invocation machineStoreInst machineArchInst s a lbl length slot cap block call can_donate first_phase buf extra ⦃ _ => True ⦄ := by
-  unfold syscall.decode_invocation; p0_split
+  unfold syscall.decode_invocation; p0_auto
 
 @[step] theorem syscall.handle_invocation.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (is_call : Bool) (blocking : Bool) (can_donate : Bool) (first_phase : Bool) (cptr : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.handle_invocation machineStoreInst machineArchInst s a is_call blocking can_donate first_phase cptr ⦃ _ => True ⦄ := by
@@ -3605,7 +3815,7 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
 
 @[step] theorem syscall.handle_recv.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (blocking : Bool) (can_reply : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.handle_recv machineStoreInst machineArchInst s a blocking can_reply ⦃ _ => True ⦄ := by
-  unfold syscall.handle_recv; p0_split
+  unfold syscall.handle_recv; p0_match
 
 @[step] theorem syscall.mcs_preemption_point.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.mcs_preemption_point machineStoreInst machineArchInst s a ⦃ _ => True ⦄ := by
@@ -3623,21 +3833,46 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
     syscall.after_invocation machineStoreInst machineArchInst s a r ⦃ _ => True ⦄ := by
   sorry
 
-@[step] theorem syscall.name_thread_loop0_loop0.p0 (done1 : Bool) (v : Std.U64) (k : Std.I32) :
-    syscall.name_thread_loop0_loop0 done1 v k ⦃ _ => True ⦄ := by
-  sorry
+@[step] theorem syscall.cap_type_code.p0 (c : capability.Cap) :
+    syscall.cap_type_code c ⦃ _ => True ⦄ := by
+  unfold syscall.cap_type_code; p0_auto
 
-@[step] theorem syscall.name_thread_loop0.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (src : Std.U64) (w : Std.U64) (done1 : Bool) (hS : StoreTotal machineStoreInst) :
-    syscall.name_thread_loop0 machineStoreInst s t src w done1 ⦃ _ => True ⦄ := by
+@[step] theorem syscall.nonzero_bytes_loop.p0 (v : Std.U64) (k : Std.U64) :
+    syscall.nonzero_bytes_loop v k ⦃ _ => True ⦄ := by
+  unfold syscall.nonzero_bytes_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0) => 8 - x0.val) (inv := fun _ => True)
+  · rintro x0 -
+    unfold syscall.nonzero_bytes_loop.body
+    p0_auto
+  · trivial
+
+@[step] theorem syscall.nonzero_bytes.p0 (v : Std.U64) :
+    syscall.nonzero_bytes v ⦃ _ => True ⦄ := by
+  unfold syscall.nonzero_bytes; p0_auto
+
+@[step] theorem syscall.name_thread_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (src : Std.U64) (w : Std.U64) (done1 : Bool) (hS : StoreTotal machineStoreInst) :
+    syscall.name_thread_loop machineStoreInst s t src w done1 ⦃ _ => True ⦄ := by
   sorry
 
 @[step] theorem syscall.name_thread.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (src : Std.U64) (hS : StoreTotal machineStoreInst) :
     syscall.name_thread machineStoreInst s t src ⦃ _ => True ⦄ := by
   unfold syscall.name_thread; p0_auto
 
-@[step] theorem syscall.cap_type_code.p0 (c : capability.Cap) :
-    syscall.cap_type_code c ⦃ _ => True ⦄ := by
-  unfold syscall.cap_type_code; p0_auto
+@[step] theorem syscall.thread_of.p0 (c : capability.Cap) :
+    syscall.thread_of c ⦃ _ => True ⦄ := by
+  unfold syscall.thread_of; p0_auto
+
+@[step] theorem syscall.invoked_cap.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
+    syscall.invoked_cap machineStoreInst s t ⦃ _ => True ⦄ := by
+  unfold syscall.invoked_cap; p0_split
+
+@[step] theorem syscall.debug_name_thread.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    syscall.debug_name_thread machineStoreInst machineArchInst s a t ⦃ _ => True ⦄ := by
+  unfold syscall.debug_name_thread; p0_auto
+
+@[step] theorem syscall.debug_syscall.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (number : Std.I64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    syscall.debug_syscall machineStoreInst machineArchInst s a t number ⦃ _ => True ⦄ := by
+  unfold syscall.debug_syscall; p0_auto
 
 @[step] theorem syscall.unknown_syscall_fault.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.unknown_syscall_fault machineStoreInst machineArchInst s a number ⦃ _ => True ⦄ := by
@@ -3645,11 +3880,15 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
 
 @[step] theorem syscall.handle_unknown_syscall.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.handle_unknown_syscall machineStoreInst machineArchInst s a number ⦃ _ => True ⦄ := by
-  sorry
+  unfold syscall.handle_unknown_syscall; p0_auto
+
+@[step] theorem syscall.dispatch_syscall.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    syscall.dispatch_syscall machineStoreInst machineArchInst s a number ⦃ _ => True ⦄ := by
+  unfold syscall.dispatch_syscall; p0_auto
 
 @[step] theorem syscall.handle_syscall.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.handle_syscall machineStoreInst machineArchInst s a number ⦃ _ => True ⦄ := by
-  sorry
+  unfold syscall.handle_syscall; p0_split
 
 @[step] theorem syscall.handle_interrupt_entry.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (irq : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.handle_interrupt_entry machineStoreInst machineArchInst s a irq ⦃ _ => True ⦄ := by
@@ -3681,7 +3920,9 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
 
 @[step] theorem tcbqueue.Queue.Insts.CoreCmpPartialEqQueue.eq.p0 (self : tcbqueue.Queue) (other : tcbqueue.Queue) :
     tcbqueue.Queue.Insts.CoreCmpPartialEqQueue.eq self other ⦃ _ => True ⦄ := by
-  unfold tcbqueue.Queue.Insts.CoreCmpPartialEqQueue.eq; p0_auto
+  unfold tcbqueue.Queue.Insts.CoreCmpPartialEqQueue.eq
+  cases self <;> cases other <;> simp [lift, core.cmp.impls.PartialEqBool.eq] <;>
+    (repeat' split) <;> (try simp [lift, core.cmp.impls.PartialEqBool.eq]) <;> (try step*)
 
 @[step] theorem tcbqueue.Queue.Insts.CoreCmpEq.assert_fields_are_eq.p0 (self : tcbqueue.Queue) :
     tcbqueue.Queue.Insts.CoreCmpEq.assert_fields_are_eq self ⦃ _ => True ⦄ := by
@@ -3693,6 +3934,12 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
 
 @[step] theorem tcbqueue.Link.Insts.CoreCmpPartialEqLink.eq.p0 (self : tcbqueue.Link) (other : tcbqueue.Link) :
     tcbqueue.Link.Insts.CoreCmpPartialEqLink.eq self other ⦃ _ => True ⦄ := by
-  unfold tcbqueue.Link.Insts.CoreCmpPartialEqLink.eq; p0_auto
+  unfold tcbqueue.Link.Insts.CoreCmpPartialEqLink.eq
+  cases self <;> cases other <;> simp [lift, core.cmp.impls.PartialEqBool.eq] <;>
+    (repeat' split) <;> (try simp [lift, core.cmp.impls.PartialEqBool.eq]) <;> (try step*)
+
+@[step] theorem vspace.FrameCap.Insts.CoreCloneClone.clone.p0 (self : vspace.FrameCap) :
+    vspace.FrameCap.Insts.CoreCloneClone.clone self ⦃ _ => True ⦄ := by
+  unfold vspace.FrameCap.Insts.CoreCloneClone.clone; p0_auto
 
 end Fl4Proofs.P0

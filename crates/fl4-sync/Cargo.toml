@@ -8,3 +8,8 @@ license.workspace = true
 [dependencies]
 fl4-core = { path = "../fl4-core" }
 fl4-store = { path = "../fl4-store" }
+
+[features]
+# Test only (DESIGN.md §13, M4): every entry takes the serial gate, as with
+# a big lock, for differential runs against the transactional runtime.
+serial-gate = []

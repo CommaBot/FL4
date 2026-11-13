@@ -133,4 +133,8 @@ elab "p0_cases_prod" : tactic => withMainContext do
 
 /-- The fallback for large matches on literals, where `step*` times out in
 `whnf`: split the matches explicitly. -/
-macro "p0_split" : tactic => `(tactic| ((repeat' (first | step | split | p0_cases_prod)) <;> p0_close))
+macro "p0_split" : tactic => `(tactic| ((repeat' (first | step | (simp only [bind_tc_ok, bind_ok]) | split | p0_cases_prod)) <;> p0_close))
+
+/-- The fallback for a match on the arguments with a call in each branch:
+split the outer matches, then step through each branch. -/
+macro "p0_match" : tactic => `(tactic| (split <;> (try split) <;> p0_auto))

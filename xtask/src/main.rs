@@ -105,7 +105,9 @@ fn qemu_cmd(setup: &str, smp: u32, kernel: &Path, initrd: Option<&Path>) -> Comm
         // IOAPIC, QEMU gives GSI 2 no route, so an HPET timer routed to pin
         // 2 (where sel4test's driver puts it) never interrupts.
         "kvm" => c.args(["-enable-kvm", "-machine", "kernel-irqchip=split", "-cpu", "host,+invtsc"]),
-        "kvm-reduced" => c.args(["-enable-kvm", "-machine", "kernel-irqchip=split", "-cpu", "host,-x2apic,-tsc-deadline"]),
+        // The fallback paths: xAPIC, the APIC one-shot timer, no PCIDs,
+        // the FS/GS MSRs, XSAVEOPT.
+        "kvm-reduced" => c.args(["-enable-kvm", "-machine", "kernel-irqchip=split", "-cpu", "host,-x2apic,-tsc-deadline,-pcid,-invpcid,-fsgsbase,-xsaves,-xsavec"]),
         // -icount stops QEMU 10.0 with "Bad icount read" during boot.
         "tcg" => c.args(["-accel", "tcg", "-cpu", "max"]),
         s => fail(&format!("unknown setup {s} (kvm, kvm-reduced, tcg)")),
@@ -242,6 +244,12 @@ fn sel4test_build(o: &Opts) -> PathBuf {
         name += "-";
         name.extend(r.chars().filter(|c| c.is_ascii_alphanumeric()));
     }
+    // FL4_SERIAL_GATE=1: the test-only build where every entry takes the
+    // serial gate.
+    let serial_gate = env::var_os("FL4_SERIAL_GATE").is_some();
+    if serial_gate {
+        name += "-serialgate";
+    }
     let b = ws.join(&name);
     if !b.join("build.ninja").exists() {
         fs::create_dir_all(&b).unwrap();
@@ -253,6 +261,9 @@ fn sel4test_build(o: &Opts) -> PathBuf {
             c.arg(format!("-DNUM_NODES={}", o.smp));
         }
         c.arg(format!("-DLibSel4TestPrinterRegex={}", only.clone().unwrap_or_else(|| ".*".into())));
+        if serial_gate {
+            c.arg("-DFL4_SERIAL_GATE=ON");
+        }
         for a in &o.rest {
             c.arg(a);
         }
@@ -324,7 +335,8 @@ const SIM_REGRESSIONS: &[(u64, u64, u64)] = &[(113, 4, 20000)];
 /// Deterministic simulation (DESIGN.md §10): the regression seeds, then
 /// --seeds seeds (default 200) on --smp cores (default 4), 20000 steps
 /// each, serially and then with the cores' kernel entries interleaved
-/// (transactions, 8000 steps).
+/// (transactions, 8000 steps), and interleaved again with every entry
+/// under the serial gate.
 fn sim(o: &Opts) {
     let r = root();
     run(Command::new("cargo").current_dir(&r).args(["build", "--release", "-p", "fl4-sim"]));
@@ -335,6 +347,50 @@ fn sim(o: &Opts) {
     let cores = if o.smp > 1 { o.smp } else { 4 };
     run(Command::new(&bin).args(["--seeds", &o.seeds.to_string(), "--cores", &cores.to_string(), "--steps", "20000"]));
     run(Command::new(&bin).args(["--seeds", &o.seeds.to_string(), "--cores", &cores.to_string(), "--steps", "8000", "--conc"]));
+    // The same campaign with every entry under the serial gate, the
+    // test-only differential configuration.
+    let dir = r.join("target/serial-gate");
+    run(Command::new("cargo").current_dir(&r).args(["build", "--release", "-p", "fl4-sim", "--features", "serial-gate", "--target-dir"]).arg(&dir));
+    run(Command::new(dir.join("release/fl4-sim")).args(["--seeds", &o.seeds.to_string(), "--cores", &cores.to_string(), "--steps", "8000", "--conc"]));
+}
+
+/// The trusted base (TRUSTED, DESIGN.md §9): every listed path exists;
+/// prints the lines of source in each group and in all.
+fn trusted() {
+    let r = root();
+    let list = fs::read_to_string(r.join("TRUSTED")).unwrap();
+    let mut groups: Vec<(String, usize)> = Vec::new();
+    for l in list.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')) {
+        let (g, p) = l.split_once(':').unwrap_or_else(|| fail(&format!("TRUSTED: bad line {l:?}")));
+        let path = r.join(p.trim());
+        if !path.exists() {
+            fail(&format!("TRUSTED: {} does not exist", p.trim()));
+        }
+        let n = source_lines(&path);
+        match groups.iter_mut().find(|(name, _)| name == g.trim()) {
+            Some((_, total)) => *total += n,
+            None => groups.push((g.trim().to_string(), n)),
+        }
+    }
+    for (g, n) in &groups {
+        eprintln!("xtask: trusted {g}: {n} lines");
+    }
+    eprintln!("xtask: trusted base: {} lines", groups.iter().map(|(_, n)| n).sum::<usize>());
+}
+
+/// Lines in a source file, or in every source file under a directory.
+fn source_lines(p: &Path) -> usize {
+    if p.is_dir() {
+        let mut n = 0;
+        for e in fs::read_dir(p).unwrap() {
+            n += source_lines(&e.unwrap().path());
+        }
+        return n;
+    }
+    match p.extension().and_then(|e| e.to_str()) {
+        Some("rs" | "S" | "lean" | "ld") => fs::read_to_string(p).map(|t| t.lines().count()).unwrap_or(0),
+        _ => 0,
+    }
 }
 
 /// The extractability gate (DESIGN.md §6): all of fl4-core goes through
@@ -395,8 +451,9 @@ fn main() {
         "extract" => extract(),
         "gate" => gate(),
         "sim" => sim(&o),
+        "trusted" => trusted(),
         _ => {
-            eprintln!("usage: cargo xtask <kernel|run|sel4test-build|sel4test|extract|gate|sim> [--release] [--setup kvm|kvm-reduced|tcg] [--smp N] [--timeout S] [--seeds N]");
+            eprintln!("usage: cargo xtask <kernel|run|sel4test-build|sel4test|extract|gate|sim|trusted> [--release] [--setup kvm|kvm-reduced|tcg] [--smp N] [--timeout S] [--seeds N]");
             exit(2);
         }
     }

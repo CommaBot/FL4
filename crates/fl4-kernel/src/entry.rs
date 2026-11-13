@@ -96,6 +96,14 @@ fn save_user(s: &mut PhysStore, f: &Frame) {
     w(s, reg::FAULT_IP, if f.vector == VEC_SYSCALL { f.rip.wrapping_sub(2) } else { f.rip });
     w(s, reg::R11, f.r11);
     w(s, reg::RCX, f.rcx);
+    // With FSGSBASE the thread may have moved its FS or GS base itself.
+    if cpu::fsgsbase() {
+        let pc = percpu::get();
+        pc.fs_base = cpu::fs_base();
+        pc.gs_base = cpu::gs_base();
+        w(s, reg::FS_BASE, pc.fs_base);
+        w(s, reg::GS_BASE, pc.gs_base);
+    }
 }
 
 fn kernel_fault(f: &Frame) -> ! {
@@ -308,12 +316,12 @@ pub fn exit() -> ! {
     let pc = percpu::get();
     let fs = ct.reg(s, reg::FS_BASE);
     if fs != pc.fs_base {
-        cpu::wrmsr(cpu::msr::FS_BASE, fs);
+        cpu::set_fs_base(fs);
         pc.fs_base = fs;
     }
     let gs = ct.reg(s, reg::GS_BASE);
     if gs != pc.gs_base {
-        cpu::wrmsr(cpu::msr::GS_BASE, gs);
+        cpu::set_gs_base(gs);
         pc.gs_base = gs;
     }
     if fl4_abi::config::HARDWARE_DEBUG_API {

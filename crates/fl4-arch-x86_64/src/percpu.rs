@@ -31,6 +31,9 @@ pub struct PerCpu {
     /// Current CR3 and the ASID it belongs to.
     pub cr3: u64,
     pub asid: u64,
+    /// The invalidation generation of each PCID this core last ran with
+    /// (tlb.rs).
+    pub tlb_seen: [u64; crate::tlb::ASIDS],
     pub apic_id: u32,
     /// This core holds the serial gate.
     pub gate_held: bool,
@@ -58,6 +61,7 @@ impl PerCpu {
             dr_loaded: false,
             cr3: 0,
             asid: 0,
+            tlb_seen: [0; crate::tlb::ASIDS],
             apic_id: 0,
             gate_held: false,
             tx: false,

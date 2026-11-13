@@ -310,22 +310,25 @@ fn set_name<S: Store>(s: &mut S, t: Tcb, name: &[u8]) {
 /// Pick the root server's memory: the top of the highest free region that
 /// fits `size` bytes aligned to `align_bits`.
 fn take_rootserver_mem(p: &mut BootParams, size: u64, align_bits: u64) -> Option<u64> {
-    let mut i = if (p.n_free as usize) < MAX_REGIONS { p.n_free } else { MAX_REGIONS as u64 };
+    let mut i = p.n_free;
     while i > 0 {
         i -= 1;
-        let r = p.free[i as usize];
-        if r.end > r.start && r.end - r.start >= size {
-            let start = (r.end - size) & !((1u64 << (align_bits & 63)).wrapping_sub(1));
-            if start >= r.start {
-                // Split the region around the allocation.
-                let tail = Region { start: start.wrapping_add(size), end: r.end };
-                p.free[i as usize] = Region { start: r.start, end: start };
-                if !tail.is_empty() && (p.n_free as usize) < MAX_REGIONS {
-                    let n = p.n_free as usize;
-                    p.free[n] = tail;
-                    p.n_free += 1;
+        let k = i as usize;
+        if k < MAX_REGIONS {
+            let r = p.free[k];
+            if r.end > r.start && r.end - r.start >= size {
+                let start = (r.end - size) & !((1u64 << (align_bits & 63)).wrapping_sub(1));
+                if start >= r.start {
+                    // Split the region around the allocation.
+                    let tail = Region { start: start.wrapping_add(size), end: r.end };
+                    p.free[k] = Region { start: r.start, end: start };
+                    if !tail.is_empty() && (p.n_free as usize) < MAX_REGIONS {
+                        let n = p.n_free as usize;
+                        p.free[n] = tail;
+                        p.n_free += 1;
+                    }
+                    return Some(start);
                 }
-                return Some(start);
             }
         }
     }

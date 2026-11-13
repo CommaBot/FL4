@@ -59,6 +59,8 @@ const DOOM_SERIAL: u8 = 2;
 pub struct TxState {
     active: bool,
     rv: u64,
+    /// The version the last commit published (for fl4-sim's checker).
+    wv: u64,
     doom: u8,
     gen: u32,
     rstamp: [u32; ENTRIES],
@@ -81,6 +83,7 @@ impl TxState {
         TxState {
             active: false,
             rv: 0,
+            wv: 0,
             doom: DOOM_NONE,
             gen: 0,
             rstamp: [0; ENTRIES],
@@ -143,6 +146,22 @@ pub fn doom_serial(cpu: u64) {
     if t.active {
         t.doom = DOOM_SERIAL;
     }
+}
+
+/// The clock value the transaction on `cpu` started at.
+pub fn read_version(cpu: u64) -> u64 {
+    st(cpu).rv
+}
+
+/// The version `cpu`'s last committed writer published; set before its
+/// writes reach memory.
+pub fn commit_version(cpu: u64) -> u64 {
+    st(cpu).wv
+}
+
+/// The version clock.
+pub fn clock() -> u64 {
+    CLOCK.load(Ordering::Acquire)
 }
 
 pub fn doomed(cpu: u64) -> bool {
@@ -290,6 +309,7 @@ pub fn commit<M: Mem>(cpu: u64, m: &M) -> bool {
             }
         }
     }
+    t.wv = wv;
     for k in 0..t.nw {
         let i = t.worder[k] as usize;
         m.store(t.wkey[i], t.wval[i]);

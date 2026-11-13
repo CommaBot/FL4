@@ -133,8 +133,9 @@ pub enum Count {
     Serial,
 }
 
-/// Transaction attempts before an entry runs under the serial gate.
-pub const TX_ATTEMPTS: u32 = 4;
+/// Transaction attempts before an entry runs under the serial gate (none
+/// with the test-only `serial-gate` feature).
+pub const TX_ATTEMPTS: u32 = if cfg!(feature = "serial-gate") { 0 } else { 4 };
 
 /// Run the kernel's part of an entry (DESIGN.md §7): directly on one core;
 /// otherwise as a transaction, rerun on conflict, and under the serial gate

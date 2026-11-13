@@ -309,6 +309,17 @@ structure debug.Breakpoint where
   rw : Std.U64
   enabled : Bool
 
+/-- [fl4_core::vspace::FrameCap]
+    Source: 'crates/fl4-core/src/vspace.rs', lines 418:0-426:1 -/
+structure vspace.FrameCap where
+  ptr : Std.U64
+  size : capability.FrameSize
+  rights : Std.U64
+  is_device : Bool
+  mapped : Bool
+  asid : Std.U64
+  vaddr : Std.U64
+
 /-- [fl4_core::tcb::Ctx]
     Source: 'crates/fl4-core/src/tcb.rs', lines 29:0-35:1
     Visibility: public -/

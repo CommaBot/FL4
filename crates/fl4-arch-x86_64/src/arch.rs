@@ -7,7 +7,7 @@
 //! repeated nor deferred (port I/O, remote stalls, IOAPIC programming, FPU
 //! state on another core, TLB shootdowns) end the transaction's chances:
 //! the entry reruns under the serial gate, where they run directly.
-use crate::{apic, cpu, fpu, ioapic, percpu, serial, smp, timer};
+use crate::{apic, cpu, fpu, ioapic, percpu, serial, smp, timer, tlb};
 use fl4_core::layout::{irq, PPTR_BASE};
 use fl4_core::machine::Arch;
 
@@ -32,8 +32,6 @@ pub enum Effect {
     Mask(u64, bool),
     Ack,
     VSpace(u64, u64),
-    InvPage(u64, u64),
-    InvAsid(u64),
     Reschedule(u64),
     Putc(u8),
 }
@@ -72,16 +70,6 @@ pub fn apply_effects() {
             Effect::Mask(irq, m) => ioapic::mask(irq, m),
             Effect::Ack => apic::eoi(),
             Effect::VSpace(root, asid) => switch_vspace(root, asid),
-            Effect::InvPage(asid, vaddr) => {
-                if percpu::get().asid == asid {
-                    cpu::invlpg(vaddr);
-                }
-            }
-            Effect::InvAsid(asid) => {
-                if percpu::get().asid == asid {
-                    cpu::write_cr3(cpu::read_cr3());
-                }
-            }
             Effect::Reschedule(m) => smp::reschedule(m),
             Effect::Putc(c) => serial::putc(c),
         }
@@ -95,13 +83,7 @@ pub fn discard_effects() {
 }
 
 fn switch_vspace(root: u64, asid: u64) {
-    let cr3 = root.wrapping_sub(PPTR_BASE);
-    let pc = percpu::get();
-    if pc.cr3 != cr3 {
-        cpu::write_cr3(cr3);
-        pc.cr3 = cr3;
-    }
-    pc.asid = asid;
+    tlb::switch(root.wrapping_sub(PPTR_BASE), asid);
 }
 
 impl Arch for PhysArch {
@@ -160,34 +142,24 @@ impl Arch for PhysArch {
             switch_vspace(root, asid)
         }
     }
-    // Other cores running the address space invalidate too (TLB
-    // shootdown); without PCIDs a core not running it holds no entries.
+    // An invalidation runs after the page tables changed, and other cores
+    // running the address space are shot down (tlb.rs). The changes reach
+    // memory only at commit, after which no IPI can be sent, so inside a
+    // transaction an invalidation sends the entry to the serial gate.
+    // (Mapping into an empty entry invalidates nothing and stays in the
+    // transaction.)
     fn invalidate_page(&mut self, asid: u64, vaddr: u64) {
-        let remote = smp::cores_on_asid(asid);
         if in_tx() {
-            if remote != 0 {
-                return serial_needed();
-            }
-            defer(Effect::InvPage(asid, vaddr));
-            return;
+            return serial_needed();
         }
-        if percpu::get().asid == asid {
-            cpu::invlpg(vaddr);
-        }
+        let remote = tlb::invalidate_page(asid, vaddr);
         smp::remote_call(smp::CALL_INVLPG, asid, vaddr, remote);
     }
     fn invalidate_asid(&mut self, asid: u64) {
-        let remote = smp::cores_on_asid(asid);
         if in_tx() {
-            if remote != 0 {
-                return serial_needed();
-            }
-            defer(Effect::InvAsid(asid));
-            return;
+            return serial_needed();
         }
-        if percpu::get().asid == asid {
-            cpu::write_cr3(cpu::read_cr3());
-        }
+        let remote = tlb::invalidate_asid(asid);
         smp::remote_call(smp::CALL_FLUSH_TLB, asid, 0, remote);
     }
     fn invalidate_page_structures(&mut self, asid: u64) {
@@ -252,8 +224,10 @@ impl Arch for PhysArch {
     // FPU images are written by XSAVE, not through the store: anything that
     // would touch live state, or write an image, runs serially.
     fn fpu_flush(&mut self, tcb: u64) {
+        // Bringing a compacted image back to the standard format writes
+        // the TCB outside the store.
         if in_tx() {
-            if fpu::is_live(tcb) {
+            if fpu::is_live(tcb) || fpu::compacting() {
                 serial_needed();
             }
             return;

@@ -249,6 +249,9 @@ open fl4_core
 @[step] theorem vspace.P_RW.spec : vspace.P_RW ⦃ v => v = 2#u64 ⦄ := by
   unfold vspace.P_RW; step*
 
+@[step] theorem vspace.P_ACCESSED.spec : vspace.P_ACCESSED ⦃ v => v = 32#u64 ⦄ := by
+  unfold vspace.P_ACCESSED; step*
+
 @[step] theorem vspace.P_PAT_LARGE.spec : vspace.P_PAT_LARGE ⦃ v => v = 4096#u64 ⦄ := by
   unfold vspace.P_PAT_LARGE; step*
 
@@ -258,8 +261,8 @@ open fl4_core
 @[step] theorem vspace.P_XD.spec : vspace.P_XD ⦃ v => v = 9223372036854775808#u64 ⦄ := by
   unfold vspace.P_XD; step*
 
-@[step] theorem vspace.P_ACCESSED.spec : vspace.P_ACCESSED ⦃ v => v = 32#u64 ⦄ := by
-  unfold vspace.P_ACCESSED; step*
+@[step] theorem untyped.RESET_CHUNK.spec : untyped.RESET_CHUNK ⦃ v => v = 65536#u64 ⦄ := by
+  unfold untyped.RESET_CHUNK; simp only [untyped.RESET_CHUNK_BITS]; step*
 
 @[simp, scalar_tac_simps] theorem fl4_abi.consts.error.InvalidArgument.val_eq : fl4_abi.consts.error.InvalidArgument.val = 1 := by
   unfold fl4_abi.consts.error.InvalidArgument; rfl
@@ -1074,11 +1077,11 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem layout.tcb.NUM_SLOTS.val_eq : layout.tcb.NUM_SLOTS.val = 5 := by
   unfold layout.tcb.NUM_SLOTS; rfl
 
-@[simp, scalar_tac_simps] theorem obj.EP_SEND.val_eq : obj.EP_SEND.val = 1 := by
-  unfold obj.EP_SEND; rfl
-
 @[simp, scalar_tac_simps] theorem cspace.WORD_BITS.val_eq : cspace.WORD_BITS.val = 64 := by
   unfold cspace.WORD_BITS; rfl
+
+@[simp, scalar_tac_simps] theorem obj.EP_SEND.val_eq : obj.EP_SEND.val = 1 := by
+  unfold obj.EP_SEND; rfl
 
 @[simp, scalar_tac_simps] theorem debug.DATA_BREAKPOINT.val_eq : debug.DATA_BREAKPOINT.val = 0 := by
   unfold debug.DATA_BREAKPOINT; rfl
@@ -1212,14 +1215,14 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem layout.irq.USER_MIN.val_eq : layout.irq.USER_MIN.val = 16 := by
   unfold layout.irq.USER_MIN; rfl
 
+@[simp, scalar_tac_simps] theorem layout.irq.INT_OFFSET.val_eq : layout.irq.INT_OFFSET.val = 32 := by
+  unfold layout.irq.INT_OFFSET; rfl
+
 @[simp, scalar_tac_simps] theorem layout.irq.ISA_MAX.val_eq : layout.irq.ISA_MAX.val = 15 := by
   unfold layout.irq.ISA_MAX; rfl
 
 @[simp, scalar_tac_simps] theorem layout.irq.ISA_MIN.val_eq : layout.irq.ISA_MIN.val = 0 := by
   unfold layout.irq.ISA_MIN; rfl
-
-@[simp, scalar_tac_simps] theorem layout.irq.INT_OFFSET.val_eq : layout.irq.INT_OFFSET.val = 32 := by
-  unfold layout.irq.INT_OFFSET; rfl
 
 @[simp, scalar_tac_simps] theorem layout.node.ARMED.val_eq : layout.node.ARMED.val = 80 := by
   unfold layout.node.ARMED; rfl
@@ -1305,11 +1308,17 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem untyped.RETYPE_FAN_OUT_LIMIT.val_eq : untyped.RETYPE_FAN_OUT_LIMIT.val = 256 := by
   unfold untyped.RETYPE_FAN_OUT_LIMIT; rfl
 
-@[simp, scalar_tac_simps] theorem tcb.N_GP.val_eq : tcb.N_GP.val = 2 := by
-  unfold tcb.N_GP; rfl
+@[simp, scalar_tac_simps] theorem tcb.UPDATE_IPC_BUFFER.val_eq : tcb.UPDATE_IPC_BUFFER.val = 8 := by
+  unfold tcb.UPDATE_IPC_BUFFER; rfl
 
-@[simp, scalar_tac_simps] theorem tcb.N_FRAME.val_eq : tcb.N_FRAME.val = 18 := by
-  unfold tcb.N_FRAME; rfl
+@[simp, scalar_tac_simps] theorem tcb.UPDATE_SPACE.val_eq : tcb.UPDATE_SPACE.val = 4 := by
+  unfold tcb.UPDATE_SPACE; rfl
+
+@[simp, scalar_tac_simps] theorem tcb.UPDATE_TIMEOUT.val_eq : tcb.UPDATE_TIMEOUT.val = 2 := by
+  unfold tcb.UPDATE_TIMEOUT; rfl
+
+@[simp, scalar_tac_simps] theorem tcb.UPDATE_FAULT.val_eq : tcb.UPDATE_FAULT.val = 1 := by
+  unfold tcb.UPDATE_FAULT; rfl
 
 @[simp, scalar_tac_simps] theorem tcb.SCHED_UPDATE_PRIO.val_eq : tcb.SCHED_UPDATE_PRIO.val = 8 := by
   unfold tcb.SCHED_UPDATE_PRIO; rfl
@@ -1323,16 +1332,10 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem tcb.SCHED_UPDATE_SC.val_eq : tcb.SCHED_UPDATE_SC.val = 1 := by
   unfold tcb.SCHED_UPDATE_SC; rfl
 
-@[simp, scalar_tac_simps] theorem tcb.UPDATE_IPC_BUFFER.val_eq : tcb.UPDATE_IPC_BUFFER.val = 8 := by
-  unfold tcb.UPDATE_IPC_BUFFER; rfl
+@[simp, scalar_tac_simps] theorem tcb.N_GP.val_eq : tcb.N_GP.val = 2 := by
+  unfold tcb.N_GP; rfl
 
-@[simp, scalar_tac_simps] theorem tcb.UPDATE_SPACE.val_eq : tcb.UPDATE_SPACE.val = 4 := by
-  unfold tcb.UPDATE_SPACE; rfl
-
-@[simp, scalar_tac_simps] theorem tcb.UPDATE_TIMEOUT.val_eq : tcb.UPDATE_TIMEOUT.val = 2 := by
-  unfold tcb.UPDATE_TIMEOUT; rfl
-
-@[simp, scalar_tac_simps] theorem tcb.UPDATE_FAULT.val_eq : tcb.UPDATE_FAULT.val = 1 := by
-  unfold tcb.UPDATE_FAULT; rfl
+@[simp, scalar_tac_simps] theorem tcb.N_FRAME.val_eq : tcb.N_FRAME.val = 18 := by
+  unfold tcb.N_FRAME; rfl
 
 end Fl4Proofs.P0.Consts

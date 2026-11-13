@@ -10,3 +10,7 @@ fl4-abi = { path = "../fl4-abi" }
 fl4-core = { path = "../fl4-core" }
 fl4-sync = { path = "../fl4-sync" }
 fl4-store = { path = "../fl4-store" }
+
+[features]
+# Test only: every kernel entry takes the serial gate.
+serial-gate = ["fl4-sync/serial-gate"]

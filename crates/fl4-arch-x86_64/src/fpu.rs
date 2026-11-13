@@ -1,21 +1,57 @@
-//! FPU state switching. Each TCB holds an XSAVE image (standard format)
-//! at `layout::tcb::FPU`. The registers keep the state of the last thread
+//! FPU state switching. Each TCB holds an XSAVE image at
+//! `layout::tcb::FPU`. The registers keep the state of the last thread
 //! that ran with the FPU (the owner) until another such thread runs, so a
 //! switch to and from the idle thread or an FPU-less thread costs nothing.
 //! Threads with seL4_TCBFlag_fpuDisabled run with CR0.TS set and get #NM.
-use crate::cpu::{cpuid, read_cr0, read_cr4, write_cr0, write_cr4, xsetbv};
+//!
+//! The save instruction is the best the CPU has (DESIGN.md §3): XSAVES,
+//! XSAVEC, XSAVEOPT, XSAVE, then FXSAVE. The first two write the compacted
+//! format; an image leaves the FPU code (`flush`, for TCB_ReadFPU and
+//! migration) in the standard format, and restore takes either.
+use crate::cpu::{cpuid, msr, read_cr0, read_cr4, wrmsr, write_cr0, write_cr4, xsetbv};
 use crate::percpu;
 use core::arch::asm;
-use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicU8, Ordering};
 use fl4_core::layout::tcb;
 
 static XSAVE: AtomicBool = AtomicBool::new(false);
 static XCR0: AtomicU64 = AtomicU64::new(0);
 static MXCSR_MASK: AtomicU64 = AtomicU64::new(0xffbf);
+static INSN: AtomicU8 = AtomicU8::new(Insn::Fxsave as u8);
+/// Per state component: standard-format offset and size, and whether the
+/// compacted format aligns it to 64 bytes (CPUID 0DH sub-leaf i).
+static STD_OFF: [AtomicU32; 64] = [const { AtomicU32::new(0) }; 64];
+static SIZE: [AtomicU32; 64] = [const { AtomicU32::new(0) }; 64];
+static ALIGN: AtomicU64 = AtomicU64::new(0);
 
-/// x87, SSE, AVX, AVX-512 (opmask, ZMM_Hi256, Hi16_ZMM) and PKRU: the
-/// feature set the 4 KiB TCB is sized for (FPU_STATE_SIZE 2696).
-const WANTED: u64 = 0x2e7;
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+enum Insn {
+    Fxsave = 0,
+    Xsave = 1,
+    Xsaveopt = 2,
+    Xsavec = 3,
+    Xsaves = 4,
+}
+
+fn insn() -> Insn {
+    match INSN.load(Ordering::Relaxed) {
+        1 => Insn::Xsave,
+        2 => Insn::Xsaveopt,
+        3 => Insn::Xsavec,
+        4 => Insn::Xsaves,
+        _ => Insn::Fxsave,
+    }
+}
+
+/// AMX tile configuration and data (17, 18): left off, the data alone is
+/// 8 KiB. They are enabled together or not at all.
+const AMX: u64 = (1 << 17) | (1 << 18);
+/// AVX-512 (opmask, ZMM_Hi256, Hi16_ZMM): together, and only with AVX.
+const AVX512: u64 = 0xe0;
+const AVX: u64 = 1 << 2;
+/// MPX (BNDREGS, BNDCSR): together.
+const MPX: u64 = 0x18;
 
 const CR0_MP: u64 = 1 << 1;
 const CR0_EM: u64 = 1 << 2;
@@ -25,10 +61,36 @@ const CR4_OSFXSR: u64 = 1 << 9;
 const CR4_OSXMMEXCPT: u64 = 1 << 10;
 const CR4_OSXSAVE: u64 = 1 << 18;
 
+/// XSAVE header: XSTATE_BV, XCOMP_BV (bit 63: compacted).
+const HDR: u64 = 512;
+const COMPACTED: u64 = 1 << 63;
+
 #[repr(C, align(64))]
 struct Scratch([u8; 512]);
 
-/// Enable the FPU on this core and pick the state components.
+/// The user state components to enable: every one the CPU has except AMX,
+/// dropping the largest groups until the image fits the TCB.
+fn components() -> u64 {
+    let sup = cpuid(0xd, 0);
+    let mut x = (sup.eax as u64 | ((sup.edx as u64) << 32)) & !AMX;
+    if x & AVX512 != AVX512 || x & AVX == 0 {
+        x &= !AVX512;
+    }
+    if x & MPX != MPX {
+        x &= !MPX;
+    }
+    for drop in [AVX512, MPX, 1 << 19] {
+        xsetbv(0, x);
+        if cpuid(0xd, 0).ebx as u64 <= tcb::FPU_SIZE {
+            break;
+        }
+        x &= !drop;
+    }
+    x
+}
+
+/// Enable the FPU on this core and pick the state components and the save
+/// instruction (the same on every core).
 pub fn init() {
     write_cr0((read_cr0() & !(CR0_EM | CR0_TS)) | CR0_MP | CR0_NE);
     let mut cr4 = read_cr4() | CR4_OSFXSR | CR4_OSXMMEXCPT;
@@ -38,19 +100,35 @@ pub fn init() {
     }
     write_cr4(cr4);
     if has_xsave {
-        let sup = cpuid(0xd, 0);
-        let supported = sup.eax as u64 | ((sup.edx as u64) << 32);
-        let mut x = WANTED & supported;
-        if x & 0xe0 != 0xe0 || x & 4 == 0 {
-            x &= !0xe0;
-        }
+        let x = components();
         xsetbv(0, x);
-        if cpuid(0xd, 0).ebx as u64 > tcb::FPU_SIZE {
-            x &= !0x2e0;
-            xsetbv(0, x);
-        }
         XCR0.store(x, Ordering::Relaxed);
         XSAVE.store(true, Ordering::Relaxed);
+        let mut align = 0u64;
+        for i in 2..63 {
+            if x & (1 << i) != 0 {
+                let l = cpuid(0xd, i);
+                SIZE[i as usize].store(l.eax, Ordering::Relaxed);
+                STD_OFF[i as usize].store(l.ebx, Ordering::Relaxed);
+                if l.ecx & 2 != 0 {
+                    align |= 1 << i;
+                }
+            }
+        }
+        ALIGN.store(align, Ordering::Relaxed);
+        let ext = cpuid(0xd, 1).eax;
+        let i = if ext & (1 << 3) != 0 {
+            // XSAVES saves supervisor state too; FL4 enables none.
+            wrmsr(msr::XSS, 0);
+            Insn::Xsaves
+        } else if ext & (1 << 1) != 0 {
+            Insn::Xsavec
+        } else if ext & 1 != 0 {
+            Insn::Xsaveopt
+        } else {
+            Insn::Xsave
+        };
+        INSN.store(i as u8, Ordering::Relaxed);
     }
     unsafe { asm!("fninit", options(nomem, nostack)) };
     let mut f = Scratch([0; 512]);
@@ -63,24 +141,124 @@ pub fn xcr0() -> u64 {
     XCR0.load(Ordering::Relaxed)
 }
 
+/// The save instruction, for the boot banner.
+pub fn save_insn() -> &'static str {
+    match insn() {
+        Insn::Fxsave => "fxsave",
+        Insn::Xsave => "xsave",
+        Insn::Xsaveopt => "xsaveopt",
+        Insn::Xsavec => "xsavec",
+        Insn::Xsaves => "xsaves",
+    }
+}
+
+/// Saves write the compacted format.
+pub fn compacting() -> bool {
+    matches!(insn(), Insn::Xsavec | Insn::Xsaves)
+}
+
+fn image(t: u64) -> *mut u8 {
+    (t + tcb::FPU) as *mut u8
+}
+
+fn rd(p: *mut u8, off: u64) -> u64 {
+    unsafe { core::ptr::read_volatile(p.add(off as usize) as *const u64) }
+}
+
+fn wr(p: *mut u8, off: u64, v: u64) {
+    unsafe { core::ptr::write_volatile(p.add(off as usize) as *mut u64, v) }
+}
+
+/// Offsets of the components `comp` names in the compacted format.
+fn compacted_offsets(comp: u64, out: &mut [u64; 64]) {
+    let align = ALIGN.load(Ordering::Relaxed);
+    let mut off = HDR + 64;
+    for i in 2..63 {
+        if comp & (1 << i) == 0 {
+            continue;
+        }
+        if align & (1 << i) != 0 {
+            off = (off + 63) & !63;
+        }
+        out[i] = off;
+        off += SIZE[i].load(Ordering::Relaxed) as u64;
+    }
+}
+
+/// Rewrite `t`'s compacted image in the standard format. Standard
+/// offsets are never below compacted ones, so components move up, the
+/// last first. Components in their initial state are zeroed.
+fn to_standard(t: u64) {
+    let p = image(t);
+    let comp = rd(p, HDR + 8);
+    if comp & COMPACTED == 0 {
+        return;
+    }
+    let bv = rd(p, HDR);
+    let mut coff = [0u64; 64];
+    compacted_offsets(comp, &mut coff);
+    for i in (2..63).rev() {
+        if comp & (1 << i) == 0 {
+            continue;
+        }
+        let size = SIZE[i].load(Ordering::Relaxed) as usize;
+        let dst = STD_OFF[i].load(Ordering::Relaxed) as usize;
+        unsafe {
+            if bv & (1 << i) != 0 {
+                core::ptr::copy(p.add(coff[i] as usize), p.add(dst), size);
+            } else {
+                core::ptr::write_bytes(p.add(dst), 0, size);
+            }
+        }
+    }
+    wr(p, HDR + 8, 0);
+}
+
+/// Rewrite `t`'s standard image in the compacted format XRSTORS needs:
+/// components move down, the first first.
+fn to_compacted(t: u64) {
+    let p = image(t);
+    if rd(p, HDR + 8) & COMPACTED != 0 {
+        return;
+    }
+    let comp = XCR0.load(Ordering::Relaxed) & !COMPACTED;
+    let mut coff = [0u64; 64];
+    compacted_offsets(comp, &mut coff);
+    for i in 2..63 {
+        if comp & (1 << i) == 0 {
+            continue;
+        }
+        let size = SIZE[i].load(Ordering::Relaxed) as usize;
+        let src = STD_OFF[i].load(Ordering::Relaxed) as usize;
+        unsafe { core::ptr::copy(p.add(src), p.add(coff[i] as usize), size) };
+    }
+    wr(p, HDR + 8, comp | COMPACTED);
+}
+
 fn save(t: u64) {
-    let p = (t + tcb::FPU) as *mut u8;
+    let p = image(t);
     unsafe {
-        if XSAVE.load(Ordering::Relaxed) {
-            asm!("xsave64 [{}]", in(reg) p, in("eax") u32::MAX, in("edx") u32::MAX, options(nostack));
-        } else {
-            asm!("fxsave64 [{}]", in(reg) p, options(nostack));
+        match insn() {
+            Insn::Xsaves => asm!("xsaves64 [{}]", in(reg) p, in("eax") u32::MAX, in("edx") u32::MAX, options(nostack)),
+            Insn::Xsavec => asm!("xsavec64 [{}]", in(reg) p, in("eax") u32::MAX, in("edx") u32::MAX, options(nostack)),
+            Insn::Xsaveopt => asm!("xsaveopt64 [{}]", in(reg) p, in("eax") u32::MAX, in("edx") u32::MAX, options(nostack)),
+            Insn::Xsave => asm!("xsave64 [{}]", in(reg) p, in("eax") u32::MAX, in("edx") u32::MAX, options(nostack)),
+            Insn::Fxsave => asm!("fxsave64 [{}]", in(reg) p, options(nostack)),
         }
     }
 }
 
 fn restore(t: u64) {
-    let p = (t + tcb::FPU) as *const u8;
+    let p = image(t);
     unsafe {
-        if XSAVE.load(Ordering::Relaxed) {
-            asm!("xrstor64 [{}]", in(reg) p, in("eax") u32::MAX, in("edx") u32::MAX, options(nostack));
-        } else {
-            asm!("fxrstor64 [{}]", in(reg) p, options(nostack));
+        match insn() {
+            Insn::Xsaves => {
+                to_compacted(t);
+                asm!("xrstors64 [{}]", in(reg) p, in("eax") u32::MAX, in("edx") u32::MAX, options(nostack))
+            }
+            Insn::Fxsave => asm!("fxrstor64 [{}]", in(reg) p, options(nostack)),
+            // XRSTOR takes both formats.
+            _ => asm!("xrstor64 [{}]", in(reg) p, in("eax") u32::MAX, in("edx") u32::MAX, options(nostack)),
         }
     }
 }
@@ -137,13 +315,17 @@ pub fn is_live(t: u64) -> bool {
     owner_core(t).is_some()
 }
 
-/// Write `t`'s live state, wherever it is, back to its TCB. The caller
-/// holds the serial gate when another core may hold the state.
+/// Write `t`'s live state, wherever it is, back to its TCB, in the
+/// standard format. The caller holds the serial gate when another core may
+/// hold the state.
 pub fn flush(t: u64) {
     match owner_core(t) {
         Some(c) if c == percpu::cpu_index() => flush_local(t),
         Some(c) => crate::smp::remote_call(crate::smp::CALL_FPU_SAVE, t, 0, 1 << c),
         None => {}
+    }
+    if XSAVE.load(Ordering::Relaxed) {
+        to_standard(t);
     }
 }
 

@@ -28,7 +28,8 @@ for m in re.finditer(r"(?:^|\]\s*)def ([A-Za-z0-9_.]+) : (Result )?(Std\.U64|Std
 
 results = [n for n in order if defs[n][0]]
 
-# Values, from the Lean evaluator.
+# Values, from the Lean evaluator, over the current extraction.
+subprocess.run(["lake", "build", "Fl4Core"], cwd=proofs, check=True, capture_output=True)
 probe = proofs / "Fl4Proofs/P0/ConstsProbe.lean"
 probe.write_text("import Fl4Core.Funs\nopen Aeneas Aeneas.Std Result fl4_core\n" + "".join(f"#eval {n}\n" for n in results))
 out = subprocess.run(["lake", "env", "lean", str(probe)], cwd=proofs, capture_output=True, text=True)

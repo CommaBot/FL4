@@ -69,11 +69,32 @@ fn reply_words<S: Store>(s: &mut S, t: Tcb, n: u64) {
 fn install_tcb_cap<S: Store, A: Arch>(s: &mut S, a: &mut A, target: Tcb, slot: Slot, index: u64, new_cap: Cap, src: Slot) -> KResult<()> {
     let root = target.slot(index);
     cdt::delete(s, a, root, true)?;
-    if !new_cap.is_null() && !src.is_null() {
-        let tcap = Cap::Thread { ptr: target.0 };
-        if objects::same_object_as(new_cap, src.cap(s)) && objects::same_object_as(tcap, slot.cap(s)) {
-            cdt::insert(s, new_cap, src, root);
-        }
+    if !new_cap.is_null() && still_valid(s, target, slot, new_cap, src) {
+        cdt::insert(s, new_cap, src, root);
+    }
+    Ok(())
+}
+
+/// seL4 `checkCapAt` for a cap about to be installed in a TCB slot: its
+/// source still holds it, and the invoked TCB cap is still in place (both
+/// may have been deleted while the old cap was).
+fn still_valid<S: Store>(s: &S, target: Tcb, slot: Slot, new_cap: Cap, src: Slot) -> bool {
+    if src.is_null() || !objects::same_object_as(new_cap, src.cap(s)) {
+        return false;
+    }
+    objects::same_object_as(Cap::Thread { ptr: target.0 }, slot.cap(s))
+}
+
+/// The IPC buffer part of `TCB_Configure`/`SetIPCBuffer`.
+fn install_buffer<S: Store, A: Arch>(s: &mut S, a: &mut A, target: Tcb, slot: Slot, buffer_addr: u64, buffer: (Cap, Slot)) -> KResult<()> {
+    let bslot = target.slot(tl::SLOT_BUFFER);
+    cdt::delete(s, a, bslot, true)?;
+    target.set_ipc_buffer(s, buffer_addr);
+    if still_valid(s, target, slot, buffer.0, buffer.1) {
+        cdt::insert(s, buffer.0, buffer.1, bslot);
+    }
+    if target == sched::cur_thread(s) {
+        sched::reschedule_required(s);
     }
     Ok(())
 }
@@ -108,19 +129,7 @@ fn thread_control_caps<S: Store, A: Arch>(
         install_tcb_cap(s, a, target, slot, tl::SLOT_VTABLE, vroot.0, vroot.1)?;
     }
     if flags & UPDATE_IPC_BUFFER != 0 {
-        let bslot = target.slot(tl::SLOT_BUFFER);
-        cdt::delete(s, a, bslot, true)?;
-        target.set_ipc_buffer(s, buffer_addr);
-        let tcap = Cap::Thread { ptr: target.0 };
-        if !buffer.1.is_null()
-            && objects::same_object_as(buffer.0, buffer.1.cap(s))
-            && objects::same_object_as(tcap, slot.cap(s))
-        {
-            cdt::insert(s, buffer.0, buffer.1, bslot);
-        }
-        if target == sched::cur_thread(s) {
-            sched::reschedule_required(s);
-        }
+        install_buffer(s, a, target, slot, buffer_addr, buffer)?;
     }
     Ok(())
 }
@@ -179,23 +188,28 @@ fn derive_roots<S: Store>(s: &S, target: Tcb, cdata: u64, vdata: u64, cslot: Slo
     {
         return illegal();
     }
-    let mut ccap = cslot.cap(s);
-    if cdata != 0 {
-        ccap = objects::update_cap_data(false, cdata, ccap);
-    }
-    let ccap = objects::derive_cap(s, cslot, ccap)?;
-    if !matches!(ccap, Cap::CNode { .. }) {
+    let ccap = derive_with_data(s, cslot, cdata)?;
+    if !is_cnode(ccap) {
         return illegal();
     }
-    let mut vcap = vslot.cap(s);
-    if vdata != 0 {
-        vcap = objects::update_cap_data(false, vdata, vcap);
-    }
-    let vcap = objects::derive_cap(s, vslot, vcap)?;
+    let vcap = derive_with_data(s, vslot, vdata)?;
     if !vspace::is_valid_vtable_root(vcap) {
         return illegal();
     }
     Ok((ccap, vcap))
+}
+
+/// The cap in `slot`, with `data` applied if nonzero, derived.
+fn derive_with_data<S: Store>(s: &S, slot: Slot, data: u64) -> KResult<Cap> {
+    let mut c = slot.cap(s);
+    if data != 0 {
+        c = objects::update_cap_data(false, data, c);
+    }
+    objects::derive_cap(s, slot, c)
+}
+
+fn is_cnode(c: Cap) -> bool {
+    matches!(c, Cap::CNode { .. })
 }
 
 fn copy_registers<S: Store, A: Arch>(s: &mut S, a: &mut A, dest: Tcb, src: Tcb, flags: u64) -> KResult<()> {
@@ -394,57 +408,15 @@ fn set_breakpoint_checked<S: Store>(s: &mut S, t: Tcb, c: &Ctx) -> KResult<()> {
     Ok(())
 }
 
-/// seL4 `decodeTCBInvocation`.
+/// seL4 `decodeTCBInvocation`: one decoder per invocation, as in seL4.
 pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, target: Tcb, c: &Ctx) -> KResult<()> {
     crate::smp::remote_tcb_stall(s, a, target);
-    let ct = sched::cur_thread(s);
     if lbl == label::TCBReadRegisters {
-        if c.length < 2 {
-            return truncated();
-        }
-        let flags = arg(s, c, 0);
-        let n = arg(s, c, 1);
-        if n < 1 || n > N_FRAME + N_GP {
-            return range(1, N_FRAME + N_GP);
-        }
-        if target == ct {
-            return illegal();
-        }
-        restart_caller(s);
-        read_registers(s, a, target, flags & 1 != 0, n, c.call);
-        Ok(())
+        decode_read_registers(s, a, target, c)
     } else if lbl == label::TCBWriteRegisters {
-        if c.length < 2 {
-            return truncated();
-        }
-        let flags = arg(s, c, 0);
-        let w = arg(s, c, 1);
-        if c.length - 2 < w {
-            return truncated();
-        }
-        if target == ct {
-            return illegal();
-        }
-        restart_caller(s);
-        write_registers(s, a, target, flags & 1 != 0, w, c.buf);
-        Ok(())
+        decode_write_registers(s, a, target, c)
     } else if lbl == label::TCBCopyRegisters {
-        let src_slot = match extra(c, 0) {
-            Some(x) if c.length >= 1 => x,
-            _ => return truncated(),
-        };
-        let flags = arg(s, c, 0);
-        let src = match src_slot.cap(s) {
-            Cap::Thread { ptr } => Tcb(ptr),
-            _ => return invalid_cap(1),
-        };
-        // The source may be running on another core too: stop it before
-        // reading (and maybe suspending) it. seL4 stalls only the target;
-        // a running source's registers would be stale and a suspended one
-        // would keep running until that core next entered the kernel.
-        crate::smp::remote_tcb_stall(s, a, src);
-        restart_caller(s);
-        copy_registers(s, a, target, src, flags)
+        decode_copy_registers(s, a, target, c)
     } else if lbl == label::TCBSuspend {
         restart_caller(s);
         sched::suspend(s, a, target);
@@ -454,181 +426,19 @@ pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, target: Tcb, c:
         sched::restart(s, a, target);
         Ok(())
     } else if lbl == label::TCBConfigure {
-        let (cs, vs, bs) = match (extra(c, 0), extra(c, 1), extra(c, 2)) {
-            (Some(x), Some(y), Some(z)) if c.length >= 3 => (x, y, z),
-            _ => return truncated(),
-        };
-        let cdata = arg(s, c, 0);
-        let vdata = arg(s, c, 1);
-        let baddr = arg(s, c, 2);
-        let buffer = derive_for_buffer(s, baddr, bs)?;
-        let (ccap, vcap) = derive_roots(s, target, cdata, vdata, cs, vs)?;
-        restart_caller(s);
-        thread_control_caps(
-            s,
-            a,
-            target,
-            c.slot,
-            (Cap::Null, Slot(0)),
-            (Cap::Null, Slot(0)),
-            (ccap, cs),
-            (vcap, vs),
-            baddr,
-            buffer,
-            UPDATE_SPACE | UPDATE_IPC_BUFFER,
-        )
+        decode_configure(s, a, target, c)
     } else if lbl == label::TCBSetPriority || lbl == label::TCBSetMCPriority {
-        let auth_slot = match extra(c, 0) {
-            Some(x) if c.length >= 1 => x,
-            _ => return truncated(),
-        };
-        let p = arg(s, c, 0);
-        let auth = match auth_slot.cap(s) {
-            Cap::Thread { ptr } => Tcb(ptr),
-            _ => return invalid_cap(1),
-        };
-        check_prio(s, p, auth)?;
-        restart_caller(s);
-        if lbl == label::TCBSetPriority {
-            thread_control_sched(s, a, target, Slot(0), (Cap::Null, Slot(0)), 0, p, Sc(0), SCHED_UPDATE_PRIO)
-        } else {
-            thread_control_sched(s, a, target, Slot(0), (Cap::Null, Slot(0)), p, 0, Sc(0), SCHED_UPDATE_MCP)
-        }
+        decode_set_priority(s, a, target, c, lbl == label::TCBSetPriority)
     } else if lbl == label::TCBSetSchedParams {
-        let (auth_slot, sc_slot, fh_slot) = match (extra(c, 0), extra(c, 1), extra(c, 2)) {
-            (Some(x), Some(y), Some(z)) if c.length >= 2 => (x, y, z),
-            _ => return truncated(),
-        };
-        let mcp = arg(s, c, 0);
-        let prio = arg(s, c, 1);
-        let auth = match auth_slot.cap(s) {
-            Cap::Thread { ptr } => Tcb(ptr),
-            _ => return invalid_cap(1),
-        };
-        check_prio(s, mcp, auth)?;
-        check_prio(s, prio, auth)?;
-        let mut flags = SCHED_UPDATE_MCP | SCHED_UPDATE_PRIO | SCHED_UPDATE_FAULT;
-        let sc = match sc_slot.cap(s) {
-            Cap::SchedContext { ptr, .. } => {
-                let sc = Sc(ptr);
-                if target.sc(s) != sc.0 && (target.sc(s) != 0 || sc.tcb(s) != 0) {
-                    return illegal();
-                }
-                if sched::is_blocked(s, target) && !sporadic::sc_released(s, sc) {
-                    return illegal();
-                }
-                sc
-            }
-            Cap::Null => {
-                if target == ct {
-                    return illegal();
-                }
-                Sc(0)
-            }
-            _ => return invalid_cap(2),
-        };
-        if target.sc(s) != sc.0 {
-            flags |= SCHED_UPDATE_SC;
-        }
-        let fh = fh_slot.cap(s);
-        if !faults::valid_fault_handler(fh) {
-            return invalid_cap(3);
-        }
-        restart_caller(s);
-        thread_control_sched(s, a, target, c.slot, (fh, fh_slot), mcp, prio, sc, flags)
+        decode_set_sched_params(s, a, target, c)
     } else if lbl == label::TCBSetIPCBuffer {
-        let bs = match extra(c, 0) {
-            Some(x) if c.length >= 1 => x,
-            _ => return truncated(),
-        };
-        let baddr = arg(s, c, 0);
-        let buffer = derive_for_buffer(s, baddr, bs)?;
-        restart_caller(s);
-        thread_control_caps(
-            s,
-            a,
-            target,
-            c.slot,
-            (Cap::Null, Slot(0)),
-            (Cap::Null, Slot(0)),
-            (Cap::Null, Slot(0)),
-            (Cap::Null, Slot(0)),
-            baddr,
-            buffer,
-            UPDATE_IPC_BUFFER,
-        )
+        decode_set_ipc_buffer(s, a, target, c)
     } else if lbl == label::TCBSetSpace {
-        let (fs, cs, vs) = match (extra(c, 0), extra(c, 1), extra(c, 2)) {
-            (Some(x), Some(y), Some(z)) if c.length >= 2 => (x, y, z),
-            _ => return truncated(),
-        };
-        let cdata = arg(s, c, 0);
-        let vdata = arg(s, c, 1);
-        let (ccap, vcap) = derive_roots(s, target, cdata, vdata, cs, vs)?;
-        let fh = fs.cap(s);
-        if !faults::valid_fault_handler(fh) {
-            return invalid_cap(1);
-        }
-        restart_caller(s);
-        thread_control_caps(
-            s,
-            a,
-            target,
-            c.slot,
-            (fh, fs),
-            (Cap::Null, Slot(0)),
-            (ccap, cs),
-            (vcap, vs),
-            0,
-            (Cap::Null, Slot(0)),
-            UPDATE_SPACE | UPDATE_FAULT,
-        )
+        decode_set_space(s, a, target, c)
     } else if lbl == label::TCBSetTimeoutEndpoint {
-        let ts = match extra(c, 0) {
-            Some(x) => x,
-            None => return truncated(),
-        };
-        let th = ts.cap(s);
-        if !faults::valid_fault_handler(th) {
-            return invalid_cap(1);
-        }
-        restart_caller(s);
-        thread_control_caps(
-            s,
-            a,
-            target,
-            c.slot,
-            (Cap::Null, Slot(0)),
-            (th, ts),
-            (Cap::Null, Slot(0)),
-            (Cap::Null, Slot(0)),
-            0,
-            (Cap::Null, Slot(0)),
-            UPDATE_TIMEOUT,
-        )
+        decode_set_timeout_endpoint(s, a, target, c)
     } else if lbl == label::TCBBindNotification {
-        let ns = match extra(c, 0) {
-            Some(x) => x,
-            None => return truncated(),
-        };
-        if target.bound_ntfn(s) != 0 {
-            return illegal();
-        }
-        let n = match ns.cap(s) {
-            Cap::Notification { ptr, recv, .. } => {
-                if !recv {
-                    return illegal();
-                }
-                Ntfn(ptr)
-            }
-            _ => return illegal(),
-        };
-        if n.head(s) != 0 || n.bound_tcb(s) != 0 {
-            return illegal();
-        }
-        restart_caller(s);
-        notification::bind_notification(s, target, n.0);
-        Ok(())
+        decode_bind_notification(s, target, c)
     } else if lbl == label::TCBUnbindNotification {
         if target.bound_ntfn(s) == 0 {
             return illegal();
@@ -637,36 +447,11 @@ pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, target: Tcb, c:
         notification::unbind_notification(s, target);
         Ok(())
     } else if lbl == label::TCBConfigureSingleStepping {
-        // TCBConfigureSingleStepping
-        let bp = arg(s, c, 0);
-        let n = arg(s, c, 1);
-        restart_caller(s);
-        let consumed = debug::configure_single_stepping(s, a, target, bp, n, false);
-        if c.call {
-            let buf = msg::lookup_ipc_buffer(s, true, ct);
-            let len = msg::set_mr(s, ct, buf, 0, if n == 0 { 0 } else if consumed { 1 } else { 0 });
-            reply_words(s, ct, len);
-        }
-        sched::set_thread_state(s, ct, sched::TS_RUNNING);
-        Ok(())
+        decode_configure_single_stepping(s, a, target, c)
     } else if lbl == label::TCBSetBreakpoint {
         set_breakpoint_checked(s, target, c)
     } else if lbl == label::TCBGetBreakpoint {
-        let bp = arg(s, c, 0);
-        debug::check_bp_num(bp)?;
-        restart_caller(s);
-        let r = debug::get_breakpoint(s, target, bp);
-        if c.call {
-            let buf = msg::lookup_ipc_buffer(s, true, ct);
-            msg::set_mr(s, ct, buf, 0, r.vaddr);
-            msg::set_mr(s, ct, buf, 1, r.ty);
-            msg::set_mr(s, ct, buf, 2, r.size);
-            msg::set_mr(s, ct, buf, 3, r.rw);
-            let len = msg::set_mr(s, ct, buf, 4, if r.enabled { 1 } else { 0 });
-            reply_words(s, ct, len);
-        }
-        sched::set_thread_state(s, ct, sched::TS_RUNNING);
-        Ok(())
+        decode_get_breakpoint(s, target, c)
     } else if lbl == label::TCBUnsetBreakpoint {
         let bp = arg(s, c, 0);
         debug::check_bp_num(bp)?;
@@ -674,37 +459,9 @@ pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, target: Tcb, c:
         debug::unset_breakpoint(s, target, bp);
         Ok(())
     } else if lbl == label::TCBSetTLSBase {
-        if c.length < 1 {
-            return truncated();
-        }
-        let base = arg(s, c, 0);
-        restart_caller(s);
-        target.set_reg(s, reg::TLS_BASE, regs::sanitise(reg::TLS_BASE, base));
-        if target == ct {
-            sched::reschedule_required(s);
-        }
-        Ok(())
+        decode_set_tls_base(s, target, c)
     } else if lbl == label::TCBSetFlags {
-        if c.length < 2 {
-            return truncated();
-        }
-        let clear = arg(s, c, 0);
-        let set = arg(s, c, 1);
-        restart_caller(s);
-        let mut f = target.flags(s);
-        f &= !clear;
-        f |= set & tcb_flag::MASK;
-        target.set_flags(s, f);
-        if f & tcb_flag::FPU_DISABLED != 0 {
-            a.fpu_release(target.0);
-        }
-        if c.call {
-            let buf = msg::lookup_ipc_buffer(s, true, ct);
-            let len = msg::set_mr(s, ct, buf, 0, f);
-            reply_words(s, ct, len);
-        }
-        sched::set_thread_state(s, ct, sched::TS_RUNNING);
-        Ok(())
+        decode_set_flags(s, a, target, c)
     } else if lbl == label::TCBSetTimer {
         if c.length < 2 {
             return truncated();
@@ -721,5 +478,276 @@ pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, target: Tcb, c:
     } else {
         Err(Exc::Sys(SysError::IllegalOperation))
     }
+}
+
+/// The thread cap in `slot`, for invocations that take another TCB.
+fn thread_arg<S: Store>(s: &S, slot: Slot, pos: u64) -> KResult<Tcb> {
+    match slot.cap(s) {
+        Cap::Thread { ptr } => Ok(Tcb(ptr)),
+        _ => invalid_cap(pos),
+    }
+}
+
+/// `extra(c, i)` for an invocation that needs at least `min_length` words.
+fn extra_with_length(c: &Ctx, i: usize, min_length: u64) -> KResult<Slot> {
+    match extra(c, i) {
+        Some(x) if c.length >= min_length => Ok(x),
+        _ => truncated(),
+    }
+}
+
+fn decode_read_registers<S: Store, A: Arch>(s: &mut S, a: &mut A, target: Tcb, c: &Ctx) -> KResult<()> {
+    if c.length < 2 {
+        return truncated();
+    }
+    let flags = arg(s, c, 0);
+    let n = arg(s, c, 1);
+    if n < 1 || n > N_FRAME + N_GP {
+        return range(1, N_FRAME + N_GP);
+    }
+    if target == sched::cur_thread(s) {
+        return illegal();
+    }
+    restart_caller(s);
+    read_registers(s, a, target, flags & 1 != 0, n, c.call);
+    Ok(())
+}
+
+fn decode_write_registers<S: Store, A: Arch>(s: &mut S, a: &mut A, target: Tcb, c: &Ctx) -> KResult<()> {
+    if c.length < 2 {
+        return truncated();
+    }
+    let flags = arg(s, c, 0);
+    let w = arg(s, c, 1);
+    if c.length - 2 < w {
+        return truncated();
+    }
+    if target == sched::cur_thread(s) {
+        return illegal();
+    }
+    restart_caller(s);
+    write_registers(s, a, target, flags & 1 != 0, w, c.buf);
+    Ok(())
+}
+
+fn decode_copy_registers<S: Store, A: Arch>(s: &mut S, a: &mut A, target: Tcb, c: &Ctx) -> KResult<()> {
+    let src_slot = extra_with_length(c, 0, 1)?;
+    let flags = arg(s, c, 0);
+    let src = thread_arg(s, src_slot, 1)?;
+    // The source may be running on another core too: stop it before
+    // reading (and maybe suspending) it. seL4 stalls only the target;
+    // a running source's registers would be stale and a suspended one
+    // would keep running until that core next entered the kernel.
+    crate::smp::remote_tcb_stall(s, a, src);
+    restart_caller(s);
+    copy_registers(s, a, target, src, flags)
+}
+
+fn decode_configure<S: Store, A: Arch>(s: &mut S, a: &mut A, target: Tcb, c: &Ctx) -> KResult<()> {
+    let cs = extra_with_length(c, 0, 3)?;
+    let vs = extra_with_length(c, 1, 3)?;
+    let bs = extra_with_length(c, 2, 3)?;
+    let cdata = arg(s, c, 0);
+    let vdata = arg(s, c, 1);
+    let baddr = arg(s, c, 2);
+    let buffer = derive_for_buffer(s, baddr, bs)?;
+    let (ccap, vcap) = derive_roots(s, target, cdata, vdata, cs, vs)?;
+    restart_caller(s);
+    let none = (Cap::Null, Slot(0));
+    thread_control_caps(s, a, target, c.slot, none, none, (ccap, cs), (vcap, vs), baddr, buffer, UPDATE_SPACE | UPDATE_IPC_BUFFER)
+}
+
+fn decode_set_priority<S: Store, A: Arch>(s: &mut S, a: &mut A, target: Tcb, c: &Ctx, prio: bool) -> KResult<()> {
+    let auth_slot = extra_with_length(c, 0, 1)?;
+    let p = arg(s, c, 0);
+    let auth = thread_arg(s, auth_slot, 1)?;
+    check_prio(s, p, auth)?;
+    restart_caller(s);
+    let none = (Cap::Null, Slot(0));
+    if prio {
+        thread_control_sched(s, a, target, Slot(0), none, 0, p, Sc(0), SCHED_UPDATE_PRIO)
+    } else {
+        thread_control_sched(s, a, target, Slot(0), none, p, 0, Sc(0), SCHED_UPDATE_MCP)
+    }
+}
+
+/// The scheduling context a `SetSchedParams` binds, as seL4 checks it.
+fn sched_params_sc<S: Store>(s: &S, target: Tcb, sc_slot: Slot) -> KResult<Sc> {
+    match sc_slot.cap(s) {
+        Cap::SchedContext { ptr, .. } => {
+            let sc = Sc(ptr);
+            if target.sc(s) != sc.0 && (target.sc(s) != 0 || sc.tcb(s) != 0) {
+                return illegal();
+            }
+            if sched::is_blocked(s, target) && !sporadic::sc_released(s, sc) {
+                return illegal();
+            }
+            Ok(sc)
+        }
+        Cap::Null => {
+            if target == sched::cur_thread(s) {
+                return illegal();
+            }
+            Ok(Sc(0))
+        }
+        _ => invalid_cap(2),
+    }
+}
+
+fn decode_set_sched_params<S: Store, A: Arch>(s: &mut S, a: &mut A, target: Tcb, c: &Ctx) -> KResult<()> {
+    let auth_slot = extra_with_length(c, 0, 2)?;
+    let sc_slot = extra_with_length(c, 1, 2)?;
+    let fh_slot = extra_with_length(c, 2, 2)?;
+    let mcp = arg(s, c, 0);
+    let prio = arg(s, c, 1);
+    let auth = thread_arg(s, auth_slot, 1)?;
+    check_prio(s, mcp, auth)?;
+    check_prio(s, prio, auth)?;
+    let sc = sched_params_sc(s, target, sc_slot)?;
+    let mut flags = SCHED_UPDATE_MCP | SCHED_UPDATE_PRIO | SCHED_UPDATE_FAULT;
+    if target.sc(s) != sc.0 {
+        flags |= SCHED_UPDATE_SC;
+    }
+    let fh = fh_slot.cap(s);
+    if !faults::valid_fault_handler(fh) {
+        return invalid_cap(3);
+    }
+    restart_caller(s);
+    thread_control_sched(s, a, target, c.slot, (fh, fh_slot), mcp, prio, sc, flags)
+}
+
+fn decode_set_ipc_buffer<S: Store, A: Arch>(s: &mut S, a: &mut A, target: Tcb, c: &Ctx) -> KResult<()> {
+    let bs = extra_with_length(c, 0, 1)?;
+    let baddr = arg(s, c, 0);
+    let buffer = derive_for_buffer(s, baddr, bs)?;
+    restart_caller(s);
+    let none = (Cap::Null, Slot(0));
+    thread_control_caps(s, a, target, c.slot, none, none, none, none, baddr, buffer, UPDATE_IPC_BUFFER)
+}
+
+fn decode_set_space<S: Store, A: Arch>(s: &mut S, a: &mut A, target: Tcb, c: &Ctx) -> KResult<()> {
+    let fs = extra_with_length(c, 0, 2)?;
+    let cs = extra_with_length(c, 1, 2)?;
+    let vs = extra_with_length(c, 2, 2)?;
+    let cdata = arg(s, c, 0);
+    let vdata = arg(s, c, 1);
+    let (ccap, vcap) = derive_roots(s, target, cdata, vdata, cs, vs)?;
+    let fh = fs.cap(s);
+    if !faults::valid_fault_handler(fh) {
+        return invalid_cap(1);
+    }
+    restart_caller(s);
+    let none = (Cap::Null, Slot(0));
+    thread_control_caps(s, a, target, c.slot, (fh, fs), none, (ccap, cs), (vcap, vs), 0, none, UPDATE_SPACE | UPDATE_FAULT)
+}
+
+fn decode_set_timeout_endpoint<S: Store, A: Arch>(s: &mut S, a: &mut A, target: Tcb, c: &Ctx) -> KResult<()> {
+    let ts = extra_with_length(c, 0, 0)?;
+    let th = ts.cap(s);
+    if !faults::valid_fault_handler(th) {
+        return invalid_cap(1);
+    }
+    restart_caller(s);
+    let none = (Cap::Null, Slot(0));
+    thread_control_caps(s, a, target, c.slot, none, (th, ts), none, none, 0, none, UPDATE_TIMEOUT)
+}
+
+/// The notification a `BindNotification` binds, as seL4 checks it.
+fn bindable_ntfn<S: Store>(s: &S, ns: Slot) -> KResult<Ntfn> {
+    match ns.cap(s) {
+        Cap::Notification { ptr, recv, .. } => {
+            if !recv {
+                return illegal();
+            }
+            let n = Ntfn(ptr);
+            if n.head(s) != 0 || n.bound_tcb(s) != 0 {
+                return illegal();
+            }
+            Ok(n)
+        }
+        _ => illegal(),
+    }
+}
+
+fn decode_bind_notification<S: Store>(s: &mut S, target: Tcb, c: &Ctx) -> KResult<()> {
+    let ns = extra_with_length(c, 0, 0)?;
+    if target.bound_ntfn(s) != 0 {
+        return illegal();
+    }
+    let n = bindable_ntfn(s, ns)?;
+    restart_caller(s);
+    notification::bind_notification(s, target, n.0);
+    Ok(())
+}
+
+fn decode_configure_single_stepping<S: Store, A: Arch>(s: &mut S, a: &mut A, target: Tcb, c: &Ctx) -> KResult<()> {
+    let ct = sched::cur_thread(s);
+    let bp = arg(s, c, 0);
+    let n = arg(s, c, 1);
+    restart_caller(s);
+    let consumed = debug::configure_single_stepping(s, a, target, bp, n, false);
+    if c.call {
+        let buf = msg::lookup_ipc_buffer(s, true, ct);
+        let len = msg::set_mr(s, ct, buf, 0, if n != 0 && consumed { 1 } else { 0 });
+        reply_words(s, ct, len);
+    }
+    sched::set_thread_state(s, ct, sched::TS_RUNNING);
+    Ok(())
+}
+
+fn decode_get_breakpoint<S: Store>(s: &mut S, target: Tcb, c: &Ctx) -> KResult<()> {
+    let ct = sched::cur_thread(s);
+    let bp = arg(s, c, 0);
+    debug::check_bp_num(bp)?;
+    restart_caller(s);
+    let r = debug::get_breakpoint(s, target, bp);
+    if c.call {
+        let buf = msg::lookup_ipc_buffer(s, true, ct);
+        msg::set_mr(s, ct, buf, 0, r.vaddr);
+        msg::set_mr(s, ct, buf, 1, r.ty);
+        msg::set_mr(s, ct, buf, 2, r.size);
+        msg::set_mr(s, ct, buf, 3, r.rw);
+        let len = msg::set_mr(s, ct, buf, 4, if r.enabled { 1 } else { 0 });
+        reply_words(s, ct, len);
+    }
+    sched::set_thread_state(s, ct, sched::TS_RUNNING);
+    Ok(())
+}
+
+fn decode_set_tls_base<S: Store>(s: &mut S, target: Tcb, c: &Ctx) -> KResult<()> {
+    if c.length < 1 {
+        return truncated();
+    }
+    let base = arg(s, c, 0);
+    restart_caller(s);
+    target.set_reg(s, reg::TLS_BASE, regs::sanitise(reg::TLS_BASE, base));
+    if target == sched::cur_thread(s) {
+        sched::reschedule_required(s);
+    }
+    Ok(())
+}
+
+fn decode_set_flags<S: Store, A: Arch>(s: &mut S, a: &mut A, target: Tcb, c: &Ctx) -> KResult<()> {
+    if c.length < 2 {
+        return truncated();
+    }
+    let ct = sched::cur_thread(s);
+    let clear = arg(s, c, 0);
+    let set = arg(s, c, 1);
+    restart_caller(s);
+    let mut f = target.flags(s);
+    f &= !clear;
+    f |= set & tcb_flag::MASK;
+    target.set_flags(s, f);
+    if f & tcb_flag::FPU_DISABLED != 0 {
+        a.fpu_release(target.0);
+    }
+    if c.call {
+        let buf = msg::lookup_ipc_buffer(s, true, ct);
+        let len = msg::set_mr(s, ct, buf, 0, f);
+        reply_words(s, ct, len);
+    }
+    sched::set_thread_state(s, ct, sched::TS_RUNNING);
+    Ok(())
 }
 
