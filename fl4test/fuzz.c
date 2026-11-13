@@ -33,11 +33,16 @@ struct fuzz_rec {
     uint32_t err;
     uint32_t cap;
     uint64_t mr0, mr1;
+    /* A fault the call raised: its label and two of its message words
+     * (not the instruction address, which differs between the builds). */
+    uint32_t fault;
+    uint64_t fmr0, fmr1;
 };
 
 struct fuzz_run {
     uint64_t seed;
     volatile int done;
+    volatile int cur;
     struct fuzz_rec rec[FUZZ_STEPS];
 };
 
@@ -75,7 +80,7 @@ static int fuzz_program(seL4_Word arg, seL4_Word b, seL4_Word c, seL4_Word d)
     uint64_t s = run->seed * 0x9E3779B97F4A7C15ull | 1;
     for (int i = 0; i < FUZZ_STEPS; i++) {
         struct fuzz_rec *r = &run->rec[i];
-        int op = rnd(&s) % 16;
+        int op = rnd(&s) % 18;
         /* Mostly slots that are in use, sometimes any slot. */
         seL4_Word x = rnd(&s) % 4 ? rnd(&s) % 24 : rnd(&s) % 256;
         seL4_Word y = rnd(&s) % 4 ? rnd(&s) % 24 : rnd(&s) % 256;
@@ -89,6 +94,9 @@ static int fuzz_program(seL4_Word arg, seL4_Word b, seL4_Word c, seL4_Word d)
             op = 8;
         }
         r->mr0 = r->mr1 = 0;
+        r->fault = 0;
+        r->fmr0 = r->fmr1 = 0;
+        run->cur = i;
         r->op = op;
         r->a = x;
         r->b = y;
@@ -169,10 +177,24 @@ static int fuzz_program(seL4_Word arg, seL4_Word b, seL4_Word c, seL4_Word d)
         case 15:
             err = seL4_TCB_UnbindNotification(x);
             break;
+        case 16: {
+            /* Faults (a capability that cannot receive, a missing reply
+             * object) go to the root task, which records them and
+             * resumes the program after the call. */
+            seL4_Word badge = 0;
+            seL4_MessageInfo_t info = seL4_NBRecv(x, &badge, y);
+            r->mr0 = badge;
+            r->mr1 = seL4_MessageInfo_get_label(info) << 8 | seL4_MessageInfo_get_length(info);
+            break;
+        }
+        case 17: {
+            seL4_Word badge = 0;
+            seL4_MessageInfo_t info = seL4_NBWait(x, &badge);
+            r->mr0 = badge;
+            r->mr1 = seL4_MessageInfo_get_label(info) << 8 | seL4_MessageInfo_get_length(info);
+            break;
+        }
         default:
-            /* Receives are left out: one through an endpoint or
-             * notification capability without the Read right is a
-             * capability fault, and the program has no fault handler. */
             break;
         }
         r->err = err;
@@ -209,19 +231,38 @@ static int test_fuzz(env_t env)
         helper_thread_t t;
         create_helper_thread(env, &t);
         set_helper_priority(env, &t, env->priority);
-        test_error_eq(api_tcb_set_space(get_helper_tcb(&t), seL4_CapNull, cn.cptr,
+        seL4_CPtr fault_ep = vka_alloc_endpoint_leaky(&env->vka);
+        vka_object_t reply;
+        test_error_eq(vka_alloc_reply(&env->vka, &reply), 0);
+        test_error_eq(api_tcb_set_space(get_helper_tcb(&t), fault_ep, cn.cptr,
                                         api_make_guard_skip_word(seL4_WordBits - FUZZ_DEPTH),
                                         env->page_directory, seL4_NilData), seL4_NoError);
         run.seed = seed;
         run.done = 0;
         start_helper(env, &t, fuzz_program, (seL4_Word) &run, 0, 0, 0);
         while (!run.done) {
-            seL4_Yield();
+            seL4_Word badge;
+            seL4_MessageInfo_t info = seL4_NBRecv(fault_ep, &badge, reply.cptr);
+            if (seL4_MessageInfo_get_label(info) == 0) {
+                seL4_Yield();
+                continue;
+            }
+            /* The program faulted in call run.cur: record it, and resume
+             * the program after its syscall instruction. */
+            struct fuzz_rec *r = &run.rec[run.cur];
+            r->fault = seL4_MessageInfo_get_label(info);
+            r->fmr0 = seL4_GetMR(1);
+            r->fmr1 = seL4_GetMR(2);
+            seL4_UserContext regs;
+            test_error_eq(seL4_TCB_ReadRegisters(get_helper_tcb(&t), 0, 0, sizeof(regs) / sizeof(seL4_Word), &regs), 0);
+            regs.rip += 2;
+            test_error_eq(seL4_TCB_WriteRegisters(get_helper_tcb(&t), 1, 0, sizeof(regs) / sizeof(seL4_Word), &regs), 0);
         }
         for (int i = 0; i < FUZZ_STEPS; i++) {
             struct fuzz_rec *r = &run.rec[i];
-            printf("FUZZ %lu %d op %u %u %u %u -> %d cap %x mr %lx %lx\n", (unsigned long) seed, i, r->op, r->a,
-                   r->b, r->c, (int) r->err, r->cap, (unsigned long) r->mr0, (unsigned long) r->mr1);
+            printf("FUZZ %lu %d op %u %u %u %u -> %d cap %x mr %lx %lx fault %u %lx %lx\n", (unsigned long) seed, i, r->op,
+                   r->a, r->b, r->c, (int) r->err, r->cap, (unsigned long) r->mr0, (unsigned long) r->mr1, r->fault,
+                   (unsigned long) r->fmr0, (unsigned long) r->fmr1);
         }
         cleanup_helper(env, &t);
     }
