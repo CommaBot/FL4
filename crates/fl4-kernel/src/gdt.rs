@@ -22,10 +22,23 @@ struct Tss([u32; 26]);
 #[repr(C, align(16))]
 struct Idt([u64; 512]);
 
+/// Stacks for the entries that can arrive while the kernel still (or
+/// again) runs on the user's stack pointer: the instructions between
+/// SYSCALL and the switch to the kernel stack, and between loading the
+/// user's RSP and SYSRET. Without them the CPU would push its frame
+/// wherever user code pointed RSP. One stack per vector, so an NMI during
+/// #DB (or the reverse) does not overwrite the other's frame.
+const IST_VECTORS: [usize; 4] = [2, 1, 18, 8]; // NMI, #DB, #MC, #DF
+const IST_BYTES: usize = 4096;
+
+#[repr(C, align(16))]
+struct IstStacks([[u8; IST_BYTES]; 4]);
+
 struct Tables {
     gdt: [Gdt; MAX_CPUS],
     tss: [Tss; MAX_CPUS],
     idt: Idt,
+    ist: [IstStacks; MAX_CPUS],
 }
 
 struct Cell(UnsafeCell<Tables>);
@@ -35,6 +48,7 @@ static TABLES: Cell = Cell(UnsafeCell::new(Tables {
     gdt: [const { Gdt([0; GDT_ENTRIES]) }; MAX_CPUS],
     tss: [const { Tss([0; 26]) }; MAX_CPUS],
     idt: Idt([0; 512]),
+    ist: [const { IstStacks([[0; IST_BYTES]; 4]) }; MAX_CPUS],
 }));
 
 extern "C" {
@@ -60,7 +74,8 @@ pub fn init_idt() {
     for v in 0..256 {
         let h = base + 16 * v as u64;
         let dpl: u64 = if user_gate(v) { 3 } else { 0 };
-        let lo = (h & 0xffff) | ((KERNEL_CS as u64) << 16) | ((0x8e | (dpl << 5)) << 40) | (((h >> 16) & 0xffff) << 48);
+        let ist = IST_VECTORS.iter().position(|&x| x == v).map_or(0, |i| i as u64 + 1);
+        let lo = (h & 0xffff) | ((KERNEL_CS as u64) << 16) | (ist << 32) | ((0x8e | (dpl << 5)) << 40) | (((h >> 16) & 0xffff) << 48);
         t.idt.0[2 * v] = lo;
         t.idt.0[2 * v + 1] = h >> 32;
     }
@@ -83,6 +98,12 @@ pub fn init_core(cpu: usize, stack_top: u64) {
     tss.0 = [0; 26];
     tss.0[1] = stack_top as u32;
     tss.0[2] = (stack_top >> 32) as u32;
+    // IST1..IST4 (TSS bytes 36..68).
+    for i in 0..IST_VECTORS.len() {
+        let top = t.ist[cpu].0[i].as_ptr() as u64 + IST_BYTES as u64;
+        tss.0[9 + 2 * i] = top as u32;
+        tss.0[10 + 2 * i] = (top >> 32) as u32;
+    }
     // No I/O permission bitmap: the base is past the limit.
     tss.0[25] = 104 << 16;
     let tb = tss as *const Tss as u64;

@@ -388,7 +388,7 @@ The proof assumes: Rust, LLVM and the linker; Charon, Aeneas and the Lean kernel
 ### x86_64 backend
 
 - Multiboot 1 and 2 entry, so QEMU `-kernel` with the rootserver as a module works the way the seL4 x86 build does. APs start with INIT-SIPI-SIPI.
-- SYSCALL/SYSRET, per-core GS-based kernel state, SMEP and SMAP, PCID, and the optional kernel skim window (seL4's KPTI-style mitigation).
+- SYSCALL/SYSRET, per-core GS-based kernel state, SMEP and SMAP, PCID, and the optional kernel skim window (seL4's KPTI-style mitigation). A thread whose context SYSCALL saved leaves by SYSRET (Error = −1, as in seL4), and only when its return address is in the canonical lower half, so SYSRET never faults in ring 0 with the user's RSP loaded. Every other exit uses IRET. NMI, #DB, #MC and #DF run on per-core IST stacks, because the instructions just after SYSCALL and just before SYSRET run in ring 0 on the user's stack pointer.
 - x2APIC or xAPIC, chosen at boot (§3). In xAPIC mode IPIs use physical destination mode, so more than 8 cores can be addressed.
 - MCS timer: TSC-deadline mode when CPUID reports it, otherwise the LAPIC one-shot timer with a TSC-to-APIC ratio calibrated at boot. seL4 has the same fallback in `apic.c`. Both are first-class paths, and the test setups in §12 exercise each one.
 - IOAPIC and MSI routing, ACPI MADT parsing, IO port caps.
@@ -461,6 +461,22 @@ Performance numbers come from KVM with pinned vCPUs and are labelled that way. T
 | Performance                       | sel4bench IPC and signal latency; multi-core scaling on independent endpoints; FL4 and seL4 both under KVM | Nightly, tracked over time |
 
 Performance targets: uniprocessor IPC within 1.2× of seL4 built with `KernelFastpath` off (seL4 with its fastpath is also measured and reported, for reference), and near-linear throughput scaling for independent IPC pairs where seL4's big lock stays flat. The machine has 8 physical cores, so scaling is measured up to 8 vCPUs pinned one per physical core.
+
+The baseline seL4 must have the same mitigations as FL4 on the test CPU. seL4's x86_64 default turns on `KernelSkimWindow`, which switches CR3 on every entry and exit. FL4 turns the skim window on only where the CPU needs it (§3). The development machine (AMD Zen 4) doesn't, so `cargo xtask bench sel4` builds seL4 with `KernelSkimWindow=OFF` (and `KernelSupportPCID=OFF`, `KernelFSGSBase=msr`). Measured on that machine (cycles, medians, `cargo xtask bench`, one pinned vCPU):
+
+| IPC                        | seL4, skim on (default) | seL4, skim off | FL4 before | FL4 now (SYSRET exit, LTO) |
+|----------------------------|-------------------------|----------------|------------|----------------------------|
+| Call, same address space   | 1026                    | 494            | 950–988    | 836                        |
+| ReplyRecv, same            | 1064–1102               | 494–513        | 1102       | 1026                       |
+| Call, cross address space  | 1026                    | 798–817        | 1216–1254  | 1064                       |
+| ReplyRecv, cross           | 1064–1102               | 798–836        | 1349–1368  | 1254                       |
+
+Against the like-for-like baseline FL4 is at 1.3–2.1×, not yet 1.2×. Instrumentation (TSC and retired-instruction counts at stage boundaries) shows where the rest goes:
+- About 1800 kernel instructions per Call or ReplyRecv. The capability lookup takes about 200 and the extra-caps lookup about 200 even with no extra caps; budget charging takes about 85, scheduling 90–210, and the exit path about 150.
+- Eager FPU switching costs about 130 cycles per switch between threads: XSAVES and XRSTORS, because the owner changes on every IPC round trip. It stays: lazy switching is what LazyFP (CVE-2018-3665) exploits.
+- One CR3 write plus the TLB refill after it costs about 280 cycles. That is the whole cross-address-space difference; this CPU has no PCIDs.
+
+Closing the gap is M5 work on the general path in `fl4-core`: fewer capability decodes and encodes, repeated loads of the current thread and its fields, and the many small helper calls of a direct transliteration.
 
 ## 13. Milestones
 

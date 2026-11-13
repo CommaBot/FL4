@@ -87,11 +87,24 @@ fl4_common_entry:
  * regs is a TCB's register array (fl4_core::layout::reg order). A nonzero
  * cr3 (the skim window, spec.rs) is loaded after the last read of the TCB,
  * which the user's tables do not map; the kernel stack is in the image,
- * which they do. */
+ * which they do.
+ *
+ * A thread whose context SYSCALL saved (Error = -1, as in seL4; changing
+ * its registers through the API clears it) leaves by SYSRET, which loads
+ * RIP from rcx and RFLAGS from r11, both of which SYSCALL clobbered. Only
+ * if the return address is in the canonical lower half: SYSRET to a
+ * non-canonical address faults in ring 0 on Intel, after the user's RSP
+ * is loaded. Everything else leaves by IRET. */
     .align 16
     .global fl4_restore_user
 fl4_restore_user:
     movq %rsi, %rsp
+    movq 14*8(%rdi), %rcx
+    shrq $47, %rcx
+    jnz 1f
+    cmpq $-1, 15*8(%rdi)
+    je 3f
+1:
     pushq $0x2b
     pushq 16*8(%rdi)
     pushq 13*8(%rdi)
@@ -115,12 +128,45 @@ fl4_restore_user:
     movq 19*8(%rdi), %rcx
     movq 8(%rsp), %rdi
     testq %rdi, %rdi
-    jz 1f
+    jz 2f
     movq %rdi, %cr3
-1:
+2:
     popq %rdi
     addq $8, %rsp
     iretq
+
+3:  /* SYSRET path. The frame on the kernel stack: user rsp, cr3, rdi. */
+    pushq 16*8(%rdi)
+    pushq %rdx
+    pushq 0*8(%rdi)
+    movq 1*8(%rdi), %rsi
+    movq 2*8(%rdi), %rax
+    movq 3*8(%rdi), %rbx
+    movq 4*8(%rdi), %rbp
+    movq 5*8(%rdi), %r12
+    movq 6*8(%rdi), %r13
+    movq 7*8(%rdi), %r14
+    movq 8*8(%rdi), %rdx
+    movq 9*8(%rdi), %r10
+    movq 10*8(%rdi), %r8
+    movq 11*8(%rdi), %r9
+    movq 12*8(%rdi), %r15
+    movq 13*8(%rdi), %r11
+    movq 14*8(%rdi), %rcx
+    movq 8(%rsp), %rdi
+    testq %rdi, %rdi
+    jz 4f
+    movq %rdi, %cr3
+4:
+    /* AMD's SYSRET loads the SS selector but keeps the hidden attributes,
+     * which are unusable after an interrupt from user mode (SS = 0): give
+     * SS a valid descriptor first, as Linux does. */
+    movl $0x18, %edi
+    movl %edi, %ss
+    popq %rdi
+    addq $8, %rsp
+    popq %rsp
+    sysretq
 
 /* fl4_idle(stack_top: u64) -> !: the idle thread. Interrupts arrive in
  * kernel mode on this stack and never return here. */

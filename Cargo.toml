@@ -27,3 +27,4 @@ opt-level = 1
 panic = "abort"
 debug = true
 codegen-units = 1
+lto = "fat"

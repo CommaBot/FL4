@@ -268,7 +268,9 @@ fn bench(o: &Opts) {
         if kernel == "sel4" {
             // seL4 refuses to boot without PCIDs unless built without them;
             // the development machine's CPU has none (FL4 detects that).
-            c.arg("-DKernelSupportPCID=OFF");
+            // The skim window is off as FL4 has it on this CPU, so both
+            // kernels run the same mitigations (DESIGN.md §12).
+            c.args(["-DKernelSupportPCID=OFF", "-DKernelSkimWindow=OFF"]);
         }
         python_env(&mut c);
         run(&mut c);

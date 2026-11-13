@@ -89,7 +89,8 @@ fn save_user(s: &mut PhysStore, f: &Frame) {
     w(s, reg::R15, f.r15);
     w(s, reg::FLAGS, f.rflags);
     w(s, reg::NEXT_IP, f.rip);
-    w(s, reg::ERROR, f.error);
+    // -1 marks a context SYSCALL saved: it leaves by SYSRET (entry.S).
+    w(s, reg::ERROR, if f.vector == VEC_SYSCALL { u64::MAX } else { f.error });
     w(s, reg::RSP, f.rsp);
     // A syscall restarts at the syscall instruction (two bytes long), for
     // when a remote stall cancels the entry before handle_syscall runs.
