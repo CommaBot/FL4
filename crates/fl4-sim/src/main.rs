@@ -1286,13 +1286,20 @@ impl Sim {
         }
     }
 
-    /// The refill invariants of P1 (seL4's `valid_refills`): an active
-    /// scheduling context's ring fits its object and has head and tail
-    /// inside it; the refills of a periodic one are in time order without
-    /// overlap and together no more than its period.
+    /// The refill invariants of P1: l4v's `cfg_valid_refills`
+    /// (DetSchedInvs_AI, rt branch), less the parts about the budget, which
+    /// the kernel does not store. Every active scheduling context's ring
+    /// fits its object, with head and tail inside it, and its head refill
+    /// holds at least MIN_BUDGET. A round-robin one (period 0) has exactly
+    /// MIN_REFILLS refills, as `rr_valid_refills` requires. A periodic one
+    /// (`sp_valid_refills`) has refills in time order without overlap
+    /// (`ordered_disjoint`), none empty and none running past the end of
+    /// time (`no_overflow`), totalling at most the period, with the last
+    /// starting within a period of the head (`window`).
     fn check_refills(&self, what: &str) {
         use fl4_core::sporadic;
         let s = &self.s;
+        let min_budget = 2 * 10 * TICKS_PER_US;
         let mut seen = HashSet::new();
         for sl in self.slots() {
             let Cap::SchedContext { ptr, size_bits } = sl.cap(s) else { continue };
@@ -1308,22 +1315,28 @@ impl Sim {
             assert!(max >= sporadic::MIN_REFILLS, "{what}: SC {ptr:#x} has refill_max {max}");
             assert!(max <= sporadic::refill_absolute_max(size_bits), "{what}: SC {ptr:#x}: {max} refills do not fit 2^{size_bits} bytes");
             assert!(h < max && tl < max, "{what}: SC {ptr:#x}: head {h} or tail {tl} outside {max} refills");
+            let n = sporadic::size(s, sc);
+            let refills: Vec<_> = (0..n).map(|k| sporadic::get(s, sc, (h + k) % max)).collect();
+            let head = refills[0];
+            assert!(head.amount >= min_budget, "{what}: SC {ptr:#x}: head refill holds {} ticks, less than MIN_BUDGET", head.amount);
             let period = sc.period(s);
             if period == 0 {
+                assert!(n == sporadic::MIN_REFILLS && max == sporadic::MIN_REFILLS, "{what}: round-robin SC {ptr:#x} has {n} of {max} refills");
                 continue;
             }
-            let n = sporadic::size(s, sc);
-            let mut i = h;
             let mut sum = 0u64;
-            let mut end = 0u64;
-            for k in 0..n {
-                let r = sporadic::get(s, sc, i);
-                assert!(k == 0 || r.time >= end, "{what}: SC {ptr:#x}: refill {i} at {} overlaps the one before, which ends at {end}", r.time);
-                end = r.time.saturating_add(r.amount);
+            for (k, r) in refills.iter().enumerate() {
+                assert!(r.amount > 0, "{what}: SC {ptr:#x}: refill {k} is empty");
+                assert!(r.time.checked_add(r.amount).is_some(), "{what}: SC {ptr:#x}: refill {k} runs past the end of time");
+                if k > 0 {
+                    let p = refills[k - 1];
+                    assert!(p.time + p.amount <= r.time, "{what}: SC {ptr:#x}: refill {k} at {} overlaps the one before, which ends at {}", r.time, p.time + p.amount);
+                }
                 sum = sum.saturating_add(r.amount);
-                i = if i + 1 == max { 0 } else { i + 1 };
             }
             assert!(sum <= period, "{what}: SC {ptr:#x}: refills total {sum}, more than the period {period}");
+            let last = refills[refills.len() - 1];
+            assert!(last.time <= head.time.saturating_add(period), "{what}: SC {ptr:#x}: last refill at {} is more than a period after the head at {}", last.time, head.time);
         }
     }
 

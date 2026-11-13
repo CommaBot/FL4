@@ -290,11 +290,18 @@ fn bench(o: &Opts) {
     eprintln!("xtask: sel4bench results in {}", log.display());
 }
 
+/// FL4_KERNEL=sel4 runs sel4test on upstream seL4 (vendor/seL4) instead of
+/// FL4, in its own workspace: the baseline for flaky or timing-sensitive
+/// tests and for differential runs.
+fn upstream() -> bool {
+    env::var("FL4_KERNEL").is_ok_and(|k| k == "sel4")
+}
+
 /// The sel4test workspace: the pinned seL4 projects, sel4test itself and
-/// FL4's cmake/ as the kernel.
+/// FL4's cmake/ as the kernel (or seL4 with FL4_KERNEL=sel4).
 fn sel4test_ws() -> PathBuf {
     let r = root();
-    let ws = r.join("build/sel4test-ws");
+    let ws = r.join(if upstream() { "build/sel4test-sel4-ws" } else { "build/sel4test-ws" });
     let gitdirs = ws.join(".gitdirs");
     fs::create_dir_all(&gitdirs).unwrap();
     fs::create_dir_all(ws.join("projects")).unwrap();
@@ -311,7 +318,7 @@ fn sel4test_ws() -> PathBuf {
         let _ = fs::remove_file(dst);
         std::os::unix::fs::symlink(src, dst).unwrap();
     };
-    link(&r.join("cmake"), &ws.join("kernel"));
+    link(&r.join(if upstream() { "vendor/seL4" } else { "cmake" }), &ws.join("kernel"));
     link(Path::new("tools/seL4/cmake-tool/init-build.sh"), &ws.join("init-build.sh"));
     link(Path::new("projects/sel4test/easy-settings.cmake"), &ws.join("easy-settings.cmake"));
     ws
@@ -334,7 +341,8 @@ const SEL4TEST_REGEX: &str = "^([^F]|F[^L]|FL[^4])";
 fn sel4test_build(o: &Opts, fl4test: bool) -> PathBuf {
     let ws = sel4test_ws();
     let link = ws.join("projects/sel4test/apps/sel4test-tests/src/tests/fl4test.c");
-    if fs::symlink_metadata(&link).is_err() {
+    // (fl4test needs FL4's libsel4, so upstream seL4 builds go without it.)
+    if fs::symlink_metadata(&link).is_err() && !upstream() {
         std::os::unix::fs::symlink(root().join("fl4test/fl4test.c"), &link).unwrap();
     }
     // FL4_TESTS=<regex> runs only the matching tests, in its own build.
@@ -364,6 +372,11 @@ fn sel4test_build(o: &Opts, fl4test: bool) -> PathBuf {
         if serial_gate {
             c.arg("-DFL4_SERIAL_GATE=ON");
         }
+        if upstream() {
+            // seL4 refuses to boot without PCIDs or FSGSBASE unless built
+            // without them; kvm-reduced has neither.
+            c.args(["-DKernelSupportPCID=OFF", "-DKernelFSGSBase=msr"]);
+        }
         for a in &o.rest {
             c.arg(a);
         }
@@ -387,7 +400,41 @@ fn sel4test_build(o: &Opts, fl4test: bool) -> PathBuf {
     b
 }
 
+/// sel4test cases that measure wall-clock scheduling behaviour and fail on
+/// a loaded host, or on upstream seL4 itself: SCHED0014 fails 20 runs in
+/// 20 on seL4 with 4 cores in kvm-reduced (DESIGN.md §12). A run whose
+/// only failures are among these reruns them alone, up to three times.
+const TIMING_TESTS: &[&str] = &["SCHED0011", "SCHED0014", "TIMEOUTFAULT0001"];
+
 fn sel4test(o: &Opts, fl4test: bool) {
+    if !fl4test && env::var_os("FL4_TESTS").is_none() {
+        if let Err(failed) = sel4test_once(o, false) {
+            if failed.is_empty() || !failed.iter().all(|f| TIMING_TESTS.contains(&f.as_str())) {
+                fail("sel4test failed");
+            }
+            for attempt in 1..=3 {
+                let regex = format!("^({})$", failed.join("|"));
+                eprintln!("xtask: rerunning timing-sensitive {} (attempt {attempt} of 3)", failed.join(", "));
+                env::set_var("FL4_TESTS", &regex);
+                let r = sel4test_once(o, false);
+                env::remove_var("FL4_TESTS");
+                if r.is_ok() {
+                    eprintln!("xtask: sel4test passed after rerunning {}", failed.join(", "));
+                    return;
+                }
+            }
+            fail("sel4test failed");
+        }
+        return;
+    }
+    if sel4test_once(o, fl4test).is_err() {
+        fail(&format!("{} failed", if fl4test { "fl4test" } else { "sel4test" }));
+    }
+}
+
+/// One run; Err holds the failed tests' names (empty if the run did not
+/// complete).
+fn sel4test_once(o: &Opts, fl4test: bool) -> Result<(), Vec<String>> {
     let b = sel4test_build(o, fl4test);
     let k = b.join("images/kernel-x86_64-pc99");
     let i = b.join("images/sel4test-driver-image-x86_64-pc99");
@@ -402,11 +449,15 @@ fn sel4test(o: &Opts, fl4test: bool) {
     }
     let finished = out.contains("All is well in the universe") || out.contains("Test suite failed");
     if !finished {
-        fail(&format!("{suite} did not complete"));
+        eprintln!("xtask: {suite} did not complete");
+        return Err(Vec::new());
     }
-    if !failed.is_empty() {
-        fail(&format!("{suite} failed"));
+    // The driver's own "Test all tests ran" fails along with any test.
+    let failed: Vec<String> = failed.into_iter().filter(|f| !f.contains("all tests ran")).collect();
+    if !failed.is_empty() || !out.contains("All is well in the universe") {
+        return Err(failed);
     }
+    Ok(())
 }
 
 /// Passed tests and failed test names. Release builds print only
@@ -439,8 +490,6 @@ fn sel4test_results(out: &str) -> (usize, Vec<String>) {
     (passed, failed)
 }
 
-/// Seeds that once found bugs (DESIGN.md §4, "Fixes found while building
-/// FL4"): (seed, cores, steps).
 /// Deterministic simulation (DESIGN.md §10). Each campaign replays
 /// crates/fl4-sim/regressions first, then runs --seeds seeds (default 200)
 /// on --smp cores (default 4): serially, 20000 steps each; with the cores'

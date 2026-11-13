@@ -11,6 +11,11 @@ package fl4proofs
 -- edited by hand (DESIGN.md §5).
 lean_lib Fl4Core
 
+-- The seL4 abstract specification (l4v spec/abstract, MCS) ported to
+-- Lean, with FL4's differences and extensions in separate modules
+-- (DESIGN.md §9). Independent of Fl4Core.
+lean_lib Fl4Spec
+
 -- Specs, invariants and proofs about Fl4Core.
 @[default_target]
 lean_lib Fl4Proofs
