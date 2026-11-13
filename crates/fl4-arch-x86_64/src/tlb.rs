@@ -22,15 +22,20 @@ const NOFLUSH: u64 = 1 << 63;
 const CR4_PCIDE: u64 = 1 << 17;
 
 static PCID: AtomicBool = AtomicBool::new(false);
+static SKIM: AtomicBool = AtomicBool::new(false);
 static INVPCID: AtomicBool = AtomicBool::new(false);
 static GEN: [AtomicU64; ASIDS] = [const { AtomicU64::new(0) }; ASIDS];
 
 /// Detect PCIDs on the boot core; returns the CR4 bit to set on every core
-/// (which must happen while CR3 names PCID 0, as it does at boot).
-pub fn init() -> u64 {
-    let pcid = cpuid(1, 0).ecx & (1 << 17) != 0;
+/// (which must happen while CR3 names PCID 0, as it does at boot). With the
+/// skim window (spec.rs) the kernel runs on its own tables, so it can
+/// invalidate a user PCID only with INVPCID: without it, PCIDs stay off.
+pub fn init(skim: bool) -> u64 {
+    SKIM.store(skim, Ordering::Relaxed);
+    let invpcid = cpuid(7, 0).ebx & (1 << 10) != 0;
+    let pcid = cpuid(1, 0).ecx & (1 << 17) != 0 && (!skim || invpcid);
     PCID.store(pcid, Ordering::Relaxed);
-    INVPCID.store(pcid && cpuid(7, 0).ebx & (1 << 10) != 0, Ordering::Relaxed);
+    INVPCID.store(pcid && invpcid, Ordering::Relaxed);
     if pcid {
         CR4_PCIDE
     } else {
@@ -75,8 +80,32 @@ pub fn switch(cr3: u64, asid: u64) {
         flush = pc.tlb_seen[t as usize] != g;
         pc.tlb_seen[t as usize] = g;
     }
-    cpu::write_cr3(cr3 | t | if flush { 0 } else { NOFLUSH });
+    let v = cr3 | t | if flush { 0 } else { NOFLUSH };
     pc.cr3 = cr3 | t;
+    if SKIM.load(Ordering::Relaxed) {
+        // The kernel stays on its own tables; the exit loads these.
+        pc.exit_cr3 = v;
+    } else {
+        cpu::write_cr3(v);
+    }
+}
+
+/// The CR3 value an exit to user code loads with the skim window, which
+/// it then resets so the next exit does not flush again.
+pub fn take_exit_cr3() -> u64 {
+    let pc = percpu::get();
+    let v = pc.exit_cr3;
+    pc.exit_cr3 = pc.cr3 | if pcid() { NOFLUSH } else { 0 };
+    v
+}
+
+/// The kernel's CR3 value (PCID 0, whose mappings never change).
+pub fn kernel_cr3(root: u64) -> u64 {
+    root | if pcid() { NOFLUSH } else { 0 }
+}
+
+pub fn skim() -> bool {
+    SKIM.load(Ordering::Relaxed)
 }
 
 /// Every core flushes `asid` the next time it switches to it.
@@ -95,38 +124,55 @@ fn invpcid(kind: u64, pcid: u64, addr: u64) {
 /// changed.
 pub fn invalidate_page(asid: u64, vaddr: u64) -> u64 {
     bump(asid);
+    local_invalidate_page(asid, vaddr);
+    cores_on(asid)
+}
+
+/// With the skim window the kernel runs on its own tables: a user PCID is
+/// reached with INVPCID, and without PCIDs every exit's CR3 load flushes.
+fn local_invalidate_page(asid: u64, vaddr: u64) {
     let pc = percpu::get();
-    if pc.asid == asid {
+    if skim() {
+        if pcid() {
+            invpcid(0, tag(asid), vaddr);
+        }
+    } else if pc.asid == asid {
         cpu::invlpg(vaddr);
     } else if invpcid_available() {
         invpcid(0, tag(asid), vaddr);
     }
-    cores_on(asid)
+}
+
+fn local_invalidate_asid(asid: u64) {
+    let pc = percpu::get();
+    if skim() {
+        if pcid() {
+            invpcid(1, tag(asid), 0);
+        }
+    } else if pc.asid == asid {
+        cpu::write_cr3(pc.cr3);
+    } else if invpcid_available() {
+        invpcid(1, tag(asid), 0);
+    }
 }
 
 /// Invalidate all of `asid` here; returns the other cores running it.
 pub fn invalidate_asid(asid: u64) -> u64 {
     bump(asid);
-    let pc = percpu::get();
-    if pc.asid == asid {
-        cpu::write_cr3(pc.cr3);
-    } else if invpcid_available() {
-        invpcid(1, tag(asid), 0);
-    }
+    local_invalidate_asid(asid);
     cores_on(asid)
 }
 
 /// Remote side of a shootdown.
 pub fn remote_invalidate_page(asid: u64, vaddr: u64) {
     if percpu::get().asid == asid {
-        cpu::invlpg(vaddr);
+        local_invalidate_page(asid, vaddr);
     }
 }
 
 pub fn remote_invalidate_asid(asid: u64) {
-    let pc = percpu::get();
-    if pc.asid == asid {
-        cpu::write_cr3(pc.cr3);
+    if percpu::get().asid == asid {
+        local_invalidate_asid(asid);
     }
 }
 

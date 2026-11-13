@@ -1,6 +1,6 @@
 {
- "functions": 917,
- "proved": 911,
+ "functions": 921,
+ "proved": 919,
  "manual": [],
  "loops_automatic": [
   "boot.all_zero_loop",
@@ -12,13 +12,13 @@
   "boot.create_untypeds_for_region_loop",
   "boot.create_untypeds_loop0",
   "boot.create_untypeds_loop1",
+  "boot.find_rootserver_mem_loop",
   "boot.init_bootinfo_loop0",
   "boot.init_bootinfo_loop1",
   "boot.init_core_state_loop",
   "boot.init_irq_states_loop",
   "boot.set_name_loop0",
   "boot.set_name_loop0_loop0",
-  "boot.take_rootserver_mem_loop",
   "cdt.finalise_slot_deferred_loop",
   "cdt.finalise_slot_immediate_loop",
   "cdt.revoke_loop",
@@ -88,25 +88,9 @@
    "fun",
    "(do let ui_v_start \u2190 lift (core.num.U64.wrapping_sub p.ui_p_start p.pv_offset) let ui_v_end \u2190 lift (core.num.U64.wrapping_sub p.ui_p_end p.pv_offset) let bi_frame_vptr \u2190 lift (core.num.U64.wrapping_add ui_v_end 4096#u64) let extra_bi_vptr \u2190 lift (core.num.U64.wrapping_add bi_frame_vptr 4096#u64) let"
   ],
-  "boot.take_rootserver_mem": [
-   "fun",
-   "(do let (o, a, i) \u2190 boot.take_rootserver_mem_loop p.free p.n_free size align_bits p.n_free ok (o, { free := a, n_free := i, device := p.device, n_device := p.n_device, ui_p_start := p.ui_p_start, ui_p_end := p.ui_p_end, pv_offset := p.pv_offset, v_entry := p.v_entry, extra_bi := p.extra_bi, extra_bi"
-  ],
-  "untyped.reset_untyped": [
-   "fun",
-   "(do let c \u2190 obj.Slot.cap machineStoreInst slot s let o \u2190 untyped.as_untyped c match o with | none => ok (core.result.Result.Ok (), s, a) | some x => let (ptr, block, free_index, device) := x if free_index = 0#u64 then ok (core.result.Result.Ok (), s, a) else if device = true then do let s1 \u2190 if devi"
-  ],
   "untyped.reset_untyped_loop": [
    "loop",
    "(do let offset1 \u2190 lift (core.num.U64.saturating_sub x2 i) ok (ControlFlow.cont (s3, a1, offset1))) \u2983 r => match r with | ControlFlow.done y => True | ControlFlow.cont x' => \u2191x'.2.2 < \u2191x2 \u2984"
-  ],
-  "vspace.decode_page_map": [
-   "fun",
-   "(let (root, asid) := x1 if f.mapped = true then if (f.asid != 0#u64) = true then if (f.asid != asid) = true then do let r \u2190 error.invalid_cap Unit 1#u64 ok (r, s, a) else if (f.vaddr != vaddr) = true then do let r \u2190 error.invalid_arg Unit 0#u64 ok (r, s, a) else do let r \u2190 vspace.check_vspace machin"
-  ],
-  "vspace.decode_table": [
-   "fun",
-   "(let (map_lbl, unmap_lbl, level, ptr, mapped, masid, mvaddr) := x if lbl = unmap_lbl then vspace.decode_table_unmap machineStoreInst machineArchInst s a slot cap level ptr mapped masid mvaddr else if lbl = map_lbl then if mapped = true then do let o1 \u2190 vspace.extra ex 0#usize match o1 with | none =>"
   ]
  }
 }

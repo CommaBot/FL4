@@ -110,6 +110,9 @@ fn qemu_cmd(setup: &str, smp: u32, kernel: &Path, initrd: Option<&Path>) -> Comm
         "kvm-reduced" => c.args(["-enable-kvm", "-machine", "kernel-irqchip=split", "-cpu", "host,-x2apic,-tsc-deadline,-pcid,-invpcid,-fsgsbase,-xsaves,-xsavec"]),
         // -icount stops QEMU 10.0 with "Bad icount read" during boot.
         "tcg" => c.args(["-accel", "tcg", "-cpu", "max"]),
+        // An Intel CPU without IA32_ARCH_CAPABILITIES counts as vulnerable
+        // to Meltdown: the skim window paths (TCG has no PCIDs).
+        "tcg-intel" => c.args(["-accel", "tcg", "-cpu", "Skylake-Client-v1,-hle,-rtm"]),
         s => fail(&format!("unknown setup {s} (kvm, kvm-reduced, tcg)")),
     };
     c.args(["-m", "3G", "-smp"]).arg(smp.to_string());

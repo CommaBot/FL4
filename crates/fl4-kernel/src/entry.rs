@@ -2,7 +2,7 @@
 //! dispatch to fl4-core, and restore whichever thread is current after.
 use crate::kprintln;
 use fl4_arch_x86_64::arch::{PhysArch, TIMER_VECTOR};
-use fl4_arch_x86_64::{apic, cpu, fpu, percpu, timer};
+use fl4_arch_x86_64::{apic, cpu, fpu, percpu, timer, tlb};
 use fl4_core::layout::{irq, node, reg, tcb as tl};
 use fl4_core::machine::Store;
 use fl4_core::obj::{node_get, Tcb};
@@ -15,7 +15,7 @@ use fl4_arch_x86_64::smp;
 core::arch::global_asm!(include_str!("entry.S"), options(att_syntax));
 
 extern "C" {
-    fn fl4_restore_user(regs: u64, stack_top: u64) -> !;
+    fn fl4_restore_user(regs: u64, stack_top: u64, cr3: u64) -> !;
     fn fl4_idle(stack_top: u64) -> !;
 }
 
@@ -229,8 +229,21 @@ fn run_entry(irq: bool, body: impl FnMut(&mut PhysStore, &mut PhysArch)) -> bool
 }
 
 /// Called by entry.S for every kernel entry.
+/// Back to the interrupted user code without a kernel entry: with the skim
+/// window, onto the user's tables again.
+fn resume_user() {
+    if tlb::skim() {
+        cpu::write_cr3(percpu::get().exit_cr3);
+    }
+}
+
 #[no_mangle]
 extern "C" fn fl4_entry(f: &mut Frame) {
+    // With the skim window user tables map only the kernel image: switch
+    // to the kernel's before touching anything else.
+    if f.cs & 3 != 0 && tlb::skim() {
+        cpu::write_cr3(percpu::get().kernel_cr3);
+    }
     let v = f.vector;
     let irq = (VEC_IRQ_MIN..=VEC_IRQ_MAX).contains(&v);
     if f.cs & 3 == 0 {
@@ -271,6 +284,7 @@ extern "C" fn fl4_entry(f: &mut Frame) {
     // (l4h 0012): acknowledge it and go back to the thread.
     if v == TIMER_VECTOR as u64 && timer::early() {
         apic::eoi();
+        resume_user();
         return;
     }
     // The bench profile's MSR syscalls (DESIGN.md §3) touch only the
@@ -281,10 +295,12 @@ extern "C" fn fl4_entry(f: &mut Frame) {
             f.r10 = cpu::rdmsr(f.rdi as u32);
             // seL4_MessageInfo_new(0, 0, 0, 1).
             f.rsi = 1;
+            resume_user();
             return;
         }
         if n == fl4_abi::syscall::SysX86DangerousWRMSR {
             cpu::wrmsr(f.rdi as u32, f.r10);
+            resume_user();
             return;
         }
     }
@@ -353,7 +369,8 @@ pub fn exit() -> ! {
     if fl4_abi::config::HARDWARE_DEBUG_API {
         load_debug_state(s, ct);
     }
-    unsafe { fl4_restore_user(ct.0 + tl::REGS, stack_top) }
+    let cr3 = if tlb::skim() { tlb::take_exit_cr3() } else { 0 };
+    unsafe { fl4_restore_user(ct.0 + tl::REGS, stack_top, cr3) }
 }
 
 /// Load a thread's breakpoints and single-step flag (seL4

@@ -28,9 +28,13 @@ pub struct PerCpu {
     pub gs_base: u64,
     /// Debug registers hold a thread's breakpoints.
     pub dr_loaded: bool,
-    /// Current CR3 and the ASID it belongs to.
+    /// The user address space this core runs (CR3 value and ASID). With
+    /// the skim window the kernel runs on `kernel_cr3` and `exit_cr3` is
+    /// what the exit to user code loads.
     pub cr3: u64,
     pub asid: u64,
+    pub kernel_cr3: u64,
+    pub exit_cr3: u64,
     /// The invalidation generation of each PCID this core last ran with
     /// (tlb.rs).
     pub tlb_seen: [u64; crate::tlb::ASIDS],
@@ -63,6 +67,8 @@ impl PerCpu {
             dr_loaded: false,
             cr3: 0,
             asid: 0,
+            kernel_cr3: 0,
+            exit_cr3: 0,
             tlb_seen: [0; crate::tlb::ASIDS],
             apic_id: 0,
             gate_held: false,

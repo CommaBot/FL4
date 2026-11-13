@@ -12,7 +12,7 @@ mod smp;
 use core::cell::UnsafeCell;
 use core::fmt::Write;
 use fl4_arch_x86_64::arch::{PhysArch, TIMER_VECTOR};
-use fl4_arch_x86_64::{apic, cpu, fbcon, fpu, ioapic, percpu, pic, serial, timer, tlb};
+use fl4_arch_x86_64::{apic, cpu, fbcon, fpu, ioapic, percpu, pic, serial, spec, timer, tlb};
 use fl4_core::boot::{BootParams, Region, MAX_REGIONS, PADDR_USER_DEVICE_TOP};
 use fl4_core::layout::{ks, pptr, PADDR_TOP};
 use fl4_core::machine::Store;
@@ -254,18 +254,21 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
         cr4 |= 1 << 16;
         cpu::set_fsgsbase(true);
     }
-    cr4 |= tlb::init();
+    spec::detect();
+    cr4 |= tlb::init(spec::skim());
     // The bench profile lets user code read the performance counters.
     if fl4_abi::config::EXPORT_PMC_USER {
         cr4 |= 1 << 8;
     }
     cpu::write_cr4(cr4);
-    let (kernel_root, window_top) = paging::init(nx);
+    let (kernel_root, window_top) = paging::init(nx, spec::skim());
     let stack_top = percpu::init(0);
     gdt::init_idt();
     gdt::init_core(0, stack_top);
     fpu::init();
     percpu::get().cr3 = paging::root_paddr();
+    percpu::get().kernel_cr3 = tlb::kernel_cr3(paging::root_paddr());
+    spec::init_core();
 
     // Interrupt controllers and the timer.
     let acpi = match acpi::init() {
@@ -295,6 +298,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
         fpu::xcr0(),
         fpu::save_insn()
     );
+    kprintln!("FL4: speculation mitigations: {}; PCIDs {}", spec::describe(), if tlb::pcid() { "on" } else { "off" });
 
     // The other cores, if any (each sets itself up and waits).
     let ncpus = smp::start_aps(&acpi.cpus[..acpi.n_cpus], smp::Features { cr4: cpu::read_cr4(), efer_nx: nx });
@@ -395,7 +399,15 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
     entry::set_ks_base(ks_base);
     let mut s = entry::store();
     s.zero(ks_base, ks::SIZE);
-    ks_set(&mut s, ks::KERNEL_ROOT, kernel_root);
+    // The kernel half user address spaces copy: everything, or with the
+    // skim window only the kernel image.
+    let template = if spec::skim() {
+        let end = paging::image_paddr(unsafe { &__kernel_end as *const u8 as u64 });
+        paging::init_skim(KERNEL_PHYS_START, end)
+    } else {
+        kernel_root
+    };
+    ks_set(&mut s, ks::KERNEL_ROOT, template);
     ks_set(&mut s, ks::FEATURES, if nx { ks::FEATURE_NX } else { 0 });
     let mut a = PhysArch;
     if let Err(e) = fl4_core::boot::create_root_task(&mut s, &mut a, &mut p) {

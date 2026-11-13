@@ -13,5 +13,6 @@ pub mod pic;
 pub mod pit;
 pub mod serial;
 pub mod smp;
+pub mod spec;
 pub mod timer;
 pub mod tlb;

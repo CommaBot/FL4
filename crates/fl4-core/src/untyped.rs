@@ -155,8 +155,11 @@ fn ensure_empty_slots<S: Store>(s: &S, cnode: u64, from: u64, to: u64) -> KResul
 }
 
 /// seL4 `resetUntypedCap`: clear the used part, top down, in chunks.
-/// Bytes cleared between preemption points.
-const RESET_CHUNK: u64 = 1 << RESET_CHUNK_BITS;
+/// Bytes cleared between preemption points, `1 << RESET_CHUNK_BITS`. A
+/// literal, so the extracted loop uses the value itself rather than taking
+/// it as an argument (which could be 0).
+const RESET_CHUNK: u64 = 65536;
+const _: () = assert!(RESET_CHUNK == 1 << RESET_CHUNK_BITS);
 
 fn reset_untyped<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot) -> KResult<()> {
     let u = match as_untyped(slot.cap(s)) {

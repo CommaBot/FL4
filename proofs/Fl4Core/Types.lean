@@ -150,6 +150,12 @@ structure sporadic.Refill where
 @[reducible]
 def obj.Tcb := Std.U64
 
+/-- [fl4_core::boot::Pick]
+    Source: 'crates/fl4-core/src/boot.rs', lines 361:0-364:1 -/
+structure boot.Pick where
+  k : Std.Usize
+  start : Std.U64
+
 /-- Trait declaration: [fl4_core::machine::Arch]
     Source: 'crates/fl4-core/src/machine.rs', lines 25:0-87:1
     Visibility: public -/
@@ -236,7 +242,7 @@ inductive error.Exc where
 | Preempted : error.Exc
 
 /-- [fl4_core::boot::Root]
-    Source: 'crates/fl4-core/src/boot.rs', lines 391:0-403:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 409:0-421:1 -/
 structure boot.Root where
   b : boot.Boot
   extra_bi : Std.U64
@@ -324,6 +330,17 @@ structure debug.Breakpoint where
   rw : Std.U64
   enabled : Bool
 
+/-- [fl4_core::vspace::TableCap]
+    Source: 'crates/fl4-core/src/vspace.rs', lines 688:0-696:1 -/
+structure vspace.TableCap where
+  map_lbl : Std.U64
+  unmap_lbl : Std.U64
+  level : Std.U64
+  ptr : Std.U64
+  mapped : Bool
+  asid : Std.U64
+  vaddr : Std.U64
+
 /-- [fl4_core::vspace::FrameCap]
     Source: 'crates/fl4-core/src/vspace.rs', lines 418:0-426:1 -/
 structure vspace.FrameCap where
@@ -334,6 +351,20 @@ structure vspace.FrameCap where
   mapped : Bool
   asid : Std.U64
   vaddr : Std.U64
+
+/-- [fl4_core::vspace::VRoot]
+    Source: 'crates/fl4-core/src/vspace.rs', lines 476:0-479:1 -/
+structure vspace.VRoot where
+  pml4 : Std.U64
+  asid : Std.U64
+
+/-- [fl4_core::untyped::UntypedCap]
+    Source: 'crates/fl4-core/src/untyped.rs', lines 131:0-136:1 -/
+structure untyped.UntypedCap where
+  ptr : Std.U64
+  size_bits : Std.U64
+  free_index : Std.U64
+  is_device : Bool
 
 /-- [fl4_core::tcb::Ctx]
     Source: 'crates/fl4-core/src/tcb.rs', lines 29:0-35:1

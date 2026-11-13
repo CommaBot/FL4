@@ -338,7 +338,10 @@ fn set_name<S: Store>(s: &mut S, t: Tcb, name: &[u8]) {
 /// Pick the root server's memory: the top of the highest free region that
 /// fits `size` bytes aligned to `align_bits`.
 fn take_rootserver_mem(p: &mut BootParams, size: u64, align_bits: u64) -> Option<u64> {
-    let pick = find_rootserver_mem(p, size, align_bits)?;
+    let pick = match find_rootserver_mem(p, size, align_bits) {
+        Some(x) => x,
+        None => return None,
+    };
     if pick.k >= MAX_REGIONS {
         return None;
     }
@@ -417,8 +420,22 @@ struct Root {
     it: Region,
 }
 
-/// seL4 `calculate_rootserver_size` and `create_rootserver_objects`.
-fn rootserver_objects<S: Store>(s: &mut S, p: &mut BootParams) -> Result<Root, BootError> {
+/// Where the root task's frames go in its address space, and how much
+/// memory its objects take (seL4 `calculate_rootserver_size`).
+#[derive(Clone, Copy)]
+struct RootLayout {
+    ipcbuf_vptr: u64,
+    bi_frame_vptr: u64,
+    extra_bi_vptr: u64,
+    ebits: u64,
+    ebytes: u64,
+    it: Region,
+    cnode_bits: u64,
+    max_bits: u64,
+    total: u64,
+}
+
+fn root_layout(p: &BootParams) -> RootLayout {
     let ui_v_start = p.ui_p_start.wrapping_sub(p.pv_offset);
     let ui_v_end = p.ui_p_end.wrapping_sub(p.pv_offset);
     let ipcbuf_vptr = ui_v_end;
@@ -433,20 +450,48 @@ fn rootserver_objects<S: Store>(s: &mut S, p: &mut BootParams) -> Result<Root, B
     let size = fixed.wrapping_add(ebytes).wrapping_add(n_paging.wrapping_mul(4096));
     let max_bits = if cnode_bits > ebits { cnode_bits } else { ebits };
     let total = size.wrapping_add(1u64 << (max_bits & 63));
-    let start = match take_rootserver_mem(p, total, max_bits) {
+    RootLayout { ipcbuf_vptr, bi_frame_vptr, extra_bi_vptr, ebits, ebytes, it, cnode_bits, max_bits, total }
+}
+
+/// seL4 `create_rootserver_objects`.
+fn rootserver_objects<S: Store>(s: &mut S, p: &mut BootParams) -> Result<Root, BootError> {
+    let l = root_layout(p);
+    let start = match take_rootserver_mem(p, l.total, l.max_bits) {
         Some(x) => x,
         None => return Err(BootError::NoMemory),
     };
-    let mut b = Boot { root_cnode: 0, slot_pos: 0, bi_frame: 0, next: start, end: start.wrapping_add(total), full: false };
-    let extra_bi = if ebits >= cnode_bits && ebits > 0 { alloc(s, &mut b, ebits, 1) } else { 0 };
-    b.root_cnode = alloc(s, &mut b, cnode_bits, 1);
-    let extra_bi = if extra_bi == 0 && ebits > 0 { alloc(s, &mut b, ebits, 1) } else { extra_bi };
+    let mut b = Boot { root_cnode: 0, slot_pos: 0, bi_frame: 0, next: start, end: start.wrapping_add(l.total), full: false };
+    let extra_bi = alloc_root_objects(s, &mut b, l.ebits, l.cnode_bits);
     let pml4 = alloc(s, &mut b, 12, 1);
     let asid_pool = alloc(s, &mut b, 12, 1);
     let ipc_buf = alloc(s, &mut b, 12, 1);
     b.bi_frame = alloc(s, &mut b, 12, 1);
     let tcb = Tcb(alloc(s, &mut b, bits::TCB, 1));
-    Ok(Root { b, extra_bi, pml4, asid_pool, ipc_buf, tcb, ipcbuf_vptr, bi_frame_vptr, extra_bi_vptr, ebytes, it })
+    Ok(Root {
+        b,
+        extra_bi,
+        pml4,
+        asid_pool,
+        ipc_buf,
+        tcb,
+        ipcbuf_vptr: l.ipcbuf_vptr,
+        bi_frame_vptr: l.bi_frame_vptr,
+        extra_bi_vptr: l.extra_bi_vptr,
+        ebytes: l.ebytes,
+        it: l.it,
+    })
+}
+
+/// The root CNode and the extra BootInfo, the larger first for
+/// alignment; returns the extra BootInfo's address (0 if none).
+fn alloc_root_objects<S: Store>(s: &mut S, b: &mut Boot, ebits: u64, cnode_bits: u64) -> u64 {
+    let extra_bi = if ebits >= cnode_bits && ebits > 0 { alloc(s, b, ebits, 1) } else { 0 };
+    b.root_cnode = alloc(s, b, cnode_bits, 1);
+    if extra_bi == 0 && ebits > 0 {
+        alloc(s, b, ebits, 1)
+    } else {
+        extra_bi
+    }
 }
 
 /// The root CNode, IO port control, domain and IRQ control caps, and the

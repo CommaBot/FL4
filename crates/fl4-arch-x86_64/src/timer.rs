@@ -180,19 +180,22 @@ fn arm_countdown(ticks: u64) {
     apic::write(apic::REG_TIMER_INIT, a.clamp(1, u32::MAX as u64) as u32);
 }
 
-/// A timer interrupt arrived: is it before the armed deadline (l4h 0012)?
-/// Then it belongs to a deadline since replaced (TSC-deadline mode, where
-/// the new deadline is already armed) or to a countdown that ran out of
-/// count (re-armed here), and the kernel need not run. The time is checked
-/// first, so a due interrupt costs no extra work.
+/// A timer interrupt arrived: is it stale (l4h 0012)? It is if the timer
+/// is still armed for a later deadline: in TSC-deadline mode the
+/// interrupt then belongs to a deadline since replaced; in countdown mode
+/// the count ran out early (re-armed here). The kernel need not run then.
+/// The time is checked first, so a due interrupt costs no MSR read. An
+/// interrupt the hardware (or a hypervisor) delivers a little before the
+/// deadline finds the deadline MSR cleared: it is due, not stale.
 pub fn early() -> bool {
     let armed = crate::percpu::get().armed;
     if armed == 0 || rdtsc() >= armed {
         return false;
     }
-    if !DEADLINE.load(Ordering::Relaxed) {
-        arm_countdown(armed);
+    if DEADLINE.load(Ordering::Relaxed) {
+        return crate::cpu::rdmsr(msr::TSC_DEADLINE) != 0;
     }
+    arm_countdown(armed);
     true
 }
 

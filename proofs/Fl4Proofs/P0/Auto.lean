@@ -456,18 +456,22 @@ theorem layout.tcb.NAME.p0  :
     boot.set_name machineStoreInst s t «name» ⦃ _ => True ⦄ := by
   unfold boot.set_name; p0_auto
 
-@[step] theorem boot.take_rootserver_mem_loop.p0 (a : Array boot.Region 32#usize) (i : Std.U64) (size : Std.U64) (align_bits : Std.U64) (i1 : Std.U64) :
-    boot.take_rootserver_mem_loop a i size align_bits i1 ⦃ _ => True ⦄ := by
-  unfold boot.take_rootserver_mem_loop
+@[step] theorem boot.find_rootserver_mem_loop.p0 (a : Array boot.Region 32#usize) (size : Std.U64) (align_bits : Std.U64) (i : Std.U64) :
+    boot.find_rootserver_mem_loop a size align_bits i ⦃ _ => True ⦄ := by
+  unfold boot.find_rootserver_mem_loop
   apply loop.spec_decr_nat (measure := fun x => match x with | (x0) => x0.val) (inv := fun _ => True)
   · rintro x0 -
-    unfold boot.take_rootserver_mem_loop.body
+    unfold boot.find_rootserver_mem_loop.body
     p0_body
   · trivial
 
+@[step] theorem boot.find_rootserver_mem.p0 (p : boot.BootParams) (size : Std.U64) (align_bits : Std.U64) :
+    boot.find_rootserver_mem p size align_bits ⦃ _ => True ⦄ := by
+  unfold boot.find_rootserver_mem; p0_auto
+
 @[step] theorem boot.take_rootserver_mem.p0 (p : boot.BootParams) (size : Std.U64) (align_bits : Std.U64) :
     boot.take_rootserver_mem p size align_bits ⦃ _ => True ⦄ := by
-  sorry
+  unfold boot.take_rootserver_mem; p0_auto
 
 @[step] theorem boot.create_untypeds_loop0.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot) (p : boot.BootParams) (first : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
     boot.create_untypeds_loop0 machineStoreInst s b p first i ⦃ _ => True ⦄ := by
@@ -3419,7 +3423,7 @@ theorem vspace.P_RW.p0  :
 
 @[step] theorem vspace.decode_table.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (length : Std.U64) (slot : obj.Slot) (cap : capability.Cap) (buf : Std.U64) (ex : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     vspace.decode_table machineStoreInst machineArchInst s a lbl length slot cap buf ex ⦃ _ => True ⦄ := by
-  sorry
+  unfold vspace.decode_table; p0_auto
 
 @[step] theorem vspace.insert_subframes_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot) (dest : Std.U64) (first : Std.U64) (base : Std.U64) (count : Std.U64) (vm : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
     vspace.insert_subframes_loop machineStoreInst s src dest first base count vm i ⦃ _ => True ⦄ := by
@@ -3537,7 +3541,7 @@ theorem vspace.P_XD.p0  :
 
 @[step] theorem vspace.decode_page_map.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64) (slot : obj.Slot) (f : vspace.FrameCap) (buf : Std.U64) (ex : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     vspace.decode_page_map machineStoreInst machineArchInst s a length slot f buf ex ⦃ _ => True ⦄ := by
-  sorry
+  unfold vspace.decode_page_map; p0_split
 
 @[step] theorem vspace.as_frame.p0 (c : capability.Cap) :
     vspace.as_frame c ⦃ _ => True ⦄ := by
@@ -3583,7 +3587,7 @@ theorem untyped.RESET_CHUNK.p0  :
 
 @[step] theorem untyped.reset_untyped.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     untyped.reset_untyped machineStoreInst machineArchInst s a slot ⦃ _ => True ⦄ := by
-  sorry
+  unfold untyped.reset_untyped; p0_auto
 
 @[step] theorem untyped.retype.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot) (reset : Bool) (base : Std.U64) (new_type : Std.U64) (user_size : Std.U64) (dest : Std.U64) (offset : Std.U64) (length : Std.U64) (device : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     untyped.retype machineStoreInst machineArchInst s a slot reset base new_type user_size dest offset length device ⦃ _ => True ⦄ := by
@@ -4098,8 +4102,20 @@ theorem untyped.RESET_CHUNK.p0  :
   cases self <;> cases other <;> simp [lift, core.cmp.impls.PartialEqBool.eq] <;>
     (repeat' split) <;> (try simp [lift, core.cmp.impls.PartialEqBool.eq]) <;> (try step*)
 
+@[step] theorem untyped.UntypedCap.Insts.CoreCloneClone.clone.p0 (self : untyped.UntypedCap) :
+    untyped.UntypedCap.Insts.CoreCloneClone.clone self ⦃ _ => True ⦄ := by
+  unfold untyped.UntypedCap.Insts.CoreCloneClone.clone; p0_auto
+
 @[step] theorem vspace.FrameCap.Insts.CoreCloneClone.clone.p0 (self : vspace.FrameCap) :
     vspace.FrameCap.Insts.CoreCloneClone.clone self ⦃ _ => True ⦄ := by
   unfold vspace.FrameCap.Insts.CoreCloneClone.clone; p0_auto
+
+@[step] theorem vspace.VRoot.Insts.CoreCloneClone.clone.p0 (self : vspace.VRoot) :
+    vspace.VRoot.Insts.CoreCloneClone.clone self ⦃ _ => True ⦄ := by
+  unfold vspace.VRoot.Insts.CoreCloneClone.clone; p0_auto
+
+@[step] theorem vspace.TableCap.Insts.CoreCloneClone.clone.p0 (self : vspace.TableCap) :
+    vspace.TableCap.Insts.CoreCloneClone.clone self ⦃ _ => True ⦄ := by
+  unfold vspace.TableCap.Insts.CoreCloneClone.clone; p0_auto
 
 end Fl4Proofs.P0

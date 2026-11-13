@@ -83,8 +83,11 @@ fl4_common_entry:
     addq $16, %rsp
     iretq
 
-/* fl4_restore_user(regs: *const u64, stack_top: u64) -> !
- * regs is a TCB's register array (fl4_core::layout::reg order). */
+/* fl4_restore_user(regs: *const u64, stack_top: u64, cr3: u64) -> !
+ * regs is a TCB's register array (fl4_core::layout::reg order). A nonzero
+ * cr3 (the skim window, spec.rs) is loaded after the last read of the TCB,
+ * which the user's tables do not map; the kernel stack is in the image,
+ * which they do. */
     .align 16
     .global fl4_restore_user
 fl4_restore_user:
@@ -94,6 +97,8 @@ fl4_restore_user:
     pushq 13*8(%rdi)
     pushq $0x33
     pushq 14*8(%rdi)
+    pushq %rdx
+    pushq 0*8(%rdi)
     movq 1*8(%rdi), %rsi
     movq 2*8(%rdi), %rax
     movq 3*8(%rdi), %rbx
@@ -108,7 +113,13 @@ fl4_restore_user:
     movq 12*8(%rdi), %r15
     movq 18*8(%rdi), %r11
     movq 19*8(%rdi), %rcx
-    movq 0*8(%rdi), %rdi
+    movq 8(%rsp), %rdi
+    testq %rdi, %rdi
+    jz 1f
+    movq %rdi, %cr3
+1:
+    popq %rdi
+    addq $8, %rsp
     iretq
 
 /* fl4_idle(stack_top: u64) -> !: the idle thread. Interrupts arrive in
