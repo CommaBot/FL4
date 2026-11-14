@@ -291,12 +291,13 @@ theorem not_prot_tw {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U6
         · exact hsub _ (hO.nextW hr)
       exact out_ne_field (h.omega _ hm) hy hya (by omega) rfl
     · have hm : core.num.U64.wrapping_add y K ∈ Ω := by
-        rcases e' with e' | e' | e' | e' | e' <;> rw [e']
+        rcases e' with e' | e' | e' | e' | e' | e' <;> rw [e']
         · exact hsub _ (hO.fixW c hc).1
         · exact hsub _ (hO.fixW c hc).2
         · exact hsub _ (hO.repW c hc)
         · exact hsub _ (hO.snW c hc)
         · exact hsub _ (hO.syW c hc)
+        · exact hsub _ (hO.mxW c hc)
       exact out_ne_field (h.omega _ hm) hy hya (by omega) rfl
     · rcases e' with e' | e' | e' | e' | e'
       · rw [scA_eq] at e'

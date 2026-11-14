@@ -71,7 +71,7 @@ theorem ntfn_word_val {n o : U64} (h : n.val % 64 = 0) (h2 : n.val + 64 ≤ 2 ^ 
   simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
 
 /-- The typed heap gives `ObjsOK`. -/
-theorem ObjsOK.of_heap {H : Heap} (hH : HeapOK H) (s : S) :
+theorem ObjsOK.of_heap {H : Heap} (hH : HeapOK H) (h0 : H 0#u64 = none) (s : S) :
     ObjsOK st H.omega H.frame H.replies H.scs H.ntfns H.scBits s := by
   have nP : ∀ n ∈ H.ntfns, n.val % 64 = 0 ∧ n.val + 64 ≤ 2 ^ 64 := by
     intro n hn
@@ -104,13 +104,23 @@ theorem ObjsOK.of_heap {H : Heap} (hH : HeapOK H) (s : S) :
     refine ⟨?_, c, .sc z, hz, Or.inr (Or.inl ⟨z, rfl⟩), ?_⟩
     · unfold Aligned scYieldFromA; rw [scYieldA_val hP hz7]; omega
     · simp only [InObj, HKind.bits]; unfold scYieldFromA; rw [scYieldA_val hP hz7]; omega
+  have hmxW : ∀ c ∈ H.scs, maxA c ∈ H.frame := by
+    rintro c ⟨z, hz⟩
+    have hP : Placed c z := ⟨by have := hH.lt64 c _ hz; simpa [HKind.bits] using this,
+      by simpa [HKind.bits] using hH.align c _ hz, by simpa [HKind.bits] using hH.fits c _ hz⟩
+    have hz7 := hH.scmin c z hz
+    obtain ⟨h8, h128, -⟩ := sc_lo hP hz7
+    refine ⟨?_, c, .sc z, hz, Or.inr (Or.inl ⟨z, rfl⟩), ?_⟩
+    · unfold Aligned; rw [maxA_val hP hz7]; omega
+    · simp only [InObj, HKind.bits]; rw [maxA_val hP hz7]; omega
   refine ⟨fun r hr => ?_, fun c ⟨z, hz⟩ => ?_, fun r hr b hb h1 h2 => ?_, fun c ⟨z, hz⟩ b hb hin => ?_,
     fun c ⟨z, hz⟩ => ?_, fun c ⟨z, hz⟩ c' ⟨z', hz'⟩ hne => ?_, fun r hr c ⟨z, hz⟩ => ?_, fun c ⟨z, hz⟩ => ?_,
     fun n hn => ?_, fun n hn r hr => ?_, fun n hn c ⟨z, hz⟩ => ?_, fun n hn => ?_,
     nP,
     fun n hn => ⟨nfr n hn _ (by simp [layout.ntfn.BADGE]) (by simp [layout.ntfn.BADGE]) (Or.inr (Or.inl rfl)),
       nfr n hn _ (by simp [layout.ntfn.BOUND_TCB]) (by simp [layout.ntfn.BOUND_TCB]) (Or.inr (Or.inr rfl))⟩,
-    fun n hn r hr => ?_, fun n hn c ⟨z, hz⟩ => ?_, hsnW, hsyW⟩
+    fun n hn r hr => ?_, fun n hn c ⟨z, hz⟩ => ?_, hsnW, hsyW, hmxW,
+    fun n hn e => by subst e; have : H 0#u64 = some .ntfn := hn; rw [h0] at this; cases this⟩
   rotate_right 6
   · exact nfr n hn _ (by simp [layout.ntfn.SC]) (by simp [layout.ntfn.SC]) (Or.inl rfl)
   · obtain ⟨e, h1, h2⟩ := nv n hn

@@ -88,6 +88,10 @@ structure ObjsOK (st : machine.Store S) [L : LawfulStore st] (Ω Sg Rp Scs Nt : 
   snW : ∀ c ∈ Scs, scNtfnA c ∈ Sg
   /-- The SCs' `YIELD_FROM` words are frame words. -/
   syW : ∀ c ∈ Scs, scYieldFromA c ∈ Sg
+  /-- The SCs' `REFILL_MAX` words are frame words. -/
+  mxW : ∀ c ∈ Scs, maxA c ∈ Sg
+  /-- Notifications are not at the null address. -/
+  nt0 : ∀ n ∈ Nt, n ≠ 0#u64
 
 /-! ## Addresses -/
 
@@ -113,7 +117,7 @@ theorem ObjsOK.nextW (h : ObjsOK st Ω Sg Rp Scs Nt Z s) {r : U64} (hr : r ∈ R
 
 theorem ObjsOK.ksb {s s' : S} (h : ObjsOK st Ω Sg Rp Scs Nt Z s) : ObjsOK st Ω Sg Rp Scs Nt Z s' :=
   ⟨h.rp, h.sc, h.rpW, h.scW, h.fixW, h.scDisj, h.rpSc, h.repW, h.ntW, h.ntRp, h.ntSc, h.ntAl, h.ntP,
-    h.ntB, h.ntORp, h.ntOSc, h.snW, h.syW⟩
+    h.ntB, h.ntORp, h.ntOSc, h.snW, h.syW, h.mxW, h.nt0⟩
 
 theorem sc_lo {c : U64} {z : Nat} (hP : Placed c z) (hz : 7 ≤ z) :
     c.val % 8 = 0 ∧ 128 ≤ 2 ^ z ∧ c.val + 2 ^ z ≤ 2 ^ 64 := by
@@ -242,6 +246,12 @@ theorem hq_of_not_runnable {X : Set U64} {s : S} {Q : U64 → U64 → List U64} 
 
 theorem maxA_val {c : U64} {z : Nat} (hP : Placed c z) (hz : 7 ≤ z) : (maxA c).val = c.val + 72 := by
   unfold maxA; rw [sc_word_val hP hz (by simp [layout.sc.REFILL_MAX])]; simp [layout.sc.REFILL_MAX]
+theorem maxA_facts (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) {c : U64} (hc : c ∈ Scs) :
+    Aligned (maxA c) ∧ c.val ≤ (maxA c).val ∧ (maxA c).val < c.val + 2 ^ Z c := by
+  obtain ⟨hP, hz⟩ := hO.sc c hc
+  obtain ⟨h8, h128, -⟩ := sc_lo hP hz
+  have := maxA_val hP hz
+  exact ⟨by unfold Aligned; omega, by omega, by omega⟩
 theorem headA_val' {c : U64} {z : Nat} (hP : Placed c z) (hz : 7 ≤ z) : (headA c).val = c.val + 80 := by
   unfold headA; rw [sc_word_val hP hz (by simp [layout.sc.REFILL_HEAD])]; simp [layout.sc.REFILL_HEAD]
 theorem tailA_val' {c : U64} {z : Nat} (hP : Placed c z) (hz : 7 ≤ z) : (tailA c).val = c.val + 88 := by

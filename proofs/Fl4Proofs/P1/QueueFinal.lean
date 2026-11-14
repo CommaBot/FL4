@@ -414,6 +414,24 @@ theorem obj.Ntfn.set_sc.wr (s : S) (n : obj.Ntfn) (v : U64) :
     obj.Ntfn.set_sc st n s v ⦃ s' => s' = L.wr s (ntfnScA n) v ⦄ := by
   unfold obj.Ntfn.set_sc; step*; simp_all [ntfnScA]
 
+/-- The current SC word after a write of a word outside the TCBs and nodes. -/
+theorem cscW_wr_out {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {a v : U64}
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ha : a ∈ Ω) : L.cscW (L.wr s a v) = L.cscW s := by
+  have ho := h.omega a ha
+  have hN := h.nodes _ h.cur
+  unfold LawfulStore.cscW; rw [nodeA_wr]
+  exact L.mem_wr_ne ho.1 (nodeAt_aligned hN (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]))
+    (fun e => out_ne_node ho h.cur hN (by simp [layout.node.CUR_SC]) e.symm)
+
+/-- The current SC word after a TCB field write. -/
+theorem cscW_wr_field {s : S} {y K v : U64} (hT : TcbPlaced T) (hN : NodePlaced st T s (L.cpu s)) (hy : y ∈ T)
+    (hK : K.val < 4096) (hK8 : K.val % 8 = 0) :
+    L.cscW (L.wr s (core.num.U64.wrapping_add y K) v) = L.cscW s := by
+  unfold LawfulStore.cscW; rw [nodeA_wr]
+  exact L.mem_wr_ne (field_aligned (hT y hy) hK hK8)
+    (nodeAt_aligned hN (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]))
+    (fun e => node_ne_field hN (by simp [layout.node.CUR_SC]) hy (hT y hy) hK (UScalar.eq_of_val_eq e).symm)
+
 /-- Clearing a notification's `SC` word. -/
 theorem ntsc_zero_all {s : S} {n : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s) (hn : n ∈ Nt) :
     BlkOK st T Cs Ω H Sg Rp Scs Nt Z (L.wr s (ntfnScA n) 0#u64) ∧
@@ -430,12 +448,17 @@ theorem ntsc_zero_all {s : S} {n : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s
       rw [av, e1, e2, e3, e4, e5]; have := hO.ntOSc n hn c hc; omega)
     (fun r hr e => by rw [av, (rp_facts hO hr).2.2.2] at e; have := hO.ntORp n hn r hr; omega)
     (fun r hr e => by rw [av, (rp_facts hO hr).2.2.1] at e; have := hO.ntORp n hn r hr; omega)
-    (fun _ _ _ h0 => absurd rfl h0) (fun _ _ _ h0 => absurd rfl h0) (fun _ _ _ => Tz.zero)
+    (fun _ _ _ h0 => absurd rfl h0) (fun _ _ _ h0 => absurd rfl h0)
+    (fun c hc e => absurd e (by
+      obtain ⟨hPc, hzc⟩ := hO.sc c hc
+      rw [av, scNtfnA_val hPc hzc]; have := hO.ntOSc n hn c hc; have := (sc_facts hO hc).1; omega))
+    (fun _ _ _ => Tz.zero)
     (fun _ _ _ h0 => absurd rfl h0) (fun _ _ _ h0 => absurd rfl h0)
   exact ⟨⟨⟨Q, R, h1⟩, hB1, hX1, hS1, hSg1⟩, foot_wr (h0.omega _ hm).1 (kw_sg (hO.ntW n hn))⟩
 
 /-- Clearing an SC's `NTFN` word. -/
-theorem scn_zero_all {s : S} {c : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s) (hc : c ∈ Scs) :
+theorem scn_zero_all {s : S} {c : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s) (hc : c ∈ Scs)
+    (hfree : ∀ n ∈ Nt, L.mem s (ntfnScA n) ≠ c) :
     BlkOK st T Cs Ω H Sg Rp Scs Nt Z (L.wr s (scNtfnA c) 0#u64) ∧
       Foot st T Cs Sg Scs Z ∅ s (L.wr s (scNtfnA c) 0#u64) := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
@@ -454,21 +477,34 @@ theorem scn_zero_all {s : S} {c : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s)
       · have := hO.scDisj c hc c' hc' e; omega)
     (fun r hr e => by rw [av, (rp_facts hO hr).2.2.2] at e; have := hO.rpSc r hr c hc; omega)
     (fun r hr e => by rw [av, (rp_facts hO hr).2.2.1] at e; have := hO.rpSc r hr c hc; omega)
-    (fun _ _ _ h0 => absurd rfl h0) (fun _ _ _ h0 => absurd rfl h0) (fun _ _ _ => Tz.zero)
+    (fun _ _ _ h0 => absurd rfl h0) (fun _ _ _ h0 => absurd rfl h0)
+    (fun c' hc' e n hn e2 => by
+      have : c' = c := by
+        by_contra hne
+        obtain ⟨hP', hz'⟩ := hO.sc c' hc'
+        rw [av, scNtfnA_val hP' hz'] at e
+        have := hO.scDisj c hc c' hc' (Ne.symm hne); have := (sc_facts hO hc').1; omega
+      exact absurd (e2.trans this) (hfree n hn))
+    (fun _ _ _ => Tz.zero)
     (fun _ _ _ h0 => absurd rfl h0) (fun _ _ _ h0 => absurd rfl h0)
   exact ⟨⟨⟨Q, R, h1⟩, hB1, hX1, hS1, hSg1⟩, foot_wr (h0.omega _ hm).1 (kw_sg (hO.snW c hc))⟩
 
-/-- `unbind_ntfn` (seL4 `schedContext_unbindNtfn`). -/
+/-- `unbind_ntfn` (seL4 `schedContext_unbindNtfn`): the SC's `TCB` word and
+the current SC word are kept, and the SC's `NTFN` word ends null. -/
 theorem schedcontext.unbind_ntfn.blk (s : S) (c : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s)
     (hc : c ≠ 0#u64 → c ∈ Scs) :
     schedcontext.unbind_ntfn st s c ⦃ s' =>
-      BlkOK st T Cs Ω H Sg Rp Scs Nt Z s' ∧ Foot st T Cs Sg Scs Z ∅ s s' ⦄ := by
+      BlkOK st T Cs Ω H Sg Rp Scs Nt Z s' ∧ Foot st T Cs Sg Scs Z ∅ s s' ∧
+      L.mem s' (scTcbA c) = L.mem s (scTcbA c) ∧ L.cscW s' = L.cscW s ∧
+      (c ≠ 0#u64 → L.mem s' (scNtfnA c) = 0#u64) ⦄ := by
   unfold schedcontext.unbind_ntfn
   step with obj.Sc.is_null.spec as ⟨b, eb⟩
   split
-  · exact (WP.spec_ok _).2 ⟨h, Foot.refl _⟩
+  · rename_i hb
+    refine (WP.spec_ok _).2 ⟨h, Foot.refl _, rfl, rfl, fun h0 => absurd (by rw [eb] at hb; simpa using hb) h0⟩
   rename_i hb
-  have hcS : c ∈ Scs := hc (fun e => hb (by rw [eb, e]; rfl))
+  have hc0 : c ≠ 0#u64 := fun e => hb (by rw [eb, e]; rfl)
+  have hcS : c ∈ Scs := hc hc0
   step with obj.Sc.ntfn.val as ⟨j, ej⟩
   split
   · rename_i hj
@@ -478,9 +514,34 @@ theorem schedcontext.unbind_ntfn.blk (s : S) (c : U64) (h : BlkOK st T Cs Ω H S
     obtain ⟨h1, f1⟩ := ntsc_zero_all h hjN
     refine WP.spec_mono (obj.Sc.set_ntfn.wr _ c 0#u64) fun s2 e2 => ?_
     subst e2
-    obtain ⟨h2, f2⟩ := scn_zero_all h1 hcS
-    exact ⟨h2, f1.trans f2⟩
-  · exact (WP.spec_ok _).2 ⟨h, Foot.refl _⟩
+    have hX := h.2.2.1
+    have hO := hX.1
+    have h0 := h.1.choose_spec.choose_spec
+    have hfree : ∀ n ∈ Nt, L.mem (L.wr s (ntfnScA j) 0#u64) (ntfnScA n) ≠ c := by
+      intro n hn e
+      rw [L.mem_wr_val (hO.ntAl j hjN) (hO.ntAl n hn)] at e
+      split at e
+      · exact hc0 e.symm
+      rename_i hne
+      have hnj : n ≠ j := fun e' => hne (by rw [e'])
+      obtain ⟨-, h2, -⟩ := hX.2.2.nsc n hn (by rw [e]; exact hc0)
+      rw [e, ← ej] at h2
+      exact hnj h2.symm
+    obtain ⟨h2, f2⟩ := scn_zero_all h1 hcS hfree
+    obtain ⟨hP, hz⟩ := hO.sc c hcS
+    obtain ⟨h128, e1, -⟩ := sc_facts hO hcS
+    have av := scNtfnA_val hP hz
+    have hm : scNtfnA c ∈ Ω := h.2.2.2.2.sub _ (hO.snW c hcS)
+    have hmj : ntfnScA j ∈ Ω := h.2.2.2.2.sub _ (hO.ntW j hjN)
+    have htc : Aligned (scTcbA c) := (h0.omega _ (h.2.2.2.2.sub _ (hO.fixW c hcS).1)).1
+    refine ⟨h2, f1.trans f2, ?_, ?_, fun _ => L.mem_wr_same (h0.omega _ hm).1⟩
+    · rw [L.mem_wr_ne (h0.omega _ hm).1 htc (by rw [av, e1]; omega),
+        L.mem_wr_ne (hO.ntAl j hjN) htc (by
+          rw [e1, ntfnScA_val (hO.ntP j hjN)]; have := hO.ntOSc j hjN c hcS; omega)]
+    · rw [cscW_wr_out h1.1.choose_spec.choose_spec hm, cscW_wr_out h0 hmj]
+  · rename_i hj
+    refine (WP.spec_ok _).2 ⟨h, Foot.refl _, rfl, rfl, fun _ => ?_⟩
+    rw [← ej]; apply UScalar.eq_of_val_eq; simpa using hj
 
 /-- `maybe_unbind_ntfn` (seL4 `schedContext_maybeUnbindNtfn`). -/
 theorem schedcontext.maybe_unbind_ntfn.blk (s : S) (n : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s)
@@ -492,7 +553,8 @@ theorem schedcontext.maybe_unbind_ntfn.blk (s : S) (n : U64) (h : BlkOK st T Cs 
   step with obj.Sc.is_null.spec as ⟨b, eb⟩
   split
   · exact (WP.spec_ok _).2 ⟨h, Foot.refl _⟩
-  · exact schedcontext.unbind_ntfn.blk s i h fun h0 => by rw [ei]; exact h.2.2.1.2.2.nsc n hn (by rw [← ei]; exact h0)
+  · exact WP.spec_mono (schedcontext.unbind_ntfn.blk s i h fun h0 => by
+      rw [ei]; exact (h.2.2.1.2.2.nsc n hn (by rw [← ei]; exact h0)).1) fun _ hh => ⟨hh.1, hh.2.1⟩
 
 
 
@@ -934,12 +996,15 @@ theorem schedcontext.unbind_tcb.blk (s : S) (sc : U64) (h : BlkOK st T Cs Ω H S
     (hidle : L.mem s (scTcbA sc) ≠ 0#u64 → L.idleW s ≠ L.mem s (scTcbA sc)) :
     schedcontext.unbind_tcb st s sc ⦃ s' =>
       BlkOK st T Cs Ω H Sg Rp Scs Nt Z s' ∧ Foot st T Cs Sg Scs Z ∅ s s' ∧
-      (L.actionW s' = L.actionW s ∨ L.actionW s' = 1#u64) ∧ L.idleW s' = L.idleW s ⦄ := by
+      (L.actionW s' = L.actionW s ∨ L.actionW s' = 1#u64) ∧ L.idleW s' = L.idleW s ∧
+      L.mem s' (scTcbA sc) = 0#u64 ∧ L.cscW s' = L.cscW s ⦄ := by
   unfold schedcontext.unbind_tcb
   step with obj.Sc.tcb.spec as ⟨t, et⟩
   step with obj.Tcb.is_null.spec as ⟨b, eb⟩
   split
-  · exact (WP.spec_ok _).2 ⟨h, Foot.refl _, Or.inl rfl, rfl⟩
+  · rename_i hb
+    refine (WP.spec_ok _).2 ⟨h, Foot.refl _, Or.inl rfl, rfl, ?_, rfl⟩
+    rw [← et]; rw [eb] at hb; simpa using hb
   rename_i hb
   have ht0 : t ≠ 0#u64 := fun e => hb (by rw [eb, e]; rfl)
   have htT : t ∈ T := by rw [et]; exact h.2.2.1.2.2.yt.1 sc hsc (by rw [← et]; exact ht0)
@@ -950,7 +1015,8 @@ theorem schedcontext.unbind_tcb.blk (s : S) (sc : U64) (h : BlkOK st T Cs Ω H S
   -- the reschedule, when `t` is current
   refine WP.spec_bind (Pₘ := fun s1 => BlkOK st T Cs Ω H Sg Rp Scs Nt Z s1 ∧ Foot st T Cs Sg Scs Z ∅ s s1 ∧
       L.actionW s1 ≠ t ∧ (L.curW s1 = t → L.actionW s1 ≠ 0#u64) ∧ L.idleW s1 = L.idleW s ∧
-      L.mem s1 (scTcbA sc) = L.mem s (scTcbA sc) ∧ (L.actionW s1 = L.actionW s ∨ L.actionW s1 = 1#u64)) ?_ ?_
+      L.mem s1 (scTcbA sc) = L.mem s (scTcbA sc) ∧ (L.actionW s1 = L.actionW s ∨ L.actionW s1 = 1#u64) ∧
+      L.cscW s1 = L.cscW s) ?_ ?_
   · split
     · rename_i hbt
       obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
@@ -958,13 +1024,13 @@ theorem schedcontext.unbind_tcb.blk (s : S) (sc : U64) (h : BlkOK st T Cs Ω H S
         (sched.reschedule_required.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := ∅) s h0)) ?_
       rintro s1 ⟨⟨⟨Q1, R1, h1⟩, hB1, f1, ea1, ec1, -, ei1, -⟩, fw1⟩
       refine ⟨⟨⟨Q1, R1, h1⟩, hB1, hX.fr f1, hS.fr f1, hSg.fr f1⟩, fw1, ?_, fun _ => by rw [ea1]; simp, ei1,
-        f1.sig _ (hX.1.fixW sc hsc).1, Or.inr ea1⟩
+        f1.sig _ (hX.1.fixW sc hsc).1, Or.inr ea1, f1.csc⟩
       rw [ea1]; exact fun e => notT_small h0.tcbs (by simp) (e ▸ htT)
     · rename_i hbt
       have hne : t ≠ t1 := fun e => hbt (by rw [eb1, decide_eq_true_eq]; exact e)
       exact (WP.spec_ok _).2 ⟨h, Foot.refl _, hna0, fun e => absurd (by rw [et1]; exact e.symm) hne, rfl, rfl,
-        Or.inl rfl⟩
-  rintro s1 ⟨⟨⟨Q1, R1, h1⟩, hB1, hX1, hS1, hSg1⟩, fw1, na1, cr1, ei1, sc1, ac1⟩
+        Or.inl rfl, rfl⟩
+  rintro s1 ⟨⟨⟨Q1, R1, h1⟩, hB1, hX1, hS1, hSg1⟩, fw1, na1, cr1, ei1, sc1, ac1, cs1⟩
   -- dequeue
   have hc1 := h1.aff t htT
   have hp1 := h1.prio t htT
@@ -1022,8 +1088,11 @@ theorem schedcontext.unbind_tcb.blk (s : S) (sc : U64) (h : BlkOK st T Cs Ω H S
     · subst eyt; rw [ks0] at e; exact hsc0 e.symm
     · have := (k3.2.2.bound y hy (by rw [e]; exact hsc0)).2.1
       rw [e, tc4] at this; exact eyt this.symm
-  refine ⟨hb5, fw1.trans (fw2.trans (fw3.trans (fw4.trans fw5))), ?_, by rw [an5.2.1, ki, ei3, ei2, ei1]⟩
-  rw [an5.1, ka, ea3, ea2]; exact ac1
+  refine ⟨hb5, fw1.trans (fw2.trans (fw3.trans (fw4.trans fw5))), ?_, by rw [an5.2.1, ki, ei3, ei2, ei1],
+    L.mem_wr_same (hb4.2.2.1.1.aligned hb4.1.choose_spec.choose_spec.tcbs (Or.inr (Or.inl ⟨sc, hsc, Or.inl rfl⟩))), ?_⟩
+  · rw [an5.1, ka, ea3, ea2]; exact ac1
+  · rw [cscW_wr_out k1 (hSg3.sub _ (hX3.1.fixW sc hsc).1), scA_eq,
+      cscW_wr_field h3.tcbs (h3.nodes _ h3.cur) htT (by simp) (by simp), f3.csc, f2.csc, cs1]
 
 
 

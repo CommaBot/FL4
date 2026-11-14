@@ -223,9 +223,11 @@ theorem SCsOK.switch {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List
     all_goals rw [scA_eq] at hh; exact node_ne_field hN' (by simp [layout.node.REPROGRAM, layout.node.CONSUMED,
       layout.node.CUR_SC]) hy (h.tcbs y hy) (by simp) hh.symm
   -- an SC object other than the two keeps its ring
-  have other : ∀ c ∈ Scs, c ≠ tsc → c ≠ csc → RefillsWF st s c (Z c) → RefillsWF st s' c (Z c) := by
-    intro c hc h1 h2 hW
-    refine hW.writesIn w fun b hb hh => ?_
+  have hout : ∀ c ∈ Scs, c ≠ tsc → c ≠ csc → ∀ b, Aligned b → (InRing tsc (Z tsc) b ∨
+      (InRing csc (Z csc) b ∨ b = core.num.U64.wrapping_add csc layout.sc.CONSUMED) ∨
+      b = L.nodeA s layout.node.REPROGRAM ∨ b = L.nodeA s layout.node.CONSUMED ∨ b = L.nodeA s layout.node.CUR_SC) →
+      Outside b c (Z c) := by
+    intro c hc h1 h2 b hb hh
     have dj := fun c' (hc' : c' ∈ Scs) (hne : c ≠ c') => hO.scDisj c hc c' hc' hne
     rcases hh with hh | (hh | hh) | hh | hh | hh
     · have := dj _ htS h1; unfold Outside; unfold InRing at hh; omega
@@ -237,9 +239,11 @@ theorem SCsOK.switch {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List
       unfold Outside; rw [hh, hv]; simp [layout.sc.CONSUMED]; omega
     all_goals
       subst hh
-      exact SCin.node_out ⟨hW, hO.scW c hc⟩ h.omega h.cur hN'
+      exact node_out_place (hO.scW c hc) h.omega h.cur hN'
         (by simp [layout.node.REPROGRAM, layout.node.CONSUMED, layout.node.CUR_SC])
         (by simp [layout.node.REPROGRAM, layout.node.CONSUMED, layout.node.CUR_SC])
+  have other : ∀ c ∈ Scs, c ≠ tsc → c ≠ csc → RefillsWF st s c (Z c) → RefillsWF st s' c (Z c) :=
+    fun c hc h1 h2 hW => hW.writesIn w (hout c hc h1 h2)
   have wf : ∀ c ∈ Scs, RefillsWF st s c (Z c) → RefillsWF st s' c (Z c) := by
     intro c hc hW
     by_cases e1 : c = csc
@@ -249,7 +253,14 @@ theorem SCsOK.switch {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List
     exact other c hc e2 e1 hW
   have hcs' : L.cscW s' = tsc := by unfold LawfulStore.cscW; rw [cscW_eq w.1 w.2.1]; exact e
   refine ⟨hS.sub, fun b hb => by rw [w.1]; exact hS.ks b hb, fun o h1 h2 => by rw [w.1]; exact hS.ksΩ o h1 h2,
-    fun y hy hy0 => ?_, ?_, fun y hy hy0 hne => ?_, fun c hc => ⟨wf c hc (hS.all c hc).1, (hS.all c hc).2⟩⟩
+    fun y hy hy0 => ?_, ?_, fun y hy hy0 hne => ?_, fun c hc => ?_⟩
+  rotate_right
+  · by_cases e1 : c = csc
+    · subst e1; exact (hS.all _ hc).mk' fun _ => wfc
+    by_cases e2 : c = tsc
+    · subst e2; exact (hS.all _ hc).mk' fun _ => wft e1
+    obtain ⟨a1, a2, a3⟩ := maxA_facts hO hc
+    exact (hS.all c hc).writesIn a1 ⟨a2, a3⟩ w (hout c hc e2 e1)
   · rw [fld y hy] at hy0 ⊢
     obtain ⟨hW, hSg⟩ := hS.bound y hy hy0
     exact ⟨wf _ (hE.bound y hy hy0).1 hW, hSg⟩

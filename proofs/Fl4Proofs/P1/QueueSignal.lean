@@ -112,8 +112,8 @@ theorem ntfn_sc_ok {s : S} {n t : U64} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (
     L.mem s (ntfnScA n) ≠ 0#u64 → L.mem s (scTcbA (L.mem s (ntfnScA n))) = 0#u64 →
       L.mem s (scA t) = 0#u64 → L.mem s (ntfnScA n) ∈ Scs ∧ SCin st s Sg (L.mem s (ntfnScA n)) (Z (L.mem s (ntfnScA n))) ∧
         L.mem s (scCoreA (L.mem s (ntfnScA n))) ∈ Cs := fun h0 _ _ => by
-  have hc := hX.2.2.nsc n hn h0
-  exact ⟨hc, hS.all _ hc, hX.2.2.core _ hc⟩
+  obtain ⟨hc, -, hm⟩ := hX.2.2.nsc n hn h0
+  exact ⟨hc, ⟨(hS.all _ hc).1 hm, (hS.all _ hc).2.2⟩, hX.2.2.core _ hc⟩
 
 /-- The end of `send_signal` on a woken thread `dst` (running, in no ready or
 release queue, not the switch-to candidate): the badge, the SC donation, the
@@ -454,6 +454,9 @@ theorem ntbt_all {s : S} {n v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s) (
       rw [av, (sc_facts hO hc).2.2.2.2.2.2.1] at e; have := hO.ntOSc n hn c hc; have := (sc_facts hO hc).1; omega)
     (fun n' hn' e => absurd e (by
       rw [av, ntfnScA_val (hO.ntP n' hn')]; have := hP.1; have := (hO.ntP n' hn').1; omega))
+    (fun c hc e => absurd e (by
+      obtain ⟨hPc, hzc⟩ := hO.sc c hc
+      rw [av, scNtfnA_val hPc hzc]; have := hO.ntOSc n hn c hc; have := (sc_facts hO hc).1; omega))
     (fun _ _ _ => hv)
     (fun c hc e => absurd e (by
       obtain ⟨hPc, hzc⟩ := hO.sc c hc
@@ -508,9 +511,9 @@ theorem bnd_all {s : S} {t v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s) (h
       (fun c hc => om _ (hSg.sub _ (hX.1.repW c hc))) (fun y hy hb => ?_)
       (fun n hn => om _ (hSg.sub _ (hX.1.ntW n hn)))
       (hX.tn_field (K := 3368#u64) h0 hSg.sub ht (by simp) (by simp) (by simp))
-      (fun c hc => by rw [om _ (hSg.sub _ (hX.1.snW c hc))]; exact hX.2.2.scn c hc)
+      (fun c hc => om _ (hSg.sub _ (hX.1.snW c hc)))
       (hX.2.2.yt.keep (fun c hc => om _ (hcΩ c hc).1) (fun y hy => fk y hy _ (by simp) (by simp) (fun _ => by simp))
-        (fun c hc => om _ (hSg.sub _ (hX.1.syW c hc)))),
+        (fun c hc => om _ (hSg.sub _ (hX.1.syW c hc)))) (fun c hc => om _ (hcΩ c hc).2.2.1),
     SCsOK.field (K := 3368#u64) h0 hS hX ht (by simp) (by simp) (by simp),
     ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o h1 h2⟩⟩
   · rw [ea] at haT ⊢; exact ⟨haT, hB.act haT⟩

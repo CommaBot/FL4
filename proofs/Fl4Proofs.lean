@@ -30,6 +30,8 @@ import Fl4Proofs.P1.QueueFire
 import Fl4Proofs.P1.QueueTimerSet
 import Fl4Proofs.P1.QueueFoot
 import Fl4Proofs.P1.QueueFinal
+import Fl4Proofs.P1.QueueFinSc
+import Fl4Proofs.P1.QueueTcbInv
 import Fl4Proofs.P2.Runtime
 import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine

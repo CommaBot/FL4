@@ -46,6 +46,11 @@ structure BoundInv (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (s 
   /-- The idle thread is not blocked (so in no endpoint or notification queue). -/
   idleNB : ¬ Blocked (L.mem s (stA (L.idleW s)))
 
+/-- An SC object whose words are among `Sg` and whose refills are well formed
+if it is active (`REFILL_MAX ≠ 0`, l4v `valid_refills` under `sc_active`). -/
+def SCA (st : machine.Store S) [L : LawfulStore st] (s : S) (Sg : Set U64) (sc : obj.Sc) (sb : Nat) : Prop :=
+  (L.rmax s sc ≠ 0#u64 → RefillsWF st s sc sb) ∧ maxA sc ∈ Sg ∧ ∀ b, Aligned b → InSC sc sb b → b ∈ Sg
+
 /-- The SCs: those of bound TCBs and the current one are well formed, among
 `Sg ⊆ Ω` and outside the kernel-global area (which is part of `Ω`); the
 current SC is disjoint from the other bound SCs.  `Z sc` is the size
@@ -59,7 +64,7 @@ structure SCsOK (st : machine.Store S) [L : LawfulStore st] (T Ω Sg Scs : Set U
   disj : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 → L.mem s (scA t) ≠ L.cscW s →
     ∀ b, InSC (L.mem s (scA t)) (Z (L.mem s (scA t))) b → Outside b (L.cscW s) (Z (L.cscW s))
   /-- Every SC object is well formed. -/
-  all : ∀ c ∈ Scs, SCin st s Sg c (Z c)
+  all : ∀ c ∈ Scs, SCA st s Sg c (Z c)
 
 /-- The frame words `Sg` are among `Ω` and outside the kernel-global area,
 which is part of `Ω`. -/
@@ -127,6 +132,27 @@ theorem RefillsWF.agree {s s' : S} {sc : obj.Sc} {sb : Nat} (h : RefillsWF st s 
     exact h.head_lt
   · rw [show L.rtail s' sc = L.rtail s sc from e _ (by addr) (by addr) (by addr)]
     exact h.tail_lt
+
+theorem SCA.agree {Sg : Set U64} {s s' : S} {sc : obj.Sc} {sb : Nat} (h : SCA st s Sg sc sb)
+    (hag : ∀ b ∈ Sg, L.mem s' b = L.mem s b) : SCA st s' Sg sc sb :=
+  ⟨fun hm => by
+    have e : L.rmax s' sc = L.rmax s sc := hag _ h.2.1
+    exact (h.1 (e ▸ hm)).agree fun b hb hi => hag b (h.2.2 b hb hi), h.2.1, h.2.2⟩
+
+theorem SCA.of_wf {Sg : Set U64} {s s' : S} {sc : obj.Sc} {sb : Nat} (h : SCA st s Sg sc sb)
+    (hm : L.rmax s' sc = L.rmax s sc) (wf : RefillsWF st s sc sb → RefillsWF st s' sc sb) : SCA st s' Sg sc sb :=
+  ⟨fun h0 => wf (h.1 (hm ▸ h0)), h.2.1, h.2.2⟩
+
+theorem SCA.mk' {Sg : Set U64} {s s' : S} {sc : obj.Sc} {sb : Nat} (h : SCA st s Sg sc sb)
+    (hwf : L.rmax s' sc ≠ 0#u64 → RefillsWF st s' sc sb) : SCA st s' Sg sc sb := ⟨hwf, h.2.1, h.2.2⟩
+
+/-- An SC object outside a footprint keeps `SCA`. -/
+theorem SCA.writesIn {Sg : Set U64} {s s' : S} {sc : obj.Sc} {sb : Nat} {A : U64 → Prop} (h : SCA st s Sg sc sb)
+    (hal : Aligned (maxA sc)) (hin : sc.val ≤ (maxA sc).val ∧ (maxA sc).val < sc.val + 2 ^ sb)
+    (w : WritesIn st s s' A) (hA : ∀ b, Aligned b → A b → Outside b sc sb) : SCA st s' Sg sc sb := by
+  have e : L.rmax s' sc = L.rmax s sc := w.mem_eq hal fun hh => by
+    have := hA _ hal hh; unfold Outside at this; omega
+  exact h.of_wf e fun hW => hW.writesIn w hA
 
 theorem SCin.agree {Sg : Set U64} {s s' : S} {sc : obj.Sc} {sb : Nat} (h : SCin st s Sg sc sb)
     (hag : ∀ b ∈ Sg, L.mem s' b = L.mem s b) : SCin st s' Sg sc sb :=

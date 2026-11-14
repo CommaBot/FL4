@@ -82,12 +82,13 @@ theorem bx_field' {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 
           · exact hsub _ (hX.1.nextW hr)
         exact out_ne_field (h.omega _ hm) hy hya hK rfl
       · have hm : core.num.U64.wrapping_add y K ∈ Ω := by
-          rcases e' with e' | e' | e' | e' | e' <;> rw [e']
+          rcases e' with e' | e' | e' | e' | e' | e' <;> rw [e']
           · exact hsub _ (hX.1.fixW c hc).1
           · exact hsub _ (hX.1.fixW c hc).2
           · exact hsub _ (hX.1.repW c hc)
           · exact hsub _ (hX.1.snW c hc)
           · exact hsub _ (hX.1.syW c hc)
+          · exact hsub _ (hX.1.mxW c hc)
         exact out_ne_field (h.omega _ hm) hy hya hK rfl
       · rcases e' with e' | e' | e' | e' | e'
         · rw [scA_eq] at e'
@@ -118,7 +119,7 @@ theorem bx_field {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 �
 def AvoidX (st : machine.Store S) [L : LawfulStore st] (T Rp Scs Nt : Set U64) (s : S) (a : U64) : Prop :=
   (∀ r ∈ Rp, a.val ≠ (rTcbA r).val ∧ a.val ≠ (rPrevA r).val ∧ a.val ≠ (rNextA r).val) ∧
   (∀ c ∈ Scs, a.val ≠ (scTcbA c).val ∧ a.val ≠ (scCoreA c).val ∧ a.val ≠ (scReplyA c).val ∧
-    a.val ≠ (scNtfnA c).val) ∧
+    a.val ≠ (scNtfnA c).val ∧ a.val ≠ (maxA c).val) ∧
   (∀ u ∈ T, a.val ≠ (scA u).val ∧ a.val ≠ (replyA u).val ∧ a.val ≠ (stA u).val ∧ a.val ≠ (boundA u).val) ∧
   (∀ n ∈ Nt, a.val ≠ (ntfnScA n).val) ∧ a.val ≠ (L.nodeA s layout.node.CUR_SC).val
 
@@ -133,7 +134,7 @@ theorem avoidX_yieldA {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : 
     fun u hu K hK hne e => field_ne (K1 := 3472#u64) hta (h.tcbs u hu) (by simp) hK (fun _ => by simp; omega)
       (UScalar.eq_of_val_eq e)
   refine ⟨fun r hr => ⟨om _ (hrΩ r hr).1, om _ (hrΩ r hr).2.1, om _ (hrΩ r hr).2.2⟩,
-    fun c hc => ⟨om _ (hcΩ c hc).1, om _ (hcΩ c hc).2.1, om _ (hsub _ (hX.1.repW c hc)), om _ (hsub _ (hX.1.snW c hc))⟩,
+    fun c hc => ⟨om _ (hcΩ c hc).1, om _ (hcΩ c hc).2.1, om _ (hsub _ (hX.1.repW c hc)), om _ (hsub _ (hX.1.snW c hc)), om _ (hsub _ (hX.1.mxW c hc))⟩,
     fun u hu => ⟨by rw [scA_eq]; exact fl u hu _ (by simp) (by simp), fl u hu _ (by simp) (by simp),
       by rw [stA_eq]; exact fl u hu _ (by simp) (by simp), fl u hu _ (by simp) (by simp)⟩,
     fun n hn => om _ (hsub _ (hX.1.ntW n hn)), fun e => ?_⟩
@@ -156,7 +157,7 @@ theorem avoidX_scYield {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
     rw [av, e1, e2, e3]; omega
   · obtain ⟨hPc, hzc⟩ := hO.sc c hc
     obtain ⟨h128', e1, e2, -, -, -, e6, -⟩ := sc_facts hO hc
-    rw [av, e1, e2, e6, scNtfnA_val hPc hzc]
+    rw [av, e1, e2, e6, scNtfnA_val hPc hzc, maxA_val hPc hzc]
     by_cases e : c0 = c
     · subst e; omega
     · have := hO.scDisj c0 hc0 c hc e; omega
@@ -199,17 +200,17 @@ theorem XInv.wr_yield0 {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
       rw [k _ (alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inr (Or.inl rfl)))⟩)))) (hU u hu).2.2.2]
       exact hX.2.2.bnd u hu)
     (fun n hn => k _ (hO.ntAl n hn) (hN n hn)) htn
-    (fun c hc => by
-      rw [k _ (alP _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inr (Or.inl rfl)))⟩))) (hC c hc).2.2.2]
-      exact hX.2.2.scn c hc)
+    (fun c hc => k _ (alP _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inr (Or.inl rfl)))⟩))) (hC c hc).2.2.2.1)
     ⟨fun c hc => by
       rw [k _ (alP _ (Or.inr (Or.inl ⟨c, hc, Or.inl rfl⟩))) (hC c hc).1]; exact hX.2.2.yt.1 c hc,
      fun u hu h0 => by
       have hb := alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inr (Or.inr rfl)))⟩)))
       have e := z _ hb h0; rw [e] at h0 ⊢; exact hX.2.2.yt.2.1 u hu h0,
      fun c hc h0 => by
-      have hb := alP _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inr (Or.inr rfl)))⟩))
+      have hb := alP _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl))))⟩))
       have e := z _ hb h0; rw [e] at h0 ⊢; exact hX.2.2.yt.2.2 c hc h0⟩
+    (fun c hc => k _ (alP _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inr (Or.inr (Or.inr rfl))))⟩)))
+      (hC c hc).2.2.2.2)
   unfold LawfulStore.cscW; rw [nodeA_wr]
   rw [k (L.nodeA s layout.node.CUR_SC) (nodeAt_aligned (h.nodes _ h.cur) (by simp [layout.node.CUR_SC])
     (by simp [layout.node.CUR_SC])) hcs]
@@ -240,7 +241,7 @@ theorem SCsOK.keepT {s s' : S} {t : U64} (hS : SCsOK st T Ω Sg Scs Z s) (hX : X
     exact hW.of_hdr f3 (by rw [show L.rhead s' c = L.mem s' (headA c) from rfl, f4]; exact hW.head_lt)
       (by rw [show L.rtail s' c = L.mem s' (tailA c) from rfl, f5]; exact hW.tail_lt)
   refine ⟨hS.sub, fun b hb => by rw [k.ksb]; exact hS.ks b hb, fun o h1 h2 => by rw [k.ksb]; exact hS.ksΩ o h1 h2,
-    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_, fun c hc => ⟨wf c hc (hS.all c hc).1, (hS.all c hc).2⟩⟩
+    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_, fun c hc => (hS.all c hc).of_wf (k.fix c hc).2.2.1 (wf c hc)⟩
   · rw [k.scf hy] at hb ⊢
     exact ⟨wf _ (hX.2.2.bound y hy hb).1 (hS.bound y hy hb).1, (hS.bound y hy hb).2⟩
   · rw [k.cscW]; exact ⟨wf _ hX.2.2.cur hS.cur.1, hS.cur.2⟩
@@ -282,7 +283,15 @@ theorem SCsOK.ring {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U
     · have := hO.scDisj c hc i hi e; unfold Outside; unfold InRing at hh; omega
     · exact SCin.node_out ⟨hW, hO.scW c hc⟩ h.omega h.cur hN' (by rw [rp]; omega) (by rw [rp])
   refine ⟨hS.sub, fun b hb => by rw [w.1]; exact hS.ks b hb, fun o h1 h2 => by rw [w.1]; exact hS.ksΩ o h1 h2,
-    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_, fun c hc => ⟨wf c hc (hS.all c hc).1, (hS.all c hc).2⟩⟩
+    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_, fun c hc => ?_⟩
+  rotate_right
+  · by_cases e : c = i
+    · subst e; exact (hS.all c hc).mk' fun _ => hwi
+    obtain ⟨a1, a2, a3⟩ := maxA_facts hO hc
+    refine (hS.all c hc).writesIn a1 ⟨a2, a3⟩ w fun b hb hh => ?_
+    rcases hh with hh | rfl
+    · have := hO.scDisj c hc i hi e; unfold Outside; unfold InRing at hh; omega
+    · exact node_out_place (hO.scW c hc) h.omega h.cur hN' (by rw [rp]; omega) (by rw [rp])
   · rw [fld y hy] at hb ⊢
     exact ⟨wf _ (hE.bound y hy hb).1 (hS.bound y hy hb).1, (hS.bound y hy hb).2⟩
   · rw [csc]; exact ⟨wf _ hE.cur hS.cur.1, hS.cur.2⟩
@@ -317,7 +326,7 @@ theorem SCsOK.wr {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {
     unfold LawfulStore.cscW; rw [nodeA_wr]
     exact L.mem_wr_ne ha (nodeAt_aligned hN' (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])) hcs
   refine ⟨hS.sub, fun b hb => by rw [L.ksb_wr]; exact hS.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hS.ksΩ o h1 h2,
-    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_, fun c hc => ⟨wf c hc (hS.all c hc).1, (hS.all c hc).2⟩⟩
+    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_, fun c hc => (hS.all c hc).of_wf (fix c hc).1 (wf c hc)⟩
   · rw [fld y hy] at hb ⊢
     exact ⟨wf _ (hX.2.2.bound y hy hb).1 (hS.bound y hy hb).1, (hS.bound y hy hb).2⟩
   · rw [csc]; exact ⟨wf _ hX.2.2.cur hS.cur.1, hS.cur.2⟩
@@ -573,6 +582,23 @@ theorem ipc.cancel_ipc.scs {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t
   WP.spec_mono (ipc.cancel_ipc.all s a t Q R h ht hB hX hS.sub) fun r hr => by
     obtain ⟨s', a'⟩ := r
     exact hS.keepT hX hr.2.2.2.2.2.2.1
+
+/-- `SCsOK` only reads the TCBs' SC fields, the current SC and the SC objects'
+ring headers. -/
+theorem SCsOK.keep {s s' : S} (hS : SCsOK st T Ω Sg Scs Z s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
+    (hk : L.ksb s' = L.ksb s) (hsc : ∀ y ∈ T, L.mem s' (scA y) = L.mem s (scA y)) (hcs : L.cscW s' = L.cscW s)
+    (hfix : ∀ c ∈ Scs, L.mem s' (maxA c) = L.mem s (maxA c) ∧ L.mem s' (headA c) = L.mem s (headA c) ∧
+      L.mem s' (tailA c) = L.mem s (tailA c)) : SCsOK st T Ω Sg Scs Z s' := by
+  have wf : ∀ c ∈ Scs, RefillsWF st s c (Z c) → RefillsWF st s' c (Z c) := fun c hc hW => by
+    obtain ⟨f3, f4, f5⟩ := hfix c hc
+    exact hW.of_hdr f3 (by rw [show L.rhead s' c = L.mem s' (headA c) from rfl, f4]; exact hW.head_lt)
+      (by rw [show L.rtail s' c = L.mem s' (tailA c) from rfl, f5]; exact hW.tail_lt)
+  refine ⟨hS.sub, fun b hb => by rw [hk]; exact hS.ks b hb, fun o h1 h2 => by rw [hk]; exact hS.ksΩ o h1 h2,
+    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_, fun c hc => (hS.all c hc).of_wf (hfix c hc).1 (wf c hc)⟩
+  · rw [hsc y hy] at hb ⊢
+    exact ⟨wf _ (hX.2.2.bound y hy hb).1 (hS.bound y hy hb).1, (hS.bound y hy hb).2⟩
+  · rw [hcs]; exact ⟨wf _ hX.2.2.cur hS.cur.1, hS.cur.2⟩
+  · rw [hsc y hy] at hb hne ⊢; rw [hcs] at hne ⊢; exact hS.disj y hy hb hne
 
 end
 

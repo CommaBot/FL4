@@ -220,7 +220,16 @@ theorem SCsOK.ringc {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List 
     · unfold Outside; unfold InRing at hh; omega
     · unfold Outside; rw [hcv]; simp [layout.sc.CONSUMED]; omega
   refine ⟨hS.sub, fun b hb => by rw [w.1]; exact hS.ks b hb, fun o h1 h2 => by rw [w.1]; exact hS.ksΩ o h1 h2,
-    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_, fun c hc => ⟨wf c hc (hS.all c hc).1, (hS.all c hc).2⟩⟩
+    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_, fun c hc => ?_⟩
+  rotate_right
+  · by_cases e : c = i
+    · subst e; exact (hS.all c hc).mk' fun _ => hwi
+    obtain ⟨a1, a2, a3⟩ := maxA_facts hO hc
+    refine (hS.all c hc).writesIn a1 ⟨a2, a3⟩ w fun b hb hh => ?_
+    have := hO.scDisj c hc i hi e
+    rcases hh with hh | rfl
+    · unfold Outside; unfold InRing at hh; omega
+    · unfold Outside; rw [hcv]; simp [layout.sc.CONSUMED]; omega
   · rw [fld y hy] at hb ⊢
     exact ⟨wf _ (hE.bound y hy hb).1 (hS.bound y hy hb).1, (hS.bound y hy hb).2⟩
   · rw [csc]; exact ⟨wf _ hE.cur hS.cur.1, hS.cur.2⟩

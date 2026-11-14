@@ -12,9 +12,9 @@ open fl4_core Fl4Proofs.P0.Consts
 
 /-- The words of the SC object at `sc` of size `2 ^ sb`. -/
 def InSC (sc : U64) (sb : Nat) (b : U64) : Prop := sc.val ≤ b.val ∧ b.val < sc.val + 2 ^ sb
-/-- The words of the SC from `REFILL_MAX` on (the ring header and the ring):
-all the refill code writes besides `CONSUMED`. -/
-def InRing (sc : U64) (sb : Nat) (b : U64) : Prop := sc.val + 72 ≤ b.val ∧ b.val < sc.val + 2 ^ sb
+/-- The words of the SC from `HEAD` on (the ring header and the ring): all
+the refill code writes besides `CONSUMED`. -/
+def InRing (sc : U64) (sb : Nat) (b : U64) : Prop := sc.val + 80 ≤ b.val ∧ b.val < sc.val + 2 ^ sb
 theorem InRing.inSC {sc : U64} {sb : Nat} {b : U64} (h : InRing sc sb b) : InSC sc sb b := ⟨by
   have := h.1; omega, h.2⟩
 
@@ -53,15 +53,14 @@ theorem RefillsWF.frame_hdr {a v : U64} (h : RefillsWF st s sc sb)
   exact (writesIn_wr hal).mono fun b hb => by subst hb; exact ⟨by omega, by omega⟩
 
 theorem RefillsWF.frame_hdrR {a v : U64} (h : RefillsWF st s sc sb)
-    (ha : a = headA sc ∨ a = tailA sc ∨ a = maxA sc) :
+    (ha : a = headA sc ∨ a = tailA sc) :
     WritesIn st s (L.wr s a v) (InRing sc sb) := by
   obtain ⟨h8, hm, hfit⟩ := h.bounds
   obtain ⟨h96, -, -, -, -, -⟩ := h.inside
-  have hv : a.val = sc.val + 80 ∨ a.val = sc.val + 88 ∨ a.val = sc.val + 72 := by
-    rcases ha with rfl | rfl | rfl
+  have hv : a.val = sc.val + 80 ∨ a.val = sc.val + 88 := by
+    rcases ha with rfl | rfl
     · left; addr
-    · right; left; addr
-    · right; right; addr
+    · right; addr
   have hal : Aligned a := by unfold Aligned; omega
   exact (writesIn_wr hal).mono fun b hb => by subst hb; exact ⟨by omega, by omega⟩
 
@@ -105,7 +104,7 @@ theorem sporadic.add_tail.fr (r : sporadic.Refill) (h : RefillsWF st s sc sb) :
   obtain ⟨h8, -, -⟩ := h.bounds
   have hi : (nextIdx (L.rmax s sc) (L.rtail s sc)).val < (L.rmax (L.wr s (tailA sc) (nextIdx (L.rmax s sc)
       (L.rtail s sc))) sc).val := by rw [rmax_wr_tail h8]; exact nextIdx_lt h.tail_lt
-  exact ⟨h1.putS hi, (h.frame_hdrR (Or.inr (Or.inl rfl))).trans1 (h1.frame_putS hi)⟩
+  exact ⟨h1.putS hi, (h.frame_hdrR (Or.inr rfl)).trans1 (h1.frame_putS hi)⟩
 
 theorem sporadic.maybe_add_empty_tail.fr (h : RefillsWF st s sc sb) :
     sporadic.maybe_add_empty_tail st s sc ⦃ s' => RefillsWF st s' sc sb ∧ WritesIn st s s' (InRing sc sb) ⦄ := by
@@ -481,6 +480,17 @@ def SCin (st : machine.Store S) [L : LawfulStore st] (s : S) (Ω : Set U64) (sc 
   RefillsWF st s sc sb ∧ ∀ b, Aligned b → InSC sc sb b → b ∈ Ω
 
 /-- A node word is outside an SC whose words are among `Ω`. -/
+theorem node_out_place {T Ω Cs : Set U64} {sc : obj.Sc} {sb : Nat} {c o : U64}
+    (hS : ∀ b, Aligned b → InSC sc sb b → b ∈ Ω)
+    (homega : ∀ a ∈ Ω, OutsideObjs st T Cs s a) (hc : c ∈ Cs) (hN : NodePlaced st T s c)
+    (ho : o.val < 4288) (h8 : o.val % 8 = 0) : Outside (L.nodeAt s c o) sc sb := by
+  by_contra hn
+  unfold Outside at hn
+  have ha := nodeAt_aligned hN ho h8
+  have := (homega _ (hS _ ha ⟨by omega, by omega⟩)).2.2 c hc
+  rw [nodeAt_val hN ho] at this hn
+  omega
+
 theorem SCin.node_out {T Ω Cs : Set U64} {sc : obj.Sc} {sb : Nat} {c o : U64} (hS : SCin st s Ω sc sb)
     (homega : ∀ a ∈ Ω, OutsideObjs st T Cs s a) (hc : c ∈ Cs) (hN : NodePlaced st T s c)
     (ho : o.val < 4288) (h8 : o.val % 8 = 0) : Outside (L.nodeAt s c o) sc sb := by

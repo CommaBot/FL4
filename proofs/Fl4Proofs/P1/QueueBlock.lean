@@ -238,23 +238,6 @@ theorem members_same {X : Set U64} {s : S}
 
 /-! ## The other invariants after a blocking path -/
 
-/-- `SCsOK` only reads the TCBs' SC fields, the current SC and the SC objects'
-ring headers. -/
-theorem SCsOK.keep {s s' : S} (hS : SCsOK st T Ω Sg Scs Z s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
-    (hk : L.ksb s' = L.ksb s) (hsc : ∀ y ∈ T, L.mem s' (scA y) = L.mem s (scA y)) (hcs : L.cscW s' = L.cscW s)
-    (hfix : ∀ c ∈ Scs, L.mem s' (maxA c) = L.mem s (maxA c) ∧ L.mem s' (headA c) = L.mem s (headA c) ∧
-      L.mem s' (tailA c) = L.mem s (tailA c)) : SCsOK st T Ω Sg Scs Z s' := by
-  have wf : ∀ c ∈ Scs, RefillsWF st s c (Z c) → RefillsWF st s' c (Z c) := fun c hc hW => by
-    obtain ⟨f3, f4, f5⟩ := hfix c hc
-    exact hW.of_hdr f3 (by rw [show L.rhead s' c = L.mem s' (headA c) from rfl, f4]; exact hW.head_lt)
-      (by rw [show L.rtail s' c = L.mem s' (tailA c) from rfl, f5]; exact hW.tail_lt)
-  refine ⟨hS.sub, fun b hb => by rw [hk]; exact hS.ks b hb, fun o h1 h2 => by rw [hk]; exact hS.ksΩ o h1 h2,
-    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_, fun c hc => ⟨wf c hc (hS.all c hc).1, (hS.all c hc).2⟩⟩
-  · rw [hsc y hy] at hb ⊢
-    exact ⟨wf _ (hX.2.2.bound y hy hb).1 (hS.bound y hy hb).1, (hS.bound y hy hb).2⟩
-  · rw [hcs]; exact ⟨wf _ hX.2.2.cur hS.cur.1, hS.cur.2⟩
-  · rw [hsc y hy] at hb hne ⊢; rw [hcs] at hne ⊢; exact hS.disj y hy hb hne
-
 theorem blocked_ne_reply {v : U64} (h : Blocked v) : v ≠ sched.TS_BLOCKED_ON_REPLY := by
   have e : sched.TS_BLOCKED_ON_REPLY = 5#u64 := by unfold sched.TS_BLOCKED_ON_REPLY; rfl
   obtain ⟨-, -, r3, r4, r6⟩ := ts_vals
@@ -366,12 +349,17 @@ theorem blk_keep {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U6
           rw [show L.mem s' (boundA u) = L.mem s (boundA u) from
             fld u hu _ (by simp) (by simp) (by simp) (by simp) (fun _ => by simp)]
           exact hE.bnd u hu,
-        fun n hn => by
-          rw [om _ (hS.sub _ (hO.ntW n hn)) (fun h0 e => by
+        ScExtra.nsc_keep hE.nsc (fun n hn => om _ (hS.sub _ (hO.ntW n hn)) (fun h0 e => by
             have := congrArg UScalar.val e
             rw [rTcbA_val (r0p h0)] at this
-            have := hO.ntRp n hn r0 (hr0 h0).1; omega)]
-          exact hE.nsc n hn, hE.tm.tmfr htm, hE.ntb.tmfr htm,
+            have := hO.ntRp n hn r0 (hr0 h0).1; omega))
+          (fun c hc => om _ (hS.sub _ (hO.snW c hc)) (fun h0 e => by
+            have := congrArg UScalar.val e
+            obtain ⟨hPc, hzc⟩ := hO.sc c hc
+            rw [rTcbA_val (r0p h0), scNtfnA_val hPc hzc] at this
+            have := hO.rpSc r0 (hr0 h0).1 c hc
+            have := (sc_facts hO hc).1
+            omega)) (fun c hc => (fix c hc).2.2.1), hE.tm.tmfr htm, hE.ntb.tmfr htm,
         fun c hc => by
           rw [om _ (hS.sub _ (hO.snW c hc)) (fun h0 e => by
             have := congrArg UScalar.val e
@@ -1002,7 +990,7 @@ theorem SCsOK.keep' {s s' : S} (hS : SCsOK st T Ω Sg Scs Z s) (hX : XInv st T C
     exact hW.of_hdr f3 (by rw [show L.rhead s' c = L.mem s' (headA c) from rfl, f4]; exact hW.head_lt)
       (by rw [show L.rtail s' c = L.mem s' (tailA c) from rfl, f5]; exact hW.tail_lt)
   refine ⟨hS.sub, fun b hb => by rw [hk]; exact hS.ks b hb, fun o h1 h2 => by rw [hk]; exact hS.ksΩ o h1 h2,
-    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_, fun c hc => ⟨wf c hc (hS.all c hc).1, (hS.all c hc).2⟩⟩
+    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_, fun c hc => (hS.all c hc).of_wf (hfix c hc).1 (wf c hc)⟩
   · rcases hsc y hy with e | e
     · rw [e] at hb ⊢
       exact ⟨wf _ (hX.2.2.bound y hy hb).1 (hS.bound y hy hb).1, (hS.bound y hy hb).2⟩
@@ -1202,11 +1190,17 @@ theorem unbind_state {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U6
         fun u hu => by
           rw [show L.mem s2 (boundA u) = L.mem s (boundA u) from F1 u hu _ (by simp) (by simp) (fun _ => by simp)]
           exact hE.bnd u hu,
-        fun n hn => by
-          rw [F2 _ (hSg.sub _ (hO.ntW n hn)) (fun e => by
+        ScExtra.nsc_keep hE.nsc (fun n hn => F2 _ (hSg.sub _ (hO.ntW n hn)) (fun e => by
             rw [hiv.2.1] at e
-            have := hO.ntSc n hn i hiS; have := hiv.1; omega)]
-          exact hE.nsc n hn, hE.tm.tmfr tmU, hE.ntb.tmfr tmU,
+            have := hO.ntSc n hn i hiS; have := hiv.1; omega))
+          (fun c hc => F2 _ (hSg.sub _ (hO.snW c hc)) (fun e => by
+            obtain ⟨hPc, hzc⟩ := hO.sc c hc
+            rw [scNtfnA_val hPc hzc, hiv.2.1] at e
+            have := (sc_facts hO hc).1; have := hiv.1
+            by_cases hci : c = i
+            · subst hci; omega
+            · have := hO.scDisj c hc i hiS hci; omega))
+          (fun c hc => scw c hc _ (hcΩ _ hc).2.2.1 (Or.inr (Or.inl (sc_facts hO hc).2.2.2.1))), hE.tm.tmfr tmU, hE.ntb.tmfr tmU,
         fun c hc => by
           rw [F2 _ (hSg.sub _ (hO.snW c hc)) (fun e => by
             obtain ⟨hPc, hzc⟩ := hO.sc c hc
