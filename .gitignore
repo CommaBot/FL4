@@ -3,3 +3,4 @@
 /proofs/.lake
 *.llbc
 /proofs/.deps
+__pycache__/
