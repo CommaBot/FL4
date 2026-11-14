@@ -1166,18 +1166,6 @@ theorem vspace.P_PS.p0  :
     timer.set_root machineStoreInst s cpu t ⦃ _ => True ⦄ := by
   unfold timer.set_root; p0_auto
 
-theorem layout.tcb.TIMER_LEFT.p0  :
-    layout.tcb.TIMER_LEFT ⦃ _ => True ⦄ := by
-  exact WP.spec_mono Consts.layout.tcb.TIMER_LEFT.spec (fun _ _ => trivial)
-
-@[step] theorem obj.Tcb.timer_left.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) (hS : StoreTotal machineStoreInst) :
-    obj.Tcb.timer_left machineStoreInst self s ⦃ _ => True ⦄ := by
-  unfold obj.Tcb.timer_left; p0_auto
-
-@[step] theorem timer.left.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
-    timer.left machineStoreInst s t ⦃ _ => True ⦄ := by
-  unfold timer.left; p0_auto
-
 @[step] theorem obj.Tcb.is_null.p0 (self : obj.Tcb) :
     obj.Tcb.is_null self ⦃ _ => True ⦄ := by
   unfold obj.Tcb.is_null; p0_auto
@@ -1190,9 +1178,29 @@ theorem layout.tcb.TIMER_RIGHT.p0  :
     obj.Tcb.set_timer_right machineStoreInst self s v ⦃ _ => True ⦄ := by
   unfold obj.Tcb.set_timer_right; p0_auto
 
+@[step] theorem timer.set_right.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
+    timer.set_right machineStoreInst s t v ⦃ _ => True ⦄ := by
+  unfold timer.set_right; p0_auto
+
+theorem layout.tcb.TIMER_LEFT.p0  :
+    layout.tcb.TIMER_LEFT ⦃ _ => True ⦄ := by
+  exact WP.spec_mono Consts.layout.tcb.TIMER_LEFT.spec (fun _ _ => trivial)
+
 @[step] theorem obj.Tcb.set_timer_left.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
     obj.Tcb.set_timer_left machineStoreInst self s v ⦃ _ => True ⦄ := by
   unfold obj.Tcb.set_timer_left; p0_auto
+
+@[step] theorem timer.set_left.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
+    timer.set_left machineStoreInst s t v ⦃ _ => True ⦄ := by
+  unfold timer.set_left; p0_auto
+
+@[step] theorem obj.Tcb.timer_left.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) (hS : StoreTotal machineStoreInst) :
+    obj.Tcb.timer_left machineStoreInst self s ⦃ _ => True ⦄ := by
+  unfold obj.Tcb.timer_left; p0_auto
+
+@[step] theorem timer.left.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
+    timer.left machineStoreInst s t ⦃ _ => True ⦄ := by
+  unfold timer.left; p0_auto
 
 theorem obj.Tcb.Insts.CoreCmpPartialEqTcb.eq.p0 (self : obj.Tcb) (other : obj.Tcb) :
     obj.Tcb.Insts.CoreCmpPartialEqTcb.eq self other ⦃ _ => True ⦄ := by
@@ -1205,6 +1213,14 @@ theorem obj.Tcb.Insts.CoreCmpPartialEqTcb.eq.p0 (self : obj.Tcb) (other : obj.Tc
 theorem layout.tcb.TIMER_PARENT.p0  :
     layout.tcb.TIMER_PARENT ⦃ _ => True ⦄ := by
   exact WP.spec_mono Consts.layout.tcb.TIMER_PARENT.spec (fun _ _ => trivial)
+
+@[step] theorem obj.Tcb.set_timer_parent.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
+    obj.Tcb.set_timer_parent machineStoreInst self s v ⦃ _ => True ⦄ := by
+  unfold obj.Tcb.set_timer_parent; p0_auto
+
+@[step] theorem timer.set_parent.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
+    timer.set_parent machineStoreInst s t v ⦃ _ => True ⦄ := by
+  unfold timer.set_parent; p0_auto
 
 @[step] theorem obj.Tcb.timer_parent.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) (hS : StoreTotal machineStoreInst) :
     obj.Tcb.timer_parent machineStoreInst self s ⦃ _ => True ⦄ := by
@@ -1221,10 +1237,6 @@ theorem layout.tcb.TIMER_PARENT.p0  :
 @[step] theorem timer.right.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
     timer.right machineStoreInst s t ⦃ _ => True ⦄ := by
   unfold timer.right; p0_auto
-
-@[step] theorem obj.Tcb.set_timer_parent.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
-    obj.Tcb.set_timer_parent machineStoreInst self s v ⦃ _ => True ⦄ := by
-  unfold obj.Tcb.set_timer_parent; p0_auto
 
 @[step] theorem timer.rotate_right.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (x : obj.Tcb) (hS : StoreTotal machineStoreInst) :
     timer.rotate_right machineStoreInst s cpu x ⦃ _ => True ⦄ := by

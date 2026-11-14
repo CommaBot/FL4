@@ -117,11 +117,11 @@ open fl4_core
 @[step] theorem vspace.P_PS.spec : vspace.P_PS ⦃ v => v = 128#u64 ⦄ := by
   unfold vspace.P_PS; step*
 
-@[step] theorem layout.tcb.TIMER_LEFT.spec : layout.tcb.TIMER_LEFT ⦃ v => v = 3544#u64 ⦄ := by
-  unfold layout.tcb.TIMER_LEFT; simp only [layout.tcb.F]; step*
-
 @[step] theorem layout.tcb.TIMER_RIGHT.spec : layout.tcb.TIMER_RIGHT ⦃ v => v = 3552#u64 ⦄ := by
   unfold layout.tcb.TIMER_RIGHT; simp only [layout.tcb.F]; step*
+
+@[step] theorem layout.tcb.TIMER_LEFT.spec : layout.tcb.TIMER_LEFT ⦃ v => v = 3544#u64 ⦄ := by
+  unfold layout.tcb.TIMER_LEFT; simp only [layout.tcb.F]; step*
 
 @[step] theorem layout.tcb.TIMER_PARENT.spec : layout.tcb.TIMER_PARENT ⦃ v => v = 3560#u64 ⦄ := by
   unfold layout.tcb.TIMER_PARENT; simp only [layout.tcb.F]; step*

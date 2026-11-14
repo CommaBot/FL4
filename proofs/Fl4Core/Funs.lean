@@ -7988,39 +7988,13 @@ def vspace.unmap_page
 @[global_simps, irreducible] def layout.node.TIMER_ROOT : Std.U64 := 104#u64
 
 /-- [fl4_core::timer::set_root]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 44:0-46:1 -/
+    Source: 'crates/fl4-core/src/timer.rs', lines 82:0-84:1 -/
 def timer.set_root
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
   (t : obj.Tcb) :
   Result S
   := do
   obj.node_set machineStoreInst s cpu layout.node.TIMER_ROOT t
-
-/-- [fl4_core::layout::tcb::TIMER_LEFT]
-    Source: 'crates/fl4-core/src/layout.rs', lines 92:4-92:40
-    Visibility: public -/
-@[global_simps, irreducible]
-def layout.tcb.TIMER_LEFT : Result Std.U64 := layout.tcb.F + 216#u64
-
-/-- [fl4_core::obj::{fl4_core::obj::Tcb}::timer_left]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
-    Visibility: public -/
-def obj.Tcb.timer_left
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
-  Result Std.U64
-  := do
-  let i ← layout.tcb.TIMER_LEFT
-  let i1 ← lift (core.num.U64.wrapping_add self i)
-  machineStoreInst.read s i1
-
-/-- [fl4_core::timer::left]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 28:0-30:1 -/
-def timer.left
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
-  Result obj.Tcb
-  := do
-  let i ← obj.Tcb.timer_left machineStoreInst t s
-  ok i
 
 /-- [fl4_core::obj::{fl4_core::obj::Tcb}::is_null]:
     Source: 'crates/fl4-core/src/obj.rs', lines 99:4-101:5
@@ -8046,6 +8020,24 @@ def obj.Tcb.set_timer_right
   let i1 ← lift (core.num.U64.wrapping_add self i)
   machineStoreInst.write s i1 v
 
+/-- [fl4_core::timer::set_right]:
+    Source: 'crates/fl4-core/src/timer.rs', lines 58:0-62:1 -/
+def timer.set_right
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
+  (v : Std.U64) :
+  Result S
+  := do
+  let b ← obj.Tcb.is_null t
+  if b
+  then ok s
+  else obj.Tcb.set_timer_right machineStoreInst t s v
+
+/-- [fl4_core::layout::tcb::TIMER_LEFT]
+    Source: 'crates/fl4-core/src/layout.rs', lines 92:4-92:40
+    Visibility: public -/
+@[global_simps, irreducible]
+def layout.tcb.TIMER_LEFT : Result Std.U64 := layout.tcb.F + 216#u64
+
 /-- [fl4_core::obj::{fl4_core::obj::Tcb}::set_timer_left]:
     Source: 'crates/fl4-core/src/obj.rs', lines 17:16-19:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
     Visibility: public -/
@@ -8058,6 +8050,41 @@ def obj.Tcb.set_timer_left
   let i1 ← lift (core.num.U64.wrapping_add self i)
   machineStoreInst.write s i1 v
 
+/-- [fl4_core::timer::set_left]:
+    Source: 'crates/fl4-core/src/timer.rs', lines 44:0-48:1 -/
+def timer.set_left
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
+  (v : Std.U64) :
+  Result S
+  := do
+  let b ← obj.Tcb.is_null t
+  if b
+  then ok s
+  else obj.Tcb.set_timer_left machineStoreInst t s v
+
+/-- [fl4_core::obj::{fl4_core::obj::Tcb}::timer_left]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
+    Visibility: public -/
+def obj.Tcb.timer_left
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
+  Result Std.U64
+  := do
+  let i ← layout.tcb.TIMER_LEFT
+  let i1 ← lift (core.num.U64.wrapping_add self i)
+  machineStoreInst.read s i1
+
+/-- [fl4_core::timer::left]:
+    Source: 'crates/fl4-core/src/timer.rs', lines 36:0-42:1 -/
+def timer.left
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
+  Result obj.Tcb
+  := do
+  let b ← obj.Tcb.is_null t
+  if b
+  then ok t
+  else let i ← obj.Tcb.timer_left machineStoreInst t s
+       ok i
+
 /-- [fl4_core::obj::{impl core::cmp::PartialEq<fl4_core::obj::Tcb> for fl4_core::obj::Tcb}::eq]:
     Source: 'crates/fl4-core/src/obj.rs', lines 25:22-25:31
     Visibility: public -/
@@ -8066,7 +8093,7 @@ def obj.Tcb.Insts.CoreCmpPartialEqTcb.eq
   ok (self = other)
 
 /-- [fl4_core::timer::replace_child]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 48:0-56:1 -/
+    Source: 'crates/fl4-core/src/timer.rs', lines 86:0-94:1 -/
 def timer.replace_child
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
   (p : obj.Tcb) (old : obj.Tcb) (new : obj.Tcb) :
@@ -8079,54 +8106,14 @@ def timer.replace_child
     let t ← timer.left machineStoreInst s p
     let b1 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t old
     if b1
-    then obj.Tcb.set_timer_left machineStoreInst p s new
-    else obj.Tcb.set_timer_right machineStoreInst p s new
+    then timer.set_left machineStoreInst s p new
+    else timer.set_right machineStoreInst s p new
 
 /-- [fl4_core::layout::tcb::TIMER_PARENT]
     Source: 'crates/fl4-core/src/layout.rs', lines 94:4-94:42
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.tcb.TIMER_PARENT : Result Std.U64 := layout.tcb.F + 232#u64
-
-/-- [fl4_core::obj::{fl4_core::obj::Tcb}::timer_parent]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
-    Visibility: public -/
-def obj.Tcb.timer_parent
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
-  Result Std.U64
-  := do
-  let i ← layout.tcb.TIMER_PARENT
-  let i1 ← lift (core.num.U64.wrapping_add self i)
-  machineStoreInst.read s i1
-
-/-- [fl4_core::timer::parent]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 36:0-38:1 -/
-def timer.parent
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
-  Result obj.Tcb
-  := do
-  let i ← obj.Tcb.timer_parent machineStoreInst t s
-  ok i
-
-/-- [fl4_core::obj::{fl4_core::obj::Tcb}::timer_right]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
-    Visibility: public -/
-def obj.Tcb.timer_right
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
-  Result Std.U64
-  := do
-  let i ← layout.tcb.TIMER_RIGHT
-  let i1 ← lift (core.num.U64.wrapping_add self i)
-  machineStoreInst.read s i1
-
-/-- [fl4_core::timer::right]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 32:0-34:1 -/
-def timer.right
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
-  Result obj.Tcb
-  := do
-  let i ← obj.Tcb.timer_right machineStoreInst t s
-  ok i
 
 /-- [fl4_core::obj::{fl4_core::obj::Tcb}::set_timer_parent]:
     Source: 'crates/fl4-core/src/obj.rs', lines 17:16-19:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
@@ -8140,8 +8127,66 @@ def obj.Tcb.set_timer_parent
   let i1 ← lift (core.num.U64.wrapping_add self i)
   machineStoreInst.write s i1 v
 
+/-- [fl4_core::timer::set_parent]:
+    Source: 'crates/fl4-core/src/timer.rs', lines 72:0-76:1 -/
+def timer.set_parent
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
+  (v : Std.U64) :
+  Result S
+  := do
+  let b ← obj.Tcb.is_null t
+  if b
+  then ok s
+  else obj.Tcb.set_timer_parent machineStoreInst t s v
+
+/-- [fl4_core::obj::{fl4_core::obj::Tcb}::timer_parent]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
+    Visibility: public -/
+def obj.Tcb.timer_parent
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
+  Result Std.U64
+  := do
+  let i ← layout.tcb.TIMER_PARENT
+  let i1 ← lift (core.num.U64.wrapping_add self i)
+  machineStoreInst.read s i1
+
+/-- [fl4_core::timer::parent]:
+    Source: 'crates/fl4-core/src/timer.rs', lines 64:0-70:1 -/
+def timer.parent
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
+  Result obj.Tcb
+  := do
+  let b ← obj.Tcb.is_null t
+  if b
+  then ok t
+  else let i ← obj.Tcb.timer_parent machineStoreInst t s
+       ok i
+
+/-- [fl4_core::obj::{fl4_core::obj::Tcb}::timer_right]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
+    Visibility: public -/
+def obj.Tcb.timer_right
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
+  Result Std.U64
+  := do
+  let i ← layout.tcb.TIMER_RIGHT
+  let i1 ← lift (core.num.U64.wrapping_add self i)
+  machineStoreInst.read s i1
+
+/-- [fl4_core::timer::right]:
+    Source: 'crates/fl4-core/src/timer.rs', lines 50:0-56:1 -/
+def timer.right
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
+  Result obj.Tcb
+  := do
+  let b ← obj.Tcb.is_null t
+  if b
+  then ok t
+  else let i ← obj.Tcb.timer_right machineStoreInst t s
+       ok i
+
 /-- [fl4_core::timer::rotate_right]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 72:0-84:1 -/
+    Source: 'crates/fl4-core/src/timer.rs', lines 110:0-122:1 -/
 def timer.rotate_right
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
   (x : obj.Tcb) :
@@ -8149,23 +8194,22 @@ def timer.rotate_right
   := do
   let y ← timer.left machineStoreInst s x
   let yr ← timer.right machineStoreInst s y
-  let s1 ← obj.Tcb.set_timer_left machineStoreInst x s yr
+  let s1 ← timer.set_left machineStoreInst s x yr
   let b ← obj.Tcb.is_null yr
   let (s2, x1) ←
     if b
     then ok (s1, x)
-    else
-      do
-      let s3 ← obj.Tcb.set_timer_parent machineStoreInst yr s1 x
-      ok (s3, x)
+    else do
+         let s3 ← timer.set_parent machineStoreInst s1 yr x
+         ok (s3, x)
   let xp ← timer.parent machineStoreInst s2 x1
-  let s3 ← obj.Tcb.set_timer_parent machineStoreInst y s2 xp
+  let s3 ← timer.set_parent machineStoreInst s2 y xp
   let s4 ← timer.replace_child machineStoreInst s3 cpu xp x1 y
-  let s5 ← obj.Tcb.set_timer_right machineStoreInst y s4 x1
-  obj.Tcb.set_timer_parent machineStoreInst x1 s5 y
+  let s5 ← timer.set_right machineStoreInst s4 y x1
+  timer.set_parent machineStoreInst s5 x1 y
 
 /-- [fl4_core::timer::rotate_left]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 58:0-70:1 -/
+    Source: 'crates/fl4-core/src/timer.rs', lines 96:0-108:1 -/
 def timer.rotate_left
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
   (x : obj.Tcb) :
@@ -8173,23 +8217,22 @@ def timer.rotate_left
   := do
   let y ← timer.right machineStoreInst s x
   let yl ← timer.left machineStoreInst s y
-  let s1 ← obj.Tcb.set_timer_right machineStoreInst x s yl
+  let s1 ← timer.set_right machineStoreInst s x yl
   let b ← obj.Tcb.is_null yl
   let (s2, x1) ←
     if b
     then ok (s1, x)
-    else
-      do
-      let s3 ← obj.Tcb.set_timer_parent machineStoreInst yl s1 x
-      ok (s3, x)
+    else do
+         let s3 ← timer.set_parent machineStoreInst s1 yl x
+         ok (s3, x)
   let xp ← timer.parent machineStoreInst s2 x1
-  let s3 ← obj.Tcb.set_timer_parent machineStoreInst y s2 xp
+  let s3 ← timer.set_parent machineStoreInst s2 y xp
   let s4 ← timer.replace_child machineStoreInst s3 cpu xp x1 y
-  let s5 ← obj.Tcb.set_timer_left machineStoreInst y s4 x1
-  obj.Tcb.set_timer_parent machineStoreInst x1 s5 y
+  let s5 ← timer.set_left machineStoreInst s4 y x1
+  timer.set_parent machineStoreInst s5 x1 y
 
 /-- [fl4_core::timer::root]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 40:0-42:1 -/
+    Source: 'crates/fl4-core/src/timer.rs', lines 78:0-80:1 -/
 def timer.root
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) :
   Result obj.Tcb
@@ -8231,22 +8274,26 @@ def obj.Tcb.timer_height
   machineStoreInst.read s i1
 
 /-- [fl4_core::timer::set_red]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 19:0-22:1 -/
+    Source: 'crates/fl4-core/src/timer.rs', lines 24:0-30:1 -/
 def timer.set_red
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
   (red : Bool) :
   Result S
   := do
-  let i ← obj.Tcb.timer_height machineStoreInst t s
-  let i1 ← lift (~~~ timer.RED)
-  let h ← lift (i &&& i1)
-  if red
-  then
-    let i2 ← lift (h ||| timer.RED)
-    obj.Tcb.set_timer_height machineStoreInst t s i2
+  let b ← obj.Tcb.is_null t
+  if b
+  then ok s
   else
-    let i2 ← lift (h ||| 0#u64)
-    obj.Tcb.set_timer_height machineStoreInst t s i2
+    let i ← obj.Tcb.timer_height machineStoreInst t s
+    let i1 ← lift (~~~ timer.RED)
+    let h ← lift (i &&& i1)
+    if red
+    then
+      let i2 ← lift (h ||| timer.RED)
+      obj.Tcb.set_timer_height machineStoreInst t s i2
+    else
+      let i2 ← lift (h ||| 0#u64)
+      obj.Tcb.set_timer_height machineStoreInst t s i2
 
 /-- [fl4_core::timer::is_red]:
     Source: 'crates/fl4-core/src/timer.rs', lines 15:0-17:1 -/
@@ -8272,7 +8319,7 @@ impl_def obj.Tcb.Insts.CoreCmpPartialEqTcb : core.cmp.PartialEq obj.Tcb obj.Tcb
 }
 
 /-- [fl4_core::timer::remove_fixup]: loop body 0:
-    Source: 'crates/fl4-core/src/timer.rs', lines 143:4-204:5 -/
+    Source: 'crates/fl4-core/src/timer.rs', lines 181:4-242:5 -/
 @[rust_loop_body]
 def timer.remove_fixup_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (cpu : Std.U64) (s : S)
@@ -8431,7 +8478,7 @@ def timer.remove_fixup_loop.body
   else ok (done (s, x))
 
 /-- [fl4_core::timer::remove_fixup]: loop 0:
-    Source: 'crates/fl4-core/src/timer.rs', lines 143:4-204:5 -/
+    Source: 'crates/fl4-core/src/timer.rs', lines 181:4-242:5 -/
 @[rust_loop]
 def timer.remove_fixup_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
@@ -8444,7 +8491,7 @@ def timer.remove_fixup_loop
     (s, x, p, fuel)
 
 /-- [fl4_core::timer::remove_fixup]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 139:0-208:1 -/
+    Source: 'crates/fl4-core/src/timer.rs', lines 177:0-246:1 -/
 def timer.remove_fixup
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
   (x0 : obj.Tcb) (parent0 : obj.Tcb) :
@@ -8458,7 +8505,7 @@ def timer.remove_fixup
   else timer.set_red machineStoreInst s1 x false
 
 /-- [fl4_core::timer::core_of]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 24:0-26:1 -/
+    Source: 'crates/fl4-core/src/timer.rs', lines 32:0-34:1 -/
 def timer.core_of
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
   Result Std.U64
@@ -8506,7 +8553,7 @@ def obj.Tcb.timer_deadline
 @[global_simps, irreducible] def layout.TREE_FUEL : Std.U64 := 128#u64
 
 /-- [fl4_core::timer::remove]: loop body 0:
-    Source: 'crates/fl4-core/src/timer.rs', lines 244:8-247:9
+    Source: 'crates/fl4-core/src/timer.rs', lines 282:8-285:9
     Visibility: public -/
 @[rust_loop_body]
 def timer.remove_loop0.body
@@ -8525,7 +8572,7 @@ def timer.remove_loop0.body
     else ok (done y)
 
 /-- [fl4_core::timer::remove]: loop 0:
-    Source: 'crates/fl4-core/src/timer.rs', lines 244:8-247:9
+    Source: 'crates/fl4-core/src/timer.rs', lines 282:8-285:9
     Visibility: public -/
 @[rust_loop]
 def timer.remove_loop0
@@ -8538,7 +8585,7 @@ def timer.remove_loop0
     (y, fuel)
 
 /-- [fl4_core::timer::remove]: loop body 1:
-    Source: 'crates/fl4-core/src/timer.rs', lines 220:12-223:13
+    Source: 'crates/fl4-core/src/timer.rs', lines 258:12-261:13
     Visibility: public -/
 @[rust_loop_body]
 def timer.remove_loop1.body
@@ -8557,7 +8604,7 @@ def timer.remove_loop1.body
     else ok (done next)
 
 /-- [fl4_core::timer::remove]: loop 1:
-    Source: 'crates/fl4-core/src/timer.rs', lines 220:12-223:13
+    Source: 'crates/fl4-core/src/timer.rs', lines 258:12-261:13
     Visibility: public -/
 @[rust_loop]
 def timer.remove_loop1
@@ -8571,7 +8618,7 @@ def timer.remove_loop1
     (next, fuel)
 
 /-- [fl4_core::timer::remove]: loop body 2:
-    Source: 'crates/fl4-core/src/timer.rs', lines 244:8-247:9
+    Source: 'crates/fl4-core/src/timer.rs', lines 282:8-285:9
     Visibility: public -/
 @[rust_loop_body]
 def timer.remove_loop2.body
@@ -8590,7 +8637,7 @@ def timer.remove_loop2.body
     else ok (done y)
 
 /-- [fl4_core::timer::remove]: loop 2:
-    Source: 'crates/fl4-core/src/timer.rs', lines 244:8-247:9
+    Source: 'crates/fl4-core/src/timer.rs', lines 282:8-285:9
     Visibility: public -/
 @[rust_loop]
 def timer.remove_loop2
@@ -8603,7 +8650,7 @@ def timer.remove_loop2
     (y, fuel)
 
 /-- [fl4_core::timer::remove]: loop body 3:
-    Source: 'crates/fl4-core/src/timer.rs', lines 244:8-247:9
+    Source: 'crates/fl4-core/src/timer.rs', lines 282:8-285:9
     Visibility: public -/
 @[rust_loop_body]
 def timer.remove_loop3.body
@@ -8622,7 +8669,7 @@ def timer.remove_loop3.body
     else ok (done y)
 
 /-- [fl4_core::timer::remove]: loop 3:
-    Source: 'crates/fl4-core/src/timer.rs', lines 244:8-247:9
+    Source: 'crates/fl4-core/src/timer.rs', lines 282:8-285:9
     Visibility: public -/
 @[rust_loop]
 def timer.remove_loop3
@@ -8635,7 +8682,7 @@ def timer.remove_loop3
     (y, fuel)
 
 /-- [fl4_core::timer::remove]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 211:0-277:1
+    Source: 'crates/fl4-core/src/timer.rs', lines 249:0-315:1
     Visibility: public -/
 def timer.remove
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -8673,16 +8720,15 @@ def timer.remove
             then ok (s2, x_parent)
             else
               do
-              let s4 ←
-                obj.Tcb.set_timer_parent machineStoreInst x s2 x_parent
+              let s4 ← timer.set_parent machineStoreInst s2 x x_parent
               ok (s4, x_parent)
           let s4 ←
             if removed_red
             then ok s3
             else timer.remove_fixup machineStoreInst s3 cpu x x_parent1
-          let s5 ← obj.Tcb.set_timer_parent machineStoreInst t s4 0#u64
-          let s6 ← obj.Tcb.set_timer_left machineStoreInst t s5 0#u64
-          let s7 ← obj.Tcb.set_timer_right machineStoreInst t s6 0#u64
+          let s5 ← timer.set_parent machineStoreInst s4 t 0#u64
+          let s6 ← timer.set_left machineStoreInst s5 t 0#u64
+          let s7 ← timer.set_right machineStoreInst s6 t 0#u64
           let s8 ← obj.Tcb.set_timer_height machineStoreInst t s7 0#u64
           obj.Tcb.set_timer_deadline machineStoreInst t s8 0#u64
         else
@@ -8700,16 +8746,15 @@ def timer.remove
               then ok (s2, x_parent)
               else
                 do
-                let s4 ←
-                  obj.Tcb.set_timer_parent machineStoreInst x s2 x_parent
+                let s4 ← timer.set_parent machineStoreInst s2 x x_parent
                 ok (s4, x_parent)
             let s4 ←
               if removed_red
               then ok s3
               else timer.remove_fixup machineStoreInst s3 cpu x x_parent1
-            let s5 ← obj.Tcb.set_timer_parent machineStoreInst t s4 0#u64
-            let s6 ← obj.Tcb.set_timer_left machineStoreInst t s5 0#u64
-            let s7 ← obj.Tcb.set_timer_right machineStoreInst t s6 0#u64
+            let s5 ← timer.set_parent machineStoreInst s4 t 0#u64
+            let s6 ← timer.set_left machineStoreInst s5 t 0#u64
+            let s7 ← timer.set_right machineStoreInst s6 t 0#u64
             let s8 ← obj.Tcb.set_timer_height machineStoreInst t s7 0#u64
             obj.Tcb.set_timer_deadline machineStoreInst t s8 0#u64
           else
@@ -8724,33 +8769,32 @@ def timer.remove
               then ok (s1, x, y, y)
               else
                 do
-                let s3 ← obj.Tcb.set_timer_left machineStoreInst t1 s1 x
+                let s3 ← timer.set_left machineStoreInst s1 t1 x
                 let b4 ← obj.Tcb.is_null x
                 let (s4, x_parent1) ←
                   if b4
                   then ok (s3, t1)
                   else
                     do
-                    let s5 ←
-                      obj.Tcb.set_timer_parent machineStoreInst x s3 t1
+                    let s5 ← timer.set_parent machineStoreInst s3 x t1
                     ok (s5, t1)
-                let s5 ← obj.Tcb.set_timer_right machineStoreInst y s4 tr
-                let s6 ← obj.Tcb.set_timer_parent machineStoreInst tr s5 y
+                let s5 ← timer.set_right machineStoreInst s4 y tr
+                let s6 ← timer.set_parent machineStoreInst s5 tr y
                 ok (s6, x, x_parent1, y)
             let tp ← timer.parent machineStoreInst s2 t
             let s3 ← timer.replace_child machineStoreInst s2 cpu tp t y1
-            let s4 ← obj.Tcb.set_timer_parent machineStoreInst y1 s3 tp
-            let s5 ← obj.Tcb.set_timer_left machineStoreInst y1 s4 tl
-            let s6 ← obj.Tcb.set_timer_parent machineStoreInst tl s5 y1
+            let s4 ← timer.set_parent machineStoreInst s3 y1 tp
+            let s5 ← timer.set_left machineStoreInst s4 y1 tl
+            let s6 ← timer.set_parent machineStoreInst s5 tl y1
             let tred ← timer.is_red machineStoreInst s6 t
             let s7 ← timer.set_red machineStoreInst s6 y1 tred
             let s8 ←
               if removed_red1
               then ok s7
               else timer.remove_fixup machineStoreInst s7 cpu x1 x_parent
-            let s9 ← obj.Tcb.set_timer_parent machineStoreInst t s8 0#u64
-            let s10 ← obj.Tcb.set_timer_left machineStoreInst t s9 0#u64
-            let s11 ← obj.Tcb.set_timer_right machineStoreInst t s10 0#u64
+            let s9 ← timer.set_parent machineStoreInst s8 t 0#u64
+            let s10 ← timer.set_left machineStoreInst s9 t 0#u64
+            let s11 ← timer.set_right machineStoreInst s10 t 0#u64
             let s12 ← obj.Tcb.set_timer_height machineStoreInst t s11 0#u64
             obj.Tcb.set_timer_deadline machineStoreInst t s12 0#u64
       else
@@ -8775,16 +8819,15 @@ def timer.remove
             then ok (s2, x_parent)
             else
               do
-              let s4 ←
-                obj.Tcb.set_timer_parent machineStoreInst x s2 x_parent
+              let s4 ← timer.set_parent machineStoreInst s2 x x_parent
               ok (s4, x_parent)
           let s4 ←
             if removed_red
             then ok s3
             else timer.remove_fixup machineStoreInst s3 cpu x x_parent1
-          let s5 ← obj.Tcb.set_timer_parent machineStoreInst t s4 0#u64
-          let s6 ← obj.Tcb.set_timer_left machineStoreInst t s5 0#u64
-          let s7 ← obj.Tcb.set_timer_right machineStoreInst t s6 0#u64
+          let s5 ← timer.set_parent machineStoreInst s4 t 0#u64
+          let s6 ← timer.set_left machineStoreInst s5 t 0#u64
+          let s7 ← timer.set_right machineStoreInst s6 t 0#u64
           let s8 ← obj.Tcb.set_timer_height machineStoreInst t s7 0#u64
           obj.Tcb.set_timer_deadline machineStoreInst t s8 0#u64
         else
@@ -8802,16 +8845,15 @@ def timer.remove
               then ok (s2, x_parent)
               else
                 do
-                let s4 ←
-                  obj.Tcb.set_timer_parent machineStoreInst x s2 x_parent
+                let s4 ← timer.set_parent machineStoreInst s2 x x_parent
                 ok (s4, x_parent)
             let s4 ←
               if removed_red
               then ok s3
               else timer.remove_fixup machineStoreInst s3 cpu x x_parent1
-            let s5 ← obj.Tcb.set_timer_parent machineStoreInst t s4 0#u64
-            let s6 ← obj.Tcb.set_timer_left machineStoreInst t s5 0#u64
-            let s7 ← obj.Tcb.set_timer_right machineStoreInst t s6 0#u64
+            let s5 ← timer.set_parent machineStoreInst s4 t 0#u64
+            let s6 ← timer.set_left machineStoreInst s5 t 0#u64
+            let s7 ← timer.set_right machineStoreInst s6 t 0#u64
             let s8 ← obj.Tcb.set_timer_height machineStoreInst t s7 0#u64
             obj.Tcb.set_timer_deadline machineStoreInst t s8 0#u64
           else
@@ -8826,33 +8868,32 @@ def timer.remove
               then ok (s1, x, y, y)
               else
                 do
-                let s3 ← obj.Tcb.set_timer_left machineStoreInst t1 s1 x
+                let s3 ← timer.set_left machineStoreInst s1 t1 x
                 let b4 ← obj.Tcb.is_null x
                 let (s4, x_parent1) ←
                   if b4
                   then ok (s3, t1)
                   else
                     do
-                    let s5 ←
-                      obj.Tcb.set_timer_parent machineStoreInst x s3 t1
+                    let s5 ← timer.set_parent machineStoreInst s3 x t1
                     ok (s5, t1)
-                let s5 ← obj.Tcb.set_timer_right machineStoreInst y s4 tr
-                let s6 ← obj.Tcb.set_timer_parent machineStoreInst tr s5 y
+                let s5 ← timer.set_right machineStoreInst s4 y tr
+                let s6 ← timer.set_parent machineStoreInst s5 tr y
                 ok (s6, x, x_parent1, y)
             let tp ← timer.parent machineStoreInst s2 t
             let s3 ← timer.replace_child machineStoreInst s2 cpu tp t y1
-            let s4 ← obj.Tcb.set_timer_parent machineStoreInst y1 s3 tp
-            let s5 ← obj.Tcb.set_timer_left machineStoreInst y1 s4 tl
-            let s6 ← obj.Tcb.set_timer_parent machineStoreInst tl s5 y1
+            let s4 ← timer.set_parent machineStoreInst s3 y1 tp
+            let s5 ← timer.set_left machineStoreInst s4 y1 tl
+            let s6 ← timer.set_parent machineStoreInst s5 tl y1
             let tred ← timer.is_red machineStoreInst s6 t
             let s7 ← timer.set_red machineStoreInst s6 y1 tred
             let s8 ←
               if removed_red1
               then ok s7
               else timer.remove_fixup machineStoreInst s7 cpu x1 x_parent
-            let s9 ← obj.Tcb.set_timer_parent machineStoreInst t s8 0#u64
-            let s10 ← obj.Tcb.set_timer_left machineStoreInst t s9 0#u64
-            let s11 ← obj.Tcb.set_timer_right machineStoreInst t s10 0#u64
+            let s9 ← timer.set_parent machineStoreInst s8 t 0#u64
+            let s10 ← timer.set_left machineStoreInst s9 t 0#u64
+            let s11 ← timer.set_right machineStoreInst s10 t 0#u64
             let s12 ← obj.Tcb.set_timer_height machineStoreInst t s11 0#u64
             obj.Tcb.set_timer_deadline machineStoreInst t s12 0#u64
     else
@@ -8873,15 +8914,15 @@ def timer.remove
           then ok (s1, x_parent)
           else
             do
-            let s3 ← obj.Tcb.set_timer_parent machineStoreInst x s1 x_parent
+            let s3 ← timer.set_parent machineStoreInst s1 x x_parent
             ok (s3, x_parent)
         let s3 ←
           if removed_red
           then ok s2
           else timer.remove_fixup machineStoreInst s2 cpu x x_parent1
-        let s4 ← obj.Tcb.set_timer_parent machineStoreInst t s3 0#u64
-        let s5 ← obj.Tcb.set_timer_left machineStoreInst t s4 0#u64
-        let s6 ← obj.Tcb.set_timer_right machineStoreInst t s5 0#u64
+        let s4 ← timer.set_parent machineStoreInst s3 t 0#u64
+        let s5 ← timer.set_left machineStoreInst s4 t 0#u64
+        let s6 ← timer.set_right machineStoreInst s5 t 0#u64
         let s7 ← obj.Tcb.set_timer_height machineStoreInst t s6 0#u64
         obj.Tcb.set_timer_deadline machineStoreInst t s7 0#u64
       else
@@ -8899,16 +8940,15 @@ def timer.remove
             then ok (s1, x_parent)
             else
               do
-              let s3 ←
-                obj.Tcb.set_timer_parent machineStoreInst x s1 x_parent
+              let s3 ← timer.set_parent machineStoreInst s1 x x_parent
               ok (s3, x_parent)
           let s3 ←
             if removed_red
             then ok s2
             else timer.remove_fixup machineStoreInst s2 cpu x x_parent1
-          let s4 ← obj.Tcb.set_timer_parent machineStoreInst t s3 0#u64
-          let s5 ← obj.Tcb.set_timer_left machineStoreInst t s4 0#u64
-          let s6 ← obj.Tcb.set_timer_right machineStoreInst t s5 0#u64
+          let s4 ← timer.set_parent machineStoreInst s3 t 0#u64
+          let s5 ← timer.set_left machineStoreInst s4 t 0#u64
+          let s6 ← timer.set_right machineStoreInst s5 t 0#u64
           let s7 ← obj.Tcb.set_timer_height machineStoreInst t s6 0#u64
           obj.Tcb.set_timer_deadline machineStoreInst t s7 0#u64
         else
@@ -8922,32 +8962,32 @@ def timer.remove
             then ok (s, x, y, y)
             else
               do
-              let s2 ← obj.Tcb.set_timer_left machineStoreInst t1 s x
+              let s2 ← timer.set_left machineStoreInst s t1 x
               let b3 ← obj.Tcb.is_null x
               let (s3, x_parent1) ←
                 if b3
                 then ok (s2, t1)
                 else
                   do
-                  let s4 ← obj.Tcb.set_timer_parent machineStoreInst x s2 t1
+                  let s4 ← timer.set_parent machineStoreInst s2 x t1
                   ok (s4, t1)
-              let s4 ← obj.Tcb.set_timer_right machineStoreInst y s3 tr
-              let s5 ← obj.Tcb.set_timer_parent machineStoreInst tr s4 y
+              let s4 ← timer.set_right machineStoreInst s3 y tr
+              let s5 ← timer.set_parent machineStoreInst s4 tr y
               ok (s5, x, x_parent1, y)
           let tp ← timer.parent machineStoreInst s1 t
           let s2 ← timer.replace_child machineStoreInst s1 cpu tp t y1
-          let s3 ← obj.Tcb.set_timer_parent machineStoreInst y1 s2 tp
-          let s4 ← obj.Tcb.set_timer_left machineStoreInst y1 s3 tl
-          let s5 ← obj.Tcb.set_timer_parent machineStoreInst tl s4 y1
+          let s3 ← timer.set_parent machineStoreInst s2 y1 tp
+          let s4 ← timer.set_left machineStoreInst s3 y1 tl
+          let s5 ← timer.set_parent machineStoreInst s4 tl y1
           let tred ← timer.is_red machineStoreInst s5 t
           let s6 ← timer.set_red machineStoreInst s5 y1 tred
           let s7 ←
             if removed_red1
             then ok s6
             else timer.remove_fixup machineStoreInst s6 cpu x1 x_parent
-          let s8 ← obj.Tcb.set_timer_parent machineStoreInst t s7 0#u64
-          let s9 ← obj.Tcb.set_timer_left machineStoreInst t s8 0#u64
-          let s10 ← obj.Tcb.set_timer_right machineStoreInst t s9 0#u64
+          let s8 ← timer.set_parent machineStoreInst s7 t 0#u64
+          let s9 ← timer.set_left machineStoreInst s8 t 0#u64
+          let s10 ← timer.set_right machineStoreInst s9 t 0#u64
           let s11 ← obj.Tcb.set_timer_height machineStoreInst t s10 0#u64
           obj.Tcb.set_timer_deadline machineStoreInst t s11 0#u64
 
@@ -19535,7 +19575,7 @@ def sched.append
     smp.remote_queue_update machineStoreInst s4 t
 
 /-- [fl4_core::timer::earliest]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 325:0-332:1
+    Source: 'crates/fl4-core/src/timer.rs', lines 363:0-370:1
     Visibility: public -/
 def timer.earliest
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) :
@@ -20037,7 +20077,7 @@ def sched.check_budget_restart
 @[global_simps, irreducible] def timer.FIRE_BATCH : Std.U64 := 32#u64
 
 /-- [fl4_core::timer::fire]: loop body 0:
-    Source: 'crates/fl4-core/src/timer.rs', lines 338:4-353:1
+    Source: 'crates/fl4-core/src/timer.rs', lines 376:4-391:1
     Visibility: public -/
 @[rust_loop_body]
 def timer.fire_loop.body
@@ -20075,7 +20115,7 @@ def timer.fire_loop.body
   else ok (done (s, a))
 
 /-- [fl4_core::timer::fire]: loop 0:
-    Source: 'crates/fl4-core/src/timer.rs', lines 338:4-353:1
+    Source: 'crates/fl4-core/src/timer.rs', lines 376:4-391:1
     Visibility: public -/
 @[rust_loop]
 def timer.fire_loop
@@ -20090,7 +20130,7 @@ def timer.fire_loop
     (s, a, i)
 
 /-- [fl4_core::timer::fire]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 335:0-353:1
+    Source: 'crates/fl4-core/src/timer.rs', lines 373:0-391:1
     Visibility: public -/
 def timer.fire
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -23874,7 +23914,7 @@ def untyped.decode
           ok (r1, s, a)
 
 /-- [fl4_core::timer::insert_fixup]: loop body 0:
-    Source: 'crates/fl4-core/src/timer.rs', lines 90:4-134:5 -/
+    Source: 'crates/fl4-core/src/timer.rs', lines 128:4-172:5 -/
 @[rust_loop_body]
 def timer.insert_fixup_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (cpu : Std.U64) (s : S)
@@ -23947,7 +23987,7 @@ def timer.insert_fixup_loop.body
     else ok (done s)
 
 /-- [fl4_core::timer::insert_fixup]: loop 0:
-    Source: 'crates/fl4-core/src/timer.rs', lines 90:4-134:5 -/
+    Source: 'crates/fl4-core/src/timer.rs', lines 128:4-172:5 -/
 @[rust_loop]
 def timer.insert_fixup_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
@@ -23960,7 +24000,7 @@ def timer.insert_fixup_loop
     (s, z, fuel)
 
 /-- [fl4_core::timer::insert_fixup]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 86:0-137:1 -/
+    Source: 'crates/fl4-core/src/timer.rs', lines 124:0-175:1 -/
 def timer.insert_fixup
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
   (z0 : obj.Tcb) :
@@ -23971,7 +24011,7 @@ def timer.insert_fixup
   timer.set_red machineStoreInst s1 r false
 
 /-- [fl4_core::timer::insert]: loop body 0:
-    Source: 'crates/fl4-core/src/timer.rs', lines 292:4-303:5
+    Source: 'crates/fl4-core/src/timer.rs', lines 330:4-341:5
     Visibility: public -/
 @[rust_loop_body]
 def timer.insert_loop.body
@@ -23999,7 +24039,7 @@ def timer.insert_loop.body
     else ok (done (p, go_left, first))
 
 /-- [fl4_core::timer::insert]: loop 0:
-    Source: 'crates/fl4-core/src/timer.rs', lines 292:4-303:5
+    Source: 'crates/fl4-core/src/timer.rs', lines 330:4-341:5
     Visibility: public -/
 @[rust_loop]
 def timer.insert_loop
@@ -24014,7 +24054,7 @@ def timer.insert_loop
     (p, cur, go_left, first, fuel)
 
 /-- [fl4_core::timer::insert]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 281:0-322:1
+    Source: 'crates/fl4-core/src/timer.rs', lines 319:0-360:1
     Visibility: public -/
 def timer.insert
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -24040,14 +24080,14 @@ def timer.insert
         do
         let t2 ←
           if go_left
-          then obj.Tcb.set_timer_left machineStoreInst p s1 t
-          else obj.Tcb.set_timer_right machineStoreInst p s1 t
+          then timer.set_left machineStoreInst s1 p t
+          else timer.set_right machineStoreInst s1 p t
         ok (t2, t)
     let s3 ← obj.Tcb.set_timer_deadline machineStoreInst t1 s2 deadline
     let s4 ← obj.Tcb.set_timer_badge machineStoreInst t1 s3 badge
-    let s5 ← obj.Tcb.set_timer_parent machineStoreInst t1 s4 p
-    let s6 ← obj.Tcb.set_timer_left machineStoreInst t1 s5 0#u64
-    let s7 ← obj.Tcb.set_timer_right machineStoreInst t1 s6 0#u64
+    let s5 ← timer.set_parent machineStoreInst s4 t1 p
+    let s6 ← timer.set_left machineStoreInst s5 t1 0#u64
+    let s7 ← timer.set_right machineStoreInst s6 t1 0#u64
     let i ← cpu <<< 8#i32
     let i1 ← lift (i ||| timer.RED)
     let s8 ← obj.Tcb.set_timer_height machineStoreInst t1 s7 i1
