@@ -265,30 +265,34 @@ abbrev maxTime : Time := BitVec.allOnes 64
 /-- l4v: Time.μs_in_ms. -/
 def μsInMs : Word64 := 1000
 
-/-- l4v: Time.MAX_PERIOD_US. -/
-def MAX_PERIOD_US : Word64 := 60 * 60 * 1000 * 1000
-
 /-- The unspecified timer constants of l4v `Time` (`kernelWCETUs`,
 `ticksPerTimerUnit`, `timerUnit`) bundled with the axioms Time.thy states
 about them (`axiomatization where ...`). The witness in the `Inhabited`
-instance is the one of Time.thy's consistency `notepad` (50, 1, 100). -/
+instance is the one of Time.thy's consistency `notepad` (50, 1, 100).
+
+FL4 configuration: `maxPeriodUs` (l4v's `MAX_PERIOD_US`) is a platform
+constant too. l4v fixes it at one hour; the C kernel's default
+(`KernelStaticMaxPeriodUs = 0`) is `getMaxUsToTicks() / 8`, which FL4
+follows. The witness keeps l4v's one hour. -/
 structure TimeConsts where
+  maxPeriodUs : Word64
   kernelWCETUs : Ticks
   ticksPerTimerUnit : Ticks
   timerUnit : Ticks
   kernelWCET_us_pos2 : 0 < 2 * kernelWCETUs
-  MIN_BUDGET_le_MAX_PERIOD : 2 * kernelWCETUs ≤ MAX_PERIOD_US
+  MIN_BUDGET_le_MAX_PERIOD : 2 * kernelWCETUs ≤ maxPeriodUs
   ticks_per_timer_unit_non_zero : ticksPerTimerUnit ≠ 0
   MIN_BUDGET_bound : 2 * unat kernelWCETUs * unat ticksPerTimerUnit < unat maxTime
-  getCurrentTime_buffer_bound : 5 * unat MAX_PERIOD_US * unat ticksPerTimerUnit < unat maxTime
+  getCurrentTime_buffer_bound : 5 * unat maxPeriodUs * unat ticksPerTimerUnit < unat maxTime
   kernelWCET_pos' : 0 < (kernelWCETUs * ticksPerTimerUnit) / timerUnit
   MIN_BUDGET_pos' : 0 < 2 * ((kernelWCETUs * ticksPerTimerUnit) / timerUnit)
   init_domain_time_pos : 0 < ((15 * μsInMs) * ticksPerTimerUnit) / timerUnit
   init_domain_time_bound : 15 * unat μsInMs * unat ticksPerTimerUnit < unat maxTime
-  getCurrentTime_buffer_pos : 0 < 5 * ((MAX_PERIOD_US * ticksPerTimerUnit) / timerUnit)
+  getCurrentTime_buffer_pos : 0 < 5 * ((maxPeriodUs * ticksPerTimerUnit) / timerUnit)
 
 instance : Inhabited TimeConsts :=
-  ⟨{ kernelWCETUs := 100, ticksPerTimerUnit := 50, timerUnit := 1,
+  ⟨{ maxPeriodUs := 60 * 60 * 1000 * 1000,
+     kernelWCETUs := 100, ticksPerTimerUnit := 50, timerUnit := 1,
      kernelWCET_us_pos2 := by decide
      MIN_BUDGET_le_MAX_PERIOD := by decide
      ticks_per_timer_unit_non_zero := by decide
@@ -304,6 +308,8 @@ instance : Inhabited TimeConsts :=
 `axiomatization`). -/
 opaque timeConsts : TimeConsts
 
+/-- l4v: Time.MAX_PERIOD_US (here a platform constant; see `TimeConsts`). -/
+def MAX_PERIOD_US : Word64 := timeConsts.maxPeriodUs
 /-- l4v: Time.kernelWCET_us. -/
 def kernelWCETUs : Ticks := timeConsts.kernelWCETUs
 /-- l4v: Time.ticks_per_timer_unit. -/

@@ -925,8 +925,7 @@ theorem cfg_pre_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spe
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
     (hC : CurInv σ) (hO : OffOK σ) {p : U64} (hp : p ∈ C) {x : Fl4Spec.SchedContext} {n : Nat}
     (hk : σ.kheap p.bv = some (.schedContext x n)) {t : U64} (ht : t ∈ T) (hxt : x.scTcb = some t.bv)
-    (hmrt : ∀ a, sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hmb : ∀ a, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
+    (hT : TimeAgree ar) :
     (do
       let (s2, a2) ← smp.remote_tcb_stall st ar s a t
       let s3 ← sched.release_remove st s2 t
@@ -1009,7 +1008,7 @@ theorem cfg_pre_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spe
     refine WP.spec_bind (commit_time_refines s4 a2 σb hS4 hR4 hN4 hIb (by rw [hcs]; exact hp) (u0 := t.bv)
       (fun y m hy => by rw [hcs, hkb, hk] at hy; cases hy; exact hxt) hS4.idle
       (by show t.bv ∉ (σ.releaseQueue.filter fun x => decide (t.bv ≠ x)); rw [hflt]; exact htR)
-      (OffOK.of_eq hO rfl rfl rfl rfl) (hmrt a2) (hmb a2)) ?_
+      (OffOK.of_eq hO rfl rfl rfl rfl) (hT.mrt a2) (hT.mb a2)) ?_
     rintro s5 ⟨σc, hcm, hS5, hR5, hN5, hI5, hK5, -⟩
     rw [WP.spec_ok]
     rw [hcs] at hK5
@@ -1042,7 +1041,7 @@ theorem cfg_resume_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt)) (hxp : xt.tcbSchedContext = some p.bv)
     (ha : Fl4Spec.scActive y = true) (hr : Fl4Spec.runnable xt.tcbState = false → released σ y)
     (cpu : U64) (hcpu : cpu = c)
-    (hmb : ∀ a, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
+    (hT : TimeAgree ar) :
     (do
       let (s5, a3) ← smp.migrate_tcb st ar s a t cpu
       let (s6, a4) ← schedcontext.resume st ar s5 a3 p
@@ -1097,7 +1096,7 @@ theorem cfg_resume_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4
   have hRel : RelOK σ :=
     ⟨fun u hu => by obtain ⟨x, p, -, -, h1, h2, -⟩ := hI.rel u hu; exact ⟨x, p, h1, h2⟩, hI.sorted⟩
   have hkp' : ∃ y' n', σ.kheap p.bv = some (.schedContext y' n') := ⟨y, n, hk⟩
-  refine WP.spec_bind (resume_refines (L.wr s (affA t) i) a σ hR3 hS3 hRel (hmb a) hp hp0 ht (word24_of hS3 hp hk hyt)
+  refine WP.spec_bind (resume_refines (L.wr s (affA t) i) a σ hR3 hS3 hRel (hT.mb a) hp hp0 ht (word24_of hS3 hp hk hyt)
     (scA_of hS3 ht hkt hxp) (fun x hx => by rw [hkt] at hx; cases hx; exact hnq.1 _ _)) ?_
   rintro ⟨s6, a4⟩ ⟨rfl, σr, hrs, hkr, har, htr, -, -, hf6, hS6⟩
   have hR6 : NtfnStateRel N T (L.mem s6) σr := hR3.frame hP hf6 (KView.of_kheap hkr)
@@ -1309,8 +1308,7 @@ theorem configure_flags_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ 
       t ∈ T ∧ ∃ xt, σ.kheap t.bv = some (.tcb xt) ∧ xt.tcbSchedContext = some p.bv)
     (cpu budget period mr badge flags : U64) (hcpu : cpu = c) (hm2 : 2 ≤ mr.val) (hmx : mr.val ≤ absMax n)
     (hb : Fl4Spec.MIN_BUDGET ≤ budget.bv) (hbp : budget.val ≤ period.val)
-    (hmrt : ∀ a, sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hmb : ∀ a, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
+    (hT : TimeAgree ar) :
     schedcontext.configure_flags st ar s a p cpu budget period mr badge flags ⦃ r => ∃ σ',
       Fl4Spec.invokeSchedControlConfigureFlags (Z := Unit)
         (.invokeSchedControlConfigureFlags p.bv budget.bv period.bv mr.val badge.bv flags.bv) σ =
@@ -1366,7 +1364,7 @@ theorem configure_flags_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ 
     obtain ⟨hiT, xt, hkt, hxp⟩ := hbnd i hxt
     have hip : i.bv ≠ p.bv := fun e => by rw [e, hk] at hkt; cases hkt
     simp only [hi0, decide_false, Bool.false_eq_true, ↓reduceIte]
-    refine WP.spec_bind (cfg_pre_refines s a σ hS hR hN hI hC hO hp hk hiT hxt hmrt hmb) ?_
+    refine WP.spec_bind (cfg_pre_refines s a σ hS hR hN hI hC hO hp hk hiT hxt hT) ?_
     rintro ⟨s1, a1⟩ ⟨σ1, hpre, hS1, hR1, hN1, hI1, hnq1, hq1, ⟨y1, hk1, hy1t, -⟩, -, hid1, -, hact1, hrq1⟩
     have hkt1 : σ1.kheap i.bv = some (.tcb xt) := by rw [hq1 _ hip]; exact hkt
     have hown1 : ∀ u xu, σ1.kheap u = some (.tcb xu) → xu.tcbSchedContext = some p.bv → u = i.bv := by
@@ -1386,7 +1384,7 @@ theorem configure_flags_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ 
     have hkt2 : (updSc σ1 p.bv y2 n).kheap i.bv = some (.tcb xt) := by
       simp only [updSc, updK_kheap, Function.update_of_ne hip]; exact hkt1
     refine WP.spec_bind (cfg_resume_refines _ a1 _ hS3 hR3 hN1.updSc hp hp0 hiT hI2 hnq1 hk2
-      (by rw [hy2t, hy1t, hxt]) hkt2 hxp ha2 (fun h => hrel2 i.bv xt (by rw [hy1t, hxt]) hkt1 h) cpu hcpu hmb) ?_
+      (by rw [hy2t, hy1t, hxt]) hkt2 hxp ha2 (fun h => hrel2 i.bv xt (by rw [hy1t, hxt]) hkt1 h) cpu hcpu hT) ?_
     rintro ⟨s4, a2⟩ ⟨σ3, hres, hS4, hR4, hN4, hI4, hk4, hA4⟩
     have hk3 : σ3.kheap p.bv = some (.schedContext y2 n) := by rw [hk4]; exact hk2
     refine WP.spec_mono (cfg_tail_refines s4 a2 σ3 hS4 hR4 hN4 hI4 hp hk3 badge flags) ?_

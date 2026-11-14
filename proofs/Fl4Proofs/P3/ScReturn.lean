@@ -23,7 +23,8 @@ section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
 
 /-- A non-ring header word. -/
-def HdrK (K : U64) : Prop := K = 8#u64 ∨ K = 24#u64 ∨ K = 40#u64 ∨ K = 48#u64 ∨ K = 56#u64 ∨ K = 64#u64
+def HdrK (K : U64) : Prop :=
+  K = 8#u64 ∨ K = 24#u64 ∨ K = 32#u64 ∨ K = 40#u64 ∨ K = 48#u64 ∨ K = 56#u64 ∨ K = 64#u64
 
 theorem ScRel1.wr_hdr {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRel1 st s sc x n)
     {K : U64} (hK : HdrK K) (v : U64) :
@@ -34,7 +35,7 @@ theorem ScRel1.wr_hdr {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h
       L.mem s' (scW sc K) = v ∧ WritesIn st s s' (ScIn st s sc) := by
   intro s'
   obtain ⟨h8, h2, hfit⟩ := h.bounds
-  have hKv : K.val < 96 ∧ K.val % 8 = 0 := by rcases hK with rfl | rfl | rfl | rfl | rfl | rfl <;> simp
+  have hKv : K.val < 96 ∧ K.val % 8 = 0 := by rcases hK with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp
   have ha := h.hdr hKv.1 hKv.2
   have hne : ∀ b : U64, Aligned b → b.val ≠ (scW sc K).val → L.mem s' b = L.mem s b :=
     fun b hb hb' => L.mem_wr_ne ha.1 hb (Ne.symm hb')
@@ -44,10 +45,10 @@ theorem ScRel1.wr_hdr {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h
     refine hne _ (h.hdr h1 h2).1 ?_
     rw [scW_val (by omega), hv]
     exact fun e => h3 (UScalar.eq_of_val_eq (by omega))
-  have K72 : (72#u64 : U64) ≠ K := by rcases hK with rfl | rfl | rfl | rfl | rfl | rfl <;> decide
-  have K80 : (80#u64 : U64) ≠ K := by rcases hK with rfl | rfl | rfl | rfl | rfl | rfl <;> decide
-  have K88 : (88#u64 : U64) ≠ K := by rcases hK with rfl | rfl | rfl | rfl | rfl | rfl <;> decide
-  have K0 : (0#u64 : U64) ≠ K := by rcases hK with rfl | rfl | rfl | rfl | rfl | rfl <;> decide
+  have K72 : (72#u64 : U64) ≠ K := by rcases hK with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> decide
+  have K80 : (80#u64 : U64) ≠ K := by rcases hK with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> decide
+  have K88 : (88#u64 : U64) ≠ K := by rcases hK with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> decide
+  have K0 : (0#u64 : U64) ≠ K := by rcases hK with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> decide
   have em : L.rmax s' sc = L.rmax s sc := by
     simp only [LawfulStore.rmax, maxA_eq]; exact hw _ (by simp) (by simp) K72
   have eh : L.rhead s' sc = L.rhead s sc := by

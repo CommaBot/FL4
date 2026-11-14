@@ -143,7 +143,7 @@ theorem bind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
     (hk : σ.kheap p.bv = some (.schedContext y n)) (hy0 : y.scTcb = none)
     {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt)) (hxt0 : xt.tcbSchedContext = none)
     (hblk : Fl4Spec.runnable xt.tcbState = false → inClass xt.tcbState → Fl4Spec.scActive y = true → released σ y)
-    (hmb : ∀ a, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
+    (hT : TimeAgree ar) :
     schedcontext.bind_tcb st ar s a p t ⦃ r => ∃ σ',
       Fl4Spec.schedContextBindTcb (Z := Unit) p.bv t.bv σ = ({((), σ')}, False) ∧
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧
@@ -287,7 +287,7 @@ theorem bind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
   have hRel : RelOK σu :=
     ⟨fun u hu => by obtain ⟨x, p, -, -, h1, h2, -⟩ := hIu.rel u hu; exact ⟨x, p, h1, h2⟩, hIu.sorted⟩
   -- `resume`
-  refine WP.spec_bind (resume_refines s4 a σu hR4 hS4 hRel (hmb a) hp hp0 ht (word24_of hS4 hp hku hyu)
+  refine WP.spec_bind (resume_refines s4 a σu hR4 hS4 hRel (hT.mb a) hp hp0 ht (word24_of hS4 hp hku hyu)
     (scA_of hS4 ht hktu rfl) (fun x hx => by rw [hktu] at hx; cases hx; exact hnqu.1 _ _)) ?_
   rintro ⟨s5, a5⟩ ⟨rfl, σr, hrs, hkr, har, htr, -, -, hf5, hS5⟩
   have hR5 : NtfnStateRel N T (L.mem s5) σr := hR4.frame hP hf5 (KView.of_kheap hkr)

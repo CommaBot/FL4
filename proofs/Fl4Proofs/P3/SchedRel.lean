@@ -495,15 +495,72 @@ theorem SzKeep.ntfnStep {σ σ' : Fl4Spec.State Unit} (h : NtfnStep σ σ') : Sz
   · rw [hp] at hb; cases hb
   · rw [hp] at hb; cases hb
 
-/-- **`SchedHyps.stable`**: the scheduler relation is kept by the notification
-code's own steps. -/
-theorem SchedRel.stable {N T C : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
-    (hS : SchedRel st N T C c s σ) (hw : WritesIn st s s' (NWrite N T)) (hn : NtfnStep σ σ') :
+/-- A notification step that may also change notifications' bound TCB and
+SC: the scheduler relation does not read them. -/
+def NtfnStepW (σ σ' : Fl4Spec.State Unit) : Prop :=
+  σ'.exst = σ.exst ∧ { σ'.toAbstractState with kheap := σ.kheap } = σ.toAbstractState ∧
+  ∀ p, σ'.kheap p = σ.kheap p ∨
+    (∃ x y, σ.kheap p = some (.notification x) ∧ σ'.kheap p = some (.notification y)) ∨
+    (∃ x y, σ.kheap p = some (.tcb x) ∧ σ'.kheap p = some (.tcb y) ∧
+      y = { x with tcbState := y.tcbState, tcbArch := y.tcbArch })
+
+theorem NtfnStep.weak {σ σ' : Fl4Spec.State Unit} (h : NtfnStep σ σ') : NtfnStepW σ σ' := by
+  refine ⟨h.1, h.2.1, fun p => ?_⟩
+  rcases h.2.2 p with e | ⟨x, y, h1, h2, -⟩ | e
+  · exact Or.inl e
+  · exact Or.inr (Or.inl ⟨x, y, h1, h2⟩)
+  · exact Or.inr (Or.inr e)
+
+theorem NtfnStepW.abs {σ σ' : Fl4Spec.State Unit} (h : NtfnStepW σ σ') :
+    σ'.readyQueues = σ.readyQueues ∧ σ'.releaseQueue = σ.releaseQueue ∧ σ'.curThread = σ.curThread ∧
+    σ'.schedulerAction = σ.schedulerAction ∧ σ'.curSc = σ.curSc ∧ σ'.curTime = σ.curTime ∧
+    σ'.consumedTime = σ.consumedTime ∧ σ'.reprogramTimer = σ.reprogramTimer ∧ σ'.curDomain = σ.curDomain := by
+  have e := h.2.1
+  exact ⟨(by have := congrArg Fl4Spec.AbstractState.readyQueues e; exact this), (by have := congrArg Fl4Spec.AbstractState.releaseQueue e; exact this),
+    (by have := congrArg Fl4Spec.AbstractState.curThread e; exact this), (by have := congrArg Fl4Spec.AbstractState.schedulerAction e; exact this),
+    (by have := congrArg Fl4Spec.AbstractState.curSc e; exact this), (by have := congrArg Fl4Spec.AbstractState.curTime e; exact this),
+    (by have := congrArg Fl4Spec.AbstractState.consumedTime e; exact this), (by have := congrArg Fl4Spec.AbstractState.reprogramTimer e; exact this),
+    (by have := congrArg Fl4Spec.AbstractState.curDomain e; exact this)⟩
+
+theorem NtfnStepW.domainTime {σ σ' : Fl4Spec.State Unit} (h : NtfnStepW σ σ') : σ'.domainTime = σ.domainTime := by
+  have := congrArg Fl4Spec.AbstractState.domainTime h.2.1; exact this
+
+theorem NtfnStepW.idleThread {σ σ' : Fl4Spec.State Unit} (h : NtfnStepW σ σ') : σ'.idleThread = σ.idleThread := by
+  have := congrArg Fl4Spec.AbstractState.idleThread h.2.1; exact this
+
+theorem NtfnStepW.tcbSched {σ σ' : Fl4Spec.State Unit} (h : NtfnStepW σ σ') {p : Fl4Spec.ObjRef} {x : Fl4Spec.Tcb}
+    (hk : σ.kheap p = some (.tcb x)) : ∃ y, σ'.kheap p = some (.tcb y) ∧ y.tcbDomain = x.tcbDomain ∧
+      y.tcbSchedContext = x.tcbSchedContext ∧ y.tcbPriority = x.tcbPriority := by
+  rcases h.2.2 p with e | ⟨a, b, ha, -⟩ | ⟨a, b, ha, hb, e⟩
+  · exact ⟨x, e.trans hk, rfl, rfl, rfl⟩
+  · rw [hk] at ha; cases ha
+  · rw [hk] at ha; cases ha
+    refine ⟨b, hb, ?_, ?_, ?_⟩ <;> rw [e]
+
+theorem NtfnStepW.sc {σ σ' : Fl4Spec.State Unit} (h : NtfnStepW σ σ') {p : Fl4Spec.ObjRef}
+    {x : Fl4Spec.SchedContext} {n : Nat} (hk : σ.kheap p = some (.schedContext x n)) :
+    σ'.kheap p = some (.schedContext x n) := by
+  rcases h.2.2 p with e | ⟨a, b, ha, -⟩ | ⟨a, b, ha, -, -⟩
+  · exact e.trans hk
+  · rw [hk] at ha; cases ha
+  · rw [hk] at ha; cases ha
+
+theorem SzKeep.ntfnStepW {σ σ' : Fl4Spec.State Unit} (h : NtfnStepW σ σ') : SzKeep σ σ' := by
+  intro p x n hp
+  rcases h.2.2 p with e | ⟨a, b, -, hb⟩ | ⟨a, b, -, hb, -⟩
+  · exact ⟨x, e ▸ hp⟩
+  · rw [hp] at hb; cases hb
+  · rw [hp] at hb; cases hb
+
+/-- **The scheduler relation is kept by a notification step** that may also
+change notifications' bound TCB and SC (`NtfnStepW`). -/
+theorem SchedRel.stableW {N T C : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) (hw : WritesIn st s s' (NWrite N T)) (hn : NtfnStepW σ σ') :
     SchedRel st N T C c s' σ' := by
   have ha := sagree_of_nwrite hS hw
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hs' := hs.agree ha
-  obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ := NtfnStep.abs hn
+  obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ := NtfnStepW.abs hn
   have hact : nodeW st s' c layout.node.SCHED_ACTION = nodeW st s c layout.node.SCHED_ACTION := by
     unfold Fl4Proofs.P3.Sched.nodeW; rw [nodeAt_ksb hw.1]
     exact hw.mem_eq (nodeAt_aligned hc.node (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION]))
@@ -511,8 +568,8 @@ theorem SchedRel.stable {N T C : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spec
   have hm := hs.rmax_eq ha.sc
   refine ⟨hS.placed, fun o ho => by rw [nodeAt_ksb ha.ksb]; exact hS.nodeNW o ho,
     by rw [curDomA_ksb ha.ksb]; exact hS.domNW, by rw [dtA_ksb ha.ksb]; exact hS.dtNW,
-    scOut_transfer ha.ksb (SzKeep.ntfnStep hn) hS.scOut,
-    scDisj_transfer (SzKeep.ntfnStep hn) hS.scDisj, by rw [hact]; exact hS.actW,
+    scOut_transfer ha.ksb (SzKeep.ntfnStepW hn) hS.scOut,
+    scDisj_transfer (SzKeep.ntfnStepW hn) hS.scDisj, by rw [hact]; exact hS.actW,
     by rw [hact, e4]; exact hS.act, ?_, hs.core_eq ha.sc hS.core, Q, R, hc.agree ha.toC, ?_⟩
   · have hrp : nodeW st s' c layout.node.REPROGRAM = nodeW st s c layout.node.REPROGRAM := by
       unfold Fl4Proofs.P3.Sched.nodeW; rw [nodeAt_ksb hw.1]
@@ -523,13 +580,20 @@ theorem SchedRel.stable {N T C : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spec
     by rw [e2]; exact hs'.rel, by rw [e3]; exact hs'.curThread,
     by rw [e5]; exact hs'.curSc, by rw [e6]; exact hs'.curTime, by rw [e7]; exact hs'.consumed,
     by rw [e9]; exact hs'.curDom, fun t ht => ?_, hs'.scMem,
-    fun sc hsc => ?_, hs'.idleSc, by rw [NtfnStep.domainTime hn]; exact hs'.domTime,
-    by rw [NtfnStep.idleThread hn]; exact hs'.idleTh⟩
+    fun sc hsc => ?_, hs'.idleSc, by rw [NtfnStepW.domainTime hn]; exact hs'.domTime,
+    by rw [NtfnStepW.idleThread hn]; exact hs'.idleTh⟩
   · obtain ⟨x, hk, h1, h2, h3, h4⟩ := hs'.tcb t ht
-    obtain ⟨y, hky, f1, f2, f3⟩ := NtfnStep.tcbSched hn hk
+    obtain ⟨y, hky, f1, f2, f3⟩ := NtfnStepW.tcbSched hn hk
     exact ⟨y, hky, f1.trans h1, h2, f2.trans h3, f3 ▸ h4⟩
   · obtain ⟨x, n, hk, e⟩ := hs'.scs sc hsc
-    exact ⟨x, n, NtfnStep.sc hn hk, e⟩
+    exact ⟨x, n, NtfnStepW.sc hn hk, e⟩
+
+/-- **`SchedHyps.stable`**: the scheduler relation is kept by the notification
+code's own steps. -/
+theorem SchedRel.stable {N T C : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) (hw : WritesIn st s s' (NWrite N T)) (hn : NtfnStep σ σ') :
+    SchedRel st N T C c s' σ' :=
+  hS.stableW hw (NtfnStep.weak hn)
 
 end Stable
 

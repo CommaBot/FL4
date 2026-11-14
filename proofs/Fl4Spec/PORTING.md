@@ -245,6 +245,10 @@ Conventions of the ported base layer that later modules rely on.
   `ticks_per_timer_unit`, `timer_unit` and their ten axioms) are one opaque
   structure `timeConsts`, inhabited by the witness of Time.thy's consistency
   `notepad`; the axioms are theorems projected from it. No Lean `axiom`.
+- **FL4 extension/config: `MAX_PERIOD_US`** is a platform constant (a field
+  `maxPeriodUs` of `timeConsts`), C's default `getMaxUsToTicks()/8`
+  (`KernelStaticMaxPeriodUs = 0`, include/kernel/sporadic.h); l4v fixes it
+  at 1 hour. The witness keeps the hour.
 - **`typedecl machine_state_rest`** is an opaque nonempty type.
 - **`next_not_child`** (`function (domintros)`, partial) is `THE` of its
   inductively defined graph, as Isabelle's function package defines it.

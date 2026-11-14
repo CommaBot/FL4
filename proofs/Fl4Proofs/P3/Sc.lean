@@ -59,6 +59,11 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
 * ScUnbind: SchedContext `UnbindObject` (thread) and `Unbind`'s TCB step
   (`unbind_tcb_refines`, `unbind_all_tcbs_refines`), ending in `Inv`.
 * ScBind: SchedContext `Bind` (thread) (`bind_tcb_refines`), ending in `Inv`.
+* ScPlatform: `TimeAgree`, the platform's timer constants against FL4's arch
+  interface (`max_release_time`, `min_budget`, exact `us_to_ticks`).
+* ScDecode: SchedControl's decode (`decode_sched_control_refines`).
+* ScNtfnBind: SchedContext `Bind`/`UnbindObject` for notifications
+  (`bind_ntfn_refines`, `unbind_ntfn_refines`).
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
@@ -70,3 +75,5 @@ import Fl4Proofs.P3.ScScheduleTop
 import Fl4Proofs.P3.ScConfig
 import Fl4Proofs.P3.ScUnbind
 import Fl4Proofs.P3.ScBind
+import Fl4Proofs.P3.ScDecode
+import Fl4Proofs.P3.ScNtfnBind

@@ -21,6 +21,7 @@ P3 (DESIGN.md §9), scheduler: **`schedule` refines l4v `schedule`**
   them.
 -/
 import Fl4Proofs.P3.ScAwaken
+import Fl4Proofs.P3.ScPlatform
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Sched
@@ -571,8 +572,7 @@ theorem tail_refines {N T C : Set U64} {c : U64} (s3 : S) (a2 : A) (σ3 : Fl4Spe
     {u0 : Fl4Spec.ObjRef} (hown0 : ∀ x n, σ3.kheap σ3.curSc = some (.schedContext x n) → x.scTcb = some u0)
     (hback : ∀ xt, σ3.kheap u0 = some (.tcb xt) → xt.tcbSchedContext = some σ3.curSc)
     (hnr : u0 ∉ σ3.releaseQueue) (hoff : OffOK σ3)
-    (hmrt : ∀ a, sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hmb : ∀ a, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (hT : TimeAgree ar)
     (hsni : SniHyp st ar N T C c) (hsend : SendHyp st ar N T C c) :
     (do
       let s4 ← sched.set_action st s3 sched.ACTION_RESUME_CURRENT
@@ -622,7 +622,7 @@ theorem tail_refines {N T C : Set U64} {c : U64} (s3 : S) (a2 : A) (σ3 : Fl4Spe
     (by rw [← e1]; exact hntr)
     (fun xt0 hk0 q => by rw [← e1, hkt] at hk0; cases hk0; exact hnbt q)
     (fun hid x n hx => hactt (by rw [← hscp]; exact hid) x n (by rw [← hscp]; exact hx))
-    (u0 := u0) (fun x n hx => hown0 x n (by rw [e2]; exact hx)) hback hnr hoff (hmrt a2) (hmb a2)) ?_
+    (u0 := u0) (fun x n hx => hown0 x n (by rw [e2]; exact hx)) hback hnr hoff (hT.mrt a2) (hT.mb a2)) ?_
   rintro ⟨s5, a3⟩ ⟨σ5, h5, hS5, hR5, hN5, hI5, hC5, hA5, rfl⟩
   obtain ⟨Q5, R5, hc5, hs5⟩ := hS5.lists
   have hsc5 : Fl4Spec.scAndTimer (Z := Unit) σ4 = (do
@@ -719,8 +719,7 @@ theorem schedule_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hP : SchedPre σ)
     (hnd : Fl4Spec.numDomains = 1)
     (hfire : FireHyp st ar N T C c) (hA : ArchSw st ar N T C c) (hsni : SniHyp st ar N T C c) (hsend : SendHyp st ar N T C c)
-    (hmrt : ∀ a, sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hmb : ∀ a, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
+    (hT : TimeAgree ar) :
     sched.schedule st ar s a ⦃ r => ∃ σ1 σ', Fires σ σ1 ∧ Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) ∧
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧ CurInv σ' ∧
       ActIdle σ' ⦄ := by
@@ -766,7 +765,7 @@ theorem schedule_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
     refine WP.spec_mono (tail_refines s3 a2 σ3 hS3 hR3 hN3 hI3 (newcur_of hnc hk3 hr3 hId2 hC2)
       (by rw [hcs3]; exact hcsc) (u0 := σ2.curThread) (fun x n hx => hown0 x n (by rw [← hk3, ← hcs3]; exact hx))
       (fun xt hx => by rw [hcs3]; exact hback xt (by rw [← hk3]; exact hx)) (by rw [hr3]; exact hC2.notRel)
-      (hO2.of_eq hk3 hcs3 hcn3 htm3) hmrt hmb hsni hsend) ?_
+      (hO2.of_eq hk3 hcs3 hcn3 htm3) hT hsni hsend) ?_
     rintro r ⟨σ', h', a1, a2, a3, a4, a5, a6⟩
     exact ⟨σ1, σ', hF, hspec σ' h', a1, a2, a3, a4, a5,
       a6 (IdleOK.of hId2 hid3 (by rw [hk3]) (fun hm => by rw [hr3] at hm; exact hm))⟩

@@ -13,6 +13,7 @@ hypothesis `cancel_ipc` (passed through).
 * `recvTail_SRI`, `completeTail_SRI`, `returnSc_SRI`: `RecvHyps` for `SRI`.
 -/
 import Fl4Proofs.P3.ScIdle
+import Fl4Proofs.P3.ScPlatform
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Sched
@@ -56,7 +57,7 @@ theorem NSC.mem {N T C : Set U64} {s : S} {σ : Fl4Spec.State Unit} (h : NSC N C
 
 /-- **`SchedHyps.wakeTail` for `SRI`.** -/
 theorem wakeTail_SRI {N T C : Set U64} {c : U64}
-    (hmb : ∀ a : A, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (hT : TimeAgree ar)
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (t n : U64) (x : Fl4Spec.Tcb) (hR : NtfnStateRel N T (L.mem s) σ)
     (hSRI : SRI st N T C c s σ) (ht : t ∈ T) (hn : n ∈ N) (hk : σ.kheap t.bv = some (.tcb x))
     (hx : x.tcbState = .running) (hNQ : NotQueued σ t.bv) :
@@ -66,7 +67,7 @@ theorem wakeTail_SRI {N T C : Set U64} {c : U64}
   have hP := hS.placed
   obtain ⟨xn, hkn, -⟩ := hR.ntfn n hn
   unfold rustWakeTail
-  refine WP.spec_bind (maybe_donate_refines s a σ hR hS hI.relOK (hmb a) t n ht hn (hN.mem hR hn)
+  refine WP.spec_bind (maybe_donate_refines s a σ hR hS hI.relOK (hT.mb a) t n ht hn (hN.mem hR hn)
     (fun _ y hy => by rw [hk] at hy; cases hy; exact hNQ.1 _ _)) ?_
   rintro ⟨s4, a2⟩ ⟨σ1, hd, hf1, hv1, hS1, -⟩
   have hS1 : SchedRel st N T C c s4 σ1 := hS1
@@ -115,7 +116,7 @@ theorem wakeTail_SRI {N T C : Set U64} {c : U64}
 /-- **`SchedHyps` for `SRI`**, from the platform's `MIN_BUDGET` and the IPC
 hypothesis `cancel_ipc`. -/
 theorem schedHyps_SRI {N T C : Set U64} {c : U64}
-    (hmb : ∀ a : A, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (hT : TimeAgree ar)
     (hC : ∀ s (a : A) σ (t : U64) (x : Fl4Spec.Tcb), NtfnStateRel N T (L.mem s) σ → SRI st N T C c s σ →
       t ∈ T → σ.kheap t.bv = some (.tcb x) → Fl4Spec.receiveBlocked x.tcbState = true →
       ipc.cancel_ipc st ar s a t ⦃ r => ∃ σ' x', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
@@ -129,12 +130,12 @@ theorem schedHyps_SRI {N T C : Set U64} {c : U64}
   scheduleTcb := fun s σ t hR ⟨hS, hI, hN, hA⟩ ht => WP.spec_mono (schedule_tcb_refines s σ hR hS t ht)
     (fun _ ⟨hf, hS'⟩ => ⟨hf, hS', hI.qchange (qchange_stsAct σ t.bv), hN.kview hR (KView.stsAct σ t.bv),
       hA.ofSts t.bv⟩)
-  wakeTail := fun s a σ t n x hR hS ht hn hk hx hq => wakeTail_SRI hmb s a σ t n x hR hS ht hn hk hx hq
+  wakeTail := fun s a σ t n x hR hS ht hn hk hx hq => wakeTail_SRI hT s a σ t n x hR hS ht hn hk hx hq
   cancelIpc := hC
 
 /-- **`RecvHyps.recvTail` for `SRI`.** -/
 theorem recvTail_SRI {N T C : Set U64} {c : U64}
-    (hmb : ∀ a : A, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (hT : TimeAgree ar)
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (t n : U64) (hR : NtfnStateRel N T (L.mem s) σ)
     (hSRI : SRI st N T C c s σ) (ht : t ∈ T) (hn : n ∈ N) (hNQ : NotQueued σ t.bv)
     (hRun : ∀ x, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true) :
@@ -143,7 +144,7 @@ theorem recvTail_SRI {N T C : Set U64} {c : U64}
   obtain ⟨xn, hkn, -⟩ := hR.ntfn n hn
   obtain ⟨xt, hkt, -⟩ := hR.tcb t ht
   unfold TailRef rustRecvTail
-  refine WP.spec_bind (maybe_donate_refines s a σ hR hS hI.relOK (hmb a) t n ht hn (hN.mem hR hn)
+  refine WP.spec_bind (maybe_donate_refines s a σ hR hS hI.relOK (hT.mb a) t n ht hn (hN.mem hR hn)
     (fun _ y hy => by rw [hkt] at hy; cases hy; exact hNQ.1 _ _)) ?_
   rintro ⟨s3, a1⟩ ⟨σ1, hd, hf1, hv1, hS1, -⟩
   obtain ⟨hI1, hrq1⟩ := Inv.donate hI hkt hkn (hRun xt hkt) hNQ hd
@@ -161,7 +162,7 @@ theorem recvTail_SRI {N T C : Set U64} {c : U64}
 
 /-- **`RecvHyps.completeTail` for `SRI`.** -/
 theorem completeTail_SRI {N T C : Set U64} {c : U64}
-    (hmb : ∀ a : A, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (hT : TimeAgree ar)
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (t n : U64) (hR : NtfnStateRel N T (L.mem s) σ)
     (hSRI : SRI st N T C c s σ) (ht : t ∈ T) (hn : n ∈ N) (hNQ : NotQueued σ t.bv)
     (hRun : ∀ x, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true) :
@@ -171,7 +172,7 @@ theorem completeTail_SRI {N T C : Set U64} {c : U64}
   obtain ⟨xn, hkn, -⟩ := hR.ntfn n hn
   obtain ⟨xt, hkt, -⟩ := hR.tcb t ht
   unfold TailRef rustCompleteTail
-  refine WP.spec_bind (maybe_donate_refines s a σ hR hS hI.relOK (hmb a) t n ht hn (hN.mem hR hn)
+  refine WP.spec_bind (maybe_donate_refines s a σ hR hS hI.relOK (hT.mb a) t n ht hn (hN.mem hR hn)
     (fun _ y hy => by rw [hkt] at hy; cases hy; exact hNQ.1 _ _)) ?_
   rintro ⟨s3, a1⟩ ⟨σ1, hd, hf1, hv1, hS1, -⟩
   obtain ⟨hI1, hrq1⟩ := Inv.donate hI hkt hkn (hRun xt hkt) hNQ hd
@@ -203,10 +204,10 @@ theorem returnSc_SRI {N T C : Set U64} {c : U64} (s : S) (σ0 σ : Fl4Spec.State
 
 /-- **`RecvHyps` for `SRI`.** -/
 theorem recvHyps_SRI {N T C : Set U64} {c : U64}
-    (hmb : ∀ a : A, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
+    (hT : TimeAgree ar) :
     RecvHyps st ar N T (SRI st N T C c) :=
-  ⟨fun s a σ t n hR hS ht hn hq hr => recvTail_SRI hmb s a σ t n hR hS ht hn hq hr,
-   fun s a σ t n hR hS ht hn hq hr => completeTail_SRI hmb s a σ t n hR hS ht hn hq hr,
+  ⟨fun s a σ t n hR hS ht hn hq hr => recvTail_SRI hT s a σ t n hR hS ht hn hq hr,
+   fun s a σ t n hR hS ht hn hq hr => completeTail_SRI hT s a σ t n hR hS ht hn hq hr,
    fun s σ0 σ t n hR hS ht hn hA hb hti => returnSc_SRI s σ0 σ t n hR hS ht hn hA hb hti⟩
 
 end
