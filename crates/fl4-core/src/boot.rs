@@ -259,8 +259,14 @@ fn create_untypeds_for_region<S: Store>(s: &mut S, b: &mut Boot, device: bool, r
         if size_bits > bits::MAX_UNTYPED {
             size_bits = bits::MAX_UNTYPED;
         }
-        if start != 0 {
-            let align = start.trailing_zeros() as u64;
+        // Aligned as the cap's pointer, as in seL4, which works on the
+        // region in kernel-pointer space: retype aligns pointers, and the
+        // window's base is only 2^39-aligned, so a device block aligned
+        // only physically would have its children shifted (GitHub
+        // issue #2).
+        let at = if device { layout::pptr(start) } else { start };
+        if at != 0 {
+            let align = at.trailing_zeros() as u64;
             if size_bits > align {
                 size_bits = align;
             }
