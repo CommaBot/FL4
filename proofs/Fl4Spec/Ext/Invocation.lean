@@ -4,7 +4,7 @@ dispatcher**.
 
 `fl4DecodeInvocation` and `fl4PerformInvocation` are l4v's
 `decode_invocation` (Decode_A) and `perform_invocation` (Syscall_A) with
-exactly two substitutions, FL4's untyped and IRQControl functions:
+exactly three substitutions, FL4's untyped, IRQControl and arch functions:
 
 1. untyped caps: `fl4DecodeUntypedInvocation` and `fl4InvokeUntyped`
    (4 KiB TCBs, `Ext/TcbSize`) for `decode_untyped_invocation` and
@@ -14,16 +14,30 @@ exactly two substitutions, FL4's untyped and IRQControl functions:
    `invoke_irq_control`. The l4h label `IRQIssueIRQHandlerIOAPICRemapped` is
    not an l4v label; it is the first label number past l4v's
    (`fl4RemappedLabel`, the length of `invocation_label`'s enumeration).
+3. arch caps: `fl4ArchDecodeInvocation` and `fl4ArchPerformInvocation` for
+   `arch_decode_invocation` and `arch_perform_invocation` (ArchDecode_A,
+   Arch_A). They are l4v's, except that the l4h VSpace labels go to the
+   `Ext/VSpace` decoders and invocations: `X64PML4Flush` on a PML4 cap
+   (`decodePml4Flush`, `performPml4Flush`), `Page_DeriveSubframe` and
+   `Page_TestAndClearAccessed` on a frame cap (`decodeDeriveSubframe`,
+   `performDeriveSubframe`; `decodeTestAndClearAccessed`,
+   `performTestAndClearAccessed`). These labels are not l4v labels either:
+   they are the label numbers after `fl4RemappedLabel`, in FL4's ABI order
+   (`fl4Pml4FlushLabel`, `fl4DeriveSubframeLabel`,
+   `fl4TestAndClearLabel`).
 
 So the invocation type `Fl4Invocation` is l4v's `invocation` with
-`InvokeIRQControl` carrying `Fl4IrqControlInvocation`. Every other cap goes
-to l4v's decoders and invocations, unchanged.
+`InvokeIRQControl` carrying `Fl4IrqControlInvocation` and
+`InvokeArchObject` carrying `Fl4ArchInvocation` (l4v's arch invocations and
+the l4h ones). Every other cap goes to l4v's decoders and invocations,
+unchanged.
 
 The ported modules are not changed.
 -/
 import Fl4Spec.Syscall
 import Fl4Spec.Ext.TcbSize
 import Fl4Spec.Ext.IrqControl
+import Fl4Spec.Ext.VSpace
 
 namespace Fl4Spec
 
@@ -37,7 +51,23 @@ def fl4RemappedLabel : Nat := InvocationLabel.enum.length
 /-- Whether a message label is the remapped IOAPIC label. -/
 def isFl4RemappedLabel (label : Data) : Bool := decide (dataToNat label = fl4RemappedLabel)
 
-/-- l4v's `invocation` (Invocations_A) with FL4's IRQControl invocations. -/
+/-- l4h: the label number of `X64PML4Flush`. -/
+def fl4Pml4FlushLabel : Nat := fl4RemappedLabel + 1
+/-- l4h: the label number of `X86PageDeriveSubframe`. -/
+def fl4DeriveSubframeLabel : Nat := fl4RemappedLabel + 2
+/-- l4h: the label number of `X86PageTestAndClearAccessed`. -/
+def fl4TestAndClearLabel : Nat := fl4RemappedLabel + 3
+
+/-- FL4's arch invocations: l4v's, and the l4h VSpace ones. -/
+inductive Fl4ArchInvocation where
+  | spec (i : ArchInvocation)
+  | pml4Flush (i : Fl4Pml4Invocation)
+  | deriveSubframe (i : Fl4SubframeInvocation)
+  | testAndClearAccessed (slot : ObjRef)
+deriving Inhabited
+
+/-- l4v's `invocation` (Invocations_A) with FL4's IRQControl and arch
+invocations. -/
 inductive Fl4Invocation where
   | invokeUntyped (i : UntypedInvocation)
   | invokeEndpoint (ep : ObjRef) (badge : Word) (canGrant canGrantReply : Bool)
@@ -50,13 +80,38 @@ inductive Fl4Invocation where
   | invokeCNode (i : CnodeInvocation)
   | invokeIRQControl (i : Fl4IrqControlInvocation)
   | invokeIRQHandler (i : IrqHandlerInvocation)
-  | invokeArchObject (i : ArchInvocation)
+  | invokeArchObject (i : Fl4ArchInvocation)
 deriving Inhabited
 
 section
 variable {Z : Type} [StateExt Z]
 
-/-- l4v: Decode_A.decode_invocation, with FL4's untyped and IRQControl
+/-- l4v: ArchDecode_A.X64_A.arch_decode_invocation, with the l4h VSpace
+labels. -/
+def fl4ArchDecodeInvocation (label : Data) (args : List Data) (xSlot : CapRef) (cte : CslotPtr)
+    (cap : ArchCap) (extraCaps : List (Cap × CslotPtr)) : SEMonad Z Fl4ArchInvocation :=
+  match cap with
+  | .pml4Cap _ _ =>
+    if dataToNat label = fl4Pml4FlushLabel
+    then NonDetE.liftME Fl4ArchInvocation.pml4Flush <| decodePml4Flush cap
+    else NonDetE.liftME Fl4ArchInvocation.spec <| archDecodeInvocation label args xSlot cte cap extraCaps
+  | .pageCap _ _ _ _ _ _ =>
+    if dataToNat label = fl4DeriveSubframeLabel
+    then NonDetE.liftME Fl4ArchInvocation.deriveSubframe <| decodeDeriveSubframe args cte cap extraCaps
+    else if dataToNat label = fl4TestAndClearLabel
+    then NonDetE.liftME Fl4ArchInvocation.testAndClearAccessed <| decodeTestAndClearAccessed cap
+    else NonDetE.liftME Fl4ArchInvocation.spec <| archDecodeInvocation label args xSlot cte cap extraCaps
+  | _ => NonDetE.liftME Fl4ArchInvocation.spec <| archDecodeInvocation label args xSlot cte cap extraCaps
+
+/-- l4v: Arch_A.X64_A.arch_perform_invocation, with the l4h VSpace
+invocations. -/
+def fl4ArchPerformInvocation : Fl4ArchInvocation → PMonad Z (List Data)
+  | .spec i => archPerformInvocation i
+  | .pml4Flush i => NonDetE.liftE <| archNoReturn <| performPml4Flush i
+  | .deriveSubframe i => NonDetE.liftE <| archNoReturn <| performDeriveSubframe i
+  | .testAndClearAccessed slot => NonDetE.liftE <| performTestAndClearAccessed slot
+
+/-- l4v: Decode_A.decode_invocation, with FL4's untyped, IRQControl and arch
 decoders. -/
 def fl4DecodeInvocation (firstPhase : Bool) (label : Data) (args : List Data) (capIndex : CapRef)
     (slot : CslotPtr) (cap : Cap) (excaps : List (Cap × CslotPtr)) (_buffer : Option ObjRef) :
@@ -107,12 +162,12 @@ def fl4DecodeInvocation (firstPhase : Bool) (label : Data) (args : List Data) (c
       fl4DecodeUntypedInvocation label args slot cap (excaps.map Prod.fst)
   | .archObjectCap archCap =>
     NonDetE.liftME Fl4Invocation.invokeArchObject <|
-      archDecodeInvocation label args capIndex slot archCap excaps
+      fl4ArchDecodeInvocation label args capIndex slot archCap excaps
   | _ =>
     NonDetE.throwError <| .invalidCapability 0
 
-/-- l4v: Syscall_A.perform_invocation, with FL4's untyped and IRQControl
-invocations. -/
+/-- l4v: Syscall_A.perform_invocation, with FL4's untyped, IRQControl and
+arch invocations. -/
 def fl4PerformInvocation : Bool → Bool → Bool → Fl4Invocation → PMonad Z (List Data)
   | _, _, _, .invokeUntyped i => do
     fl4InvokeUntyped i
@@ -150,7 +205,7 @@ def fl4PerformInvocation : Bool → Bool → Bool → Fl4Invocation → PMonad Z
     NonDetE.liftE <| invokeSchedControlConfigureFlags i
     NonDetE.returnOk []
   | _, _, _, .invokeArchObject i =>
-    archPerformInvocation i
+    fl4ArchPerformInvocation i
 
 end
 

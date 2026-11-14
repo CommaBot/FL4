@@ -357,13 +357,35 @@ details.
   DeriveSubframe), as separate decoders and invocations.
 - **`Ext/Invocation`: the invocation dispatcher.** `fl4DecodeInvocation` and
   `fl4PerformInvocation` are `decode_invocation` (Decode_A) and
-  `perform_invocation` (Syscall_A) with exactly two substitutions:
-  untyped caps use `fl4DecodeUntypedInvocation` / `fl4InvokeUntyped`, and
-  the IRQControl cap uses `decodeFl4IrqControl` / `invokeFl4IrqControl`.
-  Their invocation type `Fl4Invocation` is l4v's `invocation` with
-  `InvokeIRQControl` carrying an `Fl4IrqControlInvocation`. Every other cap
-  goes to l4v's decoder and invocation, unchanged (the `Ext/VSpace`
-  extensions are not in the dispatcher). The remapped IOAPIC label is not an
-  l4v label; the dispatcher takes it to be the first label number past
-  l4v's `invocation_label` enumeration (`fl4RemappedLabel`, the length of
-  `InvocationLabel.enum`).
+  `perform_invocation` (Syscall_A) with exactly three substitutions:
+  untyped caps use `fl4DecodeUntypedInvocation` / `fl4InvokeUntyped`; the
+  IRQControl cap uses `decodeFl4IrqControl` / `invokeFl4IrqControl`; arch
+  caps use `fl4ArchDecodeInvocation` / `fl4ArchPerformInvocation`, which are
+  `arch_decode_invocation` / `arch_perform_invocation` except that the l4h
+  VSpace labels go to the `Ext/VSpace` decoders and invocations
+  (`X64PML4Flush` on a PML4 cap; `Page_DeriveSubframe` and
+  `Page_TestAndClearAccessed` on a frame cap). Their invocation type
+  `Fl4Invocation` is l4v's `invocation` with `InvokeIRQControl` carrying an
+  `Fl4IrqControlInvocation` and `InvokeArchObject` an `Fl4ArchInvocation`
+  (l4v's arch invocations and the l4h ones). Every other cap goes to l4v's
+  decoder and invocation, unchanged.
+- **l4h label numbers.** The l4h labels are not l4v labels. The dispatcher
+  numbers them after l4v's `invocation_label` enumeration (whose length is
+  `fl4RemappedLabel`), in FL4's ABI order:
+  `IRQIssueIRQHandlerIOAPICRemapped` is `fl4RemappedLabel`, then
+  `X64PML4Flush` (`fl4Pml4FlushLabel`), `Page_DeriveSubframe`
+  (`fl4DeriveSubframeLabel`), `Page_TestAndClearAccessed`
+  (`fl4TestAndClearLabel`). How FL4's ABI labels map to these numbers is a
+  hypothesis of each refinement.
+
+## Platform constants
+
+FL4 fixes some of Kernel_Config's unspecified constants at build time. The
+refinements take them as hypotheses (nothing in `Fl4Spec` changes):
+
+- **`numDomains` = 1** (`fl4_abi::config::NUM_DOMAINS`); `DomConfig` in
+  `Fl4Proofs/P3/DomDecode.lean`.
+- **The domain schedule has `NUM_DOMAIN_SCHEDULES` = 2 entries**: the
+  length of `domain_list` (part of the domain relation `DomRel`).
+- `timeArgLen` is 1 and `maxDomainDuration` is `2^56 - 1` (FL4's
+  `domain::MAX_DURATION`) on x86-64 already, by their definitions.
