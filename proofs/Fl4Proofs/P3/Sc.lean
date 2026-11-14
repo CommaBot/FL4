@@ -132,6 +132,17 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
   outcome (`schedContextBindTcb_some`: the merge loop, the unblock check,
   `sched_context_resume`/`postpone`, `ActReady` before the final
   `reschedule_required`), from `BindOK` after the install.
+* ScInstFoot: FL4's `empty_slot` and `insert` write only cap-slot words
+  (`empty_ws`, `insert_ws`); with the placement `SlotCapW`, the slot part
+  `hslot` of P1's `install_tcb_cap.cai` (`inst_hslot`).
+* ScInstSpec: the spec's install keeps the scheduler side (`SK`, `PSK`,
+  `install_sk` over a null or non-final old cap); `SpecPost` after the
+  caller's restart from `Inv` and the decoder's checks `ScDec`
+  (`specPost_restart`) and across `SK`.
+* ScInstPost: `SchedTailHyp` discharged (`schedTailHyp_disch`: P1's
+  `install_tcb_cap.cai` with `FhSlotHyp`, `conds_caifr`; `install_sk` or
+  the named `FinEpSpecHyp` for a final endpoint cap), and SetSchedParams
+  end to end (`tcb_set_sched_params_refines_disch`).
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
@@ -160,3 +171,6 @@ import Fl4Proofs.P3.ScTcbHyp
 import Fl4Proofs.P3.ScTopF
 import Fl4Proofs.P3.ScSpecStep
 import Fl4Proofs.P3.ScBindSpec
+import Fl4Proofs.P3.ScInstFoot
+import Fl4Proofs.P3.ScInstSpec
+import Fl4Proofs.P3.ScInstPost

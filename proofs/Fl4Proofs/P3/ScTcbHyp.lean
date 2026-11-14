@@ -430,7 +430,7 @@ theorem schedTailHyp_of (hA : P0.ArchTotal arI) (th : TypedHeap) (hP : Placed th
       ∃ x, σ2.kheap p.bv = some (.tcb x) ∧ Notif.ActReady σ2 ∧ BlkQ σ2 p.bv x.tcbState)
     (hSS : ScSpecHyp (L := L) arI s σ ct) :
     SchedTailHyp (L := L) arI th s σ ct := by
-  intro s1 σ1 a p mcp prio scv x2 scf ssl fh q sco s2 a1 σ2 G2 hs1 hst1 hp hm hpr h1 h2 h3 hins hx hDS2
+  intro s1 σ1 a p mcp prio scv x2 scf ssl fh q sco s2 a1 σ2 G2 hs1 hst1 hp hm hpr h1 h2 h3 _ _ _ hins hx hDS2
   obtain ⟨hb2, hpT, hKA, hcur, hbind, hunb, x, hk2, hA2, hQ2⟩ :=
     hI s1 σ1 a p scv x2 scf ssl fh sco s2 a1 σ2 G2 hs1 hst1 hp h1 h2 h3 hins hx hDS2
   -- the spec: `set_mcpriority`, `set_priority`, the SC step

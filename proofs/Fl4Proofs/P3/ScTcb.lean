@@ -1359,6 +1359,15 @@ theorem dus_other {σ : State Unit} {p : ObjRef} {xp : Tcb} (hkp : σ.kheap p = 
        rw [retOk_bind, lE_bind (m := getTcbObjRef (Z := Unit) Tcb.tcbSchedContext p) (Notif.threadGet_eq _ hkp)]
        exact run_throw_bind _ _ _)
 
+/-- **What `decode_update_sc` checked** of the target `p` and the SC step
+`sco` (an unbind: the target is not current and has an SC; a bind: the
+target has no SC, the SC has no TCB, and a queued target's SC is released). -/
+def ScDec (σ : State Unit) (p : ObjRef) (sco : Option (Option ObjRef)) : Prop :=
+  ∃ x, σ.kheap p = some (.tcb x) ∧
+    (sco = some none → p ≠ σ.curThread ∧ x.tcbSchedContext ≠ none) ∧
+    (∀ v, sco = some (some v) → x.tcbSchedContext = none ∧ ∃ y n, σ.kheap v = some (.schedContext y n) ∧
+      y.scTcb = none ∧ (ipcQueuedThreadState x.tcbState = true → scReleased σ.curTime y = true))
+
 end Spec
 
 
@@ -1399,7 +1408,10 @@ the fault handler, FL4's `set_mcp`, `set_priority` and SC bind/unbind
 (`schedTail`) keep every slot word and succeed, and the spec's
 `set_mcpriority`, `set_priority` and SC step have an outcome (that they
 keep the CSpace is `presC_setMcpriority`, `presC_setPriority`,
-`presC_scStep`). The SC arguments are those of a decoded SetSchedParams. -/
+`presC_scStep`). The SC arguments are those of a decoded SetSchedParams,
+with `decode_update_sc`'s checks (`ScDec`); the target is not the idle
+thread (l4v `valid_global_refs`) and the fault handler's source is a slot.
+Discharged by `schedTailHyp_disch` (ScInstPost). -/
 def SchedTailHyp (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (ct : U64) : Prop :=
   ∀ (s1 : S) (σ1 : Fl4Spec.State Unit) (a : A) (p mcp prio scv x2 : U64) (scf : Bool) (ssl : Fl4Spec.CslotPtr)
     (fh : Fl4Spec.Cap × Fl4Spec.CslotPtr) (q : Fl4Spec.ObjRef) (sco : Option (Option Fl4Spec.ObjRef))
@@ -1409,6 +1421,7 @@ def SchedTailHyp (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (ct : U64) :
     th p = some .tcb → mcp.val < 256 → prio.val < 256 →
     (sco = none ↔ scf = false) → (sco = some none → scv = 0#u64) →
     (∀ v, sco = some (some v) → v = scv.bv ∧ scv ≠ 0#u64) →
+    ScDec σ p.bv sco → p ≠ L.idleW s → IsSlot th x2 →
     tcb.install_tcb_cap st arI s1 a p (cslotAddr ssl) layout.tcb.SLOT_FAULT_HANDLER (capV (L.mem s) x2) x2 =
       ok (.Ok (), s2, a1) →
     (.ok (), σ2) ∈ ((Fl4Spec.installTcbCap (Z := Unit) p.bv ssl 3 (some fh)).run σ1).1 →
@@ -1434,6 +1447,7 @@ theorem ssp_tail (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L := L) arI th)
     (y0 y1 scv : U64) (hy0 : y0.val < 256) (hy1 : y1.val < 256) (scf : Bool) (q : Fl4Spec.ObjRef)
     (sco : Option (Option Fl4Spec.ObjRef)) (h1 : sco = none ↔ scf = false) (h2 : sco = some none → scv = 0#u64)
     (h3 : ∀ v, sco = some (some v) → v = scv.bv ∧ scv ≠ 0#u64)
+    (hD : ScDec σ p.bv sco) (hpI : p ≠ L.idleW s)
     (m : Fl4Spec.SEMonad Unit Fl4Spec.Fl4Invocation)
     (hdec : DecOut m σ (.invokeTCB (.threadControlSched p.bv ssl (some e2) (some (Fl4Spec.ucast 8 y0.bv, q))
       (some (Fl4Spec.ucast 8 y1.bv, q)) sco)))
@@ -1465,7 +1479,7 @@ theorem ssp_tail (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L := L) arI th)
   · simp only at hr; subst hr
     rw [← he2] at hx
     refine WP.spec_mono (hH s1 σ1 ar p y0 y1 scv x2 scf ssl e2 q sco s2 a1 σ' G' hs1 (by rw [← hcur]; exact hst1)
-      hp hy0 hy1 h1 h2 h3 hins hx hDS') ?_
+      hp hy0 hy1 h1 h2 h3 hD hpI hxs hins hx hDS') ?_
     rintro ⟨r5, s5, a5⟩ ⟨hS5, hr5, σa, σb, σc, ha, hb, hcc⟩
     simp only at hr5 hS5; subst hr5
     obtain ⟨hC2, hF2⟩ := crel_of_ck hDS'.1 hDS'.2.2 hS5 ((presC_setMcpriority _ _ σ' _ ha).trans
@@ -1537,7 +1551,7 @@ theorem tcb_set_sched_params_refines (th : TypedHeap) (hP : Placed th) (hT : TcH
     (hlen : length.val = args.length)
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
-    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION)) (hpI : p ≠ L.idleW s)
     (hstall : smp.remote_tcb_stall st arI s ar p = ok (s, ar))
     (call : Bool) (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot th ssl)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 x2 : U64)
@@ -1698,7 +1712,7 @@ theorem tcb_set_sched_params_refines (th : TypedHeap) (hP : Placed th) (hT : TcH
   have hafter : ∀ (scv : U64) (sco : Option (Option Fl4Spec.ObjRef)),
       (Fl4Spec.decodeUpdateSc (Z := Unit) (.threadCap p.bv) ssl e1.1).run σ = ({(.ok sco, σ)}, False) →
       (sco = none ↔ (L.mem s (P1.scA p) != scv) = false) → (sco = some none → scv = 0#u64) →
-      (∀ v, sco = some (some v) → v = scv.bv ∧ scv ≠ 0#u64) →
+      (∀ v, sco = some (some v) → v = scv.bv ∧ scv ≠ 0#u64) → ScDec σ p.bv sco →
       (do
         let i ← lift (tcb.SCHED_UPDATE_MCP ||| tcb.SCHED_UPDATE_PRIO)
         let flags ← lift (i ||| tcb.SCHED_UPDATE_FAULT)
@@ -1724,7 +1738,7 @@ theorem tcb_set_sched_params_refines (th : TypedHeap) (hP : Placed th) (hT : TcH
           (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
             (Fl4Spec.decodeSetSchedParams (Z := Unit) ((y0 :: y1 :: rest).map UScalar.bv) (.threadCap p.bv) ssl
               excaps)) s res ⦄ := by
-    intro scv sco hdus hs1 hs2 hs3
+    intro scv sco hdus hs1 hs2 hs3 hD
     simp only [lift, bind_ok, slot_cap_eq, capAt_capV, vfh_eq]
     by_cases hv : Fl4Spec.validFaultHandler (absCap (capV (L.mem s) x2))
     · simp only [decide_eq_true hv, ↓reduceIte]
@@ -1742,14 +1756,14 @@ theorem tcb_set_sched_params_refines (th : TypedHeap) (hP : Placed th) (hT : TcH
       · simp only [hscf, ↓reduceIte]
         have h1' : sco = none ↔ true = false := by rw [hs1, hscf]
         have := ssp_tail arI th hP hT s ar σ G hDS hFR p hp ct hct hcur htcb hact ssl hAs x2 e2 hxe2 he21 ps2 hps2 hps21
-          hv y0 y1 scv hy0 hy1 true q.bv sco h1' hs2 hs3 _ (DecOut.of_eq hdec) hH blk call don
+          hv y0 y1 scv hy0 hy1 true q.bv sco h1' hs2 hs3 hD hpI _ (DecOut.of_eq hdec) hH blk call don
         simp only [↓reduceIte] at this
         exact this
       · simp only [Bool.not_eq_true] at hscf
         simp only [hscf, Bool.false_eq_true, ↓reduceIte]
         have h1' : sco = none ↔ false = false := by rw [hs1, hscf]
         have := ssp_tail arI th hP hT s ar σ G hDS hFR p hp ct hct hcur htcb hact ssl hAs x2 e2 hxe2 he21 ps2 hps2 hps21
-          hv y0 y1 scv hy0 hy1 false q.bv sco h1' hs2 hs3 _ (DecOut.of_eq hdec) hH blk call don
+          hv y0 y1 scv hy0 hy1 false q.bv sco h1' hs2 hs3 hD hpI _ (DecOut.of_eq hdec) hH blk call don
         simp only [Bool.false_eq_true, ↓reduceIte] at this
         exact this
     · simp only [decide_eq_false hv, Bool.false_eq_true, ↓reduceIte, error.invalid_cap, bind_ok]
@@ -1796,6 +1810,7 @@ theorem tcb_set_sched_params_refines (th : TypedHeap) (hP : Placed th) (hT : TcH
       have hpc' : ¬ p.bv = σ.curThread := by rw [hcur]; intro e; exact hpc (P1.eq_of_bv e)
       refine hafter 0#u64 _ (by rw [he11, hc1]; simp only [absCap]; rw [dus_null hkp ssl, whenE_neg hpc', retOk_bind]; rfl)
         ?_ (fun _ => rfl) (fun v h => by split at h <;> cases h)
+        ⟨xp, hkp, fun h => ⟨hpc', fun e => (by simp [e] at h)⟩, fun v h => (by split at h <;> cases h)⟩
       rw [hxts]
       by_cases hz : L.mem s (P1.scA p) = 0#u64
       · simp [hz, Notif.optRef_zero]
@@ -1849,6 +1864,8 @@ theorem tcb_set_sched_params_refines (th : TypedHeap) (hP : Placed th) (hT : TcH
         by_cases hr : b1 = true
         · simp only [hr, ↓reduceIte, bind_ok]
           refine hafter _ _ ?_ hcons.1 hcons.2.1 hcons.2.2
+            ⟨xp, hkp, fun h => (by split at h <;> cases h),
+              fun v h => (by rw [if_neg (by rw [hxts, hip, Notif.optRef_ne hptr0]; simp)] at h; cases h)⟩
           rw [he11, hc1]; simp only [absCap]
           rw [hdus, whenE_neg hc1', retOk_bind, whenE_neg (by rw [eb, hr]; simp), retOk_bind]; rfl
         · simp only [hr, Bool.false_eq_true, ↓reduceIte, error.illegal, bind_ok,
@@ -1860,6 +1877,8 @@ theorem tcb_set_sched_params_refines (th : TypedHeap) (hP : Placed th) (hT : TcH
           exact run_throw_bind _ _ _
       · simp only [hb, Bool.false_eq_true, ↓reduceIte, bind_ok]
         refine hafter _ _ ?_ hcons.1 hcons.2.1 hcons.2.2
+          ⟨xp, hkp, fun h => (by split at h <;> cases h),
+              fun v h => (by rw [if_neg (by rw [hxts, hip, Notif.optRef_ne hptr0]; simp)] at h; cases h)⟩
         rw [he11, hc1]; simp only [absCap]
         rw [hdus, whenE_neg hc1', retOk_bind, whenE_neg (by simp [hb]), retOk_bind]; rfl
 
@@ -1905,6 +1924,10 @@ theorem tcb_set_sched_params_refines (th : TypedHeap) (hP : Placed th) (hT : TcH
         by_cases hr : b1 = true
         · simp only [hr, ↓reduceIte, bind_ok]
           refine hafter _ _ ?_ hcons.1 hcons.2.1 hcons.2.2
+            ⟨xp, hkp, fun h => (by split at h <;> cases h), fun v h => ⟨hx0n, (by
+              have hv : v = ptr.bv := (by split at h <;> cases h; rfl)
+              subst hv
+              exact ⟨y, n, hks, (by rw [hxt', ht0, Notif.optRef_zero]), (fun _ => by rw [← hr, eb])⟩)⟩⟩
           rw [he11, hc1]; simp only [absCap]
           rw [hdus, whenE_neg hc1', retOk_bind, whenE_neg (by rw [eb, hr]; simp), retOk_bind]; rfl
         · simp only [hr, Bool.false_eq_true, ↓reduceIte, error.illegal, bind_ok,
@@ -1916,6 +1939,10 @@ theorem tcb_set_sched_params_refines (th : TypedHeap) (hP : Placed th) (hT : TcH
           exact run_throw_bind _ _ _
       · simp only [hb, Bool.false_eq_true, ↓reduceIte, bind_ok]
         refine hafter _ _ ?_ hcons.1 hcons.2.1 hcons.2.2
+          ⟨xp, hkp, fun h => (by split at h <;> cases h), fun v h => ⟨hx0n, (by
+              have hv : v = ptr.bv := (by split at h <;> cases h; rfl)
+              subst hv
+              exact ⟨y, n, hks, (by rw [hxt', ht0, Notif.optRef_zero]), (fun hq => absurd hq hb)⟩)⟩⟩
         rw [he11, hc1]; simp only [absCap]
         rw [hdus, whenE_neg hc1', retOk_bind, whenE_neg (by simp [hb]), retOk_bind]; rfl
 
