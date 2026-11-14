@@ -15,8 +15,18 @@ P3 (DESIGN.md §9), VSpace: top module.
   `lookup_pd_slot`, `lookup_pt_slot`;
 * VsPte: 4K PTE construction (`make_user_page`) against l4v's `SmallPagePTE`;
 * VsPtWrite: `write_mapping` against `store_pte` and the paging-structure
-  cache flush.
+  cache flush;
+* VsFrameMap, VsFrameMapRel: Frame `Map` for 4K pages (decode, `Restart`,
+  perform), `frame_map_rel`;
+* VsPtMap, VsPtMapRel: PageTable `Map`, `pt_map_rel`;
+* VsPtUnmap, VsPtUnmapRel: `unmap_page_table` and PageTable `Unmap`,
+  `unmap_page_table_rel`, `pt_unmap_rel`;
+* VsPdMap, VsPdMapRel, VsPdUnmap, VsPdUnmapRel: the same for page
+  directories, `pd_map_rel`, `unmap_page_directory_rel`, `pd_unmap_rel`;
+* VsPdptMap, VsPdptMapRel, VsPdptUnmap, VsPdptUnmapRel: the same for PDPTs,
+  `pdpt_map_rel`, `unmap_pdpt_rel`, `pdpt_unmap_rel`.
 -/
 import Fl4Proofs.P3.VsMakePool
 import Fl4Proofs.P3.VsDelRoot
 import Fl4Proofs.P3.VsPtWrite
+import Fl4Proofs.P3.VsPdptUnmapRel

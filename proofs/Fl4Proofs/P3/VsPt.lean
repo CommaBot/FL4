@@ -279,7 +279,8 @@ theorem lookup_pdpt_slot_rel {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State
     (hR : PtRel L4 L3 L2 L1 (L.mem s) σ) (hP : PtPlaced L4 L3 L2 L1) {pm : U64} (hpm : pm ∈ L4) (vaddr : U64) :
     vspace.lookup_pdpt_slot st s pm vaddr ⦃ r =>
       ExceptT.run (Fl4Spec.lookupPdptSlot (Z := Unit) pm.bv vaddr.bv) σ = ({(slotRes r, σ)}, False) ∧
-      ∀ x, r = .Ok x → ∃ q ∈ L3, x = peA q (vIdx vaddr 30) ⦄ := by
+      (∀ x, r = .Ok x → ∃ q ∈ L3, x = peA q (vIdx vaddr 30)) ∧
+      (∀ e, r = .Err e → ∃ n, e = .MissingCapability n) ⦄ := by
   obtain ⟨f, hk, hf⟩ := hR.l4 pm hpm
   have hpa := hP pm (Or.inl hpm)
   have hi := vIdx_lt vaddr 39
@@ -303,7 +304,7 @@ theorem lookup_pdpt_slot_rel {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State
     rw [hfx] at hfe
     have h0 := (eP_iff _).2 hfe
     simp only [h0, ↓reduceIte]
-    refine (WP.spec_ok _).2 ⟨?_, fun x hx => by cases hx⟩
+    refine (WP.spec_ok _).2 ⟨?_, (fun x hx => by cases hx), fun e he => by cases he; exact ⟨_, rfl⟩⟩
     unfold vspace.PML4_INDEX_OFFSET
     rfl
   | pdPointerTablePML4E tab ta tr =>
@@ -317,7 +318,7 @@ theorem lookup_pdpt_slot_rel {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State
     apply ok_bind_spec
     rw [entry_addr_eq _ _ (vIdx_lt _ _)]
     apply ok_bind_spec
-    refine (WP.spec_ok _).2 ⟨?_, fun x hx => ⟨_, hT, by cases hx; rfl⟩⟩
+    refine (WP.spec_ok _).2 ⟨?_, (fun x hx => ⟨_, hT, by cases hx; rfl⟩), fun e he => by cases he⟩
     have hq := hP _ (Or.inr (Or.inl hT))
     show ExceptT.run (do
           let pd ← Fl4Spec.NonDetE.returnOk (Fl4Spec.ptrFromPAddr tab)
@@ -334,17 +335,18 @@ theorem lookup_pd_slot_rel {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State U
     (hR : PtRel L4 L3 L2 L1 (L.mem s) σ) (hP : PtPlaced L4 L3 L2 L1) {pm : U64} (hpm : pm ∈ L4) (vaddr : U64) :
     vspace.lookup_pd_slot st s pm vaddr ⦃ r =>
       ExceptT.run (Fl4Spec.lookupPdSlot (Z := Unit) pm.bv vaddr.bv) σ = ({(slotRes r, σ)}, False) ∧
-      ∀ x, r = .Ok x → ∃ q ∈ L2, x = peA q (vIdx vaddr 21) ⦄ := by
+      (∀ x, r = .Ok x → ∃ q ∈ L2, x = peA q (vIdx vaddr 21)) ∧
+      (∀ e, r = .Err e → ∃ n, e = .MissingCapability n) ⦄ := by
   unfold vspace.lookup_pd_slot Fl4Spec.lookupPdSlot
   refine WP.spec_bind (lookup_pdpt_slot_rel s σ hR hP hpm vaddr) ?_
-  rintro r ⟨hsp, hsl⟩
+  rintro r ⟨hsp, hsl, hse⟩
   cases r with
   | Err e =>
     simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame,
       core.convert.FromSame.from]
     apply ok_bind_spec
-    cases e <;> exact (WP.spec_ok _).2 ⟨runE_bind_err hsp, fun x hx => by cases hx⟩
+    cases e <;> exact (WP.spec_ok _).2 ⟨runE_bind_err hsp, (fun x hx => by cases hx), fun e' he' => by cases he'; exact hse _ rfl⟩
   | Ok x =>
     obtain ⟨q, hq, rfl⟩ := hsl x rfl
     simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
@@ -365,7 +367,7 @@ theorem lookup_pd_slot_rel {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State U
       rw [hfx] at hfe
       have h0 := (eP_iff _).2 hfe
       simp only [h0, ↓reduceIte]
-      refine (WP.spec_ok _).2 ⟨?_, fun x hx => by cases hx⟩
+      refine (WP.spec_ok _).2 ⟨?_, (fun x hx => by cases hx), fun e he => by cases he; exact ⟨_, rfl⟩⟩
       unfold vspace.PDPT_INDEX_OFFSET
       rfl
     | hugePagePDPTE fr fa frr =>
@@ -377,7 +379,7 @@ theorem lookup_pd_slot_rel {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State U
       apply ok_bind_spec
       apply ok_bind_spec
       simp only [(eS_iff _).2 hs, ↓reduceIte]
-      refine (WP.spec_ok _).2 ⟨?_, fun x hx => by cases hx⟩
+      refine (WP.spec_ok _).2 ⟨?_, (fun x hx => by cases hx), fun e he => by cases he; exact ⟨_, rfl⟩⟩
       unfold vspace.PDPT_INDEX_OFFSET
       rfl
     | pageDirectoryPDPTE tab ta tr =>
@@ -396,7 +398,7 @@ theorem lookup_pd_slot_rel {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State U
       apply ok_bind_spec
       rw [entry_addr_eq _ _ (vIdx_lt _ _)]
       apply ok_bind_spec
-      refine (WP.spec_ok _).2 ⟨?_, fun x hx => ⟨_, hT, by cases hx; rfl⟩⟩
+      refine (WP.spec_ok _).2 ⟨?_, (fun x hx => ⟨_, hT, by cases hx; rfl⟩), fun e he => by cases he⟩
       have hq' := hP _ (Or.inr (Or.inr (Or.inl hT)))
       show ExceptT.run (do
             let pd ← Fl4Spec.NonDetE.returnOk (Fl4Spec.ptrFromPAddr tab)
@@ -414,17 +416,18 @@ theorem lookup_pt_slot_rel {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State U
     (hR : PtRel L4 L3 L2 L1 (L.mem s) σ) (hP : PtPlaced L4 L3 L2 L1) {pm : U64} (hpm : pm ∈ L4) (vaddr : U64) :
     vspace.lookup_pt_slot st s pm vaddr ⦃ r =>
       ExceptT.run (Fl4Spec.lookupPtSlot (Z := Unit) pm.bv vaddr.bv) σ = ({(slotRes r, σ)}, False) ∧
-      ∀ x, r = .Ok x → ∃ q ∈ L1, x = peA q (vIdx vaddr 12) ⦄ := by
+      (∀ x, r = .Ok x → ∃ q ∈ L1, x = peA q (vIdx vaddr 12)) ∧
+      (∀ e, r = .Err e → ∃ n, e = .MissingCapability n) ⦄ := by
   unfold vspace.lookup_pt_slot Fl4Spec.lookupPtSlot
   refine WP.spec_bind (lookup_pd_slot_rel s σ hR hP hpm vaddr) ?_
-  rintro r ⟨hsp, hsl⟩
+  rintro r ⟨hsp, hsl, hse⟩
   cases r with
   | Err e =>
     simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame,
       core.convert.FromSame.from]
     apply ok_bind_spec
-    cases e <;> exact (WP.spec_ok _).2 ⟨runE_bind_err hsp, fun x hx => by cases hx⟩
+    cases e <;> exact (WP.spec_ok _).2 ⟨runE_bind_err hsp, (fun x hx => by cases hx), fun e' he' => by cases he'; exact hse _ rfl⟩
   | Ok x =>
     obtain ⟨q, hq, rfl⟩ := hsl x rfl
     simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
@@ -445,7 +448,7 @@ theorem lookup_pt_slot_rel {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State U
       rw [hfx] at hfe
       have h0 := (eP_iff _).2 hfe
       simp only [h0, ↓reduceIte]
-      refine (WP.spec_ok _).2 ⟨?_, fun x hx => by cases hx⟩
+      refine (WP.spec_ok _).2 ⟨?_, (fun x hx => by cases hx), fun e he => by cases he; exact ⟨_, rfl⟩⟩
       unfold vspace.PD_INDEX_OFFSET
       rfl
     | largePagePDE fr fa frr =>
@@ -457,7 +460,7 @@ theorem lookup_pt_slot_rel {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State U
       apply ok_bind_spec
       apply ok_bind_spec
       simp only [(eS_iff _).2 hs, ↓reduceIte]
-      refine (WP.spec_ok _).2 ⟨?_, fun x hx => by cases hx⟩
+      refine (WP.spec_ok _).2 ⟨?_, (fun x hx => by cases hx), fun e he => by cases he; exact ⟨_, rfl⟩⟩
       unfold vspace.PD_INDEX_OFFSET
       rfl
     | pageTablePDE tab ta tr =>
@@ -476,7 +479,7 @@ theorem lookup_pt_slot_rel {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State U
       apply ok_bind_spec
       rw [entry_addr_eq _ _ (vIdx_lt _ _)]
       apply ok_bind_spec
-      refine (WP.spec_ok _).2 ⟨?_, fun x hx => ⟨_, hT, by cases hx; rfl⟩⟩
+      refine (WP.spec_ok _).2 ⟨?_, (fun x hx => ⟨_, hT, by cases hx; rfl⟩), fun e he => by cases he⟩
       have hq' := hP _ (Or.inr (Or.inr (Or.inr hT)))
       show ExceptT.run (do
             let pd ← Fl4Spec.NonDetE.returnOk (Fl4Spec.ptrFromPAddr tab)
