@@ -116,6 +116,15 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
 * ScTopCfg: the placement record `ScPlaced`; the SchedControl cap at the top
   level (`decode_invocation_sched_control`, `domFrame_sched_control`,
   `decode_invocation_sched_controlP`), `decode_invocation_sched_contextP`.
+* ScTcb: the scheduler-side TCB labels of `tcb::decode` (`TcbOK`):
+  SetMCPriority, SetPriority (`SetPrioHyp`), Bind/UnbindNotification,
+  SetSchedParams (`SchedTailHyp`); the CSpace-keeping steps `CK`/`PresC`; with
+  the frame invariant (`TcbOKF`).
+* ScTcbHyp: `SetPrioHyp` discharged (`setPrioHyp_of`: P1's `set_priority.blk`,
+  `KWOut`, `setPriority_some`); `SchedTailHyp` reduced to the SC step
+  (`schedTailHyp_of`, `ScTailHyp`).
+* ScTopF: the SchedContext and SchedControl caps with the frame invariant
+  (`DecOKF`, `DecOKDF`).
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
@@ -139,3 +148,6 @@ import Fl4Proofs.P3.ScMcp
 import Fl4Proofs.P3.ScDecodeAll
 import Fl4Proofs.P3.ScTop
 import Fl4Proofs.P3.ScTopCfg
+import Fl4Proofs.P3.ScTcb
+import Fl4Proofs.P3.ScTcbHyp
+import Fl4Proofs.P3.ScTopF
