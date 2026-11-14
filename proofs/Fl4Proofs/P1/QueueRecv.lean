@@ -170,15 +170,17 @@ theorem syscall.handle_recv.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
     (hU : UserOK st T Cs Ω H U s) (hc : CanBlock st T Ac s (L.curW s))
     (hlk : ∀ cptr, cspace.lookup_cap st s (L.curW s) cptr ⦃ r => ∀ c, r = .Ok c → CapTyped H Rp Nt c ⦄)
     (h3 : ∀ n ∈ Nt, L.epState s n ≠ 3#u64)
-    (hfault : ∀ (t : obj.Tcb) (f : error.Fault),
-      faults.handle_fault st ar s a t f ⦃ s' _ => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄) :
+    (hfault : ∀ (f : error.Fault),
+      faults.handle_fault st ar s a (L.curW s) f ⦃ s' _ => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄) :
     syscall.handle_recv st ar s a blk rep ⦃ s' _ => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hSg, hS⟩ := h
   have CF : ∀ cptr lf, syscall.cap_fault_recv st ar s a cptr lf ⦃ s' _ =>
       ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ := fun cptr lf => by
     unfold syscall.cap_fault_recv
-    step with sched.cur_thread.spec as ⟨t1, _⟩
-    exact hfault _ _
+    step with sched.cur_thread.spec as ⟨t1, e1⟩
+    have e1' : t1 = L.curW s := e1
+    subst e1'
+    exact hfault _
   have ok0 : (ok (s, a) : Result (S × A)) ⦃ s' _ => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ :=
     (WP.spec_ok _).2 ⟨Ac, ⟨Q, R, h0⟩, hB, hX, hSg, hS⟩
   have RI : ∀ (c rc : capability.Cap) (e : U64), capability.Cap.ptr c = ok e → H e = some .ep →
@@ -373,6 +375,103 @@ theorem faults.handle_timeout.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.Ar
     exact (WP.spec_ok _).2 (by simpa using h2)
   · rintro ⟨x, s2, a2⟩ h2
     exact (WP.spec_ok _).2 h2
+
+
+/-- `set_fault` writes only `t`'s fault and lookup-failure fields, so every
+thread's `SC` field is kept. -/
+theorem faults.set_fault.sc (s : S) (t : obj.Tcb) (f : error.Fault) (hT : TcbPlaced T) (ht : t ∈ T) :
+    faults.set_fault st s t f ⦃ s' => L.mem s' (scA t) = L.mem s (scA t) ⦄ := by
+  have W : ∀ {s₁ : S} (K v : U64), L.mem s₁ (scA t) = L.mem s (scA t) → 3376 ≤ K.val → K.val < 3432 →
+      K.val % 8 = 0 → L.mem (L.wr s₁ (core.num.U64.wrapping_add t K) v) (scA t) = L.mem s (scA t) :=
+    fun K v e h1 h2 h3 => by
+      rw [← e, scA_eq]
+      exact L.mem_wr_ne (field_aligned (hT t ht) (by omega) h3) (field_aligned (hT t ht) (by simp) (by simp))
+        (fun e' => field_ne (hT t ht) (hT t ht) (by omega) (by simp) (fun _ => by simp; omega)
+          (UScalar.eq_of_val_eq e'))
+  unfold faults.set_fault
+  refine WP.spec_bind (Pₘ := fun r : S × U64 × U64 × U64 × U64 => L.mem r.1 (scA t) = L.mem s (scA t)) ?_ ?_
+  · split
+    all_goals first | exact (WP.spec_ok _).2 (rfl : L.mem s (scA t) = L.mem s (scA t)) | skip
+    · refine WP.spec_bind (P0.error.LookupFault.encode.p0 _) ?_
+      rintro ⟨lt, l0, l1⟩ -
+      try simp only [uncurry_apply_pair]
+      refine WP.spec_bind (obj.Tcb.set_lf_type.wr s t lt) fun s2 e2 => ?_
+      subst e2
+      have h2 := W (s₁ := s) 3408#u64 lt rfl (by simp) (by simp) (by simp)
+      refine WP.spec_bind (obj.Tcb.set_lf_w0.wr _ t l0) fun s3 e3 => ?_
+      subst e3
+      have h3 := W 3416#u64 l0 h2 (by simp) (by simp) (by simp)
+      refine WP.spec_bind (obj.Tcb.set_lf_w1.wr _ t l1) fun s4 e4 => ?_
+      subst e4
+      have h4 := W 3424#u64 l1 h3 (by simp) (by simp) (by simp)
+      refine WP.spec_bind (Pₘ := fun _ : U64 => True) ?_ fun i _ => (WP.spec_ok _).2 h4
+      split <;> exact (WP.spec_ok _).2 trivial
+    · refine WP.spec_bind (Pₘ := fun _ : U64 => True) ?_ fun i _ =>
+        (WP.spec_ok _).2 (rfl : L.mem s (scA t) = L.mem s (scA t))
+      split <;> exact (WP.spec_ok _).2 trivial
+  · rintro ⟨s1, ty, w0, w1, w2⟩ hh
+    try simp only [uncurry_apply_pair]
+    simp only at hh
+    refine WP.spec_bind (obj.Tcb.set_fault_type.spec s1 t ty) fun s2 e2 => ?_
+    subst e2
+    have h2 := W (s₁ := s1) 3376#u64 ty hh (by simp) (by simp) (by simp)
+    refine WP.spec_bind (obj.Tcb.set_fault_w0.wr _ t w0) fun s3 e3 => ?_
+    subst e3
+    have h3 := W 3384#u64 w0 h2 (by simp) (by simp) (by simp)
+    refine WP.spec_bind (obj.Tcb.set_fault_w1.wr _ t w1) fun s4 e4 => ?_
+    subst e4
+    have h4 := W 3392#u64 w1 h3 (by simp) (by simp) (by simp)
+    exact WP.spec_mono (obj.Tcb.set_fault_w2.wr _ t w2) fun s5 e5 => by
+      subst e5; exact W 3400#u64 w2 h4 (by simp) (by simp) (by simp)
+
+/-- seL4 `handleFault`: a fault IPC to the thread's fault handler when it is
+an endpoint cap (donating the thread's SC if it has one), else the fault is
+recorded and the thread made inactive.  From the hypotheses at the call:
+the handler cap is typed, the thread can block, `UserOK` and `XferOK`. -/
+theorem faults.handle_fault.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
+    (hxf : XferOK st ar T U) {Ac : Set U64} (s : S) (a : A) (t : obj.Tcb) (f : error.Fault)
+    (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hU : UserOK st T Cs Ω H U s) (hc : CanBlock st T Ac s t)
+    (hcap : ∀ sl : obj.Slot, obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄) :
+    faults.handle_fault st ar s a t f ⦃ r => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ⦄ := by
+  have ht := hc.mem
+  unfold faults.handle_fault
+  step with P0.obj.Tcb.slot.p0 t _ as ⟨sl⟩
+  refine WP.spec_bind (hcap sl) fun c hct => ?_
+  step with obj.Tcb.sc.spec as ⟨i, ei⟩
+  unfold faults.send_fault_ipc
+  refine WP.spec_bind (Pₘ := fun r : Bool × S × A => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2.1 ∧
+      (r.1 = false → r.2.1 = s)) ?_ ?_
+  · split
+    all_goals first | exact (WP.spec_ok _).2 ⟨h, fun _ => rfl⟩ | skip
+    rename_i p b x y g gr
+    have hpH := hct.1 p b x y g gr rfl
+    refine WP.spec_bind (WP.spec_and (faults.set_fault.blk s t f h ht hU hc)
+      (faults.set_fault.sc s t f h.1.choose_spec.choose_spec.tcbs ht)) ?_
+    rintro s1 ⟨⟨h1, hU1, hc1⟩, sc1⟩
+    obtain ⟨⟨Q1, R1, q1⟩, hB1, hX1, hS1, hSg1⟩ := h1
+    refine WP.spec_bind (endpoint.send_ipc.ipc hA hxf s1 a true false b g gr (i != 0#u64) t p Q1 R1 q1 hB1 hX1
+      hS1 hSg1 hU1 hc1 (fun e => ?_) hpH) ?_
+    · have hi : i ≠ 0#u64 := by simpa using e
+      rw [sc1, ← ei]; exact hi
+    rintro ⟨s2, a1⟩ h2
+    exact (WP.spec_ok _).2 ⟨by simpa using h2, fun e => by cases e⟩
+  · rintro ⟨b, s2, a2⟩ ⟨h2, e2⟩
+    try simp only [WP.uncurry'_pair] at e2
+    simp only [uncurry_apply_pair]
+    split
+    · exact (WP.spec_ok _).2 h2
+    · rename_i hb
+      have e2' : s2 = s := e2 (by simpa using hb)
+      subst e2'
+      refine WP.spec_bind (faults.set_fault.blk s2 t f h2 ht hU hc) ?_
+      rintro s3 ⟨h3, -, hc3⟩
+      obtain ⟨⟨Q3, R3, q3⟩, hB3, hX3, hS3, hSg3⟩ := h3
+      refine WP.spec_bind (sts_all s3 t _ Q3 R3 q3 hB3 hX3 hS3 hSg3 ht not_blocked_inactive inactive_ne
+        (Or.inr hc3.nb) (hX3.noref (q3.tcbs t ht) hc3.nrp (fun e => hc3.nb (Or.inr (Or.inl e))))
+        ⟨fun c hc' p hp hm => absurd hm (q3.notQ ht hc3.nq hc' hp), fun c hc' hm => absurd hm (q3.notR ht hc3.nr hc'),
+          fun e => absurd e hc3.na⟩) ?_
+      rintro s4 ⟨h4, hB4, hX4, hS4, hSg4, -, -⟩
+      exact (WP.spec_ok _).2 ⟨⟨Q3, R3, h4.congrX empty_congr⟩, hB4, hX4, hS4, hSg4⟩
 
 end
 

@@ -293,9 +293,6 @@ structure EntryHyps (st : machine.Store S) [L : LawfulStore st] (ar : machine.Ar
     CanBlock st T Ac s (L.curW s) ∧ UserOK st T Cs Ω H U s ∧
     (∀ cptr, cspace.lookup_cap st s (L.curW s) cptr ⦃ r => ∀ c, r = .Ok c → CapTyped H Rp Nt c ⦄) ∧
     (∀ n ∈ Nt, L.epState s n ≠ 3#u64)
-  /-- Faults (`handle_fault`). -/
-  fault : ∀ (Ac : Set U64) (s : S) (a : A) (t : obj.Tcb) (f : error.Fault), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
-    faults.handle_fault st ar s a t f ⦃ s' _ => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄
   /-- The notification caps (as in the IRQ handler slots) name heap
   notifications (P3's `CapValid`); `handle_interrupt` itself is proved
   (`interrupt.handle_interrupt.bxi`). -/
@@ -319,13 +316,22 @@ theorem EntryHyps.tmo {U : Set U64} (E : EntryHyps st ar T Cs Ω H Sg Rp Scs Nt 
     exact WP.spec_mono (faults.handle_timeout.bxi hA E.xfer s a _ f ⟨⟨Q, R, h⟩, hB, hX, hS, hSg⟩ hU hc hcap)
       fun r hr => by obtain ⟨s', a'⟩ := r; exact BlkOK.bxi (by simpa using hr)
 
+/-- Faults of the current thread keep the invariants (`faults.handle_fault.bxi`,
+from `tmoOK` and `xfer`). -/
+theorem EntryHyps.fault {U : Set U64} (E : EntryHyps st ar T Cs Ω H Sg Rp Scs Nt Z U) (hA : P0.ArchTotal ar)
+    (Ac : Set U64) (s : S) (a : A) (f : error.Fault) (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
+    faults.handle_fault st ar s a (L.curW s) f ⦃ s' _ => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ := by
+  obtain ⟨hc, hU, hcap⟩ := E.tmoOK Ac s h
+  exact WP.spec_mono (faults.handle_fault.bxi hA E.xfer s a _ f h.blk hU hc hcap)
+    fun r hr => by obtain ⟨s', a'⟩ := r; exact ⟨Ac, BlkOK.bxi (by simpa using hr)⟩
+
 /-- Receives keep the invariants (`syscall.handle_recv.bxi`). -/
 theorem EntryHyps.recv {U : Set U64} (E : EntryHyps st ar T Cs Ω H Sg Rp Scs Nt Z U) (hA : P0.ArchTotal ar)
     (hNt : ∀ n ∈ Nt, H n = some .ntfn) (Ac : Set U64) (s : S) (a : A) (blk rep : Bool)
     (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
     syscall.handle_recv st ar s a blk rep ⦃ s' _ => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ := by
   obtain ⟨hc, hU, hlk, h3⟩ := E.recvOK Ac s h
-  exact syscall.handle_recv.bxi hA hNt E.xfer s a blk rep h hU hc hlk h3 fun t f => E.fault Ac s a t f h
+  exact syscall.handle_recv.bxi hA hNt E.xfer s a blk rep h hU hc hlk h3 fun f => E.fault hA Ac s a f h
 
 /-! ## The composites -/
 
@@ -552,7 +558,9 @@ theorem syscall.unknown_syscall_fault.entry (hA : P0.ArchTotal ar) (hNt : ∀ n 
   refine WP.spec_bind (Pₘ := fun r : S × A => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' r.1) ?_ ?_
   · split
     · step with sched.cur_thread.spec as ⟨t, et⟩
-      exact WP.spec_mono (E.fault Ac s1 a1 t _ h1) fun r hr => by
+      have et' : t = L.curW s1 := et
+      subst et'
+      exact WP.spec_mono (E.fault hA Ac s1 a1 _ h1) fun r hr => by
         obtain ⟨s', a'⟩ := r; simpa using hr
     · exact (WP.spec_ok _).2 ⟨Ac, h1⟩
   · rintro ⟨s2, a2⟩ ⟨Ac2, h2⟩
