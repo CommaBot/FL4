@@ -27,7 +27,8 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 state `s1` that agrees with `s` on cap slots and the spec state `σ1` after
 `set_thread_state Restart`, FL4's `cancel_badged_sends` keeps every cap
 slot, and the spec's `cancel_badged_sends` has a single outcome, related
-to FL4's, with the same CDT and originality map. -/
+to FL4's, with the same CDT and originality map, and no new CNode or TCB
+(`KSub`: it only updates endpoints, TCBs and the scheduler). -/
 def CancelEpHyp (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
   ∀ s1 σ1 (p b : U64), b ≠ 0#u64 → SlotsSame th (L.mem s) (L.mem s1) →
     Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
@@ -35,7 +36,7 @@ def CancelEpHyp (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
     endpoint.cancel_badged_sends st s1 p b ⦃ s2 =>
       SlotsSame th (L.mem s1) (L.mem s2) ∧ ∃ σ2,
         Fl4Spec.cancelBadgedSends (Z := Unit) p.bv b.bv σ1 = ({((), σ2)}, False) ∧
-        StateRel th (L.mem s2) σ2 ∧ σ2.cdt = σ1.cdt ∧ σ2.isOriginalCap = σ1.isOriginalCap ⦄
+        StateRel th (L.mem s2) σ2 ∧ σ2.cdt = σ1.cdt ∧ σ2.isOriginalCap = σ1.isOriginalCap ∧ KSub σ1 σ2 ⦄
 
 /-- **CNode CancelBadgedSends**, decode and invoke, for any badge: FL4's
 `cnode::decode` at label `CNodeCancelBadgedSends` against l4v's
@@ -51,7 +52,7 @@ theorem cnode_cancel_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (cap : capability.Cap) (a : Fl4Spec.Cap) (hca : CapRel cap a) (hcv : CapValid th cap)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List Fl4Spec.Cap)
-    (hI : MdbInv (L.mem s) G)
+    (hI : MdbInv (L.mem s) G) (hFI : FinInv th (L.mem s) σ G)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hEp : CancelEpHyp (L := L) th s σ) :
@@ -137,6 +138,7 @@ theorem cnode_cancel_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
         rw [← hcur] at hk
         obtain ⟨σ1, hst, hR1, hV1, hM1, hC1, hcdt1, hio1⟩ := restart_rel hR hV hM hC hS hk .restart
         have hI1 := MdbInv.of_same hM hI hS
+        have hFI1 := hFI.of_same hM hS (ksub_of_eq (setThreadState_nks _ _) hst)
         have hdec' : (Fl4Spec.lookupTargetSlot (Z := Unit) a (Fl4Spec.dataToCptr y0.bv)
             (Fl4Spec.dataToNat y1.bv) >>= fun d => copyTail slbl (rest.map UScalar.bv) excaps d).run σ =
             ({(.ok (.cancelBadgedSendsCall (absCap (.Endpoint p b true true true true))), σ)}, False) := by
@@ -147,7 +149,7 @@ theorem cnode_cancel_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
         · subst hb
           simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, bind_ok, uncurry_apply_pair]
           rw [WP.spec_ok]
-          refine ⟨_, hdec', σ1, hst, σ1, G, ?_, hR1, hV1, hM1, hC1, hI1⟩
+          refine ⟨_, hdec', σ1, hst, σ1, G, ?_, hR1, hV1, hM1, hC1, hI1, hFI1⟩
           show (Fl4Spec.invokeCnode (Z := Unit) (.cancelBadgedSendsCall
             (.endpointCap p.bv (0#u64 : U64).bv (rightsOf true true true true)))).run σ1 = _
           unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption
@@ -160,12 +162,12 @@ theorem cnode_cancel_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
           intro h; apply hb; apply UScalar.eq_of_val_eq
           have := congrArg BitVec.toNat h; simpa using this
         simp only [hbn, ↓reduceIte]
-        obtain ⟨s3, hs3, hS3, σ2, hcb, hR2, hcdt2, hio2⟩ := spec_exists (hEp s2 σ1 p b hb hS hst hR1)
+        obtain ⟨s3, hs3, hS3, σ2, hcb, hR2, hcdt2, hio2, hks2⟩ := spec_exists (hEp s2 σ1 p b hb hS hst hR1)
         rw [hs3]; simp only [bind_ok, uncurry_apply_pair]
         rw [WP.spec_ok]
         have hcap : ∀ x, IsSlot th x → capAt (L.mem s3) x = capAt (L.mem s2) x := fun x hx => hS3.capAt hx
         refine ⟨_, hdec', σ1, hst, σ2, G, ?_, hR2, hV1.of_caps hcap, hM1.of_same hS3,
-          hC1.of_same hS3 hcdt2 hio2, MdbInv.of_same hM1 hI1 hS3⟩
+          hC1.of_same hS3 hcdt2 hio2, MdbInv.of_same hM1 hI1 hS3, hFI1.of_same hM1 hS3 hks2⟩
         show (Fl4Spec.invokeCnode (Z := Unit) (.cancelBadgedSendsCall
           (.endpointCap p.bv b.bv (rightsOf true true true true)))).run σ1 = _
         unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption

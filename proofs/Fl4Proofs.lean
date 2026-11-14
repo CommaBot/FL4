@@ -72,3 +72,14 @@ import Fl4Proofs.P1.QueueFoot
 import Fl4Proofs.P1.QueueFinal
 import Fl4Proofs.P3.VsExtTac
 import Fl4Proofs.P3.VsMakePoolRel
+import Fl4Proofs.P3.FinBase
+import Fl4Proofs.P3.FinDefs
+import Fl4Proofs.P3.FinKeep
+import Fl4Proofs.P3.FinSpec
+import Fl4Proofs.P3.FinOps
+import Fl4Proofs.P3.CnodeKey
+import Fl4Proofs.P3.DelTrivFin
+import Fl4Proofs.P3.InsAbs
+import Fl4Proofs.P3.SoSpec
+import Fl4Proofs.P3.TcbCaps
+import Fl4Proofs.P3.IntInv

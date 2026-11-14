@@ -92,6 +92,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 the CSpace and the interrupt state: `invoke_irq_control`. -/
 theorem ctl_finish (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hHA : HandlersActive (L.mem s) (L.ksb s) G)
+    (hFI : FinInv th (L.mem s) σ G)
     (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
     (irq : U64) (hirq : irq.val < 128) (hin : L.mem s (irqStA (L.ksb s) irq) = 0#u64)
     {ps : U64} {rs : Nat} (hps : th ps = some (.cnode rs)) {idxs : List Bool} (hls : idxs.length = rs)
@@ -101,13 +102,14 @@ theorem ctl_finish (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.State
     (s1 : S) (σ1 : Fl4Spec.State Unit) (hkb : L.ksb s1 = L.ksb s) (hS : SlotsSame th (L.mem s) (L.mem s1))
     (hCR1 : CRel th (L.mem s1) σ1 G) (hIR1 : IrqRel (L.mem s1) (L.ksb s) σ1)
     (hw : ∀ i : U64, i.val < 128 → L.mem s1 (irqStA (L.ksb s) i) = L.mem s (irqStA (L.ksb s) i))
-    (a1 : A) (σ1' : Fl4Spec.State Unit) (hk : σ1'.kheap = σ1.kheap) (hc : σ1'.cdt = σ1.cdt)
+    (hK1 : KSub σ σ1) (a1 : A) (σ1' : Fl4Spec.State Unit) (hk : σ1'.kheap = σ1.kheap) (hc : σ1'.cdt = σ1.cdt)
     (ho : σ1'.isOriginalCap = σ1.isOriginalCap) (hs : σ1'.interruptStates = σ1.interruptStates)
     (hn : σ1'.interruptIrqNode = σ1.interruptIrqNode) :
     interrupt.invoke_irq_control st arI s1 a1 irq (cslotAddr dsl) (cslotAddr (ps.bv, idxs)) ⦃ r =>
       ∃ σ' G', ((), σ') ∈ ((Fl4Spec.setIrqState (Z := Unit) .irqSignal (BitVec.ofNat 8 irq.val) >>= fun _ =>
           Fl4Spec.capInsert (Z := Unit) (.irqHandlerCap (BitVec.ofNat 8 irq.val)) (ps.bv, idxs) dsl) σ1').1 ∧
-        CRel th (L.mem r.1) σ' G' ∧ IrqRel (L.mem r.1) (L.ksb s) σ' ⦄ := by
+        CRel th (L.mem r.1) σ' G' ∧ IrqRel (L.mem r.1) (L.ksb s) σ' ∧
+        FinInv th (L.mem r.1) σ' G' ∧ HandlersActive (L.mem r.1) (L.ksb s) G' ⦄ := by
   obtain ⟨da, db⟩ := dsl
   simp only at hpd1 hpd; subst hpd1
   obtain ⟨hCR1', hIR1'⟩ := crel_irq_of hCR1 hIR1 hk hc ho hs hn
@@ -123,10 +125,11 @@ theorem ctl_finish (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.State
   have hAd : AbsSlot th (pd.bv, db) := ⟨pd, rfl, Or.inl hpd⟩
   have hsrc1 : capAt (L.mem s1) (cslotAddr (ps.bv, idxs)) = ok .IrqControl := by rw [hS.capAt hAs.isSlot, hsrcC]
   have hdst1 : capAt (L.mem s1) (cslotAddr (pd.bv, db)) = ok .Null := by rw [hS.capAt hAd.isSlot, hdst]
-  refine WP.spec_mono (invoke_ctl_rel arI th hP s1 a1 σ1' G hCR1' hL1 hIR2 hHA1 hmask irq hirq hin1 hps hpd hls rfl
-    hsrc1 hdst1) ?_
-  rintro ⟨s2, a2⟩ ⟨σ', G', hmem, hCR', hIR', -⟩
-  exact ⟨σ', G', hmem, hCR', by rw [← hkb]; exact hIR'⟩
+  have hFI1 : FinInv th (L.mem s1) σ1' G := hFI.of_same hCR.2.2.1 hS (hK1.trans (KSub.of_kheap hk))
+  refine WP.spec_mono (invoke_ctl_rel arI th hP s1 a1 σ1' G hCR1' hL1 hIR2 hHA1 hFI1 hmask irq hirq hin1 hps hpd
+    hls rfl hsrc1 hdst1) ?_
+  rintro ⟨s2, a2⟩ ⟨σ', G', hmem, hCR', hIR', -, hFI', hHA'⟩
+  exact ⟨σ', G', hmem, hCR', by rw [← hkb]; exact hIR', hFI', by rw [← hkb]; exact hHA'⟩
 
 end
 
@@ -140,7 +143,7 @@ theorem sub_107 : (123#u64 - 16#u64 : Result U64) = ok 107#u64 := by
 /-- **`X86IRQIssueIRQHandlerMSI`** (label 68). -/
 theorem irq_msi_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
-    (hHA : HandlersActive (L.mem s) (L.ksb s) G)
+    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.invocationType slbl = .archInvocationLabel .x64IRQIssueIRQHandlerMSI)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -296,12 +299,12 @@ theorem irq_msi_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ :
     (y4.bv &&& Fl4Spec.mask 3) (y5.bv &&& Fl4Spec.mask 32)
   let σb : Fl4Spec.State Unit := { σ1 with archState := { σ1.archState with
     x64IrqState := Function.update σ1.archState.x64IrqState (BitVec.ofNat 8 z.val) irqSt } }
-  refine WP.spec_bind (ctl_finish arI th hP s σ G ⟨hR, hV, hM, hC, hI⟩ hL hHA hmask z hz128 hact0 hps hls hsrcC
-    dsl pd hpd1 hpd hdst s1 σ1 hkb hS hCR1 hIR1 hw ar σb rfl rfl rfl rfl rfl) ?_
-  rintro ⟨s2, a2⟩ ⟨σ', G', hmem, hCR', hIR'⟩
+  refine WP.spec_bind (ctl_finish arI th hP s σ G ⟨hR, hV, hM, hC, hI⟩ hL hHA hFI hmask z hz128 hact0 hps hls hsrcC
+    dsl pd hpd1 hpd hdst s1 σ1 hkb hS hCR1 hIR1 hw (ksub_of_eq (setThreadState_nks _ _) hst) ar σb rfl rfl rfl rfl rfl) ?_
+  rintro ⟨s2, a2⟩ ⟨σ', G', hmem, hCR', hIR', hFI', hHA'⟩
   apply (WP.spec_ok (core.result.Result.Ok (), s2, a2)).mpr
   refine ⟨.issueIRQHandlerMSI (BitVec.ofNat 8 z.val) dsl (ps.bv, idxs) y2.bv y3.bv y4.bv y5.bv, rfl, σ1, hst,
-    σ', G', ?_, hCR', hIR'⟩
+    σ', G', ?_, hCR', hIR', hFI', hHA'⟩
   refine mem_liftE (x := ((), σ')) ?_
   refine mem_bind_nd (x := (irqSt, σ1)) rfl ?_
   refine mem_bind_nd (x := ((), σb)) (updateIrqState_mem _ _ _) ?_
@@ -351,7 +354,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 /-- **`X86IRQIssueIRQHandlerIOAPIC`** (label 67). -/
 theorem irq_ioapic_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
-    (hHA : HandlersActive (L.mem s) (L.ksb s) G)
+    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.invocationType slbl = .archInvocationLabel .x64IRQIssueIRQHandlerIOAPIC)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -559,12 +562,12 @@ theorem irq_ioapic_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (�
     (y4.bv &&& 1) (y5.bv &&& 1) true
   let σb : Fl4Spec.State Unit := { σa with archState := { σa.archState with
     x64IrqState := Function.update σa.archState.x64IrqState (BitVec.ofNat 8 z.val) irqSt } }
-  refine WP.spec_bind (ctl_finish arI th hP s σ G ⟨hR, hV, hM, hC, hI⟩ hL hHA hAR.mask z hz128 hact0 hps hls hsrcC
-    dsl pd hpd1 hpd hdst s1 σ1 hkb hS hCR1 hIR1 hw a1 σb rfl rfl rfl rfl rfl) ?_
-  rintro ⟨s2, a2⟩ ⟨σ', G', hmem, hCR', hIR'⟩
+  refine WP.spec_bind (ctl_finish arI th hP s σ G ⟨hR, hV, hM, hC, hI⟩ hL hHA hFI hAR.mask z hz128 hact0 hps hls hsrcC
+    dsl pd hpd1 hpd hdst s1 σ1 hkb hS hCR1 hIR1 hw (ksub_of_eq (setThreadState_nks _ _) hst) a1 σb rfl rfl rfl rfl rfl) ?_
+  rintro ⟨s2, a2⟩ ⟨σ', G', hmem, hCR', hIR', hFI', hHA'⟩
   apply (WP.spec_ok (core.result.Result.Ok (), s2, a2)).mpr
   refine ⟨.issueIRQHandlerIOAPIC (BitVec.ofNat 8 z.val) dsl (ps.bv, idxs) y2.bv y3.bv y4.bv y5.bv
-      (Fl4Spec.ucast 64 (BitVec.ofNat 8 z.val) + Fl4Spec.irqIntOffset), rfl, σ1, hst, σ', G', ?_, hCR', hIR'⟩
+      (Fl4Spec.ucast 64 (BitVec.ofNat 8 z.val) + Fl4Spec.irqIntOffset), rfl, σ1, hst, σ', G', ?_, hCR', hIR', hFI', hHA'⟩
   refine mem_liftE (x := ((), σ')) ?_
   refine mem_bind_nd (x := ((), σa)) hms' ?_
   refine mem_bind_nd (x := (irqSt, σa)) rfl ?_
@@ -576,7 +579,7 @@ theorem irq_ioapic_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (�
 the remapping-table handle. -/
 theorem irq_remap_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
-    (hHA : HandlersActive (L.mem s) (L.ksb s) G)
+    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
     (slbl : Fl4Spec.Data)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -793,12 +796,12 @@ theorem irq_remap_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ
     (y4.bv &&& 1) (y5.bv &&& 1) true
   let σb : Fl4Spec.State Unit := { σa with archState := { σa.archState with
     x64IrqState := Function.update σa.archState.x64IrqState (BitVec.ofNat 8 z.val) irqSt } }
-  refine WP.spec_bind (ctl_finish arI th hP s σ G ⟨hR, hV, hM, hC, hI⟩ hL hHA hAR.mask z hz128 hact0 hps hls hsrcC
-    dsl pd hpd1 hpd hdst s1 σ1 hkb hS hCR1 hIR1 hw a1 σb rfl rfl rfl rfl rfl) ?_
-  rintro ⟨s2, a2⟩ ⟨σ', G', hmem, hCR', hIR'⟩
+  refine WP.spec_bind (ctl_finish arI th hP s σ G ⟨hR, hV, hM, hC, hI⟩ hL hHA hFI hAR.mask z hz128 hact0 hps hls hsrcC
+    dsl pd hpd1 hpd hdst s1 σ1 hkb hS hCR1 hIR1 hw (ksub_of_eq (setThreadState_nks _ _) hst) a1 σb rfl rfl rfl rfl rfl) ?_
+  rintro ⟨s2, a2⟩ ⟨σ', G', hmem, hCR', hIR', hFI', hHA'⟩
   apply (WP.spec_ok (core.result.Result.Ok (), s2, a2)).mpr
   refine ⟨.ioapicRemapped (BitVec.ofNat 8 z.val) dsl (ps.bv, idxs) y2.bv y3.bv y4.bv y5.bv
-      (Fl4Spec.ucast 64 (BitVec.ofNat 8 z.val) + Fl4Spec.irqIntOffset) y7.bv, rfl, σ1, hst, σ', G', ?_, hCR', hIR'⟩
+      (Fl4Spec.ucast 64 (BitVec.ofNat 8 z.val) + Fl4Spec.irqIntOffset) y7.bv, rfl, σ1, hst, σ', G', ?_, hCR', hIR', hFI', hHA'⟩
   refine mem_liftE (x := ((), σ')) ?_
   refine mem_bind_nd (x := ((), σa)) hms' ?_
   refine mem_bind_nd (x := (irqSt, σa)) rfl ?_

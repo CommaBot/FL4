@@ -24,6 +24,7 @@ import Fl4Proofs.P3.MoveRefine
 import Fl4Proofs.P3.StateFrame
 import Fl4Proofs.P3.NoChildren
 import Fl4Proofs.P3.CnodeShape
+import Fl4Proofs.P3.CnodeKey
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -224,7 +225,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 /-- The outcome of a Copy/Mint/Move/Mutate against a spec decode `m`: the
 same error with the state unchanged, or an invocation after which (with
 `set_thread_state Restart` first) `invoke_cnode` ends in a related state,
-with the MDB invariant. -/
+with the MDB invariant and `FinInv`. -/
 def InvPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (_G : MdbGhost)
     (m : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation) (s : S) :
     core.result.Result Unit error.Exc × S → Prop
@@ -233,7 +234,7 @@ def InvPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (_G : MdbGhost)
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
       ∃ σ' G', (Fl4Spec.invokeCnode (Z := Unit) inv).run σ1 = ({(.ok (), σ')}, False) ∧
         StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
-        CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G'
+        CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G' ∧ FinInv th (L.mem s') σ' G'
 
 theorem InvPost.of_run {th : TypedHeap} {σ : Fl4Spec.State Unit} {G : MdbGhost}
     {m m' : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation} (h : m.run σ = m'.run σ) {s : S}
@@ -280,7 +281,7 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List Fl4Spec.Cap) (hex : ExtraRel th (L.mem s) x0 excaps)
-    (hI : MdbInv (L.mem s) G)
+    (hI : MdbInv (L.mem s) G) (hFI : FinInv th (L.mem s) σ G)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (dsl : Fl4Spec.CslotPtr) (pd : U64) (hpd1 : dsl.1 = pd.bv) (hpd : th pd = some (.cnode dsl.2.length)) :
@@ -421,6 +422,8 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
         rw [← hcur] at hk
         obtain ⟨σ1, hst, hR1, hV1, hM1, hC1, -, hio1⟩ := restart_rel hR hV hM hC hS hk .restart
         have hI1 := MdbInv.of_same hM hI hS
+        have hFI1 := hFI.of_same hM hS (ksub_of_eq (setThreadState_nks _ _) hst)
+        have hkey := copied_okey hr2 hnn
         -- the slots, after `set_thread_state`
         obtain ⟨sa, sb⟩ := sl
         simp only at hps1; subst hps1
@@ -437,30 +440,30 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
             intro hu y hy
             obtain ⟨z, hz⟩ := desc_tail_child hy
             exact hut hu ((hC.has_child_iff hP hAs).2 ⟨z, hz⟩)
-          obtain ⟨s3, hs3, σ', G', hins, hR', hV', hM', hC', hI'⟩ := spec_exists
-            (insert_full th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hps hpd rfl rfl hsc2 hsn hdc2 nc (absCap nc)
-              ⟨hw', rfl⟩ hv' he' hnn hsh hbd hut' hzb)
+          obtain ⟨s3, hs3, σ', G', hins, hR', hV', hM', hC', hI', hFI'⟩ := spec_exists
+            (insert_full_fin th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hps hpd rfl rfl hsc2 hsn hdc2 nc (absCap nc)
+              ⟨hw', rfl⟩ hv' he' hnn hsh hbd hut' hzb hkey)
           rw [hs3]; simp only [bind_ok]
           rw [WP.spec_ok]
           refine ⟨.insertCall (absCap nc) (ps.bv, sb) (pd.bv, db), ?_, σ1, hst,
-            σ', G', run_liftE' hins, hR', hV', hM', hC', hI'⟩
+            σ', G', run_liftE' hins, hR', hV', hM', hC', hI', hFI'⟩
           rw [run_ofExcept]; simp [finishRes, hann]
         · -- move
           simp only [↓reduceIte]
-          obtain ⟨s3, hs3, σ', G', hmv, hR', hV', hM', hC', hI'⟩ := spec_exists
-            (move_full th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hps hpd rfl rfl hsc2 hsn hdc2 nc (absCap nc) ⟨hw', rfl⟩
-              hv' he' hnn hsh (hbm rfl))
+          obtain ⟨s3, hs3, σ', G', hmv, hR', hV', hM', hC', hI', hFI'⟩ := spec_exists
+            (move_full_fin th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hps hpd rfl rfl hsc2 hsn hdc2 nc (absCap nc) ⟨hw', rfl⟩
+              hv' he' hnn hsh (hbm rfl) hkey)
           rw [hs3]; simp only [bind_ok]
           rw [WP.spec_ok]
           refine ⟨.moveCall (absCap nc) (ps.bv, sb) (pd.bv, db), ?_, σ1, hst,
-            σ', G', run_liftE' hmv, hR', hV', hM', hC', hI'⟩
+            σ', G', run_liftE' hmv, hR', hV', hM', hC', hI', hFI'⟩
           rw [run_ofExcept]; simp [finishRes, hann]
 
 /-- **FL4's CNode Copy, Mint, Move and Mutate refine l4v's**: for labels
 28..31, `cnode::decode` ends with the error `decode_cnode_invocation`
 throws (state unchanged), or, when the spec decodes an invocation, in a
 state related to the spec's after `set_thread_state Restart` and
-`invoke_cnode`, with the MDB invariant kept. -/
+`invoke_cnode`, with the MDB invariant and `FinInv` kept. -/
 theorem cnode_copy_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
@@ -473,7 +476,7 @@ theorem cnode_copy_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s
     (cap : capability.Cap) (a : Fl4Spec.Cap) (hca : CapRel cap a) (hcv : CapValid th cap)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List Fl4Spec.Cap) (hex : ExtraRel th (L.mem s) x0 excaps)
-    (hI : MdbInv (L.mem s) G)
+    (hI : MdbInv (L.mem s) G) (hFI : FinInv th (L.mem s) σ G)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb) :
     cnode.decode st arI s ar lbl length cap buf extra ⦃ res =>
@@ -527,7 +530,7 @@ theorem cnode_copy_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s
       simp only [g1, g2, ↓reduceIte, bind_ok]
       obtain ⟨⟨r2, s2⟩, hdc, hpost⟩ := spec_exists
         (decode_copy_rel th s σ G hR hV hP hM hC lbl slbl hlbl hl length buf ct hct (y0 :: y1 :: rest) hlen
-          (by simp) hargs extra x0 hx0 excaps hex hI hact hcur htcb dsl pd hpd1 hpd)
+          (by simp) hargs extra x0 hx0 excaps hex hI hFI hact hcur htcb dsl pd hpd1 hpd)
       rw [hdc]; simp only [bind_ok, uncurry_apply_pair]
       rw [WP.spec_ok]
       simp only [List.map_cons, List.drop_succ_cons, List.drop_zero] at hpost

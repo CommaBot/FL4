@@ -3,27 +3,33 @@ P3 (DESIGN.md §9), CSpace: **one round of `finalise_slot`**: the cap's
 finality and `finalise_cap`, on both sides, with the hypotheses for the
 object-specific work.
 
-Hypotheses (for related states with `DelInv`):
-* `FinalHyp`: FL4's `is_final_capability` decides the spec's `is_final_cap`
-  (an MDB-wide fact, l4v's `mdb_chunked`/`untyped_inc` consequences), and a
-  zombie is final (l4v `zombies_final`);
+The deletion's states are related by `DState`: the CSpace relations,
+`DelInv` and `FinInv`.
+
+* `FinalHyp`: FL4's `is_final_capability` decides the spec's `is_final_cap`,
+  and a zombie is final (l4v `zombies_final`). **Proved** (`finalHyp_full`),
+  from `FinInv`.
+
+Hypotheses:
 * `FinObjHyp`: FL4's `finalise_cap` of an endpoint, notification, reply,
   thread, scheduling context, IRQ handler or arch cap refines the spec's
   `finalise_cap` (TCB suspend, endpoint cancel-all, SC unbind, notification
   unbind, unmap / delete_asid, the IRQ handler's slot): it keeps the
   finalised slot and every other slot's cap, except caps (not zombies)
   that it deletes, returns the spec's remainder (a TCB zombie for a final
-  thread cap, else nothing) and cleanup, and keeps the relations and
-  `DelInv`;
+  thread cap, else nothing) and cleanup, and keeps `DState`;
 * `PPHypD`: the preemption point keeps every cap slot, and matches the
   spec's (Ok or preempted);
 * `PostDelHyp`: `post_cap_deletion` of an IRQ handler or IO port cleanup cap
   keeps every cap slot and matches the spec's.
 
 The CNode and zombie parts are proved: a final CNode cap becomes a zombie
-over the CNode, a zombie stays.
+over the CNode, a zombie stays. `FinInv` across the zombie writes:
+`FinInv.set_zombie` (no other cap names the zombie's object, `ZCond.zf`).
 -/
 import Fl4Proofs.P3.DelOps
+import Fl4Proofs.P3.FinSpec
+import Fl4Proofs.P3.FinDefs
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -75,23 +81,9 @@ theorem srB_zombie_right {a : capability.Cap} {p zt n : U64} (h : srB a (.Zombie
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
-/-- Related states with `DelInv`. -/
+/-- Related states with `DelInv` and `FinInv`. -/
 def DState (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) : Prop :=
-  CRel th (L.mem s) σ G ∧ DelInv th (L.mem s)
-
-/-- The caps whose finalisation is object-specific work. -/
-def FinObjKind : capability.Cap → Prop
-  | .Endpoint .. | .Notification .. | .Reply .. | .Thread _ | .SchedContext .. | .IrqHandler _
-  | .Frame .. | .PageTable .. | .PageDirectory .. | .Pdpt .. | .Pml4 .. | .AsidPool .. | .IoPort .. => True
-  | _ => False
-
-/-- The caps whose finalisation depends on finality: the object caps, CNode
-caps and zombies. (For untyped, domain, IRQ control, scheduling control and
-the arch control caps, FL4's `is_final_capability` and the spec's
-`is_final_cap` may differ: the spec's needs an object, FL4's does not; it
-does not matter, their finalisation does nothing.) -/
-def NeedsFin (c : capability.Cap) : Prop :=
-  FinObjKind c ∨ (∃ p r gs g, c = .CNode p r gs g) ∨ isZb c = true
+  CRel th (L.mem s) σ G ∧ DelInv th (L.mem s) ∧ FinInv th (L.mem s) σ G
 
 def FinalHyp (th : TypedHeap) : Prop :=
   ∀ (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (c : capability.Cap),
@@ -153,6 +145,8 @@ structure ZCond (th : TypedHeap) (mem : U64 → U64) (G : MdbGhost) (x p zt n : 
   h1 : ∀ y ∈ G.chains.flatten, y ≠ x → srB (capV mem y) (.Zombie p zt n) = srB (capV mem y) (capV mem x)
   h2 : ∀ y ∈ G.chains.flatten, y ≠ x → srB (capV mem x) (capV mem y) = false
   home : HomeZ mem x → p = x
+  /-- No other slot's cap names the zombie's object. -/
+  zf : ∀ y, IsSlot th y → y ≠ x → p.bv ∉ Fl4Spec.objRefs (absCap (capV mem y))
 
 theorem shl_radix {r : U64} (hr : r.val < 64) : ∃ z : U64, (1#u64 <<< (r &&& 63#u64)) = ok z ∧ z.val = 2 ^ r.val := by
   have h63 : (r &&& 63#u64).val = r.val := by
@@ -197,7 +191,7 @@ theorem cnode_zcond {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {G : MdbG
   have hslot : ∀ y, y ∈ G.chains.flatten → IsSlot th y := fun y h => ((hM.members y).1 h).1
   have hr65 : r.val ≠ 65 := by omega
   refine ⟨Or.inl (by omega), ⟨hcan, by omega⟩, Or.inr ⟨hr65, hcv, by omega⟩, ?_, by rw [hcvx]; rfl,
-    by rw [hcvx]; rfl, ?_, ?_, ?_⟩
+    by rw [hcvx]; rfl, ?_, ?_, ?_, fun y hy hyx => final_other hR hP hxs hcx hfin (by rw [objRefs_cnode]; rfl) hy hyx⟩
   · intro y hy hyx p' zt' n' e
     rintro rfl
     exact (hfn hy hyx).2.2 zt' n' e
@@ -235,7 +229,7 @@ theorem thread_zcond {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {mem' : 
   have hslot : ∀ y, y ∈ G'.chains.flatten → IsSlot th y := fun y h => ((hM'.members y).1 h).1
   have h65 := zombie_tcb_val
   refine ⟨Or.inr h65, ⟨hcan, by omega⟩, Or.inl ⟨h65, hcv, by decide⟩, ?_, by rw [hx']; rfl,
-    by rw [hx']; rfl, ?_, ?_, ?_⟩
+    by rw [hx']; rfl, ?_, ?_, ?_, fun y hy hyx => ?_⟩
   · intro y hy hyx p' zt' n' e
     rintro rfl
     rcases hch y hy hyx with h | ⟨h, -⟩
@@ -265,6 +259,86 @@ theorem thread_zcond {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {mem' : 
     · rw [h] at e; exact (hfn (hslot y hy) hyx).2.1 e
     · rw [h] at e; cases e
   · rintro ⟨zt, n, e⟩; rw [hx'] at e; cases e
+  · rcases hch y hy hyx with h | ⟨h, -⟩
+    · rw [h]; exact final_other hR hP hxs hcx hfin (by rw [objRefs_thread]; rfl) hy hyx
+    · rw [h]; exact fun h => h
+
+
+/-! ## `FinInv` across the zombie writes -/
+
+theorem genObjRefs_zombie (p zt n : U64) :
+    Fl4Spec.genObjRefs (absCap (.Zombie p zt n)) = {Fl4Spec.GenObjRef.objRef p.bv} := by
+  ext g
+  simp [Fl4Spec.genObjRefs, absCap, Fl4Spec.objRefs, Fl4Spec.capIrqs, Fl4Spec.capIrqOpt, Fl4Spec.archCapSetMap]
+
+theorem ovl_zombie_iff {p zt n : U64} {c : Fl4Spec.Cap} :
+    Ovl (absCap (.Zombie p zt n)) c ↔ p.bv ∈ Fl4Spec.objRefs c := by
+  unfold Ovl
+  rw [genObjRefs_zombie, ← Set.nonempty_iff_ne_empty]
+  constructor
+  · rintro ⟨g, hg1, hg2⟩
+    rw [Set.mem_singleton_iff.1 hg1] at hg2
+    simpa [Fl4Spec.genObjRefs] using hg2
+  · intro h
+    exact ⟨_, rfl, by simp [Fl4Spec.genObjRefs, h]⟩
+
+theorem isUt_of_isFrame {c : capability.Cap} (h : isFrame c = true) : isUt c = false := by
+  cases c <;> simp_all [isFrame, isUt]
+
+/-- A zombie written over a slot's cap: `FinInv` kept when no other slot's
+cap names the zombie's object. -/
+theorem FinInv.set_zombie {th : TypedHeap} {mem mem' : U64 → U64} {σ σ' : Fl4Spec.State Unit} {G : MdbGhost}
+    (hFI : FinInv th mem σ G) (hM : MdbLinks th mem G) (hK : KSub σ σ')
+    {x p zt n : U64} (hx : capV mem' x = .Zombie p zt n)
+    (hoth : ∀ y, IsSlot th y → y ≠ x → capV mem' y = capV mem y)
+    (hzf : ∀ y, IsSlot th y → y ≠ x → p.bv ∉ Fl4Spec.objRefs (absCap (capV mem y))) :
+    FinInv th mem' σ' G := by
+  refine ⟨hFI.kt.sub hK, hFI.fm.refresh hM.tree.nodup x
+    (fun z hz hzx => hoth z ((hM.members z).1 hz).1 hzx) (fun w hw hwx => ?_)⟩
+  have hws := ((hM.members w).1 hw).1
+  rw [hx, hoth w hws hwx]
+  exact ⟨fun h => hzf w hws hwx (ovl_zombie_iff.1 h), srB_zombie _ _ _ _,
+    fun hf => srB_nonut_zombie (isUt_of_isFrame hf) _ _ _⟩
+
+/-- A zombie's object is named by no other slot's cap. -/
+theorem FinInv.zombie_alone {th : TypedHeap} {mem : U64 → U64} {σ : Fl4Spec.State Unit} {G : MdbGhost}
+    (hFI : FinInv th mem σ G) (hM : MdbLinks th mem G) {x p zt n : U64} (hxs : IsSlot th x)
+    (hx : capV mem x = .Zombie p zt n) :
+    ∀ y, IsSlot th y → y ≠ x → p.bv ∉ Fl4Spec.objRefs (absCap (capV mem y)) := by
+  intro y hy hyx hp
+  have hxm : x ∈ G.chains.flatten := (hM.members x).2 ⟨hxs, _, capAt_capV _ _, by rw [hx]; simp⟩
+  by_cases hyn : capV mem y = .Null
+  · rw [hyn] at hp; exact hp
+  have hym : y ∈ G.chains.flatten := (hM.members y).2 ⟨hy, _, capAt_capV _ _, hyn⟩
+  exact hFI.fm.zfin x hxm y hym (Ne.symm hyx) (by rw [hx]; rfl) (by rw [hx]; exact ovl_zombie_iff.2 hp)
+
+
+/-! ## Finality -/
+
+/-- **`FinalHyp` holds**: `DState` carries `FinInv`. -/
+theorem finalHyp_full (th : TypedHeap) (hP : Placed th) : FinalHyp (L := L) th := by
+  intro s σ G sl c hDS hA hc hcn
+  obtain ⟨⟨hR, hV, hM, hC, hI⟩, hD, hF⟩ := hDS
+  have hcv := capV_of_capAt hc
+  have hx : cslotAddr sl ∈ G.chains.flatten := (hM.members _).2 ⟨hA.isSlot, c, hc, hcn⟩
+  have hzf : isZb c = true → Fl4Spec.isFinalCap' (absCap c) σ := by
+    intro hz
+    have hne : Fl4Spec.genObjRefs (absCap (capV (L.mem s) (cslotAddr sl))) ≠ ∅ := by
+      rw [hcv]; exact needsFin_refs (Or.inr (Or.inr hz))
+    have := (final_iff hP hR hM hF hA hne).2 fun y hy hyx => hF.fm.zfin _ hx y hy (Ne.symm hyx) (by rw [hcv]; exact hz)
+    rwa [hcv] at this
+  refine ⟨finF (L.mem s) (cslotAddr sl), is_final_eq s _, fun hN => ?_, hzf⟩
+  by_cases hz : isZb c = true
+  · rw [decide_eq_true (hzf hz)]
+    obtain ⟨p, zt, n, rfl⟩ : ∃ p zt n, c = .Zombie p zt n := by cases c <;> simp [isZb] at hz; exact ⟨_, _, _, rfl⟩
+    unfold finF
+    simp [hcv, soB_zombie_left, soB_zombie_right]
+  · have hz' : isZb c = false := by simpa using hz
+    rw [← hcv] at hN hz'
+    have hne := needsFin_refs hN
+    have e := (finF_iff hP hM hI hF hx hN hz').trans (final_iff hP hR hM hF hA hne).symm
+    rw [hcv] at e
+    exact Bool.eq_iff_iff.2 (e.trans decide_eq_true_iff.symm)
 
 end
 

@@ -410,7 +410,7 @@ theorem revoke_refines (th : TypedHeap) (hP : Placed th) (E : S → Fl4Spec.Stat
 /-- The outcome of a preemptible CNode invocation (Revoke, Delete) against a spec decode `m`: the same
 error with the state unchanged, or the invocation, after which (with
 `set_thread_state Restart` first) `invoke_cnode` has an outcome of the
-same kind as FL4's (Ok, or preempted) in a related state. -/
+same kind as FL4's (Ok, or preempted) in a related state, with `FinInv`. -/
 def PInvPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (m : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation)
     (s : S) : core.result.Result Unit error.Exc × S → Prop
   | (r, s') => (∃ e, r = .Err e ∧ s' = s ∧ ∃ e', m.run σ = ({(.error e', σ)}, False) ∧ SysErrRel e e') ∨
@@ -418,7 +418,7 @@ def PInvPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (m : Fl4Spec.SEMonad Uni
         Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧ ∃ σ' G',
           ((r = .Ok () ∧ (.ok (), σ') ∈ ((Fl4Spec.invokeCnode (Z := Unit) inv).run σ1).1) ∨
             (r = .Err .Preempted ∧ (.error (), σ') ∈ ((Fl4Spec.invokeCnode (Z := Unit) inv).run σ1).1)) ∧
-          CRel th (L.mem s') σ' G'
+          CRel th (L.mem s') σ' G' ∧ FinInv th (L.mem s') σ' G'
 
 /-- **CNode Revoke**, decode and invoke: FL4's `cnode::decode` at label
 `CNodeRevoke` against l4v's `decode_cnode_invocation`, then
@@ -444,6 +444,7 @@ theorem cnode_revoke_refines (th : TypedHeap) (s : S) (ar : A)
     (hD : DelHyp (L := L) arI μ th E) (hPP : RPPHyp (L := L) arI th E)
     (hE : ∀ s1 σ1, SlotsSame th (L.mem s) (L.mem s1) →
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) → E s1 σ1)
+    (hEF : ∀ s1 σ1 G1, CRel th (L.mem s1) σ1 G1 → E s1 σ1 → FinInv th (L.mem s1) σ1 G1)
     (hfew : μ (L.mem s) G < 2 ^ 64 - 1) :
     cnode.decode st arI s ar fl4_abi.label.CNodeRevoke length cap buf extra ⦃ res =>
       PInvPost (L := L) th σ (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
@@ -505,8 +506,8 @@ theorem cnode_revoke_refines (th : TypedHeap) (s : S) (ar : A)
       have hfew' : μ (L.mem s2) G < 2 ^ 64 - 1 := by rw [hμ _ _ _ hM hS]; exact hfew
       refine WP.spec_mono (revoke_refines arI th hP E μ hμ hD hPP dsl hAd s2 ar σ1 G ⟨hR1, hV1, hM1, hC1, hI1⟩
         (hE s2 σ1 hS hst) hfew') ?_
-      rintro ⟨r, s', a'⟩ ⟨σ', G', hk', hCR', -⟩
-      refine Or.inr ⟨.revokeCall dsl, ?_, σ1, hst, σ', G', ?_, hCR'⟩
+      rintro ⟨r, s', a'⟩ ⟨σ', G', hk', hCR', hE'⟩
+      refine Or.inr ⟨.revokeCall dsl, ?_, σ1, hst, σ', G', ?_, hCR', hEF _ _ _ hCR' hE'⟩
       · rw [run_bind_ok hlt, copyTail_revoke _ _ _ _ hlbl]; rfl
       · exact hk'
 
@@ -530,7 +531,8 @@ theorem cnode_delete_refines (th : TypedHeap) (s : S) (ar : A)
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (E : S → Fl4Spec.State Unit → Prop) (μ : (U64 → U64) → MdbGhost → Nat) (hD : DelHyp (L := L) arI μ th E)
     (hE : ∀ s1 σ1, SlotsSame th (L.mem s) (L.mem s1) →
-      Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) → E s1 σ1) :
+      Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) → E s1 σ1)
+    (hEF : ∀ s1 σ1 G1, CRel th (L.mem s1) σ1 G1 → E s1 σ1 → FinInv th (L.mem s1) σ1 G1) :
     cnode.decode st arI s ar fl4_abi.label.CNodeDelete length cap buf extra ⦃ res =>
       PInvPost (L := L) th σ (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
         (res.1, res.2.1) ⦄ := by
@@ -600,15 +602,17 @@ theorem cnode_delete_refines (th : TypedHeap) (s : S) (ar : A)
       · subst hcn
         obtain ⟨da, db⟩ := dsl
         simp only at hpd1 hpd; subst hpd1
-        refine WP.spec_mono (delete_refines arI th s2 ar σ1 G hR1 hV1 hP hM1 hC1 hI1 hpd rfl hc2 (Or.inl rfl)) ?_
-        rintro ⟨r, s', a'⟩ ⟨hr, σ', G', hcd, hR', hV', hM', hC', hI'⟩
+        have hFI1 := hEF s2 σ1 G ⟨hR1, hV1, hM1, hC1, hI1⟩ (hE s2 σ1 hS hst)
+        refine WP.spec_mono (delete_refines_fin arI th s2 ar σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hpd rfl hc2
+          (Or.inl rfl)) ?_
+        rintro ⟨r, s', a'⟩ ⟨hr, σ', G', hcd, hR', hV', hM', hC', hI', hFI'⟩
         simp only at hr; subst hr
         exact Or.inr ⟨.deleteCall (pd.bv, db), hdc, σ1, hst, σ', G', Or.inl ⟨rfl, mem_of_run hcd⟩,
-          hR', hV', hM', hC', hI'⟩
+          ⟨hR', hV', hM', hC', hI'⟩, hFI'⟩
       · have hx : cslotAddr dsl ∈ G.chains.flatten := (hM1.members _).2 ⟨hAd.isSlot, c, hc2, hcn⟩
         refine WP.spec_mono (hD s2 ar σ1 G dsl ⟨hR1, hV1, hM1, hC1, hI1⟩ (hE s2 σ1 hS hst) hAd hx) ?_
-        rintro ⟨r, s', a'⟩ ⟨σ', G', hk', hCR', -⟩
-        refine Or.inr ⟨.deleteCall dsl, hdc, σ1, hst, σ', G', ?_, hCR'⟩
+        rintro ⟨r, s', a'⟩ ⟨σ', G', hk', hCR', hE'⟩
+        refine Or.inr ⟨.deleteCall dsl, hdc, σ1, hst, σ', G', ?_, hCR', hEF _ _ _ hCR' hE'⟩
         rcases hk' with ⟨h1, h2, -⟩ | ⟨h1, h2⟩
         · exact Or.inl ⟨h1, h2⟩
         · exact Or.inr ⟨h1, h2⟩

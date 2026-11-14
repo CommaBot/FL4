@@ -40,6 +40,32 @@ theorem fresh_of_inactive {mem : U64 → U64} {kb : U64} {G : MdbGhost} (hHA : H
   simp only [decide_eq_false_iff_not, not_not] at h
   exact (hHA y hy irq h).2 hin
 
+theorem genObjRefs_irqH (i : U64) :
+    Fl4Spec.genObjRefs (absCap (.IrqHandler i)) = {Fl4Spec.GenObjRef.iRQRef (BitVec.ofNat 8 i.val)} := by
+  ext g
+  simp [Fl4Spec.genObjRefs, absCap, Fl4Spec.objRefs, Fl4Spec.capIrqs, Fl4Spec.capIrqOpt, Fl4Spec.archCapSetMap]
+
+/-- A cap overlapping an IRQ handler cap is one, for the same 8-bit IRQ. -/
+theorem ovl_irqH {i : U64} {c : capability.Cap} (h : Ovl (absCap (.IrqHandler i)) (absCap c)) :
+    ∃ j, c = .IrqHandler j ∧ (BitVec.ofNat 8 j.val : BitVec 8) = BitVec.ofNat 8 i.val := by
+  unfold Ovl at h
+  rw [genObjRefs_irqH, ← Set.nonempty_iff_ne_empty] at h
+  obtain ⟨g, hg1, hg2⟩ := h
+  rw [Set.mem_singleton_iff.1 hg1] at hg2
+  cases c <;> simp [Fl4Spec.genObjRefs, absCap, Fl4Spec.objRefs, Fl4Spec.capIrqs, Fl4Spec.capIrqOpt] at hg2 ⊢
+  exact hg2.symm
+
+/-- **A new IRQ handler cap for an inactive IRQ overlaps no cap of the MDB.** -/
+theorem ovl_fresh_irq {mem : U64 → U64} {kb : U64} {G : MdbGhost} (hHA : HandlersActive mem kb G)
+    {irq : U64} (hirq : irq.val < 128) (hin : mem (irqStA kb irq) = 0#u64) :
+    ∀ y ∈ G.chains.flatten, ¬ Ovl (absCap (.IrqHandler irq)) (absCap (capV mem y)) := by
+  intro y hy ho
+  obtain ⟨j, hj, he⟩ := ovl_irqH ho
+  have hj128 := (hHA y hy j hj).1
+  have e : j = irq := ofNat8_inj hj128 hirq he
+  subst e
+  exact (hHA y hy j hj).2 hin
+
 theorem ucast8_ofNat (w : U64) : (Fl4Spec.ucast 8 w.bv : BitVec 8) = BitVec.ofNat 8 w.val := by
   apply BitVec.eq_of_toNat_eq; simp [Fl4Spec.ucast]
 
@@ -58,13 +84,14 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 /-- The outcome of an IRQControl invocation against a spec decode `m`:
 the same error with the state unchanged, or an invocation after which (with
 `set_thread_state Restart` first) the invocation `invk` has an outcome in
-related states. -/
+related states, with `FinInv` and `HandlersActive`. -/
 def CPost {X : Type} (invk : X → Fl4Spec.PMonad Unit Unit) (th : TypedHeap) (kb : U64) (σ : Fl4Spec.State Unit)
     (m : Fl4Spec.SEMonad Unit X) (s : S) : core.result.Result Unit error.Exc × S × A → Prop
   | (.Err e, s', _) => s' = s ∧ ∃ e', m.run σ = ({(.error e', σ)}, False) ∧ ErrRel e e'
   | (.Ok (), s', _) => ∃ inv, m.run σ = ({(.ok inv, σ)}, False) ∧ ∃ σ1,
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
-      ∃ σ' G', (.ok (), σ') ∈ ((invk inv).run σ1).1 ∧ CRel th (L.mem s') σ' G' ∧ IrqRel (L.mem s') kb σ'
+      ∃ σ' G', (.ok (), σ') ∈ ((invk inv).run σ1).1 ∧ CRel th (L.mem s') σ' G' ∧ IrqRel (L.mem s') kb σ' ∧
+        FinInv th (L.mem s') σ' G' ∧ HandlersActive (L.mem s') kb G'
 
 theorem CPost.of_run {X : Type} {invk : X → Fl4Spec.PMonad Unit Unit} {th : TypedHeap} {kb : U64}
     {σ : Fl4Spec.State Unit} {m m' : Fl4Spec.SEMonad Unit X} (h : m.run σ = m'.run σ) {s : S}
@@ -141,7 +168,7 @@ theorem restart_irq (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.Stat
 and the destination empty (slots of CNodes). -/
 theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
-    (hHA : HandlersActive (L.mem s) (L.ksb s) G)
+    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
     (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
     (irq : U64) (hirq : irq.val < 128) (hin : L.mem s (irqStA (L.ksb s) irq) = 0#u64)
     {ps pd : U64} {rs rd : Nat} (hps : th ps = some (.cnode rs)) (hpd : th pd = some (.cnode rd))
@@ -151,7 +178,8 @@ theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : 
     interrupt.invoke_irq_control st arI s ar irq (cslotAddr (pd.bv, idxd)) (cslotAddr (ps.bv, idxs)) ⦃ r =>
       ∃ σ' G', ((), σ') ∈ ((Fl4Spec.setIrqState (Z := Unit) .irqSignal (BitVec.ofNat 8 irq.val) >>= fun _ =>
           Fl4Spec.capInsert (Z := Unit) (.irqHandlerCap (BitVec.ofNat 8 irq.val)) (ps.bv, idxs) (pd.bv, idxd)) σ).1 ∧
-        CRel th (L.mem r.1) σ' G' ∧ IrqRel (L.mem r.1) (L.ksb s) σ' ∧ L.ksb r.1 = L.ksb s ⦄ := by
+        CRel th (L.mem r.1) σ' G' ∧ IrqRel (L.mem r.1) (L.ksb s) σ' ∧ L.ksb r.1 = L.ksb s ∧
+        FinInv th (L.mem r.1) σ' G' ∧ HandlersActive (L.mem r.1) (L.ksb s) G' ⦄ := by
   unfold interrupt.invoke_irq_control
   obtain ⟨a1, ha1⟩ := hmask ar irq (decide (interrupt.IRQ_SIGNAL = interrupt.IRQ_INACTIVE))
   rw [set_irq_state_eq arI s ar _ irq ha1]
@@ -173,8 +201,27 @@ theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : 
   have hAd : AbsSlot th (pd.bv, idxd) := ⟨pd, rfl, Or.inl (by simpa [hld] using hpd)⟩
   have hsrc1 : capAt (L.mem s1) (cslotAddr (ps.bv, idxs)) = ok .IrqControl := by rw [hS.capAt hAs.isSlot, hsrcC]
   have hdst1 : capAt (L.mem s1) (cslotAddr (pd.bv, idxd)) = ok .Null := by rw [hS.capAt hAd.isSlot, hdst]
-  have hins := insert_ctl_full th s1 σ1 G hR1 hV1 hP hM1 hC1 hI1 hps hpd hls hld hsrc1 hdst1 (.IrqHandler irq)
-    (show irq.val < 256 by omega) trivial (by simp [EncWf]) trivial hfr1
+  have hFI1 : FinInv th (L.mem s1) σ1 G := hFI.of_same hM hS (KSub.of_kheap rfl)
+  have hw1 : ∀ i : U64, i.val < 128 → L.mem s1 (irqStA (L.ksb s) i) =
+      if i = irq then interrupt.IRQ_SIGNAL else L.mem s (irqStA (L.ksb s) i) := by
+    intro i hi
+    rw [hs1, L.mem_wr _ _ _ _ (hL.st_out irq hirq).1 (hL.st_out i hi).1]
+    by_cases e : i = irq
+    · subst e; simp
+    · rw [if_neg (fun h => e (irqStA_inj hL.fit hirq hi h).symm), if_neg e]
+  have hHA1 : HandlersActive (L.mem s1) (L.ksb s) G := by
+    intro y hy i hi
+    rw [hS.capV ((hM.members y).1 hy).1] at hi
+    obtain ⟨h1, h2⟩ := hHA y hy i hi
+    refine ⟨h1, ?_⟩
+    rw [hw1 i h1]
+    split_ifs
+    · simp [interrupt.IRQ_SIGNAL]
+    · exact h2
+  have hin1 : ∀ y ∈ G.chains.flatten, ¬ Ovl (absCap (.IrqHandler irq)) (absCap (capV (L.mem s1) y)) := by
+    intro y hy; rw [hS.capV ((hM.members y).1 hy).1]; exact ovl_fresh_irq hHA hirq hin y hy
+  have hins := insert_ctl_full_fin th s1 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hps hpd hls hld hsrc1 hdst1
+    (.IrqHandler irq) (show irq.val < 256 by omega) trivial (by simp [EncWf]) trivial hfr1 hin1
   have hnx : nextOf (L.mem s1) (cslotAddr (ps.bv, idxs)) = 0#u64 ∨
       IsSlot th (nextOf (L.mem s1) (cslotAddr (ps.bv, idxs))) := by
     have hsm : cslotAddr (ps.bv, idxs) ∈ G.chains.flatten := (hM1.members _).2 ⟨hAs.isSlot, _, hsrc1, by simp⟩
@@ -183,17 +230,32 @@ theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : 
     · exact Or.inr ((hM1.members _).1 h).1
   have hfrm := insert_frame hP s1 (.IrqHandler irq) _ _ hAs.isSlot hAd.isSlot _ hsrc1 hnx
   refine WP.spec_bind (WP.spec_and hins hfrm) ?_
-  rintro s2 ⟨⟨σ2, G2, hci, hR2, hV2, hM2, hC2, hI2⟩, hF2⟩
+  rintro s2 ⟨⟨σ2, G2, hci, hR2, hV2, hM2, hC2, hI2, hFI2, hcap2⟩, hF2⟩
   rw [WP.spec_ok]
   have hkeep := capInsert_keeps (absCap (.IrqHandler irq)) (ps.bv, idxs) (pd.bv, idxd) σ1 ((), σ2)
     (by rw [hci]; rfl)
-  refine ⟨σ2, G2, ?_, ⟨hR2, hV2, hM2, hC2, hI2⟩, ⟨fun i hi => ?_, fun i hi => ?_⟩, ?_⟩
+  have hkb2 : L.ksb s2 = L.ksb s := by rw [hF2.1]; simp [s1]
+  refine ⟨σ2, G2, ?_, ⟨hR2, hV2, hM2, hC2, hI2⟩, ⟨fun i hi => ?_, fun i hi => ?_⟩, hkb2, hFI2, ?_⟩
+  rotate_right
+  · intro y hy i hi
+    have hys := ((hM2.members y).1 hy).1
+    rw [hcap2 y hys] at hi
+    rw [hF2.out (hL.st_out i ?_)]
+    · split_ifs at hi with hyd
+      · cases hi; refine ⟨hirq, ?_⟩; rw [hw1 irq hirq, if_pos rfl]; simp [interrupt.IRQ_SIGNAL]
+      · have hyn : capV (L.mem s1) y ≠ .Null := by rw [hi]; simp
+        have hym : y ∈ G.chains.flatten := (hM1.members y).2 ⟨hys, _, capAt_capV _ _, hyn⟩
+        exact hHA1 y hym i hi
+    · split_ifs at hi with hyd
+      · cases hi; exact hirq
+      · have hyn : capV (L.mem s1) y ≠ .Null := by rw [hi]; simp
+        have hym : y ∈ G.chains.flatten := (hM1.members y).2 ⟨hys, _, capAt_capV _ _, hyn⟩
+        exact (hHA1 y hym i hi).1
   · refine mem_bind_nd (x := ((), σ1)) (setIrqState_mem' _ _ _) ?_
     show ((), σ2) ∈ (Fl4Spec.capInsert (absCap (.IrqHandler irq)) (ps.bv, idxs) (pd.bv, idxd) σ1).1
     rw [hci]; rfl
   · rw [hkeep.1, hF2.out (hL.st_out i hi)]; exact hIR1.st i hi
   · rw [hkeep.2.1]; exact hIR1.node i hi
-  · rw [hF2.1]; simp [s1]
 
 end
 

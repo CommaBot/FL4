@@ -132,7 +132,10 @@ theorem swap_home (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGho
       CRel th (L.mem s') σ' G' ∧ DelInv th (L.mem s') ∧ psiD (L.mem s') G' < psiD (L.mem s) G ∧
       (nnS G').card = (nnS G).card ∧
       (∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgOK (L.mem s) (L.mem s') y) ∧
-      capV (L.mem s') p = .Zombie p zt n ∧ capV (L.mem s') (cslotAddr sl) = capV (L.mem s) p ⦄ := by
+      capV (L.mem s') p = .Zombie p zt n ∧ capV (L.mem s') (cslotAddr sl) = capV (L.mem s) p ∧
+      G' = renG G (Equiv.swap p (cslotAddr sl)) ∧
+      (∀ y, IsSlot th y → capV (L.mem s') y = if y = cslotAddr sl then capV (L.mem s) p
+        else if y = p then capV (L.mem s) (cslotAddr sl) else capV (L.mem s) y) ⦄ := by
   set x := cslotAddr sl with hxdef
   have hxs : IsSlot th x := hA.isSlot
   have hzok := hD.zwf x hxs p zt n (capV_of_capAt hx)
@@ -168,10 +171,13 @@ theorem swap_home (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGho
         CRel th (L.mem s') σ' G' ∧ DelInv th (L.mem s') ∧ psiD (L.mem s') G' < psiD (L.mem s) G ∧
         (nnS G').card = (nnS G).card ∧
         (∀ y, IsSlot th y → y ≠ x → ChgOK (L.mem s) (L.mem s') y) ∧
-        capV (L.mem s') p = .Zombie p zt n ∧ capV (L.mem s') x = capV (L.mem s) p := by
+        capV (L.mem s') p = .Zombie p zt n ∧ capV (L.mem s') x = capV (L.mem s) p ∧
+        G' = renG G (Equiv.swap p x) ∧
+        (∀ y, IsSlot th y → capV (L.mem s') y = if y = x then capV (L.mem s) p
+          else if y = p then capV (L.mem s) x else capV (L.mem s) y) := by
     intro s' σ' hR' hV' hM' hC' hI' hcap hnc hsw
     obtain ⟨hlt, hcd⟩ := psi_swap hM hM' hcap hxs hpx hcvx hnh
-    refine ⟨σ', _, hsw, ⟨hR', hV', hM', hC', hI'⟩, ⟨?_, ?_, hnc⟩, hlt, hcd, ?_, ?_, ?_⟩
+    refine ⟨σ', _, hsw, ⟨hR', hV', hM', hC', hI'⟩, ⟨?_, ?_, hnc⟩, hlt, hcd, ?_, ?_, ?_, rfl, hcap⟩
     · intro y hy p' zt' n' hy'
       rw [hcap y hy] at hy'
       split_ifs at hy' with h1 h2
@@ -237,7 +243,7 @@ theorem swap_home (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGho
         (by rw [capAt_capV, hy0])
       rw [e1, e2]; exact hD.nc y hy hy0
     have := post s' σ' hR' hV' hM' hC' hI' hcap hnc (capSwapForDelete_eq hne hg1 (by rw [hca2.abs] at hg2; exact hg2) hsw)
-    rw [capV_of_capAt hc1] at this; exact this
+    rw [capV_of_capAt hc1, hcvx] at this; exact this
   · have he1 : EncWf c1 := by rw [capAt_words] at hc1; exact decode_encWf hc1
     have he2 : EncWf (capability.Cap.Zombie p zt n) := by rw [capAt_words] at hx; exact decode_encWf hx
     have hsf := swap_full_abs th s σ G hR hV hP hM hC hI hH hA hne (by rw [hHa]; exact hc1) hc1n hx hZn
@@ -268,7 +274,7 @@ theorem swap_home (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGho
       rw [e1, e2]; exact hD.nc y hy hy0
     have := post s' σ' hR' hV' hM' hC' hI' hcap hnc (capSwapForDelete_eq hne hg1 (by rw [hca2.abs] at hg2; exact hg2)
       (by rw [hca2.abs, hca1.abs] at hsw; exact hsw))
-    rw [capV_of_capAt hc1] at this; exact this
+    rw [capV_of_capAt hc1, hcvx] at this; exact this
 
 end
 

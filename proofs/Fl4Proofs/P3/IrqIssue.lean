@@ -175,7 +175,7 @@ theorem CPost.liftME' {X Y : Type} {f : X → Y} {invk : Y → Fl4Spec.PMonad Un
 `IRQControl`), for an inactive IRQ. -/
 theorem issue_tail (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
-    (hHA : HandlersActive (L.mem s) (L.ksb s) G)
+    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
     (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
     (ct : U64) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
@@ -203,22 +203,25 @@ theorem issue_tail (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4S
     obtain ⟨h1, h2⟩ := hHA y hy i hi
     rw [hkb, hw i h1]; exact ⟨h1, h2⟩
   have hin1 : L.mem s1 (irqStA (L.ksb s1) irq) = 0#u64 := by rw [hkb, hw irq hirq, hin]
+  have hFI1 : FinInv th (L.mem s1) σ1 G := hFI.of_same hCR.2.2.1 hS (ksub_of_eq (setThreadState_nks _ _) hst)
   have hAs : AbsSlot th (ps.bv, idxs) := ⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩
   have hAd : AbsSlot th (pd.bv, db) := ⟨pd, rfl, Or.inl hpd⟩
   have hsrc1 : capAt (L.mem s1) (cslotAddr (ps.bv, idxs)) = ok .IrqControl := by rw [hS.capAt hAs.isSlot, hsrcC]
   have hdst1 : capAt (L.mem s1) (cslotAddr (pd.bv, db)) = ok .Null := by rw [hS.capAt hAd.isSlot, hdst]
-  refine WP.spec_bind (invoke_ctl_rel arI th hP s1 ar σ1 G hCR1 hL1 hIR1' hHA1 hmask irq hirq hin1 hps hpd hls rfl
-    hsrc1 hdst1) ?_
-  rintro ⟨s2, a2⟩ ⟨σ', G', hmem, hCR', hIR', -⟩
+  refine WP.spec_bind (invoke_ctl_rel arI th hP s1 ar σ1 G hCR1 hL1 hIR1' hHA1 hFI1 hmask irq hirq hin1 hps hpd hls
+    rfl hsrc1 hdst1) ?_
+  rintro ⟨s2, a2⟩ ⟨σ', G', hmem, hCR', hIR', -, hFI', hHA'⟩
   apply (WP.spec_ok (core.result.Result.Ok (), s2, a2)).mpr
-  refine ⟨.irqControl (BitVec.ofNat 8 irq.val) (pd.bv, db) (ps.bv, idxs), rfl, σ1, hst, σ', G', ?_, hCR', ?_⟩
+  refine ⟨.irqControl (BitVec.ofNat 8 irq.val) (pd.bv, db) (ps.bv, idxs), rfl, σ1, hst, σ', G', ?_, hCR', ?_,
+    hFI', ?_⟩
   · exact mem_liftE (x := ((), σ')) hmem
   · rw [← hkb]; exact hIR'
+  · rw [← hkb]; exact hHA'
 
 /-- **`IRQIssueIRQHandler`** (label 33). -/
 theorem irq_issue_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
-    (hHA : HandlersActive (L.mem s) (L.ksb s) G)
+    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .irqIssueIRQHandler)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -316,7 +319,7 @@ theorem irq_issue_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ
     hR hV c0 ac0 hca0 hcv0 y1 y2
     (fun d => Fl4Spec.NonDetE.returnOk (.irqControl (BitVec.ofNat 8 y0.val) d (ps.bv, idxs))) _ ?_
   intro dsl pd hpd1 hpd hdst
-  exact issue_tail arI th hP s ar σ G ⟨hR, hV, hM, hC, hI⟩ hL hIR hHA hmask ct hcur htcb hact hact2 y0 (by omega)
+  exact issue_tail arI th hP s ar σ G ⟨hR, hV, hM, hC, hI⟩ hL hIR hHA hFI hmask ct hcur htcb hact hact2 y0 (by omega)
     hact0 hps hls hsrcC dsl pd hpd1 hpd hdst
 
 end

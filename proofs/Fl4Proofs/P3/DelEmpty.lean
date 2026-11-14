@@ -148,14 +148,14 @@ theorem empty_step (th : TypedHeap) (hP : Placed th) (hPD : PostDelHyp (L := L) 
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
     {sl : Fl4Spec.CslotPtr} (hA : AbsSlot th sl) (cl : capability.Cap) (hcl : CleanCap cl) (hclw : CapWf cl) :
     cdt.empty_slot st arI s a (cslotAddr sl) cl ⦃ r => EmptyPost (L := L) th s σ G sl cl r ⦄ := by
-  obtain ⟨⟨hR, hV, hM, hC, hI⟩, hD⟩ := hDS
+  obtain ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ := hDS
   have hxs := hA.isSlot
   obtain ⟨c, ac, hc, hca, hg⟩ := hR.abs_cap hA
   rw [hca.abs] at hg
   by_cases hcn : c = .Null
   · subst hcn
     rw [empty_slot_null arI s a _ hc, WP.spec_ok]
-    refine ⟨σ, G, ?_, ⟨⟨hR, hV, hM, hC, hI⟩, hD⟩, capV_of_capAt hc, fun _ _ _ => rfl, le_refl _, le_refl _,
+    refine ⟨σ, G, ?_, ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, capV_of_capAt hc, fun _ _ _ => rfl, le_refl _, le_refl _,
       fun h => absurd (capV_of_capAt hc) h⟩
     rw [emptySlot_null_cap _ hg]; rfl
   have hcan : absCap c ≠ .nullCap := fun h => hcn (absCap_eq_null.1 h)
@@ -190,6 +190,10 @@ theorem empty_step (th : TypedHeap) (hP : Placed th) (hPD : PostDelHyp (L := L) 
   have hx1 : capV (L.mem s1) (cslotAddr sl) = .Null := by rw [hcv1 _ hxs, if_pos rfl]
   have hoth : ∀ y, IsSlot th y → y ≠ cslotAddr sl → capV (L.mem s1) y = capV (L.mem s) y :=
     fun y hy hyx => by rw [hcv1 y hy, if_neg hyx]
+  have hFI1 : FinInv th (L.mem s1) σ1 G1 := by
+    refine ⟨hFI.kt.sub (ksub_of_eq (emptySlot_nks _ _) hes), ?_⟩
+    subst hG1
+    exact hFI.fm.remove hM _ hM1.tree.nodup (fun z hz hzx => hoth z ((hM.members z).1 hz).1 hzx)
   -- the spec's `empty_slot` with the cleanup cap
   obtain ⟨σ2, h2⟩ := setCap_abs_det (StateRel.of_kheap hR (σ' := emptySlotCdtState σ sl) rfl) hA .nullCap
   have he0 := emptySlot_eq hg hcan h2
@@ -201,12 +205,12 @@ theorem empty_step (th : TypedHeap) (hP : Placed th) (hPD : PostDelHyp (L := L) 
   · subst hcln
     show (objects.post_cap_deletion st arI s1 a1 .Null) ⦃ _ ⦄
     rw [show objects.post_cap_deletion st arI s1 a1 .Null = ok (s1, a1) from rfl, WP.spec_ok]
-    refine ⟨σ1, G1, ?_, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1⟩, hx1, hoth, hps1, hcd.le, fun _ => ⟨hcd, hpslt⟩⟩
+    refine ⟨σ1, G1, ?_, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, hx1, hoth, hps1, hcd.le, fun _ => ⟨hcd, hpslt⟩⟩
     rw [hcl']; rfl
-  · refine WP.spec_mono (hPD s1 a1 σ1 G1 cl ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1⟩ hcl hcln hclw) ?_
+  · refine WP.spec_mono (hPD s1 a1 σ1 G1 cl ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩ hcl hcln hclw) ?_
     rintro ⟨s2, a2⟩ ⟨hS2, σ2, hpd, hCR2⟩
     simp only at hS2 hpd hCR2 ⊢
-    refine ⟨σ2, G1, by rw [hcl']; exact hpd, ⟨hCR2, hD1.of_same hS2⟩, by rw [hS2.capV hxs]; exact hx1,
+    refine ⟨σ2, G1, by rw [hcl']; exact hpd, ⟨hCR2, hD1.of_same hS2, hFI1.of_same hM1 hS2 (postCapDeletion_nks _ σ1 _ hpd)⟩, by rw [hS2.capV hxs]; exact hx1,
       fun y hy hyx => by rw [hS2.capV hy]; exact hoth y hy hyx, by rw [psiD_same hM1 hCR2.2.2.1 hS2]; exact hps1,
       hcd.le, fun _ => ⟨hcd, by rw [psiD_same hM1 hCR2.2.2.1 hS2]; exact hpslt⟩⟩
 

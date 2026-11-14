@@ -44,6 +44,39 @@ theorem io_fresh {mem : U64 → U64} {kb : U64} {G : MdbGhost} (hA : IoPortsAllo
   have := hfree f.val le_rfl hfl
   rw [hb f.val le_rfl hfl] at this; cases this
 
+theorem genObjRefs_ioP (f l : U64) :
+    Fl4Spec.genObjRefs (absCap (.IoPort f l)) =
+      {Fl4Spec.GenObjRef.archRef (Fl4Spec.ArchGenObjRef.ioPortRef (BitVec.ofNat 16 f.val))} := by
+  ext g
+  simp [Fl4Spec.genObjRefs, absCap, Fl4Spec.objRefs, Fl4Spec.capIrqs, Fl4Spec.capIrqOpt, Fl4Spec.archCapSetMap,
+    Fl4Spec.archGenObjRefs, Fl4Spec.aobjRef]
+
+/-- A cap overlapping an IO port cap is one, from the same first port. -/
+theorem ovl_ioP {f l : U64} {c : capability.Cap} (h : Ovl (absCap (.IoPort f l)) (absCap c)) :
+    ∃ f' l', c = .IoPort f' l' ∧ (BitVec.ofNat 16 f'.val : BitVec 16) = BitVec.ofNat 16 f.val := by
+  unfold Ovl at h
+  rw [genObjRefs_ioP, ← Set.nonempty_iff_ne_empty] at h
+  obtain ⟨g, hg1, hg2⟩ := h
+  rw [Set.mem_singleton_iff.1 hg1] at hg2
+  cases c <;> simp [Fl4Spec.genObjRefs, absCap, Fl4Spec.objRefs, Fl4Spec.capIrqs, Fl4Spec.capIrqOpt,
+    Fl4Spec.archCapSetMap, Fl4Spec.archGenObjRefs, Fl4Spec.aobjRef] at hg2 ⊢
+  exact hg2.symm
+
+/-- **A new IO port cap over free ports overlaps no cap of the MDB.** -/
+theorem ovl_fresh_io {mem : U64 → U64} {kb : U64} {G : MdbGhost} (hA : IoPortsAlloc mem kb G) {f l : U64}
+    (hfl : f.val ≤ l.val) (hl : l.val < 65536)
+    (hfree : ∀ p, f.val ≤ p → p ≤ l.val → bitOf mem kb p = false) :
+    ∀ y ∈ G.chains.flatten, ¬ Ovl (absCap (.IoPort f l)) (absCap (capV mem y)) := by
+  intro y hy ho
+  obtain ⟨f', l', hc, he⟩ := ovl_ioP ho
+  obtain ⟨h1, h2, hb⟩ := hA y hy f' l' hc
+  have e : f'.val = f.val := by
+    have := congrArg BitVec.toNat he
+    simp only [BitVec.toNat_ofNat] at this
+    rwa [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)] at this
+  have := hfree f.val le_rfl hfl
+  rw [← e, hb f'.val le_rfl h1] at this; cases this
+
 theorem and_ffff (x : U64) : (x &&& 65535#u64).val = x.val % 65536 := by
   rw [UScalar.val_and]
   have : (65535#u64 : U64).val = 2 ^ 16 - 1 := rfl
@@ -98,14 +131,15 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 /-- The outcome of an IOPortControl invocation against a spec decode `m`:
 the same error with the state unchanged, or an invocation after which (with
 `set_thread_state Restart` first) `arch_perform_invocation` has an outcome
-in related states. -/
+in related states, with `FinInv` and `IoPortsAlloc`. -/
 def IoCPost (th : TypedHeap) (kb : U64) (σ : Fl4Spec.State Unit) (m : Fl4Spec.SEMonad Unit Fl4Spec.ArchInvocation)
     (s : S) : core.result.Result Unit error.Exc × S × A → Prop
   | (.Err e, s', _) => s' = s ∧ ∃ e', m.run σ = ({(.error e', σ)}, False) ∧ ErrRel e e'
   | (.Ok (), s', _) => ∃ inv, m.run σ = ({(.ok inv, σ)}, False) ∧ ∃ σ1,
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
       ∃ σ' G' r, (.ok r, σ') ∈ ((Fl4Spec.archPerformInvocation (Z := Unit) inv).run σ1).1 ∧
-        CRel th (L.mem s') σ' G' ∧ IoRel (L.mem s') kb σ'
+        CRel th (L.mem s') σ' G' ∧ IoRel (L.mem s') kb σ' ∧ FinInv th (L.mem s') σ' G' ∧
+        IoPortsAlloc (L.mem s') kb G'
 
 theorem IoCPost.of_run {th : TypedHeap} {kb : U64} {σ : Fl4Spec.State Unit}
     {m m' : Fl4Spec.SEMonad Unit Fl4Spec.ArchInvocation} (h : m.run σ = m'.run σ) {s : S}
@@ -246,7 +280,7 @@ theorem restart_io (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.State
 /-- **IOPortControl `Issue`** (label 60). -/
 theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hL : IoLayout th (L.ksb s)) (hIo : IoRel (L.mem s) (L.ksb s) σ)
-    (hPA : IoPortsAlloc (L.mem s) (L.ksb s) G)
+    (hPA : IoPortsAlloc (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.invocationType slbl = .archInvocationLabel .x64IOPortControlIssue)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -366,8 +400,14 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
     intro y hy
     rw [hS23.capV ((hM.members y).1 hy).1]
     exact io_fresh hPA hfl hfree' y hy
-  have hins := insert_ctl_full th s3 σ2 G hR2 hV2 hP hM2 hC2 hI2 hps hpd hls rfl hsrc3 hdst3 (.IoPort first last)
-    ⟨hfv, hlv⟩ trivial ⟨hfv, hlv⟩ trivial hfr
+  have hFI2 : FinInv th (L.mem s3) σ2 G :=
+    hFI.of_same hM hS23 ((ksub_of_eq (setThreadState_nks _ _) hst).trans (KSub.of_kheap rfl))
+  have hov : ∀ y ∈ G.chains.flatten, ¬ Ovl (absCap (.IoPort first last)) (absCap (capV (L.mem s3) y)) := by
+    intro y hy
+    rw [hS23.capV ((hM.members y).1 hy).1]
+    exact ovl_fresh_io hPA hfl hlv hfree' y hy
+  have hins := insert_ctl_full_fin th s3 σ2 G hR2 hV2 hP hM2 hC2 hI2 hFI2 hps hpd hls rfl hsrc3 hdst3
+    (.IoPort first last) ⟨hfv, hlv⟩ trivial ⟨hfv, hlv⟩ trivial hfr hov
   have hnx : nextOf (L.mem s3) (cslotAddr (ps.bv, idxs)) = 0#u64 ∨
       IsSlot th (nextOf (L.mem s3) (cslotAddr (ps.bv, idxs))) := by
     have hsm : cslotAddr (ps.bv, idxs) ∈ G.chains.flatten := (hM2.members _).2 ⟨hAs.isSlot, _, hsrc3, by simp⟩
@@ -376,22 +416,51 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
     · exact Or.inr ((hM2.members _).1 h).1
   have hfrm := insert_frame hP s3 (.IoPort first last) _ _ hAs.isSlot hAd.isSlot _ hsrc3 hnx
   refine WP.spec_bind (WP.spec_and hins hfrm) ?_
-  rintro s4 ⟨⟨σ', G', hci, hR', hV', hM', hC', hI'⟩, hF4⟩
+  rintro s4 ⟨⟨σ', G', hci, hR', hV', hM', hC', hI', hFI', hcap4⟩, hF4⟩
   rw [WP.spec_ok]
   have hkeep := capInsert_keeps (absCap (.IoPort first last)) (ps.bv, idxs) (pd.bv, db) σ2 ((), σ')
     (by rw [hci]; rfl)
+  have hIo4 : IoRel (L.mem s4) (L.ksb s) σ' := by
+    intro p hp
+    rw [hkeep.2.2, hIo3 p hp]
+    unfold bitOf
+    rw [hF4.out (hL.out _ (by rw [wI_val hp]; omega))]
   refine ⟨.invokeIOPortControl (.ioPortControlInvocation (BitVec.ofNat 16 first.val) (BitVec.ofNat 16 last.val)
-    (pd.bv, db) (ps.bv, idxs)), rfl, σ1, hst, σ', G', [], ?_, ⟨hR', hV', hM', hC', hI'⟩, ?_⟩
+    (pd.bv, db) (ps.bv, idxs)), rfl, σ1, hst, σ', G', [], ?_, ⟨hR', hV', hM', hC', hI'⟩, hIo4, hFI', ?_⟩
   · refine mem_liftE (x := ([], σ')) ?_
     refine mem_bind_nd (x := ((), σ')) ?_ rfl
     refine mem_bind_nd (x := ((), σ2)) (setIoportMask_mem _ _ _ _) ?_
     refine mem_bind_nd (x := (_, σ2)) rfl ?_
     show ((), σ') ∈ (Fl4Spec.capInsert (absCap (.IoPort first last)) (ps.bv, idxs) (pd.bv, db) σ2).1
     rw [hci]; rfl
-  · intro p hp
-    rw [hkeep.2.2, hIo3 p hp]
-    unfold bitOf
-    rw [hF4.out (hL.out _ (by rw [wI_val hp]; omega))]
+  · -- every IO port cap's ports are allocated: the new cap's now, the others' still
+    have hal : ∀ p, p < 65536 → (bitOf (L.mem s) (L.ksb s) p = true ∨ (first.val ≤ p ∧ p ≤ last.val)) →
+        bitOf (L.mem s4) (L.ksb s) p = true := by
+      intro p hp hor
+      rw [← hIo4 p hp, hkeep.2.2]
+      simp only [hσ2, ioMaskSt]
+      have e1 : (BitVec.ofNat 16 p ≥ BitVec.ofNat 16 first.val) ↔ first.val ≤ p := by
+        rw [GE.ge, BitVec.le_def, BitVec.toNat_ofNat, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hp,
+          Nat.mod_eq_of_lt hfv]
+      have e2 : (BitVec.ofNat 16 p ≤ BitVec.ofNat 16 last.val) ↔ p ≤ last.val := by
+        rw [BitVec.le_def, BitVec.toNat_ofNat, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hp, Nat.mod_eq_of_lt hlv]
+      by_cases hin : first.val ≤ p ∧ p ≤ last.val
+      · rw [if_pos ⟨e1.2 hin.1, e2.2 hin.2⟩]
+      · rw [if_neg (fun h => hin ⟨e1.1 h.1, e2.1 h.2⟩), hIo1 p hp]
+        unfold bitOf
+        rw [hw _ (by rw [wI_val hp]; omega)]
+        exact (hor.resolve_right hin)
+    intro y hy f l hc
+    have hys := ((hM'.members y).1 hy).1
+    rw [hcap4 y hys] at hc
+    split_ifs at hc with hyd
+    · cases hc
+      exact ⟨hfl, hlv, fun p h1 h2 => hal p (by omega) (Or.inr ⟨h1, h2⟩)⟩
+    · have hyn : capV (L.mem s3) y ≠ .Null := by rw [hc]; simp
+      have hym : y ∈ G.chains.flatten := (hM2.members y).2 ⟨hys, _, capAt_capV _ _, hyn⟩
+      rw [hS23.capV hys] at hc
+      obtain ⟨h1, h2, hb⟩ := hPA y hym f l hc
+      exact ⟨h1, h2, fun p hp1 hp2 => hal p (by omega) (Or.inl (hb p hp1 hp2))⟩
 
 /-- **Any other IOPortControl label**: `IllegalOperation`. -/
 theorem ioport_control_other (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl : U64)

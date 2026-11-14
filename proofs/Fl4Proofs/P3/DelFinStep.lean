@@ -55,7 +55,7 @@ theorem fin_step (th : TypedHeap) (hO : FinObjHyp (L := L) arI th) (hF : FinalHy
     (b : Bool) (hb : NeedsFin c → b = decide (Fl4Spec.isFinalCap' (absCap c) σ)) :
     objects.finalise_cap st arI s a c b false ⦃ r =>
       FinPost (L := L) th s σ (cslotAddr sl) c r ⦄ := by
-  obtain ⟨⟨hR, hV, hM, hC, hI⟩, hD⟩ := hDS
+  obtain ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ := hDS
   have hcvx := capV_of_capAt hc
   have hcv := hV.abs hA hc
   have hen : EncWf c := by rw [capAt_words] at hc; exact decode_encWf hc
@@ -65,7 +65,7 @@ theorem fin_step (th : TypedHeap) (hO : FinObjHyp (L := L) arI th) (hF : FinalHy
       (capV (L.mem s) y = .Null ∧ isZb (capV (L.mem s) y) = false) := fun _ _ _ => Or.inl rfl
   rcases cap_cases c hcn with ht | ⟨p, r, gs, g, rfl⟩ | ⟨p, zt, n, rfl⟩ | ho
   · rw [finalise_triv arI s a c b ht, WP.spec_ok]
-    refine ⟨σ, G, mem_single (finaliseCap_trivF σ c _ ht), ⟨⟨hR, hV, hM, hC, hI⟩, hD⟩, hcvx, hsame,
+    refine ⟨σ, G, mem_single (finaliseCap_trivF σ c _ ht), ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, hcvx, hsame,
       trivial, trivial, fun h => ?_, Or.inl rfl⟩
     cases c <;> simp [TrivFin] at ht <;> simp [isZb] at h
   · -- a CNode cap
@@ -79,7 +79,7 @@ theorem fin_step (th : TypedHeap) (hO : FinObjHyp (L := L) arI th) (hF : FinalHy
           false = ok ((.Zombie p r z, .Null), s, a) := by
         simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, ↓reduceIte, lift, hz, uncurry_apply_pair]
       rw [e, WP.spec_ok]
-      refine ⟨σ, G, ?_, ⟨⟨hR, hV, hM, hC, hI⟩, hD⟩, hcvx, hsame, trivial, trivial, fun h => by simp [isZb] at h,
+      refine ⟨σ, G, ?_, ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, hcvx, hsame, trivial, trivial, fun h => by simp [isZb] at h,
         Or.inr ⟨p, r, z, rfl, cnode_zcond hR hP hM hA hc hfin hcvp hr hen.1 z hzv⟩⟩
       rw [decide_eq_true hfin]
       have hzb : zombieBits r = some r.val := zombieBits_cnode (by omega)
@@ -89,29 +89,30 @@ theorem fin_step (th : TypedHeap) (hO : FinObjHyp (L := L) arI th) (hF : FinalHy
           false = ok ((.Null, .Null), s, a) := by
         simp [objects.finalise_cap, objects.finalise_cap_object]
       rw [e, WP.spec_ok]
-      refine ⟨σ, G, ?_, ⟨⟨hR, hV, hM, hC, hI⟩, hD⟩, hcvx, hsame, trivial, trivial, fun h => by simp [isZb] at h,
+      refine ⟨σ, G, ?_, ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, hcvx, hsame, trivial, trivial, fun h => by simp [isZb] at h,
         Or.inl rfl⟩
       rw [decide_eq_false hfin]
       simp only [absCap, Fl4Spec.finaliseCap, Bool.false_eq_true, ↓reduceIte]; rfl
   · -- a zombie
     have hfz : Fl4Spec.isFinalCap' (absCap (.Zombie p zt n)) σ :=
-      (hF s σ G sl _ ⟨⟨hR, hV, hM, hC, hI⟩, hD⟩ hA hc hcn).choose_spec.2.2 rfl
+      (hF s σ G sl _ ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hA hc hcn).choose_spec.2.2 rfl
     have e : objects.finalise_cap st arI s a (.Zombie p zt n) b
         false = ok ((.Zombie p zt n, .Null), s, a) := by
       simp [objects.finalise_cap, objects.finalise_cap_object]
     rw [e, WP.spec_ok]
-    refine ⟨σ, G, ?_, ⟨⟨hR, hV, hM, hC, hI⟩, hD⟩, hcvx, hsame, trivial, trivial, fun _ => rfl,
+    refine ⟨σ, G, ?_, ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, hcvx, hsame, trivial, trivial, fun _ => rfl,
       Or.inr ⟨p, zt, n, rfl, ?_⟩⟩
     · rw [decide_eq_true hfz]
       show _ ∈ ((Fl4Spec.NonDet.assert _ >>= fun _ => pure _) σ).1
       exact mem_bind_nd (x := ((), σ)) ⟨rfl, rfl⟩ rfl
     · refine ⟨hca.1, hen, hD.zwf _ hA.isSlot _ _ _ hcvx, fun y hy hyx p' zt' n' e' => ?_, by rw [hcvx]; rfl,
-        by rw [hcvx]; rfl, fun y _ _ => by rw [hcvx], fun y _ _ => by rw [hcvx, srB_zombie], ?_⟩
+        by rw [hcvx]; rfl, fun y _ _ => by rw [hcvx], fun y _ _ => by rw [hcvx, srB_zombie], ?_, ?_⟩
       · exact hD.zu y _ hy hA.isSlot hyx _ _ _ _ _ _ e' hcvx
       · rintro ⟨zt', n', e'⟩; rw [hcvx] at e'; cases e'; rfl
+      · exact hFI.zombie_alone hM hA.isSlot hcvx
   · -- an object cap
     rw [hb (Or.inl ho)]
-    refine WP.spec_mono (hO s a σ G sl c ⟨⟨hR, hV, hM, hC, hI⟩, hD⟩ hA hc ho) ?_
+    refine WP.spec_mono (hO s a σ G sl c ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hA hc ho) ?_
     rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨hrem, hcl, hclw, σ1, G1, hmem, hDS1, hx1, hch⟩
     refine ⟨σ1, G1, hmem, hDS1, hx1, hch, hcl, hclw, fun h => ?_, ?_⟩
     · cases c <;> simp [FinObjKind] at ho <;> simp [isZb] at h
