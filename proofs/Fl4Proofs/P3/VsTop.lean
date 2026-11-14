@@ -9,7 +9,9 @@ other relations read lie in their objects (`OObj`: the core's node, the
 low kernel-state block, the TCB fields, the endpoints, replies,
 notifications, SCs and IPC-buffer words), and these are disjoint from the
 objects the VSpace code writes (`VObj`: CNodes, TCB cap slots, ASID pools,
-page tables and the ASID table) — l4v's object non-overlap.
+page tables and the ASID table) — l4v's object non-overlap; and the core's
+node holds no endpoint-relation word (`nodeE`, for `set_thread_state`'s
+action word: VsSubTop's `restart_top`).
 
 * `TopSR.step`: the relations carry over a step whose memory writes are in
   the VSpace objects or a region outside the other objects, and whose spec
@@ -65,6 +67,9 @@ structure TopPlaced (th : TypedHeap) (P L4 L3 L2 L1 N T C E R : Set U64) (B : Se
   pt : PtPlaced L4 L3 L2 L1
   pl : Placed th
   disj : ∀ a, OObj st N T C E R B c s σ a → ¬ VObj th P L4 L3 L2 L1 (L.ksb s) a
+  /-- The core's node holds no endpoint-relation word (the scheduler action
+  word that `set_thread_state` may write). -/
+  nodeE : ∀ a : U64, L.nodeBase s c ≤ a.val → a.val < L.nodeBase s c + 4288 → ¬ Endp.EFoot T E R B a
 
 /-- FL4's kernel root word (`ks::KERNEL_ROOT`) gives the spec's global
 address space. -/
@@ -298,7 +303,10 @@ theorem TopSR.step {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Rg : Fl4Spec.Ob
     by rw [hksb]; exact IrqRel.specFrame (IrqRel.memFrame hIrq hkf hka hm) hO,
     by rw [hksb]; exact IoRel.specFrame (IoRel.memFrame hIo hkf hka hm) hO, ?_, hAR hAr⟩,
     ⟨hP.ep, by rw [hksb]; exact hP.vs, hP.pt, hP.pl, fun x hx => by
-      rw [hksb]; exact hP.disj x (OObj.of_step hksb hO hx)⟩⟩
+      rw [hksb]; exact hP.disj x (OObj.of_step hksb hO hx),
+      fun x h1 h2 => by
+        have hnb : L.nodeBase s' c = L.nodeBase s c := by simp [LawfulStore.nodeBase, hksb]
+        rw [hnb] at h1 h2; exact hP.nodeE x h1 h2⟩⟩
   unfold KRootRel globCr3 at hKr ⊢
   have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
     unfold layout.ks.KERNEL_ROOT

@@ -88,6 +88,8 @@ import Fl4Proofs.P3.IntInv
 import Fl4Proofs.P3.VsTop
 import Fl4Proofs.P3.VsArch
 import Fl4Proofs.P3.VsSubRel
+import Fl4Proofs.P3.VsSubTop
+import Fl4Proofs.P3.VsDecTop
 import Fl4Proofs.P3.CancelKSub
 import Fl4Proofs.P3.ResetFin
 import Fl4Proofs.P3.RetypeFresh

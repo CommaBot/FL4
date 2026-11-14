@@ -12,7 +12,8 @@ P3 (DESIGN.md §9), VSpace: **`DeriveSubframe` refines the l4h 0029 model**
   `subframeNode` and the CNode checks of the decode.
 * `derive_subframe_rel`: the decode and the invocation, for the node cap
   present as the first extra cap. Hypotheses beyond the relations: the large
-  frame lies in the kernel's high half without wrapping (`hFr`), and every
+  frame is 2 MiB-aligned (`hal`, l4v `cap_aligned`; its canonicity is the
+  cap encoding's), the current thread runnable (`hrun`), and every
   linked cap is disjoint from it, a non-revocable frame, or inside it
   (`hno`, the range fact `MdbInv` needs for the aliases).
 -/
@@ -61,6 +62,7 @@ structure VsSubHyps (A : Type) (P L4 L3 L2 L1 : Set U64) (th : TypedHeap) (SR : 
     Prop where
   restart : ∀ s a σ (ct : U64) (x : Fl4Spec.Tcb), SR s a σ → VsRel P (L.mem s) (L.ksb s) σ →
     PtRel L4 L3 L2 L1 (L.mem s) σ → ct.bv = σ.curThread → σ.kheap ct.bv = some (.tcb x) →
+    Fl4Spec.runnable x.tcbState = true →
     sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
       VsRel P (L.mem s') (L.ksb s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
       PtRel L4 L3 L2 L1 (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
@@ -236,6 +238,23 @@ end
 
 end Spec2
 
+
+/-- An address of a canonical, 2 MiB-aligned window is canonical. -/
+theorem canonical_window {p q : U64} (hc : Canonical p) (hal : p.val % 2 ^ 21 = 0) (h1 : p.val ≤ q.val)
+    (h2 : q.val < p.val + 2 ^ 21) : Canonical q := by
+  have hd : q.bv.toNat / 2 ^ 21 = p.bv.toNat / 2 ^ 21 := by
+    show q.val / 2 ^ 21 = p.val / 2 ^ 21; omega
+  have key : ∀ j (hj : j < 64), 21 ≤ j → q.bv[j] = p.bv[j] := by
+    intro j hj h21
+    rw [BitVec.getElem_eq_testBit_toNat, BitVec.getElem_eq_testBit_toNat]
+    have e1 := Nat.testBit_div_two_pow (x := q.bv.toNat) (n := 21) (i := j - 21)
+    have e2 := Nat.testBit_div_two_pow (x := p.bv.toNat) (n := 21) (i := j - 21)
+    rw [show j - 21 + 21 = j by omega] at e1 e2
+    rw [← e1, ← e2, hd]
+  rcases hc with h | h
+  · left; intro j hj h47; rw [key j hj (by omega)]; exact h j hj h47
+  · right; intro j hj h47; rw [key j hj (by omega)]; exact h j hj h47
+
 section Step
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 
@@ -248,7 +267,7 @@ theorem sub_step {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {SR : S �
     (hVP : VsPlaced P (L.ksb s))
     (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b) (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b)
     (hS : SubRel st th P L4 L3 L2 L1 SR (cslotAddr (pp.bv, idx)) (.Frame ptr .Large rt false mm fa fv) rv s a σ G)
-    (hfit : ptr.val + 2 ^ 21 ≤ 2 ^ 64) (hhigh : 2 ^ 64 - 2 ^ 47 ≤ ptr.val)
+    (hal : ptr.val % 2 ^ 21 = 0)
     {dp : U64} {r : Nat} (hdp : th dp = some (.cnode r)) (hr : r < 64) {k : Nat} (hk : k < 2 ^ r)
     (hdst : capAt (L.mem s) (slotAddr dp.bv (BitVec.ofNat 64 k)) = ok .Null)
     {q vm : U64} (hq1 : ptr.val ≤ q.val) (hq2 : q.val + 4096 ≤ ptr.val + 2 ^ 21) (hvm : 1 ≤ vm.val ∧ vm.val ≤ 3) :
@@ -273,7 +292,9 @@ theorem sub_step {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {SR : S �
   have hsd : src ≠ dest := by
     intro e; rw [e, hdst] at hcap; have := eq_of_ok_eq hcap; rw [hsrcCdef] at this; cases this
   have hes : EncWf srcC := by rw [capAt_words] at hcap; exact decode_encWf hcap
-  have he : EncWf c := ⟨canonical_of_high (by omega), by omega, by decide, by decide⟩
+  have hfit : ptr.val + 2 ^ 21 ≤ 2 ^ 64 := by have : ptr.val < 2 ^ 64 := ptr.hBounds; omega
+  have hcp : Canonical ptr := by have h := hes; rw [hsrcCdef] at h; exact h.1
+  have he : EncWf c := ⟨canonical_window hcp hal hq1 (by omega), by omega, by decide, by decide⟩
   have hwf : CapWf c := ⟨hvm.1, hvm.2⟩
   have hsrcm : src ∈ G.chains.flatten := (hM.members src).2 ⟨hs, _, hcap, by simp⟩
   have hdestm : dest ∉ G.chains.flatten := by
@@ -441,7 +462,7 @@ theorem insert_subframes_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U6
     (hVP : VsPlaced P (L.ksb s))
     (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b) (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b)
     (hS : SubRel st th P L4 L3 L2 L1 SR (cslotAddr (pp.bv, idx)) (.Frame ptr .Large rt false mm fa fv) rv s a σ G)
-    (hfit : ptr.val + 2 ^ 21 ≤ 2 ^ 64) (hhigh : 2 ^ 64 - 2 ^ 47 ≤ ptr.val)
+    (hal : ptr.val % 2 ^ 21 = 0)
     {dp : U64} {r : Nat} (hdp : th dp = some (.cnode r)) (hr : r < 64) {first count base vm : U64}
     (hfc : first.val + count.val ≤ 2 ^ r) (hb1 : ptr.val ≤ base.val) (hb2 : base.val + count.val * 4096 ≤ ptr.val + 2 ^ 21)
     (hvm : 1 ≤ vm.val ∧ vm.val ≤ 3)
@@ -452,6 +473,7 @@ theorem insert_subframes_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U6
         ({((), σ')}, False) ∧
       SubRel st th P L4 L3 L2 L1 SR (cslotAddr (pp.bv, idx)) (.Frame ptr .Large rt false mm fa fv) rv s' a σ' G' ∧
       L.ksb s' = L.ksb s ⦄ := by
+  have hfit : ptr.val + 2 ^ 21 ≤ 2 ^ 64 := by have : ptr.val < 2 ^ 64 := ptr.hBounds; omega
   set Lst := subList dp r first.val count.val with hLst
   set g := subIns (pp.bv, idx) base.bv (vmRightsOf vm) with hg
   unfold vspace.insert_subframes vspace.insert_subframes_loop
@@ -488,7 +510,7 @@ theorem insert_subframes_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U6
         simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits, hi1v]; omega
       rw [hfiv]
       refine WP.spec_bind (sub_step (L := L) hH hPl hPP hpp hidx si a σi Gi (by rw [hksi]; exact hVP)
-        (by rw [hksi]; exact hVO) hPO hSi hfit hhigh hdp hr hk2 (hemp _ (by omega) (by omega))
+        (by rw [hksi]; exact hVO) hPO hSi hal hdp hr hk2 (hemp _ (by omega) (by omega))
         (q := core.num.U64.wrapping_add base i1) (by rw [hqv]; omega) (by
           rw [hqv]; have := Nat.mul_le_mul_right 4096 (show i.val + 1 ≤ count.val by omega)
           rw [Nat.add_mul] at this; omega) hvm) ?_
@@ -803,13 +825,14 @@ theorem derive_subframe_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P
     (hS : SR s a σ) (hVP : VsPlaced P (L.ksb s))
     (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b) (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b)
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Frame ptr sz rt dev mm fa fv))
-    (hFr : sz = .Large → dev = false → ptr.val + 2 ^ 21 ≤ 2 ^ 64 ∧ 2 ^ 64 - 2 ^ 47 ≤ ptr.val)
+    (hal : sz = .Large → dev = false → ptr.val % 2 ^ 21 = 0)
     (hno : sz = .Large → dev = false → ∀ x ∈ G.chains.flatten,
       Disj (capV (L.mem s) x) (.Frame ptr sz rt dev mm fa fv) ∨
       (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
       Within (.Frame ptr sz rt dev mm fa fv) (capV (L.mem s) x))
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : ct.bv = σ.curThread)
     {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct))
+    (hrun : Fl4Spec.runnable xct.tcbState = true)
     (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (length buf : U64) (args : List U64) (hlen : length.val = args.length)
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
@@ -850,9 +873,10 @@ theorem derive_subframe_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P
     exact (WP.spec_ok _).2 (Or.inl ⟨_, .illegalOperation, rfl, trivial,
       hill (fun p r mt mp h => by simp [frameSizeOf] at h), rfl, rfl⟩)
   simp only [vspace.large_ram_frame, Bool.false_eq_true, ↓reduceIte, bind_ok]
-  obtain ⟨hfit, hhigh⟩ := hFr rfl rfl
+  have hal' := hal rfl rfl
+  have hfit : ptr.val + 2 ^ 21 ≤ 2 ^ 64 := by have : ptr.val < 2 ^ 64 := ptr.hBounds; omega
   have hno' := hno rfl rfl
-  clear hill hFr hno
+  clear hill hal hno
   obtain ⟨a0, a1, a2, a3, a4, a5, rs', rfl⟩ :
       ∃ a0 a1 a2 a3 a4 a5 r, args = a0 :: a1 :: a2 :: a3 :: a4 :: a5 :: r := by
     have : 6 ≤ args.length := by rw [← hlen]; scalar_tac
@@ -945,7 +969,7 @@ theorem derive_subframe_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P
     rw [hm, bind_ok]
     -- the Restart
     have hkt' : σ.kheap ct.bv = some (.tcb xct) := by rw [hcur]; exact hkt
-    refine WP.spec_bind (WP.spec_and (hH.restart s a σ ct xct hS hR hPt hcur hkt')
+    refine WP.spec_bind (WP.spec_and (hH.restart s a σ ct xct hS hR hPt hcur hkt' hrun)
       (set_thread_state_slots th hPl s ct sched.TS_RESTART htcb hact)) ?_
     rintro s1 ⟨⟨hR1, hPt1, hS1, hksb1⟩, hSS⟩
     set σ1 := Fl4Proofs.P3.Notif.stsAct (Fl4Proofs.P3.Notif.updK σ ct.bv (.tcb { xct with tcbState := .restart }))
@@ -976,7 +1000,7 @@ theorem derive_subframe_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P
             Nat.mul_le_mul_right 4096 (by rw [← hmxv]; exact hc2')
         _ ≤ 2 ^ 21 - a3.val := Nat.div_mul_le_self _ _
     refine WP.spec_bind (insert_subframes_rel (L := L) hH hPl hPP hpp hidx s1 a σ1 G (by rw [hksb1]; exact hVP)
-      (by rw [hksb1]; exact hVO) hPO hSub1 hfit hhigh hdp hr64 hfc (by rw [hbv]; omega) (by rw [hbv]; omega)
+      (by rw [hksb1]; exact hVO) hPO hSub1 hal' hdp hr64 hfc (by rw [hbv]; omega) (by rw [hbv]; omega)
       ⟨hm1, hm3⟩ (fun j h1 h2 => by
         rw [hSS.capAt ⟨dest, j, Or.inl ⟨rr, hdp, by omega⟩, rfl⟩]; exact hemp j h1 h2)) ?_
     rintro s2 ⟨σ', G', hmap, hSR2, hks2⟩
@@ -990,13 +1014,13 @@ theorem derive_subframe_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P
           (subList dest rr a2.val a4.val) := by
       unfold Fl4Spec.performDeriveSubframe subIns subList
       simp only [List.length_map, List.length_range', hbase, hrights]
-    have hrun : (Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart >>= fun _ =>
+    have hrun2 : (Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart >>= fun _ =>
         Fl4Spec.performDeriveSubframe (Z := Unit)
           ⟨(pp.bv, idx), ptr.bv + a3.bv, Fl4Spec.maskVmRights (vmRightsOf rt) (Fl4Spec.dataToRights a5.bv),
             (List.range' a2.val a4.val).map fun i => (dest.bv, Fl4Spec.natToCref rr i)⟩) σ =
         ({((), σ')}, False) := by
       rw [← hcur, nd_bind_one hst, hperf]; exact hmap
-    exact (WP.spec_ok _).2 (Or.inr ⟨rfl, rfl, _, hE, σ', G', by rw [hrun]; rfl, by rw [hrun]; exact id, hSR2,
+    exact (WP.spec_ok _).2 (Or.inr ⟨rfl, rfl, _, hE, σ', G', by rw [hrun2]; rfl, by rw [hrun2]; exact id, hSR2,
       hks2.trans hksb1⟩)
 
 end Step
