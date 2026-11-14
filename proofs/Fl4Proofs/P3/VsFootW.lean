@@ -13,7 +13,8 @@ invocations** (for the other agents' frame arguments: `DomRel`, `ScPlaced`,
   of the VSpace invocations carries over to it (`VsFrameHyps.foot`, …, one
   per structure), so the invocation theorems instantiated at `FootSR` give
   the footprint.
-* The footprint theorems (`frame_map_foot`, …, `pml4_flush_foot`): from the
+* The footprint theorems (`frame_map_foot`, …, `pml4_flush_foot`,
+  `derive_subframe_foot`; the last through `FootSRc`): from the
   hypotheses of the invocation theorem, FL4's result state differs from
   the initial state only in `VsFootW` (`MpFootW` for `MakePool`).
 -/
@@ -50,6 +51,22 @@ def FootSR (st : machine.Store S) [L : LawfulStore st] {A : Type} (SR : S → A 
 def RegOKF (RegOK : S → Fl4Spec.State Unit → U64 → Prop) (W : U64 → Prop) (s : S) (σ : Fl4Spec.State Unit)
     (p : U64) : Prop :=
   RegOK s σ p ∧ ∀ b : U64, p.val ≤ b.val → b.val < p.val + 4096 → W b
+
+/-- `FootSR` with the current thread a TCB of `th` and the scheduler-action
+word outside the objects (for `VsSubHyps`, whose `restart` does not carry
+them). -/
+def FootSRc (st : machine.Store S) [L : LawfulStore st] {A : Type} (th : TypedHeap)
+    (SR : S → A → Fl4Spec.State Unit → Prop) (s0 : S) (W : U64 → Prop) (s : S) (a : A)
+    (σ : Fl4Spec.State Unit) : Prop :=
+  SR s a σ ∧ WritesIn st s0 s W ∧ (∀ t : U64, t.bv = σ.curThread → th t = some .tcb) ∧
+    OutsideObjects th (L.nodeAt s0 (L.cpu s0) layout.node.SCHED_ACTION)
+
+theorem stsAct_updK_cur (σ : Fl4Spec.State Unit) (p : Fl4Spec.ObjRef) (o : Fl4Spec.KernelObject)
+    (t : Fl4Spec.ObjRef) : (stsAct (updK σ p o) t).curThread = σ.curThread := by
+  unfold stsAct updK; split_ifs <;> rfl
+
+theorem insStep_cur {σ σ' : Fl4Spec.State Unit} (h : InsStep σ σ') : σ'.curThread = σ.curThread := by
+  obtain ⟨p, r, cs, idx, a, cdt, io, -, rfl⟩ := h; rfl
 
 theorem stA_al {th : TypedHeap} (hPl : Placed th) {t : U64} (ht : th t = some .tcb) : Aligned (stA t) := by
   have h1 := hPl.align t _ ht
@@ -260,6 +277,20 @@ theorem VsFlushHyps.foot (hPl : Placed th) (hH : VsFlushHyps st A ar th P L4 L3 
   flushAllOK := hH.flushAllOK
   flushAllH := fun s a σ vs asid h =>
     WP.spec_mono (hH.flushAllH s a σ vs asid h.1) fun _ ⟨σ', h1, h2⟩ => ⟨σ', h1, h2, h.2⟩
+
+theorem VsSubHyps.foot (hPl : Placed th) (hH : VsSubHyps st A P L4 L3 L2 L1 th SR) :
+    VsSubHyps st A P L4 L3 L2 L1 th (FootSRc st th SR s0 W) where
+  restart := fun s a σ ct x hS hR hPt hcur hk hrun => by
+    have hsa : L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION =
+        L.nodeAt s0 (L.cpu s0) layout.node.SCHED_ACTION := by
+      unfold LawfulStore.nodeAt; rw [hS.2.1.1, hS.2.1.2.1]
+    refine WP.spec_mono (WP.spec_and (hH.restart s a σ ct x hS.1 hR hPt hcur hk hrun)
+      (sts_foot hPl hsub hS.2.1 (hS.2.2.1 ct hcur) (by rw [hsa]; exact hS.2.2.2))) ?_
+    rintro _ ⟨⟨a1, a2, a3, a4⟩, hw⟩
+    exact ⟨a1, a2, ⟨a3, hw, fun t ht => hS.2.2.1 t (ht.trans (stsAct_updK_cur _ _ _ _)), hS.2.2.2⟩, a4⟩
+  insStable := fun s s' a σ σ' hS hw hI =>
+    ⟨hH.insStable s s' a σ σ' hS.1 hw hI, (hS.2.1.trans hw).mono fun b hb => hb.elim id fun h => hsub b (Or.inr (Or.inl h)),
+      fun t ht => hS.2.2.1 t (ht.trans (insStep_cur hI)), hS.2.2.2⟩
 
 theorem VsMpHyps.foot (hPl : Placed th) {RegOK : S → Fl4Spec.State Unit → U64 → Prop}
     (hH : VsMpHyps st A th P L4 L3 L2 L1 SR RegOK) :
@@ -706,6 +737,46 @@ theorem pml4_flush_foot {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 
   · obtain ⟨-, -, -, -, -, hs, -⟩ := h; rw [hs]; exact WritesIn.refl _ _
   · exact hU.1.2
 
+
+set_option maxHeartbeats 4000000 in
+/-- **The footprint of `derive_subframe_rel`** (`VsFootW`). -/
+theorem derive_subframe_foot {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
+    {SR : S → A → Fl4Spec.State Unit → Prop}
+    (hH : VsSubHyps st A P L4 L3 L2 L1 th SR) (hPl : Placed th) (hPP : PtPlaced L4 L3 L2 L1)
+    {pp : U64} {rs : Nat} (hpp : th pp = some (.cnode rs)) {idx : List Bool} (hidx : idx.length = rs)
+    {ptr rt fa fv : U64} {sz : capability.FrameSize} {dev mm : Bool}
+    (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+    (hSt : StateRel th (L.mem s) σ) (hSV : SlotsValid th (L.mem s))
+    (hM : MdbLinks th (L.mem s) G) (hC : CdtRel th (L.mem s) σ G) (hI : MdbInv (L.mem s) G)
+    (hU : UtInv (L.mem s) G) (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
+    (hS : SR s a σ) (hVP : VsPlaced P (L.ksb s))
+    (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b) (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b)
+    (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Frame ptr sz rt dev mm fa fv))
+    (hno : sz = .Large → dev = false → ∀ x ∈ G.chains.flatten,
+      Disj (capV (L.mem s) x) (.Frame ptr sz rt dev mm fa fv) ∨
+      (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
+      Within (.Frame ptr sz rt dev mm fa fv) (capV (L.mem s) x))
+    (hFI : FinInv th (L.mem s) σ G)
+    (hFR : Vs.FrameInv (L.mem s) G)
+    (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : ct.bv = σ.curThread)
+    {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct))
+    (hrun : Fl4Spec.runnable xct.tcbState = true)
+    (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (length buf : U64) (args : List U64) (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (ex : Array obj.Slot 3#usize) {y : obj.Slot} (hex0 : vspace.extra ex 0#usize = ok (some y))
+    {nc : capability.Cap} (hcy : capAt (L.mem s) y = ok nc) {nc' : Fl4Spec.Cap} (hnr : CapRel nc nc')
+    (hnv : CapValid th nc) (nsl : Fl4Spec.CslotPtr) (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) :
+    vspace.derive_subframe st ar s a length (cslotAddr (pp.bv, idx)) (.Frame ptr sz rt dev mm fa fv) buf ex ⦃ res =>
+      WritesIn st s res.2.1 (VsFootW st th P L4 L3 L2 L1 s) ⦄ := by
+  refine WP.spec_mono (derive_subframe_rel (SR := FootSRc st th SR s (VsFootW st th P L4 L3 L2 L1 s))
+    (hH := VsSubHyps.foot (s0 := s) (fun _ h => h) hPl hH)
+    (hS := ⟨hS, WritesIn.refl _ _, fun t ht => by
+      have e := P1.eq_of_bv (ht.trans hcur.symm); subst e; exact htcb, hact⟩) (A := A) (ar := ar) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (hPl := hPl) (hPP := hPP) (pp := pp) (rs := rs) (hpp := hpp) (idx := idx) (hidx := hidx) (ptr := ptr) (rt := rt) (fa := fa) (fv := fv) (sz := sz) (dev := dev) (mm := mm) (s := s) (a := a) (σ := σ) (G := G) (hSt := hSt) (hSV := hSV) (hM := hM) (hC := hC) (hI := hI) (hU := hU) (hR := hR) (hPt := hPt) (hVP := hVP) (hVO := hVO) (hPO := hPO) (hcap := hcap) (hno := hno) (hFI := hFI) (hFR := hFR) (ct := ct) (hct := hct) (hcur := hcur) (xct := xct) (hkt := hkt) (hrun := hrun) (htcb := htcb) (hact := hact) (length := length) (buf := buf) (args := args) (hlen := hlen) (hargs := hargs) (ex := ex) (y := y) (hex0 := hex0) (nc := nc) (hcy := hcy) (nc' := nc') (hnr := hnr) (hnv := hnv) (nsl := nsl) (rest := rest)) ?_
+  intro res h
+  rcases h with h | ⟨-, -, iv, -, σ', G', -, -, hSub, -⟩
+  · obtain ⟨-, -, -, -, -, hs, -⟩ := h; rw [hs]; exact WritesIn.refl _ _
+  · exact hSub.sr.2.1
 
 end
 

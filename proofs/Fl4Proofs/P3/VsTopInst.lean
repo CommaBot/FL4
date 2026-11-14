@@ -204,6 +204,16 @@ theorem vsMpHyps_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} :
     · rwa [Function.update_of_ne e] at hq
   mpSR := fun s s' a σ σ' p hi hhi hS hRO hksb hcpu hW hMp => mpSR_top s s' a σ σ' p hi hhi hS hRO hksb hcpu hW hMp
 
+/-- **The current thread at `TopSR`**: FL4's `cur_thread` word is the spec's
+`cur_thread` (`SchedSpec.curThread`; the core is `c`, `SchedCore.cur`). -/
+theorem curT_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ) :
+    sched.cur_thread st s ⦃ ct => ct.bv = σ.curThread ⦄ := by
+  obtain ⟨Q, R', hc, hs⟩ := hS.1.1.lists
+  refine WP.spec_mono (cur_thread_spec' s) ?_
+  rintro v rfl
+  rw [hs.curThread, hc.cur]; rfl
+
 /-- `VsInvHyps` for the composite relation (`curT` given). -/
 theorem vsInvHyps_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop}
     (hcurT : ∀ s a σ, TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ →
@@ -253,6 +263,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A frame cap with the composite relation** (`decode_invocation_frame`; the placement from `TopPlaced`). -/
 theorem decode_invocation_frame_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
+    (hFR : Vs.FrameInv (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -287,12 +298,12 @@ theorem decode_invocation_frame_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
       DecOKR (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
         buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct)
     (hDS : lbl = fl4_abi.label.X86PageDeriveSubframe →
-      DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+      DecOKF (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
         buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer) :
-    DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+    DecOKF (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ∨
     DecOKR (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
-      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct := decode_invocation_frame arI th hS.2.pl s ar σ G hCR hFI (vsFrameHyps_top hA) (vsFrameHypsL_top hA)
+      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct := decode_invocation_frame arI th hS.2.pl s ar σ G hCR hFI hFR (vsFrameHyps_top hA) (vsFrameHypsL_top hA)
     (vsFrameUnmapHyps_top hA) hS hS.2.vs hS.2.sd hS.2.pt hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlbl length buf ct hct hcur htcb
     hact hrun args hlen hargs hpc hidx hcap hfm hpaS hpaL hpaH hAl extra excaps hext blk call don fp ci buffer hGA hTAC hDS
 
@@ -301,6 +312,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A page-table cap with the composite relation** (`decode_invocation_page_table`; the placement from `TopPlaced`). -/
 theorem decode_invocation_page_table_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
+    (hFR : Vs.FrameInv (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -327,9 +339,9 @@ theorem decode_invocation_page_table_top (th : TypedHeap) (s : S) (ar : A) (σ :
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
         ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
-    DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageTable ptr mp asid0 va0) blk call don fp
+    DecOKF (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageTable ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
-  decode_invocation_page_table arI th hS.2.pl s ar σ G hCR hFI (vsPtMapHyps_top hA) (vsPtUnmapHyps_top hA) hS hS.2.vs hS.2.sd hS.2.pt
+  decode_invocation_page_table arI th hS.2.pl s ar σ G hCR hFI hFR (vsPtMapHyps_top hA) (vsPtUnmapHyps_top hA) hS hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
     hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer
 
@@ -337,6 +349,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A page-directory cap with the composite relation** (`decode_invocation_page_directory`; the placement from `TopPlaced`). -/
 theorem decode_invocation_page_directory_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
+    (hFR : Vs.FrameInv (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -363,9 +376,9 @@ theorem decode_invocation_page_directory_top (th : TypedHeap) (s : S) (ar : A) (
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
         ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
-    DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageDirectory ptr mp asid0 va0) blk call don fp
+    DecOKF (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageDirectory ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
-  decode_invocation_page_directory arI th hS.2.pl s ar σ G hCR hFI (vsPdMapHyps_top hA) (vsPdUnmapHyps_top hA) hS hS.2.vs hS.2.sd hS.2.pt
+  decode_invocation_page_directory arI th hS.2.pl s ar σ G hCR hFI hFR (vsPdMapHyps_top hA) (vsPdUnmapHyps_top hA) hS hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
     hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer
 
@@ -373,6 +386,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A PDPT cap with the composite relation** (`decode_invocation_pdpt`; the placement from `TopPlaced`). -/
 theorem decode_invocation_pdpt_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
+    (hFR : Vs.FrameInv (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -399,20 +413,19 @@ theorem decode_invocation_pdpt_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Sp
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
         ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
-    DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Pdpt ptr mp asid0 va0) blk call don fp
+    DecOKF (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Pdpt ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
-  decode_invocation_pdpt arI th hS.2.pl s ar σ G hCR hFI (vsPdptMapHyps_top hA) (vsPdptUnmapHyps_top hA) hS hS.2.vs hS.2.sd hS.2.pt
+  decode_invocation_pdpt arI th hS.2.pl s ar σ G hCR hFI hFR (vsPdptMapHyps_top hA) (vsPdptUnmapHyps_top hA) hS hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
     hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer
 
 set_option maxHeartbeats 8000000 in
-/-- **An ASID pool cap with the composite relation** (`decode_invocation_asid_pool`; `curT` given). -/
+/-- **An ASID pool cap with the composite relation** (`decode_invocation_asid_pool`; `curT` from `curT_top`). -/
 theorem decode_invocation_asid_pool_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
+    (hFR : Vs.FrameInv (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
-    (hcurT : ∀ s a σ, TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ →
-      sched.cur_thread st s ⦃ ct => ct.bv = σ.curThread ⦄)
     (hR : VsRel P (L.mem s) (L.ksb s) σ)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlA : lbl = fl4_abi.label.X86ASIDPoolAssign ↔
@@ -430,9 +443,9 @@ theorem decode_invocation_asid_pool_top (th : TypedHeap) (s : S) (ar : A) (σ : 
         ∀ p1 a1, vc = .Pml4 p1 false a1 → p1 ≠ 0#u64)
     (slot : U64) (blk call don fp : Bool) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef) :
-    DecOK (L := L) arI s ar σ lbl length slot (.AsidPool ptr base) blk call don fp buf extra slbl args ci sl excaps
+    DecOKF (L := L) arI s ar σ lbl length slot (.AsidPool ptr base) blk call don fp buf extra slbl args ci sl excaps
       buffer :=
-  decode_invocation_asid_pool arI th hS.2.pl s ar σ G hCR hFI (vsInvHyps_top hcurT) hS hS.2.vs hS.2.sd hR hS.2.vo
+  decode_invocation_asid_pool arI th hS.2.pl s ar σ G hCR hFI hFR (vsInvHyps_top curT_top) hS hS.2.vs hS.2.sd hR hS.2.vo
     lbl slbl hlA length buf ct hct hcur htcb hact hrun ptr base hb extra excaps hext slot blk call don fp args ci sl
     buffer
 
@@ -467,7 +480,7 @@ theorem decode_invocation_asid_control_top (th : TypedHeap) (s : S) (ar : A) (σ
           MpRegion th G P L4 L3 L2 L1 (L.ksb s) p ∧ RegOKTop (L := L) N T C E R B c s σ p)
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef) :
-    DecOK (L := L) arI s ar σ lbl length slot .AsidControl blk call don fp buf extra slbl (args.map UScalar.bv) ci sl
+    DecOKF (L := L) arI s ar σ lbl length slot .AsidControl blk call don fp buf extra slbl (args.map UScalar.bv) ci sl
       excaps buffer :=
   decode_invocation_asid_control arI th hS.2.pl s ar σ G hCR hFI hU hFR vsMpHyps_top hS hR hPt hS.2.vs hS.2.pt
     hS.2.vo hS.2.po hS.2.pv lbl slbl hlM length buf ct hct hcur htcb hact hrun args hlen hargs extra excaps hext slot

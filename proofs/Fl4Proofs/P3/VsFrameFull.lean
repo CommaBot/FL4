@@ -56,7 +56,7 @@ theorem decode_invocation_frame_full (th : TypedHeap) (s : S) (ar : A) (σ : Fl4
     (hxs : ∀ x, vspace.extra extra 0#usize = ok (some x) → IsSlot th x)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
     (hga : GetAddrHyp (L := L) s σ ar ct p call) (htac : TacHyp (L := L) L4 L3 L2 L1 s σ ct call) :
-    DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+    DecOKF (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ∨
     DecOKR (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct := by
@@ -85,7 +85,7 @@ theorem decode_invocation_frame_full (th : TypedHeap) (s : S) (ar : A) (σ : Fl4
       rw [capAt_capV] at h2; cases eq_of_ok_eq h2
       exact Or.inr ⟨x, _, vc', xsl, rest, h1, capAt_capV _ _, h3, hv, h4⟩
   have hDS : lbl = fl4_abi.label.X86PageDeriveSubframe →
-      DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+      DecOKF (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
         buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := fun hl => by
     have := decode_invocation_frame_ds (L := L) arI th hS.2.pl s ar σ G hCR hFI hU
       (Vs.vsSubHyps_top (st := st) (L := L) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1)
@@ -94,7 +94,7 @@ theorem decode_invocation_frame_full (th : TypedHeap) (s : S) (ar : A) (σ : Fl4
       hargs (pc := pc) (r := r) (idx := idx) hpc hidx (p := p) (sz := sz) (rt := rt) (asid := asid) (va := va)
       (d := d) (m := m) hcap hno hFR extra excaps hext' blk call don fp ci buffer
     exact this
-  exact Vs.decode_invocation_frame_top (L := L) arI th s ar σ G hCR hFI hA hS hPI hR hPt lbl slbl hlbl length buf ct
+  exact Vs.decode_invocation_frame_top (L := L) arI th s ar σ G hCR hFI hFR hA hS hPI hR hPt lbl slbl hlbl length buf ct
     hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hfm hpaS hpaL hpaH hAl extra excaps hext blk call don fp ci
     buffer hGA hTAC hDS
 

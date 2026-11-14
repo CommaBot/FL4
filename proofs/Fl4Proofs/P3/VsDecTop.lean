@@ -11,6 +11,7 @@ P3 (DESIGN.md §9), VSpace: **the VSpace caps at the top of
 -/
 import Fl4Proofs.P3.DecodeTop
 import Fl4Proofs.P3.VsArch
+import Fl4Proofs.P3.TopF
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -21,9 +22,40 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
+/-- `top_of_lift2` for `TopPostF`. -/
+theorem topF_of_lift2 {α β : Type} {f : α → Fl4Spec.Fl4Invocation} {g : β → α} {m : Fl4Spec.SEMonad Unit β}
+    {σ : Fl4Spec.State Unit} {blk call don : Bool} {s : S} {res : core.result.Result Unit error.Exc × S × A}
+    (h : (∃ e, res.1 = .Err e ∧ res.2.1 = s ∧ ∃ e', m.run σ = ({(.error e', σ)}, False) ∧ ErrRel e e') ∨
+      (∃ inv, m.run σ = ({(.ok inv, σ)}, False) ∧ ∃ σ1,
+        Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
+        ∃ y ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don (f (g inv))).run σ1).1, ∃ th' G',
+          ((res.1 = .Ok () ∧ ∃ rr, y.1 = .ok rr) ∨ (res.1 = .Err .Preempted ∧ y.1 = .error ())) ∧
+          Placed th' ∧ CRel th' (L.mem res.2.1) y.2 G' ∧ FinInv th' (L.mem res.2.1) y.2 G' ∧
+          Vs.FrameInv (L.mem res.2.1) G')) :
+    TopPostF (L := L) σ blk call don (Fl4Spec.NonDetE.liftME f (Fl4Spec.NonDetE.liftME g m)) s res := by
+  rcases h with ⟨e, h1, h2, e', hr, he⟩ | ⟨inv, hr, rest⟩
+  · exact Or.inl ⟨e, h1, h2, e', run_liftME_err (run_liftME_err hr), he⟩
+  · exact Or.inr ⟨f (g inv), DecOut.of_eq (run_liftME_ok (run_liftME_ok hr)), rest⟩
+
+/-- `top_of_lift2M` for `TopPostF`. -/
+theorem topF_of_lift2M {α β : Type} {f : α → Fl4Spec.Fl4Invocation} {g : β → α} {m : Fl4Spec.SEMonad Unit β}
+    {σ : Fl4Spec.State Unit} {blk call don : Bool} {s : S} {res : core.result.Result Unit error.Exc × S × A}
+    (h : (∃ e, res.1 = .Err e ∧ res.2.1 = s ∧ ∃ e', m.run σ = ({(.error e', σ)}, False) ∧ ErrRel e e') ∨
+      (∃ inv, DecOut m σ inv ∧ ∃ σ1,
+        Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
+        ∃ y ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don (f (g inv))).run σ1).1, ∃ th' G',
+          ((res.1 = .Ok () ∧ ∃ rr, y.1 = .ok rr) ∨ (res.1 = .Err .Preempted ∧ y.1 = .error ())) ∧
+          Placed th' ∧ CRel th' (L.mem res.2.1) y.2 G' ∧ FinInv th' (L.mem res.2.1) y.2 G' ∧
+          Vs.FrameInv (L.mem res.2.1) G')) :
+    TopPostF (L := L) σ blk call don (Fl4Spec.NonDetE.liftME f (Fl4Spec.NonDetE.liftME g m)) s res := by
+  rcases h with ⟨e, h1, h2, e', hr, he⟩ | ⟨inv, hr, rest⟩
+  · exact Or.inl ⟨e, h1, h2, e', run_liftME_err (run_liftME_err hr), he⟩
+  · exact Or.inr ⟨f (g inv), hr.liftME.liftME, rest⟩
+
 /-- **A PML4 cap** (see the module docstring). -/
 theorem decode_invocation_pml4 (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
+    (hFR : Vs.FrameInv (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.dataToNat slbl = Fl4Spec.fl4Pml4FlushLabel ↔ lbl = fl4_abi.label.X86PML4Flush)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
@@ -32,9 +64,9 @@ theorem decode_invocation_pml4 (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
     (p asid : U64) (mp : Bool) (length slot buf : U64) (blk call don fp : Bool)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) :
-    DecOK (L := L) arI s ar σ lbl length slot (.Pml4 p mp asid) blk call don fp buf extra slbl args ci sl excaps
+    DecOKF (L := L) arI s ar σ lbl length slot (.Pml4 p mp asid) blk call don fp buf extra slbl args ci sl excaps
       buffer := by
-  unfold DecOK syscall.decode_invocation
+  unfold DecOKF syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   unfold vspace.decode
   rw [hct]; simp only [bind_ok]
@@ -53,7 +85,7 @@ theorem decode_invocation_pml4 (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
       unfold Fl4Spec.fl4ArchDecodeInvocation; dsimp only; rw [if_neg (fun h => hl (hlbl.1 h))]
     rw [hd]
     simp only [error.illegal, bind_ok, WP.spec_ok]
-    exact top_of_lift2 (Or.inl ⟨_, rfl, rfl, .illegalOperation, rfl, Or.inl trivial⟩)
+    exact topF_of_lift2 (Or.inl ⟨_, rfl, rfl, .illegalOperation, rfl, Or.inl trivial⟩)
   rw [if_pos hl]
   have hd : Fl4Spec.fl4ArchDecodeInvocation (Z := Unit) slbl args ci sl
       (.pml4Cap p.bv (if mp then some asid.bv else none)) excaps =
@@ -63,7 +95,7 @@ theorem decode_invocation_pml4 (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
   rw [hd]
   cases mp
   · simp only [Bool.false_eq_true, ↓reduceIte, error.invalid_cap, bind_ok, WP.spec_ok]
-    exact top_of_lift2 (Or.inl ⟨_, rfl, rfl, .invalidCapability 0, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩)
+    exact topF_of_lift2 (Or.inl ⟨_, rfl, rfl, .invalidCapability 0, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩)
   simp only [↓reduceIte]
   refine WP.spec_bind (set_thread_state_slots th hP s ct sched.TS_RESTART htcb hact) ?_
   intro s1 hS
@@ -84,9 +116,9 @@ theorem decode_invocation_pml4 (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
       ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don
         (.invokeArchObject (.pml4Flush (.flush p.bv asid.bv)))).run σ1).1 :=
     mem_liftE (ε := Unit) h0
-  refine top_of_lift2 (Or.inr ⟨.flush p.bv asid.bv, rfl, σ1, by rw [hcur]; exact hst1, _, hmem, th, G,
+  refine topF_of_lift2 (Or.inr ⟨.flush p.bv asid.bv, rfl, σ1, by rw [hcur]; exact hst1, _, hmem, th, G,
     Or.inl ⟨rfl, [], rfl⟩, hP, ⟨Vs.StateRel.ms hR1 ms, hV1, hM1, hC1.of_cdt rfl rfl, MdbInv.of_same hM hI hS⟩,
-    hFI.of_same hM hS ((ksub_of_eq (setThreadState_nks _ _) hst1).trans (KSub.of_kheap rfl))⟩)
+    hFI.of_same hM hS ((ksub_of_eq (setThreadState_nks _ _) hst1).trans (KSub.of_kheap rfl)), FrameInv.of_same hM hFR hS⟩)
 
 end
 
