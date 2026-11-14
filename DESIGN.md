@@ -347,7 +347,7 @@ The proof is staged so each level is useful by itself and later levels build on 
 
 | Level | Statement                                                                                                                                                                                                                                       | Scope                                                                                           |
 |-------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
-| P0    | Every extracted function terminates without failure (no panic, overflow or out-of-bounds) when the invariants hold. Complete: all 924 functions, one proved by hand; CI fails if any is left (`FL4_P0_STRICT`)                                                                                                                              | All of `fl4-core`                                                                               |
+| P0    | Every extracted function terminates without failure (no panic, overflow or out-of-bounds) when the invariants hold. Complete: all 934 functions, one proved by hand; CI fails if any is left (`FL4_P0_STRICT`)                                                                                                                              | All of `fl4-core`                                                                               |
 | P1    | Each kernel entry preserves the invariants: well-typed heap, object alignment and non-overlap, CDT well-formed (including subframe aliases), queues consistent with thread states, refill invariants, deadline-timer trees, untyped bookkeeping | All of `fl4-core`                                                                               |
 | P2    | Transaction soundness: over an abstract model of `fl4-store` and `fl4-sync`, a committed transaction observed one consistent snapshot, its writes are applied atomically, and any history of committed transactions is equivalent to running them one after another: writers and serial entries in commit order, each read-only transaction on the memory at its start. Proved in `proofs/Fl4Proofs/P2/Runtime.lean` (`sound`, `snapshot`) | Once, for the runtime; required before fine-grained locking ships |
 | P3    | Functional refinement: every kernel entry refines the abstract spec                                                                                                                                                                             | One subsystem at a time: CSpace, then IPC and notifications, scheduler and MCS, untyped, VSpace |
@@ -356,19 +356,21 @@ The proof is staged so each level is useful by itself and later levels build on 
 
 ### Status
 
-- **P0**: complete (926 functions), enforced in CI.
+- **P0**: complete (934 functions, one by hand), enforced in CI.
 - **P1**, in `proofs/Fl4Proofs/P1`, over a `LawfulStore` (a total store with read-after-write laws and a model instance):
-  - Refill rings: the structural invariants are preserved by every refill operation; ordering, no-overflow and window by all of them, overruns included.
-  - Thread queues: the five queue primitives refine list operations; priority and time ordering are kept.
-  - A combined scheduler-queue invariant (exact queued flags, located membership, ready and release queues exclusive) is preserved by the queue operations and their callers, up to `choose_thread`; `schedule` itself is still open.
-  - `schedule`, `cancel_ipc` and `suspend` preserve the scheduler invariant, extended with "threads `schedule` can switch to have a well-formed SC" (BoundInv, SCsOK). `restart` is proved piecewise.
+  - The invariants: refill rings (structure, ordering, no-overflow, window); thread queues refining list operations, with priority and time ordering; the combined scheduler-queue invariant (exact queued flags, located membership, ready and release queues exclusive); endpoint and notification queues consistent with thread states; bound SCs (BoundInv, SCsOK); reply, SC and notification-binding objects; the deadline-timer trees. Together they form `BlkOK`/`EntryInv`.
+  - `kernel_entry.entry`: every kernel entry preserves `EntryInv`, under `EntryHyps`. Still assumed there: IPC transfer, the composite `handle_invocation` (its per-family pieces are proved), `handle_fault`, `debug_syscall`, `activate_thread`, and three placement facts P3 supplies.
+  - Write footprints and frames for every operation the P3 proofs need them for: cap-slot writes, installs, delete and finalisation of every object kind, and the VSpace operations. None of them breaks the invariant, and finalisation writes no cap slot.
   - Two paths rely on invariants still to prove, exactly as seL4's C code does; the simulator, which panics on any access near address 0, has never hit either. `switch_sched_context` assumes the current thread has an SC (l4v `active_sc_tcb_at`). `reply_remove_tcb` assumes a thread blocked on reply has a reply object.
-  - CDT, typed-heap and untyped invariants appear so far only as hypotheses of P2/P3 theorems.
+  - Typed-heap layout, object alignment and non-overlap appear as hypotheses (the sets P1 is parameterised by). CDT and untyped invariants are proved in P3 (`MdbOK`), not yet as P1 invariants.
 - **P2**: complete.
-- **P3**, in `proofs/Fl4Proofs/P3`, against `Fl4Spec` (the l4v rt abstract spec ported to Lean, up to `call_kernel`; KernelInit_A is dead in l4v and left out):
-  - CSpace: capability lookups; set_cap, insert, move, swap and empty_slot; the CNode Copy, Mint, Move and Mutate invocations; delete of capabilities whose finalisation does nothing.
-  - Notifications: in progress.
-  - The hypotheses still to discharge are named in each file: no-children decided by `ensure_no_children`, a scheduler frame for `set_thread_state`, insert's sibling condition, and the typed-heap layout.
+- **P3**, in `proofs/Fl4Proofs/P3`, against `Fl4Spec` (the l4v rt abstract spec ported to Lean, up to `call_kernel`; KernelInit_A is dead in l4v and left out). The top-level theorem `handle_invocation_refinesM` relates the decode and invocation of each capability to the spec, from per-capability results and named hypotheses, and carries the CDT invariant `MdbOK` (frame invariant, untyped bookkeeping, no overlap) through a per-step relation `MdbStep`:
+  - CSpace: lookups, every CNode invocation, delete and revoke (zombies, preemption), untyped retype and reset, the IRQ and IO port caps.
+  - TCBs: every TCB invocation, including the cap installs.
+  - Scheduling contexts (MCS): SchedContext and SchedControl, budget checks, `set_priority`, and binding and unbinding SCs.
+  - VSpace: frames, page tables, ASID pools and control, DeriveSubframe, with the VSpace cap-placement invariant (`VsMdbInv`).
+  - Endpoints and notifications: the IPC and signal paths are in progress.
+  - Hypotheses still to discharge are named in each file. The main ones: the state facts after the TCB fault-handler install, finalisation of a final Endpoint, Notification, Reply, Thread or SchedContext cap on the spec side (`FinWorkHyp`; FL4's side and the VSpace cases are proved), the reply and fault paths, and the placement link between P3's typed heap and P1's object sets.
   - The proofs so far found no disagreement between FL4 and the spec.
 
 ### The abstract spec
