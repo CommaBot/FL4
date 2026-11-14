@@ -290,21 +290,21 @@ def fl4_abi.consts.bits.IPC_BUFFER : Std.U64 := 10#u64
 def fl4_abi.consts.MSG_MAX_LENGTH : Std.U64 := 120#u64
 
 /-- [fl4_abi::consts::USER_TOP]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 69:0-69:23
+    Source: 'crates/fl4-abi/src/consts.rs', lines 72:0-72:23
     Name pattern: [fl4_abi::consts::USER_TOP]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::USER_TOP"]
-def fl4_abi.consts.USER_TOP : Std.U64 := 140737488351232#u64
+def fl4_abi.consts.USER_TOP : Std.U64 := 140737488355327#u64
 
 /-- [fl4_abi::consts::NUM_PRIORITIES]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 70:0-70:29
+    Source: 'crates/fl4-abi/src/consts.rs', lines 73:0-73:29
     Name pattern: [fl4_abi::consts::NUM_PRIORITIES]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::NUM_PRIORITIES"]
 def fl4_abi.consts.NUM_PRIORITIES : Std.U64 := 256#u64
 
 /-- [fl4_abi::consts::MAX_PRIO]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 71:0-71:23
+    Source: 'crates/fl4-abi/src/consts.rs', lines 74:0-74:23
     Name pattern: [fl4_abi::consts::MAX_PRIO]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::MAX_PRIO"]
@@ -312,28 +312,28 @@ def fl4_abi.consts.MAX_PRIO : Result Std.U64 :=
   fl4_abi.consts.NUM_PRIORITIES - 1#u64
 
 /-- [fl4_abi::consts::FPU_STATE_SIZE]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 73:0-73:29
+    Source: 'crates/fl4-abi/src/consts.rs', lines 76:0-76:29
     Name pattern: [fl4_abi::consts::FPU_STATE_SIZE]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::FPU_STATE_SIZE"]
 def fl4_abi.consts.FPU_STATE_SIZE : Std.U64 := 2696#u64
 
 /-- [fl4_abi::consts::fault::NullFault]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 77:4-77:28
+    Source: 'crates/fl4-abi/src/consts.rs', lines 80:4-80:28
     Name pattern: [fl4_abi::consts::fault::NullFault]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::fault::NullFault"]
 def fl4_abi.consts.fault.NullFault : Std.U64 := 0#u64
 
 /-- [fl4_abi::consts::fault::CapFault]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 78:4-78:27
+    Source: 'crates/fl4-abi/src/consts.rs', lines 81:4-81:27
     Name pattern: [fl4_abi::consts::fault::CapFault]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::fault::CapFault"]
 def fl4_abi.consts.fault.CapFault : Std.U64 := 1#u64
 
 /-- [fl4_abi::consts::fault::UnknownSyscall]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 79:4-79:33
+    Source: 'crates/fl4-abi/src/consts.rs', lines 82:4-82:33
     Name pattern: [fl4_abi::consts::fault::UnknownSyscall]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -341,7 +341,7 @@ def fl4_abi.consts.fault.CapFault : Std.U64 := 1#u64
 def fl4_abi.consts.fault.UnknownSyscall : Std.U64 := 2#u64
 
 /-- [fl4_abi::consts::fault::UserException]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 80:4-80:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 83:4-83:32
     Name pattern: [fl4_abi::consts::fault::UserException]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -349,7 +349,7 @@ def fl4_abi.consts.fault.UnknownSyscall : Std.U64 := 2#u64
 def fl4_abi.consts.fault.UserException : Std.U64 := 3#u64
 
 /-- [fl4_abi::consts::fault::DebugException]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 81:4-81:33
+    Source: 'crates/fl4-abi/src/consts.rs', lines 84:4-84:33
     Name pattern: [fl4_abi::consts::fault::DebugException]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -357,28 +357,28 @@ def fl4_abi.consts.fault.UserException : Std.U64 := 3#u64
 def fl4_abi.consts.fault.DebugException : Std.U64 := 4#u64
 
 /-- [fl4_abi::consts::fault::Timeout]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 82:4-82:26
+    Source: 'crates/fl4-abi/src/consts.rs', lines 85:4-85:26
     Name pattern: [fl4_abi::consts::fault::Timeout]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::fault::Timeout"]
 def fl4_abi.consts.fault.Timeout : Std.U64 := 5#u64
 
 /-- [fl4_abi::consts::fault::VMFault]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 83:4-83:26
+    Source: 'crates/fl4-abi/src/consts.rs', lines 86:4-86:26
     Name pattern: [fl4_abi::consts::fault::VMFault]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::fault::VMFault"]
 def fl4_abi.consts.fault.VMFault : Std.U64 := 6#u64
 
 /-- [fl4_abi::consts::lookup::InvalidRoot]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 89:4-89:30
+    Source: 'crates/fl4-abi/src/consts.rs', lines 92:4-92:30
     Name pattern: [fl4_abi::consts::lookup::InvalidRoot]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::lookup::InvalidRoot"]
 def fl4_abi.consts.lookup.InvalidRoot : Std.U64 := 1#u64
 
 /-- [fl4_abi::consts::lookup::MissingCapability]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 90:4-90:36
+    Source: 'crates/fl4-abi/src/consts.rs', lines 93:4-93:36
     Name pattern: [fl4_abi::consts::lookup::MissingCapability]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -386,7 +386,7 @@ def fl4_abi.consts.lookup.InvalidRoot : Std.U64 := 1#u64
 def fl4_abi.consts.lookup.MissingCapability : Std.U64 := 2#u64
 
 /-- [fl4_abi::consts::lookup::DepthMismatch]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 91:4-91:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 94:4-94:32
     Name pattern: [fl4_abi::consts::lookup::DepthMismatch]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -394,7 +394,7 @@ def fl4_abi.consts.lookup.MissingCapability : Std.U64 := 2#u64
 def fl4_abi.consts.lookup.DepthMismatch : Std.U64 := 3#u64
 
 /-- [fl4_abi::consts::lookup::GuardMismatch]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 92:4-92:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 95:4-95:32
     Name pattern: [fl4_abi::consts::lookup::GuardMismatch]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -402,7 +402,7 @@ def fl4_abi.consts.lookup.DepthMismatch : Std.U64 := 3#u64
 def fl4_abi.consts.lookup.GuardMismatch : Std.U64 := 4#u64
 
 /-- [fl4_abi::consts::tcb_flag::FPU_DISABLED]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 97:4-97:31
+    Source: 'crates/fl4-abi/src/consts.rs', lines 100:4-100:31
     Name pattern: [fl4_abi::consts::tcb_flag::FPU_DISABLED]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -410,7 +410,7 @@ def fl4_abi.consts.lookup.GuardMismatch : Std.U64 := 4#u64
 def fl4_abi.consts.tcb_flag.FPU_DISABLED : Std.U64 := 1#u64
 
 /-- [fl4_abi::consts::tcb_flag::TRAP_SYSCALLS]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 99:4-99:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 102:4-102:32
     Name pattern: [fl4_abi::consts::tcb_flag::TRAP_SYSCALLS]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -418,7 +418,7 @@ def fl4_abi.consts.tcb_flag.FPU_DISABLED : Std.U64 := 1#u64
 def fl4_abi.consts.tcb_flag.TRAP_SYSCALLS : Std.U64 := 2#u64
 
 /-- [fl4_abi::consts::tcb_flag::MASK]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 100:4-100:23
+    Source: 'crates/fl4-abi/src/consts.rs', lines 103:4-103:23
     Name pattern: [fl4_abi::consts::tcb_flag::MASK]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::tcb_flag::MASK"]
@@ -427,14 +427,14 @@ def fl4_abi.consts.tcb_flag.MASK : Std.U64 :=
     fl4_abi.consts.tcb_flag.TRAP_SYSCALLS
 
 /-- [fl4_abi::consts::sc_flag::SPORADIC]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 105:4-105:27
+    Source: 'crates/fl4-abi/src/consts.rs', lines 108:4-108:27
     Name pattern: [fl4_abi::consts::sc_flag::SPORADIC]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::sc_flag::SPORADIC"]
 def fl4_abi.consts.sc_flag.SPORADIC : Std.U64 := 1#u64
 
 /-- [fl4_abi::consts::vm_attr::EXECUTE_NEVER]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 116:4-116:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 119:4-119:32
     Name pattern: [fl4_abi::consts::vm_attr::EXECUTE_NEVER]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -442,7 +442,7 @@ def fl4_abi.consts.sc_flag.SPORADIC : Std.U64 := 1#u64
 def fl4_abi.consts.vm_attr.EXECUTE_NEVER : Std.U64 := 8#u64
 
 /-- [fl4_abi::consts::vm_attr::DEFER_FLUSH]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 118:4-118:30
+    Source: 'crates/fl4-abi/src/consts.rs', lines 121:4-121:30
     Name pattern: [fl4_abi::consts::vm_attr::DEFER_FLUSH]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -450,7 +450,7 @@ def fl4_abi.consts.vm_attr.EXECUTE_NEVER : Std.U64 := 8#u64
 def fl4_abi.consts.vm_attr.DEFER_FLUSH : Std.U64 := 16#u64
 
 /-- [fl4_abi::consts::root_slot::InitThreadTCB]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 124:4-124:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 127:4-127:32
     Name pattern: [fl4_abi::consts::root_slot::InitThreadTCB]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -458,7 +458,7 @@ def fl4_abi.consts.vm_attr.DEFER_FLUSH : Std.U64 := 16#u64
 def fl4_abi.consts.root_slot.InitThreadTCB : Std.U64 := 1#u64
 
 /-- [fl4_abi::consts::root_slot::InitThreadCNode]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 125:4-125:34
+    Source: 'crates/fl4-abi/src/consts.rs', lines 128:4-128:34
     Name pattern: [fl4_abi::consts::root_slot::InitThreadCNode]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -466,7 +466,7 @@ def fl4_abi.consts.root_slot.InitThreadTCB : Std.U64 := 1#u64
 def fl4_abi.consts.root_slot.InitThreadCNode : Std.U64 := 2#u64
 
 /-- [fl4_abi::consts::root_slot::InitThreadVSpace]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 126:4-126:35
+    Source: 'crates/fl4-abi/src/consts.rs', lines 129:4-129:35
     Name pattern: [fl4_abi::consts::root_slot::InitThreadVSpace]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -474,7 +474,7 @@ def fl4_abi.consts.root_slot.InitThreadCNode : Std.U64 := 2#u64
 def fl4_abi.consts.root_slot.InitThreadVSpace : Std.U64 := 3#u64
 
 /-- [fl4_abi::consts::root_slot::IRQControl]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 127:4-127:29
+    Source: 'crates/fl4-abi/src/consts.rs', lines 130:4-130:29
     Name pattern: [fl4_abi::consts::root_slot::IRQControl]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -482,7 +482,7 @@ def fl4_abi.consts.root_slot.InitThreadVSpace : Std.U64 := 3#u64
 def fl4_abi.consts.root_slot.IRQControl : Std.U64 := 4#u64
 
 /-- [fl4_abi::consts::root_slot::ASIDControl]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 128:4-128:30
+    Source: 'crates/fl4-abi/src/consts.rs', lines 131:4-131:30
     Name pattern: [fl4_abi::consts::root_slot::ASIDControl]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -490,7 +490,7 @@ def fl4_abi.consts.root_slot.IRQControl : Std.U64 := 4#u64
 def fl4_abi.consts.root_slot.ASIDControl : Std.U64 := 5#u64
 
 /-- [fl4_abi::consts::root_slot::InitThreadASIDPool]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 129:4-129:37
+    Source: 'crates/fl4-abi/src/consts.rs', lines 132:4-132:37
     Name pattern: [fl4_abi::consts::root_slot::InitThreadASIDPool]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -498,7 +498,7 @@ def fl4_abi.consts.root_slot.ASIDControl : Std.U64 := 5#u64
 def fl4_abi.consts.root_slot.InitThreadASIDPool : Std.U64 := 6#u64
 
 /-- [fl4_abi::consts::root_slot::IOPortControl]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 130:4-130:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 133:4-133:32
     Name pattern: [fl4_abi::consts::root_slot::IOPortControl]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -506,7 +506,7 @@ def fl4_abi.consts.root_slot.InitThreadASIDPool : Std.U64 := 6#u64
 def fl4_abi.consts.root_slot.IOPortControl : Std.U64 := 7#u64
 
 /-- [fl4_abi::consts::root_slot::BootInfoFrame]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 132:4-132:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 135:4-135:32
     Name pattern: [fl4_abi::consts::root_slot::BootInfoFrame]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -514,7 +514,7 @@ def fl4_abi.consts.root_slot.IOPortControl : Std.U64 := 7#u64
 def fl4_abi.consts.root_slot.BootInfoFrame : Std.U64 := 9#u64
 
 /-- [fl4_abi::consts::root_slot::InitThreadIPCBuffer]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 133:4-133:38
+    Source: 'crates/fl4-abi/src/consts.rs', lines 136:4-136:38
     Name pattern: [fl4_abi::consts::root_slot::InitThreadIPCBuffer]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -522,14 +522,14 @@ def fl4_abi.consts.root_slot.BootInfoFrame : Std.U64 := 9#u64
 def fl4_abi.consts.root_slot.InitThreadIPCBuffer : Std.U64 := 10#u64
 
 /-- [fl4_abi::consts::root_slot::Domain]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 134:4-134:25
+    Source: 'crates/fl4-abi/src/consts.rs', lines 137:4-137:25
     Name pattern: [fl4_abi::consts::root_slot::Domain]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::root_slot::Domain"]
 def fl4_abi.consts.root_slot.Domain : Std.U64 := 11#u64
 
 /-- [fl4_abi::consts::root_slot::InitThreadSC]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 137:4-137:31
+    Source: 'crates/fl4-abi/src/consts.rs', lines 140:4-140:31
     Name pattern: [fl4_abi::consts::root_slot::InitThreadSC]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -537,7 +537,7 @@ def fl4_abi.consts.root_slot.Domain : Std.U64 := 11#u64
 def fl4_abi.consts.root_slot.InitThreadSC : Std.U64 := 14#u64
 
 /-- [fl4_abi::consts::root_slot::NumInitialCaps]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 139:4-139:33
+    Source: 'crates/fl4-abi/src/consts.rs', lines 142:4-142:33
     Name pattern: [fl4_abi::consts::root_slot::NumInitialCaps]
     Visibility: public -/
 @[global_simps, irreducible, rust_const

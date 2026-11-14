@@ -378,7 +378,7 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem fl4_abi.consts.MSG_MAX_LENGTH.val_eq : fl4_abi.consts.MSG_MAX_LENGTH.val = 120 := by
   unfold fl4_abi.consts.MSG_MAX_LENGTH; rfl
 
-@[simp, scalar_tac_simps] theorem fl4_abi.consts.USER_TOP.val_eq : fl4_abi.consts.USER_TOP.val = 140737488351232 := by
+@[simp, scalar_tac_simps] theorem fl4_abi.consts.USER_TOP.val_eq : fl4_abi.consts.USER_TOP.val = 140737488355327 := by
   unfold fl4_abi.consts.USER_TOP; rfl
 
 @[simp, scalar_tac_simps] theorem fl4_abi.consts.NUM_PRIORITIES.val_eq : fl4_abi.consts.NUM_PRIORITIES.val = 256 := by

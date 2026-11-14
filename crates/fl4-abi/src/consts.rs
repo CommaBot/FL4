@@ -66,7 +66,10 @@ pub const REFILL_SIZE_BYTES: u64 = 16;
 pub const MSG_MAX_LENGTH: u64 = 120;
 pub const MSG_MAX_EXTRA_CAPS: u64 = 3;
 pub const FAST_MESSAGE_REGISTERS: u64 = 4;
-pub const USER_TOP: u64 = 0x0000_7fff_ffff_f000;
+/// The kernel's `USER_TOP` (C seL4 pc99 `hardware.h`): the last address
+/// below the sign-extension hole. Not libsel4's `seL4_UserTop`, which is a
+/// page lower.
+pub const USER_TOP: u64 = 0x0000_7fff_ffff_ffff;
 pub const NUM_PRIORITIES: u64 = 256;
 pub const MAX_PRIO: u64 = NUM_PRIORITIES - 1;
 /// FL4: standard-layout XSAVE image up to PKRU (DESIGN.md §2, §3).
