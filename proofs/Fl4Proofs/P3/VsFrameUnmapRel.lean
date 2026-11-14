@@ -473,7 +473,7 @@ theorem frame_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 
           ({(.ok iv, σ)}, False) ∧
         MapSpec σ iv σ' ∧ UR st th P L4 L3 L2 L1 SR res.2.1 res.2.2 σ' ∧
         SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
-        MdbLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (frameCapOf f) ∧ KFoot σ σ' ⦄ := by
+        VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (frameCapOf f) ∧ KFoot σ σ' ⦄ := by
   obtain ⟨ptr, sz, rt, dev, mp, fa, fv⟩ := f
   rw [show Fl4Spec.archDecodeInvocation (Z := Unit) slbl args xs (pc.bv, idx)
       (frameACapG ⟨ptr, sz, rt, dev, mp, fa, fv⟩) vcs =
@@ -559,7 +559,7 @@ theorem frame_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 
     rintro s5 ⟨hU5, hF5, hcv5⟩
     rw [setCnodeSlot_self hkc1 hcs] at hU5
     refine (WP.spec_ok _).2 ⟨rfl, _, σ1, rfl, ?_, hU5, (SlotFoot.of_same hSS1 _).trans hF5,
-      by rw [hcv5]; exact ⟨rfl, rfl, rfl⟩, KFoot.sts hkt' _⟩
+      by rw [hcv5]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK, frameCapOf] at h ⊢; first | exact h | exact h.2 | exact ⟨fun e => absurd e (by decide), h.2⟩⟩, KFoot.sts hkt' _⟩
     unfold MapSpec
     dsimp only
     rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt'), performUnmap_none]
@@ -601,7 +601,7 @@ theorem frame_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 
     refine WP.spec_bind (fin_cap s3 a3 σu hU3 ((hall' _ _ hu).trans hkc1) (hk3.trans hk1)) ?_
     rintro s5 ⟨hU5, hF5, hcv5⟩
     refine (WP.spec_ok _).2 ⟨rfl, _, _, rfl, ?_, hU5, (SlotFoot.of_same hSS1 _).trans (hF3.trans hF5),
-      by rw [hcv5]; exact ⟨rfl, rfl, rfl⟩,
+      by rw [hcv5]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK, frameCapOf] at h ⊢; first | exact h | exact h.2 | exact ⟨fun e => absurd e (by decide), h.2⟩⟩,
       (KFoot.sts hkt' _).trans (hK3.trans (KFoot.cnode ((hall' _ _ hu).trans hkc1) hwf idx nc))⟩
     unfold MapSpec
     dsimp only

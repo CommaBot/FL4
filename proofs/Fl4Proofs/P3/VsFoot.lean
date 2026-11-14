@@ -32,6 +32,33 @@ def SlotFoot (th : TypedHeap) (m m' : U64 → U64) (x : U64) : Prop :=
 key and badge (a remapped frame or table cap). -/
 def MdbLike (c' c : capability.Cap) : Prop := shape c' = shape c ∧ okey c' = okey c ∧ badgeF c' = badgeF c
 
+/-- The physical address of `p` in mask `m` (`paddr p & m = paddr p`). -/
+def PaM (p m : U64) : Prop :=
+  (core.num.U64.wrapping_sub p layout.PPTR_BASE &&& m) = core.num.U64.wrapping_sub p layout.PPTR_BASE
+
+/-- A frame size's address mask. -/
+def frameMaskOf : capability.FrameSize → U64
+  | .Small => 4503599627366400#u64
+  | .Large => 4503599625273344#u64
+  | .Huge => 4503598553628672#u64
+
+/-- **A VSpace cap well placed** in the ghost sets (see the module
+docstring); the other caps impose nothing. -/
+def VCapOK (P L4 L3 L2 L1 : Set U64) : capability.Cap → Prop
+  | .PageTable p mp a v => p ∈ L1 ∧ PaM p 4503599627366400#u64 ∧
+      (mp = true → a ≠ 0#u64 ∧ v.bv &&& Fl4Spec.mask (Fl4Spec.ptTranslationBits + Fl4Spec.pageBits) = 0)
+  | .PageDirectory p mp a _ => p ∈ L2 ∧ PaM p 4503599627366400#u64 ∧ (mp = true → a ≠ 0#u64)
+  | .Pdpt p mp a _ => p ∈ L3 ∧ PaM p 4503599627366400#u64 ∧ (mp = true → a ≠ 0#u64)
+  | .Pml4 p mp a => p ∈ L4 ∧ p ≠ 0#u64 ∧ (mp = true → a ≠ 0#u64 ∧ a.val < 2 ^ 20)
+  | .Frame p sz _ _ m a _ => (m = true → a ≠ 0#u64) ∧ PaM p (frameMaskOf sz)
+  | .AsidPool p b => p ∈ P ∧ b.val % 512 = 0 ∧ b.val < 2 ^ 20
+  | _ => True
+
+/-- **A remapped cap**: alike for the MDB, and well placed when the old one
+was (the remaps' posts; `VsCapsIn.recap`). -/
+def VsLike (c' c : capability.Cap) : Prop :=
+  MdbLike c' c ∧ ∀ P L4 L3 L2 L1 : Set U64, VCapOK P L4 L3 L2 L1 c → VCapOK P L4 L3 L2 L1 c'
+
 /-- The spec's state across a VSpace invocation (see the module docstring). -/
 def KFoot (σ σ' : Fl4Spec.State Unit) : Prop :=
   σ'.cdt = σ.cdt ∧ σ'.isOriginalCap = σ.isOriginalCap ∧

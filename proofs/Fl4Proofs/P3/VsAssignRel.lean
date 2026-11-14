@@ -152,7 +152,7 @@ theorem assign_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P : Set U6
     (hSt : StateRel th (L.mem s) σ) (hSV : SlotsValid th (L.mem s)) (hR : VsRel P (L.mem s) (L.ksb s) σ)
     (hS : SR s a σ) {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct))
     (hrun : Fl4Spec.runnable xct.tcbState = true)
-    (ptr base : U64) (hb : base.val % 512 = 0)
+    (ptr base : U64) (hb : base.val % 512 = 0) (hb20 : base.val < 2 ^ 20)
     {slbl : Fl4Spec.Data} (hl : Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDPoolAssign)
     (args : List Fl4Spec.Data) (xs : Fl4Spec.CapRef) (cte : Fl4Spec.CslotPtr)
     (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
@@ -178,7 +178,7 @@ theorem assign_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P : Set U6
           AssignSpec σ asid ptr.bv (pc.bv, idx) σ' ∧ StateRel th (L.mem res.2.1) σ' ∧ SlotsValid th (L.mem res.2.1) ∧
           VsRel P (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧
           SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
-          MdbLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (.Pml4 ptr1 false asid0) ∧ KFoot σ σ') ⦄ := by
+          VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (.Pml4 ptr1 false asid0) ∧ KFoot σ σ') ⦄ := by
   rw [decodeAssign_eq hl args xs cte ptr.bv base.bv ptr1.bv (pc.bv, idx) rest]
   generalize hdec : ExceptT.run (assignBody ptr.bv base.bv (pc.bv, idx)) σ = dec
   unfold vspace.decode
@@ -310,9 +310,14 @@ theorem assign_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P : Set U6
         have hbo : OutsideObjects th (peA ptr (asid &&& 511#u64)) := hVO _ hpeW0
         have hFt : SlotFoot th (L.mem s) (L.mem (L.wr s2 (peA ptr (asid &&& 511#u64)) ptr1)) (cslotAddr (pc.bv, idx)) :=
           (SlotFoot.of_same hSS1 _).trans (hF2.trans (SlotFoot.wr_out hPl s2 hbo _))
-        have hLk : MdbLike (capV (L.mem (L.wr s2 (peA ptr (asid &&& 511#u64)) ptr1)) (cslotAddr (pc.bv, idx)))
+        have hLk : VsLike (capV (L.mem (L.wr s2 (peA ptr (asid &&& 511#u64)) ptr1)) (cslotAddr (pc.bv, idx)))
             (.Pml4 ptr1 false asid0) := by
-          rw [capV_wr_out hPl hxsl s2 hbo, hcv2]; exact ⟨rfl, rfl, rfl⟩
+          rw [capV_wr_out hPl hxsl s2 hbo, hcv2]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by
+            simp only [VCapOK] at h ⊢
+            refine ⟨h.1, h.2.1, fun _ => ⟨h0, ?_⟩⟩
+            have : asid.val = base.val + i1.val := by
+              rw [hasid]; simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+            rw [this]; omega⟩
         have hKf : KFoot σ σ3 := (KFoot.sts hkt' _).trans ((KFoot.cnode hkc1 hwf idx nc).trans (KFoot.arch hkf2 _))
         refine (WP.spec_ok _).2 (Or.inr ⟨rfl, by rw [← hdec]; exact hnf, asid.bv, σ3, by rw [← hdec]; exact hmem,
           ?_, ?_, ?_, ?_, ?_, hFt, hLk, hKf⟩)

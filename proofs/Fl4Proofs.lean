@@ -105,6 +105,7 @@ import Fl4Proofs.P3.VsFrameInv
 import Fl4Proofs.P3.VsFrameFull
 import Fl4Proofs.P3.VsFootW
 import Fl4Proofs.P3.VsCapInv
+import Fl4Proofs.P3.VsCapOps
 import Fl4Proofs.P3.VsTopCap
 import Fl4Proofs.P3.VsDom
 import Fl4Proofs.P3.VsDomOps

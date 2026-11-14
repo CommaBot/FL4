@@ -287,7 +287,7 @@ macro "map_tail_L" : tactic => `(tactic| (
         exact performLMap_mem (setCap_cnode nc hkc1 hwf hidx) hm' hnf
       · rw [hr3]
         exact (SlotFoot.of_same hSS1 _).trans (hF2.trans (SlotFoot.wr_out hPl s2 hbo _))
-      · rw [hr3, capV_wr_out hPl hxsl s2 hbo, hcv2]; exact ⟨rfl, rfl, rfl⟩
+      · rw [hr3, capV_wr_out hPl hxsl s2 hbo, hcv2]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK, frameCapOf] at h ⊢; exact ⟨fun _ => has1, h.2⟩⟩
       · exact (KFoot.sts hkt' _).trans ((KFoot.cnode hkc1 hwf idx nc).trans
           (kfoot_store_flush_pd hPP hPt2 hq (vIdx_lt a0 21) _ _ _ hm'))
   · have : ((a0 &&& 2097151#u64) != 0#u64) = true := by simp [hal]
@@ -329,7 +329,7 @@ theorem frame_map_large_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P
         MapSpec σ iv σ' ∧ StateRel th (L.mem res.2.1) σ' ∧ SlotsValid th (L.mem res.2.1) ∧
         VsRel P (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ PtRel L4 L3 L2 L1 (L.mem res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧
         SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
-        MdbLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (frameCapOf f) ∧ KFoot σ σ') ⦄ := by
+        VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (frameCapOf f) ∧ KFoot σ σ') ⦄ := by
   obtain ⟨ptr, sz, rt, dev, mp, fa, fv⟩ := f
   simp only at hsz hfm hpa ⊢
   subst hsz
@@ -680,7 +680,7 @@ macro "map_tail_H" : tactic => `(tactic| (
         exact performHMap_mem (setCap_cnode nc hkc1 hwf hidx) hm' hnf
       · rw [hr3]
         exact (SlotFoot.of_same hSS1 _).trans (hF2.trans (SlotFoot.wr_out hPl s2 hbo _))
-      · rw [hr3, capV_wr_out hPl hxsl s2 hbo, hcv2]; exact ⟨rfl, rfl, rfl⟩
+      · rw [hr3, capV_wr_out hPl hxsl s2 hbo, hcv2]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK, frameCapOf] at h ⊢; exact ⟨fun _ => has1, h.2⟩⟩
       · exact (KFoot.sts hkt' _).trans ((KFoot.cnode hkc1 hwf idx nc).trans
           (kfoot_store_flush_pdpt hPP hPt2 hq (vIdx_lt a0 30) _ _ _ hm'))
   · have : ((a0 &&& 1073741823#u64) != 0#u64) = true := by simp [hal]
@@ -722,7 +722,7 @@ theorem frame_map_huge_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P 
         MapSpec σ iv σ' ∧ StateRel th (L.mem res.2.1) σ' ∧ SlotsValid th (L.mem res.2.1) ∧
         VsRel P (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ PtRel L4 L3 L2 L1 (L.mem res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧
         SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
-        MdbLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (frameCapOf f) ∧ KFoot σ σ') ⦄ := by
+        VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (frameCapOf f) ∧ KFoot σ σ') ⦄ := by
   obtain ⟨ptr, sz, rt, dev, mp, fa, fv⟩ := f
   simp only at hsz hfm hpa ⊢
   subst hsz

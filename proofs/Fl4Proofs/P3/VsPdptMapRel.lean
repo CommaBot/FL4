@@ -219,7 +219,7 @@ theorem pdpt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
         PdptMapSpec σ iv σ' ∧ StateRel th (L.mem res.2.1) σ' ∧ SlotsValid th (L.mem res.2.1) ∧
         VsRel P (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ PtRel L4 L3 L2 L1 (L.mem res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧
         SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
-        MdbLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (.Pdpt ptr mp asid0 va0) ∧ KFoot σ σ') ⦄ := by
+        VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (.Pdpt ptr mp asid0 va0) ∧ KFoot σ σ') ⦄ := by
   rw [show ∀ args' ex', Fl4Spec.archDecodeInvocation (Z := Unit) slbl args' xs (pc.bv, idx)
       (.pdPointerTableCap ptr.bv (if mp then some (asid0.bv, va0.bv) else none)) ex' =
     Fl4Spec.decodePdptInvocation slbl args' (pc.bv, idx)
@@ -413,8 +413,8 @@ theorem pdpt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
             rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt')]
             exact performPdptMap_mem (setCap_cnode nc hkc1 hwf hidx) hstore hm' (hH.flushOK _ _ _)
           · exact (SlotFoot.of_same hSS1 _).trans (hF2.trans (SlotFoot.wr_out hPl s2 hbo _))
-          · show MdbLike (capV (L.mem s3) _) _
-            rw [hs3, capV_wr_out hPl hxsl s2 hbo, hcv2]; exact ⟨rfl, rfl, rfl⟩
+          · show VsLike (capV (L.mem s3) _) _
+            rw [hs3, capV_wr_out hPl hxsl s2 hbo, hcv2]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK] at h ⊢; exact ⟨h.1, h.2.1, fun _ => has1⟩⟩
           · exact (KFoot.sts hkt' _).trans ((KFoot.cnode hkc1 hwf idx nc).trans ((KFoot.arch hk2 _).trans (KFoot.ms _ ms)))
         · have : ((L.mem s (peA q (vIdx v 39)) &&& 1#u64) != 0#u64) = true := by simp [hpres]
           simp only [this, ↓reduceIte]

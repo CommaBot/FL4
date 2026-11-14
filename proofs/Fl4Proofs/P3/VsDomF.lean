@@ -451,7 +451,7 @@ theorem domFrame_asid_pool (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State
   have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
   refine ⟨?_, dk_spec_arch ⟨_, rfl⟩ hkt⟩
   have h := decode_invocation_asid_pool arI th hS.2.pl s ar σ G hCR hFI hFR (SR := FootSR st (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s (VsFootW st th P L4 L3 L2 L1 s)) (Q := fun s' => P1.WritesIn st s s' (VsFootW st th P L4 L3 L2 L1 s)) (fun _ _ _ h => h.2) (VsInvHyps.foot (s0 := s) (fun _ h => h) hS.2.pl (vsInvHyps_top curT_top)) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hR hS.2.vo
-    lbl slbl hlA length buf ct hct hcur htcb hact hrun ptr base hok.2 extra excaps hext' slot blk call don fp args ci sl
+    lbl slbl hlA length buf ct hct hcur htcb hact hrun ptr base hok.2.1 hok.2.2 extra excaps hext' slot blk call don fp args ci sl
     buffer
   exact WP.spec_mono h fun res hr => dom_of_foot hS hr.2
 
@@ -572,7 +572,7 @@ theorem decode_invocation_frame_capD (th : TypedHeap) (s : S) (ar : A) (σ : Fl4
         have e := P1.eq_of_bv (ht.trans hcur); subst e; exact htcb, hact⟩
       hS.2.pt hS.2.vs hS.2.vo hS.2.po hR hPt lbl slbl hlbl hl length buf ct hct hcur htcb hact hkt (hrun _ hkt)
       args hlen hargs (pc := pc) (r := r) (idx := idx) hpc hidx (p := p) (sz := sz) (rt := rt) (asid := asid)
-      (va := va) (d := d) (m := m) hcap hno hFR extra excaps hextS blk call don fp ci buffer
+      (va := va) (d := d) (m := m) hcap hno hFR hVC extra excaps hextS blk call don fp ci buffer
     exact this
   have h := decode_invocation_frame arI th hS.2.pl s ar σ G hCR hFI hFR
     (SR := FootSR st (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s (VsFootW st th P L4 L3 L2 L1 s))
@@ -590,7 +590,7 @@ theorem decode_invocation_frame_capD (th : TypedHeap) (s : S) (ar : A) (σ : Fl4
   · exact absurd e (by rintro (e | e) <;> contradiction)
 
 set_option maxHeartbeats 8000000 in
-/-- **The ASID control cap with the domain schedule** (`DecOKDF`; the pool frame apart from the kernel-global area). -/
+/-- **The ASID control cap with the domain schedule** (`DecOKDF`; the pool page apart from the kernel-global area, from the untyped placement `UtKsOut`). -/
 theorem decode_invocation_asid_control_capD (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hU : UtInv (L.mem s) G)
     (hFR : Vs.FrameInv (L.mem s) G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
@@ -617,30 +617,15 @@ theorem decode_invocation_asid_control_capD (th : TypedHeap) (s : S) (ar : A) (�
         capAt (L.mem s) y = ok rc ∧ CapRel rc rc' ∧ CapValid th rc ∧
         excaps = (uc', (pp.bv, idx)) :: (rc', ysl) :: rest ∧
         ∀ p fi, uc = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false →
-          MpRegion th G P L4 L3 L2 L1 (L.ksb s) p ∧ RegOKTop (L := L) N T C E R B c s σ p ∧
-          (p.val + 4096 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val))
+          MpRegion th G P L4 L3 L2 L1 (L.ksb s) p ∧ RegOKTop (L := L) N T C E R B c s σ p)
+    (hUK : Vs.UtKsOut (L.ksb s) (L.mem s) G)
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef) :
     DecOKDF (L := L) arI s ar σ lbl length slot .AsidControl blk call don fp buf extra slbl (args.map UScalar.bv) ci sl
       excaps buffer := by
   obtain ⟨xct, hkt0, -⟩ := hCR.1.tcb ct htcb
   have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
-  have hext0 : (∃ o0 o1, vspace.extra extra 0#usize = ok o0 ∧ vspace.extra extra 1#usize = ok o1 ∧
-        (o0 = none ∨ o1 = none) ∧ excaps.length ≤ 1) ∨
-      ∃ (pp : U64) (rs : Nat) (idx : List Bool) (y : obj.Slot) (uc : capability.Cap) (uc' : Fl4Spec.Cap)
-        (rc : capability.Cap) (rc' : Fl4Spec.Cap) (ysl : Fl4Spec.CslotPtr)
-        (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)),
-        th pp = some (.cnode rs) ∧ idx.length = rs ∧
-        vspace.extra extra 0#usize = ok (some (cslotAddr (pp.bv, idx))) ∧ vspace.extra extra 1#usize = ok (some y) ∧
-        capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok uc ∧ CapRel uc uc' ∧
-        capAt (L.mem s) y = ok rc ∧ CapRel rc rc' ∧ CapValid th rc ∧
-        excaps = (uc', (pp.bv, idx)) :: (rc', ysl) :: rest ∧
-        ∀ p fi, uc = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false →
-          MpRegion th G P L4 L3 L2 L1 (L.ksb s) p ∧ RegOKTop (L := L) N T C E R B c s σ p := by
-    rcases hext with h | ⟨pp, rs, idx, y, uc, uc', rc, rc', ysl, rest, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, hRg⟩
-    · exact Or.inl h
-    · exact Or.inr ⟨pp, rs, idx, y, uc, uc', rc, rc', ysl, rest, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10,
-        fun p fi e => ⟨(hRg p fi e).1, (hRg p fi e).2.1⟩⟩
+  have hext0 := hext
   have hextK : (∃ o0 o1, vspace.extra extra 0#usize = ok o0 ∧ vspace.extra extra 1#usize = ok o1 ∧
         (o0 = none ∨ o1 = none) ∧ excaps.length ≤ 1) ∨
       ∃ (pp : U64) (rs : Nat) (idx : List Bool) (y : obj.Slot) (uc : capability.Cap) (uc' : Fl4Spec.Cap)
@@ -656,8 +641,10 @@ theorem decode_invocation_asid_control_capD (th : TypedHeap) (s : S) (ar : A) (�
     rcases hext with h | ⟨pp, rs, idx, y, uc, uc', rc, rc', ysl, rest, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, hRg⟩
     · exact Or.inl h
     · exact Or.inr ⟨pp, rs, idx, y, uc, uc', rc, rc', ysl, rest, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10,
-        fun p fi e => ⟨(hRg p fi e).1, (hRg p fi e).2.1, fun b hb1 hb2 => Or.inr (by
-          rcases (hRg p fi e).2.2 with h | h <;> omega)⟩⟩
+        fun p fi e => ⟨(hRg p fi e).1, (hRg p fi e).2, fun b hb1 hb2 => Or.inr (by
+          have hk := hUK.pool hCR.2.2.1 (AbsSlot.isSlot (th := th) (sl := (pp.bv, idx))
+            ⟨pp, rfl, Or.inl (by simpa [h2] using h1)⟩) (by rw [h5, e])
+          rcases hk with h | h <;> omega)⟩⟩
   have hF := Vs.decode_invocation_asid_control_top arI th s ar σ G hCR hFI hU hFR hS hR hPt lbl slbl hlM length buf ct
     hct hcur htcb hact hrun args hlen hargs extra excaps hext0 slot blk call don fp ci sl buffer
   have h := decode_invocation_asid_control arI th hS.2.pl s ar σ G hCR hFI hU hFR

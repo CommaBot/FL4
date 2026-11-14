@@ -36,6 +36,7 @@ import Fl4Proofs.P3.UntypedPml4
 import Fl4Proofs.P3.VsMdb
 import Fl4Proofs.P3.FinFrame
 import Fl4Proofs.P3.VsFrameInv
+import Fl4Proofs.P3.VsCapOps
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Vs
@@ -201,7 +202,7 @@ structure MpRegion (th : TypedHeap) (G : MdbGhost) (P L4 L3 L2 L1 : Set U64) (ks
 
 /-- The post of `MakePool`'s perform. -/
 def MpPost {A : Type} (P L4 L3 L2 L1 : Set U64) (SR : S → A → Fl4Spec.State Unit → Prop)
-    (σ : Fl4Spec.State Unit) (p : U64) (dest ps : Fl4Spec.CslotPtr) (base : Fl4Spec.Asid)
+    (m0 : U64 → U64) (G0 : MdbGhost) (σ : Fl4Spec.State Unit) (p : U64) (dest ps : Fl4Spec.CslotPtr) (base : Fl4Spec.Asid)
     (res : core.result.Result Unit error.Exc × S × A) : Prop :=
   ∃ σ' th' G', ((), σ') ∈ ((Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart >>= fun _ =>
       Fl4Spec.performAsidControlInvocation (.makePool p.bv dest ps base)) σ).1 ∧
@@ -211,7 +212,9 @@ def MpPost {A : Type} (P L4 L3 L2 L1 : Set U64) (SR : S → A → Fl4Spec.State 
     MdbLinks th' (L.mem res.2.1) G' ∧ CdtRel th' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
     UtInv (L.mem res.2.1) G' ∧ VsRel (insert p P) (L.mem res.2.1) (L.ksb res.2.1) σ' ∧
     PtRel L4 L3 L2 L1 (L.mem res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧ FinInv th' (L.mem res.2.1) σ' G' ∧
-    Vs.FrameInv (L.mem res.2.1) G'
+    Vs.FrameInv (L.mem res.2.1) G' ∧
+    ∀ P' L4' L3' L2' L1' : Set U64, Vs.VsCapsIn P' L4' L3' L2' L1' m0 G0 →
+      Vs.VsCapsIn (insert p P') L4' L3' L2' L1' (L.mem res.2.1) G'
 
 set_option maxHeartbeats 4000000 in
 /-- **`MakePool`'s perform refines l4v** (see the module docstring): from the
@@ -252,7 +255,7 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
       let s4 ← cdt.insert st s3 (capability.Cap.AsidPool p base) (cslotAddr (pp.bv, idx)) (cslotAddr (pd.bv, idxd))
       let s5 ← vspace.set_asid_table st s4 i p
       ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s5, a)) ⦃ res =>
-      res.1 = .Ok () ∧ res.2.2 = a ∧ MpPost (L := L) P L4 L3 L2 L1 SR σ p (pd.bv, idxd) (pp.bv, idx) base.bv res ⦄ := by
+      res.1 = .Ok () ∧ res.2.2 = a ∧ MpPost (L := L) P L4 L3 L2 L1 SR (L.mem s) G σ p (pd.bv, idxd) (pp.bv, idx) base.bv res ⦄ := by
   obtain ⟨hpal, hpfit, hp0, hN, hns, hcn, hPo, hLo, hTo⟩ := hRg
   set x := cslotAddr (pp.bv, idx) with hxdef
   set val := cslotAddr (pd.bv, idxd) with hvaldef
@@ -371,7 +374,7 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
   refine WP.spec_bind (set_asid_table_spec s4 i p) ?_
   rintro s5 rfl
   refine (WP.spec_ok _).2 ⟨rfl, rfl, ?_⟩
-  show MpPost (L := L) P L4 L3 L2 L1 SR σ p (pd.bv, idxd) (pp.bv, idx) base.bv
+  show MpPost (L := L) P L4 L3 L2 L1 SR (L.mem s) G σ p (pd.bv, idxd) (pp.bv, idx) base.bv
     (.Ok (), L.wr s4 (atA (L.ksb s4) (i &&& 2047#u64)) p, a)
   -- FL4: the kernel-state base and the words
   have hksb2 : L.ksb s2 = L.ksb s1 := by
@@ -754,8 +757,17 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     (fun y hy _ _ _ _ _ hc q h1 h2 => Vs.pool_out hc (hctx.hreg y hy)
       (fun h => (hctx.hno y hy h).imp id And.left) hctx.hcr q h1 h2)
   have FR5 : Vs.FrameInv (L.mem s5) G' := FR4.of_caps (fun z hz => hSS5.capV ((hM4.members z).1 hz).1)
+  have VC : ∀ P' L4' L3' L2' L1' : Set U64, Vs.VsCapsIn P' L4' L3' L2' L1' (L.mem s) G →
+      Vs.VsCapsIn (insert p P') L4' L3' L2' L1' (L.mem s5) G' := fun P' L4' L3' L2' L1' hVC => by
+    have V1 := hVC.of_caps (fun z hz => hSS.capV ((hM.members z).1 hz).1)
+    have V2 := V1.recap x (by rw [RR2.cap]; trivial) (fun z hz hne => hco2 z ((RR2.M.members z).1 hz).1 hne)
+    have V3 := V2.of_caps (fun z hz => hSS3.capV ((RR2.M.members z).1 hz).1)
+    have V4 := V3.insert_fresh (P' := insert p P') (L4' := L4') (L3' := L3') (L2' := L2') (L1' := L1')
+      (Set.subset_insert _ _) subset_rfl subset_rfl subset_rfl subset_rfl hxm true
+      (by rw [hctx.cd]; exact Vs.vcap_pool hbase hi) (by rw [hctx.cz hxm]; exact id) (fun z hz _ _ => hctx.cz hz)
+    exact V4.of_caps (fun z hz => hSS5.capV ((hM4.members z).1 hz).1)
   refine ⟨τf, th', G', by rw [hrun]; exact hmem, by rw [hrun]; exact hall.1, hP', hR5, hV5, hM5, hC5,
-    MdbInv.of_same hM4 hI4 hSS5, UtInv.of_same hM4 hU4 hSS5, by rw [hksb5]; exact hVs5, hPt5, hSR5, ⟨hKTf, F5⟩, FR5⟩
+    MdbInv.of_same hM4 hI4 hSS5, UtInv.of_same hM4 hU4 hSS5, by rw [hksb5]; exact hVs5, hPt5, hSR5, ⟨hKTf, F5⟩, FR5, VC⟩
 
 end
 
@@ -766,12 +778,12 @@ variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 outcome `D`: an error, as the spec's, the state unchanged; or one of the
 spec's invocations, with no failure, performed (`MpPost`). -/
 def MpDecPost {A : Type} (P L4 L3 L2 L1 : Set U64) (SR : S → A → Fl4Spec.State Unit → Prop)
-    (σ : Fl4Spec.State Unit) (D : Set (Except Fl4Spec.SyscallError Fl4Spec.ArchInvocation × Fl4Spec.State Unit) × Prop)
+    (m0 : U64 → U64) (G0 : MdbGhost) (σ : Fl4Spec.State Unit) (D : Set (Except Fl4Spec.SyscallError Fl4Spec.ArchInvocation × Fl4Spec.State Unit) × Prop)
     (s : S) (a : A) (res : core.result.Result Unit error.Exc × S × A) : Prop :=
   (∃ e e', res.1 = .Err e ∧ VsErrRel e e' ∧ D = ({(.error e', σ)}, False) ∧ res.2.1 = s ∧ res.2.2 = a) ∨
   (res.1 = .Ok () ∧ ∃ (p : U64) (dest ps : Fl4Spec.CslotPtr) (base : Fl4Spec.Asid),
     (.ok (.invokeASIDControl (.makePool p.bv dest ps base)), σ) ∈ D.1 ∧ ¬ D.2 ∧
-    MpPost (L := L) P L4 L3 L2 L1 SR σ p dest ps base res)
+    MpPost (L := L) P L4 L3 L2 L1 SR m0 G0 σ p dest ps base res)
 
 /-- **ASIDControl `MakePool` refines l4v** (decode and perform; for the
 extra caps present): FL4's error is the spec decode's single outcome, or the
@@ -809,7 +821,7 @@ theorem makepool_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
       MpRegion th G P L4 L3 L2 L1 (L.ksb s) p ∧ RegOK s σ p) (hFI : FinInv th (L.mem s) σ G)
     (hFR : Vs.FrameInv (L.mem s) G) :
     vspace.decode st ar s a fl4_abi.label.X86ASIDControlMakePool length slot .AsidControl call buf ex ⦃ res =>
-      MpDecPost (L := L) P L4 L3 L2 L1 SR σ (ExceptT.run (Fl4Spec.archDecodeInvocation (Z := Unit) slbl
+      MpDecPost (L := L) P L4 L3 L2 L1 SR (L.mem s) G σ (ExceptT.run (Fl4Spec.archDecodeInvocation (Z := Unit) slbl
         (args.map UScalar.bv) xs cte .asidControlCap ((uc', (pp.bv, idx)) :: (rc', ysl) :: rest)) σ) s a res ⦄ := by
   unfold vspace.decode
   rw [hct]

@@ -657,7 +657,7 @@ theorem assign_foot {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P : Set U
     (hSt : StateRel th (L.mem s) σ) (hSV : SlotsValid th (L.mem s)) (hR : VsRel P (L.mem s) (L.ksb s) σ)
     (hS : SR s a σ) {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct))
     (hrun : Fl4Spec.runnable xct.tcbState = true)
-    (ptr base : U64) (hb : base.val % 512 = 0)
+    (ptr base : U64) (hb : base.val % 512 = 0) (hb20 : base.val < 2 ^ 20)
     {slbl : Fl4Spec.Data} (hl : Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDPoolAssign)
     (args : List Fl4Spec.Data) (xs : Fl4Spec.CapRef) (cte : Fl4Spec.CslotPtr)
     (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
@@ -671,7 +671,7 @@ theorem assign_foot {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P : Set U
     (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b) :
     vspace.decode st ar s a fl4_abi.label.X86ASIDPoolAssign length slot (.AsidPool ptr base) call buf ex ⦃ res =>
       WritesIn st s res.2.1 (VsFootW st th P L4 L3 L2 L1 s) ⦄ := by
-  refine WP.spec_mono (assign_rel (SR := FootSR st SR s (VsFootW st th P L4 L3 L2 L1 s)) (hH := VsInvHyps.foot (s0 := s) (fun _ h => h) hPl hH) (hS := ⟨hS, WritesIn.refl _ _⟩) (A := A) (ar := ar) (th := th) (P := P) (s := s) (a := a) (σ := σ) (hPl := hPl) (hVP := hVP) (hD := hD) (hSt := hSt) (hSV := hSV) (hR := hR) (xct := xct) (hkt := hkt) (hrun := hrun) (ptr := ptr) (base := base) (hb := hb) (slbl := slbl) (hl := hl) (args := args) (xs := xs) (cte := cte) (rest := rest) (length := length) (slot := slot) (call := call) (buf := buf) (ex := ex) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (hex := hex) (ptr1 := ptr1) (asid0 := asid0) (hcx := hcx) (hcan := hcan) (hp10 := hp10) (htcb := htcb) (hact := hact) (hVO := hVO)) ?_
+  refine WP.spec_mono (assign_rel (SR := FootSR st SR s (VsFootW st th P L4 L3 L2 L1 s)) (hH := VsInvHyps.foot (s0 := s) (fun _ h => h) hPl hH) (hS := ⟨hS, WritesIn.refl _ _⟩) (A := A) (ar := ar) (th := th) (P := P) (s := s) (a := a) (σ := σ) (hPl := hPl) (hVP := hVP) (hD := hD) (hSt := hSt) (hSV := hSV) (hR := hR) (xct := xct) (hkt := hkt) (hrun := hrun) (ptr := ptr) (base := base) (hb := hb) (hb20 := hb20) (slbl := slbl) (hl := hl) (args := args) (xs := xs) (cte := cte) (rest := rest) (length := length) (slot := slot) (call := call) (buf := buf) (ex := ex) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (hex := hex) (ptr1 := ptr1) (asid0 := asid0) (hcx := hcx) (hcan := hcan) (hp10 := hp10) (htcb := htcb) (hact := hact) (hVO := hVO)) ?_
   intro res h
   rcases h with h | ⟨-, -, asid, σ', -, -, -, -, -, hSR, -⟩
   · obtain ⟨-, -, -, -, -, hs, -⟩ := h; rw [hs]; exact WritesIn.refl _ _
@@ -757,7 +757,7 @@ theorem derive_subframe_foot {A : Type} {ar : machine.Arch A} {th : TypedHeap} {
       (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
       Within (.Frame ptr sz rt dev mm fa fv) (capV (L.mem s) x))
     (hFI : FinInv th (L.mem s) σ G)
-    (hFR : Vs.FrameInv (L.mem s) G)
+    (hFR : Vs.FrameInv (L.mem s) G) (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : ct.bv = σ.curThread)
     {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct))
     (hrun : Fl4Spec.runnable xct.tcbState = true)
@@ -772,7 +772,7 @@ theorem derive_subframe_foot {A : Type} {ar : machine.Arch A} {th : TypedHeap} {
   refine WP.spec_mono (derive_subframe_rel (SR := FootSRc st th SR s (VsFootW st th P L4 L3 L2 L1 s))
     (hH := VsSubHyps.foot (s0 := s) (fun _ h => h) hPl hH)
     (hS := ⟨hS, WritesIn.refl _ _, fun t ht => by
-      have e := P1.eq_of_bv (ht.trans hcur.symm); subst e; exact htcb, hact⟩) (A := A) (ar := ar) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (hPl := hPl) (hPP := hPP) (pp := pp) (rs := rs) (hpp := hpp) (idx := idx) (hidx := hidx) (ptr := ptr) (rt := rt) (fa := fa) (fv := fv) (sz := sz) (dev := dev) (mm := mm) (s := s) (a := a) (σ := σ) (G := G) (hSt := hSt) (hSV := hSV) (hM := hM) (hC := hC) (hI := hI) (hU := hU) (hR := hR) (hPt := hPt) (hVP := hVP) (hVO := hVO) (hPO := hPO) (hcap := hcap) (hno := hno) (hFI := hFI) (hFR := hFR) (ct := ct) (hct := hct) (hcur := hcur) (xct := xct) (hkt := hkt) (hrun := hrun) (htcb := htcb) (hact := hact) (length := length) (buf := buf) (args := args) (hlen := hlen) (hargs := hargs) (ex := ex) (y := y) (hex0 := hex0) (nc := nc) (hcy := hcy) (nc' := nc') (hnr := hnr) (hnv := hnv) (nsl := nsl) (rest := rest)) ?_
+      have e := P1.eq_of_bv (ht.trans hcur.symm); subst e; exact htcb, hact⟩) (A := A) (ar := ar) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (hPl := hPl) (hPP := hPP) (pp := pp) (rs := rs) (hpp := hpp) (idx := idx) (hidx := hidx) (ptr := ptr) (rt := rt) (fa := fa) (fv := fv) (sz := sz) (dev := dev) (mm := mm) (s := s) (a := a) (σ := σ) (G := G) (hSt := hSt) (hSV := hSV) (hM := hM) (hC := hC) (hI := hI) (hU := hU) (hR := hR) (hPt := hPt) (hVP := hVP) (hVO := hVO) (hPO := hPO) (hcap := hcap) (hno := hno) (hFI := hFI) (hFR := hFR) (hVC := hVC) (ct := ct) (hct := hct) (hcur := hcur) (xct := xct) (hkt := hkt) (hrun := hrun) (htcb := htcb) (hact := hact) (length := length) (buf := buf) (args := args) (hlen := hlen) (hargs := hargs) (ex := ex) (y := y) (hex0 := hex0) (nc := nc) (hcy := hcy) (nc' := nc') (hnr := hnr) (hnv := hnv) (nsl := nsl) (rest := rest)) ?_
   intro res h
   rcases h with h | ⟨-, -, iv, -, σ', G', -, -, hSub, -⟩
   · obtain ⟨-, -, -, -, -, hs, -⟩ := h; rw [hs]; exact WritesIn.refl _ _

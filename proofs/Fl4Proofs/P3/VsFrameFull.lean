@@ -27,6 +27,7 @@ theorem decode_invocation_frame_full (th : TypedHeap) (s : S) (ar : A) (σ : Fl4
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
+    (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : FrameLabel lbl slbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
     (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
@@ -92,7 +93,7 @@ theorem decode_invocation_frame_full (th : TypedHeap) (s : S) (ar : A) (σ : Fl4
         (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) (AR := AR)) hS hS.2.pt
       hS.2.vs hS.2.vo hS.2.po hR hPt lbl slbl hlbl hl length buf ct hct hcur htcb hact hkt (hrun _ hkt) args hlen
       hargs (pc := pc) (r := r) (idx := idx) hpc hidx (p := p) (sz := sz) (rt := rt) (asid := asid) (va := va)
-      (d := d) (m := m) hcap hno hFR extra excaps hext' blk call don fp ci buffer
+      (d := d) (m := m) hcap hno hFR hVC extra excaps hext' blk call don fp ci buffer
     exact this
   exact Vs.decode_invocation_frame_top (L := L) arI th s ar σ G hCR hFI hFR hA hS hPI hR hPt lbl slbl hlbl length buf ct
     hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hfm hpaS hpaL hpaH hAl extra excaps hext blk call don fp ci

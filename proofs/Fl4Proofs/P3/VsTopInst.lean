@@ -433,7 +433,7 @@ theorem decode_invocation_asid_pool_top (th : TypedHeap) (s : S) (ar : A) (σ : 
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
     (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hrun : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.runnable x.tcbState = true)
-    (ptr base : U64) (hb : base.val % 512 = 0)
+    (ptr base : U64) (hb : base.val % 512 = 0) (hb20 : base.val < 2 ^ 20)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ (pc : U64) (r : Nat) (idx : List Bool) (vc : capability.Cap) (vc' : Fl4Spec.Cap)
@@ -446,7 +446,7 @@ theorem decode_invocation_asid_pool_top (th : TypedHeap) (s : S) (ar : A) (σ : 
     DecOKF (L := L) arI s ar σ lbl length slot (.AsidPool ptr base) blk call don fp buf extra slbl args ci sl excaps
       buffer :=
   DecOKFQ.toF arI <| decode_invocation_asid_pool arI th hS.2.pl s ar σ G hCR hFI hFR (fun _ _ _ _ => trivial) (vsInvHyps_top curT_top) hS hS.2.vs hS.2.sd hR hS.2.vo
-    lbl slbl hlA length buf ct hct hcur htcb hact hrun ptr base hb extra excaps hext slot blk call don fp args ci sl
+    lbl slbl hlA length buf ct hct hcur htcb hact hrun ptr base hb hb20 extra excaps hext slot blk call don fp args ci sl
     buffer
 
 set_option maxHeartbeats 8000000 in
