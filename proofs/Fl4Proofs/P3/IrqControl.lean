@@ -16,6 +16,7 @@ becomes `IRQ_SIGNAL`; `IrqRel` is kept (`invoke_ctl_rel`, `restart_irq`).
 import Fl4Proofs.P3.IrqHandler
 import Fl4Proofs.P3.IntFrame
 import Fl4Spec.Ext.IrqControl
+import Fl4Proofs.P3.VsFrameInv
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -91,7 +92,7 @@ def CPost {X : Type} (invk : X → Fl4Spec.PMonad Unit Unit) (th : TypedHeap) (k
   | (.Ok (), s', _) => ∃ inv, m.run σ = ({(.ok inv, σ)}, False) ∧ ∃ σ1,
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
       ∃ σ' G', (.ok (), σ') ∈ ((invk inv).run σ1).1 ∧ CRel th (L.mem s') σ' G' ∧ IrqRel (L.mem s') kb σ' ∧
-        FinInv th (L.mem s') σ' G' ∧ HandlersActive (L.mem s') kb G'
+        FinInv th (L.mem s') σ' G' ∧ HandlersActive (L.mem s') kb G' ∧ Vs.FrameInv (L.mem s') G'
 
 theorem CPost.of_run {X : Type} {invk : X → Fl4Spec.PMonad Unit Unit} {th : TypedHeap} {kb : U64}
     {σ : Fl4Spec.State Unit} {m m' : Fl4Spec.SEMonad Unit X} (h : m.run σ = m'.run σ) {s : S}
@@ -168,7 +169,7 @@ theorem restart_irq (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.Stat
 and the destination empty (slots of CNodes). -/
 theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
-    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
+    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G) (hFR : Vs.FrameInv (L.mem s) G)
     (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
     (irq : U64) (hirq : irq.val < 128) (hin : L.mem s (irqStA (L.ksb s) irq) = 0#u64)
     {ps pd : U64} {rs rd : Nat} (hps : th ps = some (.cnode rs)) (hpd : th pd = some (.cnode rd))
@@ -179,7 +180,7 @@ theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : 
       ∃ σ' G', ((), σ') ∈ ((Fl4Spec.setIrqState (Z := Unit) .irqSignal (BitVec.ofNat 8 irq.val) >>= fun _ =>
           Fl4Spec.capInsert (Z := Unit) (.irqHandlerCap (BitVec.ofNat 8 irq.val)) (ps.bv, idxs) (pd.bv, idxd)) σ).1 ∧
         CRel th (L.mem r.1) σ' G' ∧ IrqRel (L.mem r.1) (L.ksb s) σ' ∧ L.ksb r.1 = L.ksb s ∧
-        FinInv th (L.mem r.1) σ' G' ∧ HandlersActive (L.mem r.1) (L.ksb s) G' ⦄ := by
+        FinInv th (L.mem r.1) σ' G' ∧ HandlersActive (L.mem r.1) (L.ksb s) G' ∧ Vs.FrameInv (L.mem r.1) G' ⦄ := by
   unfold interrupt.invoke_irq_control
   obtain ⟨a1, ha1⟩ := hmask ar irq (decide (interrupt.IRQ_SIGNAL = interrupt.IRQ_INACTIVE))
   rw [set_irq_state_eq arI s ar _ irq ha1]
@@ -230,12 +231,25 @@ theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : 
     · exact Or.inr ((hM1.members _).1 h).1
   have hfrm := insert_frame hP s1 (.IrqHandler irq) _ _ hAs.isSlot hAd.isSlot _ hsrc1 hnx
   refine WP.spec_bind (WP.spec_and hins hfrm) ?_
-  rintro s2 ⟨⟨σ2, G2, hci, hR2, hV2, hM2, hC2, hI2, hFI2, hcap2⟩, hF2⟩
+  rintro s2 ⟨⟨σ2, G2, hci, hR2, hV2, hM2, hC2, hI2, hFI2, hcap2, bG2, hG2e⟩, hF2⟩
   rw [WP.spec_ok]
   have hkeep := capInsert_keeps (absCap (.IrqHandler irq)) (ps.bv, idxs) (pd.bv, idxd) σ1 ((), σ2)
     (by rw [hci]; rfl)
   have hkb2 : L.ksb s2 = L.ksb s := by rw [hF2.1]; simp [s1]
-  refine ⟨σ2, G2, ?_, ⟨hR2, hV2, hM2, hC2, hI2⟩, ⟨fun i hi => ?_, fun i hi => ?_⟩, hkb2, hFI2, ?_⟩
+  have hFRG : Vs.FrameInv (L.mem s2) G2 := by
+    have hsm : cslotAddr (ps.bv, idxs) ∈ G.chains.flatten := (hM1.members _).2 ⟨hAs.isSlot, _, hsrc1, by simp⟩
+    have hdm : cslotAddr (pd.bv, idxd) ∉ G.chains.flatten := by
+      intro h; obtain ⟨-, c0, h0, hn⟩ := (hM1.members _).1 h
+      rw [hdst1] at h0; exact hn (Result.ok_injective h0).symm
+    have hne : cslotAddr (ps.bv, idxs) ≠ cslotAddr (pd.bv, idxd) := fun e => hdm (e ▸ hsm)
+    have hFR1 : Vs.FrameInv (L.mem s1) G := hFR.of_caps (fun z hz => hS.capV ((hM.members z).1 hz).1)
+    rw [hG2e]
+    refine hFR1.insert_fresh hsm hdm bG2 (c := .IrqHandler irq) (by rw [hcap2 _ hAd.isSlot, if_pos rfl])
+      (by rw [hcap2 _ hAs.isSlot, if_neg hne]; exact Vs.MdbLike.refl _) (fun z hz hzs => ?_)
+      (fun _ _ _ _ _ h => by cases h) (fun _ _ _ _ _ _ _ _ _ _ _ h => by simp [absCap, Fl4Spec.objRefs] at h)
+    have hzd : z ≠ cslotAddr (pd.bv, idxd) := fun e => hdm (e ▸ hz)
+    rw [hcap2 _ ((hM1.members z).1 hz).1, if_neg hzd]
+  refine ⟨σ2, G2, ?_, ⟨hR2, hV2, hM2, hC2, hI2⟩, ⟨fun i hi => ?_, fun i hi => ?_⟩, hkb2, hFI2, ?_, hFRG⟩
   rotate_right
   · intro y hy i hi
     have hys := ((hM2.members y).1 hy).1

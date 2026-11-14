@@ -76,7 +76,7 @@ theorem irq_handler_decode_refines (th : TypedHeap) (hP : Placed th)
 theorem irq_control_decode_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
-    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
+    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G) (hFR : Vs.FrameInv (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : IrqCLabel lbl slbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -101,28 +101,28 @@ theorem irq_control_decode_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar
       UScalar.eq_of_val_eq (by rw [h33]; simp [fl4_abi.label.IRQIssueIRQHandler])
     subst e
     simp only [h33]
-    exact irq_issue_refines arI th hP s ar σ G hCR hL hIR hHA hFI slbl (l33 h33) length buf ct hct args hlen hargs
+    exact irq_issue_refines arI th hP s ar σ G hCR hL hIR hHA hFI hFR slbl (l33 h33) length buf ct hct args hlen hargs
       hcur htcb hact hact2 extra x0 hx0 excaps hex hps hls hsrcC nA hnum hnA hmask
   by_cases h67 : lbl.val = 67
   · have e : lbl = fl4_abi.label.X86IRQIssueIRQHandlerIOAPIC :=
       UScalar.eq_of_val_eq (by rw [h67]; simp [fl4_abi.label.X86IRQIssueIRQHandlerIOAPIC])
     subst e
     simp only [h67]
-    exact irq_ioapic_refines arI th hP s ar σ G hCR hL hIR hHA hFI slbl (l67 h67) length buf ct hct args hlen hargs
+    exact irq_ioapic_refines arI th hP s ar σ G hCR hL hIR hHA hFI hFR slbl (l67 h67) length buf ct hct args hlen hargs
       hcur htcb hact hact2 extra x0 hx0 excaps hex hps hls hsrcC hAR
   by_cases h68 : lbl.val = 68
   · have e : lbl = fl4_abi.label.X86IRQIssueIRQHandlerMSI :=
       UScalar.eq_of_val_eq (by rw [h68]; simp [fl4_abi.label.X86IRQIssueIRQHandlerMSI])
     subst e
     simp only [h68]
-    exact irq_msi_refines arI th hP s ar σ G hCR hL hIR hHA hFI slbl (l68 h68) length buf ct hct args hlen hargs
+    exact irq_msi_refines arI th hP s ar σ G hCR hL hIR hHA hFI hFR slbl (l68 h68) length buf ct hct args hlen hargs
       hcur htcb hact hact2 extra x0 hx0 excaps hex hps hls hsrcC hmask
   by_cases h69 : lbl.val = 69
   · have e : lbl = fl4_abi.label.X86IRQIssueIRQHandlerIOAPICRemapped :=
       UScalar.eq_of_val_eq (by rw [h69]; simp [fl4_abi.label.X86IRQIssueIRQHandlerIOAPICRemapped])
     subst e
     simp only [h69]
-    exact irq_remap_refines arI th hP s ar σ G hCR hL hIR hHA hFI slbl length buf ct hct args hlen hargs
+    exact irq_remap_refines arI th hP s ar σ G hCR hL hIR hHA hFI hFR slbl length buf ct hct args hlen hargs
       hcur htcb hact hact2 extra x0 hx0 excaps hex hps hls hsrcC hAR
   simp only [h69]
   exact irq_ctl_other_refines arI th s ar σ lbl h33 h67 h68 h69 slbl (lo h33 h67 h68 h69) length _ buf extra _ _ _

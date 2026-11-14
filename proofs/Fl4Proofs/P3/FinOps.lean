@@ -335,7 +335,8 @@ theorem insert_ctl_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (
       ∃ σ' G', Fl4Spec.capInsert (Z := Unit) (absCap c) (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False) ∧
         StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
         CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G' ∧ FinInv th (L.mem s') σ' G' ∧
-        ∀ a, IsSlot th a → capV (L.mem s') a = if a = cslotAddr (pd.bv, idxd) then c else capV (L.mem s) a ⦄ := by
+        (∀ a, IsSlot th a → capV (L.mem s') a = if a = cslotAddr (pd.bv, idxd) then c else capV (L.mem s) a) ∧
+        ∃ b, G' = insG G (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd)) b ⦄ := by
   obtain ⟨-, -, -, -, -, hzb, hcnn, hsnn, -, -, hk⟩ := hctl.facts
   have hAs : AbsSlot th (ps.bv, idxs) := ⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩
   have hAd : AbsSlot th (pd.bv, idxd) := ⟨pd, rfl, Or.inl (by simpa [hld] using hpd)⟩
@@ -372,7 +373,8 @@ theorem insert_ctl_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (
   subst e e3 e4
   rw [h1, WP.spec_ok]
   obtain ⟨σ', G', hins, hR', hV', hM', hC', hG'⟩ := hpost hsib
-  refine ⟨σ', G', hins, hR', hV', hM', hC', ?_, ⟨hFI.kt.sub (ksub_of_eq (capInsert_nks _ _ _) hins), ?_⟩, hcaps⟩
+  refine ⟨σ', G', hins, hR', hV', hM', hC', ?_, ⟨hFI.kt.sub (ksub_of_eq (capInsert_nks _ _ _) hins), ?_⟩, hcaps,
+    _, hG'⟩
   · rw [hG', hb]; exact hinv
   · have hnd := hM'.tree.nodup
     rw [hG', hb] at hnd ⊢; exact hfin _ hnd

@@ -68,14 +68,14 @@ theorem top_of_post {th : TypedHeap} (hP : Placed th) {σ σ1 : Fl4Spec.State Un
     {m : Fl4Spec.SEMonad Unit Fl4Spec.Fl4Invocation} {inv : Fl4Spec.Fl4Invocation} {G : MdbGhost} {s s1 s2 : S}
     {a : A} (hdec : DecOut m σ inv)
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
-    (hDS1 : DState (L := L) th s1 σ1 G)
+    (hDS1 : DState (L := L) th s1 σ1 G) (hfr : Vs.FrameInv (L.mem s1) G)
     (h : RegPost (L := L) th s1 σ1 (Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don inv) s2) :
-    TopPost (L := L) σ blk call don m s (.Ok (), s2, a) := by
+    TopPostF (L := L) σ blk call don m s (.Ok (), s2, a) := by
   obtain ⟨hS, y, hy, ⟨rr, hrr⟩, hR, hcdt, hio, hK⟩ := h
   obtain ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, -, hF1⟩ := hDS1
   exact Or.inr ⟨_, hdec, σ1, hst, y, hy, th, G, Or.inl ⟨rfl, rr, hrr⟩, hP,
     ⟨(hR _ hR1).of_caps (fun x hx => hS.capAt hx), hV1.of_caps (fun x hx => hS.capAt hx), hM1.of_same hS,
-      hC1.of_same hS hcdt hio, MdbInv.of_same hM1 hI1 hS⟩, hF1.of_same hM1 hS hK⟩
+      hC1.of_same hS hcdt hio, MdbInv.of_same hM1 hI1 hS⟩, hF1.of_same hM1 hS hK, FrameInv.of_same hM1 hfr hS⟩
 
 /-- `RegPost` of an invocation with an outcome keeping the spec's state. -/
 theorem regPost_same {th : TypedHeap} {s1 s2 : S} {σ1 : Fl4Spec.State Unit}
@@ -136,7 +136,7 @@ theorem decode_unset_eq (s : S) (ar : A) (p : U64) (c : tcb.Ctx)
 /-- **`tcb::decode` at `TCBUnsetBreakpoint`** (`TcbOK`): the breakpoint
 number's check, the restart, and the debug-register work (`UnsetBpHyp`). -/
 theorem tcb_unset_bp_refines (th : TypedHeap) (hP : Placed th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : Vs.FrameInv (L.mem s) G)
     (p : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .invalidInvocation)
     (hext : Fl4Spec.fl4TcbExtLabelOf slbl = some .unsetBreakpoint)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct)
@@ -147,14 +147,14 @@ theorem tcb_unset_bp_refines (th : TypedHeap) (hP : Placed th)
     (call : Bool) (slot : obj.Slot) (extra : Aeneas.Std.Array obj.Slot 3#usize) (blk don : Bool)
     (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) :
-    TcbOK (L := L) arI s ar σ fl4_abi.label.TCBUnsetBreakpoint p ⟨length, buf, call, slot, extra⟩ blk call don
+    TcbOKF (L := L) arI s ar σ fl4_abi.label.TCBUnsetBreakpoint p ⟨length, buf, call, slot, extra⟩ blk call don
       slbl args ci sl excaps buffer := by
   have hdec0 : specDec false slbl args ci sl (.Thread p) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
         (Fl4Spec.decodeFl4UnsetBreakpoint (Z := Unit) buffer p.bv) := by
     show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl args (.threadCap p.bv) sl excaps buffer = _
     rw [fl4DecodeTcb_ext hlbl hext]; rfl
-  unfold TcbOK
+  unfold TcbOKF
   rw [decode_unset_eq arI s ar p _ hstall, hdec0]
   obtain ⟨bp, hbp, hbs⟩ := arg_rel hA hct hcur ⟨length, buf, call, slot, extra⟩ rfl 0#u64 (by decide)
   rw [hbp]; simp only [bind_ok]; rw [check_bp_eq]
@@ -173,7 +173,8 @@ theorem tcb_unset_bp_refines (th : TypedHeap) (hP : Placed th)
     rw [hsp]
     exact run_bind_error (by rw [checkBp_run, if_pos hb]) _
   · simp only [hb, ↓reduceIte, core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
-    obtain ⟨s1, σ1, hrc1, hs1, hst1, -, hDS1, -, -, -⟩ := restart_dstate th hP s σ G hDS ct hct hcur htcb hact
+    obtain ⟨s1, σ1, hrc1, hs1, hst1, hS1, hDS1, -, -, -⟩ := restart_dstate th hP s σ G hDS ct hct hcur htcb hact
+    have hfr1 : Vs.FrameInv (L.mem s1) G := FrameInv.of_same hDS.1.2.2.1 hFR hS1
     rw [hrc1]; simp only [bind_ok]
     have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
         (Fl4Spec.decodeFl4UnsetBreakpoint (Z := Unit) buffer p.bv)).run σ =
@@ -183,7 +184,7 @@ theorem tcb_unset_bp_refines (th : TypedHeap) (hP : Placed th)
       rfl
     refine WP.spec_bind (hU s1 bp hs1) ?_
     intro s2 hS2
-    exact (WP.spec_ok _).2 (top_of_post hP (DecOut.of_eq hdec) hst1 hDS1 (regPost_same hS2 (rr := []) rfl))
+    exact (WP.spec_ok _).2 (top_of_post hP (DecOut.of_eq hdec) hst1 hDS1 hfr1 (regPost_same hS2 (rr := []) rfl))
 
 
 /-! ## SetTimer -/
@@ -215,7 +216,7 @@ theorem decode_timer_eq (s : S) (ar : A) (p : U64) (c : tcb.Ctx)
 /-- **`tcb::decode` at `TCBSetTimer`** (`TcbOK`): the length check, the
 restart, and the timer work (`SetTimerHyp`). -/
 theorem tcb_set_timer_refines (th : TypedHeap) (hP : Placed th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : Vs.FrameInv (L.mem s) G)
     (p : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .invalidInvocation)
     (hext : Fl4Spec.fl4TcbExtLabelOf slbl = some .setTimer)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -227,14 +228,14 @@ theorem tcb_set_timer_refines (th : TypedHeap) (hP : Placed th)
     (call : Bool) (slot : obj.Slot) (extra : Aeneas.Std.Array obj.Slot 3#usize) (blk don : Bool)
     (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (buffer : Option Fl4Spec.ObjRef) :
-    TcbOK (L := L) arI s ar σ fl4_abi.label.TCBSetTimer p ⟨length, buf, call, slot, extra⟩ blk call don slbl
+    TcbOKF (L := L) arI s ar σ fl4_abi.label.TCBSetTimer p ⟨length, buf, call, slot, extra⟩ blk call don slbl
       (args.map UScalar.bv) ci sl excaps buffer := by
   have hdec0 : specDec false slbl (args.map UScalar.bv) ci sl (.Thread p) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
         (Fl4Spec.decodeFl4SetTimer (Z := Unit) (args.map UScalar.bv) p.bv) := by
     show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) sl excaps buffer = _
     rw [fl4DecodeTcb_ext hlbl hext]; rfl
-  unfold TcbOK
+  unfold TcbOKF
   rw [decode_timer_eq arI s ar p _ hstall, hdec0]
   by_cases h1 : length < 2#u64
   · simp only [h1, ↓reduceIte, error.truncated, bind_ok]
@@ -255,7 +256,8 @@ theorem tcb_set_timer_refines (th : TypedHeap) (hP : Placed th)
   have ha1 : tcb.arg st s ⟨length, buf, call, slot, extra⟩ 1#u64 = ok y1 := by
     unfold tcb.arg; rw [hct]; simp only [bind_ok]; exact hargs 1#u64 y1 (by simp)
   rw [ha0, ha1]; simp only [bind_ok]
-  obtain ⟨s1, σ1, hrc1, hs1, hst1, -, hDS1, -, -, -⟩ := restart_dstate th hP s σ G hDS ct hct hcur htcb hact
+  obtain ⟨s1, σ1, hrc1, hs1, hst1, hS1, hDS1, -, -, -⟩ := restart_dstate th hP s σ G hDS ct hct hcur htcb hact
+  have hfr1 : Vs.FrameInv (L.mem s1) G := FrameInv.of_same hDS.1.2.2.1 hFR hS1
   rw [hrc1]; simp only [bind_ok]
   have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
       (Fl4Spec.decodeFl4SetTimer (Z := Unit) ((y0 :: y1 :: rest).map UScalar.bv) p.bv)).run σ =
@@ -266,7 +268,7 @@ theorem tcb_set_timer_refines (th : TypedHeap) (hP : Placed th)
     rfl
   refine WP.spec_bind (hT s1 y0 y1 hs1) ?_
   intro s2 hS2
-  exact (WP.spec_ok _).2 (top_of_post hP (DecOut.of_eq hdec) hst1 hDS1 (regPost_same hS2 (rr := []) rfl))
+  exact (WP.spec_ok _).2 (top_of_post hP (DecOut.of_eq hdec) hst1 hDS1 hfr1 (regPost_same hS2 (rr := []) rfl))
 
 
 /-! ## GetBreakpoint (not called) -/
@@ -290,7 +292,7 @@ theorem decode_getbp_eq (s : S) (ar : A) (p : U64) (c : tcb.Ctx)
 breakpoint number's check, the restart, the read (`GetBpHyp`) and the
 caller's `Running`. -/
 theorem tcb_get_bp_refines (th : TypedHeap) (hP : Placed th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : Vs.FrameInv (L.mem s) G)
     (p : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .invalidInvocation)
     (hext : Fl4Spec.fl4TcbExtLabelOf slbl = some .getBreakpoint)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct)
@@ -301,14 +303,14 @@ theorem tcb_get_bp_refines (th : TypedHeap) (hP : Placed th)
     (slot : obj.Slot) (extra : Aeneas.Std.Array obj.Slot 3#usize) (blk don : Bool)
     (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) :
-    TcbOK (L := L) arI s ar σ fl4_abi.label.TCBGetBreakpoint p ⟨length, buf, false, slot, extra⟩ blk false don
+    TcbOKF (L := L) arI s ar σ fl4_abi.label.TCBGetBreakpoint p ⟨length, buf, false, slot, extra⟩ blk false don
       slbl args ci sl excaps buffer := by
   have hdec0 : specDec false slbl args ci sl (.Thread p) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
         (Fl4Spec.decodeFl4GetBreakpoint (Z := Unit) buffer p.bv) := by
     show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl args (.threadCap p.bv) sl excaps buffer = _
     rw [fl4DecodeTcb_ext hlbl hext]; rfl
-  unfold TcbOK
+  unfold TcbOKF
   rw [decode_getbp_eq arI s ar p _ hstall, hdec0]
   obtain ⟨bp, hbp, hbs⟩ := arg_rel hA hct hcur ⟨length, buf, false, slot, extra⟩ rfl 0#u64 (by decide)
   have hsp : (Fl4Spec.decodeFl4GetBreakpoint (Z := Unit) buffer p.bv).run σ =
@@ -327,8 +329,9 @@ theorem tcb_get_bp_refines (th : TypedHeap) (hP : Placed th)
     rw [hsp]
     exact run_bind_error (by rw [checkBp_run, if_pos hb]) _
   · simp only [hb, ↓reduceIte, core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
-    obtain ⟨s1, σ1, hrc1, hs1, hst1, -, hDS1, -, hk1, hc1⟩ :=
+    obtain ⟨s1, σ1, hrc1, hs1, hst1, hS1, hDS1, -, hk1, hc1⟩ :=
       restart_dstate th hP s σ G hDS ct hct hcur htcb hact
+    have hfr1 : Vs.FrameInv (L.mem s1) G := FrameInv.of_same hDS.1.2.2.1 hFR hS1
     rw [hrc1]; simp only [bind_ok]
     obtain ⟨r1, hr1⟩ := hG s1 bp hs1
     rw [hr1]; simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
@@ -346,7 +349,7 @@ theorem tcb_get_bp_refines (th : TypedHeap) (hP : Placed th)
         (fun s2 hS2 => (WP.spec_ok _).2 ⟨rfl, hS2⟩)) ?_
     rintro ⟨r, s2⟩ ⟨hr, hS2⟩
     simp only at hr; subst hr
-    exact (WP.spec_ok _).2 (top_of_post hP (DecOut.of_eq hdec) hst1 hDS1
+    exact (WP.spec_ok _).2 (top_of_post hP (DecOut.of_eq hdec) hst1 hDS1 hfr1
       (regPost_same hS2 (rr := [0, 0, 0, 0, 0]) (mem_liftE (x := ([0, 0, 0, 0, 0], σ1)) ⟨rfl, rfl⟩)))
 
 /-! ## ConfigureSingleStepping (not called) -/
@@ -373,7 +376,7 @@ theorem decode_step_eq (s : S) (ar : A) (p : U64) (c : tcb.Ctx)
 (`TcbOK`): no checks; the restart, the debug-register work
 (`SingleStepHyp`) and the caller's `Running`. -/
 theorem tcb_single_step_refines (th : TypedHeap) (hP : Placed th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : Vs.FrameInv (L.mem s) G)
     (p : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .invalidInvocation)
     (hext : Fl4Spec.fl4TcbExtLabelOf slbl = some .configureSingleStepping)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct)
@@ -384,21 +387,22 @@ theorem tcb_single_step_refines (th : TypedHeap) (hP : Placed th)
     (slot : obj.Slot) (extra : Aeneas.Std.Array obj.Slot 3#usize) (blk don : Bool)
     (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) :
-    TcbOK (L := L) arI s ar σ fl4_abi.label.TCBConfigureSingleStepping p ⟨length, buf, false, slot, extra⟩ blk
+    TcbOKF (L := L) arI s ar σ fl4_abi.label.TCBConfigureSingleStepping p ⟨length, buf, false, slot, extra⟩ blk
       false don slbl args ci sl excaps buffer := by
   have hdec0 : specDec false slbl args ci sl (.Thread p) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
         (Fl4Spec.decodeFl4ConfigureSingleStepping (Z := Unit) buffer p.bv) := by
     show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl args (.threadCap p.bv) sl excaps buffer = _
     rw [fl4DecodeTcb_ext hlbl hext]; rfl
-  unfold TcbOK
+  unfold TcbOKF
   rw [decode_step_eq arI s ar p _ hstall, hdec0]
   obtain ⟨bp, hbp, hbs⟩ := arg_rel hA hct hcur ⟨length, buf, false, slot, extra⟩ rfl 0#u64 (by decide)
   obtain ⟨n, hn, hns⟩ := arg_rel hA hct hcur ⟨length, buf, false, slot, extra⟩ rfl 1#u64 (by decide)
   unfold tcb.decode_configure_single_stepping
   rw [hct]; simp only [bind_ok]; rw [hbp]; simp only [bind_ok]; rw [hn]; simp only [bind_ok]
-  obtain ⟨s1, σ1, hrc1, hs1, hst1, -, hDS1, -, hk1, hc1⟩ :=
+  obtain ⟨s1, σ1, hrc1, hs1, hst1, hS1, hDS1, -, hk1, hc1⟩ :=
     restart_dstate th hP s σ G hDS ct hct hcur htcb hact
+  have hfr1 : Vs.FrameInv (L.mem s1) G := FrameInv.of_same hDS.1.2.2.1 hFR hS1
   rw [hrc1]; simp only [bind_ok]
   have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
       (Fl4Spec.decodeFl4ConfigureSingleStepping (Z := Unit) buffer p.bv)).run σ =
@@ -416,7 +420,7 @@ theorem tcb_single_step_refines (th : TypedHeap) (hP : Placed th)
     rw [hc2, hc1]; simp only [P1.LawfulStore.nodeAt, hk2, hk1]; exact hact
   refine WP.spec_bind (set_thread_state_slots th hP s2 ct sched.TS_RUNNING htcb hact2) ?_
   intro s3 hS3
-  exact (WP.spec_ok _).2 (top_of_post hP (DecOut.of_eq hdec) hst1 hDS1
+  exact (WP.spec_ok _).2 (top_of_post hP (DecOut.of_eq hdec) hst1 hDS1 hfr1
     (regPost_same (hS2.trans hS3) (rr := [0]) (mem_liftE (x := ([0], σ1)) ⟨Or.inl rfl, rfl⟩)))
 
 
@@ -482,7 +486,7 @@ theorem setFlags_ok (σ : Fl4Spec.State Unit) (p : Fl4Spec.ObjRef) (y0 y1 : Fl4S
 /-- **`tcb::decode` at `TCBSetFlags`, not called** (`TcbOK`): the length
 check, the restart, and the flags work (`SetFlagsHyp`). -/
 theorem tcb_set_flags_refines (th : TypedHeap) (hP : Placed th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : Vs.FrameInv (L.mem s) G)
     (p : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetFlags)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -494,9 +498,9 @@ theorem tcb_set_flags_refines (th : TypedHeap) (hP : Placed th)
     (hF : SetFlagsHyp (L := L) arI th s σ ct p ⟨length, buf, false, slot, extra⟩) (blk don : Bool)
     (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (buffer : Option Fl4Spec.ObjRef) :
-    TcbOK (L := L) arI s ar σ fl4_abi.label.TCBSetFlags p ⟨length, buf, false, slot, extra⟩ blk false don slbl
+    TcbOKF (L := L) arI s ar σ fl4_abi.label.TCBSetFlags p ⟨length, buf, false, slot, extra⟩ blk false don slbl
       (args.map UScalar.bv) ci sl excaps buffer := by
-  unfold TcbOK
+  unfold TcbOKF
   rw [decode_flags_eq arI s ar p _ hstall, setFlags_dec slbl hlbl]
   by_cases h1 : length < 2#u64
   · unfold tcb.decode_set_flags
@@ -512,11 +516,12 @@ theorem tcb_set_flags_refines (th : TypedHeap) (hP : Placed th)
     unfold tcb.arg; rw [hct]; simp only [bind_ok]; exact hargs 0#u64 y0 (by simp)
   have ha1 : tcb.arg st s ⟨length, buf, false, slot, extra⟩ 1#u64 = ok y1 := by
     unfold tcb.arg; rw [hct]; simp only [bind_ok]; exact hargs 1#u64 y1 (by simp)
-  obtain ⟨s1, σ1, -, hs1, hst1, -, hDS1, -, -, -⟩ := restart_dstate th hP s σ G hDS ct hct hcur htcb hact
+  obtain ⟨s1, σ1, -, hs1, hst1, hS1, hDS1, -, -, -⟩ := restart_dstate th hP s σ G hDS ct hct hcur htcb hact
+  have hfr1 : Vs.FrameInv (L.mem s1) G := FrameInv.of_same hDS.1.2.2.1 hFR hS1
   refine WP.spec_mono (hF s1 σ1 y0 y1 ar hs1 (by rw [← hcur]; exact hst1) ha0 ha1 h1) ?_
   rintro ⟨r, s2, a2⟩ ⟨hr, h2⟩
   simp only at hr; subst hr
-  exact top_of_post hP (DecOut.of_eq (setFlags_ok σ p.bv _ _ _)) hst1 hDS1 h2
+  exact top_of_post hP (DecOut.of_eq (setFlags_ok σ p.bv _ _ _)) hst1 hDS1 hfr1 h2
 
 /-- The statement for `tcb::decode` at a label whose decode replies itself
 (`call` true): `TopPostR`. -/
@@ -791,7 +796,7 @@ def FpuHyp (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (ct p : U64) (c : 
 /-- **FL4's `fpu_transfer`** against the spec's `decodeFl4FpuTransfer`, the
 restart and `invokeFl4Tcb`: the checks proved, the work `FpuHyp`. -/
 theorem fpu_refines (th : TypedHeap) (hP : Placed th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : Vs.FrameInv (L.mem s) G)
     (p : U64) (toFrame : Bool) (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
@@ -802,7 +807,7 @@ theorem fpu_refines (th : TypedHeap) (hP : Placed th)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hX : XcRel th (L.mem s) x0 x1 x2 excaps)
     (hF : FpuHyp (L := L) arI th s σ ct p ⟨length, buf, call, slot, extra⟩ toFrame) (blk don : Bool) :
     tcb.fpu_transfer st arI s ar p ⟨length, buf, call, slot, extra⟩ toFrame ⦃ res =>
-      TopPost (L := L) σ blk call don (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
+      TopPostF (L := L) σ blk call don (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
         (Fl4Spec.decodeFl4FpuTransfer (Z := Unit) toFrame (args.map UScalar.bv) p.bv excaps)) s res ⦄ := by
   have hx0' : [x0, x1, x2][0]? = some x0 := rfl
   have htr : excaps = [] ∨ args = [] →
@@ -862,12 +867,13 @@ theorem fpu_refines (th : TypedHeap) (hP : Placed th)
   -- the checks passing: FL4's work
   have hfr : ∀ ptr sz r m asid va, c = .Frame ptr sz r false m asid va → FpuPass toFrame y0 r sz →
       tcb.fpu_transfer st arI s ar p ⟨length, buf, call, slot, extra⟩ toFrame ⦃ res =>
-        TopPost (L := L) σ blk call don (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
+        TopPostF (L := L) σ blk call don (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
           (Fl4Spec.decodeFl4FpuTransfer (Z := Unit) toFrame ((y0 :: rest).map UScalar.bv) p.bv (e0 :: erest)))
           s res ⦄ := by
     intro ptr sz r m asid va hcf hpass
     subst hcf
-    obtain ⟨s1, σ1, -, hs1, hst1, -, hDS1, -, -, -⟩ := restart_dstate th hP s σ G hDS ct hct hcur htcb hact
+    obtain ⟨s1, σ1, -, hs1, hst1, hS1, hDS1, -, -, -⟩ := restart_dstate th hP s σ G hDS ct hct hcur htcb hact
+    have hfr1 : Vs.FrameInv (L.mem s1) G := FrameInv.of_same hDS.1.2.2.1 hFR hS1
     obtain ⟨hr1, hr3, hm, hlt, hrm⟩ := hpass
     obtain ⟨hw1, hw3⟩ := hcwf
     have hrg := frame_rights r hw1 hw3
@@ -892,7 +898,7 @@ theorem fpu_refines (th : TypedHeap) (hP : Placed th)
       ⟨hr1, hr3, hm, hlt, hrm⟩) ?_
     rintro ⟨r2, s2, a2⟩ ⟨hr2, hS2⟩
     simp only at hr2; subst hr2
-    refine top_of_post hP (DecOut.of_eq hdec) hst1 hDS1 (regPost_same hS2 (rr := []) ?_)
+    refine top_of_post hP (DecOut.of_eq hdec) hst1 hDS1 hfr1 (regPost_same hS2 (rr := []) ?_)
     cases toFrame
     · rfl
     · show _ ∈ ((Fl4Spec.NonDetE.liftE _).run σ1).1
@@ -998,7 +1004,7 @@ theorem decode_fpu_eq (s : S) (ar : A) (p : U64) (c : tcb.Ctx)
 /-- **`tcb::decode` at `TCBReadFPU` / `TCBWriteFPU`** (`TcbOK`, `toFrame`
 for ReadFPU): `fpu_refines`. -/
 theorem tcb_fpu_refines (th : TypedHeap) (hP : Placed th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : Vs.FrameInv (L.mem s) G)
     (p : U64) (toFrame : Bool) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .invalidInvocation)
     (hext : Fl4Spec.fl4TcbExtLabelOf slbl = some (if toFrame then .readFpu else .writeFpu))
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -1012,7 +1018,7 @@ theorem tcb_fpu_refines (th : TypedHeap) (hP : Placed th)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hX : XcRel th (L.mem s) x0 x1 x2 excaps)
     (hF : FpuHyp (L := L) arI th s σ ct p ⟨length, buf, call, slot, extra⟩ toFrame) (blk don : Bool)
     (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (buffer : Option Fl4Spec.ObjRef) :
-    TcbOK (L := L) arI s ar σ (if toFrame then fl4_abi.label.TCBReadFPU else fl4_abi.label.TCBWriteFPU) p
+    TcbOKF (L := L) arI s ar σ (if toFrame then fl4_abi.label.TCBReadFPU else fl4_abi.label.TCBWriteFPU) p
       ⟨length, buf, call, slot, extra⟩ blk call don slbl (args.map UScalar.bv) ci sl excaps buffer := by
   have hdec0 : specDec false slbl (args.map UScalar.bv) ci sl (.Thread p) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
@@ -1020,15 +1026,15 @@ theorem tcb_fpu_refines (th : TypedHeap) (hP : Placed th)
     show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) sl excaps buffer = _
     rw [fl4DecodeTcb_ext hlbl hext]
     cases toFrame <;> rfl
-  unfold TcbOK
+  unfold TcbOKF
   have he := decode_fpu_eq arI s ar p ⟨length, buf, call, slot, extra⟩ hstall
   rw [hdec0]
   cases toFrame
   · simp only [Bool.false_eq_true, ↓reduceIte]; rw [he.2]
-    exact fpu_refines arI th hP s ar σ G hDS p false length buf ct hct args hlen hargs hcur htcb hact call slot extra
+    exact fpu_refines arI th hP s ar σ G hDS hFR p false length buf ct hct args hlen hargs hcur htcb hact call slot extra
       x0 x1 x2 hx0 excaps hX hF blk don
   · simp only [↓reduceIte]; rw [he.1]
-    exact fpu_refines arI th hP s ar σ G hDS p true length buf ct hct args hlen hargs hcur htcb hact call slot extra
+    exact fpu_refines arI th hP s ar σ G hDS hFR p true length buf ct hct args hlen hargs hcur htcb hact call slot extra
       x0 x1 x2 hx0 excaps hX hF blk don
 
 
@@ -1041,7 +1047,7 @@ on the arguments alone (no cap, no slot); the debug registers it writes
 are outside the slots. -/
 def SetBpHyp (σ : Fl4Spec.State Unit) (s : S) (ar : A) (p : U64) (c : tcb.Ctx) (blk call don : Bool)
     (buffer : Option Fl4Spec.ObjRef) : Prop :=
-  tcb.set_breakpoint_checked st s p c ⦃ x => TopPost (L := L) σ blk call don
+  tcb.set_breakpoint_checked st s p c ⦃ x => TopPostF (L := L) σ blk call don
     (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB (Fl4Spec.decodeFl4SetBreakpoint (Z := Unit) buffer p.bv))
     s (x.1, x.2, ar) ⦄
 
@@ -1063,13 +1069,13 @@ theorem tcb_set_bp_refines (s : S) (ar : A) (σ : Fl4Spec.State Unit) (p : U64) 
     (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
     (hB : SetBpHyp (L := L) σ s ar p c blk call don buffer) :
-    TcbOK (L := L) arI s ar σ fl4_abi.label.TCBSetBreakpoint p c blk call don slbl args ci sl excaps buffer := by
+    TcbOKF (L := L) arI s ar σ fl4_abi.label.TCBSetBreakpoint p c blk call don slbl args ci sl excaps buffer := by
   have hdec0 : specDec false slbl args ci sl (.Thread p) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
         (Fl4Spec.decodeFl4SetBreakpoint (Z := Unit) buffer p.bv) := by
     show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl args (.threadCap p.bv) sl excaps buffer = _
     rw [fl4DecodeTcb_ext hlbl hext]; rfl
-  unfold TcbOK
+  unfold TcbOKF
   rw [decode_setbp_eq arI s ar p _ hstall, hdec0]
   exact WP.spec_bind hB (fun x hx => (WP.spec_ok _).2 hx)
 
@@ -1089,7 +1095,7 @@ work as `SetBpHyp`, `UnsetBpHyp`, `GetBpHyp`, `SingleStepHyp`,
 GetBreakpoint, ConfigureSingleStepping and SetFlags called reply in the
 decode: those cases are hypotheses here (`DecOKR`: `tcb_set_flags_call`). -/
 theorem tcb_decode_ext (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L := L) arI th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : Vs.FrameInv (L.mem s) G) (hTF : TcFrameHyp (L := L) arI th)
     (lbl p : U64) (hp : th p = some .tcb) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = tcbLabelOf lbl)
     (hext : Fl4Spec.genInvocationType slbl = .invalidInvocation → Fl4Spec.fl4TcbExtLabelOf slbl = tcbExtOf lbl)
@@ -1121,31 +1127,31 @@ theorem tcb_decode_ext (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L := L) a
     (hFw : FpuHyp (L := L) arI th s σ ct p ⟨length, buf, call, cslotAddr ssl, extra⟩ false)
     (hF : call = false → SetFlagsHyp (L := L) arI th s σ ct p ⟨length, buf, call, cslotAddr ssl, extra⟩)
     -- the decodes replying themselves, called
-    (hGetCall : call = true → lbl = fl4_abi.label.TCBGetBreakpoint → TcbOK (L := L) arI s ar σ lbl p
+    (hGetCall : call = true → lbl = fl4_abi.label.TCBGetBreakpoint → TcbOKF (L := L) arI s ar σ lbl p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer)
-    (hStepCall : call = true → lbl = fl4_abi.label.TCBConfigureSingleStepping → TcbOK (L := L) arI s ar σ lbl p
+    (hStepCall : call = true → lbl = fl4_abi.label.TCBConfigureSingleStepping → TcbOKF (L := L) arI s ar σ lbl p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer)
-    (hFlagsCall : call = true → lbl = fl4_abi.label.TCBSetFlags → TcbOK (L := L) arI s ar σ lbl p
+    (hFlagsCall : call = true → lbl = fl4_abi.label.TCBSetFlags → TcbOKF (L := L) arI s ar σ lbl p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer)
     -- the scheduler-side labels
-    (hSetPriority : lbl = fl4_abi.label.TCBSetPriority → TcbOK (L := L) arI s ar σ lbl p
+    (hSetPriority : lbl = fl4_abi.label.TCBSetPriority → TcbOKF (L := L) arI s ar σ lbl p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer)
-    (hSetMCPriority : lbl = fl4_abi.label.TCBSetMCPriority → TcbOK (L := L) arI s ar σ lbl p
+    (hSetMCPriority : lbl = fl4_abi.label.TCBSetMCPriority → TcbOKF (L := L) arI s ar σ lbl p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer)
-    (hSetSchedParams : lbl = fl4_abi.label.TCBSetSchedParams → TcbOK (L := L) arI s ar σ lbl p
+    (hSetSchedParams : lbl = fl4_abi.label.TCBSetSchedParams → TcbOKF (L := L) arI s ar σ lbl p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer)
-    (hSuspend : lbl = fl4_abi.label.TCBSuspend → TcbOK (L := L) arI s ar σ lbl p
+    (hSuspend : lbl = fl4_abi.label.TCBSuspend → TcbOKF (L := L) arI s ar σ lbl p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer)
-    (hResume : lbl = fl4_abi.label.TCBResume → TcbOK (L := L) arI s ar σ lbl p
+    (hResume : lbl = fl4_abi.label.TCBResume → TcbOKF (L := L) arI s ar σ lbl p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer)
-    (hBindNotification : lbl = fl4_abi.label.TCBBindNotification → TcbOK (L := L) arI s ar σ lbl p
+    (hBindNotification : lbl = fl4_abi.label.TCBBindNotification → TcbOKF (L := L) arI s ar σ lbl p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer)
-    (hUnbindNotification : lbl = fl4_abi.label.TCBUnbindNotification → TcbOK (L := L) arI s ar σ lbl p
+    (hUnbindNotification : lbl = fl4_abi.label.TCBUnbindNotification → TcbOKF (L := L) arI s ar σ lbl p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer) :
-    TcbOK (L := L) arI s ar σ lbl p
+    TcbOKF (L := L) arI s ar σ lbl p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer := by
   have hA1 : ArgRel (st := st) s σ ct buf buffer 1 := fun i hi => hA i (by omega)
-  refine tcb_decode_cspace arI th hP hT s ar σ G hDS lbl p hp slbl hlbl hext length buf ct hct args hlen hargs hcur
+  refine tcb_decode_cspace arI th hP hT s ar σ G hDS hFR hTF lbl p hp slbl hlbl hext length buf ct hct args hlen hargs hcur
     htcb hact hcw hstall' call ssl hAs extra x0 x1 x2 hx0 hx1 hx2 excaps hX hnc blk don ci buffer hres hBuf hRead
     hWrite hCopy hSetPriority hSetMCPriority hSetSchedParams hSuspend hResume hBindNotification hUnbindNotification
     ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
@@ -1157,40 +1163,40 @@ theorem tcb_decode_ext (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L := L) a
     obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf]) (show tcbExtOf _ = some .getBreakpoint by
       simp [tcbExtOf])
     cases call
-    · exact tcb_get_bp_refines arI th hP s ar σ G hDS p slbl hg he length buf ct hct hcur htcb hact (hstall' p)
+    · exact tcb_get_bp_refines arI th hP s ar σ G hDS hFR p slbl hg he length buf ct hct hcur htcb hact (hstall' p)
         buffer hA1 hG _ extra blk don _ ci ssl excaps
     · exact hGetCall rfl rfl
   · rintro rfl
     obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf]) (show tcbExtOf _ = some .unsetBreakpoint by
       simp [tcbExtOf])
-    exact tcb_unset_bp_refines arI th hP s ar σ G hDS p slbl hg he length buf ct hct hcur htcb hact (hstall' p)
+    exact tcb_unset_bp_refines arI th hP s ar σ G hDS hFR p slbl hg he length buf ct hct hcur htcb hact (hstall' p)
       buffer hA1 hU call _ extra blk don _ ci ssl excaps
   · rintro rfl
     obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf]) (show tcbExtOf _ = some .configureSingleStepping by
       simp [tcbExtOf])
     cases call
-    · exact tcb_single_step_refines arI th hP s ar σ G hDS p slbl hg he length buf ct hct hcur htcb hact (hstall' p)
+    · exact tcb_single_step_refines arI th hP s ar σ G hDS hFR p slbl hg he length buf ct hct hcur htcb hact (hstall' p)
         buffer hA hS _ extra blk don _ ci ssl excaps
     · exact hStepCall rfl rfl
   · rintro rfl
     cases call
-    · exact tcb_set_flags_refines arI th hP s ar σ G hDS p slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct
+    · exact tcb_set_flags_refines arI th hP s ar σ G hDS hFR p slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct
         args hlen hargs hcur htcb hact (hstall' p) _ extra (hF rfl) blk don ci ssl excaps buffer
     · exact hFlagsCall rfl rfl
   · rintro rfl
     obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf]) (show tcbExtOf _ = some .readFpu by
       simp [tcbExtOf])
-    exact tcb_fpu_refines arI th hP s ar σ G hDS p true slbl hg he length buf ct hct args hlen hargs hcur htcb hact
+    exact tcb_fpu_refines arI th hP s ar σ G hDS hFR p true slbl hg he length buf ct hct args hlen hargs hcur htcb hact
       (hstall' p) call _ extra x0 x1 x2 hx0 excaps hX hFr blk don ci ssl buffer
   · rintro rfl
     obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf]) (show tcbExtOf _ = some .writeFpu by
       simp [tcbExtOf])
-    exact tcb_fpu_refines arI th hP s ar σ G hDS p false slbl hg he length buf ct hct args hlen hargs hcur htcb hact
+    exact tcb_fpu_refines arI th hP s ar σ G hDS hFR p false slbl hg he length buf ct hct args hlen hargs hcur htcb hact
       (hstall' p) call _ extra x0 x1 x2 hx0 excaps hX hFw blk don ci ssl buffer
   · rintro rfl
     obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf]) (show tcbExtOf _ = some .setTimer by
       simp [tcbExtOf])
-    exact tcb_set_timer_refines arI th hP s ar σ G hDS p slbl hg he length buf ct hct args hlen hargs hcur htcb hact
+    exact tcb_set_timer_refines arI th hP s ar σ G hDS hFR p slbl hg he length buf ct hct args hlen hargs hcur htcb hact
       (hstall' p) hTm call _ extra blk don ci ssl excaps buffer
 
 end

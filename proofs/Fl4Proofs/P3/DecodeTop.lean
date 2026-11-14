@@ -248,6 +248,7 @@ theorem decode_invocation_irq_control (th : TypedHeap) (hP : Placed th) (s : S) 
     (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
     (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
+    (hFR : Vs.FrameInv (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : IrqCLabel lbl slbl)
     (hrm : decide (lbl.val = 69) = Fl4Spec.isFl4RemappedLabel slbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -273,14 +274,14 @@ theorem decode_invocation_irq_control (th : TypedHeap) (hP : Placed th) (s : S) 
           (excaps.map Prod.fst)) := by
     rw [hrm]; rfl
   rw [e]
-  refine WP.spec_mono (irq_control_decode_refines arI th hP s ar σ G hCR hL hIR hHA hFI lbl slbl hlbl length buf ct
+  refine WP.spec_mono (irq_control_decode_refines arI th hP s ar σ G hCR hL hIR hHA hFI hFR lbl slbl hlbl length buf ct
     hct args hlen hargs hcur htcb hact hact2 extra x0 hx0 _ hex hps hls hsrcC nA hnum hnA hmask hAR) ?_
   rintro ⟨r0, s', a'⟩ hq
   apply top_of_lift
   cases r0 with
   | Err e => obtain ⟨rfl, e', h1, h2⟩ := hq; exact Or.inl ⟨e, rfl, rfl, e', h1, h2⟩
   | Ok u =>
-    obtain ⟨inv, hrun, σ1, hst, σ', G', hx, hCR', -, hF, -⟩ := hq
+    obtain ⟨inv, hrun, σ1, hst, σ', G', hx, hCR', -, hF, -, -⟩ := hq
     exact Or.inr ⟨inv, hrun, σ1, hst, (.ok [], σ'), mem_bindE_ok hx (Set.mem_singleton _), th, G',
       Or.inl ⟨rfl, [], rfl⟩, hP, hCR', hF⟩
 
@@ -288,6 +289,7 @@ theorem decode_invocation_irq_control (th : TypedHeap) (hP : Placed th) (s : S) 
 theorem decode_invocation_ioport_control (th : TypedHeap) (hP : Placed th) (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hL : IoLayout th (L.ksb s))
     (hIo : IoRel (L.mem s) (L.ksb s) σ) (hPA : IoPortsAlloc (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
+    (hFR : Vs.FrameInv (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : lbl.val = 60 ↔ Fl4Spec.invocationType slbl = .archInvocationLabel .x64IOPortControlIssue)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -305,14 +307,14 @@ theorem decode_invocation_ioport_control (th : TypedHeap) (hP : Placed th) (s : 
       (args.map UScalar.bv) ci (ps.bv, idxs) excaps buffer := by
   unfold DecOK syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
-  refine WP.spec_mono (ioport_control_decode_refines arI th hP s ar σ G hCR hL hIo hPA hFI lbl slbl hlbl length buf
+  refine WP.spec_mono (ioport_control_decode_refines arI th hP s ar σ G hCR hL hIo hPA hFI hFR lbl slbl hlbl length buf
     ct hct args hlen hargs hcur htcb hact hact3 extra x0 hx0 _ hex hps hls hsrcC .ioPortControlCap) ?_
   rintro ⟨r0, s', a'⟩ hq
   apply top_of_lift2 (f := Fl4Spec.Fl4Invocation.invokeArchObject) (g := Fl4Spec.Fl4ArchInvocation.spec)
   cases r0 with
   | Err e => obtain ⟨rfl, e', h1, h2⟩ := hq; exact Or.inl ⟨e, rfl, rfl, e', h1, h2⟩
   | Ok u =>
-    obtain ⟨inv, hrun, σ1, hst, σ', G', rr, hx, hCR', -, hF, -⟩ := hq
+    obtain ⟨inv, hrun, σ1, hst, σ', G', rr, hx, hCR', -, hF, -, -⟩ := hq
     exact Or.inr ⟨inv, hrun, σ1, hst, (.ok rr, σ'), hx, th, G', Or.inl ⟨rfl, rr, rfl⟩, hP, hCR', hF⟩
 
 /-- **An IO port cap** (`ioport_decode_refines`; `In` not called). -/

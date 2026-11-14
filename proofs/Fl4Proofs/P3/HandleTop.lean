@@ -32,7 +32,7 @@ of `TopPostD`: `decode_invocation_ioport_in_call`, from `PortInCallHyp`
 (the access and the reply, against the spec's `In` invocation and success
 tail).
 -/
-import Fl4Proofs.P3.DecodeTopD
+import Fl4Proofs.P3.TopF
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -227,7 +227,8 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 /-- The related states: a placed typed heap and a ghost tree with the CSpace
 relation (with `MdbInv`), `FinInv` and the domain schedule. -/
 def RelTop (s : S) (σ : Fl4Spec.State Unit) : Prop :=
-  ∃ th G, Placed th ∧ CRel th (L.mem s) σ G ∧ FinInv th (L.mem s) σ G ∧ DomRel (L.mem s) (L.ksb s) σ
+  ∃ th G, Placed th ∧ CRel th (L.mem s) σ G ∧ FinInv th (L.mem s) σ G ∧ DomRel (L.mem s) (L.ksb s) σ ∧
+    Vs.FrameInv (L.mem s) G
 
 /-- The message length `handle_invocation` passes to the decode. -/
 def msgLen (info : msginfo.MessageInfo) (buf : U64) : U64 :=
@@ -319,7 +320,7 @@ slot (`hDec`, as `decode_invocation_refinesD` gives it), the reply writes
 and the extra caps'). -/
 theorem handle_invocation_refines (s : S) (ar : A) (σ : Fl4Spec.State Unit) (th : TypedHeap) (G : MdbGhost)
     (hP : Placed th) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hDR : DomRel (L.mem s) (L.ksb s) σ)
+    (hDR : DomRel (L.mem s) (L.ksb s) σ) (hFR : Vs.FrameInv (L.mem s) G)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (is_call blocking can_donate first_phase : Bool) (cptr : U64)
     -- the front end's reads (`HIRead`)
@@ -345,13 +346,13 @@ theorem handle_invocation_refines (s : S) (ar : A) (σ : Fl4Spec.State Unit) (th
     (hDec : ∀ (sl : Fl4Spec.CslotPtr) (c : capability.Cap) (e : Aeneas.Std.Array obj.Slot 3#usize)
       (exs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)), capAt (L.mem s) (cslotAddr sl) = ok c →
       Fl4Spec.getCap (Z := Unit) sl σ = ({(absCap c, σ)}, False) → r2 = .Ok e → er = .ok exs →
-      DecOKD (L := L) arI s ar σ info.label (msgLen info buf) (cslotAddr sl) c blocking is_call can_donate first_phase
+      DecOKDF (L := L) arI s ar σ info.label (msgLen info buf) (cslotAddr sl) c blocking is_call can_donate first_phase
         buf e mi.miLabel args (Fl4Spec.toBl cptr.bv) sl exs buffer ∨
       DecOKR (L := L) arI s ar σ info.label (msgLen info buf) (cslotAddr sl) c blocking is_call can_donate first_phase
         buf e mi.miLabel args (Fl4Spec.toBl cptr.bv) sl exs buffer ct) :
     syscall.handle_invocation st arI s ar is_call blocking can_donate first_phase cptr ⦃ res =>
       HIPost (L := L) σ is_call blocking can_donate first_phase (Fl4Spec.toBl cptr.bv) res ⦄ := by
-  have hRT0 : RelTop (L := L) s σ := ⟨th, G, hP, hCR, hFI, hDR⟩
+  have hRT0 : RelTop (L := L) s σ := ⟨th, G, hP, hCR, hFI, hDR, hFR⟩
   unfold syscall.handle_invocation
   rw [hct]; simp only [bind_ok, hinfo]
   refine WP.spec_bind (lookup_slot_refines (Z := Unit) th s σ hCR.1 hCR.2.1 ct htcb cptr) ?_
@@ -427,7 +428,7 @@ theorem handle_invocation_refines (s : S) (ar : A) (σ : Fl4Spec.State Unit) (th
         refine WP.spec_bind hD ?_
         rintro ⟨r3, s1, a1⟩ hq
         rcases hq with ⟨e3, he3, hs1, e', hdec, herr⟩ |
-            ⟨inv, hdec, σ1, hst, y, hy, th', G', hcase, hP', hCR', hFI', hDR'⟩
+            ⟨inv, hdec, σ1, hst, y, hy, th', G', hcase, hP', hCR', hFI', hDR', hFR'⟩
         · simp only at he3 hs1
           subst he3 hs1
           cases e3 with
@@ -442,7 +443,7 @@ theorem handle_invocation_refines (s : S) (ar : A) (σ : Fl4Spec.State Unit) (th
         · rcases hcase with ⟨hok3, rr, hyr⟩ | ⟨hpre, hyr⟩
           · simp only at hok3
             subst hok3
-            refine WP.spec_mono (hRep.succ s1 a1 y.2 rr ⟨th', G', hP', hCR', hFI', hDR'⟩) ?_
+            refine WP.spec_mono (hRep.succ s1 a1 y.2 rr ⟨th', G', hP', hCR', hFI', hDR', hFR'⟩) ?_
             rintro res ⟨hres, z, hz, hRT⟩
             obtain ⟨y1, y2⟩ := y
             simp only at hyr; subst hyr
@@ -455,7 +456,7 @@ theorem handle_invocation_refines (s : S) (ar : A) (σ : Fl4Spec.State Unit) (th
             simp only at hyr; subst hyr
             exact ⟨(.error (), y2), hi_mem hcur hmi (mem_syscall_fin hmF (by rw [hmE]; exact hdec.1)
               (hiMFin_pre (by rw [← hcur]; exact hst) hy)), Or.inr ⟨rfl, rfl⟩,
-              ⟨th', G', hP', hCR', hFI', hDR'⟩⟩
+              ⟨th', G', hP', hCR', hFI', hDR', hFR'⟩⟩
       · simp only
         have hmF := hiMF_extra_err (cptr := Fl4Spec.toBl cptr.bv) hl hbuffer her
         cases blocking

@@ -18,6 +18,7 @@ the target (`smp::remote_tcb_stall`) is the hypothesis `hstall` (a no-op
 for a thread of the current core).
 -/
 import Fl4Proofs.P3.DecodeTop
+import Fl4Proofs.P3.TopF
 import Fl4Proofs.P3.TcbCaps
 open Aeneas Aeneas.Std Result
 
@@ -92,6 +93,21 @@ abbrev TcbOK (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl : U64) (p : U64) (c
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) : Prop :=
   tcb.decode st arI s ar lbl p c ⦃ res =>
     TopPost (L := L) σ blk call don (specDec false slbl args ci sl (.Thread p) excaps buffer) s res ⦄
+
+/-- The statement for `tcb::decode` at one label with the frame invariant:
+`TopPostF`. -/
+abbrev TcbOKF (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl : U64) (p : U64) (c : tcb.Ctx)
+    (blk call don : Bool) (slbl : Fl4Spec.Data) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
+    (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) : Prop :=
+  tcb.decode st arI s ar lbl p c ⦃ res =>
+    TopPostF (L := L) σ blk call don (specDec false slbl args ci sl (.Thread p) excaps buffer) s res ⦄
+
+theorem TcbOKF.toTcbOK {s : S} {ar : A} {σ : Fl4Spec.State Unit} {lbl p : U64} {c : tcb.Ctx} {blk call don : Bool}
+    {slbl : Fl4Spec.Data} {args : List Fl4Spec.Data} {ci : Fl4Spec.CapRef} {sl : Fl4Spec.CslotPtr}
+    {excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {buffer : Option Fl4Spec.ObjRef}
+    (h : TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer) :
+    TcbOK (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer :=
+  WP.spec_mono h (fun _ h => h.top)
 
 /-- **`tcb::decode`, every label**: from one hypothesis per FL4 TCB label
 (see the module docstring), every other label being the spec's
@@ -209,6 +225,120 @@ theorem tcb_decode_refines (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl p : U
   rw [hg]
   rfl
 
+/-- `tcb_decode_refines` with the frame invariant. -/
+theorem tcb_decode_refinesF (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl p : U64) (c : tcb.Ctx)
+    (blk call don : Bool) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = tcbLabelOf lbl)
+    (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
+    (hext : Fl4Spec.genInvocationType slbl = .invalidInvocation → Fl4Spec.fl4TcbExtLabelOf slbl = tcbExtOf lbl)
+    (hstall : smp.remote_tcb_stall st arI s ar p = ok (s, ar))
+    (hReadRegisters : lbl = fl4_abi.label.TCBReadRegisters →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hWriteRegisters : lbl = fl4_abi.label.TCBWriteRegisters →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hCopyRegisters : lbl = fl4_abi.label.TCBCopyRegisters →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hConfigure : lbl = fl4_abi.label.TCBConfigure →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hSetPriority : lbl = fl4_abi.label.TCBSetPriority →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hSetMCPriority : lbl = fl4_abi.label.TCBSetMCPriority →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hSetSchedParams : lbl = fl4_abi.label.TCBSetSchedParams →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hSetTimeoutEndpoint : lbl = fl4_abi.label.TCBSetTimeoutEndpoint →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hSetIPCBuffer : lbl = fl4_abi.label.TCBSetIPCBuffer →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hSetSpace : lbl = fl4_abi.label.TCBSetSpace →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hSuspend : lbl = fl4_abi.label.TCBSuspend →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hResume : lbl = fl4_abi.label.TCBResume →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hBindNotification : lbl = fl4_abi.label.TCBBindNotification →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hUnbindNotification : lbl = fl4_abi.label.TCBUnbindNotification →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hSetBreakpoint : lbl = fl4_abi.label.TCBSetBreakpoint →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hGetBreakpoint : lbl = fl4_abi.label.TCBGetBreakpoint →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hUnsetBreakpoint : lbl = fl4_abi.label.TCBUnsetBreakpoint →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hConfigureSingleStepping : lbl = fl4_abi.label.TCBConfigureSingleStepping →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hSetTLSBase : lbl = fl4_abi.label.TCBSetTLSBase →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hSetFlags : lbl = fl4_abi.label.TCBSetFlags →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hReadFPU : lbl = fl4_abi.label.TCBReadFPU →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hWriteFPU : lbl = fl4_abi.label.TCBWriteFPU →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
+    (hSetTimer : lbl = fl4_abi.label.TCBSetTimer →
+      TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer) :
+    TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer := by
+  by_cases h2 : lbl.val = 2
+  · exact hReadRegisters (UScalar.eq_of_val_eq (by rw [h2]; simp))
+  by_cases h3 : lbl.val = 3
+  · exact hWriteRegisters (UScalar.eq_of_val_eq (by rw [h3]; simp))
+  by_cases h4 : lbl.val = 4
+  · exact hCopyRegisters (UScalar.eq_of_val_eq (by rw [h4]; simp))
+  by_cases h5 : lbl.val = 5
+  · exact hConfigure (UScalar.eq_of_val_eq (by rw [h5]; simp))
+  by_cases h6 : lbl.val = 6
+  · exact hSetPriority (UScalar.eq_of_val_eq (by rw [h6]; simp))
+  by_cases h7 : lbl.val = 7
+  · exact hSetMCPriority (UScalar.eq_of_val_eq (by rw [h7]; simp))
+  by_cases h8 : lbl.val = 8
+  · exact hSetSchedParams (UScalar.eq_of_val_eq (by rw [h8]; simp))
+  by_cases h9 : lbl.val = 9
+  · exact hSetTimeoutEndpoint (UScalar.eq_of_val_eq (by rw [h9]; simp))
+  by_cases h10 : lbl.val = 10
+  · exact hSetIPCBuffer (UScalar.eq_of_val_eq (by rw [h10]; simp))
+  by_cases h11 : lbl.val = 11
+  · exact hSetSpace (UScalar.eq_of_val_eq (by rw [h11]; simp))
+  by_cases h12 : lbl.val = 12
+  · exact hSuspend (UScalar.eq_of_val_eq (by rw [h12]; simp))
+  by_cases h13 : lbl.val = 13
+  · exact hResume (UScalar.eq_of_val_eq (by rw [h13]; simp))
+  by_cases h14 : lbl.val = 14
+  · exact hBindNotification (UScalar.eq_of_val_eq (by rw [h14]; simp))
+  by_cases h15 : lbl.val = 15
+  · exact hUnbindNotification (UScalar.eq_of_val_eq (by rw [h15]; simp))
+  by_cases h16 : lbl.val = 16
+  · exact hSetBreakpoint (UScalar.eq_of_val_eq (by rw [h16]; simp))
+  by_cases h17 : lbl.val = 17
+  · exact hGetBreakpoint (UScalar.eq_of_val_eq (by rw [h17]; simp))
+  by_cases h18 : lbl.val = 18
+  · exact hUnsetBreakpoint (UScalar.eq_of_val_eq (by rw [h18]; simp))
+  by_cases h19 : lbl.val = 19
+  · exact hConfigureSingleStepping (UScalar.eq_of_val_eq (by rw [h19]; simp))
+  by_cases h20 : lbl.val = 20
+  · exact hSetTLSBase (UScalar.eq_of_val_eq (by rw [h20]; simp))
+  by_cases h21 : lbl.val = 21
+  · exact hSetFlags (UScalar.eq_of_val_eq (by rw [h21]; simp))
+  by_cases h22 : lbl.val = 22
+  · exact hReadFPU (UScalar.eq_of_val_eq (by rw [h22]; simp))
+  by_cases h23 : lbl.val = 23
+  · exact hWriteFPU (UScalar.eq_of_val_eq (by rw [h23]; simp))
+  by_cases h24 : lbl.val = 24
+  · exact hSetTimer (UScalar.eq_of_val_eq (by rw [h24]; simp))
+  have hg : Fl4Spec.genInvocationType slbl = .invalidInvocation := by
+    rw [hlbl]; simp [tcbLabelOf, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, h16, h17, h18, h19, h20, h21, h22, h23, h24]
+  unfold TcbOKF tcb.decode
+  rw [hstall]
+  simp only [bind_ok, u64_eq_iff, lbl_tcbReadRegisters_val, lbl_tcbWriteRegisters_val, lbl_tcbCopyRegisters_val, lbl_tcbConfigure_val, lbl_tcbSetPriority_val, lbl_tcbSetMCPriority_val, lbl_tcbSetSchedParams_val, lbl_tcbSetTimeoutEndpoint_val, lbl_tcbSetIPCBuffer_val, lbl_tcbSetSpace_val, lbl_tcbSuspend_val, lbl_tcbResume_val, lbl_tcbBindNotification_val, lbl_tcbUnbindNotification_val, lbl_tcbSetBreakpoint_val, lbl_tcbGetBreakpoint_val, lbl_tcbUnsetBreakpoint_val, lbl_tcbConfigureSingleStepping_val, lbl_tcbSetTLSBase_val, lbl_tcbSetFlags_val, lbl_tcbReadFPU_val, lbl_tcbWriteFPU_val, lbl_tcbSetTimer_val,
+    h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, h16, h17, h18, h19, h20, h21, h22, h23, h24, ↓reduceIte]
+  refine (WP.spec_ok _).2 (Or.inl ⟨_, rfl, rfl, .illegalOperation, ?_, Or.inl trivial⟩)
+  show (Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl args (.threadCap p.bv) sl excaps buffer).run σ = _
+  rw [fl4DecodeTcb_spec' (by rw [hg]; decide) (by rw [hext hg]; simp [tcbExtOf, h16, h17, h18, h19, h22, h23, h24])]
+  apply run_liftME_err
+  unfold Fl4Spec.decodeTcbInvocation
+  rw [hg]
+  rfl
+
 /-- **The Thread cap** of the dispatcher (`DecOK`), from `TcbOK` at its
 label (not in the first phase). -/
 theorem decode_invocation_thread (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl length slot : U64) (p : U64)
@@ -219,6 +349,24 @@ theorem decode_invocation_thread (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl
       excaps buffer) :
     DecOK (L := L) arI s ar σ lbl length slot (.Thread p) blk call don fp buf extra slbl args ci sl excaps buffer := by
   unfold DecOK syscall.decode_invocation
+  rw [hct]; simp only [bind_ok]
+  cases fp
+  · simp only [Bool.false_eq_true, ↓reduceIte]
+    exact h rfl
+  · simp only [↓reduceIte]
+    rw [WP.spec_ok]
+    exact Or.inl ⟨_, rfl, rfl, _, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩
+
+
+/-- **The Thread cap**, with the frame invariant (`DecOKF`). -/
+theorem decode_invocation_threadF (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl length slot : U64) (p : U64)
+    (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ct : U64)
+    (hct : sched.cur_thread st s = ok ct) (slbl : Fl4Spec.Data) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
+    (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
+    (h : fp = false → TcbOKF (L := L) arI s ar σ lbl p ⟨length, buf, call, slot, extra⟩ blk call don slbl args ci sl
+      excaps buffer) :
+    DecOKF (L := L) arI s ar σ lbl length slot (.Thread p) blk call don fp buf extra slbl args ci sl excaps buffer := by
+  unfold DecOKF syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   cases fp
   · simp only [Bool.false_eq_true, ↓reduceIte]
