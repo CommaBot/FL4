@@ -9,18 +9,24 @@ Each post (`FinOKX`) is `FinObjHyp`'s, with the ghost tree unchanged
 (`MdbStep.of_same`), plus `SlotsSame`: **none of these writes a cap slot**
 (their words are page-table entries, `PtWAll`, or ASID-table and pool words,
 `VsWrite`, all outside the objects), so the slot facts are the
-slot-preserving ones (every cap kept). The extra relation `X` keeps `SR` and
-`VsRel`.
+slot-preserving ones (every cap kept). The extra relation `FinX` is kept:
+`SR`, `VsRel`, `PtRel`, `PoolsIn` and `CurOK`, so the VSpace invariants
+compose across finalisations.
 
 The unmaps' and ASID deletions' relational theorems (VsPtUnmapRel, …,
-VsDelRoot) are used at an instrumented relation `FinSR` (`SR`, the slots
-since the start, the spec's `KFoot`, the kernel base), whose hypothesis
-structures come from `SR`'s (`VsPtInnerHyps.fin`, …, `VsHyps.fin`).
+VsDelRoot) are used at an instrumented relation `FinSR` (`SR`, the writes
+since the start in `W`, the spec's `KFoot` and current thread), whose
+hypothesis structures come from `SR`'s (`VsPtInnerHyps.fin`, …); for the ASID
+deletions `FinSRP` adds `PtRel` (`VsHyps.fin`: their writes miss the page
+tables, their spec steps miss the tables' objects). `PoolsIn` after an
+unmap: its writes miss the pool words (`PoolsIn.of_writes`); after an ASID
+deletion: its writes are zeroes (`VsZeroW`, `PoolsIn.of_zero`). `CurOK`
+after an unmap: the slots and the current thread kept (`CurOK.of_same`).
 
 The cap's side conditions (table in its ghost set, ASID non-zero, the PT's
-alignment, the PML4 non-null, the pool base aligned) come from the cap
-invariant `VsCapsIn`; the pool pointer non-null is a hypothesis on the ghost
-pool set (`hP0`). `vs_fin_top` gives the lot at `SR := TopSR`.
+alignment, the PML4 and the pool non-null, the pool base aligned) come
+from the cap invariant `VsCapsIn` (`VsFinCtx` bundles it with the
+placement and `FinX`). `vs_fin_top` gives the lot at `SR := TopSR`.
 -/
 import Fl4Proofs.P3.VsTopCap
 import Fl4Proofs.P3.VsDelRoot
@@ -87,287 +93,376 @@ theorem fin_none {A : Type} {th : TypedHeap} {s : S} {a : A} {σ : Fl4Spec.State
 
 /-! ## The instrumented relation -/
 
-/-- `SR` with the slots kept since `s0`, the spec's `KFoot` since `σ0`, and the
-kernel base. -/
-def FinSR (st : machine.Store S) [L : LawfulStore st] {A : Type} (th : TypedHeap)
-    (SR : S → A → Fl4Spec.State Unit → Prop) (s0 : S) (σ0 : Fl4Spec.State Unit) (s : S) (a : A)
+/-- `SR` with the writes since `s0` in `W`, the spec's `KFoot` and the
+current thread since `σ0`. -/
+def FinSR (st : machine.Store S) [L : LawfulStore st] {A : Type} (SR : S → A → Fl4Spec.State Unit → Prop)
+    (W : U64 → Prop) (s0 : S) (σ0 : Fl4Spec.State Unit) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
+  SR s a σ ∧ WritesIn st s0 s W ∧ KFoot σ0 σ ∧ σ.curThread = σ0.curThread
+
+/-- `FinSR` with `PtRel` (the ASID deletions). -/
+def FinSRP (st : machine.Store S) [L : LawfulStore st] {A : Type} (L4 L3 L2 L1 : Set U64)
+    (SR : S → A → Fl4Spec.State Unit → Prop) (W : U64 → Prop) (s0 : S) (σ0 : Fl4Spec.State Unit) (s : S) (a : A)
     (σ : Fl4Spec.State Unit) : Prop :=
-  SR s a σ ∧ SlotsSame th (L.mem s0) (L.mem s) ∧ KFoot σ0 σ ∧ L.ksb s = L.ksb s0
+  FinSR st SR W s0 σ0 s a σ ∧ PtRel L4 L3 L2 L1 (L.mem s) σ
 
 variable {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
-  {SR : S → A → Fl4Spec.State Unit → Prop} {s0 : S} {σ0 : Fl4Spec.State Unit}
+  {SR : S → A → Fl4Spec.State Unit → Prop} {W : U64 → Prop} {s0 : S} {σ0 : Fl4Spec.State Unit}
 
-theorem FinSR.init {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : SR s a σ) : FinSR st th SR s σ s a σ :=
-  ⟨h, SlotsSame.refl _ _, KFoot.refl _, rfl⟩
+theorem FinSR.init {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : SR s a σ) : FinSR st SR W s σ s a σ :=
+  ⟨h, WritesIn.refl _ _, KFoot.refl _, rfl⟩
+
+/-- The spec steps of the VSpace code: `KFoot`, the current thread kept. -/
+def KStep (σ σ' : Fl4Spec.State Unit) : Prop := KFoot σ σ' ∧ σ'.curThread = σ.curThread
+
+theorem KStep.mop {α : Type} {mop : Fl4Spec.NonDet Fl4Spec.MachineState α} {σ σ' : Fl4Spec.State Unit} {r : α}
+    (h : (r, σ') ∈ (Fl4Spec.doMachineOp (Z := Unit) mop σ).1) : KStep σ σ' := by
+  obtain ⟨ms, rfl⟩ := doMachineOp_mem h; exact ⟨KFoot.ms _ ms, rfl⟩
+
+theorem KStep.arch {σ σ' : Fl4Spec.State Unit}
+    (h : ∃ p f f', σ.kheap p = some (.archObj f) ∧ σ' = updK σ p (.archObj f')) : KStep σ σ' := by
+  obtain ⟨p, f, f', hk, rfl⟩ := h; exact ⟨KFoot.arch hk _, rfl⟩
+
+theorem KStep.cr3 (σ : Fl4Spec.State Unit) (c : Fl4Spec.Cr3) : KStep σ (cr3Upd σ c) :=
+  ⟨⟨rfl, rfl, fun _ h => absurd rfl h⟩, rfl⟩
+
+theorem KStep.table (σ : Fl4Spec.State Unit) (t : Fl4Spec.AsidHighIndex → Option Fl4Spec.ObjRef) :
+    KStep σ { σ with archState := { σ.archState with x64AsidTable := t } } :=
+  ⟨⟨rfl, rfl, fun _ h => absurd rfl h⟩, rfl⟩
+
+theorem KStep.flushTable {σ σ' : Fl4Spec.State Unit} {vs : Fl4Spec.ObjRef} {v : Fl4Spec.VSpaceRef}
+    {pt : Fl4Spec.ObjRef} {asid : Fl4Spec.Asid}
+    (hal : v &&& Fl4Spec.mask (Fl4Spec.ptTranslationBits + Fl4Spec.pageBits) = 0)
+    (hf : ∃ f, σ.kheap pt = some (.archObj (.pageTable f)))
+    (h : ((), σ') ∈ (Fl4Spec.flushTable (Z := Unit) vs v pt asid σ).1) : KStep σ σ' := by
+  obtain ⟨f, hk⟩ := hf
+  obtain ⟨ms, e, -⟩ := (flushTable_ok (vs := vs) (asid := asid) hal hk).2.2 _ h
+  simp only at e; subst e; exact ⟨KFoot.ms _ ms, rfl⟩
 
 /-- A stability field carried to `FinSR`. -/
-theorem fin_stab (hPl : Placed th) {X : U64 → Prop} {Step : Fl4Spec.State Unit → Fl4Spec.State Unit → Prop}
-    (hX : ∀ b, X b → OutsideObjects th b) (hK : ∀ σ σ', Step σ σ' → KFoot σ σ')
+theorem fin_stab {X : U64 → Prop} {Step : Fl4Spec.State Unit → Fl4Spec.State Unit → Prop}
+    (hX : ∀ b, X b → W b) (hK : ∀ σ σ', Step σ σ' → KStep σ σ')
     (h : ∀ s s' a σ σ', SR s a σ → WritesIn st s s' X → Step σ σ' → SR s' a σ') :
-    ∀ s s' a σ σ', FinSR st th SR s0 σ0 s a σ → WritesIn st s s' X → Step σ σ' → FinSR st th SR s0 σ0 s' a σ' :=
+    ∀ s s' a σ σ', FinSR st SR W s0 σ0 s a σ → WritesIn st s s' X → Step σ σ' → FinSR st SR W s0 σ0 s' a σ' :=
   fun s s' a σ σ' ⟨h1, h2, h3, h4⟩ hw hst =>
-    ⟨h s s' a σ σ' h1 hw hst, h2.trans (SlotsSame.of_writes hPl hw hX), h3.trans (hK σ σ' hst), hw.1.trans h4⟩
+    ⟨h s s' a σ σ' h1 hw hst, (h2.trans hw).mono fun b hb => hb.elim id (hX b), h3.trans (hK σ σ' hst).1,
+      (hK σ σ' hst).2.trans h4⟩
 
-/-- A machine operation's outcome is `KFoot`. -/
-theorem kfoot_mop {α : Type} {mop : Fl4Spec.NonDet Fl4Spec.MachineState α} {σ σ' : Fl4Spec.State Unit} {r : α}
-    (h : (r, σ') ∈ (Fl4Spec.doMachineOp (Z := Unit) mop σ).1) : KFoot σ σ' := by
-  obtain ⟨ms, rfl⟩ := doMachineOp_mem h; exact KFoot.ms _ ms
-
-theorem kfoot_arch_step {σ σ' : Fl4Spec.State Unit}
-    (h : ∃ p f f', σ.kheap p = some (.archObj f) ∧ σ' = updK σ p (.archObj f')) : KFoot σ σ' := by
-  obtain ⟨p, f, f', hk, rfl⟩ := h; exact KFoot.arch hk _
-
-theorem kfoot_cr3 (σ : Fl4Spec.State Unit) (c : Fl4Spec.Cr3) : KFoot σ (cr3Upd σ c) :=
-  ⟨rfl, rfl, fun _ h => absurd rfl h⟩
-
-theorem kfoot_table (σ : Fl4Spec.State Unit) (t : Fl4Spec.AsidHighIndex → Option Fl4Spec.ObjRef) :
-    KFoot σ { σ with archState := { σ.archState with x64AsidTable := t } } :=
-  ⟨rfl, rfl, fun _ h => absurd rfl h⟩
+/-- A spec step of `KStep` kind with the FL4 state unchanged. -/
+theorem FinSR.kstep {s : S} {a a' : A} {σ σ' : Fl4Spec.State Unit} (h : FinSR st SR W s0 σ0 s a σ)
+    (hS : SR s a' σ') (hk : KStep σ σ') : FinSR st SR W s0 σ0 s a' σ' :=
+  ⟨hS, h.2.1, h.2.2.1.trans hk.1, hk.2.trans h.2.2.2⟩
 
 section Fin
-variable (hPl : Placed th) (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b)
-include hPl hPO
+variable (hW : ∀ b, PtWAll L4 L3 L2 L1 b → W b)
+include hW
 
-theorem VsPtInnerHyps.fin (hH : VsPtInnerHyps st A ar L2 SR) : VsPtInnerHyps st A ar L2 (FinSR st th SR s0 σ0) where
-  pdStable := fin_stab hPl (fun b ⟨q, hq, i, hi, e⟩ => hPO b ⟨q, Or.inr (Or.inr (Or.inl hq)), i, hi, e⟩)
-    (fun _ _ h => by obtain ⟨p, f, f', hk, rfl⟩ := h; exact KFoot.arch hk _) hH.pdStable
+theorem VsPtInnerHyps.fin (hH : VsPtInnerHyps st A ar L2 SR) : VsPtInnerHyps st A ar L2 (FinSR st SR W s0 σ0) where
+  pdStable := fin_stab (fun b ⟨q, hq, i, hi, e⟩ => hW b ⟨q, Or.inr (Or.inr (Or.inl hq)), i, hi, e⟩)
+    (fun _ _ h => by obtain ⟨p, f, f', hk, rfl⟩ := h; exact ⟨KFoot.arch hk _, rfl⟩) hH.pdStable
   flushOK := hH.flushOK
   flushPS := fun s a σ vs asid h => WP.spec_mono (hH.flushPS s a σ vs asid h.1)
-    fun _ ⟨σ', hm, hS⟩ => ⟨σ', hm, hS, h.2.1, h.2.2.1.trans (kfoot_mop hm), h.2.2.2⟩
+    fun _ ⟨σ', hm, hS⟩ => ⟨σ', hm, h.kstep hS (KStep.mop hm)⟩
   flushTblOK := hH.flushTblOK
   flushTbl := fun s a σ vs v pt asid h hal hf => WP.spec_mono (hH.flushTbl s a σ vs v pt asid h.1 hal hf)
-    fun _ ⟨σ', hm, hS⟩ => ⟨σ', hm, hS, h.2.1, h.2.2.1.trans (by obtain ⟨f, hk⟩ := hf; exact kfoot_flushTable hal hk _ hm),
-      h.2.2.2⟩
+    fun _ ⟨σ', hm, hS⟩ => ⟨σ', hm, h.kstep hS (KStep.flushTable hal hf hm)⟩
 
-theorem VsPdInnerHyps.fin (hH : VsPdInnerHyps st A ar L3 SR) : VsPdInnerHyps st A ar L3 (FinSR st th SR s0 σ0) where
-  pdptStable := fin_stab hPl (fun b ⟨q, hq, i, hi, e⟩ => hPO b ⟨q, Or.inr (Or.inl hq), i, hi, e⟩)
-    (fun _ _ h => by obtain ⟨p, f, f', hk, rfl⟩ := h; exact KFoot.arch hk _) hH.pdptStable
+theorem VsPdInnerHyps.fin (hH : VsPdInnerHyps st A ar L3 SR) : VsPdInnerHyps st A ar L3 (FinSR st SR W s0 σ0) where
+  pdptStable := fin_stab (fun b ⟨q, hq, i, hi, e⟩ => hW b ⟨q, Or.inr (Or.inl hq), i, hi, e⟩)
+    (fun _ _ h => by obtain ⟨p, f, f', hk, rfl⟩ := h; exact ⟨KFoot.arch hk _, rfl⟩) hH.pdptStable
   flushOK := hH.flushOK
   flushPS := fun s a σ vs asid h => WP.spec_mono (hH.flushPS s a σ vs asid h.1)
-    fun _ ⟨σ', hm, hS⟩ => ⟨σ', hm, hS, h.2.1, h.2.2.1.trans (kfoot_mop hm), h.2.2.2⟩
+    fun _ ⟨σ', hm, hS⟩ => ⟨σ', hm, h.kstep hS (KStep.mop hm)⟩
   flushAllOK := hH.flushAllOK
   flushAllH := fun s a σ vs asid h => WP.spec_mono (hH.flushAllH s a σ vs asid h.1)
-    fun _ ⟨σ', hm, hS⟩ => ⟨σ', hm, hS, h.2.1, h.2.2.1.trans (kfoot_mop hm), h.2.2.2⟩
+    fun _ ⟨σ', hm, hS⟩ => ⟨σ', hm, h.kstep hS (KStep.mop hm)⟩
 
 theorem VsPdptInnerHyps.fin (hH : VsPdptInnerHyps st A ar L4 SR) :
-    VsPdptInnerHyps st A ar L4 (FinSR st th SR s0 σ0) where
-  pml4Stable := fin_stab hPl (fun b ⟨q, hq, i, hi, e⟩ => hPO b ⟨q, Or.inl hq, i, hi, e⟩)
-    (fun _ _ h => by obtain ⟨p, f, f', hk, rfl⟩ := h; exact KFoot.arch hk _) hH.pml4Stable
+    VsPdptInnerHyps st A ar L4 (FinSR st SR W s0 σ0) where
+  pml4Stable := fin_stab (fun b ⟨q, hq, i, hi, e⟩ => hW b ⟨q, Or.inl hq, i, hi, e⟩)
+    (fun _ _ h => by obtain ⟨p, f, f', hk, rfl⟩ := h; exact ⟨KFoot.arch hk _, rfl⟩) hH.pml4Stable
   flushAllOK := hH.flushAllOK
   flushAllH := fun s a σ vs asid h => WP.spec_mono (hH.flushAllH s a σ vs asid h.1)
-    fun _ ⟨σ', hm, hS⟩ => ⟨σ', hm, hS, h.2.1, h.2.2.1.trans (kfoot_mop hm), h.2.2.2⟩
+    fun _ ⟨σ', hm, hS⟩ => ⟨σ', hm, h.kstep hS (KStep.mop hm)⟩
 
 theorem VsUnmapPageHyps.fin (hH : VsUnmapPageHyps st A ar L3 L2 L1 SR) :
-    VsUnmapPageHyps st A ar L3 L2 L1 (FinSR st th SR s0 σ0) where
-  ptStable := fin_stab hPl (fun b ⟨q, hq, i, hi, e⟩ => hPO b ⟨q, Or.inr (Or.inr (Or.inr hq)), i, hi, e⟩)
-    (fun _ _ h => by obtain ⟨p, f, f', hk, rfl⟩ := h; exact KFoot.arch hk _) hH.ptStable
-  pdStable := fin_stab hPl (fun b ⟨q, hq, i, hi, e⟩ => hPO b ⟨q, Or.inr (Or.inr (Or.inl hq)), i, hi, e⟩)
-    (fun _ _ h => by obtain ⟨p, f, f', hk, rfl⟩ := h; exact KFoot.arch hk _) hH.pdStable
-  pdptStable := fin_stab hPl (fun b ⟨q, hq, i, hi, e⟩ => hPO b ⟨q, Or.inr (Or.inl hq), i, hi, e⟩)
-    (fun _ _ h => by obtain ⟨p, f, f', hk, rfl⟩ := h; exact KFoot.arch hk _) hH.pdptStable
+    VsUnmapPageHyps st A ar L3 L2 L1 (FinSR st SR W s0 σ0) where
+  ptStable := fin_stab (fun b ⟨q, hq, i, hi, e⟩ => hW b ⟨q, Or.inr (Or.inr (Or.inr hq)), i, hi, e⟩)
+    (fun _ _ h => by obtain ⟨p, f, f', hk, rfl⟩ := h; exact ⟨KFoot.arch hk _, rfl⟩) hH.ptStable
+  pdStable := fin_stab (fun b ⟨q, hq, i, hi, e⟩ => hW b ⟨q, Or.inr (Or.inr (Or.inl hq)), i, hi, e⟩)
+    (fun _ _ h => by obtain ⟨p, f, f', hk, rfl⟩ := h; exact ⟨KFoot.arch hk _, rfl⟩) hH.pdStable
+  pdptStable := fin_stab (fun b ⟨q, hq, i, hi, e⟩ => hW b ⟨q, Or.inr (Or.inl hq), i, hi, e⟩)
+    (fun _ _ h => by obtain ⟨p, f, f', hk, rfl⟩ := h; exact ⟨KFoot.arch hk _, rfl⟩) hH.pdptStable
   flushPgOK := hH.flushPgOK
   flushPg := fun s a σ asid va h => WP.spec_mono (hH.flushPg s a σ asid va h.1)
-    fun _ ⟨σ', hm, hS⟩ => ⟨σ', hm, hS, h.2.1, h.2.2.1.trans (kfoot_mop hm), h.2.2.2⟩
+    fun _ ⟨σ', hm, hS⟩ => ⟨σ', hm, h.kstep hS (KStep.mop hm)⟩
 
 end Fin
 
-/-- `VsHyps` carried to `FinSR` (the ASID-table and pool words outside the
-objects). -/
-theorem VsHyps.fin (hPl : Placed th) (hVO : ∀ b, VsWrite P (L.ksb s0) b → OutsideObjects th b)
-    (hH : VsHyps st A ar P th SR) : VsHyps st A ar P th (FinSR st th SR s0 σ0) where
-  stable := fun s s' a σ σ' h hw hst =>
-    ⟨hH.stable s s' a σ σ' h.1 hw hst, h.2.1.trans (SlotsSame.of_writes hPl hw (fun b hb => hVO b (h.2.2.2 ▸ hb))),
-      h.2.2.1.trans (by
-        rcases hst with ⟨p, f, f', hk, rfl⟩ | ⟨t, rfl⟩
-        · exact KFoot.arch hk _
-        · exact kfoot_table _ t), hw.1.trans h.2.2.2⟩
-  invalOK := hH.invalOK
-  inval := fun s a σ asid vs hR h => WP.spec_mono (hH.inval s a σ asid vs hR h.1)
-    fun _ ⟨σ', hm, hS⟩ => ⟨σ', hm, hS, h.2.1, h.2.2.1.trans (kfoot_mop hm), h.2.2.2⟩
-  curT := fun s a σ h => hH.curT s a σ h.1
-  root :=
-    { setVs := fun s a σ ptr asid h => WP.spec_mono (hH.root.setVs s a σ ptr asid h.1)
-        fun _ hS => ⟨hS, h.2.1, h.2.2.1.trans (kfoot_cr3 _ _), h.2.2.2⟩
-      setKernel := fun s a σ h => WP.spec_mono (hH.root.setKernel s a σ h.1)
-        fun _ ⟨e, hS⟩ => ⟨e, hS, h.2.1, h.2.2.1.trans (kfoot_cr3 _ _), h.2.2.2⟩ }
+/-- No ASID pool is a table of the page-table relation. -/
+theorem PtRel.not_pool {m : U64 → U64} {σ : Fl4Spec.State Unit} (hR : PtRel L4 L3 L2 L1 m σ) {p : Fl4Spec.ObjRef}
+    {f : Fl4Spec.AsidLowIndex → Option Fl4Spec.ObjRef} (hk : σ.kheap p = some (.archObj (.asidPool f))) {q : U64}
+    (hq : q ∈ L4 ∨ q ∈ L3 ∨ q ∈ L2 ∨ q ∈ L1) : q.bv ≠ p := by
+  rintro rfl
+  rcases hq with hq | hq | hq | hq
+  · obtain ⟨g, hg, -⟩ := hR.l4 q hq; rw [hk] at hg; cases hg
+  · obtain ⟨g, hg, -⟩ := hR.l3 q hq; rw [hk] at hg; cases hg
+  · obtain ⟨g, hg, -⟩ := hR.l2 q hq; rw [hk] at hg; cases hg
+  · obtain ⟨g, hg, -⟩ := hR.l1 q hq; rw [hk] at hg; cases hg
 
+/-- `PtRel` across a spec step keeping the heap. -/
+theorem PtRel.same_heap {m : U64 → U64} {σ σ' : Fl4Spec.State Unit} (hR : PtRel L4 L3 L2 L1 m σ)
+    (hk : σ'.kheap = σ.kheap) : PtRel L4 L3 L2 L1 m σ' :=
+  hR.frame (fun _ _ => rfl) (fun q _ => by rw [hk])
+
+/-- `VsHyps` carried to `FinSRP` (the ASID-table and pool words in `W`, apart
+from the page-table words). -/
+theorem VsHyps.fin (hPP : PtPlaced L4 L3 L2 L1) (hWV : ∀ b, VsWrite P (L.ksb s0) b → W b)
+    (hPV : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s0) b)
+    (hH : VsHyps st A ar P th SR) : VsHyps st A ar P th (FinSRP st L4 L3 L2 L1 SR W s0 σ0) where
+  stable := fun s s' a σ σ' ⟨h, hPt⟩ hw hst => by
+    have hks : L.ksb s = L.ksb s0 := h.2.1.1
+    have kst : KStep σ σ' := by
+      rcases hst with ⟨p, f, f', hk, rfl⟩ | ⟨t, rfl⟩
+      · exact KStep.arch ⟨p, _, _, hk, rfl⟩
+      · exact KStep.table _ t
+    refine ⟨⟨hH.stable s s' a σ σ' h.1 hw hst, (h.2.1.trans hw).mono fun b hb => hb.elim id (fun hv => hWV b (hks ▸ hv)),
+      h.2.2.1.trans kst.1, kst.2.trans h.2.2.2⟩, ?_⟩
+    refine hPt.frame (fun b hb => hw.2.2 b (PtWAll.aligned hPP hb) (fun hv => hPV b hb (hks ▸ hv))) ?_
+    rcases hst with ⟨p, f, f', hk, rfl⟩ | ⟨t, rfl⟩
+    · intro q hq
+      rw [updK_kheap, Function.update_of_ne (hPt.not_pool hk hq)]
+    · intro q _; rfl
+  invalOK := hH.invalOK
+  inval := fun s a σ asid vs hR ⟨h, hPt⟩ => WP.spec_mono (hH.inval s a σ asid vs hR h.1)
+    fun _ ⟨σ', hm, hS⟩ => ⟨σ', hm, h.kstep hS (KStep.mop hm), by
+      obtain ⟨ms, rfl⟩ := doMachineOp_mem hm; exact hPt.same_heap rfl⟩
+  curT := fun s a σ h => hH.curT s a σ h.1.1
+  root :=
+    { setVs := fun s a σ ptr asid ⟨h, hPt⟩ => WP.spec_mono (hH.root.setVs s a σ ptr asid h.1)
+        fun _ hS => ⟨h.kstep hS (KStep.cr3 _ _), hPt.same_heap rfl⟩
+      setKernel := fun s a σ ⟨h, hPt⟩ => WP.spec_mono (hH.root.setKernel s a σ h.1)
+        fun _ ⟨e, hS⟩ => ⟨e, h.kstep hS (KStep.cr3 _ _), hPt.same_heap rfl⟩ }
+
+/-! ## The VSpace invariants across -/
+
+/-- `PoolsIn` across writes apart from the pool words. -/
+theorem PoolsIn.of_writes {s s' : S} {W : U64 → Prop} (hPI : PoolsIn P L4 (L.mem s)) (hW : WritesIn st s s' W)
+    (hVP : VsPlaced P (L.ksb s)) (hWV : ∀ b, W b → ¬ VsWrite P (L.ksb s) b) : PoolsIn P L4 (L.mem s') := by
+  intro p hp lo hl hne
+  have hw : VsWrite P (L.ksb s) (peA p lo) := Or.inr ⟨p, hp, lo, hl, rfl⟩
+  have e := hW.2.2 _ (VsWrite.aligned hVP hw) (fun h => hWV _ h hw)
+  rw [e] at hne ⊢; exact hPI p hp lo hl hne
+
+/-- `PoolsIn` across zero writes (the ASID deletions). -/
+theorem PoolsIn.of_zero {s s' : S} (hPI : PoolsIn P L4 (L.mem s)) (hZ : VsZeroW st P s s')
+    (hVP : VsPlaced P (L.ksb s)) : PoolsIn P L4 (L.mem s') := by
+  intro p hp lo hl hne
+  have hw : VsWrite P (L.ksb s) (peA p lo) := Or.inr ⟨p, hp, lo, hl, rfl⟩
+  by_cases e : L.mem s' (peA p lo) = L.mem s (peA p lo)
+  · rw [e] at hne ⊢; exact hPI p hp lo hl hne
+  · exact absurd (hZ.2.2 _ (VsWrite.aligned hVP hw) e).2 hne
+
+/-- `CurOK` across a step keeping the slots and the current thread. -/
+theorem CurOK.of_same {s s' : S} {σ σ' : Fl4Spec.State Unit} (hC : CurOK st th s σ)
+    (hSS : SlotsSame th (L.mem s) (L.mem s')) (hc : σ'.curThread = σ.curThread) : CurOK st th s' σ' := by
+  obtain ⟨t, h1, h2, h3⟩ := hC
+  refine ⟨t, h1.trans hc.symm, h2, fun p asid h => h3 p asid ?_⟩
+  rwa [hSS.capAt ⟨t, 1, Or.inr ⟨h2, by decide⟩, rfl⟩] at h
 
 /-! ## The finalisations -/
 
-/-- The extra relation of the posts: `SR` and `VsRel`. -/
-def FinX (st : machine.Store S) [L : LawfulStore st] {A : Type} (P : Set U64) (SR : S → A → Fl4Spec.State Unit → Prop)
-    (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
-  SR s a σ ∧ VsRel P (L.mem s) (L.ksb s) σ
+/-- **The VSpace invariants of the posts**: `SR`, the ASID and page-table
+relations, the pools' entries in `L4`, the current thread. -/
+def FinX (st : machine.Store S) [L : LawfulStore st] {A : Type} (th : TypedHeap) (P L4 L3 L2 L1 : Set U64)
+    (SR : S → A → Fl4Spec.State Unit → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
+  SR s a σ ∧ VsRel P (L.mem s) (L.ksb s) σ ∧ PtRel L4 L3 L2 L1 (L.mem s) σ ∧ PoolsIn P L4 (L.mem s) ∧
+    CurOK st th s σ
+
+/-- The context of the VSpace finalisations: the placement, `FinX` and the
+cap invariant. -/
+structure VsFinCtx (st : machine.Store S) [L : LawfulStore st] {A : Type} (th : TypedHeap) (P L4 L3 L2 L1 : Set U64)
+    (SR : S → A → Fl4Spec.State Unit → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) : Prop where
+  pl : Placed th
+  pp : PtPlaced L4 L3 L2 L1
+  ps : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ SlotW th b
+  pv : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b
+  po : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b
+  vo : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b
+  sd : VsSlotsDisj th P (L.ksb s)
+  vp : VsPlaced P (L.ksb s)
+  x : FinX st th P L4 L3 L2 L1 SR s a σ
+  vc : VsCapsIn P L4 L3 L2 L1 (L.mem s) G
 
 section Ops
 variable {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
   {SR : S → A → Fl4Spec.State Unit → Prop}
 
+/-- An unmap's outcome (writes in the page-table words): the post. -/
+theorem fin_unmap_after {s s1 : S} {a a1 : A} {σ σ' : Fl4Spec.State Unit} {G : MdbGhost} {sl : Fl4Spec.CslotPtr}
+    {c : capability.Cap} {b : Bool} (hDS : DState (L := L) th s σ G) (hA : AbsSlot th sl)
+    (hX : VsFinCtx st th P L4 L3 L2 L1 SR s a σ G) (hc : capAt (L.mem s) (cslotAddr sl) = ok c)
+    (hF : FinSR st SR (PtWAll L4 L3 L2 L1) s σ s1 a1 σ') (hSt1 : StateRel th (L.mem s1) σ')
+    (hR1 : VsRel P (L.mem s1) (L.ksb s1) σ') (hPt1 : PtRel L4 L3 L2 L1 (L.mem s1) σ')
+    (hrem : finRem c b = .Null)
+    (hspec : ((Fl4Spec.Cap.nullCap, Fl4Spec.Cap.nullCap), σ') ∈ (Fl4Spec.finaliseCap (Z := Unit) (absCap c) b σ).1) :
+    FinOKX (L := L) th s σ G sl c b (FinX st th P L4 L3 L2 L1 SR) ((.Null, .Null), s1, a1) ∧
+      SlotsSame th (L.mem s) (L.mem s1) := by
+  obtain ⟨hS1, hW, hK, hcur⟩ := hF
+  have hSS := SlotsSame.of_writes hX.pl hW hX.po
+  obtain ⟨hD', hcv, hsl, hMS⟩ := fin_after hDS hA hc hSS hSt1 hK
+  exact ⟨⟨hrem.symm, trivial, trivial, σ', G, hspec, hD', hcv, hsl, hMS, hS1, hR1, hPt1,
+    hX.x.2.2.2.1.of_writes hW hX.vp hX.pv, hX.x.2.2.2.2.of_same hSS hcur⟩, hSS⟩
+
+/-- An ASID deletion's outcome (zero writes to the ASID-table and pool
+words): the post. -/
+theorem fin_del_after {s s1 : S} {a a1 : A} {σ σ' : Fl4Spec.State Unit} {G : MdbGhost} {sl : Fl4Spec.CslotPtr}
+    {c : capability.Cap} {b : Bool} (hDS : DState (L := L) th s σ G) (hA : AbsSlot th sl)
+    (hX : VsFinCtx st th P L4 L3 L2 L1 SR s a σ G) (hc : capAt (L.mem s) (cslotAddr sl) = ok c)
+    (hF : FinSRP st L4 L3 L2 L1 SR (VsWrite P (L.ksb s)) s σ s1 a1 σ') (hSt1 : StateRel th (L.mem s1) σ')
+    (hR1 : VsRel P (L.mem s1) (L.ksb s1) σ') (hC1 : CurOK st th s1 σ') (hZ : VsZeroW st P s s1)
+    (hrem : finRem c b = .Null)
+    (hspec : ((Fl4Spec.Cap.nullCap, Fl4Spec.Cap.nullCap), σ') ∈ (Fl4Spec.finaliseCap (Z := Unit) (absCap c) b σ).1) :
+    FinOKX (L := L) th s σ G sl c b (FinX st th P L4 L3 L2 L1 SR) ((.Null, .Null), s1, a1) ∧
+      SlotsSame th (L.mem s) (L.mem s1) := by
+  obtain ⟨⟨hS1, hW, hK, -⟩, hPt1⟩ := hF
+  have hSS := SlotsSame.of_writes hX.pl hW hX.vo
+  obtain ⟨hD', hcv, hsl, hMS⟩ := fin_after hDS hA hc hSS hSt1 hK
+  exact ⟨⟨hrem.symm, trivial, trivial, σ', G, hspec, hD', hcv, hsl, hMS, hS1, hR1, hPt1,
+    hX.x.2.2.2.1.of_zero hZ hX.vp, hC1⟩, hSS⟩
+
 set_option maxHeartbeats 1000000 in
 /-- **A final page-table cap**: `unmap_page_table` if mapped (l4v
 `unmap_page_table`); no cap slot written. -/
 theorem fin_page_table (hH : VsPtInnerHyps st A ar L2 SR) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
-    (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hA : AbsSlot th sl) (hPl : Placed th)
-    (hPP : PtPlaced L4 L3 L2 L1) (hPS : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ SlotW th b)
-    (hPV : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b)
-    (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b) (hVP : VsPlaced P (L.ksb s))
-    (hPI : PoolsIn P L4 (L.mem s)) (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
-    (hS : SR s a σ) (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
+    (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hA : AbsSlot th sl)
+    (hX : VsFinCtx st th P L4 L3 L2 L1 SR s a σ G)
     (p asid va : U64) (mp : Bool) (hc : capAt (L.mem s) (cslotAddr sl) = ok (.PageTable p mp asid va)) :
     objects.finalise_cap st ar s a (.PageTable p mp asid va) true false ⦃ r =>
-      FinOKX (L := L) th s σ G sl (.PageTable p mp asid va) true (FinX st P SR) r ∧
+      FinOKX (L := L) th s σ G sl (.PageTable p mp asid va) true (FinX st th P L4 L3 L2 L1 SR) r ∧
         SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ := by
-  have hok := hVC.at hDS.1.2.2.1 hA.isSlot hc (by simp)
+  have hok := hX.vc.at hDS.1.2.2.1 hA.isSlot hc (by simp)
   simp only [VCapOK] at hok
   obtain ⟨hpL, -, hm⟩ := hok
   cases mp
   · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, Bool.false_eq_true, ↓reduceIte]
-    exact (WP.spec_ok _).2 (fin_none (X := FinX st P SR) hDS hc ⟨hS, hR⟩ rfl (Set.mem_singleton _))
+    exact (WP.spec_ok _).2 (fin_none hDS hc hX.x rfl (Set.mem_singleton _))
   obtain ⟨h0, hal⟩ := hm rfl
   simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, ↓reduceIte]
-  refine WP.spec_bind (unmap_page_table_rel (hH.fin (s0 := s) (σ0 := σ) hPl hPO) s a σ hPl hPP hPS hVP
-    (fun b ⟨q, hq, i, hi, e⟩ => hPV b ⟨q, Or.inr (Or.inr (Or.inl hq)), i, hi, e⟩) hPI
-    ⟨FinSR.init hS, hDS.1.1, hDS.1.2.1, hR, hPt⟩ asid va p h0 hal hpL) ?_
-  rintro ⟨s1, a1⟩ ⟨-, -, σ', hm, ⟨⟨hS1, hSS, hK, -⟩, hSt1, -, hR1, -⟩, -⟩
-  obtain ⟨hD', hcv, hsl, hMS⟩ := fin_after hDS hA hc hSS hSt1 hK
-  refine (WP.spec_ok _).2 ⟨⟨rfl, trivial, trivial, σ', G, ?_, hD', hcv, hsl, hMS, hS1, hR1⟩, hSS⟩
-  exact mem_bind_nd hm (Set.mem_singleton _)
+  refine WP.spec_bind (unmap_page_table_rel (hH.fin (W := PtWAll L4 L3 L2 L1) (s0 := s) (σ0 := σ) (fun _ h => h)) s a σ hX.pl hX.pp hX.ps
+    hX.vp (fun b ⟨q, hq, i, hi, e⟩ => hX.pv b ⟨q, Or.inr (Or.inr (Or.inl hq)), i, hi, e⟩) hX.x.2.2.2.1
+    ⟨FinSR.init hX.x.1, hDS.1.1, hDS.1.2.1, hX.x.2.1, hX.x.2.2.1⟩ asid va p h0 hal hpL) ?_
+  rintro ⟨s1, a1⟩ ⟨-, -, σ', hm, ⟨hF, hSt1, -, hR1, hPt1⟩, -⟩
+  exact (WP.spec_ok _).2 (fin_unmap_after hDS hA hX hc hF hSt1 hR1 hPt1 rfl (mem_bind_nd hm (Set.mem_singleton _)))
 
 set_option maxHeartbeats 1000000 in
 /-- **A final page-directory cap**: `unmap_page_directory` if mapped (l4v
 `unmap_pd`); no cap slot written. -/
 theorem fin_page_directory (hH : VsPdInnerHyps st A ar L3 SR) (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hA : AbsSlot th sl) (hPl : Placed th)
-    (hPP : PtPlaced L4 L3 L2 L1) (hPS : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ SlotW th b)
-    (hPV : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b)
-    (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b) (hVP : VsPlaced P (L.ksb s))
-    (hPI : PoolsIn P L4 (L.mem s)) (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
-    (hS : SR s a σ) (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
+    (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hA : AbsSlot th sl)
+    (hX : VsFinCtx st th P L4 L3 L2 L1 SR s a σ G)
     (p asid va : U64) (mp : Bool) (hc : capAt (L.mem s) (cslotAddr sl) = ok (.PageDirectory p mp asid va)) :
     objects.finalise_cap st ar s a (.PageDirectory p mp asid va) true false ⦃ r =>
-      FinOKX (L := L) th s σ G sl (.PageDirectory p mp asid va) true (FinX st P SR) r ∧
+      FinOKX (L := L) th s σ G sl (.PageDirectory p mp asid va) true (FinX st th P L4 L3 L2 L1 SR) r ∧
         SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ := by
-  have hok := hVC.at hDS.1.2.2.1 hA.isSlot hc (by simp)
+  have hok := hX.vc.at hDS.1.2.2.1 hA.isSlot hc (by simp)
   simp only [VCapOK] at hok
   obtain ⟨hpL, -, hm⟩ := hok
   cases mp
   · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, Bool.false_eq_true, ↓reduceIte]
-    exact (WP.spec_ok _).2 (fin_none (X := FinX st P SR) hDS hc ⟨hS, hR⟩ rfl (Set.mem_singleton _))
+    exact (WP.spec_ok _).2 (fin_none hDS hc hX.x rfl (Set.mem_singleton _))
   have h0 := hm rfl
   simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, ↓reduceIte]
-  refine WP.spec_bind (unmap_page_directory_rel (hH.fin (s0 := s) (σ0 := σ) hPl hPO) s a σ hPl hPP hPS hVP
-    (fun b ⟨q, hq, i, hi, e⟩ => hPV b ⟨q, Or.inr (Or.inl hq), i, hi, e⟩) hPI
-    ⟨FinSR.init hS, hDS.1.1, hDS.1.2.1, hR, hPt⟩ asid va p h0 hpL) ?_
-  rintro ⟨s1, a1⟩ ⟨-, -, σ', hm, ⟨⟨hS1, hSS, hK, -⟩, hSt1, -, hR1, -⟩, -⟩
-  obtain ⟨hD', hcv, hsl, hMS⟩ := fin_after hDS hA hc hSS hSt1 hK
-  refine (WP.spec_ok _).2 ⟨⟨rfl, trivial, trivial, σ', G, ?_, hD', hcv, hsl, hMS, hS1, hR1⟩, hSS⟩
-  exact mem_bind_nd hm (Set.mem_singleton _)
+  refine WP.spec_bind (unmap_page_directory_rel (hH.fin (W := PtWAll L4 L3 L2 L1) (s0 := s) (σ0 := σ) (fun _ h => h)) s a σ hX.pl hX.pp hX.ps
+    hX.vp (fun b ⟨q, hq, i, hi, e⟩ => hX.pv b ⟨q, Or.inr (Or.inl hq), i, hi, e⟩) hX.x.2.2.2.1
+    ⟨FinSR.init hX.x.1, hDS.1.1, hDS.1.2.1, hX.x.2.1, hX.x.2.2.1⟩ asid va p h0 hpL) ?_
+  rintro ⟨s1, a1⟩ ⟨-, -, σ', hm, ⟨hF, hSt1, -, hR1, hPt1⟩, -⟩
+  exact (WP.spec_ok _).2 (fin_unmap_after hDS hA hX hc hF hSt1 hR1 hPt1 rfl (mem_bind_nd hm (Set.mem_singleton _)))
 
 set_option maxHeartbeats 1000000 in
 /-- **A final PDPT cap**: `unmap_pdpt` if mapped (l4v `unmap_pdpt`); no cap
 slot written. -/
 theorem fin_pdpt (hH : VsPdptInnerHyps st A ar L4 SR) (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hA : AbsSlot th sl) (hPl : Placed th)
-    (hPP : PtPlaced L4 L3 L2 L1) (hPS : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ SlotW th b)
-    (hPV : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b)
-    (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b) (hVP : VsPlaced P (L.ksb s))
-    (hPI : PoolsIn P L4 (L.mem s)) (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
-    (hS : SR s a σ) (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
+    (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hA : AbsSlot th sl)
+    (hX : VsFinCtx st th P L4 L3 L2 L1 SR s a σ G)
     (p asid va : U64) (mp : Bool) (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Pdpt p mp asid va)) :
     objects.finalise_cap st ar s a (.Pdpt p mp asid va) true false ⦃ r =>
-      FinOKX (L := L) th s σ G sl (.Pdpt p mp asid va) true (FinX st P SR) r ∧
+      FinOKX (L := L) th s σ G sl (.Pdpt p mp asid va) true (FinX st th P L4 L3 L2 L1 SR) r ∧
         SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ := by
-  have hok := hVC.at hDS.1.2.2.1 hA.isSlot hc (by simp)
+  have hok := hX.vc.at hDS.1.2.2.1 hA.isSlot hc (by simp)
   simp only [VCapOK] at hok
   obtain ⟨hpL, -, hm⟩ := hok
   cases mp
   · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, Bool.false_eq_true, ↓reduceIte]
-    exact (WP.spec_ok _).2 (fin_none (X := FinX st P SR) hDS hc ⟨hS, hR⟩ rfl (Set.mem_singleton _))
+    exact (WP.spec_ok _).2 (fin_none hDS hc hX.x rfl (Set.mem_singleton _))
   have h0 := hm rfl
   simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, ↓reduceIte]
-  refine WP.spec_bind (unmap_pdpt_rel (hH.fin (s0 := s) (σ0 := σ) hPl hPO) s a σ hPl hPP hPS hVP
-    (fun b ⟨q, hq, i, hi, e⟩ => hPV b ⟨q, Or.inl hq, i, hi, e⟩) hPI
-    ⟨FinSR.init hS, hDS.1.1, hDS.1.2.1, hR, hPt⟩ asid va p h0 hpL) ?_
-  rintro ⟨s1, a1⟩ ⟨-, -, σ', hm, ⟨⟨hS1, hSS, hK, -⟩, hSt1, -, hR1, -⟩, -⟩
-  obtain ⟨hD', hcv, hsl, hMS⟩ := fin_after hDS hA hc hSS hSt1 hK
-  refine (WP.spec_ok _).2 ⟨⟨rfl, trivial, trivial, σ', G, ?_, hD', hcv, hsl, hMS, hS1, hR1⟩, hSS⟩
-  exact mem_bind_nd hm (Set.mem_singleton _)
+  refine WP.spec_bind (unmap_pdpt_rel (hH.fin (W := PtWAll L4 L3 L2 L1) (s0 := s) (σ0 := σ) (fun _ h => h)) s a σ hX.pl hX.pp hX.ps
+    hX.vp (fun b ⟨q, hq, i, hi, e⟩ => hX.pv b ⟨q, Or.inl hq, i, hi, e⟩) hX.x.2.2.2.1
+    ⟨FinSR.init hX.x.1, hDS.1.1, hDS.1.2.1, hX.x.2.1, hX.x.2.2.1⟩ asid va p h0 hpL) ?_
+  rintro ⟨s1, a1⟩ ⟨-, -, σ', hm, ⟨hF, hSt1, -, hR1, hPt1⟩, -⟩
+  exact (WP.spec_ok _).2 (fin_unmap_after hDS hA hX hc hF hSt1 hR1 hPt1 rfl (mem_bind_nd hm (Set.mem_singleton _)))
 
 set_option maxHeartbeats 1000000 in
 /-- **A mapped frame cap** (final or not): `unmap_page` (l4v `unmap_page`); no
 cap slot written. -/
 theorem fin_frame (hH : VsUnmapPageHyps st A ar L3 L2 L1 SR) (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hA : AbsSlot th sl) (hPl : Placed th)
-    (hPP : PtPlaced L4 L3 L2 L1) (hPS : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ SlotW th b)
-    (hPV : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b)
-    (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b) (hVP : VsPlaced P (L.ksb s))
-    (hPI : PoolsIn P L4 (L.mem s)) (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
-    (hS : SR s a σ) (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
+    (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hA : AbsSlot th sl)
+    (hX : VsFinCtx st th P L4 L3 L2 L1 SR s a σ G)
     (p : U64) (sz : capability.FrameSize) (rt : U64) (d : Bool) (asid va : U64) (b : Bool)
     (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Frame p sz rt d true asid va)) :
     objects.finalise_cap st ar s a (.Frame p sz rt d true asid va) b false ⦃ r =>
-      FinOKX (L := L) th s σ G sl (.Frame p sz rt d true asid va) b (FinX st P SR) r ∧
+      FinOKX (L := L) th s σ G sl (.Frame p sz rt d true asid va) b (FinX st th P L4 L3 L2 L1 SR) r ∧
         SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ := by
-  have hok := hVC.at hDS.1.2.2.1 hA.isSlot hc (by simp)
+  have hok := hX.vc.at hDS.1.2.2.1 hA.isSlot hc (by simp)
   simp only [VCapOK] at hok
   have h0 : asid ≠ 0#u64 := by simpa using hok.1
   simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, ↓reduceIte, bne_iff_ne, ne_eq, h0,
     not_false_eq_true]
-  refine WP.spec_bind (unmap_page_rel (hH.fin (s0 := s) (σ0 := σ) hPl hPO) s a σ hPl hPP hPS hVP hPV hPI
-    ⟨FinSR.init hS, hDS.1.1, hDS.1.2.1, hR, hPt⟩ sz asid va p h0) ?_
-  rintro ⟨s1, a1⟩ ⟨-, -, σ', hm, ⟨⟨hS1, hSS, hK, -⟩, hSt1, -, hR1, -⟩, -⟩
-  obtain ⟨hD', hcv, hsl, hMS⟩ := fin_after hDS hA hc hSS hSt1 hK
-  refine (WP.spec_ok _).2 ⟨⟨rfl, trivial, trivial, σ', G, ?_, hD', hcv, hsl, hMS, hS1, hR1⟩, hSS⟩
-  exact mem_bind_nd hm (Set.mem_singleton _)
+  refine WP.spec_bind (unmap_page_rel (hH.fin (W := PtWAll L4 L3 L2 L1) (s0 := s) (σ0 := σ) (fun _ h => h)) s a σ hX.pl hX.pp hX.ps hX.vp
+    hX.pv hX.x.2.2.2.1 ⟨FinSR.init hX.x.1, hDS.1.1, hDS.1.2.1, hX.x.2.1, hX.x.2.2.1⟩ sz asid va p h0) ?_
+  rintro ⟨s1, a1⟩ ⟨-, -, σ', hm, ⟨hF, hSt1, -, hR1, hPt1⟩, -⟩
+  exact (WP.spec_ok _).2 (fin_unmap_after hDS hA hX hc hF hSt1 hR1 hPt1 rfl (mem_bind_nd hm (Set.mem_singleton _)))
 
 set_option maxHeartbeats 1000000 in
 /-- **A final PML4 cap**: `delete_asid` if mapped (l4v `delete_asid`); no
 cap slot written. -/
 theorem fin_pml4 (hH : VsHyps st A ar P th SR) (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hA : AbsSlot th sl) (hPl : Placed th)
-    (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b) (hSD : VsSlotsDisj th P (L.ksb s))
-    (hVP : VsPlaced P (L.ksb s)) (hR : VsRel P (L.mem s) (L.ksb s) σ) (hCur : CurOK st th s σ)
-    (hS : SR s a σ) (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
+    (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hA : AbsSlot th sl)
+    (hX : VsFinCtx st th P L4 L3 L2 L1 SR s a σ G)
     (p asid : U64) (mp : Bool) (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Pml4 p mp asid)) :
     objects.finalise_cap st ar s a (.Pml4 p mp asid) true false ⦃ r =>
-      FinOKX (L := L) th s σ G sl (.Pml4 p mp asid) true (FinX st P SR) r ∧
+      FinOKX (L := L) th s σ G sl (.Pml4 p mp asid) true (FinX st th P L4 L3 L2 L1 SR) r ∧
         SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ := by
-  have hok := hVC.at (L1 := L1) hDS.1.2.2.1 hA.isSlot hc (by simp)
+  have hok := hX.vc.at hDS.1.2.2.1 hA.isSlot hc (by simp)
   simp only [VCapOK] at hok
   obtain ⟨-, hp0, -⟩ := hok
   cases mp
   · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, Bool.false_eq_true, ↓reduceIte]
-    exact (WP.spec_ok _).2 (fin_none (X := FinX st P SR) hDS hc ⟨hS, hR⟩ rfl (Set.mem_singleton _))
+    exact (WP.spec_ok _).2 (fin_none hDS hc hX.x rfl (Set.mem_singleton _))
   simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, ↓reduceIte]
-  refine WP.spec_bind (delete_asid_rel (hH.fin (s0 := s) (σ0 := σ) hPl hVO) s a σ hVP hR
-    ⟨FinSR.init hS, hDS.1.1, hPl, hSD, hCur⟩ asid p hp0) ?_
-  rintro ⟨s1, a1⟩ ⟨-, σ', hm, hR1, ⟨⟨hS1, hSS, hK, -⟩, hSt1, -⟩, -⟩
-  obtain ⟨hD', hcv, hsl, hMS⟩ := fin_after hDS hA hc hSS hSt1 hK
-  refine (WP.spec_ok _).2 ⟨⟨rfl, trivial, trivial, σ', G, ?_, hD', hcv, hsl, hMS, hS1, hR1⟩, hSS⟩
-  exact mem_bind_nd hm (Set.mem_singleton _)
+  refine WP.spec_bind (delete_asid_rel (hH.fin (W := VsWrite P (L.ksb s)) (s0 := s) (σ0 := σ) hX.pp (fun _ h => h) hX.pv) s a σ hX.vp hX.x.2.1
+    ⟨⟨FinSR.init hX.x.1, hX.x.2.2.1⟩, hDS.1.1, hX.pl, hX.sd, hX.x.2.2.2.2⟩ asid p hp0) ?_
+  rintro ⟨s1, a1⟩ ⟨-, σ', hm, hR1, ⟨hF, hSt1, -, -, hC1⟩, hZ⟩
+  exact (WP.spec_ok _).2 (fin_del_after hDS hA hX hc hF hSt1 hR1 hC1 hZ rfl (mem_bind_nd hm (Set.mem_singleton _)))
 
 set_option maxHeartbeats 1000000 in
 /-- **A final ASID pool cap**: `delete_asid_pool` (l4v `delete_asid_pool`);
 no cap slot written. -/
 theorem fin_asid_pool (hH : VsHyps st A ar P th SR) (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hA : AbsSlot th sl) (hPl : Placed th)
-    (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b) (hSD : VsSlotsDisj th P (L.ksb s))
-    (hVP : VsPlaced P (L.ksb s)) (hR : VsRel P (L.mem s) (L.ksb s) σ) (hCur : CurOK st th s σ)
-    (hS : SR s a σ) (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
+    (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hA : AbsSlot th sl)
+    (hX : VsFinCtx st th P L4 L3 L2 L1 SR s a σ G)
     (p base : U64) (hc : capAt (L.mem s) (cslotAddr sl) = ok (.AsidPool p base)) :
     objects.finalise_cap st ar s a (.AsidPool p base) true false ⦃ r =>
-      FinOKX (L := L) th s σ G sl (.AsidPool p base) true (FinX st P SR) r ∧
+      FinOKX (L := L) th s σ G sl (.AsidPool p base) true (FinX st th P L4 L3 L2 L1 SR) r ∧
         SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ := by
-  have hok := hVC.at hDS.1.2.2.1 hA.isSlot hc (by simp)
+  have hok := hX.vc.at hDS.1.2.2.1 hA.isSlot hc (by simp)
   simp only [VCapOK] at hok
   obtain ⟨⟨-, hp0⟩, hb, -⟩ := hok
   simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, ↓reduceIte]
-  refine WP.spec_bind (delete_asid_pool_rel (hH.fin (s0 := s) (σ0 := σ) hPl hVO) s a σ hVP hR
-    ⟨FinSR.init hS, hDS.1.1, hPl, hSD, hCur⟩ base p hb hp0) ?_
-  rintro ⟨s1, a1⟩ ⟨-, σ', hm, hR1, ⟨⟨hS1, hSS, hK, -⟩, hSt1, -⟩, -⟩
-  obtain ⟨hD', hcv, hsl, hMS⟩ := fin_after hDS hA hc hSS hSt1 hK
-  refine (WP.spec_ok _).2 ⟨⟨rfl, trivial, trivial, σ', G, ?_, hD', hcv, hsl, hMS, hS1, hR1⟩, hSS⟩
-  exact mem_bind_nd hm (Set.mem_singleton _)
+  refine WP.spec_bind (delete_asid_pool_rel (hH.fin (W := VsWrite P (L.ksb s)) (s0 := s) (σ0 := σ) hX.pp (fun _ h => h) hX.pv) s a σ hX.vp
+    hX.x.2.1 ⟨⟨FinSR.init hX.x.1, hX.x.2.2.1⟩, hDS.1.1, hX.pl, hX.sd, hX.x.2.2.2.2⟩ base p hb hp0) ?_
+  rintro ⟨s1, a1⟩ ⟨-, σ', hm, hR1, ⟨hF, hSt1, -, -, hC1⟩, hZ⟩
+  exact (WP.spec_ok _).2 (fin_del_after hDS hA hX hc hF hSt1 hR1 hC1 hZ rfl (mem_bind_nd hm (Set.mem_singleton _)))
 
 /-! ## All VSpace finalisations -/
 
@@ -386,20 +481,15 @@ structure VsFinHyps (st : machine.Store S) [L : LawfulStore st] (A : Type) (ar :
   del : VsHyps st A ar P th SR
 
 /-- **The VSpace half of `FinWorkHyp`**: a final table, PML4 or ASID pool
-cap, or a mapped frame cap; no cap slot written (`SlotsSame`). -/
+cap, or a mapped frame cap; no cap slot written (`SlotsSame`); `FinX`
+kept. -/
 theorem vs_fin (hH : VsFinHyps st A ar th P L4 L3 L2 L1 SR) (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hA : AbsSlot th sl) (hPl : Placed th)
-    (hPP : PtPlaced L4 L3 L2 L1) (hPS : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ SlotW th b)
-    (hPV : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b)
-    (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b)
-    (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b) (hSD : VsSlotsDisj th P (L.ksb s))
-    (hVP : VsPlaced P (L.ksb s)) (hPI : PoolsIn P L4 (L.mem s)) (hR : VsRel P (L.mem s) (L.ksb s) σ)
-    (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ) (hCur : CurOK st th s σ) (hS : SR s a σ)
-    (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
+    (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hA : AbsSlot th sl)
+    (hX : VsFinCtx st th P L4 L3 L2 L1 SR s a σ G)
     (c : capability.Cap) (hc : capAt (L.mem s) (cslotAddr sl) = ok c) (hv : IsVsFin c) (b : Bool)
     (hw : FinWork c b) :
     objects.finalise_cap st ar s a c b false ⦃ r =>
-      FinOKX (L := L) th s σ G sl c b (FinX st P SR) r ∧ SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ := by
+      FinOKX (L := L) th s σ G sl c b (FinX st th P L4 L3 L2 L1 SR) r ∧ SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ := by
   have hb : isFrame c = false → b = true := by
     rintro hf; rcases hw with ⟨h, -⟩ | ⟨p, sz, r, d, asid, va, rfl⟩
     · exact h
@@ -409,21 +499,15 @@ theorem vs_fin (hH : VsFinHyps st A ar th P L4 L3 L2 L1 SR) (s : S) (a : A) (σ 
     rcases hw with ⟨-, hf, -⟩ | ⟨p', sz', r', d', asid', va', e⟩
     · simp [isFrame] at hf
     · cases e
-      exact fin_frame hH.pg s a σ G sl hDS hA hPl hPP hPS hPV hPO hVP hPI hR hPt hS hVC p sz rt d asid va b hc
-  case PageTable p mp asid va =>
-    rw [hb rfl]; exact fin_page_table hH.pt s a σ G sl hDS hA hPl hPP hPS hPV hPO hVP hPI hR hPt hS hVC p asid va mp hc
+      exact fin_frame hH.pg s a σ G sl hDS hA hX p sz rt d asid va b hc
+  case PageTable p mp asid va => rw [hb rfl]; exact fin_page_table hH.pt s a σ G sl hDS hA hX p asid va mp hc
   case PageDirectory p mp asid va =>
-    rw [hb rfl]
-    exact fin_page_directory hH.pd s a σ G sl hDS hA hPl hPP hPS hPV hPO hVP hPI hR hPt hS hVC p asid va mp hc
-  case Pdpt p mp asid va =>
-    rw [hb rfl]; exact fin_pdpt hH.pdpt s a σ G sl hDS hA hPl hPP hPS hPV hPO hVP hPI hR hPt hS hVC p asid va mp hc
-  case Pml4 p mp asid =>
-    rw [hb rfl]; exact fin_pml4 hH.del s a σ G sl hDS hA hPl hVO hSD hVP hR hCur hS hVC p asid mp hc
-  case AsidPool p base =>
-    rw [hb rfl]; exact fin_asid_pool hH.del s a σ G sl hDS hA hPl hVO hSD hVP hR hCur hS hVC p base hc
+    rw [hb rfl]; exact fin_page_directory hH.pd s a σ G sl hDS hA hX p asid va mp hc
+  case Pdpt p mp asid va => rw [hb rfl]; exact fin_pdpt hH.pdpt s a σ G sl hDS hA hX p asid va mp hc
+  case Pml4 p mp asid => rw [hb rfl]; exact fin_pml4 hH.del s a σ G sl hDS hA hX p asid mp hc
+  case AsidPool p base => rw [hb rfl]; exact fin_asid_pool hH.del s a σ G sl hDS hA hX p base hc
 
 end Ops
-
 
 /-- `FinOKX` gives `FinObjHyp`'s post. -/
 theorem FinOKX.base {A : Type} {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {G : MdbGhost}
@@ -462,19 +546,19 @@ theorem vsFinHyps_top (hA : ArchRefines arI AR) :
   del := vsHyps_top hA
 
 /-- **The VSpace half of `FinWorkHyp` at `TopSR`**: the placement from
-`TopPlaced`; `TopSR` and `VsRel` kept; no cap slot written. -/
+`TopPlaced`; `FinX` (`TopSR`, `VsRel`, `PtRel`, `PoolsIn`, `CurOK`) kept; no
+cap slot written. -/
 theorem vs_fin_top (hA : ArchRefines arI AR) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hAs : AbsSlot th sl)
-    (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ) (hPI : PoolsIn P L4 (L.mem s))
-    (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ) (hCur : CurOK st th s σ)
+    (hX : FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s a σ)
     (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
     (cp : capability.Cap) (hc : capAt (L.mem s) (cslotAddr sl) = ok cp) (hv : IsVsFin cp) (b : Bool)
     (hw : FinWork cp b) :
     objects.finalise_cap st arI s a cp b false ⦃ r =>
-      FinOKX (L := L) th s σ G sl cp b (FinX st P (TopSR st th P L4 L3 L2 L1 N T C E R B c AR)) r ∧
+      FinOKX (L := L) th s σ G sl cp b (FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR)) r ∧
         SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ :=
-  vs_fin (vsFinHyps_top hA) s a σ G sl hDS hAs hS.2.pl hS.2.pt hS.2.ps hS.2.pv hS.2.po hS.2.vo hS.2.sd hS.2.vs
-    hPI hR hPt hCur hS hVC cp hc hv b hw
+  vs_fin (vsFinHyps_top hA) s a σ G sl hDS hAs
+    ⟨hX.1.2.pl, hX.1.2.pt, hX.1.2.ps, hX.1.2.pv, hX.1.2.po, hX.1.2.vo, hX.1.2.sd, hX.1.2.vs, hX, hVC⟩ cp hc hv b hw
 
 end Top
 
