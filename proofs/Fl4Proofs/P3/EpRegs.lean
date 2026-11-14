@@ -49,7 +49,7 @@ theorem TcbRelE.set_reg {m m' : U64 → U64} {t : U64} {x : Fl4Spec.Tcb} (ht : T
   · rw [g (a_fault ht) (by rw [val_fault ht]; omega)]; exact h.fault0
   · rw [g (a_fault ht) (by rw [val_fault ht]; omega)]; exact h.faultT
   · rw [g (a_bound ht) (by rw [val_bound ht]; omega)]; exact h.bound
-  · exact h.faultR.congr (g (a_fault ht) (by rw [val_fault ht]; omega)) (g (a_fw0 ht) (by rw [val_fw0 ht]; omega)) (g (a_fw1 ht) (by rw [val_fw1 ht]; omega)) (g (a_lf ht) (by rw [val_lf ht]; omega)) (g (a_lf0 ht) (by rw [val_lf0 ht]; omega)) (g (a_lf1 ht) (by rw [val_lf1 ht]; omega))
+  · exact h.faultR.congr (g (a_fault ht) (by rw [val_fault ht]; omega)) (g (a_fw0 ht) (by rw [val_fw0 ht]; omega)) (g (a_fw1 ht) (by rw [val_fw1 ht]; omega)) (g (a_lf ht) (by rw [val_lf ht]; omega)) (g (a_lf0 ht) (by rw [val_lf0 ht]; omega)) (g (a_lf1 ht) (by rw [val_lf1 ht]; omega)) (g (a_fw2 ht) (by rw [val_fw2 ht]; omega))
 
 section
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]

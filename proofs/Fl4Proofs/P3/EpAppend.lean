@@ -50,7 +50,7 @@ theorem TcbRelE.restate {m m' : U64 → U64} {t : U64} {x x' : Fl4Spec.Tcb} (ht 
   · rw [g (a_fault ht) (by rw [val_fault ht]; omega), e3]; exact h.fault0
   · rw [g (a_fault ht) (by rw [val_fault ht]; omega), e3]; exact h.faultT
   · rw [g (a_bound ht) (by rw [val_bound ht]; omega), e4]; exact h.bound
-  · rw [e3]; exact h.faultR.congr (g (a_fault ht) (by rw [val_fault ht]; omega)) (g (a_fw0 ht) (by rw [val_fw0 ht]; omega)) (g (a_fw1 ht) (by rw [val_fw1 ht]; omega)) (g (a_lf ht) (by rw [val_lf ht]; omega)) (g (a_lf0 ht) (by rw [val_lf0 ht]; omega)) (g (a_lf1 ht) (by rw [val_lf1 ht]; omega))
+  · rw [e3]; exact h.faultR.congr (g (a_fault ht) (by rw [val_fault ht]; omega)) (g (a_fw0 ht) (by rw [val_fw0 ht]; omega)) (g (a_fw1 ht) (by rw [val_fw1 ht]; omega)) (g (a_lf ht) (by rw [val_lf ht]; omega)) (g (a_lf0 ht) (by rw [val_lf0 ht]; omega)) (g (a_lf1 ht) (by rw [val_lf1 ht]; omega)) (g (a_fw2 ht) (by rw [val_fw2 ht]; omega))
 
 /-- The endpoints a thread can block on: idle, or already queued the same
 way. -/

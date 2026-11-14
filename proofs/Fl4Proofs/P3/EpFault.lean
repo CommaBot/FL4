@@ -387,7 +387,7 @@ theorem bufAddr_aligned (hP : EPlaced T E R B) {w : U64} {p : Fl4Spec.ObjRef} (h
 /-- **`do_fault_transfer`** into a receiver with a mapped IPC buffer, given
 that `set_mrs_fault` writes the l4v fault message `ms` and that the fault
 type word is the l4v label. -/
-theorem do_fault_transfer_gen {A : Type} {ar : machine.Arch A} (hH : EpHyps st T E R B SR) (hP : EPlaced T E R B)
+theorem do_fault_transfer_full {A : Type} {ar : machine.Arch A} (hH : EpHyps st T E R B SR) (hP : EPlaced T E R B)
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hR : EpStateRel T E R B (L.mem s) σ)
     {snd rcv : U64} (hs : snd ∈ T) (hr : rcv ∈ T) (hne : snd ≠ rcv) {xs xr : Fl4Spec.Tcb}
     (hks : σ.kheap snd.bv = some (.tcb xs)) (hkr : σ.kheap rcv.bv = some (.tcb xr))
@@ -401,7 +401,10 @@ theorem do_fault_transfer_gen {A : Type} {ar : machine.Arch A} (hH : EpHyps st T
       MrInv (L := L) T E R B SR s σ rcv xr p r.2 ms ⦄) :
     ipc.do_fault_transfer st ar s a badge snd rcv rw ⦃ s' => ∃ σ',
       Fl4Spec.doFaultTransfer (Z := Unit) badge.bv snd.bv rcv.bv (some p) σ = ({((), σ')}, False) ∧
-      EpStateRel T E R B (L.mem s') σ' ∧ SR s' σ' ⦄ := by
+      EpStateRel T E R B (L.mem s') σ' ∧ SR s' σ' ∧
+      Agree (L.mem s) (L.mem s') (fun b => ¬ RcvReg rcv b ∧ ¬ BufW B b) ∧
+      (∀ q, q ≠ rcv.bv → σ'.kheap q = σ.kheap q) ∧
+      ∃ x', σ'.kheap rcv.bv = some (.tcb x') ∧ x'.tcbState = xr.tcbState ⦄ := by
   have hsa := hP.tcb snd hs
   have hal : ∀ q ∈ mrPairs ms, (bufAddr p q.1).toNat % 8 = 0 ∧ Fl4Spec.inUserFrame (bufAddr p q.1) σ := by
     intro q hq
@@ -443,7 +446,41 @@ theorem do_fault_transfer_gen {A : Type} {ar : machine.Arch A} (hH : EpHyps st T
   rw [hfin] at hR3
   have hS := hH.stable _ _ _ _ (hH.stable _ _ _ _ hS1 hW2 hS2) hW3 hS3
   rw [hfin] at hS
-  exact ⟨_, hspec, hR3, hS⟩
+  have hra := hP.tcb rcv hr
+  have a1 := a_reg hra Fl4Spec.msg_info_register
+  have a2 := a_reg hra Fl4Spec.badge_register
+  rw [regIdx_msgInfo] at a1
+  rw [regIdx_badge] at a2
+  have hAg : Agree (L.mem s) (L.mem (L.wr (L.wr s1 (regA rcv layout.reg.MSG_INFO) v) (regA rcv layout.reg.BADGE)
+      badge)) (fun b => ¬ RcvReg rcv b ∧ ¬ BufW B b) := by
+    intro b hb hn
+    rw [agree_wr (L := L) (s := L.wr s1 (regA rcv layout.reg.MSG_INFO) v) (v := badge) a2.1 b hb
+        (fun h => hn.1 ⟨_, by rw [regIdx_badge]; exact h⟩),
+      agree_wr (L := L) (s := s1) (v := v) a1.1 b hb (fun h => hn.1 ⟨_, by rw [regIdx_msgInfo]; exact h⟩)]
+    exact hA1 b hb hn
+  refine ⟨_, hspec, hR3, hS, hAg, fun q hq => ?_, setReg (setReg (withRegs xr (mrRegs xr.tcbArch.tcbContext.userRegs ms))
+    Fl4Spec.msg_info_register (Fl4Spec.messageInfoToData ⟨Fl4Spec.natToLen (min ms.length Fl4Spec.msgMaxLength), 0, 0,
+      label⟩)) Fl4Spec.badge_register badge.bv, by simp only [updK_kheap, Function.update_self], rfl⟩
+  simp [mrState, setUm, hq]
+
+/-- `do_fault_transfer_full` without the frame. -/
+theorem do_fault_transfer_gen {A : Type} {ar : machine.Arch A} (hH : EpHyps st T E R B SR) (hP : EPlaced T E R B)
+    (s : S) (a : A) (σ : Fl4Spec.State Unit) (hR : EpStateRel T E R B (L.mem s) σ)
+    {snd rcv : U64} (hs : snd ∈ T) (hr : rcv ∈ T) (hne : snd ≠ rcv) {xs xr : Fl4Spec.Tcb}
+    (hks : σ.kheap snd.bv = some (.tcb xs)) (hkr : σ.kheap rcv.bv = some (.tcb xr))
+    {f : Fl4Spec.Fault} (hf : xs.tcbFault = some f) {label : Fl4Spec.Data} {ms : List Fl4Spec.Word}
+    (hmsg : Fl4Spec.makeFaultMsg (Z := Unit) f snd.bv σ = ({((label, ms), σ)}, False)) (hlen : ms.length < 120)
+    {lab : U64} (hty : L.mem s (tFaultA snd) = lab)
+    (hlab : lab.bv &&& Fl4Spec.mask Fl4Spec.msgLabelBits = label)
+    {rw : U64} {p : Fl4Spec.ObjRef} (hmr : BufMap B rw p)
+    (hu : ∀ k, k < 128 → Fl4Spec.inUserFrame (bufAddr p k) σ) (badge : U64)
+    (hset : faults.set_mrs_fault st ar s a snd rcv rw ⦃ r => r.1.val = ms.length ∧
+      MrInv (L := L) T E R B SR s σ rcv xr p r.2 ms ⦄) :
+    ipc.do_fault_transfer st ar s a badge snd rcv rw ⦃ s' => ∃ σ',
+      Fl4Spec.doFaultTransfer (Z := Unit) badge.bv snd.bv rcv.bv (some p) σ = ({((), σ')}, False) ∧
+      EpStateRel T E R B (L.mem s') σ' ∧ SR s' σ' ⦄ :=
+  WP.spec_mono (do_fault_transfer_full hH hP s a σ hR hs hr hne hks hkr hf hmsg hlen hty hlab hmr hu badge hset)
+    fun _ ⟨σ', h1, h2, h3, _⟩ => ⟨σ', h1, h2, h3⟩
 
 /-- **`do_fault_transfer` of a cap fault** into a receiver with a mapped IPC
 buffer refines l4v `do_fault_transfer`. -/

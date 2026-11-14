@@ -21,6 +21,8 @@ import Fl4Proofs.P1.QueueRestart
 import Fl4Proofs.P1.QueueBudget
 import Fl4Proofs.P1.QueueBudget2
 import Fl4Proofs.P1.QueueHeap
+import Fl4Proofs.P1.QueueAppend
+import Fl4Proofs.P1.QueueBlock
 import Fl4Proofs.P2.Runtime
 import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine
@@ -36,4 +38,5 @@ import Fl4Proofs.P3.Sc
 import Fl4Proofs.P3.Ep
 import Fl4Proofs.P3.TcbRel
 import Fl4Proofs.P3.EpFaultUs
+import Fl4Proofs.P3.EpComb
 import Fl4Proofs.P3.UntypedTcb
