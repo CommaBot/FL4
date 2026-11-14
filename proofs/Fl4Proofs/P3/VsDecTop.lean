@@ -52,6 +52,46 @@ theorem topF_of_lift2M {α β : Type} {f : α → Fl4Spec.Fl4Invocation} {g : β
   · exact Or.inl ⟨e, h1, h2, e', run_liftME_err (run_liftME_err hr), he⟩
   · exact Or.inr ⟨f (g inv), hr.liftME.liftME, rest⟩
 
+/-- The state after an outcome: unchanged, or one with `Q` (the VSpace
+footprint, through the invocations' `SR`). -/
+abbrev FootQ (Q : S → Prop) (s : S) (res : core.result.Result Unit error.Exc × S × A) : Prop :=
+  res.2.1 = s ∨ Q res.2.1
+
+/-- `DecOKF` with `FootQ Q` after. -/
+abbrev DecOKFQ (Q : S → Prop) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl length slot : U64)
+    (c : capability.Cap) (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
+    (slbl : Fl4Spec.Data) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) : Prop :=
+  syscall.decode_invocation st arI s ar lbl length slot c blk call don fp buf extra ⦃ res =>
+    TopPostF (L := L) σ blk call don (specDec fp slbl args ci sl c excaps buffer) s res ∧ FootQ Q s res ⦄
+
+theorem DecOKFQ.toF {Q : S → Prop} {s : S} {ar : A} {σ : Fl4Spec.State Unit} {lbl length slot : U64}
+    {c : capability.Cap} {blk call don fp : Bool} {buf : U64} {extra : Aeneas.Std.Array obj.Slot 3#usize}
+    {slbl : Fl4Spec.Data} {args : List Fl4Spec.Data} {ci : Fl4Spec.CapRef} {sl : Fl4Spec.CslotPtr}
+    {excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {buffer : Option Fl4Spec.ObjRef}
+    (h : DecOKFQ (L := L) arI Q s ar σ lbl length slot c blk call don fp buf extra slbl args ci sl excaps buffer) :
+    DecOKF (L := L) arI s ar σ lbl length slot c blk call don fp buf extra slbl args ci sl excaps buffer :=
+  WP.spec_mono h fun _ h => h.1
+
+theorem DecOKF.toFQ {s : S} {ar : A} {σ : Fl4Spec.State Unit} {lbl length slot : U64}
+    {c : capability.Cap} {blk call don fp : Bool} {buf : U64} {extra : Aeneas.Std.Array obj.Slot 3#usize}
+    {slbl : Fl4Spec.Data} {args : List Fl4Spec.Data} {ci : Fl4Spec.CapRef} {sl : Fl4Spec.CslotPtr}
+    {excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {buffer : Option Fl4Spec.ObjRef}
+    (h : DecOKF (L := L) arI s ar σ lbl length slot c blk call don fp buf extra slbl args ci sl excaps buffer) :
+    DecOKFQ (L := L) arI (fun _ => True) s ar σ lbl length slot c blk call don fp buf extra slbl args ci sl excaps
+      buffer :=
+  WP.spec_mono h fun _ h => ⟨h, Or.inr trivial⟩
+
+/-- An error outcome, the state unchanged. -/
+theorem topFQ_err {α β : Type} {f : α → Fl4Spec.Fl4Invocation} {g : β → α} {m : Fl4Spec.SEMonad Unit β}
+    {Q : S → Prop} {σ : Fl4Spec.State Unit} {blk call don : Bool} {s : S}
+    {res : core.result.Result Unit error.Exc × S × A}
+    (h : ∃ e, res.1 = .Err e ∧ res.2.1 = s ∧ ∃ e', m.run σ = ({(.error e', σ)}, False) ∧ ErrRel e e') :
+    TopPostF (L := L) σ blk call don (Fl4Spec.NonDetE.liftME f (Fl4Spec.NonDetE.liftME g m)) s res ∧
+      FootQ Q s res := by
+  obtain ⟨e, h1, h2, h3⟩ := h
+  exact ⟨topF_of_lift2 (Or.inl ⟨e, h1, h2, h3⟩), Or.inl h2⟩
+
 /-- **A PML4 cap** (see the module docstring). -/
 theorem decode_invocation_pml4 (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)

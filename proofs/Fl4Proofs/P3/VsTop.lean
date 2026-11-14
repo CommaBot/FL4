@@ -78,6 +78,9 @@ structure TopPlaced (th : TypedHeap) (P L4 L3 L2 L1 N T C E R : Set U64) (B : Se
   pv : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b
   vo : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b
   sd : VsSlotsDisj th P (L.ksb s)
+  /-- The TCBs of the typed heap lie apart from the kernel-global area (the
+  VSpace footprint's TCB state words outside the domain schedule's). -/
+  tko : ∀ t, th t = some .tcb → t.val + 4096 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ t.val
 
 /-- FL4's kernel root word (`ks::KERNEL_ROOT`) gives the spec's global
 address space. -/
@@ -315,7 +318,7 @@ theorem TopSR.step {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Rg : Fl4Spec.Ob
       fun x h1 h2 => by
         have hnb : L.nodeBase s' c = L.nodeBase s c := by simp [LawfulStore.nodeBase, hksb]
         rw [hnb] at h1 h2; exact hP.nodeE x h1 h2,
-      hP.po, hP.ps, by rw [hksb]; exact hP.pv, by rw [hksb]; exact hP.vo, by rw [hksb]; exact hP.sd⟩⟩
+      hP.po, hP.ps, by rw [hksb]; exact hP.pv, by rw [hksb]; exact hP.vo, by rw [hksb]; exact hP.sd, by rw [hksb]; exact hP.tko⟩⟩
   unfold KRootRel globCr3 at hKr ⊢
   have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
     unfold layout.ks.KERNEL_ROOT

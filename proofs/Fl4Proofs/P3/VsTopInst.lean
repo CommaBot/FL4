@@ -303,9 +303,9 @@ theorem decode_invocation_frame_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
     DecOKF (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ∨
     DecOKR (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
-      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct := decode_invocation_frame arI th hS.2.pl s ar σ G hCR hFI hFR (vsFrameHyps_top hA) (vsFrameHypsL_top hA)
+      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct := (decode_invocation_frame arI th hS.2.pl s ar σ G hCR hFI hFR (fun _ _ _ _ => trivial) (vsFrameHyps_top hA) (vsFrameHypsL_top hA)
     (vsFrameUnmapHyps_top hA) hS hS.2.vs hS.2.sd hS.2.pt hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlbl length buf ct hct hcur htcb
-    hact hrun args hlen hargs hpc hidx hcap hfm hpaS hpaL hpaH hAl extra excaps hext blk call don fp ci buffer hGA hTAC hDS
+    hact hrun args hlen hargs hpc hidx hcap hfm hpaS hpaL hpaH hAl extra excaps hext blk call don fp ci buffer hGA hTAC (fun h => DecOKF.toFQ arI (hDS h))).imp (fun h => DecOKFQ.toF arI h.2.2) (fun h => h.2)
 
 
 set_option maxHeartbeats 8000000 in
@@ -341,7 +341,7 @@ theorem decode_invocation_page_table_top (th : TypedHeap) (s : S) (ar : A) (σ :
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     DecOKF (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageTable ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
-  decode_invocation_page_table arI th hS.2.pl s ar σ G hCR hFI hFR (vsPtMapHyps_top hA) (vsPtUnmapHyps_top hA) hS hS.2.vs hS.2.sd hS.2.pt
+  DecOKFQ.toF arI <| decode_invocation_page_table arI th hS.2.pl s ar σ G hCR hFI hFR (fun _ _ _ _ => trivial) (vsPtMapHyps_top hA) (vsPtUnmapHyps_top hA) hS hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
     hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer
 
@@ -378,7 +378,7 @@ theorem decode_invocation_page_directory_top (th : TypedHeap) (s : S) (ar : A) (
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     DecOKF (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageDirectory ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
-  decode_invocation_page_directory arI th hS.2.pl s ar σ G hCR hFI hFR (vsPdMapHyps_top hA) (vsPdUnmapHyps_top hA) hS hS.2.vs hS.2.sd hS.2.pt
+  DecOKFQ.toF arI <| decode_invocation_page_directory arI th hS.2.pl s ar σ G hCR hFI hFR (fun _ _ _ _ => trivial) (vsPdMapHyps_top hA) (vsPdUnmapHyps_top hA) hS hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
     hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer
 
@@ -415,7 +415,7 @@ theorem decode_invocation_pdpt_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Sp
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     DecOKF (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Pdpt ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
-  decode_invocation_pdpt arI th hS.2.pl s ar σ G hCR hFI hFR (vsPdptMapHyps_top hA) (vsPdptUnmapHyps_top hA) hS hS.2.vs hS.2.sd hS.2.pt
+  DecOKFQ.toF arI <| decode_invocation_pdpt arI th hS.2.pl s ar σ G hCR hFI hFR (fun _ _ _ _ => trivial) (vsPdptMapHyps_top hA) (vsPdptUnmapHyps_top hA) hS hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
     hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer
 
@@ -445,7 +445,7 @@ theorem decode_invocation_asid_pool_top (th : TypedHeap) (s : S) (ar : A) (σ : 
     (buffer : Option Fl4Spec.ObjRef) :
     DecOKF (L := L) arI s ar σ lbl length slot (.AsidPool ptr base) blk call don fp buf extra slbl args ci sl excaps
       buffer :=
-  decode_invocation_asid_pool arI th hS.2.pl s ar σ G hCR hFI hFR (vsInvHyps_top curT_top) hS hS.2.vs hS.2.sd hR hS.2.vo
+  DecOKFQ.toF arI <| decode_invocation_asid_pool arI th hS.2.pl s ar σ G hCR hFI hFR (fun _ _ _ _ => trivial) (vsInvHyps_top curT_top) hS hS.2.vs hS.2.sd hR hS.2.vo
     lbl slbl hlA length buf ct hct hcur htcb hact hrun ptr base hb extra excaps hext slot blk call don fp args ci sl
     buffer
 
@@ -482,7 +482,7 @@ theorem decode_invocation_asid_control_top (th : TypedHeap) (s : S) (ar : A) (σ
     (buffer : Option Fl4Spec.ObjRef) :
     DecOKF (L := L) arI s ar σ lbl length slot .AsidControl blk call don fp buf extra slbl (args.map UScalar.bv) ci sl
       excaps buffer :=
-  decode_invocation_asid_control arI th hS.2.pl s ar σ G hCR hFI hU hFR vsMpHyps_top hS hR hPt hS.2.vs hS.2.pt
+  DecOKFQ.toF arI <| decode_invocation_asid_control arI th hS.2.pl s ar σ G hCR hFI hU hFR (fun _ _ _ _ => trivial) vsMpHyps_top hS hR hPt hS.2.vs hS.2.pt
     hS.2.vo hS.2.po hS.2.pv lbl slbl hlM length buf ct hct hcur htcb hact hrun args hlen hargs extra excaps hext slot
     blk call don fp ci sl buffer
 

@@ -87,7 +87,7 @@ theorem decode_invocation_frame_full (th : TypedHeap) (s : S) (ar : A) (σ : Fl4
   have hDS : lbl = fl4_abi.label.X86PageDeriveSubframe →
       DecOKF (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
         buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := fun hl => by
-    have := decode_invocation_frame_ds (L := L) arI th hS.2.pl s ar σ G hCR hFI hU
+    have := DecOKFQ.toF arI <| decode_invocation_frame_ds (L := L) arI th hS.2.pl s ar σ G hCR hFI hU (fun _ _ _ _ => trivial)
       (Vs.vsSubHyps_top (st := st) (L := L) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1)
         (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) (AR := AR)) hS hS.2.pt
       hS.2.vs hS.2.vo hS.2.po hR hPt lbl slbl hlbl hl length buf ct hct hcur htcb hact hkt (hrun _ hkt) args hlen

@@ -36,6 +36,7 @@ import Fl4Proofs.P1.QueueBind
 import Fl4Proofs.P1.QueueReply
 import Fl4Proofs.P1.QueueReplyPop
 import Fl4Proofs.P1.QueueEntry
+import Fl4Proofs.P1.QueueInvoke
 import Fl4Proofs.P1.QueueFootD
 import Fl4Proofs.P1.QueueFootS
 import Fl4Proofs.P1.QueueRecv
@@ -103,6 +104,11 @@ import Fl4Proofs.P3.VsTopInst
 import Fl4Proofs.P3.VsFrameInv
 import Fl4Proofs.P3.VsFrameFull
 import Fl4Proofs.P3.VsFootW
+import Fl4Proofs.P3.VsCapInv
+import Fl4Proofs.P3.VsTopCap
+import Fl4Proofs.P3.VsDom
+import Fl4Proofs.P3.VsDomOps
+import Fl4Proofs.P3.VsDomF
 import Fl4Proofs.P3.CancelKSub
 import Fl4Proofs.P3.ResetFin
 import Fl4Proofs.P3.RetypeFresh
