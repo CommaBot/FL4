@@ -186,7 +186,7 @@ theorem reply_push_n (hC : CombHyps st N T E R B SR) (hP' : CPlaced N T E R B) (
 /-- **The step lemmas for the combined relation.** -/
 theorem CombHyps.steps (hC : CombHyps st N T E R B SR) (hBf : EpBufHyps st T E R B SR)
     (hBm : EpBufMapHyps st T E R B SR) (hP' : CPlaced N T E R B) :
-    EpSteps st A ar T E R B (SRN st N T SR) (fun ts => tsCode ts ≠ 6) where
+    EpStepsBuf st A ar T E R B (SRN st N T SR) (fun ts => tsCode ts ≠ 6) where
   ns_ep _ h := h
   deq hP s σ hR hSR e he x hk d hd := by
     obtain ⟨xs, hQ, hxs, hB⟩ := (hR.at_ep he hk).queue

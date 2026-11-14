@@ -10,7 +10,7 @@ transfer**.
   are mapped (`BufMap`).
 -/
 import Fl4Proofs.P3.EpBufSpec
-import Fl4Proofs.P3.EpCall3
+import Fl4Proofs.P3.EpPush
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Endp

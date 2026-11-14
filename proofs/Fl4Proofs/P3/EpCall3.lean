@@ -135,10 +135,8 @@ section
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st] {T E R : Set U64}
   {B : Set (U64 × Fl4Spec.Word)} {SR : S → Fl4Spec.State Unit → Prop}
 
-/-- **Receive from a calling sender with a grant right, into a reply cap**:
-the reply goes to the sender, which becomes `BlockedOnReply` (no donation:
-the sender has no scheduling context). -/
-theorem receive_ipc_sendCallPush (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E R B SR)
+/-- `receive_ipc_sendCallPush` over the bundled step lemmas (`EpSteps`). -/
+theorem receive_ipc_sendCallPush_gen {NS : Fl4Spec.ThreadState → Prop} (hX : EpSteps st A ar T E R B SR NS)
     (hTl : EpTailHyps st A T E R B SR) (hSc : EpScHyps st T E R B SR) (hP : EPlaced T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hR : EpStateRel T E R B (L.mem s) σ) (hSR : SR s σ)
     {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
@@ -189,7 +187,7 @@ theorem receive_ipc_sendCallPush (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st
   step as ⟨q0, hq0⟩
   have hhead : q0.head = sd' := by rw [hq0, epQ_eq]; exact hQ.head
   rw [hhead]
-  refine WP.spec_bind (ep_dequeue_rel hH hP s σ hR hSR he hk (d := sd') (by simp [Fl4Spec.Endpoint.epQueue])) ?_
+  refine WP.spec_bind (hX.deq hP s σ hR hSR he hk (d := sd') (by simp [Fl4Spec.Endpoint.epQueue])) ?_
   rintro s1 ⟨e1, hR1, hS1, hA1⟩
   set σ1 := updK σ e.bv (.endpoint (epDeq (.sendEP (sd'.bv :: q)) sd'.bv))
   have hkt1 : σ1.kheap t.bv = some (.tcb xt) := by simp [σ1, hte, hkt]
@@ -218,7 +216,7 @@ theorem receive_ipc_sendCallPush (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st
   have hbb : bdg.bv = dd.senderBadge := by rw [hbdg, hbw]; exact hbadge
   have hcaps' := hcaps _ _ hstd
   rw [← hgi] at hcaps'
-  refine WP.spec_bind (do_ipc_transfer_regs hH hBf hP s1 a σ1 hR1 hS1 hsT ht (Ne.symm hts) hks1 hkt1 hfs hrb e bdg
+  refine WP.spec_bind (hX.xregs hP s1 a σ1 hR1 hS1 hsT ht (Ne.symm hts) hks1 hkt1 hfs hrb e bdg
     (i != 0#u64) hcaps') ?_
   rintro s2 ⟨e2, hR2, hS2, hA2⟩
   set σ2 := updK σ1 t.bv (.tcb (xferTcb xt xs bdg.bv))
@@ -263,7 +261,7 @@ theorem receive_ipc_sendCallPush (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st
   have hspec := receiveIpc_sendCallPush_eq (rr := r') b rights blk hkr hxr hkt hbn hk hks hse hstd (hcall _ _ hstd)
     (hg _ _ hstd) e2' hA hks3 (hs3f.trans hfs) hsc3 (t := t.bv) (r := rv.bv)
   have hrvne : (rv != 0#u64) = true := by simp [rep_ne0 hP hrvR]
-  have hpush := reply_push_rel (ar := ar) hH hP s3 a σ3 hR3 hS3 hsT hks3 hkt3 hq3 hrvR hkr3
+  have hpush := hX.push hP s3 a σ3 hR3 hS3 hsT hks3 hkt3 hq3 (hX.ns_ep _ (by rw [hs3st, hstd]; simp [tsCode])) hrvR hkr3
   have hg' := hg _ _ hstd
   cases hgg : dd.senderCanGrant with
   | true =>
@@ -292,10 +290,31 @@ theorem receive_ipc_sendCallPush (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st
     rw [hspec, hp4]
     exact ⟨ha4, by simp, _, by simp, hR4, hS4⟩
 
+/-- **Receive from a calling sender with a grant right, into a reply cap**:
+the reply goes to the sender, which becomes `BlockedOnReply` (no donation:
+the sender has no scheduling context). -/
+theorem receive_ipc_sendCallPush (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E R B SR)
+    (hTl : EpTailHyps st A T E R B SR) (hSc : EpScHyps st T E R B SR) (hP : EPlaced T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (hR : EpStateRel T E R B (L.mem s) σ) (hSR : SR s σ)
+    {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
+    (hnb : tsCode xt.tcbState ≠ 3 ∧ tsCode xt.tcbState ≠ 4) (hbn : xt.tcbBoundNotification = none)
+    (hrb : ipcBufOf true xt = none)
+    {e sd : U64} (he : e ∈ E) {q : List Fl4Spec.ObjRef} (hk : σ.kheap e.bv = some (.endpoint (.sendEP (sd.bv :: q))))
+    {xs : Fl4Spec.Tcb} (hks : σ.kheap sd.bv = some (.tcb xs)) (hfs : xs.tcbFault = none)
+    (hcall : ∀ e' dd, xs.tcbState = .blockedOnSend e' dd → dd.senderIsCall = true)
+    (hg : ∀ e' dd, xs.tcbState = .blockedOnSend e' dd → dd.senderCanGrant = true ∨ dd.senderCanGrantReply = true)
+    (hscn : xs.tcbSchedContext = none)
+    (hcaps : ∀ e' dd, xs.tcbState = .blockedOnSend e' dd → dd.senderCanGrant = false ∨ ipcBufOf false xs = none ∨
+      Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0)
+    (cb : U64) (c1 c2 c3 c4 : Bool) {rv : U64} (b' : Bool) (r' : Fl4Spec.CapRights) (hrvR : rv ∈ R) (hrv0 : L.mem s (rTcbA rv) = 0#u64) (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) (blk : Bool) :
+    endpoint.receive_ipc st ar s a t (.Endpoint e cb c1 c2 c3 c4) blk (.Reply rv b') ⦃ r => r.2 = a ∧
+      ¬ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk (.replyCap rv.bv r') σ).2 ∧
+      ∃ σ', ((), σ') ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk (.replyCap rv.bv r') σ).1 ∧
+        EpStateRel T E R B (L.mem r.1) σ' ∧ SR r.1 σ' ⦄ :=
+  receive_ipc_sendCallPush_gen (EpHyps.steps (ar := ar) hH hBf (fun _ => True) (fun _ _ => trivial)) hTl hSc hP s a σ hR hSR ht hkt hnb hbn hrb he hk hks hfs hcall hg hscn hcaps cb c1 c2 c3 c4 b' r' hrvR hrv0 b rights blk
 
-/-- **Receive from a calling sender without a grant right or without a
-reply cap**: the sender becomes `Inactive`. -/
-theorem receive_ipc_sendCallInactive (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E R B SR)
+/-- `receive_ipc_sendCallInactive` over the bundled step lemmas (`EpSteps`). -/
+theorem receive_ipc_sendCallInactive_gen {NS : Fl4Spec.ThreadState → Prop} (hX : EpSteps st A ar T E R B SR NS)
     (hTl : EpTailHyps st A T E R B SR) (hP : EPlaced T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hR : EpStateRel T E R B (L.mem s) σ) (hSR : SR s σ)
     {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
@@ -347,7 +366,7 @@ theorem receive_ipc_sendCallInactive (hH : EpHyps st T E R B SR) (hBf : EpBufHyp
   step as ⟨q0, hq0⟩
   have hhead : q0.head = sd' := by rw [hq0, epQ_eq]; exact hQ.head
   rw [hhead]
-  refine WP.spec_bind (ep_dequeue_rel hH hP s σ hR hSR he hk (d := sd') (by simp [Fl4Spec.Endpoint.epQueue])) ?_
+  refine WP.spec_bind (hX.deq hP s σ hR hSR he hk (d := sd') (by simp [Fl4Spec.Endpoint.epQueue])) ?_
   rintro s1 ⟨e1, hR1, hS1, hA1⟩
   set σ1 := updK σ e.bv (.endpoint (epDeq (.sendEP (sd'.bv :: q)) sd'.bv))
   have hkt1 : σ1.kheap t.bv = some (.tcb xt) := by simp [σ1, hte, hkt]
@@ -376,7 +395,7 @@ theorem receive_ipc_sendCallInactive (hH : EpHyps st T E R B SR) (hBf : EpBufHyp
   have hbb : bdg.bv = dd.senderBadge := by rw [hbdg, hbw]; exact hbadge
   have hcaps' := hcaps _ _ hstd
   rw [← hgi] at hcaps'
-  refine WP.spec_bind (do_ipc_transfer_regs hH hBf hP s1 a σ1 hR1 hS1 hsT ht (Ne.symm hts) hks1 hkt1 hfs hrb e bdg
+  refine WP.spec_bind (hX.xregs hP s1 a σ1 hR1 hS1 hsT ht (Ne.symm hts) hks1 hkt1 hfs hrb e bdg
     (i != 0#u64) hcaps') ?_
   rintro s2 ⟨e2, hR2, hS2, hA2⟩
   set σ2 := updK σ1 t.bv (.tcb (xferTcb xt xs bdg.bv))
@@ -416,19 +435,42 @@ theorem receive_ipc_sendCallInactive (hH : EpHyps st T E R B SR) (hBf : EpBufHyp
     rw [g1] at hgi
     rw [g2] at hgr
     simp only [hgi, hgr, Bool.false_eq_true, ↓reduceIte]
-    refine WP.spec_bind (set_thread_state_rel hH hP s3 σ3 hR3 hS3 hsT hks3 hq3 .inactive (by simp [tsCode])
+    refine WP.spec_bind (hX.sts hP s3 σ3 hR3 hS3 hsT hks3 hq3 (hX.ns_ep _ (by rw [hs3st, hstd]; simp [tsCode])) .inactive (by simp [tsCode])
       sched.TS_INACTIVE (by unfold sched.TS_INACTIVE; rfl)) ?_
     rintro s4 ⟨h1, h2⟩
     simp only [WP.spec_ok]
     rw [hspec, setThreadState_eq _ hks3]
     exact ⟨trivial, by simp, _, by simp, h1, h2⟩
   · simp only [h, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, ite_self]
-    refine WP.spec_bind (set_thread_state_rel hH hP s3 σ3 hR3 hS3 hsT hks3 hq3 .inactive (by simp [tsCode])
+    refine WP.spec_bind (hX.sts hP s3 σ3 hR3 hS3 hsT hks3 hq3 (hX.ns_ep _ (by rw [hs3st, hstd]; simp [tsCode])) .inactive (by simp [tsCode])
       sched.TS_INACTIVE (by unfold sched.TS_INACTIVE; rfl)) ?_
     rintro s4 ⟨h1, h2⟩
     simp only [WP.spec_ok]
     rw [hspec, setThreadState_eq _ hks3]
     exact ⟨trivial, by simp, _, by simp, h1, h2⟩
+
+/-- **Receive from a calling sender without a grant right or without a
+reply cap**: the sender becomes `Inactive`. -/
+theorem receive_ipc_sendCallInactive (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E R B SR)
+    (hTl : EpTailHyps st A T E R B SR) (hP : EPlaced T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (hR : EpStateRel T E R B (L.mem s) σ) (hSR : SR s σ)
+    {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
+    (hnb : tsCode xt.tcbState ≠ 3 ∧ tsCode xt.tcbState ≠ 4) (hbn : xt.tcbBoundNotification = none)
+    (hrb : ipcBufOf true xt = none)
+    {e sd : U64} (he : e ∈ E) {q : List Fl4Spec.ObjRef} (hk : σ.kheap e.bv = some (.endpoint (.sendEP (sd.bv :: q))))
+    {xs : Fl4Spec.Tcb} (hks : σ.kheap sd.bv = some (.tcb xs)) (hfs : xs.tcbFault = none)
+    (hcall : ∀ e' dd, xs.tcbState = .blockedOnSend e' dd → dd.senderIsCall = true)
+    (hcaps : ∀ e' dd, xs.tcbState = .blockedOnSend e' dd → dd.senderCanGrant = false ∨ ipcBufOf false xs = none ∨
+      Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0)
+    (cb : U64) (c1 c2 c3 c4 : Bool) {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64}
+    (hrc : ReplyArg R (L.mem s) rc rc' rv)
+    (hno : (∀ e' dd, xs.tcbState = .blockedOnSend e' dd → dd.senderCanGrant = false ∧ dd.senderCanGrantReply = false) ∨
+      rv = 0#u64) (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) (blk : Bool) :
+    endpoint.receive_ipc st ar s a t (.Endpoint e cb c1 c2 c3 c4) blk rc ⦃ r => r.2 = a ∧
+      ¬ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).2 ∧
+      ∃ σ', ((), σ') ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1 ∧
+        EpStateRel T E R B (L.mem r.1) σ' ∧ SR r.1 σ' ⦄ :=
+  receive_ipc_sendCallInactive_gen (EpHyps.steps (ar := ar) hH hBf (fun _ => True) (fun _ _ => trivial)) hTl hP s a σ hR hSR ht hkt hnb hbn hrb he hk hks hfs hcall hcaps cb c1 c2 c3 c4 hrc hno b rights blk
 
 end
 

@@ -105,9 +105,8 @@ section
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st] {T E R : Set U64}
   {B : Set (U64 × Fl4Spec.Word)} {SR : S → Fl4Spec.State Unit → Prop}
 
-/-- **Receive from a waiting sender** (not calling, no fault; receiver
-without IPC buffer and bound notification, no extra caps). -/
-theorem receive_ipc_send (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E R B SR)
+/-- `receive_ipc_send` over the bundled step lemmas (`EpSteps`). -/
+theorem receive_ipc_send_gen {NS : Fl4Spec.ThreadState → Prop} (hX : EpSteps st A ar T E R B SR NS)
     (hTl : EpTailHyps st A T E R B SR) (hP : EPlaced T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hR : EpStateRel T E R B (L.mem s) σ) (hSR : SR s σ)
     {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
@@ -157,7 +156,7 @@ theorem receive_ipc_send (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E R B
   step as ⟨q0, hq0⟩
   have hhead : q0.head = sd' := by rw [hq0, epQ_eq]; exact hQ.head
   rw [hhead]
-  refine WP.spec_bind (ep_dequeue_rel hH hP s σ hR hSR he hk (d := sd') (by simp [Fl4Spec.Endpoint.epQueue])) ?_
+  refine WP.spec_bind (hX.deq hP s σ hR hSR he hk (d := sd') (by simp [Fl4Spec.Endpoint.epQueue])) ?_
   rintro s1 ⟨e1, hR1, hS1, hA1⟩
   set σ1 := updK σ e.bv (.endpoint (epDeq (.sendEP (sd'.bv :: q)) sd'.bv))
   have hkt1 : σ1.kheap t.bv = some (.tcb xt) := by simp [σ1, hte, hkt]
@@ -180,7 +179,7 @@ theorem receive_ipc_send (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E R B
   have hbb : bdg.bv = dd.senderBadge := by rw [hbdg, hbw]; exact hbadge
   have hcaps' := hcaps _ _ hstd
   rw [← hg] at hcaps'
-  refine WP.spec_bind (do_ipc_transfer_regs hH hBf hP s1 a σ1 hR1 hS1 hsT ht (Ne.symm hts) hks1 hkt1 hfs hrb e bdg
+  refine WP.spec_bind (hX.xregs hP s1 a σ1 hR1 hS1 hsT ht (Ne.symm hts) hks1 hkt1 hfs hrb e bdg
     (i != 0#u64) hcaps') ?_
   rintro s2 ⟨e2, hR2, hS2, hA2⟩
   set σ2 := updK σ1 t.bv (.tcb (xferTcb xt xs bdg.bv))
@@ -208,7 +207,7 @@ theorem receive_ipc_send (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E R B
     have := tcb_disj hP ht hsT hts.symm
     rw [val_blk hsa, regA_val hta (regIdx_lt r')] at hr'; have := regIdx_lt r'; omega
   have hq3 := dequeued_not_queued hR3 he hb3 hk3e (epDeq_not_mem _)
-  refine WP.spec_bind (set_thread_state_rel hH hP s3 σ3 hR3 hS3 hsT hks3 hq3 .running (by simp [tsCode])
+  refine WP.spec_bind (hX.sts hP s3 σ3 hR3 hS3 hsT hks3 hq3 (hX.ns_ep _ (by rw [hs3st, hstd]; simp [tsCode])) .running (by simp [tsCode])
     sched.TS_RUNNING (by unfold sched.TS_RUNNING; rfl)) ?_
   rintro s4 ⟨hR4, hS4⟩
   have hspec := receiveIpc_send_eq b rights blk hsr hkt hbn hk hks hse hstd (hcall _ _ hstd) e2' hA hks3
@@ -217,6 +216,27 @@ theorem receive_ipc_send (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E R B
   refine WP.spec_mono (hTl.switchTo s4 a _ sd' hR4 hS4 hsT) ?_
   rintro ⟨s5, a5⟩ ⟨ha5, hnf, σ', hm, hf, hv, hS'⟩
   exact ⟨ha5, hnf, σ', hm, hR4.frame hP hf hv, hS'⟩
+
+/-- **Receive from a waiting sender** (not calling, no fault; receiver
+without IPC buffer and bound notification, no extra caps). -/
+theorem receive_ipc_send (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E R B SR)
+    (hTl : EpTailHyps st A T E R B SR) (hP : EPlaced T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (hR : EpStateRel T E R B (L.mem s) σ) (hSR : SR s σ)
+    {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
+    (hnb : tsCode xt.tcbState ≠ 3 ∧ tsCode xt.tcbState ≠ 4) (hbn : xt.tcbBoundNotification = none)
+    (hrb : ipcBufOf true xt = none)
+    {e sd : U64} (he : e ∈ E) {q : List Fl4Spec.ObjRef} (hk : σ.kheap e.bv = some (.endpoint (.sendEP (sd.bv :: q))))
+    {xs : Fl4Spec.Tcb} (hks : σ.kheap sd.bv = some (.tcb xs)) (hfs : xs.tcbFault = none)
+    (hcall : ∀ e' dd, xs.tcbState = .blockedOnSend e' dd → dd.senderIsCall = false)
+    (hcaps : ∀ e' dd, xs.tcbState = .blockedOnSend e' dd → dd.senderCanGrant = false ∨ ipcBufOf false xs = none ∨
+      Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0)
+    (cb : U64) (c1 c2 c3 c4 : Bool) {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64}
+    (hrc : ReplyArg R (L.mem s) rc rc' rv) (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) (blk : Bool) :
+    endpoint.receive_ipc st ar s a t (.Endpoint e cb c1 c2 c3 c4) blk rc ⦃ r => r.2 = a ∧
+      ¬ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).2 ∧
+      ∃ σ', ((), σ') ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1 ∧
+        EpStateRel T E R B (L.mem r.1) σ' ∧ SR r.1 σ' ⦄ :=
+  receive_ipc_send_gen (EpHyps.steps (ar := ar) hH hBf (fun _ => True) (fun _ _ => trivial)) hTl hP s a σ hR hSR ht hkt hnb hbn hrb he hk hks hfs hcall hcaps cb c1 c2 c3 c4 hrc b rights blk
 
 end
 
