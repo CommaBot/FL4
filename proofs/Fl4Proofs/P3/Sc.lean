@@ -125,6 +125,9 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
   (`schedTailHyp_of`, `ScTailHyp`).
 * ScTopF: the SchedContext and SchedControl caps with the frame invariant
   (`DecOKF`, `DecOKDF`).
+* ScSpecStep: `ScSpecHyp` (`scSpecHyp_of`): the SC step's no-change and
+  unbind cases (`PresV`/`VK` across `set_mcpriority` and `set_priority`), the
+  bind as `BindSpecHyp`.
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
@@ -151,3 +154,4 @@ import Fl4Proofs.P3.ScTopCfg
 import Fl4Proofs.P3.ScTcb
 import Fl4Proofs.P3.ScTcbHyp
 import Fl4Proofs.P3.ScTopF
+import Fl4Proofs.P3.ScSpecStep
