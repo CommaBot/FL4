@@ -99,6 +99,38 @@ end
 
 end
 
+/-- **`FinInv` after a reset**, from an outcome of the spec's
+`reset_untyped_cap` (up to its heap) and FL4's caps: the untyped cap like the
+old one, the other caps of the MDB kept. -/
+theorem reset_fin_of {th : TypedHeap} {mem mem' : U64 → U64} {σ σ' : Fl4Spec.State Unit} {G : MdbGhost}
+    (hFI : FinInv th mem σ G) (hnd : G.chains.flatten.Nodup) {pp : U64} {idx : List Bool} {p sb fi : U64}
+    {dev : Bool} (hsb : sb.val < 64) (hfit : p.val + 2 ^ sb.val ≤ 2 ^ 64)
+    (hg : Fl4Spec.getCap (Z := Unit) (pp.bv, idx) σ = ({(.untypedCap dev p.bv sb.val fi.val, σ)}, False))
+    (hfi0 : fi.val ≠ 0)
+    (hy : ∃ y ∈ ((Fl4Spec.resetUntypedCap (Z := Unit) (pp.bv, idx)).run σ).1, y.2.kheap = σ'.kheap)
+    (x : U64) (hx : CapSim (capV mem' x) (capV mem x))
+    (hcap : ∀ z ∈ G.chains.flatten, z ≠ x → capV mem' z = capV mem z) :
+    FinInv (restrictTh th p.val (p.val + 2 ^ sb.val)) mem' σ' G := by
+  refine ⟨?_, hFI.fm.recap hnd x hx hcap⟩
+  obtain ⟨y, hy, hk⟩ := hy
+  obtain ⟨hKs, hEm⟩ := resetUntypedCap_mem hg hfi0 hy
+  have hout : ∀ o : BitVec 64, (∃ k, y.2.kheap o = some k) →
+      restrictTh th p.val (p.val + 2 ^ sb.val) ⟨o⟩ = th ⟨o⟩ := by
+    rintro o ⟨k, hko⟩
+    apply restrictTh_out
+    rw [← regionSet_iff p ⟨o⟩ sb.val hsb hfit]
+    intro ho; rw [hEm o ho] at hko; cases hko
+  intro o
+  refine ⟨fun r cs h hw => ?_, fun t h => ?_⟩
+  · rw [← hk] at h
+    rw [hout o ⟨_, h⟩]
+    obtain ⟨cs0, h0, hw0⟩ := (hKs o).1 r cs h hw
+    exact (hFI.kt o).1 r cs0 h0 hw0
+  · rw [← hk] at h
+    rw [hout o ⟨_, h⟩]
+    obtain ⟨t0, h0⟩ := (hKs o).2.1 t h
+    exact (hFI.kt o).2 t0 h0
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A' : Type} (arI : machine.Arch A')
 
@@ -140,34 +172,11 @@ theorem reset_untyped_fin (th : TypedHeap) (s : S) (a : A') (σ : Fl4Spec.State 
   refine WP.spec_mono (reset_untyped_refines arI th s a σ G hR hV hP hM hC hI hU hpp hidx hcap hfi0 hnd hpal hsb4
     hN hns hzero hrcb hppS hPP hEk hE) ?_
   rintro res ⟨-, σ', f, hcase, hRR, -, hcap', -⟩
-  refine ⟨σ', f, hcase, hRR, ?_, ?_⟩
-  · -- the spec's CNodes and TCBs, outside the region
-    have hy : ∃ y ∈ ((Fl4Spec.resetUntypedCap (Z := Unit) (pp.bv, idx)).run σ).1, y.2.kheap = σ'.kheap := by
-      rcases hcase with ⟨-, -, y, hy, -, hk⟩ | ⟨-, y, hy, -, hk⟩
-      · exact ⟨y, hy, hk.1⟩
-      · exact ⟨y, hy, hk.1⟩
-    obtain ⟨y, hy, hk⟩ := hy
-    obtain ⟨hKs, hEm⟩ := resetUntypedCap_mem hg hfi0 hy
-    have hout : ∀ o : BitVec 64, (∃ k, y.2.kheap o = some k) →
-        restrictTh th p.val (p.val + 2 ^ sb.val) ⟨o⟩ = th ⟨o⟩ := by
-      rintro o ⟨k, hko⟩
-      apply restrictTh_out
-      rw [← regionSet_iff p ⟨o⟩ sb.val hsb hfit]
-      intro ho; rw [hEm o ho] at hko; cases hko
-    intro o
-    refine ⟨fun r cs h hw => ?_, fun t h => ?_⟩
-    · rw [← hk] at h
-      rw [hout o ⟨_, h⟩]
-      obtain ⟨cs0, h0, hw0⟩ := (hKs o).1 r cs h hw
-      exact (hFI.kt o).1 r cs0 h0 hw0
-    · rw [← hk] at h
-      rw [hout o ⟨_, h⟩]
-      obtain ⟨t0, h0⟩ := (hKs o).2.1 t h
-      exact (hFI.kt o).2 t0 h0
-  · -- the MDB: the untyped cap's free index aside
-    refine hFI.fm.recap hM.tree.nodup (cslotAddr (pp.bv, idx)) ?_ (fun z hz hzx => ?_)
-    · rw [hRR.cap, hcv]; exact CapSim.of_shape rfl rfl
-    · exact hcap' z ((hRR.M.members z).1 hz).1 hzx
+  refine ⟨σ', f, hcase, hRR, reset_fin_of hFI hM.tree.nodup hsb hfit hg hfi0 ?_ (cslotAddr (pp.bv, idx))
+    (by rw [hRR.cap, hcv]; exact CapSim.of_shape rfl rfl) (fun z hz hzx => hcap' z ((hRR.M.members z).1 hz).1 hzx)⟩
+  rcases hcase with ⟨-, -, y, hy, -, hk⟩ | ⟨-, y, hy, -, hk⟩
+  · exact ⟨y, hy, hk.1⟩
+  · exact ⟨y, hy, hk.1⟩
 
 end
 
