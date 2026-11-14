@@ -48,6 +48,16 @@ else()
 endif()
 # Untyped resets clear 64 KiB per preemption point (l4h 0030).
 fl4_force(KernelResetChunkBits 16)
+# Kernel limits FL4 builds in at seL4's defaults (DESIGN.md section 3). A
+# project that asks for another value would see it in libsel4's generated
+# configuration while the kernel enforces its own, so refuse it.
+fl4_require(KernelRetypeFanOutLimit 256 "the kernel's retype fan-out limit is 256")
+fl4_require(KernelNumPriorities 256 "the kernel has 256 priorities")
+fl4_require(KernelMaxNumWorkUnitsPerPreemption 100 "the kernel's preemption work-unit limit is 100")
+fl4_require(KernelMaxNumBootinfoUntypedCaps 230 "BootInfo holds 230 untyped caps")
+fl4_require(KernelBootThreadTimeSlice 5 "the boot thread's time slice is 5 ms")
+fl4_require(KernelWcetScale 1 "the kernel WCET estimate is unscaled")
+fl4_require(KernelStaticMaxPeriodUs 0 "the maximum period is seL4's default")
 # Detected at boot: the values here only decide what CONFIG_* user code
 # sees, and FL4 makes them say "the general case".
 fl4_force(KernelLAPICMode XAPIC)
