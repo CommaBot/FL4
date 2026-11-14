@@ -17,19 +17,22 @@ noncomputable section
 section
 open Fl4Spec
 
-/-- Every CNode and TCB of `σ'` was one in `σ`. -/
+/-- Every CNode and TCB of `σ'` was one in `σ`, and `σ'` has no object
+where `σ` has none. -/
 def KSub (σ σ' : State Unit) : Prop :=
   ∀ o, (∀ r cs, σ'.kheap o = some (.cnode r cs) → wellFormedCnodeN r cs →
       ∃ cs0, σ.kheap o = some (.cnode r cs0) ∧ wellFormedCnodeN r cs0) ∧
-    (∀ t, σ'.kheap o = some (.tcb t) → ∃ t0, σ.kheap o = some (.tcb t0))
+    (∀ t, σ'.kheap o = some (.tcb t) → ∃ t0, σ.kheap o = some (.tcb t0)) ∧
+    (σ.kheap o = none → σ'.kheap o = none)
 
-theorem KSub.refl (σ : State Unit) : KSub σ σ := fun _ => ⟨fun r cs h hw => ⟨cs, h, hw⟩, fun t h => ⟨t, h⟩⟩
+theorem KSub.refl (σ : State Unit) : KSub σ σ :=
+  fun _ => ⟨fun r cs h hw => ⟨cs, h, hw⟩, fun t h => ⟨t, h⟩, fun h => h⟩
 
 theorem KSub.trans {σ1 σ2 σ3 : State Unit} (h1 : KSub σ1 σ2) (h2 : KSub σ2 σ3) : KSub σ1 σ3 := by
   intro o
-  refine ⟨fun r cs h hw => ?_, fun t h => ?_⟩
+  refine ⟨fun r cs h hw => ?_, fun t h => ?_, fun h => (h2 o).2.2 ((h1 o).2.2 h)⟩
   · obtain ⟨cs1, h1', hw1⟩ := (h2 o).1 r cs h hw; exact (h1 o).1 r cs1 h1' hw1
-  · obtain ⟨t1, h1'⟩ := (h2 o).2 t h; exact (h1 o).2 t1 h1'
+  · obtain ⟨t1, h1'⟩ := (h2 o).2.1 t h; exact (h1 o).2.1 t1 h1'
 
 theorem KSub.of_kheap {σ σ' : State Unit} (h : σ'.kheap = σ.kheap) : KSub σ σ' := by
   intro o; rw [h]; exact KSub.refl σ o
@@ -38,7 +41,7 @@ theorem KTyped.sub {th : TypedHeap} {σ σ' : State Unit} (hK : KTyped th σ) (h
   intro o
   refine ⟨fun r cs hk hw => ?_, fun t hk => ?_⟩
   · obtain ⟨cs0, h0, hw0⟩ := (h o).1 r cs hk hw; exact (hK o).1 r cs0 h0 hw0
-  · obtain ⟨t0, h0⟩ := (h o).2 t hk; exact (hK o).2 t0 h0
+  · obtain ⟨t0, h0⟩ := (h o).2.1 t hk; exact (hK o).2 t0 h0
 
 /-- Every outcome keeps the CNodes and TCBs. -/
 def NKS {α : Type} (m : NonDet (State Unit) α) : Prop := ∀ σ x, x ∈ (m σ).1 → KSub σ x.2
@@ -117,7 +120,7 @@ theorem nks_setObject (p : ObjRef) (o : KernelObject) : NKS (setObject (Z := Uni
   rw [Set.mem_singleton_iff.1 hw] at hx
   rw [Set.mem_singleton_iff.1 hx]
   intro o'
-  refine ⟨fun r cs h hwf => ?_, fun t h => ?_⟩
+  refine ⟨fun r cs h hwf => ?_, fun t h => ?_, fun h => ?_⟩
   · by_cases e : o' = p
     · subst e
       simp only [Function.update_self, Option.some.injEq] at h
@@ -134,6 +137,8 @@ theorem nks_setObject (p : ObjRef) (o : KernelObject) : NKS (setObject (Z := Uni
       obtain ⟨t0, rfl⟩ := aType_tcb (show aType k = .aTCB by rw [hty]; rfl)
       exact ⟨t0, hk⟩
     · simp only [Function.update_of_ne e] at h; exact ⟨t, h⟩
+  · have e : o' ≠ p := fun e => by subst e; rw [hk] at h; cases h
+    simp only [Function.update_of_ne e]; exact h
 
 theorem nks_get_put {f : State Unit → State Unit} (hf : ∀ σ, (f σ).kheap = σ.kheap) :
     NKS (NonDet.get >>= fun s => NonDet.put (f s)) := by

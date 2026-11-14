@@ -35,12 +35,58 @@ def isPM (mem : U64 → U64) (x y : U64) : Bool := isPF (revOf mem x) (capV mem 
 /-- Same region, between the caps of two slots. -/
 def srM (mem : U64 → U64) (x y : U64) : Bool := srB (capV mem x) (capV mem y)
 
+/-- The relation the chains are chunked by: same region, except that the
+slot of a frame cap with its revocable bit clear is unconstrained
+(`DeriveSubframe` puts non-revocable 4 KiB aliases right after the large
+frame's cap, in any order). The parent test needs the revocable bit
+(`isPF`), and frame caps' finalisation does not depend on finality (as in
+l4v `arch_finalise_cap`), so nothing needs chunking there. -/
+def srF (mem : U64 → U64) (x y : U64) : Bool := srM mem x y || (isFrame (capV mem x) && !revOf mem x)
+
+theorem srF_of_srM {mem : U64 → U64} {x y : U64} (h : srM mem x y = true) : srF mem x y = true := by
+  simp [srF, h]
+
+theorem srF_nf {mem : U64 → U64} {x y : U64} (h : isFrame (capV mem x) = false) : srF mem x y = srM mem x y := by
+  simp [srF, h]
+
+theorem srF_rev {mem : U64 → U64} {x y : U64} (h : revOf mem x = true) : srF mem x y = srM mem x y := by
+  simp [srF, h]
+
+theorem srF_congr {mem mem' : U64 → U64} {u v u' v' : U64} (hs : srM mem' u' v' = srM mem u v)
+    (hf : isFrame (capV mem' u') = isFrame (capV mem u)) (hr : revOf mem' u' = revOf mem u) :
+    srF mem' u' v' = srF mem u v := by
+  simp only [srF, hs, hf, hr]
+
+theorem ca_true {R : U64 → U64 → Bool} {a : U64} (h : ∀ v, R a v = true) : ∀ L, Mdb.CA R a L
+  | [] => trivial
+  | v :: L => ⟨fun h0 => (by rw [h v] at h0; cases h0), ca_true h L⟩
+
+theorem chunkL_srF {mem : U64 → U64} {L : List U64} (h : Mdb.ChunkL (srM mem) L) : Mdb.ChunkL (srF mem) L := by
+  induction L with
+  | nil => trivial
+  | cons a L ih =>
+    refine ⟨?_, ih h.2⟩
+    cases hf : (isFrame (capV mem a) && !revOf mem a)
+    · exact Mdb.ca_congr h.1 (fun v _ => by simp [srF, hf])
+    · exact ca_true (fun v => by simp [srF, hf]) L
+
+theorem revF_frame {c : capability.Cap} (h : isFrame c = true) (d : capability.Cap) : revF c d = false := by
+  cases c <;> simp [isFrame] at h; cases d <;> rfl
+
+theorem isFrame_of_badged {c : capability.Cap} (h : isBadged c = true) : isFrame c = false := by
+  cases c <;> simp_all [isBadged, isFrame]
+
+/-- The chunk condition at a slot that is not an unconstrained frame. -/
+theorem ca_srM {mem : U64 → U64} {a : U64} {L : List U64} (h : Mdb.CA (srF mem) a L)
+    (hf : isFrame (capV mem a) = false ∨ revOf mem a = true) : Mdb.CA (srM mem) a L :=
+  Mdb.ca_congr h (fun v _ => by rcases hf with hf | hf <;> simp [srF, hf])
+
 structure MdbInv (mem : U64 → U64) (G : MdbGhost) : Prop where
   orig : ∀ c p, G.par c = some p → revOf mem p = true
   desc : ∀ x y, Mdb.Desc G.par y x → isPM mem x y = true
   after : ∀ y ∈ G.chains.flatten, nextOf mem y ≠ 0#u64 → ∀ x, (x = y ∨ Mdb.Desc G.par y x) →
       ¬ Mdb.Desc G.par (nextOf mem y) x → isPM mem x (nextOf mem y) = false
-  chunk : ∀ ch ∈ G.chains, Mdb.ChunkL (srM mem) ch
+  chunk : ∀ ch ∈ G.chains, Mdb.ChunkL (srF mem) ch
   badges : ∀ y ∈ G.chains.flatten, nextOf mem y ≠ 0#u64 → isBadged (capV mem y) = true →
       srM mem y (nextOf mem y) = true → badgeF (capV mem y) ≠ badgeF (capV mem (nextOf mem y)) →
       badgeF (capV mem (nextOf mem y)) ≠ 0#u64 → fbOf mem (nextOf mem y) = true
@@ -104,8 +150,10 @@ theorem MdbInv.of_same {th : TypedHeap} {m m' : U64 → U64} {G : MdbGhost} (hM 
     rw [hS.nextOf hy'] at hn hd ⊢
     have hx' : x ∈ G.chains.flatten := by rcases hx with rfl | hx; exact hy; exact (desc_mem hM hx).2
     rw [hpm x _ hx' (hnx y hy hn)]; exact hI.after y hy hn x hx hd
-  · refine Mdb.chunkL_congr (hI.chunk ch hch) (fun u hu v hv => ?_)
-    exact hsr u v (List.mem_flatten.2 ⟨_, hch, hu⟩) (List.mem_flatten.2 ⟨_, hch, hv⟩)
+  · refine Mdb.chunkL_congr (hI.chunk ch hch) (fun u hu v hv => srF_congr ?_ ?_ ?_)
+    · exact hsr u v (List.mem_flatten.2 ⟨_, hch, hu⟩) (List.mem_flatten.2 ⟨_, hch, hv⟩)
+    · rw [hS.capV (hsl u (List.mem_flatten.2 ⟨_, hch, hu⟩))]
+    · rw [hS.revOf (hsl u (List.mem_flatten.2 ⟨_, hch, hu⟩))]
   · have hy' := hsl y hy
     rw [hS.nextOf hy'] at hn hs hbd hb0 ⊢
     have hn' := hnx y hy hn

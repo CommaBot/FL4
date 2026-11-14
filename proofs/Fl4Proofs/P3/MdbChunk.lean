@@ -137,4 +137,36 @@ theorem chunkL_congr {R R' : α → α → Bool} {L : List α} (h : ChunkL R L)
   have := chunkL_map (R' := R') id h (by simpa using he)
   simpa using this
 
+theorem ca_false {α : Type} {R : α → α → Bool} {a : α} {L : List α} (h : ∀ v ∈ L, R a v = false) : CA R a L := by
+  induction L with
+  | nil => trivial
+  | cons v L ih =>
+    exact ⟨fun _ w hw => h w (by simp [hw]), ih (fun w hw => h w (by simp [hw]))⟩
+
+/-- Inserting `d` right after `s`, `d` seen from the slots before it as `s`
+is, with its own run after it. -/
+theorem chunkL_ins2 {α : Type} {R R' : α → α → Bool} {s d : α} {A B : List α} (h : ChunkL R (A ++ s :: B))
+    (he : ∀ u ∈ A ++ s :: B, ∀ v ∈ A ++ s :: B, R' u v = R u v)
+    (hd1 : ∀ u ∈ A ++ s :: B, R' u d = R u s) (hdB : CA R' d B)
+    (hss : R' s d = true) : ChunkL R' (A ++ s :: d :: B) := by
+  induction A with
+  | nil =>
+    obtain ⟨h1, h2⟩ := h
+    refine ⟨⟨fun h0 => (by rw [hss] at h0; cases h0), ca_congr h1 (fun v hv => he s (by simp) v (by simp [hv]))⟩,
+      hdB, ?_⟩
+    have hB : ChunkL R B := h2
+    clear h1 h2
+    have he' : ∀ u ∈ B, ∀ v ∈ B, R' u v = R u v := fun u hu v hv => he u (by simp [hu]) v (by simp [hv])
+    clear he hd1 hdB hss
+    induction B with
+    | nil => trivial
+    | cons b B ih =>
+      exact ⟨ca_congr hB.1 (fun v hv => he' b (by simp) v (by simp [hv])),
+        ih hB.2 (fun u hu v hv => he' u (by simp [hu]) v (by simp [hv]))⟩
+  | cons a A ih =>
+    obtain ⟨h1, h2⟩ := h
+    refine ⟨ca_ins h1 (fun v hv => he a (by simp) v (by simp at hv ⊢; tauto)) (hd1 a (by simp)), ?_⟩
+    exact ih h2 (fun u hu v hv => he u (by simp at hu ⊢; tauto) v (by simp at hv ⊢; tauto))
+      (fun u hu => hd1 u (by simp at hu ⊢; tauto))
+
 end Fl4Proofs.P3.Mdb

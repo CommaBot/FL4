@@ -103,8 +103,10 @@ theorem mdbInv {G : MdbGhost} (hM : MdbLinks th m G) (hI : MdbInv m G) : MdbInv 
     rw [h.nx hy'] at hn hd ⊢
     have hx' : x ∈ G.chains.flatten := by rcases hx with rfl | hx; exact hy; exact (desc_mem hM hx).2
     rw [hpm x _ hx' (hnx y hy hn)]; exact hI.after y hy hn x hx hd
-  · refine Mdb.chunkL_congr (hI.chunk ch hch) (fun u hu v hv => ?_)
-    exact hsr u v (List.mem_flatten.2 ⟨_, hch, hu⟩) (List.mem_flatten.2 ⟨_, hch, hv⟩)
+  · refine Mdb.chunkL_congr (hI.chunk ch hch) (fun u hu v hv => srF_congr ?_ ?_ ?_)
+    · exact hsr u v (List.mem_flatten.2 ⟨_, hch, hu⟩) (List.mem_flatten.2 ⟨_, hch, hv⟩)
+    · exact isFrame_of_shape (h.sh u (hsl u (List.mem_flatten.2 ⟨_, hch, hu⟩))).1
+    · exact h.rv (hsl u (List.mem_flatten.2 ⟨_, hch, hu⟩))
   · have hy' := hsl y hy
     rw [h.nx hy'] at hn hs hbd hb0 ⊢
     have hn' := hnx y hy hn
@@ -228,6 +230,12 @@ theorem dev_nt {n : Nat} {t : Fl4Spec.ApiObjectType} (ht : objTypeOf n = some t)
   · subst ht; simp [Fl4Spec.isFrameType] at h
   · subst ht; simp [Fl4Spec.isFrameType, Fl4Spec.archIsFrameType] at h
 
+theorem objTypeOf_cnode {n : Nat} (h : objTypeOf n = some .capTableObject) : n = 4 := by
+  unfold objTypeOf at h; split_ifs at h <;> simp_all
+
+theorem objTypeOf_tcb {n : Nat} (h : objTypeOf n = some .tcbObject) : n = 1 := by
+  unfold objTypeOf at h; split_ifs at h <;> simp_all
+
 /-- **`untyped::retype` without a reset refines `invoke_untyped`**, for the
 types 0, 2..7 and 9..13 (object sizes `bitsApi`, which is `zOf` there: the spec's for
 these types, FL4's for all). From the state `decode` checked (window empty,
@@ -269,7 +277,8 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
         MdbLinks th' (L.mem res.2.1) G' ∧ CdtRel th' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
         UtInv (L.mem res.2.1) G' ∧ (dev = false → ZeroRegion (L.mem res.2.1)
           ((Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val)
-          (p.val + 2 ^ sb.val)) ⦄ := by
+          (p.val + 2 ^ sb.val)) ∧
+        (FinInv th (L.mem s) σ G → FinInv th' (L.mem res.2.1) σ' G') ⦄ := by
   -- sizes and the region
   have hsb : sb.val < 64 := capAt_untyped_inv hcap
   set z := zOf nt.val us.val with hzdef
@@ -346,6 +355,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
       th' pp = some (.cnode rs) → th' dest = some (.cnode r) →
       (∀ i, i < win.val → CapValid th' (newCapOf nt.val ⟨BitVec.ofNat 64 (A + i * k)⟩ us dev)) →
       (∀ a, IsSlot th' a → a.val + 32 ≤ A + win.val * k ∨ p.val + 2 ^ sb.val ≤ a.val) →
+      (FinInv th (L.mem s) σ G → KTyped th' σb) →
       (do
         let (s2, a2) ← objects.create_new_objects st arI s1 ar nt src dest off win aligned us dev
         ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a2)) ⦃ res =>
@@ -354,8 +364,9 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
           (windowSlots dest r off.val win.val) dev)).run σ = ({(.ok (), σ')}, False) ∧
         Placed th' ∧ StateRel th' (L.mem res.2.1) σ' ∧ SlotsValid th' (L.mem res.2.1) ∧
         MdbLinks th' (L.mem res.2.1) G' ∧ CdtRel th' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
-        UtInv (L.mem res.2.1) G' ∧ (dev = false → ZeroRegion (L.mem res.2.1) (A + win.val * k) (p.val + 2 ^ sb.val)) ⦄ := by
-    intro th' σb hP' hR' hV' hM' hC' hrb hpp' hdest' hcv' hzs
+        UtInv (L.mem res.2.1) G' ∧ (dev = false → ZeroRegion (L.mem res.2.1) (A + win.val * k) (p.val + 2 ^ sb.val)) ∧
+        (FinInv th (L.mem s) σ G → FinInv th' (L.mem res.2.1) σ' G') ⦄ := by
+    intro th' σb hP' hR' hV' hM' hC' hrb hpp' hdest' hcv' hzs hKb
     -- the zero region kept by the loop: none for a device region
     set zl : Nat := if dev = true then p.val + 2 ^ sb.val else A + win.val * k with hzl
     have hzl1 : A + win.val * k ≤ zl := by rw [hzl]; split_ifs <;> omega
@@ -387,7 +398,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
         fun j hj => absurd hj (by omega), fun x _ => rfl, fun y x => ⟨Or.inl, by
           rintro (h | ⟨j, hj, -⟩)
           · exact h
-          · omega⟩⟩
+          · omega⟩, fun h => h⟩
       · intro j _ hj
         have hj' : off.val + j < 2 ^ r := by omega
         have hd : IsSlot th (slotAddr dest.bv (BitVec.ofNat 64 (off.val + j))) :=
@@ -438,7 +449,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
     simp only [bind_ok, uncurry_apply_pair]
     rw [WP.spec_ok]
     simp only at ha2 hfin
-    obtain ⟨σf, Gf, hchain, hRf, hVf, hMf, hCf, hIf, -, -, -, -, hZf, hT1, hT1b, hT2a, hT2b, hT3⟩ := hfin
+    obtain ⟨σf, Gf, hchain, hRf, hVf, hMf, hCf, hIf, -, -, -, -, hZf, hT1, hT1b, hT2a, hT2b, hT3, hFf⟩ := hfin
     have hdrop : ((windowSlots dest r off.val win.val).zip (regionPtrs (BitVec.ofNat 64 aligned.val) win.val k)).drop
         win.val = [] := by
       apply List.drop_of_length_le; simp [windowSlots, regionPtrs]
@@ -446,7 +457,10 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
     have hmx := hchain σf (mapMx_nil _ _)
     refine ⟨rfl, ha2, σf, Gf, th', ?_, hP', hRf, hVf, hMf, hCf, hIf, ?_, fun hd => by
       have e : zl = A + win.val * k := by rw [hzl, hd]; simp
-      rw [← e]; exact hZf⟩
+      rw [← e]; exact hZf, fun hFI => ⟨(hKb hFI).sub (ksub_of_eq (nks_mapMx (nks_createCap _ _ _ _) _) hmx),
+        hFf (hFI.fm.recap hM.tree.nodup src
+          (by rw [hcs1, hcv0]; exact CapSim.of_shape rfl rfl)
+          (fun z hz hzs => hco1 z ((hM.members z).1 hz).1 hzs))⟩⟩
     · rw [hbA] at hmx
       apply invokeUntyped_noreset_eq bitsApi (pp.bv, idx) p.bv Ab t us.val _ dev σ σa σb σf _ _ hgs hss hrb
       · exact objTypeOf_ne_pml4 (by omega) ht
@@ -511,6 +525,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
     · right; omega
   have hfitA : A + win.val * k ≤ 2 ^ 64 := by omega
   have hio1' : ∀ sl, σa.isOriginalCap sl = true → AbsSlot th sl := by rw [hio1]; exact horig
+  have hKa : FinInv th (L.mem s) σ G → KTyped th σa := fun hFI => hFI.kt.sub (ksub_of_eq (nks_setCap _ _) hσa)
   by_cases h4 : nt.val = 4
   · -- CNodes: the typed heap grows
     have hdf : dev = false := by
@@ -529,7 +544,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
     rw [hk32] at hfitA hrf hzeroA
     obtain ⟨hP', hR', hV', hM', hC'⟩ := extend_cnode_rel th (L.mem s1) σa G hR1 hV1 hP hM1 hC1 hio1' Ab A win.val
       us.val rfl hfitA (by omega) hal hrf hzeroA
-    refine key _ _ hP' hR' hV' hM' hC' ?_ ?_ ?_ ?_ ?_
+    refine key _ _ hP' hR' hV' hM' hC' ?_ ?_ ?_ ?_ ?_ ?_
     · rw [hrr]
       simp only [ne_eq, reduceCtorEq, not_false_eq_true, ↓reduceIte, hkz, hwl]
       rw [show k = 32 * 2 ^ us.val from hk32]; rfl
@@ -551,18 +566,32 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
         have h1 : (i + 1) * k ≤ win.val * k := Nat.mul_le_mul_right _ hi
         rw [Nat.add_mul, Nat.one_mul] at h1
         rw [hv]; rw [hk32] at h1 ⊢; omega
+    · intro hFI
+      refine ktyped_region (hKa hFI) Ab A win.val (32 * 2 ^ us.val) rfl (by have := Nat.one_le_two_pow (n := us.val); omega)
+        hfitA hrf (fun q kd hq hs => extendTh_of_old (by have := Nat.one_le_two_pow (n := us.val); omega) hrf hq hs) _
+        (fun q hq => ⟨?_, fun t ht => by cases ht⟩)
+      rintro r cs he -
+      cases he; exact extendTh_new hq
   · -- other objects: the typed heap stays
     have hcvo : ∀ i, i < win.val → CapValid th (newCapOf nt.val ⟨BitVec.ofNat 64 (A + i * k)⟩ us dev) := by
       intro i _
       apply newCapOf_ind (CapValid th) <;> intros <;> first | trivial | omega
     by_cases hu : t = .untyped
     · subst hu
-      refine key th σa hP hR1 hV1 hM1 hC1 ?_ hpp hdest hcvo hzsOld
+      refine key th σa hP hR1 hV1 hM1 hC1 ?_ hpp hdest hcvo hzsOld hKa
       rw [hrr]; simp only [ne_eq, not_true_eq_false, ↓reduceIte]; rfl
     · obtain ⟨hR', hC'⟩ := extend_other_rel th (L.mem s1) σa G hR1 hC1 Ab A win.val k rfl hk1 hfitA hrf
         (Fl4Spec.defaultObject t dev us.val σa.curDomain)
-      refine key th _ hP hR' hV1 hM1 hC' ?_ hpp hdest hcvo hzsOld
-      rw [hrr]; simp only [ne_eq, hu, not_false_eq_true, ↓reduceIte, hwl]; rfl
+      refine key th _ hP hR' hV1 hM1 hC' ?_ hpp hdest hcvo hzsOld ?_
+      · rw [hrr]; simp only [ne_eq, hu, not_false_eq_true, ↓reduceIte, hwl]; rfl
+      · intro hFI
+        refine ktyped_region (hKa hFI) Ab A win.val k rfl hk1 hfitA hrf (fun _ _ _ _ => rfl) _ (fun q _ => ⟨?_, ?_⟩)
+        · intro r cs he _
+          cases t <;> first | exact absurd rfl hu | exact absurd (objTypeOf_cnode ht) h4 |
+            simp [Fl4Spec.defaultObject] at he
+        · intro t' he
+          cases t <;> first | exact absurd rfl hu | (have := objTypeOf_tcb ht; omega) |
+            simp [Fl4Spec.defaultObject] at he
 
 end
 

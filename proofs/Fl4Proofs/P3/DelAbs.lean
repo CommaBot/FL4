@@ -781,13 +781,14 @@ theorem MdbInv.zombify {th : TypedHeap} {mem mem' : U64 → U64} {G : MdbGhost} 
     · rw [hpm_other a ham _ hnm hax hwx]; exact hI.after y hy hn a ha hnd
   · intro ch hch
     have hchm : ∀ a ∈ ch, a ∈ G.chains.flatten := fun a ha => List.mem_flatten.2 ⟨ch, hch, ha⟩
-    refine chunkL_zap (x := x) (hI.chunk ch hch) (fun a w ha hw hax => ?_) (fun w => ?_)
+    refine chunkL_zap (x := x) (hI.chunk ch hch) (fun a w ha hw hax => srF_congr ?_
+      (by rw [hcv a (hchm a ha) hax]) (hrev a (hchm a ha))) (fun w => ?_)
     · unfold srM
       rw [hcv a (hchm a ha) hax]
       by_cases hwx : w = x
       · subst hwx; rw [hZ, h1 a (hchm a ha) hax]
       · rw [hcv w (hchm w hw) hwx]
-    · unfold srM; rw [hZ, srB_zombie]
+    · rw [srF_nf (by rw [hZ]; rfl)]; unfold srM; rw [hZ, srB_zombie]
   · intro y hy hn hb hs hbd hbd0
     rw [hnx y hy] at hn hs hbd hbd0 ⊢
     have hnm : nextOf mem y ∈ G.chains.flatten := by

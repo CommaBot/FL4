@@ -202,7 +202,7 @@ theorem after' (y : U64) (hy : y ∈ (remG G x).chains.flatten) (hn : nextOf mem
       rw [hxl.2] at h1
       rw [h.pm ham hax hN hNx, if_pos ⟨hn, rfl⟩]
       obtain ⟨ch, hch, A, B, C, he, hxB⟩ := h.hM.stretch hxl.1 ha' hxl.2 hx0 rfl hn
-      have hca : Mdb.CA (srM mem) a (B ++ nextOf mem x :: C) := by
+      have hca' : Mdb.CA (srF mem) a (B ++ nextOf mem x :: C) := by
         have := h.hI.chunk ch hch; rw [he] at this; exact Mdb.chunkL_ca this
       cases hc : isPF (revOf mem a) (capV mem a) (capV mem (nextOf mem x)) (fbOf mem (nextOf mem x) || fbOf mem x)
       · rfl
@@ -210,6 +210,7 @@ theorem after' (y : U64) (hy : y ∈ (remG G x).chains.flatten) (hn : nextOf mem
       unfold isPF at hc
       simp only [Bool.and_eq_true] at hc
       obtain ⟨⟨hra, hsN⟩, hbN⟩ := hc
+      have hca := ca_srM hca' (Or.inr hra)
       have hsx : srM mem a x = true := Mdb.ca_use hca hsN x hxB
       unfold isPM isPF at h1
       unfold srM at hsx
@@ -244,7 +245,7 @@ theorem sm {u v : U64} (hu : u ∈ G.chains.flatten) (hux : u ≠ x) (hv : v ∈
     srM mem' u v = srM mem u v := by
   unfold srM; rw [h.cz hu hux, h.cz hv hvx]
 
-theorem chunk' (ch' : List U64) (hch' : ch' ∈ (remG G x).chains) : Mdb.ChunkL (srM mem') ch' := by
+theorem chunk' (ch' : List U64) (hch' : ch' ∈ (remG G x).chains) : Mdb.ChunkL (srF mem') ch' := by
   change ch' ∈ Mdb.removeChains x G.chains at hch'
   unfold Mdb.removeChains at hch'
   obtain ⟨hch', -⟩ := List.mem_filter.1 hch'
@@ -255,13 +256,14 @@ theorem chunk' (ch' : List U64) (hch' : ch' ∈ (remG G x).chains) : Mdb.ChunkL 
   have hne : ∀ z, z ∈ ch.erase x → z ≠ x := fun z hz e => by
     subst e; exact (List.Nodup.not_mem_erase hnd0) hz
   have hm : ∀ z, z ∈ ch.erase x → z ∈ G.chains.flatten := fun z hz => hchm z (List.erase_subset hz)
-  have hk : Mdb.ChunkL (srM mem) (ch.erase x) := by
+  have hk : Mdb.ChunkL (srF mem) (ch.erase x) := by
     by_cases hxc : x ∈ ch
     · obtain ⟨A, B, rfl⟩ := List.append_of_mem hxc
       rw [Mdb.erase_mid (Mdb.nodup_mid hnd0).1]
       exact Mdb.chunkL_erase (h.hI.chunk _ hch)
     · rw [Mdb.erase_not_mem' hxc]; exact h.hI.chunk _ hch
-  exact Mdb.chunkL_congr hk (fun u hu v hv => h.sm (hm u hu) (hne u hu) (hm v hv) (hne v hv))
+  exact Mdb.chunkL_congr hk (fun u hu v hv => srF_congr (h.sm (hm u hu) (hne u hu) (hm v hv) (hne v hv))
+    (by rw [h.cz (hm u hu) (hne u hu)]) (h.rz (hm u hu) (hne u hu)))
 
 theorem badges' (y : U64) (hy : y ∈ (remG G x).chains.flatten) (hn : nextOf mem' y ≠ 0#u64)
     (hbg : isBadged (capV mem' y) = true) (hsr : srM mem' y (nextOf mem' y) = true)
@@ -287,7 +289,8 @@ theorem badges' (y : U64) (hy : y ∈ (remG G x).chains.flatten) (hn : nextOf me
       have hx0 : x ≠ 0#u64 := (h.sl h.hx).ne_zero h.hP
       obtain ⟨ch, hch, A, B, C, he, hxB⟩ := h.hM.stretch hxl.1 (Or.inl rfl) hxl.2 hx0 rfl hn
       have hca : Mdb.CA (srM mem) (prevOf mem x) (B ++ nextOf mem x :: C) := by
-        have := h.hI.chunk ch hch; rw [he] at this; exact Mdb.chunkL_ca this
+        have := h.hI.chunk ch hch; rw [he] at this
+        exact ca_srM (Mdb.chunkL_ca this) (Or.inl (isFrame_of_badged hbg))
       have hsx : srM mem (prevOf mem x) x = true := Mdb.ca_use hca hsr x hxB
       unfold srM at hsx hsr
       have hbx := (srB_badged hbg hsx).1

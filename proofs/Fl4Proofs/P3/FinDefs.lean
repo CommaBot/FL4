@@ -32,13 +32,23 @@ def FinObjKind : capability.Cap → Prop
   | .Frame .. | .PageTable .. | .PageDirectory .. | .Pdpt .. | .Pml4 .. | .AsidPool .. | .IoPort .. => True
   | _ => False
 
-/-- The caps whose finalisation depends on finality: the object caps, CNode
-caps and zombies. (For untyped, domain, IRQ control, scheduling control and
+/-- The caps whose finalisation depends on finality: the object caps but
+frames (whose finalisation, an unmap if mapped, ignores finality, as in l4v
+`arch_finalise_cap`), CNode caps and zombies. (For untyped, domain, IRQ control, scheduling control and
 the arch control caps, FL4's `is_final_capability` and the spec's
 `is_final_cap` may differ: the spec's needs an object, FL4's does not; it
 does not matter, their finalisation does nothing.) -/
 def NeedsFin (c : capability.Cap) : Prop :=
-  FinObjKind c ∨ (∃ p r gs g, c = .CNode p r gs g) ∨ isZb c = true
+  (FinObjKind c ∧ isFrame c = false) ∨ (∃ p r gs g, c = .CNode p r gs g) ∨ isZb c = true
+
+theorem NeedsFin.nf {c : capability.Cap} (h : NeedsFin c) : isFrame c = false := by
+  rcases h with ⟨-, h⟩ | ⟨p, r, gs, g, rfl⟩ | h
+  · exact h
+  · rfl
+  · cases c <;> simp_all [isZb, isFrame]
+
+theorem isFrame_of_key {a b : capability.Cap} (h : okey a = okey b) : isFrame a = isFrame b := by
+  cases a <;> cases b <;> simp_all [okey, isFrame]
 
 /-! ## `same_object_as` as a function -/
 
@@ -114,7 +124,7 @@ theorem sr_ok {a b : capability.Cap} (h : srB a b = true) : objects.same_region_
 theorem key_of_so {a b : capability.Cap} (h : soB a b = true) (hb : NeedsFin b) (hz : isZb b = false) :
     okey a = okey b := by
   have hb' : FinObjKind b ∨ ∃ p r gs g, b = .CNode p r gs g := by
-    rcases hb with hb | hb | hb
+    rcases hb with ⟨hb, -⟩ | hb | hb
     · exact Or.inl hb
     · exact Or.inr hb
     · rw [hz] at hb; cases hb
@@ -184,7 +194,7 @@ theorem refs_ne {c : capability.Cap} (h : gref c ≠ none) : Fl4Spec.genObjRefs 
 
 theorem needsFin_refs {c : capability.Cap} (h : NeedsFin c) : Fl4Spec.genObjRefs (absCap c) ≠ ∅ := by
   apply refs_ne
-  rcases h with h | ⟨p, r, gs, g, rfl⟩ | h
+  rcases h with ⟨h, -⟩ | ⟨p, r, gs, g, rfl⟩ | h
   · cases c <;> simp [FinObjKind] at h <;> simp [gref]
   · simp [gref]
   · cases c <;> simp [isZb] at h; simp [gref]
@@ -375,7 +385,8 @@ theorem finF_iff {th : TypedHeap} (hP : Placed th) {mem : U64 → U64} {σ : Fl4
     · -- `y` before `x`: `x`'s `prev` has the object
       obtain ⟨A', B, rfl⟩ := List.append_of_mem hyA
       have hch' : A' ++ y :: (B ++ x :: L) ∈ G.chains := by simpa using hch1
-      have hca := Mdb.chunkL_ca (hI.chunk _ hch')
+      have hca := ca_srM (Mdb.chunkL_ca (hI.chunk _ hch'))
+        (Or.inl (by rw [isFrame_of_key hk.symm]; exact hN.nf))
       have hyx' : srM mem y x = true := by
         unfold srM; rw [sr_of_key hk.symm (by rw [← hk]; exact hkx)]
         exact hI.self y hy (by simpa using hzy)
@@ -402,7 +413,7 @@ theorem finF_iff {th : TypedHeap} (hP : Placed th) {mem : U64 → U64} {σ : Fl4
         · exact absurd h hyx
         · exact h
       obtain ⟨B, C, rfl⟩ := List.append_of_mem hyL
-      have hca := Mdb.chunkL_ca (hI.chunk _ hch1)
+      have hca := ca_srM (Mdb.chunkL_ca (hI.chunk _ hch1)) (Or.inl hN.nf)
       have hxy' : srM mem x y = true := by
         unfold srM; rw [sr_of_key hk hkx]
         exact hI.self x hx hz

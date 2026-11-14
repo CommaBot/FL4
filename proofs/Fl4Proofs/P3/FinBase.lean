@@ -36,9 +36,6 @@ def okey : capability.Cap → Option OKey
   | .IoPort f l => some (.io f l)
   | _ => none
 
-def isFrame : capability.Cap → Bool
-  | .Frame .. => true
-  | _ => false
 
 /-- Two abstract caps share a generic object reference. -/
 def Ovl (a b : Fl4Spec.Cap) : Prop := Fl4Spec.genObjRefs a ∩ Fl4Spec.genObjRefs b ≠ ∅

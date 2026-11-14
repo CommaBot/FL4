@@ -106,6 +106,11 @@ def isZb : capability.Cap → Bool
   | .Zombie .. => true
   | _ => false
 
+/-- Frame caps. -/
+def isFrame : capability.Cap → Bool
+  | .Frame .. => true
+  | _ => false
+
 /-- `is_mdb_parent_of a b`, from `a`'s revocable bit and cap and `b`'s cap
 and first-badged bit. -/
 def isPF (rev : Bool) (ca cb : capability.Cap) (fb : Bool) : Bool :=
@@ -162,6 +167,9 @@ theorem isUt_of_shape {c c' : capability.Cap} (h : shape c = shape c') : isUt c 
   cases c <;> cases c' <;> simp_all [shape, isUt]
 theorem isZb_of_shape {c c' : capability.Cap} (h : shape c = shape c') : isZb c = isZb c' := by
   cases c <;> cases c' <;> simp_all [shape, isZb]
+
+theorem isFrame_of_shape {c' c : capability.Cap} (h : shape c' = shape c) : isFrame c' = isFrame c := by
+  cases c' <;> cases c <;> simp_all [shape, isFrame]
 
 theorem srB_congr {a a' b b' : capability.Cap} (ha : shape a = shape a') (hb : shape b = shape b') :
     srB a b = srB a' b' := by

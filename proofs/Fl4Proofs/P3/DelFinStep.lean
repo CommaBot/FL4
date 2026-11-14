@@ -46,6 +46,12 @@ theorem finaliseCap_trivF (σ : Fl4Spec.State Unit) (c : capability.Cap) (fin : 
 theorem mem_single {α σ : Type} {m : Fl4Spec.NonDet σ α} {s : σ} {x : α × σ} (h : m s = ({x}, False)) :
     x ∈ (m s).1 := by rw [h]; rfl
 
+/-- A frame cap's finalisation ignores finality (an unmap if mapped). -/
+theorem finalise_cap_frame_fin (s : S) (a : A) {c : capability.Cap} (hc : isFrame c = true) (b b' : Bool) :
+    objects.finalise_cap st arI s a c b false = objects.finalise_cap st arI s a c b' false := by
+  cases c <;> simp [isFrame] at hc
+  simp only [objects.finalise_cap, objects.finalise_cap_object]
+
 /-- **`finalise_cap` refines the spec's `finalise_cap`**, for every non-null
 cap of a slot of the typed heap. -/
 theorem fin_step (th : TypedHeap) (hO : FinObjHyp (L := L) arI th) (hF : FinalHyp (L := L) th)
@@ -111,7 +117,12 @@ theorem fin_step (th : TypedHeap) (hO : FinObjHyp (L := L) arI th) (hF : FinalHy
       · rintro ⟨zt', n', e'⟩; rw [hcvx] at e'; cases e'; rfl
       · exact hFI.zombie_alone hM hA.isSlot hcvx
   · -- an object cap
-    rw [hb (Or.inl ho)]
+    have hbe : objects.finalise_cap st arI s a c b false =
+        objects.finalise_cap st arI s a c (decide (Fl4Spec.isFinalCap' (absCap c) σ)) false := by
+      by_cases hfr : isFrame c = true
+      · exact finalise_cap_frame_fin arI s a hfr _ _
+      · rw [hb (Or.inl ⟨ho, by simpa using hfr⟩)]
+    rw [hbe]
     refine WP.spec_mono (hO s a σ G sl c ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hA hc ho) ?_
     rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨hrem, hcl, hclw, σ1, G1, hmem, hDS1, hx1, hch⟩
     refine ⟨σ1, G1, hmem, hDS1, hx1, hch, hcl, hclw, fun h => ?_, ?_⟩

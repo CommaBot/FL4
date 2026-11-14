@@ -28,6 +28,8 @@ import Fl4Proofs.P1.QueueTimer
 import Fl4Proofs.P1.QueueSignal
 import Fl4Proofs.P1.QueueFire
 import Fl4Proofs.P1.QueueTimerSet
+import Fl4Proofs.P1.QueueFoot
+import Fl4Proofs.P1.QueueFinal
 import Fl4Proofs.P2.Runtime
 import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine
@@ -68,8 +70,6 @@ import Fl4Proofs.P3.IoBitmap
 import Fl4Proofs.P3.IoPost
 import Fl4Proofs.P3.IoControl
 import Fl4Proofs.P3.IoPortDecode
-import Fl4Proofs.P1.QueueFoot
-import Fl4Proofs.P1.QueueFinal
 import Fl4Proofs.P3.VsExtTac
 import Fl4Proofs.P3.VsMakePoolRel
 import Fl4Proofs.P3.FinBase
@@ -84,3 +84,7 @@ import Fl4Proofs.P3.SoSpec
 import Fl4Proofs.P3.TcbCaps
 import Fl4Proofs.P3.IntInv
 import Fl4Proofs.P3.VsTop
+import Fl4Proofs.P3.VsArch
+import Fl4Proofs.P3.CancelKSub
+import Fl4Proofs.P3.ResetFin
+import Fl4Proofs.P3.RetypeFresh

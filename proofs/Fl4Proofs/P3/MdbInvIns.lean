@@ -135,6 +135,9 @@ theorem pm {x y : U64} (hx : x ∈ G.chains.flatten) (hy : y ∈ G.chains.flatte
 theorem sm {x y : U64} (hx : x ∈ G.chains.flatten) (hy : y ∈ G.chains.flatten) : srM mem' x y = srM mem x y := by
   unfold srM; exact srB_congr (h.cz hx).1 (h.cz hy).1
 
+theorem sf {x y : U64} (hx : x ∈ G.chains.flatten) (hy : y ∈ G.chains.flatten) : srF mem' x y = srF mem x y :=
+  srF_congr (h.sm hx hy) (isFrame_of_shape (h.cz hx).1) (by rw [h.hrev x (h.sl hx), if_neg (h.dne hx)])
+
 theorem nm (h0 : nextOf mem src ≠ 0#u64) : nextOf mem src ∈ G.chains.flatten ∧ nextOf mem src ≠ src := by
   rcases h.hM.next_mem h.hsrc with h1 | h1
   · exact absurd h1 h0
@@ -287,20 +290,27 @@ theorem after' (y : U64) (hy : y ∈ (insG G src dest bI).chains.flatten) (hn : 
       rw [h.pm hxm hw]
       exact h.hI.after y hy hn x hx' hnd'
 
-theorem chunk' (ch' : List U64) (hch' : ch' ∈ (insG G src dest bI).chains) : Mdb.ChunkL (srM mem') ch' := by
+theorem chunk' (ch' : List U64) (hch' : ch' ∈ (insG G src dest bI).chains) : Mdb.ChunkL (srF mem') ch' := by
   obtain ⟨ch, hch, rfl⟩ := List.mem_map.1 hch'
   have hchm : ∀ z, z ∈ ch → z ∈ G.chains.flatten := fun z hz => List.mem_flatten.2 ⟨_, hch, hz⟩
   by_cases hsc : src ∈ ch
   · obtain ⟨A, B, rfl⟩ := List.append_of_mem hsc
     have hnd0 : (A ++ src :: B).Nodup := (List.nodup_flatten.1 h.hM.tree.nodup).1 _ hch
     rw [Mdb.insAfter_split (Mdb.nodup_mid hnd0).1]
-    refine Mdb.chunkL_ins (h.hI.chunk _ hch) (fun u hu v hv => h.sm (hchm u hu) (hchm v hv))
-      (fun u hu => ?_) (fun v hv => ?_) ?_
+    refine Mdb.chunkL_ins2 (h.hI.chunk _ hch) (fun u hu v hv => h.sf (hchm u hu) (hchm v hv))
+      (fun u hu => srF_congr ?_ (isFrame_of_shape (h.cz (hchm u hu)).1)
+        (by rw [h.hrev u (h.sl (hchm u hu)), if_neg (h.dne (hchm u hu))])) ?_ (srF_of_srM ?_)
     · unfold srM; rw [h.cd]; exact srB_congr (h.cz (hchm u hu)).1 h.hsh
-    · unfold srM; rw [h.cd]; exact srB_congr h.hsh (h.cz (hchm v hv)).1
+    · cases hfc : isFrame c
+      · have hfs : isFrame (capV mem src) = false := by rw [← isFrame_of_shape h.hsh, hfc]
+        have hca := ca_srM (Mdb.chunkL_ca (h.hI.chunk _ hch)) (Or.inl hfs)
+        refine Mdb.ca_congr hca (fun v hv => ?_)
+        rw [srF_nf (by rw [h.cd]; exact hfc)]
+        unfold srM; rw [h.cd]; exact srB_congr h.hsh (h.cz (hchm v (by simp [hv]))).1
+      · exact ca_true (fun v => by simp [srF, h.cd, hfc, h.hrev dest h.hd, revF_frame hfc]) B
     · unfold srM; rw [h.cs, h.cd, srB_congr h.hsh1 h.hsh]; exact h.hI.self src h.hsrc h.hzb
   · rw [Mdb.insAfter_of_not_mem hsc]
-    exact Mdb.chunkL_congr (h.hI.chunk _ hch) (fun u hu v hv => h.sm (hchm u hu) (hchm v hv))
+    exact Mdb.chunkL_congr (h.hI.chunk _ hch) (fun u hu v hv => h.sf (hchm u hu) (hchm v hv))
 
 theorem badges' (y : U64) (hy : y ∈ (insG G src dest bI).chains.flatten) (hn : nextOf mem' y ≠ 0#u64)
     (hbg : isBadged (capV mem' y) = true) (hsr : srM mem' y (nextOf mem' y) = true)

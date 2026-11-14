@@ -47,8 +47,6 @@ theorem refs_of_shape {c' c : capability.Cap} (h : shape c' = shape c) :
     | (simp [Fl4Spec.genObjRefs, Fl4Spec.objRefs, Fl4Spec.capIrqs, Fl4Spec.capIrqOpt,
         Fl4Spec.archGenRefs, Fl4Spec.archCapSetMap, Fl4Spec.archGenObjRefs, Fl4Spec.aobjRef, absCap, h])
 
-theorem isFrame_of_shape {c' c : capability.Cap} (h : shape c' = shape c) : isFrame c' = isFrame c := by
-  cases c' <;> cases c <;> simp_all [shape, isFrame]
 
 theorem CapSim.of_shape {c' c : capability.Cap} (h : shape c' = shape c) (hk : okey c' = okey c) : CapSim c' c :=
   ⟨hk, refs_of_shape h, isZb_of_shape h, isFrame_of_shape h, fun b => srB_congr h rfl,
@@ -64,7 +62,8 @@ theorem FinM.view {mem mem' : U64 → U64} {G G' : MdbGhost} (hF : FinM mem G)
     (hcoll : ∀ z ∈ G'.chains.flatten, ∀ w ∈ G'.chains.flatten, ¬ fresh z → ¬ fresh w → z ≠ w → f z = f w →
       isZb (capV mem' z) = false)
     (hfresh : ∀ z ∈ G'.chains.flatten, fresh z → ∀ w ∈ G'.chains.flatten, w ≠ z →
-      ¬ Ovl (absCap (capV mem' z)) (absCap (capV mem' w)) ∧ srB (capV mem' z) (capV mem' w) = false ∧
+      ¬ Ovl (absCap (capV mem' z)) (absCap (capV mem' w)) ∧
+      (isFrame (capV mem' z) = true → srB (capV mem' z) (capV mem' w) = false) ∧
       (isFrame (capV mem' w) = true → srB (capV mem' w) (capV mem' z) = false)) :
     FinM mem' G' := by
   -- each non-fresh slot reads back to an old member
@@ -104,7 +103,7 @@ theorem FinM.view {mem mem' : U64 → U64} {G G' : MdbGhost} (hF : FinM mem G)
         (by rw [← (hcap x hx hfx).zb]; exact hzx) (by rw [← (hcap y hy hfy).zb]; exact hzy)
   · -- fnest
     by_cases hfx : fresh x
-    · have := (hfresh x hx hfx y hy (Ne.symm hxy)).2.1
+    · have := (hfresh x hx hfx y hy (Ne.symm hxy)).2.1 hfr
       unfold srM at hsr; rw [this] at hsr; cases hsr
     by_cases hfy : fresh y
     · have := (hfresh y hy hfy x hx hxy).2.2 hfr
@@ -153,7 +152,7 @@ theorem FinM.refresh {mem mem' : U64 → U64} {G : MdbGhost} (hF : FinM mem G) (
       (isFrame (capV mem' w) = true → srB (capV mem' w) (capV mem' x) = false)) : FinM mem' G :=
   hF.view hnd (fun z => z = x) id id (fun ch hch => ⟨ch, hch, rfl, fun z hz _ => hz⟩)
     (fun z hz hzx => by rw [h z hz hzx]; exact CapSim.refl _) (fun z _ w _ _ _ hzw e => absurd e hzw)
-    (fun z _ hzx w hw hwz => by subst hzx; exact hfr w hw hwz)
+    (fun z _ hzx w hw hwz => by subst hzx; exact ⟨(hfr w hw hwz).1, fun _ => (hfr w hw hwz).2.1, (hfr w hw hwz).2.2⟩)
 
 theorem mem_renG {G : MdbGhost} (e : U64 ≃ U64) (z : U64) :
     z ∈ (renG G e).chains.flatten ↔ e.symm z ∈ G.chains.flatten := by
@@ -232,7 +231,8 @@ theorem FinM.fresh_ins {mem mem' : U64 → U64} {G : MdbGhost} (hF : FinM mem G)
     (hnd : (insG G src dest b).chains.flatten.Nodup)
     (hcap : ∀ z ∈ G.chains.flatten, capV mem' z = capV mem z)
     (hfr : ∀ w ∈ G.chains.flatten,
-      ¬ Ovl (absCap (capV mem' dest)) (absCap (capV mem' w)) ∧ srB (capV mem' dest) (capV mem' w) = false ∧
+      ¬ Ovl (absCap (capV mem' dest)) (absCap (capV mem' w)) ∧
+      (isFrame (capV mem' dest) = true → srB (capV mem' dest) (capV mem' w) = false) ∧
       (isFrame (capV mem' w) = true → srB (capV mem' w) (capV mem' dest) = false)) :
     FinM mem' (insG G src dest b) := by
   have hne : ∀ z ∈ G.chains.flatten, z ≠ dest := fun z hz e => hdest (e ▸ hz)

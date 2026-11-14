@@ -245,38 +245,6 @@ end
 
 namespace Mdb
 
-theorem ca_false {α : Type} {R : α → α → Bool} {a : α} {L : List α} (h : ∀ v ∈ L, R a v = false) : CA R a L := by
-  induction L with
-  | nil => trivial
-  | cons v L ih =>
-    exact ⟨fun _ w hw => h w (by simp [hw]), ih (fun w hw => h w (by simp [hw]))⟩
-
-/-- Inserting `d` right after `s`, `d` seen from the slots before it as `s`
-is, with its own run after it. -/
-theorem chunkL_ins2 {α : Type} {R R' : α → α → Bool} {s d : α} {A B : List α} (h : ChunkL R (A ++ s :: B))
-    (he : ∀ u ∈ A ++ s :: B, ∀ v ∈ A ++ s :: B, R' u v = R u v)
-    (hd1 : ∀ u ∈ A ++ s :: B, R' u d = R u s) (hdB : CA R' d B)
-    (hss : R' s d = true) : ChunkL R' (A ++ s :: d :: B) := by
-  induction A with
-  | nil =>
-    obtain ⟨h1, h2⟩ := h
-    refine ⟨⟨fun h0 => (by rw [hss] at h0; cases h0), ca_congr h1 (fun v hv => he s (by simp) v (by simp [hv]))⟩,
-      hdB, ?_⟩
-    have hB : ChunkL R B := h2
-    clear h1 h2
-    have he' : ∀ u ∈ B, ∀ v ∈ B, R' u v = R u v := fun u hu v hv => he u (by simp [hu]) v (by simp [hv])
-    clear he hd1 hdB hss
-    induction B with
-    | nil => trivial
-    | cons b B ih =>
-      exact ⟨ca_congr hB.1 (fun v hv => he' b (by simp) v (by simp [hv])),
-        ih hB.2 (fun u hu v hv => he' u (by simp [hu]) v (by simp [hv]))⟩
-  | cons a A ih =>
-    obtain ⟨h1, h2⟩ := h
-    refine ⟨ca_ins h1 (fun v hv => he a (by simp) v (by simp at hv ⊢; tauto)) (hd1 a (by simp)), ?_⟩
-    exact ih h2 (fun u hu v hv => he u (by simp at hu ⊢; tauto) v (by simp at hv ⊢; tauto))
-      (fun u hu => hd1 u (by simp at hu ⊢; tauto))
-
 end Mdb
 
 section
@@ -329,6 +297,11 @@ theorem nd : nextOf mem' dest = nextOf mem src := by rw [h.hnext dest h.hd, if_p
 theorem cd : capV mem' dest = c := by rw [h.hcap dest h.hd, if_pos rfl]
 theorem rd : revOf mem' dest = true := by rw [h.hrev dest h.hd, if_pos rfl]
 theorem fd : fbOf mem' dest = true := by rw [h.hfb dest h.hd, if_pos rfl]
+theorem sfm {x y : U64} (hx : x ∈ G.chains.flatten) (hy : y ∈ G.chains.flatten)
+    (hs : srM mem' x y = srM mem x y) : srF mem' x y = srF mem x y :=
+  srF_congr hs (by rw [h.cz hx]) (h.rz hx)
+theorem snf : isFrame (capV mem src) = false := by
+  obtain ⟨q, sz, f, d, e⟩ := isUt_iff.1 h.hut; rw [e]; rfl
 
 theorem pm {x y : U64} (hx : x ∈ G.chains.flatten) (hy : y ∈ G.chains.flatten) : isPM mem' x y = isPM mem x y := by
   unfold isPM; rw [h.rz hx, h.fz hy, h.cz hx, h.cz hy]
@@ -495,21 +468,24 @@ theorem after' (y : U64) (hy : y ∈ (insG G src dest true).chains.flatten) (hn 
       rw [h.pm hxm hw]
       exact h.hI.after y hy hn x hx' hnd'
 
-theorem chunk' (ch' : List U64) (hch' : ch' ∈ (insG G src dest true).chains) : Mdb.ChunkL (srM mem') ch' := by
+theorem chunk' (ch' : List U64) (hch' : ch' ∈ (insG G src dest true).chains) : Mdb.ChunkL (srF mem') ch' := by
   obtain ⟨ch, hch, rfl⟩ := List.mem_map.1 hch'
   have hchm : ∀ z, z ∈ ch → z ∈ G.chains.flatten := fun z hz => List.mem_flatten.2 ⟨_, hch, hz⟩
   by_cases hsc : src ∈ ch
   · obtain ⟨A, B, rfl⟩ := List.append_of_mem hsc
     have hnd0 : (A ++ src :: B).Nodup := (List.nodup_flatten.1 h.hM.tree.nodup).1 _ hch
     rw [Mdb.insAfter_split (Mdb.nodup_mid hnd0).1]
-    have hcd : ∀ v, srM mem' dest v = srB c (capV mem' v) := fun v => by unfold srM; rw [h.cd]
-    refine Mdb.chunkL_ins2 (h.hI.chunk _ hch) (fun u hu v hv => h.sm (hchm u hu) (hchm v hv))
-      (fun u hu => ?_) ?_ ?_
+    have hcd : ∀ v, srF mem' dest v = srB c (capV mem' v) := fun v => by
+      rw [srF_rev h.rd]; unfold srM; rw [h.cd]
+    have hcs : Mdb.CA (srM mem) src B := ca_srM (Mdb.chunkL_ca (h.hI.chunk _ hch)) (Or.inl h.snf)
+    refine Mdb.chunkL_ins2 (h.hI.chunk _ hch)
+      (fun u hu v hv => h.sfm (hchm u hu) (hchm v hv) (h.sm (hchm u hu) (hchm v hv)))
+      (fun u hu => srF_congr ?_ (by rw [h.cz (hchm u hu)]) (h.rz (hchm u hu))) ?_ (srF_of_srM ?_)
     · unfold srM; rw [h.cd, h.cz (hchm u hu), h.k2 (hchm u hu)]
     · by_cases hex : ∃ v ∈ B, srB c (capV mem v) = true
       · obtain ⟨v, hvB, hv⟩ := hex
         have e := h.k1 (hchm v (by simp [hvB])) hv
-        apply Mdb.ca_congr (Mdb.chunkL_ca (h.hI.chunk _ hch))
+        apply Mdb.ca_congr hcs
         intro w hw
         rw [hcd, h.cz (hchm w (by simp [hw]))]
         unfold srM; exact srB_congr e rfl
@@ -520,7 +496,8 @@ theorem chunk' (ch' : List U64) (hch' : ch' ∈ (insG G src dest true).chains) :
         simpa using hex w hw
     · unfold srM; rw [h.cz h.hsrc, h.cd]; exact h.ssrc
   · rw [Mdb.insAfter_of_not_mem hsc]
-    exact Mdb.chunkL_congr (h.hI.chunk _ hch) (fun u hu v hv => h.sm (hchm u hu) (hchm v hv))
+    exact Mdb.chunkL_congr (h.hI.chunk _ hch)
+      (fun u hu v hv => h.sfm (hchm u hu) (hchm v hv) (h.sm (hchm u hu) (hchm v hv)))
 
 theorem badges' (y : U64) (hy : y ∈ (insG G src dest true).chains.flatten) (hn : nextOf mem' y ≠ 0#u64)
     (hbg : isBadged (capV mem' y) = true) (hsr : srM mem' y (nextOf mem' y) = true)

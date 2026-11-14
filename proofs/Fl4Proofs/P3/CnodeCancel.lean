@@ -13,6 +13,7 @@ was (`SlotsSame`), and the spec has a single outcome that is related to
 FL4's and keeps the CDT and the originality map.
 -/
 import Fl4Proofs.P3.CnodeOther
+import Fl4Proofs.P3.CancelKSub
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -27,8 +28,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 state `s1` that agrees with `s` on cap slots and the spec state `σ1` after
 `set_thread_state Restart`, FL4's `cancel_badged_sends` keeps every cap
 slot, and the spec's `cancel_badged_sends` has a single outcome, related
-to FL4's, with the same CDT and originality map, and no new CNode or TCB
-(`KSub`: it only updates endpoints, TCBs and the scheduler). -/
+to FL4's, with the same CDT and originality map. -/
 def CancelEpHyp (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
   ∀ s1 σ1 (p b : U64), b ≠ 0#u64 → SlotsSame th (L.mem s) (L.mem s1) →
     Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
@@ -36,7 +36,7 @@ def CancelEpHyp (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
     endpoint.cancel_badged_sends st s1 p b ⦃ s2 =>
       SlotsSame th (L.mem s1) (L.mem s2) ∧ ∃ σ2,
         Fl4Spec.cancelBadgedSends (Z := Unit) p.bv b.bv σ1 = ({((), σ2)}, False) ∧
-        StateRel th (L.mem s2) σ2 ∧ σ2.cdt = σ1.cdt ∧ σ2.isOriginalCap = σ1.isOriginalCap ∧ KSub σ1 σ2 ⦄
+        StateRel th (L.mem s2) σ2 ∧ σ2.cdt = σ1.cdt ∧ σ2.isOriginalCap = σ1.isOriginalCap ⦄
 
 /-- **CNode CancelBadgedSends**, decode and invoke, for any badge: FL4's
 `cnode::decode` at label `CNodeCancelBadgedSends` against l4v's
@@ -162,12 +162,13 @@ theorem cnode_cancel_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
           intro h; apply hb; apply UScalar.eq_of_val_eq
           have := congrArg BitVec.toNat h; simpa using this
         simp only [hbn, ↓reduceIte]
-        obtain ⟨s3, hs3, hS3, σ2, hcb, hR2, hcdt2, hio2, hks2⟩ := spec_exists (hEp s2 σ1 p b hb hS hst hR1)
+        obtain ⟨s3, hs3, hS3, σ2, hcb, hR2, hcdt2, hio2⟩ := spec_exists (hEp s2 σ1 p b hb hS hst hR1)
         rw [hs3]; simp only [bind_ok, uncurry_apply_pair]
         rw [WP.spec_ok]
         have hcap : ∀ x, IsSlot th x → capAt (L.mem s3) x = capAt (L.mem s2) x := fun x hx => hS3.capAt hx
         refine ⟨_, hdec', σ1, hst, σ2, G, ?_, hR2, hV1.of_caps hcap, hM1.of_same hS3,
-          hC1.of_same hS3 hcdt2 hio2, MdbInv.of_same hM1 hI1 hS3, hFI1.of_same hM1 hS3 hks2⟩
+          hC1.of_same hS3 hcdt2 hio2, MdbInv.of_same hM1 hI1 hS3,
+          hFI1.of_same hM1 hS3 (ksub_of_eq (cancelBadgedSends_nks _ _) hcb)⟩
         show (Fl4Spec.invokeCnode (Z := Unit) (.cancelBadgedSendsCall
           (.endpointCap p.bv b.bv (rightsOf true true true true)))).run σ1 = _
         unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption

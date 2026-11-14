@@ -67,7 +67,7 @@ structure OStep (Rg : ObjRef → Prop) (σ σ' : State Unit) : Prop where
   ist : σ'.interruptStates = σ.interruptStates
   inode : σ'.interruptIrqNode = σ.interruptIrqNode
   io : σ'.archState.x64AllocatedIoPorts = σ.archState.x64AllocatedIoPorts
-  cr3 : σ'.archState.x64CurrentCr3 = σ.archState.x64CurrentCr3
+  gpml4 : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4
   kh : ∀ q, σ'.kheap q ≠ σ.kheap q → (Rg q ∨ Passive (σ.kheap q)) ∧ Passive (σ'.kheap q)
 
 theorem OStep.keep {Rg : ObjRef → Prop} {σ σ' : State Unit} (h : OStep Rg σ σ') {q : ObjRef}
@@ -87,7 +87,7 @@ theorem OStep.trans {Rg Rg' : ObjRef → Prop} {σ1 σ2 σ3 : State Unit} (h1 : 
   refine ⟨h2.rq.trans h1.rq, h2.rel.trans h1.rel, h2.ct.trans h1.ct, h2.act.trans h1.act, h2.csc.trans h1.csc,
     h2.ctime.trans h1.ctime, h2.cons.trans h1.cons, h2.repr.trans h1.repr, h2.cdom.trans h1.cdom,
     h2.dtime.trans h1.dtime, h2.idle.trans h1.idle, h2.ist.trans h1.ist, h2.inode.trans h1.inode,
-    h2.io.trans h1.io, h2.cr3.trans h1.cr3, fun q hq => ?_⟩
+    h2.io.trans h1.io, h2.gpml4.trans h1.gpml4, fun q hq => ?_⟩
   by_cases e1 : σ2.kheap q = σ1.kheap q
   · have e2 : σ3.kheap q ≠ σ2.kheap q := by rw [e1]; exact hq
     obtain ⟨a, b⟩ := h2.kh q e2
@@ -101,7 +101,7 @@ theorem OStep.trans {Rg Rg' : ObjRef → Prop} {σ1 σ2 σ3 : State Unit} (h1 : 
 
 theorem OStep.mono {Rg Rg' : ObjRef → Prop} {σ σ' : State Unit} (h : OStep Rg σ σ') (hr : ∀ q, Rg q → Rg' q) :
     OStep Rg' σ σ' :=
-  ⟨h.rq, h.rel, h.ct, h.act, h.csc, h.ctime, h.cons, h.repr, h.cdom, h.dtime, h.idle, h.ist, h.inode, h.io, h.cr3,
+  ⟨h.rq, h.rel, h.ct, h.act, h.csc, h.ctime, h.cons, h.repr, h.cdom, h.dtime, h.idle, h.ist, h.inode, h.io, h.gpml4,
     fun q hq => ⟨(h.kh q hq).1.imp (hr q) id, (h.kh q hq).2⟩⟩
 
 theorem passive_tcb {x : Tcb} : ¬ Passive (some (.tcb x)) := by
@@ -151,8 +151,9 @@ def MpW (th : TypedHeap) (p ksb hi : U64) (b : U64) : Prop :=
 memory outside the frame unchanged. -/
 def MpStep (p : U64) (σ σ' : Fl4Spec.State Unit) : Prop :=
   OStep (fun q => q ∈ regionSet p.bv 12) σ σ' ∧
-    ∀ x : Fl4Spec.Word, (x.toNat < p.val ∨ p.val + 4096 ≤ x.toNat) →
-      σ'.machineState.underlyingMemory x = σ.machineState.underlyingMemory x
+    (∀ x : Fl4Spec.Word, (x.toNat < p.val ∨ p.val + 4096 ≤ x.toNat) →
+      σ'.machineState.underlyingMemory x = σ.machineState.underlyingMemory x) ∧
+    σ'.archState.x64CurrentCr3 = σ.archState.x64CurrentCr3
 
 /-- The hypotheses of `MakePool` (see the module docstring). `RegOK s σ p`:
 what `SR` needs of the frame (that it holds none of the other subsystems'
@@ -419,7 +420,8 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
         τf.kheap p.bv = some (.archObj (.asidPool fun _ => none)) ∧
         τf.archState.x64AsidTable =
           Function.update σ1.archState.x64AsidTable (Fl4Spec.ucast 11 i.bv) (some p.bv) ∧
-        OStep (fun _ => False) τd τf ∧ τf.machineState = τd.machineState := by
+        OStep (fun _ => False) τd τf ∧ τf.machineState = τd.machineState ∧
+        τf.archState.x64CurrentCr3 = σ1.archState.x64CurrentCr3 := by
     intro τd hD
     obtain ⟨cs, hkpp, hwf, RR2τ, -, -⟩ := hset2 τd hD
     have hτs : setCnodeSlot τd pp.bv rs cs idx (.untypedCap false p.bv sb.val (4096#u64 : U64).val) =
@@ -486,7 +488,7 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     have hppp : p.bv ≠ pp.bv := fun e => hpq pp hpp_out e.symm
     refine ⟨mpTable τi p.bv base.bv, hperf, (hR4.of_kheap (σ' := mpTable τi p.bv base.bv) rfl).of_caps (fun y hy => hSS5.capAt hy),
       Fl4Proofs.P3.SlotsValid.of_caps hV4 (fun y hy => hSS5.capAt hy), hM4, hM4.of_same hSS5,
-      hC4.of_same hSS5 rfl rfl, fun q hq ao hqa => ?_, ?_, ?_, ?_, rfl⟩
+      hC4.of_same hSS5 rfl rfl, fun q hq ao hqa => ?_, ?_, ?_, ?_, rfl, ?_⟩
     · obtain ⟨h1, h2⟩ := hpdq q ao hqa
       show (Function.update τr.kheap pd.bv _) q.bv = _
       rw [Function.update_of_ne h1, hkr q hq]
@@ -525,6 +527,8 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
       have h5 := OStep.table (σ := τi) (Function.update τi.archState.x64AsidTable (Fl4Spec.asidHighBitsOf base.bv)
         (some p.bv))
       exact ((((h1.trans h2).trans h3).trans h4).trans h5).mono (fun q h => by simp at h)
+    · show τi.archState.x64CurrentCr3 = _
+      rw [show τi.archState = σ1.archState from hD.2.2.2]
   -- the MDB invariants after the insertion
   have heU : EncWf (capability.Cap.Untyped p sb 4096#u64 false) := ⟨he0.1, he0.2⟩
   have hNc : Canonical (nextOf (L.mem s3) x) := by
@@ -586,7 +590,7 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
       obtain ⟨τf, he, -⟩ := key y.2 ⟨hy.1, hy.2.1, hy.2.2.1, hy.2.2.2⟩
       exact nsat_det he trivial)
   obtain ⟨y, hy, hPy⟩ := hDel.2
-  obtain ⟨τf, he, hR5, hV5, hM4, hM5, hC5, hkq, hkp, htab, hOf, hmsf⟩ := key y.2 ⟨hPy.1, hPy.2.1, hPy.2.2.1, hPy.2.2.2⟩
+  obtain ⟨τf, he, hR5, hV5, hM4, hM5, hC5, hkq, hkp, htab, hOf, hmsf, hcrf⟩ := key y.2 ⟨hPy.1, hPy.2.1, hPy.2.2.1, hPy.2.2.2⟩
   have hmem : ((), τf) ∈ ((Fl4Spec.deleteObjects p.bv 12 >>= fun _ =>
       mpPerf p.bv (pd.bv, idxd) (pp.bv, idx) base.bv) σ1).1 := by
     obtain ⟨r, hr, hre⟩ := nhas_bind (m := Fl4Spec.deleteObjects (Z := Unit) p.bv 12)
@@ -652,7 +656,7 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
       split_ifs at hq ⊢ with h
       · exact ⟨Or.inl h, Or.inl rfl⟩
       · exact absurd rfl hq
-    refine ⟨(hO1.trans hOf).mono (fun q h => h.elim id False.elim), fun x hx => ?_⟩
+    refine ⟨(hO1.trans hOf).mono (fun q h => h.elim id False.elim), fun x hx => ?_, hcrf⟩
     rw [hmsf, hy2]
     exact hum x hx
   have hSR5 : SR s5 a τf := hH.mpSR s1 s5 a σ1 τf p i hi hS1 (hRO1 p hRO)

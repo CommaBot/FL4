@@ -138,7 +138,7 @@ theorem insert_ctl_finM (hP : Placed th) (s : S) (G : MdbGhost) (hM : MdbLinks t
   refine hF.fresh_ins hsrc hdest b hnd (fun z hz => by rw [hcap z (hslot z hz), if_neg (hne' z hz)])
     (fun w hw => ?_)
   rw [hcap dest hd, if_pos rfl, hcap w (hslot w hw), if_neg (hne' w hw)]
-  refine ⟨hov w hw, hfr w hw, fun hf => ?_⟩
+  refine ⟨hov w hw, fun _ => hfr w hw, fun hf => ?_⟩
   obtain ⟨p, sz, v, dv, m, a, va, e⟩ : ∃ p sz v dv m a va, capV (L.mem s) w = .Frame p sz v dv m a va := by
     cases h : capV (L.mem s) w <;> rw [h] at hf <;> simp [isFrame] at hf
     exact ⟨_, _, _, _, _, _, _, rfl⟩

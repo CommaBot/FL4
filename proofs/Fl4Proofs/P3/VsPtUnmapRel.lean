@@ -58,6 +58,8 @@ structure VsPtUnmapHyps (A : Type) (ar : machine.Arch A) (th : TypedHeap) (P L4 
     (asid : Fl4Spec.Asid), v &&& Fl4Spec.mask (Fl4Spec.ptTranslationBits + Fl4Spec.pageBits) = 0 →
     (∃ f, σ.kheap pt = some (.archObj (.pageTable f))) → ¬ (Fl4Spec.flushTable (Z := Unit) vs v pt asid σ).2
   flushTbl : ∀ s a σ (vs : Fl4Spec.ObjRef) (v : Fl4Spec.VSpaceRef) (pt : Fl4Spec.ObjRef) (asid : U64), SR s a σ →
+    v &&& Fl4Spec.mask (Fl4Spec.ptTranslationBits + Fl4Spec.pageBits) = 0 →
+    (∃ f, σ.kheap pt = some (.archObj (.pageTable f))) →
     ar.invalidate_asid a asid ⦃ a' =>
       ∃ σ', ((), σ') ∈ (Fl4Spec.flushTable (Z := Unit) vs v pt asid.bv σ).1 ∧ SR s a' σ' ⦄
 
@@ -279,7 +281,7 @@ theorem unmap_page_table_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {
             (.archObj (.pageDirectory (Function.update f (Fl4Spec.ucast 9 (vIdx vaddr 21).bv) .invalidPDE))))}, False) := by
         intro ms; rw [peA_bv _ _ hj (tbl_fit hqa)]
         exact storePde_at hqa (show ({ σ with machineState := ms } : Fl4Spec.State Unit).kheap q.bv = _ from hk) hj _
-      refine WP.spec_bind (hH.flushTbl s a σ r1.bv vaddr.bv pt.bv asid hS) ?_
+      refine WP.spec_bind (hH.flushTbl s a σ r1.bv vaddr.bv pt.bv asid hS hal hptk) ?_
       rintro a1 ⟨σf, hσf, hSf⟩
       have hσf' := hσf
       obtain ⟨ms, rfl⟩ := flushTable_mem hσf

@@ -73,7 +73,8 @@ theorem MdbInv.rename {th : TypedHeap} {mem mem' : U64 → U64} {G : MdbGhost} (
     exact hI.after y0 hy' hn' x0 hx' hd'
   · obtain ⟨ch0, hch0, rfl⟩ := List.mem_map.1 hch
     exact Mdb.chunkL_map e (hI.chunk _ hch0) (fun u hu v hv =>
-      hsm u v (List.mem_flatten.2 ⟨_, hch0, hu⟩) (List.mem_flatten.2 ⟨_, hch0, hv⟩))
+      srF_congr (hsm u v (List.mem_flatten.2 ⟨_, hch0, hu⟩) (List.mem_flatten.2 ⟨_, hch0, hv⟩))
+        (isFrame_of_shape (hcap u (List.mem_flatten.2 ⟨_, hch0, hu⟩)).1) (hrev u (List.mem_flatten.2 ⟨_, hch0, hu⟩)))
   · have hy' := (hmem y).1 hy
     obtain ⟨y0, rfl⟩ : ∃ y0, y = e y0 := ⟨e.symm y, by simp⟩
     simp only [Equiv.symm_apply_apply] at hy'

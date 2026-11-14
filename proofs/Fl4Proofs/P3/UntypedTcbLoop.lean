@@ -45,7 +45,7 @@ theorem LoopInv.of_same {th' : TypedHeap} {srcSl : Fl4Spec.CslotPtr} {srcC : cap
     (hS : SlotsSame th' (L.mem s) (L.mem s'))
     (hz : ∀ w : U64, P1.Aligned w → zlo ≤ w.val → w.val < zhi → L.mem s' w = L.mem s w) :
     LoopInv (L := L) th' srcSl srcC σ1 f pairs A k win dslot zlo zhi G0 m0 cj s' i := by
-  obtain ⟨σi, Gi, hchain, hR, hV, hM, hC, hI, hs, hnull, hno, hdd, hzr, hT1, hT1b, hT2a, hT2b, hT3⟩ := h
+  obtain ⟨σi, Gi, hchain, hR, hV, hM, hC, hI, hs, hnull, hno, hdd, hzr, hT1, hT1b, hT2a, hT2b, hT3, hFM⟩ := h
   have hcap : ∀ x, IsSlot th' x → capAt (L.mem s') x = capAt (L.mem s) x := fun x hx => hS.capAt hx
   have hsl : ∀ x, x ∈ Gi.chains.flatten → IsSlot th' x := fun x h => ((hM.members x).1 h).1
   refine ⟨σi, Gi, hchain, hR.of_caps hcap, hV.of_caps hcap, hM.of_same hS, hC.of_same hS rfl rfl,
@@ -53,7 +53,8 @@ theorem LoopInv.of_same {th' : TypedHeap} {srcSl : Fl4Spec.CslotPtr} {srcC : cap
     fun j h1 h2 => by rw [hcap _ (hdsl j h2)]; exact hnull j h1 h2, fun x hx hp => ?_, fun y hy => ?_,
     fun w hw h1 h2 => by rw [hz w hw h1 h2]; exact hzr w hw h1 h2, hT1, hT1b,
     fun j hj => by rw [hS.capV (hdsl j (by omega))]; exact hT2a j hj,
-    fun x hx => by rw [hS.capV (hsl x (hT1b x hx))]; exact hT2b x hx, hT3⟩
+    fun x hx => by rw [hS.capV (hsl x (hT1b x hx))]; exact hT2b x hx, hT3,
+    fun h0 => (hFM h0).of_caps hM.tree.nodup (fun x hx => hS.capV (hsl x hx))⟩
   · rw [hS.capV (hsl x hx)] at hp ⊢; exact hno x hx hp
   · rw [hS.capV (hsl y (desc_mem hM hy).1)]; exact hdd y hy
 
@@ -416,7 +417,8 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
         MdbLinks th' (L.mem res.2.1) G' ∧ CdtRel th' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
         UtInv (L.mem res.2.1) G' ∧ ZeroRegion (L.mem res.2.1)
           ((Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val)
-          (p.val + 2 ^ sb.val) ⦄ := by
+          (p.val + 2 ^ sb.val) ∧
+        (FinInv th (L.mem s) σ G → FinInv th' (L.mem res.2.1) σ' G') ⦄ := by
   -- sizes and the region
   have hsb : sb.val < 64 := capAt_untyped_inv hcap
   have htT : t = .tcbObject := by rw [hnt] at ht; simpa [objTypeOf] using ht.symm
@@ -577,7 +579,7 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
       fun j hj => absurd hj (by omega), fun x _ => rfl, fun y x => ⟨Or.inl, by
         rintro (h | ⟨j, hj, -⟩)
         · exact h
-        · omega⟩⟩
+        · omega⟩, fun h => h⟩
     · intro j _ hj
       have hj' : off.val + j < 2 ^ r := by omega
       have hd : IsSlot th (slotAddr dest.bv (BitVec.ofNat 64 (off.val + j))) :=
@@ -653,13 +655,20 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
   simp only [bind_ok, uncurry_apply_pair]
   rw [WP.spec_ok]
   simp only at ha2 hfin
-  obtain ⟨σf, Gf, hchain, hRf, hVf, hMf, hCf, hIf, -, -, -, -, hZf, hT1, hT1b, hT2a, hT2b, hT3⟩ := hfin
+  obtain ⟨σf, Gf, hchain, hRf, hVf, hMf, hCf, hIf, -, -, -, -, hZf, hT1, hT1b, hT2a, hT2b, hT3, hFf⟩ := hfin
   have hdrop : ((windowSlots dest r off.val win.val).zip (regionPtrs (BitVec.ofNat 64 aligned.val) win.val
       (2 ^ zOf nt.val us.val))).drop win.val = [] := by
     apply List.drop_of_length_le; simp [windowSlots, regionPtrs]
   rw [hdrop] at hchain
   have hmx := hchain σf (mapMx_nil _ _)
-  refine ⟨rfl, ha2, σf, Gf, th', ?_, hP', hRf, hVf, hMf, hCf, hIf, ?_, ?_⟩
+  refine ⟨rfl, ha2, σf, Gf, th', ?_, hP', hRf, hVf, hMf, hCf, hIf, ?_, ?_, fun hFI => ⟨?_, ?_⟩⟩
+  rotate_right 2
+  · exact (ktyped_region (hFI.kt.sub (ksub_of_eq (nks_setCap _ _) hσa)) Ab A win.val 4096 rfl (by omega) hfitA hrf4
+      (fun q kd hq hs => extendTh_of_old (by omega) hrf4 hq hs) _
+      (fun q hq => ⟨fun r cs he _ => (by cases he), fun t _ => extendTh_new hq⟩)).sub
+      (ksub_of_eq (nks_mapMx (nks_createCap _ _ _ _) _) hmx)
+  · exact hFf (hFI.fm.recap hM.tree.nodup src (by rw [hcs1, hcv0]; exact CapSim.of_shape rfl rfl)
+      (fun z hz hzs => hco1 z ((hM.members z).1 hz).1 hzs))
   · rw [hbA] at hmx
     have hrb : Fl4Spec.retypeRegionWith (Z := Unit) bitsApi Ab (windowSlots dest r off.val win.val).length us.val
         .tcbObject dev σa = ({(regionPtrs Ab (windowSlots dest r off.val win.val).length 4096,

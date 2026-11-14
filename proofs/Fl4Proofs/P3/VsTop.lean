@@ -3,8 +3,8 @@ P3 (DESIGN.md §9), VSpace: **the other subsystems' relations across the
 VSpace code** (the `SR` stabilities of the Vs hypothesis structures).
 
 `OthersRel`: the scheduler, endpoint, notification, IRQ and IO-port
-relations and an arch relation `AR` (FL4's arch state against the spec,
-reading only CR3). `TopSR` adds the placement `TopPlaced`: the words the
+relations, the kernel root word (`KRootRel`), and an arch relation `AR`
+between FL4's arch state and the spec's CR3 (VsArch: `ArchRefines`). `TopSR` adds the placement `TopPlaced`: the words the
 other relations read lie in their objects (`OObj`: the core's node, the
 low kernel-state block, the TCB fields, the endpoints, replies,
 notifications, SCs and IPC-buffer words), and these are disjoint from the
@@ -18,8 +18,7 @@ page tables and the ASID table) — l4v's object non-overlap.
   holding none of the other objects), the IPC-buffer bytes kept;
   the frames of each relation (`SchedRel.memFrame` / `.specFrame`, and the
   endpoint, notification, IRQ and IO-port ones).
-* the stabilities, in the shape of the hypothesis fields (`SR := TopSR`,
-  with `ARFrame AR`): `capStable_top`, `ptStable_top`, `pdStable_top`,
+* the stabilities, in the shape of the hypothesis fields (`SR := TopSR`): `capStable_top`, `ptStable_top`, `pdStable_top`,
   `pdptStable_top`, `pml4Stable_top`, `vsStable_top`, and `mpSR_top`
   (`VsMpHyps.mpSR` with `RegOK := RegOKTop`).
 -/
@@ -28,6 +27,7 @@ import Fl4Proofs.P3.VsMakePoolRel
 import Fl4Proofs.P3.SchedRel
 import Fl4Proofs.P3.IoBitmap
 import Fl4Proofs.P3.IntRel
+import Fl4Proofs.P3.IoPortDecode
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Vs
@@ -66,15 +66,22 @@ structure TopPlaced (th : TypedHeap) (P L4 L3 L2 L1 N T C E R : Set U64) (B : Se
   pl : Placed th
   disj : ∀ a, OObj st N T C E R B c s σ a → ¬ VObj th P L4 L3 L2 L1 (L.ksb s) a
 
-/-- The other subsystems' relations. -/
+/-- FL4's kernel root word (`ks::KERNEL_ROOT`) gives the spec's global
+address space. -/
+def KRootRel (m : U64 → U64) (ksb : U64) (σ : Fl4Spec.State Unit) : Prop :=
+  Fl4Spec.makeCr3 (Fl4Spec.addrFromPPtr (m (core.num.U64.wrapping_add ksb layout.ks.KERNEL_ROOT)).bv) 0 = globCr3 σ
+
+/-- The other subsystems' relations, the kernel root, and the arch relation
+`AR` between FL4's arch state and the spec's CR3. -/
 def OthersRel {A : Type} (N T C E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (c : U64)
-    (AR : A → Fl4Spec.State Unit → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
+    (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   Sched.SchedRel st N T C c s σ ∧ Endp.EpStateRel T E R B (L.mem s) σ ∧ Notif.NtfnStateRel N T (L.mem s) σ ∧
-    IrqRel (L.mem s) (L.ksb s) σ ∧ IoRel (L.mem s) (L.ksb s) σ ∧ AR a σ
+    IrqRel (L.mem s) (L.ksb s) σ ∧ IoRel (L.mem s) (L.ksb s) σ ∧ KRootRel (L.mem s) (L.ksb s) σ ∧
+    AR a σ.archState.x64CurrentCr3
 
 /-- **The composite `SR`** of the VSpace hypothesis structures. -/
 def TopSR {A : Type} (th : TypedHeap) (P L4 L3 L2 L1 N T C E R : Set U64) (B : Set (U64 × Fl4Spec.Word))
-    (c : U64) (AR : A → Fl4Spec.State Unit → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
+    (c : U64) (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   OthersRel st N T C E R B c AR s a σ ∧ TopPlaced st th P L4 L3 L2 L1 N T C E R B c s σ
 
 end Defs
@@ -264,7 +271,7 @@ theorem OObj.of_step {Rg : Fl4Spec.ObjRef → Prop} {s s' : S} {σ σ' : Fl4Spec
 VSpace objects or a region `Rw` outside the other objects, the spec change
 an `OStep` whose region holds none of the other objects, the IPC-buffer
 words kept, and the arch relation kept. -/
-theorem TopSR.step {A : Type} {AR : A → Fl4Spec.State Unit → Prop} {Rg : Fl4Spec.ObjRef → Prop} {Rw : U64 → Prop}
+theorem TopSR.step {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Rg : Fl4Spec.ObjRef → Prop} {Rw : U64 → Prop}
     {s s' : S} {a a' : A} {σ σ' : Fl4Spec.State Unit}
     (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ)
     (hksb : L.ksb s' = L.ksb s) (hcpu : L.cpu s' = L.cpu s)
@@ -273,8 +280,9 @@ theorem TopSR.step {A : Type} {AR : A → Fl4Spec.State Unit → Prop} {Rg : Fl4
     (hRg : ∀ q : U64, Rg q.bv → q ∉ T ∧ q ∉ E ∧ q ∉ R ∧ q ∉ N ∧ q ∉ C)
     (hB : ∀ wp ∈ B, Endp.loadWordAt σ'.machineState.underlyingMemory wp.2 =
       Endp.loadWordAt σ.machineState.underlyingMemory wp.2)
-    (hAR : AR a σ → AR a' σ') : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s' a' σ' := by
-  obtain ⟨⟨hSch, hEp, hNt, hIrq, hIo, hAr⟩, hP⟩ := hS
+    (hAR : AR a σ.archState.x64CurrentCr3 → AR a' σ'.archState.x64CurrentCr3) :
+    TopSR st th P L4 L3 L2 L1 N T C E R B c AR s' a' σ' := by
+  obtain ⟨⟨hSch, hEp, hNt, hIrq, hIo, hKr, hAr⟩, hP⟩ := hS
   have hm : ∀ b, Aligned b → OObj st N T C E R B c s σ b → L.mem s' b = L.mem s b :=
     fun b hb ho => hW b hb (hP.disj b ho) (fun h => hRw b h ho)
   have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
@@ -288,9 +296,16 @@ theorem TopSR.step {A : Type} {AR : A → Fl4Spec.State Unit → Prop} {Rg : Fl4
     EpStateRel.specFrame (EpStateRel.memFrame hEp hP.ep hm) hO hT hE hRR hB,
     NtfnStateRel.specFrame (NtfnStateRel.memFrame hNt hSch.placed hm) hO hT hN,
     by rw [hksb]; exact IrqRel.specFrame (IrqRel.memFrame hIrq hkf hka hm) hO,
-    by rw [hksb]; exact IoRel.specFrame (IoRel.memFrame hIo hkf hka hm) hO, hAR hAr⟩,
+    by rw [hksb]; exact IoRel.specFrame (IoRel.memFrame hIo hkf hka hm) hO, ?_, hAR hAr⟩,
     ⟨hP.ep, by rw [hksb]; exact hP.vs, hP.pt, hP.pl, fun x hx => by
       rw [hksb]; exact hP.disj x (OObj.of_step hksb hO hx)⟩⟩
+  unfold KRootRel globCr3 at hKr ⊢
+  have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
+    unfold layout.ks.KERNEL_ROOT
+    simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+  rw [hksb, hm _ (by unfold Aligned; rw [hkv]; unfold layout.ks.KERNEL_ROOT at hkv; omega)
+    (Or.inr (Or.inl (by rw [hkv]; omega))), hO.gpml4]
+  exact hKr
 
 end Step
 
@@ -300,10 +315,6 @@ end Step
 section Stable
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 variable {th : TypedHeap} {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
-
-/-- The arch relation reads only CR3 of the spec. -/
-def ARFrame {A : Type} (AR : A → Fl4Spec.State Unit → Prop) : Prop :=
-  ∀ a σ σ', σ'.archState.x64CurrentCr3 = σ.archState.x64CurrentCr3 → AR a σ → AR a σ'
 
 theorem slot_vobj (hP : Placed th) {a : U64} (ha : IsSlot th a) {b : U64} (h1 : a.val ≤ b.val)
     (h2 : b.val < a.val + 32) (ksb : U64) : VObj th P L4 L3 L2 L1 ksb b := by
@@ -337,58 +348,59 @@ theorem vsWrite_vobj (hVP : VsPlaced P ksb) {b : U64} (h : VsWrite P ksb b) : VO
     exact ⟨p, Or.inl hp, by omega, by omega⟩
 
 /-- A step with no region, for writes in `W ⊆ VObj`. -/
-theorem TopSR.step0 {A : Type} {AR : A → Fl4Spec.State Unit → Prop} (hAR : ARFrame AR) {W : U64 → Prop}
+theorem TopSR.step0 {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {W : U64 → Prop}
     {s s' : S} {a : A} {σ σ' : Fl4Spec.State Unit} (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ)
     (hWV : ∀ b, W b → VObj th P L4 L3 L2 L1 (L.ksb s) b) (hw : WritesIn st s s' W)
-    (hO : OStep (fun _ => False) σ σ') (hum : σ'.machineState = σ.machineState) :
+    (hO : OStep (fun _ => False) σ σ') (hum : σ'.machineState = σ.machineState)
+    (hcr : σ'.archState.x64CurrentCr3 = σ.archState.x64CurrentCr3) :
     TopSR st th P L4 L3 L2 L1 N T C E R B c AR s' a σ' :=
   TopSR.step (Rw := fun _ => False) hS hw.1 hw.2.1 (fun b hb hv _ => hw.2.2 b hb (fun h => hv (hWV b h)))
     (fun _ h => h.elim) hO (fun _ h => h.elim) (fun wp _ => by rw [hum])
-    (hAR a σ σ' hO.cr3)
+    (fun h => by rw [hcr]; exact h)
 
-theorem capStable_top {A : Type} {AR : A → Fl4Spec.State Unit → Prop} (hAR : ARFrame AR) (s s' : S) (a : A)
+theorem capStable_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s s' : S) (a : A)
     (σ σ' : Fl4Spec.State Unit) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ)
     (hw : WritesIn st s s' (SlotW th)) (hc : CapStep σ σ') : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s' a σ' := by
   obtain ⟨p, r, cs, idx, a', hk, rfl⟩ := hc
-  exact TopSR.step0 hAR hS (fun b h => slotW_vobj hS.2.pl h _) hw (OStep.cnode hk idx a') rfl
+  exact TopSR.step0 hS (fun b h => slotW_vobj hS.2.pl h _) hw (OStep.cnode hk idx a') rfl rfl
 
-theorem ptStable_top {A : Type} {AR : A → Fl4Spec.State Unit → Prop} (hAR : ARFrame AR) (s s' : S) (a : A)
+theorem ptStable_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s s' : S) (a : A)
     (σ σ' : Fl4Spec.State Unit) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ)
     (hw : WritesIn st s s' (PtW L1)) (hc : PtStep σ σ') : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s' a σ' := by
   obtain ⟨p, f, f', hk, rfl⟩ := hc
-  exact TopSR.step0 hAR hS (fun b ⟨q, hq, i, hi, e⟩ => e ▸ table_vobj hS.2.pt (Or.inr (Or.inr (Or.inr hq))) hi _)
-    hw (OStep.arch (Or.inr (Or.inr ⟨_, hk⟩)) _) rfl
+  exact TopSR.step0 hS (fun b ⟨q, hq, i, hi, e⟩ => e ▸ table_vobj hS.2.pt (Or.inr (Or.inr (Or.inr hq))) hi _)
+    hw (OStep.arch (Or.inr (Or.inr ⟨_, hk⟩)) _) rfl rfl
 
-theorem pdStable_top {A : Type} {AR : A → Fl4Spec.State Unit → Prop} (hAR : ARFrame AR) (s s' : S) (a : A)
+theorem pdStable_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s s' : S) (a : A)
     (σ σ' : Fl4Spec.State Unit) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ)
     (hw : WritesIn st s s' (PdW L2)) (hc : PdStep σ σ') : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s' a σ' := by
   obtain ⟨p, f, f', hk, rfl⟩ := hc
-  exact TopSR.step0 hAR hS (fun b ⟨q, hq, i, hi, e⟩ => e ▸ table_vobj hS.2.pt (Or.inr (Or.inr (Or.inl hq))) hi _)
-    hw (OStep.arch (Or.inr (Or.inr ⟨_, hk⟩)) _) rfl
+  exact TopSR.step0 hS (fun b ⟨q, hq, i, hi, e⟩ => e ▸ table_vobj hS.2.pt (Or.inr (Or.inr (Or.inl hq))) hi _)
+    hw (OStep.arch (Or.inr (Or.inr ⟨_, hk⟩)) _) rfl rfl
 
-theorem pdptStable_top {A : Type} {AR : A → Fl4Spec.State Unit → Prop} (hAR : ARFrame AR) (s s' : S) (a : A)
+theorem pdptStable_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s s' : S) (a : A)
     (σ σ' : Fl4Spec.State Unit) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ)
     (hw : WritesIn st s s' (PdptW L3)) (hc : PdptStep σ σ') :
     TopSR st th P L4 L3 L2 L1 N T C E R B c AR s' a σ' := by
   obtain ⟨p, f, f', hk, rfl⟩ := hc
-  exact TopSR.step0 hAR hS (fun b ⟨q, hq, i, hi, e⟩ => e ▸ table_vobj hS.2.pt (Or.inr (Or.inl hq)) hi _)
-    hw (OStep.arch (Or.inr (Or.inr ⟨_, hk⟩)) _) rfl
+  exact TopSR.step0 hS (fun b ⟨q, hq, i, hi, e⟩ => e ▸ table_vobj hS.2.pt (Or.inr (Or.inl hq)) hi _)
+    hw (OStep.arch (Or.inr (Or.inr ⟨_, hk⟩)) _) rfl rfl
 
-theorem pml4Stable_top {A : Type} {AR : A → Fl4Spec.State Unit → Prop} (hAR : ARFrame AR) (s s' : S) (a : A)
+theorem pml4Stable_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s s' : S) (a : A)
     (σ σ' : Fl4Spec.State Unit) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ)
     (hw : WritesIn st s s' (Pml4W L4)) (hc : Pml4Step σ σ') :
     TopSR st th P L4 L3 L2 L1 N T C E R B c AR s' a σ' := by
   obtain ⟨p, f, f', hk, rfl⟩ := hc
-  exact TopSR.step0 hAR hS (fun b ⟨q, hq, i, hi, e⟩ => e ▸ table_vobj hS.2.pt (Or.inl hq) hi _)
-    hw (OStep.arch (Or.inr (Or.inr ⟨_, hk⟩)) _) rfl
+  exact TopSR.step0 hS (fun b ⟨q, hq, i, hi, e⟩ => e ▸ table_vobj hS.2.pt (Or.inl hq) hi _)
+    hw (OStep.arch (Or.inr (Or.inr ⟨_, hk⟩)) _) rfl rfl
 
-theorem vsStable_top {A : Type} {AR : A → Fl4Spec.State Unit → Prop} (hAR : ARFrame AR) (s s' : S) (a : A)
+theorem vsStable_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s s' : S) (a : A)
     (σ σ' : Fl4Spec.State Unit) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ)
     (hw : WritesIn st s s' (VsWrite P (L.ksb s))) (hc : VsStep σ σ') :
     TopSR st th P L4 L3 L2 L1 N T C E R B c AR s' a σ' := by
   rcases hc with ⟨p, f, f', hk, rfl⟩ | ⟨t, rfl⟩
-  · exact TopSR.step0 hAR hS (fun b h => vsWrite_vobj hS.2.vs h) hw (OStep.arch (Or.inr (Or.inr ⟨_, hk⟩)) _) rfl
-  · exact TopSR.step0 hAR hS (fun b h => vsWrite_vobj hS.2.vs h) hw (OStep.table t) rfl
+  · exact TopSR.step0 hS (fun b h => vsWrite_vobj hS.2.vs h) hw (OStep.arch (Or.inr (Or.inr ⟨_, hk⟩)) _) rfl rfl
+  · exact TopSR.step0 hS (fun b h => vsWrite_vobj hS.2.vs h) hw (OStep.table t) rfl rfl
 
 end Stable
 
@@ -410,7 +422,7 @@ def RegOKTop (N T C E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (c : U64) (s 
       p.val + 4096 ≤ (wp.2 + (7 - BitVec.ofInt 64 i)).toNat
 
 /-- **`VsMpHyps.mpSR` for the composite relation.** -/
-theorem mpSR_top {A : Type} {AR : A → Fl4Spec.State Unit → Prop} (hAR : ARFrame AR) (s s' : S) (a : A)
+theorem mpSR_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s s' : S) (a : A)
     (σ σ' : Fl4Spec.State Unit) (p hi : U64) (hhi : hi.val < 2048)
     (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ) (hRO : RegOKTop (L := L) N T C E R B c s σ p)
     (hksb : L.ksb s' = L.ksb s) (hcpu : L.cpu s' = L.cpu s)
@@ -423,7 +435,7 @@ theorem mpSR_top {A : Type} {AR : A → Fl4Spec.State Unit → Prop} (hAR : ARFr
       rw [regionSet_iff p q 12 (by decide) hpfit] at hq
       exact hro q hq.1 hq.2 ho
   refine TopSR.step (Rw := fun b => p.val ≤ b.val ∧ b.val < p.val + 4096) (Rg := fun q => q ∈ regionSet p.bv 12)
-    hS hksb hcpu (fun b hb hv hr => hW b hb ?_) (fun b hb => hro b hb.1 hb.2) hMp.1 ?_ ?_ (hAR a σ σ' hMp.1.cr3)
+    hS hksb hcpu (fun b hb hv hr => hW b hb ?_) (fun b hb => hro b hb.1 hb.2) hMp.1 ?_ ?_ (fun h => by rw [hMp.2.2]; exact h)
   · rintro (⟨x, k, hx, hk, rfl⟩ | h | rfl)
     · have hf := hx.fit hP.pl
       have := hk.lt
@@ -453,7 +465,39 @@ theorem mpSR_top {A : Type} {AR : A → Fl4Spec.State Unit → Prop} (hAR : ARFr
     congr 1
     apply List.map_congr_left
     intro i hi'
-    exact hMp.2 _ (hrb wp hw i hi')
+    exact hMp.2.1 _ (hrb wp hw i hi')
+
+
+/-- `RegOKTop` reads the heap only for the SC cells. -/
+theorem OObj.of_kh {s s' : S} {σ σ' : Fl4Spec.State Unit} (hksb : L.ksb s' = L.ksb s)
+    (hsc : ∀ q x n, σ'.kheap q = some (.schedContext x n) → σ.kheap q = some (.schedContext x n)) {a : U64}
+    (h : OObj st N T C E R B c s' σ' a) : OObj st N T C E R B c s σ a := by
+  have hnb : L.nodeBase s' c = L.nodeBase s c := by simp [LawfulStore.nodeBase, hksb]
+  unfold OObj at h ⊢
+  rw [hnb, hksb] at h
+  rcases h with h | h | h | h | h | h | ⟨sc, hsc', x, n, hk, ho⟩ | h
+  · exact Or.inl h
+  · exact Or.inr (Or.inl h)
+  · exact Or.inr (Or.inr (Or.inl h))
+  · exact Or.inr (Or.inr (Or.inr (Or.inl h)))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h))))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h)))))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨sc, hsc', x, n, hsc _ _ _ hk, ho⟩))))))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr h))))))
+
+/-- **`RegOKTop` across `set_thread_state Restart`** (the `restart` field's
+`RegOK` part, `VsMpHyps`): the kernel-state base is kept, and the spec's
+`set_thread_state` changes a TCB, no SC. -/
+theorem regOK_restart {s : S} {σ : Fl4Spec.State Unit} {p ct : U64} {x : Fl4Spec.Tcb}
+    (hk : σ.kheap ct.bv = some (.tcb x)) (h : RegOKTop (L := L) N T C E R B c s σ p) :
+    sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' => RegOKTop (L := L) N T C E R B c s'
+      (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) p ⦄ := by
+  refine WP.spec_mono (set_thread_state_cpu s ct _) fun s' ⟨hk', _⟩ =>
+    ⟨h.1, h.2.1, fun a h1 h2 ho => h.2.2.1 a h1 h2 (OObj.of_kh hk' (fun q y n hq => ?_) ho), h.2.2.2⟩
+  rw [Notif.stsAct_kheap, Notif.updK_kheap] at hq
+  by_cases e : q = ct.bv
+  · subst e; rw [Function.update_self] at hq; cases hq
+  · rwa [Function.update_of_ne e] at hq
 
 end MakePool
 

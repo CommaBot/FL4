@@ -119,14 +119,15 @@ theorem retype_cont_all {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
         MdbLinks th' (L.mem res.2.1) G' ∧ CdtRel th' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
         UtInv (L.mem res.2.1) G' ∧ (dev = false → ZeroRegion (L.mem res.2.1)
           ((Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val)
-          (p.val + 2 ^ sb.val)) ⦄ := by
+          (p.val + 2 ^ sb.val)) ∧
+        (FinInv th (L.mem s2) σ1 G → FinInv th' (L.mem res.2.1) σ' G') ⦄ := by
     by_cases h1 : nt.val = 1
     · refine WP.spec_mono (retype_full_tcb (L := L) arI ar th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hU1 horig1 hpp hidx hcap1
         hpal hpfit hfi hhigh nt us t ht h1 hus hdest (by omega) off win hwin hw1 hmem hempty1 hfree hzero1
         (by rw [hDW2]; exact hDWal) (by rw [hDW2]; exact hDWobj) (by rw [hDW2]; exact hDWreg)
         (by rw [hDW2, hDWm2]; exact hhead) bitsApi hb) ?_
-      rintro res ⟨h1, h2, σ', G', th', h3, h4, h5, h6, h7, h8, h9, h10, h11⟩
-      exact ⟨h1, h2, σ', G', th', h3, h4, h5, h6, h7, h8, h9, h10, fun _ => h11⟩
+      rintro res ⟨h1, h2, σ', G', th', h3, h4, h5, h6, h7, h8, h9, h10, h11, h12⟩
+      exact ⟨h1, h2, σ', G', th', h3, h4, h5, h6, h7, h8, h9, h10, fun _ => h11, h12⟩
     · exact retype_full (L := L) arI ar th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hU1 horig1 hpp hidx hcap1 hpal hpfit
         hfi hhigh nt us t ht (by omega) hus hz47 hsc hct0 hdest (by omega) off win hwin hw1 hmem hempty1 hfree (fun _ => hzero1)
         (fun hd => (dev_nt ht (hdevc hd)).2.1) bitsApi hb
@@ -138,7 +139,8 @@ theorem retype_cont_all {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
         MdbLinks th' (L.mem res.2.1) G' ∧ CdtRel th' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
         UtInv (L.mem res.2.1) G' ∧ (dev = false → ZeroRegion (L.mem res.2.1)
           ((Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val)
-          (p.val + 2 ^ sb.val))) →
+          (p.val + 2 ^ sb.val)) ∧
+        (FinInv th (L.mem s2) σ1 G → FinInv th' (L.mem res.2.1) σ' G')) →
       (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) reset p.bv
           (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val
           (windowSlots dest r off.val win.val) dev)).run σ1 =
@@ -147,7 +149,7 @@ theorem retype_cont_all {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
           (windowSlots dest r off.val win.val) dev)).run σ1 →
       RetPost (L := L) σ ar bitsApi (.retype (pp.bv, idx) reset p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) dev) res := by
-    rintro res ⟨h1, h2, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', hU', -⟩ he
+    rintro res ⟨h1, h2, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', hU', -, -⟩ he
     exact ⟨h1, h2, σ1, by rw [hcur]; exact hst1, σ', G', th', he.trans hrun, hP', hR', hV', hM', hC', hI', hU'⟩
   rcases Bool.eq_false_or_eq_true reset with hrs | hrs <;> subst hrs
   · have hnc : ¬ ∃ x, σ.cdt x = some (pp.bv, idx) := by simpa using hreset.symm

@@ -65,7 +65,7 @@ theorem delete_one_refines (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L :
     have hcn : capability.Cap.Notification p b w r ≠ .Null := by simp
     simp only [isNullB_false hcn, Bool.false_eq_true, ↓reduceIte]
     obtain ⟨bf, hbf, hbf2, -⟩ := hF s σ G sl _ hDS hA hc hcn
-    have hNF : NeedsFin (.Notification p b w r) := Or.inl trivial
+    have hNF : NeedsFin (.Notification p b w r) := Or.inl ⟨trivial, rfl⟩
     rw [hbf2 hNF] at hbf
     rw [hbf]; simp only [bind_ok]
     rw [← finalise_cap_ntfn arI s a p b w r _ false]
@@ -117,7 +117,7 @@ theorem delete_one_keep (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L
     have hcn : capability.Cap.Notification p b w r ≠ .Null := by simp
     simp only [isNullB_false hcn, Bool.false_eq_true, ↓reduceIte]
     obtain ⟨bf, hbf, hbf2, -⟩ := hF s σ G sl _ hDS hA hc hcn
-    rw [hbf2 (Or.inl trivial)] at hbf
+    rw [hbf2 (Or.inl ⟨trivial, rfl⟩)] at hbf
     rw [hbf]; simp only [bind_ok]
     rw [← finalise_cap_ntfn arI s a p b w r _ false]
     apply WP.spec_bind (WP.spec_and (hO s a σ G sl _ hDS hA hc trivial) (hK s a σ G sl p b w r _ hDS hA hc))

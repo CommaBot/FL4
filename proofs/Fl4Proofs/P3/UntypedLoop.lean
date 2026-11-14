@@ -14,6 +14,7 @@ the TCB.
   the range hypotheses of the next one carried as a loop invariant.
 -/
 import Fl4Proofs.P3.UntypedMdb
+import Fl4Proofs.P3.RetypeFresh
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -375,6 +376,30 @@ theorem extend_other_rel (th : TypedHeap) (mem : U64 → U64) (σ : Fl4Spec.Stat
   · rw [hkh p ⟨_, hp, objSize_pos_cnode r⟩]; exact hR.cnode p r hp
   · rw [hkh t ⟨_, ht, objSize_pos_tcb⟩]; exact hR.tcb t ht
 
+/-- **`KTyped` for the new objects**: the spec's heap grown by `ko` at the new
+pointers, against a typed heap that keeps the old objects and has the new
+CNodes and TCBs `ko` makes. -/
+theorem ktyped_region {th th' : TypedHeap} {σ : Fl4Spec.State Unit} (hK : KTyped th σ)
+    (ptr : Fl4Spec.ObjRef) (A n k : Nat) (hA : ptr.toNat = A) (hk1 : 1 ≤ k) (hfit : A + n * k ≤ 2 ^ 64)
+    (hfree : RegionFree th A (A + n * k)) (hold : ∀ q kd, th q = some kd → 1 ≤ objSize kd → th' q = th q)
+    (ko : Fl4Spec.KernelObject)
+    (hnew : ∀ q : U64, NewP A k n q → (∀ r cs, ko = .cnode r cs → Fl4Spec.wellFormedCnodeN r cs →
+      th' q = some (.cnode r)) ∧ (∀ t, ko = .tcb t → th' q = some .tcb)) :
+    KTyped th' (regionHeap σ (regionPtrs ptr n k) ko) := by
+  have hmemP := mem_regionPtrs ptr A k n hA hk1 hfit
+  intro o
+  have hkh : (regionHeap σ (regionPtrs ptr n k) ko).kheap o = if o ∈ regionPtrs ptr n k then some ko else σ.kheap o := by
+    simp only [regionHeap]; rw [foldr_update_apply]
+  rw [hkh]
+  by_cases hm : o ∈ regionPtrs ptr n k
+  · rw [if_pos hm]
+    have hn := hnew ⟨o⟩ ((hmemP ⟨o⟩).1 hm)
+    exact ⟨fun r cs h hw => hn.1 r cs (Option.some.inj h) hw, fun t h => hn.2 t (Option.some.inj h)⟩
+  · rw [if_neg hm]
+    refine ⟨fun r cs h hw => ?_, fun t h => ?_⟩
+    · have e := (hK o).1 r cs h hw; rw [hold _ _ e (objSize_pos_cnode r)]; exact e
+    · have e := (hK o).2 t h; rw [hold _ _ e objSize_pos_tcb]; exact e
+
 /-! ## The loop -/
 
 /-- `c`'s range misses `lo .. hi`. -/
@@ -428,7 +453,8 @@ def LoopInv (th' : TypedHeap) (srcSl : Fl4Spec.CslotPtr) (srcC : capability.Cap)
     (∀ j, j < i → capV (L.mem s) (dslot j) = cj j) ∧
     (∀ x ∈ G0.chains.flatten, capV (L.mem s) x = capV m0 x) ∧
     (∀ y x, Mdb.Desc Gi.par y x ↔ Mdb.Desc G0.par y x ∨
-      ∃ j, j < i ∧ y = dslot j ∧ (x = cslotAddr srcSl ∨ Mdb.Desc G0.par (cslotAddr srcSl) x))
+      ∃ j, j < i ∧ y = dslot j ∧ (x = cslotAddr srcSl ∨ Mdb.Desc G0.par (cslotAddr srcSl) x)) ∧
+    (FinM m0 G0 → FinM (L.mem s) Gi)
 
 /-- The caps a loop over `newCapOf` inserts. -/
 def cjOf (n : Nat) (us : U64) (dev : Bool) (A k : Nat) : Nat → capability.Cap :=
@@ -489,7 +515,7 @@ theorem loop_step (th' : TypedHeap) (hP' : Placed th') {pp : U64} {rs : Nat} (hp
       ((windowSlots dest r off win).zip (regionPtrs (BitVec.ofNat 64 A) win (2 ^ zOf nt.val us.val)))
       A (2 ^ zOf nt.val us.val) win (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off + j))) zlo zhi G0 m0
       (cjOf nt.val us dev A (2 ^ zOf nt.val us.val)) s' (i + 1) ⦄ := by
-  obtain ⟨σi, Gi, hchain, hR, hV, hM, hC, hI, hsrc, hnull, hno, hdd, hzr, hT1, hT1b, hT2a, hT2b, hT3⟩ := hinv
+  obtain ⟨σi, Gi, hchain, hR, hV, hM, hC, hI, hsrc, hnull, hno, hdd, hzr, hT1, hT1b, hT2a, hT2b, hT3, hFM⟩ := hinv
   set k := 2 ^ zOf nt.val us.val with hkdef
   have hk1 : 1 ≤ k := Nat.one_le_two_pow
   have hik : (i + 1) * k ≤ win * k := Nat.mul_le_mul_right _ hi
@@ -578,7 +604,16 @@ theorem loop_step (th' : TypedHeap) (hP' : Placed th') {pp : U64} {rs : Nat} (hp
   have hcapD : capV (L.mem s') dsl = c := by
     have := hcapW dsl hd; rw [if_pos rfl, capAt_capV] at this; exact eq_of_ok_eq this
   have hslot : ∀ x, x ∈ Gi.chains.flatten → IsSlot th' x := fun x h => ((hM.members x).1 h).1
-  refine ⟨σ', insG Gi src dsl true, ?_, hR', hV', hM', hC', hI', ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨σ', insG Gi src dsl true, ?_, hR', hV', hM', hC', hI', ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  rotate_right
+  · -- finality: the new cap is fresh
+    intro h0
+    have hsrcm : src ∈ Gi.chains.flatten := (hM.members src).2 ⟨hs, _, hsrcC, by simp⟩
+    refine (hFM h0).fresh_ins hsrcm hdestm true hM'.tree.nodup
+      (fun z hz => hcapV z (hslot z hz) (fun e => hdestm (e ▸ hz))) (fun w hw => ?_)
+    rw [hcapD, hcapV w (hslot w hw) (fun e => hdestm (e ▸ hw))]
+    exact fresh_new (newKind_newCap _ _ _ _) (by rw [hcb, hct]; omega)
+      (fun hp => ⟨hreg w hw hp, (hno' w hw hp).imp id (·.1)⟩)
   · -- the spec's loop
     intro σf hf
     apply hchain σf
