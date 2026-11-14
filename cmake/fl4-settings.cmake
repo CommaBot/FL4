@@ -24,6 +24,7 @@ endif()
 fl4_require(KernelIsMCS ON "FL4 implements only the MCS API")
 fl4_require(KernelSel4Arch x86_64 "x86_64 is the only architecture for now")
 fl4_require(KernelVTX OFF "VT-x is out of scope")
+fl4_require(KernelNumDomains 1 "FL4 supports one scheduling domain")
 
 # API shape.
 fl4_force(KernelIOMMU OFF)

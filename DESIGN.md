@@ -70,7 +70,7 @@ sel4test does not cover all of that behavior, so FL4 adds a differential fuzzer.
 
 ## 3. Configuration
 
-seL4 has over a hundred `Kernel*` build options, and many of them just tell the kernel what hardware it will run on. FL4 adds no options of its own. It sorts seL4's options into four groups. The only inputs that change the kernel image are the profile and the three settings in the last group, and none of them depend on the hardware.
+seL4 has over a hundred `Kernel*` build options, and many of them just tell the kernel what hardware it will run on. FL4 adds no options of its own. It sorts seL4's options into four groups. The only inputs that change the kernel image are the profile and the one setting in the last group, and neither depends on the hardware.
 
 ### Detected at boot (option removed)
 
@@ -94,7 +94,7 @@ seL4 has over a hundred `Kernel*` build options, and many of them just tell the 
 
 These are accepted only at the value FL4 supports. The CMake shim fails the build with a clear message for any other value. Values that user programs see are generated into FL4's libsel4, so programs and kernel always agree.
 
-- API shape: `KernelIsMCS` on, `KernelIOMMU` off, `KernelVTX` off, `KernelHugePage` on, SYSCALL as the entry method, `KernelPTLevels` 4.
+- API shape: `KernelIsMCS` on, `KernelIOMMU` off, `KernelVTX` off, `KernelNumDomains` 1 (one scheduling domain; `KernelNumDomainSchedules` follows at upstream's value for one domain), `KernelHugePage` on, SYSCALL as the entry method, `KernelPTLevels` 4.
 - Kernel limits at seL4's defaults: `KernelNumPriorities`, `KernelRootCNodeSizeBits`, `KernelMaxNumBootinfoUntypedCaps`, `KernelRetypeFanOutLimit`, `KernelMaxNumWorkUnitsPerPreemption`, `KernelStaticMaxPeriodUs`, `KernelWcetScale`, `KernelTimeSlice`, `KernelBootThreadTimeSlice`, `KernelStackBits`.
 - `KernelResetChunkBits` is 16: untyped resets clear 64 KiB, then check for preemption, as in l4h patch 0030.
 - Always off: fastpaths (`KernelFastpath`, `KernelExceptionFastpath`, `KernelSignalFastpath`) and `KernelDangerousCodeInjection`. `KernelX86DangerousMSR` is on only in the bench profile. Fastpaths are left out because a second, hand-optimized copy of IPC is hard to verify (see §1). User programs cannot tell the difference, since the fastpath only changes speed.
@@ -106,9 +106,8 @@ There are three profiles, **debug**, **release** and **bench**. Debug turns on `
 
 ### Read from the user-program configuration
 
-Three settings stay, because user programs are compiled against them and sel4test runs with more than one value. FL4 reads them from the same generated configuration as libsel4:
+One setting stays, because user programs are compiled against it and sel4test runs with more than one value. FL4 reads it from the same generated configuration as libsel4:
 
-- `KernelNumDomains` and `KernelNumDomainSchedules`. These set the range checks for `DomainSet` invocations. sel4test uses 1 domain, or 4 with `DOMAINS`.
 - `KernelMaxNumNodes` as an upper bound. FL4 starts min(cores found, this value) cores, so a program sized for N cores never sees more than N. The per-core arrays use a fixed internal maximum of 64.
 
 ### Boot command line
