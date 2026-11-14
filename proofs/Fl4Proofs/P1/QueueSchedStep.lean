@@ -88,15 +88,26 @@ structure Fr (st : machine.Store S) [L : LawfulStore st] (T Sg : Set U64) (s s' 
   st : ∀ t ∈ T, L.mem s' (stA t) = L.mem s (stA t)
   /-- The bound-notification fields of the TCBs. -/
   bnd : ∀ t ∈ T, L.mem s' (core.num.U64.wrapping_add t 3368#u64) = L.mem s (core.num.U64.wrapping_add t 3368#u64)
+  /-- The timer fields of the TCBs. -/
+  tmr : ∀ t ∈ T, ∀ K : U64, 3528 ≤ K.val → K.val < 3576 → K.val % 8 = 0 →
+    L.mem s' (core.num.U64.wrapping_add t K) = L.mem s (core.num.U64.wrapping_add t K)
+  /-- The timer-tree words of the placed nodes. -/
+  tnd : ∀ c : U64, @NodePlaced _ _ L T s c → ∀ o : U64, (o.val = 104 ∨ o.val = 112) →
+    L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)
 
 theorem Fr.refl (Sg : Set U64) (s : S) : Fr st T Sg s s :=
-  ⟨rfl, rfl, fun _ _ => rfl, fun _ _ => rfl, rfl, fun _ _ => rfl, fun _ _ => rfl, fun _ _ => rfl⟩
+  ⟨rfl, rfl, fun _ _ => rfl, fun _ _ => rfl, rfl, fun _ _ => rfl, fun _ _ => rfl, fun _ _ => rfl,
+    fun _ _ _ _ _ _ => rfl, fun _ _ _ _ => rfl⟩
 
 theorem Fr.trans {Sg : Set U64} {s₁ s₂ s₃ : S} (h₁ : Fr st T Sg s₁ s₂) (h₂ : Fr st T Sg s₂ s₃) : Fr st T Sg s₁ s₃ :=
   ⟨h₂.ksb.trans h₁.ksb, h₂.cpu.trans h₁.cpu, fun b hb => (h₂.sig b hb).trans (h₁.sig b hb),
    fun t ht => (h₂.sc t ht).trans (h₁.sc t ht), h₂.csc.trans h₁.csc,
    fun t ht => (h₂.rep t ht).trans (h₁.rep t ht), fun t ht => (h₂.st t ht).trans (h₁.st t ht),
-   fun t ht => (h₂.bnd t ht).trans (h₁.bnd t ht)⟩
+   fun t ht => (h₂.bnd t ht).trans (h₁.bnd t ht),
+   fun t ht K a b c => (h₂.tmr t ht K a b c).trans (h₁.tmr t ht K a b c),
+   fun c hc o ho => by
+     rw [← nodeAt_of_ksb h₁.ksb]
+     exact (h₂.tnd c (hc.ksb h₁.ksb) o ho).trans (by rw [nodeAt_of_ksb h₁.ksb]; exact h₁.tnd c hc o ho)⟩
 
 theorem SgOK.fr {Sg : Set U64} {s s' : S} (h : SgOK st Ω Sg s) (f : Fr st T Sg s s') : SgOK st Ω Sg s' :=
   ⟨h.sub, fun b hb => by rw [f.ksb]; exact h.ks b hb, fun o h1 h2 => by rw [f.ksb]; exact h.ksΩ o h1 h2⟩
@@ -148,9 +159,13 @@ theorem cscA_val (hN' : NodePlaced st T s (L.cpu s)) :
 theorem fr_wr (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg s) {a v : U64}
     (ha : Aligned a) (hsg : ∀ b ∈ Sg, a.val ≠ b.val)
     (hf : ∀ t ∈ T, ∀ K : U64, K.val < 4096 → a.val ≠ (core.num.U64.wrapping_add t K).val)
-    (hcs : a.val ≠ (L.nodeA s layout.node.CUR_SC).val) : Fr st T Sg s (L.wr s a v) := by
+    (hcs : a.val ≠ (L.nodeA s layout.node.CUR_SC).val)
+    (htn : ∀ c : U64, NodePlaced st T s c → ∀ o : U64, (o.val = 104 ∨ o.val = 112) → a.val ≠ (L.nodeAt s c o).val) :
+    Fr st T Sg s (L.wr s a v) := by
   refine ⟨L.ksb_wr _ _ _, L.cpu_wr _ _ _, fun b hb => ?_, fun t ht => ?_, ?_, fun t ht => ?_, fun t ht => ?_,
-    fun t ht => L.mem_wr_ne ha (field_aligned (h.tcbs t ht) (by simp) (by simp)) (hf t ht _ (by simp))⟩
+    fun t ht => L.mem_wr_ne ha (field_aligned (h.tcbs t ht) (by simp) (by simp)) (hf t ht _ (by simp)),
+    fun t ht K h1 h2 h3 => L.mem_wr_ne ha (field_aligned (h.tcbs t ht) (by omega) h3) (hf t ht _ (by omega)),
+    fun c hc o ho => L.mem_wr_ne ha (nodeAt_aligned hc (by omega) (by omega)) (htn c hc o ho)⟩
   · exact L.mem_wr_ne ha (h.omega _ (hS.sub b hb)).1 (hsg b hb)
   · rw [scA_eq]; exact L.mem_wr_ne ha (field_aligned (h.tcbs t ht) (by simp) (by simp)) (hf t ht _ (by simp))
   rotate_left
@@ -162,11 +177,15 @@ theorem fr_wr (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg s) 
       (by simp [layout.node.CUR_SC])) hcs
 
 theorem fr_node (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg s) {c o v : U64}
-    (hc : c ∈ Cs) (ho : o.val < 4288) (h8 : o.val % 8 = 0) (h24 : c = L.cpu s → o.val ≠ 24) :
+    (hc : c ∈ Cs) (ho : o.val < 4288) (h8 : o.val % 8 = 0) (h24 : c = L.cpu s → o.val ≠ 24)
+    (hto : o.val ≠ 104 ∧ o.val ≠ 112) :
     Fr st T Sg s (L.wr s (L.nodeAt s c o) v) := by
   have hN := h.nodes c hc
   refine fr_wr h hS (nodeAt_aligned hN ho h8) (fun b hb => out_ne_node (h.omega _ (hS.sub b hb)) hc hN ho)
-    (fun t ht K hK => ?_) ?_
+    (fun t ht K hK => ?_) ?_ (fun c' hc' o' ho' => by
+      by_cases e : c = c'
+      · subst e; rw [nodeAt_val hN ho, nodeAt_val hc' (by omega)]; omega
+      · intro e'; exact nodeAt_ne_cpu hN hc' ho (by omega) e (UScalar.eq_of_val_eq e'))
   · intro e
     exact node_ne_field hN ho ht (h.tcbs t ht) hK (UScalar.eq_of_val_eq e)
   · by_cases e : c = L.cpu s
@@ -189,7 +208,8 @@ theorem ks_aligned (h : SchedQueuesInvX st T Cs Ω H X s Q R) {o : U64} (ho : o.
 theorem fr_ks (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg s) {o v : U64}
     (ho : o.val < 13568) (h8 : o.val % 8 = 0) :
     Fr st T Sg s (L.wr s (core.num.U64.wrapping_add (L.ksb s) o) v) := by
-  refine fr_wr h hS (ks_aligned h ho h8) (fun b hb => ?_) (fun t ht K hK => ?_) ?_
+  refine fr_wr h hS (ks_aligned h ho h8) (fun b hb => ?_) (fun t ht K hK => ?_) ?_ (fun c hc o' ho' => by
+    rw [ks_val h ho, nodeAt_val hc (by omega)]; simp only [LawfulStore.nodeBase]; omega)
   · rw [ks_val h ho]; have := hS.ks b hb; omega
   · rw [ks_val h ho, field_val (h.tcbs t ht) hK]; have := h.ksOut t ht; simp at this ⊢; omega
   · rw [ks_val h ho, cscA_val (h.nodes _ h.cur)]; simp only [LawfulStore.nodeBase]; omega
@@ -198,7 +218,7 @@ theorem fr_ks (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg s) 
 reads apart from the operated thread's `IN_QUEUES`. -/
 theorem qfoot_keep (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg s) {s' : S} {W : List U64}
     {c t : U64} {P : Nat → Prop} (hW : ∀ w ∈ W, w ∈ T) (hc : c ∈ Cs) (ht : t ∈ T)
-    (hP : ∀ o, P o → o ≠ 0 ∧ o ≠ 8 ∧ o ≠ 16 ∧ o ≠ 24) (hw : WritesIn st s s' (L.QFoot s W c P t)) :
+    (hP : ∀ o, P o → o ≠ 0 ∧ o ≠ 8 ∧ o ≠ 16 ∧ o ≠ 24 ∧ o ≠ 104 ∧ o ≠ 112) (hw : WritesIn st s s' (L.QFoot s W c P t)) :
     Fr st T Sg s s' ∧ (∀ y ∈ T, y ≠ t → L.mem s' (inqA y) = L.mem s (inqA y)) ∧
       L.actionW s' = L.actionW s ∧ L.curW s' = L.curW s ∧ L.idleW s' = L.idleW s := by
   have hT := h.tcbs
@@ -213,7 +233,13 @@ theorem qfoot_keep (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω S
   refine ⟨⟨hw.1, hw.2.1, fun b hb => hout b (h.omega _ (hS.sub b hb)), fun y hy => sc_qfoot hT hW hN hN' ht hw hy,
     ?_, fun y hy => field_qfoot hT hW hN hN' ht hw hy (by simp) (by simp) (by simp) (fun _ => by simp),
     fun y hy => (hsb y hy).1,
-    fun y hy => field_qfoot hT hW hN hN' ht hw hy (by simp) (by simp) (by simp) (fun _ => by simp)⟩,
+    fun y hy => field_qfoot hT hW hN hN' ht hw hy (by simp) (by simp) (by simp) (fun _ => by simp),
+    fun y hy K h1 h2 h3 => field_qfoot hT hW hN hN' ht hw hy (by omega) h3 (by omega) (fun _ => by omega),
+    fun c' hc' o ho => by
+      have hP' : c' = c → ¬ P o.val := fun _ hpo => by
+        obtain ⟨-, -, -, -, h1, h2⟩ := hP _ hpo; omega
+      have e := node_qfoot hT hW hN hN' ht hw hc' (o := o) (by omega) (by omega) hP' (fun _ => by omega)
+      rwa [nodeAt_of_ksb hw.1] at e⟩,
     fun y hy hyt => inq_qfoot hT hW hN hN' ht hw hy hyt, ?_, ?_, ?_⟩
   · unfold LawfulStore.cscW LawfulStore.nodeA
     exact nd _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
@@ -384,8 +410,9 @@ end bound
 section steps
 variable {Cs Sg : Set U64} {Z : U64 → Nat}
 
-theorem p128 : ∀ o : Nat, 128 ≤ o → o ≠ 0 ∧ o ≠ 8 ∧ o ≠ 16 ∧ o ≠ 24 := fun o h => by omega
-theorem prel : ∀ o : Nat, RelOffs o → o ≠ 0 ∧ o ≠ 8 ∧ o ≠ 16 ∧ o ≠ 24 := fun o h => by unfold RelOffs at h; omega
+theorem p128 : ∀ o : Nat, 128 ≤ o → o ≠ 0 ∧ o ≠ 8 ∧ o ≠ 16 ∧ o ≠ 24 ∧ o ≠ 104 ∧ o ≠ 112 := fun o h => by omega
+theorem prel : ∀ o : Nat, RelOffs o → o ≠ 0 ∧ o ≠ 8 ∧ o ≠ 16 ∧ o ≠ 24 ∧ o ≠ 104 ∧ o ≠ 112 := fun o h => by
+  unfold RelOffs at h; omega
 
 theorem rd_cur_node {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
     (h : SchedQueuesInvX st T Cs Ω H X s Q R) {o o' v : U64} (ho : o.val < 4288) (h8 : o.val % 8 = 0)
@@ -534,6 +561,7 @@ theorem sched.set_action.sch (s : S) (v : U64) (Q : U64 → U64 → List U64) (R
   have hB1 := hB.wr_node h (o := layout.node.SCHED_ACTION) (v := v) (by rw [act_val]; omega) (by rw [act_val])
     (by rw [act_val]; omega) (fun _ => ⟨hb1, hb0⟩) (fun e => by rw [act_val] at e; omega)
   have f := fr_node (Sg := Sg) (v := v) h hS h.cur (by rw [act_val]; omega) (by rw [act_val])
+    (hto := ⟨by rw [act_val]; omega, by rw [act_val]; omega⟩)
     (fun _ => by rw [act_val]; omega)
   have ec := rd_cur_node (v := v) h (by rw [act_val]; omega) (by rw [act_val]) (by rw [curth0]; omega) (by rw [curth0])
     (by rw [act_val, curth0]; omega)
@@ -554,6 +582,7 @@ theorem sched.set_reprogram.sch (s : S) (Q : U64 → U64 → List U64) (R : U64 
   have hw : WritesIn st s (L.wr s (L.nodeA s layout.node.REPROGRAM) 1#u64) (L.Free s Ω Cs) :=
     free_node_write rfl h.cur (h.nodes _ h.cur) (by simp [rp, LowFree])
   have f := fr_node (Sg := Sg) (v := 1#u64) h hS h.cur (by rw [rp]; omega) (by rw [rp]) (fun _ => by rw [rp]; omega)
+    ⟨by rw [rp]; omega, by rw [rp]; omega⟩
   have ea := rd_cur_node (v := 1#u64) h (by rw [rp]; omega) (by rw [rp]) (by rw [act_val]; omega) (by rw [act_val])
     (by rw [act_val, rp]; omega)
   have ec := rd_cur_node (v := 1#u64) h (by rw [rp]; omega) (by rw [rp]) (by rw [curth0]; omega) (by rw [curth0])

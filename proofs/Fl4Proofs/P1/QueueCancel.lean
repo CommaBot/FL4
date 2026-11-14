@@ -33,6 +33,23 @@ def scReplyA (sc : U64) : U64 := core.num.U64.wrapping_add sc layout.sc.REPLY
 def ntfnScA (n : U64) : U64 := core.num.U64.wrapping_add n layout.ntfn.SC
 /-- A TCB's bound-notification word. -/
 def boundA (t : U64) : U64 := core.num.U64.wrapping_add t 3368#u64
+/-- A notification's `BADGE` and `BOUND_TCB` words. -/
+def ntfnBdA (n : U64) : U64 := core.num.U64.wrapping_add n layout.ntfn.BADGE
+def ntfnBtA (n : U64) : U64 := core.num.U64.wrapping_add n layout.ntfn.BOUND_TCB
+/-- The timer fields of a TCB (`timer.rs`). -/
+def tdA (y : U64) : U64 := core.num.U64.wrapping_add y 3528#u64
+def tbA (y : U64) : U64 := core.num.U64.wrapping_add y 3536#u64
+def tlA (y : U64) : U64 := core.num.U64.wrapping_add y 3544#u64
+def trA (y : U64) : U64 := core.num.U64.wrapping_add y 3552#u64
+def tpA (y : U64) : U64 := core.num.U64.wrapping_add y 3560#u64
+def thA (y : U64) : U64 := core.num.U64.wrapping_add y 3568#u64
+
+theorem ntfnBtA_val {n : U64} (h : n.val % 64 = 0 ∧ n.val + 64 ≤ 2 ^ 64) : (ntfnBtA n).val = n.val + 24 := by
+  unfold ntfnBtA; simp [layout.ntfn.BOUND_TCB, core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+theorem ntfnBdA_val {n : U64} (h : n.val % 64 = 0 ∧ n.val + 64 ≤ 2 ^ 64) : (ntfnBdA n).val = n.val + 16 := by
+  unfold ntfnBdA; simp [layout.ntfn.BADGE, core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+theorem ntfnScA_val {n : U64} (h : n.val % 64 = 0 ∧ n.val + 64 ≤ 2 ^ 64) : (ntfnScA n).val = n.val + 32 := by
+  unfold ntfnScA; simp [layout.ntfn.SC, core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
 
 variable {Sg Rp Scs Nt : Set U64} {Z : U64 → Nat}
 
@@ -53,6 +70,12 @@ structure ObjsOK (st : machine.Store S) [L : LawfulStore st] (Ω Sg Rp Scs Nt : 
   ntRp : ∀ n ∈ Nt, ∀ r ∈ Rp, (ntfnScA n).val + 8 ≤ r.val ∨ r.val + 32 ≤ (ntfnScA n).val
   ntSc : ∀ n ∈ Nt, ∀ c ∈ Scs, (ntfnScA n).val + 8 ≤ c.val ∨ c.val + 2 ^ Z c ≤ (ntfnScA n).val
   ntAl : ∀ n ∈ Nt, Aligned (ntfnScA n)
+  /-- Notifications are 64-byte objects, outside the reply objects and SCs,
+  with their `BADGE` and `BOUND_TCB` words frame words. -/
+  ntP : ∀ n ∈ Nt, n.val % 64 = 0 ∧ n.val + 64 ≤ 2 ^ 64
+  ntB : ∀ n ∈ Nt, ntfnBdA n ∈ Sg ∧ ntfnBtA n ∈ Sg
+  ntORp : ∀ n ∈ Nt, ∀ r ∈ Rp, n.val + 64 ≤ r.val ∨ r.val + 32 ≤ n.val
+  ntOSc : ∀ n ∈ Nt, ∀ c ∈ Scs, n.val + 64 ≤ c.val ∨ c.val + 2 ^ Z c ≤ n.val
 
 /-! ## Addresses -/
 
@@ -77,7 +100,8 @@ theorem ObjsOK.nextW (h : ObjsOK st Ω Sg Rp Scs Nt Z s) {r : U64} (hr : r ∈ R
   h.rword hr (o := layout.reply.NEXT) (by simp [layout.reply.NEXT]) (by simp [layout.reply.NEXT])
 
 theorem ObjsOK.ksb {s s' : S} (h : ObjsOK st Ω Sg Rp Scs Nt Z s) : ObjsOK st Ω Sg Rp Scs Nt Z s' :=
-  ⟨h.rp, h.sc, h.rpW, h.scW, h.fixW, h.scDisj, h.rpSc, h.repW, h.ntW, h.ntRp, h.ntSc, h.ntAl⟩
+  ⟨h.rp, h.sc, h.rpW, h.scW, h.fixW, h.scDisj, h.rpSc, h.repW, h.ntW, h.ntRp, h.ntSc, h.ntAl, h.ntP,
+    h.ntB, h.ntORp, h.ntOSc⟩
 
 theorem sc_lo {c : U64} {z : Nat} (hP : Placed c z) (hz : 7 ≤ z) :
     c.val % 8 = 0 ∧ 128 ≤ 2 ^ z ∧ c.val + 2 ^ z ≤ 2 ^ 64 := by
@@ -221,7 +245,7 @@ than the `Ep` links and `t`'s state and fault word; the current, idle and
 SC words of the node; the action, or it becomes choose-new; the reply
 objects' `TCB` words, except one naming `t`; their `prev`/`next` links, or
 they are cleared; the SCs' `TCB`, `CORE` and ring-header words. -/
-structure KeepT (st : machine.Store S) [L : LawfulStore st] (T Rp Scs Nt : Set U64) (t : U64) (s s' : S) : Prop where
+structure KeepT (st : machine.Store S) [L : LawfulStore st] (T Cs Rp Scs Nt : Set U64) (t : U64) (s s' : S) : Prop where
   ksb : L.ksb s' = L.ksb s
   cpu : L.cpu s' = L.cpu s
   fld : ∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 → K.val ≠ 3496 → K.val ≠ 3504 →
@@ -240,22 +264,32 @@ structure KeepT (st : machine.Store S) [L : LawfulStore st] (T Rp Scs Nt : Set U
   srep : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c) ∨ L.mem s' (scReplyA c) = 0#u64
   /-- The notifications' `SC` words are kept. -/
   nsc : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n)
+  /-- The timer-tree words of the nodes and the notifications' `BOUND_TCB`
+  words are kept. -/
+  tnd : ∀ c ∈ Cs, ∀ o : U64, (o.val = 104 ∨ o.val = 112) → L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)
+  ntb : ∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n)
 
-theorem KeepT.refl (t : U64) (s : S) : KeepT st T Rp Scs Nt t s s :=
+theorem KeepT.refl (t : U64) (s : S) : KeepT st T Cs Rp Scs Nt t s s :=
   ⟨rfl, rfl, fun _ _ _ _ _ _ _ _ => rfl, fun _ _ => rfl, Or.inl rfl, fun _ _ => Or.inl rfl,
-   fun _ _ => ⟨Or.inl rfl, Or.inl rfl⟩, fun _ _ => ⟨rfl, rfl, rfl, rfl, rfl⟩, fun _ _ => Or.inl rfl, fun _ _ => rfl⟩
+   fun _ _ => ⟨Or.inl rfl, Or.inl rfl⟩, fun _ _ => ⟨rfl, rfl, rfl, rfl, rfl⟩, fun _ _ => Or.inl rfl, fun _ _ => rfl,
+   fun _ _ _ _ => rfl, fun _ _ => rfl⟩
 
-theorem KeepT.zero {t : U64} {s s' : S} (k : KeepT st T Rp Scs Nt t s s') {r : U64} (hr : r ∈ Rp)
+theorem KeepT.zero {t : U64} {s s' : S} (k : KeepT st T Cs Rp Scs Nt t s s') {r : U64} (hr : r ∈ Rp)
     (h0 : L.mem s (rTcbA r) = 0#u64) : L.mem s' (rTcbA r) = 0#u64 := by
   rcases k.rtcb r hr with e | ⟨-, e⟩
   · rw [e, h0]
   · exact e
 
-theorem KeepT.trans {t : U64} {s₁ s₂ s₃ : S} (h₁ : KeepT st T Rp Scs Nt t s₁ s₂) (h₂ : KeepT st T Rp Scs Nt t s₂ s₃) :
-    KeepT st T Rp Scs Nt t s₁ s₃ := by
+theorem KeepT.trans {t : U64} {s₁ s₂ s₃ : S} (h₁ : KeepT st T Cs Rp Scs Nt t s₁ s₂) (h₂ : KeepT st T Cs Rp Scs Nt t s₂ s₃) :
+    KeepT st T Cs Rp Scs Nt t s₁ s₃ := by
   refine ⟨h₂.ksb.trans h₁.ksb, h₂.cpu.trans h₁.cpu, fun y hy K a b c d e => (h₂.fld y hy K a b c d e).trans
     (h₁.fld y hy K a b c d e), fun o ho => (h₂.nd o ho).trans (h₁.nd o ho), ?_, fun r hr => ?_, fun r hr => ?_,
-    fun c hc => ?_, fun c hc => ?_, fun n hn => (h₂.nsc n hn).trans (h₁.nsc n hn)⟩
+    fun c hc => ?_, fun c hc => ?_, fun n hn => (h₂.nsc n hn).trans (h₁.nsc n hn),
+    fun c hc o ho => by
+      have h2 := h₂.tnd c hc o ho
+      rw [nodeAt_of_ksb h₁.ksb] at h2
+      exact h2.trans (h₁.tnd c hc o ho),
+    fun n hn => (h₂.ntb n hn).trans (h₁.ntb n hn)⟩
   · rcases h₂.act with e | e
     · rw [e]; exact h₁.act
     · exact Or.inr e
@@ -282,6 +316,13 @@ theorem KeepT.trans {t : U64} {s₁ s₂ s₃ : S} (h₁ : KeepT st T Rp Scs Nt 
     · rw [e]; exact h₁.srep c hc
     · exact Or.inr e
 
+theorem node_ne_node {s : S} {c c' o o' : U64} (hN : NodePlaced st T s c) (hN' : NodePlaced st T s c')
+    (ho : o.val < 4288) (ho' : o'.val < 4288) (hne : c = c' → o.val ≠ o'.val) :
+    (L.nodeAt s c o).val ≠ (L.nodeAt s c' o').val := by
+  by_cases e : c = c'
+  · subst e; rw [nodeAt_val hN ho, nodeAt_val hN' ho']; have := hne rfl; omega
+  · intro e'; exact nodeAt_ne_cpu hN hN' ho ho' e (UScalar.eq_of_val_eq e')
+
 /-- One write keeps `KeepT` if it avoids the kept words (or writes the
 action as choose-new, a reply `TCB` word naming `t`, or a cleared link). -/
 theorem keep_wr {s : S} {t a v : U64}
@@ -295,8 +336,11 @@ theorem keep_wr {s : S} {t a v : U64}
     (hc : ∀ c ∈ Scs, a.val ≠ (scTcbA c).val ∧ a.val ≠ (scCoreA c).val ∧ a.val ≠ (maxA c).val ∧
       a.val ≠ (headA c).val ∧ a.val ≠ (tailA c).val)
     (hsr : ∀ c ∈ Scs, a.val = (scReplyA c).val → v = 0#u64)
-    (hnt : ∀ n ∈ Nt, a.val ≠ (ntfnScA n).val) :
-    KeepT st T Rp Scs Nt t s (L.wr s a v) := by
+    (hnt : ∀ n ∈ Nt, a.val ≠ (ntfnScA n).val)
+    (hNs : ∀ c ∈ Cs, NodePlaced st T s c)
+    (htn : ∀ c ∈ Cs, ∀ o : U64, (o.val = 104 ∨ o.val = 112) → a.val ≠ (L.nodeAt s c o).val)
+    (hnb : ∀ n ∈ Nt, a.val ≠ (ntfnBtA n).val) :
+    KeepT st T Cs Rp Scs Nt t s (L.wr s a v) := by
   have rpa : ∀ r ∈ Rp, Aligned (rTcbA r) ∧ Aligned (rPrevA r) ∧ Aligned (rNextA r) := fun r hr => by
     have hp := hO.rp r hr
     refine ⟨?_, ?_, ?_⟩ <;> unfold Aligned
@@ -312,7 +356,9 @@ theorem keep_wr {s : S} {t a v : U64}
     L.mem_wr_ne ha hb hne
   refine ⟨L.ksb_wr _ _ _, L.cpu_wr _ _ _, fun y hy K h1 h2 h3 h4 h5 => ?_, fun o ho => ?_, ?_,
     fun r hr' => ?_, fun r hr' => ?_, fun c hc' => ?_, fun c hc' => ?_,
-    fun n hn => g _ (hO.ntAl n hn) (hnt n hn)⟩
+    fun n hn => g _ (hO.ntAl n hn) (hnt n hn),
+    fun c hc o ho => g _ (nodeAt_aligned (hNs c hc) (by omega) (by omega)) (htn c hc o ho),
+    fun n hn => g _ (by unfold Aligned; rw [ntfnBtA_val (hO.ntP n hn)]; have := (hO.ntP n hn).1; omega) (hnb n hn)⟩
   rotate_right
   · unfold scReplyA
     rw [L.mem_wr_val ha (sca c hc' _ (by simp [layout.sc.REPLY]) (by simp [layout.sc.REPLY]))]
@@ -372,13 +418,16 @@ theorem keep_wr_out {s : S} {t a v : U64}
     (hf : ∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 → K.val ≠ 3496 → K.val ≠ 3504 →
       (y = t → K.val ≠ 3328 ∧ K.val ≠ 3376) → a.val ≠ (core.num.U64.wrapping_add y K).val)
     (hn : ∀ o : U64, (o.val = 0 ∨ o.val = 8 ∨ o.val = 24) → a.val ≠ (L.nodeAt s (L.cpu s) o).val)
-    (h16 : a.val = (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION).val → v = 1#u64) :
-    KeepT st T Rp Scs Nt t s (L.wr s a v) := by
+    (h16 : a.val = (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION).val → v = 1#u64)
+    (hNs : ∀ c ∈ Cs, NodePlaced st T s c)
+    (htn : ∀ c ∈ Cs, ∀ o : U64, (o.val = 104 ∨ o.val = 112) → a.val ≠ (L.nodeAt s c o).val) :
+    KeepT st T Cs Rp Scs Nt t s (L.wr s a v) := by
   obtain ⟨hr, hc⟩ := objs_omega hO hsub
   refine keep_wr hT hN' hO ha hf hn h16 (fun r hr' => ⟨fun e => absurd e (hout _ (hr r hr').1),
     fun e => absurd e (hout _ (hr r hr').2.1), fun e => absurd e (hout _ (hr r hr').2.2)⟩) (fun c hc' => ?_)
     (fun c hc' e => absurd e (hout _ (hsub _ (hO.repW c hc'))))
-    (fun n hn e => absurd e (hout _ (hsub _ (hO.ntW n hn))))
+    (fun n hn e => absurd e (hout _ (hsub _ (hO.ntW n hn)))) hNs htn
+    (fun n hn => hout _ (hsub _ (hO.ntB n hn).2))
   obtain ⟨c1, c2, c3, c4, c5⟩ := hc c hc'
   exact ⟨hout _ c1, hout _ c2, hout _ c3, hout _ c4, hout _ c5⟩
 
@@ -386,7 +435,7 @@ theorem keep_wr_out {s : S} {t a v : U64}
 theorem sched.set_thread_state.state {X : Set U64} (s : S) (t : obj.Tcb) (v : U64)
     (Q : U64 → U64 → List U64) (R : U64 → List U64) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T)
     (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω) :
-    sched.set_thread_state st s t v ⦃ s' => L.mem s' (stA t) = v ∧ KeepT st T Rp Scs Nt t s s' ⦄ := by
+    sched.set_thread_state st s t v ⦃ s' => L.mem s' (stA t) = v ∧ KeepT st T Cs Rp Scs Nt t s s' ⦄ := by
   have hta := h.tcbs t ht
   have hsa : Aligned (stA t) := by rw [stA_eq]; exact field_aligned hta (by simp) (by simp)
   have hN' := h.nodes _ h.cur
@@ -394,9 +443,11 @@ theorem sched.set_thread_state.state {X : Set U64} (s : S) (t : obj.Tcb) (v : U6
   step with obj.Tcb.set_state.spec as ⟨s1, s1_post⟩
   subst s1_post
   have e1 : L.mem (L.wr s (stA t) v) (stA t) = v := L.mem_wr_same hsa
-  have k1 : KeepT st T Rp Scs Nt t s (L.wr s (stA t) v) := by
+  have k1 : KeepT st T Cs Rp Scs Nt t s (L.wr s (stA t) v) := by
     refine keep_wr_out h.tcbs hN' hO hsub hsa (fun b hb => ?_) (fun y hy K hK hK8 _ _ hyt => ?_) (fun o _ => ?_)
-      (fun e => ?_)
+      (fun e => ?_) h.nodes (fun c hc o ho e => by
+        rw [stA_eq] at e
+        exact node_ne_field (h.nodes c hc) (o := o) (by omega) ht hta (by simp) (UScalar.eq_of_val_eq e.symm))
     · rw [stA_eq]; exact out_ne_field (h.omega b hb) ht hta (by simp)
     · rw [stA_eq]
       exact fun e => field_ne hta (h.tcbs y hy) (by simp) hK (fun ey e' => (hyt ey.symm).1 (by simp at e'; omega))
@@ -406,11 +457,14 @@ theorem sched.set_thread_state.state {X : Set U64} (s : S) (t : obj.Tcb) (v : U6
       exact absurd (UScalar.eq_of_val_eq e).symm (node_ne_field hN' (by rw [act_val]; omega) ht hta (by simp))
   have hO1 : ObjsOK st Ω Sg Rp Scs Nt Z (L.wr s (stA t) v) := hO.ksb
   have hN1 : NodePlaced st T (L.wr s (stA t) v) (L.cpu (L.wr s (stA t) v)) := by rw [L.cpu_wr]; exact hN'.wr
-  have kn : KeepT st T Rp Scs Nt t (L.wr s (stA t) v)
+  have kn : KeepT st T Cs Rp Scs Nt t (L.wr s (stA t) v)
       (L.wr (L.wr s (stA t) v) (L.nodeAt (L.wr s (stA t) v) (L.cpu (L.wr s (stA t) v)) layout.node.SCHED_ACTION)
         sched.ACTION_CHOOSE_NEW) := by
     refine keep_wr_out h.tcbs hN1 hO1 hsub (nodeAt_aligned hN1 (by rw [act_val]; omega) (by rw [act_val]))
       (fun b hb => ?_) (fun y hy K hK _ _ _ _ => ?_) (fun o ho => ?_) (fun _ => choose_val)
+      (fun c hc => (h.nodes c hc).wr) (fun c hc o ho => by
+        simp only [LawfulStore.cpu_wr, nodeAt_wr]
+        exact node_ne_node hN' (h.nodes c hc) (by rw [act_val]; omega) (by omega) (fun _ => by rw [act_val]; omega))
     · simp only [LawfulStore.cpu_wr, nodeAt_wr]
       exact out_ne_node (h.omega b hb) h.cur hN' (by rw [act_val]; omega)
     · simp only [LawfulStore.cpu_wr, nodeAt_wr]
@@ -436,7 +490,7 @@ theorem sts_inactive {X : Set U64} (s : S) (t : obj.Tcb) (Q : U64 → U64 → Li
     (hr : ¬ Runnable (L.mem s (stA t))) (hx : t ∈ X ∨ ¬ Blocked (L.mem s (stA t))) :
     sched.set_thread_state st s t sched.TS_INACTIVE ⦃ s' =>
       SchedQueuesInvX st T Cs Ω H {y | y ∈ X ∧ y ≠ t} s' Q R ∧ L.mem s' (stA t) = sched.TS_INACTIVE ∧
-      KeepT st T Rp Scs Nt t s s' ⦄ :=
+      KeepT st T Cs Rp Scs Nt t s s' ⦄ :=
   WP.spec_and (sched.set_thread_state.inv s t _ Q R h ht not_blocked_inactive hx (hq_of_not_runnable h ht hr))
     (sched.set_thread_state.state s t _ Q R h ht hO hsub)
 
@@ -535,6 +589,28 @@ theorem epfoot_keep {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R :
       have := hEN.1 _ h.cur
       omega
 
+/-- An `EpFoot` write leaves the words of the nodes alone. -/
+theorem epfoot_nodes {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
+    {E : Set U64} {EQ : U64 → List U64} {e : U64} {W : List U64}
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hEW : EpsWit st T Cs Ω H X s E EQ) (he : e ∈ E)
+    (hWT : ∀ w ∈ W, w ∈ T) (hw : WritesIn st s s' (EpFoot W e)) :
+    ∀ c ∈ Cs, ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o) := by
+  have hT := h.tcbs
+  obtain ⟨hE, hEN, -⟩ := hEW.1 e he
+  intro c hc o ho h8
+  have hN := h.nodes c hc
+  refine hw.mem_eq (nodeAt_aligned hN ho h8) ?_
+  rintro (⟨w, hw', e' | e'⟩ | e')
+  · exact nodeAt_ne_nextA hN ho (hWT w hw') (hT w (hWT w hw')) _ e'
+  · exact nodeAt_ne_prevA hN ho (hWT w hw') (hT w (hWT w hw')) _ e'
+  · have hv : (L.nodeAt s c o).val = e.val ∨ (L.nodeAt s c o).val = e.val + 8 := by
+      rcases e' with e' | e' <;> rw [e']
+      · exact Or.inl epHeadA_val
+      · exact Or.inr (epTSA_val hE)
+    rw [nodeAt_val hN ho] at hv
+    have := hEN.1 c hc
+    omega
+
 /-- `KeepT` from a frame: TCB fields other than the `Ep` links (and `t`'s
 state and fault word), the words of `Ω`, and the current node's words. -/
 theorem KeepT.of_frame {s s' : S} {t : U64} (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω)
@@ -544,12 +620,14 @@ theorem KeepT.of_frame {s s' : S} {t : U64} (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
       L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K))
     (hΩ : ∀ a ∈ Ω, L.mem s' a = L.mem s a)
     (hn : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 →
-      L.mem s' (L.nodeAt s' (L.cpu s') o) = L.mem s (L.nodeAt s (L.cpu s) o)) :
-    KeepT st T Rp Scs Nt t s s' := by
+      L.mem s' (L.nodeAt s' (L.cpu s') o) = L.mem s (L.nodeAt s (L.cpu s) o))
+    (hnc : ∀ c ∈ Cs, ∀ o : U64, (o.val = 104 ∨ o.val = 112) → L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)) :
+    KeepT st T Cs Rp Scs Nt t s s' := by
   obtain ⟨hr, hcw⟩ := objs_omega hO hsub
   refine ⟨hk, hc, hf, fun o ho => hn o (by omega) (by omega), Or.inl ?_, fun r hr' => Or.inl (hΩ _ (hr r hr').1),
     fun r hr' => ⟨Or.inl (hΩ _ (hr r hr').2.1), Or.inl (hΩ _ (hr r hr').2.2)⟩, fun c hc' => ?_,
-    fun c hc' => Or.inl (hΩ _ (hsub _ (hO.repW c hc'))), fun n hn => hΩ _ (hsub _ (hO.ntW n hn))⟩
+    fun c hc' => Or.inl (hΩ _ (hsub _ (hO.repW c hc'))), fun n hn => hΩ _ (hsub _ (hO.ntW n hn)), hnc,
+    fun n hn => hΩ _ (hsub _ (hO.ntB n hn).2)⟩
   · unfold LawfulStore.actionW; exact hn _ (by rw [act_val]; omega) (by rw [act_val])
   · obtain ⟨c1, c2, c3, c4, c5⟩ := hcw c hc'
     exact ⟨hΩ _ c1, hΩ _ c2, hΩ _ c3, hΩ _ c4, hΩ _ c5⟩
@@ -573,7 +651,8 @@ theorem dequeue_blocked_inv {X : Set U64} (s : S) (t : obj.Tcb) (Q : U64 → U64
       (∀ a ∈ Ω, L.mem s' a = L.mem s a) ∧
       (∀ o : U64, o.val < 4288 → o.val % 8 = 0 →
         L.mem s' (L.nodeAt s' (L.cpu s') o) = L.mem s (L.nodeAt s (L.cpu s) o)) ∧
-      L.ksb s' = L.ksb s ∧ L.cpu s' = L.cpu s ⦄ := by
+      L.ksb s' = L.ksb s ∧ L.cpu s' = L.cpu s ∧
+      (∀ c ∈ Cs, ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)) ⦄ := by
   obtain ⟨E, EQ, hEW⟩ := h.eps
   obtain ⟨he, hmem⟩ := hEW.2.2.2.2.1 t ht htX hb
   obtain ⟨hE, -, hq⟩ := hEW.1 _ he
@@ -584,7 +663,7 @@ theorem dequeue_blocked_inv {X : Set U64} (s : S) (t : obj.Tcb) (Q : U64 → U64
   obtain ⟨k1, k2, k3⟩ := epfoot_keep h hEW he hWT hw
   refine ⟨inv_ep_step h hEW he hw hq' hst' (fun h0 => ⟨fun _ => hz' h0, fun _ => by rw [hz' h0]; decide⟩)
     (fun y hy => List.mem_of_mem_erase hy) ?_ (fun y hy => Or.inl hy) ?_ ?_,
-    k1, k2, k3, hw.1, hw.2.1⟩
+    k1, k2, k3, hw.1, hw.2.1, epfoot_nodes h hEW he hWT hw⟩
   · intro y hy hn
     by_cases e : y = t
     · exact Or.inr e
@@ -606,7 +685,8 @@ theorem endpoint.ep_dequeue.inv {X : Set U64} (s : S) (t : obj.Tcb) (Q : U64 →
       (∀ a ∈ Ω, L.mem s' a = L.mem s a) ∧
       (∀ o : U64, o.val < 4288 → o.val % 8 = 0 →
         L.mem s' (L.nodeAt s' (L.cpu s') o) = L.mem s (L.nodeAt s (L.cpu s) o)) ∧
-      L.ksb s' = L.ksb s ∧ L.cpu s' = L.cpu s ⦄ :=
+      L.ksb s' = L.ksb s ∧ L.cpu s' = L.cpu s ∧
+      (∀ c ∈ Cs, ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)) ⦄ :=
   dequeue_blocked_inv s t Q R h ht htX hb (endpoint.ep_dequeue st)
     (fun xs hE hq hm => WP.spec_mono (endpoint.ep_dequeue.rel s _ t xs h.tcbs hE hq hm) fun _ h' =>
       ⟨h'.1, fun hne => by rw [h'.2, if_neg hne], fun h0 => by rw [h'.2, if_pos h0]⟩)
@@ -622,7 +702,8 @@ theorem notification.ntfn_dequeue.inv {X : Set U64} (s : S) (t : obj.Tcb) (Q : U
       (∀ a ∈ Ω, L.mem s' a = L.mem s a) ∧
       (∀ o : U64, o.val < 4288 → o.val % 8 = 0 →
         L.mem s' (L.nodeAt s' (L.cpu s') o) = L.mem s (L.nodeAt s (L.cpu s) o)) ∧
-      L.ksb s' = L.ksb s ∧ L.cpu s' = L.cpu s ⦄ :=
+      L.ksb s' = L.ksb s ∧ L.cpu s' = L.cpu s ∧
+      (∀ c ∈ Cs, ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)) ⦄ :=
   dequeue_blocked_inv s t Q R h ht htX hb (notification.ntfn_dequeue st)
     (fun xs hE hq hm => WP.spec_mono (notification.ntfn_dequeue.rel s _ t xs h.tcbs hE hq hm) fun _ h' =>
       ⟨h'.1, fun hne => by rw [h'.2, if_neg hne], fun h0 => by rw [h'.2, if_pos h0]⟩)
@@ -642,7 +723,7 @@ theorem faults.clear_fault.inv {X : Set U64} (s : S) (t : obj.Tcb) (Q : U64 → 
     faults.clear_fault st s t ⦃ s' => SchedQueuesInvX st T Cs Ω H X s' Q R ∧
       (∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 → (y = t → K.val ≠ 3376) →
         L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K)) ∧
-      (∀ a ∈ Ω, L.mem s' a = L.mem s a) ∧ L.actionW s' = L.actionW s ∧ KeepT st T Rp Scs Nt t s s' ⦄ := by
+      (∀ a ∈ Ω, L.mem s' a = L.mem s a) ∧ L.actionW s' = L.actionW s ∧ KeepT st T Cs Rp Scs Nt t s s' ⦄ := by
   unfold faults.clear_fault
   refine WP.spec_mono (obj.Tcb.set_fault_type.spec s t _) fun s' e => ?_
   subst e
@@ -671,6 +752,10 @@ theorem faults.clear_fault.inv {X : Set U64} (s : S) (t : obj.Tcb) (Q : U64 → 
   · unfold LawfulStore.actionW; exact hn _ (by rw [act_val]; omega) (by rw [act_val])
   · exact KeepT.of_frame hO hsub (L.ksb_wr _ _ _) (L.cpu_wr _ _ _)
       (fun y hy K a b _ _ c => hf y hy K a b (fun e => (c e).2)) hΩ hn
+      (fun c hc o ho => by
+        have := nodeword_wr_field (h.nodes c hc) ht hta (K := 3376#u64) (v := fl4_abi.consts.fault.NullFault)
+          (o := o) (by simp) (by simp) (by omega) (by omega)
+        rwa [nodeAt_wr] at this)
 
 /-! ## Writes to reply objects and SCs -/
 
@@ -682,11 +767,13 @@ theorem keep_omega_wr {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : 
       (a.val = (rPrevA r).val → v &&& ~~~1#u64 = 0#u64) ∧ (a.val = (rNextA r).val → v &&& ~~~1#u64 = 0#u64))
     (hc : ∀ c ∈ Scs, a.val ≠ (scTcbA c).val ∧ a.val ≠ (scCoreA c).val ∧ a.val ≠ (maxA c).val ∧
       a.val ≠ (headA c).val ∧ a.val ≠ (tailA c).val)
-    (hsr : ∀ c ∈ Scs, a.val = (scReplyA c).val → v = 0#u64) (hnt : ∀ n ∈ Nt, a.val ≠ (ntfnScA n).val) :
-    KeepT st T Rp Scs Nt t s (L.wr s a v) := by
+    (hsr : ∀ c ∈ Scs, a.val = (scReplyA c).val → v = 0#u64) (hnt : ∀ n ∈ Nt, a.val ≠ (ntfnScA n).val)
+    (hnb : ∀ n ∈ Nt, a.val ≠ (ntfnBtA n).val) :
+    KeepT st T Cs Rp Scs Nt t s (L.wr s a v) := by
   have hN' := h.nodes _ h.cur
   have ho := h.omega a haΩ
   refine keep_wr h.tcbs hN' hO ho.1 (fun y hy K hK _ _ _ _ => ?_) (fun o ho' => ?_) (fun e => ?_) hr hc hsr hnt
+    h.nodes (fun c hc o ho' => (out_ne_node ho hc (h.nodes c hc) (by omega)).symm) hnb
   · exact (out_ne_field ho hy (h.tcbs y hy) hK).symm
   · exact (out_ne_node ho h.cur hN' (by omega)).symm
   · exact absurd e (out_ne_node ho h.cur hN' (by rw [act_val]; omega)).symm
@@ -740,11 +827,12 @@ theorem scword_facts (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) {c a : U64} (hc : c �
 
 theorem keep_rtcb {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t r v : U64}
     (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω)
-    (hr : r ∈ Rp) (ht0 : L.mem s (rTcbA r) = t) (hv : v = 0#u64) : KeepT st T Rp Scs Nt t s (L.wr s (rTcbA r) v) := by
+    (hr : r ∈ Rp) (ht0 : L.mem s (rTcbA r) = t) (hv : v = 0#u64) : KeepT st T Cs Rp Scs Nt t s (L.wr s (rTcbA r) v) := by
   obtain ⟨m, e0, -, -⟩ := rp_facts hO hr
   refine keep_omega_wr h hO (hsub _ (hO.tcbW hr)) (fun r' hr' => ?_) (rword_ne_sc hO hr (by rw [e0]; omega))
     (fun c hc e => absurd e (rword_ne_screp hO hr (by rw [e0]; omega) c hc))
     (fun n hn e => by have := hO.ntRp n hn r hr; omega)
+    (fun n hn e => by rw [ntfnBtA_val (hO.ntP n hn)] at e; have := hO.ntORp n hn r hr; omega)
   obtain ⟨m', e1, e2, e3⟩ := rp_facts hO hr'
   refine ⟨fun e => ?_, fun e => ?_, fun e => ?_⟩
   · have : r = r' := UScalar.eq_of_val_eq (by rw [← e0, ← e1]; exact e)
@@ -754,11 +842,12 @@ theorem keep_rtcb {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 
 
 theorem keep_rprev {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t r v : U64}
     (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω)
-    (hr : r ∈ Rp) (hv : v &&& ~~~1#u64 = 0#u64) : KeepT st T Rp Scs Nt t s (L.wr s (rPrevA r) v) := by
+    (hr : r ∈ Rp) (hv : v &&& ~~~1#u64 = 0#u64) : KeepT st T Cs Rp Scs Nt t s (L.wr s (rPrevA r) v) := by
   obtain ⟨m, -, e0, -⟩ := rp_facts hO hr
   refine keep_omega_wr h hO (hsub _ (hO.prevW hr)) (fun r' hr' => ?_) (rword_ne_sc hO hr (by rw [e0]; omega))
     (fun c hc e => absurd e (rword_ne_screp hO hr (by rw [e0]; omega) c hc))
     (fun n hn e => by have := hO.ntRp n hn r hr; omega)
+    (fun n hn e => by rw [ntfnBtA_val (hO.ntP n hn)] at e; have := hO.ntORp n hn r hr; omega)
   obtain ⟨m', e1, e2, e3⟩ := rp_facts hO hr'
   refine ⟨fun e => ?_, fun _ => hv, fun e => ?_⟩
   · rw [e0, e1] at e; omega
@@ -766,11 +855,12 @@ theorem keep_rprev {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64
 
 theorem keep_rnext {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t r v : U64}
     (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω)
-    (hr : r ∈ Rp) (hv : v &&& ~~~1#u64 = 0#u64) : KeepT st T Rp Scs Nt t s (L.wr s (rNextA r) v) := by
+    (hr : r ∈ Rp) (hv : v &&& ~~~1#u64 = 0#u64) : KeepT st T Cs Rp Scs Nt t s (L.wr s (rNextA r) v) := by
   obtain ⟨m, -, -, e0⟩ := rp_facts hO hr
   refine keep_omega_wr h hO (hsub _ (hO.nextW hr)) (fun r' hr' => ?_) (rword_ne_sc hO hr (by rw [e0]; omega))
     (fun c hc e => absurd e (rword_ne_screp hO hr (by rw [e0]; omega) c hc))
     (fun n hn e => by have := hO.ntRp n hn r hr; omega)
+    (fun n hn e => by rw [ntfnBtA_val (hO.ntP n hn)] at e; have := hO.ntORp n hn r hr; omega)
   obtain ⟨m', e1, e2, e3⟩ := rp_facts hO hr'
   refine ⟨fun e => ?_, fun e => ?_, fun _ => hv⟩
   · rw [e0, e1] at e; omega
@@ -792,7 +882,7 @@ theorem keep_scw {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 �
     (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hc : c ∈ Scs)
     (ha : a = scReplyA c ∨ a = core.num.U64.wrapping_add c layout.sc.YIELD_FROM)
     (hv0 : a = scReplyA c → v = 0#u64) :
-    KeepT st T Rp Scs Nt t s (L.wr s a v) := by
+    KeepT st T Cs Rp Scs Nt t s (L.wr s a v) := by
   obtain ⟨h128, -, -, -, -, -, e6, e7⟩ := sc_facts hO hc
   have hv : a.val = c.val + 32 ∨ a.val = c.val + 56 := by
     rcases ha with rfl | rfl
@@ -802,6 +892,8 @@ theorem keep_scw {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 �
   refine keep_omega_wr h hO (scword_omega hO hc ha)
     (fun r hr => ⟨fun e => absurd e (f1 r hr).1, fun e => absurd e (f1 r hr).2.1, fun e => absurd e (f1 r hr).2.2⟩)
     f2 (fun c' hc' e => ?_) (fun n hn e => by have := hO.ntSc n hn c hc; rcases hv with hv | hv <;> omega)
+    (fun n hn e => by
+      rw [ntfnBtA_val (hO.ntP n hn)] at e; have := hO.ntOSc n hn c hc; rcases hv with hv | hv <;> omega)
   obtain ⟨h128', -, -, -, -, -, e6', -⟩ := sc_facts hO hc'
   by_cases hcc : c' = c
   · subst hcc
@@ -817,7 +909,7 @@ theorem ipc.reply_unlink.inv {X : Set U64} (s : S) (r : obj.Reply) (t : obj.Tcb)
     (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω) (hr : r ∈ Rp) (ht0 : L.mem s (rTcbA r) = t)
     (hnr : ¬ Runnable (L.mem s (stA t))) (hx : t ∈ X ∨ ¬ Blocked (L.mem s (stA t))) :
     ipc.reply_unlink st s r t ⦃ s' => SchedQueuesInvX st T Cs Ω H {y | y ∈ X ∧ y ≠ t} s' Q R ∧
-      L.mem s' (stA t) = sched.TS_INACTIVE ∧ KeepT st T Rp Scs Nt t s s' ∧ L.mem s' (rTcbA r) = 0#u64 ⦄ := by
+      L.mem s' (stA t) = sched.TS_INACTIVE ∧ KeepT st T Cs Rp Scs Nt t s s' ∧ L.mem s' (rTcbA r) = 0#u64 ⦄ := by
   unfold ipc.reply_unlink
   step with obj.Reply.set_tcb.spec as ⟨s1, s1_post⟩
   subst s1_post
@@ -867,7 +959,7 @@ theorem ipc.reply_remove_tcb.inv {X : Set U64} (s : S) (t : obj.Tcb) (Q : U64 �
     (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω) (hR : ReplyT st Rp Scs s t)
     (hnr : ¬ Runnable (L.mem s (stA t))) (hx : t ∈ X ∨ ¬ Blocked (L.mem s (stA t))) :
     ipc.reply_remove_tcb st s t ⦃ s' => SchedQueuesInvX st T Cs Ω H {y | y ∈ X ∧ y ≠ t} s' Q R ∧
-      L.mem s' (stA t) = sched.TS_INACTIVE ∧ KeepT st T Rp Scs Nt t s s' ∧
+      L.mem s' (stA t) = sched.TS_INACTIVE ∧ KeepT st T Cs Rp Scs Nt t s s' ∧
       L.mem s' (rTcbA (L.mem s (replyA t))) = 0#u64 ⦄ := by
   obtain ⟨hi, hit, hn, hp⟩ := hR
   set i := L.mem s (replyA t) with hi_def
@@ -885,7 +977,7 @@ theorem ipc.reply_remove_tcb.inv {X : Set U64} (s : S) (t : obj.Tcb) (Q : U64 �
   step with obj.Reply.prev.spec as ⟨prev, prev_post⟩
   subst i_post next_post prev_post
   refine WP.spec_bind (Pₘ := fun s1 => SchedQueuesInvX st T Cs Ω H X s1 Q R ∧
-      L.mem s1 (stA t) = L.mem s (stA t) ∧ KeepT st T Rp Scs Nt t s s1 ∧ L.mem s1 (rTcbA i) = t) ?_ ?_
+      L.mem s1 (stA t) = L.mem s (stA t) ∧ KeepT st T Cs Rp Scs Nt t s s1 ∧ L.mem s1 (rTcbA i) = t) ?_ ?_
   · split
     · rename_i hne
       have hne' : L.mem s (rNextA i) &&& ~~~1#u64 ≠ 0#u64 := by simpa using hne
@@ -910,7 +1002,7 @@ theorem ipc.reply_remove_tcb.inv {X : Set U64} (s : S) (t : obj.Tcb) (Q : U64 �
   rintro s1 ⟨h1, e1, k1, t1⟩
   have hO1 : ObjsOK st Ω Sg Rp Scs Nt Z s1 := hO.ksb
   refine WP.spec_bind (Pₘ := fun s2 => SchedQueuesInvX st T Cs Ω H X s2 Q R ∧
-      L.mem s2 (stA t) = L.mem s (stA t) ∧ KeepT st T Rp Scs Nt t s s2 ∧ L.mem s2 (rTcbA i) = t) ?_ ?_
+      L.mem s2 (stA t) = L.mem s (stA t) ∧ KeepT st T Cs Rp Scs Nt t s s2 ∧ L.mem s2 (rTcbA i) = t) ?_ ?_
   · split
     · rename_i hne
       have hr' := hp (by simpa using hne)
@@ -945,13 +1037,14 @@ theorem notification.cancel_signal.inv {X : Set U64} (s : S) (t : obj.Tcb) (Q : 
     (R : U64 → List U64) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) (htX : t ∉ X)
     (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω) (hb : Blocked (L.mem s (stA t))) :
     notification.cancel_signal st s t (L.mem s (blockA t)) ⦃ s' => SchedQueuesInvX st T Cs Ω H X s' Q R ∧
-      L.mem s' (stA t) = sched.TS_INACTIVE ∧ KeepT st T Rp Scs Nt t s s' ⦄ := by
+      L.mem s' (stA t) = sched.TS_INACTIVE ∧ KeepT st T Cs Rp Scs Nt t s s' ⦄ := by
   unfold notification.cancel_signal
   refine WP.spec_bind (notification.ntfn_dequeue.inv s t Q R h ht htX hb) ?_
-  rintro s1 ⟨h1, f1, o1, n1, k1, c1⟩
+  rintro s1 ⟨h1, f1, o1, n1, k1, c1, nc1⟩
   have e1 : L.mem s1 (stA t) = L.mem s (stA t) := by rw [stA_eq]; exact f1 t ht _ (by simp) (by simp) (by simp) (by simp)
-  have kk : KeepT st T Rp Scs Nt t s s1 :=
+  have kk : KeepT st T Cs Rp Scs Nt t s s1 :=
     KeepT.of_frame hO hsub k1 c1 (fun y hy K a b c d _ => f1 y hy K a b c d) o1 n1
+      (fun c hc o ho => nc1 c hc o (by omega) (by omega))
   refine WP.spec_mono (sts_inactive s1 t Q R h1 ht hO.ksb hsub (by rw [e1]; exact not_runnable_of_blocked hb)
     (Or.inl (Or.inr rfl))) fun s2 ⟨h2, e2, k2⟩ => ⟨h2.congrX fun y => ?_, e2, kk.trans k2⟩
   simp only [Set.mem_ofPred_eq]
@@ -973,7 +1066,7 @@ theorem ep_tail {X : Set U64} (s3 : S) (t : obj.Tcb) (Q : U64 → U64 → List U
     (hsub : ∀ b ∈ Sg, b ∈ Ω) (hX : ExcT X t)
     (hnr : ¬ Runnable (L.mem s3 (stA t))) (hx : t ∈ X ∨ ¬ Blocked (L.mem s3 (stA t))) :
     sched.set_thread_state st s3 t sched.TS_INACTIVE ⦃ s' =>
-      SchedQueuesInv st T Cs Ω H s' Q R ∧ L.mem s' (stA t) = sched.TS_INACTIVE ∧ KeepT st T Rp Scs Nt t s3 s' ⦄ :=
+      SchedQueuesInv st T Cs Ω H s' Q R ∧ L.mem s' (stA t) = sched.TS_INACTIVE ∧ KeepT st T Cs Rp Scs Nt t s3 s' ⦄ :=
   WP.spec_mono (sts_inactive s3 t Q R h3 ht hO hsub hnr hx) fun s' ⟨h', e', k'⟩ => ⟨h'.congrX fun y => by
     simp only [Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false, not_and, not_not]
     exact hX y, e', k'⟩
@@ -993,22 +1086,23 @@ theorem ep_branch {A : Type _} (a : A) (s1 : S) (t : obj.Tcb) (Q : U64 → U64 �
         else ok s2
       let s4 ← sched.set_thread_state st s3 t sched.TS_INACTIVE
       ok (s4, a)) ⦃ s' _ =>
-      SchedQueuesInv st T Cs Ω H s' Q R ∧ L.mem s' (stA t) = sched.TS_INACTIVE ∧ KeepT st T Rp Scs Nt t s1 s' ∧
+      SchedQueuesInv st T Cs Ω H s' Q R ∧ L.mem s' (stA t) = sched.TS_INACTIVE ∧ KeepT st T Cs Rp Scs Nt t s1 s' ∧
       (rcv → L.mem s1 (replyA t) ≠ 0#u64 → L.mem s' (rTcbA (L.mem s1 (replyA t))) = 0#u64) ⦄ := by
   step with obj.Tcb.block_obj.spec as ⟨ep, ep_post⟩
   subst ep_post
   refine WP.spec_bind (endpoint.ep_dequeue.inv s1 t Q R h1 ht (by simp) hb) ?_
-  rintro s2 ⟨h2, f2, o2, n2, kb2, c2⟩
+  rintro s2 ⟨h2, f2, o2, n2, kb2, c2, nc2⟩
   have e2 : L.mem s2 (stA t) = L.mem s1 (stA t) := by
     rw [stA_eq]; exact f2 t ht _ (by simp) (by simp) (by simp) (by simp)
   have r2 : L.mem s2 (replyA t) = L.mem s1 (replyA t) := f2 t ht _ (by simp) (by simp) (by simp) (by simp)
   have hX2 : ExcT {y | y ∈ (∅ : Set U64) ∨ y = t} t := fun y hy => by simpa using hy
   have hnr2 : ¬ Runnable (L.mem s2 (stA t)) := by rw [e2]; exact not_runnable_of_blocked hb
-  have k2 : KeepT st T Rp Scs Nt t s1 s2 :=
+  have k2 : KeepT st T Cs Rp Scs Nt t s1 s2 :=
     KeepT.of_frame hO hsub kb2 c2 (fun y hy K a b c d _ => f2 y hy K a b c d) o2 n2
+      (fun c hc o ho => nc2 c hc o (by omega) (by omega))
   have hO2 : ObjsOK st Ω Sg Rp Scs Nt Z s2 := hO.ksb
   refine WP.spec_bind (Pₘ := fun s3 => ∃ X3, SchedQueuesInvX st T Cs Ω H X3 s3 Q R ∧ ExcT X3 t ∧
-      ¬ Runnable (L.mem s3 (stA t)) ∧ (t ∈ X3 ∨ ¬ Blocked (L.mem s3 (stA t))) ∧ KeepT st T Rp Scs Nt t s1 s3 ∧
+      ¬ Runnable (L.mem s3 (stA t)) ∧ (t ∈ X3 ∨ ¬ Blocked (L.mem s3 (stA t))) ∧ KeepT st T Cs Rp Scs Nt t s1 s3 ∧
       (rcv → L.mem s1 (replyA t) ≠ 0#u64 → L.mem s3 (rTcbA (L.mem s1 (replyA t))) = 0#u64)) ?_ ?_
   · split
     · rename_i hrc
@@ -1051,7 +1145,7 @@ theorem ipc.cancel_ipc.inv {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t
     ipc.cancel_ipc st ar s a t ⦃ s' _ => SchedQueuesInv st T Cs Ω H s' Q R ∧ ¬ Blocked (L.mem s' (stA t)) ∧
       L.mem s' (stA t) ≠ sched.TS_BLOCKED_ON_REPLY ∧
       (L.mem s' (stA t) = sched.TS_INACTIVE ∨
-        (L.mem s' (stA t) = L.mem s (stA t) ∧ L.actionW s' = L.actionW s)) ∧ KeepT st T Rp Scs Nt t s s' ∧
+        (L.mem s' (stA t) = L.mem s (stA t) ∧ L.actionW s' = L.actionW s)) ∧ KeepT st T Cs Rp Scs Nt t s s' ∧
       ((L.mem s (stA t) = sched.TS_BLOCKED_ON_REPLY ∨
           (L.mem s (stA t) = sched.TS_BLOCKED_ON_RECV ∧ L.mem s (replyA t) ≠ 0#u64)) →
         L.mem s' (rTcbA (L.mem s (replyA t))) = 0#u64) ⦄ := by
@@ -1065,14 +1159,14 @@ theorem ipc.cancel_ipc.inv {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t
   have hO1 : ObjsOK st Ω Sg Rp Scs Nt Z s1 := hO.ksb
   obtain ⟨-, -, hr3, hs4, hn6⟩ := ts_vals
   have inR : sched.TS_INACTIVE ≠ sched.TS_BLOCKED_ON_REPLY := by rw [ts_inactive, ts_reply]; decide
-  have done : ∀ s', SchedQueuesInv st T Cs Ω H s' Q R ∧ L.mem s' (stA t) = sched.TS_INACTIVE ∧ KeepT st T Rp Scs Nt t s1 s' →
+  have done : ∀ s', SchedQueuesInv st T Cs Ω H s' Q R ∧ L.mem s' (stA t) = sched.TS_INACTIVE ∧ KeepT st T Cs Rp Scs Nt t s1 s' →
       ((L.mem s (stA t) = sched.TS_BLOCKED_ON_REPLY ∨
           (L.mem s (stA t) = sched.TS_BLOCKED_ON_RECV ∧ L.mem s (replyA t) ≠ 0#u64)) →
         L.mem s' (rTcbA (L.mem s (replyA t))) = 0#u64) →
       SchedQueuesInv st T Cs Ω H s' Q R ∧ ¬ Blocked (L.mem s' (stA t)) ∧
       L.mem s' (stA t) ≠ sched.TS_BLOCKED_ON_REPLY ∧
       (L.mem s' (stA t) = sched.TS_INACTIVE ∨
-        (L.mem s' (stA t) = L.mem s (stA t) ∧ L.actionW s' = L.actionW s)) ∧ KeepT st T Rp Scs Nt t s s' ∧
+        (L.mem s' (stA t) = L.mem s (stA t) ∧ L.actionW s' = L.actionW s)) ∧ KeepT st T Cs Rp Scs Nt t s s' ∧
       ((L.mem s (stA t) = sched.TS_BLOCKED_ON_REPLY ∨
           (L.mem s (stA t) = sched.TS_BLOCKED_ON_RECV ∧ L.mem s (replyA t) ≠ 0#u64)) →
         L.mem s' (rTcbA (L.mem s (replyA t))) = 0#u64) :=

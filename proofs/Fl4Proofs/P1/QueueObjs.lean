@@ -21,6 +21,164 @@ open Aeneas Aeneas.Std Result
 namespace Fl4Proofs.P1
 open fl4_core Fl4Proofs.P0.Consts
 
+/-- A timer link: null or a TCB. -/
+def Tz (T : Set U64) (x : U64) : Prop := x = 0#u64 ∨ x ∈ T
+
+theorem Tz.zero {T : Set U64} : Tz T 0#u64 := Or.inl rfl
+theorem Tz.of_mem {T : Set U64} {x : U64} (h : x ∈ T) : Tz T x := Or.inr h
+
+
+section
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
+variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat}
+
+theorem Tz.ne0 {T : Set U64} {x : U64} (hx : Tz T x) (h0 : x ≠ 0#u64) : x ∈ T := hx.resolve_left h0
+
+/-- The timer-tree typing invariant. -/
+structure TimerOK (st : machine.Store S) [L : LawfulStore st] (T Cs : Set U64) (s : S) : Prop where
+  /-- The cores' nodes are placed (what reading their timer-tree words needs). -/
+  npl : ∀ c ∈ Cs, NodePlaced st T s c
+  lt : ∀ y ∈ T, Tz T (L.mem s (tlA y))
+  rt : ∀ y ∈ T, Tz T (L.mem s (trA y))
+  pt : ∀ y ∈ T, Tz T (L.mem s (tpA y))
+  root : ∀ c ∈ Cs, Tz T (L.mem s (L.nodeAt s c layout.node.TIMER_ROOT))
+  min : ∀ c ∈ Cs, Tz T (L.mem s (L.nodeAt s c layout.node.TIMER_MIN))
+  core : ∀ y ∈ T, L.mem s (tdA y) ≠ 0#u64 → ∀ c : U64, c.val = (L.mem s (thA y)).val >>> 8 → c ∈ Cs
+
+/-- A notification's bound TCB is null or a TCB (l4v `valid_ntfn`, the
+`ntfn_bound_tcb` part). -/
+def NtbOK (st : machine.Store S) [L : LawfulStore st] (T Nt : Set U64) (s : S) : Prop :=
+  ∀ n ∈ Nt, Tz T (L.mem s (ntfnBtA n))
+
+theorem timer_root_val : layout.node.TIMER_ROOT.val = 104 := by simp [layout.node.TIMER_ROOT]
+theorem timer_min_val : layout.node.TIMER_MIN.val = 112 := by simp [layout.node.TIMER_MIN]
+
+theorem ntfnBt_aligned {n : U64} (h : n.val % 64 = 0 ∧ n.val + 64 ≤ 2 ^ 64) : Aligned (ntfnBtA n) := by
+  unfold Aligned; rw [ntfnBtA_val h]; omega
+
+/-! ## Frames of the timer words -/
+
+/-- An operation that leaves the timer-tree words alone: the TCBs' timer
+fields, the nodes' timer-tree words and the notifications' `BOUND_TCB`
+words. -/
+def TmFr (st : machine.Store S) [L : LawfulStore st] (T Cs Nt : Set U64) (s s' : S) : Prop :=
+  L.ksb s' = L.ksb s ∧
+  (∀ y ∈ T, ∀ K : U64, 3528 ≤ K.val → K.val < 3576 → K.val % 8 = 0 →
+    L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K)) ∧
+  (∀ c ∈ Cs, ∀ o : U64, (o.val = 104 ∨ o.val = 112) → L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)) ∧
+  (∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n))
+
+theorem TmFr.refl (s : S) : TmFr st T Cs Nt s s :=
+  ⟨rfl, fun _ _ _ _ _ _ => rfl, fun _ _ _ _ => rfl, fun _ _ => rfl⟩
+
+theorem TmFr.trans {s₁ s₂ s₃ : S} (h₁ : TmFr st T Cs Nt s₁ s₂) (h₂ : TmFr st T Cs Nt s₂ s₃) :
+    TmFr st T Cs Nt s₁ s₃ :=
+  ⟨h₂.1.trans h₁.1, fun y hy K a b c => (h₂.2.1 y hy K a b c).trans (h₁.2.1 y hy K a b c),
+    fun c hc o ho => by
+      have e := h₂.2.2.1 c hc o ho
+      rw [nodeAt_of_ksb h₁.1] at e
+      exact e.trans (h₁.2.2.1 c hc o ho),
+    fun n hn => (h₂.2.2.2 n hn).trans (h₁.2.2.2 n hn)⟩
+
+theorem TmFr.of_keepT {t : U64} {s s' : S} (k : KeepT st T Cs Rp Scs Nt t s s') : TmFr st T Cs Nt s s' :=
+  ⟨k.ksb, fun y hy K h1 h2 h3 => k.fld y hy K (by omega) h3 (by omega) (by omega) (fun _ => ⟨by omega, by omega⟩),
+    k.tnd, k.ntb⟩
+
+theorem TmFr.of_fr {s s' : S} (f : Fr st T Sg s s') (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
+    (hN : ∀ c ∈ Cs, NodePlaced st T s c) : TmFr st T Cs Nt s s' := by
+  exact ⟨f.ksb, f.tmr,
+    fun c hc o ho => f.tnd c (hN c hc) o ho, fun n hn => f.sig _ (hO.ntB n hn).2⟩
+
+/-- The timer-tree words. -/
+def TmW (st : machine.Store S) [L : LawfulStore st] (T Cs Nt : Set U64) (s : S) (b : U64) : Prop :=
+  (∃ y ∈ T, ∃ K : U64, 3528 ≤ K.val ∧ K.val < 3576 ∧ K.val % 8 = 0 ∧ b = core.num.U64.wrapping_add y K) ∨
+  (∃ c ∈ Cs, ∃ o : U64, (o.val = 104 ∨ o.val = 112) ∧ b = L.nodeAt s c o) ∨ (∃ n ∈ Nt, b = ntfnBtA n)
+
+/-- Writes that avoid the timer-tree words keep them. -/
+theorem TmFr.of_writes {s s' : S} {B : U64 → Prop} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodePlaced st T s c)
+    (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hw : WritesIn st s s' B) (hB : ∀ b, B b → ¬ TmW st T Cs Nt s b) :
+    TmFr st T Cs Nt s s' :=
+  ⟨hw.1, fun y hy K h1 h2 h3 => hw.mem_eq (field_aligned (hT y hy) (by omega) h3)
+      (fun hb => hB _ hb (Or.inl ⟨y, hy, K, h1, h2, h3, rfl⟩)),
+    fun c hc o ho => hw.mem_eq (nodeAt_aligned (hN c hc) (by omega) (by omega))
+      (fun hb => hB _ hb (Or.inr (Or.inl ⟨c, hc, o, ho, rfl⟩))),
+    fun n hn => hw.mem_eq (ntfnBt_aligned (hO.ntP n hn)) (fun hb => hB _ hb (Or.inr (Or.inr ⟨n, hn, rfl⟩)))⟩
+
+/-- A TCB field at an offset outside the timer fields is no timer-tree word. -/
+theorem notTmW_field {s : S} {y K : U64} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodePlaced st T s c)
+    (hΩ : ∀ n ∈ Nt, OutsideObjs st T Cs s (ntfnBtA n)) (hy : y ∈ T) (hK : K.val < 4096)
+    (hK' : K.val < 3528 ∨ 3576 ≤ K.val) : ¬ TmW st T Cs Nt s (core.num.U64.wrapping_add y K) := by
+  rintro (⟨y', hy', K', h1, h2, h3, e⟩ | ⟨c, hc, o, ho, e⟩ | ⟨n, hn, e⟩)
+  · exact field_ne (hT y hy) (hT y' hy') hK (by omega) (fun _ => by omega) e
+  · exact node_ne_field (hN c hc) (by omega) hy (hT y hy) hK e.symm
+  · exact out_ne_field (hΩ n hn) hy (hT y hy) hK (congrArg UScalar.val e)
+
+
+theorem TmFr.wr {s : S} {a v : U64} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodePlaced st T s c)
+    (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (ha : Aligned a) (hna : ¬ TmW st T Cs Nt s a) :
+    TmFr st T Cs Nt s (L.wr s a v) :=
+  TmFr.of_writes hT hN hO (writesIn_wr ha) (fun b hb => by subst hb; exact hna)
+
+/-- A word of another object that is no notification `BOUND_TCB` word is no
+timer-tree word. -/
+theorem notTmW_omega {s : S} {b : U64} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodePlaced st T s c)
+    (hb : OutsideObjs st T Cs s b) (hnb : ∀ n ∈ Nt, b.val ≠ (ntfnBtA n).val) :
+    ¬ TmW st T Cs Nt s b := by
+  rintro (⟨y, hy, K, h1, h2, h3, e⟩ | ⟨c, hc, o, ho, e⟩ | ⟨n, hn, e⟩)
+  · exact out_ne_field hb hy (hT y hy) (by omega) (congrArg UScalar.val e).symm
+  · exact out_ne_node hb hc (hN c hc) (by omega) (congrArg UScalar.val e).symm
+  · exact hnb n hn (congrArg UScalar.val e)
+
+/-- A node word other than the timer-tree words is no timer-tree word. -/
+theorem notTmW_node {s : S} {c o : U64} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodePlaced st T s c)
+    (hΩ : ∀ n ∈ Nt, OutsideObjs st T Cs s (ntfnBtA n)) (hc : c ∈ Cs) (ho : o.val < 4288)
+    (hto : o.val ≠ 104 ∧ o.val ≠ 112) : ¬ TmW st T Cs Nt s (L.nodeAt s c o) := by
+  rintro (⟨y, hy, K, h1, h2, h3, e⟩ | ⟨c', hc', o', ho', e⟩ | ⟨n, hn, e⟩)
+  · exact node_ne_field (hN c hc) ho hy (hT y hy) (by omega) e
+  · exact node_ne_node (hN c hc) (hN c' hc') ho (by omega) (fun _ => by omega) (congrArg UScalar.val e)
+  · exact out_ne_node (hΩ n hn) hc (hN c hc) ho (congrArg UScalar.val e)
+
+
+theorem TimerOK.tmfr {s s' : S} (h : TimerOK st T Cs s) (f : TmFr st T Cs Nt s s') : TimerOK st T Cs s' := by
+  obtain ⟨fk, ft, fd, -⟩ := f
+  have lk : ∀ y K, y ∈ T → K.val = 3544 ∨ K.val = 3552 ∨ K.val = 3560 →
+      L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K) :=
+    fun y K hy hK => ft y hy K (by omega) (by omega) (by omega)
+  refine ⟨fun c hc => (h.npl c hc).ksb fk, fun y hy => ?_, fun y hy => ?_, fun y hy => ?_, fun c hc => ?_,
+    fun c hc => ?_, fun y hy hd c hcv => ?_⟩
+  · rw [show tlA y = core.num.U64.wrapping_add y 3544#u64 from rfl, lk y _ hy (by simp)]; exact h.lt y hy
+  · rw [show trA y = core.num.U64.wrapping_add y 3552#u64 from rfl, lk y _ hy (by simp)]; exact h.rt y hy
+  · rw [show tpA y = core.num.U64.wrapping_add y 3560#u64 from rfl, lk y _ hy (by simp)]; exact h.pt y hy
+  · rw [nodeAt_of_ksb fk, fd c hc _ (by rw [timer_root_val]; simp)]; exact h.root c hc
+  · rw [nodeAt_of_ksb fk, fd c hc _ (by rw [timer_min_val]; simp)]; exact h.min c hc
+  · rw [show tdA y = core.num.U64.wrapping_add y 3528#u64 from rfl, ft y hy _ (by simp) (by simp) (by simp)] at hd
+    rw [show thA y = core.num.U64.wrapping_add y 3568#u64 from rfl, ft y hy _ (by simp) (by simp) (by simp)] at hcv
+    exact h.core y hy hd c hcv
+
+theorem NtbOK.tmfr {s s' : S} (h : NtbOK st T Nt s) (f : TmFr st T Cs Nt s s') : NtbOK st T Nt s' :=
+  fun n hn => by rw [f.2.2.2 n hn]; exact h n hn
+
+/-- A write of a word of another object keeps `TimerOK`. -/
+theorem TimerOK.wr_out {s : S} {a v : U64} (h : TimerOK st T Cs s) (hT : TcbPlaced T)
+    (hN : ∀ c ∈ Cs, NodePlaced st T s c) (ho : OutsideObjs st T Cs s a) : TimerOK st T Cs (L.wr s a v) :=
+  h.tmfr (Nt := ∅) ⟨L.ksb_wr _ _ _,
+    fun y hy K h1 h2 h3 => L.mem_wr_ne ho.1 (field_aligned (hT y hy) (by omega) h3)
+      (fun e => out_ne_field ho hy (hT y hy) (by omega) e.symm),
+    fun c hc o hoo => L.mem_wr_ne ho.1 (nodeAt_aligned (hN c hc) (by omega) (by omega))
+      (fun e => out_ne_node ho hc (hN c hc) (by omega) e.symm),
+    fun n hn => absurd hn (Set.notMem_empty n)⟩
+
+/-- A write that puts a null or a TCB into any `BOUND_TCB` word it hits keeps `NtbOK`. -/
+theorem NtbOK.wr_tz {s : S} {a v : U64} (h : NtbOK st T Nt s) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (ha : Aligned a)
+    (hv : ∀ n ∈ Nt, a.val = (ntfnBtA n).val → Tz T v) : NtbOK st T Nt (L.wr s a v) := fun n hn => by
+  rw [L.mem_wr_val ha (ntfnBt_aligned (hO.ntP n hn))]
+  split
+  · exact hv n hn ‹_›
+  · exact h n hn
+
+
+end
+
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat}
@@ -56,6 +214,10 @@ structure ScExtra (st : machine.Store S) [L : LawfulStore st] (T Cs Scs Nt : Set
   bnd : ∀ t ∈ T, L.mem s (boundA t) ≠ 0#u64 → L.mem s (boundA t) ∈ Nt
   /-- A notification's SC is an SC object (l4v `valid_ntfn`). -/
   nsc : ∀ n ∈ Nt, L.mem s (ntfnScA n) ≠ 0#u64 → L.mem s (ntfnScA n) ∈ Scs
+  /-- The timer trees are typed. -/
+  tm : TimerOK st T Cs s
+  /-- A notification's bound TCB is null or a TCB. -/
+  ntb : NtbOK st T Nt s
 
 /-- The object invariants together. -/
 def XInv (st : machine.Store S) [L : LawfulStore st] (T Cs Ω Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (s : S) : Prop :=
@@ -65,7 +227,7 @@ def XInv (st : machine.Store S) [L : LawfulStore st] (T Cs Ω Sg Rp Scs Nt : Set
 
 /-- `XInv` only reads the reply words, the SCs' `TCB`/`CORE` words, the TCBs'
 reply, state and SC fields, and the current SC. -/
-theorem XInv.keep {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
+theorem XInv.keep' {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hrw : ∀ r ∈ Rp, L.mem s' (rTcbA r) = L.mem s (rTcbA r) ∧ L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧
       L.mem s' (rNextA r) = L.mem s (rNextA r))
     (hfx : ∀ c ∈ Scs, L.mem s' (scTcbA c) = L.mem s (scTcbA c) ∧ L.mem s' (scCoreA c) = L.mem s (scCoreA c))
@@ -74,13 +236,15 @@ theorem XInv.keep {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hst : ∀ t ∈ T, L.mem s' (stA t) = L.mem s (stA t))
     (hcs : L.cscW s' ∈ Scs)
     (hsr : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c))
-    (hbd : ∀ t ∈ T, L.mem s' (boundA t) = L.mem s (boundA t))
-    (hns : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n)) : XInv st T Cs Ω Sg Rp Scs Nt Z s' := by
+    (hbd : ∀ t ∈ T, L.mem s' (boundA t) ≠ 0#u64 → L.mem s' (boundA t) ∈ Nt)
+    (hns : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n))
+    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s') : XInv st T Cs Ω Sg Rp Scs Nt Z s' := by
   obtain ⟨hO, hR, hE⟩ := hX
   refine ⟨hO.ksb, ⟨fun t ht hs => ?_, fun t ht hs hn => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr hn => ?_,
       fun c hc => by rw [hsr c hc]; exact hR.screp c hc⟩,
     ⟨fun t ht hb => ?_, hcs, fun c hc => by rw [(hfx c hc).2]; exact hE.core c hc,
-      fun t ht => by rw [hbd t ht]; exact hE.bnd t ht, fun n hn => by rw [hns n hn]; exact hE.nsc n hn⟩⟩
+      hbd, fun n hn => by rw [hns n hn]; exact hE.nsc n hn,
+      htn.1, htn.2⟩⟩
   rotate_left 4
   · rw [(hrw r hr).1] at hn ⊢
     obtain ⟨b0, b1, b2, b3⟩ := hR.back r hr hn
@@ -98,12 +262,30 @@ theorem XInv.keep {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     obtain ⟨h1, h2, h3⟩ := hE.bound t ht hb
     rw [(hfx _ h1).1, (hfx _ h1).2]; exact ⟨h1, h2, h3⟩
 
+theorem XInv.keep {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
+    (hrw : ∀ r ∈ Rp, L.mem s' (rTcbA r) = L.mem s (rTcbA r) ∧ L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧
+      L.mem s' (rNextA r) = L.mem s (rNextA r))
+    (hfx : ∀ c ∈ Scs, L.mem s' (scTcbA c) = L.mem s (scTcbA c) ∧ L.mem s' (scCoreA c) = L.mem s (scCoreA c))
+    (hsc : ∀ t ∈ T, L.mem s' (scA t) = L.mem s (scA t))
+    (hrep : ∀ t ∈ T, L.mem s' (replyA t) = L.mem s (replyA t))
+    (hst : ∀ t ∈ T, L.mem s' (stA t) = L.mem s (stA t))
+    (hcs : L.cscW s' ∈ Scs)
+    (hsr : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c))
+    (hbd : ∀ t ∈ T, L.mem s' (boundA t) = L.mem s (boundA t))
+    (hns : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n))
+    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s') : XInv st T Cs Ω Sg Rp Scs Nt Z s' :=
+  hX.keep' hrw hfx hsc hrep hst hcs hsr (fun t ht => by rw [hbd t ht]; exact hX.2.2.bnd t ht) hns htn
+
+/-- The timer-tree typing and the notifications' bound TCBs after a frame. -/
+theorem XInv.tn {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (f : TmFr st T Cs Nt s s') :
+    TimerOK st T Cs s' ∧ NtbOK st T Nt s' := ⟨hX.2.2.tm.tmfr f, hX.2.2.ntb.tmfr f⟩
+
 theorem XInv.fr {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (f : Fr st T Sg s s') :
     XInv st T Cs Ω Sg Rp Scs Nt Z s' :=
   hX.keep (fun r hr => ⟨f.sig _ (hX.1.tcbW hr), f.sig _ (hX.1.prevW hr), f.sig _ (hX.1.nextW hr)⟩)
     (fun c hc => ⟨f.sig _ (hX.1.fixW c hc).1, f.sig _ (hX.1.fixW c hc).2⟩) f.sc f.rep f.st
     (by rw [f.csc]; exact hX.2.2.cur) (fun c hc => f.sig _ (hX.1.repW c hc)) f.bnd
-    (fun n hn => f.sig _ (hX.1.ntW n hn))
+    (fun n hn => f.sig _ (hX.1.ntW n hn)) (hX.tn (TmFr.of_fr f hX.1 hX.2.2.tm.npl))
 
 /-! ## Writes that avoid the protected words -/
 
@@ -139,7 +321,8 @@ theorem ObjsOK.aligned (h : ObjsOK st Ω Sg Rp Scs Nt Z s) (hT : TcbPlaced T) {b
 /-- `XInv` after writes that avoid the protected words, given the new
 current SC is an SC object. -/
 theorem XInv.writes {s s' : S} {B : U64 → Prop} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hT : TcbPlaced T)
-    (hw : WritesIn st s s' B) (hB : ∀ b, B b → ¬ Prot T Rp Scs Nt b) (hcs : L.cscW s' ∈ Scs) :
+    (hw : WritesIn st s s' B) (hB : ∀ b, B b → ¬ Prot T Rp Scs Nt b) (hcs : L.cscW s' ∈ Scs)
+    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s') :
     XInv st T Cs Ω Sg Rp Scs Nt Z s' := by
   have k : ∀ b, Prot T Rp Scs Nt b → L.mem s' b = L.mem s b := fun b hb =>
     hw.mem_eq (hX.1.aligned hT hb) (fun h => hB b h hb)
@@ -151,7 +334,7 @@ theorem XInv.writes {s s' : S} {B : U64 → Prop} (hX : XInv st T Cs Ω Sg Rp Sc
     (fun t ht => k _ (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inr (Or.inr (Or.inl rfl))⟩)))) hcs
     (fun c hc => k _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr rfl)⟩)))
     (fun t ht => k _ (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inr (Or.inr (Or.inr rfl))⟩))))
-    (fun n hn => k _ (Or.inr (Or.inr (Or.inr ⟨n, hn, rfl⟩))))
+    (fun n hn => k _ (Or.inr (Or.inr (Or.inr ⟨n, hn, rfl⟩)))) htn
 
 /-- Protected words are words of `Ω` or TCB fields. -/
 theorem ObjsOK.prot_cases (h : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω) {b : U64}
@@ -226,34 +409,97 @@ theorem not_prot_ring {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → 
       · right; right; right; unfold boundA; rw [field_val (h.tcbs t ht) (by simp)]; simp
     omega
 
+/-- A word of an SC object is no timer-tree word. -/
+theorem notTmW_insc {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64}
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω)
+    {c b : U64} (hc : c ∈ Scs) (hb : Aligned b) (hin : InSC c (Z c) b) : ¬ TmW st T Cs Nt s b := by
+  have hm := hO.scW c hc b hb hin
+  refine notTmW_omega h.tcbs h.nodes (h.omega _ hm) (fun n hn e => ?_)
+  rw [ntfnBtA_val (hO.ntP n hn)] at e
+  have := hO.ntOSc n hn c hc; have := hin.1; have := hin.2; omega
+
+/-- A ring word or the `CONSUMED` word of an SC is no timer-tree word. -/
+theorem notTmW_ring {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64}
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω)
+    {c b : U64} (hc : c ∈ Scs) (hb : Aligned b)
+    (hr : InRing c (Z c) b ∨ b = core.num.U64.wrapping_add c layout.sc.CONSUMED) : ¬ TmW st T Cs Nt s b := by
+  obtain ⟨hP, hz⟩ := hO.sc c hc
+  obtain ⟨-, h128, -⟩ := sc_lo hP hz
+  have hin : InSC c (Z c) b := by
+    rcases hr with ⟨h1, h2⟩ | rfl
+    · exact ⟨by omega, h2⟩
+    · rw [InSC, sc_word_val hP hz (by simp [layout.sc.CONSUMED])]; simp [layout.sc.CONSUMED]; omega
+  exact notTmW_insc h hO hsub hc hb hin
+
+/-- A write avoiding the timer-tree words keeps their typing. -/
+theorem XInv.tn_wr {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {a v : U64}
+    (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ha : Aligned a)
+    (hna : ¬ TmW st T Cs Nt s a) : TimerOK st T Cs (L.wr s a v) ∧ NtbOK st T Nt (L.wr s a v) :=
+  hX.tn (TmFr.wr h.tcbs h.nodes hX.1 ha hna)
+
+/-- A node word other than the timer-tree words. -/
+theorem XInv.tn_node {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {c o v : U64}
+    (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hsub : ∀ b ∈ Sg, b ∈ Ω)
+    (hc : c ∈ Cs) (ho : o.val < 4288) (h8 : o.val % 8 = 0) (hto : o.val ≠ 104 ∧ o.val ≠ 112) :
+    TimerOK st T Cs (L.wr s (L.nodeAt s c o) v) ∧ NtbOK st T Nt (L.wr s (L.nodeAt s c o) v) :=
+  hX.tn_wr h (nodeAt_aligned (h.nodes c hc) ho h8)
+    (notTmW_node h.tcbs h.nodes (fun n hn => h.omega _ (hsub _ (hX.1.ntB n hn).2)) hc ho hto)
+
+/-- A TCB field other than the timer fields. -/
+theorem XInv.tn_field {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {y K v : U64}
+    (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hsub : ∀ b ∈ Sg, b ∈ Ω)
+    (hy : y ∈ T) (hK : K.val < 4096) (hK8 : K.val % 8 = 0) (hKt : K.val < 3528 ∨ 3576 ≤ K.val) :
+    TimerOK st T Cs (L.wr s (core.num.U64.wrapping_add y K) v) ∧
+      NtbOK st T Nt (L.wr s (core.num.U64.wrapping_add y K) v) :=
+  hX.tn_wr h (field_aligned (h.tcbs y hy) hK hK8)
+    (notTmW_field h.tcbs h.nodes (fun n hn => h.omega _ (hsub _ (hX.1.ntB n hn).2)) hy hK hKt)
+
+/-- An `EpFoot` write leaves the timer-tree words alone. -/
+theorem TmFr.of_epfoot {X : Set U64} {s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
+    {E : Set U64} {EQ : U64 → List U64} {e : U64} {W : List U64}
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hEW : EpsWit st T Cs Ω H X s E EQ) (he : e ∈ E)
+    (hWT : ∀ w ∈ W, w ∈ T) (hw : WritesIn st s s' (EpFoot W e)) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
+    (hsub : ∀ b ∈ Sg, b ∈ Ω) : TmFr st T Cs Nt s s' := by
+  obtain ⟨kf, kΩ, -⟩ := epfoot_keep h hEW he hWT hw
+  exact ⟨hw.1, fun y hy K a b c => kf y hy K (by omega) c (by omega) (by omega),
+    fun c hc o ho => epfoot_nodes h hEW he hWT hw c hc o (by omega) (by omega),
+    fun n hn => kΩ _ (hsub _ (hO.ntB n hn).2)⟩
+
+/-- Writes avoiding the timer-tree words keep their typing. -/
+theorem XInv.tn_writes {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {s' : S} {B : U64 → Prop}
+    (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hw : WritesIn st s s' B)
+    (hB : ∀ b, Aligned b → B b → ¬ TmW st T Cs Nt s b) : TimerOK st T Cs s' ∧ NtbOK st T Nt s' :=
+  hX.tn (TmFr.of_writes h.tcbs h.nodes hX.1 (hw.mono' (B := fun b => Aligned b ∧ B b) fun b hb hh => ⟨hb, hh⟩)
+    fun b hh => hB b hh.1 hh.2)
+
 /-! ## Under `KeepT` (what `cancel_ipc` keeps) -/
 
-theorem KeepT.curW {t : U64} {s s' : S} (k : KeepT st T Rp Scs Nt t s s') : L.curW s' = L.curW s :=
+theorem KeepT.curW {t : U64} {s s' : S} (k : KeepT st T Cs Rp Scs Nt t s s') : L.curW s' = L.curW s :=
   k.nd _ (by rw [curth0]; omega)
-theorem KeepT.idleW {t : U64} {s s' : S} (k : KeepT st T Rp Scs Nt t s s') : L.idleW s' = L.idleW s :=
+theorem KeepT.idleW {t : U64} {s s' : S} (k : KeepT st T Cs Rp Scs Nt t s s') : L.idleW s' = L.idleW s :=
   k.nd _ (by rw [idle8]; omega)
-theorem KeepT.cscW {t : U64} {s s' : S} (k : KeepT st T Rp Scs Nt t s s') : L.cscW s' = L.cscW s :=
+theorem KeepT.cscW {t : U64} {s s' : S} (k : KeepT st T Cs Rp Scs Nt t s s') : L.cscW s' = L.cscW s :=
   k.nd _ (by simp [layout.node.CUR_SC])
-theorem KeepT.scf {t : U64} {s s' : S} (k : KeepT st T Rp Scs Nt t s s') {y : U64} (hy : y ∈ T) :
+theorem KeepT.scf {t : U64} {s s' : S} (k : KeepT st T Cs Rp Scs Nt t s s') {y : U64} (hy : y ∈ T) :
     L.mem s' (scA y) = L.mem s (scA y) := by
   rw [scA_eq]; exact k.fld y hy _ (by simp) (by simp) (by simp) (by simp) (fun _ => ⟨by simp, by simp⟩)
-theorem KeepT.inqf {t : U64} {s s' : S} (k : KeepT st T Rp Scs Nt t s s') {y : U64} (hy : y ∈ T) :
+theorem KeepT.inqf {t : U64} {s s' : S} (k : KeepT st T Cs Rp Scs Nt t s s') {y : U64} (hy : y ∈ T) :
     L.mem s' (inqA y) = L.mem s (inqA y) := by
   rw [inqA_eq]; exact k.fld y hy _ (by simp) (by simp) (by simp) (by simp) (fun _ => ⟨by simp, by simp⟩)
-theorem KeepT.repf {t : U64} {s s' : S} (k : KeepT st T Rp Scs Nt t s s') {y : U64} (hy : y ∈ T) :
+theorem KeepT.repf {t : U64} {s s' : S} (k : KeepT st T Cs Rp Scs Nt t s s') {y : U64} (hy : y ∈ T) :
     L.mem s' (replyA y) = L.mem s (replyA y) :=
   k.fld y hy _ (by simp) (by simp) (by simp) (by simp) (fun _ => ⟨by simp, by simp⟩)
-theorem KeepT.stf {t : U64} {s s' : S} (k : KeepT st T Rp Scs Nt t s s') {y : U64} (hy : y ∈ T) (hyt : y ≠ t) :
+theorem KeepT.stf {t : U64} {s s' : S} (k : KeepT st T Cs Rp Scs Nt t s s') {y : U64} (hy : y ∈ T) (hyt : y ≠ t) :
     L.mem s' (stA y) = L.mem s (stA y) := by
   rw [stA_eq]; exact k.fld y hy _ (by simp) (by simp) (by simp) (by simp) (fun e => absurd e hyt)
 
-theorem KeepT.bndf {t : U64} {s s' : S} (k : KeepT st T Rp Scs Nt t s s') {y : U64} (hy : y ∈ T) :
+theorem KeepT.bndf {t : U64} {s s' : S} (k : KeepT st T Cs Rp Scs Nt t s s') {y : U64} (hy : y ∈ T) :
     L.mem s' (boundA y) = L.mem s (boundA y) :=
   k.fld y hy _ (by simp) (by simp) (by simp) (by simp) (fun _ => ⟨by simp, by simp⟩)
 
 /-- `BoundInv` under `KeepT`. -/
 theorem BoundInv.keepT {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t : U64} {s s' : S}
-    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T s) (k : KeepT st T Rp Scs Nt t s s')
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T s) (k : KeepT st T Cs Rp Scs Nt t s s')
     (hnb : ¬ Blocked (L.mem s' (stA t))) : BoundInv st T s' := by
   refine hB.mk' (fun y hy => k.scf hy) (fun y hy hf => Or.inl (by rw [← k.inqf hy]; exact hf))
     (fun y hy hf => Or.inr (Or.inl (by rw [← k.inqf hy]; exact hf))) (fun haT => ?_)
@@ -272,7 +518,7 @@ theorem BoundInv.keepT {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 →
 
 /-- `XInv` under `KeepT`, when `t` ends neither blocked on reply nor on
 receive and the replies naming `t` are cleared. -/
-theorem XInv.keepT {t : U64} {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (k : KeepT st T Rp Scs Nt t s s')
+theorem XInv.keepT {t : U64} {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (k : KeepT st T Cs Rp Scs Nt t s s')
     (hst : L.mem s' (stA t) ≠ sched.TS_BLOCKED_ON_REPLY ∧ L.mem s' (stA t) ≠ sched.TS_BLOCKED_ON_RECV)
     (hclr : ∀ r ∈ Rp, L.mem s (rTcbA r) = t → L.mem s' (rTcbA r) = 0#u64) :
     XInv st T Cs Ω Sg Rp Scs Nt Z s' := by
@@ -285,7 +531,8 @@ theorem XInv.keepT {t : U64} {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) 
   refine ⟨hO.ksb, ⟨fun u hu hs => ?_, fun u hu hs hn => ?_, fun r hr hn => ?_, fun r hr hp => ?_,
       fun r hr hn => ?_, fun c hc hn => ?_⟩,
     ⟨fun u hu hb => ?_, by rw [k.cscW]; exact hE.cur, fun c hc => by rw [(k.fix c hc).2.1]; exact hE.core c hc,
-      fun u hu => by rw [k.bndf hu]; exact hE.bnd u hu, fun n hn => by rw [k.nsc n hn]; exact hE.nsc n hn⟩⟩
+      fun u hu => by rw [k.bndf hu]; exact hE.bnd u hu, fun n hn => by rw [k.nsc n hn]; exact hE.nsc n hn,
+      hE.tm.tmfr (TmFr.of_keepT k), hE.ntb.tmfr (TmFr.of_keepT k)⟩⟩
   · by_cases e : u = t
     · subst e; exact absurd hs hst.1
     rw [k.stf hu e] at hs
@@ -337,7 +584,7 @@ theorem ipc.cancel_ipc.all {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t
       XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ ¬ Blocked (L.mem s' (stA t)) ∧
       L.mem s' (stA t) ≠ sched.TS_BLOCKED_ON_REPLY ∧
       (L.mem s' (stA t) = sched.TS_INACTIVE ∨
-        (L.mem s' (stA t) = L.mem s (stA t) ∧ L.actionW s' = L.actionW s)) ∧ KeepT st T Rp Scs Nt t s s' ∧
+        (L.mem s' (stA t) = L.mem s (stA t) ∧ L.actionW s' = L.actionW s)) ∧ KeepT st T Cs Rp Scs Nt t s s' ∧
       (∀ r ∈ Rp, L.mem s (rTcbA r) = t → L.mem s' (rTcbA r) = 0#u64) ⦄ := by
   obtain ⟨hO, hR, hE⟩ := hX
   have hreply : L.mem s (stA t) = sched.TS_BLOCKED_ON_REPLY → ReplyT st Rp Scs s t := fun hs => by
@@ -357,6 +604,26 @@ theorem ipc.cancel_ipc.all {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t
     · exact Or.inr ⟨b3, by rw [b2]; exact b0⟩
   exact ⟨h', hB.keepT h k nb, XInv.keepT (Z := Z) (Ω := Ω) (Sg := Sg) ⟨hO, hR, hE⟩ k
     ⟨nr, fun e => nb (Or.inr (Or.inl e))⟩ hclr, nb, nr, hst, k, hclr⟩
+
+/-- A refill write: the ring of an SC and the current core's `REPROGRAM`. -/
+theorem TmFr.of_ring {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {i : U64}
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω)
+    (hiS : i ∈ Scs) (w : WritesIn st s s' (fun b => InRing i (Z i) b ∨ b = L.nodeA s layout.node.REPROGRAM)) :
+    TmFr st T Cs Nt s s' := by
+  have hT := h.tcbs
+  have hO := hX.1
+  have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
+  have hΩ : ∀ n ∈ Nt, OutsideObjs st T Cs s (ntfnBtA n) := fun n hn => h.omega _ (hsub _ (hO.ntB n hn).2)
+  refine TmFr.of_writes hT h.nodes hO
+    (w.mono' (B := fun b => Aligned b ∧ (InRing i (Z i) b ∨ b = L.nodeA s layout.node.REPROGRAM))
+      fun b hb hh => ⟨hb, hh⟩) ?_
+  rintro b ⟨hb, hh | hh⟩
+  · have hm := hO.scW i hiS b hb hh.inSC
+    refine notTmW_omega hT h.nodes (h.omega _ hm) (fun n hn e => ?_)
+    rw [ntfnBtA_val (hO.ntP n hn)] at e
+    have := hO.ntOSc n hn i hiS; have := hh.1; have := hh.2; omega
+  · subst hh
+    exact notTmW_node hT h.nodes hΩ h.cur (by rw [rp]; omega) (by rw [rp]; omega)
 
 end
 

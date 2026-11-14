@@ -135,7 +135,7 @@ theorem ring_bx {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64
     unfold LawfulStore.cscW LawfulStore.nodeA; exact nodeK _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
   refine ⟨inv_of_free h wF, hB.free h wF, hX.writes h.tcbs
     (w.mono' (B := fun b => ¬ Prot T Rp Scs Nt b) fun b hb hh => not_prot_ring h hX.1 hc hb hh) (fun b hb => hb)
-    (by rw [ecs]; exact hX.2.2.cur),
+    (by rw [ecs]; exact hX.2.2.cur) (hX.tn_writes h w fun b hb hh => notTmW_ring h hX.1 hSg.sub hc hb hh),
     ⟨hSg.sub, fun b hb => by rw [w.1]; exact hSg.ks b hb, fun o h1 h2 => by rw [w.1]; exact hSg.ksΩ o h1 h2⟩,
     by unfold LawfulStore.actionW; exact nodeK _ (by rw [act_val]; omega) (by rw [act_val]),
     by unfold LawfulStore.curW; exact nodeK _ (by rw [curth0]; omega) (by rw [curth0]), ecs,
@@ -145,7 +145,7 @@ theorem ring_bx {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64
 /-- A write to a current-node word that the invariants do not read. -/
 theorem node_bx {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {o v : U64}
     (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
-    (hSg : SgOK st Ω Sg s) (ho : LowFree o.val) (h24 : o.val ≠ 24) :
+    (hSg : SgOK st Ω Sg s) (ho : LowFree o.val) (h24 : o.val ≠ 24) (hto : o.val ≠ 104 ∧ o.val ≠ 112) :
     SchedQueuesInvX st T Cs Ω H X (L.wr s (L.nodeAt s (L.cpu s) o) v) Q R ∧
       BoundInv st T (L.wr s (L.nodeAt s (L.cpu s) o) v) ∧ XInv st T Cs Ω Sg Rp Scs Nt Z (L.wr s (L.nodeAt s (L.cpu s) o) v) ∧
       SgOK st Ω Sg (L.wr s (L.nodeAt s (L.cpu s) o) v) ∧
@@ -175,6 +175,7 @@ theorem node_bx {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 �
         (by rw [inqA_eq] at e; exact UScalar.eq_of_val_eq e)⟩)
     (fun o' ho' e => by
       rw [nodeAt_val hN' (by omega), nodeAt_val hN' (by omega)] at e; omega)
+    (hX.tn_node h hSg.sub h.cur (by omega) (by omega) hto)
   refine ⟨inv_of_free h wF, hB', hX', ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb,
     fun o' h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o' h1 h2⟩,
     by unfold LawfulStore.actionW; exact nd _ (by rw [act_val]; omega) (by rw [act_val]) (by rw [act_val]; omega),
@@ -296,7 +297,7 @@ theorem sched.charge_budget.all (hA : P0.ArchTotal ar) (s : S) (a : A) (used : U
   step with sched.set_consumed.spec as ⟨s3, s3_post⟩
   rw [show L.nodeA s2 layout.node.CONSUMED = L.nodeAt s2 (L.cpu s2) layout.node.CONSUMED from rfl] at s3_post
   obtain ⟨h3, hB3, hX3, hSg3, ea3, ec3, ecs3, f3⟩ := node_bx (o := layout.node.CONSUMED) (v := 0#u64) h2 hB2 hX2 hSg2
-    (by simp [layout.node.CONSUMED, LowFree]) (by simp [layout.node.CONSUMED])
+    (by simp [layout.node.CONSUMED, LowFree]) (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])
   have hS3 : SCsOK st T Ω Sg Scs Z (L.wr s2 (L.nodeAt s2 (L.cpu s2) layout.node.CONSUMED) 0#u64) := by
     have hN2 := h2.nodes _ h2.cur
     obtain ⟨-, hc⟩ := objs_omega hX2.1 hS2.sub

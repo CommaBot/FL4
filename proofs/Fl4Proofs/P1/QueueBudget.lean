@@ -43,7 +43,8 @@ theorem bx_epfoot {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U
     (fun y hy => kf y hy _ (by simp) (by simp) (by simp) (by simp))
     (fun y hy => by rw [stA_eq]; exact kf y hy _ (by simp) (by simp) (by simp) (by simp)) ?_
     (fun c hc' => kΩ _ (hsub _ (hX.1.repW c hc')))
-    (fun y hy => kf y hy _ (by simp) (by simp) (by simp) (by simp)) (fun n hn => kΩ _ (hsub _ (hX.1.ntW n hn)))⟩
+    (fun y hy => kf y hy _ (by simp) (by simp) (by simp) (by simp)) (fun n hn => kΩ _ (hsub _ (hX.1.ntW n hn)))
+    (hX.tn (TmFr.of_epfoot h hEW he hWT hw hX.1 hsub))⟩
   unfold LawfulStore.cscW LawfulStore.nodeA
   rw [kn _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])]; exact hX.2.2.cur
 
@@ -82,7 +83,7 @@ theorem dpe_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List U64)
   step with obj.Tcb.set_prio.spec as ⟨s2, s2_post⟩
   subst s2_post
   have h2 := inv_wr_prio h1 ht hq0 hv
-  obtain ⟨hB2, hX2⟩ := bx_field (K := 3448#u64) (v := prio) h1 hB1 hX1 hSg.sub ht (by simp) (by simp) (by simp)
+  obtain ⟨hB2, hX2⟩ := bx_field (K := 3448#u64) (v := prio) h1 hB1 hX1 hSg.sub ht (by simp) (by simp) (by simp) (by simp)
   have hSg2 : SgOK st Ω Sg (L.wr s1 (prioA t) prio) :=
     ⟨hSg1.sub, fun b hb => by rw [L.ksb_wr]; exact hSg1.ks b hb, fun o h1' h2' => by rw [L.ksb_wr]; exact hSg1.ksΩ o h1' h2'⟩
   have st2 : L.mem (L.wr s1 (prioA t) prio) (stA t) = L.mem s (stA t) :=
@@ -138,7 +139,7 @@ theorem running_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List 
       exact dpe_bx s t prio Q R h ht hv (fun c hc => h.notR ht hr0 hc) hrun (hbcur (e.trans t1_post)) hB hX hSg
     · step as ⟨s1, s1_post⟩
       subst s1_post
-      exact bx_field (K := 3448#u64) h hB hX hSg.sub ht (by simp) (by simp) (by simp)
+      exact bx_field (K := 3448#u64) h hB hX hSg.sub ht (by simp) (by simp) (by simp) (by simp)
 
 theorem blocked_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List U64)
     (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : t ∈ T) (hv : prio.val < 256)
@@ -154,7 +155,7 @@ theorem blocked_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List 
   step with obj.Tcb.set_prio.spec as ⟨s1, s1_post⟩
   subst s1_post
   have h1 := inv_wr_prio h ht hq0 hv
-  obtain ⟨hB1, hX1⟩ := bx_field (K := 3448#u64) (v := prio) h hB hX hsub ht (by simp) (by simp) (by simp)
+  obtain ⟨hB1, hX1⟩ := bx_field (K := 3448#u64) (v := prio) h hB hX hsub ht (by simp) (by simp) (by simp) (by simp)
   obtain ⟨hbl, hstt⟩ := prio_wr_eps (prio := prio) h ht
   step with obj.Tcb.block_obj.spec as ⟨i, i_post⟩
   subst i_post
@@ -196,7 +197,7 @@ theorem sched.set_priority.all (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U
           · exact blocked_bx s t prio Q R h ht hv hq0 (Or.inr (Or.inr ‹_›)) hB hX hSg.sub _ fn
           · step as ⟨s1, s1_post⟩
             subst s1_post
-            exact bx_field (K := 3448#u64) h hB hX hSg.sub ht (by simp) (by simp) (by simp)
+            exact bx_field (K := 3448#u64) h hB hX hSg.sub ht (by simp) (by simp) (by simp) (by simp)
 
 end
 

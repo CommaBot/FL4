@@ -278,7 +278,7 @@ theorem blk_keep {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U6
     (hbl : L.mem s' (stA t) = sched.TS_BLOCKED_ON_REPLY →
       L.mem s' (replyA t) ∈ Rp ∧ L.mem s' (rTcbA (L.mem s' (replyA t))) = t)
     (hr0 : r0 ≠ 0#u64 → r0 ∈ Rp ∧ (L.mem s (rTcbA r0) = 0#u64 ∨ L.mem s (rTcbA r0) = t))
-    (hidl : L.idleW s = t → ¬ Blocked (L.mem s' (stA t)))
+    (hidl : L.idleW s = t → ¬ Blocked (L.mem s' (stA t))) (htm : TmFr st T Cs Nt s s')
     (hrecv : L.mem s' (stA t) = sched.TS_BLOCKED_ON_RECV → L.mem s' (replyA t) ≠ 0#u64 →
       L.mem s' (replyA t) ∈ Rp ∧ L.mem s' (rTcbA (L.mem s' (replyA t))) = t)
     (hold : L.mem s (stA t) ≠ sched.TS_BLOCKED_ON_REPLY ∧ L.mem s (stA t) ≠ sched.TS_BLOCKED_ON_RECV)
@@ -371,7 +371,7 @@ theorem blk_keep {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U6
             have := congrArg UScalar.val e
             rw [rTcbA_val (r0p h0)] at this
             have := hO.ntRp n hn r0 (hr0 h0).1; omega)]
-          exact hE.nsc n hn⟩⟩,
+          exact hE.nsc n hn, hE.tm.tmfr htm, hE.ntb.tmfr htm⟩⟩,
     SCsOK.keep hS ⟨hO, hR, hE⟩ hk scf ecs (fun c hc => (fix c hc).2.2)⟩
   · rcases hact with e | e
     · rw [e] at haT ⊢; exact ⟨haT, hB.act haT⟩
@@ -487,6 +487,21 @@ theorem BlockCase.facts {H : Heap} {e v w : U64} (hc : BlockCase H e v w) :
     | decide
     | (rename_i h'; exfalso; revert h'; decide)
 
+/-- A `BlkFoot` write leaves the timer-tree words alone. -/
+theorem TmFr.of_blkfoot {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t r0 : U64}
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω)
+    (ht : t ∈ T) (hr0 : r0 ≠ 0#u64 → r0 ∈ Rp) (hw : WritesIn st s s' (BlkFoot st s t r0)) :
+    TmFr st T Cs Nt s s' := by
+  have hΩ : ∀ n ∈ Nt, OutsideObjs st T Cs s (ntfnBtA n) := fun n hn => h.omega _ (hsub _ (hO.ntB n hn).2)
+  refine TmFr.of_writes h.tcbs h.nodes hO hw ?_
+  rintro b (⟨K, hK, rfl⟩ | rfl | ⟨h0, rfl⟩)
+  · exact notTmW_field h.tcbs h.nodes hΩ ht (by omega) (by omega)
+  · exact notTmW_node h.tcbs h.nodes hΩ h.cur (by rw [act_val]; omega) (by rw [act_val]; omega)
+  · have hp := hr0 h0
+    refine notTmW_omega h.tcbs h.nodes (h.omega _ (hsub _ (hO.tcbW hp))) (fun n hn e => ?_)
+    rw [rTcbA_val (hO.rp _ hp), ntfnBtA_val (hO.ntP n hn)] at e
+    have := hO.ntORp n hn _ hp; omega
+
 /-- The append that ends a blocking path, and the invariants after it: the
 thread was blocked and its block object set on a state `s5` reached from
 `s` by `BlkFoot` writes, with `t` in the exception set. -/
@@ -553,7 +568,9 @@ theorem blk_tail {f : Result S} {s s5 : S} {Q : U64 → U64 → List U64} {R : U
     rw [st6, rp6]; intro h1 h2
     obtain ⟨r1, r2⟩ := hrecv h1 h2
     exact ⟨r1, (j2 _ (hsub _ (hO.tcbW r1))).trans r2⟩
-  obtain ⟨b1, b2, b3⟩ := blk_keep (hidl := fun e => absurd e hidl) h hB hX hS ht hk6 hc6
+  obtain ⟨b1, b2, b3⟩ := blk_keep (hidl := fun e => absurd e hidl)
+    (htm := (TmFr.of_blkfoot h hO hsub ht (fun h0 => (hr0 h0).1) hw5).trans
+      (TmFr.of_epfoot h5 hEW5 he5 hWT hw6 hO.ksb hsub)) h hB hX hS ht hk6 hc6
     (fun y hy K hK hK8 h1 h2 hy' => (j1 y hy K hK hK8 h1 h2).trans (k1 y hy K hK hK8 hy'))
     (fun a ha hne => (j2 a ha).trans (k2 a ha hne)) nd6 (by rw [ea6]; exact hact)
     (fun e => absurd (show v = sched.TS_BLOCKED_ON_REPLY by rw [← hv, ← st6]; exact e) (blocked_ne_reply fB))
@@ -940,7 +957,7 @@ theorem endpoint.wait_for_sender.inv (s : S) (t e : U64) (blocking : Bool) (repl
       exact tail s4 h4 w4 a4 v4 b4 rp4 (fun hn => absurd h0 hn)
   · refine WP.spec_mono (obj.Tcb.set_reg.badge s t 0#u64 hta) fun s' e' => ?_
     subst e'
-    obtain ⟨b1, b2⟩ := bx_field (K := 256#u64) (v := 0#u64) h hB hX hSg.sub ht (by simp) (by simp) (by simp)
+    obtain ⟨b1, b2⟩ := bx_field (K := 256#u64) (v := 0#u64) h hB hX hSg.sub ht (by simp) (by simp) (by simp) (by simp)
     exact ⟨inv_wr_field h ht (by simp) (by simp) (by simp), b1, b2,
       SCsOK.field h hS hX ht (by simp) (by simp) (by simp),
       ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o h1 h2⟩⟩
@@ -1083,6 +1100,11 @@ theorem unbind_state {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U6
   have h1 : SchedQueuesInv st T Cs Ω H (L.wr s (scA t) 0#u64) Q R :=
     inv_wr_field (K := 3464#u64) h ht (by simp) (by simp) (by simp)
   obtain ⟨h2, a2, f2⟩ := omega_wr (v := 0#u64) h1 hm
+  have tmU : TmFr st T Cs Nt s (L.wr (L.wr s (scA t) 0#u64) (scTcbA i) 0#u64) :=
+    (TmFr.wr hT h.nodes hO (scA_aligned hta) (notTmW_field (K := 3464#u64) hT h.nodes
+      (fun n hn => h.omega _ (hSg.sub _ (hO.ntB n hn).2)) ht (by simp) (by simp))).trans
+      (TmFr.wr hT h1.nodes hO.ksb hmo.1 (notTmW_insc h1 hO.ksb hSg.sub hiS hmo.1
+        (by have := (sc_facts hO hiS); obtain ⟨hP, hz⟩ := hO.sc i hiS; exact ⟨by omega, by omega⟩)))
   set s2 := L.wr (L.wr s (scA t) 0#u64) (scTcbA i) 0#u64 with hs2
   have hsa : Aligned (scA t) := scA_aligned hta
   -- the frame from `s` to `s2`
@@ -1166,7 +1188,7 @@ theorem unbind_state {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U6
           rw [F2 _ (hSg.sub _ (hO.ntW n hn)) (fun e => by
             rw [hiv.2.1] at e
             have := hO.ntSc n hn i hiS; have := hiv.1; omega)]
-          exact hE.nsc n hn⟩⟩,
+          exact hE.nsc n hn, hE.tm.tmfr tmU, hE.ntb.tmfr tmU⟩⟩,
     SCsOK.keep' hS ⟨hO, hR, hE⟩ (by simp [hs2]) (fun y hy => ?_) ecs (fun c hc => ?_),
     ⟨hSg.sub, fun b hb => by simp only [hs2, LawfulStore.ksb_wr]; exact hSg.ks b hb,
       fun o h1 h2 => by simp only [hs2, LawfulStore.ksb_wr]; exact hSg.ksΩ o h1 h2⟩, iqy t ht,
@@ -1334,6 +1356,7 @@ theorem notification.maybe_return_sched_context.inv (s : S) (n t : U64)
       · refine WP.spec_mono (sched.reschedule_required.resume s2 ha0) fun s3 e3 => ?_
         subst e3
         have f := fr_node (Sg := Sg) (v := 1#u64) k1 k5 k1.cur (by rw [act_val]; omega) (by rw [act_val])
+          (hto := ⟨by rw [act_val]; omega, by rw [act_val]; omega⟩)
           (fun _ => by rw [act_val]; omega)
         obtain ⟨j1, ea3⟩ := inv_set_action k1 (Or.inr (Or.inl rfl)) (fun h1T => absurd h1T (notT_small k1.tcbs (by simp)))
         refine ⟨⟨Q, R, j1⟩, kB3, k3.fr f, k4.fr f, k5.fr f, ?_, ?_, ?_, ?_,
@@ -1432,7 +1455,7 @@ theorem badge0_all {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
       XInv st T Cs Ω Sg Rp Scs Nt Z (L.wr s (core.num.U64.wrapping_add t 256#u64) 0#u64) ∧
       SCsOK st T Ω Sg Scs Z (L.wr s (core.num.U64.wrapping_add t 256#u64) 0#u64) ∧
       SgOK st Ω Sg (L.wr s (core.num.U64.wrapping_add t 256#u64) 0#u64) := by
-  obtain ⟨b1, b2⟩ := bx_field (K := 256#u64) (v := 0#u64) h hB hX hSg.sub ht (by simp) (by simp) (by simp)
+  obtain ⟨b1, b2⟩ := bx_field (K := 256#u64) (v := 0#u64) h hB hX hSg.sub ht (by simp) (by simp) (by simp) (by simp)
   exact ⟨inv_wr_field h ht (by simp) (by simp) (by simp), b1, b2,
     SCsOK.field h hS hX ht (by simp) (by simp) (by simp),
     ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o h1 h2⟩⟩
@@ -1482,7 +1505,7 @@ theorem tcb_ne.blk (a b : obj.Tcb) :
 
 /-- `CanBlock` across `cancel_ipc` of another thread. -/
 theorem CanBlock.keepT {s s' : S} {t u : U64} (hc : CanBlock st T s t) (hut : t ≠ u) (hT : TcbPlaced T)
-    (k : KeepT st T Rp Scs Nt u s s') : CanBlock st T s' t := by
+    (k : KeepT st T Cs Rp Scs Nt u s s') : CanBlock st T s' t := by
   refine ⟨hc.mem, by rw [k.stf hc.mem hut]; exact hc.nb, by rw [k.stf hc.mem hut]; exact hc.nrp,
     by rw [k.inqf hc.mem]; exact hc.nq, by rw [k.inqf hc.mem]; exact hc.nr, ?_, by rw [k.idleW]; exact hc.ni⟩
   rcases k.act with e | e
