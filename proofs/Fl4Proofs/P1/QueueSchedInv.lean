@@ -91,8 +91,31 @@ theorem qq_ne : sched.Q_QUEUED ≠ 0#u64 := by rw [qq_val]; intro h; have := con
 theorem qr_ne : sched.Q_RELEASE ≠ 0#u64 := by rw [qr_val]; intro h; have := congrArg UScalar.val h; simp at this
 
 
+/-! ## The typed heap (ghost) -/
+
+/-- Object kinds, with SCs and other objects carrying their size exponent. -/
+inductive HKind where
+  | tcb
+  | ep
+  | ntfn
+  | reply
+  | sc (z : Nat)
+  | other (z : Nat)
+
+/-- The size exponent of an object. -/
+def HKind.bits : HKind → Nat
+  | .tcb => 12
+  | .ep => 4
+  | .ntfn => 5
+  | .reply => 5
+  | .sc z => z
+  | .other z => z
+
+/-- A ghost typed heap: which pointers are objects, and of which kind. -/
+abbrev Heap := U64 → Option HKind
+
 section
-variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64}
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 
 /-! ## The invariant -/
 
@@ -131,17 +154,18 @@ def EpOutNodes (st : machine.Store S) [L : LawfulStore st] (Cs : Set U64) (s : S
     (ep.val + 16 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ ep.val)
 
 /-- Endpoint/notification typing and the same-state clause (l4v `valid_ep`,
-`valid_ntfn`, with the encoding of P3's `EpObjRel` / `NtfnObjRel`): `K e`
-says the object at `e` is an endpoint; a thread blocked on send or receive
-(outside `X`) waits on an endpoint, one blocked on a notification on a
-notification; the members of a queue share their state, and the object's
-state word is send (1) or receive (2) for an endpoint, waiting (1) for a
-notification. -/
+`valid_ntfn`, with the encoding of P3's `EpObjRel` / `NtfnObjRel`): the
+objects `E` are exactly the endpoints and notifications of the typed heap `H`; a thread
+blocked on send or receive (outside `X`) waits on a heap endpoint, one
+blocked on a notification on a heap notification; the members of a queue
+share their state, and the object's state word is send (1) or receive (2)
+for an endpoint, waiting (1) for a notification. -/
 def EpTy (st : machine.Store S) [L : LawfulStore st] (T X : Set U64) (s : S) (E : Set U64)
-    (EQ : U64 → List U64) (K : U64 → Bool) : Prop :=
+    (EQ : U64 → List U64) (H : Heap) : Prop :=
   (∀ t ∈ T, t ∉ X → (L.mem s (stA t) = sched.TS_BLOCKED_ON_SEND ∨ L.mem s (stA t) = sched.TS_BLOCKED_ON_RECV) →
-    K (L.mem s (blockA t)) = true) ∧
-  (∀ t ∈ T, t ∉ X → L.mem s (stA t) = sched.TS_BLOCKED_ON_NTFN → K (L.mem s (blockA t)) = false) ∧
+    H (L.mem s (blockA t)) = some .ep) ∧
+  (∀ t ∈ T, t ∉ X → L.mem s (stA t) = sched.TS_BLOCKED_ON_NTFN → H (L.mem s (blockA t)) = some .ntfn) ∧
+  (∀ e, e ∈ E ↔ (H e = some .ep ∨ H e = some .ntfn)) ∧
   (∀ e ∈ E, ∀ y ∈ EQ e, ∀ z ∈ EQ e, L.mem s (stA y) = L.mem s (stA z)) ∧
   (∀ e ∈ E, ∀ y ∈ EQ e, (L.mem s (stA y) = sched.TS_BLOCKED_ON_SEND → L.epState s e = 1#u64) ∧
     (L.mem s (stA y) = sched.TS_BLOCKED_ON_RECV → L.epState s e = 2#u64) ∧
@@ -152,33 +176,33 @@ objects whose queues hold the ghost lists `EQ e`; the members of `EQ e` are
 blocked on `e`, and every blocked thread outside the exception set `X` is a
 member of the queue of the object it is blocked on (seL4 `valid_ep_q`,
 `valid_ntfn_q`, `st_tcb_at` of the queue members); and `EpTy`. -/
-def EpsWit (st : machine.Store S) [L : LawfulStore st] (T Cs Ω X : Set U64) (s : S) (E : Set U64)
-    (EQ : U64 → List U64) (K : U64 → Bool) : Prop :=
+def EpsWit (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (X : Set U64) (s : S)
+    (E : Set U64) (EQ : U64 → List U64) : Prop :=
     (∀ e ∈ E, EpPlaced T e ∧ EpOutNodes st Cs s e ∧ QueueRel (L.mem s) T .Ep (L.epQ s e) (EQ e)) ∧
     (∀ e ∈ E, ∀ e' ∈ E, e ≠ e' → e.val + 16 ≤ e'.val ∨ e'.val + 16 ≤ e.val) ∧
     (∀ e ∈ E, ∀ a ∈ Ω, a.val + 8 ≤ e.val ∨ e.val + 16 ≤ a.val) ∧
     (∀ e ∈ E, ∀ t ∈ EQ e, t ∉ X ∧ L.mem s (blockA t) = e ∧ Blocked (L.mem s (stA t))) ∧
     (∀ t ∈ T, t ∉ X → Blocked (L.mem s (stA t)) → L.mem s (blockA t) ∈ E ∧ t ∈ EQ (L.mem s (blockA t))) ∧
-    EpTy st T X s E EQ K
+    EpTy st T X s E EQ H
 
-def EpsOK (st : machine.Store S) [L : LawfulStore st] (T Cs Ω X : Set U64) (s : S) : Prop :=
-  ∃ (E : Set U64) (EQ : U64 → List U64) (K : U64 → Bool), EpsWit st T Cs Ω X s E EQ K
+def EpsOK (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (X : Set U64) (s : S) : Prop :=
+  ∃ (E : Set U64) (EQ : U64 → List U64), EpsWit st T Cs Ω H X s E EQ
 
 /-- `EpTy` only reads the states and block objects of the TCBs, the queue
 lists and the state words of the objects. -/
-theorem EpTy.agree {X X' : Set U64} {s s' : S} {E : Set U64} {EQ EQ' : U64 → List U64} {K : U64 → Bool}
-    (h : EpTy st T X s E EQ K) (hX : ∀ y, y ∉ X' → y ∉ X ∨ ¬ Blocked (L.mem s' (stA y)))
+theorem EpTy.agree {X X' : Set U64} {s s' : S} {E : Set U64} {EQ EQ' : U64 → List U64}
+    (h : EpTy st T X s E EQ H) (hX : ∀ y, y ∉ X' → y ∉ X ∨ ¬ Blocked (L.mem s' (stA y)))
     (hsb : ∀ y ∈ T, y ∉ X' → Blocked (L.mem s' (stA y)) →
       L.mem s' (stA y) = L.mem s (stA y) ∧ L.mem s' (blockA y) = L.mem s (blockA y))
     (hq : ∀ e ∈ E, ∀ y ∈ EQ' e, y ∈ EQ e)
     (hqs : ∀ e ∈ E, ∀ y ∈ EQ' e, L.mem s' (stA y) = L.mem s (stA y))
-    (hst : ∀ e ∈ E, EQ' e ≠ [] → L.epState s' e = L.epState s e) : EpTy st T X' s' E EQ' K := by
-  obtain ⟨k1, k2, k3, k4⟩ := h
+    (hst : ∀ e ∈ E, EQ' e ≠ [] → L.epState s' e = L.epState s e) : EpTy st T X' s' E EQ' H := by
+  obtain ⟨k1, k2, k0, k3, k4⟩ := h
   have bl1 : ∀ v : U64, (v = sched.TS_BLOCKED_ON_SEND ∨ v = sched.TS_BLOCKED_ON_RECV) → Blocked v := by
     rintro v (e | e)
     · exact Or.inl e
     · exact Or.inr (Or.inl e)
-  refine ⟨fun y hy hyX hs => ?_, fun y hy hyX hs => ?_, fun e he y hy z hz => ?_, fun e he y hy => ?_⟩
+  refine ⟨fun y hy hyX hs => ?_, fun y hy hyX hs => ?_, k0, fun e he y hy z hz => ?_, fun e he y hy => ?_⟩
   · have hb := bl1 _ hs
     obtain ⟨e1, e2⟩ := hsb y hy hyX hb
     rcases hX y hyX with hx | hx
@@ -197,7 +221,7 @@ theorem EpTy.agree {X X' : Set U64} {s s' : S} {E : Set U64} {EQ EQ' : U64 → L
 queue of priority `p` on core `c`) and `R c` (release queue of core `c`),
 with the endpoint queues; `X` is a set of blocked threads that are
 temporarily in no endpoint queue (empty in `SchedQueuesInv`). -/
-structure SchedQueuesInvX (st : machine.Store S) [L : LawfulStore st] (T Cs Ω X : Set U64) (s : S)
+structure SchedQueuesInvX (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (X : Set U64) (s : S)
     (Q : U64 → U64 → List U64) (R : U64 → List U64) : Prop where
   tcbs : TcbPlaced T
   nodes : ∀ c ∈ Cs, NodePlaced st T s c
@@ -222,7 +246,7 @@ structure SchedQueuesInvX (st : machine.Store S) [L : LawfulStore st] (T Cs Ω X
   /-- A switch-to candidate is runnable and in no release queue (seL4
   `weak_valid_sched_action`). -/
   actOK : L.actionW s ∈ T → Runnable (L.mem s (stA (L.actionW s))) ∧ ∀ c ∈ Cs, L.actionW s ∉ R c
-  eps : EpsOK st T Cs Ω X s
+  eps : EpsOK st T Cs Ω H X s
   /-- The current and idle threads are TCBs. -/
   curT : L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) ∈ T
   idleT : L.mem s (L.nodeAt s (L.cpu s) layout.node.IDLE_THREAD) ∈ T
@@ -233,21 +257,21 @@ structure SchedQueuesInvX (st : machine.Store S) [L : LawfulStore st] (T Cs Ω X
   omega : ∀ a ∈ Ω, OutsideObjs st T Cs s a
 
 /-- The invariant, with no exceptions. -/
-abbrev SchedQueuesInv (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (s : S)
+abbrev SchedQueuesInv (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (s : S)
     (Q : U64 → U64 → List U64) (R : U64 → List U64) : Prop :=
-  SchedQueuesInvX st T Cs Ω ∅ s Q R
+  SchedQueuesInvX st T Cs Ω H ∅ s Q R
 
 namespace SchedQueuesInvX
 variable {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
 
-theorem memT (h : SchedQueuesInvX st T Cs Ω X s Q R) {c p : U64} (hc : c ∈ Cs) (hp : p.val < 256) {y : U64}
+theorem memT (h : SchedQueuesInvX st T Cs Ω H X s Q R) {c p : U64} (hc : c ∈ Cs) (hp : p.val < 256) {y : U64}
     (hy : y ∈ Q c p) : y ∈ T := ((h.ready c hc).1.rel p hp).mem y hy
 
-theorem memTR (h : SchedQueuesInvX st T Cs Ω X s Q R) {c : U64} (hc : c ∈ Cs) {y : U64} (hy : y ∈ R c) : y ∈ T :=
+theorem memTR (h : SchedQueuesInvX st T Cs Ω H X s Q R) {c : U64} (hc : c ∈ Cs) {y : U64} (hy : y ∈ R c) : y ∈ T :=
   (h.release c hc).mem y hy
 
 /-- An unqueued thread is in no ready queue. -/
-theorem notQ (h : SchedQueuesInvX st T Cs Ω X s Q R) {t : U64} (ht : t ∈ T)
+theorem notQ (h : SchedQueuesInvX st T Cs Ω H X s Q R) {t : U64} (ht : t ∈ T)
     (h0 : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64) {c p : U64} (hc : c ∈ Cs) (hp : p.val < 256) :
     t ∉ Q c p := by
   intro hm
@@ -255,14 +279,14 @@ theorem notQ (h : SchedQueuesInvX st T Cs Ω X s Q R) {t : U64} (ht : t ∈ T)
   exact ((h.queued t ht).2 (by rw [e1, e2]; exact hm)) h0
 
 /-- A thread not in the release state is in no release queue. -/
-theorem notR (h : SchedQueuesInvX st T Cs Ω X s Q R) {t : U64} (ht : t ∈ T)
+theorem notR (h : SchedQueuesInvX st T Cs Ω H X s Q R) {t : U64} (ht : t ∈ T)
     (h0 : (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64) {c : U64} (hc : c ∈ Cs) : t ∉ R c := by
   intro hm
   have e1 := h.inR c hc t hm
   exact ((h.released t ht).2 (by rw [e1]; exact hm)) h0
 
 /-- Ready queues and release queues are disjoint. -/
-theorem QR (h : SchedQueuesInvX st T Cs Ω X s Q R) {c p : U64} (hc : c ∈ Cs) (hp : p.val < 256) {y : U64}
+theorem QR (h : SchedQueuesInvX st T Cs Ω H X s Q R) {c p : U64} (hc : c ∈ Cs) (hp : p.val < 256) {y : U64}
     (hy : y ∈ Q c p) {c' : U64} (hc' : c' ∈ Cs) : y ∉ R c' := by
   intro hr
   obtain ⟨e1, e2⟩ := h.inQ c hc p hp y hy
@@ -319,13 +343,13 @@ theorem ep_out {Cs : Set U64} {s : S} {e : U64} (hE : EpPlaced T e) (hEN : EpOut
 
 /-- The endpoint queues only depend on the states, blocking objects and `Ep`
 links of the TCBs, and on words outside the TCBs and nodes. -/
-theorem EpsOK.agree {Cs X : Set U64} {s s' : S} (h : EpsOK st T Cs Ω X s) (hk : L.ksb s' = L.ksb s)
+theorem EpsOK.agree {Cs X : Set U64} {s s' : S} (h : EpsOK st T Cs Ω H X s) (hk : L.ksb s' = L.ksb s)
     (hsb : ∀ y ∈ T, L.mem s' (stA y) = L.mem s (stA y) ∧ L.mem s' (blockA y) = L.mem s (blockA y))
     (hEp : ∀ y ∈ T, L.mem s' (nextA .Ep y) = L.mem s (nextA .Ep y) ∧ L.mem s' (prevA .Ep y) = L.mem s (prevA .Ep y))
-    (hout : ∀ a, OutsideObjs st T Cs s a → L.mem s' a = L.mem s a) : EpsOK st T Cs Ω X s' := by
-  obtain ⟨E, EQ, K, h1, h2, h5, h3, h4, h6⟩ := h
+    (hout : ∀ a, OutsideObjs st T Cs s a → L.mem s' a = L.mem s a) : EpsOK st T Cs Ω H X s' := by
+  obtain ⟨E, EQ, h1, h2, h5, h3, h4, h6⟩ := h
   have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp [LawfulStore.nodeBase, hk]
-  refine ⟨E, EQ, K, fun e he => ?_, h2, h5, fun e he y hy => ?_, fun y hy hyX hb => ?_,
+  refine ⟨E, EQ, fun e he => ?_, h2, h5, fun e he y hy => ?_, fun y hy hyX hb => ?_,
     h6.agree (fun y hy => Or.inl hy) (fun y hy _ _ => hsb y hy) (fun _ _ _ hy => hy)
       (fun e he y hy => (hsb y (((h1 e he).2.2).mem y hy)).1) (fun e he _ => ?_)⟩
   · obtain ⟨hE, hEN, hq⟩ := h1 e he
@@ -345,14 +369,14 @@ theorem EpsOK.agree {Cs X : Set U64} {s s' : S} (h : EpsOK st T Cs Ω X s) (hk :
 
 /-- `EpsOK` only reads the states and block objects of threads outside the
 exception set. -/
-theorem EpsOK.agreeX {Cs X : Set U64} {s s' : S} (h : EpsOK st T Cs Ω X s) (hk : L.ksb s' = L.ksb s)
+theorem EpsOK.agreeX {Cs X : Set U64} {s s' : S} (h : EpsOK st T Cs Ω H X s) (hk : L.ksb s' = L.ksb s)
     (hsb : ∀ y ∈ T, y ∉ X → L.mem s' (stA y) = L.mem s (stA y) ∧ L.mem s' (blockA y) = L.mem s (blockA y))
     (hEp : ∀ y ∈ T, L.mem s' (nextA .Ep y) = L.mem s (nextA .Ep y) ∧ L.mem s' (prevA .Ep y) = L.mem s (prevA .Ep y))
-    (hout : ∀ a, OutsideObjs st T Cs s a → L.mem s' a = L.mem s a) : EpsOK st T Cs Ω X s' := by
-  obtain ⟨E, EQ, K, h1, h2, h5, h3, h4, h6⟩ := h
+    (hout : ∀ a, OutsideObjs st T Cs s a → L.mem s' a = L.mem s a) : EpsOK st T Cs Ω H X s' := by
+  obtain ⟨E, EQ, h1, h2, h5, h3, h4, h6⟩ := h
   have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp [LawfulStore.nodeBase, hk]
   have mX : ∀ e ∈ E, ∀ y ∈ EQ e, y ∉ X := fun e he y hy => (h3 e he y hy).1
-  refine ⟨E, EQ, K, fun e he => ?_, h2, h5, fun e he y hy => ?_, fun y hy hyX hb => ?_,
+  refine ⟨E, EQ, fun e he => ?_, h2, h5, fun e he y hy => ?_, fun y hy hyX hb => ?_,
     h6.agree (fun y hy => Or.inl hy) (fun y hy hyX _ => hsb y hy hyX) (fun _ _ _ hy => hy)
       (fun e he y hy => (hsb y (((h1 e he).2.2).mem y hy) (mX e he y hy)).1) (fun e he _ => ?_)⟩
   · obtain ⟨hE, hEN, hq⟩ := h1 e he
@@ -390,7 +414,7 @@ of thread `t` by `xs'` (which holds `t` iff `tIn`, and otherwise the old
 members), touching only the footprint `QFoot` of `W` (old members and `t`). -/
 theorem inv_ready_step {Cs : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
     {t c p : U64} {W xs' : List U64} {tIn : Prop}
-    {X : Set U64} (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T) (hca : L.mem s (affA t) = c) (hpa : L.mem s (prioA t) = p)
+    {X : Set U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) (hca : L.mem s (affA t) = c) (hpa : L.mem s (prioA t) = p)
     (hW1 : ∀ w ∈ W, w = t ∨ w ∈ Q c p) (hWt : t ∈ W → ∀ c' ∈ Cs, t ∉ R c')
     (hw : WritesIn st s s' (L.QFoot s W c (128 ≤ ·) t))
     (hRc : ReadyQueues st T s' c (Function.update (Q c) p xs'))
@@ -398,7 +422,7 @@ theorem inv_ready_step {Cs : Set U64} {s s' : S} {Q : U64 → U64 → List U64} 
     (hqq : (L.mem s' (inqA t) &&& sched.Q_QUEUED) ≠ 0#u64 ↔ tIn)
     (hqr : L.mem s' (inqA t) &&& sched.Q_RELEASE = L.mem s (inqA t) &&& sched.Q_RELEASE)
     (hnr : tIn → t ∉ R c) (hrun : tIn → Runnable (L.mem s (stA t))) :
-    SchedQueuesInvX st T Cs Ω X s' (Function.update Q c (Function.update (Q c) p xs')) R := by
+    SchedQueuesInvX st T Cs Ω H X s' (Function.update Q c (Function.update (Q c) p xs')) R := by
   have hT := h.tcbs
   have hc : c ∈ Cs := hca ▸ h.aff t ht
   have hp : p.val < 256 := hpa ▸ h.prio t ht
@@ -512,10 +536,10 @@ theorem inv_ready_step {Cs : Set U64} {s s' : S} {Q : U64 → U64 → List U64} 
 /-- `tcbSchedEnqueue` preserves the invariant, for a thread that is queued
 already or not in the release queue (seL4's precondition). -/
 theorem sched.enqueue.inv {Cs : Set U64} (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    {X : Set U64} (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T)
+    {X : Set U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T)
     (hr : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64 → (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64)
     (hrun : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64 → Runnable (L.mem s (stA t))) :
-    sched.enqueue st s t ⦃ s' => SchedQueuesInvX st T Cs Ω X s'
+    sched.enqueue st s t ⦃ s' => SchedQueuesInvX st T Cs Ω H X s'
       (if (L.mem s (inqA t) &&& sched.Q_QUEUED) ≠ 0#u64 then Q
        else Function.update Q (L.mem s (affA t)) (Function.update (Q (L.mem s (affA t))) (L.mem s (prioA t))
          (t :: Q (L.mem s (affA t)) (L.mem s (prioA t))))) R ⦄ := by
@@ -549,8 +573,8 @@ theorem sched.enqueue.inv {Cs : Set U64} (s : S) (t : obj.Tcb) (Q : U64 → U64 
 
 /-- `tcbSchedDequeue` preserves the invariant. -/
 theorem sched.dequeue.inv {Cs : Set U64} (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    {X : Set U64} (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T) :
-    sched.dequeue st s t ⦃ s' => SchedQueuesInvX st T Cs Ω X s'
+    {X : Set U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) :
+    sched.dequeue st s t ⦃ s' => SchedQueuesInvX st T Cs Ω H X s'
       (if (L.mem s (inqA t) &&& sched.Q_QUEUED) ≠ 0#u64
        then Function.update Q (L.mem s (affA t)) (Function.update (Q (L.mem s (affA t))) (L.mem s (prioA t))
          ((Q (L.mem s (affA t)) (L.mem s (prioA t))).erase t)) else Q) R ⦄ := by
@@ -605,7 +629,7 @@ thread `t`'s core `c` by `ys'` (which holds `t` iff `tIn`, and otherwise the
 old members), touching only the footprint `QFoot` of `W`. -/
 theorem inv_release_step {Cs : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
     {t c : U64} {W ys' : List U64} {tIn : Prop}
-    {X : Set U64} (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T) (hca : L.mem s (affA t) = c)
+    {X : Set U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) (hca : L.mem s (affA t) = c)
     (hW1 : ∀ w ∈ W, w = t ∨ w ∈ R c) (hWt : t ∈ W → ∀ c' ∈ Cs, ∀ p' : U64, p'.val < 256 → t ∉ Q c' p')
     (hw : WritesIn st s s' (L.QFoot s W c RelOffs t))
     (hRc : QueueRel (L.mem s') T .Sched (L.relQ s' c) ys')
@@ -614,7 +638,7 @@ theorem inv_release_step {Cs : Set U64} {s s' : S} {Q : U64 → U64 → List U64
     (hqq : L.mem s' (inqA t) &&& sched.Q_QUEUED = L.mem s (inqA t) &&& sched.Q_QUEUED)
     (hnq : tIn → t ∉ Q c (L.mem s (prioA t))) (hrun : tIn → Runnable (L.mem s (stA t)))
     (hna : tIn → L.actionW s ≠ t) :
-    SchedQueuesInvX st T Cs Ω X s' Q (Function.update R c ys') := by
+    SchedQueuesInvX st T Cs Ω H X s' Q (Function.update R c ys') := by
   have hT := h.tcbs
   have hc : c ∈ Cs := hca ▸ h.aff t ht
   have hN := h.nodes c hc
@@ -723,10 +747,10 @@ theorem inv_release_step {Cs : Set U64} {s s' : S} {Q : U64 → U64 → List U64
 /-- `tcbReleaseEnqueue` preserves the invariant, for a thread in neither a
 ready queue nor a release queue (seL4's precondition). -/
 theorem sched.release_enqueue.inv {Cs : Set U64} (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64)
-    (R : U64 → List U64) {X : Set U64} (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T)
+    (R : U64 → List U64) {X : Set U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T)
     (hq0 : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64) (hr0 : (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64)
     (hrun : Runnable (L.mem s (stA t))) (hna : L.actionW s ≠ t) :
-    sched.release_enqueue st s t ⦃ s' => SchedQueuesInvX st T Cs Ω X s' Q
+    sched.release_enqueue st s t ⦃ s' => SchedQueuesInvX st T Cs Ω H X s' Q
       (Function.update R (L.mem s (affA t)) (relIns (L.rtime s) (L.rtime s t) t (R (L.mem s (affA t))))) ⦄ := by
   have hT := h.tcbs
   have hc := h.aff t ht
@@ -745,8 +769,8 @@ theorem sched.release_enqueue.inv {Cs : Set U64} (s : S) (t : obj.Tcb) (Q : U64 
 
 /-- `tcbReleaseRemove` preserves the invariant. -/
 theorem sched.release_remove.inv {Cs : Set U64} (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64)
-    (R : U64 → List U64) {X : Set U64} (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T) :
-    sched.release_remove st s t ⦃ s' => SchedQueuesInvX st T Cs Ω X s' Q
+    (R : U64 → List U64) {X : Set U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) :
+    sched.release_remove st s t ⦃ s' => SchedQueuesInvX st T Cs Ω H X s' Q
       (if (L.mem s (inqA t) &&& sched.Q_RELEASE) ≠ 0#u64
        then Function.update R (L.mem s (affA t)) ((R (L.mem s (affA t))).erase t) else R) ⦄ := by
   have hT := h.tcbs
@@ -801,7 +825,7 @@ theorem rtime_qfoot {Cs : Set U64} {s s' : S} {W : List U64} {c t : U64} {P : Na
 the state it leaves, for threads whose SC words lie outside the TCBs and
 nodes. -/
 theorem sched.release_enqueue.sorted_post {Cs : Set U64} (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64)
-    (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω s Q R) (ht : t ∈ T)
+    (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : t ∈ T)
     (hr0 : (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64)
     (hs : TimeSorted (L.rtime s) (R (L.mem s (affA t))))
     (hsc : ∀ y ∈ t :: R (L.mem s (affA t)), ScOutside st T Cs s y) :
@@ -833,7 +857,7 @@ theorem sched.release_enqueue.sorted_post {Cs : Set U64} (s : S) (t : obj.Tcb) (
 node words from the release queue up, and the `IN_QUEUES`/affinity fields of
 the TCBs, and changes priorities only of threads in no ready queue. -/
 theorem inv_of_agree' {Cs : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
-    {X X' : Set U64} (h : SchedQueuesInvX st T Cs Ω X s Q R) (hk : L.ksb s' = L.ksb s) (hcpu : L.cpu s' = L.cpu s)
+    {X X' : Set U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hk : L.ksb s' = L.ksb s) (hcpu : L.cpu s' = L.cpu s)
     (hlink : ∀ y ∈ T, L.mem s' (nextA .Sched y) = L.mem s (nextA .Sched y) ∧
       L.mem s' (prevA .Sched y) = L.mem s (prevA .Sched y))
     (hnode : ∀ c ∈ Cs, ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → (o.val = 64 ∨ o.val = 72 ∨ 128 ≤ o.val) →
@@ -846,10 +870,10 @@ theorem inv_of_agree' {Cs : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {
     (hrq : ∀ c ∈ Cs, ∀ p : U64, p.val < 256 → ∀ t ∈ Q c p, Runnable (L.mem s' (stA t)))
     (hrr : ∀ c ∈ Cs, ∀ t ∈ R c, Runnable (L.mem s' (stA t)))
     (hact2 : L.actionW s' ∈ T → Runnable (L.mem s' (stA (L.actionW s'))) ∧ ∀ c ∈ Cs, L.actionW s' ∉ R c)
-    (heps : EpsOK st T Cs Ω X' s')
+    (heps : EpsOK st T Cs Ω H X' s')
     (hcurT : L.mem s' (L.nodeAt s' (L.cpu s') layout.node.CUR_THREAD) ∈ T)
     (hidleT : L.mem s' (L.nodeAt s' (L.cpu s') layout.node.IDLE_THREAD) ∈ T) :
-    SchedQueuesInvX st T Cs Ω X' s' Q R := by
+    SchedQueuesInvX st T Cs Ω H X' s' Q R := by
   have hT := h.tcbs
   have hn : ∀ c ∈ Cs, ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → (o.val = 64 ∨ o.val = 72 ∨ 128 ≤ o.val) →
       L.mem s' (L.nodeAt s' c o) = L.mem s (L.nodeAt s c o) := by
@@ -911,7 +935,7 @@ theorem inv_of_agree' {Cs : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {
 node words from the release queue up, and the `IN_QUEUES`/affinity fields of
 the TCBs, and changes priorities only of threads in no ready queue. -/
 theorem inv_of_agree {Cs : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
-    {X X' : Set U64} (h : SchedQueuesInvX st T Cs Ω X s Q R) (hk : L.ksb s' = L.ksb s) (hcpu : L.cpu s' = L.cpu s)
+    {X X' : Set U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hk : L.ksb s' = L.ksb s) (hcpu : L.cpu s' = L.cpu s)
     (hlink : ∀ y ∈ T, L.mem s' (nextA .Sched y) = L.mem s (nextA .Sched y) ∧
       L.mem s' (prevA .Sched y) = L.mem s (prevA .Sched y))
     (hnode : ∀ c ∈ Cs, ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → (o.val = 64 ∨ o.val = 72 ∨ 128 ≤ o.val) →
@@ -923,10 +947,10 @@ theorem inv_of_agree {Cs : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R
     (hact : L.actionW s' = 0#u64 ∨ L.actionW s' = 1#u64 ∨ L.actionW s' ∈ T)
     (hsb : ∀ y ∈ T, L.mem s' (stA y) = L.mem s (stA y) ∧ L.mem s' (blockA y) = L.mem s (blockA y))
     (hact2 : L.actionW s' ∈ T → Runnable (L.mem s' (stA (L.actionW s'))) ∧ ∀ c ∈ Cs, L.actionW s' ∉ R c)
-    (heps : EpsOK st T Cs Ω X' s')
+    (heps : EpsOK st T Cs Ω H X' s')
     (hcurT : L.mem s' (L.nodeAt s' (L.cpu s') layout.node.CUR_THREAD) ∈ T)
     (hidleT : L.mem s' (L.nodeAt s' (L.cpu s') layout.node.IDLE_THREAD) ∈ T) :
-    SchedQueuesInvX st T Cs Ω X' s' Q R := by
+    SchedQueuesInvX st T Cs Ω H X' s' Q R := by
   have hT := h.tcbs
   have hn : ∀ c ∈ Cs, ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → (o.val = 64 ∨ o.val = 72 ∨ 128 ≤ o.val) →
       L.mem s' (L.nodeAt s' c o) = L.mem s (L.nodeAt s c o) := by

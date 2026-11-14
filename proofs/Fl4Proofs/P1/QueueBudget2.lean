@@ -12,12 +12,12 @@ namespace Fl4Proofs.P1
 open fl4_core Fl4Proofs.P0.Consts
 
 section
-variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64}
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 variable {Cs Sg Rp Scs : Set U64} {Z : U64 → Nat} {A : Type _} {ar : machine.Arch A}
 
 /-- The invariants `end_timeslice` and its callers keep. -/
-def BXI (st : machine.Store S) [L : LawfulStore st] (T Cs Ω Sg Rp Scs : Set U64) (Z : U64 → Nat) (s : S) : Prop :=
-  (∃ Q R, SchedQueuesInv st T Cs Ω s Q R) ∧ BoundInv st T s ∧ XInv st T Cs Ω Sg Rp Scs Z s ∧ SgOK st Ω Sg s ∧
+def BXI (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs : Set U64) (Z : U64 → Nat) (s : S) : Prop :=
+  (∃ Q R, SchedQueuesInv st T Cs Ω H s Q R) ∧ BoundInv st T s ∧ XInv st T Cs Ω Sg Rp Scs Z s ∧ SgOK st Ω Sg s ∧
     SCsOK st T Ω Sg Z s
 
 /-- The current thread may be put back in its queue or postponed: it is
@@ -31,9 +31,9 @@ structure CurOK (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (s : S
   act : L.actionW s ≠ L.curW s
 
 theorem end_append (s : S) (a : A) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
     (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Z s) (hc : CurOK st T s) :
-    (do let s1 ← sched.append st s (L.curW s); ok (s1, a)) ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄ := by
+    (do let s1 ← sched.append st s (L.curW s); ok (s1, a)) ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Z s' ⦄ := by
   have hcT : L.curW s ∈ T := h.curT
   refine WP.spec_bind (sched.append.sch s _ Q R h hB hSg hcT (fun _ => hc.rel) (fun _ => hc.run)
     (fun _ => hc.bnd)) ?_
@@ -43,9 +43,9 @@ theorem end_append (s : S) (a : A) (Q : U64 → U64 → List U64) (R : U64 → L
   exact ⟨⟨Q1, R1, h1⟩, hB1, hX.fr f1, hSg.fr f1, hS.fr f1⟩
 
 theorem end_postpone (s : S) (a : A) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
     (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Z s) (hc : CurOK st T s) :
-    (do let s1 ← sched.postpone st s (L.cscW s); ok (s1, a)) ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄ := by
+    (do let s1 ← sched.postpone st s (L.cscW s); ok (s1, a)) ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Z s' ⦄ := by
   have hcT : L.curW s ∈ T := h.curT
   obtain ⟨hSc, htc, hcore⟩ := hX.2.2.bound (L.curW s) hcT hc.bnd
   rw [← hc.csc] at hSc htc hcore
@@ -58,7 +58,7 @@ theorem end_postpone (s : S) (a : A) (Q : U64 → U64 → List U64) (R : U64 →
   exact ⟨⟨Q1, R1, h1⟩, hB1, hX1, hSg1, hS.fr f1⟩
 
 theorem end_suff (hA : P0.ArchTotal ar) (s : S) (a : A) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
     (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Z s) (hc : CurOK st T s) :
     (do
       let b ← sporadic.ready st s (L.cscW s)
@@ -66,7 +66,7 @@ theorem end_suff (hA : P0.ArchTotal ar) (s : S) (a : A) (Q : U64 → U64 → Lis
         let b1 ← sporadic.sufficient st ar s a (L.cscW s) 0#u64
         if b1 = true then do let s1 ← sched.append st s (L.curW s); ok (s1, a)
         else do let s1 ← sched.postpone st s (L.cscW s); ok (s1, a)
-      else do let s1 ← sched.postpone st s (L.cscW s); ok (s1, a)) ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄ := by
+      else do let s1 ← sched.postpone st s (L.cscW s); ok (s1, a)) ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Z s' ⦄ := by
   step with sporadic.ready.spec as ⟨b⟩
   split
   · step with sporadic.sufficient.ok (st := st) hA as ⟨b1⟩
@@ -78,12 +78,12 @@ theorem end_suff (hA : P0.ArchTotal ar) (s : S) (a : A) (Q : U64 → U64 → Lis
 /-- seL4 `endTimeslice`. -/
 theorem sched.end_timeslice.all (hA : P0.ArchTotal ar) (s : S) (a : A) (cto : Bool)
     (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
     (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Z s) (hc : CurOK st T s)
     (htmo : ∀ (s : S) (a : A) (t : obj.Tcb) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
-      SchedQueuesInv st T Cs Ω s Q R → BoundInv st T s → XInv st T Cs Ω Sg Rp Scs Z s → SgOK st Ω Sg s →
-      SCsOK st T Ω Sg Z s → faults.handle_timeout st ar s a t f ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄) :
-    sched.end_timeslice st ar s a cto ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄ := by
+      SchedQueuesInv st T Cs Ω H s Q R → BoundInv st T s → XInv st T Cs Ω Sg Rp Scs Z s → SgOK st Ω Sg s →
+      SCsOK st T Ω Sg Z s → faults.handle_timeout st ar s a t f ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Z s' ⦄) :
+    sched.end_timeslice st ar s a cto ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Z s' ⦄ := by
   have E := end_suff hA s a Q R h hB hX hSg hS hc
   unfold sched.end_timeslice
   step with sched.cur_sc.spec as ⟨sc, sc_post⟩
@@ -106,10 +106,10 @@ theorem sched.end_timeslice.all (hA : P0.ArchTotal ar) (s : S) (a : A) (cto : Bo
 
 /-- Writes to the ring and `CONSUMED` word of an SC object. -/
 theorem ring_bx {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {c : U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
     (hSg : SgOK st Ω Sg s) (hc : c ∈ Scs)
     (w : WritesIn st s s' (fun b => InRing c (Z c) b ∨ b = core.num.U64.wrapping_add c layout.sc.CONSUMED)) :
-    SchedQueuesInvX st T Cs Ω X s' Q R ∧ BoundInv st T s' ∧ XInv st T Cs Ω Sg Rp Scs Z s' ∧ SgOK st Ω Sg s' ∧
+    SchedQueuesInvX st T Cs Ω H X s' Q R ∧ BoundInv st T s' ∧ XInv st T Cs Ω Sg Rp Scs Z s' ∧ SgOK st Ω Sg s' ∧
       L.actionW s' = L.actionW s ∧ L.curW s' = L.curW s ∧ L.cscW s' = L.cscW s ∧
       (∀ y ∈ T, L.mem s' (scA y) = L.mem s (scA y) ∧ L.mem s' (stA y) = L.mem s (stA y) ∧
         L.mem s' (inqA y) = L.mem s (inqA y)) := by
@@ -144,9 +144,9 @@ theorem ring_bx {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64
 
 /-- A write to a current-node word that the invariants do not read. -/
 theorem node_bx {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {o v : U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
     (hSg : SgOK st Ω Sg s) (ho : LowFree o.val) (h24 : o.val ≠ 24) :
-    SchedQueuesInvX st T Cs Ω X (L.wr s (L.nodeAt s (L.cpu s) o) v) Q R ∧
+    SchedQueuesInvX st T Cs Ω H X (L.wr s (L.nodeAt s (L.cpu s) o) v) Q R ∧
       BoundInv st T (L.wr s (L.nodeAt s (L.cpu s) o) v) ∧ XInv st T Cs Ω Sg Rp Scs Z (L.wr s (L.nodeAt s (L.cpu s) o) v) ∧
       SgOK st Ω Sg (L.wr s (L.nodeAt s (L.cpu s) o) v) ∧
       L.actionW (L.wr s (L.nodeAt s (L.cpu s) o) v) = L.actionW s ∧
@@ -188,7 +188,7 @@ theorem node_bx {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 �
 /-- `SCsOK` after writes to the ring and `CONSUMED` word of the SC object
 `i`, kept well formed. -/
 theorem SCsOK.ringc {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {i : U64}
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hS : SCsOK st T Ω Sg Z s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hS : SCsOK st T Ω Sg Z s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
     (hi : i ∈ Scs)
     (w : WritesIn st s s' (fun b => InRing i (Z i) b ∨ b = core.num.U64.wrapping_add i layout.sc.CONSUMED))
     (hwi : RefillsWF st s' i (Z i)) : SCsOK st T Ω Sg Z s' := by
@@ -230,14 +230,14 @@ current thread's (if it is schedulable), the current thread is not the
 switch-to candidate, and timeout faults keep them. -/
 theorem sched.charge_budget.all (hA : P0.ArchTotal ar) (s : S) (a : A) (used : U64) (cto : Bool)
     (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
     (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Z s)
     (hcsc : L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s)))
     (hna : L.actionW s ≠ L.curW s)
     (htmo : ∀ (s : S) (a : A) (t : obj.Tcb) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
-      SchedQueuesInv st T Cs Ω s Q R → BoundInv st T s → XInv st T Cs Ω Sg Rp Scs Z s → SgOK st Ω Sg s →
-      SCsOK st T Ω Sg Z s → faults.handle_timeout st ar s a t f ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄) :
-    sched.charge_budget st ar s a used cto ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄ := by
+      SchedQueuesInv st T Cs Ω H s Q R → BoundInv st T s → XInv st T Cs Ω Sg Rp Scs Z s → SgOK st Ω Sg s →
+      SCsOK st T Ω Sg Z s → faults.handle_timeout st ar s a t f ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Z s' ⦄) :
+    sched.charge_budget st ar s a used cto ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Z s' ⦄ := by
   have hcS : L.cscW s ∈ Scs := hX.2.2.cur
   have hW : RefillsWF st s (L.cscW s) (Z (L.cscW s)) := hS.cur.1
   unfold sched.charge_budget
@@ -341,14 +341,14 @@ theorem sched.charge_budget.all (hA : P0.ArchTotal ar) (s : S) (a : A) (used : U
 /-- seL4 `checkBudget`. -/
 theorem sched.check_budget.all (hA : P0.ArchTotal ar) (s : S) (a : A)
     (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
     (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Z s)
     (hcsc : L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s)))
     (hna : L.actionW s ≠ L.curW s)
     (htmo : ∀ (s : S) (a : A) (t : obj.Tcb) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
-      SchedQueuesInv st T Cs Ω s Q R → BoundInv st T s → XInv st T Cs Ω Sg Rp Scs Z s → SgOK st Ω Sg s →
-      SCsOK st T Ω Sg Z s → faults.handle_timeout st ar s a t f ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄) :
-    sched.check_budget st ar s a ⦃ _ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄ := by
+      SchedQueuesInv st T Cs Ω H s Q R → BoundInv st T s → XInv st T Cs Ω Sg Rp Scs Z s → SgOK st Ω Sg s →
+      SCsOK st T Ω Sg Z s → faults.handle_timeout st ar s a t f ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Z s' ⦄) :
+    sched.check_budget st ar s a ⦃ _ s' _ => BXI st T Cs Ω H Sg Rp Scs Z s' ⦄ := by
   unfold sched.check_budget
   step with sched.cur_sc.spec as ⟨sc⟩
   step with sched.consumed.spec as ⟨c⟩
@@ -374,14 +374,14 @@ theorem sched.is_runnable.spec' (s : S) (t : obj.Tcb) :
 /-- seL4 `checkBudgetRestart`. -/
 theorem sched.check_budget_restart.all (hA : P0.ArchTotal ar) (s : S) (a : A)
     (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
     (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Z s)
     (hcsc : L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s)))
     (hna : L.actionW s ≠ L.curW s)
     (htmo : ∀ (s : S) (a : A) (t : obj.Tcb) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
-      SchedQueuesInv st T Cs Ω s Q R → BoundInv st T s → XInv st T Cs Ω Sg Rp Scs Z s → SgOK st Ω Sg s →
-      SCsOK st T Ω Sg Z s → faults.handle_timeout st ar s a t f ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄) :
-    sched.check_budget_restart st ar s a ⦃ _ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄ := by
+      SchedQueuesInv st T Cs Ω H s Q R → BoundInv st T s → XInv st T Cs Ω Sg Rp Scs Z s → SgOK st Ω Sg s →
+      SCsOK st T Ω Sg Z s → faults.handle_timeout st ar s a t f ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Z s' ⦄) :
+    sched.check_budget_restart st ar s a ⦃ _ s' _ => BXI st T Cs Ω H Sg Rp Scs Z s' ⦄ := by
   unfold sched.check_budget_restart
   refine WP.spec_bind (sched.check_budget.all hA s a Q R h hB hX hSg hS hcsc hna htmo) ?_
   rintro ⟨r, s1, a1⟩ ⟨⟨Q1, R1, h1⟩, hB1, hX1, hSg1, hS1⟩
@@ -402,7 +402,9 @@ theorem sched.check_budget_restart.all (hA : P0.ArchTotal ar) (s : S) (a : A)
     have nrr : sched.TS_RESTART ≠ sched.TS_BLOCKED_ON_REPLY ∧ sched.TS_RESTART ≠ sched.TS_BLOCKED_ON_RECV := by
       obtain ⟨-, -, h3', -⟩ := ts_vals
       rw [ts_restart, ts_reply, h3']; decide
-    exact ⟨⟨Q1, R1, h2.congrX empty_congr⟩, hB1.keepT h1 k2, hX1.keepT k2 (by rw [e2]; exact nrr),
+    exact ⟨⟨Q1, R1, h2.congrX empty_congr⟩, hB1.keepT h1 k2, hX1.keepT k2 (by rw [e2]; exact nrr)
+      (fun r hr e => absurd e (hX1.noref (h1.tcbs ct hct) (runnable_ne_reply (b_post hb))
+        (runnable_ne_recv (b_post hb)) r hr)),
       ⟨hSg1.sub, fun b hb => by rw [k2.ksb]; exact hSg1.ks b hb, fun o h1' h2' => by rw [k2.ksb]; exact hSg1.ksΩ o h1' h2'⟩,
       hS1.keepT hX1 k2⟩
   · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨⟨Q1, R1, h1⟩, hB1, hX1, hSg1, hS1⟩

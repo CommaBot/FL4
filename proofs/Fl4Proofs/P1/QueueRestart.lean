@@ -16,7 +16,7 @@ namespace Fl4Proofs.P1
 open fl4_core Fl4Proofs.P0.Consts
 
 section
-variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64}
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 variable {Cs Sg Rp Scs : Set U64} {Z : U64 → Nat} {A : Type _} {ar : machine.Arch A}
 
 theorem ts_restart : sched.TS_RESTART = 2#u64 := ts_vals.2.1
@@ -78,13 +78,13 @@ theorem sched.is_stopped.spec (s : S) (t : obj.Tcb) :
 
 /-- `postpone`, with `BoundInv` and `XInv`: the SC's thread is bound. -/
 theorem sched.postpone.all (s : S) (sc : obj.Sc) (Q : U64 → U64 → List U64)
-    (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω s Q R) (ht : L.mem s (scTcbA sc) ∈ T)
+    (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : L.mem s (scTcbA sc) ∈ T)
     (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s) (hSg : SgOK st Ω Sg s)
     (hr0 : (L.mem s (inqA (L.mem s (scTcbA sc))) &&& sched.Q_RELEASE) = 0#u64)
     (hcore : OutsideObjs st T Cs s (scCoreA sc)) (hcs : L.mem s (scCoreA sc) ∈ Cs)
     (hrun : Runnable (L.mem s (stA (L.mem s (scTcbA sc))))) (hna : L.actionW s ≠ L.mem s (scTcbA sc))
     (hbd : L.mem s (scA (L.mem s (scTcbA sc))) ≠ 0#u64) :
-    sched.postpone st s sc ⦃ s' => ∃ Q' R', SchedQueuesInv st T Cs Ω s' Q' R' ∧ BoundInv st T s' ∧
+    sched.postpone st s sc ⦃ s' => ∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R' ∧ BoundInv st T s' ∧
       XInv st T Cs Ω Sg Rp Scs Z s' ∧ SgOK st Ω Sg s' ∧ Fr st T Sg s s' ⦄ := by
   unfold sched.postpone
   step as ⟨t, t_post⟩
@@ -176,12 +176,12 @@ theorem sched.postpone.all (s : S) (sc : obj.Sc) (Q : U64 → U64 → List U64)
 
 /-- seL4 `schedContext_resume`, with `BoundInv` and `XInv`. -/
 theorem schedcontext.resume.all (hA : P0.ArchTotal ar) (s : S) (a : A) (sc : obj.Sc)
-    (Q : U64 → U64 → List U64) (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω s Q R)
+    (Q : U64 → U64 → List U64) (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R)
     (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s) (hSg : SgOK st Ω Sg s)
     (hsc : sc ≠ 0#u64 → L.mem s (scTcbA sc) ≠ 0#u64 →
       L.mem s (scTcbA sc) ∈ T ∧ OutsideObjs st T Cs s (scCoreA sc) ∧ L.mem s (scCoreA sc) ∈ Cs ∧
         L.actionW s ≠ L.mem s (scTcbA sc)) :
-    schedcontext.resume st ar s a sc ⦃ s' _ => ∃ Q' R', SchedQueuesInv st T Cs Ω s' Q' R' ∧
+    schedcontext.resume st ar s a sc ⦃ s' _ => ∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R' ∧
       BoundInv st T s' ∧ XInv st T Cs Ω Sg Rp Scs Z s' ∧ SgOK st Ω Sg s' ∧ Fr st T Sg s s' ⦄ := by
   unfold schedcontext.resume
   step with obj.Sc.is_null.spec as ⟨b, b_post⟩
@@ -215,9 +215,9 @@ theorem schedcontext.resume.all (hA : P0.ArchTotal ar) (s : S) (a : A) (sc : obj
 
 /-- seL4 `restart` (MCS) keeps the queue invariant, `BoundInv` and `XInv`. -/
 theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
-    (Q : U64 → U64 → List U64) (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω s Q R) (ht : t ∈ T)
+    (Q : U64 → U64 → List U64) (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : t ∈ T)
     (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s) (hS : SCsOK st T Ω Sg Z s) :
-    sched.restart st ar s a t ⦃ s' _ => ∃ Q' R', SchedQueuesInv st T Cs Ω s' Q' R' ∧ BoundInv st T s' ∧
+    sched.restart st ar s a t ⦃ s' _ => ∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R' ∧ BoundInv st T s' ∧
       XInv st T Cs Ω Sg Rp Scs Z s' ∧ SCsOK st T Ω Sg Z s' ⦄ := by
   have hSg := hS.sg
   have hsub := hSg.sub
@@ -231,7 +231,7 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
   have hnr : ¬ Runnable (L.mem s (stA t)) := b_post hb
   have hna : L.actionW s ≠ t := fun e => hnr (by have := (h.actOK (e ▸ ht)).1; rwa [e] at this)
   refine WP.spec_bind (ipc.cancel_ipc.all s a t Q R h ht hB hX hsub) ?_
-  rintro ⟨s1, a1⟩ ⟨h1, hB1, hX1, nb1, hst1, k1⟩
+  rintro ⟨s1, a1⟩ ⟨h1, hB1, hX1, nb1, nr1, hst1, k1, -⟩
   try simp only [WP.uncurry'_pair]
   have na1 : L.actionW s1 ≠ t := by
     rcases hst1 with e | ⟨-, e⟩
@@ -243,12 +243,13 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
     ⟨fun _ _ _ _ _ => runnable_restart, fun _ _ _ => runnable_restart, fun _ => runnable_restart⟩)
     (sched.set_thread_state.state s1 t _ Q R h1 ht hX1.1 hsub)) ?_
   rintro s2 ⟨h2', e2, k2⟩
-  have h2 : SchedQueuesInv st T Cs Ω s2 Q R := h2'.congrX empty_congr
+  have h2 : SchedQueuesInv st T Cs Ω H s2 Q R := h2'.congrX empty_congr
   have nrr : sched.TS_RESTART ≠ sched.TS_BLOCKED_ON_REPLY ∧ sched.TS_RESTART ≠ sched.TS_BLOCKED_ON_RECV := by
     obtain ⟨-, -, h3', -⟩ := ts_vals
     rw [ts_restart, ts_reply, h3']; decide
   have hB2 := hB1.keepT h1 k2
   have hX2 := hX1.keepT k2 (by rw [e2]; exact nrr)
+    (fun r hr e => absurd e (hX1.noref (h1.tcbs t ht) nr1 (fun e' => nb1 (Or.inr (Or.inl e'))) r hr))
   have hS2 : SCsOK st T Ω Sg Z s2 := (hS.keepT hX k1).keepT hX1 k2
   have k12 := k1.trans k2
   have hSg2 : SgOK st Ω Sg s2 := ⟨hsub, fun b hb => by rw [k12.ksb]; exact hSg.ks b hb,
@@ -261,7 +262,7 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
   -- the SC: unblock check
   step with obj.Tcb.sc.spec as ⟨i, i_post⟩
   step with sporadic.sc_sporadic.spec as ⟨b1, b1_post⟩
-  refine WP.spec_bind (Pₘ := fun s3 => SchedQueuesInv st T Cs Ω s3 Q R ∧ BoundInv st T s3 ∧
+  refine WP.spec_bind (Pₘ := fun s3 => SchedQueuesInv st T Cs Ω H s3 Q R ∧ BoundInv st T s3 ∧
       XInv st T Cs Ω Sg Rp Scs Z s3 ∧ SgOK st Ω Sg s3 ∧ L.actionW s3 ≠ t ∧ L.mem s3 (scA t) = i ∧
       SCsOK st T Ω Sg Z s3) ?_ ?_
   · split

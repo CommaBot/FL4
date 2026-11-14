@@ -11,27 +11,6 @@ open Aeneas Aeneas.Std Result
 namespace Fl4Proofs.P1
 open fl4_core Fl4Proofs.P0.Consts
 
-/-- Object kinds, with SCs and other objects carrying their size exponent. -/
-inductive HKind where
-  | tcb
-  | ep
-  | ntfn
-  | reply
-  | sc (z : Nat)
-  | other (z : Nat)
-
-/-- The size exponent of an object. -/
-def HKind.bits : HKind → Nat
-  | .tcb => 12
-  | .ep => 4
-  | .ntfn => 5
-  | .reply => 5
-  | .sc z => z
-  | .other z => z
-
-/-- A ghost typed heap. -/
-abbrev Heap := U64 → Option HKind
-
 /-- The typed-heap invariant. -/
 structure HeapOK (H : Heap) : Prop where
   align : ∀ p k, H p = some k → p.val % 2 ^ k.bits = 0

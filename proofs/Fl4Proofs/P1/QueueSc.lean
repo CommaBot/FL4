@@ -367,7 +367,7 @@ theorem sched.commit_time.fr {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTot
 /-! ## Footprints, as free words -/
 
 section free
-variable {T Ω Cs : Set U64}
+variable {T Ω Cs : Set U64} {H : Heap}
 
 theorem WritesIn.mono' {s s' : S} {A B : U64 → Prop} (h : WritesIn st s s' A)
     (hAB : ∀ b, Aligned b → A b → B b) : WritesIn st s s' B :=

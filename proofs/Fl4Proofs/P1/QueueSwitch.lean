@@ -12,7 +12,7 @@ namespace Fl4Proofs.P1
 open fl4_core Fl4Proofs.P0.Consts
 
 section
-variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64}
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 variable {A : Type _} {ar : machine.Arch A}
 
 include L in
@@ -47,8 +47,8 @@ theorem curth_val : layout.node.CUR_THREAD.val = 0 := by simp [layout.node.CUR_T
 
 /-- `set_cur_thread` keeps the invariant. -/
 theorem inv_set_cur {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t : U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T) :
-    SchedQueuesInvX st T Cs Ω X (L.wr s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) t) Q R := by
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) :
+    SchedQueuesInvX st T Cs Ω H X (L.wr s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) t) Q R := by
   have hN' := h.nodes _ h.cur
   have e : L.actionW (L.wr s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) t) = L.actionW s := by
     unfold LawfulStore.actionW
@@ -67,8 +67,8 @@ theorem inv_set_cur {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
 /-- seL4 `switchToThread` keeps the invariant: the thread leaves its ready
 queue and becomes current. -/
 theorem sched.switch_to_thread.inv {Cs : Set U64} (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
-    (Q : U64 → U64 → List U64) (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω s Q R) (ht : t ∈ T) :
-    sched.switch_to_thread st ar s a t ⦃ s' _ => (∃ Q', SchedQueuesInv st T Cs Ω s' Q' R) ∧
+    (Q : U64 → U64 → List U64) (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : t ∈ T) :
+    sched.switch_to_thread st ar s a t ⦃ s' _ => (∃ Q', SchedQueuesInv st T Cs Ω H s' Q' R) ∧
       L.mem s' (L.nodeAt s' (L.cpu s') layout.node.CUR_THREAD) = t ⦄ := by
   unfold sched.switch_to_thread
   refine WP.spec_bind (set_vm_root_same hA s a t) ?_
@@ -87,8 +87,8 @@ theorem sched.switch_to_thread.inv {Cs : Set U64} (hA : P0.ArchTotal ar) (s : S)
 highest non-empty ready queue of the current core (`choose_thread_pick`),
 or to the idle thread. -/
 theorem sched.choose_thread.inv {Cs : Set U64} (hA : P0.ArchTotal ar) (s : S) (a : A)
-    (Q : U64 → U64 → List U64) (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω s Q R) :
-    sched.choose_thread st ar s a ⦃ s' _ => ∃ Q', SchedQueuesInv st T Cs Ω s' Q' R ⦄ := by
+    (Q : U64 → U64 → List U64) (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) :
+    sched.choose_thread st ar s a ⦃ s' _ => ∃ Q', SchedQueuesInv st T Cs Ω H s' Q' R ⦄ := by
   unfold sched.choose_thread
   simp only [layout.NUM_DOMAINS, fl4_abi.config.NUM_DOMAINS]
   rw [ite_cond_eq_false _ _ (by simp)]

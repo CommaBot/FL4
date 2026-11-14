@@ -22,7 +22,7 @@ namespace Fl4Proofs.P1
 open fl4_core Fl4Proofs.P0.Consts
 
 section
-variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64}
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 variable {Cs Sg Rp Scs : Set U64} {Z : U64 → Nat}
 
 
@@ -36,6 +36,12 @@ structure ReplyInv (st : machine.Store S) [L : LawfulStore st] (T Rp Scs : Set U
     (headBit (L.mem s (rNextA r)) = true → L.mem s (rNextA r) &&& ~~~1#u64 ∈ Scs) ∧
     (headBit (L.mem s (rNextA r)) = false → L.mem s (rNextA r) &&& ~~~1#u64 ∈ Rp)
   prev : ∀ r ∈ Rp, L.mem s (rPrevA r) &&& ~~~1#u64 ≠ 0#u64 → L.mem s (rPrevA r) &&& ~~~1#u64 ∈ Rp
+  /-- A reply naming a thread is that thread's reply object, and the thread
+  is blocked on reply or on receive (l4v `sym_refs` for reply/TCB). -/
+  back : ∀ r ∈ Rp, L.mem s (rTcbA r) ≠ 0#u64 → r ≠ 0#u64 ∧ L.mem s (rTcbA r) ∈ T ∧
+    L.mem s (replyA (L.mem s (rTcbA r))) = r ∧
+    (L.mem s (stA (L.mem s (rTcbA r))) = sched.TS_BLOCKED_ON_REPLY ∨
+      L.mem s (stA (L.mem s (rTcbA r))) = sched.TS_BLOCKED_ON_RECV)
 
 /-- Bound SCs are SC objects naming their thread and a core. -/
 structure ScExtra (st : machine.Store S) [L : LawfulStore st] (T Cs Scs : Set U64) (s : S) : Prop where
@@ -60,8 +66,13 @@ theorem XInv.keep {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Z s)
     (hst : ∀ t ∈ T, L.mem s' (stA t) = L.mem s (stA t))
     (hcs : L.cscW s' ∈ Scs) : XInv st T Cs Ω Sg Rp Scs Z s' := by
   obtain ⟨hO, hR, hE⟩ := hX
-  refine ⟨hO.ksb, ⟨fun t ht hs => ?_, fun t ht hs hn => ?_, fun r hr => ?_, fun r hr => ?_⟩,
+  refine ⟨hO.ksb, ⟨fun t ht hs => ?_, fun t ht hs hn => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr hn => ?_⟩,
     ⟨fun t ht hb => ?_, hcs⟩⟩
+  rotate_left 4
+  · rw [(hrw r hr).1] at hn ⊢
+    obtain ⟨b0, b1, b2, b3⟩ := hR.back r hr hn
+    rw [hrep _ b1, hst _ b1]; exact ⟨b0, b1, b2, b3⟩
+  rotate_right 4
   · rw [hst t ht] at hs
     obtain ⟨h1, h2⟩ := hR.reply t ht hs
     rw [hrep t ht, (hrw _ h1).1]; exact ⟨h1, h2⟩
@@ -138,7 +149,7 @@ theorem ObjsOK.prot_cases (h : ObjsOK st Ω Sg Rp Scs Z s) (hsub : ∀ b ∈ Sg,
 
 /-- Node words are not protected. -/
 theorem not_prot_node {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω)
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω)
     {c o : U64} (hc : c ∈ Cs) (ho : o.val < 4288) : ¬ Prot T Rp Scs (L.nodeAt s c o) := by
   intro hp
   rcases hO.prot_cases hsub hp with hm | ⟨t, ht, K, hK, e⟩
@@ -147,7 +158,7 @@ theorem not_prot_node {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → 
 
 /-- The ring and `CONSUMED` word of an SC object are not protected. -/
 theorem not_prot_ring {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Z s) {c b : U64} (hc : c ∈ Scs)
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Z s) {c b : U64} (hc : c ∈ Scs)
     (hb : Aligned b) (hr : InRing c (Z c) b ∨ b = core.num.U64.wrapping_add c layout.sc.CONSUMED) :
     ¬ Prot T Rp Scs b := by
   obtain ⟨hP, hz⟩ := hO.sc c hc
@@ -207,7 +218,7 @@ theorem KeepT.stf {t : U64} {s s' : S} (k : KeepT st T Rp Scs t s s') {y : U64} 
 
 /-- `BoundInv` under `KeepT`. -/
 theorem BoundInv.keepT {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t : U64} {s s' : S}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (hB : BoundInv st T s) (k : KeepT st T Rp Scs t s s') :
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T s) (k : KeepT st T Rp Scs t s s') :
     BoundInv st T s' := by
   refine hB.mk' (fun y hy => k.scf hy) (fun y hy hf => Or.inl (by rw [← k.inqf hy]; exact hf))
     (fun y hy hf => Or.inr (Or.inl (by rw [← k.inqf hy]; exact hf))) (fun haT => ?_)
@@ -220,17 +231,19 @@ theorem BoundInv.keepT {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 →
     · rw [e] at h0; simp at h0
 
 /-- `XInv` under `KeepT`, when `t` ends neither blocked on reply nor on
-receive. -/
+receive and the replies naming `t` are cleared. -/
 theorem XInv.keepT {t : U64} {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Z s) (k : KeepT st T Rp Scs t s s')
-    (hst : L.mem s' (stA t) ≠ sched.TS_BLOCKED_ON_REPLY ∧ L.mem s' (stA t) ≠ sched.TS_BLOCKED_ON_RECV) :
+    (hst : L.mem s' (stA t) ≠ sched.TS_BLOCKED_ON_REPLY ∧ L.mem s' (stA t) ≠ sched.TS_BLOCKED_ON_RECV)
+    (hclr : ∀ r ∈ Rp, L.mem s (rTcbA r) = t → L.mem s' (rTcbA r) = 0#u64) :
     XInv st T Cs Ω Sg Rp Scs Z s' := by
   obtain ⟨hO, hR, hE⟩ := hX
   have rt : ∀ u ∈ T, u ≠ t → ∀ r ∈ Rp, L.mem s (rTcbA r) = u → L.mem s' (rTcbA r) = u := by
     intro u hu hut r hr e
-    rcases k.rtcb r hr with e' | e'
+    rcases k.rtcb r hr with e' | ⟨e', -⟩
     · rw [e']; exact e
     · exact absurd (e.symm.trans e') hut
-  refine ⟨hO.ksb, ⟨fun u hu hs => ?_, fun u hu hs hn => ?_, fun r hr hn => ?_, fun r hr hp => ?_⟩,
+  refine ⟨hO.ksb, ⟨fun u hu hs => ?_, fun u hu hs hn => ?_, fun r hr hn => ?_, fun r hr hp => ?_,
+      fun r hr hn => ?_⟩,
     ⟨fun u hu hb => ?_, by rw [k.cscW]; exact hE.cur⟩⟩
   · by_cases e : u = t
     · subst e; exact absurd hs hst.1
@@ -248,29 +261,58 @@ theorem XInv.keepT {t : U64} {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Z s) (k 
   · rcases (k.rlink r hr).1 with e | e
     · rw [e] at hp ⊢; exact hR.prev r hr hp
     · exact absurd e hp
+  · rcases k.rtcb r hr with e' | ⟨-, e0⟩
+    · by_cases hut : L.mem s (rTcbA r) = t
+      · exact absurd (hclr r hr hut) hn
+      rw [e'] at hn ⊢
+      obtain ⟨b0, b1, b2, b3⟩ := hR.back r hr hn
+      rw [k.repf b1, k.stf b1 hut]; exact ⟨b0, b1, b2, b3⟩
+    · exact absurd e0 hn
   · rw [k.scf hu] at hb ⊢
     obtain ⟨h1, h2, h3⟩ := hE.bound u hu hb
     obtain ⟨f1, f2, -⟩ := k.fix _ h1
     rw [f1, f2]; exact ⟨h1, h2, h3⟩
 
+/-- No reply names a thread that is neither blocked on reply nor on
+receive. -/
+theorem XInv.noref {t : U64} {s : S} (hX : XInv st T Cs Ω Sg Rp Scs Z s) (hta : TcbAddr t)
+    (h1 : L.mem s (stA t) ≠ sched.TS_BLOCKED_ON_REPLY) (h2 : L.mem s (stA t) ≠ sched.TS_BLOCKED_ON_RECV) :
+    ∀ r ∈ Rp, L.mem s (rTcbA r) ≠ t := fun r hr e => by
+  obtain ⟨-, -, -, b3⟩ := hX.2.1.back r hr (by rw [e]; exact fun e0 => hta.ne0 (by rw [e0]; rfl))
+  rw [e] at b3
+  rcases b3 with b3 | b3
+  · exact h1 b3
+  · exact h2 b3
+
 /-- `cancel_ipc` keeps the queue invariant, `BoundInv` and `XInv`; the reply
 facts it needs come from `XInv`. -/
 theorem ipc.cancel_ipc.all {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t : obj.Tcb)
-    (Q : U64 → U64 → List U64) (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω s Q R) (ht : t ∈ T)
+    (Q : U64 → U64 → List U64) (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : t ∈ T)
     (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω) :
-    ipc.cancel_ipc st ar s a t ⦃ s' _ => SchedQueuesInv st T Cs Ω s' Q R ∧ BoundInv st T s' ∧
+    ipc.cancel_ipc st ar s a t ⦃ s' _ => SchedQueuesInv st T Cs Ω H s' Q R ∧ BoundInv st T s' ∧
       XInv st T Cs Ω Sg Rp Scs Z s' ∧ ¬ Blocked (L.mem s' (stA t)) ∧
+      L.mem s' (stA t) ≠ sched.TS_BLOCKED_ON_REPLY ∧
       (L.mem s' (stA t) = sched.TS_INACTIVE ∨
-        (L.mem s' (stA t) = L.mem s (stA t) ∧ L.actionW s' = L.actionW s)) ∧ KeepT st T Rp Scs t s s' ⦄ := by
+        (L.mem s' (stA t) = L.mem s (stA t) ∧ L.actionW s' = L.actionW s)) ∧ KeepT st T Rp Scs t s s' ∧
+      (∀ r ∈ Rp, L.mem s (rTcbA r) = t → L.mem s' (rTcbA r) = 0#u64) ⦄ := by
   obtain ⟨hO, hR, hE⟩ := hX
   have hreply : L.mem s (stA t) = sched.TS_BLOCKED_ON_REPLY → ReplyT st Rp Scs s t := fun hs => by
     obtain ⟨h1, h2⟩ := hR.reply t ht hs
     exact ⟨h1, h2, hR.next _ h1, hR.prev _ h1⟩
   refine WP.spec_mono (ipc.cancel_ipc.inv s a t Q R h ht hO hsub (hR.recv t ht) hreply) fun r hr => ?_
   obtain ⟨s', a'⟩ := r
-  obtain ⟨h', nb, nr, hst, k⟩ := hr
+  obtain ⟨h', nb, nr, hst, k, z⟩ := hr
+  have hclr : ∀ r ∈ Rp, L.mem s (rTcbA r) = t → L.mem s' (rTcbA r) = 0#u64 := by
+    intro r hr e
+    obtain ⟨b0, -, b2, b3⟩ := hR.back r hr (by rw [e]; exact fun e0 => (h.tcbs t ht).ne0 (by rw [e0]; rfl))
+    rw [e] at b2 b3
+    rw [← b2]
+    refine z ?_
+    rcases b3 with b3 | b3
+    · exact Or.inl b3
+    · exact Or.inr ⟨b3, by rw [b2]; exact b0⟩
   exact ⟨h', hB.keepT h k, XInv.keepT (Z := Z) (Ω := Ω) (Sg := Sg) ⟨hO, hR, hE⟩ k
-    ⟨nr, fun e => nb (Or.inr (Or.inl e))⟩, nb, hst, k⟩
+    ⟨nr, fun e => nb (Or.inr (Or.inl e))⟩ hclr, nb, nr, hst, k, hclr⟩
 
 end
 

@@ -12,7 +12,7 @@ open fl4_core Fl4Proofs.P0.Consts
 
 
 section
-variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64}
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 
 /-! ## Specs of the small helpers -/
 
@@ -98,7 +98,7 @@ theorem nodeword_wr_field {s : S} {c y K v o : U64} (hN : NodePlaced st T s c) (
 
 /-- The current and idle thread words after a TCB field write. -/
 theorem curidle_wr_field {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {y K v : U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (hy : y ∈ T) (hK : K.val < 4096) (hK8 : K.val % 8 = 0) :
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hy : y ∈ T) (hK : K.val < 4096) (hK8 : K.val % 8 = 0) :
     L.mem (L.wr s (core.num.U64.wrapping_add y K) v)
       (L.nodeAt (L.wr s (core.num.U64.wrapping_add y K) v) (L.cpu (L.wr s (core.num.U64.wrapping_add y K) v))
         layout.node.CUR_THREAD) ∈ T ∧
@@ -113,7 +113,7 @@ theorem curidle_wr_field {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64}
 
 /-- A node write leaves the other words of the nodes alone. -/
 theorem nodeword_other {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
-    {c0 o c o' v : U64} (h : SchedQueuesInvX st T Cs Ω X s Q R) (hc0 : c0 ∈ Cs) (hc : c ∈ Cs)
+    {c0 o c o' v : U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hc0 : c0 ∈ Cs) (hc : c ∈ Cs)
     (ho : o.val < 4288) (h8 : o.val % 8 = 0) (ho' : o'.val < 4288) (h8' : o'.val % 8 = 0)
     (hne : c0 = c → o.val ≠ o'.val) :
     L.mem (L.wr s (L.nodeAt s c0 o) v) (L.nodeAt s c o') = L.mem s (L.nodeAt s c o') := by
@@ -124,7 +124,7 @@ theorem nodeword_other {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {
 /-- A write to a node word below the release queue (`SCHED_ACTION`,
 `REPROGRAM`, ...) keeps the invariant, if the action stays valid. -/
 theorem inv_wr_node_low {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
-    {c0 o v : U64} (h : SchedQueuesInvX st T Cs Ω X s Q R) (hc0 : c0 ∈ Cs) (ho : o.val < 128)
+    {c0 o v : U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hc0 : c0 ∈ Cs) (ho : o.val < 128)
     (ho2 : o.val ≠ 64 ∧ o.val ≠ 72) (h8 : o.val % 8 = 0)
     (hact : L.actionW (L.wr s (L.nodeAt s c0 o) v) = 0#u64 ∨ L.actionW (L.wr s (L.nodeAt s c0 o) v) = 1#u64 ∨
       L.actionW (L.wr s (L.nodeAt s c0 o) v) ∈ T)
@@ -133,7 +133,7 @@ theorem inv_wr_node_low {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} 
       ∀ c ∈ Cs, L.actionW (L.wr s (L.nodeAt s c0 o) v) ∉ R c)
     (hcurT : L.mem (L.wr s (L.nodeAt s c0 o) v) (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) ∈ T)
     (hidleT : L.mem (L.wr s (L.nodeAt s c0 o) v) (L.nodeAt s (L.cpu s) layout.node.IDLE_THREAD) ∈ T) :
-    SchedQueuesInvX st T Cs Ω X (L.wr s (L.nodeAt s c0 o) v) Q R := by
+    SchedQueuesInvX st T Cs Ω H X (L.wr s (L.nodeAt s c0 o) v) Q R := by
   have hT := h.tcbs
   have hN0 := h.nodes c0 hc0
   have ha := nodeAt_aligned hN0 (by omega) h8 (off := o)
@@ -165,8 +165,8 @@ theorem inv_wr_node_low {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} 
 
 /-- Setting the priority of a thread in no ready queue keeps the invariant. -/
 theorem inv_wr_prio {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t v : U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T) (h0 : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64)
-    (hv : v.val < 256) : SchedQueuesInvX st T Cs Ω X (L.wr s (prioA t) v) Q R := by
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) (h0 : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64)
+    (hv : v.val < 256) : SchedQueuesInvX st T Cs Ω H X (L.wr s (prioA t) v) Q R := by
   have hT := h.tcbs
   have hta := hT t ht
   have ha : Aligned (prioA t) := field_aligned hta (by simp) (by simp)
@@ -206,9 +206,9 @@ theorem inv_wr_prio {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
 
 /-- `set_action` with a valid action keeps the invariant. -/
 theorem inv_set_action {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {v : U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (hv : v = 0#u64 ∨ v = 1#u64 ∨ v ∈ T)
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hv : v = 0#u64 ∨ v = 1#u64 ∨ v ∈ T)
     (hv2 : v ∈ T → Runnable (L.mem s (stA v)) ∧ ∀ c ∈ Cs, v ∉ R c) :
-    SchedQueuesInvX st T Cs Ω X (L.wr s (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION) v) Q R ∧
+    SchedQueuesInvX st T Cs Ω H X (L.wr s (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION) v) Q R ∧
       L.actionW (L.wr s (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION) v) = v := by
   have hN' := h.nodes _ h.cur
   have e : L.actionW (L.wr s (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION) v) = v := by
@@ -233,7 +233,7 @@ theorem notT_small {v : U64} (hT : TcbPlaced T) (hv : v.val < 4096) : v ∉ T :=
   intro h; have ha := hT v h; have := ha.ne0; have := ha.align; omega
 
 theorem stA_wr_node {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {c o v : U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (hc : c ∈ Cs) (ho : o.val < 4288) (h8 : o.val % 8 = 0) :
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hc : c ∈ Cs) (ho : o.val < 4288) (h8 : o.val % 8 = 0) :
     ∀ y ∈ T, L.mem (L.wr s (L.nodeAt s c o) v) (stA y) = L.mem s (stA y) := fun y hy => by
   rw [stA_eq]
   exact L.mem_wr_ne (nodeAt_aligned (h.nodes c hc) ho h8) (field_aligned (h.tcbs y hy) (by simp) (by simp))
@@ -242,8 +242,8 @@ theorem stA_wr_node {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
 /-- seL4 `rescheduleRequired` keeps the invariant (release queues and
 thread states unchanged) and leaves the action choose-new. -/
 theorem sched.reschedule_required.inv {Cs X : Set U64} (s : S) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) :
-    sched.reschedule_required st s ⦃ s' => (∃ Q', SchedQueuesInvX st T Cs Ω X s' Q' R) ∧
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) :
+    sched.reschedule_required st s ⦃ s' => (∃ Q', SchedQueuesInvX st T Cs Ω H X s' Q' R) ∧
       L.actionW s' = 1#u64 ∧ ∀ y ∈ T, L.mem s' (stA y) = L.mem s (stA y) ⦄ := by
   unfold sched.reschedule_required
   step as ⟨act, act_post⟩
@@ -252,7 +252,7 @@ theorem sched.reschedule_required.inv {Cs X : Set U64} (s : S) (Q : U64 → U64 
         let b ← sched.is_schedulable st s act
         if b = true then sched.enqueue st s act else ok s
       else ok s
-    else ok s) ⦃ s1 => (∃ Q', SchedQueuesInvX st T Cs Ω X s1 Q' R) ∧
+    else ok s) ⦃ s1 => (∃ Q', SchedQueuesInvX st T Cs Ω H X s1 Q' R) ∧
       ∀ y ∈ T, L.mem s1 (stA y) = L.mem s (stA y) ⦄ := by
     split
     · split
@@ -295,11 +295,11 @@ theorem sched.reschedule_required.inv {Cs X : Set U64} (s : S) (Q : U64 → U64 
 /-- seL4 `possibleSwitchTo` keeps the invariant (release queues
 unchanged), for a runnable thread. -/
 theorem sched.possible_switch_to.inv {Cs X : Set U64} (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64)
-    (R : U64 → List U64) (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T) (hrun : Runnable (L.mem s (stA t))) :
-    sched.possible_switch_to st s t ⦃ s' => ∃ Q', SchedQueuesInvX st T Cs Ω X s' Q' R ⦄ := by
-  have enq : (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64 → ∀ s1 Q1, SchedQueuesInvX st T Cs Ω X s1 Q1 R →
+    (R : U64 → List U64) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) (hrun : Runnable (L.mem s (stA t))) :
+    sched.possible_switch_to st s t ⦃ s' => ∃ Q', SchedQueuesInvX st T Cs Ω H X s' Q' R ⦄ := by
+  have enq : (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64 → ∀ s1 Q1, SchedQueuesInvX st T Cs Ω H X s1 Q1 R →
       L.mem s1 (stA t) = L.mem s (stA t) →
-      sched.enqueue st s1 t ⦃ s' => ∃ Q', SchedQueuesInvX st T Cs Ω X s' Q' R ⦄ := by
+      sched.enqueue st s1 t ⦃ s' => ∃ Q', SchedQueuesInvX st T Cs Ω H X s' Q' R ⦄ := by
     intro hr0 s1 Q1 h1 hst
     have hr1 : (L.mem s1 (inqA t) &&& sched.Q_RELEASE) = 0#u64 := by
       by_contra hc
@@ -410,13 +410,13 @@ theorem mem_insPrio {pr : U64 → U64} {p t : U64} {xs : List U64} {y : U64} :
 its footprint `EpFoot`, that leaves the queue holding `xs'`: some old members,
 the others joining the exception set. -/
 theorem inv_ep_step {Cs X X' : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
-    {E : Set U64} {EQ : U64 → List U64} {K : U64 → Bool} {e : U64} {xs' : List U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (hEW : EpsWit st T Cs Ω X s E EQ K) (he : e ∈ E)
+    {E : Set U64} {EQ : U64 → List U64} {e : U64} {xs' : List U64}
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hEW : EpsWit st T Cs Ω H X s E EQ) (he : e ∈ E)
     (hw : WritesIn st s s' (EpFoot (EQ e) e))
     (hq' : QueueRel (L.mem s') T .Ep (L.epQ s' e) xs') (hst : xs' ≠ [] → L.epState s' e = L.epState s e)
     (hsub : ∀ y ∈ xs', y ∈ EQ e) (hrest : ∀ y ∈ EQ e, y ∉ xs' → y ∈ X')
     (hXX : ∀ y, y ∈ X → y ∈ X') (hXn : ∀ y, y ∈ X' → y ∈ X ∨ y ∈ EQ e) (hx' : ∀ y ∈ xs', y ∉ X') :
-    SchedQueuesInvX st T Cs Ω X' s' Q R := by
+    SchedQueuesInvX st T Cs Ω H X' s' Q R := by
   have hT := h.tcbs
   obtain ⟨w1, w2, w5, w3, w4, w6⟩ := hEW
   obtain ⟨hE, hEN, hq⟩ := w1 e he
@@ -485,7 +485,7 @@ theorem inv_ep_step {Cs X X' : Set U64} {s s' : S} {Q : U64 → U64 → List U64
     (by rw [hw.2.1, nodeAt_of_ksb hw.1, nod _ h.cur _ (by rw [idle8]; omega) (by rw [idle8])]; exact h.idleT)
   · rw [nextA_eq']; exact fld y hy _ (by simp [nextOff]) (by simp [nextOff]) (by simp [nextOff]) (by simp [nextOff])
   · rw [prevA_eq']; exact fld y hy _ (by simp [prevOff]) (by simp [prevOff]) (by simp [prevOff]) (by simp [prevOff])
-  refine ⟨E, Function.update EQ e xs', K, fun e' he' => ?_, w2, w5, fun e' he' y hy => ?_, fun y hy hyX hb => ?_,
+  refine ⟨E, Function.update EQ e xs', fun e' he' => ?_, w2, w5, fun e' he' y hy => ?_, fun y hy hyX hb => ?_,
     w6.agree (fun y hy => Or.inl (fun hX => hy (hXX y hX))) (fun y hy _ _ => hsb y hy) (fun e' he' y hy => ?_)
       (fun e' he' y hy => ?_) (fun e' he' hne => ?_)⟩
   rotate_left 3
@@ -557,7 +557,7 @@ theorem inv_ep_step {Cs X X' : Set U64} {s s' : S} {Q : U64 → U64 → List U64
   unfold obj.Tcb.block_obj; step*; simp_all [blockA]
 
 theorem prio_wr_eps {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t prio : U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T) :
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) :
     L.mem (L.wr s (prioA t) prio) (blockA t) = L.mem s (blockA t) ∧
       L.mem (L.wr s (prioA t) prio) (stA t) = L.mem s (stA t) := by
   have hta := h.tcbs t ht
@@ -571,7 +571,7 @@ theorem prio_wr_eps {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
 
 /-- After `dequeue`, the thread is in no ready queue. -/
 theorem notQ_after_dequeue {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t : U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T) :
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) :
     ∀ c ∈ Cs, ∀ p : U64, p.val < 256 → t ∉ (if (L.mem s (inqA t) &&& sched.Q_QUEUED) ≠ 0#u64
       then Function.update Q (L.mem s (affA t)) (Function.update (Q (L.mem s (affA t))) (L.mem s (prioA t))
         ((Q (L.mem s (affA t)) (L.mem s (prioA t))).erase t)) else Q) c p := by
@@ -585,13 +585,13 @@ theorem notQ_after_dequeue {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U6
 /-- Dequeue, set the priority, enqueue, reschedule: the running-thread path
 of seL4 `setPriority`. -/
 theorem dpe_path {Cs X : Set U64} (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List U64)
-    (R : U64 → List U64) (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T) (hv : prio.val < 256)
+    (R : U64 → List U64) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) (hv : prio.val < 256)
     (hnr : ∀ c ∈ Cs, t ∉ R c) (hrun : Runnable (L.mem s (stA t))) :
     (do
       let s1 ← sched.dequeue st s t
       let s2 ← obj.Tcb.set_prio st t s1 prio
       let s3 ← sched.enqueue st s2 t
-      sched.reschedule_required st s3) ⦃ s' => ∃ Q', SchedQueuesInvX st T Cs Ω X s' Q' R ⦄ := by
+      sched.reschedule_required st s3) ⦃ s' => ∃ Q', SchedQueuesInvX st T Cs Ω H X s' Q' R ⦄ := by
   have hc := h.aff t ht
   have hp := h.prio t ht
   have hR1 := h.ready _ hc
@@ -619,18 +619,18 @@ theorem dpe_path {Cs X : Set U64} (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 �
 
 /-- `reorder_ep` after setting the priority of a blocked thread. -/
 theorem blocked_path_ep {Cs X : Set U64} (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List U64)
-    (R : U64 → List U64) (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T) (hv : prio.val < 256)
+    (R : U64 → List U64) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) (hv : prio.val < 256)
     (hq0 : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64) (htX : t ∉ X) (hb : Blocked (L.mem s (stA t))) :
     (do
       let s1 ← obj.Tcb.set_prio st t s prio
       let i ← obj.Tcb.block_obj st t s1
-      endpoint.reorder_ep st s1 i t) ⦃ s' => ∃ Q', SchedQueuesInvX st T Cs Ω X s' Q' R ⦄ := by
+      endpoint.reorder_ep st s1 i t) ⦃ s' => ∃ Q', SchedQueuesInvX st T Cs Ω H X s' Q' R ⦄ := by
   have hT := h.tcbs
   step as ⟨s1, s1_post⟩
   subst s1_post
   have h1 := inv_wr_prio h ht hq0 hv
   obtain ⟨hbl, hstt⟩ := prio_wr_eps (prio := prio) h ht
-  obtain ⟨E, EQ, K, hEW⟩ := h1.eps
+  obtain ⟨E, EQ, hEW⟩ := h1.eps
   have hEW' := hEW
   obtain ⟨w1, -, -, -, w4, -⟩ := hEW
   obtain ⟨heE, htm⟩ := w4 t ht htX (by rw [hstt]; exact hb)
@@ -655,18 +655,18 @@ theorem blocked_path_ep {Cs X : Set U64} (s : S) (t : obj.Tcb) (prio : U64) (Q :
 
 /-- `reorder_ntfn` after setting the priority of a blocked thread. -/
 theorem blocked_path_ntfn {Cs X : Set U64} (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List U64)
-    (R : U64 → List U64) (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T) (hv : prio.val < 256)
+    (R : U64 → List U64) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) (hv : prio.val < 256)
     (hq0 : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64) (htX : t ∉ X) (hb : Blocked (L.mem s (stA t))) :
     (do
       let s1 ← obj.Tcb.set_prio st t s prio
       let i ← obj.Tcb.block_obj st t s1
-      notification.reorder_ntfn st s1 i t) ⦃ s' => ∃ Q', SchedQueuesInvX st T Cs Ω X s' Q' R ⦄ := by
+      notification.reorder_ntfn st s1 i t) ⦃ s' => ∃ Q', SchedQueuesInvX st T Cs Ω H X s' Q' R ⦄ := by
   have hT := h.tcbs
   step as ⟨s1, s1_post⟩
   subst s1_post
   have h1 := inv_wr_prio h ht hq0 hv
   obtain ⟨hbl, hstt⟩ := prio_wr_eps (prio := prio) h ht
-  obtain ⟨E, EQ, K, hEW⟩ := h1.eps
+  obtain ⟨E, EQ, hEW⟩ := h1.eps
   have hEW' := hEW
   obtain ⟨w1, -, -, -, w4, -⟩ := hEW
   obtain ⟨heE, htm⟩ := w4 t ht htX (by rw [hstt]; exact hb)
@@ -691,7 +691,7 @@ theorem blocked_path_ntfn {Cs X : Set U64} (s : S) (t : obj.Tcb) (prio : U64) (Q
 
 /-- The running-thread path of `set_priority`. -/
 theorem running_path {Cs X : Set U64} (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List U64)
-    (R : U64 → List U64) (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T) (hv : prio.val < 256)
+    (R : U64 → List U64) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) (hv : prio.val < 256)
     (hrun : Runnable (L.mem s (stA t)))
     (hcur : t = L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) →
       (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64) :
@@ -710,7 +710,7 @@ theorem running_path {Cs X : Set U64} (s : S) (t : obj.Tcb) (prio : U64) (Q : U6
           let s2 ← obj.Tcb.set_prio st t s1 prio
           let s3 ← sched.enqueue st s2 t
           sched.reschedule_required st s3
-        else obj.Tcb.set_prio st t s prio) ⦃ s' => ∃ Q', SchedQueuesInvX st T Cs Ω X s' Q' R ⦄ := by
+        else obj.Tcb.set_prio st t s prio) ⦃ s' => ∃ Q', SchedQueuesInvX st T Cs Ω H X s' Q' R ⦄ := by
   step as ⟨b, b_post⟩
   split
   · have hq1 : (L.mem s (inqA t) &&& sched.Q_QUEUED) ≠ 0#u64 := by
@@ -736,7 +736,7 @@ theorem ts_vals : sched.TS_RUNNING = 1#u64 ∧ sched.TS_RESTART = 2#u64 ∧ sche
 
 /-- A thread that is not runnable is in no ready queue (from `runQ`). -/
 theorem notQ_of_not_runnable {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t : U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T) (hr : ¬ Runnable (L.mem s (stA t))) :
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) (hr : ¬ Runnable (L.mem s (stA t))) :
     (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64 := by
   by_contra hc
   exact hr (h.runQ _ (h.aff t ht) _ (h.prio t ht) t ((h.queued t ht).1 hc))
@@ -744,10 +744,10 @@ theorem notQ_of_not_runnable {Cs X : Set U64} {s : S} {Q : U64 → U64 → List 
 /-- seL4 `setPriority` (MCS) keeps the invariant (release queues
 unchanged), for a current thread that is in no release queue. -/
 theorem sched.set_priority.inv {Cs : Set U64} (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List U64)
-    (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω s Q R) (ht : t ∈ T) (hv : prio.val < 256)
+    (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : t ∈ T) (hv : prio.val < 256)
     (hcur : t = L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) →
       (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64) :
-    sched.set_priority st s t prio ⦃ s' => ∃ Q', SchedQueuesInv st T Cs Ω s' Q' R ⦄ := by
+    sched.set_priority st s t prio ⦃ s' => ∃ Q', SchedQueuesInv st T Cs Ω H s' Q' R ⦄ := by
   obtain ⟨r1, r2, r3, r4, r5⟩ := ts_vals
   have hnR : ∀ v : U64, v = sched.TS_BLOCKED_ON_RECV ∨ v = sched.TS_BLOCKED_ON_SEND ∨ v = sched.TS_BLOCKED_ON_NTFN →
       ¬ Runnable v := by
@@ -1005,10 +1005,10 @@ theorem sched.append.foot (s : S) (t : obj.Tcb) (xs : List U64) (hT : TcbPlaced 
 
 /-- `tcbSchedAppend` preserves the invariant, as `enqueue` does. -/
 theorem sched.append.inv {Cs : Set U64} (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    {X : Set U64} (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T)
+    {X : Set U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T)
     (hr : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64 → (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64)
     (hrun : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64 → Runnable (L.mem s (stA t))) :
-    sched.append st s t ⦃ s' => SchedQueuesInvX st T Cs Ω X s'
+    sched.append st s t ⦃ s' => SchedQueuesInvX st T Cs Ω H X s'
       (if (L.mem s (inqA t) &&& sched.Q_QUEUED) ≠ 0#u64 then Q
        else Function.update Q (L.mem s (affA t)) (Function.update (Q (L.mem s (affA t))) (L.mem s (prioA t))
          (Q (L.mem s (affA t)) (L.mem s (prioA t)) ++ [t]))) R ⦄ := by
@@ -1057,11 +1057,11 @@ core's release queue, and the SC's core is told to reprogram its timer. The
 thread must not be in a release queue already, and the SC's `CORE` word must
 name a core and lie outside the TCBs and nodes. -/
 theorem sched.postpone.inv {Cs : Set U64} (s : S) (sc : obj.Sc) (Q : U64 → U64 → List U64)
-    (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω s Q R) (ht : L.mem s (scTcbA sc) ∈ T)
+    (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : L.mem s (scTcbA sc) ∈ T)
     (hr0 : (L.mem s (inqA (L.mem s (scTcbA sc))) &&& sched.Q_RELEASE) = 0#u64)
     (hcore : OutsideObjs st T Cs s (scCoreA sc)) (hcs : L.mem s (scCoreA sc) ∈ Cs)
     (hrun : Runnable (L.mem s (stA (L.mem s (scTcbA sc))))) (hna : L.actionW s ≠ L.mem s (scTcbA sc)) :
-    sched.postpone st s sc ⦃ s' => ∃ Q' R', SchedQueuesInv st T Cs Ω s' Q' R' ⦄ := by
+    sched.postpone st s sc ⦃ s' => ∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R' ⦄ := by
   unfold sched.postpone
   step as ⟨t, t_post⟩
   subst t_post
@@ -1133,10 +1133,10 @@ theorem sched.postpone.inv {Cs : Set U64} (s : S) (sc : obj.Sc) (Q : U64 → U64
 
 /-- A write to a TCB field the queues do not read keeps the invariant. -/
 theorem inv_wr_field {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t K v : U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T) (hK : K.val < 4096) (hK8 : K.val % 8 = 0)
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) (hK : K.val < 4096) (hK8 : K.val % 8 = 0)
     (hKn : K.val ≠ 3480 ∧ K.val ≠ 3488 ∧ K.val ≠ 3496 ∧ K.val ≠ 3504 ∧ K.val ≠ 3592 ∧ K.val ≠ 3520 ∧
       K.val ≠ 3448 ∧ K.val ≠ 3328 ∧ K.val ≠ 3336) :
-    SchedQueuesInvX st T Cs Ω X (L.wr s (core.num.U64.wrapping_add t K) v) Q R := by
+    SchedQueuesInvX st T Cs Ω H X (L.wr s (core.num.U64.wrapping_add t K) v) Q R := by
   have hT := h.tcbs
   have hta := hT t ht
   have ha : Aligned (core.num.U64.wrapping_add t K) := field_aligned hta hK hK8
@@ -1174,10 +1174,10 @@ theorem inv_wr_field {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R 
 /-- A write to a field of a thread in the exception set (e.g. its block
 object) keeps the invariant. -/
 theorem inv_wr_fieldX {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t K v : U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T) (htX : t ∈ X) (hK : K.val < 4096) (hK8 : K.val % 8 = 0)
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) (htX : t ∈ X) (hK : K.val < 4096) (hK8 : K.val % 8 = 0)
     (hKn : K.val ≠ 3480 ∧ K.val ≠ 3488 ∧ K.val ≠ 3496 ∧ K.val ≠ 3504 ∧ K.val ≠ 3592 ∧ K.val ≠ 3520 ∧
       K.val ≠ 3448 ∧ K.val ≠ 3328) :
-    SchedQueuesInvX st T Cs Ω X (L.wr s (core.num.U64.wrapping_add t K) v) Q R := by
+    SchedQueuesInvX st T Cs Ω H X (L.wr s (core.num.U64.wrapping_add t K) v) Q R := by
   have hT := h.tcbs
   have hta := hT t ht
   have ha : Aligned (core.num.U64.wrapping_add t K) := field_aligned hta hK hK8
@@ -1219,11 +1219,11 @@ theorem inv_wr_fieldX {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R
 endpoint queue, and `v` is runnable if `t` is queued, released or the
 switch-to candidate. `t` leaves the exception set. -/
 theorem inv_set_state {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t v : U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T) (hv : ¬ Blocked v)
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) (hv : ¬ Blocked v)
     (hx : t ∈ X ∨ ¬ Blocked (L.mem s (stA t)))
     (hq : (∀ c ∈ Cs, ∀ p : U64, p.val < 256 → t ∈ Q c p → Runnable v) ∧ (∀ c ∈ Cs, t ∈ R c → Runnable v) ∧
       (L.actionW s = t → Runnable v)) :
-    SchedQueuesInvX st T Cs Ω {y | y ∈ X ∧ y ≠ t} (L.wr s (stA t) v) Q R := by
+    SchedQueuesInvX st T Cs Ω H {y | y ∈ X ∧ y ≠ t} (L.wr s (stA t) v) Q R := by
   have hT := h.tcbs
   have hta := hT t ht
   rw [stA_eq]
@@ -1252,7 +1252,7 @@ theorem inv_set_state {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R
     · subst hyt; rw [hstt]; exact h1 rfl
     · rw [hst y hy hyt]; exact h2
   -- `t` is in no endpoint queue.
-  obtain ⟨E, EQ, K, w1, w2, w5, w3, w4, w6⟩ := h.eps
+  obtain ⟨E, EQ, w1, w2, w5, w3, w4, w6⟩ := h.eps
   have htm : ∀ e ∈ E, t ∉ EQ e := by
     intro e he hm
     have := w3 e he t hm
@@ -1275,7 +1275,7 @@ theorem inv_set_state {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R
       (fun e => node_ne_field (h.nodes c hc) h1 ht hta (by simp) (UScalar.eq_of_val_eq e).symm)
   have hnb : ∀ c, L.nodeBase (L.wr s (core.num.U64.wrapping_add t 3328#u64) v) c = L.nodeBase s c :=
     fun c => by simp [LawfulStore.nodeBase]
-  refine ⟨E, EQ, K, fun e' he' => ?_, w2, w5, fun e' he' y hy => ?_, fun y hy hyX hb => ?_,
+  refine ⟨E, EQ, fun e' he' => ?_, w2, w5, fun e' he' y hy => ?_, fun y hy hyX hb => ?_,
     w6.agree (fun y hy => ?_) (fun y hy hyX hb => ?_) (fun _ _ _ hy => hy) (fun e' he' y hy => ?_)
       (fun e' he' _ => ?_)⟩
   rotate_left 3
@@ -1313,11 +1313,11 @@ theorem inv_set_state {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R
 /-- `set_state` to any state (e.g. a blocked one) for a thread in no queue:
 the thread joins the exception set. -/
 theorem inv_set_state_blk {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t v : U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T)
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T)
     (hx : t ∈ X ∨ ¬ Blocked (L.mem s (stA t)))
     (hq : (∀ c ∈ Cs, ∀ p : U64, p.val < 256 → t ∈ Q c p → Runnable v) ∧ (∀ c ∈ Cs, t ∈ R c → Runnable v) ∧
       (L.actionW s = t → Runnable v)) :
-    SchedQueuesInvX st T Cs Ω {y | y ∈ X ∨ y = t} (L.wr s (stA t) v) Q R := by
+    SchedQueuesInvX st T Cs Ω H {y | y ∈ X ∨ y = t} (L.wr s (stA t) v) Q R := by
   have hT := h.tcbs
   have hta := hT t ht
   rw [stA_eq]
@@ -1346,7 +1346,7 @@ theorem inv_set_state_blk {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64
     · subst hyt; rw [hstt]; exact h1 rfl
     · rw [hst y hy hyt]; exact h2
   -- `t` is in no endpoint queue.
-  obtain ⟨E, EQ, K, w1, w2, w5, w3, w4, w6⟩ := h.eps
+  obtain ⟨E, EQ, w1, w2, w5, w3, w4, w6⟩ := h.eps
   have htm : ∀ e ∈ E, t ∉ EQ e := by
     intro e he hm
     have := w3 e he t hm
@@ -1369,7 +1369,7 @@ theorem inv_set_state_blk {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64
       (fun e => node_ne_field (h.nodes c hc) h1 ht hta (by simp) (UScalar.eq_of_val_eq e).symm)
   have hnb : ∀ c, L.nodeBase (L.wr s (core.num.U64.wrapping_add t 3328#u64) v) c = L.nodeBase s c :=
     fun c => by simp [LawfulStore.nodeBase]
-  refine ⟨E, EQ, K, fun e' he' => ?_, w2, w5, fun e' he' y hy => ?_, fun y hy hyX hb => ?_,
+  refine ⟨E, EQ, fun e' he' => ?_, w2, w5, fun e' he' y hy => ?_, fun y hy hyX hb => ?_,
     w6.agree (fun y hy => ?_) (fun y hy hyX hb => ?_) (fun _ _ _ hy => hy) (fun e' he' y hy => ?_)
       (fun e' he' _ => ?_)⟩
   rotate_left 3
@@ -1412,11 +1412,11 @@ on a thread in no endpoint queue keeps the invariant, if the new state is
 runnable whenever the thread is queued, released or the switch-to candidate.
 The thread leaves the exception set. -/
 theorem sched.set_thread_state.inv {Cs X : Set U64} (s : S) (t : obj.Tcb) (v : U64) (Q : U64 → U64 → List U64)
-    (R : U64 → List U64) (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T) (hv : ¬ Blocked v)
+    (R : U64 → List U64) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) (hv : ¬ Blocked v)
     (hx : t ∈ X ∨ ¬ Blocked (L.mem s (stA t)))
     (hq : (∀ c ∈ Cs, ∀ p : U64, p.val < 256 → t ∈ Q c p → Runnable v) ∧ (∀ c ∈ Cs, t ∈ R c → Runnable v) ∧
       (L.actionW s = t → Runnable v)) :
-    sched.set_thread_state st s t v ⦃ s' => SchedQueuesInvX st T Cs Ω {y | y ∈ X ∧ y ≠ t} s' Q R ⦄ := by
+    sched.set_thread_state st s t v ⦃ s' => SchedQueuesInvX st T Cs Ω H {y | y ∈ X ∧ y ≠ t} s' Q R ⦄ := by
   unfold sched.set_thread_state sched.schedule_tcb
   step as ⟨s1, s1_post⟩
   subst s1_post
@@ -1433,10 +1433,10 @@ theorem sched.set_thread_state.inv {Cs X : Set U64} (s : S) (t : obj.Tcb) (v : U
 queue is ready, it leaves the release queue and `possible_switch_to` puts it
 in a ready queue. The invariant holds throughout. -/
 theorem sched.awaken_loop.inv {Cs : Set U64} (s : S) (fuel : U64) (Q : U64 → U64 → List U64)
-    (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω s Q R) :
-    sched.awaken_loop st s fuel ⦃ s' => ∃ Q' R', SchedQueuesInv st T Cs Ω s' Q' R' ⦄ := by
+    (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) :
+    sched.awaken_loop st s fuel ⦃ s' => ∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R' ⦄ := by
   unfold sched.awaken_loop
-  apply loop.spec_decr_nat (measure := fun x => x.2.val) (inv := fun x => ∃ Q' R', SchedQueuesInv st T Cs Ω x.1 Q' R')
+  apply loop.spec_decr_nat (measure := fun x => x.2.val) (inv := fun x => ∃ Q' R', SchedQueuesInv st T Cs Ω H x.1 Q' R')
   · rintro ⟨s1, fu⟩ ⟨Q1, R1, h1⟩
     unfold sched.awaken_loop.body
     step*
@@ -1486,8 +1486,8 @@ theorem LawfulStore.Free.ksb {s s' : S} {Cs : Set U64} {b : U64} (hk : L.ksb s' 
 
 /-- A change confined to the free words keeps the invariant. -/
 theorem inv_of_free {Cs X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (hw : WritesIn st s s' (L.Free s Ω Cs)) :
-    SchedQueuesInvX st T Cs Ω X s' Q R := by
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hw : WritesIn st s s' (L.Free s Ω Cs)) :
+    SchedQueuesInvX st T Cs Ω H X s' Q R := by
   have hT := h.tcbs
   have fld : ∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 →
       L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K) := by
@@ -1528,7 +1528,7 @@ theorem inv_of_free {Cs X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {
           (by rw [idle8]; simp [LowFree])]; exact h.idleT)
   · rw [nextA_eq']; exact fld y hy _ (by simp [nextOff]) (by simp [nextOff])
   · rw [prevA_eq']; exact fld y hy _ (by simp [prevOff]) (by simp [prevOff])
-  obtain ⟨E, EQ, K, w1, w2, w5, w3, w4, w6⟩ := h.eps
+  obtain ⟨E, EQ, w1, w2, w5, w3, w4, w6⟩ := h.eps
   have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp [LawfulStore.nodeBase, hw.1]
   have ewg : ∀ e ∈ E, ∀ a, (a = epHeadA e ∨ a = epTSA e) → L.mem s' a = L.mem s a := by
     intro e he a ha
@@ -1545,7 +1545,7 @@ theorem inv_of_free {Cs X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {
     · have := congrArg UScalar.val e2
       rw [nodeAt_val (h.nodes c hc) (by simp only [LowFree] at ho; omega)] at this
       have := hEN.1 c hc; simp only [LowFree] at ho; omega
-  refine ⟨E, EQ, K, fun e he => ?_, w2, w5, fun e he y hy => ?_, fun y hy hyX hb => ?_,
+  refine ⟨E, EQ, fun e he => ?_, w2, w5, fun e he y hy => ?_, fun y hy hyX hb => ?_,
     w6.agree (fun y hy => Or.inl hy) (fun y hy _ _ => hsb y hy) (fun _ _ _ hy => hy)
       (fun e he y hy => (hsb y ((w1 e he).2.2.mem y hy)).1)
       (fun e he _ => by simp only [LawfulStore.epState, ewg e he _ (Or.inr rfl)])⟩

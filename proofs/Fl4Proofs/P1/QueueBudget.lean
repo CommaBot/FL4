@@ -14,14 +14,14 @@ namespace Fl4Proofs.P1
 open fl4_core Fl4Proofs.P0.Consts
 
 section
-variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64}
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 variable {Cs Sg Rp Scs : Set U64} {Z : U64 → Nat} {A : Type _} {ar : machine.Arch A}
 
 /-- An endpoint footprint keeps `BoundInv` and `XInv`. -/
 theorem bx_epfoot {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
-    {E : Set U64} {EQ : U64 → List U64} {K : U64 → Bool} {e : U64} {W : List U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
-    (hsub : ∀ b ∈ Sg, b ∈ Ω) (hEW : EpsWit st T Cs Ω X s E EQ K) (he : e ∈ E)
+    {E : Set U64} {EQ : U64 → List U64} {e : U64} {W : List U64}
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (hsub : ∀ b ∈ Sg, b ∈ Ω) (hEW : EpsWit st T Cs Ω H X s E EQ) (he : e ∈ E)
     (hWT : ∀ w ∈ W, w ∈ T) (hw : WritesIn st s s' (EpFoot W e)) :
     BoundInv st T s' ∧ XInv st T Cs Ω Sg Rp Scs Z s' := by
   obtain ⟨kf, kΩ, kn⟩ := epfoot_keep h hEW he hWT hw
@@ -47,7 +47,7 @@ theorem bx_epfoot {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U
 /-! ## `set_priority` -/
 
 theorem dpe_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (ht : t ∈ T) (hv : prio.val < 256)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : t ∈ T) (hv : prio.val < 256)
     (hnr : ∀ c ∈ Cs, t ∉ R c) (hrun : Runnable (L.mem s (stA t))) (hbd : L.mem s (scA t) ≠ 0#u64)
     (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s) (hSg : SgOK st Ω Sg s) :
     (do
@@ -98,7 +98,7 @@ theorem dpe_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List U64)
     ⟨h4.1.bnd, (hX2.fr f3).fr h4.1.fr⟩
 
 theorem running_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List U64)
-    (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω s Q R) (ht : t ∈ T) (hv : prio.val < 256)
+    (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : t ∈ T) (hv : prio.val < 256)
     (hrun : Runnable (L.mem s (stA t)))
     (hcur : t = L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) →
       (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64)
@@ -138,7 +138,7 @@ theorem running_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List 
       exact bx_field (K := 3448#u64) h hB hX hSg.sub ht (by simp) (by simp) (by simp)
 
 theorem blocked_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List U64)
-    (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω s Q R) (ht : t ∈ T) (hv : prio.val < 256)
+    (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : t ∈ T) (hv : prio.val < 256)
     (hq0 : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64) (hb : Blocked (L.mem s (stA t)))
     (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω)
     (reorder : S → U64 → obj.Tcb → Result S)
@@ -155,7 +155,7 @@ theorem blocked_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List 
   obtain ⟨hbl, hstt⟩ := prio_wr_eps (prio := prio) h ht
   step with obj.Tcb.block_obj.spec as ⟨i, i_post⟩
   subst i_post
-  obtain ⟨E, EQ, K, hEW⟩ := h1.eps
+  obtain ⟨E, EQ, hEW⟩ := h1.eps
   obtain ⟨he, hmem⟩ := hEW.2.2.2.2.1 t ht (by simp) (by rw [hstt]; exact hb)
   obtain ⟨hE, -, hq⟩ := hEW.1 _ he
   exact WP.spec_mono (hfoot _ _ _ h1.tcbs hE hq hmem) fun s2 hw =>
@@ -164,12 +164,12 @@ theorem blocked_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List 
 /-- `set_priority` keeps `BoundInv` and `XInv` (with the invariant, by
 `set_priority.inv`), when the current thread is bound. -/
 theorem sched.set_priority.all (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List U64)
-    (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω s Q R) (ht : t ∈ T) (hv : prio.val < 256)
+    (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : t ∈ T) (hv : prio.val < 256)
     (hcur : t = L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) →
       (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64)
     (hbcur : t = L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) → L.mem s (scA t) ≠ 0#u64)
     (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s) (hSg : SgOK st Ω Sg s) :
-    sched.set_priority st s t prio ⦃ s' => (∃ Q', SchedQueuesInv st T Cs Ω s' Q' R) ∧ BoundInv st T s' ∧
+    sched.set_priority st s t prio ⦃ s' => (∃ Q', SchedQueuesInv st T Cs Ω H s' Q' R) ∧ BoundInv st T s' ∧
       XInv st T Cs Ω Sg Rp Scs Z s' ⦄ := by
   refine WP.spec_mono (WP.spec_and (sched.set_priority.inv s t prio Q R h ht hv hcur) ?_) fun s' hh => hh
   obtain ⟨r1, r2, r3, r4, r5⟩ := ts_vals

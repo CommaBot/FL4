@@ -26,7 +26,7 @@ namespace Fl4Proofs.P1
 open fl4_core Fl4Proofs.P0.Consts
 
 section
-variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64}
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 variable {A : Type _} {ar : machine.Arch A}
 
 /-- The current core's `CUR_THREAD` and `IDLE_THREAD` words. -/
@@ -138,7 +138,7 @@ theorem cscA_val (hN' : NodePlaced st T s (L.cpu s)) :
     (L.nodeA s layout.node.CUR_SC).val = L.nodeBase s (L.cpu s) + 24 := by
   unfold LawfulStore.nodeA; rw [nodeAt_val hN' (by simp [layout.node.CUR_SC])]; simp [layout.node.CUR_SC]
 
-theorem fr_wr (h : SchedQueuesInvX st T Cs Ω X s Q R) (hS : SgOK st Ω Sg s) {a v : U64}
+theorem fr_wr (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg s) {a v : U64}
     (ha : Aligned a) (hsg : ∀ b ∈ Sg, a.val ≠ b.val)
     (hf : ∀ t ∈ T, ∀ K : U64, K.val < 4096 → a.val ≠ (core.num.U64.wrapping_add t K).val)
     (hcs : a.val ≠ (L.nodeA s layout.node.CUR_SC).val) : Fr st T Sg s (L.wr s a v) := by
@@ -153,7 +153,7 @@ theorem fr_wr (h : SchedQueuesInvX st T Cs Ω X s Q R) (hS : SgOK st Ω Sg s) {a
     exact L.mem_wr_ne ha (nodeAt_aligned (h.nodes _ h.cur) (by simp [layout.node.CUR_SC])
       (by simp [layout.node.CUR_SC])) hcs
 
-theorem fr_node (h : SchedQueuesInvX st T Cs Ω X s Q R) (hS : SgOK st Ω Sg s) {c o v : U64}
+theorem fr_node (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg s) {c o v : U64}
     (hc : c ∈ Cs) (ho : o.val < 4288) (h8 : o.val % 8 = 0) (h24 : c = L.cpu s → o.val ≠ 24) :
     Fr st T Sg s (L.wr s (L.nodeAt s c o) v) := by
   have hN := h.nodes c hc
@@ -166,19 +166,19 @@ theorem fr_node (h : SchedQueuesInvX st T Cs Ω X s Q R) (hS : SgOK st Ω Sg s) 
     · intro e'
       exact nodeAt_ne_cpu hN (h.nodes _ h.cur) ho (by simp [layout.node.CUR_SC]) e (UScalar.eq_of_val_eq e')
 
-theorem ks_val (h : SchedQueuesInvX st T Cs Ω X s Q R) {o : U64} (ho : o.val < 13568) :
+theorem ks_val (h : SchedQueuesInvX st T Cs Ω H X s Q R) {o : U64} (ho : o.val < 13568) :
     (core.num.U64.wrapping_add (L.ksb s) o).val = (L.ksb s).val + o.val := by
   have := (h.nodes _ h.cur).fits
   simp only [LawfulStore.nodeBase] at this
   simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
 
-theorem ks_aligned (h : SchedQueuesInvX st T Cs Ω X s Q R) {o : U64} (ho : o.val < 13568) (h8 : o.val % 8 = 0) :
+theorem ks_aligned (h : SchedQueuesInvX st T Cs Ω H X s Q R) {o : U64} (ho : o.val < 13568) (h8 : o.val % 8 = 0) :
     Aligned (core.num.U64.wrapping_add (L.ksb s) o) := by
   have := (h.nodes _ h.cur).align
   simp only [LawfulStore.nodeBase] at this
   unfold Aligned; rw [ks_val h ho]; omega
 
-theorem fr_ks (h : SchedQueuesInvX st T Cs Ω X s Q R) (hS : SgOK st Ω Sg s) {o v : U64}
+theorem fr_ks (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg s) {o v : U64}
     (ho : o.val < 13568) (h8 : o.val % 8 = 0) :
     Fr st T Sg s (L.wr s (core.num.U64.wrapping_add (L.ksb s) o) v) := by
   refine fr_wr h hS (ks_aligned h ho h8) (fun b hb => ?_) (fun t ht K hK => ?_) ?_
@@ -188,7 +188,7 @@ theorem fr_ks (h : SchedQueuesInvX st T Cs Ω X s Q R) (hS : SgOK st Ω Sg s) {o
 
 /-- A queue operation's footprint keeps `Fr`, and the words `BoundInv`
 reads apart from the operated thread's `IN_QUEUES`. -/
-theorem qfoot_keep (h : SchedQueuesInvX st T Cs Ω X s Q R) (hS : SgOK st Ω Sg s) {s' : S} {W : List U64}
+theorem qfoot_keep (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg s) {s' : S} {W : List U64}
     {c t : U64} {P : Nat → Prop} (hW : ∀ w ∈ W, w ∈ T) (hc : c ∈ Cs) (ht : t ∈ T)
     (hP : ∀ o, P o → o ≠ 0 ∧ o ≠ 8 ∧ o ≠ 16 ∧ o ≠ 24) (hw : WritesIn st s s' (L.QFoot s W c P t)) :
     Fr st T Sg s s' ∧ (∀ y ∈ T, y ≠ t → L.mem s' (inqA y) = L.mem s (inqA y)) ∧
@@ -245,7 +245,7 @@ theorem BoundInv.mk' (hB : BoundInv st T s) (hsc : ∀ y ∈ T, L.mem s' (scA y)
 
 /-- `BoundInv` after a queue operation on `t` (its `IN_QUEUES` gets only
 flags it had, or `t` is bound). -/
-theorem BoundInv.qstep (h : SchedQueuesInvX st T Cs Ω X s Q R) (hB : BoundInv st T s) {t : U64}
+theorem BoundInv.qstep (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T s) {t : U64}
     (hsc : ∀ y ∈ T, L.mem s' (scA y) = L.mem s (scA y)) (hinq : ∀ y ∈ T, y ≠ t → L.mem s' (inqA y) = L.mem s (inqA y))
     (ha : L.actionW s' = L.actionW s) (hcur : L.curW s' = L.curW s) (hidle : L.idleW s' = L.idleW s)
     (hq : (L.mem s' (inqA t) &&& sched.Q_QUEUED) ≠ 0#u64 →
@@ -266,7 +266,7 @@ theorem BoundInv.qstep (h : SchedQueuesInvX st T Cs Ω X s Q R) (hB : BoundInv s
   · rw [ha] at h0; rw [hcur]; exact ⟨h.curT, hB.resume h0⟩
 
 /-- `BoundInv` under writes to free words. -/
-theorem BoundInv.free {Ω : Set U64} (h : SchedQueuesInvX st T Cs Ω X s Q R) (hB : BoundInv st T s)
+theorem BoundInv.free {Ω : Set U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T s)
     (hw : WritesIn st s s' (L.Free s Ω Cs)) : BoundInv st T s' := by
   have hT := h.tcbs
   have fld : ∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 →
@@ -306,7 +306,7 @@ theorem BoundInv.free {Ω : Set U64} (h : SchedQueuesInvX st T Cs Ω X s Q R) (h
   · rw [ei]; exact ⟨h.idleT, hB.idle⟩
   · rw [ea] at h0; rw [ec]; exact ⟨h.curT, hB.resume h0⟩
 
-theorem field_wr_node (h : SchedQueuesInvX st T Cs Ω X s Q R) {c o v y K : U64} (hc : c ∈ Cs) (ho : o.val < 4288)
+theorem field_wr_node (h : SchedQueuesInvX st T Cs Ω H X s Q R) {c o v y K : U64} (hc : c ∈ Cs) (ho : o.val < 4288)
     (h8 : o.val % 8 = 0) (hy : y ∈ T) (hK : K.val < 4096) (hK8 : K.val % 8 = 0) :
     L.mem (L.wr s (L.nodeAt s c o) v) (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K) :=
   L.mem_wr_ne (nodeAt_aligned (h.nodes c hc) ho h8) (field_aligned (h.tcbs y hy) hK hK8)
@@ -314,7 +314,7 @@ theorem field_wr_node (h : SchedQueuesInvX st T Cs Ω X s Q R) {c o v y K : U64}
 
 /-- `BoundInv` after a write to a current-core node word: `v` must be
 bound where the word is the action or the current thread. -/
-theorem BoundInv.wr_node (h : SchedQueuesInvX st T Cs Ω X s Q R) (hB : BoundInv st T s) {o v : U64}
+theorem BoundInv.wr_node (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T s) {o v : U64}
     (ho : o.val < 4288) (h8 : o.val % 8 = 0) (h8' : o.val ≠ 8)
     (hact : o.val = 16 → (v ∈ T → L.mem s (scA v) ≠ 0#u64) ∧ (v = 0#u64 → L.mem s (scA (L.curW s)) ≠ 0#u64))
     (hcur : o.val = 0 → v ∈ T ∧ (L.actionW s = 0#u64 → L.mem s (scA v) ≠ 0#u64)) :
@@ -368,7 +368,7 @@ theorem p128 : ∀ o : Nat, 128 ≤ o → o ≠ 0 ∧ o ≠ 8 ∧ o ≠ 16 ∧ o
 theorem prel : ∀ o : Nat, RelOffs o → o ≠ 0 ∧ o ≠ 8 ∧ o ≠ 16 ∧ o ≠ 24 := fun o h => by unfold RelOffs at h; omega
 
 theorem rd_cur_node {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) {o o' v : U64} (ho : o.val < 4288) (h8 : o.val % 8 = 0)
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) {o o' v : U64} (ho : o.val < 4288) (h8 : o.val % 8 = 0)
     (ho' : o'.val < 4288) (h8' : o'.val % 8 = 0) (hne : o.val ≠ o'.val) :
     L.mem (L.wr s (L.nodeAt s (L.cpu s) o) v) (L.nodeAt (L.wr s (L.nodeAt s (L.cpu s) o) v)
       (L.cpu (L.wr s (L.nodeAt s (L.cpu s) o) v)) o') = L.mem s (L.nodeAt s (L.cpu s) o') := by
@@ -376,8 +376,8 @@ theorem rd_cur_node {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U6
   rw [rd_node_wr_node (h.nodes _ h.cur) ho ho' h8 h8', if_neg hne]
 
 /-- The common post-condition of the steps. -/
-structure Post (st : machine.Store S) [L : LawfulStore st] (T Cs Ω Sg : Set U64) (s s' : S) : Prop where
-  inv : ∃ Q' R', SchedQueuesInv st T Cs Ω s' Q' R'
+structure Post (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg : Set U64) (s s' : S) : Prop where
+  inv : ∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R'
   bnd : BoundInv st T s'
   fr : Fr st T Sg s s'
 
@@ -391,11 +391,11 @@ theorem Keeps.trans {s₁ s₂ s₃ : S} (h₁ : Keeps st T s₁ s₂) (h₂ : K
   ⟨fun y hy => (h₂.1 y hy).trans (h₁.1 y hy), fun y hy hf => h₁.2 y hy (h₂.2 y hy hf)⟩
 
 theorem sched.enqueue.sch (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) (ht : t ∈ T)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) (ht : t ∈ T)
     (hr : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64 → (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64)
     (hrun : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64 → Runnable (L.mem s (stA t)))
     (hbd : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64 → L.mem s (scA t) ≠ 0#u64) :
-    sched.enqueue st s t ⦃ s' => Post st T Cs Ω Sg s s' ∧
+    sched.enqueue st s t ⦃ s' => Post st T Cs Ω H Sg s s' ∧
       L.actionW s' = L.actionW s ∧ L.curW s' = L.curW s ∧ Keeps st T s s' ⦄ := by
   have hc := h.aff t ht
   have hp := h.prio t ht
@@ -425,11 +425,11 @@ theorem sched.enqueue.sch (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64) (
     · rw [hi y hy e] at hf; exact hf
 
 theorem sched.append.sch (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) (ht : t ∈ T)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) (ht : t ∈ T)
     (hr : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64 → (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64)
     (hrun : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64 → Runnable (L.mem s (stA t)))
     (hbd : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64 → L.mem s (scA t) ≠ 0#u64) :
-    sched.append st s t ⦃ s' => Post st T Cs Ω Sg s s' ∧
+    sched.append st s t ⦃ s' => Post st T Cs Ω H Sg s s' ∧
       L.actionW s' = L.actionW s ∧ L.curW s' = L.curW s ∧ Keeps st T s s' ⦄ := by
   have hc := h.aff t ht
   have hp := h.prio t ht
@@ -459,8 +459,8 @@ theorem sched.append.sch (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64) (R
     · rw [hi y hy e] at hf; exact hf
 
 theorem sched.dequeue.sch (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) (ht : t ∈ T) :
-    sched.dequeue st s t ⦃ s' => Post st T Cs Ω Sg s s' ∧
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) (ht : t ∈ T) :
+    sched.dequeue st s t ⦃ s' => Post st T Cs Ω H Sg s s' ∧
       L.actionW s' = L.actionW s ∧ L.curW s' = L.curW s ⦄ := by
   have hc := h.aff t ht
   have hp := h.prio t ht
@@ -481,8 +481,8 @@ theorem sched.dequeue.sch (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64) (
     · exact Or.inr (Or.inl hf)
 
 theorem sched.release_remove.sch (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) (ht : t ∈ T) :
-    sched.release_remove st s t ⦃ s' => Post st T Cs Ω Sg s s' ∧
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) (ht : t ∈ T) :
+    sched.release_remove st s t ⦃ s' => Post st T Cs Ω H Sg s s' ∧
       L.actionW s' = L.actionW s ∧ L.curW s' = L.curW s ∧ ∀ y ∈ T, L.mem s' (stA y) = L.mem s (stA y) ⦄ := by
   have hc := h.aff t ht
   refine WP.spec_mono (WP.spec_and (sched.release_remove.inv s t Q R h ht)
@@ -503,10 +503,10 @@ theorem sched.release_remove.sch (s : S) (t : obj.Tcb) (Q : U64 → U64 → List
     · exact Or.inr (Or.inl hf)
 
 theorem sched.set_action.sch (s : S) (v : U64) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s)
     (hv : v = 0#u64 ∨ v = 1#u64 ∨ v ∈ T) (hv2 : v ∈ T → Runnable (L.mem s (stA v)) ∧ ∀ c ∈ Cs, v ∉ R c)
     (hb1 : v ∈ T → L.mem s (scA v) ≠ 0#u64) (hb0 : v = 0#u64 → L.mem s (scA (L.curW s)) ≠ 0#u64) :
-    sched.set_action st s v ⦃ s' => Post st T Cs Ω Sg s s' ∧ L.actionW s' = v ∧ L.curW s' = L.curW s ∧
+    sched.set_action st s v ⦃ s' => Post st T Cs Ω H Sg s s' ∧ L.actionW s' = v ∧ L.curW s' = L.curW s ∧
       Keeps st T s s' ⦄ := by
   refine WP.spec_mono (sched.set_action.spec s v) fun s' s'_post => ?_
   subst s'_post
@@ -525,8 +525,8 @@ theorem sched.set_action.sch (s : S) (v : U64) (Q : U64 → U64 → List U64) (R
   exact ⟨⟨⟨Q, R, h1⟩, hB1, f⟩, e, ec, kp⟩
 
 theorem sched.set_reprogram.sch (s : S) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) :
-    sched.set_reprogram st s ⦃ s' => (SchedQueuesInv st T Cs Ω s' Q R ∧ BoundInv st T s' ∧ Fr st T Sg s s') ∧
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) :
+    sched.set_reprogram st s ⦃ s' => (SchedQueuesInv st T Cs Ω H s' Q R ∧ BoundInv st T s' ∧ Fr st T Sg s s') ∧
       L.actionW s' = L.actionW s ∧ L.curW s' = L.curW s ⦄ := by
   have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
   refine WP.spec_mono (sched.set_reprogram.spec s) fun s' s'_post => ?_
@@ -540,19 +540,19 @@ theorem sched.set_reprogram.sch (s : S) (Q : U64 → U64 → List U64) (R : U64 
     (by rw [curth0, rp]; omega)
   exact ⟨⟨inv_of_free h hw, hB.free h hw, f⟩, ea, ec⟩
 
-theorem Post.trans {s s1 s2 : S} (f1 : Fr st T Sg s s1) (h2 : Post st T Cs Ω Sg s1 s2) : Post st T Cs Ω Sg s s2 :=
+theorem Post.trans {s s1 s2 : S} (f1 : Fr st T Sg s s1) (h2 : Post st T Cs Ω H Sg s1 s2) : Post st T Cs Ω H Sg s s2 :=
   ⟨h2.inv, h2.bnd, f1.trans h2.fr⟩
 
 theorem one_notT {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) : (1#u64) ∉ T := notT_small h.tcbs (by simp)
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) : (1#u64) ∉ T := notT_small h.tcbs (by simp)
 
 theorem sched.reschedule_required.sch (s : S) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) :
-    sched.reschedule_required st s ⦃ s' => Post st T Cs Ω Sg s s' ∧ L.actionW s' = 1#u64 ∧
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) :
+    sched.reschedule_required st s ⦃ s' => Post st T Cs Ω H Sg s s' ∧ L.actionW s' = 1#u64 ∧
       L.curW s' = L.curW s ∧ Keeps st T s s' ⦄ := by
   unfold sched.reschedule_required
   step with sched.action.spec as ⟨act, act_post⟩
-  refine WP.spec_bind (Pₘ := fun s1 => Post st T Cs Ω Sg s s1 ∧ L.curW s1 = L.curW s ∧ Keeps st T s s1) ?_ ?_
+  refine WP.spec_bind (Pₘ := fun s1 => Post st T Cs Ω H Sg s s1 ∧ L.curW s1 = L.curW s ∧ Keeps st T s s1) ?_ ?_
   · split
     · split
       · rename_i h1 h2
@@ -581,9 +581,9 @@ theorem sched.reschedule_required.sch (s : S) (Q : U64 → U64 → List U64) (R 
 /-- seL4 `possibleSwitchTo` keeps the invariants (the thread is bound: the
 code checks its SC). -/
 theorem sched.possible_switch_to.sch (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) (ht : t ∈ T)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) (ht : t ∈ T)
     (hrun : Runnable (L.mem s (stA t))) :
-    sched.possible_switch_to st s t ⦃ s' => Post st T Cs Ω Sg s s' ∧ L.curW s' = L.curW s ∧ Keeps st T s s' ⦄ := by
+    sched.possible_switch_to st s t ⦃ s' => Post st T Cs Ω H Sg s s' ∧ L.curW s' = L.curW s ∧ Keeps st T s s' ⦄ := by
   unfold sched.possible_switch_to
   step with obj.Tcb.sc.spec as ⟨i, i_post⟩
   split
@@ -596,9 +596,9 @@ theorem sched.possible_switch_to.sch (s : S) (t : obj.Tcb) (Q : U64 → U64 → 
   rename_i hb
   have hr0 : (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64 :=
     not_not.1 (fun hc => hb (by rw [b_post]; exact decide_eq_true hc))
-  have enq : ∀ s1 Q1 R1, SchedQueuesInv st T Cs Ω s1 Q1 R1 → BoundInv st T s1 → Fr st T Sg s s1 →
+  have enq : ∀ s1 Q1 R1, SchedQueuesInv st T Cs Ω H s1 Q1 R1 → BoundInv st T s1 → Fr st T Sg s s1 →
       L.curW s1 = L.curW s → Keeps st T s s1 →
-      sched.enqueue st s1 t ⦃ s' => Post st T Cs Ω Sg s s' ∧ L.curW s' = L.curW s ∧ Keeps st T s s' ⦄ := by
+      sched.enqueue st s1 t ⦃ s' => Post st T Cs Ω H Sg s s' ∧ L.curW s' = L.curW s ∧ Keeps st T s s' ⦄ := by
     intro s1 Q1 R1 h1 hB1 f1 ec1 k1
     have hr1 : (L.mem s1 (inqA t) &&& sched.Q_RELEASE) = 0#u64 := by
       by_contra hc
@@ -626,11 +626,11 @@ theorem sched.possible_switch_to.sch (s : S) (t : obj.Tcb) (Q : U64 → U64 → 
 
 /-- The release-queue loop of seL4 `awaken`. -/
 theorem sched.awaken_loop.sch (s : S) (fuel : U64) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) :
-    sched.awaken_loop st s fuel ⦃ s' => Post st T Cs Ω Sg s s' ∧ L.curW s' = L.curW s ⦄ := by
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) :
+    sched.awaken_loop st s fuel ⦃ s' => Post st T Cs Ω H Sg s s' ∧ L.curW s' = L.curW s ⦄ := by
   unfold sched.awaken_loop
   apply loop.spec_decr_nat (measure := fun x => x.2.val)
-    (inv := fun x => Post st T Cs Ω Sg s x.1 ∧ L.curW x.1 = L.curW s)
+    (inv := fun x => Post st T Cs Ω H Sg s x.1 ∧ L.curW x.1 = L.curW s)
   · rintro ⟨s1, fu⟩ ⟨⟨⟨Q1, R1, h1⟩, hB1, f1⟩, ec1⟩
     have hS1 := hS.fr f1
     unfold sched.awaken_loop.body
@@ -671,7 +671,7 @@ theorem sched.awaken_loop.sch (s : S) (fuel : U64) (Q : U64 → U64 → List U64
   unfold sched.dom_sched_domain; step*
 
 theorem ks_wr_cur_node {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) {o o' v : U64} (ho : o.val < 13568) (h8 : o.val % 8 = 0)
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) {o o' v : U64} (ho : o.val < 13568) (h8 : o.val % 8 = 0)
     (ho' : o'.val < 4288) (h8' : o'.val % 8 = 0) :
     L.mem (L.wr s (core.num.U64.wrapping_add (L.ksb s) o) v)
       (L.nodeAt (L.wr s (core.num.U64.wrapping_add (L.ksb s) o) v)
@@ -683,9 +683,9 @@ theorem ks_wr_cur_node {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
 
 /-- One write to the kernel-global area. -/
 theorem ks_set.sch (s : S) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) {o v : U64}
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) {o v : U64}
     (ho : o.val < 13568) (h8 : o.val % 8 = 0) :
-    obj.ks_set st s o v ⦃ s' => (SchedQueuesInv st T Cs Ω s' Q R ∧ BoundInv st T s' ∧ Fr st T Sg s s') ∧
+    obj.ks_set st s o v ⦃ s' => (SchedQueuesInv st T Cs Ω H s' Q R ∧ BoundInv st T s' ∧ Fr st T Sg s s') ∧
       L.actionW s' = L.actionW s ∧ L.curW s' = L.curW s ⦄ := by
   refine WP.spec_mono (obj.ks_set.spec s o v) fun s' s'_post => ?_
   subst s'_post
@@ -697,8 +697,8 @@ theorem ks_set.sch (s : S) (Q : U64 → U64 → List U64) (R : U64 → List U64)
 
 /-- seL4 `nextDomain`. -/
 theorem sched.next_domain.sch (s : S) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) :
-    sched.next_domain st s ⦃ s' => Post st T Cs Ω Sg s s' ∧ L.actionW s' = L.actionW s ∧ L.curW s' = L.curW s ⦄ := by
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) :
+    sched.next_domain st s ⦃ s' => Post st T Cs Ω H Sg s s' ∧ L.actionW s' = L.actionW s ∧ L.curW s' = L.curW s ⦄ := by
   unfold sched.next_domain
   step with obj.ks_get.spec as ⟨i, _⟩
   step as ⟨idx, _⟩
