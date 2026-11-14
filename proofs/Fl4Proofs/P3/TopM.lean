@@ -370,6 +370,114 @@ theorem handle_invocation_refinesM (s : S) (ar : A) (σ : Fl4Spec.State Unit) (t
 end
 
 
+/-! ## `In` called, with the MDB invariants -/
+
+section
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
+
+/-- **The `In` access and its reply** (for the IPC proofs and the arch
+backend): FL4's `In` of `size` bytes at `port`, called, against the spec's
+restart, `In` invocation and success tail: FL4 is done, its thread no longer
+`Restart`, and the spec has an outcome related to FL4's state. -/
+def PortInCallHypM (s : S) (σ : Fl4Spec.State Unit) (ar : A) (ct port size : U64) (d : Fl4Spec.IoPortInvocationData) :
+    Prop :=
+  portInTail (st := st) arI s ar ct port size true ⦃ res => res.1 = .Ok () ∧
+    L.mem res.2.1 (stA ct) ≠ sched.TS_RESTART ∧ ∀ σ1,
+      Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) →
+      ∃ rr σy, (.ok rr, σy) ∈ ((Fl4Spec.archPerformInvocation (Z := Unit)
+        (.invokeIOPort (.ioPortInvocation (BitVec.ofNat 16 port.val) d))).run σ1).1 ∧
+      ∃ z ∈ (specTail true ct.bv rr σy).1, RelTopM (L := L) res.2.1 z.2 ⦄
+
+/-- **IOPort `In` called** (labels 61..63, `call` true): `DecOKRM`, the reply
+being FL4's own (`PortInCallHypM`). -/
+theorem decode_invocation_ioport_in_callM (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (lbl : U64) (hl : 61 ≤ lbl.val ∧ lbl.val ≤ 63)
+    (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.invocationType slbl = .archInvocationLabel (inLabel (portSz lbl)))
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (hcur : σ.curThread = ct.bv) {tcb : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb tcb))
+    (first last : U64) (hfl : first.val ≤ last.val) (hl16 : last.val < 65536)
+    (hIn : ∀ port : U64, port.val < 65536 →
+      PortInCallHypM (L := L) arI s σ ar ct port ⟨BitVec.ofNat 64 (portSz lbl)⟩ (inData (portSz lbl)))
+    (slot : U64) (blk don fp : Bool) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ci : Fl4Spec.CapRef)
+    (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) :
+    DecOKRM (L := L) arI s ar σ lbl length slot (.IoPort first last) blk true don fp buf extra slbl
+      (args.map UScalar.bv) ci sl excaps buffer ct := by
+  unfold DecOKRM syscall.decode_invocation
+  rw [hct]; simp only [bind_ok]
+  have hsz : portSz lbl = 1 ∨ portSz lbl = 2 ∨ portSz lbl = 4 := by unfold portSz; split_ifs <;> simp
+  have hspec : specDec fp slbl (args.map UScalar.bv) ci sl (.IoPort first last) excaps buffer =
+      Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4ArchInvocation.spec
+        (Fl4Spec.decodePortInvocation slbl (args.map UScalar.bv)
+          (.ioPortCap (BitVec.ofNat 16 first.val) (BitVec.ofNat 16 last.val)))) := rfl
+  rw [hspec, decode_in_eq slbl _ _ hsz hlbl]
+  unfold ioport.decode
+  simp only
+  rw [hct, port_size_eq lbl ⟨hl.1, by omega⟩, is_port_in_eq lbl ⟨hl.1, by omega⟩]
+  simp only [bind_ok]
+  have hszU : (if lbl.val = 61 ∨ lbl.val = 64 then 1#u64 else if lbl.val = 62 ∨ lbl.val = 65 then 2#u64
+      else 4#u64) = ⟨BitVec.ofNat 64 (portSz lbl)⟩ := by
+    unfold portSz; split_ifs <;> rfl
+  rw [hszU]
+  have hsz0 : ¬ (⟨BitVec.ofNat 64 (portSz lbl)⟩ : U64) = 0#u64 := by
+    rw [u64_eq_iff]; show ¬ (BitVec.ofNat 64 (portSz lbl)).toNat = 0
+    rcases hsz with h | h | h <;> rw [h] <;> decide
+  rw [if_neg hsz0, decide_eq_true (by omega : lbl.val ≤ 63)]
+  simp only [↓reduceIte]
+  -- the argument
+  by_cases h1 : length < 1#u64
+  · rw [if_pos h1]; simp only [error.truncated, bind_ok]
+    rw [WP.spec_ok]
+    refine Or.inl ⟨_, rfl, rfl, .truncatedMessage, run_liftME_err (run_liftME_err ?_), Or.inl trivial⟩
+    unfold Fl4Spec.argsAtLeast
+    rw [whenE_pos (show 1 > (args.map UScalar.bv).length by rw [List.length_map, ← hlen]; scalar_tac)]
+    exact run_bind_error (m := (Fl4Spec.NonDetE.throwError Fl4Spec.SyscallError.truncatedMessage :
+      Fl4Spec.SEMonad Unit Unit)) rfl _
+  rw [if_neg h1]
+  obtain ⟨y0, rest, rfl⟩ : ∃ y0 rest, args = y0 :: rest := by
+    match args with
+    | [] => exfalso; simp at hlen; scalar_tac
+    | y0 :: rest => exact ⟨y0, rest, rfl⟩
+  simp only [hargs 0#u64 y0 (by simp), lift, bind_ok]
+  unfold Fl4Spec.argsAtLeast
+  rw [whenE_neg (show ¬ 1 > ((y0 :: rest).map UScalar.bv).length by simp), retOk_bind, retOk_bind]
+  have hmap : List.map UScalar.bv (y0 :: rest) = y0.bv :: rest.map UScalar.bv := rfl
+  have g0 : (y0.bv :: rest.map UScalar.bv)[0]? = some y0.bv := rfl
+  rw [hmap, g0, the_some]
+  set port := y0 &&& 65535#u64 with hport
+  have hpv : port.val < 65536 := by rw [hport, and_ffff]; omega
+  have hp16 : (Fl4Spec.ucast 16 y0.bv : BitVec 16) = BitVec.ofNat 16 port.val := by
+    apply BitVec.eq_of_toNat_eq; rw [ucast16_toNat, BitVec.toNat_ofNat, hport, and_ffff]; omega
+  rw [hp16]
+  have hszv : (⟨BitVec.ofNat 64 (portSz lbl)⟩ : U64).val = portSz lbl := by
+    show (BitVec.ofNat 64 (portSz lbl)).toNat = _
+    rw [BitVec.toNat_ofNat]; rcases hsz with h | h | h <;> rw [h]
+  rw [allowed_eq first last port _ hl16 hpv (by rw [hszv]; exact hsz)]
+  simp only [hszv, bind_ok]
+  have hens := ensure_run first last hfl hl16 port hpv hsz σ
+  by_cases hc : port.val < first.val ∨ port.val + portSz lbl - 1 > last.val
+  · rw [if_pos hc]
+    simp only [core.result.Result.Insts.CoreOpsTry.branch,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
+      core.convert.FromSame.from, bind_ok, bind_tc_ok]
+    rw [if_pos hc] at hens
+    rw [WP.spec_ok]
+    exact Or.inl ⟨_, rfl, rfl, .illegalOperation, run_liftME_err (run_liftME_err (run_bind_error hens _)),
+      Or.inl trivial⟩
+  rw [if_neg hc]
+  rw [if_neg hc] at hens
+  simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+  refine WP.spec_mono (hIn port hpv) ?_
+  rintro res ⟨hres, hne, hall⟩
+  obtain ⟨σ1, hst, -⟩ := setThreadState_eq σ ct.bv tcb hkt .restart
+  obtain ⟨rr, σy, hy, z, hz, hRT⟩ := hall σ1 hst
+  refine Or.inr ⟨hres, hne, .invokeArchObject (.spec (.invokeIOPort (.ioPortInvocation (BitVec.ofNat 16 port.val)
+    (inData (portSz lbl))))), ?_, σ1, by rw [hcur]; exact hst, rr, σy, hy, z, hz, hRT⟩
+  exact DecOut.of_eq (run_liftME_ok (run_liftME_ok ((run_bind_ok hens _).trans rfl)))
+
+end
+
 end
 
 end Fl4Proofs.P3

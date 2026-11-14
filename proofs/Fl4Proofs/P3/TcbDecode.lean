@@ -359,7 +359,7 @@ theorem decode_invocation_thread (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl
     exact Or.inl ⟨_, rfl, rfl, _, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩
 
 
-/-- **The Thread cap**, with the frame invariant (`DecOKM`). -/
+/-- **The Thread cap**, with the MDB invariants (`DecOKM`). -/
 theorem decode_invocation_threadF (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl length slot : U64) (p : U64)
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ct : U64)
     (hct : sched.cur_thread st s = ok ct) (slbl : Fl4Spec.Data) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
@@ -375,6 +375,17 @@ theorem decode_invocation_threadF (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lb
   · simp only [↓reduceIte]
     rw [WP.spec_ok]
     exact Or.inl ⟨_, rfl, rfl, _, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩
+
+/-- **The Thread cap with the MDB invariants** (`DecOKM`): `decode_invocation_threadF`
+under its M name. -/
+theorem decode_invocation_threadM (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl length slot : U64) (p : U64)
+    (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ct : U64)
+    (hct : sched.cur_thread st s = ok ct) (slbl : Fl4Spec.Data) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
+    (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
+    (h : fp = false → TcbOKF (L := L) arI s ar σ lbl p ⟨length, buf, call, slot, extra⟩ blk call don slbl args ci sl
+      excaps buffer) :
+    DecOKM (L := L) arI s ar σ lbl length slot (.Thread p) blk call don fp buf extra slbl args ci sl excaps buffer :=
+  decode_invocation_threadF arI s ar σ lbl length slot p blk call don fp buf extra ct hct slbl args ci sl excaps buffer h
 
 end
 
