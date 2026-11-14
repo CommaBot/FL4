@@ -128,6 +128,10 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
 * ScSpecStep: `ScSpecHyp` (`scSpecHyp_of`): the SC step's no-change and
   unbind cases (`PresV`/`VK` across `set_mcpriority` and `set_priority`), the
   bind as `BindSpecHyp`.
+* ScBindSpec: `BindSpecHyp` (`bindSpecHyp_of`): the spec's SC bind has an
+  outcome (`schedContextBindTcb_some`: the merge loop, the unblock check,
+  `sched_context_resume`/`postpone`, `ActReady` before the final
+  `reschedule_required`), from `BindOK` after the install.
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
@@ -155,3 +159,4 @@ import Fl4Proofs.P3.ScTcb
 import Fl4Proofs.P3.ScTcbHyp
 import Fl4Proofs.P3.ScTopF
 import Fl4Proofs.P3.ScSpecStep
+import Fl4Proofs.P3.ScBindSpec
