@@ -410,15 +410,15 @@ theorem mem_insPrio {pr : U64 → U64} {p t : U64} {xs : List U64} {y : U64} :
 its footprint `EpFoot`, that leaves the queue holding `xs'`: some old members,
 the others joining the exception set. -/
 theorem inv_ep_step {Cs X X' : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
-    {E : Set U64} {EQ : U64 → List U64} {e : U64} {xs' : List U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (hEW : EpsWit st T Cs Ω X s E EQ) (he : e ∈ E)
+    {E : Set U64} {EQ : U64 → List U64} {K : U64 → Bool} {e : U64} {xs' : List U64}
+    (h : SchedQueuesInvX st T Cs Ω X s Q R) (hEW : EpsWit st T Cs Ω X s E EQ K) (he : e ∈ E)
     (hw : WritesIn st s s' (EpFoot (EQ e) e))
-    (hq' : QueueRel (L.mem s') T .Ep (L.epQ s' e) xs')
+    (hq' : QueueRel (L.mem s') T .Ep (L.epQ s' e) xs') (hst : xs' ≠ [] → L.epState s' e = L.epState s e)
     (hsub : ∀ y ∈ xs', y ∈ EQ e) (hrest : ∀ y ∈ EQ e, y ∉ xs' → y ∈ X')
     (hXX : ∀ y, y ∈ X → y ∈ X') (hXn : ∀ y, y ∈ X' → y ∈ X ∨ y ∈ EQ e) (hx' : ∀ y ∈ xs', y ∉ X') :
     SchedQueuesInvX st T Cs Ω X' s' Q R := by
   have hT := h.tcbs
-  obtain ⟨w1, w2, w5, w3, w4⟩ := hEW
+  obtain ⟨w1, w2, w5, w3, w4, w6⟩ := hEW
   obtain ⟨hE, hEN, hq⟩ := w1 e he
   have hWT : ∀ w ∈ EQ e, w ∈ T := hq.mem
   have epv : ∀ (e' a : U64), EpPlaced T e' → (a = epHeadA e' ∨ a = epTSA e') →
@@ -485,7 +485,19 @@ theorem inv_ep_step {Cs X X' : Set U64} {s s' : S} {Q : U64 → U64 → List U64
     (by rw [hw.2.1, nodeAt_of_ksb hw.1, nod _ h.cur _ (by rw [idle8]; omega) (by rw [idle8])]; exact h.idleT)
   · rw [nextA_eq']; exact fld y hy _ (by simp [nextOff]) (by simp [nextOff]) (by simp [nextOff]) (by simp [nextOff])
   · rw [prevA_eq']; exact fld y hy _ (by simp [prevOff]) (by simp [prevOff]) (by simp [prevOff]) (by simp [prevOff])
-  refine ⟨E, Function.update EQ e xs', fun e' he' => ?_, w2, w5, fun e' he' y hy => ?_, fun y hy hyX hb => ?_⟩
+  refine ⟨E, Function.update EQ e xs', K, fun e' he' => ?_, w2, w5, fun e' he' y hy => ?_, fun y hy hyX hb => ?_,
+    w6.agree (fun y hy => Or.inl (fun hX => hy (hXX y hX))) (fun y hy _ _ => hsb y hy) (fun e' he' y hy => ?_)
+      (fun e' he' y hy => ?_) (fun e' he' hne => ?_)⟩
+  rotate_left 3
+  · by_cases hee : e' = e
+    · subst hee; rw [Function.update_self] at hy; exact hsub y hy
+    · rw [Function.update_of_ne hee] at hy; exact hy
+  · by_cases hee : e' = e
+    · subst hee; rw [Function.update_self] at hy; exact (hsb y (hq'.mem y hy)).1
+    · rw [Function.update_of_ne hee] at hy; exact (hsb y ((w1 e' he').2.2.mem y hy)).1
+  · by_cases hee : e' = e
+    · subst hee; rw [Function.update_self] at hne; exact hst hne
+    · simp only [LawfulStore.epState, oth e' he' hee _ (Or.inr rfl)]
   · refine ⟨(w1 e' he').1, ⟨fun c hc => by rw [hnb]; exact (w1 e' he').2.1.1 c hc, by rw [hw.1]; exact (w1 e' he').2.1.2⟩, ?_⟩
     by_cases hee : e' = e
     · subst hee; rw [Function.update_self]; exact hq'
@@ -618,17 +630,17 @@ theorem blocked_path_ep {Cs X : Set U64} (s : S) (t : obj.Tcb) (prio : U64) (Q :
   subst s1_post
   have h1 := inv_wr_prio h ht hq0 hv
   obtain ⟨hbl, hstt⟩ := prio_wr_eps (prio := prio) h ht
-  obtain ⟨E, EQ, hEW⟩ := h1.eps
+  obtain ⟨E, EQ, K, hEW⟩ := h1.eps
   have hEW' := hEW
-  obtain ⟨w1, -, -, -, w4⟩ := hEW
+  obtain ⟨w1, -, -, -, w4, -⟩ := hEW
   obtain ⟨heE, htm⟩ := w4 t ht htX (by rw [hstt]; exact hb)
   obtain ⟨hE, -, hq⟩ := w1 _ heE
   step as ⟨i, i_post⟩
   subst i_post
   refine WP.spec_mono (WP.spec_and (endpoint.reorder_ep.rel _ _ t _ hT hE hq htm)
     (endpoint.reorder_ep.foot _ _ t _ hT hE hq htm)) ?_
-  rintro s' ⟨⟨hq', -⟩, hw⟩
-  refine ⟨Q, inv_ep_step h1 hEW' heE hw hq' (fun y hy => ?_) (fun y hy hn => ?_) (fun y hy => hy)
+  rintro s' ⟨⟨hq', hst'⟩, hw⟩
+  refine ⟨Q, inv_ep_step h1 hEW' heE hw hq' (fun _ => hst') (fun y hy => ?_) (fun y hy hn => ?_) (fun y hy => hy)
     (fun y hy => Or.inl hy) (fun y hy => ?_)⟩
   · rcases mem_insPrio.1 hy with rfl | hy'
     · exact htm
@@ -654,17 +666,17 @@ theorem blocked_path_ntfn {Cs X : Set U64} (s : S) (t : obj.Tcb) (prio : U64) (Q
   subst s1_post
   have h1 := inv_wr_prio h ht hq0 hv
   obtain ⟨hbl, hstt⟩ := prio_wr_eps (prio := prio) h ht
-  obtain ⟨E, EQ, hEW⟩ := h1.eps
+  obtain ⟨E, EQ, K, hEW⟩ := h1.eps
   have hEW' := hEW
-  obtain ⟨w1, -, -, -, w4⟩ := hEW
+  obtain ⟨w1, -, -, -, w4, -⟩ := hEW
   obtain ⟨heE, htm⟩ := w4 t ht htX (by rw [hstt]; exact hb)
   obtain ⟨hE, -, hq⟩ := w1 _ heE
   step as ⟨i, i_post⟩
   subst i_post
   refine WP.spec_mono (WP.spec_and (notification.reorder_ntfn.rel _ _ t _ hT hE hq htm)
     (notification.reorder_ntfn.foot _ _ t _ hT hE hq htm)) ?_
-  rintro s' ⟨⟨hq', -⟩, hw⟩
-  refine ⟨Q, inv_ep_step h1 hEW' heE hw hq' (fun y hy => ?_) (fun y hy hn => ?_) (fun y hy => hy)
+  rintro s' ⟨⟨hq', hst'⟩, hw⟩
+  refine ⟨Q, inv_ep_step h1 hEW' heE hw hq' (fun _ => hst') (fun y hy => ?_) (fun y hy hn => ?_) (fun y hy => hy)
     (fun y hy => Or.inl hy) (fun y hy => ?_)⟩
   · rcases mem_insPrio.1 hy with rfl | hy'
     · exact htm
@@ -1196,7 +1208,7 @@ theorem inv_set_state {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R
     · subst hyt; rw [hstt]; exact h1 rfl
     · rw [hst y hy hyt]; exact h2
   -- `t` is in no endpoint queue.
-  obtain ⟨E, EQ, w1, w2, w5, w3, w4⟩ := h.eps
+  obtain ⟨E, EQ, K, w1, w2, w5, w3, w4, w6⟩ := h.eps
   have htm : ∀ e ∈ E, t ∉ EQ e := by
     intro e he hm
     have := w3 e he t hm
@@ -1219,7 +1231,21 @@ theorem inv_set_state {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R
       (fun e => node_ne_field (h.nodes c hc) h1 ht hta (by simp) (UScalar.eq_of_val_eq e).symm)
   have hnb : ∀ c, L.nodeBase (L.wr s (core.num.U64.wrapping_add t 3328#u64) v) c = L.nodeBase s c :=
     fun c => by simp [LawfulStore.nodeBase]
-  refine ⟨E, EQ, fun e' he' => ?_, w2, w5, fun e' he' y hy => ?_, fun y hy hyX hb => ?_⟩
+  refine ⟨E, EQ, K, fun e' he' => ?_, w2, w5, fun e' he' y hy => ?_, fun y hy hyX hb => ?_,
+    w6.agree (fun y hy => ?_) (fun y hy hyX hb => ?_) (fun _ _ _ hy => hy) (fun e' he' y hy => ?_)
+      (fun e' he' _ => ?_)⟩
+  rotate_left 3
+  · by_cases hyt : y = t
+    · subst hyt; right; rw [hstt]; exact hv
+    · left; exact fun hX => hy ⟨hX, hyt⟩
+  · by_cases hyt : y = t
+    · subst hyt; rw [hstt] at hb; exact absurd hb hv
+    · exact ⟨hst y hy hyt, hbl y hy⟩
+  · exact hst y ((w1 e' he').2.2.mem y hy) (fun e2 => htm e' he' (e2 ▸ hy))
+  · obtain ⟨hE, hEN, -⟩ := w1 e' he'
+    obtain ⟨-, o2⟩ := ep_out hE hEN
+    simp only [LawfulStore.epState]
+    rw [L.mem_wr_ne ha o2.1 (out_ne_field o2 ht hta (by simp))]
   · obtain ⟨hE, hEN, hq2⟩ := w1 e' he'
     obtain ⟨o1, o2⟩ := ep_out hE hEN
     have eq : L.epQ (L.wr s (core.num.U64.wrapping_add t 3328#u64) v) e' = L.epQ s e' := by
@@ -1366,9 +1392,27 @@ theorem inv_of_free {Cs X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {
           (by rw [idle8]; simp [LowFree])]; exact h.idleT)
   · rw [nextA_eq']; exact fld y hy _ (by simp [nextOff]) (by simp [nextOff])
   · rw [prevA_eq']; exact fld y hy _ (by simp [prevOff]) (by simp [prevOff])
-  obtain ⟨E, EQ, w1, w2, w5, w3, w4⟩ := h.eps
+  obtain ⟨E, EQ, K, w1, w2, w5, w3, w4, w6⟩ := h.eps
   have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp [LawfulStore.nodeBase, hw.1]
-  refine ⟨E, EQ, fun e he => ?_, w2, w5, fun e he y hy => ?_, fun y hy hyX hb => ?_⟩
+  have ewg : ∀ e ∈ E, ∀ a, (a = epHeadA e ∨ a = epTSA e) → L.mem s' a = L.mem s a := by
+    intro e he a ha
+    obtain ⟨hE, hEN, hq⟩ := w1 e he
+    obtain ⟨a1, a2⟩ := ep_aligned hE
+    have hal : Aligned a := by rcases ha with rfl | rfl <;> assumption
+    have hav : a.val = e.val ∨ a.val = e.val + 8 := by
+      rcases ha with rfl | rfl
+      · exact Or.inl epHeadA_val
+      · exact Or.inr (epTSA_val hE)
+    refine hw.mem_eq hal ?_
+    rintro (hm | ⟨c, hc, o, ho, e2⟩)
+    · have := w5 e he a hm; omega
+    · have := congrArg UScalar.val e2
+      rw [nodeAt_val (h.nodes c hc) (by simp only [LowFree] at ho; omega)] at this
+      have := hEN.1 c hc; simp only [LowFree] at ho; omega
+  refine ⟨E, EQ, K, fun e he => ?_, w2, w5, fun e he y hy => ?_, fun y hy hyX hb => ?_,
+    w6.agree (fun y hy => Or.inl hy) (fun y hy _ _ => hsb y hy) (fun _ _ _ hy => hy)
+      (fun e he y hy => (hsb y ((w1 e he).2.2.mem y hy)).1)
+      (fun e he _ => by simp only [LawfulStore.epState, ewg e he _ (Or.inr rfl)])⟩
   · obtain ⟨hE, hEN, hq⟩ := w1 e he
     obtain ⟨a1, a2⟩ := ep_aligned hE
     have ew : ∀ a, (a = epHeadA e ∨ a = epTSA e) → L.mem s' a = L.mem s a := by

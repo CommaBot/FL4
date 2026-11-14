@@ -130,21 +130,68 @@ def EpOutNodes (st : machine.Store S) [L : LawfulStore st] (Cs : Set U64) (s : S
   (∀ c ∈ Cs, ep.val + 16 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ ep.val) ∧
     (ep.val + 16 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ ep.val)
 
+/-- Endpoint/notification typing and the same-state clause (l4v `valid_ep`,
+`valid_ntfn`, with the encoding of P3's `EpObjRel` / `NtfnObjRel`): `K e`
+says the object at `e` is an endpoint; a thread blocked on send or receive
+(outside `X`) waits on an endpoint, one blocked on a notification on a
+notification; the members of a queue share their state, and the object's
+state word is send (1) or receive (2) for an endpoint, waiting (1) for a
+notification. -/
+def EpTy (st : machine.Store S) [L : LawfulStore st] (T X : Set U64) (s : S) (E : Set U64)
+    (EQ : U64 → List U64) (K : U64 → Bool) : Prop :=
+  (∀ t ∈ T, t ∉ X → (L.mem s (stA t) = sched.TS_BLOCKED_ON_SEND ∨ L.mem s (stA t) = sched.TS_BLOCKED_ON_RECV) →
+    K (L.mem s (blockA t)) = true) ∧
+  (∀ t ∈ T, t ∉ X → L.mem s (stA t) = sched.TS_BLOCKED_ON_NTFN → K (L.mem s (blockA t)) = false) ∧
+  (∀ e ∈ E, ∀ y ∈ EQ e, ∀ z ∈ EQ e, L.mem s (stA y) = L.mem s (stA z)) ∧
+  (∀ e ∈ E, ∀ y ∈ EQ e, (L.mem s (stA y) = sched.TS_BLOCKED_ON_SEND → L.epState s e = 1#u64) ∧
+    (L.mem s (stA y) = sched.TS_BLOCKED_ON_RECV → L.epState s e = 2#u64) ∧
+    (L.mem s (stA y) = sched.TS_BLOCKED_ON_NTFN → L.epState s e = 1#u64))
+
 /-- The endpoint and notification queues: some set `E` of placed, disjoint
 objects whose queues hold the ghost lists `EQ e`; the members of `EQ e` are
 blocked on `e`, and every blocked thread outside the exception set `X` is a
 member of the queue of the object it is blocked on (seL4 `valid_ep_q`,
-`valid_ntfn_q`, `st_tcb_at` of the queue members). -/
+`valid_ntfn_q`, `st_tcb_at` of the queue members); and `EpTy`. -/
 def EpsWit (st : machine.Store S) [L : LawfulStore st] (T Cs Ω X : Set U64) (s : S) (E : Set U64)
-    (EQ : U64 → List U64) : Prop :=
+    (EQ : U64 → List U64) (K : U64 → Bool) : Prop :=
     (∀ e ∈ E, EpPlaced T e ∧ EpOutNodes st Cs s e ∧ QueueRel (L.mem s) T .Ep (L.epQ s e) (EQ e)) ∧
     (∀ e ∈ E, ∀ e' ∈ E, e ≠ e' → e.val + 16 ≤ e'.val ∨ e'.val + 16 ≤ e.val) ∧
     (∀ e ∈ E, ∀ a ∈ Ω, a.val + 8 ≤ e.val ∨ e.val + 16 ≤ a.val) ∧
     (∀ e ∈ E, ∀ t ∈ EQ e, t ∉ X ∧ L.mem s (blockA t) = e ∧ Blocked (L.mem s (stA t))) ∧
-    (∀ t ∈ T, t ∉ X → Blocked (L.mem s (stA t)) → L.mem s (blockA t) ∈ E ∧ t ∈ EQ (L.mem s (blockA t)))
+    (∀ t ∈ T, t ∉ X → Blocked (L.mem s (stA t)) → L.mem s (blockA t) ∈ E ∧ t ∈ EQ (L.mem s (blockA t))) ∧
+    EpTy st T X s E EQ K
 
 def EpsOK (st : machine.Store S) [L : LawfulStore st] (T Cs Ω X : Set U64) (s : S) : Prop :=
-  ∃ (E : Set U64) (EQ : U64 → List U64), EpsWit st T Cs Ω X s E EQ
+  ∃ (E : Set U64) (EQ : U64 → List U64) (K : U64 → Bool), EpsWit st T Cs Ω X s E EQ K
+
+/-- `EpTy` only reads the states and block objects of the TCBs, the queue
+lists and the state words of the objects. -/
+theorem EpTy.agree {X X' : Set U64} {s s' : S} {E : Set U64} {EQ EQ' : U64 → List U64} {K : U64 → Bool}
+    (h : EpTy st T X s E EQ K) (hX : ∀ y, y ∉ X' → y ∉ X ∨ ¬ Blocked (L.mem s' (stA y)))
+    (hsb : ∀ y ∈ T, y ∉ X' → Blocked (L.mem s' (stA y)) →
+      L.mem s' (stA y) = L.mem s (stA y) ∧ L.mem s' (blockA y) = L.mem s (blockA y))
+    (hq : ∀ e ∈ E, ∀ y ∈ EQ' e, y ∈ EQ e)
+    (hqs : ∀ e ∈ E, ∀ y ∈ EQ' e, L.mem s' (stA y) = L.mem s (stA y))
+    (hst : ∀ e ∈ E, EQ' e ≠ [] → L.epState s' e = L.epState s e) : EpTy st T X' s' E EQ' K := by
+  obtain ⟨k1, k2, k3, k4⟩ := h
+  have bl1 : ∀ v : U64, (v = sched.TS_BLOCKED_ON_SEND ∨ v = sched.TS_BLOCKED_ON_RECV) → Blocked v := by
+    rintro v (e | e)
+    · exact Or.inl e
+    · exact Or.inr (Or.inl e)
+  refine ⟨fun y hy hyX hs => ?_, fun y hy hyX hs => ?_, fun e he y hy z hz => ?_, fun e he y hy => ?_⟩
+  · have hb := bl1 _ hs
+    obtain ⟨e1, e2⟩ := hsb y hy hyX hb
+    rcases hX y hyX with hx | hx
+    · rw [e1] at hs; rw [e2]; exact k1 y hy hx hs
+    · exact absurd hb hx
+  · have hb : Blocked (L.mem s' (stA y)) := Or.inr (Or.inr hs)
+    obtain ⟨e1, e2⟩ := hsb y hy hyX hb
+    rcases hX y hyX with hx | hx
+    · rw [e1] at hs; rw [e2]; exact k2 y hy hx hs
+    · exact absurd hb hx
+  · rw [hqs e he y hy, hqs e he z hz]; exact k3 e he y (hq e he y hy) z (hq e he z hz)
+  · have hne : EQ' e ≠ [] := List.ne_nil_of_mem hy
+    rw [hqs e he y hy, hst e he hne]; exact k4 e he y (hq e he y hy)
 
 /-- The scheduler queues of all cores `Cs`, as ghost lists `Q c p` (ready
 queue of priority `p` on core `c`) and `R c` (release queue of core `c`),
@@ -276,9 +323,11 @@ theorem EpsOK.agree {Cs X : Set U64} {s s' : S} (h : EpsOK st T Cs Ω X s) (hk :
     (hsb : ∀ y ∈ T, L.mem s' (stA y) = L.mem s (stA y) ∧ L.mem s' (blockA y) = L.mem s (blockA y))
     (hEp : ∀ y ∈ T, L.mem s' (nextA .Ep y) = L.mem s (nextA .Ep y) ∧ L.mem s' (prevA .Ep y) = L.mem s (prevA .Ep y))
     (hout : ∀ a, OutsideObjs st T Cs s a → L.mem s' a = L.mem s a) : EpsOK st T Cs Ω X s' := by
-  obtain ⟨E, EQ, h1, h2, h5, h3, h4⟩ := h
+  obtain ⟨E, EQ, K, h1, h2, h5, h3, h4, h6⟩ := h
   have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp [LawfulStore.nodeBase, hk]
-  refine ⟨E, EQ, fun e he => ?_, h2, h5, fun e he y hy => ?_, fun y hy hyX hb => ?_⟩
+  refine ⟨E, EQ, K, fun e he => ?_, h2, h5, fun e he y hy => ?_, fun y hy hyX hb => ?_,
+    h6.agree (fun y hy => Or.inl hy) (fun y hy _ _ => hsb y hy) (fun _ _ _ hy => hy)
+      (fun e he y hy => (hsb y (((h1 e he).2.2).mem y hy)).1) (fun e he _ => ?_)⟩
   · obtain ⟨hE, hEN, hq⟩ := h1 e he
     obtain ⟨o1, o2⟩ := ep_out hE hEN
     have eq : L.epQ s' e = L.epQ s e := by simp only [LawfulStore.epQ, hout _ o1, hout _ o2]
@@ -290,6 +339,9 @@ theorem EpsOK.agree {Cs X : Set U64} {s s' : S} (h : EpsOK st T Cs Ω X s) (hk :
     rw [(hsb y hyT).1, (hsb y hyT).2]; exact h3 e he y hy
   · rw [(hsb y hy).1] at hb
     rw [(hsb y hy).2]; exact h4 y hy hyX hb
+  · obtain ⟨hE, hEN, -⟩ := h1 e he
+    obtain ⟨-, o2⟩ := ep_out hE hEN
+    simp only [LawfulStore.epState, hout _ o2]
 
 /-- What a queue operation's footprint leaves of the new parts. -/
 theorem ext_qfoot {Cs : Set U64} {s s' : S} {W : List U64} {c t : U64} {P : Nat → Prop} (hT : TcbPlaced T)

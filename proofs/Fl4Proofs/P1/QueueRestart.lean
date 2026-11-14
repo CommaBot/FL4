@@ -73,6 +73,64 @@ theorem sched.is_stopped.spec (s : S) (t : obj.Tcb) :
     · rename_i _ _ e; simp only [WP.spec_ok]; intro _; rw [← v_post]; exact nb _ (Or.inr (Or.inr (Or.inl e)))
     · simp only [WP.spec_ok]; intro e; rw [← v_post]; exact nb _ (Or.inr (Or.inr (Or.inr (by simpa using e))))
 
+
+/-! ## `SCsOK` across the steps of `restart` -/
+
+theorem SCsOK.keepT {s s' : S} {t : U64} (hS : SCsOK st T Ω Sg Z s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (k : KeepT st T Rp Scs t s s') : SCsOK st T Ω Sg Z s' := by
+  have wf : ∀ c ∈ Scs, RefillsWF st s c (Z c) → RefillsWF st s' c (Z c) := fun c hc hW => by
+    obtain ⟨-, -, f3, f4, f5⟩ := k.fix c hc
+    exact hW.of_hdr f3 (by rw [show L.rhead s' c = L.mem s' (headA c) from rfl, f4]; exact hW.head_lt)
+      (by rw [show L.rtail s' c = L.mem s' (tailA c) from rfl, f5]; exact hW.tail_lt)
+  refine ⟨hS.sub, fun b hb => by rw [k.ksb]; exact hS.ks b hb, fun o h1 h2 => by rw [k.ksb]; exact hS.ksΩ o h1 h2,
+    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_⟩
+  · rw [k.scf hy] at hb ⊢
+    exact ⟨wf _ (hX.2.2.bound y hy hb).1 (hS.bound y hy hb).1, (hS.bound y hy hb).2⟩
+  · rw [k.cscW]; exact ⟨wf _ hX.2.2.cur hS.cur.1, hS.cur.2⟩
+  · rw [k.scf hy] at hb hne ⊢; rw [k.cscW] at hne ⊢; exact hS.disj y hy hb hne
+
+/-- `SCsOK` after writes to the ring of the SC object `i` (kept well formed)
+and to the current node's `REPROGRAM`. -/
+theorem SCsOK.ring {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {i : U64}
+    (h : SchedQueuesInv st T Cs Ω s Q R) (hS : SCsOK st T Ω Sg Z s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (hi : i ∈ Scs) (w : WritesIn st s s' (fun b => InRing i (Z i) b ∨ b = L.nodeA s layout.node.REPROGRAM))
+    (hwi : RefillsWF st s' i (Z i)) : SCsOK st T Ω Sg Z s' := by
+  obtain ⟨hO, -, hE⟩ := hX
+  have hN' := h.nodes _ h.cur
+  have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
+  have nr : ∀ b, Aligned b → (InRing i (Z i) b ∨ b = L.nodeA s layout.node.REPROGRAM) →
+      ∀ y ∈ T, ∀ K : U64, K.val < 4096 → b ≠ core.num.U64.wrapping_add y K := by
+    rintro b hb (hh | rfl) y hy K hK e
+    · exact out_ne_field (h.omega _ (hO.scW i hi b hb hh.inSC)) hy (h.tcbs y hy) hK (by rw [e])
+    · exact node_ne_field hN' (by rw [rp]; omega) hy (h.tcbs y hy) hK e
+  have fld : ∀ y ∈ T, L.mem s' (scA y) = L.mem s (scA y) := fun y hy =>
+    w.mem_eq (scA_aligned (h.tcbs y hy)) fun hh => nr _ (scA_aligned (h.tcbs y hy)) hh y hy _ (by simp) (scA_eq y)
+  have csc : L.cscW s' = L.cscW s := by
+    unfold LawfulStore.cscW; rw [cscW_eq w.1 w.2.1]
+    have aC : Aligned (L.nodeA s layout.node.CUR_SC) :=
+      nodeAt_aligned hN' (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
+    refine w.mem_eq aC ?_
+    rintro (hh | hh)
+    · exact out_ne_node (h.omega _ (hO.scW i hi _ aC hh.inSC)) h.cur hN' (by simp [layout.node.CUR_SC]) rfl
+    · have := congrArg UScalar.val hh
+      simp only [LawfulStore.nodeA] at this
+      rw [nodeAt_val hN' (by simp [layout.node.CUR_SC]), nodeAt_val hN' (by rw [rp]; omega), rp] at this
+      simp [layout.node.CUR_SC] at this
+  have wf : ∀ c ∈ Scs, RefillsWF st s c (Z c) → RefillsWF st s' c (Z c) := by
+    intro c hc hW
+    by_cases e : c = i
+    · subst e; exact hwi
+    refine hW.writesIn w fun b hb hh => ?_
+    rcases hh with hh | rfl
+    · have := hO.scDisj c hc i hi e; unfold Outside; unfold InRing at hh; omega
+    · exact SCin.node_out ⟨hW, hO.scW c hc⟩ h.omega h.cur hN' (by rw [rp]; omega) (by rw [rp])
+  refine ⟨hS.sub, fun b hb => by rw [w.1]; exact hS.ks b hb, fun o h1 h2 => by rw [w.1]; exact hS.ksΩ o h1 h2,
+    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_⟩
+  · rw [fld y hy] at hb ⊢
+    exact ⟨wf _ (hE.bound y hy hb).1 (hS.bound y hy hb).1, (hS.bound y hy hb).2⟩
+  · rw [csc]; exact ⟨wf _ hE.cur hS.cur.1, hS.cur.2⟩
+  · rw [fld y hy] at hb hne ⊢; rw [csc] at hne ⊢; exact hS.disj y hy hb hne
+
 /-! ## `postpone` and `resume` -/
 
 /-- `postpone`, with `BoundInv` and `XInv`: the SC's thread is bound. -/
@@ -84,7 +142,7 @@ theorem sched.postpone.all (s : S) (sc : obj.Sc) (Q : U64 → U64 → List U64)
     (hrun : Runnable (L.mem s (stA (L.mem s (scTcbA sc))))) (hna : L.actionW s ≠ L.mem s (scTcbA sc))
     (hbd : L.mem s (scA (L.mem s (scTcbA sc))) ≠ 0#u64) :
     sched.postpone st s sc ⦃ s' => ∃ Q' R', SchedQueuesInv st T Cs Ω s' Q' R' ∧ BoundInv st T s' ∧
-      XInv st T Cs Ω Sg Rp Scs Z s' ∧ SgOK st Ω Sg s' ⦄ := by
+      XInv st T Cs Ω Sg Rp Scs Z s' ∧ SgOK st Ω Sg s' ∧ Fr st T Sg s s' ⦄ := by
   unfold sched.postpone
   step as ⟨t, t_post⟩
   subst t_post
@@ -169,7 +227,9 @@ theorem sched.postpone.all (s : S) (sc : obj.Sc) (Q : U64 → U64 → List U64)
   exact ⟨_, _, inv_wr_node_low h2 hcs (by rw [repr_val]; omega) (by rw [repr_val]; omega) (by rw [repr_val])
     (by rw [e]; exact h2.action) (by rw [e]; exact h2.actOK) (by rw [o0]; exact h2.curT) (by rw [o8]; exact h2.idleT),
     hB3, hX3, ⟨hSg2.sub, fun b hb => by rw [L.ksb_wr]; exact hSg2.ks b hb,
-      fun o h1' h2' => by rw [L.ksb_wr]; exact hSg2.ksΩ o h1' h2'⟩⟩
+      fun o h1' h2' => by rw [L.ksb_wr]; exact hSg2.ksΩ o h1' h2'⟩,
+    fr1.trans (fr2.trans (fr_node h2 hSg2 hcs (by rw [repr_val]; omega) (by rw [repr_val])
+      (fun _ => by rw [repr_val]; omega)))⟩
 
 /-- seL4 `schedContext_resume`, with `BoundInv` and `XInv`. -/
 theorem schedcontext.resume.all (hA : P0.ArchTotal ar) (s : S) (a : A) (sc : obj.Sc)
@@ -179,17 +239,17 @@ theorem schedcontext.resume.all (hA : P0.ArchTotal ar) (s : S) (a : A) (sc : obj
       L.mem s (scTcbA sc) ∈ T ∧ OutsideObjs st T Cs s (scCoreA sc) ∧ L.mem s (scCoreA sc) ∈ Cs ∧
         L.actionW s ≠ L.mem s (scTcbA sc)) :
     schedcontext.resume st ar s a sc ⦃ s' _ => ∃ Q' R', SchedQueuesInv st T Cs Ω s' Q' R' ∧
-      BoundInv st T s' ∧ XInv st T Cs Ω Sg Rp Scs Z s' ∧ SgOK st Ω Sg s' ⦄ := by
+      BoundInv st T s' ∧ XInv st T Cs Ω Sg Rp Scs Z s' ∧ SgOK st Ω Sg s' ∧ Fr st T Sg s s' ⦄ := by
   unfold schedcontext.resume
   step with obj.Sc.is_null.spec as ⟨b, b_post⟩
   split
-  · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨Q, R, h, hB, hX, hSg⟩
+  · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨Q, R, h, hB, hX, hSg, Fr.refl _ _⟩
   rename_i hb
   have hsc0 : sc ≠ 0#u64 := by simpa [b_post] using hb
   step with obj.Sc.tcb.spec as ⟨i, i_post⟩
   step with obj.Tcb.is_null.spec as ⟨b1, b1_post⟩
   split
-  · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨Q, R, h, hB, hX, hSg⟩
+  · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨Q, R, h, hB, hX, hSg, Fr.refl _ _⟩
   rename_i hb1
   have hi0 : L.mem s (scTcbA sc) ≠ 0#u64 := by rw [← i_post]; simpa [b1_post] using hb1
   obtain ⟨hiT, hcore, hcs, hna⟩ := hsc hsc0 hi0
@@ -203,10 +263,10 @@ theorem schedcontext.resume.all (hA : P0.ArchTotal ar) (s : S) (a : A) (sc : obj
     split
     · step with sporadic.sufficient.ok (st := st) hA as ⟨b4⟩
       split
-      · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨Q, R, h, hB, hX, hSg⟩
+      · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨Q, R, h, hB, hX, hSg, Fr.refl _ _⟩
       · exact WP.spec_bind post fun s1 h1 => by simpa using h1
     · exact WP.spec_bind post fun s1 h1 => by simpa using h1
-  · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨Q, R, h, hB, hX, hSg⟩
+  · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨Q, R, h, hB, hX, hSg, Fr.refl _ _⟩
 
 /-! ## `restart` -/
 
@@ -215,7 +275,7 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
     (Q : U64 → U64 → List U64) (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω s Q R) (ht : t ∈ T)
     (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s) (hS : SCsOK st T Ω Sg Z s) :
     sched.restart st ar s a t ⦃ s' _ => ∃ Q' R', SchedQueuesInv st T Cs Ω s' Q' R' ∧ BoundInv st T s' ∧
-      XInv st T Cs Ω Sg Rp Scs Z s' ⦄ := by
+      XInv st T Cs Ω Sg Rp Scs Z s' ∧ SCsOK st T Ω Sg Z s' ⦄ := by
   have hSg := hS.sg
   have hsub := hSg.sub
   have hT := h.tcbs
@@ -223,7 +283,7 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
   step with sched.is_stopped.spec as ⟨b, b_post⟩
   split
   swap
-  · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨Q, R, h, hB, hX⟩
+  · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨Q, R, h, hB, hX, hS⟩
   rename_i hb
   have hnr : ¬ Runnable (L.mem s (stA t)) := b_post hb
   have hna : L.actionW s ≠ t := fun e => hnr (by have := (h.actOK (e ▸ ht)).1; rwa [e] at this)
@@ -246,6 +306,7 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
     rw [ts_restart, ts_reply, h3']; decide
   have hB2 := hB1.keepT h1 k2
   have hX2 := hX1.keepT k2 (by rw [e2]; exact nrr)
+  have hS2 : SCsOK st T Ω Sg Z s2 := (hS.keepT hX k1).keepT hX1 k2
   have k12 := k1.trans k2
   have hSg2 : SgOK st Ω Sg s2 := ⟨hsub, fun b hb => by rw [k12.ksb]; exact hSg.ks b hb,
     fun o h1' h2'' => by rw [k12.ksb]; exact hSg.ksΩ o h1' h2''⟩
@@ -258,7 +319,8 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
   step with obj.Tcb.sc.spec as ⟨i, i_post⟩
   step with sporadic.sc_sporadic.spec as ⟨b1, b1_post⟩
   refine WP.spec_bind (Pₘ := fun s3 => SchedQueuesInv st T Cs Ω s3 Q R ∧ BoundInv st T s3 ∧
-      XInv st T Cs Ω Sg Rp Scs Z s3 ∧ SgOK st Ω Sg s3 ∧ L.actionW s3 ≠ t ∧ L.mem s3 (scA t) = i) ?_ ?_
+      XInv st T Cs Ω Sg Rp Scs Z s3 ∧ SgOK st Ω Sg s3 ∧ L.actionW s3 ≠ t ∧ L.mem s3 (scA t) = i ∧
+      SCsOK st T Ω Sg Z s3) ?_ ?_
   · split
     · rename_i hb1
       have hi0 : i ≠ 0#u64 := b1_post hb1
@@ -282,7 +344,10 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
         have aR : Aligned (L.nodeA s2 layout.node.REPROGRAM) := nodeAt_aligned hN' (by rw [rp]; omega) (by rw [rp])
         have oR : Outside (L.nodeA s2 layout.node.REPROGRAM) i (Z i) :=
           hSCin.node_out h2.omega h2.cur hN' (by rw [rp]; omega) (by rw [rp])
-        refine WP.spec_mono (sporadic.unblock_check.fr hW2 ⟨aR, oR⟩) fun s3 w3 => ?_
+        refine WP.spec_mono (WP.spec_and (sporadic.unblock_check.fr hW2 ⟨aR, oR⟩)
+          (sporadic.unblock_check.wf hW2 ⟨aR, oR⟩)) fun s3 hw3 => ?_
+        have w3 := hw3.1
+        have hS3 := SCsOK.ring h2 hS2 hX2 hiS w3 hw3.2
         have wF : WritesIn st s2 s3 (L.Free s2 Ω Cs) := w3.mono' fun b hb hh => by
           rcases hh with hh | hh
           · exact Or.inl (hX2.1.scW i hiS b hb hh.inSC)
@@ -314,7 +379,7 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
         rw [show L.mem s3 (L.nodeAt s2 (L.cpu s2) layout.node.SCHED_ACTION) =
             L.mem s2 (L.nodeAt s2 (L.cpu s2) layout.node.SCHED_ACTION) from
           kn _ (by rw [act_val]; omega) (by rw [act_val]) (by rw [act_val]; omega)]
-        refine ⟨na2, ?_⟩
+        refine ⟨na2, ?_, hS3⟩
         rw [w3.mem_eq (scA_aligned (hT t ht)) ?_, i_post]
         rintro (hh | hh)
         · have hm := hX2.1.scW i hiS _ (scA_aligned (hT t ht)) hh.inSC
@@ -322,16 +387,17 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
           exact out_ne_field (h2.omega _ hm) ht (hT t ht) (by simp) rfl
         · rw [scA_eq] at hh
           exact node_ne_field hN' (by rw [rp]; omega) ht (hT t ht) (by simp) hh.symm
-      · exact (WP.spec_ok _).2 ⟨h2, hB2, hX2, hSg2, na2, i_post.symm⟩
-    · exact (WP.spec_ok _).2 ⟨h2, hB2, hX2, hSg2, na2, i_post.symm⟩
-  rintro s3 ⟨h3, hB3, hX3, hSg3, na3, sc3⟩
+      · exact (WP.spec_ok _).2 ⟨h2, hB2, hX2, hSg2, na2, i_post.symm, hS2⟩
+    · exact (WP.spec_ok _).2 ⟨h2, hB2, hX2, hSg2, na2, i_post.symm, hS2⟩
+  rintro s3 ⟨h3, hB3, hX3, hSg3, na3, sc3, hS3⟩
   -- `resume`
   refine WP.spec_bind (schedcontext.resume.all hA s3 a1 i Q R h3 hB3 hX3 hSg3 fun hi0 _ => ?_) ?_
   · obtain ⟨hiS, hti, hci⟩ := hX3.2.2.bound t ht (by rw [sc3]; exact hi0)
     rw [sc3] at hiS hti hci
     rw [hti]
     exact ⟨ht, h3.omega _ ((objs_omega hX3.1 hsub).2 i hiS).2.1, hci, na3⟩
-  rintro ⟨s4, a2⟩ ⟨Q4, R4, h4, hB4, hX4, hSg4⟩
+  rintro ⟨s4, a2⟩ ⟨Q4, R4, h4, hB4, hX4, hSg4, fr4⟩
+  have hS4 := hS3.fr fr4
   try simp only [WP.uncurry'_pair]
   -- `possible_switch_to`
   step with sched.is_schedulable.spec' as ⟨b2, b2_post⟩
@@ -341,8 +407,8 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
     rintro s5 ⟨⟨hi5, hB5, f5⟩, -, -⟩
     simp only [WP.spec_ok, WP.uncurry'_pair]
     obtain ⟨Q5, R5, h5⟩ := hi5
-    exact ⟨Q5, R5, h5, hB5, hX4.fr f5⟩
-  · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨Q4, R4, h4, hB4, hX4⟩
+    exact ⟨Q5, R5, h5, hB5, hX4.fr f5, hS4.fr f5⟩
+  · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨Q4, R4, h4, hB4, hX4, hS4⟩
 
 end
 

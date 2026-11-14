@@ -448,8 +448,8 @@ theorem notification.ntfn_dequeue.foot (s : S) (n : U64) (t : obj.Tcb) (xs : Lis
 /-- What an endpoint footprint leaves alone: TCB fields other than the `Ep`
 links, the words of `Ω`, and the nodes. -/
 theorem epfoot_keep {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
-    {E : Set U64} {EQ : U64 → List U64} {e : U64} {W : List U64}
-    (h : SchedQueuesInvX st T Cs Ω X s Q R) (hEW : EpsWit st T Cs Ω X s E EQ) (he : e ∈ E)
+    {E : Set U64} {EQ : U64 → List U64} {K : U64 → Bool} {e : U64} {W : List U64}
+    (h : SchedQueuesInvX st T Cs Ω X s Q R) (hEW : EpsWit st T Cs Ω X s E EQ K) (he : e ∈ E)
     (hWT : ∀ w ∈ W, w ∈ T) (hw : WritesIn st s s' (EpFoot W e)) :
     (∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 → K.val ≠ 3496 → K.val ≠ 3504 →
       L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K)) ∧
@@ -519,7 +519,8 @@ theorem dequeue_blocked_inv {X : Set U64} (s : S) (t : obj.Tcb) (Q : U64 → U64
     (deq : S → U64 → obj.Tcb → Result S)
     (hrel : ∀ (xs : List U64), EpPlaced T (L.mem s (blockA t)) →
       QueueRel (L.mem s) T .Ep (L.epQ s (L.mem s (blockA t))) xs → t ∈ xs →
-      deq s (L.mem s (blockA t)) t ⦃ s' => QueueRel (L.mem s') T .Ep (L.epQ s' (L.mem s (blockA t))) (xs.erase t) ⦄)
+      deq s (L.mem s (blockA t)) t ⦃ s' => QueueRel (L.mem s') T .Ep (L.epQ s' (L.mem s (blockA t))) (xs.erase t) ∧
+        (xs.erase t ≠ [] → L.epState s' (L.mem s (blockA t)) = L.epState s (L.mem s (blockA t))) ⦄)
     (hfoot : ∀ (xs : List U64), EpPlaced T (L.mem s (blockA t)) →
       QueueRel (L.mem s) T .Ep (L.epQ s (L.mem s (blockA t))) xs → t ∈ xs →
       deq s (L.mem s (blockA t)) t ⦃ s' => WritesIn st s s' (EpFoot xs (L.mem s (blockA t))) ⦄) :
@@ -530,15 +531,15 @@ theorem dequeue_blocked_inv {X : Set U64} (s : S) (t : obj.Tcb) (Q : U64 → U64
       (∀ o : U64, o.val < 4288 → o.val % 8 = 0 →
         L.mem s' (L.nodeAt s' (L.cpu s') o) = L.mem s (L.nodeAt s (L.cpu s) o)) ∧
       L.ksb s' = L.ksb s ∧ L.cpu s' = L.cpu s ⦄ := by
-  obtain ⟨E, EQ, hEW⟩ := h.eps
-  obtain ⟨he, hmem⟩ := hEW.2.2.2.2 t ht htX hb
+  obtain ⟨E, EQ, K, hEW⟩ := h.eps
+  obtain ⟨he, hmem⟩ := hEW.2.2.2.2.1 t ht htX hb
   obtain ⟨hE, -, hq⟩ := hEW.1 _ he
   refine WP.spec_mono (WP.spec_and (hrel _ hE hq hmem) (hfoot _ hE hq hmem)) ?_
-  rintro s' ⟨hq', hw⟩
+  rintro s' ⟨⟨hq', hst'⟩, hw⟩
   have nd := hq.nodup
   have hWT : ∀ w ∈ EQ (L.mem s (blockA t)), w ∈ T := hq.mem
   obtain ⟨k1, k2, k3⟩ := epfoot_keep h hEW he hWT hw
-  refine ⟨inv_ep_step h hEW he hw hq' (fun y hy => List.mem_of_mem_erase hy) ?_ (fun y hy => Or.inl hy) ?_ ?_,
+  refine ⟨inv_ep_step h hEW he hw hq' hst' (fun y hy => List.mem_of_mem_erase hy) ?_ (fun y hy => Or.inl hy) ?_ ?_,
     k1, k2, k3, hw.1, hw.2.1⟩
   · intro y hy hn
     by_cases e : y = t
@@ -563,7 +564,8 @@ theorem endpoint.ep_dequeue.inv {X : Set U64} (s : S) (t : obj.Tcb) (Q : U64 →
         L.mem s' (L.nodeAt s' (L.cpu s') o) = L.mem s (L.nodeAt s (L.cpu s) o)) ∧
       L.ksb s' = L.ksb s ∧ L.cpu s' = L.cpu s ⦄ :=
   dequeue_blocked_inv s t Q R h ht htX hb (endpoint.ep_dequeue st)
-    (fun xs hE hq hm => WP.spec_mono (endpoint.ep_dequeue.rel s _ t xs h.tcbs hE hq hm) fun _ h' => h'.1)
+    (fun xs hE hq hm => WP.spec_mono (endpoint.ep_dequeue.rel s _ t xs h.tcbs hE hq hm) fun _ h' =>
+      ⟨h'.1, fun hne => by rw [h'.2, if_neg hne]⟩)
     (fun xs hE hq hm => endpoint.ep_dequeue.foot s _ t xs h.tcbs hE hq hm)
 
 theorem notification.ntfn_dequeue.inv {X : Set U64} (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64)
@@ -578,7 +580,8 @@ theorem notification.ntfn_dequeue.inv {X : Set U64} (s : S) (t : obj.Tcb) (Q : U
         L.mem s' (L.nodeAt s' (L.cpu s') o) = L.mem s (L.nodeAt s (L.cpu s) o)) ∧
       L.ksb s' = L.ksb s ∧ L.cpu s' = L.cpu s ⦄ :=
   dequeue_blocked_inv s t Q R h ht htX hb (notification.ntfn_dequeue st)
-    (fun xs hE hq hm => WP.spec_mono (notification.ntfn_dequeue.rel s _ t xs h.tcbs hE hq hm) fun _ h' => h'.1)
+    (fun xs hE hq hm => WP.spec_mono (notification.ntfn_dequeue.rel s _ t xs h.tcbs hE hq hm) fun _ h' =>
+      ⟨h'.1, fun hne => by rw [h'.2, if_neg hne]⟩)
     (fun xs hE hq hm => notification.ntfn_dequeue.foot s _ t xs h.tcbs hE hq hm)
 
 /-! ## Writes to `Ω` and to the fault field -/
