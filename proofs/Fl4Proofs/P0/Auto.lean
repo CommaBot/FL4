@@ -1154,13 +1154,17 @@ theorem vspace.P_PS.p0  :
     vspace.unmap_page_table machineStoreInst machineArchInst s a asid vaddr pt ⦃ _ => True ⦄ := by
   unfold vspace.unmap_page_table; p0_auto
 
+@[step] theorem vspace.frame_base.p0 (e : Std.U64) (size : capability.FrameSize) :
+    vspace.frame_base e size ⦃ _ => True ⦄ := by
+  unfold vspace.frame_base; p0_auto
+
 @[step] theorem vspace.lookup_pt_slot.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (pml4 : Std.U64) (vaddr : Std.U64) (hS : StoreTotal machineStoreInst) :
     vspace.lookup_pt_slot machineStoreInst s pml4 vaddr ⦃ _ => True ⦄ := by
   unfold vspace.lookup_pt_slot; p0_auto
 
 @[step] theorem vspace.unmap_page.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (size : capability.FrameSize) (asid : Std.U64) (vaddr : Std.U64) (pptr : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     vspace.unmap_page machineStoreInst machineArchInst s a size asid vaddr pptr ⦃ _ => True ⦄ := by
-  unfold vspace.unmap_page; p0_auto
+  unfold vspace.unmap_page; p0_split
 
 @[step] theorem timer.set_root.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
     timer.set_root machineStoreInst s cpu t ⦃ _ => True ⦄ := by

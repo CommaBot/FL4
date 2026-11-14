@@ -541,3 +541,43 @@ static int test_high_asids(env_t env)
     return sel4test_get_result();
 }
 DEFINE_TEST(FL4ASID0001, "A process with an ASID above 2^16 runs, and its mapping caps keep the ASID", test_high_asids, true)
+
+/* ---- Unmap of PAT mappings ------------------------------------------- */
+
+static int read_byte(seL4_Word addr, seL4_Word b, seL4_Word c, seL4_Word d)
+{
+    return *(volatile uint8_t *) addr;
+}
+
+/*
+ * A 4 KiB mapping with the PAT bit (write-combining) is really unmapped:
+ * bit 7 of a 4K entry is PAT, which FL4 once mistook for the large-page
+ * bit and left the entry in place.
+ */
+static int test_unmap_pat(env_t env)
+{
+    seL4_CPtr fcap;
+    volatile uint8_t *page = map_frame(env, &fcap);
+    test_assert(page != NULL);
+    test_error_eq(remap(env, fcap, (void *) page, seL4_X86_WriteCombining), seL4_NoError);
+    page[0] = 1;
+    test_error_eq(seL4_X86_Page_Unmap(fcap), seL4_NoError);
+
+    helper_thread_t t;
+    vka_object_t reply;
+    test_error_eq(vka_alloc_reply(&env->vka, &reply), 0);
+    seL4_CPtr fault_ep = vka_alloc_endpoint_leaky(&env->vka);
+    create_helper_thread(env, &t);
+    int error = api_tcb_set_space(get_helper_tcb(&t), fault_ep, env->cspace_root,
+                                  api_make_guard_skip_word(seL4_WordBits - env->cspace_size_bits),
+                                  env->page_directory, seL4_NilData);
+    test_error_eq(error, seL4_NoError);
+    start_helper(env, &t, read_byte, (seL4_Word) page, 0, 0, 0);
+    seL4_Word badge;
+    seL4_MessageInfo_t tag = api_recv(fault_ep, &badge, reply.cptr);
+    test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) seL4_Fault_VMFault);
+    test_eq(seL4_GetMR(seL4_VMFault_Addr), (seL4_Word) page);
+    cleanup_helper(env, &t);
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4VM0005, "Unmapping a 4K page mapped with PAT removes the mapping", test_unmap_pat, true)

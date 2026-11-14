@@ -212,6 +212,17 @@ pub fn copy_global_mappings<S: Store>(s: &mut S, new_root: u64) {
 
 // ---- unmapping ---------------------------------------------------------------
 
+/// The physical address a frame entry maps. Bit 7 of a 4K entry is PAT, not
+/// PS, and large and huge entries keep PAT at bit 12, inside `ADDR_MASK`
+/// (seL4's `pte_get_page_base_address` and its PDE/PDPTE variants).
+fn frame_base(e: u64, size: FrameSize) -> u64 {
+    match size {
+        FrameSize::Small => e & ADDR_MASK,
+        FrameSize::Large => e & 0x000f_ffff_ffe0_0000,
+        FrameSize::Huge => e & 0x000f_ffff_c000_0000,
+    }
+}
+
 /// seL4 `unmapPage`.
 pub fn unmap_page<S: Store, A: Arch>(s: &mut S, a: &mut A, size: FrameSize, asid: u64, vaddr: u64, pptr: u64) {
     let root = match find_vspace_for_asid(s, asid) {
@@ -234,8 +245,8 @@ pub fn unmap_page<S: Store, A: Arch>(s: &mut S, a: &mut A, size: FrameSize, asid
         },
     };
     let e = s.read(slot);
-    let need_ps = !matches!(size, FrameSize::Small);
-    if e & P_PRESENT == 0 || (e & ADDR_MASK) != pa || ((e & P_PS != 0) != need_ps) {
+    let large = !matches!(size, FrameSize::Small);
+    if e & P_PRESENT == 0 || (large && e & P_PS == 0) || frame_base(e, size) != pa {
         return;
     }
     s.write(slot, 0);
@@ -563,7 +574,8 @@ fn mapped_entry<S: Store>(s: &S, f: FrameCap, root: u64) -> Option<u64> {
         Err(_) => return None,
     };
     let e = s.read(x);
-    if e & P_PRESENT == 0 || (large && e & P_PS == 0) || e & ADDR_MASK != pa {
+    let base = if large { frame_base(e, FrameSize::Large) } else { frame_base(e, FrameSize::Small) };
+    if e & P_PRESENT == 0 || (large && e & P_PS == 0) || base != pa {
         return None;
     }
     Some(x)

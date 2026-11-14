@@ -1,6 +1,6 @@
 {
- "functions": 932,
- "proved": 932,
+ "functions": 933,
+ "proved": 933,
  "manual": [
   "untyped.reset_untyped_loop"
  ],
