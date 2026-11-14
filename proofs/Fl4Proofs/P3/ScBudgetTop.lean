@@ -101,7 +101,7 @@ theorem budget_check_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
     (hmin : Fl4Spec.MIN_BUDGET.toNat ≤ lsum (L.refills s (nodeW st s c layout.node.CUR_SC))) (usage : U64) :
     sporadic.budget_check st ar s a usage ⦃ s' => ∃ σ', Fl4Spec.refillBudgetCheck (Z := Unit) usage.bv σ =
       ({((), σ')}, False) ∧ FootEq N T (L.mem s) (L.mem s') ∧ KView σ σ' ∧ SchedRel st N T C c s' σ' ∧
-      BudgetPost σ σ' (nodeW st s c layout.node.CUR_SC).bv ⦄ := by
+      BudgetPost σ σ' (nodeW st s c layout.node.CUR_SC).bv ∧ WritesIn st s s' (KFoot st T N C c s σ) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   set sc := nodeW st s c layout.node.CUR_SC with hscdef
   obtain ⟨x, n, hk, hx⟩ := hs.scs sc hcC
@@ -207,7 +207,7 @@ theorem budget_check_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
       fuel2 hf2) ?_
     rintro s3 ⟨hR3, hp3, hs3, hm3, hl⟩
     obtain ⟨hS3, hf3, hv3⟩ := hS.ringAt hcC hk hR3
-    refine ⟨_, by rw [hspec, nd_bind_one hov, ht2, hl], hf3, hv3, hS3, fun y m hy => ?_⟩
+    refine ⟨_, by rw [hspec, nd_bind_one hov, ht2, hl], hf3, hv3, hS3, fun y m hy => ?_, RingAt.kfoot hS hcC hR3⟩
     rw [hk] at hy; cases hy
     have hne3 := refills_ne' hR3.wf
     refine ⟨_, rfl, rfl, by simpa using hne3, fun r hr => ?_, ?_, ?_⟩

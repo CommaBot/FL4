@@ -104,7 +104,8 @@ theorem budget_check_refines_inv {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
       y.scTcb = some u0) (hnr : u0 ∉ σ.releaseQueue) :
     sporadic.budget_check st ar s a usage ⦃ s' => ∃ σ', Fl4Spec.refillBudgetCheck (Z := Unit) usage.bv σ =
       ({((), σ')}, False) ∧ FootEq N T (L.mem s) (L.mem s') ∧ KView σ σ' ∧ SchedRel st N T C c s' σ' ∧
-      InvBut σ' u0 ∧ BudgetPost σ σ' (nodeW st s c layout.node.CUR_SC).bv ⦄ := by
+      InvBut σ' u0 ∧ BudgetPost σ σ' (nodeW st s c layout.node.CUR_SC).bv ∧
+      WritesIn st s s' (KFoot st T N C c s σ) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x, n, hk, hx⟩ := hs.scs _ hcC
   have hper : x.scPeriod ≠ 0 := by
@@ -114,8 +115,8 @@ theorem budget_check_refines_inv {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
   rw [← hx.refills] at hl
   refine WP.spec_mono (budget_check_refines s a σ hS hcC hmrt hmb hrr ?_ (by rw [hl]; exact hsum) ?_ usage) ?_
   rotate_left 2
-  · rintro s' ⟨σ', h1, h2, h3, h4, h5⟩
-    exact ⟨σ', h1, h2, h3, h4, hI.budgetPost hk h5 (hown x n hk) hnr hper, h5⟩
+  · rintro s' ⟨σ', h1, h2, h3, h4, h5, h6⟩
+    exact ⟨σ', h1, h2, h3, h4, hI.budgetPost hk h5 (hown x n hk) hnr hper, h5, h6⟩
   · intro r hr
     have := hpos (toRefill r) (by rw [hx.refills]; exact List.mem_map_of_mem hr)
     simpa [toRefill] using this

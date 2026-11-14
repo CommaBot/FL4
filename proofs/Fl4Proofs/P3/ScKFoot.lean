@@ -243,6 +243,38 @@ theorem set_thread_state_sfoot {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec
   rw [show stA t = tStA t from rfl, tStA_eq]
   exact schedule_tcb_sfoot hS (writesIn_tcb hc.tcbs ht (by unfold SOff; decide) (by simp) v) t
 
+/-- **`possible_switch_to`'s footprint.** -/
+theorem possible_switch_to_sfoot {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hR : NtfnStateRel N T (L.mem s) σ) (hS : SchedRel st N T C c s σ) (hr : ActReady σ) {t : U64} (ht : t ∈ T) :
+    sched.possible_switch_to st s t ⦃ s' => WritesIn st s s' (SFoot st T c s) ⦄ := by
+  obtain ⟨Q, R, hc, hs⟩ := hS.lists
+  unfold sched.possible_switch_to
+  step
+  split
+  · exact (WP.spec_ok _).mpr (WritesIn.refl _ _)
+  step
+  split
+  · exact (WP.spec_ok _).mpr (WritesIn.refl _ _)
+  step
+  step
+  split
+  · exact enqueue_sfoot hS ht
+  step
+  step
+  split
+  · exact enqueue_sfoot hS ht
+  step
+  split
+  · refine WP.spec_bind (WP.spec_and (reschedule_required_refines s σ hR hS hr) (reschedule_required_sfoot hS)) ?_
+    rintro s1 ⟨⟨σ1, -, -, -, -, hS1⟩, hw1⟩
+    exact WP.spec_mono (enqueue_sfoot hS1 ht) fun s2 hw2 => WritesIn.sfoot_trans hw1 hw2
+  · step
+    subst s'_post
+    have ho : (layout.node.SCHED_ACTION).val < 4288 := by simp [layout.node.SCHED_ACTION]
+    rw [show L.cpu s = c from hc.cur]
+    exact (writesIn_wr (nodeAt_aligned hc.node ho (by simp [layout.node.SCHED_ACTION]))).mono fun b hb =>
+      hb ▸ sfoot_node hc.node ho
+
 /-- A notification's words. -/
 def NW (N : Set U64) (b : U64) : Prop := ∃ n ∈ N, n.val ≤ b.val ∧ b.val < n.val + 40
 
@@ -396,6 +428,25 @@ theorem WritesIn.kfoot_of_nw_scw {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl
     rcases hb with hb | rfl
     · exact KFoot.of_nwrite hb
     · exact KFoot.of_sw (sw_hdr hS hp hK hK8 h32)
+
+/-- A write of an SC's object words, its `REPLY` word kept, is a `KFoot` step. -/
+theorem WritesIn.kfoot_of_scobj {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
+    {sc : U64} (hsc : sc ∈ C) {x : Fl4Spec.SchedContext} {n : Nat}
+    (hk : σ.kheap sc.bv = some (.schedContext x n)) (hw : WritesIn st s s' (ScObj sc n))
+    (h32 : L.mem s' (scReplyA sc) = L.mem s (scReplyA sc)) : WritesIn st s s' (KFoot st T N C c s σ) := by
+  refine ⟨hw.1, hw.2.1, fun b hb hn => ?_⟩
+  by_cases e : b = scReplyA sc
+  · subst e; exact h32
+  · exact hw.mem_eq hb fun ho => hn (KFoot.of_sw ⟨sc, hsc, x, n, hk, ho, e⟩)
+
+/-- Sizes kept by a step that changes only the SC at `p` (keeping its size). -/
+theorem SzKeep.of_sc {σ σ' : Fl4Spec.State Unit} {p : Fl4Spec.ObjRef} {x x' : Fl4Spec.SchedContext} {n : Nat}
+    (hko : ∀ q, q ≠ p → σ'.kheap q = σ.kheap q) (hkp : σ.kheap p = some (.schedContext x n))
+    (hkp' : σ'.kheap p = some (.schedContext x' n)) : SzKeep σ σ' :=
+  fun q y m hq => by
+    by_cases e : q = p
+    · subst e; rw [hkp'] at hq; cases hq; exact ⟨x, hkp⟩
+    · exact ⟨y, by rw [← hko q e]; exact hq⟩
 
 /-- **Footprints compose** across a step that keeps the SC sizes. -/
 theorem WritesIn.kfoot_trans {T N C : Set U64} {c : U64} {s s1 s2 : S} {σ σ1 : Fl4Spec.State Unit}

@@ -111,6 +111,11 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
 * ScTop: the SchedContext cap at the top level (`decode_invocation_sched_context`
   for `DecOK`, `domFrame_sched_context`, `decode_invocation_sched_contextD`),
   the CSpace relation kept by `crel_of_sok` given `SlotsApart`.
+* ScPresCfg: `Pres` for SchedControl `ConfigureFlags` (`commit_time`,
+  `refill_new`, `refill_update`, `possible_switch_to`).
+* ScTopCfg: the placement record `ScPlaced`; the SchedControl cap at the top
+  level (`decode_invocation_sched_control`, `domFrame_sched_control`,
+  `decode_invocation_sched_controlP`), `decode_invocation_sched_contextP`.
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
@@ -133,3 +138,4 @@ import Fl4Proofs.P3.ScDecodeSc
 import Fl4Proofs.P3.ScMcp
 import Fl4Proofs.P3.ScDecodeAll
 import Fl4Proofs.P3.ScTop
+import Fl4Proofs.P3.ScTopCfg

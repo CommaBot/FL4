@@ -336,7 +336,8 @@ theorem refill_update_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.
     (hS : SchedRel st N T C c s σ) {sc : U64} (hsc : sc ∈ C) {x : Fl4Spec.SchedContext} {n : Nat}
     (hk : σ.kheap sc.bv = some (.schedContext x n)) (p b m : U64) (hm2 : 2 ≤ m.val) (hmx : m.val ≤ absMax n) :
     sporadic.refill_update st s sc p b m ⦃ s' => ∃ σ', Fl4Spec.refillUpdate (Z := Unit) sc.bv p.bv b.bv m.val σ =
-      ({((), σ')}, False) ∧ SchedRel st N T C c s' σ' ∧ FootEq N T (L.mem s) (L.mem s') ∧ KView σ σ' ⦄ := by
+      ({((), σ')}, False) ∧ SchedRel st N T C c s' σ' ∧ FootEq N T (L.mem s) (L.mem s') ∧ KView σ σ' ∧
+      WritesIn st s s' (KFoot st T N C c s σ) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x', n', hk', hx⟩ := hs.scs sc hsc
   rw [hk] at hk'; cases hk'
@@ -366,8 +367,11 @@ theorem refill_update_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.
       by rw [hm']; rfl, by
         show rUpdS (Fl4Spec.refillHd x) σ.curTime p.bv b.bv = _
         rw [hr', rUpdL_map, hhd, htm]⟩
+  have h32 : L.mem s' (scW sc 32#u64) = L.mem s (scW sc 32#u64) :=
+    e 32#u64 (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
   refine ⟨updSc σ sc.bv (rUpdX x σ.curTime p.bv b.bv m.val) n, refillUpdate_eq hk _ _ _, ?_,
-    scobj_footEq hS hsc hk hw, KView.of_sc hk⟩
+    scobj_footEq hS hsc hk hw, KView.of_sc hk,
+    WritesIn.kfoot_of_scobj hsc hk hw (by rw [scReplyA_eq']; exact h32)⟩
   exact hS.sc_update hsc hk hw (e 16#u64 (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)) _ hx'
 
 end

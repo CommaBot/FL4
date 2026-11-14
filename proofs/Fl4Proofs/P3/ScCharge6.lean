@@ -310,7 +310,7 @@ theorem charge_head_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
       simp only [e0, Bool.false_eq_true, ↓reduceIte]
       refine WP.spec_bind (budget_check_refines_inv s a σ hS hI hscC (hact hid) hmrt hmb h0 used
         (fun y m h => by rw [hk] at h; cases h; exact hown) hnr) ?_
-      rintro s3 ⟨σ3, h1, hf, hkv, hS3, hI3, hpost⟩
+      rintro s3 ⟨σ3, h1, hf, hkv, hS3, hI3, hpost, -⟩
       obtain ⟨y', rfl, hy', -⟩ := hpost x n hk
       exact fin s3 y' hy' (by rw [if_neg (by simpa using hper)]; exact h1) hS3 (hR.frame hS.placed hf hkv)
         (hN.kview hR hkv) hI3

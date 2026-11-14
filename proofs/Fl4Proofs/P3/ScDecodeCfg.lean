@@ -47,7 +47,7 @@ theorem decode_configure_refines (hT : TimeAgree ar) {N T C : Set U64} {c : U64}
         (fun inv res => ∃ σ1 σ', Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) ∧
           Fl4Spec.invokeSchedControlConfigureFlags (Z := Unit) inv σ1 = ({((), σ')}, False) ∧
           res.1 = .Ok () ∧ SchedRel st N T C c res.2.1 σ' ∧ NtfnStateRel N T (L.mem res.2.1) σ' ∧
-          NSC N C σ' ∧ Inv σ') res ⦄ := by
+          NSC N C σ' ∧ Inv σ' ∧ WritesIn st s res.2.1 (KFoot st T N C c s σ)) res ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hct' : ct = nodeW st s c layout.node.CUR_THREAD := by
     have h := sched.cur_thread.spec' (L := L) s
@@ -61,9 +61,9 @@ theorem decode_configure_refines (hT : TimeAgree ar) {N T C : Set U64} {c : U64}
   have h64 := hsb p sb hc0
   have hpc : p.bv ≠ ct.bv := fun e => by rw [e, hkc] at hkp; cases hkp
   have hv : (sched.TS_RESTART).val = tsCode .restart := by rw [tsVals.2.1]; rfl
-  refine WP.spec_bind (set_thread_state_refines s σ hR hS hctT hkc (not_in_ntfnQueue hR hctT hkc hrun) _ .restart hv
-    (fun _ h => by cases h)) ?_
-  rintro s1 ⟨σ1, h1, hR1, hS1⟩
+  refine WP.spec_bind (WP.spec_and (set_thread_state_refines s σ hR hS hctT hkc (not_in_ntfnQueue hR hctT hkc hrun)
+    _ .restart hv (fun _ h => by cases h)) (set_thread_state_sfoot hS hctT _)) ?_
+  rintro s1 ⟨⟨σ1, h1, hR1, hS1⟩, hw1⟩
   have h1' := h1
   rw [Fl4Proofs.P3.Notif.setThreadState_eq _ hkc] at h1'
   have e1 := pair_eq h1'
@@ -97,8 +97,10 @@ theorem decode_configure_refines (hT : TimeAgree ar) {N T C : Set U64} {c : U64}
     exact Nat.mod_eq_of_lt (by rw [hsz]; omega)
   refine WP.spec_bind (configure_flags_refines s1 a σ1 hS1 hR1 hN1 hI1 hC1 hO1 hpC hp0 hkp1 hbnd1 cpu budget
     period (core.num.U64.wrapping_add er sporadic.MIN_REFILLS) bd fl hcpu (by rw [hmr]; omega) (by rw [hmr, absMax_eq h64]; exact hle) hmb hbp hT) ?_
-  rintro ⟨s2, a2⟩ ⟨σ', hcfg, hS2, hR2, hN2, hI2, -⟩
-  refine (WP.spec_ok _).mpr ⟨σ1, σ', h1, ?_, rfl, hS2, hR2, hN2, hI2⟩
+  rintro ⟨s2, a2⟩ ⟨σ', hcfg, hS2, hR2, hN2, hI2, -, hw2⟩
+  have hkc1 : σ1.kheap ct.bv = some (.tcb { xc with tcbState := .restart }) := by rw [stsAct_kheap]; simp [updK]
+  refine (WP.spec_ok _).mpr ⟨σ1, σ', h1, ?_, rfl, hS2, hR2, hN2, hI2,
+    WritesIn.kfoot_trans (WritesIn.kfoot_of_sfoot hw1) (SzKeepC.of (SzKeep.of_tcb hk1 hkc1)) hw2⟩
   rw [← hbud, ← hper, ← hmr]
   exact hcfg
 

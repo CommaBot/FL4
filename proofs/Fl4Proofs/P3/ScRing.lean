@@ -216,6 +216,25 @@ theorem RingAt.hdr {s0 s : S} {sc : U64} {n : Nat} (h : RingAt st s0 s sc n) {K 
   · have := congrArg UScalar.val e; rw [hv, ht] at this; omega
   · rw [hv] at e1; omega
 
+theorem headA_eq' (sc : U64) : headA sc = scW sc 80#u64 := by unfold headA scW layout.sc.REFILL_HEAD; rfl
+theorem tailA_eq' (sc : U64) : tailA sc = scW sc 88#u64 := by unfold tailA scW layout.sc.REFILL_TAIL; rfl
+
+/-- **A ring step is a `KFoot` step.** -/
+theorem RingAt.kfoot {N T C : Set U64} {c : U64} {s0 s : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s0 σ) {sc : U64} (hsc : sc ∈ C) {n : Nat} (h : RingAt st s0 s sc n) :
+    WritesIn st s0 s (KFoot st T N C c s0 σ) :=
+  h.w.mono fun b hb => by
+    rcases hb with rfl | rfl | ⟨g1, g2⟩
+    · rw [headA_eq']; exact KFoot.of_sw (sw_hdr hS hsc (by simp) (by simp) (by decide))
+    · rw [tailA_eq']; exact KFoot.of_sw (sw_hdr hS hsc (by simp) (by simp) (by decide))
+    · obtain ⟨Q, R, hc, hs⟩ := hS.lists
+      obtain ⟨x, n', hk, hx⟩ := hs.scs sc hsc
+      have hin : ScIn st s0 sc b := ⟨by omega, g2⟩
+      refine KFoot.of_sw ⟨sc, hsc, x, n', hk, hx.in_obj hin, fun e => ?_⟩
+      have hb := hx.bounds
+      rw [e, scReplyA_eq', scW_val (by simp; omega)] at g1
+      simp at g1
+
 /-- **`SchedRel` after ring operations**: the spec's SC gets FL4's refills. -/
 theorem SchedRel.ringAt {N T C : Set U64} {c : U64} {s0 s : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s0 σ) {sc : U64} (hsc : sc ∈ C) {x : Fl4Spec.SchedContext} {n : Nat}
