@@ -371,7 +371,16 @@ theorem blk_keep {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U6
             have := congrArg UScalar.val e
             rw [rTcbA_val (r0p h0)] at this
             have := hO.ntRp n hn r0 (hr0 h0).1; omega)]
-          exact hE.nsc n hn, hE.tm.tmfr htm, hE.ntb.tmfr htm⟩⟩,
+          exact hE.nsc n hn, hE.tm.tmfr htm, hE.ntb.tmfr htm,
+        fun c hc => by
+          rw [om _ (hS.sub _ (hO.snW c hc)) (fun h0 e => by
+            have := congrArg UScalar.val e
+            obtain ⟨hPc, hzc⟩ := hO.sc c hc
+            rw [rTcbA_val (r0p h0), scNtfnA_val hPc hzc] at this
+            have := hO.rpSc r0 (hr0 h0).1 c hc
+            have := (sc_facts hO hc).1
+            omega)]
+          exact hE.scn c hc⟩⟩,
     SCsOK.keep hS ⟨hO, hR, hE⟩ hk scf ecs (fun c hc => (fix c hc).2.2)⟩
   · rcases hact with e | e
     · rw [e] at haT ⊢; exact ⟨haT, hB.act haT⟩
@@ -1188,7 +1197,16 @@ theorem unbind_state {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U6
           rw [F2 _ (hSg.sub _ (hO.ntW n hn)) (fun e => by
             rw [hiv.2.1] at e
             have := hO.ntSc n hn i hiS; have := hiv.1; omega)]
-          exact hE.nsc n hn, hE.tm.tmfr tmU, hE.ntb.tmfr tmU⟩⟩,
+          exact hE.nsc n hn, hE.tm.tmfr tmU, hE.ntb.tmfr tmU,
+        fun c hc => by
+          rw [F2 _ (hSg.sub _ (hO.snW c hc)) (fun e => by
+            obtain ⟨hPc, hzc⟩ := hO.sc c hc
+            rw [scNtfnA_val hPc hzc, hiv.2.1] at e
+            have := (sc_facts hO hc).1; have := hiv.1
+            by_cases hci : c = i
+            · subst hci; omega
+            · have := hO.scDisj c hc i hiS hci; omega)]
+          exact hE.scn c hc⟩⟩,
     SCsOK.keep' hS ⟨hO, hR, hE⟩ (by simp [hs2]) (fun y hy => ?_) ecs (fun c hc => ?_),
     ⟨hSg.sub, fun b hb => by simp only [hs2, LawfulStore.ksb_wr]; exact hSg.ks b hb,
       fun o h1 h2 => by simp only [hs2, LawfulStore.ksb_wr]; exact hSg.ksΩ o h1 h2⟩, iqy t ht,

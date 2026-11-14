@@ -72,10 +72,11 @@ theorem bx_field' {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 
           · exact hsub _ (hX.1.nextW hr)
         exact out_ne_field (h.omega _ hm) hy hya hK rfl
       · have hm : core.num.U64.wrapping_add y K ∈ Ω := by
-          rcases e' with e' | e' | e' <;> rw [e']
+          rcases e' with e' | e' | e' | e' <;> rw [e']
           · exact hsub _ (hX.1.fixW c hc).1
           · exact hsub _ (hX.1.fixW c hc).2
           · exact hsub _ (hX.1.repW c hc)
+          · exact hsub _ (hX.1.snW c hc)
         exact out_ne_field (h.omega _ hm) hy hya hK rfl
       · rcases e' with e' | e' | e' | e'
         · rw [scA_eq] at e'
@@ -408,12 +409,20 @@ theorem sched.suspend.all {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t 
             · exact (fr1 r hr).1 this
             · exact (fr1 r hr).2.1 this
             · exact (fr1 r hr).2.2 this
-          · rcases e' with e' | e' | e' <;> have := congrArg UScalar.val e'
+          · rcases e' with e' | e' | e' | e' <;> have := congrArg UScalar.val e'
             · exact (fr2 c hc).1 this
             · exact (fr2 c hc).2.1 this
             · obtain ⟨h128c, -, -, -, -, -, e6c, -⟩ := sc_facts hX4.1 hc
               obtain ⟨h128y, -⟩ := sc_facts hX4.1 hyS
               rw [show scYieldFromA yt = core.num.U64.wrapping_add yt layout.sc.YIELD_FROM from rfl, e56, e6c] at this
+              by_cases hcy : c = yt
+              · rw [hcy] at this; omega
+              · have := hX4.1.scDisj c hc _ hyS hcy; omega
+            · obtain ⟨hPc, hzc⟩ := hX4.1.sc c hc
+              obtain ⟨h128c, -⟩ := sc_facts hX4.1 hc
+              obtain ⟨h128y, -⟩ := sc_facts hX4.1 hyS
+              rw [show scYieldFromA yt = core.num.U64.wrapping_add yt layout.sc.YIELD_FROM from rfl, e56,
+                scNtfnA_val hPc hzc] at this
               by_cases hcy : c = yt
               · rw [hcy] at this; omega
               · have := hX4.1.scDisj c hc _ hyS hcy; omega

@@ -215,7 +215,7 @@ end ops
 theorem reprogram_at.tinv {s : S} {c v : U64} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z s) (hc : c ∈ Cs) :
     TInv st T Cs Ω H Sg Rp Scs Nt Z (L.wr s (L.nodeAt s c layout.node.REPROGRAM) v) := by
   have hI := h
-  obtain ⟨⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩, -, -⟩ := h
+  obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
   have hw : WritesIn st s (L.wr s (L.nodeAt s c layout.node.REPROGRAM) v) (L.Free s Ω Cs) :=
     free_node_write rfl hc (h0.nodes _ hc) (by simp [rp, LowFree])
@@ -239,7 +239,7 @@ theorem timer.insert.tinv (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Sc
   · exact (WP.spec_ok _).2 h1
   refine WP.spec_bind (L.cur_cpu_spec s1) fun cpu ec => ?_
   have hc : cpu ∈ Cs := by
-    obtain ⟨⟨⟨Q, R, h0⟩, -⟩, -⟩ := h1
+    obtain ⟨⟨Q, R, h0⟩, -⟩ := h1
     rw [ec]; exact h0.cur
   refine WP.spec_bind (timer.root.tz s1 cpu h1 hc) fun cur hcur => ?_
   refine WP.spec_bind (timer.insert_loop.tz s1 d 0#u64 cur false true _ h1 Tz.zero hcur) ?_
@@ -259,7 +259,7 @@ theorem timer.insert.tinv (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Sc
   simp only at h2 e
   subst e
   try simp only [WP.uncurry'_pair]
-  have hx2 : TInvx st T Cs Ω H Sg Rp Scs Nt Z t1 s2 := ⟨h2.1.blkT, h2.2.1.x t1⟩
+  have hx2 : TInvx st T Cs Ω H Sg Rp Scs Nt Z t1 s2 := ⟨BlkOK.blkT h2, h2.tm.x t1⟩
   refine WP.spec_bind (obj.Tcb.set_timer_deadline.wr s2 t1 d) fun s3 e3 => ?_
   subst e3
   have hx3 := hx2.wr (K := 3528#u64) (v := d) ht (by simp) (by simp) (by simp) (fun h => by simp at h)
@@ -302,32 +302,32 @@ theorem sched.suspend.tinv {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t
     (h : TInv st T Cs Ω H Sg Rp Scs Nt Z s) (ht : t ∈ T) (hna : L.actionW s ≠ t)
     (hyield : L.mem s (yieldA t) ≠ 0#u64 → L.mem s (yieldA t) ∈ Scs) :
     sched.suspend st ar s a t ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ := by
-  obtain ⟨⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩, hTm, hNb⟩ := h
+  obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   refine WP.spec_mono (sched.suspend.all s a t Q R h0 ht hB hX hSg hS hna hyield) fun r hr => ?_
   obtain ⟨s', a'⟩ := r
   obtain ⟨Q', R', h', hB', hX', hS', tm⟩ := hr
-  exact ⟨⟨⟨Q', R', h'⟩, hB', hX', hS', hSg.ksb' tm.1⟩, hTm.tmfr tm, hNb.tmfr tm⟩
+  exact ⟨⟨Q', R', h'⟩, hB', hX', hS', hSg.ksb' tm.1⟩
 
 /-- seL4 `restart` (MCS) keeps `TInv`. -/
 theorem sched.restart.tinv {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
     (t : obj.Tcb) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z s) (ht : t ∈ T) :
     sched.restart st ar s a t ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ := by
-  obtain ⟨⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩, hTm, hNb⟩ := h
+  obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   refine WP.spec_mono (sched.restart.all hA s a t Q R h0 ht hB hX hS) fun r hr => ?_
   obtain ⟨s', a'⟩ := r
   obtain ⟨Q', R', h', hB', hX', hS', tm⟩ := hr
-  exact ⟨⟨⟨Q', R', h'⟩, hB', hX', hS', hSg.ksb' tm.1⟩, hTm.tmfr tm, hNb.tmfr tm⟩
+  exact ⟨⟨Q', R', h'⟩, hB', hX', hS', hSg.ksb' tm.1⟩
 
 
 /-! ## `BlkOK` forms (`TInv` is `BlkOK` repackaged) -/
 
 theorem timer.remove.blk (s : S) (t : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s) (ht : t ∈ T) :
     timer.remove st s t ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ :=
-  WP.spec_mono (timer.remove.tinv s t h.tinv ht) fun _ h' => h'.1
+  WP.spec_mono (timer.remove.tinv s t h.tinv ht) fun _ h' => h'
 
 theorem timer.insert.blk (s : S) (t d bd : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s) (ht : t ∈ T) :
     timer.insert st s t d bd ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ :=
-  WP.spec_mono (timer.insert.tinv s t d bd h.tinv ht) fun _ h' => h'.1
+  WP.spec_mono (timer.insert.tinv s t d bd h.tinv ht) fun _ h' => h'
 
 /-- The timer step of deleting a thread (`finalise_cap` on a `Thread` cap):
 unbind its notification, then take it out of its core's timer tree. -/

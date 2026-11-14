@@ -14,7 +14,7 @@ variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat}
 
 theorem TInv.of_tmfr {s s' : S} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z s) (hb : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s')
     (f : TmFr st T Cs Nt s s') : TInv st T Cs Ω H Sg Rp Scs Nt Z s' :=
-  ⟨hb, h.2.1.tmfr f, h.2.2.tmfr f⟩
+  hb
 
 /-! ## `unblock_sporadic` leaves the timer words alone -/
 
@@ -195,6 +195,9 @@ theorem ntfn_badge_all {s : S} {n v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt 
       rw [av, ntfnScA_val (hO.ntP n' hn')] at e; have := hP.1; have := (hO.ntP n' hn').1; omega)
     (fun n' hn' e => by
       rw [av, ntfnBtA_val (hO.ntP n' hn')] at e; have := hP.1; have := (hO.ntP n' hn').1; omega)
+    (fun c hc e => by
+      obtain ⟨hPc, hzc⟩ := hO.sc c hc
+      rw [av, scNtfnA_val hPc hzc] at e; have := hO.ntOSc n hn c hc; have := (sc_facts hO hc).1; omega)
   refine ⟨⟨⟨Q, R, h1⟩, hB1, hX1, hS1, hSg1⟩, TmFr.wr h0.tcbs h0.nodes hO (h0.omega _ hm).1
     (notTmW_omega h0.tcbs h0.nodes (h0.omega _ hm) (fun n' hn' e => ?_))⟩
   rw [av, ntfnBtA_val (hO.ntP n' hn')] at e
@@ -293,7 +296,7 @@ theorem notification.set_active.tinv (s : S) (n badge : U64) (h : TInv st T Cs �
     (hn : n ∈ Nt) (hH : H n = some .ntfn) (hst : L.epState s n ≠ 1#u64) :
     notification.set_active st s n badge ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ := by
   have hI := h
-  obtain ⟨⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩, -, -⟩ := h
+  obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   unfold notification.set_active
   refine WP.spec_bind (obj.Ntfn.set_state.val s n _) fun s1 e1 => ?_
   subst e1
@@ -314,7 +317,9 @@ theorem notification.send_signal.tinv {A : Type _} {ar : machine.Arch A} (hA : P
     (hH : H n = some .ntfn) :
     notification.send_signal st ar s a n badge ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ := by
   have hI := h
-  obtain ⟨⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩, hTm, hNb⟩ := h
+  obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
+  have hTm := hX.2.2.tm
+  have hNb := hX.2.2.ntb
   have hT := h0.tcbs
   have act : ∀ (s1 : S), notification.set_active st s n badge ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ →
       (do let s1 ← notification.set_active st s n badge; ok (s1, a)) ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ :=
@@ -444,9 +449,12 @@ theorem ntbt_all {s : S} {n v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s) (
     (fun r hr e => by rw [av, (rp_facts hO hr).2.2.1] at e; have := hO.ntORp n hn r hr; omega)
     (fun c hc e => by
       rw [av, (sc_facts hO hc).2.2.2.2.2.2.1] at e; have := hO.ntOSc n hn c hc; have := (sc_facts hO hc).1; omega)
-    (fun n' hn' e => by
-      rw [av, ntfnScA_val (hO.ntP n' hn')] at e; have := hP.1; have := (hO.ntP n' hn').1; omega)
+    (fun n' hn' e => absurd e (by
+      rw [av, ntfnScA_val (hO.ntP n' hn')]; have := hP.1; have := (hO.ntP n' hn').1; omega))
     (fun _ _ _ => hv)
+    (fun c hc e => absurd e (by
+      obtain ⟨hPc, hzc⟩ := hO.sc c hc
+      rw [av, scNtfnA_val hPc hzc]; have := hO.ntOSc n hn c hc; have := (sc_facts hO hc).1; omega))
   exact ⟨⟨Q, R, h1⟩, hB1, hX1, hS1, hSg1⟩
 
 /-- A write of a null or a notification to a TCB's `BOUND_NTFN` field. -/
@@ -493,7 +501,8 @@ theorem bnd_all {s : S} {t v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s) (h
       (fun c hc => ⟨om _ (hcΩ c hc).1, om _ (hcΩ c hc).2.1⟩) hsc hrp hst (by rw [ecs]; exact hX.2.2.cur)
       (fun c hc => om _ (hSg.sub _ (hX.1.repW c hc))) (fun y hy hb => ?_)
       (fun n hn => om _ (hSg.sub _ (hX.1.ntW n hn)))
-      (hX.tn_field (K := 3368#u64) h0 hSg.sub ht (by simp) (by simp) (by simp)),
+      (hX.tn_field (K := 3368#u64) h0 hSg.sub ht (by simp) (by simp) (by simp))
+      (fun c hc => by rw [om _ (hSg.sub _ (hX.1.snW c hc))]; exact hX.2.2.scn c hc),
     SCsOK.field (K := 3368#u64) h0 hS hX ht (by simp) (by simp) (by simp),
     ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o h1 h2⟩⟩
   · rw [ea] at haT ⊢; exact ⟨haT, hB.act haT⟩
@@ -556,15 +565,15 @@ theorem notification.unbind_maybe_notification.blk (s : S) (n : U64) (h : BlkOK 
 theorem notification.bind_notification.tinv (s : S) (t n : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z s)
     (ht : t ∈ T) (hn : n ∈ Nt) :
     notification.bind_notification st s t n ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ :=
-  WP.spec_mono (notification.bind_notification.blk s t n h.1 ht hn) fun _ h' => h'.tinv
+  WP.spec_mono (notification.bind_notification.blk s t n h ht hn) fun _ h' => h'.tinv
 theorem notification.unbind_notification.tinv (s : S) (t : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z s)
     (ht : t ∈ T) :
     notification.unbind_notification st s t ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ :=
-  WP.spec_mono (notification.unbind_notification.blk s t h.1 ht) fun _ h' => h'.tinv
+  WP.spec_mono (notification.unbind_notification.blk s t h ht) fun _ h' => h'.tinv
 theorem notification.unbind_maybe_notification.tinv (s : S) (n : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z s)
     (hn : n ∈ Nt) :
     notification.unbind_maybe_notification st s n ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ :=
-  WP.spec_mono (notification.unbind_maybe_notification.blk s n h.1 hn) fun _ h' => h'.tinv
+  WP.spec_mono (notification.unbind_maybe_notification.blk s n h hn) fun _ h' => h'.tinv
 
 end
 

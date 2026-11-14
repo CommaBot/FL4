@@ -29,6 +29,8 @@ def rTcbA (r : U64) : U64 := core.num.U64.wrapping_add r layout.reply.TCB
 def rPrevA (r : U64) : U64 := core.num.U64.wrapping_add r layout.reply.PREV
 def rNextA (r : U64) : U64 := core.num.U64.wrapping_add r layout.reply.NEXT
 def scReplyA (sc : U64) : U64 := core.num.U64.wrapping_add sc layout.sc.REPLY
+/-- An SC's bound-notification word. -/
+def scNtfnA (sc : U64) : U64 := core.num.U64.wrapping_add sc layout.sc.NTFN
 /-- A notification's `SC` word. -/
 def ntfnScA (n : U64) : U64 := core.num.U64.wrapping_add n layout.ntfn.SC
 /-- A TCB's bound-notification word. -/
@@ -76,6 +78,8 @@ structure ObjsOK (st : machine.Store S) [L : LawfulStore st] (Ω Sg Rp Scs Nt : 
   ntB : ∀ n ∈ Nt, ntfnBdA n ∈ Sg ∧ ntfnBtA n ∈ Sg
   ntORp : ∀ n ∈ Nt, ∀ r ∈ Rp, n.val + 64 ≤ r.val ∨ r.val + 32 ≤ n.val
   ntOSc : ∀ n ∈ Nt, ∀ c ∈ Scs, n.val + 64 ≤ c.val ∨ c.val + 2 ^ Z c ≤ n.val
+  /-- The SCs' `NTFN` words are frame words. -/
+  snW : ∀ c ∈ Scs, scNtfnA c ∈ Sg
 
 /-! ## Addresses -/
 
@@ -101,7 +105,7 @@ theorem ObjsOK.nextW (h : ObjsOK st Ω Sg Rp Scs Nt Z s) {r : U64} (hr : r ∈ R
 
 theorem ObjsOK.ksb {s s' : S} (h : ObjsOK st Ω Sg Rp Scs Nt Z s) : ObjsOK st Ω Sg Rp Scs Nt Z s' :=
   ⟨h.rp, h.sc, h.rpW, h.scW, h.fixW, h.scDisj, h.rpSc, h.repW, h.ntW, h.ntRp, h.ntSc, h.ntAl, h.ntP,
-    h.ntB, h.ntORp, h.ntOSc⟩
+    h.ntB, h.ntORp, h.ntOSc, h.snW⟩
 
 theorem sc_lo {c : U64} {z : Nat} (hP : Placed c z) (hz : 7 ≤ z) :
     c.val % 8 = 0 ∧ 128 ≤ 2 ^ z ∧ c.val + 2 ^ z ≤ 2 ^ 64 := by
@@ -236,6 +240,8 @@ theorem tailA_val' {c : U64} {z : Nat} (hP : Placed c z) (hz : 7 ≤ z) : (tailA
   unfold tailA; rw [sc_word_val hP hz (by simp [layout.sc.REFILL_TAIL])]; simp [layout.sc.REFILL_TAIL]
 theorem scReplyA_val {c : U64} {z : Nat} (hP : Placed c z) (hz : 7 ≤ z) : (scReplyA c).val = c.val + 32 := by
   unfold scReplyA; rw [sc_word_val hP hz (by simp [layout.sc.REPLY])]; simp [layout.sc.REPLY]
+theorem scNtfnA_val {c : U64} {z : Nat} (hP : Placed c z) (hz : 7 ≤ z) : (scNtfnA c).val = c.val + 40 := by
+  unfold scNtfnA; rw [sc_word_val hP hz (by simp [layout.sc.NTFN])]; simp [layout.sc.NTFN]
 theorem scYieldA_val {c : U64} {z : Nat} (hP : Placed c z) (hz : 7 ≤ z) :
     (core.num.U64.wrapping_add c layout.sc.YIELD_FROM).val = c.val + 56 := by
   rw [sc_word_val hP hz (by simp [layout.sc.YIELD_FROM])]; simp [layout.sc.YIELD_FROM]
@@ -268,11 +274,13 @@ structure KeepT (st : machine.Store S) [L : LawfulStore st] (T Cs Rp Scs Nt : Se
   words are kept. -/
   tnd : ∀ c ∈ Cs, ∀ o : U64, (o.val = 104 ∨ o.val = 112) → L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)
   ntb : ∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n)
+  /-- The SCs' `NTFN` words are kept. -/
+  snt : ∀ c ∈ Scs, L.mem s' (scNtfnA c) = L.mem s (scNtfnA c)
 
 theorem KeepT.refl (t : U64) (s : S) : KeepT st T Cs Rp Scs Nt t s s :=
   ⟨rfl, rfl, fun _ _ _ _ _ _ _ _ => rfl, fun _ _ => rfl, Or.inl rfl, fun _ _ => Or.inl rfl,
    fun _ _ => ⟨Or.inl rfl, Or.inl rfl⟩, fun _ _ => ⟨rfl, rfl, rfl, rfl, rfl⟩, fun _ _ => Or.inl rfl, fun _ _ => rfl,
-   fun _ _ _ _ => rfl, fun _ _ => rfl⟩
+   fun _ _ _ _ => rfl, fun _ _ => rfl, fun _ _ => rfl⟩
 
 theorem KeepT.zero {t : U64} {s s' : S} (k : KeepT st T Cs Rp Scs Nt t s s') {r : U64} (hr : r ∈ Rp)
     (h0 : L.mem s (rTcbA r) = 0#u64) : L.mem s' (rTcbA r) = 0#u64 := by
@@ -289,7 +297,7 @@ theorem KeepT.trans {t : U64} {s₁ s₂ s₃ : S} (h₁ : KeepT st T Cs Rp Scs 
       have h2 := h₂.tnd c hc o ho
       rw [nodeAt_of_ksb h₁.ksb] at h2
       exact h2.trans (h₁.tnd c hc o ho),
-    fun n hn => (h₂.ntb n hn).trans (h₁.ntb n hn)⟩
+    fun n hn => (h₂.ntb n hn).trans (h₁.ntb n hn), fun c hc => (h₂.snt c hc).trans (h₁.snt c hc)⟩
   · rcases h₂.act with e | e
     · rw [e]; exact h₁.act
     · exact Or.inr e
@@ -339,7 +347,7 @@ theorem keep_wr {s : S} {t a v : U64}
     (hnt : ∀ n ∈ Nt, a.val ≠ (ntfnScA n).val)
     (hNs : ∀ c ∈ Cs, NodePlaced st T s c)
     (htn : ∀ c ∈ Cs, ∀ o : U64, (o.val = 104 ∨ o.val = 112) → a.val ≠ (L.nodeAt s c o).val)
-    (hnb : ∀ n ∈ Nt, a.val ≠ (ntfnBtA n).val) :
+    (hnb : ∀ n ∈ Nt, a.val ≠ (ntfnBtA n).val) (hsn : ∀ c ∈ Scs, a.val ≠ (scNtfnA c).val) :
     KeepT st T Cs Rp Scs Nt t s (L.wr s a v) := by
   have rpa : ∀ r ∈ Rp, Aligned (rTcbA r) ∧ Aligned (rPrevA r) ∧ Aligned (rNextA r) := fun r hr => by
     have hp := hO.rp r hr
@@ -358,7 +366,8 @@ theorem keep_wr {s : S} {t a v : U64}
     fun r hr' => ?_, fun r hr' => ?_, fun c hc' => ?_, fun c hc' => ?_,
     fun n hn => g _ (hO.ntAl n hn) (hnt n hn),
     fun c hc o ho => g _ (nodeAt_aligned (hNs c hc) (by omega) (by omega)) (htn c hc o ho),
-    fun n hn => g _ (by unfold Aligned; rw [ntfnBtA_val (hO.ntP n hn)]; have := (hO.ntP n hn).1; omega) (hnb n hn)⟩
+    fun n hn => g _ (by unfold Aligned; rw [ntfnBtA_val (hO.ntP n hn)]; have := (hO.ntP n hn).1; omega) (hnb n hn),
+    fun c hc => g _ (sca c hc _ (by simp [layout.sc.NTFN]) (by simp [layout.sc.NTFN])) (hsn c hc)⟩
   rotate_right
   · unfold scReplyA
     rw [L.mem_wr_val ha (sca c hc' _ (by simp [layout.sc.REPLY]) (by simp [layout.sc.REPLY]))]
@@ -427,7 +436,7 @@ theorem keep_wr_out {s : S} {t a v : U64}
     fun e => absurd e (hout _ (hr r hr').2.1), fun e => absurd e (hout _ (hr r hr').2.2)⟩) (fun c hc' => ?_)
     (fun c hc' e => absurd e (hout _ (hsub _ (hO.repW c hc'))))
     (fun n hn e => absurd e (hout _ (hsub _ (hO.ntW n hn)))) hNs htn
-    (fun n hn => hout _ (hsub _ (hO.ntB n hn).2))
+    (fun n hn => hout _ (hsub _ (hO.ntB n hn).2)) (fun c hc => hout _ (hsub _ (hO.snW c hc)))
   obtain ⟨c1, c2, c3, c4, c5⟩ := hc c hc'
   exact ⟨hout _ c1, hout _ c2, hout _ c3, hout _ c4, hout _ c5⟩
 
@@ -627,7 +636,7 @@ theorem KeepT.of_frame {s s' : S} {t : U64} (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
   refine ⟨hk, hc, hf, fun o ho => hn o (by omega) (by omega), Or.inl ?_, fun r hr' => Or.inl (hΩ _ (hr r hr').1),
     fun r hr' => ⟨Or.inl (hΩ _ (hr r hr').2.1), Or.inl (hΩ _ (hr r hr').2.2)⟩, fun c hc' => ?_,
     fun c hc' => Or.inl (hΩ _ (hsub _ (hO.repW c hc'))), fun n hn => hΩ _ (hsub _ (hO.ntW n hn)), hnc,
-    fun n hn => hΩ _ (hsub _ (hO.ntB n hn).2)⟩
+    fun n hn => hΩ _ (hsub _ (hO.ntB n hn).2), fun c hc => hΩ _ (hsub _ (hO.snW c hc))⟩
   · unfold LawfulStore.actionW; exact hn _ (by rw [act_val]; omega) (by rw [act_val])
   · obtain ⟨c1, c2, c3, c4, c5⟩ := hcw c hc'
     exact ⟨hΩ _ c1, hΩ _ c2, hΩ _ c3, hΩ _ c4, hΩ _ c5⟩
@@ -768,12 +777,12 @@ theorem keep_omega_wr {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : 
     (hc : ∀ c ∈ Scs, a.val ≠ (scTcbA c).val ∧ a.val ≠ (scCoreA c).val ∧ a.val ≠ (maxA c).val ∧
       a.val ≠ (headA c).val ∧ a.val ≠ (tailA c).val)
     (hsr : ∀ c ∈ Scs, a.val = (scReplyA c).val → v = 0#u64) (hnt : ∀ n ∈ Nt, a.val ≠ (ntfnScA n).val)
-    (hnb : ∀ n ∈ Nt, a.val ≠ (ntfnBtA n).val) :
+    (hnb : ∀ n ∈ Nt, a.val ≠ (ntfnBtA n).val) (hsn : ∀ c ∈ Scs, a.val ≠ (scNtfnA c).val) :
     KeepT st T Cs Rp Scs Nt t s (L.wr s a v) := by
   have hN' := h.nodes _ h.cur
   have ho := h.omega a haΩ
   refine keep_wr h.tcbs hN' hO ho.1 (fun y hy K hK _ _ _ _ => ?_) (fun o ho' => ?_) (fun e => ?_) hr hc hsr hnt
-    h.nodes (fun c hc o ho' => (out_ne_node ho hc (h.nodes c hc) (by omega)).symm) hnb
+    h.nodes (fun c hc o ho' => (out_ne_node ho hc (h.nodes c hc) (by omega)).symm) hnb hsn
   · exact (out_ne_field ho hy (h.tcbs y hy) hK).symm
   · exact (out_ne_node ho h.cur hN' (by omega)).symm
   · exact absurd e (out_ne_node ho h.cur hN' (by rw [act_val]; omega)).symm
@@ -825,6 +834,15 @@ theorem scword_facts (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) {c a : U64} (hc : c �
     · subst e; omega
     · have := hO.scDisj c hc c' hc' e; omega
 
+/-- A reply word is no SC `NTFN` word. -/
+theorem rword_ne_scn (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) {r a : U64} (hr : r ∈ Rp)
+    (ha : r.val ≤ a.val ∧ a.val < r.val + 32) : ∀ c ∈ Scs, a.val ≠ (scNtfnA c).val := by
+  intro c hc
+  obtain ⟨hP, hz⟩ := hO.sc c hc
+  obtain ⟨h128, -⟩ := sc_facts hO hc
+  have := hO.rpSc r hr c hc
+  rw [scNtfnA_val hP hz]; omega
+
 theorem keep_rtcb {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t r v : U64}
     (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω)
     (hr : r ∈ Rp) (ht0 : L.mem s (rTcbA r) = t) (hv : v = 0#u64) : KeepT st T Cs Rp Scs Nt t s (L.wr s (rTcbA r) v) := by
@@ -833,6 +851,7 @@ theorem keep_rtcb {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 
     (fun c hc e => absurd e (rword_ne_screp hO hr (by rw [e0]; omega) c hc))
     (fun n hn e => by have := hO.ntRp n hn r hr; omega)
     (fun n hn e => by rw [ntfnBtA_val (hO.ntP n hn)] at e; have := hO.ntORp n hn r hr; omega)
+    (rword_ne_scn hO hr (by rw [e0]; omega))
   obtain ⟨m', e1, e2, e3⟩ := rp_facts hO hr'
   refine ⟨fun e => ?_, fun e => ?_, fun e => ?_⟩
   · have : r = r' := UScalar.eq_of_val_eq (by rw [← e0, ← e1]; exact e)
@@ -848,6 +867,7 @@ theorem keep_rprev {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64
     (fun c hc e => absurd e (rword_ne_screp hO hr (by rw [e0]; omega) c hc))
     (fun n hn e => by have := hO.ntRp n hn r hr; omega)
     (fun n hn e => by rw [ntfnBtA_val (hO.ntP n hn)] at e; have := hO.ntORp n hn r hr; omega)
+    (rword_ne_scn hO hr (by rw [e0]; omega))
   obtain ⟨m', e1, e2, e3⟩ := rp_facts hO hr'
   refine ⟨fun e => ?_, fun _ => hv, fun e => ?_⟩
   · rw [e0, e1] at e; omega
@@ -861,6 +881,7 @@ theorem keep_rnext {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64
     (fun c hc e => absurd e (rword_ne_screp hO hr (by rw [e0]; omega) c hc))
     (fun n hn e => by have := hO.ntRp n hn r hr; omega)
     (fun n hn e => by rw [ntfnBtA_val (hO.ntP n hn)] at e; have := hO.ntORp n hn r hr; omega)
+    (rword_ne_scn hO hr (by rw [e0]; omega))
   obtain ⟨m', e1, e2, e3⟩ := rp_facts hO hr'
   refine ⟨fun e => ?_, fun e => ?_, fun _ => hv⟩
   · rw [e0, e1] at e; omega
@@ -894,6 +915,13 @@ theorem keep_scw {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 �
     f2 (fun c' hc' e => ?_) (fun n hn e => by have := hO.ntSc n hn c hc; rcases hv with hv | hv <;> omega)
     (fun n hn e => by
       rw [ntfnBtA_val (hO.ntP n hn)] at e; have := hO.ntOSc n hn c hc; rcases hv with hv | hv <;> omega)
+    (fun c' hc' e => by
+      obtain ⟨hP', hz'⟩ := hO.sc c' hc'
+      rw [scNtfnA_val hP' hz'] at e
+      by_cases hcc : c = c'
+      · subst hcc; rcases hv with hv | hv <;> omega
+      · have := hO.scDisj c hc c' hc' hcc; have := h128; obtain ⟨h128', -⟩ := sc_facts hO hc'
+        rcases hv with hv | hv <;> omega)
   obtain ⟨h128', -, -, -, -, -, e6', -⟩ := sc_facts hO hc'
   by_cases hcc : c' = c
   · subst hcc

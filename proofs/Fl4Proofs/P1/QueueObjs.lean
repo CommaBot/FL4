@@ -218,6 +218,8 @@ structure ScExtra (st : machine.Store S) [L : LawfulStore st] (T Cs Scs Nt : Set
   tm : TimerOK st T Cs s
   /-- A notification's bound TCB is null or a TCB. -/
   ntb : NtbOK st T Nt s
+  /-- An SC's bound notification is null or a notification (l4v `valid_sched_context`, `sc_ntfn`). -/
+  scn : ∀ c ∈ Scs, L.mem s (scNtfnA c) ≠ 0#u64 → L.mem s (scNtfnA c) ∈ Nt
 
 /-- The object invariants together. -/
 def XInv (st : machine.Store S) [L : LawfulStore st] (T Cs Ω Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (s : S) : Prop :=
@@ -238,13 +240,15 @@ theorem XInv.keep' {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hsr : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c))
     (hbd : ∀ t ∈ T, L.mem s' (boundA t) ≠ 0#u64 → L.mem s' (boundA t) ∈ Nt)
     (hns : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n))
-    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s') : XInv st T Cs Ω Sg Rp Scs Nt Z s' := by
+    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s')
+    (hsn : ∀ c ∈ Scs, L.mem s' (scNtfnA c) ≠ 0#u64 → L.mem s' (scNtfnA c) ∈ Nt) :
+    XInv st T Cs Ω Sg Rp Scs Nt Z s' := by
   obtain ⟨hO, hR, hE⟩ := hX
   refine ⟨hO.ksb, ⟨fun t ht hs => ?_, fun t ht hs hn => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr hn => ?_,
       fun c hc => by rw [hsr c hc]; exact hR.screp c hc⟩,
     ⟨fun t ht hb => ?_, hcs, fun c hc => by rw [(hfx c hc).2]; exact hE.core c hc,
       hbd, fun n hn => by rw [hns n hn]; exact hE.nsc n hn,
-      htn.1, htn.2⟩⟩
+      htn.1, htn.2, hsn⟩⟩
   rotate_left 4
   · rw [(hrw r hr).1] at hn ⊢
     obtain ⟨b0, b1, b2, b3⟩ := hR.back r hr hn
@@ -273,8 +277,10 @@ theorem XInv.keep {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hsr : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c))
     (hbd : ∀ t ∈ T, L.mem s' (boundA t) = L.mem s (boundA t))
     (hns : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n))
-    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s') : XInv st T Cs Ω Sg Rp Scs Nt Z s' :=
+    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s')
+    (hsn : ∀ c ∈ Scs, L.mem s' (scNtfnA c) = L.mem s (scNtfnA c)) : XInv st T Cs Ω Sg Rp Scs Nt Z s' :=
   hX.keep' hrw hfx hsc hrep hst hcs hsr (fun t ht => by rw [hbd t ht]; exact hX.2.2.bnd t ht) hns htn
+    (fun c hc => by rw [hsn c hc]; exact hX.2.2.scn c hc)
 
 /-- The timer-tree typing and the notifications' bound TCBs after a frame. -/
 theorem XInv.tn {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (f : TmFr st T Cs Nt s s') :
@@ -286,13 +292,14 @@ theorem XInv.fr {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (f : Fr st T 
     (fun c hc => ⟨f.sig _ (hX.1.fixW c hc).1, f.sig _ (hX.1.fixW c hc).2⟩) f.sc f.rep f.st
     (by rw [f.csc]; exact hX.2.2.cur) (fun c hc => f.sig _ (hX.1.repW c hc)) f.bnd
     (fun n hn => f.sig _ (hX.1.ntW n hn)) (hX.tn (TmFr.of_fr f hX.1 hX.2.2.tm.npl))
+    (fun c hc => f.sig _ (hX.1.snW c hc))
 
 /-! ## Writes that avoid the protected words -/
 
 /-- The words `XInv` reads (besides the current SC). -/
 def Prot (T Rp Scs Nt : Set U64) (b : U64) : Prop :=
   (∃ r ∈ Rp, b = rTcbA r ∨ b = rPrevA r ∨ b = rNextA r) ∨
-  (∃ c ∈ Scs, b = scTcbA c ∨ b = scCoreA c ∨ b = scReplyA c) ∨
+  (∃ c ∈ Scs, b = scTcbA c ∨ b = scCoreA c ∨ b = scReplyA c ∨ b = scNtfnA c) ∨
   (∃ t ∈ T, b = scA t ∨ b = replyA t ∨ b = stA t ∨ b = boundA t) ∨
   (∃ n ∈ Nt, b = ntfnScA n)
 
@@ -308,10 +315,11 @@ theorem ObjsOK.aligned (h : ObjsOK st Ω Sg Rp Scs Nt Z s) (hT : TcbPlaced T) {b
     · rw [rNextA_val hp]; omega
   · obtain ⟨hP, hz⟩ := h.sc c hc
     have := (sc_lo hP hz).1
-    rcases e with rfl | rfl | rfl <;> unfold Aligned
+    rcases e with rfl | rfl | rfl | rfl <;> unfold Aligned
     · rw [scTcbA_val hP hz]; omega
     · rw [scCoreA_val hP hz]; omega
     · rw [scReplyA_val hP hz]; omega
+    · rw [scNtfnA_val hP hz]; omega
   · rcases e with rfl | rfl | rfl | rfl
     · exact scA_aligned (hT t ht)
     · exact field_aligned (hT t ht) (by simp) (by simp)
@@ -332,9 +340,10 @@ theorem XInv.writes {s s' : S} {B : U64 → Prop} (hX : XInv st T Cs Ω Sg Rp Sc
     (fun t ht => k _ (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inl rfl⟩))))
     (fun t ht => k _ (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inr (Or.inl rfl)⟩))))
     (fun t ht => k _ (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inr (Or.inr (Or.inl rfl))⟩)))) hcs
-    (fun c hc => k _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr rfl)⟩)))
+    (fun c hc => k _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inl rfl))⟩)))
     (fun t ht => k _ (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inr (Or.inr (Or.inr rfl))⟩))))
     (fun n hn => k _ (Or.inr (Or.inr (Or.inr ⟨n, hn, rfl⟩)))) htn
+    (fun c hc => k _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inr rfl))⟩)))
 
 /-- Protected words are words of `Ω` or TCB fields. -/
 theorem ObjsOK.prot_cases (h : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω) {b : U64}
@@ -346,10 +355,11 @@ theorem ObjsOK.prot_cases (h : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ 
     · exact hsub _ (h.tcbW hr)
     · exact hsub _ (h.prevW hr)
     · exact hsub _ (h.nextW hr)
-  · left; rcases e with rfl | rfl | rfl
+  · left; rcases e with rfl | rfl | rfl | rfl
     · exact hsub _ (h.fixW c hc).1
     · exact hsub _ (h.fixW c hc).2
     · exact hsub _ (h.repW c hc)
+    · exact hsub _ (h.snW c hc)
   · right; refine ⟨t, ht, ?_⟩
     rcases e with rfl | rfl | rfl | rfl
     · exact ⟨3464#u64, by simp, rfl⟩
@@ -391,11 +401,12 @@ theorem not_prot_ring {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → 
     omega
   · obtain ⟨hP', hz'⟩ := hO.sc c' hc'
     obtain ⟨-, h128', -⟩ := sc_lo hP' hz'
-    have hcv : b.val = c'.val + 24 ∨ b.val = c'.val + 16 ∨ b.val = c'.val + 32 := by
-      rcases e with rfl | rfl | rfl
+    have hcv : b.val = c'.val + 24 ∨ b.val = c'.val + 16 ∨ b.val = c'.val + 32 ∨ b.val = c'.val + 40 := by
+      rcases e with rfl | rfl | rfl | rfl
       · exact Or.inl (scTcbA_val hP' hz')
       · exact Or.inr (Or.inl (scCoreA_val hP' hz'))
-      · exact Or.inr (Or.inr (scReplyA_val hP' hz'))
+      · exact Or.inr (Or.inr (Or.inl (scReplyA_val hP' hz')))
+      · exact Or.inr (Or.inr (Or.inr (scNtfnA_val hP' hz')))
     by_cases e' : c = c'
     · subst e'; omega
     · have := hO.scDisj c hc c' hc' e'; omega
@@ -532,7 +543,8 @@ theorem XInv.keepT {t : U64} {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) 
       fun r hr hn => ?_, fun c hc hn => ?_⟩,
     ⟨fun u hu hb => ?_, by rw [k.cscW]; exact hE.cur, fun c hc => by rw [(k.fix c hc).2.1]; exact hE.core c hc,
       fun u hu => by rw [k.bndf hu]; exact hE.bnd u hu, fun n hn => by rw [k.nsc n hn]; exact hE.nsc n hn,
-      hE.tm.tmfr (TmFr.of_keepT k), hE.ntb.tmfr (TmFr.of_keepT k)⟩⟩
+      hE.tm.tmfr (TmFr.of_keepT k), hE.ntb.tmfr (TmFr.of_keepT k),
+      fun c hc => by rw [k.snt c hc]; exact hE.scn c hc⟩⟩
   · by_cases e : u = t
     · subst e; exact absurd hs hst.1
     rw [k.stf hu e] at hs
