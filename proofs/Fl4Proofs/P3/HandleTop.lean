@@ -286,7 +286,7 @@ def TopPostR (σ : Fl4Spec.State Unit) (blk call don : Bool) (m : Fl4Spec.SEMona
     (ct : U64) (s : S) (res : core.result.Result Unit error.Exc × S × A) : Prop :=
   (∃ e, res.1 = .Err e ∧ res.2.1 = s ∧ ∃ e', m.run σ = ({(.error e', σ)}, False) ∧ ErrRel e e') ∨
   res.1 = .Ok () ∧ L.mem res.2.1 (stA ct) ≠ sched.TS_RESTART ∧
-  ∃ inv, m.run σ = ({(.ok inv, σ)}, False) ∧ ∃ σ1,
+  ∃ inv, DecOut m σ inv ∧ ∃ σ1,
     Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
     ∃ rr σy, (.ok rr, σy) ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don inv).run σ1).1 ∧
       ∃ z ∈ (specTail call ct.bv rr σy).1, RelTop (L := L) res.2.1 z.2
@@ -422,7 +422,7 @@ theorem handle_invocation_refines (s : S) (ar : A) (σ : Fl4Spec.State Unit) (th
           rintro v rfl
           rw [if_neg hne]
           refine (WP.spec_ok _).2 ?_
-          exact ⟨(.ok z.1, z.2), hi_mem hcur hmi (mem_syscall_fin hmF (by rw [hmE, hdec]; rfl)
+          exact ⟨(.ok z.1, z.2), hi_mem hcur hmi (mem_syscall_fin hmF (by rw [hmE]; exact hdec.1)
             (hiMFin_ok (by rw [← hcur]; exact hst) hy hz)), Or.inl ⟨rfl, rfl⟩, hRT⟩
         refine WP.spec_bind hD ?_
         rintro ⟨r3, s1, a1⟩ hq
@@ -446,14 +446,14 @@ theorem handle_invocation_refines (s : S) (ar : A) (σ : Fl4Spec.State Unit) (th
             rintro res ⟨hres, z, hz, hRT⟩
             obtain ⟨y1, y2⟩ := y
             simp only at hyr; subst hyr
-            exact ⟨(.ok z.1, z.2), hi_mem hcur hmi (mem_syscall_fin hmF (by rw [hmE, hdec]; rfl)
+            exact ⟨(.ok z.1, z.2), hi_mem hcur hmi (mem_syscall_fin hmF (by rw [hmE]; exact hdec.1)
               (hiMFin_ok (by rw [← hcur]; exact hst) hy hz)), Or.inl ⟨hres, rfl⟩, hRT⟩
           · simp only at hpre
             subst hpre
             refine (WP.spec_ok _).2 ?_
             obtain ⟨y1, y2⟩ := y
             simp only at hyr; subst hyr
-            exact ⟨(.error (), y2), hi_mem hcur hmi (mem_syscall_fin hmF (by rw [hmE, hdec]; rfl)
+            exact ⟨(.error (), y2), hi_mem hcur hmi (mem_syscall_fin hmF (by rw [hmE]; exact hdec.1)
               (hiMFin_pre (by rw [← hcur]; exact hst) hy)), Or.inr ⟨rfl, rfl⟩,
               ⟨th', G', hP', hCR', hFI', hDR'⟩⟩
       · simp only
@@ -593,7 +593,7 @@ theorem decode_invocation_ioport_in_call (s : S) (ar : A) (σ : Fl4Spec.State Un
   obtain ⟨rr, σy, hy, z, hz, hRT⟩ := hall σ1 hst
   refine Or.inr ⟨hres, hne, .invokeArchObject (.spec (.invokeIOPort (.ioPortInvocation (BitVec.ofNat 16 port.val)
     (inData (portSz lbl))))), ?_, σ1, by rw [hcur]; exact hst, rr, σy, hy, z, hz, hRT⟩
-  exact run_liftME_ok (run_liftME_ok ((run_bind_ok hens _).trans rfl))
+  exact DecOut.of_eq (run_liftME_ok (run_liftME_ok ((run_bind_ok hens _).trans rfl)))
 
 end
 

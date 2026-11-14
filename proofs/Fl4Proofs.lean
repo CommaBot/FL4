@@ -105,3 +105,5 @@ import Fl4Proofs.P3.DecodeTopD
 import Fl4Proofs.P3.HandleTop
 import Fl4Proofs.P3.FinFrame
 import Fl4Proofs.P3.CapAlign
+import Fl4Proofs.P3.TcbDecode
+import Fl4Proofs.P3.TcbTls

@@ -36,11 +36,31 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
+/-- The spec's decode `m` has the outcome `inv`, the state unchanged, and
+no failure (one of its outcomes: the spec may choose, e.g. a free ASID). -/
+def DecOut {α : Type} (m : Fl4Spec.SEMonad Unit α) (σ : Fl4Spec.State Unit) (inv : α) : Prop :=
+  ((.ok inv, σ) : Except Fl4Spec.SyscallError α × Fl4Spec.State Unit) ∈ (m.run σ).1 ∧ ¬ (m.run σ).2
+
+/-- **A decode with a single outcome** has it as one of its outcomes. -/
+theorem DecOut.of_eq {α : Type} {m : Fl4Spec.SEMonad Unit α} {σ : Fl4Spec.State Unit} {inv : α}
+    (h : m.run σ = ({(.ok inv, σ)}, False)) : DecOut m σ inv := by
+  unfold DecOut; rw [h]; exact ⟨rfl, id⟩
+
+/-- `liftME` of an outcome. -/
+theorem DecOut.liftME {α β : Type} {f : α → β} {m : Fl4Spec.SEMonad Unit α} {σ : Fl4Spec.State Unit} {inv : α}
+    (h : DecOut m σ inv) : DecOut (Fl4Spec.NonDetE.liftME f m) σ (f inv) := by
+  unfold DecOut Fl4Spec.NonDetE.liftME
+  rw [ExceptT.run_bind]
+  refine ⟨⟨(.ok inv, σ), h.1, rfl⟩, ?_⟩
+  rintro (hf | ⟨⟨r, σ'⟩, -, hf⟩)
+  · exact h.2 hf
+  · cases r <;> exact hf
+
 /-- **The result of `decode_invocation`** (see the module docstring). -/
 def TopPost (σ : Fl4Spec.State Unit) (blk call don : Bool) (m : Fl4Spec.SEMonad Unit Fl4Spec.Fl4Invocation)
     (s : S) (res : core.result.Result Unit error.Exc × S × A) : Prop :=
   (∃ e, res.1 = .Err e ∧ res.2.1 = s ∧ ∃ e', m.run σ = ({(.error e', σ)}, False) ∧ ErrRel e e') ∨
-  (∃ inv, m.run σ = ({(.ok inv, σ)}, False) ∧ ∃ σ1,
+  (∃ inv, DecOut m σ inv ∧ ∃ σ1,
     Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
     ∃ y ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don inv).run σ1).1, ∃ th' G',
       ((res.1 = .Ok () ∧ ∃ rr, y.1 = .ok rr) ∨ (res.1 = .Err .Preempted ∧ y.1 = .error ())) ∧
@@ -72,7 +92,7 @@ theorem top_of_lift {α : Type} {f : α → Fl4Spec.Fl4Invocation} {m : Fl4Spec.
     TopPost (L := L) σ blk call don (Fl4Spec.NonDetE.liftME f m) s res := by
   rcases h with ⟨e, h1, h2, e', hr, he⟩ | ⟨inv, hr, rest⟩
   · exact Or.inl ⟨e, h1, h2, e', run_liftME_err hr, he⟩
-  · exact Or.inr ⟨f inv, run_liftME_ok hr, rest⟩
+  · exact Or.inr ⟨f inv, DecOut.of_eq (run_liftME_ok hr), rest⟩
 
 /-- Two `liftME`s of a decode with a single outcome. -/
 theorem top_of_lift2 {α β : Type} {f : α → Fl4Spec.Fl4Invocation} {g : β → α} {m : Fl4Spec.SEMonad Unit β}
@@ -86,7 +106,35 @@ theorem top_of_lift2 {α β : Type} {f : α → Fl4Spec.Fl4Invocation} {g : β �
     TopPost (L := L) σ blk call don (Fl4Spec.NonDetE.liftME f (Fl4Spec.NonDetE.liftME g m)) s res := by
   rcases h with ⟨e, h1, h2, e', hr, he⟩ | ⟨inv, hr, rest⟩
   · exact Or.inl ⟨e, h1, h2, e', run_liftME_err (run_liftME_err hr), he⟩
-  · exact Or.inr ⟨f (g inv), run_liftME_ok (run_liftME_ok hr), rest⟩
+  · exact Or.inr ⟨f (g inv), DecOut.of_eq (run_liftME_ok (run_liftME_ok hr)), rest⟩
+
+/-- `liftME` of a decode outcome (`DecOut`: the spec may have several). -/
+theorem top_of_liftM {α : Type} {f : α → Fl4Spec.Fl4Invocation} {m : Fl4Spec.SEMonad Unit α}
+    {σ : Fl4Spec.State Unit} {blk call don : Bool} {s : S} {res : core.result.Result Unit error.Exc × S × A}
+    (h : (∃ e, res.1 = .Err e ∧ res.2.1 = s ∧ ∃ e', m.run σ = ({(.error e', σ)}, False) ∧ ErrRel e e') ∨
+      (∃ inv, DecOut m σ inv ∧ ∃ σ1,
+        Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
+        ∃ y ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don (f inv)).run σ1).1, ∃ th' G',
+          ((res.1 = .Ok () ∧ ∃ rr, y.1 = .ok rr) ∨ (res.1 = .Err .Preempted ∧ y.1 = .error ())) ∧
+          Placed th' ∧ CRel th' (L.mem res.2.1) y.2 G' ∧ FinInv th' (L.mem res.2.1) y.2 G')) :
+    TopPost (L := L) σ blk call don (Fl4Spec.NonDetE.liftME f m) s res := by
+  rcases h with ⟨e, h1, h2, e', hr, he⟩ | ⟨inv, hr, rest⟩
+  · exact Or.inl ⟨e, h1, h2, e', run_liftME_err hr, he⟩
+  · exact Or.inr ⟨f inv, hr.liftME, rest⟩
+
+/-- Two `liftME`s of a decode outcome (`DecOut`). -/
+theorem top_of_lift2M {α β : Type} {f : α → Fl4Spec.Fl4Invocation} {g : β → α} {m : Fl4Spec.SEMonad Unit β}
+    {σ : Fl4Spec.State Unit} {blk call don : Bool} {s : S} {res : core.result.Result Unit error.Exc × S × A}
+    (h : (∃ e, res.1 = .Err e ∧ res.2.1 = s ∧ ∃ e', m.run σ = ({(.error e', σ)}, False) ∧ ErrRel e e') ∨
+      (∃ inv, DecOut m σ inv ∧ ∃ σ1,
+        Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
+        ∃ y ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don (f (g inv))).run σ1).1, ∃ th' G',
+          ((res.1 = .Ok () ∧ ∃ rr, y.1 = .ok rr) ∨ (res.1 = .Err .Preempted ∧ y.1 = .error ())) ∧
+          Placed th' ∧ CRel th' (L.mem res.2.1) y.2 G' ∧ FinInv th' (L.mem res.2.1) y.2 G')) :
+    TopPost (L := L) σ blk call don (Fl4Spec.NonDetE.liftME f (Fl4Spec.NonDetE.liftME g m)) s res := by
+  rcases h with ⟨e, h1, h2, e', hr, he⟩ | ⟨inv, hr, rest⟩
+  · exact Or.inl ⟨e, h1, h2, e', run_liftME_err (run_liftME_err hr), he⟩
+  · exact Or.inr ⟨f (g inv), hr.liftME.liftME, rest⟩
 
 /-- The null cap. -/
 theorem decode_invocation_null (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl length slot : U64)

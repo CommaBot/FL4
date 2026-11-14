@@ -82,7 +82,7 @@ invocation (after an error, the state is unchanged). -/
 def TopPostD (σ : Fl4Spec.State Unit) (blk call don : Bool) (m : Fl4Spec.SEMonad Unit Fl4Spec.Fl4Invocation)
     (s : S) (res : core.result.Result Unit error.Exc × S × A) : Prop :=
   (∃ e, res.1 = .Err e ∧ res.2.1 = s ∧ ∃ e', m.run σ = ({(.error e', σ)}, False) ∧ ErrRel e e') ∨
-  (∃ inv, m.run σ = ({(.ok inv, σ)}, False) ∧ ∃ σ1,
+  (∃ inv, DecOut m σ inv ∧ ∃ σ1,
     Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
     ∃ y ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don inv).run σ1).1, ∃ th' G',
       ((res.1 = .Ok () ∧ ∃ rr, y.1 = .ok rr) ∨ (res.1 = .Err .Preempted ∧ y.1 = .error ())) ∧
@@ -114,7 +114,7 @@ def DomFrame (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl length slot : U64) 
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) : Prop :=
   (syscall.decode_invocation st arI s ar lbl length slot c blk call don fp buf extra ⦃ res =>
     L.ksb res.2.1 = L.ksb s ∧ ∀ o ∈ domOffs, L.mem res.2.1 (ksW (L.ksb s) o) = L.mem s (ksW (L.ksb s) o) ⦄) ∧
-  ∀ inv σ1, (specDec fp slbl args ci sl c excaps buffer).run σ = ({(.ok inv, σ)}, False) →
+  ∀ inv σ1, DecOut (specDec fp slbl args ci sl c excaps buffer) σ inv →
     Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
     ∀ y ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don inv).run σ1).1,
       y.2.domainList = σ.domainList ∧ y.2.domainStartIndex = σ.domainStartIndex
@@ -171,7 +171,7 @@ theorem decode_invocation_domainD (hcfg : DomConfig) (th : TypedHeap) (hP : Plac
         show _ ∈ ((Fl4Spec.NonDetE.liftE (do Fl4Spec.invokeDomain (Z := Unit) inv; return ([] : List Fl4Spec.Data))).run
           σ1).1
         exact mem_liftE (x := ([], y.2)) (mem_bind_nd hy rfl)
-      exact Or.inr ⟨_, run_liftME_ok hrun, σ1, hst, (.ok [], y.2), hm, th, G, Or.inl ⟨he, [], rfl⟩, hP, hCR', hFI',
+      exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], y.2), hm, th, G, Or.inl ⟨he, [], rfl⟩, hP, hCR', hFI',
         hDR'⟩
   · simp only [↓reduceIte]
     rw [WP.spec_ok]
