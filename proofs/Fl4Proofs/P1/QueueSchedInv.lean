@@ -106,7 +106,7 @@ inductive HKind where
 def HKind.bits : HKind → Nat
   | .tcb => 12
   | .ep => 4
-  | .ntfn => 5
+  | .ntfn => 6
   | .reply => 5
   | .sc z => z
   | .other z => z
@@ -169,7 +169,8 @@ def EpTy (st : machine.Store S) [L : LawfulStore st] (T X : Set U64) (s : S) (E 
   (∀ e ∈ E, ∀ y ∈ EQ e, ∀ z ∈ EQ e, L.mem s (stA y) = L.mem s (stA z)) ∧
   (∀ e ∈ E, ∀ y ∈ EQ e, (L.mem s (stA y) = sched.TS_BLOCKED_ON_SEND → L.epState s e = 1#u64) ∧
     (L.mem s (stA y) = sched.TS_BLOCKED_ON_RECV → L.epState s e = 2#u64) ∧
-    (L.mem s (stA y) = sched.TS_BLOCKED_ON_NTFN → L.epState s e = 1#u64))
+    (L.mem s (stA y) = sched.TS_BLOCKED_ON_NTFN → L.epState s e = 1#u64)) ∧
+  (∀ e ∈ E, EQ e = [] → (H e = some .ep → L.epState s e = 0#u64) ∧ (H e = some .ntfn → L.epState s e ≠ 1#u64))
 
 /-- The endpoint and notification queues: some set `E` of placed, disjoint
 objects whose queues hold the ghost lists `EQ e`; the members of `EQ e` are
@@ -196,13 +197,21 @@ theorem EpTy.agree {X X' : Set U64} {s s' : S} {E : Set U64} {EQ EQ' : U64 → L
       L.mem s' (stA y) = L.mem s (stA y) ∧ L.mem s' (blockA y) = L.mem s (blockA y))
     (hq : ∀ e ∈ E, ∀ y ∈ EQ' e, y ∈ EQ e)
     (hqs : ∀ e ∈ E, ∀ y ∈ EQ' e, L.mem s' (stA y) = L.mem s (stA y))
-    (hst : ∀ e ∈ E, EQ' e ≠ [] → L.epState s' e = L.epState s e) : EpTy st T X' s' E EQ' H := by
-  obtain ⟨k1, k2, k0, k3, k4⟩ := h
+    (hst : ∀ e ∈ E, EQ' e ≠ [] → L.epState s' e = L.epState s e)
+    (hemp : ∀ e ∈ E, EQ' e = [] → (EQ e = [] ∧ L.epState s' e = L.epState s e) ∨
+      ((H e = some .ep → L.epState s' e = 0#u64) ∧ (H e = some .ntfn → L.epState s' e ≠ 1#u64))) :
+    EpTy st T X' s' E EQ' H := by
+  obtain ⟨k1, k2, k0, k3, k4, k5⟩ := h
   have bl1 : ∀ v : U64, (v = sched.TS_BLOCKED_ON_SEND ∨ v = sched.TS_BLOCKED_ON_RECV) → Blocked v := by
     rintro v (e | e)
     · exact Or.inl e
     · exact Or.inr (Or.inl e)
-  refine ⟨fun y hy hyX hs => ?_, fun y hy hyX hs => ?_, k0, fun e he y hy z hz => ?_, fun e he y hy => ?_⟩
+  refine ⟨fun y hy hyX hs => ?_, fun y hy hyX hs => ?_, k0, fun e he y hy z hz => ?_, fun e he y hy => ?_,
+    fun e he h0 => ?_⟩
+  rotate_right
+  · rcases hemp e he h0 with ⟨h1, h2⟩ | h3
+    · rw [h2]; exact k5 e he h1
+    · exact h3
   · have hb := bl1 _ hs
     obtain ⟨e1, e2⟩ := hsb y hy hyX hb
     rcases hX y hyX with hx | hx
@@ -351,7 +360,8 @@ theorem EpsOK.agree {Cs X : Set U64} {s s' : S} (h : EpsOK st T Cs Ω H X s) (hk
   have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp [LawfulStore.nodeBase, hk]
   refine ⟨E, EQ, fun e he => ?_, h2, h5, fun e he y hy => ?_, fun y hy hyX hb => ?_,
     h6.agree (fun y hy => Or.inl hy) (fun y hy _ _ => hsb y hy) (fun _ _ _ hy => hy)
-      (fun e he y hy => (hsb y (((h1 e he).2.2).mem y hy)).1) (fun e he _ => ?_)⟩
+      (fun e he y hy => (hsb y (((h1 e he).2.2).mem y hy)).1) (fun e he _ => ?_)
+      (fun e he h0 => Or.inl ⟨h0, ?_⟩)⟩
   · obtain ⟨hE, hEN, hq⟩ := h1 e he
     obtain ⟨o1, o2⟩ := ep_out hE hEN
     have eq : L.epQ s' e = L.epQ s e := by simp only [LawfulStore.epQ, hout _ o1, hout _ o2]
@@ -363,6 +373,9 @@ theorem EpsOK.agree {Cs X : Set U64} {s s' : S} (h : EpsOK st T Cs Ω H X s) (hk
     rw [(hsb y hyT).1, (hsb y hyT).2]; exact h3 e he y hy
   · rw [(hsb y hy).1] at hb
     rw [(hsb y hy).2]; exact h4 y hy hyX hb
+  · obtain ⟨hE, hEN, -⟩ := h1 e he
+    obtain ⟨-, o2⟩ := ep_out hE hEN
+    simp only [LawfulStore.epState, hout _ o2]
   · obtain ⟨hE, hEN, -⟩ := h1 e he
     obtain ⟨-, o2⟩ := ep_out hE hEN
     simp only [LawfulStore.epState, hout _ o2]
@@ -378,7 +391,8 @@ theorem EpsOK.agreeX {Cs X : Set U64} {s s' : S} (h : EpsOK st T Cs Ω H X s) (h
   have mX : ∀ e ∈ E, ∀ y ∈ EQ e, y ∉ X := fun e he y hy => (h3 e he y hy).1
   refine ⟨E, EQ, fun e he => ?_, h2, h5, fun e he y hy => ?_, fun y hy hyX hb => ?_,
     h6.agree (fun y hy => Or.inl hy) (fun y hy hyX _ => hsb y hy hyX) (fun _ _ _ hy => hy)
-      (fun e he y hy => (hsb y (((h1 e he).2.2).mem y hy) (mX e he y hy)).1) (fun e he _ => ?_)⟩
+      (fun e he y hy => (hsb y (((h1 e he).2.2).mem y hy) (mX e he y hy)).1) (fun e he _ => ?_)
+      (fun e he h0 => Or.inl ⟨h0, ?_⟩)⟩
   · obtain ⟨hE, hEN, hq⟩ := h1 e he
     obtain ⟨o1, o2⟩ := ep_out hE hEN
     have eq : L.epQ s' e = L.epQ s e := by simp only [LawfulStore.epQ, hout _ o1, hout _ o2]
@@ -390,6 +404,9 @@ theorem EpsOK.agreeX {Cs X : Set U64} {s s' : S} (h : EpsOK st T Cs Ω H X s) (h
     rw [(hsb y hyT (mX e he y hy)).1, (hsb y hyT (mX e he y hy)).2]; exact h3 e he y hy
   · rw [(hsb y hy hyX).1] at hb
     rw [(hsb y hy hyX).2]; exact h4 y hy hyX hb
+  · obtain ⟨hE, hEN, -⟩ := h1 e he
+    obtain ⟨-, o2⟩ := ep_out hE hEN
+    simp only [LawfulStore.epState, hout _ o2]
   · obtain ⟨hE, hEN, -⟩ := h1 e he
     obtain ⟨-, o2⟩ := ep_out hE hEN
     simp only [LawfulStore.epState, hout _ o2]

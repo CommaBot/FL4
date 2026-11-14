@@ -23,6 +23,7 @@ import Fl4Proofs.P1.QueueBudget2
 import Fl4Proofs.P1.QueueHeap
 import Fl4Proofs.P1.QueueAppend
 import Fl4Proofs.P1.QueueBlock
+import Fl4Proofs.P1.QueueIpc
 import Fl4Proofs.P2.Runtime
 import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine

@@ -26,7 +26,7 @@ namespace Fl4Proofs.P1
 open fl4_core Fl4Proofs.P0.Consts
 
 section
-variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap} {Scs : Set U64}
 variable {A : Type _} {ar : machine.Arch A}
 
 /-- The current core's `CUR_THREAD` and `IDLE_THREAD` words. -/
@@ -43,12 +43,14 @@ structure BoundInv (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (s 
   act : L.actionW s ∈ T → L.mem s (scA (L.actionW s)) ≠ 0#u64
   idle : L.mem s (scA (L.idleW s)) ≠ 0#u64
   resume : L.actionW s = 0#u64 → L.mem s (scA (L.curW s)) ≠ 0#u64
+  /-- The idle thread is not blocked (so in no endpoint or notification queue). -/
+  idleNB : ¬ Blocked (L.mem s (stA (L.idleW s)))
 
 /-- The SCs: those of bound TCBs and the current one are well formed, among
 `Sg ⊆ Ω` and outside the kernel-global area (which is part of `Ω`); the
 current SC is disjoint from the other bound SCs.  `Z sc` is the size
 exponent of the SC at `sc`. -/
-structure SCsOK (st : machine.Store S) [L : LawfulStore st] (T Ω Sg : Set U64) (Z : U64 → Nat) (s : S) : Prop where
+structure SCsOK (st : machine.Store S) [L : LawfulStore st] (T Ω Sg Scs : Set U64) (Z : U64 → Nat) (s : S) : Prop where
   sub : ∀ b ∈ Sg, b ∈ Ω
   ks : ∀ b ∈ Sg, b.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ b.val
   ksΩ : ∀ o : U64, o.val < 13568 → o.val % 8 = 0 → core.num.U64.wrapping_add (L.ksb s) o ∈ Ω
@@ -56,6 +58,8 @@ structure SCsOK (st : machine.Store S) [L : LawfulStore st] (T Ω Sg : Set U64) 
   cur : SCin st s Sg (L.cscW s) (Z (L.cscW s))
   disj : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 → L.mem s (scA t) ≠ L.cscW s →
     ∀ b, InSC (L.mem s (scA t)) (Z (L.mem s (scA t))) b → Outside b (L.cscW s) (Z (L.cscW s))
+  /-- Every SC object is well formed. -/
+  all : ∀ c ∈ Scs, SCin st s Sg c (Z c)
 
 /-- The frame words `Sg` are among `Ω` and outside the kernel-global area,
 which is part of `Ω`. -/
@@ -64,7 +68,7 @@ structure SgOK (st : machine.Store S) [L : LawfulStore st] (Ω Sg : Set U64) (s 
   ks : ∀ b ∈ Sg, b.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ b.val
   ksΩ : ∀ o : U64, o.val < 13568 → o.val % 8 = 0 → core.num.U64.wrapping_add (L.ksb s) o ∈ Ω
 
-theorem SCsOK.sg {Sg : Set U64} {Z : U64 → Nat} {s : S} (h : SCsOK st T Ω Sg Z s) : SgOK st Ω Sg s :=
+theorem SCsOK.sg {Sg : Set U64} {Z : U64 → Nat} {s : S} (h : SCsOK st T Ω Sg Scs Z s) : SgOK st Ω Sg s :=
   ⟨h.sub, h.ks, h.ksΩ⟩
 
 theorem SgOK.empty (s : S) (hks : ∀ o : U64, o.val < 13568 → o.val % 8 = 0 →
@@ -82,14 +86,17 @@ structure Fr (st : machine.Store S) [L : LawfulStore st] (T Sg : Set U64) (s s' 
   /-- The reply-object and state fields of the TCBs. -/
   rep : ∀ t ∈ T, L.mem s' (core.num.U64.wrapping_add t 3360#u64) = L.mem s (core.num.U64.wrapping_add t 3360#u64)
   st : ∀ t ∈ T, L.mem s' (stA t) = L.mem s (stA t)
+  /-- The bound-notification fields of the TCBs. -/
+  bnd : ∀ t ∈ T, L.mem s' (core.num.U64.wrapping_add t 3368#u64) = L.mem s (core.num.U64.wrapping_add t 3368#u64)
 
 theorem Fr.refl (Sg : Set U64) (s : S) : Fr st T Sg s s :=
-  ⟨rfl, rfl, fun _ _ => rfl, fun _ _ => rfl, rfl, fun _ _ => rfl, fun _ _ => rfl⟩
+  ⟨rfl, rfl, fun _ _ => rfl, fun _ _ => rfl, rfl, fun _ _ => rfl, fun _ _ => rfl, fun _ _ => rfl⟩
 
 theorem Fr.trans {Sg : Set U64} {s₁ s₂ s₃ : S} (h₁ : Fr st T Sg s₁ s₂) (h₂ : Fr st T Sg s₂ s₃) : Fr st T Sg s₁ s₃ :=
   ⟨h₂.ksb.trans h₁.ksb, h₂.cpu.trans h₁.cpu, fun b hb => (h₂.sig b hb).trans (h₁.sig b hb),
    fun t ht => (h₂.sc t ht).trans (h₁.sc t ht), h₂.csc.trans h₁.csc,
-   fun t ht => (h₂.rep t ht).trans (h₁.rep t ht), fun t ht => (h₂.st t ht).trans (h₁.st t ht)⟩
+   fun t ht => (h₂.rep t ht).trans (h₁.rep t ht), fun t ht => (h₂.st t ht).trans (h₁.st t ht),
+   fun t ht => (h₂.bnd t ht).trans (h₁.bnd t ht)⟩
 
 theorem SgOK.fr {Sg : Set U64} {s s' : S} (h : SgOK st Ω Sg s) (f : Fr st T Sg s s') : SgOK st Ω Sg s' :=
   ⟨h.sub, fun b hb => by rw [f.ksb]; exact h.ks b hb, fun o h1 h2 => by rw [f.ksb]; exact h.ksΩ o h1 h2⟩
@@ -118,10 +125,10 @@ theorem cscW_eq {s s' : S} (hk : L.ksb s' = L.ksb s) (hc : L.cpu s' = L.cpu s) :
     L.nodeA s' layout.node.CUR_SC = L.nodeA s layout.node.CUR_SC := by
   simp [LawfulStore.nodeA, LawfulStore.nodeAt, hk, hc]
 
-theorem SCsOK.fr {Sg : Set U64} {Z : U64 → Nat} {s s' : S} (h : SCsOK st T Ω Sg Z s) (f : Fr st T Sg s s') :
-    SCsOK st T Ω Sg Z s' := by
+theorem SCsOK.fr {Sg : Set U64} {Z : U64 → Nat} {s s' : S} (h : SCsOK st T Ω Sg Scs Z s) (f : Fr st T Sg s s') :
+    SCsOK st T Ω Sg Scs Z s' := by
   refine ⟨h.sub, fun b hb => by rw [f.ksb]; exact h.ks b hb, fun o h1 h2 => by rw [f.ksb]; exact h.ksΩ o h1 h2,
-    fun t ht hb => ?_, ?_, fun t ht hb hne => ?_⟩
+    fun t ht hb => ?_, ?_, fun t ht hb hne => ?_, fun c hc => (h.all c hc).agree f.sig⟩
   · rw [f.sc t ht] at hb ⊢; exact (h.bound t ht hb).agree f.sig
   · rw [f.csc]; exact h.cur.agree f.sig
   · rw [f.sc t ht] at hb hne ⊢; rw [f.csc] at hne ⊢; exact h.disj t ht hb hne
@@ -142,7 +149,8 @@ theorem fr_wr (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg s) 
     (ha : Aligned a) (hsg : ∀ b ∈ Sg, a.val ≠ b.val)
     (hf : ∀ t ∈ T, ∀ K : U64, K.val < 4096 → a.val ≠ (core.num.U64.wrapping_add t K).val)
     (hcs : a.val ≠ (L.nodeA s layout.node.CUR_SC).val) : Fr st T Sg s (L.wr s a v) := by
-  refine ⟨L.ksb_wr _ _ _, L.cpu_wr _ _ _, fun b hb => ?_, fun t ht => ?_, ?_, fun t ht => ?_, fun t ht => ?_⟩
+  refine ⟨L.ksb_wr _ _ _, L.cpu_wr _ _ _, fun b hb => ?_, fun t ht => ?_, ?_, fun t ht => ?_, fun t ht => ?_,
+    fun t ht => L.mem_wr_ne ha (field_aligned (h.tcbs t ht) (by simp) (by simp)) (hf t ht _ (by simp))⟩
   · exact L.mem_wr_ne ha (h.omega _ (hS.sub b hb)).1 (hsg b hb)
   · rw [scA_eq]; exact L.mem_wr_ne ha (field_aligned (h.tcbs t ht) (by simp) (by simp)) (hf t ht _ (by simp))
   rotate_left
@@ -204,7 +212,9 @@ theorem qfoot_keep (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω S
   obtain ⟨hsb, -, hout⟩ := ext_qfoot hT hW hN hN' ht hc h.cur hw
   refine ⟨⟨hw.1, hw.2.1, fun b hb => hout b (h.omega _ (hS.sub b hb)), fun y hy => sc_qfoot hT hW hN hN' ht hw hy,
     ?_, fun y hy => field_qfoot hT hW hN hN' ht hw hy (by simp) (by simp) (by simp) (fun _ => by simp),
-    fun y hy => (hsb y hy).1⟩, fun y hy hyt => inq_qfoot hT hW hN hN' ht hw hy hyt, ?_, ?_, ?_⟩
+    fun y hy => (hsb y hy).1,
+    fun y hy => field_qfoot hT hW hN hN' ht hw hy (by simp) (by simp) (by simp) (fun _ => by simp)⟩,
+    fun y hy hyt => inq_qfoot hT hW hN hN' ht hw hy hyt, ?_, ?_, ?_⟩
   · unfold LawfulStore.cscW LawfulStore.nodeA
     exact nd _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
   · unfold LawfulStore.actionW; exact nd _ (by rw [act_val]; omega) (by rw [act_val]) (by rw [act_val]; omega)
@@ -218,6 +228,11 @@ end frame
 section bound
 variable {Cs X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
 
+/-- The idle thread stays unblocked when the idle word and its state are kept. -/
+theorem BoundInv.nb (hB : BoundInv st T s) (ei : L.idleW s' = L.idleW s)
+    (hst : L.mem s' (stA (L.idleW s)) = L.mem s (stA (L.idleW s))) : ¬ Blocked (L.mem s' (stA (L.idleW s'))) := by
+  rw [ei, hst]; exact hB.idleNB
+
 /-- The general preservation lemma: the SC fields of `T` are kept, each
 flag that gets set belongs to a bound thread, and the action, current and
 idle thread are bound where `BoundInv` asks. -/
@@ -230,7 +245,8 @@ theorem BoundInv.mk' (hB : BoundInv st T s) (hsc : ∀ y ∈ T, L.mem s' (scA y)
         L.mem s (scA y) ≠ 0#u64)
     (ha : L.actionW s' ∈ T → L.actionW s' ∈ T ∧ L.mem s (scA (L.actionW s')) ≠ 0#u64)
     (hidle : L.idleW s' ∈ T ∧ L.mem s (scA (L.idleW s')) ≠ 0#u64)
-    (hres : L.actionW s' = 0#u64 → L.curW s' ∈ T ∧ L.mem s (scA (L.curW s')) ≠ 0#u64) : BoundInv st T s' := by
+    (hres : L.actionW s' = 0#u64 → L.curW s' ∈ T ∧ L.mem s (scA (L.curW s')) ≠ 0#u64)
+    (hnb : ¬ Blocked (L.mem s' (stA (L.idleW s')))) : BoundInv st T s' := by
   have up : ∀ y ∈ T, ((L.mem s (inqA y) &&& sched.Q_QUEUED) ≠ 0#u64 ∨ (L.mem s (inqA y) &&& sched.Q_RELEASE) ≠ 0#u64 ∨
       L.mem s (scA y) ≠ 0#u64) → L.mem s' (scA y) ≠ 0#u64 := by
     intro y hy hh; rw [hsc y hy]
@@ -238,7 +254,8 @@ theorem BoundInv.mk' (hB : BoundInv st T s) (hsc : ∀ y ∈ T, L.mem s' (scA y)
     · exact hB.q y hy hh
     · exact hB.r y hy hh
     · exact hh
-  refine ⟨fun y hy hf => up y hy (hq y hy hf), fun y hy hf => up y hy (hr y hy hf), fun haT => ?_, ?_, fun h0 => ?_⟩
+  refine ⟨fun y hy hf => up y hy (hq y hy hf), fun y hy hf => up y hy (hr y hy hf), fun haT => ?_, ?_, fun h0 => ?_,
+    hnb⟩
   · obtain ⟨h1, h2⟩ := ha haT; rw [hsc _ h1]; exact h2
   · rw [hsc _ hidle.1]; exact hidle.2
   · obtain ⟨h1, h2⟩ := hres h0; rw [hsc _ h1]; exact h2
@@ -253,8 +270,9 @@ theorem BoundInv.qstep (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv
         L.mem s (scA t) ≠ 0#u64)
     (hr : (L.mem s' (inqA t) &&& sched.Q_RELEASE) ≠ 0#u64 →
       (L.mem s (inqA t) &&& sched.Q_QUEUED) ≠ 0#u64 ∨ (L.mem s (inqA t) &&& sched.Q_RELEASE) ≠ 0#u64 ∨
-        L.mem s (scA t) ≠ 0#u64) : BoundInv st T s' := by
-  refine hB.mk' hsc (fun y hy hf => ?_) (fun y hy hf => ?_) (fun haT => ?_) ?_ (fun h0 => ?_)
+        L.mem s (scA t) ≠ 0#u64)
+    (hst : L.mem s' (stA (L.idleW s)) = L.mem s (stA (L.idleW s))) : BoundInv st T s' := by
+  refine hB.mk' hsc (fun y hy hf => ?_) (fun y hy hf => ?_) (fun haT => ?_) ?_ (fun h0 => ?_) (hB.nb hidle hst)
   · by_cases e : y = t
     · subst e; exact hq hf
     · rw [hinq y hy e] at hf; exact Or.inl hf
@@ -302,6 +320,7 @@ theorem BoundInv.free {Ω : Set U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) 
     unfold LawfulStore.idleW; exact nd _ (by rw [idle8]; omega) (by rw [idle8]) (by simp [idle8, LowFree])
   refine hB.mk' hsc (fun y hy hf => Or.inl (by rw [← hinq y hy]; exact hf))
     (fun y hy hf => Or.inr (Or.inl (by rw [← hinq y hy]; exact hf))) (fun haT => ?_) ?_ (fun h0 => ?_)
+    (hB.nb ei (by rw [stA_eq]; exact fld _ h.idleT _ (by simp) (by simp)))
   · rw [ea] at haT ⊢; exact ⟨haT, hB.act haT⟩
   · rw [ei]; exact ⟨h.idleT, hB.idle⟩
   · rw [ea] at h0; rw [ec]; exact ⟨h.curT, hB.resume h0⟩
@@ -343,6 +362,7 @@ theorem BoundInv.wr_node (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundI
     unfold LawfulStore.idleW; rw [ei, if_neg h8']
   refine hB.mk' hsc (fun y hy hf => Or.inl (by rw [← hinq y hy]; exact hf))
     (fun y hy hf => Or.inr (Or.inl (by rw [← hinq y hy]; exact hf))) (fun haT => ?_) ?_ (fun h0 => ?_)
+    (hB.nb ei' (by rw [stA_eq]; exact fl _ h.idleT _ (by simp) (by simp)))
   · rw [ea'] at haT ⊢
     by_cases e : o.val = 16
     · rw [if_pos e] at haT ⊢; exact ⟨haT, (hact e).1 haT⟩
@@ -414,7 +434,7 @@ theorem sched.enqueue.sch (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64) (
     split_ifs at hf with e
     · exact hf
     · rw [or_qq_qr] at hf; exact hf
-  refine ⟨⟨⟨_, _, h1⟩, hB.qstep h f.sc hi ea ec ei ?_ fun hf => Or.inr (Or.inl (rf hf)), f⟩, ea, ec,
+  refine ⟨⟨⟨_, _, h1⟩, hB.qstep h f.sc hi ea ec ei ?_ (fun hf => Or.inr (Or.inl (rf hf))) (f.st _ h.idleT), f⟩, ea, ec,
     fun y hy => (hsb y hy).1, fun y hy hf => ?_⟩
   · intro hf; rw [hinq] at hf
     by_cases e : (L.mem s (inqA t) &&& sched.Q_QUEUED) ≠ 0#u64
@@ -448,7 +468,7 @@ theorem sched.append.sch (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64) (R
     split_ifs at hf with e
     · exact hf
     · rw [or_qq_qr] at hf; exact hf
-  refine ⟨⟨⟨_, _, h1⟩, hB.qstep h f.sc hi ea ec ei ?_ fun hf => Or.inr (Or.inl (rf hf)), f⟩, ea, ec,
+  refine ⟨⟨⟨_, _, h1⟩, hB.qstep h f.sc hi ea ec ei ?_ (fun hf => Or.inr (Or.inl (rf hf))) (f.st _ h.idleT), f⟩, ea, ec,
     fun y hy => (hsb y hy).1, fun y hy hf => ?_⟩
   · intro hf; rw [hinq] at hf
     by_cases e : (L.mem s (inqA t) &&& sched.Q_QUEUED) ≠ 0#u64
@@ -470,7 +490,7 @@ theorem sched.dequeue.sch (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64) (
   rintro s' ⟨h1, hw, hinq⟩
   have hW : ∀ w ∈ Q (L.mem s (affA t)) (L.mem s (prioA t)), w ∈ T := fun w hw => h.memT hc hp hw
   obtain ⟨f, hi, ea, ec, ei⟩ := qfoot_keep h hS hW hc ht p128 hw
-  refine ⟨⟨⟨_, _, h1⟩, hB.qstep h f.sc hi ea ec ei ?_ ?_, f⟩, ea, ec⟩
+  refine ⟨⟨⟨_, _, h1⟩, hB.qstep h f.sc hi ea ec ei ?_ ?_ (f.st _ h.idleT), f⟩, ea, ec⟩
   · intro hf; rw [hinq] at hf
     split_ifs at hf with e
     · rw [andn_qq_qq] at hf; exact absurd rfl hf
@@ -492,7 +512,7 @@ theorem sched.release_remove.sch (s : S) (t : obj.Tcb) (Q : U64 → U64 → List
   have hW : ∀ w ∈ R (L.mem s (affA t)), w ∈ T := fun w hw => h.memTR hc hw
   obtain ⟨f, hi, ea, ec, ei⟩ := qfoot_keep h hS hW hc ht prel hw
   obtain ⟨hsb, -, -⟩ := ext_qfoot h.tcbs hW (h.nodes _ hc) (h.nodes _ h.cur) ht hc h.cur hw
-  refine ⟨⟨⟨_, _, h1⟩, hB.qstep h f.sc hi ea ec ei ?_ ?_, f⟩, ea, ec, fun y hy => (hsb y hy).1⟩
+  refine ⟨⟨⟨_, _, h1⟩, hB.qstep h f.sc hi ea ec ei ?_ ?_ (f.st _ h.idleT), f⟩, ea, ec, fun y hy => (hsb y hy).1⟩
   · intro hf; rw [hinq] at hf
     split_ifs at hf with e
     · rw [andn_qr_qq] at hf; exact Or.inl hf

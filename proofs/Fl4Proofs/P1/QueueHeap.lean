@@ -24,6 +24,7 @@ structure HeapOK (H : Heap) : Prop where
 def Heap.tcbs (H : Heap) : Set U64 := {p | H p = some .tcb}
 def Heap.replies (H : Heap) : Set U64 := {p | H p = some .reply}
 def Heap.scs (H : Heap) : Set U64 := {p | ∃ z, H p = some (.sc z)}
+def Heap.ntfns (H : Heap) : Set U64 := {p | H p = some .ntfn}
 /-- The size exponent of the SC at `c`. -/
 def Heap.scBits (H : Heap) (c : U64) : Nat :=
   match H c with
@@ -33,20 +34,27 @@ def Heap.scBits (H : Heap) (c : U64) : Nat :=
 /-- `b` is a word of the object at `p` of kind `k`. -/
 def InObj (p : U64) (k : HKind) (b : U64) : Prop := p.val ≤ b.val ∧ b.val < p.val + 2 ^ k.bits
 
-/-- The other objects' words: aligned words of replies, SCs and other objects. -/
+/-- The other objects' words: aligned words of replies, SCs and other
+objects, and the notifications' `SC` words. -/
 def Heap.omega (H : Heap) : Set U64 :=
-  {b | Aligned b ∧ ∃ p k, H p = some k ∧ (k = .reply ∨ (∃ z, k = .sc z) ∨ (∃ z, k = .other z)) ∧ InObj p k b}
+  {b | Aligned b ∧ ∃ p k, H p = some k ∧
+    (k = .reply ∨ (∃ z, k = .sc z) ∨ (∃ z, k = .other z) ∨ (k = .ntfn ∧ b = ntfnScA p)) ∧ InObj p k b}
 
-/-- The frame words: aligned words of replies and SCs. -/
+/-- The frame words: aligned words of replies and SCs, and the
+notifications' `SC` words. -/
 def Heap.frame (H : Heap) : Set U64 :=
-  {b | Aligned b ∧ ∃ p k, H p = some k ∧ (k = .reply ∨ (∃ z, k = .sc z)) ∧ InObj p k b}
+  {b | Aligned b ∧ ∃ p k, H p = some k ∧ (k = .reply ∨ (∃ z, k = .sc z) ∨ (k = .ntfn ∧ b = ntfnScA p)) ∧ InObj p k b}
 
 theorem Heap.frame_omega {H : Heap} {b : U64} (hb : b ∈ H.frame) : b ∈ H.omega := by
   obtain ⟨ha, p, k, hp, hk, hin⟩ := hb
   refine ⟨ha, p, k, hp, ?_, hin⟩
-  rcases hk with hk | hk
+  rcases hk with hk | hk | hk
   · exact Or.inl hk
   · exact Or.inr (Or.inl hk)
+  · exact Or.inr (Or.inr (Or.inr hk))
+
+theorem ntfnScA_val' {n : U64} (h : n.val % 64 = 0) (h2 : n.val + 64 ≤ 2 ^ 64) : (ntfnScA n).val = n.val + 32 := by
+  unfold ntfnScA; simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
 
 theorem Heap.scBits_eq {H : Heap} {c : U64} {z : Nat} (h : H c = some (.sc z)) : H.scBits c = z := by
   unfold Heap.scBits; rw [h]
@@ -56,9 +64,31 @@ variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
 
 /-- The typed heap gives `ObjsOK`. -/
 theorem ObjsOK.of_heap {H : Heap} (hH : HeapOK H) (s : S) :
-    ObjsOK st H.omega H.frame H.replies H.scs H.scBits s := by
+    ObjsOK st H.omega H.frame H.replies H.scs H.ntfns H.scBits s := by
+  have nv : ∀ n ∈ H.ntfns, (ntfnScA n).val = n.val + 32 ∧ n.val % 64 = 0 ∧ n.val + 64 ≤ 2 ^ 64 := by
+    intro n hn
+    have := hH.align n _ hn; have := hH.fits n _ hn
+    simp only [HKind.bits] at *
+    exact ⟨ntfnScA_val' (by omega) (by omega), by omega, by omega⟩
   refine ⟨fun r hr => ?_, fun c ⟨z, hz⟩ => ?_, fun r hr b hb h1 h2 => ?_, fun c ⟨z, hz⟩ b hb hin => ?_,
-    fun c ⟨z, hz⟩ => ?_, fun c ⟨z, hz⟩ c' ⟨z', hz'⟩ hne => ?_, fun r hr c ⟨z, hz⟩ => ?_⟩
+    fun c ⟨z, hz⟩ => ?_, fun c ⟨z, hz⟩ c' ⟨z', hz'⟩ hne => ?_, fun r hr c ⟨z, hz⟩ => ?_, fun c ⟨z, hz⟩ => ?_,
+    fun n hn => ?_, fun n hn r hr => ?_, fun n hn c ⟨z, hz⟩ => ?_, fun n hn => ?_⟩
+  rotate_right 4
+  · obtain ⟨e, h1, h2⟩ := nv n hn
+    refine ⟨by unfold Aligned; rw [e]; omega, n, .ntfn, hn, Or.inr (Or.inr ⟨rfl, rfl⟩), ?_⟩
+    simp only [InObj, HKind.bits]; rw [e]; omega
+  · obtain ⟨e, h1, h2⟩ := nv n hn
+    have hne : n ≠ r := fun e' => by
+      subst e'; have h1 : H n = some .ntfn := hn; have h2 : H n = some .reply := hr; rw [h1] at h2; cases h2
+    have := hH.disj n _ r _ hn hr hne
+    simp only [HKind.bits] at this; rw [e]; omega
+  · obtain ⟨e, h1, h2⟩ := nv n hn
+    have hne : n ≠ c := fun e' => by
+      subst e'; have h1 : H n = some .ntfn := hn; rw [h1] at hz; cases hz
+    have := hH.disj n _ c _ hn hz hne
+    rw [Heap.scBits_eq hz]; simp only [HKind.bits] at this; rw [e]; omega
+  · obtain ⟨e, h1, h2⟩ := nv n hn
+    unfold Aligned; rw [e]; omega
   · have := hH.align r _ hr; have := hH.fits r _ hr
     simp only [HKind.bits] at *; exact ⟨by omega, by omega⟩
   · rw [Heap.scBits_eq hz]
@@ -71,7 +101,7 @@ theorem ObjsOK.of_heap {H : Heap} (hH : HeapOK H) (s : S) :
       by simpa [HKind.bits] using hH.align c _ hz, by simpa [HKind.bits] using hH.fits c _ hz⟩
     have hz7 := hH.scmin c z hz
     obtain ⟨h8, h128, -⟩ := sc_lo hP hz7
-    refine ⟨⟨?_, c, .sc z, hz, Or.inr ⟨z, rfl⟩, ?_⟩, ⟨?_, c, .sc z, hz, Or.inr ⟨z, rfl⟩, ?_⟩⟩
+    refine ⟨⟨?_, c, .sc z, hz, Or.inr (Or.inl ⟨z, rfl⟩), ?_⟩, ⟨?_, c, .sc z, hz, Or.inr (Or.inl ⟨z, rfl⟩), ?_⟩⟩
     · unfold Aligned; rw [scTcbA_val hP hz7]; omega
     · simp only [InObj, HKind.bits]; rw [scTcbA_val hP hz7]; omega
     · unfold Aligned; rw [scCoreA_val hP hz7]; omega
@@ -81,6 +111,13 @@ theorem ObjsOK.of_heap {H : Heap} (hH : HeapOK H) (s : S) :
   · rw [Heap.scBits_eq hz]
     have hne : r ≠ c := fun e => by rw [e] at hr; simp [Heap.replies, hz] at hr
     simpa [HKind.bits] using hH.disj r _ c _ hr hz hne
+  · have hP : Placed c z := ⟨by have := hH.lt64 c _ hz; simpa [HKind.bits] using this,
+      by simpa [HKind.bits] using hH.align c _ hz, by simpa [HKind.bits] using hH.fits c _ hz⟩
+    have hz7 := hH.scmin c z hz
+    obtain ⟨h8, h128, -⟩ := sc_lo hP hz7
+    refine ⟨?_, c, .sc z, hz, Or.inr (Or.inl ⟨z, rfl⟩), ?_⟩
+    · unfold Aligned; rw [scReplyA_val hP hz7]; omega
+    · simp only [InObj, HKind.bits]; rw [scReplyA_val hP hz7]; omega
 
 /-- The heap's TCBs are placed. -/
 theorem tcbs_of_heap {H : Heap} (hH : HeapOK H) (h0 : H 0#u64 = none) : TcbPlaced H.tcbs := by
@@ -101,7 +138,7 @@ theorem omega_of_heap {H : Heap} (hH : HeapOK H) {Cs : Set U64} {s : S}
   · have hne : p ≠ t := by
       rintro rfl
       rw [show H p = some .tcb from ht] at hp
-      cases hp; rcases hk with h | ⟨z, h⟩ | ⟨z, h⟩ <;> cases h
+      cases hp; rcases hk with h | ⟨z, h⟩ | ⟨z, h⟩ | ⟨h, -⟩ <;> cases h
     have e12 : (2 : ℕ) ^ HKind.tcb.bits = 2 ^ 12 := rfl
     rcases hH.disj p k t .tcb hp ht hne with h | h
     · unfold InObj at hin; omega

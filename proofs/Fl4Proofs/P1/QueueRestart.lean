@@ -17,7 +17,7 @@ open fl4_core Fl4Proofs.P0.Consts
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
-variable {Cs Sg Rp Scs : Set U64} {Z : U64 → Nat} {A : Type _} {ar : machine.Arch A}
+variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {A : Type _} {ar : machine.Arch A}
 
 theorem ts_restart : sched.TS_RESTART = 2#u64 := ts_vals.2.1
 
@@ -79,13 +79,13 @@ theorem sched.is_stopped.spec (s : S) (t : obj.Tcb) :
 /-- `postpone`, with `BoundInv` and `XInv`: the SC's thread is bound. -/
 theorem sched.postpone.all (s : S) (sc : obj.Sc) (Q : U64 → U64 → List U64)
     (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : L.mem s (scTcbA sc) ∈ T)
-    (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s) (hSg : SgOK st Ω Sg s)
+    (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hSg : SgOK st Ω Sg s)
     (hr0 : (L.mem s (inqA (L.mem s (scTcbA sc))) &&& sched.Q_RELEASE) = 0#u64)
     (hcore : OutsideObjs st T Cs s (scCoreA sc)) (hcs : L.mem s (scCoreA sc) ∈ Cs)
     (hrun : Runnable (L.mem s (stA (L.mem s (scTcbA sc))))) (hna : L.actionW s ≠ L.mem s (scTcbA sc))
     (hbd : L.mem s (scA (L.mem s (scTcbA sc))) ≠ 0#u64) :
     sched.postpone st s sc ⦃ s' => ∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R' ∧ BoundInv st T s' ∧
-      XInv st T Cs Ω Sg Rp Scs Z s' ∧ SgOK st Ω Sg s' ∧ Fr st T Sg s s' ⦄ := by
+      XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SgOK st Ω Sg s' ∧ Fr st T Sg s s' ⦄ := by
   unfold sched.postpone
   step as ⟨t, t_post⟩
   subst t_post
@@ -177,12 +177,12 @@ theorem sched.postpone.all (s : S) (sc : obj.Sc) (Q : U64 → U64 → List U64)
 /-- seL4 `schedContext_resume`, with `BoundInv` and `XInv`. -/
 theorem schedcontext.resume.all (hA : P0.ArchTotal ar) (s : S) (a : A) (sc : obj.Sc)
     (Q : U64 → U64 → List U64) (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R)
-    (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s) (hSg : SgOK st Ω Sg s)
+    (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hSg : SgOK st Ω Sg s)
     (hsc : sc ≠ 0#u64 → L.mem s (scTcbA sc) ≠ 0#u64 →
       L.mem s (scTcbA sc) ∈ T ∧ OutsideObjs st T Cs s (scCoreA sc) ∧ L.mem s (scCoreA sc) ∈ Cs ∧
         L.actionW s ≠ L.mem s (scTcbA sc)) :
     schedcontext.resume st ar s a sc ⦃ s' _ => ∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R' ∧
-      BoundInv st T s' ∧ XInv st T Cs Ω Sg Rp Scs Z s' ∧ SgOK st Ω Sg s' ∧ Fr st T Sg s s' ⦄ := by
+      BoundInv st T s' ∧ XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SgOK st Ω Sg s' ∧ Fr st T Sg s s' ⦄ := by
   unfold schedcontext.resume
   step with obj.Sc.is_null.spec as ⟨b, b_post⟩
   split
@@ -216,9 +216,9 @@ theorem schedcontext.resume.all (hA : P0.ArchTotal ar) (s : S) (a : A) (sc : obj
 /-- seL4 `restart` (MCS) keeps the queue invariant, `BoundInv` and `XInv`. -/
 theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
     (Q : U64 → U64 → List U64) (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : t ∈ T)
-    (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s) (hS : SCsOK st T Ω Sg Z s) :
+    (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hS : SCsOK st T Ω Sg Scs Z s) :
     sched.restart st ar s a t ⦃ s' _ => ∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R' ∧ BoundInv st T s' ∧
-      XInv st T Cs Ω Sg Rp Scs Z s' ∧ SCsOK st T Ω Sg Z s' ⦄ := by
+      XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SCsOK st T Ω Sg Scs Z s' ⦄ := by
   have hSg := hS.sg
   have hsub := hSg.sub
   have hT := h.tcbs
@@ -247,10 +247,10 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
   have nrr : sched.TS_RESTART ≠ sched.TS_BLOCKED_ON_REPLY ∧ sched.TS_RESTART ≠ sched.TS_BLOCKED_ON_RECV := by
     obtain ⟨-, -, h3', -⟩ := ts_vals
     rw [ts_restart, ts_reply, h3']; decide
-  have hB2 := hB1.keepT h1 k2
+  have hB2 := hB1.keepT h1 k2 (by rw [e2]; exact not_blocked_restart)
   have hX2 := hX1.keepT k2 (by rw [e2]; exact nrr)
     (fun r hr e => absurd e (hX1.noref (h1.tcbs t ht) nr1 (fun e' => nb1 (Or.inr (Or.inl e'))) r hr))
-  have hS2 : SCsOK st T Ω Sg Z s2 := (hS.keepT hX k1).keepT hX1 k2
+  have hS2 : SCsOK st T Ω Sg Scs Z s2 := (hS.keepT hX k1).keepT hX1 k2
   have k12 := k1.trans k2
   have hSg2 : SgOK st Ω Sg s2 := ⟨hsub, fun b hb => by rw [k12.ksb]; exact hSg.ks b hb,
     fun o h1' h2'' => by rw [k12.ksb]; exact hSg.ksΩ o h1' h2''⟩
@@ -263,8 +263,8 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
   step with obj.Tcb.sc.spec as ⟨i, i_post⟩
   step with sporadic.sc_sporadic.spec as ⟨b1, b1_post⟩
   refine WP.spec_bind (Pₘ := fun s3 => SchedQueuesInv st T Cs Ω H s3 Q R ∧ BoundInv st T s3 ∧
-      XInv st T Cs Ω Sg Rp Scs Z s3 ∧ SgOK st Ω Sg s3 ∧ L.actionW s3 ≠ t ∧ L.mem s3 (scA t) = i ∧
-      SCsOK st T Ω Sg Z s3) ?_ ?_
+      XInv st T Cs Ω Sg Rp Scs Nt Z s3 ∧ SgOK st Ω Sg s3 ∧ L.actionW s3 ≠ t ∧ L.mem s3 (scA t) = i ∧
+      SCsOK st T Ω Sg Scs Z s3) ?_ ?_
   · split
     · rename_i hb1
       have hi0 : i ≠ 0#u64 := b1_post hb1
@@ -299,7 +299,7 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
         have h3 := inv_of_free h2 wF
         have hB3 := hB2.free h2 wF
         have nP : ∀ b, (InRing i (Z i) b ∨ b = L.nodeA s2 layout.node.REPROGRAM) → Aligned b →
-            ¬ Prot T Rp Scs b := fun b hh hb => by
+            ¬ Prot T Rp Scs Nt b := fun b hh hb => by
           rcases hh with hh | hh
           · exact not_prot_ring h2 hX2.1 hiS hb (Or.inl hh)
           · exact hh ▸ not_prot_node h2 hX2.1 hsub h2.cur (by rw [rp]; omega)
@@ -312,7 +312,7 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
           · have := congrArg UScalar.val hh
             simp only [LawfulStore.nodeA] at this
             rw [nodeAt_val hN' ho, nodeAt_val hN' (by rw [rp]; omega), rp] at this; omega
-        have hX3 : XInv st T Cs Ω Sg Rp Scs Z s3 := hX2.writes hT
+        have hX3 : XInv st T Cs Ω Sg Rp Scs Nt Z s3 := hX2.writes hT
           (w3.mono' fun b hb hh => fun hp => nP b hh hb hp) (fun b hb => hb) (by
             unfold LawfulStore.cscW; rw [cscW_eq w3.1 w3.2.1, kn _ (by simp [layout.node.CUR_SC])
               (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])]; exact hX2.2.2.cur)

@@ -23,7 +23,7 @@ open fl4_core Fl4Proofs.P0.Consts
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
-variable {Cs Sg Rp Scs : Set U64} {Z : U64 → Nat}
+variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat}
 
 
 /-- The reply invariants. -/
@@ -42,32 +42,45 @@ structure ReplyInv (st : machine.Store S) [L : LawfulStore st] (T Rp Scs : Set U
     L.mem s (replyA (L.mem s (rTcbA r))) = r ∧
     (L.mem s (stA (L.mem s (rTcbA r))) = sched.TS_BLOCKED_ON_REPLY ∨
       L.mem s (stA (L.mem s (rTcbA r))) = sched.TS_BLOCKED_ON_RECV)
+  /-- An SC's `REPLY` word is unused or a reply object (l4v `valid_sched_context`). -/
+  screp : ∀ c ∈ Scs, L.mem s (scReplyA c) ≠ 0#u64 → L.mem s (scReplyA c) ∈ Rp
 
 /-- Bound SCs are SC objects naming their thread and a core. -/
-structure ScExtra (st : machine.Store S) [L : LawfulStore st] (T Cs Scs : Set U64) (s : S) : Prop where
+structure ScExtra (st : machine.Store S) [L : LawfulStore st] (T Cs Scs Nt : Set U64) (s : S) : Prop where
   bound : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 →
     L.mem s (scA t) ∈ Scs ∧ L.mem s (scTcbA (L.mem s (scA t))) = t ∧ L.mem s (scCoreA (L.mem s (scA t))) ∈ Cs
   cur : L.cscW s ∈ Scs
+  /-- Every SC's `CORE` word names a core. -/
+  core : ∀ c ∈ Scs, L.mem s (scCoreA c) ∈ Cs
+  /-- A TCB's bound notification is a notification object (l4v `bound_tcb_at`/`valid_tcb`). -/
+  bnd : ∀ t ∈ T, L.mem s (boundA t) ≠ 0#u64 → L.mem s (boundA t) ∈ Nt
+  /-- A notification's SC is an SC object (l4v `valid_ntfn`). -/
+  nsc : ∀ n ∈ Nt, L.mem s (ntfnScA n) ≠ 0#u64 → L.mem s (ntfnScA n) ∈ Scs
 
 /-- The object invariants together. -/
-def XInv (st : machine.Store S) [L : LawfulStore st] (T Cs Ω Sg Rp Scs : Set U64) (Z : U64 → Nat) (s : S) : Prop :=
-  ObjsOK st Ω Sg Rp Scs Z s ∧ ReplyInv st T Rp Scs s ∧ ScExtra st T Cs Scs s
+def XInv (st : machine.Store S) [L : LawfulStore st] (T Cs Ω Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (s : S) : Prop :=
+  ObjsOK st Ω Sg Rp Scs Nt Z s ∧ ReplyInv st T Rp Scs s ∧ ScExtra st T Cs Scs Nt s
 
 /-! ## Under a frame -/
 
 /-- `XInv` only reads the reply words, the SCs' `TCB`/`CORE` words, the TCBs'
 reply, state and SC fields, and the current SC. -/
-theorem XInv.keep {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+theorem XInv.keep {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hrw : ∀ r ∈ Rp, L.mem s' (rTcbA r) = L.mem s (rTcbA r) ∧ L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧
       L.mem s' (rNextA r) = L.mem s (rNextA r))
     (hfx : ∀ c ∈ Scs, L.mem s' (scTcbA c) = L.mem s (scTcbA c) ∧ L.mem s' (scCoreA c) = L.mem s (scCoreA c))
     (hsc : ∀ t ∈ T, L.mem s' (scA t) = L.mem s (scA t))
     (hrep : ∀ t ∈ T, L.mem s' (replyA t) = L.mem s (replyA t))
     (hst : ∀ t ∈ T, L.mem s' (stA t) = L.mem s (stA t))
-    (hcs : L.cscW s' ∈ Scs) : XInv st T Cs Ω Sg Rp Scs Z s' := by
+    (hcs : L.cscW s' ∈ Scs)
+    (hsr : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c))
+    (hbd : ∀ t ∈ T, L.mem s' (boundA t) = L.mem s (boundA t))
+    (hns : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n)) : XInv st T Cs Ω Sg Rp Scs Nt Z s' := by
   obtain ⟨hO, hR, hE⟩ := hX
-  refine ⟨hO.ksb, ⟨fun t ht hs => ?_, fun t ht hs hn => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr hn => ?_⟩,
-    ⟨fun t ht hb => ?_, hcs⟩⟩
+  refine ⟨hO.ksb, ⟨fun t ht hs => ?_, fun t ht hs hn => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr hn => ?_,
+      fun c hc => by rw [hsr c hc]; exact hR.screp c hc⟩,
+    ⟨fun t ht hb => ?_, hcs, fun c hc => by rw [(hfx c hc).2]; exact hE.core c hc,
+      fun t ht => by rw [hbd t ht]; exact hE.bnd t ht, fun n hn => by rw [hns n hn]; exact hE.nsc n hn⟩⟩
   rotate_left 4
   · rw [(hrw r hr).1] at hn ⊢
     obtain ⟨b0, b1, b2, b3⟩ := hR.back r hr hn
@@ -85,22 +98,27 @@ theorem XInv.keep {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Z s)
     obtain ⟨h1, h2, h3⟩ := hE.bound t ht hb
     rw [(hfx _ h1).1, (hfx _ h1).2]; exact ⟨h1, h2, h3⟩
 
-theorem XInv.fr {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Z s) (f : Fr st T Sg s s') :
-    XInv st T Cs Ω Sg Rp Scs Z s' :=
+theorem XInv.fr {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (f : Fr st T Sg s s') :
+    XInv st T Cs Ω Sg Rp Scs Nt Z s' :=
   hX.keep (fun r hr => ⟨f.sig _ (hX.1.tcbW hr), f.sig _ (hX.1.prevW hr), f.sig _ (hX.1.nextW hr)⟩)
     (fun c hc => ⟨f.sig _ (hX.1.fixW c hc).1, f.sig _ (hX.1.fixW c hc).2⟩) f.sc f.rep f.st
-    (by rw [f.csc]; exact hX.2.2.cur)
+    (by rw [f.csc]; exact hX.2.2.cur) (fun c hc => f.sig _ (hX.1.repW c hc)) f.bnd
+    (fun n hn => f.sig _ (hX.1.ntW n hn))
 
 /-! ## Writes that avoid the protected words -/
 
 /-- The words `XInv` reads (besides the current SC). -/
-def Prot (T Rp Scs : Set U64) (b : U64) : Prop :=
-  (∃ r ∈ Rp, b = rTcbA r ∨ b = rPrevA r ∨ b = rNextA r) ∨ (∃ c ∈ Scs, b = scTcbA c ∨ b = scCoreA c) ∨
-  (∃ t ∈ T, b = scA t ∨ b = replyA t ∨ b = stA t)
+def Prot (T Rp Scs Nt : Set U64) (b : U64) : Prop :=
+  (∃ r ∈ Rp, b = rTcbA r ∨ b = rPrevA r ∨ b = rNextA r) ∨
+  (∃ c ∈ Scs, b = scTcbA c ∨ b = scCoreA c ∨ b = scReplyA c) ∨
+  (∃ t ∈ T, b = scA t ∨ b = replyA t ∨ b = stA t ∨ b = boundA t) ∨
+  (∃ n ∈ Nt, b = ntfnScA n)
 
-theorem ObjsOK.aligned (h : ObjsOK st Ω Sg Rp Scs Z s) (hT : TcbPlaced T) {b : U64} (hb : Prot T Rp Scs b) :
+theorem ObjsOK.aligned (h : ObjsOK st Ω Sg Rp Scs Nt Z s) (hT : TcbPlaced T) {b : U64} (hb : Prot T Rp Scs Nt b) :
     Aligned b := by
-  rcases hb with ⟨r, hr, e⟩ | ⟨c, hc, e⟩ | ⟨t, ht, e⟩
+  rcases hb with ⟨r, hr, e⟩ | ⟨c, hc, e⟩ | ⟨t, ht, e⟩ | ⟨n, hn, rfl⟩
+  rotate_right
+  · exact h.ntAl n hn
   · have hp := h.rp r hr
     rcases e with rfl | rfl | rfl <;> unfold Aligned
     · rw [rTcbA_val hp]; omega
@@ -108,49 +126,58 @@ theorem ObjsOK.aligned (h : ObjsOK st Ω Sg Rp Scs Z s) (hT : TcbPlaced T) {b : 
     · rw [rNextA_val hp]; omega
   · obtain ⟨hP, hz⟩ := h.sc c hc
     have := (sc_lo hP hz).1
-    rcases e with rfl | rfl <;> unfold Aligned
+    rcases e with rfl | rfl | rfl <;> unfold Aligned
     · rw [scTcbA_val hP hz]; omega
     · rw [scCoreA_val hP hz]; omega
-  · rcases e with rfl | rfl | rfl
+    · rw [scReplyA_val hP hz]; omega
+  · rcases e with rfl | rfl | rfl | rfl
     · exact scA_aligned (hT t ht)
     · exact field_aligned (hT t ht) (by simp) (by simp)
     · rw [stA_eq]; exact field_aligned (hT t ht) (by simp) (by simp)
+    · exact field_aligned (hT t ht) (by simp) (by simp)
 
 /-- `XInv` after writes that avoid the protected words, given the new
 current SC is an SC object. -/
-theorem XInv.writes {s s' : S} {B : U64 → Prop} (hX : XInv st T Cs Ω Sg Rp Scs Z s) (hT : TcbPlaced T)
-    (hw : WritesIn st s s' B) (hB : ∀ b, B b → ¬ Prot T Rp Scs b) (hcs : L.cscW s' ∈ Scs) :
-    XInv st T Cs Ω Sg Rp Scs Z s' := by
-  have k : ∀ b, Prot T Rp Scs b → L.mem s' b = L.mem s b := fun b hb =>
+theorem XInv.writes {s s' : S} {B : U64 → Prop} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hT : TcbPlaced T)
+    (hw : WritesIn st s s' B) (hB : ∀ b, B b → ¬ Prot T Rp Scs Nt b) (hcs : L.cscW s' ∈ Scs) :
+    XInv st T Cs Ω Sg Rp Scs Nt Z s' := by
+  have k : ∀ b, Prot T Rp Scs Nt b → L.mem s' b = L.mem s b := fun b hb =>
     hw.mem_eq (hX.1.aligned hT hb) (fun h => hB b h hb)
   exact hX.keep (fun r hr => ⟨k _ (Or.inl ⟨r, hr, Or.inl rfl⟩), k _ (Or.inl ⟨r, hr, Or.inr (Or.inl rfl)⟩),
       k _ (Or.inl ⟨r, hr, Or.inr (Or.inr rfl)⟩)⟩)
-    (fun c hc => ⟨k _ (Or.inr (Or.inl ⟨c, hc, Or.inl rfl⟩)), k _ (Or.inr (Or.inl ⟨c, hc, Or.inr rfl⟩))⟩)
-    (fun t ht => k _ (Or.inr (Or.inr ⟨t, ht, Or.inl rfl⟩)))
-    (fun t ht => k _ (Or.inr (Or.inr ⟨t, ht, Or.inr (Or.inl rfl)⟩)))
-    (fun t ht => k _ (Or.inr (Or.inr ⟨t, ht, Or.inr (Or.inr rfl)⟩))) hcs
+    (fun c hc => ⟨k _ (Or.inr (Or.inl ⟨c, hc, Or.inl rfl⟩)), k _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inl rfl)⟩))⟩)
+    (fun t ht => k _ (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inl rfl⟩))))
+    (fun t ht => k _ (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inr (Or.inl rfl)⟩))))
+    (fun t ht => k _ (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inr (Or.inr (Or.inl rfl))⟩)))) hcs
+    (fun c hc => k _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr rfl)⟩)))
+    (fun t ht => k _ (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inr (Or.inr (Or.inr rfl))⟩))))
+    (fun n hn => k _ (Or.inr (Or.inr (Or.inr ⟨n, hn, rfl⟩))))
 
 /-- Protected words are words of `Ω` or TCB fields. -/
-theorem ObjsOK.prot_cases (h : ObjsOK st Ω Sg Rp Scs Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω) {b : U64}
-    (hb : Prot T Rp Scs b) : b ∈ Ω ∨ ∃ t ∈ T, ∃ K : U64, K.val < 4096 ∧ b = core.num.U64.wrapping_add t K := by
-  rcases hb with ⟨r, hr, e⟩ | ⟨c, hc, e⟩ | ⟨t, ht, e⟩
+theorem ObjsOK.prot_cases (h : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω) {b : U64}
+    (hb : Prot T Rp Scs Nt b) : b ∈ Ω ∨ ∃ t ∈ T, ∃ K : U64, K.val < 4096 ∧ b = core.num.U64.wrapping_add t K := by
+  rcases hb with ⟨r, hr, e⟩ | ⟨c, hc, e⟩ | ⟨t, ht, e⟩ | ⟨n, hn, rfl⟩
+  rotate_right
+  · exact Or.inl (hsub _ (h.ntW n hn))
   · left; rcases e with rfl | rfl | rfl
     · exact hsub _ (h.tcbW hr)
     · exact hsub _ (h.prevW hr)
     · exact hsub _ (h.nextW hr)
-  · left; rcases e with rfl | rfl
+  · left; rcases e with rfl | rfl | rfl
     · exact hsub _ (h.fixW c hc).1
     · exact hsub _ (h.fixW c hc).2
+    · exact hsub _ (h.repW c hc)
   · right; refine ⟨t, ht, ?_⟩
-    rcases e with rfl | rfl | rfl
+    rcases e with rfl | rfl | rfl | rfl
     · exact ⟨3464#u64, by simp, rfl⟩
     · exact ⟨3360#u64, by simp, rfl⟩
     · exact ⟨3328#u64, by simp, stA_eq t⟩
+    · exact ⟨3368#u64, by simp, rfl⟩
 
 /-- Node words are not protected. -/
 theorem not_prot_node {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64}
-    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω)
-    {c o : U64} (hc : c ∈ Cs) (ho : o.val < 4288) : ¬ Prot T Rp Scs (L.nodeAt s c o) := by
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω)
+    {c o : U64} (hc : c ∈ Cs) (ho : o.val < 4288) : ¬ Prot T Rp Scs Nt (L.nodeAt s c o) := by
   intro hp
   rcases hO.prot_cases hsub hp with hm | ⟨t, ht, K, hK, e⟩
   · exact out_ne_node (h.omega _ hm) hc (h.nodes c hc) ho rfl
@@ -158,9 +185,9 @@ theorem not_prot_node {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → 
 
 /-- The ring and `CONSUMED` word of an SC object are not protected. -/
 theorem not_prot_ring {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64}
-    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Z s) {c b : U64} (hc : c ∈ Scs)
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) {c b : U64} (hc : c ∈ Scs)
     (hb : Aligned b) (hr : InRing c (Z c) b ∨ b = core.num.U64.wrapping_add c layout.sc.CONSUMED) :
-    ¬ Prot T Rp Scs b := by
+    ¬ Prot T Rp Scs Nt b := by
   obtain ⟨hP, hz⟩ := hO.sc c hc
   obtain ⟨-, h128, -⟩ := sc_lo hP hz
   have hbv : (c.val + 72 ≤ b.val ∨ b.val = c.val + 8) ∧ b.val < c.val + 2 ^ Z c := by
@@ -168,7 +195,9 @@ theorem not_prot_ring {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → 
     · exact ⟨Or.inl h1, h2⟩
     · rw [sc_word_val hP hz (by simp [layout.sc.CONSUMED])]; simp [layout.sc.CONSUMED]; omega
   have hin : InSC c (Z c) b := ⟨by omega, hbv.2⟩
-  rintro (⟨r, hr', e⟩ | ⟨c', hc', e⟩ | ⟨t, ht, e⟩)
+  rintro (⟨r, hr', e⟩ | ⟨c', hc', e⟩ | ⟨t, ht, e⟩ | ⟨n, hn, rfl⟩)
+  rotate_right
+  · have := hO.ntSc n hn c hc; have := hin.1; have := hin.2; omega
   · have hp := hO.rp r hr'
     have hrv : b.val = r.val ∨ b.val = r.val + 8 ∨ b.val = r.val + 16 := by
       rcases e with rfl | rfl | rfl
@@ -179,50 +208,61 @@ theorem not_prot_ring {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → 
     omega
   · obtain ⟨hP', hz'⟩ := hO.sc c' hc'
     obtain ⟨-, h128', -⟩ := sc_lo hP' hz'
-    have hcv : b.val = c'.val + 24 ∨ b.val = c'.val + 16 := by
-      rcases e with rfl | rfl
+    have hcv : b.val = c'.val + 24 ∨ b.val = c'.val + 16 ∨ b.val = c'.val + 32 := by
+      rcases e with rfl | rfl | rfl
       · exact Or.inl (scTcbA_val hP' hz')
-      · exact Or.inr (scCoreA_val hP' hz')
+      · exact Or.inr (Or.inl (scCoreA_val hP' hz'))
+      · exact Or.inr (Or.inr (scReplyA_val hP' hz'))
     by_cases e' : c = c'
     · subst e'; omega
     · have := hO.scDisj c hc c' hc' e'; omega
   · have hm := hO.scW c hc b hb hin
     have hout := (h.omega _ hm).2.1 t ht
-    have hv : b.val = t.val + 3464 ∨ b.val = t.val + 3360 ∨ b.val = t.val + 3328 := by
-      rcases e with rfl | rfl | rfl
+    have hv : b.val = t.val + 3464 ∨ b.val = t.val + 3360 ∨ b.val = t.val + 3328 ∨ b.val = t.val + 3368 := by
+      rcases e with rfl | rfl | rfl | rfl
       · left; rw [scA_eq, field_val (h.tcbs t ht) (by simp)]; simp
       · right; left; unfold replyA; rw [field_val (h.tcbs t ht) (by simp)]; simp
-      · right; right; rw [stA_eq, field_val (h.tcbs t ht) (by simp)]; simp
+      · right; right; left; rw [stA_eq, field_val (h.tcbs t ht) (by simp)]; simp
+      · right; right; right; unfold boundA; rw [field_val (h.tcbs t ht) (by simp)]; simp
     omega
 
 /-! ## Under `KeepT` (what `cancel_ipc` keeps) -/
 
-theorem KeepT.curW {t : U64} {s s' : S} (k : KeepT st T Rp Scs t s s') : L.curW s' = L.curW s :=
+theorem KeepT.curW {t : U64} {s s' : S} (k : KeepT st T Rp Scs Nt t s s') : L.curW s' = L.curW s :=
   k.nd _ (by rw [curth0]; omega)
-theorem KeepT.idleW {t : U64} {s s' : S} (k : KeepT st T Rp Scs t s s') : L.idleW s' = L.idleW s :=
+theorem KeepT.idleW {t : U64} {s s' : S} (k : KeepT st T Rp Scs Nt t s s') : L.idleW s' = L.idleW s :=
   k.nd _ (by rw [idle8]; omega)
-theorem KeepT.cscW {t : U64} {s s' : S} (k : KeepT st T Rp Scs t s s') : L.cscW s' = L.cscW s :=
+theorem KeepT.cscW {t : U64} {s s' : S} (k : KeepT st T Rp Scs Nt t s s') : L.cscW s' = L.cscW s :=
   k.nd _ (by simp [layout.node.CUR_SC])
-theorem KeepT.scf {t : U64} {s s' : S} (k : KeepT st T Rp Scs t s s') {y : U64} (hy : y ∈ T) :
+theorem KeepT.scf {t : U64} {s s' : S} (k : KeepT st T Rp Scs Nt t s s') {y : U64} (hy : y ∈ T) :
     L.mem s' (scA y) = L.mem s (scA y) := by
   rw [scA_eq]; exact k.fld y hy _ (by simp) (by simp) (by simp) (by simp) (fun _ => ⟨by simp, by simp⟩)
-theorem KeepT.inqf {t : U64} {s s' : S} (k : KeepT st T Rp Scs t s s') {y : U64} (hy : y ∈ T) :
+theorem KeepT.inqf {t : U64} {s s' : S} (k : KeepT st T Rp Scs Nt t s s') {y : U64} (hy : y ∈ T) :
     L.mem s' (inqA y) = L.mem s (inqA y) := by
   rw [inqA_eq]; exact k.fld y hy _ (by simp) (by simp) (by simp) (by simp) (fun _ => ⟨by simp, by simp⟩)
-theorem KeepT.repf {t : U64} {s s' : S} (k : KeepT st T Rp Scs t s s') {y : U64} (hy : y ∈ T) :
+theorem KeepT.repf {t : U64} {s s' : S} (k : KeepT st T Rp Scs Nt t s s') {y : U64} (hy : y ∈ T) :
     L.mem s' (replyA y) = L.mem s (replyA y) :=
   k.fld y hy _ (by simp) (by simp) (by simp) (by simp) (fun _ => ⟨by simp, by simp⟩)
-theorem KeepT.stf {t : U64} {s s' : S} (k : KeepT st T Rp Scs t s s') {y : U64} (hy : y ∈ T) (hyt : y ≠ t) :
+theorem KeepT.stf {t : U64} {s s' : S} (k : KeepT st T Rp Scs Nt t s s') {y : U64} (hy : y ∈ T) (hyt : y ≠ t) :
     L.mem s' (stA y) = L.mem s (stA y) := by
   rw [stA_eq]; exact k.fld y hy _ (by simp) (by simp) (by simp) (by simp) (fun e => absurd e hyt)
 
+theorem KeepT.bndf {t : U64} {s s' : S} (k : KeepT st T Rp Scs Nt t s s') {y : U64} (hy : y ∈ T) :
+    L.mem s' (boundA y) = L.mem s (boundA y) :=
+  k.fld y hy _ (by simp) (by simp) (by simp) (by simp) (fun _ => ⟨by simp, by simp⟩)
+
 /-- `BoundInv` under `KeepT`. -/
 theorem BoundInv.keepT {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t : U64} {s s' : S}
-    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T s) (k : KeepT st T Rp Scs t s s') :
-    BoundInv st T s' := by
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T s) (k : KeepT st T Rp Scs Nt t s s')
+    (hnb : ¬ Blocked (L.mem s' (stA t))) : BoundInv st T s' := by
   refine hB.mk' (fun y hy => k.scf hy) (fun y hy hf => Or.inl (by rw [← k.inqf hy]; exact hf))
     (fun y hy hf => Or.inr (Or.inl (by rw [← k.inqf hy]; exact hf))) (fun haT => ?_)
-    (by rw [k.idleW]; exact ⟨h.idleT, hB.idle⟩) (fun h0 => ?_)
+    (by rw [k.idleW]; exact ⟨h.idleT, hB.idle⟩) (fun h0 => ?_) ?_
+  rotate_right
+  · rw [k.idleW]
+    by_cases e : L.idleW s = t
+    · rw [e]; exact hnb
+    · rw [k.stf (y := L.idleW s) h.idleT e]; exact hB.idleNB
   · rcases k.act with e | e
     · rw [e] at haT ⊢; exact ⟨haT, hB.act haT⟩
     · rw [e] at haT; exact absurd haT (notT_small h.tcbs (by simp))
@@ -232,10 +272,10 @@ theorem BoundInv.keepT {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 →
 
 /-- `XInv` under `KeepT`, when `t` ends neither blocked on reply nor on
 receive and the replies naming `t` are cleared. -/
-theorem XInv.keepT {t : U64} {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Z s) (k : KeepT st T Rp Scs t s s')
+theorem XInv.keepT {t : U64} {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (k : KeepT st T Rp Scs Nt t s s')
     (hst : L.mem s' (stA t) ≠ sched.TS_BLOCKED_ON_REPLY ∧ L.mem s' (stA t) ≠ sched.TS_BLOCKED_ON_RECV)
     (hclr : ∀ r ∈ Rp, L.mem s (rTcbA r) = t → L.mem s' (rTcbA r) = 0#u64) :
-    XInv st T Cs Ω Sg Rp Scs Z s' := by
+    XInv st T Cs Ω Sg Rp Scs Nt Z s' := by
   obtain ⟨hO, hR, hE⟩ := hX
   have rt : ∀ u ∈ T, u ≠ t → ∀ r ∈ Rp, L.mem s (rTcbA r) = u → L.mem s' (rTcbA r) = u := by
     intro u hu hut r hr e
@@ -243,8 +283,9 @@ theorem XInv.keepT {t : U64} {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Z s) (k 
     · rw [e']; exact e
     · exact absurd (e.symm.trans e') hut
   refine ⟨hO.ksb, ⟨fun u hu hs => ?_, fun u hu hs hn => ?_, fun r hr hn => ?_, fun r hr hp => ?_,
-      fun r hr hn => ?_⟩,
-    ⟨fun u hu hb => ?_, by rw [k.cscW]; exact hE.cur⟩⟩
+      fun r hr hn => ?_, fun c hc hn => ?_⟩,
+    ⟨fun u hu hb => ?_, by rw [k.cscW]; exact hE.cur, fun c hc => by rw [(k.fix c hc).2.1]; exact hE.core c hc,
+      fun u hu => by rw [k.bndf hu]; exact hE.bnd u hu, fun n hn => by rw [k.nsc n hn]; exact hE.nsc n hn⟩⟩
   · by_cases e : u = t
     · subst e; exact absurd hs hst.1
     rw [k.stf hu e] at hs
@@ -268,6 +309,9 @@ theorem XInv.keepT {t : U64} {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Z s) (k 
       obtain ⟨b0, b1, b2, b3⟩ := hR.back r hr hn
       rw [k.repf b1, k.stf b1 hut]; exact ⟨b0, b1, b2, b3⟩
     · exact absurd e0 hn
+  · rcases k.srep c hc with e | e
+    · rw [e] at hn ⊢; exact hR.screp c hc hn
+    · exact absurd e hn
   · rw [k.scf hu] at hb ⊢
     obtain ⟨h1, h2, h3⟩ := hE.bound u hu hb
     obtain ⟨f1, f2, -⟩ := k.fix _ h1
@@ -275,7 +319,7 @@ theorem XInv.keepT {t : U64} {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Z s) (k 
 
 /-- No reply names a thread that is neither blocked on reply nor on
 receive. -/
-theorem XInv.noref {t : U64} {s : S} (hX : XInv st T Cs Ω Sg Rp Scs Z s) (hta : TcbAddr t)
+theorem XInv.noref {t : U64} {s : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hta : TcbAddr t)
     (h1 : L.mem s (stA t) ≠ sched.TS_BLOCKED_ON_REPLY) (h2 : L.mem s (stA t) ≠ sched.TS_BLOCKED_ON_RECV) :
     ∀ r ∈ Rp, L.mem s (rTcbA r) ≠ t := fun r hr e => by
   obtain ⟨-, -, -, b3⟩ := hX.2.1.back r hr (by rw [e]; exact fun e0 => hta.ne0 (by rw [e0]; rfl))
@@ -288,12 +332,12 @@ theorem XInv.noref {t : U64} {s : S} (hX : XInv st T Cs Ω Sg Rp Scs Z s) (hta :
 facts it needs come from `XInv`. -/
 theorem ipc.cancel_ipc.all {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t : obj.Tcb)
     (Q : U64 → U64 → List U64) (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : t ∈ T)
-    (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω) :
+    (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω) :
     ipc.cancel_ipc st ar s a t ⦃ s' _ => SchedQueuesInv st T Cs Ω H s' Q R ∧ BoundInv st T s' ∧
-      XInv st T Cs Ω Sg Rp Scs Z s' ∧ ¬ Blocked (L.mem s' (stA t)) ∧
+      XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ ¬ Blocked (L.mem s' (stA t)) ∧
       L.mem s' (stA t) ≠ sched.TS_BLOCKED_ON_REPLY ∧
       (L.mem s' (stA t) = sched.TS_INACTIVE ∨
-        (L.mem s' (stA t) = L.mem s (stA t) ∧ L.actionW s' = L.actionW s)) ∧ KeepT st T Rp Scs t s s' ∧
+        (L.mem s' (stA t) = L.mem s (stA t) ∧ L.actionW s' = L.actionW s)) ∧ KeepT st T Rp Scs Nt t s s' ∧
       (∀ r ∈ Rp, L.mem s (rTcbA r) = t → L.mem s' (rTcbA r) = 0#u64) ⦄ := by
   obtain ⟨hO, hR, hE⟩ := hX
   have hreply : L.mem s (stA t) = sched.TS_BLOCKED_ON_REPLY → ReplyT st Rp Scs s t := fun hs => by
@@ -311,7 +355,7 @@ theorem ipc.cancel_ipc.all {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t
     rcases b3 with b3 | b3
     · exact Or.inl b3
     · exact Or.inr ⟨b3, by rw [b2]; exact b0⟩
-  exact ⟨h', hB.keepT h k, XInv.keepT (Z := Z) (Ω := Ω) (Sg := Sg) ⟨hO, hR, hE⟩ k
+  exact ⟨h', hB.keepT h k nb, XInv.keepT (Z := Z) (Ω := Ω) (Sg := Sg) ⟨hO, hR, hE⟩ k
     ⟨nr, fun e => nb (Or.inr (Or.inl e))⟩ hclr, nb, nr, hst, k, hclr⟩
 
 end
