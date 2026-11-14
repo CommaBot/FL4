@@ -147,11 +147,12 @@ theorem immediate_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L)
     exact ⟨σ, G, ⟨⟨hR, hV, hM, hC, hI⟩, hD⟩, hcd, hps, hnul, Or.inl ⟨_, rfl, trivial, trivial,
       htr _ (rd_fin_null hg)⟩⟩
   rw [cap_is_null_ne hcn]; simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
-  rw [(hF s σ G sl c ⟨⟨hR, hV, hM, hC, hI⟩, hD⟩ hA hc hcn).1]; simp only [bind_ok]
+  obtain ⟨bf, hbf1, hbf2, -⟩ := hF s σ G sl c ⟨⟨hR, hV, hM, hC, hI⟩, hD⟩ hA hc hcn
+  rw [hbf1]; simp only [bind_ok]
   rw [hca.abs] at hg
   have hcan : absCap c ≠ .nullCap := fun h => hcn (absCap_eq_null.1 h)
   have hcvx : capV (L.mem s) (cslotAddr sl) = c := capV_of_capAt hc
-  apply WP.spec_bind (fin_step arI th hO hF hP s a σ G ⟨⟨hR, hV, hM, hC, hI⟩, hD⟩ hA hc hcn)
+  apply WP.spec_bind (fin_step arI th hO hF hP s a σ G ⟨⟨hR, hV, hM, hC, hI⟩, hD⟩ hA hc hcn bf hbf2)
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨σ1, G1, hmem, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1⟩, hx1, hch1, hcl, hclw, hzr, hrem⟩
   simp only [uncurry_apply_pair] at hmem hx1 hch1 hcl hclw hzr hrem ⊢
   dsimp only at hR1 hV1 hM1 hC1 hI1 hD1 hmem hx1 hch1 hcl hclw hzr hrem ⊢

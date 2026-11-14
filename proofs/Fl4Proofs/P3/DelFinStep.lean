@@ -51,8 +51,9 @@ cap of a slot of the typed heap. -/
 theorem fin_step (th : TypedHeap) (hO : FinObjHyp (L := L) arI th) (hF : FinalHyp (L := L) th)
     (hP : Placed th) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hDS : DState (L := L) th s σ G) {sl : Fl4Spec.CslotPtr} (hA : AbsSlot th sl)
-    {c : capability.Cap} (hc : capAt (L.mem s) (cslotAddr sl) = ok c) (hcn : c ≠ .Null) :
-    objects.finalise_cap st arI s a c (decide (Fl4Spec.isFinalCap' (absCap c) σ)) false ⦃ r =>
+    {c : capability.Cap} (hc : capAt (L.mem s) (cslotAddr sl) = ok c) (hcn : c ≠ .Null)
+    (b : Bool) (hb : NeedsFin c → b = decide (Fl4Spec.isFinalCap' (absCap c) σ)) :
+    objects.finalise_cap st arI s a c b false ⦃ r =>
       FinPost (L := L) th s σ (cslotAddr sl) c r ⦄ := by
   obtain ⟨⟨hR, hV, hM, hC, hI⟩, hD⟩ := hDS
   have hcvx := capV_of_capAt hc
@@ -63,11 +64,12 @@ theorem fin_step (th : TypedHeap) (hO : FinObjHyp (L := L) arI th) (hF : FinalHy
   have hsame : ∀ y, IsSlot th y → y ≠ cslotAddr sl → capV (L.mem s) y = capV (L.mem s) y ∨
       (capV (L.mem s) y = .Null ∧ isZb (capV (L.mem s) y) = false) := fun _ _ _ => Or.inl rfl
   rcases cap_cases c hcn with ht | ⟨p, r, gs, g, rfl⟩ | ⟨p, zt, n, rfl⟩ | ho
-  · rw [finalise_triv arI s a c _ ht, WP.spec_ok]
+  · rw [finalise_triv arI s a c b ht, WP.spec_ok]
     refine ⟨σ, G, mem_single (finaliseCap_trivF σ c _ ht), ⟨⟨hR, hV, hM, hC, hI⟩, hD⟩, hcvx, hsame,
       trivial, trivial, fun h => ?_, Or.inl rfl⟩
     cases c <;> simp [TrivFin] at ht <;> simp [isZb] at h
   · -- a CNode cap
+    rw [hb (Or.inr (Or.inl ⟨_, _, _, _, rfl⟩))]
     obtain ⟨hcvp, -⟩ := hcv
     have hr : r.val < 64 := hca.1.1
     by_cases hfin : Fl4Spec.isFinalCap' (absCap (.CNode p r gs g)) σ
@@ -93,8 +95,8 @@ theorem fin_step (th : TypedHeap) (hO : FinObjHyp (L := L) arI th) (hF : FinalHy
       simp only [absCap, Fl4Spec.finaliseCap, Bool.false_eq_true, ↓reduceIte]; rfl
   · -- a zombie
     have hfz : Fl4Spec.isFinalCap' (absCap (.Zombie p zt n)) σ :=
-      (hF s σ G sl _ ⟨⟨hR, hV, hM, hC, hI⟩, hD⟩ hA hc hcn).2 rfl
-    have e : objects.finalise_cap st arI s a (.Zombie p zt n) (decide (Fl4Spec.isFinalCap' (absCap (.Zombie p zt n)) σ))
+      (hF s σ G sl _ ⟨⟨hR, hV, hM, hC, hI⟩, hD⟩ hA hc hcn).choose_spec.2.2 rfl
+    have e : objects.finalise_cap st arI s a (.Zombie p zt n) b
         false = ok ((.Zombie p zt n, .Null), s, a) := by
       simp [objects.finalise_cap, objects.finalise_cap_object]
     rw [e, WP.spec_ok]
@@ -108,6 +110,7 @@ theorem fin_step (th : TypedHeap) (hO : FinObjHyp (L := L) arI th) (hF : FinalHy
       · exact hD.zu y _ hy hA.isSlot hyx _ _ _ _ _ _ e' hcvx
       · rintro ⟨zt', n', e'⟩; rw [hcvx] at e'; cases e'; rfl
   · -- an object cap
+    rw [hb (Or.inl ho)]
     refine WP.spec_mono (hO s a σ G sl c ⟨⟨hR, hV, hM, hC, hI⟩, hD⟩ hA hc ho) ?_
     rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨hrem, hcl, hclw, σ1, G1, hmem, hDS1, hx1, hch⟩
     refine ⟨σ1, G1, hmem, hDS1, hx1, hch, hcl, hclw, fun h => ?_, ?_⟩

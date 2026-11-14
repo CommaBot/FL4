@@ -79,17 +79,26 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 def DState (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) : Prop :=
   CRel th (L.mem s) σ G ∧ DelInv th (L.mem s)
 
-def FinalHyp (th : TypedHeap) : Prop :=
-  ∀ (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (c : capability.Cap),
-    DState (L := L) th s σ G → AbsSlot th sl → capAt (L.mem s) (cslotAddr sl) = ok c → c ≠ .Null →
-    cdt.is_final_capability st s (cslotAddr sl) = ok (decide (Fl4Spec.isFinalCap' (absCap c) σ)) ∧
-    (isZb c = true → Fl4Spec.isFinalCap' (absCap c) σ)
-
 /-- The caps whose finalisation is object-specific work. -/
 def FinObjKind : capability.Cap → Prop
   | .Endpoint .. | .Notification .. | .Reply .. | .Thread _ | .SchedContext .. | .IrqHandler _
   | .Frame .. | .PageTable .. | .PageDirectory .. | .Pdpt .. | .Pml4 .. | .AsidPool .. | .IoPort .. => True
   | _ => False
+
+/-- The caps whose finalisation depends on finality: the object caps, CNode
+caps and zombies. (For untyped, domain, IRQ control, scheduling control and
+the arch control caps, FL4's `is_final_capability` and the spec's
+`is_final_cap` may differ: the spec's needs an object, FL4's does not; it
+does not matter, their finalisation does nothing.) -/
+def NeedsFin (c : capability.Cap) : Prop :=
+  FinObjKind c ∨ (∃ p r gs g, c = .CNode p r gs g) ∨ isZb c = true
+
+def FinalHyp (th : TypedHeap) : Prop :=
+  ∀ (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (c : capability.Cap),
+    DState (L := L) th s σ G → AbsSlot th sl → capAt (L.mem s) (cslotAddr sl) = ok c → c ≠ .Null →
+    ∃ b, cdt.is_final_capability st s (cslotAddr sl) = ok b ∧
+      (NeedsFin c → b = decide (Fl4Spec.isFinalCap' (absCap c) σ)) ∧
+      (isZb c = true → Fl4Spec.isFinalCap' (absCap c) σ)
 
 /-- The remainder of an object cap's finalisation: a zombie over the TCB
 for a final thread cap, else nothing. -/
