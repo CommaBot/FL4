@@ -261,7 +261,7 @@ theorem maybe_donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
       · have et : p ≠ t.bv := by rintro rfl; rw [hkt0] at hy; cases hy
         exact ⟨y, by rw [hkd_o p et e]; exact hy, rfl⟩)
   refine WP.spec_mono (resume_refines s1 a1 σd hR1 hS1 hRel1 hmb hscC hsc0 ht htw1 hts1 hnq1) ?_
-  rintro ⟨s2, a2⟩ ⟨-, σr, hres, hkr, har, hctr, hrqr, htsr, hf2, hS2⟩
+  rintro ⟨s2, a2⟩ ⟨-, σr, hres, hkr, har, hctr, hrqr, htsr, hf2, -, hS2⟩
   obtain ⟨xs', ns', hks', hxs⟩ := hs.scs sc hscC
   rw [hks] at hks'; cases hks'
   have hspec : Fl4Spec.maybeDonateSc (Z := Unit) t.bv n.bv σ = Fl4Spec.schedContextResume (Z := Unit) sc.bv σd := by

@@ -8,7 +8,7 @@ and the head is merged with the following refills while they overlap
 (`refill_head_overlapping_loop`, a `whileLoop`, against FL4's loop with
 fuel `REFILL_MAX + 1`, which never runs out).
 -/
-import Fl4Proofs.P3.ScSpec
+import Fl4Proofs.P3.ScKFoot
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Sched

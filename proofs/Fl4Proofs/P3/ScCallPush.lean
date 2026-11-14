@@ -199,7 +199,7 @@ theorem callWords_of_dfoot {N T C R : Set U64} {c : U64} {s s' : S} {σ : Fl4Spe
     obtain ⟨-, h2, h3, -⟩ := hS.scOutIn hq ha.2
     rw [scReplyA_eq]
     refine hw' _ ha.1 ?_ ?_
-    · rintro (⟨y, hy, g1, g2⟩ | ⟨g1, g2⟩)
+    · intro hb0; rcases hb0.range hc.tcbs with ⟨y, hy, g1, g2⟩ | ⟨g1, g2⟩
       · have := h3 y hy; omega
       · omega
     · intro e
@@ -213,11 +213,11 @@ theorem callWords_of_dfoot {N T C R : Set U64} {c : U64} {s s' : S} {σ : Fl4Spe
     have hfar := hRP.sc r hr sc hsc x n hk
     unfold ScObj at h24
     refine ⟨hw' _ (hRP.aligned hr (Or.inl v1)) ?_ ?_, hw' _ (hRP.aligned hr (Or.inr v2)) ?_ ?_⟩
-    · rintro (⟨y, hy, g1, g2⟩ | ⟨g1, g2⟩)
+    · intro hb0; rcases hb0.range hc.tcbs with ⟨y, hy, g1, g2⟩ | ⟨g1, g2⟩
       · have := hRP.tcb r hr y hy; omega
       · have := hRP.ksb r hr; simp only [LawfulStore.nodeBase] at this g1 g2; omega
     · intro e; have := congrArg UScalar.val e; omega
-    · rintro (⟨y, hy, g1, g2⟩ | ⟨g1, g2⟩)
+    · intro hb0; rcases hb0.range hc.tcbs with ⟨y, hy, g1, g2⟩ | ⟨g1, g2⟩
       · have := hRP.tcb r hr y hy; omega
       · have := hRP.ksb r hr; simp only [LawfulStore.nodeBase] at this g1 g2; omega
     · intro e; have := congrArg UScalar.val e; omega

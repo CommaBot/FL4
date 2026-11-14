@@ -84,18 +84,33 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
   `set_consumed` (its message writes the Ep side's `MsgOK`), SchedContext
   `YieldTo` (`yield_to_refines`, `yieldto_invoke_refines`, with `ActIdle`)
   and `Consumed` (`sc_consumed_refines`).
-* ScFoot: the scheduler footprint `SFoot` and `CKeep` (what the call-stack
-  relation reads of the spec, kept).
+* ScFoot: `CKeep` (what the call-stack relation reads of the spec, kept).
 * ScCallUnlink: `reply_unlink` (`reply_unlink_refines`, l4v
   `reply_unlink_tcb`) and `reply_remove` in full (`reply_remove_full_refines`,
   l4v `reply_remove`), keeping `RFree` (free replies detached and unlinked,
   ScCallOps; `RFree.push_ready` gives `reply_push` its isolated reply).
-* ScDecodeSc: SchedContext invocation decode over every label
-  (`sc_decode_refines`, l4v `decode_sched_context_invocation` and
-  `invoke_sched_context`): the YieldTo checks (`yieldto_branch_refines`, with
-  the MCP relation `McpRel`), Bind and UnbindObject (`bind_branch_refines`,
-  `unbindobj_branch_refines`), Unbind (`unbind_invoke_refines`, carrying the
-  call-stack relation), Consumed.
+* ScKFoot: the scheduling-context code's footprints (`SFoot`: TCB words past
+  offset 256 other than `MCP` and `YIELD_TO`, and the node; `KFoot`: also the
+  notifications' and the SCs' words other than `REPLY`), the queue and
+  unblock-check footprints; ScYield's `TFoot` adds the `YIELD_TO` words.
+* ScDecodeSc: the SchedContext labels (the YieldTo checks,
+  `yieldto_branch_refines`, with the MCP relation `McpRel`; Bind and
+  UnbindObject, `bind_branch_refines`, `unbindobj_branch_refines`; Unbind,
+  `unbind_invoke_refines`, carrying the call-stack relation; Consumed), each
+  with its footprint and the spec's `SOK`.
+* ScMcp: `McpRel` across steps (`McpRel.frame`, `McpRel.set`) and
+  `set_mcp_refines` (l4v `set_mcpriority`); `hback_of_tsc` (P1's `TSc`).
+* ScPres, ScPresOps: what the spec's SchedContext invocations keep (`SOK`:
+  CNodes, TCB caps and MCPs, object kinds and SC sizes, CDT, domain
+  schedule; with flags, the yield-to links and the call stacks), by `Pres`
+  over the monad.
+* ScKeep: the relations' frames from `SOK` and the footprints
+  (`KFoot.keep`, `TFoot.keep`, `RFoot.keep`).
+* ScDecodeAll: SchedContext invocation decode over every label
+  (`sc_decode_refines`), ending in every relation (`ScAll`).
+* ScTop: the SchedContext cap at the top level (`decode_invocation_sched_context`
+  for `DecOK`, `domFrame_sched_context`, `decode_invocation_sched_contextD`),
+  the CSpace relation kept by `crel_of_sok` given `SlotsApart`.
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
@@ -115,3 +130,6 @@ import Fl4Proofs.P3.ScCallPushRef
 import Fl4Proofs.P3.ScCallUnbind
 import Fl4Proofs.P3.ScYieldTo
 import Fl4Proofs.P3.ScDecodeSc
+import Fl4Proofs.P3.ScMcp
+import Fl4Proofs.P3.ScDecodeAll
+import Fl4Proofs.P3.ScTop

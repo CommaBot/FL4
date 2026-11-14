@@ -61,7 +61,8 @@ theorem unbind_reply_refines {N T C R : Set U64} {c : U64} (s : S) (σ : Fl4Spec
       Fl4Spec.schedContextUnbindReply (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
       SchedRel st N T C c s' σ' ∧ NtfnStateRel N T (L.mem s') σ' ∧ NSC N C σ' ∧ Inv σ' ∧
       CallRel (L.mem s') R C σ' Lst' ∧ RPlaced st N T C R c s' σ' ∧ (ActIdle σ → ActIdle σ') ∧
-      RFree (L.mem s') R C σ' Lst' ⦄ := by
+      RFree (L.mem s') R C σ' Lst' ∧
+      WritesIn st s s' (fun b => (∃ r ∈ R, b = rNextA r) ∨ (∃ q ∈ C, b = scReplyA q)) ⦄ := by
   have hP := hS.placed
   obtain ⟨⟨y', n', hk', hyL⟩, hLR, hLnd, hLw⟩ := hCR.stack p hp
   rw [hk] at hk'; cases hk'
@@ -83,7 +84,7 @@ theorem unbind_reply_refines {N T C R : Set U64} {c : U64} (s : S) (σ : Fl4Spec
   cases hL : Lst p with
   | nil =>
     simp only [List.headD_nil, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-    refine ⟨σ, Lst, hsp0 σ (by rw [hyL, hL]; rfl), hS, hR, hN, hI, hCR, hRP, id, hRF⟩
+    refine ⟨σ, Lst, hsp0 σ (by rw [hyL, hL]; rfl), hS, hR, hN, hI, hCR, hRP, id, hRF, WritesIn.refl _ _⟩
   | cons r0 rest =>
     have hr0R : r0 ∈ R := hLR r0 (by rw [hL]; simp)
     have hA0 := hRP.align r0 hr0R
@@ -279,7 +280,7 @@ theorem unbind_reply_refines {N T C R : Set U64} {c : U64} (s : S) (σ : Fl4Spec
         · have : σ1.kheap q = σ.kheap q := by simp [σ1, updK, e']
           rw [this] at hq; exact ⟨x', hq⟩
     refine ⟨σ2, Lst', ?_, hS2, hR1.frame hS1.placed hf2 hK2, (hN.updReply hkr0 _).updSc,
-      (hI.updReply hkr0).scFields hk1 rfl rfl rfl rfl, hCR2, hRP.frame (by simp) hSz, fun hA => ?_, ?_⟩
+      (hI.updReply hkr0).scFields hk1 rfl rfl rfl rfl, hCR2, hRP.frame (by simp) hSz, fun hA => ?_, ?_, ?_⟩
     · refine hsp0 _ ?_
       rw [hyL, hL]
       unfold Fl4Spec.NonDet.unless
@@ -305,6 +306,11 @@ theorem unbind_reply_refines {N T C R : Set U64} {c : U64} (s : S) (σ : Fl4Spec
       obtain ⟨hdet, h0n, h0p⟩ := hRF d hd hfσ
       have hdr0 : d ≠ r0 := fun h => hdet p hp (by rw [h, hL]; simp)
       exact ⟨hdet'' d hdet, by rw [hMnext d hd hdr0]; exact h0n, by rw [hMprev d hd]; exact h0p⟩
+    · exact ((writesIn_wr (st := st) (s := s) (v := 0#u64) hn0).trans
+        (writesIn_wr (st := st) (s := L.wr s (rNextA r0) 0#u64) (v := 0#u64) haP)).mono fun b hb => by
+        rcases hb with rfl | rfl
+        · exact Or.inl ⟨r0, hr0R, rfl⟩
+        · exact Or.inr ⟨p, hp, rfl⟩
 
 end
 

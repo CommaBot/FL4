@@ -284,7 +284,7 @@ theorem donate_bound_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
       · rw [e] at hx; simp [σ3, updK] at hx
       · simp only [σ3, updK_kheap, Function.update_of_ne e] at hx; exact hN m hm x q hx hq
     have hw5 : WritesIn st s (L.wr s4 (scA f) 0#u64) (SFoot st T c s) :=
-      WritesIn.sfoot_trans (WritesIn.sfoot_trans hw3 hw4) (writesIn_tcb (K := 3464#u64) hc.tcbs hf (by simp) (by simp) 0#u64)
+      WritesIn.sfoot_trans (WritesIn.sfoot_trans hw3 hw4) (writesIn_tcb (K := 3464#u64) hc.tcbs hf (by unfold SOff; decide) (by simp) 0#u64)
     set s5 := L.wr s4 (scA f) 0#u64 with hs5d
     obtain ⟨Q5, R5, hc5, hs5⟩ := hS5.lists
     have hk3 : σ3.kheap sc.bv = some (.schedContext y n) := by simp [σ3, updK, hpf]; exact hk2
@@ -464,11 +464,11 @@ theorem donate_bound_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
     have e1 : WritesIn st s5 (L.wr s5 (scW sc 24#u64) t) (· = scW sc 24#u64) := writesIn_wr a24
     have e2 : WritesIn st (L.wr s5 (scW sc 24#u64) t) (L.wr (L.wr s5 (scW sc 24#u64) t) (scA t) sc)
         (SFoot st T c (L.wr s5 (scW sc 24#u64) t)) :=
-      writesIn_tcb (K := 3464#u64) hc.tcbs ht (by simp) (by simp) sc
+      writesIn_tcb (K := 3464#u64) hc.tcbs ht (by unfold SOff; decide) (by simp) sc
     have e3 : WritesIn st (L.wr (L.wr s5 (scW sc 24#u64) t) (scA t) sc)
         (L.wr (L.wr (L.wr s5 (scW sc 24#u64) t) (scA t) sc) (affA t) c)
         (SFoot st T c (L.wr (L.wr s5 (scW sc 24#u64) t) (scA t) sc)) :=
-      writesIn_tcb (K := 3520#u64) hc.tcbs ht (by simp) (by simp) c
+      writesIn_tcb (K := 3520#u64) hc.tcbs ht (by unfold SOff; decide) (by simp) c
     refine (((hw4.trans e1).trans e2).trans e3).mono fun b hb => ?_
     rcases hb with ((h | h) | h) | h
     · exact Or.inl h

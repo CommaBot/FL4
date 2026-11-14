@@ -10,11 +10,16 @@ labels' checks and their invocations.
   when the invocation returns data;
 * `yieldto_branch_refines`: the YieldTo label (the checks of
   `decode_sched_context_yield_to`, then `yieldto_invoke_refines`), ending in
-  `ActIdle` too.
+  `ActIdle` too;
+* `KRels`, `RFoot`: the branches' footprints (`KFoot` for Bind,
+  UnbindObject, Consumed; `TFoot` for YieldTo; `RFoot` for Unbind) and the
+  spec's `SOK` (ScPres.lean), from which ScDecodeAll.lean's
+  `sc_decode_refines` frames the other relations.
 -/
 import Fl4Proofs.P3.ScYieldTo
 import Fl4Proofs.P3.ScDecode
 import Fl4Proofs.P3.ScCallUnlink
+import Fl4Proofs.P3.ScPresOps
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Sched
@@ -126,7 +131,8 @@ theorem yieldto_branch_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ :
               let (s3, a2) ← schedcontext.yield_to st ar s2 a sc call
               ok (core.result.Result.Ok (), s3, a2)) ⦃ res =>
       CPost σ (Fl4Spec.decodeSchedContextYieldTo (Z := Unit) sc.bv) s a
-        (ScQ (YRels (st := st) N T C c) σ ct call) res ⦄ := by
+        (ScQ (fun s' σ' => YRels (st := st) N T C c s' σ' ∧ WritesIn st s s' (TFoot st T N C c s σ) ∧
+          SOK (false, true) σ σ') σ ct call) res ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x, n, hk, hx⟩ := hs.scs sc hsc
   have hsc0 := hC0 sc hsc
@@ -209,9 +215,14 @@ theorem yieldto_branch_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ :
   rw [wE_neg (by simp [hyn])] at hpre3
   refine WP.spec_mono (yieldto_invoke_refines s a σ hS hR hN hI hY hC0 hsc hk ht htc hkt hxt hct
     (Ne.symm hte) hcur hkc hyn hcs hAI call hmb hmax htu hmsg) ?_
-  rintro r ⟨h1, -, σ0, data, σ1, σ2, he0, hyt, hcase, hS', hR', hN', hI', hY', hA'⟩
+  rintro r ⟨h1, -, σ0, data, σ1, σ2, he0, hyt, hcase, hS', hR', hN', hI', hY', hA', hw'⟩
+  have hsok : SOK (false, true) σ σ2 := by
+    refine ((pres_setThreadState _ _ _).of_eq he0).trans (((pres_schedContextYieldTo _).of_eq hyt).trans ?_)
+    rcases hcase with ⟨-, rfl⟩ | h
+    · exact SOK.refl _ _
+    · exact (pres_bind (pres_when _ (pres_replyFromKernel _ _ _)) fun _ => pres_setThreadState _ _ _).of_eq h
   exact Or.inr ⟨.invokeSchedContextYieldTo sc.bv, hpre3, h1, σ0, data, σ1, σ2, he0, hyt, hcase,
-    hS', hR', hN', hI', hY', hA'⟩
+    ⟨hS', hR', hN', hI', hY', hA'⟩, hw', hsok⟩
 
 
 /-- A word the notification code writes is a notification's or a TCB's. -/
@@ -294,6 +305,18 @@ theorem RFree.carry {R C : Set U64} {m m' : U64 → U64} {σ σ' : Fl4Spec.State
 def SRels (N T C : Set U64) (c : U64) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
   SchedRel st N T C c s σ ∧ NtfnStateRel N T (L.mem s) σ ∧ NSC N C σ ∧ Inv σ
 
+/-- `SRels`, and the writes since `(s0, σ0)` in `KFoot`. -/
+def KRels (N T C : Set U64) (c : U64) (s0 : S) (σ0 : Fl4Spec.State Unit) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
+  SRels (st := st) N T C c s σ ∧ WritesIn st s0 s (KFoot st T N C c s0 σ0) ∧ SOK (true, true) σ0 σ
+
+/-- The reply words: replies' `NEXT` words, SCs' `REPLY` words. -/
+def RW (R C : Set U64) (b : U64) : Prop := (∃ r ∈ R, b = rNextA r) ∨ (∃ q ∈ C, b = scReplyA q)
+
+/-- **The footprint of Unbind**: `KFoot` and the reply words. -/
+def RFoot (st : machine.Store S) [L : LawfulStore st] (T N C R : Set U64) (c : U64) (s : S)
+    (σ : Fl4Spec.State Unit) (b : U64) : Prop :=
+  KFoot st T N C c s σ b ∨ RW R C b
+
 theorem scNtfn_keep {N T C : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) (hS' : SchedRel st N T C c s' σ') {sc : U64} (hsc : sc ∈ C)
     (hm : L.mem s' (scW sc 40#u64) = L.mem s (scW sc 40#u64)) {y : Fl4Spec.SchedContext} {n : Nat}
@@ -329,7 +352,8 @@ theorem unbind_invoke_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ 
       Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ0)}, False) ∧
       Fl4Spec.invokeSchedContext (Z := Unit) (.invokeSchedContextUnbind sc.bv) σ0 = ({([], σ3)}, False) ∧
       SRels (st := st) N T C c res.2.1 σ3 ∧ CallRel (L.mem res.2.1) R C σ3 Lst' ∧
-      RPlaced st N T C R c res.2.1 σ3 ∧ RFree (L.mem res.2.1) R C σ3 Lst' ⦄ := by
+      RPlaced st N T C R c res.2.1 σ3 ∧ RFree (L.mem res.2.1) R C σ3 Lst' ∧
+      WritesIn st s res.2.1 (RFoot st T N C R c s σ) ⦄ := by
   obtain ⟨Q, R', hc, hs⟩ := hS.lists
   obtain ⟨x0, n0, hk0, hx0⟩ := hs.scs sc hsc
   rw [hk] at hk0; cases hk0
@@ -366,9 +390,10 @@ theorem unbind_invoke_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ 
     have ha := hx1.hdr (K := 40#u64) (by simp) (by simp)
     obtain ⟨-, h2, h3, -⟩ := hS1.scOutIn hsc ha.2
     refine hw2.mem_eq ha.1 ?_
-    rintro ((⟨t, ht, g1, g2⟩ | ⟨g1, g2⟩) | e)
-    · have := h3 t ht; omega
-    · omega
+    rintro (hb0 | e)
+    · rcases hb0.range hc1.tcbs with ⟨t, ht, g1, g2⟩ | ⟨g1, g2⟩
+      · have := h3 t ht; omega
+      · omega
     · have hb := hx1.bounds
       have := congrArg UScalar.val e
       rw [scW_val (by simp; omega), scW_val (by simp; omega)] at this
@@ -384,8 +409,17 @@ theorem unbind_invoke_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ 
   obtain ⟨y3, n3, hk3, -⟩ := hs3.scs sc hsc
   -- `unbind_reply`
   refine WP.spec_bind (unbind_reply_refines s3 σ3 hS3 hR3 hN3 hI3 hCR3 hRP3 hsc hsc0 hk3 hRF3) ?_
-  rintro s4 ⟨σ4, Lst', he4, hS4, hR4, hN4, hI4, hCR4, hRP4, -, hRF4⟩
-  refine (WP.spec_ok _).mpr ⟨rfl, σ1, σ4, Lst', he1, ?_, ⟨hS4, hR4, hN4, hI4⟩, hCR4, hRP4, hRF4⟩
+  rintro s4 ⟨σ4, Lst', he4, hS4, hR4, hN4, hI4, hCR4, hRP4, -, hRF4, hw4⟩
+  have k1 : WritesIn st s s1 (KFoot st T N C c s σ) := WritesIn.kfoot_of_sfoot hw1
+  have k2 := WritesIn.kfoot_trans k1 (SzKeepC.of hck1.2.2)
+    (WritesIn.kfoot_of_sfoot_scw hS1 hsc (K := 24#u64) (by simp) (by simp) (by decide) hw2)
+  have k3 := WritesIn.kfoot_trans k2 (SzKeepC.of (SzKeep.trans hck1.2.2 hck2.2.2))
+    (WritesIn.kfoot_of_nw_scw hS2 hsc (K := 40#u64) (by simp) (by simp) (by decide) hw3)
+  have k4 : WritesIn st s s4 (RFoot st T N C R c s σ) := (k3.trans hw4).mono fun b hb => by
+    rcases hb with hb | hb
+    · exact Or.inl hb
+    · exact Or.inr hb
+  refine (WP.spec_ok _).mpr ⟨rfl, σ1, σ4, Lst', he1, ?_, ⟨hS4, hR4, hN4, hI4⟩, hCR4, hRP4, hRF4, k4⟩
   show (Fl4Spec.schedContextUnbindAllTcbs sc.bv >>= _) σ1 = _
   rw [nd_bind_one he2, nd_bind_one he3, nd_bind_one he4]; rfl
 
@@ -479,13 +513,14 @@ theorem restart_rels {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State Uni
       Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ')}, False) ∧
       SRels (st := st) N T C c s' σ' ∧ (∀ q, q ≠ ct.bv → σ'.kheap q = σ.kheap q) ∧
       σ'.kheap ct.bv = some (.tcb { xc with tcbState := .restart }) ∧ σ'.curTime = σ.curTime ∧
-      σ'.idleThread = σ.idleThread ∧ σ'.curThread = σ.curThread ∧ σ'.releaseQueue = σ.releaseQueue ⦄ := by
+      σ'.idleThread = σ.idleThread ∧ σ'.curThread = σ.curThread ∧ σ'.releaseQueue = σ.releaseQueue ∧
+      WritesIn st s s' (SFoot st T c s) ⦄ := by
   have hnb : ∀ m, Fl4Spec.ThreadState.restart ≠ .blockedOnNotification m := fun _ h => by cases h
-  refine WP.spec_mono (set_thread_state_refines s σ hR hS hct hkc (not_in_ntfnQueue hR hct hkc hrun)
-    sched.TS_RESTART .restart (by rw [tsVals.2.1]; rfl) hnb) ?_
-  rintro s1 ⟨σ1, he1, hR1, hS1⟩
+  refine WP.spec_mono (WP.spec_and (set_thread_state_refines s σ hR hS hct hkc (not_in_ntfnQueue hR hct hkc hrun)
+    sched.TS_RESTART .restart (by rw [tsVals.2.1]; rfl) hnb) (set_thread_state_sfoot hS hct _)) ?_
+  rintro s1 ⟨⟨σ1, he1, hR1, hS1⟩, hwf⟩
   have hσ1 := the_result (Fl4Proofs.P3.Notif.setThreadState_eq .restart hkc) he1
-  refine ⟨σ1, he1, ⟨hS1, hR1, ?_, ?_⟩, fun q hq => ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨σ1, he1, ⟨hS1, hR1, ?_, ?_⟩, fun q hq => ?_, ?_, ?_, ?_, ?_, ?_, hwf⟩
   · rw [hσ1]; unfold Fl4Proofs.P3.Notif.stsAct; split <;> exact hN.updTcb
   · rw [hσ1]; exact hI.restart hkc hrun
   · rw [hσ1, stsAct_kheap]; simp [updK, hq]
@@ -506,9 +541,10 @@ theorem bind_tcb_invoke {N T C : Set U64} {c : U64} (hT : TimeAgree ar) (s : S) 
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
       let (s3, a2) ← schedcontext.bind_tcb st ar s2 a sc t
       ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s3, a2)) ⦃ res =>
-      ScQ (SRels (st := st) N T C c) σ ct call (.invokeSchedContextBind sc.bv (.threadCap t.bv)) res ⦄ := by
+      ScQ (KRels (st := st) N T C c s σ) σ ct call (.invokeSchedContextBind sc.bv (.threadCap t.bv)) res ⦄ := by
   refine WP.spec_bind (restart_rels s σ hS hR hN hI hct hkc hrun) ?_
-  rintro s1 ⟨σ1, he1, ⟨hS1, hR1, hN1, hI1⟩, hko1, hkc1, htm1, -, -, -⟩
+  rintro s1 ⟨σ1, he1, ⟨hS1, hR1, hN1, hI1⟩, hko1, hkc1, htm1, -, -, -, hw1⟩
+  have hz1 : SzKeep σ σ1 := SzKeep.of_tcb hko1 hkc1
   have hpc : sc.bv ≠ ct.bv := fun e => by rw [e, hkc] at hk; cases hk
   have hk1 : σ1.kheap sc.bv = some (.schedContext y n) := by rw [hko1 _ hpc]; exact hk
   have key : ∃ xt1, σ1.kheap t.bv = some (.tcb xt1) ∧ xt1.tcbSchedContext = none ∧
@@ -520,8 +556,10 @@ theorem bind_tcb_invoke {N T C : Set U64} {c : U64} (hT : TimeAgree ar) (s : S) 
       rw [released_congr htm1]; exact hblk h1 h2 h3
   obtain ⟨xt1, hkt1, hxt1, hblk1⟩ := key
   refine WP.spec_bind (bind_tcb_refines s1 a σ1 hS1 hR1 hN1 hI1 hsc hsc0 hk1 hy0 ht hkt1 hxt1 hblk1 hT) ?_
-  rintro ⟨s3, a3⟩ ⟨σ3, he3, hS3, hR3, hN3, hI3, -⟩
-  refine (WP.spec_ok _).mpr ⟨rfl, σ1, [], σ3, σ3, he1, ?_, Or.inl ⟨rfl, rfl⟩, hS3, hR3, hN3, hI3⟩
+  rintro ⟨s3, a3⟩ ⟨σ3, he3, hS3, hR3, hN3, hI3, -, hw3⟩
+  refine (WP.spec_ok _).mpr ⟨rfl, σ1, [], σ3, σ3, he1, ?_, Or.inl ⟨rfl, rfl⟩, ⟨hS3, hR3, hN3, hI3⟩,
+    WritesIn.kfoot_trans (WritesIn.kfoot_of_sfoot hw1) (SzKeepC.of hz1) hw3,
+    ((pres_setThreadState _ _ _).of_eq he1).trans ((pres_schedContextBindTcb _ _ _).of_eq he3)⟩
   show (Fl4Spec.schedContextBindTcb sc.bv t.bv >>= _) σ1 = _
   rw [nd_bind_one he3]; rfl
 
@@ -537,16 +575,19 @@ theorem bind_ntfn_invoke {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
       let s3 ← schedcontext.bind_ntfn st s2 sc m
       ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s3, a)) ⦃ res =>
-      ScQ (SRels (st := st) N T C c) σ ct call (.invokeSchedContextBind sc.bv (.notificationCap m.bv b r)) res ⦄ := by
+      ScQ (KRels (st := st) N T C c s σ) σ ct call (.invokeSchedContextBind sc.bv (.notificationCap m.bv b r)) res ⦄ := by
   refine WP.spec_bind (restart_rels s σ hS hR hN hI hct hkc hrun) ?_
-  rintro s1 ⟨σ1, he1, ⟨hS1, hR1, hN1, hI1⟩, hko1, -, -, -, -, -⟩
+  rintro s1 ⟨σ1, he1, ⟨hS1, hR1, hN1, hI1⟩, hko1, hkc1, -, -, -, -, hw1⟩
+  have hz1 : SzKeep σ σ1 := SzKeep.of_tcb hko1 hkc1
   have hpc : sc.bv ≠ ct.bv := fun e => by rw [e, hkc] at hk; cases hk
   have hk1 : σ1.kheap sc.bv = some (.schedContext y n) := by rw [hko1 _ hpc]; exact hk
   have hmc : m.bv ≠ ct.bv := fun e => by rw [e, hkc] at hkm; cases hkm
   have hkm1 : σ1.kheap m.bv = some (.notification xm) := by rw [hko1 _ hmc]; exact hkm
   refine WP.spec_bind (bind_ntfn_refines s1 σ1 hS1 hR1 hN1 hI1 hsc hsc0 hk1 hm hm0 hkm1) ?_
-  rintro s3 ⟨σ3, he3, hS3, hR3, hN3, hI3, -⟩
-  refine (WP.spec_ok _).mpr ⟨rfl, σ1, [], σ3, σ3, he1, ?_, Or.inl ⟨rfl, rfl⟩, hS3, hR3, hN3, hI3⟩
+  rintro s3 ⟨σ3, he3, hS3, hR3, hN3, hI3, -, hw3⟩
+  refine (WP.spec_ok _).mpr ⟨rfl, σ1, [], σ3, σ3, he1, ?_, Or.inl ⟨rfl, rfl⟩, ⟨hS3, hR3, hN3, hI3⟩,
+    WritesIn.kfoot_trans (WritesIn.kfoot_of_sfoot hw1) (SzKeepC.of hz1) hw3,
+    ((pres_setThreadState _ _ _).of_eq he1).trans ((pres_schedContextBindNtfn _ _ _).of_eq he3)⟩
   show (Fl4Spec.schedContextBindNtfn sc.bv m.bv >>= _) σ1 = _
   rw [nd_bind_one he3]; rfl
 
@@ -561,15 +602,19 @@ theorem unbind_tcb_invoke {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4S
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
       let s3 ← schedcontext.unbind_tcb st s2 sc
       ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s3, a)) ⦃ res =>
-      ScQ (SRels (st := st) N T C c) σ ct call (.invokeSchedContextUnbindObject sc.bv cap) res ⦄ := by
+      ScQ (KRels (st := st) N T C c s σ) σ ct call (.invokeSchedContextUnbindObject sc.bv cap) res ⦄ := by
   subst hcap
   refine WP.spec_bind (restart_rels s σ hS hR hN hI hct hkc hrun) ?_
-  rintro s1 ⟨σ1, he1, ⟨hS1, hR1, hN1, hI1⟩, hko1, -, -, -, -, -⟩
+  rintro s1 ⟨σ1, he1, ⟨hS1, hR1, hN1, hI1⟩, hko1, hkc1, -, -, -, -, hw1⟩
+  have hz1 : SzKeep σ σ1 := SzKeep.of_tcb hko1 hkc1
   have hpc : sc.bv ≠ ct.bv := fun e => by rw [e, hkc] at hk; cases hk
   have hk1 : σ1.kheap sc.bv = some (.schedContext y n) := by rw [hko1 _ hpc]; exact hk
   refine WP.spec_bind (unbind_tcb_refines s1 σ1 hS1 hR1 hN1 hI1 hsc hk1 ht hyt) ?_
-  rintro s3 ⟨σ3, he3, hS3, hR3, hN3, hI3, -⟩
-  refine (WP.spec_ok _).mpr ⟨rfl, σ1, [], σ3, σ3, he1, ?_, Or.inl ⟨rfl, rfl⟩, hS3, hR3, hN3, hI3⟩
+  rintro s3 ⟨σ3, he3, hS3, hR3, hN3, hI3, -, hw3, -⟩
+  refine (WP.spec_ok _).mpr ⟨rfl, σ1, [], σ3, σ3, he1, ?_, Or.inl ⟨rfl, rfl⟩, ⟨hS3, hR3, hN3, hI3⟩,
+    WritesIn.kfoot_trans (WritesIn.kfoot_of_sfoot hw1) (SzKeepC.of hz1)
+      (WritesIn.kfoot_of_sfoot_scw hS1 hsc (K := 24#u64) (by simp) (by simp) (by decide) hw3),
+    ((pres_setThreadState _ _ _).of_eq he1).trans ((pres_schedContextUnbindTcb _ _).of_eq he3)⟩
   show (Fl4Spec.schedContextUnbindTcb sc.bv >>= _) σ1 = _
   rw [nd_bind_one he3]; rfl
 
@@ -585,15 +630,19 @@ theorem unbind_ntfn_invoke {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
       let s3 ← schedcontext.unbind_ntfn st s2 sc
       ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s3, a)) ⦃ res =>
-      ScQ (SRels (st := st) N T C c) σ ct call (.invokeSchedContextUnbindObject sc.bv cap) res ⦄ := by
+      ScQ (KRels (st := st) N T C c s σ) σ ct call (.invokeSchedContextUnbindObject sc.bv cap) res ⦄ := by
   obtain ⟨p, b, r, rfl⟩ := hcap
   refine WP.spec_bind (restart_rels s σ hS hR hN hI hct hkc hrun) ?_
-  rintro s1 ⟨σ1, he1, ⟨hS1, hR1, hN1, hI1⟩, hko1, -, -, -, -, -⟩
+  rintro s1 ⟨σ1, he1, ⟨hS1, hR1, hN1, hI1⟩, hko1, hkc1, -, -, -, -, hw1⟩
+  have hz1 : SzKeep σ σ1 := SzKeep.of_tcb hko1 hkc1
   have hpc : sc.bv ≠ ct.bv := fun e => by rw [e, hkc] at hk; cases hk
   have hk1 : σ1.kheap sc.bv = some (.schedContext y n) := by rw [hko1 _ hpc]; exact hk
   refine WP.spec_bind (unbind_ntfn_refines s1 σ1 hS1 hR1 hN1 hI1 hsc hsc0 hk1 hbn) ?_
-  rintro s3 ⟨σ3, he3, hS3, hR3, hN3, hI3, -⟩
-  refine (WP.spec_ok _).mpr ⟨rfl, σ1, [], σ3, σ3, he1, ?_, Or.inl ⟨rfl, rfl⟩, hS3, hR3, hN3, hI3⟩
+  rintro s3 ⟨σ3, he3, hS3, hR3, hN3, hI3, -, hw3, -⟩
+  refine (WP.spec_ok _).mpr ⟨rfl, σ1, [], σ3, σ3, he1, ?_, Or.inl ⟨rfl, rfl⟩, ⟨hS3, hR3, hN3, hI3⟩,
+    WritesIn.kfoot_trans (WritesIn.kfoot_of_sfoot hw1) (SzKeepC.of hz1)
+      (WritesIn.kfoot_of_nw_scw hS1 hsc (K := 40#u64) (by simp) (by simp) (by decide) hw3),
+    ((pres_setThreadState _ _ _).of_eq he1).trans ((pres_schedContextUnbindNtfn _ _).of_eq he3)⟩
   show (Fl4Spec.schedContextUnbindNtfn sc.bv >>= _) σ1 = _
   rw [nd_bind_one he3]; rfl
 
@@ -743,7 +792,7 @@ theorem bind_branch_refines {N T C : Set U64} {c : U64} (hT : TimeAgree ar) (th 
           let r ← error.invalid_cap Unit 1#u64
           ok (r, s, a)) : Result (core.result.Result Unit error.Exc × S × A)) ⦃ res =>
       CPost σ (Fl4Spec.decodeSchedContextBind (Z := Unit) sc.bv excaps) s a
-        (ScQ (SRels (st := st) N T C c) σ ct call) res ⦄ := by
+        (ScQ (KRels (st := st) N T C c s σ) σ ct call) res ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨y, n, hk, hx⟩ := hs.scs sc hsc
   unfold schedcontext.extra_cap
@@ -1002,7 +1051,7 @@ theorem unbindobj_branch_refines {N T C : Set U64} {c : U64} (th : TypedHeap)
           let r ← error.invalid_cap Unit 1#u64
           ok (r, s, a)) : Result (core.result.Result Unit error.Exc × S × A)) ⦃ res =>
       CPost σ (Fl4Spec.decodeSchedContextUnbindObject (Z := Unit) sc.bv excaps) s a
-        (ScQ (SRels (st := st) N T C c) σ ct call) res ⦄ := by
+        (ScQ (KRels (st := st) N T C c s σ) σ ct call) res ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨y, n, hk, hx⟩ := hs.scs sc hsc
   unfold schedcontext.extra_cap
@@ -1129,154 +1178,6 @@ theorem ScQ.mono {R1 R2 : S → Fl4Spec.State Unit → Prop} {σ : Fl4Spec.State
     (h : ScQ (A := A) R1 σ ct call inv res) (hr : ∀ s σ', R1 s σ' → R2 s σ') : ScQ R2 σ ct call inv res := by
   obtain ⟨h1, σ0, data, σ1, σ2, e0, e1, e2, e3⟩ := h
   exact ⟨h1, σ0, data, σ1, σ2, e0, e1, e2, hr _ _ e3⟩
-
-/-- **SchedContext invocation decode refines l4v
-`decode_sched_context_invocation`**, then `set_thread_state Restart` and
-`invoke_sched_context` (with `handle_invocation`'s reply and `Running` when
-the invocation returns data), over every label (Consumed, Bind, UnbindObject,
-Unbind, YieldTo, anything else illegal).
-
-The hypotheses are the labels': the relations (with the yield-to, MCP and
-call-stack relations, `ActIdle`), the SC's back-pointer (`hback`: a bound
-thread of `T`, not the idle thread, whose SC word is `sc`; P1's coming
-sc.tcb↔tcb.sc invariant) and notification (`hbn`), the SC not the idle SC
-(`hpi`), the extra cap (`ExtraRel`, its thread or notification in `T` or
-`N`), the caller schedulable (`hcs`), and the platform facts (`hT`, `hmb`,
-`hmax`, `htu`) and the Ep side's message hypothesis (`hmsg`). -/
-theorem sc_decode_refines {N T C R : Set U64} {c : U64} (hT : TimeAgree ar) (th : TypedHeap)
-    (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
-    (hY : YieldRel T C (L.mem s) σ) (hAI : ActIdle σ) (hM : McpRel T (L.mem s) σ) (hC0 : ∀ q ∈ C, q ≠ 0#u64)
-    {Lst : U64 → List U64} (hCR : CallRel (L.mem s) R C σ Lst) (hRP : RPlaced st N T C R c s σ)
-    (hRF : RFree (L.mem s) R C σ Lst)
-    (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = scLabelOf lbl)
-    {sc : U64} (hsc : sc ∈ C) (hpi : sc.bv ≠ Fl4Spec.idleScPtr)
-    (hback : L.mem s (scW sc 24#u64) ≠ 0#u64 →
-      L.mem s (scW sc 24#u64) ∈ T ∧ L.mem s (scA (L.mem s (scW sc 24#u64))) = sc ∧
-      (L.mem s (scW sc 24#u64)).bv ≠ σ.idleThread)
-    (hbn : ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → ∀ m : U64, y.scNtfn = some m.bv → m ∈ N)
-    {ct : U64} (hct : sched.cur_thread st s = ok ct) (hcs : Fl4Spec.schedulable ct.bv σ = true)
-    (call : Bool)
-    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
-    (excaps : List Fl4Spec.Cap) (hex : ExtraRel th (L.mem s) x0 excaps)
-    (hcapT : ∀ p, capAt (L.mem s) x0 = ok (.Thread p) → p ∈ T)
-    (hcapN : ∀ p b w r, capAt (L.mem s) x0 = ok (.Notification p b w r) → p ∈ N ∧ p ≠ 0#u64)
-    (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ v, ar.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st N T C c) :
-    schedcontext.decode st ar s a lbl sc call extra ⦃ res =>
-      CPost σ (Fl4Spec.decodeSchedContextInvocation (Z := Unit) slbl sc.bv excaps) s a
-        (ScQ (SRels (st := st) N T C c) σ ct call) res ⦄ := by
-  obtain ⟨Q, R', hc, hs⟩ := hS.lists
-  have hsc0 := hC0 sc hsc
-  have hct' : ct = nodeW st s c layout.node.CUR_THREAD := by
-    have h := sched.cur_thread.spec' (L := L) s
-    rw [hct, WP.spec_ok, hc.cur] at h; exact h
-  have hctT : ct ∈ T := hct' ▸ hc.curT
-  have hcur : σ.curThread = ct.bv := by rw [hs.curThread, hct']
-  obtain ⟨xc, scq, yq, nq, hkc, -, hrun, -⟩ := schedulable_inv hcs
-  obtain ⟨y, n, hk, hx⟩ := hs.scs sc hsc
-  have hdec : ∀ g, Fl4Spec.genInvocationType slbl = g →
-      (Fl4Spec.decodeSchedContextInvocation (Z := Unit) slbl sc.bv excaps).run σ =
-        (match g with
-          | .schedContextConsumed => Fl4Spec.NonDetE.returnOk <| .invokeSchedContextConsumed sc.bv
-          | .schedContextBind => Fl4Spec.decodeSchedContextBind sc.bv excaps
-          | .schedContextUnbindObject => Fl4Spec.decodeSchedContextUnbindObject sc.bv excaps
-          | .schedContextUnbind => do
-            let scx ← Fl4Spec.NonDetE.liftE <| Fl4Spec.getSchedContext sc.bv
-            let ctPtr ← Fl4Spec.NonDetE.liftE <| Fl4Spec.NonDet.gets fun s : Fl4Spec.State Unit => s.curThread
-            Fl4Spec.NonDetE.whenE (scx.scTcb = some ctPtr) <| Fl4Spec.NonDetE.throwError .illegalOperation
-            Fl4Spec.NonDetE.returnOk <| .invokeSchedContextUnbind sc.bv
-          | .schedContextYieldTo => Fl4Spec.decodeSchedContextYieldTo sc.bv
-          | _ => Fl4Spec.NonDetE.throwError <| .illegalOperation : Fl4Spec.SEMonad Unit Fl4Spec.SchedContextInvocation).run σ := by
-    intro g hg; unfold Fl4Spec.decodeSchedContextInvocation; rw [hg]; rfl
-  unfold schedcontext.decode
-  step with obj.Sc.tcb.spec as ⟨i, hi⟩
-  rw [scTcbA_eq] at hi
-  subst hi
-  refine WP.spec_bind (show _ ⦃ r => r = (s, a) ⦄ from ?_) ?_
-  · by_cases h0 : L.mem s (scW sc 24#u64) = 0#u64
-    · have : (L.mem s (scW sc 24#u64) != 0#u64) = false := by simp [h0]
-      simp only [this, Bool.false_eq_true, ↓reduceIte]; exact (WP.spec_ok _).mpr rfl
-    · have : (L.mem s (scW sc 24#u64) != 0#u64) = true := by simp [h0]
-      simp only [this, ↓reduceIte]; exact remote_tcb_stall_id a hS (hback h0).1
-  intro r hr
-  subst hr
-  show (sched.cur_thread st s >>= _) ⦃ _ ⦄
-  rw [hct, bind_tc_ok]
-  by_cases l44 : lbl = fl4_abi.label.SchedContextConsumed
-  · rw [ite_eq_left l44]
-    have hg : Fl4Spec.genInvocationType slbl = .schedContextConsumed := by
-      rw [hlbl, l44]; unfold scLabelOf; simp
-    refine WP.spec_mono (sc_consumed_refines s a σ hS hR hN hI hY hsc hctT hkc hrun hAI call hmax htu hmsg) ?_
-    rintro r ⟨h1, -, σ1, data, σ2, σ3, he1, he2, he3, hS3, hR3, hN3, hI3, -, -⟩
-    exact Or.inr ⟨.invokeSchedContextConsumed sc.bv, by rw [hdec _ hg]; rfl, h1, σ1, data, σ2, σ3, he1, he2,
-      Or.inr he3, hS3, hR3, hN3, hI3⟩
-  rw [ite_eq_right l44]
-  have h44 : lbl.val ≠ 44 := fun h => l44 (UScalar.eq_of_val_eq (by simp [h]))
-  by_cases l41 : lbl = fl4_abi.label.SchedContextBind
-  · rw [ite_eq_left l41]
-    have hg : Fl4Spec.genInvocationType slbl = .schedContextBind := by
-      rw [hlbl, l41]; unfold scLabelOf; simp
-    exact WP.spec_mono (bind_branch_refines hT th s a σ hS hR hN hI hsc hsc0 extra x0 hx0 excaps hex hcapT hcapN
-      hctT hkc hrun call) fun r h => CPost.congr (by rw [hdec _ hg]) h
-  rw [ite_eq_right l41]
-  have h41 : lbl.val ≠ 41 := fun h => l41 (UScalar.eq_of_val_eq (by simp [h]))
-  by_cases l43 : lbl = fl4_abi.label.SchedContextUnbindObject
-  · rw [ite_eq_left l43]
-    have hg : Fl4Spec.genInvocationType slbl = .schedContextUnbindObject := by
-      rw [hlbl, l43]; unfold scLabelOf; simp
-    exact WP.spec_mono (unbindobj_branch_refines th s a σ hS hR hN hI hsc hsc0 extra x0 hx0 excaps hex hcapT hcapN
-      hctT hcur hkc hrun call) fun r h => CPost.congr (by rw [hdec _ hg]) h
-  rw [ite_eq_right l43]
-  have h43 : lbl.val ≠ 43 := fun h => l43 (UScalar.eq_of_val_eq (by simp [h]))
-  by_cases l42 : lbl = fl4_abi.label.SchedContextUnbind
-  · rw [ite_eq_left l42]
-    have hg : Fl4Spec.genInvocationType slbl = .schedContextUnbind := by
-      rw [hlbl, l42]; unfold scLabelOf; simp
-    have hpre := hdec _ hg
-    dsimp only at hpre
-    rw [lE_bind (getSchedContext_eq hk), lE_bind (show Fl4Spec.NonDet.gets (fun s : Fl4Spec.State Unit => s.curThread) σ =
-      ({(σ.curThread, σ)}, False) from rfl), hcur] at hpre
-    have hct0 : ct ≠ 0#u64 := fun e => (hc.tcbs ct hctT).ne0 (by rw [e]; rfl)
-    step with obj.Sc.tcb.spec as ⟨i1, hi1⟩
-    rw [scTcbA_eq] at hi1
-    subst hi1
-    by_cases he : L.mem s (scW sc 24#u64) = ct
-    · rw [ite_eq_left he]
-      refine illegal_ok s a _ (Or.inl ⟨_, .illegalOperation, rfl, ?_, Or.inl trivial⟩)
-      rw [hpre]
-      exact wE_pos (by rw [hx.tcb]; exact (bv_optRef_some hct0).2 he) _ _ σ
-    rw [ite_eq_right he]
-    refine WP.spec_mono (unbind_invoke_refines s a σ hS hR hN hI hCR hRP hsc hsc0 hpi hk
-      (fun t ht => by
-        have h0 : L.mem s (scW sc 24#u64) ≠ 0#u64 := by intro h; rw [hx.tcb, h, optRef_zero] at ht; cases ht
-        obtain ⟨g1, -, g3⟩ := hback h0
-        have : L.mem s (scW sc 24#u64) = t := (bv_optRef_some (fun e => by
-          rw [e] at ht; exact absurd (by rw [hx.tcb, optRef_ne h0] at ht; exact Option.some.inj ht) (by
-            intro h'; exact h0 (eq_of_bv (h'.trans (by rfl)))))).1 (by rw [← hx.tcb]; exact ht)
-        rw [← this]; exact ⟨g1, g3⟩)
-      (hbn y n hk) hctT hkc hrun hRF) ?_
-    rintro r ⟨h1, σ0, σ3, -, he0, he3, hR3, -, -, -⟩
-    refine Or.inr ⟨.invokeSchedContextUnbind sc.bv, ?_, h1, σ0, [], σ3, σ3, he0, he3, Or.inl ⟨rfl, rfl⟩, hR3⟩
-    rw [hpre, wE_neg (fun h => he ((bv_optRef_some hct0).1 (hx.tcb ▸ h)))]; rfl
-  rw [ite_eq_right l42]
-  have h42 : lbl.val ≠ 42 := fun h => l42 (UScalar.eq_of_val_eq (by simp [h]))
-  by_cases l45 : lbl = fl4_abi.label.SchedContextYieldTo
-  · rw [ite_eq_left l45]
-    have hg : Fl4Spec.genInvocationType slbl = .schedContextYieldTo := by
-      rw [hlbl, l45]; unfold scLabelOf; simp
-    refine WP.spec_mono (yieldto_branch_refines s a σ hS hR hN hI hY hAI hM hC0 hsc
-      (fun h0 => ⟨(hback h0).1, (hback h0).2.1⟩) hctT hcur hcs call hmb hmax htu hmsg) ?_
-    intro r h
-    exact CPost.congr (by rw [hdec _ hg]) (h.mono fun inv r' hq => hq.mono fun _ _ hr => ⟨hr.1, hr.2.1, hr.2.2.1,
-      hr.2.2.2.1⟩)
-  rw [ite_eq_right l45]
-  have h45 : lbl.val ≠ 45 := fun h => l45 (UScalar.eq_of_val_eq (by simp [h]))
-  have hg : Fl4Spec.genInvocationType slbl = .invalidInvocation := by
-    rw [hlbl]; unfold scLabelOf; simp [h41, h42, h43, h44, h45]
-  refine illegal_ok s a _ (Or.inl ⟨_, .illegalOperation, rfl, ?_, Or.inl trivial⟩)
-  rw [hdec _ hg]; rfl
 
 end
 

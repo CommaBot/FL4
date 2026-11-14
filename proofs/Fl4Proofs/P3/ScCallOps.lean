@@ -196,6 +196,7 @@ theorem callWords_of_sfoot {N T C R : Set U64} {c : U64} {s s' : S} {σ : Fl4Spe
     (hS : SchedRel st N T C c s σ) (hRP : RPlaced st N T C R c s σ) (hw : WritesIn st s s' (SFoot st T c s)) :
     (∀ sc ∈ C, L.mem s' (scReplyA sc) = L.mem s (scReplyA sc)) ∧
     (∀ r ∈ R, L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧ L.mem s' (rNextA r) = L.mem s (rNextA r)) := by
+  obtain ⟨Q0, R0, hc0, -⟩ := hS.lists
   refine ⟨fun sc hsc => ?_, fun r hr => ?_⟩
   · obtain ⟨Q, R', hc, hs⟩ := hS.lists
     obtain ⟨x, n, hk, hx⟩ := hs.scs sc hsc
@@ -203,7 +204,8 @@ theorem callWords_of_sfoot {N T C R : Set U64} {c : U64} {s s' : S} {σ : Fl4Spe
     rw [scReplyA_eq]
     refine hw.mem_eq ha.1 ?_
     obtain ⟨-, h2, h3, -⟩ := hS.scOutIn hsc ha.2
-    rintro (⟨y, hy, g1, g2⟩ | ⟨g1, g2⟩)
+    intro hb
+    rcases hb.range hc0.tcbs with ⟨y, hy, g1, g2⟩ | ⟨g1, g2⟩
     · have := h3 y hy; omega
     · omega
   · have hA := hRP.align r hr
@@ -212,10 +214,12 @@ theorem callWords_of_sfoot {N T C R : Set U64} {c : U64} {s s' : S} {σ : Fl4Spe
     have v1 := rPrevA_val hA
     have v2 := rNextA_val hA
     refine ⟨hw.mem_eq (hRP.aligned hr (Or.inl v1)) ?_, hw.mem_eq (hRP.aligned hr (Or.inr v2)) ?_⟩
-    · rintro (⟨y, hy, g1, g2⟩ | ⟨g1, g2⟩)
+    · intro hb
+      rcases hb.range hc0.tcbs with ⟨y, hy, g1, g2⟩ | ⟨g1, g2⟩
       · have := k2 y hy; omega
       · simp only [LawfulStore.nodeBase] at k1 g1 g2; omega
-    · rintro (⟨y, hy, g1, g2⟩ | ⟨g1, g2⟩)
+    · intro hb
+      rcases hb.range hc0.tcbs with ⟨y, hy, g1, g2⟩ | ⟨g1, g2⟩
       · have := k2 y hy; omega
       · simp only [LawfulStore.nodeBase] at k1 g1 g2; omega
 

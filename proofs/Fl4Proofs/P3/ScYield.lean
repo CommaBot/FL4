@@ -76,23 +76,24 @@ theorem YKeep.updSc {σ : State Unit} {p : ObjRef} {x x' : SchedContext} {n : Na
 theorem YKeep.stsAct {σ : State Unit} (t : ObjRef) : YKeep σ (Fl4Proofs.P3.Notif.stsAct σ t) :=
   YKeep.of_kheap (by unfold Fl4Proofs.P3.Notif.stsAct; split <;> rfl)
 
-/-- **Changing a TCB's `tcb_yield_to` keeps `Inv`.** -/
-theorem Inv.ytUpd {σ : State Unit} (h : Inv σ) {p : ObjRef} {x : Tcb} (hk : σ.kheap p = some (.tcb x))
-    (v : Option ObjRef) : Inv (updK σ p (.tcb { x with tcbYieldTo := v })) := by
-  set σ' := updK σ p (.tcb { x with tcbYieldTo := v })
+/-- **Replacing a TCB by one with the same state and SC keeps `Inv`.** -/
+theorem Inv.tcbUpd {σ : State Unit} (h : Inv σ) {p : ObjRef} {x : Tcb} (hk : σ.kheap p = some (.tcb x))
+    (x' : Tcb) (est : x'.tcbState = x.tcbState) (esc : x'.tcbSchedContext = x.tcbSchedContext) :
+    Inv (updK σ p (.tcb x')) := by
+  set σ' := updK σ p (.tcb x')
   have ko : ∀ q, q ≠ p → σ'.kheap q = σ.kheap q := fun q hq => by simp [σ', updK, hq]
-  have kp : σ'.kheap p = some (.tcb { x with tcbYieldTo := v }) := by simp [σ', updK]
+  have kp : σ'.kheap p = some (.tcb x') := by simp [σ', updK]
   have kf : ∀ q y, σ.kheap q = some (.tcb y) → ∃ y', σ'.kheap q = some (.tcb y') ∧
       y'.tcbState = y.tcbState ∧ y'.tcbSchedContext = y.tcbSchedContext := by
     intro q y hq
     by_cases e : q = p
-    · subst e; rw [hk] at hq; cases hq; exact ⟨_, kp, rfl, rfl⟩
+    · subst e; rw [hk] at hq; cases hq; exact ⟨_, kp, est, esc⟩
     · exact ⟨y, by rw [ko q e]; exact hq, rfl, rfl⟩
   have kb : ∀ q y', σ'.kheap q = some (.tcb y') → ∃ y, σ.kheap q = some (.tcb y) ∧
       y'.tcbState = y.tcbState ∧ y'.tcbSchedContext = y.tcbSchedContext := by
     intro q y' hq
     by_cases e : q = p
-    · subst e; rw [kp] at hq; cases hq; exact ⟨x, hk, rfl, rfl⟩
+    · subst e; rw [kp] at hq; cases hq; exact ⟨x, hk, est, esc⟩
     · exact ⟨y', by rw [← ko q e]; exact hq, rfl, rfl⟩
   have ks : ∀ q y m, σ'.kheap q = some (.schedContext y m) ↔ σ.kheap q = some (.schedContext y m) := by
     intro q y m
@@ -133,6 +134,11 @@ theorem Inv.ytUpd {σ : State Unit} (h : Inv σ) {p : ObjRef} {x : Tcb} (hk : σ
     exact ⟨yq, mq, (ks _ _ _).2 h1⟩
   · exact h.ne q y m ((ks _ _ _).1 hy)
   · exact h.rr q y m ((ks _ _ _).1 hy)
+
+/-- **Changing a TCB's `tcb_yield_to` keeps `Inv`.** -/
+theorem Inv.ytUpd {σ : State Unit} (h : Inv σ) {p : ObjRef} {x : Tcb} (hk : σ.kheap p = some (.tcb x))
+    (v : Option ObjRef) : Inv (updK σ p (.tcb { x with tcbYieldTo := v })) :=
+  h.tcbUpd hk _ rfl rfl
 
 theorem KView.ytUpd {σ : State Unit} {p : ObjRef} {x : Tcb} (hk : σ.kheap p = some (.tcb x))
     (v : Option ObjRef) : KView σ (updK σ p (.tcb { x with tcbYieldTo := v })) := by
@@ -199,6 +205,45 @@ theorem YieldRel.frame {T C : Set U64} {m m' : U64 → U64} {σ σ' : Fl4Spec.St
 
 /-- A `YIELD_TO` word of `T`. -/
 def YW (T : Set U64) (b : U64) : Prop := ∃ y ∈ T, b = yieldA y
+
+/-- **The footprint of YieldTo**: `KFoot` and the `YIELD_TO` words. -/
+def TFoot (st : machine.Store S) [L : LawfulStore st] (T N C : Set U64) (c : U64) (s : S)
+    (σ : Fl4Spec.State Unit) (b : U64) : Prop :=
+  KFoot st T N C c s σ b ∨ YW T b
+
+theorem WritesIn.tfoot_of_kfoot {T N C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
+    (h : WritesIn st s s' (KFoot st T N C c s σ)) : WritesIn st s s' (TFoot st T N C c s σ) :=
+  h.mono fun _ hb => Or.inl hb
+
+theorem WritesIn.tfoot_trans {T N C : Set U64} {c : U64} {s s1 s2 : S} {σ σ1 : Fl4Spec.State Unit}
+    (h1 : WritesIn st s s1 (TFoot st T N C c s σ)) (hz : SzKeepC C σ σ1)
+    (h2 : WritesIn st s1 s2 (TFoot st T N C c s1 σ1)) : WritesIn st s s2 (TFoot st T N C c s σ) :=
+  (h1.trans h2).mono fun b hb => by
+    rcases hb with hb | ((hb | hb | ⟨sc, hsc, x, n, hk', ho, hne⟩) | hb)
+    · exact hb
+    · exact Or.inl (KFoot.of_sfoot ((SFoot.ksb h1.1).1 hb))
+    · exact Or.inl (KFoot.of_nw hb)
+    · obtain ⟨x0, hk0⟩ := hz sc hsc x n hk'
+      exact Or.inl (KFoot.of_sw ⟨sc, hsc, x0, n, hk0, ho, hne⟩)
+    · exact Or.inr hb
+
+theorem WritesIn.tfoot_sfoot {T N C : Set U64} {c : U64} {s s1 s2 : S} {σ : Fl4Spec.State Unit}
+    (h1 : WritesIn st s s1 (TFoot st T N C c s σ)) (h2 : WritesIn st s1 s2 (SFoot st T c s1)) :
+    WritesIn st s s2 (TFoot st T N C c s σ) :=
+  (h1.trans h2).mono fun b hb => by
+    rcases hb with hb | hb
+    · exact hb
+    · exact Or.inl (KFoot.of_sfoot ((SFoot.ksb h1.1).1 hb))
+
+theorem WritesIn.tfoot_of_sfoot {T N C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
+    (h : WritesIn st s s' (SFoot st T c s)) : WritesIn st s s' (TFoot st T N C c s σ) :=
+  h.mono fun _ hb => Or.inl (KFoot.of_sfoot hb)
+
+/-- A write of `KFoot` words (of the start's spec) after a footprint. -/
+theorem WritesIn.tfoot_add {T N C : Set U64} {c : U64} {s s1 s2 : S} {σ : Fl4Spec.State Unit}
+    (h1 : WritesIn st s s1 (TFoot st T N C c s σ)) (h2 : WritesIn st s1 s2 (TFoot st T N C c s σ)) :
+    WritesIn st s s2 (TFoot st T N C c s σ) :=
+  (h1.trans h2).mono fun b hb => by rcases hb with hb | hb <;> exact hb
 
 theorem WritesIn.yw_trans {T : Set U64} {s s1 s2 : S} (h1 : WritesIn st s s1 (fun b => ¬ YW T b))
     (h2 : WritesIn st s1 s2 (fun b => ¬ YW T b)) : WritesIn st s s2 (fun b => ¬ YW T b) :=
@@ -372,52 +417,58 @@ theorem SchedRel.set_sc_yf {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.Sta
   exact ⟨hS.sc_update hsc hk (hwr.mono fun b hb => hx.in_obj hb) (hw _ (by simp) (by simp) (by decide)) _ hx',
     scin_footEq hS hsc hwr, KView.of_sc hk, hwr.mono fun b hb => not_yw_scin hS hsc hb⟩
 
-/-- Writing a TCB's `YIELD_TO` word (`tcb_yield_to := v`). -/
-theorem SchedRel.set_yt {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
+/-- **Writing a TCB word the scheduler and notification relations do not
+read** (offset `K`: no `SchedField`, not the state, block, badge register or
+`Ep` links), with the spec's TCB replaced by one with the same state, badge,
+domain, SC and priority. -/
+theorem SchedRel.set_tw {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) {t : U64} (ht : t ∈ T) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x))
-    (v : U64) :
-    SchedRel st N T C c (L.wr s (yieldA t) v) (updK σ t.bv (.tcb { x with tcbYieldTo := optRef v })) ∧
-      FootEq N T (L.mem s) (L.mem (L.wr s (yieldA t) v)) ∧
-      KView σ (updK σ t.bv (.tcb { x with tcbYieldTo := optRef v })) := by
+    {K : U64} (hK : K.val < 4096) (h8 : K.val % 8 = 0) (hKs : ¬ SchedField K)
+    (hK1 : K ≠ 3328#u64) (hK2 : K ≠ 3336#u64) (hK3 : K ≠ 256#u64) (hK4 : K ≠ 3496#u64) (hK5 : K ≠ 3504#u64)
+    (x' : Fl4Spec.Tcb) (est : x'.tcbState = x.tcbState) (eb : badgeOf x' = badgeOf x)
+    (ed : x'.tcbDomain = x.tcbDomain) (esc : x'.tcbSchedContext = x.tcbSchedContext)
+    (ep : x'.tcbPriority = x.tcbPriority) (v : U64) :
+    SchedRel st N T C c (L.wr s (core.num.U64.wrapping_add t K) v) (updK σ t.bv (.tcb x')) ∧
+      FootEq N T (L.mem s) (L.mem (L.wr s (core.num.U64.wrapping_add t K) v)) ∧
+      KView σ (updK σ t.bv (.tcb x')) := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hN := hc.node
   have hta := hc.tcbs t ht
-  have hA : Aligned (yieldA t) := field_aligned hta (K := 3472#u64) (by simp) (by simp)
-  set s' := L.wr s (yieldA t) v
+  have hA : Aligned (core.num.U64.wrapping_add t K) := field_aligned hta hK h8
+  have hv : (core.num.U64.wrapping_add t K).val = t.val + K.val := tfield_val hta hK
+  have hns : ∀ K' : U64, SchedField K' → K' ≠ K := fun K' h e => hKs (e ▸ h)
+  set s' := L.wr s (core.num.U64.wrapping_add t K) v
   have hk' : L.ksb s' = L.ksb s := L.ksb_wr _ _ _
-  have nfo : ∀ b : U64, Aligned b → b ≠ yieldA t → L.mem s' b = L.mem s b := fun b hb hne => rd_wr_ne hA hb (Ne.symm hne)
+  have nfo : ∀ b : U64, Aligned b → b ≠ core.num.U64.wrapping_add t K → L.mem s' b = L.mem s b :=
+    fun b hb hne => rd_wr_ne hA hb (Ne.symm hne)
   have nout : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o) :=
-    fun o ho h8 => nfo _ (nodeAt_aligned hN ho h8) (nodeAt_ne_tfield hN ho ht hta (by simp))
-  have tf : ∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 → (y = t → K ≠ 3472#u64) →
-      L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K) := by
-    intro y hy K h1 h2 h3
+    fun o ho h8 => nfo _ (nodeAt_aligned hN ho h8) (nodeAt_ne_tfield hN ho ht hta hK)
+  have tf : ∀ y ∈ T, ∀ K' : U64, K'.val < 4096 → K'.val % 8 = 0 → (y = t → K' ≠ K) →
+      L.mem s' (core.num.U64.wrapping_add y K') = L.mem s (core.num.U64.wrapping_add y K') := by
+    intro y hy K' h1 h2 h3
     refine nfo _ (field_aligned (hc.tcbs y hy) h1 h2) ?_
-    show core.num.U64.wrapping_add y K ≠ core.num.U64.wrapping_add t 3472#u64
-    rw [Ne, tt_eq_iff (hc.tcbs y hy) hta h1 (by simp)]
+    rw [Ne, tt_eq_iff (hc.tcbs y hy) hta h1 hK]
     rintro ⟨rfl, rfl⟩; exact h3 rfl rfl
   have hcag : CAgree st T c s s' := ⟨hk', L.cpu_wr _ _ _, fun o ho h8 _ _ _ _ _ => nout o ho h8,
-    fun y hy K hK => by
-      obtain ⟨h1, h2, -⟩ := schedField_ok (K := K) (by rcases hK with h | h | h | h | h <;> simp [SchedField, h])
-      exact tf y hy K h1 h2 (fun _ => by rcases hK with h | h | h | h | h <;> subst h <;> decide)⟩
+    fun y hy K' hK' => by
+      have hsf : SchedField K' := by rcases hK' with h | h | h | h | h <;> simp [SchedField, h]
+      obtain ⟨h1, h2, -⟩ := schedField_ok hsf
+      exact tf y hy K' h1 h2 (fun _ => hns K' hsf)⟩
   have hscw : ∀ sc ∈ C, ScAgree st s s' sc := fun sc hsc a ha hin => nfo a ha (fun e => by
     have := (hS.scOutIn hsc hin).2.2.1 t ht
-    rw [e, show (yieldA t).val = t.val + 3472 from by
-      have := hta.fits; simp [yieldA, core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega] at this
+    rw [e, hv] at this
     omega)
-  have hm := hs.rmax_eq hscw
   have nw : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → nodeW st s' c o = nodeW st s c o := by
     intro o ho h8; unfold Fl4Proofs.P3.Sched.nodeW; rw [nodeAt_ksb hk']; exact nout o ho h8
   have hdom : L.mem s' (curDomA st s) = L.mem s (curDomA st s) := nfo _ (curDomA_aligned hN) (fun e => by
     have h1 := hc.ksOut t ht
     have := congrArg UScalar.val e
-    rw [curDomA_val hN, show (yieldA t).val = t.val + 3472 from by
-      have := hta.fits; simp [yieldA, core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega] at this
+    rw [curDomA_val hN, hv] at this
     omega)
   have hdt : L.mem s' (dtA st s) = L.mem s (dtA st s) := nfo _ (dtA_aligned hN) (fun e => by
     have h1 := hc.ksOut t ht
     have := congrArg UScalar.val e
-    rw [dtA_val hN, show (yieldA t).val = t.val + 3472 from by
-      have := hta.fits; simp [yieldA, core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega] at this
+    rw [dtA_val hN, hv] at this
     omega)
   refine ⟨⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk']; exact hS.nodeNW o ho,
     by rw [curDomA_ksb hk']; exact hS.domNW, by rw [dtA_ksb hk']; exact hS.dtNW,
@@ -437,16 +488,21 @@ theorem SchedRel.set_yt {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State 
     · rw [nw _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])]; exact hs.consumed
     · rw [curDomA_ksb hk', hdom]; exact hs.curDom
     · obtain ⟨z, hkz, h1, h2, h3, h4⟩ := hs.tcb y hy
-      have ed : L.mem s' (domA y) = L.mem s (domA y) := tf y hy (3432#u64) (by simp) (by simp) (fun _ => by decide)
-      have ep : L.mem s' (prioA y) = L.mem s (prioA y) := tf y hy (3448#u64) (by simp) (by simp) (fun _ => by decide)
-      have es : L.mem s' (scA y) = L.mem s (scA y) := tf y hy (3464#u64) (by simp) (by simp) (fun _ => by decide)
+      have ed' : L.mem s' (domA y) = L.mem s (domA y) :=
+        tf y hy (3432#u64) (by simp) (by simp) (fun _ => hns _ (by simp [SchedField]))
+      have ep' : L.mem s' (prioA y) = L.mem s (prioA y) :=
+        tf y hy (3448#u64) (by simp) (by simp) (fun _ => hns _ (by simp [SchedField]))
+      have es' : L.mem s' (scA y) = L.mem s (scA y) :=
+        tf y hy (3464#u64) (by simp) (by simp) (fun _ => hns _ (by simp [SchedField]))
       by_cases e : y = t
       · subst e
         rw [hk] at hkz; cases hkz
-        exact ⟨{ x with tcbYieldTo := optRef v }, by simp [updK], h1, by rw [ed]; exact h2,
-          by rw [es]; exact h3, by rw [ep]; exact h4⟩
-      · exact ⟨z, by simp [updK, bv_inj e, hkz], h1, by rw [ed]; exact h2, by rw [es]; exact h3, by rw [ep]; exact h4⟩
-    · have es : L.mem s' (scA y) = L.mem s (scA y) := tf y hy (3464#u64) (by simp) (by simp) (fun _ => by decide)
+        exact ⟨x', by simp [updK], ed.trans h1, by rw [ed']; exact h2,
+          by rw [es', esc]; exact h3, by rw [ep', ep]; exact h4⟩
+      · exact ⟨z, by simp [updK, bv_inj e, hkz], h1, by rw [ed']; exact h2, by rw [es']; exact h3,
+          by rw [ep']; exact h4⟩
+    · have es : L.mem s' (scA y) = L.mem s (scA y) :=
+        tf y hy (3464#u64) (by simp) (by simp) (fun _ => hns _ (by simp [SchedField]))
       rw [es]; exact hs.scMem y hy
     · obtain ⟨z, m, hkz, hz⟩ := hs.scs sc hsc
       have : sc.bv ≠ t.bv := by intro e; rw [e, hk] at hkz; cases hkz
@@ -456,8 +512,7 @@ theorem SchedRel.set_yt {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State 
     subst e
     rcases hf with ⟨n0, hn0, h1, h2⟩ | ⟨y, hy, e | e | e | e | e | e⟩
     · have := hS.placed.disj n0 hn0 t ht
-      rw [show (yieldA t).val = t.val + 3472 from by
-        have := hta.fits; simp [yieldA, core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega] at h1 h2
+      rw [hv] at h1 h2
       omega
     all_goals first
       | (rw [tStA_eq] at e)
@@ -466,15 +521,27 @@ theorem SchedRel.set_yt {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State 
       | (rw [prioA_eq'] at e)
       | (rw [nextEp_eq] at e)
       | (rw [prevEp_eq] at e)
-    all_goals (rw [show yieldA t = core.num.U64.wrapping_add t 3472#u64 from rfl, tt_eq_iff hta (hc.tcbs y hy)
-      (by simp) (by simp)] at e; obtain ⟨-, e⟩ := e; exact absurd e (by decide))
+    all_goals (rw [tt_eq_iff hta (hc.tcbs y hy) hK (by simp)] at e; obtain ⟨-, e⟩ := e)
+    all_goals first
+      | exact hK1 e | exact hK2 e | exact hK3 e | exact hK4 e | exact hK5 e
+      | exact hns _ (by simp [SchedField]) e.symm
   · refine ⟨fun p z hp => ?_, fun p z hp => ?_⟩
     · have : p ≠ t.bv := by rintro rfl; rw [hk] at hp; cases hp
       simp [updK, this, hp]
     · by_cases e : p = t.bv
       · subst e; rw [hk] at hp; cases hp
-        exact ⟨{ x with tcbYieldTo := optRef v }, by simp [updK], rfl, rfl, rfl⟩
+        exact ⟨x', by simp [updK], est, eb, ep⟩
       · exact ⟨z, by simp [updK, e, hp], rfl, rfl, rfl⟩
+
+/-- Writing a TCB's `YIELD_TO` word (`tcb_yield_to := v`). -/
+theorem SchedRel.set_yt {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) {t : U64} (ht : t ∈ T) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x))
+    (v : U64) :
+    SchedRel st N T C c (L.wr s (yieldA t) v) (updK σ t.bv (.tcb { x with tcbYieldTo := optRef v })) ∧
+      FootEq N T (L.mem s) (L.mem (L.wr s (yieldA t) v)) ∧
+      KView σ (updK σ t.bv (.tcb { x with tcbYieldTo := optRef v })) :=
+  hS.set_tw ht hk (K := 3472#u64) (by simp) (by simp) (by simp [SchedField]) (by decide) (by decide) (by decide)
+    (by decide) (by decide) { x with tcbYieldTo := optRef v } rfl rfl rfl rfl rfl v
 
 theorem yieldA_aligned {T : Set U64} (hT : TcbPlaced T) {t : U64} (ht : t ∈ T) : Aligned (yieldA t) :=
   field_aligned (hT t ht) (K := 3472#u64) (by simp) (by simp)

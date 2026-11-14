@@ -208,9 +208,21 @@ theorem bind_ntfn_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
     schedcontext.bind_ntfn st s p n ⦃ s' => ∃ σ',
       Fl4Spec.schedContextBindNtfn (Z := Unit) p.bv n.bv σ = ({((), σ')}, False) ∧
       SchedRel st N T C c s' σ' ∧ NtfnStateRel N T (L.mem s') σ' ∧ NSC N C σ' ∧ Inv σ' ∧
-      (ActIdle σ → ActIdle σ') ⦄ := by
+      (ActIdle σ → ActIdle σ') ∧ WritesIn st s s' (KFoot st T N C c s σ) ⦄ := by
   have hP := hS.placed
   have hnp : n.bv ≠ p.bv := fun e => by rw [e, hk] at hkn; cases hkn
+  have hna := hP.ntfn n hn
+  have hnsc : nScA n = core.num.U64.wrapping_add n 32#u64 := by unfold nScA layout.ntfn.SC; rfl
+  have hw1 : WritesIn st s (L.wr s (nScA n) p) (KFoot st T N C c s σ) := by
+    rw [hnsc]
+    refine (writesIn_wr (st := st) (s := s) (v := p) (nfield_aligned hna (K := 32#u64) (by simp) (by simp))).mono
+      fun b hb => ?_
+    subst hb
+    exact KFoot.of_nw ⟨n, hn, by rw [nfield_val hna (by simp)]; simp, by rw [nfield_val hna (by simp)]; simp⟩
+  have hal40 : Aligned (scW p 40#u64) := by
+    obtain ⟨Q0, R0, -, hs0⟩ := hS.lists
+    obtain ⟨x0, n0, -, hx0⟩ := hs0.scs p hp; exact (hx0.hdr (K := 40#u64) (by simp) (by simp)).1
+  have hsw40 := sw_hdr hS hp (K := 40#u64) (by simp) (by simp) (by decide)
   unfold schedcontext.bind_ntfn
   refine WP.spec_bind (obj.Ntfn.set_sc.spec2 s n p) ?_
   rintro s1 rfl
@@ -225,7 +237,8 @@ theorem bind_ntfn_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
   rintro s2 rfl
   obtain ⟨hS2, hf2, hK2⟩ := hS1.set_sc_ntfn hp hk1 n
   rw [optRef_ne hn0] at hS2 hK2
-  refine ⟨_, ?_, hS2, hR1.frame hS1.placed hf2 hK2, hN1.updSc, hI1.scFields hk1 rfl rfl rfl rfl, fun hA => ?_⟩
+  refine ⟨_, ?_, hS2, hR1.frame hS1.placed hf2 hK2, hN1.updSc, hI1.scFields hk1 rfl rfl rfl rfl, fun hA => ?_,
+    WritesIn.kfoot_sw hw1 ((writesIn_wr hal40).mono fun b hb => hb ▸ hsw40)⟩
   · unfold Fl4Spec.schedContextBindNtfn
     rw [nd_bind_one (setNtfnSc_eq _ hkn)]
     exact updateSchedContext_eq hk1 _

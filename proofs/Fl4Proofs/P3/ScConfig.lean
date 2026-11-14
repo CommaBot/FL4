@@ -1098,7 +1098,7 @@ theorem cfg_resume_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4
   have hkp' : ∃ y' n', σ.kheap p.bv = some (.schedContext y' n') := ⟨y, n, hk⟩
   refine WP.spec_bind (resume_refines (L.wr s (affA t) i) a σ hR3 hS3 hRel (hT.mb a) hp hp0 ht (word24_of hS3 hp hk hyt)
     (scA_of hS3 ht hkt hxp) (fun x hx => by rw [hkt] at hx; cases hx; exact hnq.1 _ _)) ?_
-  rintro ⟨s6, a4⟩ ⟨rfl, σr, hrs, hkr, har, htr, -, -, hf6, hS6⟩
+  rintro ⟨s6, a4⟩ ⟨rfl, σr, hrs, hkr, har, htr, -, -, hf6, -, hS6⟩
   have hR6 : NtfnStateRel N T (L.mem s6) σr := hR3.frame hP hf6 (KView.of_kheap hkr)
   have hN6 : NSC N C σr := fun m hm x q hx hq => hN m hm x q (by rw [← hkr]; exact hx) hq
   have hIr : Inv σr := hI.resume hk hyt hkt hxp hnq (fun hrun _ _ => hr hrun) hrs

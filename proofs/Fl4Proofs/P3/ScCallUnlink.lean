@@ -81,44 +81,6 @@ variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulSt
 theorem rTcbA_val {r : U64} (h : r.val % 32 = 0 ∧ r ≠ 0#u64 ∧ r.val + 32 ≤ 2 ^ 64) : (rTcbA r).val = r.val := by
   unfold rTcbA layout.reply.TCB; rw [rword_val h (by simp)]; rfl
 
-/-- `schedule_tcb` writes at most the action word (in the scheduler footprint). -/
-theorem schedule_tcb_sfoot {N T C : Set U64} {c : U64} {s s1 : S} {σ : Fl4Spec.State Unit}
-    (hS : SchedRel st N T C c s σ) (h1 : WritesIn st s s1 (SFoot st T c s)) (t : U64) :
-    sched.schedule_tcb st s1 t ⦃ s' => WritesIn st s s' (SFoot st T c s) ⦄ := by
-  obtain ⟨Q, R, hc, hs⟩ := hS.lists
-  have hN := hc.node
-  have hact : sched.set_action st s1 sched.ACTION_CHOOSE_NEW ⦃ s' => WritesIn st s s' (SFoot st T c s) ⦄ := by
-    refine WP.spec_mono (sched.set_action.spec' s1 _) ?_
-    rintro s' rfl
-    have ho : (layout.node.SCHED_ACTION).val < 4288 := by simp [layout.node.SCHED_ACTION]
-    refine (h1.trans ((writesIn_wr ?_).mono fun b hb => ?_)).mono fun b hb => by rcases hb with hb | hb <;> exact hb
-    · rw [nodeAt_ksb h1.1, h1.2.1, hc.cur]; exact nodeAt_aligned hN ho (by simp [layout.node.SCHED_ACTION])
-    · rw [hb, nodeAt_ksb h1.1, h1.2.1, hc.cur]
-      exact Or.inr ⟨by rw [nodeAt_val hN ho]; omega, by rw [nodeAt_val hN ho]; omega⟩
-  unfold sched.schedule_tcb
-  step with sched.cur_thread.spec' as ⟨t1, _ht1⟩
-  step as ⟨b, _hb⟩
-  split
-  · step with sched.action.spec' as ⟨i, _hi⟩
-    split
-    · step with sched.is_schedulable.spec' as ⟨b1, _hb1⟩
-      split
-      · exact (WP.spec_ok _).mpr h1
-      · exact hact
-    · exact (WP.spec_ok _).mpr h1
-  · exact (WP.spec_ok _).mpr h1
-
-/-- `set_thread_state` writes in the scheduler footprint. -/
-theorem set_thread_state_sfoot {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
-    (hS : SchedRel st N T C c s σ) {t : U64} (ht : t ∈ T) (v : U64) :
-    sched.set_thread_state st s t v ⦃ s' => WritesIn st s s' (SFoot st T c s) ⦄ := by
-  obtain ⟨Q, R, hc, hs⟩ := hS.lists
-  unfold sched.set_thread_state
-  step
-  subst s1_post
-  rw [show stA t = tStA t from rfl, tStA_eq]
-  exact schedule_tcb_sfoot hS (writesIn_tcb hc.tcbs ht (by simp) (by simp) v) t
-
 /-- **`reply_unlink` refines l4v `reply_unlink_tcb`**, given its assertions
 (the Ep side's: `hrt`, `hts`): the relations, the call-stack relation and
 the reply's isolation are kept, and `ActIdle`. -/

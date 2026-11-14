@@ -224,7 +224,7 @@ theorem unbind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Sta
   have hw : WritesIn st s (L.wr (L.wr s3 (scA i) 0#u64) (scW p 24#u64) 0#u64)
       (fun b => SFoot st T c s b ∨ b = scW p 24#u64) := by
     have w3 := WritesIn.sfoot_trans (WritesIn.sfoot_trans hw1 hw2) hw3
-    have w4 := WritesIn.sfoot_trans w3 (writesIn_tcb (s := s3) (K := 3464#u64) hc.tcbs ht (by simp) (by simp) 0#u64)
+    have w4 := WritesIn.sfoot_trans w3 (writesIn_tcb (s := s3) (K := 3464#u64) hc.tcbs ht (by unfold SOff; decide) (by simp) 0#u64)
     have ha24' : Aligned (scW p 24#u64) := ha24
     exact (w4.trans (writesIn_wr ha24')).mono fun b hb => by
       rcases hb with hb | hb

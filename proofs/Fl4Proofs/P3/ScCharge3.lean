@@ -76,7 +76,7 @@ theorem rap_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.St
       KView σ σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ σ'.consumedTime = σ.consumedTime ∧
       (IdleOK σ → IdleOK σ') ⦄ := by
     refine WP.spec_bind (postpone_refines s σ hS hRel hsc hct htw (by rw [hts]; exact hsc0) hr0) ?_
-    rintro s1 ⟨σ', hp, hk', -, -, -, hf, hS'⟩
+    rintro s1 ⟨σ', hp, hk', -, -, -, hf, -, hS'⟩
     simp only [WP.spec_ok]
     refine ⟨trivial, σ', hp, hS', ?_, KView.of_kheap hk', hR.frame hS.placed hf (KView.of_kheap hk'), ?_, ?_⟩
     all_goals obtain ⟨b0, hp2⟩ := postpone_eq hk (by rw [hx.tcb, htw, optRef_ne hct0]) hkt (specRt σ) (fun u hu => by

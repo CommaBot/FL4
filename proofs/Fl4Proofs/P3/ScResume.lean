@@ -76,7 +76,7 @@ theorem postpone_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State
     sched.postpone st s sc ⦃ s' => ∃ σ', Fl4Spec.postpone (Z := Unit) sc.bv σ = ({((), σ')}, False) ∧
       σ'.kheap = σ.kheap ∧ σ'.schedulerAction = σ.schedulerAction ∧ σ'.curTime = σ.curTime ∧
       (∀ u, u ∈ σ'.releaseQueue ↔ u = t.bv ∨ u ∈ σ.releaseQueue) ∧
-      FootEq N T (L.mem s) (L.mem s') ∧ SchedRel st N T C c s' σ' ⦄ := by
+      FootEq N T (L.mem s) (L.mem s') ∧ WritesIn st s s' (SFoot st T c s) ∧ SchedRel st N T C c s' σ' ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x, n, hk, hx⟩ := hs.scs sc hsc
   obtain ⟨xt, hkt, -, -, hsct, -⟩ := hs.tcb t ht
@@ -95,8 +95,8 @@ theorem postpone_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State
   step as ⟨i, i_post⟩
   have hi : i = t := by rw [i_post, scTcbA_eq, htw]
   subst hi
-  refine WP.spec_bind (dequeue_refines s σ hS i ht) ?_
-  rintro s1 ⟨σ1, hd, hk1, hq1, hf1, hS1⟩
+  refine WP.spec_bind (WP.spec_and (dequeue_refines s σ hS i ht) (dequeue_sfoot hS ht)) ?_
+  rintro s1 ⟨⟨σ1, hd, hk1, hq1, hf1, hS1⟩, hw1⟩
   obtain ⟨Q1, R1, hc1, hs1⟩ := hS1.lists
   -- the thread is in no queue now, and still has its SC
   have hxt1 : σ1.kheap i.bv = some (.tcb xt) := by rw [hk1]; exact hkt
@@ -127,15 +127,18 @@ theorem postpone_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State
       rw [this]; exact List.mem_map_of_mem hm
     simp [Fl4Spec.tcbSchedDequeue] at hmem
   have hRel1 : RelOK σ1 := hRel.transfer hS hk1 hq1
-  refine WP.spec_bind (release_enqueue_refines s1 σ1 hS1 hRel1 i ht h01 hq01 hr01) ?_
-  rintro s2 ⟨q, b, he, hqm, hf2, hS2⟩
+  refine WP.spec_bind (WP.spec_and (release_enqueue_refines s1 σ1 hS1 hRel1 i ht h01 hq01 hr01)
+    (release_enqueue_sfoot hS1 ht hr01)) ?_
+  rintro s2 ⟨⟨q, b, he, hqm, hf2, hS2⟩, hw2⟩
   step as ⟨cpu, cpu_post⟩
   have hcpu : cpu = c := by rw [cpu_post, scCoreA_eq]; exact hS2.core sc hsc
   subst hcpu
   step as ⟨s3, s3_post⟩
   have hc2 := hS2.lists.choose_spec.choose_spec.1.cur
-  obtain ⟨hS3, hf3, -⟩ := hS2.set_reprogram
-  rw [← s3_post] at hS3 hf3
+  obtain ⟨hS3, hf3, hw3⟩ := hS2.set_reprogram
+  rw [← s3_post] at hS3 hf3 hw3
+  have hw3' : WritesIn st s2 s3 (SFoot st T cpu s2) := hw3.mono fun b hb => by
+    subst hb; exact sfoot_node hS2.lists.choose_spec.choose_spec.1.node (by simp [layout.node.REPROGRAM])
   have hσ1 : σ1 = setRq σ xt.tcbPriority (Fl4Spec.tcbSchedDequeue i.bv (σ.readyQueues 0 xt.tcbPriority)) := by
     obtain ⟨xd, hkd, hdd, -, -, -⟩ := hs.tcb i ht
     rw [hkt] at hkd; cases hkd
@@ -143,7 +146,7 @@ theorem postpone_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State
     rw [hd] at e
     exact (Prod.mk.inj (Set.singleton_eq_singleton_iff.1 (congrArg Prod.fst e))).2
   refine ⟨_, ?_, by rw [← hk1]; rfl, by rw [hσ1]; rfl, by rw [hσ1]; rfl, fun u => ?_,
-    FootEq.trans' (FootEq.trans' hf1 hf2) hf3, hS3⟩
+    FootEq.trans' (FootEq.trans' hf1 hf2) hf3, WritesIn.sfoot_trans (WritesIn.sfoot_trans hw1 hw2) hw3', hS3⟩
   · rw [hspec, nd_bind_one hd, nd_bind_one he]
     rfl
   · show u ∈ q ↔ _
@@ -208,7 +211,7 @@ theorem resume_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec
       (Fl4Spec.schedulable t.bv σ' = true → σ' = σ ∧
         Fl4Spec.getScRefillSufficient (Z := Unit) sc.bv 0 σ = ({(true, σ)}, False) ∧
         Fl4Spec.getScRefillReady (Z := Unit) sc.bv σ = ({(true, σ)}, False)) ∧
-      FootEq N T (L.mem s) (L.mem r.1) ∧ SchedRel st N T C c r.1 σ' ⦄ := by
+      FootEq N T (L.mem s) (L.mem r.1) ∧ WritesIn st s r.1 (SFoot st T c s) ∧ SchedRel st N T C c r.1 σ' ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x, n, hk, hx⟩ := hs.scs sc hsc
   obtain ⟨xt, hkt, hdt, -, hsct, hprt⟩ := hs.tcb t ht
@@ -226,7 +229,7 @@ theorem resume_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec
       rw [gt_iff_val] at h3; simpa using h3)
     (fun _ => hnq xt hkt)
   have fin : ∀ σ' (s' : S), Fl4Spec.schedContextResume (Z := Unit) sc.bv σ = ({((), σ')}, False) →
-      σ' = σ → FootEq N T (L.mem s) (L.mem s') → SchedRel st N T C c s' σ' →
+      σ' = σ → FootEq N T (L.mem s) (L.mem s') → WritesIn st s s' (SFoot st T c s) → SchedRel st N T C c s' σ' →
       (Fl4Spec.schedulable t.bv σ = true → Fl4Spec.getScRefillSufficient (Z := Unit) sc.bv 0 σ = ({(true, σ)}, False) ∧
         Fl4Spec.getScRefillReady (Z := Unit) sc.bv σ = ({(true, σ)}, False)) →
       (s', a).2 = a ∧ ∃ σ'', Fl4Spec.schedContextResume (Z := Unit) sc.bv σ = ({((), σ'')}, False) ∧
@@ -235,10 +238,10 @@ theorem resume_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec
         (Fl4Spec.schedulable t.bv σ'' = true → σ'' = σ ∧
           Fl4Spec.getScRefillSufficient (Z := Unit) sc.bv 0 σ = ({(true, σ)}, False) ∧
           Fl4Spec.getScRefillReady (Z := Unit) sc.bv σ = ({(true, σ)}, False)) ∧
-        FootEq N T (L.mem s) (L.mem (s', a).1) ∧ SchedRel st N T C c (s', a).1 σ'' := by
-    intro σ' s' he e hf hS' hrs
+        FootEq N T (L.mem s) (L.mem (s', a).1) ∧ WritesIn st s (s', a).1 (SFoot st T c s) ∧ SchedRel st N T C c (s', a).1 σ'' := by
+    intro σ' s' he e hf hw hS' hrs
     subst e
-    exact ⟨rfl, σ', he, rfl, rfl, rfl, fun _ h => h, fun h => ⟨rfl, hrs h⟩, hf, hS'⟩
+    exact ⟨rfl, σ', he, rfl, rfl, rfl, fun _ h => h, fun h => ⟨rfl, hrs h⟩, hf, hw, hS'⟩
   unfold schedcontext.resume
   step as ⟨b, b_post⟩
   simp only [b_post, hsc0, decide_false, Bool.false_eq_true, ↓reduceIte]
@@ -260,14 +263,14 @@ theorem resume_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec
         (Fl4Spec.schedulable i.bv σ' = true → σ' = σ ∧
           Fl4Spec.getScRefillSufficient (Z := Unit) sc.bv 0 σ = ({(true, σ)}, False) ∧
           Fl4Spec.getScRefillReady (Z := Unit) sc.bv σ = ({(true, σ)}, False)) ∧
-        FootEq N T (L.mem s) (L.mem (s1, a).1) ∧ SchedRel st N T C c (s1, a).1 σ' ⦄ →
+        FootEq N T (L.mem s) (L.mem (s1, a).1) ∧ WritesIn st s (s1, a).1 (SFoot st T c s) ∧ SchedRel st N T C c (s1, a).1 σ' ⦄ →
         (do let s1 ← sched.postpone st s sc; ok (s1, a)) ⦃ r => r.2 = a ∧ ∃ σ', Fl4Spec.schedContextResume (Z := Unit) sc.bv σ =
         ({((), σ')}, False) ∧ σ'.kheap = σ.kheap ∧ σ'.schedulerAction = σ.schedulerAction ∧
         σ'.curTime = σ.curTime ∧ (∀ u, u ∈ σ.releaseQueue → u ∈ σ'.releaseQueue) ∧
         (Fl4Spec.schedulable i.bv σ' = true → σ' = σ ∧
           Fl4Spec.getScRefillSufficient (Z := Unit) sc.bv 0 σ = ({(true, σ)}, False) ∧
           Fl4Spec.getScRefillReady (Z := Unit) sc.bv σ = ({(true, σ)}, False)) ∧
-        FootEq N T (L.mem s) (L.mem r.1) ∧ SchedRel st N T C c r.1 σ' ⦄ := fun h =>
+        FootEq N T (L.mem s) (L.mem r.1) ∧ WritesIn st s r.1 (SFoot st T c s) ∧ SchedRel st N T C c r.1 σ' ⦄ := fun h =>
       WP.spec_bind h fun s1 h1 => by simp only [WP.spec_ok]; exact ⟨trivial, h1.2⟩
     have hpp : ¬(Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd x) = true ∧
         Fl4Spec.refillSufficient 0 (Fl4Spec.refillHd x) = true) →
@@ -277,12 +280,12 @@ theorem resume_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec
         (Fl4Spec.schedulable i.bv σ' = true → σ' = σ ∧
           Fl4Spec.getScRefillSufficient (Z := Unit) sc.bv 0 σ = ({(true, σ)}, False) ∧
           Fl4Spec.getScRefillReady (Z := Unit) sc.bv σ = ({(true, σ)}, False)) ∧
-        FootEq N T (L.mem s) (L.mem (s1, a).1) ∧ SchedRel st N T C c (s1, a).1 σ' ⦄ := by
+        FootEq N T (L.mem s) (L.mem (s1, a).1) ∧ WritesIn st s (s1, a).1 (SFoot st T c s) ∧ SchedRel st N T C c (s1, a).1 σ' ⦄ := by
       intro hnr
       refine WP.spec_mono (postpone_refines s σ hS hRel hsc ht htw (by rw [hts]; exact hsc0) hr0) ?_
-      rintro s1 ⟨σ', hp, hk', ha', hct', hrq', hf, hS'⟩
+      rintro s1 ⟨σ', hp, hk', ha', hct', hrq', hf, hw, hS'⟩
       refine ⟨rfl, σ', by rw [hspec, ite_t ⟨hsb, hnr⟩]; exact hp, hk', ha', hct',
-        fun u hu => (hrq' u).2 (Or.inr hu), fun h => ?_, hf, hS'⟩
+        fun u hu => (hrq' u).2 (Or.inr hu), fun h => ?_, hf, hw, hS'⟩
       rw [schedulable_rel ((hrq' _).2 (Or.inl rfl))] at h; cases h
     refine WP.spec_bind (ready_refines s σ hS hsc hk) ?_
     intro b3 hb3
@@ -298,7 +301,7 @@ theorem resume_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec
       · simp only [h4, ↓reduceIte, WP.spec_ok]
         have hok : Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd x) = true ∧
             Fl4Spec.refillSufficient 0 (Fl4Spec.refillHd x) = true := ⟨eb3.trans h3, eb4.trans h4⟩
-        refine ⟨trivial, (fin σ s (by rw [hspec, ite_f (fun h => h.2 hok)]) rfl FootEq.rfl' hS fun _ => ⟨?_, ?_⟩).2⟩
+        refine ⟨trivial, (fin σ s (by rw [hspec, ite_f (fun h => h.2 hok)]) rfl FootEq.rfl' (WritesIn.refl _ _) hS fun _ => ⟨?_, ?_⟩).2⟩
         · rw [getScRefillSufficient_eq hk hne, hok.2]
         · rw [getScRefillReady_eq hk hne, hok.1]
       · simp only [h4, Bool.false_eq_true, ↓reduceIte]
@@ -306,7 +309,7 @@ theorem resume_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec
     · simp only [h3, Bool.false_eq_true, ↓reduceIte]
       exact hpost (hpp fun h => h3 (eb3.symm.trans h.1))
   · simp only [hsb, Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-    exact ⟨trivial, (fin σ s (by rw [hspec, ite_f (fun h => hsb h.1)]) rfl FootEq.rfl' hS (fun h => absurd h hsb)).2⟩
+    exact ⟨trivial, (fin σ s (by rw [hspec, ite_f (fun h => hsb h.1)]) rfl FootEq.rfl' (WritesIn.refl _ _) hS (fun h => absurd h hsb)).2⟩
 
 end
 
