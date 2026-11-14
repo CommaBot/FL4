@@ -13,7 +13,7 @@ notification (l4v `cur_sc_not_blocked`), so `rd` holds for it vacuously.
   and the reprogram flag;
 * `charge_budget_refines`: the whole function.
 -/
-import Fl4Proofs.P3.ScCharge5
+import Fl4Proofs.P3.ScCur
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Sched
@@ -68,24 +68,6 @@ end Spec
 
 section
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
-
-theorem word24_of {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ)
-    {sc t : U64} (hsc : sc ∈ C) {x : Fl4Spec.SchedContext} {n : Nat}
-    (hk : σ.kheap sc.bv = some (.schedContext x n)) (hxt : x.scTcb = some t.bv) : L.mem s (scW sc 24#u64) = t := by
-  obtain ⟨Q, R, hc, hs⟩ := hS.lists
-  obtain ⟨x', n', hk', hx⟩ := hs.scs sc hsc
-  rw [hk] at hk'; cases hk'
-  rw [hx.tcb] at hxt
-  exact eq_of_bv (optRef_some hxt).2
-
-theorem scA_of {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ)
-    {t sc : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb xt))
-    (hsc : xt.tcbSchedContext = some sc.bv) : L.mem s (scA t) = sc := by
-  obtain ⟨Q, R, hc, hs⟩ := hS.lists
-  obtain ⟨x', hk', -, -, h3, -⟩ := hs.tcb t ht
-  rw [hk] at hk'; cases hk'
-  rw [h3] at hsc
-  exact eq_of_bv (optRef_some hsc).2
 
 /-- **FL4's round-robin reset** is `rrResetL` on the list. -/
 theorem rr_reset_refines {s0 s : S} {sc : U64} {n : Nat} (h : RingAt st s0 s sc n) :
@@ -153,20 +135,6 @@ theorem consumed_refines {N T C : Set U64} {c : U64} (s3 : S) (σ3 : Fl4Spec.Sta
   rw [e] at hS2 hkv
   exact ⟨_, updateSchedContext_eq hk _, rfl, hS2, hR.frame hS.placed hf hkv, hN.kview hR hkv,
     hI.scUpd hk rfl rfl rfl rfl⟩
-
-/-- What `charge_budget`'s head keeps: the current SC and thread, every
-object but the current SC, and the SC's TCB. -/
-def HeadKeeps (σ σ2 : Fl4Spec.State Unit) (p : Fl4Spec.ObjRef) : Prop :=
-  σ2.curSc = σ.curSc ∧ σ2.curThread = σ.curThread ∧ (∀ q, q ≠ p → σ2.kheap q = σ.kheap q) ∧
-    ∀ x n, σ.kheap p = some (.schedContext x n) → ∃ y, σ2.kheap p = some (.schedContext y n) ∧ y.scTcb = x.scTcb
-
-theorem HeadKeeps.refl (σ : Fl4Spec.State Unit) (p : Fl4Spec.ObjRef) : HeadKeeps σ σ p :=
-  ⟨rfl, rfl, fun _ _ => rfl, fun x _ h => ⟨x, h, rfl⟩⟩
-
-theorem HeadKeeps.updSc {σ : Fl4Spec.State Unit} {p : Fl4Spec.ObjRef} {x y : Fl4Spec.SchedContext} {n : Nat}
-    (hk : σ.kheap p = some (.schedContext x n)) (hy : y.scTcb = x.scTcb) : HeadKeeps σ (updSc σ p y n) p :=
-  ⟨rfl, rfl, fun q hq => by simp [updK, hq], fun x' n' h => by
-    rw [hk] at h; cases h; exact ⟨y, by simp [updK], hy⟩⟩
 
 /-- **`charge_budget` before the consumed-time reset.** -/
 theorem charge_head_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
@@ -244,7 +212,7 @@ theorem charge_head_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
       rintro s2 ⟨σ2, h1, rfl, h2, h3', h4, h5⟩
       refine ⟨_, by rw [hspec2 _ h3]; exact h1, h2, h3', h4, h5, ?_⟩
       rw [updSc_updSc]
-      exact HeadKeeps.updSc hk (by rw [hy'])
+      exact HeadKeeps.updSc hk (by rw [hy']) (by rw [hy'])
     step with sporadic.is_round_robin.spec as ⟨rr, hrr'⟩
     subst hrr'
     by_cases h0 : L.rperiod s sc = 0#u64
@@ -309,12 +277,13 @@ theorem charge_tail_refines {N T C : Set U64} {c : U64} (s2 : S) (a : A) (σ2 : 
         let s6 ← sched.set_reprogram st s5
         ok (s6, a1)
       else ok (s3, a)) ⦃ r => ∃ σ', chargeTail can σ2 = ({((), σ')}, False) ∧
-        SchedRel st N T C c r.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ⦄ := by
+        SchedRel st N T C c r.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧
+        (σ'.schedulerAction = .chooseNewThread ∨ σ' = { σ2 with consumedTime := 0 }) ⦄ := by
   have hc2 := hS.lists.choose_spec.choose_spec.1.cur
   step with sched.set_consumed.spec' as ⟨s3, hs3⟩
   rw [hc2] at hs3
   subst hs3
-  obtain ⟨hS3', hf3⟩ := hS.set_node_consumed 0#u64
+  obtain ⟨hS3', hf3, -⟩ := hS.set_node_consumed 0#u64
   set σ3 : Fl4Spec.State Unit := { σ2 with consumedTime := 0 } with hσ3
   have hS3 : SchedRel st N T C c (L.wr s2 (L.nodeAt s2 c layout.node.CONSUMED) 0#u64) σ3 := hS3'
   set s3 := L.wr s2 (L.nodeAt s2 c layout.node.CONSUMED) 0#u64 with hs3d
@@ -357,12 +326,12 @@ theorem charge_tail_refines {N T C : Set U64} {c : U64} (s2 : S) (a : A) (σ2 : 
     subst hs6
     obtain ⟨hS6, hf6, -⟩ := hS5.set_reprogram
     refine ⟨{ σ5 with reprogramTimer := true }, ?_, hS6, hI5.congr rfl rfl rfl rfl,
-      hR5.frame hS5.placed hf6 (KView.of_kheap rfl), hN5⟩
+      hR5.frame hS5.placed hf6 (KView.of_kheap rfl), hN5, Or.inl (rescheduleRequired_action (σ' := σ5) hI4.actReady h5' :)⟩
     rw [hspec, nd_bind_one h4, nd_bind_one h5']
     rfl
   · simp only [Bool.not_eq_true] at hsch
     simp only [hsch, Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-    refine ⟨σ3, ?_, hS3, ?_, hR3, hN3⟩
+    refine ⟨σ3, ?_, hS3, ?_, hR3, hN3, Or.inr rfl⟩
     · rw [hspec, if_neg (by rw [hsch]; exact Bool.false_ne_true)]
     · refine hI3.inv fun x hx hcl => ?_
       intro x' scp y n h1 h2 h3 h4 h5
@@ -409,7 +378,8 @@ theorem charge_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : 
     (used : U64) (can : Bool) :
     sched.charge_budget st ar s a used can ⦃ r => ∃ σ',
       Fl4Spec.chargeBudget (Z := Unit) used.bv can σ = ({((), σ')}, False) ∧
-      SchedRel st N T C c r.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ⦄ := by
+      SchedRel st N T C c r.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧
+      (σ'.schedulerAction = .chooseNewThread ∨ HeadKeeps σ σ' (nodeW st s c layout.node.CUR_SC).bv) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hct : nodeW st s c layout.node.CUR_THREAD ∈ T := hc.curT
   obtain ⟨xt, hkt, -, -, hsct, -⟩ := hs.tcb _ hct
@@ -431,14 +401,18 @@ theorem charge_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : 
     apply decide_eq_decide.2
     exact ⟨fun h e => h (eq_of_bv e), fun h e => h (by rw [e])⟩
   refine WP.spec_bind (charge_head_refines s a σ hS hR hN hI hscC htw hact hnr hmrt hmb used _ hb) ?_
-  rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, hcs, hcc, hfr, hsck⟩
-  obtain ⟨y2, hky, hyt⟩ := hsck x n hk
+  rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, hK⟩
+  have ⟨hcs, hcc, _, _, hfr, hsck⟩ := hK
+  obtain ⟨y2, hky, hyt, -⟩ := hsck x n hk
   have hkt2 : σ2.kheap (nodeW st s c layout.node.CUR_THREAD).bv = some (.tcb xt) := by
     rw [hfr _ (fun e => by rw [e, hk] at hkt; cases hkt)]; exact hkt
   refine WP.spec_mono (charge_tail_refines s2 a σ2 hS2 hR2 hN2 hI2 (by rw [hcs, hs.curSc])
     (by rw [hcc, hs.curThread]) hscC hsc0 hkt2 hxs (hnb xt hkt) hky (by rw [hyt]; exact hown) hmb hval hto can) ?_
-  rintro r ⟨σ', h1, h3, h4, h5, h6⟩
-  exact ⟨σ', by rw [chargeBudget_eq, nd_bind_one h2]; exact h1, h3, h4, h5, h6⟩
+  rintro r ⟨σ', h1, h3, h4, h5, h6, h7⟩
+  refine ⟨σ', by rw [chargeBudget_eq, nd_bind_one h2]; exact h1, h3, h4, h5, h6, ?_⟩
+  rcases h7 with h7 | rfl
+  · exact Or.inl h7
+  · exact Or.inr hK
 
 end
 

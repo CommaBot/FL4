@@ -76,7 +76,8 @@ theorem check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
           (.timeout (L.mem s' (scW (nodeW st s c layout.node.CUR_SC) 48#u64)).bv) σ' = ({((), σ'')}, False) ∧
         SchedRel st N T C c r.1 σ'' ∧ Inv σ'' ∧ NtfnStateRel N T (L.mem r.1) σ'' ∧ NSC N C σ'' ⦄) :
     sched.check_budget st ar s a ⦃ r => ∃ σ', Fl4Spec.checkBudget (Z := Unit) σ = ({(r.1, σ')}, False) ∧
-      SchedRel st N T C c r.2.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.2.1) σ' ∧ NSC N C σ' ⦄ := by
+      SchedRel st N T C c r.2.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.2.1) σ' ∧ NSC N C σ' ∧
+      (σ'.schedulerAction = .chooseNewThread ∨ HeadKeeps σ σ' (nodeW st s c layout.node.CUR_SC).bv) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x, n, hk, hx⟩ := hs.scs _ hscC
   unfold sched.check_budget
@@ -99,7 +100,7 @@ theorem check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
   · simp only [hbt, ↓reduceIte]
     rw [is_cur_domain_expired_eq]
     simp only [bind_ok, WP.spec_ok]
-    refine ⟨σ, ?_, hS, hI, hR, hN⟩
+    refine ⟨σ, ?_, hS, hI, hR, hN, Or.inr (HeadKeeps.refl σ _)⟩
     rw [hsp, if_pos hbt, nd_gets_bind]
     have : Fl4Spec.isCurDomainExpired σ = false := by simp [Fl4Spec.isCurDomainExpired, hnd]
     rw [this]; rfl
@@ -107,8 +108,8 @@ theorem check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
     simp only [hbt, Bool.false_eq_true, ↓reduceIte]
     refine WP.spec_bind (charge_budget_refines s a σ hS hR hN hI hscC hsc0 htw hts hidle hact hnr hnb hmrt hmb
       hval hto _ true) ?_
-    rintro ⟨s1, a1⟩ ⟨σ', h1, h2, h3, h4, h5⟩
-    refine (WP.spec_ok _).2 ⟨σ', ?_, h2, h3, h4, h5⟩
+    rintro ⟨s1, a1⟩ ⟨σ', h1, h2, h3, h4, h5, h6⟩
+    refine (WP.spec_ok _).2 ⟨σ', ?_, h2, h3, h4, h5, h6⟩
     rw [hsp, if_neg (by rw [hbt]; exact Bool.false_ne_true), nd_gets_bind, hs.consumed, nd_bind_one h1]
     rfl
 
@@ -157,11 +158,18 @@ theorem check_budget_restart_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
         SchedRel st N T C c r.1 σ'' ∧ Inv σ'' ∧ NtfnStateRel N T (L.mem r.1) σ'' ∧ NSC N C σ'' ⦄) :
     sched.check_budget_restart st ar s a ⦃ r => ∃ σ',
       Fl4Spec.checkBudgetRestart (Z := Unit) σ = ({(r.1, σ')}, False) ∧
-      SchedRel st N T C c r.2.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.2.1) σ' ∧ NSC N C σ' ⦄ := by
+      SchedRel st N T C c r.2.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.2.1) σ' ∧ NSC N C σ' ∧
+      (CurInv σ → σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ⦄ := by
+  have hkp : ∃ x n, σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) := by
+    obtain ⟨Q, R, hc, hs⟩ := hS.lists
+    obtain ⟨x, n, hk, -⟩ := hs.scs _ hscC
+    exact ⟨x, n, hk⟩
   unfold sched.check_budget_restart
   refine WP.spec_bind (check_budget_refines s a σ hS hR hN hI hscC hsc0 htw hts hidle hact hnr hnb hnd hmrt hmb
     hval hto) ?_
-  rintro ⟨r, s1, a1⟩ ⟨σ1, h1, hS1, hI1, hR1, hN1⟩
+  rintro ⟨r, s1, a1⟩ ⟨σ1, h1, hS1, hI1, hR1, hN1, h6⟩
+  have hc6 : CurInv σ → σ1.schedulerAction = .chooseNewThread ∨ CurInv σ1 := fun hc =>
+    h6.imp id fun hK => hc.keeps hK hkp
   obtain ⟨Q1, R1, hc1, hs1⟩ := hS1.lists
   step with sched.cur_thread.spec' as ⟨ct, hct⟩
   rw [hc1.cur] at hct
@@ -180,7 +188,7 @@ theorem check_budget_restart_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
     · rw [nd_bind_one (rfl : Fl4Spec.NonDet.pure () σ1 = ({((), σ1)}, False))]; rfl
   by_cases hr : r = true
   · simp only [hr, ↓reduceIte, WP.spec_ok]
-    exact ⟨σ1, by rw [hsp, if_neg (fun h => h.1 hr), hr], hS1, hI1, hR1, hN1⟩
+    exact ⟨σ1, by rw [hsp, if_neg (fun h => h.1 hr), hr], hS1, hI1, hR1, hN1, hc6⟩
   · have hr' : r = false := by simpa using hr
     subst hr'
     simp only [Bool.false_eq_true, ↓reduceIte]
@@ -198,7 +206,7 @@ theorem check_budget_restart_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
       rw [setThreadState_eq _ hkt] at h2
       have e2 := pair_eq h2
       subst e2
-      refine ⟨_, ?_, hS2, hI1.restart hkt hrun, hR2, fun n hn x p hx hp => ?_⟩
+      refine ⟨_, ?_, hS2, hI1.restart hkt hrun, hR2, fun n hn x p hx hp => ?_, fun hc => ?_⟩
       · rw [hsp, if_pos ⟨Bool.false_ne_true, hrun⟩, nd_bind_one (setThreadState_eq _ hkt)]; rfl
       · rw [stsAct_kheap] at hx
         have hx' : σ1.kheap n.bv = some (.notification x) := by
@@ -206,9 +214,17 @@ theorem check_budget_restart_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
           · rw [e] at hx; simp at hx
           · simpa [e] using hx
         exact hN1 n hn x p hx' hp
+      · have e : (nodeW st s1 c layout.node.CUR_THREAD).bv = σ1.curThread := hs1.curThread.symm
+        have hkt' : σ1.kheap σ1.curThread = some (.tcb xt) := e ▸ hkt
+        rcases hc6 hc with h7 | h7
+        · rcases stsAct_action (updK σ1 (nodeW st s1 c layout.node.CUR_THREAD).bv
+            (.tcb { xt with tcbState := .restart })) (nodeW st s1 c layout.node.CUR_THREAD).bv with e' | e'
+          · exact Or.inl e'
+          · exact Or.inl (e'.trans h7)
+        · rw [e]; exact Or.inr (h7.restart hkt')
     · simp only [Bool.not_eq_true] at hrun
       simp only [hrun, Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-      exact ⟨σ1, by rw [hsp, if_neg (fun h => by rw [hrun] at h; exact Bool.false_ne_true h.2)], hS1, hI1, hR1, hN1⟩
+      exact ⟨σ1, by rw [hsp, if_neg (fun h => by rw [hrun] at h; exact Bool.false_ne_true h.2)], hS1, hI1, hR1, hN1, hc6⟩
 
 end
 

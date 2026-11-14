@@ -220,7 +220,7 @@ theorem commit_time_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
     refine WP.spec_mono (sched.set_consumed.spec' s1 0#u64) ?_
     rintro s' rfl
     rw [hS1.lists.choose_spec.choose_spec.1.cur]
-    obtain ⟨hS2, hf2⟩ := hS1.set_node_consumed 0#u64
+    obtain ⟨hS2, hf2, -⟩ := hS1.set_node_consumed 0#u64
     exact ⟨{ σ1 with consumedTime := 0 }, hsp0 σ1 h1, hS2, hR1.frame hS1.placed hf2 (KView.of_kheap rfl), hN1,
       hI1.congr rfl rfl rfl rfl, hK1⟩
   have hsph : commitHead σ = Fl4Spec.NonDet.when (Fl4Spec.scActive x = true ∧ (nodeW st s c layout.node.CUR_SC).bv ≠
@@ -289,7 +289,7 @@ theorem commit_time_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
       refine fin _ _ ?_ hS2 (hR3.frame hS3.placed hf hkv) (hN3.kview hR3 hkv) (hI3.scUpd hk3 rfl rfl rfl rfl) ?_
       · rw [hsph, Fl4Spec.NonDet.when, if_pos ⟨hact, hid2⟩, nd_gets_bind, hs.consumed, nd_bind_one h3]
         exact updateSchedContext_eq hk3 _
-      · rw [updSc_updSc]; exact HeadKeeps.updSc hk (by rw [hy'])
+      · rw [updSc_updSc]; exact HeadKeeps.updSc hk (by rw [hy']) (by rw [hy'])
   · simp only [Bool.not_eq_true] at hact
     simp only [hact, Bool.false_eq_true, ↓reduceIte, bind_ok]
     exact hnone (fun h => by rw [hact] at h; exact Bool.false_ne_true h.1)

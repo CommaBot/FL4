@@ -62,7 +62,9 @@ theorem SchedRel.set_sc_consumed {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Sp
 theorem SchedRel.set_node_consumed {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) (v : U64) :
     SchedRel st N T C c (L.wr s (L.nodeAt s c layout.node.CONSUMED) v) { σ with consumedTime := v.bv } ∧
-      FootEq N T (L.mem s) (L.mem (L.wr s (L.nodeAt s c layout.node.CONSUMED) v)) := by
+      FootEq N T (L.mem s) (L.mem (L.wr s (L.nodeAt s c layout.node.CONSUMED) v)) ∧
+      ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → o.val ≠ 40 →
+        nodeW st (L.wr s (L.nodeAt s c layout.node.CONSUMED) v) c o = nodeW st s c o := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hN := hc.node
   have h40 : layout.node.CONSUMED.val = 40 := by simp [layout.node.CONSUMED]
@@ -93,7 +95,7 @@ theorem SchedRel.set_node_consumed {N T C : Set U64} {c : U64} {s : S} {σ : Fl4
     have := congrArg UScalar.val e
     rw [nodeAt_val hN (by omega)] at this
     have := (hS.scOut sc hsc a hin).2.1; omega
-  have hca : CAgree st T c s s' := ⟨hk, L.cpu_wr _ _ _, fun o ho h8 _ _ h => hne o ho h8 h,
+  have hca : CAgree st T c s s' := ⟨hk, L.cpu_wr _ _ _, fun o ho h8 _ _ h _ => hne o ho h8 h,
     fun y hy K hK => htf y hy K (by rcases hK with h | h | h | h | h <;> simp [SchedField, h])⟩
   have hm := hs.rmax_eq hscw
   refine ⟨⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk]; exact hS.nodeNW o ho,
@@ -104,7 +106,7 @@ theorem SchedRel.set_node_consumed {N T C : Set U64} {c : U64} {s : S} {σ : Fl4
       (by simp [layout.node.SCHED_ACTION])]; exact hS.act,
     by rw [nw _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])
       (by simp [layout.node.REPROGRAM])]; exact hS.repr,
-    hs.core_eq hscw hS.core, Q, R, hc.agree hca, ?_⟩, node_wr_foot hS (by omega) (by omega)⟩
+    hs.core_eq hscw hS.core, Q, R, hc.agree hca, ?_⟩, node_wr_foot hS (by omega) (by omega), nw⟩
   refine ⟨hs.rq, hs.rqDom, hs.rel, ?_, ?_, ?_, ?_, ?_, fun y hy => ?_, fun y hy => ?_, fun sc hsc => ?_⟩
   · rw [nw layout.node.CUR_THREAD (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])
       (by simp [layout.node.CUR_THREAD])]; exact hs.curThread

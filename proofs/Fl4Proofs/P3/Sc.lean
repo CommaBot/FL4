@@ -29,8 +29,15 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
 * ScCharge7: `check_budget`, `check_budget_restart`.
 * ScCharge8: `commit_time` (`InvBut` for the current thread).
 * ScConsumed: `update_consumed` (`sched_context_update_consumed`).
+* ScCur: the current-thread invariant `CurInv` (l4v `cur_sc_tcb_are_bound`,
+  `cur_sc_active`, `ct_not_in_release_q`, current thread not blocked) and
+  its preservation steps; `HeadKeeps`.
+* ScTime: `update_timestamp` (`update_time_stamp`); `Inv` under a later time.
+* ScEntry: the budget path at kernel entry (`budget_ok_refines`,
+  `entry_check_budget_refines`) from `Inv` and `CurInv`, ending in `Inv`.
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
 import Fl4Proofs.P3.ScCharge8
 import Fl4Proofs.P3.ScConsumed
+import Fl4Proofs.P3.ScEntry

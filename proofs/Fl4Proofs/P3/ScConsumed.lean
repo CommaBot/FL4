@@ -3,12 +3,13 @@ P3 (DESIGN.md §9), scheduling contexts: **`schedcontext::update_consumed`
 refines l4v `sched_context_update_consumed`** (`update_consumed_refines`)
 and keeps `Inv`.
 
-FL4 caps the consumed time at `U64::MAX` ticks where the spec caps it at
-`maxTicksToUs` (left unspecified in the spec's `Machine`): the two agree
-if the platform's `maxTicksToUs` is `2 ^ 64 - 1` (`hmax`), and FL4's
-`ticks_to_us` is the spec's `ticksToUs` (`htu`).
+FL4 caps the consumed time at `U64::MAX` ticks, the spec at `maxTicksToUs`
+(left unspecified in the spec's `Machine`). `hmax` is the x86 platform fact
+`maxTicksToUs = 2 ^ 64 - 1`: C seL4's x86 `getMaxTicksToUs()` returns
+`UINT64_MAX` (include/arch/x86/arch/machine/timer.h), so FL4 does what C
+does. `htu`: FL4's `ticks_to_us` is the spec's `ticksToUs`.
 -/
-import Fl4Proofs.P3.ScCharge5
+import Fl4Proofs.P3.ScCur
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Sched
@@ -36,11 +37,13 @@ variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulSt
 theorem update_consumed_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
     {sc : U64} (hsc : sc ∈ C)
+    -- the x86 platform fact: C's `getMaxTicksToUs()` is `UINT64_MAX`
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, ar.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
     schedcontext.update_consumed st ar s a sc ⦃ r => ∃ σ',
       Fl4Spec.schedContextUpdateConsumed (Z := Unit) sc.bv σ = ({(r.1.bv, σ')}, False) ∧
-      SchedRel st N T C c r.2 σ' ∧ NtfnStateRel N T (L.mem r.2) σ' ∧ NSC N C σ' ∧ Inv σ' ⦄ := by
+      SchedRel st N T C c r.2 σ' ∧ NtfnStateRel N T (L.mem r.2) σ' ∧ NSC N C σ' ∧ Inv σ' ∧
+      HeadKeeps σ σ' sc.bv ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x, n, hk, hx⟩ := hs.scs sc hsc
   have hsp : Fl4Spec.schedContextUpdateConsumed (Z := Unit) sc.bv σ =
@@ -60,10 +63,11 @@ theorem update_consumed_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ 
         ({(r.bv, updSc σ sc.bv { x with scConsumed := v.bv } n)}, False) ∧
       SchedRel st N T C c (L.wr s (scW sc 8#u64) v) (updSc σ sc.bv { x with scConsumed := v.bv } n) ∧
       NtfnStateRel N T (L.mem (L.wr s (scW sc 8#u64) v)) (updSc σ sc.bv { x with scConsumed := v.bv } n) ∧
-      NSC N C (updSc σ sc.bv { x with scConsumed := v.bv } n) ∧ Inv (updSc σ sc.bv { x with scConsumed := v.bv } n) := by
+      NSC N C (updSc σ sc.bv { x with scConsumed := v.bv } n) ∧ Inv (updSc σ sc.bv { x with scConsumed := v.bv } n) ∧
+      HeadKeeps σ (updSc σ sc.bv { x with scConsumed := v.bv } n) sc.bv := by
     intro v w hv r tm hr
     obtain ⟨hS1, hf, hkv⟩ := hS.set_sc_consumed hsc hk v
-    refine ⟨?_, hS1, hR.frame hS.placed hf hkv, hN.kview hR hkv, hI.scUpd hk rfl rfl rfl rfl⟩
+    refine ⟨?_, hS1, hR.frame hS.placed hf hkv, hN.kview hR hkv, hI.scUpd hk rfl rfl rfl rfl, HeadKeeps.updSc hk rfl rfl⟩
     rw [nd_bind_one (updateSchedContext_eq hk _), hr, hv]; rfl
   unfold schedcontext.update_consumed
   step with obj.Sc.consumed.spec' as ⟨cv, hcv⟩
@@ -83,9 +87,9 @@ theorem update_consumed_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ 
     refine WP.spec_bind (htu _) ?_
     intro r hr
     simp only [WP.spec_ok]
-    obtain ⟨h1, h2, h3, h4, h5⟩ := fin 0#u64 (x.scConsumed - Fl4Spec.maxTicksToUs)
+    obtain ⟨h1, h2, h3, h4, h5, h6⟩ := fin 0#u64 (x.scConsumed - Fl4Spec.maxTicksToUs)
       (by rw [hxc, hmax]; simp) r _ (by rw [hr, ← hmax])
-    refine ⟨_, ?_, h2, h3, h4, h5⟩
+    refine ⟨_, ?_, h2, h3, h4, h5, h6⟩
     rw [hsp, if_pos (by rw [hxc, hmax]; exact BitVec.le_refl _)]
     exact h1
   · simp only [hge, ↓reduceIte]
@@ -94,8 +98,8 @@ theorem update_consumed_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ 
     refine WP.spec_bind (htu _) ?_
     intro r hr
     simp only [WP.spec_ok]
-    obtain ⟨h1, h2, h3, h4, h5⟩ := fin 0#u64 0 rfl r _ (by rw [hr, ← hxc])
-    refine ⟨_, ?_, h2, h3, h4, h5⟩
+    obtain ⟨h1, h2, h3, h4, h5, h6⟩ := fin 0#u64 0 rfl r _ (by rw [hr, ← hxc])
+    refine ⟨_, ?_, h2, h3, h4, h5, h6⟩
     rw [hsp, if_neg (by rw [hxc, hmax, ← u64_le_bv]; exact hge)]
     exact h1
 
