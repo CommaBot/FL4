@@ -189,7 +189,7 @@ theorem domFrame_page_table (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.Stat
   obtain ⟨xct, hkt0, -⟩ := hCR.1.tcb ct htcb
   have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
   refine ⟨?_, dk_spec_arch ⟨_, rfl⟩ hkt⟩
-  have h := decode_invocation_page_table arI th hS.2.pl s ar σ G hCR hFI hMO (SR := FootSR st (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s (VsFootW st th P L4 L3 L2 L1 s)) (Q := fun s' => P1.WritesIn st s s' (VsFootW st th P L4 L3 L2 L1 s)) (fun _ _ _ h => h.2) (VsPtMapHyps.foot (s0 := s) (fun _ h => h) hS.2.pl (vsPtMapHyps_top hA)) (VsPtUnmapHyps.foot (s0 := s) (fun _ h => h) hS.2.pl (vsPtUnmapHyps_top hA)) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
+  have h := decode_invocation_page_table arI th hS.2.pl s ar σ G hCR hFI hMO (SR := FootSR st (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s (VsFootW st th P L4 L3 L2 L1 s)) (Q := fun s' => P1.WritesIn st s s' (VsFootW st th P L4 L3 L2 L1 s)) (fun _ _ _ h => h.2) (VsPtMapHyps.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (vsPtMapHyps_top hA)) (VsPtUnmapHyps.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (vsPtUnmapHyps_top hA)) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
     hpc hidx hcap hok.1 hok.2.1 hok.2.2 extra excaps hext' blk call don fp ci buffer
   exact WP.spec_mono h fun res hr => dom_of_foot hS hr.2
@@ -277,7 +277,7 @@ theorem domFrame_page_directory (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.
   obtain ⟨xct, hkt0, -⟩ := hCR.1.tcb ct htcb
   have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
   refine ⟨?_, dk_spec_arch ⟨_, rfl⟩ hkt⟩
-  have h := decode_invocation_page_directory arI th hS.2.pl s ar σ G hCR hFI hMO (SR := FootSR st (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s (VsFootW st th P L4 L3 L2 L1 s)) (Q := fun s' => P1.WritesIn st s s' (VsFootW st th P L4 L3 L2 L1 s)) (fun _ _ _ h => h.2) (VsPdMapHyps.foot (s0 := s) (fun _ h => h) hS.2.pl (vsPdMapHyps_top hA)) (VsPdUnmapHyps.foot (s0 := s) (fun _ h => h) hS.2.pl (vsPdUnmapHyps_top hA)) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
+  have h := decode_invocation_page_directory arI th hS.2.pl s ar σ G hCR hFI hMO (SR := FootSR st (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s (VsFootW st th P L4 L3 L2 L1 s)) (Q := fun s' => P1.WritesIn st s s' (VsFootW st th P L4 L3 L2 L1 s)) (fun _ _ _ h => h.2) (VsPdMapHyps.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (vsPdMapHyps_top hA)) (VsPdUnmapHyps.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (vsPdUnmapHyps_top hA)) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
     hpc hidx hcap hok.1 hok.2.1 hok.2.2 extra excaps hext' blk call don fp ci buffer
   exact WP.spec_mono h fun res hr => dom_of_foot hS hr.2
@@ -365,7 +365,7 @@ theorem domFrame_pdpt (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit
   obtain ⟨xct, hkt0, -⟩ := hCR.1.tcb ct htcb
   have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
   refine ⟨?_, dk_spec_arch ⟨_, rfl⟩ hkt⟩
-  have h := decode_invocation_pdpt arI th hS.2.pl s ar σ G hCR hFI hMO (SR := FootSR st (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s (VsFootW st th P L4 L3 L2 L1 s)) (Q := fun s' => P1.WritesIn st s s' (VsFootW st th P L4 L3 L2 L1 s)) (fun _ _ _ h => h.2) (VsPdptMapHyps.foot (s0 := s) (fun _ h => h) hS.2.pl (vsPdptMapHyps_top hA)) (VsPdptUnmapHyps.foot (s0 := s) (fun _ h => h) hS.2.pl (vsPdptUnmapHyps_top hA)) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
+  have h := decode_invocation_pdpt arI th hS.2.pl s ar σ G hCR hFI hMO (SR := FootSR st (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s (VsFootW st th P L4 L3 L2 L1 s)) (Q := fun s' => P1.WritesIn st s s' (VsFootW st th P L4 L3 L2 L1 s)) (fun _ _ _ h => h.2) (VsPdptMapHyps.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (vsPdptMapHyps_top hA)) (VsPdptUnmapHyps.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (vsPdptUnmapHyps_top hA)) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
     hpc hidx hcap hok.1 hok.2.1 hok.2.2 extra excaps hext' blk call don fp ci buffer
   exact WP.spec_mono h fun res hr => dom_of_foot hS hr.2
@@ -450,7 +450,7 @@ theorem domFrame_asid_pool (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State
   obtain ⟨xct, hkt0, -⟩ := hCR.1.tcb ct htcb
   have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
   refine ⟨?_, dk_spec_arch ⟨_, rfl⟩ hkt⟩
-  have h := decode_invocation_asid_pool arI th hS.2.pl s ar σ G hCR hFI hMO (SR := FootSR st (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s (VsFootW st th P L4 L3 L2 L1 s)) (Q := fun s' => P1.WritesIn st s s' (VsFootW st th P L4 L3 L2 L1 s)) (fun _ _ _ h => h.2) (VsInvHyps.foot (s0 := s) (fun _ h => h) hS.2.pl (vsInvHyps_top curT_top)) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hR hS.2.vo
+  have h := decode_invocation_asid_pool arI th hS.2.pl s ar σ G hCR hFI hMO (SR := FootSR st (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s (VsFootW st th P L4 L3 L2 L1 s)) (Q := fun s' => P1.WritesIn st s s' (VsFootW st th P L4 L3 L2 L1 s)) (fun _ _ _ h => h.2) (VsInvHyps.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (fun _ h => Or.inr (Or.inr (Or.inr (Or.inl h)))) (vsInvHyps_top curT_top)) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hR hS.2.vo
     lbl slbl hlA length buf ct hct hcur htcb hact hrun ptr base hok.2.1 hok.2.2 extra excaps hext' slot blk call don fp args ci sl
     buffer
   exact WP.spec_mono h fun res hr => dom_of_foot hS hr.2
@@ -565,7 +565,7 @@ theorem decode_invocation_frame_capD (th : TypedHeap) (s : S) (ar : A) (σ : Fl4
     have := decode_invocation_frame_ds (L := L) arI th hS.2.pl s ar σ G hCR hFI hU
       (SR := FootSRc st th (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s (VsFootW st th P L4 L3 L2 L1 s))
       (Q := fun s' => P1.WritesIn st s s' (VsFootW st th P L4 L3 L2 L1 s)) (fun _ _ _ h => h.2.1)
-      (VsSubHyps.foot (s0 := s) (fun _ h => h) hS.2.pl
+      (VsSubHyps.foot (s0 := s) (fun _ h => h.toW) hS.2.pl
         (Vs.vsSubHyps_top (st := st) (L := L) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1)
           (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) (AR := AR)))
       ⟨hS, P1.WritesIn.refl _ _, fun t ht => by
@@ -577,9 +577,9 @@ theorem decode_invocation_frame_capD (th : TypedHeap) (s : S) (ar : A) (σ : Fl4
   have h := decode_invocation_frame arI th hS.2.pl s ar σ G hCR hFI hMO
     (SR := FootSR st (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s (VsFootW st th P L4 L3 L2 L1 s))
     (Q := fun s' => P1.WritesIn st s s' (VsFootW st th P L4 L3 L2 L1 s)) (fun _ _ _ h => h.2)
-    (VsFrameHyps.foot (s0 := s) (fun _ h => h) hS.2.pl (vsFrameHyps_top hA))
-    (VsFrameHypsL.foot (s0 := s) (fun _ h => h) hS.2.pl (vsFrameHypsL_top hA))
-    (VsFrameUnmapHyps.foot (s0 := s) (fun _ h => h) hS.2.pl (vsFrameUnmapHyps_top hA)) ⟨hS, P1.WritesIn.refl _ _⟩
+    (VsFrameHyps.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (vsFrameHyps_top hA))
+    (VsFrameHypsL.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (vsFrameHypsL_top hA))
+    (VsFrameUnmapHyps.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (vsFrameUnmapHyps_top hA)) ⟨hS, P1.WritesIn.refl _ _⟩
     hS.2.vs hS.2.sd hS.2.pt hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlbl length buf ct hct hcur htcb hact hrun
     args hlen hargs hpc hidx hcap hok.1 (fun e => by subst e; exact hok.2) (fun e => by subst e; exact hok.2)
     (fun e => by subst e; exact hok.2) hAl extra excaps hext' blk call don fp ci buffer
@@ -650,7 +650,7 @@ theorem decode_invocation_asid_control_capD (th : TypedHeap) (s : S) (ar : A) (�
   have h := decode_invocation_asid_control arI th hS.2.pl s ar σ G hCR hFI hU hMO
     (SR := FootSR st (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s (fun b => VsFootW st th P L4 L3 L2 L1 s b ∨ ¬ ((L.ksb s).val ≤ b.val ∧ b.val < (L.ksb s).val + 13568)))
     (Q := fun s' => P1.WritesIn st s s' (fun b => VsFootW st th P L4 L3 L2 L1 s b ∨ ¬ ((L.ksb s).val ≤ b.val ∧ b.val < (L.ksb s).val + 13568))) (fun _ _ _ h => h.2)
-    (VsMpHyps.foot (s0 := s) (fun _ h => Or.inl h) hS.2.pl vsMpHyps_top) ⟨hS, P1.WritesIn.refl _ _⟩ hR hPt hS.2.vs hS.2.pt
+    (VsMpHyps.foot (s0 := s) (fun _ h => Or.inl h.toW) hS.2.pl (fun _ h => Or.inl (Or.inr (Or.inr (Or.inr (Or.inl h))))) vsMpHyps_top) ⟨hS, P1.WritesIn.refl _ _⟩ hR hPt hS.2.vs hS.2.pt
     hS.2.vo hS.2.po hS.2.pv lbl slbl hlM length buf ct hct hcur htcb hact hrun args hlen hargs extra excaps hextK slot
     blk call don fp ci sl buffer
   refine DecOKM.withDom arI hDR hF ⟨WP.spec_mono h fun res hr => ?_, dk_spec_arch ⟨_, rfl⟩ hkt⟩

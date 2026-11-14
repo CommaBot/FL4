@@ -217,7 +217,9 @@ def MpPost {A : Type} (P L4 L3 L2 L1 : Set U64) (SR : S → A → Fl4Spec.State 
     (∀ P' L4' L3' L2' L1' : Set U64, Vs.VsCapsIn P' L4' L3' L2' L1' m0 G0 →
       Vs.VsCapsIn (insert p P') L4' L3' L2' L1' (L.mem res.2.1) G') ∧
     MdbStep m0 G0 (L.mem res.2.1) G' ∧
-    ∀ ksb : U64, Vs.VsMdbInv ksb m0 G0 → Vs.VsMdbInv ksb (L.mem res.2.1) G'
+    (∀ ksb : U64, Vs.VsMdbInv ksb m0 G0 → Vs.VsMdbInv ksb (L.mem res.2.1) G') ∧
+    σ'.curThread = σ.curThread ∧
+    ∀ L4' : Set U64, Vs.PoolsIn P L4' m0 → Vs.PoolsIn (insert p P) L4' (L.mem res.2.1)
 
 set_option maxHeartbeats 4000000 in
 /-- **`MakePool`'s perform refines l4v** (see the module docstring): from the
@@ -672,12 +674,13 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
       · exact hTo
       · exact hVP.ptab q hq
   have hpne : ∀ b : U64, b ≠ atA K i → b.val ≠ (atA K i).val := fun b h e => h (UScalar.eq_of_val_eq e)
-  have hVs5 : VsRel (insert p P) (L.mem s5) K τf := VsRel.add_pool hVP' hVs4 hpP hi hp0
-    (fun b hb hne _ => hm54 b hb (hpne b hne))
-    (fun lo hl => by
+  have hz5 : ∀ lo : U64, lo.val < 512 → L.mem s5 (peA p lo) = 0#u64 := fun lo hl => by
       have hv := peA_val hpfit hl
       have hal : P1.Aligned (peA p lo) := by show _ % 8 = 0; rw [hv]; omega
-      rw [hm54 _ hal (by rw [hv, hAtv]; omega), hmemR _ hal (by omega) (by omega)])
+      rw [hm54 _ hal (by rw [hv, hAtv]; omega), hmemR _ hal (by omega) (by omega)]
+  have hVs5 : VsRel (insert p P) (L.mem s5) K τf := VsRel.add_pool hVP' hVs4 hpP hi hp0
+    (fun b hb hne _ => hm54 b hb (hpne b hne))
+    hz5
     (L.mem_wr_same hAt) hkp (fun q hq => by
       obtain ⟨f, hf, -⟩ := hVs4.pool q hq
       have := hPo q hq
@@ -796,7 +799,30 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     exact W4.keep (fun z hz => hSS5.capV ((hM4.members z).1 hz).1)
   refine ⟨τf, th', G', by rw [hrun]; exact hmem, by rw [hrun]; exact hall.1, hP', hR5, hV5, hM5, hC5,
     MdbInv.of_same hM4 hI4 hSS5, UtInv.of_same hM4 hU4 hSS5, by rw [hksb5]; exact hVs5, hPt5, hSR5, ⟨hKTf, F5⟩, FR5, VC,
-    MS, VM⟩
+    MS, VM, hMp.1.ct.trans (by rw [hσ1]; unfold Notif.stsAct; split_ifs <;> rfl), ?_⟩
+  -- the pools' entries: the new pool's zero, the others' kept
+  intro L4' hPI q hq lo hl hne
+  rcases hq with rfl | hq
+  · exact absurd (hz5 lo hl) hne
+  have hw : VsWrite P K (peA q lo) := Or.inr ⟨q, hq, lo, hl, rfl⟩
+  have hal := VsWrite.aligned hVP hw
+  obtain ⟨-, qf⟩ := hVP.pal q hq
+  have hnv : peA q lo ≠ atA K i := fun e => by
+    have := congrArg UScalar.val e
+    rw [peA_val qf hl, atA_val hVP.ksb_fit hi] at this
+    have := hVP.ptab q hq; omega
+  have hpools1 : ∀ q ∈ P, σ1.kheap q.bv = σ.kheap q.bv := by
+    intro q hq
+    obtain ⟨g, hg, -⟩ := hR.pool q hq
+    have : q.bv ≠ ct.bv := Endp.kheap_ne hg hkt' (fun _ h1 h2 => by subst h1; cases h2)
+    rw [hσ1, Notif.stsAct_kheap]; simp [this]
+  have ht1 : σ1.archState.x64AsidTable = σ.archState.x64AsidTable := by
+    rw [hσ1]; unfold Notif.stsAct; split_ifs <;> rfl
+  have e : L.mem s5 (peA q lo) = L.mem s (peA q lo) := by
+    rw [hm54 _ hal (hpne _ hnv), hmem41 _ hal (hVO _ hw) (hVout _ hw)]
+    exact Vs.VsRel.words_eq hR hR1' ht1 hpools1 _ hw
+  rw [e] at hne ⊢
+  exact hPI q hq lo hl hne
 
 end
 

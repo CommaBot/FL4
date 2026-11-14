@@ -62,11 +62,12 @@ def VsLike (c' c : capability.Cap) : Prop :=
 /-- The spec's state across a VSpace invocation (see the module docstring). -/
 def KFoot (σ σ' : Fl4Spec.State Unit) : Prop :=
   σ'.cdt = σ.cdt ∧ σ'.isOriginalCap = σ.isOriginalCap ∧
-    ∀ o, σ'.kheap o ≠ σ.kheap o →
+    (∀ o, σ'.kheap o ≠ σ.kheap o →
       (∃ ao ao', σ.kheap o = some (.archObj ao) ∧ σ'.kheap o = some (.archObj ao')) ∨
       (∃ r cs cs', σ.kheap o = some (.cnode r cs) ∧ Fl4Spec.wellFormedCnodeN r cs ∧
         σ'.kheap o = some (.cnode r cs')) ∨
-      (∃ t t', σ.kheap o = some (.tcb t) ∧ σ'.kheap o = some (.tcb t'))
+      (∃ t t', σ.kheap o = some (.tcb t) ∧ σ'.kheap o = some (.tcb t'))) ∧
+    σ'.curThread = σ.curThread
 
 section
 variable {th : TypedHeap}
@@ -163,30 +164,30 @@ theorem set_cap_foot {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] (
 
 end
 
-theorem KFoot.refl (σ : Fl4Spec.State Unit) : KFoot σ σ := ⟨rfl, rfl, fun _ h => absurd rfl h⟩
+theorem KFoot.refl (σ : Fl4Spec.State Unit) : KFoot σ σ := ⟨rfl, rfl, fun _ h => absurd rfl h, rfl⟩
 
 theorem KFoot.trans {σ1 σ2 σ3 : Fl4Spec.State Unit} (h1 : KFoot σ1 σ2) (h2 : KFoot σ2 σ3) : KFoot σ1 σ3 := by
-  refine ⟨h2.1.trans h1.1, h2.2.1.trans h1.2.1, fun o hne => ?_⟩
+  refine ⟨h2.1.trans h1.1, h2.2.1.trans h1.2.1, fun o hne => ?_, h2.2.2.2.trans h1.2.2.2⟩
   by_cases e1 : σ2.kheap o = σ1.kheap o
   · have e2 : σ3.kheap o ≠ σ2.kheap o := by rw [e1]; exact hne
-    rcases h2.2.2 o e2 with ⟨ao, ao', h, h'⟩ | ⟨r, cs, cs', h, hw, h'⟩ | ⟨t, t', h, h'⟩ <;> rw [e1] at h
+    rcases h2.2.2.1 o e2 with ⟨ao, ao', h, h'⟩ | ⟨r, cs, cs', h, hw, h'⟩ | ⟨t, t', h, h'⟩ <;> rw [e1] at h
     · exact Or.inl ⟨ao, ao', h, h'⟩
     · exact Or.inr (Or.inl ⟨r, cs, cs', h, hw, h'⟩)
     · exact Or.inr (Or.inr ⟨t, t', h, h'⟩)
-  · rcases h1.2.2 o e1 with ⟨ao, ao', h, h'⟩ | ⟨r, cs, cs', h, hw, h'⟩ | ⟨t, t', h, h'⟩
+  · rcases h1.2.2.1 o e1 with ⟨ao, ao', h, h'⟩ | ⟨r, cs, cs', h, hw, h'⟩ | ⟨t, t', h, h'⟩
     · by_cases e2 : σ3.kheap o = σ2.kheap o
       · exact Or.inl ⟨ao, ao', h, e2 ▸ h'⟩
-      · rcases h2.2.2 o e2 with ⟨bo, bo', g, g'⟩ | ⟨r', ds, ds', g, gw, g'⟩ | ⟨u, u', g, g'⟩ <;> rw [h'] at g <;>
+      · rcases h2.2.2.1 o e2 with ⟨bo, bo', g, g'⟩ | ⟨r', ds, ds', g, gw, g'⟩ | ⟨u, u', g, g'⟩ <;> rw [h'] at g <;>
           cases g
         exact Or.inl ⟨ao, bo', h, g'⟩
     · by_cases e2 : σ3.kheap o = σ2.kheap o
       · exact Or.inr (Or.inl ⟨r, cs, cs', h, hw, e2 ▸ h'⟩)
-      · rcases h2.2.2 o e2 with ⟨bo, bo', g, g'⟩ | ⟨r', ds, ds', g, gw, g'⟩ | ⟨u, u', g, g'⟩ <;> rw [h'] at g <;>
+      · rcases h2.2.2.1 o e2 with ⟨bo, bo', g, g'⟩ | ⟨r', ds, ds', g, gw, g'⟩ | ⟨u, u', g, g'⟩ <;> rw [h'] at g <;>
           cases g
         exact Or.inr (Or.inl ⟨r, cs, ds', h, hw, g'⟩)
     · by_cases e2 : σ3.kheap o = σ2.kheap o
       · exact Or.inr (Or.inr ⟨t, t', h, e2 ▸ h'⟩)
-      · rcases h2.2.2 o e2 with ⟨bo, bo', g, g'⟩ | ⟨r', ds, ds', g, gw, g'⟩ | ⟨u, u', g, g'⟩ <;> rw [h'] at g <;>
+      · rcases h2.2.2.1 o e2 with ⟨bo, bo', g, g'⟩ | ⟨r', ds, ds', g, gw, g'⟩ | ⟨u, u', g, g'⟩ <;> rw [h'] at g <;>
           cases g
         exact Or.inr (Or.inr ⟨t, u', h, g'⟩)
 
@@ -194,7 +195,7 @@ theorem KFoot.trans {σ1 σ2 σ3 : Fl4Spec.State Unit} (h1 : KFoot σ1 σ2) (h2 
 theorem KFoot.sts {σ : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x : Fl4Spec.Tcb} (hk : σ.kheap t = some (.tcb x))
     (x' : Fl4Spec.Tcb) : KFoot σ (Notif.stsAct (Notif.updK σ t (.tcb x')) t) := by
   refine ⟨by unfold Notif.stsAct Notif.updK; split_ifs <;> rfl, by unfold Notif.stsAct Notif.updK; split_ifs <;> rfl,
-    fun o hne => ?_⟩
+    fun o hne => ?_, by unfold Notif.stsAct Notif.updK; split_ifs <;> rfl⟩
   rw [Notif.stsAct_kheap, Notif.updK_kheap] at hne ⊢
   by_cases e : o = t
   · subst e; exact Or.inr (Or.inr ⟨x, x', hk, by rw [Function.update_self]⟩)
@@ -204,7 +205,7 @@ theorem KFoot.sts {σ : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x : Fl4Spec.Tc
 theorem KFoot.cnode {σ : Fl4Spec.State Unit} {p : Fl4Spec.ObjRef} {r : Nat} {cs : Fl4Spec.CnodeContents}
     (hk : σ.kheap p = some (.cnode r cs)) (hwf : Fl4Spec.wellFormedCnodeN r cs) (idx : List Bool) (a : Fl4Spec.Cap) :
     KFoot σ (setCnodeSlot σ p r cs idx a) := by
-  refine ⟨rfl, rfl, fun o hne => ?_⟩
+  refine ⟨rfl, rfl, fun o hne => ?_, rfl⟩
   by_cases e : o = p
   · subst e; exact Or.inr (Or.inl ⟨r, cs, Function.update cs idx (some a), hk, hwf, by simp [setCnodeSlot]⟩)
   · exact absurd (by simp [setCnodeSlot, e]) hne
@@ -213,7 +214,7 @@ theorem KFoot.cnode {σ : Fl4Spec.State Unit} {p : Fl4Spec.ObjRef} {r : Nat} {cs
 theorem KFoot.arch {σ : Fl4Spec.State Unit} {p : Fl4Spec.ObjRef} {ao : Fl4Spec.ArchKernelObj}
     (hk : σ.kheap p = some (.archObj ao)) (ao' : Fl4Spec.ArchKernelObj) :
     KFoot σ (Notif.updK σ p (.archObj ao')) := by
-  refine ⟨rfl, rfl, fun o hne => ?_⟩
+  refine ⟨rfl, rfl, fun o hne => ?_, rfl⟩
   rw [Notif.updK_kheap] at hne ⊢
   by_cases e : o = p
   · subst e; exact Or.inl ⟨ao, ao', hk, by rw [Function.update_self]⟩
@@ -221,7 +222,7 @@ theorem KFoot.arch {σ : Fl4Spec.State Unit} {p : Fl4Spec.ObjRef} {ao : Fl4Spec.
 
 /-- The machine state changed. -/
 theorem KFoot.ms (σ : Fl4Spec.State Unit) (ms : Fl4Spec.MachineState) : KFoot σ { σ with machineState := ms } :=
-  ⟨rfl, rfl, fun _ h => absurd rfl h⟩
+  ⟨rfl, rfl, fun _ h => absurd rfl h, rfl⟩
 
 end
 

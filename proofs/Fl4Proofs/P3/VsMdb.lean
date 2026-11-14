@@ -41,7 +41,7 @@ theorem KFoot.ksub {σ σ' : Fl4Spec.State Unit} (h : KFoot σ σ') : KSub σ σ
   intro o
   by_cases e : σ'.kheap o = σ.kheap o
   · exact ⟨fun r cs hc hw => ⟨cs, e ▸ hc, hw⟩, fun t ht => ⟨t, e ▸ ht⟩, fun hn => e ▸ hn⟩
-  · rcases h.2.2 o e with ⟨ao, ao', h1, h2⟩ | ⟨r, cs, cs', h1, hw, h2⟩ | ⟨t, t', h1, h2⟩
+  · rcases h.2.2.1 o e with ⟨ao, ao', h1, h2⟩ | ⟨r, cs, cs', h1, hw, h2⟩ | ⟨t, t', h1, h2⟩
     · refine ⟨fun r cs hc _ => ?_, fun t ht => ?_, fun hn => ?_⟩ <;> simp_all
     · refine ⟨fun r' cs'' hc _ => ?_, fun t ht => ?_, fun hn => ?_⟩
       · rw [h2] at hc; cases hc; exact ⟨cs, h1, hw⟩

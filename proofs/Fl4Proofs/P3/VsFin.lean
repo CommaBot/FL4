@@ -123,11 +123,11 @@ theorem KStep.arch {σ σ' : Fl4Spec.State Unit}
   obtain ⟨p, f, f', hk, rfl⟩ := h; exact ⟨KFoot.arch hk _, rfl⟩
 
 theorem KStep.cr3 (σ : Fl4Spec.State Unit) (c : Fl4Spec.Cr3) : KStep σ (cr3Upd σ c) :=
-  ⟨⟨rfl, rfl, fun _ h => absurd rfl h⟩, rfl⟩
+  ⟨⟨rfl, rfl, fun _ h => absurd rfl h, rfl⟩, rfl⟩
 
 theorem KStep.table (σ : Fl4Spec.State Unit) (t : Fl4Spec.AsidHighIndex → Option Fl4Spec.ObjRef) :
     KStep σ { σ with archState := { σ.archState with x64AsidTable := t } } :=
-  ⟨⟨rfl, rfl, fun _ h => absurd rfl h⟩, rfl⟩
+  ⟨⟨rfl, rfl, fun _ h => absurd rfl h, rfl⟩, rfl⟩
 
 theorem KStep.flushTable {σ σ' : Fl4Spec.State Unit} {vs : Fl4Spec.ObjRef} {v : Fl4Spec.VSpaceRef}
     {pt : Fl4Spec.ObjRef} {asid : Fl4Spec.Asid}
