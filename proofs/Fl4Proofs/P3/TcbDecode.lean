@@ -6,7 +6,7 @@ posted as `DecOK` (`TopPost`).
 
 Each label of FL4 is one hypothesis (`TcbOK` at that label), to be
 discharged by the subsystem it belongs to: the CSpace-side labels in this
-directory (`SetTLSBase` here), the scheduler-side ones (SetPriority,
+directory (`TcbTls`, `TcbCtl`: `tcb_decode_cspace`), the scheduler-side ones (SetPriority,
 SetMCPriority, SetSchedParams, Suspend, Resume, Bind/UnbindNotification,
 the scheduling part of Configure) by the scheduler's proofs. Every other
 label is the spec's `IllegalOperation` (proved). The FL4 debug and l4h

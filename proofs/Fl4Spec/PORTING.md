@@ -379,6 +379,14 @@ details.
   (`fl4DeriveSubframeLabel`), `Page_TestAndClearAccessed`
   (`fl4TestAndClearLabel`). How FL4's ABI labels map to these numbers is a
   hypothesis of each refinement.
+- **Known gap: FL4's TCB extension labels.** FL4's TCB labels
+  `TCBSetBreakpoint`, `TCBGetBreakpoint`, `TCBUnsetBreakpoint`,
+  `TCBConfigureSingleStepping` (seL4's debug API, which l4v does not
+  model), `TCBReadFPU`, `TCBWriteFPU` and `TCBSetTimer` (l4h) have no
+  counterpart in `decodeTcbInvocation`, which
+  returns `IllegalOperation` for them. The dispatcher has no extension for
+  them yet, so their refinements remain hypotheses
+  (`tcb_decode_refines`, `Fl4Proofs/P3/TcbDecode.lean`).
 
 ## Platform constants
 
