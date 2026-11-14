@@ -87,7 +87,7 @@ theorem SchedRel.set_sc_tcb {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
       by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.yieldFrom,
       by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.sporadic, by rw [em]; exact hx.max,
       by rw [hrs]; exact hx.refills⟩
-  exact ⟨hS.sc_update hsc hk hwr em (hw _ (by simp) (by simp) (by decide)) _ hx', scin_footEq hS hsc hwr, KView.of_sc hk⟩
+  exact ⟨hS.sc_update hsc hk (hwr.mono fun b hb => hx.in_obj hb) (hw _ (by simp) (by simp) (by decide)) _ hx', scin_footEq hS hsc hwr, KView.of_sc hk⟩
 
 /-- Writing a TCB's `SC` word, with `0` or an SC of `C`. -/
 theorem SchedRel.set_tcb_sc {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
@@ -112,12 +112,12 @@ theorem SchedRel.set_tcb_sc {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
     show core.num.U64.wrapping_add y K ≠ core.num.U64.wrapping_add t 3464#u64
     rw [Ne, tt_eq_iff (hc.tcbs y hy) hta h1 (by simp)]
     rintro ⟨rfl, rfl⟩; exact h3 rfl rfl
-  have hcag : CAgree st T c s s' := ⟨hk', L.cpu_wr _ _ _, fun o ho h8 _ _ _ _ => nout o ho h8,
+  have hcag : CAgree st T c s s' := ⟨hk', L.cpu_wr _ _ _, fun o ho h8 _ _ _ _ _ => nout o ho h8,
     fun y hy K hK => by
       obtain ⟨h1, h2, -⟩ := schedField_ok (K := K) (by rcases hK with h | h | h | h | h <;> simp [SchedField, h])
       exact tf y hy K h1 h2 (fun _ => by rcases hK with h | h | h | h | h <;> subst h <;> decide)⟩
   have hscw : ∀ sc ∈ C, ScAgree st s s' sc := fun sc hsc a ha hin => nfo a ha (fun e => by
-    have := (hS.scOut sc hsc a hin).2.2.1 t ht
+    have := (hS.scOutIn hsc hin).2.2.1 t ht
     rw [e, show (scA t).val = t.val + 3464 from by
       have := hta.fits; simp [scA, core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega] at this
     omega)
@@ -131,12 +131,14 @@ theorem SchedRel.set_tcb_sc {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
       have := hta.fits; simp [scA, core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega] at this
     omega)
   refine ⟨⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk']; exact hS.nodeNW o ho,
-    by rw [curDomA_ksb hk']; exact hS.domNW, scOut_transfer hk' hm hS.scOut, scDisj_transfer hm hS.scDisj,
+    by rw [curDomA_ksb hk']; exact hS.domNW, scOut_transfer hk' (SzKeep.updK hk fun _ _ e => by cases e) hS.scOut,
+    scDisj_transfer (SzKeep.updK hk fun _ _ e => by cases e) hS.scDisj,
     by rw [nw _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])]; exact hS.actW,
     by rw [nw _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])]; exact hS.act,
     by rw [nw _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])]; exact hS.repr,
     hs.core_eq hscw hS.core, Q, R, hc.agree hcag, ?_⟩, ?_, ?_⟩
-  · refine ⟨hs.rq, hs.rqDom, hs.rel, ?_, ?_, ?_, ?_, ?_, fun y hy => ?_, fun y hy => ?_, fun sc hsc => ?_⟩
+  · refine ⟨hs.rq, hs.rqDom, hs.rel, ?_, ?_, ?_, ?_, ?_, fun y hy => ?_, fun y hy => ?_, fun sc hsc => ?_,
+      by rw [nw _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])]; exact hs.idleSc⟩
     · rw [nw _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])]; exact hs.curThread
     · rw [nw _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])]; exact hs.curSc
     · rw [nw _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])]; exact hs.curTime

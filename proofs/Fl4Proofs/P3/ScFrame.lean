@@ -111,7 +111,8 @@ theorem SchedSpec.transfer {T C C' : Set U64} {c : U64} {s s' : S} {Q : U64 → 
   have w : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → o.val ≠ 16 → o.val ≠ 56 → nodeW st s' c o = nodeW st s c o :=
     fun o h1 h2 h3 h4 => ha.nodeW h1 h2 h3 h4
   refine ⟨fun p hp => by rw [e1]; exact h.rq p hp, fun d p hd => by rw [e1]; exact h.rqDom d p hd,
-    by rw [e2]; exact h.rel, ?_, ?_, ?_, ?_, ?_, fun t ht => ?_, fun t ht => ?_, hscs⟩
+    by rw [e2]; exact h.rel, ?_, ?_, ?_, ?_, ?_, fun t ht => ?_, fun t ht => ?_, hscs,
+    by rw [w _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])]; exact h.idleSc⟩
   · rw [e3, w _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])
       (by simp [layout.node.CUR_THREAD])]; exact h.curThread
   · rw [e4, w _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
@@ -158,7 +159,7 @@ theorem scin_footEq {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State U
     FootEq N T (L.mem s) (L.mem s') := by
   intro a ha hf
   refine hw.mem_eq ha fun hin => ?_
-  obtain ⟨h1, -, h3, -⟩ := hS.scOut sc0 hsc0 a hin
+  obtain ⟨h1, -, h3, -⟩ := hS.scOutIn hsc0 hin
   rcases hf with hf | ⟨t, ht, e | e | e | e | e | e⟩
   · exact h1 (Or.inl hf)
   · exact h1 (Or.inr ⟨t, ht, Or.inl e⟩)
@@ -171,12 +172,33 @@ theorem scin_footEq {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State U
   · exact h1 (Or.inr ⟨t, ht, Or.inr (Or.inr (Or.inr (Or.inl e)))⟩)
   · exact h1 (Or.inr ⟨t, ht, Or.inr (Or.inr (Or.inr (Or.inr e)))⟩)
 
-/-- **Writes inside one SC**, with the spec's SC object replaced by a related
-one of the same size and refill-max, keep `SchedRel`. -/
+/-- Writes inside the object of the SC `sc0` are outside the notification
+footprint. -/
+theorem scobj_footEq {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) {sc0 : U64} (hsc0 : sc0 ∈ C) {x0 : Fl4Spec.SchedContext} {n : Nat}
+    (hk : σ.kheap sc0.bv = some (.schedContext x0 n)) (hw : WritesIn st s s' (ScObj sc0 n)) :
+    FootEq N T (L.mem s) (L.mem s') := by
+  intro a ha hf
+  refine hw.mem_eq ha fun hin => ?_
+  obtain ⟨h1, -, h3, -⟩ := hS.scOut sc0 hsc0 x0 n hk a hin
+  rcases hf with hf | ⟨t, ht, e | e | e | e | e | e⟩
+  · exact h1 (Or.inl hf)
+  · exact h1 (Or.inr ⟨t, ht, Or.inl e⟩)
+  · exact h1 (Or.inr ⟨t, ht, Or.inr (Or.inl e)⟩)
+  · exact h1 (Or.inr ⟨t, ht, Or.inr (Or.inr (Or.inl e))⟩)
+  · subst e
+    have hta := hS.placed.tcb t ht
+    have := h3 t ht
+    rw [prioA_val hta] at this; omega
+  · exact h1 (Or.inr ⟨t, ht, Or.inr (Or.inr (Or.inr (Or.inl e)))⟩)
+  · exact h1 (Or.inr ⟨t, ht, Or.inr (Or.inr (Or.inr (Or.inr e)))⟩)
+
+/-- **Writes inside one SC object**, with the spec's SC object replaced by a
+related one of the same size, keep `SchedRel`. -/
 theorem SchedRel.sc_update {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) {sc0 : U64} (hsc0 : sc0 ∈ C) {x0 : Fl4Spec.SchedContext} {n : Nat}
-    (hk : σ.kheap sc0.bv = some (.schedContext x0 n)) (hw : WritesIn st s s' (ScIn st s sc0))
-    (hm0 : L.rmax s' sc0 = L.rmax s sc0) (hc0 : L.mem s' (scW sc0 16#u64) = L.mem s (scW sc0 16#u64))
+    (hk : σ.kheap sc0.bv = some (.schedContext x0 n)) (hw : WritesIn st s s' (ScObj sc0 n))
+    (hc0 : L.mem s' (scW sc0 16#u64) = L.mem s (scW sc0 16#u64))
     (x : Fl4Spec.SchedContext) (hx : ScRel1 st s' sc0 x n) :
     SchedRel st N T C c s' (updSc σ sc0.bv x n) := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
@@ -184,29 +206,23 @@ theorem SchedRel.sc_update {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.
   have hk' : L.ksb s' = L.ksb s := hw.1
   have nout : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o) :=
     fun o ho h8 => hw.mem_eq (nodeAt_aligned hN ho h8) fun hin => by
-      have := (hS.scOut sc0 hsc0 _ hin).2.1; rw [nodeAt_val hN ho] at this; omega
+      have := (hS.scOut sc0 hsc0 x0 n hk _ hin).2.1; rw [nodeAt_val hN ho] at this; omega
   have hoth : ∀ sc ∈ C, sc ≠ sc0 → ScAgree st s s' sc := fun sc hsc hne a ha hin =>
-    hw.mem_eq ha (hS.scDisj sc hsc sc0 hsc0 hne a hin)
+    hw.mem_eq ha (hS.scDisjIn hsc hsc0 hne hk hin)
   have hag : SAgree st T {sc | sc ∈ C ∧ sc ≠ sc0} c s s' := by
     refine ⟨hk', hw.2.1, fun o ho h8 _ _ => nout o ho h8, fun y hy K hK => ?_, ?_, fun sc ⟨hsc, hne⟩ => hoth sc hsc hne⟩
     · obtain ⟨h1, h2, -⟩ := schedField_ok hK
       refine hw.mem_eq (field_aligned (hc.tcbs y hy) h1 h2) fun hin => ?_
-      have := (hS.scOut sc0 hsc0 _ hin).2.2.1 y hy
+      have := (hS.scOut sc0 hsc0 x0 n hk _ hin).2.2.1 y hy
       rw [tfield_val (hc.tcbs y hy) h1] at this; omega
     · refine hw.mem_eq (curDomA_aligned hN) fun hin => ?_
-      have := (hS.scOut sc0 hsc0 _ hin).2.2.2
+      have := (hS.scOut sc0 hsc0 x0 n hk _ hin).2.2.2
       rw [curDomA_val hN] at this; omega
-  have hm : ∀ sc ∈ C, L.rmax s' sc = L.rmax s sc := by
-    intro sc hsc
-    by_cases e : sc = sc0
-    · subst e; exact hm0
-    · obtain ⟨y, m, -, ey⟩ := hs.scs sc hsc
-      simp only [LawfulStore.rmax, maxA_eq]
-      exact hoth sc hsc e _ (ey.hdr (by simp) (by simp)).1 (ey.hdr (by simp) (by simp)).2
+  have hz : SzKeep σ (updSc σ sc0.bv x n) := SzKeep.updK hk fun x' n' e => by cases e; exact ⟨x0, rfl⟩
   have nw : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → nodeW st s' c o = nodeW st s c o := by
     intro o ho h8; unfold Fl4Proofs.P3.Sched.nodeW; rw [nodeAt_ksb hk']; exact nout o ho h8
   refine ⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk']; exact hS.nodeNW o ho,
-    by rw [curDomA_ksb hk']; exact hS.domNW, scOut_transfer hk' hm hS.scOut, scDisj_transfer hm hS.scDisj,
+    by rw [curDomA_ksb hk']; exact hS.domNW, scOut_transfer hk' hz hS.scOut, scDisj_transfer hz hS.scDisj,
     by rw [nw _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])]; exact hS.actW,
     by rw [nw _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])]; exact hS.act,
     by rw [nw _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])]; exact hS.repr,
@@ -252,7 +268,7 @@ theorem SchedRel.set_reprogram {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec
       refine rd_wr_ne hA hal fun e => ?_
       have := congrArg UScalar.val e
       rw [nodeAt_val hN (by omega)] at this
-      have := (hS.scOut sc hsc a hin).2.1; omega
+      have := (hS.scOutIn hsc hin).2.1; omega
   have hrp : nodeW st s' c layout.node.REPROGRAM = 1#u64 := by
     unfold Fl4Proofs.P3.Sched.nodeW; rw [nodeAt_ksb hk]; exact rd_wr_eq hA
   have hact : nodeW st s' c layout.node.SCHED_ACTION = nodeW st s c layout.node.SCHED_ACTION := by
@@ -263,12 +279,12 @@ theorem SchedRel.set_reprogram {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec
     simp [layout.node.SCHED_ACTION] at this
   have hm := hs.rmax_eq hag.sc
   refine ⟨⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk]; exact hS.nodeNW o ho,
-    by rw [curDomA_ksb hk]; exact hS.domNW, scOut_transfer hk hm hS.scOut, scDisj_transfer hm hS.scDisj,
+    by rw [curDomA_ksb hk]; exact hS.domNW, scOut_transfer hk (SzKeep.of_kheap rfl) hS.scOut, scDisj_transfer (SzKeep.of_kheap rfl) hS.scDisj,
     by rw [hact]; exact hS.actW, by rw [hact]; exact hS.act, by rw [hrp]; rfl, hs.core_eq hag.sc hS.core, Q, R, hc.agree hag.toC, ?_⟩,
     node_wr_foot hS (by omega) (by omega), writesIn_wr hA⟩
   have hs' := hs.agree hag
   exact ⟨hs'.rq, hs'.rqDom, hs'.rel, hs'.curThread, hs'.curSc, hs'.curTime, hs'.consumed,
-    hs'.curDom, hs'.tcb, hs'.scMem, hs'.scs⟩
+    hs'.curDom, hs'.tcb, hs'.scMem, hs'.scs, hs'.idleSc⟩
 
 end
 

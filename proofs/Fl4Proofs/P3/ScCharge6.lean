@@ -402,7 +402,7 @@ theorem charge_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : 
     exact ⟨fun h e => h (eq_of_bv e), fun h e => h (by rw [e])⟩
   refine WP.spec_bind (charge_head_refines s a σ hS hR hN hI hscC htw hact hnr hmrt hmb used _ hb) ?_
   rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, hK⟩
-  have ⟨hcs, hcc, _, _, hfr, hsck⟩ := hK
+  have ⟨hcs, hcc, _, _, _, hfr, hsck⟩ := hK
   obtain ⟨y2, hky, hyt, -⟩ := hsck x n hk
   have hkt2 : σ2.kheap (nodeW st s c layout.node.CUR_THREAD).bv = some (.tcb xt) := by
     rw [hfr _ (fun e => by rw [e, hk] at hkt; cases hkt)]; exact hkt

@@ -55,7 +55,7 @@ theorem SchedRel.set_sc_consumed {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Sp
       by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.yieldFrom,
       by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.sporadic, by rw [em]; exact hx.max,
       by rw [hrs]; exact hx.refills⟩
-  exact ⟨hS.sc_update hsc hk hwr em (hw _ (by simp) (by simp) (by decide)) _ hx', scin_footEq hS hsc hwr,
+  exact ⟨hS.sc_update hsc hk (hwr.mono fun b hb => hx.in_obj hb) (hw _ (by simp) (by simp) (by decide)) _ hx', scin_footEq hS hsc hwr,
     KView.of_sc hk⟩
 
 /-- Writing the node's `CONSUMED` word. -/
@@ -94,12 +94,12 @@ theorem SchedRel.set_node_consumed {N T C : Set U64} {c : U64} {s : S} {σ : Fl4
     refine rd_wr_ne hA hal fun e => ?_
     have := congrArg UScalar.val e
     rw [nodeAt_val hN (by omega)] at this
-    have := (hS.scOut sc hsc a hin).2.1; omega
-  have hca : CAgree st T c s s' := ⟨hk, L.cpu_wr _ _ _, fun o ho h8 _ _ h _ => hne o ho h8 h,
+    have := (hS.scOutIn hsc hin).2.1; omega
+  have hca : CAgree st T c s s' := ⟨hk, L.cpu_wr _ _ _, fun o ho h8 _ _ h _ _ => hne o ho h8 h,
     fun y hy K hK => htf y hy K (by rcases hK with h | h | h | h | h <;> simp [SchedField, h])⟩
   have hm := hs.rmax_eq hscw
   refine ⟨⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk]; exact hS.nodeNW o ho,
-    by rw [curDomA_ksb hk]; exact hS.domNW, scOut_transfer hk hm hS.scOut, scDisj_transfer hm hS.scDisj,
+    by rw [curDomA_ksb hk]; exact hS.domNW, scOut_transfer hk (SzKeep.of_kheap rfl) hS.scOut, scDisj_transfer (SzKeep.of_kheap rfl) hS.scDisj,
     by rw [nw _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])
       (by simp [layout.node.SCHED_ACTION])]; exact hS.actW,
     by rw [nw _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])
@@ -107,7 +107,8 @@ theorem SchedRel.set_node_consumed {N T C : Set U64} {c : U64} {s : S} {σ : Fl4
     by rw [nw _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])
       (by simp [layout.node.REPROGRAM])]; exact hS.repr,
     hs.core_eq hscw hS.core, Q, R, hc.agree hca, ?_⟩, node_wr_foot hS (by omega) (by omega), nw⟩
-  refine ⟨hs.rq, hs.rqDom, hs.rel, ?_, ?_, ?_, ?_, ?_, fun y hy => ?_, fun y hy => ?_, fun sc hsc => ?_⟩
+  refine ⟨hs.rq, hs.rqDom, hs.rel, ?_, ?_, ?_, ?_, ?_, fun y hy => ?_, fun y hy => ?_, fun sc hsc => ?_,
+    by rw [nw layout.node.IDLE_SC (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])]; exact hs.idleSc⟩
   · rw [nw layout.node.CUR_THREAD (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])
       (by simp [layout.node.CUR_THREAD])]; exact hs.curThread
   · rw [nw layout.node.CUR_SC (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])

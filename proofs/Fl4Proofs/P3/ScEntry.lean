@@ -16,8 +16,8 @@ scheduler is asked to choose a new thread (l4v `cur_sc_tcb` is guarded by
 the current thread (`commit_time_cur`).
 
 What remains as hypotheses: the clock (`hnow`), one domain (`hnd`), the
-platform constants (`hmrt`, `hmb`), the idle SC word (`hidle`, fixed at
-boot), and the timeout-fault IPC (`hval`, `hto`).
+platform constants (`hmrt`, `hmb`), and the timeout-fault IPC (`hval`,
+`hto`). The idle SC word is part of the relation (`SchedSpec.idleSc`).
 -/
 import Fl4Proofs.P3.ScTime
 open Aeneas Aeneas.Std Result
@@ -34,7 +34,7 @@ variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulSt
 check_budget_restart`** and ends in full `Inv`. -/
 theorem budget_ok_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
-    (hC : CurInv σ) (hidle : (nodeW st s c layout.node.IDLE_SC).bv = Fl4Spec.idleScPtr)
+    (hC : CurInv σ)
     (hnd : Fl4Spec.numDomains = 1)
     (hnow : ar.now a ⦃ r => ∃ ms, Fl4Spec.doMachineOp (Z := Unit) Fl4Spec.getCurrentTime σ =
       ({(r.1.bv, { σ with machineState := ms })}, False) ∧ σ.curTime ≤ r.1.bv ⦄)
@@ -67,11 +67,8 @@ theorem budget_ok_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4S
   have e_sc : nodeW st s1 c layout.node.CUR_SC = nodeW st s c layout.node.CUR_SC :=
     hnw _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
       (by simp [layout.node.CUR_SC])
-  have e_idle : nodeW st s1 c layout.node.IDLE_SC = nodeW st s c layout.node.IDLE_SC :=
-    hnw _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])
-      (by simp [layout.node.IDLE_SC])
   refine WP.spec_mono (check_budget_restart_refines s1 a1 σ1 hS1 hR1 hN1 hI1 hscC hsc0 htw hts
-    (by rw [e_idle]; exact hidle) hact hnr hnb hnd (hmrt a1) (hmb a1) (by rw [e_ct]; exact hval)
+    hS1.idle hact hnr hnb hnd (hmrt a1) (hmb a1) (by rw [e_ct]; exact hval)
     (fun s' σ' => by rw [e_ct, e_sc]; exact hto s' a1 σ')) ?_
   rintro r ⟨σ', h2, hS2, hI2, hR2, hN2, hC2⟩
   exact ⟨σ', by rw [nd_bind_one h1]; exact h2, hS2, hI2, hR2, hN2, hC2 hC1⟩
@@ -80,7 +77,7 @@ theorem budget_ok_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4S
 `update_time_stamp; check_budget`** and ends in full `Inv`. -/
 theorem entry_check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
-    (hC : CurInv σ) (hidle : (nodeW st s c layout.node.IDLE_SC).bv = Fl4Spec.idleScPtr)
+    (hC : CurInv σ)
     (hnd : Fl4Spec.numDomains = 1)
     (hnow : ar.now a ⦃ r => ∃ ms, Fl4Spec.doMachineOp (Z := Unit) Fl4Spec.getCurrentTime σ =
       ({(r.1.bv, { σ with machineState := ms })}, False) ∧ σ.curTime ≤ r.1.bv ⦄)
@@ -114,15 +111,12 @@ theorem entry_check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (
   have e_sc : nodeW st s1 c layout.node.CUR_SC = nodeW st s c layout.node.CUR_SC :=
     hnw _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
       (by simp [layout.node.CUR_SC])
-  have e_idle : nodeW st s1 c layout.node.IDLE_SC = nodeW st s c layout.node.IDLE_SC :=
-    hnw _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])
-      (by simp [layout.node.IDLE_SC])
   have hkp : ∃ x n, σ1.kheap (nodeW st s1 c layout.node.CUR_SC).bv = some (.schedContext x n) := by
     obtain ⟨Q, R, hc, hs⟩ := hS1.lists
     obtain ⟨x, n, hk, -⟩ := hs.scs _ hscC
     exact ⟨x, n, hk⟩
   refine WP.spec_mono (check_budget_refines s1 a1 σ1 hS1 hR1 hN1 hI1 hscC hsc0 htw hts
-    (by rw [e_idle]; exact hidle) hact hnr hnb hnd (hmrt a1) (hmb a1) (by rw [e_ct]; exact hval)
+    hS1.idle hact hnr hnb hnd (hmrt a1) (hmb a1) (by rw [e_ct]; exact hval)
     (fun s' σ' => by rw [e_ct, e_sc]; exact hto s' a1 σ')) ?_
   rintro r ⟨σ', h2, hS2, hI2, hR2, hN2, hK⟩
   exact ⟨σ', by rw [nd_bind_one h1]; exact h2, hS2, hI2, hR2, hN2, hK.imp id fun hK => hC1.keeps hK hkp⟩
@@ -131,7 +125,7 @@ theorem entry_check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (
 except for the current thread). -/
 theorem commit_time_cur {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
-    (hC : CurInv σ) (hidle : (nodeW st s c layout.node.IDLE_SC).bv = Fl4Spec.idleScPtr)
+    (hC : CurInv σ)
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
     sched.commit_time st ar s a ⦃ s' => ∃ σ', Fl4Spec.commitTime (Z := Unit) σ = ({((), σ')}, False) ∧
@@ -142,8 +136,16 @@ theorem commit_time_cur {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spe
     obtain ⟨Q, R, hc, hs⟩ := hS.lists
     obtain ⟨x, n, hk, -⟩ := hs.scs _ hscC
     exact ⟨x, n, hk⟩
-  refine WP.spec_mono (commit_time_refines s a σ hS hR hN hI hscC htw hidle hnr hmrt hmb) ?_
-  rintro s' ⟨σ', h1, h2, h3, h4, h5, hK⟩
+  have hown0 : ∀ x n, σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) →
+      x.scTcb = some (nodeW st s c layout.node.CUR_THREAD).bv := by
+    intro x n hk
+    obtain ⟨Q, R, hc, hs⟩ := hS.lists
+    obtain ⟨xt, hkt, hxs, -⟩ := hC.tcb
+    obtain ⟨y, m, hky, hyt⟩ := hI.back _ xt _ hkt hxs
+    rw [hs.curSc, hk] at hky; cases hky
+    rw [hyt, hs.curThread]
+  refine WP.spec_mono (commit_time_refines s a σ hS hR hN hI hscC hown0 hS.idle hnr hmrt hmb) ?_
+  rintro s' ⟨σ', h1, h2, h3, h4, h5, hK, -⟩
   exact ⟨σ', h1, h2, h3, h4, h5, hC.keeps hK hkp⟩
 
 end

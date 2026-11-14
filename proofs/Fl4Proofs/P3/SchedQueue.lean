@@ -100,7 +100,7 @@ theorem SchedRel.qstep {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.Stat
     · have := hc.ksOut y hy; rw [hv]; omega
     · rw [hv]; simp only [LawfulStore.nodeBase]; omega
   have hmx : ∀ sc ∈ C, ScAgree st s s' sc := fun sc hsc a ha hin =>
-    hw.mem_eq ha (not_qfoot_out hT hW hN hc.cur ht (hS.scOut sc hsc a hin).2.2.1 (hS.scOut sc hsc a hin).2.1)
+    hw.mem_eq ha (not_qfoot_out hT hW hN hc.cur ht (hS.scOutIn hsc hin).2.2.1 (hS.scOutIn hsc hin).2.1)
   have hm := hs.rmax_eq hmx
   -- members of other queues and of the release queue are outside `W`
   have hWR : ∀ y ∈ R, y ∉ W := by
@@ -155,12 +155,13 @@ theorem SchedRel.qstep {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.Stat
     · rw [hnode _ (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])
         (by simp [layout.node.IDLE_THREAD])]; exact hc.idleT
   refine ⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk]; exact hS.nodeNW o ho,
-    by rw [curDomA_ksb hk]; exact hS.domNW, scOut_transfer hk hm hS.scOut, scDisj_transfer hm hS.scDisj,
+    by rw [curDomA_ksb hk]; exact hS.domNW, scOut_transfer hk (SzKeep.of_kheap rfl) hS.scOut, scDisj_transfer (SzKeep.of_kheap rfl) hS.scDisj,
     by rw [hact]; exact hS.actW,
     by rw [hact]; exact hS.act, by rw [hnode _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])
       (by simp [layout.node.REPROGRAM])]; exact hS.repr, hs.core_eq hmx hS.core, Function.update Q p xs', R, hcore, ?_⟩
   refine ⟨fun p' hp' => ?_, fun d p' hd => ?_, hs.rel, ?_, ?_, ?_, ?_, ?_, fun y hy => ?_, fun y hy => ?_,
-    fun sc hsc => ?_⟩
+    fun sc hsc => ?_, by rw [hnode _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])
+      (by simp [layout.node.IDLE_SC])]; exact hs.idleSc⟩
   · show (if (0 : Fl4Spec.Domain) = 0 ∧ specPrio p' = specPrio p then _ else _) = _
     by_cases e : p' = p
     · subst e; simp

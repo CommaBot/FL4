@@ -155,12 +155,12 @@ theorem SchedRel.set_action {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
       refine rd_wr_ne hA hal fun e => ?_
       have := congrArg UScalar.val e
       rw [nodeAt_val hN (by omega)] at this
-      have := (hS.scOut sc hsc a hin).2.1; omega
+      have := (hS.scOutIn hsc hin).2.1; omega
   have hw' : nodeW st s' c layout.node.SCHED_ACTION = w := by
     unfold Fl4Proofs.P3.Sched.nodeW; rw [nodeAt_ksb hk]; exact rd_wr_eq hA
   have hm := hs.rmax_eq hag.sc
   refine ⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk]; exact hS.nodeNW o ho,
-    by rw [curDomA_ksb hk]; exact hS.domNW, scOut_transfer hk hm hS.scOut, scDisj_transfer hm hS.scDisj,
+    by rw [curDomA_ksb hk]; exact hS.domNW, scOut_transfer hk (SzKeep.of_kheap rfl) hS.scOut, scDisj_transfer (SzKeep.of_kheap rfl) hS.scDisj,
     by rw [hw']; exact hw, by rw [hw']; exact ha, ?_, hs.core_eq hag.sc hS.core, Q, R, hc.agree hag.toC, ?_⟩
   · have e : nodeW st s' c layout.node.REPROGRAM = nodeW st s c layout.node.REPROGRAM := by
       unfold Fl4Proofs.P3.Sched.nodeW; rw [nodeAt_ksb hk]
@@ -171,7 +171,7 @@ theorem SchedRel.set_action {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
     rw [e]; exact hS.repr
   have hs' := hs.agree hag
   exact ⟨hs'.rq, hs'.rqDom, hs'.rel, hs'.curThread, hs'.curSc, hs'.curTime, hs'.consumed,
-    hs'.curDom, hs'.tcb, hs'.scMem, hs'.scs⟩
+    hs'.curDom, hs'.tcb, hs'.scMem, hs'.scs, hs'.idleSc⟩
 
 /-! ## `schedule_tcb` -/
 

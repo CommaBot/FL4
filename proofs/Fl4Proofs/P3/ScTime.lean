@@ -67,12 +67,13 @@ theorem SchedRel.spec_congr {N T C : Set U64} {c : U64} {s : S} {σ σ' : Fl4Spe
     (h7 : σ'.consumedTime = σ.consumedTime) (h8 : σ'.reprogramTimer = σ.reprogramTimer)
     (h9 : σ'.curDomain = σ.curDomain) : SchedRel st N T C c s σ' := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
-  refine ⟨hS.placed, hS.nodeNW, hS.domNW, hS.scOut, hS.scDisj, hS.actW, by rw [h4]; exact hS.act,
+  refine ⟨hS.placed, hS.nodeNW, hS.domNW, scOut_transfer rfl (SzKeep.of_kheap hk) hS.scOut,
+    scDisj_transfer (SzKeep.of_kheap hk) hS.scDisj, hS.actW, by rw [h4]; exact hS.act,
     by rw [h8]; exact hS.repr, hS.core, Q, R, hc, ?_⟩
   exact ⟨fun p hp => by rw [h1]; exact hs.rq p hp, fun d p hd => by rw [h1]; exact hs.rqDom d p hd,
     by rw [h2]; exact hs.rel, by rw [h3]; exact hs.curThread, by rw [h5]; exact hs.curSc,
     by rw [h6]; exact hs.curTime, by rw [h7]; exact hs.consumed, by rw [h9]; exact hs.curDom,
-    fun t ht => by rw [hk]; exact hs.tcb t ht, hs.scMem, fun sc hsc => by rw [hk]; exact hs.scs sc hsc⟩
+    fun t ht => by rw [hk]; exact hs.tcb t ht, hs.scMem, fun sc hsc => by rw [hk]; exact hs.scs sc hsc, hs.idleSc⟩
 
 /-- Writing the node's `CUR_TIME` word. -/
 theorem SchedRel.set_node_curtime {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
@@ -110,12 +111,12 @@ theorem SchedRel.set_node_curtime {N T C : Set U64} {c : U64} {s : S} {σ : Fl4S
     refine rd_wr_ne hA hal fun e => ?_
     have := congrArg UScalar.val e
     rw [nodeAt_val hN (by omega)] at this
-    have := (hS.scOut sc hsc a hin).2.1; omega
-  have hca : CAgree st T c s s' := ⟨hk, L.cpu_wr _ _ _, fun o ho h8 _ _ _ h => hne o ho h8 h,
+    have := (hS.scOutIn hsc hin).2.1; omega
+  have hca : CAgree st T c s s' := ⟨hk, L.cpu_wr _ _ _, fun o ho h8 _ _ _ h _ => hne o ho h8 h,
     fun y hy K hK => htf y hy K (by rcases hK with h | h | h | h | h <;> simp [SchedField, h])⟩
   have hm := hs.rmax_eq hscw
   refine ⟨⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk]; exact hS.nodeNW o ho,
-    by rw [curDomA_ksb hk]; exact hS.domNW, scOut_transfer hk hm hS.scOut, scDisj_transfer hm hS.scDisj,
+    by rw [curDomA_ksb hk]; exact hS.domNW, scOut_transfer hk (SzKeep.of_kheap rfl) hS.scOut, scDisj_transfer (SzKeep.of_kheap rfl) hS.scDisj,
     by rw [nw _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])
       (by simp [layout.node.SCHED_ACTION])]; exact hS.actW,
     by rw [nw _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])
@@ -123,7 +124,8 @@ theorem SchedRel.set_node_curtime {N T C : Set U64} {c : U64} {s : S} {σ : Fl4S
     by rw [nw _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])
       (by simp [layout.node.REPROGRAM])]; exact hS.repr,
     hs.core_eq hscw hS.core, Q, R, hc.agree hca, ?_⟩, node_wr_foot hS (by omega) (by omega), nw⟩
-  refine ⟨hs.rq, hs.rqDom, hs.rel, ?_, ?_, ?_, ?_, ?_, fun y hy => ?_, fun y hy => ?_, fun sc hsc => ?_⟩
+  refine ⟨hs.rq, hs.rqDom, hs.rel, ?_, ?_, ?_, ?_, ?_, fun y hy => ?_, fun y hy => ?_, fun sc hsc => ?_,
+    by rw [nw layout.node.IDLE_SC (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])]; exact hs.idleSc⟩
   · rw [nw layout.node.CUR_THREAD (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])
       (by simp [layout.node.CUR_THREAD])]; exact hs.curThread
   · rw [nw layout.node.CUR_SC (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])

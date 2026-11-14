@@ -45,6 +45,9 @@ def toRefill (r : sporadic.Refill) : Fl4Spec.Refill := ⟨r.time.bv, r.amount.bv
 /-- The words of the SC at `sc` the relation reads. -/
 def ScIn (s : S) (sc a : U64) : Prop := sc.val ≤ a.val ∧ a.val < sc.val + 96 + 16 * (L.rmax s sc).val
 
+/-- The words of the SC object at `sc` of `2 ^ n` bytes. -/
+def ScObj (sc : U64) (n : Nat) (a : U64) : Prop := sc.val ≤ a.val ∧ a.val < sc.val + 2 ^ n
+
 /-- The SC at `sc` and the spec's `.schedContext x n`. -/
 structure ScRel1 (s : S) (sc : U64) (x : Fl4Spec.SchedContext) (n : Nat) : Prop where
   wf : RefillsWF st s sc n
@@ -122,6 +125,12 @@ theorem ScRel1.agree {s s' : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} 
     by rw [hw _ (by simp) (by simp)]; exact h.tcb, by rw [hw _ (by simp) (by simp)]; exact h.ntfn,
     by rw [hw _ (by simp) (by simp)]; exact h.badge, by rw [hw _ (by simp) (by simp)]; exact h.yieldFrom,
     by rw [hw _ (by simp) (by simp)]; exact h.sporadic, by rw [em]; exact h.max, by rw [hrs]; exact h.refills⟩
+
+/-- The words the relation reads lie in the object. -/
+theorem ScRel1.in_obj {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRel1 st s sc x n) {a : U64}
+    (ha : ScIn st s sc a) : ScObj sc n a := by
+  obtain ⟨h8, hm, hfit⟩ := h.wf.bounds
+  unfold ScIn at ha; exact ⟨ha.1, by omega⟩
 
 theorem ScIn.agree {s s' : S} {sc a : U64} (hm : L.rmax s' sc = L.rmax s sc) (h : ScIn st s sc a) :
     ScIn st s' sc a := by unfold ScIn; rw [hm]; exact h

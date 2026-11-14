@@ -239,7 +239,7 @@ theorem SchedRel.ringAt {N T C : Set U64} {c : U64} {s0 s : S} {σ : Fl4Spec.Sta
     · unfold ScIn; omega
   have hx' := hx.ring h.wf (fun K hK => hhd K (by rcases hK with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp)
     (by rcases hK with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp))
-  exact ⟨hS.sc_update hsc hk hwr hm (hhd _ (by simp) (by simp)) _ hx', scin_footEq hS hsc hwr, KView.of_sc hk⟩
+  exact ⟨hS.sc_update hsc hk (hwr.mono fun b hb => hx.in_obj hb) (hhd _ (by simp) (by simp)) _ hx', scin_footEq hS hsc hwr, KView.of_sc hk⟩
 
 end
 

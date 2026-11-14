@@ -73,7 +73,7 @@ theorem SchedRel.rstep {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.Stat
     · have h2 := hN.fits
       rw [curDomA_val hN]; simp only [LawfulStore.nodeBase] at h2 ⊢; omega
   have hmx : ∀ sc ∈ C, ScAgree st s s' sc := fun sc hsc a ha hin =>
-    hw.mem_eq ha (not_qfoot_out hT hW hN hc.cur ht (hS.scOut sc hsc a hin).2.2.1 (hS.scOut sc hsc a hin).2.1)
+    hw.mem_eq ha (not_qfoot_out hT hW hN hc.cur ht (hS.scOutIn hsc hin).2.2.1 (hS.scOutIn hsc hin).2.1)
   have hm := hs.rmax_eq hmx
   have hWQ : ∀ p : U64, p.val < 256 → ∀ y ∈ Q p, y ∉ W := by
     intro p hp y hy hyW
@@ -110,11 +110,12 @@ theorem SchedRel.rstep {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.Stat
         (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])
         (by simp [layout.node.IDLE_THREAD])]; exact hc.idleT
   refine ⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk]; exact hS.nodeNW o ho,
-    by rw [curDomA_ksb hk]; exact hS.domNW, scOut_transfer hk hm hS.scOut, scDisj_transfer hm hS.scDisj,
+    by rw [curDomA_ksb hk]; exact hS.domNW, scOut_transfer hk (SzKeep.of_kheap rfl) hS.scOut, scDisj_transfer (SzKeep.of_kheap rfl) hS.scDisj,
     by rw [hact]; exact hS.actW, by rw [hact]; exact hS.act, rfl, hs.core_eq hmx hS.core, Q, R', hcore, ?_⟩
   have w : ∀ o : U64, o.val < 64 → o.val % 8 = 0 → o.val ≠ 56 → nodeW st s' c o = nodeW st s c o :=
     fun o h1 h2 h3 => hnode o (by omega) h2 h3 (by omega) (by omega) (by omega)
-  refine ⟨hs.rq, hs.rqDom, rfl, ?_, ?_, ?_, ?_, ?_, fun y hy => ?_, fun y hy => ?_, fun sc hsc => ?_⟩
+  refine ⟨hs.rq, hs.rqDom, rfl, ?_, ?_, ?_, ?_, ?_, fun y hy => ?_, fun y hy => ?_, fun sc hsc => ?_,
+    by rw [w _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])]; exact hs.idleSc⟩
   · rw [w layout.node.CUR_THREAD (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])]
     exact hs.curThread
   · rw [w layout.node.CUR_SC (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])]

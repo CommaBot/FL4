@@ -234,7 +234,7 @@ theorem unblock_loop_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.S
           simp [toRefill, Fl4Spec.mergeRefill, core.num.U64.wrapping_add_bv_eq]
         have : xk1 = { xk with scRefills := (L.refills s2 sc).map toRefill } := by rw [e]
         rw [this]; exact hr
-      have hS2 := hSk.sc_update hsc hk hwr hm2 (by
+      have hS2 := hSk.sc_update hsc hk (hwr.mono fun b hb => hx.in_obj hb) (by
         rw [s2_post, s1_post]; exact (hdr_putS_head' hW (by rw [← s1_post, ← hm1]; exact hW1.head_lt) _ _
           (by simp)).1) xk1 hx1
       have hC : Fl4Spec.the (Fl4Spec.refillHeadOverlapping (Z := Unit) sc.bv σk) = true :=
@@ -338,7 +338,7 @@ theorem unblock_check_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.
         have : x1 = { x with scRefills := (L.refills s1 sc).map toRefill } := by rw [e]
         rw [this]; exact hr
       have hwr1 : WritesIn st s s1 (ScIn st s sc) := by rw [s1_post]; exact writesIn_putS hW hW.head_lt r
-      have hS1 := hS.sc_update hsc hk hwr1 hm1 (by
+      have hS1 := hS.sc_update hsc hk (hwr1.mono fun b hb => hx.in_obj hb) (by
         rw [s1_post]; exact (hdr_putS_head' hW (v := 0#u64) hW.head_lt _ _ (by simp)).2) x1 hx1
       -- s2: `REPROGRAM`
       have hc1 := hS1.lists.choose_spec.choose_spec.1.cur

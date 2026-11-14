@@ -35,9 +35,18 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
 * ScTime: `update_timestamp` (`update_time_stamp`); `Inv` under a later time.
 * ScEntry: the budget path at kernel entry (`budget_ok_refines`,
   `entry_check_budget_refines`) from `Inv` and `CurInv`, ending in `Inv`.
+* ScUpdate: `refill_update` (SchedControl `Configure`'s ring update); the SC
+  footprint is the object (`ScObj`), so `REFILL_MAX` may change.
+* ScHead, ScOffset: the head after a sufficient charge; l4v
+  `cur_sc_offset_ready/sufficient` (`OffOK`) and `commit_time_inv`.
+* ScSwitch: `switch_sched_context` (unblock check of the incoming SC,
+  `commit_time` of the outgoing one), keeping `Inv` and establishing `CurInv`.
+* ScSwitchTo: `switch_to_thread`, `switch_to_idle_thread` (arch switch as a
+  hypothesis); writing `CUR_THREAD`.
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
 import Fl4Proofs.P3.ScCharge8
 import Fl4Proofs.P3.ScConsumed
 import Fl4Proofs.P3.ScEntry
+import Fl4Proofs.P3.ScSwitchTo

@@ -38,28 +38,28 @@ structure CurInv (σ : State Unit) : Prop where
   notRel : σ.curThread ∉ σ.releaseQueue
 
 /-- What the budget operations keep: the current SC and thread, the release
-queue and the scheduler action, every object but the SC at `p`, and that
+queue, the scheduler action and the time, every object but the SC at `p`, and that
 SC's TCB and refill max. -/
 def HeadKeeps (σ σ2 : State Unit) (p : ObjRef) : Prop :=
   σ2.curSc = σ.curSc ∧ σ2.curThread = σ.curThread ∧ σ2.releaseQueue = σ.releaseQueue ∧
-    σ2.schedulerAction = σ.schedulerAction ∧ (∀ q, q ≠ p → σ2.kheap q = σ.kheap q) ∧
+    σ2.schedulerAction = σ.schedulerAction ∧ σ2.curTime = σ.curTime ∧ (∀ q, q ≠ p → σ2.kheap q = σ.kheap q) ∧
     ∀ x n, σ.kheap p = some (.schedContext x n) → ∃ y, σ2.kheap p = some (.schedContext y n) ∧
       y.scTcb = x.scTcb ∧ y.scRefillMax = x.scRefillMax
 
 theorem HeadKeeps.refl (σ : State Unit) (p : ObjRef) : HeadKeeps σ σ p :=
-  ⟨rfl, rfl, rfl, rfl, fun _ _ => rfl, fun x _ h => ⟨x, h, rfl, rfl⟩⟩
+  ⟨rfl, rfl, rfl, rfl, rfl, fun _ _ => rfl, fun x _ h => ⟨x, h, rfl, rfl⟩⟩
 
 theorem HeadKeeps.updSc {σ : State Unit} {p : ObjRef} {x y : SchedContext} {n : Nat}
     (hk : σ.kheap p = some (.schedContext x n)) (hy : y.scTcb = x.scTcb) (hm : y.scRefillMax = x.scRefillMax) :
     HeadKeeps σ (updSc σ p y n) p :=
-  ⟨rfl, rfl, rfl, rfl, fun q hq => by simp [updK, hq], fun x' n' h => by
+  ⟨rfl, rfl, rfl, rfl, rfl, fun q hq => by simp [updK, hq], fun x' n' h => by
     rw [hk] at h; cases h; exact ⟨y, by simp [updK], hy, hm⟩⟩
 
 /-- `CurInv` is kept by a step that keeps what `HeadKeeps` names, for an SC
 at `p`. -/
 theorem CurInv.keeps {σ σ' : State Unit} (h : CurInv σ) {p : ObjRef} (hk : HeadKeeps σ σ' p)
     (hp : ∃ x n, σ.kheap p = some (.schedContext x n)) : CurInv σ' := by
-  obtain ⟨e1, e2, e3, -, hfr, hsc⟩ := hk
+  obtain ⟨e1, e2, e3, -, -, hfr, hsc⟩ := hk
   obtain ⟨xt, hkt, hxs, hnb⟩ := h.tcb
   have hctp : σ.curThread ≠ p := by
     rintro e; obtain ⟨x, n, hx⟩ := hp; rw [← e, hkt] at hx; cases hx
@@ -163,6 +163,9 @@ end Spec
 
 section
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
+
+theorem SchedRel.idle {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ) :
+    (nodeW st s c layout.node.IDLE_SC).bv = Fl4Spec.idleScPtr := hS.lists.choose_spec.choose_spec.2.idleSc
 
 theorem word24_of {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ)
     {sc t : U64} (hsc : sc ∈ C) {x : Fl4Spec.SchedContext} {n : Nat}
