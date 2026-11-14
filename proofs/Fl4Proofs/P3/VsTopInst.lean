@@ -281,18 +281,197 @@ theorem decode_invocation_frame_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
         ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
     (hGA : lbl = fl4_abi.label.X86PageGetAddress →
-      DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
-        buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer)
+      DecOKR (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+        buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct)
     (hTAC : lbl = fl4_abi.label.X86PageTestAndClearAccessed →
-      DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
-        buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer)
+      DecOKR (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+        buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct)
     (hDS : lbl = fl4_abi.label.X86PageDeriveSubframe →
       DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
         buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer) :
     DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
-      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := decode_invocation_frame arI th hS.2.pl s ar σ G hCR hFI (vsFrameHyps_top hA) (vsFrameHypsL_top hA)
+      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ∨
+    DecOKR (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct := decode_invocation_frame arI th hS.2.pl s ar σ G hCR hFI (vsFrameHyps_top hA) (vsFrameHypsL_top hA)
     (vsFrameUnmapHyps_top hA) hS hS.2.vs hS.2.sd hS.2.pt hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlbl length buf ct hct hcur htcb
     hact hrun args hlen hargs hpc hidx hcap hfm hpaS hpaL hpaH hAl extra excaps hext blk call don fp ci buffer hGA hTAC hDS
+
+
+set_option maxHeartbeats 8000000 in
+/-- **A page-table cap with the composite relation** (`decode_invocation_page_table`; the placement from `TopPlaced`). -/
+theorem decode_invocation_page_table_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
+    {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
+    (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
+    (hPI : PoolsIn P L4 (L.mem s))
+    (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
+    (lbl : U64) (slbl : Fl4Spec.Data)
+    (hlM : lbl = fl4_abi.label.X86PageTableMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageTableMap)
+    (hlU : lbl = fl4_abi.label.X86PageTableUnmap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageTableUnmap)
+    (hlO : lbl ≠ fl4_abi.label.X86PageTableMap → lbl ≠ fl4_abi.label.X86PageTableUnmap →
+      Fl4Spec.invocationType slbl ≠ .archInvocationLabel .x64PageTableMap ∧ Fl4Spec.invocationType slbl ≠ .archInvocationLabel .x64PageTableUnmap)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
+    (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hrun : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.runnable x.tcbState = true)
+    (args : List U64) (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    {pc : U64} {r : Nat} (hpc : th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
+    {ptr asid0 va0 : U64} {mp : Bool}
+    (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.PageTable ptr mp asid0 va0)) (hpL : ptr ∈ L1)
+    (hpa : (core.num.U64.wrapping_sub ptr layout.PPTR_BASE &&& 4503599627366400#u64) =
+      core.num.U64.wrapping_sub ptr layout.PPTR_BASE)
+    (hm0 : mp = true → asid0 ≠ 0#u64 ∧ va0.bv &&& Fl4Spec.mask (Fl4Spec.ptTranslationBits + Fl4Spec.pageBits) = 0)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
+      ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
+        CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
+        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
+    (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
+    DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageTable ptr mp asid0 va0) blk call don fp
+      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
+  decode_invocation_page_table arI th hS.2.pl s ar σ G hCR hFI (vsPtMapHyps_top hA) (vsPtUnmapHyps_top hA) hS hS.2.vs hS.2.sd hS.2.pt
+    hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
+    hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer
+
+set_option maxHeartbeats 8000000 in
+/-- **A page-directory cap with the composite relation** (`decode_invocation_page_directory`; the placement from `TopPlaced`). -/
+theorem decode_invocation_page_directory_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
+    {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
+    (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
+    (hPI : PoolsIn P L4 (L.mem s))
+    (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
+    (lbl : U64) (slbl : Fl4Spec.Data)
+    (hlM : lbl = fl4_abi.label.X86PageDirectoryMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageDirectoryMap)
+    (hlU : lbl = fl4_abi.label.X86PageDirectoryUnmap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageDirectoryUnmap)
+    (hlO : lbl ≠ fl4_abi.label.X86PageDirectoryMap → lbl ≠ fl4_abi.label.X86PageDirectoryUnmap →
+      Fl4Spec.invocationType slbl ≠ .archInvocationLabel .x64PageDirectoryMap ∧ Fl4Spec.invocationType slbl ≠ .archInvocationLabel .x64PageDirectoryUnmap)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
+    (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hrun : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.runnable x.tcbState = true)
+    (args : List U64) (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    {pc : U64} {r : Nat} (hpc : th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
+    {ptr asid0 va0 : U64} {mp : Bool}
+    (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.PageDirectory ptr mp asid0 va0)) (hpL : ptr ∈ L2)
+    (hpa : (core.num.U64.wrapping_sub ptr layout.PPTR_BASE &&& 4503599627366400#u64) =
+      core.num.U64.wrapping_sub ptr layout.PPTR_BASE)
+    (hm0 : mp = true → asid0 ≠ 0#u64)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
+      ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
+        CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
+        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
+    (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
+    DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageDirectory ptr mp asid0 va0) blk call don fp
+      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
+  decode_invocation_page_directory arI th hS.2.pl s ar σ G hCR hFI (vsPdMapHyps_top hA) (vsPdUnmapHyps_top hA) hS hS.2.vs hS.2.sd hS.2.pt
+    hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
+    hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer
+
+set_option maxHeartbeats 8000000 in
+/-- **A PDPT cap with the composite relation** (`decode_invocation_pdpt`; the placement from `TopPlaced`). -/
+theorem decode_invocation_pdpt_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
+    {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
+    (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
+    (hPI : PoolsIn P L4 (L.mem s))
+    (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
+    (lbl : U64) (slbl : Fl4Spec.Data)
+    (hlM : lbl = fl4_abi.label.X86PDPTMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PDPTMap)
+    (hlU : lbl = fl4_abi.label.X86PDPTUnmap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PDPTUnmap)
+    (hlO : lbl ≠ fl4_abi.label.X86PDPTMap → lbl ≠ fl4_abi.label.X86PDPTUnmap →
+      Fl4Spec.invocationType slbl ≠ .archInvocationLabel .x64PDPTMap ∧ Fl4Spec.invocationType slbl ≠ .archInvocationLabel .x64PDPTUnmap)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
+    (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hrun : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.runnable x.tcbState = true)
+    (args : List U64) (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    {pc : U64} {r : Nat} (hpc : th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
+    {ptr asid0 va0 : U64} {mp : Bool}
+    (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.Pdpt ptr mp asid0 va0)) (hpL : ptr ∈ L3)
+    (hpa : (core.num.U64.wrapping_sub ptr layout.PPTR_BASE &&& 4503599627366400#u64) =
+      core.num.U64.wrapping_sub ptr layout.PPTR_BASE)
+    (hm0 : mp = true → asid0 ≠ 0#u64)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
+      ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
+        CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
+        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
+    (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
+    DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Pdpt ptr mp asid0 va0) blk call don fp
+      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
+  decode_invocation_pdpt arI th hS.2.pl s ar σ G hCR hFI (vsPdptMapHyps_top hA) (vsPdptUnmapHyps_top hA) hS hS.2.vs hS.2.sd hS.2.pt
+    hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
+    hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer
+
+set_option maxHeartbeats 8000000 in
+/-- **An ASID pool cap with the composite relation** (`decode_invocation_asid_pool`; `curT` given). -/
+theorem decode_invocation_asid_pool_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
+    {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
+    (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
+    (hcurT : ∀ s a σ, TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ →
+      sched.cur_thread st s ⦃ ct => ct.bv = σ.curThread ⦄)
+    (hR : VsRel P (L.mem s) (L.ksb s) σ)
+    (lbl : U64) (slbl : Fl4Spec.Data)
+    (hlA : lbl = fl4_abi.label.X86ASIDPoolAssign ↔
+      Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDPoolAssign)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
+    (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hrun : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.runnable x.tcbState = true)
+    (ptr base : U64) (hb : base.val % 512 = 0)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
+      ∃ (pc : U64) (r : Nat) (idx : List Bool) (vc : capability.Cap) (vc' : Fl4Spec.Cap)
+        (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)), th pc = some (.cnode r) ∧ idx.length = r ∧
+        vspace.extra extra 0#usize = ok (some (cslotAddr (pc.bv, idx))) ∧
+        capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok vc ∧ CapRel vc vc' ∧ excaps = (vc', (pc.bv, idx)) :: rest ∧
+        ∀ p1 a1, vc = .Pml4 p1 false a1 → p1 ≠ 0#u64)
+    (slot : U64) (blk call don fp : Bool) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (buffer : Option Fl4Spec.ObjRef) :
+    DecOK (L := L) arI s ar σ lbl length slot (.AsidPool ptr base) blk call don fp buf extra slbl args ci sl excaps
+      buffer :=
+  decode_invocation_asid_pool arI th hS.2.pl s ar σ G hCR hFI (vsInvHyps_top hcurT) hS hS.2.vs hS.2.sd hR hS.2.vo
+    lbl slbl hlA length buf ct hct hcur htcb hact hrun ptr base hb extra excaps hext slot blk call don fp args ci sl
+    buffer
+
+set_option maxHeartbeats 8000000 in
+/-- **The ASID control cap with the composite relation** (`decode_invocation_asid_control`; `RegOK := RegOKTop`). -/
+theorem decode_invocation_asid_control_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hU : UtInv (L.mem s) G)
+    (hFR : Vs.FrameInv (L.mem s) G)
+    {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
+    (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
+    (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
+    (lbl : U64) (slbl : Fl4Spec.Data)
+    (hlM : lbl = fl4_abi.label.X86ASIDControlMakePool ↔
+      Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDControlMakePool)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
+    (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hrun : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.runnable x.tcbState = true)
+    (args : List U64) (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hext : (∃ o0 o1, vspace.extra extra 0#usize = ok o0 ∧ vspace.extra extra 1#usize = ok o1 ∧
+        (o0 = none ∨ o1 = none) ∧ excaps.length ≤ 1) ∨
+      ∃ (pp : U64) (rs : Nat) (idx : List Bool) (y : obj.Slot) (uc : capability.Cap) (uc' : Fl4Spec.Cap)
+        (rc : capability.Cap) (rc' : Fl4Spec.Cap) (ysl : Fl4Spec.CslotPtr)
+        (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)),
+        th pp = some (.cnode rs) ∧ idx.length = rs ∧
+        vspace.extra extra 0#usize = ok (some (cslotAddr (pp.bv, idx))) ∧ vspace.extra extra 1#usize = ok (some y) ∧
+        capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok uc ∧ CapRel uc uc' ∧
+        capAt (L.mem s) y = ok rc ∧ CapRel rc rc' ∧ CapValid th rc ∧
+        excaps = (uc', (pp.bv, idx)) :: (rc', ysl) :: rest ∧
+        ∀ p fi, uc = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false →
+          MpRegion th G P L4 L3 L2 L1 (L.ksb s) p ∧ RegOKTop (L := L) N T C E R B c s σ p)
+    (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (buffer : Option Fl4Spec.ObjRef) :
+    DecOK (L := L) arI s ar σ lbl length slot .AsidControl blk call don fp buf extra slbl (args.map UScalar.bv) ci sl
+      excaps buffer :=
+  decode_invocation_asid_control arI th hS.2.pl s ar σ G hCR hFI hU hFR vsMpHyps_top hS hR hPt hS.2.vs hS.2.pt
+    hS.2.vo hS.2.po hS.2.pv lbl slbl hlM length buf ct hct hcur htcb hact hrun args hlen hargs extra excaps hext slot
+    blk call don fp ci sl buffer
 
 end
 

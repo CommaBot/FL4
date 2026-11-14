@@ -98,6 +98,7 @@ import Fl4Proofs.P3.VsDecFrame
 import Fl4Proofs.P3.VsDecReply
 import Fl4Proofs.P3.VsTopInst
 import Fl4Proofs.P3.VsFrameInv
+import Fl4Proofs.P3.VsFrameFull
 import Fl4Proofs.P3.CancelKSub
 import Fl4Proofs.P3.ResetFin
 import Fl4Proofs.P3.RetypeFresh

@@ -14,6 +14,7 @@ P3 (DESIGN.md §9), VSpace: **frame caps at the top of `decode_invocation`**
   l4v's `IllegalOperation`.
 -/
 import Fl4Proofs.P3.VsDecTop
+import Fl4Proofs.P3.HandleTop
 import Fl4Proofs.P3.VsMakePoolRel
 import Fl4Proofs.P3.VsSubRel
 import Fl4Proofs.P3.VsMdb
@@ -179,7 +180,9 @@ structure FrameLabel (lbl : U64) (slbl : Fl4Spec.Data) : Prop where
 
 
 set_option maxHeartbeats 8000000 in
-/-- **A frame cap**, every label (see the module docstring). -/
+/-- **A frame cap**, every label (see the module docstring): `DecOK`, or
+`DecOKR` for the labels that reply in the decode (`GetAddress`,
+`TestAndClearAccessed`). -/
 theorem decode_invocation_frame (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
     {P L4 L3 L2 L1 : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
@@ -213,22 +216,25 @@ theorem decode_invocation_frame (th : TypedHeap) (hP : Placed th) (s : S) (ar : 
         ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
     (hGA : lbl = fl4_abi.label.X86PageGetAddress →
-      DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
-        buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer)
+      DecOKR (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+        buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct)
     (hTAC : lbl = fl4_abi.label.X86PageTestAndClearAccessed →
-      DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
-        buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer)
+      DecOKR (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+        buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct)
     (hDS : lbl = fl4_abi.label.X86PageDeriveSubframe →
       DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
         buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer) :
     DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
-      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := by
+      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ∨
+    DecOKR (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct := by
   by_cases hga : lbl = fl4_abi.label.X86PageGetAddress
-  · exact hGA hga
+  · exact Or.inr (hGA hga)
   by_cases htac : lbl = fl4_abi.label.X86PageTestAndClearAccessed
-  · exact hTAC htac
+  · exact Or.inr (hTAC htac)
   by_cases hds : lbl = fl4_abi.label.X86PageDeriveSubframe
-  · exact hDS hds
+  · exact Or.inl (hDS hds)
+  refine Or.inl ?_
   have hCR0 := hCR
   obtain ⟨hSt, hSV, -, -, -⟩ := hCR0
   obtain ⟨cS, aS, hcS, hcaS, -⟩ := hSt.slot_cap (Z := Unit) (sl := (pc.bv, idx)) (p := pc) rfl
