@@ -15,7 +15,11 @@
 
     <xsd:complexType name="SyscallListType">
         <xsd:sequence>
-            <xsd:element name="api-master" type="ApiType" minOccurs="0" />
+            <!-- FL4 is MCS only: api-master is kept empty, for generators
+                 that expect it. -->
+            <xsd:element name="api-master" minOccurs="0">
+                <xsd:complexType />
+            </xsd:element>
             <xsd:element name="api-mcs" type="ApiType" />
             <xsd:element name="debug" type="DebugType" />
         </xsd:sequence>

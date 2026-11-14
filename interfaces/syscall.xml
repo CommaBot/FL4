@@ -7,7 +7,10 @@
 
 <!-- Please see syscalls.xsd to see the format of this file -->
 <syscalls>
-    <!-- official API syscalls -->
+    <!-- official API syscalls. FL4 is MCS only: the non-MCS section stays
+         as an empty element, because existing bindings generators (rust-sel4's
+         sel4-sys) require both sections to be present. -->
+    <api-master/>
     <api-mcs>
         <config>
             <syscall name="Call"      />

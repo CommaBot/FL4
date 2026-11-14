@@ -55,7 +55,9 @@ def prune(text, tag):
 for path in sys.argv[1:]:
     s = open(path).read()
     if '<syscalls>' in s:
-        s = re.sub(r'[ \t]*<api-master>.*?</api-master>[ \t]*\n', '', s, flags=re.S)
+        # FL4 is MCS only; the non-MCS section stays, empty, because
+        # bindings generators such as rust-sel4's sel4-sys require it.
+        s = re.sub(r'<api-master>.*?</api-master>', '<api-master/>', s, flags=re.S)
         s = prune(s, 'config')
     else:
         s = prune(prune(s, 'interface'), 'method')
