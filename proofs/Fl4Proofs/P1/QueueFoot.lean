@@ -333,19 +333,18 @@ theorem sched.possible_switch_to.kw (s : S) (t : obj.Tcb) (h : SchedQueuesInvX s
 
 
 theorem endpoint.unblock_sporadic.kw (s : S) (t : obj.Tcb) (h : SchedQueuesInvX st T Cs Ω H X s Q R)
-    (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hS : SCsOK st T Ω Sg Scs Z s) (ht : t ∈ T) :
+    (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hS : SCsOK st T Ω Sg Scs Z Ac s) (ht : t ∈ T) :
     endpoint.unblock_sporadic st s t ⦃ s' => Foot st T Cs Sg Scs Z Es s s' ⦄ := by
   unfold endpoint.unblock_sporadic
   step with obj.Tcb.sc.spec as ⟨i, i_post⟩
   step with sporadic.sc_sporadic.spec as ⟨b1, b1_post⟩
   split
   · rename_i hb1
-    have hi0 : i ≠ 0#u64 := b1_post hb1
+    obtain ⟨hi0, hsp⟩ := b1_post hb1
     have hbt : L.mem s (scA t) ≠ 0#u64 := by rw [← i_post]; exact hi0
     obtain ⟨hiS, -, -⟩ := hX.2.2.bound t ht hbt
     rw [← i_post] at hiS
-    have hW : RefillsWF st s i (Z i) := by
-      have := (hS.bound t ht hbt).1; rw [← i_post] at this; exact this
+    have hW : RefillsWF st s i (Z i) := hS.wf hiS (hS.spor i hiS hsp)
     have hSCin : SCin st s Ω i (Z i) := ⟨hW, hX.1.scW i hiS⟩
     step with sched.cur_sc.spec as ⟨c4, _⟩
     step with sc_ne.spec as ⟨b2⟩
@@ -363,19 +362,18 @@ theorem endpoint.unblock_sporadic.kw (s : S) (t : obj.Tcb) (h : SchedQueuesInvX 
   · exact (WP.spec_ok _).2 (Foot.refl _)
 
 theorem notification.unblock_sporadic.kw (s : S) (t : obj.Tcb) (h : SchedQueuesInvX st T Cs Ω H X s Q R)
-    (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hS : SCsOK st T Ω Sg Scs Z s) (ht : t ∈ T) :
+    (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hS : SCsOK st T Ω Sg Scs Z Ac s) (ht : t ∈ T) :
     notification.unblock_sporadic st s t ⦃ s' => Foot st T Cs Sg Scs Z Es s s' ⦄ := by
   unfold notification.unblock_sporadic
   step with obj.Tcb.sc.spec as ⟨i, i_post⟩
   step with sporadic.sc_sporadic.spec as ⟨b1, b1_post⟩
   split
   · rename_i hb1
-    have hi0 : i ≠ 0#u64 := b1_post hb1
+    obtain ⟨hi0, hsp⟩ := b1_post hb1
     have hbt : L.mem s (scA t) ≠ 0#u64 := by rw [← i_post]; exact hi0
     obtain ⟨hiS, -, -⟩ := hX.2.2.bound t ht hbt
     rw [← i_post] at hiS
-    have hW : RefillsWF st s i (Z i) := by
-      have := (hS.bound t ht hbt).1; rw [← i_post] at this; exact this
+    have hW : RefillsWF st s i (Z i) := hS.wf hiS (hS.spor i hiS hsp)
     have hSCin : SCin st s Ω i (Z i) := ⟨hW, hX.1.scW i hiS⟩
     step with sched.cur_sc.spec as ⟨c4, _⟩
     step with sc_ne.spec as ⟨b2⟩

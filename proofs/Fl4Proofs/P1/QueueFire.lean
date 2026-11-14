@@ -16,8 +16,8 @@ variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat}
 
 
 /-- The current core's `REPROGRAM` word. -/
-theorem reprogram.tinv {s : S} {v : U64} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z s) :
-    TInv st T Cs Ω H Sg Rp Scs Nt Z (L.wr s (L.nodeAt s (L.cpu s) layout.node.REPROGRAM) v) := by
+theorem reprogram.tinv {s : S} {v : U64} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
+    TInv st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (L.nodeAt s (L.cpu s) layout.node.REPROGRAM) v) := by
   have hI := h
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
@@ -34,11 +34,11 @@ theorem bne_ne {n : U64} (h : (n != 0#u64) = true) : n ≠ 0#u64 := by simpa usi
 current core, if due, out of the tree and signals its thread's bound
 notification. -/
 theorem timer.fire_loop.tinv {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A) (now i : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z s) :
-    timer.fire_loop st ar s a now i ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ := by
+    (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A) (now i : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
+    timer.fire_loop st ar s a now i ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   unfold timer.fire_loop
   apply loop.spec_decr_nat (measure := fun x => 32 - x.2.2.val)
-    (inv := fun x => TInv st T Cs Ω H Sg Rp Scs Nt Z x.1)
+    (inv := fun x => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac x.1)
   · rintro ⟨s1, a1, i1⟩ h1
     simp only at h1
     unfold timer.fire_loop.body
@@ -68,7 +68,7 @@ theorem timer.fire_loop.tinv {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTot
       step with obj.Tcb.timer_badge.val as ⟨bd, ebd⟩
       refine WP.spec_bind (timer.remove.tinv s1 t hI1 htT) fun s2 h2 => ?_
       step with obj.Tcb.bound_ntfn.val as ⟨n, en⟩
-      refine WP.spec_bind (Pₘ := fun r : S × A => TInv st T Cs Ω H Sg Rp Scs Nt Z r.1) ?_ ?_
+      refine WP.spec_bind (Pₘ := fun r : S × A => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac r.1) ?_ ?_
       · split
         · rename_i hn0
           have hn0' : L.mem s2 (boundA t) ≠ 0#u64 := by rw [← en]; exact bne_ne hn0
@@ -90,8 +90,8 @@ theorem timer.fire_loop.tinv {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTot
 
 /-- seL4 MCS `fireTimers` (l4h): `timer::fire` keeps `TInv`. -/
 theorem timer.fire.tinv {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z s) :
-    timer.fire st ar s a ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ := by
+    (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
+    timer.fire st ar s a ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   unfold timer.fire
   refine WP.spec_bind (L.cur_cpu_spec s) fun c _ => ?_
   refine WP.spec_bind (obj.node_get.spec s c _) fun now _ => ?_
@@ -102,10 +102,10 @@ theorem timer.fire.tinv {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar
 outside the kernel area (`SgOK`), and `Nt` being the heap's notifications. -/
 theorem sched.schedule.tinv {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T s) (hS : SCsOK st T Ω Sg Scs Z s)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hS : SCsOK st T Ω Sg Scs Z Ac s)
     (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hSg : SgOK st Ω Sg s) :
-    sched.schedule st ar s a ⦃ s' _ => (∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R') ∧ BoundInv st T s' ∧
-      XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SCsOK st T Ω Sg Scs Z s' ∧ TimerOK st T Cs s' ⦄ := by
+    sched.schedule st ar s a ⦃ s' _ => (∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R') ∧ BoundInv st T Ac s' ∧
+      XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SCsOK st T Ω Sg Scs Z Ac s' ∧ TimerOK st T Cs s' ⦄ := by
   refine WP.spec_mono (sched.schedule.inv hA s a Q R h hB hS hX
     (WP.spec_mono (timer.fire.tinv hA hNt s a (BlkOK.tinv ⟨⟨Q, R, h⟩, hB, hX, hS, hSg⟩)) fun r hr => by
       obtain ⟨s', a'⟩ := r

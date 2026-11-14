@@ -10,6 +10,8 @@ open Aeneas Aeneas.Std Result
 namespace Fl4Proofs.P1
 open fl4_core Fl4Proofs.P0.Consts
 
+/-- The SC word `SPORADIC` of `sc`. -/
+def sporA (sc : obj.Sc) : U64 := core.num.U64.wrapping_add sc layout.sc.SPORADIC
 /-- The words of the SC object at `sc` of size `2 ^ sb`. -/
 def InSC (sc : U64) (sb : Nat) (b : U64) : Prop := sc.val ≤ b.val ∧ b.val < sc.val + 2 ^ sb
 /-- The words of the SC from `HEAD` on (the ring header and the ring): all
@@ -288,23 +290,34 @@ theorem RefillsWF.wr_cons {s : S} {sc : obj.Sc} {sb : Nat} {v : U64} (h : Refill
       e _ (by addr) (by addr) (by addr)]
     exact h.tail_lt
 
+theorem sporadic.sc_active.val (s : S) (sc : obj.Sc) :
+    sporadic.sc_active st s sc ⦃ b => b = true → L.rmax s sc ≠ 0#u64 ⦄ := by
+  unfold sporadic.sc_active
+  step with obj.Sc.refill_max.spec as ⟨i, i_post⟩
+  intro e h0
+  have : i = 0#u64 := i_post.trans h0
+  subst this
+  revert e; decide
+
 /-- `commit_time` writes inside the current SC and the current core's
 `CONSUMED`, and keeps the SC's ring well formed. -/
 theorem sched.commit_time.fr {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (a : A)
-    (h : RefillsWF st s sc sb) (hcur : L.mem s (L.nodeA s layout.node.CUR_SC) = sc)
+    (h0 : L.rmax s sc ≠ 0#u64 → RefillsWF st s sc sb) (hcur : L.mem s (L.nodeA s layout.node.CUR_SC) = sc)
     (hcons : Aligned (L.nodeA s layout.node.CONSUMED)) (hconsO : Outside (L.nodeA s layout.node.CONSUMED) sc sb) :
     sched.commit_time st ar s a ⦃ s' =>
       WritesIn st s s' (fun b => (InRing sc sb b ∨ b = core.num.U64.wrapping_add sc layout.sc.CONSUMED) ∨
-        b = L.nodeA s layout.node.CONSUMED) ∧ RefillsWF st s' sc sb ⦄ := by
+        b = L.nodeA s layout.node.CONSUMED) ∧ (L.rmax s sc ≠ 0#u64 → RefillsWF st s' sc sb) ⦄ := by
   unfold sched.commit_time
   step with sched.cur_sc.spec as ⟨c0, c0_post⟩
   rw [hcur] at c0_post
   subst c0
-  step with sporadic.sc_active.spec as ⟨b, _⟩
+  step with sporadic.sc_active.val as ⟨b, b_post⟩
   refine WP.spec_bind (Pₘ := fun s1 => WritesIn st s s1
-      (fun b => InRing sc sb b ∨ b = core.num.U64.wrapping_add sc layout.sc.CONSUMED) ∧ RefillsWF st s1 sc sb) ?_ ?_
+      (fun b => InRing sc sb b ∨ b = core.num.U64.wrapping_add sc layout.sc.CONSUMED) ∧
+        (L.rmax s sc ≠ 0#u64 → RefillsWF st s1 sc sb)) ?_ ?_
   · split
-    · step with sched.idle_sc.spec as ⟨s2, _⟩
+    · have h := h0 (b_post ‹_›)
+      step with sched.idle_sc.spec as ⟨s2, _⟩
       step with sc_ne.spec as ⟨b1, _⟩
       split
       · step with sched.consumed.spec as ⟨c, _⟩
@@ -349,9 +362,9 @@ theorem sched.commit_time.fr {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTot
           exact ⟨(w3.trans (writesIn_wr hal)).mono fun b hb => by
             rcases hb with hb | hb
             · exact Or.inl hb
-            · exact Or.inr hb, h3.wr_cons⟩
-      · simp only [WP.spec_ok]; exact ⟨WritesIn.refl _ _, h⟩
-    · simp only [WP.spec_ok]; exact ⟨WritesIn.refl _ _, h⟩
+            · exact Or.inr hb, fun _ => h3.wr_cons⟩
+      · simp only [WP.spec_ok]; exact ⟨WritesIn.refl _ _, h0⟩
+    · simp only [WP.spec_ok]; exact ⟨WritesIn.refl _ _, h0⟩
   · rintro s1 ⟨w1, hw1⟩
     step with sched.set_consumed.spec as ⟨s2, s2_post⟩
     subst s2_post
@@ -361,7 +374,7 @@ theorem sched.commit_time.fr {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTot
     exact ⟨(w1.trans (writesIn_wr hcons)).mono fun b hb => by
       rcases hb with hb | hb
       · exact Or.inl hb
-      · exact Or.inr hb, hw1.wr_out hcons hconsO⟩
+      · exact Or.inr hb, fun hm => (hw1 hm).wr_out hcons hconsO⟩
 
 /-! ## Footprints, as free words -/
 
@@ -501,16 +514,23 @@ theorem SCin.node_out {T Ω Cs : Set U64} {sc : obj.Sc} {sb : Nat} {c o : U64} (
   rw [nodeAt_val hN ho] at this hn
   omega
 
+/-- The current SC as `switch_sched_context` needs it: well formed if
+active, its words among `Ω`, and its `CONSUMED` and `REFILL_MAX` words inside. -/
+def SCq (st : machine.Store S) [L : LawfulStore st] (s : S) (Ω : Set U64) (sc : obj.Sc) (sb : Nat) : Prop :=
+  (L.rmax s sc ≠ 0#u64 → RefillsWF st s sc sb) ∧ (∀ b, Aligned b → InSC sc sb b → b ∈ Ω) ∧
+    (InSC sc sb (core.num.U64.wrapping_add sc layout.sc.CONSUMED) ∧
+      Aligned (core.num.U64.wrapping_add sc layout.sc.CONSUMED)) ∧ (InSC sc sb (maxA sc) ∧ Aligned (maxA sc))
+
 /-- `switch_sched_context` writes the ring of the thread's SC (when it is not
 the current one), the ring and `CONSUMED` word of the current SC, and the
 current core's `REPROGRAM`, `CONSUMED` and `CUR_SC`, which becomes the
-thread's SC.  The SCs must be well formed, among `Ω` and (when distinct)
-disjoint. -/
+thread's SC.  The thread's SC must be well formed; the current SC (possibly
+inactive) is `SCq`; both among `Ω` and (when distinct) disjoint. -/
 theorem sched.switch_sched_context.fp {A : Type _} {ar : machine.Arch A} {T Ω Cs : Set U64}
     (hA : P0.ArchTotal ar) (s : S) (a : A) {zt zc : Nat} {B : U64 → Prop}
     (hcur : L.cpu s ∈ Cs) (hN' : NodePlaced st T s (L.cpu s))
     (homega : ∀ a ∈ Ω, OutsideObjs st T Cs s a)
-    (hc : SCin st s Ω (L.mem s (L.nodeA s layout.node.CUR_SC)) zc)
+    (hc : SCq st s Ω (L.mem s (L.nodeA s layout.node.CUR_SC)) zc)
     (ht : L.mem s (scA (L.mem s (L.nodeA s layout.node.CUR_THREAD))) ≠ L.mem s (L.nodeA s layout.node.CUR_SC) →
       SCin st s Ω (L.mem s (scA (L.mem s (L.nodeA s layout.node.CUR_THREAD)))) zt ∧
       ∀ b, InSC (L.mem s (scA (L.mem s (L.nodeA s layout.node.CUR_THREAD)))) zt b →
@@ -523,11 +543,12 @@ theorem sched.switch_sched_context.fp {A : Type _} {ar : machine.Arch A} {T Ω C
       b = core.num.U64.wrapping_add (L.mem s (L.nodeA s layout.node.CUR_SC)) layout.sc.CONSUMED) → B b) :
     sched.switch_sched_context st ar s a ⦃ s' _ => WritesIn st s s' B ∧
       L.mem s' (L.nodeA s layout.node.CUR_SC) = L.mem s (scA (L.mem s (L.nodeA s layout.node.CUR_THREAD))) ∧
-      RefillsWF st s' (L.mem s (L.nodeA s layout.node.CUR_SC)) zc ∧
+      (L.rmax s (L.mem s (L.nodeA s layout.node.CUR_SC)) ≠ 0#u64 →
+        RefillsWF st s' (L.mem s (L.nodeA s layout.node.CUR_SC)) zc) ∧
       (L.mem s (scA (L.mem s (L.nodeA s layout.node.CUR_THREAD))) ≠ L.mem s (L.nodeA s layout.node.CUR_SC) →
         RefillsWF st s' (L.mem s (scA (L.mem s (L.nodeA s layout.node.CUR_THREAD)))) zt) ⦄ := by
-  have nO : ∀ {sc sb} (o : U64), SCin st s Ω sc sb → o.val < 4288 → o.val % 8 = 0 →
-      Outside (L.nodeA s o) sc sb := fun o hS ho h8 => hS.node_out homega hcur hN' ho h8
+  have nO : ∀ {sc sb} (o : U64), (∀ b, Aligned b → InSC sc sb b → b ∈ Ω) → o.val < 4288 → o.val % 8 = 0 →
+      Outside (L.nodeA s o) sc sb := fun o hS ho h8 => node_out_place hS homega hcur hN' ho h8
   have alN : ∀ (o : U64), o.val < 4288 → o.val % 8 = 0 → Aligned (L.nodeA s o) :=
     fun o ho h8 => nodeAt_aligned hN' ho h8
   have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
@@ -542,8 +563,11 @@ theorem sched.switch_sched_context.fp {A : Type _} {ar : machine.Arch A} {T Ω C
   subst hct
   have htr := ht
   rw [← i_post, ← s1_post] at htr
-  refine WP.spec_bind (Pₘ := fun s2 => WritesIn st s s2 B ∧
-      RefillsWF st s2 s1 zc ∧ L.mem s2 (L.nodeA s layout.node.CUR_SC) = s1 ∧ (i ≠ s1 → RefillsWF st s2 i zt)) ?_ ?_
+  rw [← s1_post] at hc hBc
+  obtain ⟨hcw, hcp, ⟨hcC, aCc⟩, ⟨hcM, aM⟩⟩ := hc
+  refine WP.spec_bind (Pₘ := fun s2 => WritesIn st s s2 B ∧ L.rmax s2 s1 = L.rmax s s1 ∧
+      (L.rmax s s1 ≠ 0#u64 → RefillsWF st s2 s1 zc) ∧ L.mem s2 (L.nodeA s layout.node.CUR_SC) = s1 ∧
+      (i ≠ s1 → RefillsWF st s2 i zt)) ?_ ?_
   · split
     · rename_i hb
       have hne : i ≠ s1 := fun e => b_post.1 hb e.symm
@@ -551,23 +575,24 @@ theorem sched.switch_sched_context.fp {A : Type _} {ar : machine.Arch A} {T Ω C
       obtain ⟨hSt, hdis⟩ := ht hne
       have hBt' := hBt hne
       simp only [← i_post, ← s1_post] at hSt hdis hBt'
-      rw [← s1_post] at hc
       step with sched.set_reprogram.spec as ⟨s3, s3_post⟩
       have aR := alN layout.node.REPROGRAM (by rw [rp]; omega) (by rw [rp])
-      have oRt := nO layout.node.REPROGRAM hSt (by rw [rp]; omega) (by rw [rp])
-      have oRc := nO layout.node.REPROGRAM hc (by rw [rp]; omega) (by rw [rp])
+      have oRt := nO layout.node.REPROGRAM hSt.2 (by rw [rp]; omega) (by rw [rp])
+      have oRc := nO layout.node.REPROGRAM hcp (by rw [rp]; omega) (by rw [rp])
       have aC := alN layout.node.CUR_SC (by rw [cs]; omega) (by rw [cs])
-      have oCt := nO layout.node.CUR_SC hSt (by rw [cs]; omega) (by rw [cs])
+      have oCt := nO layout.node.CUR_SC hSt.2 (by rw [cs]; omega) (by rw [cs])
       have hRC : (L.nodeA s layout.node.REPROGRAM).val ≠ (L.nodeA s layout.node.CUR_SC).val := by
         simp only [LawfulStore.nodeA]; rw [nodeAt_val hN' (by rw [rp]; omega), nodeAt_val hN' (by rw [cs]; omega), rp, cs]
         omega
       have w3 : WritesIn st s s3 (· = L.nodeA s layout.node.REPROGRAM) := by subst s3_post; exact writesIn_wr aR
       have e3 : L.nodeA s3 layout.node.REPROGRAM = L.nodeA s layout.node.REPROGRAM := by
         simp [LawfulStore.nodeA, LawfulStore.nodeAt, w3.1, w3.2.1]
-      have pre : WritesIn st s s3 B ∧ RefillsWF st s3 s1 zc ∧
+      have mR : L.rmax s3 s1 = L.rmax s s1 := w3.mem_eq aM fun h => by
+        have := congrArg UScalar.val h; unfold Outside at oRc; unfold InSC at hcM; omega
+      have pre : WritesIn st s s3 B ∧ L.rmax s3 s1 = L.rmax s s1 ∧ (L.rmax s s1 ≠ 0#u64 → RefillsWF st s3 s1 zc) ∧
           L.mem s3 (L.nodeA s layout.node.CUR_SC) = s1 := by
-        refine ⟨w3.mono' fun b _ hb => hb ▸ hBR, ?_, ?_⟩
-        · subst s3_post; exact hc.1.wr_out aR oRc
+        refine ⟨w3.mono' fun b _ hb => hb ▸ hBR, mR, fun hm => ?_, ?_⟩
+        · subst s3_post; exact (hcw hm).wr_out aR oRc
         · subst s3_post; rw [L.mem_wr_ne aR aC hRC, s1_post]
       step with sporadic.sc_constant_bandwidth.spec as ⟨b1, _⟩
       split
@@ -577,42 +602,47 @@ theorem sched.switch_sched_context.fp {A : Type _} {ar : machine.Arch A} {T Ω C
         have w4 := hw4.1
         have wf4 := hw4.2
         rw [e3] at w4
-        refine ⟨pre.1.trans1 (w4.mono' fun b hb h => ?_), ?_, ?_, fun _ => wf4⟩
+        have nIt : ∀ b, InRing i zt b → Outside b s1 zc := fun b h => hdis b h.inSC
+        refine ⟨pre.1.trans1 (w4.mono' fun b hb h => ?_), ?_, fun hm => ?_, ?_, fun _ => wf4⟩
         · rcases h with h | h
           · exact hBt' b hb h
           · exact h ▸ hBR
-        · refine pre.2.1.writesIn w4 fun b hb h => ?_
+        · rw [show L.rmax s4 s1 = L.rmax s3 s1 from w4.mem_eq aM ?_, pre.2.1]
+          rintro (h | h)
+          · have := nIt _ h; unfold Outside at this; unfold InSC at hcM; omega
+          · rw [← h] at oRc; unfold Outside at oRc; unfold InSC at hcM; omega
+        · refine (pre.2.2.1 hm).writesIn w4 fun b hb h => ?_
           rcases h with h | h
-          · exact hdis b h.inSC
+          · exact nIt b h
           · exact h ▸ oRc
-        · rw [w4.mem_eq aC ?_, pre.2.2]
+        · rw [w4.mem_eq aC ?_, pre.2.2.2]
           rintro (h | h)
           · unfold Outside at oCt; unfold InRing at h; omega
           · exact hRC (congrArg UScalar.val h).symm
       · simp only [WP.spec_ok]
-        exact ⟨pre.1, pre.2.1, pre.2.2, fun _ => by subst s3_post; exact hSt.1.wr_out aR oRt⟩
-    · simp only [WP.spec_ok]; rw [← s1_post] at hc
+        exact ⟨pre.1, pre.2.1, pre.2.2.1, pre.2.2.2, fun _ => by subst s3_post; exact hSt.1.wr_out aR oRt⟩
+    · simp only [WP.spec_ok]
       rename_i hb
-      refine ⟨WritesIn.refl _ _, hc.1, s1_post.symm, fun hne => ?_⟩
+      refine ⟨WritesIn.refl _ _, by trivial, hcw, s1_post.symm, fun hne => ?_⟩
       exact absurd ((b_post).2 (Ne.symm hne)) hb
-  · rintro s2 ⟨w2, h2, e2, wt2⟩
+  · rintro s2 ⟨w2, m2, h2, e2, wt2⟩
     step with LawfulStore.cur_cpu_spec as ⟨i1, i1_post⟩
     step with obj.node_get.spec as ⟨i2, _⟩
     have eN : ∀ o, L.nodeA s2 o = L.nodeA s o := fun o => by
       simp [LawfulStore.nodeA, LawfulStore.nodeAt, w2.1, w2.2.1]
     refine WP.spec_bind (Pₘ := fun s3 => WritesIn st s s3 B ∧ L.ksb s3 = L.ksb s ∧ L.cpu s3 = L.cpu s ∧
-      RefillsWF st s3 s1 zc ∧ (i ≠ s1 → RefillsWF st s3 i zt)) ?_ ?_
+      (L.rmax s s1 ≠ 0#u64 → RefillsWF st s3 s1 zc) ∧ (i ≠ s1 → RefillsWF st s3 i zt)) ?_ ?_
     · split
-      · rw [← s1_post] at hc hBc
-        have hcur2 : L.mem s2 (L.nodeA s2 layout.node.CUR_SC) = s1 := by rw [eN]; exact e2
+      · have hcur2 : L.mem s2 (L.nodeA s2 layout.node.CUR_SC) = s1 := by rw [eN]; exact e2
         have aCn := alN layout.node.CONSUMED (by rw [cn]; omega) (by rw [cn])
-        have oCc := nO layout.node.CONSUMED hc (by rw [cn]; omega) (by rw [cn])
-        refine WP.spec_mono (sched.commit_time.fr hA a h2 hcur2 (by rw [eN]; exact aCn) (by rw [eN]; exact oCc))
-          fun s3 hw3 => ?_
+        have oCc := nO layout.node.CONSUMED hcp (by rw [cn]; omega) (by rw [cn])
+        refine WP.spec_mono (sched.commit_time.fr hA a (fun hm => h2 (by rw [← m2]; exact hm)) hcur2
+          (by rw [eN]; exact aCn) (by rw [eN]; exact oCc)) fun s3 hw3 => ?_
         have w3 := hw3.1
         have wf3 := hw3.2
         rw [eN] at w3
-        refine ⟨w2.trans1 (w3.mono' fun b hb h => ?_), w3.1.trans w2.1, w3.2.1.trans w2.2.1, wf3, fun hne => ?_⟩
+        refine ⟨w2.trans1 (w3.mono' fun b hb h => ?_), w3.1.trans w2.1, w3.2.1.trans w2.2.1,
+          fun hm => wf3 (by rw [m2]; exact hm), fun hne => ?_⟩
         · rcases h with h | h
           · exact hBc b hb h
           · exact h ▸ hBC
@@ -625,12 +655,9 @@ theorem sched.switch_sched_context.fp {A : Type _} {ar : machine.Arch A} {T Ω C
             have hs1 : InSC s1 zc b := by
               rcases h with h | rfl
               · exact h.inSC
-              · obtain ⟨h8, -, hfit⟩ := hc.1.bounds
-                have := hc.1.inside.1
-                constructor <;> simp [layout.sc.CONSUMED, core.num.U64.wrapping_add_val_eq, U64.size_def,
-                  U64.numBits] <;> omega
+              · exact hcC
             unfold Outside at this; unfold InSC at hs1; omega
-          · exact h ▸ nO layout.node.CONSUMED hSt (by rw [cn]; omega) (by rw [cn])
+          · exact h ▸ nO layout.node.CONSUMED hSt.2 (by rw [cn]; omega) (by rw [cn])
       · simp only [WP.spec_ok]; exact ⟨w2, w2.1, w2.2.1, h2, wt2⟩
     · rintro s3 ⟨w3, k3, c3, wf3, wt3⟩
       step with LawfulStore.cur_cpu_spec as ⟨c, c_post⟩
@@ -640,40 +667,35 @@ theorem sched.switch_sched_context.fp {A : Type _} {ar : machine.Arch A} {T Ω C
       have eC : L.nodeAt s3 c layout.node.CUR_SC = L.nodeA s layout.node.CUR_SC := by
         rw [c_post, c3, nodeAt_of_ksb k3]; rfl
       rw [s4_post, eC]
-      have oCc := nO layout.node.CUR_SC hc (by rw [cs]; omega) (by rw [cs])
+      have oCc := nO layout.node.CUR_SC hcp (by rw [cs]; omega) (by rw [cs])
       refine ⟨w3.trans1 ((writesIn_wr aC).mono fun b hb => hb ▸ hBS), by rw [L.mem_wr_same aC, i_post], ?_, ?_⟩
-      · rw [s1_post] at wf3; exact wf3.wr_out aC oCc
+      · intro hm; rw [← s1_post] at hm ⊢; exact (wf3 hm).wr_out aC oCc
       · intro hne
         rw [← i_post, ← s1_post] at hne
         rw [← i_post]
-        exact (wt3 hne).wr_out aC (nO layout.node.CUR_SC (htr hne).1 (by rw [cs]; omega) (by rw [cs]))
+        exact (wt3 hne).wr_out aC (nO layout.node.CUR_SC (htr hne).1.2 (by rw [cs]; omega) (by rw [cs]))
 
 /-- `switch_sched_context` writes free words only. -/
 theorem sched.switch_sched_context.free {A : Type _} {ar : machine.Arch A} {T Ω Cs : Set U64}
     (hA : P0.ArchTotal ar) (s : S) (a : A) {zt zc : Nat}
     (hcur : L.cpu s ∈ Cs) (hN' : NodePlaced st T s (L.cpu s))
     (homega : ∀ a ∈ Ω, OutsideObjs st T Cs s a)
-    (hc : SCin st s Ω (L.mem s (L.nodeA s layout.node.CUR_SC)) zc)
+    (hc : SCq st s Ω (L.mem s (L.nodeA s layout.node.CUR_SC)) zc)
     (ht : L.mem s (scA (L.mem s (L.nodeA s layout.node.CUR_THREAD))) ≠ L.mem s (L.nodeA s layout.node.CUR_SC) →
       SCin st s Ω (L.mem s (scA (L.mem s (L.nodeA s layout.node.CUR_THREAD)))) zt ∧
       ∀ b, InSC (L.mem s (scA (L.mem s (L.nodeA s layout.node.CUR_THREAD)))) zt b →
         Outside b (L.mem s (L.nodeA s layout.node.CUR_SC)) zc) :
     sched.switch_sched_context st ar s a ⦃ s' _ => WritesIn st s s' (L.Free s Ω Cs) ⦄ := by
   have fr : ∀ (o : U64), LowFree o.val → L.Free s Ω Cs (L.nodeA s o) := fun o ho => free_cur_node hcur ho
-  have cin : ∀ {sc : U64} {sb : Nat}, SCin st s Ω sc sb → ∀ b, Aligned b →
-      (InRing sc sb b ∨ b = core.num.U64.wrapping_add sc layout.sc.CONSUMED) → L.Free s Ω Cs b := by
-    intro sc sb hS b hb h
-    refine Or.inl (hS.2 b hb ?_)
-    rcases h with h | rfl
-    · exact h.inSC
-    · obtain ⟨h8, -, hfit⟩ := hS.1.bounds
-      have := hS.1.inside.1
-      constructor <;> simp [layout.sc.CONSUMED, core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits] <;>
-        omega
+  have cin : ∀ {sc : U64} {sb : Nat}, SCin st s Ω sc sb → ∀ b, Aligned b → InRing sc sb b → L.Free s Ω Cs b :=
+    fun hS b hb h => Or.inl (hS.2 b hb h.inSC)
   exact WP.spec_mono (sched.switch_sched_context.fp hA s a (zt := zt) (zc := zc) hcur hN' homega hc ht
     (fr _ (by simp [layout.node.REPROGRAM, LowFree])) (fr _ (by simp [layout.node.CONSUMED, LowFree]))
     (fr _ (by simp [layout.node.CUR_SC, LowFree]))
-    (fun hne b hb h => cin (ht hne).1 b hb (Or.inl h)) (fun b hb h => cin hc b hb h)) fun r hr => hr.1
+    (fun hne b hb h => cin (ht hne).1 b hb h) (fun b hb h => by
+      rcases h with h | rfl
+      · exact Or.inl (hc.2.1 b hb h.inSC)
+      · exact Or.inl (hc.2.1 _ hb hc.2.2.1.1))) fun r hr => hr.1
 
 end free
 

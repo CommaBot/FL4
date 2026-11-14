@@ -22,13 +22,13 @@ theorem obj.Tcb.set_mcp.wr (s : S) (t : obj.Tcb) (v : U64) :
   rw [s'_post, i1_post, e]
 
 /-- A write of a TCB field no invariant reads (the `MCP` field, say). -/
-theorem plainW_all {s : S} {t K v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s) (ht : t ∈ T)
+theorem plainW_all {s : S} {t K v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T)
     (hK : 160 ≤ K.val) (hK' : K.val < 4096) (hK8 : K.val % 8 = 0)
     (hKn : K.val ≠ 3464 ∧ K.val ≠ 3360 ∧ K.val ≠ 3328 ∧ K.val ≠ 3592 ∧ K.val ≠ 3368 ∧ K.val ≠ 3472)
     (hKt : K.val < 3528 ∨ 3592 ≤ K.val)
     (hKq : K.val ≠ 3480 ∧ K.val ≠ 3488 ∧ K.val ≠ 3496 ∧ K.val ≠ 3504 ∧ K.val ≠ 3520 ∧ K.val ≠ 3448 ∧
       K.val ≠ 3336) (hKd : K.val ≠ 3576 ∧ K.val ≠ 3584) :
-    BlkOK st T Cs Ω H Sg Rp Scs Nt Z (L.wr s (core.num.U64.wrapping_add t K) v) ∧
+    BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (core.num.U64.wrapping_add t K) v) ∧
       Foot st T Cs Sg Scs Z ∅ s (L.wr s (core.num.U64.wrapping_add t K) v) ∧
       ANI st s (L.wr s (core.num.U64.wrapping_add t K) v) := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
@@ -40,8 +40,8 @@ theorem plainW_all {s : S} {t K v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z 
     foot_field h0.tcbs ht hK hK' hK8 hKd, ani_field h0.tcbs (h0.nodes _ h0.cur) ht hK' hK8⟩
 
 /-- `set_mcp`. -/
-theorem obj.Tcb.set_mcp.blk (s : S) (t : obj.Tcb) (v : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s) (ht : t ∈ T) :
-    obj.Tcb.set_mcp st t s v ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z s' ∧ Foot st T Cs Sg Scs Z ∅ s s' ∧
+theorem obj.Tcb.set_mcp.blk (s : S) (t : obj.Tcb) (v : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T) :
+    obj.Tcb.set_mcp st t s v ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ Foot st T Cs Sg Scs Z ∅ s s' ∧
       ANI st s s' ⦄ :=
   WP.spec_mono (obj.Tcb.set_mcp.wr s t v) fun s' e => by
     subst e
@@ -188,15 +188,16 @@ theorem sched.set_priority.kw (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U6
 /-- seL4 `setPriority`: `BlkOK` (with `SCsOK` and `SgOK`) and the footprint,
 for a priority below 256, when the current thread, if it is `t`, is bound and
 in no release queue. -/
-theorem sched.set_priority.blk (s : S) (t : obj.Tcb) (prio : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s)
+theorem sched.set_priority.blk (s : S) (t : obj.Tcb) (prio : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (ht : t ∈ T) (hv : prio.val < 256)
     (hcur : t = L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) →
       (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64)
-    (hbcur : t = L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) → L.mem s (scA t) ≠ 0#u64) :
-    sched.set_priority st s t prio ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z s' ∧
+    (hbcur : t = L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) → L.mem s (scA t) ≠ 0#u64)
+    (hacur : t = L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) → L.mem s (scA t) ∈ Ac) :
+    sched.set_priority st s t prio ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
       Foot st T Cs Sg Scs Z (EH H) s s' ⦄ := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
-  refine WP.spec_mono (WP.spec_and (sched.set_priority.all s t prio Q R h0 ht hv hcur hbcur hB hX hSg hS)
+  refine WP.spec_mono (WP.spec_and (sched.set_priority.all s t prio Q R h0 ht hv hcur hbcur hacur hB hX hSg hS)
     (sched.set_priority.kw (Sg := Sg) (Scs := Scs) (Z := Z) s t prio Q R h0 ht hv hcur)) ?_
   rintro s' ⟨⟨⟨Q', h'⟩, hB', hX', hS', hSg'⟩, f⟩
   exact ⟨⟨⟨Q', R, h'⟩, hB', hX', hS', hSg'⟩, f⟩

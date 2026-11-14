@@ -125,18 +125,18 @@ theorem TimerOKx.wr_ht {s : S} {t v : U64} (h : TimerOKx st T Cs t s) (hT : TcbP
 
 /-- `TInv` but for the core of `t`. -/
 def TInvx (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64)
-    (Z : U64 → Nat) (t : U64) (s : S) : Prop :=
-  BlkT st T Cs Ω H Sg Rp Scs Nt Z s ∧ TimerOKx st T Cs t s
+    (Z : U64 → Nat) (Ac : Set U64) (t : U64) (s : S) : Prop :=
+  BlkT st T Cs Ω H Sg Rp Scs Nt Z Ac s ∧ TimerOKx st T Cs t s
 
-theorem TInvx.wr {s : S} {t K v : U64} (h : TInvx st T Cs Ω H Sg Rp Scs Nt Z t s) (ht : t ∈ T)
+theorem TInvx.wr {s : S} {t K v : U64} (h : TInvx st T Cs Ω H Sg Rp Scs Nt Z Ac t s) (ht : t ∈ T)
     (hK : 3528 ≤ K.val) (hK' : K.val < 3568) (hK8 : K.val % 8 = 0)
     (hv : (K.val = 3544 ∨ K.val = 3552 ∨ K.val = 3560) → Tz T v) :
-    TInvx st T Cs Ω H Sg Rp Scs Nt Z t (L.wr s (core.num.U64.wrapping_add t K) v) :=
+    TInvx st T Cs Ω H Sg Rp Scs Nt Z Ac t (L.wr s (core.num.U64.wrapping_add t K) v) :=
   ⟨h.1.wr_tfield ht hK (by omega) hK8, h.2.wr h.1.tcbs h.1.nodes ht hK hK' hK8 hv⟩
 
-theorem TInvx.wr_ht {s : S} {t v : U64} (h : TInvx st T Cs Ω H Sg Rp Scs Nt Z t s) (ht : t ∈ T)
+theorem TInvx.wr_ht {s : S} {t v : U64} (h : TInvx st T Cs Ω H Sg Rp Scs Nt Z Ac t s) (ht : t ∈ T)
     (hc : ∀ c : U64, c.val = v.val >>> 8 → c ∈ Cs) :
-    TInv st T Cs Ω H Sg Rp Scs Nt Z (L.wr s (thA t) v) :=
+    TInv st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (thA t) v) :=
   ((h.1.wr_tfield (K := 3568#u64) ht (by simp) (by simp) (by simp)).ok
     (h.2.wr_ht h.1.tcbs h.1.nodes ht hc)).tinv
 
@@ -185,10 +185,10 @@ theorem timer.set_parent.on (s : S) (t v : U64) (hT : TcbPlaced T) (ht : t ∈ T
 section ops
 
 theorem timer.insert_loop.tz (s : S) (d p cur : U64) (gl fst : Bool) (fuel : U64)
-    (h : TInv st T Cs Ω H Sg Rp Scs Nt Z s) (hp : Tz T p) (hc : Tz T cur) :
+    (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hp : Tz T p) (hc : Tz T cur) :
     timer.insert_loop st s d p cur gl fst fuel ⦃ r => Tz T r.1 ⦄ := by
-  have L1 := timer.left.tz (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt)
-  have L2 := timer.right.tz (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt)
+  have L1 := timer.left.tz (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt) (Ac := Ac)
+  have L2 := timer.right.tz (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt) (Ac := Ac)
   unfold timer.insert_loop
   apply loop.spec_decr_nat (measure := fun x => x.2.2.2.2.val) (inv := fun x => Tz T x.1 ∧ Tz T x.2.1)
   · rintro ⟨p1, c1, g1, f1, u1⟩ ⟨hp1, hc1⟩
@@ -198,33 +198,33 @@ theorem timer.insert_loop.tz (s : S) (d p cur : U64) (gl fst : Bool) (fuel : U64
   · exact ⟨hp, hc⟩
 
 theorem timer.insert_fixup_loop.tinv (s : S) (c z fuel : U64)
-    (h : TInv st T Cs Ω H Sg Rp Scs Nt Z s) (hc : c ∈ Cs) (hz : Tz T z) :
-    timer.insert_fixup_loop st s c z fuel ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ := by
-  have L1 := timer.left.tz (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt)
-  have L2 := timer.right.tz (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt)
-  have L3 := timer.parent.tz (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt)
-  have L5 := timer.set_red.tinv (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt)
-  have L6 := timer.rotate_left.tinv (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt)
-  have L7 := timer.rotate_right.tinv (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt)
+    (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : c ∈ Cs) (hz : Tz T z) :
+    timer.insert_fixup_loop st s c z fuel ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
+  have L1 := timer.left.tz (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt) (Ac := Ac)
+  have L2 := timer.right.tz (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt) (Ac := Ac)
+  have L3 := timer.parent.tz (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt) (Ac := Ac)
+  have L5 := timer.set_red.tinv (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt) (Ac := Ac)
+  have L6 := timer.rotate_left.tinv (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt) (Ac := Ac)
+  have L7 := timer.rotate_right.tinv (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt) (Ac := Ac)
   have L8 := timer.is_red.any (L := L)
   have L9 := tcb_eq.iff
   unfold timer.insert_fixup_loop
   apply loop.spec_decr_nat (measure := fun x => x.2.2.val)
-    (inv := fun x => TInv st T Cs Ω H Sg Rp Scs Nt Z x.1 ∧ Tz T x.2.1)
+    (inv := fun x => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac x.1 ∧ Tz T x.2.1)
   · rintro ⟨s1, z1, f1⟩ ⟨h1, hz1⟩
     simp only at h1 hz1
     unfold timer.insert_fixup_loop.body
     step*
     all_goals try (
-      refine WP.spec_bind (Pₘ := fun r => TInv st T Cs Ω H Sg Rp Scs Nt Z r.1 ∧ Tz T r.2.1 ∧ Tz T r.2.2) ?_ ?_
+      refine WP.spec_bind (Pₘ := fun r => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ∧ Tz T r.2.1 ∧ Tz T r.2.2) ?_ ?_
       · split <;> step*
       rintro ⟨sa, za, pa⟩ ⟨ha, hza, hpa⟩
       simp only at ha hza hpa
       step*)
   · exact ⟨h, hz⟩
 
-theorem timer.insert_fixup.tinv (s : S) (c z : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z s) (hc : c ∈ Cs)
-    (hz : Tz T z) : timer.insert_fixup st s c z ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ := by
+theorem timer.insert_fixup.tinv (s : S) (c z : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : c ∈ Cs)
+    (hz : Tz T z) : timer.insert_fixup st s c z ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   unfold timer.insert_fixup
   refine WP.spec_bind (timer.insert_fixup_loop.tinv s c z _ h hc hz) fun s1 h1 => ?_
   refine WP.spec_bind (timer.root.tz s1 c h1 hc) fun r hr => ?_
@@ -233,8 +233,8 @@ theorem timer.insert_fixup.tinv (s : S) (c z : U64) (h : TInv st T Cs Ω H Sg Rp
 end ops
 
 /-- A core's `REPROGRAM` word. -/
-theorem reprogram_at.tinv {s : S} {c v : U64} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z s) (hc : c ∈ Cs) :
-    TInv st T Cs Ω H Sg Rp Scs Nt Z (L.wr s (L.nodeAt s c layout.node.REPROGRAM) v) := by
+theorem reprogram_at.tinv {s : S} {c v : U64} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : c ∈ Cs) :
+    TInv st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (L.nodeAt s c layout.node.REPROGRAM) v) := by
   have hI := h
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
@@ -245,14 +245,14 @@ theorem reprogram_at.tinv {s : S} {c v : U64} (h : TInv st T Cs Ω H Sg Rp Scs N
   exact hI.of_tmfr ⟨⟨Q, R, inv_of_free h0 hw⟩, hB.free h0 hw, hX.fr f, hS.fr f, hSg.fr f⟩
     (TmFr.of_fr f hX.1 h0.nodes)
 
-theorem TInv.cpu_small {s : S} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z s) {c : U64} (hc : c ∈ Cs) : c.val < 2 ^ 56 := by
+theorem TInv.cpu_small {s : S} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) {c : U64} (hc : c ∈ Cs) : c.val < 2 ^ 56 := by
   have := (h.nodes c hc).fits
   simp only [LawfulStore.nodeBase] at this
   omega
 
 /-- seL4 MCS (l4h) `timerQueueInsert`: arming `t`'s timer keeps `TInv`. -/
-theorem timer.insert.tinv (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z s) (ht : t ∈ T) :
-    timer.insert st s t d bd ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ := by
+theorem timer.insert.tinv (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T) :
+    timer.insert st s t d bd ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   have htz : Tz T t := Tz.of_mem ht
   unfold timer.insert
   refine WP.spec_bind (timer.remove.tinv s t h ht) fun s1 h1 => ?_
@@ -268,10 +268,10 @@ theorem timer.insert.tinv (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Sc
   simp only at hp
   try simp only [WP.uncurry'_pair]
   step with obj.Tcb.is_null.spec as ⟨b, eb⟩
-  refine WP.spec_bind (Pₘ := fun r : S × U64 => TInv st T Cs Ω H Sg Rp Scs Nt Z r.1 ∧ r.2 = t) ?_ ?_
+  refine WP.spec_bind (Pₘ := fun r : S × U64 => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ∧ r.2 = t) ?_ ?_
   · split
     · exact WP.spec_bind (timer.set_root.tinv s1 cpu t h1 hc htz) fun s3 h3 => (WP.spec_ok _).2 ⟨h3, rfl⟩
-    · refine WP.spec_bind (Pₘ := fun s2 => TInv st T Cs Ω H Sg Rp Scs Nt Z s2) ?_
+    · refine WP.spec_bind (Pₘ := fun s2 => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s2) ?_
         fun s2 h2 => (WP.spec_ok _).2 ⟨h2, rfl⟩
       split
       · exact timer.set_left.tinv s1 p t h1 hp htz
@@ -280,7 +280,7 @@ theorem timer.insert.tinv (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Sc
   simp only at h2 e
   subst e
   try simp only [WP.uncurry'_pair]
-  have hx2 : TInvx st T Cs Ω H Sg Rp Scs Nt Z t1 s2 := ⟨BlkOK.blkT h2, h2.tm.x t1⟩
+  have hx2 : TInvx st T Cs Ω H Sg Rp Scs Nt Z Ac t1 s2 := ⟨BlkOK.blkT h2, h2.tm.x t1⟩
   refine WP.spec_bind (obj.Tcb.set_timer_deadline.wr s2 t1 d) fun s3 e3 => ?_
   subst e3
   have hx3 := hx2.wr (K := 3528#u64) (v := d) ht (by simp) (by simp) (by simp) (fun h => by simp at h)
@@ -320,9 +320,9 @@ theorem SgOK.ksb' {s s' : S} (h : SgOK st Ω Sg s) (hk : L.ksb s' = L.ksb s) : S
 
 /-- seL4 `suspend` keeps `TInv`. -/
 theorem sched.suspend.tinv {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t : obj.Tcb)
-    (h : TInv st T Cs Ω H Sg Rp Scs Nt Z s) (ht : t ∈ T) (hna : L.actionW s ≠ t)
+    (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T) (hna : L.actionW s ≠ t)
     (hyield : L.mem s (yieldA t) ≠ 0#u64 → L.mem s (yieldA t) ∈ Scs) :
-    sched.suspend st ar s a t ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ := by
+    sched.suspend st ar s a t ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   refine WP.spec_mono (sched.suspend.all s a t Q R h0 ht hB hX hSg hS hna hyield) fun r hr => ?_
   obtain ⟨s', a'⟩ := r
@@ -331,8 +331,8 @@ theorem sched.suspend.tinv {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t
 
 /-- seL4 `restart` (MCS) keeps `TInv`. -/
 theorem sched.restart.tinv {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
-    (t : obj.Tcb) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z s) (ht : t ∈ T) :
-    sched.restart st ar s a t ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ := by
+    (t : obj.Tcb) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T) :
+    sched.restart st ar s a t ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   refine WP.spec_mono (sched.restart.all hA s a t Q R h0 ht hB hX hS) fun r hr => ?_
   obtain ⟨s', a'⟩ := r
@@ -342,19 +342,19 @@ theorem sched.restart.tinv {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal
 
 /-! ## `BlkOK` forms (`TInv` is `BlkOK` repackaged) -/
 
-theorem timer.remove.blk (s : S) (t : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s) (ht : t ∈ T) :
-    timer.remove st s t ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ :=
+theorem timer.remove.blk (s : S) (t : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T) :
+    timer.remove st s t ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
   WP.spec_mono (timer.remove.tinv s t h.tinv ht) fun _ h' => h'
 
-theorem timer.insert.blk (s : S) (t d bd : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s) (ht : t ∈ T) :
-    timer.insert st s t d bd ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ :=
+theorem timer.insert.blk (s : S) (t d bd : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T) :
+    timer.insert st s t d bd ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
   WP.spec_mono (timer.insert.tinv s t d bd h.tinv ht) fun _ h' => h'
 
 /-- The timer step of deleting a thread (`finalise_cap` on a `Thread` cap):
 unbind its notification, then take it out of its core's timer tree. -/
-theorem thread_unbind_remove.blk (s : S) (t : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s) (ht : t ∈ T) :
+theorem thread_unbind_remove.blk (s : S) (t : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T) :
     (do let s1 ← notification.unbind_notification st s t; timer.remove st s1 t)
-      ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z s' ⦄ :=
+      ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
   WP.spec_bind (notification.unbind_notification.blk s t h ht) fun s1 h1 => timer.remove.blk s1 t h1 ht
 
 end

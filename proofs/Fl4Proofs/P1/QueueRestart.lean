@@ -37,7 +37,7 @@ theorem sporadic.sufficient.ok (hA : P0.ArchTotal ar) (s : S) (a : A) (sc : obj.
   · step with sporadic.min_budget.ok hA as ⟨m⟩
 
 theorem sporadic.sc_sporadic.spec (s : S) (sc : obj.Sc) :
-    sporadic.sc_sporadic st s sc ⦃ b => b = true → sc ≠ 0#u64 ⦄ := by
+    sporadic.sc_sporadic st s sc ⦃ b => b = true → sc ≠ 0#u64 ∧ L.mem s (sporA sc) ≠ 0#u64 ⦄ := by
   unfold sporadic.sc_sporadic
   step with obj.Sc.is_null.spec as ⟨b, b_post⟩
   split
@@ -45,7 +45,7 @@ theorem sporadic.sc_sporadic.spec (s : S) (sc : obj.Sc) :
   · rename_i hb
     unfold obj.Sc.sporadic
     simp only [lift, bind_ok, L.read_eq, WP.spec_ok]
-    intro _; simpa [b_post] using hb
+    intro e; exact ⟨by simpa [b_post] using hb, by simpa [sporA] using e⟩
 
 theorem sched.is_stopped.spec (s : S) (t : obj.Tcb) :
     sched.is_stopped st s t ⦃ b => b = true → ¬ Runnable (L.mem s (stA t)) ⦄ := by
@@ -79,12 +79,12 @@ theorem sched.is_stopped.spec (s : S) (t : obj.Tcb) :
 /-- `postpone`, with `BoundInv` and `XInv`: the SC's thread is bound. -/
 theorem sched.postpone.all (s : S) (sc : obj.Sc) (Q : U64 → U64 → List U64)
     (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : L.mem s (scTcbA sc) ∈ T)
-    (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hSg : SgOK st Ω Sg s)
+    (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hSg : SgOK st Ω Sg s)
     (hr0 : (L.mem s (inqA (L.mem s (scTcbA sc))) &&& sched.Q_RELEASE) = 0#u64)
     (hcore : OutsideObjs st T Cs s (scCoreA sc)) (hcs : L.mem s (scCoreA sc) ∈ Cs)
     (hrun : Runnable (L.mem s (stA (L.mem s (scTcbA sc))))) (hna : L.actionW s ≠ L.mem s (scTcbA sc))
-    (hbd : L.mem s (scA (L.mem s (scTcbA sc))) ≠ 0#u64) :
-    sched.postpone st s sc ⦃ s' => ∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R' ∧ BoundInv st T s' ∧
+    (hbd : L.mem s (scA (L.mem s (scTcbA sc))) ≠ 0#u64) (hba : L.mem s (scA (L.mem s (scTcbA sc))) ∈ Ac) :
+    sched.postpone st s sc ⦃ s' => ∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R' ∧ BoundInv st T Ac s' ∧
       XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SgOK st Ω Sg s' ∧ Fr st T Sg s s' ⦄ := by
   unfold sched.postpone
   step as ⟨t, t_post⟩
@@ -132,7 +132,7 @@ theorem sched.postpone.all (s : S) (sc : obj.Sc) (Q : U64 → U64 → List U64)
     · exact h1.memTR hc1 hw
   obtain ⟨hB2, hX2, fr2, -, -⟩ := bx_qfoot h1 hB1 hX1 hSg1 hW2 hc1 ht prel hw2
     (fun hf => by rw [hinq2, or_qr_qq] at hf; exact Or.inl hf)
-    (fun _ => Or.inr (Or.inr (by rw [fr1.sc t ht]; exact hbd)))
+    (fun _ => Or.inr (Or.inr ⟨by rw [fr1.sc t ht]; exact hbd, by rw [fr1.sc t ht]; exact hba⟩))
   have hSg2 := hSg1.fr fr2
   have core2 : L.mem s2 (scCoreA sc) = L.mem s (scCoreA sc) :=
     (hw2.mem_eq hcore.1 (qfoot_out hT1 hW2 hN1 hN1' ht hc1 h1.cur (hcore.ksb hw1.1))).trans core1
@@ -178,12 +178,13 @@ theorem sched.postpone.all (s : S) (sc : obj.Sc) (Q : U64 → U64 → List U64)
 /-- seL4 `schedContext_resume`, with `BoundInv` and `XInv`. -/
 theorem schedcontext.resume.all (hA : P0.ArchTotal ar) (s : S) (a : A) (sc : obj.Sc)
     (Q : U64 → U64 → List U64) (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R)
-    (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hSg : SgOK st Ω Sg s)
+    (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hSg : SgOK st Ω Sg s)
+    (hS : SCsOK st T Ω Sg Scs Z Ac s)
     (hsc : sc ≠ 0#u64 → L.mem s (scTcbA sc) ≠ 0#u64 →
       L.mem s (scTcbA sc) ∈ T ∧ OutsideObjs st T Cs s (scCoreA sc) ∧ L.mem s (scCoreA sc) ∈ Cs ∧
         L.actionW s ≠ L.mem s (scTcbA sc)) :
     schedcontext.resume st ar s a sc ⦃ s' _ => ∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R' ∧
-      BoundInv st T s' ∧ XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SgOK st Ω Sg s' ∧ Fr st T Sg s s' ⦄ := by
+      BoundInv st T Ac s' ∧ XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SgOK st Ω Sg s' ∧ Fr st T Sg s s' ⦄ := by
   unfold schedcontext.resume
   step with obj.Sc.is_null.spec as ⟨b, b_post⟩
   split
@@ -200,9 +201,11 @@ theorem schedcontext.resume.all (hA : P0.ArchTotal ar) (s : S) (a : A) (sc : obj
   step with sched.is_schedulable.spec' as ⟨b2, b2_post⟩
   split
   · rename_i hb2
-    obtain ⟨hrun, hbd, hr0⟩ := b2_post hb2
-    rw [i_post] at hrun hr0 hbd
-    have post := sched.postpone.all s sc Q R h hiT hB hX hSg hr0 hcore hcs hrun hna hbd
+    obtain ⟨hrun, hbd, hr0, hmx⟩ := b2_post hb2
+    rw [i_post] at hrun hr0 hbd hmx
+    have hba : L.mem s (scA (L.mem s (scTcbA sc))) ∈ Ac :=
+      (hS.act _ (hX.2.2.bound _ hiT hbd).1).2 hmx
+    have post := sched.postpone.all s sc Q R h hiT hB hX hSg hr0 hcore hcs hrun hna hbd hba
     step with sporadic.ready.spec as ⟨b3⟩
     split
     · step with sporadic.sufficient.ok (st := st) hA as ⟨b4⟩
@@ -217,9 +220,9 @@ theorem schedcontext.resume.all (hA : P0.ArchTotal ar) (s : S) (a : A) (sc : obj
 /-- seL4 `restart` (MCS) keeps the queue invariant, `BoundInv` and `XInv`. -/
 theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
     (Q : U64 → U64 → List U64) (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : t ∈ T)
-    (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hS : SCsOK st T Ω Sg Scs Z s) :
-    sched.restart st ar s a t ⦃ s' _ => ∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R' ∧ BoundInv st T s' ∧
-      XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SCsOK st T Ω Sg Scs Z s' ∧ TmFr st T Cs Nt s s' ⦄ := by
+    (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hS : SCsOK st T Ω Sg Scs Z Ac s) :
+    sched.restart st ar s a t ⦃ s' _ => ∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R' ∧ BoundInv st T Ac s' ∧
+      XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SCsOK st T Ω Sg Scs Z Ac s' ∧ TmFr st T Cs Nt s s' ⦄ := by
   have hSg := hS.sg
   have hsub := hSg.sub
   have hT := h.tcbs
@@ -248,10 +251,10 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
   have nrr : sched.TS_RESTART ≠ sched.TS_BLOCKED_ON_REPLY ∧ sched.TS_RESTART ≠ sched.TS_BLOCKED_ON_RECV := by
     obtain ⟨-, -, h3', -⟩ := ts_vals
     rw [ts_restart, ts_reply, h3']; decide
-  have hB2 := hB1.keepT h1 k2 (by rw [e2]; exact not_blocked_restart)
+  have hB2 := hB1.keepT h1 k2 (by rw [e2]; exact not_blocked_restart) (by rw [e2]; exact nrr.1)
   have hX2 := hX1.keepT k2 (by rw [e2]; exact nrr)
     (fun r hr e => absurd e (hX1.noref (h1.tcbs t ht) nr1 (fun e' => nb1 (Or.inr (Or.inl e'))) r hr))
-  have hS2 : SCsOK st T Ω Sg Scs Z s2 := (hS.keepT hX k1).keepT hX1 k2
+  have hS2 : SCsOK st T Ω Sg Scs Z Ac s2 := (hS.keepT hX k1).keepT hX1 k2
   have k12 := k1.trans k2
   have tm2 : TmFr st T Cs Nt s s2 := TmFr.of_keepT k12
   have hSg2 : SgOK st Ω Sg s2 := ⟨hsub, fun b hb => by rw [k12.ksb]; exact hSg.ks b hb,
@@ -264,23 +267,17 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
   -- the SC: unblock check
   step with obj.Tcb.sc.spec as ⟨i, i_post⟩
   step with sporadic.sc_sporadic.spec as ⟨b1, b1_post⟩
-  refine WP.spec_bind (Pₘ := fun s3 => SchedQueuesInv st T Cs Ω H s3 Q R ∧ BoundInv st T s3 ∧
+  refine WP.spec_bind (Pₘ := fun s3 => SchedQueuesInv st T Cs Ω H s3 Q R ∧ BoundInv st T Ac s3 ∧
       XInv st T Cs Ω Sg Rp Scs Nt Z s3 ∧ SgOK st Ω Sg s3 ∧ L.actionW s3 ≠ t ∧ L.mem s3 (scA t) = i ∧
-      SCsOK st T Ω Sg Scs Z s3 ∧ TmFr st T Cs Nt s2 s3) ?_ ?_
+      SCsOK st T Ω Sg Scs Z Ac s3 ∧ TmFr st T Cs Nt s2 s3) ?_ ?_
   · split
     · rename_i hb1
-      have hi0 : i ≠ 0#u64 := b1_post hb1
+      obtain ⟨hi0, hsp⟩ := b1_post hb1
       have hbt : L.mem s2 (scA t) ≠ 0#u64 := by rw [← i_post]; exact hi0
       obtain ⟨hiS, -, -⟩ := hX2.2.2.bound t ht hbt
       rw [← i_post] at hiS
-      -- the ring is still well formed
-      have hW0 : RefillsWF st s i (Z i) := by
-        have := (hS.bound t ht (by rw [← sc2]; exact hbt)).1
-        rw [← sc2, ← i_post] at this; exact this
-      obtain ⟨-, -, f3, f4, f5⟩ := k12.fix i hiS
-      have hW2 : RefillsWF st s2 i (Z i) := hW0.of_hdr f3 (by
-          rw [show L.rhead s2 i = L.mem s2 (headA i) from rfl, f4]; exact hW0.head_lt)
-        (by rw [show L.rtail s2 i = L.mem s2 (tailA i) from rfl, f5]; exact hW0.tail_lt)
+      -- a sporadic SC is active, so well formed
+      have hW2 : RefillsWF st s2 i (Z i) := hS2.wf hiS (hS2.spor i hiS hsp)
       have hSCin : SCin st s2 Ω i (Z i) := ⟨hW2, hX2.1.scW i hiS⟩
       step with sched.cur_sc.spec as ⟨c4, _⟩
       step with sc_ne.spec as ⟨b2⟩
@@ -338,7 +335,7 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
     · exact (WP.spec_ok _).2 ⟨h2, hB2, hX2, hSg2, na2, i_post.symm, hS2, TmFr.refl (L := L) _⟩
   rintro s3 ⟨h3, hB3, hX3, hSg3, na3, sc3, hS3, tm3⟩
   -- `resume`
-  refine WP.spec_bind (schedcontext.resume.all hA s3 a1 i Q R h3 hB3 hX3 hSg3 fun hi0 _ => ?_) ?_
+  refine WP.spec_bind (schedcontext.resume.all hA s3 a1 i Q R h3 hB3 hX3 hSg3 hS3 fun hi0 _ => ?_) ?_
   · obtain ⟨hiS, hti, hci⟩ := hX3.2.2.bound t ht (by rw [sc3]; exact hi0)
     rw [sc3] at hiS hti hci
     rw [hti]
@@ -351,7 +348,9 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
   step with sched.is_schedulable.spec' as ⟨b2, b2_post⟩
   split
   · rename_i hb2
-    refine WP.spec_bind (sched.possible_switch_to.sch s4 t Q4 R4 h4 hB4 hSg4 ht (b2_post hb2).1) ?_
+    obtain ⟨hrun4, hbd4, -, hmx4⟩ := b2_post hb2
+    refine WP.spec_bind (sched.possible_switch_to.sch s4 t Q4 R4 h4 hB4 hSg4 ht hrun4
+      (fun _ => (hS4.act _ (hX4.2.2.bound t ht hbd4).1).2 hmx4)) ?_
     rintro s5 ⟨⟨hi5, hB5, f5⟩, -, -⟩
     simp only [WP.spec_ok, WP.uncurry'_pair]
     obtain ⟨Q5, R5, h5⟩ := hi5
