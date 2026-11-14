@@ -49,6 +49,42 @@ theorem KFoot.ksub {σ σ' : Fl4Spec.State Unit} (h : KFoot σ σ') : KSub σ σ
       · simp_all
     · refine ⟨fun r cs hc _ => ?_, fun t'' ht => ⟨t, h1⟩, fun hn => ?_⟩ <;> simp_all
 
+
+/-- An object a cap names is at its pointer, and the cap is physical, not untyped. -/
+theorem objRef_ptr {c : capability.Cap} {q : Fl4Spec.ObjRef} (h : q ∈ Fl4Spec.objRefs (absCap c)) :
+    (ptrF c).bv = q ∧ physF c = true ∧ isUt c = false := by
+  cases c <;> simp [absCap, Fl4Spec.objRefs, Fl4Spec.aobjRef] at h <;>
+    (refine ⟨?_, physF_of rfl, rfl⟩; rw [ptrF_of rfl]; first | exact h.symm | (split at h <;> simp_all))
+
+/-- A cap overlapping an ASID pool cap names its object. -/
+theorem ovl_pool_ref {q b : U64} {c : capability.Cap} (h : Ovl (absCap (.AsidPool q b)) (absCap c)) :
+    q.bv ∈ Fl4Spec.objRefs (absCap c) := by
+  unfold Ovl at h
+  obtain ⟨g, hg1, hg2⟩ := Set.nonempty_iff_ne_empty.2 h
+  simp [Fl4Spec.genObjRefs, absCap, Fl4Spec.objRefs, Fl4Spec.aobjRef, Fl4Spec.capIrqs, Fl4Spec.archCapSetMap,
+    Fl4Spec.archGenObjRefs, Fl4Spec.capIrqOpt] at hg1
+  subst hg1
+  simp only [Fl4Spec.genObjRefs, Set.mem_union, Set.mem_image] at hg2
+  rcases hg2 with (⟨x, hx, e⟩ | ⟨x, -, e⟩) | ⟨x, -, e⟩
+  · cases e; exact hx
+  · cases e
+  · cases e
+
+/-- **An ASID pool cap at an untyped region overlaps no cap** that is
+disjoint from the region or untyped. -/
+theorem not_ovl_pool {q b : U64} {c : capability.Cap} (hr : physF c = true → baseF c ≤ topF c)
+    (hno : physF c = true → Disj c (.AsidPool q b) ∨ isUt c = true)
+    (hpr : baseF (.AsidPool q b) ≤ topF (.AsidPool q b)) : ¬ Ovl (absCap (.AsidPool q b)) (absCap c) := by
+  intro hov
+  obtain ⟨hp, hph, hut⟩ := objRef_ptr (ovl_pool_ref hov)
+  have hpq : ptrF c = q := P1.eq_of_bv hp
+  have hb1 : baseF c = q.val := by unfold baseF; rw [hpq]
+  have hb2 : baseF (.AsidPool q b) = q.val := by unfold baseF; rw [ptrF_of rfl]
+  have := hr hph
+  rcases hno hph with h | h
+  · unfold Disj at h; omega
+  · rw [hut] at h; cases h
+
 section
 variable {th : TypedHeap}
 

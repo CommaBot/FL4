@@ -14,6 +14,8 @@ P3 (DESIGN.md §9), VSpace: **frame caps at the top of `decode_invocation`**
   l4v's `IllegalOperation`.
 -/
 import Fl4Proofs.P3.VsDecTop
+import Fl4Proofs.P3.VsMakePoolRel
+import Fl4Proofs.P3.VsSubRel
 import Fl4Proofs.P3.VsMdb
 import Fl4Proofs.P3.VsFrameMapLRel
 import Fl4Proofs.P3.VsFrameUnmapRel
@@ -91,15 +93,74 @@ theorem fin_iff_of {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {th
   rw [finF_iff hP hM hI hFI hx (by rw [hcv]; exact hN) (by rw [hcv]; exact hz),
     ← hcv, final_iff hP hR hM hFI hA (by rw [hcv]; exact hr)]
 
+theorem decodeAssign_bad {lbl : Fl4Spec.Data}
+    (hl : Fl4Spec.invocationType lbl = .archInvocationLabel .x64ASIDPoolAssign)
+    (args : List Fl4Spec.Data) (xs : Fl4Spec.CapRef) (cte : Fl4Spec.CslotPtr) (p base : Fl4Spec.ObjRef)
+    {c : Fl4Spec.Cap} (hc : ∀ pb, c ≠ .archObjectCap (.pml4Cap pb none)) (sl : Fl4Spec.CslotPtr)
+    (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (σ : Fl4Spec.State Unit) :
+    ExceptT.run (Fl4Spec.archDecodeInvocation (Z := Unit) lbl args xs cte (.asidPoolCap p base) ((c, sl) :: rest)) σ =
+      ({(.error (.invalidCapability 1), σ)}, False) := by
+  unfold Fl4Spec.archDecodeInvocation
+  dsimp only
+  rw [if_pos hl, if_pos (by simp)]
+  split
+  · rename_i pb h; exact absurd h (hc pb)
+  · rfl
+
+theorem decodeAssign_trunc {lbl : Fl4Spec.Data}
+    (hl : Fl4Spec.invocationType lbl = .archInvocationLabel .x64ASIDPoolAssign)
+    (args : List Fl4Spec.Data) (xs : Fl4Spec.CapRef) (cte : Fl4Spec.CslotPtr) (p base : Fl4Spec.ObjRef)
+    (σ : Fl4Spec.State Unit) :
+    ExceptT.run (Fl4Spec.archDecodeInvocation (Z := Unit) lbl args xs cte (.asidPoolCap p base) []) σ =
+      ({(.error .truncatedMessage, σ)}, False) := by
+  unfold Fl4Spec.archDecodeInvocation
+  dsimp only
+  rw [if_pos hl, if_neg (by simp)]; rfl
+
+theorem decodeAssign_illegal {lbl : Fl4Spec.Data}
+    (hl : Fl4Spec.invocationType lbl ≠ .archInvocationLabel .x64ASIDPoolAssign)
+    (args : List Fl4Spec.Data) (xs : Fl4Spec.CapRef) (cte : Fl4Spec.CslotPtr) (p base : Fl4Spec.ObjRef)
+    (ex : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (σ : Fl4Spec.State Unit) :
+    ExceptT.run (Fl4Spec.archDecodeInvocation (Z := Unit) lbl args xs cte (.asidPoolCap p base) ex) σ =
+      ({(.error .illegalOperation, σ)}, False) := by
+  unfold Fl4Spec.archDecodeInvocation
+  dsimp only
+  rw [if_neg hl]; rfl
+
+theorem decodeMP_trunc {lbl : Fl4Spec.Data}
+    (hl : Fl4Spec.invocationType lbl = .archInvocationLabel .x64ASIDControlMakePool)
+    (args : List Fl4Spec.Data) (xs : Fl4Spec.CapRef) (cte : Fl4Spec.CslotPtr)
+    (ex : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (h : ex.length ≤ 1) (σ : Fl4Spec.State Unit) :
+    ExceptT.run (Fl4Spec.archDecodeInvocation (Z := Unit) lbl args xs cte .asidControlCap ex) σ =
+      ({(.error .truncatedMessage, σ)}, False) := by
+  unfold Fl4Spec.archDecodeInvocation
+  dsimp only
+  rw [if_pos hl, if_neg (by omega)]; rfl
+
+theorem decodeMP_illegal {lbl : Fl4Spec.Data}
+    (hl : Fl4Spec.invocationType lbl ≠ .archInvocationLabel .x64ASIDControlMakePool)
+    (args : List Fl4Spec.Data) (xs : Fl4Spec.CapRef) (cte : Fl4Spec.CslotPtr)
+    (ex : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (σ : Fl4Spec.State Unit) :
+    ExceptT.run (Fl4Spec.archDecodeInvocation (Z := Unit) lbl args xs cte .asidControlCap ex) σ =
+      ({(.error .illegalOperation, σ)}, False) := by
+  unfold Fl4Spec.archDecodeInvocation
+  dsimp only
+  rw [if_neg hl]; rfl
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
 /-- The frame labels, FL4's and the spec's. -/
 structure FrameLabel (lbl : U64) (slbl : Fl4Spec.Data) : Prop where
   ds : Fl4Spec.dataToNat slbl = Fl4Spec.fl4DeriveSubframeLabel → lbl = fl4_abi.label.X86PageDeriveSubframe
+  dsr : lbl = fl4_abi.label.X86PageDeriveSubframe → Fl4Spec.dataToNat slbl = Fl4Spec.fl4DeriveSubframeLabel
   tac : Fl4Spec.dataToNat slbl = Fl4Spec.fl4TestAndClearLabel → lbl = fl4_abi.label.X86PageTestAndClearAccessed
   map : lbl = fl4_abi.label.X86PageMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageMap
   unmap : lbl = fl4_abi.label.X86PageUnmap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageUnmap
+  ga : lbl = fl4_abi.label.X86PageGetAddress →
+    Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageGetAddress
+  tacr : lbl = fl4_abi.label.X86PageTestAndClearAccessed →
+    Fl4Spec.dataToNat slbl = Fl4Spec.fl4TestAndClearLabel
   other : lbl ≠ fl4_abi.label.X86PageMap → lbl ≠ fl4_abi.label.X86PageUnmap →
     lbl ≠ fl4_abi.label.X86PageGetAddress → lbl ≠ fl4_abi.label.X86PageTestAndClearAccessed →
     lbl ≠ fl4_abi.label.X86PageDeriveSubframe →
@@ -570,6 +631,267 @@ theorem decode_invocation_pdpt (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
     (.pdPointerTableCap ptr.bv (if mp then some (asid0.bv, va0.bv) else none)) excaps) σ = _
   unfold Fl4Spec.decodePdptInvocation; dsimp only
   rw [if_neg o1, if_neg o2]; rfl
+
+
+set_option maxHeartbeats 8000000 in
+/-- **`DeriveSubframe` on a frame cap** (`derive_subframe_rel`; the node cap
+absent: `TruncatedMessage`). -/
+theorem decode_invocation_frame_ds (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hU : UtInv (L.mem s) G)
+    {P L4 L3 L2 L1 : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
+    (hH : VsSubHyps st A P L4 L3 L2 L1 th SR) (hS : SR s ar σ) (hPP : PtPlaced L4 L3 L2 L1)
+    (hVP : VsPlaced P (L.ksb s))
+    (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b) (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b)
+    (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
+    (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : FrameLabel lbl slbl) (hl : lbl = fl4_abi.label.X86PageDeriveSubframe)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
+    (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct)) (hrun : Fl4Spec.runnable xct.tcbState = true)
+    (args : List U64) (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    {pc : U64} {r : Nat} (hpc : th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
+    {p : U64} {sz : capability.FrameSize} {rt asid va : U64} {d m : Bool}
+    (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.Frame p sz rt d m asid va))
+    (hno : sz = .Large → d = false → ∀ x ∈ G.chains.flatten,
+      Disj (capV (L.mem s) x) (.Frame p sz rt d m asid va) ∨
+      (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
+      Within (.Frame p sz rt d m asid va) (capV (L.mem s) x))
+    (hfr0 : sz = .Large → d = false → ∀ w ∈ G.chains.flatten, ∀ q vm : U64, p.val ≤ q.val →
+      q.val < p.val + 2 ^ 21 →
+      Ovl (absCap (.Frame q .Small vm false false 0#u64 0#u64)) (absCap (capV (L.mem s) w)) →
+      isFrame (capV (L.mem s) w) = true ∧ ∃ ch ∈ G.chains, cslotAddr (pc.bv, idx) ∈ ch ∧ w ∈ ch)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
+      ∃ y nc nc' nsl rest, vspace.extra extra 0#usize = ok (some y) ∧ capAt (L.mem s) y = ok nc ∧
+        CapRel nc nc' ∧ CapValid th nc ∧ excaps = (nc', nsl) :: rest)
+    (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
+    DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := by
+  subst hl
+  have hCR0 := hCR
+  obtain ⟨hSt, hSV, hM, hC, hI⟩ := hCR0
+  have hcur' : ct.bv = σ.curThread := hcur.symm
+  have hkt0 : σ.kheap ct.bv = some (.tcb xct) := by rw [hcur']; exact hkt
+  have hst1 : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ =
+      ({((), Notif.stsAct (Notif.updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv)}, False) := by
+    rw [hcur]; exact Notif.setThreadState_eq .restart hkt0
+  unfold DecOK syscall.decode_invocation
+  rw [hct]; simp only [bind_ok]
+  have hspec : specDec fp slbl (args.map UScalar.bv) ci (pc.bv, idx) (.Frame p sz rt d m asid va) excaps buffer =
+      Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject
+        (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4ArchInvocation.deriveSubframe
+          (Fl4Spec.decodeDeriveSubframe (Z := Unit) (args.map UScalar.bv) (pc.bv, idx)
+            (frameACapG ⟨p, sz, rt, d, m, asid, va⟩) excaps)) := by
+    show Fl4Spec.NonDetE.liftME _ (Fl4Spec.fl4ArchDecodeInvocation (Z := Unit) slbl (args.map UScalar.bv) ci (pc.bv, idx)
+      (frameACapG ⟨p, sz, rt, d, m, asid, va⟩) excaps) = _
+    unfold Fl4Spec.fl4ArchDecodeInvocation frameACapG; dsimp only
+    rw [if_pos (hlbl.dsr rfl)]
+  rw [hspec]
+  unfold vspace.decode
+  rw [hct]; simp only [bind_ok]
+  unfold vspace.decode_frame
+  have n1 : ¬ fl4_abi.label.X86PageDeriveSubframe = fl4_abi.label.X86PageMap := by
+    unfold fl4_abi.label.X86PageDeriveSubframe fl4_abi.label.X86PageMap; decide
+  have n2 : ¬ fl4_abi.label.X86PageDeriveSubframe = fl4_abi.label.X86PageUnmap := by
+    unfold fl4_abi.label.X86PageDeriveSubframe fl4_abi.label.X86PageUnmap; decide
+  have n3 : ¬ fl4_abi.label.X86PageDeriveSubframe = fl4_abi.label.X86PageGetAddress := by
+    unfold fl4_abi.label.X86PageDeriveSubframe fl4_abi.label.X86PageGetAddress; decide
+  have n4 : ¬ fl4_abi.label.X86PageDeriveSubframe = fl4_abi.label.X86PageTestAndClearAccessed := by
+    unfold fl4_abi.label.X86PageDeriveSubframe fl4_abi.label.X86PageTestAndClearAccessed; decide
+  simp only [vspace.as_frame, bind_ok, n1, n2, n3, n4, ↓reduceIte]
+  rcases hext with ⟨hex, rfl⟩ | ⟨y, nc, nc', nsl, rest, hex, hcy, hnr, hnv, rfl⟩
+  · unfold vspace.derive_subframe
+    rw [hct, hex]
+    simp only [bind_ok, error.truncated, WP.spec_ok]
+    exact top_of_lift2 (Or.inl ⟨_, rfl, rfl, .truncatedMessage, decodeSub_trunc (Or.inl rfl) _ _ σ, Or.inl trivial⟩)
+  refine WP.spec_mono (derive_subframe_rel (L := L) (ar := arI) hH hP hPP hpc hidx s ar σ G hSt hSV hM hC hI hU hR hPt
+    hS hVP hVO hPO hcap hno hFI hfr0 ct hct hcur' hkt hrun htcb hact length buf args hlen hargs extra hex hcy hnr hnv
+    nsl rest) ?_
+  rintro res (⟨e, e', h1, he, hD, h2, -⟩ | ⟨h1, -, iv, hD, σ', G', hmem, -, hSub, -⟩)
+  · exact top_of_lift2 (Or.inl ⟨e, h1, h2, e', hD, Or.inl he⟩)
+  · have hmem' := hmem
+    rw [nd_bind_one hst1] at hmem'
+    exact top_of_lift2 (Or.inr ⟨iv, hD, _, hst1, (.ok [], σ'),
+      mem_liftE (ε := Unit) (x := ([], σ')) (mem_bind_nd (x := ((), σ')) hmem' (Set.mem_singleton _)), th, G',
+      Or.inl ⟨h1, [], rfl⟩, hP, ⟨hSub.R, hSub.V, hSub.M, hSub.C, hSub.I⟩, hSub.F⟩)
+
+
+set_option maxHeartbeats 8000000 in
+/-- **An ASID pool cap**, every label (`Assign`: `assign_rel`; the others
+l4v's `IllegalOperation`). -/
+theorem decode_invocation_asid_pool (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
+    {P : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
+    (hH : VsInvHyps st A th P SR) (hS : SR s ar σ) (hVP : VsPlaced P (L.ksb s)) (hD : VsSlotsDisj th P (L.ksb s))
+    (hR : VsRel P (L.mem s) (L.ksb s) σ) (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b)
+    (lbl : U64) (slbl : Fl4Spec.Data)
+    (hlA : lbl = fl4_abi.label.X86ASIDPoolAssign ↔
+      Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDPoolAssign)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
+    (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (ptr base : U64) (hb : base.val % 512 = 0)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
+      ∃ (pc : U64) (r : Nat) (idx : List Bool) (vc : capability.Cap) (vc' : Fl4Spec.Cap)
+        (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)), th pc = some (.cnode r) ∧ idx.length = r ∧
+        vspace.extra extra 0#usize = ok (some (cslotAddr (pc.bv, idx))) ∧
+        capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok vc ∧ CapRel vc vc' ∧ excaps = (vc', (pc.bv, idx)) :: rest ∧
+        ∀ p1 a1, vc = .Pml4 p1 false a1 → p1 ≠ 0#u64)
+    (slot : U64) (blk call don fp : Bool) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (buffer : Option Fl4Spec.ObjRef) :
+    DecOK (L := L) arI s ar σ lbl length slot (.AsidPool ptr base) blk call don fp buf extra slbl args ci sl excaps
+      buffer := by
+  have hCR0 := hCR
+  obtain ⟨hSt, hSV, -, -, -⟩ := hCR0
+  obtain ⟨xct, hkt0, -⟩ := hSt.tcb ct htcb
+  have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
+  have hst1 : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ =
+      ({((), Notif.stsAct (Notif.updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv)}, False) := by
+    rw [hcur]; exact Notif.setThreadState_eq .restart hkt0
+  unfold DecOK syscall.decode_invocation
+  rw [hct]; simp only [bind_ok]
+  have hspec : specDec fp slbl args ci sl (.AsidPool ptr base) excaps buffer =
+      Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject
+        (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4ArchInvocation.spec (Fl4Spec.archDecodeInvocation (Z := Unit) slbl
+          args ci sl (.asidPoolCap ptr.bv base.bv) excaps)) := rfl
+  rw [hspec]
+  by_cases hl : lbl = fl4_abi.label.X86ASIDPoolAssign
+  swap
+  · unfold vspace.decode
+    rw [hct]; simp only [bind_ok]
+    have : (lbl != fl4_abi.label.X86ASIDPoolAssign) = true := by simpa using hl
+    simp only [this, ↓reduceIte, error.illegal, bind_ok, WP.spec_ok]
+    exact top_of_lift2 (Or.inl ⟨_, rfl, rfl, .illegalOperation,
+      decodeAssign_illegal (fun h => hl (hlA.2 h)) _ _ _ _ _ _ σ, Or.inl trivial⟩)
+  subst hl
+  have hl' := hlA.1 rfl
+  rcases hext with ⟨hex, rfl⟩ | ⟨pc, r, idx, vc, vc', rest, hpc, hidx, hex, hcx, hvr, rfl, hp0⟩
+  · unfold vspace.decode
+    rw [hct]; simp only [bind_ok, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+    rw [hex]; simp only [bind_ok, error.truncated, WP.spec_ok]
+    exact top_of_lift2 (Or.inl ⟨_, rfl, rfl, .truncatedMessage, decodeAssign_trunc hl' _ _ _ _ _ σ, Or.inl trivial⟩)
+  by_cases hpm : ∃ p1 a1, vc = .Pml4 p1 false a1
+  swap
+  · have hbad : ∀ pb, vc' ≠ .archObjectCap (.pml4Cap pb none) := by
+      intro pb h; rw [← hvr.2] at h
+      cases vc <;> simp_all [absCap]
+    unfold vspace.decode
+    rw [hct]; simp only [bind_ok, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+    rw [hex]; simp only [bind_ok]
+    rw [slot_cap_eq, hcx]; simp only [bind_ok]
+    have hres : ∀ v : Bool, v = true ∨ (∀ p1 a1, vc ≠ .Pml4 p1 v a1) → True := fun _ _ => trivial
+    clear hres
+    cases vc
+    case Pml4 p1 b a1 =>
+      cases b
+      · exact absurd ⟨p1, a1, rfl⟩ hpm
+      · simp only [↓reduceIte, error.invalid_cap, bind_ok, WP.spec_ok]
+        exact top_of_lift2 (Or.inl ⟨_, rfl, rfl, .invalidCapability 1, decodeAssign_bad hl' _ _ _ _ _ hbad _ _ σ,
+          Or.inr ⟨1#u64, rfl, rfl⟩⟩)
+    all_goals
+      simp only [error.invalid_cap, bind_ok, WP.spec_ok]
+      exact top_of_lift2 (Or.inl ⟨_, rfl, rfl, .invalidCapability 1, decodeAssign_bad hl' _ _ _ _ _ hbad _ _ σ,
+        Or.inr ⟨1#u64, rfl, rfl⟩⟩)
+  obtain ⟨p1, a1, rfl⟩ := hpm
+  have hvc' : vc' = .archObjectCap (.pml4Cap p1.bv none) := by rw [← hvr.2]; rfl
+  subst hvc'
+  have hcan : Canonical p1 := by
+    have h := hcx; rw [capAt_words] at h; exact (decode_encWf h)
+  refine WP.spec_mono (assign_rel (L := L) (ar := arI) hH s ar σ hP hVP hD hSt hSV hR hS hkt ptr base hb hl' args ci sl
+    rest length slot call buf extra hpc hidx hex hcx hcan (hp0 p1 a1 rfl)
+    (fun ct' h => by rw [show ct' = ct from P1.eq_of_bv (h.trans hcur)]; exact htcb) hact hVO) ?_
+  rintro res (⟨e, e', h1, he, hdec, h2, -⟩ | ⟨h1, hnf, asid, σ', hmem, hAS, hSt', hSV', -, -, hF, hL, hK⟩)
+  · exact top_of_lift2 (Or.inl ⟨e, h1, h2, e', hdec, he⟩)
+  · refine top_of_lift2M (Or.inr ⟨_, ⟨hmem, hnf⟩, _, hst1, (.ok [], σ'), ?_, th, G, Or.inl ⟨h1, [], rfl⟩, hP,
+      crel_after hCR hFI hcx hSt' hSV' hF hL hK⟩)
+    have h2 := hAS
+    unfold AssignSpec at h2
+    rw [nd_bind_one hst1] at h2
+    exact mem_liftE (ε := Unit) (x := ([], σ')) (mem_bind_nd (x := ((), σ')) (by rw [h2]; rfl) (Set.mem_singleton _))
+
+
+set_option maxHeartbeats 8000000 in
+/-- **The ASID control cap**, every label (`MakePool`: `makepool_rel`; the
+others l4v's `IllegalOperation`). -/
+theorem decode_invocation_asid_control (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hU : UtInv (L.mem s) G)
+    {P L4 L3 L2 L1 : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop} {RegOK : S → Fl4Spec.State Unit → U64 → Prop}
+    (hH : VsMpHyps st A th P L4 L3 L2 L1 SR RegOK) (hS : SR s ar σ)
+    (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
+    (hVP : VsPlaced P (L.ksb s)) (hPP : PtPlaced L4 L3 L2 L1)
+    (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b)
+    (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b)
+    (hPV : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b)
+    (lbl : U64) (slbl : Fl4Spec.Data)
+    (hlM : lbl = fl4_abi.label.X86ASIDControlMakePool ↔
+      Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDControlMakePool)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
+    (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (args : List U64) (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hext : (∃ o0 o1, vspace.extra extra 0#usize = ok o0 ∧ vspace.extra extra 1#usize = ok o1 ∧
+        (o0 = none ∨ o1 = none) ∧ excaps.length ≤ 1) ∨
+      ∃ (pp : U64) (rs : Nat) (idx : List Bool) (y : obj.Slot) (uc : capability.Cap) (uc' : Fl4Spec.Cap)
+        (rc : capability.Cap) (rc' : Fl4Spec.Cap) (ysl : Fl4Spec.CslotPtr)
+        (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)),
+        th pp = some (.cnode rs) ∧ idx.length = rs ∧
+        vspace.extra extra 0#usize = ok (some (cslotAddr (pp.bv, idx))) ∧ vspace.extra extra 1#usize = ok (some y) ∧
+        capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok uc ∧ CapRel uc uc' ∧
+        capAt (L.mem s) y = ok rc ∧ CapRel rc rc' ∧ CapValid th rc ∧
+        excaps = (uc', (pp.bv, idx)) :: (rc', ysl) :: rest ∧
+        ∀ p fi, uc = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false →
+          MpRegion th G P L4 L3 L2 L1 (L.ksb s) p ∧ RegOK s σ p)
+    (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (buffer : Option Fl4Spec.ObjRef) :
+    DecOK (L := L) arI s ar σ lbl length slot .AsidControl blk call don fp buf extra slbl (args.map UScalar.bv) ci sl
+      excaps buffer := by
+  have hCR0 := hCR
+  obtain ⟨hSt, hSV, hM, hC, hI⟩ := hCR0
+  obtain ⟨xct, hkt0, -⟩ := hSt.tcb ct htcb
+  have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
+  unfold DecOK syscall.decode_invocation
+  rw [hct]; simp only [bind_ok]
+  have hspec : specDec fp slbl (args.map UScalar.bv) ci sl .AsidControl excaps buffer =
+      Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject
+        (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4ArchInvocation.spec (Fl4Spec.archDecodeInvocation (Z := Unit) slbl
+          (args.map UScalar.bv) ci sl .asidControlCap excaps)) := rfl
+  rw [hspec]
+  by_cases hl : lbl = fl4_abi.label.X86ASIDControlMakePool
+  swap
+  · unfold vspace.decode
+    rw [hct]; simp only [bind_ok]
+    have : (lbl != fl4_abi.label.X86ASIDControlMakePool) = true := by simpa using hl
+    simp only [this, ↓reduceIte, error.illegal, bind_ok, WP.spec_ok]
+    exact top_of_lift2 (Or.inl ⟨_, rfl, rfl, .illegalOperation,
+      decodeMP_illegal (fun h => hl (hlM.2 h)) _ _ _ _ σ, Or.inl trivial⟩)
+  subst hl
+  have hl' := hlM.1 rfl
+  rcases hext with ⟨o0, o1, h0, h1, hn, hlen1⟩ |
+    ⟨pp, rs, idx, y, uc, uc', rc, rc', ysl, rest, hpp, hidx, hex0, hex1, hcx, hur, hcy, hrr, hrv, rfl, hRg⟩
+  · unfold vspace.decode
+    rw [hct]; simp only [bind_ok, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+    rw [h0, h1]; simp only [bind_ok]
+    rcases hn with rfl | rfl
+    · simp only [error.truncated, bind_ok, WP.spec_ok]
+      exact top_of_lift2 (Or.inl ⟨_, rfl, rfl, .truncatedMessage, decodeMP_trunc hl' _ _ _ _ hlen1 σ, Or.inl trivial⟩)
+    · cases o0 <;> simp only [error.truncated, bind_ok, WP.spec_ok] <;>
+        exact top_of_lift2 (Or.inl ⟨_, rfl, rfl, .truncatedMessage, decodeMP_trunc hl' _ _ _ _ hlen1 σ, Or.inl trivial⟩)
+  have hd := makepool_rel (L := L) (ar := arI) hH s ar σ G hP hSt hSV hM hC hI hU hR hPt hS hVP hPP hVO hPO hPV ct hct
+    hcur.symm hkt htcb hact hl' length buf args hlen hargs ci sl slot call extra hpp hidx hex0 hex1 hcx hur hcy hrr hrv
+    ysl rest hRg hFI
+  refine WP.spec_mono hd ?_
+  rintro res (⟨e, e', h1, he, hD, h2, -⟩ | ⟨h1, p, dest, ps, base, hmem, hnf, σ', th', G', hm, hnf', hP', hSt', hSV',
+    hM', hC', hI', -, -, -, -, hF'⟩)
+  · exact top_of_lift2 (Or.inl ⟨e, h1, h2, e', hD, he⟩)
+  · have hst1 : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ =
+        ({((), Notif.stsAct (Notif.updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv)}, False) := by
+      rw [hcur]; exact Notif.setThreadState_eq .restart hkt0
+    have hm' := hm
+    rw [nd_bind_one hst1] at hm'
+    exact top_of_lift2M (Or.inr ⟨_, ⟨hmem, hnf⟩, _, hst1, (.ok [], σ'),
+      mem_liftE (ε := Unit) (x := ([], σ')) (mem_bind_nd (x := ((), σ')) hm' (Set.mem_singleton _)), th', G',
+      Or.inl ⟨h1, [], rfl⟩, hP', ⟨hSt', hSV', hM', hC', hI'⟩, hF'⟩)
 
 end
 
