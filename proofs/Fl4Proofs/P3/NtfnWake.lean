@@ -156,7 +156,14 @@ theorem send_signal_waiting (hH : SchedHyps st ar N T SR) (hP : NPlaced T N) (s 
       rw [h6] at this
       exact tsCode_six' this.symm
     rw [hm]; rfl
-  exact wake_refines hH hP s1 a σ1 hR1 hSR1 hdT hn hk1 hq1 badge hcls hnr
+  have hni : xd.tcbState ≠ .idleThreadState := by
+    obtain ⟨m, hm⟩ : ∃ m, xd.tcbState = .blockedOnNotification m := by
+      have h6 := (hB d hd).1
+      have := (hR.at_tcb hdT hkd).st
+      rw [h6] at this
+      exact tsCode_six' this.symm
+    rw [hm]; exact fun h => by cases h
+  exact wake_refines hH hP s1 a σ1 hR1 hSR1 hdT hn hk1 hq1 badge hcls hnr hni
 
 /-- **Idle, bound TCB blocked on a receive**: its IPC is cancelled, then it
 is woken with the badge. -/
@@ -207,6 +214,7 @@ theorem send_signal_idle_bound_recv (hH : SchedHyps st ar N T SR) (hP : NPlaced 
     rw [hin, h6] at this
     cases this
   exact wake_refines hH hP s1 a1 σ1 hR1 hSR1 hiT hn hk1 hq1 badge (Or.inr hrb1) (by rw [hin]; rfl)
+    (by rw [hin]; exact fun h => by cases h)
 
 end
 

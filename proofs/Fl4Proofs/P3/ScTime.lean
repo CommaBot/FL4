@@ -166,7 +166,7 @@ theorem update_timestamp_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ (Inv σ → Inv σ') ∧
       (CurInv σ → CurInv σ') ∧ σ'.schedulerAction = σ.schedulerAction ∧
       (∀ o : U64, o.val < 4288 → o.val % 8 = 0 → o.val ≠ 40 → o.val ≠ 48 → nodeW st r.1 c o = nodeW st s c o) ∧
-      (OffReady σ → OffReady σ') ⦄ := by
+      (OffReady σ → OffReady σ') ∧ (ActIdle σ → ActIdle σ') ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   unfold sched.update_timestamp
   step with sched.cur_time.spec' as ⟨prev, hprev⟩
@@ -216,7 +216,7 @@ theorem update_timestamp_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
     rfl
   refine ⟨σ', hspec, hS2, hR.frame hS.placed (FootEq.trans' hf1 hf2) (KView.of_kheap rfl), hN,
     fun hI => hI.time rfl rfl rfl hle, fun hC => hC.congr rfl rfl rfl rfl, rfl, fun o h1 h2 h3 h4 => ?_,
-    fun ho y m hy => ?_⟩
+    fun ho y m hy => ?_, fun hA => hA.keep (TKeepE.of_kheap _ rfl) (fun _ h => h) (Or.inl rfl) rfl⟩
   · rw [nw2 o h1 h2 h3, nw1 o h1 h2 h4]
   · have h0 : (Fl4Spec.refillHd y).rTime.toNat + σ.consumedTime.toNat ≤ σ.curTime.toNat := ho y m hy
     have hle0 : σ.curTime ≤ now.bv := hle

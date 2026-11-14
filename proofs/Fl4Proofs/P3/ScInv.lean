@@ -240,7 +240,7 @@ theorem Inv.stable {σ σ' : State Unit} (h : Inv σ) (hn : NtfnStep σ σ') (hb
   · rcases hb u x y h1 h2 with e | ⟨hr', -⟩
     · rw [e]; exact hr
     · exact hr'
-  · rcases hb u x y h1 h2 with e | ⟨-, hc' | hr⟩
+  · rcases hb u x y h1 h2 with e | ⟨-, -, hc' | hr⟩
     · exact h.rd u x h1 (e ▸ hc)
     · exact h.rd u x h1 hc'
     · exact hr

@@ -129,7 +129,7 @@ structure RecvHyps (N T : Set U64) (SR : S → Fl4Spec.State Unit → Prop) : Pr
   completeTail : ∀ s (a : A) σ (t n : U64), NtfnStateRel N T (L.mem s) σ → SR s σ → t ∈ T → n ∈ N →
     NotQueued σ t.bv → (∀ x, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true) → TailRef st N T SR Prod.fst s σ (rustCompleteTail st ar s a t n) (specCompleteTail t.bv n.bv)
   returnSc : ∀ s σ0 σ (t n : U64), NtfnStateRel N T (L.mem s) σ → SR s σ → t ∈ T → n ∈ N →
-    ActReady σ0 → BlockStep σ0 σ t.bv n.bv →
+    ActReady σ0 → BlockStep σ0 σ t.bv n.bv → t.bv ≠ σ.idleThread →
     TailRef st N T SR id s σ (notification.maybe_return_sched_context st s n t) (Fl4Spec.maybeReturnSc n.bv t.bv)
 
 end Hyps

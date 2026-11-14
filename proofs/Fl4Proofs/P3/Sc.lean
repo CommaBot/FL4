@@ -22,7 +22,11 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
 * ScInv, ScInvQ, ScInvU, ScInvD, ScInvD2, ScInvR: the scheduler invariant
   `Inv` (fragments of l4v `valid_sched`, `valid_refills`, `heap_refs_inv`)
   and its preservation by the refined operations.
-* ScInvSR: `SchedHyps` and `RecvHyps` for `SRI` (`SchedRel` ∧ `Inv` ∧ `NSC`).
+* ScIdle: the switch-thread and idle-thread invariant `ActIdle` (l4v
+  `valid_sched_action`'s switch-thread clause, the idle thread's facts) and
+  its preservation steps.
+* ScInvSR: `SchedHyps` and `RecvHyps` for `SRI` (`SchedRel` ∧ `Inv` ∧ `NSC` ∧
+  `ActIdle`).
 * ScInvB: `budget_check`'s refill facts from `Inv`, and `Inv` after it.
 * ScCharge1–ScCharge6: `charge_budget` (`charge_budget_refines`), with
   `end_timeslice` (`end_timeslice_refines`) restoring `Inv`.
@@ -46,9 +50,15 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
 * ScSchedule: `check_domain_time` (one domain), `guarded_switch_to` of a
   ready-queue head, `choose_thread`.
 * ScAwaken: `release_remove` of the release queue's head, `awaken` (after
-  FL4's TCB timers, a hypothesis), `Calm`, `SchedPre`.
+  FL4's TCB timers, a hypothesis), `SchedPre`.
 * ScScheduleTop: the switch-thread branch, `schedule` (`schedule_refines`),
   ending in `Inv` and `CurInv`.
+* ScConfig: SchedControl `ConfigureFlags` (`configure_flags_refines`):
+  `refill_new`/`refill_update` and `sched_context_resume` restore `Inv`;
+  `ActIdle` when the action is `resume_cur_thread` at entry.
+* ScUnbind: SchedContext `UnbindObject` (thread) and `Unbind`'s TCB step
+  (`unbind_tcb_refines`, `unbind_all_tcbs_refines`), ending in `Inv`.
+* ScBind: SchedContext `Bind` (thread) (`bind_tcb_refines`), ending in `Inv`.
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
@@ -57,3 +67,6 @@ import Fl4Proofs.P3.ScConsumed
 import Fl4Proofs.P3.ScEntry
 import Fl4Proofs.P3.ScSchedule
 import Fl4Proofs.P3.ScScheduleTop
+import Fl4Proofs.P3.ScConfig
+import Fl4Proofs.P3.ScUnbind
+import Fl4Proofs.P3.ScBind

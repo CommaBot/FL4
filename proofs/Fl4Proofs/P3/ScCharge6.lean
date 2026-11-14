@@ -339,7 +339,7 @@ theorem charge_tail_refines {N T C : Set U64} {c : U64} (s2 : S) (a : A) (σ2 : 
         Fl4Spec.handleTimeout (Z := Unit) ct.bv (.timeout (L.mem s' (scW sc 48#u64)).bv) σ' =
           ({((), σ'')}, False) ∧
         SchedRel st N T C c r.1 σ'' ∧ Inv σ'' ∧ NtfnStateRel N T (L.mem r.1) σ'' ∧ NSC N C σ'' ∧
-        σ''.consumedTime = σ'.consumedTime ⦄)
+        σ''.consumedTime = σ'.consumedTime ∧ (IdleOK σ' → IdleOK σ'') ⦄)
     (can : Bool) :
     (do
       let s3 ← sched.set_consumed st s2 0#u64
@@ -353,7 +353,8 @@ theorem charge_tail_refines {N T C : Set U64} {c : U64} (s2 : S) (a : A) (σ2 : 
         ok (s6, a1)
       else ok (s3, a)) ⦃ r => ∃ σ', chargeTail can σ2 = ({((), σ')}, False) ∧
         SchedRel st N T C c r.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧
-        (σ'.schedulerAction = .chooseNewThread ∨ σ' = { σ2 with consumedTime := 0 }) ∧ σ'.consumedTime = 0 ⦄ := by
+        (σ'.schedulerAction = .chooseNewThread ∨ σ' = { σ2 with consumedTime := 0 }) ∧ σ'.consumedTime = 0 ∧
+        (IdleOK σ2 → IdleOK σ') ⦄ := by
   have hc2 := hS.lists.choose_spec.choose_spec.1.cur
   step with sched.set_consumed.spec' as ⟨s3, hs3⟩
   rw [hc2] at hs3
@@ -385,10 +386,10 @@ theorem charge_tail_refines {N T C : Set U64} {c : U64} (s2 : S) (a : A) (σ2 : 
       (by rw [e1, e2]; exact scA_of hS3 hct hkt hxs) (by rw [e1]; exact hsch) hmb
       (by rw [e1]; exact hval s3 σ3 hS3) (by rw [e1, e2]; exact hto s3 σ3 hS3 hR3 hN3 hI3) can
     refine WP.spec_bind hE ?_
-    rintro ⟨s4, a1⟩ ⟨σ4, h4, hS4, hI4, hR4, hN4, hc4⟩
+    rintro ⟨s4, a1⟩ ⟨σ4, h4, hS4, hI4, hR4, hN4, hc4, hid4⟩
     refine WP.spec_bind (reschedule_required_refines s4 σ4 hR4 hS4 hI4.actReady) ?_
     rintro s5 ⟨σ5, h5, hk5, hr5, hf5, hS5⟩
-    obtain ⟨σ5', h5', hq5⟩ := rescheduleRequired_qchange hI4.actReady
+    obtain ⟨σ5', h5', hq5, hcm5⟩ := rescheduleRequired_calm hI4.actReady
     rw [h5'] at h5
     have e5 : σ5 = σ5' := pair_eq h5
     subst e5
@@ -402,12 +403,15 @@ theorem charge_tail_refines {N T C : Set U64} {c : U64} (s2 : S) (a : A) (σ2 : 
     obtain ⟨hS6, hf6, -⟩ := hS5.set_reprogram
     refine ⟨{ σ5 with reprogramTimer := true }, ?_, hS6, hI5.congr rfl rfl rfl rfl,
       hR5.frame hS5.placed hf6 (KView.of_kheap rfl), hN5, Or.inl (rescheduleRequired_action (σ' := σ5) hI4.actReady h5' :),
-      (rescheduleRequired_consumed (σ' := σ5) hI4.actReady h5').trans hc4⟩
-    rw [hspec, nd_bind_one h4, nd_bind_one h5']
-    rfl
+      (rescheduleRequired_consumed (σ' := σ5) hI4.actReady h5').trans hc4, fun hid => ?_⟩
+    · rw [hspec, nd_bind_one h4, nd_bind_one h5']
+      rfl
+    · have hid5 : IdleOK σ5 := (hid4 (IdleOK.of hid rfl rfl id)).of hcm5.2.2.2.2.2.1
+        (by rw [hcm5.1]) (fun hm => by rw [hq5.2.1] at hm; exact hm)
+      exact hid5.of rfl rfl id
   · simp only [Bool.not_eq_true] at hsch
     simp only [hsch, Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-    refine ⟨σ3, ?_, hS3, ?_, hR3, hN3, Or.inr rfl, rfl⟩
+    refine ⟨σ3, ?_, hS3, ?_, hR3, hN3, Or.inr rfl, rfl, fun hid => IdleOK.of hid rfl rfl id⟩
     · rw [hspec, if_neg (by rw [hsch]; exact Bool.false_ne_true)]
     · refine hI3.inv fun x hx hcl => ?_
       intro x' scp y n h1 h2 h3 h4 h5
@@ -451,13 +455,13 @@ theorem charge_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : 
         Fl4Spec.handleTimeout (Z := Unit) (nodeW st s c layout.node.CUR_THREAD).bv
           (.timeout (L.mem s' (scW (nodeW st s c layout.node.CUR_SC) 48#u64)).bv) σ' = ({((), σ'')}, False) ∧
         SchedRel st N T C c r.1 σ'' ∧ Inv σ'' ∧ NtfnStateRel N T (L.mem r.1) σ'' ∧ NSC N C σ'' ∧
-        σ''.consumedTime = σ'.consumedTime ⦄)
+        σ''.consumedTime = σ'.consumedTime ∧ (IdleOK σ' → IdleOK σ'') ⦄)
     (used : U64) (can : Bool) :
     sched.charge_budget st ar s a used can ⦃ r => ∃ σ',
       Fl4Spec.chargeBudget (Z := Unit) used.bv can σ = ({((), σ')}, False) ∧
       SchedRel st N T C c r.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧
       (σ'.schedulerAction = .chooseNewThread ∨ HeadKeeps σ σ' (nodeW st s c layout.node.CUR_SC).bv) ∧
-      σ'.consumedTime = 0 ⦄ := by
+      σ'.consumedTime = 0 ∧ (ActIdle σ → ActIdle σ') ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hct : nodeW st s c layout.node.CUR_THREAD ∈ T := hc.curT
   obtain ⟨xt, hkt, -, -, hsct, -⟩ := hs.tcb _ hct
@@ -480,17 +484,21 @@ theorem charge_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : 
     exact ⟨fun h e => h (eq_of_bv e), fun h e => h (by rw [e])⟩
   refine WP.spec_bind (charge_head_refines s a σ hS hR hN hI hscC htw hact hnr hmrt hmb used _ hb) ?_
   rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, hK⟩
-  have ⟨hcs, hcc, _, _, _, hfr, hsck⟩ := hK
+  have ⟨hcs, hcc, _, _, _, _, _, hfr, hsck⟩ := hK
   obtain ⟨y2, hky, hyt, -⟩ := hsck x n hk
   have hkt2 : σ2.kheap (nodeW st s c layout.node.CUR_THREAD).bv = some (.tcb xt) := by
     rw [hfr _ (fun e => by rw [e, hk] at hkt; cases hkt)]; exact hkt
   refine WP.spec_mono (charge_tail_refines s2 a σ2 hS2 hR2 hN2 hI2 (by rw [hcs, hs.curSc])
     (by rw [hcc, hs.curThread]) hscC hsc0 hkt2 hxs (hnb xt hkt) hky (by rw [hyt]; exact hown) hmb hval hto can) ?_
-  rintro r ⟨σ', h1, h3, h4, h5, h6, h7, h8⟩
-  refine ⟨σ', by rw [chargeBudget_eq, nd_bind_one h2]; exact h1, h3, h4, h5, h6, ?_, h8⟩
-  rcases h7 with h7 | rfl
-  · exact Or.inl h7
-  · exact Or.inr hK
+  rintro r ⟨σ', h1, h3, h4, h5, h6, h7, h8, h9⟩
+  refine ⟨σ', by rw [chargeBudget_eq, nd_bind_one h2]; exact h1, h3, h4, h5, h6, ?_, h8, fun hA => ?_⟩
+  · rcases h7 with h7 | rfl
+    · exact Or.inl h7
+    · exact Or.inr hK
+  · have hA2 := hA.headKeeps hK ⟨x, n, hk⟩
+    rcases h7 with h7 | rfl
+    · exact ActIdle.of_noswitch (h9 hA2.2) (fun t e => by rw [h7] at e; cases e)
+    · exact hA2.keep (TKeepE.of_kheap _ rfl) (fun _ h => h) (Or.inl rfl) rfl
 
 end
 

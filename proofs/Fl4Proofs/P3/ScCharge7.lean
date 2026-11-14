@@ -75,11 +75,11 @@ theorem check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
         Fl4Spec.handleTimeout (Z := Unit) (nodeW st s c layout.node.CUR_THREAD).bv
           (.timeout (L.mem s' (scW (nodeW st s c layout.node.CUR_SC) 48#u64)).bv) σ' = ({((), σ'')}, False) ∧
         SchedRel st N T C c r.1 σ'' ∧ Inv σ'' ∧ NtfnStateRel N T (L.mem r.1) σ'' ∧ NSC N C σ'' ∧
-        σ''.consumedTime = σ'.consumedTime ⦄) :
+        σ''.consumedTime = σ'.consumedTime ∧ (IdleOK σ' → IdleOK σ'') ⦄) :
     sched.check_budget st ar s a ⦃ r => ∃ σ', Fl4Spec.checkBudget (Z := Unit) σ = ({(r.1, σ')}, False) ∧
       SchedRel st N T C c r.2.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.2.1) σ' ∧ NSC N C σ' ∧
       (σ'.schedulerAction = .chooseNewThread ∨ HeadKeeps σ σ' (nodeW st s c layout.node.CUR_SC).bv) ∧
-      (OffReady σ → OffOK σ') ⦄ := by
+      (OffReady σ → OffOK σ') ∧ (ActIdle σ → ActIdle σ') ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x, n, hk, hx⟩ := hs.scs _ hscC
   unfold sched.check_budget
@@ -102,7 +102,7 @@ theorem check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
   · simp only [hbt, ↓reduceIte]
     rw [is_cur_domain_expired_eq]
     simp only [bind_ok, WP.spec_ok]
-    refine ⟨σ, ?_, hS, hI, hR, hN, Or.inr (HeadKeeps.refl σ _), fun ho => ho.ok fun y m hy => ?_⟩
+    refine ⟨σ, ?_, hS, hI, hR, hN, Or.inr (HeadKeeps.refl σ _), fun ho => ho.ok fun y m hy => ?_, id⟩
     · rw [hsp, if_pos hbt, nd_gets_bind]
       have : Fl4Spec.isCurDomainExpired σ = false := by simp [Fl4Spec.isCurDomainExpired, hnd]
       rw [this]; rfl
@@ -114,8 +114,8 @@ theorem check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
     simp only [hbt, Bool.false_eq_true, ↓reduceIte]
     refine WP.spec_bind (charge_budget_refines s a σ hS hR hN hI hscC hsc0 htw hts hidle hact hnr hnb hmrt hmb
       hval hto _ true) ?_
-    rintro ⟨s1, a1⟩ ⟨σ', h1, h2, h3, h4, h5, h6, h7⟩
-    refine (WP.spec_ok _).2 ⟨σ', ?_, h2, h3, h4, h5, h6, fun _ hc => by rw [h7] at hc; exact absurd hc (by decide)⟩
+    rintro ⟨s1, a1⟩ ⟨σ', h1, h2, h3, h4, h5, h6, h7, h8⟩
+    refine (WP.spec_ok _).2 ⟨σ', ?_, h2, h3, h4, h5, h6, fun _ hc => by rw [h7] at hc; exact absurd hc (by decide), h8⟩
     rw [hsp, if_neg (by rw [hbt]; exact Bool.false_ne_true), nd_gets_bind, hs.consumed, nd_bind_one h1]
     rfl
 
@@ -130,7 +130,8 @@ theorem Inv.restart {σ : Fl4Spec.State Unit} (h : Inv σ) {p : Fl4Spec.ObjRef} 
       rw [hk] at hy; cases hy
       simp only [updK_kheap, Function.update_self, Option.some.injEq, Fl4Spec.KernelObject.tcb.injEq] at hz
       subst hz
-      exact Or.inr ⟨rfl, Or.inl (Or.inl hrun)⟩
+      refine Or.inr ⟨rfl, fun e => ?_, Or.inl (Or.inl hrun)⟩
+      rw [e] at hrun; cases hrun
     · simp only [updK_kheap, ne_eq, e, not_false_eq_true, Function.update_of_ne] at hz
       rw [hy] at hz; cases hz; exact Or.inl rfl
   exact h1.qchange (qchange_stsAct _ _)
@@ -162,11 +163,12 @@ theorem check_budget_restart_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
         Fl4Spec.handleTimeout (Z := Unit) (nodeW st s c layout.node.CUR_THREAD).bv
           (.timeout (L.mem s' (scW (nodeW st s c layout.node.CUR_SC) 48#u64)).bv) σ' = ({((), σ'')}, False) ∧
         SchedRel st N T C c r.1 σ'' ∧ Inv σ'' ∧ NtfnStateRel N T (L.mem r.1) σ'' ∧ NSC N C σ'' ∧
-        σ''.consumedTime = σ'.consumedTime ⦄) :
+        σ''.consumedTime = σ'.consumedTime ∧ (IdleOK σ' → IdleOK σ'') ⦄) :
     sched.check_budget_restart st ar s a ⦃ r => ∃ σ',
       Fl4Spec.checkBudgetRestart (Z := Unit) σ = ({(r.1, σ')}, False) ∧
       SchedRel st N T C c r.2.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.2.1) σ' ∧ NSC N C σ' ∧
-      (CurInv σ → σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧ (OffReady σ → OffOK σ') ⦄ := by
+      (CurInv σ → σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧ (OffReady σ → OffOK σ') ∧
+      (ActIdle σ → ActIdle σ') ⦄ := by
   have hkp : ∃ x n, σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) := by
     obtain ⟨Q, R, hc, hs⟩ := hS.lists
     obtain ⟨x, n, hk, -⟩ := hs.scs _ hscC
@@ -174,7 +176,7 @@ theorem check_budget_restart_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
   unfold sched.check_budget_restart
   refine WP.spec_bind (check_budget_refines s a σ hS hR hN hI hscC hsc0 htw hts hidle hact hnr hnb hnd hmrt hmb
     hval hto) ?_
-  rintro ⟨r, s1, a1⟩ ⟨σ1, h1, hS1, hI1, hR1, hN1, h6, ho6⟩
+  rintro ⟨r, s1, a1⟩ ⟨σ1, h1, hS1, hI1, hR1, hN1, h6, ho6, hA6⟩
   have hc6 : CurInv σ → σ1.schedulerAction = .chooseNewThread ∨ CurInv σ1 := fun hc =>
     h6.imp id fun hK => hc.keeps hK hkp
   obtain ⟨Q1, R1, hc1, hs1⟩ := hS1.lists
@@ -195,7 +197,7 @@ theorem check_budget_restart_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
     · rw [nd_bind_one (rfl : Fl4Spec.NonDet.pure () σ1 = ({((), σ1)}, False))]; rfl
   by_cases hr : r = true
   · simp only [hr, ↓reduceIte, WP.spec_ok]
-    exact ⟨σ1, by rw [hsp, if_neg (fun h => h.1 hr), hr], hS1, hI1, hR1, hN1, hc6, ho6⟩
+    exact ⟨σ1, by rw [hsp, if_neg (fun h => h.1 hr), hr], hS1, hI1, hR1, hN1, hc6, ho6, hA6⟩
   · have hr' : r = false := by simpa using hr
     subst hr'
     simp only [Bool.false_eq_true, ↓reduceIte]
@@ -214,7 +216,7 @@ theorem check_budget_restart_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
       have e2 := pair_eq h2
       subst e2
       refine ⟨_, ?_, hS2, hI1.restart hkt hrun, hR2, fun n hn x p hx hp => ?_, fun hc => ?_,
-        fun ho => (ho6 ho).restart _⟩
+        fun ho => (ho6 ho).restart _, fun hA => ((hA6 hA).updState hkt hrun .restart rfl).ofSts _⟩
       · rw [hsp, if_pos ⟨Bool.false_ne_true, hrun⟩, nd_bind_one (setThreadState_eq _ hkt)]; rfl
       · rw [stsAct_kheap] at hx
         have hx' : σ1.kheap n.bv = some (.notification x) := by
@@ -232,7 +234,8 @@ theorem check_budget_restart_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
         · rw [e]; exact Or.inr (h7.restart hkt')
     · simp only [Bool.not_eq_true] at hrun
       simp only [hrun, Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-      exact ⟨σ1, by rw [hsp, if_neg (fun h => by rw [hrun] at h; exact Bool.false_ne_true h.2)], hS1, hI1, hR1, hN1, hc6, ho6⟩
+      exact ⟨σ1, by rw [hsp, if_neg (fun h => by rw [hrun] at h; exact Bool.false_ne_true h.2)], hS1, hI1, hR1, hN1,
+        hc6, ho6, hA6⟩
 
 end
 

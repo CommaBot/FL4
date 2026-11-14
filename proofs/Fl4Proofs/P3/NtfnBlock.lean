@@ -9,7 +9,8 @@ the notification becomes waiting, then `maybe_return_sched_context` ↔
 `maybe_return_sc` (`RecvHyps.returnSc`).
 
 Extra hypotheses: the thread is a TCB not blocked on a notification (it is
-the running thread in seL4), and the notification's queue is sorted by
+the running thread in seL4), it is not the scheduler's switch target (l4v
+`scheduler_act_sane`) and not the idle thread, and the notification's queue is sorted by
 priority (`PrioSorted`, a P1 invariant: P1 proves `append_by_prio` keeps it,
 `append_by_prio.sorted`; on an unsorted queue FL4's insertion, after the
 *last* member of priority `≥ p`, and l4v's, after the *first run* of such
@@ -187,7 +188,8 @@ theorem receive_signal_block (hH : SchedHyps st ar N T SR) (hV : RecvHyps st ar 
     (hna : ∀ b, x.ntfnObj ≠ .activeNtfn b)
     (hsort : ∀ xs, QueueRel (L.mem s) T .Ep (qOf (L.mem s) n) xs → PrioSorted (fun y => L.mem s (prioA y)) xs)
     (cb : Fl4Spec.Badge) (cr : Fl4Spec.CapRights) (hAR : ActReady σ) (hNQ : NotQueued σ t.bv)
-    (hRB : RelIfBound σ t.bv) :
+    (hRB : RelIfBound σ t.bv) (hsane : ∀ u, σ.schedulerAction = .switchThread u → u ≠ t.bv)
+    (hnidle : t.bv ≠ σ.idleThread) :
     notification.receive_signal st ar s a t n true ⦃ r =>
       ¬ (Fl4Spec.receiveSignal t.bv (.notificationCap n.bv cb cr) true σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.receiveSignal t.bv (.notificationCap n.bv cb cr) true σ).1 ∧
@@ -235,7 +237,7 @@ theorem receive_signal_block (hH : SchedHyps st ar N T SR) (hV : RecvHyps st ar 
     · show (L.mem s2 (prioA t)).val = xt.tcbPriority.toNat
       rw [prioA_eq', hoth2 _ (by simp) (by simp) (by simp), hoth1 _ (by simp) (by simp) (by simp),
         ← prioA_eq']; exact hxt.prio
-  have hSR1 := hH.block _ _ _ _ t hSR hNQ hRB hw.foot (NtfnStep.tcb hkt (.blockedOnNotification n.bv) xt.tcbArch)
+  have hSR1 := hH.block _ _ _ _ t hSR hNQ hRB hsane hnidle hw.foot (NtfnStep.tcb hkt (.blockedOnNotification n.bv) xt.tcbArch)
     (fun p x y h1 h2 hp => by
       simp only [Function.update_apply, hp, ↓reduceIte] at h2; rw [h1] at h2; cases h2; rfl)
   set σ2 := stsAct σ1 t.bv
@@ -342,7 +344,9 @@ theorem receive_signal_block (hH : SchedHyps st ar N T SR) (hV : RecvHyps st ar 
       · show (stsAct σ1 t.bv).releaseQueue = σ.releaseQueue
         unfold stsAct; split_ifs <;> rfl
       · simp [σ3, σ2, σ1, updK, stsAct_kheap, h1, h2]
-    refine WP.spec_bind (hV.returnSc s4 σ σ3 t n hR4 hSR4 ht hn hAR hb) ?_
+    have hid3 : σ3.idleThread = σ.idleThread := by
+      show (stsAct σ1 t.bv).idleThread = _; unfold stsAct; split_ifs <;> rfl
+    refine WP.spec_bind (hV.returnSc s4 σ σ3 t n hR4 hSR4 ht hn hAR hb (by rw [hid3]; exact hnidle)) ?_
     rintro s5 ⟨hnf, σ', hm, hf, hv, hS⟩
     simp only [WP.spec_ok]
     exact ⟨hnf, σ', hm, hR4.frame hP hf hv, hS⟩

@@ -589,7 +589,8 @@ theorem tail_refines {N T C : Set U64} {c : U64} (s3 : S) (a2 : A) (σ3 : Fl4Spe
         else ok (s5, a3)
       smp.send_pending st ar s6 a4) ⦃ r => ∃ σ',
       Fl4Spec.scAndTimer (Z := Unit) { σ3 with schedulerAction := .resumeCurThread } = ({((), σ')}, False) ∧
-      SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧ CurInv σ' ⦄ := by
+      SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧ CurInv σ' ∧
+      (IdleOK σ3 → ActIdle σ') ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS3.lists
   step with sched.set_action.spec' as ⟨s4, hs4⟩
   subst hs4
@@ -603,6 +604,8 @@ theorem tail_refines {N T C : Set U64} {c : U64} (s3 : S) (a2 : A) (σ3 : Fl4Spe
     hR3.frame hS3.placed hf4 (KView.of_kheap rfl)
   have hN4 : NSC N C σ4 := hN3
   have hI4 : Inv σ4 := hI3.congr rfl rfl rfl rfl
+  have hA4 : IdleOK σ3 → ActIdle σ4 := fun h =>
+    ActIdle.of_noswitch (IdleOK.of h rfl rfl id) (fun t e => by cases e)
   set s4 := L.wr s3 (L.nodeAt s3 c layout.node.SCHED_ACTION) 0#u64
   obtain ⟨Q4, R4, hc4, hs4⟩ := hS4.lists
   obtain ⟨xt, scp, hkt, hsct, hnbt, hntr, hactt⟩ := hnew
@@ -620,7 +623,7 @@ theorem tail_refines {N T C : Set U64} {c : U64} (s3 : S) (a2 : A) (σ3 : Fl4Spe
     (fun xt0 hk0 q => by rw [← e1, hkt] at hk0; cases hk0; exact hnbt q)
     (fun hid x n hx => hactt (by rw [← hscp]; exact hid) x n (by rw [← hscp]; exact hx))
     (u0 := u0) (fun x n hx => hown0 x n (by rw [e2]; exact hx)) hback hnr hoff (hmrt a2) (hmb a2)) ?_
-  rintro ⟨s5, a3⟩ ⟨σ5, h5, hS5, hR5, hN5, hI5, hC5, rfl⟩
+  rintro ⟨s5, a3⟩ ⟨σ5, h5, hS5, hR5, hN5, hI5, hC5, hA5, rfl⟩
   obtain ⟨Q5, R5, hc5, hs5⟩ := hS5.lists
   have hsc5 : Fl4Spec.scAndTimer (Z := Unit) σ4 = (do
       let reprogram ← Fl4Spec.NonDet.gets fun s : Fl4Spec.State Unit => s.reprogramTimer
@@ -640,7 +643,7 @@ theorem tail_refines {N T C : Set U64} {c : U64} (s3 : S) (a2 : A) (σ3 : Fl4Spe
     have hrf : σ5.reprogramTimer = false := by rw [hrep]; simp [nodeW, ← hi, hi0]
     refine WP.spec_mono (hsend s5 a3 σ5 hS5 hR5) ?_
     rintro r ⟨hSr, hRr⟩
-    refine ⟨σ5, ?_, hSr, hRr, hN5, hI5, hC5⟩
+    refine ⟨σ5, ?_, hSr, hRr, hN5, hI5, hC5, fun h => hA5 (hA4 h)⟩
     unfold Fl4Spec.NonDet.when; rw [hrf]; rfl
   · have hb : (i != 0#u64) = true := by simpa using hi0
     simp only [hb, ↓reduceIte]
@@ -649,7 +652,7 @@ theorem tail_refines {N T C : Set U64} {c : U64} (s3 : S) (a2 : A) (σ3 : Fl4Spe
         Fl4Spec.setNextInterrupt (Z := Unit)
         Fl4Spec.NonDet.modify fun s : Fl4Spec.State Unit => { s with reprogramTimer := false }) σ5 =
           ({((), σ7)}, False) ∧ SchedRel st N T C c5 r.1 σ7 ∧ NtfnStateRel N T (L.mem r.1) σ7 ∧ NSC N C σ7 ∧
-          Inv σ7 ∧ CurInv σ7) ?_ ?_
+          Inv σ7 ∧ CurInv σ7 ∧ (IdleOK σ3 → ActIdle σ7)) ?_ ?_
     · refine WP.spec_bind (hsni s5 a3 σ5 hS5 hR5) ?_
       rintro ⟨s7, a5⟩ ⟨σ6, h6, hS6, hR6, ek, eq, er, ect, esc, etm, ecn, eact, eid, ecd, edt⟩
       step with obj.node_set.spec as ⟨s8, hs8⟩
@@ -658,11 +661,12 @@ theorem tail_refines {N T C : Set U64} {c : U64} (s3 : S) (a2 : A) (σ3 : Fl4Spe
       rw [show decide ((0#u64 : U64) ≠ 0#u64) = false from by decide] at hS8
       refine ⟨{ σ6 with reprogramTimer := false }, by rw [nd_bind_one h6]; rfl, hS8,
         hR6.frame hS6.placed hf8 (KView.of_kheap rfl), fun n hn x p hx hp => hN5 n hn x p (by rw [← ek]; exact hx) hp,
-        hI5.congr ek eq er etm, hC5.congr ek ect esc er⟩
-    · rintro ⟨s6, a4⟩ ⟨σ7, h7, hS7, hR7, hN7, hI7, hC7⟩
+        hI5.congr ek eq er etm, hC5.congr ek ect esc er,
+        fun h => (hA5 (hA4 h)).keep (TKeepE.of_kheap _ ek) (fun u hu => by rw [er] at hu; exact hu) (Or.inl eact) eid⟩
+    · rintro ⟨s6, a4⟩ ⟨σ7, h7, hS7, hR7, hN7, hI7, hC7, hA7⟩
       refine WP.spec_mono (hsend s6 a4 σ7 hS7 hR7) ?_
       rintro r ⟨hSr, hRr⟩
-      refine ⟨σ7, ?_, hSr, hRr, hN7, hI7, hC7⟩
+      refine ⟨σ7, ?_, hSr, hRr, hN7, hI7, hC7, hA7⟩
       unfold Fl4Spec.NonDet.when; rw [if_pos hrt]; exact h7
 
 /-- `schedule`'s enqueue of the current thread when it is schedulable. -/
@@ -707,10 +711,10 @@ def FireHyp (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (N
 FL4's `schedule` starts with its TCB timers (`timer::fire`, l4h 0003), a
 sequence of notification signals (`Fires`); l4v's `schedule` runs from the
 state after them. Hypotheses: `SchedPre` (`Inv`, `CurInv`, `OffOK`,
-`IdleOK`, `ActSched`, and the domain scope, domain time nonzero), one domain,
+`ActIdle`, and the domain scope, domain time nonzero), one domain,
 the TCB timers (`FireHyp`), the arch thread switch (`ArchSw`), timer
 programming (`SniHyp`), the SMP IPIs (`SendHyp`), and the platform
-constants. -/
+constants. It ends in `Inv`, `CurInv` and `ActIdle`. -/
 theorem schedule_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hP : SchedPre σ)
     (hnd : Fl4Spec.numDomains = 1)
@@ -718,10 +722,11 @@ theorem schedule_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
     (hmrt : ∀ a, sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : ∀ a, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
     sched.schedule st ar s a ⦃ r => ∃ σ1 σ', Fires σ σ1 ∧ Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) ∧
-      SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧ CurInv σ' ⦄ := by
+      SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧ CurInv σ' ∧
+      ActIdle σ' ⦄ := by
   unfold sched.schedule
   refine WP.spec_bind (awaken_refines s a σ (hfire s a σ hS hR hN hP)) ?_
-  rintro ⟨s1, a1⟩ ⟨σ1, σ2, hF, haw, hS2, hR2, hN2, ⟨hI2, hC2, hO2, hId2, hA2, hd2⟩, -, -⟩
+  rintro ⟨s1, a1⟩ ⟨σ1, σ2, hF, haw, hS2, hR2, hN2, ⟨hI2, hC2, hO2, ⟨hA2, hId2⟩, hd2⟩, -, -⟩
   have hsp := schedule_unfold haw hnd
   simp only [check_domain_time_refines, bind_ok]
   obtain ⟨Q, R, hc, hs⟩ := hS2.lists
@@ -737,7 +742,7 @@ theorem schedule_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
       SchedRel st N T C c s3 σ3 → NtfnStateRel N T (L.mem s3) σ3 → NSC N C σ3 → Inv σ3 →
       (σ3.curThread = σ2.idleThread ∨ Fl4Spec.schedulable σ3.curThread σ2 = true ∨ σ3.curThread = σ2.curThread) →
       σ3.kheap = σ2.kheap → σ3.releaseQueue = σ2.releaseQueue → σ3.curSc = σ2.curSc →
-      σ3.consumedTime = σ2.consumedTime → σ3.curTime = σ2.curTime →
+      σ3.consumedTime = σ2.consumedTime → σ3.curTime = σ2.curTime → σ3.idleThread = σ2.idleThread →
       (∀ σ', Fl4Spec.scAndTimer (Z := Unit) { σ3 with schedulerAction := .resumeCurThread } = ({((), σ')}, False) →
         Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False)) →
       (do
@@ -755,14 +760,16 @@ theorem schedule_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
           else ok (s5, a3)
         smp.send_pending st ar s6 a4) ⦃ r => ∃ σ1' σ', Fires σ σ1' ∧
           Fl4Spec.schedule (Z := Unit) σ1' = ({((), σ')}, False) ∧
-          SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧ CurInv σ' ⦄ := by
-    intro s3 a2 σ3 hS3 hR3 hN3 hI3 hnc hk3 hr3 hcs3 hcn3 htm3 hspec
+          SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧ CurInv σ' ∧
+          ActIdle σ' ⦄ := by
+    intro s3 a2 σ3 hS3 hR3 hN3 hI3 hnc hk3 hr3 hcs3 hcn3 htm3 hid3 hspec
     refine WP.spec_mono (tail_refines s3 a2 σ3 hS3 hR3 hN3 hI3 (newcur_of hnc hk3 hr3 hId2 hC2)
       (by rw [hcs3]; exact hcsc) (u0 := σ2.curThread) (fun x n hx => hown0 x n (by rw [← hk3, ← hcs3]; exact hx))
       (fun xt hx => by rw [hcs3]; exact hback xt (by rw [← hk3]; exact hx)) (by rw [hr3]; exact hC2.notRel)
       (hO2.of_eq hk3 hcs3 hcn3 htm3) hmrt hmb hsni hsend) ?_
-    rintro r ⟨σ', h', rest⟩
-    exact ⟨σ1, σ', hF, hspec σ' h', rest⟩
+    rintro r ⟨σ', h', a1, a2, a3, a4, a5, a6⟩
+    exact ⟨σ1, σ', hF, hspec σ' h', a1, a2, a3, a4, a5,
+      a6 (IdleOK.of hId2 hid3 (by rw [hk3]) (fun hm => by rw [hr3] at hm; exact hm))⟩
   step with sched.action.spec' as ⟨act, hact⟩
   rw [hc.cur] at hact
   subst hact
@@ -775,7 +782,7 @@ theorem schedule_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
     have hb : (nodeW st s1 c layout.node.SCHED_ACTION != sched.ACTION_RESUME_CURRENT) = false := by
       rw [resume_val', h0]; rfl
     simp only [hb, Bool.false_eq_true, ↓reduceIte, bind_ok]
-    refine tail s1 a1 σ2 hS2 hR2 hN2 hI2 (Or.inr (Or.inr rfl)) rfl rfl rfl rfl rfl (fun σ' h' => ?_)
+    refine tail s1 a1 σ2 hS2 hR2 hN2 hI2 (Or.inr (Or.inr rfl)) rfl rfl rfl rfl rfl rfl (fun σ' h' => ?_)
     rw [hsp, hres]; rw [resume_self hres] at h'; exact h'
   · have hb : (nodeW st s1 c layout.node.SCHED_ACTION != sched.ACTION_RESUME_CURRENT) = true := by
       rw [resume_val']; simpa using h0
@@ -800,9 +807,10 @@ theorem schedule_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
         σ3.kheap = σ4.kheap → σ3.releaseQueue = σ4.releaseQueue → σ3.curSc = σ4.curSc → TK σ4 σ3 →
         (σ3.curThread = σ2.idleThread ∨ Fl4Spec.schedulable σ3.curThread σ2 = true ∨ σ3.curThread = σ2.curThread) ∧
         σ3.kheap = σ2.kheap ∧ σ3.releaseQueue = σ2.releaseQueue ∧ σ3.curSc = σ2.curSc ∧
-        σ3.consumedTime = σ2.consumedTime ∧ σ3.curTime = σ2.curTime := by
+        σ3.consumedTime = σ2.consumedTime ∧ σ3.curTime = σ2.curTime ∧ σ3.idleThread = σ2.idleThread := by
       intro σ3 hnc hk hr hcs htk
-      refine ⟨?_, hk.trans hq4.1, hr.trans hq4.2.1, hcs.trans hcs4, htk.2.1.trans htk4.2.1, htk.1.trans htk4.1⟩
+      refine ⟨?_, hk.trans hq4.1, hr.trans hq4.2.1, hcs.trans hcs4, htk.2.1.trans htk4.2.1, htk.1.trans htk4.1,
+        htk.2.2.1.trans htk4.2.2.1⟩
       rcases hnc with h | h
       · exact Or.inl (h.trans htk4.2.2.1)
       · exact Or.inr (Or.inl (by rw [← schedulable_heap (σ' := σ4) hq4.1 hq4.2.1]; exact h))
@@ -816,8 +824,8 @@ theorem schedule_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
       refine WP.spec_bind (schedule_choose_new_thread_refines s4 a1 σ4 hS4 hR4 hN4 hI4 (hA.1 s4 a1 σ4 hS4 hR4)
         (hA.2 s4 a1 σ4 hS4 hR4) hd4) ?_
       rintro ⟨s3, a2⟩ ⟨σ3, h3, hS3, hR3, hN3, hI3, hnc3, hcs3, hr3, hk3, htk3⟩
-      obtain ⟨g1, g2, g3, g4, g5, g6⟩ := conv σ3 hnc3 hk3 hr3 hcs3 htk3
-      refine tail s3 a2 σ3 hS3 hR3 hN3 hI3 g1 g2 g3 g4 g5 g6 (fun σ' h' => ?_)
+      obtain ⟨g1, g2, g3, g4, g5, g6, g7⟩ := conv σ3 hnc3 hk3 hr3 hcs3 htk3
+      refine tail s3 a2 σ3 hS3 hR3 hN3 hI3 g1 g2 g3 g4 g5 g6 g7 (fun σ' h' => ?_)
       rw [hsp, hcn]
       exact (nd_bind_one hw4 _).trans ((nd_bind_one h3 _).trans h')
     · -- switch to the candidate
@@ -848,8 +856,8 @@ theorem schedule_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
         rw [hct4, ← ect]; exact hw4
       refine WP.spec_bind (switch_branch_refines s4 a1 σ2 σ4 hS4 hR4 hN4 hI4 hA hd4 hwT hsch4 _ hidle4 hwhen) ?_
       rintro ⟨s3, a2⟩ ⟨σ3, h3, hS3, hR3, hN3, hI3, hnc3, hcs3, hr3, hk3, htk3⟩
-      obtain ⟨g1, g2, g3, g4, g5, g6⟩ := conv σ3 hnc3 hk3 hr3 hcs3 htk3
-      refine tail s3 a2 σ3 hS3 hR3 hN3 hI3 g1 g2 g3 g4 g5 g6 (fun σ' h' => ?_)
+      obtain ⟨g1, g2, g3, g4, g5, g6, g7⟩ := conv σ3 hnc3 hk3 hr3 hcs3 htk3
+      refine tail s3 a2 σ3 hS3 hR3 hN3 hI3 g1 g2 g3 g4 g5 g6 g7 (fun σ' h' => ?_)
       rw [hsp, hsw]
       rw [hct4, ← ect] at h3
       exact (nd_bind_one h3 _).trans h'

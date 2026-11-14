@@ -8,8 +8,8 @@ P3 (DESIGN.md §9), scheduler: **`awaken`** (Schedule_A) and its pieces.
   `Sched` links, its head and tail words and the thread's `IN_QUEUES` word.
 * `Inv.relPop`: releasing a ready head keeps `Inv` (its head refill holds at
   least `MIN_BUDGET`, `Inv.headMin`, so it is released).
-* `Calm`: what `awaken` keeps (the heap, the current thread, SC and times,
-  the idle thread, the domain); `possibleSwitchTo_calm`.
+* `Calm` (ScIdle.lean): what `awaken` keeps (the heap, the current thread,
+  SC and times, the idle thread, the domain).
 * `awaken_loop_refines`: FL4's loop against l4v's `whileLoop`, given fewer
   release-queue members than the fuel.
 -/
@@ -132,113 +132,6 @@ theorem pair_fst_eq {α : Type} {a b : α} {σ : State Unit}
     (h : (({(a, σ)}, False) : Set (α × State Unit) × Prop) = ({(b, σ)}, False)) : a = b :=
   (Prod.mk.inj (Set.singleton_eq_singleton_iff.1 (congrArg Prod.fst h))).1
 
-/-- What `awaken` keeps: the heap and the current thread, SC, time,
-consumed time, idle thread, domain and domain time. -/
-def Calm (σ σ' : State Unit) : Prop :=
-  σ'.kheap = σ.kheap ∧ σ'.curThread = σ.curThread ∧ σ'.curSc = σ.curSc ∧ σ'.curTime = σ.curTime ∧
-    σ'.consumedTime = σ.consumedTime ∧ σ'.idleThread = σ.idleThread ∧ σ'.curDomain = σ.curDomain ∧
-    σ'.domainTime = σ.domainTime
-
-theorem Calm.refl (σ : State Unit) : Calm σ σ := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
-
-theorem Calm.trans {σ₁ σ₂ σ₃ : State Unit} (h₁ : Calm σ₁ σ₂) (h₂ : Calm σ₂ σ₃) : Calm σ₁ σ₃ :=
-  ⟨h₂.1.trans h₁.1, h₂.2.1.trans h₁.2.1, h₂.2.2.1.trans h₁.2.2.1, h₂.2.2.2.1.trans h₁.2.2.2.1,
-    h₂.2.2.2.2.1.trans h₁.2.2.2.2.1, h₂.2.2.2.2.2.1.trans h₁.2.2.2.2.2.1,
-    h₂.2.2.2.2.2.2.1.trans h₁.2.2.2.2.2.2.1, h₂.2.2.2.2.2.2.2.trans h₁.2.2.2.2.2.2.2⟩
-
-theorem rescheduleRequired_calm {σ : State Unit} (hA : ActReady σ) :
-    ∃ σ1, rescheduleRequired (Z := Unit) σ = ({((), σ1)}, False) ∧ QChange σ σ1 ∧ Calm σ σ1 := by
-  cases ha : σ.schedulerAction with
-  | switchThread t =>
-    by_cases hs : schedulable t σ = true
-    · obtain ⟨x, -, -, -, hk, -⟩ := schedulable_inv hs
-      have he := tcbSchedAction_gen hk tcbSchedEnqueue
-      exact ⟨_, rescheduleRequired_sched ha hs hA he, (qchange_enqueue hk hs).trans (qchange_action _ _),
-        Calm.refl _⟩
-    · exact ⟨_, rescheduleRequired_notsched ha (by simpa using hs), qchange_action _ _, Calm.refl _⟩
-  | resumeCurThread =>
-    exact ⟨_, rescheduleRequired_noswitch (fun t h => by rw [ha] at h; cases h), qchange_action _ _, Calm.refl _⟩
-  | chooseNewThread =>
-    exact ⟨_, rescheduleRequired_noswitch (fun t h => by rw [ha] at h; cases h), qchange_action _ _, Calm.refl _⟩
-
-/-- **`possible_switch_to` of a schedulable thread keeps `Calm`.** -/
-theorem possibleSwitchTo_calm {σ σ' : State Unit} (h : Inv σ) {t : ObjRef} (hs : schedulable t σ = true)
-    (he : possibleSwitchTo (Z := Unit) t σ = ({((), σ')}, False)) : Calm σ σ' := by
-  obtain ⟨x, -, -, -, hk, -⟩ := schedulable_inv hs
-  rw [possibleSwitchTo_unfold hk] at he
-  split_ifs at he
-  · rw [tcbSchedAction_gen hk] at he
-    rw [pair_eq he]; exact Calm.refl _
-  · obtain ⟨σ1, h1, hq1, hc1⟩ := rescheduleRequired_calm h.actReady
-    rw [nd_bind_one h1] at he
-    have hk1 : σ1.kheap t = some (.tcb x) := by rw [hq1.1]; exact hk
-    rw [tcbSchedAction_gen hk1] at he
-    rw [pair_eq he]
-    exact hc1.trans (Calm.refl _)
-  · rw [setAction_eq] at he
-    rw [pair_eq he]; exact Calm.refl _
-  · rw [pair_eq he]; exact Calm.refl σ
-
-/-- l4v `valid_sched_action`'s switch-thread clause: the thread to switch to
-is schedulable. -/
-def ActSched (σ : State Unit) : Prop :=
-  ∀ t, σ.schedulerAction = .switchThread t → schedulable t σ = true
-
-/-- The idle thread: bound to the idle SC, in the idle state, not released. -/
-def IdleOK (σ : State Unit) : Prop :=
-  ∃ x, σ.kheap σ.idleThread = some (.tcb x) ∧ x.tcbSchedContext = some idleScPtr ∧
-    x.tcbState = .idleThreadState ∧ σ.idleThread ∉ σ.releaseQueue
-
-/-- `schedulable` survives a smaller release queue on the same heap. -/
-theorem schedulable_sub {σ σ' : State Unit} {t : ObjRef} (h : schedulable t σ = true)
-    (hk : σ'.kheap = σ.kheap) (hsub : ∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue) : schedulable t σ' = true := by
-  obtain ⟨x, scp, y, n, h1, h2, h3, h4, h5, h6⟩ := schedulable_inv h
-  exact schedulable_of (σ := σ') (by rw [hk]; exact h1) h2 h3 (by rw [hk]; exact h4) h5 (fun hm => h6 (hsub t hm))
-
-theorem ActSched.sub {σ σ' : State Unit} (h : ActSched σ) (hk : σ'.kheap = σ.kheap)
-    (hsub : ∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue) (ha : σ'.schedulerAction = σ.schedulerAction) :
-    ActSched σ' := fun t ht => schedulable_sub (h t (ha ▸ ht)) hk hsub
-
-/-- **`possible_switch_to` of a schedulable thread keeps `ActSched`.** -/
-theorem possibleSwitchTo_actSched {σ σ' : State Unit} (h : Inv σ) {t : ObjRef} (hs : schedulable t σ = true)
-    (hA : ActSched σ) (he : possibleSwitchTo (Z := Unit) t σ = ({((), σ')}, False)) : ActSched σ' := by
-  obtain ⟨x, -, -, -, hk, -⟩ := schedulable_inv hs
-  rw [possibleSwitchTo_unfold hk] at he
-  split_ifs at he
-  · rw [tcbSchedAction_gen hk] at he
-    rw [pair_eq he]; exact hA.sub rfl (fun _ h => h) rfl
-  · obtain ⟨σ1, h1, hq1, -⟩ := rescheduleRequired_calm h.actReady
-    rw [nd_bind_one h1] at he
-    have hk1 : σ1.kheap t = some (.tcb x) := by rw [hq1.1]; exact hk
-    rw [tcbSchedAction_gen hk1] at he
-    rw [pair_eq he]
-    have hc : σ1.schedulerAction = .chooseNewThread := by
-      revert h1
-      cases ha : σ.schedulerAction with
-      | switchThread u =>
-        intro h1
-        by_cases hsu : schedulable u σ = true
-        · obtain ⟨xu, -, -, -, hku, -⟩ := schedulable_inv hsu
-          rw [rescheduleRequired_sched ha hsu h.actReady (tcbSchedAction_gen hku tcbSchedEnqueue)] at h1
-          rw [pair_eq h1]
-        · rw [rescheduleRequired_notsched ha (by simpa using hsu)] at h1
-          rw [pair_eq h1]
-      | resumeCurThread =>
-        intro h1
-        rw [rescheduleRequired_noswitch (fun t h => by rw [ha] at h; cases h)] at h1; rw [pair_eq h1]
-      | chooseNewThread =>
-        intro h1
-        rw [rescheduleRequired_noswitch (fun t h => by rw [ha] at h; cases h)] at h1; rw [pair_eq h1]
-    intro u hu
-    simp only [setQ] at hu
-    rw [hc] at hu; cases hu
-  · rw [setAction_eq] at he
-    rw [pair_eq he]
-    intro u hu
-    cases hu
-    rw [schedulable_heap (σ' := { σ with schedulerAction := .switchThread t }) rfl rfl]; exact hs
-  · rw [pair_eq he]; exact hA
-
 theorem CurInv.sub {σ σ' : State Unit} (h : CurInv σ) (hc : Calm σ σ')
     (hsub : ∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue) : CurInv σ' := by
   obtain ⟨hk, h1, h2, -⟩ := hc
@@ -254,17 +147,11 @@ theorem OffOK.calm {σ σ' : State Unit} (h : OffOK σ) (hc : Calm σ σ') : Off
   rw [h4] at h0 ⊢; rw [h3]; rw [hk, h2] at hy
   exact h h0 y n hy
 
-theorem IdleOK.sub {σ σ' : State Unit} (h : IdleOK σ) (hc : Calm σ σ')
-    (hsub : ∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue) : IdleOK σ' := by
-  obtain ⟨hk, -, -, -, -, h5, -⟩ := hc
-  obtain ⟨x, h1, h2, h3, h4⟩ := h
-  exact ⟨x, by rw [hk, h5]; exact h1, h2, h3, fun hm => h4 (by rw [← h5]; exact hsub _ hm)⟩
-
-/-- What `schedule` assumes of its state besides `SchedRel`: `Inv`,
-`CurInv`, `OffOK`, `IdleOK`, `ActSched`, and the domain scope (domain time
+/-- What `schedule` assumes of its state besides `SchedRel`: the invariants
+`Inv`, `CurInv`, `OffOK` and `ActIdle`, and the domain scope (domain time
 nonzero, so the domain does not end). -/
 def SchedPre (σ : State Unit) : Prop :=
-  Inv σ ∧ CurInv σ ∧ OffOK σ ∧ IdleOK σ ∧ ActSched σ ∧ σ.domainTime ≠ 0
+  Inv σ ∧ CurInv σ ∧ OffOK σ ∧ ActIdle σ ∧ σ.domainTime ≠ 0
 
 /-- A notification signal (l4v `send_signal`). -/
 def Signal (σ σ' : State Unit) : Prop := ∃ n b, sendSignal (Z := Unit) n b σ = ({((), σ')}, False)
@@ -526,11 +413,11 @@ theorem awaken_refines {A : Type} {ar : machine.Arch A} {N C : Set U64} {c : U64
       ∀ u ∈ σ2.releaseQueue, u ∈ σ1.releaseQueue ⦄ := by
   unfold sched.awaken
   refine WP.spec_bind hfire ?_
-  rintro ⟨s1, a1⟩ ⟨σ1, hF, hS1, hR1, hN1, hI1, hC1, hO1, hId1, hA1, hd1⟩
+  rintro ⟨s1, a1⟩ ⟨σ1, hF, hS1, hR1, hN1, hI1, hC1, hO1, ⟨hA1, hId1⟩, hd1⟩
   refine WP.spec_bind (awaken_loop_refines s1 σ1 hS1 hR1 hN1 hI1 hA1 _ (rel_len_lt hS1)) ?_
   rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, hA2, hc2, hsub⟩
   rw [WP.spec_ok]
-  exact ⟨σ1, σ2, hF, h2, hS2, hR2, hN2, ⟨hI2, hC1.sub hc2 hsub, hO1.calm hc2, hId1.sub hc2 hsub, hA2,
+  exact ⟨σ1, σ2, hF, h2, hS2, hR2, hN2, ⟨hI2, hC1.sub hc2 hsub, hO1.calm hc2, ⟨hA2, hId1.sub hc2 hsub⟩,
     by rw [hc2.2.2.2.2.2.2.2]; exact hd1⟩, hc2, hsub⟩
 
 end

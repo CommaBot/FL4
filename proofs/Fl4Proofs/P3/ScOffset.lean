@@ -38,7 +38,7 @@ theorem commit_time_inv {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spe
   refine WP.spec_mono (commit_time_refines s a σ hS hR hN hI hscC hown0 hidle hnr hoff hmrt hmb) ?_
   rintro s' ⟨σ', h1, h2, h3, h4, hI', hK, hH⟩
   refine ⟨σ', h1, h2, h3, h4, ?_, hK⟩
-  obtain ⟨e1, e2, e3, -, e5, hfr, hsc⟩ := hK
+  obtain ⟨e1, e2, e3, -, e5, -, -, hfr, hsc⟩ := hK
   refine hI'.inv fun xt hxt hcl => ?_
   intro x' scp y m h1' h2' h3' h4' h5'
   rw [hxt] at h1'; cases h1'
