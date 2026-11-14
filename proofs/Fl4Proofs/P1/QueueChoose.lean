@@ -61,7 +61,7 @@ theorem le_log_of_bit {x i : Nat} (h : x.testBit i = true) : i ≤ Nat.log 2 x :
 theorem bv_bit (w : U64) (i : Nat) : w.bv.getLsbD i = w.val.testBit i := rfl
 
 section
-variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64}
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64}
 
 /-- `highest_prio` finds the highest priority the bitmap marks. -/
 theorem sched.highest_prio.spec (s : S) (dom : U64) (NE : U64 → Prop)
@@ -129,7 +129,7 @@ theorem sched.highest_prio.spec (s : S) (dom : U64) (NE : U64 → Prop)
 and a non-empty L1 word, the thread it switches to is the head of the
 highest-priority non-empty ready queue of the current core. -/
 theorem choose_thread_pick {Cs : Set U64} (s : S) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs s Q R) (hne : L.l1W s (L.cpu s) ≠ 0#u64) :
+    (h : SchedQueuesInv st T Cs Ω s Q R) (hne : L.l1W s (L.cpu s) ≠ 0#u64) :
     (do
       let prio ← sched.highest_prio st s 0#u64
       let i3 ← sched.rq_head_off 0#u64 prio

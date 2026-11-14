@@ -11,6 +11,11 @@ import Fl4Proofs.P1.QueueSchedInv
 import Fl4Proofs.P1.QueueCallers
 import Fl4Proofs.P1.QueueChoose
 import Fl4Proofs.P1.QueueSwitch
+import Fl4Proofs.P1.QueueSc
+import Fl4Proofs.P1.QueueSchedStep
+import Fl4Proofs.P1.QueueSchedule
+import Fl4Proofs.P1.QueueCancel
+import Fl4Proofs.P1.QueueRestart
 import Fl4Proofs.P2.Runtime
 import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine
