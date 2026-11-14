@@ -5,6 +5,7 @@ word (`SchedRel.set_sc_reply`), and `unbind_reply` against l4v
 `sched_context_unbind_reply` (SchedContext `Unbind`'s reply step).
 -/
 import Fl4Proofs.P3.ScCall
+import Fl4Proofs.P3.ScFoot
 import Fl4Proofs.P3.EpSpec
 open Aeneas Aeneas.Std Result
 
@@ -80,6 +81,27 @@ theorem setReplySc_eq {σ : State Unit} {p : ObjRef} {x : Reply} (v : Option Obj
 theorem nd_liftM_one {σ α β : Type} {m : NonDet σ α} {s s' : σ} {a : α} (h : m s = ({(a, s')}, False))
     (f : α → β) : NonDet.liftM f m s = ({(f a, s')}, False) := by
   unfold NonDet.liftM; rw [nd_bind_one' h]; rfl
+
+/-- What `reply_unlink_tcb` reads, kept: the replies' `reply_tcb` and the
+TCBs' state. -/
+def UFrame (σ σ' : State Unit) : Prop :=
+  (∀ p x, σ.kheap p = some (.reply x) → ∃ x', σ'.kheap p = some (.reply x') ∧ x'.replyTcb = x.replyTcb) ∧
+  (∀ p x, σ.kheap p = some (.tcb x) → ∃ x', σ'.kheap p = some (.tcb x') ∧ x'.tcbState = x.tcbState)
+
+theorem UFrame.refl (σ : State Unit) : UFrame σ σ :=
+  ⟨fun _ x h => ⟨x, h, rfl⟩, fun _ x h => ⟨x, h, rfl⟩⟩
+
+theorem UFrame.trans {σ σ1 σ2 : State Unit} (h1 : UFrame σ σ1) (h2 : UFrame σ1 σ2) : UFrame σ σ2 := by
+  refine ⟨fun p x hp => ?_, fun p x hp => ?_⟩
+  · obtain ⟨y, hy, e⟩ := h1.1 p x hp; obtain ⟨z, hz, e'⟩ := h2.1 p y hy; exact ⟨z, hz, e'.trans e⟩
+  · obtain ⟨y, hy, e⟩ := h1.2 p x hp; obtain ⟨z, hz, e'⟩ := h2.2 p y hy; exact ⟨z, hz, e'.trans e⟩
+
+/-- A step changing only SCs. -/
+theorem UFrame.updSc {σ : State Unit} {p : ObjRef} {y y' : SchedContext} {n : Nat}
+    (hk : σ.kheap p = some (.schedContext y n)) : UFrame σ (updK σ p (.schedContext y' n)) := by
+  refine ⟨fun q x hq => ⟨x, ?_, rfl⟩, fun q x hq => ⟨x, ?_, rfl⟩⟩ <;>
+  · have : q ≠ p := by rintro rfl; rw [hk] at hq; cases hq
+    simp [updK, this, hq]
 
 end Spec
 
@@ -169,10 +191,6 @@ theorem CallRel.frame {R C : Set U64} {m m' : U64 → U64} {σ σ' : Fl4Spec.Sta
     · obtain ⟨g1, g2, g3⟩ := t3 hne
       exact ⟨g1, g2, by rw [(hr _ g1).2]; exact g3⟩
 
-/-- The scheduler footprint: words of the TCBs and of the node. -/
-def SFoot (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (c : U64) (s : S) (b : U64) : Prop :=
-  (∃ y ∈ T, y.val ≤ b.val ∧ b.val < y.val + 4096) ∨ (L.nodeBase s c ≤ b.val ∧ b.val < L.nodeBase s c + 4288)
-
 /-- A write in the scheduler footprint keeps the call-stack words. -/
 theorem callWords_of_sfoot {N T C R : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) (hRP : RPlaced st N T C R c s σ) (hw : WritesIn st s s' (SFoot st T c s)) :
@@ -200,6 +218,46 @@ theorem callWords_of_sfoot {N T C R : Set U64} {c : U64} {s s' : S} {σ : Fl4Spe
     · rintro (⟨y, hy, g1, g2⟩ | ⟨g1, g2⟩)
       · have := k2 y hy; omega
       · simp only [LawfulStore.nodeBase] at k1 g1 g2; omega
+
+/-- **A call-stack step on `r`**: the replies off every stack with no links
+(other than `r`) keep their words, no stack gains a reply, and `r` leaves
+every stack. -/
+def CallStep (m m' : U64 → U64) (R C : Set U64) (Lst Lst' : U64 → List U64) (r : U64) : Prop :=
+  (∀ d ∈ R, Detached C Lst d → m (rNextA d) = 0#u64 → m (rPrevA d) = 0#u64 → d ≠ r →
+    m' (rNextA d) = m (rNextA d) ∧ m' (rPrevA d) = m (rPrevA d)) ∧
+  (∀ q ∈ C, ∀ d ∈ Lst' q, d ∈ Lst q) ∧ Detached C Lst' r
+
+/-- A free reply: its `reply_tcb` is `None`. -/
+def Free (σ : Fl4Spec.State Unit) (d : U64) : Prop := ∃ x, σ.kheap d.bv = some (.reply x) ∧ x.replyTcb = none
+
+/-- **Free replies are on no call stack and have no links** (so they are
+isolated, `CallRel.isolated`): the invariant that gives `reply_push` its
+isolated reply. -/
+def RFree (m : U64 → U64) (R C : Set U64) (σ : Fl4Spec.State Unit) (Lst : U64 → List U64) : Prop :=
+  ∀ d ∈ R, Free σ d → Detached C Lst d ∧ m (rNextA d) = 0#u64 ∧ m (rPrevA d) = 0#u64
+
+/-- `RFree` across a call-stack step on `r` that frees at most `r`, leaving it
+unlinked. -/
+theorem RFree.step {R C : Set U64} {m m' : U64 → U64} {σ σ' : Fl4Spec.State Unit} {Lst Lst' : U64 → List U64}
+    {r : U64} (h : RFree m R C σ Lst) (hcs : CallStep m m' R C Lst Lst' r)
+    (hf : ∀ d ∈ R, Free σ' d → d ≠ r → Free σ d)
+    (hr : Free σ' r → m' (rNextA r) = 0#u64 ∧ m' (rPrevA r) = 0#u64) : RFree m' R C σ' Lst' := by
+  intro d hd hfd
+  by_cases e : d = r
+  · subst e; exact ⟨hcs.2.2, hr hfd⟩
+  · obtain ⟨hdet, h0n, h0p⟩ := h d hd (hf d hd hfd e)
+    obtain ⟨e1, e2⟩ := hcs.1 d hd hdet h0n h0p e
+    exact ⟨fun q hq hm => hdet q hq (hcs.2.1 q hq d hm), e1.trans h0n, e2.trans h0p⟩
+
+/-- `RFree` across a step that keeps the call-stack words and the stacks and
+frees no reply. -/
+theorem RFree.frame {R C : Set U64} {m m' : U64 → U64} {σ σ' : Fl4Spec.State Unit} {Lst : U64 → List U64}
+    (h : RFree m R C σ Lst)
+    (hm : ∀ d ∈ R, m' (rPrevA d) = m (rPrevA d) ∧ m' (rNextA d) = m (rNextA d))
+    (hf : ∀ d ∈ R, Free σ' d → Free σ d) : RFree m' R C σ' Lst := by
+  intro d hd hfd
+  obtain ⟨hdet, h0n, h0p⟩ := h d hd (hf d hd hfd)
+  exact ⟨hdet, (hm d hd).2.trans h0n, (hm d hd).1.trans h0p⟩
 
 end
 

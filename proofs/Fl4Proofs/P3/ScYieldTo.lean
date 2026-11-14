@@ -205,12 +205,15 @@ structure SFrame (σ σ' : State Unit) : Prop where
     x'.scTcb = x.scTcb ∧ scActive x' = scActive x
   rel : σ'.releaseQueue = σ.releaseQueue
   cur : σ'.curThread = σ.curThread
+  act : σ'.schedulerAction = σ.schedulerAction
+  idle : σ'.idleThread = σ.idleThread
 
 theorem SFrame.refl (σ : State Unit) : SFrame σ σ :=
-  ⟨fun _ x h => ⟨x, h, rfl, rfl, rfl, rfl⟩, fun _ x _ h => ⟨x, h, rfl, rfl⟩, rfl, rfl⟩
+  ⟨fun _ x h => ⟨x, h, rfl, rfl, rfl, rfl⟩, fun _ x _ h => ⟨x, h, rfl, rfl⟩, rfl, rfl, rfl, rfl⟩
 
 theorem SFrame.trans {σ σ1 σ2 : State Unit} (h1 : SFrame σ σ1) (h2 : SFrame σ1 σ2) : SFrame σ σ2 := by
-  refine ⟨fun p x hp => ?_, fun p x n hp => ?_, h2.rel.trans h1.rel, h2.cur.trans h1.cur⟩
+  refine ⟨fun p x hp => ?_, fun p x n hp => ?_, h2.rel.trans h1.rel, h2.cur.trans h1.cur, h2.act.trans h1.act,
+    h2.idle.trans h1.idle⟩
   · obtain ⟨y, hy, a1, a2, a3, a4⟩ := h1.tcb p x hp
     obtain ⟨z, hz, b1, b2, b3, b4⟩ := h2.tcb p y hy
     exact ⟨z, hz, b1.trans a1, b2.trans a2, b3.trans a3, b4.trans a4⟩
@@ -219,15 +222,15 @@ theorem SFrame.trans {σ σ1 σ2 : State Unit} (h1 : SFrame σ σ1) (h2 : SFrame
     exact ⟨z, hz, b1.trans a1, b2.trans a2⟩
 
 theorem ArchStep.sframe {σ σ' : State Unit} (h : ArchStep σ σ') : SFrame σ σ' := by
-  obtain ⟨-, e2, e3, -, -, -⟩ := h.abs
-  refine ⟨fun p x hp => ?_, fun p x n hp => ⟨x, h.sc.2 hp, rfl, rfl⟩, e2, e3⟩
+  obtain ⟨-, e2, e3, e4, -, e6⟩ := h.abs
+  refine ⟨fun p x hp => ?_, fun p x n hp => ⟨x, h.sc.2 hp, rfl, rfl⟩, e2, e3, e4, e6⟩
   obtain ⟨y, hy, e⟩ := h.tcb hp
   exact ⟨y, hy, by rw [e], by rw [e], by rw [e], by rw [e]⟩
 
 theorem SFrame.updSc {σ : State Unit} {p : ObjRef} {x x' : SchedContext} {n : Nat}
     (hk : σ.kheap p = some (.schedContext x n)) (e1 : x'.scTcb = x.scTcb) (e2 : x'.scRefillMax = x.scRefillMax) :
     SFrame σ (updSc σ p x' n) := by
-  refine ⟨fun q y hq => ?_, fun q y m hq => ?_, rfl, rfl⟩
+  refine ⟨fun q y hq => ?_, fun q y m hq => ?_, rfl, rfl, rfl, rfl⟩
   · have h : q ≠ p := by rintro rfl; rw [hk] at hq; cases hq
     exact ⟨y, by simp [updK, h, hq], rfl, rfl, rfl, rfl⟩
   · by_cases h : q = p
@@ -237,7 +240,7 @@ theorem SFrame.updSc {σ : State Unit} {p : ObjRef} {x x' : SchedContext} {n : N
 
 theorem SFrame.ytUpd {σ : State Unit} {p : ObjRef} {x : Tcb} (hk : σ.kheap p = some (.tcb x)) (v : Option ObjRef) :
     SFrame σ (updK σ p (.tcb { x with tcbYieldTo := v })) := by
-  refine ⟨fun q y hq => ?_, fun q y m hq => ?_, rfl, rfl⟩
+  refine ⟨fun q y hq => ?_, fun q y m hq => ?_, rfl, rfl, rfl, rfl⟩
   · by_cases h : q = p
     · subst h; rw [hk] at hq; cases hq
       exact ⟨{ x with tcbYieldTo := v }, by simp [updK], rfl, rfl, rfl, rfl⟩
@@ -251,6 +254,36 @@ theorem SFrame.schedulable {σ σ' : State Unit} (h : SFrame σ σ') {u : ObjRef
   obtain ⟨x', h1', a1, a2, -, -⟩ := h.tcb u x h1
   obtain ⟨y', h4', -, b2⟩ := h.sc scp y n h4
   exact schedulable_of h1' (a2.trans h2) (by rw [a1]; exact h3) h4' (b2.trans h5) (by rw [h.rel]; exact h6)
+
+/-- **`ActIdle` under `SFrame`.** -/
+theorem ActIdle.sframe {σ σ' : State Unit} (h : ActIdle σ) (hf : SFrame σ σ') : ActIdle σ' := by
+  obtain ⟨hA, x, h1, h2, h3, h4⟩ := h
+  obtain ⟨x', h1', e1, e2, -, -⟩ := hf.tcb _ x h1
+  exact ⟨fun t ht => hf.schedulable (hA t (hf.act ▸ ht)), x', by rw [hf.idle]; exact h1', e2.trans h2,
+    e1.trans h3, by rw [hf.idle, hf.rel]; exact h4⟩
+
+/-- `reschedule_required` ends with `choose_new_thread`, keeping the heap, the
+release queue and the idle thread. -/
+theorem rescheduleRequired_act {σ σ' : State Unit} (hA : ActReady σ)
+    (he : rescheduleRequired (Z := Unit) σ = ({((), σ')}, False)) :
+    σ'.schedulerAction = .chooseNewThread ∧ σ'.kheap = σ.kheap ∧ σ'.releaseQueue = σ.releaseQueue ∧
+      σ'.idleThread = σ.idleThread := by
+  cases ha : σ.schedulerAction with
+  | switchThread t =>
+    by_cases hs : schedulable t σ = true
+    · obtain ⟨x, -, -, -, hk, -⟩ := schedulable_inv hs
+      have he1 := tcbSchedAction_gen hk tcbSchedEnqueue
+      have e := the_result (rescheduleRequired_sched ha hs hA he1) he
+      subst e
+      exact ⟨rfl, rfl, rfl, rfl⟩
+    · have e := the_result (rescheduleRequired_notsched ha (by simpa using hs)) he
+      subst e; exact ⟨rfl, rfl, rfl, rfl⟩
+  | resumeCurThread =>
+    have e := the_result (rescheduleRequired_noswitch (fun t h => by rw [ha] at h; cases h)) he
+    subst e; exact ⟨rfl, rfl, rfl, rfl⟩
+  | chooseNewThread =>
+    have e := the_result (rescheduleRequired_noswitch (fun t h => by rw [ha] at h; cases h)) he
+    subst e; exact ⟨rfl, rfl, rfl, rfl⟩
 
 
 theorem getScObjRef_eq {σ : State Unit} {p : ObjRef} {x : SchedContext} {n : Nat}
@@ -596,6 +629,12 @@ theorem resume_noop {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.St
     exact (WP.spec_ok _).mpr rfl
 
 
+theorem SFrame.of_kheap {σ σ' : Fl4Spec.State Unit} (hk : σ'.kheap = σ.kheap) (hr : σ'.releaseQueue = σ.releaseQueue)
+    (hc : σ'.curThread = σ.curThread) (ha : σ'.schedulerAction = σ.schedulerAction)
+    (hi : σ'.idleThread = σ.idleThread) : SFrame σ σ' :=
+  ⟨fun p x h => ⟨x, by rw [hk]; exact h, rfl, rfl, rfl, rfl⟩, fun p x n h => ⟨x, by rw [hk]; exact h, rfl, rfl⟩, hr,
+    hc, ha, hi⟩
+
 /-- **`dequeue`** with the relations and the yield-to relation. -/
 theorem dequeue_rels {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
@@ -603,14 +642,15 @@ theorem dequeue_rels {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State Uni
     sched.dequeue st s t ⦃ s' => ∃ σ', Fl4Spec.tcbSchedAction (Z := Unit) Fl4Spec.tcbSchedDequeue t.bv σ =
       ({((), σ')}, False) ∧ SchedRel st N T C c s' σ' ∧ NtfnStateRel N T (L.mem s') σ' ∧ NSC N C σ' ∧ Inv σ' ∧
       YieldRel T C (L.mem s') σ' ∧ σ'.kheap = σ.kheap ∧ σ'.releaseQueue = σ.releaseQueue ∧
-      σ'.curThread = σ.curThread ⦄ := by
+      SFrame σ σ' ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨xt, hkt, -⟩ := hs.tcb t ht
   refine WP.spec_mono (WP.spec_and (dequeue_refines s σ hS t ht) (dequeue_yw hS ht)) ?_
   rintro s' ⟨⟨σ', he, hk, hr, hf, hS'⟩, hw⟩
   have hσ' := the_result (tcbSchedAction_gen hkt Fl4Spec.tcbSchedDequeue) he
   refine ⟨σ', he, hS', hR.frame hS.placed hf (KView.of_kheap hk), fun n hn x p hx hp => hN n hn x p (hk ▸ hx) hp,
-    ?_, hY.frame (WritesIn.yield_keep hc.tcbs hw) (YKeep.of_kheap hk), hk, hr, by rw [hσ']; rfl⟩
+    ?_, hY.frame (WritesIn.yield_keep hc.tcbs hw) (YKeep.of_kheap hk), hk, hr,
+    SFrame.of_kheap hk hr (by rw [hσ']; rfl) (by rw [hσ']; rfl) (by rw [hσ']; rfl)⟩
   rw [hσ']; exact hI.qchange (qchange_dequeue hkt)
 
 /-- **`enqueue`** of a schedulable thread, with the relations. -/
@@ -620,7 +660,7 @@ theorem enqueue_rels {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State Uni
     sched.enqueue st s t ⦃ s' => ∃ σ', Fl4Spec.tcbSchedAction (Z := Unit) Fl4Spec.tcbSchedEnqueue t.bv σ =
       ({((), σ')}, False) ∧ SchedRel st N T C c s' σ' ∧ NtfnStateRel N T (L.mem s') σ' ∧ NSC N C σ' ∧ Inv σ' ∧
       YieldRel T C (L.mem s') σ' ∧ σ'.kheap = σ.kheap ∧ σ'.releaseQueue = σ.releaseQueue ∧
-      σ'.curThread = σ.curThread ⦄ := by
+      SFrame σ σ' ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨xt, hkt, -⟩ := hs.tcb t ht
   have hrb : (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64 := by
@@ -631,7 +671,8 @@ theorem enqueue_rels {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State Uni
   rintro s' ⟨⟨σ', he, hk, hr, hf, hS'⟩, hw⟩
   have hσ' := the_result (tcbSchedAction_gen hkt Fl4Spec.tcbSchedEnqueue) he
   refine ⟨σ', he, hS', hR.frame hS.placed hf (KView.of_kheap hk), fun n hn x p hx hp => hN n hn x p (hk ▸ hx) hp,
-    ?_, hY.frame (WritesIn.yield_keep hc.tcbs hw) (YKeep.of_kheap hk), hk, hr, by rw [hσ']; rfl⟩
+    ?_, hY.frame (WritesIn.yield_keep hc.tcbs hw) (YKeep.of_kheap hk), hk, hr,
+    SFrame.of_kheap hk hr (by rw [hσ']; rfl) (by rw [hσ']; rfl) (by rw [hσ']; rfl)⟩
   rw [hσ']; exact hI.qchange (qchange_enqueue hkt hsch)
 
 /-- **`reschedule_required`** with the relations. -/
@@ -640,7 +681,8 @@ theorem reschedule_rels {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State 
     (hY : YieldRel T C (L.mem s) σ) :
     sched.reschedule_required st s ⦃ s' => ∃ σ', Fl4Spec.rescheduleRequired (Z := Unit) σ = ({((), σ')}, False) ∧
       SchedRel st N T C c s' σ' ∧ NtfnStateRel N T (L.mem s') σ' ∧ NSC N C σ' ∧ Inv σ' ∧
-      YieldRel T C (L.mem s') σ' ⦄ := by
+      YieldRel T C (L.mem s') σ' ∧ σ'.schedulerAction = .chooseNewThread ∧ σ'.kheap = σ.kheap ∧
+      σ'.releaseQueue = σ.releaseQueue ∧ σ'.idleThread = σ.idleThread ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   refine WP.spec_mono (WP.spec_and (reschedule_required_refines s σ hR hS hI.actReady)
     (reschedule_required_yw hS)) ?_
@@ -648,12 +690,8 @@ theorem reschedule_rels {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State 
   obtain ⟨σ1, he1, hq1⟩ := rescheduleRequired_qchange hI.actReady
   have hσ' := the_result he1 he
   refine ⟨σ', he, hS', hR.frame hS.placed hf (KView.of_kheap hk), fun n hn x p hx hp => hN n hn x p (hk ▸ hx) hp,
-    ?_, hY.frame (WritesIn.yield_keep hc.tcbs hw) (YKeep.of_kheap hk)⟩
+    ?_, hY.frame (WritesIn.yield_keep hc.tcbs hw) (YKeep.of_kheap hk), rescheduleRequired_act hI.actReady he⟩
   rw [hσ']; exact hI.qchange hq1
-
-theorem SFrame.of_kheap {σ σ' : Fl4Spec.State Unit} (hk : σ'.kheap = σ.kheap) (hr : σ'.releaseQueue = σ.releaseQueue)
-    (hc : σ'.curThread = σ.curThread) : SFrame σ σ' :=
-  ⟨fun p x h => ⟨x, by rw [hk]; exact h, rfl, rfl, rfl, rfl⟩, fun p x n h => ⟨x, by rw [hk]; exact h, rfl, rfl⟩, hr, hc⟩
 
 /-- **`yield_switches` refines `sched_context_yield_to`'s `return_now`
 computation** (the negation), for an SC bound to `t`, with no yielder, the
@@ -669,7 +707,7 @@ theorem yield_switches_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec
     schedcontext.yield_switches st s sc ct ⦃ r => ∃ σ', yieldSwitch sc.bv σ = ({(!r.1, σ')}, False) ∧
       SchedRel st N T C c r.2 σ' ∧ NtfnStateRel N T (L.mem r.2) σ' ∧ NSC N C σ' ∧ Inv σ' ∧
       YieldRel T C (L.mem r.2) σ' ∧
-      (r.1 = false → σ'.kheap = σ.kheap ∧ σ'.curThread = σ.curThread ∧ σ'.releaseQueue = σ.releaseQueue) ⦄ := by
+      (r.1 = false → SFrame σ σ') ∧ (ActIdle σ → ActIdle σ') ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hT := hc.tcbs
   obtain ⟨x', n', hk', hx⟩ := hs.scs sc hsc
@@ -698,7 +736,7 @@ theorem yield_switches_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec
   by_cases hsb : Fl4Spec.schedulable i.bv σ = true
   swap
   · simp only [hsb, Bool.false_eq_true, ↓reduceIte]
-    refine (WP.spec_ok _).mpr ⟨σ, ?_, hS, hR, hN, hI, hY, fun _ => ⟨rfl, rfl, rfl⟩⟩
+    refine (WP.spec_ok _).mpr ⟨σ, ?_, hS, hR, hN, hI, hY, fun _ => SFrame.refl σ, id⟩
     unfold yieldSwitch
     rw [hpre]
     simp only [hsb, Bool.false_eq_true, ↓reduceIte]; rfl
@@ -716,11 +754,12 @@ theorem yield_switches_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec
   by_cases hlt : L.mem s (prioA i) < L.mem s (prioA ct)
   · simp only [hlt, ↓reduceIte]
     refine WP.spec_bind (dequeue_rels s σ hS hR hN hI hY ht) ?_
-    rintro s1 ⟨σ1, he1, hS1, hR1, hN1, hI1, hY1, hk1, hr1, hc1⟩
+    rintro s1 ⟨σ1, he1, hS1, hR1, hN1, hI1, hY1, hk1, hr1, hf1⟩
     have hsb1 : Fl4Spec.schedulable i.bv σ1 = true := by rw [schedulable_heap hk1 hr1]; exact hsb
     refine WP.spec_bind (enqueue_rels s1 σ1 hS1 hR1 hN1 hI1 hY1 ht hsb1) ?_
-    rintro s2 ⟨σ2, he2, hS2, hR2, hN2, hI2, hY2, hk2, hr2, hc2⟩
-    refine (WP.spec_ok _).mpr ⟨σ2, ?_, hS2, hR2, hN2, hI2, hY2, fun _ => ⟨hk2.trans hk1, hc2.trans hc1, hr2.trans hr1⟩⟩
+    rintro s2 ⟨σ2, he2, hS2, hR2, hN2, hI2, hY2, hk2, hr2, hf2⟩
+    refine (WP.spec_ok _).mpr ⟨σ2, ?_, hS2, hR2, hN2, hI2, hY2, fun _ => hf1.trans hf2,
+      fun h => ActIdle.sframe h (hf1.trans hf2)⟩
     unfold yieldSwitch
     rw [hpre]
     simp only [hsb, ↓reduceIte]
@@ -750,17 +789,19 @@ theorem yield_switches_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec
     have hsf := (SFrame.ytUpd hkc (some sc.bv)).trans
       (SFrame.updSc (x' := { x with scYieldFrom := some ct.bv }) hka rfl rfl)
     refine WP.spec_bind (dequeue_rels _ _ hS2 hR2 hN2 hI2 hY2 ht) ?_
-    rintro s3 ⟨σ3, he3, hS3, hR3, hN3, hI3, hY3, hk3, hr3, -⟩
+    rintro s3 ⟨σ3, he3, hS3, hR3, hN3, hI3, hY3, hk3, hr3, hf3⟩
     have hcs3 : Fl4Spec.schedulable ct.bv σ3 = true := by rw [schedulable_heap hk3 hr3]; exact hsf.schedulable hcs
     refine WP.spec_bind (enqueue_rels s3 σ3 hS3 hR3 hN3 hI3 hY3 hct hcs3) ?_
-    rintro s4 ⟨σ4, he4, hS4, hR4, hN4, hI4, hY4, hk4, hr4, -⟩
+    rintro s4 ⟨σ4, he4, hS4, hR4, hN4, hI4, hY4, hk4, hr4, hf4⟩
     have hsb4 : Fl4Spec.schedulable i.bv σ4 = true := by
       rw [schedulable_heap hk4 hr4, schedulable_heap hk3 hr3]; exact hsf.schedulable hsb
     refine WP.spec_bind (enqueue_rels s4 σ4 hS4 hR4 hN4 hI4 hY4 ht hsb4) ?_
-    rintro s5 ⟨σ5, he5, hS5, hR5, hN5, hI5, hY5, -, -, -⟩
+    rintro s5 ⟨σ5, he5, hS5, hR5, hN5, hI5, hY5, -, -, hf5⟩
     refine WP.spec_bind (reschedule_rels s5 σ5 hS5 hR5 hN5 hI5 hY5) ?_
-    rintro s6 ⟨σ6, he6, hS6, hR6, hN6, hI6, hY6⟩
-    refine (WP.spec_ok _).mpr ⟨σ6, ?_, hS6, hR6, hN6, hI6, hY6, fun h => absurd h (by simp)⟩
+    rintro s6 ⟨σ6, he6, hS6, hR6, hN6, hI6, hY6, ha6, hk6, hr6, hi6⟩
+    refine (WP.spec_ok _).mpr ⟨σ6, ?_, hS6, hR6, hN6, hI6, hY6, fun h => absurd h (by simp), fun h =>
+      ActIdle.of_noswitch ((ActIdle.sframe h (((hsf.trans hf3).trans hf4).trans hf5)).2.of hi6 (by rw [hk6])
+        (by rw [hr6]; exact id)) (fun t e => by rw [ha6] at e; cases e)⟩
     unfold yieldSwitch
     rw [hpre]
     simp only [hsb, ↓reduceIte]
@@ -804,7 +845,7 @@ theorem yield_to_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
     {t : U64} (ht : t ∈ T) (htc : x.scTcb = some t.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hxt : xt.tcbSchedContext = some sc.bv)
     {ct : U64} (hct : ct ∈ T) (hcur : σ.curThread = ct.bv) {xc : Fl4Spec.Tcb} (hkc : σ.kheap ct.bv = some (.tcb xc))
-    (hyc : xc.tcbYieldTo = none) (hcs : Fl4Spec.schedulable ct.bv σ = true) (call : Bool)
+    (hyc : xc.tcbYieldTo = none) (hcs : Fl4Spec.schedulable ct.bv σ = true) (hAI : ActIdle σ) (call : Bool)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, ar.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st N T C c) :
@@ -816,7 +857,7 @@ theorem yield_to_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
           Fl4Spec.NonDet.when (call = true) (Fl4Spec.replyFromKernel (Z := Unit) ct.bv (0, data))
           Fl4Spec.setThreadState (Z := Unit) ct.bv .running : Fl4Spec.SMonad Unit Unit) σ1 = ({((), σ2)}, False)) ∧
       SchedRel st N T C c r.1 σ2 ∧ NtfnStateRel N T (L.mem r.1) σ2 ∧ NSC N C σ2 ∧ Inv σ2 ∧
-      YieldRel T C (L.mem r.1) σ2 ⦄ := by
+      YieldRel T C (L.mem r.1) σ2 ∧ ActIdle σ2 ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hT := hc.tcbs
   obtain ⟨x0, n0, hk0, hx⟩ := hs.scs sc hsc
@@ -898,7 +939,8 @@ theorem yield_to_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
   subst hct''
   refine WP.spec_bind (yield_switches_refines s1 σc hS1 hR1 hN1 hI1 hY1 hC0 hsc hk1 (hyf1 x1 hk1) ht htc1 hct hcur1
     hyc1 hcs1) ?_
-  rintro ⟨b1, s3⟩ ⟨σ3, hsw, hS3, hR3, hN3, hI3, hY3, hk3⟩
+  rintro ⟨b1, s3⟩ ⟨σ3, hsw, hS3, hR3, hN3, hI3, hY3, hk3, hAI3'⟩
+  have hAI3 := hAI3' (ActIdle.sframe hAI hsf1)
   have hsw' := hsw
   unfold yieldSwitch at hsw'
   have hpre : Fl4Spec.schedContextYieldTo (Z := Unit) sc.bv σ =
@@ -910,10 +952,10 @@ theorem yield_to_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
   · -- the call returns at once
     show (if false = true then _ else _) ⦃ _ ⦄
     rw [ite_eq_right (fun h => Bool.false_ne_true h)]
-    obtain ⟨hk3', hc3', hr3'⟩ := hk3 rfl
+    have hsf3 := hk3 rfl
     refine WP.spec_bind (set_consumed_refines s3 a σ3 hS3 hR3 hN3 hI3 hY3 hsc hct call hmax htu hmsg) ?_
     rintro s4 ⟨cv, σa, σb, hspc, hrt, hrf, hS4, hR4, hN4, hI4, hY4, hsf4, -, -⟩
-    obtain ⟨xc4, hkc4, hst4, -, -, -⟩ := (hsf1.trans ((SFrame.of_kheap hk3' hr3' hc3').trans hsf4)).tcb _ xc hkc
+    obtain ⟨xc4, hkc4, hst4, -, -, -⟩ := (hsf1.trans (hsf3.trans hsf4)).tcb _ xc hkc
     have hrun : Fl4Spec.runnable xc.tcbState = true := by
       obtain ⟨xq, -, -, -, hq1, -, hq3, -⟩ := schedulable_inv hcs
       rw [hkc] at hq1; cases hq1; exact hq3
@@ -923,7 +965,8 @@ theorem yield_to_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
       (fun n h => by cases h)) (set_thread_state_yw hS4 hct _)) ?_
     rintro s5 ⟨⟨σ5, he5, hR5, hS5⟩, hw5⟩
     have hσ5 := the_result (Fl4Proofs.P3.Notif.setThreadState_eq .running hkc4) he5
-    refine (WP.spec_ok _).mpr ⟨rfl, Fl4Spec.wordsFromTime cv.bv, σa, σ5, ?_, Or.inr ?_, hS5, hR5, ?_, ?_, ?_⟩
+    refine (WP.spec_ok _).mpr ⟨rfl, Fl4Spec.wordsFromTime cv.bv, σa, σ5, ?_, Or.inr ?_, hS5, hR5, ?_, ?_, ?_,
+      by rw [hσ5]; exact ActIdle.ofSts (ActIdle.updState (ActIdle.sframe hAI3 hsf4) hkc4 hrun4 .running rfl) _⟩
     · rw [hpre]
       show (Fl4Spec.returnConsumed (Z := Unit) sc.bv) σ3 = _
       unfold Fl4Spec.returnConsumed
@@ -937,7 +980,7 @@ theorem yield_to_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
     · exact hY4.frame (WritesIn.yield_keep hT hw5) (by rw [hσ5]; exact (YKeep.updTcb (x' := { xc4 with tcbState := .running }) hkc4 rfl).trans (YKeep.stsAct _))
   · show (if true = true then _ else _) ⦃ _ ⦄
     rw [ite_eq_left rfl]
-    exact (WP.spec_ok _).mpr ⟨rfl, [], σ3, σ3, by rw [hpre]; rfl, Or.inl ⟨rfl, rfl⟩, hS3, hR3, hN3, hI3, hY3⟩
+    exact (WP.spec_ok _).mpr ⟨rfl, [], σ3, σ3, by rw [hpre]; rfl, Or.inl ⟨rfl, rfl⟩, hS3, hR3, hN3, hI3, hY3, hAI3⟩
 
 
 theorem stsAct_cur' {σ : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} :
@@ -958,14 +1001,14 @@ theorem set_runnable_rels {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
     sched.set_thread_state st s ct v ⦃ s' => ∃ σ', Fl4Spec.setThreadState (Z := Unit) ct.bv ts σ = ({((), σ')}, False) ∧
       σ' = Fl4Proofs.P3.Notif.stsAct (updK σ ct.bv (.tcb { xc with tcbState := ts })) ct.bv ∧
       SchedRel st N T C c s' σ' ∧ NtfnStateRel N T (L.mem s') σ' ∧ NSC N C σ' ∧ Inv σ' ∧
-      YieldRel T C (L.mem s') σ' ⦄ := by
+      YieldRel T C (L.mem s') σ' ∧ (ActIdle σ → ActIdle σ') ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hnb : ∀ n, ts ≠ .blockedOnNotification n := fun n h => by rw [h] at hts; cases hts
   refine WP.spec_mono (WP.spec_and (set_thread_state_refines s σ hR hS hct hkc
     (not_in_ntfnQueue hR hct hkc hrun) v ts hv hnb) (set_thread_state_yw hS hct v)) ?_
   rintro s' ⟨⟨σ', he, hR', hS'⟩, hw⟩
   have hσ' := the_result (Fl4Proofs.P3.Notif.setThreadState_eq ts hkc) he
-  refine ⟨σ', he, hσ', hS', hR', ?_, ?_, ?_⟩
+  refine ⟨σ', he, hσ', hS', hR', ?_, ?_, ?_, fun h => by rw [hσ']; exact ActIdle.ofSts (ActIdle.updState h hkc hrun ts hts) _⟩
   · rw [hσ']; unfold Fl4Proofs.P3.Notif.stsAct; split <;> exact hN.updTcb
   · rw [hσ']; exact hI.setRunnable hkc hrun hts
   · exact hY.frame (WritesIn.yield_keep hc.tcbs hw)
@@ -978,8 +1021,8 @@ restart and its reply (`reply_from_kernel` if `call`, by `MsgOK`) and
 theorem sc_consumed_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
     (hY : YieldRel T C (L.mem s) σ) {sc : U64} (hsc : sc ∈ C) {ct : U64} (hct : ct ∈ T) {xc : Fl4Spec.Tcb}
-    (hkc : σ.kheap ct.bv = some (.tcb xc)) (hrun : Fl4Spec.runnable xc.tcbState = true) (call : Bool)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (hkc : σ.kheap ct.bv = some (.tcb xc)) (hrun : Fl4Spec.runnable xc.tcbState = true) (hAI : ActIdle σ)
+    (call : Bool) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, ar.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st N T C c) :
     (do
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
@@ -993,10 +1036,10 @@ theorem sc_consumed_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
         Fl4Spec.NonDet.when (call = true) (Fl4Spec.replyFromKernel (Z := Unit) ct.bv (0, data))
         Fl4Spec.setThreadState (Z := Unit) ct.bv .running : Fl4Spec.SMonad Unit Unit) σ2 = ({((), σ3)}, False) ∧
       SchedRel st N T C c r.2.1 σ3 ∧ NtfnStateRel N T (L.mem r.2.1) σ3 ∧ NSC N C σ3 ∧ Inv σ3 ∧
-      YieldRel T C (L.mem r.2.1) σ3 ⦄ := by
+      YieldRel T C (L.mem r.2.1) σ3 ∧ ActIdle σ3 ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   refine WP.spec_bind (set_runnable_rels s σ hS hR hN hI hY hct hkc hrun _ .restart (by rw [tsVals.2.1]; rfl) rfl) ?_
-  rintro s2 ⟨σ1, he1, hσ1, hS1, hR1, hN1, hI1, hY1⟩
+  rintro s2 ⟨σ1, he1, hσ1, hS1, hR1, hN1, hI1, hY1, hA1⟩
   refine WP.spec_bind (set_consumed_refines s2 a σ1 hS1 hR1 hN1 hI1 hY1 hsc hct call hmax htu hmsg) ?_
   rintro s3 ⟨cv, σa, σb, hspc, hrt, hrf, hS3, hR3, hN3, hI3, hY3, hsf3, -, -⟩
   have hkc1 : σ1.kheap ct.bv = some (.tcb { xc with tcbState := .restart }) := by
@@ -1005,8 +1048,9 @@ theorem sc_consumed_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
   have hrun3 : Fl4Spec.runnable xc3.tcbState = true := by rw [hst3]; rfl
   refine WP.spec_bind (set_runnable_rels s3 σb hS3 hR3 hN3 hI3 hY3 hct hkc3 hrun3 _ .running
     (by rw [tsVals.1]; rfl) rfl) ?_
-  rintro s4 ⟨σ4, he4, -, hS4, hR4, hN4, hI4, hY4⟩
-  refine (WP.spec_ok _).mpr ⟨rfl, rfl, σ1, Fl4Spec.wordsFromTime cv.bv, σa, σ4, he1, ?_, ?_, hS4, hR4, hN4, hI4, hY4⟩
+  rintro s4 ⟨σ4, he4, -, hS4, hR4, hN4, hI4, hY4, hA4⟩
+  refine (WP.spec_ok _).mpr ⟨rfl, rfl, σ1, Fl4Spec.wordsFromTime cv.bv, σa, σ4, he1, ?_, ?_, hS4, hR4, hN4, hI4, hY4,
+    hA4 (ActIdle.sframe (hA1 hAI) hsf3)⟩
   · unfold Fl4Spec.returnConsumed; rw [nd_bind_one hspc]; rfl
   · cases call
     · rw [nd_when_false_y (by decide), nd_pure_bind', ← hrf rfl]; exact he4
@@ -1025,7 +1069,7 @@ theorem yieldto_invoke_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ :
     (hxt : xt.tcbSchedContext = some sc.bv)
     {ct : U64} (hct : ct ∈ T) (hctt : ct ≠ t) (hcur : σ.curThread = ct.bv) {xc : Fl4Spec.Tcb}
     (hkc : σ.kheap ct.bv = some (.tcb xc))
-    (hyc : xc.tcbYieldTo = none) (hcs : Fl4Spec.schedulable ct.bv σ = true) (call : Bool)
+    (hyc : xc.tcbYieldTo = none) (hcs : Fl4Spec.schedulable ct.bv σ = true) (hAI : ActIdle σ) (call : Bool)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, ar.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st N T C c) :
@@ -1041,11 +1085,11 @@ theorem yieldto_invoke_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ :
           Fl4Spec.NonDet.when (call = true) (Fl4Spec.replyFromKernel (Z := Unit) ct.bv (0, data))
           Fl4Spec.setThreadState (Z := Unit) ct.bv .running : Fl4Spec.SMonad Unit Unit) σ1 = ({((), σ2)}, False)) ∧
       SchedRel st N T C c r.2.1 σ2 ∧ NtfnStateRel N T (L.mem r.2.1) σ2 ∧ NSC N C σ2 ∧ Inv σ2 ∧
-      YieldRel T C (L.mem r.2.1) σ2 ⦄ := by
+      YieldRel T C (L.mem r.2.1) σ2 ∧ ActIdle σ2 ⦄ := by
   obtain ⟨xq, scq, yq, nq, hq1, hq2, hq3, hq4, hq5, hq6⟩ := schedulable_inv hcs
   rw [hkc] at hq1; cases hq1
   refine WP.spec_bind (set_runnable_rels s σ hS hR hN hI hY hct hkc hq3 _ .restart (by rw [tsVals.2.1]; rfl) rfl) ?_
-  rintro s2 ⟨σ1, he1, hσ1, hS1, hR1, hN1, hI1, hY1⟩
+  rintro s2 ⟨σ1, he1, hσ1, hS1, hR1, hN1, hI1, hY1, hA1⟩
   have hko : ∀ q, q ≠ ct.bv → σ1.kheap q = σ.kheap q := fun q hq => by rw [hσ1, stsAct_kheap]; simp [updK, hq]
   have hkc1 : σ1.kheap ct.bv = some (.tcb { xc with tcbState := .restart }) := by
     rw [hσ1, stsAct_kheap]; simp [updK]
@@ -1058,9 +1102,9 @@ theorem yieldto_invoke_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ :
   have hcs1 : Fl4Spec.schedulable ct.bv σ1 = true :=
     schedulable_of hkc1 hq2 rfl (by rw [hko _ hscq]; exact hq4) hq5 (by rw [hrel1]; exact hq6)
   refine WP.spec_bind (yield_to_refines s2 a σ1 hS1 hR1 hN1 hI1 hY1 hC0 hsc hk1 ht htc hkt1 hxt hct hcur1 hkc1
-    hyc hcs1 call hmb hmax htu hmsg) ?_
-  rintro ⟨s3, a2⟩ ⟨ha2, data, σa, σb, hyt, hcase, hS3, hR3, hN3, hI3, hY3⟩
-  exact (WP.spec_ok _).mpr ⟨rfl, ha2, σ1, data, σa, σb, he1, hyt, hcase, hS3, hR3, hN3, hI3, hY3⟩
+    hyc hcs1 (hA1 hAI) call hmb hmax htu hmsg) ?_
+  rintro ⟨s3, a2⟩ ⟨ha2, data, σa, σb, hyt, hcase, hS3, hR3, hN3, hI3, hY3, hA3⟩
+  exact (WP.spec_ok _).mpr ⟨rfl, ha2, σ1, data, σa, σb, he1, hyt, hcase, hS3, hR3, hN3, hI3, hY3, hA3⟩
 
 end
 

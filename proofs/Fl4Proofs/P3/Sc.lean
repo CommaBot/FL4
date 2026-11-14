@@ -82,8 +82,20 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
 * ScYield, ScYieldTo: the yield-to relation `YieldRel` (`tcb_yield_to` ↔ the
   TCB's `YIELD_TO` word, the yield pairs), `complete_yield_to`,
   `set_consumed` (its message writes the Ep side's `MsgOK`), SchedContext
-  `YieldTo` (`yield_to_refines`, `yieldto_invoke_refines`) and `Consumed`
-  (`sc_consumed_refines`).
+  `YieldTo` (`yield_to_refines`, `yieldto_invoke_refines`, with `ActIdle`)
+  and `Consumed` (`sc_consumed_refines`).
+* ScFoot: the scheduler footprint `SFoot` and `CKeep` (what the call-stack
+  relation reads of the spec, kept).
+* ScCallUnlink: `reply_unlink` (`reply_unlink_refines`, l4v
+  `reply_unlink_tcb`) and `reply_remove` in full (`reply_remove_full_refines`,
+  l4v `reply_remove`), keeping `RFree` (free replies detached and unlinked,
+  ScCallOps; `RFree.push_ready` gives `reply_push` its isolated reply).
+* ScDecodeSc: SchedContext invocation decode over every label
+  (`sc_decode_refines`, l4v `decode_sched_context_invocation` and
+  `invoke_sched_context`): the YieldTo checks (`yieldto_branch_refines`, with
+  the MCP relation `McpRel`), Bind and UnbindObject (`bind_branch_refines`,
+  `unbindobj_branch_refines`), Unbind (`unbind_invoke_refines`, carrying the
+  call-stack relation), Consumed.
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
@@ -102,3 +114,4 @@ import Fl4Proofs.P3.ScCallRemove
 import Fl4Proofs.P3.ScCallPushRef
 import Fl4Proofs.P3.ScCallUnbind
 import Fl4Proofs.P3.ScYieldTo
+import Fl4Proofs.P3.ScDecodeSc

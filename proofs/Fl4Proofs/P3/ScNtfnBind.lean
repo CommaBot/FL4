@@ -243,7 +243,7 @@ theorem unbind_ntfn_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.St
     schedcontext.unbind_ntfn st s p ⦃ s' => ∃ σ',
       Fl4Spec.schedContextUnbindNtfn (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
       SchedRel st N T C c s' σ' ∧ NtfnStateRel N T (L.mem s') σ' ∧ NSC N C σ' ∧ Inv σ' ∧
-      (ActIdle σ → ActIdle σ') ⦄ := by
+      (ActIdle σ → ActIdle σ') ∧ WritesIn st s s' (fun b => NWrite N T b ∨ b = scW p 40#u64) ∧ CKeep σ σ' ⦄ := by
   have hP := hS.placed
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x', n', hk', hx⟩ := hs.scs p hp
@@ -258,7 +258,7 @@ theorem unbind_ntfn_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.St
   by_cases hi0 : i = 0#u64
   · subst hi0
     simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-    refine ⟨σ, ?_, hS, hR, hN, hI, id⟩
+    refine ⟨σ, ?_, hS, hR, hN, hI, id, WritesIn.refl _ _, CKeep.refl σ⟩
     unfold Fl4Spec.schedContextUnbindNtfn
     rw [nd_bind_one hg, hyi, optRef_zero]; rfl
   have hne : (i != 0#u64) = true := by simpa using hi0
@@ -280,7 +280,16 @@ theorem unbind_ntfn_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.St
   rintro s2 rfl
   obtain ⟨hS2, hf2, hK2⟩ := hS1.set_sc_ntfn hp hk1 0#u64
   rw [optRef_zero] at hS2 hK2
-  refine ⟨_, ?_, hS2, hR1.frame hS1.placed hf2 hK2, hN1.updSc, hI1.scFields hk1 rfl rfl rfl rfl, fun hA => ?_⟩
+  have hw1 : WritesIn st s (L.wr s (nScA i) 0#u64) (NWrite N T) := by
+    have h := nwr_wr (st := st) hP hn (K := 32#u64) (by simp) (by simp) s 0#u64
+    rw [← nScA_eq] at h; exact h.foot
+  have ha40 := (hx.hdr (K := 40#u64) (by simp) (by simp)).1
+  have hw : WritesIn st s (L.wr (L.wr s (nScA i) 0#u64) (scW p 40#u64) 0#u64)
+      (fun b => NWrite N T b ∨ b = scW p 40#u64) :=
+    (hw1.trans (writesIn_wr ha40)).mono fun b hb => hb
+  refine ⟨_, ?_, hS2, hR1.frame hS1.placed hf2 hK2, hN1.updSc, hI1.scFields hk1 rfl rfl rfl rfl, fun hA => ?_, hw,
+    (CKeep.updOther hkn (fun _ _ e => by cases e) (fun _ e => by cases e) (fun _ _ e => by cases e)).trans
+      (CKeep.updSc (y' := { y with scNtfn := none }) hk1 rfl)⟩
   · unfold Fl4Spec.schedContextUnbindNtfn
     rw [nd_bind_one hg, hyn]
     show (Fl4Spec.setNtfnObjRef Fl4Spec.ntfnScUpdate i.bv none >>= _) σ = _

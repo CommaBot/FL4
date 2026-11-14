@@ -2,9 +2,10 @@
 P3 (DESIGN.md §9), scheduling contexts: **`reply_pop`** (`reply_remove` of
 a stack's head) against l4v `reply_unlink_sc` and the donation of the SC
 back to the caller `t` if it has none (`reply_remove`'s middle part). The
-final `reply_unlink` (`reply_unlink_tcb`, the endpoint side) is a
-hypothesis `hU`, given the relations at that point and the popped reply
-isolated.
+final `reply_unlink` (`reply_unlink_tcb`) is the continuation `hU`, given
+the relations at that point, the popped reply isolated, the call-stack step
+(`CallStep`) and `UFrame`; `reply_remove_full_refines` (ScCallUnlink.lean)
+discharges it.
 -/
 import Fl4Proofs.P3.ScCallPop
 open Aeneas Aeneas.Std Result
@@ -50,7 +51,8 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
     (Q : S × A → Prop)
     (hU : ∀ (s5 : S) (σ5 : Fl4Spec.State Unit) (Lst5 : U64 → List U64),
       SchedRel st N T C c s5 σ5 → NtfnStateRel N T (L.mem s5) σ5 → NSC N C σ5 → Inv σ5 →
-      CallRel (L.mem s5) R C σ5 Lst5 → RPlaced st N T C R c s5 σ5 → Isolated (L.mem s5) R r →
+      CallRel (L.mem s5) R C σ5 Lst5 → RPlaced st N T C R c s5 σ5 → Isolated (L.mem s5) R r → UFrame σ σ5 →
+      CallStep (L.mem s) (L.mem s5) R C Lst Lst5 r →
       (do
         Fl4Spec.replyUnlinkSc (Z := Unit) sc.bv r.bv
         Fl4Spec.NonDet.when (xt.tcbSchedContext = none) (Fl4Spec.schedContextDonate (Z := Unit) sc.bv t.bv) :
@@ -183,6 +185,21 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
       · subst e; rw [hkcr] at hq; cases hq
       · rw [hkc q e] at hq; exact ⟨x', hq⟩
     have hRP3 : RPlaced st N T C R c (L.wr s2 (rNextA r) 0#u64) σc := hRP2.frame (by simp) hSzc
+    have huf : UFrame σ σc := by
+      refine ⟨fun q x hq => ?_, fun q x hq => ?_⟩
+      · by_cases e : q = r.bv
+        · subst e; rw [hkr] at hq; cases hq; exact ⟨{ xr with replySc := none }, hkcr, rfl⟩
+        by_cases es : q = sc.bv
+        · subst es; rw [hk] at hq; cases hq
+        by_cases eh : ∃ d, rest.head? = some d ∧ q = d.bv
+        · obtain ⟨d, hh, rfl⟩ := eh
+          exact ⟨{ x with replySc := some sc.bv }, by rw [hkc _ e]; exact hkbh d x hh hq, rfl⟩
+        · exact ⟨x, by rw [hkc _ e, hkb q es (fun d hh e' => eh ⟨d, hh, e'⟩)]; exact hq, rfl⟩
+      · have e : q ≠ r.bv := by rintro rfl; rw [hkr] at hq; cases hq
+        have es : q ≠ sc.bv := by rintro rfl; rw [hk] at hq; cases hq
+        have eh : ∀ d, rest.head? = some d → q ≠ d.bv := fun d hh e' => by
+          obtain ⟨xd, hkd, -⟩ := hCR.reply d (hhR d hh); rw [← e', hq] at hkd; cases hkd
+        exact ⟨x, by rw [hkc _ e, hkb q es eh]; exact hq, rfl⟩
     -- the spec's `reply_unlink_sc`
     have hunl : Fl4Spec.replyUnlinkSc (Z := Unit) sc.bv r.bv σ = ({((), σc)}, False) := by
       unfold Fl4Spec.replyUnlinkSc
@@ -224,7 +241,8 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
         (∀ d ∈ R, ∀ x, σc.kheap d.bv = some (.reply x) → ∃ x', σ4.kheap d.bv = some (.reply x') ∧
           x'.replySc = x.replySc) →
         CallRel (L.mem (L.wr s4 (rPrevA r) 0#u64)) R C σ4 (Function.update Lst sc rest) ∧
-          Isolated (L.mem (L.wr s4 (rPrevA r) 0#u64)) R r := by
+          Isolated (L.mem (L.wr s4 (rPrevA r) 0#u64)) R r ∧
+          CallStep (L.mem s) (L.mem (L.wr s4 (rPrevA r) 0#u64)) R C Lst (Function.update Lst sc rest) r := by
       intro s4 cw1 cw2 σ4 hsp1 hsp2
       have hR0 : ∀ d ∈ R, d ≠ 0#u64 ∧ d.val % 2 = 0 := fun d hd => ⟨(hRP.align d hd).2.1, hev d hd⟩
       set m5 := L.mem (L.wr s4 (rPrevA r) 0#u64)
@@ -232,18 +250,20 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
         L.mem_wr_ne hPr hb (Ne.symm h)
       have hm3 : ∀ b, Aligned b → b.val ≠ (rNextA r).val → L.mem (L.wr s2 (rNextA r) 0#u64) b = L.mem s2 b :=
         fun b hb h => L.mem_wr_ne hNr hb (Ne.symm h)
-      obtain ⟨hCRc, hiso⟩ := CallRel.pop (m' := m5) (σ' := σc) hCR hR0 hsc hL
-        (fun d hd hdr => by
+      have hP5 : ∀ d ∈ R, d ≠ r → m5 (rPrevA d) = L.mem s (rPrevA d) :=
+        fun d hd hdr => by
           rw [hm5 _ (hal d hd).1 ((rwords_ne (hRP.align d hd) hA).2 hdr).1, (cw2 d hd).1,
             hm3 _ (hal d hd).1 ((rwords_ne (hRP.align d hd) hA).1),
             hm2 _ (hal d hd).1 (fun e => (hfarS sc hsc d hd).1 e.symm)
-              (fun e he => (rwords_ne (hRP.align d hd) (hRP.align e (hhR e he))).1)])
-        (fun d hd hdr hnh => by
+              (fun e he => (rwords_ne (hRP.align d hd) (hRP.align e (hhR e he))).1)]
+      have hN5 : ∀ d ∈ R, d ≠ r → rest.head? ≠ some d → m5 (rNextA d) = L.mem s (rNextA d) :=
+        fun d hd hdr hnh => by
           rw [hm5 _ (hal d hd).2 (fun e => (rwords_ne hA (hRP.align d hd)).1 e.symm), (cw2 d hd).2,
             hm3 _ (hal d hd).2 ((rwords_ne (hRP.align d hd) hA).2 hdr).2,
             hm2 _ (hal d hd).2 (fun e => (hfarS sc hsc d hd).2 e.symm)
               (fun e he => ((rwords_ne (hRP.align d hd) (hRP.align e (hhR e he))).2
-                (fun h' => hnh (h' ▸ he))).2)])
+                (fun h' => hnh (h' ▸ he))).2)]
+      obtain ⟨hCRc, hiso⟩ := CallRel.pop (m' := m5) (σ' := σc) hCR hR0 hsc hL hP5 hN5
         (fun d hh => by
           have hdR := hhR d hh
           rw [hm5 _ (hal d hdR).2 (fun e => (rwords_ne hA (hRP.align d hdR)).1 e.symm), (cw2 d hdR).2,
@@ -273,7 +293,17 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
           have hdsc : d.bv ≠ sc.bv := fun e => by
             obtain ⟨xd, hkd, -⟩ := hCR.reply d hd; rw [e, hk] at hkd; cases hkd
           rw [hkc _ (bv_ne hdr), hkb _ hdsc (fun d' hh' e => hnh (by rw [hh', ← eq_of_bv e]))])
-      exact ⟨hCRc.frame (fun q hq => rfl) (fun d hd => ⟨rfl, rfl⟩) hsp1 hsp2, hiso⟩
+      refine ⟨hCRc.frame (fun q hq => rfl) (fun d hd => ⟨rfl, rfl⟩) hsp1 hsp2, hiso,
+        fun d hd hdet _ _ hdr => ⟨hN5 d hd hdr (fun hh => hdet sc hsc (by
+          rw [hL]; exact List.mem_cons_of_mem _ (List.mem_of_mem_head? hh))), hP5 d hd hdr⟩, fun q hq d hdq => ?_,
+        fun q hq hdq => ?_⟩
+      · by_cases e : q = sc
+        · subst e; simp only [Function.update_self] at hdq; rw [hL]; exact List.mem_cons_of_mem _ hdq
+        · simpa [e] using hdq
+      · by_cases e : q = sc
+        · subst e; simp only [Function.update_self] at hdq; exact hrrest hdq
+        · simp only [ne_eq, e, not_false_eq_true, Function.update_of_ne] at hdq
+          exact e (hCR.excl q hq sc hsc r hdq (by rw [hL]; exact List.mem_cons_self))
     by_cases hi0 : i = 0#u64
     · -- the donation back to `t`
       rw [if_pos hi0]
@@ -313,7 +343,7 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
       have hqft : ∀ q ∈ C, q.bv ≠ f.bv ∧ q.bv ≠ t.bv := fun q hq => by
         obtain ⟨xq, nq, hkq, -⟩ := hs.scs q hq
         exact ⟨fun e => (by rw [e, hkf] at hkq; cases hkq), fun e => (by rw [e, hkt] at hkq; cases hkq)⟩
-      obtain ⟨hCR5, hiso5⟩ := hcall s4 cw1 cw2 σ4
+      obtain ⟨hCR5, hiso5, hcs5⟩ := hcall s4 cw1 cw2 σ4
         (fun q hq y0 n0 hy0 => by
           by_cases e : q = sc
           · subst e; rw [hkcsc] at hy0; cases hy0; exact ⟨_, hksc4, rfl⟩
@@ -326,7 +356,18 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
       refine WP.spec_bind (hU _ σ4 _ (hS4.wr_far hPr (hRP4.far hrR (Or.inl (rPrevA_val hA))) 0#u64)
         (hR4.frame hP (footEq_wr_far hP hPr (fun n hn => by have := hRP.ntfn r hrR n hn; rw [rPrevA_val hA]; omega)
           (fun t ht => by have := hRP.tcb r hrR t ht; rw [rPrevA_val hA]; omega) _) (KView.refl _))
-        hN4 hI4 hCR5 (hRP4.frame (by simp) (SzKeep.of_kheap rfl)) hiso5 ?_) ?_
+        hN4 hI4 hCR5 (hRP4.frame (by simp) (SzKeep.of_kheap rfl)) hiso5 (huf.trans ?_) hcs5 ?_) ?_
+      · refine ⟨fun q x hq => ?_, fun q x hq => ?_⟩
+        · have e1 : q ≠ sc.bv := by rintro rfl; rw [hkcsc] at hq; cases hq
+          have e2 : q ≠ f.bv := by rintro rfl; rw [hkfc] at hq; cases hq
+          have e3 : q ≠ t.bv := by rintro rfl; rw [hktc] at hq; cases hq
+          exact ⟨x, by rw [hko4 q e1 e2 e3]; exact hq, rfl⟩
+        · by_cases e2 : q = f.bv
+          · subst e2; rw [hkfc] at hq; cases hq; exact ⟨{ xf with tcbSchedContext := none }, hkf4, rfl⟩
+          by_cases e3 : q = t.bv
+          · subst e3; rw [hktc] at hq; cases hq; exact ⟨{ xt with tcbSchedContext := some sc.bv }, hkt4, rfl⟩
+          have e1 : q ≠ sc.bv := by rintro rfl; rw [hkcsc] at hq; cases hq
+          exact ⟨x, by rw [hko4 q e1 e2 e3]; exact hq, rfl⟩
       · rw [nd_bind_one hunl]
         unfold Fl4Spec.NonDet.when
         rw [if_pos hxt0]; exact hdon4
@@ -338,12 +379,12 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
       refine WP.spec_bind (obj.Reply.set_prev.val _ r 0#u64) ?_
       rintro s5 rfl
       rw [zero_or_masked]
-      obtain ⟨hCR5, hiso5⟩ := hcall _ (fun q _ => rfl) (fun d _ => ⟨rfl, rfl⟩) σc
+      obtain ⟨hCR5, hiso5, hcs5⟩ := hcall _ (fun q _ => rfl) (fun d _ => ⟨rfl, rfl⟩) σc
         (fun q _ y0 n0 hy0 => ⟨y0, hy0, rfl⟩) (fun d _ x hx => ⟨x, hx, rfl⟩)
       refine WP.spec_bind (hU _ σc _ (hS3.wr_far hPr (hRP3.far hrR (Or.inl (rPrevA_val hA))) 0#u64)
         (hR3.frame hP (footEq_wr_far hP hPr (fun n hn => by have := hRP.ntfn r hrR n hn; rw [rPrevA_val hA]; omega)
           (fun t ht => by have := hRP.tcb r hrR t ht; rw [rPrevA_val hA]; omega) _) (KView.refl _))
-        hN3 hI3 hCR5 (hRP3.frame (by simp) (SzKeep.of_kheap rfl)) hiso5 ?_) ?_
+        hN3 hI3 hCR5 (hRP3.frame (by simp) (SzKeep.of_kheap rfl)) hiso5 huf hcs5 ?_) ?_
       · rw [nd_bind_one hunl]
         unfold Fl4Spec.NonDet.when
         rw [if_neg hxt1]; rfl

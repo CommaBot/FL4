@@ -13,6 +13,7 @@ and `sched_context_unbind_all_tcbs`.
   TCB stall; the spec's `sc_ptr ≠ idle_sc_ptr` test is a hypothesis.
 -/
 import Fl4Proofs.P3.ScConfig
+import Fl4Proofs.P3.ScFoot
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Sched
@@ -128,9 +129,13 @@ theorem unbind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Sta
     schedcontext.unbind_tcb st s p ⦃ s' => ∃ σ',
       Fl4Spec.schedContextUnbindTcb (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
       SchedRel st N T C c s' σ' ∧ NtfnStateRel N T (L.mem s') σ' ∧ NSC N C σ' ∧ Inv σ' ∧
-      (σ.schedulerAction = .resumeCurThread → IdleOK σ → t.bv ≠ σ.idleThread → ActIdle σ') ⦄ := by
+      (σ.schedulerAction = .resumeCurThread → IdleOK σ → t.bv ≠ σ.idleThread → ActIdle σ') ∧
+      WritesIn st s s' (fun b => SFoot st T c s b ∨ b = scW p 24#u64) ∧ CKeep σ σ' ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨xt, hkt, -⟩ := hs.tcb t ht
+  obtain ⟨xp, np, hkp, hxp⟩ := hs.scs p hp
+  rw [hk] at hkp; cases hkp
+  have ha24 := (hxp.hdr (K := 24#u64) (by simp) (by simp)).1
   have hP := hS.placed
   have ht0 : t ≠ 0#u64 := fun e => (hc.tcbs t ht).ne0 (by rw [e]; rfl)
   have hpt : p.bv ≠ t.bv := fun e => by rw [e, hkt] at hk; cases hk
@@ -150,31 +155,33 @@ theorem unbind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Sta
   have P1 : (if decide (i = nodeW st s c layout.node.CUR_THREAD) = true then sched.reschedule_required st s
       else ok s) ⦃ s1 => ∃ σ1, Fl4Spec.NonDet.when (i.bv = σ.curThread) Fl4Spec.rescheduleRequired σ =
         ({((), σ1)}, False) ∧ SchedRel st N T C c s1 σ1 ∧ NtfnStateRel N T (L.mem s1) σ1 ∧ QChange σ σ1 ∧
-        Calm σ σ1 ∧ (σ.schedulerAction = .resumeCurThread → ∀ u, σ1.schedulerAction ≠ .switchThread u) ⦄ := by
+        Calm σ σ1 ∧ (σ.schedulerAction = .resumeCurThread → ∀ u, σ1.schedulerAction ≠ .switchThread u) ∧
+        WritesIn st s s1 (SFoot st T c s) ⦄ := by
     by_cases he : i = nodeW st s c layout.node.CUR_THREAD
     · rw [if_pos (decide_eq_true he)]
-      refine WP.spec_mono (reschedule_required_refines s σ hR hS hI.actReady) ?_
-      rintro s1 ⟨σ8, he8, hk8, -, hf8, hS8⟩
+      refine WP.spec_mono (WP.spec_and (reschedule_required_refines s σ hR hS hI.actReady)
+        (reschedule_required_sfoot hS)) ?_
+      rintro s1 ⟨⟨σ8, he8, hk8, -, hf8, hS8⟩, hw8⟩
       obtain ⟨σ9, he9, hq9, hc9⟩ := rescheduleRequired_calm hI.actReady
       rw [he9] at he8
       have e := pair_eq he8
       subst e
       refine ⟨σ8, by unfold Fl4Spec.NonDet.when; rw [if_pos (by rw [← hct0, he])]; exact he9, hS8,
-        hR.frame hP hf8 (KView.of_kheap hk8), hq9, hc9, fun ha u => ?_⟩
+        hR.frame hP hf8 (KView.of_kheap hk8), hq9, hc9, fun ha u => ?_, hw8⟩
       have e := rescheduleRequired_noswitch (σ := σ) (fun t h => by rw [ha] at h; cases h)
       rw [he9] at e
       rw [← pair_eq e]; intro h; cases h
     · rw [if_neg (by simpa using he), WP.spec_ok]
       refine ⟨σ, by unfold Fl4Spec.NonDet.when; rw [if_neg (fun e => he (eq_of_bv (by rw [hct0]; exact e)))]; rfl,
-        hS, hR, QChange.refl σ, Calm.refl σ, fun ha u h => by rw [ha] at h; cases h⟩
+        hS, hR, QChange.refl σ, Calm.refl σ, (fun ha u h => by rw [ha] at h; cases h), WritesIn.refl _ _⟩
   refine WP.spec_bind P1 ?_
-  rintro s1 ⟨σ1, h1, hS1, hR1, hq1, hc1, ha1⟩
+  rintro s1 ⟨σ1, h1, hS1, hR1, hq1, hc1, ha1, hw1⟩
   have hI1 : Inv σ1 := hI.qchange hq1
   have hkt1 : σ1.kheap i.bv = some (.tcb xt) := by rw [hq1.1]; exact hkt
   have hk1 : σ1.kheap p.bv = some (.schedContext y n) := by rw [hq1.1]; exact hk
   -- dequeue
-  refine WP.spec_bind (dequeue_refines s1 σ1 hS1 i ht) ?_
-  rintro s2 ⟨σ2, hdq, hk2, hrb, hf2, hS2⟩
+  refine WP.spec_bind (WP.spec_and (dequeue_refines s1 σ1 hS1 i ht) (dequeue_sfoot hS1 ht)) ?_
+  rintro s2 ⟨⟨σ2, hdq, hk2, hrb, hf2, hS2⟩, hw2⟩
   have e2 := pair_eq (hdq.symm.trans (tcbSchedAction_gen hkt1 _))
   subst e2
   set σ2 := setQ σ1 xt.tcbDomain xt.tcbPriority
@@ -183,8 +190,8 @@ theorem unbind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Sta
   have hI2 : Inv σ2 := hI1.qchange (qchange_dequeue hkt1)
   have hkt2 : σ2.kheap i.bv = some (.tcb xt) := hkt1
   -- release-queue removal
-  refine WP.spec_bind (release_remove_refines s2 σ2 hS2 ht) ?_
-  rintro s3 ⟨σa, hra, ⟨bb, hσa⟩, hf3, hS3⟩
+  refine WP.spec_bind (WP.spec_and (release_remove_refines s2 σ2 hS2 ht) (release_remove_sfoot hS2 ht)) ?_
+  rintro s3 ⟨⟨σa, hra, ⟨bb, hσa⟩, hf3, hS3⟩, hw3⟩
   subst hσa
   set σ3 := setRel σ2 (σ2.releaseQueue.filter fun x => decide (i.bv ≠ x)) bb with hσ3
   have hR3 : NtfnStateRel N T (L.mem s3) σ3 := hR2.frame hP hf3 (KView.of_kheap rfl)
@@ -214,7 +221,19 @@ theorem unbind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Sta
   rw [optRef_zero] at hS5 hK5
   have hI5 := hI3.unbound hkt3 hyt hk3 hnq3
   have hN3 : NSC N C σ3 := fun m hm x q hx hq => hN m hm x q (by rw [← hq1.1]; exact hx) hq
-  refine ⟨_, ?_, hS5, hR4.frame hS4.placed hf5 hK5, hN3.updTcb.updSc, hI5, fun ha0 hId hti => ?_⟩
+  have hw : WritesIn st s (L.wr (L.wr s3 (scA i) 0#u64) (scW p 24#u64) 0#u64)
+      (fun b => SFoot st T c s b ∨ b = scW p 24#u64) := by
+    have w3 := WritesIn.sfoot_trans (WritesIn.sfoot_trans hw1 hw2) hw3
+    have w4 := WritesIn.sfoot_trans w3 (writesIn_tcb (s := s3) (K := 3464#u64) hc.tcbs ht (by simp) (by simp) 0#u64)
+    have ha24' : Aligned (scW p 24#u64) := ha24
+    exact (w4.trans (writesIn_wr ha24')).mono fun b hb => by
+      rcases hb with hb | hb
+      · exact Or.inl hb
+      · exact Or.inr hb
+  have hck : CKeep σ (updSc (updK σ3 i.bv (.tcb { xt with tcbSchedContext := none })) p.bv { y with scTcb := none } n) :=
+    ((CKeep.of_kheap hq1.1).trans ((CKeep.updOther hkt3 (fun _ _ e => by cases e) (fun _ e => by cases e)
+      (fun _ _ e => by cases e)).trans (CKeep.updSc hk4 rfl)))
+  refine ⟨_, ?_, hS5, hR4.frame hS4.placed hf5 hK5, hN3.updTcb.updSc, hI5, fun ha0 hId hti => ?_, hw, hck⟩
   · -- the spec
     unfold Fl4Spec.schedContextUnbindTcb
     rw [nd_bind_one (getSchedContext_eq hk), hyt,
@@ -245,7 +264,8 @@ theorem unbind_all_tcbs_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ 
     schedcontext.unbind_all_tcbs st ar s a p ⦃ r => r.2 = a ∧ ∃ σ',
       Fl4Spec.schedContextUnbindAllTcbs (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧
-      (σ.schedulerAction = .resumeCurThread → ActIdle σ → ActIdle σ') ⦄ := by
+      (σ.schedulerAction = .resumeCurThread → ActIdle σ → ActIdle σ') ∧
+      WritesIn st s r.1 (fun b => SFoot st T c s b ∨ b = scW p 24#u64) ∧ CKeep σ σ' ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x', n', hk', hx⟩ := hs.scs p hp
   rw [hk] at hk'; cases hk'
@@ -256,7 +276,7 @@ theorem unbind_all_tcbs_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ 
   by_cases hi0 : i = 0#u64
   · subst hi0
     simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-    refine ⟨trivial, σ, ?_, hS, hR, hN, hI, fun _ h => h⟩
+    refine ⟨trivial, σ, ?_, hS, hR, hN, hI, fun _ h => h, WritesIn.refl _ _, CKeep.refl σ⟩
     unfold Fl4Spec.schedContextUnbindAllTcbs
     rw [nd_bind_one (getSchedContext_eq hk), hyi, optRef_zero]
     unfold Fl4Spec.NonDet.when; rw [if_neg (by simp)]; rfl
@@ -269,9 +289,9 @@ theorem unbind_all_tcbs_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ 
     simp only [Prod.mk.injEq] at he
     obtain ⟨rfl, rfl⟩ := he
     refine WP.spec_bind (unbind_tcb_refines _ σ hS hR hN hI hp hk hiT hyt) ?_
-    rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, hA2⟩
+    rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, hA2, hw2, hck2⟩
     rw [WP.spec_ok]
-    refine ⟨rfl, σ2, ?_, hS2, hR2, hN2, hI2, fun ha0 hA => hA2 ha0 hA.2 hti⟩
+    refine ⟨rfl, σ2, ?_, hS2, hR2, hN2, hI2, fun ha0 hA => hA2 ha0 hA.2 hti, hw2, hck2⟩
     unfold Fl4Spec.schedContextUnbindAllTcbs
     rw [nd_bind_one (getSchedContext_eq hk)]
     unfold Fl4Spec.NonDet.when; rw [if_pos ⟨by rw [hyt]; simp, hpi⟩]; exact h2

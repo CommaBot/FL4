@@ -222,6 +222,52 @@ theorem callWords_of_dfoot {N T C R : Set U64} {c : U64} {s s' : S} {σ : Fl4Spe
       · have := hRP.ksb r hr; simp only [LawfulStore.nodeBase] at this g1 g2; omega
     · intro e; have := congrArg UScalar.val e; omega
 
+/-- A reply on no stack with no links is isolated: no stack member links to
+it, and a detached reply linking to it would be its neighbour. -/
+theorem CallRel.isolated {R C : Set U64} {m : U64 → U64} {σ : Fl4Spec.State Unit} {Lst : U64 → List U64}
+    (h : CallRel m R C σ Lst) (hR0 : ∀ d ∈ R, d ≠ 0#u64 ∧ d.val % 2 = 0) {r : U64} (hr : r ∈ R)
+    (hd : Detached C Lst r) (hn : m (rNextA r) = 0#u64) (hp : m (rPrevA r) = 0#u64) : Isolated m R r := by
+  refine ⟨hn, hp, fun d hd' => ?_⟩
+  by_cases hdet : Detached C Lst d
+  · obtain ⟨-, t2, t3⟩ := h.det d hd' hdet
+    refine ⟨fun e => ?_, fun e => ?_⟩
+    · have := (t2 (by rw [e]; exact (hR0 r hr).1)).2.2
+      rw [e, hp] at this; exact (hR0 d hd').1 this.symm
+    · have := (t3 (by rw [e]; exact (hR0 r hr).1)).2.2
+      rw [e, hn] at this; exact (hR0 d hd').1 this.symm
+  · simp only [Detached, not_forall, not_not] at hdet
+    obtain ⟨q, hq, hdq⟩ := hdet
+    obtain ⟨-, hqR, -, hqw⟩ := h.stack q hq
+    obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hdq
+    obtain ⟨g1, g2⟩ := hqw.2 i hi
+    refine ⟨fun e => ?_, fun e => ?_⟩
+    · rw [g2] at e
+      cases i with
+      | zero =>
+        dsimp only at e
+        have e1 : (q ||| 1#u64).bv.getLsbD 0 = true := by
+          simp only [UScalar.bv_or, BitVec.getLsbD_or, one_bit]; simp
+        rw [e, even_bit0 r (hR0 r hr).2] at e1
+        exact absurd e1 (by decide)
+      | succ j =>
+        change (Lst q).getD j 0#u64 = r at e
+        rw [List.getD_eq_getElem _ _ (by omega)] at e
+        exact hd q hq (e ▸ List.getElem_mem _)
+    · rw [g1] at e
+      by_cases hlt : i + 1 < (Lst q).length
+      · rw [List.getD_eq_getElem _ _ hlt] at e
+        exact hd q hq (e ▸ List.getElem_mem _)
+      · rw [List.getD_eq_default _ _ (by omega)] at e
+        exact (hR0 r hr).1 e.symm
+
+/-- **`reply_push`'s precondition from `RFree`**: a free reply is detached
+and isolated. -/
+theorem RFree.push_ready {R C : Set U64} {m : U64 → U64} {σ : Fl4Spec.State Unit} {Lst : U64 → List U64}
+    (h : RFree m R C σ Lst) (hCR : CallRel m R C σ Lst) (hR0 : ∀ d ∈ R, d ≠ 0#u64 ∧ d.val % 2 = 0)
+    {r : U64} (hr : r ∈ R) (hf : Free σ r) : Detached C Lst r ∧ Isolated m R r := by
+  obtain ⟨hd, hn, hp⟩ := h r hr hf
+  exact ⟨hd, hCR.isolated hR0 hr hd hn hp⟩
+
 end
 
 end
