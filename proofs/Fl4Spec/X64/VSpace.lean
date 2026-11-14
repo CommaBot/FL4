@@ -182,8 +182,9 @@ def getCurrentVSpaceRoot : SMonad Z ObjRef := do
 
 end
 
-/-- l4v: ArchVSpace_A.X64_A.cr3_addr_mask. -/
-def cr3AddrMask : Word := mask pml4ShiftBits <<< asidBits
+/-- l4v: ArchVSpace_A.X64_A.cr3_addr_mask. Above the 12-bit PCID field:
+l4v writes `asid_bits`, which is 12 there but 20 in FL4. -/
+def cr3AddrMask : Word := mask pml4ShiftBits <<< 12
 
 /-- l4v: ArchVSpace_A.X64_A.make_cr3. -/
 def makeCr3 (vspace : ObjRef) (asid : Asid) : Cr3 := .cr3 (vspace &&& cr3AddrMask) asid

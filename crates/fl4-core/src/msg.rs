@@ -77,8 +77,8 @@ pub fn get_mr<S: Store>(s: &S, t: Tcb, buf: u64, i: u64) -> u64 {
     syscall_arg(s, t, buf, i)
 }
 
-/// `setMR`: returns the number of registers written so far (i + 1), or i
-/// when the value had nowhere to go.
+/// `setMR`: returns the number of registers written so far (i + 1), or
+/// `N_MSG_REGISTERS` when the value had nowhere to go, as seL4 does.
 pub fn set_mr<S: Store>(s: &mut S, t: Tcb, buf: u64, i: u64, v: u64) -> u64 {
     if i < N_MSG_REGISTERS {
         t.set_reg(s, msg_register(i), v);
@@ -87,7 +87,7 @@ pub fn set_mr<S: Store>(s: &mut S, t: Tcb, buf: u64, i: u64, v: u64) -> u64 {
         buf_set(s, buf, i.wrapping_add(1), v);
         i.wrapping_add(1)
     } else {
-        i
+        N_MSG_REGISTERS
     }
 }
 

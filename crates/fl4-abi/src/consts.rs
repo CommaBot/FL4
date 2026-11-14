@@ -53,7 +53,7 @@ pub mod bits {
     pub const PAGE_TABLE: u64 = 12;
     pub const ASID_POOL: u64 = 12;
     pub const ASID_POOL_INDEX: u64 = 9;
-    pub const NUM_ASID_POOLS: u64 = 3;
+    pub const NUM_ASID_POOLS: u64 = 11;
     pub const MIN_UNTYPED: u64 = 4;
     pub const MAX_UNTYPED: u64 = 47;
     pub const MIN_SCHED_CONTEXT: u64 = 7;

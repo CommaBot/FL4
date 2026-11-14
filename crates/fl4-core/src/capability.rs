@@ -96,6 +96,16 @@ fn b(v: bool, n: u64) -> u64 {
     }
 }
 
+/// Mapping caps keep a 20-bit ASID: the low 16 bits above the virtual
+/// address in the second word, the high 4 at bit `at` of the first.
+fn asid_high(asid: u64, at: u64) -> u64 {
+    ((asid >> 16) & 0xf) << (at & 63)
+}
+
+fn unpack_asid(w0: u64, at: u64, w1: u64) -> u64 {
+    (((w0 >> (at & 63)) & 0xf) << 16) | (w1 >> 48)
+}
+
 fn tag(t: u64) -> u64 {
     t << 59
 }
@@ -135,12 +145,12 @@ impl Cap {
                 rights: (w0 >> 50) & 3,
                 is_device: bit(w0, 52),
                 mapped: bit(w0, 53),
-                asid: w1 >> 48,
+                asid: unpack_asid(w0, 54, w1),
                 vaddr: w1 & PTR_MASK,
             },
-            14 => Cap::PageTable { ptr: p, mapped: bit(w0, 48), asid: w1 >> 48, vaddr: w1 & PTR_MASK },
-            15 => Cap::PageDirectory { ptr: p, mapped: bit(w0, 48), asid: w1 >> 48, vaddr: w1 & PTR_MASK },
-            16 => Cap::Pdpt { ptr: p, mapped: bit(w0, 48), asid: w1 >> 48, vaddr: w1 & PTR_MASK },
+            14 => Cap::PageTable { ptr: p, mapped: bit(w0, 48), asid: unpack_asid(w0, 49, w1), vaddr: w1 & PTR_MASK },
+            15 => Cap::PageDirectory { ptr: p, mapped: bit(w0, 48), asid: unpack_asid(w0, 49, w1), vaddr: w1 & PTR_MASK },
+            16 => Cap::Pdpt { ptr: p, mapped: bit(w0, 48), asid: unpack_asid(w0, 49, w1), vaddr: w1 & PTR_MASK },
             17 => Cap::Pml4 { ptr: p, mapped: bit(w0, 48), asid: w1 },
             18 => Cap::AsidControl,
             19 => Cap::AsidPool { ptr: p, asid_base: w1 },
@@ -181,17 +191,18 @@ impl Cap {
                     | (size.code() << 48)
                     | ((rights & 3) << 50)
                     | b(is_device, 52)
-                    | b(mapped, 53),
+                    | b(mapped, 53)
+                    | asid_high(asid, 54),
                 ((asid & 0xffff) << 48) | (vaddr & PTR_MASK),
             ),
             Cap::PageTable { ptr, mapped, asid, vaddr } => {
-                (tag(14) | pack_ptr(ptr) | b(mapped, 48), ((asid & 0xffff) << 48) | (vaddr & PTR_MASK))
+                (tag(14) | pack_ptr(ptr) | b(mapped, 48) | asid_high(asid, 49), ((asid & 0xffff) << 48) | (vaddr & PTR_MASK))
             }
             Cap::PageDirectory { ptr, mapped, asid, vaddr } => {
-                (tag(15) | pack_ptr(ptr) | b(mapped, 48), ((asid & 0xffff) << 48) | (vaddr & PTR_MASK))
+                (tag(15) | pack_ptr(ptr) | b(mapped, 48) | asid_high(asid, 49), ((asid & 0xffff) << 48) | (vaddr & PTR_MASK))
             }
             Cap::Pdpt { ptr, mapped, asid, vaddr } => {
-                (tag(16) | pack_ptr(ptr) | b(mapped, 48), ((asid & 0xffff) << 48) | (vaddr & PTR_MASK))
+                (tag(16) | pack_ptr(ptr) | b(mapped, 48) | asid_high(asid, 49), ((asid & 0xffff) << 48) | (vaddr & PTR_MASK))
             }
             Cap::Pml4 { ptr, mapped, asid } => (tag(17) | pack_ptr(ptr) | b(mapped, 48), asid),
             Cap::AsidControl => (tag(18), 0),

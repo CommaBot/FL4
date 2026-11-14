@@ -255,15 +255,17 @@ pub mod ks {
     /// CPU features the core needs to know (set at boot).
     pub const FEATURES: u64 = 72;
     pub const FEATURE_NX: u64 = 1;
-    pub const ASID_TABLE: u64 = 128;
-    pub const NUM_ASID_POOLS: u64 = 8;
+    // Bytes 80..192 are free.
     /// Domain schedule: (domain, duration) pairs.
-    pub const DOM_SCHEDULE: u64 = ASID_TABLE + NUM_ASID_POOLS * WORD;
+    pub const DOM_SCHEDULE: u64 = 24 * WORD;
     pub const IRQ_STATE: u64 = DOM_SCHEDULE + NUM_DOMAIN_SCHEDULES * 2 * WORD;
     /// One capability slot per IRQ: the notification an IRQ signals.
     pub const IRQ_NODE: u64 = (IRQ_STATE + irq::COUNT * WORD + 31) / 32 * 32;
     pub const IOPORT_BITMAP: u64 = IRQ_NODE + irq::COUNT * cte::SIZE;
     pub const IOPORT_WORDS: u64 = 65536 / 64;
     pub const NODES: u64 = (IOPORT_BITMAP + IOPORT_WORDS * WORD + 63) / 64 * 64;
-    pub const SIZE: u64 = NODES + MAX_NODES * node::SIZE;
+    /// The ASID table: one pool pointer per 512 ASIDs.
+    pub const ASID_TABLE: u64 = NODES + MAX_NODES * node::SIZE;
+    pub const NUM_ASID_POOLS: u64 = 2048;
+    pub const SIZE: u64 = ASID_TABLE + NUM_ASID_POOLS * WORD;
 }

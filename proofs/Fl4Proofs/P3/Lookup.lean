@@ -154,8 +154,10 @@ private theorem unpack_total (w : U64) : capability.unpack_ptr w ⦃ _ => True �
   unfold capability.unpack_ptr; p0_auto
 private theorem from_code_total (c : U64) : capability.FrameSize.from_code c ⦃ _ => True ⦄ := by
   unfold capability.FrameSize.from_code; p0_auto
+private theorem unpack_asid_total (w0 sh w1 : U64) : capability.unpack_asid w0 sh w1 ⦃ _ => True ⦄ := by
+  unfold capability.unpack_asid; p0_auto
 
-attribute [local step] bit_total unpack_total from_code_total in
+attribute [local step] bit_total unpack_total from_code_total unpack_asid_total in
 private theorem decode_total' (w0 w1 : U64) : capability.Cap.decode w0 w1 ⦃ _ => True ⦄ := by
   unfold capability.Cap.decode; p0_split
 

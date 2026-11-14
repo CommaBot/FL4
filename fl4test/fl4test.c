@@ -502,3 +502,42 @@ static int test_fpu_ping_pong(env_t env)
     return sel4test_get_result();
 }
 DEFINE_TEST(FL4FPU0003, "Threads keep their own FPU registers across IPC", test_fpu_ping_pong, true)
+
+/* ---- 20-bit ASIDs (DESIGN.md §3) ------------------------------------- */
+
+static int add_one(seL4_Word a, seL4_Word b, seL4_Word c, seL4_Word d)
+{
+    return a + 1;
+}
+
+/*
+ * Make 200 ASID pools: the last one's ASIDs are above 2^16, past what
+ * seL4 has, so a process there runs on a PCID of its core's cache and its
+ * mapping caps carry the high ASID bits. Remapping a frame checks that its
+ * cap still names the process's ASID.
+ */
+static int test_high_asids(env_t env)
+{
+    seL4_CPtr pool = 0;
+    for (int i = 0; i < 200; i++) {
+        seL4_CPtr ut = vka_alloc_untyped_leaky(&env->vka, seL4_ASIDPoolBits);
+        test_assert(ut);
+        cspacepath_t path;
+        test_eq(vka_cspace_alloc_path(&env->vka, &path), 0);
+        test_eq(seL4_X86_ASIDControl_MakePool(env->asid_ctrl, ut, env->cspace_root, path.capPtr, path.capDepth),
+                seL4_NoError);
+        pool = path.capPtr;
+    }
+    helper_thread_t t;
+    create_helper_process_custom_asid(env, &t, pool);
+    void *v = vspace_new_pages(&t.process.vspace, seL4_AllRights, 1, seL4_PageBits);
+    test_assert(v != NULL);
+    seL4_CPtr frame = vspace_get_cap(&t.process.vspace, v);
+    test_eq(seL4_X86_Page_Map(frame, t.process.pd.cptr, (seL4_Word) v, seL4_AllRights, seL4_X86_Default_VMAttributes),
+            seL4_NoError);
+    start_helper(env, &t, add_one, 41, 0, 0, 0);
+    test_eq(wait_for_helper(&t), 42);
+    cleanup_helper(env, &t);
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4ASID0001, "A process with an ASID above 2^16 runs, and its mapping caps keep the ASID", test_high_asids, true)

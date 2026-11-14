@@ -454,6 +454,22 @@ theorem shr_u64_eq (x i : U64) (h : i.val < 64) : x >>> i = ok ⟨x.bv >>> i.val
   simp only [HShiftRight.hShiftRight, UScalar.shiftRight_UScalar, UScalar.shiftRight]
   simp [h, BitVec.ushiftRight_eq]
 
+/-- `unpack_asid`: a mapping cap's 20-bit ASID, the high 4 bits at `sh`
+of the first word. -/
+def asidF (w0 : BitVec 64) (sh : Nat) (w1 : BitVec 64) : BitVec 64 :=
+  (((w0 >>> sh) &&& 0xf#64) <<< 16) ||| (w1 >>> 48)
+
+theorem unpack_asid_eq (w0 sh w1 : U64) (h : sh.val < 64) :
+    capability.unpack_asid w0 sh w1 = ok ⟨asidF w0.bv sh.val w1.bv⟩ := by
+  unfold capability.unpack_asid
+  have : (sh &&& 63#u64).val = sh.val := by
+    have : (sh &&& 63#u64).val = sh.val % 64 := by simp; exact Nat.and_two_pow_sub_one_eq_mod sh.val 6
+    omega
+  simp only [lift, bind_ok]
+  rw [shr_u64_eq _ _ (by omega), this]
+  simp only [bind_ok, shl_eq _ 16#i32 (by decide) (by decide), shr_eq _ 48#i32 (by decide) (by decide)]
+  rfl
+
 theorem bit_eq (w n : U64) : capability.bit w n = ok (((⟨w.bv >>> ((n &&& 63#u64).val)⟩ : U64) &&& 1#u64) != 0#u64) := by
   unfold capability.bit
   have : (n &&& 63#u64).val < 64 := by
@@ -474,7 +490,8 @@ theorem decode_cnode_inv {w0 w1 p r gs g : U64} (h : capability.Cap.decode w0 w1
   simp only [shr_eq _ 59#i32 (by decide) (by decide), unpack_ptr_eq, bind_ok] at h
   split at h
   all_goals simp [shr_eq _ 48#i32 (by decide) (by decide), shr_eq _ 50#i32 (by decide) (by decide),
-    shr_eq _ 58#i32 (by decide) (by decide), shr_eq _ 16#i32 (by decide) (by decide), lift, bit_eq, from_code_eq] at h
+    shr_eq _ 58#i32 (by decide) (by decide), shr_eq _ 16#i32 (by decide) (by decide), lift, bit_eq, from_code_eq,
+    unpack_asid_eq _ 54#u64 _ (by decide), unpack_asid_eq _ 49#u64 _ (by decide)] at h
   case h_5 =>
     obtain ⟨-, rfl, rfl, rfl⟩ := h
     refine ⟨?_, ?_, ?_⟩

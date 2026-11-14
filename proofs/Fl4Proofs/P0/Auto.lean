@@ -83,6 +83,10 @@ theorem obj.MDB_REVOCABLE.p0  :
     capability.tag t ⦃ _ => True ⦄ := by
   unfold capability.tag; p0_auto
 
+@[step] theorem capability.asid_high.p0 (asid : Std.U64) («at» : Std.U64) :
+    capability.asid_high asid «at» ⦃ _ => True ⦄ := by
+  unfold capability.asid_high; p0_auto
+
 @[step] theorem capability.b.p0 (v : Bool) (n : Std.U64) :
     capability.b v n ⦃ _ => True ⦄ := by
   unfold capability.b; p0_auto
@@ -621,6 +625,10 @@ theorem regs.FLAGS_USER_DEFAULT.p0  :
     obj.Slot.revocable machineStoreInst self s ⦃ _ => True ⦄ := by
   unfold obj.Slot.revocable; p0_auto
 
+@[step] theorem capability.unpack_asid.p0 (w0 : Std.U64) («at» : Std.U64) (w1 : Std.U64) :
+    capability.unpack_asid w0 «at» w1 ⦃ _ => True ⦄ := by
+  unfold capability.unpack_asid; p0_auto
+
 @[step] theorem capability.bit.p0 (w : Std.U64) (n : Std.U64) :
     capability.bit w n ⦃ _ => True ⦄ := by
   unfold capability.bit; p0_auto
@@ -778,6 +786,10 @@ theorem layout.tcb.FLAGS.p0  :
 @[step] theorem boot.create_idle_threads.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (p : boot.BootParams) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     boot.create_idle_threads machineStoreInst machineArchInst s a p ⦃ _ => True ⦄ := by
   unfold boot.create_idle_threads; p0_auto
+
+theorem layout.ks.ASID_TABLE.p0  :
+    layout.ks.ASID_TABLE ⦃ _ => True ⦄ := by
+  exact WP.spec_mono Consts.layout.ks.ASID_TABLE.spec (fun _ _ => trivial)
 
 @[step] theorem boot.init_asid_pool.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (r : boot.Root) (hS : StoreTotal machineStoreInst) :
     boot.init_asid_pool machineStoreInst s r ⦃ _ => True ⦄ := by

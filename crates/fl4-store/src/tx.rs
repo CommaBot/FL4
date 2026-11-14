@@ -412,7 +412,7 @@ mod tests {
                         x ^= x << 17;
                         let a = (x % N as u64) as usize;
                         let b = ((x >> 20) % N as u64) as usize;
-                        begin(cpu);
+                        begin(cpu, &TestMem);
                         let mut sum = 0;
                         for i in 0..N {
                             sum += read(cpu, &TestMem, addr(i));

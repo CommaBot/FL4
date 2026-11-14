@@ -35,9 +35,8 @@ pub struct PerCpu {
     pub asid: u64,
     pub kernel_cr3: u64,
     pub exit_cr3: u64,
-    /// The invalidation generation of each PCID this core last ran with
-    /// (tlb.rs).
-    pub tlb_seen: [u64; crate::tlb::ASIDS],
+    /// The ASIDs this core's PCIDs hold (tlb.rs).
+    pub pcids: [crate::tlb::Slot; crate::tlb::SLOTS],
     pub apic_id: u32,
     /// This core holds the serial gate.
     pub gate_held: bool,
@@ -69,7 +68,7 @@ impl PerCpu {
             asid: 0,
             kernel_cr3: 0,
             exit_cr3: 0,
-            tlb_seen: [0; crate::tlb::ASIDS],
+            pcids: [crate::tlb::Slot::EMPTY; crate::tlb::SLOTS],
             apic_id: 0,
             gate_held: false,
             armed: 0,

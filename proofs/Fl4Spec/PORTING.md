@@ -234,6 +234,10 @@ Conventions of the ported base layer that later modules rely on.
   `timeoutMessage` (C `TIMEOUT_REPLY_MESSAGE`), `arch_cap_badge`,
   `reply_bits` (5), `parse_time_arg`, `words_from_time`; `ntfn_bits` is the
   MCS value 6, not X64's non-MCS 5.
+- **FL4 extension, 20-bit ASIDs** (DESIGN.md §3): `asid_high_len` is 11
+  (2048 ASID pools) and `asid_len` 20; l4v has 3 and 12. `cr3_addr_mask`
+  keeps the 12-bit PCID field (l4v writes `asid_bits` for it), and
+  `x64_asid_table` is indexed by `asid_high_index` (l4v writes `3 word`).
 - **Kernel_Config** is generated from a C build; here `numDomains` is an
   unspecified constant (`opaque kernelConfig`) constrained by exactly the
   facts of `Kernel_Config_Lemmas`; `config_HAVE_FPU` is `true` (x86-64).

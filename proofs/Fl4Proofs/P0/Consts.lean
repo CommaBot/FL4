@@ -25,7 +25,7 @@ open fl4_core
   unfold layout.ks.IOPORT_WORDS; step*
 
 @[step] theorem layout.ks.DOM_SCHEDULE.spec : layout.ks.DOM_SCHEDULE ⦃ v => v = 192#u64 ⦄ := by
-  unfold layout.ks.DOM_SCHEDULE; simp only [layout.WORD, layout.ks.ASID_TABLE, layout.ks.NUM_ASID_POOLS]; step*
+  unfold layout.ks.DOM_SCHEDULE; simp only [layout.WORD]; step*
 
 @[step] theorem layout.ks.IRQ_STATE.spec : layout.ks.IRQ_STATE ⦃ v => v = 224#u64 ⦄ := by
   unfold layout.ks.IRQ_STATE; simp only [fl4_abi.config.NUM_DOMAIN_SCHEDULES, layout.NUM_DOMAIN_SCHEDULES, layout.WORD]; step*
@@ -98,6 +98,9 @@ open fl4_core
 
 @[step] theorem layout.tcb.FLAGS.spec : layout.tcb.FLAGS ⦃ v => v = 3456#u64 ⦄ := by
   unfold layout.tcb.FLAGS; simp only [layout.tcb.F]; step*
+
+@[step] theorem layout.ks.ASID_TABLE.spec : layout.ks.ASID_TABLE ⦃ v => v = 288000#u64 ⦄ := by
+  unfold layout.ks.ASID_TABLE; simp only [fl4_abi.config.MAX_NUM_NODES, layout.MAX_NODES]; step*
 
 @[step] theorem layout.irq.RESCHEDULE_IPI.spec : layout.irq.RESCHEDULE_IPI ⦃ v => v = 127#u64 ⦄ := by
   unfold layout.irq.RESCHEDULE_IPI; step*
@@ -237,8 +240,8 @@ open fl4_core
 @[step] theorem layout.node.RELEASE_TAIL.spec : layout.node.RELEASE_TAIL ⦃ v => v = 72#u64 ⦄ := by
   unfold layout.node.RELEASE_TAIL; simp only [layout.node.RELEASE_HEAD]; step*
 
-@[step] theorem layout.ks.SIZE.spec : layout.ks.SIZE ⦃ v => v = 288000#u64 ⦄ := by
-  unfold layout.ks.SIZE; simp only [fl4_abi.config.MAX_NUM_NODES, layout.MAX_NODES]; step*
+@[step] theorem layout.ks.SIZE.spec : layout.ks.SIZE ⦃ v => v = 304384#u64 ⦄ := by
+  unfold layout.ks.SIZE; simp only [layout.WORD, layout.ks.NUM_ASID_POOLS]; step*
 
 @[step] theorem sporadic.min_budget_us.spec : sporadic.min_budget_us ⦃ v => v = 20#u64 ⦄ := by
   unfold sporadic.min_budget_us; step*
@@ -777,12 +780,6 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem layout.sc.REFILL_HEAD.val_eq : layout.sc.REFILL_HEAD.val = 80 := by
   unfold layout.sc.REFILL_HEAD; rfl
 
-@[simp, scalar_tac_simps] theorem layout.ks.NUM_ASID_POOLS.val_eq : layout.ks.NUM_ASID_POOLS.val = 8 := by
-  unfold layout.ks.NUM_ASID_POOLS; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ks.ASID_TABLE.val_eq : layout.ks.ASID_TABLE.val = 128 := by
-  unfold layout.ks.ASID_TABLE; rfl
-
 @[simp, scalar_tac_simps] theorem layout.WORD.val_eq : layout.WORD.val = 8 := by
   unfold layout.WORD; rfl
 
@@ -944,6 +941,9 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem layout.ks.WORK_UNITS.val_eq : layout.ks.WORK_UNITS.val = 40 := by
   unfold layout.ks.WORK_UNITS; rfl
+
+@[simp, scalar_tac_simps] theorem vspace.N_ASID_POOLS.val_eq : vspace.N_ASID_POOLS.val = 2048 := by
+  unfold vspace.N_ASID_POOLS; rfl
 
 @[simp, scalar_tac_simps] theorem vspace.ADDR_MASK.val_eq : vspace.ADDR_MASK.val = 4503599627366400 := by
   unfold vspace.ADDR_MASK; rfl
@@ -1278,6 +1278,9 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem layout.ks.FEATURE_NX.val_eq : layout.ks.FEATURE_NX.val = 1 := by
   unfold layout.ks.FEATURE_NX; rfl
 
+@[simp, scalar_tac_simps] theorem layout.ks.NUM_ASID_POOLS.val_eq : layout.ks.NUM_ASID_POOLS.val = 2048 := by
+  unfold layout.ks.NUM_ASID_POOLS; rfl
+
 @[simp, scalar_tac_simps] theorem msg.BUF_MSG.val_eq : msg.BUF_MSG.val = 1 := by
   unfold msg.BUF_MSG; rfl
 
@@ -1298,9 +1301,6 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem syscall.DEBUG_MESSAGE_START.val_eq : syscall.DEBUG_MESSAGE_START.val = 6 := by
   unfold syscall.DEBUG_MESSAGE_START; rfl
-
-@[simp, scalar_tac_simps] theorem vspace.N_ASID_POOLS.val_eq : vspace.N_ASID_POOLS.val = 8 := by
-  unfold vspace.N_ASID_POOLS; rfl
 
 @[simp, scalar_tac_simps] theorem untyped.RESET_CHUNK.val_eq : untyped.RESET_CHUNK.val = 65536 := by
   unfold untyped.RESET_CHUNK; rfl
@@ -1340,5 +1340,8 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem tcb.N_FRAME.val_eq : tcb.N_FRAME.val = 18 := by
   unfold tcb.N_FRAME; rfl
+
+@[simp, scalar_tac_simps] theorem vspace.ASID_BITS.val_eq : vspace.ASID_BITS.val = 20 := by
+  unfold vspace.ASID_BITS; rfl
 
 end Fl4Proofs.P0.Consts

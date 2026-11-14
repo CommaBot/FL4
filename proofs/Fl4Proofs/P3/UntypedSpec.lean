@@ -255,7 +255,8 @@ theorem decode_untyped_inv {w0 w1 p sb fi : U64} {dev : Bool}
   simp only [shr_eq _ 59#i32 (by decide) (by decide), unpack_ptr_eq, bind_ok] at h
   split at h
   all_goals simp [shr_eq _ 48#i32 (by decide) (by decide), shr_eq _ 50#i32 (by decide) (by decide),
-    shr_eq _ 58#i32 (by decide) (by decide), shr_eq _ 16#i32 (by decide) (by decide), lift, bit_eq, from_code_eq] at h
+    shr_eq _ 58#i32 (by decide) (by decide), shr_eq _ 16#i32 (by decide) (by decide), lift, bit_eq, from_code_eq,
+    unpack_asid_eq _ 54#u64 _ (by decide), unpack_asid_eq _ 49#u64 _ (by decide)] at h
   case h_1 =>
     obtain ⟨-, rfl, -, -⟩ := h
     simp only [UScalar.val_and]; exact Nat.lt_of_le_of_lt Nat.and_le_right (by decide)

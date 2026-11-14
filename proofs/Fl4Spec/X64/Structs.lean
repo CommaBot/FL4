@@ -443,7 +443,7 @@ abbrev X64VSpaceRegionUses := VSpaceRef → X64VSpaceRegionUse
 /-- l4v: Arch_Structs_A.X64_A.arch_state. The VT-d fields are commented out
 in l4v (`FIXME x64-vtd`) and not ported. -/
 structure ArchState where
-  x64AsidTable : BitVec 3 → Option ObjRef
+  x64AsidTable : AsidHighIndex → Option ObjRef
   x64GlobalPml4 : ObjRef
   x64KernelVspace : X64VSpaceRegionUses
   x64GlobalPts : List ObjRef

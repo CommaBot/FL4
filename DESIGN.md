@@ -66,6 +66,7 @@ sel4test does not cover all of that behavior, so FL4 adds a differential fuzzer.
 - Every new API gets a new name. The meaning of an existing seL4 name never changes. New behavior on an existing object is a new method, and the seL4 method keeps its seL4 meaning.
 - Extensions use the `seL4_` prefix, as the l4h ones already do, and live in the same headers. They are not build options: every FL4 libsel4 and kernel has all of them.
 - If upstream seL4 later adds an API that FL4 wants, FL4 adopts it under seL4's name, as a normal part of following seL4.
+- **More ASIDs.** x86_64 FL4 has 2048 ASID pools of 512, about 1M ASIDs (20 bits), where seL4 has 8 pools (4096). The API is seL4's (`ASIDControl_MakePool`, `ASIDPool_Assign`); only `seL4_NumASIDPoolsBits` changes, from 3 to 11. User space pays 8 bytes per ASID, in the 4 KiB pools it retypes. The kernel's own memory for ASIDs is fixed: a 16 KiB table of pool pointers and the PCID cache (§11, x86_64 backend). Mapping caps keep the 20-bit ASID in spare bits of their two words. fl4test FL4ASID0001 runs a process whose ASID is above 2^16. The spec port uses the same widths (`Fl4Spec/PORTING.md`).
 
 ## 3. Configuration
 
@@ -182,6 +183,7 @@ Bugs in FL4's own code, not differences from seL4, kept here because each one sh
 | `budget_check`'s overrun loop gave up after `refill_max + 2` rounds; seL4's has no bound. Charging more budgets than that at once (a long vCPU stall) then took the usage off a smaller head refill, which wrapped, so the SC had an effectively unbounded budget | P1: the ordering proof for `budget_check` would not go through; fl4-sim then reproduced it with 2 s stalls (seed 25 in the regressions) | Walk fuel for the loop, and the post-loop charge guarded by seL4's own assertion (`head.amount > usage`) |
 | Finalising a CNode recursed once per level, so deep zombie chains could overflow the kernel stack | P0 (recursion has no measure) | Loops |
 | Clearing dirty memory divided by the region size, which can be zero | P0 | Guard |
+| With no receive IPC buffer, `set_mr` returned the running index past the message registers, where seL4 returns `n_msgRegisters`, so fault messages reported a length of up to 18 instead of 4 | P3 (fault-message refinement) | Return `N_MSG_REGISTERS` |
 | An NMI, #DB or #MC between SYSCALL and the stack switch pushed its frame on the user's RSP in ring 0 | Review while adding the SYSRET exit | IST stacks |
 
 ### Left out
@@ -427,6 +429,7 @@ The proof assumes: Rust, LLVM and the linker; Charon, Aeneas and the Lean kernel
 
 - Multiboot 1 and 2 entry, so QEMU `-kernel` with the rootserver as a module works the way the seL4 x86 build does. APs start with INIT-SIPI-SIPI.
 - SYSCALL/SYSRET, per-core GS-based kernel state, SMEP and SMAP, PCID, and the optional kernel skim window (seL4's KPTI-style mitigation). A thread whose context SYSCALL saved leaves by SYSRET (Error = −1, as in seL4), and only when its return address is in the canonical lower half, so SYSRET never faults in ring 0 with the user's RSP loaded. Every other exit uses IRET. NMI, #DB, #MC and #DF run on per-core IST stacks, because the instructions just after SYSCALL and just before SYSRET run in ring 0 on the user's stack pointer.
+- PCIDs, when the CPU has them, are a per-core cache of ASIDs: ASIDs have 20 bits and PCIDs 12. Each core has a direct-mapped table of 512 PCIDs, indexed by a hash of the ASID that gives the ASIDs of one pool distinct entries. An entry holds the ASID it last ran and that ASID's invalidation generation. Invalidating an ASID bumps a generation in a global table of 4096 words, which ASIDs share by hash, and shoots down the cores running it. A core flushes a PCID when it takes it for another ASID, or when the generation moved. Sharing a generation costs only extra flushes. Memory is 32 KiB global plus 8 KiB per core, whatever the number of ASIDs; seL4 instead uses the ASID as the PCID. The test host has no PCIDs (§12), so this path is covered by host unit tests of the table, not by sel4test.
 - x2APIC or xAPIC, chosen at boot (§3). In xAPIC mode IPIs use physical destination mode, so more than 8 cores can be addressed.
 - MCS timer: TSC-deadline mode when CPUID reports it, otherwise the LAPIC one-shot timer with a TSC-to-APIC ratio calibrated at boot. seL4 has the same fallback in `apic.c`. Both are first-class paths, and the test setups in §12 exercise each one.
 - IOAPIC and MSI routing, ACPI MADT parsing, IO port caps.

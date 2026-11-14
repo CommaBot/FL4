@@ -29,7 +29,9 @@ const P_XD: u64 = 1 << 63;
 const ADDR_MASK: u64 = 0x000f_ffff_ffff_f000;
 
 pub const ASID_LOW_BITS: u64 = 9;
-pub const N_ASID_POOLS: u64 = 8;
+pub const N_ASID_POOLS: u64 = 2048;
+/// ASIDs are 20 bits (DESIGN.md §3): 2048 pools of 512.
+pub const ASID_BITS: u64 = 20;
 
 const PML4_INDEX_OFFSET: u64 = 39;
 const PDPT_INDEX_OFFSET: u64 = 30;
@@ -134,11 +136,11 @@ fn lookup_pt_slot<S: Store>(s: &S, pml4: u64, vaddr: u64) -> Result<u64, LookupF
 }
 
 fn asid_table<S: Store>(s: &S, high: u64) -> u64 {
-    ks_get(s, ks::ASID_TABLE.wrapping_add((high & 7).wrapping_mul(8)))
+    ks_get(s, ks::ASID_TABLE.wrapping_add((high & (N_ASID_POOLS - 1)).wrapping_mul(8)))
 }
 
 fn set_asid_table<S: Store>(s: &mut S, high: u64, pool: u64) {
-    ks_set(s, ks::ASID_TABLE.wrapping_add((high & 7).wrapping_mul(8)), pool)
+    ks_set(s, ks::ASID_TABLE.wrapping_add((high & (N_ASID_POOLS - 1)).wrapping_mul(8)), pool)
 }
 
 /// seL4 `findVSpaceForASID`: the PML4 assigned to `asid`.

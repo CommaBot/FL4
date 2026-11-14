@@ -907,12 +907,13 @@ abbrev LengthType := Word
 abbrev asidLowLen : Nat := 9
 /-- l4v: Machine_A.X64_A.asid_low_index. -/
 abbrev AsidLowIndex := BitVec asidLowLen
-/-- l4v: Machine_A.X64_A.asid_high_len. -/
-abbrev asidHighLen : Nat := 3
+/-- l4v: Machine_A.X64_A.asid_high_len. FL4 has 2048 ASID pools, not 8
+(PORTING.md). -/
+abbrev asidHighLen : Nat := 11
 /-- l4v: Machine_A.X64_A.asid_high_index. -/
 abbrev AsidHighIndex := BitVec asidHighLen
-/-- l4v: Machine_A.X64_A.asid_len. -/
-abbrev asidLen : Nat := 12
+/-- l4v: Machine_A.X64_A.asid_len: 20 in FL4, 12 in l4v. -/
+abbrev asidLen : Nat := 20
 /-- l4v: Machine_A.X64_A.asid_rep_len (`machine_word_len`). -/
 abbrev asidRepLen : Nat := 64
 /-- l4v: Machine_A.X64_A.asid. -/

@@ -1,11 +1,15 @@
 //! Address-space switches and TLB invalidation, with PCIDs when the CPU has
 //! them (DESIGN.md §3: CPUID.01H:ECX[17], INVPCID from CPUID.07H:EBX[10]).
 //!
-//! The PCID of an address space is its ASID (12 bits, as wide as a PCID),
-//! so a core keeps the entries of address spaces it ran before. Each ASID
-//! has an invalidation generation: invalidating an address space bumps it,
-//! and a core that switches to the ASID after a bump flushes that PCID.
-//! Cores running the address space at the time are shot down by IPI.
+//! ASIDs are 20 bits and PCIDs 12, so each core caches ASIDs in PCIDs of
+//! its own: PCID 1 + `slot(asid)` of a direct-mapped table of `SLOTS`
+//! entries, each holding the ASID it last ran and the invalidation
+//! generation it saw then. A core keeps the TLB entries of the address
+//! spaces in its table. Invalidating an address space bumps a generation
+//! shared by the ASIDs with the same `gen_index`; a core that switches to
+//! an ASID its slot does not hold, or whose generation moved, flushes that
+//! PCID. A shared generation only causes extra flushes. Cores running the
+//! address space at the time are shot down by IPI.
 //!
 //! A switch publishes the core's new ASID, then reads the generation; an
 //! invalidation bumps the generation, then reads which cores run the ASID.
@@ -13,18 +17,52 @@
 //! the switching one and interrupts it, or the switching core sees the new
 //! generation and flushes. Without PCIDs every switch flushes, and the
 //! same order keeps a switching core from missing an invalidation.
+//!
+//! The memory this takes does not depend on the number of ASIDs: `GENS`
+//! words, and `SLOTS` entries per core.
 use crate::cpu::{self, cpuid};
 use crate::percpu;
 use core::sync::atomic::{fence, AtomicBool, AtomicU64, Ordering};
 
-pub const ASIDS: usize = 4096;
+/// PCIDs per core (PCID 0 is the kernel's).
+pub const SLOTS: usize = 512;
+const GENS: usize = 4096;
 const NOFLUSH: u64 = 1 << 63;
 const CR4_PCIDE: u64 = 1 << 17;
 
 static PCID: AtomicBool = AtomicBool::new(false);
 static SKIM: AtomicBool = AtomicBool::new(false);
 static INVPCID: AtomicBool = AtomicBool::new(false);
-static GEN: [AtomicU64; ASIDS] = [const { AtomicU64::new(0) }; ASIDS];
+static GEN: [AtomicU64; GENS] = [const { AtomicU64::new(0) }; GENS];
+
+/// A PCID of this core: the ASID it holds and the generation it saw.
+#[derive(Clone, Copy)]
+pub struct Slot {
+    asid: u64,
+    seen: u64,
+}
+
+impl Slot {
+    pub const EMPTY: Slot = Slot { asid: u64::MAX, seen: 0 };
+
+    /// Run `asid`, whose generation is `g`, on this PCID; returns whether
+    /// the PCID must be flushed first.
+    fn claim(&mut self, asid: u64, g: u64) -> bool {
+        let flush = self.asid != asid || self.seen != g;
+        *self = Slot { asid, seen: g };
+        flush
+    }
+}
+
+/// ASIDs of one pool (the low 9 bits) get different slots; the pool
+/// number is folded in so that pools' first ASIDs do not all collide.
+fn slot(asid: u64) -> usize {
+    ((asid ^ (asid >> 9)) as usize) & (SLOTS - 1)
+}
+
+fn gen_index(asid: u64) -> usize {
+    ((asid ^ (asid >> 12)) as usize) & (GENS - 1)
+}
 
 /// Detect PCIDs on the boot core; returns the CR4 bit to set on every core
 /// (which must happen while CR3 names PCID 0, as it does at boot). With the
@@ -53,10 +91,15 @@ pub fn invpcid_available() -> bool {
 
 fn tag(asid: u64) -> u64 {
     if pcid() {
-        asid & (ASIDS as u64 - 1)
+        slot(asid) as u64 + 1
     } else {
         0
     }
+}
+
+/// This core's PCID holds `asid`'s TLB entries, if any are cached.
+fn holds(asid: u64) -> bool {
+    pcid() && percpu::get().pcids[slot(asid)].asid == asid
 }
 
 /// Run address space `cr3` (a page-table root's physical address) with
@@ -76,9 +119,8 @@ pub fn switch(cr3: u64, asid: u64) {
     }
     let mut flush = true;
     if pcid() {
-        let g = GEN[t as usize].load(Ordering::SeqCst);
-        flush = pc.tlb_seen[t as usize] != g;
-        pc.tlb_seen[t as usize] = g;
+        let g = GEN[gen_index(asid)].load(Ordering::SeqCst);
+        flush = pc.pcids[slot(asid)].claim(asid, g);
     }
     let v = cr3 | t | if flush { 0 } else { NOFLUSH };
     pc.cr3 = cr3 | t;
@@ -110,7 +152,7 @@ pub fn skim() -> bool {
 
 /// Every core flushes `asid` the next time it switches to it.
 fn bump(asid: u64) {
-    GEN[tag(asid) as usize].fetch_add(1, Ordering::SeqCst);
+    GEN[gen_index(asid)].fetch_add(1, Ordering::SeqCst);
 }
 
 /// INVPCID: type 0 (one address in one PCID) or 1 (one PCID).
@@ -130,15 +172,17 @@ pub fn invalidate_page(asid: u64, vaddr: u64) -> u64 {
 
 /// With the skim window the kernel runs on its own tables: a user PCID is
 /// reached with INVPCID, and without PCIDs every exit's CR3 load flushes.
+/// A PCID that holds another ASID has no entries for this one (taking it
+/// flushed them).
 fn local_invalidate_page(asid: u64, vaddr: u64) {
     let pc = percpu::get();
     if skim() {
-        if pcid() {
+        if holds(asid) {
             invpcid(0, tag(asid), vaddr);
         }
     } else if pc.asid == asid {
         cpu::invlpg(vaddr);
-    } else if invpcid_available() {
+    } else if invpcid_available() && holds(asid) {
         invpcid(0, tag(asid), vaddr);
     }
 }
@@ -146,12 +190,12 @@ fn local_invalidate_page(asid: u64, vaddr: u64) {
 fn local_invalidate_asid(asid: u64) {
     let pc = percpu::get();
     if skim() {
-        if pcid() {
+        if holds(asid) {
             invpcid(1, tag(asid), 0);
         }
     } else if pc.asid == asid {
         cpu::write_cr3(pc.cr3);
-    } else if invpcid_available() {
+    } else if invpcid_available() && holds(asid) {
         invpcid(1, tag(asid), 0);
     }
 }
@@ -187,4 +231,35 @@ fn cores_on(asid: u64) -> u64 {
         }
     }
     m
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_pool_and_the_first_asids_of_pools_get_distinct_slots() {
+        let base = 77 << 9;
+        let mut seen = [false; SLOTS];
+        for i in 0..512 {
+            assert!(!core::mem::replace(&mut seen[slot(base + i)], true));
+        }
+        let mut seen = [false; SLOTS];
+        for p in 0..512 {
+            assert!(!core::mem::replace(&mut seen[slot(p << 9)], true));
+        }
+        assert!((0..1 << 20).all(|a| slot(a) < SLOTS && gen_index(a) < GENS));
+    }
+
+    #[test]
+    fn a_slot_flushes_for_a_new_asid_or_generation() {
+        let mut e = Slot::EMPTY;
+        assert!(e.claim(0, 0));
+        assert!(e.claim(5, 0));
+        assert!(!e.claim(5, 0));
+        assert!(e.claim(5, 1));
+        assert!(!e.claim(5, 1));
+        assert!(e.claim(5 + 512 * 512, 1));
+        assert!(e.claim(5, 1));
+    }
 }

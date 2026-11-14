@@ -270,7 +270,7 @@ structure boot.RootLayout where
   total : Std.U64
 
 /-- [fl4_core::capability::Rights]
-    Source: 'crates/fl4-core/src/capability.rs', lines 248:0-253:1
+    Source: 'crates/fl4-core/src/capability.rs', lines 259:0-264:1
     Visibility: public -/
 structure capability.Rights where
   write : Bool
@@ -344,7 +344,7 @@ structure debug.Breakpoint where
   enabled : Bool
 
 /-- [fl4_core::vspace::TableCap]
-    Source: 'crates/fl4-core/src/vspace.rs', lines 688:0-696:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 690:0-698:1 -/
 structure vspace.TableCap where
   map_lbl : Std.U64
   unmap_lbl : Std.U64
@@ -355,7 +355,7 @@ structure vspace.TableCap where
   vaddr : Std.U64
 
 /-- [fl4_core::vspace::FrameCap]
-    Source: 'crates/fl4-core/src/vspace.rs', lines 418:0-426:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 420:0-428:1 -/
 structure vspace.FrameCap where
   ptr : Std.U64
   size : capability.FrameSize
@@ -366,7 +366,7 @@ structure vspace.FrameCap where
   vaddr : Std.U64
 
 /-- [fl4_core::vspace::VRoot]
-    Source: 'crates/fl4-core/src/vspace.rs', lines 476:0-479:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 478:0-481:1 -/
 structure vspace.VRoot where
   pml4 : Std.U64
   asid : Std.U64
