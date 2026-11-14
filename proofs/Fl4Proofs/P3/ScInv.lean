@@ -13,6 +13,8 @@ of the spec state (fragments of l4v `valid_sched`, `valid_refills`,
 * `refills`: an active SC that is not round-robin has non-empty refills with
   positive amounts, summing below `2 ^ 64`, the head holding at least
   `MIN_BUDGET` (`valid_refills`; a round-robin SC has an empty tail);
+* `rr`: an active round-robin SC has at least two refills, summing below
+  `2 ^ 64`, the head holding at least `MIN_BUDGET` (`valid_refills`);
 * `back`: a TCB's SC points back to it (`heap_refs_inv`);
 * `ntfnSc`: a notification's SC is an SC (`valid_objs`).
 
@@ -35,6 +37,15 @@ def RefOK (y : SchedContext) : Prop :=
   y.scRefills ≠ [] ∧ (∀ r ∈ y.scRefills, 0 < r.rAmount.toNat) ∧
     (y.scRefills.map fun r => r.rAmount.toNat).sum < 2 ^ 64 ∧ MIN_BUDGET ≤ (refillHd y).rAmount
 
+/-- An active round-robin SC's refills: at least two, summing below `2 ^ 64`,
+the head holding at least `MIN_BUDGET` (l4v `valid_refills`). -/
+def RRok (y : SchedContext) : Prop :=
+  2 ≤ y.scRefills.length ∧ (y.scRefills.map fun r => r.rAmount.toNat).sum < 2 ^ 64 ∧
+    MIN_BUDGET ≤ (refillHd y).rAmount
+
+theorem RRok.of_refills {y y0 : SchedContext} (h : RRok y0) (e : y.scRefills = y0.scRefills) : RRok y := by
+  unfold RRok refillHd at h ⊢; rw [e]; exact h
+
 /-- The scheduler invariant (see the module docstring). -/
 structure Inv (σ : State Unit) : Prop where
   rq : ∀ d p u, u ∈ σ.readyQueues d p → ∃ x scp y n, σ.kheap u = some (.tcb x) ∧ x.tcbSchedContext = some scp ∧
@@ -49,6 +60,7 @@ structure Inv (σ : State Unit) : Prop where
   ntfnSc : ∀ q x p, σ.kheap q = some (.notification x) → x.ntfnSc = some p →
     ∃ y n, σ.kheap p = some (.schedContext y n)
   ne : ∀ p y n, σ.kheap p = some (.schedContext y n) → y.scRefills ≠ []
+  rr : ∀ p y n, σ.kheap p = some (.schedContext y n) → scActive y = true → y.scPeriod = 0 → RRok y
 
 /-- A ready-queue member's facts (`Inv.rq`). -/
 def RqOK (σ : State Unit) (u : ObjRef) : Prop :=
@@ -121,7 +133,7 @@ theorem Inv.congr' {σ σ' : State Unit} (h : Inv σ) (hk : σ'.kheap = σ.kheap
     (hr : σ'.releaseQueue = σ.releaseQueue) (ht : σ'.curTime = σ.curTime) :
     Inv σ' := by
   refine ⟨fun d p u hu => ?_, fun u hu => ?_, ?_, fun u x hx hc => ?_, fun p y n hy => ?_,
-    fun u x p hx hp => ?_, fun q x p hx hp => ?_, fun p y n hy => ?_⟩
+    fun u x p hx hp => ?_, fun q x p hx hp => ?_, fun p y n hy => ?_, fun p y n hy => ?_⟩
   · rw [hk]; exact hq d p u hu
   · rw [hr] at hu; rw [hk]; exact h.rel u hu
   · rw [hr]
@@ -143,6 +155,7 @@ theorem Inv.congr' {σ σ' : State Unit} (h : Inv σ) (hk : σ'.kheap = σ.kheap
   · rw [hk] at hx ⊢; exact h.back u x p hx hp
   · rw [hk] at hx ⊢; exact h.ntfnSc q x p hx hp
   · rw [hk] at hy; exact h.ne p y n hy
+  · rw [hk] at hy; exact h.rr p y n hy
 
 theorem Inv.congr {σ σ' : State Unit} (h : Inv σ) (hk : σ'.kheap = σ.kheap)
     (hq : σ'.readyQueues = σ.readyQueues) (hr : σ'.releaseQueue = σ.releaseQueue) (ht : σ'.curTime = σ.curTime) :
@@ -190,7 +203,8 @@ theorem Inv.step {σ σ' : State Unit} (h : Inv σ) (hn : NtfnStep σ σ')
       RelIfBound σ u) : Inv σ' := by
   obtain ⟨e1, e2, -, -, -, e6, -⟩ := NtfnStep.abs hn
   refine ⟨fun d p u hu => ?_, fun u hu => ?_, ?_, fun u y hy hc => ?_, fun p y n hy => ?_,
-    fun u y p hy hp => ?_, fun q y p hy hp => ?_, fun p y n hy => h.ne p y n (NtfnStep.sc_back hn hy)⟩
+    fun u y p hy hp => ?_, fun q y p hy hp => ?_, fun p y n hy => h.ne p y n (NtfnStep.sc_back hn hy),
+    fun p y n hy => h.rr p y n (NtfnStep.sc_back hn hy)⟩
   · rw [e1] at hu
     obtain ⟨x, scp, yc, n, h1, h2, h3, h4, h5⟩ := h.rq d p u hu
     obtain ⟨y, hy, -, hs, -⟩ := NtfnStep.tcbSched hn h1

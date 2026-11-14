@@ -32,13 +32,14 @@ structure InvBut (σ : State Unit) (t : ObjRef) : Prop where
   ntfnSc : ∀ q x p, σ.kheap q = some (.notification x) → x.ntfnSc = some p →
     ∃ y n, σ.kheap p = some (.schedContext y n)
   ne : ∀ p y n, σ.kheap p = some (.schedContext y n) → y.scRefills ≠ []
+  rr : ∀ p y n, σ.kheap p = some (.schedContext y n) → scActive y = true → y.scPeriod = 0 → RRok y
 
 theorem InvBut.inv {σ : State Unit} {t : ObjRef} (h : InvBut σ t)
     (ht : ∀ x, σ.kheap t = some (.tcb x) → inClass x.tcbState → RelIfBound σ t) : Inv σ :=
   ⟨h.rq, h.rel, h.sorted, fun u x hx hc => by
     by_cases e : u = t
     · subst e; exact ht x hx hc
-    · exact h.rd u x e hx hc, h.refills, h.back, h.ntfnSc, h.ne⟩
+    · exact h.rd u x e hx hc, h.refills, h.back, h.ntfnSc, h.ne, h.rr⟩
 
 theorem schedulable_of {σ : State Unit} {t scp : ObjRef} {x : Tcb} {y : SchedContext} {n : Nat}
     (hk : σ.kheap t = some (.tcb x)) (hsc : x.tcbSchedContext = some scp) (hr : runnable x.tcbState = true)
@@ -89,7 +90,7 @@ theorem Inv.donated {σ : State Unit} (h : Inv σ) {p t : ObjRef} {ys : SchedCon
     have hne := h.ne scp y m h4
     rw [specRt_eq (tcb_o u x h1 hut) h2 (sc_o scp y m h4 hsp) hne, specRt_eq h1 h2 h4 hne]
   refine ⟨fun d q u hu => ?_, fun u hu => ?_, ?_, fun u x hut hx hc => ?_, fun q y m hy ha => ?_,
-    fun u x q hx hq => ?_, fun q x q' hx hq => ?_, fun q y m hy => ?_⟩
+    fun u x q hx hq => ?_, fun q x q' hx hq => ?_, fun q y m hy => ?_, fun q y m hy ha hp0 => ?_⟩
   · obtain ⟨x, scp, y, m, h1, h2, h3, h4, h5⟩ := h.rq d q u hu
     exact ⟨x, scp, y, m, tcb_o u x h1 (fun e => hnq.1 d q (e ▸ hu)), h2, h3,
       sc_o scp y m h4 (fun e => hnp u x h1 (e ▸ h2)), h5⟩
@@ -128,6 +129,8 @@ theorem Inv.donated {σ : State Unit} (h : Inv σ) {p t : ObjRef} {ys : SchedCon
     · exact ⟨y, m, sc_o q' y m h1 e⟩
   · obtain ⟨y0, hy0, hr, -, -⟩ := sc_b q y m hy
     rw [hr]; exact h.ne q y0 m hy0
+  · obtain ⟨y0, hy0, hr, hm, hp⟩ := sc_b q y m hy
+    exact (h.rr q y0 m hy0 (by simpa [scActive, hm] using ha) (hp ▸ hp0)).of_refills hr
 
 /-- Postponing the thread `t` of `InvBut` restores `Inv`. -/
 theorem InvBut.postponed {σ : State Unit} {t p : ObjRef} (h : InvBut σ t) {x : Tcb} {y : SchedContext} {n : Nat}
@@ -151,7 +154,7 @@ theorem InvBut.postponed {σ : State Unit} {t p : ObjRef} (h : InvBut σ t) {x :
     intro u hu
     obtain ⟨xu, scp, yu, nu, h1, h2, -, h4, -⟩ := hfacts u hu
     rw [specRt_eq (σ := σp) h1 h2 h4 (h.ne _ _ _ h4), specRt_eq h1 h2 h4 (h.ne _ _ _ h4)]
-  refine ⟨fun d q u hu => ?_, hfacts, ?_, fun u xu hxu hc => ?_, h.refills, h.back, h.ntfnSc, h.ne⟩
+  refine ⟨fun d q u hu => ?_, hfacts, ?_, fun u xu hxu hc => ?_, h.refills, h.back, h.ntfnSc, h.ne, h.rr⟩
   · simp only [σp, setRel, setQ] at hu
     split at hu
     · rename_i e; obtain ⟨rfl, rfl⟩ := e; exact h.rq _ _ u (List.mem_of_mem_filter hu)

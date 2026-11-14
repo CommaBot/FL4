@@ -117,6 +117,8 @@ theorem commit_refill_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : 
     (hscC : nodeW st s c layout.node.CUR_SC ∈ C) {x : Fl4Spec.SchedContext} {n : Nat}
     (hk : σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n)) (hact : Fl4Spec.scActive x = true)
     {u0 : Fl4Spec.ObjRef} (hown : x.scTcb = some u0) (hnr : u0 ∉ σ.releaseQueue)
+    (hsuf0 : 0 < (nodeW st s c layout.node.CONSUMED).bv → x.scPeriod = 0 →
+      Fl4Spec.refillSufficient (nodeW st s c layout.node.CONSUMED).bv (Fl4Spec.refillHd x) = true)
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
     (if nodeW st s c layout.node.CONSUMED > 0#u64 then do
@@ -178,7 +180,10 @@ theorem commit_refill_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : 
       have hne := refills_ne' hx.wf
       have hR3 := hR.frame hS.placed hf hkv
       refine ⟨_, hsp _ ?_, rfl, hS3, hR3, hN.kview hR hkv,
-        hI.refillUpd hk rfl (by simp [rrChargeL]) (fun _ hp => absurd hper hp) hown hnr,
+        hI.refillUpd hk rfl (by simp [rrChargeL]) (fun _ hp => absurd hper hp) (fun _ _ => by
+          obtain ⟨h1, h2⟩ := suff_nat (hsuf0 hlt hper)
+          rw [refillHd_map hx.refills hne] at h1 h2
+          exact rrChargeL_rr hx.refills (hI.rr _ x n hk hact hper) cn h1 h2) hown hnr,
         fun _ hsuf => ?_, fun h => absurd hlt h⟩
       · rw [if_pos (by simpa using hper)]
         exact refillBudgetCheckRoundRobin_eq hs.curSc hk hx.refills hne cn
@@ -232,7 +237,7 @@ theorem commit_time_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
     {u0 : Fl4Spec.ObjRef} (hown0 : ∀ x n, σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) →
       x.scTcb = some u0)
     (hidle : (nodeW st s c layout.node.IDLE_SC).bv = Fl4Spec.idleScPtr)
-    (hnr : u0 ∉ σ.releaseQueue)
+    (hnr : u0 ∉ σ.releaseQueue) (hoff : OffOK σ)
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
     sched.commit_time st ar s a ⦃ s' => ∃ σ', Fl4Spec.commitTime (Z := Unit) σ = ({((), σ')}, False) ∧
@@ -309,7 +314,10 @@ theorem commit_time_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
       step with sched.consumed.spec' as ⟨cn, hcn⟩
       rw [hc.cur] at hcn
       subst hcn
-      refine WP.spec_bind (commit_refill_refines s a σ hS hR hN hI hscC hk hact hown hnr hmrt hmb) ?_
+      refine WP.spec_bind (commit_refill_refines s a σ hS hR hN hI hscC hk hact hown hnr
+        (fun h0 _ => by
+          rw [← hs.consumed] at h0 ⊢
+          exact (hoff h0 x n (by rw [hs.curSc]; exact hk)).1) hmrt hmb) ?_
       rintro s3 ⟨y', h3, hy', hS3, hR3, hN3, hI3, hHF⟩
       have hk3 : (updSc σ (nodeW st s c layout.node.CUR_SC).bv y' n).kheap (nodeW st s c layout.node.CUR_SC).bv =
           some (.schedContext y' n) := by simp [updK]

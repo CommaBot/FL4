@@ -122,6 +122,15 @@ theorem node_wr_foot {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Uni
   · exact hS.nodeNW o ho (Or.inr ⟨t, ht, Or.inr (Or.inr (Or.inr (Or.inl e)))⟩)
   · exact hS.nodeNW o ho (Or.inr ⟨t, ht, Or.inr (Or.inr (Or.inr (Or.inr e)))⟩)
 
+/-- A node write leaves the `DOMAIN_TIME` word alone. -/
+theorem dt_wr_node {T : Set U64} {s : S} {c o v : U64} (hN : NodePlaced st T s c) (ho : o.val < 4288)
+    (h8 : o.val % 8 = 0) : L.mem (L.wr s (L.nodeAt s c o) v) (dtA st s) = L.mem s (dtA st s) := by
+  refine rd_wr_ne (nodeAt_aligned hN ho h8) (dtA_aligned hN) fun e => ?_
+  have := congrArg UScalar.val e
+  rw [nodeAt_val hN ho, dtA_val hN] at this
+  have h2 := hN.fits
+  simp only [LawfulStore.nodeBase] at this h2; omega
+
 /-- Writing the action word. -/
 theorem SchedRel.set_action {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) {w : U64} (hw : w = 0#u64 ∨ w = 1#u64 ∨ w ∈ T) {a : Fl4Spec.SchedulerAction}
@@ -134,7 +143,7 @@ theorem SchedRel.set_action {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
   set s' := L.wr s (L.nodeAt s c layout.node.SCHED_ACTION) w
   have hk : L.ksb s' = L.ksb s := L.ksb_wr _ _ _
   have hag : SAgree st T C c s s' := by
-    refine ⟨hk, L.cpu_wr _ _ _, fun o ho h8 hne _ => ?_, fun y hy K hK => ?_, ?_, fun sc hsc => ?_⟩
+    refine ⟨hk, L.cpu_wr _ _ _, fun o ho h8 hne _ => ?_, fun y hy K hK => ?_, ?_, ?_, fun sc hsc => ?_⟩
     · refine rd_wr_ne hA (nodeAt_aligned hN ho h8) fun e => hne ?_
       have := congrArg UScalar.val e
       rw [nodeAt_val hN (by omega), nodeAt_val hN ho] at this; omega
@@ -151,6 +160,11 @@ theorem SchedRel.set_action {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
       have h2 := hN.fits
       simp only [LawfulStore.nodeBase] at this h2
       simp [curDomA, core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits] at this; omega
+    · refine rd_wr_ne hA (dtA_aligned hN) fun e => ?_
+      have := congrArg UScalar.val e
+      rw [nodeAt_val hN (by omega), dtA_val hN] at this
+      have h2 := hN.fits
+      simp only [LawfulStore.nodeBase] at this h2; omega
     · intro a hal hin
       refine rd_wr_ne hA hal fun e => ?_
       have := congrArg UScalar.val e
@@ -160,7 +174,8 @@ theorem SchedRel.set_action {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
     unfold Fl4Proofs.P3.Sched.nodeW; rw [nodeAt_ksb hk]; exact rd_wr_eq hA
   have hm := hs.rmax_eq hag.sc
   refine ⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk]; exact hS.nodeNW o ho,
-    by rw [curDomA_ksb hk]; exact hS.domNW, scOut_transfer hk (SzKeep.of_kheap rfl) hS.scOut, scDisj_transfer (SzKeep.of_kheap rfl) hS.scDisj,
+    by rw [curDomA_ksb hk]; exact hS.domNW, by rw [dtA_ksb hk]; exact hS.dtNW,
+    scOut_transfer hk (SzKeep.of_kheap rfl) hS.scOut, scDisj_transfer (SzKeep.of_kheap rfl) hS.scDisj,
     by rw [hw']; exact hw, by rw [hw']; exact ha, ?_, hs.core_eq hag.sc hS.core, Q, R, hc.agree hag.toC, ?_⟩
   · have e : nodeW st s' c layout.node.REPROGRAM = nodeW st s c layout.node.REPROGRAM := by
       unfold Fl4Proofs.P3.Sched.nodeW; rw [nodeAt_ksb hk]
@@ -171,7 +186,7 @@ theorem SchedRel.set_action {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
     rw [e]; exact hS.repr
   have hs' := hs.agree hag
   exact ⟨hs'.rq, hs'.rqDom, hs'.rel, hs'.curThread, hs'.curSc, hs'.curTime, hs'.consumed,
-    hs'.curDom, hs'.tcb, hs'.scMem, hs'.scs, hs'.idleSc⟩
+    hs'.curDom, hs'.tcb, hs'.scMem, hs'.scs, hs'.idleSc, hs'.domTime, hs'.idleTh⟩
 
 /-! ## `schedule_tcb` -/
 

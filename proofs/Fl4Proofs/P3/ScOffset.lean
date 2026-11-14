@@ -35,7 +35,7 @@ theorem commit_time_inv {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spe
       SchedRel st N T C c s' σ' ∧ NtfnStateRel N T (L.mem s') σ' ∧ NSC N C σ' ∧ Inv σ' ∧
       HeadKeeps σ σ' (nodeW st s c layout.node.CUR_SC).bv ⦄ := by
   have hcs : σ.curSc = (nodeW st s c layout.node.CUR_SC).bv := hS.lists.choose_spec.choose_spec.2.curSc
-  refine WP.spec_mono (commit_time_refines s a σ hS hR hN hI hscC hown0 hidle hnr hmrt hmb) ?_
+  refine WP.spec_mono (commit_time_refines s a σ hS hR hN hI hscC hown0 hidle hnr hoff hmrt hmb) ?_
   rintro s' ⟨σ', h1, h2, h3, h4, hI', hK, hH⟩
   refine ⟨σ', h1, h2, h3, h4, ?_, hK⟩
   obtain ⟨e1, e2, e3, -, e5, hfr, hsc⟩ := hK

@@ -108,6 +108,79 @@ theorem rr_reset_refines {s0 s : S} {sc : U64} {n : Nat} (h : RingAt st s0 s sc 
   unfold rrResetL
   rw [← head_eq' hW, ← refills_tail_eq hW]
 
+section Spec
+open Fl4Spec
+/-- `rrResetL` on a list of at least two refills. -/
+theorem rrResetL_split (a l : sporadic.Refill) (i : List sporadic.Refill) :
+    rrResetL (a :: (i ++ [l])) =
+      ⟨a.time, core.num.U64.wrapping_add a.amount l.amount⟩ :: (i ++ [⟨l.time, 0#u64⟩]) := by
+  have e : (a :: (i ++ [l])).getLastD zR = l := by
+    rw [← List.cons_append, List.getLastD_eq_getLast?, List.getLast?_concat]; rfl
+  unfold rrResetL
+  rw [e, List.headD_cons, List.tail_cons, ← List.cons_append, List.dropLast_concat]; rfl
+
+/-- `rrChargeL` on a list of at least two refills. -/
+theorem rrChargeL_split (a l : sporadic.Refill) (i : List sporadic.Refill) (c : U64) :
+    rrChargeL (a :: (i ++ [l])) c =
+      ⟨a.time, core.num.U64.wrapping_sub a.amount c⟩ :: (i ++ [⟨l.time, core.num.U64.wrapping_add l.amount c⟩]) := by
+  unfold rrChargeL
+  simp only [List.headD_cons, List.tail_cons]
+  have e : ∀ b : sporadic.Refill, (b :: (i ++ [l])).getLastD zR = l := fun b => by
+    rw [← List.cons_append, List.getLastD_eq_getLast?, List.getLast?_concat]; rfl
+  rw [e, ← List.cons_append, List.dropLast_concat]; rfl
+
+/-- A list of at least two refills is a head, a middle and a last. -/
+theorem rr_split {x : SchedContext} {rs : List sporadic.Refill} (hx : x.scRefills = rs.map toRefill)
+    (h : 2 ≤ x.scRefills.length) : ∃ a i l, rs = a :: (i ++ [l]) := by
+  rw [hx, List.length_map] at h
+  match rs, h with
+  | a :: t, h =>
+    rcases List.eq_nil_or_concat t with e | ⟨i, l, e⟩
+    · subst e; simp at h
+    · exact ⟨a, i, l, by rw [e, List.concat_eq_append]⟩
+
+/-- The round-robin reset keeps `RRok`: the head gains the tail. -/
+theorem rrResetL_rr {x : SchedContext} {rs : List sporadic.Refill} (hx : x.scRefills = rs.map toRefill)
+    (h : RRok x) : RRok { x with scRefills := (rrResetL rs).map toRefill } := by
+  obtain ⟨a, i, l, rfl⟩ := rr_split hx h.1
+  obtain ⟨h1, h2, h3⟩ := h
+  unfold refillHd at h3
+  rw [hx] at h1 h2 h3
+  simp [toRefill, List.sum_append, the] at h2 h3
+  have hav : a.amount.val + l.amount.val < 2 ^ 64 := by omega
+  have hw := wadd_val (x := a.amount) (y := l.amount) hav
+  refine ⟨?_, ?_, ?_⟩
+  · simp [rrResetL_split]
+  · simp [rrResetL_split, toRefill, List.sum_append]; omega
+  · unfold refillHd
+    simp [rrResetL_split, toRefill, the]
+    rw [BitVec.le_def] at h3 ⊢
+    show _ ≤ (core.num.U64.wrapping_add a.amount l.amount).val
+    rw [hw]; exact Nat.le_trans h3 (Nat.le_add_right _ _)
+
+/-- The round-robin charge keeps `RRok` when the head pays the charge and
+keeps `MIN_BUDGET`. -/
+theorem rrChargeL_rr {x : SchedContext} {rs : List sporadic.Refill} (hx : x.scRefills = rs.map toRefill)
+    (h : RRok x) (c : U64) (hc : c.val < (rs.headD zR).amount.val)
+    (hm : MIN_BUDGET.toNat ≤ (rs.headD zR).amount.val - c.val) :
+    RRok { x with scRefills := (rrChargeL rs c).map toRefill } := by
+  obtain ⟨a, i, l, rfl⟩ := rr_split hx h.1
+  obtain ⟨h1, h2, h3⟩ := h
+  rw [hx] at h1 h2
+  simp [toRefill, List.sum_append] at h2 hc hm
+  have hsub := wsub_val (x := a.amount) (y := c) (by omega)
+  have hav : l.amount.val + c.val < 2 ^ 64 := by omega
+  have hw := wadd_val (x := l.amount) (y := c) hav
+  refine ⟨?_, ?_, ?_⟩
+  · simp [rrChargeL_split]
+  · simp [rrChargeL_split, toRefill, List.sum_append]; omega
+  · unfold refillHd
+    simp [rrChargeL_split, toRefill, the]
+    rw [BitVec.le_def]
+    show _ ≤ (core.num.U64.wrapping_sub a.amount c).val
+    rw [hsub]; exact hm
+end Spec
+
 /-- **The SC's `consumed` update** refines `update_sched_context`. -/
 theorem consumed_refines {N T C : Set U64} {c : U64} (s3 : S) (σ3 : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s3 σ3) (hR : NtfnStateRel N T (L.mem s3) σ3) (hN : NSC N C σ3)
@@ -225,7 +298,8 @@ theorem charge_head_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
       rw [hl] at hS3 hkv
       have hne := refills_ne' hx.wf
       have hI3 : InvBut (updSc σ sc.bv { x with scRefills := (rrResetL (L.refills s sc)).map toRefill } n) ct.bv :=
-        hI.refillUpd hk rfl (by simp [rrResetL]) (fun _ hp => absurd hper hp) hown hnr
+        hI.refillUpd hk rfl (by simp [rrResetL]) (fun _ hp => absurd hper hp)
+          (fun _ _ => rrResetL_rr hx.refills (hI.rr _ x n hk (hact hid x n hk) hper)) hown hnr
       refine fin s3 _ rfl ?_ hS3 (by rw [← hl]; rw [← hl] at hkv; exact hR.frame hS.placed hf hkv)
         (hN.kview hR hkv) hI3
       rw [if_pos (by simpa using hper)]

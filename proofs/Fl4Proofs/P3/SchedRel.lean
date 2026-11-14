@@ -24,7 +24,8 @@ part of the relation, and the notification code changes them.
 * `release_queue` is `R`;
 * `cur_thread`, `cur_sc`, `cur_time`, `consumed_time`: the node's
   `CUR_THREAD`, `CUR_SC`, `CUR_TIME`, `CONSUMED` words; `reprogram_timer`:
-  the `REPROGRAM` word is nonzero;
+  the `REPROGRAM` word is nonzero; `domain_time`: the kernel-global
+  `DOMAIN_TIME` word; `idle_thread`: the node's `IDLE_THREAD` word;
 * `scheduler_action`: the action word is 0 (resume), 1 (choose new) or the
   TCB to switch to (`ActRel`);
 * each TCB's `tcb_sched_context` is its SC word (0 ↔ none), a nonzero SC
@@ -35,8 +36,8 @@ part of the relation, and the notification code changes them.
 
 `SchedRel N T C c s σ` adds the placement facts the relation needs to be
 stable under the notification code (`NtfnStep` / `NWrite`): `NPlaced T N`,
-and the node, `CUR_DOMAIN` and `REFILL_MAX` words are not notification code
-writes. `SchedRel.stable` discharges `SchedHyps.stable` (NtfnSched.lean).
+and the node, `CUR_DOMAIN`, `DOMAIN_TIME` and `REFILL_MAX` words are not
+notification code writes. `SchedRel.stable` discharges `SchedHyps.stable` (NtfnSched.lean).
 -/
 import Fl4Proofs.P3.ScRel
 open Aeneas Aeneas.Std Result
@@ -51,6 +52,8 @@ variable {S : Type _} (st : machine.Store S) [L : LawfulStore st]
 
 /-- The `CUR_DOMAIN` word (layout.rs `ks::CUR_DOMAIN`). -/
 def curDomA (s : S) : U64 := core.num.U64.wrapping_add (L.ksb s) 8#u64
+/-- The `DOMAIN_TIME` word (layout.rs `ks::DOMAIN_TIME`). -/
+def dtA (s : S) : U64 := core.num.U64.wrapping_add (L.ksb s) 16#u64
 /-- Word `o` of core `c`'s node. -/
 def nodeW (s : S) (c o : U64) : U64 := L.mem s (L.nodeAt s c o)
 
@@ -98,12 +101,17 @@ structure SchedSpec (T C : Set U64) (c : U64) (s : S) (Q : U64 → List U64) (R 
   scs : ∀ sc ∈ C, ∃ x n, σ.kheap sc.bv = some (.schedContext x n) ∧ ScRel1 st s sc x n
   /-- The idle SC word is the spec's `idle_sc_ptr` (fixed at boot). -/
   idleSc : (nodeW st s c layout.node.IDLE_SC).bv = Fl4Spec.idleScPtr
+  /-- `domain_time` is the `DOMAIN_TIME` word. -/
+  domTime : σ.domainTime = (L.mem s (dtA st s)).bv
+  /-- `idle_thread` is the node's `IDLE_THREAD` word. -/
+  idleTh : σ.idleThread = (nodeW st s c layout.node.IDLE_THREAD).bv
 
 /-- The scheduler relation for the notification proofs' `SR`. -/
 structure SchedRel (N T C : Set U64) (c : U64) (s : S) (σ : Fl4Spec.State Unit) : Prop where
   placed : NPlaced T N
   nodeNW : ∀ o : U64, o.val < 4288 → ¬ NWrite N T (L.nodeAt s c o)
   domNW : ¬ NWrite N T (curDomA st s)
+  dtNW : ¬ NWrite N T (dtA st s)
   /-- The SC words lie outside what the notification code writes, core
   `c`'s node, the TCBs and the kernel-global area. -/
   scOut : ∀ sc ∈ C, ∀ x n, σ.kheap sc.bv = some (.schedContext x n) → ∀ a : U64, ScObj sc n a →
@@ -152,6 +160,7 @@ structure SAgree (st : machine.Store S) [L : LawfulStore st] (T C : Set U64) (c 
     L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)
   tcb : ∀ y ∈ T, ∀ K, SchedField K → L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K)
   dom : L.mem s' (curDomA st s) = L.mem s (curDomA st s)
+  dt : L.mem s' (dtA st s) = L.mem s (dtA st s)
   sc : ∀ sc ∈ C, ScAgree st s s' sc
 
 theorem nodeAt_ksb {s s' : S} (h : L.ksb s' = L.ksb s) (c o : U64) : L.nodeAt s' c o = L.nodeAt s c o := by
@@ -282,6 +291,21 @@ theorem SchedCore.agree {T : Set U64} {c : U64} {s s' : S} {Q : U64 → List U64
 theorem curDomA_ksb {s s' : S} (h : L.ksb s' = L.ksb s) : curDomA st s' = curDomA st s := by
   simp [curDomA, h]
 
+theorem dtA_ksb {s s' : S} (h : L.ksb s' = L.ksb s) : dtA st s' = dtA st s := by
+  simp [dtA, h]
+
+theorem dtA_aligned {T : Set U64} {s : S} {c : U64} (hN : NodePlaced st T s c) : Aligned (dtA st s) := by
+  have h1 := hN.align; have h2 := hN.fits
+  unfold Aligned dtA
+  simp only [LawfulStore.nodeBase] at h1 h2
+  simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+
+theorem dtA_val {T : Set U64} {s : S} {c : U64} (hN : NodePlaced st T s c) :
+    (dtA st s).val = (L.ksb s).val + 16 := by
+  have h2 := hN.fits
+  simp only [LawfulStore.nodeBase] at h2
+  simp [dtA, core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+
 /-- The FL4 side of `SchedSpec` under agreement. -/
 theorem SchedSpec.agree {T C : Set U64} {c : U64} {s s' : S} {Q : U64 → List U64} {R : List U64}
     {σ : Fl4Spec.State Unit} (h : SchedSpec st T C c s Q R σ) (ha : SAgree st T C c s s') :
@@ -290,7 +314,9 @@ theorem SchedSpec.agree {T C : Set U64} {c : U64} {s s' : S} {Q : U64 → List U
     fun o h1 h2 h3 h4 => ha.nodeW h1 h2 h3 h4
   refine ⟨h.rq, h.rqDom, h.rel, ?_, ?_, ?_, ?_, ?_, fun t ht => ?_, fun t ht => ?_, fun sc hsc => ?_,
     by rw [w _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])
-      (by simp [layout.node.IDLE_SC])]; exact h.idleSc⟩
+      (by simp [layout.node.IDLE_SC])]; exact h.idleSc, by rw [dtA_ksb ha.ksb, ha.dt]; exact h.domTime,
+    by rw [w layout.node.IDLE_THREAD (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])
+      (by simp [layout.node.IDLE_THREAD])]; exact h.idleTh⟩
   · rw [w _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])]; exact h.curThread
   · rw [w _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])]
     exact h.curSc
@@ -409,12 +435,19 @@ theorem sagree_of_nwrite {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.St
     (hS : SchedRel st N T C c s σ) (hw : WritesIn st s s' (NWrite N T)) : SAgree st T C c s s' := by
   obtain ⟨Q, R, hc, -⟩ := hS.lists
   refine ⟨hw.1, hw.2.1, fun o ho h8 _ _ => hw.mem_eq (nodeAt_aligned hc.node ho h8) (hS.nodeNW o ho),
-    fun y hy K hK => ?_, hw.mem_eq ?_ hS.domNW, fun sc hsc a ha hin => hw.mem_eq ha (hS.scOutIn hsc hin).1⟩
+    fun y hy K hK => ?_, hw.mem_eq ?_ hS.domNW, hw.mem_eq ?_ hS.dtNW,
+    fun sc hsc a ha hin => hw.mem_eq ha (hS.scOutIn hsc hin).1⟩
   · obtain ⟨h1, h2, h3⟩ := schedField_ok hK
     exact hw.mem_eq (field_aligned (hc.tcbs y hy) h1 h2) (tfield_not_nwrite hS.placed hy h1 h3)
   · have h1 := hc.node.align
     have h2 := hc.node.fits
     unfold Aligned curDomA
+    simp only [LawfulStore.nodeBase] at h1 h2
+    simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]
+    omega
+  · have h1 := hc.node.align
+    have h2 := hc.node.fits
+    unfold Aligned dtA
     simp only [LawfulStore.nodeBase] at h1 h2
     simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]
     omega
@@ -431,6 +464,12 @@ theorem NtfnStep.abs {σ σ' : Fl4Spec.State Unit} (h : NtfnStep σ σ') :
     (by have := congrArg Fl4Spec.AbstractState.curSc e; exact this), (by have := congrArg Fl4Spec.AbstractState.curTime e; exact this),
     (by have := congrArg Fl4Spec.AbstractState.consumedTime e; exact this), (by have := congrArg Fl4Spec.AbstractState.reprogramTimer e; exact this),
     (by have := congrArg Fl4Spec.AbstractState.curDomain e; exact this)⟩
+
+theorem NtfnStep.domainTime {σ σ' : Fl4Spec.State Unit} (h : NtfnStep σ σ') : σ'.domainTime = σ.domainTime := by
+  have := congrArg Fl4Spec.AbstractState.domainTime h.2.1; exact this
+
+theorem NtfnStep.idleThread {σ σ' : Fl4Spec.State Unit} (h : NtfnStep σ σ') : σ'.idleThread = σ.idleThread := by
+  have := congrArg Fl4Spec.AbstractState.idleThread h.2.1; exact this
 
 theorem NtfnStep.tcbSched {σ σ' : Fl4Spec.State Unit} (h : NtfnStep σ σ') {p : Fl4Spec.ObjRef} {x : Fl4Spec.Tcb}
     (hk : σ.kheap p = some (.tcb x)) : ∃ y, σ'.kheap p = some (.tcb y) ∧ y.tcbDomain = x.tcbDomain ∧
@@ -471,7 +510,8 @@ theorem SchedRel.stable {N T C : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spec
       (hS.nodeNW _ (by simp [layout.node.SCHED_ACTION]))
   have hm := hs.rmax_eq ha.sc
   refine ⟨hS.placed, fun o ho => by rw [nodeAt_ksb ha.ksb]; exact hS.nodeNW o ho,
-    by rw [curDomA_ksb ha.ksb]; exact hS.domNW, scOut_transfer ha.ksb (SzKeep.ntfnStep hn) hS.scOut,
+    by rw [curDomA_ksb ha.ksb]; exact hS.domNW, by rw [dtA_ksb ha.ksb]; exact hS.dtNW,
+    scOut_transfer ha.ksb (SzKeep.ntfnStep hn) hS.scOut,
     scDisj_transfer (SzKeep.ntfnStep hn) hS.scDisj, by rw [hact]; exact hS.actW,
     by rw [hact, e4]; exact hS.act, ?_, hs.core_eq ha.sc hS.core, Q, R, hc.agree ha.toC, ?_⟩
   · have hrp : nodeW st s' c layout.node.REPROGRAM = nodeW st s c layout.node.REPROGRAM := by
@@ -483,7 +523,8 @@ theorem SchedRel.stable {N T C : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spec
     by rw [e2]; exact hs'.rel, by rw [e3]; exact hs'.curThread,
     by rw [e5]; exact hs'.curSc, by rw [e6]; exact hs'.curTime, by rw [e7]; exact hs'.consumed,
     by rw [e9]; exact hs'.curDom, fun t ht => ?_, hs'.scMem,
-    fun sc hsc => ?_, hs'.idleSc⟩
+    fun sc hsc => ?_, hs'.idleSc, by rw [NtfnStep.domainTime hn]; exact hs'.domTime,
+    by rw [NtfnStep.idleThread hn]; exact hs'.idleTh⟩
   · obtain ⟨x, hk, h1, h2, h3, h4⟩ := hs'.tcb t ht
     obtain ⟨y, hky, f1, f2, f3⟩ := NtfnStep.tcbSched hn hk
     exact ⟨y, hky, f1.trans h1, h2, f2.trans h3, f3 ▸ h4⟩

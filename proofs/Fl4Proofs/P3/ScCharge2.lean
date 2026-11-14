@@ -82,6 +82,7 @@ owner is not in the release queue. -/
 theorem Inv.refillUpd {σ : State Unit} (h : Inv σ) {p u0 : ObjRef} {y y' : SchedContext} {m : Nat}
     (hk : σ.kheap p = some (.schedContext y m)) (hy' : y' = { y with scRefills := y'.scRefills })
     (hne' : y'.scRefills ≠ []) (hok : scActive y' = true → y'.scPeriod ≠ 0 → RefOK y')
+    (hrr : scActive y' = true → y'.scPeriod = 0 → RRok y')
     (hown : y.scTcb = some u0) (hnr : u0 ∉ σ.releaseQueue) : InvBut (updSc σ p y' m) u0 := by
   have hkp : ∀ q, q ≠ p → (updSc σ p y' m).kheap q = σ.kheap q := fun q hq => by simp [updK, hq]
   have hky : (updSc σ p y' m).kheap p = some (.schedContext y' m) := by simp [updK]
@@ -95,7 +96,7 @@ theorem Inv.refillUpd {σ : State Unit} (h : Inv σ) {p u0 : ObjRef} {y y' : Sch
     · subst e; rw [hky] at hx; cases hx
     · rw [hkp u e] at hx; exact hx
   refine ⟨fun d q u hu => ?_, fun u hu => ?_, ?_, fun u x hu0 hx hc => ?_, fun q w n hw ha => ?_,
-    fun u x q hx hq => ?_, fun q x q' hx hq => ?_, fun q w n hw => ?_⟩
+    fun u x q hx hq => ?_, fun q x q' hx hq => ?_, fun q w n hw => ?_, fun q w n hw => ?_⟩
   · have h0 := h.rq d q u hu
     have : u ≠ p := by obtain ⟨x, -, -, -, h1, -⟩ := h0; rintro rfl; rw [hk] at h1; cases h1
     exact RqOK.upd h0 hkp (fun y0 n0 h => by rw [hk] at h; cases h; exact ⟨_, hky, (by rw [hy'])⟩) this
@@ -140,6 +141,9 @@ theorem Inv.refillUpd {σ : State Unit} (h : Inv σ) {p u0 : ObjRef} {y y' : Sch
   · by_cases e : q = p
     · subst e; rw [hky] at hw; cases hw; exact hne'
     · rw [hkp q e] at hw; exact h.ne q w n hw
+  · by_cases e : q = p
+    · subst e; rw [hky] at hw; cases hw; exact hrr
+    · rw [hkp q e] at hw; exact h.rr q w n hw
 
 end Spec
 

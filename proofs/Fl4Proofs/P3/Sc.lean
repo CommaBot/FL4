@@ -45,6 +45,10 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
   hypothesis); writing `CUR_THREAD`.
 * ScSchedule: `check_domain_time` (one domain), `guarded_switch_to` of a
   ready-queue head, `choose_thread`.
+* ScAwaken: `release_remove` of the release queue's head, `awaken` (after
+  FL4's TCB timers, a hypothesis), `Calm`, `SchedPre`.
+* ScScheduleTop: the switch-thread branch, `schedule` (`schedule_refines`),
+  ending in `Inv` and `CurInv`.
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
@@ -52,3 +56,4 @@ import Fl4Proofs.P3.ScCharge8
 import Fl4Proofs.P3.ScConsumed
 import Fl4Proofs.P3.ScEntry
 import Fl4Proofs.P3.ScSchedule
+import Fl4Proofs.P3.ScScheduleTop

@@ -132,7 +132,8 @@ theorem SchedRel.set_cur_thread {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spe
     fun y hy K hK => htf y hy K (by rcases hK with h | h | h | h | h <;> simp [SchedField, h])⟩
   have hm := hs.rmax_eq hscw
   refine ⟨⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk]; exact hS.nodeNW o ho,
-    by rw [curDomA_ksb hk]; exact hS.domNW, scOut_transfer hk (SzKeep.of_kheap rfl) hS.scOut, scDisj_transfer (SzKeep.of_kheap rfl) hS.scDisj,
+    by rw [curDomA_ksb hk]; exact hS.domNW, by rw [dtA_ksb hk]; exact hS.dtNW,
+    scOut_transfer hk (SzKeep.of_kheap rfl) hS.scOut, scDisj_transfer (SzKeep.of_kheap rfl) hS.scDisj,
     by rw [nw _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])
       (by simp [layout.node.SCHED_ACTION])]; exact hS.actW,
     by rw [nw _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])
@@ -141,7 +142,9 @@ theorem SchedRel.set_cur_thread {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spe
       (by simp [layout.node.REPROGRAM])]; exact hS.repr,
     hs.core_eq hscw hS.core, Q, R, hc.agreeT hca (by show L.mem s' (L.nodeAt s' c layout.node.CUR_THREAD) ∈ T; rw [nodeAt_ksb hk, rd_wr_eq hA]; exact hv), ?_⟩, node_wr_foot hS (by omega) (by omega), nw⟩
   refine ⟨hs.rq, hs.rqDom, hs.rel, ?_, ?_, ?_, ?_, ?_, fun y hy => ?_, fun y hy => ?_, fun sc hsc => ?_,
-    by rw [nw layout.node.IDLE_SC (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])]; exact hs.idleSc⟩
+    by rw [nw layout.node.IDLE_SC (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])]; exact hs.idleSc,
+    by rw [dtA_ksb hk, dt_wr_node hN (by omega) (by omega)]; exact hs.domTime,
+    by rw [nw layout.node.IDLE_THREAD (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])]; exact hs.idleTh⟩
   · show v.bv = _
     unfold Fl4Proofs.P3.Sched.nodeW; rw [nodeAt_ksb hk, rd_wr_eq hA]
   · rw [nw layout.node.CUR_SC (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
@@ -175,7 +178,14 @@ machine state). -/
 def ArchKeeps (σ σ' : Fl4Spec.State Unit) : Prop :=
   σ'.kheap = σ.kheap ∧ σ'.readyQueues = σ.readyQueues ∧ σ'.releaseQueue = σ.releaseQueue ∧
     σ'.curThread = σ.curThread ∧ σ'.curSc = σ.curSc ∧ σ'.curTime = σ.curTime ∧
-    σ'.consumedTime = σ.consumedTime ∧ σ'.schedulerAction = σ.schedulerAction ∧ σ'.idleThread = σ.idleThread
+    σ'.consumedTime = σ.consumedTime ∧ σ'.schedulerAction = σ.schedulerAction ∧ σ'.idleThread = σ.idleThread ∧
+    σ'.curDomain = σ.curDomain ∧ σ'.domainTime = σ.domainTime
+
+/-- What a thread switch keeps besides the heap: the times, the idle thread
+and the domain. -/
+def TK (σ σ' : Fl4Spec.State Unit) : Prop :=
+  σ'.curTime = σ.curTime ∧ σ'.consumedTime = σ.consumedTime ∧ σ'.idleThread = σ.idleThread ∧
+    σ'.curDomain = σ.curDomain ∧ σ'.domainTime = σ.domainTime
 
 /-- **`switch_to_thread` refines l4v `switch_to_thread`**, keeping `Inv`. The
 address-space and FPU switch is the arch hypothesis `hvm`. -/
@@ -187,12 +197,12 @@ theorem switch_to_thread_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
     sched.switch_to_thread st ar s a t ⦃ r => ∃ σ', Fl4Spec.switchToThread (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ (Inv σ → Inv σ') ∧
       σ'.curThread = t.bv ∧ σ'.curSc = σ.curSc ∧ σ'.releaseQueue = σ.releaseQueue ∧ σ'.kheap = σ.kheap ∧
-      σ'.schedulerAction = σ.schedulerAction ⦄ := by
+      σ'.schedulerAction = σ.schedulerAction ∧ TK σ σ' ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨xt, hkt, -⟩ := hs.tcb t ht
   unfold sched.switch_to_thread
   refine WP.spec_bind hvm ?_
-  rintro ⟨s1, a1⟩ ⟨σ1, h1, hS1, hR1, ek, eq, er, ect, esc, etm, ecn, eact, eid⟩
+  rintro ⟨s1, a1⟩ ⟨σ1, h1, hS1, hR1, ek, eq, er, ect, esc, etm, ecn, eact, eid, ecd, edt⟩
   have hkt1 : σ1.kheap t.bv = some (.tcb xt) := by rw [ek]; exact hkt
   refine WP.spec_bind (dequeue_refines s1 σ1 hS1 t ht) ?_
   rintro s2 ⟨σ2, h2, ek2, er2, hf2, hS2⟩
@@ -207,7 +217,7 @@ theorem switch_to_thread_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
   rw [tcbSchedAction_gen hkt1] at h2
   have e2 := pair_eq h2
   refine ⟨{ σ2 with curThread := t.bv }, ?_, hS3, hR2.frame hS2.placed hf3 (KView.of_kheap rfl), ?_, ?_, rfl, ?_, ?_,
-    ?_, ?_⟩
+    ?_, ?_, ?_⟩
   · unfold Fl4Spec.switchToThread
     rw [nd_bind_one (show Fl4Spec.NonDet.get (σ := Fl4Spec.State Unit) σ = ({(σ, σ)}, False) from rfl),
       nd_bind_one (assert_true (by simp [Fl4Spec.getTcb, Fl4Spec.readObject, hkt, Fl4Spec.Lookup.oreturn]) σ),
@@ -222,6 +232,7 @@ theorem switch_to_thread_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
   · rw [er2, er]
   · rw [ek2, ek]
   · rw [e2]; exact eact
+  · rw [e2]; exact ⟨etm, ecn, eid, ecd, edt⟩
 
 /-- **`switch_to_idle_thread` refines l4v `switch_to_idle_thread`**, keeping
 `Inv`. -/
@@ -233,7 +244,7 @@ theorem switch_to_idle_thread_refines {N T C : Set U64} {c : U64} (s : S) (a : A
     sched.switch_to_idle_thread st ar s a ⦃ r => ∃ σ', Fl4Spec.switchToIdleThread (Z := Unit) σ = ({((), σ')}, False) ∧
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ (Inv σ → Inv σ') ∧
       σ'.curThread = σ.idleThread ∧ σ'.curSc = σ.curSc ∧ σ'.releaseQueue = σ.releaseQueue ∧ σ'.kheap = σ.kheap ∧
-      σ'.schedulerAction = σ.schedulerAction ⦄ := by
+      σ'.schedulerAction = σ.schedulerAction ∧ TK σ σ' ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hiT := hc.idleT
   unfold sched.switch_to_idle_thread
@@ -241,7 +252,7 @@ theorem switch_to_idle_thread_refines {N T C : Set U64} {c : U64} (s : S) (a : A
   rw [hc.cur] at hit
   subst it
   refine WP.spec_bind hvm ?_
-  rintro ⟨s1, a1⟩ ⟨σ1, h1, hS1, hR1, ek, eq, er, ect, esc, etm, ecn, eact, eid⟩
+  rintro ⟨s1, a1⟩ ⟨σ1, h1, hS1, hR1, ek, eq, er, ect, esc, etm, ecn, eact, eid, ecd, edt⟩
   refine WP.spec_bind (sched.set_cur_thread.spec2 s1 _) ?_
   rintro s2 rfl
   rw [WP.spec_ok]
@@ -251,7 +262,7 @@ theorem switch_to_idle_thread_refines {N T C : Set U64} {c : U64} (s : S) (a : A
   obtain ⟨hS2, hf2, -⟩ := hS1.set_cur_thread hiT
   refine ⟨{ σ1 with curThread := (nodeW st s c layout.node.IDLE_THREAD).bv }, ?_, hS2,
     hR1.frame hS1.placed hf2 (KView.of_kheap rfl), ?_, fun hI => (hI.congr ek eq er etm).congr rfl rfl rfl rfl,
-    hidleT, esc, er, ek, eact⟩
+    hidleT, esc, er, ek, eact, etm, ecn, eid, ecd, edt⟩
   · unfold Fl4Spec.switchToIdleThread
     rw [nd_gets_bind, nd_bind_one h1, ← hidleT]
     rfl

@@ -130,15 +130,24 @@ theorem SchedRel.set_tcb_sc {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
     rw [curDomA_val hN, show (scA t).val = t.val + 3464 from by
       have := hta.fits; simp [scA, core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega] at this
     omega)
+  have hdt : L.mem s' (dtA st s) = L.mem s (dtA st s) := nfo _ (dtA_aligned hN) (fun e => by
+    have h1 := hc.ksOut t ht
+    have := congrArg UScalar.val e
+    rw [dtA_val hN, show (scA t).val = t.val + 3464 from by
+      have := hta.fits; simp [scA, core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega] at this
+    omega)
   refine ⟨⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk']; exact hS.nodeNW o ho,
-    by rw [curDomA_ksb hk']; exact hS.domNW, scOut_transfer hk' (SzKeep.updK hk fun _ _ e => by cases e) hS.scOut,
+    by rw [curDomA_ksb hk']; exact hS.domNW, by rw [dtA_ksb hk']; exact hS.dtNW,
+    scOut_transfer hk' (SzKeep.updK hk fun _ _ e => by cases e) hS.scOut,
     scDisj_transfer (SzKeep.updK hk fun _ _ e => by cases e) hS.scDisj,
     by rw [nw _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])]; exact hS.actW,
     by rw [nw _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])]; exact hS.act,
     by rw [nw _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])]; exact hS.repr,
     hs.core_eq hscw hS.core, Q, R, hc.agree hcag, ?_⟩, ?_, ?_⟩
   · refine ⟨hs.rq, hs.rqDom, hs.rel, ?_, ?_, ?_, ?_, ?_, fun y hy => ?_, fun y hy => ?_, fun sc hsc => ?_,
-      by rw [nw _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])]; exact hs.idleSc⟩
+      by rw [nw _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])]; exact hs.idleSc,
+      by rw [dtA_ksb hk', hdt]; exact hs.domTime,
+      by rw [nw layout.node.IDLE_THREAD (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])]; exact hs.idleTh⟩
     · rw [nw _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])]; exact hs.curThread
     · rw [nw _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])]; exact hs.curSc
     · rw [nw _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])]; exact hs.curTime

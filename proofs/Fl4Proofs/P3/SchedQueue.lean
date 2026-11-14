@@ -37,6 +37,16 @@ theorem not_qfoot_out {T : Set U64} {s : S} {W : List U64} {c t a : U64} {P : Na
   · rw [inqA_val (hT t ht)] at hv; have := hat t ht; omega
   · rw [hcur, nodeAt_val hN ho] at hv; omega
 
+/-- A queue footprint leaves the `DOMAIN_TIME` word alone. -/
+theorem dt_qfoot {T : Set U64} {s s' : S} {W : List U64} {c t : U64} {P : Nat → Prop} (hT : TcbPlaced T)
+    (hW : ∀ w ∈ W, w ∈ T) (hN : NodePlaced st T s c) (hcur : L.cpu s = c) (ht : t ∈ T)
+    (hks : ∀ t ∈ T, t.val + 2 ^ 12 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ t.val)
+    (hw : WritesIn st s s' (L.QFoot s W c P t)) : L.mem s' (dtA st s) = L.mem s (dtA st s) := by
+  refine hw.mem_eq (dtA_aligned hN) (not_qfoot_out hT hW hN hcur ht (fun y hy => ?_) ?_)
+  · have := hks y hy; rw [dtA_val hN]; omega
+  · have h2 := hN.fits
+    rw [dtA_val hN]; simp only [LawfulStore.nodeBase] at h2 ⊢; omega
+
 theorem specPrio_inj {p q : U64} (hp : p.val < 256) (hq : q.val < 256) (h : specPrio p = specPrio q) : p = q := by
   apply UScalar.eq_of_val_eq
   have := congrArg BitVec.toNat h
@@ -155,13 +165,17 @@ theorem SchedRel.qstep {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.Stat
     · rw [hnode _ (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])
         (by simp [layout.node.IDLE_THREAD])]; exact hc.idleT
   refine ⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk]; exact hS.nodeNW o ho,
-    by rw [curDomA_ksb hk]; exact hS.domNW, scOut_transfer hk (SzKeep.of_kheap rfl) hS.scOut, scDisj_transfer (SzKeep.of_kheap rfl) hS.scDisj,
+    by rw [curDomA_ksb hk]; exact hS.domNW, by rw [dtA_ksb hk]; exact hS.dtNW,
+    scOut_transfer hk (SzKeep.of_kheap rfl) hS.scOut, scDisj_transfer (SzKeep.of_kheap rfl) hS.scDisj,
     by rw [hact]; exact hS.actW,
     by rw [hact]; exact hS.act, by rw [hnode _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])
       (by simp [layout.node.REPROGRAM])]; exact hS.repr, hs.core_eq hmx hS.core, Function.update Q p xs', R, hcore, ?_⟩
   refine ⟨fun p' hp' => ?_, fun d p' hd => ?_, hs.rel, ?_, ?_, ?_, ?_, ?_, fun y hy => ?_, fun y hy => ?_,
     fun sc hsc => ?_, by rw [hnode _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])
-      (by simp [layout.node.IDLE_SC])]; exact hs.idleSc⟩
+      (by simp [layout.node.IDLE_SC])]; exact hs.idleSc,
+    by rw [dtA_ksb hk, dt_qfoot hT hW hN hc.cur ht hc.ksOut hw]; exact hs.domTime,
+    by rw [hnode _ (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])
+      (by simp [layout.node.IDLE_THREAD])]; exact hs.idleTh⟩
   · show (if (0 : Fl4Spec.Domain) = 0 ∧ specPrio p' = specPrio p then _ else _) = _
     by_cases e : p' = p
     · subst e; simp

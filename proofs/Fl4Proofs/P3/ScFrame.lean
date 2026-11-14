@@ -105,6 +105,7 @@ theorem SchedSpec.transfer {T C C' : Set U64} {c : U64} {s s' : S} {Q : U64 → 
     (e1 : σ'.readyQueues = σ.readyQueues) (e2 : σ'.releaseQueue = σ.releaseQueue)
     (e3 : σ'.curThread = σ.curThread) (e4 : σ'.curSc = σ.curSc) (e5 : σ'.curTime = σ.curTime)
     (e6 : σ'.consumedTime = σ.consumedTime) (e7 : σ'.curDomain = σ.curDomain)
+    (e8 : σ'.domainTime = σ.domainTime) (e9 : σ'.idleThread = σ.idleThread)
     (htcb : ∀ t ∈ T, ∀ x, σ.kheap t.bv = some (.tcb x) → σ'.kheap t.bv = some (.tcb x))
     (hscs : ∀ sc ∈ C, ∃ x n, σ'.kheap sc.bv = some (.schedContext x n) ∧ ScRel1 st s' sc x n) :
     SchedSpec st T C c s' Q R σ' := by
@@ -112,7 +113,9 @@ theorem SchedSpec.transfer {T C C' : Set U64} {c : U64} {s s' : S} {Q : U64 → 
     fun o h1 h2 h3 h4 => ha.nodeW h1 h2 h3 h4
   refine ⟨fun p hp => by rw [e1]; exact h.rq p hp, fun d p hd => by rw [e1]; exact h.rqDom d p hd,
     by rw [e2]; exact h.rel, ?_, ?_, ?_, ?_, ?_, fun t ht => ?_, fun t ht => ?_, hscs,
-    by rw [w _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])]; exact h.idleSc⟩
+    by rw [w _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])]; exact h.idleSc,
+    by rw [e8, dtA_ksb ha.ksb, ha.dt]; exact h.domTime,
+    by rw [e9, w layout.node.IDLE_THREAD (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])]; exact h.idleTh⟩
   · rw [e3, w _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])
       (by simp [layout.node.CUR_THREAD])]; exact h.curThread
   · rw [e4, w _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
@@ -210,7 +213,8 @@ theorem SchedRel.sc_update {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.
   have hoth : ∀ sc ∈ C, sc ≠ sc0 → ScAgree st s s' sc := fun sc hsc hne a ha hin =>
     hw.mem_eq ha (hS.scDisjIn hsc hsc0 hne hk hin)
   have hag : SAgree st T {sc | sc ∈ C ∧ sc ≠ sc0} c s s' := by
-    refine ⟨hk', hw.2.1, fun o ho h8 _ _ => nout o ho h8, fun y hy K hK => ?_, ?_, fun sc ⟨hsc, hne⟩ => hoth sc hsc hne⟩
+    refine ⟨hk', hw.2.1, fun o ho h8 _ _ => nout o ho h8, fun y hy K hK => ?_, ?_, ?_,
+      fun sc ⟨hsc, hne⟩ => hoth sc hsc hne⟩
     · obtain ⟨h1, h2, -⟩ := schedField_ok hK
       refine hw.mem_eq (field_aligned (hc.tcbs y hy) h1 h2) fun hin => ?_
       have := (hS.scOut sc0 hsc0 x0 n hk _ hin).2.2.1 y hy
@@ -218,11 +222,15 @@ theorem SchedRel.sc_update {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.
     · refine hw.mem_eq (curDomA_aligned hN) fun hin => ?_
       have := (hS.scOut sc0 hsc0 x0 n hk _ hin).2.2.2
       rw [curDomA_val hN] at this; omega
+    · refine hw.mem_eq (dtA_aligned hN) fun hin => ?_
+      have := (hS.scOut sc0 hsc0 x0 n hk _ hin).2.2.2
+      rw [dtA_val hN] at this; omega
   have hz : SzKeep σ (updSc σ sc0.bv x n) := SzKeep.updK hk fun x' n' e => by cases e; exact ⟨x0, rfl⟩
   have nw : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → nodeW st s' c o = nodeW st s c o := by
     intro o ho h8; unfold Fl4Proofs.P3.Sched.nodeW; rw [nodeAt_ksb hk']; exact nout o ho h8
   refine ⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk']; exact hS.nodeNW o ho,
-    by rw [curDomA_ksb hk']; exact hS.domNW, scOut_transfer hk' hz hS.scOut, scDisj_transfer hz hS.scDisj,
+    by rw [curDomA_ksb hk']; exact hS.domNW, by rw [dtA_ksb hk']; exact hS.dtNW,
+    scOut_transfer hk' hz hS.scOut, scDisj_transfer hz hS.scDisj,
     by rw [nw _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])]; exact hS.actW,
     by rw [nw _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])]; exact hS.act,
     by rw [nw _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])]; exact hS.repr,
@@ -231,7 +239,7 @@ theorem SchedRel.sc_update {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.
     · subst e; rw [hc0]; exact hS.core sc hsc
     · obtain ⟨y, m, -, ey⟩ := hs.scs sc hsc
       rw [hoth sc hsc e _ (ey.hdr (by simp) (by simp)).1 (ey.hdr (by simp) (by simp)).2]; exact hS.core sc hsc
-  refine hs.transfer hag rfl rfl rfl rfl rfl rfl rfl (fun t ht y hy => ?_) (fun sc hsc => ?_)
+  refine hs.transfer hag rfl rfl rfl rfl rfl rfl rfl rfl rfl (fun t ht y hy => ?_) (fun sc hsc => ?_)
   · have : t.bv ≠ sc0.bv := by intro e; rw [e, hk] at hy; cases hy
     simp [this, hy]
   · by_cases e : sc = sc0
@@ -239,22 +247,22 @@ theorem SchedRel.sc_update {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.
     · obtain ⟨y, m, hky, ey⟩ := hs.scs sc hsc
       exact ⟨y, m, by simp [bv_inj e, hky], ey.agree (hoth sc hsc e)⟩
 
-/-! ## Writing the `REPROGRAM` word -/
+/-! ## Writing the `REPROGRAM` word (`set_repr`: any value) -/
 
-theorem SchedRel.set_reprogram {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
-    (hS : SchedRel st N T C c s σ) :
-    SchedRel st N T C c (L.wr s (L.nodeAt s c layout.node.REPROGRAM) 1#u64) { σ with reprogramTimer := true } ∧
-      FootEq N T (L.mem s) (L.mem (L.wr s (L.nodeAt s c layout.node.REPROGRAM) 1#u64)) ∧
-      WritesIn st s (L.wr s (L.nodeAt s c layout.node.REPROGRAM) 1#u64)
+theorem SchedRel.set_repr {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) (v : U64) :
+    SchedRel st N T C c (L.wr s (L.nodeAt s c layout.node.REPROGRAM) v) { σ with reprogramTimer := decide (v ≠ 0#u64) } ∧
+      FootEq N T (L.mem s) (L.mem (L.wr s (L.nodeAt s c layout.node.REPROGRAM) v)) ∧
+      WritesIn st s (L.wr s (L.nodeAt s c layout.node.REPROGRAM) v)
         (· = L.nodeAt s c layout.node.REPROGRAM) := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hN := hc.node
   have h56 : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
   have hA : Aligned (L.nodeAt s c layout.node.REPROGRAM) := nodeAt_aligned hN (by omega) (by omega)
-  set s' := L.wr s (L.nodeAt s c layout.node.REPROGRAM) 1#u64
+  set s' := L.wr s (L.nodeAt s c layout.node.REPROGRAM) v
   have hk : L.ksb s' = L.ksb s := L.ksb_wr _ _ _
   have hag : SAgree st T C c s s' := by
-    refine ⟨hk, L.cpu_wr _ _ _, fun o ho h8 _ hne => ?_, fun y hy K hK => ?_, ?_, fun sc hsc => ?_⟩
+    refine ⟨hk, L.cpu_wr _ _ _, fun o ho h8 _ hne => ?_, fun y hy K hK => ?_, ?_, ?_, fun sc hsc => ?_⟩
     · refine rd_wr_ne hA (nodeAt_aligned hN ho h8) fun e => hne ?_
       have := congrArg UScalar.val e
       rw [nodeAt_val hN (by omega), nodeAt_val hN ho] at this; omega
@@ -264,12 +272,17 @@ theorem SchedRel.set_reprogram {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec
       have := congrArg UScalar.val e
       rw [nodeAt_val hN (by omega), curDomA_val hN] at this
       simp only [LawfulStore.nodeBase] at this; omega
+    · refine rd_wr_ne hA (dtA_aligned hN) fun e => ?_
+      have := congrArg UScalar.val e
+      rw [nodeAt_val hN (by omega), dtA_val hN] at this
+      have h2 := hN.fits
+      simp only [LawfulStore.nodeBase] at this h2; omega
     · intro a hal hin
       refine rd_wr_ne hA hal fun e => ?_
       have := congrArg UScalar.val e
       rw [nodeAt_val hN (by omega)] at this
       have := (hS.scOutIn hsc hin).2.1; omega
-  have hrp : nodeW st s' c layout.node.REPROGRAM = 1#u64 := by
+  have hrp : nodeW st s' c layout.node.REPROGRAM = v := by
     unfold Fl4Proofs.P3.Sched.nodeW; rw [nodeAt_ksb hk]; exact rd_wr_eq hA
   have hact : nodeW st s' c layout.node.SCHED_ACTION = nodeW st s c layout.node.SCHED_ACTION := by
     unfold Fl4Proofs.P3.Sched.nodeW; rw [nodeAt_ksb hk]
@@ -279,12 +292,24 @@ theorem SchedRel.set_reprogram {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec
     simp [layout.node.SCHED_ACTION] at this
   have hm := hs.rmax_eq hag.sc
   refine ⟨⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk]; exact hS.nodeNW o ho,
-    by rw [curDomA_ksb hk]; exact hS.domNW, scOut_transfer hk (SzKeep.of_kheap rfl) hS.scOut, scDisj_transfer (SzKeep.of_kheap rfl) hS.scDisj,
-    by rw [hact]; exact hS.actW, by rw [hact]; exact hS.act, by rw [hrp]; rfl, hs.core_eq hag.sc hS.core, Q, R, hc.agree hag.toC, ?_⟩,
+    by rw [curDomA_ksb hk]; exact hS.domNW, by rw [dtA_ksb hk]; exact hS.dtNW,
+    scOut_transfer hk (SzKeep.of_kheap rfl) hS.scOut, scDisj_transfer (SzKeep.of_kheap rfl) hS.scDisj,
+    by rw [hact]; exact hS.actW, by rw [hact]; exact hS.act, by rw [hrp], hs.core_eq hag.sc hS.core, Q, R, hc.agree hag.toC, ?_⟩,
     node_wr_foot hS (by omega) (by omega), writesIn_wr hA⟩
   have hs' := hs.agree hag
   exact ⟨hs'.rq, hs'.rqDom, hs'.rel, hs'.curThread, hs'.curSc, hs'.curTime, hs'.consumed,
-    hs'.curDom, hs'.tcb, hs'.scMem, hs'.scs, hs'.idleSc⟩
+    hs'.curDom, hs'.tcb, hs'.scMem, hs'.scs, hs'.idleSc, hs'.domTime, hs'.idleTh⟩
+
+
+theorem SchedRel.set_reprogram {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) :
+    SchedRel st N T C c (L.wr s (L.nodeAt s c layout.node.REPROGRAM) 1#u64) { σ with reprogramTimer := true } ∧
+      FootEq N T (L.mem s) (L.mem (L.wr s (L.nodeAt s c layout.node.REPROGRAM) 1#u64)) ∧
+      WritesIn st s (L.wr s (L.nodeAt s c layout.node.REPROGRAM) 1#u64)
+        (· = L.nodeAt s c layout.node.REPROGRAM) := by
+  have h := hS.set_repr 1#u64
+  rw [show decide ((1#u64 : U64) ≠ 0#u64) = true from by decide] at h
+  exact h
 
 end
 

@@ -128,7 +128,7 @@ theorem entry_check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (
 except for the current thread). -/
 theorem commit_time_cur {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
-    (hC : CurInv σ)
+    (hC : CurInv σ) (hoff : OffOK σ)
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
     sched.commit_time st ar s a ⦃ s' => ∃ σ', Fl4Spec.commitTime (Z := Unit) σ = ({((), σ')}, False) ∧
@@ -147,7 +147,7 @@ theorem commit_time_cur {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spe
     obtain ⟨y, m, hky, hyt⟩ := hI.back _ xt _ hkt hxs
     rw [hs.curSc, hk] at hky; cases hky
     rw [hyt, hs.curThread]
-  refine WP.spec_mono (commit_time_refines s a σ hS hR hN hI hscC hown0 hS.idle hnr hmrt hmb) ?_
+  refine WP.spec_mono (commit_time_refines s a σ hS hR hN hI hscC hown0 hS.idle hnr hoff hmrt hmb) ?_
   rintro s' ⟨σ', h1, h2, h3, h4, h5, hK, -⟩
   exact ⟨σ', h1, h2, h3, h4, h5, hC.keeps hK hkp⟩
 

@@ -22,7 +22,7 @@ owner (whose budget it charges; seL4 then postpones it in `charge_budget`
 if needed), if the owner is not in the release queue. -/
 theorem Inv.budgetPost {σ σ' : State Unit} (h : Inv σ) {p u0 : ObjRef} {y : SchedContext} {m : Nat}
     (hk : σ.kheap p = some (.schedContext y m)) (hpost : BudgetPost σ σ' p) (hown : y.scTcb = some u0)
-    (hnr : u0 ∉ σ.releaseQueue) : InvBut σ' u0 := by
+    (hnr : u0 ∉ σ.releaseQueue) (hper : y.scPeriod ≠ 0) : InvBut σ' u0 := by
   obtain ⟨y', rfl, hy', hne', hpos', hsum', hmin'⟩ := hpost y m hk
   have hkp : ∀ q, q ≠ p → (updSc σ p y' m).kheap q = σ.kheap q := fun q hq => by simp [updK, hq]
   have hky : (updSc σ p y' m).kheap p = some (.schedContext y' m) := by simp [updK]
@@ -37,7 +37,7 @@ theorem Inv.budgetPost {σ σ' : State Unit} (h : Inv σ) {p u0 : ObjRef} {y : S
     · rw [hkp u e] at hx; exact hx
   have hact : scActive y' = scActive y := by rw [hy']
   refine ⟨fun d q u hu => ?_, fun u hu => ?_, ?_, fun u x hu0 hx hc => ?_, fun q w n hw ha => ?_,
-    fun u x q hx hq => ?_, fun q x q' hx hq => ?_, fun q w n hw => ?_⟩
+    fun u x q hx hq => ?_, fun q x q' hx hq => ?_, fun q w n hw => ?_, fun q w n hw ha hp0 => ?_⟩
   · have h0 := h.rq d q u hu
     have : u ≠ p := by obtain ⟨x, -, -, -, h1, -⟩ := h0; rintro rfl; rw [hk] at h1; cases h1
     exact RqOK.upd h0 hkp (fun y0 n0 h => by rw [hk] at h; cases h; exact ⟨_, hky, hact⟩) this
@@ -82,6 +82,10 @@ theorem Inv.budgetPost {σ σ' : State Unit} (h : Inv σ) {p u0 : ObjRef} {y : S
   · by_cases e : q = p
     · subst e; rw [hky] at hw; cases hw; exact hne'
     · rw [hkp q e] at hw; exact h.ne q w n hw
+  · by_cases e : q = p
+    · subst e; rw [hky] at hw; cases hw
+      exact absurd (by rw [hy'] at hp0; exact hp0) hper
+    · rw [hkp q e] at hw; exact h.rr q w n hw ha hp0
 
 end Spec
 
@@ -111,7 +115,7 @@ theorem budget_check_refines_inv {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
   refine WP.spec_mono (budget_check_refines s a σ hS hcC hmrt hmb hrr ?_ (by rw [hl]; exact hsum) ?_ usage) ?_
   rotate_left 2
   · rintro s' ⟨σ', h1, h2, h3, h4, h5⟩
-    exact ⟨σ', h1, h2, h3, h4, hI.budgetPost hk h5 (hown x n hk) hnr, h5⟩
+    exact ⟨σ', h1, h2, h3, h4, hI.budgetPost hk h5 (hown x n hk) hnr hper, h5⟩
   · intro r hr
     have := hpos (toRefill r) (by rw [hx.refills]; exact List.mem_map_of_mem hr)
     simpa [toRefill] using this

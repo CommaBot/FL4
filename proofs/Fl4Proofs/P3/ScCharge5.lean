@@ -15,14 +15,14 @@ section Spec
 open Fl4Spec
 
 theorem Inv.toBut {σ : State Unit} (h : Inv σ) (t : ObjRef) : InvBut σ t :=
-  ⟨h.rq, h.rel, h.sorted, fun u x _ => h.rd u x, h.refills, h.back, h.ntfnSc, h.ne⟩
+  ⟨h.rq, h.rel, h.sorted, fun u x _ => h.rd u x, h.refills, h.back, h.ntfnSc, h.ne, h.rr⟩
 
 /-- `InvBut` only reads the heap, the queues and the current time. -/
 theorem InvBut.congr {σ σ' : State Unit} {t : ObjRef} (h : InvBut σ t) (hk : σ'.kheap = σ.kheap)
     (hq : σ'.readyQueues = σ.readyQueues) (hr : σ'.releaseQueue = σ.releaseQueue) (ht : σ'.curTime = σ.curTime) :
     InvBut σ' t := by
   refine ⟨fun d p u hu => ?_, fun u hu => ?_, ?_, fun u x hut hx hc => ?_, fun p y n hy => ?_,
-    fun u x p hx hp => ?_, fun q x p hx hp => ?_, fun p y n hy => ?_⟩
+    fun u x p hx hp => ?_, fun q x p hx hp => ?_, fun p y n hy => ?_, fun p y n hy => ?_⟩
   · rw [hq] at hu; rw [hk]; exact h.rq d p u hu
   · rw [hr] at hu; rw [hk]; exact h.rel u hu
   · rw [hr]
@@ -42,6 +42,7 @@ theorem InvBut.congr {σ σ' : State Unit} {t : ObjRef} (h : InvBut σ t) (hk : 
   · rw [hk] at hx ⊢; exact h.back u x p hx hp
   · rw [hk] at hx ⊢; exact h.ntfnSc q x p hx hp
   · rw [hk] at hy; exact h.ne p y n hy
+  · rw [hk] at hy; exact h.rr p y n hy
 
 /-- An SC replaced by one with the same refills, refill max, period and
 TCB. -/
@@ -75,7 +76,7 @@ theorem InvBut.scUpd {σ : State Unit} {t p : ObjRef} (h : InvBut σ t) {y y' : 
     rw [specRt_eq ((htcb u xu).2 h1) h2 hw' (by rw [hr']; exact h.ne _ _ _ h4), specRt_eq h1 h2 h4 (h.ne _ _ _ h4)]
     unfold refillHd; rw [hr']
   refine ⟨fun d q u hu => ?_, fun u hu => ?_, ?_, fun u x hut hx hc => ?_, fun q w n hw ha => ?_,
-    fun u x q hx hq => ?_, fun q x q' hx hq => ?_, fun q w n hw => ?_⟩
+    fun u x q hx hq => ?_, fun q x q' hx hq => ?_, fun q w n hw => ?_, fun q w n hw ha hp0 => ?_⟩
   · obtain ⟨x, scp, w, n, h1, h2, h3, h4, h5⟩ := h.rq d q u hu
     obtain ⟨w', hw', -⟩ := hsc' scp w n h4
     obtain ⟨w0, hw0, -, hm, -, -⟩ := hsc scp w' n hw'
@@ -112,6 +113,8 @@ theorem InvBut.scUpd {σ : State Unit} {t p : ObjRef} (h : InvBut σ t) {y y' : 
     exact ⟨w', n, hw'⟩
   · obtain ⟨w0, hw0, hr, -⟩ := hsc q w n hw
     rw [hr]; exact h.ne q w0 n hw0
+  · obtain ⟨w0, hw0, hr, hm, hp, -⟩ := hsc q w n hw
+    exact (h.rr q w0 n hw0 (by simpa [scActive, hm] using ha) (hp ▸ hp0)).of_refills hr
 
 end Spec
 
