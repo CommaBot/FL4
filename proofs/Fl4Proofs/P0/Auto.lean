@@ -4092,6 +4092,10 @@ theorem vspace.P_XD.p0  :
     syscall.debug_syscall machineStoreInst machineArchInst s a t number ⦃ _ => True ⦄ := by
   unfold syscall.debug_syscall; p0_auto
 
+@[step] theorem syscall.set_tls_base_self.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    syscall.set_tls_base_self machineStoreInst machineArchInst s a ⦃ _ => True ⦄ := by
+  unfold syscall.set_tls_base_self; p0_split
+
 @[step] theorem syscall.unknown_syscall_fault.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.unknown_syscall_fault machineStoreInst machineArchInst s a number ⦃ _ => True ⦄ := by
   unfold syscall.unknown_syscall_fault; p0_split

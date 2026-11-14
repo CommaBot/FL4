@@ -30718,7 +30718,7 @@ def syscall.after_invocation
     ok (false, s2, a3)
 
 /-- [fl4_core::syscall::cap_type_code]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 456:0-481:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 470:0-495:1 -/
 def syscall.cap_type_code (c : capability.Cap) : Result Std.U64 := do
   match c with
   | capability.Cap.Null => ok 0#u64
@@ -30745,7 +30745,7 @@ def syscall.cap_type_code (c : capability.Cap) : Result Std.U64 := do
   | capability.Cap.IoPort _ _ => ok 19#u64
 
 /-- [fl4_core::syscall::nonzero_bytes]: loop body 0:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 509:4-511:5 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 523:4-525:5 -/
 @[rust_loop_body]
 def syscall.nonzero_bytes_loop.body
   (v : Std.U64) (k : Std.U64) : Result (ControlFlow Std.U64 Std.U64) := do
@@ -30761,7 +30761,7 @@ def syscall.nonzero_bytes_loop.body
   else ok (done k)
 
 /-- [fl4_core::syscall::nonzero_bytes]: loop 0:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 509:4-511:5 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 523:4-525:5 -/
 @[rust_loop]
 def syscall.nonzero_bytes_loop
   (v : Std.U64) (k : Std.U64) : Result Std.U64 := do
@@ -30770,13 +30770,13 @@ def syscall.nonzero_bytes_loop
     k
 
 /-- [fl4_core::syscall::nonzero_bytes]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 507:0-513:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 521:0-527:1 -/
 @[reducible]
 def syscall.nonzero_bytes (v : Std.U64) : Result Std.U64 := do
   syscall.nonzero_bytes_loop v 0#u64
 
 /-- [fl4_core::syscall::name_thread]: loop body 0:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 487:4-502:5 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 501:4-516:5 -/
 @[rust_loop_body]
 def syscall.name_thread_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (t : obj.Tcb)
@@ -30825,7 +30825,7 @@ def syscall.name_thread_loop.body
   else ok (done s)
 
 /-- [fl4_core::syscall::name_thread]: loop 0:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 487:4-502:5 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 501:4-516:5 -/
 @[rust_loop]
 def syscall.name_thread_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -30838,7 +30838,7 @@ def syscall.name_thread_loop
     (s, w, done1)
 
 /-- [fl4_core::syscall::name_thread]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 484:0-503:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 498:0-517:1 -/
 @[reducible]
 def syscall.name_thread
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -30848,7 +30848,7 @@ def syscall.name_thread
   syscall.name_thread_loop machineStoreInst s t src 0#u64 false
 
 /-- [fl4_core::syscall::thread_of]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 431:0-436:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 445:0-450:1 -/
 def syscall.thread_of (c : capability.Cap) : Result (Option obj.Tcb) := do
   match c with
   | capability.Cap.Null => ok none
@@ -30875,7 +30875,7 @@ def syscall.thread_of (c : capability.Cap) : Result (Option obj.Tcb) := do
   | capability.Cap.IoPort _ _ => ok none
 
 /-- [fl4_core::syscall::invoked_cap]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 423:0-429:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 437:0-443:1 -/
 def syscall.invoked_cap
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
   Result capability.Cap
@@ -30888,7 +30888,7 @@ def syscall.invoked_cap
   | core.result.Result.Err _ => ok capability.Cap.Null
 
 /-- [fl4_core::syscall::debug_name_thread]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 439:0-453:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 453:0-467:1 -/
 def syscall.debug_name_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) :
@@ -30910,7 +30910,7 @@ def syscall.debug_name_thread
       ok (s1, a)
 
 /-- [fl4_core::syscall::debug_syscall]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 398:0-420:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 412:0-434:1 -/
 def syscall.debug_syscall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb)
@@ -30966,8 +30966,27 @@ def syscall.debug_syscall
               else ok (false, s, a)
             else ok (false, s, a)
 
+/-- [fl4_core::syscall::set_tls_base_self]:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 380:0-387:1 -/
+def syscall.set_tls_base_self
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) :
+  Result (S × A)
+  := do
+  let (b, s1, a1) ← syscall.budget_ok machineStoreInst machineArchInst s a
+  let s2 ←
+    if b
+    then
+      do
+      let t ← sched.cur_thread machineStoreInst s1
+      let base ← obj.Tcb.reg machineStoreInst t s1 layout.reg.CAP
+      let i ← regs.sanitise layout.reg.TLS_BASE base
+      obj.Tcb.set_reg machineStoreInst t s1 layout.reg.TLS_BASE i
+    else ok s1
+  syscall.finish machineStoreInst machineArchInst s2 a1
+
 /-- [fl4_core::syscall::unknown_syscall_fault]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 366:0-377:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 370:0-376:1 -/
 def syscall.unknown_syscall_fault
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.U64) :
@@ -30979,27 +30998,13 @@ def syscall.unknown_syscall_fault
     then
       do
       let t ← sched.cur_thread machineStoreInst s1
-      if fl4_abi.config.SET_TLS_BASE_SELF
-      then
-        let i ← lift (UScalar.hcast .I64 number)
-        if i = fl4_abi.syscall.SysSetTLSBase
-        then
-          let base ← obj.Tcb.reg machineStoreInst t s1 layout.reg.CAP
-          let i1 ← regs.sanitise layout.reg.TLS_BASE base
-          let s3 ←
-            obj.Tcb.set_reg machineStoreInst t s1 layout.reg.TLS_BASE i1
-          ok (s3, a1)
-        else
-          faults.handle_fault machineStoreInst machineArchInst s1 a1 t
-            (error.Fault.UnknownSyscall number)
-      else
-        faults.handle_fault machineStoreInst machineArchInst s1 a1 t
-          (error.Fault.UnknownSyscall number)
+      faults.handle_fault machineStoreInst machineArchInst s1 a1 t
+        (error.Fault.UnknownSyscall number)
     else ok (s1, a1)
   syscall.finish machineStoreInst machineArchInst s2 a2
 
 /-- [fl4_core::syscall::handle_unknown_syscall]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 381:0-395:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 391:0-409:1 -/
 def syscall.handle_unknown_syscall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) :
@@ -31028,13 +31033,34 @@ def syscall.handle_unknown_syscall
             if b
             then ok (s1, a1)
             else
-              let i ← lift (IScalar.hcast .U64 number)
-              syscall.unknown_syscall_fault machineStoreInst machineArchInst s1
-                a1 i
+              if fl4_abi.config.SET_TLS_BASE_SELF
+              then
+                if number = fl4_abi.syscall.SysSetTLSBase
+                then
+                  syscall.set_tls_base_self machineStoreInst machineArchInst s1
+                    a1
+                else
+                  let i ← lift (IScalar.hcast .U64 number)
+                  syscall.unknown_syscall_fault machineStoreInst
+                    machineArchInst s1 a1 i
+              else
+                let i ← lift (IScalar.hcast .U64 number)
+                syscall.unknown_syscall_fault machineStoreInst machineArchInst
+                  s1 a1 i
           else
-            let i ← lift (IScalar.hcast .U64 number)
-            syscall.unknown_syscall_fault machineStoreInst machineArchInst s a
-              i
+            if fl4_abi.config.SET_TLS_BASE_SELF
+            then
+              if number = fl4_abi.syscall.SysSetTLSBase
+              then
+                syscall.set_tls_base_self machineStoreInst machineArchInst s a
+              else
+                let i ← lift (IScalar.hcast .U64 number)
+                syscall.unknown_syscall_fault machineStoreInst machineArchInst
+                  s a i
+            else
+              let i ← lift (IScalar.hcast .U64 number)
+              syscall.unknown_syscall_fault machineStoreInst machineArchInst s
+                a i
       else
         if fl4_abi.config.DEBUG_BUILD
         then
@@ -31043,12 +31069,33 @@ def syscall.handle_unknown_syscall
           if b
           then ok (s1, a1)
           else
-            let i ← lift (IScalar.hcast .U64 number)
-            syscall.unknown_syscall_fault machineStoreInst machineArchInst s1
-              a1 i
+            if fl4_abi.config.SET_TLS_BASE_SELF
+            then
+              if number = fl4_abi.syscall.SysSetTLSBase
+              then
+                syscall.set_tls_base_self machineStoreInst machineArchInst s1
+                  a1
+              else
+                let i ← lift (IScalar.hcast .U64 number)
+                syscall.unknown_syscall_fault machineStoreInst machineArchInst
+                  s1 a1 i
+            else
+              let i ← lift (IScalar.hcast .U64 number)
+              syscall.unknown_syscall_fault machineStoreInst machineArchInst s1
+                a1 i
         else
-          let i ← lift (IScalar.hcast .U64 number)
-          syscall.unknown_syscall_fault machineStoreInst machineArchInst s a i
+          if fl4_abi.config.SET_TLS_BASE_SELF
+          then
+            if number = fl4_abi.syscall.SysSetTLSBase
+            then syscall.set_tls_base_self machineStoreInst machineArchInst s a
+            else
+              let i ← lift (IScalar.hcast .U64 number)
+              syscall.unknown_syscall_fault machineStoreInst machineArchInst s
+                a i
+          else
+            let i ← lift (IScalar.hcast .U64 number)
+            syscall.unknown_syscall_fault machineStoreInst machineArchInst s a
+              i
   else
     if fl4_abi.config.PRINTING
     then
@@ -31062,12 +31109,33 @@ def syscall.handle_unknown_syscall
           if b
           then ok (s1, a1)
           else
-            let i ← lift (IScalar.hcast .U64 number)
-            syscall.unknown_syscall_fault machineStoreInst machineArchInst s1
-              a1 i
+            if fl4_abi.config.SET_TLS_BASE_SELF
+            then
+              if number = fl4_abi.syscall.SysSetTLSBase
+              then
+                syscall.set_tls_base_self machineStoreInst machineArchInst s1
+                  a1
+              else
+                let i ← lift (IScalar.hcast .U64 number)
+                syscall.unknown_syscall_fault machineStoreInst machineArchInst
+                  s1 a1 i
+            else
+              let i ← lift (IScalar.hcast .U64 number)
+              syscall.unknown_syscall_fault machineStoreInst machineArchInst s1
+                a1 i
         else
-          let i ← lift (IScalar.hcast .U64 number)
-          syscall.unknown_syscall_fault machineStoreInst machineArchInst s a i
+          if fl4_abi.config.SET_TLS_BASE_SELF
+          then
+            if number = fl4_abi.syscall.SysSetTLSBase
+            then syscall.set_tls_base_self machineStoreInst machineArchInst s a
+            else
+              let i ← lift (IScalar.hcast .U64 number)
+              syscall.unknown_syscall_fault machineStoreInst machineArchInst s
+                a i
+          else
+            let i ← lift (IScalar.hcast .U64 number)
+            syscall.unknown_syscall_fault machineStoreInst machineArchInst s a
+              i
     else
       if fl4_abi.config.DEBUG_BUILD
       then
@@ -31076,12 +31144,31 @@ def syscall.handle_unknown_syscall
         if b
         then ok (s1, a1)
         else
-          let i ← lift (IScalar.hcast .U64 number)
-          syscall.unknown_syscall_fault machineStoreInst machineArchInst s1 a1
-            i
+          if fl4_abi.config.SET_TLS_BASE_SELF
+          then
+            if number = fl4_abi.syscall.SysSetTLSBase
+            then
+              syscall.set_tls_base_self machineStoreInst machineArchInst s1 a1
+            else
+              let i ← lift (IScalar.hcast .U64 number)
+              syscall.unknown_syscall_fault machineStoreInst machineArchInst s1
+                a1 i
+          else
+            let i ← lift (IScalar.hcast .U64 number)
+            syscall.unknown_syscall_fault machineStoreInst machineArchInst s1
+              a1 i
       else
-        let i ← lift (IScalar.hcast .U64 number)
-        syscall.unknown_syscall_fault machineStoreInst machineArchInst s a i
+        if fl4_abi.config.SET_TLS_BASE_SELF
+        then
+          if number = fl4_abi.syscall.SysSetTLSBase
+          then syscall.set_tls_base_self machineStoreInst machineArchInst s a
+          else
+            let i ← lift (IScalar.hcast .U64 number)
+            syscall.unknown_syscall_fault machineStoreInst machineArchInst s a
+              i
+        else
+          let i ← lift (IScalar.hcast .U64 number)
+          syscall.unknown_syscall_fault machineStoreInst machineArchInst s a i
 
 /-- [fl4_core::syscall::dispatch_syscall]:
     Source: 'crates/fl4-core/src/syscall.rs', lines 324:0-364:1 -/
@@ -31228,7 +31315,7 @@ def syscall.handle_syscall
         syscall.finish machineStoreInst machineArchInst s3 a2
 
 /-- [fl4_core::syscall::handle_interrupt_entry]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 516:0-521:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 530:0-535:1
     Visibility: public -/
 def syscall.handle_interrupt_entry
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -31242,7 +31329,7 @@ def syscall.handle_interrupt_entry
   syscall.finish machineStoreInst machineArchInst s3 a3
 
 /-- [fl4_core::syscall::handle_user_exception]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 525:0-531:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 539:0-545:1
     Visibility: public -/
 def syscall.handle_user_exception
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -31271,7 +31358,7 @@ def vspace.vm_fault
   ok (error.Fault.VmFault addr code instruction)
 
 /-- [fl4_core::syscall::handle_vm_fault]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 534:0-541:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 548:0-555:1
     Visibility: public -/
 def syscall.handle_vm_fault
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -31293,7 +31380,7 @@ def syscall.handle_vm_fault
   syscall.finish machineStoreInst machineArchInst s2 a2
 
 /-- [fl4_core::syscall::handle_trap_syscall]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 545:0-559:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 559:0-573:1
     Visibility: public -/
 def syscall.handle_trap_syscall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -31321,7 +31408,7 @@ def syscall.handle_trap_syscall
     syscall.handle_unknown_syscall machineStoreInst machineArchInst s1 a i5
 
 /-- [fl4_core::syscall::handle_debug_exception]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 562:0-571:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 576:0-585:1
     Visibility: public -/
 def syscall.handle_debug_exception
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)

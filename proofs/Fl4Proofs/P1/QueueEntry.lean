@@ -552,21 +552,34 @@ theorem syscall.unknown_syscall_fault.entry (hA : P0.ArchTotal ar) (hNt : ∀ n 
   refine WP.spec_bind (Pₘ := fun r : S × A => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' r.1) ?_ ?_
   · split
     · step with sched.cur_thread.spec as ⟨t, et⟩
-      have htT : t ∈ T := by rw [et]; exact h1.1.choose_spec.choose_spec.curT
-      simp only [fl4_abi.config.SET_TLS_BASE_SELF, ↓reduceIte]
-      step as ⟨i, _⟩
-      split
-      · step with obj.Tcb.reg.spec as ⟨base⟩
-        step with P0.regs.sanitise.p0 as ⟨i1⟩
-        refine WP.spec_bind (regW_spec h1.blk htT (r := layout.reg.TLS_BASE)
-          (by simp [layout.reg.TLS_BASE, layout.reg.FS_BASE])) ?_
-        rintro s3 ⟨h3, -, -⟩
-        exact (WP.spec_ok _).2 ⟨Ac, h3.bxi⟩
-      · exact WP.spec_mono (E.fault Ac s1 a1 t _ h1) fun r hr => by
-          obtain ⟨s', a'⟩ := r; simpa using hr
+      exact WP.spec_mono (E.fault Ac s1 a1 t _ h1) fun r hr => by
+        obtain ⟨s', a'⟩ := r; simpa using hr
     · exact (WP.spec_ok _).2 ⟨Ac, h1⟩
   · rintro ⟨s2, a2⟩ ⟨Ac2, h2⟩
     exact syscall.finish.entry hA hNt E s2 a2 h2
+
+/-- seL4 `handleUnknownSyscall`'s SetTLSBase path (`set_tls_base_self`). -/
+theorem syscall.set_tls_base_self.entry (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+    (E : EntryHyps st ar T Cs Ω H Sg Rp Scs Nt Z U) {Ac : Set U64} (s : S) (a : A)
+    (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
+    syscall.set_tls_base_self st ar s a ⦃ s' _ => ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ := by
+  unfold syscall.set_tls_base_self
+  refine WP.spec_bind (syscall.budget_ok.bxc hA E s a h) ?_
+  rintro ⟨b, s1, a1⟩ ⟨h1, -⟩
+  try simp only [WP.uncurry'_pair]
+  refine WP.spec_bind (Pₘ := fun s2 : S => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s2) ?_ ?_
+  · split
+    · step with sched.cur_thread.spec as ⟨t, et⟩
+      have htT : t ∈ T := by rw [et]; exact h1.1.choose_spec.choose_spec.curT
+      step with obj.Tcb.reg.spec as ⟨base⟩
+      step with P0.regs.sanitise.p0 as ⟨i1⟩
+      refine WP.spec_mono (regW_spec h1.blk htT (r := layout.reg.TLS_BASE)
+        (by simp [layout.reg.TLS_BASE, layout.reg.FS_BASE])) ?_
+      rintro s3 ⟨h3, -, -⟩
+      exact ⟨Ac, h3.bxi⟩
+    · exact (WP.spec_ok _).2 ⟨Ac, h1⟩
+  · rintro s2 ⟨Ac2, h2⟩
+    exact syscall.finish.entry hA hNt E s2 a1 h2
 
 /-- seL4 `handleUnknownSyscall`. -/
 theorem syscall.handle_unknown_syscall.entry (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
@@ -590,8 +603,11 @@ theorem syscall.handle_unknown_syscall.entry (hA : P0.ArchTotal ar) (hNt : ∀ n
   try simp only [uncurry_apply_pair]
   split
   · exact (WP.spec_ok _).2 ⟨Ac1, h1⟩
-  · step as ⟨i, _⟩
-    exact syscall.unknown_syscall_fault.entry hA hNt E s1 a1 i h1
+  · simp only [fl4_abi.config.SET_TLS_BASE_SELF, ↓reduceIte]
+    split
+    · exact syscall.set_tls_base_self.entry hA hNt E s1 a1 h1
+    · step as ⟨i, _⟩
+      exact syscall.unknown_syscall_fault.entry hA hNt E s1 a1 i h1
 
 /-- **`handle_syscall` keeps `EntryInv`**: the budget check at the entry, the
 dispatch (with `HCur` across the invocation, `HCur.step`), then `schedule`. -/
