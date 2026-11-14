@@ -682,32 +682,24 @@ fn sel4test_results(out: &str) -> (usize, Vec<String>) {
 fn sim(o: &Opts) {
     let r = root();
     run(Command::new("cargo").current_dir(&r).args(["build", "--release", "-p", "fl4-sim"]));
-    let bin = r.join("target/release/fl4-sim");
-    let cores = if o.smp > 1 { o.smp } else { 4 };
-    let (seeds, cores) = (o.seeds.to_string(), cores.to_string());
-    let base = ["--seeds", seeds.as_str(), "--cores", cores.as_str()];
-    run(Command::new(&bin).args(base).args(["--steps", "20000"]));
-    run(Command::new(&bin).args(base).args(["--steps", "8000", "--conc"]));
-    run(Command::new(&bin).args(base).args(["--steps", "8000", "--conc", "--pct", "3"]));
-    run(Command::new(&bin).args(base).args(["--steps", "8000", "--tso"]));
-    // Targeted races (DESIGN.md §10): most calls on one endpoint or
-    // notification while the root task deletes and recreates it.
-    let quarter = (o.seeds / 4).max(1).to_string();
-    for sc in ["ep", "ntfn"] {
-        for m in ["--conc", "--tso"] {
-            run(Command::new(&bin).args(["--seeds", quarter.as_str(), "--cores", cores.as_str(), "--steps", "8000", m, "--scenario", sc]));
-        }
-    }
-    // Every schedule with one preemption at a runtime atomic, for small
-    // two-core scenarios.
-    for seed in 1..=4 {
-        run(Command::new(&bin).args(["--explore", "1", "--cores", "2", "--steps", "6", "--first", &seed.to_string()]));
-    }
     // The same campaign with every entry under the serial gate, the
     // test-only differential configuration.
     let dir = r.join("target/serial-gate");
     run(Command::new("cargo").current_dir(&r).args(["build", "--release", "-p", "fl4-sim", "--features", "serial-gate", "--target-dir"]).arg(&dir));
-    run(Command::new(dir.join("release/fl4-sim")).args(base).args(["--steps", "8000", "--conc"]));
+    let cores = if o.smp > 1 { o.smp } else { 4 };
+    let (seeds, cores) = (o.seeds.to_string(), cores.to_string());
+    let base = ["--seeds", seeds.as_str(), "--cores", cores.as_str()];
+    // Both at once: each runs its seeds in child processes, one per host
+    // CPU, so together they keep the host busy until both are done.
+    let mut gate = Command::new(dir.join("release/fl4-sim")).args(base).args(["--steps", "8000", "--conc"]).spawn().unwrap();
+    // Every campaign of DESIGN.md §10: random, PCT and x86-TSO schedules,
+    // the targeted endpoint and notification races, and the bounded
+    // exhaustive search.
+    let suite = Command::new(r.join("target/release/fl4-sim")).args(base).arg("--suite").status().unwrap();
+    let gate = gate.wait().unwrap();
+    if !suite.success() || !gate.success() {
+        fail("the simulator found failures");
+    }
 }
 
 /// Mutation testing (DESIGN.md §10): each known-broken runtime must fail

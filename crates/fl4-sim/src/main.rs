@@ -6,15 +6,22 @@
 //! oracles check the kernel's invariants. The same seed replays the same
 //! run.
 //!
-//! Until fine-grained locking, kernel entries run one at a time, as under
-//! the serial gate; a remote stall runs the target core's stall logic
-//! before the initiator continues, which is what the gate protocol does.
+//! Without `--conc`, kernel entries run one at a time, as under the serial
+//! gate. With it, each simulated core is a coroutine, and all of them run
+//! on one host thread, switching at memory accesses. A campaign boots once
+//! and forks a child process per run from the booted state, one child per
+//! host CPU at a time.
 //!
 //! Usage: fl4-sim [--seeds N] [--first S] [--cores C] [--steps K] [--conc]
+//!        [--pct D] [--tso] [--scenario ep|ntfn] [--suite] [--jobs J]
 
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::cell::{Cell, RefCell};
+use std::sync::{Arc, Mutex};
+
+use corosensei::stack::DefaultStack;
+use corosensei::{Coroutine, CoroutineResult, Yielder};
 
 use fl4_abi::consts::{bits, object as ot, root_slot as rs};
 use fl4_abi::{label, syscall as sc};
@@ -35,6 +42,34 @@ const IMAGE_BYTES: u64 = 8 << 20;
 
 struct Memory {
     words: Vec<AtomicU64>,
+    /// Per 32-byte line (one capability slot): written since the oracles
+    /// last looked, and the list of such lines.
+    dirty: Vec<AtomicBool>,
+    dirty_list: Mutex<Vec<u64>>,
+    watch: Mutex<SlotWatch>,
+}
+
+/// What the slot oracles saw at their last check (`Sim::slots_to_check`):
+/// the slot regions of `Sim::slot_regions` then, and the slots in them that
+/// were not empty and unlinked.
+#[derive(Default)]
+struct SlotWatch {
+    regions: Vec<(u64, u64)>,
+    live: Vec<u64>,
+}
+
+/// `n` zero words, on zero pages the host maps when first touched: a run
+/// pays only for the memory it uses, not for all of `MEM_BYTES`.
+fn zeroed_words(n: usize) -> Vec<AtomicU64> {
+    let mut v = std::mem::ManuallyDrop::new(vec![0u64; n]);
+    // SAFETY: AtomicU64 has the size and alignment of u64 on x86-64.
+    unsafe { Vec::from_raw_parts(v.as_mut_ptr().cast(), v.len(), v.capacity()) }
+}
+
+fn zeroed_flags(n: usize) -> Vec<AtomicBool> {
+    let mut v = std::mem::ManuallyDrop::new(vec![0u8; n]);
+    // SAFETY: AtomicBool has the size and alignment of u8, and 0 is false.
+    unsafe { Vec::from_raw_parts(v.as_mut_ptr().cast(), v.len(), v.capacity()) }
 }
 
 impl Memory {
@@ -48,15 +83,38 @@ impl Memory {
         self.words[self.index(addr)].load(Ordering::Relaxed)
     }
     fn set(&self, addr: u64, v: u64) {
-        self.words[self.index(addr)].store(v, Ordering::Relaxed)
+        let i = self.index(addr);
+        self.words[i].store(v, Ordering::Relaxed);
+        let line = &self.dirty[i / 4];
+        if !line.load(Ordering::Relaxed) {
+            line.store(true, Ordering::Relaxed);
+            self.dirty_list.lock().unwrap().push(PPTR_BASE + (i / 4) as u64 * 32);
+        }
+    }
+
+    /// The `n` words at `addr`, as memory holds them (no store buffer).
+    fn words_at(&self, addr: u64, n: u64) -> &[AtomicU64] {
+        let i = self.index(addr);
+        self.index(addr + (n - 1) * 8);
+        &self.words[i..i + n as usize]
+    }
+
+    /// The 32-byte lines written since the last call.
+    fn take_dirty(&self) -> Vec<u64> {
+        let v = std::mem::take(&mut *self.dirty_list.lock().unwrap());
+        for &a in &v {
+            self.dirty[((a - PPTR_BASE) / 32) as usize].store(false, Ordering::Relaxed);
+        }
+        v
     }
 }
 
-/// Concurrent mode: one host thread per simulated core, run one at a time
-/// in an order the seed decides, switching at memory accesses and spins.
+/// Concurrent mode: one coroutine per simulated core, all on one host
+/// thread, run one at a time in an order the seed decides, switching at
+/// memory accesses and spins. A switch is a stack switch, not a host
+/// context switch.
 struct Conc {
     baton: Mutex<Baton>,
-    cv: Condvar,
     /// Cores asked to service a remote stall.
     call_pending: AtomicU64,
     in_kernel: Vec<AtomicBool>,
@@ -71,12 +129,12 @@ struct Conc {
     /// x86-TSO (DESIGN.md §10): per core, the stores not yet visible to
     /// other cores, oldest first. Off unless `--tso`.
     tso: bool,
-    sb: Vec<Mutex<std::collections::VecDeque<(Target, u64)>>>,
+    sb: Vec<Mutex<StoreBuffer>>,
 }
 
 /// What a buffered store writes: a word of simulated memory, or one of the
 /// runtime's atomics (version table, clock, serial gate).
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum Target {
     Word(u64),
     Atomic(usize),
@@ -116,6 +174,8 @@ struct Baton {
     turn: u64,
     rng: Rng,
     done: Vec<bool>,
+    /// Per core: out of steps, only answering remote stalls.
+    idle: Vec<bool>,
     pct: Option<Pct>,
     /// Per core: spins since the core last finished a kernel entry.
     spins: Vec<u64>,
@@ -156,6 +216,11 @@ impl Pct {
     }
 }
 
+thread_local! {
+    /// Per core: its coroutine's yielder, for `Conc::wait_turn`.
+    static YIELDERS: RefCell<Vec<*const Yielder<(), ()>>> = const { RefCell::new(Vec::new()) };
+}
+
 /// Spins without finishing an entry after which a core is taken to be
 /// livelocked or deadlocked (DESIGN.md §10, liveness oracle).
 const SPIN_LIMIT: u64 = 2_000_000;
@@ -179,11 +244,11 @@ impl Conc {
                 turn,
                 rng,
                 done: vec![false; n as usize],
+                idle: vec![false; n as usize],
                 pct,
                 spins: vec![0; n as usize],
                 explore: explore.map(|switches| Explore { points: 0, switches }),
             }),
-            cv: Condvar::new(),
             call_pending: AtomicU64::new(0),
             in_kernel: (0..n).map(|_| AtomicBool::new(false)).collect(),
             gate_held: (0..n).map(|_| AtomicBool::new(false)).collect(),
@@ -192,12 +257,18 @@ impl Conc {
             rlog: (0..n).map(|_| Mutex::new(Vec::new())).collect(),
             wlog: (0..n).map(|_| Mutex::new(HashMap::new())).collect(),
             tso,
-            sb: (0..n).map(|_| Mutex::new(std::collections::VecDeque::new())).collect(),
+            sb: (0..n).map(|_| Mutex::new(StoreBuffer::default())).collect(),
         }
     }
 
     fn pass(&self, b: &mut Baton) {
-        let live: Vec<u64> = (0..b.done.len() as u64).filter(|&c| !b.done[c as usize]).collect();
+        let mut live: Vec<u64> = (0..b.done.len() as u64).filter(|&c| !b.done[c as usize]).collect();
+        // A core out of steps that relaxes passes to one with steps left,
+        // if any: it has nothing to do until one of those asks it for a
+        // stall, and the asker's spins pass to every live core.
+        if b.explore.is_none() && b.pct.is_none() && b.idle[b.turn as usize] && live.iter().any(|&c| !b.idle[c as usize]) {
+            live.retain(|&c| !b.idle[c as usize]);
+        }
         if !live.is_empty() {
             b.turn = if b.explore.is_some() {
                 // The next live core after the current one.
@@ -209,12 +280,17 @@ impl Conc {
                 }
             };
         }
-        self.cv.notify_all();
     }
 
-    fn wait_turn(&self, cpu: u64, mut b: std::sync::MutexGuard<'_, Baton>) {
-        while b.turn != cpu {
-            b = self.cv.wait(b).unwrap();
+    /// Back to the scheduler loop (`run_one`) until it is `cpu`'s turn.
+    fn wait_turn(&self, cpu: u64, b: std::sync::MutexGuard<'_, Baton>) {
+        let mut mine = b.turn == cpu;
+        drop(b);
+        while !mine {
+            let y = YIELDERS.with(|v| v.borrow()[cpu as usize]);
+            // SAFETY: set by `cpu`'s coroutine, which is the one running.
+            unsafe { (*y).suspend(()) };
+            mine = self.baton.lock().unwrap().turn == cpu;
         }
     }
 
@@ -275,6 +351,7 @@ impl Conc {
     /// A core with nothing to do always lets another core run.
     fn relax(&self, cpu: u64) {
         let mut b = self.baton.lock().unwrap();
+        b.idle[cpu as usize] = true;
         if let Some(p) = &mut b.pct {
             p.demote(cpu);
         }
@@ -351,6 +428,33 @@ impl SimStore {
     }
 }
 
+/// A core's store buffer (x86-TSO): its stores not yet visible, oldest
+/// first, and per target the newest buffered value and how many stores to
+/// it are buffered, for store forwarding.
+#[derive(Default)]
+struct StoreBuffer {
+    q: std::collections::VecDeque<(Target, u64)>,
+    newest: HashMap<Target, (u64, usize)>,
+}
+
+impl StoreBuffer {
+    fn push(&mut self, t: Target, v: u64) {
+        self.q.push_back((t, v));
+        let e = self.newest.entry(t).or_insert((v, 0));
+        *e = (v, e.1 + 1);
+    }
+
+    fn pop(&mut self) -> Option<(Target, u64)> {
+        let (t, v) = self.q.pop_front()?;
+        let e = self.newest.get_mut(&t).unwrap();
+        e.1 -= 1;
+        if e.1 == 0 {
+            self.newest.remove(&t);
+        }
+        Some((t, v))
+    }
+}
+
 impl SimStore {
     fn tso(&self) -> Option<&Arc<Conc>> {
         self.conc.as_ref().filter(|c| c.tso)
@@ -359,12 +463,11 @@ impl SimStore {
     /// This core's newest buffered store to `t`, if any (store forwarding).
     fn forward(&self, t: Target) -> Option<u64> {
         let c = self.tso()?;
-        let sb = c.sb[self.cpu as usize].lock().unwrap();
-        sb.iter().rev().find(|(x, _)| *x == t).map(|(_, v)| *v)
+        c.sb[self.cpu as usize].lock().unwrap().newest.get(&t).map(|e| e.0)
     }
 
     fn buffer(&self, t: Target, v: u64) {
-        self.tso().unwrap().sb[self.cpu as usize].lock().unwrap().push_back((t, v));
+        self.tso().unwrap().sb[self.cpu as usize].lock().unwrap().push(t, v);
     }
 
     fn apply(&self, t: Target, v: u64) {
@@ -378,7 +481,11 @@ impl SimStore {
     /// instruction, MFENCE, or the end of a kernel entry).
     fn drain(&self) {
         if let Some(c) = self.tso() {
-            let pending: Vec<_> = c.sb[self.cpu as usize].lock().unwrap().drain(..).collect();
+            let pending: Vec<_> = {
+                let mut sb = c.sb[self.cpu as usize].lock().unwrap();
+                sb.newest.clear();
+                sb.q.drain(..).collect()
+            };
             for (t, v) in pending {
                 self.apply(t, v);
             }
@@ -389,7 +496,7 @@ impl SimStore {
     fn maybe_drain_one(&self) {
         if let Some(c) = self.tso() {
             if c.baton.lock().unwrap().rng.below(8) == 0 {
-                let e = c.sb[self.cpu as usize].lock().unwrap().pop_front();
+                let e = c.sb[self.cpu as usize].lock().unwrap().pop();
                 if let Some((t, v)) = e {
                     self.apply(t, v);
                 }
@@ -849,6 +956,16 @@ static STATS: Mutex<(u64, u64, u64)> = Mutex::new((0, 0, 0));
 #[derive(Clone)]
 struct Rng(u64);
 
+/// The workload's RNG state for `seed`.
+fn seed_rng(seed: u64) -> u64 {
+    seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1
+}
+
+/// The seed boot runs with, whatever the run's: every run of a campaign
+/// starts from the same booted state, which the campaign boots once and
+/// forks (`spawn`).
+const BOOT_SEED: u64 = 0;
+
 impl Rng {
     fn next(&mut self) -> u64 {
         let mut x = self.0;
@@ -888,6 +1005,8 @@ struct Sim {
     /// cores' transactions run).
     reset_ut: u64,
     reset_child: u64,
+    /// `first_untyped`'s last answer: (slot, size).
+    big_ut: Cell<(u64, u64)>,
 }
 
 fn pptr(p: u64) -> u64 {
@@ -896,7 +1015,12 @@ fn pptr(p: u64) -> u64 {
 
 impl Sim {
     fn new(seed: u64, ncores: u64) -> Sim {
-        let mem = Arc::new(Memory { words: (0..MEM_BYTES / 8).map(|_| AtomicU64::new(0)).collect() });
+        let mem = Arc::new(Memory {
+            words: zeroed_words((MEM_BYTES / 8) as usize),
+            dirty: zeroed_flags((MEM_BYTES / 32) as usize),
+            dirty_list: Mutex::new(Vec::new()),
+            watch: Mutex::new(SlotWatch::default()),
+        });
         let image = MEM_BYTES - IMAGE_BYTES;
         let ks_base = pptr(image);
         let m = Arc::new(Mutex::new(Machine {
@@ -904,11 +1028,11 @@ impl Sim {
             cores: vec![Core::default(); ncores as usize],
             console: Vec::new(),
             halted: false,
-            rng: Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1),
+            rng: Rng(seed_rng(seed)),
         }));
         let s = SimStore { mem: mem.clone(), ks_base, cpu: 0, tx: false, conc: None };
         let a = SimArch { m, mem, ks_base, cpu: 0, conc: None };
-        Sim { s, a, ncores, objs: Vec::new(), next_slot: 0, fault_ep: 0, reply: 0, focus: None, reset_ut: 0, reset_child: 0 }
+        Sim { s, a, ncores, objs: Vec::new(), next_slot: 0, fault_ep: 0, reply: 0, focus: None, reset_ut: 0, reset_child: 0, big_ut: Cell::new((0, 0)) }
     }
 
     /// Run the kernel part of an entry: directly, or (concurrent mode)
@@ -1161,8 +1285,15 @@ impl Sim {
             .unwrap_or(0)
     }
 
+    /// The largest RAM untyped in the root CNode (the first, of several).
+    /// The root task knows where its caps are: it rescans only when the
+    /// last answer's slot holds something else now.
     fn first_untyped(&self) -> u64 {
         let rt = self.root_cnode();
+        let (slot, bits) = self.big_ut.get();
+        if slot != 0 && matches!(Slot::index(rt, slot).cap(&self.s), Cap::Untyped { size_bits, is_device: false, .. } if size_bits == bits) {
+            return slot;
+        }
         let mut best = (0, 0);
         for i in rs::NumInitialCaps..(1 << boot::ROOT_CNODE_BITS) {
             if let Cap::Untyped { size_bits, is_device: false, .. } = Slot::index(rt, i).cap(&self.s) {
@@ -1171,6 +1302,7 @@ impl Sim {
                 }
             }
         }
+        self.big_ut.set(best);
         best.0
     }
 
@@ -1372,10 +1504,13 @@ impl Sim {
         let mut q = self.clone();
         q.s.conc = None;
         q.a.conc = None;
+        let slots = q.slots_to_check();
         q.check(what);
-        q.check_cdt(what);
+        q.check_cdt(what, &slots);
         q.check_queues(what);
-        q.check_refills(what);
+        q.check_refills(what, &slots);
+        let s = &q.s;
+        q.s.mem.watch.lock().unwrap().live = slots.into_iter().filter(|sl| !(sl.cap(s).is_null() && sl.prev(s).is_null() && sl.next(s).is_null())).map(|sl| sl.0).collect();
     }
 
     // ---- oracles ----------------------------------------------------------
@@ -1406,8 +1541,11 @@ impl Sim {
             }
             // Liveness: an idle core with ready threads has been asked to
             // reschedule (or will choose at its next entry).
+            // Per priority: head and tail. The oracles run on a copy without
+            // store buffers (`after`), so this is what `node_get` reads.
+            let rq = s.mem.words_at(fl4_core::obj::node_base(s, c) + node::READY_QUEUES, 2 * layout::NUM_PRIORITIES);
             if ct == idle && node_get(s, c, node::SCHED_ACTION) == sched::ACTION_RESUME_CURRENT {
-                let ready = (0..layout::NUM_PRIORITIES).any(|p| node_get(s, c, node::READY_QUEUES + p * 16) != 0);
+                let ready = (0..layout::NUM_PRIORITIES).any(|p| rq[2 * p as usize].load(Ordering::Relaxed) != 0);
                 if ready {
                     let m = self.a.m.lock().unwrap();
                     let pend = m.cores[c as usize].pending;
@@ -1418,9 +1556,11 @@ impl Sim {
             }
             // Ready queues: well linked, runnable, on this core.
             for prio in 0..layout::NUM_PRIORITIES {
-                let off = node::READY_QUEUES + prio * 16;
-                let head = node_get(s, c, off);
-                let tail = node_get(s, c, off + 8);
+                let head = rq[2 * prio as usize].load(Ordering::Relaxed);
+                let tail = rq[2 * prio as usize + 1].load(Ordering::Relaxed);
+                if head == 0 && tail == 0 {
+                    continue;
+                }
                 let mut t = head;
                 let mut prev = 0;
                 let mut n = 0;
@@ -1473,34 +1613,51 @@ impl Sim {
 }
 
 impl Sim {
-    /// Every capability slot the workload can reach: the root CNode, the
-    /// CNodes it created, and the slots of every TCB.
-    fn slots(&self) -> Vec<Slot> {
-        let mut v = Vec::new();
+    /// Every capability slot the workload can reach, as (address, bytes)
+    /// regions: the root CNode, the CNodes it created, and the slots of
+    /// every TCB.
+    fn slot_regions(&self) -> Vec<(u64, u64)> {
+        let size = layout::cte::SIZE;
         let rt = self.root_cnode();
-        for i in 0..(1u64 << boot::ROOT_CNODE_BITS) {
-            v.push(Slot::index(rt, i));
-        }
+        let mut v = vec![(rt, (1u64 << boot::ROOT_CNODE_BITS) * size)];
         for &o in &self.objs {
             if let Cap::CNode { ptr, radix, .. } = Slot::index(rt, o).cap(&self.s) {
-                for i in 0..(1u64 << radix.min(12)) {
-                    v.push(Slot::index(ptr, i));
-                }
+                v.push((ptr, (1u64 << radix.min(12)) * size));
             }
         }
         for t in self.threads() {
-            for i in 0..tl::NUM_SLOTS {
-                v.push(t.slot(i));
-            }
+            v.push((t.slot(0).0, tl::NUM_SLOTS * size));
         }
         v
     }
 
+    /// The slots of `slot_regions` that the slot oracles must look at to
+    /// check all of them: those not empty and unlinked at the last check,
+    /// those written since, and every slot of a region that is new. Any
+    /// other slot is as the last check saw it, empty and unlinked, which
+    /// passes.
+    fn slots_to_check(&self) -> Vec<Slot> {
+        let regions = self.slot_regions();
+        let dirty = self.s.mem.take_dirty();
+        let mut w = self.s.mem.watch.lock().unwrap();
+        let inside = |a: &u64| regions.iter().any(|&(b, n)| *a >= b && *a < b + n);
+        let mut v: Vec<u64> = w.live.iter().chain(&dirty).copied().filter(inside).collect();
+        for &(b, n) in &regions {
+            if !w.regions.contains(&(b, n)) {
+                v.extend((b..b + n).step_by(layout::cte::SIZE as usize));
+            }
+        }
+        w.regions = regions;
+        v.sort_unstable();
+        v.dedup();
+        v.into_iter().map(Slot).collect()
+    }
+
     /// The CDT is a well-formed doubly linked list, and empty slots are
     /// off it.
-    fn check_cdt(&self, what: &str) {
+    fn check_cdt(&self, what: &str, slots: &[Slot]) {
         let s = &self.s;
-        for sl in self.slots() {
+        for &sl in slots {
             let c = sl.cap(s);
             let (p, n) = (sl.prev(s), sl.next(s));
             if c.is_null() {
@@ -1527,12 +1684,12 @@ impl Sim {
     /// (`ordered_disjoint`), none empty and none running past the end of
     /// time (`no_overflow`), totalling at most the period, with the last
     /// starting within a period of the head (`window`).
-    fn check_refills(&self, what: &str) {
+    fn check_refills(&self, what: &str, slots: &[Slot]) {
         use fl4_core::sporadic;
         let s = &self.s;
         let min_budget = 2 * 10 * TICKS_PER_US;
         let mut seen = HashSet::new();
-        for sl in self.slots() {
+        for &sl in slots {
             let Cap::SchedContext { ptr, size_bits } = sl.cap(s) else { continue };
             if !seen.insert(ptr) {
                 continue;
@@ -1697,9 +1854,16 @@ impl Sim {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool, pct: Option<u64>, tso: bool, switches: Option<Vec<u64>>, scenario: Option<&str>) {
-    let mut sim = Sim::new(seed, ncores);
+/// A simulator with `ncores` cores, booted.
+fn booted(ncores: u64) -> Sim {
+    let mut sim = Sim::new(BOOT_SEED, ncores);
     sim.boot();
+    sim
+}
+
+/// One run from `sim`, booted with `ncores` cores.
+fn run_one(mut sim: Sim, seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool, pct: Option<u64>, tso: bool, switches: Option<Vec<u64>>, scenario: Option<&str>) {
+    sim.a.m.lock().unwrap().rng = Rng(seed_rng(seed));
     sim.setup();
     sim.focus = match scenario {
         // An endpoint other than the workers' fault endpoint.
@@ -1731,16 +1895,19 @@ fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool, 
         }
     }
     if concurrent && ncores > 1 {
-        // One host thread per core, interleaved at memory accesses.
+        // One coroutine per core, interleaved at memory accesses.
         let conc = Arc::new(Conc::new(ncores, seed, pct.map(|d| (d, steps * 50)), tso, switches.clone()));
         sim.s.conc = Some(conc.clone());
         sim.a.conc = Some(conc.clone());
         let per_core = steps / ncores;
-        let threads: Vec<_> = (0..ncores)
+        YIELDERS.with(|v| *v.borrow_mut() = vec![std::ptr::null(); ncores as usize]);
+        let mut cores: Vec<Option<Coroutine<(), (), (), DefaultStack>>> = (0..ncores)
             .map(|cpu| {
                 let mut core_sim = sim.clone();
                 let conc = conc.clone();
-                std::thread::spawn(move || {
+                let stack = DefaultStack::new(16 << 20).unwrap();
+                Some(Coroutine::with_stack(stack, move |y: &Yielder<(), ()>, ()| {
+                    YIELDERS.with(|v| v.borrow_mut()[cpu as usize] = y);
                     core_sim.on(cpu);
                     conc.start(cpu);
                     for _ in 0..per_core {
@@ -1759,12 +1926,15 @@ fn run_one(seed: u64, ncores: u64, steps: u64, verbose: bool, concurrent: bool, 
                         conc.relax(cpu);
                     }
                     conc.finish(cpu);
-                })
+                }))
             })
             .collect();
-        for t in threads {
-            if t.join().is_err() {
-                std::process::exit(101);
+        // Run whichever core has the turn until every core has finished.
+        while cores.iter().any(Option::is_some) {
+            let t = conc.baton.lock().unwrap().turn as usize;
+            let c = cores[t].as_mut().expect("fl4-sim: the turn passed to a finished core");
+            if let CoroutineResult::Return(()) = c.resume(()) {
+                cores[t] = None;
             }
         }
         sim.s.conc = None;
@@ -1806,6 +1976,23 @@ struct Run {
     pct: Option<u64>,
     tso: bool,
     scenario: Option<String>,
+    /// `--explore`: the scheduling points at which to preempt.
+    switches: Option<Vec<u64>>,
+}
+
+/// How a run ended.
+struct Outcome {
+    /// Why it failed, if it did.
+    failure: Option<String>,
+    stdout: String,
+}
+
+/// A run going on in a child process.
+struct Child {
+    pid: libc::pid_t,
+    out: std::fs::File,
+    err: std::fs::File,
+    deadline: std::time::Instant,
 }
 
 impl Run {
@@ -1829,49 +2016,47 @@ impl Run {
     }
 
     /// Run in a child process (the kernel crates build with panic = abort,
-    /// so a failed oracle aborts only the child). Returns why it failed.
-    fn exec(&self, timeout: u64, verbose: bool) -> Option<String> {
-        let me = std::env::current_exe().unwrap();
-        let mut child = std::process::Command::new(&me)
-            .args(self.args())
-            .args(if verbose { vec!["--verbose"] } else { vec![] })
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .unwrap();
-        // A run that never ends is a hang (deadlock or livelock) and fails.
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout);
-        let hung = loop {
-            if child.try_wait().unwrap().is_some() {
-                break false;
-            }
-            if std::time::Instant::now() > deadline {
-                let _ = child.kill();
-                break true;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
+    /// so a failed oracle aborts only the child): a fork of this one, which
+    /// goes on from the one of `bases` booted with the run's core count, or
+    /// boots if there is none. The caller must be single-threaded.
+    fn spawn(&self, bases: &[Sim], timeout: u64) -> Child {
+        let memfd = |name: &std::ffi::CStr| -> std::fs::File {
+            use std::os::fd::FromRawFd;
+            let fd = unsafe { libc::memfd_create(name.as_ptr(), 0) };
+            assert!(fd >= 0, "fl4-sim: memfd_create failed");
+            unsafe { std::fs::File::from_raw_fd(fd) }
         };
-        let out = child.wait_with_output().unwrap();
-        if verbose {
-            print!("{}", String::from_utf8_lossy(&out.stdout));
+        let (out, err) = (memfd(c"fl4-sim-out"), memfd(c"fl4-sim-err"));
+        use std::io::Write;
+        let _ = std::io::stdout().flush();
+        let pid = unsafe { libc::fork() };
+        assert!(pid >= 0, "fl4-sim: fork failed");
+        if pid == 0 {
+            use std::os::fd::AsRawFd;
+            unsafe {
+                libc::dup2(out.as_raw_fd(), 1);
+                libc::dup2(err.as_raw_fd(), 2);
+            }
+            let sim = bases.iter().find(|b| b.ncores == self.cores).cloned().unwrap_or_else(|| booted(self.cores));
+            run_one(sim, self.seed, self.cores, self.steps, VERBOSE.load(Ordering::Relaxed), self.conc || self.tso || self.switches.is_some(), self.pct, self.tso, self.switches.clone(), self.scenario.as_deref());
+            let _ = std::io::stdout().flush();
+            unsafe { libc::_exit(0) };
         }
-        if hung {
-            return Some(format!("no progress after {timeout} s"));
-        }
-        if out.status.success() {
-            return None;
-        }
-        let err = String::from_utf8_lossy(&out.stderr);
-        Some(err.lines().find(|l| !l.is_empty() && !l.starts_with("thread") && !l.starts_with("note:")).unwrap_or("").to_string())
+        Child { pid, out, err, deadline: std::time::Instant::now() + std::time::Duration::from_secs(timeout) }
+    }
+
+    /// Run in a child process and wait for it.
+    fn exec(&self, bases: &[Sim], timeout: u64) -> Outcome {
+        run_all(bases, std::slice::from_ref(self), timeout, 1).pop().unwrap()
     }
 
     /// The shortest run of the same seed that still fails: a prefix of
     /// the failing run, which ends at the failure.
-    fn shrink(&self, timeout: u64) -> Run {
+    fn shrink(&self, bases: &[Sim], timeout: u64) -> Run {
         let (mut lo, mut hi) = (0, self.steps);
         while lo + 1 < hi {
             let mid = (lo + hi) / 2;
-            if (Run { steps: mid, ..self.clone() }).exec(timeout, false).is_some() {
+            if (Run { steps: mid, ..self.clone() }).exec(bases, timeout).failure.is_some() {
                 hi = mid;
             } else {
                 lo = mid;
@@ -1897,104 +2082,224 @@ impl Run {
             pct: f[4].strip_prefix("pct").and_then(|d| d.parse().ok()),
             tso: f[3] == "tso",
             scenario: f.get(5).map(|s| s.to_string()),
+            switches: None,
         })
     }
 }
 
-/// Bounded exhaustive search (DESIGN.md §10): every schedule of `seed`'s
-/// small scenario with at most `bound` preemptions at runtime atomics.
-fn explore(bound: u64, seed: u64, cores: u64, steps: u64, max_runs: u64, timeout: u64) {
-    let me = std::env::current_exe().unwrap();
-    let run = |sw: &[u64]| -> (bool, String) {
-        let list = if sw.is_empty() { "none".to_string() } else { sw.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",") };
-        let mut child = std::process::Command::new(&me)
-            .args(["--one", &seed.to_string(), "--cores", &cores.to_string(), "--steps", &steps.to_string(), "--switches", &list])
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .unwrap();
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout);
-        loop {
-            if child.try_wait().unwrap().is_some() {
-                break;
+impl Child {
+    /// Whether it has ended (or hung, and has been killed), and how.
+    fn poll(&mut self, timeout: u64) -> Option<Outcome> {
+        let mut status = 0;
+        let hung = match unsafe { libc::waitpid(self.pid, &mut status, libc::WNOHANG) } {
+            0 if std::time::Instant::now() > self.deadline => {
+                // A run that never ends is a hang (deadlock or livelock).
+                unsafe {
+                    libc::kill(self.pid, libc::SIGKILL);
+                    libc::waitpid(self.pid, &mut status, 0);
+                }
+                true
             }
-            if std::time::Instant::now() > deadline {
-                let _ = child.kill();
-                return (false, format!("switches {list}: no progress after {timeout} s"));
-            }
-            std::thread::sleep(std::time::Duration::from_millis(2));
-        }
-        let out = child.wait_with_output().unwrap();
-        let text = String::from_utf8_lossy(&out.stdout).to_string();
-        if out.status.success() {
-            (true, text)
+            0 => return None,
+            _ => false,
+        };
+        let text = |f: &mut std::fs::File| {
+            use std::io::{Read, Seek};
+            let mut t = String::new();
+            f.seek(std::io::SeekFrom::Start(0)).unwrap();
+            let mut b = Vec::new();
+            f.read_to_end(&mut b).unwrap();
+            t.push_str(&String::from_utf8_lossy(&b));
+            t
+        };
+        let stdout = text(&mut self.out);
+        let failure = if hung {
+            Some(format!("no progress after {timeout} s"))
+        } else if libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == 0 {
+            None
         } else {
-            let err = String::from_utf8_lossy(&out.stderr);
-            (false, format!("switches {list}: {}", err.lines().find(|l| !l.is_empty() && !l.starts_with("thread") && !l.starts_with("note:")).unwrap_or("")))
-        }
-    };
-    let (ok, out) = run(&[]);
-    if !ok {
-        println!("fl4-sim: explore: the unpreempted schedule fails: {out}");
-        std::process::exit(1);
-    }
-    let points: u64 = out.lines().find_map(|l| l.strip_prefix("explore: ")?.strip_suffix(" points")?.parse().ok()).unwrap();
-    // All sets of at most `bound` preemption points, smallest first.
-    fn next(set: &mut [u64], n: u64) -> bool {
-        // The next combination of 0..n in lexicographic order.
-        let k = set.len();
-        let mut i = k;
-        while i > 0 {
-            i -= 1;
-            if set[i] < n - (k - i) as u64 {
-                set[i] += 1;
-                for j in i + 1..k {
-                    set[j] = set[j - 1] + 1;
-                }
-                return true;
-            }
-        }
-        false
-    }
-    let mut sets: Vec<Vec<u64>> = Vec::new();
-    'outer: for k in 1..=(bound.min(points)) as usize {
-        let mut set: Vec<u64> = (0..k as u64).collect();
-        loop {
-            if sets.len() as u64 == max_runs {
-                println!("fl4-sim: explore: stopped at --max-runs {max_runs}");
-                break 'outer;
-            }
-            sets.push(set.clone());
-            if !next(&mut set, points) {
-                break;
-            }
-        }
-    }
-    let runs = sets.len() as u64;
-    let jobs = std::thread::available_parallelism().map_or(4, |n| n.get()).max(2) / 2;
-    let work = Mutex::new(sets.into_iter());
-    let failures = Mutex::new(Vec::new());
-    std::thread::scope(|sc| {
-        for _ in 0..jobs {
-            sc.spawn(|| loop {
-                let Some(set) = work.lock().unwrap().next() else { break };
-                let (ok, why) = run(&set);
-                if !ok {
-                    failures.lock().unwrap().push(why);
-                }
-            });
-        }
-    });
-    let failures = failures.into_inner().unwrap();
-    for f in failures.iter().take(20) {
-        println!("fl4-sim: explore: seed {seed}: {f}");
-    }
-    let failed = failures.len();
-    println!("fl4-sim: explore: seed {seed}, {cores} cores, {steps} steps, {points} scheduling points, preemption bound {bound}: {runs} schedules, {failed} failed");
-    if failed > 0 {
-        std::process::exit(1);
+            let err = text(&mut self.err);
+            Some(err.lines().find(|l| !l.is_empty() && !l.starts_with("thread") && !l.starts_with("note:")).unwrap_or("").to_string())
+        };
+        Some(Outcome { failure, stdout })
     }
 }
+
+/// Every run, `jobs` at a time, each in a child process forked from this
+/// one (`Run::spawn`); the outcomes in the order of `runs`.
+fn run_all(bases: &[Sim], runs: &[Run], timeout: u64, jobs: usize) -> Vec<Outcome> {
+    let mut outcomes: Vec<Option<Outcome>> = runs.iter().map(|_| None).collect();
+    let mut live: Vec<(usize, Child)> = Vec::new();
+    let mut next = 0;
+    while next < runs.len() || !live.is_empty() {
+        while live.len() < jobs && next < runs.len() {
+            live.push((next, runs[next].spawn(bases, timeout)));
+            next += 1;
+        }
+        let before = live.len();
+        live.retain_mut(|(i, c)| match c.poll(timeout) {
+            Some(o) => {
+                outcomes[*i] = Some(o);
+                false
+            }
+            None => true,
+        });
+        if live.len() == before {
+            std::thread::sleep(std::time::Duration::from_micros(200));
+        }
+    }
+    outcomes.into_iter().map(Option::unwrap).collect()
+}
+
+/// One child process per host CPU.
+fn host_jobs() -> usize {
+    std::thread::available_parallelism().map_or(4, |n| n.get())
+}
+
+/// Bounded exhaustive search (DESIGN.md §10): every schedule of `seed`'s
+/// small scenario with at most `bound` preemptions at runtime atomics.
+struct Search {
+    seed: u64,
+    cores: u64,
+    steps: u64,
+    bound: u64,
+    max_runs: u64,
+}
+
+impl Search {
+    fn run(&self, switches: Vec<u64>) -> Run {
+        Run { seed: self.seed, cores: self.cores, steps: self.steps, conc: true, pct: None, tso: false, scenario: None, switches: Some(switches) }
+    }
+
+    /// The scheduling points of the unpreempted schedule, from its run.
+    fn points(&self, o: &Outcome) -> u64 {
+        if let Some(why) = &o.failure {
+            println!("fl4-sim: explore: seed {}: the unpreempted schedule fails: {why}", self.seed);
+            std::process::exit(1);
+        }
+        o.stdout.lines().find_map(|l| l.strip_prefix("explore: ")?.strip_suffix(" points")?.parse().ok()).unwrap()
+    }
+
+    /// All runs with at most `bound` of the `points` preempted, fewest
+    /// first.
+    fn runs(&self, points: u64) -> Vec<Run> {
+        fn next(set: &mut [u64], n: u64) -> bool {
+            // The next combination of 0..n in lexicographic order.
+            let k = set.len();
+            let mut i = k;
+            while i > 0 {
+                i -= 1;
+                if set[i] < n - (k - i) as u64 {
+                    set[i] += 1;
+                    for j in i + 1..k {
+                        set[j] = set[j - 1] + 1;
+                    }
+                    return true;
+                }
+            }
+            false
+        }
+        let mut runs = Vec::new();
+        for k in 1..=(self.bound.min(points)) as usize {
+            let mut set: Vec<u64> = (0..k as u64).collect();
+            loop {
+                if runs.len() as u64 == self.max_runs {
+                    println!("fl4-sim: explore: seed {}: stopped at --max-runs {}", self.seed, self.max_runs);
+                    return runs;
+                }
+                runs.push(self.run(set.clone()));
+                if !next(&mut set, points) {
+                    break;
+                }
+            }
+        }
+        runs
+    }
+
+    /// Prints the result; whether every schedule passed.
+    fn report(&self, points: u64, runs: &[Run], outcomes: &[Outcome]) -> bool {
+        let list = |sw: &[u64]| sw.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
+        let failures: Vec<String> = runs.iter().zip(outcomes).filter_map(|(r, o)| o.failure.as_ref().map(|why| format!("switches {}: {why}", list(r.switches.as_deref().unwrap())))).collect();
+        for f in failures.iter().take(20) {
+            println!("fl4-sim: explore: seed {}: {f}", self.seed);
+        }
+        println!(
+            "fl4-sim: explore: seed {}, {} cores, {} steps, {points} scheduling points, preemption bound {}: {} schedules, {} failed",
+            self.seed,
+            self.cores,
+            self.steps,
+            self.bound,
+            runs.len(),
+            failures.len()
+        );
+        failures.is_empty()
+    }
+}
+
+/// A campaign: seeds `first..first + seeds` of one configuration.
+struct Campaign {
+    seeds: u64,
+    first: u64,
+    cores: u64,
+    steps: u64,
+    conc: bool,
+    pct: Option<u64>,
+    tso: bool,
+    scenario: Option<String>,
+}
+
+impl Campaign {
+    fn runs(&self) -> Vec<Run> {
+        (self.first..self.first + self.seeds)
+            .map(|seed| Run { seed, cores: self.cores, steps: self.steps, conc: self.conc || self.tso, pct: self.pct, tso: self.tso, scenario: self.scenario.clone(), switches: None })
+            .collect()
+    }
+
+    /// Prints the result, shrinking each failing run (and recording it with
+    /// `record`); the number that failed.
+    fn report(&self, runs: &[Run], outcomes: &[Outcome], bases: &[Sim], timeout: u64, shrink: bool, record: bool) -> usize {
+        let mut failed = 0;
+        for (r, o) in runs.iter().zip(outcomes) {
+            let Some(why) = &o.failure else { continue };
+            failed += 1;
+            println!("fl4-sim: seed {} ({} cores) failed: {why}", r.seed, r.cores);
+            if !shrink {
+                continue;
+            }
+            let small = r.shrink(bases, timeout);
+            println!("fl4-sim: shrunk to {} steps; replay with: fl4-sim {}", small.steps, small.args().join(" "));
+            if record {
+                use std::io::Write;
+                let mut f = std::fs::OpenOptions::new().create(true).append(true).open(REGRESSIONS).unwrap();
+                writeln!(f, "{}", small.line()).unwrap();
+            }
+        }
+        let mode = if self.tso { "tso" } else if self.conc { "conc" } else { "serial" };
+        let extra = self.pct.map_or(String::new(), |d| format!(", PCT depth {d}"))
+            + &self.scenario.as_ref().map_or(String::new(), |s| format!(", scenario {s}"))
+            + if cfg!(feature = "serial-gate") { ", every entry under the serial gate" } else { "" };
+        println!("fl4-sim: {} seeds, {} cores, {} steps each, {mode}{extra}: {failed} failed", self.seeds, self.cores, self.steps);
+        failed
+    }
+}
+
+/// The regressions, replayed first; the number that failed.
+fn regressions(bases: &[Sim], timeout: u64, jobs: usize) -> usize {
+    let known: Vec<Run> = std::fs::read_to_string(REGRESSIONS).unwrap_or_default().lines().filter_map(Run::parse).collect();
+    let outcomes = run_all(bases, &known, timeout, jobs);
+    let mut failed = 0;
+    for (r, o) in known.iter().zip(&outcomes) {
+        if let Some(why) = &o.failure {
+            failed += 1;
+            println!("fl4-sim: regression {} failed: {why}", r.line());
+        }
+    }
+    println!("fl4-sim: {} regressions: {failed} failed", known.len());
+    failed
+}
+
+/// `--verbose` on a campaign: its runs print what they do.
+static VERBOSE: AtomicBool = AtomicBool::new(false);
 
 /// Failing runs, shrunk, that every campaign replays first (DESIGN.md §10).
 const REGRESSIONS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/regressions");
@@ -2017,45 +2322,75 @@ fn main() {
             args[i + 1].split(',').filter(|s| !s.is_empty() && *s != "none").map(|s| s.parse().unwrap()).collect::<Vec<u64>>()
         });
         let scenario = args.iter().position(|a| a == "--scenario").map(|i| args[i + 1].as_str());
-        run_one(seed, cores, steps, verbose, conc || tso || switches.is_some(), pct, tso, switches, scenario);
+        run_one(booted(cores), seed, cores, steps, verbose, conc || tso || switches.is_some(), pct, tso, switches, scenario);
         return;
     }
+    let jobs = if verbose { 1 } else { opt("--jobs", host_jobs() as u64) as usize };
     if let Some(i) = args.iter().position(|a| a == "--explore") {
-        explore(args[i + 1].parse().unwrap(), opt("--first", 1), cores, steps, opt("--max-runs", 50_000), opt("--timeout", 60));
+        let e = Search { seed: opt("--first", 1), cores, steps, bound: args[i + 1].parse().unwrap(), max_runs: opt("--max-runs", 50_000) };
+        let timeout = opt("--timeout", 60);
+        let bases = [booted(cores)];
+        let points = e.points(&e.run(Vec::new()).exec(&bases, timeout));
+        let runs = e.runs(points);
+        let outcomes = run_all(&bases, &runs, timeout, jobs);
+        if !e.report(points, &runs, &outcomes) {
+            std::process::exit(1);
+        }
         return;
     }
     let seeds = opt("--seeds", 100);
     let first = opt("--first", 1);
     let timeout = opt("--timeout", 120);
     let record = args.iter().any(|a| a == "--record");
-    let mut failed = 0;
-    // Regressions first, whatever this campaign's settings.
-    let known: Vec<Run> = std::fs::read_to_string(REGRESSIONS).unwrap_or_default().lines().filter_map(Run::parse).collect();
-    for r in &known {
-        if let Some(why) = r.exec(timeout, verbose) {
-            failed += 1;
-            println!("fl4-sim: regression {} failed: {why}", r.line());
+    let shrink = !args.iter().any(|a| a == "--no-shrink");
+    VERBOSE.store(verbose, Ordering::Relaxed);
+    let scenario = args.iter().position(|a| a == "--scenario").map(|i| args[i + 1].clone());
+    // `--suite`: every campaign of `cargo xtask sim` (DESIGN.md §10) in one
+    // pool of child processes, so no campaign waits for another's slowest
+    // run. Otherwise the one campaign the options describe.
+    let suite = args.iter().any(|a| a == "--suite");
+    let c = |steps, conc, pct, tso, scenario: Option<&str>, seeds| Campaign { seeds, first, cores, steps, conc, pct, tso, scenario: scenario.map(String::from) };
+    let quarter = (seeds / 4).max(1);
+    let campaigns = if suite {
+        vec![
+            c(20000, false, None, false, None, seeds),
+            c(8000, true, None, false, None, seeds),
+            c(8000, true, Some(3), false, None, seeds),
+            c(8000, false, None, true, None, seeds),
+            // Targeted races: most calls on one endpoint or notification
+            // while the root task deletes and recreates it.
+            c(8000, true, None, false, Some("ep"), quarter),
+            c(8000, false, None, true, Some("ep"), quarter),
+            c(8000, true, None, false, Some("ntfn"), quarter),
+            c(8000, false, None, true, Some("ntfn"), quarter),
+        ]
+    } else {
+        vec![c(steps, conc, pct, tso, scenario.as_deref(), seeds)]
+    };
+    // Every schedule with one preemption at a runtime atomic, for small
+    // two-core scenarios.
+    let explores: Vec<Search> = if suite { (1..=4).map(|seed| Search { seed, cores: 2, steps: 6, bound: 1, max_runs: 50_000 }).collect() } else { Vec::new() };
+    let bases = [booted(cores), booted(2)];
+    let mut failed = regressions(&bases, timeout, jobs);
+    let firsts: Vec<Run> = explores.iter().map(|e| e.run(Vec::new())).collect();
+    let points: Vec<u64> = explores.iter().zip(run_all(&bases, &firsts, timeout, jobs)).map(|(e, o)| e.points(&o)).collect();
+    let groups: Vec<Vec<Run>> = campaigns.iter().map(Campaign::runs).chain(explores.iter().zip(&points).map(|(e, &p)| e.runs(p))).collect();
+    let all: Vec<Run> = groups.iter().flatten().cloned().collect();
+    let outcomes = run_all(&bases, &all, timeout, jobs);
+    if verbose {
+        for o in &outcomes {
+            print!("{}", o.stdout);
         }
     }
-    for seed in first..first + seeds {
-        let scenario = args.iter().position(|a| a == "--scenario").map(|i| args[i + 1].clone());
-        let r = Run { seed, cores, steps, conc: conc || tso, pct, tso, scenario };
-        if let Some(why) = r.exec(timeout, verbose) {
+    let mut outcomes = outcomes.into_iter();
+    for (k, runs) in groups.iter().enumerate() {
+        let o: Vec<Outcome> = outcomes.by_ref().take(runs.len()).collect();
+        if k < campaigns.len() {
+            failed += campaigns[k].report(runs, &o, &bases, timeout, shrink, record);
+        } else if !explores[k - campaigns.len()].report(points[k - campaigns.len()], runs, &o) {
             failed += 1;
-            println!("fl4-sim: seed {seed} ({cores} cores) failed: {why}");
-            if args.iter().any(|a| a == "--no-shrink") {
-                continue;
-            }
-            let small = r.shrink(timeout);
-            println!("fl4-sim: shrunk to {} steps; replay with: fl4-sim {}", small.steps, small.args().join(" "));
-            if record {
-                use std::io::Write;
-                let mut f = std::fs::OpenOptions::new().create(true).append(true).open(REGRESSIONS).unwrap();
-                writeln!(f, "{}", small.line()).unwrap();
-            }
         }
     }
-    println!("fl4-sim: {} regressions, {seeds} seeds, {cores} cores, {steps} steps each{}: {failed} failed", known.len(), pct.map_or(String::new(), |d| format!(", PCT depth {d}")));
     if failed > 0 {
         std::process::exit(1);
     }
