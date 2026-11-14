@@ -9,12 +9,15 @@ P3 (DESIGN.md §9), scheduling contexts: **`SchedTailHyp` discharged**
   conditions carried by `CaiFr` (`conds_caifr`), then `schedTail_foot`.
 * The spec: `SpecPost` after the restart (`specPost_restart`, from `Inv`
   and the decoder's checks `ScDec`), then across the install: `install_sk`
-  when the old cap is null or a non-final endpoint cap, `FinEpSpecHyp` (the
-  one named hypothesis: what `cancel_all_ipc` of a final endpoint cap
+  when the old cap is null or a non-final endpoint cap, `finEpSpecHyp`
+  (proved from ScCancelFrame's `capDelete_ep_post`: what `cancel_all_ipc`
   keeps) when it is a final one; then `set_mcpriority`, `set_priority` and
   the SC step as in `schedTailHyp_of`/`scSpecHyp_of`/`bindSpecHyp_of`.
+* `hRT_of`, `hRS_of`: the FL4/spec agreement on the target and the SCs from
+  `SchedRel`, `NtfnStateRel` and P1's `SCsOK`, with the placement
+  hypothesis `ScSetsHyp` (the spec's SCs are among `C` and P1's `Scs`).
 -/
-import Fl4Proofs.P3.ScInstSpec
+import Fl4Proofs.P3.ScCancelFrame
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Sched
@@ -25,8 +28,8 @@ noncomputable section
 section Spec
 open Fl4Spec
 
-/-- **Hypothesis: the spec's fault-handler install over a final endpoint
-cap keeps `SpecPost`** (its `cap_delete` runs `cancel_all_ipc`: the
+/-- **The spec's fault-handler install over a final endpoint cap keeps
+`SpecPost`** (proved: `finEpSpecHyp`) (its `cap_delete` runs `cancel_all_ipc`: the
 endpoint's waiters restarted and enqueued if schedulable, a reschedule;
 the target's SC links, the SCs and the other endpoints and notifications
 are kept, and a target with no SC is not enqueued). -/
@@ -37,6 +40,30 @@ def FinEpSpecHyp : Prop :=
     isFinalCap' x.tcbFaultHandler σ1 →
     (.ok (), σ2) ∈ ((installTcbCap (Z := Unit) p ssl 3 (some fh)).run σ1).1 →
     SpecPost σ1 p sco → SpecPost σ2 p sco
+
+/-- **`FinEpSpecHyp` holds** (the old cap need not be final: `capDelete_ep_post`
+for the delete, `SK` for the checks and the insert). -/
+theorem finEpSpecHyp : FinEpSpecHyp := by
+  intro σ1 σ2 p x ssl fh sco hk ⟨e, b, R, hfe⟩ _ hx hpost
+  obtain ⟨nc, sl⟩ := fh
+  unfold installTcbCap at hx
+  dsimp only at hx
+  obtain ⟨z, hz, ⟨a, ha, hx⟩ | ⟨e', he, hx⟩⟩ := bindE_mem_inv hx
+  · have hg : getCap (Z := Unit) (p, tcbCnodeIndex 3) σ1 = ({(.endpointCap e b R, σ1)}, False) := by
+      rw [getCap_tcb_three hk, hfe]
+    have hz' : (.ok (), z.2) ∈ ((capDelete (Z := Unit) (p, tcbCnodeIndex 3)).run σ1).1 := by
+      have : z = (.ok (), z.2) := by obtain ⟨r, s⟩ := z; simp only at ha; subst ha; rfl
+      rw [← this]; exact hz
+    have hP := capDelete_ep_post hg hz' p sco hpost
+    unfold NonDetE.unlessE at hx
+    split at hx
+    · have hx' : ((.ok (), σ2) : Except Unit Unit × State Unit) ∈ ({(.ok (), z.2)} : Set _) := hx
+      rw [(Prod.mk.inj (Set.mem_singleton_iff.1 hx')).2]; exact hP
+    · obtain ⟨w, hw, ew⟩ := liftE_mem_inv hx
+      simp only at ew
+      rw [ew]
+      exact hP.sk (psk_checkCapAt _ _ (psk_checkCapAt _ _ (psk_capInsert _ _ _)) z.2 w hw)
+  · cases hx
 
 end Spec
 
@@ -119,8 +146,8 @@ conditions carried by `conds_caifr`) and `schedTail_foot`; the spec by
 action `RESUME`, `KWOut`), the placement `SlotCapW`, the fault-handler
 slots `FhSlotHyp`; the FL4/spec agreement on the target's SC and blocking
 and the SCs' membership, `TCB` and activity (`hRT`, `hRS`, from the
-scheduler relations); the spec's `Inv`, the caller runnable, `BlkQ`; and
-`FinEpSpecHyp`. -/
+scheduler relations: `hRT_of`, `hRS_of`); the spec's `Inv`, the caller
+runnable, `BlkQ` and `BlkIn`. -/
 theorem schedTailHyp_disch (hA : P0.ArchTotal arI) (th : TypedHeap) (hP : Placed th)
     (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
@@ -137,8 +164,8 @@ theorem schedTailHyp_disch (hA : P0.ArchTotal arI) (th : TypedHeap) (hP : Placed
     (hRS : ∀ (c : U64) y n, c ≠ 0#u64 → σ.kheap c.bv = some (.schedContext y n) →
       c ∈ Scs ∧ (y.scTcb = none → L.mem s (scTcbA c) = 0#u64) ∧ (Fl4Spec.scReleased σ.curTime y = true → c ∈ Ac))
     (hInv : Inv σ) (hrun : ∀ xc, σ.kheap ct.bv = some (.tcb xc) → Fl4Spec.runnable xc.tcbState = true)
-    (hQ : ∀ q x, th q = some .tcb → σ.kheap q.bv = some (.tcb x) → BlkQ σ q.bv x.tcbState)
-    (hFin : FinEpSpecHyp) :
+    (hQ : ∀ q x, th q = some .tcb → σ.kheap q.bv = some (.tcb x) →
+      BlkQ σ q.bv x.tcbState ∧ BlkIn σ q.bv x.tcbState) :
     SchedTailHyp (L := L) arI th s σ ct := by
   intro s1 σ1 a p mcp prio scv x2 scf ssl fh q sco s2 a1 σ2 G2 hs1 hst1 hp hm hpr h1 h2 h3 hD hpI hx2 hins hx hDS2
   have ect : ct = L.curW s := by
@@ -227,12 +254,12 @@ theorem schedTailHyp_disch (hA : P0.ArchTotal arI) (th : TypedHeap) (hP : Placed
     rcases hcap1 with hc0 | ⟨ep, b0, b1, b2, b3, b4, hce, -⟩
     · exact hpost.sk (install_sk hk1' ssl fh (Or.inl (by rw [hfc, hc0]; rfl)) hx)
     · by_cases hfin : Fl4Spec.isFinalCap' x1.tcbFaultHandler σ1
-      · exact hFin σ1 σ2 p.bv x1 ssl fh sco hk1' ⟨_, _, _, by rw [hfc, hce]; rfl⟩ hfin hx hpost
+      · exact finEpSpecHyp σ1 σ2 p.bv x1 ssl fh sco hk1' ⟨_, _, _, by rw [hfc, hce]; rfl⟩ hfin hx hpost
       · refine hpost.sk (install_sk hk1' ssl fh (Or.inr ⟨by rw [hfc, hce]; simp [absCap], c, hfc,
           by rw [hce]; simp, ?_⟩) hx)
         rw [hce]
         exact ⟨rfl, by rw [← hce, ← hfc]; exact hfin⟩
-  obtain ⟨x, hk2, hA2, hQ2, hU2, hB2⟩ := hpost2 hpost1
+  obtain ⟨x, hk2, hA2, hQ2, -, hU2, hB2⟩ := hpost2 hpost1
   -- `set_mcpriority`, `set_priority`, the SC step
   set σa := Notif.updK σ2 p.bv (.tcb { x with tcbMcpriority := Fl4Spec.ucast 8 mcp.bv }) with hσa
   have ha : ((), σa) ∈ (Fl4Spec.setMcpriority (Z := Unit) p.bv (Fl4Spec.ucast 8 mcp.bv) σ2).1 := by
@@ -258,6 +285,64 @@ theorem schedTailHyp_disch (hA : P0.ArchTotal arI) (th : TypedHeap) (hP : Placed
   refine WP.spec_mono (schedTail_foot arI hA s2 a1 p mcp prio scv scf hb2 hpT hpr hcur2 hbind2 hunb2) ?_
   rintro r ⟨-, hF, hr⟩
   exact ⟨slotsSame_of_foot hP hK2 hF, hr, σa, σb, σc, ha, hb, hc⟩
+
+/-- **Placement hypothesis: every spec SC at a nonzero address is one of
+the scheduler relation's SCs `C` and of P1's SCs `Scs`.** -/
+def ScSetsHyp (C Scs : Set U64) (σ : Fl4Spec.State Unit) : Prop :=
+  ∀ (c : U64) y n, c ≠ 0#u64 → σ.kheap c.bv = some (.schedContext y n) → c ∈ C ∧ c ∈ Scs
+
+theorem blockedR_queued {m : U64 → U64} {t : U64} {ts : Fl4Spec.ThreadState}
+    (hst : (m (Notif.tStA t)).val = Notif.tsCode ts) (hb : BlockedR (m (P1.stA t))) :
+    Fl4Spec.ipcQueuedThreadState ts = true := by
+  have e : Notif.tStA t = P1.stA t := rfl
+  rw [e] at hst
+  obtain ⟨-, -, h3, h4, h6⟩ := Notif.tsVals
+  have h5 : sched.TS_BLOCKED_ON_REPLY = 5#u64 := by unfold sched.TS_BLOCKED_ON_REPLY; rfl
+  have hv : (m (P1.stA t)).val = 3 ∨ (m (P1.stA t)).val = 4 ∨ (m (P1.stA t)).val = 5 ∨
+      (m (P1.stA t)).val = 6 := by
+    rcases hb with (e1 | e1 | e1) | e1 <;> rw [e1] <;> simp [h3, h4, h5, h6]
+  rw [hst] at hv
+  cases ts <;> simp [Notif.tsCode] at hv <;> rfl
+
+/-- `schedTailHyp_disch`'s `hRT` from the scheduler relations. -/
+theorem hRT_of (th : TypedHeap) {N Tr C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N Tr C c s σ) (hR : Notif.NtfnStateRel N Tr (L.mem s) σ)
+    (hTr : ∀ t, th t = some .tcb → t ∈ Tr) :
+    ∀ q x, th q = some .tcb → σ.kheap q.bv = some (.tcb x) →
+      (x.tcbSchedContext = none → L.mem s (scA q) = 0#u64) ∧
+      (BlockedR (L.mem s (P1.stA q)) → Fl4Spec.ipcQueuedThreadState x.tcbState = true) := by
+  intro q x hq hk
+  obtain ⟨Q, R', -, hsL⟩ := hS.lists
+  obtain ⟨x', hk', -, -, hxts, -⟩ := hsL.tcb q (hTr q hq)
+  rw [hk] at hk'; cases hk'
+  refine ⟨fun h0 => ?_, blockedR_queued (hR.at_tcb (hTr q hq) hk).st⟩
+  by_contra hne
+  rw [Notif.optRef_ne hne, h0] at hxts; cases hxts
+
+/-- `schedTailHyp_disch`'s `hRS` from the scheduler relation, P1's `SCsOK`
+and `ScSetsHyp`. -/
+theorem hRS_of {N Tr C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N Tr C c s σ) (hb : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hG : ScSetsHyp C Scs σ) :
+    ∀ (c : U64) y n, c ≠ 0#u64 → σ.kheap c.bv = some (.schedContext y n) →
+      c ∈ Scs ∧ (y.scTcb = none → L.mem s (scTcbA c) = 0#u64) ∧
+      (Fl4Spec.scReleased σ.curTime y = true → c ∈ Ac) := by
+  intro c' y n hc0 hk
+  obtain ⟨hC, hScs⟩ := hG c' y n hc0 hk
+  obtain ⟨Q, R', -, hsL⟩ := hS.lists
+  obtain ⟨y', n', hk', hx⟩ := hsL.scs c' hC
+  rw [hk] at hk'; cases hk'
+  refine ⟨hScs, fun h0 => ?_, fun hr => ?_⟩
+  · rw [scTcbA_eq]
+    by_contra hne
+    have := hx.tcb
+    rw [Notif.optRef_ne hne, h0] at this; cases this
+  · have ha : 0 < y.scRefillMax := by
+      simp only [Fl4Spec.scReleased, Bool.and_eq_true, Fl4Spec.scActive, Fl4Spec.activeSc,
+        decide_eq_true_eq] at hr
+      exact hr.1
+    refine (hb.2.2.2.1.act c' hScs).2 fun e => ?_
+    have := hx.max
+    rw [e] at this; simp at this; omega
 
 /-- **`tcb::decode` at `TCBSetSchedParams` end to end**
 (`tcb_set_sched_params_refines` with `SchedTailHyp` by
@@ -288,21 +373,17 @@ theorem tcb_set_sched_params_refines_disch (hA : P0.ArchTotal arI) (th : TypedHe
       L.mem s (scA (L.curW s)) ∈ Ac)
     (hTh : ∀ t, th t = some .tcb → t ∈ T) (hK : KWOut (st := st) th T Cs Sg Scs Z (EH H) s)
     (hSC : SlotCapW th T Ω Sg) (hFh : FhSlotHyp (L := L) th H s) (hact0 : L.actionW s = 0#u64)
-    (hRT : ∀ q x, th q = some .tcb → σ.kheap q.bv = some (.tcb x) →
-      (x.tcbSchedContext = none → L.mem s (scA q) = 0#u64) ∧
-      (BlockedR (L.mem s (P1.stA q)) → Fl4Spec.ipcQueuedThreadState x.tcbState = true))
-    (hRS : ∀ (c : U64) y n, c ≠ 0#u64 → σ.kheap c.bv = some (.schedContext y n) →
-      c ∈ Scs ∧ (y.scTcb = none → L.mem s (scTcbA c) = 0#u64) ∧ (Fl4Spec.scReleased σ.curTime y = true → c ∈ Ac))
+    (hTr : ∀ t, th t = some .tcb → t ∈ Tr) (hG : ScSetsHyp C Scs σ)
     (hInv : Inv σ) (hrun : ∀ xc, σ.kheap ct.bv = some (.tcb xc) → Fl4Spec.runnable xc.tcbState = true)
-    (hQ : ∀ q x, th q = some .tcb → σ.kheap q.bv = some (.tcb x) → BlkQ σ q.bv x.tcbState)
-    (hFin : FinEpSpecHyp)
+    (hQ : ∀ q x, th q = some .tcb → σ.kheap q.bv = some (.tcb x) →
+      BlkQ σ q.bv x.tcbState ∧ BlkIn σ q.bv x.tcbState)
     (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     TcbOKF (L := L) arI s ar σ fl4_abi.label.TCBSetSchedParams p ⟨length, buf, call, cslotAddr ssl, extra⟩ blk
       call don slbl (args.map UScalar.bv) ci ssl excaps buffer :=
   tcb_set_sched_params_refines arI th hP hT s ar σ G hDS hFR p hp slbl hlbl length buf ct hct args hlen hargs
     hcur htcb hact hpI hstall call ssl hAs extra x0 x1 x2 hx0 hx1 hx2 excaps hX hS hR hpT hM hcapT hcapC hC0
     (schedTailHyp_disch arI hA th hP s σ G hDS ct hct hcur htcb hact hb hnb hnr hcurC hTh hK hSC hFh hact0
-      hRT hRS hInv hrun hQ hFin) blk don ci buffer
+      (hRT_of th hS hR hTr) (hRS_of hS hb hG) hInv hrun hQ) blk don ci buffer
 
 end
 

@@ -329,20 +329,28 @@ theorem SK.bindOK {σ σ' : State Unit} (h : SK σ σ') {t c : ObjRef} (hb : Bin
   obtain ⟨xu', h1', -, h2'⟩ := hv.tcb u xu h1
   exact ⟨xu', cu, yu, nu, h1', by rw [h2', h2], (hv.sc cu yu nu).2 h3, h4⟩
 
+/-- A thread blocked on an endpoint is in its queue (l4v `sym_refs`). -/
+def BlkIn (σ : State Unit) (p : ObjRef) (ts : ThreadState) : Prop :=
+  ∀ e, epBlocked ts = some e → ∃ ep, σ.kheap e = some (.endpoint ep) ∧ p ∈ ep.epQueue
+
 /-- **The spec's facts the scheduler step of SetSchedParams needs** of the
 target `p` (`schedTailHyp_of`'s `hI`, `scSpecHyp_of`'s `hS2`,
 `bindSpecHyp_of`'s `hB2`). -/
 def SpecPost (σ : State Unit) (p : ObjRef) (sco : Option (Option ObjRef)) : Prop :=
-  ∃ x, σ.kheap p = some (.tcb x) ∧ Notif.ActReady σ ∧ BlkQ σ p x.tcbState ∧
+  ∃ x, σ.kheap p = some (.tcb x) ∧ Notif.ActReady σ ∧ BlkQ σ p x.tcbState ∧ BlkIn σ p x.tcbState ∧
     (sco = some none → ∃ c y n, x.tcbSchedContext = some c ∧ σ.kheap c = some (.schedContext y n) ∧
       y.scTcb = some p) ∧
     (∀ v, sco = some (some v) → BindOK σ p v)
 
 theorem SpecPost.sk {σ σ' : State Unit} {p : ObjRef} {sco : Option (Option ObjRef)} (h : SpecPost σ p sco)
     (hs : SK σ σ') : SpecPost σ' p sco := by
-  obtain ⟨x, hk, hA, hQ, hU, hB⟩ := h
+  obtain ⟨x, hk, hA, hQ, hIn, hU, hB⟩ := h
   obtain ⟨y, hy, hst, hsc⟩ := hs.vk.tcb p x hk
-  refine ⟨y, hy, hs.vk.actReady hA, by rw [hst]; exact hs.blkQ hQ, fun e => ?_, fun v e => hs.bindOK (hB v e)⟩
+  refine ⟨y, hy, hs.vk.actReady hA, by rw [hst]; exact hs.blkQ hQ, fun e he => ?_, fun e => ?_,
+    fun v e => hs.bindOK (hB v e)⟩
+  · rw [hst] at he
+    obtain ⟨ep, hke, hm⟩ := hIn e he
+    exact ⟨ep, hs.ep _ _ hke, hm⟩
   obtain ⟨c, z, n, h1, h2, h3⟩ := hU e
   exact ⟨c, z, n, by rw [hsc, h1], (hs.vk.sc c z n).2 h2, h3⟩
 
@@ -365,18 +373,29 @@ theorem specPost_restart {σ σ1 : State Unit} (hI : Inv σ) {ct : ObjRef} {xc :
     (hkc : σ.kheap ct = some (.tcb xc)) (hrun : runnable xc.tcbState = true)
     (hst1 : setThreadState (Z := Unit) ct .restart σ = ({((), σ1)}, False))
     {p : ObjRef} {sco : Option (Option ObjRef)} (hD : ScDec σ p sco)
-    (hQ : ∀ x, σ.kheap p = some (.tcb x) → BlkQ σ p x.tcbState)
+    (hQ : ∀ x, σ.kheap p = some (.tcb x) → BlkQ σ p x.tcbState ∧ BlkIn σ p x.tcbState)
     (hpc : ∀ v, sco = some (some v) → p ≠ σ.curThread) : SpecPost σ1 p sco := by
   obtain ⟨x, hkp, hU, hB⟩ := hD
   have hk1 := restart_kheap hkc hst1
   obtain ⟨hrq1, hrl1, hct1⟩ := restart_fields hkc hst1
-  obtain ⟨x1, hkp1, hQ1⟩ := blkQ_restart hkc hst1 hkp (hQ x hkp)
+  obtain ⟨x1, hkp1, hQ1⟩ := blkQ_restart hkc hst1 hkp (hQ x hkp).1
   have hsc1 : x1.tcbSchedContext = x.tcbSchedContext := by
     rw [hk1] at hkp1
     by_cases e : p = ct
     · subst e; rw [Function.update_self] at hkp1; cases hkp1
       rw [hkc] at hkp; cases hkp; rfl
     · rw [Function.update_of_ne e, hkp] at hkp1; cases hkp1; rfl
+  have hIn1 : BlkIn σ1 p x1.tcbState := by
+    have hk1' := hkp1
+    rw [hk1] at hk1'
+    by_cases e : p = ct
+    · subst e; rw [Function.update_self] at hk1'; cases hk1'
+      intro e' he'; simp [epBlocked] at he'
+    · rw [Function.update_of_ne e, hkp] at hk1'; cases hk1'
+      intro e' he'
+      obtain ⟨ep, hke, hm⟩ := (hQ x hkp).2 e' he'
+      have hne : e' ≠ ct := by rintro rfl; rw [hkc] at hke; cases hke
+      exact ⟨ep, by rw [hk1, Function.update_of_ne hne]; exact hke, hm⟩
   have hko : ∀ q, (∀ z, σ.kheap q ≠ some (.tcb z)) → σ1.kheap q = σ.kheap q := fun q hq => by
     rw [hk1, Function.update_of_ne]; rintro rfl; exact hq xc hkc
   have hksc : ∀ q y n, σ.kheap q = some (.schedContext y n) → σ1.kheap q = some (.schedContext y n) :=
@@ -395,7 +414,7 @@ theorem specPost_restart {σ σ1 : State Unit} (hI : Inv σ) {ct : ObjRef} {xc :
     by_cases e : u = ct
     · subst e; rw [hkc] at hu; cases hu; exact ⟨{ xc with tcbState := .restart }, by rw [hk1, Function.update_self], rfl⟩
     · exact ⟨x0, by rw [hk1, Function.update_of_ne e]; exact hu, rfl⟩
-  refine ⟨x1, hkp1, hA1, hQ1, fun e => ?_, fun v e => ?_⟩
+  refine ⟨x1, hkp1, hA1, hQ1, hIn1, fun e => ?_, fun v e => ?_⟩
   · obtain ⟨-, hn⟩ := hU e
     obtain ⟨c, hc⟩ := Option.ne_none_iff_exists'.1 hn
     obtain ⟨y, n, hky, hyt⟩ := hI.back p x c hkp hc
