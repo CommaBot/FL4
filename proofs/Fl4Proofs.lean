@@ -90,3 +90,7 @@ import Fl4Proofs.P3.VsArch
 import Fl4Proofs.P3.CancelKSub
 import Fl4Proofs.P3.ResetFin
 import Fl4Proofs.P3.RetypeFresh
+import Fl4Proofs.P3.CnodeDecode
+import Fl4Proofs.P3.IrqDecode
+import Fl4Proofs.P3.IoDecode
+import Fl4Proofs.P3.IoPortTop

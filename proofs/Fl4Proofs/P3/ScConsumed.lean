@@ -43,7 +43,7 @@ theorem update_consumed_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ 
     schedcontext.update_consumed st ar s a sc ⦃ r => ∃ σ',
       Fl4Spec.schedContextUpdateConsumed (Z := Unit) sc.bv σ = ({(r.1.bv, σ')}, False) ∧
       SchedRel st N T C c r.2 σ' ∧ NtfnStateRel N T (L.mem r.2) σ' ∧ NSC N C σ' ∧ Inv σ' ∧
-      HeadKeeps σ σ' sc.bv ⦄ := by
+      HeadKeeps σ σ' sc.bv ∧ ∃ v, r.2 = L.wr s (scW sc 8#u64) v ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x, n, hk, hx⟩ := hs.scs sc hsc
   have hsp : Fl4Spec.schedContextUpdateConsumed (Z := Unit) sc.bv σ =
@@ -89,7 +89,7 @@ theorem update_consumed_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ 
     simp only [WP.spec_ok]
     obtain ⟨h1, h2, h3, h4, h5, h6⟩ := fin 0#u64 (x.scConsumed - Fl4Spec.maxTicksToUs)
       (by rw [hxc, hmax]; simp) r _ (by rw [hr, ← hmax])
-    refine ⟨_, ?_, h2, h3, h4, h5, h6⟩
+    refine ⟨_, ?_, h2, h3, h4, h5, h6, _, rfl⟩
     rw [hsp, if_pos (by rw [hxc, hmax]; exact BitVec.le_refl _)]
     exact h1
   · simp only [hge, ↓reduceIte]
@@ -99,7 +99,7 @@ theorem update_consumed_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ 
     intro r hr
     simp only [WP.spec_ok]
     obtain ⟨h1, h2, h3, h4, h5, h6⟩ := fin 0#u64 0 rfl r _ (by rw [hr, ← hxc])
-    refine ⟨_, ?_, h2, h3, h4, h5, h6⟩
+    refine ⟨_, ?_, h2, h3, h4, h5, h6, _, rfl⟩
     rw [hsp, if_neg (by rw [hxc, hmax, ← u64_le_bv]; exact hge)]
     exact h1
 

@@ -23,7 +23,9 @@ The relation (`EpStateRel T E R B m σ`, on memory `m`):
   state word 4 (`TS_BLOCKED_ON_SEND`) and block object `e`; `RecvEP q` the
   same with state 2 and state word 3 (`TS_BLOCKED_ON_RECV`);
 * every `r ∈ R` is a reply object whose `reply_tcb` is the TCB word (0 ↔
-  `None`); `reply_sc` is not related (it is the SC subsystem's call stack);
+  `None`); `reply_sc` is not related here: it is the SC subsystem's call
+  stack, related by `CallRel` (ScCall.lean) together with `sc_replies` and
+  the replies' next/prev chain;
 * every `t ∈ T` is a TCB `x` with `TcbRelE`:
   - the state word codes `tcb_state` (`tsCode`, as for notifications);
   - for `BlockedOnSend e d` / `BlockedOnReceive e r d`, the block-object word

@@ -64,6 +64,26 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
 * ScDecode: SchedControl's decode (`decode_sched_control_refines`).
 * ScNtfnBind: SchedContext `Bind`/`UnbindObject` for notifications
   (`bind_ntfn_refines`, `unbind_ntfn_refines`).
+* ScDecodeCfg: SchedControl's decode composed with `configure_flags`
+  (`decode_configure_refines`; `max_refills_cap` is the spec's `absMax`).
+* ScCall: the call-stack relation `CallRel` (`sc_replies`, `reply_sc` ↔ the
+  SC's `REPLY` word and the replies' next/prev chain, detached replies
+  closed), the replies' placement `RPlaced`; ScCallOps, ScCallFoot: its
+  frames (`SFoot`: the scheduler's writes keep the call-stack words).
+* ScCallUnbind: `Unbind`'s reply step (`unbind_reply_refines`).
+* ScDonateB: `sched_context_donate` of a bound SC (`donate_bound_refines`).
+* ScCallPush, ScCallPushRef: `reply_push`'s donation tail
+  (`push_donate_refines`: `bind_sc_reply`, `sched_context_donate`).
+* ScCallPop, ScCallPopRef: `reply_pop` (`reply_pop_refines`:
+  `reply_unlink_sc` of the head, the donation back).
+* ScCallCut, ScCallRemove: `reply_remove` (`reply_remove_refines`: the head
+  popped, a reply further down cut out with the older ones, a detached one
+  spliced out).
+* ScYield, ScYieldTo: the yield-to relation `YieldRel` (`tcb_yield_to` ↔ the
+  TCB's `YIELD_TO` word, the yield pairs), `complete_yield_to`,
+  `set_consumed` (its message writes the Ep side's `MsgOK`), SchedContext
+  `YieldTo` (`yield_to_refines`, `yieldto_invoke_refines`) and `Consumed`
+  (`sc_consumed_refines`).
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
@@ -77,3 +97,8 @@ import Fl4Proofs.P3.ScUnbind
 import Fl4Proofs.P3.ScBind
 import Fl4Proofs.P3.ScDecode
 import Fl4Proofs.P3.ScNtfnBind
+import Fl4Proofs.P3.ScDecodeCfg
+import Fl4Proofs.P3.ScCallRemove
+import Fl4Proofs.P3.ScCallPushRef
+import Fl4Proofs.P3.ScCallUnbind
+import Fl4Proofs.P3.ScYieldTo
