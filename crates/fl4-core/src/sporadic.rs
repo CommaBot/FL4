@@ -229,7 +229,11 @@ pub fn budget_check<S: Store, A: Arch>(s: &mut S, a: &A, usage_in: u64) {
     let mut fuel: u64 = WALK_FUEL;
     loop {
         let h = head(s, sc);
-        if !(h.amount <= usage && h.time < mrt) || fuel == 0 {
+        // A head with no budget takes nothing off the usage, so the loop
+        // would not end. The refill invariants rule it out; a transaction
+        // that has been doomed reads zeros until it reaches commit and
+        // retries, and must get there (GitHub issue #5).
+        if !(h.amount <= usage && h.time < mrt) || h.amount == 0 || fuel == 0 {
             break;
         }
         fuel -= 1;
