@@ -26,6 +26,9 @@ exactly three substitutions, FL4's untyped, IRQControl and arch functions:
    (`fl4Pml4FlushLabel`, `fl4DeriveSubframeLabel`,
    `fl4TestAndClearLabel`).
 
+`fl4HandleInvocation` is l4v's `handle_invocation` (Syscall_A) with this
+dispatcher.
+
 So the invocation type `Fl4Invocation` is l4v's `invocation` with
 `InvokeIRQControl` carrying `Fl4IrqControlInvocation` and
 `InvokeArchObject` carrying `Fl4ArchInvocation` (l4v's arch invocations and
@@ -206,6 +209,37 @@ def fl4PerformInvocation : Bool → Bool → Bool → Fl4Invocation → PMonad Z
     NonDetE.returnOk []
   | _, _, _, .invokeArchObject i =>
     fl4ArchPerformInvocation i
+
+/-- l4v: Syscall_A.handle_invocation, with FL4's dispatcher
+(`fl4DecodeInvocation`, `fl4PerformInvocation`). -/
+def fl4HandleInvocation (calling blocking canDonate firstPhase : Bool) (cptr : CapRef) :
+    PMonad Z Unit := do
+  let thread ← NonDetE.liftE <| NonDet.gets fun s : State Z => s.curThread
+  let info ← withoutPreemption <| getMessageInfo thread
+  syscall
+    (do
+       let (cap, slot) ← capFaultOnFailure (ofBl cptr) false <|
+                         lookupCapAndSlot thread cptr
+       let buffer ← NonDetE.liftE <| lookupIpcBuffer false thread
+       let extracaps ← lookupExtraCaps thread buffer info
+       NonDetE.returnOk (slot, cap, extracaps, buffer))
+    (fun fault => NonDet.when blocking <| handleFault thread fault)
+    (fun (slot, cap, extracaps, buffer) => do
+          let args ← NonDetE.liftE <| getMrs thread buffer info
+          fl4DecodeInvocation firstPhase info.miLabel args cptr slot cap extracaps buffer)
+    (fun err => NonDet.when calling <|
+          replyFromKernel thread <| msgFromSyscallError err)
+    (fun oper => do
+          withoutPreemption <| setThreadState thread .restart
+          let reply ← fl4PerformInvocation blocking calling canDonate oper
+          withoutPreemption <| do
+              let state ← getThreadState thread
+              match state with
+              | .restart => do
+                NonDet.when calling <|
+                  replyFromKernel thread (0, reply)
+                setThreadState thread .running
+              | _ => return ())
 
 end
 

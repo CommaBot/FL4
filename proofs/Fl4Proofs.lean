@@ -99,3 +99,5 @@ import Fl4Proofs.P3.IoDecode
 import Fl4Proofs.P3.IoPortTop
 import Fl4Proofs.P3.DecodeTop
 import Fl4Proofs.P3.DomDecode
+import Fl4Proofs.P3.DecodeTopD
+import Fl4Proofs.P3.HandleTop

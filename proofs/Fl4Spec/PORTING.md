@@ -369,6 +369,8 @@ details.
   `Fl4IrqControlInvocation` and `InvokeArchObject` an `Fl4ArchInvocation`
   (l4v's arch invocations and the l4h ones). Every other cap goes to l4v's
   decoder and invocation, unchanged.
+  `fl4HandleInvocation` is `handle_invocation` (Syscall_A) with this
+  dispatcher, unchanged otherwise.
 - **l4h label numbers.** The l4h labels are not l4v labels. The dispatcher
   numbers them after l4v's `invocation_label` enumeration (whose length is
   `fl4RemappedLabel`), in FL4's ABI order:
