@@ -112,8 +112,9 @@ def FinObjHyp (th : TypedHeap) : Prop :=
       ∃ σ' G', ((absCap r.1.1, absCap r.1.2), σ') ∈
           (Fl4Spec.finaliseCap (Z := Unit) (absCap c) (decide (Fl4Spec.isFinalCap' (absCap c) σ)) σ).1 ∧
         DState (L := L) th r.2.1 σ' G' ∧ capV (L.mem r.2.1) (cslotAddr sl) = c ∧
-        ∀ y, IsSlot th y → y ≠ cslotAddr sl → capV (L.mem r.2.1) y = capV (L.mem s) y ∨
-          (capV (L.mem r.2.1) y = .Null ∧ isZb (capV (L.mem s) y) = false) ⦄
+        (∀ y, IsSlot th y → y ≠ cslotAddr sl → capV (L.mem r.2.1) y = capV (L.mem s) y ∨
+          (capV (L.mem r.2.1) y = .Null ∧ isZb (capV (L.mem s) y) = false)) ∧
+        MdbStep (L.mem s) G (L.mem r.2.1) G' ⦄
 
 def PPHypD (th : TypedHeap) : Prop :=
   ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost), DState (L := L) th s σ G →
@@ -147,6 +148,8 @@ structure ZCond (th : TypedHeap) (mem : U64 → U64) (G : MdbGhost) (x p zt n : 
   home : HomeZ mem x → p = x
   /-- No other slot's cap names the zombie's object. -/
   zf : ∀ y, IsSlot th y → y ≠ x → p.bv ∉ Fl4Spec.objRefs (absCap (capV mem y))
+  /-- The zombie is alike the cap it replaces (the same object and range). -/
+  al : CapAlike (.Zombie p zt n) (capV mem x)
 
 theorem shl_radix {r : U64} (hr : r.val < 64) : ∃ z : U64, (1#u64 <<< (r &&& 63#u64)) = ok z ∧ z.val = 2 ^ r.val := by
   have h63 : (r &&& 63#u64).val = r.val := by
@@ -191,7 +194,8 @@ theorem cnode_zcond {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {G : MdbG
   have hslot : ∀ y, y ∈ G.chains.flatten → IsSlot th y := fun y h => ((hM.members y).1 h).1
   have hr65 : r.val ≠ 65 := by omega
   refine ⟨Or.inl (by omega), ⟨hcan, by omega⟩, Or.inr ⟨hr65, hcv, by omega⟩, ?_, by rw [hcvx]; rfl,
-    by rw [hcvx]; rfl, ?_, ?_, ?_, fun y hy hyx => final_other hR hP hxs hcx hfin (by rw [objRefs_cnode]; rfl) hy hyx⟩
+    by rw [hcvx]; rfl, ?_, ?_, ?_, fun y hy hyx => final_other hR hP hxs hcx hfin (by rw [objRefs_cnode]; rfl) hy hyx,
+    by rw [hcvx]; exact capAlike_zombie_cnode (fun e => hr65 (by rw [e, zombie_tcb_val]))⟩
   · intro y hy hyx p' zt' n' e
     rintro rfl
     exact (hfn hy hyx).2.2 zt' n' e
@@ -229,7 +233,7 @@ theorem thread_zcond {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {mem' : 
   have hslot : ∀ y, y ∈ G'.chains.flatten → IsSlot th y := fun y h => ((hM'.members y).1 h).1
   have h65 := zombie_tcb_val
   refine ⟨Or.inr h65, ⟨hcan, by omega⟩, Or.inl ⟨h65, hcv, by decide⟩, ?_, by rw [hx']; rfl,
-    by rw [hx']; rfl, ?_, ?_, ?_, fun y hy hyx => ?_⟩
+    by rw [hx']; rfl, ?_, ?_, ?_, fun y hy hyx => ?_, by rw [hx']; exact capAlike_zombie_thread⟩
   · intro y hy hyx p' zt' n' e
     rintro rfl
     rcases hch y hy hyx with h | ⟨h, -⟩

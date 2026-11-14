@@ -118,7 +118,8 @@ def EmptyPost (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) 
     capV (L.mem r.1) (cslotAddr sl) = .Null ∧
     (∀ y, IsSlot th y → y ≠ cslotAddr sl → capV (L.mem r.1) y = capV (L.mem s) y) ∧
     psiD (L.mem r.1) G' ≤ psiD (L.mem s) G ∧ (nnS G').card ≤ (nnS G).card ∧
-    (capV (L.mem s) (cslotAddr sl) ≠ .Null → (nnS G').card < (nnS G).card ∧ psiD (L.mem r.1) G' < psiD (L.mem s) G)
+    (capV (L.mem s) (cslotAddr sl) ≠ .Null → (nnS G').card < (nnS G).card ∧ psiD (L.mem r.1) G' < psiD (L.mem s) G) ∧
+    MdbStep (L.mem s) G (L.mem r.1) G'
 
 theorem DelInv.empty {th : TypedHeap} {mem mem' : U64 → U64} {G : MdbGhost} (hD : DelInv th mem)
     (hM : MdbLinks th mem G) {x : U64}
@@ -156,13 +157,16 @@ theorem empty_step (th : TypedHeap) (hP : Placed th) (hPD : PostDelHyp (L := L) 
   · subst hcn
     rw [empty_slot_null arI s a _ hc, WP.spec_ok]
     refine ⟨σ, G, ?_, ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, capV_of_capAt hc, fun _ _ _ => rfl, le_refl _, le_refl _,
-      fun h => absurd (capV_of_capAt hc) h⟩
+      fun h => absurd (capV_of_capAt hc) h, MdbStep.refl hM⟩
     rw [emptySlot_null_cap _ hg]; rfl
   have hcan : absCap c ≠ .nullCap := fun h => hcn (absCap_eq_null.1 h)
   have hsplit := empty_slot_split (st := st) arI s a (cslotAddr sl) cl (c := c) (by rw [slot_cap_eq]; exact hc) hcn
   rw [hsplit]
-  apply WP.spec_bind (empty_full_abs (ar := arI) th s a σ G hR hV hP hM hC hI hA hc hcn)
-  rintro ⟨s1, a1⟩ ⟨-, σ1, G1, hes, hR1, hV1, hM1, hC1, hI1, hG1, hcap1, hp01, hn01, hl1⟩
+  have hxm0 : cslotAddr sl ∈ G.chains.flatten := (hM.members _).2 ⟨hxs, c, hc, hcn⟩
+  apply WP.spec_bind (WP.spec_and (empty_full_abs (ar := arI) th s a σ G hR hV hP hM hC hI hA hc hcn)
+    (empty_mstep (ar := arI) hP s a G hM hxm0 hc hcn))
+  rintro ⟨s1, a1⟩ ⟨⟨-, σ1, G1, hes, hR1, hV1, hM1, hC1, hI1, hG1, hcap1, hp01, hn01, hl1⟩, hst1⟩
+  rw [← hG1] at hst1
   simp only at hes hR1 hV1 hM1 hC1 hI1 hcap1 hp01 hn01 hl1 ⊢
   have hD1 := hD.empty hM hcap1 hp01 hn01 hl1
   have hcv1 : ∀ y, IsSlot th y → capV (L.mem s1) y = if y = cslotAddr sl then .Null else capV (L.mem s) y := by
@@ -205,14 +209,14 @@ theorem empty_step (th : TypedHeap) (hP : Placed th) (hPD : PostDelHyp (L := L) 
   · subst hcln
     show (objects.post_cap_deletion st arI s1 a1 .Null) ⦃ _ ⦄
     rw [show objects.post_cap_deletion st arI s1 a1 .Null = ok (s1, a1) from rfl, WP.spec_ok]
-    refine ⟨σ1, G1, ?_, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, hx1, hoth, hps1, hcd.le, fun _ => ⟨hcd, hpslt⟩⟩
+    refine ⟨σ1, G1, ?_, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, hx1, hoth, hps1, hcd.le, fun _ => ⟨hcd, hpslt⟩, hst1⟩
     rw [hcl']; rfl
   · refine WP.spec_mono (hPD s1 a1 σ1 G1 cl ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩ hcl hcln hclw) ?_
     rintro ⟨s2, a2⟩ ⟨hS2, σ2, hpd, hCR2⟩
     simp only at hS2 hpd hCR2 ⊢
     refine ⟨σ2, G1, by rw [hcl']; exact hpd, ⟨hCR2, hD1.of_same hS2, hFI1.of_same hM1 hS2 (postCapDeletion_nks _ σ1 _ hpd)⟩, by rw [hS2.capV hxs]; exact hx1,
       fun y hy hyx => by rw [hS2.capV hy]; exact hoth y hy hyx, by rw [psiD_same hM1 hCR2.2.2.1 hS2]; exact hps1,
-      hcd.le, fun _ => ⟨hcd, by rw [psiD_same hM1 hCR2.2.2.1 hS2]; exact hpslt⟩⟩
+      hcd.le, fun _ => ⟨hcd, by rw [psiD_same hM1 hCR2.2.2.1 hS2]; exact hpslt⟩, hst1.same_right hM1 hS2⟩
 
 end
 

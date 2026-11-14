@@ -367,6 +367,37 @@ theorem chunks_nsat (hrcb : resetChunkBits = 16) (hp8 : pu.toNat % 8 = 0) (hidx 
     · trivial
     · exact ih s1 hy
 
+/-- A chunk keeps `is_original_cap`, its CNode there. -/
+theorem chunk_nsatO (hrcb : resetChunkBits = 16) (hp8 : pu.toNat % 8 = 0) (hidx : idx.length = r)
+    (hpp : PPFrame) (i : Nat) (σ : State Unit) (hc : HasCN pb r σ) :
+    NSat (chunkF dev pu sz pb idx i).run σ (fun y => HasCN pb r y.2 ∧ y.2.isOriginalCap = σ.isOriginalCap) := by
+  obtain ⟨cs, hk, hwf⟩ := hc
+  unfold chunkF
+  apply nsatE_bind
+  apply nsat_liftE
+  refine (clearMemory_nsat (pu_al hrcb hp8 i) _ σ).1.mono (fun y hy => ?_)
+  show NSat (_ >>= fun _ => preemptionPoint).run y.2 _
+  apply nsatE_bind
+  apply nsat_liftE
+  refine nsat_det (setCap_cnode _ (by rw [hy.1]; exact hk) hwf hidx) ?_
+  show NSat (preemptionPoint (Z := Unit)).run _ _
+  exact (hpp _).mono (fun z hz => ⟨⟨Function.update cs idx (some (.untypedCap dev pu sz (i * 2 ^ resetChunkBits))),
+    by rw [hz.1]; simp [setCnodeSlot], wf_update _ hwf hidx⟩, by rw [hz.2.2.1]; exact hy.2.2.1⟩)
+
+/-- The chunks keep `is_original_cap`, on every outcome. -/
+theorem chunks_nsatO (hrcb : resetChunkBits = 16) (hp8 : pu.toNat % 8 = 0) (hidx : idx.length = r)
+    (hpp : PPFrame) (L : List Nat) (σ : State Unit) (hc : HasCN pb r σ) :
+    NSat (NonDetE.mapMEx (chunkF dev pu sz pb idx) L).run σ (fun y => y.2.isOriginalCap = σ.isOriginalCap) := by
+  induction L generalizing σ with
+  | nil => exact nsatE_pure rfl
+  | cons a L ih =>
+    show NSat ((chunkF dev pu sz pb idx a) >>= fun _ => NonDetE.mapMEx (chunkF dev pu sz pb idx) L).run σ _
+    apply nsatE_bind
+    refine (chunk_nsatO hrcb hp8 hidx hpp a σ hc).mono (fun y hy => ?_)
+    rcases y with ⟨e | u, s1⟩
+    · exact hy.2
+    · exact (ih s1 hy.1).mono (fun z hz => hz.trans hy.2)
+
 /-- An outcome `e` of a chunk, when the preemption point has one. -/
 theorem chunk_has (hrcb : resetChunkBits = 16) (hp8 : pu.toNat % 8 = 0) (hidx : idx.length = r)
     {e : Except Unit Unit} (hpp : ∀ σ1 : State Unit, NHas (preemptionPoint (Z := Unit)).run σ1
@@ -494,6 +525,40 @@ theorem reset_nsat (hpp : PPFrame) :
     rcases z with ⟨e | u, s1⟩
     · trivial
     · exact nsat_liftE (nsat_det rfl trivial)
+
+/-- **The spec's reset keeps `is_original_cap`** on every outcome,
+preempted ones included. -/
+theorem reset_nsatO (hpp : PPFrame) :
+    NSat (resetUntypedCap (Z := Unit) (pb, idx)).run σ (fun y => y.2.isOriginalCap = σ.isOriginalCap) := by
+  unfold resetUntypedCap
+  apply nsatE_bind
+  refine nsat_det (top_get hk hwf hidx hg hfi hp8 hpb hrcb) ?_
+  dsimp only
+  simp only [NonDetE.returnOk, ndE_pure_bind, Fl4Spec.bitsOf, Fl4Spec.objRefOf, Fl4Spec.freeIndexOf,
+    Fl4Spec.isDeviceUntypedCap, hfi, ↓reduceIte]
+  apply nsatE_bind
+  apply nsat_liftE
+  refine (deleteObjects_nsat hp8 sz σ).1.mono (fun y hy => ?_)
+  have hD : KSame (detype (regionSet pu sz) σ) y.2 := hy
+  have hk' := detype_hasCN hk hpb hD
+  have hio : y.2.isOriginalCap = σ.isOriginalCap := hy.2.2.1
+  dsimp only
+  split_ifs with hs
+  · apply nsatE_bind
+    apply nsat_liftE
+    unfold NonDet.unless
+    split_ifs with hdv
+    · apply nsat_bind
+      refine nsat_pure (nsat_det (setCap_cnode _ hk' hwf hidx) ?_)
+      exact nsat_liftE (nsat_det rfl hio)
+    · apply nsat_bind
+      refine (clearMemory_nsat hp8 _ y.2).1.mono (fun z hz => nsat_det (setCap_cnode _ (by rw [hz.1]; exact hk') hwf hidx) ?_)
+      exact nsat_liftE (nsat_det rfl (hz.2.2.1.trans hio))
+  · apply nsatE_bind
+    refine (chunks_nsatO hrcb hp8 hidx hpp _ y.2 ⟨cs, hk', hwf⟩).mono (fun z hz => ?_)
+    rcases z with ⟨e | u, s1⟩
+    · exact hz.trans hio
+    · exact nsat_liftE (nsat_det rfl (hz.trans hio))
 
 /-- The small or device case: the outcome with the free index 0. -/
 theorem reset_small (hs : dev = true ∨ sz < resetChunkBits) :

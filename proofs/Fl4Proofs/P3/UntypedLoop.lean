@@ -403,8 +403,6 @@ theorem ktyped_region {th th' : TypedHeap} {σ : Fl4Spec.State Unit} (hK : KType
 
 /-! ## The loop -/
 
-/-- `c`'s range misses `lo .. hi`. -/
-def DisjR (c : capability.Cap) (lo hi : Nat) : Prop := topF c < lo ∨ hi ≤ baseF c
 
 theorem desc_insG_true {th : TypedHeap} {mem : U64 → U64} {G : MdbGhost} (hM : MdbLinks th mem G)
     {src dest : U64} (hdest : dest ∉ G.chains.flatten) (hsd : src ≠ dest) (y x : U64) :
@@ -455,7 +453,9 @@ def LoopInv (th' : TypedHeap) (srcSl : Fl4Spec.CslotPtr) (srcC : capability.Cap)
     (∀ x ∈ G0.chains.flatten, capV (L.mem s) x = capV m0 x) ∧
     (∀ y x, Mdb.Desc Gi.par y x ↔ Mdb.Desc G0.par y x ∨
       ∃ j, j < i ∧ y = dslot j ∧ (x = cslotAddr srcSl ∨ Mdb.Desc G0.par (cslotAddr srcSl) x)) ∧
-    (FinM m0 G0 → FinM (L.mem s) Gi)
+    (FinM m0 G0 → FinM (L.mem s) Gi) ∧
+    (∀ ch ∈ G0.chains, ∃ ch' ∈ Gi.chains, ∀ z ∈ ch, z ∈ ch') ∧
+    (∀ x ∈ G0.chains.flatten, revOf (L.mem s) x = revOf m0 x)
 
 /-- The caps a loop over `newCapOf` inserts. -/
 def cjOf (n : Nat) (us : U64) (dev : Bool) (A k : Nat) : Nat → capability.Cap :=
@@ -516,7 +516,8 @@ theorem loop_step (th' : TypedHeap) (hP' : Placed th') {pp : U64} {rs : Nat} (hp
       ((windowSlots dest r off win).zip (regionPtrs (BitVec.ofNat 64 A) win (2 ^ zOf nt.val us.val)))
       A (2 ^ zOf nt.val us.val) win (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off + j))) zlo zhi G0 m0
       (cjOf nt.val us dev A (2 ^ zOf nt.val us.val)) s' (i + 1) ⦄ := by
-  obtain ⟨σi, Gi, hchain, hR, hV, hM, hC, hI, hsrc, hnull, hno, hdd, hzr, hT1, hT1b, hT2a, hT2b, hT3, hFM⟩ := hinv
+  obtain ⟨σi, Gi, hchain, hR, hV, hM, hC, hI, hsrc, hnull, hno, hdd, hzr, hT1, hT1b, hT2a, hT2b, hT3, hFM,
+    hCh, hRv⟩ := hinv
   set k := 2 ^ zOf nt.val us.val with hkdef
   have hk1 : 1 ≤ k := Nat.one_le_two_pow
   have hik : (i + 1) * k ≤ win * k := Nat.mul_le_mul_right _ hi
@@ -605,7 +606,17 @@ theorem loop_step (th' : TypedHeap) (hP' : Placed th') {pp : U64} {rs : Nat} (hp
   have hcapD : capV (L.mem s') dsl = c := by
     have := hcapW dsl hd; rw [if_pos rfl, capAt_capV] at this; exact eq_of_ok_eq this
   have hslot : ∀ x, x ∈ Gi.chains.flatten → IsSlot th' x := fun x h => ((hM.members x).1 h).1
-  refine ⟨σ', insG Gi src dsl true, ?_, hR', hV', hM', hC', hI', ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨σ', insG Gi src dsl true, ?_, hR', hV', hM', hC', hI', ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+    fun ch hch => ?_, fun x hx => ?_⟩
+  rotate_right
+  · -- the revocable bits of the old slots
+    have hx' := hT1b x hx
+    rw [hW.revOf' (hslot x hx'), if_neg (fun (e : x = dsl) => hdestm (e ▸ hx'))]; exact hRv x hx
+  rotate_right
+  · -- the chains grow
+    obtain ⟨ch1, hch1, hs1⟩ := hCh ch hch
+    obtain ⟨ch2, hch2, hs2⟩ := insG_chains_sub Gi src dsl true ch1 hch1
+    exact ⟨ch2, hch2, fun z hz => hs2 z (hs1 z hz)⟩
   rotate_right
   · -- finality: the new cap is fresh
     intro h0

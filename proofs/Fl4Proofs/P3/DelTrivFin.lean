@@ -24,7 +24,8 @@ theorem delete_refines_fin (th : TypedHeap) (s : S) (a : A) (σ : Fl4Spec.State 
     cdt.delete st arI s a (cslotAddr (px.bv, idx)) true ⦃ r => r.1 = .Ok () ∧
       ∃ σ' G', (Fl4Spec.capDelete (Z := Unit) (px.bv, idx)).run σ = ({(.ok (), σ')}, False) ∧
         StateRel th (L.mem r.2.1) σ' ∧ SlotsValid th (L.mem r.2.1) ∧ MdbLinks th (L.mem r.2.1) G' ∧
-        CdtRel th (L.mem r.2.1) σ' G' ∧ MdbInv (L.mem r.2.1) G' ∧ FinInv th (L.mem r.2.1) σ' G' ⦄ := by
+        CdtRel th (L.mem r.2.1) σ' G' ∧ MdbInv (L.mem r.2.1) G' ∧ FinInv th (L.mem r.2.1) σ' G' ∧
+        MdbStep (L.mem s) G (L.mem r.2.1) G' ⦄ := by
   obtain ⟨c', a', hc', hca, hg⟩ := hR.slot_cap (Z := Unit) (sl := (px.bv, idx)) rfl (by rw [hl]; exact hpx)
   rw [hc] at hc'
   have : c' = c := by simpa using hc'.symm
@@ -41,16 +42,16 @@ theorem delete_refines_fin (th : TypedHeap) (s : S) (a : A) (σ : Fl4Spec.State 
     have he : Fl4Spec.emptySlot (Z := Unit) (px.bv, idx) .nullCap σ = ({((), σ)}, False) := by
       unfold Fl4Spec.emptySlot
       rw [nd_bind_single hg]; simp [absCap]
-    exact ⟨rfl, σ, G, capDelete_triv _ σ σ hg (Or.inl rfl) he, hR, hV, hM, hC, hI, hFI⟩
+    exact ⟨rfl, σ, G, capDelete_triv _ σ σ hg (Or.inl rfl) he, hR, hV, hM, hC, hI, hFI, MdbStep.refl hM⟩
   · have hcn : c' ≠ .Null := by intro e; subst e; simp [TrivKind] at htk
-    obtain ⟨⟨s2, a2⟩, he2, ha2, σ', G', hes, hR', hV', hM', hC', hI', hFI'⟩ :=
+    obtain ⟨⟨s2, a2⟩, he2, ha2, σ', G', hes, hR', hV', hM', hC', hI', hFI', hSt⟩ :=
       spec_exists (empty_full_fin (ar := arI) th s a σ G hR hV hP hM hC hI hFI hpx hl hc hcn)
-    simp only at ha2 hR' hV' hM' hC' hI' hFI'
+    simp only at ha2 hR' hV' hM' hC' hI' hFI' hSt
     rw [he2]
     simp only [bind_ok, uncurry_apply_pair]
     rw [WP.spec_ok]
     exact ⟨rfl, σ', G', capDelete_triv _ σ σ' hg (Or.inr ⟨c', fin, rfl, hcn, htk⟩) hes, hR', hV', hM', hC', hI',
-      hFI'⟩
+      hFI', hSt⟩
 
 end
 

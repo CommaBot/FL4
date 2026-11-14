@@ -204,7 +204,7 @@ theorem decode_invocation_cnode (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.
       hlen hargs _ _ ⟨hwf, rfl⟩ hcv extra x0 x1 hx0 hx1 _ hex hI hFI hact hcur htcb hEp E μ hμ hD hPP hE hEF hfew) ?_
     rintro ⟨r0, s', a'⟩ hq
     apply top_of_lift (f := Fl4Spec.Fl4Invocation.invokeCNode)
-    rcases hq with ⟨e, he, rfl, e', he1, he2⟩ | ⟨inv, hrun, σ1, hst, σ', G', hcase, hCR, hF⟩
+    rcases hq with ⟨e, he, rfl, e', he1, he2⟩ | ⟨inv, hrun, σ1, hst, σ', G', hcase, hCR, hF, -⟩
     · exact Or.inl ⟨e, he, rfl, e', he1, Or.inl he2⟩
     · refine Or.inr ⟨inv, hrun, σ1, hst, ?_⟩
       rcases hcase with ⟨he, hx⟩ | ⟨he, hx⟩
@@ -238,7 +238,7 @@ theorem decode_invocation_irq_handler (th : TypedHeap) (hP : Placed th)
   cases r0 with
   | Err e => obtain ⟨rfl, e', h1, h2⟩ := hq; exact Or.inl ⟨e, rfl, rfl, e', h1, h2⟩
   | Ok u =>
-    obtain ⟨inv, hrun, σ1, hst, σ', G', hx, hCR, hF⟩ := hq
+    obtain ⟨inv, hrun, σ1, hst, σ', G', hx, hCR, hF, -⟩ := hq
     exact Or.inr ⟨inv, hrun, σ1, hst, (.ok [], σ'), mem_bindE_ok (mem_liftE hx) (Set.mem_singleton _), th, G',
       Or.inl ⟨rfl, [], rfl⟩, hP, hCR, hF⟩
 
@@ -248,7 +248,7 @@ theorem decode_invocation_irq_control (th : TypedHeap) (hP : Placed th) (s : S) 
     (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
     (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
-    (hFR : Vs.FrameInv (L.mem s) G)
+    (hFR : MdbOK (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : IrqCLabel lbl slbl)
     (hrm : decide (lbl.val = 69) = Fl4Spec.isFl4RemappedLabel slbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -289,7 +289,7 @@ theorem decode_invocation_irq_control (th : TypedHeap) (hP : Placed th) (s : S) 
 theorem decode_invocation_ioport_control (th : TypedHeap) (hP : Placed th) (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hL : IoLayout th (L.ksb s))
     (hIo : IoRel (L.mem s) (L.ksb s) σ) (hPA : IoPortsAlloc (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
-    (hFR : Vs.FrameInv (L.mem s) G)
+    (hFR : MdbOK (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : lbl.val = 60 ↔ Fl4Spec.invocationType slbl = .archInvocationLabel .x64IOPortControlIssue)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -408,7 +408,7 @@ theorem decode_invocation_untyped (th : TypedHeap) (s : S) (ar : A)
   rintro res hq
   apply top_of_lift (f := Fl4Spec.Fl4Invocation.invokeUntyped)
   rcases hq with ⟨e, e', rfl, h1, h2⟩ | ⟨inv, hrun, σ1, hst, -, ev, σ', G', th', hcase, ⟨⟨y1, y2⟩, hy, hy1, hK⟩,
-    hP', hR', hV', hM', hC', hI', -, hFin⟩
+    hP', hR', hV', hM', hC', hI', -, -, hFin⟩
   · exact Or.inl ⟨e, rfl, rfl, e', h1, Or.inl h2⟩
   · refine Or.inr ⟨inv, hrun, σ1, hst, ?_⟩
     simp only at hy1 hK

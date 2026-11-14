@@ -47,7 +47,8 @@ theorem delete_one_refines (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L :
     (hk : capV (L.mem s) (cslotAddr sl) = .Null ∨
       ∃ p b w r, capV (L.mem s) (cslotAddr sl) = .Notification p b w r) :
     cdt.delete_one st arI s a (cslotAddr sl) ⦃ r =>
-      ∃ σ' G', ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 ∧ DState (L := L) th r.1 σ' G' ⦄ := by
+      ∃ σ' G', ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 ∧ DState (L := L) th r.1 σ' G' ∧
+        MdbStep (L.mem s) G (L.mem r.1) G' ⦄ := by
   obtain ⟨c, ac, hc, hca, hg⟩ := hDS.1.1.abs_cap hA
   rw [hca.abs] at hg
   have hcv := capV_of_capAt hc
@@ -57,7 +58,7 @@ theorem delete_one_refines (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L :
   rcases hk with hk | ⟨p, b, w, r, hk⟩
   · rw [hcv] at hk; subst hk
     simp only [isNullB, ↓reduceIte, WP.spec_ok]
-    refine ⟨σ, G, ?_, hDS⟩
+    refine ⟨σ, G, ?_, hDS, MdbStep.refl hDS.1.2.2.1⟩
     unfold Fl4Spec.capDeleteOne
     refine mem_bind_nd (x := (absCap .Null, σ)) (by rw [hg]; rfl) ?_
     simp [absCap, Fl4Spec.NonDet.unless, Fl4Spec.NonDet.pure]
@@ -70,11 +71,11 @@ theorem delete_one_refines (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L :
     rw [hbf]; simp only [bind_ok]
     rw [← finalise_cap_ntfn arI s a p b w r _ false]
     apply WP.spec_bind (hO s a σ G sl _ hDS hA hc trivial)
-    rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨hrem, hcl, -, σ1, G1, hmem, hDS1, -, -⟩
+    rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨hrem, hcl, -, σ1, G1, hmem, hDS1, -, -, hmO⟩
     simp only [uncurry_apply_pair]
     refine WP.spec_mono (empty_step arI th hP hPD s1 a1 σ1 G1 hDS1 hA .Null trivial trivial) ?_
-    rintro ⟨s2, a2⟩ ⟨σ2, G2, hes, hDS2, -⟩
-    refine ⟨σ2, G2, ?_, hDS2⟩
+    rintro ⟨s2, a2⟩ ⟨σ2, G2, hes, hDS2, -, -, -, -, -, hmE⟩
+    refine ⟨σ2, G2, ?_, hDS2, hmO.trans hmE⟩
     unfold Fl4Spec.capDeleteOne
     refine mem_bind_nd (x := (absCap (.Notification p b w r), σ)) (by rw [hg]; rfl) ?_
     simp only [absCap, Fl4Spec.NonDet.unless, reduceCtorEq, ↓reduceIte]
@@ -100,7 +101,8 @@ theorem delete_one_keep (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L
     (hk : capV (L.mem s) (cslotAddr sl) = .Null ∨
       ∃ p b w r, capV (L.mem s) (cslotAddr sl) = .Notification p b w r) :
     cdt.delete_one st arI s a (cslotAddr sl) ⦃ r =>
-      (∃ σ' G', ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 ∧ DState (L := L) th r.1 σ' G') ∧
+      (∃ σ' G', ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 ∧ DState (L := L) th r.1 σ' G' ∧
+        MdbStep (L.mem s) G (L.mem r.1) G') ∧
       capV (L.mem r.1) (cslotAddr sl) = .Null ∧
       ∀ y, IsSlot th y → y ≠ cslotAddr sl → capV (L.mem r.1) y = capV (L.mem s) y ⦄ := by
   refine WP.spec_and (delete_one_refines arI th hP hF hO hPD s a σ G hDS hA hk) ?_
@@ -121,10 +123,10 @@ theorem delete_one_keep (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L
     rw [hbf]; simp only [bind_ok]
     rw [← finalise_cap_ntfn arI s a p b w r _ false]
     apply WP.spec_bind (WP.spec_and (hO s a σ G sl _ hDS hA hc trivial) (hK s a σ G sl p b w r _ hDS hA hc))
-    rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨hrem, hcl, -, σ1, G1, hmem, hDS1, -, -⟩, hkeep⟩
+    rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨hrem, hcl, -, σ1, G1, hmem, hDS1, -, -, -⟩, hkeep⟩
     try simp only [uncurry_apply_pair]
     refine WP.spec_mono (empty_step arI th hP hPD s1 a1 σ1 G1 hDS1 hA .Null trivial trivial) ?_
-    rintro ⟨s2, a2⟩ ⟨σ2, G2, -, -, hx2, hoth, -⟩
+    rintro ⟨s2, a2⟩ ⟨σ2, G2, -, -, hx2, hoth, -, -, -, -⟩
     refine ⟨hx2, fun y hy hyx => ?_⟩
     rw [hoth y hy hyx, hkeep y hy]
 

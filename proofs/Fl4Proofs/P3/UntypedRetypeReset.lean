@@ -32,15 +32,16 @@ def RetPostN {A' : Type} (th : TypedHeap) (m : U64 → U64) (G : MdbGhost) (σ :
       NHas (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi inv).run σ1 (fun y => y.1 = e ∧ KSame σ' y.2) ∧
       Placed th' ∧ StateRel th' (L.mem res.2.1) σ' ∧ SlotsValid th' (L.mem res.2.1) ∧
       MdbLinks th' (L.mem res.2.1) G' ∧ CdtRel th' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
-      UtInv (L.mem res.2.1) G' ∧ (FinInv th m σ G → FinInv th' (L.mem res.2.1) σ' G')
+      UtInv (L.mem res.2.1) G' ∧ MdbStep m G (L.mem res.2.1) G' ∧
+      (FinInv th m σ G → FinInv th' (L.mem res.2.1) σ' G')
 
 theorem RetPost.toN {A' : Type} {th : TypedHeap} {m : U64 → U64} {G : MdbGhost} {σ : Fl4Spec.State Unit} {ar : A'}
     {bitsApi : Fl4Spec.ApiObjectType → Nat → Nat}
     {inv : Fl4Spec.UntypedInvocation} {res : core.result.Result Unit error.Exc × S × A'}
     (h : RetPost (L := L) th m G σ ar bitsApi inv res) : RetPostN (L := L) th m G σ bitsApi inv res := by
-  obtain ⟨h1, -, σ1, hst, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', hU', hFin⟩ := h
+  obtain ⟨h1, -, σ1, hst, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', hU', hSt, hFin⟩ := h
   exact ⟨σ1, hst, nsat_det hrun trivial, .ok (), σ', G', th', Or.inl ⟨h1, rfl⟩, nhas_det hrun ⟨rfl, KSame.refl _⟩,
-    hP', hR', hV', hM', hC', hI', hU', hFin⟩
+    hP', hR', hV', hM', hC', hI', hU', hSt, hFin⟩
 
 /-- **The success continuation of `decode`, resets included** (for the
 types 0..6): `RetPostN`. With no reset, or a reset of an unused region, as
@@ -163,7 +164,7 @@ theorem retype_cont_allN {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
             (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)) t us.val
             (windowSlots dest r off.val win.val) dev)).run σ1 (TopP (.error ()) σ') ∧
           ResetRel (restrictTh th p.val (p.val + 2 ^ sb.val)) G (cslotAddr (pp.bv, idx)) p sb dev
-            (L.mem res.2.1) σ' f ∧
+            (L.mem res.2.1) σ' f ∧ MdbStep (L.mem s2) G (L.mem res.2.1) G ∧
           (FinInv th (L.mem s2) σ1 G → FinInv (restrictTh th p.val (p.val + 2 ^ sb.val)) (L.mem res.2.1) σ' G)) ∨
        (res.1 = .Ok () ∧ ∃ σ' G' th'',
           NHas (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) true p.bv
@@ -171,15 +172,17 @@ theorem retype_cont_allN {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
             (windowSlots dest r off.val win.val) dev)).run σ1 (fun y => y.1 = .ok () ∧ KSame σ' y.2) ∧
           Placed th'' ∧ StateRel th'' (L.mem res.2.1) σ' ∧ SlotsValid th'' (L.mem res.2.1) ∧
           MdbLinks th'' (L.mem res.2.1) G' ∧ CdtRel th'' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
-          UtInv (L.mem res.2.1) G' ∧ (FinInv th (L.mem s2) σ1 G → FinInv th'' (L.mem res.2.1) σ' G')))) →
+          (UtInv (L.mem res.2.1) G' ∧ MdbStep (L.mem s2) G (L.mem res.2.1) G') ∧
+          (FinInv th (L.mem s2) σ1 G → FinInv th'' (L.mem res.2.1) σ' G')))) →
       RetPostN (L := L) th (L.mem s) G σ bitsApi (.retype (pp.bv, idx) true p.bv
         (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val)
         dev) res := by
-    rintro res ⟨hNS, ⟨h1, σ', f, hhas, hRR, hFr⟩ | ⟨h1, σ', G', th'', hhas, hP'', hR'', hV'', hM'', hC'', hI'', hU'', hFin⟩⟩
+    rintro res ⟨hNS, ⟨h1, σ', f, hhas, hRR, hSt, hFr⟩ | ⟨h1, σ', G', th'', hhas, hP'', hR'', hV'', hM'', hC'', hI'',
+      ⟨hU'', hSt⟩, hFin⟩⟩
     · exact ⟨σ1, by rw [hcur]; exact hst1, hNS, .error (), σ', G, _, Or.inr ⟨h1, rfl⟩, hhas, hP.restrict,
-        hRR.R, hRR.V, hRR.M, hRR.C, hRR.I, hRR.U, fun hFI => hFr (hFI.of_same hM hSS (ksub_of_eq (setThreadState_nks _ _) hst1))⟩
+        hRR.R, hRR.V, hRR.M, hRR.C, hRR.I, hRR.U, MdbStep.same_left hM hSS hSt, fun hFI => hFr (hFI.of_same hM hSS (ksub_of_eq (setThreadState_nks _ _) hst1))⟩
     · exact ⟨σ1, by rw [hcur]; exact hst1, hNS, .ok (), σ', G', th'', Or.inl ⟨h1, rfl⟩, hhas, hP'', hR'', hV'', hM'',
-        hC'', hI'', hU'', fun hFI => hFin (hFI.of_same hM hSS (ksub_of_eq (setThreadState_nks _ _) hst1))⟩
+        hC'', hI'', hU'', MdbStep.same_left hM hSS hSt, fun hFI => hFin (hFI.of_same hM hSS (ksub_of_eq (setThreadState_nks _ _) hst1))⟩
   have hxs : IsSlot th (cslotAddr (pp.bv, idx)) := hAs.isSlot
   by_cases h1 : nt.val = 1
   · have hdf : dev = false := by

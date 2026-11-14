@@ -277,7 +277,7 @@ def DelHyp (μ : (U64 → U64) → MdbGhost → Nat) (th : TypedHeap) (E : S →
       ((r.1 = .Ok () ∧ (.ok (), σ') ∈ ((Fl4Spec.capDelete (Z := Unit) c).run σ).1 ∧
           μ (L.mem r.2.1) G' < μ (L.mem s) G) ∨
         (r.1 = .Err .Preempted ∧ (.error (), σ') ∈ ((Fl4Spec.capDelete (Z := Unit) c).run σ).1)) ∧
-      CRel th (L.mem r.2.1) σ' G' ∧ E r.2.1 σ' ⦄
+      CRel th (L.mem r.2.1) σ' G' ∧ E r.2.1 σ' ∧ MdbStep (L.mem s) G (L.mem r.2.1) G' ⦄
 
 /-- **Hypothesis on FL4's preemption point** (the scheduler's): Ok with a
 non-preempting outcome of the spec's, or preempted with a preempting one;
@@ -292,17 +292,17 @@ def RPPHyp (th : TypedHeap) (E : S → Fl4Spec.State Unit → Prop) : Prop :=
 /-- What `revoke` ends with: an outcome of the spec's `cap_revoke` of the
 same kind (Ok or preempted), with related states. -/
 def RevPost (th : TypedHeap) (E : S → Fl4Spec.State Unit → Prop) (sl : Fl4Spec.CslotPtr)
-    (σ : Fl4Spec.State Unit) (res : core.result.Result Unit error.Exc × S × A) : Prop :=
+    (σ : Fl4Spec.State Unit) (m0 : U64 → U64) (G0 : MdbGhost) (res : core.result.Result Unit error.Exc × S × A) : Prop :=
   ∃ σ' G', ((res.1 = .Ok () ∧ (.ok (), σ') ∈ ((Fl4Spec.capRevoke (Z := Unit) sl).run σ).1) ∨
       (res.1 = .Err .Preempted ∧ (.error (), σ') ∈ ((Fl4Spec.capRevoke (Z := Unit) sl).run σ).1)) ∧
-    CRel th (L.mem res.2.1) σ' G' ∧ E res.2.1 σ'
+    CRel th (L.mem res.2.1) σ' G' ∧ E res.2.1 σ' ∧ MdbStep m0 G0 (L.mem res.2.1) G'
 
 /-- The revoke loop's invariant from `σ0`: related to a spec state `σ`
 from which every outcome of `cap_revoke` is one from `σ0`, fuel above the
 measure. -/
 def RevInv (μ : (U64 → U64) → MdbGhost → Nat) (th : TypedHeap) (E : S → Fl4Spec.State Unit → Prop)
-    (sl : Fl4Spec.CslotPtr) (σ0 : Fl4Spec.State Unit) (x : S × A × U64) : Prop :=
-  ∃ σ G, CRel th (L.mem x.1) σ G ∧ E x.1 σ ∧ μ (L.mem x.1) G < x.2.2.val ∧
+    (sl : Fl4Spec.CslotPtr) (σ0 : Fl4Spec.State Unit) (m0 : U64 → U64) (G0 : MdbGhost) (x : S × A × U64) : Prop :=
+  ∃ σ G, CRel th (L.mem x.1) σ G ∧ E x.1 σ ∧ μ (L.mem x.1) G < x.2.2.val ∧ MdbStep m0 G0 (L.mem x.1) G ∧
     ∀ y, y ∈ ((Fl4Spec.capRevoke (Z := Unit) sl).run σ).1 → y ∈ ((Fl4Spec.capRevoke (Z := Unit) sl).run σ0).1
 
 /-- **FL4's revoke loop refines l4v's `cap_revoke`**, with fuel above the
@@ -313,11 +313,14 @@ theorem revoke_loop_refines (th : TypedHeap) (hP : Placed th) (E : S → Fl4Spec
     (hD : DelHyp (L := L) arI μ th E) (hPP : RPPHyp (L := L) arI th E)
     (sl : Fl4Spec.CslotPtr) (hs : AbsSlot th sl) (s : S) (a : A) (σ0 : Fl4Spec.State Unit) (G0 : MdbGhost)
     (fuel : U64) (hCR0 : CRel th (L.mem s) σ0 G0) (hE0 : E s σ0) (hlen0 : μ (L.mem s) G0 < fuel.val) :
-    cdt.revoke_loop st arI s a (cslotAddr sl) fuel ⦃ res => RevPost (L := L) th E sl σ0 res ⦄ := by
+    cdt.revoke_loop st arI s a (cslotAddr sl) fuel ⦃ res => RevPost (L := L) th E sl σ0 (L.mem s) G0 res ⦄ := by
+  obtain ⟨m0, hm0⟩ : ∃ m0, m0 = L.mem s := ⟨_, rfl⟩
+  have hmS0 : MdbStep m0 G0 (L.mem s) G0 := by rw [hm0]; exact MdbStep.refl hCR0.2.2.1
+  rw [← hm0]
   unfold cdt.revoke_loop
-  refine loop.spec_decr_nat (fun x => x.2.2.val) (RevInv (L := L) μ th E sl σ0) _ _ _ ?_
-    ⟨σ0, G0, hCR0, hE0, hlen0, fun _ h => h⟩
-  rintro ⟨s, a, fuel⟩ ⟨σ, G, ⟨hR, hV, hM, hC, hI⟩, hE, hlen, htr⟩
+  refine loop.spec_decr_nat (fun x => x.2.2.val) (RevInv (L := L) μ th E sl σ0 m0 G0) _ _ _ ?_
+    ⟨σ0, G0, hCR0, hE0, hlen0, hmS0, fun _ h => h⟩
+  rintro ⟨s, a, fuel⟩ ⟨σ, G, ⟨hR, hV, hM, hC, hI⟩, hE, hlen, hmS, htr⟩
   simp only at hlen htr ⊢
   unfold cdt.revoke_loop.body
   have hf : fuel > 0#u64 := by scalar_tac
@@ -326,8 +329,8 @@ theorem revoke_loop_refines (th : TypedHeap) (hP : Placed th) (E : S → Fl4Spec
   obtain ⟨c, ac, hc, hca, hg⟩ := hR.abs_cap hs
   have hCR : CRel th (L.mem s) σ G := ⟨hR, hV, hM, hC, hI⟩
   have stop : (ac = .nullCap ∨ ¬ ∃ c, σ.cdt c = some sl) →
-      RevPost (L := L) th E sl σ0 (core.result.Result.Ok (), s, a) := fun h =>
-    ⟨σ, G, Or.inl ⟨rfl, htr _ (capRevoke_stop hg h)⟩, hCR, hE⟩
+      RevPost (L := L) th E sl σ0 m0 G0 (core.result.Result.Ok (), s, a) := fun h =>
+    ⟨σ, G, Or.inl ⟨rfl, htr _ (capRevoke_stop hg h)⟩, hCR, hE, hmS⟩
   by_cases hcn : c = .Null
   · subst hcn
     have hacn : ac = .nullCap := hca.null_iff.2 rfl
@@ -368,7 +371,7 @@ theorem revoke_loop_refines (th : TypedHeap) (hP : Placed th) (E : S → Fl4Spec
     rw [← hcde, hcc] at hc'; rw [eq_of_ok_eq hc']; exact hn'
   have haccn : acc ≠ .nullCap := fun h => hccn (hcca.null_iff.1 h)
   rw [← hcde]
-  obtain ⟨⟨r, s1, a1⟩, hdl, σd, Gd, hcase, hCR1, hE1⟩ := spec_exists
+  obtain ⟨⟨r, s1, a1⟩, hdl, σd, Gd, hcase, hCR1, hE1, hmD⟩ := spec_exists
     (hD s a σ G cd hCR hE hcd (by rw [hcde]; exact hnx))
   rw [hdl]
   simp only [bind_ok, uncurry_apply_pair]
@@ -377,7 +380,7 @@ theorem revoke_loop_refines (th : TypedHeap) (hP : Placed th) (E : S → Fl4Spec
   · simp only [core.result.Result.Insts.CoreOpsTry.branch,
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
       bind_ok, bind_tc_ok, WP.spec_ok]
-    exact ⟨σd, Gd, Or.inr ⟨rfl, htr _ (capRevoke_del_preempt hg hacn hcdesc hgc haccn hdm)⟩, hCR1, hE1⟩
+    exact ⟨σd, Gd, Or.inr ⟨rfl, htr _ (capRevoke_del_preempt hg hacn hcdesc hgc haccn hdm)⟩, hCR1, hE1, hmS.trans hmD⟩
   simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
   obtain ⟨⟨r2, s2, a2⟩, hpp, hS2, σp, hcase2, hCR2, hE2⟩ := spec_exists (hPP s1 a1 σd Gd hCR1 hE1)
   have hμ2 : μ (L.mem s2) Gd = μ (L.mem s1) Gd := hμ _ _ _ hCR1.2.2.1 hS2
@@ -386,11 +389,12 @@ theorem revoke_loop_refines (th : TypedHeap) (hP : Placed th) (E : S → Fl4Spec
   rcases hcase2 with ⟨rfl, hpm⟩ | ⟨rfl, hpm⟩
   · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok, WP.spec_ok]
     refine ⟨⟨σp, Gd, hCR2, hE2, by simp only at hμ2 hlt ⊢; rw [hμ2]; scalar_tac,
-      fun y hy => htr _ (capRevoke_step hg hacn hcdesc hgc haccn hdm hpm hy)⟩, by scalar_tac⟩
+      (hmS.trans hmD).same_right hCR1.2.2.1 hS2, fun y hy => htr _ (capRevoke_step hg hacn hcdesc hgc haccn hdm hpm hy)⟩, by scalar_tac⟩
   · simp only [core.result.Result.Insts.CoreOpsTry.branch,
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
       bind_ok, bind_tc_ok, WP.spec_ok]
-    exact ⟨σp, Gd, Or.inr ⟨rfl, htr _ (capRevoke_pp_preempt hg hacn hcdesc hgc haccn hdm hpm)⟩, hCR2, hE2⟩
+    exact ⟨σp, Gd, Or.inr ⟨rfl, htr _ (capRevoke_pp_preempt hg hacn hcdesc hgc haccn hdm hpm)⟩, hCR2, hE2,
+      (hmS.trans hmD).same_right hCR1.2.2.1 hS2⟩
 
 /-- **FL4's `revoke` refines l4v's `cap_revoke`**, given the measure below
 `WALK_FUEL` (`u64::MAX`). -/
@@ -400,7 +404,7 @@ theorem revoke_refines (th : TypedHeap) (hP : Placed th) (E : S → Fl4Spec.Stat
     (hD : DelHyp (L := L) arI μ th E) (hPP : RPPHyp (L := L) arI th E)
     (sl : Fl4Spec.CslotPtr) (hs : AbsSlot th sl) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hE : E s σ) (hfew : μ (L.mem s) G < 2 ^ 64 - 1) :
-    cdt.revoke st arI s a (cslotAddr sl) ⦃ res => RevPost (L := L) th E sl σ res ⦄ := by
+    cdt.revoke st arI s a (cslotAddr sl) ⦃ res => RevPost (L := L) th E sl σ (L.mem s) G res ⦄ := by
   unfold cdt.revoke
   have : layout.WALK_FUEL.val = 2 ^ 64 - 1 := by simp [layout.WALK_FUEL, U64.rMax]
   exact revoke_loop_refines arI th hP E μ hμ hD hPP sl hs s a σ G _ hCR hE (by rw [this]; exact hfew)
@@ -410,15 +414,18 @@ theorem revoke_refines (th : TypedHeap) (hP : Placed th) (E : S → Fl4Spec.Stat
 /-- The outcome of a preemptible CNode invocation (Revoke, Delete) against a spec decode `m`: the same
 error with the state unchanged, or the invocation, after which (with
 `set_thread_state Restart` first) `invoke_cnode` has an outcome of the
-same kind as FL4's (Ok, or preempted) in a related state, with `FinInv`. -/
-def PInvPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (m : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation)
+same kind as FL4's (Ok, or preempted) in a related state, with `FinInv`, and
+the `MdbStep` from `G` taken. -/
+def PInvPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+    (m : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation)
     (s : S) : core.result.Result Unit error.Exc × S → Prop
   | (r, s') => (∃ e, r = .Err e ∧ s' = s ∧ ∃ e', m.run σ = ({(.error e', σ)}, False) ∧ SysErrRel e e') ∨
       ∃ inv, m.run σ = ({(.ok inv, σ)}, False) ∧ ∃ σ1,
         Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧ ∃ σ' G',
           ((r = .Ok () ∧ (.ok (), σ') ∈ ((Fl4Spec.invokeCnode (Z := Unit) inv).run σ1).1) ∨
             (r = .Err .Preempted ∧ (.error (), σ') ∈ ((Fl4Spec.invokeCnode (Z := Unit) inv).run σ1).1)) ∧
-          CRel th (L.mem s') σ' G' ∧ FinInv th (L.mem s') σ' G'
+          CRel th (L.mem s') σ' G' ∧ FinInv th (L.mem s') σ' G' ∧
+          MdbStep (L.mem s) G (L.mem s') G'
 
 /-- **CNode Revoke**, decode and invoke: FL4's `cnode::decode` at label
 `CNodeRevoke` against l4v's `decode_cnode_invocation`, then
@@ -447,7 +454,7 @@ theorem cnode_revoke_refines (th : TypedHeap) (s : S) (ar : A)
     (hEF : ∀ s1 σ1 G1, CRel th (L.mem s1) σ1 G1 → E s1 σ1 → FinInv th (L.mem s1) σ1 G1)
     (hfew : μ (L.mem s) G < 2 ^ 64 - 1) :
     cnode.decode st arI s ar fl4_abi.label.CNodeRevoke length cap buf extra ⦃ res =>
-      PInvPost (L := L) th σ (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
+      PInvPost (L := L) th σ G (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
         (res.1, res.2.1) ⦄ := by
   have hin : Fl4Spec.genInvocationType slbl ∈
       Fl4Spec.GenInvocationLabels.uptoEnum .cnodeRevoke .cnodeRotate := by rw [hlbl]; decide
@@ -506,8 +513,9 @@ theorem cnode_revoke_refines (th : TypedHeap) (s : S) (ar : A)
       have hfew' : μ (L.mem s2) G < 2 ^ 64 - 1 := by rw [hμ _ _ _ hM hS]; exact hfew
       refine WP.spec_mono (revoke_refines arI th hP E μ hμ hD hPP dsl hAd s2 ar σ1 G ⟨hR1, hV1, hM1, hC1, hI1⟩
         (hE s2 σ1 hS hst) hfew') ?_
-      rintro ⟨r, s', a'⟩ ⟨σ', G', hk', hCR', hE'⟩
-      refine Or.inr ⟨.revokeCall dsl, ?_, σ1, hst, σ', G', ?_, hCR', hEF _ _ _ hCR' hE'⟩
+      rintro ⟨r, s', a'⟩ ⟨σ', G', hk', hCR', hE', hmR⟩
+      refine Or.inr ⟨.revokeCall dsl, ?_, σ1, hst, σ', G', ?_, hCR', hEF _ _ _ hCR' hE',
+        (MdbStep.same_left hM hS hmR)⟩
       · rw [run_bind_ok hlt, copyTail_revoke _ _ _ _ hlbl]; rfl
       · exact hk'
 
@@ -534,7 +542,7 @@ theorem cnode_delete_refines (th : TypedHeap) (s : S) (ar : A)
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) → E s1 σ1)
     (hEF : ∀ s1 σ1 G1, CRel th (L.mem s1) σ1 G1 → E s1 σ1 → FinInv th (L.mem s1) σ1 G1) :
     cnode.decode st arI s ar fl4_abi.label.CNodeDelete length cap buf extra ⦃ res =>
-      PInvPost (L := L) th σ (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
+      PInvPost (L := L) th σ G (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
         (res.1, res.2.1) ⦄ := by
   have hin : Fl4Spec.genInvocationType slbl ∈
       Fl4Spec.GenInvocationLabels.uptoEnum .cnodeRevoke .cnodeRotate := by rw [hlbl]; decide
@@ -605,14 +613,15 @@ theorem cnode_delete_refines (th : TypedHeap) (s : S) (ar : A)
         have hFI1 := hEF s2 σ1 G ⟨hR1, hV1, hM1, hC1, hI1⟩ (hE s2 σ1 hS hst)
         refine WP.spec_mono (delete_refines_fin arI th s2 ar σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hpd rfl hc2
           (Or.inl rfl)) ?_
-        rintro ⟨r, s', a'⟩ ⟨hr, σ', G', hcd, hR', hV', hM', hC', hI', hFI'⟩
-        simp only at hr; subst hr
+        rintro ⟨r, s', a'⟩ ⟨hr, σ', G', hcd, hR', hV', hM', hC', hI', hFI', hSt⟩
+        simp only at hr hSt; subst hr
         exact Or.inr ⟨.deleteCall (pd.bv, db), hdc, σ1, hst, σ', G', Or.inl ⟨rfl, mem_of_run hcd⟩,
-          ⟨hR', hV', hM', hC', hI'⟩, hFI'⟩
+          ⟨hR', hV', hM', hC', hI'⟩, hFI', (MdbStep.same_left hM hS hSt)⟩
       · have hx : cslotAddr dsl ∈ G.chains.flatten := (hM1.members _).2 ⟨hAd.isSlot, c, hc2, hcn⟩
         refine WP.spec_mono (hD s2 ar σ1 G dsl ⟨hR1, hV1, hM1, hC1, hI1⟩ (hE s2 σ1 hS hst) hAd hx) ?_
-        rintro ⟨r, s', a'⟩ ⟨σ', G', hk', hCR', hE'⟩
-        refine Or.inr ⟨.deleteCall dsl, hdc, σ1, hst, σ', G', ?_, hCR', hEF _ _ _ hCR' hE'⟩
+        rintro ⟨r, s', a'⟩ ⟨σ', G', hk', hCR', hE', hmD⟩
+        refine Or.inr ⟨.deleteCall dsl, hdc, σ1, hst, σ', G', ?_, hCR', hEF _ _ _ hCR' hE',
+          (MdbStep.same_left hM hS hmD)⟩
         rcases hk' with ⟨h1, h2, -⟩ | ⟨h1, h2⟩
         · exact Or.inl ⟨h1, h2⟩
         · exact Or.inr ⟨h1, h2⟩

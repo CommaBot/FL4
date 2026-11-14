@@ -45,7 +45,7 @@ theorem LoopInv.of_same {th' : TypedHeap} {srcSl : Fl4Spec.CslotPtr} {srcC : cap
     (hS : SlotsSame th' (L.mem s) (L.mem s'))
     (hz : ∀ w : U64, P1.Aligned w → zlo ≤ w.val → w.val < zhi → L.mem s' w = L.mem s w) :
     LoopInv (L := L) th' srcSl srcC σ1 f pairs A k win dslot zlo zhi G0 m0 cj s' i := by
-  obtain ⟨σi, Gi, hchain, hR, hV, hM, hC, hI, hs, hnull, hno, hdd, hzr, hT1, hT1b, hT2a, hT2b, hT3, hFM⟩ := h
+  obtain ⟨σi, Gi, hchain, hR, hV, hM, hC, hI, hs, hnull, hno, hdd, hzr, hT1, hT1b, hT2a, hT2b, hT3, hFM, hCh, hRv⟩ := h
   have hcap : ∀ x, IsSlot th' x → capAt (L.mem s') x = capAt (L.mem s) x := fun x hx => hS.capAt hx
   have hsl : ∀ x, x ∈ Gi.chains.flatten → IsSlot th' x := fun x h => ((hM.members x).1 h).1
   refine ⟨σi, Gi, hchain, hR.of_caps hcap, hV.of_caps hcap, hM.of_same hS, hC.of_same hS rfl rfl,
@@ -54,7 +54,8 @@ theorem LoopInv.of_same {th' : TypedHeap} {srcSl : Fl4Spec.CslotPtr} {srcC : cap
     fun w hw h1 h2 => by rw [hz w hw h1 h2]; exact hzr w hw h1 h2, hT1, hT1b,
     fun j hj => by rw [hS.capV (hdsl j (by omega))]; exact hT2a j hj,
     fun x hx => by rw [hS.capV (hsl x (hT1b x hx))]; exact hT2b x hx, hT3,
-    fun h0 => (hFM h0).of_caps hM.tree.nodup (fun x hx => hS.capV (hsl x hx))⟩
+    fun h0 => (hFM h0).of_caps hM.tree.nodup (fun x hx => hS.capV (hsl x hx)), hCh,
+    fun x hx => by rw [hS.revOf (hsl x (hT1b x hx))]; exact hRv x hx⟩
   · rw [hS.capV (hsl x hx)] at hp ⊢; exact hno x hx hp
   · rw [hS.capV (hsl y (desc_mem hM hy).1)]; exact hdd y hy
 
@@ -415,7 +416,7 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
           (windowSlots dest r off.val win.val) dev)).run σ = ({(.ok (), σ')}, False) ∧
         Placed th' ∧ StateRel th' (L.mem res.2.1) σ' ∧ SlotsValid th' (L.mem res.2.1) ∧
         MdbLinks th' (L.mem res.2.1) G' ∧ CdtRel th' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
-        UtInv (L.mem res.2.1) G' ∧ ZeroRegion (L.mem res.2.1)
+        (UtInv (L.mem res.2.1) G' ∧ MdbStep (L.mem s) G (L.mem res.2.1) G') ∧ ZeroRegion (L.mem res.2.1)
           ((Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val)
           (p.val + 2 ^ sb.val) ∧
         (FinInv th (L.mem s) σ G → FinInv th' (L.mem res.2.1) σ' G') ⦄ := by
@@ -579,7 +580,7 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
       fun j hj => absurd hj (by omega), fun x _ => rfl, fun y x => ⟨Or.inl, by
         rintro (h | ⟨j, hj, -⟩)
         · exact h
-        · omega⟩, fun h => h⟩
+        · omega⟩, fun h => h, fun ch hch => ⟨ch, hch, fun z hz => hz⟩, fun x _ => rfl⟩
     · intro j _ hj
       have hj' : off.val + j < 2 ^ r := by omega
       have hd : IsSlot th (slotAddr dest.bv (BitVec.ofNat 64 (off.val + j))) :=
@@ -655,7 +656,7 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
   simp only [bind_ok, uncurry_apply_pair]
   rw [WP.spec_ok]
   simp only at ha2 hfin
-  obtain ⟨σf, Gf, hchain, hRf, hVf, hMf, hCf, hIf, -, -, -, -, hZf, hT1, hT1b, hT2a, hT2b, hT3, hFf⟩ := hfin
+  obtain ⟨σf, Gf, hchain, hRf, hVf, hMf, hCf, hIf, -, -, -, -, hZf, hT1, hT1b, hT2a, hT2b, hT3, hFf, hChf, hRvf⟩ := hfin
   have hdrop : ((windowSlots dest r off.val win.val).zip (regionPtrs (BitVec.ofNat 64 aligned.val) win.val
       (2 ^ zOf nt.val us.val))).drop win.val = [] := by
     apply List.drop_of_length_le; simp [windowSlots, regionPtrs]
@@ -696,10 +697,10 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
       rw [core.num.U64.wrapping_sub_bv_eq, core.num.U64.wrapping_add_bv_eq, htot, ← bv_eq_ofNat]
     have hzv : zOf nt.val us.val < 64 := by omega
     have hkk : 2 ^ zOf nt.val us.val = k := rfl
-    refine RetypeDelta.utinv (th := th) (mem0 := L.mem s) (mem1 := L.mem s1) (G0 := G) (src := src)
-      (p := p) (sb := sb) (fi := fi) (nfi := nfi) (dev := dev) (A := A) (k := k) (w := win.val)
-      (dslot := fun j => slotAddr dest.bv (BitVec.ofNat 64 (off.val + j)))
-      (cj := cjOf nt.val us dev aligned.val k) ?_ hU
+    suffices hRD : RetypeDelta th (L.mem s) (L.mem s1) (L.mem s2) G Gf src p sb fi nfi dev A k win.val
+        (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off.val + j))) (cjOf nt.val us dev aligned.val k) by
+      exact ⟨hRD.utinv hU, MdbStep.retype hRD hI hChf
+        (fun z hz => by rw [hRvf z hz, hupd.rv ((hM.members z).1 hz).1])⟩
     refine ⟨hM, hsrcm, hcv0, hcs1, fun x hx hxs => hco1 x ((hM.members x).1 hx).1 hxs, hfiL, hA1,
       by omega, by omega, by omega, fun j _ => physF_newCap _ _ _ _, fun j hj => ?_, fun j hj => ?_,
       fun j hj hu => ?_, fun j hj hm => ?_, fun j l hj hl he => ?_, hT1, hT1b, hT2a, hT2b, hT3⟩

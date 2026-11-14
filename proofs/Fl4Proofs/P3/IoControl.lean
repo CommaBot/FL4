@@ -17,7 +17,7 @@ the scheduler-action word is not a bitmap word.
 -/
 import Fl4Proofs.P3.IoPost
 import Fl4Proofs.P3.IrqArch
-import Fl4Proofs.P3.VsFrameInv
+import Fl4Proofs.P3.MdbStepInv
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -144,7 +144,7 @@ def IoCPost (th : TypedHeap) (kb : U64) (σ : Fl4Spec.State Unit) (m : Fl4Spec.S
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
       ∃ σ' G' r, (.ok r, σ') ∈ ((Fl4Spec.archPerformInvocation (Z := Unit) inv).run σ1).1 ∧
         CRel th (L.mem s') σ' G' ∧ IoRel (L.mem s') kb σ' ∧ FinInv th (L.mem s') σ' G' ∧
-        IoPortsAlloc (L.mem s') kb G' ∧ Vs.FrameInv (L.mem s') G'
+        IoPortsAlloc (L.mem s') kb G' ∧ MdbOK (L.mem s') G'
 
 theorem IoCPost.of_run {th : TypedHeap} {kb : U64} {σ : Fl4Spec.State Unit}
     {m m' : Fl4Spec.SEMonad Unit Fl4Spec.ArchInvocation} (h : m.run σ = m'.run σ) {s : S}
@@ -285,7 +285,7 @@ theorem restart_io (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.State
 /-- **IOPortControl `Issue`** (label 60). -/
 theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hL : IoLayout th (L.ksb s)) (hIo : IoRel (L.mem s) (L.ksb s) σ)
-    (hPA : IoPortsAlloc (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G) (hFR : Vs.FrameInv (L.mem s) G)
+    (hPA : IoPortsAlloc (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G) (hFR : MdbOK (L.mem s) G)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.invocationType slbl = .archInvocationLabel .x64IOPortControlIssue)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -421,7 +421,7 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
     · exact Or.inr ((hM2.members _).1 h).1
   have hfrm := insert_frame hP s3 (.IoPort first last) _ _ hAs.isSlot hAd.isSlot _ hsrc3 hnx
   refine WP.spec_bind (WP.spec_and hins hfrm) ?_
-  rintro s4 ⟨⟨σ', G', hci, hR', hV', hM', hC', hI', hFI', hcap4, bG, hGe⟩, hF4⟩
+  rintro s4 ⟨⟨σ', G', hci, hR', hV', hM', hC', hI', hFI', hcap4, ⟨bG, hGe⟩, hSt4⟩, hF4⟩
   rw [WP.spec_ok]
   have hkeep := capInsert_keeps (absCap (.IoPort first last)) (ps.bv, idxs) (pd.bv, db) σ2 ((), σ')
     (by rw [hci]; rfl)
@@ -467,19 +467,8 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
       obtain ⟨h1, h2, hb⟩ := hPA y hym f l hc
       exact ⟨h1, h2, fun p hp1 hp2 => hal p (by omega) (Or.inl (hb p hp1 hp2))⟩
 
-  · -- the frame invariant: a fresh IO port cap, naming no memory
-    have hsm : cslotAddr (ps.bv, idxs) ∈ G.chains.flatten := (hM2.members _).2 ⟨hAs.isSlot, _, hsrc3, by simp⟩
-    have hdm : cslotAddr (pd.bv, db) ∉ G.chains.flatten := by
-      intro h; obtain ⟨-, c0, h0, hn⟩ := (hM2.members _).1 h
-      rw [hdst3] at h0; exact hn (Result.ok_injective h0).symm
-    have hne : cslotAddr (ps.bv, idxs) ≠ cslotAddr (pd.bv, db) := fun e => hdm (e ▸ hsm)
-    have hFR3 : Vs.FrameInv (L.mem s3) G := FrameInv.of_same' hM hFR hS23
-    rw [hGe]
-    refine hFR3.insert_fresh hsm hdm bG (c := .IoPort first last) (by rw [hcap4 _ hAd.isSlot, if_pos rfl])
-      (by rw [hcap4 _ hAs.isSlot, if_neg hne]; exact Vs.MdbLike.refl _) (fun z hz hzs => ?_)
-      (fun _ _ _ _ _ h => by cases h) (fun _ _ _ _ _ _ _ _ _ _ _ h => by simp [absCap, Fl4Spec.objRefs, Fl4Spec.aobjRef] at h)
-    have hzd : z ≠ cslotAddr (pd.bv, db) := fun e => hdm (e ▸ hz)
-    rw [hcap4 _ ((hM2.members z).1 hz).1, if_neg hzd]
+  · -- the MDB invariants: a fresh IO port cap, naming no memory
+    exact (MdbStep.same_left hM hS23 hSt4).ok hFR
 
 /-- **Any other IOPortControl label**: `IllegalOperation`. -/
 theorem ioport_control_other (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl : U64)

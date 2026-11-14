@@ -50,7 +50,7 @@ theorem irq_handler_decode_refines (th : TypedHeap) (hP : Placed th)
     (cps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hex : lbl.val = 35 → ExtraSRel th (L.mem s) x0 cps) (hxn : lbl.val = 35 → x0 ≠ nodeA (L.ksb s) irq) :
     interrupt.decode_irq_handler st arI s ar lbl irq extra ⦃ res =>
-      HPost (L := L) th σ (Fl4Spec.decodeIrqHandlerInvocation slbl (BitVec.ofNat 8 irq.val) cps) s res ⦄ := by
+      HPost (L := L) th σ G (Fl4Spec.decodeIrqHandlerInvocation slbl (BitVec.ofNat 8 irq.val) cps) s res ⦄ := by
   by_cases h34 : lbl.val = 34
   · have e : lbl = fl4_abi.label.IRQAckIRQ := UScalar.eq_of_val_eq (by rw [h34]; simp [fl4_abi.label.IRQAckIRQ])
     subst e
@@ -76,7 +76,7 @@ theorem irq_handler_decode_refines (th : TypedHeap) (hP : Placed th)
 theorem irq_control_decode_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
-    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G) (hFR : Vs.FrameInv (L.mem s) G)
+    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G) (hFR : MdbOK (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : IrqCLabel lbl slbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)

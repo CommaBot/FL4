@@ -52,13 +52,14 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 same error with the state unchanged, or an invocation after which (with
 `set_thread_state Restart` first) `invoke_irq_handler` has an outcome in a
 related state, with `FinInv`. -/
-def HPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (m : Fl4Spec.SEMonad Unit Fl4Spec.IrqHandlerInvocation)
+def HPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+    (m : Fl4Spec.SEMonad Unit Fl4Spec.IrqHandlerInvocation)
     (s : S) : core.result.Result Unit error.Exc × S × A → Prop
   | (.Err e, s', _) => s' = s ∧ ∃ e', m.run σ = ({(.error e', σ)}, False) ∧ ErrRel e e'
   | (.Ok (), s', _) => ∃ inv, m.run σ = ({(.ok inv, σ)}, False) ∧ ∃ σ1,
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
       ∃ σ' G', ((), σ') ∈ (Fl4Spec.invokeIrqHandler (Z := Unit) inv σ1).1 ∧ CRel th (L.mem s') σ' G' ∧
-        FinInv th (L.mem s') σ' G'
+        FinInv th (L.mem s') σ' G' ∧ MdbStep (L.mem s) G (L.mem s') G'
 
 /-- **`Ack`.** -/
 theorem irq_ack_refines (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
@@ -69,7 +70,7 @@ theorem irq_ack_refines (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Un
     (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
     (irq : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) (cps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) :
     interrupt.decode_irq_handler st arI s ar fl4_abi.label.IRQAckIRQ irq extra ⦃ res =>
-      HPost (L := L) th σ (Fl4Spec.decodeIrqHandlerInvocation slbl (BitVec.ofNat 8 irq.val) cps) s res ⦄ := by
+      HPost (L := L) th σ G (Fl4Spec.decodeIrqHandlerInvocation slbl (BitVec.ofNat 8 irq.val) cps) s res ⦄ := by
   obtain ⟨hR, hV, hM, hC, hI⟩ := hCR
   unfold interrupt.decode_irq_handler
   rw [hct]; simp only [bind_ok, ↓reduceIte]
@@ -93,7 +94,7 @@ theorem irq_ack_refines (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Un
       refine mem_bind_nd (x := ((), { σ1 with machineState := ms' })) (Set.mem_singleton _) ?_
       rfl
     · exact ⟨crel_same ⟨hR1, hV1, hM1, hC1, MdbInv.of_same hM hI hS⟩ (SlotsSame.refl _ _) rfl rfl rfl,
-        hFI.of_same hM hS ((ksub_of_eq (setThreadState_nks _ _) hst).trans (KSub.of_kheap rfl))⟩
+        hFI.of_same hM hS ((ksub_of_eq (setThreadState_nks _ _) hst).trans (KSub.of_kheap rfl)), MdbStep.of_same hM hS⟩
 
 /-- **`Clear`.** -/
 theorem irq_clear_refines (th : TypedHeap) (hP : Placed th)
@@ -106,7 +107,7 @@ theorem irq_clear_refines (th : TypedHeap) (hP : Placed th)
     (irq : U64) (hirq : irq.val < 128) (hok : IrqSlotOK (L.mem s) (nodeA (L.ksb s) irq))
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (cps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) :
     interrupt.decode_irq_handler st arI s ar fl4_abi.label.IRQClearIRQHandler irq extra ⦃ res =>
-      HPost (L := L) th σ (Fl4Spec.decodeIrqHandlerInvocation slbl (BitVec.ofNat 8 irq.val) cps) s res ⦄ := by
+      HPost (L := L) th σ G (Fl4Spec.decodeIrqHandlerInvocation slbl (BitVec.ofNat 8 irq.val) cps) s res ⦄ := by
   obtain ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ := hDS
   unfold interrupt.decode_irq_handler
   have n1 : ¬ fl4_abi.label.IRQClearIRQHandler = fl4_abi.label.IRQAckIRQ := by rw [u64_eq_iff]; simp
@@ -129,9 +130,10 @@ theorem irq_clear_refines (th : TypedHeap) (hP : Placed th)
   have := delete_one_refines arI th hP (finalHyp_full th hP) hO hPD s2 ar σ1 G hDS1 hA (by have h := hok2; unfold IrqSlotOK at h; simpa only [cslotAddr_nil] using h)
   rw [cslotAddr_nil] at this
   refine WP.spec_bind this ?_
-  rintro ⟨s3, a3⟩ ⟨σ', G', hdel, hDS3⟩
+  rintro ⟨s3, a3⟩ ⟨σ', G', hdel, hDS3, hmS3⟩
   apply (WP.spec_ok (core.result.Result.Ok (), s3, a3)).mpr
-  refine ⟨.clearIRQHandler (BitVec.ofNat 8 irq.val), ?_, σ1, hst, σ', G', ?_, hDS3.1, hDS3.2.2⟩
+  refine ⟨.clearIRQHandler (BitVec.ofNat 8 irq.val), ?_, σ1, hst, σ', G', ?_, hDS3.1, hDS3.2.2,
+    MdbStep.same_left hM hS hmS3⟩
   · unfold Fl4Spec.decodeIrqHandlerInvocation; rw [hlbl]; rfl
   · show _ ∈ ((Fl4Spec.getIrqSlot _ >>= fun sl => Fl4Spec.capDeleteOne sl) σ1).1
     refine mem_bind_nd (x := ((σ1.interruptIrqNode (BitVec.ofNat 8 irq.val), []), σ1)) rfl ?_
@@ -151,7 +153,7 @@ theorem irq_set_refines (th : TypedHeap) (hP : Placed th)
     (cps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraSRel th (L.mem s) x0 cps)
     (hxn : x0 ≠ nodeA (L.ksb s) irq) :
     interrupt.decode_irq_handler st arI s ar fl4_abi.label.IRQSetIRQHandler irq extra ⦃ res =>
-      HPost (L := L) th σ (Fl4Spec.decodeIrqHandlerInvocation slbl (BitVec.ofNat 8 irq.val) cps) s res ⦄ := by
+      HPost (L := L) th σ G (Fl4Spec.decodeIrqHandlerInvocation slbl (BitVec.ofNat 8 irq.val) cps) s res ⦄ := by
   obtain ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ := hDS
   have hdec : Fl4Spec.decodeIrqHandlerInvocation (Z := Unit) slbl (BitVec.ofNat 8 irq.val) cps =
       (if cps ≠ [] then
@@ -204,7 +206,7 @@ theorem irq_set_refines (th : TypedHeap) (hP : Placed th)
     have := delete_one_keep arI th hP (finalHyp_full th hP) hO hPD hK s2 ar σ1 G hDS1 hA (by have h := hok2; unfold IrqSlotOK at h; simpa only [cslotAddr_nil] using h)
     rw [cslotAddr_nil] at this
     refine WP.spec_bind this ?_
-    rintro ⟨s3, a3⟩ ⟨⟨σ2, G2, hdel, ⟨hR3, hV3, hM3, hC3, hI3⟩, hD3, hFI3⟩, hnull, hoth⟩
+    rintro ⟨s3, a3⟩ ⟨⟨σ2, G2, hdel, ⟨⟨hR3, hV3, hM3, hC3, hI3⟩, hD3, hFI3⟩, hmS3⟩, hnull, hoth⟩
     simp only [uncurry_apply_pair]
     -- the insertion
     have hxs : IsSlot th x0 := by rw [hxe]; exact hAs.isSlot
@@ -220,10 +222,11 @@ theorem irq_set_refines (th : TypedHeap) (hP : Placed th)
       (Or.inl rfl) (by simp [isUt]) (by simp [isZb]) rfl
     rw [cslotAddr_nil, ← hxe] at hins
     refine WP.spec_bind hins ?_
-    rintro s4 ⟨σ', G', hci, hR', hV', hM', hC', hI', hFI'⟩
+    rintro s4 ⟨σ', G', hci, hR', hV', hM', hC', hI', hFI', hSti⟩
     rw [WP.spec_ok]
     refine ⟨.setIRQHandler (BitVec.ofNat 8 irq.val) (absCap (.Notification p b true r)) (ps.bv, idxs),
-      by rw [hdec2]; rfl, σ1, hst, σ', G', ?_, ⟨hR', hV', hM', hC', hI'⟩, hFI'⟩
+      by rw [hdec2]; rfl, σ1, hst, σ', G', ?_, ⟨hR', hV', hM', hC', hI'⟩, hFI',
+      (MdbStep.same_left hM hS hmS3).trans (hSti (fun h => absurd h (by simp [isUt])))⟩
     show _ ∈ ((Fl4Spec.getIrqSlot _ >>= fun irqSlot => Fl4Spec.capDeleteOne irqSlot >>= fun _ =>
       Fl4Spec.capInsert _ _ irqSlot) σ1).1
     refine mem_bind_nd (x := ((σ1.interruptIrqNode (BitVec.ofNat 8 irq.val), []), σ1)) rfl ?_
@@ -240,7 +243,7 @@ theorem irq_set_refines (th : TypedHeap) (hP : Placed th)
       rw [this]
     rw [if_neg hbad] at hdec2
     have hfin : ∀ e : core.result.Result Unit error.Exc, e = .Err (.Sys (.InvalidCapability 0#u64)) →
-        HPost (L := L) th σ (Fl4Spec.decodeIrqHandlerInvocation slbl (BitVec.ofNat 8 irq.val)
+        HPost (L := L) th σ G (Fl4Spec.decodeIrqHandlerInvocation slbl (BitVec.ofNat 8 irq.val)
           ((absCap c, (ps.bv, idxs)) :: rest)) s (e, s, ar) := by
       rintro e rfl
       exact ⟨rfl, _, by rw [hdec2]; rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩
@@ -254,14 +257,14 @@ theorem irq_set_refines (th : TypedHeap) (hP : Placed th)
          · exact absurd ⟨p, b, r, rfl⟩ hgood)
 
 /-- **Any other label**: `IllegalOperation`. -/
-theorem irq_other_refines (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+theorem irq_other_refines (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit) {G : MdbGhost}
     (lbl : U64) (h1 : lbl.val ≠ 34) (h2 : lbl.val ≠ 35) (h3 : lbl.val ≠ 36)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl ≠ .irqAckIRQ ∧
       Fl4Spec.genInvocationType slbl ≠ .irqSetIRQHandler ∧ Fl4Spec.genInvocationType slbl ≠ .irqClearIRQHandler)
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (irq : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) (cps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) :
     interrupt.decode_irq_handler st arI s ar lbl irq extra ⦃ res =>
-      HPost (L := L) th σ (Fl4Spec.decodeIrqHandlerInvocation slbl (BitVec.ofNat 8 irq.val) cps) s res ⦄ := by
+      HPost (L := L) th σ G (Fl4Spec.decodeIrqHandlerInvocation slbl (BitVec.ofNat 8 irq.val) cps) s res ⦄ := by
   unfold interrupt.decode_irq_handler
   have n1 : ¬ lbl = fl4_abi.label.IRQAckIRQ := by rw [u64_eq_iff]; simpa using h1
   have n2 : ¬ lbl = fl4_abi.label.IRQSetIRQHandler := by rw [u64_eq_iff]; simpa using h2

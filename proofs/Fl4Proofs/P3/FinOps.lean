@@ -12,6 +12,7 @@ Copy, Mint, Move, Mutate and Rotate (`copied_okey`). A control cap's child
 -/
 import Fl4Proofs.P3.FinSpec
 import Fl4Proofs.P3.CtlIns
+import Fl4Proofs.P3.MdbStepOps
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -275,7 +276,8 @@ theorem insert_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
     cdt.insert st s c (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd)) ⦃ s' =>
       ∃ σ' G', Fl4Spec.capInsert (Z := Unit) a (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False) ∧
         StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
-        CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G' ∧ FinInv th (L.mem s') σ' G' ⦄ := by
+        CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G' ∧ FinInv th (L.mem s') σ' G' ∧
+        ((isUt srcC = true → c = srcC) → MdbStep (L.mem s) G (L.mem s') G') ⦄ := by
   have hAs : AbsSlot th (ps.bv, idxs) := ⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩
   have hAd : AbsSlot th (pd.bv, idxd) := ⟨pd, rfl, Or.inl (by simpa [hld] using hpd)⟩
   have hsrcm := (hM.members _).2 ⟨hAs.isSlot, srcC, hsrcC, hsnn⟩
@@ -307,16 +309,20 @@ theorem insert_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
     (insert_mdbinv hP s G hM hI hsrcm hAd.isSlot hdestm hsrcC c he hsh hbd hut hzb)
   obtain ⟨s3, h3, hfin⟩ := spec_exists
     (insert_finM hP s G hM hFI.fm hsrcm hAd.isSlot hdestm hsrcC c he hsh hkey hzb)
-  rw [h1] at h2 h3
+  obtain ⟨s4, h4, hstep⟩ := spec_exists
+    (insert_mstep hP s G hM hI hsrcm hAd.isSlot hdestm hsrcC c he hsh hbd hut hzb hkey)
+  rw [h1] at h2 h3 h4
   have e := eq_of_ok_eq h2
   have e3 := eq_of_ok_eq h3
-  subst e e3
+  have e4 := eq_of_ok_eq h4
+  subst e e3 e4
   rw [h1, WP.spec_ok]
   obtain ⟨σ', G', hins, hR', hV', hM', hC', hG'⟩ := hpost hsib
-  refine ⟨σ', G', hins, hR', hV', hM', hC', ?_, hFI.kt.sub (ksub_of_eq (capInsert_nks _ _ _) hins), ?_⟩
+  refine ⟨σ', G', hins, hR', hV', hM', hC', ?_, ⟨hFI.kt.sub (ksub_of_eq (capInsert_nks _ _ _) hins), ?_⟩, ?_⟩
   · rw [hG', hb]; exact hinv
   · have hnd := hM'.tree.nodup
     rw [hG', hb] at hnd ⊢; exact hfin _ hnd
+  · rw [hG', hb]; exact hstep
 
 /-- **`cdt::insert` of a control cap's child refines `cap_insert` and keeps
 `MdbInv` and `FinInv`**, the new cap overlapping no cap of the MDB. -/
@@ -336,7 +342,8 @@ theorem insert_ctl_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (
         StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
         CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G' ∧ FinInv th (L.mem s') σ' G' ∧
         (∀ a, IsSlot th a → capV (L.mem s') a = if a = cslotAddr (pd.bv, idxd) then c else capV (L.mem s) a) ∧
-        ∃ b, G' = insG G (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd)) b ⦄ := by
+        (∃ b, G' = insG G (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd)) b) ∧
+        MdbStep (L.mem s) G (L.mem s') G' ⦄ := by
   obtain ⟨-, -, -, -, -, hzb, hcnn, hsnn, -, -, hk⟩ := hctl.facts
   have hAs : AbsSlot th (ps.bv, idxs) := ⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩
   have hAd : AbsSlot th (pd.bv, idxd) := ⟨pd, rfl, Or.inl (by simpa [hld] using hpd)⟩
@@ -366,15 +373,19 @@ theorem insert_ctl_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (
     (insert_ctl_finM hP s G hM hFI.fm hsrcm hAd.isSlot hdestm hsrcC c he hctl hov hfr)
   obtain ⟨s4, h4, hcaps⟩ := spec_exists
     (insert_ctl_caps hP s G hM hsrcm hAd.isSlot hdestm hsrcC c he hctl)
-  rw [h1] at h2 h3 h4
+  obtain ⟨s5, h5, hstep⟩ := spec_exists
+    (insert_ctl_mstep hP s G hM hsrcm hAd.isSlot hdestm hsrcC c he hctl
+      (isPF (revOf (L.mem s) (cslotAddr (ps.bv, idxs))) srcC c (revF c srcC)))
+  rw [h1] at h2 h3 h4 h5
   have e := eq_of_ok_eq h2
   have e3 := eq_of_ok_eq h3
   have e4 := eq_of_ok_eq h4
-  subst e e3 e4
+  have e5 := eq_of_ok_eq h5
+  subst e e3 e4 e5
   rw [h1, WP.spec_ok]
   obtain ⟨σ', G', hins, hR', hV', hM', hC', hG'⟩ := hpost hsib
   refine ⟨σ', G', hins, hR', hV', hM', hC', ?_, ⟨hFI.kt.sub (ksub_of_eq (capInsert_nks _ _ _) hins), ?_⟩, hcaps,
-    _, hG'⟩
+    ⟨_, hG'⟩, by rw [hG', hb]; exact hstep⟩
   · rw [hG', hb]; exact hinv
   · have hnd := hM'.tree.nodup
     rw [hG', hb] at hnd ⊢; exact hfin _ hnd
@@ -396,7 +407,8 @@ theorem move_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : Md
     cdt.move_cap st s c (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd)) ⦃ s' =>
       ∃ σ' G', Fl4Spec.capMove (Z := Unit) a (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False) ∧
         StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
-        CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G' ∧ FinInv th (L.mem s') σ' G' ⦄ := by
+        CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G' ∧ FinInv th (L.mem s') σ' G' ∧
+        ((isUt srcC = true → c = srcC) → MdbStep (L.mem s) G (L.mem s') G') ⦄ := by
   have hAs : AbsSlot th (ps.bv, idxs) := ⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩
   have hAd : AbsSlot th (pd.bv, idxd) := ⟨pd, rfl, Or.inl (by simpa [hld] using hpd)⟩
   have hsrcm := (hM.members _).2 ⟨hAs.isSlot, srcC, hsrcC, hsnn⟩
@@ -410,14 +422,17 @@ theorem move_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : Md
     (move_mdbinv hP s G hM hI hsrcm hAd.isSlot hdestm hsrcC c he hcnn hsh hbd)
   obtain ⟨s3, h3, hfin⟩ := spec_exists
     (move_finM hP s G hM hFI.fm hsrcm hAd.isSlot hdestm hsrcC c he hsh hkey)
-  rw [h1] at h2 h3
+  obtain ⟨s4, h4, hstep⟩ := spec_exists
+    (move_mstep hP s G hM hsrcm hAd.isSlot hdestm hsrcC c he hsh hkey)
+  rw [h1] at h2 h3 h4
   have e := eq_of_ok_eq h2
   have e3 := eq_of_ok_eq h3
-  subst e e3
+  have e4 := eq_of_ok_eq h4
+  subst e e3 e4
   rw [h1, WP.spec_ok]
   obtain ⟨σ', G', hmv, hR', hV', hM', hC', hG'⟩ := hpost
   refine ⟨σ', G', hmv, hR', hV', hM', hC', by rw [hG']; exact hinv,
-    hFI.kt.sub (ksub_of_eq (capMove_nks _ _ _) hmv), ?_⟩
+    ⟨hFI.kt.sub (ksub_of_eq (capMove_nks _ _ _) hmv), ?_⟩, by rw [hG']; exact hstep⟩
   have hnd := hM'.tree.nodup
   rw [hG'] at hnd ⊢; exact hfin hnd
 
@@ -439,7 +454,8 @@ theorem swap_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : Md
     cdt.swap st s c1 (cslotAddr (p1.bv, i1)) c2 (cslotAddr (p2.bv, i2)) ⦃ s' =>
       ∃ σ' G', Fl4Spec.capSwap (Z := Unit) a1 (p1.bv, i1) a2 (p2.bv, i2) σ = ({((), σ')}, False) ∧
         StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
-        CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G' ∧ FinInv th (L.mem s') σ' G' ⦄ := by
+        CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G' ∧ FinInv th (L.mem s') σ' G' ∧
+        ((isUt o1 = true → c1 = o1) → (isUt o2 = true → c2 = o2) → MdbStep (L.mem s) G (L.mem s') G') ⦄ := by
   have hA1 : AbsSlot th (p1.bv, i1) := ⟨p1, rfl, Or.inl (by simpa [hl1] using hp1)⟩
   have hA2 : AbsSlot th (p2.bv, i2) := ⟨p2, rfl, Or.inl (by simpa [hl2] using hp2)⟩
   have hAne : cslotAddr (p1.bv, i1) ≠ cslotAddr (p2.bv, i2) := fun h => hne (cslotAddr_inj hP hA1 hA2 h)
@@ -454,14 +470,18 @@ theorem swap_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : Md
     (swap_mdbinv hP s G hM hI hm1 hm2 hAne c1 c2 he1 he2 hcn1 hcn2 hsh1 hbd1 hsh2 hbd2)
   obtain ⟨s3, h3, hfin⟩ := spec_exists
     (swap_finM hP s G hM hFI.fm hm1 hm2 hAne c1 c2 he1 he2 hsh1 hk1 hsh2 hk2)
-  rw [h1] at h2 h3
+  obtain ⟨s4, h4, hstep⟩ := spec_exists
+    (swap_mstep hP s G hM hm1 hm2 hAne c1 c2 he1 he2 hsh1 hk1 hsh2 hk2)
+  rw [h1] at h2 h3 h4
   have e := eq_of_ok_eq h2
   have e3 := eq_of_ok_eq h3
-  subst e e3
+  have e4 := eq_of_ok_eq h4
+  subst e e3 e4
   rw [h1, WP.spec_ok]
   obtain ⟨σ', G', hsw, hG', hR', hV', hM', hC'⟩ := hpost
   refine ⟨σ', G', hsw, hR', hV', hM', hC', by rw [hG']; exact hinv,
-    hFI.kt.sub (ksub_of_eq (capSwap_nks _ _ _ _) hsw), ?_⟩
+    ⟨hFI.kt.sub (ksub_of_eq (capSwap_nks _ _ _ _) hsw), ?_⟩, fun u1 u2 => by
+      rw [hG']; rw [capV_of_capAt ho1, capV_of_capAt ho2] at hstep; exact hstep u1 u2⟩
   have hnd := hM'.tree.nodup
   rw [hG'] at hnd ⊢; exact hfin hnd
 
@@ -480,20 +500,23 @@ theorem empty_full_fin (th : TypedHeap) (s : S) (a : A) (σ : Fl4Spec.State Unit
     cdt.empty_slot st ar s a (cslotAddr (px.bv, idx)) .Null ⦃ r => r.2 = a ∧
       ∃ σ' G', Fl4Spec.emptySlot (Z := Unit) (px.bv, idx) .nullCap σ = ({((), σ')}, False) ∧
         StateRel th (L.mem r.1) σ' ∧ SlotsValid th (L.mem r.1) ∧ MdbLinks th (L.mem r.1) G' ∧
-        CdtRel th (L.mem r.1) σ' G' ∧ MdbInv (L.mem r.1) G' ∧ FinInv th (L.mem r.1) σ' G' ⦄ := by
+        CdtRel th (L.mem r.1) σ' G' ∧ MdbInv (L.mem r.1) G' ∧ FinInv th (L.mem r.1) σ' G' ∧
+        MdbStep (L.mem s) G (L.mem r.1) G' ⦄ := by
   have hAx : AbsSlot th (px.bv, idx) := ⟨px, rfl, Or.inl (by simpa [hl] using hpx)⟩
   have hxm := (hM.members _).2 ⟨hAx.isSlot, c, hc, hcn⟩
   obtain ⟨r1, h1, hpost⟩ := spec_exists (empty_slot_refines (ar := ar) th s a σ G hR hV hP hM hC hpx hl hc hcn)
   obtain ⟨r2, h2, hinv⟩ := spec_exists (empty_slot_mdbinv (ar := ar) hP s a G hM hI hxm hc hcn)
   obtain ⟨r3, h3, hfin⟩ := spec_exists (empty_finM (ar := ar) hP s a G hM hFI.fm hxm hc hcn)
-  rw [h1] at h2 h3
+  obtain ⟨r4, h4, hstep⟩ := spec_exists (empty_mstep (ar := ar) hP s a G hM hxm hc hcn)
+  rw [h1] at h2 h3 h4
   have e := eq_of_ok_eq h2
   have e3 := eq_of_ok_eq h3
-  subst e e3
+  have e4 := eq_of_ok_eq h4
+  subst e e3 e4
   rw [h1, WP.spec_ok]
   obtain ⟨hra, σ', G', hes, hR', hV', hM', hC', hG'⟩ := hpost
   refine ⟨hra, σ', G', hes, hR', hV', hM', hC', by rw [hG']; exact hinv,
-    hFI.kt.sub (ksub_of_eq (emptySlot_nks _ _) hes), ?_⟩
+    ⟨hFI.kt.sub (ksub_of_eq (emptySlot_nks _ _) hes), ?_⟩, by rw [hG']; exact hstep⟩
   have hnd := hM'.tree.nodup
   rw [hG'] at hnd ⊢; exact hfin hnd
 

@@ -203,7 +203,7 @@ def DefInv (th : TypedHeap) (sl : Fl4Spec.CslotPtr) (s0 : S) (σ0 : Fl4Spec.Stat
     psiD (L.mem x.1) G ≤ psiD (L.mem s0) G0 ∧
     (∀ y, RD (.finaliseSlotCall sl false) σ y → RD (.finaliseSlotCall sl false) σ0 y) ∧
     (∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgOK (L.mem s0) (L.mem x.1) y) ∧
-    StrictChg th (L.mem s0) (L.mem x.1) G0 G (cslotAddr sl)
+    StrictChg th (L.mem s0) (L.mem x.1) G0 G (cslotAddr sl) ∧ MdbStep (L.mem s0) G0 (L.mem x.1) G
 
 /-- What `finalise_slot_deferred` ends with. -/
 def DefPost (th : TypedHeap) (sl : Fl4Spec.CslotPtr) (s0 : S) (σ0 : Fl4Spec.State Unit) (G0 : MdbGhost)
@@ -211,7 +211,7 @@ def DefPost (th : TypedHeap) (sl : Fl4Spec.CslotPtr) (s0 : S) (σ0 : Fl4Spec.Sta
   ∃ σ' G', DState (L := L) th res.2.1 σ' G' ∧ (nnS G').card ≤ (nnS G0).card ∧
     psiD (L.mem res.2.1) G' ≤ psiD (L.mem s0) G0 ∧
     (∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgOK (L.mem s0) (L.mem res.2.1) y) ∧
-    StrictChg th (L.mem s0) (L.mem res.2.1) G0 G' (cslotAddr sl) ∧
+    StrictChg th (L.mem s0) (L.mem res.2.1) G0 G' (cslotAddr sl) ∧ MdbStep (L.mem s0) G0 (L.mem res.2.1) G' ∧
     ((∃ f, res.1 = .Ok f ∧ CleanCap f.cleanup ∧ CapWf f.cleanup ∧
         (f.success = false → HomeZ (L.mem res.2.1) (cslotAddr sl)) ∧
         RD (.finaliseSlotCall sl false) σ0
@@ -227,8 +227,8 @@ theorem deferred_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L) 
       DefPost (L := L) th sl s0 σ0 G0 res ⦄ := by
   unfold cdt.finalise_slot_deferred_loop
   refine loop.spec_decr_nat (fun x => x.2.2.val) (DefInv (L := L) th sl s0 σ0 G0) _ _ _ ?_ hinv
-  rintro ⟨s, a, fuel⟩ ⟨σ, G, hDS, hlt, hcd, hps, htr, hch, hsc⟩
-  simp only at hlt hcd hps htr hch hsc ⊢
+  rintro ⟨s, a, fuel⟩ ⟨σ, G, hDS, hlt, hcd, hps, htr, hch, hsc, hmS⟩
+  simp only at hlt hcd hps htr hch hsc hmS ⊢
   unfold cdt.finalise_slot_deferred_loop.body
   have hf : fuel > 0#u64 := by scalar_tac
   obtain ⟨fuel1, hv, hv1⟩ := spec_exists (U64.sub_spec (x := fuel) (y := 1#u64) (by scalar_tac))
@@ -243,7 +243,7 @@ theorem deferred_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L) 
     rw [cap_is_null_null]; simp only [bind_ok, ↓reduceIte, WP.spec_ok]
     have ha : ac = .nullCap := hca.abs
     subst ha
-    refine ⟨σ, G, ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, hcd, hps, hch, hsc, Or.inl ⟨_, rfl, trivial, trivial,
+    refine ⟨σ, G, ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, hcd, hps, hch, hsc, hmS, Or.inl ⟨_, rfl, trivial, trivial,
       fun h => by simp at h, htr _ (rd_fin_null hg)⟩⟩
   rw [cap_is_null_ne hcn]; simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
   obtain ⟨bf, hbf1, hbf2, -⟩ := hF s σ G sl c ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hA hc hcn
@@ -251,9 +251,11 @@ theorem deferred_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L) 
   rw [hca.abs] at hg
   have hcan : absCap c ≠ .nullCap := fun h => hcn (absCap_eq_null.1 h)
   apply WP.spec_bind (fin_step arI th hO hF hP s a σ G ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hA hc hcn bf hbf2)
-  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨σ1, G1, hmem, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, hx1, hch1, hcl, hclw, hzr, hrem⟩
-  simp only [uncurry_apply_pair] at hmem hx1 hch1 hcl hclw hzr hrem ⊢
-  dsimp only at hR1 hV1 hM1 hC1 hI1 hD1 hmem hx1 hch1 hcl hclw hzr hrem ⊢
+  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨σ1, G1, hmem, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, hx1, hch1, hcl, hclw, hzr, hrem,
+    hfs1⟩
+  simp only [uncurry_apply_pair] at hmem hx1 hch1 hcl hclw hzr hrem hfs1 ⊢
+  dsimp only at hR1 hV1 hM1 hC1 hI1 hD1 hmem hx1 hch1 hcl hclw hzr hrem hfs1 ⊢
+  have hmS1 := hmS.trans hfs1
   obtain ⟨hps1, hcd1⟩ := psiD_fin hM hM1 (by rw [hx1, capV_of_capAt hc]) hch1
   have hsc1 : StrictChg th (L.mem s0) (L.mem s1) G0 G1 (cslotAddr sl) :=
     hsc.trans (StrictChg.fin hM hM1 (by rw [hx1, capV_of_capAt hc]) hch1) hps hps1
@@ -262,20 +264,22 @@ theorem deferred_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L) 
   rcases hrem with rfl | ⟨p, zt, n, rfl, hz⟩
   · -- nothing remains: done
     simp only [cdt.cap_removable, bind_ok, ↓reduceIte, WP.spec_ok]
-    refine ⟨σ1, G1, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, by dsimp only at *; omega, by dsimp only at *; omega, hch1', hsc1, Or.inl ⟨_, rfl, hcl, hclw,
+    refine ⟨σ1, G1, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, by dsimp only at *; omega, by dsimp only at *; omega, hch1', hsc1, hmS1, Or.inl ⟨_, rfl, hcl, hclw,
       fun h => by simp at h, htr _ (rd_fin_removable hg hcan hmem trivial)⟩⟩
   -- a zombie remains
   obtain ⟨hrm, hrmS⟩ := removable_zombie hP hz.zok hA
   rw [hrm]; simp only [bind_ok]
   by_cases hrmv : n.val = 0 ∨ (n.val = 1 ∧ p = cslotAddr sl)
   · simp only [hrmv, decide_true, ↓reduceIte, WP.spec_ok]
-    refine ⟨σ1, G1, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, by dsimp only at *; omega, by dsimp only at *; omega, hch1', hsc1, Or.inl ⟨_, rfl, hcl, hclw,
+    refine ⟨σ1, G1, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, by dsimp only at *; omega, by dsimp only at *; omega, hch1', hsc1, hmS1, Or.inl ⟨_, rfl, hcl, hclw,
       fun h => by simp at h, htr _ (rd_fin_removable hg hcan hmem (hrmS.2 hrmv))⟩⟩
   simp only [hrmv, decide_false, Bool.false_eq_true, ↓reduceIte]
   have hxn1 : capV (L.mem s1) (cslotAddr sl) ≠ .Null := by rw [hx1]; exact hcn
   apply WP.spec_bind (set_zombie th s1 σ1 G1 hR1 hV1 hP hM1 hC1 hI1 hD1 hA hxn1 hz.wf hz.enc hz.zok hz.zu hz.bx hz.bf
     hz.h1 hz.h2 hz.home)
-  rintro s2 ⟨σ2, hsc2, ⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hps2, hx2, hoth2⟩
+  rintro s2 ⟨σ2, hsc2, ⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hps2, hx2, hoth2, hrv2⟩
+  have hmS2 : MdbStep (L.mem s0) G0 (L.mem s2) G1 := hmS1.trans (MdbStep.recap hM1 _ (by rw [hx2]; exact hz.al)
+    (fun z hz' hzx => hoth2 z ((hM1.members z).1 hz').1 hzx) (fun z hz' => hrv2 z ((hM1.members z).1 hz').1))
   have hFI2 := hFI1.set_zombie hM1 (ksub_of_eq (nks_setCap _ _) hsc2) hx2 hoth2 hz.zf
   have hsc2' : StrictChg th (L.mem s0) (L.mem s2) G0 G1 (cslotAddr sl) := by
     refine hsc1.trans (fun y hy hne hcnd => ?_) (le_trans hps1 hps) hps2
@@ -294,13 +298,14 @@ theorem deferred_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L) 
   by_cases hpx : p = cslotAddr sl
   · -- cyclic: stop
     simp only [hpx, decide_true, ↓reduceIte, WP.spec_ok]
-    refine ⟨σ2, G1, ⟨⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hFI2⟩, by dsimp only at *; omega, by dsimp only at *; omega, hch2, hsc2', Or.inl ⟨_, rfl, hcl, hclw,
+    refine ⟨σ2, G1, ⟨⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hFI2⟩, by dsimp only at *; omega, by dsimp only at *; omega, hch2, hsc2', hmS2, Or.inl ⟨_, rfl, hcl, hclw,
       fun _ => ⟨zt, n, by rw [hx2, hpx]⟩, htr _ (rd_fin_cyclic hg hcan hmem hnrm (hcyS.2 hpx) hsc2)⟩⟩
   simp only [hpx, decide_false, Bool.false_eq_true, ↓reduceIte]
   -- swap the zombie into its first slot
   have hx2a : capAt (L.mem s2) (cslotAddr sl) = ok (.Zombie p zt n) := by rw [capAt_capV, hx2]
   apply WP.spec_bind (swap_home th s2 σ2 G1 hR2 hV2 hP hM2 hC2 hI2 hD2 hA hx2a hpx)
-  rintro s3 ⟨σ3, G3, hsw3, ⟨hR3, hV3, hM3, hC3, hI3⟩, hD3, hps3, hcd3, hch3, -, -, hG3, hcap3⟩
+  rintro s3 ⟨σ3, G3, hsw3, ⟨hR3, hV3, hM3, hC3, hI3⟩, hD3, hps3, hcd3, hch3, -, -, hG3, hcap3, hst3⟩
+  have hmS3 := hmS2.trans hst3
   have hFI3 : FinInv th (L.mem s3) σ3 G3 := by
     subst hG3; exact hFI2.swap hM2 hM3 (ksub_of_eq (capSwapForDelete_nks _ _) hsw3) hpx hcap3
   have hsc3 : StrictChg th (L.mem s0) (L.mem s3) G0 G3 (cslotAddr sl) :=
@@ -319,6 +324,7 @@ theorem deferred_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L) 
   rintro ⟨r4, s4, a4⟩ ⟨hS4, σ4, hcase, hCR4⟩
   simp only at hS4 hcase hCR4 ⊢
   have hD4 := hD3.of_same hS4
+  have hmS4 := hmS3.same_right hM3 hS4
   have hFI4 := hFI3.of_same hM3 hS4 (pp_ksub hcase)
   have hps4 := psiD_same hM3 hCR4.2.2.1 hS4
   have hch4 : ∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgOK (L.mem s0) (L.mem s4) y :=
@@ -328,12 +334,12 @@ theorem deferred_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L) 
       (by rw [hps4])
   rcases hcase with ⟨rfl, hpm⟩ | ⟨rfl, hpm⟩
   · simp only [uncurry_apply_pair, core.result.Result.Insts.CoreOpsTry.branch, bind_ok, WP.spec_ok]
-    refine ⟨⟨σ4, G3, ⟨hCR4, hD4, hFI4⟩, by dsimp only at *; omega, by dsimp only at *; omega, by dsimp only at *; omega, fun y hy => ?_, hch4, hsc4⟩, by dsimp only at *; omega⟩
+    refine ⟨⟨σ4, G3, ⟨hCR4, hD4, hFI4⟩, by dsimp only at *; omega, by dsimp only at *; omega, by dsimp only at *; omega, fun y hy => ?_, hch4, hsc4, hmS4⟩, by dsimp only at *; omega⟩
     exact htr _ (rd_fin_reduce hg hcan hmem hnrm hcy' hsc2 hrz hpm hy)
   · simp only [uncurry_apply_pair, core.result.Result.Insts.CoreOpsTry.branch,
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
       core.convert.FromSame.from, bind_ok, bind_tc_ok, WP.spec_ok]
-    exact ⟨σ4, G3, ⟨hCR4, hD4, hFI4⟩, by dsimp only at *; omega, by dsimp only at *; omega, hch4, hsc4, Or.inr ⟨rfl,
+    exact ⟨σ4, G3, ⟨hCR4, hD4, hFI4⟩, by dsimp only at *; omega, by dsimp only at *; omega, hch4, hsc4, hmS4, Or.inr ⟨rfl,
       htr _ (rd_fin_pp_err hg hcan hmem hnrm hcy' hsc2 hrz hpm)⟩⟩
 
 end

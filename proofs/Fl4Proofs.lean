@@ -130,3 +130,9 @@ import Fl4Proofs.P3.TcbCtl
 import Fl4Proofs.P3.TcbExt
 import Fl4Proofs.P3.TopF
 import Fl4Proofs.P3.TopFCaps
+import Fl4Proofs.P3.CapRange
+import Fl4Proofs.P3.MdbStep
+import Fl4Proofs.P3.MdbStepOps
+import Fl4Proofs.P3.MdbStepInv
+import Fl4Proofs.P3.TopM
+import Fl4Proofs.P3.TopMCaps

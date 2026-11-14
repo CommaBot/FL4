@@ -107,6 +107,82 @@ theorem copied_okey {s : S} {lbl length buf src : U64} {srcC nc : capability.Cap
         simp at h; obtain ⟨rfl, rfl⟩ := h
         exact update_okey hc1 hn
 
+
+theorem mask_ut {r : capability.Rights} {c c' : capability.Cap} (h : capability.mask_cap_rights r c = ok c')
+    (hu : isUt c = true) : c' = c := by
+  cases c <;> simp [isUt] at hu
+  simp [capability.mask_cap_rights] at h; exact h.symm
+
+theorem update_ut {pr : Bool} {d : U64} {c c' : capability.Cap} (h : objects.update_cap_data pr d c = ok c')
+    (hu : isUt c = true) : c' = c := by
+  cases c <;> simp [isUt] at hu
+  simp [objects.update_cap_data] at h; exact h.symm
+
+theorem derive_ut {s : S} {slot : U64} {c c' : capability.Cap}
+    (h : objects.derive_cap st s slot c = ok (.Ok c')) (hu : isUt c = true) : c' = c := by
+  cases c <;> simp [isUt] at hu
+  unfold objects.derive_cap at h
+  obtain ⟨r, -, h⟩ := bind_ok_inv h
+  obtain ⟨cf, -, h⟩ := bind_ok_inv h
+  cases cf with
+  | Continue _ => simp at h; exact h.symm
+  | Break res =>
+    simp [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame,
+      core.convert.FromSame.from] at h
+    cases res with
+    | Ok x => cases x
+    | Err e => simp at h
+
+/-- The cap `copied_cap` produces from an untyped cap is that cap. -/
+theorem copied_ut {s : S} {lbl length buf src : U64} {srcC nc : capability.Cap} {mv : Bool}
+    (h : cnode.copied_cap st s lbl length buf src srcC = ok (.Ok (nc, mv))) (hu : isUt srcC = true) :
+    nc = srcC := by
+  unfold cnode.copied_cap at h
+  obtain ⟨ct, -, h⟩ := bind_ok_inv h
+  split at h
+  · split at h
+    · simp [error.truncated] at h
+    obtain ⟨i, -, h⟩ := bind_ok_inv h
+    obtain ⟨r, -, h⟩ := bind_ok_inv h
+    obtain ⟨c1, hc1, h⟩ := bind_ok_inv h
+    obtain ⟨r1, hr1, h⟩ := bind_ok_inv h
+    cases r1 with
+    | Err e => simp [core.result.Result.Insts.CoreOpsTry.branch,
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
+        core.convert.FromSame.from] at h
+    | Ok v =>
+      simp [core.result.Result.Insts.CoreOpsTry.branch] at h
+      obtain ⟨rfl, rfl⟩ := h
+      have e1 := mask_ut hc1 hu; subst e1
+      exact derive_ut hr1 hu
+  · split at h
+    · split at h
+      · simp [error.truncated] at h
+      obtain ⟨i, -, h⟩ := bind_ok_inv h
+      obtain ⟨r, -, h⟩ := bind_ok_inv h
+      obtain ⟨d, -, h⟩ := bind_ok_inv h
+      obtain ⟨c1, hc1, h⟩ := bind_ok_inv h
+      obtain ⟨c2, hc2, h⟩ := bind_ok_inv h
+      obtain ⟨r1, hr1, h⟩ := bind_ok_inv h
+      cases r1 with
+      | Err e => simp [core.result.Result.Insts.CoreOpsTry.branch,
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
+          core.convert.FromSame.from] at h
+      | Ok v =>
+        simp [core.result.Result.Insts.CoreOpsTry.branch] at h
+        obtain ⟨rfl, rfl⟩ := h
+        have e1 := mask_ut hc1 hu; subst e1
+        have e2 := update_ut hc2 hu; subst e2
+        exact derive_ut hr1 hu
+    · split at h
+      · simp at h; obtain ⟨rfl, rfl⟩ := h; rfl
+      · split at h
+        · simp [error.truncated] at h
+        obtain ⟨d, -, h⟩ := bind_ok_inv h
+        obtain ⟨c1, hc1, h⟩ := bind_ok_inv h
+        simp at h; obtain ⟨rfl, rfl⟩ := h
+        exact update_ut hc1 hu
+
 end
 
 end

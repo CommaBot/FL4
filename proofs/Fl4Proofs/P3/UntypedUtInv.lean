@@ -5,6 +5,7 @@ retype**, at the level of the slot contents and the ghost tree
 free index, and how the loop grew the tree (`LoopInv`'s tracking clauses).
 -/
 import Fl4Proofs.P3.UntypedLoop
+import Fl4Proofs.P3.MdbStep
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -62,35 +63,6 @@ theorem ut_range {p sb fi : U64} {d : Bool} (hsb : sb.val < 64)
     omega
   refine ⟨hb, ?_, by omega⟩
   rw [ht, Nat.mod_eq_of_lt hnw]; omega
-
-/-- What retype did to the slots and the tree, abstractly: `mem0`/`G0`
-before, `mem1` after the free-index update, `memf`/`Gf` after the loop, new
-caps `cj j` in slots `dslot j` (`j < w`), `k` bytes apart from `A`. -/
-structure RetypeDelta (th : TypedHeap) (mem0 mem1 memf : U64 → U64) (G0 Gf : MdbGhost) (src : U64)
-    (p sb fi nfi : U64) (dev : Bool) (A k w : Nat) (dslot : Nat → U64) (cj : Nat → capability.Cap) : Prop where
-  hM0 : MdbLinks th mem0 G0
-  hsrc : src ∈ G0.chains.flatten
-  hcs : capV mem0 src = .Untyped p sb fi dev
-  hcs1 : capV mem1 src = .Untyped p sb nfi dev
-  hc1 : ∀ x ∈ G0.chains.flatten, x ≠ src → capV mem1 x = capV mem0 x
-  hfi : fi.val < 2 ^ sb.val
-  hA : p.val + fi.val ≤ A
-  hnfi : p.val + nfi.val = A + w * k
-  hAw : A + w * k ≤ p.val + 2 ^ sb.val
-  hk : 1 ≤ k
-  cphys : ∀ j, j < w → physF (cj j) = true
-  cbase : ∀ j, j < w → baseF (cj j) = A + j * k
-  ctop : ∀ j, j < w → topF (cj j) = A + j * k + k - 1
-  cut : ∀ j, j < w → isUt (cj j) = true → ∃ us d, cj j = .Untyped ⟨BitVec.ofNat 64 (A + j * k)⟩ us 0#u64 d ∧
-    2 ^ us.val = k
-  dnot : ∀ j, j < w → dslot j ∉ G0.chains.flatten
-  dinj : ∀ j l, j < w → l < w → dslot j = dslot l → j = l
-  F1 : ∀ x ∈ Gf.chains.flatten, x ∈ G0.chains.flatten ∨ ∃ j, j < w ∧ x = dslot j
-  F1b : ∀ x ∈ G0.chains.flatten, x ∈ Gf.chains.flatten
-  F2a : ∀ j, j < w → capV memf (dslot j) = cj j
-  F2b : ∀ x ∈ G0.chains.flatten, capV memf x = capV mem1 x
-  F3 : ∀ y x, Mdb.Desc Gf.par y x ↔ Mdb.Desc G0.par y x ∨
-    ∃ j, j < w ∧ y = dslot j ∧ (x = src ∨ Mdb.Desc G0.par src x)
 
 namespace RetypeDelta
 variable {th : TypedHeap} {mem0 mem1 memf : U64 → U64} {G0 Gf : MdbGhost} {src p sb fi nfi : U64} {dev : Bool}

@@ -225,8 +225,8 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 /-- The outcome of a Copy/Mint/Move/Mutate against a spec decode `m`: the
 same error with the state unchanged, or an invocation after which (with
 `set_thread_state Restart` first) `invoke_cnode` ends in a related state,
-with the MDB invariant and `FinInv`. -/
-def InvPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (_G : MdbGhost)
+with the MDB invariant, `FinInv`, and the `MdbStep` taken. -/
+def InvPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (m : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation) (s : S) :
     core.result.Result Unit error.Exc × S → Prop
   | (.Err e, s') => s' = s ∧ ∃ e', m.run σ = ({(.error e', σ)}, False) ∧ SysErrRel e e'
@@ -234,7 +234,8 @@ def InvPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (_G : MdbGhost)
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
       ∃ σ' G', (Fl4Spec.invokeCnode (Z := Unit) inv).run σ1 = ({(.ok (), σ')}, False) ∧
         StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
-        CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G' ∧ FinInv th (L.mem s') σ' G'
+        CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G' ∧ FinInv th (L.mem s') σ' G' ∧
+        MdbStep (L.mem s) G (L.mem s') G'
 
 theorem InvPost.of_run {th : TypedHeap} {σ : Fl4Spec.State Unit} {G : MdbGhost}
     {m m' : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation} (h : m.run σ = m'.run σ) {s : S}
@@ -440,23 +441,23 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
             intro hu y hy
             obtain ⟨z, hz⟩ := desc_tail_child hy
             exact hut hu ((hC.has_child_iff hP hAs).2 ⟨z, hz⟩)
-          obtain ⟨s3, hs3, σ', G', hins, hR', hV', hM', hC', hI', hFI'⟩ := spec_exists
+          obtain ⟨s3, hs3, σ', G', hins, hR', hV', hM', hC', hI', hFI', hSt⟩ := spec_exists
             (insert_full_fin th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hps hpd rfl rfl hsc2 hsn hdc2 nc (absCap nc)
               ⟨hw', rfl⟩ hv' he' hnn hsh hbd hut' hzb hkey)
           rw [hs3]; simp only [bind_ok]
           rw [WP.spec_ok]
           refine ⟨.insertCall (absCap nc) (ps.bv, sb) (pd.bv, db), ?_, σ1, hst,
-            σ', G', run_liftE' hins, hR', hV', hM', hC', hI', hFI'⟩
+            σ', G', run_liftE' hins, hR', hV', hM', hC', hI', hFI', MdbStep.same_left hM hS (hSt (copied_ut hr2))⟩
           rw [run_ofExcept]; simp [finishRes, hann]
         · -- move
           simp only [↓reduceIte]
-          obtain ⟨s3, hs3, σ', G', hmv, hR', hV', hM', hC', hI', hFI'⟩ := spec_exists
+          obtain ⟨s3, hs3, σ', G', hmv, hR', hV', hM', hC', hI', hFI', hSt⟩ := spec_exists
             (move_full_fin th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hps hpd rfl rfl hsc2 hsn hdc2 nc (absCap nc) ⟨hw', rfl⟩
               hv' he' hnn hsh (hbm rfl) hkey)
           rw [hs3]; simp only [bind_ok]
           rw [WP.spec_ok]
           refine ⟨.moveCall (absCap nc) (ps.bv, sb) (pd.bv, db), ?_, σ1, hst,
-            σ', G', run_liftE' hmv, hR', hV', hM', hC', hI', hFI'⟩
+            σ', G', run_liftE' hmv, hR', hV', hM', hC', hI', hFI', MdbStep.same_left hM hS (hSt (copied_ut hr2))⟩
           rw [run_ofExcept]; simp [finishRes, hann]
 
 /-- **FL4's CNode Copy, Mint, Move and Mutate refine l4v's**: for labels

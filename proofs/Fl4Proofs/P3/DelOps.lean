@@ -4,6 +4,7 @@ the relations, `DelInv` and the measures: swapping a zombie into its first
 slot (`cap_swap_for_delete`).
 -/
 import Fl4Proofs.P3.DelInv
+import Fl4Proofs.P3.MdbStepOps
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -135,7 +136,8 @@ theorem swap_home (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGho
       capV (L.mem s') p = .Zombie p zt n ∧ capV (L.mem s') (cslotAddr sl) = capV (L.mem s) p ∧
       G' = renG G (Equiv.swap p (cslotAddr sl)) ∧
       (∀ y, IsSlot th y → capV (L.mem s') y = if y = cslotAddr sl then capV (L.mem s) p
-        else if y = p then capV (L.mem s) (cslotAddr sl) else capV (L.mem s) y) ⦄ := by
+        else if y = p then capV (L.mem s) (cslotAddr sl) else capV (L.mem s) y) ∧
+      MdbStep (L.mem s) G (L.mem s') G' ⦄ := by
   set x := cslotAddr sl with hxdef
   have hxs : IsSlot th x := hA.isSlot
   have hzok := hD.zwf x hxs p zt n (capV_of_capAt hx)
@@ -166,6 +168,7 @@ theorem swap_home (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGho
       (∀ y, IsSlot th y → capV (L.mem s') y =
         if y = x then capV (L.mem s) p else if y = p then capV (L.mem s) x else capV (L.mem s) y) →
       (∀ y, IsSlot th y → capV (L.mem s') y = .Null → prevOf (L.mem s') y = 0#u64 ∧ nextOf (L.mem s') y = 0#u64) →
+      MdbStep (L.mem s) G (L.mem s') (renG G (Equiv.swap p x)) →
       Fl4Spec.capSwapForDelete (Z := Unit) (homeSl p zt) sl σ = ({((), σ')}, False) →
       ∃ σ' G', Fl4Spec.capSwapForDelete (Z := Unit) (homeSl p zt) sl σ = ({((), σ')}, False) ∧
         CRel th (L.mem s') σ' G' ∧ DelInv th (L.mem s') ∧ psiD (L.mem s') G' < psiD (L.mem s) G ∧
@@ -174,10 +177,11 @@ theorem swap_home (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGho
         capV (L.mem s') p = .Zombie p zt n ∧ capV (L.mem s') x = capV (L.mem s) p ∧
         G' = renG G (Equiv.swap p x) ∧
         (∀ y, IsSlot th y → capV (L.mem s') y = if y = x then capV (L.mem s) p
-          else if y = p then capV (L.mem s) x else capV (L.mem s) y) := by
-    intro s' σ' hR' hV' hM' hC' hI' hcap hnc hsw
+          else if y = p then capV (L.mem s) x else capV (L.mem s) y) ∧
+        MdbStep (L.mem s) G (L.mem s') G' := by
+    intro s' σ' hR' hV' hM' hC' hI' hcap hnc hstep hsw
     obtain ⟨hlt, hcd⟩ := psi_swap hM hM' hcap hxs hpx hcvx hnh
-    refine ⟨σ', _, hsw, ⟨hR', hV', hM', hC', hI'⟩, ⟨?_, ?_, hnc⟩, hlt, hcd, ?_, ?_, ?_, rfl, hcap⟩
+    refine ⟨σ', _, hsw, ⟨hR', hV', hM', hC', hI'⟩, ⟨?_, ?_, hnc⟩, hlt, hcd, ?_, ?_, ?_, rfl, hcap, hstep⟩
     · intro y hy p' zt' n' hy'
       rw [hcap y hy] at hy'
       split_ifs at hy' with h1 h2
@@ -221,7 +225,7 @@ theorem swap_home (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGho
       (by rw [hHa]; exact hp0) (by rw [hHa]; exact hn0) hx hZn
     rw [hHa] at hsn
     refine WP.spec_mono hsn ?_
-    rintro s' ⟨σ', G', hsw, hR', hV', hM', hC', hI', hG', hxp0, hxn0, hnl, hcp⟩
+    rintro s' ⟨σ', G', hsw, hR', hV', hM', hC', hI', hG', hxp0, hxn0, hnl, hcp, hstep⟩
     subst hG'
     have hcap : ∀ y, IsSlot th y → capV (L.mem s') y =
         if y = x then capV (L.mem s) p else if y = p then capV (L.mem s) x else capV (L.mem s) y := by
@@ -242,7 +246,8 @@ theorem swap_home (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGho
       obtain ⟨e1, e2⟩ := hnl y hy h2 h1 (by rw [capAt_capV, capAt_capV, hcap y hy, if_neg h1, if_neg h2])
         (by rw [capAt_capV, hy0])
       rw [e1, e2]; exact hD.nc y hy hy0
-    have := post s' σ' hR' hV' hM' hC' hI' hcap hnc (capSwapForDelete_eq hne hg1 (by rw [hca2.abs] at hg2; exact hg2) hsw)
+    have := post s' σ' hR' hV' hM' hC' hI' hcap hnc hstep
+      (capSwapForDelete_eq hne hg1 (by rw [hca2.abs] at hg2; exact hg2) hsw)
     rw [capV_of_capAt hc1, hcvx] at this; exact this
   · have he1 : EncWf c1 := by rw [capAt_words] at hc1; exact decode_encWf hc1
     have he2 : EncWf (capability.Cap.Zombie p zt n) := by rw [capAt_words] at hx; exact decode_encWf hx
@@ -250,8 +255,12 @@ theorem swap_home (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGho
       c1 a1 hca1 (hV.abs hH (by rw [hHa]; exact hc1)) he1 hc1n rfl rfl
       (.Zombie p zt n) a2 hca2 (hV.abs hA hx) he2 hZn rfl rfl
     rw [hHa] at hsf
-    refine WP.spec_mono hsf ?_
-    rintro s' ⟨σ', G', hsw, hR', hV', hM', hC', hI', hG', hcp, hnl⟩
+    have hpm : p ∈ G.chains.flatten := (hM.members _).2 ⟨hps, c1, hc1, hc1n⟩
+    have hms := swap_mstep hP s G hM hpm hxm hpx c1 (.Zombie p zt n) he1 he2 (by rw [capV_of_capAt hc1])
+      (by rw [capV_of_capAt hc1]) (by rw [hcvx]) (by rw [hcvx])
+    refine WP.spec_mono (WP.spec_and hsf hms) ?_
+    rintro s' ⟨⟨σ', G', hsw, hR', hV', hM', hC', hI', hG', hcp, hnl⟩, hst⟩
+    have hstep := hst (fun _ => by rw [capV_of_capAt hc1]) (fun _ => by rw [hcvx])
     subst hG'
     have hcap : ∀ y, IsSlot th y → capV (L.mem s') y =
         if y = x then capV (L.mem s) p else if y = p then capV (L.mem s) x else capV (L.mem s) y := by
@@ -272,7 +281,7 @@ theorem swap_home (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGho
       have hym : y ∉ G.chains.flatten := fun h => (((mem_nnS hM y).1 (List.mem_toFinset.2 h)).2) hy0
       obtain ⟨e1, e2⟩ := hnl y hy hym h2 h1
       rw [e1, e2]; exact hD.nc y hy hy0
-    have := post s' σ' hR' hV' hM' hC' hI' hcap hnc (capSwapForDelete_eq hne hg1 (by rw [hca2.abs] at hg2; exact hg2)
+    have := post s' σ' hR' hV' hM' hC' hI' hcap hnc hstep (capSwapForDelete_eq hne hg1 (by rw [hca2.abs] at hg2; exact hg2)
       (by rw [hca2.abs, hca1.abs] at hsw; exact hsw))
     rw [capV_of_capAt hc1, hcvx] at this; exact this
 
@@ -328,7 +337,8 @@ theorem set_zombie (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGh
       Fl4Spec.setCap (Z := Unit) (absCap (.Zombie p zt n)) sl σ = ({((), σ')}, False) ∧
       CRel th (L.mem s') σ' G ∧ DelInv th (L.mem s') ∧ psiD (L.mem s') G ≤ psiD (L.mem s) G ∧
       capV (L.mem s') (cslotAddr sl) = .Zombie p zt n ∧
-      (∀ y, IsSlot th y → y ≠ cslotAddr sl → capV (L.mem s') y = capV (L.mem s) y) ⦄ := by
+      (∀ y, IsSlot th y → y ≠ cslotAddr sl → capV (L.mem s') y = capV (L.mem s) y) ∧
+      (∀ y, IsSlot th y → revOf (L.mem s') y = revOf (L.mem s) y) ⦄ := by
   set x := cslotAddr sl with hxdef
   have hxs : IsSlot th x := hA.isSlot
   have hxm : x ∈ G.chains.flatten := (hM.members _).2 ⟨hxs, _, capAt_capV _ _, hxn⟩
@@ -364,7 +374,7 @@ theorem set_zombie (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGh
     · rw [hσe]; show σ.isOriginalCap sl' = _; rw [hC.orig sl' hs', (hl _ hs'.isSlot).2.2.1]
   have hI' : MdbInv (L.mem (wrCap (L := L) s x (.Zombie p zt n))) G :=
     MdbInv.zombify hM hI hxm hl (fun y hy hyx => hother y hy hyx) hZx hbx hbf h1 h2
-  refine ⟨σ', hσ', ⟨hR', hV', hM', hC', hI'⟩, ⟨?_, ?_, ?_⟩, ?_, hZx, hother⟩
+  refine ⟨σ', hσ', ⟨hR', hV', hM', hC', hI'⟩, ⟨?_, ?_, ?_⟩, ?_, hZx, hother, fun y hy => (hl y hy).2.2.1⟩
   · intro y hy p' zt' n' h
     by_cases hyx : y = x
     · rw [hyx, hZx] at h; cases h; exact hZok

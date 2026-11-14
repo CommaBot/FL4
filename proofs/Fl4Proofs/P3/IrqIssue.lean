@@ -175,7 +175,7 @@ theorem CPost.liftME' {X Y : Type} {f : X → Y} {invk : Y → Fl4Spec.PMonad Un
 `IRQControl`), for an inactive IRQ. -/
 theorem issue_tail (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
-    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G) (hFR : Vs.FrameInv (L.mem s) G)
+    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G) (hFR : MdbOK (L.mem s) G)
     (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
     (ct : U64) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
@@ -208,7 +208,7 @@ theorem issue_tail (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4S
   have hAd : AbsSlot th (pd.bv, db) := ⟨pd, rfl, Or.inl hpd⟩
   have hsrc1 : capAt (L.mem s1) (cslotAddr (ps.bv, idxs)) = ok .IrqControl := by rw [hS.capAt hAs.isSlot, hsrcC]
   have hdst1 : capAt (L.mem s1) (cslotAddr (pd.bv, db)) = ok .Null := by rw [hS.capAt hAd.isSlot, hdst]
-  have hFR1 : Vs.FrameInv (L.mem s1) G := hFR.of_caps (fun z hz => hS.capV ((hCR.2.2.1.members z).1 hz).1)
+  have hFR1 : MdbOK (L.mem s1) G := MdbOK.of_same hCR.2.2.1 hS hFR
   refine WP.spec_bind (invoke_ctl_rel arI th hP s1 ar σ1 G hCR1 hL1 hIR1' hHA1 hFI1 hFR1 hmask irq hirq hin1 hps hpd hls
     rfl hsrc1 hdst1) ?_
   rintro ⟨s2, a2⟩ ⟨σ', G', hmem, hCR', hIR', -, hFI', hHA', hFR'⟩
@@ -222,7 +222,7 @@ theorem issue_tail (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4S
 /-- **`IRQIssueIRQHandler`** (label 33). -/
 theorem irq_issue_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
-    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G) (hFR : Vs.FrameInv (L.mem s) G)
+    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G) (hFR : MdbOK (L.mem s) G)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .irqIssueIRQHandler)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)

@@ -19,6 +19,7 @@ for a thread of the current core).
 -/
 import Fl4Proofs.P3.DecodeTop
 import Fl4Proofs.P3.TopF
+import Fl4Proofs.P3.TopM
 import Fl4Proofs.P3.TcbCaps
 open Aeneas Aeneas.Std Result
 
@@ -95,19 +96,19 @@ abbrev TcbOK (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl : U64) (p : U64) (c
     TopPost (L := L) σ blk call don (specDec false slbl args ci sl (.Thread p) excaps buffer) s res ⦄
 
 /-- The statement for `tcb::decode` at one label with the frame invariant:
-`TopPostF`. -/
+`TopPostM`. -/
 abbrev TcbOKF (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl : U64) (p : U64) (c : tcb.Ctx)
     (blk call don : Bool) (slbl : Fl4Spec.Data) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) : Prop :=
   tcb.decode st arI s ar lbl p c ⦃ res =>
-    TopPostF (L := L) σ blk call don (specDec false slbl args ci sl (.Thread p) excaps buffer) s res ⦄
+    TopPostM (L := L) σ blk call don (specDec false slbl args ci sl (.Thread p) excaps buffer) s res ⦄
 
 theorem TcbOKF.toTcbOK {s : S} {ar : A} {σ : Fl4Spec.State Unit} {lbl p : U64} {c : tcb.Ctx} {blk call don : Bool}
     {slbl : Fl4Spec.Data} {args : List Fl4Spec.Data} {ci : Fl4Spec.CapRef} {sl : Fl4Spec.CslotPtr}
     {excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {buffer : Option Fl4Spec.ObjRef}
     (h : TcbOKF (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer) :
     TcbOK (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer :=
-  WP.spec_mono h (fun _ h => h.top)
+  WP.spec_mono h (fun _ h => h.toF.top)
 
 /-- **`tcb::decode`, every label**: from one hypothesis per FL4 TCB label
 (see the module docstring), every other label being the spec's
@@ -358,15 +359,15 @@ theorem decode_invocation_thread (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl
     exact Or.inl ⟨_, rfl, rfl, _, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩
 
 
-/-- **The Thread cap**, with the frame invariant (`DecOKF`). -/
+/-- **The Thread cap**, with the frame invariant (`DecOKM`). -/
 theorem decode_invocation_threadF (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl length slot : U64) (p : U64)
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ct : U64)
     (hct : sched.cur_thread st s = ok ct) (slbl : Fl4Spec.Data) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
     (h : fp = false → TcbOKF (L := L) arI s ar σ lbl p ⟨length, buf, call, slot, extra⟩ blk call don slbl args ci sl
       excaps buffer) :
-    DecOKF (L := L) arI s ar σ lbl length slot (.Thread p) blk call don fp buf extra slbl args ci sl excaps buffer := by
-  unfold DecOKF syscall.decode_invocation
+    DecOKM (L := L) arI s ar σ lbl length slot (.Thread p) blk call don fp buf extra slbl args ci sl excaps buffer := by
+  unfold DecOKM syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   cases fp
   · simp only [Bool.false_eq_true, ↓reduceIte]

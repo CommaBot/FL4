@@ -275,7 +275,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
           (windowSlots dest r off.val win.val) dev)).run σ = ({(.ok (), σ')}, False) ∧
         Placed th' ∧ StateRel th' (L.mem res.2.1) σ' ∧ SlotsValid th' (L.mem res.2.1) ∧
         MdbLinks th' (L.mem res.2.1) G' ∧ CdtRel th' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
-        UtInv (L.mem res.2.1) G' ∧ (dev = false → ZeroRegion (L.mem res.2.1)
+        (UtInv (L.mem res.2.1) G' ∧ MdbStep (L.mem s) G (L.mem res.2.1) G') ∧ (dev = false → ZeroRegion (L.mem res.2.1)
           ((Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val)
           (p.val + 2 ^ sb.val)) ∧
         (FinInv th (L.mem s) σ G → FinInv th' (L.mem res.2.1) σ' G') ⦄ := by
@@ -364,7 +364,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
           (windowSlots dest r off.val win.val) dev)).run σ = ({(.ok (), σ')}, False) ∧
         Placed th' ∧ StateRel th' (L.mem res.2.1) σ' ∧ SlotsValid th' (L.mem res.2.1) ∧
         MdbLinks th' (L.mem res.2.1) G' ∧ CdtRel th' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
-        UtInv (L.mem res.2.1) G' ∧ (dev = false → ZeroRegion (L.mem res.2.1) (A + win.val * k) (p.val + 2 ^ sb.val)) ∧
+        (UtInv (L.mem res.2.1) G' ∧ MdbStep (L.mem s) G (L.mem res.2.1) G') ∧ (dev = false → ZeroRegion (L.mem res.2.1) (A + win.val * k) (p.val + 2 ^ sb.val)) ∧
         (FinInv th (L.mem s) σ G → FinInv th' (L.mem res.2.1) σ' G') ⦄ := by
     intro th' σb hP' hR' hV' hM' hC' hrb hpp' hdest' hcv' hzs hKb
     -- the zero region kept by the loop: none for a device region
@@ -398,7 +398,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
         fun j hj => absurd hj (by omega), fun x _ => rfl, fun y x => ⟨Or.inl, by
           rintro (h | ⟨j, hj, -⟩)
           · exact h
-          · omega⟩, fun h => h⟩
+          · omega⟩, fun h => h, fun ch hch => ⟨ch, hch, fun z hz => hz⟩, fun x _ => rfl⟩
       · intro j _ hj
         have hj' : off.val + j < 2 ^ r := by omega
         have hd : IsSlot th (slotAddr dest.bv (BitVec.ofNat 64 (off.val + j))) :=
@@ -449,7 +449,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
     simp only [bind_ok, uncurry_apply_pair]
     rw [WP.spec_ok]
     simp only at ha2 hfin
-    obtain ⟨σf, Gf, hchain, hRf, hVf, hMf, hCf, hIf, -, -, -, -, hZf, hT1, hT1b, hT2a, hT2b, hT3, hFf⟩ := hfin
+    obtain ⟨σf, Gf, hchain, hRf, hVf, hMf, hCf, hIf, -, -, -, -, hZf, hT1, hT1b, hT2a, hT2b, hT3, hFf, hChf, hRvf⟩ := hfin
     have hdrop : ((windowSlots dest r off.val win.val).zip (regionPtrs (BitVec.ofNat 64 aligned.val) win.val k)).drop
         win.val = [] := by
       apply List.drop_of_length_le; simp [windowSlots, regionPtrs]
@@ -483,10 +483,10 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
         rw [core.num.U64.wrapping_sub_bv_eq, core.num.U64.wrapping_add_bv_eq, htot, ← bv_eq_ofNat]
       have hzv : zOf nt.val us.val < 64 := by omega
       have hkk : 2 ^ zOf nt.val us.val = k := rfl
-      refine RetypeDelta.utinv (th := th) (mem0 := L.mem s) (mem1 := L.mem s1) (G0 := G) (src := src)
-        (p := p) (sb := sb) (fi := fi) (nfi := nfi) (dev := dev) (A := A) (k := k) (w := win.val)
-        (dslot := fun j => slotAddr dest.bv (BitVec.ofNat 64 (off.val + j)))
-        (cj := cjOf nt.val us dev aligned.val k) ?_ hU
+      suffices hRD : RetypeDelta th (L.mem s) (L.mem s1) (L.mem s2) G Gf src p sb fi nfi dev A k win.val
+          (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off.val + j))) (cjOf nt.val us dev aligned.val k) by
+        exact ⟨hRD.utinv hU, MdbStep.retype hRD hI hChf
+          (fun z hz => by rw [hRvf z hz, hupd.rv ((hM.members z).1 hz).1])⟩
       refine ⟨hM, hsrcm, hcv0, hcs1, fun x hx hxs => hco1 x ((hM.members x).1 hx).1 hxs, hfiL, hA1,
         by omega, by omega, by omega, fun j _ => physF_newCap _ _ _ _, fun j hj => ?_, fun j hj => ?_,
         fun j hj hu => ?_, fun j hj hm => ?_, fun j l hj hl he => ?_, hT1, hT1b, hT2a, hT2b, hT3⟩

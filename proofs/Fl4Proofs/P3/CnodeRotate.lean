@@ -326,14 +326,14 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
             have hsc2 : capAt (L.mem s2) (cslotAddr (ps.bv, sb)) = ok srcC := by rw [hS.capAt hAs.isSlot, hsc]
             have hpc2 : capAt (L.mem s2) (cslotAddr (ppv.bv, pb)) = ok pivC := by rw [hS.capAt hAp.isSlot, hpc]
             simp only [show decide (cslotAddr (ps.bv, sb) = cslotAddr (pd.bv, db)) = true from decide_eq_true e3, ↓reduceIte]
-            obtain ⟨s3, hs3, σ', G', hsw', hR', hV', hM', hC', hI', hFI'⟩ := spec_exists
+            obtain ⟨s3, hs3, σ', G', hsw', hR', hV', hM', hC', hI', hFI', hSt⟩ := spec_exists
               (swap_full_fin th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hps hpl rfl rfl (fun h => e1' h.symm) hsc2 hsn hpc2 hpn
                 ns (absCap ns) ⟨hnsw, rfl⟩ (hnscv th hscv) hnse hnsn hshs hbds' (update_okey hns hnsn)
                 np (absCap np) ⟨hnpw, rfl⟩ (hnpcv th hpcv) hnpe hnpn hshp hbdp' (update_okey hnp hnpn))
             rw [hs3]; simp only [bind_ok]
             rw [WP.spec_ok]
             refine ⟨.rotateCall (absCap ns) (absCap np) (ps.bv, sb) (ppv.bv, pb) (pd.bv, db), ?_, σ1, hst, σ', G', ?_,
-              hR', hV', hM', hC', hI', hFI'⟩
+              hR', hV', hM', hC', hI', hFI', MdbStep.same_left hM hS (hSt (update_ut hns) (update_ut hnp))⟩
             · simp only [hnsan, hnpan, Fl4Spec.NonDetE.whenE, ↓reduceIte, ndE_pure_bind]; rfl
             · unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption
               simp only [e3', ↓reduceIte]
@@ -441,7 +441,7 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
             have hpm : cslotAddr (ppv.bv, pb) ∈ G.chains.flatten := (hM1.members _).2 ⟨hAp.isSlot, pivC, hpc2, hpn⟩
             have hdm : cslotAddr (pd.bv, db) ∉ G.chains.flatten := by
               intro h; obtain ⟨-, c0, h0, hn⟩ := (hM1.members _).1 h; rw [hdc2] at h0; exact hn (eq_of_ok_eq h0).symm
-            obtain ⟨s3, hs3, σ2, G2, hmv1, hR2, hV2, hM2, hC2, hI2, hFI2⟩ := spec_exists
+            obtain ⟨s3, hs3, σ2, G2, hmv1, hR2, hV2, hM2, hC2, hI2, hFI2, hSt2⟩ := spec_exists
               (move_full_fin th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hpl hpd rfl rfl hpc2 hpn hdc2 np (absCap np) ⟨hnpw, rfl⟩
                 (hnpcv th hpcv) hnpe hnpn hshp hbdp' (update_okey hnp hnpn))
             obtain ⟨s3', hs3', hcaps⟩ := spec_exists (move_caps (L := L) hP s2 G hM1 hpm hAd.isSlot hdm np hnpe)
@@ -451,13 +451,14 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
               rw [hcaps _ hAs.isSlot, if_neg e3, if_neg (fun h => e1 h.symm), hsc2]
             have hpc3 : capAt (L.mem s3) (cslotAddr (ppv.bv, pb)) = ok .Null := by
               rw [hcaps _ hAp.isSlot, if_neg e2, if_pos rfl]
-            obtain ⟨s4, hs4, σ', G', hmv2, hR', hV', hM', hC', hI', hFI'⟩ := spec_exists
+            obtain ⟨s4, hs4, σ', G', hmv2, hR', hV', hM', hC', hI', hFI', hSt⟩ := spec_exists
               (move_full_fin th s3 σ2 G2 hR2 hV2 hP hM2 hC2 hI2 hFI2 hps hpl rfl rfl hsc3 hsn hpc3 ns (absCap ns) ⟨hnsw, rfl⟩
                 (hnscv th hscv) hnse hnsn hshs hbds' (update_okey hns hnsn))
             rw [hs4]; simp only [bind_ok]
             rw [WP.spec_ok]
             refine ⟨.rotateCall (absCap ns) (absCap np) (ps.bv, sb) (ppv.bv, pb) (pd.bv, db), ?_, σ1, hst, σ', G', ?_,
-              hR', hV', hM', hC', hI', hFI'⟩
+              hR', hV', hM', hC', hI', hFI',
+              (MdbStep.same_left hM hS (hSt2 (update_ut hnp))).trans (hSt (update_ut hns))⟩
             · simp only [hnsan, hnpan, Fl4Spec.NonDetE.whenE, ↓reduceIte, ndE_pure_bind]; rfl
             · unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption
               simp only [e3', ↓reduceIte]

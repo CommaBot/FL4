@@ -176,7 +176,7 @@ def TlsResHyp (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (ct : U64) : Pr
 `decode_set_tls_base`, the restart and `invoke_tcb (SetTLSBase ..)`, with
 the CSpace relation and `FinInv` after. -/
 theorem tcb_set_tls_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hFR : Vs.FrameInv (L.mem s) G)
+    (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hFR : MdbOK (L.mem s) G)
     (p : U64) (hp : th p = some .tcb) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetTLSBase)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -291,7 +291,7 @@ theorem tcb_set_tls_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (
         hV1.of_caps (fun a ha => (hS2.trans hS3).capAt ha),
         hM1.of_same (hS2.trans hS3), hC1.of_same (hS2.trans hS3) hcdt3 hio3,
         MdbInv.of_same hM hI hS⟩,
-      hFI.of_same hM hS (hK2.trans (KSub.of_kheap hk3)), FrameInv.of_same hM hFR hS⟩
+      hFI.of_same hM hS (hK2.trans (KSub.of_kheap hk3)), MdbOK.of_same hM hS hFR⟩
     refine invoke_tls_mem hkx y0.bv ?_ blk call don
     rw [← hwb, hcur1]
     simp only [Fl4Spec.NonDet.when, if_pos trivial]
@@ -302,7 +302,7 @@ theorem tcb_set_tls_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (
     apply Or.inr
     refine ⟨_, DecOut.of_eq hdec, σ1, by rw [hcur]; exact hst1, (.ok [], _), ?_, th, G,
       Or.inl ⟨rfl, [], rfl⟩, hP, ⟨hR2, hV1.of_caps (fun a ha => hS2.capAt ha), hM1.of_same hS2,
-        hC1.of_same hS2 rfl rfl, MdbInv.of_same hM hI hS12⟩, hFI.of_same hM hS12 hK2, FrameInv.of_same hM hFR hS12⟩
+        hC1.of_same hS2 rfl rfl, MdbInv.of_same hM hI hS12⟩, hFI.of_same hM hS12 hK2, MdbOK.of_same hM hS12 hFR⟩
     refine invoke_tls_mem (y := ((), Notif.updK σ1 p.bv (.tcb (Notif.setReg x Fl4Spec.tlsBaseRegister w.bv))))
       hkx y0.bv ?_ blk call don
     have : ¬ p.bv = σ1.curThread := fun e => hpc (UScalar.eq_of_val_eq (by

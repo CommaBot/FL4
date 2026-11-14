@@ -44,15 +44,15 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 /-- A single spec outcome is one of its outcomes. -/
 theorem InvPost.toP {th : TypedHeap} {σ : Fl4Spec.State Unit} {G : MdbGhost}
     {m : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation} {s : S} {res : core.result.Result Unit error.Exc × S}
-    (h : InvPost (L := L) th σ G m s res) : PInvPost (L := L) th σ m s res := by
+    (h : InvPost (L := L) th σ G m s res) : PInvPost (L := L) th σ G m s res := by
   obtain ⟨r, s'⟩ := res
   cases r with
   | Err e =>
     obtain ⟨h1, e', h2, h3⟩ := h
     exact Or.inl ⟨e, rfl, h1, e', h2, h3⟩
   | Ok u =>
-    obtain ⟨inv, h2, σ1, hst, σ', G', hrun, hR, hV, hM, hC, hI, hF⟩ := h
-    exact Or.inr ⟨inv, h2, σ1, hst, σ', G', Or.inl ⟨rfl, by rw [hrun]; rfl⟩, ⟨hR, hV, hM, hC, hI⟩, hF⟩
+    obtain ⟨inv, h2, σ1, hst, σ', G', hrun, hR, hV, hM, hC, hI, hF, hSt⟩ := h
+    exact Or.inr ⟨inv, h2, σ1, hst, σ', G', Or.inl ⟨rfl, by rw [hrun]; rfl⟩, ⟨hR, hV, hM, hC, hI⟩, hF, hSt⟩
 
 end
 
@@ -92,7 +92,7 @@ theorem cnode_decode_refines (th : TypedHeap) (s : S) (ar : A)
     (hEF : ∀ s1 σ1 G1, CRel th (L.mem s1) σ1 G1 → E s1 σ1 → FinInv th (L.mem s1) σ1 G1)
     (hfew : μ (L.mem s) G < 2 ^ 64 - 1) :
     cnode.decode st arI s ar lbl length cap buf extra ⦃ res =>
-      PInvPost (L := L) th σ (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
+      PInvPost (L := L) th σ G (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
         (res.1, res.2.1) ⦄ := by
   by_cases hlo : lbl.val < 25 ∨ 32 < lbl.val
   · -- outside the CNode labels

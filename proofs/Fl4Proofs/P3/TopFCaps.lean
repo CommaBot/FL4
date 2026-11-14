@@ -178,7 +178,7 @@ theorem decode_invocation_domainDF (hcfg : DomConfig) (th : TypedHeap) (hP : Pla
 theorem decode_invocation_ioport_controlF (th : TypedHeap) (hP : Placed th) (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hL : IoLayout th (L.ksb s))
     (hIo : IoRel (L.mem s) (L.ksb s) σ) (hPA : IoPortsAlloc (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
-    (hFR : Vs.FrameInv (L.mem s) G)
+    (hFR : MdbOK (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : lbl.val = 60 ↔ Fl4Spec.invocationType slbl = .archInvocationLabel .x64IOPortControlIssue)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -204,14 +204,14 @@ theorem decode_invocation_ioport_controlF (th : TypedHeap) (hP : Placed th) (s :
   | Err e => obtain ⟨rfl, e', h1, h2⟩ := hq; exact Or.inl ⟨e, rfl, rfl, e', h1, h2⟩
   | Ok u =>
     obtain ⟨inv, hrun, σ1, hst, σ', G', rr, hx, hCR', -, hF, -, hFr⟩ := hq
-    exact Or.inr ⟨inv, hrun, σ1, hst, (.ok rr, σ'), hx, th, G', Or.inl ⟨rfl, rr, rfl⟩, hP, hCR', hF, hFr⟩
+    exact Or.inr ⟨inv, hrun, σ1, hst, (.ok rr, σ'), hx, th, G', Or.inl ⟨rfl, rr, rfl⟩, hP, hCR', hF, hFr.1⟩
 
 
 theorem decode_invocation_irq_controlF (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
     (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
-    (hFR : Vs.FrameInv (L.mem s) G)
+    (hFR : MdbOK (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : IrqCLabel lbl slbl)
     (hrm : decide (lbl.val = 69) = Fl4Spec.isFl4RemappedLabel slbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -246,7 +246,7 @@ theorem decode_invocation_irq_controlF (th : TypedHeap) (hP : Placed th) (s : S)
   | Ok u =>
     obtain ⟨inv, hrun, σ1, hst, σ', G', hx, hCR', -, hF, -, hFr⟩ := hq
     exact Or.inr ⟨inv, hrun, σ1, hst, (.ok [], σ'), mem_bindE_ok hx (Set.mem_singleton _), th, G',
-      Or.inl ⟨rfl, [], rfl⟩, hP, hCR', hF, hFr⟩
+      Or.inl ⟨rfl, [], rfl⟩, hP, hCR', hF, hFr.1⟩
 
 
 end

@@ -47,7 +47,7 @@ theorem cnode_revoke_full (th : TypedHeap) (s : S) (ar : A)
     (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK5 : 5 ≤ K)
     (hDE : DelE (L := L) th K s σ) :
     cnode.decode st arI s ar fl4_abi.label.CNodeRevoke length cap buf extra ⦃ res =>
-      PInvPost (L := L) th σ (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
+      PInvPost (L := L) th σ G (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
         (res.1, res.2.1) ⦄ := by
   have hfew : psiD (L.mem s) G < 2 ^ 64 - 1 := by
     have := hDE.2.1 G hM
@@ -79,7 +79,7 @@ theorem cnode_delete_full (th : TypedHeap) (s : S) (ar : A)
     (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK5 : 5 ≤ K)
     (hDE : DelE (L := L) th K s σ) :
     cnode.decode st arI s ar fl4_abi.label.CNodeDelete length cap buf extra ⦃ res =>
-      PInvPost (L := L) th σ (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
+      PInvPost (L := L) th σ G (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
         (res.1, res.2.1) ⦄ :=
   cnode_delete_refines arI th s ar σ G hR hV hP hM hC slbl hlbl length buf ct hct args hlen hargs cap a hca hcv
     extra excaps hI hact hcur htcb (DelE (L := L) th K) psiD (delHyp_full arI th hP (finalHyp_full th hP) hO hPP hPD K hK hK5)

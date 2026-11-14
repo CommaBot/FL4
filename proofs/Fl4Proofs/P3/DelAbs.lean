@@ -561,7 +561,8 @@ theorem swap_null_full (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : M
           capAt (L.mem s) x = ok .Null → prevOf (L.mem s') x = prevOf (L.mem s) x ∧
             nextOf (L.mem s') x = nextOf (L.mem s) x) ∧
         (∀ x, IsSlot th x → capAt (L.mem s') x =
-          (if x = cslotAddr sl2 then ok .Null else if x = cslotAddr sl1 then ok c2 else capAt (L.mem s) x)) ⦄ := by
+          (if x = cslotAddr sl2 then ok .Null else if x = cslotAddr sl1 then ok c2 else capAt (L.mem s) x)) ∧
+        MdbStep (L.mem s) G (L.mem s') G' ⦄ := by
   have hs1 := hA1.isSlot
   have hs2 := hA2.isSlot
   have hAne : cslotAddr sl1 ≠ cslotAddr sl2 := fun h => hne (cslotAddr_inj hP hA1 hA2 h)
@@ -619,7 +620,7 @@ theorem swap_null_full (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : M
   have hsw := capSwap_eq h1 h2 hio hcdt
   have hRen := RenLinks.swap1 hP hM hs1 hm1 hm2 hon2 (fun x hx => ⟨(hW' x hx).1, (hW' x hx).2.1, (hW' x hx).2.2.1⟩)
   refine ⟨_, renG G (Equiv.swap (cslotAddr sl1) (cslotAddr sl2)), hsw,
-    StateRel.of_kheap hR2 rfl, hV2, MdbLinks.rename hM hRen, ?_, ?_, rfl, ?_, ?_, ?_, fun x hx => (hW' x hx).1⟩
+    StateRel.of_kheap hR2 rfl, hV2, MdbLinks.rename hM hRen, ?_, ?_, rfl, ?_, ?_, ?_, fun x hx => (hW' x hx).1, ?_⟩
   · refine CdtRel.swap hP hC _ hA1 hA2 hne ?_ ?_ ?_
     · exact swap_cdt_eq σ _ _ hne
     · exact swap_io_eq σ _ _ hne
@@ -682,6 +683,22 @@ theorem swap_null_full (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : M
       rintro ⟨h0, h⟩; exact hxm (h ▸ (hM.prev_link hm2 h0).1)
     rw [(hW' x hx).2.1, (hW' x hx).2.2.1, if_neg g1, if_neg g2, if_neg hx2, if_neg hx1, if_neg hx2, if_neg hx1]
     exact ⟨rfl, rfl⟩
+  · refine MdbStep.rename hM _ (fun a ha => ?_)
+    have ha1 : a ≠ cslotAddr sl1 := fun e => hm1 (e ▸ ha)
+    by_cases h2 : a = cslotAddr sl2
+    · subst h2
+      rw [Equiv.swap_apply_right, (hW' _ hs1).2.2.2.1, if_neg hAne, if_pos rfl]
+      have := (hW' _ hs1).1
+      rw [if_neg hAne, if_pos rfl] at this
+      rw [capV_of_capAt this, capV_of_capAt ho2]; exact ⟨CapAlike.refl _, rfl⟩
+    · rw [Equiv.swap_apply_of_ne_of_ne ha1 h2, (hW' _ (hslot a ha)).2.2.2.1, if_neg h2, if_neg ha1]
+      have := (hW' _ (hslot a ha)).1
+      rw [if_neg h2, if_neg ha1] at this
+      have e : capV (L.mem s') a = capV (L.mem s) a := by
+        have h1 := capAt_capV (L.mem s') a
+        rw [this, capAt_capV] at h1
+        exact (eq_of_ok_eq h1).symm
+      rw [e]; exact ⟨CapAlike.refl _, rfl⟩
 
 end
 

@@ -12,6 +12,7 @@ descendants miss it (`hdd`), and ranges of physical caps do not wrap
 (`hreg`). `InsNCtx.inv` is the result.
 -/
 import Fl4Proofs.P3.UntypedInsert
+import Fl4Proofs.P3.CapRange
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -19,44 +20,6 @@ open fl4_core Classical
 
 noncomputable section
 set_option linter.unusedSimpArgs false
-
-/-! ## Ranges of caps -/
-
-theorem ptr_total (c : capability.Cap) : ∃ v, capability.Cap.ptr c = ok v := by cases c <;> exact ⟨_, rfl⟩
-theorem phys_total (c : capability.Cap) : ∃ v, objects.cap_is_physical c = ok v := by cases c <;> exact ⟨_, rfl⟩
-theorem size_total (c : capability.Cap) : ∃ v, objects.cap_size_bits c = ok v := by
-  cases c <;> simp only [objects.cap_size_bits, frame_bits_eq, ite_ok_eq] <;> exact ⟨_, rfl⟩
-
-def ptrF (c : capability.Cap) : U64 := Classical.choose (ptr_total c)
-def physF (c : capability.Cap) : Bool := Classical.choose (phys_total c)
-def sizeF (c : capability.Cap) : U64 := Classical.choose (size_total c)
-theorem ptr_eq (c : capability.Cap) : capability.Cap.ptr c = ok (ptrF c) := Classical.choose_spec (ptr_total c)
-theorem phys_eq (c : capability.Cap) : objects.cap_is_physical c = ok (physF c) := Classical.choose_spec (phys_total c)
-theorem size_eq (c : capability.Cap) : objects.cap_size_bits c = ok (sizeF c) := Classical.choose_spec (size_total c)
-
-/-- First and last byte of a cap's range (`u64` arithmetic, as FL4). -/
-def baseF (c : capability.Cap) : Nat := (ptrF c).val
-def topF (c : capability.Cap) : Nat := (core.num.U64.wrapping_add (ptrF c) (maskF (sizeF c))).val
-
-theorem ok_inj {α : Type} {a b : α} (h : (ok a : Result α) = ok b) : a = b := by simpa using h
-
-theorem ptrF_shape (c : capability.Cap) : ptrF (shape c) = ptrF c := by
-  have h : capability.Cap.ptr (shape c) = capability.Cap.ptr c := by cases c <;> rfl
-  rw [ptr_eq, ptr_eq] at h; exact ok_inj h
-theorem physF_shape (c : capability.Cap) : physF (shape c) = physF c := by
-  have h : objects.cap_is_physical (shape c) = objects.cap_is_physical c := by cases c <;> rfl
-  rw [phys_eq, phys_eq] at h; exact ok_inj h
-theorem sizeF_shape (c : capability.Cap) : sizeF (shape c) = sizeF c := by
-  have h : objects.cap_size_bits (shape c) = objects.cap_size_bits c := by cases c <;> rfl
-  rw [size_eq, size_eq] at h; exact ok_inj h
-
-theorem shape_shape (c : capability.Cap) : shape (shape c) = shape c := by cases c <;> rfl
-
-theorem range_of_shape {c c' : capability.Cap} (h : shape c = shape c') :
-    baseF c = baseF c' ∧ topF c = topF c' ∧ physF c = physF c' := by
-  unfold baseF topF
-  rw [← ptrF_shape c, ← sizeF_shape c, ← physF_shape c, h, ptrF_shape, sizeF_shape, physF_shape]
-  exact ⟨rfl, rfl, rfl⟩
 
 /-- **`same_region_as` from an untyped cap is range containment.** -/
 theorem srB_utR (q sz f : U64) (d : Bool) (b : capability.Cap) :
@@ -191,10 +154,6 @@ theorem ptrF_ut (q sz f : U64) (d : Bool) : ptrF (.Untyped q sz f d) = q := ok_i
 theorem sizeF_ut (q sz f : U64) (d : Bool) : sizeF (.Untyped q sz f d) = sz := ok_inj (size_eq _).symm
 theorem physF_ut (q sz f : U64) (d : Bool) : physF (.Untyped q sz f d) = true := ok_inj (phys_eq _).symm
 
-/-- `b`'s range is inside `a`'s. -/
-def Within (b a : capability.Cap) : Prop := baseF a ≤ baseF b ∧ topF b ≤ topF a
-/-- The ranges of `a` and `b` do not meet. -/
-def Disj (a b : capability.Cap) : Prop := topF a < baseF b ∨ topF b < baseF a
 
 theorem isUt_iff {a : capability.Cap} : isUt a = true ↔ ∃ q sz f d, a = .Untyped q sz f d := by
   cases a <;> simp [isUt]
