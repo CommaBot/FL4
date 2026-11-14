@@ -887,7 +887,7 @@ pub fn decode<S: Store, A: Arch>(
             if let Cap::Untyped { ptr, size_bits, is_device, .. } = untyped {
                 parent.set_cap(s, Cap::Untyped { ptr, size_bits, free_index: 1u64 << (size_bits & 63), is_device });
             }
-            s.zero(frame, 4096);
+            s.clear_free(frame, 4096);
             cdt::insert(s, Cap::AsidPool { ptr: frame, asid_base: base }, parent, dest);
             set_asid_table(s, i, frame);
             Ok(())

@@ -13,6 +13,7 @@ structure StoreTotal {S : Type _} (st : machine.Store S) : Prop where
   read : ∀ s a, st.read s a ⦃ _ => True ⦄
   write : ∀ s a v, st.write s a v ⦃ _ => True ⦄
   zero : ∀ s a n, st.zero s a n ⦃ _ => True ⦄
+  clear_free : ∀ s a n, st.clear_free s a n ⦃ _ => True ⦄
   ks_base : ∀ s, st.ks_base s ⦃ _ => True ⦄
   cur_cpu : ∀ s, st.cur_cpu s ⦃ _ => True ⦄
 
@@ -54,6 +55,7 @@ variable {S : Type _} {st : machine.Store S}
 @[step] theorem StoreTotal.read_spec (h : StoreTotal st) s a : st.read s a ⦃ _ => True ⦄ := h.read s a
 @[step] theorem StoreTotal.write_spec (h : StoreTotal st) s a v : st.write s a v ⦃ _ => True ⦄ := h.write s a v
 @[step] theorem StoreTotal.zero_spec (h : StoreTotal st) s a n : st.zero s a n ⦃ _ => True ⦄ := h.zero s a n
+@[step] theorem StoreTotal.clear_free_spec (h : StoreTotal st) s a n : st.clear_free s a n ⦃ _ => True ⦄ := h.clear_free s a n
 @[step] theorem StoreTotal.ks_base_spec (h : StoreTotal st) s : st.ks_base s ⦃ _ => True ⦄ := h.ks_base s
 @[step] theorem StoreTotal.cur_cpu_spec (h : StoreTotal st) s : st.cur_cpu s ⦃ _ => True ⦄ := h.cur_cpu s
 end

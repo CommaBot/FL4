@@ -175,14 +175,14 @@ fn reset_untyped<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot) -> KResult
     }
     if device || block < RESET_CHUNK_BITS {
         if !device {
-            s.zero(ptr, 1u64 << (block & 63));
+            s.clear_free(ptr, 1u64 << (block & 63));
         }
         slot.set_cap(s, Cap::Untyped { ptr, size_bits: block, free_index: 0, is_device: device });
         return Ok(());
     }
     let mut offset = (free_index - 1) & !(RESET_CHUNK - 1);
     loop {
-        s.zero(ptr.wrapping_add(offset), RESET_CHUNK);
+        s.clear_free(ptr.wrapping_add(offset), RESET_CHUNK);
         slot.set_cap(s, Cap::Untyped { ptr, size_bits: block, free_index: offset, is_device: device });
         if offset == 0 {
             return Ok(());

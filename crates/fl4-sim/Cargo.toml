@@ -18,5 +18,6 @@ serial-gate = ["fl4-sync/serial-gate"]
 # simulator fails each of these known-broken runtimes.
 mutant-skip-validation = ["fl4-store/mutant-skip-validation"]
 mutant-no-publish = ["fl4-store/mutant-no-publish"]
+mutant-clear-no-validate = ["fl4-store/mutant-clear-no-validate"]
 mutant-gate-no-wait = ["fl4-sync/mutant-gate-no-wait"]
 mutant-gate-release = ["fl4-sync/mutant-gate-release"]

@@ -516,6 +516,16 @@ impl Store for SimStore {
             a += 8;
         }
     }
+    fn clear_free(&mut self, addr: u64, len: u64) {
+        assert!(len % 8 == 0);
+        if self.tx {
+            // In place, through `Mem::store`: the checker sees the zeros
+            // at the clear's version.
+            tx::clear_free(self.cpu, &*self, addr, len);
+            return;
+        }
+        self.zero(addr, len)
+    }
     fn ks_base(&self) -> u64 {
         self.ks_base
     }
@@ -873,6 +883,11 @@ struct Sim {
     /// slot most calls go to, and the object type the root task keeps
     /// deleting and retyping there.
     focus: Option<(u64, u64)>,
+    /// A small untyped the root task retypes a TCB from and deletes again,
+    /// so each retype resets it (`Store::clear_free`, in place while other
+    /// cores' transactions run).
+    reset_ut: u64,
+    reset_child: u64,
 }
 
 fn pptr(p: u64) -> u64 {
@@ -893,7 +908,7 @@ impl Sim {
         }));
         let s = SimStore { mem: mem.clone(), ks_base, cpu: 0, tx: false, conc: None };
         let a = SimArch { m, mem, ks_base, cpu: 0, conc: None };
-        Sim { s, a, ncores, objs: Vec::new(), next_slot: 0, fault_ep: 0, reply: 0, focus: None }
+        Sim { s, a, ncores, objs: Vec::new(), next_slot: 0, fault_ep: 0, reply: 0, focus: None, reset_ut: 0, reset_child: 0 }
     }
 
     /// Run the kernel part of an entry: directly, or (concurrent mode)
@@ -1102,6 +1117,12 @@ impl Sim {
             }
             self.next_slot += n;
         }
+        let dest = self.next_slot;
+        self.invoke(0, ut, label::UntypedRetype, &[ot::Untyped, 13, rs::InitThreadCNode, 0, dest, 1], &[rs::InitThreadCNode]);
+        self.after("setup reset untyped");
+        self.reset_ut = dest;
+        self.reset_child = dest + 1;
+        self.next_slot += 2;
         // Give each new TCB a CSpace, VSpace, priority, an SC on some core,
         // and start it: these become the threads running random programs.
         let tcbs: Vec<u64> = self.objs_of(|c| matches!(c, Cap::Thread { .. }));
@@ -1178,6 +1199,16 @@ impl Sim {
         let t = sched::cur_thread(&self.s);
         t.set_reg(&mut self.s, reg::REPLY, self.reply);
         let _ = serve;
+        if self.reset_ut != 0 && self.a.m.lock().unwrap().rng.below(4) == 0 {
+            let child = self.reset_child;
+            if Slot::index(self.root_cnode(), child).cap(&self.s).is_null() {
+                let ut = self.reset_ut;
+                self.invoke(cpu, ut, label::UntypedRetype, &[ot::Tcb, 0, rs::InitThreadCNode, 0, child, 1], &[rs::InitThreadCNode]);
+            } else {
+                self.invoke(cpu, rs::InitThreadCNode, label::CNodeDelete, &[child, 64], &[]);
+            }
+            return;
+        }
         if let Some((slot, ty)) = self.focus {
             if self.a.m.lock().unwrap().rng.below(2) == 0 {
                 // Delete the focus object's capability (its last one, so
@@ -1351,6 +1382,14 @@ impl Sim {
 
     fn check(&self, what: &str) {
         let s = &self.s;
+        // A TCB made from the reset untyped keeps what creation wrote: a
+        // reset's in-place clear of a region that is live by then (a stale
+        // `clear_free`) would zero it.
+        if self.reset_child != 0 {
+            if let Cap::Thread { ptr } = Slot::index(self.root_cnode(), self.reset_child).cap(s) {
+                assert_eq!(s.read(Tcb(ptr).fpu_addr()), 0x037f, "{what}: a live TCB in the reset untyped was cleared");
+            }
+        }
         let threads = self.threads();
         for c in 0..self.ncores {
             let ct = Tcb(node_get(s, c, node::CUR_THREAD));

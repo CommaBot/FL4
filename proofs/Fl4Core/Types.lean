@@ -64,12 +64,13 @@ structure boot.Boot where
   full : Bool
 
 /-- Trait declaration: [fl4_core::machine::Store]
-    Source: 'crates/fl4-core/src/machine.rs', lines 10:0-21:1
+    Source: 'crates/fl4-core/src/machine.rs', lines 10:0-26:1
     Visibility: public -/
 structure machine.Store (Self : Type _) where
   read : Self → Std.U64 → Result Std.U64
   write : Self → Std.U64 → Std.U64 → Result Self
   zero : Self → Std.U64 → Std.U64 → Result Self
+  clear_free : Self → Std.U64 → Std.U64 → Result Self
   ks_base : Self → Result Std.U64
   cur_cpu : Self → Result Std.U64
 
@@ -157,7 +158,7 @@ structure boot.Pick where
   start : Std.U64
 
 /-- Trait declaration: [fl4_core::machine::Arch]
-    Source: 'crates/fl4-core/src/machine.rs', lines 25:0-87:1
+    Source: 'crates/fl4-core/src/machine.rs', lines 30:0-92:1
     Visibility: public -/
 structure machine.Arch (Self : Type _) where
   now : Self → Result (Std.U64 × Self)

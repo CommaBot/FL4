@@ -23,6 +23,11 @@ const MAX_READS: usize = 2048;
 const WB: usize = 2048;
 /// Largest `zero` done inside a transaction (bytes); larger clears go serial.
 const MAX_TX_ZERO: u64 = 512;
+/// Largest `clear_free` done in place inside a transaction (bytes): the
+/// lines it covers fit the version table without wrapping. Larger clears
+/// go serial.
+const MAX_TX_CLEAR: u64 = 65536;
+const CLEAR_LINES: usize = (MAX_TX_CLEAR / 64) as usize;
 
 /// Memory under the store: physical memory through the kernel window on
 /// hardware, simulated memory in fl4-sim.
@@ -118,6 +123,11 @@ pub struct TxState {
     wgen: [u32; WB],
     worder: [u16; WB],
     nw: usize,
+    // `clear_free`: the entries it holds, deduplicated by `zstamp`.
+    zgen: u32,
+    zstamp: [u32; ENTRIES],
+    zsaved: [u64; ENTRIES],
+    zlist: [u16; CLEAR_LINES],
 }
 
 impl TxState {
@@ -140,6 +150,10 @@ impl TxState {
             wgen: [0; WB],
             worder: [0; WB],
             nw: 0,
+            zgen: 0,
+            zstamp: [0; ENTRIES],
+            zsaved: [0; ENTRIES],
+            zlist: [0; CLEAR_LINES],
         }
     }
 }
@@ -308,6 +322,92 @@ pub fn zero(cpu: u64, addr: u64, len: u64) {
     }
 }
 
+/// Zero `[addr, addr + len)`, memory that no live object occupies (an
+/// untyped region with no children: `Store::clear_free`), in place rather
+/// than through the write buffer.
+///
+/// The clear is safe even if the transaction later aborts: zeroing memory
+/// that holds no live object changes nothing anyone depends on. What must
+/// hold is that the region is free in the committed state when it is
+/// cleared, which the transaction decided from its reads. So the clear
+/// locks the region's table entries (in table order, like a commit),
+/// takes a version, checks the read set is still current, clears, and
+/// releases the entries at that version: a commit that would make the
+/// region live writes into it, so it waits for the entries and lands
+/// after the zeros. The transaction's snapshot is then current at the new
+/// version, so its read version moves up to it (TL2 timestamp extension)
+/// and later reads of the cleared lines stay valid.
+pub fn clear_free<M: Mem>(cpu: u64, m: &M, addr: u64, len: u64) {
+    let t = st(cpu);
+    if t.doom != DOOM_NONE {
+        return;
+    }
+    if len > MAX_TX_CLEAR || (((addr + len + 63) >> 6) - (addr >> 6)) as usize > CLEAR_LINES {
+        t.doom = DOOM_SERIAL;
+        return;
+    }
+    t.zgen = t.zgen.wrapping_add(1);
+    if t.zgen == 0 {
+        t.zstamp = [0; ENTRIES];
+        t.zgen = 1;
+    }
+    let mut n = 0;
+    let mut a = addr & !63;
+    while a < addr + len {
+        let e = stripe(a);
+        if t.zstamp[e] != t.zgen {
+            t.zstamp[e] = t.zgen;
+            t.zlist[n] = e as u16;
+            n += 1;
+        }
+        a += 64;
+    }
+    let zs = &mut t.zlist[..n];
+    zs.sort_unstable();
+    for &e in zs.iter() {
+        let e = e as usize;
+        loop {
+            let v = m.a_load(&TABLE[e].0, Ordering::Relaxed);
+            if v & 1 == 0 && m.a_cas(&TABLE[e].0, v, v | 1, Ordering::Acquire, Ordering::Relaxed).is_ok() {
+                t.zsaved[e] = v;
+                break;
+            }
+            m.relax();
+        }
+    }
+    let wv = m.a_add(&CLOCK, 2, Ordering::AcqRel) + 2;
+    for i in 0..t.nreads {
+        let e = t.reads[i] as usize;
+        let v = if t.zstamp[e] == t.zgen { t.zsaved[e] } else { m.a_load(&TABLE[e].0, Ordering::Acquire) };
+        // (Mutation test: `mutant-clear-no-validate` clears without checking.)
+        if (v & 1 != 0 || v > t.rv) && !cfg!(feature = "mutant-clear-no-validate") {
+            log_conflict(cpu, (1 << 63) | e as u64);
+            for &e in t.zlist[..n].iter() {
+                m.a_store(&TABLE[e as usize].0, t.zsaved[e as usize], Ordering::Release);
+            }
+            t.doom = DOOM_CONFLICT;
+            return;
+        }
+    }
+    t.wv = wv;
+    let mut a = addr;
+    while a < addr + len {
+        m.store(a, 0);
+        a += 8;
+    }
+    // Buffered writes into the region came before the clear.
+    for k in 0..t.nw {
+        let i = t.worder[k] as usize;
+        if t.wkey[i] >= addr && t.wkey[i] < addr + len {
+            t.wval[i] = 0;
+        }
+    }
+    for &e in t.zlist[..n].iter() {
+        m.a_store(&TABLE[e as usize].0, wv, Ordering::Release);
+    }
+    t.rv = wv;
+}
+
 /// Commit the transaction on `cpu`. False if it was doomed or a read is
 /// no longer current; nothing is then written.
 pub fn commit<M: Mem>(cpu: u64, m: &M) -> bool {
@@ -442,5 +542,63 @@ mod tests {
         std::println!("80000 commits, {aborts} aborts");
         let sum: u64 = (0..N).map(|i| TestMem.load(addr(i))).sum();
         assert_eq!(sum, TOTAL);
+    }
+
+    static REGION: [Line; 64] = [const { Line([const { AtomicU64::new(0) }; 8]) }; 64];
+    static GEN: Line = Line([const { AtomicU64::new(0) }; 8]);
+
+    /// The kernel's use of `clear_free`, on threads standing for cores 4..8
+    /// (apart from the other test's): a region is either in use, holding
+    /// its generation's pattern, or free (GEN's second word). A transaction
+    /// finding it in use checks the pattern and frees it, as deleting the
+    /// last object of an untyped does; one finding it free clears it in
+    /// place, writes the next generation's pattern and marks it in use, as
+    /// a reset and retype does. A clear landing after a later generation's
+    /// writes, or a snapshot torn by an in-place clear, shows up as a wrong
+    /// pattern in a committed reader.
+    #[test]
+    fn clear_free_keeps_live_data() {
+        let reg = |i: usize| &REGION[i / 8].0[i % 8] as *const AtomicU64 as u64;
+        let gen = &GEN.0[0] as *const AtomicU64 as u64;
+        let free = &GEN.0[1] as *const AtomicU64 as u64;
+        GEN.0[1].store(1, Ordering::Relaxed);
+        let len = (64 * 64) as u64;
+        let threads: std::vec::Vec<_> = (4..8u64)
+            .map(|cpu| {
+                std::thread::spawn(move || {
+                    let mut commits = 0;
+                    while commits < 5_000 {
+                        begin(cpu, &TestMem);
+                        let g = read(cpu, &TestMem, gen);
+                        let is_free = read(cpu, &TestMem, free) == 1;
+                        let mut seen = std::vec::Vec::new();
+                        if !is_free {
+                            for i in (0..512).step_by(37) {
+                                seen.push((read(cpu, &TestMem, reg(i)), g * 1000 + i as u64));
+                            }
+                            write(cpu, free, 1);
+                        } else {
+                            clear_free(cpu, &TestMem, reg(0), len);
+                            for i in (0..512).step_by(37) {
+                                write(cpu, reg(i), (g + 1) * 1000 + i as u64);
+                            }
+                            write(cpu, gen, g + 1);
+                            write(cpu, free, 0);
+                        }
+                        if commit(cpu, &TestMem) {
+                            for (v, want) in seen {
+                                assert_eq!(v, want, "a committed reader saw the wrong generation");
+                            }
+                            commits += 1;
+                        }
+                        end(cpu);
+                    }
+                })
+            })
+            .collect();
+        for t in threads {
+            t.join().unwrap();
+        }
+        assert_eq!(GEN.0[0].load(Ordering::Relaxed), 10_000);
     }
 }

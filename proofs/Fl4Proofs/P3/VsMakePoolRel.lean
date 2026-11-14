@@ -240,7 +240,7 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
       let i1 ← lift (sb &&& 63#u64)
       let i2 ← 1#u64 <<< i1
       let s2 ← obj.Slot.set_cap st (cslotAddr (pp.bv, idx)) s1 (capability.Cap.Untyped p sb i2 false)
-      let s3 ← st.zero s2 p 4096#u64
+      let s3 ← st.clear_free s2 p 4096#u64
       let s4 ← cdt.insert st s3 (capability.Cap.AsidPool p base) (cslotAddr (pp.bv, idx)) (cslotAddr (pd.bv, idxd))
       let s5 ← vspace.set_asid_table st s4 i p
       ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s5, a)) ⦃ res =>
@@ -325,7 +325,7 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     exact this
   obtain ⟨cs0, -, -, RR2, hfr2, hco2⟩ := hset2 _ (KSame.refl _)
   -- the zeroing
-  rw [L.zero_eq]; simp only [bind_ok]
+  rw [L.clear_free_eq]; simp only [bind_ok]
   set s3 := L.zr s2 p 4096#u64 with hs3
   have hpA : P1.Aligned p := by unfold P1.Aligned; omega
   have hzero : ∀ τ f, ResetRel th' G x p sb false (L.mem s2) τ f → ResetRel th' G x p sb false (L.mem s3) τ f ∧

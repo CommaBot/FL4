@@ -60,6 +60,14 @@ impl Store for PhysStore {
         }
     }
 
+    fn clear_free(&mut self, addr: u64, len: u64) {
+        if self.tx {
+            tx::clear_free(self.cpu, &Phys, addr, len)
+        } else {
+            unsafe { core::ptr::write_bytes(addr as *mut u8, 0, len as usize) }
+        }
+    }
+
     #[inline(always)]
     fn ks_base(&self) -> u64 {
         self.ks_base

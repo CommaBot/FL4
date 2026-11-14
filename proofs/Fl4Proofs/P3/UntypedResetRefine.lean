@@ -228,7 +228,7 @@ theorem reset_loop (hP : Placed th) (hN : NoStraddle th p.val (p.val + 2 ^ sb.va
   unfold untyped.reset_untyped_loop.body
   have hiv : (core.num.U64.wrapping_add p o).val = p.val + o.val := by
     rw [core.num.U64.wrapping_add_val_eq]; simp [U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits]; omega
-  simp only [lift, bind_ok, L.zero_eq]
+  simp only [lift, bind_ok, L.clear_free_eq]
   have hC : untyped.RESET_CHUNK.val = 65536 := by rw [reset_chunk_eq]; rfl
   obtain ⟨hRR1, hz1⟩ := reset_zero_step hP hN hRR hxs (core.num.U64.wrapping_add p o) untyped.RESET_CHUNK
     (by unfold P1.Aligned; rw [hiv]; omega) (by rw [hC]) (by rw [hiv]; omega) (by rw [hiv, hC]; omega) hfit
@@ -435,7 +435,7 @@ theorem reset_untyped_refines (th : TypedHeap) (s : S) (a : A') (σ : Fl4Spec.St
         rw [hv1, h63, Nat.shiftLeft_eq]
         simp [U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits]
         exact Nat.pow_lt_pow_right (by decide) hsb
-      simp only [lift, bind_ok, hi1, L.zero_eq]
+      simp only [lift, bind_ok, hi1, L.clear_free_eq]
       obtain ⟨σD, hD, hhas⟩ := reset_small hk hwf hidx hg hfi0 hp8 hpb hrcb (Or.inr (by rw [hrcb]; exact hsm'))
       obtain ⟨hRR1, hz1⟩ := reset_zero_step hP hN (rel0 σD hD) hxs' p i1
         hp8 (by rw [hi1v]; omega) (le_refl _) (by rw [hi1v]) hfit

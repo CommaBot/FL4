@@ -717,6 +717,19 @@ fn sim(o: &Opts) {
 fn mutants() {
     let r = root();
     let mut ok = true;
+    // A clear_free without validation needs two cores resetting the same
+    // untyped, which the simulated workload (one root task) never does:
+    // fl4-store's own concurrent test must catch it.
+    let caught = !Command::new("cargo")
+        .current_dir(&r)
+        .args(["test", "--quiet", "-p", "fl4-store", "--features", "mutant-clear-no-validate", "clear_free"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap()
+        .success();
+    eprintln!("xtask: mutant-clear-no-validate (fl4-store test): {}", if caught { "caught" } else { "survived" });
+    ok &= caught;
     for m in ["mutant-skip-validation", "mutant-no-publish", "mutant-gate-no-wait", "mutant-gate-release"] {
         let dir = r.join("target").join(m);
         run(Command::new("cargo").current_dir(&r).args(["build", "--quiet", "--release", "-p", "fl4-sim", "--features", m, "--target-dir"]).arg(&dir));

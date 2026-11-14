@@ -14,6 +14,11 @@ pub trait Store {
     fn write(&mut self, addr: u64, v: u64);
     /// Zero `len` bytes at `addr`; both are multiples of 8.
     fn zero(&mut self, addr: u64, len: u64);
+    /// Zero `len` bytes at `addr` that no live object occupies: memory of
+    /// an untyped region with no children (DESIGN.md §7). The effect is
+    /// that of `zero`; the runtime may clear the memory in place instead of
+    /// through the transaction, since no other core depends on it.
+    fn clear_free(&mut self, addr: u64, len: u64);
     /// Base address of the kernel's global state (see `layout::ks`).
     fn ks_base(&self) -> u64;
     /// Index of the core this kernel entry runs on.

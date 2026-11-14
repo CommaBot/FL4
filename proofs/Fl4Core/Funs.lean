@@ -23160,7 +23160,8 @@ def vspace.decode
                             obj.Slot.set_cap machineStoreInst x s1
                               (capability.Cap.Untyped ptr size_bits i2
                               is_device)
-                          let s3 ← machineStoreInst.zero s2 ptr 4096#u64
+                          let s3 ←
+                            machineStoreInst.clear_free s2 ptr 4096#u64
                           let s4 ←
                             cdt.insert machineStoreInst s3
                               (capability.Cap.AsidPool ptr base) x val
@@ -23413,7 +23414,7 @@ def untyped.reset_untyped_loop.body
     × S × A))
   := do
   let i ← lift (core.num.U64.wrapping_add ptr offset)
-  let s1 ← machineStoreInst.zero s i untyped.RESET_CHUNK
+  let s1 ← machineStoreInst.clear_free s i untyped.RESET_CHUNK
   let s2 ←
     obj.Slot.set_cap machineStoreInst slot s1 (capability.Cap.Untyped ptr block
       offset device)
@@ -23472,7 +23473,7 @@ def untyped.reset_untyped
             do
             let i ← lift (u.size_bits &&& 63#u64)
             let i1 ← 1#u64 <<< i
-            machineStoreInst.zero s u.ptr i1
+            machineStoreInst.clear_free s u.ptr i1
         let s2 ←
           obj.Slot.set_cap machineStoreInst slot s1 (capability.Cap.Untyped
             u.ptr u.size_bits 0#u64 u.is_device)
@@ -23487,7 +23488,7 @@ def untyped.reset_untyped
               do
               let i ← lift (u.size_bits &&& 63#u64)
               let i1 ← 1#u64 <<< i
-              machineStoreInst.zero s u.ptr i1
+              machineStoreInst.clear_free s u.ptr i1
           let s2 ←
             obj.Slot.set_cap machineStoreInst slot s1 (capability.Cap.Untyped
               u.ptr u.size_bits 0#u64 u.is_device)

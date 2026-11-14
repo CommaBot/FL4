@@ -33,6 +33,9 @@ class LawfulStore {S : Type _} (st : machine.Store S) where
   read_eq : ∀ s a, st.read s a = ok (mem s a)
   write_eq : ∀ s a v, st.write s a v = ok (wr s a v)
   zero_eq : ∀ s a n, st.zero s a n = ok (zr s a n)
+  /-- `clear_free` (memory no live object occupies) has `zero`'s effect;
+  only the runtime treats it differently. -/
+  clear_free_eq : ∀ s a n, st.clear_free s a n = ok (zr s a n)
   ks_base_eq : ∀ s, st.ks_base s = ok (ksb s)
   cur_cpu_eq : ∀ s, st.cur_cpu s = ok (cpu s)
   /-- Read after write, on aligned words. -/
@@ -56,6 +59,7 @@ theorem LawfulStore.total : P0.StoreTotal st where
   read s a := by rw [L.read_eq]; simp
   write s a v := by rw [L.write_eq]; simp
   zero s a n := by rw [L.zero_eq]; simp
+  clear_free s a n := by rw [L.clear_free_eq]; simp
   ks_base s := by rw [L.ks_base_eq]; simp
   cur_cpu s := by rw [L.cur_cpu_eq]; simp
 
@@ -67,6 +71,8 @@ theorem LawfulStore.total : P0.StoreTotal st where
   rw [L.write_eq]; simp
 @[step] theorem LawfulStore.zero_spec s a n : st.zero s a n ⦃ s' => s' = L.zr s a n ⦄ := by
   rw [L.zero_eq]; simp
+@[step] theorem LawfulStore.clear_free_spec s a n : st.clear_free s a n ⦃ s' => s' = L.zr s a n ⦄ := by
+  rw [L.clear_free_eq]; simp
 @[step] theorem LawfulStore.ks_base_spec s : st.ks_base s ⦃ v => v = L.ksb s ⦄ := by
   rw [L.ks_base_eq]; simp
 @[step] theorem LawfulStore.cur_cpu_spec s : st.cur_cpu s ⦃ v => v = L.cpu s ⦄ := by
@@ -135,6 +141,7 @@ def modelStore : machine.Store ModelState where
   read s a := ok (s.1 a)
   write s a v := ok (Function.update s.1 a v, s.2)
   zero s a n := ok (fun b => if a.val ≤ b.val ∧ b.val < a.val + n.val then 0#u64 else s.1 b, s.2)
+  clear_free s a n := ok (fun b => if a.val ≤ b.val ∧ b.val < a.val + n.val then 0#u64 else s.1 b, s.2)
   ks_base s := ok s.2.1
   cur_cpu s := ok s.2.2
 
@@ -147,6 +154,7 @@ instance : LawfulStore modelStore where
   read_eq _ _ := rfl
   write_eq _ _ _ := rfl
   zero_eq _ _ _ := rfl
+  clear_free_eq _ _ _ := rfl
   ks_base_eq _ := rfl
   cur_cpu_eq _ := rfl
   mem_wr s a v b _ _ := by

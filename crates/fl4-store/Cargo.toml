@@ -13,3 +13,4 @@ fl4-core = { path = "../fl4-core" }
 # simulator must catch. Never enabled in a kernel build.
 mutant-skip-validation = []
 mutant-no-publish = []
+mutant-clear-no-validate = []
