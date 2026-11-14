@@ -347,6 +347,117 @@ theorem mpRest_full {a0 a1 : Data} {p : ObjRef} {fi : Nat} {ps : CslotPtr} {rc :
   rw [mpRest_slot hc hlt]
   exact runE_bind_err hee
 
+
+/-! ## `delete_objects`: the outcomes -/
+
+theorem doMachineOp_mem' {α : Type} {mop : NonDet MachineState α} {σ σ' : State Unit} {r : α}
+    (h : (r, σ') ∈ (doMachineOp (Z := Unit) mop σ).1) :
+    ∃ ms, (r, ms) ∈ (mop σ.machineState).1 ∧ σ' = { σ with machineState := ms } := by
+  unfold doMachineOp at h
+  simp only [nd_bind_apply', NonDet.gets, NonDet.selectF, NonDet.modify, Set.mem_setOf_eq,
+    Set.mem_singleton_iff] at h
+  obtain ⟨x, rfl, y, ⟨hy1, hy⟩, z, rfl, hz⟩ := h
+  subst hy
+  simp only [pure, NonDet.pure, Set.mem_singleton_iff, Prod.mk.injEq] at hz
+  obtain ⟨rfl, rfl⟩ := hz
+  exact ⟨_, hy1, rfl⟩
+
+theorem foldl_update_ne {β : Type} (q x : Word) (v : Int → β) :
+    ∀ (l : List Int) (m : Word → β), (∀ i ∈ l, x ≠ q + BitVec.ofInt 64 i) →
+      (l.foldl (fun m i => Function.update m (q + BitVec.ofInt 64 i) (v i)) m) x = m x := by
+  intro l
+  induction l with
+  | nil => intro m _; rfl
+  | cons i l ih =>
+    intro m h
+    simp only [List.foldl_cons]
+    rw [ih _ (fun j hj => h j (List.mem_cons_of_mem _ hj)), Function.update_of_ne (h i (List.mem_cons_self ..))]
+
+theorem storeWord_um {q w x : Word} {ms ms' : MachineState} {r : Unit} (h : (r, ms') ∈ (storeWord q w ms).1)
+    (hx : ∀ i : Int, i ∈ intUpto 0 7 → x ≠ q + BitVec.ofInt 64 i) :
+    ms'.underlyingMemory x = ms.underlyingMemory x := by
+  unfold storeWord at h
+  simp only [nd_bind_apply', NonDet.assert, NonDet.modify, Set.mem_setOf_eq, Set.mem_singleton_iff] at h
+  obtain ⟨y, ⟨-, rfl⟩, hz⟩ := h
+  simp only [Prod.mk.injEq] at hz
+  obtain ⟨-, rfl⟩ := hz
+  exact foldl_update_ne q x _ _ _ hx
+
+theorem mapMx_um {L : List Word} {ms ms' : MachineState} {r : Unit} {x : Word}
+    (h : (r, ms') ∈ (NonDet.mapMx (fun p => storeWord p 0) L ms).1)
+    (hx : ∀ q ∈ L, ∀ i : Int, i ∈ intUpto 0 7 → x ≠ q + BitVec.ofInt 64 i) :
+    ms'.underlyingMemory x = ms.underlyingMemory x := by
+  induction L generalizing ms with
+  | nil =>
+    simp only [NonDet.mapMx, NonDet.pure, Set.mem_singleton_iff, Prod.mk.injEq] at h
+    rw [h.2]
+  | cons q L ih =>
+    simp only [NonDet.mapMx, NonDet.bind, Set.mem_setOf_eq] at h
+    obtain ⟨y, hy, hz⟩ := h
+    rw [ih hz (fun q' hq' => hx q' (List.mem_cons_of_mem _ hq')),
+      storeWord_um hy (hx q (List.mem_cons_self ..))]
+
+theorem intUpto07 {i : Int} (h : i ∈ intUpto 0 7) : ∃ k : Nat, k < 8 ∧ i = k := by
+  unfold intUpto at h
+  simp only [List.mem_map, List.mem_range] at h
+  obtain ⟨k, hk, rfl⟩ := h
+  exact ⟨k, by omega, by simp⟩
+
+theorem uptoEnumStep_range {a : Word} {n : Nat} (hn3 : 3 ≤ n) (hn : n < 64) (ha : a.toNat % 8 = 0)
+    (hfit : a.toNat + 2 ^ n ≤ 2 ^ 64) {q : Word}
+    (hq : q ∈ uptoEnumStep a (a + BitVec.ofNat 64 wordSize) (a + 2 ^ n - 1)) :
+    a.toNat ≤ q.toNat ∧ q.toNat + 8 ≤ a.toNat + 2 ^ n := by
+  have h2 : ((2 : BitVec 64) ^ n).toNat = 2 ^ n := by
+    rw [BitVec.toNat_pow]
+    exact Nat.mod_eq_of_lt (Nat.pow_lt_pow_right (by decide) hn)
+  have hp : 1 ≤ 2 ^ n := Nat.one_le_two_pow
+  have hp8 : 8 ∣ 2 ^ n := by
+    have : 2 ^ n = 2 ^ 3 * 2 ^ (n - 3) := by rw [← Nat.pow_add]; congr 1; omega
+    rw [this]; exact Nat.dvd_mul_right _ _
+  have hc : (a + 2 ^ n - 1 - a).toNat = 2 ^ n - 1 := by
+    rw [show a + 2 ^ n - 1 - a = (2 : BitVec 64) ^ n - 1 by bv_omega]
+    rw [BitVec.toNat_sub, h2]; simp; omega
+  have hb : a + BitVec.ofNat 64 wordSize - a = 8#64 := by rw [show wordSize = 8 from rfl]; bv_omega
+  unfold uptoEnumStep at hq
+  split_ifs at hq with hlt
+  · simp at hq
+  · obtain ⟨xv, hxv, rfl⟩ := List.mem_map.1 hq
+    rw [hb] at hxv ⊢
+    unfold uptoEnum at hxv
+    obtain ⟨k, hk, rfl⟩ := List.mem_map.1 hxv
+    rw [List.mem_range'] at hk
+    have hdiv : ((a + 2 ^ n - 1 - a) / 8#64).toNat = (2 ^ n - 1) / 8 := by
+      rw [BitVec.toNat_udiv, hc]; rfl
+    simp only [BitVec.toNat_ofNat, hdiv] at hk
+    have hk' : k ≤ (2 ^ n - 1) / 8 := by omega
+    have hk8 : 8 * k + 8 ≤ 2 ^ n := by omega
+    have hkv : (BitVec.ofNat 64 k).toNat = k := Nat.mod_eq_of_lt (by omega)
+    rw [BitVec.toNat_add, BitVec.toNat_mul, hkv, show (8#64 : BitVec 64).toNat = 8 from rfl,
+      Nat.mod_eq_of_lt (show k * 8 < 2 ^ 64 by omega), Nat.mod_eq_of_lt (show a.toNat + k * 8 < 2 ^ 64 by omega)]
+    omega
+
+/-- **The outcomes of `delete_objects`**: the heap without the region and a
+machine state whose memory outside the region is unchanged. -/
+theorem deleteObjects_mem {σ : State Unit} {a : Word} {n : Nat} (hn3 : 3 ≤ n) (hn : n < 64) (ha : a.toNat % 8 = 0)
+    (hfit : a.toNat + 2 ^ n ≤ 2 ^ 64) {y : Unit × State Unit} (hy : y ∈ (deleteObjects (Z := Unit) a n σ).1) :
+    ∃ ms : MachineState, y.2 = detype {x | a ≤ x ∧ x ≤ a + 2 ^ n - 1} { σ with machineState := ms } ∧
+      ∀ x : Word, (x.toNat < a.toNat ∨ a.toNat + 2 ^ n ≤ x.toNat) →
+        ms.underlyingMemory x = σ.machineState.underlyingMemory x := by
+  unfold deleteObjects at hy
+  simp only [nd_bind_apply', Set.mem_setOf_eq] at hy
+  obtain ⟨⟨r, σ1⟩, h1, h2⟩ := hy
+  obtain ⟨ms, hms, rfl⟩ := doMachineOp_mem' h1
+  simp only [NonDet.modify, Set.mem_singleton_iff] at h2
+  refine ⟨ms, by rw [h2], fun x hx => ?_⟩
+  refine mapMx_um hms (fun q hq i hi e => ?_)
+  obtain ⟨k, hk, rfl⟩ := intUpto07 hi
+  obtain ⟨h3, h4⟩ := uptoEnumStep_range hn3 hn ha hfit hq
+  have : x.toNat = q.toNat + k := by
+    rw [e, BitVec.toNat_add]
+    simp only [BitVec.ofInt_natCast, BitVec.toNat_ofNat]
+    rw [Nat.mod_eq_of_lt (show k < 2 ^ 64 by omega), Nat.mod_eq_of_lt (by omega)]
+  omega
+
 end Spec
 
 end

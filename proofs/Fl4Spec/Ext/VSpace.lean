@@ -15,6 +15,21 @@ FL4 differences (PORTING.md, "FL4 differences"): **VSpace extensions**
    `IllegalOperation`; a cap whose mapping is gone (the ASID or the entry)
    with `InvalidCapability 0`.
 
+3. l4h 0029: `Page_DeriveSubframe`, on a RAM-backed 2 MiB frame cap: 4 KiB
+   frame caps for `count` consecutive pages from `offset`, inserted with
+   `cap_insert` from the large frame cap's slot into `count` empty slots of
+   a CNode from `node_offset`. The checks, in FL4's order: the extra cap
+   and six arguments (`TruncatedMessage`); a non-device large frame cap
+   (`IllegalOperation`); `offset` 4K-aligned below 2 MiB
+   (`InvalidArgument 3`); `1 ≤ count ≤ (2 MiB - offset) / 4K`
+   (`RangeError 1 max`); the CNode (the extra cap, or the slot it reaches
+   with `lookup_target_slot` for a non-zero depth; not a CNode:
+   `FailedLookup (MissingCapability depth)`); `node_offset` in it
+   (`RangeError 0 (size - 1)`) and the run fitting (`RangeError 1 (size -
+   node_offset)`); the slots empty (`DeleteFirst`). The rights are the
+   frame's masked with the sixth argument (`mask_vm_rights`,
+   `data_to_rights`).
+
 The ported modules are not changed.
 -/
 import Fl4Spec
@@ -74,6 +89,64 @@ def decodeTestAndClearAccessed (cap : ArchCap) : SEMonad Z ObjRef :=
 answer: the model does not keep the accessed bit). -/
 def performTestAndClearAccessed (_slot : ObjRef) : SMonad Z (List Data) :=
   NonDet.select {[0], [1]}
+
+end
+
+
+/-- l4h 0029: a `DeriveSubframe` invocation: the large frame cap's slot, the
+first page, the rights, and the destination slots. -/
+structure Fl4SubframeInvocation where
+  src : CslotPtr
+  base : ObjRef
+  rights : VMRights
+  dests : List CslotPtr
+
+section
+variable {Z : Type} [StateExt Z]
+
+/-- l4h 0029: the CNode cap the subframe caps go in. -/
+def subframeNode (nodeCap : Cap) (index depth : Data) : SEMonad Z Cap :=
+  if depth = 0 then NonDetE.returnOk nodeCap
+  else do
+    let slot ← lookupTargetSlot nodeCap (toBl index) (unat depth)
+    NonDetE.liftE (getCap slot)
+
+/-- l4h 0029: the decode of `Page_DeriveSubframe`. -/
+def decodeDeriveSubframe (args : List Data) (cte : CslotPtr) (cap : ArchCap)
+    (excaps : List (Cap × CslotPtr)) : SEMonad Z Fl4SubframeInvocation :=
+  if excaps.length = 0 ∨ args.length < 6 then NonDetE.throwError .truncatedMessage
+  else match cap with
+    | .pageCap false p r _ .x64LargePage _ => do
+        let index := the args[0]?
+        let depth := the args[1]?
+        let nOff := the args[2]?
+        let off := the args[3]?
+        let count := the args[4]?
+        NonDetE.whenE (2 ^ 21 ≤ unat off ∨ unat off % 4096 ≠ 0) <| NonDetE.throwError (.invalidArgument 3)
+        let mx := (2 ^ 21 - unat off) / 4096
+        NonDetE.whenE (unat count < 1 ∨ mx < unat count) <|
+          NonDetE.throwError (.rangeError 1 (BitVec.ofNat 64 mx))
+        let nc ← subframeNode (the excaps[0]?).1 index depth
+        match nc with
+        | .cnodeCap ptr bits _ => do
+            let size := 2 ^ bits
+            NonDetE.whenE (size - 1 < unat nOff) <|
+              NonDetE.throwError (.rangeError 0 (BitVec.ofNat 64 (size - 1)))
+            NonDetE.whenE (size - unat nOff < unat count) <|
+              NonDetE.throwError (.rangeError 1 (BitVec.ofNat 64 (size - unat nOff)))
+            let dests := (List.range (unat count)).map fun i => (ptr, toBl (BitVec.ofNat bits (unat nOff + i)))
+            NonDetE.mapMEx ensureEmpty dests
+            NonDetE.returnOk ⟨cte, p + off, maskVmRights r (dataToRights (the args[5]?)), dests⟩
+        | _ => NonDetE.throwError (.failedLookup false (.missingCapability (unat depth)))
+    | _ => NonDetE.throwError .illegalOperation
+
+/-- l4h 0029: the invocation: `cap_insert` of the `i`-th 4 KiB frame cap into
+the `i`-th destination slot. -/
+def performDeriveSubframe (iv : Fl4SubframeInvocation) : SMonad Z Unit :=
+  NonDet.mapMx (fun d : Nat × CslotPtr =>
+      capInsert (.archObjectCap (.pageCap false (iv.base + BitVec.ofNat 64 (d.1 * 4096)) iv.rights .vmNoMap
+        .x64SmallPage none)) iv.src d.2)
+    ((List.range iv.dests.length).zip iv.dests)
 
 end
 
