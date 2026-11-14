@@ -5,7 +5,7 @@ two writes (the SC's `REPLY` word names the new head before the old head's
 `NEXT` word is cleared); between them only `XInvR` (no `RHead`) is kept,
 and `RHead` is re-established after the third write.
 -/
-import Fl4Proofs.P1.QueueReply
+import Fl4Proofs.P1.QueueFootD
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -13,7 +13,7 @@ open fl4_core Fl4Proofs.P0.Consts
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
-variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat}
+variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Es : Set U64}
 
 theorem obj.Reply.next_raw.val (s : S) (r : obj.Reply) :
     obj.Reply.next_raw st r s ⦃ v => v = L.mem s (rNextA r) ⦄ := by
@@ -34,7 +34,7 @@ theorem link_allR {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} 
     (hn : ∀ r ∈ Rp, a.val = (rNextA r).val → w &&& ~~~1#u64 ≠ 0#u64 →
       (headBit w = true → w &&& ~~~1#u64 ∈ Scs) ∧ (headBit w = false → w &&& ~~~1#u64 ∈ Rp))
     (hp : ∀ r ∈ Rp, a.val = (rPrevA r).val → w &&& ~~~1#u64 ≠ 0#u64 → w &&& ~~~1#u64 ∈ Rp)
-    (hs : ∀ c ∈ Scs, a.val = (scReplyA c).val → w ≠ 0#u64 → w ∈ Rp ∧ c ∈ Ac)
+    (hs : ∀ c ∈ Scs, a.val = (scReplyA c).val → w ≠ 0#u64 → w ∈ Rp ∧ c ∈ Ac ∧ L.mem s (scTcbA c) ≠ L.idleW s)
     (hnt : ∀ n ∈ Nt, a.val ≠ (ntfnScA n).val) (hnb : ∀ n ∈ Nt, a.val ≠ (ntfnBtA n).val)
     (hsn : ∀ c ∈ Scs, a.val ≠ (scNtfnA c).val) (hsy : ∀ c ∈ Scs, a.val ≠ (scYieldFromA c).val)
     (hsp : ∀ c ∈ Scs, a.val ≠ (sporA c).val) :
@@ -55,12 +55,12 @@ theorem link_allR {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} 
       exact L.mem_wr_ne ho.1 (nodeAt_aligned hN h1 h2) (fun e => out_ne_node ho h.cur hN h1 e.symm)
   refine ⟨h1, BoundInv.owr h hB haΩ, XInvR.wr_linkT h hX hSg.sub haΩ ht
       (fun c hcs => ⟨(hc c hcs).1, (hc c hcs).2.1, (hc c hcs).2.2.1⟩)
-      hn hp (fun c hc e h0 => (hs c hc e h0).1) (fun n hn e => absurd e (hnt n hn))
+      hn hp (fun c hc e h0 => ⟨(hs c hc e h0).1, (hs c hc e h0).2.2⟩) (fun n hn e => absurd e (hnt n hn))
       (fun c hc e => absurd e (hsn c hc)) (fun n hn e => absurd e (hnb n hn)) (fun c hc e => absurd e (hsn c hc))
       (fun c hc e => absurd e (hsy c hc)),
     SCsOK.wr' h hS hX.1 ho.1 (fun y hy => (out_ne_field (K := 3464#u64) ho hy (h.tcbs y hy) (by simp)).symm)
       (out_ne_node ho h.cur hN (by simp [layout.node.CUR_SC])).symm (fun c hcs => (hc c hcs).2.2) hsp
-      (fun c hcs e h0 => (hs c hcs e h0).2),
+      (fun c hcs e h0 => (hs c hcs e h0).2.1),
     ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o h1 h2⟩,
     ea, nd _ (by rw [idle8]; omega) (by rw [idle8]), f,
     fun b hb hne => L.mem_wr_ne ho.1 (h.omega b hb).1 hne⟩
@@ -68,7 +68,7 @@ theorem link_allR {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} 
 /-- A write of an SC's `REPLY` word (null or a reply object, the SC active). -/
 theorem screp_wrR {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {c w : U64}
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInvR st T Cs Ω Sg Rp Scs Nt Z s)
-    (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s) (hc : c ∈ Scs) (hw : w ≠ 0#u64 → w ∈ Rp ∧ c ∈ Ac) :
+    (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s) (hc : c ∈ Scs) (hw : w ≠ 0#u64 → w ∈ Rp ∧ c ∈ Ac ∧ L.mem s (scTcbA c) ≠ L.idleW s) :
     SchedQueuesInv st T Cs Ω H (L.wr s (scReplyA c) w) Q R ∧ BoundInv st T Ac (L.wr s (scReplyA c) w) ∧
       XInvR st T Cs Ω Sg Rp Scs Nt Z (L.wr s (scReplyA c) w) ∧ SCsOK st T Ω Sg Scs Z Ac (L.wr s (scReplyA c) w) ∧
       SgOK st Ω Sg (L.wr s (scReplyA c) w) ∧
@@ -176,12 +176,13 @@ thread becomes inactive. -/
 theorem ipc.reply_unlink.blk (s : S) (r t : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hr : r ∈ Rp)
     (ht : t ∈ T) (hrt : L.mem s (rTcbA r) = t) (hst : L.mem s (stA t) = sched.TS_BLOCKED_ON_REPLY) :
     ipc.reply_unlink st s r t ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
-      L.mem s' (stA t) = sched.TS_INACTIVE ∧ KeepT st T Cs Rp Scs Nt t s s' ∧ L.mem s' (rTcbA r) = 0#u64 ⦄ := by
+      L.mem s' (stA t) = sched.TS_INACTIVE ∧ KeepT st T Cs Rp Scs Nt t s s' ∧ L.mem s' (rTcbA r) = 0#u64 ∧
+      Foot st T Cs Sg Scs Z Es s s' ⦄ := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   have hnr : ¬ Runnable (L.mem s (stA t)) := by rw [hst]; exact not_runnable_reply
-  refine WP.spec_mono (ipc.reply_unlink.inv s r t Q R h0 ht hX.1 hSg.sub hr hrt hnr
-    (Or.inr (by rw [hst]; exact not_blocked_reply'))) ?_
-  rintro s' ⟨h', e', k, z⟩
+  refine WP.spec_mono (WP.spec_and (ipc.reply_unlink.inv s r t Q R h0 ht hX.1 hSg.sub hr hrt hnr
+    (Or.inr (by rw [hst]; exact not_blocked_reply'))) (ipc.reply_unlink.kw (Es := Es) s r t h0 hX hSg.sub hr ht)) ?_
+  rintro s' ⟨⟨h', e', k, z⟩, fk⟩
   have h'' : SchedQueuesInv st T Cs Ω H s' Q R := h'.congrX empty_congr
   have nb : ¬ Blocked (L.mem s' (stA t)) := by rw [e']; exact not_blocked_inactive
   have nrp : L.mem s' (stA t) ≠ sched.TS_BLOCKED_ON_REPLY := by rw [e', ts_inactive, ts_reply]; decide
@@ -196,7 +197,7 @@ theorem ipc.reply_unlink.blk (s : S) (r t : U64) (h : BlkOK st T Cs Ω H Sg Rp S
     rw [← b2, b2']; exact z
   exact ⟨⟨⟨Q, R, h''⟩, hB.keepT h0 k nb nrp, XInv.keepT hX k ⟨nrp, nrc⟩ hclr, hS.keepT hX k,
     ⟨hSg.sub, fun b hb => by rw [k.ksb]; exact hSg.ks b hb, fun o h1 h2 => by rw [k.ksb]; exact hSg.ksΩ o h1 h2⟩⟩,
-    e', k, z⟩
+    e', k, z, fk⟩
 
 /-- A write of a reply's `PREV` word keeps `BlkOK`. -/
 theorem rprev_wr_all {s : S} {r w : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hr : r ∈ Rp)
@@ -222,16 +223,13 @@ theorem rprev_wr_all {s : S} {r w : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z 
 /-- seL4 `reply_remove` of a stack head (`reply_pop`): the SC `c` that the
 head `r` names gets `r`'s `prev` as its new head, which takes over `r`'s
 `NEXT` word; `r`'s links are cleared; `c` goes back to `t` if `t` has no
-SC; `t` becomes inactive.  `c`'s thread (if any) must not be the idle
-thread. -/
+SC; `t` becomes inactive. -/
 theorem ipc.reply_pop.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A) (r t : U64)
     (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hr : r ∈ Rp) (ht : t ∈ T) (hrt : L.mem s (rTcbA r) = t)
     (hst : L.mem s (stA t) = sched.TS_BLOCKED_ON_REPLY)
-    (hb : headBit (L.mem s (rNextA r)) = true) (hn0 : L.mem s (rNextA r) &&& ~~~1#u64 ≠ 0#u64)
-    (hidle : L.mem s (scTcbA (L.mem s (rNextA r) &&& ~~~1#u64)) ≠ 0#u64 →
-      L.idleW s ≠ L.mem s (scTcbA (L.mem s (rNextA r) &&& ~~~1#u64))) :
+    (hb : headBit (L.mem s (rNextA r)) = true) (hn0 : L.mem s (rNextA r) &&& ~~~1#u64 ≠ 0#u64) :
     ipc.reply_pop st ar s a r t ⦃ res => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac res.1 ∧
-      L.mem res.1 (stA t) = sched.TS_INACTIVE ⦄ := by
+      L.mem res.1 (stA t) = sched.TS_INACTIVE ∧ Foot st T Cs Sg Scs Z Es s res.1 ⦄ := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   have hO := hX.1
   have hsub := hSg.sub
@@ -240,10 +238,11 @@ theorem ipc.reply_pop.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
   obtain ⟨-, -, rp8, rn16⟩ := rp_facts hO hr
   obtain ⟨c, hc⟩ : ∃ c, L.mem s (rNextA r) &&& ~~~1#u64 = c := ⟨_, rfl⟩
   obtain ⟨p, hp⟩ : ∃ p, L.mem s (rPrevA r) &&& ~~~1#u64 = p := ⟨_, rfl⟩
-  rw [hc] at hn0 hidle
+  rw [hc] at hn0
   have hcS : c ∈ Scs := by rw [← hc]; exact (hX.2.1.next r hr (by rw [hc]; exact hn0)).1 hb
   have hcr : L.mem s (scReplyA c) = r := by rw [← hc]; exact hX.2.1.head r hr hb (by rw [hc]; exact hn0)
   have hcA : c ∈ Ac := hS.rep c hcS (by rw [hcr]; exact hO.rp0 r hr)
+  have hci : L.mem s (scTcbA c) ≠ L.idleW s := fun e => hO.rp0 r hr (hcr.symm.trans (hX.2.1.idle c hcS e))
   have hpR : p ≠ 0#u64 → p ∈ Rp := fun h0' => by rw [← hp]; exact hX.2.1.prev r hr (by rw [hp]; exact h0')
   have ht0 : t ≠ 0#u64 := fun e0 => (h0.tcbs t ht).ne0 (by rw [e0]; rfl)
   have hrp : L.mem s (replyA t) = r := by
@@ -262,7 +261,8 @@ theorem ipc.reply_pop.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
   step with obj.Sc.set_reply.spec as ⟨s1, e1⟩
   subst e1
   obtain ⟨h1, hB1, hX1, hS1, hSg1, a1, i1, f1, o1⟩ :=
-    screp_wrR (w := p) h0 hB hX.xr hS hSg hcS (fun hp0 => ⟨hpR hp0, hcA⟩)
+    screp_wrR (w := p) h0 hB hX.xr hS hSg hcS (fun hp0 => ⟨hpR hp0, hcA, hci⟩)
+  have G1 : Foot st T Cs Sg Scs Z Es s (L.wr s (scReplyA c) p) := foot_sgw (hal _ hcm) (hO.repW c hcS)
   -- the new head takes `r`'s `NEXT` word
   refine WP.spec_bind (Pₘ := fun s2 => SchedQueuesInv st T Cs Ω H s2 Q R ∧ BoundInv st T Ac s2 ∧
       XInvR st T Cs Ω Sg Rp Scs Nt Z s2 ∧ SCsOK st T Ω Sg Scs Z Ac s2 ∧ SgOK st Ω Sg s2 ∧
@@ -270,7 +270,8 @@ theorem ipc.reply_pop.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
       (∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 →
         L.mem s2 (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K)) ∧
       (∀ b ∈ Ω, (scReplyA c).val ≠ b.val → (p ≠ 0#u64 → (rNextA p).val ≠ b.val) → L.mem s2 b = L.mem s b) ∧
-      L.mem s2 (scReplyA c) = p ∧ (p ≠ 0#u64 → L.mem s2 (rNextA p) = L.mem s (rNextA r))) ?_ ?_
+      L.mem s2 (scReplyA c) = p ∧ (p ≠ 0#u64 → L.mem s2 (rNextA p) = L.mem s (rNextA r)) ∧
+      Foot st T Cs Sg Scs Z Es s s2) ?_ ?_
   · split
     · rename_i hp0
       have hp0' : p ≠ 0#u64 := by simpa using hp0
@@ -284,13 +285,13 @@ theorem ipc.reply_pop.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
       have hpn : (rNextA p).val ≠ (scReplyA c).val := rword_ne_screp hO hpR' (by omega) c hcS
       refine ⟨h2, hB2, hX2, hS2, hSg2, a2.trans a1, i2.trans i1, fun y hy K h1' h2' => (f2 y hy K h1' h2').trans
         (f1 y hy K h1' h2'), fun b hb n1 n2 => (o2 b hb (n2 hp0')).trans (o1 b hb n1), ?_,
-        fun _ => L.mem_wr_same (hal _ (hrΩ p hpR').2.2)⟩
+        fun _ => L.mem_wr_same (hal _ (hrΩ p hpR').2.2), G1.trans (foot_sgw (hal _ (hrΩ p hpR').2.2) (hO.nextW hpR'))⟩
       rw [o2 _ hcm hpn]; exact L.mem_wr_same (hal _ hcm)
     · rename_i hp0
       have hp0' : p = 0#u64 := UScalar.eq_of_val_eq (by simpa using hp0)
       exact (WP.spec_ok _).2 ⟨h1, hB1, hX1, hS1, hSg1, a1, i1, f1, fun b hb n1 _ => o1 b hb n1,
-        L.mem_wr_same (hal _ hcm), fun h' => absurd hp0' h'⟩
-  intro s2 ⟨h2, hB2, hX2, hS2, hSg2, a2, i2, f2, o2, r2, n2⟩
+        L.mem_wr_same (hal _ hcm), fun h' => absurd hp0' h', G1⟩
+  intro s2 ⟨h2, hB2, hX2, hS2, hSg2, a2, i2, f2, o2, r2, n2, G2⟩
   -- `r`'s `NEXT` word is cleared: `RHead` again
   refine WP.spec_bind (obj.Reply.set_next.val0 s2 r 0#u64) fun s3 e3 => ?_
   rw [zero_link] at e3
@@ -331,6 +332,8 @@ theorem ipc.reply_pop.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
         (fun hp0 => rword_ne_screp hO (hpR hp0) (by rw [rNextA_val (hO.rp p (hpR hp0))]; omega) _ hc'S)]
       exact hhd
   have hX3' := hX3.x hd
+  have G3 : Foot st T Cs Sg Scs Z Es s (L.wr s2 (rNextA r) 0#u64) :=
+    G2.trans (foot_sgw (hal _ (hrΩ r hr).2.2) (hO.nextW hr))
   -- facts at `s3`
   have F3 : ∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 →
       L.mem (L.wr s2 (rNextA r) 0#u64) (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K) :=
@@ -345,29 +348,34 @@ theorem ipc.reply_pop.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
       (fun hp0 => (rword_ne_sc hO (hpR hp0) (by rw [rNextA_val (hO.rp p (hpR hp0))]; omega) c hcS).1)]
   -- the donation back to `t`
   step with obj.Tcb.sc.spec as ⟨i, ei⟩
+  have hk3 : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s2 (rNextA r) 0#u64) := ⟨⟨Q, R, h3⟩, hB3, hX3', hS3, hSg3⟩
   refine WP.spec_bind (Pₘ := fun res : S × A => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac res.1 ∧
-      L.mem res.1 (stA t) = sched.TS_BLOCKED_ON_REPLY ∧ L.mem res.1 (replyA t) = r) ?_ ?_
+      L.mem res.1 (stA t) = sched.TS_BLOCKED_ON_REPLY ∧ L.mem res.1 (replyA t) = r ∧
+      Foot st T Cs Sg Scs Z Es (L.wr s2 (rNextA r) 0#u64) res.1) ?_ ?_
   · split
     · rename_i hi0
       have hsc0 : L.mem (L.wr s2 (rNextA r) 0#u64) (scA t) = 0#u64 := by rw [← ei]; exact hi0
       obtain ⟨dq, dr, da⟩ := blocked_out h3 ht (by rw [hst3]; exact not_runnable_reply)
       by_cases hf0 : L.mem (L.wr s2 (rNextA r) 0#u64) (scTcbA c) = 0#u64
-      · refine WP.spec_mono (schedcontext.donate.unbound hA (X := ∅) _ a c t Q R h3 hB3 hX3' hS3 hSg3 ht dq dr
-          hcS hn0 hf0 (hX3'.2.2.core c hcS) (fun _ => hcA) hsc0) ?_
-        rintro ⟨s4, a4⟩ ⟨hk, st4, rp4, -, -⟩
-        exact ⟨hk, by rw [st4 t ht]; exact hst3, by rw [rp4 t ht]; exact hrp3⟩
+      · refine WP.spec_mono (WP.spec_and (schedcontext.donate.unbound hA (X := ∅) _ a c t Q R h3 hB3 hX3' hS3 hSg3 ht dq dr
+          hcS hn0 hf0 (hX3'.2.2.core c hcS) (fun _ => hcA) hsc0
+          (fun e => hB3.idleNB (by rw [e, hst3]; exact Or.inr rfl)))
+          (schedcontext.donate.kw (Es := Es) hA _ a c t hk3 hcS ht)) ?_
+        rintro ⟨s4, a4⟩ ⟨⟨hk, st4, rp4, -, -⟩, fk⟩
+        exact ⟨hk, by rw [st4 t ht]; exact hst3, by rw [rp4 t ht]; exact hrp3, fk⟩
       · have hfT := hX3'.2.2.yt.1 c hcS hf0
         have hscf := hX3'.2.2.tsc c hcS hn0 hf0
-        refine WP.spec_mono (schedcontext.donate.gen hA _ a c t _ Q R h3 hB3 hX3' hS3 hSg3 hfT hscf hn0
-          ?_ ht hsc0 dq dr da ?_ hcA) ?_
-        · rw [i3, i2, tc3]; exact hidle (by rw [← tc3]; exact hf0)
+        refine WP.spec_mono (WP.spec_and (schedcontext.donate.gen hA _ a c t _ Q R h3 hB3 hX3' hS3 hSg3 hfT hscf hn0
+          ?_ ht hsc0 dq dr da ?_ hcA (fun e => hB3.idleNB (by rw [e, hst3]; exact Or.inr rfl)))
+          (schedcontext.donate.kw (Es := Es) hA _ a c t hk3 hcS ht)) ?_
+        · rw [i3, i2, tc3]; exact fun e => hci e.symm
         · intro e; rw [← e, hsc0] at hscf; exact hn0 hscf.symm
-        · rintro ⟨s4, a4⟩ ⟨hk, st4, rp4, -⟩
-          exact ⟨hk, by rw [st4 t ht]; exact hst3, by rw [rp4 t ht]; exact hrp3⟩
-    · exact (WP.spec_ok _).2 ⟨⟨⟨Q, R, h3⟩, hB3, hX3', hS3, hSg3⟩, hst3, hrp3⟩
-  rintro ⟨s4, a4⟩ ⟨hk4, st4, rp4⟩
+        · rintro ⟨s4, a4⟩ ⟨⟨hk, st4, rp4, -⟩, fk⟩
+          exact ⟨hk, by rw [st4 t ht]; exact hst3, by rw [rp4 t ht]; exact hrp3, fk⟩
+    · exact (WP.spec_ok _).2 ⟨hk3, hst3, hrp3, Foot.refl _⟩
+  rintro ⟨s4, a4⟩ ⟨hk4, st4, rp4, G4⟩
   try simp only [WP.uncurry'_pair]
-  dsimp only at hk4 st4 rp4 ⊢
+  dsimp only at hk4 st4 rp4 G4 ⊢
   refine WP.spec_bind (obj.Reply.set_prev.val s4 r 0#u64) fun s5 e5 => ?_
   rw [zero_or_masked] at e5
   subst e5
@@ -378,9 +386,11 @@ theorem ipc.reply_pop.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
     exact (f5 t ht 3360#u64 (by simp) (by simp)).trans rp4
   have hrt5 := (hk5.2.2.1.2.1.reply t ht hst5).2
   rw [hrp5] at hrt5
-  refine WP.spec_bind (ipc.reply_unlink.blk _ r t hk5 hr ht hrt5 hst5) ?_
-  rintro s6 ⟨h6, e6, -, -⟩
-  exact (WP.spec_ok _).2 ⟨h6, e6⟩
+  have G5 : Foot st T Cs Sg Scs Z Es s4 (L.wr s4 (rPrevA r) 0#u64) :=
+    foot_sgw (hal _ (hrΩ r hr).2.1) (hO.prevW hr)
+  refine WP.spec_bind (ipc.reply_unlink.blk (Es := Es) _ r t hk5 hr ht hrt5 hst5) ?_
+  rintro s6 ⟨h6, e6, -, -, G6⟩
+  exact (WP.spec_ok _).2 ⟨h6, e6, G3.trans (G4.trans (G5.trans G6))⟩
 
 /-- Clearing a reply's `PREV` or `NEXT` word keeps `BlkOK`. -/
 theorem rword_wr0_all {s : S} {r a : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hr : r ∈ Rp)
@@ -411,15 +421,12 @@ theorem rword_wr0_all {s : S} {r a : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z
 /-- seL4 `reply_remove`: a stack head is popped (`reply_pop`); otherwise the
 reply leaves the middle of its stack (its neighbours' links to it are
 cleared) or is on no stack.  Then `t` (blocked on the reply) becomes
-inactive.  If the reply is a stack head, its SC's thread (if any) must not
-be the idle thread. -/
+inactive. -/
 theorem ipc.reply_remove.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A) (r t : U64)
     (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hr : r ∈ Rp) (ht : t ∈ T) (hrt : L.mem s (rTcbA r) = t)
-    (hst : L.mem s (stA t) = sched.TS_BLOCKED_ON_REPLY)
-    (hidle : headBit (L.mem s (rNextA r)) = true → L.mem s (scTcbA (L.mem s (rNextA r) &&& ~~~1#u64)) ≠ 0#u64 →
-      L.idleW s ≠ L.mem s (scTcbA (L.mem s (rNextA r) &&& ~~~1#u64))) :
+    (hst : L.mem s (stA t) = sched.TS_BLOCKED_ON_REPLY) :
     ipc.reply_remove st ar s a r t ⦃ res => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac res.1 ∧
-      L.mem res.1 (stA t) = sched.TS_INACTIVE ⦄ := by
+      L.mem res.1 (stA t) = sched.TS_INACTIVE ∧ Foot st T Cs Sg Scs Z Es s res.1 ⦄ := by
   have hX := h.2.2.1
   have hO := hX.1
   have ht0 : t ≠ 0#u64 := fun e0 => (h.1.choose_spec.choose_spec.tcbs t ht).ne0 (by rw [e0]; rfl)
@@ -431,11 +438,15 @@ theorem ipc.reply_remove.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTot
       L.mem s₁ (stA t) = sched.TS_BLOCKED_ON_REPLY → L.mem s₁ (replyA t) = r → r' ∈ Rp →
       (a' = rPrevA r' ∨ a' = rNextA r') →
       BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s₁ a' 0#u64) ∧
-        L.mem (L.wr s₁ a' 0#u64) (stA t) = sched.TS_BLOCKED_ON_REPLY ∧ L.mem (L.wr s₁ a' 0#u64) (replyA t) = r :=
+        L.mem (L.wr s₁ a' 0#u64) (stA t) = sched.TS_BLOCKED_ON_REPLY ∧ L.mem (L.wr s₁ a' 0#u64) (replyA t) = r ∧
+        Foot st T Cs Sg Scs Z Es s₁ (L.wr s₁ a' 0#u64) :=
     fun h₁ e₁ e₂ hr' ha' => by
       obtain ⟨k, f⟩ := rword_wr0_all h₁ hr' ha'
-      exact ⟨k, by rw [stA_eq, f t ht _ (by simp) (by simp), ← stA_eq]; exact e₁,
-        (f t ht 3360#u64 (by simp) (by simp)).trans e₂⟩
+      refine ⟨k, by rw [stA_eq, f t ht _ (by simp) (by simp), ← stA_eq]; exact e₁,
+        (f t ht 3360#u64 (by simp) (by simp)).trans e₂, ?_⟩
+      rcases ha' with rfl | rfl
+      · exact foot_sgw (rp_aligned hO hr').2.1 (hO.prevW hr')
+      · exact foot_sgw (rp_aligned hO hr').2.2 (hO.nextW hr')
   have tail : ∀ s₂ : S, BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s₂ →
       L.mem s₂ (stA t) = sched.TS_BLOCKED_ON_REPLY → L.mem s₂ (replyA t) = r →
       (do
@@ -443,19 +454,19 @@ theorem ipc.reply_remove.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTot
         let s4 ← obj.Reply.set_next st r s3 0#u64 false
         let s5 ← ipc.reply_unlink st s4 r t
         ok (s5, a)) ⦃ res => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac res.1 ∧
-          L.mem res.1 (stA t) = sched.TS_INACTIVE ⦄ := by
+          L.mem res.1 (stA t) = sched.TS_INACTIVE ∧ Foot st T Cs Sg Scs Z Es s₂ res.1 ⦄ := by
     intro s₂ h₂ e₂ r₂
     refine WP.spec_bind (obj.Reply.set_prev.val s₂ r 0#u64) fun s3 e3 => ?_
     rw [zero_or_masked] at e3; subst e3
-    obtain ⟨h3, e3, r3⟩ := W h₂ e₂ r₂ hr (Or.inl rfl)
+    obtain ⟨h3, e3, r3, g3⟩ := W h₂ e₂ r₂ hr (Or.inl rfl)
     refine WP.spec_bind (obj.Reply.set_next.val0 _ r 0#u64) fun s4 e4 => ?_
     rw [zero_link] at e4; subst e4
-    obtain ⟨h4, e4, r4⟩ := W h3 e3 r3 hr (Or.inr rfl)
+    obtain ⟨h4, e4, r4, g4⟩ := W h3 e3 r3 hr (Or.inr rfl)
     have hrt4 := (h4.2.2.1.2.1.reply t ht e4).2
     rw [r4] at hrt4
-    refine WP.spec_bind (ipc.reply_unlink.blk _ r t h4 hr ht hrt4 e4) ?_
-    rintro s5 ⟨h5, e5, -, -⟩
-    exact (WP.spec_ok _).2 ⟨h5, e5⟩
+    refine WP.spec_bind (ipc.reply_unlink.blk (Es := Es) _ r t h4 hr ht hrt4 e4) ?_
+    rintro s5 ⟨h5, e5, -, -, g5⟩
+    exact (WP.spec_ok _).2 ⟨h5, e5, g3.trans (g4.trans g5)⟩
   unfold ipc.reply_remove
   step with obj.Reply.next.spec as ⟨nx, enx⟩
   step with obj.Reply.prev.spec as ⟨pv, epv⟩
@@ -471,14 +482,14 @@ theorem ipc.reply_remove.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTot
         let s4 ← obj.Reply.set_next st r s3 0#u64 false
         let s5 ← ipc.reply_unlink st s4 r t
         ok (s5, a)) ⦃ res => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac res.1 ∧
-          L.mem res.1 (stA t) = sched.TS_INACTIVE ⦄ := by
+          L.mem res.1 (stA t) = sched.TS_INACTIVE ∧ Foot st T Cs Sg Scs Z Es s₁ res.1 ⦄ := by
     intro s₁ h₁ e₁ r₁
     split
     · rename_i hp0
       refine WP.spec_bind (obj.Reply.set_next.val0 s₁ _ 0#u64) fun s2 e2 => ?_
       rw [zero_link] at e2; subst e2
-      obtain ⟨h2, e2, r2⟩ := W h₁ e₁ r₁ (hpR (by simpa using hp0)) (Or.inr rfl)
-      exact tail _ h2 e2 r2
+      obtain ⟨h2, e2, r2, g2⟩ := W h₁ e₁ r₁ (hpR (by simpa using hp0)) (Or.inr rfl)
+      exact WP.spec_mono (tail _ h2 e2 r2) fun r hr => ⟨hr.1, hr.2.1, g2.trans hr.2.2⟩
     · simp only [Aeneas.Std.bind_ok]; exact tail s₁ h₁ e₁ r₁
   split
   · rename_i hn0
@@ -487,14 +498,14 @@ theorem ipc.reply_remove.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTot
     split
     · rename_i hb
       have hb' : headBit (L.mem s (rNextA r)) = true := by rw [← eb]; exact hb
-      exact ipc.reply_pop.blk hA s a r t h hr ht hrt hst hb' hn0' (hidle hb')
+      exact ipc.reply_pop.blk hA s a r t h hr ht hrt hst hb' hn0'
     · rename_i hb
       have hb' : headBit (L.mem s (rNextA r)) = false := by rw [← eb]; simpa using hb
       have hnR := (hX.2.1.next r hr hn0').2 hb'
       refine WP.spec_bind (obj.Reply.set_prev.val s _ 0#u64) fun s1 e1 => ?_
       rw [zero_or_masked] at e1; subst e1
-      obtain ⟨h1, e1, r1⟩ := W h hst hrp hnR (Or.inl rfl)
-      exact P _ h1 e1 r1
+      obtain ⟨h1, e1, r1, g1⟩ := W h hst hrp hnR (Or.inl rfl)
+      exact WP.spec_mono (P _ h1 e1 r1) fun r hr => ⟨hr.1, hr.2.1, g1.trans hr.2.2⟩
   · rename_i hn0
     simp only [Aeneas.Std.bind_ok]
     exact P s h hst hrp
@@ -503,23 +514,20 @@ theorem ipc.reply_remove.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTot
 
 /-- `finalise_cap` of a final reply cap: a thread blocked on the reply is
 removed from it (`reply_remove`), one blocked on receive with it has its
-receive cancelled.  If the reply is a stack head, its SC's thread (if any)
-must not be the idle thread. -/
+receive cancelled. -/
 theorem fin_reply.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A) (p : U64) (x : Bool)
-    (fin : Bool) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hp : p ∈ Rp)
-    (hidle : headBit (L.mem s (rNextA p)) = true → L.mem s (scTcbA (L.mem s (rNextA p) &&& ~~~1#u64)) ≠ 0#u64 →
-      L.idleW s ≠ L.mem s (scTcbA (L.mem s (rNextA p) &&& ~~~1#u64))) :
+    (fin : Bool) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hp : p ∈ Rp) :
     objects.finalise_cap_object st ar s a (.Reply p x) fin ⦃ r =>
-      r.1 = (.Null, .Null) ∧ BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2.1 ⦄ := by
+      r.1 = (.Null, .Null) ∧ BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2.1 ∧ Foot st T Cs Sg Scs Z (EH H) s r.2.1 ⦄ := by
   unfold objects.finalise_cap_object
   dsimp only
   split
   swap
-  · exact (WP.spec_ok _).2 ⟨rfl, h⟩
+  · exact (WP.spec_ok _).2 ⟨rfl, h, Foot.refl _⟩
   refine WP.spec_bind (obj.Reply.tcb.blk s p) fun i ei => ?_
   step with obj.Tcb.is_null.spec as ⟨b, eb⟩
   split
-  · exact (WP.spec_ok _).2 ⟨rfl, h⟩
+  · exact (WP.spec_ok _).2 ⟨rfl, h, Foot.refl _⟩
   rename_i hb
   have hi0 : i ≠ 0#u64 := fun e => hb (by rw [eb, e]; rfl)
   have hX := h.2.2.1
@@ -528,16 +536,19 @@ theorem fin_reply.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) 
   step with obj.Tcb.state.spec as ⟨v, ev⟩
   split
   · rename_i hv
-    refine WP.spec_bind (ipc.reply_remove.blk hA s a p i h hp hiT ei.symm (by rw [← ev, hv]) hidle) ?_
-    rintro ⟨s1, a1⟩ ⟨h1, -⟩
-    exact (WP.spec_ok _).2 ⟨rfl, h1⟩
+    refine WP.spec_bind (ipc.reply_remove.blk (Es := EH H) hA s a p i h hp hiT ei.symm (by rw [← ev, hv])) ?_
+    rintro ⟨s1, a1⟩ ⟨h1, -, f1⟩
+    exact (WP.spec_ok _).2 ⟨rfl, h1, f1⟩
   split
   · obtain ⟨⟨Q, R, h0⟩, hB, -, hS, hSg⟩ := h
-    refine WP.spec_bind (ipc.cancel_ipc.all s a i Q R h0 hiT hB hX hSg.sub) ?_
-    rintro ⟨s1, a1⟩ ⟨h1, hB1, hX1, -, -, -, k1, -⟩
-    exact (WP.spec_ok _).2 ⟨rfl, ⟨Q, R, h1⟩, hB1, hX1, hS.keepT hX k1,
-      ⟨hSg.sub, fun b hb => by rw [k1.ksb]; exact hSg.ks b hb, fun o h1' h2' => by rw [k1.ksb]; exact hSg.ksΩ o h1' h2'⟩⟩
-  · exact (WP.spec_ok _).2 ⟨rfl, h⟩
+    refine WP.spec_bind (WP.spec_and (ipc.cancel_ipc.all s a i Q R h0 hiT hB hX hSg.sub)
+      (ipc.cancel_ipc.kw s a i h0 hiT hX.1 hSg.sub (fun hs => by
+        obtain ⟨h1, h2⟩ := hX.2.1.reply i hiT hs
+        exact ⟨h1, h2, hX.2.1.next _ h1, hX.2.1.prev _ h1⟩) (fun hs h0' => (hX.2.1.recv i hiT hs h0').1))) ?_
+    rintro ⟨s1, a1⟩ ⟨⟨h1, hB1, hX1, -, -, -, k1, -⟩, f1⟩
+    exact (WP.spec_ok _).2 ⟨rfl, ⟨⟨Q, R, h1⟩, hB1, hX1, hS.keepT hX k1,
+      ⟨hSg.sub, fun b hb => by rw [k1.ksb]; exact hSg.ks b hb, fun o h1' h2' => by rw [k1.ksb]; exact hSg.ksΩ o h1' h2'⟩⟩, f1⟩
+  · exact (WP.spec_ok _).2 ⟨rfl, h, Foot.refl _⟩
 
 end
 

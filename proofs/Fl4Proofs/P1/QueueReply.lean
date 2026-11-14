@@ -46,7 +46,7 @@ theorem schedcontext.donate.gen {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
     (hsc0 : sc ≠ 0#u64)
     (hfi : L.idleW s ≠ fr) (hdst : dst ∈ T) (hd0 : L.mem s (scA dst) = 0#u64)
     (hdq : (L.mem s (inqA dst) &&& sched.Q_QUEUED) = 0#u64) (hdr : (L.mem s (inqA dst) &&& sched.Q_RELEASE) = 0#u64)
-    (hda : L.actionW s ≠ dst) (hne : dst ≠ fr) (hscA : sc ∈ Ac) :
+    (hda : L.actionW s ≠ dst) (hne : dst ≠ fr) (hscA : sc ∈ Ac) (hdi : L.idleW s ≠ dst) :
     schedcontext.donate st ar s a sc dst ⦃ s' _ => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
       (∀ y ∈ T, L.mem s' (stA y) = L.mem s (stA y)) ∧ (∀ y ∈ T, L.mem s' (replyA y) = L.mem s (replyA y)) ∧
       L.mem s' (scA dst) = sc ⦄ := by
@@ -74,14 +74,15 @@ theorem schedcontext.donate.gen {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
       (∀ y ∈ T, L.mem r.1 (stA y) = L.mem s (stA y)) ∧ (∀ y ∈ T, L.mem r.1 (replyA y) = L.mem s (replyA y)) ∧
       L.mem r.1 (scA i) = 0#u64 ∧
       (∀ y ∈ T, y ≠ i → L.mem r.1 (scA y) = L.mem s (scA y)) ∧ L.mem r.1 (inqA dst) = L.mem s (inqA dst) ∧
-      (∀ b ∈ Sg, L.mem r.1 b = L.mem s b) ∧ L.cscW r.1 = L.cscW s) ?_ ?_
+      (∀ b ∈ Sg, L.mem r.1 b = L.mem s b) ∧ L.cscW r.1 = L.cscW s ∧ L.idleW r.1 = L.idleW s) ?_ ?_
   rotate_left
-  · rintro ⟨s6, a6⟩ ⟨Q6, R6, h6, hB6, hX6, tx6, hS6, hSg6, st6, rp6, sf6, sy6, iq6, sg6, cs6⟩
+  · rintro ⟨s6, a6⟩ ⟨Q6, R6, h6, hB6, hX6, tx6, hS6, hSg6, st6, rp6, sf6, sy6, iq6, sg6, cs6, ei6⟩
     try simp only [WP.uncurry'_pair]
     refine WP.spec_mono (donate_tail hA s6 a6 sc dst Q6 R6 h6 hB6 hX6 tx6 (by rw [sy6 dst hdst hne]; exact hd0)
       hS6 hSg6 hdst
       (by rw [iq6]; exact hdq) (by rw [iq6]; exact hdr) hscS hsc0 (fun y hy => ?_)
-      (by rw [sg6 _ hfixΩ.2]; exact hcore) (by rw [cs6]; exact hdisj0) (fun _ => hscA)) fun r hh => ?_
+      (by rw [sg6 _ hfixΩ.2]; exact hcore) (by rw [cs6]; exact hdisj0) (fun _ => hscA)
+      (by rw [ei6]; exact hdi)) fun r hh => ?_
     · by_cases e : y = i
       · subst e; rw [sf6]; exact Ne.symm hsc0
       · rw [sy6 y hy e]; exact hnb0 y hy e
@@ -169,7 +170,7 @@ theorem schedcontext.donate.gen {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
       (∀ y ∈ T, L.mem s6 (stA y) = L.mem s (stA y)) ∧ (∀ y ∈ T, L.mem s6 (replyA y) = L.mem s (replyA y)) ∧
       L.mem s6 (scA i) = 0#u64 ∧
       (∀ y ∈ T, y ≠ i → L.mem s6 (scA y) = L.mem s (scA y)) ∧ L.mem s6 (inqA dst) = L.mem s (inqA dst) ∧
-      (∀ b ∈ Sg, L.mem s6 b = L.mem s b) ∧ L.cscW s6 = L.cscW s ⦄ := fun ha0 => by
+      (∀ b ∈ Sg, L.mem s6 b = L.mem s b) ∧ L.cscW s6 = L.cscW s ∧ L.idleW s6 = L.idleW s ⦄ := fun ha0 => by
     refine WP.spec_mono (sched.reschedule_required.unsched s5 i k1.tcbs hfr ks0 ha0) fun s6 e6 => ?_
     subst e6
     have f := fr_node (Sg := Sg) (hi8 := fun _ => by simp [layout.node.SCHED_ACTION]) (v := 1#u64) k1 k5 k1.cur
@@ -184,7 +185,7 @@ theorem schedcontext.donate.gen {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
     refine ⟨Q4, R4, j1, kB3, k3.fr f, ktx'.keep k3.2.2.yt.1
         (fun c hc _ => f.sig _ (k3.1.fixW c hc).1) f.sc, k4.fr f, k5.fr f, fun y hy => ?_,
       fun y hy => (fw y hy _ (by simp) (by simp)).trans (rp5 y hy), ?_, fun y hy hyi => ?_, ?_,
-      fun b hb => (f.sig b hb).trans (sg5 b hb), f.csc.trans cs5⟩
+      fun b hb => (f.sig b hb).trans (sg5 b hb), f.csc.trans cs5, f.idle.trans (ki.trans (f4.idle.trans (f3.idle.trans ei2)))⟩
     · rw [stA_eq, fw y hy _ (by simp) (by simp), ← stA_eq]; exact st5 y hy
     · rw [scA_eq, fw i hfr _ (by simp) (by simp), ← scA_eq]; exact ks0
     · rw [scA_eq, fw y hy _ (by simp) (by simp), ← scA_eq]; exact sy5 y hy hyi
@@ -203,7 +204,7 @@ theorem schedcontext.donate.gen {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
           (fun c hc _ => fr6.sig _ (k3.1.fixW c hc).1) fr6.sc, k4.fr fr6, k5.fr fr6,
         fun y hy => (kp6.1 y hy).trans (st5 y hy), fun y hy => (fr6.rep y hy).trans (rp5 y hy), (fr6.sc i hfr).trans ks0,
         fun y hy hyi => (fr6.sc y hy).trans (sy5 y hy hyi), (iq6 dst hdst hda5).trans iq5,
-        fun b hb => (fr6.sig b hb).trans (sg5 b hb), fr6.csc.trans cs5⟩
+        fun b hb => (fr6.sig b hb).trans (sg5 b hb), fr6.csc.trans cs5, fr6.idle.trans (ki.trans (f4.idle.trans (f3.idle.trans ei2)))⟩
   · rename_i hb1
     have hne' : i ≠ t1 := fun e => hb1 (by rw [eb1, decide_eq_true_eq]; exact e)
     step with sched.action.spec as ⟨i1, ei1⟩
@@ -214,7 +215,7 @@ theorem schedcontext.donate.gen {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
       have kB2 := kB (fun e => hii (by rw [ei1, ka, e])) (fun e => absurd (by rw [et1]; exact e.symm) hne')
       try simp only [Aeneas.Std.bind_ok]
       refine (WP.spec_ok _).2 ?_
-      exact ⟨Q4, R4, k1, kB2, k3, ktx', k4, k5, st5, rp5, ks0, sy5, iq5, sg5, cs5⟩
+      exact ⟨Q4, R4, k1, kB2, k3, ktx', k4, k5, st5, rp5, ks0, sy5, iq5, sg5, cs5, ki.trans (f4.idle.trans (f3.idle.trans ei2))⟩
 
 end
 

@@ -56,7 +56,10 @@ theorem bx_wr {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → 
     BoundInv st T Ac (L.wr s a v) ∧ XInv st T Cs Ω Sg Rp Scs Nt Z (L.wr s a v) := by
   obtain ⟨hB', ecs⟩ := bnd_wr (v := v) h hB ha hsi hn
     (fun y hy e => hP (Or.inr (Or.inr (Or.inl ⟨_, hy, Or.inr (Or.inr (Or.inl (UScalar.eq_of_val_eq e)))⟩))))
-  exact ⟨hB', hX.writes h.tcbs (writesIn_wr (v := v) ha) (fun b hb => hb ▸ hP) (by rw [ecs]; exact hX.2.2.cur) htn⟩
+  refine ⟨hB', hX.writes h.tcbs (writesIn_wr (v := v) ha) (fun b hb => hb ▸ hP) (by rw [ecs]; exact hX.2.2.cur) htn ?_⟩
+  unfold LawfulStore.idleW; rw [LawfulStore.cpu_wr, nodeAt_wr]
+  exact L.mem_wr_ne ha (nodeAt_aligned (h.nodes _ h.cur) (by rw [idle8]; omega) (by rw [idle8]))
+    (hn _ (Or.inr (Or.inl idle8)))
 
 /-- A TCB field other than the SC, reply, state and `IN_QUEUES` fields, given
 the timer-tree typing after the write. -/
@@ -124,7 +127,8 @@ def AvoidX (st : machine.Store S) [L : LawfulStore st] (T Rp Scs Nt : Set U64) (
   (∀ c ∈ Scs, a.val ≠ (scTcbA c).val ∧ a.val ≠ (scCoreA c).val ∧ a.val ≠ (scReplyA c).val ∧
     a.val ≠ (scNtfnA c).val ∧ a.val ≠ (maxA c).val) ∧
   (∀ u ∈ T, a.val ≠ (scA u).val ∧ a.val ≠ (replyA u).val ∧ a.val ≠ (stA u).val ∧ a.val ≠ (boundA u).val) ∧
-  (∀ n ∈ Nt, a.val ≠ (ntfnScA n).val) ∧ a.val ≠ (L.nodeA s layout.node.CUR_SC).val
+  (∀ n ∈ Nt, a.val ≠ (ntfnScA n).val) ∧ a.val ≠ (L.nodeA s layout.node.CUR_SC).val ∧
+  a.val ≠ (L.nodeA s layout.node.IDLE_THREAD).val
 
 /-- A TCB's `YIELD_TO` word avoids the other words `XInv` reads. -/
 theorem avoidX_yieldA {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t : U64}
@@ -140,10 +144,13 @@ theorem avoidX_yieldA {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : 
     fun c hc => ⟨om _ (hcΩ c hc).1, om _ (hcΩ c hc).2.1, om _ (hsub _ (hX.1.repW c hc)), om _ (hsub _ (hX.1.snW c hc)), om _ (hsub _ (hX.1.mxW c hc))⟩,
     fun u hu => ⟨by rw [scA_eq]; exact fl u hu _ (by simp) (by simp), fl u hu _ (by simp) (by simp),
       by rw [stA_eq]; exact fl u hu _ (by simp) (by simp), fl u hu _ (by simp) (by simp)⟩,
-    fun n hn => om _ (hsub _ (hX.1.ntW n hn)), fun e => ?_⟩
-  have hN' := h.nodes _ h.cur
-  exact node_ne_field hN' (by simp [layout.node.CUR_SC]) ht hta (K := 3472#u64) (by simp)
-    (UScalar.eq_of_val_eq e).symm
+    fun n hn => om _ (hsub _ (hX.1.ntW n hn)), fun e => ?_, fun e => ?_⟩
+  · have hN' := h.nodes _ h.cur
+    exact node_ne_field hN' (by simp [layout.node.CUR_SC]) ht hta (K := 3472#u64) (by simp)
+      (UScalar.eq_of_val_eq e).symm
+  · have hN' := h.nodes _ h.cur
+    exact node_ne_field hN' (by simp [layout.node.IDLE_THREAD]) ht hta (K := 3472#u64) (by simp)
+      (UScalar.eq_of_val_eq e).symm
 
 /-- An SC's `YIELD_FROM` word avoids the other words `XInv` reads. -/
 theorem avoidX_scYield {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {c0 : U64}
@@ -154,7 +161,7 @@ theorem avoidX_scYield {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
   have ho := h.omega _ hm
   obtain ⟨h128, -, -, -, -, -, -, e7⟩ := sc_facts hO hc0
   have av : (scYieldFromA c0).val = c0.val + 56 := e7
-  refine ⟨fun r hr => ?_, fun c hc => ?_, fun u hu => ?_, fun n hn => ?_, fun e => ?_⟩
+  refine ⟨fun r hr => ?_, fun c hc => ?_, fun u hu => ?_, fun n hn => ?_, fun e => ?_, fun e => ?_⟩
   · obtain ⟨-, e1, e2, e3⟩ := rp_facts hO hr
     have := hO.rpSc r hr c0 hc0
     rw [av, e1, e2, e3]; omega
@@ -172,6 +179,7 @@ theorem avoidX_scYield {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
       fun e => this 3368#u64 (by simp) e.symm⟩
   · have := hO.ntSc n hn c0 hc0; rw [av]; omega
   · exact out_ne_node ho h.cur (h.nodes _ h.cur) (by simp [layout.node.CUR_SC]) e.symm
+  · exact out_ne_node ho h.cur (h.nodes _ h.cur) (by simp [layout.node.IDLE_THREAD]) e.symm
 
 /-- Clearing a yield word keeps `XInv`. -/
 theorem XInv.wr_yield0 {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {a : U64}
@@ -179,7 +187,7 @@ theorem XInv.wr_yield0 {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
     (hA : AvoidX st T Rp Scs Nt s a)
     (htn : TimerOK st T Cs (L.wr s a 0#u64) ∧ NtbOK st T Nt (L.wr s a 0#u64)) :
     XInv st T Cs Ω Sg Rp Scs Nt Z (L.wr s a 0#u64) := by
-  obtain ⟨hR, hC, hU, hN, hcs⟩ := hA
+  obtain ⟨hR, hC, hU, hN, hcs, hid⟩ := hA
   have hO := hX.1
   have hT := h.tcbs
   have k : ∀ b, Aligned b → a.val ≠ b.val → L.mem (L.wr s a 0#u64) b = L.mem s b := fun b hb hne =>
@@ -213,11 +221,14 @@ theorem XInv.wr_yield0 {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
       have hb := alP _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl))))⟩))
       have e := z _ hb h0; rw [e] at h0 ⊢; exact hX.2.2.yt.2.2 c hc h0⟩
     (fun c hc => k _ (alP _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inr (Or.inr (Or.inr rfl))))⟩)))
-      (hC c hc).2.2.2.2)
-  unfold LawfulStore.cscW; rw [nodeA_wr]
-  rw [k (L.nodeA s layout.node.CUR_SC) (nodeAt_aligned (h.nodes _ h.cur) (by simp [layout.node.CUR_SC])
-    (by simp [layout.node.CUR_SC])) hcs]
-  exact hX.2.2.cur
+      (hC c hc).2.2.2.2) ?_
+  · unfold LawfulStore.cscW; rw [nodeA_wr]
+    rw [k (L.nodeA s layout.node.CUR_SC) (nodeAt_aligned (h.nodes _ h.cur) (by simp [layout.node.CUR_SC])
+      (by simp [layout.node.CUR_SC])) hcs]
+    exact hX.2.2.cur
+  · unfold LawfulStore.idleW; rw [LawfulStore.cpu_wr, nodeAt_wr]
+    exact k _ (nodeAt_aligned (h.nodes _ h.cur) (by simp [layout.node.IDLE_THREAD])
+      (by simp [layout.node.IDLE_THREAD])) hid
 
 /-- A queue step on `t` that only clears `t`'s flags. -/
 theorem bx_qfoot {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {W : List U64}

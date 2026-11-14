@@ -85,7 +85,8 @@ theorem sched.postpone.all (s : S) (sc : obj.Sc) (Q : U64 → U64 → List U64)
     (hrun : Runnable (L.mem s (stA (L.mem s (scTcbA sc))))) (hna : L.actionW s ≠ L.mem s (scTcbA sc))
     (hbd : L.mem s (scA (L.mem s (scTcbA sc))) ≠ 0#u64) (hba : L.mem s (scA (L.mem s (scTcbA sc))) ∈ Ac) :
     sched.postpone st s sc ⦃ s' => ∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R' ∧ BoundInv st T Ac s' ∧
-      XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SgOK st Ω Sg s' ∧ Fr st T Sg s s' ⦄ := by
+      XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SgOK st Ω Sg s' ∧ Fr st T Sg s s' ∧
+      L.actionW s' = L.actionW s ∧ L.curW s' = L.curW s ⦄ := by
   unfold sched.postpone
   step as ⟨t, t_post⟩
   subst t_post
@@ -101,7 +102,7 @@ theorem sched.postpone.all (s : S) (sc : obj.Sc) (Q : U64 → U64 → List U64)
     (sched.dequeue.foot s t _ hT ht hp hN hN' (hR1.1.rel _ hp) hmemq)) ?_
   rintro s1 ⟨h1, hw1, hinq1⟩
   have hW1 : ∀ w ∈ Q (L.mem s (affA t)) (L.mem s (prioA t)), w ∈ T := fun w hw => h.memT hc hp hw
-  obtain ⟨hB1, hX1, fr1, ea1, -⟩ := bx_qfoot h hB hX hSg hW1 hc ht p128 hw1
+  obtain ⟨hB1, hX1, fr1, ea1, ec1, -⟩ := bx_qfoot h hB hX hSg hW1 hc ht p128 hw1
     (fun hf => by rw [hinq1] at hf; split_ifs at hf with e
                   · rw [andn_qq_qq] at hf; exact absurd rfl hf
                   · exact Or.inl hf)
@@ -130,7 +131,7 @@ theorem sched.postpone.all (s : S) (sc : obj.Sc) (Q : U64 → U64 → List U64)
     intro w hw; rcases List.mem_cons.1 hw with rfl | hw
     · exact ht
     · exact h1.memTR hc1 hw
-  obtain ⟨hB2, hX2, fr2, -, -⟩ := bx_qfoot h1 hB1 hX1 hSg1 hW2 hc1 ht prel hw2
+  obtain ⟨hB2, hX2, fr2, ea2, ec2, -⟩ := bx_qfoot h1 hB1 hX1 hSg1 hW2 hc1 ht prel hw2
     (fun hf => by rw [hinq2, or_qr_qq] at hf; exact Or.inl hf)
     (fun _ => Or.inr (Or.inr ⟨by rw [fr1.sc t ht]; exact hbd, by rw [fr1.sc t ht]; exact hba⟩))
   have hSg2 := hSg1.fr fr2
@@ -173,7 +174,12 @@ theorem sched.postpone.all (s : S) (sc : obj.Sc) (Q : U64 → U64 → List U64)
     hB3, hX3, ⟨hSg2.sub, fun b hb => by rw [L.ksb_wr]; exact hSg2.ks b hb,
       fun o h1' h2' => by rw [L.ksb_wr]; exact hSg2.ksΩ o h1' h2'⟩,
     fr1.trans (fr2.trans (fr_node (hi8 := fun _ => by simp [layout.node.SCHED_ACTION, layout.node.REPROGRAM, layout.node.CUR_THREAD]) h2 hSg2 hcs (by rw [repr_val]; omega) (by rw [repr_val])
-      (fun _ => by rw [repr_val]; omega) ⟨by rw [repr_val]; omega, by rw [repr_val]; omega⟩))⟩
+      (fun _ => by rw [repr_val]; omega) ⟨by rw [repr_val]; omega, by rw [repr_val]; omega⟩)),
+    e.trans (ea2.trans ea1), by
+      have := ec2.trans ec1
+      unfold LawfulStore.curW at this ⊢
+      simp only [LawfulStore.cpu_wr, nodeAt_wr]
+      rw [o0]; exact this⟩
 
 /-- seL4 `schedContext_resume`, with `BoundInv` and `XInv`. -/
 theorem schedcontext.resume.all (hA : P0.ArchTotal ar) (s : S) (a : A) (sc : obj.Sc)
@@ -211,8 +217,16 @@ theorem schedcontext.resume.all (hA : P0.ArchTotal ar) (s : S) (a : A) (sc : obj
     · step with sporadic.sufficient.ok (st := st) hA as ⟨b4⟩
       split
       · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨Q, R, h, hB, hX, hSg, Fr.refl _ _⟩
-      · exact WP.spec_bind post fun s1 h1 => by simpa using h1
-    · exact WP.spec_bind post fun s1 h1 => by simpa using h1
+      · exact WP.spec_bind post fun s1 h1 => by
+          obtain ⟨Q', R', a1, a2, a3, a4, a5, -, -⟩ := h1
+          have h1' : ∃ Q' R', SchedQueuesInv st T Cs Ω H s1 Q' R' ∧ BoundInv st T Ac s1 ∧
+              XInv st T Cs Ω Sg Rp Scs Nt Z s1 ∧ SgOK st Ω Sg s1 ∧ Fr st T Sg s s1 := ⟨Q', R', a1, a2, a3, a4, a5⟩
+          simpa using h1'
+    · exact WP.spec_bind post fun s1 h1 => by
+        obtain ⟨Q', R', a1, a2, a3, a4, a5, -, -⟩ := h1
+        have h1' : ∃ Q' R', SchedQueuesInv st T Cs Ω H s1 Q' R' ∧ BoundInv st T Ac s1 ∧
+            XInv st T Cs Ω Sg Rp Scs Nt Z s1 ∧ SgOK st Ω Sg s1 ∧ Fr st T Sg s s1 := ⟨Q', R', a1, a2, a3, a4, a5⟩
+        simpa using h1'
   · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨Q, R, h, hB, hX, hSg, Fr.refl _ _⟩
 
 /-! ## `restart` -/
@@ -315,7 +329,9 @@ theorem sched.restart.all (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
           (w3.mono' fun b hb hh => fun hp => nP b hh hb hp) (fun b hb => hb) (by
             unfold LawfulStore.cscW; rw [cscW_eq w3.1 w3.2.1, kn _ (by simp [layout.node.CUR_SC])
               (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])]; exact hX2.2.2.cur)
-            (hX2.tn (TmFr.of_ring h2 hX2 hsub hiS w3))
+            (hX2.tn (TmFr.of_ring h2 hX2 hsub hiS w3)) (by
+              unfold LawfulStore.idleW; rw [w3.2.1, nodeAt_of_ksb w3.1]
+              exact kn _ (by rw [idle8]; omega) (by rw [idle8]) (by rw [idle8]; omega))
         refine ⟨h3, hB3, hX3, ⟨hsub, fun b hb => by rw [w3.1]; exact hSg2.ks b hb,
           fun o h1' h2'' => by rw [w3.1]; exact hSg2.ksΩ o h1' h2''⟩, ?_⟩
         unfold LawfulStore.actionW

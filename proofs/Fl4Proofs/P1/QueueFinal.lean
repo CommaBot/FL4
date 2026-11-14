@@ -427,6 +427,14 @@ theorem obj.Ntfn.set_sc.wr (s : S) (n : obj.Ntfn) (v : U64) :
   unfold obj.Ntfn.set_sc; step*; simp_all [ntfnScA]
 
 /-- The current SC word after a write of a word outside the TCBs and nodes. -/
+theorem idleW_wr_out {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {a v : U64}
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ha : a ∈ Ω) : L.idleW (L.wr s a v) = L.idleW s := by
+  have ho := h.omega a ha
+  have hN := h.nodes _ h.cur
+  unfold LawfulStore.idleW; rw [LawfulStore.cpu_wr, nodeAt_wr]
+  exact L.mem_wr_ne ho.1 (nodeAt_aligned hN (by rw [idle8]; omega) (by rw [idle8]))
+    (fun e => out_ne_node ho h.cur hN (by rw [idle8]; omega) e.symm)
+
 theorem cscW_wr_out {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {a v : U64}
     (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ha : a ∈ Ω) : L.cscW (L.wr s a v) = L.cscW s := by
   have ho := h.omega a ha
@@ -1010,7 +1018,7 @@ theorem sctcb_zero_all {s : S} {c0 : U64} {Q : U64 → U64 → List U64} {R : U6
   have hN' := h0.nodes _ h0.cur
   obtain ⟨h128, e1, -, e3, e4, e5, -⟩ := sc_facts hO hc0
   refine ⟨⟨⟨Q, R, inv_of_free h0 ((writesIn_wr (v := 0#u64) ho.1).mono fun b hb => hb ▸ Or.inl hm)⟩,
-    BoundInv.owr h0 hB hm, (XInv.set_sctcb h0 hX hSg.sub hc0 hnb (fun h0' => absurd rfl h0')).x
+    BoundInv.owr h0 hB hm, (XInv.set_sctcb h0 hX hSg.sub hc0 hnb (fun h0' => absurd rfl h0') (fun e => absurd e.symm (idle_ne0 h0))).x
       ((TScX.set_sctcb h0 hO hSg.sub hc0 htx hX.2.2.yt.1).full fun h0' => absurd (L.mem_wr_same ho.1) h0'),
     SCsOK.wr' h0 hS hO ho.1 (fun y hy => (out_ne_field (K := 3464#u64) ho hy (h0.tcbs y hy) (by simp)).symm)
       (out_ne_node ho h0.cur hN' (by simp [layout.node.CUR_SC])).symm (fun c hc => ?_)
@@ -1415,7 +1423,11 @@ theorem dbgN_all {s : S} {c v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s
     hX.writes h0.tcbs (writesIn_wr (v := v) ha) (fun b hb => hb ▸ not_prot_node h0 hX.1 hSg.sub hc (by omega))
       (by rw [ecs]; exact hX.2.2.cur)
       ⟨hX.2.2.tm.wr_node hT h0.nodes hc (by omega) hv,
-       hX.2.2.ntb.wr hX.1 ha (fun n hn => out_ne_node (h0.omega _ (hSg.sub _ (hX.1.ntB n hn).2)) hc hN (by omega))⟩,
+       hX.2.2.ntb.wr hX.1 ha (fun n hn => out_ne_node (h0.omega _ (hSg.sub _ (hX.1.ntB n hn).2)) hc hN (by omega))⟩
+      (by
+        unfold LawfulStore.idleW; rw [LawfulStore.cpu_wr, nodeAt_wr]
+        exact L.mem_wr_ne ha (nodeAt_aligned hN' (by rw [idle8]; omega) (by rw [idle8]))
+          (node_ne_node hN hN' (by omega) (by rw [idle8]; omega) (fun _ => by rw [d88, idle8]; simp))),
     SCsOK.wr h0 hS hX ha (fun y hy e => node_ne_field (o := layout.node.DEBUG_TCBS) hN (by omega) hy (hT y hy)
         (K := 3464#u64)
         (by simp) (UScalar.eq_of_val_eq (by rw [← scA_eq]; exact e))) hcs

@@ -261,7 +261,7 @@ theorem blk_keep {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U6
     (hbl : L.mem s' (stA t) = sched.TS_BLOCKED_ON_REPLY →
       L.mem s' (replyA t) ∈ Rp ∧ L.mem s' (rTcbA (L.mem s' (replyA t))) = t)
     (hr0 : r0 ≠ 0#u64 → r0 ∈ Rp ∧ (L.mem s (rTcbA r0) = 0#u64 ∨ L.mem s (rTcbA r0) = t))
-    (hidl : L.idleW s = t → ¬ Blocked (L.mem s' (stA t))) (htm : TmFr st T Cs Nt s s')
+    (hidl : L.idleW s = t → ¬ BlockedR (L.mem s' (stA t))) (htm : TmFr st T Cs Nt s s')
     (hrecv : L.mem s' (stA t) = sched.TS_BLOCKED_ON_RECV → L.mem s' (replyA t) ≠ 0#u64 →
       L.mem s' (replyA t) ∈ Rp ∧ L.mem s' (rTcbA (L.mem s' (replyA t))) = t)
     (hold : L.mem s (stA t) ≠ sched.TS_BLOCKED_ON_REPLY ∧ L.mem s (stA t) ≠ sched.TS_BLOCKED_ON_RECV)
@@ -355,7 +355,9 @@ theorem blk_keep {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U6
             · rwa [e''] at e1
             · rw [e''] at e1; exact absurd e1 (by decide)),
     ⟨hO.ksb, ⟨⟨fun u hu hs => ?_, fun u hu hs hn => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr hn => ?_,
-        fun c hc => by rw [srp c hc]; exact hR.screp c hc⟩,
+        fun c hc => by rw [srp c hc]; exact hR.screp c hc,
+        idleRep_keep hR.idle (nd layout.node.IDLE_THREAD (Or.inr (Or.inl idle8))) (fun c hc => (fix c hc).1)
+          (fun c hc => Or.inl (srp c hc))⟩,
         hR.head.keep rnx srp (fun r hr h0 hb => (hR.next r hr h0).1 hb)⟩,
       ⟨⟨fun u hu hb => ?_, by rw [ecs]; exact hE.cur, fun c hc => by rw [(fix c hc).2.1]; exact hE.core c hc,
         fun u hu => by
@@ -1056,7 +1058,7 @@ theorem BoundInv.choose {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R 
     (h : SchedQueuesInvX st T Cs Ω H X s Q R)
     (hq : ∀ y ∈ T, (L.mem s (inqA y) &&& sched.Q_QUEUED) ≠ 0#u64 → L.mem s (scA y) ≠ 0#u64)
     (hr : ∀ y ∈ T, (L.mem s (inqA y) &&& sched.Q_RELEASE) ≠ 0#u64 → L.mem s (scA y) ≠ 0#u64)
-    (hidle : L.mem s (scA (L.idleW s)) ≠ 0#u64) (hnb : ¬ Blocked (L.mem s (stA (L.idleW s))))
+    (hidle : L.mem s (scA (L.idleW s)) ≠ 0#u64) (hnb : ¬ BlockedR (L.mem s (stA (L.idleW s))))
     (hsa : ∀ y ∈ T, Sch st s y → L.mem s (scA y) ≠ 0#u64 → L.mem s (scA y) ∈ Ac) :
     BoundInv st T Ac (L.wr s (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION) 1#u64) := by
   have fk : ∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 →
@@ -1199,7 +1201,7 @@ theorem unbind_state {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U6
     · rw [scy y hy e]; exact hB.r y hy hf
   have bidle : L.mem s2 (scA (L.idleW s2)) ≠ 0#u64 := by
     rw [ei, scy (L.idleW s) h.idleT hidle]; exact hB.idle
-  have bnb : ¬ Blocked (L.mem s2 (stA (L.idleW s2))) := by
+  have bnb : ¬ BlockedR (L.mem s2 (stA (L.idleW s2))) := by
     rw [ei, stA_eq, F1 (L.idleW s) h.idleT _ (by simp) (by simp) (fun _ => by simp), ← stA_eq]; exact hB.idleNB
   have bsa : ∀ y ∈ T, Sch st s2 y → L.mem s2 (scA y) ≠ 0#u64 → L.mem s2 (scA y) ∈ Ac := by
     intro y hy hS h0
@@ -1220,7 +1222,18 @@ theorem unbind_state {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U6
       have := hO.rpSc r hr i hiS; have := hiv.1; omega)
   refine ⟨h2, fun hcur => ⟨bq, br, fun haT => ?_, bidle, fun h0 => ?_, bnb, bsa⟩, BoundInv.choose h2 bq br bidle bnb bsa,
     ⟨hO.ksb, ⟨⟨fun u hu hs => ?_, fun u hu hs hn => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr hn => ?_,
-        fun c hc => by rw [srp2 c hc]; exact hR.screp c hc⟩,
+        fun c hc => by rw [srp2 c hc]; exact hR.screp c hc, fun c hc e => by
+          rw [srp2 c hc]
+          by_cases hci : c = i
+          · subst hci; exfalso
+            have z : L.mem s2 (scTcbA c) = 0#u64 := by rw [hs2]; exact L.mem_wr_same hmo.1
+            rw [z, ei] at e
+            have e' := e.symm
+            unfold LawfulStore.idleW at e'
+            exact (hT _ h.idleT).ne0 (by rw [e']; rfl)
+          · exact hR.idle c hc (by
+              rw [← scw c hc _ (hcΩ _ hc).1 (Or.inr (Or.inr (Or.inr (Or.inr ⟨hci, (sc_facts hO hc).2.1⟩)))), ← ei]
+              exact e)⟩,
         hR.head.keep rnx2 srp2 (fun r hr h0 hb => (hR.next r hr h0).1 hb)⟩,
       ⟨⟨fun u hu hb => ?_, by rw [ecs]; exact hE.cur, fun c hc => by rw [scw c hc _ (hcΩ _ hc).2.1 (Or.inl (sc_facts hO hc).2.2.1)]; exact hE.core c hc,
         fun u hu => by
@@ -1643,13 +1656,13 @@ theorem endpoint.take_reply.inv {A : Type _} (ar : machine.Arch A) (s : S) (a : 
       BoundInv st T Ac s' ∧ XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SCsOK st T Ω Sg Scs Z Ac s' ∧ SgOK st Ω Sg s' ∧
       CanBlock st T Ac s' t ∧ L.idleW s' = L.idleW s ∧
       (reply ≠ 0#u64 → reply ∈ Rp ∧ (L.mem s' (rTcbA reply) = 0#u64 ∨ L.mem s' (rTcbA reply) = t)) ∧
-      L.ksb s' = L.ksb s ∧ (¬ Blocked (L.mem s (stA (L.idleW s))) → ¬ Blocked (L.mem s' (stA (L.idleW s')))) ⦄ := by
+      L.ksb s' = L.ksb s ∧ (¬ BlockedR (L.mem s (stA (L.idleW s))) → ¬ BlockedR (L.mem s' (stA (L.idleW s')))) ⦄ := by
   have base : ∀ p, (p ≠ 0#u64 → p ∈ Rp ∧ (L.mem s (rTcbA p) = 0#u64 ∨ L.mem s (rTcbA p) = t)) →
       (ok (p, s, a) : Result (obj.Reply × S × A)) ⦃ reply s' _ => SchedQueuesInv st T Cs Ω H s' Q R ∧
         BoundInv st T Ac s' ∧ XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SCsOK st T Ω Sg Scs Z Ac s' ∧ SgOK st Ω Sg s' ∧
         CanBlock st T Ac s' t ∧ L.idleW s' = L.idleW s ∧
         (reply ≠ 0#u64 → reply ∈ Rp ∧ (L.mem s' (rTcbA reply) = 0#u64 ∨ L.mem s' (rTcbA reply) = t)) ∧
-        L.ksb s' = L.ksb s ∧ (¬ Blocked (L.mem s (stA (L.idleW s))) → ¬ Blocked (L.mem s' (stA (L.idleW s')))) ⦄ :=
+        L.ksb s' = L.ksb s ∧ (¬ BlockedR (L.mem s (stA (L.idleW s))) → ¬ BlockedR (L.mem s' (stA (L.idleW s')))) ⦄ :=
     fun p hp => (WP.spec_ok _).2 ⟨h, hB, hX, hS, hSg, hc, rfl, hp, rfl, id⟩
   unfold endpoint.take_reply
   split
@@ -1670,14 +1683,14 @@ theorem endpoint.take_reply.inv {A : Type _} (ar : machine.Arch A) (s : S) (a : 
       obtain ⟨-, hiT, -, -⟩ := hX.2.1.back p hp (by rw [← ei]; exact hi0)
       rw [← ei] at hiT
       refine WP.spec_bind (ipc.cancel_ipc.all s a i Q R h hiT hB hX hSg.sub) ?_
-      rintro ⟨s1, a1⟩ ⟨h1, hB1, hX1, nb1, -, -, k1, clr1⟩
+      rintro ⟨s1, a1⟩ ⟨h1, hB1, hX1, nb1, nr1, -, k1, clr1⟩
       try simp only [WP.uncurry'_pair]
       refine (WP.spec_ok _).2 ⟨h1, hB1, hX1, hS.keepT hX k1, ⟨hSg.sub, fun b hb => by rw [k1.ksb]; exact hSg.ks b hb,
         fun o h1' h2' => by rw [k1.ksb]; exact hSg.ksΩ o h1' h2'⟩, hc.keepT (Ne.symm hit) h.tcbs k1, k1.idleW,
         fun _ => ⟨hp, Or.inl (clr1 p hp ei.symm)⟩, k1.ksb, fun hnb => ?_⟩
       rw [k1.idleW]
       by_cases hii : L.idleW s = i
-      · rw [hii]; exact nb1
+      · rw [hii]; rintro (hb | hb); exacts [nb1 hb, nr1 hb]
       · rw [k1.stf (y := L.idleW s) h.idleT hii]; exact hnb
     · rename_i hb1
       have hit : i = t := by by_contra e; exact hb1 (eb1.2 e)
@@ -1726,7 +1739,7 @@ theorem endpoint.receive_ipc.inv {A : Type _} (ar : machine.Arch A) (s : S) (a :
       notification.complete_signal st ar s1 a1 n t ⦃ s' _ => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄)
     (hrfs : ∀ (s2 : S) (a2 : A) (r : U64), BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s2 → CanBlock st T Ac s2 t →
       (r ≠ 0#u64 → r ∈ Rp ∧ (L.mem s2 (rTcbA r) = 0#u64 ∨ L.mem s2 (rTcbA r) = t)) →
-      L.ksb s2 = L.ksb s → ¬ Blocked (L.mem s2 (stA (L.idleW s2))) →
+      L.ksb s2 = L.ksb s → ¬ BlockedR (L.mem s2 (stA (L.idleW s2))) →
       L.epState s2 e ≠ 0#u64 → L.epState s2 e ≠ 2#u64 →
       endpoint.receive_from_sender st ar s2 a2 t e r ⦃ s' _ => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄) :
     endpoint.receive_ipc st ar s a t cap blocking reply_cap ⦃ s' _ => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
@@ -1744,7 +1757,7 @@ theorem endpoint.receive_ipc.inv {A : Type _} (ar : machine.Arch A) (s : S) (a :
       SchedQueuesInv st T Cs Ω H s2 Q2 R2 → BoundInv st T Ac s2 → XInv st T Cs Ω Sg Rp Scs Nt Z s2 →
       SCsOK st T Ω Sg Scs Z Ac s2 → SgOK st Ω Sg s2 → CanBlock st T Ac s2 t →
       (reply ≠ 0#u64 → reply ∈ Rp ∧ (L.mem s2 (rTcbA reply) = 0#u64 ∨ L.mem s2 (rTcbA reply) = t)) →
-      L.ksb s2 = L.ksb s → ¬ Blocked (L.mem s2 (stA (L.idleW s2))) →
+      L.ksb s2 = L.ksb s → ¬ BlockedR (L.mem s2 (stA (L.idleW s2))) →
       (do
         let st0 ← obj.Ep.state st e s2
         if st0 = obj.EP_IDLE then do
@@ -1774,7 +1787,7 @@ theorem endpoint.receive_ipc.inv {A : Type _} (ar : machine.Arch A) (s : S) (a :
       ⦃ s2 => ∃ Q2 R2, SchedQueuesInv st T Cs Ω H s2 Q2 R2 ∧ BoundInv st T Ac s2 ∧
         XInv st T Cs Ω Sg Rp Scs Nt Z s2 ∧ SCsOK st T Ω Sg Scs Z Ac s2 ∧ SgOK st Ω Sg s2 ∧ CanBlock st T Ac s2 t ∧
         (reply ≠ 0#u64 → reply ∈ Rp ∧ (L.mem s2 (rTcbA reply) = 0#u64 ∨ L.mem s2 (rTcbA reply) = t)) ∧
-        L.ksb s2 = L.ksb s ∧ ¬ Blocked (L.mem s2 (stA (L.idleW s2))) ⦄ := by
+        L.ksb s2 = L.ksb s ∧ ¬ BlockedR (L.mem s2 (stA (L.idleW s2))) ⦄ := by
     intro i
     split
     · refine WP.spec_mono (notification.maybe_return_sched_context.inv s1 i t Q R h1 hB1 hX1 hS1 hSg1 ht

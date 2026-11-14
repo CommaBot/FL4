@@ -36,6 +36,7 @@ import Fl4Proofs.P1.QueueBind
 import Fl4Proofs.P1.QueueReply
 import Fl4Proofs.P1.QueueReplyPop
 import Fl4Proofs.P1.QueueEntry
+import Fl4Proofs.P1.QueueFootD
 import Fl4Proofs.P2.Runtime
 import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine

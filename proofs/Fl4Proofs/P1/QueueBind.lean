@@ -97,6 +97,7 @@ theorem schedcontext.bind_tcb.blk {A : Type _} {ar : machine.Arch A} (hA : P0.Ar
   subst e1 e2
   obtain ⟨p8, pB, pX, pS, pSg, -, pfl, pcore, psc, ptc, pact⟩ :=
     donate_pair h0 hB hX.x0 hX.2.2.tsc.x ht0 hS hSg ht hsc hsc0 hnb hcore hdisj hsA
+      (fun e => hB.idle (by rw [e]; exact ht0))
   have hsw := bind_swap (L := L) (s := s) (scA_aligned hta) ho.1
     (fun e => out_ne_field (K := 3464#u64) ho ht hta (by simp) e)
   obtain ⟨h2, hB2, hX2, hS2, hSg2⟩ := agree_all p8 pB pX pS pSg (by simp) (by simp) hsw

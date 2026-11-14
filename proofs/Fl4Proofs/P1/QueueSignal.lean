@@ -65,7 +65,7 @@ theorem notification.maybe_donate_sched_context.tinv {A : Type _} {ar : machine.
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s) (ht : t ∈ T)
     (htq : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64) (htr : (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64)
-    (hta' : L.actionW s ≠ t)
+    (hta' : L.actionW s ≠ t) (hti : L.idleW s ≠ t)
     (hns : L.mem s (ntfnScA n) ≠ 0#u64 → L.mem s (scTcbA (L.mem s (ntfnScA n))) = 0#u64 →
       L.mem s (scA t) = 0#u64 → L.mem s (ntfnScA n) ∈ Scs ∧ L.mem s (scCoreA (L.mem s (ntfnScA n))) ∈ Cs ∧
         (Sch st s t → L.mem s (ntfnScA n) ∈ Ac)) :
@@ -90,7 +90,7 @@ theorem notification.maybe_donate_sched_context.tinv {A : Type _} {ar : machine.
       obtain ⟨hS1, hcore1, hin1⟩ := hns (by rw [← ei1]; exact hi10) (by rw [← ei1]; exact htc0) (by rw [← ei, hi])
       rw [← ei1] at hS1 hin1 hcore1
       refine WP.spec_bind (schedcontext.donate.unbound hA s a i1 t Q R h hB hX hS hSg ht htq htr hS1 hi10 htc0
-        hcore1 hin1 (by rw [← ei, hi])) ?_
+        hcore1 hin1 (by rw [← ei, hi]) hti) ?_
       rintro ⟨s4, a4⟩ ⟨⟨⟨Q4, R4, h4⟩, hB4, hX4, hS4, hSg4⟩, -, -, tm4, sc4, tc4, ea4⟩
       try simp only [WP.uncurry'_pair]
       refine WP.spec_mono (schedcontext.resume.all hA s4 a4 i1 Q4 R4 h4 hB4 hX4 hSg4 hS4 fun _ _ => ?_) ?_
@@ -145,6 +145,12 @@ theorem signal_tail {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s
         (UScalar.eq_of_val_eq e))
   have ea3 : L.actionW (L.wr s2 (core.num.U64.wrapping_add dst 256#u64) badge) = L.actionW s2 :=
     act_wr_field (h2.nodes _ h2.cur) hd hta rfl (by simp) (by simp)
+  have ei3 : L.idleW (L.wr s2 (core.num.U64.wrapping_add dst 256#u64) badge) = L.idleW s2 := by
+    unfold LawfulStore.idleW; rw [LawfulStore.cpu_wr, nodeAt_wr]
+    exact L.mem_wr_ne (field_aligned hta (by simp) (by simp))
+      (nodeAt_aligned (h2.nodes _ h2.cur) (by rw [idle8]; omega) (by rw [idle8]))
+      (fun e => node_ne_field (K := 256#u64) (h2.nodes _ h2.cur) (by rw [idle8]; omega) hd hta (by simp)
+        (UScalar.eq_of_val_eq e).symm)
   have sc3 : L.mem (L.wr s2 (core.num.U64.wrapping_add dst 256#u64) badge) (scA dst) = L.mem s2 (scA dst) := by
     rw [scA_eq]
     exact L.mem_wr_ne (field_aligned hta (by simp) (by simp)) (field_aligned hta (by simp) (by simp))
@@ -161,7 +167,8 @@ theorem signal_tail {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s
     · exact hB2.resume e1 (by rw [e2]; exact h0)
     · exact dR e
   refine WP.spec_bind (notification.maybe_donate_sched_context.tinv hA _ a1 dst n Q R h3 hB3 hX3 hS3 hSg3 hd
-    (by rw [iq3]; exact dq) (by rw [iq3]; exact dr) (by rw [ea3]; exact da) (ntfn_sc_ok hX3 hn hsA3)) ?_
+    (by rw [iq3]; exact dq) (by rw [iq3]; exact dr) (by rw [ea3]; exact da) (by rw [ei3]; exact di)
+    (ntfn_sc_ok hX3 hn hsA3)) ?_
   rintro ⟨s4, a2⟩ ⟨⟨⟨Q4, R4, h4⟩, hB4, hX4, hS4, hSg4⟩, tm4⟩
   try simp only [WP.uncurry'_pair]
   step with sched.is_schedulable.spec' as ⟨b1, hb1⟩
@@ -396,7 +403,7 @@ theorem notification.send_signal.tinv {A : Type _} {ar : machine.Arch A} (hA : P
         · rw [e]; exact da1
         · rw [e]; exact fun e' => notT_small hT (by simp) (e' ▸ hiT)
       refine WP.spec_mono (signal_tail hA s2 a1 i n badge Q R h2' hB2 hX2 hS2 hSg2 hiT hn dq2 dr2 da2
-        (fun e => hB.idleNB (by rw [← k1.idleW, ← k2.idleW, e]; exact hbl))
+        (fun e => hB.idleNB (by rw [← k1.idleW, ← k2.idleW, e]; exact Or.inl hbl))
         (by rw [st2]; rintro (hb | hb); exact not_blocked_running hb; exact running_ne.1 hb)) ?_
       rintro ⟨s', a'⟩ ⟨hb', tm'⟩
       exact hI.of_tmfr hb' ((TmFr.of_keepT k1).trans ((TmFr.of_keepT k2).trans tm'))
@@ -437,7 +444,7 @@ theorem notification.send_signal.tinv {A : Type _} {ar : machine.Arch A} (hA : P
         · rw [e, ea1]; exact da
         · rw [e]; exact fun e' => notT_small hT (by simp) (e' ▸ hdT)
       refine WP.spec_mono (signal_tail hA s2 a hd n badge Q R h2' hB2 hX2 hS2 hSg2 hdT hn dq2 dr2 da2
-        (fun e => hB.idleNB (by rw [← ei1, ← k2.idleW, e]; exact hbl))
+        (fun e => hB.idleNB (by rw [← ei1, ← k2.idleW, e]; exact Or.inl hbl))
         (by rw [st2]; rintro (hb | hb); exact not_blocked_running hb; exact running_ne.1 hb)) ?_
       rintro ⟨s', a'⟩ ⟨hb', tm'⟩
       exact hI.of_tmfr hb' (tm1.trans ((TmFr.of_keepT k2).trans tm'))
@@ -546,7 +553,7 @@ theorem bnd_all {s : S} {t v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
       (hX.tn_field (K := 3368#u64) h0 hSg.sub ht (by simp) (by simp) (by simp))
       (fun c hc => om _ (hSg.sub _ (hX.1.snW c hc)))
       (hX.2.2.yt.keep (fun c hc => om _ (hcΩ c hc).1) (fun y hy => fk y hy _ (by simp) (by simp) (fun _ => by simp))
-        (fun c hc => om _ (hSg.sub _ (hX.1.syW c hc)))) (fun c hc => om _ (hcΩ c hc).2.2.1),
+        (fun c hc => om _ (hSg.sub _ (hX.1.syW c hc)))) (fun c hc => om _ (hcΩ c hc).2.2.1) ei,
     SCsOK.field (K := 3368#u64) h0 hS hX ht (by simp) (by simp) (by simp),
     ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o h1 h2⟩⟩
   · rw [ea] at haT ⊢; exact ⟨haT, hB.act haT⟩

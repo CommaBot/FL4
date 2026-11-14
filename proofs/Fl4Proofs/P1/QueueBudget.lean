@@ -48,7 +48,7 @@ theorem bx_epfoot {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U
     (fun y hy => kf y hy _ (by simp) (by simp) (by simp) (by simp)) (fun n hn => kΩ _ (hsub _ (hX.1.ntW n hn)))
     (hX.tn (TmFr.of_epfoot h hEW he hWT hw hX.1 hsub)) (fun c hc => kΩ _ (hsub _ (hX.1.snW c hc)))
     (fun y hy => kf y hy _ (by simp) (by simp) (by simp) (by simp)) (fun c hc => kΩ _ (hsub _ (hX.1.syW c hc)))
-    (fun c hc => kΩ _ (hsub _ (hX.1.mxW c hc)))⟩
+    (fun c hc => kΩ _ (hsub _ (hX.1.mxW c hc))) ei⟩
   unfold LawfulStore.cscW LawfulStore.nodeA
   rw [kn _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])]; exact hX.2.2.cur
 

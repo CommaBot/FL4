@@ -58,8 +58,10 @@ structure BoundInv (st : machine.Store S) [L : LawfulStore st] (T Ac : Set U64) 
   act : L.actionW s ∈ T → L.mem s (scA (L.actionW s)) ≠ 0#u64
   idle : L.mem s (scA (L.idleW s)) ≠ 0#u64
   resume : L.actionW s = 0#u64 → L.mem s (scA (L.curW s)) ≠ 0#u64
-  /-- The idle thread is not blocked (so in no endpoint or notification queue). -/
-  idleNB : ¬ Blocked (L.mem s (stA (L.idleW s)))
+  /-- The idle thread is not blocked (so in no endpoint or notification
+  queue), nor blocked on a reply (it is never a caller, l4v
+  `idle_thread_not_queued`/`valid_idle`). -/
+  idleNB : ¬ BlockedR (L.mem s (stA (L.idleW s)))
   /-- The bound SCs of the `Sch` threads are active. -/
   sact : ∀ t ∈ T, Sch st s t → L.mem s (scA t) ≠ 0#u64 → L.mem s (scA t) ∈ Ac
 
@@ -419,7 +421,7 @@ variable {Cs X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 →
 
 /-- The idle thread stays unblocked when the idle word and its state are kept. -/
 theorem BoundInv.nb (hB : BoundInv st T Ac s) (ei : L.idleW s' = L.idleW s)
-    (hst : L.mem s' (stA (L.idleW s)) = L.mem s (stA (L.idleW s))) : ¬ Blocked (L.mem s' (stA (L.idleW s'))) := by
+    (hst : L.mem s' (stA (L.idleW s)) = L.mem s (stA (L.idleW s))) : ¬ BlockedR (L.mem s' (stA (L.idleW s'))) := by
   rw [ei, hst]; exact hB.idleNB
 
 /-- `Sch` when the queue flags only drop and the node words and states are
@@ -510,7 +512,7 @@ theorem BoundInv.mk' (hB : BoundInv st T Ac s) (hsc : ∀ y ∈ T, L.mem s' (scA
     (ha : L.actionW s' ∈ T → L.actionW s' ∈ T ∧ L.mem s (scA (L.actionW s')) ≠ 0#u64)
     (hidle : L.idleW s' ∈ T ∧ L.mem s (scA (L.idleW s')) ≠ 0#u64)
     (hres : L.actionW s' = 0#u64 → L.curW s' ∈ T ∧ L.mem s (scA (L.curW s')) ≠ 0#u64)
-    (hnb : ¬ Blocked (L.mem s' (stA (L.idleW s'))))
+    (hnb : ¬ BlockedR (L.mem s' (stA (L.idleW s'))))
     (hsch : ∀ y ∈ T, Sch st s' y → L.mem s (scA y) ≠ 0#u64 → Sch st s y ∨ L.mem s (scA y) ∈ Ac) :
     BoundInv st T Ac s' := by
   have up : ∀ y ∈ T, ((L.mem s (inqA y) &&& sched.Q_QUEUED) ≠ 0#u64 ∨ (L.mem s (inqA y) &&& sched.Q_RELEASE) ≠ 0#u64 ∨
