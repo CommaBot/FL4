@@ -3,7 +3,8 @@ P3 (DESIGN.md §9), VSpace: **a frame cap, every label, at `TopSR`**
 (`decode_invocation_frame_full`): `DecOK`, or `DecOKR` for `GetAddress` and
 `TestAndClearAccessed`, from the Ep-side reply hypotheses `GetAddrHyp` and
 `TacHyp` only (and `DeriveSubframe`'s MDB facts: `UtInv`, the window's
-`hno`, `FrameInv`, the node cap valid).
+`hno`, `FrameInv`; the extra cap valid from `SlotsValid`, its slot a slot
+of the typed heap, `hxs`).
 -/
 import Fl4Proofs.P3.VsDecReply
 import Fl4Proofs.P3.VsTopInst
@@ -52,7 +53,7 @@ theorem decode_invocation_frame_full (th : TypedHeap) (s : S) (ar : A) (σ : Fl4
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
         ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
-    (hnv : ∀ x vc, vspace.extra extra 0#usize = ok (some x) → capAt (L.mem s) x = ok vc → CapValid th vc)
+    (hxs : ∀ x, vspace.extra extra 0#usize = ok (some x) → IsSlot th x)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
     (hga : GetAddrHyp (L := L) s σ ar ct p call) (htac : TacHyp (L := L) L4 L3 L2 L1 s σ ct call) :
     DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
@@ -80,7 +81,9 @@ theorem decode_invocation_frame_full (th : TypedHeap) (s : S) (ar : A) (σ : Fl4
         CapRel nc nc' ∧ CapValid th nc ∧ excaps = (nc', nsl) :: rest := by
     rcases hext with h | ⟨x, vc, vc', xsl, rest, h1, h2, h3, h4, -⟩
     · exact Or.inl h
-    · exact Or.inr ⟨x, vc, vc', xsl, rest, h1, h2, h3, hnv x vc h1 h2, h4⟩
+    · have hv := Vs.capValid_slot hCR.2.1 (hxs x h1)
+      rw [capAt_capV] at h2; cases eq_of_ok_eq h2
+      exact Or.inr ⟨x, _, vc', xsl, rest, h1, capAt_capV _ _, h3, hv, h4⟩
   have hDS : lbl = fl4_abi.label.X86PageDeriveSubframe →
       DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
         buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := fun hl => by
