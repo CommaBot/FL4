@@ -785,7 +785,8 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     (MdbStep.of_same hM hSS).trans <|
     (MdbStep.setFi hM1 hI1 hxm hcx1 RR2.cap hf' (Or.inr hnd) hco2' hrv2).trans <|
     (MdbStep.of_same RR2.M hSS3).trans <|
-    (MdbStep.pool RR3.M RR3.I hxm RR3.cap hf4 hnd hvm hctx.cd hbA htA (fun z hz => hctx.cz hz) hrv4).trans <|
+    (MdbStep.pool RR3.M RR3.I hxm RR3.cap hf4 hnd hvm hctx.cd hbA htA (fun z hz => hctx.cz hz) hrv4
+      ⟨by rw [hbase]; omega, by rw [hbase]; omega⟩).trans <|
     MdbStep.of_same hM4 hSS5
   have VM : ∀ ksb : U64, Vs.VsMdbInv ksb (L.mem s) G → Vs.VsMdbInv ksb (L.mem s5) G' := fun ksb h0 => by
     have W1 := h0.keep (fun z hz => hSS.capV ((hM.members z).1 hz).1)

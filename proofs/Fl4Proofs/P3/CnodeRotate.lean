@@ -329,7 +329,8 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
             obtain ⟨s3, hs3, σ', G', hsw', hR', hV', hM', hC', hI', hFI', hSt⟩ := spec_exists
               (swap_full_fin th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hps hpl rfl rfl (fun h => e1' h.symm) hsc2 hsn hpc2 hpn
                 ns (absCap ns) ⟨hnsw, rfl⟩ (hnscv th hscv) hnse hnsn hshs hbds' (update_okey hns hnsn)
-                np (absCap np) ⟨hnpw, rfl⟩ (hnpcv th hpcv) hnpe hnpn hshp hbdp' (update_okey hnp hnpn))
+                np (absCap np) ⟨hnpw, rfl⟩ (hnpcv th hpcv) hnpe hnpn hshp hbdp' (update_okey hnp hnpn)
+                (update_vcap hns) (update_vcap hnp))
             rw [hs3]; simp only [bind_ok]
             rw [WP.spec_ok]
             refine ⟨.rotateCall (absCap ns) (absCap np) (ps.bv, sb) (ppv.bv, pb) (pd.bv, db), ?_, σ1, hst, σ', G', ?_,
@@ -443,7 +444,7 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
               intro h; obtain ⟨-, c0, h0, hn⟩ := (hM1.members _).1 h; rw [hdc2] at h0; exact hn (eq_of_ok_eq h0).symm
             obtain ⟨s3, hs3, σ2, G2, hmv1, hR2, hV2, hM2, hC2, hI2, hFI2, hSt2⟩ := spec_exists
               (move_full_fin th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hpl hpd rfl rfl hpc2 hpn hdc2 np (absCap np) ⟨hnpw, rfl⟩
-                (hnpcv th hpcv) hnpe hnpn hshp hbdp' (update_okey hnp hnpn))
+                (hnpcv th hpcv) hnpe hnpn hshp hbdp' (update_okey hnp hnpn) (update_vcap hnp))
             obtain ⟨s3', hs3', hcaps⟩ := spec_exists (move_caps (L := L) hP s2 G hM1 hpm hAd.isSlot hdm np hnpe)
             rw [hs3] at hs3'; cases eq_of_ok_eq hs3'
             rw [hs3]; simp only [bind_ok]
@@ -453,7 +454,7 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
               rw [hcaps _ hAp.isSlot, if_neg e2, if_pos rfl]
             obtain ⟨s4, hs4, σ', G', hmv2, hR', hV', hM', hC', hI', hFI', hSt⟩ := spec_exists
               (move_full_fin th s3 σ2 G2 hR2 hV2 hP hM2 hC2 hI2 hFI2 hps hpl rfl rfl hsc3 hsn hpc3 ns (absCap ns) ⟨hnsw, rfl⟩
-                (hnscv th hscv) hnse hnsn hshs hbds' (update_okey hns hnsn))
+                (hnscv th hscv) hnse hnsn hshs hbds' (update_okey hns hnsn) (update_vcap hns))
             rw [hs4]; simp only [bind_ok]
             rw [WP.spec_ok]
             refine ⟨.rotateCall (absCap ns) (absCap np) (ps.bv, sb) (ppv.bv, pb) (pd.bv, db), ?_, σ1, hst, σ', G', ?_,

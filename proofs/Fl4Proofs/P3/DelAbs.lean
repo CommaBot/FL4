@@ -683,8 +683,8 @@ theorem swap_null_full (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : M
       rintro ⟨h0, h⟩; exact hxm (h ▸ (hM.prev_link hm2 h0).1)
     rw [(hW' x hx).2.1, (hW' x hx).2.2.1, if_neg g1, if_neg g2, if_neg hx2, if_neg hx1, if_neg hx2, if_neg hx1]
     exact ⟨rfl, rfl⟩
-  · refine MdbStep.rename hM _ (fun a ha => ?_)
-    have ha1 : a ≠ cslotAddr sl1 := fun e => hm1 (e ▸ ha)
+  · refine MdbStep.rename hM _ (fun a ha => ?_) (fun a ha P L4 L3 L2 L1 hok => ?_)
+    all_goals have ha1 : a ≠ cslotAddr sl1 := fun e => hm1 (e ▸ ha)
     by_cases h2 : a = cslotAddr sl2
     · subst h2
       rw [Equiv.swap_apply_right, (hW' _ hs1).2.2.2.1, if_neg hAne, if_pos rfl]
@@ -699,6 +699,20 @@ theorem swap_null_full (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : M
         rw [this, capAt_capV] at h1
         exact (eq_of_ok_eq h1).symm
       rw [e]; exact ⟨CapAlike.refl _, rfl⟩
+    by_cases h2 : a = cslotAddr sl2
+    · subst h2
+      rw [Equiv.swap_apply_right]
+      have := (hW' _ hs1).1
+      rw [if_neg hAne, if_pos rfl] at this
+      rw [capV_of_capAt this]; rw [capV_of_capAt ho2] at hok; exact hok
+    · rw [Equiv.swap_apply_of_ne_of_ne ha1 h2]
+      have := (hW' _ (hslot a ha)).1
+      rw [if_neg h2, if_neg ha1] at this
+      have e : capV (L.mem s') a = capV (L.mem s) a := by
+        have h1 := capAt_capV (L.mem s') a
+        rw [this, capAt_capV] at h1
+        exact (eq_of_ok_eq h1).symm
+      rw [e]; exact hok
 
 end
 

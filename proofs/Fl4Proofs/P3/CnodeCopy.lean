@@ -443,7 +443,7 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
             exact hut hu ((hC.has_child_iff hP hAs).2 ⟨z, hz⟩)
           obtain ⟨s3, hs3, σ', G', hins, hR', hV', hM', hC', hI', hFI', hSt⟩ := spec_exists
             (insert_full_fin th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hps hpd rfl rfl hsc2 hsn hdc2 nc (absCap nc)
-              ⟨hw', rfl⟩ hv' he' hnn hsh hbd hut' hzb hkey)
+              ⟨hw', rfl⟩ hv' he' hnn hsh hbd hut' hzb hkey (copied_vcap hr2))
           rw [hs3]; simp only [bind_ok]
           rw [WP.spec_ok]
           refine ⟨.insertCall (absCap nc) (ps.bv, sb) (pd.bv, db), ?_, σ1, hst,
@@ -453,7 +453,7 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
           simp only [↓reduceIte]
           obtain ⟨s3, hs3, σ', G', hmv, hR', hV', hM', hC', hI', hFI', hSt⟩ := spec_exists
             (move_full_fin th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hps hpd rfl rfl hsc2 hsn hdc2 nc (absCap nc) ⟨hw', rfl⟩
-              hv' he' hnn hsh (hbm rfl) hkey)
+              hv' he' hnn hsh (hbm rfl) hkey (copied_vcap hr2))
           rw [hs3]; simp only [bind_ok]
           rw [WP.spec_ok]
           refine ⟨.moveCall (absCap nc) (ps.bv, sb) (pd.bv, db), ?_, σ1, hst,

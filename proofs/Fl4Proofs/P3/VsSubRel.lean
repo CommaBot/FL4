@@ -464,7 +464,7 @@ theorem sub_step {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {SR : S �
   have hMS : MdbStep (L.mem s) G (L.mem s') (insG G src dest rv) :=
     MdbStep.frameAlias hM hI rv hsrcm hdestm (capV_of_capAt hcap) hctx.cd hq1 (by omega)
       (by rw [hctx.cd]; exact hcin) (by rw [hctx.cd]; exact hcr) (Vs.large_aligned hV hM)
-      (fun z hz => hctx.cz hz) hctx.rd (fun z hz => hctx.rz hz)
+      (fun z hz => hctx.cz hz) hctx.rd (fun z hz => hctx.rz hz) hq2 hqal
   refine ⟨σ', hci', ⟨hR', hV', hM', hC', hI', hU', hvs', hpt', hsr2, hcap', by rw [hctx.rz hsrcm]; exact hrev,
     fun x hx => ?_, hFI', hfr', hFR', hVC'⟩, hF.1, hMS, fun y hy hyd => ?_⟩
   · rcases (hctx.memI x).1 (by rw [← hrv'] at hx; exact hx) with rfl | hx

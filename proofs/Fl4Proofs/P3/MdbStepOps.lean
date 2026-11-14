@@ -14,6 +14,50 @@ open fl4_core Classical
 
 noncomputable section
 
+/-- **The VSpace side facts of the cap operations** (`MdbStep`'s `hv`):
+`mask_cap_rights`, `update_cap_data` and `derive_cap` keep a cap well
+placed (they keep the VSpace caps but for a frame's rights, or clear a
+frame's mapping). -/
+theorem mask_vcap {r : capability.Rights} {c c' : capability.Cap} (h : capability.mask_cap_rights r c = ok c')
+    (P L4 L3 L2 L1 : Set U64) (hv : Vs.VCapOK P L4 L3 L2 L1 c) : Vs.VCapOK P L4 L3 L2 L1 c' := by
+  cases c <;> simp only [capability.mask_cap_rights] at h
+  case Frame p sz v dev m a va =>
+    unfold capability.mask_vm_rights at h
+    repeat' split at h
+    all_goals (simp at h; subst h; exact hv)
+  all_goals (repeat' split at h) <;> (simp at h; subst h; exact hv)
+
+theorem update_vcap {pr : Bool} {d : U64} {c c' : capability.Cap} (h : objects.update_cap_data pr d c = ok c')
+    (P L4 L3 L2 L1 : Set U64) (hv : Vs.VCapOK P L4 L3 L2 L1 c) : Vs.VCapOK P L4 L3 L2 L1 c' := by
+  cases c <;> simp only [objects.update_cap_data] at h
+  case CNode p r gs g =>
+    simp only [lift, bind_ok] at h
+    split at h
+    · simp at h; subst h; trivial
+    · revert h; generalize d >>> 6#i32 = x; cases x <;> simp
+      generalize objects.mask (d &&& 63#u64) = y; cases y <;> simp
+      intro h; subst h; trivial
+  all_goals (repeat' split at h) <;> (simp at h; subst h; exact hv)
+
+theorem derive_vcap {S : Type} {st : machine.Store S} {s : S} {slot : obj.Slot} {c c' : capability.Cap}
+    (h : objects.derive_cap st s slot c = ok (.Ok c'))
+    (P L4 L3 L2 L1 : Set U64) (hv : Vs.VCapOK P L4 L3 L2 L1 c) : Vs.VCapOK P L4 L3 L2 L1 c' := by
+  cases c
+  case Untyped p sb fi dev =>
+    unfold objects.derive_cap at h
+    revert h; generalize cdt.ensure_no_children st s slot = r
+    cases r with
+    | ret v =>
+      cases v <;> simp [core.result.Result.Insts.CoreOpsTry.branch,
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
+      intro h; subst h; trivial
+    | _ => simp
+  case Frame p sz r dv m a va =>
+    simp only [objects.derive_cap] at h; simp at h; subst h
+    simp only [Vs.VCapOK] at hv ⊢; exact ⟨fun e => absurd e (by decide), hv.2⟩
+  all_goals simp only [objects.derive_cap] at h
+  all_goals (repeat' split at h) <;> (simp at h; try subst h; exact hv)
+
 section
 variable {th : TypedHeap} {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
@@ -26,7 +70,8 @@ theorem insert_mstep (hP : Placed th) (s : S) (G : MdbGhost) (hM : MdbLinks th (
     (c : capability.Cap) (he : EncWf c) (hsh : shape c = shape srcC)
     (hbd : badgeF c = badgeF srcC ∨ badgeF srcC = 0#u64)
     (hut : isUt srcC = true → ∀ y, ¬ Mdb.Desc G.par y src) (hzb : isZb srcC = false)
-    (hkey : okey c = okey srcC) :
+    (hkey : okey c = okey srcC)
+    (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 srcC → Vs.VCapOK P L4 L3 L2 L1 c) :
     cdt.insert st s c src dest ⦃ s' => (isUt srcC = true → c = srcC) →
       MdbStep (L.mem s) G (L.mem s') (insG G src dest (isPF (revOf (L.mem s) src) srcC c (revF c srcC))) ⦄ := by
   have hslot : ∀ x, x ∈ G.chains.flatten → IsSlot th x := fun x h => ((hM.members x).1 h).1
@@ -64,7 +109,7 @@ theorem insert_mstep (hP : Placed th) (s : S) (G : MdbGhost) (hM : MdbLinks th (
       hbd1 := by rw [hcv]; exact (fullF_shape srcC c).2
       hut := by rw [hcv]; exact hut
       hzb := by rw [hcv]; exact hzb }
-  refine MdbStep.insert hctx (by rw [hcv]) (by rw [hcv]; exact hutc) (by rw [hcv]; exact hkey) _ (fun hu => ?_)
+  refine MdbStep.insert hctx (by rw [hcv]) (by rw [hcv]; exact hutc) (by rw [hcv]; exact hkey) _ (fun hu => ?_) (by rw [hcv]; exact hv)
   rw [hcv] at hu
   have hr := hI.utrev src hsrc (by rw [hcv]; exact hu)
   have hss := hI.self src hsrc (by rw [hcv]; exact hzb)
@@ -119,7 +164,8 @@ the old one's shape and object, equal to it if untyped. -/
 theorem move_mstep (hP : Placed th) (s : S) (G : MdbGhost) (hM : MdbLinks th (L.mem s) G)
     {src dest : U64} (hsrcm : src ∈ G.chains.flatten) (hd : IsSlot th dest)
     (hdestm : dest ∉ G.chains.flatten) {srcC : capability.Cap} (hsrcC : capAt (L.mem s) src = ok srcC)
-    (c : capability.Cap) (he : EncWf c) (hsh : shape c = shape srcC) (hkey : okey c = okey srcC) :
+    (c : capability.Cap) (he : EncWf c) (hsh : shape c = shape srcC) (hkey : okey c = okey srcC)
+    (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 srcC → Vs.VCapOK P L4 L3 L2 L1 c) :
     cdt.move_cap st s c src dest ⦃ s' => (isUt srcC = true → c = srcC) →
       MdbStep (L.mem s) G (L.mem s') (renG G (Equiv.swap src dest)) ⦄ := by
   have hslot : ∀ x, x ∈ G.chains.flatten → IsSlot th x := fun x h => ((hM.members x).1 h).1
@@ -144,15 +190,22 @@ theorem move_mstep (hP : Placed th) (s : S) (G : MdbGhost) (hM : MdbLinks th (L.
   intro s' hW hutc
   have hcv := capV_of_capAt hsrcC
   have hdne : ∀ a, a ∈ G.chains.flatten → a ≠ dest := fun a h e => hdestm (e ▸ h)
-  refine MdbStep.rename hM _ (fun a ha => ?_)
-  by_cases has : a = src
-  · rw [has, Equiv.swap_apply_left, capV_of_capAt (c := c) (by rw [hW.capAt' hd he hne]; simp), hcv,
-      hW.revOf' hd hne, if_pos rfl]
-    exact ⟨CapAlike.of_shape hsh hkey hutc, rfl⟩
-  · rw [Equiv.swap_apply_of_ne_of_ne has (hdne a ha), hW.revOf' (hslot a ha) hne, if_neg (hdne a ha), if_neg has]
+  have hcd : capV (L.mem s') dest = c := capV_of_capAt (c := c) (by rw [hW.capAt' hd he hne]; simp)
+  have hco : ∀ a ∈ G.chains.flatten, a ≠ src → capV (L.mem s') a = capV (L.mem s) a := by
+    intro a ha has
     have := hW.capAt' (hslot a ha) he hne
     rw [if_neg (hdne a ha), if_neg has, capAt_capV, capAt_capV] at this
-    simp at this; rw [this]; exact ⟨CapAlike.refl _, rfl⟩
+    simpa using this
+  refine MdbStep.rename hM _ (fun a ha => ?_) (fun a ha P L4 L3 L2 L1 hok => ?_)
+  · by_cases has : a = src
+    · rw [has, Equiv.swap_apply_left, hcd, hcv, hW.revOf' hd hne, if_pos rfl]
+      exact ⟨CapAlike.of_shape hsh hkey hutc, rfl⟩
+    · rw [Equiv.swap_apply_of_ne_of_ne has (hdne a ha), hW.revOf' (hslot a ha) hne, if_neg (hdne a ha),
+        if_neg has, hco a ha has]
+      exact ⟨CapAlike.refl _, rfl⟩
+  · by_cases has : a = src
+    · rw [has, Equiv.swap_apply_left, hcd]; rw [has, hcv] at hok; exact hv _ _ _ _ _ hok
+    · rw [Equiv.swap_apply_of_ne_of_ne has (hdne a ha), hco a ha has]; exact hok
 
 /-- **`cdt::swap` is an `MdbStep`** (`MdbStep.rename`), for new caps of the
 old ones' shapes and objects, equal to them if untyped. -/
@@ -160,7 +213,9 @@ theorem swap_mstep (hP : Placed th) (s : S) (G : MdbGhost) (hM : MdbLinks th (L.
     {s1 s2 : U64} (hm1 : s1 ∈ G.chains.flatten) (hm2 : s2 ∈ G.chains.flatten)
     (hne : s1 ≠ s2) (c1 c2 : capability.Cap) (he1 : EncWf c1) (he2 : EncWf c2)
     (hsh1 : shape c1 = shape (capV (L.mem s) s1)) (hk1 : okey c1 = okey (capV (L.mem s) s1))
-    (hsh2 : shape c2 = shape (capV (L.mem s) s2)) (hk2 : okey c2 = okey (capV (L.mem s) s2)) :
+    (hsh2 : shape c2 = shape (capV (L.mem s) s2)) (hk2 : okey c2 = okey (capV (L.mem s) s2))
+    (hv1 : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 (capV (L.mem s) s1) → Vs.VCapOK P L4 L3 L2 L1 c1)
+    (hv2 : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 (capV (L.mem s) s2) → Vs.VCapOK P L4 L3 L2 L1 c2) :
     cdt.swap st s c1 s1 c2 s2 ⦃ s' => (isUt (capV (L.mem s) s1) = true → c1 = capV (L.mem s) s1) →
       (isUt (capV (L.mem s) s2) = true → c2 = capV (L.mem s) s2) →
       MdbStep (L.mem s) G (L.mem s') (renG G (Equiv.swap s1 s2)) ⦄ := by
@@ -174,21 +229,31 @@ theorem swap_mstep (hP : Placed th) (s : S) (G : MdbGhost) (hM : MdbLinks th (L.
   apply WP.spec_mono (swap_fields hP s c1 c2 _ _ (hslot _ hm1) (hslot _ hm2) hne he1 he2 (hPx _ hm1) (hNx _ hm1)
     (hPx _ hm2) (hNx _ hm2))
   intro s' hW hut1 hut2
-  refine MdbStep.rename hM _ (fun a ha => ?_)
-  by_cases e1 : a = s1
-  · have h := (hW _ (hslot _ hm2)).1
-    rw [capAt_capV, if_pos rfl] at h
-    rw [e1, Equiv.swap_apply_left, (hW _ (hslot _ hm2)).2.2.2.1, if_pos rfl]
-    simp at h; rw [h]; exact ⟨CapAlike.of_shape hsh1 hk1 hut1, rfl⟩
-  · by_cases e2 : a = s2
-    · have h := (hW _ (hslot _ hm1)).1
-      rw [capAt_capV, if_neg hne, if_pos rfl] at h
-      rw [e2, Equiv.swap_apply_right, (hW _ (hslot _ hm1)).2.2.2.1, if_neg hne, if_pos rfl]
-      simp at h; rw [h]; exact ⟨CapAlike.of_shape hsh2 hk2 hut2, rfl⟩
-    · have h := (hW _ (hslot _ ha)).1
-      rw [capAt_capV, if_neg e2, if_neg e1, capAt_capV] at h
-      rw [Equiv.swap_apply_of_ne_of_ne e1 e2, (hW _ (hslot _ ha)).2.2.2.1, if_neg e2, if_neg e1]
-      simp at h; rw [h]; exact ⟨CapAlike.refl _, rfl⟩
+  have hq2 : capV (L.mem s') s2 = c1 := by
+    have h := (hW _ (hslot _ hm2)).1
+    rw [capAt_capV, if_pos rfl] at h; simpa using h
+  have hq1 : capV (L.mem s') s1 = c2 := by
+    have h := (hW _ (hslot _ hm1)).1
+    rw [capAt_capV, if_neg hne, if_pos rfl] at h; simpa using h
+  have hqo : ∀ a ∈ G.chains.flatten, a ≠ s1 → a ≠ s2 → capV (L.mem s') a = capV (L.mem s) a := by
+    intro a ha e1 e2
+    have h := (hW _ (hslot _ ha)).1
+    rw [capAt_capV, if_neg e2, if_neg e1, capAt_capV] at h; simpa using h
+  refine MdbStep.rename hM _ (fun a ha => ?_) (fun a ha P L4 L3 L2 L1 hok => ?_)
+  · by_cases e1 : a = s1
+    · rw [e1, Equiv.swap_apply_left, (hW _ (hslot _ hm2)).2.2.2.1, if_pos rfl, hq2]
+      exact ⟨CapAlike.of_shape hsh1 hk1 hut1, rfl⟩
+    · by_cases e2 : a = s2
+      · rw [e2, Equiv.swap_apply_right, (hW _ (hslot _ hm1)).2.2.2.1, if_neg hne, if_pos rfl, hq1]
+        exact ⟨CapAlike.of_shape hsh2 hk2 hut2, rfl⟩
+      · rw [Equiv.swap_apply_of_ne_of_ne e1 e2, (hW _ (hslot _ ha)).2.2.2.1, if_neg e2, if_neg e1,
+          hqo a ha e1 e2]
+        exact ⟨CapAlike.refl _, rfl⟩
+  · by_cases e1 : a = s1
+    · subst e1; rw [Equiv.swap_apply_left, hq2]; exact hv1 _ _ _ _ _ hok
+    · by_cases e2 : a = s2
+      · subst e2; rw [Equiv.swap_apply_right, hq1]; exact hv2 _ _ _ _ _ hok
+      · rw [Equiv.swap_apply_of_ne_of_ne e1 e2, hqo a ha e1 e2]; exact hok
 
 end
 

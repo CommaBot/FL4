@@ -221,7 +221,7 @@ theorem immediate_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L)
   apply WP.spec_bind (set_zombie th s1 σ1 G1 hR1 hV1 hP hM1 hC1 hI1 hD1 hA hxn1 hz.wf hz.enc hz.zok hz.zu hz.bx hz.bf
     hz.h1 hz.h2 hz.home)
   rintro s2 ⟨σ2, hsc2, ⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hps2, hx2, hoth2, hrv2⟩
-  have hmS2 : MdbStep (L.mem s0) G0 (L.mem s2) G1 := hmS1.trans (MdbStep.recap hM1 _ (by rw [hx2]; exact hz.al)
+  have hmS2 : MdbStep (L.mem s0) G0 (L.mem s2) G1 := hmS1.trans (MdbStep.recap hM1 _ (by rw [hx2]; exact hz.al) (by rw [hx2]; exact fun _ _ _ _ _ _ => trivial)
     (fun z hz' hzx => hoth2 z ((hM1.members z).1 hz').1 hzx) (fun z hz' => hrv2 z ((hM1.members z).1 hz').1))
   have hFI2 := hFI1.set_zombie hM1 (ksub_of_eq (nks_setCap _ _) hsc2) hx2 hoth2 hz.zf
   have hcz2 : ∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgZ (L.mem s0) (L.mem s2) y :=
@@ -318,7 +318,7 @@ theorem immediate_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L)
       (fun hh => by obtain ⟨zt', n', e⟩ := hh; rw [hcv3] at e; cases e; rfl))
     rintro s4 ⟨σ4, hsc4, hCR4, hD4, hps4, hx4, hoth4, hrv4⟩
     have hmS4 : MdbStep (L.mem s0) G0 (L.mem s4) G3 := hmS3'.trans (MdbStep.recap hM3 _
-      (by rw [hx4, hcv3]; exact capAlike_zombie_zombie)
+      (by rw [hx4, hcv3]; exact capAlike_zombie_zombie) (by rw [hx4]; exact fun _ _ _ _ _ _ => trivial)
       (fun z hz' hzx => hoth4 z ((hM3.members z).1 hz').1 hzx) (fun z hz' => hrv4 z ((hM3.members z).1 hz').1))
     have hFI4 := hFI3.set_zombie hM3 (ksub_of_eq (nks_setCap _ _) hsc4) hx4 hoth4 (hFI3.zombie_alone hM3 hxs hcv3)
     have hcz4 : ∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgZ (L.mem s0) (L.mem s4) y :=

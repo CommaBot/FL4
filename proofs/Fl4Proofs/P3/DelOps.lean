@@ -258,6 +258,7 @@ theorem swap_home (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGho
     have hpm : p ∈ G.chains.flatten := (hM.members _).2 ⟨hps, c1, hc1, hc1n⟩
     have hms := swap_mstep hP s G hM hpm hxm hpx c1 (.Zombie p zt n) he1 he2 (by rw [capV_of_capAt hc1])
       (by rw [capV_of_capAt hc1]) (by rw [hcvx]) (by rw [hcvx])
+      (by rw [capV_of_capAt hc1]; exact fun _ _ _ _ _ h => h) (by rw [hcvx]; exact fun _ _ _ _ _ h => h)
     refine WP.spec_mono (WP.spec_and hsf hms) ?_
     rintro s' ⟨⟨σ', G', hsw, hR', hV', hM', hC', hI', hG', hcp, hnl⟩, hst⟩
     have hstep := hst (fun _ => by rw [capV_of_capAt hc1]) (fun _ => by rw [hcvx])

@@ -851,4 +851,27 @@ theorem create_loop_rel {A' : Type} (arI : machine.Arch A') (ar : A') (th' : Typ
 
 end
 end
+
+/-- **Retype's new caps placed for the VSpace invariant** (`MdbStep.retype`'s
+`hvc`): the region at or above `PPTR_BASE`, each object aligned to its
+size. -/
+theorem cjOf_vplaced {n : Nat} {us : U64} {dev : Bool} {A k w : Nat} {p : U64} (hk : k = 2 ^ zOf n us.val)
+    (hA : A % k = 0) (hpA : p.val ≤ A) (hfit : A + w * k ≤ 2 ^ 64) (hpb : layout.PPTR_BASE.val ≤ p.val) :
+    ∀ j, j < w → NewVPlaced (cjOf n us dev A k j) := by
+  intro j hj
+  have hm : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right k hj
+  rw [Nat.add_mul, Nat.one_mul] at hm
+  have hk1 : 1 ≤ k := by rw [hk]; exact Nat.one_le_two_pow
+  have hbv : (⟨BitVec.ofNat 64 (A + j * k)⟩ : U64).val = A + j * k := by
+    show (BitVec.ofNat 64 (A + j * k)).toNat = _; simp; omega
+  have hal : (A + j * k) % k = 0 := by rw [Nat.add_mul_mod_self_right, hA]
+  have hpbA : 18446743523953737728 ≤ A + j * k := by have := Fl4Proofs.P0.Consts.layout.PPTR_BASE.val_eq; omega
+  unfold cjOf
+  apply newCapOf_ind
+  all_goals first
+    | trivial
+    | (intro hn; subst hn; simp only [NewVPlaced]; done)
+    | (intro hn; subst hn; simp only [zOf] at hk; norm_num at hk; subst hk
+       simp [NewVPlaced, frameBitsN, hbv, hpbA, hal])
+
 end Fl4Proofs.P3

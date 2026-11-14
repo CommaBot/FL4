@@ -272,7 +272,8 @@ theorem insert_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
     (c : capability.Cap) (a : Fl4Spec.Cap) (hca : CapRel c a) (hcv : CapValid th c) (he : EncWf c)
     (hcnn : c ≠ .Null) (hsh : shape c = shape srcC) (hbd : badgeF c = badgeF srcC ∨ badgeF srcC = 0#u64)
     (hut : isUt srcC = true → ∀ y, ¬ Mdb.Desc G.par y (cslotAddr (ps.bv, idxs))) (hzb : isZb srcC = false)
-    (hkey : okey c = okey srcC) :
+    (hkey : okey c = okey srcC)
+    (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 srcC → Vs.VCapOK P L4 L3 L2 L1 c) :
     cdt.insert st s c (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd)) ⦃ s' =>
       ∃ σ' G', Fl4Spec.capInsert (Z := Unit) a (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False) ∧
         StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
@@ -310,7 +311,7 @@ theorem insert_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
   obtain ⟨s3, h3, hfin⟩ := spec_exists
     (insert_finM hP s G hM hFI.fm hsrcm hAd.isSlot hdestm hsrcC c he hsh hkey hzb)
   obtain ⟨s4, h4, hstep⟩ := spec_exists
-    (insert_mstep hP s G hM hI hsrcm hAd.isSlot hdestm hsrcC c he hsh hbd hut hzb hkey)
+    (insert_mstep hP s G hM hI hsrcm hAd.isSlot hdestm hsrcC c he hsh hbd hut hzb hkey hv)
   rw [h1] at h2 h3 h4
   have e := eq_of_ok_eq h2
   have e3 := eq_of_ok_eq h3
@@ -403,7 +404,8 @@ theorem move_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : Md
     (hdst : capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null)
     (c : capability.Cap) (a : Fl4Spec.Cap) (hca : CapRel c a) (hcv : CapValid th c) (he : EncWf c)
     (hcnn : c ≠ .Null) (hsh : shape c = shape srcC) (hbd : badgeF c = badgeF srcC)
-    (hkey : okey c = okey srcC) :
+    (hkey : okey c = okey srcC)
+    (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 srcC → Vs.VCapOK P L4 L3 L2 L1 c) :
     cdt.move_cap st s c (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd)) ⦃ s' =>
       ∃ σ' G', Fl4Spec.capMove (Z := Unit) a (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False) ∧
         StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
@@ -423,7 +425,7 @@ theorem move_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : Md
   obtain ⟨s3, h3, hfin⟩ := spec_exists
     (move_finM hP s G hM hFI.fm hsrcm hAd.isSlot hdestm hsrcC c he hsh hkey)
   obtain ⟨s4, h4, hstep⟩ := spec_exists
-    (move_mstep hP s G hM hsrcm hAd.isSlot hdestm hsrcC c he hsh hkey)
+    (move_mstep hP s G hM hsrcm hAd.isSlot hdestm hsrcC c he hsh hkey hv)
   rw [h1] at h2 h3 h4
   have e := eq_of_ok_eq h2
   have e3 := eq_of_ok_eq h3
@@ -450,7 +452,9 @@ theorem swap_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : Md
     (c1 : capability.Cap) (a1 : Fl4Spec.Cap) (hca1 : CapRel c1 a1) (hcv1 : CapValid th c1) (he1 : EncWf c1)
     (hcn1 : c1 ≠ .Null) (hsh1 : shape c1 = shape o1) (hbd1 : badgeF c1 = badgeF o1) (hk1 : okey c1 = okey o1)
     (c2 : capability.Cap) (a2 : Fl4Spec.Cap) (hca2 : CapRel c2 a2) (hcv2 : CapValid th c2) (he2 : EncWf c2)
-    (hcn2 : c2 ≠ .Null) (hsh2 : shape c2 = shape o2) (hbd2 : badgeF c2 = badgeF o2) (hk2 : okey c2 = okey o2) :
+    (hcn2 : c2 ≠ .Null) (hsh2 : shape c2 = shape o2) (hbd2 : badgeF c2 = badgeF o2) (hk2 : okey c2 = okey o2)
+    (hv1 : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 o1 → Vs.VCapOK P L4 L3 L2 L1 c1)
+    (hv2 : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 o2 → Vs.VCapOK P L4 L3 L2 L1 c2) :
     cdt.swap st s c1 (cslotAddr (p1.bv, i1)) c2 (cslotAddr (p2.bv, i2)) ⦃ s' =>
       ∃ σ' G', Fl4Spec.capSwap (Z := Unit) a1 (p1.bv, i1) a2 (p2.bv, i2) σ = ({((), σ')}, False) ∧
         StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
@@ -464,14 +468,14 @@ theorem swap_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : Md
   obtain ⟨s1, h1, hpost⟩ := spec_exists
     (swap_refines th s σ G hR hV hP hM hC hp1 hp2 hl1 hl2 hne ho1 hon1 ho2 hon2 c1 a1 hca1 hcv1 he1 hcn1
       c2 a2 hca2 hcv2 he2 hcn2)
-  rw [← capV_of_capAt ho1] at hsh1 hbd1 hk1
-  rw [← capV_of_capAt ho2] at hsh2 hbd2 hk2
+  rw [← capV_of_capAt ho1] at hsh1 hbd1 hk1 hv1
+  rw [← capV_of_capAt ho2] at hsh2 hbd2 hk2 hv2
   obtain ⟨s2, h2, hinv⟩ := spec_exists
     (swap_mdbinv hP s G hM hI hm1 hm2 hAne c1 c2 he1 he2 hcn1 hcn2 hsh1 hbd1 hsh2 hbd2)
   obtain ⟨s3, h3, hfin⟩ := spec_exists
     (swap_finM hP s G hM hFI.fm hm1 hm2 hAne c1 c2 he1 he2 hsh1 hk1 hsh2 hk2)
   obtain ⟨s4, h4, hstep⟩ := spec_exists
-    (swap_mstep hP s G hM hm1 hm2 hAne c1 c2 he1 he2 hsh1 hk1 hsh2 hk2)
+    (swap_mstep hP s G hM hm1 hm2 hAne c1 c2 he1 he2 hsh1 hk1 hsh2 hk2 hv1 hv2)
   rw [h1] at h2 h3 h4
   have e := eq_of_ok_eq h2
   have e3 := eq_of_ok_eq h3

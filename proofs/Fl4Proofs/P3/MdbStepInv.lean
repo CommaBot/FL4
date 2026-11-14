@@ -620,7 +620,7 @@ theorem MdbStep.inv {mem mem' : U64 → U64} {G G' : MdbGhost} (hS : MdbStep mem
       Vs.FrameInv mem' G' ∧ UtInv mem' G' ∧ NoOverlap mem' G' := by
   induction hS with
   | keep hM hc hr => exact fun hF hU hN => ⟨hF.of_caps hc, hU.of_caps hM hc, hN.keep hc hr⟩
-  | recap hM x0 ha hc hr =>
+  | recap hM x0 ha _ hc hr =>
     intro hF hU hN
     have hk : ∀ z ∈ _, CapAlike _ _ := fun z hz => by
       by_cases e : z = x0
@@ -637,7 +637,7 @@ theorem MdbStep.inv {mem mem' : U64 → U64} {G G' : MdbGhost} (hS : MdbStep mem
     · rcases hdir with hle | hnd
       · exact hU.raise_fi hM hx hcx hcx' hf hle hc
       · exact hU.reset_fi hM hI hx hcx hnd hcx' hf hc
-  | insert h hc1 hutc hok b hb =>
+  | insert h hc1 hutc hok b hb _ =>
     intro hF hU hN
     exact ⟨hF.insertC h hc1 hutc hok b, h.utinv hU hc1 hutc b hb, hN.insertC h b⟩
   | nonphys hM b hsrc hdest hsp hcd hcp hrefs hc hr =>
@@ -647,22 +647,22 @@ theorem MdbStep.inv {mem mem' : U64 → U64} {G G' : MdbGhost} (hS : MdbStep mem
   | remove hM x hc hr =>
     intro hF hU hN
     exact ⟨hF.remove hM x hc, hU.remove hM hc, hN.remove hM x hc hr⟩
-  | rename hM e ha =>
+  | rename hM e ha _ =>
     intro hF hU hN
     exact ⟨hF.rename' e (fun z hz => (ha z hz).1.frA), hU.rename hM e (fun z hz => (ha z hz).1.utEq),
       hN.rename e (fun z hz => ⟨(ha z hz).1.noA, (ha z hz).2⟩)⟩
-  | @frameAlias th m m' g hM hI src dest b hsrc hdest ptr rt fa fv q0 vm mm hsC hcd hq1 hq2 hcin hcr halg hc hrd hr =>
+  | @frameAlias th m m' g hM hI src dest b hsrc hdest ptr rt fa fv q0 vm mm hsC hcd hq1 hq2 hcin hcr halg hc hrd hr _ _ =>
     intro hF hU hN
     have hsF : isFrame (capV m src) = true := by rw [hsC]; rfl
     have hcF : isFrame (capV m' dest) = true := by rw [hcd]; rfl
     exact ⟨hF.alias' b hsrc hdest hsC hcd hq1 hq2 halg hc,
       Vs.utinv_alias hM hI hU b hsrc hsF hdest hcF hcin hcr rfl hc,
       hN.alias b hsrc hsF hcF hcin hc hrd hr⟩
-  | pool hM hI hx hcx hf hnd hval hcf hbA htA hc hr =>
+  | pool hM hI hx hcx hf hnd hval hcf hbA htA hc hr _ =>
     intro hF hU hN
     exact ⟨hF.pool hM hI hU hx hcx hnd hval hcf hbA hc, Vs.utinv_pool hM hU hx hcx hf hnd hval hcf hbA htA hc,
       hN.pool hM hI hU hx hcx hnd hcf hbA htA hc hr⟩
-  | retype h hI hch hr =>
+  | retype h hI hch hr _ =>
     intro hF hU hN
     exact ⟨h.frameInv hU hF hch, h.utinv hU, h.noOverlap hU hN hr⟩
   | trans _ _ ih1 ih2 =>

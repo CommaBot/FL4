@@ -143,3 +143,4 @@ import Fl4Proofs.P3.MdbStepInv
 import Fl4Proofs.P3.TopM
 import Fl4Proofs.P3.TopMCaps
 import Fl4Proofs.P3.DelObj
+import Fl4Proofs.P3.MdbStepVs

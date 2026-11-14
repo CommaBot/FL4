@@ -244,11 +244,12 @@ theorem slotFoot_revOf (hM : MdbLinks th m G) (hF : SlotFoot th m m' x) :
 /-- **A remap as an MDB step** (`MdbStep.recap`): one slot's non-untyped cap
 replaced by an `MdbLike` one, `SlotFoot`. -/
 theorem mstep_remap (hM : MdbLinks th m G) (hF : SlotFoot th m m' x) (hcx : capAt m x = ok c)
-    (hL : MdbLike (capV m' x) c) (hu : isUt c = false) : MdbStep m G m' G := by
+    (hL : VsLike (capV m' x) c) (hu : isUt c = false) : MdbStep m G m' G := by
   have hcv : capV m x = c := capV_of_capAt hcx
-  refine MdbStep.recap hM x ?_ (slotFoot_capV hM hF) (slotFoot_revOf hM hF)
+  refine MdbStep.recap hM x ?_ (fun P L4 L3 L2 L1 hv => hL.2 P L4 L3 L2 L1 (hcv ▸ hv))
+    (slotFoot_capV hM hF) (slotFoot_revOf hM hF)
   rw [hcv]
-  exact CapAlike.of_shape hL.1 hL.2.1 (fun h => by rw [hu] at h; cases h)
+  exact CapAlike.of_shape hL.1.1 hL.1.2.1 (fun h => by rw [hu] at h; cases h)
 
 /-- **A remap keeps the VSpace MDB invariant** (`VsMdbInv.recap`). -/
 theorem VsMdbInv.remap {ksb : U64} (h : VsMdbInv ksb m G) (hM : MdbLinks th m G) (hF : SlotFoot th m m' x)

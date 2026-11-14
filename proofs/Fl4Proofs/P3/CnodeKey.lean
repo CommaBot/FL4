@@ -107,6 +107,55 @@ theorem copied_okey {s : S} {lbl length buf src : U64} {srcC nc : capability.Cap
         simp at h; obtain ⟨rfl, rfl⟩ := h
         exact update_okey hc1 hn
 
+/-- The cap `copied_cap` produces is well placed when the source is
+(`MdbStep`'s `hv`). -/
+theorem copied_vcap {s : S} {lbl length buf src : U64} {srcC nc : capability.Cap} {mv : Bool}
+    (h : cnode.copied_cap st s lbl length buf src srcC = ok (.Ok (nc, mv))) :
+    ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 srcC → Vs.VCapOK P L4 L3 L2 L1 nc := by
+  intro P L4 L3 L2 L1 hv
+  unfold cnode.copied_cap at h
+  obtain ⟨ct, -, h⟩ := bind_ok_inv h
+  split at h
+  · split at h
+    · simp [error.truncated] at h
+    obtain ⟨i, -, h⟩ := bind_ok_inv h
+    obtain ⟨r, -, h⟩ := bind_ok_inv h
+    obtain ⟨c1, hc1, h⟩ := bind_ok_inv h
+    obtain ⟨r1, hr1, h⟩ := bind_ok_inv h
+    cases r1 with
+    | Err e => simp [core.result.Result.Insts.CoreOpsTry.branch,
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
+        core.convert.FromSame.from] at h
+    | Ok v =>
+      simp [core.result.Result.Insts.CoreOpsTry.branch] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact derive_vcap hr1 _ _ _ _ _ (mask_vcap hc1 _ _ _ _ _ hv)
+  · split at h
+    · split at h
+      · simp [error.truncated] at h
+      obtain ⟨i, -, h⟩ := bind_ok_inv h
+      obtain ⟨r, -, h⟩ := bind_ok_inv h
+      obtain ⟨d, -, h⟩ := bind_ok_inv h
+      obtain ⟨c1, hc1, h⟩ := bind_ok_inv h
+      obtain ⟨c2, hc2, h⟩ := bind_ok_inv h
+      obtain ⟨r1, hr1, h⟩ := bind_ok_inv h
+      cases r1 with
+      | Err e => simp [core.result.Result.Insts.CoreOpsTry.branch,
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
+          core.convert.FromSame.from] at h
+      | Ok v =>
+        simp [core.result.Result.Insts.CoreOpsTry.branch] at h
+        obtain ⟨rfl, rfl⟩ := h
+        exact derive_vcap hr1 _ _ _ _ _ (update_vcap hc2 _ _ _ _ _ (mask_vcap hc1 _ _ _ _ _ hv))
+    · split at h
+      · simp at h; obtain ⟨rfl, rfl⟩ := h; exact hv
+      · split at h
+        · simp [error.truncated] at h
+        obtain ⟨d, -, h⟩ := bind_ok_inv h
+        obtain ⟨c1, hc1, h⟩ := bind_ok_inv h
+        simp at h; obtain ⟨rfl, rfl⟩ := h
+        exact update_vcap hc1 _ _ _ _ _ hv
+
 
 theorem mask_ut {r : capability.Rights} {c c' : capability.Cap} (h : capability.mask_cap_rights r c = ok c')
     (hu : isUt c = true) : c' = c := by

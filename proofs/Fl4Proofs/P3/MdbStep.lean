@@ -27,6 +27,10 @@ Constructors (pre-state `mem`/`G`, post-state `mem'`/`G'`):
   revocable bits of the old slots kept);
 * `trans`: two steps in sequence.
 
+The VSpace side facts (`hv`, `hq4`/`hqal`, `hb`, `hvc`) are what
+`MdbStep.vs` (MdbStepVs) needs to keep `Vs.VsMdbInv`, with `UtWin` (the
+untyped regions in the kernel window) kept alongside (`MdbStep.win`).
+
 Also here: `CapAlike`, `NoOverlap` (l4v `caps_no_overlap` / distinct
 objects for the non-untyped physical caps), and `RetypeDelta` (moved from
 UntypedUtInv).
@@ -35,6 +39,7 @@ import Fl4Proofs.P3.CapRange
 import Fl4Proofs.P3.MdbInvIns
 import Fl4Proofs.P3.MdbInvEmp
 import Fl4Proofs.P3.FinKeep
+import Fl4Proofs.P3.VsFoot
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -174,6 +179,30 @@ structure RetypeDelta (th : TypedHeap) (mem0 mem1 memf : U64 → U64) (G0 Gf : M
   F3 : ∀ y x, Mdb.Desc Gf.par y x ↔ Mdb.Desc G0.par y x ∨
     ∃ j, j < w ∧ y = dslot j ∧ (x = src ∨ Mdb.Desc G0.par src x)
 
+/-- **A new cap of retype placed for the VSpace invariant** (`Vs.VCapOK`
+in fresh ghost sets, `MdbStep.vs`): a VSpace cap unmapped, at or above
+`PPTR_BASE` and aligned to its size; retype makes no ASID pool. -/
+def NewVPlaced : capability.Cap → Prop
+  | .PageTable p mp _ _ => mp = false ∧ layout.PPTR_BASE.val ≤ p.val ∧ p.val % 2 ^ 12 = 0
+  | .PageDirectory p mp _ _ => mp = false ∧ layout.PPTR_BASE.val ≤ p.val ∧ p.val % 2 ^ 12 = 0
+  | .Pdpt p mp _ _ => mp = false ∧ layout.PPTR_BASE.val ≤ p.val ∧ p.val % 2 ^ 12 = 0
+  | .Pml4 p mp _ => mp = false ∧ layout.PPTR_BASE.val ≤ p.val
+  | .Frame p sz _ _ m _ _ => m = false ∧ layout.PPTR_BASE.val ≤ p.val ∧ p.val % 2 ^ frameBitsN sz = 0
+  | .AsidPool _ _ => False
+  | _ => True
+
+/-- An untyped cap at or above `PPTR_BASE`; the other caps impose
+nothing. -/
+def UtW : capability.Cap → Prop
+  | .Untyped p _ _ _ => layout.PPTR_BASE.val ≤ p.val
+  | _ => True
+
+/-- **The untyped regions in the kernel window**: every untyped cap of the
+MDB at or above `PPTR_BASE` (what retype's new VSpace caps need for their
+physical addresses, `NewVPlaced`). -/
+def UtWin (mem : U64 → U64) (G : MdbGhost) : Prop :=
+  ∀ x ∈ G.chains.flatten, UtW (capV mem x)
+
 /-- An insertion grows every chain. -/
 theorem insG_chains_sub (G : MdbGhost) (src dest : U64) (b : Bool) :
     ∀ ch ∈ G.chains, ∃ ch' ∈ (insG G src dest b).chains, ∀ z ∈ ch, z ∈ ch' := by
@@ -192,6 +221,7 @@ inductive MdbStep : (U64 → U64) → MdbGhost → (U64 → U64) → MdbGhost �
   /-- One slot's cap replaced by one alike. -/
   | recap {th : TypedHeap} {mem mem' : U64 → U64} {G : MdbGhost} (hM : MdbLinks th mem G) (x0 : U64)
       (ha : CapAlike (capV mem' x0) (capV mem x0))
+      (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 (capV mem x0) → Vs.VCapOK P L4 L3 L2 L1 (capV mem' x0))
       (hc : ∀ z ∈ G.chains.flatten, z ≠ x0 → capV mem' z = capV mem z)
       (hr : ∀ z ∈ G.chains.flatten, revOf mem' z = revOf mem z) : MdbStep mem G mem' G
   /-- An untyped cap's free index changed: up, or down without descendants. -/
@@ -206,7 +236,9 @@ inductive MdbStep : (U64 → U64) → MdbGhost → (U64 → U64) → MdbGhost �
       (h : InsCtx th mem mem' G src dest c c1)
       (hc1 : c1 = (fullF (capV mem src) c).getD (capV mem src))
       (hutc : isUt (capV mem src) = true → c = capV mem src) (hok : okey c = okey (capV mem src))
-      (b : Bool) (hb : isUt (capV mem src) = true → b = true) : MdbStep mem G mem' (insG G src dest b)
+      (b : Bool) (hb : isUt (capV mem src) = true → b = true)
+      (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 (capV mem src) → Vs.VCapOK P L4 L3 L2 L1 c) :
+      MdbStep mem G mem' (insG G src dest b)
   /-- A non-physical cap naming no object inserted after a non-physical `src`. -/
   | nonphys {th : TypedHeap} {mem mem' : U64 → U64} {G : MdbGhost} (hM : MdbLinks th mem G) {src dest : U64}
       {c : capability.Cap} (b : Bool) (hsrc : src ∈ G.chains.flatten) (hdest : dest ∉ G.chains.flatten)
@@ -220,7 +252,9 @@ inductive MdbStep : (U64 → U64) → MdbGhost → (U64 → U64) → MdbGhost �
       (hr : ∀ z ∈ G.chains.flatten, z ≠ x → revOf mem' z = revOf mem z) : MdbStep mem G mem' (remG G x)
   /-- The slots renamed along `e`. -/
   | rename {th : TypedHeap} {mem mem' : U64 → U64} {G : MdbGhost} (hM : MdbLinks th mem G) (e : U64 ≃ U64)
-      (ha : ∀ z ∈ G.chains.flatten, CapAlike (capV mem' (e z)) (capV mem z) ∧ revOf mem' (e z) = revOf mem z) :
+      (ha : ∀ z ∈ G.chains.flatten, CapAlike (capV mem' (e z)) (capV mem z) ∧ revOf mem' (e z) = revOf mem z)
+      (hv : ∀ z ∈ G.chains.flatten, ∀ P L4 L3 L2 L1 : Set U64,
+        Vs.VCapOK P L4 L3 L2 L1 (capV mem z) → Vs.VCapOK P L4 L3 L2 L1 (capV mem' (e z))) :
       MdbStep mem G mem' (renG G e)
   /-- A 4 KiB alias of a page of `src`'s large RAM frame, not revocable,
   inserted after it; the MDB's large frames 2 MiB aligned. -/
@@ -233,7 +267,8 @@ inductive MdbStep : (U64 → U64) → MdbGhost → (U64 → U64) → MdbGhost �
       (hcin : Within (capV mem' dest) (capV mem src)) (hcr : baseF (capV mem' dest) ≤ topF (capV mem' dest))
       (halg : ∀ x ∈ G.chains.flatten, ∀ p r m a va, capV mem x = .Frame p .Large r false m a va → p.val % 2 ^ 21 = 0)
       (hc : ∀ z ∈ G.chains.flatten, capV mem' z = capV mem z) (hrd : revOf mem' dest = false)
-      (hr : ∀ z ∈ G.chains.flatten, revOf mem' z = revOf mem z) : MdbStep mem G mem' (insG G src dest b)
+      (hr : ∀ z ∈ G.chains.flatten, revOf mem' z = revOf mem z)
+      (hq4 : q0.val + 4096 ≤ ptr.val + 2 ^ 21) (hqal : q0.val % 4096 = 0) : MdbStep mem G mem' (insG G src dest b)
   /-- An ASID pool cap over a full untyped cap's whole region, as its only
   child. -/
   | pool {th : TypedHeap} {mem mem' : U64 → U64} {G : MdbGhost} (hM : MdbLinks th mem G) (hI : MdbInv mem G)
@@ -242,13 +277,16 @@ inductive MdbStep : (U64 → U64) → MdbGhost → (U64 → U64) → MdbGhost �
       (hcf : capV mem' val = .AsidPool q b)
       (hbA : baseF (.AsidPool q b) = baseF (capV mem x)) (htA : topF (.AsidPool q b) = topF (capV mem x))
       (hc : ∀ z ∈ G.chains.flatten, capV mem' z = capV mem z)
-      (hr : ∀ z ∈ G.chains.flatten, revOf mem' z = revOf mem z) : MdbStep mem G mem' (insG G x val true)
+      (hr : ∀ z ∈ G.chains.flatten, revOf mem' z = revOf mem z)
+      (hb : b.val % 512 = 0 ∧ b.val < 2 ^ 20) : MdbStep mem G mem' (insG G x val true)
   /-- Retype's new caps. -/
   | retype {th : TypedHeap} {mem0 mem1 memf : U64 → U64} {G0 Gf : MdbGhost} {src p sb fi nfi : U64} {dev : Bool}
       {A k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap}
       (h : RetypeDelta th mem0 mem1 memf G0 Gf src p sb fi nfi dev A k w dslot cj) (hI : MdbInv mem0 G0)
       (hch : ∀ ch ∈ G0.chains, ∃ ch' ∈ Gf.chains, ∀ z ∈ ch, z ∈ ch')
-      (hr : ∀ z ∈ G0.chains.flatten, revOf memf z = revOf mem0 z) : MdbStep mem0 G0 memf Gf
+      (hr : ∀ z ∈ G0.chains.flatten, revOf memf z = revOf mem0 z)
+      (hvc : layout.PPTR_BASE.val ≤ p.val → ∀ j, j < w → NewVPlaced (cj j)) :
+      MdbStep mem0 G0 memf Gf
   /-- Two steps in sequence. -/
   | trans {mem1 mem2 mem3 : U64 → U64} {G1 G2 G3 : MdbGhost} :
       MdbStep mem1 G1 mem2 G2 → MdbStep mem2 G2 mem3 G3 → MdbStep mem1 G1 mem3 G3
