@@ -15,6 +15,8 @@ import Fl4Proofs.P1.QueueSc
 import Fl4Proofs.P1.QueueSchedStep
 import Fl4Proofs.P1.QueueSchedule
 import Fl4Proofs.P1.QueueCancel
+import Fl4Proofs.P1.QueueObjs
+import Fl4Proofs.P1.QueueSuspend
 import Fl4Proofs.P1.QueueRestart
 import Fl4Proofs.P2.Runtime
 import Fl4Proofs.P3.Lookup

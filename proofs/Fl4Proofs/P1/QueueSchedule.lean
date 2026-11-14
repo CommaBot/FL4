@@ -1,7 +1,7 @@
 /-
-P1: `sched::schedule` (seL4 `schedule`) keeps `SchedQueuesInv` (with
-`BoundInv`, see `QueueSchedStep`), given that `timer::fire` keeps
-`SchedQueuesInv`, `BoundInv` and `SCsOK`.
+P1: `sched::schedule` (seL4 `schedule`) keeps `SchedQueuesInv` with
+`BoundInv` (see `QueueSchedStep`) and `XInv` (reply objects and SCs, see
+`QueueObjs`), given that `timer::fire` keeps them and `SCsOK`.
 
 `timer::fire` delivers notification signals: it can wake threads and change
 the ready, release and endpoint queues, so it is not footprint-disjoint
@@ -14,6 +14,7 @@ with `next_domain` and `choose_thread`), and the free-word steps after it
 `send_pending`), by their footprints.
 -/
 import Fl4Proofs.P1.QueueSchedStep
+import Fl4Proofs.P1.QueueObjs
 import Fl4Proofs.P1.QueueSwitch
 open Aeneas Aeneas.Std Result
 
@@ -23,17 +24,20 @@ open fl4_core Fl4Proofs.P0.Consts
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64}
 variable {A : Type _} {ar : machine.Arch A}
-variable {Cs Sg : Set U64} {Z : U64 → Nat}
+variable {Cs Sg Rp Scs : Set U64} {Z : U64 → Nat}
 
 /-- The three invariants together. -/
-def Good (st : machine.Store S) [L : LawfulStore st] (T Cs Ω Sg : Set U64) (Z : U64 → Nat) (s : S) : Prop :=
-  (∃ Q R, SchedQueuesInv st T Cs Ω s Q R) ∧ BoundInv st T s ∧ SCsOK st T Ω Sg Z s
+def Good (st : machine.Store S) [L : LawfulStore st] (T Cs Ω Sg Rp Scs : Set U64) (Z : U64 → Nat) (s : S) :
+    Prop :=
+  (∃ Q R, SchedQueuesInv st T Cs Ω s Q R) ∧ BoundInv st T s ∧ SCsOK st T Ω Sg Z s ∧
+    XInv st T Cs Ω Sg Rp Scs Z s
 
-theorem Post.good {s s' : S} (hS : SCsOK st T Ω Sg Z s) (h : Post st T Cs Ω Sg s s') : Good st T Cs Ω Sg Z s' :=
-  ⟨h.inv, h.bnd, hS.fr h.fr⟩
+theorem Post.good {s s' : S} (hS : SCsOK st T Ω Sg Z s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (h : Post st T Cs Ω Sg s s') : Good st T Cs Ω Sg Rp Scs Z s' :=
+  ⟨h.inv, h.bnd, hS.fr h.fr, hX.fr h.fr⟩
 
 theorem sched.set_cur_thread.sch (s : S) (t : obj.Tcb) (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SCsOK st T Ω Sg Z s) (ht : t ∈ T)
+    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) (ht : t ∈ T)
     (hbd : L.actionW s = 0#u64 → L.mem s (scA t) ≠ 0#u64) :
     sched.set_cur_thread st s t ⦃ s' => Post st T Cs Ω Sg s s' ∧ L.curW s' = t ∧ L.actionW s' = L.actionW s ⦄ := by
   refine WP.spec_mono (sched.set_cur_thread.spec s t) fun s' e => ?_
@@ -54,7 +58,7 @@ theorem sched.set_cur_thread.sch (s : S) (t : obj.Tcb) (Q : U64 → U64 → List
 /-- seL4 `switchToThread`, for a bound thread. -/
 theorem sched.switch_to_thread.sch (hA : P0.ArchTotal ar) (s : S) (a : A) (t : obj.Tcb)
     (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SCsOK st T Ω Sg Z s) (ht : t ∈ T)
+    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) (ht : t ∈ T)
     (hbd : L.mem s (scA t) ≠ 0#u64) :
     sched.switch_to_thread st ar s a t ⦃ s' _ => Post st T Cs Ω Sg s s' ∧ L.curW s' = t ∧
       L.actionW s' = L.actionW s ⦄ := by
@@ -74,7 +78,7 @@ theorem sched.switch_to_thread.sch (hA : P0.ArchTotal ar) (s : S) (a : A) (t : o
 /-- seL4 `chooseThread`: the new current thread is bound. -/
 theorem sched.choose_thread.sch (hA : P0.ArchTotal ar) (s : S) (a : A)
     (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SCsOK st T Ω Sg Z s) :
+    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SgOK st Ω Sg s) :
     sched.choose_thread st ar s a ⦃ s' _ => Post st T Cs Ω Sg s s' ∧ L.mem s' (scA (L.curW s')) ≠ 0#u64 ⦄ := by
   unfold sched.choose_thread
   simp only [layout.NUM_DOMAINS, fl4_abi.config.NUM_DOMAINS]
@@ -126,20 +130,21 @@ theorem sched.choose_thread.sch (hA : P0.ArchTotal ar) (s : S) (a : A)
 /-- seL4 `scheduleChooseNewThread`. -/
 theorem sched.schedule_choose_new_thread.sch (hA : P0.ArchTotal ar) (s : S) (a : A)
     (Q : U64 → U64 → List U64) (R : U64 → List U64)
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SCsOK st T Ω Sg Z s) :
-    sched.schedule_choose_new_thread st ar s a ⦃ s' _ => Good st T Cs Ω Sg Z s' ∧
+    (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SCsOK st T Ω Sg Z s)
+    (hX : XInv st T Cs Ω Sg Rp Scs Z s) :
+    sched.schedule_choose_new_thread st ar s a ⦃ s' _ => Good st T Cs Ω Sg Rp Scs Z s' ∧
       L.mem s' (scA (L.curW s')) ≠ 0#u64 ⦄ := by
   unfold sched.schedule_choose_new_thread
   step with sched.domain_time.spec as ⟨i⟩
   refine WP.spec_bind (Pₘ := fun s1 => Post st T Cs Ω Sg s s1) ?_ ?_
   · split
-    · exact WP.spec_mono (sched.next_domain.sch s Q R h hB hS) fun s1 h1 => h1.1
+    · exact WP.spec_mono (sched.next_domain.sch s Q R h hB hS.sg) fun s1 h1 => h1.1
     · exact (WP.spec_ok _).2 ⟨⟨Q, R, h⟩, hB, Fr.refl _ _⟩
   rintro s1 ⟨⟨Q1, R1, h1⟩, hB1, f1⟩
   have hS1 := hS.fr f1
-  exact WP.spec_mono (sched.choose_thread.sch hA s1 a Q1 R1 h1 hB1 hS1) fun r hr => by
+  exact WP.spec_mono (sched.choose_thread.sch hA s1 a Q1 R1 h1 hB1 hS1.sg) fun r hr => by
     obtain ⟨s', a'⟩ := r
-    exact ⟨hr.1.good hS1, hr.2⟩
+    exact ⟨hr.1.good hS1 (hX.fr f1), hr.2⟩
 
 /-! ## `schedule` -/
 
@@ -177,11 +182,11 @@ a new thread is chosen. -/
 theorem cand_choose (hA : P0.ArchTotal ar) (s : S) (a : A) (act : obj.Tcb)
     (Q : U64 → U64 → List U64) (R : U64 → List U64)
     (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SCsOK st T Ω Sg Z s)
-    (hact : L.actionW s = act) (hT : act ∈ T) (app : Bool) :
+    (hX : XInv st T Cs Ω Sg Rp Scs Z s) (hact : L.actionW s = act) (hT : act ∈ T) (app : Bool) :
     (do
       let s5 ← if app then sched.append st s act else sched.enqueue st s act
       let s6 ← sched.set_action st s5 sched.ACTION_CHOOSE_NEW
-      sched.schedule_choose_new_thread st ar s6 a) ⦃ s' _ => Good st T Cs Ω Sg Z s' ∧
+      sched.schedule_choose_new_thread st ar s6 a) ⦃ s' _ => Good st T Cs Ω Sg Rp Scs Z s' ∧
         L.mem s' (scA (L.curW s')) ≠ 0#u64 ⦄ := by
   have hok := h.actOK (hact ▸ hT)
   rw [hact] at hok
@@ -191,36 +196,38 @@ theorem cand_choose (hA : P0.ArchTotal ar) (s : S) (a : A) (act : obj.Tcb)
   have hbd : L.mem s (scA act) ≠ 0#u64 := by have := hB.act (hact ▸ hT); rw [hact] at this; exact this
   refine WP.spec_bind (Pₘ := fun s5 => Post st T Cs Ω Sg s s5) ?_ ?_
   · split
-    · exact WP.spec_mono (sched.append.sch s act Q R h hB hS hT (fun _ => hr) (fun _ => hok.1) (fun _ => hbd))
+    · exact WP.spec_mono (sched.append.sch s act Q R h hB hS.sg hT (fun _ => hr) (fun _ => hok.1) (fun _ => hbd))
         fun s5 h5 => h5.1
-    · exact WP.spec_mono (sched.enqueue.sch s act Q R h hB hS hT (fun _ => hr) (fun _ => hok.1) (fun _ => hbd))
+    · exact WP.spec_mono (sched.enqueue.sch s act Q R h hB hS.sg hT (fun _ => hr) (fun _ => hok.1) (fun _ => hbd))
         fun s5 h5 => h5.1
   rintro s5 ⟨⟨Q5, R5, h5⟩, hB5, f5⟩
   rw [choose_val]
-  refine WP.spec_bind (sched.set_action.sch s5 1#u64 Q5 R5 h5 hB5 (hS.fr f5) (Or.inr (Or.inl rfl))
+  refine WP.spec_bind (sched.set_action.sch s5 1#u64 Q5 R5 h5 hB5 (hS.fr f5).sg (Or.inr (Or.inl rfl))
     (fun hT => absurd hT (one_notT h)) (fun hT => absurd hT (one_notT h)) (fun e => by simp at e)) ?_
   rintro s6 ⟨⟨⟨Q6, R6, h6⟩, hB6, f6⟩, -, -, -⟩
-  exact sched.schedule_choose_new_thread.sch hA s6 a Q6 R6 h6 hB6 ((hS.fr f5).fr f6)
+  exact sched.schedule_choose_new_thread.sch hA s6 a Q6 R6 h6 hB6 ((hS.fr f5).fr f6) ((hX.fr f5).fr f6)
 
 /-- seL4 `schedule` keeps the queue invariant (and `BoundInv`), given that
 `timer::fire` keeps the invariants. -/
 theorem sched.schedule.inv (hA : P0.ArchTotal ar) (s : S) (a : A)
     (Q : U64 → U64 → List U64) (R : U64 → List U64)
     (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hS : SCsOK st T Ω Sg Z s)
+    (hX : XInv st T Cs Ω Sg Rp Scs Z s)
     (hfire : ∀ (s : S) (a : A) (Q : U64 → U64 → List U64) (R : U64 → List U64),
-      SchedQueuesInv st T Cs Ω s Q R → BoundInv st T s → SCsOK st T Ω Sg Z s →
-      timer.fire st ar s a ⦃ s1 _ => Good st T Cs Ω Sg Z s1 ⦄) :
-    sched.schedule st ar s a ⦃ s' _ => (∃ Q' R', SchedQueuesInv st T Cs Ω s' Q' R') ∧ BoundInv st T s' ⦄ := by
+      SchedQueuesInv st T Cs Ω s Q R → BoundInv st T s → SCsOK st T Ω Sg Z s → XInv st T Cs Ω Sg Rp Scs Z s →
+      timer.fire st ar s a ⦃ s1 _ => Good st T Cs Ω Sg Rp Scs Z s1 ⦄) :
+    sched.schedule st ar s a ⦃ s' _ => (∃ Q' R', SchedQueuesInv st T Cs Ω s' Q' R') ∧ BoundInv st T s' ∧
+      XInv st T Cs Ω Sg Rp Scs Z s' ⦄ := by
   unfold sched.schedule sched.awaken
   -- `awaken`
-  refine WP.spec_bind (Pₘ := fun r => Good st T Cs Ω Sg Z r.1) ?_ ?_
-  · refine WP.spec_bind (hfire s a Q R h hB hS) ?_
-    rintro ⟨s1, a1⟩ ⟨⟨Q1, R1, h1⟩, hB1, hS1⟩
+  refine WP.spec_bind (Pₘ := fun r => Good st T Cs Ω Sg Rp Scs Z r.1) ?_ ?_
+  · refine WP.spec_bind (hfire s a Q R h hB hS hX) ?_
+    rintro ⟨s1, a1⟩ ⟨⟨Q1, R1, h1⟩, hB1, hS1, hX1⟩
     try simp only [WP.uncurry'_pair]
-    refine WP.spec_bind (sched.awaken_loop.sch s1 _ Q1 R1 h1 hB1 hS1) ?_
+    refine WP.spec_bind (sched.awaken_loop.sch s1 _ Q1 R1 h1 hB1 hS1.sg) ?_
     rintro s2 ⟨P2, -⟩
-    exact (WP.spec_ok _).2 (P2.good hS1)
-  rintro ⟨s1, a1⟩ ⟨⟨Q1, R1, h1⟩, hB1, hS1⟩
+    exact (WP.spec_ok _).2 (P2.good hS1 hX1)
+  rintro ⟨s1, a1⟩ ⟨⟨Q1, R1, h1⟩, hB1, hS1, hX1⟩
   -- `check_domain_time` does nothing with one domain
   unfold sched.check_domain_time sched.is_cur_domain_expired
   simp only [layout.NUM_DOMAINS, fl4_abi.config.NUM_DOMAINS]
@@ -228,7 +235,7 @@ theorem sched.schedule.inv (hA : P0.ArchTotal ar) (s : S) (a : A)
   simp only [hnd, ↓reduceIte, bind_ok, Bool.false_eq_true]
   step with sched.action.spec as ⟨act, act_post⟩
   -- the action
-  refine WP.spec_bind (Pₘ := fun r => Good st T Cs Ω Sg Z r.1 ∧ L.mem r.1 (scA (L.curW r.1)) ≠ 0#u64) ?_ ?_
+  refine WP.spec_bind (Pₘ := fun r => Good st T Cs Ω Sg Rp Scs Z r.1 ∧ L.mem r.1 (scA (L.curW r.1)) ≠ 0#u64) ?_ ?_
   · split
     · rename_i hnr
       step with sched.cur_thread.spec as ⟨ct, ct_post⟩
@@ -236,14 +243,15 @@ theorem sched.schedule.inv (hA : P0.ArchTotal ar) (s : S) (a : A)
       step with sched.is_schedulable.spec' as ⟨wr, wr_post⟩
       refine WP.spec_bind (Pₘ := fun s4 => Post st T Cs Ω Sg s1 s4 ∧ L.actionW s4 = L.actionW s1) ?_ ?_
       · split
-        · exact WP.spec_mono (sched.enqueue.sch s1 ct Q1 R1 h1 hB1 hS1 hctT (fun _ => (wr_post ‹_›).2.2)
+        · exact WP.spec_mono (sched.enqueue.sch s1 ct Q1 R1 h1 hB1 hS1.sg hctT (fun _ => (wr_post ‹_›).2.2)
             (fun _ => (wr_post ‹_›).1) (fun _ => (wr_post ‹_›).2.1)) fun s4 h4 => ⟨h4.1, h4.2.1⟩
         · exact (WP.spec_ok _).2 ⟨⟨⟨Q1, R1, h1⟩, hB1, Fr.refl _ _⟩, rfl⟩
       rintro s4 ⟨⟨⟨Q4, R4, h4⟩, hB4, f4⟩, ea4⟩
       have hS4 := hS1.fr f4
+      have hX4 := hX1.fr f4
       have hact4 : L.actionW s4 = act := ea4.trans act_post.symm
       split
-      · exact WP.spec_mono (sched.schedule_choose_new_thread.sch hA s4 a1 Q4 R4 h4 hB4 hS4) fun r hr => hr
+      · exact WP.spec_mono (sched.schedule_choose_new_thread.sch hA s4 a1 Q4 R4 h4 hB4 hS4 hX4) fun r hr => hr
       rename_i hnc
       have hT : act ∈ T := by
         rcases h4.action with e | e | e
@@ -251,14 +259,14 @@ theorem sched.schedule.inv (hA : P0.ArchTotal ar) (s : S) (a : A)
         · exfalso; rw [hact4] at e; rw [e, choose_val] at hnc; simp at hnc
         · rw [hact4] at e; exact e
       have hbd : L.mem s4 (scA act) ≠ 0#u64 := by have := hB4.act (hact4 ▸ hT); rw [hact4] at this; exact this
-      have L1 := cand_choose hA s4 a1 act Q4 R4 h4 hB4 hS4 hact4 hT true
-      have L3 := cand_choose hA s4 a1 act Q4 R4 h4 hB4 hS4 hact4 hT false
+      have L1 := cand_choose hA s4 a1 act Q4 R4 h4 hB4 hS4 hX4 hact4 hT true
+      have L3 := cand_choose hA s4 a1 act Q4 R4 h4 hB4 hS4 hX4 hact4 hT false
       simp only [↓reduceIte, Bool.false_eq_true] at L1 L3
-      have L2 : sched.switch_to_thread st ar s4 a1 act ⦃ s' _ => Good st T Cs Ω Sg Z s' ∧
+      have L2 : sched.switch_to_thread st ar s4 a1 act ⦃ s' _ => Good st T Cs Ω Sg Rp Scs Z s' ∧
           L.mem s' (scA (L.curW s')) ≠ 0#u64 ⦄ :=
-        WP.spec_mono (sched.switch_to_thread.sch hA s4 a1 act Q4 R4 h4 hB4 hS4 hT hbd) fun r hr => by
+        WP.spec_mono (sched.switch_to_thread.sch hA s4 a1 act Q4 R4 h4 hB4 hS4.sg hT hbd) fun r hr => by
           obtain ⟨s', a'⟩ := r
-          exact ⟨hr.1.good hS4, by rw [hr.2.1, hr.1.fr.sc act hT]; exact hbd⟩
+          exact ⟨hr.1.good hS4 hX4, by rw [hr.2.1, hr.1.fr.sc act hT]; exact hbd⟩
       step with sched.cur_thread.spec as ⟨ct1, _⟩
       step with sched.idle_thread.spec' as ⟨t, _⟩
       step with tcb_eq.spec as ⟨b⟩
@@ -291,44 +299,89 @@ theorem sched.schedule.inv (hA : P0.ArchTotal ar) (s : S) (a : A)
       have e0 : L.actionW s1 = 0#u64 := by
         rw [← act_post]; rw [resume_val] at hr0
         apply UScalar.eq_of_val_eq; simpa using hr0
-      exact (WP.spec_ok _).2 ⟨⟨⟨Q1, R1, h1⟩, hB1, hS1⟩, hB1.resume e0⟩
-  rintro ⟨s3, a2⟩ ⟨⟨⟨Q3, R3, h3⟩, hB3, hS3⟩, hcb⟩
+      exact (WP.spec_ok _).2 ⟨⟨⟨Q1, R1, h1⟩, hB1, hS1, hX1⟩, hB1.resume e0⟩
+  rintro ⟨s3, a2⟩ ⟨⟨⟨Q3, R3, h3⟩, hB3, hS3, hX3⟩, hcb⟩
   try simp only [WP.uncurry'_pair]
   -- resume, then switch the SC
   rw [resume_val]
-  refine WP.spec_bind (sched.set_action.sch s3 0#u64 Q3 R3 h3 hB3 hS3 (Or.inl rfl)
+  refine WP.spec_bind (sched.set_action.sch s3 0#u64 Q3 R3 h3 hB3 hS3.sg (Or.inl rfl)
     (fun hT => absurd hT (notT_small h3.tcbs (by simp))) (fun hT => absurd hT (notT_small h3.tcbs (by simp)))
     (fun _ => hcb)) ?_
   rintro s4 ⟨P4, ea4, -, -⟩
-  obtain ⟨⟨Q4, R4, h4⟩, hB4, hS4⟩ := P4.good hS3
+  obtain ⟨⟨Q4, R4, h4⟩, hB4, hS4, hX4⟩ := P4.good hS3 hX3
   have hcT := h4.curT
   have hb4 : L.mem s4 (scA (L.curW s4)) ≠ 0#u64 := hB4.resume ea4
-  refine WP.spec_bind (sched.switch_sched_context.free hA s4 a2 (zt := Z (L.mem s4 (scA (L.curW s4))))
+  have hO4 := hX4.1
+  have hsub4 := hS4.sub
+  have hts : L.mem s4 (scA (L.curW s4)) ∈ Scs := (hX4.2.2.bound _ hcT hb4).1
+  have hcs : L.cscW s4 ∈ Scs := hX4.2.2.cur
+  have npn : ∀ o : U64, o.val < 4288 → ¬ Prot T Rp Scs (L.nodeA s4 o) := fun o ho =>
+    not_prot_node h4 hO4 hsub4 h4.cur ho
+  refine WP.spec_bind (WP.spec_and (sched.switch_sched_context.free hA s4 a2 (zt := Z (L.mem s4 (scA (L.curW s4))))
     (zc := Z (L.cscW s4)) h4.cur (h4.nodes _ h4.cur) h4.omega (hS4.cur.mono hS4.sub)
-    (fun hne => ⟨(hS4.bound _ hcT hb4).mono hS4.sub, hS4.disj _ hcT hb4 hne⟩)) ?_
-  rintro ⟨s5, a3⟩ w5
-  simp only [WP.uncurry'_pair] at w5 ⊢
+    (fun hne => ⟨(hS4.bound _ hcT hb4).mono hS4.sub, hS4.disj _ hcT hb4 hne⟩))
+    (sched.switch_sched_context.fp hA s4 a2 (zt := Z (L.mem s4 (scA (L.curW s4))))
+    (zc := Z (L.cscW s4)) (B := fun b => ¬ Prot T Rp Scs b) h4.cur (h4.nodes _ h4.cur) h4.omega
+    (hS4.cur.mono hS4.sub) (fun hne => ⟨(hS4.bound _ hcT hb4).mono hS4.sub, hS4.disj _ hcT hb4 hne⟩)
+    (npn _ (by simp [layout.node.REPROGRAM])) (npn _ (by simp [layout.node.CONSUMED]))
+    (npn _ (by simp [layout.node.CUR_SC]))
+    (fun _ b hb hr => not_prot_ring h4 hO4 hts hb (Or.inl hr))
+    (fun b hb hr => not_prot_ring h4 hO4 hcs hb hr))) ?_
+  rintro ⟨s5, a3⟩ ⟨w5, w5', e5⟩
+  simp only [WP.uncurry'_pair] at w5 w5' e5 ⊢
   obtain ⟨h5, hB5⟩ := free_step h4 hB4 w5
+  have hX5 : XInv st T Cs Ω Sg Rp Scs Z s5 := hX4.writes h4.tcbs w5' (fun b hb => hb) (by
+    unfold LawfulStore.cscW; rw [cscW_eq w5.1 w5.2.1, e5]; exact hts)
+  -- a node word other than `CUR_SC` keeps `XInv`
+  have xn : ∀ {s s' : S} {Q R} {o : U64}, SchedQueuesInv st T Cs Ω s Q R → XInv st T Cs Ω Sg Rp Scs Z s →
+      o.val < 4288 → o.val % 8 = 0 → o.val ≠ 24 → WritesIn st s s' (· = L.nodeAt s (L.cpu s) o) →
+      XInv st T Cs Ω Sg Rp Scs Z s' := by
+    intro s s' Q R o hh hx ho h8 h24 w
+    have hN := hh.nodes _ hh.cur
+    refine hx.writes hh.tcbs w (fun b hb => hb ▸ not_prot_node hh hx.1 hsub4 hh.cur ho) ?_
+    unfold LawfulStore.cscW; rw [cscW_eq w.1 w.2.1]; unfold LawfulStore.nodeA
+    rw [w.mem_eq (nodeAt_aligned hN (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])) ?_]
+    · exact hx.2.2.cur
+    · intro e; have := congrArg UScalar.val e
+      rw [nodeAt_val hN (by simp [layout.node.CUR_SC]), nodeAt_val hN ho] at this
+      simp [layout.node.CUR_SC] at this; omega
   step with LawfulStore.cur_cpu_spec as ⟨c, c_post⟩
   step with obj.node_get.spec as ⟨i, _⟩
-  refine WP.spec_bind (Pₘ := fun r => SchedQueuesInv st T Cs Ω r.1 Q4 R4 ∧ BoundInv st T r.1) ?_ ?_
+  refine WP.spec_bind (Pₘ := fun r => SchedQueuesInv st T Cs Ω r.1 Q4 R4 ∧ BoundInv st T r.1 ∧
+      XInv st T Cs Ω Sg Rp Scs Z r.1) ?_ ?_
   · split
-    · refine WP.spec_bind (sched.set_next_interrupt.free (Ω := Ω) hA s5 a3 h5.cur (h5.nodes _ h5.cur)) ?_
-      rintro ⟨s7, a5⟩ w7
-      simp only [WP.uncurry'_pair] at w7 ⊢
+    · refine WP.spec_bind (WP.spec_and (sched.set_next_interrupt.free (Ω := Ω) hA s5 a3 h5.cur (h5.nodes _ h5.cur))
+        (sched.set_next_interrupt.fp hA s5 a3 (B := (· = L.nodeAt s5 (L.cpu s5) layout.node.ARMED))
+          (h5.nodes _ h5.cur) rfl)) ?_
+      rintro ⟨s7, a5⟩ ⟨w7, w7'⟩
+      simp only [WP.uncurry'_pair] at w7 w7' ⊢
+      have hX7 := xn h5 hX5 (by simp [layout.node.ARMED]) (by simp [layout.node.ARMED])
+        (by simp [layout.node.ARMED]) w7'
+      have h7 := free_step h5 hB5 w7
       step with obj.node_set.spec as ⟨s8, s8_post⟩
       try simp only [WP.spec_ok]
       have w8 : WritesIn st s5 s8 (L.Free s5 Ω Cs) := by
         rw [s8_post, c_post]
         exact w7.free_trans (free_node_write w7.1 h5.cur (h5.nodes _ h5.cur)
           (by simp [layout.node.REPROGRAM, LowFree]))
-      exact free_step h5 hB5 w8
-    · exact (WP.spec_ok _).2 ⟨h5, hB5⟩
-  rintro ⟨s6, a4⟩ ⟨h6, hB6⟩
+      have w8' : WritesIn st s7 s8 (· = L.nodeAt s7 (L.cpu s7) layout.node.REPROGRAM) := by
+        have hN7 : NodePlaced st T s7 (L.cpu s7) := by rw [w7.2.1]; exact (h5.nodes _ h5.cur).ksb w7.1
+        rw [s8_post, c_post, ← w7.2.1]
+        exact writesIn_wr (nodeAt_aligned hN7 (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM]))
+      exact ⟨(free_step h5 hB5 w8).1, (free_step h5 hB5 w8).2,
+        xn h7.1 hX7 (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])
+          (by simp [layout.node.REPROGRAM]) w8'⟩
+    · exact (WP.spec_ok _).2 ⟨h5, hB5, hX5⟩
+  rintro ⟨s6, a4⟩ ⟨h6, hB6, hX6⟩
   try simp only [WP.uncurry'_pair]
-  exact WP.spec_mono (smp.send_pending.free (Ω := Ω) hA s6 a4 h6.cur (h6.nodes _ h6.cur)) fun r w => by
+  exact WP.spec_mono (WP.spec_and (smp.send_pending.free (Ω := Ω) hA s6 a4 h6.cur (h6.nodes _ h6.cur))
+    (smp.send_pending.fp hA s6 a4 (B := (· = L.nodeAt s6 (L.cpu s6) layout.node.IPI_PENDING))
+      (h6.nodes _ h6.cur) rfl)) fun r w => by
     obtain ⟨s', a'⟩ := r
-    exact ⟨⟨Q4, R4, (free_step h6 hB6 w).1⟩, (free_step h6 hB6 w).2⟩
+    obtain ⟨w, w'⟩ := w
+    exact ⟨⟨Q4, R4, (free_step h6 hB6 w).1⟩, (free_step h6 hB6 w).2,
+      xn h6 hX6 (by simp [layout.node.IPI_PENDING]) (by simp [layout.node.IPI_PENDING])
+        (by simp [layout.node.IPI_PENDING]) w'⟩
 
 end
 
