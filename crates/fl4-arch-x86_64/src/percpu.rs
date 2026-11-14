@@ -49,6 +49,9 @@ pub struct PerCpu {
     /// An interrupt accepted during the current entry, offered again if
     /// the entry's transaction reruns.
     pub held_irq: u64,
+    /// The current run of the entry (transaction attempt or serial run)
+    /// was given `held_irq`.
+    pub held_used: bool,
 }
 
 impl PerCpu {
@@ -76,6 +79,7 @@ impl PerCpu {
             effects: [crate::arch::Effect::Ack; crate::arch::MAX_EFFECTS],
             neffects: 0,
             held_irq: NO_IRQ,
+            held_used: false,
         }
     }
 }

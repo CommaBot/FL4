@@ -128,6 +128,13 @@ pub trait EntryEnv {
     fn finish_effects(&self, committed: bool);
     /// The entry has completed (it will not run again).
     fn entry_done(&self);
+    /// An interrupt this entry accepted that the run which took effect did
+    /// not handle, now forgotten: an aborted attempt polled it at a
+    /// preemption point and the rerun did not reach one, or a stall
+    /// cancelled the entry. It is still in service and needs an entry of
+    /// its own, or it blocks every interrupt of its priority and below
+    /// (GitHub issue #6).
+    fn unhandled_irq(&self) -> Option<u64>;
     /// This core now holds the serial gate (released when it leaves the
     /// kernel).
     fn holding_gate(&self);
@@ -149,21 +156,44 @@ pub const TX_ATTEMPTS: u32 = if cfg!(feature = "serial-gate") { 0 } else { 4 };
 /// otherwise as a transaction, rerun on conflict, and under the serial gate
 /// if it cannot run as one or keeps conflicting. `body` must be repeatable:
 /// everything it reads or writes goes through the store and Arch it is
-/// given. Returns false when a stall cancelled a non-interrupt entry before
+/// given. An interrupt the entry accepted but did not handle in the run
+/// that took effect gets an entry of its own afterwards (`unhandled_irq`).
+/// Returns false when a stall cancelled a non-interrupt entry before
 /// it ran.
 pub fn run_entry<E: EntryEnv>(
     env: &E,
     gate: &SerialGate,
     irq: bool,
-    mut body: impl FnMut(&mut E::S, &mut E::A),
+    body: impl FnMut(&mut E::S, &mut E::A),
 ) -> bool {
+    let (ran, mut serial) = attempts(env, gate, irq, body);
+    while let Some(v) = env.unhandled_irq() {
+        let irq_body = |s: &mut E::S, a: &mut E::A| fl4_core::syscall::handle_interrupt_entry(s, a, v);
+        if serial {
+            // This core still holds the gate (until it leaves the kernel),
+            // so the interrupt's entry runs directly too.
+            irq_body(&mut env.store(false), &mut env.arch());
+            env.entry_done();
+        } else {
+            serial = attempts(env, gate, true, irq_body).1;
+        }
+    }
+    ran
+}
+
+fn attempts<E: EntryEnv>(
+    env: &E,
+    gate: &SerialGate,
+    irq: bool,
+    mut body: impl FnMut(&mut E::S, &mut E::A),
+) -> (bool, bool) {
     use fl4_store::tx;
     let cpu = env.cpu();
     let mut a = env.arch();
     if !env.multi() {
         body(&mut env.store(false), &mut a);
         env.entry_done();
-        return true;
+        return (true, false);
     }
     let stalled = core::cell::Cell::new(false);
     let wait = || {
@@ -175,7 +205,7 @@ pub fn run_entry<E: EntryEnv>(
         gate.enter_tx(env.mem(), cpu, wait);
         if stalled.get() && !irq {
             gate.leave_tx(env.mem(), cpu);
-            return false;
+            return (false, false);
         }
         tx::begin(cpu, env.mem());
         env.set_tx(true);
@@ -190,7 +220,7 @@ pub fn run_entry<E: EntryEnv>(
         if ok {
             env.count(Count::Commit);
             env.entry_done();
-            return true;
+            return (true, false);
         }
         env.count(Count::Abort);
         if serial {
@@ -201,9 +231,9 @@ pub fn run_entry<E: EntryEnv>(
     gate.acquire(env.mem(), cpu, wait);
     env.holding_gate();
     if stalled.get() && !irq {
-        return false;
+        return (false, true);
     }
     body(&mut env.store(false), &mut a);
     env.entry_done();
-    true
+    (true, true)
 }

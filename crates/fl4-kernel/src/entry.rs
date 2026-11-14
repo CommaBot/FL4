@@ -190,7 +190,11 @@ impl fl4_sync::EntryEnv for KernelEnv {
         service_remote()
     }
     fn set_tx(&self, on: bool) {
-        percpu::get().tx = on;
+        let pc = percpu::get();
+        pc.tx = on;
+        if on {
+            pc.held_used = false;
+        }
     }
     fn finish_effects(&self, committed: bool) {
         if committed {
@@ -200,10 +204,23 @@ impl fl4_sync::EntryEnv for KernelEnv {
         }
     }
     fn entry_done(&self) {
-        percpu::get().held_irq = percpu::NO_IRQ;
+        // An interrupt only an aborted attempt took stays for unhandled_irq.
+        let pc = percpu::get();
+        if pc.held_used {
+            pc.held_irq = percpu::NO_IRQ;
+        }
+        pc.held_used = false;
+    }
+    fn unhandled_irq(&self) -> Option<u64> {
+        let pc = percpu::get();
+        let v = core::mem::replace(&mut pc.held_irq, percpu::NO_IRQ);
+        pc.held_used = false;
+        (v != percpu::NO_IRQ).then_some(v)
     }
     fn holding_gate(&self) {
-        percpu::get().gate_held = true;
+        let pc = percpu::get();
+        pc.gate_held = true;
+        pc.held_used = false;
     }
     fn count(&self, what: fl4_sync::Count) {
         use core::sync::atomic::Ordering::Relaxed;

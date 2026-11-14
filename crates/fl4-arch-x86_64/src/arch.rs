@@ -116,6 +116,7 @@ impl Arch for PhysArch {
     fn take_pending_irq(&mut self) -> u64 {
         let pc = percpu::get();
         if pc.held_irq != percpu::NO_IRQ {
+            pc.held_used = true;
             return pc.held_irq;
         }
         pc.polled_irq = percpu::NO_IRQ;
@@ -124,6 +125,7 @@ impl Arch for PhysArch {
         let pc = percpu::get();
         pc.polling = false;
         pc.held_irq = pc.polled_irq;
+        pc.held_used = pc.held_irq != percpu::NO_IRQ;
         pc.polled_irq
     }
     fn mask_irq(&mut self, irq: u64, mask: bool) {
