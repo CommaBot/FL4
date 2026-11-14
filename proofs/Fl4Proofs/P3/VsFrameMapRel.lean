@@ -63,7 +63,9 @@ structure VsFrameHyps (A : Type) (ar : machine.Arch A) (th : TypedHeap) (P L4 L3
     (SR : S → A → Fl4Spec.State Unit → Prop) : Prop where
   restart : ∀ s a σ (ct : U64) (x : Fl4Spec.Tcb), StateRel th (L.mem s) σ → SlotsValid th (L.mem s) →
     VsRel P (L.mem s) (L.ksb s) σ → PtRel L4 L3 L2 L1 (L.mem s) σ → SR s a σ → ct.bv = σ.curThread →
-    σ.kheap ct.bv = some (.tcb x) →
+    σ.kheap ct.bv = some (.tcb x) → th ct = some .tcb →
+    OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION) →
+    Fl4Spec.runnable x.tcbState = true →
     sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
       StateRel th (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
       SlotsValid th (L.mem s') ∧
@@ -314,7 +316,7 @@ macro "map_tail" : tactic => `(tactic| (
       rw [hpa] at hpte
       simp only [paddr_bv, attr_defer, vm_eq (rightsW a1) a1 rfl hmv] at hpte
       have hkt' : σ.kheap ct.bv = some (.tcb xct) := by rw [hcur]; exact hkt
-      refine WP.spec_bind (WP.spec_and (hH.restart s a σ ct xct hSt hSV hR hPt hS hcur hkt')
+      refine WP.spec_bind (WP.spec_and (hH.restart s a σ ct xct hSt hSV hR hPt hS hcur hkt' htcb hact hrun)
         (set_thread_state_slots th hPl s ct sched.TS_RESTART htcb hact)) ?_
       rintro s1 ⟨⟨hSt1, hSV1, hR1, hPt1, hS1, hk1⟩, hSS1⟩
       set σ1 := stsAct (updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv with hσ1
@@ -401,6 +403,7 @@ theorem frame_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3
     (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ) (hS : SR s a σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : ct.bv = σ.curThread)
     {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct))
+    (hrun : Fl4Spec.runnable xct.tcbState = true)
     (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (f : vspace.FrameCap) (hsz : f.size = .Small) (hfw : CapWf (frameCapOf f)) (hfe : EncWf (frameCapOf f)) (hfcv : CapValid th (frameCapOf f))
     (hfm : f.mapped = true → f.asid ≠ 0#u64)

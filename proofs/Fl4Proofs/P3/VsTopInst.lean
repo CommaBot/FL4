@@ -6,6 +6,8 @@ the arch interface `ArchRefines`); the `restart` fields (and ASID pool's
 `curT`) stay arguments.
 -/
 import Fl4Proofs.P3.VsArch
+import Fl4Proofs.P3.VsSubTop
+import Fl4Proofs.P3.VsExtTac
 import Fl4Proofs.P3.VsDecFrame
 open Aeneas Aeneas.Std Result
 
@@ -17,6 +19,32 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 variable {th : TypedHeap} {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+
+/-- **`set_thread_state Restart` of the current thread** for the CSpace,
+ASID and page-table relations and the composite relation (`restart_top`,
+`set_thread_state_slots`); the pool table references kept. -/
+theorem restart_full {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (ct : U64) (x : Fl4Spec.Tcb) (hSt : StateRel th (L.mem s) σ) (hSV : SlotsValid th (L.mem s))
+    (hR : VsRel P (L.mem s) (L.ksb s) σ) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ)
+    (hcur : ct.bv = σ.curThread) (hk : σ.kheap ct.bv = some (.tcb x)) (htcb : th ct = some .tcb)
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hrun : Fl4Spec.runnable x.tcbState = true) :
+    sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
+      StateRel th (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
+      SlotsValid th (L.mem s') ∧
+      VsRel P (L.mem s') (L.ksb s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
+      (PtRel L4 L3 L2 L1 (L.mem s) σ →
+        PtRel L4 L3 L2 L1 (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv)) ∧
+      TopSR st th P L4 L3 L2 L1 N T C E R B c AR s' a (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
+      L.ksb s' = L.ksb s ∧ (PoolsIn P L4 (L.mem s) → PoolsIn P L4 (L.mem s')) ⦄ := by
+  refine WP.spec_mono (WP.spec_and (restart_top s a σ ct x hS hR hcur hk hrun)
+    (set_thread_state_slots th hS.2.pl s ct sched.TS_RESTART htcb hact)) ?_
+  rintro s' ⟨⟨hVs, hPt', hS', hk', hmV⟩, hSS⟩
+  refine ⟨(hSt.tcb_state hk (by rw [stsAct_kheap, updK_kheap])).of_caps (fun y hy => hSS.capAt hy),
+    hSV.of_caps (fun y hy => hSS.capAt hy), hVs, hPt', hS', hk', fun hPI q hq lo hl => ?_⟩
+  have hw : VsWrite P (L.ksb s) (peA q lo) := Or.inr ⟨q, hq, lo, hl, rfl⟩
+  rw [hmV _ (hw.aligned hS.2.vs) (vsWrite_vobj hS.2.vs hw)]
+  exact hPI q hq lo hl
 
 /-- `VsMapHyps` for the composite relation. -/
 theorem vsMapHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR) :
@@ -39,36 +67,22 @@ theorem vsMapHypsAll_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.C
   flushAsid := fun s a σ vs asid hS => flushAsid_top hA s a σ vs asid hS
 
 /-- `VsFrameHyps` for the composite relation (the restart field given). -/
-theorem vsFrameHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR)
-    (hrestart : ∀ s a σ (ct : U64) (x : Fl4Spec.Tcb), StateRel th (L.mem s) σ → SlotsValid th (L.mem s) →
-    VsRel P (L.mem s) (L.ksb s) σ → PtRel L4 L3 L2 L1 (L.mem s) σ → (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s a σ → ct.bv = σ.curThread →
-    σ.kheap ct.bv = some (.tcb x) →
-    sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
-      StateRel th (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      SlotsValid th (L.mem s') ∧
-      VsRel P (L.mem s') (L.ksb s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      PtRel L4 L3 L2 L1 (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s' a (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧ L.ksb s' = L.ksb s ⦄) :
+theorem vsFrameHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR) :
     VsFrameHyps st A arI th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) where
   capStable := fun s s' a σ σ' hS hw hc => capStable_top s s' a σ σ' hS hw hc
   map := vsMapHyps_top hA
-  restart := hrestart
+  restart := fun s a σ ct x hSt hSV hR hPt hS hcur hk htcb hact hrun =>
+    WP.spec_mono (restart_full s a σ ct x hSt hSV hR hS hcur hk htcb hact hrun) fun _ h =>
+      ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1 hPt, h.2.2.2.2.1, h.2.2.2.2.2.1⟩
 
 /-- `VsFrameHypsL` for the composite relation (the restart field given). -/
-theorem vsFrameHypsL_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR)
-    (hrestart : ∀ s a σ (ct : U64) (x : Fl4Spec.Tcb), StateRel th (L.mem s) σ → SlotsValid th (L.mem s) →
-    VsRel P (L.mem s) (L.ksb s) σ → PtRel L4 L3 L2 L1 (L.mem s) σ → (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s a σ → ct.bv = σ.curThread →
-    σ.kheap ct.bv = some (.tcb x) →
-    sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
-      StateRel th (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      SlotsValid th (L.mem s') ∧
-      VsRel P (L.mem s') (L.ksb s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      PtRel L4 L3 L2 L1 (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s' a (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧ L.ksb s' = L.ksb s ⦄) :
+theorem vsFrameHypsL_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR) :
     VsFrameHypsL st A arI th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) where
   capStable := fun s s' a σ σ' hS hw hc => capStable_top s s' a σ σ' hS hw hc
   map := vsMapHypsAll_top hA
-  restart := hrestart
+  restart := fun s a σ ct x hSt hSV hR hPt hS hcur hk htcb hact hrun =>
+    WP.spec_mono (restart_full s a σ ct x hSt hSV hR hS hcur hk htcb hact hrun) fun _ h =>
+      ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1 hPt, h.2.2.2.2.1, h.2.2.2.2.2.1⟩
 
 /-- `VsUnmapPageHyps` for the composite relation. -/
 theorem vsUnmapPageHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR) :
@@ -80,58 +94,37 @@ theorem vsUnmapPageHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spe
   flushPg := fun s a σ asid vaddr hS => flushPg_top hA s a σ asid vaddr hS
 
 /-- `VsPtMapHyps` for the composite relation (the restart field given). -/
-theorem vsPtMapHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR)
-    (hrestart : ∀ s a σ (ct : U64) (x : Fl4Spec.Tcb), StateRel th (L.mem s) σ → SlotsValid th (L.mem s) →
-    VsRel P (L.mem s) (L.ksb s) σ → PtRel L4 L3 L2 L1 (L.mem s) σ → (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s a σ → ct.bv = σ.curThread →
-    σ.kheap ct.bv = some (.tcb x) →
-    sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
-      StateRel th (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      SlotsValid th (L.mem s') ∧
-      VsRel P (L.mem s') (L.ksb s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      PtRel L4 L3 L2 L1 (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s' a (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧ L.ksb s' = L.ksb s ⦄) :
+theorem vsPtMapHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR) :
     VsPtMapHyps st A arI th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) where
   capStable := fun s s' a σ σ' hS hw hc => capStable_top s s' a σ σ' hS hw hc
   pdStable := fun s s' a σ σ' hS hw hc => pdStable_top s s' a σ σ' hS hw hc
   flushOK := fun vs asid σ => flushOK_top vs asid σ
   flushPS := fun s a σ vs asid hS => flushPS_top hA s a σ vs asid hS
-  restart := hrestart
+  restart := fun s a σ ct x hSt hSV hR hPt hS hcur hk htcb hact hrun =>
+    WP.spec_mono (restart_full s a σ ct x hSt hSV hR hS hcur hk htcb hact hrun) fun _ h =>
+      ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1 hPt, h.2.2.2.2.1, h.2.2.2.2.2.1⟩
 
 /-- `VsPdMapHyps` for the composite relation (the restart field given). -/
-theorem vsPdMapHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR)
-    (hrestart : ∀ s a σ (ct : U64) (x : Fl4Spec.Tcb), StateRel th (L.mem s) σ → SlotsValid th (L.mem s) →
-    VsRel P (L.mem s) (L.ksb s) σ → PtRel L4 L3 L2 L1 (L.mem s) σ → (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s a σ → ct.bv = σ.curThread →
-    σ.kheap ct.bv = some (.tcb x) →
-    sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
-      StateRel th (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      SlotsValid th (L.mem s') ∧
-      VsRel P (L.mem s') (L.ksb s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      PtRel L4 L3 L2 L1 (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s' a (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧ L.ksb s' = L.ksb s ⦄) :
+theorem vsPdMapHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR) :
     VsPdMapHyps st A arI th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) where
   capStable := fun s s' a σ σ' hS hw hc => capStable_top s s' a σ σ' hS hw hc
   pdptStable := fun s s' a σ σ' hS hw hc => pdptStable_top s s' a σ σ' hS hw hc
   flushOK := fun vs asid σ => flushOK_top vs asid σ
   flushPS := fun s a σ vs asid hS => flushPS_top hA s a σ vs asid hS
-  restart := hrestart
+  restart := fun s a σ ct x hSt hSV hR hPt hS hcur hk htcb hact hrun =>
+    WP.spec_mono (restart_full s a σ ct x hSt hSV hR hS hcur hk htcb hact hrun) fun _ h =>
+      ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1 hPt, h.2.2.2.2.1, h.2.2.2.2.2.1⟩
 
 /-- `VsPdptMapHyps` for the composite relation (the restart field given). -/
-theorem vsPdptMapHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR)
-    (hrestart : ∀ s a σ (ct : U64) (x : Fl4Spec.Tcb), StateRel th (L.mem s) σ → SlotsValid th (L.mem s) →
-    VsRel P (L.mem s) (L.ksb s) σ → PtRel L4 L3 L2 L1 (L.mem s) σ → (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s a σ → ct.bv = σ.curThread →
-    σ.kheap ct.bv = some (.tcb x) →
-    sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
-      StateRel th (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      SlotsValid th (L.mem s') ∧
-      VsRel P (L.mem s') (L.ksb s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      PtRel L4 L3 L2 L1 (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s' a (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧ L.ksb s' = L.ksb s ⦄) :
+theorem vsPdptMapHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR) :
     VsPdptMapHyps st A arI th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) where
   capStable := fun s s' a σ σ' hS hw hc => capStable_top s s' a σ σ' hS hw hc
   pml4Stable := fun s s' a σ σ' hS hw hc => pml4Stable_top s s' a σ σ' hS hw hc
   flushOK := fun vs asid σ => flushOK_top vs asid σ
   flushPS := fun s a σ vs asid hS => flushPS_top hA s a σ vs asid hS
-  restart := hrestart
+  restart := fun s a σ ct x hSt hSV hR hPt hS hcur hk htcb hact hrun =>
+    WP.spec_mono (restart_full s a σ ct x hSt hSV hR hS hcur hk htcb hact hrun) fun _ h =>
+      ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1 hPt, h.2.2.2.2.1, h.2.2.2.2.2.1⟩
 
 /-- `VsPtInnerHyps` for the composite relation. -/
 theorem vsPtInnerHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR) :
@@ -159,75 +152,100 @@ theorem vsPdptInnerHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spe
   flushAllH := fun s a σ vs asid hS => flushAllH_top hA s a σ vs asid hS
 
 /-- `VsFrameUnmapHyps` for the composite relation (the restart field given). -/
-theorem vsFrameUnmapHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR)
-    (hrestart : ∀ s a σ (ct : U64) (x : Fl4Spec.Tcb), StateRel th (L.mem s) σ → SlotsValid th (L.mem s) →
-    VsRel P (L.mem s) (L.ksb s) σ → PtRel L4 L3 L2 L1 (L.mem s) σ → (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s a σ → ct.bv = σ.curThread →
-    σ.kheap ct.bv = some (.tcb x) →
-    sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
-      StateRel th (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      SlotsValid th (L.mem s') ∧
-      VsRel P (L.mem s') (L.ksb s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      PtRel L4 L3 L2 L1 (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s' a (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧ L.ksb s' = L.ksb s ∧
-      PoolsIn P L4 (L.mem s') ⦄) :
+theorem vsFrameUnmapHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR) :
     VsFrameUnmapHyps st A arI th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) where
   toVsUnmapPageHyps := vsUnmapPageHyps_top hA
   capStable := fun s s' a σ σ' hS hw hc => capStable_top s s' a σ σ' hS hw hc
-  restart := hrestart
+  restart := fun s a σ ct x hSt hSV hR hPt hS hcur hk htcb hact hrun hPI =>
+    WP.spec_mono (restart_full s a σ ct x hSt hSV hR hS hcur hk htcb hact hrun) fun _ h =>
+      ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1 hPt, h.2.2.2.2.1, h.2.2.2.2.2.1, h.2.2.2.2.2.2 hPI⟩
 
 /-- `VsPtUnmapHyps` for the composite relation (the restart field given). -/
-theorem vsPtUnmapHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR)
-    (hrestart : ∀ s a σ (ct : U64) (x : Fl4Spec.Tcb), StateRel th (L.mem s) σ → SlotsValid th (L.mem s) →
-    VsRel P (L.mem s) (L.ksb s) σ → PtRel L4 L3 L2 L1 (L.mem s) σ → (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s a σ → ct.bv = σ.curThread →
-    σ.kheap ct.bv = some (.tcb x) →
-    sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
-      StateRel th (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      SlotsValid th (L.mem s') ∧
-      VsRel P (L.mem s') (L.ksb s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      PtRel L4 L3 L2 L1 (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s' a (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧ L.ksb s' = L.ksb s ∧
-      PoolsIn P L4 (L.mem s') ⦄) :
+theorem vsPtUnmapHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR) :
     VsPtUnmapHyps st A arI th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) where
   toVsPtInnerHyps := vsPtInnerHyps_top hA
   capStable := fun s s' a σ σ' hS hw hc => capStable_top s s' a σ σ' hS hw hc
   ptStable := fun s s' a σ σ' hS hw hc => ptStable_top s s' a σ σ' hS hw hc
-  restart := hrestart
+  restart := fun s a σ ct x hSt hSV hR hPt hS hcur hk htcb hact hrun hPI =>
+    WP.spec_mono (restart_full s a σ ct x hSt hSV hR hS hcur hk htcb hact hrun) fun _ h =>
+      ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1 hPt, h.2.2.2.2.1, h.2.2.2.2.2.1, h.2.2.2.2.2.2 hPI⟩
 
 /-- `VsPdUnmapHyps` for the composite relation (the restart field given). -/
-theorem vsPdUnmapHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR)
-    (hrestart : ∀ s a σ (ct : U64) (x : Fl4Spec.Tcb), StateRel th (L.mem s) σ → SlotsValid th (L.mem s) →
-    VsRel P (L.mem s) (L.ksb s) σ → PtRel L4 L3 L2 L1 (L.mem s) σ → (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s a σ → ct.bv = σ.curThread →
-    σ.kheap ct.bv = some (.tcb x) →
-    sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
-      StateRel th (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      SlotsValid th (L.mem s') ∧
-      VsRel P (L.mem s') (L.ksb s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      PtRel L4 L3 L2 L1 (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s' a (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧ L.ksb s' = L.ksb s ∧
-      PoolsIn P L4 (L.mem s') ⦄) :
+theorem vsPdUnmapHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR) :
     VsPdUnmapHyps st A arI th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) where
   toVsPdInnerHyps := vsPdInnerHyps_top hA
   capStable := fun s s' a σ σ' hS hw hc => capStable_top s s' a σ σ' hS hw hc
   pdStable := fun s s' a σ σ' hS hw hc => pdStable_top s s' a σ σ' hS hw hc
-  restart := hrestart
+  restart := fun s a σ ct x hSt hSV hR hPt hS hcur hk htcb hact hrun hPI =>
+    WP.spec_mono (restart_full s a σ ct x hSt hSV hR hS hcur hk htcb hact hrun) fun _ h =>
+      ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1 hPt, h.2.2.2.2.1, h.2.2.2.2.2.1, h.2.2.2.2.2.2 hPI⟩
 
 /-- `VsPdptUnmapHyps` for the composite relation (the restart field given). -/
-theorem vsPdptUnmapHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR)
-    (hrestart : ∀ s a σ (ct : U64) (x : Fl4Spec.Tcb), StateRel th (L.mem s) σ → SlotsValid th (L.mem s) →
-    VsRel P (L.mem s) (L.ksb s) σ → PtRel L4 L3 L2 L1 (L.mem s) σ → (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s a σ → ct.bv = σ.curThread →
-    σ.kheap ct.bv = some (.tcb x) →
-    sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
-      StateRel th (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      SlotsValid th (L.mem s') ∧
-      VsRel P (L.mem s') (L.ksb s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      PtRel L4 L3 L2 L1 (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s' a (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧ L.ksb s' = L.ksb s ∧
-      PoolsIn P L4 (L.mem s') ⦄) :
+theorem vsPdptUnmapHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR) :
     VsPdptUnmapHyps st A arI th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) where
   toVsPdptInnerHyps := vsPdptInnerHyps_top hA
   capStable := fun s s' a σ σ' hS hw hc => capStable_top s s' a σ σ' hS hw hc
   pdptStable := fun s s' a σ σ' hS hw hc => pdptStable_top s s' a σ σ' hS hw hc
-  restart := hrestart
+  restart := fun s a σ ct x hSt hSV hR hPt hS hcur hk htcb hact hrun hPI =>
+    WP.spec_mono (restart_full s a σ ct x hSt hSV hR hS hcur hk htcb hact hrun) fun _ h =>
+      ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1 hPt, h.2.2.2.2.1, h.2.2.2.2.2.1, h.2.2.2.2.2.2 hPI⟩
+
+/-- `VsMpHyps` for the composite relation (`RegOK := RegOKTop`). -/
+theorem vsMpHyps_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} :
+    VsMpHyps st A th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) (RegOKTop (L := L) N T C E R B c) where
+  restart := fun s a σ ct x hS hR hPt hcur hk _ _ hrun => by
+    refine WP.spec_mono (WP.spec_and (restart_top s a σ ct x hS hR hcur hk hrun) (set_thread_state_cpu s ct _)) ?_
+    rintro s' ⟨⟨hVs, hPt', hS', hk', -⟩, -, hcpu⟩
+    refine ⟨hVs, hPt' hPt, hS', hk', hcpu, fun p h => ⟨h.1, h.2.1, fun a' h1 h2 ho => h.2.2.1 a' h1 h2
+      (OObj.of_kh hk' (fun q y n hq => ?_) ho), h.2.2.2⟩⟩
+    rw [stsAct_kheap, updK_kheap] at hq
+    by_cases e : q = ct.bv
+    · subst e; rw [Function.update_self] at hq; cases hq
+    · rwa [Function.update_of_ne e] at hq
+  mpSR := fun s s' a σ σ' p hi hhi hS hRO hksb hcpu hW hMp => mpSR_top s s' a σ σ' p hi hhi hS hRO hksb hcpu hW hMp
+
+/-- `VsInvHyps` for the composite relation (`curT` given). -/
+theorem vsInvHyps_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop}
+    (hcurT : ∀ s a σ, TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ →
+      sched.cur_thread st s ⦃ ct => ct.bv = σ.curThread ⦄) :
+    VsInvHyps st A th P (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) where
+  curT := hcurT
+  restart := fun s a σ ct x hSt hSV hR hS hcur hk htcb hact hrun =>
+    WP.spec_mono (restart_full (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) s a σ ct x hSt hSV hR hS hcur hk htcb hact hrun)
+      fun _ h => ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2.1⟩
+  capStable := fun s s' a σ σ' hS hw hc => capStable_top s s' a σ σ' hS hw hc
+  vsStable := fun s s' a σ σ' hS hw hc => vsStable_top s s' a σ σ' hS hw hc
+
+/-- `VsFlushHyps` for the composite relation. -/
+theorem vsFlushHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR) :
+    VsFlushHyps st A arI th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) where
+  restart := fun s a σ ct x hU hcur hk htcb hact hrun =>
+    WP.spec_mono (restart_full s a σ ct x hU.2.1 hU.2.2.1 hU.2.2.2.1 hU.1 hcur hk htcb hact hrun)
+      fun _ h => ⟨h.2.2.2.2.1, h.1, h.2.1, h.2.2.1, h.2.2.2.1 hU.2.2.2.2⟩
+  flushAllOK := fun σ vs asid => flushAllOK_top σ vs asid
+  flushAllH := fun s a σ vs asid hS => flushAllH_top hA s a σ vs asid hS
+
+/-- `VsReplyHyps` for the composite relation (the Ep side's `reply`,
+`replyR` given). -/
+theorem vsReplyHyps_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop}
+    (hreply : ∀ s a σ (ct : U64) (call : Bool) (v : U64),
+      UR st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s a σ → ct.bv = σ.curThread →
+      vspace.reply1 st s ct call v ⦃ s' => ¬ (replyRunning ct.bv call [v.bv] σ).2 ∧
+        ∃ σ', ((), σ') ∈ (replyRunning ct.bv call [v.bv] σ).1 ∧
+          UR st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s' a σ' ⦄)
+    (hreplyR : ∀ s a σ (ct : U64) (call : Bool) (v : U64),
+      UR st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s a σ → ct.bv = σ.curThread →
+      vspace.reply1 st s ct call v ⦃ s' =>
+        ¬ ((Fl4Spec.setThreadState (Z := Unit) ct.bv .restart >>= fun _ => replyRunning ct.bv call [v.bv]) σ).2 ∧
+        ∃ σ', ((), σ') ∈ ((Fl4Spec.setThreadState (Z := Unit) ct.bv .restart >>= fun _ =>
+          replyRunning ct.bv call [v.bv]) σ).1 ∧
+          UR st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s' a σ' ⦄) :
+    VsReplyHyps st A th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) where
+  restart := fun s a σ ct x hU hcur hk htcb hact hrun =>
+    WP.spec_mono (restart_full s a σ ct x hU.2.1 hU.2.2.1 hU.2.2.2.1 hU.1 hcur hk htcb hact hrun)
+      fun _ h => ⟨h.2.2.2.2.1, h.1, h.2.1, h.2.2.1, h.2.2.2.1 hU.2.2.2.2⟩
+  reply := hreply
+  replyR := hreplyR
 
 variable {A : Type} (arI : machine.Arch A)
 
@@ -237,41 +255,12 @@ theorem decode_invocation_frame_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
-    (hr1 : ∀ s a σ (ct : U64) (x : Fl4Spec.Tcb), StateRel th (L.mem s) σ → SlotsValid th (L.mem s) →
-    VsRel P (L.mem s) (L.ksb s) σ → PtRel L4 L3 L2 L1 (L.mem s) σ → (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s a σ → ct.bv = σ.curThread →
-    σ.kheap ct.bv = some (.tcb x) →
-    sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
-      StateRel th (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      SlotsValid th (L.mem s') ∧
-      VsRel P (L.mem s') (L.ksb s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      PtRel L4 L3 L2 L1 (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s' a (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧ L.ksb s' = L.ksb s ⦄)
-    (hrL : ∀ s a σ (ct : U64) (x : Fl4Spec.Tcb), StateRel th (L.mem s) σ → SlotsValid th (L.mem s) →
-    VsRel P (L.mem s) (L.ksb s) σ → PtRel L4 L3 L2 L1 (L.mem s) σ → (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s a σ → ct.bv = σ.curThread →
-    σ.kheap ct.bv = some (.tcb x) →
-    sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
-      StateRel th (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      SlotsValid th (L.mem s') ∧
-      VsRel P (L.mem s') (L.ksb s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      PtRel L4 L3 L2 L1 (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s' a (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧ L.ksb s' = L.ksb s ⦄)
-    (hrU : ∀ s a σ (ct : U64) (x : Fl4Spec.Tcb), StateRel th (L.mem s) σ → SlotsValid th (L.mem s) →
-    VsRel P (L.mem s) (L.ksb s) σ → PtRel L4 L3 L2 L1 (L.mem s) σ → (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s a σ → ct.bv = σ.curThread →
-    σ.kheap ct.bv = some (.tcb x) →
-    sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
-      StateRel th (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      SlotsValid th (L.mem s') ∧
-      VsRel P (L.mem s') (L.ksb s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      PtRel L4 L3 L2 L1 (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s' a (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧ L.ksb s' = L.ksb s ∧
-      PoolsIn P L4 (L.mem s') ⦄)
-    (hD : VsSlotsDisj th P (L.ksb s))
-    (hPS : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ SlotW th b) (hPV : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b)
-    (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b) (hPI : PoolsIn P L4 (L.mem s))
+    (hPI : PoolsIn P L4 (L.mem s))
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : FrameLabel lbl slbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
     (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hrun : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.runnable x.tcbState = true)
     (args : List U64) (hlen : length.val = args.length)
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     {pc : U64} {r : Nat} (hpc : th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
@@ -301,9 +290,9 @@ theorem decode_invocation_frame_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
       DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
         buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer) :
     DecOK (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
-      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := decode_invocation_frame arI th hS.2.pl s ar σ G hCR hFI (vsFrameHyps_top hA hr1) (vsFrameHypsL_top hA hrL)
-    (vsFrameUnmapHyps_top hA hrU) hS hS.2.vs hD hS.2.pt hPS hPV hPO hPI hR hPt lbl slbl hlbl length buf ct hct hcur htcb
-    hact args hlen hargs hpc hidx hcap hfm hpaS hpaL hpaH hAl extra excaps hext blk call don fp ci buffer hGA hTAC hDS
+      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := decode_invocation_frame arI th hS.2.pl s ar σ G hCR hFI (vsFrameHyps_top hA) (vsFrameHypsL_top hA)
+    (vsFrameUnmapHyps_top hA) hS hS.2.vs hS.2.sd hS.2.pt hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlbl length buf ct hct hcur htcb
+    hact hrun args hlen hargs hpc hidx hcap hfm hpaS hpaL hpaH hAl extra excaps hext blk call don fp ci buffer hGA hTAC hDS
 
 end
 

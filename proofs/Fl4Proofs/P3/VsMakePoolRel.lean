@@ -35,6 +35,7 @@ import Fl4Proofs.P3.VsInsFrame
 import Fl4Proofs.P3.UntypedPml4
 import Fl4Proofs.P3.VsMdb
 import Fl4Proofs.P3.FinFrame
+import Fl4Proofs.P3.VsFrameInv
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Vs
@@ -163,7 +164,9 @@ objects). -/
 structure VsMpHyps (A : Type) (th : TypedHeap) (P L4 L3 L2 L1 : Set U64) (SR : S → A → Fl4Spec.State Unit → Prop)
     (RegOK : S → Fl4Spec.State Unit → U64 → Prop) : Prop where
   restart : ∀ s a σ (ct : U64) (x : Fl4Spec.Tcb), SR s a σ → VsRel P (L.mem s) (L.ksb s) σ →
-    PtRel L4 L3 L2 L1 (L.mem s) σ → ct.bv = σ.curThread → σ.kheap ct.bv = some (.tcb x) →
+    PtRel L4 L3 L2 L1 (L.mem s) σ → ct.bv = σ.curThread → σ.kheap ct.bv = some (.tcb x) → th ct = some .tcb →
+    OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION) →
+    Fl4Spec.runnable x.tcbState = true →
     sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
       VsRel P (L.mem s') (L.ksb s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
       PtRel L4 L3 L2 L1 (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
@@ -207,7 +210,8 @@ def MpPost {A : Type} (P L4 L3 L2 L1 : Set U64) (SR : S → A → Fl4Spec.State 
     Placed th' ∧ StateRel th' (L.mem res.2.1) σ' ∧ SlotsValid th' (L.mem res.2.1) ∧
     MdbLinks th' (L.mem res.2.1) G' ∧ CdtRel th' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
     UtInv (L.mem res.2.1) G' ∧ VsRel (insert p P) (L.mem res.2.1) (L.ksb res.2.1) σ' ∧
-    PtRel L4 L3 L2 L1 (L.mem res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧ FinInv th' (L.mem res.2.1) σ' G'
+    PtRel L4 L3 L2 L1 (L.mem res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧ FinInv th' (L.mem res.2.1) σ' G' ∧
+    Vs.FrameInv (L.mem res.2.1) G'
 
 set_option maxHeartbeats 4000000 in
 /-- **`MakePool`'s perform refines l4v** (see the module docstring): from the
@@ -225,6 +229,7 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     (hU : UtInv (L.mem s) G) (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
     (hS : SR s a σ) (hVP : VsPlaced P (L.ksb s)) (hPP : PtPlaced L4 L3 L2 L1)
     (ct : U64) (hcur : ct.bv = σ.curThread) {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct))
+    (hrun : Fl4Spec.runnable xct.tcbState = true)
     (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     {pp : U64} {rs : Nat} (hpp : th pp = some (.cnode rs)) {idx : List Bool} (hidx : idx.length = rs)
     {p sb fi : U64} (hsb : sb = fl4_abi.consts.bits.ASID_POOL)
@@ -236,7 +241,8 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     (hRg : MpRegion th G P L4 L3 L2 L1 (L.ksb s) p) (hRO : RegOK s σ p)
     (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b)
     (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b)
-    (hPV : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b) (hFI : FinInv th (L.mem s) σ G) :
+    (hPV : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b) (hFI : FinInv th (L.mem s) σ G)
+    (hFR : Vs.FrameInv (L.mem s) G) :
     (do
       let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
       let i1 ← lift (sb &&& 63#u64)
@@ -271,7 +277,7 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     intro e; rw [e, hdst] at hcap; cases eq_of_ok_eq hcap
   -- restart
   have hkt' : σ.kheap ct.bv = some (.tcb xct) := by rw [hcur]; exact hkt
-  refine WP.spec_bind (WP.spec_and (hH.restart s a σ ct xct hS hR hPt hcur hkt')
+  refine WP.spec_bind (WP.spec_and (hH.restart s a σ ct xct hS hR hPt hcur hkt' htcb hact hrun)
     (set_thread_state_slots th hPl s ct sched.TS_RESTART htcb hact)) ?_
   rintro s1 ⟨⟨hR1, hPt1, hS1, hksb1, hcpu1, hRO1⟩, hSS⟩
   set σ1 := stsAct (updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv with hσ1
@@ -738,8 +744,18 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
       · exact absurd (srB_frame_frame hf hs) (by simp [isFrame])
   have F4 : FinM (L.mem s4) G' := F3.fresh_ins hxm hvm true hM4.tree.nodup (fun z hz => hctx.cz hz) hfr4
   have F5 : FinM (L.mem s5) G' := F4.of_caps hM4.tree.nodup (fun z hz => hSS5.capV ((hM4.members z).1 hz).1)
+  -- `FrameInv`
+  have FR1 : Vs.FrameInv (L.mem s1) G := hFR.of_caps (fun z hz => hSS.capV ((hM.members z).1 hz).1)
+  have FR2 : Vs.FrameInv (L.mem s2) G := FR1.recap x (by rw [RR2.cap, hcx1]; exact ⟨rfl, rfl, rfl⟩)
+    (fun z hz hne => hco2 z ((RR2.M.members z).1 hz).1 hne)
+  have FR3 : Vs.FrameInv (L.mem s3) G := FR2.of_caps (fun z hz => hSS3.capV ((RR2.M.members z).1 hz).1)
+  have FR4 : Vs.FrameInv (L.mem s4) G' := FR3.insert_fresh hxm hvm true hctx.cd
+    (by rw [hctx.cz hxm]; exact MdbLike.refl _) (fun z hz _ => hctx.cz hz) (fun _ _ _ _ _ h => by cases h)
+    (fun y hy _ _ _ _ _ hc q h1 h2 => Vs.pool_out hc (hctx.hreg y hy)
+      (fun h => (hctx.hno y hy h).imp id And.left) hctx.hcr q h1 h2)
+  have FR5 : Vs.FrameInv (L.mem s5) G' := FR4.of_caps (fun z hz => hSS5.capV ((hM4.members z).1 hz).1)
   refine ⟨τf, th', G', by rw [hrun]; exact hmem, by rw [hrun]; exact hall.1, hP', hR5, hV5, hM5, hC5,
-    MdbInv.of_same hM4 hI4 hSS5, UtInv.of_same hM4 hU4 hSS5, by rw [hksb5]; exact hVs5, hPt5, hSR5, ⟨hKTf, F5⟩⟩
+    MdbInv.of_same hM4 hI4 hSS5, UtInv.of_same hM4 hU4 hSS5, by rw [hksb5]; exact hVs5, hPt5, hSR5, ⟨hKTf, F5⟩, FR5⟩
 
 end
 
@@ -774,6 +790,7 @@ theorem makepool_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
     (hPV : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : ct.bv = σ.curThread)
     {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct))
+    (hrun : Fl4Spec.runnable xct.tcbState = true)
     (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     {slbl : Fl4Spec.Data} (hl : Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDControlMakePool)
     (length buf : U64) (args : List U64) (hlen : length.val = args.length)
@@ -789,7 +806,8 @@ theorem makepool_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
     (hrv : CapValid th rc)
     (ysl : Fl4Spec.CslotPtr) (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hRg : ∀ p fi, uc = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false →
-      MpRegion th G P L4 L3 L2 L1 (L.ksb s) p ∧ RegOK s σ p) (hFI : FinInv th (L.mem s) σ G) :
+      MpRegion th G P L4 L3 L2 L1 (L.ksb s) p ∧ RegOK s σ p) (hFI : FinInv th (L.mem s) σ G)
+    (hFR : Vs.FrameInv (L.mem s) G) :
     vspace.decode st ar s a fl4_abi.label.X86ASIDControlMakePool length slot .AsidControl call buf ex ⦃ res =>
       MpDecPost (L := L) P L4 L3 L2 L1 SR σ (ExceptT.run (Fl4Spec.archDecodeInvocation (Z := Unit) slbl
         (args.map UScalar.bv) xs cte .asidControlCap ((uc', (pp.bv, idx)) :: (rc', ysl) :: rest)) σ) s a res ⦄ := by
@@ -935,9 +953,9 @@ theorem makepool_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
         obtain ⟨o, idxd⟩ := dsl
         simp only at hpd1 hpd
         subst hpd1
-        refine WP.spec_mono (mp_perform_rel (L := L) hH s a σ G hPl hSt hSV hM hC hI hU hR hPt hS hVP hPP ct hcur hkt
+        refine WP.spec_mono (mp_perform_rel (L := L) hH s a σ G hPl hSt hSV hM hC hI hU hR hPt hS hVP hPP ct hcur hkt hrun
           htcb hact hpp hidx hsb hcx hch hpd rfl hcd hi hbv (hRg p fi (by rw [hsb])).1 (hRg p fi (by rw [hsb])).2
-          hVO hPO hPV hFI) ?_
+          hVO hPO hPV hFI hFR) ?_
         rintro res ⟨h1, -, hpost⟩
         have hk : ExceptT.run (mpRest a0.bv a1.bv (.untypedCap false p.bv Fl4Spec.pageBits fi.val) (pp.bv, idx) rc'
             (Fl4Spec.ucast Fl4Spec.asidRepLen (Fl4Spec.ucast 11 i.bv : BitVec 11) <<< Fl4Spec.asidLowBits)) σ =

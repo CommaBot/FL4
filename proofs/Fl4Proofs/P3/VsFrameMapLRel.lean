@@ -222,7 +222,7 @@ macro "map_tail_L" : tactic => `(tactic| (
       have hpte := pde_of_make_large (L1 := L1) (vmOk_of hm1 hm3) hpa he
       simp only [paddr_bv, attr_defer, vm_eq (rightsW a1) a1 rfl hmv] at hpte
       have hkt' : σ.kheap ct.bv = some (.tcb xct) := by rw [hcur]; exact hkt
-      refine WP.spec_bind (WP.spec_and (hH.restart s a σ ct xct hSt hSV hR hPt hS hcur hkt')
+      refine WP.spec_bind (WP.spec_and (hH.restart s a σ ct xct hSt hSV hR hPt hS hcur hkt' htcb hact hrun)
         (set_thread_state_slots th hPl s ct sched.TS_RESTART htcb hact)) ?_
       rintro s1 ⟨⟨hSt1, hSV1, hR1, hPt1, hS1, hk1⟩, hSS1⟩
       set σ1 := stsAct (updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv with hσ1
@@ -306,6 +306,7 @@ theorem frame_map_large_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P
     (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ) (hS : SR s a σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : ct.bv = σ.curThread)
     {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct))
+    (hrun : Fl4Spec.runnable xct.tcbState = true)
     (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (f : vspace.FrameCap) (hsz : f.size = .Large) (hfw : CapWf (frameCapOf f)) (hfe : EncWf (frameCapOf f)) (hfcv : CapValid th (frameCapOf f))
     (hfm : f.mapped = true → f.asid ≠ 0#u64)
@@ -614,7 +615,7 @@ macro "map_tail_H" : tactic => `(tactic| (
       have hpte := pdpte_of_make_huge (L2 := L2) (vmOk_of hm1 hm3) hpa he
       simp only [paddr_bv, attr_defer, vm_eq (rightsW a1) a1 rfl hmv] at hpte
       have hkt' : σ.kheap ct.bv = some (.tcb xct) := by rw [hcur]; exact hkt
-      refine WP.spec_bind (WP.spec_and (hH.restart s a σ ct xct hSt hSV hR hPt hS hcur hkt')
+      refine WP.spec_bind (WP.spec_and (hH.restart s a σ ct xct hSt hSV hR hPt hS hcur hkt' htcb hact hrun)
         (set_thread_state_slots th hPl s ct sched.TS_RESTART htcb hact)) ?_
       rintro s1 ⟨⟨hSt1, hSV1, hR1, hPt1, hS1, hk1⟩, hSS1⟩
       set σ1 := stsAct (updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv with hσ1
@@ -698,6 +699,7 @@ theorem frame_map_huge_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P 
     (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ) (hS : SR s a σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : ct.bv = σ.curThread)
     {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct))
+    (hrun : Fl4Spec.runnable xct.tcbState = true)
     (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (f : vspace.FrameCap) (hsz : f.size = .Huge) (hfw : CapWf (frameCapOf f)) (hfe : EncWf (frameCapOf f)) (hfcv : CapValid th (frameCapOf f))
     (hfm : f.mapped = true → f.asid ≠ 0#u64)

@@ -28,7 +28,9 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st]
 structure VsFlushHyps (A : Type) (ar : machine.Arch A) (th : TypedHeap) (P L4 L3 L2 L1 : Set U64)
     (SR : S → A → Fl4Spec.State Unit → Prop) : Prop where
   restart : ∀ s a σ (ct : U64) (x : Fl4Spec.Tcb), UR st th P L4 L3 L2 L1 SR s a σ → ct.bv = σ.curThread →
-    σ.kheap ct.bv = some (.tcb x) →
+    σ.kheap ct.bv = some (.tcb x) → th ct = some .tcb →
+    OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION) →
+    Fl4Spec.runnable x.tcbState = true →
     sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
       UR st th P L4 L3 L2 L1 SR s' a (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ⦄
   flushAllOK : ∀ (σ : Fl4Spec.State Unit) (vs : Fl4Spec.ObjRef) (asid : Fl4Spec.Asid),
@@ -48,7 +50,9 @@ which FL4's `TestAndClearAccessed` omits). -/
 structure VsReplyHyps (A : Type) (th : TypedHeap) (P L4 L3 L2 L1 : Set U64)
     (SR : S → A → Fl4Spec.State Unit → Prop) : Prop where
   restart : ∀ s a σ (ct : U64) (x : Fl4Spec.Tcb), UR st th P L4 L3 L2 L1 SR s a σ → ct.bv = σ.curThread →
-    σ.kheap ct.bv = some (.tcb x) →
+    σ.kheap ct.bv = some (.tcb x) → th ct = some .tcb →
+    OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION) →
+    Fl4Spec.runnable x.tcbState = true →
     sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
       UR st th P L4 L3 L2 L1 SR s' a (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ⦄
   reply : ∀ s a σ (ct : U64) (call : Bool) (v : U64), UR st th P L4 L3 L2 L1 SR s a σ → ct.bv = σ.curThread →
@@ -83,6 +87,8 @@ theorem frame_getaddr_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hU : UR st th P L4 L3 L2 L1 SR s a σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : ct.bv = σ.curThread)
     {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct))
+    (hrun : Fl4Spec.runnable xct.tcbState = true) (htcb : th ct = some .tcb)
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (f : vspace.FrameCap) (length : U64) (slot : obj.Slot) (call : Bool) (buf : U64) (ex : Array obj.Slot 3#usize)
     {slbl : Fl4Spec.Data} (hl : Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageGetAddress)
     (args : List Fl4Spec.Data) (xs : Fl4Spec.CapRef) (cte : Fl4Spec.CslotPtr)
@@ -110,7 +116,7 @@ theorem frame_getaddr_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L
   rw [hct]
   apply ok_bind_spec
   have hkt' : σ.kheap ct.bv = some (.tcb xct) := by rw [hcur]; exact hkt
-  refine WP.spec_bind (hH.restart s a σ ct xct hU hcur hkt') ?_
+  refine WP.spec_bind (hH.restart s a σ ct xct hU hcur hkt' htcb hact hrun) ?_
   intro s1 hU1
   simp only [layout.paddr, bind_ok]
   have hc1 : ct.bv = (stsAct (updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv).curThread := by
@@ -129,6 +135,8 @@ theorem pml4_flush_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hU : UR st th P L4 L3 L2 L1 SR s a σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : ct.bv = σ.curThread)
     {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct))
+    (hrun : Fl4Spec.runnable xct.tcbState = true) (htcb : th ct = some .tcb)
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (p asid : U64) (mp : Bool) (length : U64) (slot : obj.Slot) (call : Bool) (buf : U64)
     (ex : Array obj.Slot 3#usize) :
     vspace.decode st ar s a fl4_abi.label.X86PML4Flush length slot (.Pml4 p mp asid) call buf ex ⦃ res =>
@@ -151,7 +159,7 @@ theorem pml4_flush_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L
     exact (WP.spec_ok _).2 (Or.inl ⟨_, .invalidCapability 0, rfl, Or.inr ⟨0#u64, rfl, rfl⟩, rfl, rfl, rfl⟩)
   · simp only [↓reduceIte]
     have hkt' : σ.kheap ct.bv = some (.tcb xct) := by rw [hcur]; exact hkt
-    refine WP.spec_bind (hH.restart s a σ ct xct hU hcur hkt') ?_
+    refine WP.spec_bind (hH.restart s a σ ct xct hU hcur hkt' htcb hact hrun) ?_
     rintro s1 ⟨hS1, hSt1, hSV1, hR1, hPt1⟩
     refine WP.spec_bind (hH.flushAllH s1 a _ p.bv asid hS1) ?_
     rintro a1 ⟨σ', hσ', hS'⟩

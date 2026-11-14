@@ -47,7 +47,9 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st]
 structure VsInvHyps (A : Type) (th : TypedHeap) (P : Set U64) (SR : S → A → Fl4Spec.State Unit → Prop) : Prop where
   curT : ∀ s a σ, SR s a σ → sched.cur_thread st s ⦃ ct => ct.bv = σ.curThread ⦄
   restart : ∀ s a σ (ct : U64) (x : Fl4Spec.Tcb), StateRel th (L.mem s) σ → SlotsValid th (L.mem s) →
-    VsRel P (L.mem s) (L.ksb s) σ → SR s a σ → ct.bv = σ.curThread → σ.kheap ct.bv = some (.tcb x) →
+    VsRel P (L.mem s) (L.ksb s) σ → SR s a σ → ct.bv = σ.curThread → σ.kheap ct.bv = some (.tcb x) → th ct = some .tcb →
+    OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION) →
+    Fl4Spec.runnable x.tcbState = true →
     sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
       StateRel th (L.mem s') (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
       SlotsValid th (L.mem s') ∧
@@ -149,6 +151,7 @@ theorem assign_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P : Set U6
     (hD : VsSlotsDisj th P (L.ksb s))
     (hSt : StateRel th (L.mem s) σ) (hSV : SlotsValid th (L.mem s)) (hR : VsRel P (L.mem s) (L.ksb s) σ)
     (hS : SR s a σ) {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct))
+    (hrun : Fl4Spec.runnable xct.tcbState = true)
     (ptr base : U64) (hb : base.val % 512 = 0)
     {slbl : Fl4Spec.Data} (hl : Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDPoolAssign)
     (args : List Fl4Spec.Data) (xs : Fl4Spec.CapRef) (cte : Fl4Spec.CslotPtr)
@@ -249,7 +252,7 @@ theorem assign_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P : Set U6
         apply ok_bind_spec
         -- `Restart`
         have hkt' : σ.kheap ct.bv = some (.tcb xct) := by rw [hct]; exact hkt
-        refine WP.spec_bind (WP.spec_and (hH.restart s a σ ct xct hSt hSV hR hS hct hkt')
+        refine WP.spec_bind (WP.spec_and (hH.restart s a σ ct xct hSt hSV hR hS hct hkt' (htcb ct hct) hact hrun)
           (set_thread_state_slots th hPl s ct sched.TS_RESTART (htcb ct hct) hact)) ?_
         rintro s1 ⟨⟨hSt1, hSV1, hR1, hS1, hk1⟩, hSS1⟩
         set σ1 := stsAct (updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv with hσ1

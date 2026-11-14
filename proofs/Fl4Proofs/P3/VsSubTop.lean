@@ -96,15 +96,17 @@ set_option maxHeartbeats 4000000 in
 relation (see the module docstring). -/
 theorem restart_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (ct : U64) (x : Fl4Spec.Tcb) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ)
-    (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
+    (hR : VsRel P (L.mem s) (L.ksb s) σ)
     (hcur : ct.bv = σ.curThread) (hk : σ.kheap ct.bv = some (.tcb x))
     (hrun : Fl4Spec.runnable x.tcbState = true) :
     sched.set_thread_state st s ct sched.TS_RESTART ⦃ s' =>
       VsRel P (L.mem s') (L.ksb s') (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      PtRel L4 L3 L2 L1 (L.mem s') (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
+      (PtRel L4 L3 L2 L1 (L.mem s) σ →
+        PtRel L4 L3 L2 L1 (L.mem s') (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv)) ∧
       TopSR st th P L4 L3 L2 L1 N T C E R B c AR s' a
         (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧
-      L.ksb s' = L.ksb s ⦄ := by
+      L.ksb s' = L.ksb s ∧
+      ∀ b, Aligned b → VObj th P L4 L3 L2 L1 (L.ksb s) b → L.mem s' b = L.mem s b ⦄ := by
   obtain ⟨⟨hSch, hEp, hNt, hIrq, hIo, hKr, hAr⟩, hP⟩ := hS
   obtain ⟨Q, R0, hc, hs⟩ := hSch.lists
   have hT : ct ∈ T := by
@@ -170,7 +172,7 @@ theorem restart_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (a : A)
       (by rw [harch]) (fun p hp => hkp _ (fun y hy => ?_))
     obtain ⟨f, hf, -⟩ := hR.pool p hp
     rw [hf] at hy; cases hy
-  have hPt' : PtRel L4 L3 L2 L1 (L.mem s') σ1 := by
+  have hPt' : PtRel L4 L3 L2 L1 (L.mem s) σ → PtRel L4 L3 L2 L1 (L.mem s') σ1 := fun hPt => by
     refine hPt.frame (fun b hb => hmV b (PtWAll.aligned hP.pt hb) ?_) (fun q hq => hkp _ (fun y hy => ?_))
     · obtain ⟨q, hq, i, hi, rfl⟩ := hb
       exact table_vobj hP.pt hq hi _
@@ -197,10 +199,11 @@ theorem restart_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (a : A)
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
     rw [hksb, hmK _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega), harch]
     exact hKr
-  refine ⟨hVs, hPt', ⟨⟨hS', hEp', hN', ?_, ?_, hKr', by rw [harch]; exact hAr⟩, ?_⟩, hksb⟩
+  refine ⟨hVs, hPt', ⟨⟨hS', hEp', hN', ?_, ?_, hKr', by rw [harch]; exact hAr⟩, ?_⟩, hksb, hmV⟩
   · rw [hksb]; exact IrqRel.ksFrame hIrq hkf hka hmK hist hinode
   · rw [hksb]; exact IoRel.ksFrame hIo hkf hka hmK (by rw [harch])
-  · refine ⟨hP.ep, by rw [hksb]; exact hP.vs, hP.pt, hP.pl, fun y hy => ?_, fun y h1 h2 => ?_⟩
+  · refine ⟨hP.ep, by rw [hksb]; exact hP.vs, hP.pt, hP.pl, fun y hy => ?_, fun y h1 h2 => ?_, hP.po, hP.ps,
+      by rw [hksb]; exact hP.pv, by rw [hksb]; exact hP.vo, by rw [hksb]; exact hP.sd⟩
     · rw [hksb]
       refine hP.disj y (OObj.of_kh hksb (fun q z n hq => ?_) hy)
       rw [hσ1, Notif.stsAct_kheap, Notif.updK_kheap] at hq
@@ -213,7 +216,8 @@ theorem restart_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (a : A)
 /-- **`VsSubHyps` for the composite relation.** -/
 theorem vsSubHyps_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} :
     VsSubHyps st A P L4 L3 L2 L1 th (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) where
-  restart := fun s a σ ct x hS hR hPt hcur hk hrun => restart_top s a σ ct x hS hR hPt hcur hk hrun
+  restart := fun s a σ ct x hS hR hPt hcur hk hrun =>
+    WP.spec_mono (restart_top s a σ ct x hS hR hcur hk hrun) fun _ h => ⟨h.1, h.2.1 hPt, h.2.2.1, h.2.2.2.1⟩
   insStable := fun s s' a σ σ' hS hw hI => insStable_top s s' a σ σ' hS hw hI
 
 end

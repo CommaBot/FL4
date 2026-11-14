@@ -70,6 +70,14 @@ structure TopPlaced (th : TypedHeap) (P L4 L3 L2 L1 N T C E R : Set U64) (B : Se
   /-- The core's node holds no endpoint-relation word (the scheduler action
   word that `set_thread_state` may write). -/
   nodeE : ∀ a : U64, L.nodeBase s c ≤ a.val → a.val < L.nodeBase s c + 4288 → ¬ Endp.EFoot T E R B a
+  /-- The VSpace placement: the page-table words are outside the objects (so
+  neither slot words nor ASID-table or pool words), and the ASID-table and
+  pool words are outside the objects. -/
+  po : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b
+  ps : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ SlotW th b
+  pv : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b
+  vo : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b
+  sd : VsSlotsDisj th P (L.ksb s)
 
 /-- FL4's kernel root word (`ks::KERNEL_ROOT`) gives the spec's global
 address space. -/
@@ -306,7 +314,8 @@ theorem TopSR.step {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Rg : Fl4Spec.Ob
       rw [hksb]; exact hP.disj x (OObj.of_step hksb hO hx),
       fun x h1 h2 => by
         have hnb : L.nodeBase s' c = L.nodeBase s c := by simp [LawfulStore.nodeBase, hksb]
-        rw [hnb] at h1 h2; exact hP.nodeE x h1 h2⟩⟩
+        rw [hnb] at h1 h2; exact hP.nodeE x h1 h2,
+      hP.po, hP.ps, by rw [hksb]; exact hP.pv, by rw [hksb]; exact hP.vo, by rw [hksb]; exact hP.sd⟩⟩
   unfold KRootRel globCr3 at hKr ⊢
   have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
     unfold layout.ks.KERNEL_ROOT
