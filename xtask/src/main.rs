@@ -486,8 +486,10 @@ fn sel4test_build(o: &Opts, fl4test: bool) -> PathBuf {
     if fs::symlink_metadata(&link).is_err() && !upstream() {
         std::os::unix::fs::symlink(root().join("fl4test/fl4test.c"), &link).unwrap();
     }
-    // perf.c and fuzz.c use only the seL4 API: both kernels build them.
-    for (src, dst) in [("perf.c", "fl4perf.c"), ("fuzz.c", "fl4fuzz.c")] {
+    // perf.c, fuzz.c and upstream.c use only the seL4 API: both kernels
+    // build them.
+    let extra = [("perf.c", "fl4perf.c"), ("fuzz.c", "fl4fuzz.c"), ("upstream.c", "fl4upstream.c")];
+    for (src, dst) in extra {
         let l = ws.join("projects/sel4test/apps/sel4test-tests/src/tests").join(dst);
         if fs::symlink_metadata(&l).is_err() {
             std::os::unix::fs::symlink(root().join("fl4test").join(src), &l).unwrap();
@@ -532,10 +534,13 @@ fn sel4test_build(o: &Opts, fl4test: bool) -> PathBuf {
         run(&mut c);
     }
     // A build configured with another test filter (or before fl4test
-    // existed) gets the one this run wants.
+    // existed) gets the one this run wants; a new test file needs CMake
+    // to glob the sources again.
     let regex = only.clone().unwrap_or_else(|| SEL4TEST_REGEX.into());
     let cache = fs::read_to_string(b.join("CMakeCache.txt")).unwrap_or_default();
-    if !cache.contains(&format!("LibSel4TestPrinterRegex:STRING={regex}\n")) {
+    let ninja = fs::read_to_string(b.join("build.ninja")).unwrap_or_default();
+    let unglobbed = extra.iter().any(|(_, dst)| !ninja.contains(dst));
+    if unglobbed || !cache.contains(&format!("LibSel4TestPrinterRegex:STRING={regex}\n")) {
         let mut c = Command::new("cmake");
         c.current_dir(&b).arg(format!("-DLibSel4TestPrinterRegex={regex}")).arg(".");
         python_env(&mut c);
