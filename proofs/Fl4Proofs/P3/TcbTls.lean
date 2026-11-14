@@ -194,8 +194,8 @@ theorem tcb_set_tls_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (
   have hdec0 : (specDec false slbl (args.map UScalar.bv) ci sl (.Thread p) excaps buffer) =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
         (Fl4Spec.decodeSetTlsBase (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv)) := by
-    show Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
-      (Fl4Spec.decodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) sl excaps) = _
+    show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) sl excaps buffer = _
+    rw [fl4DecodeTcb_spec (by rw [hlbl]; decide) (by rw [hlbl]; decide)]
     unfold Fl4Spec.decodeTcbInvocation
     rw [hlbl]
   unfold TcbOK tcb.decode

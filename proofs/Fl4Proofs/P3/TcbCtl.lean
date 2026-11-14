@@ -242,8 +242,8 @@ theorem tcb_set_timeout_refines (th : TypedHeap) (hP : Placed th) (hT : TcHyps (
   have hdec0 : specDec false slbl args ci ssl (.Thread p) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
         (Fl4Spec.decodeSetTimeoutEp (Z := Unit) (.threadCap p.bv) ssl excaps) := by
-    show Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
-      (Fl4Spec.decodeTcbInvocation (Z := Unit) slbl args (.threadCap p.bv) ssl excaps) = _
+    show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl args (.threadCap p.bv) ssl excaps buffer = _
+    rw [fl4DecodeTcb_spec (by rw [hlbl]; decide) (by rw [hlbl]; decide)]
     unfold Fl4Spec.decodeTcbInvocation
     rw [hlbl]
   unfold TcbOK
@@ -441,8 +441,8 @@ theorem tcb_set_ipc_refines (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L :=
   have hdec0 : specDec false slbl (args.map UScalar.bv) ci ssl (.Thread p) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
         (Fl4Spec.decodeSetIpcBuffer (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv) ssl excaps) := by
-    show Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
-      (Fl4Spec.decodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) ssl excaps) = _
+    show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) ssl excaps buffer = _
+    rw [fl4DecodeTcb_spec (by rw [hlbl]; decide) (by rw [hlbl]; decide)]
     unfold Fl4Spec.decodeTcbInvocation
     rw [hlbl]
   unfold TcbOK
@@ -1017,8 +1017,8 @@ theorem tcb_set_space_refines (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L 
   have hdec0 : specDec false slbl (args.map UScalar.bv) ci ssl (.Thread p) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
         (Fl4Spec.decodeSetSpace (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv) ssl excaps) := by
-    show Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
-      (Fl4Spec.decodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) ssl excaps) = _
+    show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) ssl excaps buffer = _
+    rw [fl4DecodeTcb_spec (by rw [hlbl]; decide) (by rw [hlbl]; decide)]
     unfold Fl4Spec.decodeTcbInvocation
     rw [hlbl]
   unfold TcbOK
@@ -1282,8 +1282,8 @@ theorem tcb_configure_refines (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L 
   have hdec0 : specDec false slbl (args.map UScalar.bv) ci ssl (.Thread p) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
         (Fl4Spec.decodeTcbConfigure (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv) ssl excaps) := by
-    show Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
-      (Fl4Spec.decodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) ssl excaps) = _
+    show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) ssl excaps buffer = _
+    rw [fl4DecodeTcb_spec (by rw [hlbl]; decide) (by rw [hlbl]; decide)]
     unfold Fl4Spec.decodeTcbInvocation
     rw [hlbl]
   unfold TcbOK
@@ -1502,8 +1502,8 @@ theorem tcb_read_regs_refines (th : TypedHeap) (hP : Placed th)
   have hdec0 : specDec false slbl (args.map UScalar.bv) ci sl (.Thread p) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
         (Fl4Spec.decodeReadRegisters (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv)) := by
-    show Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
-      (Fl4Spec.decodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) sl excaps) = _
+    show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) sl excaps buffer = _
+    rw [fl4DecodeTcb_spec (by rw [hlbl]; decide) (by rw [hlbl]; decide)]
     unfold Fl4Spec.decodeTcbInvocation
     rw [hlbl]
   unfold TcbOK
@@ -1634,8 +1634,8 @@ theorem tcb_write_regs_refines (th : TypedHeap) (hP : Placed th)
   have hdec0 : specDec false slbl (args.map UScalar.bv) ci sl (.Thread p) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
         (Fl4Spec.decodeWriteRegisters (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv)) := by
-    show Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
-      (Fl4Spec.decodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) sl excaps) = _
+    show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) sl excaps buffer = _
+    rw [fl4DecodeTcb_spec (by rw [hlbl]; decide) (by rw [hlbl]; decide)]
     unfold Fl4Spec.decodeTcbInvocation
     rw [hlbl]
   unfold TcbOK
@@ -1795,8 +1795,8 @@ theorem tcb_copy_regs_refines (th : TypedHeap) (hP : Placed th)
   have hdec0 : specDec false slbl (args.map UScalar.bv) ci ssl (.Thread p) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
         (Fl4Spec.decodeCopyRegisters (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv) (excaps.map Prod.fst)) := by
-    show Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
-      (Fl4Spec.decodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) ssl excaps) = _
+    show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) ssl excaps buffer = _
+    rw [fl4DecodeTcb_spec (by rw [hlbl]; decide) (by rw [hlbl]; decide)]
     unfold Fl4Spec.decodeTcbInvocation
     rw [hlbl]
   unfold TcbOK
@@ -1908,6 +1908,7 @@ theorem tcb_decode_cspace (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L := L
     (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
     (lbl p : U64) (hp : th p = some .tcb) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = tcbLabelOf lbl)
+    (hext : Fl4Spec.genInvocationType slbl = .invalidInvocation → Fl4Spec.fl4TcbExtLabelOf slbl = tcbExtOf lbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
@@ -1961,7 +1962,7 @@ theorem tcb_decode_cspace (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L := L
     TcbOK (L := L) arI s ar σ lbl p ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl
       (args.map UScalar.bv) ci ssl excaps buffer := by
   have hstall := hstall' p
-  refine tcb_decode_refines arI s ar σ lbl p _ blk call don slbl hlbl _ ci ssl excaps buffer hstall
+  refine tcb_decode_refines arI s ar σ lbl p _ blk call don slbl hlbl _ ci ssl excaps buffer hext hstall
     ?_ ?_ ?_ ?_ hSetPriority hSetMCPriority hSetSchedParams ?_ ?_ ?_ hSuspend hResume hBindNotification
     hUnbindNotification hSetBreakpoint hGetBreakpoint hUnsetBreakpoint hConfigureSingleStepping ?_ hSetFlags
     hReadFPU hWriteFPU hSetTimer

@@ -355,9 +355,23 @@ details.
   `invokeFl4IrqControl`, with the invocations `Fl4IrqControlInvocation`.
 - **`Ext/VSpace`: l4h VSpace extensions** (PML4 flush, TestAndClearAccessed,
   DeriveSubframe), as separate decoders and invocations.
+- **`Ext/Tcb`: FL4's TCB extensions**, modelled on FL4's Rust
+  (`tcb.rs`): seL4's debug API (`TCBSetBreakpoint`, `TCBGetBreakpoint`,
+  `TCBUnsetBreakpoint`, `TCBConfigureSingleStepping`; not in l4v), l4h's
+  FPU transfer (`TCBReadFPU`, `TCBWriteFPU`) and timer (`TCBSetTimer`),
+  and FL4's `TCBSetFlags`. The decoders are FL4's checks in FL4's order;
+  FL4 reads these arguments whatever the message length, which
+  `fl4GetMr` (FL4's `syscall_arg` on the spec's state) models. The debug
+  registers, the FPU image and the l4h timer queue are not in the model:
+  those invocations change no state but the frame ReadFPU writes (any
+  machine state), and their replies are any value of the right shape.
+  FL4's SetFlags differs from l4v's: the `TRAP_SYSCALLS` flag (l4h) is not
+  an l4v `TcbFlag`, so it is not kept and the reply is any word of the new
+  flags, and an enabled FPU is not restored lazily
+  (`arch_post_set_flags`'s `lazy_fpu_restore`).
 - **`Ext/Invocation`: the invocation dispatcher.** `fl4DecodeInvocation` and
   `fl4PerformInvocation` are `decode_invocation` (Decode_A) and
-  `perform_invocation` (Syscall_A) with exactly three substitutions:
+  `perform_invocation` (Syscall_A) with exactly four substitutions:
   untyped caps use `fl4DecodeUntypedInvocation` / `fl4InvokeUntyped`; the
   IRQControl cap uses `decodeFl4IrqControl` / `invokeFl4IrqControl`; arch
   caps use `fl4ArchDecodeInvocation` / `fl4ArchPerformInvocation`, which are
@@ -367,8 +381,11 @@ details.
   `Page_TestAndClearAccessed` on a frame cap). Their invocation type
   `Fl4Invocation` is l4v's `invocation` with `InvokeIRQControl` carrying an
   `Fl4IrqControlInvocation` and `InvokeArchObject` an `Fl4ArchInvocation`
-  (l4v's arch invocations and the l4h ones). Every other cap goes to l4v's
-  decoder and invocation, unchanged.
+  (l4v's arch invocations and the l4h ones); thread caps use
+  `fl4DecodeTcbInvocation`, which is `decode_tcb_invocation` except that
+  `TCBSetFlags` and the `Ext/Tcb` extension labels go to their decoders,
+  with the invocation `InvokeFl4TCB` (`invokeFl4Tcb`). Every other cap goes
+  to l4v's decoder and invocation, unchanged.
   `fl4HandleInvocation` is `handle_invocation` (Syscall_A) with this
   dispatcher, unchanged otherwise.
 - **l4h label numbers.** The l4h labels are not l4v labels. The dispatcher
@@ -377,17 +394,11 @@ details.
   `IRQIssueIRQHandlerIOAPICRemapped` is `fl4RemappedLabel`, then
   `X64PML4Flush` (`fl4Pml4FlushLabel`), `Page_DeriveSubframe`
   (`fl4DeriveSubframeLabel`), `Page_TestAndClearAccessed`
-  (`fl4TestAndClearLabel`). How FL4's ABI labels map to these numbers is a
+  (`fl4TestAndClearLabel`), then the TCB extension labels
+  (`fl4TcbExtLabelNum`: SetBreakpoint, GetBreakpoint, UnsetBreakpoint,
+  ConfigureSingleStepping, ReadFPU, WriteFPU, SetTimer, from
+  `fl4RemappedLabel + 4`). How FL4's ABI labels map to these numbers is a
   hypothesis of each refinement.
-- **Known gap: FL4's TCB extension labels.** FL4's TCB labels
-  `TCBSetBreakpoint`, `TCBGetBreakpoint`, `TCBUnsetBreakpoint`,
-  `TCBConfigureSingleStepping` (seL4's debug API, which l4v does not
-  model), `TCBReadFPU`, `TCBWriteFPU` and `TCBSetTimer` (l4h) have no
-  counterpart in `decodeTcbInvocation`, which
-  returns `IllegalOperation` for them. The dispatcher has no extension for
-  them yet, so their refinements remain hypotheses
-  (`tcb_decode_refines`, `Fl4Proofs/P3/TcbDecode.lean`).
-
 ## Platform constants
 
 FL4 fixes some of Kernel_Config's unspecified constants at build time. The

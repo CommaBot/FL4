@@ -4,7 +4,8 @@ dispatcher**.
 
 `fl4DecodeInvocation` and `fl4PerformInvocation` are l4v's
 `decode_invocation` (Decode_A) and `perform_invocation` (Syscall_A) with
-exactly three substitutions, FL4's untyped, IRQControl and arch functions:
+exactly four substitutions, FL4's untyped, IRQControl, arch and TCB
+functions:
 
 1. untyped caps: `fl4DecodeUntypedInvocation` and `fl4InvokeUntyped`
    (4 KiB TCBs, `Ext/TcbSize`) for `decode_untyped_invocation` and
@@ -26,6 +27,14 @@ exactly three substitutions, FL4's untyped, IRQControl and arch functions:
    (`fl4Pml4FlushLabel`, `fl4DeriveSubframeLabel`,
    `fl4TestAndClearLabel`).
 
+4. thread caps: `fl4DecodeTcbInvocation` for `decode_tcb_invocation`,
+   which is l4v's except for FL4's TCB extensions (`Ext/Tcb`): the label
+   `TCBSetFlags` goes to FL4's `decodeFl4SetFlags`, and the extension
+   labels (seL4's debug API, l4h's FPU transfer and timer), numbered after
+   the l4h VSpace labels (`fl4TcbExtLabelNum`), to their decoders
+   (`decodeFl4TcbExt`); their invocations are `invokeFl4TCB`
+   (`invokeFl4Tcb`).
+
 `fl4HandleInvocation` is l4v's `handle_invocation` (Syscall_A) with this
 dispatcher.
 
@@ -41,6 +50,7 @@ import Fl4Spec.Syscall
 import Fl4Spec.Ext.TcbSize
 import Fl4Spec.Ext.IrqControl
 import Fl4Spec.Ext.VSpace
+import Fl4Spec.Ext.Tcb
 
 namespace Fl4Spec
 
@@ -61,6 +71,25 @@ def fl4DeriveSubframeLabel : Nat := fl4RemappedLabel + 2
 /-- l4h: the label number of `X86PageTestAndClearAccessed`. -/
 def fl4TestAndClearLabel : Nat := fl4RemappedLabel + 3
 
+/-- The label number of an FL4 TCB extension label, after the l4h VSpace
+labels, in FL4's ABI order. -/
+def fl4TcbExtLabelNum : Fl4TcbExtLabel → Nat
+  | .setBreakpoint => fl4RemappedLabel + 4
+  | .getBreakpoint => fl4RemappedLabel + 5
+  | .unsetBreakpoint => fl4RemappedLabel + 6
+  | .configureSingleStepping => fl4RemappedLabel + 7
+  | .readFpu => fl4RemappedLabel + 8
+  | .writeFpu => fl4RemappedLabel + 9
+  | .setTimer => fl4RemappedLabel + 10
+
+/-- The FL4 TCB extension label of a message label not in l4v's
+enumeration, if any. -/
+def fl4TcbExtLabelOf (label : Data) : Option Fl4TcbExtLabel :=
+  if genInvocationType label = .invalidInvocation then
+    [Fl4TcbExtLabel.setBreakpoint, .getBreakpoint, .unsetBreakpoint, .configureSingleStepping, .readFpu,
+      .writeFpu, .setTimer].find? fun l => decide (dataToNat label = fl4TcbExtLabelNum l)
+  else none
+
 /-- FL4's arch invocations: l4v's, and the l4h VSpace ones. -/
 inductive Fl4ArchInvocation where
   | spec (i : ArchInvocation)
@@ -77,6 +106,7 @@ inductive Fl4Invocation where
   | invokeNotification (ntfn : ObjRef) (badge : Word)
   | invokeReply (reply : ObjRef) (canGrant : Bool)
   | invokeTCB (i : TcbInvocation)
+  | invokeFl4TCB (i : Fl4TcbInvocation)
   | invokeDomain (i : DomainInvocation)
   | invokeSchedContext (i : SchedContextInvocation)
   | invokeSchedControl (i : SchedControlInvocation)
@@ -114,10 +144,20 @@ def fl4ArchPerformInvocation : Fl4ArchInvocation → PMonad Z (List Data)
   | .deriveSubframe i => NonDetE.liftE <| archNoReturn <| performDeriveSubframe i
   | .testAndClearAccessed slot => NonDetE.liftE <| performTestAndClearAccessed slot
 
-/-- l4v: Decode_A.decode_invocation, with FL4's untyped, IRQControl and arch
-decoders. -/
+/-- l4v: Decode_A.decode_tcb_invocation, with FL4's TCB extensions
+(`Ext/Tcb`): FL4's `SetFlags`, and the extension labels. -/
+def fl4DecodeTcbInvocation (label : Data) (args : List Data) (cap : Cap) (slot : CslotPtr)
+    (excaps : List (Cap × CslotPtr)) (buffer : Option ObjRef) : SEMonad Z Fl4Invocation :=
+  if genInvocationType label = .tcbSetFlags then
+    NonDetE.liftME Fl4Invocation.invokeFl4TCB <| decodeFl4SetFlags args (objRefOf cap)
+  else match fl4TcbExtLabelOf label with
+    | some l => NonDetE.liftME Fl4Invocation.invokeFl4TCB <| decodeFl4TcbExt l args (objRefOf cap) excaps buffer
+    | none => NonDetE.liftME Fl4Invocation.invokeTCB <| decodeTcbInvocation label args cap slot excaps
+
+/-- l4v: Decode_A.decode_invocation, with FL4's untyped, IRQControl, TCB and
+arch decoders. -/
 def fl4DecodeInvocation (firstPhase : Bool) (label : Data) (args : List Data) (capIndex : CapRef)
-    (slot : CslotPtr) (cap : Cap) (excaps : List (Cap × CslotPtr)) (_buffer : Option ObjRef) :
+    (slot : CslotPtr) (cap : Cap) (excaps : List (Cap × CslotPtr)) (buffer : Option ObjRef) :
     SEMonad Z Fl4Invocation :=
   match cap with
   | .endpointCap ptr badge rights =>
@@ -140,7 +180,7 @@ def fl4DecodeInvocation (firstPhase : Bool) (label : Data) (args : List Data) (c
   | .threadCap _ptr =>
     if firstPhase
     then NonDetE.throwError <| .invalidCapability 0
-    else NonDetE.liftME Fl4Invocation.invokeTCB <| decodeTcbInvocation label args cap slot excaps
+    else fl4DecodeTcbInvocation label args cap slot excaps buffer
   | .domainCap =>
     if firstPhase
     then NonDetE.throwError <| .invalidCapability 0
@@ -184,6 +224,7 @@ def fl4PerformInvocation : Bool → Bool → Bool → Fl4Invocation → PMonad Z
     withoutPreemption <| sendSignal ep badge
     NonDetE.returnOk []
   | _, _, _, .invokeTCB i => invokeTcb i
+  | _, _, _, .invokeFl4TCB i => invokeFl4Tcb i
   | _, _, _, .invokeDomain domInv =>
     NonDetE.liftE (do
       invokeDomain domInv

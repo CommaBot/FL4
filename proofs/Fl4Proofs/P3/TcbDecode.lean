@@ -10,9 +10,10 @@ directory (`TcbTls`, `TcbCtl`: `tcb_decode_cspace`), the scheduler-side ones (Se
 SetMCPriority, SetSchedParams, Suspend, Resume, Bind/UnbindNotification,
 the scheduling part of Configure) by the scheduler's proofs. Every other
 label is the spec's `IllegalOperation` (proved). The FL4 debug and l4h
-labels (breakpoints, single stepping, FPU, TCB timers) are FL4 extensions
-the spec's `decode_tcb_invocation` does not have: their hypotheses need an
-extension of the dispatcher to be dischargeable. The cross-core stall of
+labels (breakpoints, single stepping, FPU, TCB timers) and FL4's SetFlags
+go to the dispatcher's extension decoders (`fl4DecodeTcbInvocation`,
+`Ext/Tcb`; the extension label of the message is `hext`), discharged in
+`TcbExt` (`tcb_decode_ext`). The cross-core stall of
 the target (`smp::remote_tcb_stall`) is the hypothesis `hstall` (a no-op
 for a thread of the current core).
 -/
@@ -54,6 +55,33 @@ every other label, are not l4v TCB labels). -/
 def tcbLabelOf (lbl : U64) : Fl4Spec.GenInvocationLabels :=
   if lbl.val = 2 then .tcbReadRegisters else if lbl.val = 3 then .tcbWriteRegisters else if lbl.val = 4 then .tcbCopyRegisters else if lbl.val = 5 then .tcbConfigure else if lbl.val = 6 then .tcbSetPriority else if lbl.val = 7 then .tcbSetMCPriority else if lbl.val = 8 then .tcbSetSchedParams else if lbl.val = 9 then .tcbSetTimeoutEndpoint else if lbl.val = 10 then .tcbSetIPCBuffer else if lbl.val = 11 then .tcbSetSpace else if lbl.val = 12 then .tcbSuspend else if lbl.val = 13 then .tcbResume else if lbl.val = 14 then .tcbBindNotification else if lbl.val = 15 then .tcbUnbindNotification else if lbl.val = 20 then .tcbSetTLSBase else if lbl.val = 21 then .tcbSetFlags else .invalidInvocation
 
+/-- The spec's TCB extension label of an FL4 label (the debug API and the
+l4h labels; the dispatcher's `fl4TcbExtLabelOf` of the message label is
+this, a hypothesis of each refinement). -/
+def tcbExtOf (lbl : U64) : Option Fl4Spec.Fl4TcbExtLabel :=
+  if lbl.val = 16 then some .setBreakpoint else if lbl.val = 17 then some .getBreakpoint
+  else if lbl.val = 18 then some .unsetBreakpoint else if lbl.val = 19 then some .configureSingleStepping
+  else if lbl.val = 22 then some .readFpu else if lbl.val = 23 then some .writeFpu
+  else if lbl.val = 24 then some .setTimer else none
+
+/-- FL4's TCB decoder is l4v's on an l4v label but `SetFlags`. -/
+theorem fl4DecodeTcb_spec {label : Fl4Spec.Data} (h1 : Fl4Spec.genInvocationType label ≠ .tcbSetFlags)
+    (h2 : Fl4Spec.genInvocationType label ≠ .invalidInvocation) {args : List Fl4Spec.Data} {cap : Fl4Spec.Cap}
+    {slot : Fl4Spec.CslotPtr} {excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {buffer : Option Fl4Spec.ObjRef} :
+    Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) label args cap slot excaps buffer =
+      Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB (Fl4Spec.decodeTcbInvocation label args cap slot excaps) := by
+  unfold Fl4Spec.fl4DecodeTcbInvocation Fl4Spec.fl4TcbExtLabelOf
+  rw [if_neg h1, if_neg h2]
+
+/-- FL4's TCB decoder is l4v's off its extension labels and `SetFlags`. -/
+theorem fl4DecodeTcb_spec' {label : Fl4Spec.Data} (h1 : Fl4Spec.genInvocationType label ≠ .tcbSetFlags)
+    (h2 : Fl4Spec.fl4TcbExtLabelOf label = none) {args : List Fl4Spec.Data} {cap : Fl4Spec.Cap}
+    {slot : Fl4Spec.CslotPtr} {excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {buffer : Option Fl4Spec.ObjRef} :
+    Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) label args cap slot excaps buffer =
+      Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB (Fl4Spec.decodeTcbInvocation label args cap slot excaps) := by
+  unfold Fl4Spec.fl4DecodeTcbInvocation
+  rw [if_neg h1, h2]
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
@@ -72,6 +100,7 @@ theorem tcb_decode_refines (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl p : U
     (blk call don : Bool) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = tcbLabelOf lbl)
     (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
+    (hext : Fl4Spec.genInvocationType slbl = .invalidInvocation → Fl4Spec.fl4TcbExtLabelOf slbl = tcbExtOf lbl)
     (hstall : smp.remote_tcb_stall st arI s ar p = ok (s, ar))
     (hReadRegisters : lbl = fl4_abi.label.TCBReadRegisters →
       TcbOK (L := L) arI s ar σ lbl p c blk call don slbl args ci sl excaps buffer)
@@ -173,8 +202,8 @@ theorem tcb_decode_refines (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl p : U
   simp only [bind_ok, u64_eq_iff, lbl_tcbReadRegisters_val, lbl_tcbWriteRegisters_val, lbl_tcbCopyRegisters_val, lbl_tcbConfigure_val, lbl_tcbSetPriority_val, lbl_tcbSetMCPriority_val, lbl_tcbSetSchedParams_val, lbl_tcbSetTimeoutEndpoint_val, lbl_tcbSetIPCBuffer_val, lbl_tcbSetSpace_val, lbl_tcbSuspend_val, lbl_tcbResume_val, lbl_tcbBindNotification_val, lbl_tcbUnbindNotification_val, lbl_tcbSetBreakpoint_val, lbl_tcbGetBreakpoint_val, lbl_tcbUnsetBreakpoint_val, lbl_tcbConfigureSingleStepping_val, lbl_tcbSetTLSBase_val, lbl_tcbSetFlags_val, lbl_tcbReadFPU_val, lbl_tcbWriteFPU_val, lbl_tcbSetTimer_val,
     h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, h16, h17, h18, h19, h20, h21, h22, h23, h24, ↓reduceIte]
   refine (WP.spec_ok _).2 (Or.inl ⟨_, rfl, rfl, .illegalOperation, ?_, Or.inl trivial⟩)
-  show (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
-    (Fl4Spec.decodeTcbInvocation (Z := Unit) slbl args (.threadCap p.bv) sl excaps)).run σ = _
+  show (Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl args (.threadCap p.bv) sl excaps buffer).run σ = _
+  rw [fl4DecodeTcb_spec' (by rw [hg]; decide) (by rw [hext hg]; simp [tcbExtOf, h16, h17, h18, h19, h22, h23, h24])]
   apply run_liftME_err
   unfold Fl4Spec.decodeTcbInvocation
   rw [hg]
