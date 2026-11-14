@@ -121,6 +121,8 @@ struct Conc {
     gate_held: Vec<AtomicBool>,
     /// Cores that have run all their steps.
     out_of_steps: AtomicU64,
+    /// Per core: reads its transaction made since it was doomed.
+    zombie: Vec<AtomicU64>,
     check: Mutex<Checker>,
     /// Per core: the current transaction's reads from memory, and its own
     /// writes.
@@ -225,6 +227,18 @@ thread_local! {
 /// livelocked or deadlocked (DESIGN.md §10, liveness oracle).
 const SPIN_LIMIT: u64 = 2_000_000;
 
+/// Reads a doomed transaction may make before it reaches commit, which
+/// gives it up (liveness oracle). A doomed transaction reads 0 from every
+/// word and drops its writes, so the kernel code runs on zeros: every loop
+/// must still end on that input, or the core never leaves the entry and
+/// the serial gate waits for it forever (GitHub issue #5).
+const ZOMBIE_LIMIT: u64 = 1_000_000;
+
+/// `--doom-reads K`: each read of a transaction dooms it with probability
+/// 1/K, as a conflict with another core's commit does, so the rest of the
+/// entry runs on zeros.
+static DOOM_READS: AtomicU64 = AtomicU64::new(0);
+
 impl Conc {
     /// `pct`: run PCT of that depth over about `points` scheduling points.
     fn new(n: u64, seed: u64, pct: Option<(u64, u64)>, tso: bool, explore: Option<Vec<u64>>) -> Conc {
@@ -253,6 +267,7 @@ impl Conc {
             in_kernel: (0..n).map(|_| AtomicBool::new(false)).collect(),
             gate_held: (0..n).map(|_| AtomicBool::new(false)).collect(),
             out_of_steps: AtomicU64::new(0),
+            zombie: (0..n).map(|_| AtomicU64::new(0)).collect(),
             check: Mutex::new(Checker::default()),
             rlog: (0..n).map(|_| Mutex::new(Vec::new())).collect(),
             wlog: (0..n).map(|_| Mutex::new(HashMap::new())).collect(),
@@ -587,6 +602,19 @@ impl tx::Mem for SimStore {
 impl Store for SimStore {
     fn read(&self, addr: u64) -> u64 {
         if self.tx {
+            if let Some(c) = &self.conc {
+                let z = &c.zombie[self.cpu as usize];
+                if tx::doomed(self.cpu) {
+                    let n = z.fetch_add(1, Ordering::Relaxed) + 1;
+                    assert!(n < ZOMBIE_LIMIT, "liveness: core {} read {ZOMBIE_LIMIT} words after its transaction was doomed, without reaching commit", self.cpu);
+                } else {
+                    z.store(0, Ordering::Relaxed);
+                    let k = DOOM_READS.load(Ordering::Relaxed);
+                    if k != 0 && c.baton.lock().unwrap().rng.below(k) == 0 {
+                        tx::doom_serial(self.cpu);
+                    }
+                }
+            }
             let v = tx::read(self.cpu, self, addr);
             self.log_read(addr, v);
             v
@@ -646,6 +674,8 @@ enum Effect {
     Deadline(u64),
     Reschedule(u64),
     Putc(u8),
+    /// End of interrupt: the in-service interrupt is done.
+    Ack,
 }
 
 /// Per-core machine state.
@@ -657,8 +687,14 @@ struct Core {
     /// Inside a transaction: Arch effects are queued.
     tx: bool,
     effects: Vec<Effect>,
-    /// An interrupt taken during the current entry.
+    /// An interrupt taken during the current entry, and whether the
+    /// current run of the entry was given it.
     held_irq: Option<u64>,
+    held_used: bool,
+    /// The interrupt the local APIC has accepted and not yet seen an EOI
+    /// for. Until then it blocks interrupts of its priority class and
+    /// below, the timer and IPIs among them (GitHub issue #6).
+    in_service: Option<u64>,
 }
 
 struct Machine {
@@ -712,6 +748,7 @@ impl SimArch {
                 }
             }
             Effect::Putc(b) => self.m.lock().unwrap().console.push(b),
+            Effect::Ack => self.m.lock().unwrap().cores[self.cpu as usize].in_service = None,
         }
     }
 }
@@ -754,6 +791,7 @@ impl Arch for SimArch {
         let mut m = self.m.lock().unwrap();
         let c = &mut m.cores[self.cpu as usize];
         if let Some(i) = c.held_irq {
+            c.held_used = true;
             return i;
         }
         for w in 0..3 {
@@ -762,13 +800,19 @@ impl Arch for SimArch {
                 c.pending[w] &= !(1 << b);
                 let i = w as u64 * 64 + b;
                 c.held_irq = Some(i);
+                c.held_used = true;
+                c.in_service = Some(i);
                 return i;
             }
         }
         syscall::NO_IRQ
     }
     fn mask_irq(&mut self, _irq: u64, _mask: bool) {}
-    fn ack_irq(&mut self, _irq: u64) {}
+    fn ack_irq(&mut self, _irq: u64) {
+        if !self.defer(Effect::Ack) {
+            self.apply(Effect::Ack);
+        }
+    }
     fn set_vspace(&mut self, _root: u64, _asid: u64) {}
     fn invalidate_page(&mut self, _asid: u64, _vaddr: u64) {}
     fn invalidate_asid(&mut self, _asid: u64) {}
@@ -911,7 +955,14 @@ impl fl4_sync::EntryEnv for SimEnv {
         r
     }
     fn set_tx(&self, on: bool) {
-        self.a.m.lock().unwrap().cores[self.s.cpu as usize].tx = on;
+        {
+            let mut m = self.a.m.lock().unwrap();
+            let c = &mut m.cores[self.s.cpu as usize];
+            c.tx = on;
+            if on {
+                c.held_used = false;
+            }
+        }
         if on {
             self.conc.rlog[self.s.cpu as usize].lock().unwrap().clear();
             self.conc.wlog[self.s.cpu as usize].lock().unwrap().clear();
@@ -934,10 +985,22 @@ impl fl4_sync::EntryEnv for SimEnv {
         }
     }
     fn entry_done(&self) {
-        self.a.m.lock().unwrap().cores[self.s.cpu as usize].held_irq = None;
+        let mut m = self.a.m.lock().unwrap();
+        let c = &mut m.cores[self.s.cpu as usize];
+        if c.held_used {
+            c.held_irq = None;
+        }
+        c.held_used = false;
+    }
+    fn unhandled_irq(&self) -> Option<u64> {
+        let mut m = self.a.m.lock().unwrap();
+        let c = &mut m.cores[self.s.cpu as usize];
+        c.held_used = false;
+        c.held_irq.take()
     }
     fn holding_gate(&self) {
         self.conc.gate_held[self.s.cpu as usize].store(true, Ordering::SeqCst);
+        self.a.m.lock().unwrap().cores[self.s.cpu as usize].held_used = false;
     }
     fn count(&self, what: fl4_sync::Count) {
         let mut st = STATS.lock().unwrap();
@@ -1049,6 +1112,8 @@ impl Sim {
         if conc.gate_held[cpu].swap(false, Ordering::SeqCst) {
             GATE.release(&self.s);
         }
+        let stuck = self.a.m.lock().unwrap().cores[cpu].in_service;
+        assert!(stuck.is_none(), "liveness: core {cpu} left the kernel with interrupt {stuck:?} accepted and never acknowledged");
         // Leaving the kernel (IRET, SYSRET after a serializing write)
         // drains the store buffer.
         self.s.drain();
@@ -1078,7 +1143,7 @@ impl Sim {
             free: [Region::EMPTY; MAX_REGIONS],
             n_free: 1,
             device: [Region::EMPTY; MAX_REGIONS],
-            n_device: 1,
+            n_device: 2,
             ui_p_start: ui_p,
             ui_p_end: ui_p + 4 * 4096,
             pv_offset: ui_p.wrapping_sub(0x40_0000),
@@ -1091,6 +1156,9 @@ impl Sim {
         };
         p.free[0] = Region { start: pptr(2 << 20), end: pptr(image) };
         p.device[0] = Region { start: MEM_BYTES, end: MEM_BYTES + (1 << 30) };
+        // A 64-bit BAR far above the kernel window, where physical and
+        // pointer alignment differ (GitHub issue #2).
+        p.device[1] = Region { start: 0x3800_0000_0000, end: 0x3800_0000_0000 + (1 << 44) };
         self.on(0);
         let ks_base = self.s.ks_base;
         self.s.zero(ks_base, ks::SIZE);
@@ -1467,6 +1535,7 @@ impl Sim {
                 Some(w) => {
                     let b = c.pending[w].trailing_zeros() as u64;
                     c.pending[w] &= !(1 << b);
+                    c.in_service = Some(w as u64 * 64 + b);
                     w as u64 * 64 + b
                 }
                 None => syscall::NO_IRQ,
@@ -1660,6 +1729,11 @@ impl Sim {
         for &sl in slots {
             let c = sl.cap(s);
             let (p, n) = (sl.prev(s), sl.next(s));
+            // l4v cap_aligned for untypeds: retype aligns pointers, so an
+            // untyped's pointer must be aligned to its size.
+            if let Cap::Untyped { ptr, size_bits, .. } = c {
+                assert!(ptr & ((1u64 << size_bits) - 1) == 0, "{what}: untyped cap in slot {:#x} at {ptr:#x} is not aligned to its 2^{size_bits} bytes", sl.0);
+            }
             if c.is_null() {
                 assert!(p.is_null() && n.is_null(), "{what}: empty slot {:#x} is linked into the CDT", sl.0);
                 continue;
@@ -1978,6 +2052,8 @@ struct Run {
     scenario: Option<String>,
     /// `--explore`: the scheduling points at which to preempt.
     switches: Option<Vec<u64>>,
+    /// `--doom-reads`: 1/K of transaction reads doom the transaction.
+    doom: u64,
 }
 
 /// How a run ended.
@@ -2012,6 +2088,10 @@ impl Run {
             v.push("--pct".into());
             v.push(d.to_string());
         }
+        if self.doom != 0 {
+            v.push("--doom-reads".into());
+            v.push(self.doom.to_string());
+        }
         v
     }
 
@@ -2038,6 +2118,7 @@ impl Run {
                 libc::dup2(err.as_raw_fd(), 2);
             }
             let sim = bases.iter().find(|b| b.ncores == self.cores).cloned().unwrap_or_else(|| booted(self.cores));
+            DOOM_READS.store(self.doom, Ordering::Relaxed);
             run_one(sim, self.seed, self.cores, self.steps, VERBOSE.load(Ordering::Relaxed), self.conc || self.tso || self.switches.is_some(), self.pct, self.tso, self.switches.clone(), self.scenario.as_deref());
             let _ = std::io::stdout().flush();
             unsafe { libc::_exit(0) };
@@ -2066,14 +2147,26 @@ impl Run {
     }
 
     fn line(&self) -> String {
-        format!("{} {} {} {} {}{}", self.seed, self.cores, self.steps, if self.tso { "tso" } else if self.conc { "conc" } else { "serial" }, self.pct.map_or("random".to_string(), |d| format!("pct{d}")), self.scenario.as_ref().map_or(String::new(), |s| format!(" {s}")))
+        format!(
+            "{} {} {} {} {}{}{}",
+            self.seed,
+            self.cores,
+            self.steps,
+            if self.tso { "tso" } else if self.conc { "conc" } else { "serial" },
+            self.pct.map_or("random".to_string(), |d| format!("pct{d}")),
+            self.scenario.as_ref().map_or(String::new(), |s| format!(" {s}")),
+            if self.doom != 0 { format!(" doom{}", self.doom) } else { String::new() }
+        )
     }
 
     fn parse(l: &str) -> Option<Run> {
         let f: Vec<&str> = l.split_whitespace().collect();
-        if f.len() < 5 || f.len() > 6 || l.starts_with('#') {
+        if f.len() < 5 || f.len() > 7 || l.starts_with('#') {
             return None;
         }
+        // After the five fields: a scenario name, `doomK`, or both.
+        let doom = f[5..].iter().find_map(|t| t.strip_prefix("doom")?.parse().ok()).unwrap_or(0);
+        let scenario = f[5..].iter().find(|t| !t.starts_with("doom")).map(|s| s.to_string());
         Some(Run {
             seed: f[0].parse().ok()?,
             cores: f[1].parse().ok()?,
@@ -2081,8 +2174,9 @@ impl Run {
             conc: f[3] == "conc" || f[3] == "tso",
             pct: f[4].strip_prefix("pct").and_then(|d| d.parse().ok()),
             tso: f[3] == "tso",
-            scenario: f.get(5).map(|s| s.to_string()),
+            scenario,
             switches: None,
+            doom,
         })
     }
 }
@@ -2168,7 +2262,7 @@ struct Search {
 
 impl Search {
     fn run(&self, switches: Vec<u64>) -> Run {
-        Run { seed: self.seed, cores: self.cores, steps: self.steps, conc: true, pct: None, tso: false, scenario: None, switches: Some(switches) }
+        Run { seed: self.seed, cores: self.cores, steps: self.steps, conc: true, pct: None, tso: false, scenario: None, switches: Some(switches), doom: 0 }
     }
 
     /// The scheduling points of the unpreempted schedule, from its run.
@@ -2246,12 +2340,13 @@ struct Campaign {
     pct: Option<u64>,
     tso: bool,
     scenario: Option<String>,
+    doom: u64,
 }
 
 impl Campaign {
     fn runs(&self) -> Vec<Run> {
         (self.first..self.first + self.seeds)
-            .map(|seed| Run { seed, cores: self.cores, steps: self.steps, conc: self.conc || self.tso, pct: self.pct, tso: self.tso, scenario: self.scenario.clone(), switches: None })
+            .map(|seed| Run { seed, cores: self.cores, steps: self.steps, conc: self.conc || self.tso, pct: self.pct, tso: self.tso, scenario: self.scenario.clone(), switches: None, doom: self.doom })
             .collect()
     }
 
@@ -2277,6 +2372,7 @@ impl Campaign {
         let mode = if self.tso { "tso" } else if self.conc { "conc" } else { "serial" };
         let extra = self.pct.map_or(String::new(), |d| format!(", PCT depth {d}"))
             + &self.scenario.as_ref().map_or(String::new(), |s| format!(", scenario {s}"))
+            + &if self.doom != 0 { format!(", 1/{} of reads doom the transaction", self.doom) } else { String::new() }
             + if cfg!(feature = "serial-gate") { ", every entry under the serial gate" } else { "" };
         println!("fl4-sim: {} seeds, {} cores, {} steps each, {mode}{extra}: {failed} failed", self.seeds, self.cores, self.steps);
         failed
@@ -2315,6 +2411,7 @@ fn main() {
     let conc = args.iter().any(|a| a == "--conc");
     let pct = args.iter().position(|a| a == "--pct").map(|_| opt("--pct", 3));
     let tso = args.iter().any(|a| a == "--tso");
+    DOOM_READS.store(opt("--doom-reads", 0), Ordering::Relaxed);
     if let Some(i) = args.iter().position(|a| a == "--one") {
         let seed = args[i + 1].parse().unwrap();
         TRACE.store(args.iter().any(|a| a == "--trace"), Ordering::Relaxed);
@@ -2349,7 +2446,8 @@ fn main() {
     // pool of child processes, so no campaign waits for another's slowest
     // run. Otherwise the one campaign the options describe.
     let suite = args.iter().any(|a| a == "--suite");
-    let c = |steps, conc, pct, tso, scenario: Option<&str>, seeds| Campaign { seeds, first, cores, steps, conc, pct, tso, scenario: scenario.map(String::from) };
+    let doom = opt("--doom-reads", 0);
+    let c = |steps, conc, pct, tso, scenario: Option<&str>, seeds| Campaign { seeds, first, cores, steps, conc, pct, tso, scenario: scenario.map(String::from), doom: 0 };
     let quarter = (seeds / 4).max(1);
     let campaigns = if suite {
         vec![
@@ -2363,9 +2461,13 @@ fn main() {
             c(8000, false, None, true, Some("ep"), quarter),
             c(8000, true, None, false, Some("ntfn"), quarter),
             c(8000, false, None, true, Some("ntfn"), quarter),
+            // Transactions doomed partway, so entries run on with zero
+            // reads until they reach commit (GitHub issue #5).
+            Campaign { doom: 32, ..c(8000, true, None, false, None, quarter) },
+            Campaign { doom: 32, ..c(8000, false, None, true, Some("ep"), quarter) },
         ]
     } else {
-        vec![c(steps, conc, pct, tso, scenario.as_deref(), seeds)]
+        vec![Campaign { doom, ..c(steps, conc, pct, tso, scenario.as_deref(), seeds) }]
     };
     // Every schedule with one preemption at a runtime atomic, for small
     // two-core scenarios.
@@ -2393,5 +2495,34 @@ fn main() {
     }
     if failed > 0 {
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// GitHub issue #6: an attempt polls an interrupt at a preemption point
+    /// and aborts; the rerun reaches no preemption point. The interrupt is
+    /// still in service, and must get an entry of its own that acknowledges
+    /// it (`enter` checks that none is left in service).
+    #[test]
+    fn interrupt_polled_by_an_aborted_attempt_is_acknowledged() {
+        let mut sim = booted(2);
+        // Explore mode with no switches: core 0 runs alone.
+        let conc = Arc::new(Conc::new(2, 1, None, false, Some(Vec::new())));
+        sim.s.conc = Some(conc.clone());
+        sim.a.conc = Some(conc);
+        sim.on(0);
+        sim.a.raise(0, irq::RESCHEDULE_IPI);
+        let runs = Cell::new(0);
+        sim.enter(false, |s, a| {
+            runs.set(runs.get() + 1);
+            if runs.get() == 1 {
+                assert_eq!(a.take_pending_irq(), irq::RESCHEDULE_IPI);
+                tx::doom_serial(s.cpu);
+            }
+        });
+        assert!(runs.get() >= 2, "the entry did not rerun");
     }
 }
