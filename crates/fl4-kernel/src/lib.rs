@@ -271,7 +271,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
     spec::init_core();
 
     // Interrupt controllers and the timer.
-    let acpi = match acpi::init() {
+    let acpi = match acpi::init(mb.rsdp) {
         Some(a) => a,
         None => fail("no ACPI tables"),
     };

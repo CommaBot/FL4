@@ -36,7 +36,7 @@ fn checksum(p: u64, len: u64) -> bool {
 fn find_rsdp_in(start: u64, end: u64) -> Option<u64> {
     let mut p = start;
     while p + 20 <= end {
-        if rd64(p) == u64::from_le_bytes(*b"RSD PTR ") && checksum(p, 20) {
+        if valid_rsdp(p) {
             return Some(p);
         }
         p += 16;
@@ -58,9 +58,19 @@ fn sig(p: u64) -> u32 {
     rd32(p)
 }
 
-/// Parse the ACPI tables.
-pub fn init() -> Option<Info> {
-    let rsdp = find_rsdp()?;
+/// An RSDP at `p`: its signature and its ACPI 1.0 checksum hold.
+fn valid_rsdp(p: u64) -> bool {
+    rd64(p) == u64::from_le_bytes(*b"RSD PTR ") && checksum(p, 20)
+}
+
+/// Parse the ACPI tables. `given` is the RSDP the bootloader passed
+/// (Multiboot 2's ACPI tags): UEFI firmware such as OVMF keeps its tables
+/// elsewhere than the BIOS areas `find_rsdp` searches (GitHub issue #8).
+pub fn init(given: Option<u64>) -> Option<Info> {
+    let rsdp = match given {
+        Some(p) if valid_rsdp(p) => p,
+        _ => find_rsdp()?,
+    };
     let mut info = Info { rsdp: [0; RSDP_LEN], cpus: [0; MAX_CPUS], n_cpus: 0, ioapics: [0; MAX_IOAPICS], n_ioapics: 0 };
     for i in 0..RSDP_LEN {
         info.rsdp[i] = rd8(rsdp + i as u64);

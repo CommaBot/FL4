@@ -622,6 +622,61 @@ fn fuzz(o: &Opts) {
 
 /// One run; Err holds the failed tests' names (empty if the run did not
 /// complete).
+/// Multiboot 2 through GRUB on UEFI firmware (OVMF), under KVM (GitHub
+/// issue #8): the kernel must find ACPI from the RSDP the bootloader
+/// passes, start every core, and start the root task. That is where this
+/// check ends: sel4test's driver cannot go further on UEFI, because its
+/// timer set-up looks for the RSDP in the BIOS areas from user space.
+fn uefi(o: &Opts) {
+    let b = sel4test_build(o, false);
+    let dir = root().join("build/uefi");
+    let esp = dir.join("esp/EFI/BOOT");
+    let _ = fs::remove_dir_all(dir.join("esp"));
+    fs::create_dir_all(&esp).unwrap();
+    let cfg = dir.join("grub.cfg");
+    let script = "set timeout=0\nserial --unit=0 --speed=115200\nterminal_output serial\n\
+                  menuentry fl4 {\n  multiboot2 /boot/kernel\n  module2 /boot/rootserver\n  boot\n}\n";
+    fs::write(&cfg, script).unwrap();
+    run(Command::new("grub-mkstandalone")
+        .args(["-O", "x86_64-efi", "--modules=multiboot2 serial terminal normal", "-o"])
+        .arg(esp.join("BOOTX64.EFI"))
+        .arg(format!("boot/grub/grub.cfg={}", cfg.display()))
+        .arg(format!("boot/kernel={}", b.join("images/kernel-x86_64-pc99").display()))
+        .arg(format!("boot/rootserver={}", b.join("images/sel4test-driver-image-x86_64-pc99").display())));
+    let log = dir.join("serial.log");
+    let _ = fs::remove_file(&log);
+    let smp = o.smp.max(1);
+    let mut q = Command::new("qemu-system-x86_64")
+        .args(["-enable-kvm", "-machine", "q35,kernel-irqchip=split", "-cpu", "host,+invtsc", "-m", "3G", "-smp"])
+        .arg(smp.to_string())
+        .args(["-bios", "/usr/share/ovmf/OVMF.fd", "-display", "none", "-monitor", "none", "-no-reboot", "-serial"])
+        .arg(format!("file:{}", log.display()))
+        .arg("-drive")
+        .arg(format!("format=raw,file=fat:rw:{}", dir.join("esp").display()))
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+    let text = loop {
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        let t = String::from_utf8_lossy(&fs::read(&log).unwrap_or_default()).to_string();
+        let done = t.contains("FL4: starting the root task") || t.contains("boot failed") || q.try_wait().unwrap().is_some();
+        if done || std::time::Instant::now() > deadline {
+            break t;
+        }
+    };
+    let _ = q.kill();
+    let _ = q.wait();
+    for l in text.lines().filter(|l| l.starts_with("FL4")) {
+        eprintln!("xtask: uefi: {l}");
+    }
+    if !text.contains(&format!("FL4: {smp} core(s)")) || !text.contains("FL4: starting the root task") {
+        fail("UEFI boot did not reach the root task");
+    }
+    eprintln!("xtask: uefi: booted through GRUB Multiboot 2 on OVMF with {smp} core(s)");
+}
+
 fn sel4test_once(o: &Opts, fl4test: bool) -> Result<(), Vec<String>> {
     let b = sel4test_build(o, fl4test);
     let k = b.join("images/kernel-x86_64-pc99");
@@ -845,6 +900,7 @@ fn main() {
         }
         "sel4test" => sel4test(&o, false),
         "fl4test" => sel4test(&o, true),
+        "uefi" => uefi(&o),
         "extract" => extract(),
         "gate" => gate(),
         "sim" => sim(&o),
