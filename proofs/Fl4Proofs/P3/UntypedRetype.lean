@@ -35,26 +35,58 @@ def newCapOf (n : Nat) (base us : U64) (dev : Bool) : capability.Cap :=
   else if n = 0 then .Untyped base us 0#u64 dev
   else if n = 5 then .SchedContext base us
   else if n = 1 then .Thread base
+  else if n = 7 then .Pdpt base false 0#u64 0#u64
+  else if n = 8 then .Pml4 base false 0#u64
+  else if n = 9 then .Frame base .Huge 3#u64 dev false 0#u64 0#u64
+  else if n = 10 then .Frame base .Small 3#u64 dev false 0#u64 0#u64
+  else if n = 11 then .Frame base .Large 3#u64 dev false 0#u64 0#u64
+  else if n = 12 then .PageTable base false 0#u64 0#u64
+  else if n = 13 then .PageDirectory base false 0#u64 0#u64
   else .Reply base true
+
+theorem ite_prop' {α : Type} {P : α → Prop} {c : Prop} [Decidable c] {a b : α} (ha : c → P a) (hb : ¬ c → P b) :
+    P (ite c a b) := by
+  by_cases h : c
+  · rw [if_pos h]; exact ha h
+  · rw [if_neg h]; exact hb h
+
+/-- The cases of `newCapOf`. -/
+theorem newCapOf_ind (P : capability.Cap → Prop) (n : Nat) (base us : U64) (dev : Bool)
+    (h2 : n = 2 → P (.Endpoint base 0#u64 true true true true)) (h3 : n = 3 → P (.Notification base 0#u64 true true))
+    (h4 : n = 4 → P (.CNode base us 0#u64 0#u64)) (h0 : n = 0 → P (.Untyped base us 0#u64 dev))
+    (h5 : n = 5 → P (.SchedContext base us)) (h1 : n = 1 → P (.Thread base))
+    (h7 : n = 7 → P (.Pdpt base false 0#u64 0#u64)) (h8 : n = 8 → P (.Pml4 base false 0#u64))
+    (h9 : n = 9 → P (.Frame base .Huge 3#u64 dev false 0#u64 0#u64))
+    (h10 : n = 10 → P (.Frame base .Small 3#u64 dev false 0#u64 0#u64))
+    (h11 : n = 11 → P (.Frame base .Large 3#u64 dev false 0#u64 0#u64))
+    (h12 : n = 12 → P (.PageTable base false 0#u64 0#u64)) (h13 : n = 13 → P (.PageDirectory base false 0#u64 0#u64))
+    (h6 : P (.Reply base true)) : P (newCapOf n base us dev) := by
+  unfold newCapOf
+  exact ite_prop' h2 fun _ => ite_prop' h3 fun _ => ite_prop' h4 fun _ => ite_prop' h0 fun _ => ite_prop' h5 fun _ =>
+    ite_prop' h1 fun _ => ite_prop' h7 fun _ => ite_prop' h8 fun _ => ite_prop' h9 fun _ => ite_prop' h10 fun _ =>
+    ite_prop' h11 fun _ => ite_prop' h12 fun _ => ite_prop' h13 fun _ => h6
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
-/-- **`create_object` for types 0, 2..6** writes nothing and returns
-`newCapOf`. -/
+/-- **`create_object` for types 0, 2..7 and 9..13** (all but TCBs and
+PML4s) writes nothing and returns `newCapOf`. -/
 theorem create_object_eq {A : Type} (arI : machine.Arch A) (s : S) (ar : A) (nt base us : U64) (dev : Bool)
-    (hn : nt.val = 0 ∨ (2 ≤ nt.val ∧ nt.val ≤ 6)) :
+    (hn : nt.val = 0 ∨ (2 ≤ nt.val ∧ nt.val ≤ 13 ∧ nt.val ≠ 8)) :
     objects.create_object st arI s ar nt base us dev = ok (newCapOf nt.val base us dev, s, ar) := by
   unfold objects.create_object newCapOf
   simp only [fl4_abi.consts.object.Tcb, fl4_abi.consts.object.Endpoint, fl4_abi.consts.object.Notification,
     fl4_abi.consts.object.CapTable, fl4_abi.consts.object.Untyped, fl4_abi.consts.object.SchedContext,
-    fl4_abi.consts.object.Reply, u64_eq_iff]
+    fl4_abi.consts.object.Reply, fl4_abi.consts.object.X86Pdpt, fl4_abi.consts.object.X64Pml4,
+    fl4_abi.consts.object.X64HugePage, fl4_abi.consts.object.X86Page4K, fl4_abi.consts.object.X86LargePage,
+    fl4_abi.consts.object.X86PageTable, fl4_abi.consts.object.X86PageDirectory, capability.VM_READ_WRITE,
+    u64_eq_iff]
   have e : ∀ n : Nat, n < 2 ^ 64 → ((⟨BitVec.ofNat 64 n⟩ : U64)).val = n := fun n h => by
     show (BitVec.ofNat 64 n).toNat = n; simp; omega
   generalize hv : nt.val = n at *
-  rcases hn with rfl | ⟨h1, h2⟩
+  rcases hn with rfl | ⟨h1, h2, h3⟩
   · simp
-  · interval_cases n <;> simp
+  · interval_cases n <;> simp_all
 
 end
 
@@ -67,10 +99,10 @@ theorem rightsOf_rw : rightsOf true true false false = {.allowRead, .allowWrite}
 /-- **The new caps are the spec's default caps** (`default_cap`), and
 well-formed, given the size checks `decode` made. -/
 theorem newCap_rel {n : Nat} {t : Fl4Spec.ApiObjectType} (ht : objTypeOf n = some t)
-    (hn : n ≤ 6) (base us : U64) (dev : Bool) (hus : us.val < 64)
+    (hn : n ≤ 13) (base us : U64) (dev : Bool) (hus : us.val < 64)
     (hsc : n = 5 → 7 ≤ us.val) :
     CapRel (newCapOf n base us dev) (Fl4Spec.defaultCap t base.bv us.val dev) := by
-  unfold objTypeOf at ht
+  unfold objTypeOf Fl4Spec.archDataToObjType at ht
   interval_cases n <;> simp at ht <;> subst ht
   · exact ⟨trivial, rfl⟩
   · exact ⟨trivial, rfl⟩
@@ -80,9 +112,18 @@ theorem newCap_rel {n : Nat} {t : Fl4Spec.ApiObjectType} (ht : objTypeOf n = som
     simp [newCapOf, absCap, Fl4Spec.defaultCap]
   · exact ⟨hsc rfl, by simp [newCapOf, absCap, Fl4Spec.defaultCap]⟩
   · exact ⟨trivial, by simp [newCapOf, absCap, Fl4Spec.defaultCap, replyRights]⟩
+  all_goals first
+    | exact ⟨trivial, by simp [newCapOf, absCap, Fl4Spec.defaultCap, Fl4Spec.archDefaultCap]⟩
+    | exact ⟨by simp [newCapOf, CapWf], by simp [newCapOf, absCap, Fl4Spec.defaultCap, Fl4Spec.archDefaultCap,
+        vmRightsOf, frameSizeOf]⟩
+
+theorem ite_ne_of {α : Type} {c : Prop} [Decidable c] {a b x : α} (ha : a ≠ x) (hb : b ≠ x) : ite c a b ≠ x := by
+  by_cases h : c
+  · rw [if_pos h]; exact ha
+  · rw [if_neg h]; exact hb
 
 theorem newCap_ne_null (n : Nat) (base us : U64) (dev : Bool) : newCapOf n base us dev ≠ .Null := by
-  unfold newCapOf; split_ifs <;> simp
+  apply newCapOf_ind (fun c => c ≠ .Null) <;> intros <;> exact fun h => capability.Cap.noConfusion h
 
 /-! ## The untyped cap's free index -/
 

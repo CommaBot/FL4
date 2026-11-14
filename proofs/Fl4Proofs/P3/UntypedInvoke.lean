@@ -78,7 +78,7 @@ def RetPost {A' : Type} (σ : Fl4Spec.State Unit) (ar : A') (bitsApi : Fl4Spec.A
       UtInv (L.mem res.2.1) G'
 
 /-- **The success continuation of `decode`** (`set_thread_state Restart`,
-then `retype`) satisfies `RetPost`, for the types 0, 2..6. -/
+then `retype`) satisfies `RetPost`, for the types 0, 2..7 and 9..13. -/
 theorem retype_cont {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHeap) (s : S)
     (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
@@ -98,7 +98,7 @@ theorem retype_cont {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
     (hunused : (¬ ∃ x, σ.cdt x = some (pp.bv, idx)) → fi.val = 0)
     (bitsApi : Fl4Spec.ApiObjectType → Nat → Nat)
     (nt us dest off win : U64) (t : Fl4Spec.ApiObjectType) (r : Nat) (reset : Bool) (fiv : U64)
-    (hn : nt.val = 0 ∨ (2 ≤ nt.val ∧ nt.val ≤ 6)) (hb : bitsApi t us.val = zOf nt.val us.val)
+    (hn : nt.val = 0 ∨ (2 ≤ nt.val ∧ nt.val ≤ 13 ∧ nt.val ≠ 8)) (hb : bitsApi t us.val = zOf nt.val us.val)
     (hctx : RetCtx (L := L) th s σ (pp.bv, idx) sb fi dev nt us dest off win t r reset fiv) :
     (do
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
@@ -208,7 +208,7 @@ theorem untyped_retype_refines {A' : Type} (arI : machine.Arch A') (th : TypedHe
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
-    (hnt : ∀ x, args.head? = some x → x.val = 0 ∨ (2 ≤ x.val ∧ x.val ≤ 6))
+    (hnt : ∀ x, args.head? = some x → x.val = 0 ∨ (2 ≤ x.val ∧ x.val ≤ 13 ∧ x.val ≠ 8))
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     {pp : U64} {rs : Nat} (hpp : th pp = some (.cnode rs)) {idx : List Bool} (hidx : idx.length = rs)

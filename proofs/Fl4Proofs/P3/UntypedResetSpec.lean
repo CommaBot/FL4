@@ -175,11 +175,11 @@ theorem clear_nsat {a c : Word} (ha : a.toNat % 8 = 0) (ms : MachineState) :
 
 /-- The parts of the state the CSpace relations read. -/
 def KSame {Z : Type} (σ σ' : State Z) : Prop :=
-  σ'.kheap = σ.kheap ∧ σ'.cdt = σ.cdt ∧ σ'.isOriginalCap = σ.isOriginalCap
+  σ'.kheap = σ.kheap ∧ σ'.cdt = σ.cdt ∧ σ'.isOriginalCap = σ.isOriginalCap ∧ σ'.archState = σ.archState
 
-theorem KSame.refl {Z : Type} (σ : State Z) : KSame σ σ := ⟨rfl, rfl, rfl⟩
+theorem KSame.refl {Z : Type} (σ : State Z) : KSame σ σ := ⟨rfl, rfl, rfl, rfl⟩
 theorem KSame.trans {Z : Type} {σ1 σ2 σ3 : State Z} (h1 : KSame σ1 σ2) (h2 : KSame σ2 σ3) : KSame σ1 σ3 :=
-  ⟨h2.1.trans h1.1, h2.2.1.trans h1.2.1, h2.2.2.trans h1.2.2⟩
+  ⟨h2.1.trans h1.1, h2.2.1.trans h1.2.1, h2.2.2.1.trans h1.2.2.1, h2.2.2.2.trans h1.2.2.2⟩
 
 theorem doMachineOp_nsat {Z α : Type} {mop : NonDet MachineState α} (σ : State Z)
     (h : NSat mop σ.machineState (fun _ => True) ∧ NHas mop σ.machineState (fun _ => True)) :
@@ -187,9 +187,9 @@ theorem doMachineOp_nsat {Z α : Type} {mop : NonDet MachineState α} (σ : Stat
   unfold doMachineOp
   refine ⟨nsat_bind (nsat_det rfl (nsat_bind ⟨h.1.1, ?_⟩)), nhas_bind (nhas_det rfl (nhas_bind ?_))⟩
   · rintro ⟨⟨r, ms'⟩, s1⟩ ⟨-, rfl⟩
-    exact nsat_bind (nsat_det rfl (nsat_det rfl ⟨rfl, rfl, rfl⟩))
+    exact nsat_bind (nsat_det rfl (nsat_det rfl ⟨rfl, rfl, rfl, rfl⟩))
   · obtain ⟨⟨r, ms'⟩, hx, -⟩ := h.2
-    exact ⟨((r, ms'), σ), ⟨hx, rfl⟩, nhas_bind (nhas_det rfl (nhas_det rfl ⟨rfl, rfl, rfl⟩))⟩
+    exact ⟨((r, ms'), σ), ⟨hx, rfl⟩, nhas_bind (nhas_det rfl (nhas_det rfl ⟨rfl, rfl, rfl, rfl⟩))⟩
 
 theorem clearMemory_nsat {Z : Type} {a : Word} (ha : a.toNat % 8 = 0) (n : Nat) (σ : State Z) :
     NSat (doMachineOp (clearMemory a n)) σ (fun y => KSame σ y.2) ∧
@@ -204,14 +204,14 @@ theorem freeMemory_nsat {Z : Type} {a : Word} (ha : a.toNat % 8 = 0) (n : Nat) (
 /-- `delete_objects`: the heap without the region, the CDT unchanged. -/
 theorem deleteObjects_nsat {Z : Type} [StateExt Z] {a : Word} (ha : a.toNat % 8 = 0) (n : Nat) (σ : State Z) :
     let P := fun (y : Unit × State Z) => y.2.kheap = (detype {x | a ≤ x ∧ x ≤ a + 2 ^ n - 1} σ).kheap ∧
-      y.2.cdt = σ.cdt ∧ y.2.isOriginalCap = σ.isOriginalCap
+      y.2.cdt = σ.cdt ∧ y.2.isOriginalCap = σ.isOriginalCap ∧ y.2.archState = σ.archState
     NSat (deleteObjects (Z := Z) a n) σ P ∧ NHas (deleteObjects (Z := Z) a n) σ P := by
   intro P
   obtain ⟨h1, h2⟩ := freeMemory_nsat (Z := Z) ha n σ
   unfold deleteObjects
   refine ⟨nsat_bind (h1.mono fun x hx => nsat_det rfl ?_), nhas_bind (h2.mono fun x hx => nhas_det rfl ?_)⟩ <;>
-  · obtain ⟨k1, k2, k3⟩ := hx
-    refine ⟨?_, k2, k3⟩
+  · obtain ⟨k1, k2, k3, k4⟩ := hx
+    refine ⟨?_, k2, k3, k4⟩
     simp only [detype, k1]
     funext y; split <;> simp_all
 
@@ -256,7 +256,7 @@ theorem nsat_congr {σ α : Type} {m m' : NonDet σ α} {s : σ} {P : α × σ �
 
 theorem KSame.setCnodeSlot {Z : Type} {σ σ' : State Z} (h : KSame σ σ') (pb : ObjRef) (r : Nat) (cs : CnodeContents)
     (idx : List Bool) (a : Cap) : KSame (setCnodeSlot σ pb r cs idx a) (setCnodeSlot σ' pb r cs idx a) := by
-  refine ⟨?_, h.2.1, h.2.2⟩
+  refine ⟨?_, h.2.1, h.2.2.1, h.2.2.2⟩
   show Function.update σ'.kheap pb _ = Function.update σ.kheap pb _
   rw [h.1]
 
@@ -569,7 +569,7 @@ def KHc (σ0 : State Unit) (pu : ObjRef) (sz : Nat) (pb : ObjRef) (r : Nat) (cs 
 `delete_objects`, possibly with the slot rewritten. -/
 def RInv (σ0 : State Unit) (pu : ObjRef) (sz : Nat) (pb : ObjRef) (r : Nat) (cs : CnodeContents) (idx : List Bool)
     (σ1 : State Unit) : Prop :=
-  σ1.cdt = σ0.cdt ∧ σ1.isOriginalCap = σ0.isOriginalCap ∧
+  σ1.cdt = σ0.cdt ∧ σ1.isOriginalCap = σ0.isOriginalCap ∧ σ1.archState = σ0.archState ∧
     (σ1.kheap = (detype (regionSet pu sz) σ0).kheap ∨ ∃ a, σ1.kheap = KHc σ0 pu sz pb r cs idx a)
 
 theorem RInv.cn (hk : σ0.kheap pb = some (.cnode r cs)) (hwf : wellFormedCnodeN r cs) (hidx : idx.length = r)
@@ -577,7 +577,7 @@ theorem RInv.cn (hk : σ0.kheap pb = some (.cnode r cs)) (hwf : wellFormedCnodeN
     ∃ cs', σ1.kheap pb = some (.cnode r cs') ∧ wellFormedCnodeN r cs' ∧
       ∀ a, Function.update σ1.kheap pb (some (.cnode r (Function.update cs' idx (some a)))) = KHc σ0 pu sz pb r cs idx a := by
   have hD : (detype (regionSet pu sz) σ0).kheap pb = some (.cnode r cs) := by simp only [detype]; rw [if_neg hpb]; exact hk
-  rcases h.2.2 with h1 | ⟨a0, h1⟩
+  rcases h.2.2.2 with h1 | ⟨a0, h1⟩
   · refine ⟨cs, by rw [h1, hD], hwf, fun a => ?_⟩
     rw [h1]; rfl
   · refine ⟨Function.update cs idx (some a0), by rw [h1]; simp [KHc, setCnodeSlot], wf_update _ hwf hidx, fun a => ?_⟩
@@ -589,6 +589,7 @@ theorem chunk_nsat_canon (hrcb : resetChunkBits = 16) (hp8 : pu.toNat % 8 = 0) (
     (hpp : PPFrame) (hk : σ0.kheap pb = some (.cnode r cs)) (hwf : wellFormedCnodeN r cs)
     (hpb : pb ∉ regionSet pu sz) (i : Nat) (σ1 : State Unit) (h : RInv σ0 pu sz pb r cs idx σ1) :
     NSat (chunkF dev pu sz pb idx i).run σ1 (fun y => y.2.cdt = σ0.cdt ∧ y.2.isOriginalCap = σ0.isOriginalCap ∧
+      y.2.archState = σ0.archState ∧
       y.2.kheap = KHc σ0 pu sz pb r cs idx (.untypedCap dev pu sz (i * 2 ^ resetChunkBits))) := by
   obtain ⟨cs', hk', hwf', hup⟩ := h.cn hk hwf hidx hpb
   unfold chunkF
@@ -600,9 +601,10 @@ theorem chunk_nsat_canon (hrcb : resetChunkBits = 16) (hp8 : pu.toNat % 8 = 0) (
   apply nsat_liftE
   refine nsat_det (setCap_cnode _ (by rw [hy.1]; exact hk') hwf' hidx) ?_
   show NSat (preemptionPoint (Z := Unit)).run _ _
-  refine (hpp _).mono (fun z hz => ⟨?_, ?_, ?_⟩)
+  refine (hpp _).mono (fun z hz => ⟨?_, ?_, ?_, ?_⟩)
   · rw [hz.2.1]; show y.2.cdt = _; rw [hy.2.1, h.1]
-  · rw [hz.2.2]; show y.2.isOriginalCap = _; rw [hy.2.2, h.2.1]
+  · rw [hz.2.2.1]; show y.2.isOriginalCap = _; rw [hy.2.2.1, h.2.1]
+  · rw [hz.2.2.2]; show y.2.archState = _; rw [hy.2.2.2, h.2.2.1]
   · rw [hz.1, ← hup]; show Function.update y.2.kheap pb _ = _; rw [hy.1]
 
 theorem chunks_nsat_canon (hrcb : resetChunkBits = 16) (hp8 : pu.toNat % 8 = 0) (hidx : idx.length = r)
@@ -617,8 +619,8 @@ theorem chunks_nsat_canon (hrcb : resetChunkBits = 16) (hp8 : pu.toNat % 8 = 0) 
     refine (chunk_nsat_canon hrcb hp8 hidx hpp hk hwf hpb 0 σ1 h).mono (fun y hy => ?_)
     rcases y with ⟨e | u, s1⟩
     · intro h; cases h
-    · refine nsatE_pure (fun _ => ⟨?_, hy.1, hy.2.1⟩)
-      rw [hy.2.2]; simp [KHc]
+    · refine nsatE_pure (fun _ => ⟨?_, hy.1, hy.2.1, hy.2.2.1⟩)
+      rw [hy.2.2.2]; simp [KHc]
   | succ k ih =>
     rw [chunks_succ]
     show NSat ((chunkF dev pu sz pb idx (k + 1)) >>= fun _ =>
@@ -627,7 +629,7 @@ theorem chunks_nsat_canon (hrcb : resetChunkBits = 16) (hp8 : pu.toNat % 8 = 0) 
     refine (chunk_nsat_canon hrcb hp8 hidx hpp hk hwf hpb (k + 1) σ1 h).mono (fun y hy => ?_)
     rcases y with ⟨e | u, s1⟩
     · intro h; cases h
-    · exact ih s1 ⟨hy.1, hy.2.1, Or.inr ⟨_, hy.2.2⟩⟩
+    · exact ih s1 ⟨hy.1, hy.2.1, hy.2.2.1, Or.inr ⟨_, hy.2.2.2⟩⟩
 
 /-- **Every `Ok` outcome of the spec's reset** has the CSpace state of the
 canonical one: the region removed, the slot's free index 0. -/
@@ -646,7 +648,7 @@ theorem reset_nsat_ok (hk : σ0.kheap pb = some (.cnode r cs)) (hwf : wellFormed
   apply nsatE_bind
   apply nsat_liftE
   refine (deleteObjects_nsat hp8 sz σ0).1.mono (fun y hy => ?_)
-  have hI0 : RInv σ0 pu sz pb r cs idx y.2 := ⟨hy.2.1, hy.2.2, Or.inl hy.1⟩
+  have hI0 : RInv σ0 pu sz pb r cs idx y.2 := ⟨hy.2.1, hy.2.2.1, hy.2.2.2, Or.inl hy.1⟩
   obtain ⟨cs', hk', hwf', hup⟩ := hI0.cn hk hwf hidx hpb
   dsimp only
   split_ifs with hs
@@ -659,10 +661,11 @@ theorem reset_nsat_ok (hk : σ0.kheap pb = some (.cnode r cs)) (hwf : wellFormed
             (.untypedCap dev pu sz 0)) v.2)) := by
       intro z hz
       refine nsat_det (setCap_cnode _ (by rw [hz.1]; exact hk') hwf' hidx) ?_
-      refine nsat_liftE (nsat_det rfl (fun _ => ⟨?_, ?_, ?_⟩))
+      refine nsat_liftE (nsat_det rfl (fun _ => ⟨?_, ?_, ?_, ?_⟩))
       · show Function.update z.2.kheap pb _ = _; rw [hz.1, hup]; rfl
       · show z.2.cdt = σ0.cdt; rw [hz.2.1, hy.2.1]
-      · show z.2.isOriginalCap = σ0.isOriginalCap; rw [hz.2.2, hy.2.2]
+      · show z.2.isOriginalCap = σ0.isOriginalCap; rw [hz.2.2.1, hy.2.2.1]
+      · show z.2.archState = σ0.archState; rw [hz.2.2.2, hy.2.2.2]
     split_ifs with hdv
     · exact nsat_bind (nsat_pure (fin ((), y.2) (KSame.refl _)))
     · exact nsat_bind ((clearMemory_nsat hp8 _ y.2).1.mono (fun z hz => fin z hz))

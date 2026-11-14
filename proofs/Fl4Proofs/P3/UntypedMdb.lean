@@ -78,11 +78,18 @@ theorem srB_utR (q sz f : U64) (d : Bool) (b : capability.Cap) :
       simp only [↓reduceIte, e1, e2, e3, h1, h2, h3, decide_true, decide_false, Bool.true_and, Bool.and_true,
         Bool.and_false, Bool.false_and]
 
-/-- The caps `create_object` makes for the non-arch types (Untyped, TCB,
-endpoint, notification, CNode, scheduling context, reply). -/
+/-- The caps `create_object` makes (Untyped, TCB, endpoint, notification,
+CNode, scheduling context, reply; frames and the paging structures). -/
 def NewKind : capability.Cap → Prop
-  | .Untyped .. | .Thread _ | .Endpoint .. | .Notification .. | .CNode .. | .SchedContext .. | .Reply .. => True
+  | .Untyped .. | .Thread _ | .Endpoint .. | .Notification .. | .CNode .. | .SchedContext .. | .Reply ..
+  | .Frame .. | .PageTable .. | .PageDirectory .. | .Pdpt .. | .Pml4 .. => True
   | _ => False
+
+/-- Frame caps (the only new caps whose `same_region_as` is range
+containment rather than the same object). -/
+def isFr : capability.Cap → Bool
+  | .Frame .. => true
+  | _ => false
 
 theorem srB_to_ut {a : capability.Cap} {q sz f : U64} {d : Bool} (h : srB a (.Untyped q sz f d) = true) :
     isUt a = true := by
@@ -92,22 +99,93 @@ theorem srB_to_ut {a : capability.Cap} {q sz f : U64} {d : Bool} (h : srB a (.Un
 
 /-- From a new cap other than an untyped one, `same_region_as` means the same
 object (same shape). -/
-theorem srB_nk_left {c v : capability.Cap} (hk : NewKind c) (hu : isUt c = false) (h : srB c v = true) :
-    shape v = shape c := by
+theorem srB_nk_left {c v : capability.Cap} (hk : NewKind c) (hu : isUt c = false) (hf : isFr c = false)
+    (h : srB c v = true) : shape v = shape c := by
   have h' := srB_eq c v
   rw [h] at h'
-  cases c <;> simp [NewKind, isUt] at hk hu <;> cases v <;> simp [objects.same_region_as] at h' <;>
+  cases c <;> simp [NewKind, isUt, isFr] at hk hu hf <;> cases v <;> simp [objects.same_region_as] at h' <;>
     (try split_ifs at h' with e1 e2) <;> simp_all [shape] <;> exact UScalar.eq_of_val_eq h'
 
 /-- Into a new cap other than an untyped one, from a cap other than an
 untyped one: the same object. -/
-theorem srB_nk_right {u c : capability.Cap} (hk : NewKind c) (hc : isUt c = false) (hu : isUt u = false)
-    (h : srB u c = true) : shape c = shape u := by
+theorem srB_nk_right {u c : capability.Cap} (hk : NewKind c) (hc : isUt c = false) (hf : isFr c = false)
+    (hu : isUt u = false) (h : srB u c = true) : shape c = shape u := by
   have h' := srB_eq u c
   rw [h] at h'
-  cases c <;> simp [NewKind, isUt] at hk hc <;> cases u <;> simp [isUt] at hu <;>
+  cases c <;> simp [NewKind, isUt, isFr] at hk hc hf <;> cases u <;> simp [isUt] at hu <;>
     simp [objects.same_region_as] at h' <;> (try split_ifs at h' with e1 e2) <;> simp_all [shape] <;>
     exact UScalar.eq_of_val_eq h'
+
+
+theorem sizeF_frame (p : U64) (sz : capability.FrameSize) (r : U64) (d m : Bool) (a va : U64) :
+    sizeF (.Frame p sz r d m a va) = fbitsF sz :=
+  ok_inj ((size_eq _).symm.trans (by simp [objects.cap_size_bits, frame_bits_eq]))
+
+theorem ptrF_frame (p : U64) (sz : capability.FrameSize) (r : U64) (d m : Bool) (a va : U64) :
+    ptrF (.Frame p sz r d m a va) = p := ok_inj (ptr_eq _).symm
+
+/-- `same_region_as` from a frame cap: a frame cap in its range. -/
+theorem srB_frame_in {p : U64} {sz : capability.FrameSize} {r : U64} {d m : Bool} {a va : U64} {v : capability.Cap}
+    (h : srB (.Frame p sz r d m a va) v = true) :
+    isFr v = true ∧ baseF (.Frame p sz r d m a va) ≤ baseF v ∧ topF v ≤ topF (.Frame p sz r d m a va) ∧
+      baseF v ≤ topF v := by
+  have h' := srB_eq (.Frame p sz r d m a va) v
+  rw [h] at h'
+  cases v <;> simp [objects.same_region_as, frame_bits_eq, mask_eq, lift] at h'
+  case Frame pb sb rb db mb ab vb =>
+    unfold baseF topF
+    rw [ptrF_frame, ptrF_frame, sizeF_frame, sizeF_frame]
+    simp only [core.num.U64.wrapping_add_val_eq]
+    split_ifs at h' with h1 h2
+    · refine ⟨rfl, h1, by simpa [U64.size] using h2, ?_⟩
+      have := ok_inj h'; simpa [U64.size] using this
+    · cases ok_inj h'
+    · cases ok_inj h'
+
+/-- `same_region_as` into a frame cap: from a frame cap holding it, or an
+untyped one. -/
+theorem srB_to_frame {u : capability.Cap} {p : U64} {sz : capability.FrameSize} {r : U64} {d m : Bool} {a va : U64}
+    (hu : isUt u = false) (h : srB u (.Frame p sz r d m a va) = true) :
+    isFr u = true ∧ baseF u ≤ baseF (.Frame p sz r d m a va) ∧ topF (.Frame p sz r d m a va) ≤ topF u := by
+  have h' := srB_eq u (.Frame p sz r d m a va)
+  rw [h] at h'
+  cases u <;> simp [isUt] at hu <;> simp [objects.same_region_as] at h'
+  case Frame pb sb rb db mb ab vb =>
+    obtain ⟨-, h2, h3, -⟩ := srB_frame_in (show srB (.Frame pb sb rb db mb ab vb) (.Frame p sz r d m a va) = true from h)
+    exact ⟨rfl, h2, h3⟩
+
+theorem physF_frame (p : U64) (sz : capability.FrameSize) (r : U64) (d m : Bool) (a va : U64) :
+    physF (.Frame p sz r d m a va) = true := ok_inj (phys_eq _).symm
+
+theorem isUt_frame {v : capability.Cap} (h : isFr v = true) : isUt v = false ∧ physF v = true := by
+  cases v <;> simp [isFr] at h; exact ⟨rfl, physF_frame _ _ _ _ _ _ _⟩
+
+/-- **From a new cap, `same_region_as` gives a non-untyped physical cap in
+its range** (non-empty). -/
+theorem srB_new_left {c v : capability.Cap} (hk : NewKind c) (hu : isUt c = false) (hcr : baseF c ≤ topF c)
+    (h : srB c v = true) :
+    physF v = true ∧ isUt v = false ∧ baseF c ≤ baseF v ∧ topF v ≤ topF c ∧ baseF v ≤ topF v := by
+  cases hf : isFr c
+  · have e := srB_nk_left hk hu hf h
+    obtain ⟨hb, ht, hp⟩ := range_of_shape e
+    have hpc : physF c = true := by cases c <;> simp [NewKind, isUt] at hk hu <;> exact ok_inj (phys_eq _).symm
+    refine ⟨by rw [hp]; exact hpc, by rw [isUt_of_shape e]; exact hu, by omega, by omega, by omega⟩
+  · cases c <;> simp [isFr] at hf
+    obtain ⟨h1, h2, h3, h4⟩ := srB_frame_in h
+    exact ⟨(isUt_frame h1).2, (isUt_frame h1).1, h2, h3, h4⟩
+
+/-- **Into a new cap, from a cap other than an untyped one**: a physical cap
+holding its range. -/
+theorem srB_new_right {u c : capability.Cap} (hk : NewKind c) (hc : isUt c = false) (hu : isUt u = false)
+    (h : srB u c = true) : physF u = true ∧ baseF u ≤ baseF c ∧ topF c ≤ topF u := by
+  cases hf : isFr c
+  · have e := srB_nk_right hk hc hf hu h
+    obtain ⟨hb, ht, hp⟩ := range_of_shape e
+    have hpc : physF c = true := by cases c <;> simp [NewKind, isUt] at hk hc <;> exact ok_inj (phys_eq _).symm
+    exact ⟨by rw [← hp]; exact hpc, by omega, by omega⟩
+  · cases c <;> simp [isFr] at hf
+    obtain ⟨h1, h2, h3⟩ := srB_to_frame hu h
+    exact ⟨(isUt_frame h1).2, h2, h3⟩
 
 theorem ptrF_ut (q sz f : U64) (d : Bool) : ptrF (.Untyped q sz f d) = q := ok_inj (ptr_eq _).symm
 theorem sizeF_ut (q sz f : U64) (d : Bool) : sizeF (.Untyped q sz f d) = sz := ok_inj (size_eq _).symm
@@ -150,8 +228,14 @@ theorem isBadged_ut {a : capability.Cap} (ha : isUt a = true) : isBadged a = fal
 theorem srB_self_nk {c : capability.Cap} (hk : NewKind c) (hp : physF c = true) (hr : baseF c ≤ topF c) :
     srB c c = true := by
   cases hu : isUt c
-  · have h' := srB_eq c c
-    cases c <;> simp [NewKind, isUt] at hk hu <;> simp [objects.same_region_as] at h' <;> exact h'
+  · cases hf : isFr c
+    · have h' := srB_eq c c
+      cases c <;> simp [NewKind, isUt, isFr] at hk hu hf <;> simp [objects.same_region_as] at h' <;> exact h'
+    · cases c <;> simp [isFr] at hf
+      rw [srB_frame]
+      unfold baseF topF at hr
+      rw [ptrF_frame, sizeF_frame] at hr
+      exact decide_eq_true hr
   · rw [srB_ut_iff hu]; exact ⟨hp, ⟨le_refl _, le_refl _⟩, hr⟩
 
 theorem not_disj_within {b a : capability.Cap} (hw : Within b a) (hb : baseF b ≤ topF b) : ¬ Disj a b := by
@@ -284,11 +368,10 @@ theorem srcUt : ∃ q sz f d, capV mem src = .Untyped q sz f d := isUt_iff.1 h.h
 shape of) the untyped cap itself. -/
 theorem k1 {v : U64} (hv : v ∈ G.chains.flatten) (hs : srB c (capV mem v) = true) : shape c = shape (capV mem src) := by
   cases hu : isUt c
-  · have e := srB_nk_left h.hnk hu hs
-    obtain ⟨hb, ht, hp⟩ := range_of_shape e
-    rcases h.hno v hv (by rw [hp]; exact h.hcp) with hd | ⟨hu', -⟩
-    · unfold Disj at hd; rw [hb, ht] at hd; have := h.hcr; omega
-    · rw [isUt_of_shape e, hu] at hu'; cases hu'
+  · obtain ⟨hp, hu', h1, h2, h3⟩ := srB_new_left h.hnk hu h.hcr hs
+    rcases h.hno v hv hp with hd | ⟨hu'', -⟩
+    · exfalso; unfold Disj at hd; omega
+    · rw [hu'] at hu''; cases hu''
   · obtain ⟨hp, hw, hr⟩ := (srB_ut_iff hu _).1 hs
     rcases h.hno v hv hp with hd | ⟨-, hw2⟩
     · exact absurd (by unfold Disj at hd ⊢; omega) (not_disj_within hw hr)
@@ -306,10 +389,9 @@ theorem k2 {u : U64} (hu : u ∈ G.chains.flatten) : srB (capV mem u) c = srB (c
   · intro hs
     cases hU : isUt (capV mem u)
     · cases hc : isUt c
-      · have e := srB_nk_right h.hnk hc hU hs
-        obtain ⟨hb, ht, hp⟩ := range_of_shape e
-        rcases h.hno u hu (by rw [← hp]; exact h.hcp) with hd | ⟨hu', -⟩
-        · have := h.hcr; unfold Disj at hd; rw [hb, ht] at hd this; omega
+      · obtain ⟨hp, h1, h2⟩ := srB_new_right h.hnk hc hU hs
+        rcases h.hno u hu hp with hd | ⟨hu', -⟩
+        · exfalso; have := h.hcr; unfold Disj at hd; omega
         · rw [hU] at hu'; cases hu'
       · obtain ⟨q', sz', f', d', rfl⟩ := isUt_iff.1 hc
         rw [srB_to_ut hs] at hU; cases hU

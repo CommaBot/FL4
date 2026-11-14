@@ -45,7 +45,7 @@ theorem retype_cont_all {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
     (hunused : (¬ ∃ x, σ.cdt x = some (pp.bv, idx)) → fi.val = 0)
     (bitsApi : Fl4Spec.ApiObjectType → Nat → Nat)
     (nt us dest off win : U64) (t : Fl4Spec.ApiObjectType) (r : Nat) (reset : Bool) (fiv : U64)
-    (hn : nt.val ≤ 6) (hb : bitsApi t us.val = zOf nt.val us.val)
+    (hn : nt.val ≤ 13 ∧ nt.val ≠ 8) (hb : bitsApi t us.val = zOf nt.val us.val)
     (hDWal : P1.Aligned (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))
     (hDWobj : ∀ a, IsSlot th a → ¬ (a.val ≤ (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS).val ∧
       (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS).val < a.val + 32))
@@ -191,7 +191,7 @@ theorem untyped_retype_refines_fl4 {A' : Type} (arI : machine.Arch A') (th : Typ
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
-    (hnt : ∀ x, args.head? = some x → x.val ≤ 6)
+    (hnt : ∀ x, args.head? = some x → x.val ≤ 13 ∧ x.val ≠ 8)
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     {pp : U64} {rs : Nat} (hpp : th pp = some (.cnode rs)) {idx : List Bool} (hidx : idx.length = rs)

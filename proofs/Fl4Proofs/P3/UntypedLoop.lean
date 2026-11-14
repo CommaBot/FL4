@@ -31,7 +31,7 @@ theorem sizeF_of {c : capability.Cap} {v : U64} (h : objects.cap_size_bits c = o
 theorem physF_of {c : capability.Cap} {v : Bool} (h : objects.cap_is_physical c = ok v) : physF c = v :=
   ok_inj ((phys_eq c).symm.trans h)
 
-theorem sizeF_newCap {n : Nat} (hn : n ≤ 6) (base us : U64) (dev : Bool) (hus : us.val < 64) :
+theorem sizeF_newCap {n : Nat} (hn : n ≤ 13) (base us : U64) (dev : Bool) (hus : us.val < 64) :
     (sizeF (newCapOf n base us dev)).val = zOf n us.val := by
   interval_cases n
   · rw [show newCapOf 0 base us dev = .Untyped base us 0#u64 dev from rfl, sizeF_ut]; simp [zOf]
@@ -41,18 +41,16 @@ theorem sizeF_newCap {n : Nat} (hn : n ≤ 6) (base us : U64) (dev : Bool) (hus 
   simp [core.num.U64.wrapping_add_val_eq, U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits]; omega
 
 theorem ptrF_newCap (n : Nat) (base us : U64) (dev : Bool) : ptrF (newCapOf n base us dev) = base := by
-  unfold newCapOf
-  split_ifs <;> exact ptrF_of rfl
+  apply newCapOf_ind (fun c => ptrF c = base) <;> intros <;> exact ptrF_of rfl
 
 theorem physF_newCap (n : Nat) (base us : U64) (dev : Bool) : physF (newCapOf n base us dev) = true := by
-  unfold newCapOf
-  split_ifs <;> exact physF_of rfl
+  apply newCapOf_ind (fun c => physF c = true) <;> intros <;> exact physF_of rfl
 
 theorem newKind_newCap (n : Nat) (base us : U64) (dev : Bool) : NewKind (newCapOf n base us dev) := by
-  unfold newCapOf; split_ifs <;> trivial
+  apply newCapOf_ind NewKind <;> intros <;> trivial
 
 /-- **The range of a new cap** is its object: `2^z` bytes from `base`. -/
-theorem newCap_range {n : Nat} (hn : n ≤ 6) (base us : U64) (dev : Bool) (hus : us.val < 64)
+theorem newCap_range {n : Nat} (hn : n ≤ 13) (base us : U64) (dev : Bool) (hus : us.val < 64)
     (hz : zOf n us.val < 64) (hb : base.val + 2 ^ zOf n us.val ≤ 2 ^ 64) :
     baseF (newCapOf n base us dev) = base.val ∧
       topF (newCapOf n base us dev) = base.val + 2 ^ zOf n us.val - 1 := by
@@ -440,17 +438,16 @@ end
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
-theorem newCap_encWf {n : Nat} (hn : n ≤ 6) (base us : U64) (dev : Bool) (hus : us.val < 64)
+theorem newCap_encWf {n : Nat} (hn : n ≤ 13) (base us : U64) (dev : Bool) (hus : us.val < 64)
     (hb : Canonical base) : EncWf (newCapOf n base us dev) := by
   unfold newCapOf
   interval_cases n <;> simp [EncWf] <;> first | exact hb | exact ⟨hb, hus⟩ | (refine ⟨hb, hus, ?_⟩; decide)
 
 theorem isUt_newCap {n : Nat} {base us : U64} {dev : Bool} (h : isUt (newCapOf n base us dev) = true) :
     n = 0 ∧ newCapOf n base us dev = .Untyped base us 0#u64 dev := by
-  unfold newCapOf at h ⊢
-  by_cases h0 : n = 0
-  · subst h0; simp
-  · split_ifs at h ⊢ <;> simp_all [isUt]
+  revert h
+  apply newCapOf_ind (fun c => isUt c = true → n = 0 ∧ c = .Untyped base us 0#u64 dev) <;> intros <;>
+    first | exact ⟨by assumption, rfl⟩ | (simp [isUt] at *)
 
 theorem topF_ut (p sb f : U64) (d : Bool) (hsb : sb.val < 64) (hfit : p.val + 2 ^ sb.val ≤ 2 ^ 64) :
     baseF (.Untyped p sb f d) = p.val ∧ topF (.Untyped p sb f d) = p.val + 2 ^ sb.val - 1 := by
@@ -469,7 +466,7 @@ theorem loop_step (th' : TypedHeap) (hP' : Placed th') {pp : U64} {rs : Nat} (hp
     (hsb : sb.val < 64) (hpfit : p.val + 2 ^ sb.val ≤ 2 ^ 64)
     (σ1 : Fl4Spec.State Unit) {dest : U64} {r : Nat} (hdest : th' dest = some (.cnode r)) (hr : r ≤ 64)
     (nt us : U64) (dev : Bool) (t : Fl4Spec.ApiObjectType) (ht : objTypeOf nt.val = some t)
-    (hn : nt.val ≤ 6) (hus : us.val < 64) (hz : zOf nt.val us.val < 64)
+    (hn : nt.val ≤ 13) (hus : us.val < 64) (hz : zOf nt.val us.val < 64)
     (hsc : nt.val = 5 → 7 ≤ us.val)
     (off win A : Nat) (hwin : off + win ≤ 2 ^ r)
     (hfit : A + win * 2 ^ zOf nt.val us.val ≤ 2 ^ 64) (hhigh : 2 ^ 64 - 2 ^ 47 ≤ A)
@@ -719,7 +716,7 @@ theorem create_loop_rel {A' : Type} (arI : machine.Arch A') (ar : A') (th' : Typ
     (hsb : sb.val < 64) (hpfit : p.val + 2 ^ sb.val ≤ 2 ^ 64)
     (σ1 : Fl4Spec.State Unit) {dest : U64} {r : Nat} (hdest : th' dest = some (.cnode r)) (hr : r ≤ 64)
     (nt us : U64) (dev : Bool) (t : Fl4Spec.ApiObjectType) (ht : objTypeOf nt.val = some t)
-    (hn : nt.val = 0 ∨ (2 ≤ nt.val ∧ nt.val ≤ 6)) (hus : us.val < 64) (hz : zOf nt.val us.val < 64)
+    (hn : nt.val = 0 ∨ (2 ≤ nt.val ∧ nt.val ≤ 13 ∧ nt.val ≠ 8)) (hus : us.val < 64) (hz : zOf nt.val us.val < 64)
     (hsc : nt.val = 5 → 7 ≤ us.val)
     (off win base : U64) (hwin : off.val + win.val ≤ 2 ^ r)
     (hfit : base.val + win.val * 2 ^ zOf nt.val us.val ≤ 2 ^ 64) (hhigh : 2 ^ 64 - 2 ^ 47 ≤ base.val)

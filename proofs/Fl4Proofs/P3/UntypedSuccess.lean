@@ -201,13 +201,25 @@ theorem objTypeOf_nonarch {n : Nat} {t : Fl4Spec.ApiObjectType} (hn : n = 0 ∨ 
   · simp at ht
   · interval_cases n <;> simp at ht
 
+/-- Type numbers other than 8 are not PML4s. -/
+theorem objTypeOf_ne_pml4 {n : Nat} {t : Fl4Spec.ApiObjectType} (hn : n ≠ 8)
+    (ht : objTypeOf n = some t) : t ≠ .archObject .pml4Obj := by
+  intro e; subst e
+  unfold objTypeOf Fl4Spec.archDataToObjType at ht
+  by_cases h14 : n < 14
+  · interval_cases n <;> simp at ht <;> omega
+  · simp [show ¬ n = 0 by omega, show ¬ n = 1 by omega, show ¬ n = 2 by omega, show ¬ n = 3 by omega,
+      show ¬ n = 4 by omega, show ¬ n = 5 by omega, show ¬ n = 6 by omega, show ¬ n - 7 = 0 by omega,
+      show ¬ n - 7 = 1 by omega, show ¬ n - 7 = 2 by omega, show ¬ n - 7 = 3 by omega, show ¬ n - 7 = 4 by omega,
+      show ¬ n - 7 = 5 by omega, show ¬ n - 7 = 6 by omega] at ht
+
 /-! ## The untyped invariant -/
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
 /-- **`untyped::retype` without a reset refines `invoke_untyped`**, for the
-types 0, 2..6 (object sizes `bitsApi`, which is `zOf` there: the spec's for
+types 0, 2..7 and 9..13 (object sizes `bitsApi`, which is `zOf` there: the spec's for
 these types, FL4's for all). From the state `decode` checked (window empty,
 enough memory, sizes) with the untyped cap's slot `srcSl` (a CNode slot), its
 cap `Untyped p sb fi dev` aligned to its size, the untyped invariant, and the
@@ -224,7 +236,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
     (hpal : p.val % 2 ^ sb.val = 0) (hpfit : p.val + 2 ^ sb.val ≤ 2 ^ 64) (hfi : fi.val ≤ 2 ^ sb.val)
     (hhigh : 2 ^ 64 - 2 ^ 47 ≤ p.val)
     (nt us : U64) (t : Fl4Spec.ApiObjectType) (ht : objTypeOf nt.val = some t)
-    (hn : nt.val = 0 ∨ (2 ≤ nt.val ∧ nt.val ≤ 6)) (hus : us.val < 64) (hz47 : zOf nt.val us.val ≤ 47)
+    (hn : nt.val = 0 ∨ (2 ≤ nt.val ∧ nt.val ≤ 13 ∧ nt.val ≠ 8)) (hus : us.val < 64) (hz47 : zOf nt.val us.val ≤ 47)
     (hsc : nt.val = 5 → 7 ≤ us.val) (hct0 : nt.val = 4 → us.val ≠ 0)
     {dest : U64} {r : Nat} (hdest : th dest = some (.cnode r)) (hr : r < 64)
     (off win : U64) (hwin : off.val + win.val ≤ 2 ^ r) (hw1 : 1 ≤ win.val)
@@ -409,7 +421,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
     refine ⟨rfl, ha2, σf, Gf, th', ?_, hP', hRf, hVf, hMf, hCf, hIf, ?_, hZf⟩
     · rw [hbA] at hmx
       apply invokeUntyped_noreset_eq bitsApi (pp.bv, idx) p.bv Ab t us.val _ dev σ σa σb σf _ _ hgs hss hrb
-      · exact objTypeOf_nonarch hn ht _
+      · exact objTypeOf_ne_pml4 (by omega) ht
       · rw [hwl]; exact hmx
     · -- the untyped invariant
       have hfiL : fi.val < 2 ^ sb.val := by
@@ -508,8 +520,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
   · -- other objects: the typed heap stays
     have hcvo : ∀ i, i < win.val → CapValid th (newCapOf nt.val ⟨BitVec.ofNat 64 (A + i * k)⟩ us dev) := by
       intro i _
-      unfold newCapOf
-      split_ifs <;> first | trivial | omega
+      apply newCapOf_ind (CapValid th) <;> intros <;> first | trivial | omega
     by_cases hu : t = .untyped
     · subst hu
       refine key th σa hP hR1 hV1 hM1 hC1 ?_ hpp hdest hcvo hzsOld
