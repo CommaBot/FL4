@@ -1,7 +1,7 @@
 /-
 P3 (DESIGN.md §9), VSpace: **`delete_asid`** against l4v `delete_asid`.
 
-The TLB invalidation and the address-space switch are hypotheses (`VsHyps`):
+The TLB invalidation and the address-space switch are hypotheses (`VsHypsR`):
 * `inval`: FL4's `Arch::invalidate_asid a asid` is matched by one outcome of
   l4v `hw_asid_invalidate asid vspace` (a machine operation), keeping `SR`;
   `invalOK`: the spec's machine operation does not fail;
@@ -93,7 +93,7 @@ section Hyps
 variable {S : Type} (st : machine.Store S) [L : LawfulStore st]
 
 /-- The arch effects and the other subsystems (see the module docstring). -/
-structure VsHyps (A : Type) (ar : machine.Arch A) (P : Set U64) (SR : S → A → Fl4Spec.State Unit → Prop) : Prop where
+structure VsHypsR (A : Type) (ar : machine.Arch A) (P : Set U64) (SR : S → A → Fl4Spec.State Unit → Prop) : Prop where
   stable : ∀ s s' a σ σ', SR s a σ → WritesIn st s s' (VsWrite P (L.ksb s)) → VsStep σ σ' → SR s' a σ'
   invalOK : ∀ (asid vs : Fl4Spec.ObjRef) (σ : Fl4Spec.State Unit), ¬ (Fl4Spec.hwAsidInvalidate (Z := Unit) asid vs σ).2
   inval : ∀ s a σ (asid : U64) (vs : Fl4Spec.ObjRef), VsRel P (L.mem s) (L.ksb s) σ → SR s a σ →
@@ -177,8 +177,8 @@ theorem optRef_eq_some {w r : U64} (hr : r ≠ 0#u64) : optRef w = some r.bv ↔
 /-- **`delete_asid`** (FL4 `vspace::delete_asid asid root`, `root ≠ 0`)
 refines l4v `delete_asid asid root`: the spec does not fail, and FL4's outcome
 is matched by one of the spec's. -/
-theorem delete_asid_rel {A : Type} {ar : machine.Arch A} {P : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
-    (hH : VsHyps st A ar P SR) (s : S) (a : A) (σ : Fl4Spec.State Unit) (hP : VsPlaced P (L.ksb s))
+theorem delete_asid_relR {A : Type} {ar : machine.Arch A} {P : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
+    (hH : VsHypsR st A ar P SR) (s : S) (a : A) (σ : Fl4Spec.State Unit) (hP : VsPlaced P (L.ksb s))
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hS : SR s a σ) (asid root : U64) (hr0 : root ≠ 0#u64) :
     vspace.delete_asid st ar s a asid root ⦃ r =>
       ¬ (Fl4Spec.deleteAsid (Z := Unit) asid.bv root.bv σ).2 ∧

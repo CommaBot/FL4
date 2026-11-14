@@ -1,6 +1,6 @@
 /-
 P3 (DESIGN.md §9), VSpace: **`delete_asid_pool`** against l4v
-`delete_asid_pool`, with the hypotheses of `VsDel` (`VsHyps`).
+`delete_asid_pool`, with the hypotheses of `VsDel` (`VsHypsR`).
 
 FL4 invalidates the ASIDs of the non-empty entries of the pool (one
 `Arch::invalidate_asid` each, in order), clears the table entry, and
@@ -137,7 +137,7 @@ theorem VsRel.upd_table {P : Set U64} {m m' : U64 → U64} {ksb : U64} {σ : Fl4
 /-- The FL4 loop of `delete_asid_pool`: one invalidation per non-empty
 entry, each matched by the spec's. -/
 theorem delete_asid_pool_loop_rel {A : Type} {ar : machine.Arch A} {P : Set U64}
-    {SR : S → A → Fl4Spec.State Unit → Prop} (hH : VsHyps st A ar P SR) (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    {SR : S → A → Fl4Spec.State Unit → Prop} (hH : VsHypsR st A ar P SR) (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hP : VsPlaced P (L.ksb s)) (hR : VsRel P (L.mem s) (L.ksb s) σ) (hS : SR s a σ) {pool : U64} (hp : pool ∈ P)
     {f : Fl4Spec.AsidLowIndex → Option Fl4Spec.ObjRef} (hkf : σ.kheap pool.bv = some (.archObj (.asidPool f)))
     (base : U64) :
@@ -234,7 +234,7 @@ theorem dpRest_eq (t : Fl4Spec.AsidHighIndex → Option Fl4Spec.ObjRef) (h : Fl4
   rfl
 
 theorem dpStep_nofail {A : Type} {ar : machine.Arch A} {P : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
-    (hH : VsHyps st A ar P SR) (base : Fl4Spec.Asid) (pool : Fl4Spec.AsidLowIndex → Option Fl4Spec.ObjRef)
+    (hH : VsHypsR st A ar P SR) (base : Fl4Spec.Asid) (pool : Fl4Spec.AsidLowIndex → Option Fl4Spec.ObjRef)
     (x : Fl4Spec.Asid) (σ : Fl4Spec.State Unit) : ¬ (dpStep base pool x σ).2 := by
   unfold dpStep Fl4Spec.NonDet.when
   split
@@ -245,8 +245,8 @@ theorem dpStep_nofail {A : Type} {ar : machine.Arch A} {P : Set U64} {SR : S →
 ASID-pool cap: `base` 512-aligned, `pool ≠ 0`) refines l4v
 `delete_asid_pool base pool`: the spec does not fail, and FL4's outcome is
 matched by one of the spec's. -/
-theorem delete_asid_pool_rel {A : Type} {ar : machine.Arch A} {P : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
-    (hH : VsHyps st A ar P SR) (s : S) (a : A) (σ : Fl4Spec.State Unit) (hP : VsPlaced P (L.ksb s))
+theorem delete_asid_pool_relR {A : Type} {ar : machine.Arch A} {P : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
+    (hH : VsHypsR st A ar P SR) (s : S) (a : A) (σ : Fl4Spec.State Unit) (hP : VsPlaced P (L.ksb s))
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hS : SR s a σ) (base pool : U64) (hb : base.val % 512 = 0)
     (hp0 : pool ≠ 0#u64) :
     vspace.delete_asid_pool st ar s a base pool ⦃ r =>

@@ -44,5 +44,5 @@ import Fl4Proofs.P3.EpCombIpc
 import Fl4Proofs.P3.EpFaultNone
 import Fl4Proofs.P3.UntypedRetypeAll
 import Fl4Proofs.P3.UntypedUtFull
-import Fl4Proofs.P3.UntypedResetRetype
+import Fl4Proofs.P3.UntypedPml4
 import Fl4Proofs.P3.Vs
