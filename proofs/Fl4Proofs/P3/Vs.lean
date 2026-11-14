@@ -24,9 +24,14 @@ P3 (DESIGN.md §9), VSpace: top module.
 * VsPdMap, VsPdMapRel, VsPdUnmap, VsPdUnmapRel: the same for page
   directories, `pd_map_rel`, `unmap_page_directory_rel`, `pd_unmap_rel`;
 * VsPdptMap, VsPdptMapRel, VsPdptUnmap, VsPdptUnmapRel: the same for PDPTs,
-  `pdpt_map_rel`, `unmap_pdpt_rel`, `pdpt_unmap_rel`.
+  `pdpt_map_rel`, `unmap_pdpt_rel`, `pdpt_unmap_rel`;
+* VsFrameUnmap, VsFrameUnmapRel: Frame `Unmap` for every page size,
+  `unmap_page_rel`, `frame_unmap_rel`;
+* VsPteL, VsFrameMapL, VsFrameWriteL, VsFrameMapLRel: Frame `Map` for large
+  and huge pages, `frame_map_large_rel`, `frame_map_huge_rel`.
 -/
 import Fl4Proofs.P3.VsMakePool
 import Fl4Proofs.P3.VsDelRoot
 import Fl4Proofs.P3.VsPtWrite
 import Fl4Proofs.P3.VsPdptUnmapRel
+import Fl4Proofs.P3.VsFrameMapLRel

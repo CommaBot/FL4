@@ -13,8 +13,10 @@ word at `peA p i`, related by `PML4ERel` … `PTERel`:
   page-size bit (7) is clear;
 * a present huge/large page entry (PS set) ↔ `hugePagePDPTE` /
   `largePagePDE`; a present PTE ↔ `smallPagePTE`; the frame is the address
-  bits, and for a PTE also the rights (`US`, `RW`: `PteRights`) and the
-  cache attributes (`PWT`, `PCD`, `PAT`: `PteAttrs`).
+  bits (`frame_base`: `lA`, `hA` for large and huge pages), the rights
+  (`US`, `RW`: `PteRights`) and the cache attributes (`PWT`, `PCD`, `PAT`:
+  `PteAttrs`, `PteAttrsL`; `PteAttrsH` without PAT, which l4v drops for huge
+  pages).
 
 The walk: `lookup_pdpt_slot_rel`, `lookup_pd_slot_rel`, `lookup_pt_slot_rel`
 against l4v `lookup_pdpt_slot` / `lookup_pd_slot` / `lookup_pt_slot`: the
@@ -87,22 +89,13 @@ def eA (w : U64) : U64 := w &&& 4503599627366400#u64
 /-- The kernel pointer of a table at physical address `eA w` (`layout::pptr`). -/
 def eT (w : U64) : U64 := core.num.U64.wrapping_add (eA w) 18446743523953737728#u64
 
-def PML4ERel (L3 : Set U64) (w : U64) : Fl4Spec.PML4E → Prop
-  | .invalidPML4E => ¬ eP w
-  | .pdPointerTablePML4E tab _ _ => eP w ∧ (eA w).bv = tab ∧ eT w ∈ L3
-
-def PDPTERel (L2 : Set U64) (w : U64) : Fl4Spec.PDPTE → Prop
-  | .invalidPDPTE => ¬ eP w
-  | .pageDirectoryPDPTE tab _ _ => eP w ∧ ¬ eS w ∧ (eA w).bv = tab ∧ eT w ∈ L2
-  | .hugePagePDPTE f _ _ => eP w ∧ eS w ∧ (eA w).bv = f
-
-def PDERel (L1 : Set U64) (w : U64) : Fl4Spec.PDE → Prop
-  | .invalidPDE => ¬ eP w
-  | .pageTablePDE tab _ _ => eP w ∧ ¬ eS w ∧ (eA w).bv = tab ∧ eT w ∈ L1
-  | .largePagePDE f _ _ => eP w ∧ eS w ∧ (eA w).bv = f
-
 /-- Bit `k` of a word. -/
 def bitL (w : U64) (k : Nat) : Bool := w.bv.getLsbD k
+
+/-- The frame address of a large (2M) page entry (`vspace::frame_base`). -/
+def lA (w : U64) : U64 := w &&& 4503599625273344#u64
+/-- The frame address of a huge (1G) page entry. -/
+def hA (w : U64) : U64 := w &&& 4503598553628672#u64
 
 /-- The rights of a page entry: `US` clear is kernel-only, else `RW` set is
 read-write, clear read-only. -/
@@ -113,6 +106,31 @@ def PteRights (w : U64) (r : Fl4Spec.VMRights) : Prop :=
 def PteAttrs (w : U64) (a : Fl4Spec.VMAttributes) : Prop :=
   (Fl4Spec.VMAttribute.ptAttr .writeThrough ∈ a ↔ bitL w 3 = true) ∧
   (Fl4Spec.VMAttribute.ptAttr .cacheDisabled ∈ a ↔ bitL w 4 = true) ∧ (Fl4Spec.VMAttribute.pat ∈ a ↔ bitL w 7 = true)
+
+/-- The cache attributes of a large page entry (PAT is bit 12). -/
+def PteAttrsL (w : U64) (a : Fl4Spec.VMAttributes) : Prop :=
+  (Fl4Spec.VMAttribute.ptAttr .writeThrough ∈ a ↔ bitL w 3 = true) ∧
+  (Fl4Spec.VMAttribute.ptAttr .cacheDisabled ∈ a ↔ bitL w 4 = true) ∧ (Fl4Spec.VMAttribute.pat ∈ a ↔ bitL w 12 = true)
+
+/-- The cache attributes of a huge page entry: l4v drops PAT for huge pages
+(`attr_mask'`); FL4, as C seL4, sets bit 12. -/
+def PteAttrsH (w : U64) (a : Fl4Spec.VMAttributes) : Prop :=
+  (Fl4Spec.VMAttribute.ptAttr .writeThrough ∈ a ↔ bitL w 3 = true) ∧
+  (Fl4Spec.VMAttribute.ptAttr .cacheDisabled ∈ a ↔ bitL w 4 = true)
+
+def PML4ERel (L3 : Set U64) (w : U64) : Fl4Spec.PML4E → Prop
+  | .invalidPML4E => ¬ eP w
+  | .pdPointerTablePML4E tab _ _ => eP w ∧ (eA w).bv = tab ∧ eT w ∈ L3
+
+def PDPTERel (L2 : Set U64) (w : U64) : Fl4Spec.PDPTE → Prop
+  | .invalidPDPTE => ¬ eP w
+  | .pageDirectoryPDPTE tab _ _ => eP w ∧ ¬ eS w ∧ (eA w).bv = tab ∧ eT w ∈ L2
+  | .hugePagePDPTE f attrs rights => eP w ∧ eS w ∧ (hA w).bv = f ∧ PteRights w rights ∧ PteAttrsH w attrs
+
+def PDERel (L1 : Set U64) (w : U64) : Fl4Spec.PDE → Prop
+  | .invalidPDE => ¬ eP w
+  | .pageTablePDE tab _ _ => eP w ∧ ¬ eS w ∧ (eA w).bv = tab ∧ eT w ∈ L1
+  | .largePagePDE f attrs rights => eP w ∧ eS w ∧ (lA w).bv = f ∧ PteRights w rights ∧ PteAttrsL w attrs
 
 def PTERel (w : U64) : Fl4Spec.PTE → Prop
   | .invalidPTE => ¬ eP w

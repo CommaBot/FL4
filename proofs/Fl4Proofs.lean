@@ -68,3 +68,7 @@ import Fl4Proofs.P3.IoBitmap
 import Fl4Proofs.P3.IoPost
 import Fl4Proofs.P3.IoControl
 import Fl4Proofs.P3.IoPortDecode
+import Fl4Proofs.P1.QueueFoot
+import Fl4Proofs.P1.QueueFinal
+import Fl4Proofs.P3.VsExtTac
+import Fl4Proofs.P3.VsMakePoolRel
