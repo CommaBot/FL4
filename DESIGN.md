@@ -183,6 +183,7 @@ Bugs in FL4's own code, not differences from seL4, kept here because each one sh
 | `budget_check`'s overrun loop gave up after `refill_max + 2` rounds; seL4's has no bound. Charging more budgets than that at once (a long vCPU stall) then took the usage off a smaller head refill, which wrapped, so the SC had an effectively unbounded budget | P1: the ordering proof for `budget_check` would not go through; fl4-sim then reproduced it with 2 s stalls (seed 25 in the regressions) | Walk fuel for the loop, and the post-loop charge guarded by seL4's own assertion (`head.amount > usage`) |
 | Finalising a CNode recursed once per level, so deep zombie chains could overflow the kernel stack | P0 (recursion has no measure) | Loops |
 | Clearing dirty memory divided by the region size, which can be zero | P0 | Guard |
+| The kernel's `USER_TOP` was libsel4's `seL4_UserTop` (`0x7ffffffff000`), not C's `0x7fffffffffff`, so page-table maps and breakpoints in the last user page were refused where seL4 accepts them | P3 (VSpace, l4v `user_vtop`) | C's value |
 | With no receive IPC buffer, `set_mr` returned the running index past the message registers, where seL4 returns `n_msgRegisters`, so fault messages reported a length of up to 18 instead of 4 | P3 (fault-message refinement) | Return `N_MSG_REGISTERS` |
 | An NMI, #DB or #MC between SYSCALL and the stack switch pushed its frame on the user's RSP in ring 0 | Review while adding the SYSRET exit | IST stacks |
 
