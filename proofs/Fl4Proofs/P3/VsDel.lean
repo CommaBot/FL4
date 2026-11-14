@@ -92,6 +92,12 @@ end Spec
 section Hyps
 variable {S : Type} (st : machine.Store S) [L : LawfulStore st]
 
+/-- **The ASID deletions' memory effect**: the kernel base and core kept;
+a word changed only if it is an ASID-table or pool word, and then to 0. -/
+def VsZeroW (P : Set U64) (s s' : S) : Prop :=
+  L.ksb s' = L.ksb s ∧ L.cpu s' = L.cpu s ∧
+    ∀ b, Aligned b → L.mem s' b ≠ L.mem s b → VsWrite P (L.ksb s) b ∧ L.mem s' b = 0#u64
+
 /-- The arch effects and the other subsystems (see the module docstring). -/
 structure VsHypsR (A : Type) (ar : machine.Arch A) (P : Set U64) (SR : S → A → Fl4Spec.State Unit → Prop) : Prop where
   stable : ∀ s s' a σ σ', SR s a σ → WritesIn st s s' (VsWrite P (L.ksb s)) → VsStep σ σ' → SR s' a σ'
@@ -102,7 +108,7 @@ structure VsHypsR (A : Type) (ar : machine.Arch A) (P : Set U64) (SR : S → A �
   vmRoot : ∀ s a σ, VsRel P (L.mem s) (L.ksb s) σ → SR s a σ →
     (do
       let ct ← sched.cur_thread st s
-      vspace.set_vm_root st ar s a ct) ⦃ r =>
+      vspace.set_vm_root st ar s a ct) ⦃ r => r.1 = s ∧
       (∀ ms, ¬ (specVmRootCur { σ with machineState := ms }).2) ∧
       ∃ σ', ((), σ') ∈ (specVmRootCur σ).1 ∧ VsRel P (L.mem r.1) (L.ksb r.1) σ' ∧ SR r.1 r.2 σ' ⦄
 
@@ -110,6 +116,17 @@ end Hyps
 
 section
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
+
+theorem VsZeroW.refl (P : Set U64) (s : S) : VsZeroW st P s s :=
+  ⟨rfl, rfl, fun _ _ h => absurd rfl h⟩
+
+/-- One zero write to an ASID-table or pool word. -/
+theorem VsZeroW.wr {P : Set U64} (s : S) {b : U64} (hb : Aligned b) (hw : VsWrite P (L.ksb s) b) :
+    VsZeroW st P s (L.wr s b 0#u64) := by
+  refine ⟨by simp, by simp, fun c hc hne => ?_⟩
+  by_cases e : b = c
+  · subst e; exact ⟨hw, L.mem_wr_same hb⟩
+  · exact absurd (L.mem_wr_ne hb hc (fun h => e (UScalar.eq_of_val_eq h))) hne
 
 theorem ucast9_inj {a b : U64} (ha : a.val < 512) (hb : b.val < 512)
     (h : (Fl4Spec.ucast 9 a.bv : BitVec 9) = Fl4Spec.ucast 9 b.bv) : a = b := by
@@ -183,7 +200,7 @@ theorem delete_asid_relR {A : Type} {ar : machine.Arch A} {P : Set U64} {SR : S 
     vspace.delete_asid st ar s a asid root ⦃ r =>
       ¬ (Fl4Spec.deleteAsid (Z := Unit) asid.bv root.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.deleteAsid (Z := Unit) asid.bv root.bv σ).1 ∧
-        VsRel P (L.mem r.1) (L.ksb r.1) σ' ∧ SR r.1 r.2 σ' ⦄ := by
+        VsRel P (L.mem r.1) (L.ksb r.1) σ' ∧ SR r.1 r.2 σ' ∧ VsZeroW st P s r.1 ⦄ := by
   unfold vspace.delete_asid
   have hL : vspace.ASID_LOW_BITS = 9#u64 := by unfold vspace.ASID_LOW_BITS; rfl
   rw [hL]
@@ -211,7 +228,7 @@ theorem delete_asid_relR {A : Type} {ar : machine.Arch A} {P : Set U64} {SR : S 
   · rw [hp, show optRef 0#u64 = none from optRef_zero] at htab
     simp only [hp, ↓reduceIte, WP.spec_ok]
     rw [hspec0, htab]
-    exact ⟨by simp [pure, Fl4Spec.NonDet.pure], σ, by simp [pure, Fl4Spec.NonDet.pure], hR, hS⟩
+    exact ⟨by simp [pure, Fl4Spec.NonDet.pure], σ, by simp [pure, Fl4Spec.NonDet.pure], hR, hS, VsZeroW.refl P s⟩
   · simp only [hp, ↓reduceIte]
     set w := L.mem s (atA (L.ksb s) (i &&& 2047#u64)) with hw
     have hwP := hR.tmem _ hlt hp
@@ -258,8 +275,10 @@ theorem delete_asid_relR {A : Type} {ar : machine.Arch A} {P : Set U64} {SR : S 
         ⟨by simp, by simp, fun b hb hn => L.mem_wr_ne hea hb (fun e => hn (Or.inr ⟨w, hwP, _, hlo, (UScalar.eq_of_val_eq e).symm⟩))⟩
       have hS2 := hH.stable _ _ a1 _ σ2 hS1 hW (Or.inl ⟨w.bv, f, _, hkf, rfl⟩)
       refine WP.spec_mono (hH.vmRoot _ a1 σ2 (by rw [LawfulStore.ksb_wr]; exact hR2) hS2) ?_
-      rintro ⟨s3, a3⟩ ⟨hnf, σ3, hm3, hR3, hS3⟩
-      refine ⟨?_, σ3, ?_, hR3, hS3⟩
+      rintro ⟨s3, a3⟩ ⟨e3, hnf, σ3, hm3, hR3, hS3⟩
+      simp only at e3
+      subst e3
+      refine ⟨?_, σ3, ?_, hR3, hS3, VsZeroW.wr s hea (Or.inr ⟨w, hwP, _, hlo, rfl⟩)⟩
       · refine nd_nofail_bind (hH.invalOK _ _ σ) fun x hx => ?_
         obtain ⟨r, σ''⟩ := x
         obtain ⟨ms, rfl⟩ := doMachineOp_mem hx
@@ -274,7 +293,7 @@ theorem delete_asid_relR {A : Type} {ar : machine.Arch A} {P : Set U64} {SR : S 
     · simp only [hvr, ↓reduceIte, WP.spec_ok]
       have hc : ¬ f (Fl4Spec.asidLowBitsOf asid.bv) = some root.bv := by rw [hfe, optRef_eq_some hr0]; exact hvr
       rw [nd_when_false hc]
-      exact ⟨by simp [pure, Fl4Spec.NonDet.pure], σ, by simp [pure, Fl4Spec.NonDet.pure], hR, hS⟩
+      exact ⟨by simp [pure, Fl4Spec.NonDet.pure], σ, by simp [pure, Fl4Spec.NonDet.pure], hR, hS, VsZeroW.refl P s⟩
 
 end
 

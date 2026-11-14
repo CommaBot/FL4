@@ -179,11 +179,11 @@ theorem VsMdbInv.frameAlias (h : VsMdbInv ksb mem G) {src dest : U64} (hsrc : sr
 /-- **`pool`**: an ASID pool cap inserted after an untyped cap; the pool
 set grown by its pool. -/
 theorem VsMdbInv.pool (h : VsMdbInv ksb mem G) {x val q bs : U64} (hx : x ∈ G.chains.flatten)
-    (hcf : capV mem' val = .AsidPool q bs) (hb : bs.val % 512 = 0 ∧ bs.val < 2 ^ 20)
+    (hcf : capV mem' val = .AsidPool q bs) (hb : bs.val % 512 = 0 ∧ bs.val < 2 ^ 20 ∧ q ≠ 0#u64)
     (hc : ∀ z ∈ G.chains.flatten, capV mem' z = capV mem z) : VsMdbInv ksb mem' (insG G x val true) := by
   obtain ⟨⟨P, L4, L3, L2, L1, hV⟩, hU⟩ := h
   refine ⟨⟨Insert.insert q P, L4, L3, L2, L1, hV.insert_fresh (Set.subset_insert _ _) subset_rfl subset_rfl subset_rfl
-    subset_rfl hx true (by rw [hcf]; exact ⟨Set.mem_insert _ _, hb.1, hb.2⟩) (by rw [hc x hx]; exact id)
+    subset_rfl hx true (by rw [hcf]; exact ⟨⟨Set.mem_insert _ _, hb.2.2⟩, hb.1, hb.2.1⟩) (by rw [hc x hx]; exact id)
     fun z hz _ _ => hc z hz⟩,
     hU.insert hx true (by rw [hcf]; trivial) fun z hz _ hok => by rw [hc z hz]; exact hok⟩
 

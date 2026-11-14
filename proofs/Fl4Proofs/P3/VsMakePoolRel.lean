@@ -767,7 +767,7 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     have V3 := V2.of_caps (fun z hz => hSS3.capV ((RR2.M.members z).1 hz).1)
     have V4 := V3.insert_fresh (P' := insert p P') (L4' := L4') (L3' := L3') (L2' := L2') (L1' := L1')
       (Set.subset_insert _ _) subset_rfl subset_rfl subset_rfl subset_rfl hxm true
-      (by rw [hctx.cd]; exact Vs.vcap_pool hbase hi) (by rw [hctx.cz hxm]; exact id) (fun z hz _ _ => hctx.cz hz)
+      (by rw [hctx.cd]; exact Vs.vcap_pool hbase hi hp0) (by rw [hctx.cz hxm]; exact id) (fun z hz _ _ => hctx.cz hz)
     exact V4.of_caps (fun z hz => hSS5.capV ((hM4.members z).1 hz).1)
   -- the MDB step and the VSpace MDB invariant
   have hrv2 : ∀ z ∈ G.chains.flatten, revOf (L.mem s2) z = revOf (L.mem s1) z := fun z hz => by
@@ -786,13 +786,13 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     (MdbStep.setFi hM1 hI1 hxm hcx1 RR2.cap hf' (Or.inr hnd) hco2' hrv2).trans <|
     (MdbStep.of_same RR2.M hSS3).trans <|
     (MdbStep.pool RR3.M RR3.I hxm RR3.cap hf4 hnd hvm hctx.cd hbA htA (fun z hz => hctx.cz hz) hrv4
-      ⟨by rw [hbase]; omega, by rw [hbase]; omega⟩).trans <|
+      ⟨by rw [hbase]; omega, by rw [hbase]; omega, hp0⟩).trans <|
     MdbStep.of_same hM4 hSS5
   have VM : ∀ ksb : U64, Vs.VsMdbInv ksb (L.mem s) G → Vs.VsMdbInv ksb (L.mem s5) G' := fun ksb h0 => by
     have W1 := h0.keep (fun z hz => hSS.capV ((hM.members z).1 hz).1)
     have W2 := W1.setFi hcx1 RR2.cap hco2'
     have W3 := W2.keep (fun z hz => hSS3.capV ((RR2.M.members z).1 hz).1)
-    have W4 := W3.pool hxm hctx.cd ⟨by rw [hbase]; omega, by rw [hbase]; omega⟩ (fun z hz => hctx.cz hz)
+    have W4 := W3.pool hxm hctx.cd ⟨by rw [hbase]; omega, by rw [hbase]; omega, hp0⟩ (fun z hz => hctx.cz hz)
     exact W4.keep (fun z hz => hSS5.capV ((hM4.members z).1 hz).1)
   refine ⟨τf, th', G', by rw [hrun]; exact hmem, by rw [hrun]; exact hall.1, hP', hR5, hV5, hM5, hC5,
     MdbInv.of_same hM4 hI4 hSS5, UtInv.of_same hM4 hU4 hSS5, by rw [hksb5]; exact hVs5, hPt5, hSR5, ⟨hKTf, F5⟩, FR5, VC,

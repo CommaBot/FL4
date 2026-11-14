@@ -150,8 +150,8 @@ theorem vcap_alias {P L4 L3 L2 L1 : Set U64} {ptr rt fa fv q vm : U64} {mm : Boo
 
 /-- **`MakePool`'s pool cap is well placed** in the pool set grown by it. -/
 theorem vcap_pool {P L4 L3 L2 L1 : Set U64} {p base i : U64} (hbase : base.val = i.val * 512)
-    (hi : i.val < 2048) : VCapOK (insert p P) L4 L3 L2 L1 (.AsidPool p base) :=
-  ⟨Set.mem_insert _ _, by omega, by omega⟩
+    (hi : i.val < 2048) (hp0 : p ≠ 0#u64) : VCapOK (insert p P) L4 L3 L2 L1 (.AsidPool p base) :=
+  ⟨⟨Set.mem_insert _ _, hp0⟩, by omega, by omega⟩
 
 
 /-! ## The untyped regions apart from the kernel-global area -/

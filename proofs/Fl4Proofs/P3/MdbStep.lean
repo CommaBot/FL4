@@ -278,7 +278,7 @@ inductive MdbStep : (U64 → U64) → MdbGhost → (U64 → U64) → MdbGhost �
       (hbA : baseF (.AsidPool q b) = baseF (capV mem x)) (htA : topF (.AsidPool q b) = topF (capV mem x))
       (hc : ∀ z ∈ G.chains.flatten, capV mem' z = capV mem z)
       (hr : ∀ z ∈ G.chains.flatten, revOf mem' z = revOf mem z)
-      (hb : b.val % 512 = 0 ∧ b.val < 2 ^ 20) : MdbStep mem G mem' (insG G x val true)
+      (hb : b.val % 512 = 0 ∧ b.val < 2 ^ 20 ∧ q ≠ 0#u64) : MdbStep mem G mem' (insG G x val true)
   /-- Retype's new caps. -/
   | retype {th : TypedHeap} {mem0 mem1 memf : U64 → U64} {G0 Gf : MdbGhost} {src p sb fi nfi : U64} {dev : Bool}
       {A k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap}

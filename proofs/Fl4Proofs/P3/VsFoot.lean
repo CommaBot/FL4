@@ -51,7 +51,7 @@ def VCapOK (P L4 L3 L2 L1 : Set U64) : capability.Cap → Prop
   | .Pdpt p mp a _ => p ∈ L3 ∧ PaM p 4503599627366400#u64 ∧ (mp = true → a ≠ 0#u64)
   | .Pml4 p mp a => p ∈ L4 ∧ p ≠ 0#u64 ∧ (mp = true → a ≠ 0#u64 ∧ a.val < 2 ^ 20)
   | .Frame p sz _ _ m a _ => (m = true → a ≠ 0#u64) ∧ PaM p (frameMaskOf sz)
-  | .AsidPool p b => p ∈ P ∧ b.val % 512 = 0 ∧ b.val < 2 ^ 20
+  | .AsidPool p b => (p ∈ P ∧ p ≠ 0#u64) ∧ b.val % 512 = 0 ∧ b.val < 2 ^ 20
   | _ => True
 
 /-- **A remapped cap**: alike for the MDB, and well placed when the old one

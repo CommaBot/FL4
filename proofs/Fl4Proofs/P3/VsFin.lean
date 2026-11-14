@@ -341,7 +341,7 @@ theorem fin_pml4 (hH : VsHyps st A ar P th SR) (s : S) (a : A) (σ : Fl4Spec.Sta
   simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, ↓reduceIte]
   refine WP.spec_bind (delete_asid_rel (hH.fin (s0 := s) (σ0 := σ) hPl hVO) s a σ hVP hR
     ⟨FinSR.init hS, hDS.1.1, hPl, hSD, hCur⟩ asid p hp0) ?_
-  rintro ⟨s1, a1⟩ ⟨-, σ', hm, hR1, ⟨hS1, hSS, hK, -⟩, hSt1, -⟩
+  rintro ⟨s1, a1⟩ ⟨-, σ', hm, hR1, ⟨⟨hS1, hSS, hK, -⟩, hSt1, -⟩, -⟩
   obtain ⟨hD', hcv, hsl, hMS⟩ := fin_after hDS hA hc hSS hSt1 hK
   refine (WP.spec_ok _).2 ⟨⟨rfl, trivial, trivial, σ', G, ?_, hD', hcv, hsl, hMS, hS1, hR1⟩, hSS⟩
   exact mem_bind_nd hm (Set.mem_singleton _)
@@ -353,18 +353,18 @@ theorem fin_asid_pool (hH : VsHyps st A ar P th SR) (s : S) (a : A) (σ : Fl4Spe
     (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hA : AbsSlot th sl) (hPl : Placed th)
     (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b) (hSD : VsSlotsDisj th P (L.ksb s))
     (hVP : VsPlaced P (L.ksb s)) (hR : VsRel P (L.mem s) (L.ksb s) σ) (hCur : CurOK st th s σ)
-    (hS : SR s a σ) (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G) (hP0 : ∀ q ∈ P, q ≠ 0#u64)
+    (hS : SR s a σ) (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
     (p base : U64) (hc : capAt (L.mem s) (cslotAddr sl) = ok (.AsidPool p base)) :
     objects.finalise_cap st ar s a (.AsidPool p base) true false ⦃ r =>
       FinOKX (L := L) th s σ G sl (.AsidPool p base) true (FinX st P SR) r ∧
         SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ := by
   have hok := hVC.at hDS.1.2.2.1 hA.isSlot hc (by simp)
   simp only [VCapOK] at hok
-  obtain ⟨hpP, hb, -⟩ := hok
+  obtain ⟨⟨-, hp0⟩, hb, -⟩ := hok
   simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, ↓reduceIte]
   refine WP.spec_bind (delete_asid_pool_rel (hH.fin (s0 := s) (σ0 := σ) hPl hVO) s a σ hVP hR
-    ⟨FinSR.init hS, hDS.1.1, hPl, hSD, hCur⟩ base p hb (hP0 p hpP)) ?_
-  rintro ⟨s1, a1⟩ ⟨-, σ', hm, hR1, ⟨hS1, hSS, hK, -⟩, hSt1, -⟩
+    ⟨FinSR.init hS, hDS.1.1, hPl, hSD, hCur⟩ base p hb hp0) ?_
+  rintro ⟨s1, a1⟩ ⟨-, σ', hm, hR1, ⟨⟨hS1, hSS, hK, -⟩, hSt1, -⟩, -⟩
   obtain ⟨hD', hcv, hsl, hMS⟩ := fin_after hDS hA hc hSS hSt1 hK
   refine (WP.spec_ok _).2 ⟨⟨rfl, trivial, trivial, σ', G, ?_, hD', hcv, hsl, hMS, hS1, hR1⟩, hSS⟩
   exact mem_bind_nd hm (Set.mem_singleton _)
@@ -395,7 +395,7 @@ theorem vs_fin (hH : VsFinHyps st A ar th P L4 L3 L2 L1 SR) (s : S) (a : A) (σ 
     (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b) (hSD : VsSlotsDisj th P (L.ksb s))
     (hVP : VsPlaced P (L.ksb s)) (hPI : PoolsIn P L4 (L.mem s)) (hR : VsRel P (L.mem s) (L.ksb s) σ)
     (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ) (hCur : CurOK st th s σ) (hS : SR s a σ)
-    (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G) (hP0 : ∀ q ∈ P, q ≠ 0#u64)
+    (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
     (c : capability.Cap) (hc : capAt (L.mem s) (cslotAddr sl) = ok c) (hv : IsVsFin c) (b : Bool)
     (hw : FinWork c b) :
     objects.finalise_cap st ar s a c b false ⦃ r =>
@@ -420,7 +420,7 @@ theorem vs_fin (hH : VsFinHyps st A ar th P L4 L3 L2 L1 SR) (s : S) (a : A) (σ 
   case Pml4 p mp asid =>
     rw [hb rfl]; exact fin_pml4 hH.del s a σ G sl hDS hA hPl hVO hSD hVP hR hCur hS hVC p asid mp hc
   case AsidPool p base =>
-    rw [hb rfl]; exact fin_asid_pool hH.del s a σ G sl hDS hA hPl hVO hSD hVP hR hCur hS hVC hP0 p base hc
+    rw [hb rfl]; exact fin_asid_pool hH.del s a σ G sl hDS hA hPl hVO hSD hVP hR hCur hS hVC p base hc
 
 end Ops
 
@@ -467,14 +467,14 @@ theorem vs_fin_top (hA : ArchRefines arI AR) (s : S) (a : A) (σ : Fl4Spec.State
     (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hAs : AbsSlot th sl)
     (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ) (hPI : PoolsIn P L4 (L.mem s))
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ) (hCur : CurOK st th s σ)
-    (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G) (hP0 : ∀ q ∈ P, q ≠ 0#u64)
+    (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
     (cp : capability.Cap) (hc : capAt (L.mem s) (cslotAddr sl) = ok cp) (hv : IsVsFin cp) (b : Bool)
     (hw : FinWork cp b) :
     objects.finalise_cap st arI s a cp b false ⦃ r =>
       FinOKX (L := L) th s σ G sl cp b (FinX st P (TopSR st th P L4 L3 L2 L1 N T C E R B c AR)) r ∧
         SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ :=
   vs_fin (vsFinHyps_top hA) s a σ G sl hDS hAs hS.2.pl hS.2.pt hS.2.ps hS.2.pv hS.2.po hS.2.vo hS.2.sd hS.2.vs
-    hPI hR hPt hCur hS hVC hP0 cp hc hv b hw
+    hPI hR hPt hCur hS hVC cp hc hv b hw
 
 end Top
 

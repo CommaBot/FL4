@@ -252,7 +252,7 @@ theorem delete_asid_pool_relR {A : Type} {ar : machine.Arch A} {P : Set U64} {SR
     vspace.delete_asid_pool st ar s a base pool ⦃ r =>
       ¬ (Fl4Spec.deleteAsidPool (Z := Unit) base.bv pool.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.deleteAsidPool (Z := Unit) base.bv pool.bv σ).1 ∧
-        VsRel P (L.mem r.1) (L.ksb r.1) σ' ∧ SR r.1 r.2 σ' ⦄ := by
+        VsRel P (L.mem r.1) (L.ksb r.1) σ' ∧ SR r.1 r.2 σ' ∧ VsZeroW st P s r.1 ⦄ := by
   have hlow : Fl4Spec.asidLowBitsOf base.bv = 0 := by
     unfold Fl4Spec.asidLowBitsOf Fl4Spec.asidLowLen Fl4Spec.ucast
     apply BitVec.eq_of_toNat_eq
@@ -313,9 +313,11 @@ theorem delete_asid_pool_relR {A : Type} {ar : machine.Arch A} {P : Set U64} {SR
         (fun e => hn (Or.inl ⟨_, hlt2, (UScalar.eq_of_val_eq e).symm⟩))⟩
     have hST := hH.stable _ _ a1 _ σT hS1 hW (Or.inr ⟨_, rfl⟩)
     refine WP.spec_mono (hH.vmRoot _ a1 σT (by rw [LawfulStore.ksb_wr]; exact hRT) hST) ?_
-    rintro ⟨s3, a3⟩ ⟨hnf, σ3, hm3, hR3, hS3⟩
+    rintro ⟨s3, a3⟩ ⟨e3, hnf, σ3, hm3, hR3, hS3⟩
+    simp only at e3
+    subst e3
     rw [hspec1]
-    refine ⟨?_, σ3, ?_, hR3, hS3⟩
+    refine ⟨?_, σ3, ?_, hR3, hS3, VsZeroW.wr s hea (Or.inl ⟨_, hlt2, rfl⟩)⟩
     · have hM := mapM_ms (dpStep base.bv f) (dpStep_nofail hH base.bv f) (dpStep_ms base.bv f) dpOffs σ
       refine nd_nofail_bind hM.1 fun x hx => ?_
       obtain ⟨ms', hms'⟩ := hM.2 x.1 x.2 hx
@@ -329,7 +331,7 @@ theorem delete_asid_pool_relR {A : Type} {ar : machine.Arch A} {P : Set U64} {SR
     have hc : ¬ σ.archState.x64AsidTable (Fl4Spec.asidHighBitsOf base.bv) = some pool.bv := by
       rw [htab, optRef_eq_some hp0]; exact hw
     rw [hspec0, nd_when_false hc]
-    exact ⟨by simp [pure, Fl4Spec.NonDet.pure], σ, by simp [pure, Fl4Spec.NonDet.pure], hR, hS⟩
+    exact ⟨by simp [pure, Fl4Spec.NonDet.pure], σ, by simp [pure, Fl4Spec.NonDet.pure], hR, hS, VsZeroW.refl P s⟩
 
 end
 

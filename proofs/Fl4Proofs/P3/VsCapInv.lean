@@ -43,6 +43,7 @@ theorem VCapOK.mono {P L4 L3 L2 L1 P' L4' L3' L2' L1' : Set U64} (hP : P ⊆ P')
     | exact ⟨h3 h.1, h.2⟩
     | exact ⟨h4 h.1, h.2⟩
     | exact ⟨hP h.1, h.2⟩
+    | exact ⟨⟨hP h.1.1, h.1.2⟩, h.2⟩
     | exact h
 
 section
