@@ -206,12 +206,12 @@ def CoreField (K : U64) : Prop :=
 structure CAgree (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (c : U64) (s s' : S) : Prop where
   ksb : L.ksb s' = L.ksb s
   cpu : L.cpu s' = L.cpu s
-  node : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → o.val ≠ 16 → o.val ≠ 56 →
+  node : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → o.val ≠ 16 → o.val ≠ 56 → o.val ≠ 40 →
     L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)
   tcb : ∀ y ∈ T, ∀ K, CoreField K → L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K)
 
 theorem SAgree.toC {T C : Set U64} {c : U64} {s s' : S} (h : SAgree st T C c s s') : CAgree st T c s s' :=
-  ⟨h.ksb, h.cpu, h.node, fun y hy K hK => h.tcb y hy K (by
+  ⟨h.ksb, h.cpu, fun o h1 h2 h3 h4 _ => h.node o h1 h2 h3 h4, fun y hy K hK => h.tcb y hy K (by
     rcases hK with h | h | h | h | h <;> simp [SchedField, h])⟩
 
 theorem CAgree.aff {T : Set U64} {c : U64} {s s' : S} (h : CAgree st T c s s') {y : U64} (hy : y ∈ T) :
@@ -226,22 +226,23 @@ theorem CAgree.prev {T : Set U64} {c : U64} {s s' : S} (h : CAgree st T c s s') 
     L.mem s' (prevA .Sched y) = L.mem s (prevA .Sched y) := h.tcb y hy _ (by simp [CoreField, prevOff])
 
 theorem CAgree.nodeW {T : Set U64} {c : U64} {s s' : S} (h : CAgree st T c s s') {o : U64}
-    (ho : o.val < 4288) (h8 : o.val % 8 = 0) (h16 : o.val ≠ 16) (h56 : o.val ≠ 56) :
+    (ho : o.val < 4288) (h8 : o.val % 8 = 0) (h16 : o.val ≠ 16) (h56 : o.val ≠ 56) (h40 : o.val ≠ 40) :
     nodeW st s' c o = nodeW st s c o := by
-  unfold Fl4Proofs.P3.Sched.nodeW; rw [nodeAt_ksb h.ksb]; exact h.node o ho h8 h16 h56
+  unfold Fl4Proofs.P3.Sched.nodeW; rw [nodeAt_ksb h.ksb]; exact h.node o ho h8 h16 h56 h40
 
 theorem CAgree.views {T : Set U64} {c : U64} {s s' : S} (h : CAgree st T c s s') : ViewsEq st s s' c := by
   refine ⟨fun p hp => ?_, ?_, fun g hg => ?_⟩
   · simp only [LawfulStore.rqQ, nodeAt_ksb h.ksb]
     rw [h.node _ (by rw [rqOff_val hp]; omega) (by rw [rqOff_val hp]; omega) (by rw [rqOff_val hp]; omega)
-        (by rw [rqOff_val hp]; omega),
+        (by rw [rqOff_val hp]; omega) (by rw [rqOff_val hp]; omega),
       h.node _ (by rw [rqTailOff_val hp]; omega) (by rw [rqTailOff_val hp]; omega)
-        (by rw [rqTailOff_val hp]; omega) (by rw [rqTailOff_val hp]; omega)]
+        (by rw [rqTailOff_val hp]; omega) (by rw [rqTailOff_val hp]; omega) (by rw [rqTailOff_val hp]; omega)]
   · simp only [LawfulStore.l1W, nodeAt_ksb h.ksb]
     exact h.node _ (by rw [l1Off_val]; omega) (by rw [l1Off_val]) (by rw [l1Off_val]; omega) (by rw [l1Off_val]; omega)
+      (by rw [l1Off_val]; omega)
   · simp only [LawfulStore.l2W, nodeAt_ksb h.ksb]
     exact h.node _ (by rw [l2Off_val hg]; omega) (by rw [l2Off_val hg]; omega) (by rw [l2Off_val hg]; omega)
-      (by rw [l2Off_val hg]; omega)
+      (by rw [l2Off_val hg]; omega) (by rw [l2Off_val hg]; omega)
 
 theorem CAgree.links {T : Set U64} {c : U64} {s s' : S} (h : CAgree st T c s s') {q xs}
     (hq : QueueRel (L.mem s) T .Sched q xs) : QueueRel (L.mem s') T .Sched q xs :=
@@ -253,8 +254,10 @@ theorem SchedCore.agree {T : Set U64} {c : U64} {s s' : S} {Q : U64 → List U64
   have hv := ha.views
   have hrel : L.relQ s' c = L.relQ s c := by
     simp only [LawfulStore.relQ, nodeAt_ksb ha.ksb]
-    rw [ha.node _ (by rw [relh_val]; omega) (by rw [relh_val]) (by rw [relh_val]; omega) (by rw [relh_val]; omega),
-      ha.node _ (by rw [relt_val]; omega) (by rw [relt_val]) (by rw [relt_val]; omega) (by rw [relt_val]; omega)]
+    rw [ha.node _ (by rw [relh_val]; omega) (by rw [relh_val]) (by rw [relh_val]; omega) (by rw [relh_val]; omega)
+        (by rw [relh_val]; omega),
+      ha.node _ (by rw [relt_val]; omega) (by rw [relt_val]) (by rw [relt_val]; omega) (by rw [relt_val]; omega)
+        (by rw [relt_val]; omega)]
   refine ⟨h.tcbs, nodePlaced_ksb h.node ha.ksb, ha.cpu.trans h.cur, fun t ht => (ha.aff ht).trans (h.aff t ht),
     fun t ht => (ha.prio ht) ▸ h.prio t ht,
     ⟨h.ready.1.agree hv.1 fun p hp y hy =>
@@ -265,9 +268,11 @@ theorem SchedCore.agree {T : Set U64} {c : U64} {s s' : S} {Q : U64 → List U64
     fun t ht => by rw [ha.inq ht]; exact h.released t ht,
     fun t ht => by rw [ha.prio ht]; exact h.excl t ht, ?_, ?_, by rw [ha.ksb]; exact h.ksOut⟩
   · rw [ha.nodeW (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])
-      (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])]; exact h.curT
+      (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])]
+    exact h.curT
   · rw [ha.nodeW (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])
-      (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])]; exact h.idleT
+      (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])]
+    exact h.idleT
 
 theorem curDomA_ksb {s s' : S} (h : L.ksb s' = L.ksb s) : curDomA st s' = curDomA st s := by
   simp [curDomA, h]

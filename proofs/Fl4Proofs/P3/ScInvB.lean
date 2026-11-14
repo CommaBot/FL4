@@ -64,7 +64,7 @@ theorem Inv.budgetPost {σ σ' : State Unit} (h : Inv σ) {p u0 : ObjRef} {y : S
     rw [hkp scp hsp] at h3
     exact h.rd u x hx0 hc x scp w n hx0 h2 h3 h4 h5
   · by_cases e : q = p
-    · subst e; rw [hky] at hw; cases hw; exact ⟨hne', hpos', hsum', hmin'⟩
+    · subst e; rw [hky] at hw; cases hw; exact fun _ => ⟨hne', hpos', hsum', hmin'⟩
     · rw [hkp q e] at hw; exact h.refills q w n hw ha
   · obtain ⟨w, n, h1, h2⟩ := h.back u x q (htcb u x hx) hq
     by_cases e : q = p
@@ -100,16 +100,18 @@ theorem budget_check_refines_inv {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
       y.scTcb = some u0) (hnr : u0 ∉ σ.releaseQueue) :
     sporadic.budget_check st ar s a usage ⦃ s' => ∃ σ', Fl4Spec.refillBudgetCheck (Z := Unit) usage.bv σ =
       ({((), σ')}, False) ∧ FootEq N T (L.mem s) (L.mem s') ∧ KView σ σ' ∧ SchedRel st N T C c s' σ' ∧
-      InvBut σ' u0 ⦄ := by
+      InvBut σ' u0 ∧ BudgetPost σ σ' (nodeW st s c layout.node.CUR_SC).bv ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x, n, hk, hx⟩ := hs.scs _ hcC
-  obtain ⟨hne, hpos, hsum, hmin⟩ := hI.refills _ x n hk (hact x n hk)
+  have hper : x.scPeriod ≠ 0 := by
+    rw [hx.period]; intro e; exact hrr (eq_of_bv (by rw [e]; rfl))
+  obtain ⟨hne, hpos, hsum, hmin⟩ := hI.refills _ x n hk (hact x n hk) hper
   have hl := lsum_eq_map (L.refills s (nodeW st s c layout.node.CUR_SC))
   rw [← hx.refills] at hl
   refine WP.spec_mono (budget_check_refines s a σ hS hcC hmrt hmb hrr ?_ (by rw [hl]; exact hsum) ?_ usage) ?_
   rotate_left 2
   · rintro s' ⟨σ', h1, h2, h3, h4, h5⟩
-    exact ⟨σ', h1, h2, h3, h4, hI.budgetPost hk h5 (hown x n hk) hnr⟩
+    exact ⟨σ', h1, h2, h3, h4, hI.budgetPost hk h5 (hown x n hk) hnr, h5⟩
   · intro r hr
     have := hpos (toRefill r) (by rw [hx.refills]; exact List.mem_map_of_mem hr)
     simpa [toRefill] using this

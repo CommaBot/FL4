@@ -109,7 +109,7 @@ theorem unblock_result {σ : State Unit} {p : ObjRef} {y : SchedContext} {n : Na
     (σ' = σ ∧ ¬ (refillReady σ.curTime (refillHd y) = true ∧ ¬ decide (y.scPeriod = 0) = true)) ∨
     ∃ z, σ' = updSc { σ with reprogramTimer := true } p z n ∧ (RefOK y → RefOK z) ∧
       (refillHd z).rTime = σ.curTime ∧ z = { y with scRefills := z.scRefills } ∧
-      refillReady σ.curTime (refillHd y) = true ∧ z.scRefills ≠ [] := by
+      refillReady σ.curTime (refillHd y) = true ∧ z.scRefills ≠ [] ∧ y.scPeriod ≠ 0 := by
   unfold refillUnblockCheck at hm
   rw [nd_bind_one (isRoundRobin_eq hk), nd_bind_one (getScRefillReady_eq hk hne)] at hm
   simp only [NonDet.when] at hm
@@ -145,7 +145,7 @@ theorem unblock_result {σ : State Unit} {p : ObjRef} {y : SchedContext} {n : Na
       rfl
     obtain ⟨z, h1, h2, h3, h4, h5⟩ := merge_loop_result hk1 hm
     refine Or.inr ⟨z, h1.trans (updSc_updSc _ _ _ _ _ _), fun hy => h2 (hR1 hy), h3.trans ht1, ?_, hc.1,
-      h5 (by simp [y1])⟩
+      h5 (by simp [y1]), by simpa using hc.2⟩
     rw [h4]
   · have hm' : (r, σ') ∈ ({((), σ)} : Set (Unit × State Unit)) := hm
     rw [Set.mem_singleton_iff] at hm'
@@ -156,12 +156,13 @@ theorem unblock_result {σ : State Unit} {p : ObjRef} {y : SchedContext} {n : Na
 member is bound to the SC. -/
 theorem Inv.unblock {σ σ' : State Unit} (h : Inv σ) {p : ObjRef} {y : SchedContext} {n : Nat}
     (hk : σ.kheap p = some (.schedContext y n)) (hne : y.scRefills ≠ [])
-    (hnr : refillReady σ.curTime (refillHd y) = true →
+    (hnr : refillReady σ.curTime (refillHd y) = true → y.scPeriod ≠ 0 →
       ∀ u ∈ σ.releaseQueue, ∀ x, σ.kheap u = some (.tcb x) → x.tcbSchedContext ≠ some p)
     {r : Unit} (hm : (r, σ') ∈ (refillUnblockCheck (Z := Unit) p σ).1) : Inv σ' := by
-  rcases unblock_result hk hne hm with ⟨rfl, -⟩ | ⟨z, rfl, hzR, hzt, hzy, hrdy, hzne⟩
+  rcases unblock_result hk hne hm with ⟨rfl, -⟩ | ⟨z, rfl, hzR, hzt, hzy, hrdy, hzne, hper⟩
   · exact h
-  have hnr' := hnr hrdy
+  have hnr' := hnr hrdy hper
+  have hzper : z.scPeriod = y.scPeriod := by rw [hzy]
   have hkp : ∀ q, q ≠ p → (updSc { σ with reprogramTimer := true } p z n).kheap q = σ.kheap q := fun q hq => by
     simp [updK, hq]
   have hkz : (updSc { σ with reprogramTimer := true } p z n).kheap p = some (.schedContext z n) := by simp [updK]
@@ -184,8 +185,8 @@ theorem Inv.unblock {σ σ' : State Unit} (h : Inv σ) {p : ObjRef} {y : SchedCo
     refine List.Pairwise.imp_of_mem (fun {a b} ha hb hab => ?_) h.sorted
     obtain ⟨xa, pa, ya, na, h1, h2, -, h4, h5⟩ := h.rel a ha
     obtain ⟨xb, pb, yb, nb, g1, g2, -, g4, g5⟩ := h.rel b hb
-    have nea := (h.refills _ _ _ h4 h5).1
-    have neb := (h.refills _ _ _ g4 g5).1
+    have nea := h.ne _ _ _ h4
+    have neb := h.ne _ _ _ g4
     have hap : a ≠ p := by rintro rfl; rw [hk] at h1; cases h1
     have hbp : b ≠ p := by rintro rfl; rw [hk] at g1; cases g1
     have hpa : pa ≠ p := fun e => hnr' a ha xa h1 (e ▸ h2)
@@ -200,11 +201,11 @@ theorem Inv.unblock {σ σ' : State Unit} (h : Inv σ) {p : ObjRef} {y : SchedCo
     by_cases e : scp = p
     · subst e
       rw [hkz] at h3; cases h3
-      exact ⟨ready_now _ _ hzt, sufficient_of_refOK (hzR (h.refills _ y n hk (hzact ▸ h4)))⟩
+      exact ⟨ready_now _ _ hzt, sufficient_of_refOK (hzR (h.refills _ y n hk (hzact ▸ h4) hper))⟩
     · rw [hkp scp e] at h3
       exact h.rd u x hx0 hc x scp w m hx0 h2 h3 h4 h5
   · by_cases e : q = p
-    · subst e; rw [hkz] at hw; cases hw; intro ha; exact hzR (h.refills _ y n hk (hzact ▸ ha))
+    · subst e; rw [hkz] at hw; cases hw; intro ha _; exact hzR (h.refills _ y n hk (hzact ▸ ha) hper)
     · rw [hkp q e] at hw; exact h.refills q w m hw
   · obtain ⟨w, m, h1, h2⟩ := h.back u x q (htcb u x hx) hq
     by_cases e : q = p

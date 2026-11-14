@@ -26,7 +26,7 @@ structure InvBut (σ : State Unit) (t : ObjRef) : Prop where
     runnable x.tcbState = true ∧ σ.kheap scp = some (.schedContext y n) ∧ scActive y = true
   sorted : σ.releaseQueue.Pairwise (fun a b => specRt σ a ≤ specRt σ b)
   rd : ∀ u x, u ≠ t → σ.kheap u = some (.tcb x) → inClass x.tcbState → RelIfBound σ u
-  refills : ∀ p y n, σ.kheap p = some (.schedContext y n) → scActive y = true → RefOK y
+  refills : ∀ p y n, σ.kheap p = some (.schedContext y n) → scActive y = true → y.scPeriod ≠ 0 → RefOK y
   back : ∀ u x p, σ.kheap u = some (.tcb x) → x.tcbSchedContext = some p →
     ∃ y n, σ.kheap p = some (.schedContext y n) ∧ y.scTcb = some u
   ntfnSc : ∀ q x p, σ.kheap q = some (.notification x) → x.ntfnSc = some p →
@@ -74,12 +74,13 @@ theorem Inv.donated {σ : State Unit} (h : Inv σ) {p t : ObjRef} {ys : SchedCon
       have : q ≠ t := by rintro rfl; rw [hkt] at hq; cases hq
       rw [ko q this hqp]; exact hq
   have sc_b : ∀ q y m, σd.kheap q = some (.schedContext y m) →
-      ∃ y0, σ.kheap q = some (.schedContext y0 m) ∧ y.scRefills = y0.scRefills ∧ y.scRefillMax = y0.scRefillMax := by
+      ∃ y0, σ.kheap q = some (.schedContext y0 m) ∧ y.scRefills = y0.scRefills ∧ y.scRefillMax = y0.scRefillMax ∧
+        y.scPeriod = y0.scPeriod := by
     intro q y m hq
     by_cases e : q = p
-    · subst e; rw [kp] at hq; cases hq; exact ⟨ys, hks, rfl, rfl⟩
+    · subst e; rw [kp] at hq; cases hq; exact ⟨ys, hks, rfl, rfl, rfl⟩
     · have : q ≠ t := by rintro rfl; rw [kt] at hq; cases hq
-      rw [ko q this e] at hq; exact ⟨y, hq, rfl, rfl⟩
+      rw [ko q this e] at hq; exact ⟨y, hq, rfl, rfl, rfl⟩
   have rt_m : ∀ u ∈ σ.releaseQueue, specRt σd u = specRt σ u := by
     intro u hu
     obtain ⟨x, scp, y, m, h1, h2, -, h4, h5⟩ := h.rel u hu
@@ -101,11 +102,12 @@ theorem Inv.donated {σ : State Unit} (h : Inv σ) {p t : ObjRef} {ys : SchedCon
     intro x' scp y m h1 h2 h3 h4 h5
     rw [hx] at h1; cases h1
     have hsp : scp ≠ p := fun e => hnp u x hx0 (e ▸ h2)
-    obtain ⟨y0, hy0, hr, hm⟩ := sc_b scp y m h3
+    obtain ⟨y0, hy0, hr, hm, -⟩ := sc_b scp y m h3
     have := h.rd u x hx0 hc x scp y0 m hx0 h2 hy0 (by simpa [scActive, hm] using h4) h5
     unfold released refillHd at this ⊢; rw [hr]; exact this
-  · obtain ⟨y0, hy0, hr, hm⟩ := sc_b q y m hy
-    have := h.refills q y0 m hy0 (by simpa [scActive, hm] using ha)
+  · obtain ⟨y0, hy0, hr, hm, hp⟩ := sc_b q y m hy
+    intro hper
+    have := h.refills q y0 m hy0 (by simpa [scActive, hm] using ha) (hp ▸ hper)
     unfold RefOK refillHd at this ⊢; rw [hr]; exact this
   · by_cases e : u = t
     · subst e; rw [kt] at hx; cases hx; cases hq; exact ⟨_, ns, kp, rfl⟩
@@ -123,7 +125,7 @@ theorem Inv.donated {σ : State Unit} (h : Inv σ) {p t : ObjRef} {ys : SchedCon
     by_cases e : q' = p
     · subst e; exact ⟨_, ns, kp⟩
     · exact ⟨y, m, sc_o q' y m h1 e⟩
-  · obtain ⟨y0, hy0, hr, -⟩ := sc_b q y m hy
+  · obtain ⟨y0, hy0, hr, -, -⟩ := sc_b q y m hy
     rw [hr]; exact h.ne q y0 m hy0
 
 /-- Postponing the thread `t` of `InvBut` restores `Inv`. -/
@@ -170,10 +172,10 @@ theorem Inv.donate {σ σ' : State Unit} (h : Inv σ) {t n : ObjRef} {xt : Tcb} 
     (he : maybeDonateSc (Z := Unit) t n σ = ({((), σ')}, False)) :
     Inv σ' ∧ ∀ x p y m, σ'.kheap t = some (.tcb x) → x.tcbSchedContext = some p →
       σ'.kheap p = some (.schedContext y m) → t ∈ σ'.releaseQueue →
-      refillReady σ'.curTime (refillHd y) = false := by
+      refillReady σ'.curTime (refillHd y) = false ∨ y.scPeriod = 0 := by
   have hσ : Inv σ ∧ ∀ x p y m, σ.kheap t = some (.tcb x) → x.tcbSchedContext = some p →
       σ.kheap p = some (.schedContext y m) → t ∈ σ.releaseQueue →
-      refillReady σ.curTime (refillHd y) = false := ⟨h, fun _ _ _ _ _ _ _ hm => absurd hm hnq.2⟩
+      refillReady σ.curTime (refillHd y) = false ∨ y.scPeriod = 0 := ⟨h, fun _ _ _ _ _ _ _ hm => absurd hm hnq.2⟩
   have hnt : n ≠ t := by rintro rfl; rw [hkt] at hkn; cases hkn
   unfold maybeDonateSc getTcbObjRef at he
   rw [nd_bind_one (threadGet_eq _ hkt)] at he
@@ -227,11 +229,14 @@ theorem Inv.donate {σ σ' : State Unit} (h : Inv σ) {t n : ObjRef} {xt : Tcb} 
         have h1' : σd.kheap t = some (.tcb x') := h1
         have h3' : σd.kheap q = some (.schedContext y m) := h3
         rw [kt] at h1'; cases h1'; cases h2; rw [kp] at h3'; cases h3'
-        have hsuff := sufficient_of_refOK (h.refills p ys ns hks hact)
+        show refillReady σd.curTime (refillHd ys') = false ∨ ys'.scPeriod = 0
+        by_cases hper : ys.scPeriod = 0
+        · exact Or.inr hper
+        have hsuff := sufficient_of_refOK (h.refills p ys ns hks hact hper)
         have := hc.2
-        show refillReady σd.curTime (refillHd ys') = false
         have e : refillHd ys' = refillHd ys := rfl
         rw [e] at this ⊢
+        left
         cases hr : refillReady σd.curTime (refillHd ys)
         · rfl
         · exact absurd ⟨hr, hsuff⟩ this

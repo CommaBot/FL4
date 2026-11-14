@@ -10,9 +10,9 @@ of the spec state (fragments of l4v `valid_sched`, `valid_refills`,
 * `rd`: a thread that is runnable or blocked on a notification has a
   released SC if bound to an active one and not in the release queue
   (`valid_ready_qs`, `valid_sched_action`, `released_ipc_queues`);
-* `refills`: an active SC's refills are non-empty with positive amounts,
-  summing below `2 ^ 64`, the head holding at least `MIN_BUDGET`
-  (`valid_refills`);
+* `refills`: an active SC that is not round-robin has non-empty refills with
+  positive amounts, summing below `2 ^ 64`, the head holding at least
+  `MIN_BUDGET` (`valid_refills`; a round-robin SC has an empty tail);
 * `back`: a TCB's SC points back to it (`heap_refs_inv`);
 * `ntfnSc`: a notification's SC is an SC (`valid_objs`).
 
@@ -43,7 +43,7 @@ structure Inv (σ : State Unit) : Prop where
     runnable x.tcbState = true ∧ σ.kheap scp = some (.schedContext y n) ∧ scActive y = true
   sorted : σ.releaseQueue.Pairwise (fun a b => specRt σ a ≤ specRt σ b)
   rd : ∀ u x, σ.kheap u = some (.tcb x) → inClass x.tcbState → RelIfBound σ u
-  refills : ∀ p y n, σ.kheap p = some (.schedContext y n) → scActive y = true → RefOK y
+  refills : ∀ p y n, σ.kheap p = some (.schedContext y n) → scActive y = true → y.scPeriod ≠ 0 → RefOK y
   back : ∀ u x p, σ.kheap u = some (.tcb x) → x.tcbSchedContext = some p →
     ∃ y n, σ.kheap p = some (.schedContext y n) ∧ y.scTcb = some u
   ntfnSc : ∀ q x p, σ.kheap q = some (.notification x) → x.ntfnSc = some p →
@@ -81,7 +81,7 @@ theorem Inv.actReady {σ : State Unit} (h : Inv σ) : ActReady σ := by
   intro t _ hs
   obtain ⟨x, scp, y, n, hk, hsc, hrun, hky, hact, hnr⟩ := schedulable_inv hs
   have hrel := h.rd t x hk (Or.inl hrun) x scp y n hk hsc hky hact hnr
-  have hne := (h.refills scp y n hky hact).1
+  have hne := h.ne scp y n hky
   refine ⟨x, scp, hk, hsc, ?_, ?_⟩
   · rw [getScRefillSufficient_eq hky hne, hrel.2]
   · rw [getScRefillReady_eq hky hne, hrel.1]
@@ -110,8 +110,8 @@ theorem Inv.congr' {σ σ' : State Unit} (h : Inv σ) (hk : σ'.kheap = σ.kheap
     refine List.Pairwise.imp_of_mem (fun {a b} ha hb hab => ?_) h.sorted
     obtain ⟨xa, pa, ya, na, h1, h2, -, h4, h5⟩ := h.rel a ha
     obtain ⟨xb, pb, yb, nb, g1, g2, -, g4, g5⟩ := h.rel b hb
-    have nea := (h.refills _ _ _ h4 h5).1
-    have neb := (h.refills _ _ _ g4 g5).1
+    have nea := h.ne _ _ _ h4
+    have neb := h.ne _ _ _ g4
     rw [specRt_eq (by rw [hk]; exact h1) h2 (by rw [hk]; exact h4) nea,
       specRt_eq (by rw [hk]; exact g1) g2 (by rw [hk]; exact g4) neb]
     rw [specRt_eq h1 h2 h4 nea, specRt_eq g1 g2 g4 neb] at hab
@@ -185,8 +185,8 @@ theorem Inv.step {σ σ' : State Unit} (h : Inv σ) (hn : NtfnStep σ σ')
     refine List.Pairwise.imp_of_mem (fun {a b} ha hb hab => ?_) h.sorted
     obtain ⟨xa, pa, ya, na, h1, h2, -, h4, h5⟩ := h.rel a ha
     obtain ⟨xb, pb, yb, nb, g1, g2, -, g4, g5⟩ := h.rel b hb
-    have nea := (h.refills _ _ _ h4 h5).1
-    have neb := (h.refills _ _ _ g4 g5).1
+    have nea := h.ne _ _ _ h4
+    have neb := h.ne _ _ _ g4
     obtain ⟨ya', hya, -, hsa, -⟩ := NtfnStep.tcbSched hn h1
     obtain ⟨yb', hyb, -, hsb, -⟩ := NtfnStep.tcbSched hn g1
     rw [specRt_eq hya (hsa.trans h2) (NtfnStep.sc hn h4) nea, specRt_eq hyb (hsb.trans g2) (NtfnStep.sc hn g4) neb]

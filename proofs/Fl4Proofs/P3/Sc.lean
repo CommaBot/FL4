@@ -24,6 +24,13 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
   and its preservation by the refined operations.
 * ScInvSR: `SchedHyps` and `RecvHyps` for `SRI` (`SchedRel` ∧ `Inv` ∧ `NSC`).
 * ScInvB: `budget_check`'s refill facts from `Inv`, and `Inv` after it.
+* ScCharge1–ScCharge6: `charge_budget` (`charge_budget_refines`), with
+  `end_timeslice` (`end_timeslice_refines`) restoring `Inv`.
+* ScCharge7: `check_budget`, `check_budget_restart`.
+* ScCharge8: `commit_time` (`InvBut` for the current thread).
+* ScConsumed: `update_consumed` (`sched_context_update_consumed`).
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
+import Fl4Proofs.P3.ScCharge8
+import Fl4Proofs.P3.ScConsumed

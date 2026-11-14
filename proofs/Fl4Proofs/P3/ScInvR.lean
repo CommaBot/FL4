@@ -54,12 +54,13 @@ theorem Inv.unbound {σ : State Unit} (h : Inv σ) {t p : ObjRef} {xt : Tcb} {ys
       have : q ≠ t := by rintro rfl; rw [hkt] at hq; cases hq
       rw [ko q this hqp]; exact hq
   have sc_b : ∀ q y m, σ2.kheap q = some (.schedContext y m) →
-      ∃ y0, σ.kheap q = some (.schedContext y0 m) ∧ y.scRefills = y0.scRefills ∧ y.scRefillMax = y0.scRefillMax := by
+      ∃ y0, σ.kheap q = some (.schedContext y0 m) ∧ y.scRefills = y0.scRefills ∧ y.scRefillMax = y0.scRefillMax ∧
+        y.scPeriod = y0.scPeriod := by
     intro q y m hq
     by_cases e : q = p
-    · subst e; rw [kp] at hq; cases hq; exact ⟨ys, hks, rfl, rfl⟩
+    · subst e; rw [kp] at hq; cases hq; exact ⟨ys, hks, rfl, rfl, rfl⟩
     · have : q ≠ t := by rintro rfl; rw [kt] at hq; cases hq
-      rw [ko q this e] at hq; exact ⟨y, hq, rfl, rfl⟩
+      rw [ko q this e] at hq; exact ⟨y, hq, rfl, rfl, rfl⟩
   have rt_m : ∀ u ∈ σ.releaseQueue, specRt σ2 u = specRt σ u := by
     intro u hu
     obtain ⟨x, scp, y, m, h1, h2, -, h4, -⟩ := h.rel u hu
@@ -82,11 +83,12 @@ theorem Inv.unbound {σ : State Unit} (h : Inv σ) {t p : ObjRef} {xt : Tcb} {ys
     · have hx0 := tcb_b u x hx hut
       intro x' scp y m h1 h2 h3 h4 h5
       rw [hx] at h1; cases h1
-      obtain ⟨y0, hy0, hr, hm⟩ := sc_b scp y m h3
+      obtain ⟨y0, hy0, hr, hm, -⟩ := sc_b scp y m h3
       have := h.rd u x hx0 hc x scp y0 m hx0 h2 hy0 (by simpa [scActive, hm] using h4) h5
       unfold released refillHd at this ⊢; rw [hr]; exact this
-  · obtain ⟨y0, hy0, hr, hm⟩ := sc_b q y m hy
-    have := h.refills q y0 m hy0 (by simpa [scActive, hm] using ha)
+  · obtain ⟨y0, hy0, hr, hm, hp⟩ := sc_b q y m hy
+    intro hper
+    have := h.refills q y0 m hy0 (by simpa [scActive, hm] using ha) (hp ▸ hper)
     unfold RefOK refillHd at this ⊢; rw [hr]; exact this
   · by_cases e : u = t
     · subst e; rw [kt] at hx; cases hx; cases hq
@@ -104,7 +106,7 @@ theorem Inv.unbound {σ : State Unit} (h : Inv σ) {t p : ObjRef} {xt : Tcb} {ys
     by_cases e : q' = p
     · subst e; exact ⟨_, ns, kp⟩
     · exact ⟨y, m, sc_o q' y m h1 e⟩
-  · obtain ⟨y0, hy0, hr, -⟩ := sc_b q y m hy
+  · obtain ⟨y0, hy0, hr, -, -⟩ := sc_b q y m hy
     rw [hr]; exact h.ne q y0 m hy0
 
 /-- **`maybe_return_sc` keeps the invariant**, for a thread that is not
@@ -145,18 +147,20 @@ theorem Inv.ret {σ σ' : State Unit} (h : Inv σ) {n t : ObjRef} {xt : Tcb} {xn
 /-- `refill_unblock_check` on a thread's own SC. -/
 theorem Inv.unblockOwn {σ σ' : State Unit} (h : Inv σ) {t p : ObjRef} {x : Tcb} {y : SchedContext} {n : Nat}
     (hkt : σ.kheap t = some (.tcb x)) (hsc : x.tcbSchedContext = some p) (hkp : σ.kheap p = some (.schedContext y n))
-    (hrq : t ∈ σ.releaseQueue → refillReady σ.curTime (refillHd y) = false)
+    (hrq : t ∈ σ.releaseQueue → refillReady σ.curTime (refillHd y) = false ∨ y.scPeriod = 0)
     {r : Unit} (hm : (r, σ') ∈ (refillUnblockCheck (Z := Unit) p σ).1) : Inv σ' := by
-  refine h.unblock hkp (h.ne p y n hkp) (fun hr u hu xu hxu hup => ?_) hm
+  refine h.unblock hkp (h.ne p y n hkp) (fun hr hper u hu xu hxu hup => ?_) hm
   obtain ⟨y1, m1, g1, g2⟩ := h.back u xu p hxu hup
   obtain ⟨y2, m2, g3, g4⟩ := h.back t x p hkt hsc
   rw [g1] at g3; cases g3; rw [g2] at g4; cases g4
-  rw [hrq hu] at hr; cases hr
+  rcases hrq hu with h1 | h1
+  · rw [h1] at hr; cases hr
+  · exact hper h1
 
 /-- **The sporadic check after a wake-up or an active receive.** -/
 theorem Inv.unblockTail {σ σ' : State Unit} (h : Inv σ) {t : ObjRef} {x : Tcb} (hkt : σ.kheap t = some (.tcb x))
     (hrq : ∀ p y n, x.tcbSchedContext = some p → σ.kheap p = some (.schedContext y n) → t ∈ σ.releaseQueue →
-      refillReady σ.curTime (refillHd y) = false)
+      refillReady σ.curTime (refillHd y) = false ∨ y.scPeriod = 0)
     (hm : ((), σ') ∈ (specUnblock t σ).1) : Inv σ' := by
   unfold specUnblock getTcbObjRef at hm
   rw [nd_bind_one (threadGet_eq _ hkt)] at hm
@@ -175,7 +179,7 @@ theorem Inv.unblockTail {σ σ' : State Unit} (h : Inv σ) {t : ObjRef} {x : Tcb
 theorem Inv.completeCheck {σ σ' : State Unit} (h : Inv σ) {t m : ObjRef} {x : Tcb} {xn : Notification}
     (hkt : σ.kheap t = some (.tcb x)) (hkn : σ.kheap m = some (.notification xn))
     (hrq : ∀ p y n, x.tcbSchedContext = some p → σ.kheap p = some (.schedContext y n) → t ∈ σ.releaseQueue →
-      refillReady σ.curTime (refillHd y) = false)
+      refillReady σ.curTime (refillHd y) = false ∨ y.scPeriod = 0)
     (hm : ((), σ') ∈ (specCompleteCheck t m σ).1) : Inv σ' := by
   unfold specCompleteCheck getTcbObjRef at hm
   rw [nd_bind_one (threadGet_eq _ hkt)] at hm
