@@ -363,15 +363,25 @@ fn dispatch_syscall<S: Store, A: Arch>(s: &mut S, a: &mut A, number: i64) {
     }
 }
 
+/// The thread's fault handler gets an UnknownSyscall fault. Every syscall
+/// instruction of a thread with trapSyscalls comes here, whatever RDX
+/// holds: none of them is interpreted, SetTLSBase included (GitHub
+/// issue #7).
 fn unknown_syscall_fault<S: Store, A: Arch>(s: &mut S, a: &mut A, number: u64) {
     if budget_ok(s, a) {
         let t = sched::cur_thread(s);
-        if fl4_abi::config::SET_TLS_BASE_SELF && number as i64 == sc::SysSetTLSBase {
-            let base = t.reg(s, reg::CAP);
-            t.set_reg(s, reg::TLS_BASE, crate::regs::sanitise(reg::TLS_BASE, base));
-        } else {
-            faults::handle_fault(s, a, t, Fault::UnknownSyscall { number });
-        }
+        faults::handle_fault(s, a, t, Fault::UnknownSyscall { number });
+    }
+    finish(s, a);
+}
+
+/// seL4 `SysSetTLSBase` (`KernelSetTLSBaseSelf`): the caller sets its own
+/// TLS base from the capability register.
+fn set_tls_base_self<S: Store, A: Arch>(s: &mut S, a: &mut A) {
+    if budget_ok(s, a) {
+        let t = sched::cur_thread(s);
+        let base = t.reg(s, reg::CAP);
+        t.set_reg(s, reg::TLS_BASE, crate::regs::sanitise(reg::TLS_BASE, base));
     }
     finish(s, a);
 }
@@ -389,6 +399,10 @@ fn handle_unknown_syscall<S: Store, A: Arch>(s: &mut S, a: &mut A, number: i64) 
         return;
     }
     if fl4_abi::config::DEBUG_BUILD && debug_syscall(s, a, t, number) {
+        return;
+    }
+    if fl4_abi::config::SET_TLS_BASE_SELF && number == sc::SysSetTLSBase {
+        set_tls_base_self(s, a);
         return;
     }
     unknown_syscall_fault(s, a, number as u64);
