@@ -101,7 +101,7 @@ theorem TcbRelE.with_state {m m' : U64 → U64} {t : U64} {x : Fl4Spec.Tcb} (ht 
     TcbRelE R m' t { x with tcbState := ts } := by
   have g : ∀ {b}, Aligned b ∧ TF t b → b.val ≠ (tStA t).val → m' b = m b := fun hb hne => hA _ hb.1 ⟨hb.2, hne⟩
   have v := val_st ht
-  refine ⟨hst, fun e he => ?_, fun e d he => ?_, fun e r d he => ?_, fun r he => ?_, fun r => ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨hst, fun e he => ?_, fun e d he => ?_, fun e r d he => ?_, fun r he => ?_, fun r => ?_, ?_, ?_, ?_, ?_, ?_⟩
   · cases ts <;> simp [tsCode, Fl4Spec.epBlocked] at hts he
   · subst he; simp [tsCode] at hts
   · subst he; simp [tsCode] at hts
@@ -111,6 +111,7 @@ theorem TcbRelE.with_state {m m' : U64 → U64} {t : U64} {x : Fl4Spec.Tcb} (ht 
   · rw [g (a_fault ht) (by rw [val_fault ht, v]; omega)]; exact h.fault0
   · rw [g (a_fault ht) (by rw [val_fault ht, v]; omega)]; exact h.faultT
   · rw [g (a_bound ht) (by rw [val_bound ht, v]; omega)]; exact h.bound
+  · exact h.faultR.congr (g (a_fault ht) (by rw [val_fault ht, v]; omega)) (g (a_fw0 ht) (by rw [val_fw0 ht, v]; omega)) (g (a_fw1 ht) (by rw [val_fw1 ht, v]; omega)) (g (a_lf ht) (by rw [val_lf ht, v]; omega)) (g (a_lf0 ht) (by rw [val_lf0 ht, v]; omega)) (g (a_lf1 ht) (by rw [val_lf1 ht, v]; omega))
 
 theorem tf_ne_of {t a b : U64} (hb : ¬ TF t b) (ha : TF t a) : b.val ≠ a.val := fun e => hb (ha.of_val e)
 

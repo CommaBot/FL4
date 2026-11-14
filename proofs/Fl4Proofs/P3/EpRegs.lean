@@ -34,7 +34,7 @@ theorem TcbRelE.set_reg {m m' : U64 → U64} {t : U64} {x : Fl4Spec.Tcb} (ht : T
     fun hb hne => hA _ hb.1 ⟨hb.2, hne⟩
   have hr := regA_val ht (regIdx_lt r)
   have := regIdx_lt r
-  refine ⟨?_, fun e he => ?_, fun e d he => ?_, fun e rr d he => ?_, fun rr he => ?_, fun r' => ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, fun e he => ?_, fun e d he => ?_, fun e rr d he => ?_, fun rr he => ?_, fun r' => ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [g (a_st ht) (by rw [val_st ht]; omega)]; exact h.st
   · rw [g (a_blk ht) (by rw [val_blk ht]; omega)]; exact h.blk e he
   · rw [g (a_badge ht) (by rw [val_badge ht]; omega), g (a_flags ht) (by rw [val_flags ht]; omega)]
@@ -49,6 +49,7 @@ theorem TcbRelE.set_reg {m m' : U64 → U64} {t : U64} {x : Fl4Spec.Tcb} (ht : T
   · rw [g (a_fault ht) (by rw [val_fault ht]; omega)]; exact h.fault0
   · rw [g (a_fault ht) (by rw [val_fault ht]; omega)]; exact h.faultT
   · rw [g (a_bound ht) (by rw [val_bound ht]; omega)]; exact h.bound
+  · exact h.faultR.congr (g (a_fault ht) (by rw [val_fault ht]; omega)) (g (a_fw0 ht) (by rw [val_fw0 ht]; omega)) (g (a_fw1 ht) (by rw [val_fw1 ht]; omega)) (g (a_lf ht) (by rw [val_lf ht]; omega)) (g (a_lf0 ht) (by rw [val_lf0 ht]; omega)) (g (a_lf1 ht) (by rw [val_lf1 ht]; omega))
 
 section
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]

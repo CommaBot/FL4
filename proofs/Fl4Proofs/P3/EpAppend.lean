@@ -44,12 +44,13 @@ theorem TcbRelE.restate {m m' : U64 → U64} {t : U64} {x x' : Fl4Spec.Tcb} (ht 
     TcbRelE R m' t x' := by
   have g : ∀ {b}, Aligned b ∧ TF t b → (b.val < t.val + 3328 ∨ t.val + 3368 ≤ b.val) → m' b = m b :=
     fun hb hv => hA _ hb.1 ⟨hb.2, hv⟩
-  refine ⟨hst, hblk, hsend, hrecv, hrep, fun r => ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨hst, hblk, hsend, hrecv, hrep, fun r => ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [g (a_reg ht r) (by rw [regA_val ht (regIdx_lt r)]; have := regIdx_lt r; omega), e1]; exact h.regs r
   · rw [g (a_prio ht) (by rw [val_prio ht]; omega), e2]; exact h.prio
   · rw [g (a_fault ht) (by rw [val_fault ht]; omega), e3]; exact h.fault0
   · rw [g (a_fault ht) (by rw [val_fault ht]; omega), e3]; exact h.faultT
   · rw [g (a_bound ht) (by rw [val_bound ht]; omega), e4]; exact h.bound
+  · rw [e3]; exact h.faultR.congr (g (a_fault ht) (by rw [val_fault ht]; omega)) (g (a_fw0 ht) (by rw [val_fw0 ht]; omega)) (g (a_fw1 ht) (by rw [val_fw1 ht]; omega)) (g (a_lf ht) (by rw [val_lf ht]; omega)) (g (a_lf0 ht) (by rw [val_lf0 ht]; omega)) (g (a_lf1 ht) (by rw [val_lf1 ht]; omega))
 
 /-- The endpoints a thread can block on: idle, or already queued the same
 way. -/

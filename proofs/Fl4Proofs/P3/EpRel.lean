@@ -65,6 +65,14 @@ def tReplyA (t : U64) : U64 := core.num.U64.wrapping_add t 3360#u64
 def tBoundA (t : U64) : U64 := core.num.U64.wrapping_add t 3368#u64
 /-- The fault-type word (`tcb::FAULT_TYPE`). -/
 def tFaultA (t : U64) : U64 := core.num.U64.wrapping_add t 3376#u64
+/-- The fault words of the TCB at `t` (`tcb::FAULT_W0..2`, `LF_TYPE`,
+`LF_W0`, `LF_W1`). -/
+def tFw0A (t : U64) : U64 := core.num.U64.wrapping_add t 3384#u64
+def tFw1A (t : U64) : U64 := core.num.U64.wrapping_add t 3392#u64
+def tFw2A (t : U64) : U64 := core.num.U64.wrapping_add t 3400#u64
+def tLfA (t : U64) : U64 := core.num.U64.wrapping_add t 3408#u64
+def tLf0A (t : U64) : U64 := core.num.U64.wrapping_add t 3416#u64
+def tLf1A (t : U64) : U64 := core.num.U64.wrapping_add t 3424#u64
 /-- Register `i` of the saved user context of the TCB at `t`
 (`Tcb::reg`/`set_reg`). -/
 def regA (t i : U64) : U64 :=
@@ -152,6 +160,24 @@ variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
 @[step] theorem obj.Tcb.fault_type.spec (s : S) (t : obj.Tcb) :
     obj.Tcb.fault_type st t s ⦃ v => v = L.mem s (tFaultA t) ⦄ := by
   unfold obj.Tcb.fault_type; step*; simp_all [tFaultA]
+@[step] theorem obj.Tcb.fault_w0.spec (s : S) (t : obj.Tcb) :
+    obj.Tcb.fault_w0 st t s ⦃ v => v = L.mem s (tFw0A t) ⦄ := by
+  unfold obj.Tcb.fault_w0; step*; simp_all [tFw0A]
+@[step] theorem obj.Tcb.fault_w1.spec (s : S) (t : obj.Tcb) :
+    obj.Tcb.fault_w1 st t s ⦃ v => v = L.mem s (tFw1A t) ⦄ := by
+  unfold obj.Tcb.fault_w1; step*; simp_all [tFw1A]
+@[step] theorem obj.Tcb.fault_w2.spec (s : S) (t : obj.Tcb) :
+    obj.Tcb.fault_w2 st t s ⦃ v => v = L.mem s (tFw2A t) ⦄ := by
+  unfold obj.Tcb.fault_w2; step*; simp_all [tFw2A]
+@[step] theorem obj.Tcb.lf_type.spec (s : S) (t : obj.Tcb) :
+    obj.Tcb.lf_type st t s ⦃ v => v = L.mem s (tLfA t) ⦄ := by
+  unfold obj.Tcb.lf_type; step*; simp_all [tLfA]
+@[step] theorem obj.Tcb.lf_w0.spec (s : S) (t : obj.Tcb) :
+    obj.Tcb.lf_w0 st t s ⦃ v => v = L.mem s (tLf0A t) ⦄ := by
+  unfold obj.Tcb.lf_w0; step*; simp_all [tLf0A]
+@[step] theorem obj.Tcb.lf_w1.spec (s : S) (t : obj.Tcb) :
+    obj.Tcb.lf_w1 st t s ⦃ v => v = L.mem s (tLf1A t) ⦄ := by
+  unfold obj.Tcb.lf_w1; step*; simp_all [tLf1A]
 @[step] theorem obj.Tcb.reg.spec (s : S) (t : obj.Tcb) (i : U64) :
     obj.Tcb.reg st t s i ⦃ v => v = L.mem s (regA t i) ⦄ := by
   unfold obj.Tcb.reg; step*; simp_all [regA]
@@ -174,7 +200,7 @@ end
 bound notification, fault type, priority, and the registers. -/
 def TOffN (k : Nat) : Prop :=
   k = 3328 ∨ k = 3336 ∨ k = 3344 ∨ k = 3352 ∨ k = 3360 ∨ k = 3368 ∨ k = 3376 ∨ k = 3448 ∨
-    (256 ≤ k ∧ k < 448)
+    (256 ≤ k ∧ k < 448) ∨ k = 3384 ∨ k = 3392 ∨ k = 3400 ∨ k = 3408 ∨ k = 3416 ∨ k = 3424
 
 /-- The words of a TCB the endpoint code writes (not the bound
 notification, the fault and the priority). -/
@@ -219,6 +245,28 @@ def flagsOf (d : SenderPayload) : U64 :=
 def loadWordAt (um : Word → Word8) (p : Word) : Word :=
   wordRcat ((intUpto 0 7).map fun i => um (p + (7 - BitVec.ofInt 64 i)))
 
+/-- A lookup failure, from the lookup-failure words (type, `w0`, `w1`;
+error.rs `LookupFault::encode`). -/
+def LfRel (lt l0 l1 : U64) : LookupFailure → Prop
+  | .invalidRoot => lt = 1#u64
+  | .missingCapability n => lt = 2#u64 ∧ l0.val = n
+  | .depthMismatch bl bf => lt = 3#u64 ∧ l0.val = bf ∧ l1.val = bl
+  | .guardMismatch bl g => lt = 4#u64 ∧ l0.bv = ofBl g ∧ (l1.val >>> 8) = bl ∧ l1.val % 256 = g.length
+
+/-- A fault, from the fault words (type, `w0`, `w1`, and the lookup-failure
+words; faults.rs `set_fault`). -/
+def FaultRel' (ty w0 w1 lt l0 l1 : U64) : Option Fault → Prop
+  | none => ty = 0#u64
+  | some (.capFault a rp lf) => ty = 1#u64 ∧ w0.bv = a ∧ w1 = (if rp then 1#u64 else 0#u64) ∧ LfRel lt l0 l1 lf
+  | some (.unknownSyscallException n) => ty = 2#u64 ∧ w0.bv = n
+  | some (.userException _ _) => ty = 3#u64
+  | some (.timeout _) => ty = 5#u64
+  | some (.archFault _) => ty = 6#u64
+
+/-- The fault of the TCB at `t`. -/
+def FaultRel (m : U64 → U64) (t : U64) (f : Option Fault) : Prop :=
+  FaultRel' (m (tFaultA t)) (m (tFw0A t)) (m (tFw1A t)) (m (tLfA t)) (m (tLf0A t)) (m (tLf1A t)) f
+
 /-- The TCB at `t` and the spec's TCB `x`. -/
 structure TcbRelE (R : Set U64) (m : U64 → U64) (t : U64) (x : Tcb) : Prop where
   st : (m (tStA t)).val = tsCode x.tcbState
@@ -232,6 +280,7 @@ structure TcbRelE (R : Set U64) (m : U64 → U64) (t : U64) (x : Tcb) : Prop whe
   fault0 : m (tFaultA t) = 0#u64 ↔ x.tcbFault = none
   faultT : m (tFaultA t) = 5#u64 ↔ ∃ b, x.tcbFault = some (.timeout b)
   bound : x.tcbBoundNotification = optRef (m (tBoundA t))
+  faultR : FaultRel m t x.tcbFault
 
 /-- A TCB queued on the endpoint at `e` with state word `k`. -/
 def QueuedOn (m : U64 → U64) (e : U64) (k : Nat) (y : U64) : Prop := (m (tStA y)).val = k ∧ m (tBlockA y) = e
@@ -342,6 +391,11 @@ theorem a_flags : Aligned (tFlagsA t) ∧ TF t (tFlagsA t) := tf_addr ht (by unf
 theorem a_reply : Aligned (tReplyA t) ∧ TF t (tReplyA t) := tf_addr ht (by unfold TOffN; simp) (by simp)
 theorem a_bound : Aligned (tBoundA t) ∧ TF t (tBoundA t) := tf_addr ht (by unfold TOffN; simp) (by simp)
 theorem a_fault : Aligned (tFaultA t) ∧ TF t (tFaultA t) := tf_addr ht (by unfold TOffN; simp) (by simp)
+theorem a_fw0 : Aligned (tFw0A t) ∧ TF t (tFw0A t) := tf_addr ht (by unfold TOffN; simp) (by simp)
+theorem a_fw1 : Aligned (tFw1A t) ∧ TF t (tFw1A t) := tf_addr ht (by unfold TOffN; simp) (by simp)
+theorem a_lf : Aligned (tLfA t) ∧ TF t (tLfA t) := tf_addr ht (by unfold TOffN; simp) (by simp)
+theorem a_lf0 : Aligned (tLf0A t) ∧ TF t (tLf0A t) := tf_addr ht (by unfold TOffN; simp) (by simp)
+theorem a_lf1 : Aligned (tLf1A t) ∧ TF t (tLf1A t) := tf_addr ht (by unfold TOffN; simp) (by simp)
 theorem a_prio : Aligned (prioA t) ∧ TF t (prioA t) := by
   rw [prioA_eq']; exact tf_addr ht (by unfold TOffN; simp) (by simp)
 theorem a_reg (r : Fl4Spec.Register) : Aligned (regA t (regIdx r)) ∧ TF t (regA t (regIdx r)) :=
@@ -365,6 +419,35 @@ theorem val_bound {t : U64} (ht : TcbAddr t) : (tBoundA t).val = t.val + 3368 :=
   unfold tBoundA; rw [tw_val ht (by simp)]; rfl
 theorem val_fault {t : U64} (ht : TcbAddr t) : (tFaultA t).val = t.val + 3376 := by
   unfold tFaultA; rw [tw_val ht (by simp)]; rfl
+theorem val_fw0 {t : U64} (ht : TcbAddr t) : (tFw0A t).val = t.val + 3384 := by
+  unfold tFw0A; rw [tw_val ht (by simp)]; rfl
+theorem val_fw1 {t : U64} (ht : TcbAddr t) : (tFw1A t).val = t.val + 3392 := by
+  unfold tFw1A; rw [tw_val ht (by simp)]; rfl
+theorem val_lf {t : U64} (ht : TcbAddr t) : (tLfA t).val = t.val + 3408 := by
+  unfold tLfA; rw [tw_val ht (by simp)]; rfl
+theorem val_lf0 {t : U64} (ht : TcbAddr t) : (tLf0A t).val = t.val + 3416 := by
+  unfold tLf0A; rw [tw_val ht (by simp)]; rfl
+theorem val_lf1 {t : U64} (ht : TcbAddr t) : (tLf1A t).val = t.val + 3424 := by
+  unfold tLf1A; rw [tw_val ht (by simp)]; rfl
+
+/-- The fault relation only reads the fault words. -/
+theorem FaultRel.congr {m m' : U64 → U64} {t : U64} {f : Option Fl4Spec.Fault} (h : FaultRel m t f)
+    (e0 : m' (tFaultA t) = m (tFaultA t)) (e1 : m' (tFw0A t) = m (tFw0A t)) (e2 : m' (tFw1A t) = m (tFw1A t))
+    (e3 : m' (tLfA t) = m (tLfA t)) (e4 : m' (tLf0A t) = m (tLf0A t)) (e5 : m' (tLf1A t) = m (tLf1A t)) :
+    FaultRel m' t f := by
+  unfold FaultRel; rw [e0, e1, e2, e3, e4, e5]; exact h
+
+/-- The fault words agree when memory agrees on the fields `P` reaches. -/
+theorem FaultRel.congr' {m m' : U64 → U64} {t : U64} (ht : TcbAddr t) {f : Option Fl4Spec.Fault}
+    (h : FaultRel m t f) (P : Nat → Prop) (hA : ∀ a, Aligned a → P a.val → m' a = m a)
+    (hP : ∀ k, 3376 ≤ k → k ≤ 3424 → P (t.val + k)) : FaultRel m' t f :=
+  h.congr (hA _ (a_fault ht).1 (by rw [val_fault ht]; exact hP _ (by omega) (by omega)))
+    (hA _ (a_fw0 ht).1 (by rw [val_fw0 ht]; exact hP _ (by omega) (by omega)))
+    (hA _ (a_fw1 ht).1 (by rw [val_fw1 ht]; exact hP _ (by omega) (by omega)))
+    (hA _ (a_lf ht).1 (by rw [val_lf ht]; exact hP _ (by omega) (by omega)))
+    (hA _ (a_lf0 ht).1 (by rw [val_lf0 ht]; exact hP _ (by omega) (by omega)))
+    (hA _ (a_lf1 ht).1 (by rw [val_lf1 ht]; exact hP _ (by omega) (by omega)))
+
 theorem val_prio {t : U64} (ht : TcbAddr t) : (prioA t).val = t.val + 3448 := by
   rw [prioA_eq', tw_val ht (by simp)]; rfl
 theorem val_next {t : U64} (ht : TcbAddr t) : (nextA .Ep t).val = t.val + 3496 := by
@@ -410,7 +493,9 @@ theorem TcbRelE.frame {m m' : U64 → U64} {t : U64} {x : Tcb} (ht : TcbAddr t) 
     fun e d hs => by rw [e_badge, e_flags]; exact h.send e d hs,
     fun e r d hs => by rw [e_reply]; exact h.recv e r d hs, fun r hs => by rw [e_reply]; exact h.reply r hs,
     fun r => by rw [he _ (a_reg ht r).1 (a_reg ht r).2]; exact h.regs r, by rw [e_prio]; exact h.prio,
-    by rw [e_fault]; exact h.fault0, by rw [e_fault]; exact h.faultT, by rw [e_bound]; exact h.bound⟩
+    by rw [e_fault]; exact h.fault0, by rw [e_fault]; exact h.faultT, by rw [e_bound]; exact h.bound,
+    h.faultR.congr e_fault (he _ (a_fw0 ht).1 (a_fw0 ht).2) (he _ (a_fw1 ht).1 (a_fw1 ht).2)
+      (he _ (a_lf ht).1 (a_lf ht).2) (he _ (a_lf0 ht).1 (a_lf0 ht).2) (he _ (a_lf1 ht).1 (a_lf1 ht).2)⟩
 
 /-- What an endpoint needs of a member of its queue: state, block object
 and links. -/
@@ -491,7 +576,7 @@ theorem EpStateRel.frame {m m' : U64 → U64} {σ σ' : State Z} (hR : EpStateRe
     have hx' := hx.frame hta (fun a ha hf => hm a ha (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inl hf⟩))))
     refine ⟨y, hky, ⟨e1 ▸ hx'.st, fun e hb => hx'.blk e (e1 ▸ hb), fun e d hs => hx'.send e d (e1 ▸ hs),
       fun e r d hs => hx'.recv e r d (e1 ▸ hs), fun r hs => hx'.reply r (e1 ▸ hs), fun r => e2 ▸ hx'.regs r,
-      e3 ▸ hx'.prio, e4 ▸ hx'.fault0, e4 ▸ hx'.faultT, e5 ▸ hx'.bound⟩⟩
+      e3 ▸ hx'.prio, e4 ▸ hx'.fault0, e4 ▸ hx'.faultT, e5 ▸ hx'.bound, e4 ▸ hx'.faultR⟩⟩
   · have hal : Aligned wp.1 := (hP.balign wp hw).1
     rw [hm _ hal (Or.inr (Or.inr (Or.inr ⟨wp, hw, rfl⟩))), hR.buf wp hw, hk.2.2.2]
 

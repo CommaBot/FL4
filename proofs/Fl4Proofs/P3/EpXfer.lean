@@ -266,7 +266,7 @@ theorem TcbRelE.with_regs {m m' : U64 → U64} {t : U64} {x x' : Fl4Spec.Tcb} (h
   have g : ∀ {b}, Aligned b ∧ TF t b → (b.val < t.val + 256 ∨ t.val + 448 ≤ b.val) → m' b = m b :=
     fun hb hv => hA _ hb.1 ⟨hb.2, hv⟩
   rw [hx]
-  refine ⟨?_, fun e he => ?_, fun e d he => ?_, fun e rr d he => ?_, fun rr he => ?_, fun r => ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, fun e he => ?_, fun e d he => ?_, fun e rr d he => ?_, fun rr he => ?_, fun r => ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [g (a_st ht) (by rw [val_st ht]; omega)]; exact h.st
   · rw [g (a_blk ht) (by rw [val_blk ht]; omega)]; exact h.blk e he
   · rw [g (a_badge ht) (by rw [val_badge ht]; omega), g (a_flags ht) (by rw [val_flags ht]; omega)]
@@ -278,6 +278,7 @@ theorem TcbRelE.with_regs {m m' : U64 → U64} {t : U64} {x x' : Fl4Spec.Tcb} (h
   · rw [g (a_fault ht) (by rw [val_fault ht]; omega)]; exact h.fault0
   · rw [g (a_fault ht) (by rw [val_fault ht]; omega)]; exact h.faultT
   · rw [g (a_bound ht) (by rw [val_bound ht]; omega)]; exact h.bound
+  · exact h.faultR.congr (g (a_fault ht) (by rw [val_fault ht]; omega)) (g (a_fw0 ht) (by rw [val_fw0 ht]; omega)) (g (a_fw1 ht) (by rw [val_fw1 ht]; omega)) (g (a_lf ht) (by rw [val_lf ht]; omega)) (g (a_lf0 ht) (by rw [val_lf0 ht]; omega)) (g (a_lf1 ht) (by rw [val_lf1 ht]; omega))
 
 theorem xfer_len {i : U64} {Ln : Fl4Spec.LengthType} (hi : i.val = min Ln.toNat 4) :
     i.bv = min Ln (Fl4Spec.natToLen ((Fl4Spec.msg_registers.take (Fl4Spec.unat Ln)).length +
