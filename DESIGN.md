@@ -354,6 +354,8 @@ The proof is staged so each level is useful by itself and later levels build on 
   - Refill rings: the structural invariants are preserved by every refill operation; ordering, no-overflow and window by all of them, overruns included.
   - Thread queues: the five queue primitives refine list operations; priority and time ordering are kept.
   - A combined scheduler-queue invariant (exact queued flags, located membership, ready and release queues exclusive) is preserved by the queue operations and their callers, up to `choose_thread`; `schedule` itself is still open.
+  - `schedule`, `cancel_ipc` and `suspend` preserve the scheduler invariant, extended with "threads `schedule` can switch to have a well-formed SC" (BoundInv, SCsOK). `restart` is proved piecewise.
+  - Two paths rely on invariants still to prove, exactly as seL4's C code does; the simulator, which panics on any access near address 0, has never hit either. `switch_sched_context` assumes the current thread has an SC (l4v `active_sc_tcb_at`). `reply_remove_tcb` assumes a thread blocked on reply has a reply object.
   - CDT, typed-heap and untyped invariants appear so far only as hypotheses of P2/P3 theorems.
 - **P2**: complete.
 - **P3**, in `proofs/Fl4Proofs/P3`, against `Fl4Spec` (the l4v rt abstract spec ported to Lean, up to `call_kernel`; KernelInit_A is dead in l4v and left out):
