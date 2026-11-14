@@ -1,7 +1,7 @@
 /-
 P3 (DESIGN.md §9), scheduling contexts: **the scheduler-side TCB labels** of
 `tcb::decode` with the MDB invariants (`TcbOKF`, TcbDecode.lean; every path
-keeps the slot words, so `MdbOK.of_same`; SetSchedParams' install by
+keeps the slot words, so `MdbOKV.of_same`; SetSchedParams' install by
 `install_okQ` at `MdbOK`), discharging the per-label hypotheses of `tcb_decode_cspace`
 (TcbCtl.lean):
 
@@ -395,7 +395,7 @@ theorem invoke_mcp_run {σ1 : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x : Fl4S
 restart and `invoke_tcb ThreadControlSched` (`set_mcpriority`), with the
 CSpace relation and `FinInv` after. -/
 theorem tcb_set_mcp_refines (th : TypedHeap) (hP : Placed th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOK (L.mem s) G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (p : U64) (hp : th p = some .tcb) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetMCPriority)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -492,7 +492,7 @@ theorem tcb_set_mcp_refines (th : TypedHeap) (hP : Placed th)
     · rw [ite_eq_right hgt]
       simp only [bind_ok]
       obtain ⟨s1, σ1, hrc, -, hst1, hS1, hDS1, -, -, -⟩ := restart_dstate th hP s σ G hDS ct hct hcur htcb hact
-      have hfr1 := MdbOK.of_same hDS.1.2.2.1 hS1 hFR
+      have hfr1 := MdbOKV.of_same hDS.1.2.2.1 hS1 hFR
       rw [hrc]; simp only [bind_ok, tcs_mcp]
       refine (WP.spec_ok _).2 ?_
       have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
@@ -505,7 +505,7 @@ theorem tcb_set_mcp_refines (th : TypedHeap) (hP : Placed th)
       obtain ⟨hC2, hF2⟩ := crel_updTcb hDS1.1 hDS1.2.2 (mcp_slots hP s1 y0 hp) hkx
         (y := { x with tcbMcpriority := Fl4Spec.ucast 8 y0.bv }) (by unfold Fl4Spec.tcbCnodeMap; rfl)
       refine Or.inr ⟨_, DecOut.of_eq hdec, σ1, hst1, (.ok [], _), ?_, th, G, Or.inl ⟨rfl, [], rfl⟩, hP, hC2, hF2,
-        MdbOK.of_same hDS1.1.2.2.1 (mcp_slots hP s1 y0 hp) hfr1⟩
+        MdbOKV.of_same hDS1.1.2.2.1 (mcp_slots hP s1 y0 hp) hfr1⟩
       rw [invoke_mcp_run hkx]; exact Set.mem_singleton _
   · have hne : ∀ r, absCap (capV (L.mem s) x0) ≠ .threadCap r := fun r h => by
       obtain ⟨q, hq, -⟩ := absCap_thread h; exact hth ⟨q, hq⟩
@@ -582,7 +582,7 @@ def SetPrioHyp (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (ct : U64) : P
 and `invoke_tcb ThreadControlSched` (`set_priority`, from `SetPrioHyp`),
 with the CSpace relation and `FinInv` after. -/
 theorem tcb_set_prio_refines (th : TypedHeap) (hP : Placed th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOK (L.mem s) G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (p : U64) (hp : th p = some .tcb) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetPriority)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -680,7 +680,7 @@ theorem tcb_set_prio_refines (th : TypedHeap) (hP : Placed th)
     · rw [ite_eq_right hgt]
       simp only [bind_ok]
       obtain ⟨s1, σ1, hrc, hs1, hst1, hS1, hDS1, -, -, -⟩ := restart_dstate th hP s σ G hDS ct hct hcur htcb hact
-      have hfr1 := MdbOK.of_same hDS.1.2.2.1 hS1 hFR
+      have hfr1 := MdbOKV.of_same hDS.1.2.2.1 hS1 hFR
       have hlt : y0.val < 256 := by
         have := xq.tcbMcpriority.isLt
         have h2 : ¬ (L.mem s (mcpA q)).val < y0.val := hgt
@@ -697,7 +697,7 @@ theorem tcb_set_prio_refines (th : TypedHeap) (hP : Placed th)
         rw [hspec1, whenE_neg (by rw [GT.gt, ← u64_lt_bv]; exact hgt), retOk_bind]; rfl
       obtain ⟨hC2, hF2⟩ := crel_of_ck hDS1.1 hDS1.2.2 hS2 (presC_setPriority _ _ σ1 y hy)
       exact Or.inr ⟨_, DecOut.of_eq hdec, σ1, hst1, (.ok [], y.2), invoke_prio_mem ssl _ q.bv blk call don hy,
-        th, G, Or.inl ⟨rfl, [], rfl⟩, hP, hC2, hF2, MdbOK.of_same hDS1.1.2.2.1 hS2 hfr1⟩
+        th, G, Or.inl ⟨rfl, [], rfl⟩, hP, hC2, hF2, MdbOKV.of_same hDS1.1.2.2.1 hS2 hfr1⟩
   · have hne : ∀ r, absCap (capV (L.mem s) x0) ≠ .threadCap r := fun r h => by
       obtain ⟨q, hq, -⟩ := absCap_thread h; exact hth ⟨q, hq⟩
     rw [thread_arg_other s 1#u64 (fun q h => hth ⟨q, h⟩)]
@@ -857,7 +857,7 @@ notification's queue and bound TCB, by `NtfnStateRel`), the restart and
 `invoke_tcb (NotificationControl t (Some n))` (`bind_notification`), with
 the CSpace relation and `FinInv` after. -/
 theorem tcb_bind_ntfn_refines (th : TypedHeap) (hP : Placed th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOK (L.mem s) G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (p : U64) (hp : th p = some .tcb) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .tcbBindNotification)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct)
@@ -1054,8 +1054,8 @@ theorem tcb_bind_ntfn_refines (th : TypedHeap) (hP : Placed th)
       exact tcbw_slots hP _ q hp 3368#u64 (by simp) (by simp) (by simp)
     obtain ⟨hC2, hF2⟩ := crel_of_ck hDS1.1 hDS1.2.2 (hS2a.trans hS2b) (ck_bound hkn1 hkp1 _ _)
     exact Or.inr ⟨_, DecOut.of_eq hdec, σ1, hst1, (.ok [], _), by rw [hrun]; exact Set.mem_singleton _, th, G,
-      Or.inl ⟨rfl, [], rfl⟩, hP, hC2, hF2, MdbOK.of_same hDS1.1.2.2.1
-        (hS2a.trans hS2b) (MdbOK.of_same hDS.1.2.2.1 hS1 hFR)⟩
+      Or.inl ⟨rfl, [], rfl⟩, hP, hC2, hF2, MdbOKV.of_same hDS1.1.2.2.1
+        (hS2a.trans hS2b) (MdbOKV.of_same hDS.1.2.2.1 hS1 hFR)⟩
   all_goals
     rw [hc] at hsp1
     simp only [error.illegal, bind_ok, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
@@ -1093,7 +1093,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 the restart and `invoke_tcb (NotificationControl t None)`
 (`unbind_notification`), with the CSpace relation and `FinInv` after. -/
 theorem tcb_unbind_ntfn_refines (th : TypedHeap) (hP : Placed th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOK (L.mem s) G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (p : U64) (hp : th p = some .tcb) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .tcbUnbindNotification)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct)
@@ -1200,8 +1200,8 @@ theorem tcb_unbind_ntfn_refines (th : TypedHeap) (hP : Placed th)
     exact tcbw_slots hP _ 0#u64 hp 3368#u64 (by simp) (by simp) (by simp)
   obtain ⟨hC2, hF2⟩ := crel_of_ck hDS1.1 hDS1.2.2 (hS2a.trans hS2b) (ck_bound hkn1 hkp1 _ _)
   exact Or.inr ⟨_, DecOut.of_eq hdec, σ1, hst1, (.ok [], _), by rw [hrun]; exact Set.mem_singleton _, th, G,
-    Or.inl ⟨rfl, [], rfl⟩, hP, hC2, hF2, MdbOK.of_same hDS1.1.2.2.1
-      (hS2a.trans hS2b) (MdbOK.of_same hDS.1.2.2.1 hS1 hFR)⟩
+    Or.inl ⟨rfl, [], rfl⟩, hP, hC2, hF2, MdbOKV.of_same hDS1.1.2.2.1
+      (hS2a.trans hS2b) (MdbOKV.of_same hDS.1.2.2.1 hS1 hFR)⟩
 
 end
 
@@ -1436,7 +1436,7 @@ fault-handler install (`install_ok`, the CSpace side's) and the scheduler
 step (`SchedTailHyp`), against `invoke_tcb ThreadControlSched`; a preempted
 install is the spec's preempted install. -/
 theorem ssp_tail (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L := L) arI th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOK (L.mem s) G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (p : U64) (hp : th p = some .tcb) (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
@@ -1466,8 +1466,8 @@ theorem ssp_tail (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L := L) arI th)
   obtain ⟨hO, hPP, hPD, K, hK, hK5, hB⟩ := hT
   have hok : NewCapOK th (L.mem s1) (capV (L.mem s) x2) e2.2 := by
     rw [← hc1, hxe2]; exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps hps1 (by rw [← hxe2, hc1]; exact hnf)
-  have hI := install_okQ arI (Q := MdbOK) (fun _ _ _ _ h hO => h.ok hO) th hP hO hPP hPD K hK hK5 hB s1 s1 ar σ1 G
-    hDS1 (MdbOK.of_same hDS.1.2.2.1 hS1 hFR) p hp 3 (by simp [tcbSlots])
+  have hI := install_okQ arI (Q := MdbOKV (L.ksb s)) (MdbOKV.step _) th hP hO hPP hPD K hK hK5 hB s1 s1 ar σ1 G
+    hDS1 (MdbOKV.of_same hDS.1.2.2.1 hS1 hFR) p hp 3 (by simp [tcbSlots])
     layout.tcb.SLOT_FAULT_HANDLER (by simp [layout.tcb.SLOT_FAULT_HANDLER]) (fun y _ _ => ChgZ.refl _ y) ssl hAs
     (capV (L.mem s) x2) e2.2 hok
   rw [← hxe2] at hI
@@ -1485,7 +1485,7 @@ theorem ssp_tail (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L := L) arI th)
     obtain ⟨hC2, hF2⟩ := crel_of_ck hDS'.1 hDS'.2.2 hS5 ((presC_setMcpriority _ _ σ' _ ha).trans
       ((presC_setPriority _ _ σa _ hb).trans (presC_scStep _ _ σb _ hcc)))
     refine Or.inr ⟨_, hdec, σ1, hst1, (.ok [], σc), ?_, th, G', Or.inl ⟨rfl, [], rfl⟩, hP, hC2, hF2,
-      MdbOK.of_same hDS'.1.2.2.1 hS5 hfr2⟩
+      MdbOKV.of_same hDS'.1.2.2.1 hS5 hfr2⟩
     show _ ∈ ((Fl4Spec.invokeTcb (Z := Unit) (.threadControlSched p.bv ssl (some e2)
       (some (Fl4Spec.ucast 8 y0.bv, q)) (some (Fl4Spec.ucast 8 y1.bv, q)) sco)).run σ1).1
     simp only [Fl4Spec.invokeTcb]
@@ -1544,7 +1544,7 @@ CSpace side's install, then `SchedTailHyp`), with the CSpace relation and
 `FinInv` after. -/
 theorem tcb_set_sched_params_refines (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L := L) arI th)
    
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOK (L.mem s) G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (p : U64) (hp : th p = some .tcb) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetSchedParams)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)

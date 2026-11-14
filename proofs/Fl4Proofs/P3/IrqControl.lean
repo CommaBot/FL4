@@ -16,7 +16,7 @@ becomes `IRQ_SIGNAL`; `IrqRel` is kept (`invoke_ctl_rel`, `restart_irq`).
 import Fl4Proofs.P3.IrqHandler
 import Fl4Proofs.P3.IntFrame
 import Fl4Spec.Ext.IrqControl
-import Fl4Proofs.P3.MdbStepInv
+import Fl4Proofs.P3.MdbStepVs
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -92,7 +92,7 @@ def CPost {X : Type} (invk : X → Fl4Spec.PMonad Unit Unit) (th : TypedHeap) (k
   | (.Ok (), s', _) => ∃ inv, m.run σ = ({(.ok inv, σ)}, False) ∧ ∃ σ1,
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
       ∃ σ' G', (.ok (), σ') ∈ ((invk inv).run σ1).1 ∧ CRel th (L.mem s') σ' G' ∧ IrqRel (L.mem s') kb σ' ∧
-        FinInv th (L.mem s') σ' G' ∧ HandlersActive (L.mem s') kb G' ∧ MdbOK (L.mem s') G'
+        FinInv th (L.mem s') σ' G' ∧ HandlersActive (L.mem s') kb G' ∧ MdbOKV kb (L.mem s') G'
 
 theorem CPost.of_run {X : Type} {invk : X → Fl4Spec.PMonad Unit Unit} {th : TypedHeap} {kb : U64}
     {σ : Fl4Spec.State Unit} {m m' : Fl4Spec.SEMonad Unit X} (h : m.run σ = m'.run σ) {s : S}
@@ -169,7 +169,7 @@ theorem restart_irq (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.Stat
 and the destination empty (slots of CNodes). -/
 theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
-    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G) (hFR : MdbOK (L.mem s) G)
+    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
     (irq : U64) (hirq : irq.val < 128) (hin : L.mem s (irqStA (L.ksb s) irq) = 0#u64)
     {ps pd : U64} {rs rd : Nat} (hps : th ps = some (.cnode rs)) (hpd : th pd = some (.cnode rd))
@@ -180,7 +180,7 @@ theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : 
       ∃ σ' G', ((), σ') ∈ ((Fl4Spec.setIrqState (Z := Unit) .irqSignal (BitVec.ofNat 8 irq.val) >>= fun _ =>
           Fl4Spec.capInsert (Z := Unit) (.irqHandlerCap (BitVec.ofNat 8 irq.val)) (ps.bv, idxs) (pd.bv, idxd)) σ).1 ∧
         CRel th (L.mem r.1) σ' G' ∧ IrqRel (L.mem r.1) (L.ksb s) σ' ∧ L.ksb r.1 = L.ksb s ∧
-        FinInv th (L.mem r.1) σ' G' ∧ HandlersActive (L.mem r.1) (L.ksb s) G' ∧ MdbOK (L.mem r.1) G' ⦄ := by
+        FinInv th (L.mem r.1) σ' G' ∧ HandlersActive (L.mem r.1) (L.ksb s) G' ∧ MdbOKV (L.ksb s) (L.mem r.1) G' ⦄ := by
   unfold interrupt.invoke_irq_control
   obtain ⟨a1, ha1⟩ := hmask ar irq (decide (interrupt.IRQ_SIGNAL = interrupt.IRQ_INACTIVE))
   rw [set_irq_state_eq arI s ar _ irq ha1]
@@ -236,7 +236,7 @@ theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : 
   have hkeep := capInsert_keeps (absCap (.IrqHandler irq)) (ps.bv, idxs) (pd.bv, idxd) σ1 ((), σ2)
     (by rw [hci]; rfl)
   have hkb2 : L.ksb s2 = L.ksb s := by rw [hF2.1]; simp [s1]
-  have hFRG : MdbOK (L.mem s2) G2 := (MdbStep.same_left hM hS hSt2).ok hFR
+  have hFRG : MdbOKV (L.ksb s) (L.mem s2) G2 := (MdbStep.same_left hM hS hSt2).okv hFR
   refine ⟨σ2, G2, ?_, ⟨hR2, hV2, hM2, hC2, hI2⟩, ⟨fun i hi => ?_, fun i hi => ?_⟩, hkb2, hFI2, ?_, hFRG⟩
   rotate_right
   · intro y hy i hi

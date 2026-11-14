@@ -68,14 +68,14 @@ theorem top_of_post {th : TypedHeap} (hP : Placed th) {σ σ1 : Fl4Spec.State Un
     {m : Fl4Spec.SEMonad Unit Fl4Spec.Fl4Invocation} {inv : Fl4Spec.Fl4Invocation} {G : MdbGhost} {s s1 s2 : S}
     {a : A} (hdec : DecOut m σ inv)
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
-    (hDS1 : DState (L := L) th s1 σ1 G) (hfr : MdbOK (L.mem s1) G)
+    (hDS1 : DState (L := L) th s1 σ1 G) (hfr : MdbOKV (L.ksb s) (L.mem s1) G)
     (h : RegPost (L := L) th s1 σ1 (Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don inv) s2) :
     TopPostM (L := L) σ blk call don m s (.Ok (), s2, a) := by
   obtain ⟨hS, y, hy, ⟨rr, hrr⟩, hR, hcdt, hio, hK⟩ := h
   obtain ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, -, hF1⟩ := hDS1
   exact Or.inr ⟨_, hdec, σ1, hst, y, hy, th, G, Or.inl ⟨rfl, rr, hrr⟩, hP,
     ⟨(hR _ hR1).of_caps (fun x hx => hS.capAt hx), hV1.of_caps (fun x hx => hS.capAt hx), hM1.of_same hS,
-      hC1.of_same hS hcdt hio, MdbInv.of_same hM1 hI1 hS⟩, hF1.of_same hM1 hS hK, MdbOK.of_same hM1 hS hfr⟩
+      hC1.of_same hS hcdt hio, MdbInv.of_same hM1 hI1 hS⟩, hF1.of_same hM1 hS hK, MdbOKV.of_same hM1 hS hfr⟩
 
 /-- `RegPost` of an invocation with an outcome keeping the spec's state. -/
 theorem regPost_same {th : TypedHeap} {s1 s2 : S} {σ1 : Fl4Spec.State Unit}
@@ -136,7 +136,7 @@ theorem decode_unset_eq (s : S) (ar : A) (p : U64) (c : tcb.Ctx)
 /-- **`tcb::decode` at `TCBUnsetBreakpoint`** (`TcbOK`): the breakpoint
 number's check, the restart, and the debug-register work (`UnsetBpHyp`). -/
 theorem tcb_unset_bp_refines (th : TypedHeap) (hP : Placed th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOK (L.mem s) G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (p : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .invalidInvocation)
     (hext : Fl4Spec.fl4TcbExtLabelOf slbl = some .unsetBreakpoint)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct)
@@ -174,7 +174,7 @@ theorem tcb_unset_bp_refines (th : TypedHeap) (hP : Placed th)
     exact run_bind_error (by rw [checkBp_run, if_pos hb]) _
   · simp only [hb, ↓reduceIte, core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
     obtain ⟨s1, σ1, hrc1, hs1, hst1, hS1, hDS1, -, -, -⟩ := restart_dstate th hP s σ G hDS ct hct hcur htcb hact
-    have hfr1 : MdbOK (L.mem s1) G := MdbOK.of_same hDS.1.2.2.1 hS1 hFR
+    have hfr1 : MdbOKV (L.ksb s) (L.mem s1) G := MdbOKV.of_same hDS.1.2.2.1 hS1 hFR
     rw [hrc1]; simp only [bind_ok]
     have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
         (Fl4Spec.decodeFl4UnsetBreakpoint (Z := Unit) buffer p.bv)).run σ =
@@ -216,7 +216,7 @@ theorem decode_timer_eq (s : S) (ar : A) (p : U64) (c : tcb.Ctx)
 /-- **`tcb::decode` at `TCBSetTimer`** (`TcbOK`): the length check, the
 restart, and the timer work (`SetTimerHyp`). -/
 theorem tcb_set_timer_refines (th : TypedHeap) (hP : Placed th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOK (L.mem s) G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (p : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .invalidInvocation)
     (hext : Fl4Spec.fl4TcbExtLabelOf slbl = some .setTimer)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -257,7 +257,7 @@ theorem tcb_set_timer_refines (th : TypedHeap) (hP : Placed th)
     unfold tcb.arg; rw [hct]; simp only [bind_ok]; exact hargs 1#u64 y1 (by simp)
   rw [ha0, ha1]; simp only [bind_ok]
   obtain ⟨s1, σ1, hrc1, hs1, hst1, hS1, hDS1, -, -, -⟩ := restart_dstate th hP s σ G hDS ct hct hcur htcb hact
-  have hfr1 : MdbOK (L.mem s1) G := MdbOK.of_same hDS.1.2.2.1 hS1 hFR
+  have hfr1 : MdbOKV (L.ksb s) (L.mem s1) G := MdbOKV.of_same hDS.1.2.2.1 hS1 hFR
   rw [hrc1]; simp only [bind_ok]
   have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
       (Fl4Spec.decodeFl4SetTimer (Z := Unit) ((y0 :: y1 :: rest).map UScalar.bv) p.bv)).run σ =
@@ -292,7 +292,7 @@ theorem decode_getbp_eq (s : S) (ar : A) (p : U64) (c : tcb.Ctx)
 breakpoint number's check, the restart, the read (`GetBpHyp`) and the
 caller's `Running`. -/
 theorem tcb_get_bp_refines (th : TypedHeap) (hP : Placed th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOK (L.mem s) G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (p : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .invalidInvocation)
     (hext : Fl4Spec.fl4TcbExtLabelOf slbl = some .getBreakpoint)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct)
@@ -331,7 +331,7 @@ theorem tcb_get_bp_refines (th : TypedHeap) (hP : Placed th)
   · simp only [hb, ↓reduceIte, core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
     obtain ⟨s1, σ1, hrc1, hs1, hst1, hS1, hDS1, -, hk1, hc1⟩ :=
       restart_dstate th hP s σ G hDS ct hct hcur htcb hact
-    have hfr1 : MdbOK (L.mem s1) G := MdbOK.of_same hDS.1.2.2.1 hS1 hFR
+    have hfr1 : MdbOKV (L.ksb s) (L.mem s1) G := MdbOKV.of_same hDS.1.2.2.1 hS1 hFR
     rw [hrc1]; simp only [bind_ok]
     obtain ⟨r1, hr1⟩ := hG s1 bp hs1
     rw [hr1]; simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
@@ -376,7 +376,7 @@ theorem decode_step_eq (s : S) (ar : A) (p : U64) (c : tcb.Ctx)
 (`TcbOK`): no checks; the restart, the debug-register work
 (`SingleStepHyp`) and the caller's `Running`. -/
 theorem tcb_single_step_refines (th : TypedHeap) (hP : Placed th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOK (L.mem s) G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (p : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .invalidInvocation)
     (hext : Fl4Spec.fl4TcbExtLabelOf slbl = some .configureSingleStepping)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct)
@@ -402,7 +402,7 @@ theorem tcb_single_step_refines (th : TypedHeap) (hP : Placed th)
   rw [hct]; simp only [bind_ok]; rw [hbp]; simp only [bind_ok]; rw [hn]; simp only [bind_ok]
   obtain ⟨s1, σ1, hrc1, hs1, hst1, hS1, hDS1, -, hk1, hc1⟩ :=
     restart_dstate th hP s σ G hDS ct hct hcur htcb hact
-  have hfr1 : MdbOK (L.mem s1) G := MdbOK.of_same hDS.1.2.2.1 hS1 hFR
+  have hfr1 : MdbOKV (L.ksb s) (L.mem s1) G := MdbOKV.of_same hDS.1.2.2.1 hS1 hFR
   rw [hrc1]; simp only [bind_ok]
   have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
       (Fl4Spec.decodeFl4ConfigureSingleStepping (Z := Unit) buffer p.bv)).run σ =
@@ -486,7 +486,7 @@ theorem setFlags_ok (σ : Fl4Spec.State Unit) (p : Fl4Spec.ObjRef) (y0 y1 : Fl4S
 /-- **`tcb::decode` at `TCBSetFlags`, not called** (`TcbOK`): the length
 check, the restart, and the flags work (`SetFlagsHyp`). -/
 theorem tcb_set_flags_refines (th : TypedHeap) (hP : Placed th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOK (L.mem s) G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (p : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetFlags)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -517,7 +517,7 @@ theorem tcb_set_flags_refines (th : TypedHeap) (hP : Placed th)
   have ha1 : tcb.arg st s ⟨length, buf, false, slot, extra⟩ 1#u64 = ok y1 := by
     unfold tcb.arg; rw [hct]; simp only [bind_ok]; exact hargs 1#u64 y1 (by simp)
   obtain ⟨s1, σ1, -, hs1, hst1, hS1, hDS1, -, -, -⟩ := restart_dstate th hP s σ G hDS ct hct hcur htcb hact
-  have hfr1 : MdbOK (L.mem s1) G := MdbOK.of_same hDS.1.2.2.1 hS1 hFR
+  have hfr1 : MdbOKV (L.ksb s) (L.mem s1) G := MdbOKV.of_same hDS.1.2.2.1 hS1 hFR
   refine WP.spec_mono (hF s1 σ1 y0 y1 ar hs1 (by rw [← hcur]; exact hst1) ha0 ha1 h1) ?_
   rintro ⟨r, s2, a2⟩ ⟨hr, h2⟩
   simp only at hr; subst hr
@@ -796,7 +796,7 @@ def FpuHyp (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (ct p : U64) (c : 
 /-- **FL4's `fpu_transfer`** against the spec's `decodeFl4FpuTransfer`, the
 restart and `invokeFl4Tcb`: the checks proved, the work `FpuHyp`. -/
 theorem fpu_refines (th : TypedHeap) (hP : Placed th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOK (L.mem s) G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (p : U64) (toFrame : Bool) (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
@@ -873,7 +873,7 @@ theorem fpu_refines (th : TypedHeap) (hP : Placed th)
     intro ptr sz r m asid va hcf hpass
     subst hcf
     obtain ⟨s1, σ1, -, hs1, hst1, hS1, hDS1, -, -, -⟩ := restart_dstate th hP s σ G hDS ct hct hcur htcb hact
-    have hfr1 : MdbOK (L.mem s1) G := MdbOK.of_same hDS.1.2.2.1 hS1 hFR
+    have hfr1 : MdbOKV (L.ksb s) (L.mem s1) G := MdbOKV.of_same hDS.1.2.2.1 hS1 hFR
     obtain ⟨hr1, hr3, hm, hlt, hrm⟩ := hpass
     obtain ⟨hw1, hw3⟩ := hcwf
     have hrg := frame_rights r hw1 hw3
@@ -1004,7 +1004,7 @@ theorem decode_fpu_eq (s : S) (ar : A) (p : U64) (c : tcb.Ctx)
 /-- **`tcb::decode` at `TCBReadFPU` / `TCBWriteFPU`** (`TcbOK`, `toFrame`
 for ReadFPU): `fpu_refines`. -/
 theorem tcb_fpu_refines (th : TypedHeap) (hP : Placed th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOK (L.mem s) G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (p : U64) (toFrame : Bool) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .invalidInvocation)
     (hext : Fl4Spec.fl4TcbExtLabelOf slbl = some (if toFrame then .readFpu else .writeFpu))
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -1095,7 +1095,7 @@ work as `SetBpHyp`, `UnsetBpHyp`, `GetBpHyp`, `SingleStepHyp`,
 GetBreakpoint, ConfigureSingleStepping and SetFlags called reply in the
 decode: those cases are hypotheses here (`DecOKRM`: `tcb_set_flags_call`). -/
 theorem tcb_decode_ext (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L := L) arI th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOK (L.mem s) G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (lbl p : U64) (hp : th p = some .tcb) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = tcbLabelOf lbl)
     (hext : Fl4Spec.genInvocationType slbl = .invalidInvocation → Fl4Spec.fl4TcbExtLabelOf slbl = tcbExtOf lbl)

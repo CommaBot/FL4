@@ -144,7 +144,7 @@ set_option maxHeartbeats 8000000 in
 /-- **The domain-schedule frame of `decode_invocation_page_table_cap`** (`dom_of_foot`, `dk_spec_arch`). -/
 theorem domFrame_page_table (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -198,7 +198,7 @@ set_option maxHeartbeats 8000000 in
 /-- **`decode_invocation_page_table_cap` with the domain schedule** (`DecOKDM`, `DecOKM.withDom`). -/
 theorem decode_invocation_page_table_capD (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -232,7 +232,7 @@ set_option maxHeartbeats 8000000 in
 /-- **The domain-schedule frame of `decode_invocation_page_directory_cap`** (`dom_of_foot`, `dk_spec_arch`). -/
 theorem domFrame_page_directory (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -286,7 +286,7 @@ set_option maxHeartbeats 8000000 in
 /-- **`decode_invocation_page_directory_cap` with the domain schedule** (`DecOKDM`, `DecOKM.withDom`). -/
 theorem decode_invocation_page_directory_capD (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -320,7 +320,7 @@ set_option maxHeartbeats 8000000 in
 /-- **The domain-schedule frame of `decode_invocation_pdpt_cap`** (`dom_of_foot`, `dk_spec_arch`). -/
 theorem domFrame_pdpt (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -374,7 +374,7 @@ set_option maxHeartbeats 8000000 in
 /-- **`decode_invocation_pdpt_cap` with the domain schedule** (`DecOKDM`, `DecOKM.withDom`). -/
 theorem decode_invocation_pdpt_capD (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -408,7 +408,7 @@ set_option maxHeartbeats 8000000 in
 /-- **The domain-schedule frame of `decode_invocation_asid_pool_cap`** (`dom_of_foot`, `dk_spec_arch`). -/
 theorem domFrame_asid_pool (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hR : VsRel P (L.mem s) (L.ksb s) σ)
@@ -459,7 +459,7 @@ set_option maxHeartbeats 8000000 in
 /-- **`decode_invocation_asid_pool_cap` with the domain schedule** (`DecOKDM`, `DecOKM.withDom`). -/
 theorem decode_invocation_asid_pool_capD (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hR : VsRel P (L.mem s) (L.ksb s) σ)
@@ -489,7 +489,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A frame cap, every label, with the domain schedule** (`DecOKDM`, or `DecOKR` for `GetAddress` and `TestAndClearAccessed`). -/
 theorem decode_invocation_frame_capD (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hU : UtInv (L.mem s) G)
-    (hMO : MdbOK (L.mem s) G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -593,7 +593,7 @@ set_option maxHeartbeats 8000000 in
 /-- **The ASID control cap with the domain schedule** (`DecOKDM`; the pool page apart from the kernel-global area, from the untyped placement `UtKsOut`). -/
 theorem decode_invocation_asid_control_capD (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hU : UtInv (L.mem s) G)
-    (hMO : MdbOK (L.mem s) G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
@@ -672,7 +672,7 @@ set_option maxHeartbeats 8000000 in
 and scheduler-action words only). -/
 theorem decode_invocation_pml4D (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (lbl : U64) (slbl : Fl4Spec.Data)

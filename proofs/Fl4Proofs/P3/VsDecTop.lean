@@ -32,7 +32,7 @@ theorem topM_of_lift2 {α β : Type} {f : α → Fl4Spec.Fl4Invocation} {g : β 
         ∃ y ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don (f (g inv))).run σ1).1, ∃ th' G',
           ((res.1 = .Ok () ∧ ∃ rr, y.1 = .ok rr) ∨ (res.1 = .Err .Preempted ∧ y.1 = .error ())) ∧
           Placed th' ∧ CRel th' (L.mem res.2.1) y.2 G' ∧ FinInv th' (L.mem res.2.1) y.2 G' ∧
-          MdbOK (L.mem res.2.1) G')) :
+          MdbOKV (L.ksb s) (L.mem res.2.1) G')) :
     TopPostM (L := L) σ blk call don (Fl4Spec.NonDetE.liftME f (Fl4Spec.NonDetE.liftME g m)) s res := by
   rcases h with ⟨e, h1, h2, e', hr, he⟩ | ⟨inv, hr, rest⟩
   · exact Or.inl ⟨e, h1, h2, e', run_liftME_err (run_liftME_err hr), he⟩
@@ -47,7 +47,7 @@ theorem topM_of_lift2M {α β : Type} {f : α → Fl4Spec.Fl4Invocation} {g : β
         ∃ y ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don (f (g inv))).run σ1).1, ∃ th' G',
           ((res.1 = .Ok () ∧ ∃ rr, y.1 = .ok rr) ∨ (res.1 = .Err .Preempted ∧ y.1 = .error ())) ∧
           Placed th' ∧ CRel th' (L.mem res.2.1) y.2 G' ∧ FinInv th' (L.mem res.2.1) y.2 G' ∧
-          MdbOK (L.mem res.2.1) G')) :
+          MdbOKV (L.ksb s) (L.mem res.2.1) G')) :
     TopPostM (L := L) σ blk call don (Fl4Spec.NonDetE.liftME f (Fl4Spec.NonDetE.liftME g m)) s res := by
   rcases h with ⟨e, h1, h2, e', hr, he⟩ | ⟨inv, hr, rest⟩
   · exact Or.inl ⟨e, h1, h2, e', run_liftME_err (run_liftME_err hr), he⟩
@@ -96,7 +96,7 @@ theorem topMQ_err {α β : Type} {f : α → Fl4Spec.Fl4Invocation} {g : β → 
 /-- **A PML4 cap** (see the module docstring). -/
 theorem decode_invocation_pml4 (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.dataToNat slbl = Fl4Spec.fl4Pml4FlushLabel ↔ lbl = fl4_abi.label.X86PML4Flush)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
@@ -159,7 +159,7 @@ theorem decode_invocation_pml4 (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
     mem_liftE (ε := Unit) h0
   refine topM_of_lift2 (Or.inr ⟨.flush p.bv asid.bv, rfl, σ1, by rw [hcur]; exact hst1, _, hmem, th, G,
     Or.inl ⟨rfl, [], rfl⟩, hP, ⟨Vs.StateRel.ms hR1 ms, hV1, hM1, hC1.of_cdt rfl rfl, MdbInv.of_same hM hI hS⟩,
-    hFI.of_same hM hS ((ksub_of_eq (setThreadState_nks _ _) hst1).trans (KSub.of_kheap rfl)), MdbOK.of_same hM hS hMO⟩)
+    hFI.of_same hM hS ((ksub_of_eq (setThreadState_nks _ _) hst1).trans (KSub.of_kheap rfl)), MdbOKV.of_same hM hS hMO⟩)
 
 end
 

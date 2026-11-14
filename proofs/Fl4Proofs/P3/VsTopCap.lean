@@ -21,7 +21,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A page-table cap at `TopSR` with `VsCapsIn`** (`decode_invocation_page_table_top`; the table's placement and the extra PML4 cap's shape from the invariant). -/
 theorem decode_invocation_page_table_cap (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -69,7 +69,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A page-directory cap at `TopSR` with `VsCapsIn`** (`decode_invocation_page_directory_top`; the table's placement and the extra PML4 cap's shape from the invariant). -/
 theorem decode_invocation_page_directory_cap (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -117,7 +117,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A PDPT cap at `TopSR` with `VsCapsIn`** (`decode_invocation_pdpt_top`; the table's placement and the extra PML4 cap's shape from the invariant). -/
 theorem decode_invocation_pdpt_cap (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -165,7 +165,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A frame cap, every label, at `TopSR` with `VsCapsIn`** (`decode_invocation_frame_full`; `hfm`, `hpaS`/`hpaL`/`hpaH` and the extra PML4 cap's shape from the invariant). -/
 theorem decode_invocation_frame_cap (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hU : UtInv (L.mem s) G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -217,7 +217,7 @@ set_option maxHeartbeats 8000000 in
 /-- **An ASID pool cap at `TopSR` with `VsCapsIn`** (`decode_invocation_asid_pool_top`; `hb` and the extra PML4 cap's shape from the invariant). -/
 theorem decode_invocation_asid_pool_cap (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hR : VsRel P (L.mem s) (L.ksb s) σ)

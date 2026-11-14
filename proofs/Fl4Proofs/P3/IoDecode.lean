@@ -20,7 +20,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 /-- **`ioport::decode_control`, every label.** -/
 theorem ioport_control_decode_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hL : IoLayout th (L.ksb s)) (hIo : IoRel (L.mem s) (L.ksb s) σ)
-    (hPA : IoPortsAlloc (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G) (hFR : MdbOK (L.mem s) G)
+    (hPA : IoPortsAlloc (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : lbl.val = 60 ↔ Fl4Spec.invocationType slbl = .archInvocationLabel .x64IOPortControlIssue)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)

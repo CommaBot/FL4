@@ -17,7 +17,7 @@ the scheduler-action word is not a bitmap word.
 -/
 import Fl4Proofs.P3.IoPost
 import Fl4Proofs.P3.IrqArch
-import Fl4Proofs.P3.MdbStepInv
+import Fl4Proofs.P3.MdbStepVs
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -144,7 +144,7 @@ def IoCPost (th : TypedHeap) (kb : U64) (σ : Fl4Spec.State Unit) (m : Fl4Spec.S
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
       ∃ σ' G' r, (.ok r, σ') ∈ ((Fl4Spec.archPerformInvocation (Z := Unit) inv).run σ1).1 ∧
         CRel th (L.mem s') σ' G' ∧ IoRel (L.mem s') kb σ' ∧ FinInv th (L.mem s') σ' G' ∧
-        IoPortsAlloc (L.mem s') kb G' ∧ MdbOK (L.mem s') G'
+        IoPortsAlloc (L.mem s') kb G' ∧ MdbOKV kb (L.mem s') G'
 
 theorem IoCPost.of_run {th : TypedHeap} {kb : U64} {σ : Fl4Spec.State Unit}
     {m m' : Fl4Spec.SEMonad Unit Fl4Spec.ArchInvocation} (h : m.run σ = m'.run σ) {s : S}
@@ -285,7 +285,7 @@ theorem restart_io (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.State
 /-- **IOPortControl `Issue`** (label 60). -/
 theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hL : IoLayout th (L.ksb s)) (hIo : IoRel (L.mem s) (L.ksb s) σ)
-    (hPA : IoPortsAlloc (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G) (hFR : MdbOK (L.mem s) G)
+    (hPA : IoPortsAlloc (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.invocationType slbl = .archInvocationLabel .x64IOPortControlIssue)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -468,7 +468,7 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
       exact ⟨h1, h2, fun p hp1 hp2 => hal p (by omega) (Or.inl (hb p hp1 hp2))⟩
 
   · -- the MDB invariants: a fresh IO port cap, naming no memory
-    exact (MdbStep.same_left hM hS23 hSt4).ok hFR
+    exact (MdbStep.same_left hM hS23 hSt4).okv hFR
 
 /-- **Any other IOPortControl label**: `IllegalOperation`. -/
 theorem ioport_control_other (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl : U64)

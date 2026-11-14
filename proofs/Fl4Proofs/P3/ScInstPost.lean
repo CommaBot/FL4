@@ -264,7 +264,7 @@ theorem schedTailHyp_disch (hA : P0.ArchTotal arI) (th : TypedHeap) (hP : Placed
 `schedTailHyp_disch`). -/
 theorem tcb_set_sched_params_refines_disch (hA : P0.ArchTotal arI) (th : TypedHeap) (hP : Placed th)
     (hT : TcHyps (L := L) arI th)
-    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOK (L.mem s) G)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (p : U64) (hp : th p = some .tcb) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetSchedParams)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)

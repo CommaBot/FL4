@@ -263,7 +263,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A frame cap with the composite relation** (`decode_invocation_frame`; the placement from `TopPlaced`). -/
 theorem decode_invocation_frame_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -312,7 +312,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A page-table cap with the composite relation** (`decode_invocation_page_table`; the placement from `TopPlaced`). -/
 theorem decode_invocation_page_table_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -349,7 +349,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A page-directory cap with the composite relation** (`decode_invocation_page_directory`; the placement from `TopPlaced`). -/
 theorem decode_invocation_page_directory_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -386,7 +386,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A PDPT cap with the composite relation** (`decode_invocation_pdpt`; the placement from `TopPlaced`). -/
 theorem decode_invocation_pdpt_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -423,7 +423,7 @@ set_option maxHeartbeats 8000000 in
 /-- **An ASID pool cap with the composite relation** (`decode_invocation_asid_pool`; `curT` from `curT_top`). -/
 theorem decode_invocation_asid_pool_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hR : VsRel P (L.mem s) (L.ksb s) σ)
@@ -453,7 +453,7 @@ set_option maxHeartbeats 8000000 in
 /-- **The ASID control cap with the composite relation** (`decode_invocation_asid_control`; `RegOK := RegOKTop`). -/
 theorem decode_invocation_asid_control_top (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hU : UtInv (L.mem s) G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)

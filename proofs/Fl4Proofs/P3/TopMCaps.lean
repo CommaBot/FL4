@@ -1,7 +1,7 @@
 /-
 P3 (DESIGN.md §9): **the MDB invariants on the cap branches** (`DecOKM`,
 `DecOKDM`; TopM): the domain cap, the IO port caps, IO port control and IRQ
-control (TopFCaps' with `MdbOK` for the frame invariant), the CNode caps
+control (TopFCaps' with `MdbOKV` for the frame invariant), the CNode caps
 (`decode_invocation_cnodeM`) and the untyped caps
 (`decode_invocation_untypedM`), from the `MdbStep`s their posts carry.
 -/
@@ -26,7 +26,7 @@ theorem topM_of_lift {α : Type} {f : α → Fl4Spec.Fl4Invocation} {m : Fl4Spec
         ∃ y ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don (f inv)).run σ1).1, ∃ th' G',
           ((res.1 = .Ok () ∧ ∃ rr, y.1 = .ok rr) ∨ (res.1 = .Err .Preempted ∧ y.1 = .error ())) ∧
           Placed th' ∧ CRel th' (L.mem res.2.1) y.2 G' ∧ FinInv th' (L.mem res.2.1) y.2 G' ∧
-          MdbOK (L.mem res.2.1) G')) :
+          MdbOKV (L.ksb s) (L.mem res.2.1) G')) :
     TopPostM (L := L) σ blk call don (Fl4Spec.NonDetE.liftME f m) s res := by
   rcases h with ⟨e, h1, h2, e', hr, he⟩ | ⟨inv, hr, rest⟩
   · exact Or.inl ⟨e, h1, h2, e', run_liftME_err hr, he⟩
@@ -41,7 +41,7 @@ theorem topM_of_lift2 {α β : Type} {f : α → Fl4Spec.Fl4Invocation} {g : β 
         ∃ y ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don (f (g inv))).run σ1).1, ∃ th' G',
           ((res.1 = .Ok () ∧ ∃ rr, y.1 = .ok rr) ∨ (res.1 = .Err .Preempted ∧ y.1 = .error ())) ∧
           Placed th' ∧ CRel th' (L.mem res.2.1) y.2 G' ∧ FinInv th' (L.mem res.2.1) y.2 G' ∧
-          MdbOK (L.mem res.2.1) G')) :
+          MdbOKV (L.ksb s) (L.mem res.2.1) G')) :
     TopPostM (L := L) σ blk call don (Fl4Spec.NonDetE.liftME f (Fl4Spec.NonDetE.liftME g m)) s res := by
   rcases h with ⟨e, h1, h2, e', hr, he⟩ | ⟨inv, hr, rest⟩
   · exact Or.inl ⟨e, h1, h2, e', run_liftME_err (run_liftME_err hr), he⟩
@@ -53,11 +53,11 @@ def PortCPostM (th : TypedHeap) (σ : Fl4Spec.State Unit) (m : Fl4Spec.SEMonad U
   | (.Ok (), s', _) => ∃ inv, m.run σ = ({(.ok inv, σ)}, False) ∧ ∃ σ1,
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
       ∃ σ' G' r, (.ok r, σ') ∈ ((Fl4Spec.archPerformInvocation (Z := Unit) inv).run σ1).1 ∧
-        CRel th (L.mem s') σ' G' ∧ FinInv th (L.mem s') σ' G' ∧ MdbOK (L.mem s') G'
+        CRel th (L.mem s') σ' G' ∧ FinInv th (L.mem s') σ' G' ∧ MdbOKV (L.ksb s) (L.mem s') G'
 
 /-- From the labels' `PortPost`: a port invocation that changed no slot. -/
 theorem PortPost.toCM {th : TypedHeap} {s : S} {ar : A} {σ : Fl4Spec.State Unit} {G : MdbGhost}
-    (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hFR : MdbOK (L.mem s) G) {ct : U64} (hcur : σ.curThread = ct.bv)
+    (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G) {ct : U64} (hcur : σ.curThread = ct.bv)
     (htcb : th ct = some .tcb) {m : Fl4Spec.SEMonad Unit Fl4Spec.ArchInvocation} {Q : Fl4Spec.ArchInvocation → S → A → Prop}
     (hQ : ∀ inv s' a', Q inv s' a' → SlotsSame th (L.mem s) (L.mem s') ∧
       ∃ port d, inv = .invokeIOPort (.ioPortInvocation port d))
@@ -75,10 +75,10 @@ theorem PortPost.toCM {th : TypedHeap} {s : S} {ar : A} {σ : Fl4Spec.State Unit
     obtain ⟨rr, ms, hmem⟩ := port_perform_ex σ1 port d
     refine ⟨_, hrun, σ1, by rw [hcur]; exact hst1, _, G, rr, hmem,
       ⟨hR1.of_kheap rfl, hV1, hM1, hC1.of_cdt rfl rfl, MdbInv.of_same hM hI hS⟩,
-      hFI.of_same hM hS ((ksub_of_eq (setThreadState_nks _ _) hst1).trans (KSub.of_kheap rfl)), MdbOK.of_same hM hS hFR⟩
+      hFI.of_same hM hS ((ksub_of_eq (setThreadState_nks _ _) hst1).trans (KSub.of_kheap rfl)), MdbOKV.of_same hM hS hFR⟩
 
 theorem ioport_decode_refinesM (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hFR : MdbOK (L.mem s) G)
+    (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : PortLabel lbl slbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -110,7 +110,7 @@ theorem ioport_decode_refinesM (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
 
 
 theorem decode_invocation_ioportM (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hFR : MdbOK (L.mem s) G)
+    (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : PortLabel lbl slbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -139,7 +139,7 @@ theorem decode_invocation_ioportM (th : TypedHeap) (hP : Placed th) (s : S) (ar 
 
 theorem decode_invocation_domainDM (hcfg : DomConfig) (th : TypedHeap) (hP : Placed th) (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (G : MdbGhost)
-    (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hDR : DomRel (L.mem s) (L.ksb s) σ) (hFR : MdbOK (L.mem s) G)
+    (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hDR : DomRel (L.mem s) (L.ksb s) σ) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64) (hka : (L.ksb s).val % 8 = 0)
@@ -164,7 +164,7 @@ theorem decode_invocation_domainDM (hcfg : DomConfig) (th : TypedHeap) (hP : Pla
     rintro ⟨r0, s'⟩ hq
     simp only [uncurry_apply_pair]
     rw [WP.spec_ok]
-    rcases hq with ⟨e, he, hs', e', h1, h2⟩ | ⟨he, inv, hrun, σ1, hst, y, hy, hS', hCR', hFI', hDR'⟩
+    rcases hq with ⟨e, he, hs', e', h1, h2⟩ | ⟨he, inv, hrun, σ1, hst, y, hy, hS', hCR', hFI', hkb', hDR'⟩
     · exact Or.inl ⟨e, he, hs', e', run_liftME_err h1, Or.inl h2⟩
     · have hm : ((.ok [], y.2) : Except Unit (List Fl4Spec.Data) × Fl4Spec.State Unit) ∈
           ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don (.invokeDomain inv)).run σ1).1 := by
@@ -172,7 +172,7 @@ theorem decode_invocation_domainDM (hcfg : DomConfig) (th : TypedHeap) (hP : Pla
           σ1).1
         exact mem_liftE (x := ([], y.2)) (mem_bind_nd hy rfl)
       exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], y.2), hm, th, G, Or.inl ⟨he, [], rfl⟩, hP, hCR', hFI',
-        hDR', MdbOK.of_same hCR.2.2.1 hS' hFR⟩
+        hDR', by rw [hkb']; exact MdbOKV.of_same hCR.2.2.1 hS' hFR⟩
   · simp only [↓reduceIte]
     rw [WP.spec_ok]
     exact Or.inl ⟨_, rfl, rfl, _, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩
@@ -181,7 +181,7 @@ theorem decode_invocation_domainDM (hcfg : DomConfig) (th : TypedHeap) (hP : Pla
 theorem decode_invocation_ioport_controlM (th : TypedHeap) (hP : Placed th) (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hL : IoLayout th (L.ksb s))
     (hIo : IoRel (L.mem s) (L.ksb s) σ) (hPA : IoPortsAlloc (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
-    (hFR : MdbOK (L.mem s) G)
+    (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : lbl.val = 60 ↔ Fl4Spec.invocationType slbl = .archInvocationLabel .x64IOPortControlIssue)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -214,7 +214,7 @@ theorem decode_invocation_irq_controlM (th : TypedHeap) (hP : Placed th) (s : S)
     (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
     (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
-    (hFR : MdbOK (L.mem s) G)
+    (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : IrqCLabel lbl slbl)
     (hrm : decide (lbl.val = 69) = Fl4Spec.isFl4RemappedLabel slbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -276,7 +276,7 @@ theorem decode_invocation_cnodeM (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) → E s1 σ1)
     (hEF : ∀ s1 σ1 G1, CRel th (L.mem s1) σ1 G1 → E s1 σ1 → FinInv th (L.mem s1) σ1 G1)
     (hfew : μ (L.mem s) G < 2 ^ 64 - 1)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef) :
     DecOKM (L := L) arI s ar σ lbl length slot (.CNode p r gs g) blk call don fp buf extra slbl
@@ -291,7 +291,7 @@ theorem decode_invocation_cnodeM (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec
     apply topM_of_lift (f := Fl4Spec.Fl4Invocation.invokeCNode)
     rcases hq with ⟨e, he, rfl, e', he1, he2⟩ | ⟨inv, hrun, σ1, hst, σ', G', hcase, hCR, hF, hSt⟩
     · exact Or.inl ⟨e, he, rfl, e', he1, Or.inl he2⟩
-    · have hMO' : MdbOK (L.mem s') G' := hSt.ok hMO
+    · have hMO' : MdbOKV (L.ksb s) (L.mem s') G' := hSt.okv hMO
       refine Or.inr ⟨inv, hrun, σ1, hst, ?_⟩
       rcases hcase with ⟨he, hx⟩ | ⟨he, hx⟩
       · exact ⟨(.ok [], σ'), mem_bindE_ok hx (Set.mem_singleton _), th, G', Or.inl ⟨he, [], rfl⟩, hP, hCR, hF, hMO'⟩
@@ -306,7 +306,7 @@ theorem decode_invocation_untypedM (th : TypedHeap) (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
     (hM : MdbLinks th (L.mem s) G) (hC : CdtRel th (L.mem s) σ G) (hI : MdbInv (L.mem s) G)
-    (hU : UtInv (L.mem s) G) (hFI : FinInv th (L.mem s) σ G) (hMO : MdbOK (L.mem s) G)
+    (hU : UtInv (L.mem s) G) (hFI : FinInv th (L.mem s) σ G) (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     (horig : ∀ sl, σ.isOriginalCap sl = true → AbsSlot th sl)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .untypedRetype ↔ lbl = fl4_abi.label.UntypedRetype)
@@ -372,14 +372,14 @@ theorem decode_invocation_untypedM (th : TypedHeap) (s : S) (ar : A)
     have hF : FinInv th' (L.mem res.2.1) y2 G' :=
       (hFin hFI).of_same hM' (SlotsSame.refl _ _) (KSub.of_kheap hK.1)
     rcases hcase with ⟨he, rfl⟩ | ⟨he, rfl⟩
-    · exact ⟨(.ok [], y2), mem_bindE_ok hy (Set.mem_singleton _), th', G', Or.inl ⟨he, [], rfl⟩, hP', hCR, hF, hSt.ok hMO⟩
-    · exact ⟨(.error (), y2), mem_bindE_err hy, th', G', Or.inr ⟨he, rfl⟩, hP', hCR, hF, hSt.ok hMO⟩
+    · exact ⟨(.ok [], y2), mem_bindE_ok hy (Set.mem_singleton _), th', G', Or.inl ⟨he, [], rfl⟩, hP', hCR, hF, hSt.okv hMO⟩
+    · exact ⟨(.error (), y2), mem_bindE_err hy, th', G', Or.inr ⟨he, rfl⟩, hP', hCR, hF, hSt.okv hMO⟩
 
 /-- **An IRQ handler cap** (`irq_handler_decode_refines`). -/
 theorem decode_invocation_irq_handlerM (th : TypedHeap) (hP : Placed th)
     (hO : FinObjHyp (L := L) arI th) (hPD : PostDelHyp (L := L) arI th) (hK : NtfnKeepHyp (L := L) arI th)
     (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = irqHLabelOf lbl)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
@@ -404,7 +404,7 @@ theorem decode_invocation_irq_handlerM (th : TypedHeap) (hP : Placed th)
   | Ok u =>
     obtain ⟨inv, hrun, σ1, hst, σ', G', hx, hCR, hF, hSt⟩ := hq
     exact Or.inr ⟨inv, hrun, σ1, hst, (.ok [], σ'), mem_bindE_ok (mem_liftE hx) (Set.mem_singleton _), th, G',
-      Or.inl ⟨rfl, [], rfl⟩, hP, hCR, hF, hSt.ok hMO⟩
+      Or.inl ⟨rfl, [], rfl⟩, hP, hCR, hF, hSt.okv hMO⟩
 
 end
 

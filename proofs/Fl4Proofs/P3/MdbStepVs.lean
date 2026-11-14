@@ -1,12 +1,17 @@
 /-
 P3 (DESIGN.md §9), VSpace: **`MdbStep.vs`**, the VSpace MDB invariant
 `Vs.VsMdbInv` kept along any `MdbStep`, from VsMdbInv's step lemmas and the
-constructors' VSpace side facts (`hv`, `hq4`/`hqal`, `hb`, `hvc`). The
-retype case's new untyped caps lie inside the parent's region by
+constructors' VSpace side facts (`hv`, `hq4`/`hqal`, `hb`, `hvc`), with
+`UtWin` (the untyped regions in the kernel window, `MdbStep.win`) alongside.
+The retype case's new untyped caps lie inside the parent's region by
 `RetypeDelta` (`cut`, `cbase`, `hAw`).
+
+`MdbOKV ksb`: the MDB invariants the M-side posts carry, `MdbOK` with
+`UtWin` and `Vs.VsMdbInv ksb`; `MdbStep.okv` keeps it.
 -/
 import Fl4Proofs.P3.MdbStep
 import Fl4Proofs.P3.VsMdbInv
+import Fl4Proofs.P3.MdbStepInv
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -216,6 +221,26 @@ theorem MdbStep.vs {mem mem' : U64 → U64} {G G' : MdbGhost} (h : MdbStep mem G
       (by rw [h.F2b _ h.hsrc]; exact h.hcs1) (fun x hx e => by rw [h.F2b x hx, h.hc1 x hx e]) h.F1 h.F2a
       (fun j hj => vcap_of_newV (hvc hps j hj) ⟨j, hj, rfl⟩) h.hin
   | trans a _ ih1 ih2 => exact fun k hW hV => ih2 k (a.win hW) (ih1 k hW hV)
+
+
+/-- **The MDB invariants with the VSpace ones** (the M-side posts):
+`MdbOK`, the untyped regions in the kernel window, and `Vs.VsMdbInv` at the
+kernel-global base `ksb`. -/
+def MdbOKV (ksb : U64) (mem : U64 → U64) (G : MdbGhost) : Prop :=
+  MdbOK mem G ∧ UtWin mem G ∧ Vs.VsMdbInv ksb mem G
+
+theorem MdbStep.okv {ksb : U64} {mem mem' : U64 → U64} {G G' : MdbGhost} (h : MdbStep mem G mem' G')
+    (hO : MdbOKV ksb mem G) : MdbOKV ksb mem' G' :=
+  ⟨h.ok hO.1, h.win hO.2.1, h.vs ksb hO.2.1 hO.2.2⟩
+
+theorem MdbOKV.of_same {ksb : U64} {th : TypedHeap} {m m' : U64 → U64} {G : MdbGhost} (hM : MdbLinks th m G)
+    (hS : SlotsSame th m m') (hO : MdbOKV ksb m G) : MdbOKV ksb m' G := (MdbStep.of_same hM hS).okv hO
+
+theorem MdbOKV.toOK {ksb : U64} {mem : U64 → U64} {G : MdbGhost} (h : MdbOKV ksb mem G) : MdbOK mem G := h.1
+
+/-- `MdbOKV` along a step, in the form `TcbCaps`' generic installs take. -/
+theorem MdbOKV.step (ksb : U64) : ∀ m G m' G', MdbStep m G m' G' → MdbOKV ksb m G → MdbOKV ksb m' G' :=
+  fun _ _ _ _ h hO => h.okv hO
 
 end
 

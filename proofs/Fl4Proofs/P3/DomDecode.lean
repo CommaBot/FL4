@@ -297,7 +297,8 @@ def DomPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (G : MdbGhost)
   (res.1 = .Ok () ∧ ∃ inv, m.run σ = ({(.ok inv, σ)}, False) ∧ ∃ σ1,
     Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
     ∃ y ∈ (Fl4Spec.invokeDomain (Z := Unit) inv σ1).1, SlotsSame th (L.mem s) (L.mem res.2) ∧
-      CRel th (L.mem res.2) y.2 G ∧ FinInv th (L.mem res.2) y.2 G ∧ DomRel (L.mem res.2) (L.ksb res.2) y.2)
+      CRel th (L.mem res.2) y.2 G ∧ FinInv th (L.mem res.2) y.2 G ∧ L.ksb res.2 = L.ksb s ∧
+      DomRel (L.mem res.2) (L.ksb res.2) y.2)
 
 theorem dom_err {th : TypedHeap} {σ : Fl4Spec.State Unit} {G : MdbGhost}
     {m : Fl4Spec.SEMonad Unit Fl4Spec.DomainInvocation} {s : S} {e : error.Exc} {e' : Fl4Spec.SyscallError}
@@ -528,7 +529,7 @@ theorem dom_start_refines (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spe
   have hR5 : StateRel th (L.mem s5) y.2 := (hSR _ hR4).of_caps (fun x hx => hS5.capAt hx)
   obtain ⟨hCR5, hFI5⟩ := crel_step hCR1 hFI1 (hS4.trans hS5) ((KSub.of_kheap rfl).trans hK) hR5 hcdt hio
   refine Or.inr ⟨rfl, .invokeDomainScheduleSetStart y0.val, by rw [hmap, hspec, if_neg (by omega), if_neg hne], σ1, by rw [hcur]; exact hst1,
-    y, mem_setStart hy5, hS1.trans (hS4.trans hS5), hCR5, hFI5, ?_⟩
+    y, mem_setStart hy5, hS1.trans (hS4.trans hS5), hCR5, hFI5, hkb5, ?_⟩
   rw [hkb5]
   exact hDR4.of_same hDS5 hdl hst5
 
@@ -604,7 +605,8 @@ theorem dom_conf_ok (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.Stat
       exact this.1
   have hR2 : StateRel th (L.mem s2) σ2 := (hCR1.1.of_caps (fun x hx => hS2.capAt hx)).of_kheap rfl
   obtain ⟨hCR2, hFI2⟩ := crel_step (σ' := σ2) hCR1 hFI1 hS2 (KSub.of_kheap rfl) hR2 rfl rfl
-  exact Or.inr ⟨rfl, _, hm, σ1, by rw [hcur]; exact hst1, ((), σ2), rfl, hS1.trans hS2, hCR2, hFI2, by
+  exact Or.inr ⟨rfl, _, hm, σ1, by rw [hcur]; exact hst1, ((), σ2), rfl, hS1.trans hS2, hCR2, hFI2,
+    by rw [hs2, L.ksb_wr, L.ksb_wr, hkb1], by
     show DomRel (L.mem s2) (L.ksb s2) σ2
     rw [hs2, L.ksb_wr, L.ksb_wr, hkb1]; exact hDR2⟩
 
@@ -787,7 +789,7 @@ theorem dom_set_refines (hcfg : DomConfig) (th : TypedHeap) (hP : Placed th) (s 
     have hR2 : StateRel th (L.mem s2) y.2 := (hSR _ hCR1.1).of_caps (fun x hx => hS2.capAt hx)
     obtain ⟨hCR2, hFI2⟩ := crel_step hCR1 hFI1 hS2 hK hR2 hcdt hio
     refine Or.inr ⟨rfl, .invokeDomainSet ptr.bv (Fl4Spec.ucast Fl4Spec.domainLen y0.bv),
-      dec_set_thread hg _ _ nc1 _ _ _, σ1, by rw [hcur]; exact hst1, y, hy, hS1.trans hS2, hCR2, hFI2, ?_⟩
+      dec_set_thread hg _ _ nc1 _ _ _, σ1, by rw [hcur]; exact hst1, y, hy, hS1.trans hS2, hCR2, hFI2, hkb2.trans hkb1, ?_⟩
     show DomRel (L.mem s2) (L.ksb s2) y.2
     rw [hkb2, hkb1]
     rw [hkb1] at hDS
@@ -880,7 +882,7 @@ theorem decode_invocation_domain (hcfg : DomConfig) (th : TypedHeap) (hP : Place
     simp only [uncurry_apply_pair]
     rw [WP.spec_ok]
     apply top_of_lift (f := Fl4Spec.Fl4Invocation.invokeDomain)
-    rcases hq with ⟨e, he, hs', e', h1, h2⟩ | ⟨he, inv, hrun, σ1, hst, y, hy, -, hCR', hFI', -⟩
+    rcases hq with ⟨e, he, hs', e', h1, h2⟩ | ⟨he, inv, hrun, σ1, hst, y, hy, -, hCR', hFI', -, -⟩
     · exact Or.inl ⟨e, he, hs', e', h1, Or.inl h2⟩
     · have hm : ((.ok [], y.2) : Except Unit (List Fl4Spec.Data) × Fl4Spec.State Unit) ∈
           ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don (.invokeDomain inv)).run σ1).1 := by

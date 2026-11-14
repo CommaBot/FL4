@@ -12,7 +12,7 @@ import Fl4Proofs.P3.DelCnode
 import Fl4Proofs.P3.InsAbs
 import Fl4Proofs.P3.SoSpec
 import Fl4Proofs.P3.CnodeKey
-import Fl4Proofs.P3.MdbStepInv
+import Fl4Proofs.P3.MdbStepVs
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -958,7 +958,7 @@ theorem thread_control_caps_mdbOK (th : TypedHeap) (hP : Placed th) (hO : FinObj
     (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK5 : 5 ≤ K)
     (hB : ∀ m G, MdbLinks th m G → psiD m G * (K + 1) + K < 2 ^ 64 - 1)
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     (t : U64) (ht : th t = some .tcb) (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot th ssl) (flags : U64)
     (fh tmh cr vr : capability.Cap × Fl4Spec.CslotPtr)
     (hfh : (flags &&& tcb.UPDATE_FAULT) ≠ 0#u64 → NewCapOK th (L.mem s) fh.1 fh.2)
@@ -971,8 +971,8 @@ theorem thread_control_caps_mdbOK (th : TypedHeap) (hP : Placed th) (hO : FinObj
     (hbfr : ∀ c sl, bfr = some (c, sl) → NewCapOK th (L.mem s) c sl) :
     tcb.thread_control_caps st arI s a t (cslotAddr ssl) (fh.1, cslotAddr fh.2) (tmh.1, cslotAddr tmh.2)
       (cr.1, cslotAddr cr.2) (vr.1, cslotAddr vr.2) addr (bufArg bc0 bfr) flags ⦃ res =>
-      InstPostQ (L := L) MdbOK th t (tcCapsSpec t ssl flags fh tmh cr vr ptr bfr) s σ res ⦄ :=
-  thread_control_caps_refinesQ arI (fun _ _ _ _ h hO => h.ok hO) th hP hO hPP hPD K hK hK5 hB s a σ G hDS hMO t ht ssl
+      InstPostQ (L := L) (MdbOKV (L.ksb s)) th t (tcCapsSpec t ssl flags fh tmh cr vr ptr bfr) s σ res ⦄ :=
+  thread_control_caps_refinesQ arI (MdbOKV.step _) th hP hO hPP hPD K hK hK5 hB s a σ G hDS hMO t ht ssl
     hAs flags fh tmh cr vr hfh htmh hcr hvr addr ptr hBuf bc0 bfr hbfr
 
 end

@@ -1,6 +1,7 @@
 /-
 P3 (DESIGN.md §9): **the top-level posts with the MDB invariants**
-(`MdbOK`: VSpace's frame invariant, `UtInv` and `NoOverlap`; MdbStepInv),
+(`MdbOKV`: `MdbOK`, i.e. VSpace's frame invariant, `UtInv` and `NoOverlap`
+(MdbStepInv), with `UtWin` and `Vs.VsMdbInv` (MdbStepVs)),
 parallel to TopF / HandleTop's (which carry the frame invariant only):
 `TopPostM` / `DecOKM`, `TopPostDM` / `DecOKDM`, `decode_invocation_refinesDM`,
 `RelTopM`, `TopPostRM` / `DecOKRM`, and `handle_invocation_refinesM`.
@@ -8,7 +9,7 @@ parallel to TopF / HandleTop's (which carry the frame invariant only):
 invariant.
 -/
 import Fl4Proofs.P3.HandleTop
-import Fl4Proofs.P3.MdbStepInv
+import Fl4Proofs.P3.MdbStepVs
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -28,14 +29,14 @@ def TopPostM (σ : Fl4Spec.State Unit) (blk call don : Bool) (m : Fl4Spec.SEMona
     ∃ y ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don inv).run σ1).1, ∃ th' G',
       ((res.1 = .Ok () ∧ ∃ rr, y.1 = .ok rr) ∨ (res.1 = .Err .Preempted ∧ y.1 = .error ())) ∧
       Placed th' ∧ CRel th' (L.mem res.2.1) y.2 G' ∧ FinInv th' (L.mem res.2.1) y.2 G' ∧
-      MdbOK (L.mem res.2.1) G')
+      MdbOKV (L.ksb s) (L.mem res.2.1) G')
 
 theorem TopPostM.toF {σ : Fl4Spec.State Unit} {blk call don : Bool} {m : Fl4Spec.SEMonad Unit Fl4Spec.Fl4Invocation}
     {s : S} {res : core.result.Result Unit error.Exc × S × A} (h : TopPostM (L := L) σ blk call don m s res) :
     TopPostF (L := L) σ blk call don m s res := by
   rcases h with h | ⟨inv, h1, σ1, h2, y, hy, th', G', h3, h4, h5, h6, h7⟩
   · exact Or.inl h
-  · exact Or.inr ⟨inv, h1, σ1, h2, y, hy, th', G', h3, h4, h5, h6, h7.1⟩
+  · exact Or.inr ⟨inv, h1, σ1, h2, y, hy, th', G', h3, h4, h5, h6, h7.1.1⟩
 
 /-- The statement for one cap, with the frame invariant. -/
 abbrev DecOKM (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl length slot : U64) (c : capability.Cap)
@@ -62,14 +63,14 @@ def TopPostDM (σ : Fl4Spec.State Unit) (blk call don : Bool) (m : Fl4Spec.SEMon
     ∃ y ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don inv).run σ1).1, ∃ th' G',
       ((res.1 = .Ok () ∧ ∃ rr, y.1 = .ok rr) ∨ (res.1 = .Err .Preempted ∧ y.1 = .error ())) ∧
       Placed th' ∧ CRel th' (L.mem res.2.1) y.2 G' ∧ FinInv th' (L.mem res.2.1) y.2 G' ∧
-      DomRel (L.mem res.2.1) (L.ksb res.2.1) y.2 ∧ MdbOK (L.mem res.2.1) G')
+      DomRel (L.mem res.2.1) (L.ksb res.2.1) y.2 ∧ MdbOKV (L.ksb res.2.1) (L.mem res.2.1) G')
 
 theorem TopPostDM.toF {σ : Fl4Spec.State Unit} {blk call don : Bool} {m : Fl4Spec.SEMonad Unit Fl4Spec.Fl4Invocation}
     {s : S} {res : core.result.Result Unit error.Exc × S × A} (h : TopPostDM (L := L) σ blk call don m s res) :
     TopPostDF (L := L) σ blk call don m s res := by
   rcases h with h | ⟨inv, h1, σ1, h2, y, hy, th', G', h3, h4, h5, h6, h7, h8⟩
   · exact Or.inl h
-  · exact Or.inr ⟨inv, h1, σ1, h2, y, hy, th', G', h3, h4, h5, h6, h7, h8.1⟩
+  · exact Or.inr ⟨inv, h1, σ1, h2, y, hy, th', G', h3, h4, h5, h6, h7, h8.1.1⟩
 
 /-- The statement for one cap, with the domain schedule and the frame
 invariant. -/
@@ -94,7 +95,7 @@ theorem DecOKM.withDom {s : S} {ar : A} {σ : Fl4Spec.State Unit} {lbl length sl
   rcases hq with hq | ⟨inv, h1, σ1, h2, y, hy, th', G', h3, h4, h5, h6, h7⟩
   · exact Or.inl hq
   · obtain ⟨hl, hst⟩ := hF.2 inv σ1 h1 h2 y hy
-    refine Or.inr ⟨inv, h1, σ1, h2, y, hy, th', G', h3, h4, h5, h6, ?_, h7⟩
+    refine Or.inr ⟨inv, h1, σ1, h2, y, hy, th', G', h3, h4, h5, h6, ?_, by rw [hkb]; exact h7⟩
     rw [hkb]; exact hDR.frame hw hl hst
 
 /-- The null and zombie caps: `InvalidCapability 0`, the state unchanged. -/
@@ -147,7 +148,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 relation (with `MdbInv`), `FinInv` and the domain schedule. -/
 def RelTopM (s : S) (σ : Fl4Spec.State Unit) : Prop :=
   ∃ th G, Placed th ∧ CRel th (L.mem s) σ G ∧ FinInv th (L.mem s) σ G ∧ DomRel (L.mem s) (L.ksb s) σ ∧
-    MdbOK (L.mem s) G
+    MdbOKV (L.ksb s) (L.mem s) G
 
 /-- **The message-register and reply writes** (for the IPC proofs): from
 related states, FL4's success tail (the reply when called, then
@@ -217,7 +218,7 @@ slot (`hDec`, as `decode_invocation_refinesD` gives it), the reply writes
 and the extra caps'). -/
 theorem handle_invocation_refinesM (s : S) (ar : A) (σ : Fl4Spec.State Unit) (th : TypedHeap) (G : MdbGhost)
     (hP : Placed th) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hDR : DomRel (L.mem s) (L.ksb s) σ) (hFR : MdbOK (L.mem s) G)
+    (hDR : DomRel (L.mem s) (L.ksb s) σ) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (is_call blocking can_donate first_phase : Bool) (cptr : U64)
     -- the front end's reads (`HIRead`)

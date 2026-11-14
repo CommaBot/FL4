@@ -60,13 +60,13 @@ theorem crelF_after {th : TypedHeap} {m m' : U64 → U64} {σ σ' : Fl4Spec.Stat
     frameinv_after hCR hFR hcx hF hL⟩
 
 /-- `crel_after` and the MDB invariants (`MdbStep.ok` of a remap). -/
-theorem crelM_after {th : TypedHeap} {m m' : U64 → U64} {σ σ' : Fl4Spec.State Unit} {G : MdbGhost} {x : U64}
-    {c : capability.Cap} (hCR : CRel th m σ G) (hFI : FinInv th m σ G) (hMO : MdbOK m G) (hcx : capAt m x = ok c)
+theorem crelM_after {k : U64} {th : TypedHeap} {m m' : U64 → U64} {σ σ' : Fl4Spec.State Unit} {G : MdbGhost} {x : U64}
+    {c : capability.Cap} (hCR : CRel th m σ G) (hFI : FinInv th m σ G) (hMO : MdbOKV k m G) (hcx : capAt m x = ok c)
     (hSt' : StateRel th m' σ') (hSV' : SlotsValid th m') (hF : SlotFoot th m m' x)
     (hL : VsLike (capV m' x) c) (hK : KFoot σ σ') (hu : isUt c = false) :
-    CRel th m' σ' G ∧ FinInv th m' σ' G ∧ MdbOK m' G :=
+    CRel th m' σ' G ∧ FinInv th m' σ' G ∧ MdbOKV k m' G :=
   ⟨(crel_after hCR hFI hcx hSt' hSV' hF hL.1 hK).1, (crel_after hCR hFI hcx hSt' hSV' hF hL.1 hK).2,
-    (Vs.mstep_remap hCR.2.2.1 hF hcx hL hu).ok hMO⟩
+    (Vs.mstep_remap hCR.2.2.1 hF hcx hL hu).okv hMO⟩
 
 /-- A page invocation's outcome after the Restart. -/
 theorem perf_page_mem {σ σ1 σ' : Fl4Spec.State Unit} {iv : Fl4Spec.ArchInvocation} (blk call don : Bool)
@@ -203,7 +203,7 @@ set_option maxHeartbeats 8000000 in
 `TestAndClearAccessed`). -/
 theorem decode_invocation_frame (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
     {Q : S → Prop} (hQ : ∀ s' a' σ', SR s' a' σ' → Q s')
     (hH1 : VsFrameHyps st A arI th P L4 L3 L2 L1 SR) (hHL : VsFrameHypsL st A arI th P L4 L3 L2 L1 SR)
@@ -356,7 +356,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A PageTable cap**, every label (`Map`, `Unmap`; any other l4v's `IllegalOperation`). -/
 theorem decode_invocation_page_table (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
     {Q : S → Prop} (hQ : ∀ s' a' σ', SR s' a' σ' → Q s')
     (hHM : VsPtMapHyps st A arI th P L4 L3 L2 L1 SR) (hHU : VsPtUnmapHyps st A arI th P L4 L3 L2 L1 SR) (hS : SR s ar σ)
@@ -465,7 +465,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A PageDirectory cap**, every label (`Map`, `Unmap`; any other l4v's `IllegalOperation`). -/
 theorem decode_invocation_page_directory (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
     {Q : S → Prop} (hQ : ∀ s' a' σ', SR s' a' σ' → Q s')
     (hHM : VsPdMapHyps st A arI th P L4 L3 L2 L1 SR) (hHU : VsPdUnmapHyps st A arI th P L4 L3 L2 L1 SR) (hS : SR s ar σ)
@@ -574,7 +574,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A Pdpt cap**, every label (`Map`, `Unmap`; any other l4v's `IllegalOperation`). -/
 theorem decode_invocation_pdpt (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
     {Q : S → Prop} (hQ : ∀ s' a' σ', SR s' a' σ' → Q s')
     (hHM : VsPdptMapHyps st A arI th P L4 L3 L2 L1 SR) (hHU : VsPdptUnmapHyps st A arI th P L4 L3 L2 L1 SR) (hS : SR s ar σ)
@@ -704,7 +704,7 @@ theorem decode_invocation_frame_ds (th : TypedHeap) (hP : Placed th) (s : S) (ar
       Disj (capV (L.mem s) x) (.Frame p sz rt d m asid va) ∨
       (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
       Within (.Frame p sz rt d m asid va) (capV (L.mem s) x))
-    (hMO : MdbOK (L.mem s) G) (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G) (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ y nc nc' nsl rest, vspace.extra extra 0#usize = ok (some y) ∧ capAt (L.mem s) y = ok nc ∧
@@ -750,7 +750,7 @@ theorem decode_invocation_frame_ds (th : TypedHeap) (hP : Placed th) (s : S) (ar
     simp only [bind_ok, error.truncated, WP.spec_ok]
     exact topMQ_err (⟨_, rfl, rfl, .truncatedMessage, decodeSub_trunc (Or.inl rfl) _ _ σ, Or.inl trivial⟩)
   refine WP.spec_mono (derive_subframe_rel (L := L) (ar := arI) hH hP hPP hpc hidx s ar σ G hSt hSV hM hC hI hU hR hPt
-    hS hVP hVO hPO hcap hno hFI hMO.1 hVC ct hct hcur' hkt hrun htcb hact length buf args hlen hargs extra hex hcy hnr hnv
+    hS hVP hVO hPO hcap hno hFI hMO.1.1 hVC ct hct hcur' hkt hrun htcb hact length buf args hlen hargs extra hex hcy hnr hnv
     nsl rest) ?_
   rintro res (⟨e, e', h1, he, hD, h2, -⟩ | ⟨h1, -, iv, hD, σ', G', hmem, -, hSub, -, hMS⟩)
   · exact topMQ_err (⟨e, h1, h2, e', hD, Or.inl he⟩)
@@ -758,7 +758,7 @@ theorem decode_invocation_frame_ds (th : TypedHeap) (hP : Placed th) (s : S) (ar
     rw [nd_bind_one hst1] at hmem'
     exact ⟨topM_of_lift2 (Or.inr ⟨iv, hD, _, hst1, (.ok [], σ'),
       mem_liftE (ε := Unit) (x := ([], σ')) (mem_bind_nd (x := ((), σ')) hmem' (Set.mem_singleton _)), th, G',
-      Or.inl ⟨h1, [], rfl⟩, hP, ⟨hSub.R, hSub.V, hSub.M, hSub.C, hSub.I⟩, hSub.F, hMS.ok hMO⟩), Or.inr (hQ _ _ _ hSub.sr)⟩
+      Or.inl ⟨h1, [], rfl⟩, hP, ⟨hSub.R, hSub.V, hSub.M, hSub.C, hSub.I⟩, hSub.F, hMS.okv hMO⟩), Or.inr (hQ _ _ _ hSub.sr)⟩
 
 
 set_option maxHeartbeats 8000000 in
@@ -766,7 +766,7 @@ set_option maxHeartbeats 8000000 in
 l4v's `IllegalOperation`). -/
 theorem decode_invocation_asid_pool (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
     {Q : S → Prop} (hQ : ∀ s' a' σ', SR s' a' σ' → Q s')
     (hH : VsInvHyps st A th P SR) (hS : SR s ar σ) (hVP : VsPlaced P (L.ksb s)) (hD : VsSlotsDisj th P (L.ksb s))
@@ -863,7 +863,7 @@ set_option maxHeartbeats 8000000 in
 others l4v's `IllegalOperation`). -/
 theorem decode_invocation_asid_control (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hU : UtInv (L.mem s) G)
-    (hMO : MdbOK (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
     {Q : S → Prop} (hQ : ∀ s' a' σ', SR s' a' σ' → Q s') {RegOK : S → Fl4Spec.State Unit → U64 → Prop}
     (hH : VsMpHyps st A th P L4 L3 L2 L1 SR RegOK) (hS : SR s ar σ)
@@ -930,7 +930,7 @@ theorem decode_invocation_asid_control (th : TypedHeap) (hP : Placed th) (s : S)
         exact topMQ_err (⟨_, rfl, rfl, .truncatedMessage, decodeMP_trunc hl' _ _ _ _ hlen1 σ, Or.inl trivial⟩)
   have hd := makepool_rel (L := L) (ar := arI) hH s ar σ G hP hSt hSV hM hC hI hU hR hPt hS hVP hPP hVO hPO hPV ct hct
     hcur.symm hkt (hrun _ hkt) htcb hact hl' length buf args hlen hargs ci sl slot call extra hpp hidx hex0 hex1 hcx hur hcy hrr hrv
-    ysl rest hRg hFI hMO.1
+    ysl rest hRg hFI hMO.1.1
   refine WP.spec_mono hd ?_
   rintro res (⟨e, e', h1, he, hD, h2, -⟩ | ⟨h1, p, dest, ps, base, hmem, hnf, σ', th', G', hm, hnf', hP', hSt', hSV',
     hM', hC', hI', -, -, -, hSRq, hF', -, -, hMSp, -⟩)
@@ -942,7 +942,7 @@ theorem decode_invocation_asid_control (th : TypedHeap) (hP : Placed th) (s : S)
     rw [nd_bind_one hst1] at hm'
     exact ⟨topM_of_lift2M (Or.inr ⟨_, ⟨hmem, hnf⟩, _, hst1, (.ok [], σ'),
       mem_liftE (ε := Unit) (x := ([], σ')) (mem_bind_nd (x := ((), σ')) hm' (Set.mem_singleton _)), th', G',
-      Or.inl ⟨h1, [], rfl⟩, hP', ⟨hSt', hSV', hM', hC', hI'⟩, hF', hMSp.ok hMO⟩), Or.inr (hQ _ _ _ hSRq)⟩
+      Or.inl ⟨h1, [], rfl⟩, hP', ⟨hSt', hSV', hM', hC', hI'⟩, hF', hMSp.okv hMO⟩), Or.inr (hQ _ _ _ hSRq)⟩
 
 end
 
