@@ -544,7 +544,45 @@ Two experiments with 16-byte stripes failed:
 - A hashed table of 16384 entries made the curve smooth (159 to 757, 4.8×) but raised the abort rate to about 15%, through hash collisions.
 - An adjacency-preserving table raised serial entries tenfold.
 
-Near-linear scaling is not met yet. `FL4_PIN=c0,c1,...` pins each vCPU thread to a host CPU; xtask gets the thread IDs from QEMU over QMP. A pinned run on this host was inconclusive, though. From 5 pairs on, both kernels slowed down by more than 20× (seL4 to 2–5 round trips per million ticks), because the host CPUs are shared with another project's 8-vCPU VM. Clean scaling numbers need dedicated cores. The other next steps are abort counts per phase rather than over the whole run, and a stripe granularity matched to object sizes.
+`FL4_PIN=c0,c1,...` pins each vCPU thread to a host CPU; xtask gets the thread IDs from QEMU over QMP. Until the kbench work it also pinned a bogus "thread 0" (the SMT thread number in each CPU's QMP `props`), which shifted the list so that two vCPUs shared one host CPU. That, not the host, explains an earlier pinned run in which both kernels slowed down more than 20× from 5 pairs on.
+
+**Kernel-intensive SMP throughput** (`cargo xtask kbench`, fl4test FL4PERF0003). k workers on k cores, k = 1, 2, 4, 6, each repeat one kernel operation on objects of their own for a fixed window of 10⁸ TSC ticks:
+- `yield`: `seL4_Yield`.
+- `signal`: Signal plus Wait on the worker's own notification.
+- `ipc`: Call to a server on the same core.
+- `xipc`: Call to a server on the next core.
+- `cap`: CNode Copy plus Delete.
+- `retype`: Untyped Retype of an endpoint plus Delete, which resets the untyped.
+- `map`: Page Unmap plus Map of a 4 KiB frame in the one shared address space.
+
+Both kernels are release builds, seL4 with the skim window off as in the uniprocessor comparison. There are 6 vCPUs under KVM, pinned to host cores 2–7, on a host shared with another project's 8-vCPU VM. The table gives the median of 3 alternating rounds, in operations per million TSC ticks summed over all cores; a whole kbench takes about 15 s. The spread between rounds is mostly within ±10%, and 2-core runs vary more (up to ±30%).
+
+| Workload | Kernel | 1 core | 2 | 4 | 6 |
+|----------|--------|--------|---|---|---|
+| yield    | FL4    | 643  | 1151 | 2009 | 3020 |
+|          | seL4   | 274  | 238  | 236  | 221  |
+| signal   | FL4    | 622  | 1021 | 1731 | 2467 |
+|          | seL4   | 1962 | 1550 | 1341 | 1301 |
+| ipc      | FL4    | 182  | 341  | 577  | 854  |
+|          | seL4   | 113  | 105  | 104  | 101  |
+| xipc     | FL4    | –    | 69   | 122  | 159  |
+|          | seL4   | –    | 30   | 30   | 26   |
+| cap      | FL4    | 360  | 626  | 994  | 1322 |
+|          | seL4   | 1340 | 1094 | 1023 | 1015 |
+| retype   | FL4    | 268  | 352  | 425  | 430  |
+|          | seL4   | 946  | 684  | 669  | 665  |
+| map      | FL4    | 346  | 171  | 76   | 55   |
+|          | seL4   | 7    | 7    | 7    | 7    |
+
+What the table shows:
+- **seL4 does not scale.** Its throughput is flat or falls with cores, as its big kernel lock predicts.
+- **FL4 scales on independent objects.** From 1 to 6 cores: yield 4.7×, ipc 4.7×, signal 4.0×, cap 3.7×.
+- **retype levels off at 1.6×.** The untyped reset clears memory, which runs under the serial gate (§7).
+- **map gets slower with more workers.** All workers share one address space, so every unmap shoots down every other worker's core.
+- **FL4 costs more per operation on the multi-core build.** On one core it is about 3.5× slower than seL4 for signal, cap and retype. Not yet measured: whether that is transaction bookkeeping or the gate. The crossover is at about 4 cores for signal and cap; retype never crosses.
+- **seL4 is slow on yield and ipc, likely because of timer writes under KVM.** seL4's yield and same-core IPC take 3,600 and 8,800 ticks. A likely cause, not yet confirmed, is MCS reprogramming the timer on each scheduling-context switch, which is a VM exit under KVM.
+- **seL4's map is about 50× FL4's on one core.** seL4 shoots down every core that has run the address space, even idle ones, which KVM must wake. FL4 interrupts only the cores currently running the ASID (§3).
+
 
 ## 13. Milestones
 

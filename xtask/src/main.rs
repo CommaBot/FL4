@@ -170,7 +170,9 @@ fn pin_vcpus() {
     let mut tids: Vec<String> = Vec::new();
     for s in reply.split("\"thread-id\":").skip(1) {
         let tid: String = s.trim_start().chars().take_while(|c| c.is_ascii_digit()).collect();
-        if !tid.is_empty() && !tids.contains(&tid) {
+        // Each CPU's "props" also has a "thread-id": its SMT thread number,
+        // 0 here. Host thread IDs are never 0.
+        if !tid.is_empty() && tid != "0" && !tids.contains(&tid) {
             tids.push(tid);
         }
     }
@@ -349,6 +351,76 @@ fn bench(o: &Opts) {
     eprintln!("xtask: sel4bench results in {}", log.display());
 }
 
+/// Kernel-intensive SMP throughput of FL4 against seL4 (fl4test
+/// FL4PERF0003, DESIGN.md §12): release builds of both kernels (seL4 with
+/// the skim window off, as FL4 has it on this CPU), `--smp N` vCPUs (6 by
+/// default) pinned to host CPUs 2.. (or FL4_PIN), three alternating rounds;
+/// prints the median of each measurement. Each run takes seconds: every
+/// measurement is a fixed window of TSC ticks.
+fn kbench(o: &Opts) {
+    let smp = if o.smp > 1 { o.smp } else { 6 };
+    if env::var_os("FL4_PIN").is_none() {
+        let cpus: Vec<String> = (0..smp).map(|i| (i + 2).to_string()).collect();
+        env::set_var("FL4_PIN", cpus.join(","));
+    }
+    env::set_var("FL4_TESTS", "^FL4PERF0003$");
+    let mut results: std::collections::BTreeMap<(String, String, u32), Vec<u64>> = Default::default();
+    for round in 1..=3 {
+        for kernel in ["fl4", "sel4"] {
+            if kernel == "sel4" {
+                env::set_var("FL4_KERNEL", "sel4");
+            } else {
+                env::remove_var("FL4_KERNEL");
+            }
+            let mut rest = vec!["-DReleasePrinting=ON".to_string()];
+            if kernel == "sel4" {
+                rest.extend(["-DKernelPrinting=ON".to_string(), "-DKernelSkimWindow=OFF".to_string()]);
+            }
+            let ko = Opts { release: true, setup: o.setup.clone(), smp, timeout: 120, seeds: 0, rest };
+            let b = sel4test_build(&ko, false);
+            let log = b.join("kbench.log");
+            let out = run_qemu(
+                qemu_cmd(&ko.setup, smp, &b.join("images/kernel-x86_64-pc99"), Some(&b.join("images/sel4test-driver-image-x86_64-pc99"))),
+                ko.timeout,
+                &["All is well in the universe", "Test suite failed", "FL4 panic"],
+                &log,
+            );
+            let mut n = 0;
+            for l in out.lines() {
+                let f: Vec<&str> = l.split_whitespace().collect();
+                if f.len() == 4 && f[0] == "KBENCH" {
+                    let cores = f[2].trim_start_matches("cores=").parse().unwrap_or(0);
+                    let v = f[3].trim_start_matches("ops_per_Mtick=").parse().unwrap_or(0);
+                    results.entry((f[1].to_string(), kernel.to_string(), cores)).or_default().push(v);
+                    n += 1;
+                }
+            }
+            if !out.contains("All is well in the universe") {
+                fail(&format!("kbench: {kernel} round {round} did not finish ({n} measurements; log {})", log.display()));
+            }
+        }
+    }
+    env::remove_var("FL4_KERNEL");
+    let median = |v: &Vec<u64>| {
+        let mut v = v.clone();
+        v.sort();
+        v[v.len() / 2]
+    };
+    println!("\nkbench: operations per million TSC ticks, all cores together (median of 3)");
+    println!("{:<8} {:>5} {:>8} {:>8} {:>9}", "workload", "cores", "FL4", "seL4", "FL4/seL4");
+    let order = ["yield", "signal", "ipc", "xipc", "cap", "retype", "map"];
+    for w in order {
+        let mut cores: Vec<u32> = results.keys().filter(|(x, k, _)| x == w && k == "fl4").map(|(_, _, c)| *c).collect();
+        cores.sort();
+        for c in cores {
+            let (Some(a), Some(b)) = (results.get(&(w.into(), "fl4".into(), c)), results.get(&(w.into(), "sel4".into(), c))) else { continue };
+            let (a, b) = (median(a), median(b));
+            let r = if b == 0 { "-".to_string() } else { format!("{:.2}x", a as f64 / b as f64) };
+            println!("{w:<8} {c:>5} {a:>8} {b:>8} {r:>9}");
+        }
+    }
+}
+
 /// FL4_KERNEL=sel4 runs sel4test on upstream seL4 (vendor/seL4) instead of
 /// FL4, in its own workspace: the baseline for flaky or timing-sensitive
 /// tests and for differential runs.
@@ -377,6 +449,16 @@ fn sel4test_ws() -> PathBuf {
         let _ = fs::remove_file(dst);
         std::os::unix::fs::symlink(src, dst).unwrap();
     };
+    // Release benchmarks print from user space (FL4PERF*), which needs
+    // seL4_DebugPutChar: the seL4 tools force KernelPrinting off in every
+    // release build, so -DReleasePrinting=ON (both kernels) keeps it.
+    let settings = ws.join("tools/seL4/cmake-tool/helpers/application_settings.cmake");
+    let text = fs::read_to_string(&settings).unwrap();
+    let off = "    set(KernelPrinting OFF CACHE BOOL \"\" FORCE)\n";
+    if !text.contains("ReleasePrinting") && text.contains(off) {
+        let keep = format!("    if(NOT ReleasePrinting)\n  {off}    endif()\n");
+        fs::write(&settings, text.replacen(off, &keep, 1)).unwrap();
+    }
     link(&r.join(if upstream() { "vendor/seL4" } else { "cmake" }), &ws.join("kernel"));
     link(Path::new("tools/seL4/cmake-tool/init-build.sh"), &ws.join("init-build.sh"));
     link(Path::new("projects/sel4test/easy-settings.cmake"), &ws.join("easy-settings.cmake"));
@@ -760,8 +842,9 @@ fn main() {
         "fuzz" => fuzz(&o),
         "trusted" => trusted(),
         "bench" => bench(&o),
+        "kbench" => kbench(&o),
         _ => {
-            eprintln!("usage: cargo xtask <kernel|run|sel4test-build|sel4test|fl4test|extract|gate|sim|mutants|fuzz|trusted|bench [fl4|sel4]> [--release] [--setup kvm|kvm-reduced|tcg] [--smp N] [--timeout S] [--seeds N]");
+            eprintln!("usage: cargo xtask <kernel|run|sel4test-build|sel4test|fl4test|extract|gate|sim|mutants|fuzz|trusted|bench [fl4|sel4]|kbench> [--release] [--setup kvm|kvm-reduced|tcg] [--smp N] [--timeout S] [--seeds N]");
             exit(2);
         }
     }
