@@ -2253,7 +2253,7 @@ def boot.create_frames
   ok ((b.slot_pos, b1.slot_pos), s1, b1)
 
 /-- [fl4_core::boot::all_zero]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 309:4-311:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 315:4-317:5 -/
 @[rust_loop_body]
 def boot.all_zero_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (base : Std.U64)
@@ -2272,7 +2272,7 @@ def boot.all_zero_loop.body
   else ok (done k)
 
 /-- [fl4_core::boot::all_zero]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 309:4-311:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 315:4-317:5 -/
 @[rust_loop]
 def boot.all_zero_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (base : Std.U64)
@@ -2284,7 +2284,7 @@ def boot.all_zero_loop
     k
 
 /-- [fl4_core::boot::all_zero]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 307:0-313:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 313:0-319:1 -/
 def boot.all_zero
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (base : Std.U64)
   (words : Std.U64) :
@@ -2294,7 +2294,7 @@ def boot.all_zero
   ok (k = words)
 
 /-- [fl4_core::boot::clear_dirty]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 297:4-303:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 303:4-309:5 -/
 @[rust_loop_body]
 def boot.clear_dirty_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (start : Std.U64)
@@ -2315,7 +2315,7 @@ def boot.clear_dirty_loop.body
   else ok (done s)
 
 /-- [fl4_core::boot::clear_dirty]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 297:4-303:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 303:4-309:5 -/
 @[rust_loop]
 def boot.clear_dirty_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (start : Std.U64)
@@ -2328,7 +2328,7 @@ def boot.clear_dirty_loop
     (s, i)
 
 /-- [fl4_core::boot::clear_dirty]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 290:0-304:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 296:0-310:1 -/
 def boot.clear_dirty
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (start : Std.U64)
   (len : Std.U64) :
@@ -2344,7 +2344,7 @@ def boot.clear_dirty
     boot.clear_dirty_loop machineStoreInst s start chunk n 0#u64
 
 /-- [fl4_core::boot::create_untypeds_for_region]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 256:4-284:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 256:4-290:5 -/
 @[rust_loop_body]
 def boot.create_untypeds_for_region_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (device : Bool)
@@ -2366,11 +2366,14 @@ def boot.create_untypeds_for_region_loop.body
         if size_bits > fl4_abi.consts.bits.MAX_UNTYPED
         then ok fl4_abi.consts.bits.MAX_UNTYPED
         else ok size_bits
+      let «at» ← if device
+                     then layout.pptr start
+                     else ok start
       let size_bits2 ←
-        if start != 0#u64
+        if «at» != 0#u64
         then
           do
-          let i5 ← core.num.U64.trailing_zeros start
+          let i5 ← core.num.U64.trailing_zeros «at»
           let align ← lift (UScalar.cast .U64 i5)
           if size_bits1 > align
           then ok align
@@ -2435,7 +2438,7 @@ def boot.create_untypeds_for_region_loop.body
   else ok (done (s, b))
 
 /-- [fl4_core::boot::create_untypeds_for_region]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 256:4-284:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 256:4-290:5 -/
 @[rust_loop]
 def boot.create_untypeds_for_region_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
@@ -2449,7 +2452,7 @@ def boot.create_untypeds_for_region_loop
     (s, b, start, fuel)
 
 /-- [fl4_core::boot::create_untypeds_for_region]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 251:0-285:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 251:0-291:1 -/
 @[reducible]
 def boot.create_untypeds_for_region
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
@@ -2953,7 +2956,7 @@ def obj.Tcb.set_sc
   machineStoreInst.write s i1 v
 
 /-- [fl4_core::boot::configure_sched_context]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 315:0-319:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 321:0-325:1 -/
 def boot.configure_sched_context
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
   (sc : obj.Sc) (budget : Std.U64) :
@@ -2979,7 +2982,7 @@ def obj.Tcb.name_addr (self : obj.Tcb) : Result Std.U64 := do
   ok (core.num.U64.wrapping_add self i)
 
 /-- [fl4_core::boot::set_name]: loop body 1:
-    Source: 'crates/fl4-core/src/boot.rs', lines 326:8-332:9 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 332:8-338:9 -/
 @[rust_loop_body]
 def boot.set_name_loop0_loop0.body
   («name» : Slice Std.U8) (w : Std.U64) (v : Std.U64) (k : Std.U64) :
@@ -3007,7 +3010,7 @@ def boot.set_name_loop0_loop0.body
   else ok (done v)
 
 /-- [fl4_core::boot::set_name]: loop 1:
-    Source: 'crates/fl4-core/src/boot.rs', lines 326:8-332:9 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 332:8-338:9 -/
 @[rust_loop]
 def boot.set_name_loop0_loop0
   («name» : Slice Std.U8) (w : Std.U64) (v : Std.U64) (k : Std.U64) :
@@ -3018,7 +3021,7 @@ def boot.set_name_loop0_loop0
     (v, k)
 
 /-- [fl4_core::boot::set_name]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 323:4-335:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 329:4-341:5 -/
 @[rust_loop_body]
 def boot.set_name_loop0.body
   {S : Type _} (machineStoreInst : machine.Store S) (t : obj.Tcb)
@@ -3037,7 +3040,7 @@ def boot.set_name_loop0.body
   else ok (done s)
 
 /-- [fl4_core::boot::set_name]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 323:4-335:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 329:4-341:5 -/
 @[rust_loop]
 def boot.set_name_loop0
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -3050,7 +3053,7 @@ def boot.set_name_loop0
     (s, w)
 
 /-- [fl4_core::boot::set_name]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 321:0-336:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 327:0-342:1 -/
 @[reducible]
 def boot.set_name
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -3060,7 +3063,7 @@ def boot.set_name
   boot.set_name_loop0 machineStoreInst s t «name» 0#u64
 
 /-- [fl4_core::boot::find_rootserver_mem]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 368:4-382:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 374:4-388:1 -/
 @[rust_loop_body]
 def boot.find_rootserver_mem_loop.body
   (a : Array boot.Region 32#usize) (size : Std.U64) (align_bits : Std.U64)
@@ -3094,7 +3097,7 @@ def boot.find_rootserver_mem_loop.body
   else ok (done none)
 
 /-- [fl4_core::boot::find_rootserver_mem]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 368:4-382:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 374:4-388:1 -/
 @[rust_loop]
 def boot.find_rootserver_mem_loop
   (a : Array boot.Region 32#usize) (size : Std.U64) (align_bits : Std.U64)
@@ -3106,7 +3109,7 @@ def boot.find_rootserver_mem_loop
     i
 
 /-- [fl4_core::boot::find_rootserver_mem]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 366:0-382:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 372:0-388:1 -/
 @[reducible]
 def boot.find_rootserver_mem
   (p : boot.BootParams) (size : Std.U64) (align_bits : Std.U64) :
@@ -3115,7 +3118,7 @@ def boot.find_rootserver_mem
   boot.find_rootserver_mem_loop p.free size align_bits p.n_free
 
 /-- [fl4_core::boot::take_rootserver_mem]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 340:0-358:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 346:0-364:1 -/
 def boot.take_rootserver_mem
   (p : boot.BootParams) (size : Std.U64) (align_bits : Std.U64) :
   Result ((Option Std.U64) × boot.BootParams)
@@ -3149,7 +3152,7 @@ def boot.take_rootserver_mem
           ok (some x.start, { p with free := a })
 
 /-- [fl4_core::boot::create_untypeds]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 657:4-661:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 663:4-667:5 -/
 @[rust_loop_body]
 def boot.create_untypeds_loop0.body
   {S : Type _} (machineStoreInst : machine.Store S) (p : boot.BootParams)
@@ -3172,7 +3175,7 @@ def boot.create_untypeds_loop0.body
   else ok (done (s, b, p.free, p.n_free))
 
 /-- [fl4_core::boot::create_untypeds]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 657:4-661:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 663:4-667:5 -/
 @[rust_loop]
 def boot.create_untypeds_loop0
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
@@ -3185,7 +3188,7 @@ def boot.create_untypeds_loop0
     (s, b, i)
 
 /-- [fl4_core::boot::create_untypeds]: loop body 1:
-    Source: 'crates/fl4-core/src/boot.rs', lines 663:4-667:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 669:4-673:5 -/
 @[rust_loop_body]
 def boot.create_untypeds_loop1.body
   {S : Type _} (machineStoreInst : machine.Store S)
@@ -3208,7 +3211,7 @@ def boot.create_untypeds_loop1.body
   else ok (done (s, b))
 
 /-- [fl4_core::boot::create_untypeds]: loop 1:
-    Source: 'crates/fl4-core/src/boot.rs', lines 663:4-667:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 669:4-673:5 -/
 @[rust_loop]
 def boot.create_untypeds_loop1
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
@@ -3222,7 +3225,7 @@ def boot.create_untypeds_loop1
     (s, b, i1)
 
 /-- [fl4_core::boot::create_untypeds]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 654:0-672:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 660:0-678:1 -/
 def boot.create_untypeds
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
   (p : boot.BootParams) :
@@ -3386,7 +3389,7 @@ def objects.debug_append
 @[global_simps, irreducible] def layout.node.IDLE_THREAD : Std.U64 := 8#u64
 
 /-- [fl4_core::boot::init_core_state]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 640:8-644:9 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 646:8-650:9 -/
 @[rust_loop_body]
 def boot.init_core_state_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (num_nodes : Std.U64)
@@ -3402,7 +3405,7 @@ def boot.init_core_state_loop.body
   else ok (done s)
 
 /-- [fl4_core::boot::init_core_state]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 640:8-644:9 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 646:8-650:9 -/
 @[rust_loop]
 def boot.init_core_state_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
@@ -3415,7 +3418,7 @@ def boot.init_core_state_loop
     (s, c)
 
 /-- [fl4_core::boot::init_core_state]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 636:0-651:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 642:0-657:1 -/
 def boot.init_core_state
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (tcb : obj.Tcb)
   (num_nodes : Std.U64) :
@@ -5029,7 +5032,7 @@ def obj.Tcb.fpu_addr (self : obj.Tcb) : Result Std.U64 := do
   ok (core.num.U64.wrapping_add self layout.tcb.FPU)
 
 /-- [fl4_core::boot::objects_init_fpu]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 674:0-678:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 680:0-684:1 -/
 def boot.objects_init_fpu
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
   Result S
@@ -5040,7 +5043,7 @@ def boot.objects_init_fpu
   machineStoreInst.write s1 i 281470681751424#u64
 
 /-- [fl4_core::boot::init_root_thread]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 611:0-633:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 617:0-639:1 -/
 def boot.init_root_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (r : boot.Root)
@@ -5181,7 +5184,7 @@ def obj.Tcb.set_flags
 @[global_simps, irreducible] def layout.node.CUR_THREAD : Std.U64 := 0#u64
 
 /-- [fl4_core::boot::create_idle_thread]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 591:0-607:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 597:0-613:1 -/
 def boot.create_idle_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (c : Std.U64)
@@ -5219,7 +5222,7 @@ def boot.create_idle_thread
   ok (s15, a)
 
 /-- [fl4_core::boot::create_idle_threads]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 583:4-588:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 589:4-594:5 -/
 @[rust_loop_body]
 def boot.create_idle_threads_loop.body
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -5240,7 +5243,7 @@ def boot.create_idle_threads_loop.body
   else ok (done (s, a))
 
 /-- [fl4_core::boot::create_idle_threads]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 583:4-588:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 589:4-594:5 -/
 @[rust_loop]
 def boot.create_idle_threads_loop
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -5254,7 +5257,7 @@ def boot.create_idle_threads_loop
     (s, a, c)
 
 /-- [fl4_core::boot::create_idle_threads]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 580:0-589:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 586:0-595:1 -/
 def boot.create_idle_threads
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (p : boot.BootParams) :
@@ -5289,7 +5292,7 @@ def layout.ks.ASID_TABLE : Result Std.U64 := do
   i2 + i1
 
 /-- [fl4_core::boot::init_asid_pool]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 571:0-577:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 577:0-583:1 -/
 def boot.init_asid_pool
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (r : boot.Root) :
   Result S
@@ -5312,7 +5315,7 @@ def boot.init_asid_pool
   machineStoreInst.write s5 i6 r.pml4
 
 /-- [fl4_core::boot::init_address_space]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 553:0-569:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 559:0-575:1 -/
 def boot.init_address_space
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (r : boot.Root)
   (p : boot.BootParams) :
@@ -5350,7 +5353,7 @@ def boot.init_address_space
   ok ((vcap, ipc_cap), s13, { r with b := b2 })
 
 /-- [fl4_core::boot::init_bootinfo]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 536:4-540:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 542:4-546:5 -/
 @[rust_loop_body]
 def boot.init_bootinfo_loop0.body
   {S : Type _} (machineStoreInst : machine.Store S) (i : Std.U64)
@@ -5372,7 +5375,7 @@ def boot.init_bootinfo_loop0.body
   else ok (done s)
 
 /-- [fl4_core::boot::init_bootinfo]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 536:4-540:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 542:4-546:5 -/
 @[rust_loop]
 def boot.init_bootinfo_loop0
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64)
@@ -5385,7 +5388,7 @@ def boot.init_bootinfo_loop0
     (s, w)
 
 /-- [fl4_core::boot::init_bootinfo]: loop body 1:
-    Source: 'crates/fl4-core/src/boot.rs', lines 543:4-546:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 549:4-552:5 -/
 @[rust_loop_body]
 def boot.init_bootinfo_loop1.body
   {S : Type _} (machineStoreInst : machine.Store S) (i : Std.U64) (s : S)
@@ -5401,7 +5404,7 @@ def boot.init_bootinfo_loop1.body
   else ok (done (s, b))
 
 /-- [fl4_core::boot::init_bootinfo]: loop 1:
-    Source: 'crates/fl4-core/src/boot.rs', lines 543:4-546:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 549:4-552:5 -/
 @[rust_loop]
 def boot.init_bootinfo_loop1
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64)
@@ -5414,7 +5417,7 @@ def boot.init_bootinfo_loop1
     (s, b, n)
 
 /-- [fl4_core::boot::init_bootinfo]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 525:0-549:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 531:0-555:1 -/
 def boot.init_bootinfo
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (r : boot.Root)
   (p : boot.BootParams) :
@@ -5480,7 +5483,7 @@ def layout.irq.TIMER : Result Std.U64 := 157#u64 - 32#u64
 @[global_simps, irreducible] def interrupt.IRQ_INACTIVE : Std.U64 := 0#u64
 
 /-- [fl4_core::boot::init_irq_states]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 511:4-521:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 517:4-527:5 -/
 @[rust_loop_body]
 def boot.init_irq_states_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) :
@@ -5512,7 +5515,7 @@ def boot.init_irq_states_loop.body
   else ok (done s)
 
 /-- [fl4_core::boot::init_irq_states]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 511:4-521:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 517:4-527:5 -/
 @[rust_loop]
 def boot.init_irq_states_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) :
@@ -5523,14 +5526,14 @@ def boot.init_irq_states_loop
     (s, i)
 
 /-- [fl4_core::boot::init_irq_states]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 509:0-522:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 515:0-528:1 -/
 @[reducible]
 def boot.init_irq_states
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) : Result S := do
   boot.init_irq_states_loop machineStoreInst s 0#u64
 
 /-- [fl4_core::boot::init_root_cnode]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 499:0-507:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 505:0-513:1 -/
 def boot.init_root_cnode
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot) :
   Result (capability.Cap × S)
@@ -5551,7 +5554,7 @@ def boot.init_root_cnode
   ok (capability.Cap.CNode b.root_cnode boot.ROOT_CNODE_BITS i 0#u64, s9)
 
 /-- [fl4_core::boot::alloc_root_objects]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 487:0-495:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 493:0-501:1 -/
 def boot.alloc_root_objects
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
   (ebits : Std.U64) (cnode_bits : Std.U64) :
@@ -5576,7 +5579,7 @@ def boot.alloc_root_objects
   else ok (extra_bi, s2, { b2 with root_cnode := i })
 
 /-- [fl4_core::boot::root_layout]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 438:0-454:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 444:0-460:1 -/
 def boot.root_layout (p : boot.BootParams) : Result boot.RootLayout := do
   let ui_v_start ← lift (core.num.U64.wrapping_sub p.ui_p_start p.pv_offset)
   let ui_v_end ← lift (core.num.U64.wrapping_sub p.ui_p_end p.pv_offset)
@@ -5627,7 +5630,7 @@ def boot.root_layout (p : boot.BootParams) : Result boot.RootLayout := do
     }
 
 /-- [fl4_core::boot::rootserver_objects]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 457:0-483:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 463:0-489:1 -/
 def boot.rootserver_objects
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (p : boot.BootParams) :
@@ -5673,7 +5676,7 @@ def boot.rootserver_objects
       }, s6, p1)
 
 /-- [fl4_core::boot::create_root_task]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 386:0-406:1
+    Source: 'crates/fl4-core/src/boot.rs', lines 392:0-412:1
     Visibility: public -/
 def boot.create_root_task
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -5713,14 +5716,14 @@ def boot.create_root_task
     ok (r1, s1, a, p1)
 
 /-- [fl4_core::boot::{impl core::clone::Clone for fl4_core::boot::RootLayout}::clone]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 425:9-425:14
+    Source: 'crates/fl4-core/src/boot.rs', lines 431:9-431:14
     Visibility: public -/
 def boot.RootLayout.Insts.CoreCloneClone.clone
   (self : boot.RootLayout) : Result boot.RootLayout := do
   ok self
 
 /-- Trait implementation: [fl4_core::boot::{impl core::clone::Clone for fl4_core::boot::RootLayout}]
-    Source: 'crates/fl4-core/src/boot.rs', lines 425:9-425:14 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 431:9-431:14 -/
 @[reducible]
 def boot.RootLayout.Insts.CoreCloneClone : core.clone.Clone boot.RootLayout
   := {
@@ -5728,7 +5731,7 @@ def boot.RootLayout.Insts.CoreCloneClone : core.clone.Clone boot.RootLayout
 }
 
 /-- Trait implementation: [fl4_core::boot::{impl core::marker::Copy for fl4_core::boot::RootLayout}]
-    Source: 'crates/fl4-core/src/boot.rs', lines 425:16-425:20 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 431:16-431:20 -/
 @[reducible]
 def boot.RootLayout.Insts.CoreMarkerCopy : core.marker.Copy boot.RootLayout
   := {
@@ -11258,7 +11261,7 @@ def sporadic.set_head
   sporadic.put machineStoreInst s sc h r
 
 /-- [fl4_core::sporadic::unblock_check]: loop body 0:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 274:8-279:9
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 278:8-283:9
     Visibility: public -/
 @[rust_loop_body]
 def sporadic.unblock_check_loop.body
@@ -11282,7 +11285,7 @@ def sporadic.unblock_check_loop.body
   else ok (done s)
 
 /-- [fl4_core::sporadic::unblock_check]: loop 0:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 274:8-279:9
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 278:8-283:9
     Visibility: public -/
 @[rust_loop]
 def sporadic.unblock_check_loop
@@ -11296,7 +11299,7 @@ def sporadic.unblock_check_loop
     (s, fuel)
 
 /-- [fl4_core::sporadic::unblock_check]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 263:0-281:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 267:0-285:1
     Visibility: public -/
 def sporadic.unblock_check
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
@@ -19770,7 +19773,7 @@ def sporadic.max_release_time
   ok (core.num.U64.wrapping_sub core.num.U64.MAX i1)
 
 /-- [fl4_core::sporadic::budget_check]: loop body 0:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 230:4-243:5
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 230:4-247:5
     Visibility: public -/
 @[rust_loop_body]
 def sporadic.budget_check_loop0.body
@@ -19784,30 +19787,33 @@ def sporadic.budget_check_loop0.body
   then
     if h.time < mrt
     then
-      if fuel = 0#u64
+      if h.amount = 0#u64
       then ok (done (s, usage))
       else
-        let fuel1 ← fuel - 1#u64
-        let b ← sporadic.single machineStoreInst s i
-        let s1 ←
-          if b
-          then
-            do
-            let i1 ← lift (core.num.U64.wrapping_add h.time period)
-            sporadic.set_head machineStoreInst s i { h with time := i1 }
-          else
-            do
-            let (old, s2) ← sporadic.pop_head machineStoreInst s i
-            let i1 ← lift (core.num.U64.wrapping_add old.time period)
-            sporadic.schedule_used machineStoreInst s2 i
-              { old with time := i1 }
-        let usage1 ← lift (core.num.U64.wrapping_sub usage h.amount)
-        ok (cont (s1, usage1, fuel1))
+        if fuel = 0#u64
+        then ok (done (s, usage))
+        else
+          let fuel1 ← fuel - 1#u64
+          let b ← sporadic.single machineStoreInst s i
+          let s1 ←
+            if b
+            then
+              do
+              let i1 ← lift (core.num.U64.wrapping_add h.time period)
+              sporadic.set_head machineStoreInst s i { h with time := i1 }
+            else
+              do
+              let (old, s2) ← sporadic.pop_head machineStoreInst s i
+              let i1 ← lift (core.num.U64.wrapping_add old.time period)
+              sporadic.schedule_used machineStoreInst s2 i
+                { old with time := i1 }
+          let usage1 ← lift (core.num.U64.wrapping_sub usage h.amount)
+          ok (cont (s1, usage1, fuel1))
     else ok (done (s, usage))
   else ok (done (s, usage))
 
 /-- [fl4_core::sporadic::budget_check]: loop 0:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 230:4-243:5
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 230:4-247:5
     Visibility: public -/
 @[rust_loop]
 def sporadic.budget_check_loop0
@@ -19821,7 +19827,7 @@ def sporadic.budget_check_loop0
     (s, usage, fuel)
 
 /-- [fl4_core::sporadic::budget_check]: loop body 1:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 254:4-259:5
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 258:4-263:5
     Visibility: public -/
 @[rust_loop_body]
 def sporadic.budget_check_loop1.body
@@ -19850,7 +19856,7 @@ def sporadic.budget_check_loop1.body
   else ok (done s)
 
 /-- [fl4_core::sporadic::budget_check]: loop 1:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 254:4-259:5
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 258:4-263:5
     Visibility: public -/
 @[rust_loop]
 def sporadic.budget_check_loop1
@@ -19864,7 +19870,7 @@ def sporadic.budget_check_loop1
     (s, fuel2)
 
 /-- [fl4_core::sporadic::budget_check]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 220:0-260:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 220:0-264:1
     Visibility: public -/
 def sporadic.budget_check
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -31287,7 +31293,7 @@ def syscall.handle_vm_fault
   syscall.finish machineStoreInst machineArchInst s2 a2
 
 /-- [fl4_core::syscall::handle_trap_syscall]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 545:0-552:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 545:0-559:1
     Visibility: public -/
 def syscall.handle_trap_syscall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -31298,15 +31304,24 @@ def syscall.handle_trap_syscall
   let i ← obj.Tcb.reg machineStoreInst t s layout.reg.FAULT_IP
   let ip ← lift (core.num.U64.wrapping_sub i 2#u64)
   let s1 ← obj.Tcb.set_reg machineStoreInst t s layout.reg.FAULT_IP ip
-  let eax ← obj.Tcb.reg machineStoreInst t s1 layout.reg.RAX
-  let i1 ← vector <<< 24#i32
-  let i2 ← lift (eax &&& 16777215#u64)
-  let num ← lift (i1 ||| i2)
-  let i3 ← lift (UScalar.hcast .I64 num)
-  syscall.handle_unknown_syscall machineStoreInst machineArchInst s1 a i3
+  let i1 ← obj.Tcb.flags machineStoreInst t s1
+  let i2 ← lift (i1 &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS)
+  if i2 != 0#u64
+  then
+    let i3 ← vector <<< 3#i32
+    let i4 ← lift (i3 ||| 2#u64)
+    syscall.handle_user_exception machineStoreInst machineArchInst s1 a 13#u64
+      i4
+  else
+    let eax ← obj.Tcb.reg machineStoreInst t s1 layout.reg.RAX
+    let i3 ← vector <<< 24#i32
+    let i4 ← lift (eax &&& 16777215#u64)
+    let num ← lift (i3 ||| i4)
+    let i5 ← lift (UScalar.hcast .I64 num)
+    syscall.handle_unknown_syscall machineStoreInst machineArchInst s1 a i5
 
 /-- [fl4_core::syscall::handle_debug_exception]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 555:0-564:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 562:0-571:1
     Visibility: public -/
 def syscall.handle_debug_exception
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)

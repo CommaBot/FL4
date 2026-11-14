@@ -152,7 +152,7 @@ structure sporadic.Refill where
 def obj.Tcb := Std.U64
 
 /-- [fl4_core::boot::Pick]
-    Source: 'crates/fl4-core/src/boot.rs', lines 361:0-364:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 367:0-370:1 -/
 structure boot.Pick where
   k : Std.Usize
   start : Std.U64
@@ -243,7 +243,7 @@ inductive error.Exc where
 | Preempted : error.Exc
 
 /-- [fl4_core::boot::Root]
-    Source: 'crates/fl4-core/src/boot.rs', lines 409:0-421:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 415:0-427:1 -/
 structure boot.Root where
   b : boot.Boot
   extra_bi : Std.U64
@@ -258,7 +258,7 @@ structure boot.Root where
   it : boot.Region
 
 /-- [fl4_core::boot::RootLayout]
-    Source: 'crates/fl4-core/src/boot.rs', lines 426:0-436:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 432:0-442:1 -/
 structure boot.RootLayout where
   ipcbuf_vptr : Std.U64
   bi_frame_vptr : Std.U64

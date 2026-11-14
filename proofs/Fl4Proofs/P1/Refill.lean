@@ -1534,61 +1534,64 @@ theorem sporadic.budget_check_loop0.ordered {s : S} {sc : obj.Sc} {sb : Nat} (mr
     split
     · split
       · split
-        · simp only [WP.spec_ok]; exact ⟨hW, hO, hS, hP⟩
-        · rename_i hA hT hf
-          simp only [UScalar.le_equiv, UScalar.lt_equiv] at hA hT
-          have hsum := hS ▸ hsB
-          have hA0 : (L.rf x0 sc 0).amount.val ≤ L.amtSum x0 sc := by
-            unfold LawfulStore.amtSum; rw [sum_range_one _ hn1]; omega
-          step; step
-          split
-          · -- a single refill: move it a period later
-            have h1 : L.size x0 sc = 1 := (hW.single_iff).1 (by simp_all)
-            step; step with sporadic.set_head.eq
-            clear hp; subst_vars
-            have hiv : (core.num.U64.wrapping_add (L.rf x0 sc 0).time (L.rperiod x0 sc)).val =
-                (L.rf x0 sc 0).time.val + (L.rperiod x0 sc).val := wadd_val (by omega)
-            have hl : (L.rhead x0 sc).val < (L.rmax x0 sc).val := hW.head_lt
-            obtain ⟨h8, hb, hfit⟩ := hW.bounds
-            simp only [lift, bind_ok, WP.spec_ok]
-            have hs' := hW.size_putS (r := { L.rf x0 sc 0 with
-              time := core.num.U64.wrapping_add (L.rf x0 sc 0).time (L.rperiod x0 sc) }) hl
-            refine ⟨hW.putS hl, RefillsOrdered.single (by rw [hs', h1]) ?_, ?_, ?_, by omega⟩
-            · rw [hW.rf_set_head (by omega)]; simp only [ite_true]; rw [hiv]; omega
-            · unfold LawfulStore.amtSum; rw [hs', h1]
-              simp only [Finset.sum_range_one]; rw [hW.rf_set_head (by omega)]; simp
-              unfold LawfulStore.amtSum at hS; rw [h1] at hS; simpa using hS
-            · rw [rperiod_putS h8 (by omega)]
-          · -- pop the head and schedule it a period later
-            have hne : L.rhead x0 sc ≠ L.rtail x0 sc := by intro e; simp_all
-            have h2 := hW.size_two hne
-            step with sporadic.pop_head.eq
-            obtain ⟨old, s2⟩ := s1
-            simp only at s1_post s1_post1 ⊢
-            rw [e0] at s1_post
-            subst s1_post r_post
-            obtain ⟨hW2, hO2, hS2, hP2, hn2, hrf2⟩ := hO.pop hW hne s1_post1
-            have od0 := hO.disjoint 0 (by omega); simp only [Nat.zero_add] at od0
-            have hwin0 := hO.window
-            have hPv : (L.rperiod x0 sc).val = period.val := by rw [hP]
-            have hT' : (core.num.U64.wrapping_add (L.rf x0 sc 0).time period).val =
-                (L.rf x0 sc 0).time.val + period.val := wadd_val (by omega)
-            have htail : (L.rf x0 sc (L.size x0 sc - 1)).amount.val + (L.rf x0 sc 0).amount.val ≤
-                L.amtSum x0 sc := by
-              unfold LawfulStore.amtSum; rw [sum_range_one _ hn1]
-              have := Finset.single_le_sum (f := fun k => (L.rf x0 sc (k + 1)).amount.val)
-                (fun _ _ => Nat.zero_le _) (Finset.mem_range.2 (show L.size x0 sc - 2 < L.size x0 sc - 1 by omega))
-              simp only [show L.size x0 sc - 2 + 1 = L.size x0 sc - 1 by omega] at this; omega
-            simp only [lift, bind_ok]
-            refine WP.spec_bind (sporadic.schedule_used.ordered _ hW2 hO2 ?_ ?_ ?_) ?_
-            · rw [hT', hrf2, hP2, hP]; simp only [Nat.zero_add]; omega
-            · dsimp only; rw [hT']; omega
-            · rw [hn2, hrf2, show L.size x0 sc - 1 - 1 + 1 = L.size x0 sc - 1 by omega]
-              dsimp only; omega
-            · rintro s3 ⟨hW3, hO3, hS3, hP3⟩
-              simp only [WP.spec_ok]
-              refine ⟨hW3, hO3, ?_, by rw [hP3, hP2, hP], by omega⟩
-              rw [hS3, ← hS]; dsimp only; omega
+        · -- a head with no budget: the loop stops
+          simp only [WP.spec_ok]; exact ⟨hW, hO, hS, hP⟩
+        · split
+          · simp only [WP.spec_ok]; exact ⟨hW, hO, hS, hP⟩
+          · rename_i hA hT hz hf
+            simp only [UScalar.le_equiv, UScalar.lt_equiv] at hA hT
+            have hsum := hS ▸ hsB
+            have hA0 : (L.rf x0 sc 0).amount.val ≤ L.amtSum x0 sc := by
+              unfold LawfulStore.amtSum; rw [sum_range_one _ hn1]; omega
+            step; step
+            split
+            · -- a single refill: move it a period later
+              have h1 : L.size x0 sc = 1 := (hW.single_iff).1 (by simp_all)
+              step; step with sporadic.set_head.eq
+              clear hp; subst_vars
+              have hiv : (core.num.U64.wrapping_add (L.rf x0 sc 0).time (L.rperiod x0 sc)).val =
+                  (L.rf x0 sc 0).time.val + (L.rperiod x0 sc).val := wadd_val (by omega)
+              have hl : (L.rhead x0 sc).val < (L.rmax x0 sc).val := hW.head_lt
+              obtain ⟨h8, hb, hfit⟩ := hW.bounds
+              simp only [lift, bind_ok, WP.spec_ok]
+              have hs' := hW.size_putS (r := { L.rf x0 sc 0 with
+                time := core.num.U64.wrapping_add (L.rf x0 sc 0).time (L.rperiod x0 sc) }) hl
+              refine ⟨hW.putS hl, RefillsOrdered.single (by rw [hs', h1]) ?_, ?_, ?_, by omega⟩
+              · rw [hW.rf_set_head (by omega)]; simp only [ite_true]; rw [hiv]; omega
+              · unfold LawfulStore.amtSum; rw [hs', h1]
+                simp only [Finset.sum_range_one]; rw [hW.rf_set_head (by omega)]; simp
+                unfold LawfulStore.amtSum at hS; rw [h1] at hS; simpa using hS
+              · rw [rperiod_putS h8 (by omega)]
+            · -- pop the head and schedule it a period later
+              have hne : L.rhead x0 sc ≠ L.rtail x0 sc := by intro e; simp_all
+              have h2 := hW.size_two hne
+              step with sporadic.pop_head.eq
+              obtain ⟨old, s2⟩ := s1
+              simp only at s1_post s1_post1 ⊢
+              rw [e0] at s1_post
+              subst s1_post r_post
+              obtain ⟨hW2, hO2, hS2, hP2, hn2, hrf2⟩ := hO.pop hW hne s1_post1
+              have od0 := hO.disjoint 0 (by omega); simp only [Nat.zero_add] at od0
+              have hwin0 := hO.window
+              have hPv : (L.rperiod x0 sc).val = period.val := by rw [hP]
+              have hT' : (core.num.U64.wrapping_add (L.rf x0 sc 0).time period).val =
+                  (L.rf x0 sc 0).time.val + period.val := wadd_val (by omega)
+              have htail : (L.rf x0 sc (L.size x0 sc - 1)).amount.val + (L.rf x0 sc 0).amount.val ≤
+                  L.amtSum x0 sc := by
+                unfold LawfulStore.amtSum; rw [sum_range_one _ hn1]
+                have := Finset.single_le_sum (f := fun k => (L.rf x0 sc (k + 1)).amount.val)
+                  (fun _ _ => Nat.zero_le _) (Finset.mem_range.2 (show L.size x0 sc - 2 < L.size x0 sc - 1 by omega))
+                simp only [show L.size x0 sc - 2 + 1 = L.size x0 sc - 1 by omega] at this; omega
+              simp only [lift, bind_ok]
+              refine WP.spec_bind (sporadic.schedule_used.ordered _ hW2 hO2 ?_ ?_ ?_) ?_
+              · rw [hT', hrf2, hP2, hP]; simp only [Nat.zero_add]; omega
+              · dsimp only; rw [hT']; omega
+              · rw [hn2, hrf2, show L.size x0 sc - 1 - 1 + 1 = L.size x0 sc - 1 by omega]
+                dsimp only; omega
+              · rintro s3 ⟨hW3, hO3, hS3, hP3⟩
+                simp only [WP.spec_ok]
+                refine ⟨hW3, hO3, ?_, by rw [hP3, hP2, hP], by omega⟩
+                rw [hS3, ← hS]; dsimp only; omega
       · simp only [WP.spec_ok]; exact ⟨hW, hO, hS, hP⟩
     · simp only [WP.spec_ok]; exact ⟨hW, hO, hS, hP⟩
   · exact ⟨hW, hO, rfl, hp⟩
@@ -1615,14 +1618,21 @@ theorem sporadic.budget_check_loop0.exit {s : S} {sc : obj.Sc} {sb : Nat} (mrt p
     split
     · split
       · split
-        · simp only [WP.spec_ok]
-          right
-          rcases hI with ⟨rfl, -, -⟩ | h
-          · left; simp_all
-          · right; exact h
-        · step*
-          split <;> step*
-          p0_cases_prod; step*
+        · -- a head with no budget: at most the usage, which the post allows
+          simp only [WP.spec_ok]
+          right; right
+          rcases hI with ⟨-, rfl, rfl⟩ | h
+          · simp_all [UScalar.le_equiv]
+          · exact h
+        · split
+          · simp only [WP.spec_ok]
+            right
+            rcases hI with ⟨rfl, -, -⟩ | h
+            · left; simp_all
+            · right; exact h
+          · step*
+            split <;> step*
+            p0_cases_prod; step*
       · simp only [WP.spec_ok]; left; right; simp_all [UScalar.lt_equiv]
     · simp only [WP.spec_ok]; left; left; simp_all [UScalar.le_equiv]
   · exact ⟨hW, Or.inl ⟨rfl, rfl, rfl⟩⟩

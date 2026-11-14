@@ -3206,7 +3206,7 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
 @[step] theorem sporadic.budget_check_loop0.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) (mrt : Std.U64) (period : Std.U64) (usage : Std.U64) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
     sporadic.budget_check_loop0 machineStoreInst s i mrt period usage fuel ⦃ _ => True ⦄ := by
   unfold sporadic.budget_check_loop0
-  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1, x2) => x2.val) (inv := fun _ => True)
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1, x2) => x1.val) (inv := fun _ => True)
   · rintro ⟨x0, x1, x2⟩ -
     unfold sporadic.budget_check_loop0.body
     p0_body

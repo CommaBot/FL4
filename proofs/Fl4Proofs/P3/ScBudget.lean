@@ -173,97 +173,102 @@ theorem loop0_refines {s0 : S} {σ0 : Fl4Spec.State Unit} {sc : U64} {x : Fl4Spe
       split
       · rename_i hT
         split
-        · rename_i hf
+        · -- a head with no budget: ruled out, refill amounts are positive
+          rename_i hz
           exfalso
-          have : x1.val = 0 := by rw [hf] at hle; simpa using hle
-          rw [UScalar.le_equiv] at hA; omega
-        · rename_i hf
-          have hf' : fuel.val = fuel.val := rfl
-          step as ⟨fuel1, fuel1_post⟩
-          step as ⟨b, b_post⟩
-          have hA' : hd.amount.val ≤ x1.val := by rw [UScalar.le_equiv] at hA; exact hA
-          have hu1 : (core.num.U64.wrapping_sub x1 hd.amount).val = x1.val - hd.amount.val := wsub_val hA'
-          have hspc := chargeEntire_eq (hkk x0) rfl hne (per := period) hper' x1.bv
-          have hstep : Fl4Spec.handleOverrun (Z := Unit) sc.bv x1.bv (specAt (st := st) σ0 sc x n x0) =
-              Fl4Spec.handleOverrun (Z := Unit) sc.bv (x1.bv - (toRefill hd).rAmount)
-                (updSc σ0 sc.bv { x with scRefills := (chargeL x.scRefillMax period (L.refills x0 sc)).map toRefill } n) := by
-            unfold Fl4Spec.handleOverrun
-            rw [wl_step (C := fun usage s => Fl4Spec.the (Fl4Spec.headRefillOverrun (Z := Unit) sc.bv usage s) = true)
-              (B := fun usage => Fl4Spec.chargeEntireHeadRefill sc.bv usage) (hC.2 ⟨hA, hT⟩) hspc, updSc_updSc]
-          have hcont : ∀ s1 : S, RingAt st s0 s1 sc n →
-              L.refills s1 sc = chargeL x.scRefillMax period (L.refills x0 sc) →
-              Pos (L.refills s1 sc) → lsum (L.refills s1 sc) = lsum (L.refills s0 sc) →
-              RingAt st s0 s1 sc n ∧ Pos (L.refills s1 sc) ∧ lsum (L.refills s1 sc) = lsum (L.refills s0 sc) ∧
-                (core.num.U64.wrapping_sub x1 hd.amount).val ≤ fuel1.val ∧
-                Fl4Spec.handleOverrun (Z := Unit) sc.bv usage.bv σ0 = Fl4Spec.handleOverrun (Z := Unit) sc.bv
-                  (core.num.U64.wrapping_sub x1 hd.amount).bv (specAt (st := st) σ0 sc x n s1) ∧ fuel1.val < x2.val := by
-            intro s1 h1 hl1 hp1 hs1
-            refine ⟨h1, hp1, hs1, ?_, ?_, ?_⟩
-            · rw [hu1, fuel1_post]; omega
-            · rw [hsp, hstep, core.num.U64.wrapping_sub_bv_eq]
-              show _ = Fl4Spec.handleOverrun (Z := Unit) sc.bv _
-                (updSc σ0 sc.bv { x with scRefills := (L.refills s1 sc).map toRefill } n)
-              rw [hl1]; rfl
-            · rw [fuel1_post]
-              have : x2.val ≠ 0 := fun e => hf (UScalar.eq_of_val_eq (by simpa using e))
-              omega
-          split
-          · -- a single refill: a period later
-            rename_i hb
-            have h1 : (L.refills x0 sc).length = 1 := (single_iff' hW).1 (by rw [b_post] at hb; simpa using hb)
-            step as ⟨i1, i1_post⟩
-            refine WP.spec_bind (set_head_ring hR _) ?_
-            rintro s1 ⟨hR1, hl1⟩
-            obtain ⟨a, l, e⟩ := List.exists_cons_of_ne_nil hne
-            have hl : l = [] := by rw [e] at h1; simpa using h1
-            subst hl
-            have hl1' : L.refills s1 sc = chargeL x.scRefillMax period (L.refills x0 sc) := by
-              rw [hl1, e]; unfold chargeL; simp only [List.length_cons, List.length_nil, ↓reduceIte,
-                List.headD_cons, List.tail_cons, i1_post]
-              rw [e] at hhd; simp only [List.headD_cons] at hhd; rw [hhd]
-            simp only [lift, bind_ok, WP.spec_ok]
-            refine hcont s1 hR1 hl1' ?_ ?_
-            · rw [hl1, e]; intro r hr
-              simp only [List.tail_cons, List.mem_singleton] at hr; subst hr
-              simpa using hpos0
-            · have ha : hd = a := by rw [hhd, e]; rfl
-              rw [hl1, ← hS, e]; simp [lsum, ha]
-          · -- pop the head and schedule it a period later
-            rename_i hb
-            have hneq : L.rhead x0 sc ≠ L.rtail x0 sc := by rw [b_post] at hb; simpa using hb
-            have h2 : (L.refills x0 sc).length ≠ 1 := fun e => hneq ((single_iff' hW).2 e)
-            obtain ⟨a, l, e⟩ := List.exists_cons_of_ne_nil hne
-            have hlne : l ≠ [] := by rintro rfl; exact h2 (by rw [e]; rfl)
-            have ha : hd = a := by rw [hhd, e]; rfl
-            have hno : (l.getLastD zR).amount.val + a.amount.val < 2 ^ 64 := by
-              have hS' := hS
-              rw [e, lsum_cons] at hS'
-              have h3 := le_lsum (rs := l) (r := l.getLastD zR) (by rw [getLastD_eq hlne]; exact List.getLast_mem hlne)
-              omega
-            refine WP.spec_bind (Pₘ := fun s3 => RingAt st s0 s3 sc n ∧
-              L.refills s3 sc = chargeL x.scRefillMax period (L.refills x0 sc) ∧ Pos (L.refills s3 sc) ∧
-              lsum (L.refills s3 sc) = lsum (L.refills s0 sc)) ?_ ?_
-            · refine WP.spec_bind (pop_head_ring hR hneq) ?_
-              rintro ⟨old, s2⟩ ⟨hold, hR2, hl2⟩
-              rw [← hhd] at hold
-              subst hold
+          rw [hz] at hpos0; simp at hpos0
+        · split
+          · rename_i hf
+            exfalso
+            have : x1.val = 0 := by rw [hf] at hle; simpa using hle
+            rw [UScalar.le_equiv] at hA; omega
+          · rename_i hf
+            have hf' : fuel.val = fuel.val := rfl
+            step as ⟨fuel1, fuel1_post⟩
+            step as ⟨b, b_post⟩
+            have hA' : hd.amount.val ≤ x1.val := by rw [UScalar.le_equiv] at hA; exact hA
+            have hu1 : (core.num.U64.wrapping_sub x1 hd.amount).val = x1.val - hd.amount.val := wsub_val hA'
+            have hspc := chargeEntire_eq (hkk x0) rfl hne (per := period) hper' x1.bv
+            have hstep : Fl4Spec.handleOverrun (Z := Unit) sc.bv x1.bv (specAt (st := st) σ0 sc x n x0) =
+                Fl4Spec.handleOverrun (Z := Unit) sc.bv (x1.bv - (toRefill hd).rAmount)
+                  (updSc σ0 sc.bv { x with scRefills := (chargeL x.scRefillMax period (L.refills x0 sc)).map toRefill } n) := by
+              unfold Fl4Spec.handleOverrun
+              rw [wl_step (C := fun usage s => Fl4Spec.the (Fl4Spec.headRefillOverrun (Z := Unit) sc.bv usage s) = true)
+                (B := fun usage => Fl4Spec.chargeEntireHeadRefill sc.bv usage) (hC.2 ⟨hA, hT⟩) hspc, updSc_updSc]
+            have hcont : ∀ s1 : S, RingAt st s0 s1 sc n →
+                L.refills s1 sc = chargeL x.scRefillMax period (L.refills x0 sc) →
+                Pos (L.refills s1 sc) → lsum (L.refills s1 sc) = lsum (L.refills s0 sc) →
+                RingAt st s0 s1 sc n ∧ Pos (L.refills s1 sc) ∧ lsum (L.refills s1 sc) = lsum (L.refills s0 sc) ∧
+                  (core.num.U64.wrapping_sub x1 hd.amount).val ≤ fuel1.val ∧
+                  Fl4Spec.handleOverrun (Z := Unit) sc.bv usage.bv σ0 = Fl4Spec.handleOverrun (Z := Unit) sc.bv
+                    (core.num.U64.wrapping_sub x1 hd.amount).bv (specAt (st := st) σ0 sc x n s1) ∧ fuel1.val < x2.val := by
+              intro s1 h1 hl1 hp1 hs1
+              refine ⟨h1, hp1, hs1, ?_, ?_, ?_⟩
+              · rw [hu1, fuel1_post]; omega
+              · rw [hsp, hstep, core.num.U64.wrapping_sub_bv_eq]
+                show _ = Fl4Spec.handleOverrun (Z := Unit) sc.bv _
+                  (updSc σ0 sc.bv { x with scRefills := (L.refills s1 sc).map toRefill } n)
+                rw [hl1]; rfl
+              · rw [fuel1_post]
+                have : x2.val ≠ 0 := fun e => hf (UScalar.eq_of_val_eq (by simpa using e))
+                omega
+            split
+            · -- a single refill: a period later
+              rename_i hb
+              have h1 : (L.refills x0 sc).length = 1 := (single_iff' hW).1 (by rw [b_post] at hb; simpa using hb)
               step as ⟨i1, i1_post⟩
-              refine WP.spec_mono (schedule_used_ring hR2 _) ?_
-              rintro s3 ⟨hR3, hl3⟩
-              have htl : L.refills s2 sc = l := by rw [hl2, e]; rfl
-              refine ⟨hR3, ?_, ?_, ?_⟩
-              · rw [hl3, htl, hR2.mx, ← hmax, e]
-                unfold chargeL
-                simp only [List.headD_cons, List.tail_cons, i1_post, ← ha]
-                rw [if_neg (by simpa using hlne)]
-              · rw [hl3, htl]
-                exact pos_schedUsedL (fun r hr => hP r (by rw [e]; exact List.mem_cons_of_mem _ hr)) hlne
-                  (by rw [ha]; simpa using hno) (by simpa using hpos0)
-              · rw [hl3, htl, lsum_schedUsedL hlne (by rw [ha]; simpa using hno), ← hS, e, lsum_cons, ← ha]
-                simp only; omega
-            · rintro s3 ⟨hR3, hl3', hp3, hs3⟩
+              refine WP.spec_bind (set_head_ring hR _) ?_
+              rintro s1 ⟨hR1, hl1⟩
+              obtain ⟨a, l, e⟩ := List.exists_cons_of_ne_nil hne
+              have hl : l = [] := by rw [e] at h1; simpa using h1
+              subst hl
+              have hl1' : L.refills s1 sc = chargeL x.scRefillMax period (L.refills x0 sc) := by
+                rw [hl1, e]; unfold chargeL; simp only [List.length_cons, List.length_nil, ↓reduceIte,
+                  List.headD_cons, List.tail_cons, i1_post]
+                rw [e] at hhd; simp only [List.headD_cons] at hhd; rw [hhd]
               simp only [lift, bind_ok, WP.spec_ok]
-              exact hcont s3 hR3 hl3' hp3 hs3
+              refine hcont s1 hR1 hl1' ?_ ?_
+              · rw [hl1, e]; intro r hr
+                simp only [List.tail_cons, List.mem_singleton] at hr; subst hr
+                simpa using hpos0
+              · have ha : hd = a := by rw [hhd, e]; rfl
+                rw [hl1, ← hS, e]; simp [lsum, ha]
+            · -- pop the head and schedule it a period later
+              rename_i hb
+              have hneq : L.rhead x0 sc ≠ L.rtail x0 sc := by rw [b_post] at hb; simpa using hb
+              have h2 : (L.refills x0 sc).length ≠ 1 := fun e => hneq ((single_iff' hW).2 e)
+              obtain ⟨a, l, e⟩ := List.exists_cons_of_ne_nil hne
+              have hlne : l ≠ [] := by rintro rfl; exact h2 (by rw [e]; rfl)
+              have ha : hd = a := by rw [hhd, e]; rfl
+              have hno : (l.getLastD zR).amount.val + a.amount.val < 2 ^ 64 := by
+                have hS' := hS
+                rw [e, lsum_cons] at hS'
+                have h3 := le_lsum (rs := l) (r := l.getLastD zR) (by rw [getLastD_eq hlne]; exact List.getLast_mem hlne)
+                omega
+              refine WP.spec_bind (Pₘ := fun s3 => RingAt st s0 s3 sc n ∧
+                L.refills s3 sc = chargeL x.scRefillMax period (L.refills x0 sc) ∧ Pos (L.refills s3 sc) ∧
+                lsum (L.refills s3 sc) = lsum (L.refills s0 sc)) ?_ ?_
+              · refine WP.spec_bind (pop_head_ring hR hneq) ?_
+                rintro ⟨old, s2⟩ ⟨hold, hR2, hl2⟩
+                rw [← hhd] at hold
+                subst hold
+                step as ⟨i1, i1_post⟩
+                refine WP.spec_mono (schedule_used_ring hR2 _) ?_
+                rintro s3 ⟨hR3, hl3⟩
+                have htl : L.refills s2 sc = l := by rw [hl2, e]; rfl
+                refine ⟨hR3, ?_, ?_, ?_⟩
+                · rw [hl3, htl, hR2.mx, ← hmax, e]
+                  unfold chargeL
+                  simp only [List.headD_cons, List.tail_cons, i1_post, ← ha]
+                  rw [if_neg (by simpa using hlne)]
+                · rw [hl3, htl]
+                  exact pos_schedUsedL (fun r hr => hP r (by rw [e]; exact List.mem_cons_of_mem _ hr)) hlne
+                    (by rw [ha]; simpa using hno) (by simpa using hpos0)
+                · rw [hl3, htl, lsum_schedUsedL hlne (by rw [ha]; simpa using hno), ← hS, e, lsum_cons, ← ha]
+                  simp only; omega
+              · rintro s3 ⟨hR3, hl3', hp3, hs3⟩
+                simp only [lift, bind_ok, WP.spec_ok]
+                exact hcont s3 hR3 hl3' hp3 hs3
       · rename_i hT
         simp only [WP.spec_ok]
         exact fin fun h => hT h.2
