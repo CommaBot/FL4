@@ -380,7 +380,16 @@ theorem blk_keep {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U6
             have := hO.rpSc r0 (hr0 h0).1 c hc
             have := (sc_facts hO hc).1
             omega)]
-          exact hE.scn c hc⟩⟩,
+          exact hE.scn c hc,
+        hE.yt.keep (fun c hc => (fix c hc).1)
+          (fun y hy => fld y hy _ (by simp) (by simp) (by simp) (by simp) (fun _ => by simp))
+          (fun c hc => om _ (hS.sub _ (hO.syW c hc)) (fun h0 e => by
+            have := congrArg UScalar.val e
+            rw [rTcbA_val (r0p h0), show scYieldFromA c = core.num.U64.wrapping_add c layout.sc.YIELD_FROM from rfl,
+              (sc_facts hO hc).2.2.2.2.2.2.2] at this
+            have := hO.rpSc r0 (hr0 h0).1 c hc
+            have := (sc_facts hO hc).1
+            omega))⟩⟩,
     SCsOK.keep hS ⟨hO, hR, hE⟩ hk scf ecs (fun c hc => (fix c hc).2.2)⟩
   · rcases hact with e | e
     · rw [e] at haT ⊢; exact ⟨haT, hB.act haT⟩
@@ -1206,7 +1215,29 @@ theorem unbind_state {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U6
             by_cases hci : c = i
             · subst hci; omega
             · have := hO.scDisj c hc i hiS hci; omega)]
-          exact hE.scn c hc⟩⟩,
+          exact hE.scn c hc,
+        ⟨fun c hc h0 => by
+          by_cases hci : c = i
+          · subst hci
+            rw [hs2, L.mem_wr_same hmo.1] at h0; exact absurd rfl h0
+          · have e1 : L.mem s2 (scTcbA c) = L.mem s (scTcbA c) := F2 _ (hcΩ c hc).1 (fun e => by
+              rw [(sc_facts hO hc).2.1, hiv.2.1] at e
+              have := (sc_facts hO hc).1; have := hiv.1
+              have := hO.scDisj c hc i hiS hci; omega)
+            rw [e1] at h0 ⊢; exact hE.yt.1 c hc h0,
+         fun u hu => by
+          rw [show yieldA u = core.num.U64.wrapping_add u 3472#u64 from rfl,
+            F1 u hu _ (by simp) (by simp) (fun _ => by simp)]
+          exact hE.yt.2.1 u hu,
+         fun c hc => by
+          rw [F2 _ (hSg.sub _ (hO.syW c hc)) (fun e => by
+            rw [show scYieldFromA c = core.num.U64.wrapping_add c layout.sc.YIELD_FROM from rfl,
+              (sc_facts hO hc).2.2.2.2.2.2.2, hiv.2.1] at e
+            have := (sc_facts hO hc).1; have := hiv.1
+            by_cases hci : c = i
+            · subst hci; omega
+            · have := hO.scDisj c hc i hiS hci; omega)]
+          exact hE.yt.2.2 c hc⟩⟩⟩,
     SCsOK.keep' hS ⟨hO, hR, hE⟩ (by simp [hs2]) (fun y hy => ?_) ecs (fun c hc => ?_),
     ⟨hSg.sub, fun b hb => by simp only [hs2, LawfulStore.ksb_wr]; exact hSg.ks b hb,
       fun o h1 h2 => by simp only [hs2, LawfulStore.ksb_wr]; exact hSg.ksΩ o h1 h2⟩, iqy t ht,

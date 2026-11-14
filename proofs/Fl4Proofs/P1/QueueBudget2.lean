@@ -145,7 +145,7 @@ theorem ring_bx {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64
 /-- A write to a current-node word that the invariants do not read. -/
 theorem node_bx {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {o v : U64}
     (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
-    (hSg : SgOK st Ω Sg s) (ho : LowFree o.val) (h24 : o.val ≠ 24) (hto : o.val ≠ 104 ∧ o.val ≠ 112) :
+    (hSg : SgOK st Ω Sg s) (ho : LowFree o.val) (h24 : o.val ≠ 24) (hto : o.val ≠ 88 ∧ o.val ≠ 104 ∧ o.val ≠ 112) :
     SchedQueuesInvX st T Cs Ω H X (L.wr s (L.nodeAt s (L.cpu s) o) v) Q R ∧
       BoundInv st T (L.wr s (L.nodeAt s (L.cpu s) o) v) ∧ XInv st T Cs Ω Sg Rp Scs Nt Z (L.wr s (L.nodeAt s (L.cpu s) o) v) ∧
       SgOK st Ω Sg (L.wr s (L.nodeAt s (L.cpu s) o) v) ∧

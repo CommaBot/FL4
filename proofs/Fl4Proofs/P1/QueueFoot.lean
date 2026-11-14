@@ -172,6 +172,44 @@ theorem Foot.epQ {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U6
   exact ⟨f.mem_eq (ep_aligned hE).1 (ep_not_kw h hO hsub he (Or.inl rfl)),
     f.mem_eq (ep_aligned hE).2 (ep_not_kw h hO hsub he (Or.inr rfl))⟩
 
+
+/-! ## The current core's scheduler words -/
+
+/-- The current core's `CUR_THREAD`, `IDLE_THREAD` and `SCHED_ACTION` words are kept. -/
+def ANI (st : machine.Store S) [L : LawfulStore st] (s s' : S) : Prop :=
+  L.actionW s' = L.actionW s ∧ L.idleW s' = L.idleW s ∧ L.curW s' = L.curW s
+
+theorem ANI.refl (s : S) : ANI st s s := ⟨rfl, rfl, rfl⟩
+theorem ANI.trans {s₁ s₂ s₃ : S} (h₁ : ANI st s₁ s₂) (h₂ : ANI st s₂ s₃) : ANI st s₁ s₃ :=
+  ⟨h₂.1.trans h₁.1, h₂.2.1.trans h₁.2.1, h₂.2.2.trans h₁.2.2⟩
+
+theorem ani_wr {s : S} {a v : U64} {T : Set U64} (hN : NodePlaced st T s (L.cpu s)) (ha : Aligned a)
+    (hn : ∀ o : U64, (o.val = 0 ∨ o.val = 8 ∨ o.val = 16) → a.val ≠ (L.nodeAt s (L.cpu s) o).val) :
+    ANI st s (L.wr s a v) := by
+  have nd : ∀ o : U64, (o.val = 0 ∨ o.val = 8 ∨ o.val = 16) →
+      L.mem (L.wr s a v) (L.nodeAt (L.wr s a v) (L.cpu (L.wr s a v)) o) = L.mem s (L.nodeAt s (L.cpu s) o) :=
+    fun o ho => by
+      simp only [LawfulStore.cpu_wr, nodeAt_wr]
+      exact L.mem_wr_ne ha (nodeAt_aligned hN (by omega) (by omega)) (hn o ho)
+  exact ⟨by unfold LawfulStore.actionW; exact nd _ (by rw [act_val]; omega),
+    by unfold LawfulStore.idleW; exact nd _ (by rw [idle8]; omega),
+    by unfold LawfulStore.curW; exact nd _ (by rw [curth0]; omega)⟩
+
+theorem ani_field {s : S} {y K v : U64} (hT : TcbPlaced T) (hN : NodePlaced st T s (L.cpu s)) (hy : y ∈ T)
+    (hK : K.val < 4096) (hK8 : K.val % 8 = 0) : ANI st s (L.wr s (core.num.U64.wrapping_add y K) v) :=
+  ani_wr hN (field_aligned (hT y hy) hK hK8) fun o ho e =>
+    node_ne_field hN (by omega) hy (hT y hy) hK (UScalar.eq_of_val_eq e).symm
+
+theorem ani_out {s : S} {a v : U64} (hN : NodePlaced st T s (L.cpu s)) (hc : L.cpu s ∈ Cs)
+    (ho : OutsideObjs st T Cs s a) : ANI st s (L.wr s a v) :=
+  ani_wr hN ho.1 fun o h e => out_ne_node ho hc hN (by omega) e.symm
+
+theorem ani_node {s : S} {c o v : U64} (hN : NodePlaced st T s c) (hN' : NodePlaced st T s (L.cpu s))
+    (ho : o.val < 4288) (h8 : o.val % 8 = 0) (hno : c = L.cpu s → o.val ≠ 0 ∧ o.val ≠ 8 ∧ o.val ≠ 16) :
+    ANI st s (L.wr s (L.nodeAt s c o) v) :=
+  ani_wr hN' (nodeAt_aligned hN ho h8) fun o' h e =>
+    node_ne_node hN hN' ho (by omega) (fun hc => by have := hno hc; omega) e
+
 /-! ## The scheduler queues -/
 
 section queues

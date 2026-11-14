@@ -265,7 +265,7 @@ theorem SCsOK.switch {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List
 /-- A write to a current-node word other than `CUR_SC` keeps `SCsOK`. -/
 theorem SCsOK.node {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {o : U64}
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hS : SCsOK st T Ω Sg Scs Z s) (ho : o.val < 4288) (h8 : o.val % 8 = 0)
-    (h24 : o.val ≠ 24) (hto : o.val ≠ 104 ∧ o.val ≠ 112) (w : WritesIn st s s' (· = L.nodeAt s (L.cpu s) o)) :
+    (h24 : o.val ≠ 24) (hto : o.val ≠ 88 ∧ o.val ≠ 104 ∧ o.val ≠ 112) (w : WritesIn st s s' (· = L.nodeAt s (L.cpu s) o)) :
     SCsOK st T Ω Sg Scs Z s' := by
   have hN' := h.nodes _ h.cur
   have k : ∀ b, Aligned b → b ≠ L.nodeAt s (L.cpu s) o → L.mem s' b = L.mem s b := fun b hb hn =>
@@ -283,7 +283,9 @@ theorem SCsOK.node {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U
     fun y hy K h1 h2 h3 => k _ (field_aligned (h.tcbs y hy) (by omega) h3) (fun e =>
       node_ne_field hN' ho hy (h.tcbs y hy) (by omega) e.symm),
     fun c hc o' ho' => k _ (nodeAt_aligned hc (by omega) (by omega)) (fun e =>
-      node_ne_node hN' hc ho (by omega) (fun _ => by omega) (congrArg UScalar.val e).symm)⟩
+      node_ne_node hN' hc ho (by omega) (fun _ => by omega) (congrArg UScalar.val e).symm),
+    fun y hy => k _ (field_aligned (h.tcbs y hy) (by simp) (by simp)) (fun e =>
+      node_ne_field hN' ho hy (h.tcbs y hy) (by simp) e.symm)⟩
   unfold LawfulStore.cscW; rw [cscW_eq w.1 w.2.1]
   refine k _ (nodeAt_aligned hN' (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])) (fun e => ?_)
   have := congrArg UScalar.val e
@@ -468,7 +470,7 @@ theorem sched.schedule.inv (hA : P0.ArchTotal ar) (s : S) (a : A)
           (by simp [layout.node.CUR_SC])))
   -- a node word other than `CUR_SC` keeps `XInv`
   have xn : ∀ {s s' : S} {Q R} {o : U64}, SchedQueuesInv st T Cs Ω H s Q R → XInv st T Cs Ω Sg Rp Scs Nt Z s →
-      o.val < 4288 → o.val % 8 = 0 → o.val ≠ 24 → (o.val ≠ 104 ∧ o.val ≠ 112) →
+      o.val < 4288 → o.val % 8 = 0 → o.val ≠ 24 → (o.val ≠ 88 ∧ o.val ≠ 104 ∧ o.val ≠ 112) →
       WritesIn st s s' (· = L.nodeAt s (L.cpu s) o) →
       XInv st T Cs Ω Sg Rp Scs Nt Z s' := by
     intro s s' Q R o hh hx ho h8 h24 hto w

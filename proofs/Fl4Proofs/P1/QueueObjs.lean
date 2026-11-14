@@ -44,6 +44,10 @@ structure TimerOK (st : machine.Store S) [L : LawfulStore st] (T Cs : Set U64) (
   root : ∀ c ∈ Cs, Tz T (L.mem s (L.nodeAt s c layout.node.TIMER_ROOT))
   min : ∀ c ∈ Cs, Tz T (L.mem s (L.nodeAt s c layout.node.TIMER_MIN))
   core : ∀ y ∈ T, L.mem s (tdA y) ≠ 0#u64 → ∀ c : U64, c.val = (L.mem s (thA y)).val >>> 8 → c ∈ Cs
+  /-- The debug lists are typed: each TCB's debug links and each core's list head are null or TCBs. -/
+  dn : ∀ y ∈ T, Tz T (L.mem s (dnA y))
+  dp : ∀ y ∈ T, Tz T (L.mem s (dpA y))
+  dh : ∀ c ∈ Cs, Tz T (L.mem s (L.nodeAt s c layout.node.DEBUG_TCBS))
 
 /-- A notification's bound TCB is null or a TCB (l4v `valid_ntfn`, the
 `ntfn_bound_tcb` part). -/
@@ -52,6 +56,7 @@ def NtbOK (st : machine.Store S) [L : LawfulStore st] (T Nt : Set U64) (s : S) :
 
 theorem timer_root_val : layout.node.TIMER_ROOT.val = 104 := by simp [layout.node.TIMER_ROOT]
 theorem timer_min_val : layout.node.TIMER_MIN.val = 112 := by simp [layout.node.TIMER_MIN]
+theorem debug_val : layout.node.DEBUG_TCBS.val = 88 := by simp [layout.node.DEBUG_TCBS]
 
 theorem ntfnBt_aligned {n : U64} (h : n.val % 64 = 0 ∧ n.val + 64 ≤ 2 ^ 64) : Aligned (ntfnBtA n) := by
   unfold Aligned; rw [ntfnBtA_val h]; omega
@@ -63,9 +68,9 @@ fields, the nodes' timer-tree words and the notifications' `BOUND_TCB`
 words. -/
 def TmFr (st : machine.Store S) [L : LawfulStore st] (T Cs Nt : Set U64) (s s' : S) : Prop :=
   L.ksb s' = L.ksb s ∧
-  (∀ y ∈ T, ∀ K : U64, 3528 ≤ K.val → K.val < 3576 → K.val % 8 = 0 →
+  (∀ y ∈ T, ∀ K : U64, 3528 ≤ K.val → K.val < 3592 → K.val % 8 = 0 →
     L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K)) ∧
-  (∀ c ∈ Cs, ∀ o : U64, (o.val = 104 ∨ o.val = 112) → L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)) ∧
+  (∀ c ∈ Cs, ∀ o : U64, (o.val = 88 ∨ o.val = 104 ∨ o.val = 112) → L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)) ∧
   (∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n))
 
 theorem TmFr.refl (s : S) : TmFr st T Cs Nt s s :=
@@ -91,8 +96,8 @@ theorem TmFr.of_fr {s s' : S} (f : Fr st T Sg s s') (hO : ObjsOK st Ω Sg Rp Scs
 
 /-- The timer-tree words. -/
 def TmW (st : machine.Store S) [L : LawfulStore st] (T Cs Nt : Set U64) (s : S) (b : U64) : Prop :=
-  (∃ y ∈ T, ∃ K : U64, 3528 ≤ K.val ∧ K.val < 3576 ∧ K.val % 8 = 0 ∧ b = core.num.U64.wrapping_add y K) ∨
-  (∃ c ∈ Cs, ∃ o : U64, (o.val = 104 ∨ o.val = 112) ∧ b = L.nodeAt s c o) ∨ (∃ n ∈ Nt, b = ntfnBtA n)
+  (∃ y ∈ T, ∃ K : U64, 3528 ≤ K.val ∧ K.val < 3592 ∧ K.val % 8 = 0 ∧ b = core.num.U64.wrapping_add y K) ∨
+  (∃ c ∈ Cs, ∃ o : U64, (o.val = 88 ∨ o.val = 104 ∨ o.val = 112) ∧ b = L.nodeAt s c o) ∨ (∃ n ∈ Nt, b = ntfnBtA n)
 
 /-- Writes that avoid the timer-tree words keep them. -/
 theorem TmFr.of_writes {s s' : S} {B : U64 → Prop} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodePlaced st T s c)
@@ -107,7 +112,7 @@ theorem TmFr.of_writes {s s' : S} {B : U64 → Prop} (hT : TcbPlaced T) (hN : �
 /-- A TCB field at an offset outside the timer fields is no timer-tree word. -/
 theorem notTmW_field {s : S} {y K : U64} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodePlaced st T s c)
     (hΩ : ∀ n ∈ Nt, OutsideObjs st T Cs s (ntfnBtA n)) (hy : y ∈ T) (hK : K.val < 4096)
-    (hK' : K.val < 3528 ∨ 3576 ≤ K.val) : ¬ TmW st T Cs Nt s (core.num.U64.wrapping_add y K) := by
+    (hK' : K.val < 3528 ∨ 3592 ≤ K.val) : ¬ TmW st T Cs Nt s (core.num.U64.wrapping_add y K) := by
   rintro (⟨y', hy', K', h1, h2, h3, e⟩ | ⟨c, hc, o, ho, e⟩ | ⟨n, hn, e⟩)
   · exact field_ne (hT y hy) (hT y' hy') hK (by omega) (fun _ => by omega) e
   · exact node_ne_field (hN c hc) (by omega) hy (hT y hy) hK e.symm
@@ -132,7 +137,7 @@ theorem notTmW_omega {s : S} {b : U64} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, No
 /-- A node word other than the timer-tree words is no timer-tree word. -/
 theorem notTmW_node {s : S} {c o : U64} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodePlaced st T s c)
     (hΩ : ∀ n ∈ Nt, OutsideObjs st T Cs s (ntfnBtA n)) (hc : c ∈ Cs) (ho : o.val < 4288)
-    (hto : o.val ≠ 104 ∧ o.val ≠ 112) : ¬ TmW st T Cs Nt s (L.nodeAt s c o) := by
+    (hto : o.val ≠ 88 ∧ o.val ≠ 104 ∧ o.val ≠ 112) : ¬ TmW st T Cs Nt s (L.nodeAt s c o) := by
   rintro (⟨y, hy, K, h1, h2, h3, e⟩ | ⟨c', hc', o', ho', e⟩ | ⟨n, hn, e⟩)
   · exact node_ne_field (hN c hc) ho hy (hT y hy) (by omega) e
   · exact node_ne_node (hN c hc) (hN c' hc') ho (by omega) (fun _ => by omega) (congrArg UScalar.val e)
@@ -145,7 +150,12 @@ theorem TimerOK.tmfr {s s' : S} (h : TimerOK st T Cs s) (f : TmFr st T Cs Nt s s
       L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K) :=
     fun y K hy hK => ft y hy K (by omega) (by omega) (by omega)
   refine ⟨fun c hc => (h.npl c hc).ksb fk, fun y hy => ?_, fun y hy => ?_, fun y hy => ?_, fun c hc => ?_,
-    fun c hc => ?_, fun y hy hd c hcv => ?_⟩
+    fun c hc => ?_, fun y hy hd c hcv => ?_,
+    fun y hy => by rw [show dnA y = core.num.U64.wrapping_add y 3576#u64 from rfl,
+      ft y hy _ (by simp) (by simp) (by simp)]; exact h.dn y hy,
+    fun y hy => by rw [show dpA y = core.num.U64.wrapping_add y 3584#u64 from rfl,
+      ft y hy _ (by simp) (by simp) (by simp)]; exact h.dp y hy,
+    fun c hc => by rw [nodeAt_of_ksb fk, fd c hc _ (by rw [debug_val]; simp)]; exact h.dh c hc⟩
   · rw [show tlA y = core.num.U64.wrapping_add y 3544#u64 from rfl, lk y _ hy (by simp)]; exact h.lt y hy
   · rw [show trA y = core.num.U64.wrapping_add y 3552#u64 from rfl, lk y _ hy (by simp)]; exact h.rt y hy
   · rw [show tpA y = core.num.U64.wrapping_add y 3560#u64 from rfl, lk y _ hy (by simp)]; exact h.pt y hy
@@ -203,6 +213,20 @@ structure ReplyInv (st : machine.Store S) [L : LawfulStore st] (T Rp Scs : Set U
   /-- An SC's `REPLY` word is unused or a reply object (l4v `valid_sched_context`). -/
   screp : ∀ c ∈ Scs, L.mem s (scReplyA c) ≠ 0#u64 → L.mem s (scReplyA c) ∈ Rp
 
+/-- The SCs' `TCB` and `YIELD_FROM` words name TCBs (or nothing) and the TCBs'
+`YIELD_TO` words name SCs (or nothing): the typing part of l4v's
+`valid_sched_context` / `valid_tcb` and `sym_refs` for these links. -/
+def YT (st : machine.Store S) [L : LawfulStore st] (T Scs : Set U64) (s : S) : Prop :=
+  (∀ c ∈ Scs, L.mem s (scTcbA c) ≠ 0#u64 → L.mem s (scTcbA c) ∈ T) ∧
+  (∀ t ∈ T, L.mem s (yieldA t) ≠ 0#u64 → L.mem s (yieldA t) ∈ Scs) ∧
+  (∀ c ∈ Scs, L.mem s (scYieldFromA c) ≠ 0#u64 → L.mem s (scYieldFromA c) ∈ T)
+
+theorem YT.keep {s s' : S} (h : YT st T Scs s) (hfx : ∀ c ∈ Scs, L.mem s' (scTcbA c) = L.mem s (scTcbA c))
+    (hyl : ∀ t ∈ T, L.mem s' (yieldA t) = L.mem s (yieldA t))
+    (hyf : ∀ c ∈ Scs, L.mem s' (scYieldFromA c) = L.mem s (scYieldFromA c)) : YT st T Scs s' :=
+  ⟨fun c hc => by rw [hfx c hc]; exact h.1 c hc, fun t ht => by rw [hyl t ht]; exact h.2.1 t ht,
+    fun c hc => by rw [hyf c hc]; exact h.2.2 c hc⟩
+
 /-- Bound SCs are SC objects naming their thread and a core. -/
 structure ScExtra (st : machine.Store S) [L : LawfulStore st] (T Cs Scs Nt : Set U64) (s : S) : Prop where
   bound : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 →
@@ -220,6 +244,8 @@ structure ScExtra (st : machine.Store S) [L : LawfulStore st] (T Cs Scs Nt : Set
   ntb : NtbOK st T Nt s
   /-- An SC's bound notification is null or a notification (l4v `valid_sched_context`, `sc_ntfn`). -/
   scn : ∀ c ∈ Scs, L.mem s (scNtfnA c) ≠ 0#u64 → L.mem s (scNtfnA c) ∈ Nt
+  /-- The SC/TCB and yield links are typed. -/
+  yt : YT st T Scs s
 
 /-- The object invariants together. -/
 def XInv (st : machine.Store S) [L : LawfulStore st] (T Cs Ω Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (s : S) : Prop :=
@@ -241,14 +267,15 @@ theorem XInv.keep' {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hbd : ∀ t ∈ T, L.mem s' (boundA t) ≠ 0#u64 → L.mem s' (boundA t) ∈ Nt)
     (hns : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n))
     (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s')
-    (hsn : ∀ c ∈ Scs, L.mem s' (scNtfnA c) ≠ 0#u64 → L.mem s' (scNtfnA c) ∈ Nt) :
+    (hsn : ∀ c ∈ Scs, L.mem s' (scNtfnA c) ≠ 0#u64 → L.mem s' (scNtfnA c) ∈ Nt)
+    (hyt : YT st T Scs s') :
     XInv st T Cs Ω Sg Rp Scs Nt Z s' := by
   obtain ⟨hO, hR, hE⟩ := hX
   refine ⟨hO.ksb, ⟨fun t ht hs => ?_, fun t ht hs hn => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr hn => ?_,
       fun c hc => by rw [hsr c hc]; exact hR.screp c hc⟩,
     ⟨fun t ht hb => ?_, hcs, fun c hc => by rw [(hfx c hc).2]; exact hE.core c hc,
       hbd, fun n hn => by rw [hns n hn]; exact hE.nsc n hn,
-      htn.1, htn.2, hsn⟩⟩
+      htn.1, htn.2, hsn, hyt⟩⟩
   rotate_left 4
   · rw [(hrw r hr).1] at hn ⊢
     obtain ⟨b0, b1, b2, b3⟩ := hR.back r hr hn
@@ -278,9 +305,11 @@ theorem XInv.keep {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hbd : ∀ t ∈ T, L.mem s' (boundA t) = L.mem s (boundA t))
     (hns : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n))
     (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s')
-    (hsn : ∀ c ∈ Scs, L.mem s' (scNtfnA c) = L.mem s (scNtfnA c)) : XInv st T Cs Ω Sg Rp Scs Nt Z s' :=
+    (hsn : ∀ c ∈ Scs, L.mem s' (scNtfnA c) = L.mem s (scNtfnA c))
+    (hyl : ∀ t ∈ T, L.mem s' (yieldA t) = L.mem s (yieldA t))
+    (hyf : ∀ c ∈ Scs, L.mem s' (scYieldFromA c) = L.mem s (scYieldFromA c)) : XInv st T Cs Ω Sg Rp Scs Nt Z s' :=
   hX.keep' hrw hfx hsc hrep hst hcs hsr (fun t ht => by rw [hbd t ht]; exact hX.2.2.bnd t ht) hns htn
-    (fun c hc => by rw [hsn c hc]; exact hX.2.2.scn c hc)
+    (fun c hc => by rw [hsn c hc]; exact hX.2.2.scn c hc) (hX.2.2.yt.keep (fun c hc => (hfx c hc).1) hyl hyf)
 
 /-- The timer-tree typing and the notifications' bound TCBs after a frame. -/
 theorem XInv.tn {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (f : TmFr st T Cs Nt s s') :
@@ -292,15 +321,15 @@ theorem XInv.fr {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (f : Fr st T 
     (fun c hc => ⟨f.sig _ (hX.1.fixW c hc).1, f.sig _ (hX.1.fixW c hc).2⟩) f.sc f.rep f.st
     (by rw [f.csc]; exact hX.2.2.cur) (fun c hc => f.sig _ (hX.1.repW c hc)) f.bnd
     (fun n hn => f.sig _ (hX.1.ntW n hn)) (hX.tn (TmFr.of_fr f hX.1 hX.2.2.tm.npl))
-    (fun c hc => f.sig _ (hX.1.snW c hc))
+    (fun c hc => f.sig _ (hX.1.snW c hc)) f.yld (fun c hc => f.sig _ (hX.1.syW c hc))
 
 /-! ## Writes that avoid the protected words -/
 
 /-- The words `XInv` reads (besides the current SC). -/
 def Prot (T Rp Scs Nt : Set U64) (b : U64) : Prop :=
   (∃ r ∈ Rp, b = rTcbA r ∨ b = rPrevA r ∨ b = rNextA r) ∨
-  (∃ c ∈ Scs, b = scTcbA c ∨ b = scCoreA c ∨ b = scReplyA c ∨ b = scNtfnA c) ∨
-  (∃ t ∈ T, b = scA t ∨ b = replyA t ∨ b = stA t ∨ b = boundA t) ∨
+  (∃ c ∈ Scs, b = scTcbA c ∨ b = scCoreA c ∨ b = scReplyA c ∨ b = scNtfnA c ∨ b = scYieldFromA c) ∨
+  (∃ t ∈ T, b = scA t ∨ b = replyA t ∨ b = stA t ∨ b = boundA t ∨ b = yieldA t) ∨
   (∃ n ∈ Nt, b = ntfnScA n)
 
 theorem ObjsOK.aligned (h : ObjsOK st Ω Sg Rp Scs Nt Z s) (hT : TcbPlaced T) {b : U64} (hb : Prot T Rp Scs Nt b) :
@@ -315,15 +344,17 @@ theorem ObjsOK.aligned (h : ObjsOK st Ω Sg Rp Scs Nt Z s) (hT : TcbPlaced T) {b
     · rw [rNextA_val hp]; omega
   · obtain ⟨hP, hz⟩ := h.sc c hc
     have := (sc_lo hP hz).1
-    rcases e with rfl | rfl | rfl | rfl <;> unfold Aligned
+    rcases e with rfl | rfl | rfl | rfl | rfl <;> unfold Aligned
     · rw [scTcbA_val hP hz]; omega
     · rw [scCoreA_val hP hz]; omega
     · rw [scReplyA_val hP hz]; omega
     · rw [scNtfnA_val hP hz]; omega
-  · rcases e with rfl | rfl | rfl | rfl
+    · unfold scYieldFromA; rw [scYieldA_val hP hz]; omega
+  · rcases e with rfl | rfl | rfl | rfl | rfl
     · exact scA_aligned (hT t ht)
     · exact field_aligned (hT t ht) (by simp) (by simp)
     · rw [stA_eq]; exact field_aligned (hT t ht) (by simp) (by simp)
+    · exact field_aligned (hT t ht) (by simp) (by simp)
     · exact field_aligned (hT t ht) (by simp) (by simp)
 
 /-- `XInv` after writes that avoid the protected words, given the new
@@ -341,9 +372,11 @@ theorem XInv.writes {s s' : S} {B : U64 → Prop} (hX : XInv st T Cs Ω Sg Rp Sc
     (fun t ht => k _ (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inr (Or.inl rfl)⟩))))
     (fun t ht => k _ (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inr (Or.inr (Or.inl rfl))⟩)))) hcs
     (fun c hc => k _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inl rfl))⟩)))
-    (fun t ht => k _ (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inr (Or.inr (Or.inr rfl))⟩))))
+    (fun t ht => k _ (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inr (Or.inr (Or.inr (Or.inl rfl)))⟩))))
     (fun n hn => k _ (Or.inr (Or.inr (Or.inr ⟨n, hn, rfl⟩)))) htn
-    (fun c hc => k _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inr rfl))⟩)))
+    (fun c hc => k _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inr (Or.inl rfl)))⟩)))
+    (fun t ht => k _ (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inr (Or.inr (Or.inr (Or.inr rfl)))⟩))))
+    (fun c hc => k _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inr (Or.inr rfl)))⟩)))
 
 /-- Protected words are words of `Ω` or TCB fields. -/
 theorem ObjsOK.prot_cases (h : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω) {b : U64}
@@ -355,14 +388,17 @@ theorem ObjsOK.prot_cases (h : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ 
     · exact hsub _ (h.tcbW hr)
     · exact hsub _ (h.prevW hr)
     · exact hsub _ (h.nextW hr)
-  · left; rcases e with rfl | rfl | rfl | rfl
+  · left; rcases e with rfl | rfl | rfl | rfl | rfl
     · exact hsub _ (h.fixW c hc).1
     · exact hsub _ (h.fixW c hc).2
     · exact hsub _ (h.repW c hc)
     · exact hsub _ (h.snW c hc)
+    · exact hsub _ (h.syW c hc)
   · right; refine ⟨t, ht, ?_⟩
-    rcases e with rfl | rfl | rfl | rfl
+    rcases e with rfl | rfl | rfl | rfl | rfl
     · exact ⟨3464#u64, by simp, rfl⟩
+    rotate_right
+    · exact ⟨3472#u64, by simp, rfl⟩
     · exact ⟨3360#u64, by simp, rfl⟩
     · exact ⟨3328#u64, by simp, stA_eq t⟩
     · exact ⟨3368#u64, by simp, rfl⟩
@@ -401,23 +437,27 @@ theorem not_prot_ring {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → 
     omega
   · obtain ⟨hP', hz'⟩ := hO.sc c' hc'
     obtain ⟨-, h128', -⟩ := sc_lo hP' hz'
-    have hcv : b.val = c'.val + 24 ∨ b.val = c'.val + 16 ∨ b.val = c'.val + 32 ∨ b.val = c'.val + 40 := by
-      rcases e with rfl | rfl | rfl | rfl
+    have hcv : b.val = c'.val + 24 ∨ b.val = c'.val + 16 ∨ b.val = c'.val + 32 ∨ b.val = c'.val + 40 ∨
+        b.val = c'.val + 56 := by
+      rcases e with rfl | rfl | rfl | rfl | rfl
       · exact Or.inl (scTcbA_val hP' hz')
       · exact Or.inr (Or.inl (scCoreA_val hP' hz'))
       · exact Or.inr (Or.inr (Or.inl (scReplyA_val hP' hz')))
-      · exact Or.inr (Or.inr (Or.inr (scNtfnA_val hP' hz')))
+      · exact Or.inr (Or.inr (Or.inr (Or.inl (scNtfnA_val hP' hz'))))
+      · exact Or.inr (Or.inr (Or.inr (Or.inr (scYieldA_val hP' hz'))))
     by_cases e' : c = c'
     · subst e'; omega
     · have := hO.scDisj c hc c' hc' e'; omega
   · have hm := hO.scW c hc b hb hin
     have hout := (h.omega _ hm).2.1 t ht
-    have hv : b.val = t.val + 3464 ∨ b.val = t.val + 3360 ∨ b.val = t.val + 3328 ∨ b.val = t.val + 3368 := by
-      rcases e with rfl | rfl | rfl | rfl
+    have hv : b.val = t.val + 3464 ∨ b.val = t.val + 3360 ∨ b.val = t.val + 3328 ∨ b.val = t.val + 3368 ∨
+        b.val = t.val + 3472 := by
+      rcases e with rfl | rfl | rfl | rfl | rfl
       · left; rw [scA_eq, field_val (h.tcbs t ht) (by simp)]; simp
       · right; left; unfold replyA; rw [field_val (h.tcbs t ht) (by simp)]; simp
       · right; right; left; rw [stA_eq, field_val (h.tcbs t ht) (by simp)]; simp
-      · right; right; right; unfold boundA; rw [field_val (h.tcbs t ht) (by simp)]; simp
+      · right; right; right; left; unfold boundA; rw [field_val (h.tcbs t ht) (by simp)]; simp
+      · right; right; right; right; unfold yieldA; rw [field_val (h.tcbs t ht) (by simp)]; simp
     omega
 
 /-- A word of an SC object is no timer-tree word. -/
@@ -451,7 +491,7 @@ theorem XInv.tn_wr {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → Lis
 /-- A node word other than the timer-tree words. -/
 theorem XInv.tn_node {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {c o v : U64}
     (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hsub : ∀ b ∈ Sg, b ∈ Ω)
-    (hc : c ∈ Cs) (ho : o.val < 4288) (h8 : o.val % 8 = 0) (hto : o.val ≠ 104 ∧ o.val ≠ 112) :
+    (hc : c ∈ Cs) (ho : o.val < 4288) (h8 : o.val % 8 = 0) (hto : o.val ≠ 88 ∧ o.val ≠ 104 ∧ o.val ≠ 112) :
     TimerOK st T Cs (L.wr s (L.nodeAt s c o) v) ∧ NtbOK st T Nt (L.wr s (L.nodeAt s c o) v) :=
   hX.tn_wr h (nodeAt_aligned (h.nodes c hc) ho h8)
     (notTmW_node h.tcbs h.nodes (fun n hn => h.omega _ (hsub _ (hX.1.ntB n hn).2)) hc ho hto)
@@ -459,7 +499,7 @@ theorem XInv.tn_node {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → L
 /-- A TCB field other than the timer fields. -/
 theorem XInv.tn_field {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {y K v : U64}
     (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hsub : ∀ b ∈ Sg, b ∈ Ω)
-    (hy : y ∈ T) (hK : K.val < 4096) (hK8 : K.val % 8 = 0) (hKt : K.val < 3528 ∨ 3576 ≤ K.val) :
+    (hy : y ∈ T) (hK : K.val < 4096) (hK8 : K.val % 8 = 0) (hKt : K.val < 3528 ∨ 3592 ≤ K.val) :
     TimerOK st T Cs (L.wr s (core.num.U64.wrapping_add y K) v) ∧
       NtbOK st T Nt (L.wr s (core.num.U64.wrapping_add y K) v) :=
   hX.tn_wr h (field_aligned (h.tcbs y hy) hK hK8)
@@ -544,7 +584,16 @@ theorem XInv.keepT {t : U64} {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) 
     ⟨fun u hu hb => ?_, by rw [k.cscW]; exact hE.cur, fun c hc => by rw [(k.fix c hc).2.1]; exact hE.core c hc,
       fun u hu => by rw [k.bndf hu]; exact hE.bnd u hu, fun n hn => by rw [k.nsc n hn]; exact hE.nsc n hn,
       hE.tm.tmfr (TmFr.of_keepT k), hE.ntb.tmfr (TmFr.of_keepT k),
-      fun c hc => by rw [k.snt c hc]; exact hE.scn c hc⟩⟩
+      fun c hc => by rw [k.snt c hc]; exact hE.scn c hc,
+      ⟨fun c hc => by rw [(k.fix c hc).1]; exact hE.yt.1 c hc,
+        fun u hu => by
+          rw [show yieldA u = core.num.U64.wrapping_add u 3472#u64 from rfl,
+            k.fld u hu _ (by simp) (by simp) (by simp) (by simp) (fun _ => by simp)]
+          exact hE.yt.2.1 u hu,
+        fun c hc h0 => by
+          rcases k.syf c hc with e | e
+          · rw [e] at h0 ⊢; exact hE.yt.2.2 c hc h0
+          · exact absurd e h0⟩⟩⟩
   · by_cases e : u = t
     · subst e; exact absurd hs hst.1
     rw [k.stf hu e] at hs

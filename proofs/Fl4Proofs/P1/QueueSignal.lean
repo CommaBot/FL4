@@ -198,6 +198,9 @@ theorem ntfn_badge_all {s : S} {n v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt 
     (fun c hc e => by
       obtain ⟨hPc, hzc⟩ := hO.sc c hc
       rw [av, scNtfnA_val hPc hzc] at e; have := hO.ntOSc n hn c hc; have := (sc_facts hO hc).1; omega)
+    (fun c hc e => by
+      rw [av, show scYieldFromA c = core.num.U64.wrapping_add c layout.sc.YIELD_FROM from rfl,
+        (sc_facts hO hc).2.2.2.2.2.2.2] at e; have := hO.ntOSc n hn c hc; have := (sc_facts hO hc).1; omega)
   refine ⟨⟨⟨Q, R, h1⟩, hB1, hX1, hS1, hSg1⟩, TmFr.wr h0.tcbs h0.nodes hO (h0.omega _ hm).1
     (notTmW_omega h0.tcbs h0.nodes (h0.omega _ hm) (fun n' hn' e => ?_))⟩
   rw [av, ntfnBtA_val (hO.ntP n' hn')] at e
@@ -455,6 +458,9 @@ theorem ntbt_all {s : S} {n v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s) (
     (fun c hc e => absurd e (by
       obtain ⟨hPc, hzc⟩ := hO.sc c hc
       rw [av, scNtfnA_val hPc hzc]; have := hO.ntOSc n hn c hc; have := (sc_facts hO hc).1; omega))
+    (fun c hc e => absurd e (by
+      rw [av, show scYieldFromA c = core.num.U64.wrapping_add c layout.sc.YIELD_FROM from rfl,
+        (sc_facts hO hc).2.2.2.2.2.2.2]; have := hO.ntOSc n hn c hc; have := (sc_facts hO hc).1; omega))
   exact ⟨⟨Q, R, h1⟩, hB1, hX1, hS1, hSg1⟩
 
 /-- A write of a null or a notification to a TCB's `BOUND_NTFN` field. -/
@@ -502,7 +508,9 @@ theorem bnd_all {s : S} {t v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z s) (h
       (fun c hc => om _ (hSg.sub _ (hX.1.repW c hc))) (fun y hy hb => ?_)
       (fun n hn => om _ (hSg.sub _ (hX.1.ntW n hn)))
       (hX.tn_field (K := 3368#u64) h0 hSg.sub ht (by simp) (by simp) (by simp))
-      (fun c hc => by rw [om _ (hSg.sub _ (hX.1.snW c hc))]; exact hX.2.2.scn c hc),
+      (fun c hc => by rw [om _ (hSg.sub _ (hX.1.snW c hc))]; exact hX.2.2.scn c hc)
+      (hX.2.2.yt.keep (fun c hc => om _ (hcΩ c hc).1) (fun y hy => fk y hy _ (by simp) (by simp) (fun _ => by simp))
+        (fun c hc => om _ (hSg.sub _ (hX.1.syW c hc)))),
     SCsOK.field (K := 3368#u64) h0 hS hX ht (by simp) (by simp) (by simp),
     ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o h1 h2⟩⟩
   · rw [ea] at haT ⊢; exact ⟨haT, hB.act haT⟩

@@ -22,9 +22,12 @@ structure TimerOKx (st : machine.Store S) [L : LawfulStore st] (T Cs : Set U64) 
   root : ∀ c ∈ Cs, Tz T (L.mem s (L.nodeAt s c layout.node.TIMER_ROOT))
   min : ∀ c ∈ Cs, Tz T (L.mem s (L.nodeAt s c layout.node.TIMER_MIN))
   core : ∀ y ∈ T, y ≠ t → L.mem s (tdA y) ≠ 0#u64 → ∀ c : U64, c.val = (L.mem s (thA y)).val >>> 8 → c ∈ Cs
+  dn : ∀ y ∈ T, Tz T (L.mem s (dnA y))
+  dp : ∀ y ∈ T, Tz T (L.mem s (dpA y))
+  dh : ∀ c ∈ Cs, Tz T (L.mem s (L.nodeAt s c layout.node.DEBUG_TCBS))
 
 theorem TimerOK.x {s : S} (h : TimerOK st T Cs s) (t : U64) : TimerOKx st T Cs t s :=
-  ⟨h.lt, h.rt, h.pt, h.root, h.min, fun y hy _ => h.core y hy⟩
+  ⟨h.lt, h.rt, h.pt, h.root, h.min, fun y hy _ => h.core y hy, h.dn, h.dp, h.dh⟩
 
 /-- A write of a timer field of `t` other than its height. -/
 theorem TimerOKx.wr {s : S} {t K v : U64} (h : TimerOKx st T Cs t s) (hT : TcbPlaced T)
@@ -61,7 +64,16 @@ theorem TimerOKx.wr {s : S} {t K v : U64} (h : TimerOKx st T Cs t s) (hT : TcbPl
     rw [nodeAt_of_ksb (L.ksb_wr _ _ _)]
     exact L.mem_wr_ne ha (nodeAt_aligned (hN c hc) ho h8) (Ne.symm (node_ne_tz hT (hN c hc) ho htz (by omega)))
   refine ⟨fun y hy => lk y _ hy (by simp) (h.lt y hy), fun y hy => lk y _ hy (by simp) (h.rt y hy),
-    fun y hy => lk y _ hy (by simp) (h.pt y hy), fun c hc => ?_, fun c hc => ?_, fun y hy hyt hd c hcv => ?_⟩
+    fun y hy => lk y _ hy (by simp) (h.pt y hy), fun c hc => ?_, fun c hc => ?_, fun y hy hyt hd c hcv => ?_,
+    fun y hy => by
+      rw [show dnA y = core.num.U64.wrapping_add y 3576#u64 from rfl,
+        kf y (Tz.of_mem hy) _ (by simp) (by simp) (fun _ => by simp; omega)]
+      exact h.dn y hy,
+    fun y hy => by
+      rw [show dpA y = core.num.U64.wrapping_add y 3584#u64 from rfl,
+        kf y (Tz.of_mem hy) _ (by simp) (by simp) (fun _ => by simp; omega)]
+      exact h.dp y hy,
+    fun c hc => by rw [kn c hc _ (by rw [debug_val]; omega) (by rw [debug_val])]; exact h.dh c hc⟩
   · rw [kn c hc _ (by rw [timer_root_val]; omega) (by rw [timer_root_val])]; exact h.root c hc
   · rw [kn c hc _ (by rw [timer_min_val]; omega) (by rw [timer_min_val])]; exact h.min c hc
   · rw [show tdA y = core.num.U64.wrapping_add y 3528#u64 from rfl,
@@ -85,7 +97,16 @@ theorem TimerOKx.wr_ht {s : S} {t v : U64} (h : TimerOKx st T Cs t s) (hT : TcbP
     rw [nodeAt_of_ksb (L.ksb_wr _ _ _)]
     exact L.mem_wr_ne ha (nodeAt_aligned (hN c hc) ho h8) (Ne.symm (node_ne_tz hT (hN c hc) ho htz (by simp)))
   refine ⟨fun c hc => (hN c hc).ksb (L.ksb_wr _ _ _), fun y hy => ?_, fun y hy => ?_, fun y hy => ?_,
-    fun c hc => ?_, fun c hc => ?_, fun y hy hd c hcv => ?_⟩
+    fun c hc => ?_, fun c hc => ?_, fun y hy hd c hcv => ?_,
+    fun y hy => by
+      rw [show dnA y = core.num.U64.wrapping_add y 3576#u64 from rfl,
+        kp y (Tz.of_mem hy) _ (by simp) (by simp) (by simp)]
+      exact h.dn y hy,
+    fun y hy => by
+      rw [show dpA y = core.num.U64.wrapping_add y 3584#u64 from rfl,
+        kp y (Tz.of_mem hy) _ (by simp) (by simp) (by simp)]
+      exact h.dp y hy,
+    fun c hc => by rw [kn c hc _ (by rw [debug_val]; omega) (by rw [debug_val])]; exact h.dh c hc⟩
   · rw [show tlA y = core.num.U64.wrapping_add y 3544#u64 from rfl, kp y (Tz.of_mem hy) _ (by simp) (by simp) (by simp)]
     exact h.lt y hy
   · rw [show trA y = core.num.U64.wrapping_add y 3552#u64 from rfl, kp y (Tz.of_mem hy) _ (by simp) (by simp) (by simp)]

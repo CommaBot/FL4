@@ -89,15 +89,17 @@ structure Fr (st : machine.Store S) [L : LawfulStore st] (T Sg : Set U64) (s s' 
   /-- The bound-notification fields of the TCBs. -/
   bnd : ∀ t ∈ T, L.mem s' (core.num.U64.wrapping_add t 3368#u64) = L.mem s (core.num.U64.wrapping_add t 3368#u64)
   /-- The timer fields of the TCBs. -/
-  tmr : ∀ t ∈ T, ∀ K : U64, 3528 ≤ K.val → K.val < 3576 → K.val % 8 = 0 →
+  tmr : ∀ t ∈ T, ∀ K : U64, 3528 ≤ K.val → K.val < 3592 → K.val % 8 = 0 →
     L.mem s' (core.num.U64.wrapping_add t K) = L.mem s (core.num.U64.wrapping_add t K)
   /-- The timer-tree words of the placed nodes. -/
-  tnd : ∀ c : U64, @NodePlaced _ _ L T s c → ∀ o : U64, (o.val = 104 ∨ o.val = 112) →
+  tnd : ∀ c : U64, @NodePlaced _ _ L T s c → ∀ o : U64, (o.val = 88 ∨ o.val = 104 ∨ o.val = 112) →
     L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)
+  /-- The `YIELD_TO` fields of the TCBs. -/
+  yld : ∀ t ∈ T, L.mem s' (core.num.U64.wrapping_add t 3472#u64) = L.mem s (core.num.U64.wrapping_add t 3472#u64)
 
 theorem Fr.refl (Sg : Set U64) (s : S) : Fr st T Sg s s :=
   ⟨rfl, rfl, fun _ _ => rfl, fun _ _ => rfl, rfl, fun _ _ => rfl, fun _ _ => rfl, fun _ _ => rfl,
-    fun _ _ _ _ _ _ => rfl, fun _ _ _ _ => rfl⟩
+    fun _ _ _ _ _ _ => rfl, fun _ _ _ _ => rfl, fun _ _ => rfl⟩
 
 theorem Fr.trans {Sg : Set U64} {s₁ s₂ s₃ : S} (h₁ : Fr st T Sg s₁ s₂) (h₂ : Fr st T Sg s₂ s₃) : Fr st T Sg s₁ s₃ :=
   ⟨h₂.ksb.trans h₁.ksb, h₂.cpu.trans h₁.cpu, fun b hb => (h₂.sig b hb).trans (h₁.sig b hb),
@@ -107,7 +109,8 @@ theorem Fr.trans {Sg : Set U64} {s₁ s₂ s₃ : S} (h₁ : Fr st T Sg s₁ s�
    fun t ht K a b c => (h₂.tmr t ht K a b c).trans (h₁.tmr t ht K a b c),
    fun c hc o ho => by
      rw [← nodeAt_of_ksb h₁.ksb]
-     exact (h₂.tnd c (hc.ksb h₁.ksb) o ho).trans (by rw [nodeAt_of_ksb h₁.ksb]; exact h₁.tnd c hc o ho)⟩
+     exact (h₂.tnd c (hc.ksb h₁.ksb) o ho).trans (by rw [nodeAt_of_ksb h₁.ksb]; exact h₁.tnd c hc o ho),
+   fun t ht => (h₂.yld t ht).trans (h₁.yld t ht)⟩
 
 theorem SgOK.fr {Sg : Set U64} {s s' : S} (h : SgOK st Ω Sg s) (f : Fr st T Sg s s') : SgOK st Ω Sg s' :=
   ⟨h.sub, fun b hb => by rw [f.ksb]; exact h.ks b hb, fun o h1 h2 => by rw [f.ksb]; exact h.ksΩ o h1 h2⟩
@@ -160,12 +163,13 @@ theorem fr_wr (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg s) 
     (ha : Aligned a) (hsg : ∀ b ∈ Sg, a.val ≠ b.val)
     (hf : ∀ t ∈ T, ∀ K : U64, K.val < 4096 → a.val ≠ (core.num.U64.wrapping_add t K).val)
     (hcs : a.val ≠ (L.nodeA s layout.node.CUR_SC).val)
-    (htn : ∀ c : U64, NodePlaced st T s c → ∀ o : U64, (o.val = 104 ∨ o.val = 112) → a.val ≠ (L.nodeAt s c o).val) :
+    (htn : ∀ c : U64, NodePlaced st T s c → ∀ o : U64, (o.val = 88 ∨ o.val = 104 ∨ o.val = 112) → a.val ≠ (L.nodeAt s c o).val) :
     Fr st T Sg s (L.wr s a v) := by
   refine ⟨L.ksb_wr _ _ _, L.cpu_wr _ _ _, fun b hb => ?_, fun t ht => ?_, ?_, fun t ht => ?_, fun t ht => ?_,
     fun t ht => L.mem_wr_ne ha (field_aligned (h.tcbs t ht) (by simp) (by simp)) (hf t ht _ (by simp)),
     fun t ht K h1 h2 h3 => L.mem_wr_ne ha (field_aligned (h.tcbs t ht) (by omega) h3) (hf t ht _ (by omega)),
-    fun c hc o ho => L.mem_wr_ne ha (nodeAt_aligned hc (by omega) (by omega)) (htn c hc o ho)⟩
+    fun c hc o ho => L.mem_wr_ne ha (nodeAt_aligned hc (by omega) (by omega)) (htn c hc o ho),
+    fun t ht => L.mem_wr_ne ha (field_aligned (h.tcbs t ht) (by simp) (by simp)) (hf t ht _ (by simp))⟩
   · exact L.mem_wr_ne ha (h.omega _ (hS.sub b hb)).1 (hsg b hb)
   · rw [scA_eq]; exact L.mem_wr_ne ha (field_aligned (h.tcbs t ht) (by simp) (by simp)) (hf t ht _ (by simp))
   rotate_left
@@ -178,7 +182,7 @@ theorem fr_wr (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg s) 
 
 theorem fr_node (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg s) {c o v : U64}
     (hc : c ∈ Cs) (ho : o.val < 4288) (h8 : o.val % 8 = 0) (h24 : c = L.cpu s → o.val ≠ 24)
-    (hto : o.val ≠ 104 ∧ o.val ≠ 112) :
+    (hto : o.val ≠ 88 ∧ o.val ≠ 104 ∧ o.val ≠ 112) :
     Fr st T Sg s (L.wr s (L.nodeAt s c o) v) := by
   have hN := h.nodes c hc
   refine fr_wr h hS (nodeAt_aligned hN ho h8) (fun b hb => out_ne_node (h.omega _ (hS.sub b hb)) hc hN ho)
@@ -218,7 +222,7 @@ theorem fr_ks (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg s) 
 reads apart from the operated thread's `IN_QUEUES`. -/
 theorem qfoot_keep (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg s) {s' : S} {W : List U64}
     {c t : U64} {P : Nat → Prop} (hW : ∀ w ∈ W, w ∈ T) (hc : c ∈ Cs) (ht : t ∈ T)
-    (hP : ∀ o, P o → o ≠ 0 ∧ o ≠ 8 ∧ o ≠ 16 ∧ o ≠ 24 ∧ o ≠ 104 ∧ o ≠ 112) (hw : WritesIn st s s' (L.QFoot s W c P t)) :
+    (hP : ∀ o, P o → o ≠ 0 ∧ o ≠ 8 ∧ o ≠ 16 ∧ o ≠ 24 ∧ o ≠ 88 ∧ o ≠ 104 ∧ o ≠ 112) (hw : WritesIn st s s' (L.QFoot s W c P t)) :
     Fr st T Sg s s' ∧ (∀ y ∈ T, y ≠ t → L.mem s' (inqA y) = L.mem s (inqA y)) ∧
       L.actionW s' = L.actionW s ∧ L.curW s' = L.curW s ∧ L.idleW s' = L.idleW s := by
   have hT := h.tcbs
@@ -237,9 +241,10 @@ theorem qfoot_keep (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω S
     fun y hy K h1 h2 h3 => field_qfoot hT hW hN hN' ht hw hy (by omega) h3 (by omega) (fun _ => by omega),
     fun c' hc' o ho => by
       have hP' : c' = c → ¬ P o.val := fun _ hpo => by
-        obtain ⟨-, -, -, -, h1, h2⟩ := hP _ hpo; omega
+        obtain ⟨-, -, -, -, h0, h1, h2⟩ := hP _ hpo; omega
       have e := node_qfoot hT hW hN hN' ht hw hc' (o := o) (by omega) (by omega) hP' (fun _ => by omega)
-      rwa [nodeAt_of_ksb hw.1] at e⟩,
+      rwa [nodeAt_of_ksb hw.1] at e,
+    fun y hy => field_qfoot hT hW hN hN' ht hw hy (by simp) (by simp) (by simp) (fun _ => by simp)⟩,
     fun y hy hyt => inq_qfoot hT hW hN hN' ht hw hy hyt, ?_, ?_, ?_⟩
   · unfold LawfulStore.cscW LawfulStore.nodeA
     exact nd _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
@@ -410,8 +415,8 @@ end bound
 section steps
 variable {Cs Sg : Set U64} {Z : U64 → Nat}
 
-theorem p128 : ∀ o : Nat, 128 ≤ o → o ≠ 0 ∧ o ≠ 8 ∧ o ≠ 16 ∧ o ≠ 24 ∧ o ≠ 104 ∧ o ≠ 112 := fun o h => by omega
-theorem prel : ∀ o : Nat, RelOffs o → o ≠ 0 ∧ o ≠ 8 ∧ o ≠ 16 ∧ o ≠ 24 ∧ o ≠ 104 ∧ o ≠ 112 := fun o h => by
+theorem p128 : ∀ o : Nat, 128 ≤ o → o ≠ 0 ∧ o ≠ 8 ∧ o ≠ 16 ∧ o ≠ 24 ∧ o ≠ 88 ∧ o ≠ 104 ∧ o ≠ 112 := fun o h => by omega
+theorem prel : ∀ o : Nat, RelOffs o → o ≠ 0 ∧ o ≠ 8 ∧ o ≠ 16 ∧ o ≠ 24 ∧ o ≠ 88 ∧ o ≠ 104 ∧ o ≠ 112 := fun o h => by
   unfold RelOffs at h; omega
 
 theorem rd_cur_node {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
