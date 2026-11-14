@@ -91,6 +91,7 @@ import Fl4Proofs.P3.VsArch
 import Fl4Proofs.P3.VsSubRel
 import Fl4Proofs.P3.VsSubTop
 import Fl4Proofs.P3.VsDecTop
+import Fl4Proofs.P3.VsDecFrame
 import Fl4Proofs.P3.CancelKSub
 import Fl4Proofs.P3.ResetFin
 import Fl4Proofs.P3.RetypeFresh
@@ -102,3 +103,5 @@ import Fl4Proofs.P3.DecodeTop
 import Fl4Proofs.P3.DomDecode
 import Fl4Proofs.P3.DecodeTopD
 import Fl4Proofs.P3.HandleTop
+import Fl4Proofs.P3.FinFrame
+import Fl4Proofs.P3.CapAlign

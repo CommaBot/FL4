@@ -12,8 +12,7 @@ P3 (DESIGN.md §9), VSpace: **`DeriveSubframe` refines the l4h 0029 model**
   `subframeNode` and the CNode checks of the decode.
 * `derive_subframe_rel`: the decode and the invocation, for the node cap
   present as the first extra cap. Hypotheses beyond the relations: the large
-  frame is 2 MiB-aligned (`hal`, l4v `cap_aligned`; its canonicity is the
-  cap encoding's), the current thread runnable (`hrun`), and every
+  current thread runnable (`hrun`), and every
   linked cap is disjoint from it, a non-revocable frame, or inside it
   (`hno`, the range fact `MdbInv` needs for the aliases).
 -/
@@ -270,7 +269,8 @@ theorem sub_step {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {SR : S �
     (hal : ptr.val % 2 ^ 21 = 0)
     {dp : U64} {r : Nat} (hdp : th dp = some (.cnode r)) (hr : r < 64) {k : Nat} (hk : k < 2 ^ r)
     (hdst : capAt (L.mem s) (slotAddr dp.bv (BitVec.ofNat 64 k)) = ok .Null)
-    {q vm : U64} (hq1 : ptr.val ≤ q.val) (hq2 : q.val + 4096 ≤ ptr.val + 2 ^ 21) (hvm : 1 ≤ vm.val ∧ vm.val ≤ 3) :
+    {q vm : U64} (hq1 : ptr.val ≤ q.val) (hq2 : q.val + 4096 ≤ ptr.val + 2 ^ 21) (hvm : 1 ≤ vm.val ∧ vm.val ≤ 3)
+    (hqal : q.val % 4096 = 0) :
     cdt.insert st s (.Frame q .Small vm false false 0#u64 0#u64) (cslotAddr (pp.bv, idx))
       (slotAddr dp.bv (BitVec.ofNat 64 k)) ⦃ s' => ∃ σ',
         Fl4Spec.capInsert (Z := Unit) (absCap (.Frame q .Small vm false false 0#u64 0#u64)) (pp.bv, idx)
@@ -328,7 +328,7 @@ theorem sub_step {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {SR : S �
     (WP.spec_and (insert_frame2 (L := L) hPl s c src dest hs hd srcC hcap hnx')
       (by
         have h := insert_refines' (L := L) th s σ G hR hV hPl hM hC hpp hdp hidx hlen hcap (by simp)
-          (by rw [hdest']; exact hdst) c A ⟨hwf, rfl⟩ trivial he (by simp) trivial
+          (by rw [hdest']; exact hdst) c A ⟨hwf, rfl⟩ (by rw [hcdef]; show q.val % 2 ^ 12 = 0; simpa using hqal) he (by simp) trivial
         rw [hdest'] at h; exact h))) ?_
   rintro s' ⟨hW, hF, hins⟩
   have hnd : ∀ y, ¬ Mdb.Desc G.par y src → True := fun _ _ => trivial
@@ -465,7 +465,7 @@ theorem insert_subframes_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U6
     (hal : ptr.val % 2 ^ 21 = 0)
     {dp : U64} {r : Nat} (hdp : th dp = some (.cnode r)) (hr : r < 64) {first count base vm : U64}
     (hfc : first.val + count.val ≤ 2 ^ r) (hb1 : ptr.val ≤ base.val) (hb2 : base.val + count.val * 4096 ≤ ptr.val + 2 ^ 21)
-    (hvm : 1 ≤ vm.val ∧ vm.val ≤ 3)
+    (hvm : 1 ≤ vm.val ∧ vm.val ≤ 3) (hbal : base.val % 4096 = 0)
     (hempty : ∀ j : Nat, first.val ≤ j → j < first.val + count.val →
       capAt (L.mem s) (slotAddr dp.bv (BitVec.ofNat 64 j)) = ok .Null) :
     vspace.insert_subframes st s (cslotAddr (pp.bv, idx)) dp first base count vm ⦃ s' => ∃ σ' G',
@@ -513,7 +513,7 @@ theorem insert_subframes_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U6
         (by rw [hksi]; exact hVO) hPO hSi hal hdp hr hk2 (hemp _ (by omega) (by omega))
         (q := core.num.U64.wrapping_add base i1) (by rw [hqv]; omega) (by
           rw [hqv]; have := Nat.mul_le_mul_right 4096 (show i.val + 1 ≤ count.val by omega)
-          rw [Nat.add_mul] at this; omega) hvm) ?_
+          rw [Nat.add_mul] at this; omega) hvm (by rw [hqv]; omega)) ?_
       rintro s2 ⟨σ2, hci, hS2, hks2, hoth⟩
       step as ⟨i4, hi4⟩
       have hi4v : i4.val = i.val + 1 := by simpa using hi4
@@ -825,7 +825,6 @@ theorem derive_subframe_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P
     (hS : SR s a σ) (hVP : VsPlaced P (L.ksb s))
     (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b) (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b)
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Frame ptr sz rt dev mm fa fv))
-    (hal : sz = .Large → dev = false → ptr.val % 2 ^ 21 = 0)
     (hno : sz = .Large → dev = false → ∀ x ∈ G.chains.flatten,
       Disj (capV (L.mem s) x) (.Frame ptr sz rt dev mm fa fv) ∨
       (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
@@ -873,10 +872,14 @@ theorem derive_subframe_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P
     exact (WP.spec_ok _).2 (Or.inl ⟨_, .illegalOperation, rfl, trivial,
       hill (fun p r mt mp h => by simp [frameSizeOf] at h), rfl, rfl⟩)
   simp only [vspace.large_ram_frame, Bool.false_eq_true, ↓reduceIte, bind_ok]
-  have hal' := hal rfl rfl
+  have hal' : ptr.val % 2 ^ 21 = 0 := by
+    have h := hSV.cnode pp rs hpp (blVal 0 idx) (hidx ▸ blVal_lt idx) _
+      (by rw [show slotAddr pp.bv (BitVec.ofNat 64 (blVal 0 idx)) = cslotAddr (pp.bv, idx) from
+        (slotAddr_ofBl pp idx).symm]; exact hcap)
+    exact h
   have hfit : ptr.val + 2 ^ 21 ≤ 2 ^ 64 := by have : ptr.val < 2 ^ 64 := ptr.hBounds; omega
   have hno' := hno rfl rfl
-  clear hill hal hno
+  clear hill hno
   obtain ⟨a0, a1, a2, a3, a4, a5, rs', rfl⟩ :
       ∃ a0 a1 a2 a3 a4 a5 r, args = a0 :: a1 :: a2 :: a3 :: a4 :: a5 :: r := by
     have : 6 ≤ args.length := by rw [← hlen]; scalar_tac
@@ -1001,7 +1004,7 @@ theorem derive_subframe_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P
         _ ≤ 2 ^ 21 - a3.val := Nat.div_mul_le_self _ _
     refine WP.spec_bind (insert_subframes_rel (L := L) hH hPl hPP hpp hidx s1 a σ1 G (by rw [hksb1]; exact hVP)
       (by rw [hksb1]; exact hVO) hPO hSub1 hal' hdp hr64 hfc (by rw [hbv]; omega) (by rw [hbv]; omega)
-      ⟨hm1, hm3⟩ (fun j h1 h2 => by
+      ⟨hm1, hm3⟩ (by rw [hbv]; omega) (fun j h1 h2 => by
         rw [hSS.capAt ⟨dest, j, Or.inl ⟨rr, hdp, by omega⟩, rfl⟩]; exact hemp j h1 h2)) ?_
     rintro s2 ⟨σ', G', hmap, hSR2, hks2⟩
     have hbase : (core.num.U64.wrapping_add ptr a3).bv = ptr.bv + a3.bv := core.num.U64.wrapping_add_bv_eq _ _

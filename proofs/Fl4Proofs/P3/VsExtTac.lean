@@ -441,7 +441,7 @@ theorem tac_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
         refine ⟨hS1, StateRel.of_caps hSt hcap, Vs.SlotsValid.of_caps hSV hcap, ?_, hPt1⟩
         rw [hW.1]
         exact hR.frame (fun b hb => hW.2.2 b (hb.aligned hVP) (fun h => hPV b (hWA b h) hb)) rfl (fun _ _ => rfl)
-      have hst1 := setThreadState_eq (σ := σ) .restart hkt'
+      have hst1 := Notif.setThreadState_eq (σ := σ) .restart hkt'
       have hfin : ∀ v : U64, v = 1#u64 ∨ v = 0#u64 → vspace.reply1 st s1 ct call v ⦃ s2 =>
           TacSpec D σ call (UR st th P L4 L3 L2 L1 SR s2 a) ⦄ := by
         intro v hv
@@ -535,7 +535,7 @@ theorem tac_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
         refine ⟨hS1, StateRel.of_caps hSt hcap, Vs.SlotsValid.of_caps hSV hcap, ?_, hPt1⟩
         rw [hW.1]
         exact hR.frame (fun b hb => hW.2.2 b (hb.aligned hVP) (fun h => hPV b (hWA b h) hb)) rfl (fun _ _ => rfl)
-      have hst1 := setThreadState_eq (σ := σ) .restart hkt'
+      have hst1 := Notif.setThreadState_eq (σ := σ) .restart hkt'
       have hfin : ∀ v : U64, v = 1#u64 ∨ v = 0#u64 → vspace.reply1 st s1 ct call v ⦃ s2 =>
           TacSpec D σ call (UR st th P L4 L3 L2 L1 SR s2 a) ⦄ := by
         intro v hv

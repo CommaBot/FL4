@@ -119,7 +119,7 @@ theorem frame_getaddr_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L
   rintro s2 ⟨hnf, σ', hm, hU2⟩
   refine (WP.spec_ok _).2 ⟨rfl, rfl, hdec, stsAct (updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv, σ',
     ?_, ?_, ?_, hU2⟩
-  · rw [← hcur, nd_bind_one (setThreadState_eq .restart hkt')]; rfl
+  · rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt')]; rfl
   · rw [← hcur, ← paddr_bv]; exact hnf
   · rw [← hcur, ← paddr_bv]; exact hm
 
@@ -159,8 +159,8 @@ theorem pml4_flush_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L
     obtain ⟨ms, rfl⟩ := doMachineOp_mem hσ'
     refine (WP.spec_ok _).2 (Or.inr ⟨rfl, _, _, rfl, ?_, ?_, hS', Vs.StateRel.ms hSt1 ms, hSV1,
       ⟨hR1.1, hR1.2, hR1.3⟩, ⟨hPt1.l4, hPt1.l3, hPt1.l2, hPt1.l1⟩⟩)
-    · rw [← hcur, nd_bind_one (setThreadState_eq .restart hkt')]; exact hσ''
-    · rw [← hcur, nd_bind_one (setThreadState_eq .restart hkt')]; exact hH.flushAllOK _ _ _
+    · rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt')]; exact hσ''
+    · rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt')]; exact hH.flushAllOK _ _ _
 
 end
 

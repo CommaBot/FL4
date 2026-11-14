@@ -78,8 +78,8 @@ theorem FinM.view {mem mem' : U64 → U64} {G G' : MdbGhost} (hF : FinM mem G)
     unfold Ovl at h ⊢; rwa [(hcap z hz hfz).refs, (hcap w hw hfw).refs] at h
   have hmemf : ∀ ch ∈ G'.chains, ∀ z ∈ ch, z ∈ G'.chains.flatten := fun ch hch z hz =>
     List.mem_flatten.2 ⟨ch, hch, hz⟩
-  refine ⟨fun ch1 hch1 ch2 hch2 x hx y hy hov => ?_, fun x hx y hy hxy hov hzx hzy => ?_,
-    fun x hx y hy hxy hfr hsr => ?_, fun x hx y hy hxy hzx hov => ?_⟩
+  refine ⟨fun ch1 hch1 ch2 hch2 x hx y hy hov => ?_, fun x hx y hy hxy hov hzx hzy hff => ?_,
+    fun x hx y hy hxy hfr hfy' hsr => ?_, fun x hx y hy hxy hzx hov => ?_⟩
   · -- conn
     by_cases hxy : x = y
     · subst hxy; exact chain_unique hnd hch1 hch2 hx hy
@@ -101,6 +101,7 @@ theorem FinM.view {mem mem' : U64 → U64} {G G' : MdbGhost} (hF : FinM mem G)
     · rw [e]
     · exact hF.key _ (hold x hx hfx) _ (hold y hy hfy) e (hovl x hx y hy hfx hfy hov)
         (by rw [← (hcap x hx hfx).zb]; exact hzx) (by rw [← (hcap y hy hfy).zb]; exact hzy)
+        (by rw [← (hcap x hx hfx).fr, ← (hcap y hy hfy).fr]; exact hff)
   · -- fnest
     by_cases hfx : fresh x
     · have := (hfresh x hx hfx y hy (Ne.symm hxy)).2.1 hfr
@@ -111,7 +112,8 @@ theorem FinM.view {mem mem' : U64 → U64} {G G' : MdbGhost} (hF : FinM mem G)
     rw [(hcap x hx hfx).key, (hcap y hy hfy).key]
     by_cases e : f x = f y
     · rw [e]
-    · refine hF.fnest _ (hold x hx hfx) _ (hold y hy hfy) e (by rw [← (hcap x hx hfx).fr]; exact hfr) ?_
+    · refine hF.fnest _ (hold x hx hfx) _ (hold y hy hfy) e (by rw [← (hcap x hx hfx).fr]; exact hfr)
+        (by rw [← (hcap y hy hfy).fr]; exact hfy') ?_
       unfold srM at hsr ⊢
       rw [(hcap x hx hfx).srl, (hcap y hy hfy).srr] at hsr; exact hsr
   · -- zfin

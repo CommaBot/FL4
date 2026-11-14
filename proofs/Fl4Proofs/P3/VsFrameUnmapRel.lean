@@ -17,6 +17,7 @@ Hypotheses (`VsFrameUnmapHyps`): `restart` (keeping `PoolsIn`), `capStable`,
 `SR` stable under PT/PD/PDPT entry writes, and the flush.
 -/
 import Fl4Proofs.P3.VsFrameUnmap
+import Fl4Proofs.P3.VsFoot
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Vs
@@ -27,9 +28,22 @@ noncomputable section
 section Hyps
 variable {S : Type} (st : machine.Store S) [L : LawfulStore st]
 
+/-- The hypotheses of `unmap_page`: `SR` stable under the entry writes, and
+the flush. -/
+structure VsUnmapPageHyps (A : Type) (ar : machine.Arch A) (L3 L2 L1 : Set U64)
+    (SR : S → A → Fl4Spec.State Unit → Prop) : Prop where
+  ptStable : ∀ s s' a σ σ', SR s a σ → WritesIn st s s' (PtW L1) → PtStep σ σ' → SR s' a σ'
+  pdStable : ∀ s s' a σ σ', SR s a σ → WritesIn st s s' (PdW L2) → PdStep σ σ' → SR s' a σ'
+  pdptStable : ∀ s s' a σ σ', SR s a σ → WritesIn st s s' (PdptW L3) → PdptStep σ σ' → SR s' a σ'
+  flushPgOK : ∀ (σ : Fl4Spec.State Unit) (v asid : Fl4Spec.Data),
+    ¬ (Fl4Spec.doMachineOp (Z := Unit) (Fl4Spec.invalidateTranslationSingleASID v asid) σ).2
+  flushPg : ∀ s a σ (asid vaddr : U64), SR s a σ → ar.invalidate_page a asid vaddr ⦃ a' =>
+    ∃ σ', ((), σ') ∈ (Fl4Spec.doMachineOp (Z := Unit)
+      (Fl4Spec.invalidateTranslationSingleASID vaddr.bv (Fl4Spec.ucast 64 asid.bv)) σ).1 ∧ SR s a' σ' ⦄
+
 /-- The hypotheses of the frame unmap. -/
 structure VsFrameUnmapHyps (A : Type) (ar : machine.Arch A) (th : TypedHeap) (P L4 L3 L2 L1 : Set U64)
-    (SR : S → A → Fl4Spec.State Unit → Prop) : Prop where
+    (SR : S → A → Fl4Spec.State Unit → Prop) : Prop extends VsUnmapPageHyps st A ar L3 L2 L1 SR where
   restart : ∀ s a σ (ct : U64) (x : Fl4Spec.Tcb), StateRel th (L.mem s) σ → SlotsValid th (L.mem s) →
     VsRel P (L.mem s) (L.ksb s) σ → PtRel L4 L3 L2 L1 (L.mem s) σ → SR s a σ → ct.bv = σ.curThread →
     σ.kheap ct.bv = some (.tcb x) →
@@ -41,14 +55,6 @@ structure VsFrameUnmapHyps (A : Type) (ar : machine.Arch A) (th : TypedHeap) (P 
       SR s' a (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧ L.ksb s' = L.ksb s ∧
       PoolsIn P L4 (L.mem s') ⦄
   capStable : ∀ s s' a σ σ', SR s a σ → WritesIn st s s' (SlotW th) → CapStep σ σ' → SR s' a σ'
-  ptStable : ∀ s s' a σ σ', SR s a σ → WritesIn st s s' (PtW L1) → PtStep σ σ' → SR s' a σ'
-  pdStable : ∀ s s' a σ σ', SR s a σ → WritesIn st s s' (PdW L2) → PdStep σ σ' → SR s' a σ'
-  pdptStable : ∀ s s' a σ σ', SR s a σ → WritesIn st s s' (PdptW L3) → PdptStep σ σ' → SR s' a σ'
-  flushPgOK : ∀ (σ : Fl4Spec.State Unit) (v asid : Fl4Spec.Data),
-    ¬ (Fl4Spec.doMachineOp (Z := Unit) (Fl4Spec.invalidateTranslationSingleASID v asid) σ).2
-  flushPg : ∀ s a σ (asid vaddr : U64), SR s a σ → ar.invalidate_page a asid vaddr ⦃ a' =>
-    ∃ σ', ((), σ') ∈ (Fl4Spec.doMachineOp (Z := Unit)
-      (Fl4Spec.invalidateTranslationSingleASID vaddr.bv (Fl4Spec.ucast 64 asid.bv)) σ).1 ∧ SR s a' σ' ⦄
 
 end Hyps
 
@@ -58,7 +64,7 @@ variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 set_option maxRecDepth 8000 in
 /-- **`unmap_page`** refines l4v `unmap_page` (see the module docstring). -/
 theorem unmap_page_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
-    {SR : S → A → Fl4Spec.State Unit → Prop} (hH : VsFrameUnmapHyps st A ar th P L4 L3 L2 L1 SR)
+    {SR : S → A → Fl4Spec.State Unit → Prop} (hH : VsUnmapPageHyps st A ar L3 L2 L1 SR)
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hPl : Placed th) (hPP : PtPlaced L4 L3 L2 L1)
     (hPS : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ SlotW th b) (hVP : VsPlaced P (L.ksb s))
     (hPV : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b) (hPI : PoolsIn P L4 (L.mem s))
@@ -445,11 +451,12 @@ theorem frame_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hPl : Placed th) (hVP : VsPlaced P (L.ksb s))
     (hD : VsSlotsDisj th P (L.ksb s)) (hPP : PtPlaced L4 L3 L2 L1)
     (hPS : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ SlotW th b) (hPV : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b)
-    (hPI : PoolsIn P L4 (L.mem s))
+    (hPI : PoolsIn P L4 (L.mem s)) (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b)
     (hSt : StateRel th (L.mem s) σ) (hSV : SlotsValid th (L.mem s)) (hR : VsRel P (L.mem s) (L.ksb s) σ)
     (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ) (hS : SR s a σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : ct.bv = σ.curThread)
     {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct))
+    (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (f : vspace.FrameCap) (hfw : CapWf (frameCapOf f)) (hfe : EncWf (frameCapOf f))
     (hfm : f.mapped = true → f.asid ≠ 0#u64)
     {pc : U64} {r : Nat} (hpc : th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
@@ -461,7 +468,9 @@ theorem frame_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 
       ⦃ res => res.1 = .Ok () ∧ ∃ iv σ',
         ExceptT.run (Fl4Spec.archDecodeInvocation (Z := Unit) slbl args xs (pc.bv, idx) (frameACapG f) vcs) σ =
           ({(.ok iv, σ)}, False) ∧
-        MapSpec σ iv σ' ∧ UR st th P L4 L3 L2 L1 SR res.2.1 res.2.2 σ' ⦄ := by
+        MapSpec σ iv σ' ∧ UR st th P L4 L3 L2 L1 SR res.2.1 res.2.2 σ' ∧
+        SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
+        MdbLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (frameCapOf f) ∧ KFoot σ σ' ⦄ := by
   obtain ⟨ptr, sz, rt, dev, mp, fa, fv⟩ := f
   rw [show Fl4Spec.archDecodeInvocation (Z := Unit) slbl args xs (pc.bv, idx)
       (frameACapG ⟨ptr, sz, rt, dev, mp, fa, fv⟩) vcs =
@@ -473,6 +482,8 @@ theorem frame_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 
   have hne : ¬ fl4_abi.label.X86PageUnmap = fl4_abi.label.X86PageMap := by
     unfold fl4_abi.label.X86PageUnmap fl4_abi.label.X86PageMap; decide
   simp only [frameCapOf, vspace.as_frame, bind_ok, hne, ↓reduceIte]
+  have hfcv : CapValid th (frameCapOf ⟨ptr, sz, rt, dev, mp, fa, fv⟩) :=
+    hSV.cnode pc r hpc (blVal 0 idx) (hidx ▸ blVal_lt idx) _ (by rw [show slotAddr pc.bv (BitVec.ofNat 64 (blVal 0 idx)) = cslotAddr (pc.bv, idx) from (slotAddr_ofBl pc idx).symm]; exact hcx)
   obtain ⟨cs, hkc, hwf, hsl⟩ := hSt.cnode pc r hpc
   have hcs : cs idx = some (.archObjectCap (.pageCap dev ptr.bv (vmRightsOf rt) (if mp then .vmVSpaceMap else .vmNoMap)
       (frameSizeOf sz) (if mp then some (fa.bv, fv.bv) else none))) := by
@@ -485,8 +496,9 @@ theorem frame_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 
   rw [hct]
   apply ok_bind_spec
   have hkt' : σ.kheap ct.bv = some (.tcb xct) := by rw [hcur]; exact hkt
-  refine WP.spec_bind (hH.restart s a σ ct xct hSt hSV hR hPt hS hcur hkt') ?_
-  rintro s1 ⟨hSt1, hSV1, hR1, hPt1, hS1, hk1, hPI1⟩
+  refine WP.spec_bind (WP.spec_and (hH.restart s a σ ct xct hSt hSV hR hPt hS hcur hkt')
+    (set_thread_state_slots th hPl s ct sched.TS_RESTART htcb hact)) ?_
+  rintro s1 ⟨⟨hSt1, hSV1, hR1, hPt1, hS1, hk1, hPI1⟩, hSS1⟩
   set σ1 := stsAct (updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv with hσ1
   have hpct : pc.bv ≠ ct.bv := kheap_ne hkc hkt' (fun _ h1 h2 => by subst h1; cases h2)
   have hkc1 : σ1.kheap pc.bv = some (.cnode r cs) := by
@@ -496,15 +508,19 @@ theorem frame_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 
   set nc : Fl4Spec.Cap := .archObjectCap (.pageCap dev ptr.bv (vmRightsOf rt) .vmNoMap (frameSizeOf sz) none) with hnc
   have hca : CapRel (.Frame ptr sz rt dev false 0#u64 0#u64) nc := ⟨hfw, rfl⟩
   have hew : EncWf (.Frame ptr sz rt dev false 0#u64 0#u64) := ⟨hfe.1, hfe.2.1, by decide, by decide⟩
+  have hxsl : IsSlot th (cslotAddr (pc.bv, idx)) :=
+    (show AbsSlot th (pc.bv, idx) from ⟨pc, rfl, Or.inl (by simpa [hidx] using hpc)⟩).isSlot
   -- the final `set_cap`, from a state `s4`/`σ4` with the CNode unchanged
   have fin_cap : ∀ (s4 : S) (a4 : A) (σ4 : Fl4Spec.State Unit), UR st th P L4 L3 L2 L1 SR s4 a4 σ4 →
       σ4.kheap pc.bv = some (.cnode r cs) → L.ksb s4 = L.ksb s →
       obj.Slot.set_cap st (cslotAddr (pc.bv, idx)) s4 (.Frame ptr sz rt dev false 0#u64 0#u64) ⦃ s5 =>
-        UR st th P L4 L3 L2 L1 SR s5 a4 (setCnodeSlot σ4 pc.bv r cs idx nc) ⦄ := by
+        UR st th P L4 L3 L2 L1 SR s5 a4 (setCnodeSlot σ4 pc.bv r cs idx nc) ∧
+        SlotFoot th (L.mem s4) (L.mem s5) (cslotAddr (pc.bv, idx)) ∧
+        capV (L.mem s5) (cslotAddr (pc.bv, idx)) = .Frame ptr sz rt dev false 0#u64 0#u64 ⦄ := by
     rintro s4 a4 σ4 ⟨hS4, hSt4, hSV4, hR4, hPt4⟩ hkc4 hks4
-    refine WP.spec_mono (WP.spec_and (set_cap_refines th s4 σ4 hSt4 hSV4 hPl hpc hidx _ _ hca trivial hew)
-      (set_cap_spec (L := L) _ s4 _)) ?_
-    rintro s5 ⟨⟨σ5, hsc, hSt5, hSV5, -, -, -, hfr5⟩, hs5⟩
+    refine WP.spec_mono (WP.spec_and (set_cap_refines th s4 σ4 hSt4 hSV4 hPl hpc hidx _ _ hca (by exact hfcv) hew)
+      (WP.spec_and (set_cap_spec (L := L) _ s4 _) (set_cap_foot hPl hxsl s4 _ hew))) ?_
+    rintro s5 ⟨⟨σ5, hsc, hSt5, hSV5, -, -, -, hfr5⟩, hs5, hF5, hcv5⟩
     have hσ5 : σ5 = setCnodeSlot σ4 pc.bv r cs idx nc := by
       rw [setCap_cnode nc hkc4 hwf hidx] at hsc
       have := congrArg Prod.fst hsc
@@ -525,7 +541,7 @@ theorem frame_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 
       refine ⟨by rw [hs5]; simp, by rw [hs5]; simp, fun b hb hn => ?_⟩
       obtain ⟨h1, h2⟩ := ne_slot_words hPl hxs hn
       exact hfr5 b hb (by rw [hx0]; exact h1) (by rw [hx0]; exact h2)
-    refine ⟨hH.capStable _ _ a4 _ _ hS4 hWs ⟨pc.bv, r, cs, idx, nc, hkc4, rfl⟩, hSt5, hSV5, ?_, ?_⟩
+    refine ⟨⟨hH.capStable _ _ a4 _ _ hS4 hWs ⟨pc.bv, r, cs, idx, nc, hkc4, rfl⟩, hSt5, hSV5, ?_, ?_⟩, hF5, hcv5⟩
     · rw [hks5]; rw [hks4] at hR4 ⊢
       exact hR4.frame hfrV rfl hpools
     · refine hPt4.frame (fun b hb => ?_) (fun q hq => ?_)
@@ -537,30 +553,56 @@ theorem frame_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 
   cases mp
   · simp only [Bool.false_eq_true, ↓reduceIte, bind_ok] at hcs ⊢
     refine WP.spec_bind (fin_cap s1 a σ1 ⟨hS1, hSt1, hSV1, hR1, hPt1⟩ hkc1 hk1) ?_
-    intro s5 hU5
+    rintro s5 ⟨hU5, hF5, hcv5⟩
     rw [setCnodeSlot_self hkc1 hcs] at hU5
-    refine (WP.spec_ok _).2 ⟨rfl, _, σ1, rfl, ?_, hU5⟩
+    refine (WP.spec_ok _).2 ⟨rfl, _, σ1, rfl, ?_, hU5, (SlotFoot.of_same hSS1 _).trans hF5,
+      by rw [hcv5]; exact ⟨rfl, rfl, rfl⟩, KFoot.sts hkt' _⟩
     unfold MapSpec
     dsimp only
-    rw [← hcur, nd_bind_one (setThreadState_eq .restart hkt'), performUnmap_none]
+    rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt'), performUnmap_none]
     exact ⟨rfl, id⟩
   · have hfa := hfm rfl
     have hfa' : (fa != 0#u64) = true := by simp [hfa]
     simp only [↓reduceIte, hfa'] at hcs ⊢
-    refine WP.spec_bind (unmap_page_rel hH s1 a σ1 hPl hPP hPS (hk1 ▸ hVP) (hk1 ▸ hPV) hPI1
-      ⟨hS1, hSt1, hSV1, hR1, hPt1⟩ sz fa fv ptr hfa) ?_
-    rintro ⟨s3, a3⟩ ⟨hnu, hall, σu, hu, hU3, hk3⟩
+    -- `unmap_page`, with the footprint carried in `SR`
+    let SR' : S → A → Fl4Spec.State Unit → Prop := fun s' a' σ' =>
+      SR s' a' σ' ∧ SlotFoot th (L.mem s1) (L.mem s') (cslotAddr (pc.bv, idx)) ∧ KFoot σ1 σ'
+    have hPOw : ∀ (W : U64 → Prop), (∀ b, W b → PtWAll L4 L3 L2 L1 b) → ∀ b, W b → OutsideObjects th b :=
+      fun W hW b hb => hPO b (hW b hb)
+    have hH' : VsUnmapPageHyps st A ar L3 L2 L1 SR' :=
+      { ptStable := fun s' s'' a' σ' σ'' ⟨h1, h2, h3⟩ hw hst => ⟨hH.ptStable _ _ _ _ _ h1 hw hst,
+          h2.trans (SlotFoot.of_writes hPl hw (hPOw _ (fun b ⟨q, hq, i, hi, e⟩ =>
+            ⟨q, Or.inr (Or.inr (Or.inr hq)), i, hi, e⟩)) _),
+          h3.trans (by obtain ⟨p, f, f', hk, rfl⟩ := hst; exact KFoot.arch hk _)⟩
+        pdStable := fun s' s'' a' σ' σ'' ⟨h1, h2, h3⟩ hw hst => ⟨hH.pdStable _ _ _ _ _ h1 hw hst,
+          h2.trans (SlotFoot.of_writes hPl hw (hPOw _ (fun b ⟨q, hq, i, hi, e⟩ =>
+            ⟨q, Or.inr (Or.inr (Or.inl hq)), i, hi, e⟩)) _),
+          h3.trans (by obtain ⟨p, f, f', hk, rfl⟩ := hst; exact KFoot.arch hk _)⟩
+        pdptStable := fun s' s'' a' σ' σ'' ⟨h1, h2, h3⟩ hw hst => ⟨hH.pdptStable _ _ _ _ _ h1 hw hst,
+          h2.trans (SlotFoot.of_writes hPl hw (hPOw _ (fun b ⟨q, hq, i, hi, e⟩ =>
+            ⟨q, Or.inr (Or.inl hq), i, hi, e⟩)) _),
+          h3.trans (by obtain ⟨p, f, f', hk, rfl⟩ := hst; exact KFoot.arch hk _)⟩
+        flushPgOK := hH.flushPgOK
+        flushPg := fun s' a' σ' asid vaddr ⟨h1, h2, h3⟩ => WP.spec_mono (hH.flushPg s' a' σ' asid vaddr h1)
+          (fun a'' ⟨σ'', hm, hS''⟩ => ⟨σ'', hm, hS'', h2, h3.trans (by
+            obtain ⟨ms, rfl⟩ := doMachineOp_mem hm; exact KFoot.ms _ ms)⟩) }
+    refine WP.spec_bind (unmap_page_rel hH' s1 a σ1 hPl hPP hPS (hk1 ▸ hVP) (hk1 ▸ hPV) hPI1
+      ⟨⟨hS1, SlotFoot.refl _ _, KFoot.refl _⟩, hSt1, hSV1, hR1, hPt1⟩ sz fa fv ptr hfa) ?_
+    rintro ⟨s3, a3⟩ ⟨hnu, hall, σu, hu, ⟨⟨hS3, hF3, hK3⟩, hU3⟩, hk3⟩
+    replace hU3 : UR st th P L4 L3 L2 L1 SR s3 a3 σu := ⟨hS3, hU3⟩
     have hall' : ∀ x σ', (x, σ') ∈ (Fl4Spec.unmapPage (Z := Unit) (frameSizeOf sz) fa.bv fv.bv ptr.bv σ1).1 →
         σ'.kheap pc.bv = σ1.kheap pc.bv := fun x σ' hx =>
       hall x σ' hx pc.bv (fun ao h => by rw [hkc1] at h; cases h)
     show (obj.Slot.set_cap st (cslotAddr (pc.bv, idx)) s3 (.Frame ptr sz rt dev false 0#u64 0#u64) >>= fun s5 =>
       ok (core.result.Result.Ok (), s5, a3)) ⦃ _ ⦄
     refine WP.spec_bind (fin_cap s3 a3 σu hU3 ((hall' _ _ hu).trans hkc1) (hk3.trans hk1)) ?_
-    intro s5 hU5
-    refine (WP.spec_ok _).2 ⟨rfl, _, _, rfl, ?_, hU5⟩
+    rintro s5 ⟨hU5, hF5, hcv5⟩
+    refine (WP.spec_ok _).2 ⟨rfl, _, _, rfl, ?_, hU5, (SlotFoot.of_same hSS1 _).trans (hF3.trans hF5),
+      by rw [hcv5]; exact ⟨rfl, rfl, rfl⟩,
+      (KFoot.sts hkt' _).trans (hK3.trans (KFoot.cnode ((hall' _ _ hu).trans hkc1) hwf idx nc))⟩
     unfold MapSpec
     dsimp only
-    rw [← hcur, nd_bind_one (setThreadState_eq .restart hkt')]
+    rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt')]
     exact performUnmap_mem hnu hall' hu hkc1 hwf hidx hcs
 
 end

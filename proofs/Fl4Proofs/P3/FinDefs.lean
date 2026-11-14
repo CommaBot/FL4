@@ -360,7 +360,7 @@ theorem finF_iff {th : TypedHeap} (hP : Placed th) {mem : U64 → U64} {σ : Fl4
   · intro hf y hy hyx hov
     by_cases hzy : isZb (capV mem y) = true
     · exact hF.fm.zfin y hy x hx hyx hzy hov.symm
-    have hk := hF.fm.key x hx y hy (Ne.symm hyx) hov hz (by simpa using hzy)
+    have hk := hF.fm.key x hx y hy (Ne.symm hyx) hov hz (by simpa using hzy) (fun h => by rw [hN.nf] at h; exact absurd h.1 (by decide))
     obtain ⟨ch1, hch1, hx1⟩ := List.mem_flatten.1 hx
     obtain ⟨ch2, hch2, hy2⟩ := List.mem_flatten.1 hy
     obtain rfl := hF.fm.conn _ hch1 _ hch2 x hx1 y hy2 hov
@@ -376,7 +376,7 @@ theorem finF_iff {th : TypedHeap} (hP : Placed th) {mem : U64 → U64} {σ : Fl4
         okey (capV mem v) = okey (capV mem x) := by
       intro u hu v hv huv hku huvr
       by_cases hfu : isFrame (capV mem u) = true
-      · rw [hF.fm.fnest u (hmem u hu) v (hmem v hv) huv hfu huvr, hku]
+      · exfalso; rw [isFrame_of_key hku, hN.nf] at hfu; cases hfu
       · rw [key_of_sr huvr (by rw [hku]; exact hkx) (by simpa using hfu), hku]
     obtain ⟨A, L, rfl⟩ := List.append_of_mem hx1
     have hxA := (Mdb.nodup_mid hnd).1

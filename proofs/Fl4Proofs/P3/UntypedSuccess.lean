@@ -574,8 +574,19 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
       cases he; exact extendTh_new hq
   · -- other objects: the typed heap stays
     have hcvo : ∀ i, i < win.val → CapValid th (newCapOf nt.val ⟨BitVec.ofNat 64 (A + i * k)⟩ us dev) := by
-      intro i _
-      apply newCapOf_ind (CapValid th) <;> intros <;> first | trivial | omega
+      intro i hi
+      have hlt : A + i * k < 2 ^ 64 := by
+        have : (i + 1) * k ≤ win.val * k := Nat.mul_le_mul_right _ hi
+        rw [Nat.add_mul, Nat.one_mul] at this; omega
+      have hv : (⟨BitVec.ofNat 64 (A + i * k)⟩ : U64).val = A + i * k := by
+        show (BitVec.ofNat 64 (A + i * k)).toNat = _; rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlt]
+      have hfr : ∀ m, 2 ^ m ∣ k → (A + i * k) % 2 ^ m = 0 := by
+        intro m hm
+        apply Nat.mod_eq_zero_of_dvd
+        exact Nat.dvd_add (Nat.dvd_trans hm (Nat.dvd_of_mod_eq_zero hA2)) (Nat.dvd_trans hm (Nat.dvd_mul_left _ _))
+      apply newCapOf_ind (CapValid th) <;> intros <;> first | trivial | omega |
+        (rename_i hn; simp only [CapValid, frameBitsN]; rw [hv]
+         exact hfr _ (by rw [hkdef]; exact Nat.pow_dvd_pow 2 (by rw [hzdef]; simp [zOf, hn])))
     by_cases hu : t = .untyped
     · subst hu
       refine key th σa hP hR1 hV1 hM1 hC1 ?_ hpp hdest hcvo hzsOld hKa

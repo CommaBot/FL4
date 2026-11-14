@@ -21,6 +21,7 @@ words; the PML4 cap names a PML4 of `L4` with a non-zero 20-bit ASID; the
 page table is one of `L1` and its physical address is below 2^52.
 -/
 import Fl4Proofs.P3.VsPtMap
+import Fl4Proofs.P3.VsFoot
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Vs
@@ -236,6 +237,8 @@ theorem pt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L2
     (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ) (hS : SR s a σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : ct.bv = σ.curThread)
     {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct))
+    (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b)
     (ptr asid0 va0 : U64) (mp : Bool) (hpL1 : ptr ∈ L1) (hfe : EncWf (.PageTable ptr mp asid0 va0))
     (hpa : (core.num.U64.wrapping_sub ptr layout.PPTR_BASE &&& 4503599627366400#u64) =
       core.num.U64.wrapping_sub ptr layout.PPTR_BASE)
@@ -257,7 +260,9 @@ theorem pt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L2
           (pc.bv, idx) (.pageTableCap ptr.bv (if mp then some (asid0.bv, va0.bv) else none)) ((vc', xsl) :: rest)) σ =
             ({(.ok iv, σ)}, False) ∧
         PtMapSpec σ iv σ' ∧ StateRel th (L.mem res.2.1) σ' ∧ SlotsValid th (L.mem res.2.1) ∧
-        VsRel P (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ PtRel L4 L3 L2 L1 (L.mem res.2.1) σ' ∧ SR res.2.1 res.2.2 σ') ⦄ := by
+        VsRel P (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ PtRel L4 L3 L2 L1 (L.mem res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧
+        SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
+        MdbLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (.PageTable ptr mp asid0 va0) ∧ KFoot σ σ') ⦄ := by
   rw [show ∀ args' ex', Fl4Spec.archDecodeInvocation (Z := Unit) slbl args' xs (pc.bv, idx)
       (.pageTableCap ptr.bv (if mp then some (asid0.bv, va0.bv) else none)) ex' =
     Fl4Spec.decodePageTableInvocation slbl args' (pc.bv, idx)
@@ -362,8 +367,9 @@ theorem pt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L2
               (Fl4Spec.filterVmAttributes (Fl4Spec.attribsFromWord a1.bv)) Fl4Spec.vmReadWrite with hpdeD
             have hpde : PDERel L1 e pde := pde_of_make hpL1 hpa he _ _
             have hkt' : σ.kheap ct.bv = some (.tcb xct) := by rw [hcur]; exact hkt
-            refine WP.spec_bind (hH.restart s a σ ct xct hSt hSV hR hPt hS hcur hkt') ?_
-            rintro s1 ⟨hSt1, hSV1, hR1, hPt1, hS1, hk1⟩
+            refine WP.spec_bind (WP.spec_and (hH.restart s a σ ct xct hSt hSV hR hPt hS hcur hkt')
+              (set_thread_state_slots th hPl s ct sched.TS_RESTART htcb hact)) ?_
+            rintro s1 ⟨⟨hSt1, hSV1, hR1, hPt1, hS1, hk1⟩, hSS1⟩
             set σ1 := stsAct (updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv with hσ1
             obtain ⟨cs, hkc, hwf, -⟩ := hSt.cnode pc r hpc
             have hpct : pc.bv ≠ ct.bv := kheap_ne hkc hkt' (fun _ h1 h2 => by subst h1; cases h2)
@@ -375,9 +381,11 @@ theorem pt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L2
             set nc : Fl4Spec.Cap := .archObjectCap (.pageTableCap ptr.bv (some (as1.bv, v.bv))) with hnc
             have hca : CapRel (.PageTable ptr true as1 v) nc := ⟨trivial, rfl⟩
             have hew : EncWf (.PageTable ptr true as1 v) := ⟨hfe.1, has2, hva⟩
+            have hxsl : IsSlot th (cslotAddr (pc.bv, idx)) :=
+              (show AbsSlot th (pc.bv, idx) from ⟨pc, rfl, Or.inl (by simpa [hidx] using hpc)⟩).isSlot
             refine WP.spec_bind (WP.spec_and (set_cap_refines th s1 σ1 hSt1 hSV1 hPl hpc hidx _ _ hca trivial hew)
-              (set_cap_spec (L := L) _ s1 _)) ?_
-            rintro s2 ⟨⟨σ2, hsc, hSt2, hSV2, -, -, -, hfr2⟩, hs2⟩
+              (WP.spec_and (set_cap_spec (L := L) _ s1 _) (set_cap_foot hPl hxsl s1 _ hew))) ?_
+            rintro s2 ⟨⟨σ2, hsc, hSt2, hSV2, -, -, -, hfr2⟩, hs2, hF2, hcv2⟩
             have hσ2 : σ2 = setCnodeSlot σ1 pc.bv r cs idx nc := by
               rw [setCap_cnode nc hkc1 hwf hidx] at hsc
               have := congrArg Prod.fst hsc
@@ -447,12 +455,17 @@ theorem pt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L2
             rintro a4 ⟨σ', hm, hS'⟩
             have hm' := hm
             obtain ⟨ms, rfl⟩ := doMachineOp_mem hm
+            have hbo : OutsideObjects th (peA q (vIdx v 21)) := hPO _ ⟨q, Or.inr (Or.inr (Or.inl hq)), _, hj, rfl⟩
             refine (WP.spec_ok _).2 (Or.inr ⟨rfl, _, _, hdec.trans (ptTail_ok hv' hf hsp hg), ?_,
-              Vs.StateRel.ms hSt3 ms, hSV3, ⟨hR3.1, hR3.2, hR3.3⟩, ⟨hPt3.l4, hPt3.l3, hPt3.l2, hPt3.l1⟩, hS'⟩)
-            unfold PtMapSpec ptInv
-            dsimp only
-            rw [← hcur, nd_bind_one (setThreadState_eq .restart hkt')]
-            exact performPtMap_mem (setCap_cnode nc hkc1 hwf hidx) hstore hm' (hH.flushOK _ _ _)
+              Vs.StateRel.ms hSt3 ms, hSV3, ⟨hR3.1, hR3.2, hR3.3⟩, ⟨hPt3.l4, hPt3.l3, hPt3.l2, hPt3.l1⟩, hS', ?_, ?_, ?_⟩)
+            · unfold PtMapSpec ptInv
+              dsimp only
+              rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt')]
+              exact performPtMap_mem (setCap_cnode nc hkc1 hwf hidx) hstore hm' (hH.flushOK _ _ _)
+            · exact (SlotFoot.of_same hSS1 _).trans (hF2.trans (SlotFoot.wr_out hPl s2 hbo _))
+            · show MdbLike (capV (L.mem s3) _) _
+              rw [hs3, capV_wr_out hPl hxsl s2 hbo, hcv2]; exact ⟨rfl, rfl, rfl⟩
+            · exact (KFoot.sts hkt' _).trans ((KFoot.cnode hkc1 hwf idx nc).trans ((KFoot.arch hk2 _).trans (KFoot.ms _ ms)))
           · have : ((L.mem s (peA q (vIdx v 21)) &&& 1#u64) != 0#u64) = true := by simp [hpres]
             simp only [this, ↓reduceIte]
             have hninv : f (Fl4Spec.ucast 9 (vIdx v 21).bv) ≠ .invalidPDE := by

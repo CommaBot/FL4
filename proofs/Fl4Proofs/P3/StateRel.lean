@@ -72,12 +72,20 @@ deriving DecidableEq
 /-- Ghost typed heap: which pointers are objects, and of which kind. -/
 abbrev TypedHeap := U64 → Option ObjKind
 
+/-- The size in bits of a frame of size `sz` (4 KiB, 2 MiB, 1 GiB). -/
+def frameBitsN : capability.FrameSize → Nat
+  | .Small => 12
+  | .Large => 21
+  | .Huge => 30
+
 /-- Hypothesis: `c` points at an object of the right kind (l4v `valid_cap`
 for CNode and thread caps; CNodes have radix at least 1, as seL4's retype
-enforces, `untyped.rs`: `CapTable && user_size == 0` is rejected). -/
+enforces, `untyped.rs`: `CapTable && user_size == 0` is rejected), and a
+frame cap's frame is aligned to its size (l4v `cap_aligned`). -/
 def CapValid (th : TypedHeap) : capability.Cap → Prop
   | .CNode p r _ _ => th p = some (.cnode r.val) ∧ r.val ≠ 0
   | .Thread p => th p = some .tcb
+  | .Frame p sz _ _ _ _ _ => p.val % 2 ^ frameBitsN sz = 0
   | _ => True
 
 /-- Number of cap slots of a TCB (layout.rs `tcb::SLOT_CTABLE` ..

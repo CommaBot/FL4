@@ -190,6 +190,7 @@ theorem CapValid.extend {th : TypedHeap} {A k n : Nat} {kd' : ObjKind} (hk : 1 �
   cases c <;> simp only [CapValid] at h ⊢
   · exact ⟨by rw [extendTh_of_old hk hfree h.1 (objSize_pos_cnode _)]; exact h.1, h.2⟩
   · rw [extendTh_of_old hk hfree h objSize_pos_tcb]; exact h
+  · exact h
 
 /-- A slot of the grown heap is old or a slot of a new CNode. -/
 theorem IsSlotAt.of_extend {th : TypedHeap} {A k n r0 : Nat} {p : U64} {i : Nat}

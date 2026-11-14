@@ -56,9 +56,10 @@ structure FinM (mem : U64 → U64) (G : MdbGhost) : Prop where
     Ovl (absCap (capV mem x)) (absCap (capV mem y)) → ch1 = ch2
   key : ∀ x ∈ G.chains.flatten, ∀ y ∈ G.chains.flatten, x ≠ y →
     Ovl (absCap (capV mem x)) (absCap (capV mem y)) → isZb (capV mem x) = false → isZb (capV mem y) = false →
+    ¬ (isFrame (capV mem x) = true ∧ isFrame (capV mem y) = true) →
     okey (capV mem x) = okey (capV mem y)
   fnest : ∀ x ∈ G.chains.flatten, ∀ y ∈ G.chains.flatten, x ≠ y → isFrame (capV mem x) = true →
-    srM mem x y = true → okey (capV mem y) = okey (capV mem x)
+    isFrame (capV mem y) = false → srM mem x y = true → okey (capV mem y) = okey (capV mem x)
   zfin : ∀ x ∈ G.chains.flatten, ∀ y ∈ G.chains.flatten, x ≠ y → isZb (capV mem x) = true →
     ¬ Ovl (absCap (capV mem x)) (absCap (capV mem y))
 

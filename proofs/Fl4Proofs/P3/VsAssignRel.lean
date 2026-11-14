@@ -18,6 +18,7 @@ slot write and the pool write (`capStable`, `vsStable`). The slots of the
 typed heap are disjoint from the ASID table and pool words (`VsSlotsDisj`).
 -/
 import Fl4Proofs.P3.VsAssign
+import Fl4Proofs.P3.VsFoot
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Vs
@@ -156,7 +157,10 @@ theorem assign_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P : Set U6
     {pc : U64} {r : Nat} (hpc : th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
     (hex : vspace.extra ex 0#usize = ok (some (cslotAddr (pc.bv, idx))))
     {ptr1 asid0 : U64} (hcx : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.Pml4 ptr1 false asid0))
-    (hcan : Canonical ptr1) (hp10 : ptr1 ≠ 0#u64) :
+    (hcan : Canonical ptr1) (hp10 : ptr1 ≠ 0#u64)
+    (htcb : ∀ ct : U64, ct.bv = σ.curThread → th ct = some .tcb)
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b) :
     vspace.decode st ar s a fl4_abi.label.X86ASIDPoolAssign length slot (.AsidPool ptr base) call buf ex ⦃ res =>
       (∃ e e', res.1 = .Err e ∧ VsErrRel e e' ∧
         ExceptT.run (Fl4Spec.archDecodeInvocation (Z := Unit) slbl args xs cte (.asidPoolCap ptr.bv base.bv)
@@ -169,7 +173,9 @@ theorem assign_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P : Set U6
           (ExceptT.run (Fl4Spec.archDecodeInvocation (Z := Unit) slbl args xs cte (.asidPoolCap ptr.bv base.bv)
             ((.archObjectCap (.pml4Cap ptr1.bv none), (pc.bv, idx)) :: rest)) σ).1 ∧
           AssignSpec σ asid ptr.bv (pc.bv, idx) σ' ∧ StateRel th (L.mem res.2.1) σ' ∧ SlotsValid th (L.mem res.2.1) ∧
-          VsRel P (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ SR res.2.1 res.2.2 σ') ⦄ := by
+          VsRel P (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧
+          SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
+          MdbLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (.Pml4 ptr1 false asid0) ∧ KFoot σ σ') ⦄ := by
   rw [decodeAssign_eq hl args xs cte ptr.bv base.bv ptr1.bv (pc.bv, idx) rest]
   generalize hdec : ExceptT.run (assignBody ptr.bv base.bv (pc.bv, idx)) σ = dec
   unfold vspace.decode
@@ -243,8 +249,9 @@ theorem assign_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P : Set U6
         apply ok_bind_spec
         -- `Restart`
         have hkt' : σ.kheap ct.bv = some (.tcb xct) := by rw [hct]; exact hkt
-        refine WP.spec_bind (hH.restart s a σ ct xct hSt hSV hR hS hct hkt') ?_
-        rintro s1 ⟨hSt1, hSV1, hR1, hS1, hk1⟩
+        refine WP.spec_bind (WP.spec_and (hH.restart s a σ ct xct hSt hSV hR hS hct hkt')
+          (set_thread_state_slots th hPl s ct sched.TS_RESTART (htcb ct hct) hact)) ?_
+        rintro s1 ⟨⟨hSt1, hSV1, hR1, hS1, hk1⟩, hSS1⟩
         set σ1 := stsAct (updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv with hσ1
         have hpct : pc.bv ≠ ct.bv := kheap_ne hkc hkt' (fun _ h1 h2 => by subst h1; cases h2)
         have hptct : ptr.bv ≠ ct.bv := kheap_ne hkf hkt' (fun _ h1 h2 => by subst h1; cases h2)
@@ -254,8 +261,8 @@ theorem assign_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P : Set U6
         set nc : Fl4Spec.Cap := .archObjectCap (.pml4Cap ptr1.bv (some asid.bv))
         have hca : CapRel (.Pml4 ptr1 true asid) nc := ⟨trivial, rfl⟩
         refine WP.spec_bind (WP.spec_and (set_cap_refines th s1 σ1 hSt1 hSV1 hPl hpc hidx _ _ hca trivial hcan)
-          (set_cap_spec (L := L) _ s1 (.Pml4 ptr1 true asid))) ?_
-        rintro s2 ⟨⟨σ2, hsc, hSt2, hSV2, -, -, -, hfr2⟩, hs2⟩
+          (WP.spec_and (set_cap_spec (L := L) _ s1 (.Pml4 ptr1 true asid)) (set_cap_foot hPl hxsl s1 _ hcan))) ?_
+        rintro s2 ⟨⟨σ2, hsc, hSt2, hSV2, -, -, -, hfr2⟩, hs2, hF2, hcv2⟩
         have hσ2 : σ2 = setCnodeSlot σ1 pc.bv r cs idx nc := by
           rw [setCap_cnode nc hkc1 hwf hidx] at hsc
           have := congrArg Prod.fst hsc
@@ -296,10 +303,18 @@ theorem assign_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P : Set U6
         apply ok_bind_spec
         set σ3 := updK σ2 ptr.bv (.archObj (.asidPool
           (Function.update f (Fl4Spec.asidLowBitsOf asid.bv) (some ptr1.bv)))) with hσ3
+        have hpeW0 : VsWrite P (L.ksb s) (peA ptr (asid &&& 511#u64)) := Or.inr ⟨ptr, hpP, _, hlo, rfl⟩
+        have hbo : OutsideObjects th (peA ptr (asid &&& 511#u64)) := hVO _ hpeW0
+        have hFt : SlotFoot th (L.mem s) (L.mem (L.wr s2 (peA ptr (asid &&& 511#u64)) ptr1)) (cslotAddr (pc.bv, idx)) :=
+          (SlotFoot.of_same hSS1 _).trans (hF2.trans (SlotFoot.wr_out hPl s2 hbo _))
+        have hLk : MdbLike (capV (L.mem (L.wr s2 (peA ptr (asid &&& 511#u64)) ptr1)) (cslotAddr (pc.bv, idx)))
+            (.Pml4 ptr1 false asid0) := by
+          rw [capV_wr_out hPl hxsl s2 hbo, hcv2]; exact ⟨rfl, rfl, rfl⟩
+        have hKf : KFoot σ σ3 := (KFoot.sts hkt' _).trans ((KFoot.cnode hkc1 hwf idx nc).trans (KFoot.arch hkf2 _))
         refine (WP.spec_ok _).2 (Or.inr ⟨rfl, by rw [← hdec]; exact hnf, asid.bv, σ3, by rw [← hdec]; exact hmem,
-          ?_, ?_, ?_, ?_, ?_⟩)
+          ?_, ?_, ?_, ?_, ?_, hFt, hLk, hKf⟩)
         · unfold AssignSpec
-          rw [← hct, nd_bind_one (setThreadState_eq .restart hkt')]
+          rw [← hct, nd_bind_one (Notif.setThreadState_eq .restart hkt')]
           exact performAssign_eq hkc1 hwf hidx hcs hkf1 asid.bv
         all_goals
           have hpeW : VsWrite P (L.ksb s) (peA ptr (asid &&& 511#u64)) := Or.inr ⟨ptr, hpP, _, hlo, rfl⟩
