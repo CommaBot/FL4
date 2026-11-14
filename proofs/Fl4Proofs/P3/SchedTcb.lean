@@ -92,7 +92,7 @@ theorem schedulable_eq {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State U
       simp only [Fl4Spec.optPred, Fl4Spec.optMap, Fl4Spec.tcbsOfKh, Fl4Spec.tcbOf, hk, h3, Fl4Spec.scsOfKh,
         hky, Fl4Spec.scOf, Fl4Spec.scActive, Fl4Spec.activeSc, decide_eq_true_eq, ne_eq, h0, not_false_eq_true,
         true_and, gt_iff_val]
-      rw [e]; simp
+      rw [e.max]; simp
   rw [p1, p2, p3, ← runnable_iff hx.st]
   exact ⟨fun ⟨a, b, c, d⟩ => ⟨a, ⟨b, c⟩, d⟩, fun ⟨a, ⟨b, c⟩, d⟩ => ⟨a, b, c, d⟩⟩
 
@@ -134,7 +134,7 @@ theorem SchedRel.set_action {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
   set s' := L.wr s (L.nodeAt s c layout.node.SCHED_ACTION) w
   have hk : L.ksb s' = L.ksb s := L.ksb_wr _ _ _
   have hag : SAgree st T C c s s' := by
-    refine ⟨hk, L.cpu_wr _ _ _, fun o ho h8 hne => ?_, fun y hy K hK => ?_, ?_, fun sc hsc => ?_⟩
+    refine ⟨hk, L.cpu_wr _ _ _, fun o ho h8 hne _ => ?_, fun y hy K hK => ?_, ?_, fun sc hsc => ?_⟩
     · refine rd_wr_ne hA (nodeAt_aligned hN ho h8) fun e => hne ?_
       have := congrArg UScalar.val e
       rw [nodeAt_val hN (by omega), nodeAt_val hN ho] at this; omega
@@ -151,18 +151,26 @@ theorem SchedRel.set_action {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
       have h2 := hN.fits
       simp only [LawfulStore.nodeBase] at this h2
       simp [curDomA, core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits] at this; omega
-    · refine rd_wr_ne hA (hS.scAl sc hsc) fun e => ?_
+    · intro a hal hin
+      refine rd_wr_ne hA hal fun e => ?_
       have := congrArg UScalar.val e
       rw [nodeAt_val hN (by omega)] at this
-      have := (hS.scOut sc hsc).1; omega
+      have := (hS.scOut sc hsc a hin).2.1; omega
   have hw' : nodeW st s' c layout.node.SCHED_ACTION = w := by
     unfold Fl4Proofs.P3.Sched.nodeW; rw [nodeAt_ksb hk]; exact rd_wr_eq hA
+  have hm := hs.rmax_eq hag.sc
   refine ⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk]; exact hS.nodeNW o ho,
-    by rw [curDomA_ksb hk]; exact hS.domNW, hS.scNW, hS.scAl,
-    by simp only [LawfulStore.nodeBase, hk]; exact hS.scOut, by rw [hw']; exact hw, by rw [hw']; exact ha,
-    Q, R, hc.agree hag, ?_⟩
+    by rw [curDomA_ksb hk]; exact hS.domNW, scOut_transfer hk hm hS.scOut, scDisj_transfer hm hS.scDisj,
+    by rw [hw']; exact hw, by rw [hw']; exact ha, ?_, Q, R, hc.agree hag.toC, ?_⟩
+  · have e : nodeW st s' c layout.node.REPROGRAM = nodeW st s c layout.node.REPROGRAM := by
+      unfold Fl4Proofs.P3.Sched.nodeW; rw [nodeAt_ksb hk]
+      refine rd_wr_ne hA (nodeAt_aligned hN (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])) ?_
+      intro e; have := congrArg UScalar.val e
+      rw [nodeAt_val hN (by omega), nodeAt_val hN (by simp [layout.node.REPROGRAM])] at this
+      simp [layout.node.REPROGRAM] at this
+    rw [e]; exact hS.repr
   have hs' := hs.agree hag
-  exact ⟨hs'.rq, hs'.rqDom, hs'.rel, hs'.curThread, hs'.curSc, hs'.curTime, hs'.consumed, hs'.reprogram,
+  exact ⟨hs'.rq, hs'.rqDom, hs'.rel, hs'.curThread, hs'.curSc, hs'.curTime, hs'.consumed,
     hs'.curDom, hs'.tcb, hs'.scMem, hs'.scs⟩
 
 /-! ## `schedule_tcb` -/
