@@ -681,6 +681,8 @@ def SysErrRel : error.Exc → Fl4Spec.SyscallError → Prop
   | .Sys (.RangeError mn mx), .rangeError mn' mx' => mn' = mn.bv ∧ mx' = mx.bv
   | .Sys (.FailedLookup src lf), .failedLookup src' lf' => src' = src ∧ LookupFaultRel lf lf'
   | .Sys .IllegalOperation, .illegalOperation => True
+  | .Sys (.InvalidArgument n), .invalidArgument n' => n' = n.val
+  | .Sys (.NotEnoughMemory b), .notEnoughMemory b' => b' = b.bv
   | .Sys .TruncatedMessage, .truncatedMessage => True
   | .Sys .DeleteFirst, .deleteFirst => True
   | .Sys .RevokeFirst, .revokeFirst => True
