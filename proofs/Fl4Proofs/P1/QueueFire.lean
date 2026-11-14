@@ -105,7 +105,8 @@ theorem sched.schedule.tinv {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTota
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hS : SCsOK st T Ω Sg Scs Z Ac s)
     (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hSg : SgOK st Ω Sg s) :
     sched.schedule st ar s a ⦃ s' _ => (∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R') ∧ BoundInv st T Ac s' ∧
-      XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SCsOK st T Ω Sg Scs Z Ac s' ∧ TimerOK st T Cs s' ∧ L.cscW s' ∈ Ac ⦄ := by
+      XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SCsOK st T Ω Sg Scs Z Ac s' ∧ TimerOK st T Cs s' ∧ L.cscW s' ∈ Ac ∧
+      L.actionW s' = 0#u64 ∧ L.cscW s' = L.mem s' (scA (L.curW s')) ⦄ := by
   refine WP.spec_mono (sched.schedule.inv hA s a Q R h hB hS hX
     (WP.spec_mono (timer.fire.tinv hA hNt s a (BlkOK.tinv ⟨⟨Q, R, h⟩, hB, hX, hS, hSg⟩)) fun r hr => by
       obtain ⟨s', a'⟩ := r
@@ -113,18 +114,22 @@ theorem sched.schedule.tinv {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTota
       exact ⟨hr.1, hr.2.1, hr.2.2.2.1, hr.2.2.1⟩)) fun r hr => ?_
   obtain ⟨s', a'⟩ := r
   simp only [WP.uncurry'_pair] at hr ⊢
-  exact ⟨hr.1, hr.2.1, hr.2.2.1, hr.2.2.2.1, hr.2.2.1.2.2.tm, hr.2.2.2.2⟩
+  exact ⟨hr.1, hr.2.1, hr.2.2.1, hr.2.2.2.1, hr.2.2.1.2.2.tm, hr.2.2.2.2.1, hr.2.2.2.2.2.1, hr.2.2.2.2.2.2⟩
 
 /-- The invariants at every kernel entry (`handle_syscall`,
 `handle_interrupt_entry`, the fault entries): every kernel exit goes through
-`schedule`, which switches onto an active SC, so besides the invariants the
-current SC is active.  Inside an entry only the time-commit and preemption
-paths charge it after an invocation, and those check `sc_active` (or a
-schedulable current thread on it, `mcs_preemption_point.all`). -/
+`schedule`, which switches onto the current thread's SC (active) and sets
+the action to resume, so besides the invariants the current SC is active, it
+is the current thread's, and the current thread is not the switch-to
+candidate (what `check_budget` at the entry needs).  Inside an entry only the
+time-commit and preemption paths charge it after an invocation, and those
+check `sc_active` (or a schedulable current thread on it,
+`mcs_preemption_point.all`). -/
 def EntryInv (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64)
     (Z : U64 → Nat) (Ac : Set U64) (s : S) : Prop :=
   (∃ Q R, SchedQueuesInv st T Cs Ω H s Q R) ∧ BoundInv st T Ac s ∧ XInv st T Cs Ω Sg Rp Scs Nt Z s ∧
-    SCsOK st T Ω Sg Scs Z Ac s ∧ TimerOK st T Cs s ∧ L.cscW s ∈ Ac
+    SCsOK st T Ω Sg Scs Z Ac s ∧ TimerOK st T Cs s ∧ L.cscW s ∈ Ac ∧ L.actionW s ≠ L.curW s ∧
+    (L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s)))
 
 /-- `schedule` (the end of every kernel entry) establishes `EntryInv`. -/
 theorem sched.schedule.entry {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
@@ -132,7 +137,15 @@ theorem sched.schedule.entry {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTot
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hS : SCsOK st T Ω Sg Scs Z Ac s)
     (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hSg : SgOK st Ω Sg s) :
     sched.schedule st ar s a ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
-  sched.schedule.tinv hA hNt s a Q R h hB hS hX hSg
+  WP.spec_mono (sched.schedule.tinv hA hNt s a Q R h hB hS hX hSg) fun r hr => by
+    obtain ⟨s', a'⟩ := r
+    simp only [WP.uncurry'_pair] at hr ⊢
+    obtain ⟨⟨Q', R', h'⟩, hB', hX', hS', hT', hA', ha', hc'⟩ := hr
+    refine ⟨⟨Q', R', h'⟩, hB', hX', hS', hT', hA', fun e => ?_, fun _ => hc'⟩
+    rw [ha'] at e
+    have e' := e.symm
+    unfold LawfulStore.curW at e'
+    exact (h'.tcbs _ h'.curT).ne0 (by rw [e']; rfl)
 
 end
 

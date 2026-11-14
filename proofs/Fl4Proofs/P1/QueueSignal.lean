@@ -219,6 +219,9 @@ theorem ntfn_badge_all {s : S} {n v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt 
     (fun c hc => by
       obtain ⟨hPc, hzc⟩ := hO.sc c hc
       rw [av, sporA_val hPc hzc]; have := hO.ntOSc n hn c hc; have := (sc_facts hO hc).1; omega)
+    (fun r hr e _ _ => absurd e (by rw [av, (rp_facts hO hr).2.2.2]; have := hO.ntORp n hn r hr; omega))
+    (fun c hc e => absurd e (by
+      rw [av, (sc_facts hO hc).2.2.2.2.2.2.1]; have := hO.ntOSc n hn c hc; have := (sc_facts hO hc).1; omega))
   refine ⟨⟨⟨Q, R, h1⟩, hB1, hX1, hS1, hSg1⟩, TmFr.wr h0.tcbs h0.nodes hO (h0.omega _ hm).1
     (notTmW_omega h0.tcbs h0.nodes (h0.omega _ hm) (fun n' hn' e => ?_))⟩
   rw [av, ntfnBtA_val (hO.ntP n' hn')] at e
@@ -489,6 +492,9 @@ theorem ntbt_all {s : S} {n v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s
     (fun c hc => by
       obtain ⟨hPc, hzc⟩ := hO.sc c hc
       rw [av, sporA_val hPc hzc]; have := hO.ntOSc n hn c hc; have := (sc_facts hO hc).1; omega)
+    (fun r hr e _ _ => absurd e (by rw [av, (rp_facts hO hr).2.2.2]; have := hO.ntORp n hn r hr; omega))
+    (fun c hc e => absurd e (by
+      rw [av, (sc_facts hO hc).2.2.2.2.2.2.1]; have := hO.ntOSc n hn c hc; have := (sc_facts hO hc).1; omega))
   exact ⟨⟨Q, R, h1⟩, hB1, hX1, hS1, hSg1⟩
 
 /-- A write of a null or a notification to a TCB's `BOUND_NTFN` field. -/

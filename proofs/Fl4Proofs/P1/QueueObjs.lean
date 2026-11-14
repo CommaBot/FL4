@@ -197,8 +197,8 @@ variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} 
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat}
 
 
-/-- The reply invariants. -/
-structure ReplyInv (st : machine.Store S) [L : LawfulStore st] (T Rp Scs : Set U64) (s : S) : Prop where
+/-- The reply invariants, without the reply-stack head back-pointer. -/
+structure ReplyInv0 (st : machine.Store S) [L : LawfulStore st] (T Rp Scs : Set U64) (s : S) : Prop where
   reply : ∀ t ∈ T, L.mem s (stA t) = sched.TS_BLOCKED_ON_REPLY →
     L.mem s (replyA t) ∈ Rp ∧ L.mem s (rTcbA (L.mem s (replyA t))) = t
   recv : ∀ t ∈ T, L.mem s (stA t) = sched.TS_BLOCKED_ON_RECV → L.mem s (replyA t) ≠ 0#u64 →
@@ -215,6 +215,12 @@ structure ReplyInv (st : machine.Store S) [L : LawfulStore st] (T Rp Scs : Set U
       L.mem s (stA (L.mem s (rTcbA r))) = sched.TS_BLOCKED_ON_RECV)
   /-- An SC's `REPLY` word is unused or a reply object (l4v `valid_sched_context`). -/
   screp : ∀ c ∈ Scs, L.mem s (scReplyA c) ≠ 0#u64 → L.mem s (scReplyA c) ∈ Rp
+
+/-- The reply invariants. -/
+structure ReplyInv (st : machine.Store S) [L : LawfulStore st] (T Rp Scs : Set U64) (s : S) : Prop
+    extends ReplyInv0 st T Rp Scs s where
+  head : RHead st Rp s
+
 
 /-- The SCs' `TCB` and `YIELD_FROM` words name TCBs (or nothing) and the TCBs'
 `YIELD_TO` words name SCs (or nothing): the typing part of l4v's
@@ -294,6 +300,17 @@ def XInv (st : machine.Store S) [L : LawfulStore st] (T Cs Ω Sg Rp Scs Nt : Set
 def XInv0 (st : machine.Store S) [L : LawfulStore st] (T Cs Ω Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (s : S) : Prop :=
   ObjsOK st Ω Sg Rp Scs Nt Z s ∧ ReplyInv st T Rp Scs s ∧ ScExtra0 st T Cs Scs Nt s
 
+/-- `XInv` without `RHead` (between the writes that move a reply-stack head). -/
+def XInvR (st : machine.Store S) [L : LawfulStore st] (T Cs Ω Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (s : S) : Prop :=
+  ObjsOK st Ω Sg Rp Scs Nt Z s ∧ ReplyInv0 st T Rp Scs s ∧ ScExtra st T Cs Scs Nt s
+
+theorem XInv.xr {s : S} (h : XInv st T Cs Ω Sg Rp Scs Nt Z s) : XInvR st T Cs Ω Sg Rp Scs Nt Z s :=
+  ⟨h.1, h.2.1.toReplyInv0, h.2.2⟩
+
+theorem XInvR.x {s : S} (h : XInvR st T Cs Ω Sg Rp Scs Nt Z s) (hh : RHead st Rp s) :
+    XInv st T Cs Ω Sg Rp Scs Nt Z s :=
+  ⟨h.1, ⟨h.2.1, hh⟩, h.2.2⟩
+
 theorem XInv.x0 {s : S} (h : XInv st T Cs Ω Sg Rp Scs Nt Z s) : XInv0 st T Cs Ω Sg Rp Scs Nt Z s :=
   ⟨h.1, h.2.1, h.2.2.toScExtra0⟩
 
@@ -347,8 +364,9 @@ theorem XInv0.keepN {s s' : S} (hX : XInv0 st T Cs Ω Sg Rp Scs Nt Z s)
     (hmx : ∀ c ∈ Scs, (∃ n ∈ Nt, L.mem s (ntfnScA n) = c) → L.mem s' (maxA c) = L.mem s (maxA c)) :
     XInv0 st T Cs Ω Sg Rp Scs Nt Z s' := by
   obtain ⟨hO, hR, hE⟩ := hX
-  refine ⟨hO.ksb, ⟨fun t ht hs => ?_, fun t ht hs hn => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr hn => ?_,
+  refine ⟨hO.ksb, ⟨⟨fun t ht hs => ?_, fun t ht hs hn => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr hn => ?_,
       fun c hc => by rw [hsr c hc]; exact hR.screp c hc⟩,
+      hR.head.keep (fun r hr => (hrw r hr).2.2) hsr (fun r hr h0 hb => (hR.next r hr h0).1 hb)⟩,
     ⟨fun t ht hb => ?_, hcs, fun c hc => by rw [(hfx c hc).2]; exact hE.core c hc,
       hbd, ScExtra.nsc_keepN hE.nsc hns hsn hmx,
       htn.1, htn.2, fun c hc => by rw [hsn c hc]; exact hE.scn c hc, hyt⟩⟩
@@ -759,13 +777,28 @@ theorem XInv.keepT {t : U64} {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) 
     (hclr : ∀ r ∈ Rp, L.mem s (rTcbA r) = t → L.mem s' (rTcbA r) = 0#u64) :
     XInv st T Cs Ω Sg Rp Scs Nt Z s' := by
   obtain ⟨hO, hR, hE⟩ := hX
+  have hzr : ∀ c ∈ Scs, L.mem s' (scReplyA c) ≠ L.mem s (scReplyA c) → ∀ r ∈ Rp, L.mem s (scReplyA c) = r →
+      L.mem s' (rNextA r) &&& ~~~1#u64 = 0#u64 := fun c hc hne r hr e => by
+    rcases k.kz with k1 | ⟨-, -, hn, hz⟩
+    · exact absurd (k1 c hc) hne
+    · rw [← e, hz c hc hne]; exact hn
+  have hd : RHead st Rp s' := fun r hr hb h0 => by
+    rcases (k.rlink r hr).2 with e | e
+    · rw [e] at hb h0 ⊢
+      have hcS := (hR.next r hr h0).1 hb
+      have hh := hR.head r hr hb h0
+      by_cases hc : L.mem s' (scReplyA (L.mem s (rNextA r) &&& ~~~1#u64)) =
+          L.mem s (scReplyA (L.mem s (rNextA r) &&& ~~~1#u64))
+      · rw [hc]; exact hh
+      · exfalso; have := hzr _ hcS hc r hr hh; rw [e] at this; exact h0 this
+    · exact absurd e h0
   have rt : ∀ u ∈ T, u ≠ t → ∀ r ∈ Rp, L.mem s (rTcbA r) = u → L.mem s' (rTcbA r) = u := by
     intro u hu hut r hr e
     rcases k.rtcb r hr with e' | ⟨e', -⟩
     · rw [e']; exact e
     · exact absurd (e.symm.trans e') hut
-  refine ⟨hO.ksb, ⟨fun u hu hs => ?_, fun u hu hs hn => ?_, fun r hr hn => ?_, fun r hr hp => ?_,
-      fun r hr hn => ?_, fun c hc hn => ?_⟩,
+  refine ⟨hO.ksb, ⟨⟨fun u hu hs => ?_, fun u hu hs hn => ?_, fun r hr hn => ?_, fun r hr hp => ?_,
+      fun r hr hn => ?_, fun c hc hn => ?_⟩, hd⟩,
     ⟨⟨fun u hu hb => ?_, by rw [k.cscW]; exact hE.cur, fun c hc => by rw [(k.fix c hc).2.1]; exact hE.core c hc,
       fun u hu => by rw [k.bndf hu]; exact hE.bnd u hu, ScExtra.nsc_keep hE.nsc k.nsc k.snt fun c hc => (k.fix c hc).2.2.1,
       hE.tm.tmfr (TmFr.of_keepT k), hE.ntb.tmfr (TmFr.of_keepT k),
@@ -837,7 +870,8 @@ theorem ipc.cancel_ipc.all {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t
   have hreply : L.mem s (stA t) = sched.TS_BLOCKED_ON_REPLY → ReplyT st Rp Scs s t := fun hs => by
     obtain ⟨h1, h2⟩ := hR.reply t ht hs
     exact ⟨h1, h2, hR.next _ h1, hR.prev _ h1⟩
-  refine WP.spec_mono (ipc.cancel_ipc.inv s a t Q R h ht hO hsub (hR.recv t ht) hreply) fun r hr => ?_
+  refine WP.spec_mono (ipc.cancel_ipc.inv s a t Q R h ht hO hsub (hR.recv t ht) hreply hR.head
+    (fun r hr h0 hb => (hR.next r hr h0).1 hb)) fun r hr => ?_
   obtain ⟨s', a'⟩ := r
   obtain ⟨h', nb, nr, hst, k, z⟩ := hr
   have hclr : ∀ r ∈ Rp, L.mem s (rTcbA r) = t → L.mem s' (rTcbA r) = 0#u64 := by

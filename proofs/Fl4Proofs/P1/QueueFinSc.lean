@@ -80,10 +80,14 @@ theorem rnext_zero_all {s : S} {r : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z 
       rw [av, scNtfnA_val hPc hzc]; have := hO.rpSc r hr c hc; have := (sc_facts hO hc).1; omega))
     (fun _ _ _ => Tz.zero) (fun _ _ _ h0 => absurd rfl h0) (fun _ _ _ h0 => absurd rfl h0)
     (rword_ne_spor hO hr (by rw [av]; omega))
+    (fun _ _ _ _ h => absurd (by simp) h)
+    (fun c hc e => absurd e (rword_ne_screp hO hr (by rw [av]; omega) c hc))
   exact ⟨⟨⟨Q, R, h1⟩, hB1, hX1, hS1, hSg1⟩, foot_wr (h0.omega _ hm).1 (kw_sg (hO.nextW hr))⟩
 
 /-- Clearing an SC's `REPLY` word. -/
-theorem screp_zero_all {s : S} {c : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : c ∈ Scs) :
+theorem screp_zero_all {s : S} {c : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : c ∈ Scs)
+    (hnoh : ∀ r ∈ Rp, headBit (L.mem s (rNextA r)) = true → L.mem s (rNextA r) &&& ~~~1#u64 ≠ 0#u64 →
+      L.mem s (rNextA r) &&& ~~~1#u64 ≠ c) :
     BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (scReplyA c) 0#u64) ∧
       Foot st T Cs Sg Scs Z ∅ s (L.wr s (scReplyA c) 0#u64) := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
@@ -108,6 +112,14 @@ theorem screp_zero_all {s : S} {c : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z 
       exact scw_ne hO hc hc' av (scNtfnA_val hPc hzc) (by omega) (by omega) (by omega)))
     (fun _ _ _ => Tz.zero) (fun _ _ _ h0 => absurd rfl h0) (fun _ _ _ h0 => absurd rfl h0)
     (scw_ne_spor hO hc av (by omega) (by omega))
+    (fun _ _ _ _ h => absurd (by simp) h)
+    (fun c' hc' e r hr hb hz ec => by
+      have : c' = c := by
+        by_contra hne
+        obtain ⟨-, -, -, -, -, -, e7, -⟩ := sc_facts hO hc'
+        rw [av, e7] at e
+        have := hO.scDisj c hc c' hc' (Ne.symm hne); have := (sc_facts hO hc').1; omega
+      exact absurd (ec.trans this) (hnoh r hr hb hz))
   exact ⟨⟨⟨Q, R, h1⟩, hB1, hX1, hS1, hSg1⟩, foot_wr (h0.omega _ hm).1 (kw_sg (hO.repW c hc))⟩
 
 /-- `unbind_reply` (seL4 `schedContext_unbindReply`, the reply-stack head
@@ -134,10 +146,23 @@ theorem schedcontext.unbind_reply.blk (s : S) (c p : U64) (h : BlkOK st T Cs Ω 
     obtain ⟨h1, f1⟩ := rnext_zero_all h hiR
     refine WP.spec_mono (obj.Sc.set_reply.spec _ c 0#u64) fun s2 e2 => ?_
     subst e2
-    obtain ⟨h2, f2⟩ := screp_zero_all h1 hcS
     have hO := h.2.2.1.1
     have hsub := h.2.2.2.2.sub
     have h0 := h.1.choose_spec.choose_spec
+    obtain ⟨h2, f2⟩ := screp_zero_all h1 hcS (fun r hr hb hz ec => by
+      by_cases hri : r = i
+      · subst hri
+        rw [L.mem_wr_same (h0.omega _ (hsub _ (hO.nextW hiR))).1] at hz; exact hz (by simp)
+      · have hne : L.mem (L.wr s (rNextA i) 0#u64) (rNextA r) = L.mem s (rNextA r) := by
+          refine L.mem_wr_ne (h0.omega _ (hsub _ (hO.nextW hiR))).1 (h0.omega _ (hsub _ (hO.nextW hr))).1 ?_
+          rw [(rp_facts hO hiR).2.2.2, (rp_facts hO hr).2.2.2]
+          have := (hO.rp r hr).1; have := (hO.rp i hiR).1
+          have : r.val ≠ i.val := fun e => hri (UScalar.eq_of_val_eq e)
+          omega
+        rw [hne] at hb hz ec
+        have := h.2.2.1.2.1.head r hr hb hz
+        rw [ec, ← ei] at this
+        exact hri this.symm)
     have h0' := h1.1.choose_spec.choose_spec
     obtain ⟨hPc, hzc⟩ := hO.sc c hcS
     obtain ⟨hPp, hzp⟩ := hO.sc p hp
@@ -487,6 +512,8 @@ theorem deact_all {s : S} {p : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
       obtain ⟨hPc, hzc⟩ := hO.sc c hc
       exact ne c hc _ 40 (scNtfnA_val hPc hzc) (by omega) (by omega)))
     (fun c hc e => absurd e (ne c hc _ 56 (sc_facts hO hc).2.2.2.2.2.2.2 (by omega) (by omega)))
+    (fun r hr e => absurd e (by rw [av, (rp_facts hO hr).2.2.2]; have := hO.rpSc r hr p hp; omega))
+    (fun c hc e => absurd e (ne c hc _ 32 (sc_facts hO hc).2.2.2.2.2.2.1 (by omega) (by omega)))
   -- `SCsOK` for `Ac \ {p}` after both writes
   have hms' : core.num.U64.wrapping_add p layout.sc.SPORADIC ∈ Ω := hms
   have hos := h0.omega _ hms'

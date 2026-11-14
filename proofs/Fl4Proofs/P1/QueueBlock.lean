@@ -354,8 +354,9 @@ theorem blk_keep {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U6
           · rcases hact with e'' | e''
             · rwa [e''] at e1
             · rw [e''] at e1; exact absurd e1 (by decide)),
-    ⟨hO.ksb, ⟨fun u hu hs => ?_, fun u hu hs hn => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr hn => ?_,
+    ⟨hO.ksb, ⟨⟨fun u hu hs => ?_, fun u hu hs hn => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr hn => ?_,
         fun c hc => by rw [srp c hc]; exact hR.screp c hc⟩,
+        hR.head.keep rnx srp (fun r hr h0 hb => (hR.next r hr h0).1 hb)⟩,
       ⟨⟨fun u hu hb => ?_, by rw [ecs]; exact hE.cur, fun c hc => by rw [(fix c hc).2.1]; exact hE.core c hc,
         fun u hu => by
           rw [show L.mem s' (boundA u) = L.mem s (boundA u) from
@@ -1206,16 +1207,21 @@ theorem unbind_state {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U6
     rw [scy y hy hyt] at h0 ⊢
     exact hB.sact y hy (Sch.of_eq (fun hf => by rwa [iqy y hy] at hf) (fun hf => by rwa [iqy y hy] at hf)
       ea ei ec (by rw [stA_eq]; exact F1 y hy _ (by simp) (by simp) (fun _ => by simp)) hS) h0
+  have srp2 : ∀ c ∈ Scs, L.mem s2 (scReplyA c) = L.mem s (scReplyA c) := fun c hc =>
+    F2 _ (hSg.sub _ (hO.repW c hc)) (fun e => by
+      rw [(sc_facts hO hc).2.2.2.2.2.2.1, hiv.2.1] at e
+      have := (sc_facts hO hc).1; have := hiv.1
+      by_cases hci : c = i
+      · subst hci; omega
+      · have := hO.scDisj c hc i hiS hci; omega)
+  have rnx2 : ∀ r ∈ Rp, L.mem s2 (rNextA r) = L.mem s (rNextA r) := fun r hr =>
+    F2 _ (hSg.sub _ (hO.nextW hr)) (fun e => by
+      rw [rNextA_val (hO.rp r hr), hiv.2.1] at e
+      have := hO.rpSc r hr i hiS; have := hiv.1; omega)
   refine ⟨h2, fun hcur => ⟨bq, br, fun haT => ?_, bidle, fun h0 => ?_, bnb, bsa⟩, BoundInv.choose h2 bq br bidle bnb bsa,
-    ⟨hO.ksb, ⟨fun u hu hs => ?_, fun u hu hs hn => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr hn => ?_,
-        fun c hc => by
-          rw [F2 _ (hSg.sub _ (hO.repW c hc)) (fun e => by
-            rw [(sc_facts hO hc).2.2.2.2.2.2.1, hiv.2.1] at e
-            have := (sc_facts hO hc).1; have := hiv.1
-            by_cases hci : c = i
-            · subst hci; omega
-            · have := hO.scDisj c hc i hiS hci; omega)]
-          exact hR.screp c hc⟩,
+    ⟨hO.ksb, ⟨⟨fun u hu hs => ?_, fun u hu hs hn => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr hn => ?_,
+        fun c hc => by rw [srp2 c hc]; exact hR.screp c hc⟩,
+        hR.head.keep rnx2 srp2 (fun r hr h0 hb => (hR.next r hr h0).1 hb)⟩,
       ⟨⟨fun u hu hb => ?_, by rw [ecs]; exact hE.cur, fun c hc => by rw [scw c hc _ (hcΩ _ hc).2.1 (Or.inl (sc_facts hO hc).2.2.1)]; exact hE.core c hc,
         fun u hu => by
           rw [show L.mem s2 (boundA u) = L.mem s (boundA u) from F1 u hu _ (by simp) (by simp) (fun _ => by simp)]

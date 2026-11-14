@@ -469,6 +469,9 @@ theorem ntsc_zero_all {s : S} {n : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z A
     (fun c hc => by
       obtain ⟨hPc, hzc⟩ := hO.sc c hc
       rw [av, sporA_val hPc hzc]; have := hO.ntOSc n hn c hc; have := (sc_facts hO hc).1; omega)
+    (fun _ _ _ _ h => absurd (by simp) h)
+    (fun c hc e => absurd e (by
+      rw [av, (sc_facts hO hc).2.2.2.2.2.2.1]; have := hO.ntOSc n hn c hc; have := (sc_facts hO hc).1; omega))
   exact ⟨⟨⟨Q, R, h1⟩, hB1, hX1, hS1, hSg1⟩, foot_wr (h0.omega _ hm).1 (kw_sg (hO.ntW n hn))⟩
 
 /-- Clearing an SC's `NTFN` word. -/
@@ -508,6 +511,13 @@ theorem scn_zero_all {s : S} {c : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac
       by_cases e : c = c'
       · subst e; omega
       · have := hO.scDisj c hc c' hc' e; have := (sc_facts hO hc').1; omega)
+    (fun _ _ _ _ h => absurd (by simp) h)
+    (fun c' hc' e => absurd e (by
+      obtain ⟨hP', hz'⟩ := hO.sc c' hc'
+      rw [av, scReplyA_val hP' hz']
+      by_cases e : c = c'
+      · subst e; omega
+      · have := hO.scDisj c hc c' hc' e; have := (sc_facts hO hc').1; omega))
   exact ⟨⟨⟨Q, R, h1⟩, hB1, hX1, hS1, hSg1⟩, foot_wr (h0.omega _ hm).1 (kw_sg (hO.snW c hc))⟩
 
 /-- `unbind_ntfn` (seL4 `schedContext_unbindNtfn`): the SC's `TCB` word and
