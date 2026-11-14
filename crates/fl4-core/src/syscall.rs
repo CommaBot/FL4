@@ -546,6 +546,13 @@ pub fn handle_trap_syscall<S: Store, A: Arch>(s: &mut S, a: &mut A, vector: u64)
     let t = sched::cur_thread(s);
     let ip = t.reg(s, reg::FAULT_IP).wrapping_sub(2);
     t.set_reg(s, reg::FAULT_IP, ip);
+    // l4h 0001: a thread with trapSyscalls set has only its syscall
+    // instructions as system calls. `int $N` gets the #GP it raises where
+    // the gate is closed, with the IDT vector in the error code.
+    if t.flags(s) & tcb_flag::TRAP_SYSCALLS != 0 {
+        handle_user_exception(s, a, 13, (vector << 3) | 2);
+        return;
+    }
     let eax = t.reg(s, reg::RAX);
     let num = (vector << 24) | (eax & 0x00ff_ffff);
     handle_unknown_syscall(s, a, num as i64);

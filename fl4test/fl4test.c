@@ -55,6 +55,54 @@ static int test_trap_syscalls(env_t env)
 }
 DEFINE_TEST(FL4TRAP0001, "trapSyscalls sends syscalls to the fault handler (l4h 0001)", test_trap_syscalls, true)
 
+/* int $0xa0, the first gate open to user space, with RAX = 39 (Linux's
+ * getpid). */
+extern char fl4trap_int_ip[];
+static int int_gate_once(seL4_Word a, seL4_Word b, seL4_Word c, seL4_Word d)
+{
+    seL4_Word rax = 39;
+    asm volatile("fl4trap_int_ip: int $0xa0" : "+a"(rax) : : "memory");
+    return 0;
+}
+
+/* `int $N` on an open gate is an UnknownSyscall for an ordinary thread. For
+ * a thread with trapSyscalls set it is the #GP that int $N raises where the
+ * gate is closed: UserException 13 with error code (vector << 3) | 2, at
+ * the INT instruction (GitHub issue #1). */
+static int test_trap_int_gate(env_t env)
+{
+    for (int trap = 0; trap <= 1; trap++) {
+        helper_thread_t t;
+        vka_object_t reply;
+        test_error_eq(vka_alloc_reply(&env->vka, &reply), 0);
+        seL4_CPtr fault_ep = vka_alloc_endpoint_leaky(&env->vka);
+        create_helper_thread(env, &t);
+        int error = api_tcb_set_space(get_helper_tcb(&t), fault_ep, env->cspace_root,
+                                      api_make_guard_skip_word(seL4_WordBits - env->cspace_size_bits),
+                                      env->page_directory, seL4_NilData);
+        test_error_eq(error, seL4_NoError);
+        seL4_TCB_SetFlags_t f = seL4_TCB_SetFlags(get_helper_tcb(&t), 0, trap ? seL4_TCBFlag_trapSyscalls : 0);
+        test_error_eq(f.error, seL4_NoError);
+        start_helper(env, &t, int_gate_once, 0, 0, 0, 0);
+        seL4_Word badge;
+        seL4_MessageInfo_t tag = api_recv(fault_ep, &badge, reply.cptr);
+        if (trap) {
+            test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) seL4_Fault_UserException);
+            test_eq((seL4_Word) seL4_GetMR(seL4_UserException_FaultIP), (seL4_Word) fl4trap_int_ip);
+            test_eq((seL4_Word) seL4_GetMR(seL4_UserException_Number), (seL4_Word) 13);
+            test_eq((seL4_Word) seL4_GetMR(seL4_UserException_Code), (seL4_Word) ((0xa0 << 3) | 2));
+        } else {
+            test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) seL4_Fault_UnknownSyscall);
+            test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_FaultIP), (seL4_Word) fl4trap_int_ip);
+            test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_Syscall), (((seL4_Word) 0xa0 << 24) | 39));
+        }
+        cleanup_helper(env, &t);
+    }
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4TRAP0002, "int $N on an open gate: UnknownSyscall, or #GP with trapSyscalls (l4h 0001)",
+            test_trap_int_gate, true)
+
 /* ---- l4h 0003, 0006: seL4_TCB_SetTimer ------------------------------ */
 
 /* The timer signals its badge to the TCB's bound notification, not before
