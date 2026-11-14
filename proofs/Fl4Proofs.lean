@@ -46,3 +46,6 @@ import Fl4Proofs.P3.UntypedRetypeAll
 import Fl4Proofs.P3.UntypedUtFull
 import Fl4Proofs.P3.UntypedPml4
 import Fl4Proofs.P3.Vs
+import Fl4Proofs.P3.CnodeRotate
+import Fl4Proofs.P3.CnodeCancel
+import Fl4Proofs.P3.CnodeRevoke
