@@ -41,6 +41,7 @@ import Fl4Proofs.P1.QueueSlots
 import Fl4Proofs.P1.QueueCaiFr
 import Fl4Proofs.P1.QueueDelete
 import Fl4Proofs.P1.QueueFinCap
+import Fl4Proofs.P1.QueueVsFin
 import Fl4Proofs.P1.QueueFootD
 import Fl4Proofs.P1.QueueFootS
 import Fl4Proofs.P1.QueueRecv
