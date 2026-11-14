@@ -1,0 +1,245 @@
+/-
+P3 (DESIGN.md §9), untyped: **`untyped::retype` with a reset** against l4v
+`invoke_untyped` with `reset = True`: `reset_untyped_cap`, then the retype
+from the reset state. The spec is nondeterministic (preemption), so the
+result is: no failure (`NSat`), and an outcome of FL4's kind (`NHas`).
+
+For the no-failure of the retype after the spec's reset when FL4 was
+preempted, the retype is run (`retype_full`) from an FL4 state built for
+the purpose: the region zeroed and the free index 0, related to the spec's
+only CSpace state after a complete reset (`reset_nsat_ok`).
+-/
+import Fl4Proofs.P3.UntypedResetRefine
+import Fl4Proofs.P3.UntypedRetypeAll
+open Aeneas Aeneas.Std Result
+
+namespace Fl4Proofs.P3
+open fl4_core Classical
+
+noncomputable section
+
+section
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A' : Type} (arI : machine.Arch A')
+
+theorem retype_true_eq (s : S) (a : A') (slot base nt us dest off win : U64) (dev : Bool) :
+    untyped.retype st arI s a slot true base nt us dest off win dev =
+      (do let (r, s1, a1) ← untyped.reset_untyped st arI s a slot
+          match r with
+          | .Ok () => untyped.retype st arI s1 a1 slot false base nt us dest off win dev
+          | .Err e => ok (.Err e, s1, a1)) := by
+  unfold untyped.retype
+  simp only [↓reduceIte, Bool.false_eq_true]
+  congr 1; funext ⟨r, s1, a1⟩
+  rcases r with ⟨⟩ | e <;> simp [core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from]
+
+theorem invoke_true_eq (bitsApi : Fl4Spec.ApiObjectType → Nat → Nat) (sl : Fl4Spec.CslotPtr) (b rb : Fl4Spec.ObjRef)
+    (t : Fl4Spec.ApiObjectType) (us : Nat) (slots : List Fl4Spec.CslotPtr) (dev : Bool) :
+    Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype sl true b rb t us slots dev) =
+      (Fl4Spec.resetUntypedCap sl >>= fun _ =>
+        Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype sl false b rb t us slots dev)) := by
+  simp only [Fl4Spec.invokeUntypedWith, Fl4Spec.NonDetE.whenE, ↓reduceIte, Bool.false_eq_true, ndE_pure_bind]
+
+/-- **`untyped::retype` with a reset refines `invoke_untyped` with
+`reset = True`**, for the types 0, 2..6 from a non-device untyped cap
+`Untyped p sb fi false` (`fi ≠ 0`) without descendants: the spec does not
+fail; FL4 preempted, the spec has a preempted outcome related for the typed
+heap without the region; FL4 done, the spec has an outcome related for the
+heap grown by the new objects, with `MdbInv` and `UtInv`.
+
+Hypotheses: those of `reset_untyped_refines` and of `retype_full` (for the
+reset state: free index 0), the destination CNode outside the region, and
+the original bits of the spec outside it (`horig`). -/
+theorem retype_reset_full (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+    (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
+    (hM : MdbLinks th (L.mem s) G) (hC : CdtRel th (L.mem s) σ G) (hI : MdbInv (L.mem s) G)
+    (hU : UtInv (L.mem s) G)
+    {pp : U64} {rs : Nat} (hpp : th pp = some (.cnode rs)) {idx : List Bool} (hidx : idx.length = rs)
+    {p sb fi : U64}
+    (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false)) (hfi0 : fi.val ≠ 0)
+    (hnd : ∀ y, ¬ Mdb.Desc G.par y (cslotAddr (pp.bv, idx)))
+    (hpal : p.val % 2 ^ sb.val = 0) (hsb4 : 4 ≤ sb.val) (hhigh : 2 ^ 64 - 2 ^ 47 ≤ p.val)
+    (hN : NoStraddle th p.val (p.val + 2 ^ sb.val))
+    (hns : ∀ a ∈ G.chains.flatten, a.val < p.val ∨ p.val + 2 ^ sb.val ≤ a.val)
+    (hzero : ZeroRegion (L.mem s) (p.val + fi.val) (p.val + 2 ^ sb.val))
+    (hrcb : Fl4Spec.resetChunkBits = 16) (hppS : PPFrame) (hPP : PPHyp (L := L) arI th p sb)
+    (horig : ∀ sl, σ.isOriginalCap sl = true → AbsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) sl)
+    (nt us : U64) (t : Fl4Spec.ApiObjectType) (ht : objTypeOf nt.val = some t)
+    (hn : nt.val = 0 ∨ (2 ≤ nt.val ∧ nt.val ≤ 6)) (hus : us.val < 64) (hz47 : zOf nt.val us.val ≤ 47)
+    (hsc : nt.val = 5 → 7 ≤ us.val) (hct0 : nt.val = 4 → us.val ≠ 0)
+    {dest : U64} {r : Nat} (hdest : th dest = some (.cnode r))
+    (hdout : ¬ (p.val ≤ dest.val ∧ dest.val < p.val + 2 ^ sb.val)) (hr : r < 64)
+    (off win : U64) (hwin : off.val + win.val ≤ 2 ^ r) (hw1 : 1 ≤ win.val)
+    (hmem : win.val ≤ ((1#64 <<< sb.val : BitVec 64) - (0 : BitVec 64)).toNat >>> zOf nt.val us.val)
+    (hempty : ∀ i : Nat, off.val ≤ i → i < off.val + win.val →
+      capAt (L.mem s) (slotAddr dest.bv (BitVec.ofNat 64 i)) = ok .Null)
+    (bitsApi : Fl4Spec.ApiObjectType → Nat → Nat) (hb : bitsApi t us.val = zOf nt.val us.val) :
+    untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) true
+      ⟨Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)⟩ nt us dest off win false ⦃ res =>
+      NSat (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) true p.bv
+          (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)) t us.val
+          (windowSlots dest r off.val win.val) false)).run σ (fun _ => True) ∧
+      ((res.1 = .Err .Preempted ∧ ∃ σ' f,
+          NHas (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) true p.bv
+            (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)) t us.val
+            (windowSlots dest r off.val win.val) false)).run σ (TopP (.error ()) σ') ∧
+          ResetRel (restrictTh th p.val (p.val + 2 ^ sb.val)) G (cslotAddr (pp.bv, idx)) p sb false
+            (L.mem res.2.1) σ' f) ∨
+       (res.1 = .Ok () ∧ ∃ σ' G' th'',
+          NHas (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) true p.bv
+            (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)) t us.val
+            (windowSlots dest r off.val win.val) false)).run σ (fun y => y.1 = .ok () ∧ KSame σ' y.2) ∧
+          Placed th'' ∧ StateRel th'' (L.mem res.2.1) σ' ∧ SlotsValid th'' (L.mem res.2.1) ∧
+          MdbLinks th'' (L.mem res.2.1) G' ∧ CdtRel th'' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
+          UtInv (L.mem res.2.1) G')) ⦄ := by
+  set th' := restrictTh th p.val (p.val + 2 ^ sb.val) with hth'
+  set x := cslotAddr (pp.bv, idx) with hxdef
+  have hsb : sb.val < 64 := capAt_untyped_inv hcap
+  have hcv := capV_of_capAt hcap
+  have hAs : AbsSlot th (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩
+  have hxs : IsSlot th x := hAs.isSlot
+  have hxm : x ∈ G.chains.flatten := (hM.members x).2 ⟨hxs, _, hcap, by simp⟩
+  have hrx := hU.reg x hxm (by rw [hcv]; exact physF_ut _ _ _ _)
+  rw [hcv] at hrx
+  obtain ⟨-, -, hfit⟩ := ut_range hsb hrx
+  have hxout := hns x hxm
+  have hxs' : IsSlot th' x := hxs.restrict hP hN hxout
+  have hppout : ¬ (p.val ≤ pp.val ∧ pp.val < p.val + 2 ^ sb.val) := by
+    obtain ⟨q, j, hj, hq, he⟩ := hAs.at
+    have : pp = q := bv_inj hq
+    subst this
+    exact hj.obj_out hP hN (by rw [← he]; exact hxout)
+  have hpp' : th' pp = some (.cnode rs) := by
+    show restrictTh th _ _ pp = _; rw [restrictTh_out hppout]; exact hpp
+  have hdest' : th' dest = some (.cnode r) := by
+    show restrictTh th _ _ dest = _; rw [restrictTh_out hdout]; exact hdest
+  have hpb : pp.bv ∉ regionSet p.bv sb.val := by rw [regionSet_iff _ _ _ hsb hfit]; exact hppout
+  obtain ⟨cs, hk, hwf, -⟩ := hR.cnode pp rs hpp
+  have hg : Fl4Spec.getCap (Z := Unit) (pp.bv, idx) σ = ({(.untypedCap false p.bv sb.val fi.val, σ)}, False) := by
+    obtain ⟨c, a, hc, hca, hg⟩ := hR.slot_cap (sl := (pp.bv, idx)) (p := pp) rfl (by simpa [hidx] using hpp)
+    rw [hcap] at hc; have := eq_of_ok_eq hc; subst this
+    rw [hg, hca.abs]; rfl
+  have h16 : 16 ∣ 2 ^ sb.val := by
+    have := Nat.pow_dvd_pow 2 hsb4; simpa using this
+  have hmod : ∀ d, d ∣ 2 ^ sb.val → p.val % d = 0 := by
+    intro d hd; have := Nat.mod_mod_of_dvd p.val hd; rw [hpal, Nat.zero_mod] at this; exact this.symm
+  have hp8 : p.bv.toNat % 8 = 0 := hmod 8 (dvd_trans (by norm_num) h16)
+  have hfib : fi.val ≤ 2 ^ sb.val := hU.fib x hxm _ _ _ _ hcv
+  have hP' : Placed th' := hP.restrict
+  have hfree : RegionFree th' (p.val + (0#u64 : U64).val) (p.val + 2 ^ sb.val) := by
+    simpa using RegionFree.restrict hN
+  -- window slots: slots of the restricted heap other than `x`
+  have hwin' : ∀ i : Nat, off.val ≤ i → i < off.val + win.val →
+      IsSlot th' (slotAddr dest.bv (BitVec.ofNat 64 i)) ∧ slotAddr dest.bv (BitVec.ofNat 64 i) ≠ x := by
+    intro i h1 h2
+    have hr2 : i < 2 ^ r := by omega
+    refine ⟨⟨dest, i, Or.inl ⟨r, hdest', hr2⟩, rfl⟩, fun e => ?_⟩
+    have := hempty i h1 h2
+    rw [e, hcap] at this; simp at this
+  -- the retype from any state of the reset, done
+  have hRT : ∀ (t1 : S) (a1 : A') (σt : Fl4Spec.State Unit),
+      ResetRel th' G x p sb false (L.mem t1) σt 0#u64 →
+      ZeroRegion (L.mem t1) (p.val + (0#u64 : U64).val) (p.val + 2 ^ sb.val) →
+      (∀ y, IsSlot th' y → y ≠ x → capV (L.mem t1) y = capV (L.mem s) y) →
+      σt.isOriginalCap = σ.isOriginalCap →
+      untyped.retype st arI t1 a1 x false ⟨Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)⟩
+        nt us dest off win false ⦃ res =>
+        res.1 = .Ok () ∧ res.2.2 = a1 ∧ ∃ σ' G' th'',
+          (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) false p.bv
+            (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)) t us.val
+            (windowSlots dest r off.val win.val) false)).run σt = ({(.ok (), σ')}, False) ∧
+          Placed th'' ∧ StateRel th'' (L.mem res.2.1) σ' ∧ SlotsValid th'' (L.mem res.2.1) ∧
+          MdbLinks th'' (L.mem res.2.1) G' ∧ CdtRel th'' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
+          UtInv (L.mem res.2.1) G' ∧ ZeroRegion (L.mem res.2.1)
+            ((Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val)
+            (p.val + 2 ^ sb.val) ⦄ := by
+    intro t1 a1 σt hRR hZ hF hio
+    have hcap1 : capAt (L.mem t1) x = ok (.Untyped p sb 0#u64 false) := by rw [capAt_capV, hRR.cap]
+    have he1 : ∀ i : Nat, off.val ≤ i → i < off.val + win.val →
+        capAt (L.mem t1) (slotAddr dest.bv (BitVec.ofNat 64 i)) = ok .Null := by
+      intro i h1 h2
+      obtain ⟨hs, hne⟩ := hwin' i h1 h2
+      rw [capAt_capV, hF _ hs hne, ← capAt_capV]; exact hempty i h1 h2
+    exact retype_full (L := L) arI a1 th' t1 σt G hRR.R hRR.V hP' hRR.M hRR.C hRR.I hRR.U
+      (fun sl h => horig sl (by rw [← hio]; exact h)) hpp' hidx hcap1 hpal hfit (by simp) hhigh nt us t ht hn hus hz47
+      hsc hct0 hdest' hr off win hwin hw1 hmem he1 hfree hZ bitsApi hb
+  -- a state of FL4 for the spec's state after a complete reset
+  have hpow : (⟨BitVec.ofNat 64 (2 ^ sb.val)⟩ : U64).val = 2 ^ sb.val := by
+    show (BitVec.ofNat 64 (2 ^ sb.val)).toNat = _
+    rw [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (Nat.pow_lt_pow_right (by decide) hsb)
+  have hrel0 : ResetRel th' G x p sb false (L.mem s) (Fl4Spec.detype (regionSet p.bv sb.val) σ) fi := by
+    obtain ⟨h1, h2, h3, h4⟩ := detype_rel (σd := Fl4Spec.detype (regionSet p.bv sb.val) σ) hR hV hP hM hC
+      hI hU hxm hcv hnd hN hns
+      (fun q hq => by simp only [Fl4Spec.detype]; rw [if_neg (by rw [regionSet_iff _ _ _ hsb hfit]; exact hq)]) rfl rfl
+    exact ⟨h1, h2, h3, h4, hI, hU, hcv⟩
+  obtain ⟨hRz, hzz⟩ := reset_zero_step hP hN hrel0 hxs' p ⟨BitVec.ofNat 64 (2 ^ sb.val)⟩ hp8
+    (by rw [hpow]; omega) (le_refl _) (by rw [hpow]) hfit
+  obtain ⟨sc, -, cs', hk', hwf', hRc, hfrc, hcoc⟩ := spec_exists
+    (reset_set_step (L := L) hP hpp' hidx hRz hnd 0#u64 (by simp))
+  rw [← hxdef] at hfrc hcoc
+  have hcsD : (Fl4Spec.detype (regionSet p.bv sb.val) σ).kheap pp.bv = some (.cnode rs cs) :=
+    detype_hasCN hk hpb (KSame.refl _)
+  have e : cs' = cs := by rw [hcsD] at hk'; cases hk'; rfl
+  subst e
+  have hZc : ZeroRegion (L.mem sc) (p.val + (0#u64 : U64).val) (p.val + 2 ^ sb.val) := by
+    intro w hw h1 h2
+    have h1' : p.val ≤ w.val := by simpa using h1
+    have hxw := hxs'.restrict_words hP hN
+    rw [hfrc w hw (by omega) (by omega), hzz w hw, if_pos (by rw [hpow]; omega)]
+  have hS0 : SlotsSame th' (L.mem s) (L.mem (L.zr s p ⟨BitVec.ofNat 64 (2 ^ sb.val)⟩)) :=
+    slotsSame_out hP' (fun b hb => hb.restrict_words hP hN) (fun w hw ho => by
+      rw [hzz w hw, if_neg (by rw [hpow]; omega)])
+  have hFc : ∀ y, IsSlot th' y → y ≠ x → capV (L.mem sc) y = capV (L.mem s) y := fun y hy hyx => by
+    rw [hcoc y hy hyx, hS0.capV hy]
+  -- the spec: no failure
+  have hNS : NSat (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) true p.bv
+      (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)) t us.val
+      (windowSlots dest r off.val win.val) false)).run σ (fun _ => True) := by
+    rw [invoke_true_eq]
+    apply nsatE_bind
+    refine (reset_nsat_ok hk hwf hidx hg hfi0 hp8 hpb hrcb hppS hfib).mono (fun y hy => ?_)
+    rcases y with ⟨e | u, s1⟩
+    · trivial
+    · have hK := hy rfl
+      obtain ⟨⟨r1, t2, a2⟩, -, hpost⟩ := spec_exists (hRT sc ar s1 (hRc.of_same (SlotsSame.refl _ _) hxs' hK)
+        hZc hFc (by rw [hK.2.2]; rfl))
+      obtain ⟨-, -, σ', G', th'', hrun, -⟩ := hpost
+      exact nsat_det hrun trivial
+  -- FL4: the reset, then the retype
+  rw [retype_true_eq]
+  obtain ⟨⟨r1, s1, a1⟩, hres, hNSr, σ', f, hcase, hRR, hZ, hF⟩ := spec_exists
+    (reset_untyped_refines (L := L) arI th s ar σ G hR hV hP hM hC hI hU hpp hidx hcap hfi0 hnd hpal hsb4 hN hns hzero
+      hrcb hppS hPP)
+  rw [hres]
+  simp only [bind_ok, uncurry_apply_pair]
+  rcases hcase with ⟨h1, hf0, hhas⟩ | ⟨h1, hhas⟩
+  · simp only at h1; subst h1 hf0
+    simp only
+    obtain ⟨y, hy, hy1, hy2⟩ := hhas
+    have hKy := (reset_nsat_ok hk hwf hidx hg hfi0 hp8 hpb hrcb hppS hfib).2 y hy hy1
+    refine WP.spec_mono (hRT s1 a1 y.2 (hRR.of_same (SlotsSame.refl _ _) hxs' hy2) (hZ rfl) hF
+      (by rw [hKy.2.2]; rfl)) ?_
+    · rintro res ⟨hr1, -, σf, G', th'', hrun, hP'', hR'', hV'', hM'', hC'', hI'', hU'', -⟩
+      refine ⟨hNS, Or.inr ⟨hr1, σf, G', th'', ?_, hP'', hR'', hV'', hM'', hC'', hI'', hU''⟩⟩
+      rw [invoke_true_eq]
+      apply nhasE_bind
+      refine ⟨y, hy, ?_⟩
+      rcases y with ⟨e1, s2⟩
+      simp only at hy1; subst hy1
+      exact nhas_det hrun ⟨rfl, KSame.refl _⟩
+  · simp only at h1; subst h1
+    simp only
+    refine (WP.spec_ok _).2 ⟨hNS, Or.inl ⟨rfl, σ', f, ?_, hRR⟩⟩
+    rw [invoke_true_eq]
+    apply nhasE_bind
+    obtain ⟨y, hy, hy1, hy2⟩ := hhas
+    refine ⟨y, hy, ?_⟩
+    rcases y with ⟨e1, s2⟩
+    simp only at hy1; subst hy1
+    exact ⟨rfl, hy2⟩
+
+end
+
+end
+
+end Fl4Proofs.P3

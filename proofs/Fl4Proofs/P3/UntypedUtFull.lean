@@ -63,8 +63,7 @@ theorem insert_full_ut (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : M
   obtain ⟨s2, h2, hinv⟩ := spec_exists
     (insert_mdbinv hP s G hM hI hsrcm hAd.isSlot hdestm hsrcC c he hsh hbd hut hzb)
   obtain ⟨s3, h3, hut'⟩ := spec_exists
-    (insert_utinv hP s G hM hI hU hsrcm hAd.isSlot hdestm hsrcC c he hsh hbd hut hzb hutc
-      (isPF (revOf (L.mem s) (cslotAddr (ps.bv, idxs))) srcC c (revF c srcC)))
+    (insert_utinv hP s G hM hI hU hsrcm hAd.isSlot hdestm hsrcC c he hsh hbd hut hzb hutc)
   rw [h1] at h2 h3
   have e := eq_of_ok_eq h2
   have e3 := eq_of_ok_eq h3

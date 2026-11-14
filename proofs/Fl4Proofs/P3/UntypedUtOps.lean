@@ -72,7 +72,19 @@ theorem UtInv.rename {th : TypedHeap} {mem mem' : U64 → U64} {G : MdbGhost} (h
   have hget : ∀ z ∈ (renG G e).chains.flatten, ∃ z0 ∈ G.chains.flatten, z = e z0 :=
     fun z hz => ⟨e.symm z, (hmem z).1 hz, by simp⟩
   refine ⟨fun x hx hp => ?_, fun x hx p sb fi d hc y hd => ?_, fun x hx p sb fi d hc y hy hp => ?_,
-    fun x hx y hy hxy p sb fi fi' d d' hcx hcy => ?_, fun x hx p sb fi d hc => ?_⟩
+    fun x hx y hy hxy p sb fi fi' d d' hcx hcy => ?_, fun x hx p sb fi d hc => ?_,
+    fun x hx p sb fi d hc y hy hyx hp hd => ?_⟩
+  rotate_right
+  · obtain ⟨x0, hx0, rfl⟩ := hget x hx
+    obtain ⟨y0, hy0, rfl⟩ := hget y hy
+    have hq := hcap x0 hx0
+    have hqy := hcap y0 hy0
+    rw [hqy.phys] at hp
+    have hd0 : ¬ Disj (capV mem y0) (capV mem x0) := by
+      unfold Disj at hd ⊢; rw [hq.base, hq.top, hqy.base, hqy.top] at hd; exact hd
+    rcases hU.drange x0 hx0 p sb fi d ((hq.ut _ _ _ _).1 hc) y0 hy0 (fun e' => hyx (by rw [e'])) hp hd0 with e' | e'
+    · left; rw [hD]; simpa using e'
+    · right; rw [hD]; simpa using e'
   · obtain ⟨x0, hx0, rfl⟩ := hget x hx
     have hq := hcap x0 hx0
     rw [hq.phys] at hp; rw [hq.base, hq.top]; exact hU.reg x0 hx0 hp
@@ -111,7 +123,15 @@ theorem UtInv.remove {th : TypedHeap} {mem mem' : U64 → U64} {G : MdbGhost} (h
   have hD : ∀ y z, Mdb.Desc (remG G x).par y z ↔ y ≠ x ∧ z ≠ x ∧ Mdb.Desc G.par y z :=
     Mdb.desc_remove_iff hM.no_self_par
   refine ⟨fun z hz hp => ?_, fun z hz p sb fi d hc y hd => ?_, fun z hz p sb fi d hc y hy hp => ?_,
-    fun z hz y hy hzy p sb fi fi' d d' hcz hcy => ?_, fun z hz p sb fi d hc => ?_⟩
+    fun z hz y hy hzy p sb fi fi' d d' hcz hcy => ?_, fun z hz p sb fi d hc => ?_,
+    fun z hz p sb fi d hc y hy hyz hp hd => ?_⟩
+  rotate_right
+  · obtain ⟨hz0, hzx⟩ := (hmem z).1 hz
+    obtain ⟨hy0, hyx⟩ := (hmem y).1 hy
+    rw [hcap z hz0 hzx] at hc hd; rw [hcap y hy0 hyx] at hp hd
+    rcases hU.drange z hz0 p sb fi d hc y hy0 hyz hp hd with e | e
+    · exact Or.inl ((hD y z).2 ⟨hyx, hzx, e⟩)
+    · exact Or.inr ((hD z y).2 ⟨hzx, hyx, e⟩)
   · obtain ⟨hz0, hzx⟩ := (hmem z).1 hz
     rw [hcap z hz0 hzx] at hp ⊢; exact hU.reg z hz0 hp
   · obtain ⟨hz0, hzx⟩ := (hmem z).1 hz
@@ -130,6 +150,17 @@ theorem UtInv.remove {th : TypedHeap} {mem mem' : U64 → U64} {G : MdbGhost} (h
     rw [hcap z hz0 hzx] at hc; exact hU.fib z hz0 _ _ _ _ hc
 
 /-! ## Insertion of a derived cap (`insert`, with `set_untyped_cap_as_full`) -/
+
+/-- Ancestors of an untyped cap are untyped (`same_region_as` into an
+untyped cap holds only from one). -/
+theorem MdbInv.anc_ut {mem : U64 → U64} {G : MdbGhost} (hI : MdbInv mem G) {y x : U64}
+    (hd : Mdb.Desc G.par y x) (hu : isUt (capV mem y) = true) : isUt (capV mem x) = true := by
+  have h := hI.desc x y hd
+  obtain ⟨q, sz, f, d, e⟩ := isUt_iff.1 hu
+  unfold isPM isPF at h; rw [e] at h
+  have hs : srB (capV mem x) (.Untyped q sz f d) = true := by
+    revert h; cases srB (capV mem x) (.Untyped q sz f d) <;> simp
+  exact srB_to_ut hs
 
 namespace InsCtx
 variable {th : TypedHeap} {mem mem' : U64 → U64} {G : MdbGhost} {src dest : U64} {c c1 : capability.Cap}
@@ -184,11 +215,54 @@ theorem view {z : U64} (hz : z ∈ (insG G src dest false).chains.flatten) :
 theorem memI' (b : Bool) {z : U64} (hz : z ∈ (insG G src dest b).chains.flatten) :
     z ∈ (insG G src dest false).chains.flatten := (h.memI false z).2 ((h.memI b z).1 hz)
 
-/-- **Inserting a derived cap keeps `UtInv`** (whatever `dest`'s parent). -/
-theorem utinv (b : Bool) : UtInv mem' (insG G src dest b) := by
+/-- **Inserting a derived cap keeps `UtInv`**, `dest` being a child of
+`src` if that is untyped. -/
+theorem utinv (b : Bool) (hb : isUt (capV mem src) = true → b = true) : UtInv mem' (insG G src dest b) := by
   have V := fun {z : U64} (hz : z ∈ (insG G src dest b).chains.flatten) => h.view hU hc1 hutc (h.memI' hU hc1 hutc b hz)
   refine ⟨fun x hx hp => ?_, fun x hx p sb fi d hc y hd => ?_, fun x hx p sb fi d hc y hy hp => ?_,
-    fun x hx y hy hxy p sb fi fi' d d' hcx hcy => ?_, fun x hx p sb fi d hc => ?_⟩
+    fun x hx y hy hxy p sb fi fi' d d' hcx hcy => ?_, fun x hx p sb fi d hc => ?_,
+    fun x hx p sb fi d hc y hy hyx hp hd => ?_⟩
+  rotate_right
+  · obtain ⟨x0, hx0, hxd, hxn, e1, e2, -, e4, hu⟩ := V hx
+    obtain ⟨y0, hy0, hyd, hyn, f1, f2, f3, -, -⟩ := V hy
+    obtain ⟨fi0, hc0, -⟩ := hu p sb fi d hc
+    rw [f3] at hp
+    have hd0 : ¬ Disj (capV mem y0) (capV mem x0) := by
+      unfold Disj at hd ⊢; rw [e1, e2, f1, f2] at hd; exact hd
+    have up : ∀ {a z}, Mdb.Desc G.par a z → Mdb.Desc (insG G src dest b).par a z :=
+      fun e => (h.desc b _ _).2 (Or.inl e)
+    have dn : ∀ {z}, (b = true ∧ z = src ∨ Mdb.Desc G.par src z) → Mdb.Desc (insG G src dest b).par dest z :=
+      fun e => (h.desc b _ _).2 (Or.inr ⟨rfl, e⟩)
+    have hsu : isUt (capV mem x0) = true := by rw [hc0]; rfl
+    by_cases hxD : x = dest
+    · have hx0e := hxd hxD
+      rw [hx0e] at hc0 hd0 hsu
+      have hy' : y ≠ dest := fun e => hyx (e.trans hxD.symm)
+      have hy0e := hyn hy'
+      rw [hy0e] at hy0 hp hd0
+      rw [hxD]
+      have hbt := hb hsu
+      by_cases hys : y = src
+      · rw [hys]; exact Or.inr (dn (Or.inl ⟨hbt, rfl⟩))
+      · rcases hU.drange src h.hsrc _ _ _ _ hc0 y hy0 hys hp hd0 with e | e
+        · exact absurd e (h.hut hsu y)
+        · exact Or.inr (dn (Or.inr e))
+    · have hx0e := hxn hxD
+      rw [hx0e] at hc0 hd0 hsu hx0
+      by_cases hyD : y = dest
+      · have hy0e := hyd hyD
+        rw [hy0e] at hp hd0
+        rw [hyD]
+        by_cases hxs : x = src
+        · rw [hxs] at hsu ⊢; exact Or.inl (dn (Or.inl ⟨hb hsu, rfl⟩))
+        · rcases hU.drange x hx0 _ _ _ _ hc0 src h.hsrc (Ne.symm hxs) hp hd0 with e | e
+          · exact Or.inl (dn (Or.inr e))
+          · exact absurd e (h.hut (h.hI.anc_ut e hsu) x)
+      · have hy0e := hyn hyD
+        rw [hy0e] at hy0 hp hd0
+        rcases hU.drange x hx0 _ _ _ _ hc0 y hy0 hyx hp hd0 with e | e
+        · exact Or.inl (up e)
+        · exact Or.inr (up e)
   · obtain ⟨x0, hx0, -, -, e1, e2, e3, -, -⟩ := V hx
     rw [e3] at hp; rw [e1, e2]; exact hU.reg x0 hx0 hp
   · have hy : y ∈ (insG G src dest b).chains.flatten := by
@@ -286,8 +360,9 @@ theorem insert_utinv (hP : Placed th) (s : S) (G : MdbGhost) (hM : MdbLinks th (
     (c : capability.Cap) (he : EncWf c) (hsh : shape c = shape srcC)
     (hbd : badgeF c = badgeF srcC ∨ badgeF srcC = 0#u64)
     (hut : isUt srcC = true → ∀ y, ¬ Mdb.Desc G.par y src) (hzb : isZb srcC = false)
-    (hutc : isUt srcC = true → c = srcC) (b : Bool) :
-    cdt.insert st s c src dest ⦃ s' => UtInv (L.mem s') (insG G src dest b) ⦄ := by
+    (hutc : isUt srcC = true → c = srcC) :
+    cdt.insert st s c src dest ⦃ s' =>
+      UtInv (L.mem s') (insG G src dest (isPF (revOf (L.mem s) src) srcC c (revF c srcC))) ⦄ := by
   have hslot : ∀ x, x ∈ G.chains.flatten → IsSlot th x := fun x h => ((hM.members x).1 h).1
   have hs := hslot src hsrc
   have hne : src ≠ dest := fun e => hdest (e ▸ hsrc)
@@ -323,7 +398,13 @@ theorem insert_utinv (hP : Placed th) (s : S) (G : MdbGhost) (hM : MdbLinks th (
       hbd1 := by rw [hcv]; exact (fullF_shape srcC c).2
       hut := by rw [hcv]; exact hut
       hzb := by rw [hcv]; exact hzb }
-  exact hctx.utinv hU (by rw [hcv]) (by rw [hcv]; exact hutc) b
+  refine hctx.utinv hU (by rw [hcv]) (by rw [hcv]; exact hutc) _ (fun hu => ?_)
+  rw [hcv] at hu
+  have hr := hI.utrev src hsrc (by rw [hcv]; exact hu)
+  have hss := hI.self src hsrc (by rw [hcv]; exact hzb)
+  unfold srM at hss; rw [hcv] at hss
+  rw [hutc hu, hr]
+  simp [isPF, hss, isBadged_ut hu]
 
 /-- **`cdt::move_cap` keeps `UtInv`**, for a new cap of the old one's
 shape, equal to it if untyped. -/

@@ -30,6 +30,13 @@ structure UtInv (mem : U64 → U64) (G : MdbGhost) : Prop where
   excl : ∀ x ∈ G.chains.flatten, ∀ y ∈ G.chains.flatten, x ≠ y → ∀ p sb fi fi' d d',
     capV mem x = .Untyped p sb fi d → capV mem y = .Untyped p sb fi' d' → 2 ^ sb.val ≤ fi.val ∨ 2 ^ sb.val ≤ fi'.val
   fib : ∀ x ∈ G.chains.flatten, ∀ p sb fi d, capV mem x = .Untyped p sb fi d → fi.val ≤ 2 ^ sb.val
+  /-- l4v `untyped_children_in_mdb` / `untyped_inc`: a physical cap whose
+  range meets an untyped cap's is its descendant or its ancestor. -/
+  drange : ∀ x ∈ G.chains.flatten, ∀ p sb fi d, capV mem x = .Untyped p sb fi d →
+    ∀ y ∈ G.chains.flatten, y ≠ x → physF (capV mem y) = true → ¬ Disj (capV mem y) (capV mem x) →
+      Mdb.Desc G.par y x ∨ Mdb.Desc G.par x y
+
+theorem disj_comm {a b : capability.Cap} : Disj a b ↔ Disj b a := by unfold Disj; exact Or.comm
 
 theorem capV_ut_sb {mem : U64 → U64} {x p sb fi : U64} {d : Bool} (h : capV mem x = .Untyped p sb fi d) :
     sb.val < 64 := capAt_untyped_inv (show capAt mem x = ok (.Untyped p sb fi d) by rw [capAt_capV, h])
@@ -391,8 +398,86 @@ theorem fib' : ∀ x ∈ Gf.chains.flatten, ∀ p' sb' fi' d', capV memf x = .Un
     obtain ⟨us, d, hcj, -⟩ := h.cut j hj (by rw [hc]; rfl)
     rw [hcj] at hc; cases hc; simp
 
+/-- A cap containing the untyped cap is its ancestor (it cannot be a
+descendant, which lies below the free index). -/
+theorem src_anc {z : U64} (hz : z ∈ G0.chains.flatten) (hzs : z ≠ src) (hp : physF (capV mem0 z) = true)
+    (hw : Within (.Untyped p sb fi dev) (capV mem0 z)) : Mdb.Desc G0.par src z := by
+  obtain ⟨s1, s2, -⟩ := h.srcR hU
+  unfold Within at hw; rw [s1, s2] at hw
+  have hfi := h.hfi
+  have h1 := Nat.one_le_two_pow (n := sb.val)
+  rcases hU.drange src h.hsrc p sb fi dev h.hcs z hz hzs hp (by
+    unfold Disj; rw [h.hcs, s1, s2]; omega) with hd | hd
+  · exfalso
+    have := (hU.inc src h.hsrc p sb fi dev h.hcs z hd).2.2
+    omega
+  · exact hd
+
+/-- An old cap meeting a new one is the untyped cap or one of its ancestors. -/
+theorem meet_new {j : Nat} (hj : j < w) {z : U64} (hz : z ∈ G0.chains.flatten)
+    (hp : physF (capV mem0 z) = true) (hd : ¬ Disj (cj j) (capV mem0 z)) :
+    z = src ∨ Mdb.Desc G0.par src z := by
+  by_cases hzs : z = src
+  · exact Or.inl hzs
+  right
+  have cb := h.cbase j hj
+  obtain ⟨-, c2⟩ := h.cj_in hU hj
+  have hA := h.hA
+  rcases hU.noov src h.hsrc p sb fi dev h.hcs z hz hp with hr | ⟨-, hw⟩
+  · exfalso; apply hd; unfold DisjR at hr; unfold Disj
+    rcases hr with hr | hr
+    · right; have := Nat.zero_le j; omega
+    · left; have := Nat.one_le_two_pow (n := sb.val); omega
+  · rw [h.hcs] at hw; exact h.src_anc hU hz hzs hp hw
+
+theorem drange' : ∀ x ∈ Gf.chains.flatten, ∀ p' sb' fi' d', capV memf x = .Untyped p' sb' fi' d' →
+    ∀ y ∈ Gf.chains.flatten, y ≠ x → physF (capV memf y) = true → ¬ Disj (capV memf y) (capV memf x) →
+      Mdb.Desc Gf.par y x ∨ Mdb.Desc Gf.par x y := by
+  intro x hx p' sb' fi' d' hcx y hy hyx hp hd
+  have lift : ∀ {a b}, Mdb.Desc G0.par a b → Mdb.Desc Gf.par a b := fun hd => (h.F3 _ _).2 (Or.inl hd)
+  have newd : ∀ {l b}, l < w → (b = src ∨ Mdb.Desc G0.par src b) → Mdb.Desc Gf.par (dslot l) b :=
+    fun hl hb => (h.F3 _ _).2 (Or.inr ⟨_, hl, rfl, hb⟩)
+  have hdj : ∀ a b : capability.Cap, ¬ Disj a b → (baseF a ≤ topF b ∧ baseF b ≤ topF a) := by
+    intro a b hn; unfold Disj at hn; omega
+  rcases h.F1 x hx with hx0 | ⟨j, hj, rfl⟩ <;> rcases h.F1 y hy with hy0 | ⟨l, hl, rfl⟩
+  · obtain ⟨x1, x2, -, x4⟩ := h.rng_old hU hx0
+    obtain ⟨y1, y2, y3, -⟩ := h.rng_old hU hy0
+    have hxu : isUt (capV mem0 x) = true := by rw [← x4, hcx]; rfl
+    obtain ⟨q, sz, f, dd, hq⟩ := isUt_iff.1 hxu
+    rw [y3] at hp
+    have hd' := hdj _ _ hd
+    rw [x1, x2, y1, y2] at hd'
+    rcases hU.drange x hx0 q sz f dd hq y hy0 hyx hp (by unfold Disj; omega) with e | e
+    · exact Or.inl (lift e)
+    · exact Or.inr (lift e)
+  · left
+    by_cases hxs : x = src
+    · subst hxs; exact newd hl (Or.inl rfl)
+    obtain ⟨x1, x2, x3, -⟩ := h.rng_old hU hx0
+    have hd' := hdj _ _ hd
+    rw [x1, x2, h.F2a l hl] at hd'
+    rcases h.meet_new hU hl hx0 (by rw [← x3, hcx]; exact physF_ut _ _ _ _) (by unfold Disj; omega) with e | e
+    · exact absurd e hxs
+    · exact newd hl (Or.inr e)
+  · right
+    by_cases hys : y = src
+    · subst hys; exact newd hj (Or.inl rfl)
+    obtain ⟨y1, y2, y3, -⟩ := h.rng_old hU hy0
+    have hd' := hdj _ _ hd
+    rw [y1, y2, h.F2a j hj] at hd'
+    rcases h.meet_new hU hj hy0 (by rw [← y3]; exact hp) (by unfold Disj; omega) with e | e
+    · exact absurd e hys
+    · exact newd hj (Or.inr e)
+  · exfalso
+    have hjl : l ≠ j := fun e => hyx (by rw [e])
+    have := h.cj_disj hU hl hj hjl
+    have hd' := hdj _ _ hd
+    rw [h.F2a l hl, h.F2a j hj] at hd'
+    have := h.cbase j hj; have := h.ctop j hj; have := h.cbase l hl; have := h.ctop l hl; have := h.hk
+    omega
+
 /-- **Retype keeps the untyped invariant.** -/
-theorem utinv : UtInv memf Gf := ⟨h.reg' hU, h.inc' hU, h.noov' hU, h.excl' hU, h.fib' hU⟩
+theorem utinv : UtInv memf Gf := ⟨h.reg' hU, h.inc' hU, h.noov' hU, h.excl' hU, h.fib' hU, h.drange' hU⟩
 
 end RetypeDelta
 

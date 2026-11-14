@@ -54,12 +54,14 @@ theorem UtInv.of_same {th : TypedHeap} {m m' : U64 → U64} {G : MdbGhost} (hM :
   have hsl : ∀ x, x ∈ G.chains.flatten → IsSlot th x := fun x h => ((hM.members x).1 h).1
   have hc : ∀ x, x ∈ G.chains.flatten → capV m' x = capV m x := fun x hx => hS.capV (hsl x hx)
   refine ⟨fun x hx => ?_, fun x hx p sb fi d hcx y hy => ?_, fun x hx p sb fi d hcx y hy => ?_,
-    fun x hx y hy hne p sb fi fi' d d' h1 h2 => ?_, fun x hx p sb fi d hcx => ?_⟩
+    fun x hx y hy hne p sb fi fi' d d' h1 h2 => ?_, fun x hx p sb fi d hcx => ?_,
+    fun x hx p sb fi d hcx y hy hyx hp hd => ?_⟩
   · rw [hc x hx]; exact hU.reg x hx
   · rw [hc x hx] at hcx; rw [hc y (desc_mem hM hy).1]; exact hU.inc x hx p sb fi d hcx y hy
   · rw [hc x hx] at hcx ⊢; rw [hc y hy]; exact hU.noov x hx p sb fi d hcx y hy
   · rw [hc x hx] at h1; rw [hc y hy] at h2; exact hU.excl x hx y hy hne p sb fi fi' d d' h1 h2
   · rw [hc x hx] at hcx; exact hU.fib x hx p sb fi d hcx
+  · rw [hc x hx] at hcx hd; rw [hc y hy] at hp hd; exact hU.drange x hx p sb fi d hcx y hy hyx hp hd
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
