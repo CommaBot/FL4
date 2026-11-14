@@ -39,4 +39,5 @@ import Fl4Proofs.P3.Ep
 import Fl4Proofs.P3.TcbRel
 import Fl4Proofs.P3.EpFaultUs
 import Fl4Proofs.P3.EpComb
-import Fl4Proofs.P3.UntypedTcb
+import Fl4Proofs.P3.UntypedRetypeAll
+import Fl4Proofs.P3.UntypedUtFull

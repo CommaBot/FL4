@@ -26,14 +26,15 @@ noncomputable section
 
 /-! ## New caps -/
 
-/-- The cap `create_object` returns for the non-arch types but the TCB
-(FL4 type numbers 0, 2..6). -/
+/-- The cap `create_object` returns for the non-arch types (FL4 type
+numbers 0..6). -/
 def newCapOf (n : Nat) (base us : U64) (dev : Bool) : capability.Cap :=
   if n = 2 then .Endpoint base 0#u64 true true true true
   else if n = 3 then .Notification base 0#u64 true true
   else if n = 4 then .CNode base us 0#u64 0#u64
   else if n = 0 then .Untyped base us 0#u64 dev
   else if n = 5 then .SchedContext base us
+  else if n = 1 then .Thread base
   else .Reply base true
 
 section
@@ -66,20 +67,19 @@ theorem rightsOf_rw : rightsOf true true false false = {.allowRead, .allowWrite}
 /-- **The new caps are the spec's default caps** (`default_cap`), and
 well-formed, given the size checks `decode` made. -/
 theorem newCap_rel {n : Nat} {t : Fl4Spec.ApiObjectType} (ht : objTypeOf n = some t)
-    (hn : n = 0 ∨ (2 ≤ n ∧ n ≤ 6)) (base us : U64) (dev : Bool) (hus : us.val < 64)
+    (hn : n ≤ 6) (base us : U64) (dev : Bool) (hus : us.val < 64)
     (hsc : n = 5 → 7 ≤ us.val) :
     CapRel (newCapOf n base us dev) (Fl4Spec.defaultCap t base.bv us.val dev) := by
   unfold objTypeOf at ht
-  rcases hn with rfl | ⟨h1, h2⟩
-  · simp at ht; subst ht
-    exact ⟨trivial, rfl⟩
-  · interval_cases n <;> simp at ht <;> subst ht
-    · exact ⟨trivial, by simp [newCapOf, absCap, Fl4Spec.defaultCap]; exact rightsOf_univ⟩
-    · exact ⟨trivial, by simp [newCapOf, absCap, Fl4Spec.defaultCap]; exact rightsOf_rw⟩
-    · refine ⟨⟨hus, by decide, by decide⟩, ?_⟩
-      simp [newCapOf, absCap, Fl4Spec.defaultCap]
-    · exact ⟨hsc rfl, by simp [newCapOf, absCap, Fl4Spec.defaultCap]⟩
-    · exact ⟨trivial, by simp [newCapOf, absCap, Fl4Spec.defaultCap, replyRights]⟩
+  interval_cases n <;> simp at ht <;> subst ht
+  · exact ⟨trivial, rfl⟩
+  · exact ⟨trivial, rfl⟩
+  · exact ⟨trivial, by simp [newCapOf, absCap, Fl4Spec.defaultCap]; exact rightsOf_univ⟩
+  · exact ⟨trivial, by simp [newCapOf, absCap, Fl4Spec.defaultCap]; exact rightsOf_rw⟩
+  · refine ⟨⟨hus, by decide, by decide⟩, ?_⟩
+    simp [newCapOf, absCap, Fl4Spec.defaultCap]
+  · exact ⟨hsc rfl, by simp [newCapOf, absCap, Fl4Spec.defaultCap]⟩
+  · exact ⟨trivial, by simp [newCapOf, absCap, Fl4Spec.defaultCap, replyRights]⟩
 
 theorem newCap_ne_null (n : Nat) (base us : U64) (dev : Bool) : newCapOf n base us dev ≠ .Null := by
   unfold newCapOf; split_ifs <;> simp

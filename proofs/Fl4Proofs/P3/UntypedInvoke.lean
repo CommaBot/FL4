@@ -54,11 +54,12 @@ theorem UtInv.of_same {th : TypedHeap} {m m' : U64 → U64} {G : MdbGhost} (hM :
   have hsl : ∀ x, x ∈ G.chains.flatten → IsSlot th x := fun x h => ((hM.members x).1 h).1
   have hc : ∀ x, x ∈ G.chains.flatten → capV m' x = capV m x := fun x hx => hS.capV (hsl x hx)
   refine ⟨fun x hx => ?_, fun x hx p sb fi d hcx y hy => ?_, fun x hx p sb fi d hcx y hy => ?_,
-    fun x hx y hy hne p sb fi fi' d d' h1 h2 => ?_⟩
+    fun x hx y hy hne p sb fi fi' d d' h1 h2 => ?_, fun x hx p sb fi d hcx => ?_⟩
   · rw [hc x hx]; exact hU.reg x hx
   · rw [hc x hx] at hcx; rw [hc y (desc_mem hM hy).1]; exact hU.inc x hx p sb fi d hcx y hy
   · rw [hc x hx] at hcx ⊢; rw [hc y hy]; exact hU.noov x hx p sb fi d hcx y hy
   · rw [hc x hx] at h1; rw [hc y hy] at h2; exact hU.excl x hx y hy hne p sb fi fi' d d' h1 h2
+  · rw [hc x hx] at hcx; exact hU.fib x hx p sb fi d hcx
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
@@ -71,7 +72,8 @@ def RetPost {A' : Type} (σ : Fl4Spec.State Unit) (ar : A') (bitsApi : Fl4Spec.A
   res.1 = .Ok () ∧ res.2.2 = ar ∧ ∃ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
     ∃ σ' G' th', (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi inv).run σ1 = ({(.ok (), σ')}, False) ∧
       Placed th' ∧ StateRel th' (L.mem res.2.1) σ' ∧ SlotsValid th' (L.mem res.2.1) ∧
-      MdbLinks th' (L.mem res.2.1) G' ∧ CdtRel th' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G'
+      MdbLinks th' (L.mem res.2.1) G' ∧ CdtRel th' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
+      UtInv (L.mem res.2.1) G'
 
 /-- **The success continuation of `decode`** (`set_thread_state Restart`,
 then `retype`) satisfies `RetPost`, for the types 0, 2..6. -/
@@ -150,7 +152,7 @@ theorem retype_cont {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
           (windowSlots dest r off.val win.val) dev)).run σ1 = ({(.ok (), σ')}, False) ∧
         Placed th' ∧ StateRel th' (L.mem res.2.1) σ' ∧ SlotsValid th' (L.mem res.2.1) ∧
         MdbLinks th' (L.mem res.2.1) G' ∧ CdtRel th' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
-        ZeroRegion (L.mem res.2.1)
+        UtInv (L.mem res.2.1) G' ∧ ZeroRegion (L.mem res.2.1)
           ((Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val)
           (p.val + 2 ^ sb.val)) →
       (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) reset p.bv
@@ -161,8 +163,8 @@ theorem retype_cont {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
           (windowSlots dest r off.val win.val) dev)).run σ1 →
       RetPost (L := L) σ ar bitsApi (.retype (pp.bv, idx) reset p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) dev) res := by
-    rintro res ⟨h1, h2, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', -⟩ he
-    exact ⟨h1, h2, σ1, by rw [hcur]; exact hst1, σ', G', th', he.trans hrun, hP', hR', hV', hM', hC', hI'⟩
+    rintro res ⟨h1, h2, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', hU', -⟩ he
+    exact ⟨h1, h2, σ1, by rw [hcur]; exact hst1, σ', G', th', he.trans hrun, hP', hR', hV', hM', hC', hI', hU'⟩
   rcases Bool.eq_false_or_eq_true reset with hrs | hrs <;> subst hrs
   · have hnc : ¬ ∃ x, σ.cdt x = some (pp.bv, idx) := by simpa using hreset.symm
     have hf0 : fiv = 0#u64 := UScalar.eq_of_val_eq (by rw [hunused hnc]; rfl)

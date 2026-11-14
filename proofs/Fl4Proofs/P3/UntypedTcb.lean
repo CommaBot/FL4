@@ -287,7 +287,8 @@ theorem nodeAt_ksb {s s' : S} (h : L.ksb s' = L.ksb s) (cpu off : U64) : L.nodeA
 
 theorem debug_append_frame (s : S) (t : U64) (ht : TcbOk t) (hna : P1.Aligned (dbgW (L := L) s t))
     (hhd : L.mem s (dbgW (L := L) s t) ≠ 0#u64 → TcbOk (L.mem s (dbgW (L := L) s t))) :
-    objects.debug_append st s t ⦃ s' => WFrame (L := L) s s' (TcbW (L := L) s t) ⦄ := by
+    objects.debug_append st s t ⦃ s' => WFrame (L := L) s s' (TcbW (L := L) s t) ∧
+      L.mem s' (dbgW (L := L) s t) = t ⦄ := by
   unfold objects.debug_append obj.Tcb.affinity
   rw [show layout.tcb.AFFINITY = ok 3520#u64 by unfold layout.tcb.AFFINITY layout.tcb.F; rfl]
   simp only [lift, bind_ok, L.read_eq]
@@ -311,12 +312,12 @@ theorem debug_append_frame (s : S) (t : U64) (ht : TcbOk t) (hna : P1.Aligned (d
   have f12 := f1.trans f2
   have hlast : ∀ s3 : S, WFrame (L := L) s s3 (TcbW (L := L) s t) →
       obj.node_set st s3 (L.mem s (core.num.U64.wrapping_add t 3520#u64)) layout.node.DEBUG_TCBS t ⦃ s' =>
-        WFrame (L := L) s s' (TcbW (L := L) s t) ⦄ := by
+        WFrame (L := L) s s' (TcbW (L := L) s t) ∧ L.mem s' (dbgW (L := L) s t) = t ⦄ := by
     intro s3 hf3
     apply WP.spec_mono (Fl4Proofs.P1.obj.node_set.spec (L := L) s3 _ _ t)
     rintro s' rfl
     rw [nodeAt_ksb hf3.1]
-    exact hf3.trans (WFrame.wr s3 hna (Or.inr (Or.inr rfl)) t)
+    exact ⟨hf3.trans (WFrame.wr s3 hna (Or.inr (Or.inr rfl)) t), L.mem_wr_same hna⟩
   by_cases hh : L.mem s (dbgW (L := L) s t) = 0#u64
   · have : (L.mem s (dbgW (L := L) s t) != 0#u64) = false := by simp [hh]
     simp only [this, Bool.false_eq_true, ↓reduceIte, bind_ok, uncurry_apply_pair]
@@ -345,7 +346,8 @@ theorem create_tcb_frame {A' : Type} (arI : machine.Arch A') (s : S) (ar : A') (
     (hhd : L.mem s (dbgW (L := L) s base) ≠ 0#u64 → TcbOk (L.mem s (dbgW (L := L) s base)))
     (hout : ¬ InT base (dbgW (L := L) s base)) :
     objects.create_object st arI s ar nt base us dev ⦃ res =>
-      res.1 = .Thread base ∧ res.2.2 = ar ∧ WFrame (L := L) s res.2.1 (TcbW (L := L) s base) ⦄ := by
+      res.1 = .Thread base ∧ res.2.2 = ar ∧ WFrame (L := L) s res.2.1 (TcbW (L := L) s base) ∧
+      L.mem res.2.1 (dbgW (L := L) s base) = base ⦄ := by
   unfold objects.create_object
   have h1 : nt = fl4_abi.consts.object.Tcb := UScalar.eq_of_val_eq (by rw [hnt]; simp [fl4_abi.consts.object.Tcb])
   rw [if_pos h1]
@@ -379,7 +381,8 @@ theorem create_tcb_frame {A' : Type} (arI : machine.Arch A') (s : S) (ar : A') (
   obtain ⟨s6, hs6, f6⟩ := spec_exists (debug_append_frame (L := L) s5 base ht (by rw [hdw]; exact hna)
     (by rw [hhv]; exact hhd))
   rw [hs6]; simp only [bind_ok, WP.spec_ok]
-  exact ⟨trivial, trivial, (f.mono (fun w h => Or.inl h)).trans (f6.mono (fun w h => (hW w).1 h))⟩
+  exact ⟨trivial, trivial, (f.mono (fun w h => Or.inl h)).trans (f6.1.mono (fun w h => (hW w).1 h)),
+    by rw [← hdw]; exact f6.2⟩
 
 end
 

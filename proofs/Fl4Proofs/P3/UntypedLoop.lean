@@ -31,14 +31,14 @@ theorem sizeF_of {c : capability.Cap} {v : U64} (h : objects.cap_size_bits c = o
 theorem physF_of {c : capability.Cap} {v : Bool} (h : objects.cap_is_physical c = ok v) : physF c = v :=
   ok_inj ((phys_eq c).symm.trans h)
 
-theorem sizeF_newCap {n : Nat} (hn : n = 0 ∨ (2 ≤ n ∧ n ≤ 6)) (base us : U64) (dev : Bool) (hus : us.val < 64) :
+theorem sizeF_newCap {n : Nat} (hn : n ≤ 6) (base us : U64) (dev : Bool) (hus : us.val < 64) :
     (sizeF (newCapOf n base us dev)).val = zOf n us.val := by
-  rcases hn with rfl | ⟨h1, h2⟩
+  interval_cases n
   · rw [show newCapOf 0 base us dev = .Untyped base us 0#u64 dev from rfl, sizeF_ut]; simp [zOf]
-  · interval_cases n <;> simp only [newCapOf, show ¬ (2 : Nat) = 3 by decide, show ¬ (3 : Nat) = 2 by decide] <;>
-      simp <;> rw [sizeF_of rfl] <;> simp [fl4_abi.consts.bits.ENDPOINT,
+  all_goals simp only [newCapOf, show ¬ (2 : Nat) = 3 by decide, show ¬ (3 : Nat) = 2 by decide] <;>
+      simp <;> rw [sizeF_of rfl] <;> simp [fl4_abi.consts.bits.ENDPOINT, fl4_abi.consts.bits.TCB,
         fl4_abi.consts.bits.NOTIFICATION, fl4_abi.consts.bits.SLOT, fl4_abi.consts.bits.REPLY, zOf]
-    simp [core.num.U64.wrapping_add_val_eq, U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits]; omega
+  simp [core.num.U64.wrapping_add_val_eq, U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits]; omega
 
 theorem ptrF_newCap (n : Nat) (base us : U64) (dev : Bool) : ptrF (newCapOf n base us dev) = base := by
   unfold newCapOf
@@ -52,7 +52,7 @@ theorem newKind_newCap (n : Nat) (base us : U64) (dev : Bool) : NewKind (newCapO
   unfold newCapOf; split_ifs <;> trivial
 
 /-- **The range of a new cap** is its object: `2^z` bytes from `base`. -/
-theorem newCap_range {n : Nat} (hn : n = 0 ∨ (2 ≤ n ∧ n ≤ 6)) (base us : U64) (dev : Bool) (hus : us.val < 64)
+theorem newCap_range {n : Nat} (hn : n ≤ 6) (base us : U64) (dev : Bool) (hus : us.val < 64)
     (hz : zOf n us.val < 64) (hb : base.val + 2 ^ zOf n us.val ≤ 2 ^ 64) :
     baseF (newCapOf n base us dev) = base.val ∧
       topF (newCapOf n base us dev) = base.val + 2 ^ zOf n us.val - 1 := by
@@ -412,7 +412,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 def LoopInv (th' : TypedHeap) (srcSl : Fl4Spec.CslotPtr) (srcC : capability.Cap) (σ1 : Fl4Spec.State Unit)
     (f : Fl4Spec.CslotPtr × Fl4Spec.ObjRef → Fl4Spec.NonDet (Fl4Spec.State Unit) Unit)
     (pairs : List (Fl4Spec.CslotPtr × Fl4Spec.ObjRef)) (A k win : Nat) (dslot : Nat → U64) (zlo zhi : Nat)
-    (s : S) (i : Nat) : Prop :=
+    (G0 : MdbGhost) (m0 : U64 → U64) (cj : Nat → capability.Cap) (s : S) (i : Nat) : Prop :=
   ∃ σi Gi, (∀ σf, Fl4Spec.NonDet.mapMx f (pairs.drop i) σi = ({((), σf)}, False) →
       Fl4Spec.NonDet.mapMx f pairs σ1 = ({((), σf)}, False)) ∧
     StateRel th' (L.mem s) σi ∧ SlotsValid th' (L.mem s) ∧ MdbLinks th' (L.mem s) Gi ∧
@@ -424,18 +424,26 @@ def LoopInv (th' : TypedHeap) (srcSl : Fl4Spec.CslotPtr) (srcC : capability.Cap)
       (DisjR (capV (L.mem s) x) (A + i * k) (A + win * k) ∨
         (isUt (capV (L.mem s) x) = true ∧ Within srcC (capV (L.mem s) x)))) ∧
     (∀ y, Mdb.Desc Gi.par y (cslotAddr srcSl) → DisjR (capV (L.mem s) y) (A + i * k) (A + win * k)) ∧
-    ZeroRegion (L.mem s) zlo zhi
+    ZeroRegion (L.mem s) zlo zhi ∧
+    (∀ x ∈ Gi.chains.flatten, x ∈ G0.chains.flatten ∨ ∃ j, j < i ∧ x = dslot j) ∧
+    (∀ x ∈ G0.chains.flatten, x ∈ Gi.chains.flatten) ∧
+    (∀ j, j < i → capV (L.mem s) (dslot j) = cj j) ∧
+    (∀ x ∈ G0.chains.flatten, capV (L.mem s) x = capV m0 x) ∧
+    (∀ y x, Mdb.Desc Gi.par y x ↔ Mdb.Desc G0.par y x ∨
+      ∃ j, j < i ∧ y = dslot j ∧ (x = cslotAddr srcSl ∨ Mdb.Desc G0.par (cslotAddr srcSl) x))
+
+/-- The caps a loop over `newCapOf` inserts. -/
+def cjOf (n : Nat) (us : U64) (dev : Bool) (A k : Nat) : Nat → capability.Cap :=
+  fun j => newCapOf n ⟨BitVec.ofNat 64 (A + j * k)⟩ us dev
 
 end
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
-theorem newCap_encWf {n : Nat} (hn : n = 0 ∨ (2 ≤ n ∧ n ≤ 6)) (base us : U64) (dev : Bool) (hus : us.val < 64)
+theorem newCap_encWf {n : Nat} (hn : n ≤ 6) (base us : U64) (dev : Bool) (hus : us.val < 64)
     (hb : Canonical base) : EncWf (newCapOf n base us dev) := by
   unfold newCapOf
-  rcases hn with rfl | ⟨h1, h2⟩
-  · exact ⟨hb, hus⟩
-  · interval_cases n <;> simp [EncWf] <;> first | exact hb | exact ⟨hb, hus⟩ | (refine ⟨hb, hus, ?_⟩; decide)
+  interval_cases n <;> simp [EncWf] <;> first | exact hb | exact ⟨hb, hus⟩ | (refine ⟨hb, hus, ?_⟩; decide)
 
 theorem isUt_newCap {n : Nat} {base us : U64} {dev : Bool} (h : isUt (newCapOf n base us dev) = true) :
     n = 0 ∧ newCapOf n base us dev = .Untyped base us 0#u64 dev := by
@@ -461,7 +469,7 @@ theorem loop_step (th' : TypedHeap) (hP' : Placed th') {pp : U64} {rs : Nat} (hp
     (hsb : sb.val < 64) (hpfit : p.val + 2 ^ sb.val ≤ 2 ^ 64)
     (σ1 : Fl4Spec.State Unit) {dest : U64} {r : Nat} (hdest : th' dest = some (.cnode r)) (hr : r ≤ 64)
     (nt us : U64) (dev : Bool) (t : Fl4Spec.ApiObjectType) (ht : objTypeOf nt.val = some t)
-    (hn : nt.val = 0 ∨ (2 ≤ nt.val ∧ nt.val ≤ 6)) (hus : us.val < 64) (hz : zOf nt.val us.val < 64)
+    (hn : nt.val ≤ 6) (hus : us.val < 64) (hz : zOf nt.val us.val < 64)
     (hsc : nt.val = 5 → 7 ≤ us.val)
     (off win A : Nat) (hwin : off + win ≤ 2 ^ r)
     (hfit : A + win * 2 ^ zOf nt.val us.val ≤ 2 ^ 64) (hhigh : 2 ^ 64 - 2 ^ 47 ≤ A)
@@ -469,18 +477,22 @@ theorem loop_step (th' : TypedHeap) (hP' : Placed th') {pp : U64} {rs : Nat} (hp
     (hnewcv : ∀ i, i < win →
       CapValid th' (newCapOf nt.val ⟨BitVec.ofNat 64 (A + i * 2 ^ zOf nt.val us.val)⟩ us dev))
     (zlo zhi : Nat) (hzs : ∀ a, IsSlot th' a → a.val + 32 ≤ zlo ∨ zhi ≤ a.val)
+    (G0 : MdbGhost) (m0 : U64 → U64)
+    (hsrcd : ∀ j, j < win → cslotAddr (pp.bv, idx) ≠ slotAddr dest.bv (BitVec.ofNat 64 (off + j)))
     (s : S) (i : Nat) (hi : i < win)
     (hinv : LoopInv (L := L) th' (pp.bv, idx) (.Untyped p sb fi d) σ1
       (Fl4Spec.createCap (Z := Unit) t us.val (pp.bv, idx) dev)
       ((windowSlots dest r off win).zip (regionPtrs (BitVec.ofNat 64 A) win (2 ^ zOf nt.val us.val)))
-      A (2 ^ zOf nt.val us.val) win (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off + j))) zlo zhi s i) :
+      A (2 ^ zOf nt.val us.val) win (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off + j))) zlo zhi G0 m0
+      (cjOf nt.val us dev A (2 ^ zOf nt.val us.val)) s i) :
     cdt.insert_new_cap st s (cslotAddr (pp.bv, idx)) (slotAddr dest.bv (BitVec.ofNat 64 (off + i)))
       (newCapOf nt.val ⟨BitVec.ofNat 64 (A + i * 2 ^ zOf nt.val us.val)⟩ us dev) ⦃ s' =>
     LoopInv (L := L) th' (pp.bv, idx) (.Untyped p sb fi d) σ1
       (Fl4Spec.createCap (Z := Unit) t us.val (pp.bv, idx) dev)
       ((windowSlots dest r off win).zip (regionPtrs (BitVec.ofNat 64 A) win (2 ^ zOf nt.val us.val)))
-      A (2 ^ zOf nt.val us.val) win (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off + j))) zlo zhi s' (i + 1) ⦄ := by
-  obtain ⟨σi, Gi, hchain, hR, hV, hM, hC, hI, hsrc, hnull, hno, hdd, hzr⟩ := hinv
+      A (2 ^ zOf nt.val us.val) win (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off + j))) zlo zhi G0 m0
+      (cjOf nt.val us dev A (2 ^ zOf nt.val us.val)) s' (i + 1) ⦄ := by
+  obtain ⟨σi, Gi, hchain, hR, hV, hM, hC, hI, hsrc, hnull, hno, hdd, hzr, hT1, hT1b, hT2a, hT2b, hT3⟩ := hinv
   set k := 2 ^ zOf nt.val us.val with hkdef
   have hk1 : 1 ≤ k := Nat.one_le_two_pow
   have hik : (i + 1) * k ≤ win * k := Nat.mul_le_mul_right _ hi
@@ -569,7 +581,7 @@ theorem loop_step (th' : TypedHeap) (hP' : Placed th') {pp : U64} {rs : Nat} (hp
   have hcapD : capV (L.mem s') dsl = c := by
     have := hcapW dsl hd; rw [if_pos rfl, capAt_capV] at this; exact eq_of_ok_eq this
   have hslot : ∀ x, x ∈ Gi.chains.flatten → IsSlot th' x := fun x h => ((hM.members x).1 h).1
-  refine ⟨σ', insG Gi src dsl true, ?_, hR', hV', hM', hC', hI', ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨σ', insG Gi src dsl true, ?_, hR', hV', hM', hC', hI', ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · -- the spec's loop
     intro σf hf
     apply hchain σf
@@ -639,6 +651,61 @@ theorem loop_step (th' : TypedHeap) (hP' : Placed th') {pp : U64} {rs : Nat} (hp
       · have := hzs _ hd; omega
       · have := hzs _ (hnx0.resolve_left hz); omega
     rw [hfr w hw hout]; exact hzr w hw h1 h2
+  · have hsrcm : src ∈ Gi.chains.flatten := (hM.members src).2 ⟨hs, _, hsrcC, by simp⟩
+    intro x hx
+    rcases (mem_flatten_ins (dest := dsl) hsrcm).1 hx with hxd | hx'
+    · exact Or.inr ⟨i, by omega, by rw [hxd]; exact hdsl.symm⟩
+    · rcases hT1 x hx' with h | ⟨j, hj, he⟩
+      · exact Or.inl h
+      · exact Or.inr ⟨j, by omega, he⟩
+  · have hsrcm : src ∈ Gi.chains.flatten := (hM.members src).2 ⟨hs, _, hsrcC, by simp⟩
+    intro x hx
+    exact (mem_flatten_ins (dest := dsl) hsrcm).2 (Or.inr (hT1b x hx))
+  · intro j hj
+    by_cases hji : j = i
+    · subst hji; show capV _ (slotAddr dest.bv (BitVec.ofNat 64 (off + j))) = _
+      rw [hdsl, hcapD]; rfl
+    · have hj' : j < i := by omega
+      have hdj : IsSlot th' (slotAddr dest.bv (BitVec.ofNat 64 (off + j))) :=
+        ⟨dest, off + j, Or.inl ⟨r, hdest, by omega⟩, rfl⟩
+      have hne : slotAddr dest.bv (BitVec.ofNat 64 (off + j)) ≠ dsl := by
+        intro e
+        have hc := hT2a j hj'
+        simp only at hc
+        rw [e] at hc
+        have := hcapW dsl hd
+        rw [if_pos rfl, capAt_capV] at this
+        have hdn := hdnull
+        rw [capAt_capV] at hdn
+        have h1 := eq_of_ok_eq hdn
+        rw [h1] at hc
+        unfold cjOf at hc
+        exact newCap_ne_null _ _ _ _ hc.symm
+      show capV _ (slotAddr dest.bv (BitVec.ofNat 64 (off + j))) = _
+      rw [hcapV _ hdj hne]; exact hT2a j hj'
+  · intro x hx
+    have hx' := hT1b x hx
+    rw [hcapV x (hslot x hx') (fun e => hdestm (e ▸ hx'))]; exact hT2b x hx
+  · intro y x
+    rw [desc_insG_true hM hdestm hsd y x, hT3 y x]
+    have hsx : ∀ x, Mdb.Desc Gi.par src x ↔ Mdb.Desc G0.par src x := by
+      intro x; rw [hT3]
+      constructor
+      · rintro (h | ⟨j, hj, he, -⟩)
+        · exact h
+        · exact absurd he (hsrcd j (by omega))
+      · exact Or.inl
+    rw [hsx x]
+    constructor
+    · rintro ((h | ⟨j, hj, hy1, hy2⟩) | ⟨hy1, hy2⟩)
+      · exact Or.inl h
+      · exact Or.inr ⟨j, by omega, hy1, hy2⟩
+      · exact Or.inr ⟨i, by omega, by rw [hy1]; exact hdsl.symm, hy2⟩
+    · rintro (h | ⟨j, hj, hy1, hy2⟩)
+      · exact Or.inl (Or.inl h)
+      · by_cases hji : j = i
+        · subst hji; exact Or.inr ⟨by rw [hy1]; exact hdsl, hy2⟩
+        · exact Or.inl (Or.inr ⟨j, by omega, hy1, hy2⟩)
 
 end
 section
@@ -660,16 +727,20 @@ theorem create_loop_rel {A' : Type} (arI : machine.Arch A') (ar : A') (th' : Typ
     (hnewcv : ∀ i, i < win.val →
       CapValid th' (newCapOf nt.val ⟨BitVec.ofNat 64 (base.val + i * 2 ^ zOf nt.val us.val)⟩ us dev))
     (zlo zhi : Nat) (hzs : ∀ a, IsSlot th' a → a.val + 32 ≤ zlo ∨ zhi ≤ a.val)
+    (G0 : MdbGhost) (m0 : U64 → U64)
+    (hsrcd : ∀ j, j < win.val → cslotAddr (pp.bv, idx) ≠ slotAddr dest.bv (BitVec.ofNat 64 (off.val + j)))
     (s : S)
     (hinv : LoopInv (L := L) th' (pp.bv, idx) (.Untyped p sb fi d) σ1
       (Fl4Spec.createCap (Z := Unit) t us.val (pp.bv, idx) dev)
       ((windowSlots dest r off.val win.val).zip (regionPtrs (BitVec.ofNat 64 base.val) win.val (2 ^ zOf nt.val us.val)))
-      base.val (2 ^ zOf nt.val us.val) win.val (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off.val + j))) zlo zhi s 0) :
+      base.val (2 ^ zOf nt.val us.val) win.val (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off.val + j))) zlo zhi G0 m0
+      (cjOf nt.val us dev base.val (2 ^ zOf nt.val us.val)) s 0) :
     objects.create_new_objects st arI s ar nt (cslotAddr (pp.bv, idx)) dest off win base us dev ⦃ res =>
       res.2 = ar ∧ LoopInv (L := L) th' (pp.bv, idx) (.Untyped p sb fi d) σ1
       (Fl4Spec.createCap (Z := Unit) t us.val (pp.bv, idx) dev)
       ((windowSlots dest r off.val win.val).zip (regionPtrs (BitVec.ofNat 64 base.val) win.val (2 ^ zOf nt.val us.val)))
-      base.val (2 ^ zOf nt.val us.val) win.val (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off.val + j))) zlo zhi res.1
+      base.val (2 ^ zOf nt.val us.val) win.val (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off.val + j))) zlo zhi G0 m0
+      (cjOf nt.val us dev base.val (2 ^ zOf nt.val us.val)) res.1
         win.val ⦄ := by
   have hn14 : nt.val < 14 := by omega
   unfold objects.create_new_objects
@@ -688,7 +759,8 @@ theorem create_loop_rel {A' : Type} (arI : machine.Arch A') (ar : A') (th' : Typ
     (inv := fun x => x.2.1 = ar ∧ x.2.2.val ≤ win.val ∧ LoopInv (L := L) th' (pp.bv, idx) (.Untyped p sb fi d) σ1
       (Fl4Spec.createCap (Z := Unit) t us.val (pp.bv, idx) dev)
       ((windowSlots dest r off.val win.val).zip (regionPtrs (BitVec.ofNat 64 base.val) win.val (2 ^ zOf nt.val us.val)))
-      base.val (2 ^ zOf nt.val us.val) win.val (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off.val + j))) zlo zhi x.1
+      base.val (2 ^ zOf nt.val us.val) win.val (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off.val + j))) zlo zhi G0 m0
+      (cjOf nt.val us dev base.val (2 ^ zOf nt.val us.val)) x.1
         x.2.2.val) _ _ _ ?_ ?_
   · rintro ⟨s1, a1, i⟩ ⟨ha, hiw, hI⟩
     simp only at ha hiw hI ⊢
@@ -723,8 +795,8 @@ theorem create_loop_rel {A' : Type} (arI : machine.Arch A') (ar : A') (th' : Typ
         ok (slotAddr dest.bv (BitVec.ofNat 64 (off.val + i.val))) by
           rw [spec_eq_ok (slot_index_spec dest _), hi4]]
       simp only [bind_ok]
-      step with loop_step th' hP' hpp hidx hsb hpfit σ1 hdest hr nt us dev t ht hn hus hz hsc off.val win.val
-        base.val hwin hfit hhigh hpA hAp hnewcv zlo zhi hzs s1 i.val hit' hI as ⟨s3, hs3⟩
+      step with loop_step th' hP' hpp hidx hsb hpfit σ1 hdest hr nt us dev t ht (by omega) hus hz hsc off.val win.val
+        base.val hwin hfit hhigh hpA hAp hnewcv zlo zhi hzs G0 m0 hsrcd s1 i.val hit' hI as ⟨s3, hs3⟩
       step as ⟨i5, hi5⟩
       refine ⟨by omega, by rw [hi5]; exact hs3, by omega⟩
     · rw [if_neg hit, WP.spec_ok]
