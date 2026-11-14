@@ -49,3 +49,5 @@ import Fl4Proofs.P3.Vs
 import Fl4Proofs.P3.CnodeRotate
 import Fl4Proofs.P3.CnodeCancel
 import Fl4Proofs.P3.CnodeRevoke
+import Fl4Proofs.P3.DelCnode
+import Fl4Proofs.P3.DelPost

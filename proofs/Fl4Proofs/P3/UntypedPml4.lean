@@ -841,7 +841,7 @@ theorem retype_reset_pml4 (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State
     exact hgreg
   refine WP.spec_mono (retype_full_pml4 (L := L) arI a1 _ t1 σt G hRR.R hRR.V hP.restrict hRR.M hRR.C hRR.I hRR.U
     (fun sl h => horig sl (by rw [← hio]; exact h)) hpp' hidx hcap1 hpal hfit (by simp) hhigh nt us _ ht hnt hus
-    hdest' hr off win hwin hw1 hmem he1 (by simpa using RegionFree.restrict hN) hZ bitsApi hb
+    hdest' hr off win hwin hw1 hmem he1 (by simpa using RegionFree.restrict hN) (hZ rfl) bitsApi hb
     (by rw [harch]; obtain ⟨pt, hpt⟩ := hgpm; exact ⟨pt, by rw [hkh _ hgout hgne]; exact hpt⟩)
     (by rw [harch]; exact hga) (by rw [harch]; exact hgf) (by rw [harch]; exact hgreg)) ?_
   rintro res ⟨h1, -, σ', G', th'', hrun, h⟩
@@ -907,7 +907,7 @@ theorem retype_cont_pml4N {A' : Type} (arI : machine.Arch A') (ar : A') (th : Ty
     (hPP : ∀ k0 v0 : U64, PPHyp (L := L) arI th p sb (fun t => L.ksb t = k0 ∧
       L.mem t (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = v0))
     (hRst : (¬ ∃ x, σ.cdt x = some (pp.bv, idx)) → fi.val ≠ 0 →
-      dev = false ∧ (∀ sl, σ.isOriginalCap sl = true → AbsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) sl) ∧
+      (∀ sl, σ.isOriginalCap sl = true → AbsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) sl) ∧
       (∀ q r, th q = some (.cnode r) → ¬ (p.val ≤ q.val ∧ q.val < p.val + 2 ^ sb.val)) ∧
       ¬ (p.val ≤ (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val ∧
         (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val < p.val + 2 ^ sb.val))
@@ -1036,7 +1036,11 @@ theorem retype_cont_pml4N {A' : Type} (arI : machine.Arch A') (ar : A') (th : Ty
   obtain ⟨hrs, hfi0⟩ := hcase
   have hnc : ¬ ∃ x, σ.cdt x = some (pp.bv, idx) := by
     have := hctx.resetEq; rw [hrs] at this; simpa using this.symm
-  obtain ⟨hdev, horigR, hcnR, hheadR⟩ := hRst hnc hfi0
+  obtain ⟨horigR, hcnR, hheadR⟩ := hRst hnc hfi0
+  have hdev : dev = false := by
+    cases hd : dev
+    · rfl
+    · exact absurd hn8 (dev_nt hctx.ty (hctx.device hd)).2.2
   subst hdev hrs
   have hfv : fiv = 0#u64 := by rw [hctx.fidx]; rfl
   subst hfv
@@ -1136,7 +1140,7 @@ the reset, related to FL4's result).
 Beyond the hypotheses of `untyped_retype_refines_fl4` (with `hunused`
 dropped, and the scheduler-action and debug-list words outside the whole
 region): for the reset of a used region (`hRst`, when the cap has no
-children and `fi ≠ 0`) the cap is not a device one, the spec's original
+children and `fi ≠ 0`) the spec's original
 slots, the CNodes of the typed heap and the debug-list head TCB are outside
 the region (l4v: nothing reachable is there); no linked slot is in it and no
 object straddles it; the region is at least 16 bytes; the chunk size is FL4's;
@@ -1169,7 +1173,7 @@ theorem untyped_retype_refines_fl4P {A' : Type} (arI : machine.Arch A') (th : Ty
     (hPP : ∀ k0 v0 : U64, PPHyp (L := L) arI th p sb (fun t => L.ksb t = k0 ∧
       L.mem t (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = v0))
     (hRst : (¬ ∃ x, σ.cdt x = some (pp.bv, idx)) → fi.val ≠ 0 →
-      dev = false ∧ (∀ sl, σ.isOriginalCap sl = true → AbsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) sl) ∧
+      (∀ sl, σ.isOriginalCap sl = true → AbsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) sl) ∧
       (∀ q r, th q = some (.cnode r) → ¬ (p.val ≤ q.val ∧ q.val < p.val + 2 ^ sb.val)) ∧
       ¬ (p.val ≤ (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val ∧
         (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val < p.val + 2 ^ sb.val))

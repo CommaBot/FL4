@@ -67,7 +67,7 @@ theorem retype_cont_allN {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
     (hPP : ∀ k0 v0 : U64, PPHyp (L := L) arI th p sb (fun t => L.ksb t = k0 ∧
       L.mem t (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = v0))
     (hRst : (¬ ∃ x, σ.cdt x = some (pp.bv, idx)) → fi.val ≠ 0 →
-      dev = false ∧ (∀ sl, σ.isOriginalCap sl = true → AbsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) sl) ∧
+      (∀ sl, σ.isOriginalCap sl = true → AbsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) sl) ∧
       (∀ q r, th q = some (.cnode r) → ¬ (p.val ≤ q.val ∧ q.val < p.val + 2 ^ sb.val)) ∧
       ¬ (p.val ≤ (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val ∧
         (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val < p.val + 2 ^ sb.val))
@@ -103,11 +103,11 @@ theorem retype_cont_allN {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
   obtain ⟨hrs, hfi0⟩ := hcase
   have hnc : ¬ ∃ x, σ.cdt x = some (pp.bv, idx) := by
     have := hctx.resetEq; rw [hrs] at this; simpa using this.symm
-  obtain ⟨hdev, horigR, hcnR, hheadR⟩ := hRst hnc hfi0
-  subst hdev hrs
+  obtain ⟨horigR, hcnR, hheadR⟩ := hRst hnc hfi0
+  subst hrs
   have hfv : fiv = 0#u64 := by rw [hctx.fidx]; rfl
   subst hfv
-  obtain ⟨ht, ⟨hus, hz47, hsB, hsC, hsD⟩, ⟨hdest, hr64, -⟩, ⟨hw1, -, hwin⟩, hempty, hreset, hfiv, -, hmem, -⟩ := hctx
+  obtain ⟨ht, ⟨hus, hz47, hsB, hsC, hsD⟩, ⟨hdest, hr64, -⟩, ⟨hw1, -, hwin⟩, hempty, hreset, hfiv, -, hmem, hdevc⟩ := hctx
   -- set_thread_state
   have htf := hP.fits ct _ htcb
   have hta := hP.align ct _ htcb
@@ -122,7 +122,7 @@ theorem retype_cont_allN {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
   obtain ⟨σ1, hst1, hR1, hV1, hM1, hC1, hcdt1, hio1⟩ := restart_rel hR hV hM hC hSS (t := ct.bv) hkt .restart
   have hI1 := MdbInv.of_same hM hI hSS
   have hU1 := UtInv.of_same hM hU hSS
-  have hcap1 : capAt (L.mem s2) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false) := by
+  have hcap1 : capAt (L.mem s2) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi dev) := by
     rw [hSS.capAt (AbsSlot.isSlot ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩)]; exact hcap
   have hempty1 : ∀ i : Nat, off.val ≤ i → i < off.val + win.val →
       capAt (L.mem s2) (slotAddr dest.bv (BitVec.ofNat 64 i)) = ok .Null := by
@@ -155,23 +155,23 @@ theorem retype_cont_allN {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
     rw [hDW2]; exact hPP _ _
   have hpost : ∀ res : core.result.Result Unit error.Exc × S × A', (NSat (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) true p.bv
           (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)) t us.val
-          (windowSlots dest r off.val win.val) false)).run σ1 (fun _ => True) ∧
+          (windowSlots dest r off.val win.val) dev)).run σ1 (fun _ => True) ∧
       ((res.1 = .Err .Preempted ∧ ∃ σ' f,
           NHas (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) true p.bv
             (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)) t us.val
-            (windowSlots dest r off.val win.val) false)).run σ1 (TopP (.error ()) σ') ∧
-          ResetRel (restrictTh th p.val (p.val + 2 ^ sb.val)) G (cslotAddr (pp.bv, idx)) p sb false
+            (windowSlots dest r off.val win.val) dev)).run σ1 (TopP (.error ()) σ') ∧
+          ResetRel (restrictTh th p.val (p.val + 2 ^ sb.val)) G (cslotAddr (pp.bv, idx)) p sb dev
             (L.mem res.2.1) σ' f) ∨
        (res.1 = .Ok () ∧ ∃ σ' G' th'',
           NHas (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) true p.bv
             (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)) t us.val
-            (windowSlots dest r off.val win.val) false)).run σ1 (fun y => y.1 = .ok () ∧ KSame σ' y.2) ∧
+            (windowSlots dest r off.val win.val) dev)).run σ1 (fun y => y.1 = .ok () ∧ KSame σ' y.2) ∧
           Placed th'' ∧ StateRel th'' (L.mem res.2.1) σ' ∧ SlotsValid th'' (L.mem res.2.1) ∧
           MdbLinks th'' (L.mem res.2.1) G' ∧ CdtRel th'' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
           UtInv (L.mem res.2.1) G'))) →
       RetPostN (L := L) σ bitsApi (.retype (pp.bv, idx) true p.bv
         (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val)
-        false) res := by
+        dev) res := by
     rintro res ⟨hNS, ⟨h1, σ', f, hhas, hRR⟩ | ⟨h1, σ', G', th'', hhas, hP'', hR'', hV'', hM'', hC'', hI'', hU''⟩⟩
     · exact ⟨σ1, by rw [hcur]; exact hst1, hNS, .error (), σ', G, _, Or.inr ⟨h1, rfl⟩, hhas, hP.restrict,
         hRR.R, hRR.V, hRR.M, hRR.C, hRR.I, hRR.U⟩
@@ -179,7 +179,12 @@ theorem retype_cont_allN {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
         hC'', hI'', hU''⟩
   have hxs : IsSlot th (cslotAddr (pp.bv, idx)) := hAs.isSlot
   by_cases h1 : nt.val = 1
-  · refine WP.spec_mono (retype_reset_tcb (L := L) arI ar th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hU1 hpp hidx hcap1 hfi0 hnd
+  · have hdf : dev = false := by
+      cases hd : dev
+      · rfl
+      · exact absurd h1 (dev_nt ht (hdevc hd)).1
+    subst hdf
+    refine WP.spec_mono (retype_reset_tcb (L := L) arI ar th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hU1 hpp hidx hcap1 hfi0 hnd
       hpal hsb4 hhigh hN hns hzero1 hrcb hppS hPP2 (by rw [hDW2]; exact hDWal) (by rw [hDW2]; exact hDWobj)
       (by rw [hDW2]; exact hDWreg) (by rw [hDW2, hDWm2]; exact hhead) (by rw [hDW2, hDWm2]; exact hheadR) horig2
       nt us t ht h1 hus hdest hdout (by omega) off win hwin hw1 hmem hempty1 bitsApi hb) hpost
@@ -187,7 +192,8 @@ theorem retype_cont_allN {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
       hpal hsb4 hhigh hN hns hzero1 hrcb hppS hPP2
       (ekept_dw hP hxs _ (by rw [hDW2]; exact hDWal) (by rw [hDW2]; exact hDWreg) (by rw [hDW2]; exact hDWobj _ hxs)
         hpfit _ _) ⟨rfl, rfl⟩ horig2
-      nt us t ht (by omega) hus hz47 hsc hct0 hdest hdout (by omega) off win hwin hw1 hmem hempty1 bitsApi hb) hpost
+      nt us t ht (by omega) hus hz47 hsc hct0 hdest hdout (by omega) off win hwin hw1 hmem hempty1 (fun hd => (dev_nt ht (hdevc hd)).2.1) bitsApi hb)
+      hpost
 
 
 /-- **FL4's untyped `Retype` refines FL4's spec, resets included**
@@ -200,7 +206,7 @@ the reset, related to FL4's result).
 Beyond the hypotheses of `untyped_retype_refines_fl4` (with `hunused`
 dropped, and the scheduler-action and debug-list words outside the whole
 region): for the reset of a used region (`hRst`, when the cap has no
-children and `fi ≠ 0`) the cap is not a device one, the spec's original
+children and `fi ≠ 0`; device caps included) the spec's original
 slots, the CNodes of the typed heap and the debug-list head TCB are outside
 the region (l4v: nothing reachable is there); no linked slot is in it and no
 object straddles it; the region is at least 16 bytes; the chunk size is FL4's;
@@ -233,7 +239,7 @@ theorem untyped_retype_refines_fl4N {A' : Type} (arI : machine.Arch A') (th : Ty
     (hPP : ∀ k0 v0 : U64, PPHyp (L := L) arI th p sb (fun t => L.ksb t = k0 ∧
       L.mem t (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = v0))
     (hRst : (¬ ∃ x, σ.cdt x = some (pp.bv, idx)) → fi.val ≠ 0 →
-      dev = false ∧ (∀ sl, σ.isOriginalCap sl = true → AbsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) sl) ∧
+      (∀ sl, σ.isOriginalCap sl = true → AbsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) sl) ∧
       (∀ q r, th q = some (.cnode r) → ¬ (p.val ≤ q.val ∧ q.val < p.val + 2 ^ sb.val)) ∧
       ¬ (p.val ≤ (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val ∧
         (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val < p.val + 2 ^ sb.val))

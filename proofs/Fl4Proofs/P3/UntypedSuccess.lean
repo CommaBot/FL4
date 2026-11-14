@@ -218,13 +218,25 @@ theorem objTypeOf_ne_pml4 {n : Nat} {t : Fl4Spec.ApiObjectType} (hn : n ≠ 8)
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
+
+/-- A device untyped cap retypes only into frames and untypeds: never TCBs,
+CNodes or PML4s. -/
+theorem dev_nt {n : Nat} {t : Fl4Spec.ApiObjectType} (ht : objTypeOf n = some t)
+    (h : Fl4Spec.isFrameType t = true ∨ t = .untyped) : n ≠ 1 ∧ n ≠ 4 ∧ n ≠ 8 := by
+  refine ⟨?_, ?_, ?_⟩ <;> rintro rfl <;> simp [objTypeOf, Fl4Spec.archDataToObjType] at ht
+  · subst ht; simp [Fl4Spec.isFrameType] at h
+  · subst ht; simp [Fl4Spec.isFrameType] at h
+  · subst ht; simp [Fl4Spec.isFrameType, Fl4Spec.archIsFrameType] at h
+
 /-- **`untyped::retype` without a reset refines `invoke_untyped`**, for the
 types 0, 2..7 and 9..13 (object sizes `bitsApi`, which is `zOf` there: the spec's for
 these types, FL4's for all). From the state `decode` checked (window empty,
 enough memory, sizes) with the untyped cap's slot `srcSl` (a CNode slot), its
 cap `Untyped p sb fi dev` aligned to its size, the untyped invariant, and the
-free region free and zero: the spec's single outcome, related to FL4's for
-the typed heap grown by the new CNodes. -/
+free region free, and zero unless the cap is a device one (whose memory FL4
+never zeroes; a device region makes no CNodes, `hdevT`, and the contents of
+its frames and untypeds are not related): the spec's single outcome, related
+to FL4's for the typed heap grown by the new CNodes. -/
 theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHeap) (s : S)
     (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
@@ -244,7 +256,8 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
     (hempty : ∀ i : Nat, off.val ≤ i → i < off.val + win.val →
       capAt (L.mem s) (slotAddr dest.bv (BitVec.ofNat 64 i)) = ok .Null)
     (hfree : RegionFree th (p.val + fi.val) (p.val + 2 ^ sb.val))
-    (hzero : ZeroRegion (L.mem s) (p.val + fi.val) (p.val + 2 ^ sb.val))
+    (hzero : dev = false → ZeroRegion (L.mem s) (p.val + fi.val) (p.val + 2 ^ sb.val))
+    (hdevT : dev = true → nt.val ≠ 4)
     (bitsApi : Fl4Spec.ApiObjectType → Nat → Nat) (hb : bitsApi t us.val = zOf nt.val us.val) :
     untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) false
       ⟨Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)⟩ nt us dest off win dev ⦃ res =>
@@ -254,9 +267,9 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
           (windowSlots dest r off.val win.val) dev)).run σ = ({(.ok (), σ')}, False) ∧
         Placed th' ∧ StateRel th' (L.mem res.2.1) σ' ∧ SlotsValid th' (L.mem res.2.1) ∧
         MdbLinks th' (L.mem res.2.1) G' ∧ CdtRel th' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
-        UtInv (L.mem res.2.1) G' ∧ ZeroRegion (L.mem res.2.1)
+        UtInv (L.mem res.2.1) G' ∧ (dev = false → ZeroRegion (L.mem res.2.1)
           ((Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val)
-          (p.val + 2 ^ sb.val) ⦄ := by
+          (p.val + 2 ^ sb.val)) ⦄ := by
   -- sizes and the region
   have hsb : sb.val < 64 := capAt_untyped_inv hcap
   set z := zOf nt.val us.val with hzdef
@@ -313,12 +326,12 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
   rw [hb] at hrr
   rw [← hwl] at hrr
   -- the free region after the cap update
-  have hzero1 : ZeroRegion (L.mem s1) (p.val + fi.val) (p.val + 2 ^ sb.val) := by
-    intro w hw h1 h2
+  have hzero1 : dev = false → ZeroRegion (L.mem s1) (p.val + fi.val) (p.val + 2 ^ sb.val) := by
+    intro hd w hw h1 h2
     obtain ⟨q, kq, hq, hq1, hq2, -⟩ := slot_in_object hP hs
     have hne : w.val ≠ src.val ∧ w.val ≠ src.val + 8 := by
       rcases hfree q kq hq with h | h <;> constructor <;> omega
-    rw [hfr1 w hw hne.1 hne.2]; exact hzero w hw h1 h2
+    rw [hfr1 w hw hne.1 hne.2]; exact hzero hd w hw h1 h2
   have hrf : RegionFree th A (A + win.val * k) := by
     intro q kd hq
     rcases hfree q kd hq with h | h
@@ -341,8 +354,21 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
           (windowSlots dest r off.val win.val) dev)).run σ = ({(.ok (), σ')}, False) ∧
         Placed th' ∧ StateRel th' (L.mem res.2.1) σ' ∧ SlotsValid th' (L.mem res.2.1) ∧
         MdbLinks th' (L.mem res.2.1) G' ∧ CdtRel th' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
-        UtInv (L.mem res.2.1) G' ∧ ZeroRegion (L.mem res.2.1) (A + win.val * k) (p.val + 2 ^ sb.val) ⦄ := by
+        UtInv (L.mem res.2.1) G' ∧ (dev = false → ZeroRegion (L.mem res.2.1) (A + win.val * k) (p.val + 2 ^ sb.val)) ⦄ := by
     intro th' σb hP' hR' hV' hM' hC' hrb hpp' hdest' hcv' hzs
+    -- the zero region kept by the loop: none for a device region
+    set zl : Nat := if dev = true then p.val + 2 ^ sb.val else A + win.val * k with hzl
+    have hzl1 : A + win.val * k ≤ zl := by rw [hzl]; split_ifs <;> omega
+    have hzs' : ∀ a, IsSlot th' a → a.val + 32 ≤ zl ∨ p.val + 2 ^ sb.val ≤ a.val := fun a ha => by
+      rcases hzs a ha with h | h
+      · left; omega
+      · right; exact h
+    have hz0 : ZeroRegion (L.mem s1) zl (p.val + 2 ^ sb.val) := by
+      intro w hw h1 h2
+      cases hd : dev
+      · simp only [hzl, hd, Bool.false_eq_true, ↓reduceIte] at h1
+        exact hzero1 hd w hw (by omega) h2
+      · simp only [hzl, hd, ↓reduceIte] at h1; omega
     have hbA : (BitVec.ofNat 64 aligned.val : BitVec 64) = Ab := by
       rw [← bv_eq_ofNat]
     have hsrc1 : capAt (L.mem s1) src = ok srcC' := by rw [capAt_capV, hcs1]
@@ -355,9 +381,9 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
         (Fl4Spec.createCap (Z := Unit) t us.val (pp.bv, idx) dev)
         ((windowSlots dest r off.val win.val).zip (regionPtrs (BitVec.ofNat 64 aligned.val) win.val k))
         aligned.val k win.val (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off.val + j)))
-        (A + win.val * k) (p.val + 2 ^ sb.val) G (L.mem s1) (cjOf nt.val us dev aligned.val k) s1 0 := by
+        zl (p.val + 2 ^ sb.val) G (L.mem s1) (cjOf nt.val us dev aligned.val k) s1 0 := by
       refine ⟨σb, G, fun σf h => h, hR', hV', hM', hC', hI1, hsrc1, ?_, ?_, ?_,
-        fun w hw h1 h2 => hzero1 w hw (by omega) h2, fun x hx => Or.inl hx, fun x hx => hx,
+        hz0, fun x hx => Or.inl hx, fun x hx => hx,
         fun j hj => absurd hj (by omega), fun x _ => rfl, fun y x => ⟨Or.inl, by
           rintro (h | ⟨j, hj, -⟩)
           · exact h
@@ -406,7 +432,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
     obtain ⟨⟨s2, a2⟩, hres, ha2, hfin⟩ := spec_exists (create_loop_rel (L := L) arI ar th' hP' hpp' hidx hsb hpfit σb
       hdest' (by omega) nt us dev t ht hn hus hz hsc off win aligned hwin
       (by simp only [← hzdef, ← hkdef, halv]; omega) (by simp only [halv]; omega) (by simp only [halv]; omega)
-      (by simp only [← hzdef, ← hkdef, halv]; omega) hcv' (A + win.val * k) (p.val + 2 ^ sb.val) hzs G (L.mem s1)
+      (by simp only [← hzdef, ← hkdef, halv]; omega) hcv' zl (p.val + 2 ^ sb.val) hzs' G (L.mem s1)
       hsrcd s1 hinv0)
     rw [hres]
     simp only [bind_ok, uncurry_apply_pair]
@@ -418,7 +444,9 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
       apply List.drop_of_length_le; simp [windowSlots, regionPtrs]
     rw [hdrop] at hchain
     have hmx := hchain σf (mapMx_nil _ _)
-    refine ⟨rfl, ha2, σf, Gf, th', ?_, hP', hRf, hVf, hMf, hCf, hIf, ?_, hZf⟩
+    refine ⟨rfl, ha2, σf, Gf, th', ?_, hP', hRf, hVf, hMf, hCf, hIf, ?_, fun hd => by
+      have e : zl = A + win.val * k := by rw [hzl, hd]; simp
+      rw [← e]; exact hZf⟩
     · rw [hbA] at hmx
       apply invokeUntyped_noreset_eq bitsApi (pp.bv, idx) p.bv Ab t us.val _ dev σ σa σb σf _ _ hgs hss hrb
       · exact objTypeOf_ne_pml4 (by omega) ht
@@ -473,7 +501,8 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
         rcases hj'.apart hP hl' (fun ⟨_, h2⟩ => hne (by omega)) with h | h <;>
           (change slotOf dest (off.val + j) = slotOf dest (off.val + l) at he; rw [he] at h; omega)
 
-  have hzeroA : ZeroRegion (L.mem s1) A (A + win.val * k) := fun w hw h1 h2 => hzero1 w hw (by omega) (by omega)
+  have hzeroA : dev = false → ZeroRegion (L.mem s1) A (A + win.val * k) := fun hd w hw h1 h2 =>
+    hzero1 hd w hw (by omega) (by omega)
   have hzsOld : ∀ a, IsSlot th a → a.val + 32 ≤ A + win.val * k ∨ p.val + 2 ^ sb.val ≤ a.val := by
     intro a ha
     obtain ⟨q, kq, hq, hq1, hq2, -⟩ := slot_in_object hP ha
@@ -484,6 +513,11 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
   have hio1' : ∀ sl, σa.isOriginalCap sl = true → AbsSlot th sl := by rw [hio1]; exact horig
   by_cases h4 : nt.val = 4
   · -- CNodes: the typed heap grows
+    have hdf : dev = false := by
+      cases hd : dev
+      · rfl
+      · exact absurd h4 (hdevT hd)
+    replace hzeroA := hzeroA hdf
     have ht4 : t = .capTableObject := by rw [h4] at ht; simpa [objTypeOf] using ht.symm
     subst ht4
     have hk32 : k = 32 * 2 ^ us.val := by

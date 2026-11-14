@@ -12,10 +12,10 @@ preempt. FL4 is deterministic. The refinement is that FL4's outcome is one
 of the spec's: Ok, or preempted, with related states.
 
 The deletes of the children and the preemption points are hypotheses
-(`DelHyp`, `RPPHyp`). The general `cte_delete` is not proved here; for
-trivially finalised caps it is `delete_refines`. The fuel never runs out:
-each delete takes a slot out of the MDB (`DelHyp`), and there are fewer
-MDB slots than `WALK_FUEL` (`u64::MAX`).
+(`DelHyp`, `RPPHyp`); `DelFull` discharges `DelHyp` for the measure
+`psiD`. The fuel never runs out: each delete makes a measure `μ` of the
+CSpace smaller (`DelHyp`), the preemption points keep the cap slots, and
+`μ` starts below `WALK_FUEL` (`u64::MAX`).
 -/
 import Fl4Proofs.P3.CnodeOther
 import Fl4Proofs.P3.UntypedResetSpec
@@ -267,24 +267,24 @@ def CRel (th : TypedHeap) (mem : U64 → U64) (σ : Fl4Spec.State Unit) (G : Mdb
 
 /-- **Hypothesis on FL4's `delete`** (exposed) of a slot of the MDB, from
 related states with a property `E` (any further invariant the deletion
-needs): Ok, with an `Ok` outcome of the spec's `cap_delete` and one slot
-fewer in the MDB at least, or preempted, with a preempted outcome; the
-states related, `E` kept. -/
-def DelHyp (th : TypedHeap) (E : S → Fl4Spec.State Unit → Prop) : Prop :=
+needs): Ok, with an `Ok` outcome of the spec's `cap_delete` and a smaller
+measure `μ`, or preempted, with a preempted outcome; the states related,
+`E` kept. -/
+def DelHyp (μ : (U64 → U64) → MdbGhost → Nat) (th : TypedHeap) (E : S → Fl4Spec.State Unit → Prop) : Prop :=
   ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (c : Fl4Spec.CslotPtr),
     CRel th (L.mem s) σ G → E s σ → AbsSlot th c → cslotAddr c ∈ G.chains.flatten →
     cdt.delete st arI s a (cslotAddr c) true ⦃ r => ∃ σ' G',
       ((r.1 = .Ok () ∧ (.ok (), σ') ∈ ((Fl4Spec.capDelete (Z := Unit) c).run σ).1 ∧
-          G'.chains.flatten.length < G.chains.flatten.length) ∨
+          μ (L.mem r.2.1) G' < μ (L.mem s) G) ∨
         (r.1 = .Err .Preempted ∧ (.error (), σ') ∈ ((Fl4Spec.capDelete (Z := Unit) c).run σ).1)) ∧
       CRel th (L.mem r.2.1) σ' G' ∧ E r.2.1 σ' ⦄
 
 /-- **Hypothesis on FL4's preemption point** (the scheduler's): Ok with a
 non-preempting outcome of the spec's, or preempted with a preempting one;
-the CSpace relations and `E` kept. -/
+the cap slots, the CSpace relations and `E` kept. -/
 def RPPHyp (th : TypedHeap) (E : S → Fl4Spec.State Unit → Prop) : Prop :=
   ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost), CRel th (L.mem s) σ G → E s σ →
-    sched.preemption_point st arI s a ⦃ r => ∃ σ',
+    sched.preemption_point st arI s a ⦃ r => SlotsSame th (L.mem s) (L.mem r.2.1) ∧ ∃ σ',
       ((r.1 = .Ok () ∧ (.ok (), σ') ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1) ∨
         (r.1 = .Err .Preempted ∧ (.error (), σ') ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1)) ∧
       CRel th (L.mem r.2.1) σ' G ∧ E r.2.1 σ' ⦄
@@ -299,21 +299,23 @@ def RevPost (th : TypedHeap) (E : S → Fl4Spec.State Unit → Prop) (sl : Fl4Sp
 
 /-- The revoke loop's invariant from `σ0`: related to a spec state `σ`
 from which every outcome of `cap_revoke` is one from `σ0`, fuel above the
-number of MDB slots. -/
-def RevInv (th : TypedHeap) (E : S → Fl4Spec.State Unit → Prop) (sl : Fl4Spec.CslotPtr)
-    (σ0 : Fl4Spec.State Unit) (x : S × A × U64) : Prop :=
-  ∃ σ G, CRel th (L.mem x.1) σ G ∧ E x.1 σ ∧ G.chains.flatten.length < x.2.2.val ∧
+measure. -/
+def RevInv (μ : (U64 → U64) → MdbGhost → Nat) (th : TypedHeap) (E : S → Fl4Spec.State Unit → Prop)
+    (sl : Fl4Spec.CslotPtr) (σ0 : Fl4Spec.State Unit) (x : S × A × U64) : Prop :=
+  ∃ σ G, CRel th (L.mem x.1) σ G ∧ E x.1 σ ∧ μ (L.mem x.1) G < x.2.2.val ∧
     ∀ y, y ∈ ((Fl4Spec.capRevoke (Z := Unit) sl).run σ).1 → y ∈ ((Fl4Spec.capRevoke (Z := Unit) sl).run σ0).1
 
 /-- **FL4's revoke loop refines l4v's `cap_revoke`**, with fuel above the
-number of MDB slots. -/
+measure. -/
 theorem revoke_loop_refines (th : TypedHeap) (hP : Placed th) (E : S → Fl4Spec.State Unit → Prop)
-    (hD : DelHyp (L := L) arI th E) (hPP : RPPHyp (L := L) arI th E)
+    (μ : (U64 → U64) → MdbGhost → Nat)
+    (hμ : ∀ m m' G, MdbLinks th m G → SlotsSame th m m' → μ m' G = μ m G)
+    (hD : DelHyp (L := L) arI μ th E) (hPP : RPPHyp (L := L) arI th E)
     (sl : Fl4Spec.CslotPtr) (hs : AbsSlot th sl) (s : S) (a : A) (σ0 : Fl4Spec.State Unit) (G0 : MdbGhost)
-    (fuel : U64) (hCR0 : CRel th (L.mem s) σ0 G0) (hE0 : E s σ0) (hlen0 : G0.chains.flatten.length < fuel.val) :
+    (fuel : U64) (hCR0 : CRel th (L.mem s) σ0 G0) (hE0 : E s σ0) (hlen0 : μ (L.mem s) G0 < fuel.val) :
     cdt.revoke_loop st arI s a (cslotAddr sl) fuel ⦃ res => RevPost (L := L) th E sl σ0 res ⦄ := by
   unfold cdt.revoke_loop
-  refine loop.spec_decr_nat (fun x => x.2.2.val) (RevInv (L := L) th E sl σ0) _ _ _ ?_
+  refine loop.spec_decr_nat (fun x => x.2.2.val) (RevInv (L := L) μ th E sl σ0) _ _ _ ?_
     ⟨σ0, G0, hCR0, hE0, hlen0, fun _ h => h⟩
   rintro ⟨s, a, fuel⟩ ⟨σ, G, ⟨hR, hV, hM, hC, hI⟩, hE, hlen, htr⟩
   simp only at hlen htr ⊢
@@ -377,28 +379,31 @@ theorem revoke_loop_refines (th : TypedHeap) (hP : Placed th) (E : S → Fl4Spec
       bind_ok, bind_tc_ok, WP.spec_ok]
     exact ⟨σd, Gd, Or.inr ⟨rfl, htr _ (capRevoke_del_preempt hg hacn hcdesc hgc haccn hdm)⟩, hCR1, hE1⟩
   simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
-  obtain ⟨⟨r2, s2, a2⟩, hpp, σp, hcase2, hCR2, hE2⟩ := spec_exists (hPP s1 a1 σd Gd hCR1 hE1)
+  obtain ⟨⟨r2, s2, a2⟩, hpp, hS2, σp, hcase2, hCR2, hE2⟩ := spec_exists (hPP s1 a1 σd Gd hCR1 hE1)
+  have hμ2 : μ (L.mem s2) Gd = μ (L.mem s1) Gd := hμ _ _ _ hCR1.2.2.1 hS2
   rw [hpp]
   simp only [bind_ok, uncurry_apply_pair]
   rcases hcase2 with ⟨rfl, hpm⟩ | ⟨rfl, hpm⟩
   · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok, WP.spec_ok]
-    refine ⟨⟨σp, Gd, hCR2, hE2, by scalar_tac, fun y hy => htr _ (capRevoke_step hg hacn hcdesc hgc haccn hdm hpm hy)⟩,
-      by scalar_tac⟩
+    refine ⟨⟨σp, Gd, hCR2, hE2, by simp only at hμ2 hlt ⊢; rw [hμ2]; scalar_tac,
+      fun y hy => htr _ (capRevoke_step hg hacn hcdesc hgc haccn hdm hpm hy)⟩, by scalar_tac⟩
   · simp only [core.result.Result.Insts.CoreOpsTry.branch,
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
       bind_ok, bind_tc_ok, WP.spec_ok]
     exact ⟨σp, Gd, Or.inr ⟨rfl, htr _ (capRevoke_pp_preempt hg hacn hcdesc hgc haccn hdm hpm)⟩, hCR2, hE2⟩
 
-/-- **FL4's `revoke` refines l4v's `cap_revoke`**, given fewer MDB slots
-than `WALK_FUEL` (`u64::MAX`). -/
+/-- **FL4's `revoke` refines l4v's `cap_revoke`**, given the measure below
+`WALK_FUEL` (`u64::MAX`). -/
 theorem revoke_refines (th : TypedHeap) (hP : Placed th) (E : S → Fl4Spec.State Unit → Prop)
-    (hD : DelHyp (L := L) arI th E) (hPP : RPPHyp (L := L) arI th E)
+    (μ : (U64 → U64) → MdbGhost → Nat)
+    (hμ : ∀ m m' G, MdbLinks th m G → SlotsSame th m m' → μ m' G = μ m G)
+    (hD : DelHyp (L := L) arI μ th E) (hPP : RPPHyp (L := L) arI th E)
     (sl : Fl4Spec.CslotPtr) (hs : AbsSlot th sl) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
-    (hCR : CRel th (L.mem s) σ G) (hE : E s σ) (hfew : G.chains.flatten.length < 2 ^ 64 - 1) :
+    (hCR : CRel th (L.mem s) σ G) (hE : E s σ) (hfew : μ (L.mem s) G < 2 ^ 64 - 1) :
     cdt.revoke st arI s a (cslotAddr sl) ⦃ res => RevPost (L := L) th E sl σ res ⦄ := by
   unfold cdt.revoke
   have : layout.WALK_FUEL.val = 2 ^ 64 - 1 := by simp [layout.WALK_FUEL, U64.rMax]
-  exact revoke_loop_refines arI th hP E hD hPP sl hs s a σ G _ hCR hE (by rw [this]; exact hfew)
+  exact revoke_loop_refines arI th hP E μ hμ hD hPP sl hs s a σ G _ hCR hE (by rw [this]; exact hfew)
 
 /-! ## CNode Revoke, decode and invoke -/
 
@@ -419,7 +424,8 @@ def PInvPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (m : Fl4Spec.SEMonad Uni
 `CNodeRevoke` against l4v's `decode_cnode_invocation`, then
 `set_thread_state Restart` and `invoke_cnode` (`cap_revoke`), given the
 deletes and preemption points (`DelHyp`, `RPPHyp`, with an invariant `E`
-that holds after the restart) and fewer MDB slots than `u64::MAX`. -/
+that holds after the restart) and a measure `μ` of the CSpace below
+`u64::MAX`. -/
 theorem cnode_revoke_refines (th : TypedHeap) (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
@@ -433,10 +439,12 @@ theorem cnode_revoke_refines (th : TypedHeap) (s : S) (ar : A)
     (hI : MdbInv (L.mem s) G)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
-    (E : S → Fl4Spec.State Unit → Prop) (hD : DelHyp (L := L) arI th E) (hPP : RPPHyp (L := L) arI th E)
+    (E : S → Fl4Spec.State Unit → Prop) (μ : (U64 → U64) → MdbGhost → Nat)
+    (hμ : ∀ m m' G, MdbLinks th m G → SlotsSame th m m' → μ m' G = μ m G)
+    (hD : DelHyp (L := L) arI μ th E) (hPP : RPPHyp (L := L) arI th E)
     (hE : ∀ s1 σ1, SlotsSame th (L.mem s) (L.mem s1) →
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) → E s1 σ1)
-    (hfew : G.chains.flatten.length < 2 ^ 64 - 1) :
+    (hfew : μ (L.mem s) G < 2 ^ 64 - 1) :
     cnode.decode st arI s ar fl4_abi.label.CNodeRevoke length cap buf extra ⦃ res =>
       PInvPost (L := L) th σ (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
         (res.1, res.2.1) ⦄ := by
@@ -494,8 +502,8 @@ theorem cnode_revoke_refines (th : TypedHeap) (s : S) (ar : A)
       obtain ⟨σ1, hst, hR1, hV1, hM1, hC1, -, -⟩ := restart_rel hR hV hM hC hS hk .restart
       have hI1 := MdbInv.of_same hM hI hS
       rw [hs2]; simp only [bind_ok]
-      have hfew' : G.chains.flatten.length < 2 ^ 64 - 1 := hfew
-      refine WP.spec_mono (revoke_refines arI th hP E hD hPP dsl hAd s2 ar σ1 G ⟨hR1, hV1, hM1, hC1, hI1⟩
+      have hfew' : μ (L.mem s2) G < 2 ^ 64 - 1 := by rw [hμ _ _ _ hM hS]; exact hfew
+      refine WP.spec_mono (revoke_refines arI th hP E μ hμ hD hPP dsl hAd s2 ar σ1 G ⟨hR1, hV1, hM1, hC1, hI1⟩
         (hE s2 σ1 hS hst) hfew') ?_
       rintro ⟨r, s', a'⟩ ⟨σ', G', hk', hCR', -⟩
       refine Or.inr ⟨.revokeCall dsl, ?_, σ1, hst, σ', G', ?_, hCR'⟩
@@ -520,7 +528,7 @@ theorem cnode_delete_refines (th : TypedHeap) (s : S) (ar : A)
     (hI : MdbInv (L.mem s) G)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
-    (E : S → Fl4Spec.State Unit → Prop) (hD : DelHyp (L := L) arI th E)
+    (E : S → Fl4Spec.State Unit → Prop) (μ : (U64 → U64) → MdbGhost → Nat) (hD : DelHyp (L := L) arI μ th E)
     (hE : ∀ s1 σ1, SlotsSame th (L.mem s) (L.mem s1) →
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) → E s1 σ1) :
     cnode.decode st arI s ar fl4_abi.label.CNodeDelete length cap buf extra ⦃ res =>
