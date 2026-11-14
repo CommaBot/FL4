@@ -134,7 +134,7 @@ def decodeDeriveSubframe (args : List Data) (cte : CslotPtr) (cap : ArchCap)
               NonDetE.throwError (.rangeError 0 (BitVec.ofNat 64 (size - 1)))
             NonDetE.whenE (size - unat nOff < unat count) <|
               NonDetE.throwError (.rangeError 1 (BitVec.ofNat 64 (size - unat nOff)))
-            let dests := (List.range (unat count)).map fun i => (ptr, toBl (BitVec.ofNat bits (unat nOff + i)))
+            let dests := (List.range' (unat nOff) (unat count)).map fun i => (ptr, natToCref bits i)
             NonDetE.mapMEx ensureEmpty dests
             NonDetE.returnOk ⟨cte, p + off, maskVmRights r (dataToRights (the args[5]?)), dests⟩
         | _ => NonDetE.throwError (.failedLookup false (.missingCapability (unat depth)))
