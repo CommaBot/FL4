@@ -40,8 +40,8 @@ theorem Inv.qchange {σ σ' : State Unit} (h : Inv σ) (hq : QChange σ σ') : I
   refine h.congr' hk (fun d p u hu => ?_) hr ht
   rcases hm d p u hu with hu | hs
   · exact h.rq d p u hu
-  · obtain ⟨x, scp, y, n, h1, h2, h3, -⟩ := schedulable_inv hs
-    exact ⟨x, scp, h1, h2, h3⟩
+  · obtain ⟨x, scp, y, n, h1, h2, h3, h4, h5, -⟩ := schedulable_inv hs
+    exact ⟨x, scp, y, n, h1, h2, h3, h4, h5⟩
 
 /-- The state with ready queue `(d, p)` set to `q`. -/
 def setQ (σ : State Unit) (d : Domain) (p : Priority) (q : List ObjRef) : State Unit :=

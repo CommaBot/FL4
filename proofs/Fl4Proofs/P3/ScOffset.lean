@@ -14,15 +14,6 @@ noncomputable section
 section Spec
 open Fl4Spec
 
-/-- l4v `cur_sc_offset_ready` / `cur_sc_offset_sufficient` (for a positive
-consumed time), with the current SC's head ready: the head can pay the
-consumed time, keep `MIN_BUDGET`, and is not after the current time when
-moved by it. -/
-def OffOK (σ : State Unit) : Prop :=
-  0 < σ.consumedTime → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) →
-    refillSufficient σ.consumedTime (refillHd y) = true ∧
-    refillReady' σ.consumedTime σ.curTime (refillHd y) = true ∧ refillReady σ.curTime (refillHd y) = true
-
 end Spec
 
 section

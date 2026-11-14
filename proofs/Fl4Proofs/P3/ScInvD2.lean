@@ -20,8 +20,8 @@ open Fl4Spec
 
 /-- `Inv` except `rd` for `t`. -/
 structure InvBut (σ : State Unit) (t : ObjRef) : Prop where
-  rq : ∀ d p u, u ∈ σ.readyQueues d p → ∃ x scp, σ.kheap u = some (.tcb x) ∧ x.tcbSchedContext = some scp ∧
-    runnable x.tcbState = true
+  rq : ∀ d p u, u ∈ σ.readyQueues d p → ∃ x scp y n, σ.kheap u = some (.tcb x) ∧ x.tcbSchedContext = some scp ∧
+    runnable x.tcbState = true ∧ σ.kheap scp = some (.schedContext y n) ∧ scActive y = true
   rel : ∀ u ∈ σ.releaseQueue, ∃ x scp y n, σ.kheap u = some (.tcb x) ∧ x.tcbSchedContext = some scp ∧
     runnable x.tcbState = true ∧ σ.kheap scp = some (.schedContext y n) ∧ scActive y = true
   sorted : σ.releaseQueue.Pairwise (fun a b => specRt σ a ≤ specRt σ b)
@@ -90,8 +90,9 @@ theorem Inv.donated {σ : State Unit} (h : Inv σ) {p t : ObjRef} {ys : SchedCon
     rw [specRt_eq (tcb_o u x h1 hut) h2 (sc_o scp y m h4 hsp) hne, specRt_eq h1 h2 h4 hne]
   refine ⟨fun d q u hu => ?_, fun u hu => ?_, ?_, fun u x hut hx hc => ?_, fun q y m hy ha => ?_,
     fun u x q hx hq => ?_, fun q x q' hx hq => ?_, fun q y m hy => ?_⟩
-  · obtain ⟨x, scp, h1, h2, h3⟩ := h.rq d q u hu
-    exact ⟨x, scp, tcb_o u x h1 (fun e => hnq.1 d q (e ▸ hu)), h2, h3⟩
+  · obtain ⟨x, scp, y, m, h1, h2, h3, h4, h5⟩ := h.rq d q u hu
+    exact ⟨x, scp, y, m, tcb_o u x h1 (fun e => hnq.1 d q (e ▸ hu)), h2, h3,
+      sc_o scp y m h4 (fun e => hnp u x h1 (e ▸ h2)), h5⟩
   · obtain ⟨x, scp, y, m, h1, h2, h3, h4, h5⟩ := h.rel u hu
     exact ⟨x, scp, y, m, tcb_o u x h1 (fun e => hnq.2 (e ▸ hu)), h2, h3,
       sc_o scp y m h4 (fun e => hnp u x h1 (e ▸ h2)), h5⟩

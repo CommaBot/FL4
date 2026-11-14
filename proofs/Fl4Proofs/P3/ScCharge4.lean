@@ -30,10 +30,12 @@ theorem end_timeslice_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : 
       (error.Fault.Timeout (L.mem s (scW (nodeW st s c layout.node.CUR_SC) 48#u64))) ⦃ r => ∃ σ',
       Fl4Spec.handleTimeout (Z := Unit) (nodeW st s c layout.node.CUR_THREAD).bv
         (.timeout (L.mem s (scW (nodeW st s c layout.node.CUR_SC) 48#u64)).bv) σ = ({((), σ')}, False) ∧
-      SchedRel st N T C c r.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ⦄)
+      SchedRel st N T C c r.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧
+      σ'.consumedTime = σ.consumedTime ⦄)
     (can : Bool) :
     sched.end_timeslice st ar s a can ⦃ r => ∃ σ', Fl4Spec.endTimeslice (Z := Unit) can σ = ({((), σ')}, False) ∧
-      SchedRel st N T C c r.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ⦄ := by
+      SchedRel st N T C c r.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧
+      σ'.consumedTime = σ.consumedTime ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   set sc := nodeW st s c layout.node.CUR_SC with hscd
   set ct := nodeW st s c layout.node.CUR_THREAD with hctd
@@ -80,9 +82,10 @@ theorem end_timeslice_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : 
       else do
         let s1 ← sched.postpone st s sc
         ok (s1, a)) ⦃ r => ∃ σ', Fl4Spec.endTimeslice (Z := Unit) can σ = ({((), σ')}, False) ∧
-          SchedRel st N T C c r.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ⦄ := fun hn =>
-    WP.spec_mono hrap fun r ⟨_, σ', h1, h2, h3, h4, h5⟩ =>
-      ⟨σ', by rw [hspec v hv, ite_f hn]; exact h1, h2, h3, h5, hN.kview hR h4⟩
+          SchedRel st N T C c r.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧
+          σ'.consumedTime = σ.consumedTime ⦄ := fun hn =>
+    WP.spec_mono hrap fun r ⟨_, σ', h1, h2, h3, h4, h5, h6⟩ =>
+      ⟨σ', by rw [hspec v hv, ite_f hn]; exact h1, h2, h3, h5, hN.kview hR h4, h6⟩
   by_cases hcan : can = true
   · rw [if_pos hcan]
     by_cases hr : rr = true

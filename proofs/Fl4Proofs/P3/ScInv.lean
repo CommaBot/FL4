@@ -3,7 +3,7 @@ P3 (DESIGN.md §9), scheduling contexts: **the scheduler invariant** `Inv`
 of the spec state (fragments of l4v `valid_sched`, `valid_refills`,
 `heap_refs_inv`, `valid_objs`):
 
-* `rq`: ready-queue members are runnable and bound to an SC (`valid_ready_qs`);
+* `rq`: ready-queue members are runnable and bound to an active SC (`valid_ready_qs`);
 * `rel`, `sorted`: release-queue members are runnable and bound to an
   active SC, and the queue is sorted by ready time (`valid_release_q`,
   `sorted_release_q`);
@@ -37,8 +37,8 @@ def RefOK (y : SchedContext) : Prop :=
 
 /-- The scheduler invariant (see the module docstring). -/
 structure Inv (σ : State Unit) : Prop where
-  rq : ∀ d p u, u ∈ σ.readyQueues d p → ∃ x scp, σ.kheap u = some (.tcb x) ∧ x.tcbSchedContext = some scp ∧
-    runnable x.tcbState = true
+  rq : ∀ d p u, u ∈ σ.readyQueues d p → ∃ x scp y n, σ.kheap u = some (.tcb x) ∧ x.tcbSchedContext = some scp ∧
+    runnable x.tcbState = true ∧ σ.kheap scp = some (.schedContext y n) ∧ scActive y = true
   rel : ∀ u ∈ σ.releaseQueue, ∃ x scp y n, σ.kheap u = some (.tcb x) ∧ x.tcbSchedContext = some scp ∧
     runnable x.tcbState = true ∧ σ.kheap scp = some (.schedContext y n) ∧ scActive y = true
   sorted : σ.releaseQueue.Pairwise (fun a b => specRt σ a ≤ specRt σ b)
@@ -49,6 +49,24 @@ structure Inv (σ : State Unit) : Prop where
   ntfnSc : ∀ q x p, σ.kheap q = some (.notification x) → x.ntfnSc = some p →
     ∃ y n, σ.kheap p = some (.schedContext y n)
   ne : ∀ p y n, σ.kheap p = some (.schedContext y n) → y.scRefills ≠ []
+
+/-- A ready-queue member's facts (`Inv.rq`). -/
+def RqOK (σ : State Unit) (u : ObjRef) : Prop :=
+  ∃ x scp y n, σ.kheap u = some (.tcb x) ∧ x.tcbSchedContext = some scp ∧
+    runnable x.tcbState = true ∧ σ.kheap scp = some (.schedContext y n) ∧ scActive y = true
+
+/-- `RqOK` after replacing the object at `p` (not `u`) with an SC as active
+as the old one, if the old one was an SC. -/
+theorem RqOK.upd {σ σ' : State Unit} {p u : ObjRef} (h : RqOK σ u)
+    (hkp : ∀ q, q ≠ p → σ'.kheap q = σ.kheap q)
+    (hsc : ∀ y n, σ.kheap p = some (.schedContext y n) → ∃ z, σ'.kheap p = some (.schedContext z n) ∧
+      scActive z = scActive y)
+    (hup : u ≠ p) : RqOK σ' u := by
+  obtain ⟨x, scp, y, n, h1, h2, h3, h4, h5⟩ := h
+  by_cases e : scp = p
+  · subst e; obtain ⟨z, hz, ha⟩ := hsc y n h4
+    exact ⟨x, scp, z, n, by rw [hkp u hup]; exact h1, h2, h3, hz, ha.trans h5⟩
+  · exact ⟨x, scp, y, n, by rw [hkp u hup]; exact h1, h2, h3, by rw [hkp scp e]; exact h4, h5⟩
 
 theorem schedulable_inv {σ : State Unit} {t : ObjRef} (h : schedulable t σ = true) :
     ∃ x scp y n, σ.kheap t = some (.tcb x) ∧ x.tcbSchedContext = some scp ∧ runnable x.tcbState = true ∧
@@ -98,8 +116,8 @@ theorem released_congr {σ σ' : State Unit} (h : σ'.curTime = σ.curTime) (y :
 
 /-- The invariant only reads the heap, the queues and the current time. -/
 theorem Inv.congr' {σ σ' : State Unit} (h : Inv σ) (hk : σ'.kheap = σ.kheap)
-    (hq : ∀ d p u, u ∈ σ'.readyQueues d p → ∃ x scp, σ.kheap u = some (.tcb x) ∧ x.tcbSchedContext = some scp ∧
-      runnable x.tcbState = true)
+    (hq : ∀ d p u, u ∈ σ'.readyQueues d p → ∃ x scp y n, σ.kheap u = some (.tcb x) ∧ x.tcbSchedContext = some scp ∧
+      runnable x.tcbState = true ∧ σ.kheap scp = some (.schedContext y n) ∧ scActive y = true)
     (hr : σ'.releaseQueue = σ.releaseQueue) (ht : σ'.curTime = σ.curTime) :
     Inv σ' := by
   refine ⟨fun d p u hu => ?_, fun u hu => ?_, ?_, fun u x hx hc => ?_, fun p y n hy => ?_,
@@ -174,9 +192,9 @@ theorem Inv.step {σ σ' : State Unit} (h : Inv σ) (hn : NtfnStep σ σ')
   refine ⟨fun d p u hu => ?_, fun u hu => ?_, ?_, fun u y hy hc => ?_, fun p y n hy => ?_,
     fun u y p hy hp => ?_, fun q y p hy hp => ?_, fun p y n hy => h.ne p y n (NtfnStep.sc_back hn hy)⟩
   · rw [e1] at hu
-    obtain ⟨x, scp, h1, h2, h3⟩ := h.rq d p u hu
+    obtain ⟨x, scp, yc, n, h1, h2, h3, h4, h5⟩ := h.rq d p u hu
     obtain ⟨y, hy, -, hs, -⟩ := NtfnStep.tcbSched hn h1
-    exact ⟨y, scp, hy, hs.trans h2, hst u x y h1 hy (Or.inl ⟨d, p, hu⟩) h3⟩
+    exact ⟨y, scp, yc, n, hy, hs.trans h2, hst u x y h1 hy (Or.inl ⟨d, p, hu⟩) h3, NtfnStep.sc hn h4, h5⟩
   · rw [e2] at hu
     obtain ⟨x, scp, yc, n, h1, h2, h3, h4, h5⟩ := h.rel u hu
     obtain ⟨y, hy, -, hs, -⟩ := NtfnStep.tcbSched hn h1

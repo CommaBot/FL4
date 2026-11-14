@@ -174,9 +174,9 @@ theorem Inv.unblock {σ σ' : State Unit} (h : Inv σ) {p : ObjRef} {y : SchedCo
     · rw [hkp u e] at hx; exact hx
   refine ⟨fun d q u hu => ?_, fun u hu => ?_, ?_, fun u x hx hc => ?_, fun q w m hw => ?_,
     fun u x q hx hq => ?_, fun q x q' hx hq => ?_, fun q w m hw => ?_⟩
-  · obtain ⟨x, scp, h1, h2, h3⟩ := h.rq d q u hu
-    have : u ≠ p := by rintro rfl; rw [hk] at h1; cases h1
-    exact ⟨x, scp, by rw [hkp u this]; exact h1, h2, h3⟩
+  · have h0 := h.rq d q u hu
+    have : u ≠ p := by obtain ⟨x, -, -, -, h1, -⟩ := h0; rintro rfl; rw [hk] at h1; cases h1
+    exact RqOK.upd h0 hkp (fun y' n' h => by rw [hk] at h; cases h; exact ⟨z, hkz, hzact⟩) this
   · obtain ⟨x, scp, w, m, h1, h2, h3, h4, h5⟩ := h.rel u hu
     have hup : u ≠ p := by rintro rfl; rw [hk] at h1; cases h1
     have hsp : scp ≠ p := fun e => hnr' u hu x h1 (e ▸ h2)

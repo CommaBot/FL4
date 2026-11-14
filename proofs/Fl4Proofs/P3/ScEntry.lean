@@ -50,14 +50,15 @@ theorem budget_ok_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4S
         (error.Fault.Timeout (L.mem s' (scW (nodeW st s c layout.node.CUR_SC) 48#u64))) ⦃ r => ∃ σ'',
         Fl4Spec.handleTimeout (Z := Unit) (nodeW st s c layout.node.CUR_THREAD).bv
           (.timeout (L.mem s' (scW (nodeW st s c layout.node.CUR_SC) 48#u64)).bv) σ' = ({((), σ'')}, False) ∧
-        SchedRel st N T C c r.1 σ'' ∧ Inv σ'' ∧ NtfnStateRel N T (L.mem r.1) σ'' ∧ NSC N C σ'' ⦄) :
+        SchedRel st N T C c r.1 σ'' ∧ Inv σ'' ∧ NtfnStateRel N T (L.mem r.1) σ'' ∧ NSC N C σ'' ∧
+        σ''.consumedTime = σ'.consumedTime ⦄) :
     syscall.budget_ok st ar s a ⦃ r => ∃ σ',
       (Fl4Spec.updateTimeStamp (Z := Unit) >>= fun _ => Fl4Spec.checkBudgetRestart) σ = ({(r.1, σ')}, False) ∧
       SchedRel st N T C c r.2.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.2.1) σ' ∧ NSC N C σ' ∧
-      (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ⦄ := by
+      (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧ (OffReady σ → OffOK σ') ⦄ := by
   unfold syscall.budget_ok
   refine WP.spec_bind (update_timestamp_refines s a σ hS hR hN hnd hnow) ?_
-  rintro ⟨s1, a1⟩ ⟨σ1, h1, hS1, hR1, hN1, hI1, hC1, -, hnw⟩
+  rintro ⟨s1, a1⟩ ⟨σ1, h1, hS1, hR1, hN1, hI1, hC1, -, hnw, hO1⟩
   have hI1 := hI1 hI
   have hC1 := hC1 hC
   obtain ⟨hscC, hsc0, htw, hts, hact, hnr, hnb⟩ := CurInv.facts hS1 hI1 hC1
@@ -70,8 +71,8 @@ theorem budget_ok_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4S
   refine WP.spec_mono (check_budget_restart_refines s1 a1 σ1 hS1 hR1 hN1 hI1 hscC hsc0 htw hts
     hS1.idle hact hnr hnb hnd (hmrt a1) (hmb a1) (by rw [e_ct]; exact hval)
     (fun s' σ' => by rw [e_ct, e_sc]; exact hto s' a1 σ')) ?_
-  rintro r ⟨σ', h2, hS2, hI2, hR2, hN2, hC2⟩
-  exact ⟨σ', by rw [nd_bind_one h1]; exact h2, hS2, hI2, hR2, hN2, hC2 hC1⟩
+  rintro r ⟨σ', h2, hS2, hI2, hR2, hN2, hC2, hO2⟩
+  exact ⟨σ', by rw [nd_bind_one h1]; exact h2, hS2, hI2, hR2, hN2, hC2 hC1, fun ho => hO2 (hO1 ho)⟩
 
 /-- **Interrupt entry: `update_timestamp; check_budget` refines
 `update_time_stamp; check_budget`** and ends in full `Inv`. -/
@@ -93,15 +94,16 @@ theorem entry_check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (
         (error.Fault.Timeout (L.mem s' (scW (nodeW st s c layout.node.CUR_SC) 48#u64))) ⦃ r => ∃ σ'',
         Fl4Spec.handleTimeout (Z := Unit) (nodeW st s c layout.node.CUR_THREAD).bv
           (.timeout (L.mem s' (scW (nodeW st s c layout.node.CUR_SC) 48#u64)).bv) σ' = ({((), σ'')}, False) ∧
-        SchedRel st N T C c r.1 σ'' ∧ Inv σ'' ∧ NtfnStateRel N T (L.mem r.1) σ'' ∧ NSC N C σ'' ⦄) :
+        SchedRel st N T C c r.1 σ'' ∧ Inv σ'' ∧ NtfnStateRel N T (L.mem r.1) σ'' ∧ NSC N C σ'' ∧
+        σ''.consumedTime = σ'.consumedTime ⦄) :
     (do
       let (s1, a1) ← sched.update_timestamp st ar s a
       sched.check_budget st ar s1 a1) ⦃ r => ∃ σ',
       (Fl4Spec.updateTimeStamp (Z := Unit) >>= fun _ => Fl4Spec.checkBudget) σ = ({(r.1, σ')}, False) ∧
       SchedRel st N T C c r.2.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.2.1) σ' ∧ NSC N C σ' ∧
-      (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ⦄ := by
+      (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧ (OffReady σ → OffOK σ') ⦄ := by
   refine WP.spec_bind (update_timestamp_refines s a σ hS hR hN hnd hnow) ?_
-  rintro ⟨s1, a1⟩ ⟨σ1, h1, hS1, hR1, hN1, hI1, hC1, -, hnw⟩
+  rintro ⟨s1, a1⟩ ⟨σ1, h1, hS1, hR1, hN1, hI1, hC1, -, hnw, hO1⟩
   have hI1 := hI1 hI
   have hC1 := hC1 hC
   obtain ⟨hscC, hsc0, htw, hts, hact, hnr, hnb⟩ := CurInv.facts hS1 hI1 hC1
@@ -118,8 +120,9 @@ theorem entry_check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (
   refine WP.spec_mono (check_budget_refines s1 a1 σ1 hS1 hR1 hN1 hI1 hscC hsc0 htw hts
     hS1.idle hact hnr hnb hnd (hmrt a1) (hmb a1) (by rw [e_ct]; exact hval)
     (fun s' σ' => by rw [e_ct, e_sc]; exact hto s' a1 σ')) ?_
-  rintro r ⟨σ', h2, hS2, hI2, hR2, hN2, hK⟩
-  exact ⟨σ', by rw [nd_bind_one h1]; exact h2, hS2, hI2, hR2, hN2, hK.imp id fun hK => hC1.keeps hK hkp⟩
+  rintro r ⟨σ', h2, hS2, hI2, hR2, hN2, hK, hO2⟩
+  exact ⟨σ', by rw [nd_bind_one h1]; exact h2, hS2, hI2, hR2, hN2, hK.imp id fun hK => hC1.keeps hK hkp,
+    fun ho => hO2 (hO1 ho)⟩
 
 /-- **`commit_time` keeps `CurInv`** (and, as `commit_time_refines`, `Inv`
 except for the current thread). -/

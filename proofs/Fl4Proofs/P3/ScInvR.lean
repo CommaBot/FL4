@@ -23,7 +23,7 @@ theorem mem_pure {σ σ' : State Unit} (h : ((), σ') ∈ (NonDet.pure (σ := St
 theorem Inv.notQueued {σ : State Unit} (h : Inv σ) {t : ObjRef} {x : Tcb} (hk : σ.kheap t = some (.tcb x))
     (hnr : runnable x.tcbState = false) : NotQueued σ t := by
   refine ⟨fun d p hm => ?_, fun hm => ?_⟩
-  · obtain ⟨x', -, h1, -, h3⟩ := h.rq d p t hm
+  · obtain ⟨x', -, -, -, h1, -, h3, -⟩ := h.rq d p t hm
     rw [hk] at h1; cases h1; rw [hnr] at h3; cases h3
   · obtain ⟨x', -, -, -, h1, -, h3, -⟩ := h.rel t hm
     rw [hk] at h1; cases h1; rw [hnr] at h3; cases h3
@@ -70,8 +70,9 @@ theorem Inv.unbound {σ : State Unit} (h : Inv σ) {t p : ObjRef} {xt : Tcb} {ys
     rw [specRt_eq (tcb_o u x h1 hut) h2 (sc_o scp y m h4 hsp) hne, specRt_eq h1 h2 h4 hne]
   refine ⟨fun d q u hu => ?_, fun u hu => ?_, ?_, fun u x hx hc => ?_, fun q y m hy ha => ?_,
     fun u x q hx hq => ?_, fun q x q' hx hq => ?_, fun q y m hy => ?_⟩
-  · obtain ⟨x, scp, h1, h2, h3⟩ := h.rq d q u hu
-    exact ⟨x, scp, tcb_o u x h1 (fun e => hnq.1 d q (e ▸ hu)), h2, h3⟩
+  · obtain ⟨x, scp, y, m, h1, h2, h3, h4, h5⟩ := h.rq d q u hu
+    have hut : u ≠ t := fun e => hnq.1 d q (e ▸ hu)
+    exact ⟨x, scp, y, m, tcb_o u x h1 hut, h2, h3, sc_o scp y m h4 (fun e => hut (hown u x h1 (e ▸ h2))), h5⟩
   · obtain ⟨x, scp, y, m, h1, h2, h3, h4, h5⟩ := h.rel u hu
     have hut : u ≠ t := fun e => hnq.2 (e ▸ hu)
     exact ⟨x, scp, y, m, tcb_o u x h1 hut, h2, h3, sc_o scp y m h4 (fun e => hut (hown u x h1 (e ▸ h2))), h5⟩

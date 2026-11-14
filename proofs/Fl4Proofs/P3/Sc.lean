@@ -43,10 +43,12 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
   `commit_time` of the outgoing one), keeping `Inv` and establishing `CurInv`.
 * ScSwitchTo: `switch_to_thread`, `switch_to_idle_thread` (arch switch as a
   hypothesis); writing `CUR_THREAD`.
+* ScSchedule: `check_domain_time` (one domain), `guarded_switch_to` of a
+  ready-queue head, `choose_thread`.
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
 import Fl4Proofs.P3.ScCharge8
 import Fl4Proofs.P3.ScConsumed
 import Fl4Proofs.P3.ScEntry
-import Fl4Proofs.P3.ScSwitchTo
+import Fl4Proofs.P3.ScSchedule

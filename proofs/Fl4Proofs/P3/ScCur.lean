@@ -142,6 +142,50 @@ theorem CurInv.restart {σ : State Unit} (h : CurInv σ) {xt : Tcb} (hk : σ.khe
       fun hid y m hy => h.active hid y m (by simpa [updK, hne] using hy), h.notRel⟩
   exact h1.congr e1 e2 e3 e4
 
+/-- l4v `cur_sc_offset_ready` / `cur_sc_offset_sufficient` (for a positive
+consumed time), with the current SC's head ready: the head can pay the
+consumed time, keep `MIN_BUDGET`, and is not after the current time when
+moved by it. -/
+def OffOK (σ : State Unit) : Prop :=
+  0 < σ.consumedTime → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) →
+    refillSufficient σ.consumedTime (refillHd y) = true ∧
+    refillReady' σ.consumedTime σ.curTime (refillHd y) = true ∧ refillReady σ.curTime (refillHd y) = true
+
+/-- The current SC's head refill plus the consumed time is not after the
+current time (l4v `cur_sc_offset_ready`, without wrap-around). -/
+def OffReady (σ : State Unit) : Prop :=
+  ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) →
+    (refillHd y).rTime.toNat + σ.consumedTime.toNat ≤ σ.curTime.toNat
+
+/-- `OffReady` and a sufficient head give `OffOK`. -/
+theorem OffReady.ok {σ : State Unit} (h : OffReady σ)
+    (hs : ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) →
+      refillSufficient σ.consumedTime (refillHd y) = true) : OffOK σ := by
+  intro _ y n hy
+  have h1 := h y n hy
+  refine ⟨hs y n hy, ?_, ?_⟩
+  · simp only [refillReady', decide_eq_true_eq, BitVec.le_def, BitVec.toNat_add]
+    have := σ.curTime.isLt
+    rw [Nat.mod_eq_of_lt (by omega)]; exact h1
+  · simp only [refillReady', decide_eq_true_eq, BitVec.le_def, BitVec.toNat_add]
+    simp; omega
+
+/-- Restarting a thread keeps `OffOK`. -/
+theorem OffOK.restart {σ : State Unit} (h : OffOK σ) {t : ObjRef} {xt : Tcb} (ts : ThreadState) :
+    OffOK (stsAct (updK σ t (.tcb { xt with tcbState := ts })) t) := by
+  have ek : (stsAct (updK σ t (.tcb { xt with tcbState := ts })) t).kheap = (updK σ t (.tcb { xt with tcbState := ts })).kheap :=
+    stsAct_kheap _ _
+  have e2 : ∀ σ0 : State Unit, (stsAct σ0 t).consumedTime = σ0.consumedTime ∧ (stsAct σ0 t).curTime = σ0.curTime ∧
+      (stsAct σ0 t).curSc = σ0.curSc := fun σ0 => by unfold stsAct; split_ifs <;> exact ⟨rfl, rfl, rfl⟩
+  obtain ⟨ec, et, es⟩ := e2 (updK σ t (.tcb { xt with tcbState := ts }))
+  intro hc y n hy
+  rw [ek, es] at hy; rw [ec] at hc
+  have hy' : (updK σ t (.tcb { xt with tcbState := ts })).kheap σ.curSc = some (.schedContext y n) := hy
+  have hne : σ.curSc ≠ t := by rintro e; rw [e] at hy'; simp [updK] at hy'
+  simp only [updK_kheap, ne_eq, hne, not_false_eq_true, Function.update_of_ne] at hy'
+  have := h hc y n hy'
+  simp only [ec, et]; exact this
+
 theorem rescheduleRequired_action {σ σ' : State Unit} (hA : ActReady σ)
     (h : rescheduleRequired (Z := Unit) σ = ({((), σ')}, False)) : σ'.schedulerAction = .chooseNewThread := by
   cases ha : σ.schedulerAction with
@@ -150,6 +194,23 @@ theorem rescheduleRequired_action {σ σ' : State Unit} (hA : ActReady σ)
     · obtain ⟨x, -, -, -, hk, -⟩ := schedulable_inv hs
       rw [rescheduleRequired_sched ha hs hA (tcbSchedAction_gen hk tcbSchedEnqueue)] at h
       rw [pair_eq h]
+    · rw [rescheduleRequired_notsched ha (by simpa using hs)] at h
+      rw [pair_eq h]
+  | resumeCurThread =>
+    rw [rescheduleRequired_noswitch (fun t e => by rw [ha] at e; cases e)] at h
+    rw [pair_eq h]
+  | chooseNewThread =>
+    rw [rescheduleRequired_noswitch (fun t e => by rw [ha] at e; cases e)] at h
+    rw [pair_eq h]
+
+theorem rescheduleRequired_consumed {σ σ' : State Unit} (hA : ActReady σ)
+    (h : rescheduleRequired (Z := Unit) σ = ({((), σ')}, False)) : σ'.consumedTime = σ.consumedTime := by
+  cases ha : σ.schedulerAction with
+  | switchThread t =>
+    by_cases hs : schedulable t σ = true
+    · obtain ⟨x, -, -, -, hk, -⟩ := schedulable_inv hs
+      rw [rescheduleRequired_sched ha hs hA (tcbSchedAction_gen hk tcbSchedEnqueue)] at h
+      rw [pair_eq h]; rfl
     · rw [rescheduleRequired_notsched ha (by simpa using hs)] at h
       rw [pair_eq h]
   | resumeCurThread =>

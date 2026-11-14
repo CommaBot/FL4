@@ -76,8 +76,11 @@ theorem InvBut.scUpd {σ : State Unit} {t p : ObjRef} (h : InvBut σ t) {y y' : 
     unfold refillHd; rw [hr']
   refine ⟨fun d q u hu => ?_, fun u hu => ?_, ?_, fun u x hut hx hc => ?_, fun q w n hw ha => ?_,
     fun u x q hx hq => ?_, fun q x q' hx hq => ?_, fun q w n hw => ?_⟩
-  · obtain ⟨x, scp, h1, h2, h3⟩ := h.rq d q u hu
-    exact ⟨x, scp, (htcb u x).2 h1, h2, h3⟩
+  · obtain ⟨x, scp, w, n, h1, h2, h3, h4, h5⟩ := h.rq d q u hu
+    obtain ⟨w', hw', -⟩ := hsc' scp w n h4
+    obtain ⟨w0, hw0, -, hm, -, -⟩ := hsc scp w' n hw'
+    rw [h4] at hw0; cases hw0
+    exact ⟨x, scp, w', n, (htcb u x).2 h1, h2, h3, hw', by simpa [scActive, hm] using h5⟩
   · obtain ⟨x, scp, w, n, h1, h2, h3, h4, h5⟩ := h.rel u hu
     obtain ⟨w', hw', -⟩ := hsc' scp w n h4
     obtain ⟨w0, hw0, -, hm, -, -⟩ := hsc scp w' n hw'

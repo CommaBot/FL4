@@ -95,7 +95,8 @@ theorem choose_pick_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.St
       let prio ← sched.highest_prio st s 0#u64
       let i3 ← sched.rq_head_off 0#u64 prio
       let q ← sched.q_get st s c i3
-      ok q.head) ⦃ t => t ∈ T ∧ t.bv = Fl4Spec.the (Fl4Spec.maxNonEmptyQueue (σ.readyQueues σ.curDomain)).head? ⦄ := by
+      ok q.head) ⦃ t => t ∈ T ∧ t.bv = Fl4Spec.the (Fl4Spec.maxNonEmptyQueue (σ.readyQueues σ.curDomain)).head? ∧
+        ∃ p, t.bv ∈ σ.readyQueues σ.curDomain p ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hN' : NodePlaced st T s (L.cpu s) := by rw [hc.cur]; exact hc.node
   have hB : BitmapOK st s (L.cpu s) (fun p => Q p ≠ []) := by rw [hc.cur]; exact hc.ready.2
@@ -108,7 +109,46 @@ theorem choose_pick_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.St
   obtain ⟨d, rest, hd⟩ := List.exists_cons_of_ne_nil hpne
   have hhead : q.head = d := by rw [hq, hrel.head, hd]; rfl
   rw [hhead]
-  refine ⟨hrel.mem d (by rw [hd]; exact List.mem_cons_self), ?_⟩
+  refine ⟨hrel.mem d (by rw [hd]; exact List.mem_cons_self), ?_,
+    ⟨specPrio p, by rw [hs.curDom.1, hs.rq p hp, hd]; exact List.mem_cons_self⟩⟩
+  rw [hs.curDom.1]
+  have hmx : Fl4Spec.setMax {prio | σ.readyQueues 0 prio ≠ []} = specPrio p := by
+    refine setMax_eq (by show σ.readyQueues 0 (specPrio p) ≠ []; rw [hs.rq p hp, hd]; simp) ?_
+    intro x hx
+    obtain ⟨p', hp', rfl⟩ := prio_of_spec x
+    have hne' : Q p' ≠ [] := by
+      intro e; apply hx; show σ.readyQueues 0 (specPrio p') = []; rw [hs.rq p' hp', e]; rfl
+    exact (specPrio_le hp' hp).2 (hmax p' hp' hne')
+  unfold Fl4Spec.maxNonEmptyQueue
+  rw [hmx, hs.rq p hp, hd]
+  rfl
+
+
+/-- `choose_pick_refines` with any continuation. -/
+theorem choose_pick_k {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State Unit)
+    (hS : SchedRel st N T C c s σ) (hne : L.l1W s c ≠ 0#u64) {β : Type} (k : obj.Tcb → Result β)
+    (P : β → Prop)
+    (hk : ∀ t, (t ∈ T ∧ t.bv = Fl4Spec.the (Fl4Spec.maxNonEmptyQueue (σ.readyQueues σ.curDomain)).head? ∧
+      ∃ p, t.bv ∈ σ.readyQueues σ.curDomain p) → k t ⦃ P ⦄) :
+    (do
+      let prio ← sched.highest_prio st s 0#u64
+      let i3 ← sched.rq_head_off 0#u64 prio
+      let q ← sched.q_get st s c i3
+      k q.head) ⦃ P ⦄ := by
+  obtain ⟨Q, R, hc, hs⟩ := hS.lists
+  have hN' : NodePlaced st T s (L.cpu s) := by rw [hc.cur]; exact hc.node
+  have hB : BitmapOK st s (L.cpu s) (fun p => Q p ≠ []) := by rw [hc.cur]; exact hc.ready.2
+  refine WP.spec_bind (sched.highest_prio.spec s 0#u64 _ hN' hB (by rw [hc.cur]; exact hne)) ?_
+  rintro p ⟨hp, hpne, hmax⟩
+  step as ⟨off, off_post, off_post1⟩
+  step as ⟨q, q_post⟩
+  have hq : q = L.rqQ s c p := by rw [q_post, off_post1, off_post]; rfl
+  have hrel := hc.ready.1.rel p hp
+  obtain ⟨d, rest, hd⟩ := List.exists_cons_of_ne_nil hpne
+  have hhead : q.head = d := by rw [hq, hrel.head, hd]; rfl
+  rw [hhead]
+  refine hk d ⟨hrel.mem d (by rw [hd]; exact List.mem_cons_self), ?_,
+    ⟨specPrio p, by rw [hs.curDom.1, hs.rq p hp, hd]; exact List.mem_cons_self⟩⟩
   rw [hs.curDom.1]
   have hmx : Fl4Spec.setMax {prio | σ.readyQueues 0 prio ≠ []} = specPrio p := by
     refine setMax_eq (by show σ.readyQueues 0 (specPrio p) ≠ []; rw [hs.rq p hp, hd]; simp) ?_
