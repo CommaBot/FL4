@@ -20,6 +20,7 @@ import Fl4Proofs.P1.QueueSuspend
 import Fl4Proofs.P1.QueueRestart
 import Fl4Proofs.P1.QueueBudget
 import Fl4Proofs.P1.QueueBudget2
+import Fl4Proofs.P1.QueueHeap
 import Fl4Proofs.P2.Runtime
 import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine

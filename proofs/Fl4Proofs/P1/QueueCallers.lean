@@ -1171,6 +1171,50 @@ theorem inv_wr_field {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R 
   · exact L.mem_wr_ne ha (nodeAt_aligned (h.nodes c hc) h1 h2)
       (fun e => node_ne_field (h.nodes c hc) h1 ht hta hK (UScalar.eq_of_val_eq e).symm)
 
+/-- A write to a field of a thread in the exception set (e.g. its block
+object) keeps the invariant. -/
+theorem inv_wr_fieldX {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t K v : U64}
+    (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T) (htX : t ∈ X) (hK : K.val < 4096) (hK8 : K.val % 8 = 0)
+    (hKn : K.val ≠ 3480 ∧ K.val ≠ 3488 ∧ K.val ≠ 3496 ∧ K.val ≠ 3504 ∧ K.val ≠ 3592 ∧ K.val ≠ 3520 ∧
+      K.val ≠ 3448 ∧ K.val ≠ 3328) :
+    SchedQueuesInvX st T Cs Ω X (L.wr s (core.num.U64.wrapping_add t K) v) Q R := by
+  have hT := h.tcbs
+  have hta := hT t ht
+  have ha : Aligned (core.num.U64.wrapping_add t K) := field_aligned hta hK hK8
+  have fld : ∀ y ∈ T, ∀ K' : U64, K'.val < 4096 → K'.val % 8 = 0 → (y = t → K.val ≠ K'.val) →
+      L.mem (L.wr s (core.num.U64.wrapping_add t K) v) (core.num.U64.wrapping_add y K') =
+        L.mem s (core.num.U64.wrapping_add y K') :=
+    fun y hy K' h1 h2 hne => L.mem_wr_ne ha (field_aligned (hT y hy) h1 h2)
+      (fun e => field_ne hta (hT y hy) hK h1 (fun e' => hne e'.symm) (UScalar.eq_of_val_eq e))
+  obtain ⟨k1, k2, k3, k4, k5, k6, k7, k8⟩ := hKn
+  have hN' := h.nodes _ h.cur
+  have e : L.actionW (L.wr s (core.num.U64.wrapping_add t K) v) = L.actionW s := by
+    unfold LawfulStore.actionW
+    simp only [LawfulStore.cpu_wr, nodeAt_wr]
+    exact L.mem_wr_ne ha (nodeAt_aligned hN' (by rw [act_val]; omega) (by rw [act_val]))
+      (fun e => node_ne_field hN' (by rw [act_val]; omega) ht hta hK (UScalar.eq_of_val_eq e).symm)
+  have hst : ∀ y ∈ T, L.mem (L.wr s (core.num.U64.wrapping_add t K) v) (stA y) = L.mem s (stA y) := fun y hy => by
+    rw [stA_eq]; exact fld y hy _ (by simp) (by simp) (fun _ => by simpa using k8)
+  have hsb : ∀ y ∈ T, y ∉ X → L.mem (L.wr s (core.num.U64.wrapping_add t K) v) (stA y) = L.mem s (stA y) ∧
+      L.mem (L.wr s (core.num.U64.wrapping_add t K) v) (blockA y) = L.mem s (blockA y) := fun y hy hyX =>
+    ⟨hst y hy, by rw [blockA_eq]; exact fld y hy _ (by simp) (by simp) (fun e => absurd (e ▸ htX) hyX)⟩
+  refine inv_of_agree' h (L.ksb_wr _ _ _) (L.cpu_wr _ _ _) (fun y hy => ⟨?_, ?_⟩) (fun c hc o' h1 h2 _ => ?_)
+    (fun y hy => fld y hy _ (by simp) (by simp) (fun _ => by simpa using k5))
+    (fun y hy => fld y hy _ (by simp) (by simp) (fun _ => by simpa using k6))
+    (fun y hy => Or.inl (fld y hy _ (by simp) (by simp) (fun _ => by simpa using k7))) (by rw [e]; exact h.action)
+    (fun c hc p hp y hy => by rw [hst y (h.memT hc hp hy)]; exact h.runQ c hc p hp y hy)
+    (fun c hc y hy => by rw [hst y (h.memTR hc hy)]; exact h.runR c hc y hy)
+    (by rw [e]; intro haT; rw [hst _ haT]; exact h.actOK haT)
+    (h.eps.agreeX (L.ksb_wr _ _ _) hsb
+      (fun y hy => ⟨by rw [nextA_eq']; exact fld y hy _ (by simp [nextOff]) (by simp [nextOff]) (fun _ => by simpa [nextOff] using k3),
+        by rw [prevA_eq']; exact fld y hy _ (by simp [prevOff]) (by simp [prevOff]) (fun _ => by simpa [prevOff] using k4)⟩)
+      (fun a hao => L.mem_wr_ne ha hao.1 (out_ne_field hao ht hta hK)))
+    (curidle_wr_field h ht hK hK8).1 (curidle_wr_field h ht hK hK8).2
+  · rw [nextA_eq']; exact fld y hy _ (by simp [nextOff]) (by simp [nextOff]) (fun _ => by simpa [nextOff] using k1)
+  · rw [prevA_eq']; exact fld y hy _ (by simp [prevOff]) (by simp [prevOff]) (fun _ => by simpa [prevOff] using k2)
+  · exact L.mem_wr_ne ha (nodeAt_aligned (h.nodes c hc) h1 h2)
+      (fun e => node_ne_field (h.nodes c hc) h1 ht hta hK (UScalar.eq_of_val_eq e).symm)
+
 /-- Setting the state of `t` to a non-blocked state `v`, if `t` is in no
 endpoint queue, and `v` is runnable if `t` is queued, released or the
 switch-to candidate. `t` leaves the exception set. -/
@@ -1265,6 +1309,98 @@ theorem inv_set_state {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R
     · rw [hst y hy hyt] at hb
       have hyX0 : y ∉ X := fun hX => hyX ⟨hX, hyt⟩
       rw [hbl y hy]; exact w4 y hy hyX0 hb
+
+/-- `set_state` to any state (e.g. a blocked one) for a thread in no queue:
+the thread joins the exception set. -/
+theorem inv_set_state_blk {Cs X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t v : U64}
+    (h : SchedQueuesInvX st T Cs Ω X s Q R) (ht : t ∈ T)
+    (hx : t ∈ X ∨ ¬ Blocked (L.mem s (stA t)))
+    (hq : (∀ c ∈ Cs, ∀ p : U64, p.val < 256 → t ∈ Q c p → Runnable v) ∧ (∀ c ∈ Cs, t ∈ R c → Runnable v) ∧
+      (L.actionW s = t → Runnable v)) :
+    SchedQueuesInvX st T Cs Ω {y | y ∈ X ∨ y = t} (L.wr s (stA t) v) Q R := by
+  have hT := h.tcbs
+  have hta := hT t ht
+  rw [stA_eq]
+  have ha : Aligned (core.num.U64.wrapping_add t 3328#u64) := field_aligned hta (by simp) (by simp)
+  have fld : ∀ y ∈ T, ∀ K' : U64, K'.val < 4096 → K'.val % 8 = 0 → (y = t → (3328#u64).val ≠ K'.val) →
+      L.mem (L.wr s (core.num.U64.wrapping_add t 3328#u64) v) (core.num.U64.wrapping_add y K') =
+        L.mem s (core.num.U64.wrapping_add y K') :=
+    fun y hy K' h1 h2 hne => L.mem_wr_ne ha (field_aligned (hT y hy) h1 h2)
+      (fun e => field_ne hta (hT y hy) (by simp) h1 (fun e' => hne e'.symm) (UScalar.eq_of_val_eq e))
+  have hst : ∀ y ∈ T, y ≠ t → L.mem (L.wr s (core.num.U64.wrapping_add t 3328#u64) v) (stA y) = L.mem s (stA y) :=
+    fun y hy hne => by rw [stA_eq]; exact fld y hy _ (by simp) (by simp) (fun e => absurd e hne)
+  have hstt : L.mem (L.wr s (core.num.U64.wrapping_add t 3328#u64) v) (stA t) = v := by
+    rw [stA_eq]; exact L.mem_wr_same ha
+  have hbl : ∀ y ∈ T, L.mem (L.wr s (core.num.U64.wrapping_add t 3328#u64) v) (blockA y) = L.mem s (blockA y) :=
+    fun y hy => by rw [blockA_eq]; exact fld y hy _ (by simp) (by simp) (fun _ => by simp)
+  have hN' := h.nodes _ h.cur
+  have e : L.actionW (L.wr s (core.num.U64.wrapping_add t 3328#u64) v) = L.actionW s := by
+    unfold LawfulStore.actionW
+    simp only [LawfulStore.cpu_wr, nodeAt_wr]
+    exact L.mem_wr_ne ha (nodeAt_aligned hN' (by rw [act_val]; omega) (by rw [act_val]))
+      (fun e => node_ne_field hN' (by rw [act_val]; omega) ht hta (by simp) (UScalar.eq_of_val_eq e).symm)
+  have run' : ∀ y ∈ T, (y = t → Runnable v) → Runnable (L.mem s (stA y)) →
+      Runnable (L.mem (L.wr s (core.num.U64.wrapping_add t 3328#u64) v) (stA y)) := by
+    intro y hy h1 h2
+    by_cases hyt : y = t
+    · subst hyt; rw [hstt]; exact h1 rfl
+    · rw [hst y hy hyt]; exact h2
+  -- `t` is in no endpoint queue.
+  obtain ⟨E, EQ, K, w1, w2, w5, w3, w4, w6⟩ := h.eps
+  have htm : ∀ e ∈ E, t ∉ EQ e := by
+    intro e he hm
+    have := w3 e he t hm
+    rcases hx with hX | hb
+    · exact this.1 hX
+    · exact hb this.2.2
+  refine inv_of_agree' h (L.ksb_wr _ _ _) (L.cpu_wr _ _ _) (fun y hy => ⟨?_, ?_⟩) (fun c hc o' h1 h2 _ => ?_)
+    (fun y hy => fld y hy _ (by simp) (by simp) (fun _ => by simp))
+    (fun y hy => fld y hy _ (by simp) (by simp) (fun _ => by simp))
+    (fun y hy => Or.inl (fld y hy _ (by simp) (by simp) (fun _ => by simp))) (by rw [e]; exact h.action)
+    (fun c hc p hp y hy => run' y (h.memT hc hp hy) (fun hyt => hq.1 c hc p hp (hyt ▸ hy)) (h.runQ c hc p hp y hy))
+    (fun c hc y hy => run' y (h.memTR hc hy) (fun hyt => hq.2.1 c hc (hyt ▸ hy)) (h.runR c hc y hy))
+    (by rw [e]; intro haT
+        exact ⟨run' _ haT (fun hyt => hq.2.2 hyt) (h.actOK haT).1, (h.actOK haT).2⟩) ?_
+    (curidle_wr_field (K := 3328#u64) h ht (by simp) (by simp)).1
+    (curidle_wr_field (K := 3328#u64) h ht (by simp) (by simp)).2
+  · rw [nextA_eq']; exact fld y hy _ (by simp [nextOff]) (by simp [nextOff]) (fun _ => by simp [nextOff])
+  · rw [prevA_eq']; exact fld y hy _ (by simp [prevOff]) (by simp [prevOff]) (fun _ => by simp [prevOff])
+  · exact L.mem_wr_ne ha (nodeAt_aligned (h.nodes c hc) h1 h2)
+      (fun e => node_ne_field (h.nodes c hc) h1 ht hta (by simp) (UScalar.eq_of_val_eq e).symm)
+  have hnb : ∀ c, L.nodeBase (L.wr s (core.num.U64.wrapping_add t 3328#u64) v) c = L.nodeBase s c :=
+    fun c => by simp [LawfulStore.nodeBase]
+  refine ⟨E, EQ, K, fun e' he' => ?_, w2, w5, fun e' he' y hy => ?_, fun y hy hyX hb => ?_,
+    w6.agree (fun y hy => ?_) (fun y hy hyX hb => ?_) (fun _ _ _ hy => hy) (fun e' he' y hy => ?_)
+      (fun e' he' _ => ?_)⟩
+  rotate_left 3
+  · exact Or.inl fun hX => hy (Or.inl hX)
+  · exact ⟨hst y hy (fun e => hyX (Or.inr e)), hbl y hy⟩
+  · exact hst y ((w1 e' he').2.2.mem y hy) (fun e2 => htm e' he' (e2 ▸ hy))
+  · obtain ⟨hE, hEN, -⟩ := w1 e' he'
+    obtain ⟨-, o2⟩ := ep_out hE hEN
+    simp only [LawfulStore.epState]
+    rw [L.mem_wr_ne ha o2.1 (out_ne_field o2 ht hta (by simp))]
+  · obtain ⟨hE, hEN, hq2⟩ := w1 e' he'
+    obtain ⟨o1, o2⟩ := ep_out hE hEN
+    have eq : L.epQ (L.wr s (core.num.U64.wrapping_add t 3328#u64) v) e' = L.epQ s e' := by
+      simp only [LawfulStore.epQ]
+      rw [L.mem_wr_ne ha o1.1 (out_ne_field o1 ht hta (by simp)), L.mem_wr_ne ha o2.1 (out_ne_field o2 ht hta (by simp))]
+    refine ⟨hE, ⟨fun c hc => by rw [hnb]; exact hEN.1 c hc, by simpa using hEN.2⟩, ?_⟩
+    rw [eq]
+    exact ⟨hq2.nodup, hq2.mem, hq2.head, hq2.last, hq2.seg.congr fun y hy =>
+      ⟨by rw [prevA_eq']; exact fld y (hq2.mem y hy) _ (by simp [prevOff]) (by simp [prevOff]) (fun _ => by simp [prevOff]),
+       by rw [nextA_eq']; exact fld y (hq2.mem y hy) _ (by simp [nextOff]) (by simp [nextOff]) (fun _ => by simp [nextOff])⟩⟩
+  · have := w3 e' he' y hy
+    have hyT := (w1 e' he').2.2.mem y hy
+    have hyt : y ≠ t := fun e2 => htm e' he' (e2 ▸ hy)
+    refine ⟨fun hX => ?_, by rw [hbl y hyT]; exact this.2.1, by rw [hst y hyT hyt]; exact this.2.2⟩
+    rcases hX with hX | hX
+    · exact this.1 hX
+    · exact hyt hX
+  · have hyt : y ≠ t := fun e => hyX (Or.inr e)
+    rw [hst y hy hyt] at hb
+    have hyX0 : y ∉ X := fun hX => hyX (Or.inl hX)
+    rw [hbl y hy]; exact w4 y hy hyX0 hb
 
 @[step] theorem obj.Tcb.set_state.spec (s : S) (t : obj.Tcb) (v : U64) :
     obj.Tcb.set_state st t s v ⦃ s' => s' = L.wr s (stA t) v ⦄ := by

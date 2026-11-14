@@ -74,63 +74,6 @@ theorem sched.is_stopped.spec (s : S) (t : obj.Tcb) :
     · simp only [WP.spec_ok]; intro e; rw [← v_post]; exact nb _ (Or.inr (Or.inr (Or.inr (by simpa using e))))
 
 
-/-! ## `SCsOK` across the steps of `restart` -/
-
-theorem SCsOK.keepT {s s' : S} {t : U64} (hS : SCsOK st T Ω Sg Z s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
-    (k : KeepT st T Rp Scs t s s') : SCsOK st T Ω Sg Z s' := by
-  have wf : ∀ c ∈ Scs, RefillsWF st s c (Z c) → RefillsWF st s' c (Z c) := fun c hc hW => by
-    obtain ⟨-, -, f3, f4, f5⟩ := k.fix c hc
-    exact hW.of_hdr f3 (by rw [show L.rhead s' c = L.mem s' (headA c) from rfl, f4]; exact hW.head_lt)
-      (by rw [show L.rtail s' c = L.mem s' (tailA c) from rfl, f5]; exact hW.tail_lt)
-  refine ⟨hS.sub, fun b hb => by rw [k.ksb]; exact hS.ks b hb, fun o h1 h2 => by rw [k.ksb]; exact hS.ksΩ o h1 h2,
-    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_⟩
-  · rw [k.scf hy] at hb ⊢
-    exact ⟨wf _ (hX.2.2.bound y hy hb).1 (hS.bound y hy hb).1, (hS.bound y hy hb).2⟩
-  · rw [k.cscW]; exact ⟨wf _ hX.2.2.cur hS.cur.1, hS.cur.2⟩
-  · rw [k.scf hy] at hb hne ⊢; rw [k.cscW] at hne ⊢; exact hS.disj y hy hb hne
-
-/-- `SCsOK` after writes to the ring of the SC object `i` (kept well formed)
-and to the current node's `REPROGRAM`. -/
-theorem SCsOK.ring {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {i : U64}
-    (h : SchedQueuesInv st T Cs Ω s Q R) (hS : SCsOK st T Ω Sg Z s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
-    (hi : i ∈ Scs) (w : WritesIn st s s' (fun b => InRing i (Z i) b ∨ b = L.nodeA s layout.node.REPROGRAM))
-    (hwi : RefillsWF st s' i (Z i)) : SCsOK st T Ω Sg Z s' := by
-  obtain ⟨hO, -, hE⟩ := hX
-  have hN' := h.nodes _ h.cur
-  have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
-  have nr : ∀ b, Aligned b → (InRing i (Z i) b ∨ b = L.nodeA s layout.node.REPROGRAM) →
-      ∀ y ∈ T, ∀ K : U64, K.val < 4096 → b ≠ core.num.U64.wrapping_add y K := by
-    rintro b hb (hh | rfl) y hy K hK e
-    · exact out_ne_field (h.omega _ (hO.scW i hi b hb hh.inSC)) hy (h.tcbs y hy) hK (by rw [e])
-    · exact node_ne_field hN' (by rw [rp]; omega) hy (h.tcbs y hy) hK e
-  have fld : ∀ y ∈ T, L.mem s' (scA y) = L.mem s (scA y) := fun y hy =>
-    w.mem_eq (scA_aligned (h.tcbs y hy)) fun hh => nr _ (scA_aligned (h.tcbs y hy)) hh y hy _ (by simp) (scA_eq y)
-  have csc : L.cscW s' = L.cscW s := by
-    unfold LawfulStore.cscW; rw [cscW_eq w.1 w.2.1]
-    have aC : Aligned (L.nodeA s layout.node.CUR_SC) :=
-      nodeAt_aligned hN' (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
-    refine w.mem_eq aC ?_
-    rintro (hh | hh)
-    · exact out_ne_node (h.omega _ (hO.scW i hi _ aC hh.inSC)) h.cur hN' (by simp [layout.node.CUR_SC]) rfl
-    · have := congrArg UScalar.val hh
-      simp only [LawfulStore.nodeA] at this
-      rw [nodeAt_val hN' (by simp [layout.node.CUR_SC]), nodeAt_val hN' (by rw [rp]; omega), rp] at this
-      simp [layout.node.CUR_SC] at this
-  have wf : ∀ c ∈ Scs, RefillsWF st s c (Z c) → RefillsWF st s' c (Z c) := by
-    intro c hc hW
-    by_cases e : c = i
-    · subst e; exact hwi
-    refine hW.writesIn w fun b hb hh => ?_
-    rcases hh with hh | rfl
-    · have := hO.scDisj c hc i hi e; unfold Outside; unfold InRing at hh; omega
-    · exact SCin.node_out ⟨hW, hO.scW c hc⟩ h.omega h.cur hN' (by rw [rp]; omega) (by rw [rp])
-  refine ⟨hS.sub, fun b hb => by rw [w.1]; exact hS.ks b hb, fun o h1 h2 => by rw [w.1]; exact hS.ksΩ o h1 h2,
-    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_⟩
-  · rw [fld y hy] at hb ⊢
-    exact ⟨wf _ (hE.bound y hy hb).1 (hS.bound y hy hb).1, (hS.bound y hy hb).2⟩
-  · rw [csc]; exact ⟨wf _ hE.cur hS.cur.1, hS.cur.2⟩
-  · rw [fld y hy] at hb hne ⊢; rw [csc] at hne ⊢; exact hS.disj y hy hb hne
-
 /-! ## `postpone` and `resume` -/
 
 /-- `postpone`, with `BoundInv` and `XInv`: the SC's thread is bound. -/

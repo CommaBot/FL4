@@ -95,16 +95,145 @@ theorem bx_qfoot {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U6
   obtain ⟨f, hi, ea, ec, ei⟩ := qfoot_keep h hSg hW hc ht hP hw
   exact ⟨hB.qstep h f.sc hi ea ec ei hq hr, hX.fr f, f, ea, ec, hi⟩
 
+/-! ## `SCsOK` across scheduler steps -/
+
+theorem SCsOK.keepT {s s' : S} {t : U64} (hS : SCsOK st T Ω Sg Z s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (k : KeepT st T Rp Scs t s s') : SCsOK st T Ω Sg Z s' := by
+  have wf : ∀ c ∈ Scs, RefillsWF st s c (Z c) → RefillsWF st s' c (Z c) := fun c hc hW => by
+    obtain ⟨-, -, f3, f4, f5⟩ := k.fix c hc
+    exact hW.of_hdr f3 (by rw [show L.rhead s' c = L.mem s' (headA c) from rfl, f4]; exact hW.head_lt)
+      (by rw [show L.rtail s' c = L.mem s' (tailA c) from rfl, f5]; exact hW.tail_lt)
+  refine ⟨hS.sub, fun b hb => by rw [k.ksb]; exact hS.ks b hb, fun o h1 h2 => by rw [k.ksb]; exact hS.ksΩ o h1 h2,
+    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_⟩
+  · rw [k.scf hy] at hb ⊢
+    exact ⟨wf _ (hX.2.2.bound y hy hb).1 (hS.bound y hy hb).1, (hS.bound y hy hb).2⟩
+  · rw [k.cscW]; exact ⟨wf _ hX.2.2.cur hS.cur.1, hS.cur.2⟩
+  · rw [k.scf hy] at hb hne ⊢; rw [k.cscW] at hne ⊢; exact hS.disj y hy hb hne
+
+/-- `SCsOK` after writes to the ring of the SC object `i` (kept well formed)
+and to the current node's `REPROGRAM`. -/
+theorem SCsOK.ring {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {i : U64}
+    (h : SchedQueuesInv st T Cs Ω s Q R) (hS : SCsOK st T Ω Sg Z s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (hi : i ∈ Scs) (w : WritesIn st s s' (fun b => InRing i (Z i) b ∨ b = L.nodeA s layout.node.REPROGRAM))
+    (hwi : RefillsWF st s' i (Z i)) : SCsOK st T Ω Sg Z s' := by
+  obtain ⟨hO, -, hE⟩ := hX
+  have hN' := h.nodes _ h.cur
+  have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
+  have nr : ∀ b, Aligned b → (InRing i (Z i) b ∨ b = L.nodeA s layout.node.REPROGRAM) →
+      ∀ y ∈ T, ∀ K : U64, K.val < 4096 → b ≠ core.num.U64.wrapping_add y K := by
+    rintro b hb (hh | rfl) y hy K hK e
+    · exact out_ne_field (h.omega _ (hO.scW i hi b hb hh.inSC)) hy (h.tcbs y hy) hK (by rw [e])
+    · exact node_ne_field hN' (by rw [rp]; omega) hy (h.tcbs y hy) hK e
+  have fld : ∀ y ∈ T, L.mem s' (scA y) = L.mem s (scA y) := fun y hy =>
+    w.mem_eq (scA_aligned (h.tcbs y hy)) fun hh => nr _ (scA_aligned (h.tcbs y hy)) hh y hy _ (by simp) (scA_eq y)
+  have csc : L.cscW s' = L.cscW s := by
+    unfold LawfulStore.cscW; rw [cscW_eq w.1 w.2.1]
+    have aC : Aligned (L.nodeA s layout.node.CUR_SC) :=
+      nodeAt_aligned hN' (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
+    refine w.mem_eq aC ?_
+    rintro (hh | hh)
+    · exact out_ne_node (h.omega _ (hO.scW i hi _ aC hh.inSC)) h.cur hN' (by simp [layout.node.CUR_SC]) rfl
+    · have := congrArg UScalar.val hh
+      simp only [LawfulStore.nodeA] at this
+      rw [nodeAt_val hN' (by simp [layout.node.CUR_SC]), nodeAt_val hN' (by rw [rp]; omega), rp] at this
+      simp [layout.node.CUR_SC] at this
+  have wf : ∀ c ∈ Scs, RefillsWF st s c (Z c) → RefillsWF st s' c (Z c) := by
+    intro c hc hW
+    by_cases e : c = i
+    · subst e; exact hwi
+    refine hW.writesIn w fun b hb hh => ?_
+    rcases hh with hh | rfl
+    · have := hO.scDisj c hc i hi e; unfold Outside; unfold InRing at hh; omega
+    · exact SCin.node_out ⟨hW, hO.scW c hc⟩ h.omega h.cur hN' (by rw [rp]; omega) (by rw [rp])
+  refine ⟨hS.sub, fun b hb => by rw [w.1]; exact hS.ks b hb, fun o h1 h2 => by rw [w.1]; exact hS.ksΩ o h1 h2,
+    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_⟩
+  · rw [fld y hy] at hb ⊢
+    exact ⟨wf _ (hE.bound y hy hb).1 (hS.bound y hy hb).1, (hS.bound y hy hb).2⟩
+  · rw [csc]; exact ⟨wf _ hE.cur hS.cur.1, hS.cur.2⟩
+  · rw [fld y hy] at hb hne ⊢; rw [csc] at hne ⊢; exact hS.disj y hy hb hne
+
+
+/-- One write away from the TCBs' SC fields, the current SC word and the SC
+objects' ring headers keeps `SCsOK`. -/
+theorem SCsOK.wr {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {a v : U64}
+    (h : SchedQueuesInv st T Cs Ω s Q R) (hS : SCsOK st T Ω Sg Z s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (ha : Aligned a) (hsc : ∀ y ∈ T, a.val ≠ (scA y).val) (hcs : a.val ≠ (L.nodeA s layout.node.CUR_SC).val)
+    (hh : ∀ c ∈ Scs, a.val ≠ (maxA c).val ∧ a.val ≠ (headA c).val ∧ a.val ≠ (tailA c).val) :
+    SCsOK st T Ω Sg Z (L.wr s a v) := by
+  have hN' := h.nodes _ h.cur
+  have al : ∀ c ∈ Scs, ∀ o : U64, o.val < 128 → o.val % 8 = 0 → Aligned (core.num.U64.wrapping_add c o) :=
+    fun c hc o ho h8 => by
+      obtain ⟨hP, hz⟩ := hX.1.sc c hc
+      have := (sc_lo hP hz).1
+      unfold Aligned; rw [sc_word_val hP hz ho]; omega
+  have fix : ∀ c ∈ Scs, L.mem (L.wr s a v) (maxA c) = L.mem s (maxA c) ∧
+      L.mem (L.wr s a v) (headA c) = L.mem s (headA c) ∧ L.mem (L.wr s a v) (tailA c) = L.mem s (tailA c) :=
+    fun c hc => ⟨L.mem_wr_ne ha (al c hc _ (by simp [layout.sc.REFILL_MAX]) (by simp [layout.sc.REFILL_MAX])) (hh c hc).1,
+      L.mem_wr_ne ha (al c hc _ (by simp [layout.sc.REFILL_HEAD]) (by simp [layout.sc.REFILL_HEAD])) (hh c hc).2.1,
+      L.mem_wr_ne ha (al c hc _ (by simp [layout.sc.REFILL_TAIL]) (by simp [layout.sc.REFILL_TAIL])) (hh c hc).2.2⟩
+  have wf : ∀ c ∈ Scs, RefillsWF st s c (Z c) → RefillsWF st (L.wr s a v) c (Z c) := fun c hc hW => by
+    obtain ⟨f3, f4, f5⟩ := fix c hc
+    exact hW.of_hdr f3 (by rw [show L.rhead (L.wr s a v) c = L.mem (L.wr s a v) (headA c) from rfl, f4]; exact hW.head_lt)
+      (by rw [show L.rtail (L.wr s a v) c = L.mem (L.wr s a v) (tailA c) from rfl, f5]; exact hW.tail_lt)
+  have fld : ∀ y ∈ T, L.mem (L.wr s a v) (scA y) = L.mem s (scA y) := fun y hy =>
+    L.mem_wr_ne ha (scA_aligned (h.tcbs y hy)) (hsc y hy)
+  have csc : L.cscW (L.wr s a v) = L.cscW s := by
+    unfold LawfulStore.cscW; rw [nodeA_wr]
+    exact L.mem_wr_ne ha (nodeAt_aligned hN' (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])) hcs
+  refine ⟨hS.sub, fun b hb => by rw [L.ksb_wr]; exact hS.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hS.ksΩ o h1 h2,
+    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_⟩
+  · rw [fld y hy] at hb ⊢
+    exact ⟨wf _ (hX.2.2.bound y hy hb).1 (hS.bound y hy hb).1, (hS.bound y hy hb).2⟩
+  · rw [csc]; exact ⟨wf _ hX.2.2.cur hS.cur.1, hS.cur.2⟩
+  · rw [fld y hy] at hb hne ⊢; rw [csc] at hne ⊢; exact hS.disj y hy hb hne
+
+/-- A TCB field other than the SC field keeps `SCsOK`. -/
+theorem SCsOK.field {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {y K v : U64}
+    (h : SchedQueuesInv st T Cs Ω s Q R) (hS : SCsOK st T Ω Sg Z s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (hy : y ∈ T) (hK : K.val < 4096) (hK8 : K.val % 8 = 0) (hKs : K.val ≠ 3464) :
+    SCsOK st T Ω Sg Z (L.wr s (core.num.U64.wrapping_add y K) v) := by
+  have hya := h.tcbs y hy
+  have hN' := h.nodes _ h.cur
+  obtain ⟨-, hc⟩ := objs_omega hX.1 hS.sub
+  refine SCsOK.wr h hS hX (field_aligned hya hK hK8) (fun y' hy' => ?_) ?_ (fun c hc' => ?_)
+  · rw [scA_eq]; exact fun e => field_ne hya (h.tcbs y' hy') hK (by simp) (fun _ => by simp; omega) (UScalar.eq_of_val_eq e)
+  · exact fun e => node_ne_field hN' (by simp [layout.node.CUR_SC]) hy hya hK (UScalar.eq_of_val_eq e).symm
+  · obtain ⟨-, -, c3, c4, c5⟩ := hc c hc'
+    exact ⟨out_ne_field (h.omega _ c3) hy hya hK, out_ne_field (h.omega _ c4) hy hya hK,
+      out_ne_field (h.omega _ c5) hy hya hK⟩
+
+/-- An SC object's `YIELD_FROM` or `REPLY` word keeps `SCsOK`. -/
+theorem SCsOK.scword {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {c a v : U64}
+    (h : SchedQueuesInv st T Cs Ω s Q R) (hS : SCsOK st T Ω Sg Z s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (hc : c ∈ Scs) (ha : a = scReplyA c ∨ a = core.num.U64.wrapping_add c layout.sc.YIELD_FROM) :
+    SCsOK st T Ω Sg Z (L.wr s a v) := by
+  have hN' := h.nodes _ h.cur
+  have haΩ := scword_omega hX.1 hc ha
+  have ho := h.omega _ haΩ
+  obtain ⟨h128, -, -, -, -, -, e6, e7⟩ := sc_facts hX.1 hc
+  have hv : a.val = c.val + 32 ∨ a.val = c.val + 56 := by
+    rcases ha with rfl | rfl
+    · exact Or.inl e6
+    · exact Or.inr e7
+  refine SCsOK.wr h hS hX ho.1 (fun y hy => ?_) ?_ (fun c' hc' => ?_)
+  · rw [scA_eq]; exact (out_ne_field ho hy (h.tcbs y hy) (by simp)).symm
+  · exact (out_ne_node ho h.cur hN' (by simp [layout.node.CUR_SC])).symm
+  · obtain ⟨h128', -, -, f3, f4, f5, -, -⟩ := sc_facts hX.1 hc'
+    rw [f3, f4, f5]
+    by_cases e : c = c'
+    · subst e; omega
+    · have := hX.1.scDisj c hc c' hc' e; omega
+
 /-- seL4 `suspend` (MCS) keeps the queue invariant, `BoundInv` and `XInv`,
 for a thread that is not the switch-to candidate; the yield-to SC of the
 thread, if any, is an SC object. -/
 theorem sched.suspend.all {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t : obj.Tcb)
     (Q : U64 → U64 → List U64) (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω s Q R) (ht : t ∈ T)
     (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s) (hSg : SgOK st Ω Sg s)
-    (hna : L.actionW s ≠ t)
+    (hS : SCsOK st T Ω Sg Z s) (hna : L.actionW s ≠ t)
     (hyield : L.mem s (yieldA t) ≠ 0#u64 → L.mem s (yieldA t) ∈ Scs) :
     sched.suspend st ar s a t ⦃ s' _ => ∃ Q' R', SchedQueuesInv st T Cs Ω s' Q' R' ∧ BoundInv st T s' ∧
-      XInv st T Cs Ω Sg Rp Scs Z s' ⦄ := by
+      XInv st T Cs Ω Sg Rp Scs Z s' ∧ SCsOK st T Ω Sg Z s' ⦄ := by
   have hT := h.tcbs
   have hta := hT t ht
   have hsub := hSg.sub
@@ -121,11 +250,12 @@ theorem sched.suspend.all {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t 
     · rw [e]; exact hna
   have y1 : L.mem s1 (yieldA t) = L.mem s (yieldA t) :=
     k1.fld t ht _ (by simp) (by simp) (by simp) (by simp) (fun _ => ⟨by simp, by simp⟩)
+  have hS1 := hS.keepT hX k1
   step with obj.Tcb.state.spec as ⟨i, i_post⟩
   -- the fault-IP copy
   refine WP.spec_bind (Pₘ := fun s2 => SchedQueuesInv st T Cs Ω s2 Q R ∧ ¬ Blocked (L.mem s2 (stA t)) ∧
       L.actionW s2 ≠ t ∧ L.mem s2 (yieldA t) = L.mem s (yieldA t) ∧ BoundInv st T s2 ∧
-      XInv st T Cs Ω Sg Rp Scs Z s2 ∧ SgOK st Ω Sg s2) ?_ ?_
+      XInv st T Cs Ω Sg Rp Scs Z s2 ∧ SgOK st Ω Sg s2 ∧ SCsOK st T Ω Sg Z s2) ?_ ?_
   · split
     · step with obj.Tcb.reg.spec as ⟨ip⟩
       refine WP.spec_mono (obj.Tcb.set_reg.fault_ip s1 t ip hta) fun s2 e => ?_
@@ -134,10 +264,10 @@ theorem sched.suspend.all {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t 
       obtain ⟨hB2, hX2⟩ := bx_field (K := 392#u64) (v := ip) h1 hB1 hX1 hsub ht (by simp) (by simp) (by simp)
       refine ⟨h2, ?_, by rw [a2]; exact na1, by rw [← y1]; exact f2 _ (by simp) (by simp) (by simp), hB2, hX2,
         ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg1.ks b hb, fun o h1' h2' => by
-          rw [L.ksb_wr]; exact hSg1.ksΩ o h1' h2'⟩⟩
+          rw [L.ksb_wr]; exact hSg1.ksΩ o h1' h2'⟩, SCsOK.field (K := 392#u64) h1 hS1 hX1 ht (by simp) (by simp) (by simp)⟩
       rw [stA_eq, f2 _ (by simp) (by simp) (by simp), ← stA_eq]; exact nb1
-    · exact (WP.spec_ok _).2 ⟨h1, nb1, na1, y1, hB1, hX1, hSg1⟩
-  rintro s2 ⟨h2, nb2, na2, y2, hB2, hX2, hSg2⟩
+    · exact (WP.spec_ok _).2 ⟨h1, nb1, na1, y1, hB1, hX1, hSg1, hS1⟩
+  rintro s2 ⟨h2, nb2, na2, y2, hB2, hX2, hSg2, hS2⟩
   -- out of the ready queue
   have hc2 := h2.aff t ht
   have hp2 := h2.prio t ht
@@ -154,6 +284,7 @@ theorem sched.suspend.all {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t 
                   · rw [andn_qq_qr] at hf; exact Or.inr (Or.inl hf)
                   · exact Or.inr (Or.inl hf))
   have hSg3 := hSg2.fr fr3
+  have hS3 := hS2.fr fr3
   have a3 := qfoot_act h2 hW2 hc2 ht (by omega) hw3
   have f3 : ∀ K : U64, K.val < 4096 → K.val % 8 = 0 →
       (K.val ≠ 3480 ∧ K.val ≠ 3488 ∧ K.val ≠ 3496 ∧ K.val ≠ 3504) → K.val ≠ 3592 →
@@ -186,6 +317,7 @@ theorem sched.suspend.all {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t 
                   · rw [andn_qr_qr] at hf; exact absurd rfl hf
                   · exact Or.inr (Or.inl hf))
   have hSg4 := hSg3.fr fr4
+  have hS4 := hS3.fr fr4
   have a4 := qfoot_act h3 hW3 hc3 ht (by unfold RelOffs; omega) hw4
   have f4 : ∀ K : U64, K.val < 4096 → K.val % 8 = 0 →
       (K.val ≠ 3480 ∧ K.val ≠ 3488 ∧ K.val ≠ 3496 ∧ K.val ≠ 3504) → K.val ≠ 3592 →
@@ -217,7 +349,8 @@ theorem sched.suspend.all {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t 
   simp only [Bool.false_eq_true, ↓reduceIte]
   step with obj.Tcb.yield_to.spec as ⟨yt, yt_post⟩
   refine WP.spec_bind (Pₘ := fun s5 => SchedQueuesInv st T Cs Ω s5 Q3 R4 ∧ L.mem s5 (stA t) = L.mem s4 (stA t) ∧
-      L.actionW s5 = L.actionW s4 ∧ BoundInv st T s5 ∧ XInv st T Cs Ω Sg Rp Scs Z s5 ∧ L.ksb s5 = L.ksb s4) ?_ ?_
+      L.actionW s5 = L.actionW s4 ∧ BoundInv st T s5 ∧ XInv st T Cs Ω Sg Rp Scs Z s5 ∧ L.ksb s5 = L.ksb s4 ∧
+      SCsOK st T Ω Sg Z s5) ?_ ?_
   · split
     · rename_i hy
       have hyS : yt ∈ Scs := by rw [yt_post, y4]; exact hyield (by rw [← y4, ← yt_post]; simpa using hy)
@@ -255,11 +388,13 @@ theorem sched.suspend.all {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t 
       obtain ⟨h6, f6, a6⟩ := field_wr_keep (K := 3472#u64) (v := 0#u64) h5 ht (by simp) (by simp) (by simp)
       obtain ⟨hB6, hX6⟩ := bx_field (K := 3472#u64) (v := 0#u64) h5 hB5 hX5 hsub ht (by simp) (by simp)
         (by simp)
-      refine ⟨h6, ?_, a6.trans a5, hB6, hX6, by simp only [L.ksb_wr]⟩
+      have hS5 := SCsOK.scword (v := 0#u64) h4 hS4 hX4 hyS (Or.inr rfl)
+      refine ⟨h6, ?_, a6.trans a5, hB6, hX6, by simp only [L.ksb_wr],
+        SCsOK.field (K := 3472#u64) h5 hS5 hX5 ht (by simp) (by simp) (by simp)⟩
       rw [stA_eq, show yieldA t = core.num.U64.wrapping_add t 3472#u64 from rfl,
         f6 _ (by simp) (by simp) (by simp), ← stA_eq, e5 t ht]
-    · exact (WP.spec_ok _).2 ⟨h4, rfl, rfl, hB4, hX4, rfl⟩
-  rintro s5 ⟨h5, st5, a5, hB5, hX5, k5⟩
+    · exact (WP.spec_ok _).2 ⟨h4, rfl, rfl, hB4, hX4, rfl, hS4⟩
+  rintro s5 ⟨h5, st5, a5, hB5, hX5, k5, hS5⟩
   have hnr5 : ¬ Blocked (L.mem s5 (stA t)) := by rw [st5, st4]; exact nb2
   refine WP.spec_bind (WP.spec_and (sched.set_thread_state.inv s5 t _ Q3 R4 h5 ht not_blocked_inactive (Or.inr hnr5)
     ⟨fun c hc p hp hm => absurd hm (nQ3 c hc p hp), fun c hc hm => absurd hm (nR4 c hc),
@@ -269,7 +404,17 @@ theorem sched.suspend.all {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t 
   have nrr : sched.TS_INACTIVE ≠ sched.TS_BLOCKED_ON_REPLY ∧ sched.TS_INACTIVE ≠ sched.TS_BLOCKED_ON_RECV := by
     obtain ⟨-, -, h3', -⟩ := ts_vals
     rw [ts_inactive, ts_reply, h3']; decide
-  exact ⟨Q3, R4, h6.congrX empty_congr, hB5.keepT h5 k6, hX5.keepT k6 (by rw [e6]; exact nrr)⟩
+  exact ⟨Q3, R4, h6.congrX empty_congr, hB5.keepT h5 k6, hX5.keepT k6 (by rw [e6]; exact nrr), hS5.keepT hX5 k6⟩
+
+
+/-- `cancel_ipc` keeps `SCsOK`. -/
+theorem ipc.cancel_ipc.scs {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t : obj.Tcb)
+    (Q : U64 → U64 → List U64) (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω s Q R) (ht : t ∈ T)
+    (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s) (hS : SCsOK st T Ω Sg Z s) :
+    ipc.cancel_ipc st ar s a t ⦃ s' _ => SCsOK st T Ω Sg Z s' ⦄ :=
+  WP.spec_mono (ipc.cancel_ipc.all s a t Q R h ht hB hX hS.sub) fun r hr => by
+    obtain ⟨s', a'⟩ := r
+    exact hS.keepT hX hr.2.2.2.2.2
 
 end
 

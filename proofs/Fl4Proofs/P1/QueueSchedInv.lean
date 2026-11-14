@@ -343,6 +343,33 @@ theorem EpsOK.agree {Cs X : Set U64} {s s' : S} (h : EpsOK st T Cs Ω X s) (hk :
     obtain ⟨-, o2⟩ := ep_out hE hEN
     simp only [LawfulStore.epState, hout _ o2]
 
+/-- `EpsOK` only reads the states and block objects of threads outside the
+exception set. -/
+theorem EpsOK.agreeX {Cs X : Set U64} {s s' : S} (h : EpsOK st T Cs Ω X s) (hk : L.ksb s' = L.ksb s)
+    (hsb : ∀ y ∈ T, y ∉ X → L.mem s' (stA y) = L.mem s (stA y) ∧ L.mem s' (blockA y) = L.mem s (blockA y))
+    (hEp : ∀ y ∈ T, L.mem s' (nextA .Ep y) = L.mem s (nextA .Ep y) ∧ L.mem s' (prevA .Ep y) = L.mem s (prevA .Ep y))
+    (hout : ∀ a, OutsideObjs st T Cs s a → L.mem s' a = L.mem s a) : EpsOK st T Cs Ω X s' := by
+  obtain ⟨E, EQ, K, h1, h2, h5, h3, h4, h6⟩ := h
+  have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp [LawfulStore.nodeBase, hk]
+  have mX : ∀ e ∈ E, ∀ y ∈ EQ e, y ∉ X := fun e he y hy => (h3 e he y hy).1
+  refine ⟨E, EQ, K, fun e he => ?_, h2, h5, fun e he y hy => ?_, fun y hy hyX hb => ?_,
+    h6.agree (fun y hy => Or.inl hy) (fun y hy hyX _ => hsb y hy hyX) (fun _ _ _ hy => hy)
+      (fun e he y hy => (hsb y (((h1 e he).2.2).mem y hy) (mX e he y hy)).1) (fun e he _ => ?_)⟩
+  · obtain ⟨hE, hEN, hq⟩ := h1 e he
+    obtain ⟨o1, o2⟩ := ep_out hE hEN
+    have eq : L.epQ s' e = L.epQ s e := by simp only [LawfulStore.epQ, hout _ o1, hout _ o2]
+    refine ⟨hE, ⟨fun c hc => by rw [hnb]; exact hEN.1 c hc, by rw [hk]; exact hEN.2⟩, ?_⟩
+    rw [eq]
+    exact ⟨hq.nodup, hq.mem, hq.head, hq.last, hq.seg.congr fun y hy =>
+      ⟨(hEp y (hq.mem y hy)).2, (hEp y (hq.mem y hy)).1⟩⟩
+  · have hyT := ((h1 e he).2.2).mem y hy
+    rw [(hsb y hyT (mX e he y hy)).1, (hsb y hyT (mX e he y hy)).2]; exact h3 e he y hy
+  · rw [(hsb y hy hyX).1] at hb
+    rw [(hsb y hy hyX).2]; exact h4 y hy hyX hb
+  · obtain ⟨hE, hEN, -⟩ := h1 e he
+    obtain ⟨-, o2⟩ := ep_out hE hEN
+    simp only [LawfulStore.epState, hout _ o2]
+
 /-- What a queue operation's footprint leaves of the new parts. -/
 theorem ext_qfoot {Cs : Set U64} {s s' : S} {W : List U64} {c t : U64} {P : Nat → Prop} (hT : TcbPlaced T)
     (hW : ∀ w ∈ W, w ∈ T) (hN : NodePlaced st T s c) (hN' : NodePlaced st T s (L.cpu s)) (ht : t ∈ T)

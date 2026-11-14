@@ -17,7 +17,8 @@ variable {Cs Sg Rp Scs : Set U64} {Z : U64 → Nat} {A : Type _} {ar : machine.A
 
 /-- The invariants `end_timeslice` and its callers keep. -/
 def BXI (st : machine.Store S) [L : LawfulStore st] (T Cs Ω Sg Rp Scs : Set U64) (Z : U64 → Nat) (s : S) : Prop :=
-  (∃ Q R, SchedQueuesInv st T Cs Ω s Q R) ∧ BoundInv st T s ∧ XInv st T Cs Ω Sg Rp Scs Z s ∧ SgOK st Ω Sg s
+  (∃ Q R, SchedQueuesInv st T Cs Ω s Q R) ∧ BoundInv st T s ∧ XInv st T Cs Ω Sg Rp Scs Z s ∧ SgOK st Ω Sg s ∧
+    SCsOK st T Ω Sg Z s
 
 /-- The current thread may be put back in its queue or postponed: it is
 schedulable, the current SC is its SC, and it is not the switch-to
@@ -31,7 +32,7 @@ structure CurOK (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (s : S
 
 theorem end_append (s : S) (a : A) (Q : U64 → U64 → List U64) (R : U64 → List U64)
     (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
-    (hSg : SgOK st Ω Sg s) (hc : CurOK st T s) :
+    (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Z s) (hc : CurOK st T s) :
     (do let s1 ← sched.append st s (L.curW s); ok (s1, a)) ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄ := by
   have hcT : L.curW s ∈ T := h.curT
   refine WP.spec_bind (sched.append.sch s _ Q R h hB hSg hcT (fun _ => hc.rel) (fun _ => hc.run)
@@ -39,26 +40,26 @@ theorem end_append (s : S) (a : A) (Q : U64 → U64 → List U64) (R : U64 → L
   rintro s1 ⟨⟨hi, hB1, f1⟩, -, -, -⟩
   simp only [WP.spec_ok, WP.uncurry'_pair]
   obtain ⟨Q1, R1, h1⟩ := hi
-  exact ⟨⟨Q1, R1, h1⟩, hB1, hX.fr f1, hSg.fr f1⟩
+  exact ⟨⟨Q1, R1, h1⟩, hB1, hX.fr f1, hSg.fr f1, hS.fr f1⟩
 
 theorem end_postpone (s : S) (a : A) (Q : U64 → U64 → List U64) (R : U64 → List U64)
     (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
-    (hSg : SgOK st Ω Sg s) (hc : CurOK st T s) :
+    (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Z s) (hc : CurOK st T s) :
     (do let s1 ← sched.postpone st s (L.cscW s); ok (s1, a)) ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄ := by
   have hcT : L.curW s ∈ T := h.curT
-  obtain ⟨hS, htc, hcore⟩ := hX.2.2.bound (L.curW s) hcT hc.bnd
-  rw [← hc.csc] at hS htc hcore
-  have hco : OutsideObjs st T Cs s (scCoreA (L.cscW s)) := h.omega _ ((objs_omega hX.1 hSg.sub).2 _ hS).2.1
+  obtain ⟨hSc, htc, hcore⟩ := hX.2.2.bound (L.curW s) hcT hc.bnd
+  rw [← hc.csc] at hSc htc hcore
+  have hco : OutsideObjs st T Cs s (scCoreA (L.cscW s)) := h.omega _ ((objs_omega hX.1 hSg.sub).2 _ hSc).2.1
   rw [← htc] at hcT
   refine WP.spec_bind (sched.postpone.all s _ Q R h hcT hB hX hSg (by rw [htc]; exact hc.rel) hco hcore
     (by rw [htc]; exact hc.run) (by rw [htc]; exact hc.act) (by rw [htc]; exact hc.bnd)) ?_
-  rintro s1 ⟨Q1, R1, h1, hB1, hX1, hSg1, -⟩
+  rintro s1 ⟨Q1, R1, h1, hB1, hX1, hSg1, f1⟩
   simp only [WP.spec_ok, WP.uncurry'_pair]
-  exact ⟨⟨Q1, R1, h1⟩, hB1, hX1, hSg1⟩
+  exact ⟨⟨Q1, R1, h1⟩, hB1, hX1, hSg1, hS.fr f1⟩
 
 theorem end_suff (hA : P0.ArchTotal ar) (s : S) (a : A) (Q : U64 → U64 → List U64) (R : U64 → List U64)
     (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
-    (hSg : SgOK st Ω Sg s) (hc : CurOK st T s) :
+    (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Z s) (hc : CurOK st T s) :
     (do
       let b ← sporadic.ready st s (L.cscW s)
       if b = true then do
@@ -70,20 +71,20 @@ theorem end_suff (hA : P0.ArchTotal ar) (s : S) (a : A) (Q : U64 → U64 → Lis
   split
   · step with sporadic.sufficient.ok (st := st) hA as ⟨b1⟩
     split
-    · exact end_append s a Q R h hB hX hSg hc
-    · exact end_postpone s a Q R h hB hX hSg hc
-  · exact end_postpone s a Q R h hB hX hSg hc
+    · exact end_append s a Q R h hB hX hSg hS hc
+    · exact end_postpone s a Q R h hB hX hSg hS hc
+  · exact end_postpone s a Q R h hB hX hSg hS hc
 
 /-- seL4 `endTimeslice`. -/
 theorem sched.end_timeslice.all (hA : P0.ArchTotal ar) (s : S) (a : A) (cto : Bool)
     (Q : U64 → U64 → List U64) (R : U64 → List U64)
     (h : SchedQueuesInv st T Cs Ω s Q R) (hB : BoundInv st T s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
-    (hSg : SgOK st Ω Sg s) (hc : CurOK st T s)
+    (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Z s) (hc : CurOK st T s)
     (htmo : ∀ (s : S) (a : A) (t : obj.Tcb) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
       SchedQueuesInv st T Cs Ω s Q R → BoundInv st T s → XInv st T Cs Ω Sg Rp Scs Z s → SgOK st Ω Sg s →
-      faults.handle_timeout st ar s a t f ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄) :
+      SCsOK st T Ω Sg Z s → faults.handle_timeout st ar s a t f ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄) :
     sched.end_timeslice st ar s a cto ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄ := by
-  have E := end_suff hA s a Q R h hB hX hSg hc
+  have E := end_suff hA s a Q R h hB hX hSg hS hc
   unfold sched.end_timeslice
   step with sched.cur_sc.spec as ⟨sc, sc_post⟩
   step with sched.cur_thread.spec as ⟨ct, ct_post⟩
@@ -97,7 +98,7 @@ theorem sched.end_timeslice.all (hA : P0.ArchTotal ar) (s : S) (a : A) (cto : Bo
     · exact E
     · split
       · step with P0.obj.Sc.badge.p0 st _ s L.total as ⟨badge⟩
-        exact htmo s a _ _ Q R h hB hX hSg
+        exact htmo s a _ _ Q R h hB hX hSg hS
       · exact E
   · exact E
 
@@ -183,6 +184,47 @@ theorem node_bx {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 �
     fun y hy => ⟨by rw [scA_eq]; exact fl y hy _ (by simp) (by simp),
       by rw [stA_eq]; exact fl y hy _ (by simp) (by simp), by rw [inqA_eq]; exact fl y hy _ (by simp) (by simp)⟩⟩
 
+
+/-- `SCsOK` after writes to the ring and `CONSUMED` word of the SC object
+`i`, kept well formed. -/
+theorem SCsOK.ringc {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {i : U64}
+    (h : SchedQueuesInv st T Cs Ω s Q R) (hS : SCsOK st T Ω Sg Z s) (hX : XInv st T Cs Ω Sg Rp Scs Z s)
+    (hi : i ∈ Scs)
+    (w : WritesIn st s s' (fun b => InRing i (Z i) b ∨ b = core.num.U64.wrapping_add i layout.sc.CONSUMED))
+    (hwi : RefillsWF st s' i (Z i)) : SCsOK st T Ω Sg Z s' := by
+  obtain ⟨hO, -, hE⟩ := hX
+  have hN' := h.nodes _ h.cur
+  obtain ⟨hP, hz⟩ := hO.sc i hi
+  obtain ⟨-, h128, -⟩ := sc_lo hP hz
+  have hcv := sc_word_val hP hz (o := layout.sc.CONSUMED) (by simp [layout.sc.CONSUMED])
+  have inΩ : ∀ b, Aligned b → (InRing i (Z i) b ∨ b = core.num.U64.wrapping_add i layout.sc.CONSUMED) → b ∈ Ω := by
+    rintro b hb (hh | rfl)
+    · exact hO.scW i hi b hb hh.inSC
+    · exact hO.scW i hi _ hb ⟨by rw [hcv]; simp, by rw [hcv]; simp [layout.sc.CONSUMED]; omega⟩
+  have fld : ∀ y ∈ T, L.mem s' (scA y) = L.mem s (scA y) := fun y hy =>
+    w.mem_eq (scA_aligned (h.tcbs y hy)) fun hh =>
+      out_ne_field (h.omega _ (inΩ _ (scA_aligned (h.tcbs y hy)) hh)) hy (h.tcbs y hy) (K := 3464#u64) (by decide) rfl
+  have csc : L.cscW s' = L.cscW s := by
+    unfold LawfulStore.cscW; rw [cscW_eq w.1 w.2.1]
+    have aC : Aligned (L.nodeA s layout.node.CUR_SC) :=
+      nodeAt_aligned hN' (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
+    exact w.mem_eq aC fun hh => out_ne_node (h.omega _ (inΩ _ aC hh)) h.cur hN' (by simp [layout.node.CUR_SC]) rfl
+  have wf : ∀ c ∈ Scs, RefillsWF st s c (Z c) → RefillsWF st s' c (Z c) := by
+    intro c hc hW
+    by_cases e : c = i
+    · subst e; exact hwi
+    refine hW.writesIn w fun b hb hh => ?_
+    have := hO.scDisj c hc i hi e
+    rcases hh with hh | rfl
+    · unfold Outside; unfold InRing at hh; omega
+    · unfold Outside; rw [hcv]; simp [layout.sc.CONSUMED]; omega
+  refine ⟨hS.sub, fun b hb => by rw [w.1]; exact hS.ks b hb, fun o h1 h2 => by rw [w.1]; exact hS.ksΩ o h1 h2,
+    fun y hy hb => ?_, ?_, fun y hy hb hne => ?_⟩
+  · rw [fld y hy] at hb ⊢
+    exact ⟨wf _ (hE.bound y hy hb).1 (hS.bound y hy hb).1, (hS.bound y hy hb).2⟩
+  · rw [csc]; exact ⟨wf _ hE.cur hS.cur.1, hS.cur.2⟩
+  · rw [fld y hy] at hb hne ⊢; rw [csc] at hne ⊢; exact hS.disj y hy hb hne
+
 /-- seL4 `chargeBudget` keeps the invariants, when the current SC is the
 current thread's (if it is schedulable), the current thread is not the
 switch-to candidate, and timeout faults keep them. -/
@@ -194,7 +236,7 @@ theorem sched.charge_budget.all (hA : P0.ArchTotal ar) (s : S) (a : A) (used : U
     (hna : L.actionW s ≠ L.curW s)
     (htmo : ∀ (s : S) (a : A) (t : obj.Tcb) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
       SchedQueuesInv st T Cs Ω s Q R → BoundInv st T s → XInv st T Cs Ω Sg Rp Scs Z s → SgOK st Ω Sg s →
-      faults.handle_timeout st ar s a t f ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄) :
+      SCsOK st T Ω Sg Z s → faults.handle_timeout st ar s a t f ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄) :
     sched.charge_budget st ar s a used cto ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄ := by
   have hcS : L.cscW s ∈ Scs := hX.2.2.cur
   have hW : RefillsWF st s (L.cscW s) (Z (L.cscW s)) := hS.cur.1
@@ -206,7 +248,7 @@ theorem sched.charge_budget.all (hA : P0.ArchTotal ar) (s : S) (a : A) (used : U
   step with sc_ne.spec as ⟨b⟩
   -- the ring and the SC's `CONSUMED` word
   refine WP.spec_bind (Pₘ := fun s2 => WritesIn st s s2 (fun b => InRing (L.cscW s) (Z (L.cscW s)) b ∨
-      b = core.num.U64.wrapping_add (L.cscW s) layout.sc.CONSUMED)) ?_ ?_
+      b = core.num.U64.wrapping_add (L.cscW s) layout.sc.CONSUMED) ∧ RefillsWF st s2 (L.cscW s) (Z (L.cscW s))) ?_ ?_
   · split
     · step with sporadic.is_round_robin.spec as ⟨b1⟩
       refine WP.spec_bind (Pₘ := fun s3 => RefillsWF st s3 (L.cscW s) (Z (L.cscW s)) ∧
@@ -242,19 +284,36 @@ theorem sched.charge_budget.all (hA : P0.ArchTotal ar) (s : S) (a : A) (used : U
           obtain ⟨hP, hz⟩ := hX.1.sc _ hcS
           obtain ⟨h8, -, -⟩ := sc_lo hP hz
           unfold Aligned; rw [sc_word_val hP hz (by simp [layout.sc.CONSUMED])]; simp [layout.sc.CONSUMED]; omega
-        exact (w3.trans (writesIn_wr hal)).mono fun b hb => by
+        exact ⟨(w3.trans (writesIn_wr hal)).mono fun b hb => by
           rcases hb with hb | hb
           · exact Or.inl hb
-          · exact Or.inr hb
-    · simp only [WP.spec_ok]; exact WritesIn.refl _ _
-  rintro s2 w2
+          · exact Or.inr hb, h3.wr_cons⟩
+    · simp only [WP.spec_ok]; exact ⟨WritesIn.refl _ _, hW⟩
+  rintro s2 ⟨w2, wf2⟩
+  have hS2 := SCsOK.ringc h hS hX hcS w2 wf2
   obtain ⟨h2, hB2, hX2, hSg2, ea2, ec2, ecs2, f2⟩ := ring_bx h hB hX hSg hcS w2
   -- the node's `CONSUMED`
   step with sched.set_consumed.spec as ⟨s3, s3_post⟩
   rw [show L.nodeA s2 layout.node.CONSUMED = L.nodeAt s2 (L.cpu s2) layout.node.CONSUMED from rfl] at s3_post
   obtain ⟨h3, hB3, hX3, hSg3, ea3, ec3, ecs3, f3⟩ := node_bx (o := layout.node.CONSUMED) (v := 0#u64) h2 hB2 hX2 hSg2
     (by simp [layout.node.CONSUMED, LowFree]) (by simp [layout.node.CONSUMED])
-  rw [← s3_post] at h3 hB3 hX3 hSg3 ea3 ec3 ecs3 f3
+  have hS3 : SCsOK st T Ω Sg Z (L.wr s2 (L.nodeAt s2 (L.cpu s2) layout.node.CONSUMED) 0#u64) := by
+    have hN2 := h2.nodes _ h2.cur
+    obtain ⟨-, hc⟩ := objs_omega hX2.1 hS2.sub
+    have hco : (layout.node.CONSUMED).val = 40 := by simp [layout.node.CONSUMED]
+    refine SCsOK.wr h2 hS2 hX2 (nodeAt_aligned hN2 (by rw [hco]; omega) (by rw [hco])) (fun y hy => ?_) ?_
+      (fun c hc' => ?_)
+    · rw [scA_eq]; exact fun e => node_ne_field hN2 (by rw [hco]; omega) hy (h2.tcbs y hy) (by simp)
+        (UScalar.eq_of_val_eq e)
+    · intro e
+      simp only [LawfulStore.nodeA] at e
+      rw [nodeAt_val hN2 (by rw [hco]; omega), nodeAt_val hN2 (by simp [layout.node.CUR_SC]), hco] at e
+      simp [layout.node.CUR_SC] at e
+    · obtain ⟨-, -, c3, c4, c5⟩ := hc c hc'
+      exact ⟨out_ne_node (h2.omega _ c3) h2.cur hN2 (by rw [hco]; omega),
+        out_ne_node (h2.omega _ c4) h2.cur hN2 (by rw [hco]; omega),
+        out_ne_node (h2.omega _ c5) h2.cur hN2 (by rw [hco]; omega)⟩
+  rw [← s3_post] at h3 hB3 hX3 hSg3 ea3 ec3 ecs3 f3 hS3
   step with sched.cur_thread.spec as ⟨ct, ct_post⟩
   have e2 : ct = L.curW s3 := ct_post
   subst e2
@@ -267,17 +326,17 @@ theorem sched.charge_budget.all (hA : P0.ArchTotal ar) (s : S) (a : A) (used : U
       rw [ec3, ec2, (f3 _ hcT).1, (f2 _ hcT).1]
     have hc : CurOK st T s3 := ⟨hrun, hbd, hrl, by
       rw [ecs3, ecs2, esc]; exact hcsc (by rw [← esc]; exact hbd), by rw [ea3, ea2, ec3, ec2]; exact hna⟩
-    refine WP.spec_bind (sched.end_timeslice.all hA s3 a cto Q R h3 hB3 hX3 hSg3 hc htmo) ?_
-    rintro ⟨s4, a1⟩ ⟨⟨Q4, R4, h4⟩, hB4, hX4, hSg4⟩
+    refine WP.spec_bind (sched.end_timeslice.all hA s3 a cto Q R h3 hB3 hX3 hSg3 hS3 hc htmo) ?_
+    rintro ⟨s4, a1⟩ ⟨⟨Q4, R4, h4⟩, hB4, hX4, hSg4, hS4⟩
     try simp only [WP.uncurry'_pair]
     refine WP.spec_bind (sched.reschedule_required.sch s4 Q4 R4 h4 hB4 hSg4) ?_
     rintro s5 ⟨⟨⟨Q5, R5, h5⟩, hB5, f5⟩, -, -, -⟩
     refine WP.spec_bind (sched.set_reprogram.sch s5 Q5 R5 h5 hB5 (hSg4.fr f5)) ?_
     rintro s6 ⟨⟨h6, hB6, f6⟩, -, -⟩
     simp only [WP.spec_ok, WP.uncurry'_pair]
-    exact ⟨⟨Q5, R5, h6⟩, hB6, (hX4.fr f5).fr f6, (hSg4.fr f5).fr f6⟩
+    exact ⟨⟨Q5, R5, h6⟩, hB6, (hX4.fr f5).fr f6, (hSg4.fr f5).fr f6, (hS4.fr f5).fr f6⟩
   · simp only [WP.spec_ok, WP.uncurry'_pair]
-    exact ⟨⟨Q, R, h3⟩, hB3, hX3, hSg3⟩
+    exact ⟨⟨Q, R, h3⟩, hB3, hX3, hSg3, hS3⟩
 
 /-- seL4 `checkBudget`. -/
 theorem sched.check_budget.all (hA : P0.ArchTotal ar) (s : S) (a : A)
@@ -288,7 +347,7 @@ theorem sched.check_budget.all (hA : P0.ArchTotal ar) (s : S) (a : A)
     (hna : L.actionW s ≠ L.curW s)
     (htmo : ∀ (s : S) (a : A) (t : obj.Tcb) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
       SchedQueuesInv st T Cs Ω s Q R → BoundInv st T s → XInv st T Cs Ω Sg Rp Scs Z s → SgOK st Ω Sg s →
-      faults.handle_timeout st ar s a t f ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄) :
+      SCsOK st T Ω Sg Z s → faults.handle_timeout st ar s a t f ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄) :
     sched.check_budget st ar s a ⦃ _ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄ := by
   unfold sched.check_budget
   step with sched.cur_sc.spec as ⟨sc⟩
@@ -299,7 +358,7 @@ theorem sched.check_budget.all (hA : P0.ArchTotal ar) (s : S) (a : A)
     simp only [layout.NUM_DOMAINS, fl4_abi.config.NUM_DOMAINS]
     have hnd : ¬ ((1#u64) > (1#u64)) := by simp
     simp only [hnd, ↓reduceIte, bind_ok, WP.spec_ok, WP.uncurry'_pair]
-    exact ⟨⟨Q, R, h⟩, hB, hX, hSg⟩
+    exact ⟨⟨Q, R, h⟩, hB, hX, hSg, hS⟩
   · refine WP.spec_bind (sched.charge_budget.all hA s a c true Q R h hB hX hSg hS hcsc hna htmo) ?_
     rintro ⟨s1, a1⟩ h1
     exact (WP.spec_ok _).2 h1
@@ -321,16 +380,16 @@ theorem sched.check_budget_restart.all (hA : P0.ArchTotal ar) (s : S) (a : A)
     (hna : L.actionW s ≠ L.curW s)
     (htmo : ∀ (s : S) (a : A) (t : obj.Tcb) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
       SchedQueuesInv st T Cs Ω s Q R → BoundInv st T s → XInv st T Cs Ω Sg Rp Scs Z s → SgOK st Ω Sg s →
-      faults.handle_timeout st ar s a t f ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄) :
+      SCsOK st T Ω Sg Z s → faults.handle_timeout st ar s a t f ⦃ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄) :
     sched.check_budget_restart st ar s a ⦃ _ s' _ => BXI st T Cs Ω Sg Rp Scs Z s' ⦄ := by
   unfold sched.check_budget_restart
   refine WP.spec_bind (sched.check_budget.all hA s a Q R h hB hX hSg hS hcsc hna htmo) ?_
-  rintro ⟨r, s1, a1⟩ ⟨⟨Q1, R1, h1⟩, hB1, hX1, hSg1⟩
+  rintro ⟨r, s1, a1⟩ ⟨⟨Q1, R1, h1⟩, hB1, hX1, hSg1, hS1⟩
   try simp only [WP.uncurry'_pair]
   step with sched.cur_thread.spec as ⟨ct, ct_post⟩
   have hct : ct ∈ T := by rw [ct_post]; exact h1.curT
   split
-  · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨⟨Q1, R1, h1⟩, hB1, hX1, hSg1⟩
+  · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨⟨Q1, R1, h1⟩, hB1, hX1, hSg1, hS1⟩
   step with sched.is_runnable.spec' as ⟨b, b_post⟩
   split
   · rename_i hb
@@ -344,8 +403,9 @@ theorem sched.check_budget_restart.all (hA : P0.ArchTotal ar) (s : S) (a : A)
       obtain ⟨-, -, h3', -⟩ := ts_vals
       rw [ts_restart, ts_reply, h3']; decide
     exact ⟨⟨Q1, R1, h2.congrX empty_congr⟩, hB1.keepT h1 k2, hX1.keepT k2 (by rw [e2]; exact nrr),
-      ⟨hSg1.sub, fun b hb => by rw [k2.ksb]; exact hSg1.ks b hb, fun o h1' h2' => by rw [k2.ksb]; exact hSg1.ksΩ o h1' h2'⟩⟩
-  · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨⟨Q1, R1, h1⟩, hB1, hX1, hSg1⟩
+      ⟨hSg1.sub, fun b hb => by rw [k2.ksb]; exact hSg1.ks b hb, fun o h1' h2' => by rw [k2.ksb]; exact hSg1.ksΩ o h1' h2'⟩,
+      hS1.keepT hX1 k2⟩
+  · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨⟨Q1, R1, h1⟩, hB1, hX1, hSg1, hS1⟩
 
 end
 
