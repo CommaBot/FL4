@@ -90,6 +90,25 @@ def specCompleteTail (tptr ntfnptr : ObjRef) : SMonad Unit Unit := do
         NonDet.when (scOpt = ntfnScp ∧ scp ≠ curScPtr) <| refillUnblockCheck scp)
     scOpt
 
+/-- Hypothesis (l4v `valid_sched_action`, refill part): a schedulable
+switch-to candidate has an SC whose head refill is sufficient and ready. -/
+def ActReady (σ : State Unit) : Prop :=
+  ∀ t, σ.schedulerAction = .switchThread t → schedulable t σ = true →
+    ∃ x scp, σ.kheap t = some (.tcb x) ∧ x.tcbSchedContext = some scp ∧
+      getScRefillSufficient (Z := Unit) scp 0 σ = ({(true, σ)}, False) ∧
+      getScRefillReady (Z := Unit) scp σ = ({(true, σ)}, False)
+
+/-- What blocking thread `t` on notification `n` changes (NtfnBlock.lean): the
+TCB's state (to one that is not runnable), the notification, possibly the
+scheduler action (to choose-new). -/
+def BlockStep (σ σ' : State Unit) (t n : ObjRef) : Prop :=
+  (σ'.schedulerAction = σ.schedulerAction ∨ σ'.schedulerAction = .chooseNewThread) ∧
+  σ'.curTime = σ.curTime ∧ σ'.releaseQueue = σ.releaseQueue ∧
+  (∀ p, p ≠ t → p ≠ n → σ'.kheap p = σ.kheap p) ∧
+  (∃ x y, σ.kheap n = some (.notification x) ∧ σ'.kheap n = some (.notification y)) ∧
+  (∃ x y, σ.kheap t = some (.tcb x) ∧ σ'.kheap t = some (.tcb y) ∧
+    y.tcbSchedContext = x.tcbSchedContext ∧ runnable y.tcbState = false)
+
 end SpecDefs
 
 section Hyps
@@ -109,7 +128,8 @@ structure RecvHyps (N T : Set U64) (SR : S → Fl4Spec.State Unit → Prop) : Pr
     TailRef st N T SR Prod.fst s σ (rustRecvTail st ar s a t n) (specRecvTail t.bv n.bv)
   completeTail : ∀ s (a : A) σ (t n : U64), NtfnStateRel N T (L.mem s) σ → SR s σ → t ∈ T → n ∈ N →
     TailRef st N T SR Prod.fst s σ (rustCompleteTail st ar s a t n) (specCompleteTail t.bv n.bv)
-  returnSc : ∀ s σ (t n : U64), NtfnStateRel N T (L.mem s) σ → SR s σ → t ∈ T → n ∈ N →
+  returnSc : ∀ s σ0 σ (t n : U64), NtfnStateRel N T (L.mem s) σ → SR s σ → t ∈ T → n ∈ N →
+    ActReady σ0 → BlockStep σ0 σ t.bv n.bv →
     TailRef st N T SR id s σ (notification.maybe_return_sched_context st s n t) (Fl4Spec.maybeReturnSc n.bv t.bv)
 
 end Hyps

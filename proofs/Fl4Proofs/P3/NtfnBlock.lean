@@ -186,7 +186,7 @@ theorem receive_signal_block (hH : SchedHyps st ar N T SR) (hV : RecvHyps st ar 
     {n : U64} (hn : n ∈ N) {x : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
     (hna : ∀ b, x.ntfnObj ≠ .activeNtfn b)
     (hsort : ∀ xs, QueueRel (L.mem s) T .Ep (qOf (L.mem s) n) xs → PrioSorted (fun y => L.mem s (prioA y)) xs)
-    (cb : Fl4Spec.Badge) (cr : Fl4Spec.CapRights) :
+    (cb : Fl4Spec.Badge) (cr : Fl4Spec.CapRights) (hAR : ActReady σ) :
     notification.receive_signal st ar s a t n true ⦃ r =>
       ¬ (Fl4Spec.receiveSignal t.bv (.notificationCap n.bv cb cr) true σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.receiveSignal t.bv (.notificationCap n.bv cb cr) true σ).1 ∧
@@ -324,7 +324,21 @@ theorem receive_signal_block (hH : SchedHyps st ar N T SR) (hV : RecvHyps st ar 
     rw [hspec]
     have hSR4 := hH.stable _ _ _ _ hS3 hA3.foot
       (NtfnStep.ntfn (y := { x with ntfnObj := .waitingNtfn (ys.map UScalar.bv) }) hk2 rfl rfl)
-    refine WP.spec_bind (hV.returnSc s4 σ3 t n hR4 hSR4 ht hn) ?_
+    have hb : BlockStep σ σ3 t.bv n.bv := by
+      refine ⟨?_, ?_, ?_, fun p h1 h2 => ?_,
+        ⟨x, { x with ntfnObj := .waitingNtfn (ys.map UScalar.bv) }, hk, by simp [σ3, updK]⟩,
+        ⟨xt, x1, hkt, by simp [σ3, updK, Ne.symm hnt, hkt2], rfl, rfl⟩⟩
+      · show (stsAct σ1 t.bv).schedulerAction = σ.schedulerAction ∨
+          (stsAct σ1 t.bv).schedulerAction = .chooseNewThread
+        unfold stsAct; split_ifs
+        · exact Or.inr rfl
+        · exact Or.inl rfl
+      · show (stsAct σ1 t.bv).curTime = σ.curTime
+        unfold stsAct; split_ifs <;> rfl
+      · show (stsAct σ1 t.bv).releaseQueue = σ.releaseQueue
+        unfold stsAct; split_ifs <;> rfl
+      · simp [σ3, σ2, σ1, updK, stsAct_kheap, h1, h2]
+    refine WP.spec_bind (hV.returnSc s4 σ σ3 t n hR4 hSR4 ht hn hAR hb) ?_
     rintro s5 ⟨hnf, σ', hm, hf, hv, hS⟩
     simp only [WP.spec_ok]
     exact ⟨hnf, σ', hm, hR4.frame hP hf hv, hS⟩

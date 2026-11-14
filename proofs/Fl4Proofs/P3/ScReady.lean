@@ -112,7 +112,7 @@ theorem ready_inv {σ : State Unit} {p : ObjRef} {b : Bool}
   have := congrArg Prod.fst h
   simpa using this
 
-theorem ActReady.transfer {σ σ' : State Unit} (h : ActReady σ)
+theorem _root_.Fl4Proofs.P3.Notif.ActReady.transfer {σ σ' : State Unit} (h : ActReady σ)
     (hact : σ'.schedulerAction = σ.schedulerAction) (hct : σ'.curTime = σ.curTime)
     (hrq : σ'.releaseQueue = σ.releaseQueue)
     (htcb : ∀ p x, tcbsOf σ' p = some x → x.tcbSchedContext = none ∨ tcbsOf σ p = some x)

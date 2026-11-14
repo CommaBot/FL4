@@ -11,5 +11,13 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
   `maybe_donate_sched_context`.
 * ScTails: `RecvHyps`' receive/complete tails and `WakeHyps` from the
   donation hypothesis `DonateHyp`.
+* ScRelease: the release queue (`SchedRel.rstep`, `release_enqueue_refines`).
+* ScResume: `postpone`, `sched_context_resume`.
+* ScDonateRef: the donation branch (`donate_refines`, `maybe_donate_refines`,
+  `ActReady.donate`).
+* ScHyps: `RecvHyps.returnSc` discharged (`returnSc_of`), `DonateHyp` and
+  `WakeHyps` from state facts (`DonatePre`).
+* ScRing, ScBudgetSpec, ScBudget, ScBudgetTop: `refill_budget_check`
+  (`loop0_refines`, `loop1_refines`, `budget_check_refines`).
 -/
-import Fl4Proofs.P3.ScTails
+import Fl4Proofs.P3.ScBudgetTop

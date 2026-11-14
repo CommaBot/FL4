@@ -161,7 +161,7 @@ theorem SchedRel.set_action {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
   have hm := hs.rmax_eq hag.sc
   refine ⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk]; exact hS.nodeNW o ho,
     by rw [curDomA_ksb hk]; exact hS.domNW, scOut_transfer hk hm hS.scOut, scDisj_transfer hm hS.scDisj,
-    by rw [hw']; exact hw, by rw [hw']; exact ha, ?_, Q, R, hc.agree hag.toC, ?_⟩
+    by rw [hw']; exact hw, by rw [hw']; exact ha, ?_, hs.core_eq hag.sc hS.core, Q, R, hc.agree hag.toC, ?_⟩
   · have e : nodeW st s' c layout.node.REPROGRAM = nodeW st s c layout.node.REPROGRAM := by
       unfold Fl4Proofs.P3.Sched.nodeW; rw [nodeAt_ksb hk]
       refine rd_wr_ne hA (nodeAt_aligned hN (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])) ?_

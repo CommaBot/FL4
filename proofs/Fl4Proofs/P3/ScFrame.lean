@@ -176,7 +176,8 @@ one of the same size and refill-max, keep `SchedRel`. -/
 theorem SchedRel.sc_update {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) {sc0 : U64} (hsc0 : sc0 ∈ C) {x0 : Fl4Spec.SchedContext} {n : Nat}
     (hk : σ.kheap sc0.bv = some (.schedContext x0 n)) (hw : WritesIn st s s' (ScIn st s sc0))
-    (hm0 : L.rmax s' sc0 = L.rmax s sc0) (x : Fl4Spec.SchedContext) (hx : ScRel1 st s' sc0 x n) :
+    (hm0 : L.rmax s' sc0 = L.rmax s sc0) (hc0 : L.mem s' (scW sc0 16#u64) = L.mem s (scW sc0 16#u64))
+    (x : Fl4Spec.SchedContext) (hx : ScRel1 st s' sc0 x n) :
     SchedRel st N T C c s' (updSc σ sc0.bv x n) := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hN := hc.node
@@ -209,7 +210,11 @@ theorem SchedRel.sc_update {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.
     by rw [nw _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])]; exact hS.actW,
     by rw [nw _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])]; exact hS.act,
     by rw [nw _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])]; exact hS.repr,
-    Q, R, hc.agree hag.toC, ?_⟩
+    fun sc hsc => ?_, Q, R, hc.agree hag.toC, ?_⟩
+  · by_cases e : sc = sc0
+    · subst e; rw [hc0]; exact hS.core sc hsc
+    · obtain ⟨y, m, -, ey⟩ := hs.scs sc hsc
+      rw [hoth sc hsc e _ (ey.hdr (by simp) (by simp)).1 (ey.hdr (by simp) (by simp)).2]; exact hS.core sc hsc
   refine hs.transfer hag rfl rfl rfl rfl rfl rfl rfl (fun t ht y hy => ?_) (fun sc hsc => ?_)
   · have : t.bv ≠ sc0.bv := by intro e; rw [e, hk] at hy; cases hy
     simp [this, hy]
@@ -259,7 +264,7 @@ theorem SchedRel.set_reprogram {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec
   have hm := hs.rmax_eq hag.sc
   refine ⟨⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk]; exact hS.nodeNW o ho,
     by rw [curDomA_ksb hk]; exact hS.domNW, scOut_transfer hk hm hS.scOut, scDisj_transfer hm hS.scDisj,
-    by rw [hact]; exact hS.actW, by rw [hact]; exact hS.act, by rw [hrp]; rfl, Q, R, hc.agree hag.toC, ?_⟩,
+    by rw [hact]; exact hS.actW, by rw [hact]; exact hS.act, by rw [hrp]; rfl, hs.core_eq hag.sc hS.core, Q, R, hc.agree hag.toC, ?_⟩,
     node_wr_foot hS (by omega) (by omega), writesIn_wr hA⟩
   have hs' := hs.agree hag
   exact ⟨hs'.rq, hs'.rqDom, hs'.rel, hs'.curThread, hs'.curSc, hs'.curTime, hs'.consumed,

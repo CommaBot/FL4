@@ -87,7 +87,7 @@ theorem SchedRel.set_sc_tcb {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
       by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.yieldFrom,
       by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.sporadic, by rw [em]; exact hx.max,
       by rw [hrs]; exact hx.refills⟩
-  exact ⟨hS.sc_update hsc hk hwr em _ hx', scin_footEq hS hsc hwr, KView.of_sc hk⟩
+  exact ⟨hS.sc_update hsc hk hwr em (hw _ (by simp) (by simp) (by decide)) _ hx', scin_footEq hS hsc hwr, KView.of_sc hk⟩
 
 /-- Writing a TCB's `SC` word, with `0` or an SC of `C`. -/
 theorem SchedRel.set_tcb_sc {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
@@ -135,7 +135,7 @@ theorem SchedRel.set_tcb_sc {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
     by rw [nw _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])]; exact hS.actW,
     by rw [nw _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])]; exact hS.act,
     by rw [nw _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])]; exact hS.repr,
-    Q, R, hc.agree hcag, ?_⟩, ?_, ?_⟩
+    hs.core_eq hscw hS.core, Q, R, hc.agree hcag, ?_⟩, ?_, ?_⟩
   · refine ⟨hs.rq, hs.rqDom, hs.rel, ?_, ?_, ?_, ?_, ?_, fun y hy => ?_, fun y hy => ?_, fun sc hsc => ?_⟩
     · rw [nw _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])]; exact hs.curThread
     · rw [nw _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])]; exact hs.curSc

@@ -21,14 +21,6 @@ noncomputable section
 section Spec
 open Fl4Spec
 
-/-- Hypothesis (l4v `valid_sched_action`, refill part): a schedulable
-switch-to candidate has an SC whose head refill is sufficient and ready. -/
-def ActReady (σ : State Unit) : Prop :=
-  ∀ t, σ.schedulerAction = .switchThread t → schedulable t σ = true →
-    ∃ x scp, σ.kheap t = some (.tcb x) ∧ x.tcbSchedContext = some scp ∧
-      getScRefillSufficient (Z := Unit) scp 0 σ = ({(true, σ)}, False) ∧
-      getScRefillReady (Z := Unit) scp σ = ({(true, σ)}, False)
-
 theorem setAction_eq (σ : State Unit) (a : SchedulerAction) :
     setSchedulerAction (Z := Unit) a σ = ({((), { σ with schedulerAction := a })}, False) := rfl
 

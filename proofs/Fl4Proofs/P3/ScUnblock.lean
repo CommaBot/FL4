@@ -85,16 +85,14 @@ theorem ScRel1.ring {s s' : S} {sc : obj.Sc} {x : Fl4Spec.SchedContext} {n : Nat
 
 /-- Header words other than the ring indices, after writing the head index
 and a ring slot. -/
-theorem hdr_putS_head {s : S} {sc : obj.Sc} {sb : Nat} (hW : RefillsWF st s sc sb) {i v : U64}
-    (hi : i.val < (L.rmax s sc).val) (r : sporadic.Refill) (K : U64)
-    (hK : K = 0#u64 ∨ K = 8#u64 ∨ K = 24#u64 ∨ K = 40#u64 ∨ K = 48#u64 ∨ K = 56#u64 ∨ K = 64#u64 ∨ K = 72#u64) :
+theorem hdr_putS_head' {s : S} {sc : obj.Sc} {sb : Nat} (hW : RefillsWF st s sc sb) {i v : U64}
+    (hi : i.val < (L.rmax s sc).val) (r : sporadic.Refill) (K : U64) (hKv : K.val < 80 ∧ K.val % 8 = 0) :
     L.mem (L.putS (L.wr s (headA sc) v) sc i r) (scW sc K) = L.mem s (scW sc K) ∧
       L.mem (L.putS s sc i r) (scW sc K) = L.mem s (scW sc K) := by
   obtain ⟨h8, hb, hfit⟩ := hW.bounds
   have := hW.min_le; simp at this
   obtain ⟨-, -, -, hh, -, hin⟩ := hW.inside
   obtain ⟨h1, h2, -⟩ := hin i hi
-  have hKv : K.val < 80 ∧ K.val % 8 = 0 := by rcases hK with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp
   have hv := scW_val (sc := sc) (K := K) (by omega)
   have ha : Aligned (scW sc K) := by unfold Aligned; rw [hv]; omega
   have a1 : Aligned (rtA sc i) := by unfold Aligned; rw [h1]; omega
@@ -105,6 +103,13 @@ theorem hdr_putS_head {s : S} {sc : obj.Sc} {sb : Nat} (hW : RefillsWF st s sc s
   · rw [L.mem_wr_ne a2 ha (by rw [h2, hv]; omega), L.mem_wr_ne a1 ha (by rw [h1, hv]; omega),
       L.mem_wr_ne ah ha (by rw [hh, hv]; omega)]
   · rw [L.mem_wr_ne a2 ha (by rw [h2, hv]; omega), L.mem_wr_ne a1 ha (by rw [h1, hv]; omega)]
+
+theorem hdr_putS_head {s : S} {sc : obj.Sc} {sb : Nat} (hW : RefillsWF st s sc sb) {i v : U64}
+    (hi : i.val < (L.rmax s sc).val) (r : sporadic.Refill) (K : U64)
+    (hK : K = 0#u64 ∨ K = 8#u64 ∨ K = 24#u64 ∨ K = 40#u64 ∨ K = 48#u64 ∨ K = 56#u64 ∨ K = 64#u64 ∨ K = 72#u64) :
+    L.mem (L.putS (L.wr s (headA sc) v) sc i r) (scW sc K) = L.mem s (scW sc K) ∧
+      L.mem (L.putS s sc i r) (scW sc K) = L.mem s (scW sc K) :=
+  hdr_putS_head' hW hi r K (by rcases hK with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp)
 
 /-! ## The overlap test -/
 
@@ -229,7 +234,9 @@ theorem unblock_loop_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.S
           simp [toRefill, Fl4Spec.mergeRefill, core.num.U64.wrapping_add_bv_eq]
         have : xk1 = { xk with scRefills := (L.refills s2 sc).map toRefill } := by rw [e]
         rw [this]; exact hr
-      have hS2 := hSk.sc_update hsc hk hwr hm2 xk1 hx1
+      have hS2 := hSk.sc_update hsc hk hwr hm2 (by
+        rw [s2_post, s1_post]; exact (hdr_putS_head' hW (by rw [← s1_post, ← hm1]; exact hW1.head_lt) _ _
+          (by simp)).1) xk1 hx1
       have hC : Fl4Spec.the (Fl4Spec.refillHeadOverlapping (Z := Unit) sc.bv σk) = true :=
         (overlap_iff hW hk hx.refills).2 hov
       have hB := merge_eq hk hne'
@@ -331,7 +338,8 @@ theorem unblock_check_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.
         have : x1 = { x with scRefills := (L.refills s1 sc).map toRefill } := by rw [e]
         rw [this]; exact hr
       have hwr1 : WritesIn st s s1 (ScIn st s sc) := by rw [s1_post]; exact writesIn_putS hW hW.head_lt r
-      have hS1 := hS.sc_update hsc hk hwr1 hm1 x1 hx1
+      have hS1 := hS.sc_update hsc hk hwr1 hm1 (by
+        rw [s1_post]; exact (hdr_putS_head' hW (v := 0#u64) hW.head_lt _ _ (by simp)).2) x1 hx1
       -- s2: `REPROGRAM`
       have hc1 := hS1.lists.choose_spec.choose_spec.1.cur
       have hcpu : cpu = c := by rw [cpu_post]; exact hc1

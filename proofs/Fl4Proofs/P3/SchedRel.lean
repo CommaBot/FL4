@@ -116,6 +116,8 @@ structure SchedRel (N T C : Set U64) (c : U64) (s : S) (σ : Fl4Spec.State Unit)
   act : ActRel (nodeW st s c layout.node.SCHED_ACTION) σ.schedulerAction
   /-- `reprogram_timer` ↔ the `REPROGRAM` word is nonzero. -/
   repr : σ.reprogramTimer = decide (nodeW st s c layout.node.REPROGRAM ≠ 0#u64)
+  /-- Every SC of `C` is on core `c` (its `CORE` word). -/
+  core : ∀ sc ∈ C, L.mem s (scW sc 16#u64) = c
   lists : ∃ Q R, SchedCore st T c s Q R ∧ SchedSpec st T C c s Q R σ
 
 end Defs
@@ -300,6 +302,14 @@ theorem SchedSpec.rmax_eq {T C : Set U64} {c : U64} {s s' : S} {Q : U64 → List
   simp only [LawfulStore.rmax, maxA_eq]
   exact ha sc hsc _ (e.hdr (by simp) (by simp)).1 (e.hdr (by simp) (by simp)).2
 
+/-- The `CORE` words of the SCs of `C` under agreement. -/
+theorem SchedSpec.core_eq {T C : Set U64} {c : U64} {s s' : S} {Q : U64 → List U64} {R : List U64}
+    {σ : Fl4Spec.State Unit} (h : SchedSpec st T C c s Q R σ) (ha : ∀ sc ∈ C, ScAgree st s s' sc)
+    (hc : ∀ sc ∈ C, L.mem s (scW sc 16#u64) = c) : ∀ sc ∈ C, L.mem s' (scW sc 16#u64) = c := by
+  intro sc hsc
+  obtain ⟨x, n, -, e⟩ := h.scs sc hsc
+  rw [ha sc hsc _ (e.hdr (by simp) (by simp)).1 (e.hdr (by simp) (by simp)).2]; exact hc sc hsc
+
 theorem scOut_transfer {N T C : Set U64} {c : U64} {s s' : S} (hk : L.ksb s' = L.ksb s)
     (hm : ∀ sc ∈ C, L.rmax s' sc = L.rmax s sc)
     (h : ∀ sc ∈ C, ∀ a : U64, ScIn st s sc a → ¬ NWrite N T a ∧
@@ -405,7 +415,7 @@ theorem SchedRel.stable {N T C : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spec
   refine ⟨hS.placed, fun o ho => by rw [nodeAt_ksb ha.ksb]; exact hS.nodeNW o ho,
     by rw [curDomA_ksb ha.ksb]; exact hS.domNW, scOut_transfer ha.ksb hm hS.scOut,
     scDisj_transfer hm hS.scDisj, by rw [hact]; exact hS.actW,
-    by rw [hact, e4]; exact hS.act, ?_, Q, R, hc.agree ha.toC, ?_⟩
+    by rw [hact, e4]; exact hS.act, ?_, hs.core_eq ha.sc hS.core, Q, R, hc.agree ha.toC, ?_⟩
   · have hrp : nodeW st s' c layout.node.REPROGRAM = nodeW st s c layout.node.REPROGRAM := by
       unfold Fl4Proofs.P3.Sched.nodeW; rw [nodeAt_ksb hw.1]
       exact hw.mem_eq (nodeAt_aligned hc.node (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM]))
