@@ -125,9 +125,9 @@ def TailRef (N T : Set U64) (SR : S → Fl4Spec.State Unit → Prop) {α : Type}
 /-- The receive-side hypotheses on the other subsystems. -/
 structure RecvHyps (N T : Set U64) (SR : S → Fl4Spec.State Unit → Prop) : Prop where
   recvTail : ∀ s (a : A) σ (t n : U64), NtfnStateRel N T (L.mem s) σ → SR s σ → t ∈ T → n ∈ N →
-    TailRef st N T SR Prod.fst s σ (rustRecvTail st ar s a t n) (specRecvTail t.bv n.bv)
+    NotQueued σ t.bv → (∀ x, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true) → TailRef st N T SR Prod.fst s σ (rustRecvTail st ar s a t n) (specRecvTail t.bv n.bv)
   completeTail : ∀ s (a : A) σ (t n : U64), NtfnStateRel N T (L.mem s) σ → SR s σ → t ∈ T → n ∈ N →
-    TailRef st N T SR Prod.fst s σ (rustCompleteTail st ar s a t n) (specCompleteTail t.bv n.bv)
+    NotQueued σ t.bv → (∀ x, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true) → TailRef st N T SR Prod.fst s σ (rustCompleteTail st ar s a t n) (specCompleteTail t.bv n.bv)
   returnSc : ∀ s σ0 σ (t n : U64), NtfnStateRel N T (L.mem s) σ → SR s σ → t ∈ T → n ∈ N →
     ActReady σ0 → BlockStep σ0 σ t.bv n.bv →
     TailRef st N T SR id s σ (notification.maybe_return_sched_context st s n t) (Fl4Spec.maybeReturnSc n.bv t.bv)
@@ -327,7 +327,8 @@ theorem receive_signal_active (hH : SchedHyps st ar N T SR) (hV : RecvHyps st ar
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hR : NtfnStateRel N T (L.mem s) σ) (hSR : SR s σ)
     {t : U64} (ht : t ∈ T) {n : U64} (hn : n ∈ N) {x : Fl4Spec.Notification}
     (hk : σ.kheap n.bv = some (.notification x)) {b0 : Fl4Spec.Badge} (hact : x.ntfnObj = .activeNtfn b0)
-    (blk : Bool) (cb : Fl4Spec.Badge) (cr : Fl4Spec.CapRights) :
+    (blk : Bool) (cb : Fl4Spec.Badge) (cr : Fl4Spec.CapRights) (hNQ : NotQueued σ t.bv)
+    (hRun : ∀ x, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true) :
     notification.receive_signal st ar s a t n blk ⦃ r =>
       ¬ (Fl4Spec.receiveSignal t.bv (.notificationCap n.bv cb cr) blk σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.receiveSignal t.bv (.notificationCap n.bv cb cr) blk σ).1 ∧
@@ -342,7 +343,15 @@ theorem receive_signal_active (hH : SchedHyps st ar N T SR) (hV : RecvHyps st ar
     simp only [hact]
     rw [nd_bind_one e1, nd_bind_one e2]
   rw [hspec]
-  have hSR2 := hH.stable _ _ _ _ hSR hW hS
+  have hnt : n.bv ≠ t.bv := by intro e; rw [e, hkt] at hk; cases hk
+  have hSR2 := hH.stable _ _ _ _ hSR hW hS (NoBlock.recvPrefix hkt hnt _ _ _)
+  have hNQ2 := hNQ
+  have hRun2 : ∀ z, (updK (updK σ t.bv (.tcb (setReg xt Fl4Spec.badge_register b0))) n.bv
+      (.notification (Fl4Spec.ntfnObjUpdate (fun _ => .idleNtfn) x))).kheap t.bv = some (.tcb z) →
+      Fl4Spec.runnable z.tcbState = true := by
+    intro y hy
+    simp only [updK_kheap, Function.update_apply, Ne.symm hnt, ↓reduceIte] at hy
+    cases hy; exact hRun xt hkt
   have hsa : stOf (L.mem s) n = obj.NTFN_ACTIVE := stOf_active hx.obj hact
   unfold notification.receive_signal
   step
@@ -356,7 +365,7 @@ theorem receive_signal_active (hH : SchedHyps st ar N T SR) (hV : RecvHyps st ar
   step
   step
   subst_vars
-  refine WP.spec_mono (hV.recvTail _ a _ t n hR2 hSR2 ht hn) ?_
+  refine WP.spec_mono (hV.recvTail _ a _ t n hR2 hSR2 ht hn hNQ2 hRun2) ?_
   rintro r ⟨hnf, σ', hm, hf, hv, hS'⟩
   exact ⟨hnf, σ', hm, hR2.frame hP hf hv, hS'⟩
 
@@ -366,7 +375,8 @@ tail. -/
 theorem complete_signal_active (hH : SchedHyps st ar N T SR) (hV : RecvHyps st ar N T SR) (hP : NPlaced T N)
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hR : NtfnStateRel N T (L.mem s) σ) (hSR : SR s σ)
     {t : U64} (ht : t ∈ T) {n : U64} (hn : n ∈ N) {x : Fl4Spec.Notification}
-    (hk : σ.kheap n.bv = some (.notification x)) {b0 : Fl4Spec.Badge} (hact : x.ntfnObj = .activeNtfn b0) :
+    (hk : σ.kheap n.bv = some (.notification x)) {b0 : Fl4Spec.Badge} (hact : x.ntfnObj = .activeNtfn b0)
+    (hNQ : NotQueued σ t.bv) (hRun : ∀ x, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true) :
     notification.complete_signal st ar s a n t ⦃ r =>
       ¬ (Fl4Spec.completeSignal n.bv t.bv σ).2 ∧ ∃ σ', ((), σ') ∈ (Fl4Spec.completeSignal n.bv t.bv σ).1 ∧
         NtfnStateRel N T (L.mem r.1) σ' ∧ SR r.1 σ' ⦄ := by
@@ -382,7 +392,15 @@ theorem complete_signal_active (hH : SchedHyps st ar N T SR) (hV : RecvHyps st a
     rw [nd_bind_one e1, nd_bind_one e2]
     rfl
   rw [hspec]
-  have hSR2 := hH.stable _ _ _ _ hSR hW hS
+  have hnt : n.bv ≠ t.bv := by intro e; rw [e, hkt] at hk; cases hk
+  have hSR2 := hH.stable _ _ _ _ hSR hW hS (NoBlock.recvPrefix hkt hnt _ _ _)
+  have hNQ2 := hNQ
+  have hRun2 : ∀ z, (updK (updK σ t.bv (.tcb (setReg xt Fl4Spec.badge_register b0))) n.bv
+      (.notification (Fl4Spec.ntfnObjUpdate (fun _ => .idleNtfn) x))).kheap t.bv = some (.tcb z) →
+      Fl4Spec.runnable z.tcbState = true := by
+    intro y hy
+    simp only [updK_kheap, Function.update_apply, Ne.symm hnt, ↓reduceIte] at hy
+    cases hy; exact hRun xt hkt
   have hsa : stOf (L.mem s) n = obj.NTFN_ACTIVE := stOf_active hx.obj hact
   have ht0 : t ≠ 0#u64 := fun e => (hP.tcb t ht).ne0 (by rw [e]; rfl)
   unfold notification.complete_signal
@@ -395,7 +413,7 @@ theorem complete_signal_active (hH : SchedHyps st ar N T SR) (hV : RecvHyps st a
   step
   step
   subst_vars
-  refine WP.spec_mono (hV.completeTail _ a _ t n hR2 hSR2 ht hn) ?_
+  refine WP.spec_mono (hV.completeTail _ a _ t n hR2 hSR2 ht hn hNQ2 hRun2) ?_
   rintro r ⟨hnf, σ', hm, hf, hv, hS'⟩
   exact ⟨hnf, σ', hm, hR2.frame hP hf hv, hS'⟩
 

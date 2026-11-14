@@ -139,10 +139,24 @@ theorem send_signal_waiting (hH : SchedHyps st ar N T SR) (hP : NPlaced T N) (s 
   rintro s1 ⟨h1, h2, h3⟩
   obtain ⟨hR1, hq1⟩ := rel_after_dequeue hR hn hk hw hQ hB hd h1 h2 h3 hst
   have hSR1 := hH.stable _ _ _ _ hSR h3.foot (NtfnStep.ntfn (y := afterDequeue x d) hk rfl rfl)
+    (NoBlock.ntfnUpd _ _ _)
   have hk1 : σ1.kheap d.bv = some (.tcb xd) := by
     have : d.bv ≠ n.bv := by intro e; rw [e, hk] at hkd; cases hkd
     simp [σ1, this, hkd]
-  exact wake_refines hH hP s1 a σ1 hR1 hSR1 hdT hn hk1 hq1 badge
+  have hcls : inClass xd.tcbState ∨ RelIfBound σ1 d.bv := by
+    left; right
+    have h6 := (hB d hd).1
+    have := (hR.at_tcb hdT hkd).st
+    rw [h6] at this
+    exact tsCode_six' this.symm
+  have hnr : Fl4Spec.runnable xd.tcbState = false := by
+    obtain ⟨m, hm⟩ : ∃ m, xd.tcbState = .blockedOnNotification m := by
+      have h6 := (hB d hd).1
+      have := (hR.at_tcb hdT hkd).st
+      rw [h6] at this
+      exact tsCode_six' this.symm
+    rw [hm]; rfl
+  exact wake_refines hH hP s1 a σ1 hR1 hSR1 hdT hn hk1 hq1 badge hcls hnr
 
 /-- **Idle, bound TCB blocked on a receive**: its IPC is cancelled, then it
 is woken with the badge. -/
@@ -175,7 +189,7 @@ theorem send_signal_idle_bound_recv (hH : SchedHyps st ar N T SR) (hP : NPlaced 
   step
   simp only [i1_post, hs3, ↓reduceIte]
   refine WP.spec_bind (hH.cancelIpc s a σ _ tcb hR hSR hiT hkt hrb) ?_
-  rintro ⟨s1, a1⟩ ⟨σ1, x1, hc, hR1, hSR1, hk1, hin⟩
+  rintro ⟨s1, a1⟩ ⟨σ1, x1, hc, hR1, hSR1, hk1, hin, hrb1⟩
   have hspec : Fl4Spec.sendSignal n.bv badge.bv σ = specWake (L.mem s (nBoundA n)).bv n.bv badge.bv σ1 := by
     unfold Fl4Spec.sendSignal
     rw [nd_bind_one (getNotification_eq hk)]
@@ -192,7 +206,7 @@ theorem send_signal_idle_bound_recv (hH : SchedHyps st ar N T SR) (hP : NPlaced 
     have := (hR1.at_tcb hiT hk1).st
     rw [hin, h6] at this
     cases this
-  exact wake_refines hH hP s1 a1 σ1 hR1 hSR1 hiT hn hk1 hq1 badge
+  exact wake_refines hH hP s1 a1 σ1 hR1 hSR1 hiT hn hk1 hq1 badge (Or.inr hrb1) (by rw [hin]; rfl)
 
 end
 

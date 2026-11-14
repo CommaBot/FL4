@@ -79,6 +79,32 @@ def specWake (t n : ObjRef) (badge : Badge) : SMonad Unit Unit := do
   asUser t <| setRegister badge_register badge
   specWakeTail t n
 
+/-- A scheduling context whose head refill is ready and sufficient (l4v
+`released_sc`). -/
+def released (σ : State Unit) (y : SchedContext) : Prop :=
+  refillReady σ.curTime (refillHd y) = true ∧ refillSufficient 0 (refillHd y) = true
+
+/-- The thread states whose bound SC is kept released (l4v `valid_ready_qs`,
+`valid_sched_action`, `released_ipc_queues`, restricted to notifications). -/
+def inClass (ts : ThreadState) : Prop := runnable ts = true ∨ ∃ n, ts = .blockedOnNotification n
+
+/-- The TCB at `p` has a released SC if bound to an active one and not in
+the release queue. -/
+def RelIfBound (σ : State Unit) (p : ObjRef) : Prop :=
+  ∀ x scp y n, σ.kheap p = some (.tcb x) → x.tcbSchedContext = some scp →
+    σ.kheap scp = some (.schedContext y n) → scActive y = true → p ∉ σ.releaseQueue → released σ y
+
+/-- A notification step that blocks no thread: a TCB's state is unchanged or
+becomes runnable, from a state of `inClass` or with a released SC. -/
+def NoBlock (σ σ' : State Unit) : Prop :=
+  ∀ p x y, σ.kheap p = some (.tcb x) → σ'.kheap p = some (.tcb y) →
+    y.tcbState = x.tcbState ∨ (runnable y.tcbState = true ∧ (inClass x.tcbState ∨ RelIfBound σ p))
+
+/-- The thread is in no ready queue and not in the release queue (l4v
+`not_queued`, `not_in_release_q`). -/
+def NotQueued (σ : State Unit) (t : ObjRef) : Prop :=
+  (∀ d p, t ∉ σ.readyQueues d p) ∧ t ∉ σ.releaseQueue
+
 end SpecDefs
 
 /-! ## The hypotheses -/
@@ -89,17 +115,25 @@ variable {S A : Type} (st : machine.Store S) (ar : machine.Arch A) [L : LawfulSt
 /-- What the notification proofs assume of the other subsystems' relation
 `SR` (see the module docstring). -/
 structure SchedHyps (N T : Set U64) (SR : S → Fl4Spec.State Unit → Prop) : Prop where
-  stable : ∀ s s' σ σ', SR s σ → WritesIn st s s' (NWrite N T) → NtfnStep σ σ' → SR s' σ'
+  stable : ∀ s s' σ σ', SR s σ → WritesIn st s s' (NWrite N T) → NtfnStep σ σ' → NoBlock σ σ' → SR s' σ'
+  /-- A thread that is not runnable is in no queue (l4v `valid_ready_qs`, `valid_release_q`). -/
+  notQueued : ∀ s σ (t : U64) (x : Fl4Spec.Tcb), SR s σ → σ.kheap t.bv = some (.tcb x) →
+    Fl4Spec.runnable x.tcbState = false → NotQueued σ t.bv
+  /-- Blocking a thread in no queue: only its TCB's state changes. -/
+  block : ∀ s s' σ σ' (t : U64), SR s σ → NotQueued σ t.bv → RelIfBound σ t.bv → WritesIn st s s' (NWrite N T) → NtfnStep σ σ' →
+    (∀ p x y, σ.kheap p = some (.tcb x) → σ'.kheap p = some (.tcb y) → p ≠ t.bv → y.tcbState = x.tcbState) →
+    SR s' σ'
   scheduleTcb : ∀ s σ (t : U64), NtfnStateRel N T (L.mem s) σ → SR s σ → t ∈ T →
     sched.schedule_tcb st s t ⦃ s' => FootEq N T (L.mem s) (L.mem s') ∧ SR s' (stsAct σ t.bv) ⦄
   wakeTail : ∀ s (a : A) σ (t n : U64) (x : Fl4Spec.Tcb), NtfnStateRel N T (L.mem s) σ → SR s σ → t ∈ T →
-    n ∈ N → σ.kheap t.bv = some (.tcb x) → x.tcbState = .running →
+    n ∈ N → σ.kheap t.bv = some (.tcb x) → x.tcbState = .running → NotQueued σ t.bv →
     rustWakeTail st ar s a t n ⦃ r => ¬ (specWakeTail t.bv n.bv σ).2 ∧ ∃ σ', ((), σ') ∈ (specWakeTail t.bv n.bv σ).1 ∧
       FootEq N T (L.mem s) (L.mem r.1) ∧ KView σ σ' ∧ SR r.1 σ' ⦄
   cancelIpc : ∀ s (a : A) σ (t : U64) (x : Fl4Spec.Tcb), NtfnStateRel N T (L.mem s) σ → SR s σ → t ∈ T →
     σ.kheap t.bv = some (.tcb x) → Fl4Spec.receiveBlocked x.tcbState = true →
     ipc.cancel_ipc st ar s a t ⦃ r => ∃ σ' x', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
-      NtfnStateRel N T (L.mem r.1) σ' ∧ SR r.1 σ' ∧ σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = .inactive ⦄
+      NtfnStateRel N T (L.mem r.1) σ' ∧ SR r.1 σ' ∧ σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = .inactive ∧
+      RelIfBound σ' t.bv ⦄
 
 end Hyps
 
@@ -153,6 +187,40 @@ theorem badgeOf_setReg (x : Tcb) (v : Word) : badgeOf (setReg x badge_register v
   simp [badgeOf, setReg, setRegUc, archTcbContextSet, archTcbContextGet]
 
 theorem setReg_state (x : Tcb) (r : Register) (v : Word) : (setReg x r v).tcbState = x.tcbState := rfl
+
+theorem NoBlock.of {σ σ' : State Unit}
+    (h : ∀ p x y, σ.kheap p = some (.tcb x) → σ'.kheap p = some (.tcb y) → y.tcbState = x.tcbState) :
+    NoBlock σ σ' := fun p x y h1 h2 => Or.inl (h p x y h1 h2)
+
+theorem NoBlock.ntfnUpd (σ : State Unit) (p : ObjRef) (y : Notification) :
+    NoBlock σ { σ with kheap := Function.update σ.kheap p (some (.notification y)) } := by
+  refine NoBlock.of fun q x z h1 h2 => ?_
+  by_cases e : q = p
+  · subst e; simp at h2
+  · simp only [Function.update_apply, e, ↓reduceIte] at h2; rw [h1] at h2; cases h2; rfl
+
+theorem NoBlock.tcbUpd {σ : State Unit} {p : ObjRef} {x : Tcb} (hk : σ.kheap p = some (.tcb x))
+    (ts : ThreadState) (a : ArchTcb)
+    (h : ts = x.tcbState ∨ (runnable ts = true ∧ (inClass x.tcbState ∨ RelIfBound σ p))) :
+    NoBlock σ { σ with kheap := Function.update σ.kheap p (some (.tcb { x with tcbState := ts, tcbArch := a })) } := by
+  intro q x' z h1 h2
+  by_cases e : q = p
+  · subst e; rw [hk] at h1; cases h1; simp at h2; subst h2; exact h
+  · simp only [Function.update_apply, e, ↓reduceIte] at h2; rw [h1] at h2; cases h2; exact Or.inl rfl
+
+theorem NoBlock.recvPrefix {σ : State Unit} {t n : ObjRef} {xt : Tcb} (hkt : σ.kheap t = some (.tcb xt))
+    (hnt : n ≠ t) (r : Register) (v : Word) (y : Notification) :
+    NoBlock σ (updK (updK σ t (.tcb (setReg xt r v))) n (.notification y)) := by
+  refine NoBlock.of fun q x z h1 h2 => ?_
+  simp only [updK_kheap, Function.update_apply] at h2
+  by_cases e : q = n
+  · simp [e] at h2
+  · by_cases e2 : q = t
+    · subst e2; rw [hkt] at h1; cases h1; simp only [e, ↓reduceIte] at h2; cases h2; rfl
+    · simp only [e, e2, ↓reduceIte] at h2; rw [h1] at h2; cases h2; rfl
+
+theorem tsCode_six' {ts : ThreadState} (h : tsCode ts = 6) : ∃ m, ts = .blockedOnNotification m := by
+  cases ts <;> simp [tsCode] at h ⊢
 theorem setReg_prio (x : Tcb) (r : Register) (v : Word) : (setReg x r v).tcbPriority = x.tcbPriority := rfl
 
 end Spec
@@ -168,7 +236,8 @@ related, and `SR` kept. -/
 theorem set_thread_state_running (hH : SchedHyps st ar N T SR) (hP : NPlaced T N) (s : S)
     (σ : Fl4Spec.State Unit) (hR : NtfnStateRel N T (L.mem s) σ) (hSR : SR s σ) {t : U64} (ht : t ∈ T)
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x))
-    (hq : ∀ n ∈ N, ∀ z, σ.kheap n.bv = some (.notification z) → t.bv ∉ z.ntfnObj.ntfnQueue) :
+    (hq : ∀ n ∈ N, ∀ z, σ.kheap n.bv = some (.notification z) → t.bv ∉ z.ntfnObj.ntfnQueue)
+    (hcls : inClass x.tcbState ∨ RelIfBound σ t.bv) :
     sched.set_thread_state st s t sched.TS_RUNNING ⦃ s' =>
       NtfnStateRel N T (L.mem s') (stsAct (updK σ t.bv (.tcb { x with tcbState := .running })) t.bv) ∧
       SR s' (stsAct (updK σ t.bv (.tcb { x with tcbState := .running })) t.bv) ⦄ := by
@@ -188,6 +257,7 @@ theorem set_thread_state_running (hH : SchedHyps st ar N T SR) (hP : NPlaced T N
     · show (L.mem _ (prioA t)).val = x.tcbPriority.toNat
       rw [prioA_eq', hoth _ (by simp) (by simp) (by simp), ← prioA_eq']; exact hx.prio
   have hSR1 := hH.stable _ _ _ _ hSR hw.foot (NtfnStep.tcb hk .running x.tcbArch)
+    (NoBlock.tcbUpd hk _ _ (Or.inr ⟨rfl, hcls⟩))
   refine WP.spec_mono (hH.scheduleTcb _ _ t hR1 hSR1 ht) ?_
   rintro s2 ⟨hf, hS⟩
   exact ⟨hR1.frame hP hf (KView.stsAct _ _), hS⟩
@@ -196,7 +266,8 @@ theorem set_thread_state_running (hH : SchedHyps st ar N T SR) (hP : NPlaced T N
 theorem wake_refines (hH : SchedHyps st ar N T SR) (hP : NPlaced T N) (s : S) (a : A)
     (σ : Fl4Spec.State Unit) (hR : NtfnStateRel N T (L.mem s) σ) (hSR : SR s σ) {t n : U64} (ht : t ∈ T)
     (hn : n ∈ N) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x))
-    (hq : ∀ n ∈ N, ∀ z, σ.kheap n.bv = some (.notification z) → t.bv ∉ z.ntfnObj.ntfnQueue) (badge : U64) :
+    (hq : ∀ n ∈ N, ∀ z, σ.kheap n.bv = some (.notification z) → t.bv ∉ z.ntfnObj.ntfnQueue) (badge : U64)
+    (hcls : inClass x.tcbState ∨ RelIfBound σ t.bv) (hnr : Fl4Spec.runnable x.tcbState = false) :
     rustWake st ar s a t n badge ⦃ r => ¬ (specWake t.bv n.bv badge.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (specWake t.bv n.bv badge.bv σ).1 ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ SR r.1 σ' ⦄ := by
   set x1 : Fl4Spec.Tcb := { x with tcbState := .running }
@@ -208,7 +279,7 @@ theorem wake_refines (hH : SchedHyps st ar N T SR) (hP : NPlaced T N) (s : S) (a
     rw [nd_bind_one (setThreadState_eq _ hk), nd_bind_one (asUser_setRegister_eq _ _ hk2)]
   rw [hspec]
   unfold rustWake
-  refine WP.spec_bind (set_thread_state_running hH hP s σ hR hSR ht hk hq) ?_
+  refine WP.spec_bind (set_thread_state_running hH hP s σ hR hSR ht hk hq hcls) ?_
   rintro s2 ⟨hR2, hSR2⟩
   step
   subst s3_post
@@ -228,9 +299,17 @@ theorem wake_refines (hH : SchedHyps st ar N T SR) (hP : NPlaced T N) (s : S) (a
       rw [setReg_prio, prioA_eq', hoth _ (by simp) (by simp) (by simp), ← prioA_eq']; exact hx1.prio
   have hSR3 := hH.stable _ _ _ _ hSR2 hw.foot (by
     have := NtfnStep.tcb hk2 x1.tcbState (setReg x1 Fl4Spec.badge_register badge.bv).tcbArch
-    exact this)
+    exact this) (NoBlock.tcbUpd hk2 _ _ (Or.inl rfl))
   have hk3 : σ3.kheap t.bv = some (.tcb (setReg x1 Fl4Spec.badge_register badge.bv)) := by simp [σ3]
-  refine WP.spec_mono (hH.wakeTail _ a σ3 t n _ hR3 hSR3 ht hn hk3 rfl) ?_
+  have hNQ : NotQueued σ3 t.bv := by
+    have h0 := hH.notQueued s σ t x hSR hk hnr
+    have e1 : σ2.readyQueues = σ.readyQueues := by
+      show (stsAct _ _).readyQueues = _; unfold stsAct; split_ifs <;> rfl
+    have e2 : σ2.releaseQueue = σ.releaseQueue := by
+      show (stsAct _ _).releaseQueue = _; unfold stsAct; split_ifs <;> rfl
+    exact ⟨fun d p => by show t.bv ∉ σ2.readyQueues d p; rw [e1]; exact h0.1 d p,
+      by show t.bv ∉ σ2.releaseQueue; rw [e2]; exact h0.2⟩
+  refine WP.spec_mono (hH.wakeTail _ a σ3 t n _ hR3 hSR3 ht hn hk3 rfl hNQ) ?_
   rintro r ⟨hnf, σ', hmem, hf, hv, hS⟩
   exact ⟨hnf, σ', hmem, hR3.frame hP hf hv, hS⟩
 

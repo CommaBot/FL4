@@ -19,5 +19,11 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
   `WakeHyps` from state facts (`DonatePre`).
 * ScRing, ScBudgetSpec, ScBudget, ScBudgetTop: `refill_budget_check`
   (`loop0_refines`, `loop1_refines`, `budget_check_refines`).
+* ScInv, ScInvQ, ScInvU, ScInvD, ScInvD2, ScInvR: the scheduler invariant
+  `Inv` (fragments of l4v `valid_sched`, `valid_refills`, `heap_refs_inv`)
+  and its preservation by the refined operations.
+* ScInvSR: `SchedHyps` and `RecvHyps` for `SRI` (`SchedRel` ∧ `Inv` ∧ `NSC`).
+* ScInvB: `budget_check`'s refill facts from `Inv`, and `Inv` after it.
 -/
 import Fl4Proofs.P3.ScBudgetTop
+import Fl4Proofs.P3.ScInvB

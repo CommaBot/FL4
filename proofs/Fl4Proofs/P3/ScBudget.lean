@@ -24,6 +24,10 @@ def lsum (rs : List sporadic.Refill) : Nat := (rs.map fun r => r.amount.val).sum
 /-- All amounts are positive. -/
 def Pos (rs : List sporadic.Refill) : Prop := ∀ r ∈ rs, 0 < r.amount.val
 
+theorem lsum_eq_map (rs : List sporadic.Refill) :
+    lsum rs = ((rs.map toRefill).map fun r => r.rAmount.toNat).sum := by
+  simp [lsum, toRefill, Function.comp]; rfl
+
 theorem lsum_append (a b : List sporadic.Refill) : lsum (a ++ b) = lsum a + lsum b := by
   simp [lsum]
 
@@ -310,6 +314,9 @@ theorem loop1_refines {s0 s1 : S} {σ0 : Fl4Spec.State Unit} {sc : U64} {x : Fl4
     (mb : U64) (hmb : mb.bv = Fl4Spec.MIN_BUDGET) (hmin : mb.val ≤ lsum (L.refills s1 sc))
     (fuel2 : U64) (hf : (L.refills s1 sc).length ≤ fuel2.val) :
     sporadic.budget_check_loop1 st s1 sc mb fuel2 ⦃ s2 => RingAt st s0 s2 sc n ∧
+      Pos (LawfulStore.refills (st := st) s2 sc) ∧
+      lsum (LawfulStore.refills (st := st) s2 sc) = lsum (L.refills s1 sc) ∧
+      ¬ ((LawfulStore.refills (st := st) s2 sc).headD zR).amount < mb ∧
       Fl4Spec.headInsufficientLoop (Z := Unit) sc.bv (specAt (st := st) σ0 sc x n s1) =
         ({((), specAt (st := st) σ0 sc x n s2)}, False) ⦄ := by
   have hkk : ∀ s : S, (specAt (st := st) σ0 sc x n s).kheap sc.bv =
@@ -331,9 +338,10 @@ theorem loop1_refines {s0 s1 : S} {σ0 : Fl4Spec.State Unit} {sc : U64} {x : Fl4
         hd.amount < mb := by
       rw [refillHeadInsufficient_eq (hkk x0) hne', refillHd_map rfl hne, the_some, decide_eq_true_iff, ← hhd]
       simp only [toRefill, ← hmb, ← u64_lt_bv]
-    have fin : ¬ hd.amount < mb → RingAt st s0 x0 sc n ∧
+    have fin : ¬ hd.amount < mb → RingAt st s0 x0 sc n ∧ Pos (L.refills x0 sc) ∧
+        lsum (L.refills x0 sc) = lsum (L.refills s1 sc) ∧ ¬ ((L.refills x0 sc).headD zR).amount < mb ∧
         Fl4Spec.headInsufficientLoop (Z := Unit) sc.bv (specAt (st := st) σ0 sc x n s1) =
-          ({((), specAt (st := st) σ0 sc x n x0)}, False) := fun hnc => ⟨hR, by
+          ({((), specAt (st := st) σ0 sc x n x0)}, False) := fun hnc => ⟨hR, hP, hS, by rw [← hhd]; exact hnc, by
       rw [hsp]; unfold Fl4Spec.headInsufficientLoop
       exact wl_done (C := fun _ s => Fl4Spec.the (Fl4Spec.refillHeadInsufficient (Z := Unit) sc.bv s) = true)
         (B := fun _ => Fl4Spec.mergeNonoverlappingHeadRefill sc.bv) (fun h => hnc (hC.1 h))⟩

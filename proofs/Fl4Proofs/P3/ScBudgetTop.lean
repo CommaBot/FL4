@@ -78,6 +78,15 @@ theorem postBody_eq {σ : Fl4Spec.State Unit} {p : Fl4Spec.ObjRef} {y : Fl4Spec.
     (by simp [hx, hh, toRefill, Fl4Spec.the, core.num.U64.wrapping_add_bv_eq, core.num.U64.wrapping_sub_bv_eq])
     (by simp), updSc_updSc]
 
+/-- What `refill_budget_check` leaves: the SC at `p` with new refills,
+non-empty, positive, summing below `2 ^ 64`, the head holding at least
+`MIN_BUDGET`. -/
+def BudgetPost (σ σ' : Fl4Spec.State Unit) (p : Fl4Spec.ObjRef) : Prop :=
+  ∀ y m, σ.kheap p = some (.schedContext y m) → ∃ y', σ' = updSc σ p y' m ∧
+    y' = { y with scRefills := y'.scRefills } ∧ y'.scRefills ≠ [] ∧
+    (∀ r ∈ y'.scRefills, 0 < r.rAmount.toNat) ∧ (y'.scRefills.map fun r => r.rAmount.toNat).sum < 2 ^ 64 ∧
+    Fl4Spec.MIN_BUDGET ≤ (Fl4Spec.refillHd y').rAmount
+
 section
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
 
@@ -91,7 +100,8 @@ theorem budget_check_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
     (hsum : lsum (L.refills s (nodeW st s c layout.node.CUR_SC)) < 2 ^ 64)
     (hmin : Fl4Spec.MIN_BUDGET.toNat ≤ lsum (L.refills s (nodeW st s c layout.node.CUR_SC))) (usage : U64) :
     sporadic.budget_check st ar s a usage ⦃ s' => ∃ σ', Fl4Spec.refillBudgetCheck (Z := Unit) usage.bv σ =
-      ({((), σ')}, False) ∧ FootEq N T (L.mem s) (L.mem s') ∧ KView σ σ' ∧ SchedRel st N T C c s' σ' ⦄ := by
+      ({((), σ')}, False) ∧ FootEq N T (L.mem s) (L.mem s') ∧ KView σ σ' ∧ SchedRel st N T C c s' σ' ∧
+      BudgetPost σ σ' (nodeW st s c layout.node.CUR_SC).bv ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   set sc := nodeW st s c layout.node.CUR_SC with hscdef
   obtain ⟨x, n, hk, hx⟩ := hs.scs sc hcC
@@ -195,9 +205,23 @@ theorem budget_check_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
     have hmbv : mb.val = Fl4Spec.MIN_BUDGET.toNat := by rw [← hmb']; rfl
     refine WP.spec_mono (loop1_refines (σ0 := σ) (x := x) hR2 hP2 (by rw [hS2]; exact hsum) mb hmb' (by rw [hS2, hmbv]; exact hmin)
       fuel2 hf2) ?_
-    rintro s3 ⟨hR3, hl⟩
+    rintro s3 ⟨hR3, hp3, hs3, hm3, hl⟩
     obtain ⟨hS3, hf3, hv3⟩ := hS.ringAt hcC hk hR3
-    exact ⟨_, by rw [hspec, nd_bind_one hov, ht2, hl], hf3, hv3, hS3⟩
+    refine ⟨_, by rw [hspec, nd_bind_one hov, ht2, hl], hf3, hv3, hS3, fun y m hy => ?_⟩
+    rw [hk] at hy; cases hy
+    have hne3 := refills_ne' hR3.wf
+    refine ⟨_, rfl, rfl, by simpa using hne3, fun r hr => ?_, ?_, ?_⟩
+    · obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hr
+      simpa [toRefill] using hp3 q hq
+    · rw [← lsum_eq_map, hs3, hS2]; exact hsum
+    · obtain ⟨q, l, e⟩ := List.exists_cons_of_ne_nil hne3
+      have hh : Fl4Spec.refillHd { x with scRefills := (L.refills s3 sc).map toRefill } = toRefill q := by
+        unfold Fl4Spec.refillHd; simp [e]; rfl
+      rw [hh, ← hmb']
+      rw [e] at hm3; simp only [List.headD_cons] at hm3
+      rw [u64_lt_bv] at hm3
+      show mb.bv ≤ q.amount.bv
+      rw [BitVec.le_def]; rw [BitVec.lt_def] at hm3; omega
 
 end
 

@@ -101,12 +101,16 @@ theorem schedHyps {N T C : Set U64} {c : U64} (hW : WakeHyps st ar N T C c)
       t ∈ T → σ.kheap t.bv = some (.tcb x) → Fl4Spec.receiveBlocked x.tcbState = true →
       ipc.cancel_ipc st ar s a t ⦃ r => ∃ σ' x', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
         NtfnStateRel N T (L.mem r.1) σ' ∧ SchedRel st N T C c r.1 σ' ∧ σ'.kheap t.bv = some (.tcb x') ∧
-        x'.tcbState = .inactive ⦄) :
+        x'.tcbState = .inactive ∧ RelIfBound σ' t.bv ⦄)
+    (hNQ : ∀ s σ (t : U64) (x : Fl4Spec.Tcb), SchedRel st N T C c s σ → σ.kheap t.bv = some (.tcb x) →
+      Fl4Spec.runnable x.tcbState = false → NotQueued σ t.bv) :
     SchedHyps st ar N T (SchedRel st N T C c) where
-  stable := fun _ _ _ _ hS hw hn => hS.stable hw hn
+  stable := fun _ _ _ _ hS hw hn _ => hS.stable hw hn
+  block := fun _ _ _ _ _ hS _ _ hw hn _ => hS.stable hw hn
   scheduleTcb := fun s σ t hR hS ht => schedule_tcb_refines s σ hR hS t ht
-  wakeTail := fun s a σ t n x hR hS ht hn hk hx => wakeTail_of hW s a σ t n x hR hS ht hn hk hx
+  wakeTail := fun s a σ t n x hR hS ht hn hk hx _ => wakeTail_of hW s a σ t n x hR hS ht hn hk hx
   cancelIpc := hC
+  notQueued := hNQ
 
 /-- **`set_thread_state` refines `set_thread_state`** (state word, then
 `schedule_tcb` ↔ `set_thread_state_act`), for a new state that is not

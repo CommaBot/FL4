@@ -186,7 +186,8 @@ theorem receive_signal_block (hH : SchedHyps st ar N T SR) (hV : RecvHyps st ar 
     {n : U64} (hn : n ∈ N) {x : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
     (hna : ∀ b, x.ntfnObj ≠ .activeNtfn b)
     (hsort : ∀ xs, QueueRel (L.mem s) T .Ep (qOf (L.mem s) n) xs → PrioSorted (fun y => L.mem s (prioA y)) xs)
-    (cb : Fl4Spec.Badge) (cr : Fl4Spec.CapRights) (hAR : ActReady σ) :
+    (cb : Fl4Spec.Badge) (cr : Fl4Spec.CapRights) (hAR : ActReady σ) (hNQ : NotQueued σ t.bv)
+    (hRB : RelIfBound σ t.bv) :
     notification.receive_signal st ar s a t n true ⦃ r =>
       ¬ (Fl4Spec.receiveSignal t.bv (.notificationCap n.bv cb cr) true σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.receiveSignal t.bv (.notificationCap n.bv cb cr) true σ).1 ∧
@@ -234,7 +235,9 @@ theorem receive_signal_block (hH : SchedHyps st ar N T SR) (hV : RecvHyps st ar 
     · show (L.mem s2 (prioA t)).val = xt.tcbPriority.toNat
       rw [prioA_eq', hoth2 _ (by simp) (by simp) (by simp), hoth1 _ (by simp) (by simp) (by simp),
         ← prioA_eq']; exact hxt.prio
-  have hSR1 := hH.stable _ _ _ _ hSR hw.foot (NtfnStep.tcb hkt (.blockedOnNotification n.bv) xt.tcbArch)
+  have hSR1 := hH.block _ _ _ _ t hSR hNQ hRB hw.foot (NtfnStep.tcb hkt (.blockedOnNotification n.bv) xt.tcbArch)
+    (fun p x y h1 h2 hp => by
+      simp only [Function.update_apply, hp, ↓reduceIte] at h2; rw [h1] at h2; cases h2; rfl)
   set σ2 := stsAct σ1 t.bv
   have hnt : n.bv ≠ t.bv := by intro e; rw [e, hkt] at hk; cases hk
   have hk2 : σ2.kheap n.bv = some (.notification x) := by simp [σ2, σ1, stsAct_kheap, hnt, hk]
@@ -324,6 +327,7 @@ theorem receive_signal_block (hH : SchedHyps st ar N T SR) (hV : RecvHyps st ar 
     rw [hspec]
     have hSR4 := hH.stable _ _ _ _ hS3 hA3.foot
       (NtfnStep.ntfn (y := { x with ntfnObj := .waitingNtfn (ys.map UScalar.bv) }) hk2 rfl rfl)
+      (NoBlock.ntfnUpd _ _ _)
     have hb : BlockStep σ σ3 t.bv n.bv := by
       refine ⟨?_, ?_, ?_, fun p h1 h2 => ?_,
         ⟨x, { x with ntfnObj := .waitingNtfn (ys.map UScalar.bv) }, hk, by simp [σ3, updK]⟩,
