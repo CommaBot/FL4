@@ -353,11 +353,15 @@ pub fn lazy_load(t: u64) {
     }
 }
 
-/// Write `t`'s state back to its TCB if it is live on this core.
+/// Write `t`'s state back to its TCB if it is live on this core. CR0.TS
+/// goes back to what it was: from a remote call, the interrupted thread may
+/// be one that must still trap on its first FPU instruction.
 pub fn flush_local(t: u64) {
     if percpu::get().fpu_owner == t {
+        let ts = percpu::get().ts_set;
         set_ts(false);
         save(t);
+        set_ts(ts);
     }
 }
 
