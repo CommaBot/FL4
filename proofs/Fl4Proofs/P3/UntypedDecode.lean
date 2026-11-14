@@ -99,7 +99,7 @@ type `nt`, size `us`, destination CNode `dest` of radix `r`, window
 structure RetCtx (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (sl : Fl4Spec.CslotPtr)
     (sb fi : U64) (dev : Bool) (nt us dest off win : U64) (t : Fl4Spec.ApiObjectType) (r : Nat)
     (reset : Bool) (fiv : U64) : Prop where
-  ty : objTypeOf nt.val = some t ∧ nt.val ≠ 1
+  ty : objTypeOf nt.val = some t
   size : us.val < 64 ∧ zOf nt.val us.val ≤ 47 ∧ ¬ (nt.val = 4 ∧ us.val = 0) ∧ ¬ (nt.val = 0 ∧ us.val < 4) ∧
     ¬ (nt.val = 5 ∧ us.val < 7)
   cnode : th dest = some (.cnode r) ∧ r < 64 ∧ r ≠ 0
@@ -131,7 +131,7 @@ macro "fl4_break" : tactic => `(tactic| simp only [↓reduceIte, core.result.Res
   core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame,
   core.convert.FromSame.from, bind_tc_ok])
 
-theorem untyped_decode_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s : S) (ar : A)
+theorem untyped_decode_refines_with (bitsApi : Fl4Spec.ApiObjectType → Nat → Nat) {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
     (hM : MdbLinks th (L.mem s) G) (hC : CdtRel th (L.mem s) σ G) (hI : MdbInv (L.mem s) G)
@@ -140,7 +140,7 @@ theorem untyped_decode_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
-    (hntcb : ∀ x, args.head? = some x → x.val ≠ 1)
+    (hbits : ∀ (x : U64) t, args.head? = some x → objTypeOf x.val = some t → ∀ n, bitsApi t n = zOf x.val n)
     (slot : obj.Slot) (sl : Fl4Spec.CslotPtr) (hsl : slot = cslotAddr sl) (hAs : AbsSlot th sl)
     (p sb fi : U64) (dev : Bool) (hcap : capAt (L.mem s) slot = ok (.Untyped p sb fi dev))
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
@@ -148,7 +148,7 @@ theorem untyped_decode_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap
     (hfan : Fl4Spec.retypeFanOutLimit = 256#64)
     (Q : Fl4Spec.UntypedInvocation → core.result.Result Unit error.Exc × S × A → Prop)
     (hQ : ∀ (nt us dest off win : U64) (t : Fl4Spec.ApiObjectType) (r : Nat) (reset : Bool) (fiv : U64),
-      RetCtx (L := L) th s σ sl sb fi dev nt us dest off win t r reset fiv →
+      args.head? = some nt → RetCtx (L := L) th s σ sl sb fi dev nt us dest off win t r reset fiv →
       (do
         let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
         untyped.retype st arI s2 ar slot reset ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win
@@ -156,10 +156,10 @@ theorem untyped_decode_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap
         Q (.retype sl reset p.bv (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val
           (windowSlots dest r off.val win.val) dev) res ⦄) :
     untyped.decode st arI s ar lbl length slot (.Untyped p sb fi dev) buf extra ⦃ res =>
-      UPost σ (Fl4Spec.decodeUntypedInvocation slbl (args.map UScalar.bv) sl (absCap (.Untyped p sb fi dev)) excaps)
+      UPost σ (Fl4Spec.decodeUntypedInvocationWith bitsApi slbl (args.map UScalar.bv) sl (absCap (.Untyped p sb fi dev)) excaps)
         s ar Q res ⦄ := by
   rw [show absCap (.Untyped p sb fi dev) = .untypedCap dev p.bv sb.val fi.val from rfl]
-  unfold untyped.decode Fl4Spec.decodeUntypedInvocation
+  unfold untyped.decode Fl4Spec.decodeUntypedInvocationWith
   by_cases hl : lbl = fl4_abi.label.UntypedRetype
   swap
   · have : (lbl != fl4_abi.label.UntypedRetype) = true := by simpa using hl
@@ -195,7 +195,6 @@ theorem untyped_decode_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap
   simp only [hct, hargs 0#u64 nt (by simp), hargs 1#u64 us (by simp), hargs 2#u64 idx (by simp),
     hargs 3#u64 dep (by simp), hargs 4#u64 off (by simp), hargs 5#u64 win (by simp), bind_ok,
     List.map_cons, List.getElem?_cons_zero, List.getElem?_cons_succ, Fl4Spec.the]
-  have hnt1 : nt.val ≠ 1 := hntcb nt rfl
   simp only [Fl4Spec.NonDetE.returnOk, ndE_pure_bind, Fl4Spec.dataToNat, Fl4Spec.unat, UScalar.bv_toNat]
   have hd := dataToObjType_run nt.bv σ
   rw [retype_size_cases]
@@ -211,7 +210,8 @@ theorem untyped_decode_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap
     cases h : objTypeOf nt.val with
     | none => exact absurd ((objTypeOf_none _).1 h) h14
     | some t => exact ⟨t, rfl⟩
-  obtain ⟨-, hz, hfr, hut, hct', hsc⟩ := objTypeOf_some ht hnt1 us.val
+  obtain ⟨-, -, hfr, hut, hct', hsc, -⟩ := objTypeOf_fl4 ht us.val
+  have hz : bitsApi t us.val = zOf nt.val us.val := hbits nt t rfl ht us.val
   rw [UScalar.bv_toNat, ht] at hd
   simp only [h14, ↓reduceIte]
   refine UPost.congr (run_bind_ok hd _) ?_
@@ -422,7 +422,7 @@ theorem untyped_decode_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap
       rw [align_up_eq _ _ (by omega), hzv, core.num.U64.wrapping_add_bv_eq]
     have hctx : ∀ (hdev : dev = true → Fl4Spec.isFrameType t = true ∨ t = .untyped),
         RetCtx (L := L) th s σ sl sb fi dev nt us ptr off win t r.val R fiv :=
-      fun hdev => ⟨⟨ht, hnt1⟩, ⟨by omega, hz47, hsB, hsC, hsD⟩, ⟨hthp, hr64, hr0⟩, ⟨hw1.1, hw1.2, hwin⟩, hemp,
+      fun hdev => ⟨ht, ⟨by omega, hz47, hsB, hsC, hsD⟩, ⟨hthp, hr64, hr0⟩, ⟨hw1.1, hw1.2, hwin⟩, hemp,
         hRv.symm, hfiv', hsb, by rw [← hi4]; have : ¬ i4.val < win.val := hm; omega, hdev⟩
     have hsucc : ∀ (hdev : dev = true → Fl4Spec.isFrameType t = true ∨ t = .untyped),
         (do
@@ -433,7 +433,7 @@ theorem untyped_decode_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap
           t us.val (windowSlots ptr r.val off.val win.val) dev)) s ar Q res ⦄ := by
       intro hdev
       rw [hal, bind_ok]
-      exact WP.spec_mono (hQ nt us ptr off win t r.val R fiv (hctx hdev)) (fun res h => Or.inr ⟨_, rfl, h⟩)
+      exact WP.spec_mono (hQ nt us ptr off win t r.val R fiv rfl (hctx hdev)) (fun res h => Or.inr ⟨_, rfl, h⟩)
     simp only [ndE_exceptT_pure_bind]
     cases dev
     · rw [if_neg (by simp)]
@@ -463,6 +463,69 @@ theorem untyped_decode_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap
         Fl4Spec.NonDetE.throwError, ndE_throw_bind]
       rfl
 
+
+/-- **FL4's `untyped::decode` refines l4v `decode_untyped_invocation`** for
+every type but the TCB (whose size FL4 changes, Fl4Spec/Ext/TcbSize.lean). -/
+theorem untyped_decode_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s : S) (ar : A)
+    (σ : Fl4Spec.State Unit) (G : MdbGhost)
+    (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
+    (hM : MdbLinks th (L.mem s) G) (hC : CdtRel th (L.mem s) σ G) (hI : MdbInv (L.mem s) G)
+    (lbl : U64) (slbl : Fl4Spec.Data)
+    (hlbl : Fl4Spec.genInvocationType slbl = .untypedRetype ↔ lbl = fl4_abi.label.UntypedRetype)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (hntcb : ∀ x, args.head? = some x → x.val ≠ 1)
+    (slot : obj.Slot) (sl : Fl4Spec.CslotPtr) (hsl : slot = cslotAddr sl) (hAs : AbsSlot th sl)
+    (p sb fi : U64) (dev : Bool) (hcap : capAt (L.mem s) slot = ok (.Untyped p sb fi dev))
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (excaps : List Fl4Spec.Cap) (hex : ExtraRel th (L.mem s) x0 excaps)
+    (hfan : Fl4Spec.retypeFanOutLimit = 256#64)
+    (Q : Fl4Spec.UntypedInvocation → core.result.Result Unit error.Exc × S × A → Prop)
+    (hQ : ∀ (nt us dest off win : U64) (t : Fl4Spec.ApiObjectType) (r : Nat) (reset : Bool) (fiv : U64),
+      args.head? = some nt → RetCtx (L := L) th s σ sl sb fi dev nt us dest off win t r reset fiv →
+      (do
+        let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
+        untyped.retype st arI s2 ar slot reset ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win
+          dev) ⦃ res =>
+        Q (.retype sl reset p.bv (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val
+          (windowSlots dest r off.val win.val) dev) res ⦄) :
+    untyped.decode st arI s ar lbl length slot (.Untyped p sb fi dev) buf extra ⦃ res =>
+      UPost σ (Fl4Spec.decodeUntypedInvocation slbl (args.map UScalar.bv) sl (absCap (.Untyped p sb fi dev)) excaps)
+        s ar Q res ⦄ :=
+  untyped_decode_refines_with Fl4Spec.objBitsApi arI th s ar σ G hR hV hP hM hC hI lbl slbl hlbl length buf ct hct args hlen hargs
+    (fun x t hx ht n => (objTypeOf_some ht (hntcb x hx) n).2.1) slot sl hsl hAs p sb fi dev hcap extra x0 hx0 excaps hex hfan Q hQ
+
+/-- **FL4's `untyped::decode` refines FL4's `decode_untyped_invocation`**
+(the spec's with 4 KiB TCBs, Fl4Spec/Ext/TcbSize.lean), for every type. -/
+theorem untyped_decode_refines_fl4 {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s : S) (ar : A)
+    (σ : Fl4Spec.State Unit) (G : MdbGhost)
+    (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
+    (hM : MdbLinks th (L.mem s) G) (hC : CdtRel th (L.mem s) σ G) (hI : MdbInv (L.mem s) G)
+    (lbl : U64) (slbl : Fl4Spec.Data)
+    (hlbl : Fl4Spec.genInvocationType slbl = .untypedRetype ↔ lbl = fl4_abi.label.UntypedRetype)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (slot : obj.Slot) (sl : Fl4Spec.CslotPtr) (hsl : slot = cslotAddr sl) (hAs : AbsSlot th sl)
+    (p sb fi : U64) (dev : Bool) (hcap : capAt (L.mem s) slot = ok (.Untyped p sb fi dev))
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (excaps : List Fl4Spec.Cap) (hex : ExtraRel th (L.mem s) x0 excaps)
+    (hfan : Fl4Spec.retypeFanOutLimit = 256#64)
+    (Q : Fl4Spec.UntypedInvocation → core.result.Result Unit error.Exc × S × A → Prop)
+    (hQ : ∀ (nt us dest off win : U64) (t : Fl4Spec.ApiObjectType) (r : Nat) (reset : Bool) (fiv : U64),
+      args.head? = some nt → RetCtx (L := L) th s σ sl sb fi dev nt us dest off win t r reset fiv →
+      (do
+        let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
+        untyped.retype st arI s2 ar slot reset ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win
+          dev) ⦃ res =>
+        Q (.retype sl reset p.bv (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val
+          (windowSlots dest r off.val win.val) dev) res ⦄) :
+    untyped.decode st arI s ar lbl length slot (.Untyped p sb fi dev) buf extra ⦃ res =>
+      UPost σ (Fl4Spec.fl4DecodeUntypedInvocation slbl (args.map UScalar.bv) sl (absCap (.Untyped p sb fi dev)) excaps)
+        s ar Q res ⦄ :=
+  untyped_decode_refines_with Fl4Spec.fl4ObjBitsApi arI th s ar σ G hR hV hP hM hC hI lbl slbl hlbl length buf ct hct args hlen hargs
+    (fun _ _ _ ht n => (objTypeOf_fl4 ht n).2.1) slot sl hsl hAs p sb fi dev hcap extra x0 hx0 excaps hex hfan Q hQ
 end
 end
 end Fl4Proofs.P3

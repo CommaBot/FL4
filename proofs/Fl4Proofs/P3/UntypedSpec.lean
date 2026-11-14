@@ -14,6 +14,7 @@ P3 (DESIGN.md §9), untyped: helper facts for `untyped::decode` against l4v
   closed form.
 -/
 import Fl4Proofs.P3.CnodeOther
+import Fl4Spec.Ext.TcbSize
 open Aeneas Aeneas.Std Result
 namespace Fl4Proofs.P3
 open Fl4Spec Classical
@@ -50,6 +51,20 @@ theorem objTypeOf_some {n : Nat} {t : ApiObjectType} (h : objTypeOf n = some t) 
   interval_cases n <;> simp at h <;> subst h <;> first | omega | (simp [objBitsApi, zOf, objBits, archKobjSize,
     defaultArchObject, pageBitsForSize, tableSize, isFrameType, archIsFrameType, endpointBits, ntfnBits, replyBits,
     slotBits, ptTranslationBits, wordSizeBits, pageBits] <;> omega)
+
+/-- With FL4's object sizes (`Fl4Spec/Ext/TcbSize.lean`), `zOf` is
+`obj_bits_api` for every type, the TCB included. -/
+theorem objTypeOf_fl4 {n : Nat} {t : ApiObjectType} (h : objTypeOf n = some t) (us : Nat) :
+    n < 14 ∧ fl4ObjBitsApi t us = zOf n us ∧ (isFrameType t = true ↔ n = 9 ∨ n = 10 ∨ n = 11) ∧
+      (t = .untyped ↔ n = 0) ∧ (t = .capTableObject ↔ n = 4) ∧ (t = .schedContextObject ↔ n = 5) ∧
+      (t = .tcbObject ↔ n = 1) := by
+  have hn : n < 14 := by
+    by_contra hc; have := (objTypeOf_none n).2 (by omega); rw [this] at h; cases h
+  refine ⟨hn, ?_⟩
+  unfold objTypeOf archDataToObjType at h
+  interval_cases n <;> simp at h <;> subst h <;> first | omega | (simp [fl4ObjBitsApi, fl4TcbBits, objBitsApi, zOf,
+    objBits, archKobjSize, defaultArchObject, pageBitsForSize, tableSize, isFrameType, archIsFrameType, endpointBits,
+    ntfnBits, replyBits, slotBits, ptTranslationBits, wordSizeBits, pageBits] <;> omega)
 end
 
 section
