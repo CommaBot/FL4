@@ -23,7 +23,7 @@ theorem reprogram.tinv {s : S} {v : U64} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z A
   have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
   have hw : WritesIn st s (L.wr s (L.nodeAt s (L.cpu s) layout.node.REPROGRAM) v) (L.Free s Ω Cs) :=
     free_node_write rfl h0.cur (h0.nodes _ h0.cur) (by simp [rp, LowFree])
-  have f := fr_node (Sg := Sg) (v := v) h0 hSg h0.cur (by rw [rp]; omega) (by rw [rp]) (fun _ => by rw [rp]; omega)
+  have f := fr_node (Sg := Sg) (hi8 := fun _ => by simp [layout.node.SCHED_ACTION, layout.node.REPROGRAM, layout.node.CUR_THREAD]) (v := v) h0 hSg h0.cur (by rw [rp]; omega) (by rw [rp]) (fun _ => by rw [rp]; omega)
     ⟨by rw [rp]; omega, by rw [rp]; omega⟩
   exact hI.of_tmfr ⟨⟨Q, R, inv_of_free h0 hw⟩, hB.free h0 hw, hX.fr f, hS.fr f, hSg.fr f⟩
     (TmFr.of_fr f hX.1 h0.nodes)
@@ -105,7 +105,7 @@ theorem sched.schedule.tinv {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTota
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hS : SCsOK st T Ω Sg Scs Z Ac s)
     (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hSg : SgOK st Ω Sg s) :
     sched.schedule st ar s a ⦃ s' _ => (∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R') ∧ BoundInv st T Ac s' ∧
-      XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SCsOK st T Ω Sg Scs Z Ac s' ∧ TimerOK st T Cs s' ⦄ := by
+      XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SCsOK st T Ω Sg Scs Z Ac s' ∧ TimerOK st T Cs s' ∧ L.cscW s' ∈ Ac ⦄ := by
   refine WP.spec_mono (sched.schedule.inv hA s a Q R h hB hS hX
     (WP.spec_mono (timer.fire.tinv hA hNt s a (BlkOK.tinv ⟨⟨Q, R, h⟩, hB, hX, hS, hSg⟩)) fun r hr => by
       obtain ⟨s', a'⟩ := r
@@ -113,7 +113,26 @@ theorem sched.schedule.tinv {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTota
       exact ⟨hr.1, hr.2.1, hr.2.2.2.1, hr.2.2.1⟩)) fun r hr => ?_
   obtain ⟨s', a'⟩ := r
   simp only [WP.uncurry'_pair] at hr ⊢
-  exact ⟨hr.1, hr.2.1, hr.2.2.1, hr.2.2.2, hr.2.2.1.2.2.tm⟩
+  exact ⟨hr.1, hr.2.1, hr.2.2.1, hr.2.2.2.1, hr.2.2.1.2.2.tm, hr.2.2.2.2⟩
+
+/-- The invariants at every kernel entry (`handle_syscall`,
+`handle_interrupt_entry`, the fault entries): every kernel exit goes through
+`schedule`, which switches onto an active SC, so besides the invariants the
+current SC is active.  Inside an entry only the time-commit and preemption
+paths charge it after an invocation, and those check `sc_active` (or a
+schedulable current thread on it, `mcs_preemption_point.all`). -/
+def EntryInv (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64)
+    (Z : U64 → Nat) (Ac : Set U64) (s : S) : Prop :=
+  (∃ Q R, SchedQueuesInv st T Cs Ω H s Q R) ∧ BoundInv st T Ac s ∧ XInv st T Cs Ω Sg Rp Scs Nt Z s ∧
+    SCsOK st T Ω Sg Scs Z Ac s ∧ TimerOK st T Cs s ∧ L.cscW s ∈ Ac
+
+/-- `schedule` (the end of every kernel entry) establishes `EntryInv`. -/
+theorem sched.schedule.entry {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
+    (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A) (Q : U64 → U64 → List U64) (R : U64 → List U64)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hS : SCsOK st T Ω Sg Scs Z Ac s)
+    (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hSg : SgOK st Ω Sg s) :
+    sched.schedule st ar s a ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
+  sched.schedule.tinv hA hNt s a Q R h hB hS hX hSg
 
 end
 

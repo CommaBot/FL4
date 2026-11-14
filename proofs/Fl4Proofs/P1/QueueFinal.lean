@@ -1004,7 +1004,8 @@ theorem sctcb_zero_all {s : S} {c0 : U64} {Q : U64 → U64 → List U64} {R : U6
       ((TScX.set_sctcb h0 hO hSg.sub hc0 htx hX.2.2.yt.1).full fun h0' => absurd (L.mem_wr_same ho.1) h0'),
     SCsOK.wr' h0 hS hO ho.1 (fun y hy => (out_ne_field (K := 3464#u64) ho hy (h0.tcbs y hy) (by simp)).symm)
       (out_ne_node ho h0.cur hN' (by simp [layout.node.CUR_SC])).symm (fun c hc => ?_)
-      (scw_ne_spor hO hc0 e1 (by omega) (by omega)),
+      (scw_ne_spor hO hc0 e1 (by omega) (by omega))
+      (fun c hc e => absurd e (scw_ne_screp hO hc0 e1 (by omega) (by omega) c hc)),
     ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o h1 h2⟩⟩,
     foot_wr ho.1 (kw_sg (hO.fixW c0 hc0).1), ani_out hN' h0.cur ho⟩
   obtain ⟨h128', -, -, f3, f4, f5, -⟩ := sc_facts hO hc
@@ -1099,8 +1100,8 @@ theorem schedcontext.unbind_tcb.blk (s : S) (sc : U64) (h : BlkOK st T Cs Ω H S
   refine WP.spec_bind (obj.Tcb.set_sc.wr s3 t 0#u64) fun s4 e4 => ?_
   subst e4
   obtain ⟨k1, kB, -, k3, ktx, k4, k5, ka, kc, ki, -, -, kΩ, ks0⟩ :=
-    clear_sc_state h3 hB3 hX3 hS3 hSg3 htT ⟨qq3, qr3, na3⟩ id3
-  have hB4 := kB (fun e => by rw [ka, ea3, ea2]; exact cr1 (by rw [← ec2, ← ec3, ← kc]; exact e))
+    clear_sc_state h3 hB3 hX3 hS3 hSg3 htT ⟨qq3, qr3⟩ id3
+  have hB4 := kB na3 (fun e => by rw [ka, ea3, ea2]; exact cr1 (by rw [← ec2, ← ec3, ← kc]; exact e))
   have ktx' : TScX st Scs sc (L.wr s3 (scA t) 0#u64) := by
     have e : L.mem s3 (scA t) = sc := by
       have := hX3.2.2.tsc sc hsc hsc0 (by rw [tc3]; exact fun e0 => (h3.tcbs t htT).ne0 (by rw [e0]; rfl))
@@ -1175,7 +1176,8 @@ theorem consumedW_all {s : S} {c v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z
   refine ⟨⟨⟨Q, R, h1⟩, hB1, hX1, SCsOK.wr h0 hS hX hal
     (fun y hy => (out_ne_field (K := 3464#u64) ho hy (h0.tcbs y hy) (by simp)).symm)
     (out_ne_node ho h0.cur (h0.nodes _ h0.cur) (by simp [layout.node.CUR_SC])).symm (fun c' hc' => ?_)
-    (scw_ne_spor hO hc (o := 8) (by rw [hv, hcv]) (by omega) (by omega)), hSg1⟩,
+    (scw_ne_spor hO hc (o := 8) (by rw [hv, hcv]) (by omega) (by omega))
+    (fun c' hc' e => absurd e (scw_ne_screp hO hc (o := 8) (by rw [hv, hcv]) (by omega) (by omega) c' hc')), hSg1⟩,
     foot_wr hal (kw_sc hc hin), ani_out (h0.nodes _ h0.cur) h0.cur ho⟩
   obtain ⟨h128', -, -, f3, f4, f5, -⟩ := sc_facts hO hc'
   rw [hv, f3, f4, f5, hcv]
@@ -1282,7 +1284,7 @@ theorem schedcontext.cancel_yield_to.blk (s : S) (t : U64) (h : BlkOK st T Cs Ω
       (fun o ho' => (out_ne_node ho h0.cur (h0.nodes _ h0.cur) (by omega)).symm)
       (fun y hy => by rw [stA_eq]; exact (out_ne_field ho hy (hT y hy) (by simp)).symm)
     have hX5 := XInv.wr_yield0 h0 hX ho.1 (avoidX_scYield h0 hX hsub hyS) (hX.tn tmA)
-    have hS5 := SCsOK.scword (v := 0#u64) h0 hS hX hyS (Or.inr rfl)
+    have hS5 := SCsOK.scword (v := 0#u64) h0 hS hX hyS (Or.inr rfl) (fun _ h0 => absurd rfl h0)
     have hSg5 : SgOK st Ω Sg (L.wr s (scYieldFromA yt) 0#u64) :=
       ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o h1 h2⟩
     have f5 : Foot st T Cs Sg Scs Z ∅ s (L.wr s (scYieldFromA yt) 0#u64) := foot_wr ho.1 (kw_sg (hO.syW yt hyS))
@@ -1410,7 +1412,8 @@ theorem dbgN_all {s : S} {c v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s
       (fun c' hc' => ⟨fun e => out_ne_node (h0.omega _ (hcΩ c' hc').2.2.1) hc hN (by omega) e,
         fun e => out_ne_node (h0.omega _ (hcΩ c' hc').2.2.2.1) hc hN (by omega) e,
         fun e => out_ne_node (h0.omega _ (hcΩ c' hc').2.2.2.2) hc hN (by omega) e⟩)
-      (fun c' hc' e => out_ne_node (h0.omega _ (spor_omega hX.1 hc')) hc hN (by omega) e),
+      (fun c' hc' e => out_ne_node (h0.omega _ (spor_omega hX.1 hc')) hc hN (by omega) e)
+      (fun c' hc' e => absurd e (out_ne_node (h0.omega _ (hSg.sub _ (hX.1.repW c' hc'))) hc hN (by omega))),
     ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o h1 h2⟩⟩,
     (writesIn_wr ha).mono fun b hb => Or.inr (Or.inr ⟨c, hc, hb⟩)⟩
 

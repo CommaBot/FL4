@@ -395,7 +395,7 @@ theorem blk_keep {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U6
         have := congrArg UScalar.val e
         obtain ⟨hPc, hzc⟩ := hO.sc c hc
         rw [rTcbA_val (r0p h0), sporA_val hPc hzc] at this
-        have := hO.rpSc r0 (hr0 h0).1 c hc; have := (sc_facts hO hc).1; omega))⟩
+        have := hO.rpSc r0 (hr0 h0).1 c hc; have := (sc_facts hO hc).1; omega)) srp⟩
   · rcases hact with e | e
     · rw [e] at haT ⊢; exact ⟨haT, hB.act haT⟩
     · rw [e] at haT; exact absurd haT (notT_small hT (by simp))
@@ -658,14 +658,6 @@ theorem fld_wr_ne' {s : S} {t K K' v a b : U64} (ht : TcbAddr t) (ha : a = core.
     L.mem (L.wr s a v) b = L.mem s b := by
   subst ha hb; exact fld_wr_ne ht hK hK8 hK' hK8' hne
 
-theorem act_wr_field {s : S} {t K v a : U64} (hN : NodePlaced st T s (L.cpu s)) (ht : t ∈ T) (hta : TcbAddr t)
-    (ha : a = core.num.U64.wrapping_add t K) (hK : K.val < 4096) (hK8 : K.val % 8 = 0) :
-    L.actionW (L.wr s a v) = L.actionW s := by
-  subst ha
-  unfold LawfulStore.actionW
-  simp only [LawfulStore.cpu_wr, nodeAt_wr]
-  exact L.mem_wr_ne (field_aligned hta hK hK8) (nodeAt_aligned hN (by rw [act_val]; omega) (by rw [act_val]))
-    (fun e => node_ne_field hN (by rw [act_val]; omega) ht hta hK (UScalar.eq_of_val_eq e).symm)
 
 /-- A field write of `t` as a `BlkFoot` step. -/
 theorem blk_wr_field {s s1 : S} {t r0 K v : U64} (ht : TcbAddr t) (hw : WritesIn st s s1 (BlkFoot st s t r0))
@@ -1005,7 +997,8 @@ theorem SCsOK.keep' {s s' : S} (hS : SCsOK st T Ω Sg Scs Z Ac s) (hX : XInv st 
     (hcs : L.cscW s' = L.cscW s)
     (hfix : ∀ c ∈ Scs, L.mem s' (maxA c) = L.mem s (maxA c) ∧ L.mem s' (headA c) = L.mem s (headA c) ∧
       L.mem s' (tailA c) = L.mem s (tailA c))
-    (hsp : ∀ c ∈ Scs, L.mem s' (sporA c) = L.mem s (sporA c)) : SCsOK st T Ω Sg Scs Z Ac s' := by
+    (hsp : ∀ c ∈ Scs, L.mem s' (sporA c) = L.mem s (sporA c))
+    (hrp : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c)) : SCsOK st T Ω Sg Scs Z Ac s' := by
   have wf : ∀ c ∈ Scs, RefillsWF st s c (Z c) → RefillsWF st s' c (Z c) := fun c hc hW => by
     obtain ⟨f3, f4, f5⟩ := hfix c hc
     exact hW.of_hdr f3 (by rw [show L.rhead s' c = L.mem s' (headA c) from rfl, f4]; exact hW.head_lt)
@@ -1013,7 +1006,8 @@ theorem SCsOK.keep' {s s' : S} (hS : SCsOK st T Ω Sg Scs Z Ac s) (hX : XInv st 
   refine ⟨hS.sub, fun b hb => by rw [hk]; exact hS.ks b hb, fun o h1 h2 => by rw [hk]; exact hS.ksΩ o h1 h2,
     fun y hy hb hne => ?_, fun c hc => (hS.all c hc).of_wf (hfix c hc).1 (wf c hc),
     fun c hc => by rw [show L.rmax s' c = L.rmax s c from (hfix c hc).1]; exact hS.act c hc,
-    fun c hc h0 => hS.spor c hc (by rw [← hsp c hc]; exact h0), hS.spSg⟩
+    fun c hc h0 => hS.spor c hc (by rw [← hsp c hc]; exact h0), hS.spSg,
+    fun c hc h0 => hS.rep c hc (by rwa [hrp c hc] at h0), hS.repSg⟩
   · rcases hsc y hy with e | e
     · rw [e] at hb hne ⊢; rw [hcs] at hne ⊢; exact hS.disj y hy hb hne
     · exact absurd e hb
@@ -1288,6 +1282,12 @@ theorem unbind_state {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U6
         have := (sc_facts hO hc).1; have := hiv.1
         by_cases hci : c = i
         · subst hci; omega
+        · have := hO.scDisj c hc i hiS hci; omega))
+      (fun c hc => F2 _ (hSg.sub _ (hO.repW c hc)) (fun e => by
+        rw [(sc_facts hO hc).2.2.2.2.2.2.1, hiv.2.1] at e
+        have := (sc_facts hO hc).1; have := hiv.1
+        by_cases hci : c = i
+        · subst hci; omega
         · have := hO.scDisj c hc i hiS hci; omega)),
     ⟨hSg.sub, fun b hb => by simp only [hs2, LawfulStore.ksb_wr]; exact hSg.ks b hb,
       fun o h1 h2 => by simp only [hs2, LawfulStore.ksb_wr]; exact hSg.ksΩ o h1 h2⟩, iqy t ht,
@@ -1463,7 +1463,7 @@ theorem notification.maybe_return_sched_context.inv (s : S) (n t : U64)
     · by_cases ha0 : L.actionW s2 = 0#u64
       · refine WP.spec_mono (sched.reschedule_required.resume s2 ha0) fun s3 e3 => ?_
         subst e3
-        have f := fr_node (Sg := Sg) (v := 1#u64) k1 k5 k1.cur (by rw [act_val]; omega) (by rw [act_val])
+        have f := fr_node (Sg := Sg) (hi8 := fun _ => by simp [layout.node.SCHED_ACTION, layout.node.REPROGRAM, layout.node.CUR_THREAD]) (v := 1#u64) k1 k5 k1.cur (by rw [act_val]; omega) (by rw [act_val])
           (hto := ⟨by rw [act_val]; omega, by rw [act_val]; omega⟩)
           (fun _ => by rw [act_val]; omega)
         obtain ⟨j1, ea3⟩ := inv_set_action k1 (Or.inr (Or.inl rfl)) (fun h1T => absurd h1T (notT_small k1.tcbs (by simp)))

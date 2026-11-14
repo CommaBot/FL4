@@ -12,6 +12,8 @@ open fl4_core Fl4Proofs.P0.Consts
 
 /-- The SC word `SPORADIC` of `sc`. -/
 def sporA (sc : obj.Sc) : U64 := core.num.U64.wrapping_add sc layout.sc.SPORADIC
+/-- The SC word `REPLY` (the reply-stack head) of `sc`. -/
+def scReplyA (sc : U64) : U64 := core.num.U64.wrapping_add sc layout.sc.REPLY
 /-- The words of the SC object at `sc` of size `2 ^ sb`. -/
 def InSC (sc : U64) (sb : Nat) (b : U64) : Prop := sc.val ≤ b.val ∧ b.val < sc.val + 2 ^ sb
 /-- The words of the SC from `HEAD` on (the ring header and the ring): all

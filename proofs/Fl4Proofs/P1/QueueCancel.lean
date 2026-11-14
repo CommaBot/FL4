@@ -28,7 +28,6 @@ def replyA (t : U64) : U64 := core.num.U64.wrapping_add t 3360#u64
 def rTcbA (r : U64) : U64 := core.num.U64.wrapping_add r layout.reply.TCB
 def rPrevA (r : U64) : U64 := core.num.U64.wrapping_add r layout.reply.PREV
 def rNextA (r : U64) : U64 := core.num.U64.wrapping_add r layout.reply.NEXT
-def scReplyA (sc : U64) : U64 := core.num.U64.wrapping_add sc layout.sc.REPLY
 /-- An SC's bound-notification word. -/
 def scNtfnA (sc : U64) : U64 := core.num.U64.wrapping_add sc layout.sc.NTFN
 /-- A notification's `SC` word. -/
@@ -873,6 +872,17 @@ theorem scw_ne_spor (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) {c a : U64} (hc : c ∈
   obtain ⟨hP, hz⟩ := hO.sc c' hc'
   have := (sc_facts hO hc).1; have := (sc_facts hO hc').1
   rw [sporA_val hP hz]
+  by_cases e : c = c'
+  · subst e; omega
+  · have := hO.scDisj c hc c' hc' e; omega
+
+/-- An SC word at offset `o ≠ 32` below 128 is no SC `REPLY` word. -/
+theorem scw_ne_screp (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) {c a : U64} (hc : c ∈ Scs) {o : Nat}
+    (ha : a.val = c.val + o) (ho : o < 128) (h32 : o ≠ 32) : ∀ c' ∈ Scs, a.val ≠ (scReplyA c').val := by
+  intro c' hc'
+  obtain ⟨hP, hz⟩ := hO.sc c' hc'
+  have := (sc_facts hO hc).1; have := (sc_facts hO hc').1
+  rw [scReplyA_val hP hz]
   by_cases e : c = c'
   · subst e; omega
   · have := hO.scDisj c hc c' hc' e; omega

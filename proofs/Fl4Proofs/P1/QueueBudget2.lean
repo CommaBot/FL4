@@ -221,7 +221,8 @@ theorem SCsOK.ringc {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List 
     rcases hh with hh | rfl
     · unfold Outside; unfold InRing at hh; omega
     · unfold Outside; rw [hcv]; simp [layout.sc.CONSUMED]; omega
-  have kk : ∀ c ∈ Scs, ∀ b, Aligned b → (b.val = c.val + 72 ∨ b.val = c.val + 64) → L.mem s' b = L.mem s b := by
+  have kk : ∀ c ∈ Scs, ∀ b, Aligned b → (b.val = c.val + 72 ∨ b.val = c.val + 64 ∨ b.val = c.val + 32) →
+      L.mem s' b = L.mem s b := by
     intro c hc b hb hv
     refine w.mem_eq hb ?_
     rintro (hh | e)
@@ -234,7 +235,11 @@ theorem SCsOK.ringc {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List 
       by_cases e' : c = i
       · subst e'; omega
       · have := hO.scDisj c hc i hi e'; have := (sc_facts hO hc).1; omega
-  refine hS.mk2 w.1 fld csc (fun c hc => ?_) (fun c hc => ?_) (fun c hc => ?_)
+  refine hS.mk2 w.1 fld csc (fun c hc => ?_) (fun c hc => ?_) (fun c hc => ?_) (fun c hc h0 => hS.rep c hc ?_)
+  rotate_right
+  · obtain ⟨hPc, hzc⟩ := hO.sc c hc; obtain ⟨h8c, -, -⟩ := sc_lo hPc hzc
+    have := scReplyA_val hPc hzc
+    rwa [kk c hc _ (by unfold Aligned; omega) (Or.inr (Or.inr this))] at h0
   · by_cases e : c = i
     · subst e; exact (hS.all c hc).mk' fun _ => hwi
     obtain ⟨a1, a2, a3⟩ := maxA_facts hO hc
@@ -248,7 +253,7 @@ theorem SCsOK.ringc {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List 
   · obtain ⟨hPc, hzc⟩ := hO.sc c hc
     obtain ⟨h8c, -, -⟩ := sc_lo hPc hzc
     have := sporA_val hPc hzc
-    exact kk c hc _ (by unfold Aligned; omega) (Or.inr this)
+    exact kk c hc _ (by unfold Aligned; omega) (Or.inr (Or.inl this))
 
 /-- seL4 `chargeBudget` keeps the invariants, when the current SC is the
 current thread's (if it is schedulable), the current thread is not the
@@ -328,6 +333,7 @@ theorem sched.charge_budget.all (hA : P0.ArchTotal ar) (s : S) (a : A) (used : U
     have hco : (layout.node.CONSUMED).val = 40 := by simp [layout.node.CONSUMED]
     refine SCsOK.wr h2 hS2 hX2 (nodeAt_aligned hN2 (by rw [hco]; omega) (by rw [hco])) (fun y hy => ?_) ?_
       (fun c hc' => ?_) (fun c hc' => out_ne_node (h2.omega _ (spor_omega hX2.1 hc')) h2.cur hN2 (by rw [hco]; omega))
+      (fun c hc' e => absurd e (out_ne_node (h2.omega _ (hS2.sub _ (hX2.1.repW c hc'))) h2.cur hN2 (by rw [hco]; omega)))
     · rw [scA_eq]; exact fun e => node_ne_field hN2 (by rw [hco]; omega) hy (h2.tcbs y hy) (by simp)
         (UScalar.eq_of_val_eq e)
     · intro e
@@ -433,6 +439,77 @@ theorem sched.check_budget_restart.all (hA : P0.ArchTotal ar) (s : S) (a : A)
       ⟨hSg1.sub, fun b hb => by rw [k2.ksb]; exact hSg1.ks b hb, fun o h1' h2' => by rw [k2.ksb]; exact hSg1.ksΩ o h1' h2'⟩,
       hS1.keepT hX1 k2⟩
   · simp only [WP.spec_ok, WP.uncurry'_pair]; exact ⟨⟨Q1, R1, h1⟩, hB1, hX1, hSg1, hS1⟩
+
+/-- Clearing the node's `CONSUMED` word keeps the invariants. -/
+theorem consumed0_bxi {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
+    (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Scs Z Ac s) :
+    BXI st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (L.nodeAt s (L.cpu s) layout.node.CONSUMED) 0#u64) := by
+  obtain ⟨h3, hB3, hX3, hSg3, -⟩ := node_bx (o := layout.node.CONSUMED) (v := 0#u64) h hB hX hSg
+    (by simp [layout.node.CONSUMED, LowFree]) (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])
+  have hN := h.nodes _ h.cur
+  obtain ⟨-, hc⟩ := objs_omega hX.1 hS.sub
+  have hco : (layout.node.CONSUMED).val = 40 := by simp [layout.node.CONSUMED]
+  refine ⟨⟨Q, R, h3⟩, hB3, hX3, hSg3, SCsOK.wr h hS hX (nodeAt_aligned hN (by rw [hco]; omega) (by rw [hco]))
+    (fun y hy => ?_) ?_ (fun c hc' => ?_) (fun c hc' => out_ne_node (h.omega _ (spor_omega hX.1 hc')) h.cur hN
+      (by rw [hco]; omega))
+    (fun c hc' e => absurd e (out_ne_node (h.omega _ (hS.sub _ (hX.1.repW c hc'))) h.cur hN (by rw [hco]; omega)))⟩
+  · rw [scA_eq]; exact fun e => node_ne_field hN (by rw [hco]; omega) hy (h.tcbs y hy) (by simp)
+      (UScalar.eq_of_val_eq e)
+  · intro e
+    simp only [LawfulStore.nodeA] at e
+    rw [nodeAt_val hN (by rw [hco]; omega), nodeAt_val hN (by simp [layout.node.CUR_SC]), hco] at e
+    simp [layout.node.CUR_SC] at e
+  · obtain ⟨-, -, c3, c4, c5⟩ := hc c hc'
+    exact ⟨out_ne_node (h.omega _ c3) h.cur hN (by rw [hco]; omega),
+      out_ne_node (h.omega _ c4) h.cur hN (by rw [hco]; omega),
+      out_ne_node (h.omega _ c5) h.cur hN (by rw [hco]; omega)⟩
+
+/-- seL4 `mcsPreemptionPoint`.  The current SC is charged only when it is
+active: either the current thread is schedulable and runs on it (or it is
+active anyway), or `sc_active` was checked.  `hcur` is what holds inside a
+kernel entry: the current SC is active, or the current thread has no other
+SC than it (it may have lost its SC, e.g. after the SC was deleted). -/
+theorem syscall.mcs_preemption_point.all (hA : P0.ArchTotal ar) (s : S) (a : A)
+    (Q : U64 → U64 → List U64) (R : U64 → List U64)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
+    (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Scs Z Ac s)
+    (hcsc : L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s)))
+    (hna : L.actionW s ≠ L.curW s)
+    (hcur : L.cscW s ∈ Ac ∨ L.mem s (scA (L.curW s)) = L.cscW s ∨ L.mem s (scA (L.curW s)) = 0#u64)
+    (htmo : ∀ (s : S) (a : A) (t : obj.Tcb) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
+      SchedQueuesInv st T Cs Ω H s Q R → BoundInv st T Ac s → XInv st T Cs Ω Sg Rp Scs Nt Z s → SgOK st Ω Sg s →
+      SCsOK st T Ω Sg Scs Z Ac s → faults.handle_timeout st ar s a t f ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄) :
+    syscall.mcs_preemption_point st ar s a ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
+  unfold syscall.mcs_preemption_point
+  step with sched.cur_thread.spec as ⟨ct, ct_post⟩
+  have ect : ct = L.curW s := ct_post
+  subst ect
+  step with sched.is_schedulable.spec' as ⟨b, eb⟩
+  split
+  · rename_i hb
+    obtain ⟨-, hbd, -, hrm⟩ := eb hb
+    have hcA : L.cscW s ∈ Ac := by
+      rcases hcur with e | e | e
+      · exact e
+      · rw [← e]; exact (hS.act _ (hX.2.2.bound _ h.curT hbd).1).2 hrm
+      · exact absurd e hbd
+    refine WP.spec_bind (sched.check_budget.all hA s a Q R h hB hX hSg hS hcsc hna hcA htmo) ?_
+    rintro ⟨r, s1, a1⟩ h1
+    exact (WP.spec_ok _).2 h1
+  · step with sched.cur_sc.spec as ⟨c, ec⟩
+    step with sporadic.sc_active.val as ⟨b1, eb1⟩
+    split
+    · rename_i hb1
+      have hcA : L.cscW s ∈ Ac := (hS.act _ hX.2.2.cur).2 (by
+        have := eb1 hb1; rwa [ec] at this)
+      step with sched.consumed.spec as ⟨u⟩
+      exact sched.charge_budget.all hA s a u false Q R h hB hX hSg hS hcsc hna hcA htmo
+    · step with LawfulStore.cur_cpu_spec as ⟨cpu, cpu_post⟩
+      subst cpu_post
+      step with obj.node_set.spec as ⟨s2, e2⟩
+      subst e2
+      exact consumed0_bxi h hB hX hSg hS
 
 end
 

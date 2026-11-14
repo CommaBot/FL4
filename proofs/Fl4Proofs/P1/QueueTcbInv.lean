@@ -195,12 +195,12 @@ theorem sched.set_priority.blk (s : S) (t : obj.Tcb) (prio : U64) (h : BlkOK st 
     (hbcur : t = L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) → L.mem s (scA t) ≠ 0#u64)
     (hacur : t = L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) → L.mem s (scA t) ∈ Ac) :
     sched.set_priority st s t prio ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
-      Foot st T Cs Sg Scs Z (EH H) s s' ⦄ := by
+      Foot st T Cs Sg Scs Z (EH H) s s' ∧ PFr st T Sg s s' ⦄ := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   refine WP.spec_mono (WP.spec_and (sched.set_priority.all s t prio Q R h0 ht hv hcur hbcur hacur hB hX hSg hS)
     (sched.set_priority.kw (Sg := Sg) (Scs := Scs) (Z := Z) s t prio Q R h0 ht hv hcur)) ?_
-  rintro s' ⟨⟨⟨Q', h'⟩, hB', hX', hS', hSg'⟩, f⟩
-  exact ⟨⟨⟨Q', R, h'⟩, hB', hX', hS', hSg'⟩, f⟩
+  rintro s' ⟨⟨⟨Q', h'⟩, hB', hX', hS', hSg', pf⟩, f⟩
+  exact ⟨⟨⟨Q', R, h'⟩, hB', hX', hS', hSg'⟩, f, pf⟩
 
 end
 

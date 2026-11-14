@@ -240,7 +240,7 @@ theorem reprogram_at.tinv {s : S} {c v : U64} (h : TInv st T Cs Ω H Sg Rp Scs N
   have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
   have hw : WritesIn st s (L.wr s (L.nodeAt s c layout.node.REPROGRAM) v) (L.Free s Ω Cs) :=
     free_node_write rfl hc (h0.nodes _ hc) (by simp [rp, LowFree])
-  have f := fr_node (Sg := Sg) (v := v) h0 hSg hc (by rw [rp]; omega) (by rw [rp]) (fun _ => by rw [rp]; omega)
+  have f := fr_node (Sg := Sg) (hi8 := fun _ => by simp [layout.node.SCHED_ACTION, layout.node.REPROGRAM, layout.node.CUR_THREAD]) (v := v) h0 hSg hc (by rw [rp]; omega) (by rw [rp]) (fun _ => by rw [rp]; omega)
     ⟨by rw [rp]; omega, by rw [rp]; omega⟩
   exact hI.of_tmfr ⟨⟨Q, R, inv_of_free h0 hw⟩, hB.free h0 hw, hX.fr f, hS.fr f, hSg.fr f⟩
     (TmFr.of_fr f hX.1 h0.nodes)

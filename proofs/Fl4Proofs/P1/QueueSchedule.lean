@@ -47,7 +47,7 @@ theorem sched.set_cur_thread.sch (s : S) (t : obj.Tcb) (Q : U64 → U64 → List
   have hB1 := hB.wr_node h (o := layout.node.CUR_THREAD) (v := t) (by rw [curth0]; omega) (by rw [curth0])
     (by rw [curth0]; omega) (fun e => by rw [curth0] at e; omega) (fun _ => ⟨ht, hbd⟩)
     (fun _ _ h0 => Or.inr (hta h0))
-  have f := fr_node (Sg := Sg) (v := t) h hS h.cur (by rw [curth0]; omega) (by rw [curth0])
+  have f := fr_node (Sg := Sg) (hi8 := fun _ => by simp [layout.node.SCHED_ACTION, layout.node.REPROGRAM, layout.node.CUR_THREAD]) (v := t) h hS h.cur (by rw [curth0]; omega) (by rw [curth0])
     (hto := ⟨by rw [curth0]; omega, by rw [curth0]; omega⟩)
     (fun _ => by rw [curth0]; omega)
   have ea := rd_cur_node (v := t) h (by rw [curth0]; omega) (by rw [curth0]) (by rw [act_val]; omega)
@@ -250,7 +250,8 @@ theorem SCsOK.switch {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List
     fun c hc h1 h2 hW => hW.writesIn w (hout c hc h1 h2)
   have hcs' : L.cscW s' = tsc := by unfold LawfulStore.cscW; rw [cscW_eq w.1 w.2.1]; exact e
   -- the `REFILL_MAX` and `SPORADIC` words are not written
-  have kk : ∀ c ∈ Scs, ∀ b, Aligned b → (b.val = c.val + 72 ∨ b.val = c.val + 64) → L.mem s' b = L.mem s b := by
+  have kk : ∀ c ∈ Scs, ∀ b, Aligned b → (b.val = c.val + 72 ∨ b.val = c.val + 64 ∨ b.val = c.val + 32) →
+      L.mem s' b = L.mem s b := by
     intro c hc b hb hv
     have hbΩ : b ∈ Ω := by
       obtain ⟨hPc, hzc⟩ := hO.sc c hc; obtain ⟨-, h128c, -⟩ := sc_lo hPc hzc
@@ -283,11 +284,14 @@ theorem SCsOK.switch {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List
   have ksp : ∀ c ∈ Scs, L.mem s' (sporA c) = L.mem s (sporA c) := fun c hc => by
     obtain ⟨hPc, hzc⟩ := hO.sc c hc; obtain ⟨h8c, -, -⟩ := sc_lo hPc hzc
     have := sporA_val hPc hzc
-    exact kk c hc _ (by unfold Aligned; omega) (Or.inr this)
+    exact kk c hc _ (by unfold Aligned; omega) (Or.inr (Or.inl this))
   refine ⟨hS.sub, fun b hb => by rw [w.1]; exact hS.ks b hb, fun o h1 h2 => by rw [w.1]; exact hS.ksΩ o h1 h2,
     fun y hy hy0 hne => ?_, fun c hc => ?_,
     fun c hc => by rw [show L.rmax s' c = L.rmax s c from kmx c hc]; exact hS.act c hc,
-    fun c hc h0 => hS.spor c hc (by rw [← ksp c hc]; exact h0), hS.spSg⟩
+    fun c hc h0 => hS.spor c hc (by rw [← ksp c hc]; exact h0), hS.spSg, fun c hc h0 => hS.rep c hc (by
+      obtain ⟨hPc, hzc⟩ := hO.sc c hc; obtain ⟨h8c, -, -⟩ := sc_lo hPc hzc
+      have := scReplyA_val hPc hzc
+      rwa [kk c hc _ (by unfold Aligned; omega) (Or.inr (Or.inr this))] at h0), hS.repSg⟩
   · rw [fld y hy] at hy0 hne ⊢
     rw [hcs'] at hne ⊢
     intro b hin
@@ -304,7 +308,8 @@ theorem SCsOK.switch {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List
 /-- A write to a current-node word other than `CUR_SC` keeps `SCsOK`. -/
 theorem SCsOK.node {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {o : U64}
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hS : SCsOK st T Ω Sg Scs Z Ac s) (ho : o.val < 4288) (h8 : o.val % 8 = 0)
-    (h24 : o.val ≠ 24) (hto : o.val ≠ 88 ∧ o.val ≠ 104 ∧ o.val ≠ 112) (w : WritesIn st s s' (· = L.nodeAt s (L.cpu s) o)) :
+    (h24 : o.val ≠ 24) (hto : o.val ≠ 88 ∧ o.val ≠ 104 ∧ o.val ≠ 112) (w : WritesIn st s s' (· = L.nodeAt s (L.cpu s) o))
+    (hi8 : o.val ≠ 8) :
     SCsOK st T Ω Sg Scs Z Ac s' := by
   have hN' := h.nodes _ h.cur
   have k : ∀ b, Aligned b → b ≠ L.nodeAt s (L.cpu s) o → L.mem s' b = L.mem s b := fun b hb hn =>
@@ -324,7 +329,12 @@ theorem SCsOK.node {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U
     fun c hc o' ho' => k _ (nodeAt_aligned hc (by omega) (by omega)) (fun e =>
       node_ne_node hN' hc ho (by omega) (fun _ => by omega) (congrArg UScalar.val e).symm),
     fun y hy => k _ (field_aligned (h.tcbs y hy) (by simp) (by simp)) (fun e =>
-      node_ne_field hN' ho hy (h.tcbs y hy) (by simp) e.symm)⟩
+      node_ne_field hN' ho hy (h.tcbs y hy) (by simp) e.symm), ?_⟩
+  rotate_right
+  · unfold LawfulStore.idleW; rw [w.2.1, nodeAt_of_ksb w.1]
+    refine k _ (nodeAt_aligned hN' (by rw [idle8]; omega) (by rw [idle8])) (fun e => ?_)
+    have := congrArg UScalar.val e
+    rw [nodeAt_val hN' (by rw [idle8]; omega), nodeAt_val hN' ho, idle8] at this; omega
   unfold LawfulStore.cscW; rw [cscW_eq w.1 w.2.1]
   refine k _ (nodeAt_aligned hN' (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])) (fun e => ?_)
   have := congrArg UScalar.val e
@@ -371,7 +381,7 @@ theorem sched.schedule.inv (hA : P0.ArchTotal ar) (s : S) (a : A)
     (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hfire : timer.fire st ar s a ⦃ s1 _ => Good st T Cs Ω H Sg Rp Scs Nt Z Ac s1 ⦄) :
     sched.schedule st ar s a ⦃ s' _ => (∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R') ∧ BoundInv st T Ac s' ∧
-      XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SCsOK st T Ω Sg Scs Z Ac s' ⦄ := by
+      XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SCsOK st T Ω Sg Scs Z Ac s' ∧ L.cscW s' ∈ Ac ⦄ := by
   unfold sched.schedule sched.awaken
   -- `awaken`
   refine WP.spec_bind (Pₘ := fun r => Good st T Cs Ω H Sg Rp Scs Nt Z Ac r.1) ?_ ?_
@@ -508,6 +518,19 @@ theorem sched.schedule.inv (hA : P0.ArchTotal ar) (s : S) (a : A)
   rintro ⟨s5, a3⟩ ⟨⟨w5, w5', e5, -, -⟩, w5'', e5', wfc5, wft5⟩
   simp only [WP.uncurry'_pair] at w5 w5' e5 w5'' e5' wfc5 wft5 ⊢
   have hS5 : SCsOK st T Ω Sg Scs Z Ac s5 := SCsOK.switch h4 hS4 hX4 hb4 w5'' e5' wfc5 wft5
+  have hA5 : L.cscW s5 ∈ Ac := by
+    unfold LawfulStore.cscW; rw [cscW_eq w5.1 w5.2.1, e5]; exact hB4.curA hcT ea4
+  -- a node word other than `CUR_SC` keeps the current SC
+  have cn : ∀ {s s' : S} {Q R} {o : U64}, SchedQueuesInv st T Cs Ω H s Q R →
+      o.val < 4288 → o.val % 8 = 0 → o.val ≠ 24 →
+      WritesIn st s s' (· = L.nodeAt s (L.cpu s) o) → L.cscW s' = L.cscW s := by
+    intro s s' Q R o hh ho h8 h24 w
+    have hN := hh.nodes _ hh.cur
+    unfold LawfulStore.cscW; rw [cscW_eq w.1 w.2.1]; unfold LawfulStore.nodeA
+    refine w.mem_eq (nodeAt_aligned hN (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])) ?_
+    intro e; have := congrArg UScalar.val e
+    rw [nodeAt_val hN (by simp [layout.node.CUR_SC]), nodeAt_val hN ho] at this
+    simp [layout.node.CUR_SC] at this; omega
   obtain ⟨h5, hB5⟩ := free_step h4 hB4 w5
   have hΩ4 : ∀ n ∈ Nt, OutsideObjs st T Cs s4 (ntfnBtA n) := fun n hn => h4.omega _ (hsub4 _ (hO4.ntB n hn).2)
   have hX5 : XInv st T Cs Ω Sg Rp Scs Nt Z s5 := hX4.writes h4.tcbs w5' (fun b hb => hb) (by
@@ -543,7 +566,7 @@ theorem sched.schedule.inv (hA : P0.ArchTotal ar) (s : S) (a : A)
   step with LawfulStore.cur_cpu_spec as ⟨c, c_post⟩
   step with obj.node_get.spec as ⟨i, _⟩
   refine WP.spec_bind (Pₘ := fun r => SchedQueuesInv st T Cs Ω H r.1 Q4 R4 ∧ BoundInv st T Ac r.1 ∧
-      XInv st T Cs Ω Sg Rp Scs Nt Z r.1 ∧ SCsOK st T Ω Sg Scs Z Ac r.1) ?_ ?_
+      XInv st T Cs Ω Sg Rp Scs Nt Z r.1 ∧ SCsOK st T Ω Sg Scs Z Ac r.1 ∧ L.cscW r.1 ∈ Ac) ?_ ?_
   · split
     · refine WP.spec_bind (WP.spec_and (sched.set_next_interrupt.free (Ω := Ω) hA s5 a3 h5.cur (h5.nodes _ h5.cur))
         (sched.set_next_interrupt.fp hA s5 a3 (B := (· = L.nodeAt s5 (L.cpu s5) layout.node.ARMED))
@@ -554,7 +577,7 @@ theorem sched.schedule.inv (hA : P0.ArchTotal ar) (s : S) (a : A)
         (by simp [layout.node.ARMED])
         (by simp [layout.node.ARMED]) w7'
       have h7 := free_step h5 hB5 w7
-      have hS7 := SCsOK.node h5 hS5 (by simp [layout.node.ARMED]) (by simp [layout.node.ARMED])
+      have hS7 := SCsOK.node (hi8 := by simp [layout.node.ARMED, layout.node.REPROGRAM, layout.node.IPI_PENDING, layout.node.CONSUMED]) h5 hS5 (by simp [layout.node.ARMED]) (by simp [layout.node.ARMED])
         (by simp [layout.node.ARMED]) (by simp [layout.node.ARMED]) w7'
       step with obj.node_set.spec as ⟨s8, s8_post⟩
       try simp only [WP.spec_ok]
@@ -570,10 +593,13 @@ theorem sched.schedule.inv (hA : P0.ArchTotal ar) (s : S) (a : A)
         xn h7.1 hX7 (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])
           (by simp [layout.node.REPROGRAM])
           (by simp [layout.node.REPROGRAM]) w8',
-        SCsOK.node h7.1 hS7 (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])
-          (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM]) w8'⟩
-    · exact (WP.spec_ok _).2 ⟨h5, hB5, hX5, hS5⟩
-  rintro ⟨s6, a4⟩ ⟨h6, hB6, hX6, hS6⟩
+        SCsOK.node (hi8 := by simp [layout.node.ARMED, layout.node.REPROGRAM, layout.node.IPI_PENDING, layout.node.CONSUMED]) h7.1 hS7 (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])
+          (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM]) w8',
+        by rw [cn h7.1 (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])
+          (by simp [layout.node.REPROGRAM]) w8', cn h5 (by simp [layout.node.ARMED]) (by simp [layout.node.ARMED])
+          (by simp [layout.node.ARMED]) w7']; exact hA5⟩
+    · exact (WP.spec_ok _).2 ⟨h5, hB5, hX5, hS5, hA5⟩
+  rintro ⟨s6, a4⟩ ⟨h6, hB6, hX6, hS6, hA6⟩
   try simp only [WP.uncurry'_pair]
   exact WP.spec_mono (WP.spec_and (smp.send_pending.free (Ω := Ω) hA s6 a4 h6.cur (h6.nodes _ h6.cur))
     (smp.send_pending.fp hA s6 a4 (B := (· = L.nodeAt s6 (L.cpu s6) layout.node.IPI_PENDING))
@@ -584,8 +610,10 @@ theorem sched.schedule.inv (hA : P0.ArchTotal ar) (s : S) (a : A)
       xn h6 hX6 (by simp [layout.node.IPI_PENDING]) (by simp [layout.node.IPI_PENDING])
         (by simp [layout.node.IPI_PENDING])
         (by simp [layout.node.IPI_PENDING]) w',
-      SCsOK.node h6 hS6 (by simp [layout.node.IPI_PENDING]) (by simp [layout.node.IPI_PENDING])
-        (by simp [layout.node.IPI_PENDING]) (by simp [layout.node.IPI_PENDING]) w'⟩
+      SCsOK.node (hi8 := by simp [layout.node.ARMED, layout.node.REPROGRAM, layout.node.IPI_PENDING, layout.node.CONSUMED]) h6 hS6 (by simp [layout.node.IPI_PENDING]) (by simp [layout.node.IPI_PENDING])
+        (by simp [layout.node.IPI_PENDING]) (by simp [layout.node.IPI_PENDING]) w',
+      by rw [cn h6 (by simp [layout.node.IPI_PENDING]) (by simp [layout.node.IPI_PENDING])
+        (by simp [layout.node.IPI_PENDING]) w']; exact hA6⟩
 
 end
 

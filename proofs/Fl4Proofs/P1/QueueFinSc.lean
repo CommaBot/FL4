@@ -24,29 +24,35 @@ theorem scw_ne {s : S} (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) {c p a b : U64} (hc 
 
 /-! ## The SC words the tail of the SC finalisation relies on -/
 
-/-- The `TCB` and `NTFN` words of the SC `p` and the current SC word are kept. -/
+/-- The `TCB` and `NTFN` words of the SC `p` and the current SC word are kept,
+and a null `REPLY` word of `p` stays null. -/
 def SKeep (st : machine.Store S) [L : LawfulStore st] (p : U64) (s s' : S) : Prop :=
-  L.mem s' (scTcbA p) = L.mem s (scTcbA p) ∧ L.mem s' (scNtfnA p) = L.mem s (scNtfnA p) ∧ L.cscW s' = L.cscW s
+  L.mem s' (scTcbA p) = L.mem s (scTcbA p) ∧ L.mem s' (scNtfnA p) = L.mem s (scNtfnA p) ∧ L.cscW s' = L.cscW s ∧
+    (L.mem s (scReplyA p) = 0#u64 → L.mem s' (scReplyA p) = 0#u64)
 
-theorem SKeep.refl (p : U64) (s : S) : SKeep st p s s := ⟨rfl, rfl, rfl⟩
+theorem SKeep.refl (p : U64) (s : S) : SKeep st p s s := ⟨rfl, rfl, rfl, id⟩
 theorem SKeep.trans {p : U64} {s₁ s₂ s₃ : S} (h₁ : SKeep st p s₁ s₂) (h₂ : SKeep st p s₂ s₃) : SKeep st p s₁ s₃ :=
-  ⟨h₂.1.trans h₁.1, h₂.2.1.trans h₁.2.1, h₂.2.2.trans h₁.2.2⟩
+  ⟨h₂.1.trans h₁.1, h₂.2.1.trans h₁.2.1, h₂.2.2.1.trans h₁.2.2.1, fun h => h₂.2.2.2 (h₁.2.2.2 h)⟩
 
 /-- A write of a word of `Ω` other than `p`'s `TCB` and `NTFN` words. -/
 theorem SKeep.wr_out {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {p a v : U64}
     (h0 : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω)
-    (hp : p ∈ Scs) (ha : a ∈ Ω) (h1 : a.val ≠ (scTcbA p).val) (h2 : a.val ≠ (scNtfnA p).val) :
+    (hp : p ∈ Scs) (ha : a ∈ Ω) (h1 : a.val ≠ (scTcbA p).val) (h2 : a.val ≠ (scNtfnA p).val)
+    (h3 : a.val ≠ (scReplyA p).val) :
     SKeep st p s (L.wr s a v) :=
   ⟨L.mem_wr_ne (h0.omega a ha).1 (h0.omega _ (hsub _ (hO.fixW p hp).1)).1 h1,
-    L.mem_wr_ne (h0.omega a ha).1 (h0.omega _ (hsub _ (hO.snW p hp))).1 h2, cscW_wr_out h0 ha⟩
+    L.mem_wr_ne (h0.omega a ha).1 (h0.omega _ (hsub _ (hO.snW p hp))).1 h2, cscW_wr_out h0 ha,
+    fun h0' => by rw [L.mem_wr_ne (h0.omega a ha).1 (h0.omega _ (hsub _ (hO.repW p hp))).1 h3]; exact h0'⟩
 
 /-- A TCB field write, given where `p`'s words lie (in some state `s0`). -/
 theorem SKeep.wr_field {s s0 : S} {p y K v : U64} (hT : TcbPlaced T) (hN : NodePlaced st T s (L.cpu s))
-    (o1 : OutsideObjs st T Cs s0 (scTcbA p)) (o2 : OutsideObjs st T Cs s0 (scNtfnA p)) (hy : y ∈ T)
+    (o1 : OutsideObjs st T Cs s0 (scTcbA p)) (o2 : OutsideObjs st T Cs s0 (scNtfnA p))
+    (o3 : OutsideObjs st T Cs s0 (scReplyA p)) (hy : y ∈ T)
     (hK : K.val < 4096) (hK8 : K.val % 8 = 0) : SKeep st p s (L.wr s (core.num.U64.wrapping_add y K) v) :=
   ⟨L.mem_wr_ne (field_aligned (hT y hy) hK hK8) o1.1 (out_ne_field o1 hy (hT y hy) hK),
     L.mem_wr_ne (field_aligned (hT y hy) hK hK8) o2.1 (out_ne_field o2 hy (hT y hy) hK),
-    cscW_wr_field hT hN hy hK hK8⟩
+    cscW_wr_field hT hN hy hK hK8,
+    fun h0 => by rw [L.mem_wr_ne (field_aligned (hT y hy) hK hK8) o3.1 (out_ne_field o3 hy (hT y hy) hK)]; exact h0⟩
 
 /-! ## `unbind_reply` -/
 
@@ -109,11 +115,13 @@ side): the head reply's `NEXT` link and the SC's `REPLY` word are cleared. -/
 theorem schedcontext.unbind_reply.blk (s : S) (c p : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hc : c ≠ 0#u64 → c ∈ Scs) (hp : p ∈ Scs) :
     schedcontext.unbind_reply st s c ⦃ s' =>
-      BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ Foot st T Cs Sg Scs Z ∅ s s' ∧ SKeep st p s s' ⦄ := by
+      BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ Foot st T Cs Sg Scs Z ∅ s s' ∧ SKeep st p s s' ∧
+      (c ≠ 0#u64 → L.mem s' (scReplyA c) = 0#u64) ⦄ := by
   unfold schedcontext.unbind_reply
   step with obj.Sc.is_null.spec as ⟨b, eb⟩
   split
-  · exact (WP.spec_ok _).2 ⟨h, Foot.refl _, SKeep.refl _ _⟩
+  · rename_i hb
+    exact (WP.spec_ok _).2 ⟨h, Foot.refl _, SKeep.refl _ _, fun h0 => absurd (by simpa [eb] using hb) h0⟩
   rename_i hb
   have hcS : c ∈ Scs := hc (fun e => hb (by rw [eb, e]; rfl))
   refine WP.spec_bind (obj.Sc.reply.val s c) fun i ei => ?_
@@ -134,13 +142,25 @@ theorem schedcontext.unbind_reply.blk (s : S) (c p : U64) (h : BlkOK st T Cs Ω 
     obtain ⟨hPc, hzc⟩ := hO.sc c hcS
     obtain ⟨hPp, hzp⟩ := hO.sc p hp
     obtain ⟨-, -, -, av⟩ := rp_facts hO hiR
-    refine ⟨h2, f1.trans f2, (SKeep.wr_out h0 hO hsub hp (hsub _ (hO.nextW hiR)) ?_ ?_).trans
-      (SKeep.wr_out h0' hO.ksb hsub hp (hsub _ (hO.repW c hcS)) ?_ ?_)⟩
+    have hm2 : scReplyA c ∈ Ω := hsub _ (hO.repW c hcS)
+    have k2 : SKeep st p (L.wr s (rNextA i) 0#u64) (L.wr (L.wr s (rNextA i) 0#u64) (scReplyA c) 0#u64) :=
+      ⟨L.mem_wr_ne (h0'.omega _ hm2).1 (h0'.omega _ (hsub _ (hO.fixW p hp).1)).1
+          (scw_ne hO hcS hp (scReplyA_val hPc hzc) (scTcbA_val hPp hzp) (by omega) (by omega) (by omega)),
+        L.mem_wr_ne (h0'.omega _ hm2).1 (h0'.omega _ (hsub _ (hO.snW p hp))).1
+          (scw_ne hO hcS hp (scReplyA_val hPc hzc) (scNtfnA_val hPp hzp) (by omega) (by omega) (by omega)),
+        cscW_wr_out h0' hm2, fun hz => by
+          rw [L.mem_wr_val (h0'.omega _ hm2).1 (h0'.omega _ (hsub _ (hO.repW p hp))).1]
+          split
+          · rfl
+          · exact hz⟩
+    refine ⟨h2, f1.trans f2, (SKeep.wr_out h0 hO hsub hp (hsub _ (hO.nextW hiR)) ?_ ?_ ?_).trans k2,
+      fun _ => L.mem_wr_same (h0'.omega _ hm2).1⟩
     · rw [av, scTcbA_val hPp hzp]; have := hO.rpSc i hiR p hp; have := (sc_facts hO hp).1; omega
     · rw [av, scNtfnA_val hPp hzp]; have := hO.rpSc i hiR p hp; have := (sc_facts hO hp).1; omega
-    · exact scw_ne hO hcS hp (scReplyA_val hPc hzc) (scTcbA_val hPp hzp) (by omega) (by omega) (by omega)
-    · exact scw_ne hO hcS hp (scReplyA_val hPc hzc) (scNtfnA_val hPp hzp) (by omega) (by omega) (by omega)
-  · exact (WP.spec_ok _).2 ⟨h, Foot.refl _, SKeep.refl _ _⟩
+    · rw [av, scReplyA_val hPp hzp]; have := hO.rpSc i hiR p hp; have := (sc_facts hO hp).1; omega
+  · rename_i hi
+    refine (WP.spec_ok _).2 ⟨h, Foot.refl _, SKeep.refl _ _, fun _ => ?_⟩
+    rw [← ei]; apply UScalar.eq_of_val_eq; simpa using hi
 
 /-! ## `complete_yield_to` keeps `SKeep` -/
 
@@ -156,7 +176,7 @@ theorem regSK {s : S} {t r v p : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac 
   refine ⟨hb, f, n, ?_⟩
   subst e
   exact SKeep.wr_field h0.tcbs (h0.nodes _ h0.cur) (h0.omega _ (hsub _ (hO.fixW p hp).1))
-    (h0.omega _ (hsub _ (hO.snW p hp))) ht (by omega) (by omega)
+    (h0.omega _ (hsub _ (hO.snW p hp))) (h0.omega _ (hsub _ (hO.repW p hp))) ht (by omega) (by omega)
 
 theorem schedcontext.update_consumed.blkS {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S)
     (a : A) (c p : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : c ∈ Scs) (hp : p ∈ Scs) :
@@ -177,6 +197,7 @@ theorem schedcontext.update_consumed.blkS {A : Type _} {ar : machine.Arch A} (hA
     SKeep.wr_out h0 hO hsub hp hm
       (scw_ne hO hc hp (by rw [hv, hcv]) (scTcbA_val hPp hzp) (by omega) (by omega) (by omega))
       (scw_ne hO hc hp (by rw [hv, hcv]) (scNtfnA_val hPp hzp) (by omega) (by omega) (by omega))
+      (scw_ne hO hc hp (by rw [hv, hcv]) (scReplyA_val hPp hzp) (by omega) (by omega) (by omega))
   refine WP.spec_mono (WP.spec_and (schedcontext.update_consumed.blk hA s a c h hc) ?_) fun r hr =>
     ⟨hr.1.1, hr.1.2.1, hr.1.2.2, hr.2⟩
   unfold schedcontext.update_consumed
@@ -252,13 +273,14 @@ theorem schedcontext.cancel_yield_to.blkS (s : S) (t p : U64) (h : BlkOK st T Cs
     have k5 := SKeep.wr_out (v := 0#u64) h0 hO hsub hp hm
       (scw_ne hO hyS hp av (scTcbA_val hPp hzp) (by omega) (by omega) (by omega))
       (scw_ne hO hyS hp av (scNtfnA_val hPp hzp) (by omega) (by omega) (by omega))
+      (scw_ne hO hyS hp av (scReplyA_val hPp hzp) (by omega) (by omega) (by omega))
     have h5 : SchedQueuesInv st T Cs Ω H (L.wr s (scYieldFromA yt) 0#u64) Q R :=
       inv_of_free h0 ((writesIn_wr (v := 0#u64) ho.1).mono fun b hb => hb ▸ Or.inl hm)
     refine WP.spec_mono (obj.Tcb.set_yield_to.spec _ t 0#u64) fun s6 e => ?_
     subst e
     rw [show yieldA t = core.num.U64.wrapping_add t 3472#u64 from rfl]
     exact k5.trans (SKeep.wr_field hT (h5.nodes _ h5.cur) (h0.omega _ (hsub _ (hO.fixW p hp).1))
-      (h0.omega _ (hsub _ (hO.snW p hp))) ht (by simp) (by simp))
+      (h0.omega _ (hsub _ (hO.snW p hp))) (h0.omega _ (hsub _ (hO.repW p hp))) ht (by simp) (by simp))
   · exact (WP.spec_ok _).2 (SKeep.refl _ _)
 
 theorem schedcontext.complete_yield_to.blkS {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S)
@@ -303,8 +325,10 @@ theorem smp.remote_tcb_stall.blkS {A : Type _} {ar : machine.Arch A} (hA : P0.Ar
   have hal := nodeAt_aligned hN (off := layout.node.IPI_PENDING) (by rw [ip]; omega) (by rw [ip])
   have o1 := h0.omega _ (hsub _ (hO.fixW p hp).1)
   have o2 := h0.omega _ (hsub _ (hO.snW p hp))
+  have o3 := h0.omega _ (hsub _ (hO.repW p hp))
   refine ⟨L.mem_wr_ne hal o1.1 (out_ne_node o1 h0.cur hN (by rw [ip]; omega)),
-    L.mem_wr_ne hal o2.1 (out_ne_node o2 h0.cur hN (by rw [ip]; omega)), ?_⟩
+    L.mem_wr_ne hal o2.1 (out_ne_node o2 h0.cur hN (by rw [ip]; omega)), ?_,
+    fun h0' => by rw [L.mem_wr_ne hal o3.1 (out_ne_node o3 h0.cur hN (by rw [ip]; omega))]; exact h0'⟩
   unfold LawfulStore.cscW; rw [nodeA_wr]
   unfold LawfulStore.nodeA
   exact L.mem_wr_ne hal (nodeAt_aligned hN (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]))
@@ -331,7 +355,7 @@ theorem schedcontext.unbind_all_tcbs.blk {A : Type _} {ar : machine.Arch A} (hA 
     refine WP.spec_bind (schedcontext.unbind_tcb.blk s1 p h1 hp hp0 (fun h0 => by
         rw [k1.1] at h0 ⊢; rw [ea1]; exact hna h0)
       (fun h0 => by rw [k1.1] at h0 ⊢; rw [ei1]; exact hidle h0)) fun s2 ⟨h2, f2, ea2, ei2, t2, c2⟩ => ?_
-    refine (WP.spec_ok _).2 ⟨h2, f1.trans f2, ?_, by rw [ei2, ei1], t2, by rw [c2, k1.2.2]⟩
+    refine (WP.spec_ok _).2 ⟨h2, f1.trans f2, ?_, by rw [ei2, ei1], t2, by rw [c2, k1.2.2.1]⟩
     rcases ea2 with e | e
     · exact Or.inl (by rw [e, ea1])
     · exact Or.inr e
@@ -411,7 +435,8 @@ theorem BoundInv.restrict {s : S} {p : U64} (hB : BoundInv st T Ac s) (hnb : ∀
 and then `SPORADIC` cleared.  The invariants hold again after both writes,
 with `p` no longer active (in between, `SCsOK.spor` fails for `p`). -/
 theorem deact_all {s : S} {p : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hp : p ∈ Scs)
-    (hnb : ∀ y ∈ T, L.mem s (scA y) ≠ p) (hnn : ∀ n ∈ Nt, L.mem s (ntfnScA n) ≠ p) :
+    (hnb : ∀ y ∈ T, L.mem s (scA y) ≠ p) (hnn : ∀ n ∈ Nt, L.mem s (ntfnScA n) ≠ p)
+    (hr0 : L.mem s (scReplyA p) = 0#u64) :
     BlkOK st T Cs Ω H Sg Rp Scs Nt Z (Ac \ {p})
         (L.wr (L.wr s (maxA p) 0#u64) (core.num.U64.wrapping_add p layout.sc.SPORADIC) 0#u64) ∧
       Foot st T Cs Sg Scs Z ∅ s
@@ -496,7 +521,7 @@ theorem deact_all {s : S} {p : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
       have := out c hc hne _ al hh; unfold Outside at this; omega
   have hS6 : SCsOK st T Ω Sg Scs Z (Ac \ {p}) s6 := by
     refine ⟨hS.sub, fun b hb => by rw [w.1]; exact hS.ks b hb, fun o h1 h2 => by rw [w.1]; exact hS.ksΩ o h1 h2,
-      fun y hy hb hne => ?_, fun c hc => ?_, fun c hc => ?_, fun c hc h0' => ?_, hS.spSg⟩
+      fun y hy hb hne => ?_, fun c hc => ?_, fun c hc => ?_, fun c hc h0' => ?_, ?_, ?_, ?_⟩
     · rw [fld y hy] at hb hne ⊢; rw [csc] at hne ⊢; exact hS.disj y hy hb hne
     · by_cases e : c = p
       · subst e; exact (hS.all c hc).mk' fun hne => absurd mx6 hne
@@ -510,6 +535,28 @@ theorem deact_all {s : S} {p : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     · by_cases e : c = p
       · subst e; exact absurd sp6 h0'
       · exact ⟨hS.spor c hc (by rw [← ksp c hc e]; exact h0'), e⟩
+    · exact hS.spSg
+    · intro c hc h0'
+      have krp : L.mem s6 (scReplyA c) = L.mem s (scReplyA c) := by
+        obtain ⟨hPc, hzc⟩ := hO.sc c hc
+        obtain ⟨h8c, h128c, -⟩ := sc_lo hPc hzc
+        have rpv := scReplyA_val hPc hzc
+        have al : Aligned (scReplyA c) := by unfold Aligned; omega
+        refine w.mem_eq al fun hh => ?_
+        rcases hh with e | e <;> have := congrArg UScalar.val e
+        · rw [rpv, mxv] at this
+          by_cases e' : c = p
+          · subst e'; omega
+          · have := hO.scDisj c hc p hp e'; omega
+        · rw [rpv, av] at this
+          by_cases e' : c = p
+          · subst e'; omega
+          · have := hO.scDisj c hc p hp e'; omega
+      rw [krp] at h0'
+      by_cases e : c = p
+      · subst e; exact absurd hr0 h0'
+      · exact ⟨hS.rep c hc h0', e⟩
+    · exact hS.repSg
   refine ⟨⟨⟨Q, R, h6⟩, hB6.restrict fun y hy => by rw [fld y hy]; exact hnb y hy, hX6, hS6,
     ⟨hSg.sub, fun b hb => by rw [w.1]; exact hSg.ks b hb, fun o h1 h2 => by rw [w.1]; exact hSg.ksΩ o h1 h2⟩⟩,
     (foot_wr ho.1 (kw_sg (hO.mxW p hp))).trans (foot_wr hal (kw_sc hp hin))⟩
@@ -538,7 +585,7 @@ theorem fin_sc.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s 
   rintro ⟨s1, a1⟩ ⟨h1, f1, -, -, t1, c1⟩
   try simp only [WP.uncurry'_pair]
   refine WP.spec_bind (schedcontext.unbind_ntfn.blk s1 p h1 fun _ => hp) fun s2 ⟨h2, f2, t2, c2, n2⟩ => ?_
-  refine WP.spec_bind (schedcontext.unbind_reply.blk s2 p p h2 (fun _ => hp) hp) fun s3 ⟨h3, f3, k3⟩ => ?_
+  refine WP.spec_bind (schedcontext.unbind_reply.blk s2 p p h2 (fun _ => hp) hp) fun s3 ⟨h3, f3, k3, r3⟩ => ?_
   refine WP.spec_bind (obj.Sc.yield_from.val s3 p) fun yf eyf => ?_
   step with obj.Tcb.is_null.spec as ⟨b, eb⟩
   refine WP.spec_bind (Pₘ := fun r : S × A => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ∧
@@ -553,6 +600,7 @@ theorem fin_sc.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s 
   try simp only [WP.uncurry'_pair]
   have t4 : L.mem s4 (scTcbA p) = 0#u64 := by rw [k4.1, k3.1, t2, t1]
   have n4 : L.mem s4 (scNtfnA p) = 0#u64 := by rw [k4.2.1, k3.2.1, n2 hp0]
+  have r4 : L.mem s4 (scReplyA p) = 0#u64 := k4.2.2.2 (r3 hp0)
   have hX4 := h4.2.2.1
   have hT4 := h4.1.choose_spec.choose_spec.tcbs
   have hnb : ∀ y ∈ T, L.mem s4 (scA y) ≠ p := fun y hy e => by
@@ -567,7 +615,7 @@ theorem fin_sc.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s 
   subst e5
   refine WP.spec_bind (obj.Sc.set_sporadic.wr _ p 0#u64) fun s6 e6 => ?_
   subst e6
-  obtain ⟨h6, f6⟩ := deact_all h4 hp hnb hnn
+  obtain ⟨h6, f6⟩ := deact_all h4 hp hnb hnn r4
   exact (WP.spec_ok _).2 ⟨_, Or.inr rfl, h6, f1.trans (f2.trans (f3.trans (f4.trans f6)))⟩
 
 end

@@ -374,7 +374,7 @@ theorem BlkT.ok {s : S} (h : BlkT st T Cs Ω H Sg Rp Scs Nt Z Ac s) (htm : Timer
     hX.writes hT hw (fun b hb => not_prot_tw h0 hX.1 hSg.sub hb) (by rw [ecs]; exact hX.2.2.cur)
       ⟨htm, fun n hn => by rw [om _ (hSg.sub _ (hX.1.ntB n hn).2)]; exact hX.2.2.ntb n hn⟩,
     SCsOK.keep hS hX hw.1 hsc ecs (fun c hc => ⟨om _ (hcΩ c hc).2.2.1, om _ (hcΩ c hc).2.2.2.1,
-      om _ (hcΩ c hc).2.2.2.2⟩) (fun c hc => om _ (spor_omega hX.1 hc)),
+      om _ (hcΩ c hc).2.2.2.2⟩) (fun c hc => om _ (spor_omega hX.1 hc)) (fun c hc => om _ (hSg.sub _ (hX.1.repW c hc))),
     ⟨hSg.sub, fun b hb => by rw [hw.1]; exact hSg.ks b hb, fun o h1 h2 => by rw [hw.1]; exact hSg.ksΩ o h1 h2⟩⟩
   · rw [ea] at haT ⊢; exact ⟨haT, hB.act haT⟩
   · rw [ea] at h1; rw [ec]; exact ⟨h0.curT, hB.resume h1⟩

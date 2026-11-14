@@ -64,7 +64,7 @@ theorem dpe_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List U64)
       let s2 ← obj.Tcb.set_prio st t s1 prio
       let s3 ← sched.enqueue st s2 t
       sched.reschedule_required st s3) ⦃ s' => BoundInv st T Ac s' ∧ XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧
-        SCsOK st T Ω Sg Scs Z Ac s' ∧ SgOK st Ω Sg s' ⦄ := by
+        SCsOK st T Ω Sg Scs Z Ac s' ∧ SgOK st Ω Sg s' ∧ PFr st T Sg s s' ⦄ := by
   have hT := h.tcbs
   have hc := h.aff t ht
   have hp := h.prio t ht
@@ -73,7 +73,7 @@ theorem dpe_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List U64)
     (sched.dequeue.foot s t _ hT ht hp (h.nodes _ hc) (h.nodes _ h.cur) ((h.ready _ hc).1.rel _ hp)
       (h.queued t ht).1)) ?_
   rintro s1 ⟨h1, hw1, hinq1⟩
-  obtain ⟨hB1, hX1, fr1, -, -, -⟩ := bx_qfoot h hB hX hSg hW hc ht p128 hw1
+  obtain ⟨hB1, hX1, fr1, ea1, -, -⟩ := bx_qfoot h hB hX hSg hW hc ht p128 hw1
     (fun hf => by rw [hinq1] at hf; split_ifs at hf with e
                   · rw [andn_qq_qq] at hf; exact absurd rfl hf
                   · exact Or.inl hf)
@@ -105,8 +105,10 @@ theorem dpe_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List U64)
   refine WP.spec_bind (sched.enqueue.sch _ t _ R h2 hB2 hSg2 ht (fun _ => rf2) (fun _ => st2 ▸ hrun)
     (fun _ => sc2 ▸ hbd) (fun _ => by rw [sc2]; exact hta)) ?_
   rintro s3 ⟨⟨⟨Q3, R3, h3⟩, hB3, f3⟩, -, -, -⟩
+  have fr2 := fr_field (Sg := Sg) (K := 3448#u64) (v := prio) h1 hSg1 ht (by simp) (by simp) (by simp)
   exact WP.spec_mono (sched.reschedule_required.sch s3 Q3 R3 h3 hB3 (hSg2.fr f3)) fun s4 h4 =>
-    ⟨h4.1.bnd, (hX2.fr f3).fr h4.1.fr, (hS2.fr f3).fr h4.1.fr, (hSg2.fr f3).fr h4.1.fr⟩
+    ⟨h4.1.bnd, (hX2.fr f3).fr h4.1.fr, (hS2.fr f3).fr h4.1.fr, (hSg2.fr f3).fr h4.1.fr,
+      PFr.of_fr (fr1.trans (fr2.trans (f3.trans h4.1.fr))) (Or.inr h4.2.1)⟩
 
 theorem running_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List U64)
     (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : t ∈ T) (hv : prio.val < 256)
@@ -133,7 +135,7 @@ theorem running_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List 
           let s3 ← sched.enqueue st s2 t
           sched.reschedule_required st s3
         else obj.Tcb.set_prio st t s prio) ⦃ s' => BoundInv st T Ac s' ∧ XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧
-          SCsOK st T Ω Sg Scs Z Ac s' ∧ SgOK st Ω Sg s' ⦄ := by
+          SCsOK st T Ω Sg Scs Z Ac s' ∧ SgOK st Ω Sg s' ∧ PFr st T Sg s s' ⦄ := by
   step as ⟨b, b_post⟩
   split
   · have hq1 : (L.mem s (inqA t) &&& sched.Q_QUEUED) ≠ 0#u64 := by
@@ -152,7 +154,9 @@ theorem running_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List 
       subst s1_post
       obtain ⟨b1, b2⟩ := bx_field (K := 3448#u64) (v := prio) h hB hX hSg.sub ht (by simp) (by simp) (by simp) (by simp)
       exact ⟨b1, b2, SCsOK.field (K := 3448#u64) h hS hX ht (by simp) (by simp) (by simp),
-        ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o h1 h2⟩⟩
+        ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o h1 h2⟩,
+        PFr.of_fr (fr_field (K := 3448#u64) h hSg ht (by simp) (by simp) (by simp))
+          (Or.inl (act_wr_field (h.nodes _ h.cur) ht (h.tcbs t ht) rfl (by simp) (by simp)))⟩
 
 theorem blocked_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List U64)
     (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : t ∈ T) (hv : prio.val < 256)
@@ -165,7 +169,7 @@ theorem blocked_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List 
       let s1 ← obj.Tcb.set_prio st t s prio
       let i ← obj.Tcb.block_obj st t s1
       reorder s1 i t) ⦃ s' => BoundInv st T Ac s' ∧ XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧
-        SCsOK st T Ω Sg Scs Z Ac s' ∧ SgOK st Ω Sg s' ⦄ := by
+        SCsOK st T Ω Sg Scs Z Ac s' ∧ SgOK st Ω Sg s' ∧ PFr st T Sg s s' ⦄ := by
   have hsub := hSg.sub
   step with obj.Tcb.set_prio.spec as ⟨s1, s1_post⟩
   subst s1_post
@@ -184,9 +188,16 @@ theorem blocked_bx (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U64 → List 
   obtain ⟨-, hcΩ⟩ := objs_omega hX1.1 hsub
   refine ⟨b1, b2, SCsOK.keep hS1 hX1 hw.1 (fun y hy => by rw [scA_eq]; exact kf y hy _ (by simp) (by simp) (by simp) (by simp))
     ?_ (fun c hc => ⟨kΩ _ (hcΩ c hc).2.2.1, kΩ _ (hcΩ c hc).2.2.2.1, kΩ _ (hcΩ c hc).2.2.2.2⟩)
-    (fun c hc => kΩ _ (spor_omega hX1.1 hc)),
+    (fun c hc => kΩ _ (spor_omega hX1.1 hc)) (fun c hc => kΩ _ (hsub _ (hX1.1.repW c hc))),
     ⟨hsub, fun b hb => by rw [hw.1, L.ksb_wr]; exact hSg.ks b hb,
-      fun o h1' h2' => by rw [hw.1, L.ksb_wr]; exact hSg.ksΩ o h1' h2'⟩⟩
+      fun o h1' h2' => by rw [hw.1, L.ksb_wr]; exact hSg.ksΩ o h1' h2'⟩,
+    (PFr.of_fr (fr_field (K := 3448#u64) (v := prio) h hSg ht (by simp) (by simp) (by simp))
+      (Or.inl (act_wr_field (h.nodes _ h.cur) ht (h.tcbs t ht) rfl (by simp) (by simp)))).trans
+      ⟨fun y hy => by rw [scA_eq]; exact kf y hy _ (by simp) (by simp) (by simp) (by simp),
+        fun y hy => by rw [stA_eq]; exact kf y hy _ (by simp) (by simp) (by simp) (by simp),
+        fun b hb => kΩ b (hsub b hb),
+        by unfold LawfulStore.idleW; exact kn _ (by rw [idle8]; omega) (by rw [idle8]),
+        Or.inl (by unfold LawfulStore.actionW; exact kn _ (by rw [act_val]; omega) (by rw [act_val]))⟩⟩
   unfold LawfulStore.cscW LawfulStore.nodeA
   rw [kn _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])]; rfl
 
@@ -201,7 +212,7 @@ theorem sched.set_priority.all (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U
     (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hSg : SgOK st Ω Sg s)
     (hS : SCsOK st T Ω Sg Scs Z Ac s) :
     sched.set_priority st s t prio ⦃ s' => (∃ Q', SchedQueuesInv st T Cs Ω H s' Q' R) ∧ BoundInv st T Ac s' ∧
-      XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SCsOK st T Ω Sg Scs Z Ac s' ∧ SgOK st Ω Sg s' ⦄ := by
+      XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SCsOK st T Ω Sg Scs Z Ac s' ∧ SgOK st Ω Sg s' ∧ PFr st T Sg s s' ⦄ := by
   refine WP.spec_mono (WP.spec_and (sched.set_priority.inv s t prio Q R h ht hv hcur) ?_) fun s' hh => hh
   obtain ⟨r1, r2, r3, r4, r5⟩ := ts_vals
   unfold sched.set_priority
@@ -226,7 +237,9 @@ theorem sched.set_priority.all (s : S) (t : obj.Tcb) (prio : U64) (Q : U64 → U
             subst s1_post
             obtain ⟨b1, b2⟩ := bx_field (K := 3448#u64) (v := prio) h hB hX hSg.sub ht (by simp) (by simp) (by simp) (by simp)
             exact ⟨b1, b2, SCsOK.field (K := 3448#u64) h hS hX ht (by simp) (by simp) (by simp),
-              ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o h1 h2⟩⟩
+              ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o h1 h2⟩,
+              PFr.of_fr (fr_field (K := 3448#u64) h hSg ht (by simp) (by simp) (by simp))
+                (Or.inl (act_wr_field (h.nodes _ h.cur) ht (h.tcbs t ht) rfl (by simp) (by simp)))⟩
 
 end
 

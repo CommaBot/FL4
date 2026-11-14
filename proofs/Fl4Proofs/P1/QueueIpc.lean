@@ -154,7 +154,7 @@ theorem xfer_all {X : Set U64} {U : Set U64} {s s' : S} {Q : U64 → U64 → Lis
       (fun y hy => F y hy _ (by simp) (by simp) (by simp)) (fun c hc => f2 _ (hSg.sub _ (hX.1.syW c hc)))
       (fun c hc => f2 _ (hcΩ c hc).2.2.1),
     SCsOK.keep hS hX hw.1 scf ecs (fun c hc => ⟨f2 _ (hcΩ c hc).2.2.1, f2 _ (hcΩ c hc).2.2.2.1,
-      f2 _ (hcΩ c hc).2.2.2.2⟩) (fun c hc => f2 _ (spor_omega hX.1 hc)),
+      f2 _ (hcΩ c hc).2.2.2.2⟩) (fun c hc => f2 _ (spor_omega hX.1 hc)) (fun c hc => f2 _ (hSg.sub _ (hX.1.repW c hc))),
     ⟨hSg.sub, fun b hb => by rw [hw.1]; exact hSg.ks b hb, fun o h1 h2 => by rw [hw.1]; exact hSg.ksΩ o h1 h2⟩,
     ea, ec, ei, ecs, F, f2⟩
   · rw [nextA_eq']; exact F y hy _ (by simp [nextOff]) (by simp [nextOff]) (by simp [nextOff])
@@ -291,7 +291,9 @@ theorem ipi_all {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 �
   have ha : Aligned (L.nodeAt s (L.cpu s) layout.node.IPI_PENDING) := nodeAt_aligned hN' (by rw [ip]; omega) (by rw [ip])
   obtain ⟨-, hcΩ⟩ := objs_omega hX.1 hS.sub
   refine ⟨h1, hB1, hX1, SCsOK.wr h hS hX ha (fun y hy e => ?_) ?_ (fun c hc => ?_)
-    (fun c hc => out_ne_node (h.omega _ (spor_omega hX.1 hc)) h.cur hN' (by rw [ip]; omega)), hSg1, ea, ec, ?_, ecs,
+    (fun c hc => out_ne_node (h.omega _ (spor_omega hX.1 hc)) h.cur hN' (by rw [ip]; omega))
+    (fun c hc e => absurd e (out_ne_node (h.omega _ (hS.sub _ (hX.1.repW c hc))) h.cur hN' (by rw [ip]; omega))),
+    hSg1, ea, ec, ?_, ecs,
     fun y hy K hK hK8 => field_wr_node h h.cur (by rw [ip]; omega) (by rw [ip]) hy hK hK8, fun a ha' => ?_⟩
   · rw [scA_eq] at e
     exact node_ne_field hN' (by rw [ip]; omega) hy (h.tcbs y hy) (by simp) (UScalar.eq_of_val_eq e)
@@ -683,7 +685,8 @@ theorem SCsOK.bind {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64
   refine ⟨hS.sub, fun b hb => by rw [L.ksb_wr]; exact hS.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hS.ksΩ o h1 h2,
     fun y hy hb hne => ?_, fun c hc => (hS.all c hc).agree ag,
     fun c hc => by rw [show L.rmax (L.wr s (scA t) c0) c = L.rmax s c from ag _ (hS.all c hc).2.1]; exact hS.act c hc,
-    fun c hc h0 => hS.spor c hc (by rw [← ag _ (hS.spSg c hc)]; exact h0), hS.spSg⟩
+    fun c hc h0 => hS.spor c hc (by rw [← ag _ (hS.spSg c hc)]; exact h0), hS.spSg,
+    fun c hc h0 => hS.rep c hc (by rw [← ag _ (hS.repSg c hc)]; exact h0), hS.repSg⟩
   · rw [ecs] at hne ⊢
     by_cases e : y = t
     · subst e; rw [L.mem_wr_same ha] at hne ⊢; exact hdisj hne
@@ -694,11 +697,10 @@ switch-to candidate and not the idle thread. -/
 theorem clear_sc_state {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t : U64}
     (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s) (ht : t ∈ T)
-    (hout : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64 ∧ (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64 ∧
-      L.actionW s ≠ t)
+    (hout : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64 ∧ (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64)
     (hidle : L.idleW s ≠ t) :
     SchedQueuesInvX st T Cs Ω H X (L.wr s (scA t) 0#u64) Q R ∧
-      ((L.curW (L.wr s (scA t) 0#u64) = t → L.actionW (L.wr s (scA t) 0#u64) ≠ 0#u64) →
+      (L.actionW s ≠ t → (L.curW (L.wr s (scA t) 0#u64) = t → L.actionW (L.wr s (scA t) 0#u64) ≠ 0#u64) →
         BoundInv st T Ac (L.wr s (scA t) 0#u64)) ∧
       BoundInv st T Ac (L.wr (L.wr s (scA t) 0#u64)
         (L.nodeAt (L.wr s (scA t) 0#u64) (L.cpu (L.wr s (scA t) 0#u64)) layout.node.SCHED_ACTION) 1#u64) ∧
@@ -710,7 +712,7 @@ theorem clear_sc_state {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
       (∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 → (y = t → K.val ≠ 3464) →
         L.mem (L.wr s (scA t) 0#u64) (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K)) ∧
       (∀ a ∈ Ω, L.mem (L.wr s (scA t) 0#u64) a = L.mem s a) ∧ L.mem (L.wr s (scA t) 0#u64) (scA t) = 0#u64 := by
-  obtain ⟨hq0, hr0, hna⟩ := hout
+  obtain ⟨hq0, hr0⟩ := hout
   have hT := h.tcbs
   have hta := hT t ht
   have hN := h.nodes _ h.cur
@@ -769,7 +771,7 @@ theorem clear_sc_state {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
     by_cases ey : L.mem s (scTcbA c) = t
     · rw [ey] at hb; exact absurd hb.symm hne
     · rw [scy _ (hX.2.2.yt.1 c hc h0) ey]; exact hb
-  refine ⟨h2, fun hcur => ⟨bq, br, fun haT => ?_, bidle, fun h0 => ?_, bnb, bsa⟩, BoundInv.choose h2 bq br bidle bnb bsa,
+  refine ⟨h2, fun hna hcur => ⟨bq, br, fun haT => ?_, bidle, fun h0 => ?_, bnb, bsa⟩, BoundInv.choose h2 bq br bidle bnb bsa,
     hX.x0.keep0 (fun r hr => ⟨F2 _ (hrΩ r hr).1, F2 _ (hrΩ r hr).2.1, F2 _ (hrΩ r hr).2.2⟩)
       (fun c hc => ⟨F2 _ (hcΩ c hc).1, F2 _ (hcΩ c hc).2.1⟩)
       (fun y hy => by
@@ -789,7 +791,7 @@ theorem clear_sc_state {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
         · subst e; exact Or.inr sct
         · exact Or.inl (scy y hy e)) ecs
       (fun c hc => ⟨F2 _ (hcΩ c hc).2.2.1, F2 _ (hcΩ c hc).2.2.2.1, F2 _ (hcΩ c hc).2.2.2.2⟩)
-      (fun c hc => F2 _ (spor_omega hX.1 hc)),
+      (fun c hc => F2 _ (spor_omega hX.1 hc)) (fun c hc => F2 _ (hSg.sub _ (hX.1.repW c hc))),
     ⟨hSg.sub, fun b hb => by simp only [hs2, LawfulStore.ksb_wr]; exact hSg.ks b hb,
       fun o h1 h2 => by simp only [hs2, LawfulStore.ksb_wr]; exact hSg.ksΩ o h1 h2⟩,
     ea, ec, ei, ecs, F1, F2, sct⟩
@@ -879,7 +881,7 @@ theorem sched.reschedule_required.schX {X : Set U64} (s : S) (Q : U64 → U64 �
     have hB2 := hB1.wr_node h1 (o := layout.node.SCHED_ACTION) (v := 1#u64) (by rw [act_val]; omega) (by rw [act_val])
       (by rw [act_val]; omega) (fun _ => ⟨fun hT => absurd hT (one_notT h), fun e => by simp at e⟩)
       (fun e => by rw [act_val] at e; omega) (fun _ hT => absurd hT (one_notT h))
-    have f := fr_node (Sg := Sg) (v := 1#u64) h1 (hS.fr f1) h1.cur (by rw [act_val]; omega) (by rw [act_val])
+    have f := fr_node (Sg := Sg) (hi8 := fun _ => by simp [layout.node.SCHED_ACTION, layout.node.REPROGRAM, layout.node.CUR_THREAD]) (v := 1#u64) h1 (hS.fr f1) h1.cur (by rw [act_val]; omega) (by rw [act_val])
       (hto := ⟨by rw [act_val]; omega, by rw [act_val]; omega⟩)
       (fun _ => by rw [act_val]; omega)
     have ec := rd_cur_node (v := 1#u64) h1 (by rw [act_val]; omega) (by rw [act_val]) (by rw [curth0]; omega)
@@ -964,6 +966,7 @@ theorem donate_pair {X : Set U64} {s6 : S} {sc dst : U64} {Q : U64 → U64 → L
       by_cases hcc : c = sc
       · subst hcc; omega
       · have := hO.scDisj c hc sc hsc hcc; have := hv0.1; have := (sc_facts hO hc).1; omega)
+    (fun c hc e => absurd e (scw_ne_screp hO hsc hv0.2.1 (by omega) (by omega) c hc))
   have hsA7 : Sch st s7 dst → sc ∈ Ac := fun hS => hsA (Sch.wr_out h6 hm hto (by rw [← e7]; exact hS))
   rw [← e7] at h7 a7 f7 hB7 hX7 hS7 tx7
   have hSg7 : SgOK st Ω Sg s7 := ⟨hSg6.sub, fun b hb => by rw [e7, L.ksb_wr]; exact hSg6.ks b hb,
@@ -1215,13 +1218,14 @@ theorem schedcontext.donate.ipc {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
   rintro ⟨s2, a2⟩ ⟨h2, hB2, hX2, hS2, hSg2, ea2, ec2, ei2, ecs2, f2, o2⟩
   try simp only [WP.uncurry'_pair]
   have iq2 : L.mem s2 (inqA i) = L.mem s (inqA i) := by rw [inqA_eq]; exact f2 i hfr _ (by simp) (by simp)
+  have hna2 : L.actionW s2 ≠ i := by rw [ea2]; exact hfout.2.2
   refine WP.spec_bind (sched.dequeue.noop s2 i (by rw [iq2]; exact hfout.1)) fun s3 e3 => ?_
   subst e3
   refine WP.spec_bind (sched.release_remove.noop s3 i (by rw [iq2]; exact hfout.2.1)) fun s4 e4 => ?_
   subst e4
   step with obj.Tcb.set_sc.wr as ⟨s5, e5⟩
   have key := clear_sc_state h2 hB2 hX2 hS2 hSg2 hfr
-    ⟨by rw [iq2]; exact hfout.1, by rw [iq2]; exact hfout.2.1, by rw [ea2]; exact hfout.2.2⟩ (by rw [ei2]; exact hfi)
+    ⟨by rw [iq2]; exact hfout.1, by rw [iq2]; exact hfout.2.1⟩ (by rw [ei2]; exact hfi)
   rw [← e5] at key
   obtain ⟨k1, kB, kB3, k3, ktx, k4, k5, ka, kc, ki, kcs, kf, kΩ, ks0⟩ := key
   have ktx' : TScX st Scs sc s5 := by
@@ -1244,7 +1248,7 @@ theorem schedcontext.donate.ipc {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
   · by_cases ha0 : L.actionW s5 = 0#u64
     · refine WP.spec_bind (sched.reschedule_required.resume s5 ha0) fun s6 e6 => ?_
       subst e6
-      have f := fr_node (Sg := Sg) (v := 1#u64) k1 k5 k1.cur (by rw [act_val]; omega) (by rw [act_val])
+      have f := fr_node (Sg := Sg) (hi8 := fun _ => by simp [layout.node.SCHED_ACTION, layout.node.REPROGRAM, layout.node.CUR_THREAD]) (v := 1#u64) k1 k5 k1.cur (by rw [act_val]; omega) (by rw [act_val])
         (hto := ⟨by rw [act_val]; omega, by rw [act_val]; omega⟩)
         (fun _ => by rw [act_val]; omega)
       obtain ⟨j1, -⟩ := inv_set_action k1 (Or.inr (Or.inl rfl)) (fun h1T => absurd h1T (notT_small k1.tcbs (by simp)))
@@ -1260,7 +1264,7 @@ theorem schedcontext.donate.ipc {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
       · rw [scA_eq, fw i hfr _ (by simp) (by simp), ← scA_eq]; exact ks0
       · rw [scA_eq, fw y hy _ (by simp) (by simp), ← scA_eq]; exact sy5 y hy hyi
       · rw [inqA_eq, fw dst hdst _ (by simp) (by simp), ← inqA_eq]; exact iq5
-    · have kB2 := kB (fun _ => ha0)
+    · have kB2 := kB hna2 (fun _ => ha0)
       have hda5 : L.actionW s5 ≠ dst := by rw [ea5]; exact hda
       refine WP.spec_bind (sched.reschedule_required.schX s5 Q R k1 kB2 k5) fun s6 hh => ?_
       obtain ⟨⟨Q6, R6, h6⟩, hB6, fr6, -, -, kp6, -, iq6⟩ := hh
@@ -1271,7 +1275,7 @@ theorem schedcontext.donate.ipc {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
         fun b hb => (fr6.sig b hb).trans (sg5 b hb), fr6.csc.trans cs5⟩
   · rename_i hb1
     have hne' : i ≠ t1 := fun e => hb1 (by rw [eb1, decide_eq_true_eq]; exact e)
-    have kB2 := kB (fun e => absurd (by rw [et1]; exact e.symm) hne')
+    have kB2 := kB hna2 (fun e => absurd (by rw [et1]; exact e.symm) hne')
     step with sched.action.spec as ⟨i1, ei1⟩
     split
     · rename_i hii; exfalso; exact hfout.2.2 (by rw [← ea5, ← ei1, hii])
@@ -1445,7 +1449,7 @@ theorem link_allT {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} 
     (hn : ∀ r ∈ Rp, a.val = (rNextA r).val → w &&& ~~~1#u64 ≠ 0#u64 →
       (headBit w = true → w &&& ~~~1#u64 ∈ Scs) ∧ (headBit w = false → w &&& ~~~1#u64 ∈ Rp))
     (hp : ∀ r ∈ Rp, a.val = (rPrevA r).val → w &&& ~~~1#u64 ≠ 0#u64 → w &&& ~~~1#u64 ∈ Rp)
-    (hs : ∀ c ∈ Scs, a.val = (scReplyA c).val → w ≠ 0#u64 → w ∈ Rp)
+    (hs : ∀ c ∈ Scs, a.val = (scReplyA c).val → w ≠ 0#u64 → w ∈ Rp ∧ c ∈ Ac)
     (hnt : ∀ n ∈ Nt, a.val = (ntfnScA n).val → w ≠ 0#u64 →
       w ∈ Scs ∧ L.mem s (scNtfnA w) = n)
     (hnB : ∀ c ∈ Scs, a.val = (scNtfnA c).val → ∀ n ∈ Nt, L.mem s (ntfnScA n) = c → w = n)
@@ -1468,9 +1472,10 @@ theorem link_allT {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} 
       simp only [LawfulStore.cpu_wr, nodeAt_wr]
       exact L.mem_wr_ne ho.1 (nodeAt_aligned hN h1 h2) (fun e => out_ne_node ho h.cur hN h1 e.symm)
   refine ⟨h1, BoundInv.owr h hB haΩ, XInv.wr_linkT h hX hSg.sub haΩ ht (fun c hcs => ⟨(hc c hcs).1, (hc c hcs).2.1, (hc c hcs).2.2.1⟩)
-      hn hp hs hnt hnB hnb hsnT hsyT,
+      hn hp (fun c hc e h0 => (hs c hc e h0).1) hnt hnB hnb hsnT hsyT,
     SCsOK.wr h hS hX ho.1 (fun y hy => (out_ne_field (K := 3464#u64) ho hy (h.tcbs y hy) (by simp)).symm)
-      (out_ne_node ho h.cur hN (by simp [layout.node.CUR_SC])).symm (fun c hcs => (hc c hcs).2.2) hsp,
+      (out_ne_node ho h.cur hN (by simp [layout.node.CUR_SC])).symm (fun c hcs => (hc c hcs).2.2) hsp
+      (fun c hcs e h0 => (hs c hcs e h0).2),
     ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o h1 h2⟩,
     ea, nd _ (by rw [curth0]; omega) (by rw [curth0]), nd _ (by rw [idle8]; omega) (by rw [idle8]), f,
     fun b hb hne => L.mem_wr_ne ho.1 (h.omega b hb).1 hne⟩
@@ -1485,7 +1490,7 @@ theorem link_all {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {
     (hn : ∀ r ∈ Rp, a.val = (rNextA r).val → w &&& ~~~1#u64 ≠ 0#u64 →
       (headBit w = true → w &&& ~~~1#u64 ∈ Scs) ∧ (headBit w = false → w &&& ~~~1#u64 ∈ Rp))
     (hp : ∀ r ∈ Rp, a.val = (rPrevA r).val → w &&& ~~~1#u64 ≠ 0#u64 → w &&& ~~~1#u64 ∈ Rp)
-    (hs : ∀ c ∈ Scs, a.val = (scReplyA c).val → w ≠ 0#u64 → w ∈ Rp)
+    (hs : ∀ c ∈ Scs, a.val = (scReplyA c).val → w ≠ 0#u64 → w ∈ Rp ∧ c ∈ Ac)
     (hnt : ∀ n ∈ Nt, a.val ≠ (ntfnScA n).val) (hnb : ∀ n ∈ Nt, a.val ≠ (ntfnBtA n).val)
     (hsn : ∀ c ∈ Scs, a.val ≠ (scNtfnA c).val) (hsy : ∀ c ∈ Scs, a.val ≠ (scYieldFromA c).val)
     (hsp : ∀ c ∈ Scs, a.val ≠ (sporA c).val) :
@@ -1634,6 +1639,7 @@ theorem ipc.reply_push.ipc {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal
   have hi0 : i ≠ 0#u64 := fun e => hb (by rw [eb, e]; rfl)
   have hci0 : L.mem s (scA caller) ≠ 0#u64 := by rw [← ei]; exact hi0
   obtain ⟨hiS, hitc, hicore⟩ := hX.2.2.bound caller hcl hci0
+  have hiA : i ∈ Ac := by rw [ei]; exact hcA hci0
   rw [← ei] at hiS hitc hicore
   step with obj.Tcb.sc.spec as ⟨i1, ei1⟩
   split
@@ -1703,7 +1709,12 @@ theorem ipc.reply_push.ipc {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal
           (fun r' hr' e => by
             rw [hiv.2.2.2.2.2.2.1, rPrevA_val (hO.rp r' hr')] at e
             have := hO.rpSc r' hr' i hiS; have := hiv.1; omega)
-          (fun _ _ _ _ => hr)
+          (fun c hc e _ => ⟨hr, by
+            by_cases hci : c = i
+            · rw [hci]; exact hiA
+            · exfalso; have := hiR c hc hci
+              rw [hiv.2.2.2.2.2.2.1, (sc_facts hO hc).2.2.2.2.2.2.1] at e
+              have := hiv.1; have := (sc_facts hO hc).1; omega⟩)
           (fun n hn e => by rw [hiv.2.2.2.2.2.2.1] at e; have := hO.ntSc n hn i hiS; have := hiv.1; omega)
           (fun n hn e => by
             rw [hiv.2.2.2.2.2.2.1, ntfnBtA_val (hO.ntP n hn)] at e; have := hO.ntOSc n hn i hiS; have := hiv.1; omega)
@@ -2018,7 +2029,7 @@ theorem frame_bx {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U6
       (fun y hy => fld y hy _ (by simp) (by simp) (by simp) (by simp)) (fun c hc => om _ (hSg.sub _ (hX.1.syW c hc)))
       (fun c hc => om _ (hcΩ c hc).2.2.1),
     SCsOK.keep hS hX hk scf ecs (fun c hc => ⟨om _ (hcΩ c hc).2.2.1, om _ (hcΩ c hc).2.2.2.1, om _ (hcΩ c hc).2.2.2.2⟩)
-      (fun c hc => om _ (spor_omega hX.1 hc)),
+      (fun c hc => om _ (spor_omega hX.1 hc)) (fun c hc => om _ (hSg.sub _ (hX.1.repW c hc))),
     ⟨hSg.sub, fun b hb => by rw [hk]; exact hSg.ks b hb, fun o h1 h2 => by rw [hk]; exact hSg.ksΩ o h1 h2⟩,
     ea, ec, ei⟩
 

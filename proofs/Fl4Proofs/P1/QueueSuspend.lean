@@ -244,7 +244,10 @@ theorem SCsOK.keepT {s s' : S} {t : U64} (hS : SCsOK st T Ω Sg Scs Z Ac s) (hX 
     exact hW.of_hdr f3 (by rw [show L.rhead s' c = L.mem s' (headA c) from rfl, f4]; exact hW.head_lt)
       (by rw [show L.rtail s' c = L.mem s' (tailA c) from rfl, f5]; exact hW.tail_lt)
   exact hS.mk2 k.ksb (fun y hy => k.scf hy) k.cscW (fun c hc => (hS.all c hc).of_wf (k.fix c hc).2.2.1 (wf c hc))
-    (fun c hc => (k.fix c hc).2.2.1) k.spf
+    (fun c hc => (k.fix c hc).2.2.1) k.spf (fun c hc h0 => by
+      rcases k.srep c hc with e | e
+      · exact hS.rep c hc (by rwa [e] at h0)
+      · exact absurd e h0)
 
 /-- `SCsOK` after writes to the ring of the SC object `i` (kept well formed)
 and to the current node's `REPROGRAM`. -/
@@ -281,7 +284,8 @@ theorem SCsOK.ring {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U
     rcases hh with hh | rfl
     · have := hO.scDisj c hc i hi e; unfold Outside; unfold InRing at hh; omega
     · exact SCin.node_out ⟨hW, hO.scW c hc⟩ h.omega h.cur hN' (by rw [rp]; omega) (by rw [rp])
-  have hk : ∀ c ∈ Scs, ∀ b, Aligned b → (b.val = c.val + 72 ∨ b.val = c.val + 64) → L.mem s' b = L.mem s b := by
+  have hk : ∀ c ∈ Scs, ∀ b, Aligned b → (b.val = c.val + 72 ∨ b.val = c.val + 64 ∨ b.val = c.val + 32) →
+      L.mem s' b = L.mem s b := by
     intro c hc b hb hv
     obtain ⟨hPc, hzc⟩ := hO.sc c hc
     obtain ⟨-, h128c, -⟩ := sc_lo hPc hzc
@@ -293,7 +297,12 @@ theorem SCsOK.ring {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U
       · have := hO.scDisj c hc i hi e; omega
     · have hm := hO.scW c hc _ hb ⟨by omega, by omega⟩
       exact out_ne_node (h.omega _ hm) h.cur hN' (by rw [rp]; omega) rfl
-  refine hS.mk2 w.1 fld csc (fun c hc => ?_) (fun c hc => ?_) (fun c hc => ?_)
+  refine hS.mk2 w.1 fld csc (fun c hc => ?_) (fun c hc => ?_) (fun c hc => ?_) (fun c hc h0 => hS.rep c hc ?_)
+  rotate_right
+  · obtain ⟨hPc, hzc⟩ := hO.sc c hc
+    obtain ⟨h8c, h128c, -⟩ := sc_lo hPc hzc
+    have := scReplyA_val hPc hzc
+    rwa [hk c hc _ (by unfold Aligned; omega) (Or.inr (Or.inr this))] at h0
   rotate_left
   · obtain ⟨a1, a2, a3⟩ := maxA_facts hO hc
     obtain ⟨hPc, hzc⟩ := hO.sc c hc
@@ -301,7 +310,7 @@ theorem SCsOK.ring {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U
   · obtain ⟨hPc, hzc⟩ := hO.sc c hc
     obtain ⟨h8c, h128c, -⟩ := sc_lo hPc hzc
     have := sporA_val hPc hzc
-    exact hk c hc _ (by unfold Aligned; omega) (Or.inr this)
+    exact hk c hc _ (by unfold Aligned; omega) (Or.inr (Or.inl this))
   · by_cases e : c = i
     · subst e; exact (hS.all c hc).mk' fun _ => hwi
     obtain ⟨a1, a2, a3⟩ := maxA_facts hO hc
@@ -318,7 +327,8 @@ theorem SCsOK.wr' {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} 
     (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
     (ha : Aligned a) (hsc : ∀ y ∈ T, a.val ≠ (scA y).val) (hcs : a.val ≠ (L.nodeA s layout.node.CUR_SC).val)
     (hh : ∀ c ∈ Scs, a.val ≠ (maxA c).val ∧ a.val ≠ (headA c).val ∧ a.val ≠ (tailA c).val)
-    (hsp : ∀ c ∈ Scs, a.val ≠ (sporA c).val) :
+    (hsp : ∀ c ∈ Scs, a.val ≠ (sporA c).val)
+    (hrA : ∀ c ∈ Scs, a.val = (scReplyA c).val → v ≠ 0#u64 → c ∈ Ac) :
     SCsOK st T Ω Sg Scs Z Ac (L.wr s a v) := by
   have hN' := h.nodes _ h.cur
   have al : ∀ c ∈ Scs, ∀ o : U64, o.val < 128 → o.val % 8 = 0 → Aligned (core.num.U64.wrapping_add c o) :=
@@ -343,13 +353,20 @@ theorem SCsOK.wr' {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} 
   exact hS.mk2 (L.ksb_wr _ _ _) fld csc (fun c hc => (hS.all c hc).of_wf (fix c hc).1 (wf c hc))
     (fun c hc => (fix c hc).1)
     (fun c hc => L.mem_wr_ne ha (al c hc _ (by simp [layout.sc.SPORADIC]) (by simp [layout.sc.SPORADIC])) (hsp c hc))
+    (fun c hc h0 => by
+      rw [show scReplyA c = core.num.U64.wrapping_add c layout.sc.REPLY from rfl,
+        L.mem_wr_val ha (al c hc _ (by simp [layout.sc.REPLY]) (by simp [layout.sc.REPLY]))] at h0
+      split at h0
+      · exact hrA c hc ‹_› h0
+      · exact hS.rep c hc h0)
 
 theorem SCsOK.wr {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {a v : U64}
     {X : Set U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SCsOK st T Ω Sg Scs Z Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (ha : Aligned a) (hsc : ∀ y ∈ T, a.val ≠ (scA y).val) (hcs : a.val ≠ (L.nodeA s layout.node.CUR_SC).val)
     (hh : ∀ c ∈ Scs, a.val ≠ (maxA c).val ∧ a.val ≠ (headA c).val ∧ a.val ≠ (tailA c).val)
-    (hsp : ∀ c ∈ Scs, a.val ≠ (sporA c).val) :
-    SCsOK st T Ω Sg Scs Z Ac (L.wr s a v) := SCsOK.wr' h hS hX.1 ha hsc hcs hh hsp
+    (hsp : ∀ c ∈ Scs, a.val ≠ (sporA c).val)
+    (hrA : ∀ c ∈ Scs, a.val = (scReplyA c).val → v ≠ 0#u64 → c ∈ Ac) :
+    SCsOK st T Ω Sg Scs Z Ac (L.wr s a v) := SCsOK.wr' h hS hX.1 ha hsc hcs hh hsp hrA
 
 /-- A TCB field other than the SC field keeps `SCsOK`. -/
 theorem SCsOK.field {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {y K v : U64}
@@ -361,6 +378,7 @@ theorem SCsOK.field {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64
   obtain ⟨-, hc⟩ := objs_omega hX.1 hS.sub
   refine SCsOK.wr h hS hX (field_aligned hya hK hK8) (fun y' hy' => ?_) ?_ (fun c hc' => ?_)
     (fun c hc' => out_ne_field (h.omega _ (spor_omega hX.1 hc')) hy hya hK)
+    (fun c hc' e => absurd e (out_ne_field (h.omega _ (hS.sub _ (hX.1.repW c hc'))) hy hya hK))
   · rw [scA_eq]; exact fun e => field_ne hya (h.tcbs y' hy') hK (by simp) (fun _ => by simp; omega) (UScalar.eq_of_val_eq e)
   · exact fun e => node_ne_field hN' (by simp [layout.node.CUR_SC]) hy hya hK (UScalar.eq_of_val_eq e).symm
   · obtain ⟨-, -, c3, c4, c5⟩ := hc c hc'
@@ -370,7 +388,8 @@ theorem SCsOK.field {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64
 /-- An SC object's `YIELD_FROM` or `REPLY` word keeps `SCsOK`. -/
 theorem SCsOK.scword {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {c a v : U64}
     {X : Set U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SCsOK st T Ω Sg Scs Z Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
-    (hc : c ∈ Scs) (ha : a = scReplyA c ∨ a = core.num.U64.wrapping_add c layout.sc.YIELD_FROM) :
+    (hc : c ∈ Scs) (ha : a = scReplyA c ∨ a = core.num.U64.wrapping_add c layout.sc.YIELD_FROM)
+    (hrA : a = scReplyA c → v ≠ 0#u64 → c ∈ Ac) :
     SCsOK st T Ω Sg Scs Z Ac (L.wr s a v) := by
   have hN' := h.nodes _ h.cur
   have haΩ := scword_omega hX.1 hc ha
@@ -381,6 +400,16 @@ theorem SCsOK.scword {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U6
     · exact Or.inl e6
     · exact Or.inr e7
   refine SCsOK.wr h hS hX ho.1 (fun y hy => ?_) ?_ (fun c' hc' => ?_) (fun c' hc' => ?_)
+    (fun c' hc' e h0 => ?_)
+  rotate_right
+  · by_cases e' : c = c'
+    · subst e'
+      rcases ha with rfl | rfl
+      · exact hrA rfl h0
+      · exfalso; rw [e7, e6] at e; omega
+    · exfalso
+      obtain ⟨h128', -, -, -, -, -, f6, -⟩ := sc_facts hX.1 hc'
+      have := hX.1.scDisj c hc c' hc' e'; rw [f6] at e; omega
   rotate_right
   · obtain ⟨hP', hz'⟩ := hX.1.sc c' hc'; obtain ⟨h128', -⟩ := sc_facts hX.1 hc'
     rw [sporA_val hP' hz']
@@ -573,7 +602,7 @@ theorem sched.suspend.all {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t 
         (fun y hy => by rw [stA_eq]; exact fne _ hy _ (by simp) (by simp))
       have hX6 := XInv.wr_yield0 h5 hX5 hya5 (avoidX_yieldA h5 hX5 hsub ht)
         (hX5.tn_field (v := 0#u64) h5 hsub ht (K := 3472#u64) (by simp) (by simp) (by simp))
-      have hS5 := SCsOK.scword (v := 0#u64) h4 hS4 hX4 hyS (Or.inr rfl)
+      have hS5 := SCsOK.scword (v := 0#u64) h4 hS4 hX4 hyS (Or.inr rfl) (fun _ h0 => absurd rfl h0)
       have tmB : TmFr st T Cs Nt (L.wr s4 (scYieldFromA yt) 0#u64)
           (L.wr (L.wr s4 (scYieldFromA yt) 0#u64) (yieldA t) 0#u64) :=
         TmFr.wr hT h5.nodes hX5.1 (field_aligned (K := 3472#u64) hta (by simp) (by simp))
@@ -615,12 +644,14 @@ theorem SCsOK.keep {s s' : S} (hS : SCsOK st T Ω Sg Scs Z Ac s) (hX : XInv st T
     (hk : L.ksb s' = L.ksb s) (hsc : ∀ y ∈ T, L.mem s' (scA y) = L.mem s (scA y)) (hcs : L.cscW s' = L.cscW s)
     (hfix : ∀ c ∈ Scs, L.mem s' (maxA c) = L.mem s (maxA c) ∧ L.mem s' (headA c) = L.mem s (headA c) ∧
       L.mem s' (tailA c) = L.mem s (tailA c))
-    (hsp : ∀ c ∈ Scs, L.mem s' (sporA c) = L.mem s (sporA c)) : SCsOK st T Ω Sg Scs Z Ac s' := by
+    (hsp : ∀ c ∈ Scs, L.mem s' (sporA c) = L.mem s (sporA c))
+    (hrp : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c)) : SCsOK st T Ω Sg Scs Z Ac s' := by
   have wf : ∀ c ∈ Scs, RefillsWF st s c (Z c) → RefillsWF st s' c (Z c) := fun c hc hW => by
     obtain ⟨f3, f4, f5⟩ := hfix c hc
     exact hW.of_hdr f3 (by rw [show L.rhead s' c = L.mem s' (headA c) from rfl, f4]; exact hW.head_lt)
       (by rw [show L.rtail s' c = L.mem s' (tailA c) from rfl, f5]; exact hW.tail_lt)
   exact hS.mk2 hk hsc hcs (fun c hc => (hS.all c hc).of_wf (hfix c hc).1 (wf c hc)) (fun c hc => (hfix c hc).1) hsp
+    (fun c hc h0 => hS.rep c hc (by rwa [hrp c hc] at h0))
 
 end
 

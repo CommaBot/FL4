@@ -172,7 +172,7 @@ theorem sched.postpone.all (s : S) (sc : obj.Sc) (Q : U64 → U64 → List U64)
     (by rw [e]; exact h2.action) (by rw [e]; exact h2.actOK) (by rw [o0]; exact h2.curT) (by rw [o8]; exact h2.idleT),
     hB3, hX3, ⟨hSg2.sub, fun b hb => by rw [L.ksb_wr]; exact hSg2.ks b hb,
       fun o h1' h2' => by rw [L.ksb_wr]; exact hSg2.ksΩ o h1' h2'⟩,
-    fr1.trans (fr2.trans (fr_node h2 hSg2 hcs (by rw [repr_val]; omega) (by rw [repr_val])
+    fr1.trans (fr2.trans (fr_node (hi8 := fun _ => by simp [layout.node.SCHED_ACTION, layout.node.REPROGRAM, layout.node.CUR_THREAD]) h2 hSg2 hcs (by rw [repr_val]; omega) (by rw [repr_val])
       (fun _ => by rw [repr_val]; omega) ⟨by rw [repr_val]; omega, by rw [repr_val]; omega⟩))⟩
 
 /-- seL4 `schedContext_resume`, with `BoundInv` and `XInv`. -/
