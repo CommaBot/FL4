@@ -22,7 +22,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A frame cap, every label, at `TopSR`** (see the module docstring). -/
 theorem decode_invocation_frame_full (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hU : UtInv (L.mem s) G)
-    (hFR : Vs.FrameInv (L.mem s) G)
+    (hMO : MdbOK (L.mem s) G)
     {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
@@ -57,21 +57,21 @@ theorem decode_invocation_frame_full (th : TypedHeap) (s : S) (ar : A) (σ : Fl4
     (hxs : ∀ x, vspace.extra extra 0#usize = ok (some x) → IsSlot th x)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
     (hga : GetAddrHyp (L := L) s σ ar ct p call) (htac : TacHyp (L := L) L4 L3 L2 L1 s σ ct call) :
-    DecOKF (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+    DecOKM (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ∨
-    DecOKR (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+    DecOKRM (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct := by
   obtain ⟨xct, hkt0, -⟩ := hCR.1.tcb ct htcb
   have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
   have hGA : lbl = fl4_abi.label.X86PageGetAddress →
-      DecOKR (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+      DecOKRM (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
         buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct := fun hl => by
     have := decode_invocation_frame_getaddr (L := L) arI s ar σ lbl slbl hlbl hl length buf ct hct hcur hkt0
       (p := p) (sz := sz) (rt := rt) (asid := asid) (va := va) (d := d) (m := m)
       (cslotAddr (pc.bv, idx)) blk call don fp hga extra (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer
     exact this
   have hTAC : lbl = fl4_abi.label.X86PageTestAndClearAccessed →
-      DecOKR (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+      DecOKRM (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
         buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct := fun hl => by
     have := decode_invocation_frame_tac (L := L) arI s ar σ hR hPt hS.2.pt hPI lbl slbl hlbl hl length buf ct hct
       hcur hkt0 (p := p) (sz := sz) (rt := rt) (asid := asid) (va := va) (d := d) (m := m)
@@ -86,16 +86,16 @@ theorem decode_invocation_frame_full (th : TypedHeap) (s : S) (ar : A) (σ : Fl4
       rw [capAt_capV] at h2; cases eq_of_ok_eq h2
       exact Or.inr ⟨x, _, vc', xsl, rest, h1, capAt_capV _ _, h3, hv, h4⟩
   have hDS : lbl = fl4_abi.label.X86PageDeriveSubframe →
-      DecOKF (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+      DecOKM (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
         buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := fun hl => by
-    have := DecOKFQ.toF arI <| decode_invocation_frame_ds (L := L) arI th hS.2.pl s ar σ G hCR hFI hU (fun _ _ _ _ => trivial)
+    have := DecOKMQ.toM arI <| decode_invocation_frame_ds (L := L) arI th hS.2.pl s ar σ G hCR hFI hU (fun _ _ _ _ => trivial)
       (Vs.vsSubHyps_top (st := st) (L := L) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1)
         (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) (AR := AR)) hS hS.2.pt
       hS.2.vs hS.2.vo hS.2.po hR hPt lbl slbl hlbl hl length buf ct hct hcur htcb hact hkt (hrun _ hkt) args hlen
       hargs (pc := pc) (r := r) (idx := idx) hpc hidx (p := p) (sz := sz) (rt := rt) (asid := asid) (va := va)
-      (d := d) (m := m) hcap hno hFR hVC extra excaps hext' blk call don fp ci buffer
+      (d := d) (m := m) hcap hno hMO hVC extra excaps hext' blk call don fp ci buffer
     exact this
-  exact Vs.decode_invocation_frame_top (L := L) arI th s ar σ G hCR hFI hFR hA hS hPI hR hPt lbl slbl hlbl length buf ct
+  exact Vs.decode_invocation_frame_top (L := L) arI th s ar σ G hCR hFI hMO hA hS hPI hR hPt lbl slbl hlbl length buf ct
     hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hfm hpaS hpaL hpaH hAl extra excaps hext blk call don fp ci
     buffer hGA hTAC hDS
 

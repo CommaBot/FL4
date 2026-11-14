@@ -22,6 +22,7 @@ import Fl4Proofs.P3.FinSpec
 import Fl4Proofs.P3.VsArch
 import Fl4Proofs.P3.VsFrameInv
 import Fl4Proofs.P3.VsCapOps
+import Fl4Proofs.P3.VsMdbInv
 import Fl4Spec.Ext.VSpace
 open Aeneas Aeneas.Std Result
 
@@ -292,6 +293,7 @@ theorem sub_step {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {SR : S �
         SubRel st th P L4 L3 L2 L1 SR (cslotAddr (pp.bv, idx)) (.Frame ptr .Large rt false mm fa fv) rv s' a σ'
           (insG G (cslotAddr (pp.bv, idx)) (slotAddr dp.bv (BitVec.ofNat 64 k)) rv) ∧
         L.ksb s' = L.ksb s ∧
+        MdbStep (L.mem s) G (L.mem s') (insG G (cslotAddr (pp.bv, idx)) (slotAddr dp.bv (BitVec.ofNat 64 k)) rv) ∧
         ∀ y, IsSlot th y → y ≠ slotAddr dp.bv (BitVec.ofNat 64 k) → capAt (L.mem s') y = capAt (L.mem s) y ⦄ := by
   obtain ⟨hR, hV, hM, hC, hI, hU, hvs, hpt, hsr, hcap, hrev, hno, hFI, hfr, hFR, hVC⟩ := hS
   set src := cslotAddr (pp.bv, idx) with hsrcdef
@@ -459,8 +461,12 @@ theorem sub_step {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {SR : S �
   have hVC' : VsCapsIn P L4 L3 L2 L1 (L.mem s') (insG G src dest rv) :=
     hVC.insert_copy hsrcm rv (by rw [hctx.cd]; exact vcap_alias (hVC.at hM hs hcap (by simp)) hq1 hq2 hqal)
       (fun h => by rw [hctx.cz hsrcm]; exact h) (fun z hz _ _ => hctx.cz hz)
+  have hMS : MdbStep (L.mem s) G (L.mem s') (insG G src dest rv) :=
+    MdbStep.frameAlias hM hI rv hsrcm hdestm (capV_of_capAt hcap) hctx.cd hq1 (by omega)
+      (by rw [hctx.cd]; exact hcin) (by rw [hctx.cd]; exact hcr) (Vs.large_aligned hV hM)
+      (fun z hz => hctx.cz hz) hctx.rd (fun z hz => hctx.rz hz)
   refine ⟨σ', hci', ⟨hR', hV', hM', hC', hI', hU', hvs', hpt', hsr2, hcap', by rw [hctx.rz hsrcm]; exact hrev,
-    fun x hx => ?_, hFI', hfr', hFR', hVC'⟩, hF.1, fun y hy hyd => ?_⟩
+    fun x hx => ?_, hFI', hfr', hFR', hVC'⟩, hF.1, hMS, fun y hy hyd => ?_⟩
   · rcases (hctx.memI x).1 (by rw [← hrv'] at hx; exact hx) with rfl | hx
     · right; left; rw [hctx.cd, hctx.rd]; exact ⟨rfl, rfl⟩
     · rw [hctx.cz hx, hctx.rz hx]; exact hno x hx
@@ -512,7 +518,7 @@ theorem insert_subframes_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U6
       Fl4Spec.NonDet.mapMx (subIns (pp.bv, idx) base.bv (vmRightsOf vm)) (subList dp r first.val count.val) σ =
         ({((), σ')}, False) ∧
       SubRel st th P L4 L3 L2 L1 SR (cslotAddr (pp.bv, idx)) (.Frame ptr .Large rt false mm fa fv) rv s' a σ' G' ∧
-      L.ksb s' = L.ksb s ⦄ := by
+      L.ksb s' = L.ksb s ∧ MdbStep (L.mem s) G (L.mem s') G' ⦄ := by
   have hfit : ptr.val + 2 ^ 21 ≤ 2 ^ 64 := by have : ptr.val < 2 ^ 64 := ptr.hBounds; omega
   set Lst := subList dp r first.val count.val with hLst
   set g := subIns (pp.bv, idx) base.bv (vmRightsOf vm) with hg
@@ -520,12 +526,12 @@ theorem insert_subframes_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U6
   apply loop.spec_decr_nat (measure := fun x : S × U64 => count.val - x.2.val)
     (inv := fun x : S × U64 => x.2.val ≤ count.val ∧ ∃ σi Gi,
       SubRel st th P L4 L3 L2 L1 SR (cslotAddr (pp.bv, idx)) (.Frame ptr .Large rt false mm fa fv) rv x.1 a σi Gi ∧
-      L.ksb x.1 = L.ksb s ∧
+      MdbStep (L.mem s) G (L.mem x.1) Gi ∧ L.ksb x.1 = L.ksb s ∧
       (∀ j : Nat, first.val + x.2.val ≤ j → j < first.val + count.val →
         capAt (L.mem x.1) (slotAddr dp.bv (BitVec.ofNat 64 j)) = ok .Null) ∧
       ∀ σf, Fl4Spec.NonDet.mapMx g (Lst.drop x.2.val) σi = ({((), σf)}, False) →
         Fl4Spec.NonDet.mapMx g Lst σ = ({((), σf)}, False))
-  · rintro ⟨si, i⟩ ⟨hic, σi, Gi, hSi, hksi, hemp, hcont⟩
+  · rintro ⟨si, i⟩ ⟨hic, σi, Gi, hSi, hMSi, hksi, hemp, hcont⟩
     unfold vspace.insert_subframes_loop.body
     simp only at hic hksi hemp hcont ⊢
     by_cases hlt : i < count
@@ -554,10 +560,10 @@ theorem insert_subframes_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U6
         (q := core.num.U64.wrapping_add base i1) (by rw [hqv]; omega) (by
           rw [hqv]; have := Nat.mul_le_mul_right 4096 (show i.val + 1 ≤ count.val by omega)
           rw [Nat.add_mul] at this; omega) hvm (by rw [hqv]; omega)) ?_
-      rintro s2 ⟨σ2, hci, hS2, hks2, hoth⟩
+      rintro s2 ⟨σ2, hci, hS2, hks2, hMS2, hoth⟩
       step as ⟨i4, hi4⟩
       have hi4v : i4.val = i.val + 1 := by simpa using hi4
-      refine ⟨by omega, ⟨σ2, _, hS2, hks2.trans hksi, fun j h1 h2 => ?_, fun σf hf => hcont σf ?_⟩, by omega⟩
+      refine ⟨by omega, ⟨σ2, _, hS2, hMSi.trans hMS2, hks2.trans hksi, fun j h1 h2 => ?_, fun σf hf => hcont σf ?_⟩, by omega⟩
       · have hne : slotAddr dp.bv (BitVec.ofNat 64 j) ≠ slotAddr dp.bv (BitVec.ofNat 64 (first.val + i.val)) := by
           intro e
           have hj : IsSlotAt th dp j := Or.inl ⟨r, hdp, by omega⟩
@@ -580,9 +586,9 @@ theorem insert_subframes_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U6
       have hic' : i.val = count.val := by
         have : ¬ i.val < count.val := hlt
         omega
-      refine (WP.spec_ok _).2 ⟨σi, Gi, hcont σi ?_, hSi, hksi⟩
+      refine (WP.spec_ok _).2 ⟨σi, Gi, hcont σi ?_, hSi, hksi, hMSi⟩
       rw [hic', subList_drop_all]; rfl
-  · exact ⟨by simp, σ, G, hS, rfl, fun j h1 h2 => hempty j (by simpa using h1) h2, fun σf hf => by simpa using hf⟩
+  · exact ⟨by simp, σ, G, hS, MdbStep.refl hS.M, rfl, fun j h1 h2 => hempty j (by simpa using h1) h2, fun σf hf => by simpa using hf⟩
 
 
 
@@ -838,7 +844,7 @@ decode outcome `D`: an error, as the spec's single outcome, the state
 unchanged; or the spec's single invocation, performed after the Restart with
 no failure, and the loop relations at the result. -/
 def SubDecPost {A : Type} (th : TypedHeap) (P L4 L3 L2 L1 : Set U64) (SR : S → A → Fl4Spec.State Unit → Prop)
-    (src : U64) (srcC : capability.Cap) (rv : Bool) (σ : Fl4Spec.State Unit)
+    (src : U64) (srcC : capability.Cap) (rv : Bool) (G0 : MdbGhost) (σ : Fl4Spec.State Unit)
     (D : Set (Except Fl4Spec.SyscallError Fl4Spec.Fl4SubframeInvocation × Fl4Spec.State Unit) × Prop)
     (s : S) (a : A) (res : core.result.Result Unit error.Exc × S × A) : Prop :=
   (∃ e e', res.1 = .Err e ∧ SysErrRel e e' ∧ D = ({(.error e', σ)}, False) ∧ res.2.1 = s ∧ res.2.2 = a) ∨
@@ -847,7 +853,8 @@ def SubDecPost {A : Type} (th : TypedHeap) (P L4 L3 L2 L1 : Set U64) (SR : S →
       Fl4Spec.performDeriveSubframe iv) σ).1 ∧
     ¬ ((Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart >>= fun _ =>
       Fl4Spec.performDeriveSubframe iv) σ).2 ∧
-    SubRel st th P L4 L3 L2 L1 SR src srcC rv res.2.1 a σ' G' ∧ L.ksb res.2.1 = L.ksb s)
+    SubRel st th P L4 L3 L2 L1 SR src srcC rv res.2.1 a σ' G' ∧ L.ksb res.2.1 = L.ksb s ∧
+    MdbStep (L.mem s) G0 (L.mem res.2.1) G')
 
 set_option maxRecDepth 8000 in
 set_option maxHeartbeats 8000000 in
@@ -882,7 +889,7 @@ theorem derive_subframe_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P
     (hnv : CapValid th nc) (nsl : Fl4Spec.CslotPtr) (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) :
     vspace.derive_subframe st ar s a length (cslotAddr (pp.bv, idx)) (.Frame ptr sz rt dev mm fa fv) buf ex ⦃ res =>
       SubDecPost (L := L) th P L4 L3 L2 L1 SR (cslotAddr (pp.bv, idx)) (.Frame ptr sz rt dev mm fa fv)
-        (revOf (L.mem s) (cslotAddr (pp.bv, idx))) σ
+        (revOf (L.mem s) (cslotAddr (pp.bv, idx))) G σ
         (ExceptT.run (Fl4Spec.decodeDeriveSubframe (Z := Unit) (args.map UScalar.bv) (pp.bv, idx)
           (.pageCap dev ptr.bv (vmRightsOf rt) (if mm then .vmVSpaceMap else .vmNoMap) (frameSizeOf sz)
             (if mm then some (fa.bv, fv.bv) else none)) ((nc', nsl) :: rest)) σ) s a res ⦄ := by
@@ -1057,7 +1064,7 @@ theorem derive_subframe_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P
       (by rw [hksb1]; exact hVO) hPO hSub1 hal' hdp hr64 hfc (by rw [hbv]; omega) (by rw [hbv]; omega)
       ⟨hm1, hm3⟩ (by rw [hbv]; omega) (fun j h1 h2 => by
         rw [hSS.capAt ⟨dest, j, Or.inl ⟨rr, hdp, by omega⟩, rfl⟩]; exact hemp j h1 h2)) ?_
-    rintro s2 ⟨σ', G', hmap, hSR2, hks2⟩
+    rintro s2 ⟨σ', G', hmap, hSR2, hks2, hMS2⟩
     have hbase : (core.num.U64.wrapping_add ptr a3).bv = ptr.bv + a3.bv := core.num.U64.wrapping_add_bv_eq _ _
     have hrights : vmRightsOf m = Fl4Spec.maskVmRights (vmRightsOf rt) (Fl4Spec.dataToRights a5.bv) := by
       rw [hmv, rightsW_spec]; rfl
@@ -1075,7 +1082,7 @@ theorem derive_subframe_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P
         ({((), σ')}, False) := by
       rw [← hcur, nd_bind_one hst, hperf]; exact hmap
     exact (WP.spec_ok _).2 (Or.inr ⟨rfl, rfl, _, hE, σ', G', by rw [hrun2]; rfl, by rw [hrun2]; exact id, hSR2,
-      hks2.trans hksb1⟩)
+      hks2.trans hksb1, (MdbStep.of_same hM hSS).trans hMS2⟩)
 
 end Step
 

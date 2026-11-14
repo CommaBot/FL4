@@ -21,6 +21,7 @@ statements survive renames there. Beyond the constructors' facts:
 The base case (boot) is not done: there is no P3 state relation for boot.
 -/
 import Fl4Proofs.P3.VsCapOps
+import Fl4Proofs.P3.MdbStep
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Vs
@@ -221,6 +222,42 @@ theorem VsMdbInv.retype {mem0 memf : U64 → U64} {G0 Gf : MdbGhost} (h : VsMdbI
         have := hU src hsrc; rw [hcs] at this
         exact utOut_within this h1 h2
       | _ => simp [UtOut]
+
+end
+
+
+/-! ## The remaps -/
+
+section
+variable {th : TypedHeap} {m m' : U64 → U64} {G : MdbGhost} {x : U64} {c : capability.Cap}
+
+theorem slotFoot_capV (hM : MdbLinks th m G) (hF : SlotFoot th m m' x) :
+    ∀ z ∈ G.chains.flatten, z ≠ x → capV m' z = capV m z := fun z hz hne => by
+  have hzs := ((hM.members z).1 hz).1
+  unfold capV; rw [((hF z hzs).2.2 hne).1, ((hF z hzs).2.2 hne).2]
+
+theorem slotFoot_revOf (hM : MdbLinks th m G) (hF : SlotFoot th m m' x) :
+    ∀ z ∈ G.chains.flatten, revOf m' z = revOf m z := fun z hz => by
+  have hzs := ((hM.members z).1 hz).1
+  unfold revOf; rw [(hF z hzs).2.1]
+
+/-- **A remap as an MDB step** (`MdbStep.recap`): one slot's non-untyped cap
+replaced by an `MdbLike` one, `SlotFoot`. -/
+theorem mstep_remap (hM : MdbLinks th m G) (hF : SlotFoot th m m' x) (hcx : capAt m x = ok c)
+    (hL : MdbLike (capV m' x) c) (hu : isUt c = false) : MdbStep m G m' G := by
+  have hcv : capV m x = c := capV_of_capAt hcx
+  refine MdbStep.recap hM x ?_ (slotFoot_capV hM hF) (slotFoot_revOf hM hF)
+  rw [hcv]
+  exact CapAlike.of_shape hL.1 hL.2.1 (fun h => by rw [hu] at h; cases h)
+
+/-- **A remap keeps the VSpace MDB invariant** (`VsMdbInv.recap`). -/
+theorem VsMdbInv.remap {ksb : U64} (h : VsMdbInv ksb m G) (hM : MdbLinks th m G) (hF : SlotFoot th m m' x)
+    (hcx : capAt m x = ok c) (hL : VsLike (capV m' x) c) (hu : isUt c = false) : VsMdbInv ksb m' G := by
+  have hcv : capV m x = c := capV_of_capAt hcx
+  have ha := CapAlike.of_shape (c' := capV m' x) (c := c) hL.1.1 hL.1.2.1 (fun h => by rw [hu] at h; cases h)
+  refine h.recap x (fun p sb fi d => by rw [hcv]; exact ha.ut p sb fi d) (fun P L4 L3 L2 L1 hv => ?_)
+    (slotFoot_capV hM hF)
+  rw [hcv] at hv; exact hL.2 _ _ _ _ _ hv
 
 end
 

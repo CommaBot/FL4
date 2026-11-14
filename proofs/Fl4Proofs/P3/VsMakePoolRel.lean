@@ -37,6 +37,7 @@ import Fl4Proofs.P3.VsMdb
 import Fl4Proofs.P3.FinFrame
 import Fl4Proofs.P3.VsFrameInv
 import Fl4Proofs.P3.VsCapOps
+import Fl4Proofs.P3.VsMdbInv
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Vs
@@ -213,8 +214,10 @@ def MpPost {A : Type} (P L4 L3 L2 L1 : Set U64) (SR : S → A → Fl4Spec.State 
     UtInv (L.mem res.2.1) G' ∧ VsRel (insert p P) (L.mem res.2.1) (L.ksb res.2.1) σ' ∧
     PtRel L4 L3 L2 L1 (L.mem res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧ FinInv th' (L.mem res.2.1) σ' G' ∧
     Vs.FrameInv (L.mem res.2.1) G' ∧
-    ∀ P' L4' L3' L2' L1' : Set U64, Vs.VsCapsIn P' L4' L3' L2' L1' m0 G0 →
-      Vs.VsCapsIn (insert p P') L4' L3' L2' L1' (L.mem res.2.1) G'
+    (∀ P' L4' L3' L2' L1' : Set U64, Vs.VsCapsIn P' L4' L3' L2' L1' m0 G0 →
+      Vs.VsCapsIn (insert p P') L4' L3' L2' L1' (L.mem res.2.1) G') ∧
+    MdbStep m0 G0 (L.mem res.2.1) G' ∧
+    ∀ ksb : U64, Vs.VsMdbInv ksb m0 G0 → Vs.VsMdbInv ksb (L.mem res.2.1) G'
 
 set_option maxHeartbeats 4000000 in
 /-- **`MakePool`'s perform refines l4v** (see the module docstring): from the
@@ -766,8 +769,33 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
       (Set.subset_insert _ _) subset_rfl subset_rfl subset_rfl subset_rfl hxm true
       (by rw [hctx.cd]; exact Vs.vcap_pool hbase hi) (by rw [hctx.cz hxm]; exact id) (fun z hz _ _ => hctx.cz hz)
     exact V4.of_caps (fun z hz => hSS5.capV ((hM4.members z).1 hz).1)
+  -- the MDB step and the VSpace MDB invariant
+  have hrv2 : ∀ z ∈ G.chains.flatten, revOf (L.mem s2) z = revOf (L.mem s1) z := fun z hz => by
+    have hzs := ((hM.members z).1 hz).1
+    have a1 := hzs.align hPl; have f1 := hzs.fit hPl; have a2 := hxs.align hPl; have f2 := hxs.fit hPl
+    have hv : (wordOf z 24#u64).val = z.val + 24 := wordOf_val (by simp; omega)
+    unfold revOf
+    rw [hfr2 (wordOf z 24#u64) (by unfold P1.Aligned; rw [hv]; omega) (by rw [hv]; omega) (by rw [hv]; omega)]
+  have hco2' : ∀ z ∈ G.chains.flatten, z ≠ x → capV (L.mem s2) z = capV (L.mem s1) z :=
+    fun z hz hne => hco2 z ((RR2.M.members z).1 hz).1 hne
+  have hrv4 : ∀ z ∈ G.chains.flatten, revOf (L.mem s4) z = revOf (L.mem s3) z := fun z hz => by
+    rw [hctx.hrev z ((RR3.M.members z).1 hz).1, if_neg (fun e : z = val => hvm (e ▸ hz))]
+  have hf4 : (4096#u64 : U64).val = 2 ^ sb.val := by rw [h2sb]; rfl
+  have MS : MdbStep (L.mem s) G (L.mem s5) G' :=
+    (MdbStep.of_same hM hSS).trans <|
+    (MdbStep.setFi hM1 hI1 hxm hcx1 RR2.cap hf' (Or.inr hnd) hco2' hrv2).trans <|
+    (MdbStep.of_same RR2.M hSS3).trans <|
+    (MdbStep.pool RR3.M RR3.I hxm RR3.cap hf4 hnd hvm hctx.cd hbA htA (fun z hz => hctx.cz hz) hrv4).trans <|
+    MdbStep.of_same hM4 hSS5
+  have VM : ∀ ksb : U64, Vs.VsMdbInv ksb (L.mem s) G → Vs.VsMdbInv ksb (L.mem s5) G' := fun ksb h0 => by
+    have W1 := h0.keep (fun z hz => hSS.capV ((hM.members z).1 hz).1)
+    have W2 := W1.setFi hcx1 RR2.cap hco2'
+    have W3 := W2.keep (fun z hz => hSS3.capV ((RR2.M.members z).1 hz).1)
+    have W4 := W3.pool hxm hctx.cd ⟨by rw [hbase]; omega, by rw [hbase]; omega⟩ (fun z hz => hctx.cz hz)
+    exact W4.keep (fun z hz => hSS5.capV ((hM4.members z).1 hz).1)
   refine ⟨τf, th', G', by rw [hrun]; exact hmem, by rw [hrun]; exact hall.1, hP', hR5, hV5, hM5, hC5,
-    MdbInv.of_same hM4 hI4 hSS5, UtInv.of_same hM4 hU4 hSS5, by rw [hksb5]; exact hVs5, hPt5, hSR5, ⟨hKTf, F5⟩, FR5, VC⟩
+    MdbInv.of_same hM4 hI4 hSS5, UtInv.of_same hM4 hU4 hSS5, by rw [hksb5]; exact hVs5, hPt5, hSR5, ⟨hKTf, F5⟩, FR5, VC,
+    MS, VM⟩
 
 end
 

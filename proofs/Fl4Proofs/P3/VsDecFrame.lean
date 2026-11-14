@@ -59,6 +59,15 @@ theorem crelF_after {th : TypedHeap} {m m' : U64 → U64} {σ σ' : Fl4Spec.Stat
   ⟨(crel_after hCR hFI hcx hSt' hSV' hF hL hK).1, (crel_after hCR hFI hcx hSt' hSV' hF hL hK).2,
     frameinv_after hCR hFR hcx hF hL⟩
 
+/-- `crel_after` and the MDB invariants (`MdbStep.ok` of a remap). -/
+theorem crelM_after {th : TypedHeap} {m m' : U64 → U64} {σ σ' : Fl4Spec.State Unit} {G : MdbGhost} {x : U64}
+    {c : capability.Cap} (hCR : CRel th m σ G) (hFI : FinInv th m σ G) (hMO : MdbOK m G) (hcx : capAt m x = ok c)
+    (hSt' : StateRel th m' σ') (hSV' : SlotsValid th m') (hF : SlotFoot th m m' x)
+    (hL : MdbLike (capV m' x) c) (hK : KFoot σ σ') (hu : isUt c = false) :
+    CRel th m' σ' G ∧ FinInv th m' σ' G ∧ MdbOK m' G :=
+  ⟨(crel_after hCR hFI hcx hSt' hSV' hF hL hK).1, (crel_after hCR hFI hcx hSt' hSV' hF hL hK).2,
+    (Vs.mstep_remap hCR.2.2.1 hF hcx hL hu).ok hMO⟩
+
 /-- A page invocation's outcome after the Restart. -/
 theorem perf_page_mem {σ σ1 σ' : Fl4Spec.State Unit} {iv : Fl4Spec.ArchInvocation} (blk call don : Bool)
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
@@ -194,7 +203,7 @@ set_option maxHeartbeats 8000000 in
 `TestAndClearAccessed`). -/
 theorem decode_invocation_frame (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hFR : Vs.FrameInv (L.mem s) G)
+    (hMO : MdbOK (L.mem s) G)
     {P L4 L3 L2 L1 : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
     {Q : S → Prop} (hQ : ∀ s' a' σ', SR s' a' σ' → Q s')
     (hH1 : VsFrameHyps st A arI th P L4 L3 L2 L1 SR) (hHL : VsFrameHypsL st A arI th P L4 L3 L2 L1 SR)
@@ -227,19 +236,19 @@ theorem decode_invocation_frame (th : TypedHeap) (hP : Placed th) (s : S) (ar : 
         ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
     (hGA : lbl = fl4_abi.label.X86PageGetAddress →
-      DecOKR (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+      DecOKRM (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
         buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct)
     (hTAC : lbl = fl4_abi.label.X86PageTestAndClearAccessed →
-      DecOKR (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+      DecOKRM (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
         buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct)
     (hDS : lbl = fl4_abi.label.X86PageDeriveSubframe →
-      DecOKFQ (L := L) arI Q s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+      DecOKMQ (L := L) arI Q s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
         buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer) :
     (lbl ≠ fl4_abi.label.X86PageGetAddress ∧ lbl ≠ fl4_abi.label.X86PageTestAndClearAccessed ∧
-    DecOKFQ (L := L) arI Q s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+    DecOKMQ (L := L) arI Q s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer) ∨
     ((lbl = fl4_abi.label.X86PageGetAddress ∨ lbl = fl4_abi.label.X86PageTestAndClearAccessed) ∧
-    DecOKR (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+    DecOKRM (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct) := by
   by_cases hga : lbl = fl4_abi.label.X86PageGetAddress
   · exact Or.inr ⟨Or.inl hga, hGA hga⟩
@@ -268,7 +277,7 @@ theorem decode_invocation_frame (th : TypedHeap) (hP : Placed th) (s : S) (ar : 
     rw [hcur]; exact Notif.setThreadState_eq .restart hkt0
   have hPV1 : ∀ b, PtW L1 b → ¬ VsWrite P (L.ksb s) b := fun b ⟨q, hq, i, hi, e⟩ =>
     hPV b ⟨q, Or.inr (Or.inr (Or.inr hq)), i, hi, e⟩
-  unfold DecOKFQ syscall.decode_invocation
+  unfold DecOKMQ syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   have hspec : specDec fp slbl (args.map UScalar.bv) ci (pc.bv, idx) (.Frame p sz rt d m asid va) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject
@@ -293,7 +302,7 @@ theorem decode_invocation_frame (th : TypedHeap) (hP : Placed th) (s : S) (ar : 
     · unfold vspace.decode_page_map
       rw [hct, hex]
       simp only [bind_ok, error.truncated, WP.spec_ok]
-      exact topFQ_err (⟨_, rfl, rfl, .truncatedMessage,
+      exact topMQ_err (⟨_, rfl, rfl, .truncatedMessage,
         decodeMap_trunc hl _ _ _ _ _ _ _ _ _ (by simp) σ, Or.inl trivial⟩)
     have post : ∀ res, ((∃ e e', res.1 = .Err e ∧ MapErrRel e e' ∧
         ExceptT.run (Fl4Spec.archDecodeInvocation (Z := Unit) slbl (args.map UScalar.bv) ci (pc.bv, idx)
@@ -306,14 +315,14 @@ theorem decode_invocation_frame (th : TypedHeap) (hP : Placed th) (s : S) (ar : 
         SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
         VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (frameCapOf ⟨p, sz, rt, d, m, asid, va⟩) ∧
         KFoot σ σ')) →
-        TopPostF (L := L) σ blk call don (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject
+        TopPostM (L := L) σ blk call don (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject
           (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4ArchInvocation.spec (Fl4Spec.archDecodeInvocation (Z := Unit) slbl
             (args.map UScalar.bv) ci (pc.bv, idx) (frameACapG ⟨p, sz, rt, d, m, asid, va⟩) ((vc', xsl) :: rest))))
           s res ∧ FootQ Q s res := by
       rintro res (⟨e, e', h1, he, hdec, h2, -⟩ | ⟨h1, iv, σ', hdec, hms, hSt', hSV', -, -, hSRq, hF, hL, hK⟩)
-      · exact topFQ_err (⟨e, h1, h2, e', hdec, he.elim id (fun ⟨h3, h4⟩ => h3 ▸ h4 ▸ hAl)⟩)
-      · exact ⟨topF_of_lift2 (Or.inr ⟨iv, hdec, _, hst1, _, perf_page_mem blk call don hst1 hms, th, G,
-          Or.inl ⟨h1, [], rfl⟩, hP, crelF_after hCR hFI hFR hcap hSt' hSV' hF hL.1 hK⟩), Or.inr (hQ _ _ _ hSRq)⟩
+      · exact topMQ_err (⟨e, h1, h2, e', hdec, he.elim id (fun ⟨h3, h4⟩ => h3 ▸ h4 ▸ hAl)⟩)
+      · exact ⟨topM_of_lift2 (Or.inr ⟨iv, hdec, _, hst1, _, perf_page_mem blk call don hst1 hms, th, G,
+          Or.inl ⟨h1, [], rfl⟩, hP, crelM_after hCR hFI hMO hcap hSt' hSV' hF hL.1 hK rfl⟩), Or.inr (hQ _ _ _ hSRq)⟩
     cases sz
     · exact WP.spec_mono (frame_map_rel hH1 s ar σ hP hVP hD hPP hPS hPV1 hPO hSt hSV hR hPt hS ct hct hcur' hkt (hrun _ hkt)
         htcb hact ⟨p, .Small, rt, d, m, asid, va⟩ rfl hfw hfe hfcv hfm (hpaS rfl) hpc hidx hl length buf args hlen
@@ -331,12 +340,12 @@ theorem decode_invocation_frame (th : TypedHeap) (hP : Placed th) (s : S) (ar : 
       hkt (hrun _ hkt) htcb hact ⟨p, sz, rt, d, m, asid, va⟩ hfw hfe hfm hpc hidx hcap hl length buf call extra
       (args.map UScalar.bv) ci excaps) ?_
     rintro res ⟨h1, iv, σ', hdec, hms, ⟨hSRq, hSt', hSV', -, -⟩, hF, hL, hK⟩
-    exact ⟨topF_of_lift2 (Or.inr ⟨iv, hdec, _, hst1, _, perf_page_mem blk call don hst1 hms, th, G,
-      Or.inl ⟨h1, [], rfl⟩, hP, crelF_after hCR hFI hFR hcap hSt' hSV' hF hL.1 hK⟩), Or.inr (hQ _ _ _ hSRq)⟩
+    exact ⟨topM_of_lift2 (Or.inr ⟨iv, hdec, _, hst1, _, perf_page_mem blk call don hst1 hms, th, G,
+      Or.inl ⟨h1, [], rfl⟩, hP, crelM_after hCR hFI hMO hcap hSt' hSV' hF hL.1 hK rfl⟩), Or.inr (hQ _ _ _ hSRq)⟩
   obtain ⟨o1, o2, o3⟩ := hlbl.other hmap hunmap hga htac hds
   unfold vspace.decode_frame
   simp only [vspace.as_frame, bind_ok, hmap, hunmap, hga, htac, hds, ↓reduceIte, error.illegal, WP.spec_ok]
-  refine topFQ_err (⟨_, rfl, rfl, .illegalOperation, ?_, Or.inl trivial⟩)
+  refine topMQ_err (⟨_, rfl, rfl, .illegalOperation, ?_, Or.inl trivial⟩)
   show ExceptT.run (Fl4Spec.decodePageInvocation (Z := Unit) slbl (args.map UScalar.bv) (pc.bv, idx)
     (frameACapG ⟨p, sz, rt, d, m, asid, va⟩) excaps) σ = _
   unfold Fl4Spec.decodePageInvocation frameACapG; dsimp only
@@ -347,7 +356,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A PageTable cap**, every label (`Map`, `Unmap`; any other l4v's `IllegalOperation`). -/
 theorem decode_invocation_page_table (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hFR : Vs.FrameInv (L.mem s) G)
+    (hMO : MdbOK (L.mem s) G)
     {P L4 L3 L2 L1 : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
     {Q : S → Prop} (hQ : ∀ s' a' σ', SR s' a' σ' → Q s')
     (hHM : VsPtMapHyps st A arI th P L4 L3 L2 L1 SR) (hHU : VsPtUnmapHyps st A arI th P L4 L3 L2 L1 SR) (hS : SR s ar σ)
@@ -377,7 +386,7 @@ theorem decode_invocation_page_table (th : TypedHeap) (hP : Placed th) (s : S) (
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
         ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
-    DecOKFQ (L := L) arI Q s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageTable ptr mp asid0 va0) blk call don fp
+    DecOKMQ (L := L) arI Q s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageTable ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := by
   have hCR0 := hCR
   obtain ⟨hSt, hSV, -, -, -⟩ := hCR0
@@ -390,7 +399,7 @@ theorem decode_invocation_page_table (th : TypedHeap) (hP : Placed th) (s : S) (
       ({((), Notif.stsAct (Notif.updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv)}, False) := by
     rw [hcur]; exact Notif.setThreadState_eq .restart hkt0
   have hAs : AbsSlot th (pc.bv, idx) := ⟨pc, rfl, Or.inl (by simpa [hidx] using hpc)⟩
-  unfold DecOKFQ syscall.decode_invocation
+  unfold DecOKMQ syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   have hspec : specDec fp slbl (args.map UScalar.bv) ci (pc.bv, idx) (.PageTable ptr mp asid0 va0) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject
@@ -416,18 +425,18 @@ theorem decode_invocation_page_table (th : TypedHeap) (hP : Placed th) (s : S) (
         unfold vspace.decode_table_map
         rw [hct, hex]
         simp only [bind_ok, error.truncated, WP.spec_ok]
-        exact topFQ_err (⟨_, rfl, rfl, .truncatedMessage, htr, Or.inl trivial⟩)
+        exact topMQ_err (⟨_, rfl, rfl, .truncatedMessage, htr, Or.inl trivial⟩)
       · simp only [↓reduceIte]
         rw [hex]
         simp only [bind_ok, error.truncated, WP.spec_ok]
-        exact topFQ_err (⟨_, rfl, rfl, .truncatedMessage, htr, Or.inl trivial⟩)
+        exact topMQ_err (⟨_, rfl, rfl, .truncatedMessage, htr, Or.inl trivial⟩)
     refine WP.spec_mono (pt_map_rel hHM s ar σ hP hVP hD hPP hPS (fun b hb => hPV b (let ⟨q, hq, i, hi, e⟩ := hb; ⟨q, Or.inr (Or.inr (Or.inl hq)), i, hi, e⟩)) hSt hSV hR hPt hS
       ct hct hcur' hkt (hrun _ hkt) htcb hact hPO ptr asid0 va0 mp hpL hfe hpa hpc hidx hl length buf args hlen hargs ci extra
       hex hcx hvr xsl rest hvc) ?_
     rintro res (⟨e, e', h1, he, hdec, h2, -⟩ | ⟨h1, iv, σ', hdec, hms, hSt', hSV', -, -, hSRq, hF, hL, hK⟩)
-    · exact topFQ_err (⟨e, h1, h2, e', hdec, he⟩)
-    · exact ⟨topF_of_lift2 (Or.inr ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 (Or.inl hms), th, G,
-        Or.inl ⟨h1, [], rfl⟩, hP, crelF_after hCR hFI hFR hcap hSt' hSV' hF hL.1 hK⟩), Or.inr (hQ _ _ _ hSRq)⟩
+    · exact topMQ_err (⟨e, h1, h2, e', hdec, he⟩)
+    · exact ⟨topM_of_lift2 (Or.inr ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 (Or.inl hms), th, G,
+        Or.inl ⟨h1, [], rfl⟩, hP, crelM_after hCR hFI hMO hcap hSt' hSV' hF hL.1 hK rfl⟩), Or.inr (hQ _ _ _ hSRq)⟩
   by_cases hu : lbl = fl4_abi.label.X86PageTableUnmap
   · subst hu
     have hl := hlU rfl
@@ -440,13 +449,13 @@ theorem decode_invocation_page_table (th : TypedHeap) (hP : Placed th) (s : S) (
       hact hPO ptr asid0 va0 mp hpL hfe hm0 hpc hidx hcap hl length buf (args.map UScalar.bv) ci extra excaps
       (is_final_eq s _) hfinR) ?_
     rintro res (⟨e, e', h1, he, hdec, h2, -⟩ | ⟨h1, iv, σ', hdec, hms, ⟨hSRq, hSt', hSV', -, -⟩, hF, hL, hK⟩)
-    · exact topFQ_err (⟨e, h1, h2, e', hdec, he⟩)
-    · exact ⟨topF_of_lift2 (Or.inr ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 (Or.inl hms), th, G,
-        Or.inl ⟨h1, [], rfl⟩, hP, crelF_after hCR hFI hFR hcap hSt' hSV' hF hL.1 hK⟩), Or.inr (hQ _ _ _ hSRq)⟩
+    · exact topMQ_err (⟨e, h1, h2, e', hdec, he⟩)
+    · exact ⟨topM_of_lift2 (Or.inr ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 (Or.inl hms), th, G,
+        Or.inl ⟨h1, [], rfl⟩, hP, crelM_after hCR hFI hMO hcap hSt' hSV' hF hL.1 hK rfl⟩), Or.inr (hQ _ _ _ hSRq)⟩
   obtain ⟨o1, o2⟩ := hlO hm hu
   unfold vspace.decode_table
   simp only [vspace.as_table, bind_ok, hm, hu, ↓reduceIte, error.illegal, WP.spec_ok]
-  refine topFQ_err (⟨_, rfl, rfl, .illegalOperation, ?_, Or.inl trivial⟩)
+  refine topMQ_err (⟨_, rfl, rfl, .illegalOperation, ?_, Or.inl trivial⟩)
   show ExceptT.run (Fl4Spec.decodePageTableInvocation (Z := Unit) slbl (args.map UScalar.bv) (pc.bv, idx)
     (.pageTableCap ptr.bv (if mp then some (asid0.bv, va0.bv) else none)) excaps) σ = _
   unfold Fl4Spec.decodePageTableInvocation; dsimp only
@@ -456,7 +465,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A PageDirectory cap**, every label (`Map`, `Unmap`; any other l4v's `IllegalOperation`). -/
 theorem decode_invocation_page_directory (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hFR : Vs.FrameInv (L.mem s) G)
+    (hMO : MdbOK (L.mem s) G)
     {P L4 L3 L2 L1 : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
     {Q : S → Prop} (hQ : ∀ s' a' σ', SR s' a' σ' → Q s')
     (hHM : VsPdMapHyps st A arI th P L4 L3 L2 L1 SR) (hHU : VsPdUnmapHyps st A arI th P L4 L3 L2 L1 SR) (hS : SR s ar σ)
@@ -486,7 +495,7 @@ theorem decode_invocation_page_directory (th : TypedHeap) (hP : Placed th) (s : 
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
         ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
-    DecOKFQ (L := L) arI Q s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageDirectory ptr mp asid0 va0) blk call don fp
+    DecOKMQ (L := L) arI Q s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageDirectory ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := by
   have hCR0 := hCR
   obtain ⟨hSt, hSV, -, -, -⟩ := hCR0
@@ -499,7 +508,7 @@ theorem decode_invocation_page_directory (th : TypedHeap) (hP : Placed th) (s : 
       ({((), Notif.stsAct (Notif.updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv)}, False) := by
     rw [hcur]; exact Notif.setThreadState_eq .restart hkt0
   have hAs : AbsSlot th (pc.bv, idx) := ⟨pc, rfl, Or.inl (by simpa [hidx] using hpc)⟩
-  unfold DecOKFQ syscall.decode_invocation
+  unfold DecOKMQ syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   have hspec : specDec fp slbl (args.map UScalar.bv) ci (pc.bv, idx) (.PageDirectory ptr mp asid0 va0) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject
@@ -525,18 +534,18 @@ theorem decode_invocation_page_directory (th : TypedHeap) (hP : Placed th) (s : 
         unfold vspace.decode_table_map
         rw [hct, hex]
         simp only [bind_ok, error.truncated, WP.spec_ok]
-        exact topFQ_err (⟨_, rfl, rfl, .truncatedMessage, htr, Or.inl trivial⟩)
+        exact topMQ_err (⟨_, rfl, rfl, .truncatedMessage, htr, Or.inl trivial⟩)
       · simp only [↓reduceIte]
         rw [hex]
         simp only [bind_ok, error.truncated, WP.spec_ok]
-        exact topFQ_err (⟨_, rfl, rfl, .truncatedMessage, htr, Or.inl trivial⟩)
+        exact topMQ_err (⟨_, rfl, rfl, .truncatedMessage, htr, Or.inl trivial⟩)
     refine WP.spec_mono (pd_map_rel hHM s ar σ hP hVP hD hPP hPS (fun b hb => hPV b (let ⟨q, hq, i, hi, e⟩ := hb; ⟨q, Or.inr (Or.inl hq), i, hi, e⟩)) hSt hSV hR hPt hS
       ct hct hcur' hkt (hrun _ hkt) htcb hact hPO ptr asid0 va0 mp hpL hfe hpa hpc hidx hl length buf args hlen hargs ci extra
       hex hcx hvr xsl rest hvc) ?_
     rintro res (⟨e, e', h1, he, hdec, h2, -⟩ | ⟨h1, iv, σ', hdec, hms, hSt', hSV', -, -, hSRq, hF, hL, hK⟩)
-    · exact topFQ_err (⟨e, h1, h2, e', hdec, he⟩)
-    · exact ⟨topF_of_lift2 (Or.inr ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 ((Or.inr ∘ Or.inl) hms), th, G,
-        Or.inl ⟨h1, [], rfl⟩, hP, crelF_after hCR hFI hFR hcap hSt' hSV' hF hL.1 hK⟩), Or.inr (hQ _ _ _ hSRq)⟩
+    · exact topMQ_err (⟨e, h1, h2, e', hdec, he⟩)
+    · exact ⟨topM_of_lift2 (Or.inr ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 ((Or.inr ∘ Or.inl) hms), th, G,
+        Or.inl ⟨h1, [], rfl⟩, hP, crelM_after hCR hFI hMO hcap hSt' hSV' hF hL.1 hK rfl⟩), Or.inr (hQ _ _ _ hSRq)⟩
   by_cases hu : lbl = fl4_abi.label.X86PageDirectoryUnmap
   · subst hu
     have hl := hlU rfl
@@ -549,13 +558,13 @@ theorem decode_invocation_page_directory (th : TypedHeap) (hP : Placed th) (s : 
       hact hPO ptr asid0 va0 mp hpL hfe hm0 hpc hidx hcap hl length buf (args.map UScalar.bv) ci extra excaps
       (is_final_eq s _) hfinR) ?_
     rintro res (⟨e, e', h1, he, hdec, h2, -⟩ | ⟨h1, iv, σ', hdec, hms, ⟨hSRq, hSt', hSV', -, -⟩, hF, hL, hK⟩)
-    · exact topFQ_err (⟨e, h1, h2, e', hdec, he⟩)
-    · exact ⟨topF_of_lift2 (Or.inr ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 ((Or.inr ∘ Or.inl) hms), th, G,
-        Or.inl ⟨h1, [], rfl⟩, hP, crelF_after hCR hFI hFR hcap hSt' hSV' hF hL.1 hK⟩), Or.inr (hQ _ _ _ hSRq)⟩
+    · exact topMQ_err (⟨e, h1, h2, e', hdec, he⟩)
+    · exact ⟨topM_of_lift2 (Or.inr ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 ((Or.inr ∘ Or.inl) hms), th, G,
+        Or.inl ⟨h1, [], rfl⟩, hP, crelM_after hCR hFI hMO hcap hSt' hSV' hF hL.1 hK rfl⟩), Or.inr (hQ _ _ _ hSRq)⟩
   obtain ⟨o1, o2⟩ := hlO hm hu
   unfold vspace.decode_table
   simp only [vspace.as_table, bind_ok, hm, hu, ↓reduceIte, error.illegal, WP.spec_ok]
-  refine topFQ_err (⟨_, rfl, rfl, .illegalOperation, ?_, Or.inl trivial⟩)
+  refine topMQ_err (⟨_, rfl, rfl, .illegalOperation, ?_, Or.inl trivial⟩)
   show ExceptT.run (Fl4Spec.decodePageDirectoryInvocation (Z := Unit) slbl (args.map UScalar.bv) (pc.bv, idx)
     (.pageDirectoryCap ptr.bv (if mp then some (asid0.bv, va0.bv) else none)) excaps) σ = _
   unfold Fl4Spec.decodePageDirectoryInvocation; dsimp only
@@ -565,7 +574,7 @@ set_option maxHeartbeats 8000000 in
 /-- **A Pdpt cap**, every label (`Map`, `Unmap`; any other l4v's `IllegalOperation`). -/
 theorem decode_invocation_pdpt (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hFR : Vs.FrameInv (L.mem s) G)
+    (hMO : MdbOK (L.mem s) G)
     {P L4 L3 L2 L1 : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
     {Q : S → Prop} (hQ : ∀ s' a' σ', SR s' a' σ' → Q s')
     (hHM : VsPdptMapHyps st A arI th P L4 L3 L2 L1 SR) (hHU : VsPdptUnmapHyps st A arI th P L4 L3 L2 L1 SR) (hS : SR s ar σ)
@@ -595,7 +604,7 @@ theorem decode_invocation_pdpt (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
         ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
-    DecOKFQ (L := L) arI Q s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Pdpt ptr mp asid0 va0) blk call don fp
+    DecOKMQ (L := L) arI Q s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Pdpt ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := by
   have hCR0 := hCR
   obtain ⟨hSt, hSV, -, -, -⟩ := hCR0
@@ -608,7 +617,7 @@ theorem decode_invocation_pdpt (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
       ({((), Notif.stsAct (Notif.updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv)}, False) := by
     rw [hcur]; exact Notif.setThreadState_eq .restart hkt0
   have hAs : AbsSlot th (pc.bv, idx) := ⟨pc, rfl, Or.inl (by simpa [hidx] using hpc)⟩
-  unfold DecOKFQ syscall.decode_invocation
+  unfold DecOKMQ syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   have hspec : specDec fp slbl (args.map UScalar.bv) ci (pc.bv, idx) (.Pdpt ptr mp asid0 va0) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject
@@ -634,18 +643,18 @@ theorem decode_invocation_pdpt (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
         unfold vspace.decode_table_map
         rw [hct, hex]
         simp only [bind_ok, error.truncated, WP.spec_ok]
-        exact topFQ_err (⟨_, rfl, rfl, .truncatedMessage, htr, Or.inl trivial⟩)
+        exact topMQ_err (⟨_, rfl, rfl, .truncatedMessage, htr, Or.inl trivial⟩)
       · simp only [↓reduceIte]
         rw [hex]
         simp only [bind_ok, error.truncated, WP.spec_ok]
-        exact topFQ_err (⟨_, rfl, rfl, .truncatedMessage, htr, Or.inl trivial⟩)
+        exact topMQ_err (⟨_, rfl, rfl, .truncatedMessage, htr, Or.inl trivial⟩)
     refine WP.spec_mono (pdpt_map_rel hHM s ar σ hP hVP hD hPP hPS (fun b hb => hPV b (let ⟨q, hq, i, hi, e⟩ := hb; ⟨q, Or.inl hq, i, hi, e⟩)) hSt hSV hR hPt hS
       ct hct hcur' hkt (hrun _ hkt) htcb hact hPO ptr asid0 va0 mp hpL hfe hpa hpc hidx hl length buf args hlen hargs ci extra
       hex hcx hvr xsl rest hvc) ?_
     rintro res (⟨e, e', h1, he, hdec, h2, -⟩ | ⟨h1, iv, σ', hdec, hms, hSt', hSV', -, -, hSRq, hF, hL, hK⟩)
-    · exact topFQ_err (⟨e, h1, h2, e', hdec, he⟩)
-    · exact ⟨topF_of_lift2 (Or.inr ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 ((Or.inr ∘ Or.inr) hms), th, G,
-        Or.inl ⟨h1, [], rfl⟩, hP, crelF_after hCR hFI hFR hcap hSt' hSV' hF hL.1 hK⟩), Or.inr (hQ _ _ _ hSRq)⟩
+    · exact topMQ_err (⟨e, h1, h2, e', hdec, he⟩)
+    · exact ⟨topM_of_lift2 (Or.inr ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 ((Or.inr ∘ Or.inr) hms), th, G,
+        Or.inl ⟨h1, [], rfl⟩, hP, crelM_after hCR hFI hMO hcap hSt' hSV' hF hL.1 hK rfl⟩), Or.inr (hQ _ _ _ hSRq)⟩
   by_cases hu : lbl = fl4_abi.label.X86PDPTUnmap
   · subst hu
     have hl := hlU rfl
@@ -658,13 +667,13 @@ theorem decode_invocation_pdpt (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
       hact hPO ptr asid0 va0 mp hpL hfe hm0 hpc hidx hcap hl length buf (args.map UScalar.bv) ci extra excaps
       (is_final_eq s _) hfinR) ?_
     rintro res (⟨e, e', h1, he, hdec, h2, -⟩ | ⟨h1, iv, σ', hdec, hms, ⟨hSRq, hSt', hSV', -, -⟩, hF, hL, hK⟩)
-    · exact topFQ_err (⟨e, h1, h2, e', hdec, he⟩)
-    · exact ⟨topF_of_lift2 (Or.inr ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 ((Or.inr ∘ Or.inr) hms), th, G,
-        Or.inl ⟨h1, [], rfl⟩, hP, crelF_after hCR hFI hFR hcap hSt' hSV' hF hL.1 hK⟩), Or.inr (hQ _ _ _ hSRq)⟩
+    · exact topMQ_err (⟨e, h1, h2, e', hdec, he⟩)
+    · exact ⟨topM_of_lift2 (Or.inr ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 ((Or.inr ∘ Or.inr) hms), th, G,
+        Or.inl ⟨h1, [], rfl⟩, hP, crelM_after hCR hFI hMO hcap hSt' hSV' hF hL.1 hK rfl⟩), Or.inr (hQ _ _ _ hSRq)⟩
   obtain ⟨o1, o2⟩ := hlO hm hu
   unfold vspace.decode_table
   simp only [vspace.as_table, bind_ok, hm, hu, ↓reduceIte, error.illegal, WP.spec_ok]
-  refine topFQ_err (⟨_, rfl, rfl, .illegalOperation, ?_, Or.inl trivial⟩)
+  refine topMQ_err (⟨_, rfl, rfl, .illegalOperation, ?_, Or.inl trivial⟩)
   show ExceptT.run (Fl4Spec.decodePdptInvocation (Z := Unit) slbl (args.map UScalar.bv) (pc.bv, idx)
     (.pdPointerTableCap ptr.bv (if mp then some (asid0.bv, va0.bv) else none)) excaps) σ = _
   unfold Fl4Spec.decodePdptInvocation; dsimp only
@@ -695,13 +704,13 @@ theorem decode_invocation_frame_ds (th : TypedHeap) (hP : Placed th) (s : S) (ar
       Disj (capV (L.mem s) x) (.Frame p sz rt d m asid va) ∨
       (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
       Within (.Frame p sz rt d m asid va) (capV (L.mem s) x))
-    (hFR : Vs.FrameInv (L.mem s) G) (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
+    (hMO : MdbOK (L.mem s) G) (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ y nc nc' nsl rest, vspace.extra extra 0#usize = ok (some y) ∧ capAt (L.mem s) y = ok nc ∧
         CapRel nc nc' ∧ CapValid th nc ∧ excaps = (nc', nsl) :: rest)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
-    DecOKFQ (L := L) arI Q s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
+    DecOKMQ (L := L) arI Q s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m asid va) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := by
   subst hl
   have hCR0 := hCR
@@ -711,7 +720,7 @@ theorem decode_invocation_frame_ds (th : TypedHeap) (hP : Placed th) (s : S) (ar
   have hst1 : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ =
       ({((), Notif.stsAct (Notif.updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv)}, False) := by
     rw [hcur]; exact Notif.setThreadState_eq .restart hkt0
-  unfold DecOKFQ syscall.decode_invocation
+  unfold DecOKMQ syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   have hspec : specDec fp slbl (args.map UScalar.bv) ci (pc.bv, idx) (.Frame p sz rt d m asid va) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject
@@ -739,17 +748,17 @@ theorem decode_invocation_frame_ds (th : TypedHeap) (hP : Placed th) (s : S) (ar
   · unfold vspace.derive_subframe
     rw [hct, hex]
     simp only [bind_ok, error.truncated, WP.spec_ok]
-    exact topFQ_err (⟨_, rfl, rfl, .truncatedMessage, decodeSub_trunc (Or.inl rfl) _ _ σ, Or.inl trivial⟩)
+    exact topMQ_err (⟨_, rfl, rfl, .truncatedMessage, decodeSub_trunc (Or.inl rfl) _ _ σ, Or.inl trivial⟩)
   refine WP.spec_mono (derive_subframe_rel (L := L) (ar := arI) hH hP hPP hpc hidx s ar σ G hSt hSV hM hC hI hU hR hPt
-    hS hVP hVO hPO hcap hno hFI hFR hVC ct hct hcur' hkt hrun htcb hact length buf args hlen hargs extra hex hcy hnr hnv
+    hS hVP hVO hPO hcap hno hFI hMO.1 hVC ct hct hcur' hkt hrun htcb hact length buf args hlen hargs extra hex hcy hnr hnv
     nsl rest) ?_
-  rintro res (⟨e, e', h1, he, hD, h2, -⟩ | ⟨h1, -, iv, hD, σ', G', hmem, -, hSub, -⟩)
-  · exact topFQ_err (⟨e, h1, h2, e', hD, Or.inl he⟩)
+  rintro res (⟨e, e', h1, he, hD, h2, -⟩ | ⟨h1, -, iv, hD, σ', G', hmem, -, hSub, -, hMS⟩)
+  · exact topMQ_err (⟨e, h1, h2, e', hD, Or.inl he⟩)
   · have hmem' := hmem
     rw [nd_bind_one hst1] at hmem'
-    exact ⟨topF_of_lift2 (Or.inr ⟨iv, hD, _, hst1, (.ok [], σ'),
+    exact ⟨topM_of_lift2 (Or.inr ⟨iv, hD, _, hst1, (.ok [], σ'),
       mem_liftE (ε := Unit) (x := ([], σ')) (mem_bind_nd (x := ((), σ')) hmem' (Set.mem_singleton _)), th, G',
-      Or.inl ⟨h1, [], rfl⟩, hP, ⟨hSub.R, hSub.V, hSub.M, hSub.C, hSub.I⟩, hSub.F, hSub.FR⟩), Or.inr (hQ _ _ _ hSub.sr)⟩
+      Or.inl ⟨h1, [], rfl⟩, hP, ⟨hSub.R, hSub.V, hSub.M, hSub.C, hSub.I⟩, hSub.F, hMS.ok hMO⟩), Or.inr (hQ _ _ _ hSub.sr)⟩
 
 
 set_option maxHeartbeats 8000000 in
@@ -757,7 +766,7 @@ set_option maxHeartbeats 8000000 in
 l4v's `IllegalOperation`). -/
 theorem decode_invocation_asid_pool (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
-    (hFR : Vs.FrameInv (L.mem s) G)
+    (hMO : MdbOK (L.mem s) G)
     {P : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
     {Q : S → Prop} (hQ : ∀ s' a' σ', SR s' a' σ' → Q s')
     (hH : VsInvHyps st A th P SR) (hS : SR s ar σ) (hVP : VsPlaced P (L.ksb s)) (hD : VsSlotsDisj th P (L.ksb s))
@@ -778,7 +787,7 @@ theorem decode_invocation_asid_pool (th : TypedHeap) (hP : Placed th) (s : S) (a
         ∀ p1 a1, vc = .Pml4 p1 false a1 → p1 ≠ 0#u64)
     (slot : U64) (blk call don fp : Bool) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef) :
-    DecOKFQ (L := L) arI Q s ar σ lbl length slot (.AsidPool ptr base) blk call don fp buf extra slbl args ci sl excaps
+    DecOKMQ (L := L) arI Q s ar σ lbl length slot (.AsidPool ptr base) blk call don fp buf extra slbl args ci sl excaps
       buffer := by
   have hCR0 := hCR
   obtain ⟨hSt, hSV, -, -, -⟩ := hCR0
@@ -787,7 +796,7 @@ theorem decode_invocation_asid_pool (th : TypedHeap) (hP : Placed th) (s : S) (a
   have hst1 : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ =
       ({((), Notif.stsAct (Notif.updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv)}, False) := by
     rw [hcur]; exact Notif.setThreadState_eq .restart hkt0
-  unfold DecOKFQ syscall.decode_invocation
+  unfold DecOKMQ syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   have hspec : specDec fp slbl args ci sl (.AsidPool ptr base) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject
@@ -800,7 +809,7 @@ theorem decode_invocation_asid_pool (th : TypedHeap) (hP : Placed th) (s : S) (a
     rw [hct]; simp only [bind_ok]
     have : (lbl != fl4_abi.label.X86ASIDPoolAssign) = true := by simpa using hl
     simp only [this, ↓reduceIte, error.illegal, bind_ok, WP.spec_ok]
-    exact topFQ_err (⟨_, rfl, rfl, .illegalOperation,
+    exact topMQ_err (⟨_, rfl, rfl, .illegalOperation,
       decodeAssign_illegal (fun h => hl (hlA.2 h)) _ _ _ _ _ _ σ, Or.inl trivial⟩)
   subst hl
   have hl' := hlA.1 rfl
@@ -808,7 +817,7 @@ theorem decode_invocation_asid_pool (th : TypedHeap) (hP : Placed th) (s : S) (a
   · unfold vspace.decode
     rw [hct]; simp only [bind_ok, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
     rw [hex]; simp only [bind_ok, error.truncated, WP.spec_ok]
-    exact topFQ_err (⟨_, rfl, rfl, .truncatedMessage, decodeAssign_trunc hl' _ _ _ _ _ σ, Or.inl trivial⟩)
+    exact topMQ_err (⟨_, rfl, rfl, .truncatedMessage, decodeAssign_trunc hl' _ _ _ _ _ σ, Or.inl trivial⟩)
   by_cases hpm : ∃ p1 a1, vc = .Pml4 p1 false a1
   swap
   · have hbad : ∀ pb, vc' ≠ .archObjectCap (.pml4Cap pb none) := by
@@ -825,11 +834,11 @@ theorem decode_invocation_asid_pool (th : TypedHeap) (hP : Placed th) (s : S) (a
       cases b
       · exact absurd ⟨p1, a1, rfl⟩ hpm
       · simp only [↓reduceIte, error.invalid_cap, bind_ok, WP.spec_ok]
-        exact topFQ_err (⟨_, rfl, rfl, .invalidCapability 1, decodeAssign_bad hl' _ _ _ _ _ hbad _ _ σ,
+        exact topMQ_err (⟨_, rfl, rfl, .invalidCapability 1, decodeAssign_bad hl' _ _ _ _ _ hbad _ _ σ,
           Or.inr ⟨1#u64, rfl, rfl⟩⟩)
     all_goals
       simp only [error.invalid_cap, bind_ok, WP.spec_ok]
-      exact topFQ_err (⟨_, rfl, rfl, .invalidCapability 1, decodeAssign_bad hl' _ _ _ _ _ hbad _ _ σ,
+      exact topMQ_err (⟨_, rfl, rfl, .invalidCapability 1, decodeAssign_bad hl' _ _ _ _ _ hbad _ _ σ,
         Or.inr ⟨1#u64, rfl, rfl⟩⟩)
   obtain ⟨p1, a1, rfl⟩ := hpm
   have hvc' : vc' = .archObjectCap (.pml4Cap p1.bv none) := by rw [← hvr.2]; rfl
@@ -840,9 +849,9 @@ theorem decode_invocation_asid_pool (th : TypedHeap) (hP : Placed th) (s : S) (a
     rest length slot call buf extra hpc hidx hex hcx hcan (hp0 p1 a1 rfl)
     (fun ct' h => by rw [show ct' = ct from P1.eq_of_bv (h.trans hcur)]; exact htcb) hact hVO) ?_
   rintro res (⟨e, e', h1, he, hdec, h2, -⟩ | ⟨h1, hnf, asid, σ', hmem, hAS, hSt', hSV', -, hSRq, hF, hL, hK⟩)
-  · exact topFQ_err (⟨e, h1, h2, e', hdec, he⟩)
-  · refine ⟨topF_of_lift2M (Or.inr ⟨_, ⟨hmem, hnf⟩, _, hst1, (.ok [], σ'), ?_, th, G, Or.inl ⟨h1, [], rfl⟩, hP,
-      crelF_after hCR hFI hFR hcx hSt' hSV' hF hL.1 hK⟩), Or.inr (hQ _ _ _ hSRq)⟩
+  · exact topMQ_err (⟨e, h1, h2, e', hdec, he⟩)
+  · refine ⟨topM_of_lift2M (Or.inr ⟨_, ⟨hmem, hnf⟩, _, hst1, (.ok [], σ'), ?_, th, G, Or.inl ⟨h1, [], rfl⟩, hP,
+      crelM_after hCR hFI hMO hcx hSt' hSV' hF hL.1 hK rfl⟩), Or.inr (hQ _ _ _ hSRq)⟩
     have h2 := hAS
     unfold AssignSpec at h2
     rw [nd_bind_one hst1] at h2
@@ -854,7 +863,7 @@ set_option maxHeartbeats 8000000 in
 others l4v's `IllegalOperation`). -/
 theorem decode_invocation_asid_control (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hU : UtInv (L.mem s) G)
-    (hFR : Vs.FrameInv (L.mem s) G)
+    (hMO : MdbOK (L.mem s) G)
     {P L4 L3 L2 L1 : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
     {Q : S → Prop} (hQ : ∀ s' a' σ', SR s' a' σ' → Q s') {RegOK : S → Fl4Spec.State Unit → U64 → Prop}
     (hH : VsMpHyps st A th P L4 L3 L2 L1 SR RegOK) (hS : SR s ar σ)
@@ -886,13 +895,13 @@ theorem decode_invocation_asid_control (th : TypedHeap) (hP : Placed th) (s : S)
           MpRegion th G P L4 L3 L2 L1 (L.ksb s) p ∧ RegOK s σ p)
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef) :
-    DecOKFQ (L := L) arI Q s ar σ lbl length slot .AsidControl blk call don fp buf extra slbl (args.map UScalar.bv) ci sl
+    DecOKMQ (L := L) arI Q s ar σ lbl length slot .AsidControl blk call don fp buf extra slbl (args.map UScalar.bv) ci sl
       excaps buffer := by
   have hCR0 := hCR
   obtain ⟨hSt, hSV, hM, hC, hI⟩ := hCR0
   obtain ⟨xct, hkt0, -⟩ := hSt.tcb ct htcb
   have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
-  unfold DecOKFQ syscall.decode_invocation
+  unfold DecOKMQ syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   have hspec : specDec fp slbl (args.map UScalar.bv) ci sl .AsidControl excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject
@@ -905,7 +914,7 @@ theorem decode_invocation_asid_control (th : TypedHeap) (hP : Placed th) (s : S)
     rw [hct]; simp only [bind_ok]
     have : (lbl != fl4_abi.label.X86ASIDControlMakePool) = true := by simpa using hl
     simp only [this, ↓reduceIte, error.illegal, bind_ok, WP.spec_ok]
-    exact topFQ_err (⟨_, rfl, rfl, .illegalOperation,
+    exact topMQ_err (⟨_, rfl, rfl, .illegalOperation,
       decodeMP_illegal (fun h => hl (hlM.2 h)) _ _ _ _ σ, Or.inl trivial⟩)
   subst hl
   have hl' := hlM.1 rfl
@@ -916,24 +925,24 @@ theorem decode_invocation_asid_control (th : TypedHeap) (hP : Placed th) (s : S)
     rw [h0, h1]; simp only [bind_ok]
     rcases hn with rfl | rfl
     · simp only [error.truncated, bind_ok, WP.spec_ok]
-      exact topFQ_err (⟨_, rfl, rfl, .truncatedMessage, decodeMP_trunc hl' _ _ _ _ hlen1 σ, Or.inl trivial⟩)
+      exact topMQ_err (⟨_, rfl, rfl, .truncatedMessage, decodeMP_trunc hl' _ _ _ _ hlen1 σ, Or.inl trivial⟩)
     · cases o0 <;> simp only [error.truncated, bind_ok, WP.spec_ok] <;>
-        exact topFQ_err (⟨_, rfl, rfl, .truncatedMessage, decodeMP_trunc hl' _ _ _ _ hlen1 σ, Or.inl trivial⟩)
+        exact topMQ_err (⟨_, rfl, rfl, .truncatedMessage, decodeMP_trunc hl' _ _ _ _ hlen1 σ, Or.inl trivial⟩)
   have hd := makepool_rel (L := L) (ar := arI) hH s ar σ G hP hSt hSV hM hC hI hU hR hPt hS hVP hPP hVO hPO hPV ct hct
     hcur.symm hkt (hrun _ hkt) htcb hact hl' length buf args hlen hargs ci sl slot call extra hpp hidx hex0 hex1 hcx hur hcy hrr hrv
-    ysl rest hRg hFI hFR
+    ysl rest hRg hFI hMO.1
   refine WP.spec_mono hd ?_
   rintro res (⟨e, e', h1, he, hD, h2, -⟩ | ⟨h1, p, dest, ps, base, hmem, hnf, σ', th', G', hm, hnf', hP', hSt', hSV',
-    hM', hC', hI', -, -, -, hSRq, hF', hFR', -⟩)
-  · exact topFQ_err (⟨e, h1, h2, e', hD, he⟩)
+    hM', hC', hI', -, -, -, hSRq, hF', -, -, hMSp, -⟩)
+  · exact topMQ_err (⟨e, h1, h2, e', hD, he⟩)
   · have hst1 : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ =
         ({((), Notif.stsAct (Notif.updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv)}, False) := by
       rw [hcur]; exact Notif.setThreadState_eq .restart hkt0
     have hm' := hm
     rw [nd_bind_one hst1] at hm'
-    exact ⟨topF_of_lift2M (Or.inr ⟨_, ⟨hmem, hnf⟩, _, hst1, (.ok [], σ'),
+    exact ⟨topM_of_lift2M (Or.inr ⟨_, ⟨hmem, hnf⟩, _, hst1, (.ok [], σ'),
       mem_liftE (ε := Unit) (x := ([], σ')) (mem_bind_nd (x := ((), σ')) hm' (Set.mem_singleton _)), th', G',
-      Or.inl ⟨h1, [], rfl⟩, hP', ⟨hSt', hSV', hM', hC', hI'⟩, hF', hFR'⟩), Or.inr (hQ _ _ _ hSRq)⟩
+      Or.inl ⟨h1, [], rfl⟩, hP', ⟨hSt', hSV', hM', hC', hI'⟩, hF', hMSp.ok hMO⟩), Or.inr (hQ _ _ _ hSRq)⟩
 
 end
 

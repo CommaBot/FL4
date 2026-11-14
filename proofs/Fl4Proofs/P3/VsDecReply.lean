@@ -38,7 +38,7 @@ def GetAddrHyp (s : S) (σ : Fl4Spec.State Unit) (ar : A) (ct p : U64) (call : B
     ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, ar)) ⦃ res =>
     res.1 = .Ok () ∧ L.mem res.2.1 (stA ct) ≠ sched.TS_RESTART ∧ ∀ σ1,
       Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) →
-      ∃ z ∈ (specTail call ct.bv [Fl4Spec.addrFromPPtr p.bv] σ1).1, RelTop (L := L) res.2.1 z.2 ⦄
+      ∃ z ∈ (specTail call ct.bv [Fl4Spec.addrFromPPtr p.bv] σ1).1, RelTopM (L := L) res.2.1 z.2 ⦄
 
 /-- **Frame `GetAddress`** (`DecOKR`, the reply `GetAddrHyp`). -/
 theorem decode_invocation_frame_getaddr (s : S) (ar : A) (σ : Fl4Spec.State Unit)
@@ -49,10 +49,10 @@ theorem decode_invocation_frame_getaddr (s : S) (ar : A) (σ : Fl4Spec.State Uni
     (slot : U64) (blk call don fp : Bool) (hga : GetAddrHyp (L := L) s σ ar ct p call) (extra : Aeneas.Std.Array obj.Slot 3#usize) (args : List Fl4Spec.Data)
     (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (buffer : Option Fl4Spec.ObjRef) :
-    DecOKR (L := L) arI s ar σ lbl length slot (.Frame p sz rt d m asid va) blk call don fp buf extra slbl args ci sl
+    DecOKRM (L := L) arI s ar σ lbl length slot (.Frame p sz rt d m asid va) blk call don fp buf extra slbl args ci sl
       excaps buffer ct := by
   subst hl
-  unfold DecOKR syscall.decode_invocation
+  unfold DecOKRM syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   have n1 : ¬ fl4_abi.label.X86PageGetAddress = fl4_abi.label.X86PageMap := by
     unfold fl4_abi.label.X86PageGetAddress fl4_abi.label.X86PageMap; decide
@@ -95,7 +95,7 @@ def TacHyp (L4 L3 L2 L1 : Set U64) (s : S) (σ : Fl4Spec.State Unit) (ct : U64) 
     vspace.reply1 st (L.wr s b (L.mem s b &&& ~~~32#u64)) ct call v ⦃ s2 =>
       L.mem s2 (stA ct) ≠ sched.TS_RESTART ∧ ∀ σ1,
         Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) →
-        ∃ z ∈ (specTail call ct.bv [v.bv] σ1).1, RelTop (L := L) s2 z.2 ⦄
+        ∃ z ∈ (specTail call ct.bv [v.bv] σ1).1, RelTopM (L := L) s2 z.2 ⦄
 
 /-- **`TestAndClearAccessed`'s decode checks** against the model's, for any
 post `Q`: the errors are the model's; on success, the model's slot, and
@@ -263,10 +263,10 @@ theorem decode_invocation_frame_tac {P L4 L3 L2 L1 : Set U64} (s : S) (ar : A) (
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (args : List Fl4Spec.Data)
     (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (buffer : Option Fl4Spec.ObjRef) :
-    DecOKR (L := L) arI s ar σ lbl length slot (.Frame p sz rt d m asid va) blk call don fp buf extra slbl args ci sl
+    DecOKRM (L := L) arI s ar σ lbl length slot (.Frame p sz rt d m asid va) blk call don fp buf extra slbl args ci sl
       excaps buffer ct := by
   subst hl
-  unfold DecOKR syscall.decode_invocation
+  unfold DecOKRM syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   have n1 : ¬ fl4_abi.label.X86PageTestAndClearAccessed = fl4_abi.label.X86PageMap := by
     unfold fl4_abi.label.X86PageTestAndClearAccessed fl4_abi.label.X86PageMap; decide
@@ -294,7 +294,7 @@ theorem decode_invocation_frame_tac {P L4 L3 L2 L1 : Set U64} (s : S) (ar : A) (
   simp only [bind_ok, n1, n2, n3, ↓reduceIte]
   obtain ⟨σ1, hst, -⟩ := setThreadState_eq σ ct.bv tcb hkt .restart
   refine WP.spec_bind (tac_gen (L := L) s σ hR hPt hPP hPI ct hct f call
-    (fun r => TopPostR (L := L) σ blk call don (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject
+    (fun r => TopPostRM (L := L) σ blk call don (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject
         (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4ArchInvocation.testAndClearAccessed
           (Fl4Spec.decodeTestAndClearAccessed (Z := Unit) (frameACapG f)))) ct s (r.1, r.2, ar))
     (fun e e' hE hDe => Or.inl ⟨e, rfl, rfl, e', run_liftME_err (run_liftME_err hDe), hE⟩)
