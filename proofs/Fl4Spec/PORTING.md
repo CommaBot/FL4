@@ -337,3 +337,33 @@ Conventions of the ported base layer that later modules rely on.
   - **ArchInterrupt_A, ArchDecode_A** on X64 `rt` have no MCS-specific
     content (RISCV64 `rt` differs only in machine operations and in
     `arch_check_irq`'s range check), so they are ported as they are.
+
+## FL4 differences
+
+FL4's differences from l4v are modules of `Fl4Spec/Ext/` on top of the
+port; the ported modules are not changed. Each module's header gives the
+details.
+
+- **`Ext/TcbSize`: 4 KiB TCBs.** `decodeUntypedInvocationWith`,
+  `retypeRegionWith` and `invokeUntypedWith` are l4v's untyped functions
+  with `obj_bits_api` as a parameter (`objBitsApi` gives l4v's, by `rfl`);
+  FL4's are `fl4DecodeUntypedInvocation` and `fl4InvokeUntyped`
+  (`fl4ObjBitsApi`, 12 bits for `TCBObject`).
+- **`Ext/IrqControl`: IRQControl.** `IRQIssueIRQHandler` for the ISA IRQs
+  without an IOAPIC (`fl4ArchCheckIrq`), and the l4h label
+  `IRQIssueIRQHandlerIOAPICRemapped`: `decodeFl4IrqControl`,
+  `invokeFl4IrqControl`, with the invocations `Fl4IrqControlInvocation`.
+- **`Ext/VSpace`: l4h VSpace extensions** (PML4 flush, TestAndClearAccessed,
+  DeriveSubframe), as separate decoders and invocations.
+- **`Ext/Invocation`: the invocation dispatcher.** `fl4DecodeInvocation` and
+  `fl4PerformInvocation` are `decode_invocation` (Decode_A) and
+  `perform_invocation` (Syscall_A) with exactly two substitutions:
+  untyped caps use `fl4DecodeUntypedInvocation` / `fl4InvokeUntyped`, and
+  the IRQControl cap uses `decodeFl4IrqControl` / `invokeFl4IrqControl`.
+  Their invocation type `Fl4Invocation` is l4v's `invocation` with
+  `InvokeIRQControl` carrying an `Fl4IrqControlInvocation`. Every other cap
+  goes to l4v's decoder and invocation, unchanged (the `Ext/VSpace`
+  extensions are not in the dispatcher). The remapped IOAPIC label is not an
+  l4v label; the dispatcher takes it to be the first label number past
+  l4v's `invocation_label` enumeration (`fl4RemappedLabel`, the length of
+  `InvocationLabel.enum`).
