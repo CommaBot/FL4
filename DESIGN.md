@@ -723,6 +723,43 @@ repeated store accesses in the core and their metadata work is a better
 next investigation. All capture, timing, and ablation hooks are excluded
 from the shipped kernel.
 
+Coarse timestamps in the **actual entry path** further localize the gap.
+The same optimized kernel is compared with its test-only `serial-gate`
+build, using the fault/reply workload above, three alternating boots and
+15 batches per build. These are FL4-vs-FL4 diagnostics, not seL4 phase
+measurements. Approximate ns after subtracting the 13.1 ns empty timestamp
+bracket from each interval:
+
+| Phase | Transactional | Serial control |
+|---|---:|---:|
+| Fault delivery: fault encoding, endpoint and reply handoff | 267 | 66 |
+| ReplyRecv: reply invocation and transfer | 246 | 91 |
+| ReplyRecv: receive | 91 | 48 |
+| Scheduling and deferred effects, both entries combined | 353 | 132 |
+
+The last row includes deferred effects in the transaction build because
+the serial build executes address-space switches and timer programming
+inside scheduling. Register saving, exit preparation, and FPU switching
+are nearly equal between builds. The extra work is concentrated in the
+core operations executed through the transactional store. Phase markers
+also inhibit overlap, so these estimates locate expensive regions rather
+than forming an exact additive latency budget. The profiling patch is
+excluded from the kernel.
+
+The issue's seL4 fault/reply result is about 0.614 µs. Keeping the measured
+0.144 µs of commit work leaves only 0.470 µs for everything else; even
+FL4's generic serial control is about 0.629 µs in the issue. Parity thus
+requires reducing the logical handoff work as well as transaction
+bookkeeping. A candidate is a guarded direct handoff in `fl4-core`, with
+ordinary STM publication: resolve the participating objects once,
+snapshot groups of fields, compute final scheduler/endpoint/reply state
+in locals, and buffer each final update once. Its guards and result must
+be proved equivalent to the general path, with batching separately
+justified against word-wise Store operations. This is a direction for
+further work, not an implemented fast path or evidence of seL4 parity.
+For this UnknownSyscall reply, seL4's `fastpath_reply_recv` falls back to
+its slow path too; the target is not explained by a missing IPC fastpath.
+
 **Linear write-log experiment.** Instrumenting successful transaction
 attempts in the issue probe finds 25/29 buffered words for Call0/ReplyRecv
 and 52/43 for fault delivery/ReplyRecv. A dense scalar log with reverse linear
