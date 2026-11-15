@@ -24,8 +24,8 @@ impl tx::Mem for Phys {
     }
     #[inline(always)]
     fn clear(&self, addr: u64, len: u64) {
-        // The caller holds every stripe covering this free region until
-        // the clear completes and the new versions are published.
+        // The caller has exclusive access: a single core, the serial
+        // gate, or every covering stripe held until publication.
         unsafe { core::ptr::write_bytes(addr as *mut u8, 0, len as usize) }
     }
 }
@@ -79,6 +79,67 @@ impl Store for PhysStore {
         self.ks_base
     }
 
+    #[inline(always)]
+    fn cur_cpu(&self) -> u64 {
+        self.cpu
+    }
+}
+
+/// A store whose mode is fixed for one kernel entry. Both specializations
+/// use the same primitives as PhysStore; LLVM removes the per-word mode
+/// branch. The runtime chooses the mode and provides the synchronization.
+pub struct EntryStore<const TX: bool> {
+    ks_base: u64,
+    cpu: u64,
+}
+
+impl PhysStore {
+    pub fn specialize<const TX: bool>(&self) -> EntryStore<TX> {
+        debug_assert_eq!(self.tx, TX);
+        EntryStore {
+            ks_base: self.ks_base,
+            cpu: self.cpu,
+        }
+    }
+}
+
+impl<const TX: bool> Store for EntryStore<TX> {
+    #[inline(always)]
+    fn read(&self, addr: u64) -> u64 {
+        debug_assert!(addr & 7 == 0);
+        if TX {
+            tx::read(self.cpu, &Phys, addr)
+        } else {
+            tx::Mem::load(&Phys, addr)
+        }
+    }
+    #[inline(always)]
+    fn write(&mut self, addr: u64, v: u64) {
+        debug_assert!(addr & 7 == 0);
+        if TX {
+            tx::write(self.cpu, addr, v)
+        } else {
+            tx::Mem::store(&Phys, addr, v)
+        }
+    }
+    fn zero(&mut self, addr: u64, len: u64) {
+        if TX {
+            tx::zero(self.cpu, addr, len)
+        } else {
+            tx::Mem::clear(&Phys, addr, len)
+        }
+    }
+    fn clear_free(&mut self, addr: u64, len: u64) {
+        if TX {
+            tx::clear_free(self.cpu, &Phys, addr, len)
+        } else {
+            tx::Mem::clear(&Phys, addr, len)
+        }
+    }
+    #[inline(always)]
+    fn ks_base(&self) -> u64 {
+        self.ks_base
+    }
     #[inline(always)]
     fn cur_cpu(&self) -> u64 {
         self.cpu

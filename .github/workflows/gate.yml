@@ -16,7 +16,7 @@ jobs:
       - name: Build the kernel crates
         run: cargo build -p fl4-core && cargo build --release -p fl4-kernel --target x86_64-unknown-none
       - name: Host tests
-        run: cargo test -p fl4-abi -p fl4-core -p fl4-arch-x86_64 -p xtask -p fl4-store
+        run: cargo test -p fl4-abi -p fl4-core -p fl4-arch-x86_64 -p xtask -p fl4-store -p fl4-sync
       - name: Trusted base
         run: cargo xtask trusted
       - name: Simulation

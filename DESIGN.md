@@ -206,7 +206,7 @@ The kernel is a stack of layers. Each one has a single assurance level, so the t
 |---|---|---|---|
 | User space | sel4test, rootserver | | Unmodified sources, built against FL4's libsel4 |
 | Entry and exit | `fl4-arch-x86_64` | Trusted | SYSCALL/SYSRET, interrupt and exception stubs, register save into the TCB, per-core GS state, FPU switching |
-| Transaction runtime | `fl4-sync` | Trusted, sim-tested | Runs each kernel entry as a transaction: begin, commit, retry, escalation to the serial gate, IPI servicing while spinning |
+| Transaction runtime | `fl4-sync` | Trusted, sim-tested | Chooses uncontended serial execution or concurrent transactions; commit, retry, serial-gate escalation, IPI servicing while spinning |
 | Kernel logic | `fl4-core` | Verified | Syscall dispatch, decode, CSpace, CDT, IPC, notifications, untyped, scheduling, MCS refills, VSpace logic, IRQ objects. Safe Rust only, generic over the store and arch traits |
 | Object store | `fl4-store` | Trusted, sim-tested | Implements `Store` over physical memory: directly on one core or under the serial gate, and transactionally otherwise (versioned reads against the lock table, buffered writes, commit) |
 | Hardware backends | | Trusted | Page-table writes, TLB and cache maintenance, x2APIC, TSC-deadline timer, IOAPIC/MSI, ACPI parsing, serial |
@@ -290,7 +290,9 @@ Each kernel entry, and each chunk of a preemptible operation, runs as follows:
 
 ``` mermaid
 flowchart LR
-  E[Kernel entry] --> B[begin: mark core active, read clock]
+  E[Kernel entry] --> P{quiet gate and probe allowed?}
+  P -->|yes: reserve ticket, close, no active transactions| Q[run directly, release gate, exit]
+  P -->|no: back off probes on contention| B[begin: mark core active, read clock]
   B --> R[run the core entry on the transactional store]
   R -->|read sees a locked or newer entry| A[abort: drop buffers]
   R -->|irrevocable effect| S[serial gate]
@@ -312,6 +314,9 @@ flowchart LR
 - **Clearing free memory runs in place.** An untyped reset clears memory that no live object occupies, and so does making an ASID pool from a fresh frame. Such a clear can exceed the write buffer, but it does not need to be buffered: no other core depends on that memory. `Store::clear_free` means `zero` to the proofs. In a transaction it locks the region's stripes in order, validates the read set, zeroes memory in place along with any buffered writes into it, releases the stripes at a new version, and extends the transaction's read version to it. A reader of the region aborts at the new version. A clear larger than 64 KiB (`KernelResetChunkBits`, so never for a reset) still goes serial.
   Aligned power-of-two regions of 64 bytes through 64 KiB map to a contiguous stripe interval under the stripe hash, so the runtime enumerates that interval directly in lock order. Other regions retain sorting and deduplication. The physical backend uses a bulk zero while holding every covering stripe; the simulator retains individual word stores through `Mem::clear`, including their TSO buffering and version history.
 - **The serial gate.** Transactions mark their core active while they run. A core that needs the gate takes it, waits for active transactions to drain, runs the entry directly on memory, and releases it; new transactions wait while it is held. Rare global operations (domain schedule, IRQ control, ASID pool allocation) also use it. With one core there are no transactions and no gate: the store is plain memory.
+- **Uncontended gate probes.** Before starting a transaction, a core may reserve the currently served serial ticket with a CAS, only when no serial entry owns or is queued for it. It closes the gate with the same SeqCst store as the blocking acquisition and scans the transaction-active flags. If any other core is active, it releases its ticket immediately and uses STM; otherwise it runs the same core entry directly under the gate. A transaction arriving during the probe either publishes its active flag early enough to make the probe fail or observes the closed gate and waits. A failed probe has no memory or hardware effects beyond the gate protocol.
+- **Contention restores concurrency.** A failed probe or a transaction waiting for a closed gate advances a contention generation. Each core that observes a new generation skips probes for 256 entries. The per-core countdowns occupy separate cache lines. This prevents a busy exclusive owner from repeatedly probing ahead of waiting transactions and makes probes infrequent under sustained parallel load. Generation and countdown atomics only choose a strategy; correctness depends on the ticket and SeqCst handshake, even with stale policy reads. Mandatory serial entries still take FIFO tickets and service IPIs while waiting.
+- **Store specialization.** Once the runtime has selected direct or transactional execution, x86 entry dispatch uses the corresponding `EntryStore<TX>` implementation of the same `Store` interface. Both delegate to the existing primitives and remove a mode branch from each word access. Kernel logic, capability checks, scheduler semantics, and extracted proof definitions are unchanged. Runtime statistics remain enabled in debug builds; release builds avoid updating their otherwise unused shared counters.
 - **IPI-aware spinning.** seL4 services remote-stall IPIs while spinning on its lock. FL4 does the same in every spin loop: waiting for the gate, for a transaction to drain, or for a remote call to be acknowledged. IPI handlers touch only core-local state, so a core waiting for an acknowledgement cannot deadlock with a core spinning on a lock.
 
 ### Footprints of common operations
@@ -389,7 +394,7 @@ Decided: we port seL4's Isabelle abstract specification (the MCS version, from `
 
 The argument
 
-\(1\) A committed transaction ran the serial core on one consistent snapshot of memory and its writes take effect at once, so it behaves like one serial kernel entry, which P0 to P3 are about. (2) Commits are serializable: two-phase locking of the write set with reads validated against the start clock makes any execution equivalent to running the transactions one after another in commit order. A transaction that wrote nothing commits without revalidating, so it serializes at its start rather than at its commit. Together these are P2, a textbook argument proved once in Lean over an abstract model of the runtime, not once per entry point. The model takes each read as one step (the seqlock read in `tx.rs` rechecks the stripe around the load) and the part of a commit that runs with its write stripes locked as one step; lock acquisition, aborts and serial-gate entries interleave freely. (3) Aborted transactions have no effect: their writes stay in the buffer and their Arch effects in the queue. (4) What is left unproven is that `fl4-store`, `fl4-sync` and the IPI paths implement that model correctly on real memory. The simulator tests exactly that.
+\(1\) A committed transaction ran the serial core on one consistent snapshot of memory and its writes take effect at once, so it behaves like one serial kernel entry, which P0 to P3 are about. (2) Commits are serializable: two-phase locking of the write set with reads validated against the start clock makes any execution equivalent to running the transactions one after another in commit order. A transaction that wrote nothing commits without revalidating, so it serializes at its start rather than at its commit. Together these are P2, a textbook argument proved once in Lean over an abstract model of the runtime, not once per entry point. The uncontended probe selects the model's existing serial-entry transition, which already permits a direct entry whenever no transaction is active. The model takes each read as one step (the seqlock read in `tx.rs` rechecks the stripe around the load) and the part of a commit that runs with its write stripes locked as one step; lock acquisition, aborts and serial-gate entries interleave freely. (3) Aborted transactions have no effect: their writes stay in the buffer and their Arch effects in the queue. (4) What is left unproven is that `fl4-store`, `fl4-sync` and the IPI paths implement that model correctly on real memory. The simulator tests exactly that.
 
 ### Trusted base
 
@@ -599,9 +604,10 @@ What the table shows:
 - **seL4's map is about 50× FL4's on one core.** seL4 shoots down every core that has run the address space, even idle ones, which KVM must wake. FL4 interrupts only the cores currently running the ASID (§3).
 
 
-**Uncontended transaction costs (issue #11, 2026-11-15).** The standalone
+**Initial transaction optimizations (issue #11, 2026-11-15).** The standalone
 [issue probe](https://github.com/losfair/FL4/issues/11) compares `46b3cb6`
-with the write-log locality and bulk-clear changes in §7. Both use the
+with the write-log locality and bulk-clear changes in §7, before adaptive
+entry execution. Both use the
 same release configuration and probe ELF, six KVM vCPUs pinned to physical
 host cores 2–7, with emulator threads on 0–1. On the Ryzen 7 7700, three
 fresh boots per version in alternating order give 15 measured batches per
@@ -653,7 +659,8 @@ each warm-up batch, give these medians of batch means in ns:
 
 The empty `lfence; rdtsc; lfence` bracket costs about 13.2 ns. Subtracting
 it estimates 0.144 µs of commit work per round trip, about 10% of the
-uninstrumented 1.444 µs. Commit is essentially unchanged by this patch.
+uninstrumented 1.444 µs. Commit is essentially unchanged by the log and
+clear optimizations.
 Separate, more intrusive phase probes attribute most of it to stripe
 sorting, lock acquisition, and buffered writeback. With no intervening
 writer, the clock shortcut avoids walking the read set at commit. These
@@ -747,16 +754,13 @@ than forming an exact additive latency budget. The profiling patch is
 excluded from the kernel.
 
 The issue's seL4 fault/reply result is about 0.614 µs. Keeping the measured
-0.144 µs of commit work leaves only 0.470 µs for everything else; even
-FL4's generic serial control is about 0.629 µs in the issue. Parity thus
-requires reducing the logical handoff work as well as transaction
-bookkeeping. A candidate is a guarded direct handoff in `fl4-core`, with
-ordinary STM publication: resolve the participating objects once,
-snapshot groups of fields, compute final scheduler/endpoint/reply state
-in locals, and buffer each final update once. Its guards and result must
-be proved equivalent to the general path, with batching separately
-justified against word-wise Store operations. This is a direction for
-further work, not an implemented fast path or evidence of seL4 parity.
+0.144 µs of commit work would leave only 0.470 µs for everything else;
+FL4's generic serial control is about 0.629 µs in the issue. Running STM
+on every SMP entry therefore needs more than a faster log lookup. The
+adaptive execution described below instead reuses the existing serial
+transition when the kernel is uncontended, and specializes the store
+mode for an entire entry. It needs no separate scheduler or IPC semantics
+and adds no assumptions to the core proofs.
 For this UnknownSyscall reply, seL4's `fastpath_reply_recv` falls back to
 its slow path too; the target is not explained by a missing IPC fastpath.
 
@@ -784,6 +788,86 @@ live user FPU state in registers across kernel entries, and may enter
 with CR0.TS set. A kernel vector path would need feature checks and safe
 state management in addition to its lookup cost. The current change
 keeps the scalar hash log and the existing FPU protocol.
+
+**Adaptive entry execution.** The final implementation uses the gate
+probe, contention backoff, and store specialization described in §7.
+It executes the existing core entry directly when the kernel is quiet;
+there is no transaction log or commit on that entry. Under contention,
+entries continue to use STM and the optimized log and clear paths above.
+The abstract P2 serial transition already permits this execution when
+no transaction is active. `fl4-core`, extracted definitions, and proof
+sources are unchanged; the gate remains trusted, with its implementation
+checked by simulation and concurrent tests.
+
+Fresh alternating runs compare the preceding transactional implementation
+(`696a7a4`), this implementation, and the issue's patched seL4 image.
+The hardware, pinning, configuration, and probe ELF are the same as above.
+Each primitive has 15 measured batches across three boots; no build or
+other benchmark ran concurrently. Medians in µs:
+
+| Primitive | Previous STM | Adaptive | seL4 |
+|---|---:|---:|---:|
+| Fault/ReplyRecv, separate VSpaces, live client FPU | 1.4470 | 0.5593 | 0.6045 |
+| Syscall-fault delivery (split probe, same workload) | 0.7333 | 0.2644 | 0.3038 |
+| ReplyRecv resume (split probe, same workload) | 0.7374 | 0.3242 | 0.3279 |
+| Fault/ReplyRecv, shared VSpace, no FPU | 1.2553 | 0.3634 | 0.3804 |
+| Fault/ReplyRecv, shared VSpace, live client FPU | 1.3132 | 0.4252 | 0.3647 |
+| Call0/ReplyRecv, shared VSpace | 1.1036 | 0.3964 | 0.3912 |
+| Call19/ReplyRecv, shared VSpace | 1.3331 | 0.4045 | 0.4084 |
+| TCB retype, reset 64 KiB | 4.2400 | 0.6955 | 2.0764 |
+| Frame retype, reset 64 KiB | 4.0633 | 0.6896 | 1.7438 |
+| TCB retype, no reset | 0.5513 | 0.2164 | 0.4888 |
+
+The primary fault/reply round trip is 61% below the preceding STM version
+and 7.5% below seL4 in this setup. Its batch range is 0.5577–0.5610 µs,
+versus seL4's 0.5985–0.6091 µs. The split ReplyRecv improvement is much
+smaller (about 1%); the individual batch ranges overlap. Split probes
+include instrumentation and are not an additive round-trip budget.
+This does not establish parity for every path: shared-VSpace fault/reply
+with live FPU state remains 17% slower than seL4, and the full data also
+shows gaps in capability and scheduling-context operations. Linux guest
+workloads and bare metal have not been remeasured.
+
+FL4PERF0003, three alternating boots per version, median aggregate
+operations per million TSC ticks (higher is better):
+
+| Workload | Version | 1 core | 2 | 4 | 6 |
+|---|---|---:|---:|---:|---:|
+| IPC | Previous STM | 200 | 367 | 709 | 782 |
+| | Adaptive | 422 | 392 | 647 | 894 |
+| Cross-core IPC | Previous STM | – | 78 | 151 | 194 |
+| | Adaptive | – | 75 | 151 | 241 |
+| Cap copy/delete | Previous STM | 366 | 646 | 1175 | 1802 |
+| | Adaptive | 675 | 668 | 1263 | 1844 |
+| Retype/delete, 4 KiB reset | Previous STM | 277 | 474 | 812 | 994 |
+| | Adaptive | 541 | 491 | 935 | 913 |
+
+SMP concurrency remains useful: six-core IPC improves 14% and cross-core
+IPC 24%. There are tradeoffs: four-core IPC falls 9% and six-core retype
+falls 8% relative to the preceding STM version. The one-worker direct
+path is faster than two contending workers for some workloads, because
+those workers pay the transactional cost. The adaptive policy does not
+promise monotonically increasing throughput or remove STM overhead
+from contended entries.
+
+[Raw results](xtask/results/issue-11-adaptive.json) retain every measured
+batch for every primitive and all seven scaling workloads, along with
+image hashes and run order. Primitive ticks are ordered by boot then
+trial (three boots, trials 1–5); divide each by `operations_per_trial` and
+3792.848570 to get µs. Scaling arrays contain each boot's aggregate
+operations per million ticks. No measured batches were discarded.
+
+Validation includes host tests, the 200-seed simulation suite (TSO, PCT,
+targeted aborts, serial control, and bounded schedule exploration), all
+runtime mutants, and the strict extraction/Lean gate. A focused mutation
+also makes the active-transaction probe test fail when its exclusion
+check is removed. KVM runs pass 192 full-feature release sel4tests and
+26 fl4tests on four cores, plus 26 reduced-feature debug fl4tests on
+four cores and 193 debug sel4tests on one core. One initial release
+suite failed `MULTICORE0003` while host validation jobs overlapped; the
+full isolated rerun and three focused isolated reruns passed. Its cause
+has not been established. The test runner now handles leading CRs in
+LF-CR output so it reports the failing test name correctly.
 
 ## 13. Milestones
 
