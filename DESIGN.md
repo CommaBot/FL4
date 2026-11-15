@@ -306,9 +306,11 @@ flowchart LR
 
 - **Consistent reads.** A read is valid only if its table entry is unlocked and no newer than the clock value the transaction began with. Otherwise the transaction is doomed: from then on reads return zero and nothing it does is kept. Every loop in the core is bounded (P0), so a doomed entry finishes quickly, and until it is doomed the core sees one consistent snapshot of memory. Reads are plain loads through the kernel window, which maps all of kernel memory, so they never fault.
 - **Buffered writes, two-phase commit.** Writes go to a per-core buffer, and later reads of the same word see them. At commit the entries covering the write set are locked in table order, which is deadlock free, then the read set is checked against the start clock, the buffer is written out, and the entries are released with the new version.
+- **Write-log locality.** The log's word-address hash preserves nearby words' locality and folds in the page number to separate equally aligned objects. Reads skip the log when their stripe has no writes in the current transaction. Hash collisions still compare full addresses and probe; the global stripe hash, log capacity, validation, and commit protocol are unchanged.
 - **Deferred effects.** Arch operations other cores or the hardware could observe (reschedule IPIs, timer programming, interrupt masking and acknowledgement, address-space switches, console output) are queued and run after commit, never while holding entries. An interrupt accepted during the entry is kept and offered again if the transaction reruns.
 - **Irrevocable operations go serial.** Port I/O, remote stalls, FPU state moving between cores, TLB invalidation, and clears of more than 64 KiB cannot run speculatively. An invalidation must follow the page-table change, which a transaction makes only at commit, and its shootdown IPIs need the gate; mapping into an empty entry invalidates nothing, so most maps stay transactions. A core switching address space publishes its ASID before it loads CR3 (or reads the ASID's invalidation generation, with PCIDs), and an invalidation changes the tables before it looks for cores to shoot down, so a switch racing with an unmap cannot keep a stale entry. The transaction aborts and the entry reruns under the serial gate, as does any entry after N failed attempts (default 4).
 - **Clearing free memory runs in place.** An untyped reset clears memory that no live object occupies, and so does making an ASID pool from a fresh frame. Such a clear can exceed the write buffer, but it does not need to be buffered: no other core depends on that memory. `Store::clear_free` means `zero` to the proofs. In a transaction it locks the region's stripes in order, validates the read set, zeroes memory in place along with any buffered writes into it, releases the stripes at a new version, and extends the transaction's read version to it. A reader of the region aborts at the new version. A clear larger than 64 KiB (`KernelResetChunkBits`, so never for a reset) still goes serial.
+  Aligned power-of-two regions of 64 bytes through 64 KiB map to a contiguous stripe interval under the stripe hash, so the runtime enumerates that interval directly in lock order. Other regions retain sorting and deduplication. The physical backend uses a bulk zero while holding every covering stripe; the simulator retains individual word stores through `Mem::clear`, including their TSO buffering and version history.
 - **The serial gate.** Transactions mark their core active while they run. A core that needs the gate takes it, waits for active transactions to drain, runs the entry directly on memory, and releases it; new transactions wait while it is held. Rare global operations (domain schedule, IRQ control, ASID pool allocation) also use it. With one core there are no transactions and no gate: the store is plain memory.
 - **IPI-aware spinning.** seL4 services remote-stall IPIs while spinning on its lock. FL4 does the same in every spin loop: waiting for the gate, for a transaction to drain, or for a remote call to be acknowledged. IPI handlers touch only core-local state, so a core waiting for an acknowledgement cannot deadlock with a core spinning on a lock.
 
@@ -596,6 +598,155 @@ What the table shows:
 - **seL4 is slow on yield and ipc, likely because of timer writes under KVM.** seL4's yield and same-core IPC take 3,600 and 8,800 ticks. A likely cause, not yet confirmed, is MCS reprogramming the timer on each scheduling-context switch, which is a VM exit under KVM.
 - **seL4's map is about 50× FL4's on one core.** seL4 shoots down every core that has run the address space, even idle ones, which KVM must wake. FL4 interrupts only the cores currently running the ASID (§3).
 
+
+**Uncontended transaction costs (issue #11, 2026-11-15).** The standalone
+[issue probe](https://github.com/losfair/FL4/issues/11) compares `46b3cb6`
+with the write-log locality and bulk-clear changes in §7. Both use the
+same release configuration and probe ELF, six KVM vCPUs pinned to physical
+host cores 2–7, with emulator threads on 0–1. On the Ryzen 7 7700, three
+fresh boots per version in alternating order give 15 measured batches per
+primitive; no build or other benchmark runs concurrently. Medians in µs,
+using the issue's invariant TSC frequency of 3792848570 Hz:
+
+| Primitive | Before | After |
+|---|---:|---:|
+| Fault/ReplyRecv, separate VSpaces, live client FPU | 1.5362 | 1.4442 |
+| Syscall-fault delivery, separate VSpaces, live client FPU (split probe) | 0.7733 | 0.7376 |
+| ReplyRecv resume, separate VSpaces, live client FPU (split probe) | 0.7903 | 0.7403 |
+| Fault/ReplyRecv, shared VSpace, no FPU | 1.3233 | 1.2515 |
+| Call0/ReplyRecv, shared VSpace | 1.1682 | 1.1052 |
+| Call19/ReplyRecv, shared VSpace | 1.4388 | 1.3388 |
+| TCB retype, reset 64 KiB | 6.5923 | 4.2412 |
+| Frame retype, reset 64 KiB | 6.3946 | 4.0649 |
+| TCB retype, no reset | 0.5602 | 0.5488 |
+
+This removes about 6% of fault/reply time and 36% of reset/retype time;
+it does not close the gap to the serial control. The reset still locks
+all 1,024 covering stripes. The split timings include instrumentation
+and should not be added to estimate the uninstrumented round trip.
+
+The same pinned setup running FL4PERF0003 (three boots per version, median
+aggregate operations per million TSC ticks) retains SMP concurrency:
+
+| Workload | Version | 1 core | 2 | 4 | 6 |
+|---|---|---:|---:|---:|---:|
+| IPC | Before | 189 | 351 | 677 | 745 |
+| | After | 200 | 369 | 710 | 785 |
+| Cap copy/delete | Before | 352 | 625 | 1128 | 1723 |
+| | After | 363 | 647 | 1179 | 1806 |
+| Retype/delete, 4 KiB reset | Before | 200 | 282 | 577 | 658 |
+| | After | 281 | 476 | 814 | 1007 |
+
+These are KVM measurements, not bare-metal or Linux guest throughput
+claims. The shared-VSpace map benchmark remains noisy (one-core runs
+337–364 before and 332–389 after); its six-core median stays at 56.
+
+**Commit and individual store operations.** Temporary kernel probes on
+the separate-VSpace, live-FPU fault/reply workload time commit from the
+start of stripe sorting through the last unlock. Three boots, excluding
+each warm-up batch, give these medians of batch means in ns:
+
+| Transaction | Buffered words | Read stripes | Write stripes | Before, measured | After, measured | After, minus timestamp overhead |
+|---|---:|---:|---:|---:|---:|---:|
+| Fault delivery | 52 | 24 | 18 | 101.0 | 104.9 | 91.7 |
+| ReplyRecv | 43 | 31 | 12 | 67.5 | 65.0 | 51.8 |
+
+The empty `lfence; rdtsc; lfence` bracket costs about 13.2 ns. Subtracting
+it estimates 0.144 µs of commit work per round trip, about 10% of the
+uninstrumented 1.444 µs. Commit is essentially unchanged by this patch.
+Separate, more intrusive phase probes attribute most of it to stripe
+sorting, lock acquisition, and buffered writeback. With no intervening
+writer, the clock shortcut avoids walking the read set at commit. These
+are uncontended costs; they do not predict retries or cache-line transfer
+between busy cores.
+
+To examine the work before commit, a temporary probe captures one actual
+successful fault-delivery transaction and one ReplyRecv transaction,
+including each read/write address and its write-log lookup result. The
+following counts are identical across three boots. Each timing replays
+the prefix to establish transaction state, then brackets that one access
+100 times; values are medians across boots after subtracting the empty
+timestamp bracket. The helpers use the optimized runtime on CPU 0 and
+include the function-call and harness overhead. Times are approximate ns
+for hot state, **not additive contributions to end-to-end latency**.
+The fences prevent overlap with surrounding operations; subtracting their
+empty-bracket cost does not restore that out-of-order overlap:
+
+| Operation | Fault count | ReplyRecv count | Fault ns | ReplyRecv ns |
+|---|---:|---:|---:|---:|
+| Read a buffered word | 37 | 23 | 3.7 | 3.7 |
+| Read memory, first read of its stripe | 24 | 31 | ~4.1 | ~4.1 |
+| Read memory, stripe already in read set | 77 | 102 | ~3.9 | ~3.9 |
+| Buffer a new word, first write to its stripe | 18 | 12 | 4.6 | 5.0 |
+| Buffer a new word, stripe already in write set | 34 | 31 | 4.3 | 4.2 |
+| Overwrite a buffered word | 13 | 8 | 3.1 | 3.4 |
+
+There are 294 reads and 116 writes per pair. Of the reads, 60 hit the log,
+184 skip searching it because their stripe has no buffered writes, and
+50 search but miss. The 234 memory reads each load the stripe version
+twice, check it against the snapshot, and test read-set membership; only
+55 add a stripe to the read set. On this x86 build the acquire fence
+between the data load and second version load emits no hardware fence.
+The same isolated measurement puts steady-state `tx::begin` near 2 ns
+and `tx::end` near 1 ns, excluding serial-gate admission and effects.
+
+A second experiment replays each whole access sequence 2,000 times
+without committing, under the serial gate so memory stays stable. It
+compares normal helpers with helpers using the captured lookup answers,
+and checks equal read checksums. Variant dispatch occurs outside the timed
+loop; five measured batches per boot alternate variant order. Median ns
+per transaction:
+
+| Replay variant | Fault | ReplyRecv |
+|---|---:|---:|
+| Normal reads and writes | 366 | 372 |
+| Precomputed read-log lookup answers | 357 | 376 |
+| Precomputed read and write lookup answers | 366 | 383 |
+| Also replace reads with the selected memory/buffer load | 281 | 278 |
+| Also replace writes with the buffer-value store | 262 | 276 |
+
+Replacing read-log search gives no repeatable pair-level improvement:
+paired batch differences span about -30 to +31 ns. Removing the remaining
+read protocol saves about 190 ns per pair relative to the both-lookups
+variant, but this is a diagnostic ablation, not a safe implementation.
+The last two variants differ by only about 20 ns per pair despite the
+116 writes: much of the buffered-write work overlaps other operations.
+That marginal difference excludes lookup and depends on the surrounding
+work. Isolated 4–5 ns writes do not imply a 0.5 µs write budget. A buffered
+write also performs dependent log/stamp loads, branches, and counter/index
+updates; the CPU's store buffer hides store completion, not those inputs.
+These hot replay loops omit the core's computation, normal call sites,
+commit, entry/exit, deferred effects, address-space and FPU switching;
+they are not a decomposition of the 1.444 µs round trip. Read-your-writes
+search is not the dominant remaining cost in this experiment. Reducing
+repeated store accesses in the core and their metadata work is a better
+next investigation. All capture, timing, and ablation hooks are excluded
+from the shipped kernel.
+
+**Linear write-log experiment.** Instrumenting successful transaction
+attempts in the issue probe finds 25/29 buffered words for Call0/ReplyRecv
+and 52/43 for fault delivery/ReplyRecv. A dense scalar log with reverse linear
+search, retaining the unwritten-stripe shortcut and the reset changes,
+raises fault/reply to 2.6025 µs and Call0/ReplyRecv to 1.5748 µs (the same
+three-boot procedure). It is not used in the kernel.
+
+The host-only `xtask/scripts/bench_tx_lookup.c` compares hashing, scalar
+search, and an AVX2 scan of 16 keys per loop, with synthetic nearby-word
+keys and 50% hits. Five-trial medians in ns per lookup:
+
+| Log words | Hash | Scalar | AVX2 |
+|---|---:|---:|---:|
+| 25 | 2.19 | 6.12 | 2.73 |
+| 43 | 2.69 | 9.37 | 3.00 |
+| 52 | 3.11 | 11.32 | 2.98 |
+| 128 | 6.83 | 24.37 | 3.84 |
+
+AVX2 is competitive at the larger sizes in this isolated test. These
+numbers exclude managing kernel SIMD ownership: FL4 normally preserves
+live user FPU state in registers across kernel entries, and may enter
+with CR0.TS set. A kernel vector path would need feature checks and safe
+state management in addition to its lookup cost. The current change
+keeps the scalar hash log and the existing FPU protocol.
 
 ## 13. Milestones
 

@@ -22,6 +22,12 @@ impl tx::Mem for Phys {
     fn store(&self, addr: u64, v: u64) {
         unsafe { core::ptr::write_volatile(addr as *mut u64, v) }
     }
+    #[inline(always)]
+    fn clear(&self, addr: u64, len: u64) {
+        // The caller holds every stripe covering this free region until
+        // the clear completes and the new versions are published.
+        unsafe { core::ptr::write_bytes(addr as *mut u8, 0, len as usize) }
+    }
 }
 
 pub struct PhysStore {
