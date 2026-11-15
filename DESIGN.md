@@ -31,7 +31,6 @@ Assurance levels used below: **Verified** (extracted by Aeneas, proven in Lean),
 - The non-MCS (master) API. FL4 builds only with `KernelIsMCS` on. Decided.
 - In-kernel IOMMU support. FL4 builds with `KernelIOMMU` off and has no IO page table objects. User space programs the IOMMU directly (§11). Decided.
 - 32-bit architectures (ia32, aarch32) and RISC-V.
-- VT-x virtualisation (`seL4_VMEnter`, VCPU objects).
 - Fastpaths. seL4's IPC and exception fastpaths are a second, hand-optimized copy of the general path, with their own proofs. FL4 has only the general path, so there is one implementation to verify. A fastpath can be added later if measurements show a need, together with a proof that it matches the general path. Decided.
 - Information-flow (confidentiality) proofs and binary-level translation validation. The design leaves room for both.
 - seL4's in-kernel benchmark API (`KernelBenchmarks`: utilisation tracking, kernel-entry tracing, the benchmark log buffer). It exists only in profiling builds, and supporting it would mean another kernel configuration to build, test and verify. FL4 forces `KernelBenchmarks none`, so sel4test's BENCHMARK_0001 is not built. Performance is measured from user space instead (sel4bench, §12).
@@ -95,7 +94,7 @@ seL4 has over a hundred `Kernel*` build options, and many of them just tell the 
 
 These are accepted only at the value FL4 supports. The CMake shim fails the build with a clear message for any other value. Values that user programs see are generated into FL4's libsel4, so programs and kernel always agree.
 
-- API shape: `KernelIsMCS` on, `KernelIOMMU` off, `KernelVTX` off, `KernelNumDomains` 1 (one scheduling domain; `KernelNumDomainSchedules` follows at upstream's value for one domain), `KernelHugePage` on, SYSCALL as the entry method, `KernelPTLevels` 4.
+- API shape: `KernelIsMCS` on, `KernelIOMMU` off, `KernelVTX` and 64-bit VCPU guests on, `KernelNumDomains` 1 (one scheduling domain; `KernelNumDomainSchedules` follows at upstream's value for one domain), `KernelHugePage` on, SYSCALL as the entry method, `KernelPTLevels` 4.
 - Kernel limits at seL4's defaults: `KernelNumPriorities` 256, `KernelRetypeFanOutLimit` 256, `KernelMaxNumWorkUnitsPerPreemption` 100, `KernelMaxNumBootinfoUntypedCaps` 230, `KernelBootThreadTimeSlice` 5, `KernelWcetScale` 1, `KernelStaticMaxPeriodUs` 0. The kernel builds these in, so the shim refuses any other value rather than let libsel4's generated configuration advertise a limit the kernel does not enforce (GitHub issue #3). `KernelTimeSlice` (non-MCS only) and `KernelStackBits` (FL4 sizes its own kernel stacks) do not apply.
 - `KernelResetChunkBits` is 16: untyped resets clear 64 KiB, then check for preemption, as in l4h patch 0030.
 - Always off: fastpaths (`KernelFastpath`, `KernelExceptionFastpath`, `KernelSignalFastpath`) and `KernelDangerousCodeInjection`. `KernelX86DangerousMSR` is on only in the bench profile. Fastpaths are left out because a second, hand-optimized copy of IPC is hard to verify (see §1). User programs cannot tell the difference, since the fastpath only changes speed.
@@ -126,7 +125,7 @@ AArch64 follows the same rule: GIC version, timer frequency, physical address si
 
 ## 4. From the l4h patch series
 
-The l4h kernel is seL4 plus 41 patches (`l4h/kernel/patches`). FL4 includes every fix and feature in that series, except the VT-x and AMD-V work (0038 to 0043) and multikernel partitioning (0031 to 0036). New APIs become FL4 extensions under §2. Fixes become FL4's behavior from the start, each with a regression test in `fl4test` or the simulator.
+The l4h kernel is seL4 plus 41 patches (`l4h/kernel/patches`). FL4 includes every fix and feature in that series, except multikernel partitioning (0031 to 0036). The virtualization implementation and its current verification limits are described in [README.md](README.md#x86-virtualization). New APIs become FL4 extensions under §2. Fixes become FL4's behavior from the start, each with a regression test in `fl4test` or the simulator.
 
 ### l4h user space
 
@@ -189,11 +188,14 @@ Bugs in FL4's own code, not differences from seL4, kept here because each one sh
 | The kernel's `USER_TOP` was libsel4's `seL4_UserTop` (`0x7ffffffff000`), not C's `0x7fffffffffff`, so page-table maps and breakpoints in the last user page were refused where seL4 accepts them | P3 (VSpace, l4v `user_vtop`) | C's value |
 | With no receive IPC buffer, `set_mr` returned the running index past the message registers, where seL4 returns `n_msgRegisters`, so fault messages reported a length of up to 18 instead of 4 | P3 (fault-message refinement) | Return `N_MSG_REGISTERS` |
 | An NMI, #DB or #MC between SYSCALL and the stack switch pushed its frame on the user's RSP in ring 0 | Review while adding the SYSRET exit | IST stacks |
+| VMX controls could advertise performance-MSR switching while CPUID exposed no PMU, causing a host MSR-read fault | Intel real-guest regression | Filter the VMX entry/exit performance controls by PMU availability |
+| Deleting a non-final IO-port cap left its VCPU grant active; final cleanup revoked unrelated VCPU grants | Proof port and seL4 lifecycle comparison | Revoke only the cap owner's grant on every finalisation; free the allocation during final cleanup |
+
+The VT-x and AMD-V patches (0038–0043) are implemented through a shared VCPU/EPT API with runtime CPU selection. See [README.md](README.md#x86-virtualization) for implementation and verification status.
 
 ### Left out
 
 - **Debug syscall MCP threshold** (0008, `KernelDebugSyscallMinMCP`). FL4 does not gate debug syscalls or kernel error messages by MCP. Debug syscalls exist only in the debug profile, which is not for running untrusted code.
-- **VT-x and AMD-V** (0038 to 0043). Out of scope. 0038's idea, making a feature a boot-time choice instead of a build option, is what FL4 does everywhere.
 - **Multikernel partitioning** (0031 to 0036). FL4 is always the only kernel on its machine. That drops the kernel load-address build option, the `ap_boot_page=`, `no_legacy_irq`, `peers=`, `console_ring=`, `tsc_mhz=` and `apic_khz=` boot options, and `IRQControl_SendPeer`. FL4 loads at the fixed seL4 address, owns the IOAPICs and PIC, and always measures its own timer rates.
 
 ## 5. Architecture
@@ -347,7 +349,7 @@ The proof is staged so each level is useful by itself and later levels build on 
 
 | Level | Statement                                                                                                                                                                                                                                       | Scope                                                                                           |
 |-------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
-| P0    | Every extracted function terminates without failure (no panic, overflow or out-of-bounds) when the invariants hold. Complete: all 934 functions, one proved by hand; CI fails if any is left (`FL4_P0_STRICT`)                                                                                                                              | All of `fl4-core`                                                                               |
+| P0    | Every extracted function terminates without failure (no panic, overflow or out-of-bounds) when the invariants hold. Complete: all 1,041 functions, 14 proved by hand; CI fails if any is left (`FL4_P0_STRICT`)                                                                                                                              | All of `fl4-core`                                                                               |
 | P1    | Each kernel entry preserves the invariants: well-typed heap, object alignment and non-overlap, CDT well-formed (including subframe aliases), queues consistent with thread states, refill invariants, deadline-timer trees, untyped bookkeeping | All of `fl4-core`                                                                               |
 | P2    | Transaction soundness: over an abstract model of `fl4-store` and `fl4-sync`, a committed transaction observed one consistent snapshot, its writes are applied atomically, and any history of committed transactions is equivalent to running them one after another: writers and serial entries in commit order, each read-only transaction on the memory at its start. Proved in `proofs/Fl4Proofs/P2/Runtime.lean` (`sound`, `snapshot`) | Once, for the runtime; required before fine-grained locking ships |
 | P3    | Functional refinement: every kernel entry refines the abstract spec                                                                                                                                                                             | One subsystem at a time: CSpace, then IPC and notifications, scheduler and MCS, untyped, VSpace |
@@ -356,26 +358,26 @@ The proof is staged so each level is useful by itself and later levels build on 
 
 ### Status
 
-- **P0**: complete (934 functions, one by hand), enforced in CI.
+- **P0**: complete (1,041 functions, 14 by hand), enforced in CI.
 - **P1**, in `proofs/Fl4Proofs/P1`, over a `LawfulStore` (a total store with read-after-write laws and a model instance):
   - The invariants: refill rings (structure, ordering, no-overflow, window); thread queues refining list operations, with priority and time ordering; the combined scheduler-queue invariant (exact queued flags, located membership, ready and release queues exclusive); endpoint and notification queues consistent with thread states; bound SCs (BoundInv, SCsOK); reply, SC and notification-binding objects; the deadline-timer trees. Together they form `BlkOK`/`EntryInv`.
-  - `kernel_entry.entry`: every kernel entry preserves `EntryInv`, under `EntryHyps`. Still assumed there: IPC transfer, the composite `handle_invocation` (its per-family pieces are proved), `handle_fault`, `debug_syscall`, `activate_thread`, and three placement facts P3 supplies.
-  - Write footprints and frames for every operation the P3 proofs need them for: cap-slot writes, installs, delete and finalisation of every object kind, and the VSpace operations. None of them breaks the invariant, and finalisation writes no cap slot.
+  - `kernel_entry.entry`: native syscalls (excluding VMEnter) and interrupt entries preserve `EntryInv`, under `EntryHyps`. Still assumed there: IPC transfer, the composite `handle_invocation` (its per-family pieces are proved), `handle_fault`, `debug_syscall`, `activate_thread`, and three placement facts P3 supplies.
+  - Write footprints and frames for the native operations used by P3: cap-slot writes, installs, delete and finalisation, and VSpace operations. The native thread-finalisation leaf requires an unbound VCPU link. None of them breaks the invariant, and finalisation writes no cap slot.
   - The two conditions seL4's C code relies on without checking are P1 invariants, kept by every kernel entry: the current thread has an SC when `switch_sched_context` runs (`BoundInv.resume`, l4v `active_sc_tcb_at`), and a thread blocked on reply has a reply object (`ReplyInv0.reply`).
   - Typed-heap layout, object alignment and non-overlap appear as hypotheses (the sets P1 is parameterised by). CDT and untyped invariants are proved in P3 (`MdbOK`), not yet as P1 invariants.
 - **P2**: complete.
 - **P3**, in `proofs/Fl4Proofs/P3`, against `Fl4Spec` (the l4v rt abstract spec ported to Lean, up to `call_kernel`; KernelInit_A is dead in l4v and left out). The top-level theorem `handle_invocation_refinesM` relates the decode and invocation of each capability to the spec, from per-capability results and named hypotheses, and carries the CDT invariant `MdbOK` (frame invariant, untyped bookkeeping, no overlap) through a per-step relation `MdbStep`:
   - CSpace: lookups, every CNode invocation, delete and revoke (zombies, preemption), untyped retype and reset, the IRQ and IO port caps.
-  - TCBs: every TCB invocation, including the cap installs.
+  - TCBs: native TCB invocations, including cap installs. The dispatcher excludes the new SetEPTRoot label.
   - Scheduling contexts (MCS): SchedContext and SchedControl, budget checks, `set_priority`, and binding and unbinding SCs.
-  - VSpace: frames, page tables, ASID pools and control, DeriveSubframe, with the VSpace cap-placement invariant (`VsMdbInv`).
-  - Endpoints and notifications: the IPC and signal paths are in progress.
+  - VSpace: native frames and page tables, native-root ASID assignment, ASID pools and control, DeriveSubframe, with the VSpace cap-placement invariant (`VsMdbInv`). Guest-tagged pool entries stay occupied during allocation and are rejected by native lookup. `FrameLabel.native` excludes EPT mapping, and ASID-assignment leaves require a native extra cap.
+  - Endpoints and notifications: the IPC and signal paths are in progress. The native idle-bound notification leaf excludes a thread running a VM.
   - Hypotheses still to discharge are named in each file. The main ones: the state facts after the TCB fault-handler install, finalisation of a final Endpoint, Notification, Reply, Thread or SchedContext cap on the spec side (`FinWorkHyp`; FL4's side and the VSpace cases are proved), the reply and fault paths, and the placement link between P3's typed heap and P1's object sets.
   - The proofs so far found no disagreement between FL4 and the spec.
 
 ### The abstract spec
 
-Decided: we port seL4's Isabelle abstract specification (the MCS version, from `l4v/spec/abstract`) to Lean 4 as a nondeterministic state monad. It is long but close to a transliteration, and it keeps FL4 tied to the meaning the seL4 proofs have already validated. Only the parts FL4 builds are ported: no non-MCS paths, no IO page tables, no VCPUs. Where FL4 must differ, such as per-core state, the difference is written down in the spec and listed in one place.
+Decided: we port seL4's Isabelle abstract specification (the MCS version, from `l4v/spec/abstract`) to Lean 4 as a nondeterministic state monad. It is long but close to a transliteration, and it keeps FL4 tied to the meaning the seL4 proofs have already validated. The semantic port covers the MCS native paths; non-MCS paths and IO page tables remain excluded. The cap and object representations include VCPU/EPT objects, and ASID pools retain guest tags as occupied entries while native lookup rejects them. VMEnter, SetEPTRoot, EPT mapping, guest-root ASID assignment, and the VCPU/EPT invocation families still need their own functional refinement; their extracted core functions are covered by P0. Where FL4 must differ, such as per-core state, the difference is written down in the spec and listed in one place.
 
 - The port goes subsystem by subsystem in P3 order. Each Lean definition carries a comment naming the Isabelle definition it comes from, so reviewers can compare them side by side.
 - The Lean spec is executable where the Isabelle spec is deterministic. Those parts double as a reference model in the simulator and the differential fuzzer.
@@ -446,7 +448,7 @@ The proof assumes: Rust, LLVM and the linker; Charon, Aeneas and the Lean kernel
 - MCS timer: TSC-deadline mode when CPUID reports it, otherwise the LAPIC one-shot timer with a TSC-to-APIC ratio calibrated at boot. seL4 has the same fallback in `apic.c`. Both are first-class paths, and the test setups in §12 exercise each one.
 - IOAPIC and MSI routing, ACPI MADT parsing, IO port caps.
 - The PIT is used only for calibration, on channel 2. Channel 0 is put in one-shot mode at boot, because firmware leaves it interrupting at 18.2 Hz on ISA IRQ 0, which is IOAPIC pin 2, where user space may route an HPET timer.
-- XSAVE-family FPU switching, chosen at boot like the other mitigations (§3). On Intel CPUs it is eager: the incoming thread's state is loaded on every switch, because lazy switching is what LazyFP (CVE-2018-3665) exploits. On CPUs LazyFP does not affect (AMD) it is lazy, as in seL4. A thread that doesn't own the FPU registers runs with CR0.TS set. Its first FPU instruction raises #NM, and the entry glue swaps the state and returns to the thread without entering the core. fl4test FL4FPU0003 checks that two threads keep their own registers across IPC; it fails on a mutant that leaves TS clear. A thread that keeps using the FPU would pay a trap and two CR0 writes per switch, more than the eager switch costs (CR0 writes are slow under KVM). So each thread counts its #NM traps in a byte after its FPU image. From the third trap on it is switched eagerly; the byte keeps counting and wraps, so after 256 switches the thread is tried lazily again (Linux once did the same with `fpu_counter`). VT-x is out of scope.
+- XSAVE-family FPU switching, chosen at boot like the other mitigations (§3). On Intel CPUs it is eager: the incoming thread's state is loaded on every switch, because lazy switching is what LazyFP (CVE-2018-3665) exploits. On CPUs LazyFP does not affect (AMD) it is lazy, as in seL4. A thread that doesn't own the FPU registers runs with CR0.TS set. Its first FPU instruction raises #NM, and the entry glue swaps the state and returns to the thread without entering the core. fl4test FL4FPU0003 checks that two threads keep their own registers across IPC; it fails on a mutant that leaves TS clear. A thread that keeps using the FPU would pay a trap and two CR0 writes per switch, more than the eager switch costs (CR0 writes are slow under KVM). So each thread counts its #NM traps in a byte after its FPU image. From the third trap on it is switched eagerly; the byte keeps counting and wraps, so after 256 switches the thread is tried lazily again (Linux once did the same with `fpu_counter`). Guest execution uses the bound TCB's FPU image and switches a validated guest XCR0 around each VM entry.
 
 ### IOMMU left to user space
 
@@ -632,7 +634,7 @@ Settled on 2026-11-12.
 | IOMMU                       | No in-kernel support. User space programs the IOMMU directly.                                                                             | §11                                |
 | Configuration               | As few options as possible. Hardware is detected at boot, not configured.                                                                 | §3                                |
 | API evolution               | FL4 is a superset of the seL4 API. Every seL4 program builds and runs on FL4 from source, but FL4 programs may use extensions seL4 lacks. | §2, §9                  |
-| l4h patch series            | Include every fix and feature except VT-x, AMD-V, multikernel partitioning and the debug syscall MCP threshold.                           | §4                                   |
+| l4h patch series            | Include every fix and feature except multikernel partitioning and the debug syscall MCP threshold.                           | §4                                   |
 | Binary compatibility        | Not a goal. FL4 is compatible with the seL4 API at the source level and numbers its own ABI.                                              | §2                                |
 | Debug syscall MCP threshold | Not supported.                                                                                                                            | §4                                   |
 | Multikernel                 | Not supported. FL4 is the only kernel on its machine.                                                                                     | §4                                   |
@@ -641,4 +643,4 @@ Settled on 2026-11-12.
 | Fine-grained locking        | A transactional store (TL2 style) under the unchanged serial core, not a prepare/perform split of every operation. Decided 2026-11-13. | §6, §7, §9, §13 |
 | IBPB on context switch      | Not used. It protects user programs from each other through the branch predictor at thousands of cycles per switch between address spaces; as in seL4's default configuration, that threat is outside FL4's model for now. Decided 2026-11-13. | §3 |
 
-VT-x stays out of scope until after the AArch64 port. That was a recommendation in draft 1 and nothing has changed it.
+VT-x and AMD-V support precede the AArch64 port. P0 covers the virtualization policy; P1/P3 use the expanded capability and TCB layouts, with native semantic scope as described in §9.
