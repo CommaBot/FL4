@@ -5,15 +5,19 @@ composition of primitive steps by `StepClosed`: every relation `Q` closed
 under the current thread's restart (`restart`), a kernel-state step (`ks`:
 `KsW` words, the spec's `KsStep`, the domain words kept, the IRQ and IO-port
 relations kept, an arch operation of the interrupt decodes, `ArchIrqStep`) and a capability
-insert into a CNode (`slot`, with the CSpace relation after) relates its
-start and end. XTopStep proves `XTop`'s instance; the decodes stay free of
-the composite relation's definitions.
+insert into a CNode (`slot`, with the CSpace relation after), a scheduler
+step (`sched`: `SchedStep`, the queue, action and domain-schedule words and
+the scheduler relation after at every family of sets) and the deletion of a
+notification cap (`del`, `delete_one`) relates its start and end. XTopStep
+proves `XTop`'s instance; the decodes stay free of the composite relation's
+definitions.
 -/
 import Fl4Proofs.P3.DomKeep
 import Fl4Proofs.P3.IoBitmap
 import Fl4Proofs.P3.MdbStepVs
 import Fl4Proofs.P3.CnodeRevoke
 import Fl4Proofs.P3.VsInsFrame
+import Fl4Proofs.P3.SchedRel
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -54,6 +58,56 @@ theorem KsStep.refl (σ : Fl4Spec.State Unit) : KsStep σ σ :=
 /-- A word of a slot of the typed heap. -/
 def InSlot (th : TypedHeap) (b : U64) : Prop := ∃ a, IsSlot th a ∧ a.val ≤ b.val ∧ b.val < a.val + 32
 
+/-- The spec's scheduler steps: only the ready queues, the scheduler
+action, the domain time and index and the domain schedule's start change. -/
+structure SchedK (σ σ' : Fl4Spec.State Unit) : Prop where
+  kh : σ'.kheap = σ.kheap
+  cdt : σ'.cdt = σ.cdt
+  orig : σ'.isOriginalCap = σ.isOriginalCap
+  rel : σ'.releaseQueue = σ.releaseQueue
+  ct : σ'.curThread = σ.curThread
+  csc : σ'.curSc = σ.curSc
+  ctime : σ'.curTime = σ.curTime
+  cons : σ'.consumedTime = σ.consumedTime
+  repr : σ'.reprogramTimer = σ.reprogramTimer
+  cdom : σ'.curDomain = σ.curDomain
+  idle : σ'.idleThread = σ.idleThread
+  inode : σ'.interruptIrqNode = σ.interruptIrqNode
+  ist : σ'.interruptStates = σ.interruptStates
+  ms : σ'.machineState = σ.machineState
+  arch : σ'.archState = σ.archState
+
+theorem SchedK.refl (σ : Fl4Spec.State Unit) : SchedK σ σ :=
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+theorem SchedK.trans {σ1 σ2 σ3 : Fl4Spec.State Unit} (h1 : SchedK σ1 σ2) (h2 : SchedK σ2 σ3) : SchedK σ1 σ3 :=
+  ⟨h2.kh.trans h1.kh, h2.cdt.trans h1.cdt, h2.orig.trans h1.orig, h2.rel.trans h1.rel, h2.ct.trans h1.ct,
+    h2.csc.trans h1.csc, h2.ctime.trans h1.ctime, h2.cons.trans h1.cons, h2.repr.trans h1.repr,
+    h2.cdom.trans h1.cdom, h2.idle.trans h1.idle, h2.inode.trans h1.inode, h2.ist.trans h1.ist,
+    h2.ms.trans h1.ms, h2.arch.trans h1.arch⟩
+
+/-- **The domain schedule relation** as DomDecode states it (`DomRel`,
+`domRel_iff`), for the steps' statements: the table's domain and duration
+words are the spec's `domain_list` (2 entries), and the start word its
+`domain_start_index`. -/
+def DomRelW (m : U64 → U64) (kb : U64) (σ : Fl4Spec.State Unit) : Prop :=
+  σ.domainList.length = 2 ∧
+  (∀ i : U64, i.val < 2 →
+    σ.domainList[i.val]? = some
+      (BitVec.ofNat 8 (m (core.num.U64.wrapping_add kb
+        (core.num.U64.wrapping_add 192#u64 (core.num.U64.wrapping_mul i 16#u64)))).val,
+       BitVec.ofNat 56 (m (core.num.U64.wrapping_add kb (core.num.U64.wrapping_add
+        (core.num.U64.wrapping_add 192#u64 (core.num.U64.wrapping_mul i 16#u64)) 8#u64))).val) ∧
+    (m (core.num.U64.wrapping_add kb
+      (core.num.U64.wrapping_add 192#u64 (core.num.U64.wrapping_mul i 16#u64)))).val < 2 ^ 8 ∧
+    (m (core.num.U64.wrapping_add kb (core.num.U64.wrapping_add
+      (core.num.U64.wrapping_add 192#u64 (core.num.U64.wrapping_mul i 16#u64)) 8#u64))).val < 2 ^ 56 ∧
+    (m (core.num.U64.wrapping_add kb (core.num.U64.wrapping_add
+      (core.num.U64.wrapping_add 192#u64 (core.num.U64.wrapping_mul i 16#u64)) 8#u64)) = 0#u64 →
+      m (core.num.U64.wrapping_add kb
+        (core.num.U64.wrapping_add 192#u64 (core.num.U64.wrapping_mul i 16#u64))) = 0#u64)) ∧
+  σ.domainStartIndex = (m (core.num.U64.wrapping_add kb 32#u64)).val
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
@@ -63,6 +117,36 @@ def ArchIrqStep (a a' : A) : Prop :=
   a' = a ∨ (∃ irq b, arI.mask_irq a irq b = ok a') ∨
     (∃ i p l po v b, arI.ioapic_map a i p l po v = ok (b, a')) ∨
     (∃ i p l po v h b, arI.ioapic_map_remapped a i p l po v h = ok (b, a'))
+
+/-- The kernel-global words of the domain schedule a scheduler step may
+write: the domain time and index, the start and the table. -/
+def DomKW (kb b : U64) : Prop := ∃ K ∈ ([16, 24, 32, 192, 200, 208, 216] : List Nat), b.val = kb.val + K
+
+theorem domKW_val {kb b : U64} (h : DomKW kb b) :
+    kb.val + 16 ≤ b.val ∧ b.val ≤ kb.val + 216 ∧ b.val ≠ kb.val + 8 ∧ b.val ≠ kb.val + 48 := by
+  obtain ⟨K, hK, e⟩ := h
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hK
+  omega
+
+/-- The words a scheduler step writes: the `Sched` links and `IN_QUEUES`
+word of the TCBs of `T`, core `c`'s node, and the domain time, domain index
+and domain-schedule words (start, table). -/
+def SchW (T : Set U64) (c : U64) (s : S) (b : U64) : Prop :=
+  (∃ y ∈ T, b = core.num.U64.wrapping_add y 3480#u64 ∨ b = core.num.U64.wrapping_add y 3488#u64 ∨
+    b = core.num.U64.wrapping_add y 3592#u64) ∨
+  (L.nodeBase s c ≤ b.val ∧ b.val < L.nodeBase s c + 4288) ∨ DomKW (L.ksb s) b
+
+/-- **A scheduler step** (`set_domain`, `reschedule_required`, the domain
+schedule's start and configuration): the spec changes only the scheduler's
+fields (`SchedK`); at every family of sets whose TCBs include the typed
+heap's, from the scheduler and notification relations, FL4 writes only
+`SchW` words and the scheduler relation holds after; the domain relation is
+kept. -/
+def SchedStep (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (s' : S) (σ' : Fl4Spec.State Unit) : Prop :=
+  SchedK σ σ' ∧ ∀ (N T C : Set U64) (c : U64), (∀ t, th t = some .tcb → t ∈ T) →
+    Sched.SchedRel st N T C c s σ → Notif.NtfnStateRel N T (L.mem s) σ →
+    Sched.SchedRel st N T C c s' σ' ∧ P1.WritesIn st s s' (SchW (L := L) T c s) ∧
+    (DomRelW (L.mem s) (L.ksb s) σ → DomRelW (L.mem s') (L.ksb s) σ')
 
 /-- **Closure under the primitive steps** (module docstring). -/
 structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S → A → Fl4Spec.State Unit → Prop) :
@@ -84,6 +168,11 @@ structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S 
     MdbOKV (L.ksb s) (L.mem s') G' →
     (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 1) = capAt (L.mem s) (slotOf t 1)) →
     Q s a σ s' a σ'
+  sched : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit), SchedStep (L := L) th s σ s' σ' → Q s a σ s' a σ'
+  del : ∀ (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit) (sl : Fl4Spec.CslotPtr) (p b : U64) (w r : Bool),
+    AbsSlot th sl → capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
+    cdt.delete_one st arI s a (cslotAddr sl) = ok (s', a') → ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 →
+    Q s a σ s' a' σ'
 
 /-- **A run made of primitive steps** (module docstring). -/
 def Steps (th : TypedHeap) (s : S) (a : A) (σ : Fl4Spec.State Unit) (s' : S) (a' : A) (σ' : Fl4Spec.State Unit) :
@@ -94,6 +183,11 @@ theorem Steps.trans {th : TypedHeap} {s1 s2 s3 : S} {a1 a2 a3 : A} {σ1 σ2 σ3 
     (h1 : Steps (L := L) arI th s1 a1 σ1 s2 a2 σ2) (h2 : Steps (L := L) arI th s2 a2 σ2 s3 a3 σ3) :
     Steps (L := L) arI th s1 a1 σ1 s3 a3 σ3 :=
   fun Q hQ => hQ.trans _ _ _ _ _ _ _ _ _ (h1 Q hQ) (h2 Q hQ)
+
+/-- **A scheduler step** (`StepClosed.sched`). -/
+theorem Steps.sched {th : TypedHeap} {s s' : S} {a : A} {σ σ' : Fl4Spec.State Unit}
+    (h : SchedStep (L := L) th s σ s' σ') : Steps (L := L) arI th s a σ s' a σ' :=
+  fun _ hQ => hQ.sched s s' a σ σ' h
 
 end
 

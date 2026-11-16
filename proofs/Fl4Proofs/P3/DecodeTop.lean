@@ -225,6 +225,7 @@ theorem decode_invocation_irq_handler (th : TypedHeap) (hP : Placed th)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hex : lbl.val = 35 → ExtraSRel th (L.mem s) x0 excaps) (hxn : lbl.val = 35 → x0 ≠ nodeA (L.ksb s) irq)
+    (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (length slot buf : U64) (blk call don fp : Bool) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (buffer : Option Fl4Spec.ObjRef) :
     DecOK (L := L) arI s ar σ lbl length slot (.IrqHandler irq) blk call don fp buf extra slbl args ci sl excaps
@@ -232,13 +233,13 @@ theorem decode_invocation_irq_handler (th : TypedHeap) (hP : Placed th)
   unfold DecOK syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   refine WP.spec_mono (irq_handler_decode_refines arI th hP hO hPD hK s ar σ G hDS hL hIR lbl slbl hlbl ct hct hcur
-    htcb hact hmask irq hirq hok extra x0 hx0 excaps hex hxn) ?_
+    htcb hact hmask irq hirq hok extra x0 hx0 excaps hex hxn hFR) ?_
   rintro ⟨r0, s', a'⟩ hq
   apply top_of_lift (f := Fl4Spec.Fl4Invocation.invokeIRQHandler)
   cases r0 with
-  | Err e => obtain ⟨rfl, e', h1, h2⟩ := hq; exact Or.inl ⟨e, rfl, rfl, e', h1, h2⟩
+  | Err e => obtain ⟨rfl, ⟨e', h1, h2⟩, -⟩ := hq; exact Or.inl ⟨e, rfl, rfl, e', h1, h2⟩
   | Ok u =>
-    obtain ⟨inv, hrun, σ1, hst, σ', G', hx, hCR, hF, -⟩ := hq
+    obtain ⟨inv, hrun, σ1, hst, σ', G', hx, hCR, hF, -, -⟩ := hq
     exact Or.inr ⟨inv, hrun, σ1, hst, (.ok [], σ'), mem_bindE_ok (mem_liftE hx) (Set.mem_singleton _), th, G',
       Or.inl ⟨rfl, [], rfl⟩, hP, hCR, hF⟩
 

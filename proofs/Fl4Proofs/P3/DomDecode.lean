@@ -208,6 +208,10 @@ def DomRel (m : U64 → U64) (kb : U64) (σ : Fl4Spec.State Unit) : Prop :=
     (m (ksW kb (durOff i)) = 0#u64 → m (ksW kb (entOff i)) = 0#u64)) ∧
   σ.domainStartIndex = (m (ksW kb 32#u64)).val
 
+/-- `DomRel` is StepSem's `DomRelW`. -/
+theorem domRel_iff {m : U64 → U64} {kb : U64} {σ : Fl4Spec.State Unit} : DomRel m kb σ ↔ DomRelW m kb σ :=
+  Iff.rfl
+
 /-- The words of the domain schedule are the same. -/
 def DomSame (m m' : U64 → U64) (kb : U64) : Prop :=
   m' (ksW kb 32#u64) = m (ksW kb 32#u64) ∧
@@ -261,7 +265,8 @@ def startS (s1 : S) (kb index : U64) : S :=
 from the state after `set_thread_state Restart`, FL4's `set_domain` of a TCB
 to a domain below `NUM_DOMAINS` keeps the slots and the domain schedule, and
 the spec's `invoke_set_domain` has an outcome that keeps the CNodes and
-TCBs, the CSpace relation, the CDT and the domain schedule. -/
+TCBs, the CSpace relation, the CDT and the domain schedule; the run made of
+primitive steps (`Steps`). -/
 def DomSetHyp (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (ct : U64) : Prop :=
   ∀ s1 σ1 (t d : U64), sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
     Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) →
@@ -271,11 +276,13 @@ def DomSetHyp (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (ct : U64) : Pr
       ∃ y ∈ (Fl4Spec.invokeSetDomain (Z := Unit) t.bv (Fl4Spec.ucast Fl4Spec.domainLen d.bv) σ1).1,
         KSub σ1 y.2 ∧ (∀ m, StateRel th m σ1 → StateRel th m y.2) ∧ y.2.cdt = σ1.cdt ∧
         y.2.isOriginalCap = σ1.isOriginalCap ∧ y.2.domainList = σ1.domainList ∧
-        y.2.domainStartIndex = σ1.domainStartIndex ⦄
+        y.2.domainStartIndex = σ1.domainStartIndex ∧
+        ∀ (A : Type) (arI : machine.Arch A) (a : A), Steps (L := L) arI th s1 a σ1 s2 a y.2 ⦄
 
 /-- **The scheduler step of ScheduleSetStart** (for the scheduler's
 proofs): FL4's `reschedule_required` after the decode's writes, and the
-spec's `reschedule_required` after `domain_set_start`'s updates. -/
+spec's `reschedule_required` after `domain_set_start`'s updates; the run
+made of primitive steps (`Steps`). -/
 def DomResHyp (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (ct : U64) : Prop :=
   ∀ s1 σ1 (index : U64), sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
     Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) → index.val < 2 →
@@ -285,11 +292,14 @@ def DomResHyp (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (ct : U64) : Pr
       ∃ y ∈ (Fl4Spec.rescheduleRequired (Z := Unit) (startSt σ1 index.val)).1,
         KSub (startSt σ1 index.val) y.2 ∧ (∀ m, StateRel th m (startSt σ1 index.val) → StateRel th m y.2) ∧
         y.2.cdt = σ1.cdt ∧ y.2.isOriginalCap = σ1.isOriginalCap ∧ y.2.domainList = σ1.domainList ∧
-        y.2.domainStartIndex = index.val ⦄
+        y.2.domainStartIndex = index.val ∧
+        ∀ (A : Type) (arI : machine.Arch A) (a : A),
+          Steps (L := L) arI th (startS (L := L) s1 (L.ksb s) index) a (startSt σ1 index.val) s5 a y.2 ⦄
 
 /-- **The result of `domain::decode`**: the spec's error with the state
 unchanged, or the spec's decode, `set_thread_state Restart` and an outcome
-of `invoke_domain`, with the CSpace relation, `FinInv` and `DomRel`. -/
+of `invoke_domain`, with the CSpace relation, `FinInv` and `DomRel`; the run
+made of primitive steps (`Steps`, at every arch state). -/
 def DomPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (m : Fl4Spec.SEMonad Unit Fl4Spec.DomainInvocation) (s : S) (res : core.result.Result Unit error.Exc × S) :
     Prop :=
@@ -298,7 +308,8 @@ def DomPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
     ∃ y ∈ (Fl4Spec.invokeDomain (Z := Unit) inv σ1).1, SlotsSame th (L.mem s) (L.mem res.2) ∧
       CRel th (L.mem res.2) y.2 G ∧ FinInv th (L.mem res.2) y.2 G ∧ L.ksb res.2 = L.ksb s ∧
-      DomRel (L.mem res.2) (L.ksb res.2) y.2)
+      DomRel (L.mem res.2) (L.ksb res.2) y.2 ∧
+      ∀ (A : Type) (arI : machine.Arch A) (a : A), Steps (L := L) arI th s a σ res.2 a y.2)
 
 theorem dom_err {th : TypedHeap} {σ : Fl4Spec.State Unit} {G : MdbGhost}
     {m : Fl4Spec.SEMonad Unit Fl4Spec.DomainInvocation} {s : S} {e : error.Exc} {e' : Fl4Spec.SyscallError}
@@ -332,7 +343,8 @@ theorem dom_restart (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.Stat
     ∃ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 ∧ SlotsSame th (L.mem s) (L.mem s1) ∧
       L.ksb s1 = L.ksb s ∧ ∃ σ1, Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) ∧
       CRel th (L.mem s1) σ1 G ∧ FinInv th (L.mem s1) σ1 G ∧ DomRel (L.mem s1) (L.ksb s) σ1 ∧
-      σ1.domainList = σ.domainList := by
+      σ1.domainList = σ.domainList ∧
+      ∀ (A : Type) (arI : machine.Arch A) (a : A), Steps (L := L) arI th s a σ s1 a σ1 := by
   have htf := hP.fits ct _ htcb
   have hta := hP.align ct _ htcb
   have hstv : (stA ct).val = ct.val + 3328 := by
@@ -365,7 +377,8 @@ theorem dom_restart (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.Stat
   refine ⟨s1, hs1, hS, hkb, σ1, hst1, ?_⟩
   have hK := ksub_of_eq (setThreadState_nks _ _) hst1
   obtain ⟨hCR1, hFI1⟩ := crel_step ⟨hR, hV, hM, hC, hI⟩ hFI hS hK hR1 hcdt1 hio1
-  exact ⟨hCR1, hFI1, hDR.of_same hDS hdl.1 hdl.2, hdl.1⟩
+  exact ⟨hCR1, hFI1, hDR.of_same hDS hdl.1 hdl.2, hdl.1, fun A arI a =>
+    Steps.restart arI _hcur hkt htcb hs1 (by rw [_hcur]; exact hst1)⟩
 
 /-! ## FL4's steps -/
 
@@ -428,6 +441,114 @@ theorem dur_off_bounds {i : U64} (hi : i.val < 2) :
     (durOff i).val ≠ 32 ∧ (durOff i).val ≠ 16 ∧ (durOff i).val ≠ 24 := by
   rw [entOff_val hi, durOff_val hi]; omega
 
+theorem wtrans {s₁ s₂ s₃ : S} {A : U64 → Prop} (h₁ : P1.WritesIn st s₁ s₂ A) (h₂ : P1.WritesIn st s₂ s₃ A) :
+    P1.WritesIn st s₁ s₃ A := (h₁.trans h₂).mono fun _ hb => by rcases hb with hb | hb <;> exact hb
+
+/-- A write of a domain-schedule word (`DomKW`). -/
+theorem writesIn_ksW (s : S) {kb o : U64} (v : U64) (hkf : kb.val + 13568 ≤ 2 ^ 64) (hka : kb.val % 8 = 0)
+    (ho : o.val ∈ ([16, 24, 32, 192, 200, 208, 216] : List Nat)) :
+    P1.WritesIn st s (L.wr s (ksW kb o) v) (DomKW kb) := by
+  have ho' : o.val < 256 ∧ o.val % 8 = 0 := by
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ho; omega
+  exact (P1.writesIn_wr (ksW_al hkf hka ho'.1 ho'.2)).mono fun b hb => ⟨o.val, ho, by rw [hb, ksW_val (by omega)]⟩
+
+/-- **The scheduler relation across writes of the domain schedule's words**
+(`DomKW`), the spec changing only the domain fields, with the domain time
+the `DOMAIN_TIME` word after. -/
+theorem Sched.SchedRel.domW {N T C : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
+    (hS : Sched.SchedRel st N T C c s σ) (hw : P1.WritesIn st s s' (DomKW (L.ksb s)))
+    (hK : SchedK σ σ') (hrq : σ'.readyQueues = σ.readyQueues) (hact : σ'.schedulerAction = σ.schedulerAction)
+    (hdt : σ'.domainTime = (L.mem s' (Sched.dtA st s)).bv) : Sched.SchedRel st N T C c s' σ' := by
+  obtain ⟨Q, R0, hc, hs⟩ := hS.lists
+  have hN := hc.node
+  have hk : L.ksb s' = L.ksb s := hw.1
+  have hf := hN.fits; have hal := hN.align
+  simp only [P1.LawfulStore.nodeBase] at hf hal
+  have hm : ∀ b : U64, P1.Aligned b → (b.val < (L.ksb s).val + 16 ∨ (L.ksb s).val + 216 < b.val) →
+      L.mem s' b = L.mem s b :=
+    fun b hb h => hw.mem_eq hb fun hd => by have := domKW_val hd; omega
+  have hnode : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o) :=
+    fun o ho h8 => hm _ (P1.nodeAt_aligned hN ho h8) (Or.inr (by
+      rw [P1.nodeAt_val hN ho]; simp only [P1.LawfulStore.nodeBase]; omega))
+  have nwo : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → Sched.nodeW st s' c o = Sched.nodeW st s c o := by
+    intro o ho h8; unfold Sched.nodeW; rw [Sched.nodeAt_ksb hk]; exact hnode o ho h8
+  have htf : ∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 →
+      L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K) := by
+    intro y hy K h1 h2
+    have hya := hc.tcbs y hy
+    refine hm _ (P1.field_aligned hya h1 h2) ?_
+    rw [Notif.tfield_val hya h1]; rcases hc.ksOut y hy with h | h <;> omega
+  have hsc : ∀ sc ∈ C, Sched.ScAgree st s s' sc := fun sc hsc' b hb hin =>
+    hm b hb (by rcases (hS.scOutIn hsc' hin).2.2.2 with h | h <;> omega)
+  have hcd : L.mem s' (Sched.curDomA st s) = L.mem s (Sched.curDomA st s) := by
+    have hv : (Sched.curDomA st s).val = (L.ksb s).val + 8 := by
+      simp [Sched.curDomA, core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+    exact hm _ (by unfold P1.Aligned; rw [hv]; omega) (Or.inl (by omega))
+  have hca : Sched.CAgree st T c s s' :=
+    ⟨hk, hw.2.1, fun o ho h8 _ _ _ _ _ => hnode o ho h8, fun y hy K hK => htf y hy K (by
+      rcases hK with rfl | rfl | rfl | rfl | rfl <;> simp) (by rcases hK with rfl | rfl | rfl | rfl | rfl <;> simp)⟩
+  have hz : Sched.SzKeep σ σ' := Sched.SzKeep.of_kheap hK.kh
+  refine ⟨hS.placed, fun o ho => by rw [Sched.nodeAt_ksb hk]; exact hS.nodeNW o ho,
+    by rw [Sched.curDomA_ksb hk]; exact hS.domNW, by rw [Sched.dtA_ksb hk]; exact hS.dtNW,
+    Sched.scOut_transfer hk hz hS.scOut, Sched.scDisj_transfer hz hS.scDisj,
+    by rw [nwo _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])]; exact hS.actW,
+    by rw [nwo _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION]), hact]; exact hS.act,
+    by rw [nwo _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM]), hK.repr]; exact hS.repr,
+    hs.core_eq hsc hS.core, Q, R0, hc.agree hca, ?_⟩
+  refine ⟨fun p hp => by rw [hrq]; exact hs.rq p hp, fun d p hd => by rw [hrq]; exact hs.rqDom d p hd,
+    by rw [hK.rel]; exact hs.rel, ?_, ?_, ?_, ?_, ?_, fun t ht => ?_, fun t ht h0 => ?_, fun sc hsc' => ?_, ?_,
+    by rw [hdt, Sched.dtA_ksb hk], ?_⟩
+  · rw [hK.ct, nwo _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])]; exact hs.curThread
+  · rw [hK.csc, nwo _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])]; exact hs.curSc
+  · rw [hK.ctime, nwo _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])]; exact hs.curTime
+  · rw [hK.cons, nwo _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])]; exact hs.consumed
+  · rw [hK.cdom, Sched.curDomA_ksb hk, hcd]; exact hs.curDom
+  · obtain ⟨x, hkx, h1, h2, h3, h4⟩ := hs.tcb t ht
+    refine ⟨x, by rw [hK.kh]; exact hkx, h1, ?_, ?_, ?_⟩
+    · rw [P1.domA, htf t ht _ (by decide) (by decide)]; exact h2
+    · rw [P1.scA, htf t ht _ (by decide) (by decide)]; exact h3
+    · rw [P1.prioA, htf t ht _ (by decide) (by decide)]; exact h4
+  · have e : L.mem s' (P1.scA t) = L.mem s (P1.scA t) := by rw [P1.scA, htf t ht _ (by decide) (by decide)]
+    rw [e] at h0 ⊢; exact hs.scMem t ht h0
+  · obtain ⟨x, n, hkx, e⟩ := hs.scs sc hsc'
+    exact ⟨x, n, by rw [hK.kh]; exact hkx, e.agree (hsc sc hsc')⟩
+  · rw [nwo _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])]; exact hs.idleSc
+  · rw [hK.idle, nwo _ (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])]; exact hs.idleTh
+
+/-- **ScheduleSetStart's writes as a scheduler step** (`SchedStep`): the
+start, the domain time and index words, against `domain_set_start`'s
+updates. -/
+theorem schedStep_start (th : TypedHeap) (s1 : S) (σ1 : Fl4Spec.State Unit) {kb : U64} (y0 : U64)
+    (hk1 : L.ksb s1 = kb) (hkf : kb.val + 13568 ≤ 2 ^ 64) (hka : kb.val % 8 = 0) :
+    SchedStep (L := L) th s1 σ1 (startS (L := L) s1 kb y0) (startSt σ1 y0.val) := by
+  subst hk1
+  set kb := L.ksb s1
+  have hw : P1.WritesIn st s1 (startS (L := L) s1 kb y0) (DomKW kb) :=
+    wtrans (wtrans (writesIn_ksW s1 y0 hkf hka (o := 32#u64) (by simp))
+      (writesIn_ksW _ 0#u64 hkf hka (o := 16#u64) (by simp))) (writesIn_ksW _ 0#u64 hkf hka (o := 24#u64) (by simp))
+  have hw4 : ∀ o : U64, o.val < 256 → o.val % 8 = 0 → o.val ≠ 32 → o.val ≠ 16 → o.val ≠ 24 →
+      L.mem (startS (L := L) s1 kb y0) (ksW kb o) = L.mem s1 (ksW kb o) := by
+    intro o ho h8 n32 n16 n24
+    rw [startS, mem_ks_ne _ _ hkf hka (by decide) (by decide) ho h8 (by simpa using n24.symm),
+      mem_ks_ne _ _ hkf hka (by decide) (by decide) ho h8 (by simpa using n16.symm),
+      mem_ks_ne _ _ hkf hka (by decide) (by decide) ho h8 (by simpa using n32.symm)]
+  have h32 : L.mem (startS (L := L) s1 kb y0) (ksW kb 32#u64) = y0 := by
+    rw [startS, mem_ks_ne _ _ hkf hka (by decide) (by decide) (by decide) (by decide) (by decide),
+      mem_ks_ne _ _ hkf hka (by decide) (by decide) (by decide) (by decide) (by decide),
+      mem_ks_same _ _ hkf hka (by decide) (by decide)]
+  have h16 : L.mem (startS (L := L) s1 kb y0) (ksW kb 16#u64) = 0#u64 := by
+    rw [startS, mem_ks_ne _ _ hkf hka (by decide) (by decide) (by decide) (by decide) (by decide),
+      mem_ks_same _ _ hkf hka (by decide) (by decide)]
+  refine ⟨by constructor <;> rfl, fun N T C c _ hS _ => ⟨hS.domW hw (by constructor <;> rfl) rfl rfl ?_,
+    hw.mono fun b hb => Or.inr (Or.inr hb), fun hD => ?_⟩⟩
+  · show (0 : BitVec 64) = (L.mem (startS (L := L) s1 kb y0) (ksW kb 16#u64)).bv
+    rw [h16]; rfl
+  · obtain ⟨hl1, hent1, -⟩ := domRel_iff.2 hD
+    refine domRel_iff.1 ⟨hl1, fun i hi => ?_, by rw [h32]; rfl⟩
+    obtain ⟨b1, b2, b3, b4, b5, b6, b7, b8, b9, b10⟩ := dur_off_bounds hi
+    rw [hw4 _ b1 b2 b5 b6 b7, hw4 _ b3 b4 b8 b9 b10]
+    exact hent1 i hi
+
 /-- **DomainScheduleSetStart.** -/
 theorem dom_start_refines (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
@@ -489,7 +610,7 @@ theorem dom_start_refines (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spe
     rw [Nat.mod_eq_of_lt hult] at e2
     exact h3 (UScalar.eq_of_val_eq (e2.trans rfl))
   -- `set_thread_state Restart`
-  obtain ⟨s1, hs1, hS1, hkb1, σ1, hst1, hCR1, hFI1, hDR1, hdl1⟩ :=
+  obtain ⟨s1, hs1, hS1, hkb1, σ1, hst1, hCR1, hFI1, hDR1, hdl1, hstR⟩ :=
     dom_restart th hP s σ G hCR hFI ⟨hl, hent, hstart⟩ ct hcur htcb hact hkf hka hksO hactK
   rw [hs1]
   simp only [bind_ok, ks_set_eq, hkb1, L.ksb_wr, show (2#u64 - 2#u64 : Result U64) = ok 0#u64 from rfl,
@@ -497,7 +618,7 @@ theorem dom_start_refines (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spe
     show layout.ks.DOMAIN_TIME = 16#u64 by unfold layout.ks.DOMAIN_TIME; rfl,
     show layout.ks.DOM_SCHED_IDX = 24#u64 by unfold layout.ks.DOM_SCHED_IDX; rfl]
   refine WP.spec_bind (hRes s1 σ1 y0 hs1 hst1 hy) ?_
-  rintro s5 ⟨hS5, hkb5, hDS5, y, hy5, hK, hSR, hcdt, hio, hdl, hst5⟩
+  rintro s5 ⟨hS5, hkb5, hDS5, y, hy5, hK, hSR, hcdt, hio, hdl, hst5, hss⟩
   rw [WP.spec_ok]
   -- the slots and the domain words of the writes
   set s4 := startS (L := L) s1 kb y0 with hs4
@@ -529,12 +650,77 @@ theorem dom_start_refines (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spe
   have hR5 : StateRel th (L.mem s5) y.2 := (hSR _ hR4).of_caps (fun x hx => hS5.capAt hx)
   obtain ⟨hCR5, hFI5⟩ := crel_step hCR1 hFI1 (hS4.trans hS5) ((KSub.of_kheap rfl).trans hK) hR5 hcdt hio
   refine Or.inr ⟨rfl, .invokeDomainScheduleSetStart y0.val, by rw [hmap, hspec, if_neg (by omega), if_neg hne], σ1, by rw [hcur]; exact hst1,
-    y, mem_setStart hy5, hS1.trans (hS4.trans hS5), hCR5, hFI5, hkb5, ?_⟩
+    y, mem_setStart hy5, hS1.trans (hS4.trans hS5), hCR5, hFI5, hkb5, ?_, fun A arI a =>
+      ((hstR A arI a).trans arI (Steps.sched arI (schedStep_start th s1 σ1 y0 hkb1 hkf hka))).trans arI
+        (hss A arI a)⟩
   rw [hkb5]
   exact hDR4.of_same hDS5 hdl hst5
 
 theorem ucast_ofNat (w : Nat) (x : U64) : Fl4Spec.ucast w x.bv = BitVec.ofNat w x.val := by
   apply BitVec.eq_of_toNat_eq; simp [Fl4Spec.ucast, BitVec.toNat_setWidth]
+
+/-- ScheduleConfigure's entry 0 written: the domain relation. -/
+theorem domRel_conf (s1 : S) {kb : U64} (hkf : kb.val + 13568 ≤ 2 ^ 64) (hka : kb.val % 8 = 0)
+    (σ1 : Fl4Spec.State Unit) (y1 y2 : U64) (h1 : y1.val = 0) (h2 : y2.val < 2 ^ 56)
+    (hD : DomRel (L.mem s1) kb σ1) :
+    DomRel (L.mem (L.wr (L.wr s1 (ksW kb 192#u64) y1) (ksW kb 200#u64) y2)) kb
+      { σ1 with domainList := (σ1.domainList.set (Fl4Spec.unat (0#u64 : U64).bv)
+        (Fl4Spec.ucast Fl4Spec.domainLen y1.bv, Fl4Spec.ucast Fl4Spec.domainDurationLen y2.bv)) } := by
+  have e0 : entOff 0#u64 = 192#u64 := rfl
+  have d0 : durOff 0#u64 = 200#u64 := rfl
+  set s2 := L.wr (L.wr s1 (ksW kb 192#u64) y1) (ksW kb 200#u64) y2 with hs2
+  have hw : ∀ o : U64, o.val < 256 → o.val % 8 = 0 → o.val ≠ 192 → o.val ≠ 200 →
+      L.mem s2 (ksW kb o) = L.mem s1 (ksW kb o) := by
+    intro o ho h8 n1 n2
+    rw [hs2, mem_ks_ne _ _ hkf hka (by decide) (by decide) ho h8 (by simpa using n2.symm),
+      mem_ks_ne _ _ hkf hka (by decide) (by decide) ho h8 (by simpa using n1.symm)]
+  have w192 : L.mem s2 (ksW kb 192#u64) = y1 := by
+    rw [hs2, mem_ks_ne _ _ hkf hka (by decide) (by decide) (by decide) (by decide) (by decide),
+      mem_ks_same _ _ hkf hka (by decide) (by decide)]
+  have w200 : L.mem s2 (ksW kb 200#u64) = y2 := by
+    rw [hs2, mem_ks_same _ _ hkf hka (by decide) (by decide)]
+  obtain ⟨hl1, hent1, hst1'⟩ := hD
+  set ent : Fl4Spec.Domain × Fl4Spec.DomainDuration :=
+    (Fl4Spec.ucast Fl4Spec.domainLen y1.bv, Fl4Spec.ucast Fl4Spec.domainDurationLen y2.bv) with hent
+  refine ⟨by simp [hl1], fun i hi => ?_, by
+    rw [hw _ (by decide) (by decide) (by decide) (by decide)]; exact hst1'⟩
+  rcases (show i.val = 0 ∨ i.val = 1 by omega) with hi0 | hi1
+  · have : i = 0#u64 := UScalar.eq_of_val_eq (by rw [hi0]; rfl)
+    subst this
+    rw [e0, d0, w192, w200]
+    refine ⟨?_, by rw [h1]; decide, h2, fun _ => UScalar.eq_of_val_eq (by rw [h1]; rfl)⟩
+    rw [hi0, show Fl4Spec.unat (0#u64 : U64).bv = 0 from rfl, List.getElem?_set_self (by rw [hl1]; decide),
+      hent, ucast_ofNat, ucast_ofNat]; rfl
+  · have : i = 1#u64 := UScalar.eq_of_val_eq (by rw [hi1]; rfl)
+    subst this
+    have e1 : entOff 1#u64 = 208#u64 := rfl
+    have d1 : durOff 1#u64 = 216#u64 := rfl
+    have := hent1 1#u64 hi
+    rw [e1, d1] at this ⊢
+    rw [hw _ (by decide) (by decide) (by decide) (by decide), hw _ (by decide) (by decide) (by decide) (by decide)]
+    refine ⟨?_, this.2⟩
+    rw [show Fl4Spec.unat (0#u64 : U64).bv = 0 from rfl, List.getElem?_set_ne (by decide)]
+    exact this.1
+
+/-- **ScheduleConfigure's writes as a scheduler step** (`SchedStep`): entry
+0's words, against the spec's `domain_list` update. -/
+theorem schedStep_conf (th : TypedHeap) (s1 : S) (σ1 : Fl4Spec.State Unit) {kb : U64} (y1 y2 : U64)
+    (hk1 : L.ksb s1 = kb) (hkf : kb.val + 13568 ≤ 2 ^ 64) (hka : kb.val % 8 = 0) (h1 : y1.val = 0)
+    (h2 : y2.val < 2 ^ 56) :
+    SchedStep (L := L) th s1 σ1 (L.wr (L.wr s1 (ksW kb 192#u64) y1) (ksW kb 200#u64) y2)
+      { σ1 with domainList := (σ1.domainList.set (Fl4Spec.unat (0#u64 : U64).bv)
+        (Fl4Spec.ucast Fl4Spec.domainLen y1.bv, Fl4Spec.ucast Fl4Spec.domainDurationLen y2.bv)) } := by
+  subst hk1
+  have hw := wtrans (writesIn_ksW s1 y1 hkf hka (o := 192#u64) (by simp))
+    (writesIn_ksW (L.wr s1 (ksW (L.ksb s1) 192#u64) y1) y2 hkf hka (o := 200#u64) (by simp))
+  refine ⟨by constructor <;> rfl, fun N T C c _ hS _ => ⟨hS.domW hw (by constructor <;> rfl) rfl rfl ?_,
+    hw.mono fun b hb => Or.inr (Or.inr hb), fun hD => domRel_iff.1
+      (domRel_conf s1 hkf hka σ1 y1 y2 h1 h2 (domRel_iff.2 hD))⟩⟩
+  obtain ⟨Q, R0, hc, hs⟩ := hS.lists
+  show σ1.domainTime = (L.mem _ (ksW (L.ksb s1) 16#u64)).bv
+  rw [mem_ks_ne _ _ hkf hka (by decide) (by decide) (by decide) (by decide) (by decide),
+    mem_ks_ne _ _ hkf hka (by decide) (by decide) (by decide) (by decide) (by decide)]
+  exact hs.domTime
 
 /-- ScheduleConfigure's invocation: the entry written, with the CSpace parts,
 `FinInv` and `DomRel`. -/
@@ -555,7 +741,7 @@ theorem dom_conf_ok (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.Stat
       ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2)) ⦃ res =>
       DomPost (L := L) th σ G m s res ⦄ := by
   set kb := L.ksb s with hkbdef
-  obtain ⟨s1, hs1, hS1, hkb1, σ1, hst1, hCR1, hFI1, hDR1, -⟩ :=
+  obtain ⟨s1, hs1, hS1, hkb1, σ1, hst1, hCR1, hFI1, hDR1, -, hstR⟩ :=
     dom_restart th hP s σ G hCR hFI hDR ct hcur htcb hact hkf hka hksO hactK
   rw [hs1]; simp only [bind_ok, set_dom_sched_eq, hkb1]
   rw [WP.spec_ok]
@@ -568,47 +754,16 @@ theorem dom_conf_ok (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.Stat
   have hS2 : SlotsSame th (L.mem s1) (L.mem s2) :=
     (slotsSame_ks (o := 192#u64) hP s1 y1 hkf hka (by decide) (by decide) (hksO _ (by decide) (by decide))).trans
       (slotsSame_ks (o := 200#u64) hP _ y2 hkf hka (by decide) (by decide) (hksO _ (by decide) (by decide)))
-  have hw : ∀ o : U64, o.val < 256 → o.val % 8 = 0 → o.val ≠ 192 → o.val ≠ 200 →
-      L.mem s2 (ksW kb o) = L.mem s1 (ksW kb o) := by
-    intro o ho h8 n1 n2
-    rw [hs2, mem_ks_ne _ _ hkf hka (by decide) (by decide) ho h8 (by simpa using n2.symm),
-      mem_ks_ne _ _ hkf hka (by decide) (by decide) ho h8 (by simpa using n1.symm)]
-  have w192 : L.mem s2 (ksW kb 192#u64) = y1 := by
-    rw [hs2, mem_ks_ne _ _ hkf hka (by decide) (by decide) (by decide) (by decide) (by decide),
-      mem_ks_same _ _ hkf hka (by decide) (by decide)]
-  have w200 : L.mem s2 (ksW kb 200#u64) = y2 := by
-    rw [hs2, mem_ks_same _ _ hkf hka (by decide) (by decide)]
-  obtain ⟨hl1, hent1, hst1'⟩ := hDR1
-  set ent : Fl4Spec.Domain × Fl4Spec.DomainDuration :=
-    (Fl4Spec.ucast Fl4Spec.domainLen y1.bv, Fl4Spec.ucast Fl4Spec.domainDurationLen y2.bv) with hent
-  set σ2 : Fl4Spec.State Unit := { σ1 with domainList := σ1.domainList.set (Fl4Spec.unat (0#u64 : U64).bv) ent }
-    with hσ2
-  have hDR2 : DomRel (L.mem s2) kb σ2 := by
-    refine ⟨by rw [hσ2]; simp [hl1], fun i hi => ?_, by
-      rw [hw _ (by decide) (by decide) (by decide) (by decide)]; exact hst1'⟩
-    rcases (show i.val = 0 ∨ i.val = 1 by omega) with hi0 | hi1
-    · have : i = 0#u64 := UScalar.eq_of_val_eq (by rw [hi0]; rfl)
-      subst this
-      rw [e0, d0, w192, w200]
-      refine ⟨?_, by rw [h1]; decide, h2, fun _ => UScalar.eq_of_val_eq (by rw [h1]; rfl)⟩
-      rw [hσ2, hi0, show Fl4Spec.unat (0#u64 : U64).bv = 0 from rfl, List.getElem?_set_self (by rw [hl1]; decide),
-        hent, ucast_ofNat, ucast_ofNat]; rfl
-    · have : i = 1#u64 := UScalar.eq_of_val_eq (by rw [hi1]; rfl)
-      subst this
-      have e1 : entOff 1#u64 = 208#u64 := rfl
-      have d1 : durOff 1#u64 = 216#u64 := rfl
-      have := hent1 1#u64 hi
-      rw [e1, d1] at this ⊢
-      rw [hw _ (by decide) (by decide) (by decide) (by decide), hw _ (by decide) (by decide) (by decide) (by decide)]
-      refine ⟨?_, this.2⟩
-      rw [hσ2, show Fl4Spec.unat (0#u64 : U64).bv = 0 from rfl, List.getElem?_set_ne (by decide)]
-      exact this.1
+  set σ2 : Fl4Spec.State Unit := { σ1 with domainList := (σ1.domainList.set (Fl4Spec.unat (0#u64 : U64).bv)
+    (Fl4Spec.ucast Fl4Spec.domainLen y1.bv, Fl4Spec.ucast Fl4Spec.domainDurationLen y2.bv)) } with hσ2
+  have hDR2 : DomRel (L.mem s2) kb σ2 := domRel_conf s1 hkf hka σ1 y1 y2 h1 h2 hDR1
   have hR2 : StateRel th (L.mem s2) σ2 := (hCR1.1.of_caps (fun x hx => hS2.capAt hx)).of_kheap rfl
   obtain ⟨hCR2, hFI2⟩ := crel_step (σ' := σ2) hCR1 hFI1 hS2 (KSub.of_kheap rfl) hR2 rfl rfl
   exact Or.inr ⟨rfl, _, hm, σ1, by rw [hcur]; exact hst1, ((), σ2), rfl, hS1.trans hS2, hCR2, hFI2,
     by rw [hs2, L.ksb_wr, L.ksb_wr, hkb1], by
     show DomRel (L.mem s2) (L.ksb s2) σ2
-    rw [hs2, L.ksb_wr, L.ksb_wr, hkb1]; exact hDR2⟩
+    rw [hs2, L.ksb_wr, L.ksb_wr, hkb1]; exact hDR2,
+    fun A arI a => (hstR A arI a).trans arI (Steps.sched arI (schedStep_conf th s1 σ1 y1 y2 hkb1 hkf hka h1 h2))⟩
 
 theorem maxdur_eq : domain.MAX_DURATION = ok ⟨BitVec.ofNat 64 (2 ^ 56 - 1)⟩ := by
   unfold domain.MAX_DURATION
@@ -780,16 +935,17 @@ theorem dom_set_refines (hcfg : DomConfig) (th : TypedHeap) (hP : Placed th) (s 
   cases c with
   | Thread ptr =>
     simp only
-    obtain ⟨s1, hs1, hS1, hkb1, σ1, hst1, hCR1, hFI1, hDR1, -⟩ :=
+    obtain ⟨s1, hs1, hS1, hkb1, σ1, hst1, hCR1, hFI1, hDR1, -, hstR⟩ :=
       dom_restart th hP s σ G hCR hFI hDR ct hcur htcb hact hkf hka hksO hactK
     rw [hs1]; simp only [bind_ok]
     refine WP.spec_bind (hSet s1 σ1 ptr y0 hs1 hst1 hcv hy0) ?_
-    rintro s2 ⟨hS2, hkb2, hDS, y, hy, hK, hSR, hcdt, hio, hdl, hst⟩
+    rintro s2 ⟨hS2, hkb2, hDS, y, hy, hK, hSR, hcdt, hio, hdl, hst, hss⟩
     rw [WP.spec_ok]
     have hR2 : StateRel th (L.mem s2) y.2 := (hSR _ hCR1.1).of_caps (fun x hx => hS2.capAt hx)
     obtain ⟨hCR2, hFI2⟩ := crel_step hCR1 hFI1 hS2 hK hR2 hcdt hio
     refine Or.inr ⟨rfl, .invokeDomainSet ptr.bv (Fl4Spec.ucast Fl4Spec.domainLen y0.bv),
-      dec_set_thread hg _ _ nc1 _ _ _, σ1, by rw [hcur]; exact hst1, y, hy, hS1.trans hS2, hCR2, hFI2, hkb2.trans hkb1, ?_⟩
+      dec_set_thread hg _ _ nc1 _ _ _, σ1, by rw [hcur]; exact hst1, y, hy, hS1.trans hS2, hCR2, hFI2, hkb2.trans hkb1, ?_,
+      fun A arI a => (hstR A arI a).trans arI (hss A arI a)⟩
     show DomRel (L.mem s2) (L.ksb s2) y.2
     rw [hkb2, hkb1]
     rw [hkb1] at hDS
@@ -882,7 +1038,7 @@ theorem decode_invocation_domain (hcfg : DomConfig) (th : TypedHeap) (hP : Place
     simp only [uncurry_apply_pair]
     rw [WP.spec_ok]
     apply top_of_lift (f := Fl4Spec.Fl4Invocation.invokeDomain)
-    rcases hq with ⟨e, he, hs', e', h1, h2⟩ | ⟨he, inv, hrun, σ1, hst, y, hy, -, hCR', hFI', -, -⟩
+    rcases hq with ⟨e, he, hs', e', h1, h2⟩ | ⟨he, inv, hrun, σ1, hst, y, hy, -, hCR', hFI', -, -, -⟩
     · exact Or.inl ⟨e, he, hs', e', h1, Or.inl h2⟩
     · have hm : ((.ok [], y.2) : Except Unit (List Fl4Spec.Data) × Fl4Spec.State Unit) ∈
           ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don (.invokeDomain inv)).run σ1).1 := by

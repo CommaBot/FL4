@@ -9,10 +9,15 @@ built from** (TopXAll's named `XCap` hypotheses).
   FL4 writes only slot words, the spec changes only CNodes (`CnK`,
   `KeepC`), the TCBs' VSpace slots keep their caps, the CSpace relation
   after (`TopSR.step0`, the VSpace frames).
+* `XTopAt.frameStep`: FL4 writing words of the other objects that neither
+  the endpoint nor the notification relation reads, the spec keeping the
+  heap; the scheduler, IRQ, IO-port and domain relations after.
 * `XTopAt.ksStep`: a kernel-state step (an IRQ state, the IO bitmap, the
   domain schedule): FL4 writes only `KsW` words, the spec only what
   `KsStep` allows; the IRQ, IO-port and domain relations after. Needs the
   IPC objects outside the kernel-global block (`KsApart`).
+* `XTopAt.schedStep`: a scheduler step (`SchedStep`) at sets whose TCBs
+  include the typed heap's.
 -/
 import Fl4Proofs.P3.TopXAll
 import Fl4Proofs.P3.VsTopInst
@@ -289,6 +294,72 @@ theorem OObj.of_same {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : 
   exact h
 
 set_option maxHeartbeats 8000000 in
+/-- **`XTopAt` across a step writing words of the other objects**: FL4
+writes only `W` words, in the other objects (`OObj`), none read by the
+endpoint or notification relations and not the kernel root; the spec keeps
+the heap, the CDT, the current thread, the memory and the ASID table and
+global PML4; the scheduler, IRQ, IO-port and domain relations hold after,
+and the arch relation. -/
+theorem XTopAt.frameStep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {a a' : A}
+    {σ σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z s a σ) {W : U64 → Prop} (hw : P1.WritesIn st s s' W)
+    (hWO : ∀ b, W b → OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b)
+    (hWE : ∀ b, W b → ¬ Endp.EFoot Z.T Z.E Z.R Z.B b) (hWN : ∀ b, W b → ¬ Notif.NFoot Z.N Z.T b)
+    (hWK : ¬ W (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT))
+    (hkh : σ'.kheap = σ.kheap) (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
+    (hct : σ'.curThread = σ.curThread)
+    (hum : σ'.machineState.underlyingMemory = σ.machineState.underlyingMemory)
+    (hasid : σ'.archState.x64AsidTable = σ.archState.x64AsidTable)
+    (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
+    (hSch' : Sched.SchedRel st Z.N Z.T Z.C Z.c s' σ')
+    (hIrq' : IrqRel (L.mem s') (L.ksb s) σ') (hIo' : IoRel (L.mem s') (L.ksb s) σ')
+    (hD' : DomRel (L.mem s') (L.ksb s) σ') (hAR' : AR a' σ'.archState.x64CurrentCr3) :
+    XTopAt (L := L) AR Z s' a' σ' := by
+  obtain ⟨⟨⟨⟨hSch, hEp, hNt, -, -, hKr, -⟩, hP⟩, hR, hPt, hPI, hCO⟩, ⟨hPl, hCR, hFI, -, hMO, hIA, hSA⟩, -, hE⟩ := hX
+  have hk : L.ksb s' = L.ksb s := hw.1
+  have hvobj : ∀ b, VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) b → ¬ W b :=
+    fun b hv hb => hP.disj b (hWO b hb) hv
+  have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
+    slotsSame_of_vobj hPl fun b hb hv => hw.mem_eq hb (hvobj b hv)
+  have hEp' : Endp.EpStateRel Z.T Z.E Z.R Z.B (L.mem s') σ' :=
+    Endp.EpStateRel.frame hEp hP.ep (fun b hb hf => hw.mem_eq hb fun h => hWE b h hf)
+      ⟨fun p x h => by rw [hkh]; exact h, fun p x h => ⟨x, by rw [hkh]; exact h, rfl⟩,
+        fun p x h => ⟨x, by rw [hkh]; exact h, rfl, rfl, rfl, rfl, rfl⟩, hum⟩
+  have hNt' : Notif.NtfnStateRel Z.N Z.T (L.mem s') σ' :=
+    Notif.NtfnStateRel.frame hNt hSch.placed (fun b hb hf => hw.mem_eq hb fun h => hWN b h hf)
+      ⟨fun p x h => by rw [hkh]; exact h, fun p x h => ⟨x, by rw [hkh]; exact h, rfl, rfl, rfl⟩⟩
+  have hKr' : KRootRel (L.mem s') (L.ksb s') σ' := by
+    unfold KRootRel globCr3 at hKr ⊢
+    have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
+    have hka := hP.vs.ksb_al
+    have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
+      unfold layout.ks.KERNEL_ROOT
+      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+    rw [hk, hw.mem_eq (by unfold P1.Aligned; rw [hkv]; omega) hWK, hgp]
+    exact hKr
+  have hvw : ∀ b, VsWrite Z.P (L.ksb s) b → L.mem s' b = L.mem s b := fun b hb =>
+    hw.mem_eq (VsWrite.aligned hP.vs hb) (hvobj b (vsWrite_vobj hP.vs hb))
+  have hSz : Sched.SzKeep σ σ' := Sched.SzKeep.of_kheap hkh
+  refine ⟨⟨⟨⟨hSch', hEp', hNt', by rw [hk]; exact hIrq', by rw [hk]; exact hIo', hKr', hAR'⟩, ?_⟩, ?_, ?_,
+    fun q hq lo hl => ?_, hCO.of_same hSS hct⟩,
+    ⟨hPl, crel_same hCR hSS hkh hcdt horig, hFI.of_same hCR.2.2.1 hSS (KSub.of_kheap hkh),
+      by rw [hk]; exact hD', by rw [hk]; exact MdbOKV.of_same hCR.2.2.1 hSS hMO, by rw [hk]; exact hIA,
+      hSA.mono hSz⟩, IpcRel.of hNt' hEp' (sched_sc hSch'), hE.mono hk hSz⟩
+  · refine ⟨hP.ep, by rw [hk]; exact hP.vs, hP.pt, hP.pl, fun x hx => by
+      rw [hk]; exact hP.disj x (OObj.of_same hk hkh hx), fun x h1 h2 => ?_,
+      hP.po, hP.ps, by rw [hk]; exact hP.pv, by rw [hk]; exact hP.vo, by rw [hk]; exact hP.sd, by rw [hk]; exact hP.tko⟩
+    have hnb : L.nodeBase s' Z.c = L.nodeBase s Z.c := by simp [P1.LawfulStore.nodeBase, hk]
+    rw [hnb] at h1 h2; exact hP.nodeE x h1 h2
+  · rw [hk]
+    refine hR.frame hvw hasid fun p hp => ?_
+    rw [hkh]
+  · refine hPt.frame (fun b ⟨q, hq, i, hi, e⟩ => ?_) fun q hq => by rw [hkh]
+    subst e
+    have hv := table_vobj (th := Z.th) (P := Z.P) hP.pt hq hi (L.ksb s)
+    exact hw.mem_eq (hP.po _ ⟨q, hq, i, hi, rfl⟩).1 (hvobj _ hv)
+  · have hwv : VsWrite Z.P (L.ksb s) (peA q lo) := Or.inr ⟨q, hq, lo, hl, rfl⟩
+    rw [hvw _ hwv]; exact hPI q hq lo hl
+
+set_option maxHeartbeats 8000000 in
 /-- **`XTopAt` across a kernel-state step** (an IRQ state, the IO bitmap,
 the domain schedule): FL4 writes only `KsW` words, the spec only the
 interrupt states, IRQ masks, IO ports and domain schedule (`KsStep`); the
@@ -299,38 +370,21 @@ theorem XTopAt.ksStep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {
     (hIrq' : IrqRel (L.mem s') (L.ksb s) σ') (hIo' : IoRel (L.mem s') (L.ksb s) σ')
     (hD' : DomRel (L.mem s') (L.ksb s) σ') (hAR' : AR a' σ'.archState.x64CurrentCr3) :
     XTopAt (L := L) AR Z s' a' σ' := by
-  obtain ⟨⟨⟨⟨hSch, hEp, hNt, -, -, hKr, -⟩, hP⟩, hR, hPt, hPI, hCO⟩, ⟨hPl, hCR, hFI, -, hMO, hIA, hSA⟩, -, hE⟩ := hX
-  have hk : L.ksb s' = L.ksb s := hw.1
-  have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
-  have hka := hP.vs.ksb_al
+  have hSch := hX.fin.1.1.1
   obtain ⟨Q, R0, hc, -⟩ := hSch.lists
   have hko : ∀ t ∈ Z.T, t.val + 4096 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ t.val := fun t ht => by
     rcases hc.ksOut t ht with h | h <;> omega
-  -- the words other than `KsW` are kept
-  have hks_oobj : ∀ b, KsW (L.ksb s) b → OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b := by
-    rintro b ⟨K, h1, h2, -, e⟩; exact Or.inr (Or.inl ⟨by omega, by omega⟩)
-  have hvobj : ∀ b, VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) b → ¬ KsW (L.ksb s) b :=
-    fun b hv hb => hP.disj b (hks_oobj b hb) hv
-  have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
-    slotsSame_of_vobj hPl fun b hb hv => hw.mem_eq hb (hvobj b hv)
-  -- the scheduler relation
-  have hSch' := (hSch.ksW hw).ksStep hO
-  -- the endpoint and notification relations
-  have hEp' : Endp.EpStateRel Z.T Z.E Z.R Z.B (L.mem s') σ' := by
-    refine Endp.EpStateRel.frame hEp hP.ep (fun b hb hf => hw.mem_eq hb (not_ksW ?_))
-      ⟨fun p x h => by rw [hO.kh]; exact h, fun p x h => ⟨x, by rw [hO.kh]; exact h, rfl⟩,
-        fun p x h => ⟨x, by rw [hO.kh]; exact h, rfl, rfl, rfl, rfl, rfl⟩, hO.um⟩
-    rcases hf with ⟨e, he, h | h⟩ | ⟨r, hr, h⟩ | ⟨t, ht, ⟨h1, h2⟩ | h⟩ | ⟨wp, hwp, rfl⟩
+  refine hX.frameStep hw (fun b hb => by obtain ⟨K, h1, h2, -, e⟩ := hb; exact Or.inr (Or.inl ⟨by omega, by omega⟩))
+    (fun b hb hf => not_ksW ?_ hb) (fun b hb hf => not_ksW ?_ hb) (not_ksW (Or.inr (Or.inr (Or.inr ?_))))
+    hO.kh hO.cdt hO.orig hO.ct hO.um hO.asidT hO.gpml4 ((hSch.ksW hw).ksStep hO) hIrq' hIo' hD' hAR'
+  · rcases hf with ⟨e, he, h | h⟩ | ⟨r, hr, h⟩ | ⟨t, ht, ⟨h1, h2⟩ | h⟩ | ⟨wp, hwp, rfl⟩
     · rcases hKA.ep e he with h' | h' <;> omega
     · rcases hKA.ep e he with h' | h' <;> omega
     · rcases hKA.rep r hr with h' | h' <;> omega
     · unfold Endp.TOffN at h2; rcases hko t ht with h' | h' <;> omega
     · unfold Endp.TL at h; rcases hko t ht with h' | h' <;> omega
     · rcases hKA.buf wp hwp with h' | h' <;> omega
-  have hNt' : Notif.NtfnStateRel Z.N Z.T (L.mem s') σ' := by
-    refine Notif.NtfnStateRel.frame hNt hSch.placed (fun b hb hf => hw.mem_eq hb (not_ksW ?_))
-      ⟨fun p x h => by rw [hO.kh]; exact h, fun p x h => ⟨x, by rw [hO.kh]; exact h, rfl, rfl, rfl⟩⟩
-    rcases hf with ⟨n, hn, h1, h2⟩ | ⟨t, ht, h | h | h | h | h | h⟩
+  · rcases hf with ⟨n, hn, h1, h2⟩ | ⟨t, ht, h | h | h | h | h | h⟩
     · rcases hKA.ntfn n hn with h' | h' <;> omega
     all_goals
       subst h
@@ -343,36 +397,156 @@ theorem XTopAt.ksStep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {
         | (rw [Notif.prioA_eq', Notif.tfield_val hta (by simp)]; simp; omega)
         | (rw [Notif.nextEp_eq, Notif.tfield_val hta (by simp)]; simp; omega)
         | (rw [Notif.prevEp_eq, Notif.tfield_val hta (by simp)]; simp; omega)
-  -- the kernel root
-  have hKr' : KRootRel (L.mem s') (L.ksb s') σ' := by
-    unfold KRootRel globCr3 at hKr ⊢
+  · have hP := hX.fin.1.2
+    have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
+    unfold layout.ks.KERNEL_ROOT
+    simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+
+/-! ## Scheduler steps -/
+
+/-- The value of a scheduler step's word. -/
+theorem schW_val {T : Set U64} {c : U64} {s : S} (hT : P1.TcbPlaced T) (hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64)
+    {b : U64} (h : SchW (L := L) T c s b) :
+    (∃ y ∈ T, b.val = y.val + 3480 ∨ b.val = y.val + 3488 ∨ b.val = y.val + 3592) ∨
+    (L.nodeBase s c ≤ b.val ∧ b.val < L.nodeBase s c + 4288) ∨
+    ((L.ksb s).val + 16 ≤ b.val ∧ b.val ≤ (L.ksb s).val + 216 ∧ b.val ≠ (L.ksb s).val + 48) := by
+  rcases h with ⟨y, hy, rfl | rfl | rfl⟩ | h | h
+  · exact Or.inl ⟨y, hy, Or.inl (by rw [Notif.tfield_val (hT y hy) (by decide)]; rfl)⟩
+  · exact Or.inl ⟨y, hy, Or.inr (Or.inl (by rw [Notif.tfield_val (hT y hy) (by decide)]; rfl))⟩
+  · exact Or.inl ⟨y, hy, Or.inr (Or.inr (by rw [Notif.tfield_val (hT y hy) (by decide)]; rfl))⟩
+  · exact Or.inr (Or.inl h)
+  · have := domKW_val h
+    exact Or.inr (Or.inr ⟨by omega, by omega, by omega⟩)
+
+/-- A word of core `c`'s node is a `nodeAt` word. -/
+theorem node_word' {T : Set U64} {c : U64} {s : S} (hN : P1.NodePlaced st T s c) {b : U64}
+    (h1 : L.nodeBase s c ≤ b.val) (h2 : b.val < L.nodeBase s c + 4288) :
+    ∃ o : U64, o.val < 4288 ∧ L.nodeAt s c o = b := by
+  have hb := b.hBounds
+  have hv : (⟨BitVec.ofNat 64 (b.val - L.nodeBase s c)⟩ : U64).val = b.val - L.nodeBase s c := by
+    show (BitVec.ofNat 64 (b.val - L.nodeBase s c)).toNat = _
+    simp only [BitVec.toNat_ofNat]; apply Nat.mod_eq_of_lt; omega
+  refine ⟨⟨BitVec.ofNat 64 (b.val - L.nodeBase s c)⟩, by rw [hv]; omega, ?_⟩
+  apply UScalar.eq_of_val_eq
+  rw [P1.nodeAt_val hN (by rw [hv]; omega), hv]; omega
+
+/-- The value of a word the notification relation reads in a TCB. -/
+theorem nfootT_val {t b : U64} (hta : P1.TcbAddr t)
+    (h : b = Notif.tStA t ∨ b = Notif.tBlockA t ∨ b = Notif.badgeRegA t ∨ b = P1.prioA t ∨
+      b = P1.nextA .Ep t ∨ b = P1.prevA .Ep t) :
+    b.val = t.val + 3328 ∨ b.val = t.val + 3336 ∨ b.val = t.val + 256 ∨ b.val = t.val + 3448 ∨
+      b.val = t.val + 3496 ∨ b.val = t.val + 3504 := by
+  rcases h with rfl | rfl | rfl | rfl | rfl | rfl
+  · rw [Notif.tStA_eq, Notif.tfield_val hta (by decide)]; simp
+  · rw [Notif.tBlockA_eq, Notif.tfield_val hta (by decide)]; simp
+  · rw [Notif.badgeRegA_eq, Notif.tfield_val hta (by decide)]; simp
+  · rw [Notif.prioA_eq', Notif.tfield_val hta (by decide)]; simp
+  · rw [Notif.nextEp_eq, Notif.tfield_val hta (by decide)]; simp
+  · rw [Notif.prevEp_eq, Notif.tfield_val hta (by decide)]; simp
+
+set_option maxHeartbeats 8000000 in
+/-- **`XTopAt` across a scheduler step** (`SchedStep`), at sets whose TCBs
+include the typed heap's: the words written are the scheduler's (`SchW`),
+apart from the endpoint and notification relations and the kernel root. -/
+theorem XTopAt.schedStep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {a : A}
+    {σ σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z s a σ) (hKA : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s))
+    (hTh : ∀ t, Z.th t = some .tcb → t ∈ Z.T) (hS : SchedStep (L := L) Z.th s σ s' σ') :
+    XTopAt (L := L) AR Z s' a σ' := by
+  obtain ⟨hK, hS⟩ := hS
+  have hSch := hX.fin.1.1.1
+  have hNt := hX.fin.1.1.2.2.1
+  have hP := hX.fin.1.2
+  have hE := hX.esa
+  obtain ⟨hSch', hw, hdsi⟩ := hS Z.N Z.T Z.C Z.c hTh hSch hNt
+  obtain ⟨Q, R0, hc, -⟩ := hSch.lists
+  have hT := hc.tcbs
+  have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
+  have hka := hP.vs.ksb_al
+  have hko : ∀ t ∈ Z.T, t.val + 4096 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ t.val := fun t ht => by
+    rcases hc.ksOut t ht with h | h <;> omega
+  have hnb : L.nodeBase s Z.c = (L.ksb s).val + 13568 + Z.c.val * 4288 := rfl
+  have hnd := hc.node.disj
+  have hk : L.ksb s' = L.ksb s := hw.1
+  refine hX.frameStep hw (fun b hb => ?_) (fun b hb hf => ?_) (fun b hb hf => ?_) (fun hb => ?_)
+    hK.kh hK.cdt hK.orig hK.ct (by rw [hK.ms]) (by rw [hK.arch]) (by rw [hK.arch]) hSch' ?_ ?_ ?_
+    (by rw [hK.arch]; exact hX.fin.1.1.2.2.2.2.2.2)
+  · -- the words written are the other objects'
+    rcases hb with ⟨y, hy, rfl | rfl | rfl⟩ | h | h
+    all_goals first
+      | exact tcb_oobj hy (hT y hy) (by decide) (by decide)
+      | exact Or.inl h
+      | (have := domKW_val h
+         exact Or.inr (Or.inl ⟨by omega, by omega⟩))
+  · -- not read by the endpoint relation
+    have hPe := hP.ep
+    rcases schW_val hT hkf hb with ⟨y, hy, hyv⟩ | ⟨g1, g2⟩ | hv
+    · rcases hf with ⟨e, he, h⟩ | ⟨r, hr, h⟩ | ⟨t, ht, h | h⟩ | ⟨wp, hwp, h⟩
+      · have := hPe.et e he y hy; omega
+      · have := hPe.rt r hr y hy; omega
+      · by_cases e : t = y
+        · subst e; obtain ⟨-, h2⟩ := h; unfold Endp.TOffN at h2; omega
+        · have := tcb_disj hPe ht hy (Ne.symm e); have := h.range; omega
+      · by_cases e : t = y
+        · subst e; unfold Endp.TL at h; omega
+        · have := tcb_disj hPe ht hy (Ne.symm e); unfold Endp.TL at h; omega
+      · have := hPe.bt wp hwp y hy; rw [← h] at this; omega
+    · exact hE.node b g1 g2 hf
+    · rcases hf with ⟨e, he, h⟩ | ⟨r, hr, h⟩ | ⟨t, ht, ⟨h1, h2⟩ | h⟩ | ⟨wp, hwp, rfl⟩
+      · rcases hKA.ep e he with h' | h' <;> omega
+      · rcases hKA.rep r hr with h' | h' <;> omega
+      · unfold Endp.TOffN at h2; rcases hko t ht with h' | h' <;> omega
+      · unfold Endp.TL at h; rcases hko t ht with h' | h' <;> omega
+      · rcases hKA.buf wp hwp with h' | h' <;> omega
+  · -- not read by the notification relation
+    have hPn := hSch.placed
+    rcases schW_val hT hkf hb with ⟨y, hy, hyv⟩ | ⟨g1, g2⟩ | hv
+    · rcases hf with ⟨n, hn, h1, h2⟩ | ⟨t, ht, h⟩
+      · have := hPn.disj n hn y hy; omega
+      · have hv := nfootT_val (hT t ht) h
+        by_cases e : t = y
+        · subst e; omega
+        · have := tcb_disj hP.ep ht hy (Ne.symm e); omega
+    · obtain ⟨o, ho, rfl⟩ := node_word' hc.node g1 g2
+      rcases hf with ⟨n, hn, n1, n2⟩ | ⟨t, ht, h⟩
+      · exact hSch.nodeNW o ho (Or.inl ⟨n, hn, n1, n2⟩)
+      · have hv := nfootT_val (hT t ht) h
+        have := hnd t ht; omega
+    · rcases hf with ⟨n, hn, h1, h2⟩ | ⟨t, ht, h⟩
+      · rcases hKA.ntfn n hn with h' | h' <;> omega
+      · have hv := nfootT_val (hT t ht) h
+        rcases hko t ht with h' | h' <;> omega
+  · -- not the kernel root
     have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
       unfold layout.ks.KERNEL_ROOT
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-    rw [hk, hw.mem_eq (by unfold P1.Aligned; rw [hkv]; omega) (not_ksW (by rw [hkv]; omega)), hO.gpml4]
-    exact hKr
-  have hvw : ∀ b, VsWrite Z.P (L.ksb s) b → L.mem s' b = L.mem s b := fun b hb =>
-    hw.mem_eq (VsWrite.aligned hP.vs hb) (hvobj b (vsWrite_vobj hP.vs hb))
-  have hSz : Sched.SzKeep σ σ' := Sched.SzKeep.of_kheap hO.kh
-  refine ⟨⟨⟨⟨hSch', hEp', hNt', by rw [hk]; exact hIrq', by rw [hk]; exact hIo', hKr', hAR'⟩, ?_⟩, ?_, ?_,
-    fun q hq lo hl => ?_, hCO.of_same hSS hO.ct⟩,
-    ⟨hPl, crel_same hCR hSS hO.kh hO.cdt hO.orig, hFI.of_same hCR.2.2.1 hSS (KSub.of_kheap hO.kh),
-      by rw [hk]; exact hD', by rw [hk]; exact MdbOKV.of_same hCR.2.2.1 hSS hMO, by rw [hk]; exact hIA,
-      hSA.mono hSz⟩, IpcRel.of hNt' hEp' (sched_sc hSch'), hE.mono hk hSz⟩
-  · refine ⟨hP.ep, by rw [hk]; exact hP.vs, hP.pt, hP.pl, fun x hx => by
-      rw [hk]; exact hP.disj x (OObj.of_same hk hO.kh hx), fun x h1 h2 => ?_,
-      hP.po, hP.ps, by rw [hk]; exact hP.pv, by rw [hk]; exact hP.vo, by rw [hk]; exact hP.sd, by rw [hk]; exact hP.tko⟩
-    have hnb : L.nodeBase s' Z.c = L.nodeBase s Z.c := by simp [P1.LawfulStore.nodeBase, hk]
-    rw [hnb] at h1 h2; exact hP.nodeE x h1 h2
-  · rw [hk]
-    refine hR.frame hvw hO.asidT fun p hp => ?_
-    rw [hO.kh]
-  · refine hPt.frame (fun b ⟨q, hq, i, hi, e⟩ => ?_) fun q hq => by rw [hO.kh]
-    subst e
-    have hv := table_vobj (th := Z.th) (P := Z.P) hP.pt hq hi (L.ksb s)
-    exact hw.mem_eq (hP.po _ ⟨q, hq, i, hi, rfl⟩).1 (hvobj _ hv)
-  · have hwv : VsWrite Z.P (L.ksb s) (peA q lo) := Or.inr ⟨q, hq, lo, hl, rfl⟩
-    rw [hvw _ hwv]; exact hPI q hq lo hl
+    rcases schW_val hT hkf hb with ⟨y, hy, hyv⟩ | ⟨g1, g2⟩ | hv
+    · rcases hko y hy with h' | h' <;> omega
+    · omega
+    · omega
+  · -- the IRQ relation
+    have hI := hX.fin.1.1.2.2.2.1
+    refine ⟨fun i hi => ?_, fun i hi => by rw [hK.inode]; exact hI.node i hi⟩
+    have hv := irqStA_val hkf hi
+    rw [hK.ist, hw.mem_eq (by unfold P1.Aligned; rw [hv]; omega) fun hb => ?_]
+    · exact hI.st i hi
+    rcases schW_val hT hkf hb with ⟨y, hy, hyv⟩ | ⟨g1, g2⟩ | hv'
+    · rcases hko y hy with h' | h' <;> omega
+    · omega
+    · omega
+  · -- the IO-port relation
+    have hI := hX.fin.1.1.2.2.2.2.1
+    intro p hp
+    have hwi : (wI p).val < 1024 := by rw [wI_val hp]; omega
+    have hv := ioA_val hkf hwi
+    unfold bitOf
+    rw [hK.arch, hw.mem_eq (by unfold P1.Aligned; rw [hv]; omega) fun hb => ?_]
+    · exact hI p hp
+    rcases schW_val hT hkf hb with ⟨y, hy, hyv⟩ | ⟨g1, g2⟩ | hv'
+    · rcases hko y hy with h' | h' <;> omega
+    · omega
+    · omega
+  · -- the domain schedule
+    exact domRel_iff.2 (hdsi (domRel_iff.1 hX.rel.2.2.2.1))
 
 end
 

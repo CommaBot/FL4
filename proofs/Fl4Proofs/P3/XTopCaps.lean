@@ -8,6 +8,7 @@ per-cap discharges of TopXAll's named `XCap` hypotheses.
   XTopStep's `restart`, `ksStep` and `slotStep`, given `ARMask` (the arch
   relation kept by the interrupt decodes' arch operations, a named
   hypothesis: `ArchRefines` has no such clause).
+* `XDelNtfnHyp`: the named premise for the deletion step (`StepClosed.del`).
 * `decode_invocation_irq_controlX`, `decode_invocation_ioport_controlX`:
   `IrqXHyp` / `IoXHyp` for the IRQ control and IO port control caps, from
   `CPost`'s / `IoCPost`'s `Steps`.
@@ -34,20 +35,43 @@ def ARMask (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
 def CurRun (σ : Fl4Spec.State Unit) : Prop :=
   ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.runnable x.tcbState = true
 
+/-- **Hypothesis: `XTopAt` is kept by deleting a notification cap**
+(`delete_one`: the notification's finalisation when the cap is final,
+`cancel_all_signals` and `unbind_maybe_notification`, then the slot
+emptied), at sets whose TCBs include the typed heap's. The single named
+finalisation premise of the step closure (`stepClosed_xtop`); the null
+cap's deletion is proved (`Steps.deleteOne`). To discharge it: the CSpace
+side from `delete_one_refines`/`delete_one_keep` (DelOne, with `FinObjHyp`,
+`PostDelHyp`, `NtfnKeepHyp`), the kernel-global base and domain words from
+`delete_one_dk4` (IrqDom), and the scheduler/IPC side from the
+notification finalisation at the IPC relation (`cancel_all_signals`,
+`unbind_maybe_notification`) lifted by `IRel.xtop` (IpcXTop). -/
+def XDelNtfnHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
+  ∀ (Z : XSets) (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit) (sl : Fl4Spec.CslotPtr) (p b : U64) (w r : Bool),
+    Z.th = th → XTopAt (L := L) AR Z s a σ → KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s) → CurRun σ →
+    (∀ t, th t = some .tcb → t ∈ Z.T) → AbsSlot th sl → capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
+    cdt.delete_one st arI s a (cslotAddr sl) = ok (s', a') → ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 →
+    ∃ G', XTopAt (L := L) AR { Z with G := G' } s' a' σ' ∧ CurRun σ' ∧ L.ksb s' = L.ksb s
+
 /-- **`XTop`'s instance of `StepClosed`** (module docstring). -/
 def QX (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (a : A) (σ : Fl4Spec.State Unit) (s' : S) (a' : A)
     (σ' : Fl4Spec.State Unit) : Prop :=
   ∀ Z : XSets, Z.th = th → XTopAt (L := L) AR Z s a σ → KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s) → CurRun σ →
+    (∀ t, th t = some .tcb → t ∈ Z.T) →
     ∃ G', XTopAt (L := L) AR { Z with G := G' } s' a' σ' ∧ CurRun σ' ∧ L.ksb s' = L.ksb s
 
-theorem stepClosed_xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) (th : TypedHeap) :
+theorem stepClosed_xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {th : TypedHeap}
+    (hDel : XDelNtfnHyp (L := L) arI AR th) :
     StepClosed (L := L) arI th (QX (L := L) AR th) := by
-  refine ⟨fun s1 a1 σ1 s2 a2 σ2 s3 a3 σ3 h1 h2 Z hth hX hK hC => ?_,
-    fun s a σ ct x s1 hcur hk htcb hs1 Z hth hX hK hC => ?_,
-    fun s s' a a' σ σ' hw hO hdk hdl hds hirq hio harch Z hth hX hK hC => ?_,
-    fun s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hw hCR hFI hMO hTS Z hth hX hK hC => ?_⟩
-  · obtain ⟨G1, hX1, hC1, hk1⟩ := h1 Z hth hX hK hC
-    obtain ⟨G2, hX2, hC2, hk2⟩ := h2 { Z with G := G1 } hth hX1 (by rw [hk1]; exact hK) hC1
+  refine ⟨fun s1 a1 σ1 s2 a2 σ2 s3 a3 σ3 h1 h2 Z hth hX hK hC hTh => ?_,
+    fun s a σ ct x s1 hcur hk htcb hs1 Z hth hX hK hC hTh => ?_,
+    fun s s' a a' σ σ' hw hO hdk hdl hds hirq hio harch Z hth hX hK hC hTh => ?_,
+    fun s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hw hCR hFI hMO hTS Z hth hX hK hC hTh => ?_,
+    fun s s' a σ σ' hS Z hth hX hK hC hTh => ?_,
+    fun s s' a a' σ σ' sl p b w r hA hc hd hm Z hth hX hK hC hTh =>
+      hDel Z s s' a a' σ σ' sl p b w r hth hX hK hC hTh hA hc hd hm⟩
+  · obtain ⟨G1, hX1, hC1, hk1⟩ := h1 Z hth hX hK hC hTh
+    obtain ⟨G2, hX2, hC2, hk2⟩ := h2 { Z with G := G1 } hth hX1 (by rw [hk1]; exact hK) hC1 hTh
     exact ⟨G2, hX2, hC2, hk2.trans hk1⟩
   · have hrun : Fl4Spec.runnable x.tcbState = true := hC x (by rw [hcur]; exact hk)
     have h := XTopAt.restart hX hcur hk hrun
@@ -80,13 +104,19 @@ theorem stepClosed_xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) 
     rcases hkc σ.curThread with e | ⟨r, cs, cs', h1, h2⟩
     · rw [e] at hy; exact hC y hy
     · rw [h2] at hy; cases hy
+  · subst hth
+    refine ⟨Z.G, hX.schedStep hK hTh hS, fun y hy => ?_, hS.2 Z.N Z.T Z.C Z.c hTh hX.fin.1.1.1
+      hX.fin.1.1.2.2.1 |>.2.1.1⟩
+    rw [hS.1.ct, hS.1.kh] at hy; exact hC y hy
 
 /-- **`XTop` after a run of primitive steps.** -/
-theorem Steps.xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {th : TypedHeap} {s s' : S} {a a' : A}
+theorem Steps.xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {th : TypedHeap}
+    (hDel : XDelNtfnHyp (L := L) arI AR th) {s s' : S} {a a' : A}
     {σ σ' : Fl4Spec.State Unit} (h : Steps (L := L) arI th s a σ s' a' σ') {Z : XSets} (hth : Z.th = th)
-    (hX : XTopAt (L := L) AR Z s a σ) (hK : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)) (hC : CurRun σ) :
+    (hX : XTopAt (L := L) AR Z s a σ) (hK : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)) (hC : CurRun σ)
+    (hTh : ∀ t, th t = some .tcb → t ∈ Z.T) :
     XTop (L := L) AR s' a' σ' :=
-  let ⟨_, hX', _⟩ := h _ (stepClosed_xtop arI hAM th) Z hth hX hK hC
+  let ⟨_, hX', _⟩ := h _ (stepClosed_xtop arI hAM hDel) Z hth hX hK hC hTh
   ⟨_, hX'⟩
 
 /-- **`IrqXHyp` for the IRQ control cap**: every label (the legacy, MSI,
@@ -113,7 +143,8 @@ theorem decode_invocation_irq_controlX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : 
     (nA : U64) (hnum : arI.num_ioapics ar = ok nA) (hnA : nA.bv = σ.archState.x64NumIoapics)
     (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
     (hAR : ArchIrqRel arI ar σ) {Z : XSets} (hth : Z.th = th) (hX0 : XTopAt (L := L) AR Z s ar σ)
-    (hKA : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)) (hC : CurRun σ) (blk call don fp : Bool) (ci : Fl4Spec.CapRef)
+    (hKA : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)) (hC : CurRun σ) (hTh : ∀ t, th t = some .tcb → t ∈ Z.T)
+    (hDel : XDelNtfnHyp (L := L) arI AR th) (blk call don fp : Bool) (ci : Fl4Spec.CapRef)
     (buffer : Option Fl4Spec.ObjRef) :
     XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length (cslotAddr (ps.bv, idxs)) .IrqControl blk call don fp buf
       extra slbl (args.map UScalar.bv) ci (ps.bv, idxs) excaps buffer ct := by
@@ -135,7 +166,7 @@ theorem decode_invocation_irq_controlX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : 
     exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, h2⟩, ⟨Z, hX0⟩⟩
   | Ok u =>
     obtain ⟨inv, hrun, σ1, hst, σ', G', hx, -, -, -, -, -, -, hstp⟩ := hq
-    obtain ⟨Z', hZ'⟩ := hstp.xtop arI hAM hth hX0 hKA hC
+    obtain ⟨Z', hZ'⟩ := hstp.xtop arI hAM hDel hth hX0 hKA hC hTh
     exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], σ'),
       mem_bindE_ok hx (Set.mem_singleton _), ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩, hZ'.rel.1, hZ'.rel.2.1,
         hZ'.rel.2.2.1, hZ'.rel.2.2.2.1, hZ'.rel.2.2.2.2.1⟩, ⟨Z', hZ'⟩⟩
@@ -161,7 +192,8 @@ theorem decode_invocation_ioport_controlX {AR : A → Fl4Spec.Cr3 → Prop} (hAM
     {ps : U64} {rs : Nat} (hps : th ps = some (.cnode rs)) {idxs : List Bool} (hls : idxs.length = rs)
     (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok .IoPortControl)
     {Z : XSets} (hth : Z.th = th) (hX0 : XTopAt (L := L) AR Z s ar σ)
-    (hKA : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)) (hC : CurRun σ) (blk call don fp : Bool) (ci : Fl4Spec.CapRef)
+    (hKA : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)) (hC : CurRun σ) (hTh : ∀ t, th t = some .tcb → t ∈ Z.T)
+    (hDel : XDelNtfnHyp (L := L) arI AR th) (blk call don fp : Bool) (ci : Fl4Spec.CapRef)
     (buffer : Option Fl4Spec.ObjRef) :
     XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length (cslotAddr (ps.bv, idxs)) .IoPortControl blk call don fp buf
       extra slbl (args.map UScalar.bv) ci (ps.bv, idxs) excaps buffer ct := by
@@ -177,7 +209,7 @@ theorem decode_invocation_ioport_controlX {AR : A → Fl4Spec.Cr3 → Prop} (hAM
     exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err (run_liftME_err h1), h2⟩, ⟨Z, hX0⟩⟩
   | Ok u =>
     obtain ⟨inv, hrun, σ1, hst, σ', G', hx, -, -, -, -, -, -, hstp⟩ := hq
-    obtain ⟨Z', hZ'⟩ := hstp.xtop arI hAM hth hX0 hKA hC
+    obtain ⟨Z', hZ'⟩ := hstp.xtop arI hAM hDel hth hX0 hKA hC hTh
     exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok (run_liftME_ok hrun)), σ1, hst, (.ok [], σ'), hx,
       ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩, hZ'.rel.1, hZ'.rel.2.1, hZ'.rel.2.2.1, hZ'.rel.2.2.2.1, hZ'.rel.2.2.2.2.1⟩,
       ⟨Z', hZ'⟩⟩

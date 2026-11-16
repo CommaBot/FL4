@@ -25,7 +25,8 @@ P3 (DESIGN.md §9): **one extra relation for `handle_invocation_refinesMX`**
     (the IPC leaves at `IRel` with the VSpace relations framed: their writes
     in the other objects and the receive slots).
   - `XCap X … c`: the cap's `DecOKDMX X ∨ DecOKRMX X`. `VsThX`: a VSpace
-    cap's at `FinXR` (the post's CSpace heap the producer's `th`);
+    cap's at `FinXR` for sets chosen per outcome (`∃ Z, FinXR AR Z` inside
+    the post: MakePool picks the typed heap per outcome);
     `TcbXHyp`, `ScXHyp`, `CnodeXHyp`, `UtXHyp`, `IrqXHyp`, `IoXHyp`,
     `DomXHyp`, `VcpuXHyp`: the cap's at `XTop`.
 * `decOK_XTop`: every cap's `XCap (XTop AR)` by dispatch: Null and Zombie
@@ -187,8 +188,8 @@ def IpcVsFrame (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (ar : A) (σ σ1 : Fl4S
   | _ => True
 
 /-- **The hypotheses still named**, per cap (`decOK_XTop`'s docstring): the
-IPC leaves (`IpcVsFrame`); for a VSpace cap its statement at `FinXR` for some
-sets (`VsThX`: the producer's post at its own typed heap); for the others
+IPC leaves (`IpcVsFrame`); for a VSpace cap its statement at `FinXR` with the
+sets per outcome (`VsThX`: the producer's post at its own typed heap); for the others
 their statement at `XTop` (`TcbXHyp`, `ScXHyp`, `CnodeXHyp`, `UtXHyp`,
 `IrqXHyp`, `IoXHyp`, `DomXHyp`, `VcpuXHyp`); nothing for Null and Zombie. -/
 def XNamed (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (ar : A) (σ σ1 : Fl4Spec.State Unit) (lbl length slot : U64)
@@ -199,8 +200,8 @@ def XNamed (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (ar : A) (σ σ1 : Fl4Spec.
   | .Null | .Zombie .. => True
   | .Endpoint .. | .Notification .. | .Reply .. => IpcVsFrame (L := L) arI AR s ar σ σ1 ct blk call don c
   | .Frame .. | .PageTable .. | .PageDirectory .. | .Pdpt .. | .Pml4 .. | .AsidControl | .AsidPool .. =>
-    ∃ Z, XCap (L := L) arI (FinXR (L := L) AR Z) s ar σ lbl length slot c blk call don fp buf extra slbl args ci sl
-      excaps buffer ct
+    XCap (L := L) arI (fun s a σ => ∃ Z, FinXR (L := L) AR Z s a σ) s ar σ lbl length slot c blk call don fp buf
+      extra slbl args ci sl excaps buffer ct
   | _ => XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length slot c blk call don fp buf extra slbl args ci sl
       excaps buffer ct
 
@@ -255,7 +256,7 @@ theorem decOK_XTop (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (ar : A) (σ : Fl4S
       buffer ct hct hst (hN hX0))
   all_goals first
     | exact hN
-    | (obtain ⟨Z, h⟩ := hN; exact h.imp arI fun _ _ _ hx => xtop_of_finXR hx)
+    | exact hN.imp arI fun _ _ _ ⟨_, hx⟩ => xtop_of_finXR hx
 
 /-- The spec's restart of the current thread, at `XTop`. -/
 theorem XTop.restart {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {ar : A} {σ : Fl4Spec.State Unit}

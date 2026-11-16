@@ -161,7 +161,7 @@ theorem decode_invocation_domainDF (hcfg : DomConfig) (th : TypedHeap) (hP : Pla
     rintro ⟨r0, s'⟩ hq
     simp only [uncurry_apply_pair]
     rw [WP.spec_ok]
-    rcases hq with ⟨e, he, hs', e', h1, h2⟩ | ⟨he, inv, hrun, σ1, hst, y, hy, hS', hCR', hFI', -, hDR'⟩
+    rcases hq with ⟨e, he, hs', e', h1, h2⟩ | ⟨he, inv, hrun, σ1, hst, y, hy, hS', hCR', hFI', -, hDR', -⟩
     · exact Or.inl ⟨e, he, hs', e', run_liftME_err h1, Or.inl h2⟩
     · have hm : ((.ok [], y.2) : Except Unit (List Fl4Spec.Data) × Fl4Spec.State Unit) ∈
           ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don (.invokeDomain inv)).run σ1).1 := by

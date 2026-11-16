@@ -164,7 +164,7 @@ theorem decode_invocation_domainDM (hcfg : DomConfig) (th : TypedHeap) (hP : Pla
     rintro ⟨r0, s'⟩ hq
     simp only [uncurry_apply_pair]
     rw [WP.spec_ok]
-    rcases hq with ⟨e, he, hs', e', h1, h2⟩ | ⟨he, inv, hrun, σ1, hst, y, hy, hS', hCR', hFI', hkb', hDR'⟩
+    rcases hq with ⟨e, he, hs', e', h1, h2⟩ | ⟨he, inv, hrun, σ1, hst, y, hy, hS', hCR', hFI', hkb', hDR', -⟩
     · exact Or.inl ⟨e, he, hs', e', run_liftME_err h1, Or.inl h2⟩
     · have hm : ((.ok [], y.2) : Except Unit (List Fl4Spec.Data) × Fl4Spec.State Unit) ∈
           ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don (.invokeDomain inv)).run σ1).1 := by
@@ -396,13 +396,13 @@ theorem decode_invocation_irq_handlerM (th : TypedHeap) (hP : Placed th)
   unfold DecOKM syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   refine WP.spec_mono (irq_handler_decode_refines arI th hP hO hPD hK s ar σ G hDS hL hIR lbl slbl hlbl ct hct hcur
-    htcb hact hmask irq hirq hok extra x0 hx0 excaps hex hxn) ?_
+    htcb hact hmask irq hirq hok extra x0 hx0 excaps hex hxn hMO) ?_
   rintro ⟨r0, s', a'⟩ hq
   apply topM_of_lift (f := Fl4Spec.Fl4Invocation.invokeIRQHandler)
   cases r0 with
-  | Err e => obtain ⟨rfl, e', h1, h2⟩ := hq; exact Or.inl ⟨e, rfl, rfl, e', h1, h2⟩
+  | Err e => obtain ⟨rfl, ⟨e', h1, h2⟩, -⟩ := hq; exact Or.inl ⟨e, rfl, rfl, e', h1, h2⟩
   | Ok u =>
-    obtain ⟨inv, hrun, σ1, hst, σ', G', hx, hCR, hF, hSt⟩ := hq
+    obtain ⟨inv, hrun, σ1, hst, σ', G', hx, hCR, hF, hSt, -⟩ := hq
     exact Or.inr ⟨inv, hrun, σ1, hst, (.ok [], σ'), mem_bindE_ok (mem_liftE hx) (Set.mem_singleton _), th, G',
       Or.inl ⟨rfl, [], rfl⟩, hP, hCR, hF, hSt.okv hMO⟩
 

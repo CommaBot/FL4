@@ -48,9 +48,10 @@ theorem irq_handler_decode_refines (th : TypedHeap) (hP : Placed th)
     (irq : U64) (hirq : irq.val < 128) (hok : IrqSlotOK (L.mem s) (nodeA (L.ksb s) irq))
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (cps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
-    (hex : lbl.val = 35 → ExtraSRel th (L.mem s) x0 cps) (hxn : lbl.val = 35 → x0 ≠ nodeA (L.ksb s) irq) :
+    (hex : lbl.val = 35 → ExtraSRel th (L.mem s) x0 cps) (hxn : lbl.val = 35 → x0 ≠ nodeA (L.ksb s) irq)
+    (hFR : MdbOKV (L.ksb s) (L.mem s) G) :
     interrupt.decode_irq_handler st arI s ar lbl irq extra ⦃ res =>
-      HPost (L := L) th σ G (Fl4Spec.decodeIrqHandlerInvocation slbl (BitVec.ofNat 8 irq.val) cps) s res ⦄ := by
+      HPost (L := L) arI th σ G (Fl4Spec.decodeIrqHandlerInvocation slbl (BitVec.ofNat 8 irq.val) cps) s ar res ⦄ := by
   by_cases h34 : lbl.val = 34
   · have e : lbl = fl4_abi.label.IRQAckIRQ := UScalar.eq_of_val_eq (by rw [h34]; simp [fl4_abi.label.IRQAckIRQ])
     subst e
@@ -61,7 +62,7 @@ theorem irq_handler_decode_refines (th : TypedHeap) (hP : Placed th)
       UScalar.eq_of_val_eq (by rw [h35]; simp [fl4_abi.label.IRQSetIRQHandler])
     subst e
     exact irq_set_refines arI th hP hO hPD hK s ar σ G hDS hL hIR slbl (by rw [hlbl]; simp [irqHLabelOf, h35]) ct hct
-      hcur htcb hact irq hirq hok extra x0 hx0 cps (hex h35) (hxn h35)
+      hcur htcb hact irq hirq hok extra x0 hx0 cps (hex h35) (hxn h35) hFR
   by_cases h36 : lbl.val = 36
   · have e : lbl = fl4_abi.label.IRQClearIRQHandler :=
       UScalar.eq_of_val_eq (by rw [h36]; simp [fl4_abi.label.IRQClearIRQHandler])
