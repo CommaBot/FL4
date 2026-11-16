@@ -161,6 +161,10 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
   (`decode_invocation_sched_contextJ`, `decode_invocation_sched_controlJ`,
   `TopPostFJ`), with `SlotsApart` and the IRQ slots' apartness derived from
   `JPlaced` (`JPlaced.slotsApart`, `JPlaced.irqApart`).
+* ScPlaceUt: objects covered by caps (`JCov`); a childless untyped region
+  holds no object of the typed heaps (`restrictTh_childless`) and no word
+  the other relations read (`oobj_childless`, `regOKTop_childless`,
+  `oobj_out`): MakePool's `MpPlacedHyp` (a) and (b).
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
@@ -196,3 +200,4 @@ import Fl4Proofs.P3.ScInstPost
 import Fl4Proofs.P3.ScPlace
 import Fl4Proofs.P3.ScPlaceCaps
 import Fl4Proofs.P3.ScPlaceSc
+import Fl4Proofs.P3.ScPlaceUt
