@@ -13,8 +13,8 @@ P3 (DESIGN.md §9), IPC: **the timeout branch of `do_reply_transfer`**
   on `IRel`, by the endpoint's state (EpSendF.lean for a waiting receiver).
 * `handle_timeout_top`: `set_fault`, then `send_ipc_faultI`, against l4v
   `handle_timeout` (`handleTimeout_mem`).
-* Named (`ReplyTmoHyps`): `postpone` on `IRel` (l4v `valid_sched`: the thread
-  in no release queue, `RelOK`), the timeout fault's transfer from a thread
+* Named (`ReplyTmoHyps`): `postpone` on `IRel` for a thread in no release
+  queue (the caller's, l4v `not_in_release_q`; `RelOK`), the timeout fault's transfer from a thread
   with an SC (`tmoXfer`: the message carries the consumed time,
   `update_consumed`), and the timeout handler's endpoint in the ghost set
   (`epE`, l4v `valid_objs`).
@@ -466,15 +466,15 @@ theorem handle_timeout_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T 
 
 variable (st ar th cr N T C E R B c) in
 /-- **The named steps of the reply's timeout branch** (`ReplyHyps.tmo`):
-`postpone` on `IRel` (l4v `valid_sched`: the thread in no release queue,
-`RelOK`), the timeout fault's transfer from a thread with an SC (its
+`postpone` on `IRel` for a thread in no release queue (l4v
+`not_in_release_q`, given by the caller; `RelOK` from `valid_sched`), the timeout fault's transfer from a thread with an SC (its
 message carries the consumed time, `update_consumed`), and the timeout
 handler's endpoint in the ghost set (l4v `valid_objs`). -/
 structure ReplyTmoHyps : Prop where
   postpone : ∀ s (a : A) σ (t sc : U64) (x : Fl4Spec.Tcb) (y : Fl4Spec.SchedContext) (n : Nat),
     IRel st th cr N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap t.bv = some (.tcb x) →
     Fl4Spec.runnable x.tcbState = true → x.tcbSchedContext = some sc.bv → σ.kheap sc.bv = some (.schedContext y n) →
-    Fl4Spec.scActive y = true →
+    Fl4Spec.scActive y = true → t.bv ∉ σ.releaseQueue →
     (do let s4 ← sched.postpone st s sc; ok (s4, a)) ⦃ res =>
       ∃ z ∈ (Fl4Spec.postpone (Z := Unit) sc.bv σ).1, IRel st th cr N T C E R B c res.1 z.2 ⦄
   tmoXfer : ∀ (a : A) (t : U64) (xt : Fl4Spec.Tcb) (bb : Fl4Spec.Word) (e bdg : U64) (g : Bool) (d : U64)
@@ -503,10 +503,11 @@ theorem reply_tmo_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
     ∀ s (a : A) σ (t sc ft : U64) (fault : Option Fl4Spec.Fault) (y : Fl4Spec.SchedContext) (n : Nat),
     IRel st th cr N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap sc.bv = some (.schedContext y n) →
     Fl4Spec.scActive y = true → ∀ x : Fl4Spec.Tcb, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true →
-    x.tcbSchedContext = some sc.bv → (ft = 0#u64 ↔ fault = none) → (ft = 5#u64 ↔ ∃ b, fault = some (.timeout b)) →
+    x.tcbSchedContext = some sc.bv → t.bv ∉ σ.releaseQueue → (ft = 0#u64 ↔ fault = none) →
+    (ft = 5#u64 ↔ ∃ b, fault = some (.timeout b)) →
     fl4ReplyTmo st ar t ft sc s a ⦃ res => ∃ z ∈ (specReplyTmo t.bv fault y sc.bv σ).1,
       IRel st th cr N T C E R B c res.1 z.2 ⦄ := by
-  intro s a σ t sc ft fault y n hX ht hsc hky hya x hk hrn hxsc hf0 hf5
+  intro s a σ t sc ft fault y n hX ht hsc hky hya x hk hrn hxsc hnrq hf0 hf5
   obtain ⟨hIR, hSRT⟩ := hX
   obtain ⟨⟨G, hB⟩, -⟩ := hSRT.1
   have htt := hB.tcbT hk
@@ -517,7 +518,7 @@ theorem reply_tmo_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
   have hspec' := hspec True
   have post : (do let s4 ← sched.postpone st s sc; ok (s4, a)) ⦃ res =>
       ∃ z ∈ (Fl4Spec.postpone (Z := Unit) sc.bv σ).1, IRel st th cr N T C E R B c res.1 z.2 ⦄ :=
-    hTH.postpone s a σ t sc x y n ⟨hIR, hSRT⟩ ht hsc hk hrn hxsc hky hya
+    hTH.postpone s a σ t sc x y n ⟨hIR, hSRT⟩ ht hsc hk hrn hxsc hky hya hnrq
   have hrunc : tsCode x.tcbState ≠ 3 ∧ tsCode x.tcbState ≠ 4 ∧ (∀ m, x.tcbState ≠ .blockedOnNotification m) ∧
       tsCode x.tcbState ≠ 6 := by
     cases h : x.tcbState <;> simp_all [Fl4Spec.runnable, tsCode]

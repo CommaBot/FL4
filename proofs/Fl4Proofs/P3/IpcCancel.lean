@@ -88,15 +88,15 @@ theorem ep_dequeue_c (hH : IpcCore st N T E R B SR) (hP0 : IPlaced N T E R B) (h
   exact ⟨h1, h2, ⟨h3, ntfn_frame_ep hP0.toC hSR.2 he hW hQA hkv⟩, h4⟩
 
 /-- `set_thread_state` to a state below 3, with the notification relation. -/
-theorem set_thread_state_c (hH : IpcCore st N T E R B SR) (hP0 : IPlaced N T E R B) (hP : EPlaced T E R B) (s : S)
+theorem set_thread_state_cq (hH : IpcCore st N T E R B SR) (hP0 : IPlaced N T E R B) (hP : EPlaced T E R B) (s : S)
     (σ : Fl4Spec.State Unit) (hR : EpStateRel T E R B (L.mem s) σ) (hSR : SRN st N T (SRS st T SR) s σ) {t : U64} (ht : t ∈ T)
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x))
-    (hq : ∀ e ∈ E, ∀ z, σ.kheap e.bv = some (.endpoint z) → t.bv ∉ z.epQueue) (hns : tsCode x.tcbState ≠ 6)
+    (hq : ∀ e ∈ E, ∀ z, σ.kheap e.bv = some (.endpoint z) → t.bv ∉ z.epQueue)
+    (hqn : ∀ n ∈ N, ∀ z, σ.kheap n.bv = some (.notification z) → t.bv ∉ z.ntfnObj.ntfnQueue)
     (ts : Fl4Spec.ThreadState) (hts : tsCode ts < 3) (code : U64) (hcode : code.val = tsCode ts) :
     sched.set_thread_state st s t code ⦃ s' =>
       EpStateRel T E R B (L.mem s') (stsAct (updK σ t.bv (.tcb { x with tcbState := ts })) t.bv) ∧
       SRN st N T (SRS st T SR) s' (stsAct (updK σ t.bv (.tcb { x with tcbState := ts })) t.bv) ⦄ := by
-  have hqn := not_member hSR.2 ht hk (tsCode_ne6 hns)
   have hta := hP.tcb t ht
   have ha := a_st hta
   have hag := agree_wr (L := L) (s := s) (v := code) ha.1
@@ -121,6 +121,17 @@ theorem set_thread_state_c (hH : IpcCore st N T E R B SR) (hP0 : IPlaced N T E R
   refine WP.spec_mono ((hH.schedC hP0 _ _ t hR1 ((hH.epHyps hP0).stable _ _ _ _ hSR.1 hW1 hS1) ht)) ?_
   rintro s2 ⟨hf, hfN, hS⟩
   exact ⟨hR1.frame hP hf (KView.stsAct' _ _), hS, hN1.frame hP0.n hfN (Notif.KView.stsAct _ _)⟩
+
+
+theorem set_thread_state_c (hH : IpcCore st N T E R B SR) (hP0 : IPlaced N T E R B) (hP : EPlaced T E R B) (s : S)
+    (σ : Fl4Spec.State Unit) (hR : EpStateRel T E R B (L.mem s) σ) (hSR : SRN st N T (SRS st T SR) s σ) {t : U64} (ht : t ∈ T)
+    {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x))
+    (hq : ∀ e ∈ E, ∀ z, σ.kheap e.bv = some (.endpoint z) → t.bv ∉ z.epQueue) (hns : tsCode x.tcbState ≠ 6)
+    (ts : Fl4Spec.ThreadState) (hts : tsCode ts < 3) (code : U64) (hcode : code.val = tsCode ts) :
+    sched.set_thread_state st s t code ⦃ s' =>
+      EpStateRel T E R B (L.mem s') (stsAct (updK σ t.bv (.tcb { x with tcbState := ts })) t.bv) ∧
+      SRN st N T (SRS st T SR) s' (stsAct (updK σ t.bv (.tcb { x with tcbState := ts })) t.bv) ⦄ :=
+  set_thread_state_cq hH hP0 hP s σ hR hSR ht hk hq (not_member hSR.2 ht hk (tsCode_ne6 hns)) ts hts code hcode
 
 /-- **`reply_unlink`**, with the notification relation. -/
 theorem reply_unlink_c (hH : IpcCore st N T E R B SR) (hP0 : IPlaced N T E R B) (hP : EPlaced T E R B) (s : S)
@@ -381,7 +392,7 @@ theorem cancel_ipc_recvI (hH : IpcCore st N T E R B SR)
     (hP0 : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit) (hR : IpcRel N T E R B (L.mem s) σ)
     (hSR : SR s σ) {t : U64} (ht : t ∈ T) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x))
     (hrb : Fl4Spec.receiveBlocked x.tcbState = true) (hC : CancelRecvHyp E (L.mem s) σ t x) :
-    ipc.cancel_ipc st ar s a t ⦃ r => ∃ σ' x', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
+    ipc.cancel_ipc st ar s a t ⦃ r => r.2 = a ∧ ∃ σ' x', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
       IpcRel N T E R B (L.mem r.1) σ' ∧ SR r.1 σ' ∧ σ'.kheap t.bv = some (.tcb x') ∧
       x'.tcbState = .inactive ∧ RelIfBound σ' t.bv ⦄ := by
   have hP := hP0.e
@@ -483,7 +494,7 @@ theorem cancel_ipc_recvI (hH : IpcCore st N T E R B SR)
     have hK3 : SKeep σ2 σ3 := ((SKeep.updK (fun _ h => by cases h) (fun _ _ h => by cases h)).trans
       (SKeep.updK (o := .tcb x3) (fun y h => ⟨x1, by simp [updK, Ne.symm hit, hk2], by cases h; rfl⟩)
         (fun _ _ h => by cases h))).trans (SKeep.stsAct _ _)
-    refine ⟨_, { x3 with tcbState := .inactive }, hspec0 _ ?_, (IpcRel.ofSRN hR4 hS4).1,
+    refine ⟨trivial, _, { x3 with tcbState := .inactive }, hspec0 _ ?_, (IpcRel.ofSRN hR4 hS4).1,
       (IpcRel.ofSRN hR4 hS4).2, by simp [stsAct_kheap, updK], rfl, ?_⟩
     · unfold Fl4Spec.blockedCancelIpc Fl4Spec.getBlockingObject
       rw [nd_bind_one (show Fl4Spec.NonDet.assertOpt (σ := Fl4Spec.State Unit)
@@ -504,7 +515,7 @@ theorem cancel_ipc_recvI (hH : IpcCore st N T E R B SR)
       .inactive (by simp [tsCode]) sched.TS_INACTIVE (by unfold sched.TS_INACTIVE; rfl)) ?_
     rintro s4 ⟨hR4, hS4⟩
     simp only [WP.spec_ok]
-    refine ⟨_, { x1 with tcbState := .inactive }, hspec0 _ ?_, (IpcRel.ofSRN hR4 hS4).1,
+    refine ⟨trivial, _, { x1 with tcbState := .inactive }, hspec0 _ ?_, (IpcRel.ofSRN hR4 hS4).1,
       (IpcRel.ofSRN hR4 hS4).2, by simp [stsAct_kheap, updK], rfl, ?_⟩
     · unfold Fl4Spec.blockedCancelIpc Fl4Spec.getBlockingObject
       rw [nd_bind_one (show Fl4Spec.NonDet.assertOpt (σ := Fl4Spec.State Unit)
@@ -528,8 +539,9 @@ theorem cancelIpc_top {C : Set U64} {c : U64} (hP0 : IPlaced N T E R B)
       ipc.cancel_ipc st ar s a t ⦃ r => ∃ σ' x', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
         IpcRel N T E R B (L.mem r.1) σ' ∧ SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 σ' ∧
         σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = .inactive ∧ RelIfBound σ' t.bv ⦄ :=
-  fun s a σ t x hR hS ht hk hrb => cancel_ipc_recvI (ipcCore_top hP0.e)
-    (fun _ _ _ _ h ht hk => fault_clear_top h ht hk) hP0 s a σ hR hS ht hk hrb (hX s σ t x hR hS ht hk hrb)
+  fun s a σ t x hR hS ht hk hrb => WP.spec_mono (cancel_ipc_recvI (ipcCore_top hP0.e)
+    (fun _ _ _ _ h ht hk => fault_clear_top h ht hk) hP0 s a σ hR hS ht hk hrb (hX s σ t x hR hS ht hk hrb))
+    fun _ h => h.2
 
 end Cancel
 

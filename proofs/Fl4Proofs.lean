@@ -317,3 +317,6 @@ import Fl4Proofs.P3.IpcSetPrioX
 import Fl4Proofs.P3.XTopTcbRest
 import Fl4Proofs.P3.XTopReply
 import Fl4Proofs.P3.XTopTcbData
+import Fl4Proofs.P3.IpcCancelAll
+import Fl4Proofs.P3.IpcRelQ
+import Fl4Proofs.P3.IpcTcbBind

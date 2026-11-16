@@ -620,7 +620,7 @@ theorem ReplyTmoHyps.ofPost (hP0 : IPlaced N T E R B)
     (hPO : ∀ s σ (t sc : U64) (x : Fl4Spec.Tcb) (y : Fl4Spec.SchedContext) (n : Nat),
       IRel st th cr N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap t.bv = some (.tcb x) →
       Fl4Spec.runnable x.tcbState = true → x.tcbSchedContext = some sc.bv →
-      σ.kheap sc.bv = some (.schedContext y n) → PostponeOK σ t.bv y)
+      σ.kheap sc.bv = some (.schedContext y n) → t.bv ∉ σ.releaseQueue → PostponeOK σ t.bv y)
     (htx : ∀ (a : A) (t : U64) (xt : Fl4Spec.Tcb) (bb : Fl4Spec.Word) (e bdg : U64) (g : Bool) (d : U64)
       (xd : Fl4Spec.Tcb), t ∈ T → d ∈ T → t ≠ d → xt.tcbFault = some (.timeout bb) → xt.tcbSchedContext ≠ none →
       ∀ (s1 : S) (σ1 : Fl4Spec.State Unit),
@@ -632,8 +632,8 @@ theorem ReplyTmoHyps.ofPost (hP0 : IPlaced N T E R B)
       IRel st th cr N T C E R B c s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
       x.tcbTimeoutHandler = .endpointCap p bd r → ∀ e : U64, e.bv = p → e ∈ E) :
     ReplyTmoHyps st ar th cr N T C E R B c :=
-  ⟨fun s a σ t sc x y n h1 h2 h3 h4 h5 h6 h7 h8 =>
-    postpone_top hP0 s a σ t sc x y n h1 h2 h3 h4 h6 h7 (hPO s σ t sc x y n h1 h2 h3 h4 h5 h6 h7) h8, htx, hepE⟩
+  ⟨fun s a σ t sc x y n h1 h2 h3 h4 h5 h6 h7 h8 h9 =>
+    postpone_top hP0 s a σ t sc x y n h1 h2 h3 h4 h6 h7 (hPO s σ t sc x y n h1 h2 h3 h4 h5 h6 h7 h9) h8, htx, hepE⟩
 
 /-- **`ReplyHyps` from `remove` and the spec facts of the timeout branch**:
 `unblock` (`unblock_top`), `postpone` (`postpone_top`), `faultReply`,
@@ -656,7 +656,7 @@ theorem ReplyHyps.ofL (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
     (hPO : ∀ s σ (t sc : U64) (x : Fl4Spec.Tcb) (y : Fl4Spec.SchedContext) (n : Nat),
       IRel st th cr N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap t.bv = some (.tcb x) →
       Fl4Spec.runnable x.tcbState = true → x.tcbSchedContext = some sc.bv →
-      σ.kheap sc.bv = some (.schedContext y n) → PostponeOK σ t.bv y)
+      σ.kheap sc.bv = some (.schedContext y n) → t.bv ∉ σ.releaseQueue → PostponeOK σ t.bv y)
     (htx : ∀ (a : A) (t : U64) (xt : Fl4Spec.Tcb) (bb : Fl4Spec.Word) (e bdg : U64) (g : Bool) (d : U64)
       (xd : Fl4Spec.Tcb), t ∈ T → d ∈ T → t ≠ d → xt.tcbFault = some (.timeout bb) → xt.tcbSchedContext ≠ none →
       ∀ (s1 : S) (σ1 : Fl4Spec.State Unit),
