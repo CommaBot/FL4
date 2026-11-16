@@ -54,15 +54,30 @@ def WinInit (st : machine.Store S) [L : LawfulStore st] (s' : S) (lo hi A k w n 
 def RegionD (H : Heap) (lo hi : Nat) (q : U64) : Prop :=
   MeetsR lo hi q.val (q.val + 2 ^ ((H q).elim 0 HKind.bits))
 
-/-- The region `[lo, hi)` misses the cores' nodes (P3's: kernel memory is
-never untyped memory). -/
+/-- The region `[lo, hi)` misses the cores' nodes and the kernel-global area
+(P3's: kernel memory is never untyped memory). -/
 def RegionOffNodes (st : machine.Store S) [L : LawfulStore st] (Cs : Set U64) (s : S) (lo hi : Nat) : Prop :=
-  ∀ c ∈ Cs, L.nodeBase s c + 4288 ≤ lo ∨ hi ≤ L.nodeBase s c
+  (∀ c ∈ Cs, L.nodeBase s c + 4288 ≤ lo ∨ hi ≤ L.nodeBase s c) ∧
+    ((L.ksb s).val + 13568 ≤ lo ∨ hi ≤ (L.ksb s).val)
 
 /-- An untyped cap's size and free index (P3's `valid_untyped`/`valid_cap`:
 at least x64's `MIN_UNTYPED_BITS` = 4 bits, below 64, the free index within
 the size). -/
 def UtSize (fi sb : U64) : Prop := fi.val ≤ 2 ^ sb.val ∧ 4 ≤ sb.val ∧ sb.val < 64
+
+/-- A debug-list link after a retype: null, a kept TCB of `H` (off the
+region), or a new TCB (of a TCB retype, `n = 1`). -/
+def NewTcbRef (H : Heap) (lo hi A k w n : Nat) (x : U64) : Prop :=
+  x = 0#u64 ∨ (H x = some .tcb ∧ ¬ RegionD H lo hi x) ∨ (n = 1 ∧ NewAt A k w x)
+
+/-- **The debug lists after a retype** (P3's: its `TcbLoopW` frame, a TCB
+retype linking the new TCBs in): every TCB's debug links and every core's
+list head are `NewTcbRef`. -/
+def DbgLinksOK (st : machine.Store S) [L : LawfulStore st] (H : Heap) (Cs : Set U64) (s' : S)
+    (lo hi A k w n : Nat) : Prop :=
+  (∀ y, NewTcbRef H lo hi A k w n y → y ≠ 0#u64 →
+    NewTcbRef H lo hi A k w n (L.mem s' (dnA y)) ∧ NewTcbRef H lo hi A k w n (L.mem s' (dpA y))) ∧
+  ∀ c ∈ Cs, NewTcbRef H lo hi A k w n (L.mem s' (L.nodeAt s' c layout.node.DEBUG_TCBS))
 
 /-- **P1's half of retype** (module docstring): from `BlkOK` over `H`'s
 sets, with the region's objects droppable (`DropOK`: dead, unreferenced, the
@@ -79,7 +94,7 @@ def RetypeP1Step (st : machine.Store S) [L : LawfulStore st] (s s' : S) (H : Hea
     DropOK st H (RegionD H lo hi) Cs s → RegionOffNodes st Cs s lo hi →
     WritesIn st s s' (fun b => CapW (Heap.tcbs H) (Heap.omega H) (Heap.frame H) b ∨ (lo ≤ b.val ∧ b.val < hi) ∨
       DbgW st (Heap.tcbs H) Cs s b) →
-    WinInit st s' lo hi A k w n us →
+    WinInit st s' lo hi A k w n us → DbgLinksOK st H Cs s' lo hi A k w n →
     ∃ (H' : Heap) (Ac' : Set U64),
       BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H') (Heap.ntfns H')
         (Heap.scBits H') Ac' s' ∧

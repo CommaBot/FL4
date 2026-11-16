@@ -377,7 +377,7 @@ theorem RInv.clear {lo hi : Nat} {s0 s1 : S} (I : RInv st H (RegionD H lo hi) Cs
   refine I.capwu hH (writesIn_zr' ha hn hfit).al fun b ⟨hba, h1, h2⟩ => Or.inr ?_
   refine untracked_of_noKept hH hba (noKept_of_region (by omega) (by omega)) fun c hc => ?_
   have e : L.nodeBase s1 c = L.nodeBase s0 c := by simp [LawfulStore.nodeBase, I.ksb]
-  rw [e]; rcases hnode c hc with h | h <;> omega
+  rw [e]; rcases hnode.1 c hc with h | h <;> omega
 
 /-- **Rewriting the untyped cap's slot keeps `RInv`.** -/
 theorem RInv.setcap {s0 s1 : S} (I : RInv st H D Cs s0 s1) (P : DropOK st H D Cs s0) {x : U64}
