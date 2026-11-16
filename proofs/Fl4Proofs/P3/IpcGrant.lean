@@ -1340,7 +1340,7 @@ theorem lookup_cap_valid (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit)
 set_option maxHeartbeats 4000000 in
 /-- **`get_receive_slot` refines `get_receive_slots`** (G1). -/
 theorem get_receive_slot_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGhost} {s : S}
-    {σ : Fl4Spec.State Unit} (hB : RelTopB (L := L) th G N T C E R B c s σ) (hR : IpcRel N T E R B (L.mem s) σ)
+    {σ : Fl4Spec.State Unit} (hB : RelTopB (L := L) th G N T C E R B c s σ) (hR : EpStateRel T E R B (L.mem s) σ)
     {t : U64} (ht : th t = some .tcb) {rbw : U64} {rb : Fl4Spec.Word} (hm : BufMap B rbw rb) (hr0 : rbw ≠ 0#u64)
     (caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (extra : Aeneas.Std.Array obj.Slot 3#usize) :
     ipc.get_receive_slot st s t rbw ⦃ dest => ∃ slots,
