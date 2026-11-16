@@ -17,8 +17,9 @@ FL4's `TFoot` writes (`ScFine`) the composite relation is kept
   data is returned, else (a YieldTo returning at once) `DecOKRMX` with `X`
   true.
 * The leaves still named, in the `XLeaf` shape: `ScReplyLeaf` (the
-  `set_consumed` reply plus `Running`: Consumed, a YieldTo returning at
-  once) and `ScUnbindReplyLeaf` (Unbind's `unbind_reply`).
+  `set_consumed` reply, any target: Consumed's and an at-once YieldTo's to
+  the caller, `complete_yield_to`'s to the yielder) and `ScUnbindReplyLeaf`
+  (Unbind's `unbind_reply`).
 
 Each producer also takes `hArch`: the decode's run keeps `AR` (the SC
 code's `now`, `set_deadline`, `remote_stall` and `send_reschedule` keep the
@@ -415,22 +416,25 @@ theorem decode_invocation_sched_contextXT {AR : A → Fl4Spec.Cr3 → Prop} {Z :
 
 /-! ## The named leaves -/
 
-/-- **The reply to the caller at `XTop`** (`XLeaf` shape): Consumed and a
-YieldTo returning at once end in `set_consumed`'s reply (the consumed time
-reported to `ct` when called) and `set_thread_state Running`, refining
-`return_consumed`, `handle_invocation`'s `reply_from_kernel` and
-`set_thread_state Running`. The reply writes `ct`'s registers (`RegW`),
-which the IPC relations see, so it is not an `ScTKw`-step. -/
-def ScReplyLeaf (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) (sc ct : U64)
-    (call : Bool) : Prop :=
+/-- **The `set_consumed` reply at `XTop`** (`XLeaf` shape): FL4's
+`set_consumed p t wm` (the SC's consumed time read and cleared, then, when
+`wm`, reported to `t` as a reply from the kernel) refining
+`sched_context_update_consumed p`, then, when `wm`, `reply_from_kernel t (0,
+words)`. With `t` the caller and `wm` the call flag it is Consumed's and an
+at-once YieldTo's reply (`return_consumed` and `handle_invocation`'s reply;
+the caller's `Running` after is an `ScTKw`-step); with `t` the yielder and
+`wm` true it is `complete_yield_to`'s `set_consumed`. The reply writes `t`'s
+registers (`RegW`), which the IPC relations see, so it is not an
+`ScTKw`-step. -/
+def ScReplyLeaf (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) (p t : U64)
+    (wm : Bool) : Prop :=
   XLeaf (L := L) (XTop (L := L) AR) s a σ (do
-      let s4 ← schedcontext.set_consumed st ar s a sc ct call
-      let s5 ← sched.set_thread_state st s4 ct sched.TS_RUNNING
-      ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s5, a))
+      let s' ← schedcontext.set_consumed st ar s a p t wm
+      ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s', a))
     ((do
-      let d ← Fl4Spec.returnConsumed (Z := Unit) sc.bv
-      Fl4Spec.NonDet.when (call = true) (Fl4Spec.replyFromKernel (Z := Unit) ct.bv (0, d))
-      Fl4Spec.setThreadState (Z := Unit) ct.bv .running : Fl4Spec.SMonad Unit Unit) σ)
+      let cv ← Fl4Spec.schedContextUpdateConsumed (Z := Unit) p.bv
+      Fl4Spec.NonDet.when (wm = true) (Fl4Spec.replyFromKernel (Z := Unit) t.bv (0, Fl4Spec.wordsFromTime cv)) :
+      Fl4Spec.SMonad Unit Unit) σ)
 
 /-- **The SC's reply unlinked at `XTop`** (`XLeaf` shape): Unbind's last
 step, FL4's `unbind_reply` (the head reply's `NEXT` word and the SC's
