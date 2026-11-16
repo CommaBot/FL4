@@ -4,7 +4,7 @@ labels on top of QueueDecTcb's, `SetSchedParams` from `SspHyps`
 (`tcb.decode_set_sched_params.dec`), and the family's decode
 (`tcb.decode.dec`, `decGap_thread`).
 -/
-import Fl4Proofs.P1.QueueDecTcb
+import Fl4Proofs.P1.QueueDecTcbRR
 import Fl4Proofs.P1.QueueFinThr
 open Aeneas Aeneas.Std Result
 
@@ -914,8 +914,6 @@ theorem tcb.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) :
     tcb.decode st ar s a lbl t { length := len, buf, call, slot, extra } ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
-  by_cases g0 : lbl = fl4_abi.label.TCBReadRegisters
-  · subst g0; exact G.readRegisters Ac s a t len buf call slot extra D
   by_cases g18 : lbl = fl4_abi.label.TCBSetEPTRoot
   · subst g18; exact G.setEPTRoot Ac s a t len buf call slot extra D
   have ht : t ∈ T := D.cap.2.1 t rfl
@@ -925,7 +923,7 @@ theorem tcb.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   have h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1 := ⟨hb1, ea, ec, ecs, fld, wn⟩
   try simp only [uncurry_apply_pair, WP.uncurry'_pair]
   refine spec_ite (fun hc => absurd hc g18) fun _ => ?_
-  refine spec_ite (fun hc => absurd hc g0) fun _ => ?_
+  refine spec_ite (fun _ => tcb.decode_read_registers.dec E D h1) fun _ => ?_
   refine spec_ite (fun _ => ?_) fun _ => ?_
   · exact tcb.decode_write_registers.dec hA D h1
   refine spec_ite (fun _ => ?_) fun _ => ?_

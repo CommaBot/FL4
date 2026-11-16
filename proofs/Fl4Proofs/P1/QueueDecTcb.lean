@@ -48,11 +48,10 @@ structure SspHyps (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar :
   idle : ∀ (Ac : Set U64) (s : S) (t : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize),
     DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra → t ≠ L.idleW s
 
-/-- The thread-family labels P1 does not prove, and `SetSchedParams`'
-premises (`SspHyps`). -/
+/-- The thread-family labels P1 does not prove (`SetEPTRoot`, VT-x: not yet
+refined, DESIGN §5), and `SetSchedParams`' premises (`SspHyps`). -/
 structure TcbGaps (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
-  readRegisters : TcbGap st ar T Cs Ω H Sg Rp Scs Nt Z U fl4_abi.label.TCBReadRegisters
   ssp : SspHyps st ar T Cs Ω H Sg Rp Scs Nt Z U
   setEPTRoot : TcbGap st ar T Cs Ω H Sg Rp Scs Nt Z U fl4_abi.label.TCBSetEPTRoot
 

@@ -11,6 +11,7 @@ import Fl4Proofs.P1.QueueDecIrq
 import Fl4Proofs.P1.QueueDecVs
 import Fl4Proofs.P1.QueueDecUt
 import Fl4Proofs.P1.QueueUtRetype
+import Fl4Proofs.P1.QueueFinIo
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -42,8 +43,14 @@ structure InvGaps4 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar 
   vsPl : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U
   vcpu : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .vcpu
   ept : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .ept
-  /-- The finalisations of CNode `Delete`/`Revoke` P1 does not prove. -/
-  fin : FinGaps st ar T Cs Ω H Sg Rp Scs Nt Z
+  /-- The VCPU list's placement, for the I/O-port caps' finalisation
+  (`finGap_ioPort`). -/
+  ioPl : IoPortPlace st T Cs Ω H Sg Rp Scs Nt Z
+  /-- The finalisations of CNode `Delete`/`Revoke` P1 does not prove: the
+  VT-x kinds (VCPUs, EPTs, EPT frames; not yet refined, DESIGN §5). -/
+  fin : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => (∃ x1, c = .Vcpu x1) ∨
+    (∃ x1 x2 x3 x4 x5, c = .Ept x1 x2 x3 x4 x5) ∨
+    (∃ x1 x2 x3 x4 x5 x6 x7, c = .Frame x1 x2 x3 x4 x5 true x6 x7)
 
 /-- `InvGaps4` gives `InvGaps3`. -/
 theorem InvGaps4.gaps3 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
@@ -52,10 +59,10 @@ theorem InvGaps4.gaps3 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop}
     (Pt : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
     (G : InvGaps4 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U) :
     InvGaps3 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U :=
-  ⟨decGap_untyped hA hσ (G.utPl.utPlace hA), decGap_thread hA G.thread Pt E (delGaps_of hA Pd (G.fin.kinds hA Pd)) C.toCdtHyps,
+  ⟨decGap_untyped hA hσ (G.utPl.utPlace hA), decGap_thread hA G.thread Pt E (delGaps_of hA Pd ((⟨finGap_ioPort hA G.ioPl, G.fin⟩ : FinGaps st ar T Cs Ω H Sg Rp Scs Nt Z).kinds hA Pd)) C.toCdtHyps,
     decGap_irqControl hA C.toCdtHyps, decGap_irqHandler hA C.toCdtHyps Pd G.irqPl,
     decGap_schedControl hA G.scCtl, decGap_vspace hA Pd G.vsPl C.toCdtHyps E G.irqPl, G.vcpu, G.ept, decGap_ioPortControl C.toCdtHyps,
-    decGap_ioPort hA E, scYieldGap_holds hA U, delGaps_of hA Pd (G.fin.kinds hA Pd)⟩
+    decGap_ioPort hA E, scYieldGap_holds hA U, delGaps_of hA Pd ((⟨finGap_ioPort hA G.ioPl, G.fin⟩ : FinGaps st ar T Cs Ω H Sg Rp Scs Nt Z).kinds hA Pd)⟩
 
 /-- The placement facts and gaps of an admissible set tuple (`InvGaps4`'s
 kernel entry). -/

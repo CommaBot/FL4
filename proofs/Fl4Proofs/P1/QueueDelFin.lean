@@ -211,8 +211,10 @@ structure FinKinds (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar 
   sc : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1 x2, c = .SchedContext x1 x2
   thread : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1, c = .Thread x1
   irq : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1, c = .IrqHandler x1
+  ioPort : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1 x2 x3, c = .IoPort x1 x2 x3
+  /-- The VT-x kinds: VCPUs, EPTs and EPT frames. -/
   arch : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => (∃ x1, c = .Vcpu x1) ∨
-    (∃ x1 x2 x3 x4 x5, c = .Ept x1 x2 x3 x4 x5) ∨ (∃ x1 x2 x3, c = .IoPort x1 x2 x3) ∨
+    (∃ x1 x2 x3 x4 x5, c = .Ept x1 x2 x3 x4 x5) ∨
     (∃ x1 x2 x3 x4 x5 x6 x7, c = .Frame x1 x2 x3 x4 x5 true x6 x7)
 
 /-- **Every cap kind's finalisation**, from `FinKinds`. -/
@@ -236,7 +238,7 @@ theorem fin_all {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U
   | Frame x1 x2 x3 x4 x5 e x6 x7 =>
     cases e
     · exact fin_vs hA P h (Or.inr (Or.inl ⟨_, _, _, _, _, _, _, rfl⟩))
-    · exact G.arch _ _ _ _ _ _ h hc hpl (Or.inr (Or.inr (Or.inr ⟨_, _, _, _, _, _, _, rfl⟩)))
+    · exact G.arch _ _ _ _ _ _ h hc hpl (Or.inr (Or.inr ⟨_, _, _, _, _, _, _, rfl⟩))
   | Endpoint => exact G.ep _ _ _ _ _ _ h hc hpl ⟨_, _, _, _, _, _, rfl⟩
   | Notification => exact G.ntfn _ _ _ _ _ _ h hc hpl ⟨_, _, _, _, rfl⟩
   | Reply => exact G.reply _ _ _ _ _ _ h hc hpl ⟨_, _, rfl⟩
@@ -247,7 +249,7 @@ theorem fin_all {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U
   | Pdpt => exact fin_vs hA P h (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨_, _, _, _, rfl⟩)))))
   | Vcpu => exact G.arch _ _ _ _ _ _ h hc hpl (Or.inl ⟨_, rfl⟩)
   | Ept => exact G.arch _ _ _ _ _ _ h hc hpl (Or.inr (Or.inl ⟨_, _, _, _, _, rfl⟩))
-  | IoPort => exact G.arch _ _ _ _ _ _ h hc hpl (Or.inr (Or.inr (Or.inl ⟨_, _, _, rfl⟩)))
+  | IoPort => exact G.ioPort _ _ _ _ _ _ h hc hpl ⟨_, _, _, rfl⟩
 
 /-! ## `empty_slot` and `post_cap_deletion` -/
 
