@@ -713,7 +713,9 @@ fn sel4test_results(out: &str) -> (usize, Vec<String>) {
     let mut current: Option<String> = None;
     let mut passed = 0;
     for l in out.lines() {
-        let l = l.trim_end();
+        // Some guest printers emit LF-CR rather than CR-LF. Keep the
+        // leading tab on error lines, but remove the preceding CR.
+        let l = l.trim_end().trim_start_matches('\r');
         if let Some(rest) = l.strip_prefix("Starting test ") {
             current = rest.split(": ").nth(1).map(|n| n.to_string());
         } else if l.starts_with("Test ") && l.ends_with(" passed") {
@@ -939,5 +941,7 @@ mod tests {
     fn release_log() {
         let log = "Starting test 95: A\nStarting test 96: B\n\tFailure: result == SUCCESS at line 296 of file d/sel4test-driver/src/testtypes.c\nStarting test 97: C\nTest suite failed. 170/171 tests passed.\n";
         assert_eq!(sel4test_results(log), (170, vec!["B".to_string()]));
+        let lfcr = log.replace('\n', "\n\r");
+        assert_eq!(sel4test_results(&lfcr), (170, vec!["B".to_string()]));
     }
 }

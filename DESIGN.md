@@ -206,7 +206,7 @@ The kernel is a stack of layers. Each one has a single assurance level, so the t
 |---|---|---|---|
 | User space | sel4test, rootserver | | Unmodified sources, built against FL4's libsel4 |
 | Entry and exit | `fl4-arch-x86_64` | Trusted | SYSCALL/SYSRET, interrupt and exception stubs, register save into the TCB, per-core GS state, FPU switching |
-| Transaction runtime | `fl4-sync` | Trusted, sim-tested | Runs each kernel entry as a transaction: begin, commit, retry, escalation to the serial gate, IPI servicing while spinning |
+| Transaction runtime | `fl4-sync` | Trusted, sim-tested | Chooses uncontended serial execution or concurrent transactions; commit, retry, serial-gate escalation, IPI servicing while spinning |
 | Kernel logic | `fl4-core` | Verified | Syscall dispatch, decode, CSpace, CDT, IPC, notifications, untyped, scheduling, MCS refills, VSpace logic, IRQ objects. Safe Rust only, generic over the store and arch traits |
 | Object store | `fl4-store` | Trusted, sim-tested | Implements `Store` over physical memory: directly on one core or under the serial gate, and transactionally otherwise (versioned reads against the lock table, buffered writes, commit) |
 | Hardware backends | | Trusted | Page-table writes, TLB and cache maintenance, x2APIC, TSC-deadline timer, IOAPIC/MSI, ACPI parsing, serial |
@@ -273,15 +273,15 @@ A kernel entry's footprint is the set of objects it reads and writes. FL4 does n
 
 ## 7. Fine-grained locking
 
-seL4 SMP protects the whole kernel with one CLH lock (`NODE_LOCK_SYS` in `include/smp/lock.h`). FL4 runs every kernel entry as a short transaction over only the memory it touches, in the style of TL2 software transactional memory. The core does not know: the transaction lives in the `Store` and `Arch` it is given.
+seL4 SMP protects the whole kernel with one CLH lock (`NODE_LOCK_SYS` in `include/smp/lock.h`). FL4 uses the serial gate for quiet kernel entries and runs concurrent entries as short transactions over only the memory they touch, in the style of TL2 software transactional memory. The core does not know: the transaction lives in the `Store` and `Arch` it is given.
 
 ### The striped seqlock table
 
-Endpoints are 16 bytes and cap slots 32, and a CNode holds thousands of slots. Instead of growing every small object and every slot by a lock word, FL4 keeps locks in a global table indexed by a hash of the cache line a word lives in.
+Endpoints are 16 bytes and cap slots 32, and a CNode holds thousands of slots. Instead of growing every small object and every slot by a lock word, FL4 keeps locks in a global table indexed by a hash of the 16-byte region a word lives in. Adjacent endpoints sharing a physical cache line have distinct stripes.
 
-- Each entry is one cache-line-padded 64-bit word: a lock bit and a 63-bit version. Committing writers set the bit and release it with a new version. Readers check an entry without writing to its line. The default is 4096 entries (256 KiB), configurable.
-- Two lines that hash to the same entry share it. This costs some false conflicts but never correctness: the protocol only needs every word to be covered by exactly one entry.
-- All kernel memory is covered the same way, per-core scheduler state included. Each core's state lies on its own cache lines, so cores conflict on it only when one really touches another's queues.
+- Each entry is a 64-bit word padded to 16 bytes: a lock bit and a 63-bit version. Committing writers set the bit and release it with a new version. Readers check an entry without writing to its line. There are 16384 entries (256 KiB), covering each aligned 256 KiB memory span without collisions within that span. The hash multiplies the span number by an odd constant before XORing it with the within-span index, spreading equally aligned pages from nearby spans across the table. Four version words share a cache line; this trades some metadata false sharing for less cache traffic during clears.
+- Two regions that hash to the same entry share it. This costs some false conflicts but never correctness: the protocol only needs every word to be covered by exactly one entry.
+- All kernel memory is covered the same way, per-core scheduler state included. Each core's state lies on separate cache lines; table hash collisions can still cause false conflicts.
 - A global version clock orders commits.
 
 ### Transaction protocol
@@ -290,7 +290,9 @@ Each kernel entry, and each chunk of a preemptible operation, runs as follows:
 
 ``` mermaid
 flowchart LR
-  E[Kernel entry] --> B[begin: mark core active, read clock]
+  E[Kernel entry] --> P{at most one ticket and probe allowed?}
+  P -->|yes: reserve, await turn, close, no active transactions| Q[run directly, release gate, exit]
+  P -->|no: back off probes on contention| B[begin: mark core active, read clock]
   B --> R[run the core entry on the transactional store]
   R -->|read sees a locked or newer entry| A[abort: drop buffers]
   R -->|irrevocable effect| S[serial gate]
@@ -307,9 +309,13 @@ flowchart LR
 - **Consistent reads.** A read is valid only if its table entry is unlocked and no newer than the clock value the transaction began with. Otherwise the transaction is doomed: from then on reads return zero and nothing it does is kept. Every loop in the core is bounded (P0), so a doomed entry finishes quickly, and until it is doomed the core sees one consistent snapshot of memory. Reads are plain loads through the kernel window, which maps all of kernel memory, so they never fault.
 - **Buffered writes, two-phase commit.** Writes go to a per-core buffer, and later reads of the same word see them. At commit the entries covering the write set are locked in table order, which is deadlock free, then the read set is checked against the start clock, the buffer is written out, and the entries are released with the new version.
 - **Deferred effects.** Arch operations other cores or the hardware could observe (reschedule IPIs, timer programming, interrupt masking and acknowledgement, address-space switches, console output) are queued and run after commit, never while holding entries. An interrupt accepted during the entry is kept and offered again if the transaction reruns.
-- **Irrevocable operations go serial.** Port I/O, remote stalls, FPU state moving between cores, TLB invalidation, and clears of more than 64 KiB cannot run speculatively. An invalidation must follow the page-table change, which a transaction makes only at commit, and its shootdown IPIs need the gate; mapping into an empty entry invalidates nothing, so most maps stay transactions. A core switching address space publishes its ASID before it loads CR3 (or reads the ASID's invalidation generation, with PCIDs), and an invalidation changes the tables before it looks for cores to shoot down, so a switch racing with an unmap cannot keep a stale entry. The transaction aborts and the entry reruns under the serial gate, as does any entry after N failed attempts (default 4).
-- **Clearing free memory runs in place.** An untyped reset clears memory that no live object occupies, and so does making an ASID pool from a fresh frame. Such a clear can exceed the write buffer, but it does not need to be buffered: no other core depends on that memory. `Store::clear_free` means `zero` to the proofs. In a transaction it locks the region's stripes in order, validates the read set, zeroes memory in place along with any buffered writes into it, releases the stripes at a new version, and extends the transaction's read version to it. A reader of the region aborts at the new version. A clear larger than 64 KiB (`KernelResetChunkBits`, so never for a reset) still goes serial.
+- **Irrevocable operations go serial.** Port I/O, remote stalls, FPU state moving between cores, TLB invalidation, and clears of more than 8 KiB rerun under the serial gate. An invalidation must follow the page-table change, which a transaction makes only at commit, and its shootdown IPIs need the gate; mapping into an empty entry invalidates nothing, so most maps stay transactions. A core switching address space publishes its ASID before it loads CR3 (or reads the ASID's invalidation generation, with PCIDs), and an invalidation changes the tables before it looks for cores to shoot down, so a switch racing with an unmap cannot keep a stale entry. The transaction aborts and the entry reruns under the serial gate, as does any entry after N failed attempts (default 4).
+- **Clearing free memory runs in place.** An untyped reset clears memory that no live object occupies, and so does making an ASID pool from a fresh frame. Such a clear does not need to be buffered: no other core depends on that memory. `Store::clear_free` means `zero` to the proofs. In a transaction it locks the region's stripes in order, validates the read set, zeroes memory in place along with any buffered writes into it, releases the stripes at a new version, and extends the transaction's read version to it. A reader of the region aborts at the new version. Clears larger than 8 KiB, including the 64 KiB reset chunk, rerun serially to avoid acquiring thousands of finer stripes.
+  Aligned power-of-two regions of 16 bytes through 8 KiB map to a contiguous stripe interval under the stripe hash, so the runtime enumerates that interval directly in lock order. Other regions retain sorting and deduplication. Saved versions occupy one slot per held stripe, with binary search for read-set validation, instead of an array as large as the global table. The physical backend uses a bulk zero while holding every covering stripe; the simulator retains individual word stores through `Mem::clear`, including their TSO buffering and version history.
 - **The serial gate.** Transactions mark their core active while they run. A core that needs the gate takes it, waits for active transactions to drain, runs the entry directly on memory, and releases it; new transactions wait while it is held. Rare global operations (domain schedule, IRQ control, ASID pool allocation) also use it. With one core there are no transactions and no gate: the store is plain memory.
+- **Opportunistic gate probes.** Before starting a transaction, a core may reserve the next serial ticket with a CAS when the queue is empty or contains just one ticket. Allowing one queued successor avoids dropping immediately into STM when two short entries overlap. The successor services remote calls while waiting for its turn; a remote stall cancels a non-interrupt entry before it runs. Once served, the probe closes the gate with the same SeqCst store as the blocking acquisition and scans the transaction-active flags. If any other core is active, it releases its ticket immediately and uses STM; otherwise it runs the same core entry directly under the gate. A transaction arriving during the probe either publishes its active flag early enough to make the probe fail or observes the closed gate and waits. A failed probe has no memory effects beyond the gate protocol and remote-call servicing.
+- **Contention restores concurrency.** A failed probe or a transaction waiting for a closed gate advances a contention generation. Each core that observes a new generation skips probes for 256 entries. The per-core countdowns occupy separate cache lines. This prevents a busy exclusive owner from repeatedly probing ahead of waiting transactions and makes probes infrequent under sustained parallel load. Generation and countdown atomics only choose a strategy; correctness depends on the ticket and SeqCst handshake, even with stale policy reads. Mandatory serial entries still take FIFO tickets and service IPIs while waiting.
+- **Store specialization.** Once the runtime has selected direct or transactional execution, x86 entry dispatch uses the corresponding `EntryStore<TX>` implementation of the same `Store` interface. Both forward through the existing `PhysStore` implementation with a constant mode, removing a mode branch from each word access. Kernel logic, capability checks, scheduler semantics, and extracted proof definitions are unchanged. Runtime statistics remain enabled in debug builds; release builds avoid updating their otherwise unused shared counters.
 - **IPI-aware spinning.** seL4 services remote-stall IPIs while spinning on its lock. FL4 does the same in every spin loop: waiting for the gate, for a transaction to drain, or for a remote call to be acknowledged. IPI handlers touch only core-local state, so a core waiting for an acknowledgement cannot deadlock with a core spinning on a lock.
 
 ### Footprints of common operations
@@ -387,7 +393,7 @@ Decided: we port seL4's Isabelle abstract specification (the MCS version, from `
 
 The argument
 
-\(1\) A committed transaction ran the serial core on one consistent snapshot of memory and its writes take effect at once, so it behaves like one serial kernel entry, which P0 to P3 are about. (2) Commits are serializable: two-phase locking of the write set with reads validated against the start clock makes any execution equivalent to running the transactions one after another in commit order. A transaction that wrote nothing commits without revalidating, so it serializes at its start rather than at its commit. Together these are P2, a textbook argument proved once in Lean over an abstract model of the runtime, not once per entry point. The model takes each read as one step (the seqlock read in `tx.rs` rechecks the stripe around the load) and the part of a commit that runs with its write stripes locked as one step; lock acquisition, aborts and serial-gate entries interleave freely. (3) Aborted transactions have no effect: their writes stay in the buffer and their Arch effects in the queue. (4) What is left unproven is that `fl4-store`, `fl4-sync` and the IPI paths implement that model correctly on real memory. The simulator tests exactly that.
+\(1\) A committed transaction ran the serial core on one consistent snapshot of memory and its writes take effect at once, so it behaves like one serial kernel entry, which P0 to P3 are about. (2) Commits are serializable: two-phase locking of the write set with reads validated against the start clock makes any execution equivalent to running the transactions one after another in commit order. A transaction that wrote nothing commits without revalidating, so it serializes at its start rather than at its commit. Together these are P2, a textbook argument proved once in Lean over an abstract model of the runtime, not once per entry point. The uncontended probe selects the model's existing serial-entry transition, which already permits a direct entry whenever no transaction is active. The model takes each read as one step (the seqlock read in `tx.rs` rechecks the stripe around the load) and the part of a commit that runs with its write stripes locked as one step; lock acquisition, aborts and serial-gate entries interleave freely. (3) Aborted transactions have no effect: their writes stay in the buffer and their Arch effects in the queue. (4) What is left unproven is that `fl4-store`, `fl4-sync` and the IPI paths implement that model correctly on real memory. The simulator tests exactly that.
 
 ### Trusted base
 
@@ -595,6 +601,91 @@ What the table shows:
 - **FL4 costs more per operation on the multi-core build.** On one core it is about 3.5× slower than seL4 for signal, cap and retype. Not yet measured: whether that is transaction bookkeeping or the gate. The crossover is at about 4 cores for signal and cap, and at about 6 for retype.
 - **seL4 is slow on yield and ipc, likely because of timer writes under KVM.** seL4's yield and same-core IPC take 3,600 and 8,800 ticks. A likely cause, not yet confirmed, is MCS reprogramming the timer on each scheduling-context switch, which is a VM exit under KVM.
 - **seL4's map is about 50× FL4's on one core.** seL4 shoots down every core that has run the address space, even idle ones, which KVM must wake. FL4 interrupts only the cores currently running the ASID (§3).
+
+
+**SMP transaction performance (issue #11).** The runtime avoids transaction
+bookkeeping on quiet entries and reduces false conflicts between small
+objects under parallel Linux workloads. The current measurements and
+validation are summarized below; the core and its proof definitions are
+unchanged.
+
+The retained changes are opportunistic serial admission with contention
+backoff, per-entry store specialization, finer version stripes, and ordered
+bulk clears. The write log retains its locality hash: an isolated ablation
+recovered most of the SMP syscall/IPC loss from removing both word-log tweaks.
+The extra lookup shortcut was dropped. Removing ordered clears substantially
+hurt SMP retype throughput, so that optimization stays.
+The tests focus on gate exclusion/backoff, queued ticket ordering and IPI
+servicing, and clear bounds/validation/version restoration. Existing concurrent
+store tests, simulation and mutation campaigns supply broader coverage.
+
+Fresh comparison on the issue's Ryzen 7 7700/KVM setup, three boots per cell:
+PR base `46b3cb6`, pre-cleanup PR `af5fa2b`, cleaned code
+`10ba06e`, and seL4. Six vCPUs are pinned to physical
+cores 2–7; emulator threads use 0–1. Linux 6.18.63, initramfs, workload,
+per-backend l4h root tasks and mitigation settings are held fixed. Linux runs
+one warmup suite before each measured suite. No builds or benchmarks overlap.
+
+Median Linux `getpid` throughput, million calls/s:
+
+| Linux vCPUs | PR base | Before cleanup | Cleaned PR | Patched seL4 |
+|---|---:|---:|---:|---:|
+| 1 | 0.527 | 1.344 | 1.355 | 1.070 |
+| 2 | 0.617 | 1.409 | 1.339 | 1.313 |
+| 4 | 0.821 | 1.775 | 1.727 | 1.283 |
+
+Other four-vCPU Linux results; throughput higher is better, latency lower:
+
+| Workload | PR base | Before cleanup | Cleaned PR | Patched seL4 |
+|---|---:|---:|---:|---:|
+| 4 KiB faults/s | 569,983 | 633,892 | 687,635 | 665,454 |
+| Fork / exit / wait cycles/s | 9,624 | 11,463 | 11,125 | 12,014 |
+| Cross-core pipe (µs) | 15.532 | 11.975 | 11.763 | 10.944 |
+| Cross-core futex (µs) | 8.802 | 6.375 | 5.485 | 6.473 |
+
+Primitive latency, µs, from 15 measured batches per metric. The primary
+probe has one active core on the six-vCPU machine. Split timings include
+instrumentation and are not additive:
+
+| Primitive | PR base | Before cleanup | Cleaned PR | Patched seL4 |
+|---|---:|---:|---:|---:|
+| Fault/ReplyRecv, separate VSpaces, live FPU | 1.5522 | 0.5740 | 0.5627 | 0.6088 |
+| Syscall-fault delivery, split probe | 0.7789 | 0.2645 | 0.2638 | 0.3066 |
+| ReplyRecv resume, split probe | 0.7940 | 0.3359 | 0.3257 | 0.3302 |
+
+Kernel SMP throughput, aggregate operations per million TSC ticks:
+
+| Workload | Workers | PR base | Before cleanup | Cleaned PR | Upstream seL4 |
+|---|---:|---:|---:|---:|---:|
+| ipc | 6 | 737 | 995 | 965 | 107 |
+| cap | 6 | 1,711 | 1,355 | 1,317 | 1,057 |
+| retype | 2 | 278 | 326 | 327 | 785 |
+| retype | 4 | 567 | 585 | 601 | 753 |
+| retype | 6 | 653 | 941 | 926 | 735 |
+
+Cleanup changes four-vCPU syscall throughput by
+-2.7% and six-worker
+IPC/retype by -3.0% /
+-1.6% versus the preceding PR.
+Performance is not uniform: the cleaned four-vCPU same-core pipe latency is
+7.671 µs versus seL4's 6.881 µs,
+and two-vCPU fork throughput is 6,454/s versus
+10,143/s. The transaction metadata reserves 3.30 MiB more
+BSS than the PR base. Kernel throughput uses upstream seL4 `c98d70a`; Linux
+and primitive probes use l4h-patched seL4 `62e345c`. This is one KVM host with
+pinned but non-isolated cores and boost enabled, not bare-metal or
+application-wide parity.
+
+Validation: host tests, trusted-base check, 200-seed simulation (including
+TSO, PCT and bounded exploration), all runtime mutants, and the strict
+extraction/Lean gate passed. Four-core release KVM passed 192 sel4tests
+and 26 fl4tests; reduced-feature debug KVM passed 26 fl4tests on four cores
+and 193 sel4tests on one. All 60 comparison boots passed.
+
+[Raw measurements](xtask/results/issue-11-linux-optimized.json) retain all
+measured and emitted warmup samples, image hashes, revisions and run order;
+no measured samples were discarded. Runtime implementation remains trusted
+and tested; this adds no proof assumptions or operation-specific lock paths.
 
 
 ## 13. Milestones

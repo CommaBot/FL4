@@ -22,6 +22,12 @@ impl tx::Mem for Phys {
     fn store(&self, addr: u64, v: u64) {
         unsafe { core::ptr::write_volatile(addr as *mut u64, v) }
     }
+    #[inline(always)]
+    fn clear(&self, addr: u64, len: u64) {
+        // The caller has exclusive access: a single core, the serial
+        // gate, or every covering stripe held until publication.
+        unsafe { core::ptr::write_bytes(addr as *mut u8, 0, len as usize) }
+    }
 }
 
 pub struct PhysStore {
@@ -52,6 +58,7 @@ impl Store for PhysStore {
         }
     }
 
+    #[inline(always)]
     fn zero(&mut self, addr: u64, len: u64) {
         if self.tx {
             tx::zero(self.cpu, addr, len)
@@ -60,6 +67,7 @@ impl Store for PhysStore {
         }
     }
 
+    #[inline(always)]
     fn clear_free(&mut self, addr: u64, len: u64) {
         if self.tx {
             tx::clear_free(self.cpu, &Phys, addr, len)
@@ -77,4 +85,44 @@ impl Store for PhysStore {
     fn cur_cpu(&self) -> u64 {
         self.cpu
     }
+}
+
+/// A store whose mode is fixed for one kernel entry. Both specializations
+/// use the same primitives as PhysStore; LLVM removes the per-word mode
+/// branch. The runtime chooses the mode and provides the synchronization.
+pub struct EntryStore<const TX: bool> {
+    ks_base: u64,
+    cpu: u64,
+}
+
+impl PhysStore {
+    pub fn specialize<const TX: bool>(&self) -> EntryStore<TX> {
+        debug_assert_eq!(self.tx, TX);
+        EntryStore {
+            ks_base: self.ks_base,
+            cpu: self.cpu,
+        }
+    }
+}
+
+impl<const TX: bool> EntryStore<TX> {
+    #[inline(always)]
+    fn phys(&self) -> PhysStore {
+        PhysStore { ks_base: self.ks_base, cpu: self.cpu, tx: TX }
+    }
+}
+
+impl<const TX: bool> Store for EntryStore<TX> {
+    #[inline(always)]
+    fn read(&self, addr: u64) -> u64 { self.phys().read(addr) }
+    #[inline(always)]
+    fn write(&mut self, addr: u64, v: u64) { self.phys().write(addr, v); }
+    #[inline(always)]
+    fn zero(&mut self, addr: u64, len: u64) { self.phys().zero(addr, len); }
+    #[inline(always)]
+    fn clear_free(&mut self, addr: u64, len: u64) { self.phys().clear_free(addr, len); }
+    #[inline(always)]
+    fn ks_base(&self) -> u64 { self.ks_base }
+    #[inline(always)]
+    fn cur_cpu(&self) -> u64 { self.cpu }
 }

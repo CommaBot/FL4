@@ -223,6 +223,9 @@ impl fl4_sync::EntryEnv for KernelEnv {
         pc.held_used = false;
     }
     fn count(&self, what: fl4_sync::Count) {
+        // These counters are exposed only by debug diagnostics. In a
+        // release build their shared cache line would contend on every entry.
+        if !fl4_abi::config::DEBUG_BUILD { return; }
         use core::sync::atomic::Ordering::Relaxed;
         match what {
             fl4_sync::Count::Commit => {
@@ -351,23 +354,41 @@ extern "C" fn fl4_entry(f: &mut Frame) {
     // An interrupt is handled even if a stall cancelled the entry: it has
     // been accepted and needs its EOI.
     run_entry(irq, |s, a| {
-        if v == VEC_SYSCALL {
-            syscall::handle_syscall(s, a, f.rdx as i64);
-        } else if irq {
-            syscall::handle_interrupt_entry(s, a, v - VEC_IRQ_MIN);
-        } else if v == 14 {
-            syscall::handle_vm_fault(s, a, cr2, f.error);
-        } else if (v == 1 || v == 3) && fl4_abi::config::HARDWARE_DEBUG_API {
-            syscall::handle_debug_exception(s, a, v, dr6);
-        } else if v == 2 || v == VEC_SPURIOUS {
-            // NMI or spurious interrupt: nothing to do.
-        } else if v < 32 {
-            syscall::handle_user_exception(s, a, v, f.error);
-        } else if v >= VEC_TRAP_MIN {
-            syscall::handle_trap_syscall(s, a, v);
+        if s.tx {
+            dispatch_entry(&mut s.specialize::<true>(), a, v, irq, f.rdx as i64, f.error, cr2, dr6);
+        } else {
+            dispatch_entry(&mut s.specialize::<false>(), a, v, irq, f.rdx as i64, f.error, cr2, dr6);
         }
     });
     exit()
+}
+
+#[inline(always)]
+fn dispatch_entry<S: fl4_core::machine::Store>(
+    s: &mut S,
+    a: &mut PhysArch,
+    v: u64,
+    irq: bool,
+    number: i64,
+    error: u64,
+    cr2: u64,
+    dr6: u64,
+) {
+    if v == VEC_SYSCALL {
+        syscall::handle_syscall(s, a, number);
+    } else if irq {
+        syscall::handle_interrupt_entry(s, a, v - VEC_IRQ_MIN);
+    } else if v == 14 {
+        syscall::handle_vm_fault(s, a, cr2, error);
+    } else if (v == 1 || v == 3) && fl4_abi::config::HARDWARE_DEBUG_API {
+        syscall::handle_debug_exception(s, a, v, dr6);
+    } else if v == 2 || v == VEC_SPURIOUS {
+        // NMI or spurious interrupt: nothing to do.
+    } else if v < 32 {
+        syscall::handle_user_exception(s, a, v, error);
+    } else if v >= VEC_TRAP_MIN {
+        syscall::handle_trap_syscall(s, a, v);
+    }
 }
 
 /// Leave the kernel to the current thread (or the idle loop), giving up
