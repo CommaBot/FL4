@@ -253,7 +253,8 @@ pub fn needs_serial(cpu: u64) -> bool {
 
 #[inline(always)]
 fn slot_of(addr: u64) -> usize {
-    ((addr >> 3).wrapping_mul(0x9E37_79B9_7F4A_7C15) >> 53) as usize & (WB - 1)
+    // Keep nearby words nearby; mix in the page to spread aligned objects.
+    ((addr >> 3) ^ (addr >> 12)) as usize & (WB - 1)
 }
 
 /// Where `addr` is, or would go, in the write buffer.
