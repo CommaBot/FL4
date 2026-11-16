@@ -429,7 +429,8 @@ theorem sched.activate_thread.entry (hA : P0.ArchTotal ar) (s : S) (a : A)
 theorem EntryHyps.of {U : Set U64} (hA : P0.ArchTotal ar) (xfer : XferOK st ar T U)
     (tmoOK : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
       CanBlock st T Ac s (L.curW s) ∧ UserOK st T Cs Ω H U s ∧
-      ∀ sl : obj.Slot, obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄)
+      ∀ i, (i = layout.tcb.SLOT_TIMEOUT_HANDLER ∨ i = layout.tcb.SLOT_FAULT_HANDLER) →
+        obj.Tcb.slot (L.curW s) i ⦃ sl => obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄)
     (inv : ∀ (Ac : Set U64) (s : S) (a : A) (call blk don fp : Bool) (cptr : U64),
       BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → L.cscW s ∈ Ac →
       syscall.handle_invocation st ar s a call blk don fp cptr ⦃ r s' _ => ∃ Ac',
@@ -440,8 +441,8 @@ theorem EntryHyps.of {U : Set U64} (hA : P0.ArchTotal ar) (xfer : XferOK st ar T
       CanBlock st T Ac s (L.curW s) ∧ UserOK st T Cs Ω H U s ∧
       (∀ cptr, cspace.lookup_cap st s (L.curW s) cptr ⦃ r => ∀ c, r = .Ok c → CapTyped H Rp Nt c ⦄) ∧
       (∀ n ∈ Nt, L.epState s n ≠ 3#u64))
-    (irqcap : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → ∀ sl : obj.Slot,
-      obj.Slot.cap st sl s ⦃ c => ∀ ptr b0 b1 b2, c = .Notification ptr b0 b1 b2 → ptr ∈ Nt ⦄)
+    (irqcap : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → ∀ i : U64, i.val < 128 →
+      obj.Slot.cap st (irqSlotA (L.ksb s) i) s ⦃ c => ∀ ptr b0 b1 b2, c = .Notification ptr b0 b1 b2 → ptr ∈ Nt ⦄)
     (debug : ∀ (Ac : Set U64) (s : S) (a : A) (t : obj.Tcb) (n : I64), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
       syscall.debug_syscall st ar s a t n ⦃ _ s' _ => ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄) :
     EntryHyps st ar T Cs Ω H Sg Rp Scs Nt Z U :=
