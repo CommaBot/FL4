@@ -251,7 +251,7 @@ structure ReplyHyps : Prop where
         else ok s
       k s2) ⦃ P ⦄
   faultReply : ∀ s (a : A) σ (t snd : U64) (x : Fl4Spec.Tcb) (f : Fl4Spec.Fault), IRel st N T C E R B c s σ →
-    t ∈ T → snd ∈ T → t ≠ snd → σ.kheap t.bv = some (.tcb x) → x.tcbFault = some f →
+    t ∈ T → snd ∈ T → t ≠ snd → σ.kheap t.bv = some (.tcb x) → x.tcbFault = some f → x.tcbState = .inactive →
     fl4FaultReply st ar s a t snd ⦃ res => ∃ z ∈ (specFaultReply snd.bv t.bv f σ).1,
       IRel st N T C E R B c res.1 z.2 ⦄
   /-- The transfer with a grant and extra caps into a receive buffer with no
@@ -485,7 +485,7 @@ theorem do_reply_transfer_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E
       rw [nd_bind_one htr, Notif.setThreadState_eq _ hkx4]; rfl
     · obtain ⟨f, hf'⟩ := Option.ne_none_iff_exists'.1 hf
       rw [if_neg (by rw [hft]; unfold fl4_abi.consts.fault.NullFault; intro h; exact hf (hTR2.fault0.1 h))]
-      exact WP.spec_mono (hRH.faultReply s2 a1 σ2 i ct x1 f ⟨hIR2, hSRT2⟩ hiT hct hit hkx2 hf')
+      exact WP.spec_mono (hRH.faultReply s2 a1 σ2 i ct x1 f ⟨hIR2, hSRT2⟩ hiT hct hit hkx2 hf' hx1s)
         fun _ ⟨z1, hz1, hX3⟩ => ⟨z1, Or.inr ⟨f, hf', hz1⟩, hX3⟩
   · rintro ⟨s3, a2⟩ ⟨z1, hbr, hX3⟩
     exact WP.spec_mono (reply_tail_top hTl hP0 hmb hRH.tmo s3 a2 z1.2 i ft x1.tcbFault hX3 hiT hft0 hft5)
