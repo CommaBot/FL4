@@ -1,20 +1,25 @@
 //! Transactions over kernel memory (DESIGN.md §7): TL2-style, with a
 //! striped seqlock table.
 //!
-//! Every 64-byte line of kernel memory is covered by one entry of `TABLE`:
+//! Every 16-byte region of kernel memory is covered by one entry of `TABLE`:
 //! a version (even, a value of `CLOCK`) and a lock bit. A transaction reads
-//! the clock when it begins. Its reads are valid if the line's entry is
+//! the clock when it begins. Its reads are valid if the region's entry is
 //! unlocked and no newer than that; otherwise the transaction is doomed and
 //! reads return 0 until it ends. Writes are buffered per core. Commit locks
-//! the entries of the written lines in table order, checks the read set,
+//! the entries of the written regions in table order, checks the read set,
 //! writes the buffer out and releases the entries with a new version.
 //!
 //! All per-core state is used only by its core, with interrupts disabled.
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicU64, Ordering};
 
+// A stripe is no larger than the smallest kernel object (an endpoint).
+// Four times as many entries preserve a 256 KiB contiguous stripe span.
+const STRIPE_BITS: u32 = 4;
+const STRIPE_BYTES: u64 = 1 << STRIPE_BITS;
+const TABLE_BITS: u32 = 14;
 /// Table entries; a power of two.
-pub const ENTRIES: usize = 4096;
+pub const ENTRIES: usize = 1 << TABLE_BITS;
 /// Cores with transaction state.
 pub const MAX_CPUS: usize = 16;
 /// Distinct lines a transaction may read, and words it may write. An
@@ -23,11 +28,11 @@ const MAX_READS: usize = 2048;
 const WB: usize = 2048;
 /// Largest `zero` done inside a transaction (bytes); larger clears go serial.
 const MAX_TX_ZERO: u64 = 512;
-/// Largest `clear_free` done in place inside a transaction (bytes): the
-/// lines it covers fit the version table without wrapping. Larger clears
-/// go serial.
-const MAX_TX_CLEAR: u64 = 65536;
-const CLEAR_LINES: usize = (MAX_TX_CLEAR / 64) as usize;
+/// Largest `clear_free` done in place inside a transaction (bytes).
+/// Larger clears rerun serially: acquiring thousands of finer stripes
+/// costs more than a bulk clear under the existing gate.
+const MAX_TX_CLEAR: u64 = 8192;
+const CLEAR_LINES: usize = (MAX_TX_CLEAR / STRIPE_BYTES) as usize;
 
 /// Memory under the store: physical memory through the kernel window on
 /// hardware, simulated memory in fl4-sim.
@@ -85,8 +90,8 @@ static CLOCK: AtomicU64 = AtomicU64::new(0);
 /// The table entry covering `addr`.
 #[inline(always)]
 pub fn stripe(addr: u64) -> usize {
-    let l = addr >> 6;
-    ((l ^ (l >> 12)) as usize) & (ENTRIES - 1)
+    let l = addr >> STRIPE_BITS;
+    ((l ^ (l >> TABLE_BITS)) as usize) & (ENTRIES - 1)
 }
 
 /// Per core, the last few conflicts, for diagnosing contention: the word
@@ -136,7 +141,8 @@ pub struct TxState {
     // `clear_free`: the entries it holds, deduplicated by `zstamp`.
     zgen: u32,
     zstamp: [u32; ENTRIES],
-    zsaved: [u64; ENTRIES],
+    // Saved versions in zlist order; only held stripes need a slot.
+    zsaved: [u64; CLEAR_LINES],
     zlist: [u16; CLEAR_LINES],
 }
 
@@ -162,7 +168,7 @@ impl TxState {
             nw: 0,
             zgen: 0,
             zstamp: [0; ENTRIES],
-            zsaved: [0; ENTRIES],
+            zsaved: [0; CLEAR_LINES],
             zlist: [0; CLEAR_LINES],
         }
     }
@@ -355,7 +361,7 @@ pub fn clear_free<M: Mem>(cpu: u64, m: &M, addr: u64, len: u64) {
     if t.doom != DOOM_NONE {
         return;
     }
-    if len > MAX_TX_CLEAR || (((addr + len + 63) >> 6) - (addr >> 6)) as usize > CLEAR_LINES {
+    if len > MAX_TX_CLEAR || (((addr + len + STRIPE_BYTES - 1) >> STRIPE_BITS) - (addr >> STRIPE_BITS)) as usize > CLEAR_LINES {
         t.doom = DOOM_SERIAL;
         return;
     }
@@ -365,11 +371,11 @@ pub fn clear_free<M: Mem>(cpu: u64, m: &M, addr: u64, len: u64) {
         t.zgen = 1;
     }
     let mut n = 0;
-    if len >= 64 && len.is_power_of_two() && addr & (len - 1) == 0 {
+    if len >= STRIPE_BYTES && len.is_power_of_two() && addr & (len - 1) == 0 {
         // An aligned power-of-two region fits inside an aligned 256 KiB
         // block. The hash XORs a constant into its varying low bits,
         // so its stripes form one aligned interval, already in lock order.
-        n = (len / 64) as usize;
+        n = (len / STRIPE_BYTES) as usize;
         let first = stripe(addr) & !(n - 1);
         for i in 0..n {
             let e = first + i;
@@ -377,7 +383,7 @@ pub fn clear_free<M: Mem>(cpu: u64, m: &M, addr: u64, len: u64) {
             t.zlist[i] = e as u16;
         }
     } else {
-        let mut a = addr & !63;
+        let mut a = addr & !(STRIPE_BYTES - 1);
         while a < addr + len {
             let e = stripe(a);
             if t.zstamp[e] != t.zgen {
@@ -385,16 +391,16 @@ pub fn clear_free<M: Mem>(cpu: u64, m: &M, addr: u64, len: u64) {
                 t.zlist[n] = e as u16;
                 n += 1;
             }
-            a += 64;
+            a += STRIPE_BYTES;
         }
         t.zlist[..n].sort_unstable();
     }
-    for &e in t.zlist[..n].iter() {
+    for (slot, &e) in t.zlist[..n].iter().enumerate() {
         let e = e as usize;
         loop {
             let v = m.a_load(&TABLE[e].0, Ordering::Relaxed);
             if v & 1 == 0 && m.a_cas(&TABLE[e].0, v, v | 1, Ordering::Acquire, Ordering::Relaxed).is_ok() {
-                t.zsaved[e] = v;
+                t.zsaved[slot] = v;
                 break;
             }
             m.relax();
@@ -403,12 +409,16 @@ pub fn clear_free<M: Mem>(cpu: u64, m: &M, addr: u64, len: u64) {
     let wv = m.a_add(&CLOCK, 2, Ordering::AcqRel) + 2;
     for i in 0..t.nreads {
         let e = t.reads[i] as usize;
-        let v = if t.zstamp[e] == t.zgen { t.zsaved[e] } else { m.a_load(&TABLE[e].0, Ordering::Acquire) };
+        let v = if t.zstamp[e] == t.zgen {
+            // The stamp identifies an entry in the sorted, unique list.
+            let slot = t.zlist[..n].binary_search(&(e as u16)).unwrap();
+            t.zsaved[slot]
+        } else { m.a_load(&TABLE[e].0, Ordering::Acquire) };
         // (Mutation test: `mutant-clear-no-validate` clears without checking.)
         if (v & 1 != 0 || v > t.rv) && !cfg!(feature = "mutant-clear-no-validate") {
             log_conflict(cpu, (1 << 63) | e as u64);
-            for &e in t.zlist[..n].iter() {
-                m.a_store(&TABLE[e as usize].0, t.zsaved[e as usize], Ordering::Release);
+            for (slot, &e) in t.zlist[..n].iter().enumerate() {
+                m.a_store(&TABLE[e as usize].0, t.zsaved[slot], Ordering::Release);
             }
             t.doom = DOOM_CONFLICT;
             return;
@@ -566,17 +576,39 @@ mod tests {
     }
 
     #[test]
+    fn independent_small_objects_in_one_cache_line_can_commit() {
+        let _test = TEST_LOCK.lock().unwrap();
+        let m = SparseMem::default();
+        // Four endpoint-sized objects share one physical cache line.
+        // They must not invalidate each other's transactional reads.
+        for cpu in 0..4 {
+            let addr = 0x100000 + cpu * 16 + 8;
+            m.store(addr, cpu);
+            begin(cpu, &m);
+            assert_eq!(read(cpu, &m, addr), cpu);
+            write(cpu, addr, cpu + 10);
+        }
+        for cpu in (0..4).rev() {
+            assert!(commit(cpu, &m));
+            end(cpu);
+            assert_eq!(m.load(0x100000 + cpu * 16 + 8), cpu + 10);
+        }
+    }
+
+    #[test]
     fn clear_free_handles_aligned_and_partial_regions() {
         let _test = TEST_LOCK.lock().unwrap();
         let m = SparseMem::default();
         // Include a 256 KiB block boundary and partial first/last
         // lines. The latter must use the general sorted/deduplicated path.
         for (addr, len) in [
+            (0x100000, 16),
+            (0x100008, 24),
             (0x100000, 64),
             (0x120000, 4096),
-            (0x130000, 65536),
-            (0x13fff8, 8192),
-            (0x140008, 65528),
+            (0x130000, MAX_TX_CLEAR),
+            (0x13fff8, 4096),
+            (0x140008, MAX_TX_CLEAR - 8),
         ] {
             for a in (addr - 8..addr + len + 8).step_by(8) {
                 m.store(a, 7);
@@ -600,7 +632,7 @@ mod tests {
                 assert_eq!(m.load(a), if a == addr + 8 { 15 } else { 0 });
             }
         }
-        for (addr, len) in [(0x100008, MAX_TX_CLEAR), (0x100000, MAX_TX_CLEAR + 8)] {
+        for (addr, len) in [(0x100008, MAX_TX_CLEAR), (0x100000, MAX_TX_CLEAR + 8), (0x130000, 65536)] {
             m.store(addr, 99);
             begin(0, &m);
             clear_free(0, &m, addr, len);
@@ -634,17 +666,51 @@ mod tests {
     }
 
     #[test]
+    fn failed_clear_restores_each_held_version() {
+        let _test = TEST_LOCK.lock().unwrap();
+        let m = SparseMem::default();
+        let base = 0x123000;
+        let marker = base + 0x2000;
+        let mut versions = [0; 4];
+        for (i, old) in versions.iter_mut().enumerate() {
+            let addr = base + i as u64 * 16;
+            begin(1, &m);
+            write(1, addr, i as u64 + 1);
+            assert!(commit(1, &m));
+            end(1);
+            *old = TABLE[stripe(addr)].0.load(Ordering::Acquire);
+        }
+        assert!(versions.windows(2).all(|v| v[0] != v[1]));
+        m.store(marker, 0);
+        begin(0, &m);
+        assert_eq!(read(0, &m, marker), 0);
+        begin(1, &m);
+        write(1, marker, 1);
+        assert!(commit(1, &m));
+        end(1);
+        clear_free(0, &m, base, 64);
+        assert!(doomed(0));
+        assert!(!commit(0, &m));
+        end(0);
+        for (i, old) in versions.into_iter().enumerate() {
+            let addr = base + i as u64 * 16;
+            assert_eq!(TABLE[stripe(addr)].0.load(Ordering::Acquire), old);
+            assert_eq!(m.load(addr), i as u64 + 1);
+        }
+    }
+
+    #[test]
     fn aligned_clear_stripes_are_one_ordered_interval() {
         // Exercise every high hash value and every supported block size.
         // Compare the shortcut to the actual per-line hash, including
         // addresses beyond the first 256 KiB block.
         for high in 0..ENTRIES as u64 {
-            for bits in 6..=16 {
+            for bits in STRIPE_BITS..=MAX_TX_CLEAR.ilog2() {
                 let len = 1u64 << bits;
                 let addr = (high << 18) + ((high * 7919) & ((1 << 18) - 1) & !(len - 1));
-                let n = (len / 64) as usize;
+                let n = (len / STRIPE_BYTES) as usize;
                 let first = stripe(addr) & !(n - 1);
-                let mut actual: std::vec::Vec<_> = (addr..addr + len).step_by(64).map(stripe).collect();
+                let mut actual: std::vec::Vec<_> = (addr..addr + len).step_by(STRIPE_BYTES as usize).map(stripe).collect();
                 actual.sort_unstable();
                 assert!(actual.into_iter().eq(first..first + n));
             }
