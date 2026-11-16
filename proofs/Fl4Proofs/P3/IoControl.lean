@@ -18,6 +18,7 @@ the scheduler-action word is not a bitmap word.
 import Fl4Proofs.P3.IoPost
 import Fl4Proofs.P3.IrqArch
 import Fl4Proofs.P3.MdbStepVs
+import Fl4Proofs.P3.StepSem
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -139,7 +140,7 @@ theorem FrameInv.of_same' {th : TypedHeap} {m m' : U64 → U64} {G : MdbGhost} (
 the bitmap words, past them, change). -/
 theorem DK4.of_mask {s s' : S} (hf : (L.ksb s).val + 13568 ≤ 2 ^ 64) (ha : (L.ksb s).val % 8 = 0)
     {low high : U64} {set : Bool} (h : MaskPost (L := L) (L.ksb s) low high set s s') : DK4 (L := L) s s' := by
-  refine ⟨h.1, fun o ho => h.2.1 _ ?_ fun w hw e => ?_⟩
+  refine ⟨h.1, fun o ho => h.2.2.1 _ ?_ fun w hw e => ?_⟩
   · have hv := dw_val hf ho
     have := domOffs0_lt ho
     unfold P1.Aligned; rw [hv]; omega
@@ -149,40 +150,69 @@ theorem DK4.of_mask {s s' : S} (hf : (L.ksb s).val + 13568 ≤ 2 ^ 64) (ha : (L.
     have := congrArg UScalar.val e
     rw [hv, hv2] at this; omega
 
+/-- **The bitmap writes** (`StepClosed.ks`): `set_mask`'s words, the spec's
+IO ports. -/
+theorem Steps.mask {th : TypedHeap} {s s' : S} {a : A} {σ : Fl4Spec.State Unit} (hL : IoLayout th (L.ksb s))
+    {low high : U64} {set : Bool} (hh : high.val < 65536) (hlh : low.val ≤ high.val)
+    (hM : MaskPost (L := L) (L.ksb s) low high set s s') :
+    Steps (L := L) arI th s a σ s' a (ioMaskSt (BitVec.ofNat 16 low.val) (BitVec.ofNat 16 high.val) set σ) := by
+  intro Q hQ
+  have hka : (L.ksb s).val % 8 = 0 := by
+    have h0 := (hL.out 0#u64 (by decide)).1
+    unfold P1.Aligned at h0; rw [ioA_val hL.fit (by decide)] at h0; omega
+  refine hQ.ks s s' a a σ _ ⟨hM.1, hM.2.1, fun b hb hn => hM.2.2.1 b hb fun w hw e => hn ?_⟩
+    (by constructor <;> rfl) (DK4.of_mask hL.fit hka hM) rfl rfl (fun h => ⟨fun i hi => ?_, h.node⟩)
+    (fun h => IoRel.mask h hh hlh hM) (Or.inl rfl)
+  · subst e
+    have hv := ioA_val hL.fit hw
+    have hK : (⟨BitVec.ofNat 64 (5344 + 8 * w.val)⟩ : U64).val = 5344 + 8 * w.val := by
+      show (BitVec.ofNat 64 _).toNat = _; simp; omega
+    exact ⟨⟨BitVec.ofNat 64 (5344 + 8 * w.val)⟩, by rw [hK]; omega, by rw [hK]; omega, by rw [hK]; omega,
+      by rw [hK, hv]; omega⟩
+  · have hv := irqStA_val hL.fit hi
+    rw [hM.2.2.1 _ (by unfold P1.Aligned; rw [hv]; omega) fun w hw e => by
+      have := ioA_val hL.fit hw; rw [← e, hv] at this; omega]
+    exact h.st i hi
+
 /-- The outcome of an IOPortControl invocation against a spec decode `m`:
 the same error with the state unchanged, or an invocation after which (with
 `set_thread_state Restart` first) `arch_perform_invocation` has an outcome
-in related states, with `FinInv` and `IoPortsAlloc`. -/
+in related states, with `FinInv` and `IoPortsAlloc`; the run made of
+primitive steps from `(s, ar, σ)` (`Steps`). -/
 def IoCPost (th : TypedHeap) (kb : U64) (σ : Fl4Spec.State Unit) (m : Fl4Spec.SEMonad Unit Fl4Spec.ArchInvocation)
-    (s : S) : core.result.Result Unit error.Exc × S × A → Prop
-  | (.Err e, s', _) => s' = s ∧ ∃ e', m.run σ = ({(.error e', σ)}, False) ∧ ErrRel e e'
-  | (.Ok (), s', _) => ∃ inv, m.run σ = ({(.ok inv, σ)}, False) ∧ ∃ σ1,
+    (s : S) (ar : A) : core.result.Result Unit error.Exc × S × A → Prop
+  | (.Err e, s', a') => s' = s ∧ (∃ e', m.run σ = ({(.error e', σ)}, False) ∧ ErrRel e e') ∧ a' = ar
+  | (.Ok (), s', a') => ∃ inv, m.run σ = ({(.ok inv, σ)}, False) ∧ ∃ σ1,
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
-      ∃ σ' G' r, (.ok r, σ') ∈ ((Fl4Spec.archPerformInvocation (Z := Unit) inv).run σ1).1 ∧
+      ∃ σ' G', (.ok [], σ') ∈ ((Fl4Spec.archPerformInvocation (Z := Unit) inv).run σ1).1 ∧
         CRel th (L.mem s') σ' G' ∧ IoRel (L.mem s') kb σ' ∧ FinInv th (L.mem s') σ' G' ∧
-        IoPortsAlloc (L.mem s') kb G' ∧ MdbOKV kb (L.mem s') G' ∧ (DomPlaced (L := L) th s → DK4 (L := L) s s')
+        IoPortsAlloc (L.mem s') kb G' ∧ MdbOKV kb (L.mem s') G' ∧ (DomPlaced (L := L) th s → DK4 (L := L) s s') ∧
+        Steps (L := L) arI th s ar σ s' a' σ'
 
+variable {arI} in
 theorem IoCPost.of_run {th : TypedHeap} {kb : U64} {σ : Fl4Spec.State Unit}
-    {m m' : Fl4Spec.SEMonad Unit Fl4Spec.ArchInvocation} (h : m.run σ = m'.run σ) {s : S}
-    {res : core.result.Result Unit error.Exc × S × A} (hq : IoCPost (L := L) th kb σ m' s res) :
-    IoCPost (L := L) th kb σ m s res := by
+    {m m' : Fl4Spec.SEMonad Unit Fl4Spec.ArchInvocation} (h : m.run σ = m'.run σ) {s : S} {ar : A}
+    {res : core.result.Result Unit error.Exc × S × A} (hq : IoCPost (L := L) arI th kb σ m' s ar res) :
+    IoCPost (L := L) arI th kb σ m s ar res := by
   obtain ⟨r, s', a'⟩ := res
   cases r with
-  | Err e => obtain ⟨h1, e', h2, h3⟩ := hq; exact ⟨h1, e', h.trans h2, h3⟩
+  | Err e => obtain ⟨h1, ⟨e', h2, h3⟩, h4⟩ := hq; exact ⟨h1, ⟨e', h.trans h2, h3⟩, h4⟩
   | Ok u => obtain ⟨inv, h2, h3⟩ := hq; exact ⟨inv, h.trans h2, h3⟩
 
+variable {arI} in
 theorem IoCPost.congr {th : TypedHeap} {kb : U64} {σ : Fl4Spec.State Unit}
-    {m m' : Fl4Spec.SEMonad Unit Fl4Spec.ArchInvocation} (h : m.run σ = m'.run σ) {s : S}
+    {m m' : Fl4Spec.SEMonad Unit Fl4Spec.ArchInvocation} (h : m.run σ = m'.run σ) {s : S} {ar : A}
     {prog : Result (core.result.Result Unit error.Exc × S × A)}
-    (hp : prog ⦃ res => IoCPost (L := L) th kb σ m' s res ⦄) : prog ⦃ res => IoCPost (L := L) th kb σ m s res ⦄ :=
+    (hp : prog ⦃ res => IoCPost (L := L) arI th kb σ m' s ar res ⦄) : prog ⦃ res => IoCPost (L := L) arI th kb σ m s ar res ⦄ :=
   WP.spec_mono hp (fun _ hq => IoCPost.of_run h hq)
 
+variable {arI} in
 theorem IoCPost.err {th : TypedHeap} {kb : U64} {σ : Fl4Spec.State Unit}
-    {m : Fl4Spec.SEMonad Unit Fl4Spec.ArchInvocation} {s : S} {a : A} {e : error.Exc} {e' : Fl4Spec.SyscallError}
+    {m : Fl4Spec.SEMonad Unit Fl4Spec.ArchInvocation} {s : S} {ar : A} {e : error.Exc} {e' : Fl4Spec.SyscallError}
     (h : m.run σ = ({(.error e', σ)}, False)) (he : ErrRel e e') :
-    (ok ((.Err e, s, a) : core.result.Result Unit error.Exc × S × A)) ⦃ res =>
-      IoCPost (L := L) th kb σ m s res ⦄ := by
-  rw [WP.spec_ok]; exact ⟨rfl, e', h, he⟩
+    (ok ((.Err e, s, ar) : core.result.Result Unit error.Exc × S × A)) ⦃ res =>
+      IoCPost (L := L) arI th kb σ m s ar res ⦄ := by
+  rw [WP.spec_ok]; exact ⟨rfl, ⟨e', h, he⟩, rfl⟩
 
 /-- `target_tail` for `IoCPost`. -/
 theorem io_target_tail (th : TypedHeap) (kb : U64)
@@ -192,7 +222,7 @@ theorem io_target_tail (th : TypedHeap) (kb : U64)
     (K : obj.Slot → Result (core.result.Result Unit error.Exc × S × A))
     (hK : ∀ dsl pd, dsl.1 = pd.bv → th pd = some (.cnode dsl.2.length) →
       capAt (L.mem s) (cslotAddr dsl) = ok .Null →
-      K (cslotAddr dsl) ⦃ res => IoCPost (L := L) th kb σ (ks dsl) s res ⦄) :
+      K (cslotAddr dsl) ⦃ res => IoCPost (L := L) arI th kb σ (ks dsl) s ar res ⦄) :
     (do
       let r ← cspace.lookup_target_slot st s c idx dep
       let cf ← core.result.Result.Insts.CoreOpsTry.branch r
@@ -210,8 +240,8 @@ theorem io_target_tail (th : TypedHeap) (kb : U64)
         let r1 ← core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
           Unit (core.convert.FromSame error.Exc) residual
         ok (r1, s, ar)) ⦃ res =>
-      IoCPost (L := L) th kb σ (Fl4Spec.lookupTargetSlot ac (Fl4Spec.dataToCptr idx.bv) (Fl4Spec.unat dep.bv) >>=
-        fun d => Fl4Spec.ensureEmpty d >>= fun _ => ks d) s res ⦄ := by
+      IoCPost (L := L) arI th kb σ (Fl4Spec.lookupTargetSlot ac (Fl4Spec.dataToCptr idx.bv) (Fl4Spec.unat dep.bv) >>=
+        fun d => Fl4Spec.ensureEmpty d >>= fun _ => ks d) s ar res ⦄ := by
   unfold cspace.lookup_target_slot
   obtain ⟨r1, hr1, e1, he1, hrel1⟩ := spec_exists
     (lookup_slot_for_cnode_op_refines (Z := Unit) th s σ hR hV false c ac hca hcv idx dep)
@@ -255,7 +285,7 @@ theorem io_target_tail (th : TypedHeap) (kb : U64)
 
 theorem MaskPost.slotsSame {th : TypedHeap} (hP : Placed th) {kb : U64} (hL : IoLayout th kb) {s s' : S}
     {low high : U64} {set : Bool} (h : MaskPost (L := L) kb low high set s s') : SlotsSame th (L.mem s) (L.mem s') :=
-  io_frame_slotsSame hP hL h.2.1
+  io_frame_slotsSame hP hL h.2.2.1
 
 /-- **`set_thread_state Restart`, with the bitmap relation.** -/
 theorem restart_io (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost)
@@ -315,8 +345,8 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
     (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok .IoPortControl) (ac : Fl4Spec.ArchCap) :
     ioport.decode_control st arI s ar fl4_abi.label.X86IOPortControlIssue length (cslotAddr (ps.bv, idxs)) buf
       extra ⦃ res =>
-      IoCPost (L := L) th (L.ksb s) σ
-        (Fl4Spec.decodeIoportControlInvocation slbl (args.map UScalar.bv) (ps.bv, idxs) ac excaps) s res ⦄ := by
+      IoCPost (L := L) arI th (L.ksb s) σ
+        (Fl4Spec.decodeIoportControlInvocation slbl (args.map UScalar.bv) (ps.bv, idxs) ac excaps) s ar res ⦄ := by
   obtain ⟨hR, hV, hM, hC, hI⟩ := hCR
   unfold ioport.decode_control
   rw [if_neg (by simp)]
@@ -395,14 +425,16 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
   refine IoCPost.congr (run_bind_ok (m := (Fl4Spec.NonDetE.returnOk () : Fl4Spec.SEMonad Unit Unit)) rfl _) ?_
   have hfree' : ∀ p, first.val ≤ p → p ≤ last.val → bitOf (L.mem s) (L.ksb s) p = false := by
     simpa using hb.symm
-  refine io_target_tail th (L.ksb s) s ar σ hR hV c0 ac0 hca0 hcv0 y2 y3 _ _ ?_
+  refine io_target_tail arI th (L.ksb s) s ar σ hR hV c0 ac0 hca0 hcv0 y2 y3 _ _ ?_
   intro dsl pd hpd1 hpd hdst
   obtain ⟨da, db⟩ := dsl
   simp only at hpd1 hpd; subst hpd1
   -- `set_thread_state Restart`
-  refine WP.spec_bind (WP.spec_and (restart_io th hP s σ G ⟨hR, hV, hM, hC, hI⟩ hL hIo ct hcur htcb hact hact3)
-    (sts_dk4c hP s htcb sched.TS_RESTART)) ?_
-  rintro s2 ⟨⟨hkb, hS, σ1, hst, hCR1, hIo1, hw⟩, hdk1⟩
+  have hrs := restart_io th hP s σ G ⟨hR, hV, hM, hC, hI⟩ hL hIo ct hcur htcb hact hact3
+  refine WP.spec_bind (WP.spec_and (WP.spec_and hrs (sts_dk4c hP s htcb sched.TS_RESTART)) (spec_self hrs)) ?_
+  rintro s2 ⟨⟨⟨hkb, hS, σ1, hst, hCR1, hIo1, hw⟩, hdk1⟩, hs2⟩
+  obtain ⟨xct, hkct, -⟩ := hR.tcb ct htcb
+  have hstp1 : Steps (L := L) arI th s ar σ s2 ar σ1 := Steps.restart arI hcur hkct htcb hs2 hst
   -- the bitmap
   have hL2 : IoLayout th (L.ksb s2) := by rw [hkb]; exact hL
   refine WP.spec_bind (set_mask_spec hL2 s2 rfl first last hfl hlv true) ?_
@@ -437,9 +469,16 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
     · exact Or.inl h
     · exact Or.inr ((hM2.members _).1 h).1
   have hfrm := insert_frame hP s3 (.IoPort first last 0#u64) _ _ hAs.isSlot hAd.isSlot _ hsrc3 hnx
-  refine WP.spec_bind (WP.spec_and hins hfrm) ?_
-  rintro s4 ⟨⟨σ', G', hci, hR', hV', hM', hC', hI', hFI', hcap4, ⟨bG, hGe⟩, hSt4⟩, hF4⟩
+  refine WP.spec_bind (WP.spec_and (WP.spec_and hins hfrm)
+    (Vs.insert_frame2 hP s3 (.IoPort first last 0#u64) _ _ hAs.isSlot hAd.isSlot _ hsrc3 hnx)) ?_
+  rintro s4 ⟨⟨⟨σ', G', hci, hR', hV', hM', hC', hI', hFI', hcap4, ⟨bG, hGe⟩, hSt4⟩, hF4⟩, hF4'⟩
   rw [WP.spec_ok]
+  have hk3 : L.ksb s3 = L.ksb s := hM3.1.trans hkb
+  have hstp : Steps (L := L) arI th s ar σ s4 ar σ' :=
+    (hstp1.trans arI (Steps.mask arI hL2 hlv hfl hM3)).trans arI
+      (Steps.insert arI hP hps hpd rfl hci hF4' ⟨hR', hV', hM', hC', hI'⟩ hFI'
+        (by rw [hk3]; exact (MdbStep.same_left hM hS23 hSt4).okv hFR)
+        fun y hy hne => by rw [hcap4 y hy, if_neg hne])
   have hkeep := capInsert_keeps (absCap (.IoPort first last 0#u64)) (ps.bv, idxs) (pd.bv, db) σ2 ((), σ')
     (by rw [hci]; rfl)
   have hIo4 : IoRel (L.mem s4) (L.ksb s) σ' := by
@@ -448,8 +487,8 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
     unfold bitOf
     rw [hF4.out (hL.out _ (by rw [wI_val hp]; omega))]
   refine ⟨.invokeIOPortControl (.ioPortControlInvocation (BitVec.ofNat 16 first.val) (BitVec.ofNat 16 last.val)
-    (pd.bv, db) (ps.bv, idxs)), rfl, σ1, hst, σ', G', [], ?_, ⟨hR', hV', hM', hC', hI'⟩, hIo4, hFI', ?_, ?_,
-    fun hD => ?_⟩
+    (pd.bv, db) (ps.bv, idxs)), rfl, σ1, hst, σ', G', ?_, ⟨hR', hV', hM', hC', hI'⟩, hIo4, hFI', ?_, ?_,
+    fun hD => ?_, hstp⟩
   rotate_right
   · have hK2 : KsbOK (L := L) th s2 := hD.toK.same (hdk1 hD).1
     have hdk3 : DK4 (L := L) s2 s3 := DK4.of_mask hK2.fits hK2.align hM3
@@ -499,7 +538,7 @@ theorem ioport_control_other (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.Sta
     (length slot buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) (args : List Fl4Spec.Data)
     (ssl : Fl4Spec.CslotPtr) (ac : Fl4Spec.ArchCap) (excaps : List Fl4Spec.Cap) :
     ioport.decode_control st arI s ar lbl length slot buf extra ⦃ res =>
-      IoCPost (L := L) th (L.ksb s) σ (Fl4Spec.decodeIoportControlInvocation slbl args ssl ac excaps) s res ⦄ := by
+      IoCPost (L := L) arI th (L.ksb s) σ (Fl4Spec.decodeIoportControlInvocation slbl args ssl ac excaps) s ar res ⦄ := by
   unfold ioport.decode_control
   rw [if_pos (by rw [bne_iff_ne, ne_eq, u64_eq_iff]; simpa using hl)]
   simp only [error.illegal, bind_ok]

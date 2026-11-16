@@ -279,7 +279,7 @@ theorem decode_invocation_irq_control (th : TypedHeap) (hP : Placed th) (s : S) 
   rintro ⟨r0, s', a'⟩ hq
   apply top_of_lift
   cases r0 with
-  | Err e => obtain ⟨rfl, e', h1, h2⟩ := hq; exact Or.inl ⟨e, rfl, rfl, e', h1, h2⟩
+  | Err e => obtain ⟨rfl, ⟨e', h1, h2⟩, -⟩ := hq; exact Or.inl ⟨e, rfl, rfl, e', h1, h2⟩
   | Ok u =>
     obtain ⟨inv, hrun, σ1, hst, σ', G', hx, hCR', -, hF, -, -⟩ := hq
     exact Or.inr ⟨inv, hrun, σ1, hst, (.ok [], σ'), mem_bindE_ok hx (Set.mem_singleton _), th, G',
@@ -312,10 +312,10 @@ theorem decode_invocation_ioport_control (th : TypedHeap) (hP : Placed th) (s : 
   rintro ⟨r0, s', a'⟩ hq
   apply top_of_lift2 (f := Fl4Spec.Fl4Invocation.invokeArchObject) (g := Fl4Spec.Fl4ArchInvocation.spec)
   cases r0 with
-  | Err e => obtain ⟨rfl, e', h1, h2⟩ := hq; exact Or.inl ⟨e, rfl, rfl, e', h1, h2⟩
+  | Err e => obtain ⟨rfl, ⟨e', h1, h2⟩, -⟩ := hq; exact Or.inl ⟨e, rfl, rfl, e', h1, h2⟩
   | Ok u =>
-    obtain ⟨inv, hrun, σ1, hst, σ', G', rr, hx, hCR', -, hF, -, -⟩ := hq
-    exact Or.inr ⟨inv, hrun, σ1, hst, (.ok rr, σ'), hx, th, G', Or.inl ⟨rfl, rr, rfl⟩, hP, hCR', hF⟩
+    obtain ⟨inv, hrun, σ1, hst, σ', G', hx, hCR', -, hF, -, -⟩ := hq
+    exact Or.inr ⟨inv, hrun, σ1, hst, (.ok [], σ'), hx, th, G', Or.inl ⟨rfl, [], rfl⟩, hP, hCR', hF⟩
 
 /-- **An IO port cap** (`ioport_decode_refines`; `In` not called). -/
 theorem decode_invocation_ioport (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)

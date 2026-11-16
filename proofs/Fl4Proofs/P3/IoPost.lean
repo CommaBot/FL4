@@ -94,7 +94,7 @@ theorem io_frame_slotsSame (hP : Placed th) {kb : U64} (hL : IoLayout th kb) {s 
 /-- Bitmap writes keep the slot words. -/
 theorem IoW.slotsSame (hP : Placed th) {kb : U64} (hL : IoLayout th kb) {s s' : S} {F : Nat → U64 → U64}
     (h : IoW (L := L) kb s s' F) : SlotsSame th (L.mem s) (L.mem s') :=
-  io_frame_slotsSame hP hL h.2.1
+  io_frame_slotsSame hP hL h.2.2.1
 
 end
 
@@ -149,7 +149,7 @@ theorem IoRel.mask {kb : U64} {s s' : S} {σ : Fl4Spec.State Unit} (hI : IoRel (
     IoRel (L.mem s') kb (ioMaskSt (BitVec.ofNat 16 low.val) (BitVec.ofNat 16 high.val) set σ) := by
   intro p hp
   have hw : (wI p).val < 1024 := by rw [wI_val hp]; omega
-  have hb := h.2.2 (wI p) hw (p % 64) (by omega)
+  have hb := h.2.2.2 (wI p) hw (p % 64) (by omega)
   rw [wI_val hp] at hb
   unfold bitOf
   rw [hb, show 64 * (p / 64) + p % 64 = p by omega]

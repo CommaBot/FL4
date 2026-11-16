@@ -90,7 +90,7 @@ theorem target_tail {X : Type} (invk : X → Fl4Spec.PMonad Unit Unit) (th : Typ
     (K : obj.Slot → Result (core.result.Result Unit error.Exc × S × A))
     (hK : ∀ dsl pd, dsl.1 = pd.bv → th pd = some (.cnode dsl.2.length) →
       capAt (L.mem s) (cslotAddr dsl) = ok .Null →
-      K (cslotAddr dsl) ⦃ res => CPost (L := L) invk th kb σ (ks dsl) s res ⦄) :
+      K (cslotAddr dsl) ⦃ res => CPost (L := L) arI invk th kb σ (ks dsl) s ar res ⦄) :
     (do
       let r ← cspace.lookup_target_slot st s c idx dep
       let cf ← core.result.Result.Insts.CoreOpsTry.branch r
@@ -108,8 +108,8 @@ theorem target_tail {X : Type} (invk : X → Fl4Spec.PMonad Unit Unit) (th : Typ
         let r1 ← core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
           Unit (core.convert.FromSame error.Exc) residual
         ok (r1, s, ar)) ⦃ res =>
-      CPost (L := L) invk th kb σ (Fl4Spec.lookupTargetSlot ac (Fl4Spec.dataToCptr idx.bv) (Fl4Spec.unat dep.bv) >>=
-        fun d => Fl4Spec.ensureEmpty d >>= fun _ => ks d) s res ⦄ := by
+      CPost (L := L) arI invk th kb σ (Fl4Spec.lookupTargetSlot ac (Fl4Spec.dataToCptr idx.bv) (Fl4Spec.unat dep.bv) >>=
+        fun d => Fl4Spec.ensureEmpty d >>= fun _ => ks d) s ar res ⦄ := by
   unfold cspace.lookup_target_slot
   obtain ⟨r1, hr1, e1, he1, hrel1⟩ := spec_exists
     (lookup_slot_for_cnode_op_refines (Z := Unit) th s σ hR hV false c ac hca hcv idx dep)
@@ -151,20 +151,22 @@ theorem target_tail {X : Type} (invk : X → Fl4Spec.PMonad Unit Unit) (th : Typ
       refine CPost.congr (run_bind_ok hee _) ?_
       exact hK dsl pd hpd1 hpd hcd
 
+variable {arI} in
 theorem CPost.liftME {X Y : Type} {f : X → Y} {invk : Y → Fl4Spec.PMonad Unit Unit} {th : TypedHeap} {kb : U64}
-    {σ : Fl4Spec.State Unit} {m : Fl4Spec.SEMonad Unit X} {s : S} {res : core.result.Result Unit error.Exc × S × A}
-    (hq : CPost (L := L) (invk ∘ f) th kb σ m s res) :
-    CPost (L := L) invk th kb σ (Fl4Spec.NonDetE.liftME f m) s res := by
+    {σ : Fl4Spec.State Unit} {m : Fl4Spec.SEMonad Unit X} {s : S} {ar : A} {res : core.result.Result Unit error.Exc × S × A}
+    (hq : CPost (L := L) arI (invk ∘ f) th kb σ m s ar res) :
+    CPost (L := L) arI invk th kb σ (Fl4Spec.NonDetE.liftME f m) s ar res := by
   obtain ⟨r, s', a'⟩ := res
   cases r with
-  | Err e => obtain ⟨h1, e', h2, h3⟩ := hq; exact ⟨h1, e', run_liftME_err h2, h3⟩
+  | Err e => obtain ⟨h1, ⟨e', h2, h3⟩, h4⟩ := hq; exact ⟨h1, ⟨e', run_liftME_err h2, h3⟩, h4⟩
   | Ok u => obtain ⟨inv, h2, h3⟩ := hq; exact ⟨f inv, run_liftME_ok h2, h3⟩
 
+variable {arI} in
 theorem CPost.liftME' {X Y : Type} {f : X → Y} {invk : Y → Fl4Spec.PMonad Unit Unit} {th : TypedHeap} {kb : U64}
-    {σ : Fl4Spec.State Unit} {m : Fl4Spec.SEMonad Unit X} {s : S}
+    {σ : Fl4Spec.State Unit} {m : Fl4Spec.SEMonad Unit X} {s : S} {ar : A}
     {prog : Result (core.result.Result Unit error.Exc × S × A)}
-    (hp : prog ⦃ res => CPost (L := L) (invk ∘ f) th kb σ m s res ⦄) :
-    prog ⦃ res => CPost (L := L) invk th kb σ (Fl4Spec.NonDetE.liftME f m) s res ⦄ :=
+    (hp : prog ⦃ res => CPost (L := L) arI (invk ∘ f) th kb σ m s ar res ⦄) :
+    prog ⦃ res => CPost (L := L) arI invk th kb σ (Fl4Spec.NonDetE.liftME f m) s ar res ⦄ :=
   WP.spec_mono hp (fun _ hq => CPost.liftME hq)
 
 @[simp] theorem lbl_issue_val : fl4_abi.label.IRQIssueIRQHandler.val = 33 := by
@@ -189,13 +191,15 @@ theorem issue_tail (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4S
       let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
       let (s2, a1) ← interrupt.invoke_irq_control st arI s1 ar irq (cslotAddr dsl) (cslotAddr (ps.bv, idxs))
       ok (core.result.Result.Ok (), s2, a1)) ⦃ res =>
-      CPost (L := L) (Fl4Spec.invokeFl4IrqControl ∘ Fl4Spec.Fl4IrqControlInvocation.spec) th (L.ksb s) σ
-        (Fl4Spec.NonDetE.returnOk (.irqControl (BitVec.ofNat 8 irq.val) dsl (ps.bv, idxs))) s res ⦄ := by
+      CPost (L := L) arI (Fl4Spec.invokeFl4IrqControl ∘ Fl4Spec.Fl4IrqControlInvocation.spec) th (L.ksb s) σ
+        (Fl4Spec.NonDetE.returnOk (.irqControl (BitVec.ofNat 8 irq.val) dsl (ps.bv, idxs))) s ar res ⦄ := by
   obtain ⟨da, db⟩ := dsl
   simp only at hpd1 hpd; subst hpd1
-  refine WP.spec_bind (WP.spec_and (restart_irq th hP s σ G hCR hL hIR ct hcur htcb hact hact2)
-    (sts_dk4c hP s htcb sched.TS_RESTART)) ?_
-  rintro s1 ⟨⟨hkb, hS, σ1, hst, hCR1, hIR1, -, -, hw⟩, hdk1⟩
+  have hrs := restart_irq th hP s σ G hCR hL hIR ct hcur htcb hact hact2
+  refine WP.spec_bind (WP.spec_and (WP.spec_and hrs (sts_dk4c hP s htcb sched.TS_RESTART)) (spec_self hrs)) ?_
+  rintro s1 ⟨⟨⟨hkb, hS, σ1, hst, hCR1, hIR1, -, -, hw⟩, hdk1⟩, hs1⟩
+  obtain ⟨xct, hkct, -⟩ := hCR.1.tcb ct htcb
+  have hstp1 : Steps (L := L) arI th s ar σ s1 ar σ1 := Steps.restart arI hcur hkct htcb hs1 hst
   have hL1 : IntLayout th (L.ksb s1) := by rw [hkb]; exact hL
   have hIR1' : IrqRel (L.mem s1) (L.ksb s1) σ1 := by rw [hkb]; exact hIR1
   have hHA1 : HandlersActive (L.mem s1) (L.ksb s1) G := by
@@ -213,10 +217,11 @@ theorem issue_tail (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4S
   refine WP.spec_bind (WP.spec_and (invoke_ctl_rel arI th hP s1 ar σ1 G hCR1 hL1 hIR1' hHA1 hFI1 hFR1 hmask irq hirq
     hin1 hps hpd hls rfl hsrc1 hdst1)
     (invoke_ctl_dk4c arI hP s1 ar hL1 hCR1.2.2.1 hmask irq hirq hAs.isSlot hAd.isSlot hsrc1)) ?_
-  rintro ⟨s2, a2⟩ ⟨⟨σ', G', hmem, hCR', hIR', -, hFI', hHA', hFR'⟩, hdk2⟩
+  rintro ⟨s2, a2⟩ ⟨⟨σ', G', hmem, hCR', hIR', -, hFI', hHA', hFR', hstp2⟩, hdk2⟩
   apply (WP.spec_ok (core.result.Result.Ok (), s2, a2)).mpr
   refine ⟨.irqControl (BitVec.ofNat 8 irq.val) (pd.bv, db) (ps.bv, idxs), rfl, σ1, hst, σ', G', ?_, hCR', ?_,
-    hFI', ?_, by rw [← hkb]; exact hFR', fun hD => (hdk1 hD).trans (hdk2 (hD.toK.same (hdk1 hD).1))⟩
+    hFI', ?_, by rw [← hkb]; exact hFR', fun hD => (hdk1 hD).trans (hdk2 (hD.toK.same (hdk1 hD).1)),
+    hstp1.trans arI hstp2⟩
   · exact mem_liftE (x := ((), σ')) hmem
   · rw [← hkb]; exact hIR'
   · rw [← hkb]; exact hHA'
@@ -240,8 +245,8 @@ theorem irq_issue_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ
     (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a') :
     interrupt.decode_irq_control st arI s ar fl4_abi.label.IRQIssueIRQHandler length (cslotAddr (ps.bv, idxs))
       buf extra ⦃ res =>
-      CPost (L := L) Fl4Spec.invokeFl4IrqControl th (L.ksb s) σ
-        (Fl4Spec.decodeFl4IrqControl false slbl (args.map UScalar.bv) (ps.bv, idxs) excaps) s res ⦄ := by
+      CPost (L := L) arI Fl4Spec.invokeFl4IrqControl th (L.ksb s) σ
+        (Fl4Spec.decodeFl4IrqControl false slbl (args.map UScalar.bv) (ps.bv, idxs) excaps) s ar res ⦄ := by
   obtain ⟨hR, hV, hM, hC, hI⟩ := hCR
   unfold interrupt.decode_irq_control
   rw [if_pos rfl]
@@ -318,7 +323,7 @@ theorem irq_issue_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ
   simp only [hact0, ne_eq, not_true_eq_false, decide_false, Bool.false_eq_true, ↓reduceIte]
   rw [whenE_neg (by simp [hact0])]
   refine CPost.congr (run_bind_ok (m := (Fl4Spec.NonDetE.returnOk () : Fl4Spec.SEMonad Unit Unit)) rfl _) ?_
-  refine target_tail (Fl4Spec.invokeFl4IrqControl ∘ Fl4Spec.Fl4IrqControlInvocation.spec) th (L.ksb s) s ar σ
+  refine target_tail arI (Fl4Spec.invokeFl4IrqControl ∘ Fl4Spec.Fl4IrqControlInvocation.spec) th (L.ksb s) s ar σ
     hR hV c0 ac0 hca0 hcv0 y1 y2
     (fun d => Fl4Spec.NonDetE.returnOk (.irqControl (BitVec.ofNat 8 y0.val) d (ps.bv, idxs))) _ ?_
   intro dsl pd hpd1 hpd hdst

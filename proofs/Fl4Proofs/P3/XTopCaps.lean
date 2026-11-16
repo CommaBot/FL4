@@ -1,0 +1,189 @@
+/-
+P3 (DESIGN.md §9): **`XTop` from the decodes' primitive steps** and the
+per-cap discharges of TopXAll's named `XCap` hypotheses.
+
+* `QX`: `XTop`'s instance of `StepClosed` (StepSem): from `XTopAt` at a typed
+  heap, the IPC objects outside the kernel-global block (`KsApart`) and the
+  current thread runnable (`CurRun`), `XTopAt` after; `stepClosed_xtop`, by
+  XTopStep's `restart`, `ksStep` and `slotStep`, given `ARMask` (the arch
+  relation kept by the interrupt decodes' arch operations, a named
+  hypothesis: `ArchRefines` has no such clause).
+* `decode_invocation_irq_controlX`, `decode_invocation_ioport_controlX`:
+  `IrqXHyp` / `IoXHyp` for the IRQ control and IO port control caps, from
+  `CPost`'s / `IoCPost`'s `Steps`.
+-/
+import Fl4Proofs.P3.XTopStep
+import Fl4Proofs.P3.RetypeBridge
+import Fl4Proofs.P3.DecodeTop
+open Aeneas Aeneas.Std Result
+
+namespace Fl4Proofs.P3
+open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc
+
+noncomputable section
+
+section
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
+
+/-- **Hypothesis: the arch relation is kept by the interrupt decodes' arch
+operations** (an IRQ's mask, an IOAPIC pin's programming). -/
+def ARMask (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
+  ∀ a c a', AR a c → ArchIrqStep arI a a' → AR a' c
+
+/-- The current thread runnable. -/
+def CurRun (σ : Fl4Spec.State Unit) : Prop :=
+  ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.runnable x.tcbState = true
+
+/-- **`XTop`'s instance of `StepClosed`** (module docstring). -/
+def QX (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (a : A) (σ : Fl4Spec.State Unit) (s' : S) (a' : A)
+    (σ' : Fl4Spec.State Unit) : Prop :=
+  ∀ Z : XSets, Z.th = th → XTopAt (L := L) AR Z s a σ → KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s) → CurRun σ →
+    ∃ G', XTopAt (L := L) AR { Z with G := G' } s' a' σ' ∧ CurRun σ' ∧ L.ksb s' = L.ksb s
+
+theorem stepClosed_xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) (th : TypedHeap) :
+    StepClosed (L := L) arI th (QX (L := L) AR th) := by
+  refine ⟨fun s1 a1 σ1 s2 a2 σ2 s3 a3 σ3 h1 h2 Z hth hX hK hC => ?_,
+    fun s a σ ct x s1 hcur hk htcb hs1 Z hth hX hK hC => ?_,
+    fun s s' a a' σ σ' hw hO hdk hdl hds hirq hio harch Z hth hX hK hC => ?_,
+    fun s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hw hCR hFI hMO hTS Z hth hX hK hC => ?_⟩
+  · obtain ⟨G1, hX1, hC1, hk1⟩ := h1 Z hth hX hK hC
+    obtain ⟨G2, hX2, hC2, hk2⟩ := h2 { Z with G := G1 } hth hX1 (by rw [hk1]; exact hK) hC1
+    exact ⟨G2, hX2, hC2, hk2.trans hk1⟩
+  · have hrun : Fl4Spec.runnable x.tcbState = true := hC x (by rw [hcur]; exact hk)
+    have h := XTopAt.restart hX hcur hk hrun
+    rw [hs1, WP.spec_ok] at h
+    obtain ⟨hX1, -, hk1⟩ := h
+    refine ⟨Z.G, hX1, fun y hy => ?_, hk1⟩
+    rw [stsAct_cur, Notif.stsAct_kheap, Notif.updK_kheap] at hy
+    simp only [Notif.updK] at hy
+    rw [hcur, Function.update_self] at hy
+    cases hy; rfl
+  · have hD := hX.rel.2.2.2.1
+    have hAR := hX.fin.1.1.2.2.2.2.2.2
+    refine ⟨Z.G, XTopAt.ksStep hX hK hw hO (hirq hX.fin.1.1.2.2.2.1) (hio hX.fin.1.1.2.2.2.2.1)
+      (hD.frame (fun o ho => hdk.2 o ho) hdl hds) (by rw [hO.cr3]; exact hAM _ _ _ hAR harch), ?_, hw.1⟩
+    intro y hy; rw [hO.ct, hO.kh] at hy; exact hC y hy
+  · subst hth
+    have hmem : ((), σ') ∈ (Fl4Spec.capInsert (Z := Unit) c (ps.bv, idxs) (pd.bv, idxd) σ).1 := by rw [hci]; rfl
+    have hcn := capInsert_nkn c _ _ σ _ hmem
+    have hSt := hX.rel.2.1.1
+    have hkc : KeepC σ σ' := keepC_of hcn (capInsert_nko c _ _ σ _ hmem) (by
+      rintro p (rfl | hp)
+      · obtain ⟨cs, h, -⟩ := hSt.cnode ps rs hps; exact ⟨rs, cs, h⟩
+      · rw [Set.mem_singleton_iff.1 hp]; obtain ⟨cs, h, -⟩ := hSt.cnode pd rd hpd; exact ⟨rd, cs, h⟩)
+    have hPl := hX.rel.1
+    have hw' : P1.WritesIn st s s' (Sched.SlotWd Z.th) :=
+      ⟨hw.1, hw.2.1, fun b hb hn => hw.2.2 b hb fun h => hn (Sched.slotSpan_wd hPl hb h)⟩
+    refine ⟨G', XTopAt.slotStep hX hw' hcn hkc hCR hFI hMO hTS, fun y hy => ?_, hw.1⟩
+    obtain ⟨hO, -, -⟩ := ostep_of_cnk hcn hkc
+    rw [hO.ct] at hy
+    rcases hkc σ.curThread with e | ⟨r, cs, cs', h1, h2⟩
+    · rw [e] at hy; exact hC y hy
+    · rw [h2] at hy; cases hy
+
+/-- **`XTop` after a run of primitive steps.** -/
+theorem Steps.xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {th : TypedHeap} {s s' : S} {a a' : A}
+    {σ σ' : Fl4Spec.State Unit} (h : Steps (L := L) arI th s a σ s' a' σ') {Z : XSets} (hth : Z.th = th)
+    (hX : XTopAt (L := L) AR Z s a σ) (hK : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)) (hC : CurRun σ) :
+    XTop (L := L) AR s' a' σ' :=
+  let ⟨_, hX', _⟩ := h _ (stepClosed_xtop arI hAM th) Z hth hX hK hC
+  ⟨_, hX'⟩
+
+/-- **`IrqXHyp` for the IRQ control cap**: every label (the legacy, MSI,
+IOAPIC and remapped issues, the errors), from `CPost`'s `Steps`; beyond
+`decode_invocation_irq_control`'s hypotheses, `XTopAt` at its typed heap,
+`KsApart`, the current thread runnable and `ARMask`. -/
+theorem decode_invocation_irq_controlX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR)
+    (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+    (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
+    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
+    (hFR : MdbOKV (L.ksb s) (L.mem s) G)
+    (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : IrqCLabel lbl slbl)
+    (hrm : decide (lbl.val = 72) = Fl4Spec.isFl4RemappedLabel slbl)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hact2 : ∀ i : U64, i.val < 128 → L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION ≠ irqStA (L.ksb s) i)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel th (L.mem s) x0 (excaps.map Prod.fst))
+    {ps : U64} {rs : Nat} (hps : th ps = some (.cnode rs)) {idxs : List Bool} (hls : idxs.length = rs)
+    (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok .IrqControl)
+    (nA : U64) (hnum : arI.num_ioapics ar = ok nA) (hnA : nA.bv = σ.archState.x64NumIoapics)
+    (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
+    (hAR : ArchIrqRel arI ar σ) {Z : XSets} (hth : Z.th = th) (hX0 : XTopAt (L := L) AR Z s ar σ)
+    (hKA : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)) (hC : CurRun σ) (blk call don fp : Bool) (ci : Fl4Spec.CapRef)
+    (buffer : Option Fl4Spec.ObjRef) :
+    XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length (cslotAddr (ps.bv, idxs)) .IrqControl blk call don fp buf
+      extra slbl (args.map UScalar.bv) ci (ps.bv, idxs) excaps buffer ct := by
+  left
+  unfold DecOKDMX syscall.decode_invocation
+  rw [hct]; simp only [bind_ok]
+  have e : specDec fp slbl (args.map UScalar.bv) ci (ps.bv, idxs) .IrqControl excaps buffer =
+      Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeIRQControl
+        (Fl4Spec.decodeFl4IrqControl (decide (lbl.val = 72)) slbl (args.map UScalar.bv) (ps.bv, idxs)
+          (excaps.map Prod.fst)) := by
+    rw [hrm]; rfl
+  rw [e]
+  refine WP.spec_mono (irq_control_decode_refines arI th hP s ar σ G hCR hL hIR hHA hFI hFR lbl slbl hlbl length buf ct
+    hct args hlen hargs hcur htcb hact hact2 extra x0 hx0 _ hex hps hls hsrcC nA hnum hnA hmask hAR) ?_
+  rintro ⟨r0, s', a'⟩ hq
+  cases r0 with
+  | Err e =>
+    obtain ⟨rfl, ⟨e', h1, h2⟩, rfl⟩ := hq
+    exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, h2⟩, ⟨Z, hX0⟩⟩
+  | Ok u =>
+    obtain ⟨inv, hrun, σ1, hst, σ', G', hx, -, -, -, -, -, -, hstp⟩ := hq
+    obtain ⟨Z', hZ'⟩ := hstp.xtop arI hAM hth hX0 hKA hC
+    exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], σ'),
+      mem_bindE_ok hx (Set.mem_singleton _), ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩, hZ'.rel.1, hZ'.rel.2.1,
+        hZ'.rel.2.2.1, hZ'.rel.2.2.2.1, hZ'.rel.2.2.2.2.1⟩, ⟨Z', hZ'⟩⟩
+
+/-- **`IoXHyp` for the IO port control cap**: every label, from `IoCPost`'s
+`Steps`; beyond `decode_invocation_ioport_control`'s hypotheses, `XTopAt`
+at its typed heap, `KsApart`, the current thread runnable and `ARMask`. -/
+theorem decode_invocation_ioport_controlX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR)
+    (th : TypedHeap) (hP : Placed th) (s : S) (ar : A)
+    (σ : Fl4Spec.State Unit) (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hL : IoLayout th (L.ksb s))
+    (hIo : IoRel (L.mem s) (L.ksb s) σ) (hPA : IoPortsAlloc (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
+    (hFR : MdbOKV (L.ksb s) (L.mem s) G)
+    (lbl : U64) (slbl : Fl4Spec.Data)
+    (hlbl : lbl.val = 63 ↔ Fl4Spec.invocationType slbl = .archInvocationLabel .x64IOPortControlIssue)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hact3 : ∀ w : U64, w.val < 1024 → L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION ≠ ioA (L.ksb s) w)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel th (L.mem s) x0 (excaps.map Prod.fst))
+    {ps : U64} {rs : Nat} (hps : th ps = some (.cnode rs)) {idxs : List Bool} (hls : idxs.length = rs)
+    (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok .IoPortControl)
+    {Z : XSets} (hth : Z.th = th) (hX0 : XTopAt (L := L) AR Z s ar σ)
+    (hKA : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)) (hC : CurRun σ) (blk call don fp : Bool) (ci : Fl4Spec.CapRef)
+    (buffer : Option Fl4Spec.ObjRef) :
+    XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length (cslotAddr (ps.bv, idxs)) .IoPortControl blk call don fp buf
+      extra slbl (args.map UScalar.bv) ci (ps.bv, idxs) excaps buffer ct := by
+  left
+  unfold DecOKDMX syscall.decode_invocation
+  rw [hct]; simp only [bind_ok]
+  refine WP.spec_mono (ioport_control_decode_refines arI th hP s ar σ G hCR hL hIo hPA hFI hFR lbl slbl hlbl length buf
+    ct hct args hlen hargs hcur htcb hact hact3 extra x0 hx0 _ hex hps hls hsrcC .ioPortControlCap) ?_
+  rintro ⟨r0, s', a'⟩ hq
+  cases r0 with
+  | Err e =>
+    obtain ⟨rfl, ⟨e', h1, h2⟩, rfl⟩ := hq
+    exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err (run_liftME_err h1), h2⟩, ⟨Z, hX0⟩⟩
+  | Ok u =>
+    obtain ⟨inv, hrun, σ1, hst, σ', G', hx, -, -, -, -, -, -, hstp⟩ := hq
+    obtain ⟨Z', hZ'⟩ := hstp.xtop arI hAM hth hX0 hKA hC
+    exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok (run_liftME_ok hrun)), σ1, hst, (.ok [], σ'), hx,
+      ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩, hZ'.rel.1, hZ'.rel.2.1, hZ'.rel.2.2.1, hZ'.rel.2.2.2.1, hZ'.rel.2.2.2.2.1⟩,
+      ⟨Z', hZ'⟩⟩
+
+end
+
+end
+
+end Fl4Proofs.P3

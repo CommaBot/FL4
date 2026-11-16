@@ -18,6 +18,7 @@ import Fl4Proofs.P3.IntFrame
 import Fl4Spec.Ext.IrqControl
 import Fl4Proofs.P3.MdbStepVs
 import Fl4Proofs.P3.DomKeep
+import Fl4Proofs.P3.StepSem
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -86,38 +87,42 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 /-- The outcome of an IRQControl invocation against a spec decode `m`:
 the same error with the state unchanged, or an invocation after which (with
 `set_thread_state Restart` first) the invocation `invk` has an outcome in
-related states, with `FinInv` and `HandlersActive`. -/
+related states, with `FinInv` and `HandlersActive`; the run made of
+primitive steps from `(s, ar, σ)` (`Steps`). -/
 def CPost {X : Type} (invk : X → Fl4Spec.PMonad Unit Unit) (th : TypedHeap) (kb : U64) (σ : Fl4Spec.State Unit)
-    (m : Fl4Spec.SEMonad Unit X) (s : S) : core.result.Result Unit error.Exc × S × A → Prop
-  | (.Err e, s', _) => s' = s ∧ ∃ e', m.run σ = ({(.error e', σ)}, False) ∧ ErrRel e e'
-  | (.Ok (), s', _) => ∃ inv, m.run σ = ({(.ok inv, σ)}, False) ∧ ∃ σ1,
+    (m : Fl4Spec.SEMonad Unit X) (s : S) (ar : A) : core.result.Result Unit error.Exc × S × A → Prop
+  | (.Err e, s', a') => s' = s ∧ (∃ e', m.run σ = ({(.error e', σ)}, False) ∧ ErrRel e e') ∧ a' = ar
+  | (.Ok (), s', a') => ∃ inv, m.run σ = ({(.ok inv, σ)}, False) ∧ ∃ σ1,
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
       ∃ σ' G', (.ok (), σ') ∈ ((invk inv).run σ1).1 ∧ CRel th (L.mem s') σ' G' ∧ IrqRel (L.mem s') kb σ' ∧
         FinInv th (L.mem s') σ' G' ∧ HandlersActive (L.mem s') kb G' ∧ MdbOKV kb (L.mem s') G' ∧
-        (DomPlaced (L := L) th s → DK4 (L := L) s s')
+        (DomPlaced (L := L) th s → DK4 (L := L) s s') ∧ Steps (L := L) arI th s ar σ s' a' σ'
 
+variable {arI} in
 theorem CPost.of_run {X : Type} {invk : X → Fl4Spec.PMonad Unit Unit} {th : TypedHeap} {kb : U64}
-    {σ : Fl4Spec.State Unit} {m m' : Fl4Spec.SEMonad Unit X} (h : m.run σ = m'.run σ) {s : S}
-    {res : core.result.Result Unit error.Exc × S × A} (hq : CPost (L := L) invk th kb σ m' s res) :
-    CPost (L := L) invk th kb σ m s res := by
+    {σ : Fl4Spec.State Unit} {m m' : Fl4Spec.SEMonad Unit X} (h : m.run σ = m'.run σ) {s : S} {ar : A}
+    {res : core.result.Result Unit error.Exc × S × A} (hq : CPost (L := L) arI invk th kb σ m' s ar res) :
+    CPost (L := L) arI invk th kb σ m s ar res := by
   obtain ⟨r, s', a'⟩ := res
   cases r with
-  | Err e => obtain ⟨h1, e', h2, h3⟩ := hq; exact ⟨h1, e', h.trans h2, h3⟩
+  | Err e => obtain ⟨h1, ⟨e', h2, h3⟩, h4⟩ := hq; exact ⟨h1, ⟨e', h.trans h2, h3⟩, h4⟩
   | Ok u => obtain ⟨inv, h2, h3⟩ := hq; exact ⟨inv, h.trans h2, h3⟩
 
+variable {arI} in
 theorem CPost.congr {X : Type} {invk : X → Fl4Spec.PMonad Unit Unit} {th : TypedHeap} {kb : U64}
-    {σ : Fl4Spec.State Unit} {m m' : Fl4Spec.SEMonad Unit X} (h : m.run σ = m'.run σ) {s : S}
+    {σ : Fl4Spec.State Unit} {m m' : Fl4Spec.SEMonad Unit X} (h : m.run σ = m'.run σ) {s : S} {ar : A}
     {prog : Result (core.result.Result Unit error.Exc × S × A)}
-    (hp : prog ⦃ res => CPost (L := L) invk th kb σ m' s res ⦄) :
-    prog ⦃ res => CPost (L := L) invk th kb σ m s res ⦄ :=
+    (hp : prog ⦃ res => CPost (L := L) arI invk th kb σ m' s ar res ⦄) :
+    prog ⦃ res => CPost (L := L) arI invk th kb σ m s ar res ⦄ :=
   WP.spec_mono hp (fun _ hq => CPost.of_run h hq)
 
+variable {arI} in
 theorem CPost.err {X : Type} {invk : X → Fl4Spec.PMonad Unit Unit} {th : TypedHeap} {kb : U64}
-    {σ : Fl4Spec.State Unit} {m : Fl4Spec.SEMonad Unit X} {s : S} {a : A} {e : error.Exc} {e' : Fl4Spec.SyscallError}
+    {σ : Fl4Spec.State Unit} {m : Fl4Spec.SEMonad Unit X} {s : S} {ar : A} {e : error.Exc} {e' : Fl4Spec.SyscallError}
     (h : m.run σ = ({(.error e', σ)}, False)) (he : ErrRel e e') :
-    (ok ((.Err e, s, a) : core.result.Result Unit error.Exc × S × A)) ⦃ res =>
-      CPost (L := L) invk th kb σ m s res ⦄ := by
-  rw [WP.spec_ok]; exact ⟨rfl, e', h, he⟩
+    (ok ((.Err e, s, ar) : core.result.Result Unit error.Exc × S × A)) ⦃ res =>
+      CPost (L := L) arI invk th kb σ m s ar res ⦄ := by
+  rw [WP.spec_ok]; exact ⟨rfl, ⟨e', h, he⟩, rfl⟩
 
 /-! ## `set_thread_state Restart` -/
 
@@ -182,7 +187,8 @@ theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : 
       ∃ σ' G', ((), σ') ∈ ((Fl4Spec.setIrqState (Z := Unit) .irqSignal (BitVec.ofNat 8 irq.val) >>= fun _ =>
           Fl4Spec.capInsert (Z := Unit) (.irqHandlerCap (BitVec.ofNat 8 irq.val)) (ps.bv, idxs) (pd.bv, idxd)) σ).1 ∧
         CRel th (L.mem r.1) σ' G' ∧ IrqRel (L.mem r.1) (L.ksb s) σ' ∧ L.ksb r.1 = L.ksb s ∧
-        FinInv th (L.mem r.1) σ' G' ∧ HandlersActive (L.mem r.1) (L.ksb s) G' ∧ MdbOKV (L.ksb s) (L.mem r.1) G' ⦄ := by
+        FinInv th (L.mem r.1) σ' G' ∧ HandlersActive (L.mem r.1) (L.ksb s) G' ∧ MdbOKV (L.ksb s) (L.mem r.1) G' ∧
+        Steps (L := L) arI th s ar σ r.1 r.2 σ' ⦄ := by
   unfold interrupt.invoke_irq_control
   obtain ⟨a1, ha1⟩ := hmask ar irq (decide (interrupt.IRQ_SIGNAL = interrupt.IRQ_INACTIVE))
   rw [set_irq_state_eq arI s ar _ irq ha1]
@@ -232,14 +238,20 @@ theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : 
     · exact Or.inl h
     · exact Or.inr ((hM1.members _).1 h).1
   have hfrm := insert_frame hP s1 (.IrqHandler irq) _ _ hAs.isSlot hAd.isSlot _ hsrc1 hnx
-  refine WP.spec_bind (WP.spec_and hins hfrm) ?_
-  rintro s2 ⟨⟨σ2, G2, hci, hR2, hV2, hM2, hC2, hI2, hFI2, hcap2, ⟨bG2, hG2e⟩, hSt2⟩, hF2⟩
+  refine WP.spec_bind (WP.spec_and (WP.spec_and hins hfrm)
+    (Vs.insert_frame2 hP s1 (.IrqHandler irq) _ _ hAs.isSlot hAd.isSlot _ hsrc1 hnx)) ?_
+  rintro s2 ⟨⟨⟨σ2, G2, hci, hR2, hV2, hM2, hC2, hI2, hFI2, hcap2, ⟨bG2, hG2e⟩, hSt2⟩, hF2⟩, hF2'⟩
   rw [WP.spec_ok]
   have hkeep := capInsert_keeps (absCap (.IrqHandler irq)) (ps.bv, idxs) (pd.bv, idxd) σ1 ((), σ2)
     (by rw [hci]; rfl)
   have hkb2 : L.ksb s2 = L.ksb s := by rw [hF2.1]; simp [s1]
   have hFRG : MdbOKV (L.ksb s) (L.mem s2) G2 := (MdbStep.same_left hM hS hSt2).okv hFR
-  refine ⟨σ2, G2, ?_, ⟨hR2, hV2, hM2, hC2, hI2⟩, ⟨fun i hi => ?_, fun i hi => ?_⟩, hkb2, hFI2, ?_, hFRG⟩
+  have hk1 : L.ksb s1 = L.ksb s := by simp [s1]
+  have hstp : Steps (L := L) arI th s ar σ s2 a1 σ2 :=
+    Steps.trans arI (Steps.irqWr arI hL hirq interrupt.IRQ_SIGNAL ha1 .irqSignal hsig)
+      (Steps.insert arI hP hps hpd hld hci hF2' ⟨hR2, hV2, hM2, hC2, hI2⟩ hFI2 (by rw [hk1]; exact hFRG)
+        fun y hy hne => by rw [hcap2 y hy, if_neg hne])
+  refine ⟨σ2, G2, ?_, ⟨hR2, hV2, hM2, hC2, hI2⟩, ⟨fun i hi => ?_, fun i hi => ?_⟩, hkb2, hFI2, ?_, hFRG, hstp⟩
   rotate_right
   · intro y hy i hi
     have hys := ((hM2.members y).1 hy).1

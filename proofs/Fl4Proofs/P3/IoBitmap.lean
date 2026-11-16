@@ -147,27 +147,28 @@ theorem apply_eq (s : S) (w p : U64) (set : Bool) :
 /-- `s'` is `s` with the bitmap words changed by `F` (word index, old
 value). -/
 def IoW (kb : U64) (s s' : S) (F : Nat → U64 → U64) : Prop :=
-  L.ksb s' = L.ksb s ∧ (∀ b, P1.Aligned b → (∀ w : U64, w.val < 1024 → b ≠ ioA kb w) → L.mem s' b = L.mem s b) ∧
+  L.ksb s' = L.ksb s ∧ L.cpu s' = L.cpu s ∧ (∀ b, P1.Aligned b → (∀ w : U64, w.val < 1024 → b ≠ ioA kb w) → L.mem s' b = L.mem s b) ∧
   ∀ w : U64, w.val < 1024 → L.mem s' (ioA kb w) = F w.val (L.mem s (ioA kb w))
 
-theorem IoW.refl (kb : U64) (s : S) : IoW (L := L) kb s s (fun _ v => v) := ⟨rfl, fun _ _ _ => rfl, fun _ _ => rfl⟩
+theorem IoW.refl (kb : U64) (s : S) : IoW (L := L) kb s s (fun _ v => v) := ⟨rfl, rfl, fun _ _ _ => rfl, fun _ _ => rfl⟩
 
 theorem IoW.trans {kb : U64} {s s1 s2 : S} {F F' : Nat → U64 → U64} (h1 : IoW (L := L) kb s s1 F)
     (h2 : IoW (L := L) kb s1 s2 F') (hf : kb.val + 13568 ≤ 2 ^ 64) :
     IoW (L := L) kb s s2 (fun w v => F' w (F w v)) := by
-  refine ⟨h2.1.trans h1.1, fun b hb hn => by rw [h2.2.1 b hb hn, h1.2.1 b hb hn], fun w hw => ?_⟩
-  rw [h2.2.2 w hw, h1.2.2 w hw]
+  refine ⟨h2.1.trans h1.1, h2.2.1.trans h1.2.1, fun b hb hn => by rw [h2.2.2.1 b hb hn, h1.2.2.1 b hb hn],
+    fun w hw => ?_⟩
+  rw [h2.2.2.2 w hw, h1.2.2.2 w hw]
 
 theorem IoW.congr {kb : U64} {s s' : S} {F F' : Nat → U64 → U64} (h : IoW (L := L) kb s s' F)
     (he : ∀ w, w < 1024 → ∀ v, F w v = F' w v) : IoW (L := L) kb s s' F' :=
-  ⟨h.1, h.2.1, fun w hw => by rw [h.2.2 w hw, he _ hw]⟩
+  ⟨h.1, h.2.1, h.2.2.1, fun w hw => by rw [h.2.2.2 w hw, he _ hw]⟩
 
 /-- Writing one bitmap word. -/
 theorem IoW.wr {kb : U64} (hL : IoLayout th kb) (s : S) (hk : L.ksb s = kb) {w : U64} (hw : w.val < 1024)
     (f : U64 → U64) :
     IoW (L := L) kb s (L.wr s (ioA kb w) (f (L.mem s (ioA kb w)))) (fun w' v => if w' = w.val then f v else v) := by
   have ha := (hL.out w hw).1
-  refine ⟨by rw [L.ksb_wr], fun b hb hn => ?_, fun w' hw' => ?_⟩
+  refine ⟨by rw [L.ksb_wr], by rw [L.cpu_wr], fun b hb hn => ?_, fun w' hw' => ?_⟩
   · rw [L.mem_wr _ _ _ _ ha hb, if_neg (fun e => hn w hw e.symm)]
   · rw [L.mem_wr _ _ _ _ ha (hL.out w' hw').1]
     beta_reduce
@@ -235,7 +236,7 @@ theorem add1_val (x : U64) (h : x.val < 64) : (core.num.U64.wrapping_add x 1#u64
 
 /-- The bits after `set_mask low high set`. -/
 def MaskPost (kb : U64) (low high : U64) (set : Bool) (s s' : S) : Prop :=
-  L.ksb s' = L.ksb s ∧ (∀ b, P1.Aligned b → (∀ w : U64, w.val < 1024 → b ≠ ioA kb w) → L.mem s' b = L.mem s b) ∧
+  L.ksb s' = L.ksb s ∧ L.cpu s' = L.cpu s ∧ (∀ b, P1.Aligned b → (∀ w : U64, w.val < 1024 → b ≠ ioA kb w) → L.mem s' b = L.mem s b) ∧
   ∀ w : U64, w.val < 1024 → ∀ i, i < 64 →
     (L.mem s' (ioA kb w)).val.testBit i =
       if low.val ≤ 64 * w.val + i ∧ 64 * w.val + i ≤ high.val then set else (L.mem s (ioA kb w)).val.testBit i
@@ -260,8 +261,8 @@ theorem set_mask_spec {kb : U64} (hL : IoLayout th kb) (s : S) (hk : L.ksb s = k
     have hlw1 : lw.val < 1024 := by omega
     refine WP.spec_mono (apply_ioW hL s hk hlw1 P set) ?_
     intro s' hW
-    refine ⟨hW.1, hW.2.1, fun w hwl i hi => ?_⟩
-    rw [hW.2.2 w hwl]
+    refine ⟨hW.1, hW.2.1, hW.2.2.1, fun w hwl i hi => ?_⟩
+    rw [hW.2.2.2 w hwl]
     beta_reduce
     by_cases e : w.val = lw.val
     · rw [if_pos e, opW_bit set P _ hi, hPb i hi]
@@ -295,8 +296,8 @@ theorem set_mask_spec {kb : U64} (hL : IoLayout th kb) (s : S) (hk : L.ksb s = k
     refine WP.spec_mono (apply_ioW hL s2 (hW2.1.trans (hW1.1.trans hk)) hhw1 P2 set) ?_
     intro s' hW3
     have hW := (hW1.trans hW2 hL.fit).trans hW3 hL.fit
-    refine ⟨hW.1, hW.2.1, fun w hwl i hi => ?_⟩
-    rw [hW.2.2 w hwl]
+    refine ⟨hW.1, hW.2.1, hW.2.2.1, fun w hwl i hi => ?_⟩
+    rw [hW.2.2.2 w hwl]
     beta_reduce
     have h0 : (0#u64 : U64).val = 0 := rfl
     have h64 : (64#u64 : U64).val = 64 := rfl

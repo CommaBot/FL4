@@ -34,8 +34,8 @@ theorem ioport_control_decode_refines (th : TypedHeap) (hP : Placed th) (s : S) 
     {ps : U64} {rs : Nat} (hps : th ps = some (.cnode rs)) {idxs : List Bool} (hls : idxs.length = rs)
     (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok .IoPortControl) (ac : Fl4Spec.ArchCap) :
     ioport.decode_control st arI s ar lbl length (cslotAddr (ps.bv, idxs)) buf extra ⦃ res =>
-      IoCPost (L := L) th (L.ksb s) σ
-        (Fl4Spec.decodeIoportControlInvocation slbl (args.map UScalar.bv) (ps.bv, idxs) ac excaps) s res ⦄ := by
+      IoCPost (L := L) arI th (L.ksb s) σ
+        (Fl4Spec.decodeIoportControlInvocation slbl (args.map UScalar.bv) (ps.bv, idxs) ac excaps) s ar res ⦄ := by
   by_cases h63 : lbl.val = 63
   · have e : lbl = fl4_abi.label.X86IOPortControlIssue :=
       UScalar.eq_of_val_eq (by rw [h63]; simp [fl4_abi.label.X86IOPortControlIssue])

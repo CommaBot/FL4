@@ -92,9 +92,9 @@ theorem irq_control_decode_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar
     (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
     (hAR : ArchIrqRel arI ar σ) :
     interrupt.decode_irq_control st arI s ar lbl length (cslotAddr (ps.bv, idxs)) buf extra ⦃ res =>
-      CPost (L := L) Fl4Spec.invokeFl4IrqControl th (L.ksb s) σ
+      CPost (L := L) arI Fl4Spec.invokeFl4IrqControl th (L.ksb s) σ
         (Fl4Spec.decodeFl4IrqControl (decide (lbl.val = 72)) slbl (args.map UScalar.bv) (ps.bv, idxs) excaps)
-        s res ⦄ := by
+        s ar res ⦄ := by
   obtain ⟨l33, l67, l68, lo⟩ := hlbl
   by_cases h33 : lbl.val = 33
   · have e : lbl = fl4_abi.label.IRQIssueIRQHandler :=

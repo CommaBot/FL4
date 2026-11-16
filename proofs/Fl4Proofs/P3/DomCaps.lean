@@ -174,7 +174,7 @@ theorem decDomHyp_irqControl (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) 
   cases r0 with
   | Err e => obtain ⟨rfl, -⟩ := hq; exact DK4.refl _
   | Ok u =>
-    obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, hdk⟩ := hq
+    obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, hdk, -⟩ := hq
     exact hdk hD
 
 /-- **The IO port control cap's `DecDomHyp`** (`IoCPost`'s `DK4` conjunct). -/
@@ -204,7 +204,7 @@ theorem decDomHyp_ioportControl (th : TypedHeap) (hP : Placed th) (s : S) (ar : 
   cases r0 with
   | Err e => obtain ⟨rfl, -⟩ := hq; exact DK4.refl _
   | Ok u =>
-    obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, hdk⟩ := hq
+    obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, hdk, -⟩ := hq
     exact hdk hD
 
 /-- **The IO port cap's `DecDomHyp`** (`ioport_wfr`). -/
