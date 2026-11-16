@@ -218,6 +218,116 @@ theorem decode_invocation_cnode_copyX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : A
     rw [WP.spec_ok]
     exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, ⟨Z, hX⟩⟩
 
+/-- **Hypothesis: CancelBadgedSends at `XTop`** (the endpoint side, for the
+IPC proofs; the plain `XLeaf` shape): from `XTop`, the caller's restart then
+`cancel_badged_sends` of endpoint `p` and badge `b`, against the spec's
+`cancel_badged_sends` from `σ1` (the state after the spec's restart). -/
+def XCancelBadgedHyp (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (ar : A) (σ σ1 : Fl4Spec.State Unit) (ct p b : U64) :
+    Prop :=
+  XLeaf (L := L) (XTop (L := L) AR) s ar σ (do
+      let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
+      let s2 ← endpoint.cancel_badged_sends st s1 p b
+      ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, ar))
+    (Fl4Spec.cancelBadgedSends (Z := Unit) p.bv b.bv σ1)
+
+set_option maxHeartbeats 4000000 in
+/-- **A CancelBadgedSends's outcome at `XTop`**: from `InvPost` with FL4's
+trace (`CancelTrace`), the restart alone for badge 0 (`XTopAt.restart'`), the
+named `XCancelBadgedHyp` otherwise. -/
+theorem cn_cancel_topX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {ar : A}
+    {σ : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z s ar σ) (hC : CurRun σ)
+    {ct : U64} (hcur : σ.curThread = ct.bv)
+    (hcan : ∀ σ1 p b, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
+      b ≠ 0#u64 → XCancelBadgedHyp (L := L) AR s ar σ σ1 ct p b)
+    {blk call don : Bool}
+    {m : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation} {res : core.result.Result Unit error.Exc × S × A}
+    (hq : InvPost (L := L) Z.th σ Z.G m s (res.1, res.2.1) (CancelTrace (st := st) ct s) ∧ res.2.2 = ar) :
+    TopPostDMX (L := L) (XTop (L := L) AR) σ blk call don (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeCNode m)
+      s res := by
+  obtain ⟨r, s', a'⟩ := res
+  obtain ⟨hq, rfl⟩ := hq
+  cases r with
+  | Err e =>
+    obtain ⟨rfl, e', h1, h2⟩ := hq
+    exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, Or.inl h2⟩, ⟨Z, hX⟩⟩
+  | Ok u =>
+    obtain ⟨inv, hrun, σ1, hst, σ', G', hrunI, -, -, -, -, -, -, -, p, b, rfl, s2, hs2, h0, h1⟩ := hq
+    have hst' : Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) := by rw [← hcur]; exact hst
+    by_cases hb : b = 0#u64
+    · subst hb
+      have e := h0 rfl
+      subst e
+      obtain ⟨hX1, -, -⟩ := hX.restart' hC hcur hs2 hst'
+      have hrun0 : (Fl4Spec.invokeCnode (Z := Unit)
+          (.cancelBadgedSendsCall (absCap (.Endpoint p 0#u64 true true true true)))).run σ1 =
+          ({(.ok (), σ1)}, False) := by
+        show (Fl4Spec.invokeCnode (Z := Unit) (.cancelBadgedSendsCall
+          (.endpointCap p.bv (0#u64 : U64).bv (rightsOf true true true true)))).run σ1 = _
+        unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption
+        simp only [Fl4Spec.NonDet.when]
+        have : ¬ ((0#u64 : U64).bv ≠ 0) := by simp
+        simp only [this, ↓reduceIte]
+        exact run_liftE rfl
+      have hx : ((.ok (), σ1) : Except Unit Unit × Fl4Spec.State Unit) ∈
+          ((Fl4Spec.invokeCnode (Z := Unit) (.cancelBadgedSendsCall
+            (absCap (.Endpoint p 0#u64 true true true true)))).run σ1).1 := by rw [hrun0]; rfl
+      exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], σ1),
+        mem_bindE_ok hx (Set.mem_singleton _), ⟨Z.th, Z.G, Or.inl ⟨rfl, rfl⟩, hX1.rel.1, hX1.rel.2.1,
+          hX1.rel.2.2.1, hX1.rel.2.2.2.1, hX1.rel.2.2.2.2.1⟩, ⟨Z, hX1⟩⟩
+    · have hl := hcan σ1 p b hst hb ⟨Z, hX⟩
+      rw [hs2] at hl
+      simp only [bind_ok] at hl
+      rw [h1 hb] at hl
+      simp only [bind_ok, WP.spec_ok] at hl
+      obtain ⟨-, z, hz, hRT, hXT⟩ := hl
+      have hbv : b.bv ≠ 0 := by
+        intro h; apply hb; apply UScalar.eq_of_val_eq
+        have := congrArg BitVec.toNat h; simpa using this
+      have hx : ((.ok (), z.2) : Except Unit Unit × Fl4Spec.State Unit) ∈
+          ((Fl4Spec.invokeCnode (Z := Unit) (.cancelBadgedSendsCall
+            (absCap (.Endpoint p b true true true true)))).run σ1).1 := by
+        show _ ∈ ((Fl4Spec.invokeCnode (Z := Unit) (.cancelBadgedSendsCall
+          (.endpointCap p.bv b.bv (rightsOf true true true true)))).run σ1).1
+        unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption
+        simp only [Fl4Spec.NonDet.when, hbv, ne_eq, not_false_eq_true, ↓reduceIte]
+        exact mem_liftE (x := ((), z.2)) hz
+      obtain ⟨th', G2, hPl, hCR2, hFI2, hD2, hMO2⟩ := hRT
+      exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], z.2),
+        mem_bindE_ok hx (Set.mem_singleton _), ⟨th', G2, Or.inl ⟨rfl, rfl⟩, hPl, hCR2, hFI2, hD2, hMO2⟩, hXT⟩
+
+/-- **`CnodeXHyp` at the CancelBadgedSends label** (27): `cnode_cancel_refines`
+(with the CSpace side `CancelEpHyp`), then `cn_cancel_topX` (with
+`XCancelBadgedHyp`). -/
+theorem decode_invocation_cnode_cancelX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S)
+    (ar : A) (σ : Fl4Spec.State Unit) (hX : XTopAt (L := L) AR Z s ar σ) (hC : CurRun σ)
+    (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .cnodeCancelBadgedSends)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (p r gs g : U64) (hwf : CapWf (.CNode p r gs g)) (hcv : CapValid Z.th (.CNode p r gs g))
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hact : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hcur : σ.curThread = ct.bv) (hEp : CancelEpHyp (L := L) Z.th s σ)
+    (hcan : ∀ σ1 p b, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
+      b ≠ 0#u64 → XCancelBadgedHyp (L := L) AR s ar σ σ1 ct p b)
+    (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (buffer : Option Fl4Spec.ObjRef) :
+    XCap (L := L) arI (XTop (L := L) AR) s ar σ fl4_abi.label.CNodeCancelBadgedSends length slot (.CNode p r gs g)
+      blk call don fp buf extra slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
+  obtain ⟨⟨hR, hV, hM, hCd, hI⟩, hFI⟩ := And.intro hX.rel.2.1 hX.rel.2.2.1
+  have htcb := (hX.curTcb hcur).1
+  left
+  unfold DecOKDMX syscall.decode_invocation
+  rw [hct]; simp only [bind_ok]
+  cases fp
+  · simp only [Bool.false_eq_true, ↓reduceIte]
+    exact WP.spec_mono (cnode_cancel_refines arI Z.th s ar σ Z.G hR hV hX.rel.1 hM hCd slbl hlbl length buf ct hct
+      args hlen hargs _ _ ⟨hwf, rfl⟩ hcv extra _ hI hFI hact hcur htcb hEp)
+      fun res h => cn_cancel_topX hX hC hcur hcan h
+  · simp only [↓reduceIte]
+    rw [WP.spec_ok]
+    exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, ⟨Z, hX⟩⟩
+
 end
 
 end

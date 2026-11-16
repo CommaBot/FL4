@@ -38,6 +38,14 @@ def CancelEpHyp (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
         Fl4Spec.cancelBadgedSends (Z := Unit) p.bv b.bv σ1 = ({((), σ2)}, False) ∧
         StateRel th (L.mem s2) σ2 ∧ σ2.cdt = σ1.cdt ∧ σ2.isOriginalCap = σ1.isOriginalCap ⦄
 
+/-- **FL4's run of a CancelBadgedSends** (for the composite relation,
+downstream): the invocation's endpoint cap, the caller's restart, then
+nothing for badge 0, else `cancel_badged_sends`. -/
+def CancelTrace (ct : U64) (s : S) (inv : Fl4Spec.CnodeInvocation) (s' : S) : Prop :=
+  ∃ p b : U64, inv = .cancelBadgedSendsCall (absCap (.Endpoint p b true true true true)) ∧
+    ∃ s2, sched.set_thread_state st s ct sched.TS_RESTART = ok s2 ∧ (b = 0#u64 → s' = s2) ∧
+      (b ≠ 0#u64 → endpoint.cancel_badged_sends st s2 p b = ok s')
+
 /-- **CNode CancelBadgedSends**, decode and invoke, for any badge: FL4's
 `cnode::decode` at label `CNodeCancelBadgedSends` against l4v's
 `decode_cnode_invocation`, then `set_thread_state Restart` and
@@ -58,7 +66,7 @@ theorem cnode_cancel_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
     (hEp : CancelEpHyp (L := L) th s σ) :
     cnode.decode st arI s ar fl4_abi.label.CNodeCancelBadgedSends length cap buf extra ⦃ res =>
       InvPost (L := L) th σ G (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
-        (res.1, res.2.1) ⦄ := by
+        (res.1, res.2.1) (CancelTrace (st := st) ct s) ∧ res.2.2 = ar ⦄ := by
   have hin : Fl4Spec.genInvocationType slbl ∈
       Fl4Spec.GenInvocationLabels.uptoEnum .cnodeRevoke .cnodeRotate := by rw [hlbl]; decide
   unfold cnode.decode
@@ -71,7 +79,7 @@ theorem cnode_cancel_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
   · rw [if_pos h2]
     simp only [error.truncated, bind_ok]
     rw [WP.spec_ok]
-    exact ⟨rfl, .truncatedMessage, decode_short _ _ _ σ hin _ (by simp; scalar_tac), trivial⟩
+    exact ⟨⟨rfl, .truncatedMessage, decode_short _ _ _ σ hin _ (by simp; scalar_tac), trivial⟩, rfl⟩
   rw [if_neg h2]
   obtain ⟨y0, y1, rest, rfl⟩ : ∃ y0 y1 rest, args = y0 :: y1 :: rest := by
     match args with
@@ -96,7 +104,7 @@ theorem cnode_cancel_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
       simp only [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
         core.convert.FromSame, core.convert.FromSame.from, bind_ok, bind_tc_ok]
       rw [WP.spec_ok]
-      exact ⟨rfl, e', run_bind_error hlt _, hrel1⟩
+      exact ⟨⟨rfl, e', run_bind_error hlt _, hrel1⟩, rfl⟩
   | Ok dest =>
     cases e1 with
     | error _ => exact hrel1.elim
@@ -123,7 +131,7 @@ theorem cnode_cancel_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
         have hn : ¬ Fl4Spec.hasCancelSendRights (absCap c) := by simp [hos]
         simp only [error.illegal, bind_ok, uncurry_apply_pair]
         rw [WP.spec_ok]
-        refine ⟨rfl, .illegalOperation, ?_, trivial⟩
+        refine ⟨⟨rfl, .illegalOperation, ?_, trivial⟩, rfl⟩
         rw [run_bind_ok hlt, hsp]
         simp only [Fl4Spec.NonDetE.unlessE, hn, ↓reduceIte, Fl4Spec.NonDetE.throwError, ndE_throw_bind]; rfl
       | some pb =>
@@ -149,7 +157,8 @@ theorem cnode_cancel_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
         · subst hb
           simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, bind_ok, uncurry_apply_pair]
           rw [WP.spec_ok]
-          refine ⟨_, hdec', σ1, hst, σ1, G, ?_, hR1, hV1, hM1, hC1, hI1, hFI1, MdbStep.of_same hM hS, trivial⟩
+          refine ⟨⟨_, hdec', σ1, hst, σ1, G, ?_, hR1, hV1, hM1, hC1, hI1, hFI1, MdbStep.of_same hM hS,
+            ⟨p, 0#u64, rfl, s2, hs2, fun _ => rfl, fun h => absurd rfl h⟩⟩, rfl⟩
           show (Fl4Spec.invokeCnode (Z := Unit) (.cancelBadgedSendsCall
             (.endpointCap p.bv (0#u64 : U64).bv (rightsOf true true true true)))).run σ1 = _
           unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption
@@ -166,10 +175,10 @@ theorem cnode_cancel_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
         rw [hs3]; simp only [bind_ok, uncurry_apply_pair]
         rw [WP.spec_ok]
         have hcap : ∀ x, IsSlot th x → capAt (L.mem s3) x = capAt (L.mem s2) x := fun x hx => hS3.capAt hx
-        refine ⟨_, hdec', σ1, hst, σ2, G, ?_, hR2, hV1.of_caps hcap, hM1.of_same hS3,
+        refine ⟨⟨_, hdec', σ1, hst, σ2, G, ?_, hR2, hV1.of_caps hcap, hM1.of_same hS3,
           hC1.of_same hS3 hcdt2 hio2, MdbInv.of_same hM1 hI1 hS3,
           hFI1.of_same hM1 hS3 (ksub_of_eq (cancelBadgedSends_nks _ _) hcb),
-          (MdbStep.of_same hM hS).same_right hM1 hS3, trivial⟩
+          (MdbStep.of_same hM hS).same_right hM1 hS3, ⟨p, b, rfl, s2, hs2, fun h => absurd h hb, fun _ => hs3⟩⟩, rfl⟩
         show (Fl4Spec.invokeCnode (Z := Unit) (.cancelBadgedSendsCall
           (.endpointCap p.bv b.bv (rightsOf true true true true)))).run σ1 = _
         unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption

@@ -132,7 +132,7 @@ theorem cnode_decode_refines (th : TypedHeap) (s : S) (ar : A)
   · have e : lbl = fl4_abi.label.CNodeCancelBadgedSends := UScalar.eq_of_val_eq (by rw [h]; simp [fl4_abi.label.CNodeCancelBadgedSends])
     subst e
     exact WP.spec_mono (cnode_cancel_refines arI th s ar σ G hR hV hP hM hC slbl (by rw [hlbl]; simp [cnodeLabelOf])
-      length buf ct hct args hlen hargs cap a hca hcv extra excaps hI hFI hact hcur htcb hEp) (fun res h => h.toP)
+      length buf ct hct args hlen hargs cap a hca hcv extra excaps hI hFI hact hcur htcb hEp) (fun res h => h.1.toP)
   · have e : lbl = fl4_abi.label.CNodeRotate := UScalar.eq_of_val_eq (by rw [h, lbl_rotate_val])
     subst e
     exact WP.spec_mono (cnode_rotate_refines arI th s ar σ G hR hV hP hM hC slbl (by rw [hlbl]; simp [cnodeLabelOf])
