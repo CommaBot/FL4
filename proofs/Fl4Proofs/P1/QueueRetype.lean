@@ -59,6 +59,11 @@ never untyped memory). -/
 def RegionOffNodes (st : machine.Store S) [L : LawfulStore st] (Cs : Set U64) (s : S) (lo hi : Nat) : Prop :=
   ∀ c ∈ Cs, L.nodeBase s c + 4288 ≤ lo ∨ hi ≤ L.nodeBase s c
 
+/-- An untyped cap's size and free index (P3's `valid_untyped`/`valid_cap`:
+at least x64's `MIN_UNTYPED_BITS` = 4 bits, below 64, the free index within
+the size). -/
+def UtSize (fi sb : U64) : Prop := fi.val ≤ 2 ^ sb.val ∧ 4 ≤ sb.val ∧ sb.val < 64
+
 /-- **P1's half of retype** (module docstring): from `BlkOK` over `H`'s
 sets, with the region's objects droppable (`DropOK`: dead, unreferenced, the
 current thread and SC off the region),
@@ -93,8 +98,8 @@ def ResetKeeps (st : machine.Store S) [L : LawfulStore st] (s s' : S) : Prop :=
 
 open Classical in
 /-- **P1's half of the reset** (module docstring): `reset_untyped` on the
-slot `x` (its cap words `CapW`) of an untyped cap `Untyped p sb fi dev`
-(its free index within its size, P3's `valid_untyped`/`valid_cap`),
+slot `x` (a cap slot, `CapSlotW`) of an untyped cap `Untyped p sb fi dev`
+(its size and free index valid, `UtSize`),
 from `BlkOK` over `H`'s sets with the objects meeting the region droppable
 (`DropOK`), ends in `BlkOK` over `H` with those objects dropped, the dead
 staying dead. -/
@@ -103,11 +108,10 @@ def ResetP1Step (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : m
     BlkOK st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
       (Heap.scBits H) Ac s →
     obj.Slot.cap st x s = ok (.Untyped p sb fi dev) →
-    (∀ K : U64, K.val < 16 → K.val % 8 = 0 →
-      CapW (Heap.tcbs H) (Heap.omega H) (Heap.frame H) (core.num.U64.wrapping_add x K)) →
+    CapSlotW (Heap.tcbs H) (Heap.omega H) (Heap.frame H) x →
     p.val % 2 ^ sb.val = 0 → p.val + 2 ^ sb.val ≤ 2 ^ 64 →
     DropOK st H (RegionD H p.val (p.val + 2 ^ sb.val)) Cs s → RegionOffNodes st Cs s p.val (p.val + 2 ^ sb.val) →
-    fi.val ≤ 2 ^ sb.val →
+    UtSize fi sb →
     untyped.reset_untyped st ar s a x ⦃ res => ∃ (H' : Heap) (Ac' : Set U64),
       BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H')
         (Heap.ntfns H') (Heap.scBits H') Ac' res.2.1 ∧

@@ -190,10 +190,6 @@ structure DecPre (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64)
   cb : CanBlock st T Ac s (L.curW s)
   user : UserOK st T Cs Ω H U s
 
-/-- A cap slot: aligned, its four words cap-slot words (`SlotW`'s shape). -/
-def CapSlotW (T Ω Sg : Set U64) (x : U64) : Prop :=
-  Aligned x ∧ ∀ o : U64, o.val < 32 → o.val % 8 = 0 → CapW T Ω Sg (core.num.U64.wrapping_add x o)
-
 /-- **The gap shape**: `decode_invocation` on a cap of the family `f` keeps
 the invariants (`DecPost`), from `DecPre`. -/
 def DecGap (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64) (H : Heap)

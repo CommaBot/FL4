@@ -193,11 +193,10 @@ theorem reset_step {A' : Type} {arI : machine.Arch A'} (hRS : ResetP1Step st arI
     (hb : BlkOK st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
       (Heap.scBits H) Ac s0)
     (hcap : obj.Slot.cap st x s0 = ok (.Untyped p sb fi dev))
-    (hx : ∀ K : U64, K.val < 16 → K.val % 8 = 0 →
-      CapW (Heap.tcbs H) (Heap.omega H) (Heap.frame H) (core.num.U64.wrapping_add x K))
+    (hx : CapSlotW (Heap.tcbs H) (Heap.omega H) (Heap.frame H) x)
     (hpal : p.val % 2 ^ sb.val = 0) (hfit : p.val + 2 ^ sb.val ≤ 2 ^ 64)
     (hdrop : DropOK st H (RegionD H p.val (p.val + 2 ^ sb.val)) Cs s0)
-    (hnode : RegionOffNodes st Cs s0 p.val (p.val + 2 ^ sb.val)) (hfi : fi.val ≤ 2 ^ sb.val)
+    (hnode : RegionOffNodes st Cs s0 p.val (p.val + 2 ^ sb.val)) (hfi : UtSize fi sb)
     (heq : untyped.reset_untyped st arI s0 ar x = ok r) :
     ∃ (H1 : Heap) (Ac1 : Set U64),
       BlkOK st (Heap.tcbs H1) Cs (Heap.omega H1) H1 (Heap.frame H1) (Heap.replies H1) (Heap.scs H1)

@@ -29,6 +29,10 @@ def TLow (T : Set U64) (b : U64) : Prop := ∃ t ∈ T, ∃ K : U64, K.val < 192
 words of `Ω` outside `Sg`. -/
 def CapW (T Ω Sg : Set U64) (b : U64) : Prop := TLow T b ∨ (b ∈ Ω ∧ b ∉ Sg)
 
+/-- A cap slot: aligned, its four words cap-slot words (`SlotW`'s shape). -/
+def CapSlotW (T Ω Sg : Set U64) (x : U64) : Prop :=
+  Aligned x ∧ ∀ o : U64, o.val < 32 → o.val % 8 = 0 → CapW T Ω Sg (core.num.U64.wrapping_add x o)
+
 /-- Every word below offset 192 of a TCB (its six cap slots) is a `TLow`
 word (the Sc side's `TLowSlots`). -/
 theorem tlow_slots : ∀ t ∈ T, ∀ K : U64, K.val < 192 → TLow T (core.num.U64.wrapping_add t K) :=
