@@ -138,6 +138,7 @@ import Fl4Proofs.P3.VsDomF
 import Fl4Proofs.P3.VsFin
 import Fl4Proofs.P3.VsTopX
 import Fl4Proofs.P3.VsReplyTop
+import Fl4Proofs.P3.HandleTopX
 import Fl4Proofs.P3.CancelKSub
 import Fl4Proofs.P3.ResetFin
 import Fl4Proofs.P3.RetypeFresh
