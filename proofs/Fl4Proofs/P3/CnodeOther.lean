@@ -257,7 +257,67 @@ theorem TrivKind.of_iff {σ σ' : Fl4Spec.State Unit} (h : ∀ a, Fl4Spec.isFina
   cases c <;> simp only [TrivKind] at ht ⊢ <;> first | trivial | exact ⟨ht.1, by rw [h]; exact ht.2⟩
 
 section
-variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
+
+/-- **`delete(slot, true)` of a trivially finalised cap writes only slot
+words**, keeps the arch state and every other slot's cap. -/
+theorem delete_triv_frame (th : TypedHeap) (hP : Placed th) (s : S) (a : A) (G : MdbGhost)
+    (hM : MdbLinks th (L.mem s) G) {x : U64} (hx : IsSlot th x) {c : capability.Cap}
+    (hc : capAt (L.mem s) x = ok c) (hcn : c ≠ .Null) (σ : Fl4Spec.State Unit) {fin : Bool}
+    (hfin : cdt.is_final_capability st s x = ok fin) (htk : TrivKind σ c fin) :
+    cdt.delete st arI s a x true ⦃ r => r.1 = .Ok () ∧ r.2.2 = a ∧ Vs.SlotFrame2 (L := L) th s r.2.1 ∧
+      ∀ y, IsSlot th y → y ≠ x → capV (L.mem r.2.1) y = capV (L.mem s) y ⦄ := by
+  unfold cdt.delete
+  simp only [↓reduceIte]
+  rw [finalise_imm_triv arI σ s a x c hc (Or.inr ⟨fin, hfin, htk⟩)]
+  simp only [bind_ok, core.result.Result.Insts.CoreOpsTry.branch, uncurry_apply_pair]
+  have hxm : x ∈ G.chains.flatten := (hM.members _).2 ⟨hx, c, hc, hcn⟩
+  have hslot : ∀ y, y ∈ G.chains.flatten → IsSlot th y := fun y h => ((hM.members y).1 h).1
+  have hnx : nextOf (L.mem s) x = 0#u64 ∨ (IsSlot th (nextOf (L.mem s) x) ∧ nextOf (L.mem s) x ≠ x) := by
+    rcases hM.next_mem hxm with h | ⟨h1, h2⟩
+    · exact Or.inl h
+    · exact Or.inr ⟨hslot _ h1, h2⟩
+  have hpv : prevOf (L.mem s) x = 0#u64 ∨ (IsSlot th (prevOf (L.mem s) x) ∧ prevOf (L.mem s) x ≠ x) := by
+    by_cases h0 : prevOf (L.mem s) x = 0#u64
+    · exact Or.inl h0
+    · obtain ⟨h1, h2⟩ := hM.prev_link hxm h0
+      refine Or.inr ⟨hslot _ h1, fun e => ?_⟩
+      rw [e] at h2
+      rcases hM.next_mem hxm with h | ⟨-, h⟩
+      · rw [h] at h2; exact hx.ne_zero hP h2.symm
+      · exact h h2
+  have hPN := hM.prev_ne_next hP hxm
+  obtain ⟨⟨s2, a2⟩, he2, hF, ha2⟩ := spec_exists (Vs.empty_frame2 (ar := arI) hP s a x hx c hc
+    (hpv.imp id And.left) (hnx.imp id And.left))
+  obtain ⟨r', he2', hW, -⟩ := spec_exists (empty_slot_mem (ar := arI) hP s a x hx c hc hcn hpv hnx hPN)
+  rw [he2] at he2'
+  have e := eq_of_ok_eq he2'
+  subst e
+  rw [he2]
+  simp only [bind_ok, uncurry_apply_pair]
+  rw [WP.spec_ok]
+  refine ⟨rfl, ha2, hF, fun y hy hne => ?_⟩
+  have h := hW.capAt' hy
+  rw [if_neg hne, capAt_capV, capAt_capV] at h
+  exact eq_of_ok_eq h
+
+/-- **FL4's run of a Revoke, Delete or CancelBadgedSends in
+`cnode_other_refines`'s scope** (for the composite relation, downstream):
+the restart, then nothing (the spec's invocation does nothing either), or
+a trivially finalised cap's deletion: slot words only, the other slots'
+caps kept. -/
+def OtherTrace (th : TypedHeap) (ct : U64) (σ : Fl4Spec.State Unit) (s : S) (inv : Fl4Spec.CnodeInvocation)
+    (s' : S) : Prop :=
+  ∃ s2, sched.set_thread_state st s ct sched.TS_RESTART = ok s2 ∧
+    ((s' = s2 ∧ ∀ σa, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σa)}, False) →
+        (Fl4Spec.invokeCnode (Z := Unit) inv).run σa = ({(.ok (), σa)}, False)) ∨
+      ∃ (px : U64) (rx : Nat) (idx : List Bool) (c : capability.Cap), inv = .deleteCall (px.bv, idx) ∧
+        th px = some (.cnode rx) ∧ idx.length = rx ∧ capAt (L.mem s2) (cslotAddr (px.bv, idx)) = ok c ∧
+        c ≠ .Null ∧
+        (∀ σa, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σa)}, False) →
+          ∃ fin, TrivKind σa c fin) ∧
+        Vs.SlotFrame2 (L := L) th s2 s' ∧
+        ∀ y, IsSlot th y → y ≠ cslotAddr (px.bv, idx) → capV (L.mem s') y = capV (L.mem s2) y)
 
 /-- The scope of `cnode_other_refines`, at the slot the target lookup
 finds: Revoke of a slot with a cap and no children; Delete of an empty or
@@ -295,7 +355,7 @@ theorem cnode_other_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (
         ({(.ok dsl, σ)}, False) → OtherTriv (L := L) lbl s σ dsl) :
     cnode.decode st arI s ar lbl length cap buf extra ⦃ res =>
       InvPost (L := L) th σ G (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
-        (res.1, res.2.1) ⦄ := by
+        (res.1, res.2.1) (OtherTrace (L := L) th ct σ s) ∧ res.2.2 = ar ⦄ := by
   have hcases : lbl.val = 25 ∨ lbl.val = 26 ∨ lbl.val = 27 := by omega
   have hgl : IsOtherLabel (Fl4Spec.genInvocationType slbl) := by
     rw [hlbl]; unfold cnodeLabelOf IsOtherLabel
@@ -309,7 +369,7 @@ theorem cnode_other_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (
   · rw [if_pos h2]
     simp only [error.truncated, bind_ok]
     rw [WP.spec_ok]
-    exact ⟨rfl, .truncatedMessage, decode_short _ _ _ σ hmem _ (by simp; scalar_tac), trivial⟩
+    exact ⟨⟨rfl, .truncatedMessage, decode_short _ _ _ σ hmem _ (by simp; scalar_tac), trivial⟩, rfl⟩
   rw [if_neg h2]
   obtain ⟨y0, y1, rest, rfl⟩ : ∃ y0 y1 rest, args = y0 :: y1 :: rest := by
     match args with
@@ -334,7 +394,7 @@ theorem cnode_other_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (
       simp only [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
         core.convert.FromSame, core.convert.FromSame.from, bind_ok, bind_tc_ok]
       rw [WP.spec_ok]
-      exact ⟨rfl, e', run_bind_error hlt _, hrel1⟩
+      exact ⟨⟨rfl, e', run_bind_error hlt _, hrel1⟩, rfl⟩
   | Ok dest =>
     cases e1 with
     | error _ => exact hrel1.elim
@@ -375,10 +435,13 @@ theorem cnode_other_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (
         have hx : cslotAddr dsl ∈ G.chains.flatten := (hM.members _).2 ⟨hAd.isSlot, c2, hc, hcn⟩
         have hng : ¬ ∃ y, G.par y = some (cslotAddr dsl) := fun h => hnc ((hC.has_child_iff hP hAd).2 h)
         rw [revoke_none arI th hP s2 ar G hM1 ((MdbInv.of_same hM hI hS).parentAdj (th := th)) hx hng, WP.spec_ok]
-        refine ⟨.revokeCall dsl, ?_, σ1', hst, σ1', G, ?_, hR1, hV1, hM1, hC1, MdbInv.of_same hM hI hS, hFI1,
-          MdbStep.of_same hM hS, trivial⟩
+        have hrv : (Fl4Spec.invokeCnode (Z := Unit) (.revokeCall dsl)).run σ1' = ({(.ok (), σ1')}, False) :=
+          capRevoke_none dsl σ1' hgd2 (by rw [hcdt1]; exact hnc)
+        refine ⟨⟨.revokeCall dsl, ?_, σ1', hst, σ1', G, hrv, hR1, hV1, hM1, hC1, MdbInv.of_same hM hI hS, hFI1,
+          MdbStep.of_same hM hS, s2, hs2, Or.inl ⟨rfl, fun σa ha => ?_⟩⟩, rfl⟩
         · rw [run_bind_ok hlt, copyTail_revoke _ _ _ _ hg]; rfl
-        · exact capRevoke_none dsl σ1' hgd2 (by rw [hcdt1]; exact hnc)
+        · have e : σa = σ1' := by have := ha.symm.trans hst; simpa using this
+          subst e; exact hrv
       · -- Delete
         have hg : Fl4Spec.genInvocationType slbl = .cnodeDelete := by rw [hlbl]; simp [cnodeLabelOf, hv]
         have e1 : ¬ lbl = fl4_abi.label.CNodeRevoke := by rw [u64_eq_iff]; simp [hv]
@@ -405,14 +468,42 @@ theorem cnode_other_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (
               · exact Or.inl h
               · exact Or.inr (hslot _ h)
             exact ⟨fin, by rw [is_final_same hS hAd.isSlot hp hn, hf], htk.of_iff hfin1⟩
-        obtain ⟨⟨r3, s3, a3⟩, hd3, hok, σ', G', hcd, hR', hV', hM', hC', hI', hFI', hSt⟩ := spec_exists
-          (delete_refines_fin arI th s2 ar σ1' G hR1 hV1 hP hM1 hC1 (MdbInv.of_same hM hI hS) hFI1 hpd rfl hc2 ht2)
-        simp only at hok hR' hV' hM' hC' hSt
-        subst hok
-        rw [hd3, WP.spec_ok]
-        refine ⟨.deleteCall (pd.bv, db), ?_, σ1', hst, σ', G', hcd, hR', hV', hM', hC', hI', hFI',
-          MdbStep.same_left hM hS hSt, trivial⟩
-        rw [run_bind_ok hlt, copyTail_delete _ _ _ _ hg]; rfl
+        have hdec : (Fl4Spec.lookupTargetSlot (Z := Unit) a (Fl4Spec.dataToCptr y0.bv)
+            (Fl4Spec.dataToNat y1.bv) >>= fun d => copyTail slbl (rest.map UScalar.bv) excaps d).run σ =
+            ({(.ok (.deleteCall (pd.bv, db)), σ)}, False) := by
+          rw [run_bind_ok hlt, copyTail_delete _ _ _ _ hg]; rfl
+        have hσa : ∀ σa, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σa)}, False) →
+            σa = σ1' := fun σa ha => by have := ha.symm.trans hst; simpa using this
+        rcases ht2 with h0 | ⟨fin, hfin2, htk2⟩
+        · -- an empty slot: nothing changes
+          subst h0
+          have hd0 : cdt.delete st arI s2 ar (cslotAddr (pd.bv, db)) true = ok (.Ok (), s2, ar) := by
+            unfold cdt.delete
+            simp only [↓reduceIte]
+            rw [finalise_imm_triv arI σ1' s2 ar _ _ hc2 (Or.inl rfl)]
+            simp only [bind_ok, core.result.Result.Insts.CoreOpsTry.branch, uncurry_apply_pair]
+            rw [empty_slot_null arI s2 ar _ hc2]; simp only [bind_ok, uncurry_apply_pair]
+          have hg0 := hgd2
+          rw [hca2.abs] at hg0
+          have he : Fl4Spec.emptySlot (Z := Unit) (pd.bv, db) .nullCap σ1' = ({((), σ1')}, False) := by
+            unfold Fl4Spec.emptySlot
+            rw [nd_bind_single hg0]; simp [absCap]
+          have hcd0 : (Fl4Spec.invokeCnode (Z := Unit) (.deleteCall (pd.bv, db))).run σ1' =
+              ({(.ok (), σ1')}, False) := capDelete_triv _ σ1' σ1' hg0 (Or.inl (by simp [absCap])) he
+          rw [hd0, WP.spec_ok]
+          refine ⟨⟨.deleteCall (pd.bv, db), hdec, σ1', hst, σ1', G, hcd0, hR1, hV1, hM1, hC1,
+            MdbInv.of_same hM hI hS, hFI1, MdbStep.of_same hM hS, s2, hs2, Or.inl ⟨rfl, fun σa ha => ?_⟩⟩, rfl⟩
+          rw [hσa σa ha]; exact hcd0
+        · have hcn : c2 ≠ .Null := by intro e; subst e; simp [TrivKind] at htk2
+          refine WP.spec_mono (WP.spec_and (delete_refines_fin arI th s2 ar σ1' G hR1 hV1 hP hM1 hC1
+            (MdbInv.of_same hM hI hS) hFI1 hpd rfl hc2 (Or.inr ⟨fin, hfin2, htk2⟩))
+            (delete_triv_frame arI th hP s2 ar G hM1 hAd.isSlot hc2 hcn σ1' hfin2 htk2)) ?_
+          rintro ⟨r3, s3, a3⟩ ⟨⟨hok, σ', G', hcd, hR', hV', hM', hC', hI', hFI', hSt⟩, -, ha3, hF, hcap⟩
+          simp only at hok ha3 hR' hV' hM' hC' hSt hF hcap ⊢
+          subst hok ha3
+          refine ⟨⟨.deleteCall (pd.bv, db), hdec, σ1', hst, σ', G', hcd, hR', hV', hM', hC', hI', hFI',
+            MdbStep.same_left hM hS hSt, s2, hs2, Or.inr ⟨pd, _, db, c2, rfl, hpd, rfl, hc2, hcn,
+              fun σa ha => ⟨fin, by rw [hσa σa ha]; exact htk2⟩, hF, hcap⟩⟩, rfl⟩
       · -- CancelBadgedSends
         have hg : Fl4Spec.genInvocationType slbl = .cnodeCancelBadgedSends := by
           rw [hlbl]; simp [cnodeLabelOf, hv]
@@ -434,7 +525,7 @@ theorem cnode_other_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (
           have hn : ¬ Fl4Spec.hasCancelSendRights (absCap c2) := by simp [hos]
           simp only [error.illegal, bind_ok, uncurry_apply_pair]
           rw [WP.spec_ok]
-          refine ⟨rfl, .illegalOperation, ?_, trivial⟩
+          refine ⟨⟨rfl, .illegalOperation, ?_, trivial⟩, rfl⟩
           rw [run_bind_ok hlt, hsp]
           simp only [Fl4Spec.NonDetE.unlessE, hn, ↓reduceIte, Fl4Spec.NonDetE.throwError, ndE_throw_bind]; rfl
         | some pb =>
@@ -445,17 +536,23 @@ theorem cnode_other_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (
           have hy : Fl4Spec.hasCancelSendRights (absCap (.Endpoint p 0#u64 true true true true)) := by simp [hos]
           simp only [uncurry_apply_pair, hct, bind_ok, hs2, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
           rw [WP.spec_ok]
-          refine ⟨.cancelBadgedSendsCall (absCap (.Endpoint p 0#u64 true true true true)), ?_, σ1', hst,
-            σ1', G, ?_, hR1, hV1, hM1, hC1, MdbInv.of_same hM hI hS, hFI1, MdbStep.of_same hM hS, trivial⟩
-          · rw [run_bind_ok hlt, hsp]
-            simp only [Fl4Spec.NonDetE.unlessE, hy, ↓reduceIte, ndE_pure_bind]; rfl
-          · show (Fl4Spec.invokeCnode (Z := Unit) (.cancelBadgedSendsCall
+          have hrc : (Fl4Spec.invokeCnode (Z := Unit)
+              (.cancelBadgedSendsCall (absCap (.Endpoint p 0#u64 true true true true)))).run σ1' =
+              ({(.ok (), σ1')}, False) := by
+            show (Fl4Spec.invokeCnode (Z := Unit) (.cancelBadgedSendsCall
               (.endpointCap p.bv (0#u64 : U64).bv (rightsOf true true true true)))).run σ1' = _
             unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption
             simp only [Fl4Spec.NonDet.when]
             have : ¬ ((0#u64 : U64).bv ≠ 0) := by simp
             simp only [this, ↓reduceIte]
             exact run_liftE rfl
+          refine ⟨⟨.cancelBadgedSendsCall (absCap (.Endpoint p 0#u64 true true true true)), ?_, σ1', hst,
+            σ1', G, hrc, hR1, hV1, hM1, hC1, MdbInv.of_same hM hI hS, hFI1, MdbStep.of_same hM hS,
+            s2, hs2, Or.inl ⟨rfl, fun σa ha => ?_⟩⟩, rfl⟩
+          · rw [run_bind_ok hlt, hsp]
+            simp only [Fl4Spec.NonDetE.unlessE, hy, ↓reduceIte, ndE_pure_bind]; rfl
+          · have e : σa = σ1' := by have := ha.symm.trans hst; simpa using this
+            subst e; exact hrc
 
 end
 

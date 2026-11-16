@@ -13,6 +13,7 @@ import Fl4Proofs.P3.XTopCaps
 import Fl4Proofs.P3.DomSched
 import Fl4Proofs.P3.CnodeDecode
 import Fl4Proofs.P3.SpecNKO
+import Fl4Proofs.P3.XTopStepT
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -94,6 +95,16 @@ theorem invoke_cn {inv : CnodeInvocation} (hne : invSlots inv ≠ []) {σ σ' : 
   | revokeCall _ => exact absurd rfl hne
   | deleteCall _ => exact absurd rfl hne
   | cancelBadgedSendsCall _ => exact absurd rfl hne
+
+/-- **`empty_slot` with no cleanup changes CNodes, TCBs' caps, the CDT and
+the original bits only.** -/
+theorem emptySlot_null_nkn (sl : CslotPtr) : NKN (emptySlot (Z := Unit) sl .nullCap) := by
+  unfold emptySlot setCdt setOriginal postCapDeletion
+  repeat (first | exact nkn_getCap _ | exact nkn_setCap _ _ | exact nkn_doExtendedOp _ |
+    exact nkn_pure _ | exact nkn_pure' _ | exact nkn_fail | exact nkn_gets _ | exact nkn_get |
+    exact nkn_assert _ | exact nkn_get_put (fun σ => ⟨rfl, fun _ => Or.inl rfl⟩) |
+    exact nkn_modify (fun σ => ⟨rfl, fun _ => Or.inl rfl⟩) | (refine nkn_bind ?_ (fun _ => ?_)) |
+    (apply nkn_ite) | split)
 
 end Spec
 
@@ -237,11 +248,12 @@ named `XCancelBadgedHyp` otherwise. -/
 theorem cn_cancel_topX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {ar : A}
     {σ : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z s ar σ) (hC : CurRun σ)
     {ct : U64} (hcur : σ.curThread = ct.bv)
-    (hcan : ∀ σ1 p b, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
+    (hcan : ∀ σ1 p b sl, AbsSlot Z.th sl → capV (L.mem s) (cslotAddr sl) = .Endpoint p b true true true true →
+      Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
       b ≠ 0#u64 → XCancelBadgedHyp (L := L) AR s ar σ σ1 ct p b)
     {blk call don : Bool}
     {m : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation} {res : core.result.Result Unit error.Exc × S × A}
-    (hq : InvPost (L := L) Z.th σ Z.G m s (res.1, res.2.1) (CancelTrace (st := st) ct s) ∧ res.2.2 = ar) :
+    (hq : InvPost (L := L) Z.th σ Z.G m s (res.1, res.2.1) (CancelTrace (L := L) Z.th ct s) ∧ res.2.2 = ar) :
     TopPostDMX (L := L) (XTop (L := L) AR) σ blk call don (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeCNode m)
       s res := by
   obtain ⟨r, s', a'⟩ := res
@@ -251,7 +263,7 @@ theorem cn_cancel_topX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {ar
     obtain ⟨rfl, e', h1, h2⟩ := hq
     exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, Or.inl h2⟩, ⟨Z, hX⟩⟩
   | Ok u =>
-    obtain ⟨inv, hrun, σ1, hst, σ', G', hrunI, -, -, -, -, -, -, -, p, b, rfl, s2, hs2, h0, h1⟩ := hq
+    obtain ⟨inv, hrun, σ1, hst, σ', G', hrunI, -, -, -, -, -, -, -, p, b, rfl, ⟨sl, hsl, hcV⟩, s2, hs2, h0, h1⟩ := hq
     have hst' : Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) := by rw [← hcur]; exact hst
     by_cases hb : b = 0#u64
     · subst hb
@@ -274,7 +286,7 @@ theorem cn_cancel_topX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {ar
       exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], σ1),
         mem_bindE_ok hx (Set.mem_singleton _), ⟨Z.th, Z.G, Or.inl ⟨rfl, rfl⟩, hX1.rel.1, hX1.rel.2.1,
           hX1.rel.2.2.1, hX1.rel.2.2.2.1, hX1.rel.2.2.2.2.1⟩, ⟨Z, hX1⟩⟩
-    · have hl := hcan σ1 p b hst hb ⟨Z, hX⟩
+    · have hl := hcan σ1 p b sl hsl hcV hst hb ⟨Z, hX⟩
       rw [hs2] at hl
       simp only [bind_ok] at hl
       rw [h1 hb] at hl
@@ -308,7 +320,8 @@ theorem decode_invocation_cnode_cancelX {AR : A → Fl4Spec.Cr3 → Prop} {Z : X
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hact : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hcur : σ.curThread = ct.bv) (hEp : CancelEpHyp (L := L) Z.th s σ)
-    (hcan : ∀ σ1 p b, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
+    (hcan : ∀ σ1 p b sl, AbsSlot Z.th sl → capV (L.mem s) (cslotAddr sl) = .Endpoint p b true true true true →
+      Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
       b ≠ 0#u64 → XCancelBadgedHyp (L := L) AR s ar σ σ1 ct p b)
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef) :
@@ -324,6 +337,123 @@ theorem decode_invocation_cnode_cancelX {AR : A → Fl4Spec.Cr3 → Prop} {Z : X
     exact WP.spec_mono (cnode_cancel_refines arI Z.th s ar σ Z.G hR hV hX.rel.1 hM hCd slbl hlbl length buf ct hct
       args hlen hargs _ _ ⟨hwf, rfl⟩ hcv extra _ hI hFI hact hcur htcb hEp)
       fun res h => cn_cancel_topX hX hC hcur hcan h
+  · simp only [↓reduceIte]
+    rw [WP.spec_ok]
+    exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, ⟨Z, hX⟩⟩
+
+include arI in
+set_option maxHeartbeats 4000000 in
+/-- **A Revoke, Delete or CancelBadgedSends in `cnode_other_refines`'s
+scope, at `XTop`**: from `InvPost` with FL4's trace (`OtherTrace`): the
+restart alone (`XTopAt.restart'`), or the restart and a trivially
+finalised cap's deletion, a slot edit (`XTopAt.slotStepT`; the spec's
+`cap_delete` is then `empty_slot`, `CnK`). -/
+theorem cn_other_topX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {ar : A}
+    {σ : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z s ar σ) (hC : CurRun σ)
+    {ct : U64} (hcur : σ.curThread = ct.bv) {blk call don : Bool}
+    {m : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation} {res : core.result.Result Unit error.Exc × S × A}
+    (hq : InvPost (L := L) Z.th σ Z.G m s (res.1, res.2.1) (OtherTrace (L := L) Z.th ct σ s) ∧ res.2.2 = ar) :
+    TopPostDMX (L := L) (XTop (L := L) AR) σ blk call don (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeCNode m)
+      s res := by
+  obtain ⟨r, s', a'⟩ := res
+  obtain ⟨hq, rfl⟩ := hq
+  cases r with
+  | Err e =>
+    obtain ⟨rfl, e', h1, h2⟩ := hq
+    exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, Or.inl h2⟩, ⟨Z, hX⟩⟩
+  | Ok u =>
+    obtain ⟨inv, hrun, σ1, hst, σ', G', hrunI, hR', hV', hM', hC', hI', hFI', hSt, s2, hs2, htr⟩ := hq
+    have hst' : Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) := by rw [← hcur]; exact hst
+    obtain ⟨hX1, hks, -⟩ := hX.restart' hC hcur hs2 hst'
+    rcases htr with ⟨rfl, hnone⟩ | ⟨px, rx, idx, c, rfl, hpx, hl, hc, hcn, htk, hF, hcap⟩
+    · have e : σ' = σ1 := by
+        have := hrunI.symm.trans (hnone σ1 hst)
+        simpa using this
+      subst e
+      have hx : ((.ok (), σ') : Except Unit Unit × Fl4Spec.State Unit) ∈
+          ((Fl4Spec.invokeCnode (Z := Unit) inv).run σ').1 := by rw [hrunI]; rfl
+      exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ', hst, (.ok [], σ'),
+        mem_bindE_ok hx (Set.mem_singleton _), ⟨Z.th, Z.G, Or.inl ⟨rfl, rfl⟩, hX1.rel.1, hX1.rel.2.1,
+          hX1.rel.2.2.1, hX1.rel.2.2.2.1, hX1.rel.2.2.2.2.1⟩, ⟨Z, hX1⟩⟩
+    · -- the spec's `cap_delete` is `empty_slot`
+      have hP := hX.rel.1
+      obtain ⟨hR1, hV1, hM1, hC1, hI1⟩ := hX1.rel.2.1
+      obtain ⟨fin, htk1⟩ := htk σ1 hst
+      obtain ⟨c', a1, hc', hca, hg⟩ := hR1.slot_cap (Z := Unit) (sl := (px.bv, idx)) rfl (by rw [hl]; exact hpx)
+      rw [hc] at hc'
+      have e : c' = c := by simpa using hc'.symm
+      subst e
+      rw [hca.abs] at hg
+      obtain ⟨-, -, -, σ'', G'', hes, -⟩ := spec_exists
+        (empty_full (ar := arI) Z.th s2 a' σ1 Z.G hR1 hV1 hP hM1 hC1 hI1 hpx hl hc hcn)
+      have hcd := capDelete_triv (px.bv, idx) σ1 σ'' hg (Or.inr ⟨c', fin, rfl, hcn, htk1⟩) hes
+      have e : σ' = σ'' := by
+        have := hrunI.symm.trans hcd
+        simpa using this
+      subst e
+      have hcn' : CnK σ1 σ' := emptySlot_null_nkn _ σ1 ((), σ') (by rw [hes]; rfl)
+      -- FL4's slot edit
+      have hw : P1.WritesIn st s2 s' (Sched.SlotWd Z.th) := by
+        refine ⟨hF.1, hF.2.1, fun b hb hn => hF.2.2 b hb fun ⟨y, k, hy, hk', e⟩ => hn (Sched.slotSpan_wd hP hb ⟨y, hy, ?_⟩)⟩
+        have hf := hy.fit hP
+        have := hk'.lt
+        have hv := wordOf_val (a := y) (k := k) (by omega)
+        rw [e, hv]; omega
+      have hTS : ∀ t, Z.th t = some .tcb → capAt (L.mem s') (slotOf t 1) = capAt (L.mem s2) (slotOf t 1) := by
+        intro t ht
+        have h1 : IsSlot Z.th (slotOf t 1) := ⟨t, 1, Or.inr ⟨ht, by decide⟩, rfl⟩
+        have hne : slotOf t 1 ≠ cslotAddr (px.bv, idx) := by
+          intro e
+          obtain ⟨p, i, hi, hp1, hp2⟩ := AbsSlot.at (th := Z.th) (sl := (px.bv, idx))
+            ⟨px, rfl, Or.inl (by rw [hl]; exact hpx)⟩
+          have hpp : p = px := P1.eq_of_bv hp1.symm
+          subst hpp
+          have := IsSlotAt.apart hP (Or.inr ⟨ht, by decide⟩ : IsSlotAt Z.th t 1) hi (fun hh => by
+            obtain ⟨h, -⟩ := hh; subst h; rw [hpx] at ht; cases ht)
+          rw [e, hp2] at this; omega
+        rw [capAt_capV, capAt_capV, hcap _ h1 hne]
+      have hX' := XTopAt.slotStepT hX1 hw hcn' ⟨hR', hV', hM', hC', hI'⟩ hFI'
+        (by rw [hks]; exact hSt.okv hX.rel.2.2.2.2.1)
+        (CurOK.of_slot1 hX1.fin.2.2.2.2 (by have e := congrArg Fl4Spec.AbstractState.curThread hcn'.1; exact e) hTS)
+      have hx : ((.ok (), σ') : Except Unit Unit × Fl4Spec.State Unit) ∈
+          ((Fl4Spec.invokeCnode (Z := Unit) (.deleteCall (px.bv, idx))).run σ1).1 := by rw [hrunI]; rfl
+      exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], σ'),
+        mem_bindE_ok hx (Set.mem_singleton _), ⟨Z.th, G', Or.inl ⟨rfl, rfl⟩, hX'.rel.1, hX'.rel.2.1,
+          hX'.rel.2.2.1, hX'.rel.2.2.2.1, hX'.rel.2.2.2.2.1⟩, ⟨_, hX'⟩⟩
+
+/-- **`CnodeXHyp` at the Revoke, Delete and CancelBadgedSends labels**
+(25..27) within `cnode_other_refines`'s scope (`OtherTriv`: a childless
+Revoke, the Delete of an empty or trivially finalised slot, a
+CancelBadgedSends doing nothing): `cnode_other_refines`, then
+`cn_other_topX`. -/
+theorem decode_invocation_cnode_otherX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S)
+    (ar : A) (σ : Fl4Spec.State Unit) (hX : XTopAt (L := L) AR Z s ar σ) (hC : CurRun σ)
+    (lbl : U64) (hl : 25 ≤ lbl.val ∧ lbl.val ≤ 27) (slbl : Fl4Spec.Data)
+    (hlbl : Fl4Spec.genInvocationType slbl = cnodeLabelOf lbl)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (p r gs g : U64) (hwf : CapWf (.CNode p r gs g)) (hcv : CapValid Z.th (.CNode p r gs g))
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hact : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hcur : σ.curThread = ct.bv)
+    (hT : ∀ y0 y1 rest dsl, args = y0 :: y1 :: rest →
+      (Fl4Spec.lookupTargetSlot (Z := Unit) (absCap (.CNode p r gs g)) (Fl4Spec.dataToCptr y0.bv)
+        (Fl4Spec.dataToNat y1.bv)).run σ = ({(.ok dsl, σ)}, False) → OtherTriv (L := L) lbl s σ dsl)
+    (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (buffer : Option Fl4Spec.ObjRef) :
+    XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length slot (.CNode p r gs g) blk call don fp buf extra slbl
+      (args.map UScalar.bv) ci sl excaps buffer ct := by
+  obtain ⟨⟨hR, hV, hM, hCd, hI⟩, hFI⟩ := And.intro hX.rel.2.1 hX.rel.2.2.1
+  have htcb := (hX.curTcb hcur).1
+  left
+  unfold DecOKDMX syscall.decode_invocation
+  rw [hct]; simp only [bind_ok]
+  cases fp
+  · simp only [Bool.false_eq_true, ↓reduceIte]
+    exact WP.spec_mono (cnode_other_refines arI Z.th s ar σ Z.G hR hV hX.rel.1 hM hCd lbl slbl hlbl hl length buf
+      ct hct args hlen hargs _ _ ⟨hwf, rfl⟩ hcv extra _ hI hFI hact hcur htcb hT)
+      fun res h => cn_other_topX arI hX hC hcur h
   · simp only [↓reduceIte]
     rw [WP.spec_ok]
     exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, ⟨Z, hX⟩⟩

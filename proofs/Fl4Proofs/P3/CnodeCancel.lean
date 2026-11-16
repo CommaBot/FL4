@@ -40,9 +40,10 @@ def CancelEpHyp (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
 
 /-- **FL4's run of a CancelBadgedSends** (for the composite relation,
 downstream): the invocation's endpoint cap, the caller's restart, then
-nothing for badge 0, else `cancel_badged_sends`. -/
-def CancelTrace (ct : U64) (s : S) (inv : Fl4Spec.CnodeInvocation) (s' : S) : Prop :=
+nothing for badge 0, else `cancel_badged_sends`; the cap in a slot. -/
+def CancelTrace (th : TypedHeap) (ct : U64) (s : S) (inv : Fl4Spec.CnodeInvocation) (s' : S) : Prop :=
   ∃ p b : U64, inv = .cancelBadgedSendsCall (absCap (.Endpoint p b true true true true)) ∧
+    (∃ sl, AbsSlot th sl ∧ capV (L.mem s) (cslotAddr sl) = .Endpoint p b true true true true) ∧
     ∃ s2, sched.set_thread_state st s ct sched.TS_RESTART = ok s2 ∧ (b = 0#u64 → s' = s2) ∧
       (b ≠ 0#u64 → endpoint.cancel_badged_sends st s2 p b = ok s')
 
@@ -66,7 +67,7 @@ theorem cnode_cancel_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
     (hEp : CancelEpHyp (L := L) th s σ) :
     cnode.decode st arI s ar fl4_abi.label.CNodeCancelBadgedSends length cap buf extra ⦃ res =>
       InvPost (L := L) th σ G (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
-        (res.1, res.2.1) (CancelTrace (st := st) ct s) ∧ res.2.2 = ar ⦄ := by
+        (res.1, res.2.1) (CancelTrace (L := L) th ct s) ∧ res.2.2 = ar ⦄ := by
   have hin : Fl4Spec.genInvocationType slbl ∈
       Fl4Spec.GenInvocationLabels.uptoEnum .cnodeRevoke .cnodeRotate := by rw [hlbl]; decide
   unfold cnode.decode
@@ -138,6 +139,8 @@ theorem cnode_cancel_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
         obtain ⟨p, b⟩ := pb
         have hce := (hoe p b).1 rfl
         subst hce
+        have hcV : capV (L.mem s) (cslotAddr dsl) = .Endpoint p b true true true true := by
+          have := hc; rw [capAt_capV] at this; exact eq_of_ok_eq this
         have hy : Fl4Spec.hasCancelSendRights (absCap (.Endpoint p b true true true true)) := by simp [hos]
         -- `set_thread_state`, on both sides
         have hts := set_thread_state_slots th hP s ct sched.TS_RESTART htcb hact
@@ -158,7 +161,7 @@ theorem cnode_cancel_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
           simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, bind_ok, uncurry_apply_pair]
           rw [WP.spec_ok]
           refine ⟨⟨_, hdec', σ1, hst, σ1, G, ?_, hR1, hV1, hM1, hC1, hI1, hFI1, MdbStep.of_same hM hS,
-            ⟨p, 0#u64, rfl, s2, hs2, fun _ => rfl, fun h => absurd rfl h⟩⟩, rfl⟩
+            ⟨p, 0#u64, rfl, ⟨dsl, hAd, hcV⟩, s2, hs2, fun _ => rfl, fun h => absurd rfl h⟩⟩, rfl⟩
           show (Fl4Spec.invokeCnode (Z := Unit) (.cancelBadgedSendsCall
             (.endpointCap p.bv (0#u64 : U64).bv (rightsOf true true true true)))).run σ1 = _
           unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption
@@ -178,7 +181,7 @@ theorem cnode_cancel_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
         refine ⟨⟨_, hdec', σ1, hst, σ2, G, ?_, hR2, hV1.of_caps hcap, hM1.of_same hS3,
           hC1.of_same hS3 hcdt2 hio2, MdbInv.of_same hM1 hI1 hS3,
           hFI1.of_same hM1 hS3 (ksub_of_eq (cancelBadgedSends_nks _ _) hcb),
-          (MdbStep.of_same hM hS).same_right hM1 hS3, ⟨p, b, rfl, s2, hs2, fun h => absurd h hb, fun _ => hs3⟩⟩, rfl⟩
+          (MdbStep.of_same hM hS).same_right hM1 hS3, ⟨p, b, rfl, ⟨dsl, hAd, hcV⟩, s2, hs2, fun h => absurd h hb, fun _ => hs3⟩⟩, rfl⟩
         show (Fl4Spec.invokeCnode (Z := Unit) (.cancelBadgedSendsCall
           (.endpointCap p.bv b.bv (rightsOf true true true true)))).run σ1 = _
         unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption
