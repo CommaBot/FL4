@@ -6,6 +6,7 @@ SchedContext `YieldTo` (`InvGaps4`), with the placement facts `P3Place`,
 -/
 import Fl4Proofs.P1.QueueDecTcb2
 import Fl4Proofs.P1.QueueFinThr
+import Fl4Proofs.P1.QueueSchedCtl
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -25,7 +26,8 @@ structure InvGaps4 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar 
   thread : TcbGaps st ar T Cs Ω H Sg Rp Scs Nt Z U
   irqControl : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .irqControl
   irqHandler : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .irqHandler
-  schedControl : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .schedControl
+  /-- `SchedControl`'s placement premises (the family is proved, `decGap_schedControl`). -/
+  scCtl : ScCtlPlace st T Cs Ω H Sg Rp Scs Nt Z U
   vspace : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .vspace
   vcpu : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .vcpu
   ept : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .ept
@@ -41,7 +43,7 @@ theorem InvGaps4.gaps3 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (G : InvGaps4 st ar T Cs Ω H Sg Rp Scs Nt Z U) :
     InvGaps3 st ar T Cs Ω H Sg Rp Scs Nt Z U :=
   ⟨G.untyped, decGap_thread hA G.thread Pt E (delGaps_of hA Pd (G.fin.kinds hA Pd)) C.toCdtHyps, G.irqControl, G.irqHandler,
-    G.schedControl, G.vspace, G.vcpu, G.ept, G.ioPortControl, G.ioPort, scYieldGap_holds hA U,
+    decGap_schedControl hA G.scCtl, G.vspace, G.vcpu, G.ept, G.ioPortControl, G.ioPort, scYieldGap_holds hA U,
     delGaps_of hA Pd (G.fin.kinds hA Pd)⟩
 
 /-- **Native kernel entries keep `EntryInv`**, from `InvGaps4` and the

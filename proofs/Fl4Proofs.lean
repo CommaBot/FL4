@@ -71,6 +71,7 @@ import Fl4Proofs.P1.QueueSorted
 import Fl4Proofs.P1.QueueXferFoot
 import Fl4Proofs.P1.QueueIpcFoot
 import Fl4Proofs.P1.QueueSortedC
+import Fl4Proofs.P1.QueueSchedCtl
 import Fl4Proofs.P1.QueueFootD
 import Fl4Proofs.P1.QueueFootS
 import Fl4Proofs.P1.QueueRecv
