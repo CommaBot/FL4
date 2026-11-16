@@ -98,7 +98,8 @@ theorem creation_step {sR s' : S} {H1 : Heap} {Cs Ac : Set U64} {thR : TypedHeap
     (hh0 : L.mem sR (L.nodeAt sR 0#u64 layout.node.DEBUG_TCBS) ≠ 0#u64 →
       L.mem sR (L.nodeAt sR 0#u64 layout.node.DEBUG_TCBS) ∈ Heap.tcbs H1)
     (hk : T → k = 4096) (hfit : A + win * k ≤ 2 ^ 64)
-    (hWZ : (newKind n us).isSome → WinZero (L.mem s') A k win (n = 1)) (hn1 : n = 1 → k = 4096) :
+    (hWZ : (newKind n us).isSome → (∀ z, newKind n us ≠ some (.other z)) → WinZero (L.mem s') A k win (n = 1))
+    (hn1 : n = 1 → k = 4096) :
     ∃ (H' : Heap) (Ac' : Set U64),
       BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H') (Heap.ntfns H')
         (Heap.scBits H') Ac' s' ∧
@@ -120,7 +121,8 @@ theorem JCovD.retype_post {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set
     (hRP : RetPostN (L := L) th (L.mem s) G σ arI ar s bitsApi (L.ksb s) (.retype sl rs pb rb t us slots dev) res)
     (hok : res.1 = .Ok ())
     (n : Nat) (hnt : n = 1 ↔ t = .tcbObject) (hn1 : n = 1 → 2 ^ bitsApi t us = 4096)
-    (hnK : (newKind n us).isSome → t ≠ .untyped ∧ t ≠ .archObject .pml4Obj ∧ dev = false)
+    (hnK : (newKind n us).isSome → t ≠ .untyped)
+    (hnZ : (newKind n us).isSome → (∀ z, newKind n us ≠ some (.other z)) → dev = false ∧ t ≠ .archObject .pml4Obj)
     (hbits : ∀ kd, newKind n us = some kd → 2 ^ kd.bits ≤ 2 ^ bitsApi t us)
     (hfit : rb.toNat + slots.length * 2 ^ bitsApi t us ≤ 2 ^ 64)
     (hstep' : ∀ (ct : U64) (s0 sR : S) (thR : TypedHeap),
@@ -160,11 +162,11 @@ theorem JCovD.retype_post {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set
     refine ⟨j, hj, hq, ?_⟩
     cases hu : isUt (cj j)
     · rfl
-    · exact absurd (hut hok j hj hu) (hnK hs).1
+    · exact absurd (hut hok j hj hu) (hnK hs)
   obtain ⟨H', Ac', hb', -, hshape, -, hdead'⟩ := creation_step (n := n) (us := us) hb1
     hbits hdrop hnode hdbg hwp hW hPR hSC h0Cs hh0
     (fun hT => hn1 (hnt.2 hT)) hfit
-    (fun hs w hw h1 h2 => ((hWZ ⟨(hnK hs).2.2, (hnK hs).2.1⟩) w hw h1 h2).imp id (fun ⟨hT, hj⟩ => ⟨hnt.2 hT, hj⟩))
+    (fun hs ho w hw h1 h2 => ((hWZ (hnZ hs ho)) w hw h1 h2).imp id (fun ⟨hT, hj⟩ => ⟨hnt.2 hT, hj⟩))
     (fun h => hn1 h)
   refine ⟨th', G', _, _, _, dslot, cj, hE, H', Ac', hb', hJ.retype hE (fun q kd hq => ?_) (fun q hqD hnq e hd => ?_) hks⟩
   · rcases hshape q kd hq with ⟨h1, hm⟩ | ⟨hna, hk⟩
