@@ -5,8 +5,9 @@ frame (`NKC`, SpecCaps / SpecFinFrames): the notification, reply,
 endpoint, thread and scheduling-context caps (`finWorkAt_ntfn`, `_reply`,
 `_ep`, `_thread`, `_sc`). Left as named hypotheses: the IRQ handler caps
 (`IrqFinHyp`, until the IRQ invariants are in `DState`), the VCPU and EPT
-caps (`VmFinHyp`, outside the semantic scope), and the rest (`FinWorkAt
-FinRestK`: the VSpace caps, proved by the VSpace side).
+caps and EPT-mapped frames (`VmFinHyp`, outside the semantic scope), the IO
+port caps with an owner (`IoPortFinHyp`). The rest are the native VSpace
+caps (`FinWorkAt FinRestK`, from the VSpace side's `vs_fin`: DelObjVs).
 
 Each case: the finalisation writes no cap-slot word (P1), so FL4's slots
 are unchanged (`SlotsSame`, through `SlotCapW`); the spec's keeps every cap
@@ -44,11 +45,16 @@ def FinThreadK (c : capability.Cap) : Prop := ∃ p, c = .Thread p
 def FinScK (c : capability.Cap) : Prop := ∃ p x, c = .SchedContext p x
 /-- IRQ handler caps. -/
 def FinIrqK (c : capability.Cap) : Prop := ∃ i, c = .IrqHandler i
-/-- VCPU and EPT caps. -/
-def FinVmK (c : capability.Cap) : Prop := (∃ p, c = .Vcpu p) ∨ ∃ p l m a v, c = .Ept p l m a v
-/-- The other caps (the VSpace caps among the finalised ones). -/
+/-- VCPU and EPT caps, and frame caps mapped in an EPT. -/
+def FinVmK (c : capability.Cap) : Prop :=
+  (∃ p, c = .Vcpu p) ∨ (∃ p l m a v, c = .Ept p l m a v) ∨ ∃ p sz r d m a v, c = .Frame p sz r d m true a v
+/-- IO port caps. -/
+def FinIoK (c : capability.Cap) : Prop := ∃ f l o, c = .IoPort f l o
+/-- The other caps: among the finalised ones, the native VSpace caps
+(`Vs.IsVsFin`, `finWorkAt_rest`). -/
 def FinRestK (c : capability.Cap) : Prop :=
-  ¬ FinNtfnK c ∧ ¬ FinReplyK c ∧ ¬ FinEpK c ∧ ¬ FinThreadK c ∧ ¬ FinScK c ∧ ¬ FinIrqK c ∧ ¬ FinVmK c
+  ¬ FinNtfnK c ∧ ¬ FinReplyK c ∧ ¬ FinEpK c ∧ ¬ FinThreadK c ∧ ¬ FinScK c ∧ ¬ FinIrqK c ∧ ¬ FinVmK c ∧
+    ¬ FinIoK c
 
 /-- The sets of P1's invariant `BlkOK`. -/
 structure P1Sets where
@@ -84,15 +90,19 @@ def FinWorkAt (K : capability.Cap → Prop) (th : TypedHeap) : Prop :=
 (`IrqSlotOK`, `IntLayout`, `IrqRel`) are in `DState`. -/
 abbrev IrqFinHyp (th : TypedHeap) : Prop := FinWorkAt (L := L) arI FinIrqK th
 
-/-- **The VCPU and EPT caps**, a hypothesis: their functional refinement is
-outside the semantic scope (DESIGN.md §9). -/
+/-- **The VCPU and EPT caps and the EPT-mapped frames**, a hypothesis: their
+functional refinement is outside the semantic scope (DESIGN.md §9). -/
 abbrev VmFinHyp (th : TypedHeap) : Prop := FinWorkAt (L := L) arI FinVmK th
+
+/-- **The IO port caps with an owner** (their finalisation frees the
+owner's port range), a hypothesis. -/
+abbrev IoPortFinHyp (th : TypedHeap) : Prop := FinWorkAt (L := L) arI FinIoK th
 
 /-- **`FinWorkHyp` from its kinds.** -/
 theorem finWorkHyp_split (th : TypedHeap) (hN : FinWorkAt (L := L) arI FinNtfnK th)
     (hR : FinWorkAt (L := L) arI FinReplyK th) (hE : FinWorkAt (L := L) arI FinEpK th)
     (hT : FinWorkAt (L := L) arI FinThreadK th) (hS : FinWorkAt (L := L) arI FinScK th)
-    (hI : IrqFinHyp (L := L) arI th) (hV : VmFinHyp (L := L) arI th)
+    (hI : IrqFinHyp (L := L) arI th) (hV : VmFinHyp (L := L) arI th) (hO : IoPortFinHyp (L := L) arI th)
     (hX : FinWorkAt (L := L) arI FinRestK th) : FinWorkHyp (L := L) arI th := by
   intro s a σ G sl c
   by_cases h1 : FinNtfnK c
@@ -109,7 +119,9 @@ theorem finWorkHyp_split (th : TypedHeap) (hN : FinWorkAt (L := L) arI FinNtfnK 
   · exact hI s a σ G sl c h6
   by_cases h7 : FinVmK c
   · exact hV s a σ G sl c h7
-  exact hX s a σ G sl c ⟨h1, h2, h3, h4, h5, h6, h7⟩
+  by_cases h8 : FinIoK c
+  · exact hO s a σ G sl c h8
+  exact hX s a σ G sl c ⟨h1, h2, h3, h4, h5, h6, h7, h8⟩
 
 /-- **The spec's finalisation of a final cap of kind `K` has an outcome**
 (with the remainder and no cleanup cap). -/
