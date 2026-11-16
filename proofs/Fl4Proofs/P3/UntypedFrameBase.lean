@@ -280,7 +280,8 @@ def RetFrame {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A' : Typ
   ∃ ct s0, sched.cur_thread st s = ok ct ∧ sched.set_thread_state st s ct sched.TS_RESTART = ok s0 ∧
     ((res.1 = .Err .Preempted ∧ untyped.reset_untyped st arI s0 ar x = ok res) ∨
      (res.1 = .Ok () ∧ (A = A0 ∧ k = k0 ∧ win = w0 ∧ A % k = 0) ∧ ∃ sR thR lo hi,
-       ((sR = s0 ∧ thR = th ∧ lo = A ∧ hi = A + win * k) ∨
+       ((sR = s0 ∧ thR = th ∧ lo = A ∧ hi = A + win * k ∧ (RB → (∃ p sb d, capAt (L.mem s0) x = ok (.Untyped p sb 0#u64 d)) ∧
+          untyped.reset_untyped st arI s0 ar x = ok (.Ok (), s0, ar))) ∨
         ∃ a1 p sb fi d, untyped.reset_untyped st arI s0 ar x = ok (.Ok (), sR, a1) ∧
           capAt (L.mem s0) x = ok (.Untyped p sb fi d) ∧ capAt (L.mem s) x = ok (.Untyped p sb fi d) ∧ p.val % 8 = 0 ∧ 4 ≤ sb.val ∧
           x ∈ G.chains.flatten ∧ (∀ y, ¬ Mdb.Desc G.par y x) ∧ lo = p.val ∧ hi = p.val + 2 ^ sb.val ∧

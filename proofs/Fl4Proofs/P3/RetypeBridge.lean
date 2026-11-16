@@ -109,7 +109,7 @@ theorem creation_step {sR s' : S} {H1 : Heap} {Cs Ac : Set U64} {thR : TypedHeap
       (∀ q, NewAt A k win q → ∀ kd, newKind n us = some kd → H' q = some kd) ∧
       (∀ q, H' q = H1 q → DeadQ st H1 sR q → DeadQ st H' s' q) :=
   (P1.retypeP1Step : RetypeP1Step st sR s' H1 Cs Ac A (A + win * k) A k win n us) hb le_rfl le_rfl hbits hdrop hnode (retFrame_writesIn hW hP hSC ⟨0#u64, h0Cs, rfl⟩ hh0 hk hfit)
-    (fun hs => winInit_of_winZero (hWZ hs) hn1 hfit hs) hdbg hwp h0Cs
+    (winInit_of_winZero hWZ hn1 hfit) hdbg hwp h0Cs
 
 /-- **`JCovD` and `BlkOK` across a whole retype** (module docstring). -/
 theorem JCovD.retype_post {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set U64} {s : S}
@@ -152,7 +152,7 @@ theorem JCovD.retype_post {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set
   rcases hbr with ⟨e, -⟩ | ⟨-, ⟨eA, ek, ew, -⟩, sR, thR, lo, hi, hor', -, -, -, hsl, -, -, hW, hWZ, -⟩
   · rw [hok] at e; cases e
   have hor : (sR = s0 ∧ thR = th) ∨ ∃ a1, untyped.reset_untyped st arI s0 ar (cslotAddr sl) = ok (.Ok (), sR, a1) :=
-    hor'.elim (fun ⟨a, b, _, _⟩ => Or.inl ⟨a, b⟩) (fun ⟨a1, _, _, _, _, h, _⟩ => Or.inr ⟨a1, h⟩)
+    hor'.elim (fun ⟨a, b, _, _, _⟩ => Or.inl ⟨a, b⟩) (fun ⟨a1, _, _, _, _, h, _⟩ => Or.inr ⟨a1, h⟩)
   obtain ⟨H1, Ac1, hb1, hPR, hSC, h0Cs, hh0, -, hdrop, hnode, hdbg, hwp, hsub, hdk⟩ := hstep' ct s0 sR thR hct hs0 hor hsl
   subst eA ek ew
   have hwd := (retype_window_dead hJ hU hI hE).1

@@ -1233,6 +1233,13 @@ theorem retype_cont_pml4N {A' : Type} (arI : machine.Arch A') (ar : A') (th : Ty
     rw [← htP] at hfull
     have hWA2 : (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)).toNat % 2 ^ zOf nt.val us.val = 0 :=
       (retype_region p fiv sb.val (zOf nt.val us.val) win.val (capAt_untyped_inv hcap) (by omega) hpal hpfit hfi hw1 hmem).2.1
+    have hRB0 : reset = true → (∃ p sb d, capAt (L.mem s2) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb 0#u64 d)) ∧
+      untyped.reset_untyped st arI s2 ar (cslotAddr (pp.bv, idx)) = ok (.Ok (), s2, ar) := by
+      intro hrs
+      have hnc : ¬ ∃ x, σ.cdt x = some (pp.bv, idx) := by rw [hrs] at hreset; simpa using hreset.symm
+      have hf0 : fiv = 0#u64 := UScalar.eq_of_val_eq (by rw [hunused hnc]; rfl)
+      rw [hf0] at hcap1
+      exact ⟨⟨_, _, _, hcap1⟩, reset_untyped_unused arI s2 ar _ hcap1⟩
     have hpost : ∀ res, (res.1 = .Ok () ∧ res.2.2 = ar ∧ ∃ σ' G' th',
           (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) false p.bv
             (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val
@@ -1260,7 +1267,7 @@ theorem retype_cont_pml4N {A' : Type} (arI : machine.Arch A') (ar : A') (th : Ty
       exact ⟨h1, h2, σ1, by rw [hcur]; exact hst1, σ', G', th', he.trans hrun, hP', hR', hV', hM', hC', hI', hU',
       MdbStep.same_left hM hSS hSt', fun hFI => hFin (hFI.of_same hM hSS (ksub_of_eq (setThreadState_nks _ _) hst1)),
       by rw [hks, hk2], _, _, _, dslot, cj, hE.same_left hM hSS,
-      ⟨⟨ct, s2, hct, hs2, Or.inr ⟨h1, ⟨rfl, by rw [hb], by simp [windowSlots], hWA2⟩, s2, th, _, _, Or.inl ⟨rfl, rfl, rfl, rfl⟩, le_rfl, le_rfl, hthx.2, fun a h => h, ⟨nt.val, ht, hthx, us, rfl, hcjE⟩, hdsC,
+      ⟨⟨ct, s2, hct, hs2, Or.inr ⟨h1, ⟨rfl, by rw [hb], by simp [windowSlots], hWA2⟩, s2, th, _, _, Or.inl ⟨rfl, rfl, rfl, rfl, hRB0⟩, le_rfl, le_rfl, hthx.2, fun a h => h, ⟨nt.val, ht, hthx, us, rfl, hcjE⟩, hdsC,
         hWf.mono fun v hv => hv.elim (fun h => Or.inl (Or.inr h)) (fun h => Or.inr ⟨htP, h⟩),
         fun ⟨_, hne⟩ => absurd htP hne, fun hT => absurd (htP.symm.trans hT) (by simp)⟩⟩, fun _ j hj hu => by have h0 := hnu j hj hu; rw [h0] at ht; simpa [objTypeOf] using ht.symm⟩⟩
     rcases Bool.eq_false_or_eq_true reset with hrs | hrs <;> subst hrs

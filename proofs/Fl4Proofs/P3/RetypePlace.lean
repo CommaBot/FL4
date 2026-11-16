@@ -326,7 +326,7 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
   have hk1 := hE.k1
   -- the dropped region is uncovered
   have hunc : ∀ a b, a < b → Covered (L.mem s) G a b → b ≤ lo ∨ hi ≤ a := by
-    rcases hor with ⟨-, -, rfl, rfl⟩ | ⟨a1, p, sb, fi, d, hr, hc, hcs, hp8, hsb4, hxG, hnd, rfl, rfl, -, -⟩
+    rcases hor with ⟨-, -, rfl, rfl, -⟩ | ⟨a1, p, sb, fi, d, hr, hc, hcs, hp8, hsb4, hxG, hnd, rfl, rfl, -, -⟩
     · intro a b hab hc
       obtain ⟨x0, hx0, p0, sb0, fi0, d0, hc0, h1, h2, h3⟩ := hE.src
       rcases h3 with h3 | h3
@@ -485,7 +485,7 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
         have := Nat.one_le_two_pow (n := Fl4Spec.minSchedContextBits + n')
         rcases hOW with (e | e) | ⟨-, -, e⟩ <;> omega
       refine ⟨?_, hnw⟩
-      rcases hor with ⟨-, -, rfl, rfl⟩ | ⟨a1, p, sb, fi, d, hr, hc, hcs, -, -, -, -, rfl, rfl, -, hrsT⟩
+      rcases hor with ⟨-, -, rfl, rfl, -⟩ | ⟨a1, p, sb, fi, d, hr, hc, hcs, -, -, -, -, rfl, rfl, -, hrsT⟩
       · rcases hOW with (e | e) | ⟨-, -, e⟩
         · left; omega
         · right; omega
@@ -513,7 +513,7 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
         rw [hjc, eA, ← ek]; exact ptrAdd_toNat (by rw [← eA]; omega)
       exact this
   refine ⟨th', σ', A, k, w, lo, hi, eA, ek, ew, hlo, hhi, ?_, fun H' hO => ?_⟩
-  · rcases hor with ⟨-, -, h1, h2⟩ | ⟨a1, p, sb, fi, d, hr, hc, -, -, -, -, -, h1, h2, -, -⟩
+  · rcases hor with ⟨-, -, h1, h2, -⟩ | ⟨a1, p, sb, fi, d, hr, hc, -, -, -, -, -, h1, h2, -, -⟩
     · exact Or.inl ⟨h1, h2⟩
     · exact Or.inr ⟨ct, s0, sR, a1, p, sb, fi, d, hct, hs0, hr, hc, h1, h2⟩
   have hRk : k = 2 ^ bitsApi t us := ek

@@ -662,6 +662,14 @@ theorem retype_reset_unused {A' : Type} (arI : machine.Arch A') (s : S) (ar : A'
   simp only [slot_cap_eq, hcap, bind_ok, untyped.as_untyped, ↓reduceIte, core.result.Result.Insts.CoreOpsTry.branch,
     uncurry_apply_pair]
 
+
+/-- **The reset of an unused untyped cap does nothing** (free index 0). -/
+theorem reset_untyped_unused {A' : Type} (arI : machine.Arch A') (s : S) (ar : A') (slot : U64)
+    {p sb : U64} {d : Bool} (hcap : capAt (L.mem s) slot = ok (.Untyped p sb 0#u64 d)) :
+    untyped.reset_untyped st arI s ar slot = ok (.Ok (), s, ar) := by
+  unfold untyped.reset_untyped
+  simp only [slot_cap_eq, hcap, bind_ok, untyped.as_untyped, ↓reduceIte]
+
 end
 
 theorem invokeUntyped_reset_unused (bitsApi : Fl4Spec.ApiObjectType → Nat → Nat) (srcSl : Fl4Spec.CslotPtr)

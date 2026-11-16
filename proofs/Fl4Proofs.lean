@@ -130,6 +130,7 @@ import Fl4Proofs.P3.UntypedFrameBase
 import Fl4Proofs.P3.UntypedFrame
 import Fl4Proofs.P3.RetypeBridge
 import Fl4Proofs.P3.RetypePlace
+import Fl4Proofs.P3.ScUtRetype
 import Fl4Proofs.P3.SpecKSz
 import Fl4Proofs.P3.SpecFreeRet
 import Fl4Proofs.P3.SpecFreeRetJ

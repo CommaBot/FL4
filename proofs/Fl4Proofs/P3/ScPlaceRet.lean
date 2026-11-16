@@ -232,11 +232,11 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 region; TCBs 4 KiB), the window zero needed only for the tracked kinds (not
 `.other`). -/
 theorem winInit_of_winZero {s' : S} {A k win n us : Nat}
-    (h : (∀ z, P1.newKind n us ≠ some (.other z)) → WinZero (L.mem s') A k win (n = 1))
+    (h : (P1.newKind n us).isSome → (∀ z, P1.newKind n us ≠ some (.other z)) → WinZero (L.mem s') A k win (n = 1))
     (hk : n = 1 → k = 4096) (hfit : A + win * k ≤ 2 ^ 64) :
     P1.WinInit st s' A (A + win * k) A k win n us := by
-  intro _ ho b hb h1 h2
-  rcases h ho b hb h1 h2 with e | ⟨hn, j, hj, hT⟩
+  intro hs ho b hb h1 h2
+  rcases h hs ho b hb h1 h2 with e | ⟨hn, j, hj, hT⟩
   · exact Or.inl e
   · right
     have hk' := hk hn
