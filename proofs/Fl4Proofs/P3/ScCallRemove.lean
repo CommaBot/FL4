@@ -93,7 +93,7 @@ theorem splice_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ' : Fl4S
       CallRel (L.mem s4) R C σ' Lst' → RPlaced st N T C R c s4 σ' → Isolated (L.mem s4) R r →
       (∀ d ∈ R, d ≠ r → d ≠ nx → d ≠ pv →
         L.mem s4 (rNextA d) = L.mem s (rNextA d) ∧ L.mem s4 (rPrevA d) = L.mem s (rPrevA d)) →
-      WritesIn st s s4 (CallW R C) →
+      WritesIn st s s4 (CallW' R C) →
       ipc.reply_unlink st s4 r t ⦃ s6 => Q (s6, a) ⦄) :
     (do
       let s1 ← if nx != 0#u64 then obj.Reply.set_prev st nx s 0#u64 else ok s
@@ -194,22 +194,22 @@ theorem splice_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ' : Fl4S
       simp only [s2, h, ↓reduceIte]
       exact L.mem_wr_same (hal pv hR').2)
     hPr0 hNr0
-  have cw : ∀ {s0 : S} {a : U64} {v : U64}, Aligned a → CallW R C a → WritesIn st s0 (L.wr s0 a v) (CallW R C) :=
+  have cw : ∀ {s0 : S} {a : U64} {v : U64}, Aligned a → CallW' R C a → WritesIn st s0 (L.wr s0 a v) (CallW' R C) :=
     fun ha hc => (writesIn_wr ha).mono fun b hb => hb ▸ hc
-  have tr : ∀ {x y z : S}, WritesIn st x y (CallW R C) → WritesIn st y z (CallW R C) → WritesIn st x z (CallW R C) :=
+  have tr : ∀ {x y z : S}, WritesIn st x y (CallW' R C) → WritesIn st y z (CallW' R C) → WritesIn st x z (CallW' R C) :=
     fun h1 h2 => (h1.trans h2).mono fun b hb => hb.elim id id
-  have w1 : WritesIn st s s1 (CallW R C) := by
+  have w1 : WritesIn st s s1 (CallW' R C) := by
     by_cases h : nx = 0#u64
     · simp only [s1, h, ↓reduceIte]; exact WritesIn.refl _ _
     · simp only [s1, h, ↓reduceIte]
-      exact cw (hal nx (hnx.resolve_left h)).1 (Or.inl ⟨nx, hnx.resolve_left h, Or.inr (Or.inl rfl)⟩)
-  have w2 : WritesIn st s1 s2 (CallW R C) := by
+      exact cw (hal nx (hnx.resolve_left h)).1 (Or.inl ⟨nx, hnx.resolve_left h, Or.inr rfl⟩)
+  have w2 : WritesIn st s1 s2 (CallW' R C) := by
     by_cases h : pv = 0#u64
     · simp only [s2, h, ↓reduceIte]; exact WritesIn.refl _ _
     · simp only [s2, h, ↓reduceIte]
       exact cw (hal pv (hpv.resolve_left h)).2 (Or.inl ⟨pv, hpv.resolve_left h, Or.inl rfl⟩)
-  have hw4 : WritesIn st s s4 (CallW R C) :=
-    tr (tr w1 w2) (tr (cw (hal r hr).1 (Or.inl ⟨r, hr, Or.inr (Or.inl rfl)⟩))
+  have hw4 : WritesIn st s s4 (CallW' R C) :=
+    tr (tr w1 w2) (tr (cw (hal r hr).1 (Or.inl ⟨r, hr, Or.inr rfl⟩))
       (cw (hal r hr).2 (Or.inl ⟨r, hr, Or.inl rfl⟩)))
   refine WP.spec_bind (hU _ g4 g5 hN hI hCR g6 hiso
     (fun d hd h1 h2 h3 => ⟨hNs d hd h1 h3, hPs d hd h1 h2⟩) hw4) ?_
@@ -270,7 +270,7 @@ theorem reply_remove_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ :
       CallRel (L.mem s5) R C σ5 Lst5 → RPlaced st N T C R c s5 σ5 → Isolated (L.mem s5) R r → UFrame σ σ5 →
       CallStep (L.mem s) (L.mem s5) R C Lst Lst5 r →
       replyRemoveSc t.bv r.bv σ = ({((), σ5)}, False) →
-      WritesIn st s s5 (fun b => KFoot st T N C c s σ b ∨ CallW R C b) →
+      WritesIn st s s5 (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) →
       ipc.reply_unlink st s5 r t ⦃ s6 => Q (s6, a) ⦄) :
     ipc.reply_remove st ar s a r t ⦃ Q ⦄ := by
   have hev : ∀ d ∈ R, d.val % 2 = 0 := fun d hd => by have := (hRP.align d hd).1; omega

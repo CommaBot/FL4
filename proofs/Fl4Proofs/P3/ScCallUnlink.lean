@@ -254,7 +254,7 @@ theorem reply_unlink_foot {N T C R : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
   rintro s1 rfl
   refine WP.spec_mono (set_thread_state_sfoot (hS.wr_far hal hfar 0#u64) ht _) fun s' hw => ?_
   have w1 : WritesIn st s (L.wr s (rTcbA r) 0#u64) (fun b => SFoot st T c s b ∨ CallW R C b) :=
-    (writesIn_wr hal).mono fun b hb => hb ▸ Or.inr (Or.inl ⟨r, hr, Or.inr (Or.inr rfl)⟩)
+    (writesIn_wr hal).mono fun b hb => hb ▸ Or.inr (Or.inr ⟨r, hr, rfl⟩)
   exact (w1.trans hw).mono fun b hb => by
     rcases hb with hb | hb
     · exact hb
@@ -294,7 +294,7 @@ theorem reply_remove_full_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) 
     (hw5.trans hw6).mono fun b hb => by
       rcases hb with (hb | hb) | (hb | hb)
       · exact Or.inl (Or.inl hb)
-      · exact Or.inr hb
+      · exact Or.inr (Or.inl hb)
       · exact Or.inl (Or.inl (KFoot.of_sfoot ((SFoot.ksb hw5.1).1 hb)))
       · exact Or.inr hb
   have hRF6 : RFree (L.mem s6) R C σ6 Lst5 := by
