@@ -16,9 +16,9 @@ noncomputable section
 section Spec
 open Fl4Spec
 
-/-- The spec's `send_ipc` (call, no donation) to a waiting receiver `d` with
+/-- The spec's `send_ipc` (call, donating or not) to a waiting receiver `d` with
 a reply object `r`, given the outcomes of its steps. -/
-theorem sendIpc_call_eq {σ : State Unit} {t e d : ObjRef} {q : List ObjRef}
+theorem sendIpc_call_eq {σ : State Unit} {t e d : ObjRef} {q : List ObjRef} {don : Bool}
     (hk : σ.kheap e = some (.endpoint (.recvEP (d :: q)))) {xd : Tcb} (hkd : σ.kheap d = some (.tcb xd))
     (hde : d ≠ e) {e' r : ObjRef} {dd : ReceiverPayload}
     (hst : xd.tcbState = .blockedOnReceive e' (some r) dd) (blk : Bool) (badge : Badge) (g gr : Bool)
@@ -27,9 +27,9 @@ theorem sendIpc_call_eq {σ : State Unit} {t e d : ObjRef} {q : List ObjRef}
       ({((), σ2)}, False))
     (hU : NonDet.maybeM (replyUnlinkTcb (Z := Unit) d) (some r) σ2 = ({((), σ3)}, False))
     {xt3 x3 : Tcb} (hkt3 : σ3.kheap t = some (.tcb xt3)) (hkd3 : σ3.kheap d = some (.tcb x3))
-    (hPush : replyPush (Z := Unit) t d r false σ3 = ({((), σ4)}, False)) {x4 : Tcb}
+    (hPush : replyPush (Z := Unit) t d r don σ3 = ({((), σ4)}, False)) {x4 : Tcb}
     (hkd4 : σ4.kheap d = some (.tcb x4)) :
-    sendIpc (Z := Unit) blk true badge g gr false t e σ =
+    sendIpc (Z := Unit) blk true badge g gr don t e σ =
       specWakeTailE d (stsAct (updK σ4 d (.tcb { x4 with tcbState := .running })) d) := by
   have hkd1 : (updK σ e (.endpoint (epDeq (.recvEP (d :: q)) d))).kheap d = some (.tcb xd) := by
     simp [hde, hkd]

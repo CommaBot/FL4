@@ -90,20 +90,39 @@ theorem reply_unlink_i (hH : IpcSchedHyps st ar N T E R B SR) (hP0 : IPlaced N T
   rw [nd_bind_one (getReply_eq hkr), nd_bind_one (assert_true hback σ), nd_bind_one (getThreadState_eq hk),
     nd_bind_one (assert_true (Or.inr ⟨e', dd, hst⟩) σ), nd_bind_one e1, setThreadState_eq _ hk1]
 
-/-- **`reply_push caller callee r false`**, with the notification relation. -/
-theorem reply_push_i (hH : IpcSchedHyps st ar N T E R B SR) (hP0 : IPlaced N T E R B) (hP : EPlaced T E R B) (s : S) (a : A)
+/-- The spec's state after `reply_push`'s link and block (no donation). -/
+def pushSt (σ : Fl4Spec.State Unit) (t r : Fl4Spec.ObjRef) (xr : Fl4Spec.Reply) (xt : Fl4Spec.Tcb) :
+    Fl4Spec.State Unit :=
+  stsAct (updK (updK σ r (.reply { xr with replyTcb := some t })) t (.tcb { xt with tcbState := .blockedOnReply r })) t
+
+/-- **`reply_push caller callee r don`**, with the notification relation:
+the link and block, then, for a donating push, the donation (`hD`, over
+`pushSt`); the post `P` holds at `pushSt` without a donation (`hP'`). -/
+theorem reply_push_iG {don : Bool} (hH : IpcSchedHyps st ar N T E R B SR) (hP0 : IPlaced N T E R B) (hP : EPlaced T E R B)
+    (s : S) (a : A)
     (σ : Fl4Spec.State Unit) (hR : EpStateRel T E R B (L.mem s) σ) (hSR : SRN st N T (SRS st T SR) s σ) {t d : U64} (ht : t ∈ T)
     {xt xd : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt)) (hkd : σ.kheap d.bv = some (.tcb xd))
     (hq : ∀ e ∈ E, ∀ z, σ.kheap e.bv = some (.endpoint z) → t.bv ∉ z.epQueue) (hns : tsCode xt.tcbState ≠ 6)
-    {r : U64} (hr : r ∈ R) {xr : Fl4Spec.Reply} (hkr : σ.kheap r.bv = some (.reply xr)) :
-    ipc.reply_push st ar s a t d r false ⦃ res => res.2 = a ∧
-      Fl4Spec.replyPush (Z := Unit) t.bv d.bv r.bv false σ =
-        ({((), stsAct (updK (updK σ r.bv (.reply { xr with replyTcb := some t.bv })) t.bv
-          (.tcb { xt with tcbState := .blockedOnReply r.bv })) t.bv)}, False) ∧
-      EpStateRel T E R B (L.mem res.1) (stsAct (updK (updK σ r.bv (.reply { xr with replyTcb := some t.bv })) t.bv
-          (.tcb { xt with tcbState := .blockedOnReply r.bv })) t.bv) ∧
-      SRN st N T (SRS st T SR) res.1 (stsAct (updK (updK σ r.bv (.reply { xr with replyTcb := some t.bv })) t.bv
-          (.tcb { xt with tcbState := .blockedOnReply r.bv })) t.bv) ⦄ := by
+    {r : U64} (hr : r ∈ R) {xr : Fl4Spec.Reply} (hkr : σ.kheap r.bv = some (.reply xr))
+    (hdT : don = true → d ∈ T) {P : S → Fl4Spec.State Unit → Prop}
+    (hP' : ∀ s', EpStateRel T E R B (L.mem s') (pushSt σ t.bv r.bv xr xt) →
+      SRN st N T (SRS st T SR) s' (pushSt σ t.bv r.bv xr xt) → P s' (pushSt σ t.bv r.bv xr xt))
+    (hD : don = true → ∀ s3, EpStateRel T E R B (L.mem s3) (pushSt σ t.bv r.bv xr xt) →
+      SRN st N T (SRS st T SR) s3 (pushSt σ t.bv r.bv xr xt) → L.mem s (scA t) ≠ 0#u64 →
+      L.mem s3 (scA d) = 0#u64 → xt.tcbSchedContext = some (L.mem s (scA t)).bv → xd.tcbSchedContext = none →
+      (do
+        let i2 ← obj.Sc.reply st (L.mem s (scA t)) s3
+        let s3' ← if i2 != 0#u64 then obj.Reply.set_next st i2 s3 r false else ok s3
+        let s4 ← obj.Reply.set_prev st r s3' i2
+        let s5 ← obj.Sc.set_reply st (L.mem s (scA t)) s4 r
+        let s6 ← obj.Reply.set_next st r s5 (L.mem s (scA t)) true
+        schedcontext.donate st ar s6 a (L.mem s (scA t)) d) ⦃ res => res.2 = a ∧ ∃ σ',
+          (do
+            Fl4Spec.bindScReply (Z := Unit) (L.mem s (scA t)).bv r.bv
+            Fl4Spec.schedContextDonate (Z := Unit) (L.mem s (scA t)).bv d.bv) (pushSt σ t.bv r.bv xr xt) =
+            ({((), σ')}, False) ∧ P res.1 σ' ⦄) :
+    ipc.reply_push st ar s a t d r don ⦃ res => res.2 = a ∧ ∃ σ',
+      Fl4Spec.replyPush (Z := Unit) t.bv d.bv r.bv don σ = ({((), σ')}, False) ∧ P res.1 σ' ⦄ := by
   have hE := hH.epHyps hP0
   have hta := hP.tcb t ht
   obtain ⟨e1, hR1, hS1, hA1⟩ := reply_link_rel hE hP s σ hR hSR.1 hr hkr hta
@@ -117,13 +136,31 @@ theorem reply_push_i (hH : IpcSchedHyps st ar N T E R B SR) (hP0 : IPlaced N T E
     have hre : r.bv ≠ e.bv := by intro h; rw [← h] at hz; simp [σ1] at hz
     exact hq e he z (by simpa [σ1, Ne.symm hre] using hz)
   have hqn := not_member hN1 ht hkt1 (tsCode_ne6 hns)
-  have hspec : Fl4Spec.replyPush (Z := Unit) t.bv d.bv r.bv false σ =
-      ({((), stsAct (updK σ1 t.bv (.tcb { xt with tcbState := .blockedOnReply r.bv })) t.bv)}, False) := by
+  have hspec : Fl4Spec.replyPush (Z := Unit) t.bv d.bv r.bv don σ =
+      Fl4Spec.NonDet.when (xt.tcbSchedContext ≠ none ∧ xd.tcbSchedContext = none ∧ don = true) (do
+        Fl4Spec.bindScReply (Z := Unit) (Fl4Spec.the xt.tcbSchedContext) r.bv
+        Fl4Spec.schedContextDonate (Z := Unit) (Fl4Spec.the xt.tcbSchedContext) d.bv) (pushSt σ t.bv r.bv xr xt) := by
     unfold Fl4Spec.replyPush
     rw [nd_bind_one (getTcbObjRef_eq _ hkt), nd_bind_one (getTcbObjRef_eq _ hkd), nd_bind_one e1,
       nd_bind_one (setThreadState_eq _ hkt1)]
-    rw [nd_when_false (by simp)]
     rfl
+  -- the callee's SC in `pushSt`
+  have hkdP : ∀ x, (pushSt σ t.bv r.bv xr xt).kheap d.bv = some (.tcb x) → x.tcbSchedContext = xd.tcbSchedContext := by
+    intro x hx
+    unfold pushSt at hx; rw [stsAct_kheap] at hx
+    by_cases e : d.bv = t.bv
+    · rw [e] at hx hkd; rw [hkt] at hkd; cases hkd; simp at hx; rw [← hx]
+    · have hdr : d.bv ≠ r.bv := kheap_ne hkd hkr (fun _ h1 h2 => by subst h1; cases h2)
+      simp [e, hdr, hkd] at hx; rw [hx]
+  have hsct : xt.tcbSchedContext = optRef (L.mem s (scA t)) := by
+    obtain ⟨x, hx, hxs⟩ := hSR.1.2 t ht; rw [hkt] at hx; cases hx; exact hxs
+  -- without a donation
+  have nod : ∀ s3, EpStateRel T E R B (L.mem s3) (pushSt σ t.bv r.bv xr xt) →
+      SRN st N T (SRS st T SR) s3 (pushSt σ t.bv r.bv xr xt) →
+      ¬ (xt.tcbSchedContext ≠ none ∧ xd.tcbSchedContext = none ∧ don = true) →
+      ∃ σ', Fl4Spec.replyPush (Z := Unit) t.bv d.bv r.bv don σ = ({((), σ')}, False) ∧
+        P s3 σ' := fun s3 h1 h2 hc =>
+    ⟨_, by rw [hspec, nd_when_false hc]; rfl, hP' s3 h1 h2⟩
   set x1 : Fl4Spec.Tcb := { xt with tcbState := .blockedOnReply r.bv }
   set s1 := L.wr s (rTcbA r) t
   set s2 := L.wr (L.wr s1 (tStA t) sched.TS_BLOCKED_ON_REPLY) (tReplyA t) r
@@ -171,14 +208,66 @@ theorem reply_push_i (hH : IpcSchedHyps st ar N T E R B SR) (hP0 : IPlaced N T E
   rintro s3 ⟨hf3, hfN3, hS3⟩
   have hR3 := hR2.frame hP hf3 (KView.stsAct' _ t.bv)
   have hN3 := hN2.frame hP0.n hfN3 (Notif.KView.stsAct _ t.bv)
+  have hS3' : SRN st N T (SRS st T SR) s3 (pushSt σ t.bv r.bv xr xt) := ⟨hS3, hN3⟩
+  subst hi
   unfold obj.Sc.is_null
   apply ok_bind_spec
   split
-  · simp only [WP.spec_ok]; exact ⟨by simp, hspec, hR3, hS3, hN3⟩
-  · step as ⟨i1, hi1⟩
+  · rename_i h0
+    simp only [WP.spec_ok]
+    refine ⟨by simp, nod s3 hR3 hS3' fun hc => hc.1 ?_⟩
+    rw [hsct, of_decide_eq_true h0, optRef_zero]
+  · rename_i h0
+    have h0' : L.mem s (scA t) ≠ 0#u64 := fun e => h0 (by simp [e])
+    step as ⟨i1, hi1⟩
+    subst hi1
     split
-    · simp only [Bool.false_eq_true, ↓reduceIte, WP.spec_ok]; exact ⟨by simp, hspec, hR3, hS3, hN3⟩
-    · simp only [WP.spec_ok]; exact ⟨by simp, hspec, hR3, hS3, hN3⟩
+    · rename_i hd0
+      cases don with
+      | false =>
+        simp only [Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
+        exact ⟨by simp, nod s3 hR3 hS3' fun hc => by cases hc.2.2⟩
+      | true =>
+        simp only [↓reduceIte]
+        have hxd0 : xd.tcbSchedContext = none := by
+          obtain ⟨x, hx, hxs⟩ := hS3.2 d (hdT rfl)
+          rw [← hkdP x hx, hxs, hd0, optRef_zero]
+        have hxt0 : xt.tcbSchedContext = some (L.mem s (scA t)).bv := by rw [hsct, Notif.optRef_ne h0']
+        refine WP.spec_mono (hD rfl s3 hR3 hS3' h0' hd0 hxt0 hxd0) ?_
+        rintro res ⟨ha, σ', hm, hPs⟩
+        refine ⟨ha, σ', ?_, hPs⟩
+        have hc : (some (L.mem s (scA t)).bv ≠ none ∧ xd.tcbSchedContext = none ∧ true = true) := by simp [hxd0]
+        rw [hspec, hxt0]
+        simp only [Fl4Spec.NonDet.when, hc, ↓reduceIte, Fl4Spec.the]
+        exact hm
+    · rename_i hd0
+      simp only [WP.spec_ok]
+      refine ⟨by simp, nod s3 hR3 hS3' fun hc => hd0 ?_⟩
+      obtain ⟨-, h2, h3⟩ := hc
+      obtain ⟨x, hx, hxs⟩ := hS3.2 d (hdT h3)
+      rw [hkdP x hx, h2] at hxs
+      by_contra hc
+      rw [Notif.optRef_ne hc] at hxs; cases hxs
+
+/-- **`reply_push caller callee r false`**, with the notification relation. -/
+theorem reply_push_i (hH : IpcSchedHyps st ar N T E R B SR) (hP0 : IPlaced N T E R B) (hP : EPlaced T E R B) (s : S) (a : A)
+    (σ : Fl4Spec.State Unit) (hR : EpStateRel T E R B (L.mem s) σ) (hSR : SRN st N T (SRS st T SR) s σ) {t d : U64} (ht : t ∈ T)
+    {xt xd : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt)) (hkd : σ.kheap d.bv = some (.tcb xd))
+    (hq : ∀ e ∈ E, ∀ z, σ.kheap e.bv = some (.endpoint z) → t.bv ∉ z.epQueue) (hns : tsCode xt.tcbState ≠ 6)
+    {r : U64} (hr : r ∈ R) {xr : Fl4Spec.Reply} (hkr : σ.kheap r.bv = some (.reply xr)) :
+    ipc.reply_push st ar s a t d r false ⦃ res => res.2 = a ∧
+      Fl4Spec.replyPush (Z := Unit) t.bv d.bv r.bv false σ =
+        ({((), stsAct (updK (updK σ r.bv (.reply { xr with replyTcb := some t.bv })) t.bv
+          (.tcb { xt with tcbState := .blockedOnReply r.bv })) t.bv)}, False) ∧
+      EpStateRel T E R B (L.mem res.1) (stsAct (updK (updK σ r.bv (.reply { xr with replyTcb := some t.bv })) t.bv
+          (.tcb { xt with tcbState := .blockedOnReply r.bv })) t.bv) ∧
+      SRN st N T (SRS st T SR) res.1 (stsAct (updK (updK σ r.bv (.reply { xr with replyTcb := some t.bv })) t.bv
+          (.tcb { xt with tcbState := .blockedOnReply r.bv })) t.bv) ⦄ := by
+  refine WP.spec_mono (reply_push_iG (don := false) (P := fun s' σ' => σ' = pushSt σ t.bv r.bv xr xt ∧
+      EpStateRel T E R B (L.mem s') σ' ∧ SRN st N T (SRS st T SR) s' σ') hH hP0 hP s a σ hR hSR ht hkt hkd hq hns hr
+    hkr (fun h => by cases h) (fun s' h1 h2 => ⟨rfl, h1, h2⟩) (fun h => by cases h)) ?_
+  rintro res ⟨ha, σ', hm, rfl, h1, h2⟩
+  exact ⟨ha, hm, h1, h2⟩
 
 /-- **The step lemmas for the combined relation.** -/
 theorem _root_.Fl4Proofs.P3.Ipc.IpcSchedHyps.steps (hH : IpcSchedHyps st ar N T E R B SR) (hBf : EpBufHyps st T E R B SR)

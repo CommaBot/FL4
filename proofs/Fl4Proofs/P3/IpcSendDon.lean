@@ -7,17 +7,22 @@ donation on `IRel`** (`SendRest`).
   `sched_context_donate`), by the Sc proofs' `donate_bound_refines` (the
   sender's SC is bound to the sender) lifted by `tk_lift`, the spec's step
   `ScTKw` by `nkt_schedContextDonate`.
+* `pushD_irel`: the donating `reply_push` (a call with a reply and a
+  grant), by IpcEpSteps' `reply_push_iG` and the Sc proofs'
+  `push_donate_refines` lifted by `tk_liftCW`; named: `PushDonOK`.
 * `sendRest_of`: `SendRest` from EpSendD's `send_ipc_recvD_gen`,
   `send_ipc_recv_bufD_gen` (non-call), EpSendX's
   `send_ipc_call_inactiveX_gen` (a call without reply or grant, where the
-  donation flag plays no part); named: the call with a reply and a grant
-  (`reply_push`'s donation, `hPush`) and the donation facts (`DonNCOK`).
+  donation flag plays no part) and `send_ipc_callXD_gen` with `pushD_irel`;
+  named: the donation facts (`DonNCOK`, `PushDonOK`).
 * `ipcVsFrame_endpointD`: IpcXTop's `ipcVsFrame_endpoint` with `SendRest`
   by `sendRest_of`.
 -/
 import Fl4Proofs.P3.EpSendD
 import Fl4Proofs.P3.IpcDonate
 import Fl4Proofs.P3.ScDonateB
+import Fl4Proofs.P3.IpcRemove
+import Fl4Proofs.P3.ScCallPushRef
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Ipc
@@ -112,21 +117,118 @@ theorem donNC_irel (hP0 : IPlaced N T E R B) (a : A) {t d : U64} (ht : t ∈ T) 
 end Don
 
 
+/-! ## `reply_push`'s donation on `IRel` -/
+
+theorem _root_.Fl4Proofs.P3.Sched.nkt_bindScReply (sc r : Fl4Spec.ObjRef) :
+    NKT (Fl4Spec.bindScReply (Z := Unit) sc r) := by
+  unfold Fl4Spec.bindScReply Fl4Spec.setReplyObjRef Fl4Spec.setScObjRef Fl4Spec.getSchedContext
+  repeat' nkt_step
+
+section Push
+variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+
+/-- **What the donating `reply_push` needs beyond `IRel`** (the Sc proofs'
+`push_donate_refines`; l4v `valid_sched`, `valid_replies`): `NSC`, `Inv`,
+the replies placed (`RPlaced`), the call stacks (`CallRel`) with the reply
+`r` on none of them (`Detached`), unlinked (`Isolated`) and the free
+replies (`RFree`), and a callee in its class gets a released SC (`hrel`). -/
+def PushDonOK (st : machine.Store S) [L : LawfulStore st] (N T C R : Set U64) (c : U64) (s : S)
+    (σ : Fl4Spec.State Unit) (t d r : U64) : Prop :=
+  NSC N C σ ∧ Inv σ ∧ RPlaced st N T C R c s σ ∧ Isolated (L.mem s) R r ∧
+    (∃ Lst, CallRel (L.mem s) R C σ Lst ∧ Detached C Lst r ∧ RFree (L.mem s) R C σ Lst) ∧
+    ∀ y n x, σ.kheap (L.mem s (scA t)).bv = some (.schedContext y n) → σ.kheap d.bv = some (.tcb x) →
+      inClass x.tcbState → Fl4Spec.scActive y = true → released σ y
+
+theorem optRef_some_eq {w v : U64} (h : optRef w = some v.bv) : w = v := by
+  unfold optRef at h; split at h
+  · cases h
+  · injection h with h; exact eq_of_bv h
+
+set_option maxHeartbeats 4000000 in
+/-- **`reply_push caller callee r true` on `IRel`**: the link and block
+(`reply_push_iG`), then `push_donate_refines` lifted by `tk_liftCW`; the
+callee stays inactive and in no endpoint queue (EpSendX's `hPD`). -/
+theorem pushD_irel (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hP0 : IPlaced N T E R B)
+    (hPDK : ∀ (t d r : U64) s σ, IRel st th cr N T C E R B c s σ → t ∈ T → d ∈ T → r ∈ R →
+      (∃ x, σ.kheap r.bv = some (.reply x) ∧ x.replyTcb = some t.bv) → PushDonOK st N T C R c s σ t d r)
+    (a : A) {t d : U64} (ht : t ∈ T) (hd : d ∈ T) (htd : t ≠ d) {xt : Fl4Spec.Tcb} (hns : tsCode xt.tcbState ≠ 6) :
+    ∀ (s3 : S) (σ3 : Fl4Spec.State Unit) (x3 : Fl4Spec.Tcb) (w : U64) (xr : Fl4Spec.Reply),
+      EpStateRel T E R B (L.mem s3) σ3 →
+      SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c))) s3 σ3 →
+      σ3.kheap t.bv = some (.tcb xt) →
+      σ3.kheap d.bv = some (.tcb x3) → x3.tcbState = .inactive →
+      (∀ e'' ∈ E, ∀ z, σ3.kheap e''.bv = some (.endpoint z) → d.bv ∉ z.epQueue) →
+      (∀ e'' ∈ E, ∀ z, σ3.kheap e''.bv = some (.endpoint z) → t.bv ∉ z.epQueue) →
+      w ∈ R → σ3.kheap w.bv = some (.reply xr) → t.bv ≠ d.bv → w.bv ≠ d.bv → w.bv ≠ t.bv →
+      ipc.reply_push st ar s3 a t d w true ⦃ res => res.2 = a ∧ ∃ σ4 x4,
+        Fl4Spec.replyPush (Z := Unit) t.bv d.bv w.bv true σ3 = ({((), σ4)}, False) ∧
+        EpStateRel T E R B (L.mem res.1) σ4 ∧
+        SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c))) res.1 σ4 ∧
+        σ4.kheap d.bv = some (.tcb x4) ∧
+        x4.tcbState = .inactive ∧ (∀ e'' ∈ E, ∀ z, σ4.kheap e''.bv = some (.endpoint z) → d.bv ∉ z.epQueue) ⦄ := by
+  intro s3 σ3 x3 w xr hR3 hS3 hkt3 hkd3 hx3 hq3 hqt3 hwR hkr3 htd' hwd hwt
+  set σP := pushSt σ3 t.bv w.bv xr xt with hσP
+  have hkP : ∀ p, p ≠ t.bv → p ≠ w.bv → σP.kheap p = σ3.kheap p := by
+    intro p h1 h2
+    rw [hσP]; unfold pushSt
+    rw [stsAct_kheap, updK_kheap, Function.update_of_ne h1, updK_kheap, Function.update_of_ne h2]
+  have hktP : σP.kheap t.bv = some (.tcb { xt with tcbState := .blockedOnReply w.bv }) := by
+    rw [hσP]; unfold pushSt; rw [stsAct_kheap]; simp
+  have hkwP : σP.kheap w.bv = some (.reply { xr with replyTcb := some t.bv }) := by
+    rw [hσP]; unfold pushSt; rw [stsAct_kheap]; simp [hwt]
+  have hkdP : σP.kheap d.bv = some (.tcb x3) := (hkP _ (Ne.symm htd') (Ne.symm hwd)).trans hkd3
+  have hqP : ∀ e'' ∈ E, ∀ z, σP.kheap e''.bv = some (.endpoint z) → d.bv ∉ z.epQueue := by
+    intro e'' he'' z hz
+    have h1 : e''.bv ≠ t.bv := fun e => by rw [e, hktP] at hz; cases hz
+    have h2 : e''.bv ≠ w.bv := fun e => by rw [e, hkwP] at hz; cases hz
+    exact hq3 e'' he'' z ((hkP _ h1 h2).symm.trans hz)
+  refine WP.spec_mono (reply_push_iG (don := true) (P := fun s' σ' => ∃ x4, EpStateRel T E R B (L.mem s') σ' ∧
+      SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c))) s' σ' ∧
+      σ'.kheap d.bv = some (.tcb x4) ∧ x4.tcbState = .inactive ∧
+      (∀ e'' ∈ E, ∀ z, σ'.kheap e''.bv = some (.endpoint z) → d.bv ∉ z.epQueue))
+    hH hP0 hP0.e s3 a σ3 hR3 hS3 ht hkt3 hkd3 hqt3 hns hwR hkr3 (fun _ => hd)
+    (fun s' h1 h2 => ⟨x3, h1, h2, hkdP, hx3, hqP⟩) ?_) ?_
+  · intro _ s4 hR4 hS4 h0 hd0 hxt0 hxd0
+    have hX4 : IRel st th cr N T C E R B c s4 σP := IpcRel.ofSRN hR4 hS4
+    obtain ⟨hNSC, hInv, hRP, hiso, ⟨Lst, hCR, hdet, hRF⟩, hrel⟩ :=
+      hPDK t d w s4 σP hX4 ht hd hwR ⟨_, hkwP, rfl⟩
+    have heq : L.mem s4 (scA t) = L.mem s3 (scA t) := by
+      obtain ⟨x, hx, hxs⟩ := hS4.1.2 t ht
+      rw [hktP] at hx; cases hx
+      exact optRef_some_eq (hxs.symm.trans hxt0)
+    have hS := hX4.2.2.1
+    obtain ⟨Q, R0, hc, hs⟩ := hS.lists
+    have hscC : L.mem s3 (scA t) ∈ C := by rw [← heq]; exact hs.scMem t ht (by rw [heq]; exact h0)
+    obtain ⟨y, n, hky, hyt⟩ := hInv.back t.bv _ _ hktP hxt0
+    have hnf : ¬ Free σP w := by
+      rintro ⟨x, hx, hn⟩; rw [hkwP] at hx; cases hx; simp at hn
+    refine WP.spec_mono (push_donate_refines s4 a σP hS hX4.1.toN hNSC hInv hCR hRP hscC h0 hky ht hyt hktP hd hkdP
+      hxd0 htd (fun h1 h2 => hrel y n x3 (by rw [heq]; exact hky) hkdP h1 h2) hwR hdet hiso hRF hnf) ?_
+    rintro res ⟨ha, σ', Lst', hdon, hS', hN', -, -, -, -, -, hW⟩
+    have hK0 : ScTKw (fun _ => False) σP σ' :=
+      NKT.of_eq (nkt_bind (nkt_bindScReply _ _) fun _ => nkt_schedContextDonate _ _) hdon
+    have hI' := tk_liftCW (ct := σP.curThread) hP0 hX4
+      (hW.mono fun b hb => hb.elim (fun h => Or.inl (Or.inl h)) Or.inr) (ScTKw.ofFalse hK0) hS' hN'
+    obtain ⟨y4, hy4, -, hst4⟩ := hK0.tcb hkdP
+    have hst4' : y4.tcbState = x3.tcbState := hst4.resolve_right fun h => h.1
+    refine ⟨ha, σ', hdon, y4, hI'.1.toE, IpcRel.toSRN hI'.1 hI'.2, hy4, by rw [hst4', hx3], ?_⟩
+    intro e'' he'' z hz
+    obtain ⟨o, ho, hto⟩ := hK0.back hz
+    rcases hto with rfl | ⟨_, _, _, h1, -⟩ | ⟨_, _, _, _, h1⟩ | ⟨_, _, _, h1, -⟩ | ⟨_, _, _, h1, -⟩
+    · exact hqP e'' he'' z ho
+    all_goals cases h1
+  · rintro res ⟨ha, σ', hm, x4, h1, h2, h3, h4, h5⟩
+    exact ⟨ha, σ', x4, hm, h1, h2, h3, h4, h5⟩
+
+end Push
+
 /-! ## `SendRest` -/
 
 section Rest
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
 variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
-
-/-- **What `sendRest_of` does not cover**: a call with a reply and a grant
-that donates (`reply_push … true`: `bind_sc_reply`, `sched_context_donate`). -/
-def SendPushRest (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A)
-    (Rel : S → Fl4Spec.State Unit → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) (blk : Bool) (badge : U64)
-    (g gr : Bool) (t e : U64) : Prop :=
-  ∀ (d : U64) q xd, σ.kheap e.bv = some (.endpoint (.recvEP (d.bv :: q))) → σ.kheap d.bv = some (.tcb xd) →
-    (g = true ∨ gr = true) → (∀ e' rep dd, xd.tcbState = .blockedOnReceive e' rep dd → rep ≠ none) →
-    endpoint.send_ipc st ar s a blk true badge g gr true t e ⦃ r => r.2 = a ∧
-      ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr true t.bv e.bv σ).1, Rel r.1 z.2 ⦄
 
 set_option maxHeartbeats 4000000 in
 /-- **`SendRest` on `IRel`** (module docstring). -/
@@ -137,8 +239,8 @@ theorem sendRest_of (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B
     (hP : IPlaced N T E R B)
     (hDN : ∀ (t d : U64) s σ, IRel st th cr N T C E R B c s σ → t ∈ T → d ∈ T → DonNCOK st N C s σ t d)
     {e : U64} (he : e ∈ E) (a : A) (blk call : Bool) (badge : U64) (g gr don : Bool) (t : U64)
-    (hPush : ∀ s σ, IRel st th cr N T C E R B c s σ →
-      SendPushRest st ar (IRel st th cr N T C E R B c) s a σ blk badge g gr t e) :
+    (hPDK : ∀ (t d r : U64) s σ, IRel st th cr N T C E R B c s σ → t ∈ T → d ∈ T → r ∈ R →
+      (∃ x, σ.kheap r.bv = some (.reply x) ∧ x.replyTcb = some t.bv) → PushDonOK st N T C R c s σ t d r) :
     ∀ s σ, IRel st th cr N T C E R B c s σ →
       SendRest st ar (IRel st th cr N T C E R B c) T s a σ blk call badge g gr don t e := by
   intro s σ hX d q xd hk hd hkd hdon ht xt hkt hnb hns hft hV
@@ -179,7 +281,8 @@ theorem sendRest_of (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B
       (fun b h => by rw [hft] at h; cases h) a e g s1 σ1 badge
     by_cases hgg : g = true ∨ gr = true
     · by_cases hrp : ∀ e' rep dd, xd.tcbState = .blockedOnReceive e' rep dd → rep ≠ none
-      · exact hPush s σ ⟨hR, hSR⟩ d q xd hk hkd hgg hrp
+      · exact WP.spec_mono (send_ipc_callXD_gen (don := true) hXs.toEpSteps (hTl.tail hP) hP.e s a σ hR.toE hSB ht
+          hkt hnb hns he hk hkd badge g gr hXf hback hgg hrp (pushD_irel hH hP hPDK a ht hd htd hns) blk) cv
       · refine WP.spec_mono (send_ipc_call_inactiveX_gen (don := true) hXs.toEpSteps (hTl.tail hP) hP.e s a σ
           hR.toE hSB ht hkt hnb hns he hk hkd badge g gr hXf hback (Or.inr ?_) blk) cv
         intro e' rep dd hs
@@ -204,7 +307,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 
 /-- **`IpcVsFrame` for an endpoint cap with the send right**, the donating
 sends by `sendRest_of`. Named at `Z`: `IpcZ`, `SchedValid` and `QSorted` on
-`IRel`, the endpoint in `Z.E`, `DonNCOK` and `SendPushRest`; the arch
+`IRel`, the endpoint in `Z.E`, `DonNCOK` and `PushDonOK`; the arch
 relation by `ARKeep`. -/
 theorem ipcVsFrame_endpointD {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ σ1 : Fl4Spec.State Unit}
     {ct : U64} (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
@@ -217,14 +320,14 @@ theorem ipcVsFrame_endpointD {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {
       p ∈ Z.E ∧
       (∀ (t d : U64) s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → t ∈ Z.T →
         d ∈ Z.T → DonNCOK st Z.N Z.C s' σ' t d) ∧
-      (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' →
-        SendPushRest st arI (IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c) s' a σ' blk b g gr
-          ct p))
+      (∀ (t d r : U64) s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → t ∈ Z.T →
+        d ∈ Z.T → r ∈ Z.R → (∃ x, σ'.kheap r.bv = some (.reply x) ∧ x.replyTcb = some t.bv) →
+        PushDonOK st Z.N Z.T Z.C Z.R Z.c s' σ' t d r))
     (hS : P0.StoreTotal st) (hA : P0.ArchTotal arI) (hK : ARKeep arI AR) :
     IpcVsFrame (L := L) arI AR s a σ σ1 ct blk call don (.Endpoint p b true rv g gr) :=
   ipcVsFrame_endpoint arI hcur hkt hrun hft hst blk call don p b rv g gr (fun Z hX =>
-    let ⟨hz, hSV, hso, hp, hDN, hPush⟩ := hZ Z hX
-    ⟨hz, hSV, hso, hp, sendRest_of hz.H hz.Bf hz.Bm hz.Tl hz.P hDN hp a blk call b g gr don ct hPush⟩) hS hA hK
+    let ⟨hz, hSV, hso, hp, hDN, hPDK⟩ := hZ Z hX
+    ⟨hz, hSV, hso, hp, sendRest_of hz.H hz.Bf hz.Bm hz.Tl hz.P hDN hp a blk call b g gr don ct hPDK⟩) hS hA hK
 
 end
 

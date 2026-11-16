@@ -34,7 +34,7 @@ theorem push_donate_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : 
       let s4 ← obj.Reply.set_prev st r s3 i2
       let s5 ← obj.Sc.set_reply st sc s4 r
       let s6 ← obj.Reply.set_next st r s5 sc true
-      schedcontext.donate st ar s6 a sc t) ⦃ res => ∃ σ' Lst',
+      schedcontext.donate st ar s6 a sc t) ⦃ res => res.2 = a ∧ ∃ σ' Lst',
       (do
         Fl4Spec.bindScReply (Z := Unit) sc.bv r.bv
         Fl4Spec.schedContextDonate (Z := Unit) sc.bv t.bv) σ = ({((), σ')}, False) ∧
@@ -103,7 +103,7 @@ theorem push_donate_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : 
         let s4 ← obj.Reply.set_prev st r s3 ((Lst sc).headD 0#u64)
         let s5 ← obj.Sc.set_reply st sc s4 r
         let s6 ← obj.Reply.set_next st r s5 sc true
-        schedcontext.donate st ar s6 a sc t) ⦃ res => ∃ σ' Lst',
+        schedcontext.donate st ar s6 a sc t) ⦃ res => res.2 = a ∧ ∃ σ' Lst',
         (do
           Fl4Spec.bindScReply (Z := Unit) sc.bv r.bv
           Fl4Spec.schedContextDonate (Z := Unit) sc.bv t.bv) σ = ({((), σ')}, False) ∧
@@ -243,7 +243,7 @@ theorem push_donate_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : 
       rw [show σB.curTime = σ.curTime from htm3]; exact this
     refine WP.spec_mono (donate_bound_refines s6 a σB hS6 hR6 hNB hIB hsc hsc0 hkscB hf hyf hkfB ht hktB hxt0 hft
       hrelB) ?_
-    rintro res ⟨σ', hdon, -, hS', hR', hN', hI', hw', hksc', hko', hkf', hkt', -, -, -⟩
+    rintro res ⟨σ', hdon, ha, hS', hR', hN', hI', hw', hksc', hko', hkf', hkt', -, -, -⟩
     obtain ⟨cw1, cw2⟩ := callWords_of_dfoot hS6 hRP6 hsc hw'
     have hw6 : WritesIn st s s6 (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) :=
       tr (tr (tr hw3 (cwr hPr (Or.inl ⟨r, hr, Or.inr rfl⟩))) (cwr haP (Or.inr ⟨sc, hsc, rfl⟩)))
@@ -257,7 +257,7 @@ theorem push_donate_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : 
       obtain ⟨Q, R', hc, hs⟩ := hS.lists
       obtain ⟨xq, nq, hkq, -⟩ := hs.scs q hq
       exact ⟨fun e => (by rw [e, hkf] at hkq; cases hkq), fun e => (by rw [e, hkt] at hkq; cases hkq)⟩
-    refine ⟨σ', Function.update Lst sc (r :: Lst sc), ?_, hS', hR', hN', hI', ?_, ?_, ?_, hwD⟩
+    refine ⟨ha, σ', Function.update Lst sc (r :: Lst sc), ?_, hS', hR', hN', hI', ?_, ?_, ?_, hwD⟩
     · have hbind : Fl4Spec.bindScReply (Z := Unit) sc.bv r.bv σ = ({((), σB)}, False) := by
         unfold Fl4Spec.bindScReply
         rw [nd_bind_one (nd_liftM_one (getSchedContext_eq hk) _)]
