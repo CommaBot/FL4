@@ -9,6 +9,7 @@ import Fl4Proofs.P1.QueueFinThr
 import Fl4Proofs.P1.QueueSchedCtl
 import Fl4Proofs.P1.QueueDecIrq
 import Fl4Proofs.P1.QueueDecVs
+import Fl4Proofs.P1.QueueDecUt
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -22,12 +23,14 @@ variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U : Set U64}
 named labels (`TcbGaps`), and the named per-kind finalisations of CNode
 `Delete`/`Revoke` (`FinGaps`).  `YieldTo` is no longer a gap
 (`scYieldGap_holds`); SchedControl, IrqControl, IrqHandler, IOPortControl and
-IOPort and VSpace are proved (`QueueSchedCtl`, `QueueDecIrq`, `QueueDecVs`), up
-to their named placement premises (`scCtl`, `irqPl`, `vsPl`). -/
+IOPort, VSpace and Untyped (down to the retype) are proved (`QueueSchedCtl`,
+`QueueDecIrq`, `QueueDecVs`, `QueueDecUt`), up to their named premises
+(`scCtl`, `irqPl`, `vsPl`, `utPl`). -/
 structure InvGaps4 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
     (Adm : PSets → Prop) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
-  untyped : DecGapG st ar Adm T Cs Ω H Sg Rp Scs Nt Z U .untyped
+  /-- The untyped family's retype premise (the decode is proved, `decGap_untyped`). -/
+  utPl : UtPlace st ar Adm T Cs Ω H Sg Rp Scs Nt Z U
   thread : TcbGaps st ar T Cs Ω H Sg Rp Scs Nt Z U
   /-- The IRQ handler family's placement premises (the family is proved, `decGap_irqHandler`). -/
   irqPl : IrqPlace st T Cs Ω H Sg Rp Scs Nt Z U
@@ -41,12 +44,13 @@ structure InvGaps4 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar 
   fin : FinGaps st ar T Cs Ω H Sg Rp Scs Nt Z
 
 /-- `InvGaps4` gives `InvGaps3`. -/
-theorem InvGaps4.gaps3 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar) {V : U64 → Prop}
+theorem InvGaps4.gaps3 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
+    (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {V : U64 → Prop}
     (C : CdtHyps2 st T Cs Ω H Sg Rp Scs Nt Z) (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V)
     (Pt : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
     (G : InvGaps4 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U) :
     InvGaps3 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U :=
-  ⟨G.untyped, decGap_thread hA G.thread Pt E (delGaps_of hA Pd (G.fin.kinds hA Pd)) C.toCdtHyps,
+  ⟨decGap_untyped hA hσ G.utPl, decGap_thread hA G.thread Pt E (delGaps_of hA Pd (G.fin.kinds hA Pd)) C.toCdtHyps,
     decGap_irqControl hA C.toCdtHyps, decGap_irqHandler hA C.toCdtHyps Pd G.irqPl,
     decGap_schedControl hA G.scCtl, decGap_vspace hA Pd G.vsPl C.toCdtHyps E G.irqPl, G.vcpu, G.ept, decGap_ioPortControl C.toCdtHyps,
     decGap_ioPort hA E, scYieldGap_holds hA U, delGaps_of hA Pd (G.fin.kinds hA Pd)⟩
@@ -72,7 +76,7 @@ theorem kernel_entry.entry_of4 {A : Type _} {ar : machine.Arch A} {Adm : PSets �
       ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) :=
   kernel_entry.entry_of3 hA (fun σ h' => by
     obtain ⟨P, C, ⟨V, Pd⟩, Pt, G, hNt⟩ := GF σ h'
-    exact ⟨P, C, G.gaps3 hA C Pd Pt P.xfer, hNt⟩) hσ s a h
+    exact ⟨P, C, G.gaps3 hA h' C Pd Pt P.xfer, hNt⟩) hσ s a h
 
 end
 

@@ -203,7 +203,7 @@ theorem reset_step {A' : Type} {arI : machine.Arch A'} (hRS : ResetP1Step st arI
         (Heap.ntfns H1) (Heap.scBits H1) Ac1 r.2.1 ∧
       (∀ q kd, H1 q = some kd → H q = some kd) ∧
       (∀ q, H1 q = H q → DeadQ st H s0 q → DeadQ st H1 r.2.1 q) := by
-  obtain ⟨r', hr', H1, Ac1, hb1, hsh, hdk⟩ := spec_exists (hRS H Cs Ac s0 ar x p sb fi dev hb hcap hx hpal hfit hdead hcur)
+  obtain ⟨r', hr', H1, Ac1, hb1, hsh, hdk, -⟩ := spec_exists (hRS H Cs Ac s0 ar x p sb fi dev hb hcap hx hpal hfit hdead hcur)
   rw [heq] at hr'; cases eq_of_ok_eq hr'
   refine ⟨H1, Ac1, hb1, fun q kd hq => ?_, hdk⟩
   rw [hsh q] at hq

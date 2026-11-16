@@ -10,7 +10,8 @@ TCBs).
 * the reset is a step of its own (`ResetP1Step`): `reset_untyped` keeps
   `BlkOK` over the heap with the untyped region's (dead) objects dropped;
   its writes (the region, the cap's slot, the preemption point's words) are
-  P1's to follow, the preemption point by `preemption_point.pp`;
+  P1's to follow, the preemption point by `preemption_point.pp`; it keeps the
+  current thread's words (`ResetKeeps`, for a preempted reset);
 * after it, the region `[lo, hi)` the object creation may overwrite (the
   free part holding the window `[A, A + w k)`);
 * the write frame of the creation: the cap-slot words (`CapW`), the region,
@@ -89,6 +90,13 @@ def RetypeP1Step (st : machine.Store S) [L : LawfulStore st] (s s' : S) (H : Hea
       (∀ q, NewAt A k w q → ∀ kd, newKind n us = some kd → H' q = some kd) ∧
       (∀ q, H' q = H q → DeadQ st H s q → DeadQ st H' s' q)
 
+/-- What the reset keeps for the current thread (for a preempted reset's
+`DecPost`): the current thread, SC and scheduler action words, and the
+current thread's `SC` and state words. -/
+def ResetKeeps (st : machine.Store S) [L : LawfulStore st] (s s' : S) : Prop :=
+  L.curW s' = L.curW s ∧ L.cscW s' = L.cscW s ∧ L.actionW s' = L.actionW s ∧
+    L.mem s' (scA (L.curW s)) = L.mem s (scA (L.curW s)) ∧ L.mem s' (stA (L.curW s)) = L.mem s (stA (L.curW s))
+
 open Classical in
 /-- **P1's half of the reset** (module docstring): `reset_untyped` on the
 slot `x` (its cap words `CapW`) of an untyped cap `Untyped p sb fi dev`,
@@ -110,7 +118,8 @@ def ResetP1Step (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : m
         (Heap.ntfns H') (Heap.scBits H') Ac' res.2.1 ∧
       (∀ q, H' q = if MeetsR p.val (p.val + 2 ^ sb.val) q.val (q.val + 2 ^ ((H q).elim 0 HKind.bits))
         then none else H q) ∧
-      (∀ q, H' q = H q → DeadQ st H s q → DeadQ st H' res.2.1 q) ⦄
+      (∀ q, H' q = H q → DeadQ st H s q → DeadQ st H' res.2.1 q) ∧
+      ResetKeeps st s res.2.1 ⦄
 
 end
 
