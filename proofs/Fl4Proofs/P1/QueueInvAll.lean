@@ -190,13 +190,17 @@ structure DecPre (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64)
   cb : CanBlock st T Ac s (L.curW s)
   user : UserOK st T Cs Ω H U s
 
+/-- A cap slot: aligned, its four words cap-slot words (`SlotW`'s shape). -/
+def CapSlotW (T Ω Sg : Set U64) (x : U64) : Prop :=
+  Aligned x ∧ ∀ o : U64, o.val < 32 → o.val % 8 = 0 → CapW T Ω Sg (core.num.U64.wrapping_add x o)
+
 /-- **The gap shape**: `decode_invocation` on a cap of the family `f` keeps
 the invariants (`DecPost`), from `DecPre`. -/
 def DecGap (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64) (H : Heap)
     (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (f : CapFam) : Prop :=
   ∀ (Ac : Set U64) (s : S) (a : A) (lbl len : U64) (slot : obj.Slot) (cap : capability.Cap)
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize),
-    capFam cap = f → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → CapW T Ω Sg slot →
+    capFam cap = f → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → CapSlotW T Ω Sg slot →
     syscall.decode_invocation st ar s a lbl len slot cap blk call don fp buf extra ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄
 
@@ -228,9 +232,9 @@ structure InvHyps (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64
   slotcap : ∀ (Ac : Set U64) (s : S) (cptr : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     cspace.lookup_slot st s (L.curW s) cptr ⦃ r => ∀ x, r = .Ok x →
       obj.Slot.cap st x.slot s ⦃ c => CapOK st T Rp Scs Nt H s c ⦄ ⦄
-  /-- The looked-up slot of the invoked cap is a cap slot. -/
+  /-- The looked-up slot of the invoked cap is a cap slot (its four words are cap-slot words). -/
   lookupSlot : ∀ (Ac : Set U64) (s : S) (cptr : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
-    cspace.lookup_slot st s (L.curW s) cptr ⦃ r => ∀ x, r = .Ok x → CapW T Ω Sg x.slot ⦄
+    cspace.lookup_slot st s (L.curW s) cptr ⦃ r => ∀ x, r = .Ok x → CapSlotW T Ω Sg x.slot ⦄
   extra : ∀ (Ac : Set U64) (s : S) (b : U64) (tag : msginfo.MessageInfo), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     ipc.lookup_extra_caps st s (L.curW s) b tag ⦃ r => ∀ e, r = .Ok e →
       ∀ s', WritesIn st s s' (NodeW st s) → ∀ sl ∈ e.val, sl ≠ 0#u64 →
@@ -255,7 +259,7 @@ theorem syscall.decode_invocation.dec {A : Type _} {ar : machine.Arch A} (hA : P
     (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (G : InvGaps st ar T Cs Ω H Sg Rp Scs Nt Z U)
     (s : S) (a : A) (lbl len : U64) (slot : obj.Slot) (cap : capability.Cap)
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hslot : CapW T Ω Sg slot) :
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hslot : CapSlotW T Ω Sg slot) :
     syscall.decode_invocation st ar s a lbl len slot cap blk call don fp buf extra ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
   have h := D.bxi

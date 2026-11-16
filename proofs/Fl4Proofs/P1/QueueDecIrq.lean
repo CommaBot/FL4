@@ -23,6 +23,12 @@ section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {U : Set U64}
 
+theorem SlotW.capw0 {x : U64} (h : SlotW T Ω Sg x) : CapW T Ω Sg x := by
+  have h0 := h.2 0#u64 (by simp) (by simp)
+  have e : core.num.U64.wrapping_add x 0#u64 = x := UScalar.eq_of_val_eq (by
+    simp only [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; scalar_tac)
+  rwa [e] at h0
+
 /-- The IRQ-state write of an IRQ below 128 keeps `BlkOK`. -/
 theorem interrupt.set_irq_state.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
     (v irq : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hi : irq.val < 128) :
@@ -392,26 +398,20 @@ theorem decGap_irqControl {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩
   try dsimp only
-  exact interrupt.decode_irq_control.dec hA C a lbl len slot buf D hslot
+  exact interrupt.decode_irq_control.dec hA C a lbl len slot buf D (SlotW.capw0 hslot)
 
 
 /-! ## The IRQ handler family -/
 
 /-- The placement facts the IRQ handler decode rests on (P3's `valid_cap`
 of an IrqHandler cap, and the extra caps' slots being cap slots, from
-`lookup_extra_caps`). -/
+`lookup_extra_caps`; the latter is also the VSpace family's). -/
 structure IrqPlace (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
     (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
   irq : ∀ (Ac : Set U64) (s : S) (cap : capability.Cap) (extra : Aeneas.Std.Array obj.Slot 3#usize),
     DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ i, cap = .IrqHandler i → i.val < 128
   extra : ∀ (Ac : Set U64) (s : S) (cap : capability.Cap) (extra : Aeneas.Std.Array obj.Slot 3#usize),
-    DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapW T Ω Sg sl
-
-theorem SlotW.capw0 {x : U64} (h : SlotW T Ω Sg x) : CapW T Ω Sg x := by
-  have h0 := h.2 0#u64 (by simp) (by simp)
-  have e : core.num.U64.wrapping_add x 0#u64 = x := UScalar.eq_of_val_eq (by
-    simp only [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; scalar_tac)
-  rwa [e] at h0
+    DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapSlotW T Ω Sg sl
 
 /-- **`delete_one` of an IRQ's handler slot**: no cap, or a notification
 cap's finalisation and the slot's emptying (as `finGap_irq`). -/
@@ -506,7 +506,8 @@ theorem decGap_irqHandler {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩
   try dsimp only
-  exact interrupt.decode_irq_handler.dec hA C P a lbl irq D (Pl.irq _ _ _ _ D irq rfl) (Pl.extra _ _ _ _ D)
+  exact interrupt.decode_irq_handler.dec hA C P a lbl irq D (Pl.irq _ _ _ _ D irq rfl)
+    (fun sl h1 h2 => SlotW.capw0 (Pl.extra _ _ _ _ D sl h1 h2))
 
 
 /-! ## The I/O port families -/
@@ -570,7 +571,7 @@ theorem decGap_ioPortControl {A : Type _} {ar : machine.Arch A} (C : CdtHyps st 
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩
   try dsimp only
-  exact ioport.decode_control.dec C a lbl len slot buf D hslot
+  exact ioport.decode_control.dec C a lbl len slot buf D (SlotW.capw0 hslot)
 
 set_option maxHeartbeats 4000000 in
 /-- **`ioport.decode`** (the port reads and writes) keeps the invariants: the
