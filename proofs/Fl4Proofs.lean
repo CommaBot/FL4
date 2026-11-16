@@ -302,3 +302,5 @@ import Fl4Proofs.P3.XTopCnode
 import Fl4Proofs.P3.XTopStepT
 import Fl4Proofs.P3.XTopDel
 import Fl4Proofs.P3.XTopDelW
+import Fl4Proofs.P3.XTopCnodeAll
+import Fl4Proofs.P3.XTopTcb
