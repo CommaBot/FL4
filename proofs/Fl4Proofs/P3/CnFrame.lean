@@ -6,9 +6,9 @@ swaps**, for the decodes' primitive-step traces (StepSem's `cslot` kind).
   `insert_frame2` for `cdt::insert`).
 * `swap_frame2`: `cdt::swap` writes only slot words.
 * `empty_frame2`: `cdt::empty_slot` with no cleanup cap writes only slot
-  words.
-* `insert_trace`, `move_trace`, `swap_trace`: the frame and every other
-  slot's cap kept.
+  words; `set_cap_frame2`: `set_cap` writes only the slot's cap words.
+* `insert_trace`, `move_trace`, `swap_trace`, `swap_for_delete_trace`: the
+  frame and every other slot's cap kept.
 * `capMove_nkn`, `capSwap_nkn`: the spec's `cap_move` and `cap_swap` are
   `CnK` (only CNodes, TCBs' caps, the CDT and the original bits change).
 -/
@@ -284,6 +284,37 @@ theorem swap_trace (hP : Placed th) (s : S) (G : MdbGhost) (hM : MdbLinks th (L.
   have := (hW y hy).1
   rw [if_neg h2, if_neg h1, capAt_capV, capAt_capV] at this
   exact eq_of_ok_eq this
+
+
+/-- **`set_cap` writes only the slot's cap words.** -/
+theorem set_cap_frame2 (hP : Placed th) (s : S) (x : U64) (hx : IsSlot th x) (c : capability.Cap) :
+    obj.Slot.set_cap st x s c ⦃ s' => Vs.SlotFrame2 (L := L) th s s' ⦄ := by
+  refine WP.spec_mono (set_cap_spec x s c) ?_
+  rintro s' rfl
+  have e : L.wr (L.wr s x ⟨(encodeF c).1⟩) (core.num.U64.wrapping_add x 8#u64) ⟨(encodeF c).2⟩ =
+      wrCap (L := L) s x c := rfl
+  rw [e, wrCap_eq]
+  exact Vs.SlotFrame2.wr' hP (Vs.SlotFrame2.wr' hP (Vs.SlotFrame2.refl s) hx off0 _) hx off8 _
+
+/-- **`cap_swap_for_delete`'s trace**: slot words only, every slot's cap but
+the two swapped ones kept (nothing, for one slot). -/
+theorem swap_for_delete_trace (hP : Placed th) (s : S) (G : MdbGhost) (hM : MdbLinks th (L.mem s) G)
+    {s1 s2 : U64} (h1m : s1 ∈ G.chains.flatten) (h2m : s2 ∈ G.chains.flatten) :
+    cdt.cap_swap_for_delete st s s1 s2 ⦃ s' => Vs.SlotFrame2 (L := L) th s s' ∧
+      ∀ y, IsSlot th y → y ≠ s1 → y ≠ s2 → capV (L.mem s') y = capV (L.mem s) y ⦄ := by
+  unfold cdt.cap_swap_for_delete
+  have heq : obj.Slot.Insts.CoreCmpPartialEqSlot.eq s1 s2 = ok (decide (s1 = s2)) := rfl
+  rw [heq]
+  simp only [bind_ok]
+  by_cases hne : s1 = s2
+  · simp only [hne, decide_true, ↓reduceIte, WP.spec_ok]
+    exact ⟨Vs.SlotFrame2.refl s, fun _ _ _ _ => trivial⟩
+  · simp only [hne, decide_false, Bool.false_eq_true, ↓reduceIte, slot_cap_eq, capAt_capV, bind_ok]
+    have he1 : EncWf (capV (L.mem s) s1) := by
+      have h := capAt_capV (L.mem s) s1; rw [capAt_words] at h; exact decode_encWf h
+    have he2 : EncWf (capV (L.mem s) s2) := by
+      have h := capAt_capV (L.mem s) s2; rw [capAt_words] at h; exact decode_encWf h
+    exact swap_trace hP s G hM h1m h2m hne _ _ he1 he2
 
 end
 
