@@ -44,7 +44,13 @@ pub fn mark_core<S: Store>(s: &mut S, root: u64) {
     let cpu = s.cur_cpu();
     let addr = root.wrapping_add(CORES).wrapping_add((cpu / 32) * 8);
     let old = s.read(addr);
-    s.write(addr, old | (1 << (32 + cpu % 32)));
+    let new = old | (1 << (32 + cpu % 32));
+    // The bitmap shares the hardware page-table root. Even a same-value
+    // write traps under nested KVM and invalidates its shadow translations.
+    // Keep the lifetime history without rewriting an already recorded bit.
+    if old != new {
+        s.write(addr, new);
+    }
 }
 pub fn invalidate<S: Store, A: Arch>(s: &mut S, a: &mut A, root: u64) {
     let mask = (s.read(root.wrapping_add(CORES)) >> 32)

@@ -6,7 +6,8 @@
 //! is saved before remote calls can move/delete it; the hardware VMCS never
 //! migrates or belongs to user memory. EPT translations survive entries;
 //! unmaps and root deletion invalidate every core recorded for the root.
-//! VMX uses no VPID; SVM flushes ASID 1 on each run.
+//! VMX uses no VPID. SVM retains ASID 1 only for the last VCPU/root on a
+//! core; migration, software paging changes and invalidation revoke it.
 use crate::{cpu, fpu, percpu, tlb};
 use core::arch::asm;
 use core::cell::UnsafeCell;
@@ -30,6 +31,96 @@ struct VmcsState {
     valid: [u64; 32],
     loaded: bool,
     launched: bool,
+}
+
+/// Only one SVM address space is retained per core. The VCPU's owner word
+/// distinguishes migration and retype at the same address; core policy
+/// also clears it for explicit TLB flushes and software paging writes.
+struct SvmState {
+    vcpu: u64,
+    root: u64,
+    valid: bool,
+    values: [u64; SVM_CACHED.len()],
+}
+// AMD APM vol. 2 §15.15: every field in the clean groups we enable.
+// Interrupt controls and unsupported groups stay dirty. VMLOAD/VMSAVE
+// state, RIP/RSP/RAX, event injection and exit fields are never cached here.
+const SVM_CACHED: &[(u64, u64)] = &[
+    (0x000, 0),
+    (0x008, 0),
+    (0x010, 0),
+    (0x038, 0),
+    (0x050, 0),
+    (0x040, 1),
+    (0x048, 1),
+    (0x058, 2),
+    (0x090, 4),
+    (0x0b0, 4),
+    (0x668, 4),
+    (0x4d0, 5),
+    (0x548, 5),
+    (0x550, 5),
+    (0x558, 5),
+    (0x560, 6),
+    (0x568, 6),
+    (0x460, 7),
+    (0x468, 7),
+    (0x480, 7),
+    (0x488, 7),
+    (0x400, 8),
+    (0x408, 8),
+    (0x410, 8),
+    (0x418, 8),
+    (0x420, 8),
+    (0x428, 8),
+    (0x430, 8),
+    (0x438, 8),
+    (0x4c8, 8),
+    (0x640, 9),
+];
+impl SvmState {
+    const fn new() -> Self {
+        Self {
+            vcpu: 0,
+            root: 0,
+            valid: false,
+            values: [0; SVM_CACHED.len()],
+        }
+    }
+    fn prepare(&mut self, vcpu: u64, root: u64, owner: u64, cpu: u64) -> bool {
+        let flush = !self.valid || self.vcpu != vcpu || self.root != root || owner != cpu + 1;
+        self.vcpu = vcpu;
+        self.root = root;
+        // A failed VMRUN need not have performed the requested flush.
+        self.valid = false;
+        flush
+    }
+    fn clean(&self, mut read: impl FnMut(u64) -> u64) -> u64 {
+        let mut clean = 0x3f7; // Groups 0..9, except interrupt controls.
+        for (i, &(offset, group)) in SVM_CACHED.iter().enumerate() {
+            if read(offset) != self.values[i] {
+                clean &= !(1 << group);
+            }
+        }
+        clean
+    }
+    fn observe(&mut self, mut read: impl FnMut(u64) -> u64) {
+        for (i, &(offset, _)) in SVM_CACHED.iter().enumerate() {
+            self.values[i] = read(offset);
+        }
+    }
+}
+
+#[derive(Default)]
+struct SvmHost {
+    tls: Option<(u64, u64, u16, u16)>,
+}
+impl SvmHost {
+    fn needs_save(&mut self, tls: (u64, u64, u16, u16), mutable_msrs: bool) -> bool {
+        let save = mutable_msrs || self.tls != Some(tls);
+        self.tls = Some(tls);
+        save
+    }
 }
 impl VmcsState {
     const fn new() -> Self {
@@ -77,6 +168,8 @@ struct Core {
     host: Page,
     vmcs: Page,
     vmx: VmcsState,
+    svm: SvmState,
+    svm_host: SvmHost,
 }
 struct Cores(UnsafeCell<[Core; percpu::MAX_CPUS]>);
 // Each core alone accesses its pages, after BSP initialization.
@@ -88,6 +181,8 @@ static CORES: Cores = Cores(UnsafeCell::new(
             host: Page([0; 4096]),
             vmcs: Page([0; 4096]),
             vmx: VmcsState::new(),
+            svm: SvmState::new(),
+            svm_host: SvmHost { tls: None },
         }
     }; percpu::MAX_CPUS],
 ));
@@ -108,6 +203,7 @@ static MAPS: Shared = Shared(UnsafeCell::new(Maps {
 static BACKEND: AtomicU64 = AtomicU64::new(0);
 static BASIC: AtomicU64 = AtomicU64::new(0);
 static EPT_CAP: AtomicU64 = AtomicU64::new(0);
+static SVM_FEATURES: AtomicU64 = AtomicU64::new(0);
 static CAPS: [AtomicU64; 32] = [const { AtomicU64::new(0) }; 32];
 
 #[repr(C)]
@@ -225,6 +321,7 @@ fn init_svm(bsp: bool) -> bool {
         return false;
     }
     if bsp {
+        SVM_FEATURES.store(c.edx as u64, Ordering::Relaxed);
         let m = unsafe { &mut *MAPS.0.get() };
         for msr in [
             0x174,
@@ -422,6 +519,12 @@ pub fn init(bsp: bool) -> bool {
 }
 
 pub fn invalidate_local(root: u64) {
+    if backend() == 2 {
+        // This also handles roots destroyed and retyped at the same
+        // address. The next VMRUN flushes before consuming any mapping.
+        local().svm.valid = false;
+        return;
+    }
     if backend() != 1 {
         return;
     }
@@ -490,9 +593,11 @@ fn host_vmcs(gdt: &Table, idt: &Table, tr: u64) {
 pub fn run<S: Store>(s: &mut S, v: u64, tcb: u64, root: u64) -> u64 {
     let amd = backend() == 2;
     fpu::lazy_load(tcb);
-    cpu::write_dr7(0x400);
-    for i in 0..4 {
-        cpu::write_dr(i, 0);
+    if !amd || fl4_abi::config::HARDWARE_DEBUG_API {
+        cpu::write_dr7(0x400);
+        for i in 0..4 {
+            cpu::write_dr(i, 0);
+        }
     }
     percpu::get().dr_loaded = false;
     let mut run = Run {
@@ -511,7 +616,13 @@ pub fn run<S: Store>(s: &mut S, v: u64, tcb: u64, root: u64) -> u64 {
     for i in 0..15 {
         run.regs[i] = vcpu::get(s, v, vcpu::REGS + i as u64 * 8);
     }
-    let (gdt, idt, tr) = host_tables();
+    // SVM saves/restores GDTR and IDTR itself. VMX needs their host
+    // values and restores the original limits after VM exit.
+    let (gdt, idt, tr) = if amd {
+        (Table { limit: 0, base: 0 }, Table { limit: 0, base: 0 }, 0)
+    } else {
+        host_tables()
+    };
     let msrs = [
         0xc000_0081u32,
         0xc000_0082,
@@ -522,22 +633,49 @@ pub fn run<S: Store>(s: &mut S, v: u64, tcb: u64, root: u64) -> u64 {
     let mut guest_list: [Msr; 5] = core::array::from_fn(|i| Msr {
         number: msrs[i],
         reserved: 0,
-        value: vcpu::get(s, v, vcpu::MSRS + i as u64 * 8),
+        value: if amd {
+            0
+        } else {
+            vcpu::get(s, v, vcpu::MSRS + i as u64 * 8)
+        },
     });
     let host_list: [Msr; 5] = core::array::from_fn(|i| Msr {
         number: msrs[i],
         reserved: 0,
-        value: cpu::rdmsr(msrs[i]),
+        value: if amd { 0 } else { cpu::rdmsr(msrs[i]) },
     });
     if amd {
         vcpu::set(s, v, svm::IOPM_BASE, physical(maps().io.as_ptr() as u64));
         vcpu::set(s, v, svm::MSRPM_BASE, physical(maps().msr.as_ptr() as u64));
         vcpu::set(s, v, svm::NESTED_CR3, physical(root));
-        vcpu::set(s, v, svm::ASID, 1 | (1 << 32)); // ASID 1; flush all.
-        vcpu::set(s, v, svm::CLEAN, 0);
+        let flush = local()
+            .svm
+            .prepare(v, root, vcpu::get(s, v, vcpu::SVM_CPU), s.cur_cpu());
+        vcpu::set(s, v, svm::ASID, 1 | ((flush as u64) << 32));
+        let clean = if !flush && SVM_FEATURES.load(Ordering::Relaxed) & (1 << 5) != 0 {
+            local().svm.clean(|off| vcpu::get(s, v, off))
+        } else {
+            0
+        };
+        vcpu::set(s, v, svm::CLEAN, clean);
         vcpu::set(s, v, svm::RAX, run.regs[0]);
+        // TR, LDTR and the syscall/SYSENTER MSRs are fixed after core
+        // initialization. FS/GS selectors and bases are the only VMLOAD
+        // state normal user code can change. Inspect the real bases, even
+        // without FSGSBASE: loading a selector can change them as well.
+        let (fs, gs): (u16, u16);
         unsafe {
-            asm!("vmsave rax", in("rax") run.host, options(nostack));
+            asm!("mov {:x}, fs", "mov {:x}, gs", out(reg) fs, out(reg) gs,
+                 options(nomem, nostack, preserves_flags));
+        }
+        let tls = (cpu::fs_base(), cpu::gs_base(), fs, gs);
+        if local()
+            .svm_host
+            .needs_save(tls, fl4_abi::config::KERNEL_X86_DANGEROUS_MSR)
+        {
+            unsafe {
+                asm!("vmsave rax", in("rax") run.host, options(nostack));
+            }
         }
     } else {
         if !local().vmx.loaded {
@@ -600,10 +738,14 @@ pub fn run<S: Store>(s: &mut S, v: u64, tcb: u64, root: u64) -> u64 {
     };
     unsafe {
         asm!("mov cr2, {}", in(reg) run.host_cr2, options(nostack));
-        asm!("lgdt [{}]", "lidt [{}]", in(reg) &gdt, in(reg) &idt, options(nostack));
+        if !amd {
+            asm!("lgdt [{}]", "lidt [{}]", in(reg) &gdt, in(reg) &idt, options(nostack));
+        }
     }
-    cpu::write_dr6(0xffff_0ff0);
-    cpu::write_dr7(0x400);
+    if !amd || fl4_abi::config::HARDWARE_DEBUG_API {
+        cpu::write_dr6(0xffff_0ff0);
+        cpu::write_dr7(0x400);
+    }
     let reason;
     let mut interrupt = u64::MAX;
     let mut exit = [0u64; 30];
@@ -611,6 +753,13 @@ pub fn run<S: Store>(s: &mut S, v: u64, tcb: u64, root: u64) -> u64 {
     if amd {
         reason = vcpu::get(s, v, svm::EXIT_CODE);
         valid = reason != u64::MAX && reason != 0xffff_ffff;
+        local().svm.valid = valid;
+        if valid {
+            // Snapshot hardware's final values, not the previous input:
+            // the guest can change a cached register before exiting.
+            local().svm.observe(|off| vcpu::get(s, v, off));
+            vcpu::set(s, v, vcpu::SVM_CPU, s.cur_cpu() + 1);
+        }
         run.regs[0] = vcpu::get(s, v, svm::RAX);
         exit[0] = vcpu::get(s, v, svm::RIP);
         exit[1] = vcpu::get(s, v, svm::INTERCEPT_EXC) >> 32;
@@ -839,6 +988,68 @@ pub fn empty_root() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn svm_host_save_tracks_tls_and_the_dangerous_msr_profile() {
+        let mut host = SvmHost::default();
+        assert!(host.needs_save((0, 0, 0, 0), false));
+        assert!(!host.needs_save((0, 0, 0, 0), false));
+        for tls in [
+            (0x1000, 0, 0, 0),
+            (0x1000, 0x2000, 0, 0),
+            (0x1000, 0x2000, 0x2b, 0),
+            (0x1000, 0x2000, 0x2b, 0x2b),
+        ] {
+            assert!(host.needs_save(tls, false));
+            assert!(!host.needs_save(tls, false));
+            assert!(host.needs_save(tls, true));
+        }
+    }
+    #[test]
+    fn svm_asid_reuse_requires_the_same_live_owner_and_completed_entry() {
+        let mut state = SvmState::new();
+        assert!(state.prepare(0x1000, 0x2000, 0, 0)); // First entry.
+        assert!(state.prepare(0x1000, 0x2000, 1, 0)); // Failed entry.
+        state.valid = true;
+        assert!(!state.prepare(0x1000, 0x2000, 1, 0));
+        for (v, root, owner) in [
+            (0x1000, 0x2000, 2), // Migrated away and back.
+            (0x1000, 0x2000, 0), // Retype, flush, paging write or reset.
+            (0x1000, 0x3000, 1), // Replaced nested root.
+            (0x4000, 0x3000, 1), // Another VCPU sharing that root.
+        ] {
+            state.valid = true;
+            assert!(state.prepare(v, root, owner, 0));
+        }
+        state.valid = false; // Local or remote nested invalidation.
+        assert!(state.prepare(0x4000, 0x3000, 1, 0));
+    }
+
+    #[test]
+    fn svm_clean_groups_track_hardware_results_and_software_rewinds() {
+        let mut state = SvmState::new();
+        let mut vmcb = [0u64; 0x700 / 8];
+        state.observe(|off| vmcb[off as usize / 8]);
+        assert_eq!(state.clean(|off| vmcb[off as usize / 8]), 0x3f7);
+        // Every represented field dirties its whole group, not others.
+        for &(off, group) in SVM_CACHED {
+            vmcb[off as usize / 8] = 1;
+            assert_eq!(
+                state.clean(|off| vmcb[off as usize / 8]),
+                0x3f7 & !(1 << group)
+            );
+            vmcb[off as usize / 8] = 0;
+        }
+        // A guest changes CR3, then the VMM restores the previous value.
+        vmcb[svm::CR3 as usize / 8] = 0x8000;
+        state.observe(|off| vmcb[off as usize / 8]);
+        vmcb[svm::CR3 as usize / 8] = 0;
+        assert_eq!(state.clean(|off| vmcb[off as usize / 8]) & (1 << 5), 0);
+        // Always-loaded RIP and event injection cannot become cached.
+        vmcb[svm::RIP as usize / 8] = 0x1234;
+        vmcb[svm::EVENT_INJ as usize / 8] = 1 << 31;
+        assert_eq!(state.clean(|off| vmcb[off as usize / 8]), 0x3f7 & !(1 << 5));
+    }
+
     #[test]
     fn vmcs_reentry_writes_no_unchanged_fields() {
         let mut state = VmcsState::new();

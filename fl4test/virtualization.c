@@ -220,6 +220,54 @@ static int test_vm_execute(env_t env)
     }
     test_eq(seL4_X86_VCPU_WriteRegisters(v.cptr, &regs), seL4_NoError);
     printf("VCPU repeated-entry checks completed\n");
+    if (amd) {
+        /* Cache a guest-linear translation, edit its PTE without changing
+         * the nested mapping, then demand invalidation through both APIs.
+         * A same-value CR3 write must invalidate too. */
+        void *pages[4];
+        for (int i = 0; i < 4; i++) {
+            pages[i] = vspace_new_pages(&env->vspace, seL4_AllRights, 1, seL4_PageBits);
+            test_assert(pages[i] != NULL);
+            memset(pages[i], 0, 4096);
+            cspacepath_t alias;
+            test_eq(vka_cspace_alloc_path(&env->vka, &alias), 0);
+            vka_cspace_make_path(&env->vka, vspace_get_cap(&env->vspace, pages[i]), &src);
+            test_eq(vka_cnode_copy(&alias, &src, seL4_AllRights), seL4_NoError);
+            test_eq(seL4_X86_Page_MapEPT(alias.capPtr, root.cptr, (i + 1) * 4096,
+                    seL4_AllRights, seL4_X86_EPT_Default_VMAttributes), seL4_NoError);
+        }
+        volatile uint32_t *gpd = pages[0], *gpt = pages[1];
+        gpd[0] = 0x2003;
+        gpt[0] = 3;
+        gpt[8] = 0x3003;
+        *(uint32_t *)pages[2] = 0x11112222;
+        *(uint32_t *)pages[3] = 0x33334444;
+        const unsigned char load[] = {0xa1, 0x00, 0x80, 0x00, 0x00, 0x0f, 0xa2};
+        memcpy((unsigned char *)code + 0x40, load, sizeof(load)); /* MOV EAX,[0x8000]; CPUID */
+        const seL4_Word fields[] = {0x410, 0x430, 0x550, 0x558};
+        seL4_Word saved[4];
+        for (int i = 0; i < 4; i++) { saved[i] = seL4_X86_VCPU_ReadVMCB(v.cptr, fields[i], 1).value; }
+        test_eq(vmcb_write(v.cptr, 0x410, 0xffffffff0c9b0000ull), seL4_NoError);
+        test_eq(vmcb_write(v.cptr, 0x430, 0xffffffff0c930000ull), seL4_NoError);
+        test_eq(vmcb_write(v.cptr, 0x550, 0x1000), seL4_NoError);
+        test_eq(vmcb_write(v.cptr, 0x558, 0x80000011), seL4_NoError);
+        for (int round = 0; round < 3; round++) {
+            if (round == 1) {
+                gpt[8] = 0x4003;
+                test_eq(seL4_X86_VCPU_FlushTLB(v.cptr), seL4_NoError);
+            } else if (round == 2) {
+                gpt[8] = 0x3003;
+                test_eq(vmcb_write(v.cptr, 0x550, 0x1000), seL4_NoError);
+            }
+            seL4_SetMR(0, 0x40); seL4_SetMR(1, ctl); seL4_SetMR(2, 0);
+            test_eq(seL4_VMEnter(&badge), SEL4_VMENTER_RESULT_FAULT);
+            test_eq(seL4_GetMR(SEL4_VMENTER_FAULT_REASON_MR), 0x72);
+            test_eq(seL4_GetMR(SEL4_VMENTER_FAULT_EAX), round == 1 ? 0x33334444 : 0x11112222);
+        }
+        for (int i = 0; i < 4; i++) { test_eq(vmcb_write(v.cptr, fields[i], saved[i]), seL4_NoError); }
+        test_eq(seL4_X86_VCPU_WriteRegisters(v.cptr, &regs), seL4_NoError);
+        printf("VCPU guest-TLB invalidation checks completed\n");
+    }
     seL4_SetMR(0, 2); seL4_SetMR(1, ctl); seL4_SetMR(2, 0);
     test_eq(seL4_VMEnter(&badge), SEL4_VMENTER_RESULT_FAULT);
     test_eq(seL4_GetMR(SEL4_VMENTER_FAULT_REASON_MR), amd ? 0x78 : 12);

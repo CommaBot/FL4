@@ -11,12 +11,14 @@ use std::collections::BTreeMap;
 struct Memory {
     words: BTreeMap<u64, u64>,
     cpu: u64,
+    writes: usize,
 }
 impl Store for Memory {
     fn read(&self, a: u64) -> u64 {
         *self.words.get(&a).unwrap_or(&0)
     }
     fn write(&mut self, a: u64, v: u64) {
+        self.writes += 1;
         self.words.insert(a, v);
     }
     fn zero(&mut self, a: u64, len: u64) {
@@ -136,6 +138,34 @@ fn fixture(backend: u64) -> (Memory, Machine, Tcb, u64) {
     t.set_ipc_buffer(&mut s, 0x1000);
     vcpu::init(&mut s, &a, 0x80000);
     (s, a, t, 0x80000)
+}
+
+#[test]
+fn nested_root_records_each_core_once_without_rewriting_the_page_table() {
+    let mut s = Memory::default();
+    let mut a = Machine::default();
+    let root = 0x8000;
+    for cpu in [0, 31, 32, 63] {
+        s.cpu = cpu;
+        let before = s.writes;
+        ept::mark_core(&mut s, root);
+        assert_eq!(s.writes, before + 1);
+        for _ in 0..16 {
+            ept::mark_core(&mut s, root);
+        }
+        assert_eq!(s.writes, before + 1, "a cached root must remain read-only");
+    }
+    let before = s.writes;
+    ept::invalidate(&mut s, &mut a, root);
+    assert_eq!(
+        a.invalidations,
+        [(root, (1 << 63) | (1 << 32) | (1 << 31) | 1)]
+    );
+    ept::mark_core(&mut s, root);
+    assert_eq!(
+        s.writes, before,
+        "invalidation retains the lifetime core history"
+    );
 }
 #[test]
 fn debug_cap_identify_uses_sel4_virtualization_tags() {
@@ -294,6 +324,57 @@ fn xcr0_groups_and_canonical_width_match_hardware_rules() {
     assert!(vcpu::canonical(0x800000000000, 57));
     assert!(!vcpu::canonical(0x0200000000000000, 57));
 }
+#[test]
+fn svm_software_paging_writes_flush_even_when_the_value_is_unchanged() {
+    let (mut s, mut a, t, v) = fixture(2);
+    for off in [
+        vcpu::svm::CR0,
+        vcpu::svm::CR3,
+        vcpu::svm::CR4,
+        vcpu::svm::EFER,
+        vcpu::svm::G_PAT,
+        vcpu::svm::RIP,
+    ] {
+        let value = vcpu::get(&s, v, off);
+        vcpu::set(&mut s, v, vcpu::SVM_CPU, 1);
+        t.set_reg(&mut s, reg::R10, off);
+        t.set_reg(&mut s, reg::R8, value);
+        vcpu::decode(
+            &mut s,
+            &mut a,
+            label::X86VCPUWriteVMCB,
+            2,
+            v,
+            true,
+            0,
+            &[Slot(0); 3],
+        )
+        .ok()
+        .unwrap();
+        assert_eq!(
+            vcpu::get(&s, v, vcpu::SVM_CPU),
+            if off == vcpu::svm::RIP { 1 } else { 0 }
+        );
+    }
+    vcpu::set(&mut s, v, vcpu::SVM_CPU, 1);
+    vcpu::decode(
+        &mut s,
+        &mut a,
+        label::X86VCPUFlushTLB,
+        0,
+        v,
+        true,
+        0,
+        &[Slot(0); 3],
+    )
+    .ok()
+    .unwrap();
+    assert_eq!(vcpu::get(&s, v, vcpu::SVM_CPU), 0);
+    vcpu::set(&mut s, v, vcpu::SVM_CPU, 1);
+    vcpu::reset_svm(&mut s, v);
+    assert_eq!(vcpu::get(&s, v, vcpu::SVM_CPU), 0);
+}
+
 #[test]
 fn vmcb_bulk_read_rejects_overflow_and_hides_physical_pointers() {
     let (mut s, mut a, t, v) = fixture(2);

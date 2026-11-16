@@ -358,7 +358,7 @@ structure debug.Breakpoint where
 def ept.root.closure (S : Type _) := Unit
 
 /-- [fl4_core::ept::slot::{closure}]
-    Source: 'crates/fl4-core/src/ept.rs', lines 71:40-71:99 -/
+    Source: 'crates/fl4-core/src/ept.rs', lines 77:40-77:99 -/
 @[reducible]
 def ept.slot.closure (S : Type _) := Unit
 
@@ -392,12 +392,12 @@ structure vspace.VRoot where
   asid : Std.U64
 
 /-- [fl4_core::vcpu::msr_addr::{closure#1}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 761:20-761:76 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 765:20-765:76 -/
 @[reducible]
 def vcpu.msr_addr.closure_1 := Std.U64
 
 /-- [fl4_core::vcpu::msr_addr::{closure}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 756:30-756:55 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 760:30-760:55 -/
 @[reducible]
 def vcpu.msr_addr.closure := Std.U64
 
