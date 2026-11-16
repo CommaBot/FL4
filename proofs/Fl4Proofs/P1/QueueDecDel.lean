@@ -20,53 +20,61 @@ variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {U : Set U
 def SlotW (T Ω Sg : Set U64) (x : U64) : Prop :=
   Aligned x ∧ ∀ o : U64, o.val < 32 → o.val % 8 = 0 → CapW T Ω Sg (core.num.U64.wrapping_add x o)
 
-/-- The state inside a deletion, from the decode's start `s0`: the invariants,
-the current thread's step (`CurStep`) and what a preemption point needs. -/
+/-- The state inside a deletion, from the decode's start `s0`: the
+invariants (for some active set), the current thread and SC kept, the
+current thread's `SC` field kept or cleared, the current thread not the
+switch-to candidate; and `s0`'s current-SC fact. -/
 def Cur0 (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64)
     (Z : U64 → Nat) (Ac : Set U64) (s0 s : S) : Prop :=
-  ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s ∧ CurStep st Ac Ac' s0 s ∧ L.actionW s ≠ L.curW s ∧
-    (L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s)))
+  (L.mem s0 (scA (L.curW s0)) ≠ 0#u64 → L.cscW s0 = L.mem s0 (scA (L.curW s0))) ∧
+  ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s ∧ L.curW s = L.curW s0 ∧ L.cscW s = L.cscW s0 ∧
+    (L.mem s (scA (L.curW s0)) = L.mem s0 (scA (L.curW s0)) ∨ L.mem s (scA (L.curW s0)) = 0#u64) ∧
+    L.actionW s ≠ L.curW s
 
 theorem Cur0.post {s0 s : S} {r : core.result.Result Unit error.Exc}
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) : DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r s := by
-  obtain ⟨Ac', h1, k, na, hc⟩ := h
-  exact ⟨Ac', h1, fun _ => ⟨k, na, hc⟩⟩
+  obtain ⟨hc0, Ac', h1, ec, ecs, esc, na⟩ := h
+  refine ⟨Ac', h1, fun _ => ⟨⟨ecs, ec, fun _ _ => ?_, ?_⟩, na, fun hne => ?_⟩⟩
+  · rcases esc with e | e
+    · rw [e]
+      by_cases z : L.mem s0 (scA (L.curW s0)) = 0#u64
+      · exact Or.inl z
+      · exact Or.inr (hc0 z).symm
+    · exact Or.inl e
+  · rcases esc with e | e
+    · exact Or.inl e
+    · exact Or.inr (Or.inl e)
+  · rw [ec] at hne ⊢
+    rcases esc with e | e
+    · rw [e] at hne ⊢; rw [ecs]; exact hc0 hne
+    · exact absurd e hne
 
-/-- `Cur0` across a step that keeps the invariants (for every active set),
-the current thread and SC, the action and the current thread's `SC`. -/
-theorem Cur0.step {s0 s s' : S} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s)
-    (hk : ∀ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s')
-    (ec : L.curW s' = L.curW s) (ecs : L.cscW s' = L.cscW s) (ea : L.actionW s' = L.actionW s)
-    (esc : L.mem s' (scA (L.curW s)) = L.mem s (scA (L.curW s))) : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' := by
-  obtain ⟨Ac', h1, k, na, hc⟩ := h
-  have ec0 : L.curW s = L.curW s0 := k.cur
-  refine ⟨Ac', hk Ac' h1, ⟨ecs.trans k.csc, ec.trans k.cur, fun a b => ?_, ?_⟩, ?_, ?_⟩
-  · rw [← ec0, esc, ec0]; exact k.del a b
-  · rw [← ec0, esc, ec0]; exact k.sc
-  · rw [ea, ec]; exact na
-  · rw [ec, esc, ecs]; exact hc
+/-- `Cur0` across a step: the invariants for some active set, the current
+thread and SC kept, the current thread's `SC` kept or cleared, and the
+current thread not the candidate. -/
+theorem Cur0.mk {s0 s s' : S} {Ac' : Set U64} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s)
+    (hb : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s') (ec : L.curW s' = L.curW s) (ecs : L.cscW s' = L.cscW s)
+    (esc : L.mem s' (scA (L.curW s)) = L.mem s (scA (L.curW s)) ∨ L.mem s' (scA (L.curW s)) = 0#u64)
+    (na : L.actionW s' ≠ L.curW s') : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' := by
+  obtain ⟨hc0, Ac1, -, ec1, ecs1, esc1, -⟩ := h
+  refine ⟨hc0, Ac', hb, ec.trans ec1, ecs.trans ecs1, ?_, na⟩
+  rw [ec1] at esc
+  rcases esc with e | e
+  · rw [e]; exact esc1
+  · exact Or.inr e
 
-/-- `Cur0` across a step from the witness's invariants. -/
-theorem Cur0.mk {s0 s s' : S} {Ac' : Set U64} (k : CurStep st Ac Ac' s0 s) (na : L.actionW s ≠ L.curW s)
-    (hc : L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s)))
-    (hb : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s')
-    (ec : L.curW s' = L.curW s) (ecs : L.cscW s' = L.cscW s) (ea : L.actionW s' = L.actionW s)
-    (esc : L.mem s' (scA (L.curW s)) = L.mem s (scA (L.curW s))) : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' := by
-  have ec0 : L.curW s = L.curW s0 := k.cur
-  refine ⟨Ac', hb, ⟨ecs.trans k.csc, ec.trans k.cur, fun a b => ?_, ?_⟩, ?_, ?_⟩
-  · rw [← ec0, esc, ec0]; exact k.del a b
-  · rw [← ec0, esc, ec0]; exact k.sc
-  · rw [ea, ec]; exact na
-  · rw [ec, esc, ecs]; exact hc
+/-- `Cur0`'s invariants. -/
+theorem Cur0.bxi {s0 s : S} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) :
+    ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s := ⟨_, h.2.choose_spec.1⟩
 
 /-- Cap-slot writes. -/
 theorem Cur0.capw {s0 s s' : S} {B : U64 → Prop} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s)
     (hw : WritesIn st s s' B) (hB : ∀ b, B b → CapW T Ω Sg b) : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' := by
   have h0 := h
-  obtain ⟨Ac', h1, -, -, -⟩ := h0
+  obtain ⟨-, Ac', h1, -, -, -, na⟩ := h0
   have hct : L.curW s ∈ T := h1.1.choose_spec.choose_spec.curT
-  obtain ⟨-, -, ec, ecs, ea, fld, -, -⟩ := blk_of_capw h1.blk hw hB
-  refine Cur0.step h (fun Ac'' h' => BlkOK.bxi (blk_of_capw h'.blk hw hB).1) ec ecs ea ?_
+  obtain ⟨b, -, ec, ecs, ea, fld, -, -⟩ := blk_of_capw h1.blk hw hB
+  refine Cur0.mk h (BlkOK.bxi b) ec ecs (Or.inl ?_) (by rw [ea, ec]; exact na)
   rw [scA_eq]; exact fld _ hct _ (by simp) (by simp) (by simp)
 
 /-- `set_cap` of a cap slot. -/
@@ -98,7 +106,8 @@ theorem obj.Slot.set_cap.capw {s : S} {x : U64} {c : capability.Cap} (hx' : Slot
 theorem sched.preemption_point.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {s0 s : S} {a : A}
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) :
     sched.preemption_point st ar s a ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ⦄ := by
-  obtain ⟨Ac', h1, k1, na1, hc1⟩ := h
+  have hh := h
+  obtain ⟨-, Ac', h1, -, -, -, na1⟩ := hh
   have q := h1.1.choose_spec.choose_spec
   have hT := q.tcbs
   have hN := q.nodes _ q.cur
@@ -132,25 +141,66 @@ theorem sched.preemption_point.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.
         (hT _ hct) (by decide) (by unfold LawfulStore.nodeA at e; exact e.symm)
     · exact node_ne_field (K := 3464#u64) (o := layout.node.CONSUMED) hN (by simp [layout.node.CONSUMED]) hct
         (hT _ hct) (by decide) (by unfold LawfulStore.nodeA at e; exact e.symm)
-  refine Cur0.mk k1 na1 hc1 (BlkOK.bxi b) (nd _ (by rw [curth0]; simp)) ?_ (nd _ (by rw [act_val]; simp)) fsc
-  unfold LawfulStore.cscW LawfulStore.nodeA; exact nd _ (by simp [layout.node.CUR_SC])
+  have ec := nd _ (by rw [curth0]; simp)
+  have ea := nd _ (by rw [act_val]; simp)
+  refine Cur0.mk h (BlkOK.bxi b) ec ?_ (Or.inl fsc) ?_
+  · unfold LawfulStore.cscW LawfulStore.nodeA; exact nd _ (by simp [layout.node.CUR_SC])
+  · unfold LawfulStore.actionW LawfulStore.curW; rw [ea, ec]; exact na1
 
-/-- The finalisation steps (P3's: each object type's finalisation, the
-deferred delete of a zombie's slots, and emptying a slot with its CDT
-unlinking and `post_cap_deletion`), each `Cur0` in and `Cur0` out, and the
-CDT's `NEXT` links of cap slots name cap slots. -/
+/-- The slot at index `i` of a slot array at `p`. -/
+def slotIdx (p i : U64) : U64 := core.num.U64.wrapping_add p (core.num.U64.wrapping_mul i 32#u64)
+
+/-- A cap's typing for its deletion (P3's `valid_cap`): `CapTyped`; IRQ
+handler caps name IRQs below 128; I/O-port caps name ranges of 16-bit ports;
+CNode and zombie caps name arrays of cap slots; thread caps name TCBs. -/
+def DelCapOK (T Ω Sg : Set U64) (H : Heap) (Rp Nt : Set U64) (c : capability.Cap) : Prop :=
+  CapTyped H Rp Nt c ∧ (∀ i, c = .IrqHandler i → i.val < 128) ∧
+  (∀ f l o, c = .IoPort f l o → f.val ≤ l.val ∧ l.val < 65536) ∧
+  (∀ p r g b, c = .CNode p r g b → SlotW T Ω Sg p ∧ ∀ i : U64, i.val < 2 ^ (r.val % 64) → SlotW T Ω Sg (slotIdx p i)) ∧
+  (∀ p t n, c = .Zombie p t n → SlotW T Ω Sg p ∧ ∀ i : U64, i.val < n.val → SlotW T Ω Sg (slotIdx p i)) ∧
+  (∀ p, c = .Thread p → p ∈ T)
+
+theorem DelCapOK.null : DelCapOK T Ω Sg H Rp Nt .Null := by
+  refine ⟨⟨?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, ?_⟩ <;> intros <;> simp_all
+
+/-- The finalisation steps (P3's), each `Cur0` in and `Cur0` out: the caps
+in cap slots are typed for deletion (`DelCapOK`); each typed cap's
+finalisation, with typed remainder and cleanup caps; the deferred delete of
+a cap slot; emptying a cap slot with its CDT unlinking and the typed cleanup
+cap's `post_cap_deletion`; and the CDT's `NEXT` links of cap slots name cap
+slots.  QueueDelFin proves this from placement (`DelPlace`) and the named
+per-kind finalisations (`FinGaps`). -/
 structure DelGaps (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
     (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) : Prop where
-  fin : ∀ (Ac : Set U64) (s0 s : S) (a : A) (x : U64), Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s → SlotW T Ω Sg x →
-    obj.Slot.cap st x s ⦃ c => ∀ fin, objects.finalise_cap st ar s a c fin false ⦃ r =>
-      Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ⦄ ⦄
+  cap : ∀ (Ac : Set U64) (s : S) (x : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → SlotW T Ω Sg x →
+    obj.Slot.cap st x s ⦃ c => DelCapOK T Ω Sg H Rp Nt c ⦄
+  fin : ∀ (Ac : Set U64) (s0 s : S) (a : A) (c : capability.Cap) (fin : Bool),
+    Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s → DelCapOK T Ω Sg H Rp Nt c →
+    objects.finalise_cap st ar s a c fin false ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ∧
+      DelCapOK T Ω Sg H Rp Nt r.1.1 ∧ DelCapOK T Ω Sg H Rp Nt r.1.2 ⦄
   deferred : ∀ (Ac : Set U64) (s0 s : S) (a : A) (x : U64), Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s →
-    cdt.delete_deferred st ar s a x ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ⦄
+    SlotW T Ω Sg x → cdt.delete_deferred st ar s a x ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ⦄
   empty : ∀ (Ac : Set U64) (s0 s : S) (a : A) (x : U64) (c : capability.Cap),
-    Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s → SlotW T Ω Sg x →
+    Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s → SlotW T Ω Sg x → DelCapOK T Ω Sg H Rp Nt c →
     cdt.empty_slot st ar s a x c ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.1 ⦄
   next : ∀ (Ac : Set U64) (s : S) (x : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → SlotW T Ω Sg x →
     obj.Slot.next st x s ⦃ n => n = 0#u64 ∨ SlotW T Ω Sg n ⦄
+
+theorem cte_size : layout.cte.SIZE = 32#u64 := by unfold layout.cte.SIZE; rfl
+
+/-- A non-removable zombie has a nonzero count. -/
+theorem cdt.cap_removable.zombie (c : capability.Cap) (x : U64) :
+    cdt.cap_removable c x ⦃ b => b = false → ∀ p t n, c = .Zombie p t n → n ≠ 0#u64 ⦄ := by
+  cases c <;> simp [cdt.cap_removable]
+  split <;> simp_all
+  split <;> simp_all
+
+theorem zombie_last {T Ω Sg : Set U64} {H : Heap} {Rp Nt : Set U64} {p t n : U64}
+    (hc : DelCapOK T Ω Sg H Rp Nt (.Zombie p t n)) (hn : n ≠ 0#u64) :
+    SlotW T Ω Sg (slotIdx p (core.num.U64.wrapping_sub n 1#u64)) := by
+  refine (hc.2.2.2.2.1 p t n rfl).2 _ ?_
+  have : n.val ≠ 0 := fun e => hn (UScalar.eq_of_val_eq (by simpa using e))
+  simp [core.num.U64.wrapping_sub_val_eq, U64.size_def, U64.numBits]; omega
 
 set_option hygiene false in
 /-- The preemption-point tail of a loop round (`Cur0` at `s2`). -/
@@ -167,13 +217,15 @@ local macro "pptail" : tactic => `(tactic| (
   · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
       bind_tc_ok]
-    first | exact (WP.spec_ok _).2 h3 | exact h3))
+    first | exact (WP.spec_ok _).2 h3 | exact h3 | exact (WP.spec_ok _).2 ⟨h3, by intro v hv; simp_all⟩ |
+      exact ⟨h3, by intro v hv; simp_all⟩))
 
 set_option maxHeartbeats 4000000 in
 theorem cdt.finalise_slot_immediate.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) {s0 s : S} {a : A} {x : U64}
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hx : SlotW T Ω Sg x) :
-    cdt.finalise_slot_immediate st ar s a x ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ⦄ := by
+    cdt.finalise_slot_immediate st ar s a x ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ∧
+      ∀ v, r.1 = .Ok v → DelCapOK T Ω Sg H Rp Nt v.cleanup ⦄ := by
   have hS : P0.StoreTotal st := L.total
   unfold cdt.finalise_slot_immediate cdt.finalise_slot_immediate_loop
   apply loop.spec_decr_nat (measure := fun y => y.2.2.val)
@@ -184,20 +236,23 @@ theorem cdt.finalise_slot_immediate.cur0 {A : Type _} {ar : machine.Arch A} (hA 
     unfold cdt.finalise_slot_immediate_loop.body
     split
     swap
-    · exact (WP.spec_ok _).2 h1
+    · exact (WP.spec_ok _).2 ⟨h1, by intro v hv; simp_all⟩
     rename_i hf
     step as ⟨fuel1, hf1⟩
-    refine WP.spec_bind (G.fin Ac s0 s1 a1 x h1 hx) fun c hc => ?_
+    obtain ⟨Acx, hbx⟩ := h1.bxi
+    refine WP.spec_bind (G.cap Acx s1 x hbx hx) fun c hc => ?_
     refine WP.spec_bind (P0.capability.Cap.is_null.p0 c) fun bn _ => ?_
     split
-    · exact (WP.spec_ok _).2 h1
+    · exact (WP.spec_ok _).2 ⟨h1, fun v hv => by cases hv; exact DelCapOK.null⟩
     refine WP.spec_bind (P0.cdt.is_final_capability_with_cap.p0 st s1 x c hS) fun fin _ => ?_
-    refine WP.spec_bind (hc fin) ?_
-    rintro ⟨⟨rem, cl⟩, s2, a2⟩ h2'
+    refine WP.spec_bind (G.fin Ac s0 s1 a1 c fin h1 hc) ?_
+    rintro ⟨⟨rem, cl⟩, s2, a2⟩ ⟨h2', hrem, hcl⟩
     try simp only [uncurry_apply_pair, WP.uncurry'_pair]
-    refine WP.spec_bind (P0.cdt.cap_removable.p0 rem x) fun br _ => ?_
+    refine WP.spec_bind (cdt.cap_removable.zombie rem x) fun br hbr => ?_
     split
-    · exact (WP.spec_ok _).2 h2'
+    · exact (WP.spec_ok _).2 ⟨h2', fun v hv => by cases hv; exact hcl⟩
+    rename_i hbr0
+    have hbr' := hbr (by simpa using hbr0)
     refine WP.spec_bind (obj.Slot.set_cap.capw (c := rem) (s := s2) hx) fun s2' w2 => ?_
     have h2 := h2'.capw w2 fun _ hb => hb
     have hf' : 0 < fuel.val := by simpa using hf
@@ -205,8 +260,11 @@ theorem cdt.finalise_slot_immediate.cur0 {A : Type _} {ar : machine.Arch A} (hA 
     all_goals try pptail
     -- the zombie: the deferred delete of its last slot, then the count
     simp only [lift, bind_ok]
-    refine WP.spec_bind (P0.obj.Slot.index.p0 _ _) fun en _ => ?_
-    refine WP.spec_bind (G.deferred Ac s0 s2' a2 en h2) ?_
+    rename_i zp zt zn
+    have hen := zombie_last hrem (hbr' zp zt zn rfl)
+    unfold obj.Slot.index
+    simp only [lift, bind_ok, cte_size]
+    refine WP.spec_bind (G.deferred Ac s0 s2' a2 _ h2 hen) ?_
     rintro ⟨r, s3, a3⟩ h3
     try simp only [uncurry_apply_pair] at h3 ⊢
     rcases r with _ | e
@@ -233,7 +291,7 @@ theorem cdt.finalise_slot_immediate.cur0 {A : Type _} {ar : machine.Arch A} (hA 
     · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
         bind_tc_ok]
-      exact (WP.spec_ok _).2 h3
+      exact (WP.spec_ok _).2 ⟨h3, by intro v hv; simp_all⟩
   · exact h
 
 /-- `cdt.delete` (exposed) of a cap slot. -/
@@ -244,11 +302,11 @@ theorem cdt.delete.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar
   unfold cdt.delete
   simp only [↓reduceIte]
   refine WP.spec_bind (cdt.finalise_slot_immediate.cur0 hA G h hx) ?_
-  rintro ⟨r, s1, a1⟩ h1
-  try simp only [uncurry_apply_pair] at h1 ⊢
+  rintro ⟨r, s1, a1⟩ ⟨h1, hv1⟩
+  try simp only [uncurry_apply_pair] at h1 hv1 ⊢
   rcases r with v | e
   · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
-    refine WP.spec_bind (G.empty Ac s0 s1 a1 x _ h1 hx) ?_
+    refine WP.spec_bind (G.empty Ac s0 s1 a1 x _ h1 hx (hv1 v rfl)) ?_
     rintro ⟨s2, a2⟩ h2
     try simp only [uncurry_apply_pair] at h2 ⊢
     exact (WP.spec_ok _).2 h2
@@ -278,7 +336,7 @@ theorem cdt.revoke.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar
     have hf' : 0 < fuel.val := by simpa using hf
     step as ⟨fuel1, hf1⟩
     have h1' := h1
-    obtain ⟨Acx, hbx, -, -, -⟩ := h1'
+    obtain ⟨-, Acx, hbx, -, -, -, -⟩ := h1'
     refine WP.spec_bind (G.next Acx s1 x hbx hx) fun nx hnx => ?_
     simp only [obj.Slot.is_null, bind_ok]
     split
@@ -322,12 +380,11 @@ theorem Cur0.restart {s : S} {cap : capability.Cap} {extra : Aeneas.Std.Array ob
   have ec := k.curW
   have ecs := k.cscW
   have esc := k.scf hct
-  refine ⟨Ac, BlkOK.bxi h1, ⟨ecs, ec, fun a b => absurd a b, Or.inl esc⟩, ?_, ?_⟩
-  · rw [ec]
-    rcases k.act with e | e
-    · rw [e, D.act]; exact fun e' => notT_small hT (by simp) (e' ▸ hct)
-    · rw [e]; exact fun e' => notT_small hT (by simp) (e' ▸ hct)
-  · rw [ec, esc, ecs]; exact D.hcsc
+  refine ⟨D.hcsc, Ac, BlkOK.bxi h1, ec, ecs, Or.inl esc, ?_⟩
+  rw [ec]
+  rcases k.act with e | e
+  · rw [e, D.act]; exact fun e' => notT_small hT (by simp) (e' ▸ hct)
+  · rw [e]; exact fun e' => notT_small hT (by simp) (e' ▸ hct)
 
 /-- **CNode `Delete`** from `DelGaps`. -/
 theorem cnode_del {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
