@@ -1023,26 +1023,28 @@ theorem utHeap_false (H : Heap) (p sb : U64) : utHeap H false p sb = H := rfl
 theorem utHeap_true (H : Heap) (p sb : U64) :
     utHeap H true p sb = H.drop (RegionD H p.val (p.val + 2 ^ sb.val)) := rfl
 
-/-- **[KeptRefsP3 at the decode]** (named, to be discharged: module
-docstring of `KeptRefsP3`): after the restart from a joint state, the kept
-objects' spec-side links name no object of a dead range. -/
-def UtKeptRefs {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs : Set U64) : Prop :=
+/-- **[J] [RegionUnref] No live object's link points into a dead region**
+(the consequence of l4v `sym_refs`, `valid_replies` and `valid_untyped` that
+l4v's retype and `detype` proofs use): after the restart from a joint state,
+for any range whose `H` objects are all dead (`D`), the kept objects' links
+name none of them: the spec-side links (`KeptRefsP3`: bound notifications,
+SC notifications, reply stacks, yield-to/from) and FL4's own timer trees and
+debug lists (`DbgTimerKept`). Named; deferred to the invariant-preservation
+phase. Routes found: (1) spec `sym_refs` fragments for the bound links
+(TCB↔notification, SC↔notification) plus l4v `valid_replies` for the reply
+stacks, as `SchedValid` fields through the relations; or (2) P1-side
+symmetries in `ScExtra` (next to `nsc`) for the bound links; and (3) for
+yield, `DeadP` extended with the TCB's `yieldA` and the SC's `scYieldFromA`
+(cleared by finalisation) plus the missing direction "yield-to names a
+yield-from"; the timer/debug part needs "the timer trees' and debug lists'
+members are live TCBs" ([W]). -/
+def RegionUnref {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs : Set U64) : Prop :=
   ∀ (s0 s : S) (slot : obj.Slot) (cap : capability.Cap) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (th : TypedHeap) (G : MdbGhost) (D : Set U64) (σ : Fl4Spec.State Unit) (pp : U64) (rs : Nat) (idx : List Bool),
     UtJoint (L := L) arI H Cs s0 slot cap extra th G D σ pp rs idx →
     sched.set_thread_state st s0 (L.curW s0) sched.TS_RESTART = ok s →
-    ∀ lo hi : Nat, (∀ q k, H q = some k → RegionD H lo hi q → q ∈ D) → KeptRefsP3 (L := L) H (RegionD H lo hi) s
-
-/-- **[W] [DbgTimerKept at the decode]**: after the restart from a joint
-state, the timer trees and debug lists name no object of a dead range.
-Needs the P3 invariant "the timer trees' and debug lists' members are live
-TCBs" (`DbgTimerKept`). Named. -/
-def UtDbgTimer {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs : Set U64) : Prop :=
-  ∀ (s0 s : S) (slot : obj.Slot) (cap : capability.Cap) (extra : Aeneas.Std.Array obj.Slot 3#usize)
-    (th : TypedHeap) (G : MdbGhost) (D : Set U64) (σ : Fl4Spec.State Unit) (pp : U64) (rs : Nat) (idx : List Bool),
-    UtJoint (L := L) arI H Cs s0 slot cap extra th G D σ pp rs idx →
-    sched.set_thread_state st s0 (L.curW s0) sched.TS_RESTART = ok s →
-    ∀ lo hi : Nat, (∀ q k, H q = some k → RegionD H lo hi q → q ∈ D) → DbgTimerKept (L := L) H (RegionD H lo hi) Cs s
+    ∀ lo hi : Nat, (∀ q k, H q = some k → RegionD H lo hi q → q ∈ D) →
+      KeptRefsP3 (L := L) H (RegionD H lo hi) s ∧ DbgTimerKept (L := L) H (RegionD H lo hi) Cs s
 
 /-- **[DbgLinksOK for new TCBs]** (named): a TCB retype's creation links the
 new TCBs into core 0's debug list (`debug_insert` in the creation loop), so
@@ -1087,12 +1089,12 @@ preemption (a retype without a reset does not fail,
 `invokeUntyped_noreset_ok`), or the creation over `H` without a reset
 (`createOK_noreset`), over `H` without the region after a reset
 (`createOK_reset`, the unused region's slots kept, `UtJoint.slots_unused`).
-Named: the kept links (`UtKeptRefs`, `UtDbgTimer`), the new TCBs' debug links
+Named: the kept links (`RegionUnref`), the new TCBs' debug links
 (`UtDbgTcb`), the VT-x types (`UtVtx`). -/
 theorem utRetypeP3_of {A' : Type} (arI : machine.Arch A') (hA : P0.ArchTotal arI) (H : Heap) (Cs U : Set U64)
     (Adm : PSets → Prop) (hAdm : ∀ H' : Heap, HeapOK H' → H' 0#u64 = none → Adm (PSets.ofHeap H'))
     (h0Cs : 0#u64 ∈ Cs) (hrcb : Fl4Spec.resetChunkBits = 16) (hppS : PPFrame)
-    (hKR : UtKeptRefs (L := L) arI H Cs) (hDT : UtDbgTimer (L := L) arI H Cs) (hDbg : UtDbgTcb (L := L) arI H Cs)
+    (hRU : RegionUnref (L := L) arI H Cs) (hDbg : UtDbgTcb (L := L) arI H Cs)
     (hVtx : UtVtx (L := L) arI H Cs U) :
     UtRetypeP3 st arI Adm H.tcbs Cs H.omega H H.frame H.replies H.scs H.ntfns H.scBits U
       (UtP3Ok (L := L) arI H Cs) := by
@@ -1115,8 +1117,8 @@ theorem utRetypeP3_of {A' : Type} (arI : machine.Arch A') (hA : P0.ArchTotal arI
   have hnc : reset = true → ¬ ∃ x, σ.cdt x = some (pp.bv, idx) := fun h => by
     have := hctx.resetEq; rw [h] at this; simpa using this.symm
   have hROK : reset = true → ResetOK st H Cs s slot ptr sb fi dev := fun h =>
-    resetOK_of J hfr hks hcpu hcw hcs hact hrun hcapS' (hnc h) (hKR _ _ _ _ _ _ _ _ _ _ _ _ J hrs _ _)
-      (hDT _ _ _ _ _ _ _ _ _ _ _ _ J hrs _ _)
+    resetOK_of J hfr hks hcpu hcw hcs hact hrun hcapS' (hnc h) (fun hd => (hRU _ _ _ _ _ _ _ _ _ _ _ _ J hrs _ _ hd).1)
+      (fun hd => (hRU _ _ _ _ _ _ _ _ _ _ _ _ J hrs _ _ hd).2)
   refine ⟨hROK, ?_⟩
   rw [hv, WP.spec_ok]
   -- the outcome
@@ -1183,7 +1185,7 @@ theorem utRetypeP3_of {A' : Type} (arI : machine.Arch A') (hA : P0.ArchTotal arI
       · refine ⟨s, Or.inl ⟨rfl, rfl⟩, ?_⟩
         rw [utHeap_false]
         exact createOK_noreset J hfr hks hcpu hcw hcs hact hrun hTm hE hW hWZ hk hAk hTn hZ hn5 hk12
-          (hKR _ _ _ _ _ _ _ _ _ _ _ _ J hrs _ _) (hDT _ _ _ _ _ _ _ _ _ _ _ _ J hrs _ _)
+          (fun hd => (hRU _ _ _ _ _ _ _ _ _ _ _ _ J hrs _ _ hd).1) (fun hd => (hRU _ _ _ _ _ _ _ _ _ _ _ _ J hrs _ _ hd).2)
           (fun h => by have := hDbgT h; rw [utHeap_false] at this; exact this) h0Cs
       · obtain ⟨⟨p0, sb0, d0, hc0⟩, hres⟩ := hRB rfl
         rw [hx, hcapS] at hc0
