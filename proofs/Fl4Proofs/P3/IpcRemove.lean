@@ -21,7 +21,24 @@ fold):
   queue unchanged by the restart.
 -/
 import Fl4Proofs.P3.IpcDonate
+import Fl4Proofs.P3.ScCallRemove
 open Aeneas Aeneas.Std Result
+
+
+/-! ## The spec's call-stack part of `reply_remove` changes only scheduling fields -/
+
+namespace Fl4Proofs.P3.Sched
+open Fl4Spec
+
+noncomputable section
+
+theorem nkt_replyRemoveSc (t r : ObjRef) : NKT (replyRemoveSc t r) := by
+  unfold replyRemoveSc replyUnlinkSc getTcbObjRef getReply getSimpleKo
+  repeat' (first | exact nkt_schedContextDonate _ _ | nkt_step | (unfold NonDet.when; split) | split)
+
+end
+
+end Fl4Proofs.P3.Sched
 
 namespace Fl4Proofs.P3.Ipc
 open fl4_core Fl4Proofs.P1 Fl4Proofs.P3 Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3.Sched
