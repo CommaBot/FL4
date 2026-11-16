@@ -137,7 +137,7 @@ theorem JCovD.retype_post {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set
         ¬ (rb.toNat ≤ (L.curW sR).val ∧ (L.curW sR).val < rb.toNat + slots.length * 2 ^ bitsApi t us) ∧
         (∀ q kd, H1 q = some kd → H q = some kd) ∧
         (∀ q, H1 q = H q → DeadP (L := L) H s q → DeadQ st H1 sR q)) :
-    ∃ th' G' A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj ∧
+    ∃ th' G' A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj (cslotAddr sl) ∧
       ∃ (H' : Heap) (Ac' : Set U64),
         BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H')
           (Heap.ntfns H') (Heap.scBits H') Ac' res.2.1 ∧

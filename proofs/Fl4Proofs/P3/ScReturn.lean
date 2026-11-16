@@ -29,7 +29,7 @@ def HdrK (K : U64) : Prop :=
 theorem ScRel1.wr_hdr {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRel1 st s sc x n)
     {K : U64} (hK : HdrK K) (v : U64) :
     let s' := L.wr s (scW sc K) v
-    RefillsWF st s' sc n ∧ L.rperiod s' sc = L.rperiod s sc ∧ L.rmax s' sc = L.rmax s sc ∧
+    RefillsWF st s' sc (n + Fl4Spec.minSchedContextBits) ∧ L.rperiod s' sc = L.rperiod s sc ∧ L.rmax s' sc = L.rmax s sc ∧
       L.refills s' sc = L.refills s sc ∧
       (∀ K' : U64, K'.val < 96 → K'.val % 8 = 0 → K' ≠ K → L.mem s' (scW sc K') = L.mem s (scW sc K')) ∧
       L.mem s' (scW sc K) = v ∧ WritesIn st s s' (ScIn st s sc) := by
@@ -57,7 +57,7 @@ theorem ScRel1.wr_hdr {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h
     simp only [LawfulStore.rtail, tailA_eq]; exact hw _ (by simp) (by simp) K88
   have ep : L.rperiod s' sc = L.rperiod s sc := by
     simp only [LawfulStore.rperiod, periodA_eq]; exact hw _ (by simp) (by simp) K0
-  have hW' : RefillsWF st s' sc n := h.wf.of_hdr em (by rw [eh]; exact h.wf.head_lt) (by rw [et]; exact h.wf.tail_lt)
+  have hW' : RefillsWF st s' sc (n + Fl4Spec.minSchedContextBits) := h.wf.of_hdr em (by rw [eh]; exact h.wf.head_lt) (by rw [et]; exact h.wf.tail_lt)
   have hsz : L.size s' sc = L.size s sc := by simp only [LawfulStore.size, em, eh, et]
   have hrs : L.refills s' sc = L.refills s sc := by
     simp only [LawfulStore.refills, hsz]

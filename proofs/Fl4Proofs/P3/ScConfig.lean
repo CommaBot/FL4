@@ -587,10 +587,10 @@ theorem SchedRel.set_sc_sporadic {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Sp
 /-- **FL4's `refill_new`**: writes inside the object, keeps the header words
 other than the period, the ring size and the ring indices, and leaves the
 ring `newL`. -/
-theorem refill_new_fl4 {s : S} {sc : U64} {n : Nat} (hW : RefillsWF st s sc n) (m b p : U64)
-    (hm2 : 2 ≤ m.val) (hmx : m.val ≤ absMax n)
+theorem refill_new_fl4 {s : S} {sc : U64} {n : Nat} (hW : RefillsWF st s sc (n + Fl4Spec.minSchedContextBits)) (m b p : U64)
+    (hm2 : 2 ≤ m.val) (hmx : m.val ≤ absMax (n + Fl4Spec.minSchedContextBits))
     (hct : Aligned (L.nodeA s layout.node.CUR_TIME) ∧ ¬ ScObj sc n (L.nodeA s layout.node.CUR_TIME)) :
-    sporadic.refill_new st s sc m b p ⦃ s' => WritesIn st s s' (ScObj sc n) ∧ RefillsWF st s' sc n ∧
+    sporadic.refill_new st s sc m b p ⦃ s' => WritesIn st s s' (ScObj sc n) ∧ RefillsWF st s' sc (n + Fl4Spec.minSchedContextBits) ∧
       L.rperiod s' sc = p ∧ L.rmax s' sc = m ∧ L.refills s' sc = newL (L.curTime s) b p ∧
       ∀ K : U64, K.val < 96 → K.val % 8 = 0 → K.val ≠ 0 → K.val ≠ 72 → K.val ≠ 80 → K.val ≠ 88 →
         L.mem s' (scW sc K) = L.mem s (scW sc K) ⦄ := by
@@ -633,7 +633,7 @@ theorem refill_new_fl4 {s : S} {sc : U64} {n : Nat} (hW : RefillsWF st s sc n) (
   step with obj.Sc.set_refill_head.spec as ⟨s2, s2_post⟩
   step with obj.Sc.set_refill_tail.spec as ⟨s3, s3_post⟩
   step with obj.Sc.set_refill_max.spec as ⟨s4, s4_post⟩
-  have hW4 : RefillsWF st s4 sc n := by subst s4_post s3_post s2_post; exact RefillsWF.reset hP (by simpa using hm2) hmx
+  have hW4 : RefillsWF st s4 sc (n + Fl4Spec.minSchedContextBits) := by subst s4_post s3_post s2_post; exact RefillsWF.reset hP (by simpa using hm2) hmx
   have hh4 : L.rhead s4 sc = 0#u64 := by
     subst s4_post s3_post s2_post; rw [rhead_wr_max h8, rhead_wr_tail h8, rhead_wr_head h8]
   have hm4 : L.rmax s4 sc = m := by subst s4_post; rw [rmax_wr_max h8]
@@ -706,7 +706,7 @@ theorem newL_map (now b p : U64) : (newL now b p).map toRefill = newRefills now.
 /-- **`refill_new` refines `refill_new`.** -/
 theorem refill_new_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) {sc : U64} (hsc : sc ∈ C) {x : Fl4Spec.SchedContext} {n : Nat}
-    (hk : σ.kheap sc.bv = some (.schedContext x n)) (m b p : U64) (hm2 : 2 ≤ m.val) (hmx : m.val ≤ absMax n) :
+    (hk : σ.kheap sc.bv = some (.schedContext x n)) (m b p : U64) (hm2 : 2 ≤ m.val) (hmx : m.val ≤ absMax (n + Fl4Spec.minSchedContextBits)) :
     sporadic.refill_new st s sc m b p ⦃ s' => ∃ σ', Fl4Spec.refillNew (Z := Unit) sc.bv m.val b.bv p.bv σ =
       ({((), σ')}, False) ∧ SchedRel st N T C c s' σ' ∧ FootEq N T (L.mem s) (L.mem s') ∧ KView σ σ' ∧
       σ' = updSc σ sc.bv (newSC x σ.curTime m.val b.bv p.bv) n ∧ WritesIn st s s' (KFoot st T N C c s σ) ⦄ := by
@@ -753,8 +753,8 @@ theorem cfg_refill_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Sta
     {p : U64} (hp : p ∈ C) {y : Fl4Spec.SchedContext} {n : Nat} (hk : σ.kheap p.bv = some (.schedContext y n))
     (hown : ∀ u x, σ.kheap u = some (.tcb x) → x.tcbSchedContext = some p.bv → u = u0) (hnq : NotQueued σ u0)
     {i : U64} (hi : y.scTcb = optRef i) (hiT : i ≠ 0#u64 → i ∈ T)
-    (cpu budget period mr : U64) (hcpu : cpu = c) (hm2 : 2 ≤ mr.val) (hmx : mr.val ≤ absMax n)
-    (hb : Fl4Spec.MIN_BUDGET ≤ budget.bv) (hbp : budget.val ≤ period.val) (hmx2 : 2 ≤ absMax n) :
+    (cpu budget period mr : U64) (hcpu : cpu = c) (hm2 : 2 ≤ mr.val) (hmx : mr.val ≤ absMax (n + Fl4Spec.minSchedContextBits))
+    (hb : Fl4Spec.MIN_BUDGET ≤ budget.bv) (hbp : budget.val ≤ period.val) (hmx2 : 2 ≤ absMax (n + Fl4Spec.minSchedContextBits)) :
     (if budget = period then sporadic.refill_new st s p sporadic.MIN_REFILLS budget 0#u64
       else do
         let i1 ← obj.Sc.cpu st p s
@@ -777,7 +777,7 @@ theorem cfg_refill_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Sta
   obtain ⟨x', n', hk', hx⟩ := hs.scs p hp
   rw [hk] at hk'; cases hk'
   -- `refill_new` with any arguments
-  have NEW : ∀ (m b0 per0 : U64), 2 ≤ m.val → m.val ≤ absMax n → Fl4Spec.MIN_BUDGET ≤ b0.bv →
+  have NEW : ∀ (m b0 per0 : U64), 2 ≤ m.val → m.val ≤ absMax (n + Fl4Spec.minSchedContextBits) → Fl4Spec.MIN_BUDGET ≤ b0.bv →
       sporadic.refill_new st s p m b0 per0 ⦃ s' => ∃ σ' y', Fl4Spec.refillNew (Z := Unit) p.bv m.val b0.bv per0.bv σ =
         ({((), σ')}, False) ∧ SchedRel st N T C c s' σ' ∧ FootEq N T (L.mem s) (L.mem s') ∧ KView σ σ' ∧
         InvBut σ' u0 ∧ σ' = updSc σ p.bv y' n ∧ y'.scTcb = y.scTcb ∧ Fl4Spec.scActive y' = true ∧
@@ -1327,7 +1327,7 @@ theorem configure_flags_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ 
     (hk : σ.kheap p.bv = some (.schedContext x n))
     (hbnd : ∀ t : U64, x.scTcb = some t.bv →
       t ∈ T ∧ ∃ xt, σ.kheap t.bv = some (.tcb xt) ∧ xt.tcbSchedContext = some p.bv)
-    (cpu budget period mr badge flags : U64) (hcpu : cpu = c) (hm2 : 2 ≤ mr.val) (hmx : mr.val ≤ absMax n)
+    (cpu budget period mr badge flags : U64) (hcpu : cpu = c) (hm2 : 2 ≤ mr.val) (hmx : mr.val ≤ absMax (n + Fl4Spec.minSchedContextBits))
     (hb : Fl4Spec.MIN_BUDGET ≤ budget.bv) (hbp : budget.val ≤ period.val)
     (hT : TimeAgree ar) :
     schedcontext.configure_flags st ar s a p cpu budget period mr badge flags ⦃ r => ∃ σ',
@@ -1341,7 +1341,7 @@ theorem configure_flags_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ 
   obtain ⟨x', n', hk', hx⟩ := hs.scs p hp
   rw [hk] at hk'; cases hk'
   have hP := hS.placed
-  have hmx2 : 2 ≤ absMax n := by omega
+  have hmx2 : 2 ≤ absMax (n + Fl4Spec.minSchedContextBits) := by omega
   have hTA : scTcbA p = scW p 24#u64 := by unfold scTcbA scW layout.sc.TCB; rfl
   have hal : Aligned (scW p 16#u64) := (hx.hdr (K := 16#u64) (by simp) (by simp)).1
   have hidp : IdleOK σ → σ.idleThread ≠ p.bv := fun hId e => by

@@ -41,7 +41,8 @@ structure JPlaced (th : TypedHeap) (H : Heap) (Tr C : Set U64) (s : S) (σ : Fl4
   tcb : ∀ t, th t = some .tcb ↔ H t = some .tcb
   cnode : ∀ p r, th p = some (.cnode r) → H p = some (.other (r + 5))
   tr : ∀ t, th t = some .tcb → t ∈ Tr
-  sc : ∀ (c : U64) y n, c ≠ 0#u64 → σ.kheap c.bv = some (.schedContext y n) → c ∈ C ∧ H c = some (.sc n)
+  sc : ∀ (c : U64) y n, c ≠ 0#u64 → σ.kheap c.bv = some (.schedContext y n) →
+    c ∈ C ∧ H c = some (.sc (n + Fl4Spec.minSchedContextBits))
   /-- `H`'s objects lie outside the kernel-global area. -/
   ks : ∀ p k, H p = some k → p.val + 2 ^ k.bits ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val
   typed : ∀ a, IsSlot th a → CapTyped H (Heap.replies H) (Heap.ntfns H) (capV (L.mem s) a)
@@ -60,7 +61,7 @@ theorem JPlaced.tcbT (h : JPlaced (L := L) th H Tr C s σ) : ∀ t, th t = some 
 theorem JPlaced.tcbTr (h : JPlaced (L := L) th H Tr C s σ) : ∀ t, th t = some .tcb → t ∈ Tr := h.tr
 
 theorem JPlaced.scSets (h : JPlaced (L := L) th H Tr C s σ) : ScSetsHyp C (Heap.scs H) σ :=
-  fun c y n hc hk => ⟨(h.sc c y n hc hk).1, n, (h.sc c y n hc hk).2⟩
+  fun c y n hc hk => ⟨(h.sc c y n hc hk).1, _, (h.sc c y n hc hk).2⟩
 
 theorem JPlaced.fhSlot (h : JPlaced (L := L) th H Tr C s σ) : FhSlotHyp (L := L) th H s := by
   intro t ht
@@ -250,14 +251,23 @@ structure SpecCover (H : Heap) (σ : Fl4Spec.State Unit) : Prop where
   reply : ∀ o x, σ.kheap o = some (.reply x) → H ⟨o⟩ = some .reply
   sc0 : ∀ y k, σ.kheap (0#u64 : U64).bv ≠ some (.schedContext y k)
 
+/-- **No spec object in an untyped cap's free part** (l4v `valid_untyped`):
+every object of the spec's heap that meets the range of an untyped cap of
+the MDB lies in it, below its free index. -/
+def SpecFree (mem : U64 → U64) (G : MdbGhost) (σ : Fl4Spec.State Unit) : Prop :=
+  ∀ x ∈ G.chains.flatten, ∀ p sb fi d, capV mem x = .Untyped p sb fi d →
+    ∀ o ko, σ.kheap o = some ko →
+      (o.toNat + 2 ^ Fl4Spec.objBits ko ≤ p.val ∨ p.val + 2 ^ sb.val ≤ o.toNat) ∨
+      (p.val ≤ o.toNat ∧ o.toNat + 2 ^ Fl4Spec.objBits ko ≤ p.val + fi.val)
+
 /-- **The joint invariant at every related state**: P1's `BlkOK` over the
 sets of some heap `H` with `JPlaced`, the spec's objects in `H`
-(`SpecCover`). -/
+(`SpecCover`), and none in an untyped cap's free part (`SpecFree`). -/
 def JointInv (th : TypedHeap) : Prop :=
   ∀ (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost), DState (L := L) th s σ G →
     ∃ (H : Heap) (Cs Ac Tr C : Set U64),
       BlkOK st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
-        (Heap.scBits H) Ac s ∧ JPlaced (L := L) th H Tr C s σ ∧ SpecCover H σ
+        (Heap.scBits H) Ac s ∧ JPlaced (L := L) th H Tr C s σ ∧ SpecCover H σ ∧ SpecFree (L.mem s) G σ
 
 /-- **P1's invariant at a cap, with the cap typed** (`CapTyped`), from the
 joint invariant: the uniform shape of the CSpace side's couplings. -/
@@ -308,11 +318,12 @@ def JointInvS (th : TypedHeap) : Prop :=
   ∀ (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost), DState (L := L) th s σ G →
     ∃ (H : Heap) (Cs Ac Tr C : Set U64),
       BlkOK st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
-        (Heap.scBits H) Ac s ∧ JPlaced (L := L) th H Tr C s σ ∧ JState (L := L) th H s ∧ SpecCover H σ
+        (Heap.scBits H) Ac s ∧ JPlaced (L := L) th H Tr C s σ ∧ JState (L := L) th H s ∧ SpecCover H σ ∧
+        SpecFree (L.mem s) G σ
 
 theorem JointInvS.toJ (h : JointInvS (L := L) th) : JointInv (L := L) th := fun s σ G hDS => by
-  obtain ⟨H, Cs, Ac, Tr, C, hb, hj, -, hc⟩ := h s σ G hDS
-  exact ⟨H, Cs, Ac, Tr, C, hb, hj, hc⟩
+  obtain ⟨H, Cs, Ac, Tr, C, hb, hj, -, hc, hf⟩ := h s σ G hDS
+  exact ⟨H, Cs, Ac, Tr, C, hb, hj, hc, hf⟩
 
 /-- The scheduler action, resume or choose-new, is no TCB. -/
 theorem JState.act_ne {H : Heap} {s : S} (h : JState (L := L) th H s) {T : Set U64} (hT : TcbPlaced T) {p : U64}

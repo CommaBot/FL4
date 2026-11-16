@@ -32,7 +32,7 @@ def NewQ (A k w : Nat) (cj : Nat → capability.Cap) (q : U64) : Prop :=
 /-- **What a retype did** (module docstring), from the memory and ghost
 tree `m`, `G` to `m'`, `G'`, with the typed heaps `th`, `th'`. -/
 structure RetExp (th th' : TypedHeap) (m m' : U64 → U64) (G G' : MdbGhost) (A k w : Nat)
-    (dslot : Nat → U64) (cj : Nat → capability.Cap) : Prop where
+    (dslot : Nat → U64) (cj : Nat → capability.Cap) (xs : U64) : Prop where
   k1 : 1 ≤ k
   keep : ∀ y ∈ G.chains.flatten, isUt (capV m y) = false → y ∈ G'.chains.flatten ∧ capV m' y = capV m y
   newm : ∀ j, j < w → dslot j ∈ G'.chains.flatten
@@ -51,6 +51,12 @@ structure RetExp (th th' : TypedHeap) (m m' : U64 → U64) (G G' : MdbGhost) (A 
   gmem : ∀ x ∈ G'.chains.flatten, x ∈ G.chains.flatten ∨ ∃ j, j < w ∧ x = dslot j
   /-- Untyped caps stay untyped. -/
   utk : ∀ y ∈ G.chains.flatten, isUt (capV m y) = true → isUt (capV m' y) = true
+  /-- The source cap: its region and device flag kept, its free index past
+  the window; every other untyped cap unchanged. -/
+  usrc : xs ∈ G.chains.flatten ∧ ∃ p0 sb0 fi0 fi1 d0, capV m xs = .Untyped p0 sb0 fi0 d0 ∧
+    capV m' xs = .Untyped p0 sb0 fi1 d0 ∧ p0.val ≤ A ∧ A + w * k ≤ p0.val + fi1.val ∧
+    A + w * k ≤ p0.val + 2 ^ sb0.val ∧ (p0.val + fi0.val ≤ A ∨ ∀ y, ¬ Mdb.Desc G.par y xs) ∧
+    ∀ y ∈ G.chains.flatten, isUt (capV m y) = true → y ≠ xs → capV m' y = capV m y
 
 theorem isUt_untyped (p sb fi : U64) (d : Bool) : isUt (.Untyped p sb fi d) = true := rfl
 
@@ -64,7 +70,7 @@ theorem RetypeDelta.toExp (h : RetypeDelta th m0 m1 mf G0 Gf src p sb fi nfi dev
     (hU : UtInv m0 G0) (hMf : MdbLinks th' mf Gf)
     (hth : ∀ q kd, th' q = some kd → (th q = some kd ∧ (NewQ A k w cj q → objSize kd = 0)) ∨
       (NewQ A k w cj q ∧ objSize kd ≤ k)) :
-    RetExp th th' m0 mf G0 Gf A k w dslot cj := by
+    RetExp th th' m0 mf G0 Gf A k w dslot cj src := by
   have hsb := capV_ut_sb h.hcs
   have hreg := hU.reg src h.hsrc (by rw [h.hcs]; exact ok_inj (phys_eq _).symm)
   rw [h.hcs] at hreg
@@ -72,7 +78,9 @@ theorem RetypeDelta.toExp (h : RetypeDelta th m0 m1 mf G0 Gf src p sb fi nfi dev
   have hsrcU : isUt (capV m0 src) = true := by rw [h.hcs]; rfl
   refine ⟨h.hk, fun y hy hu => ?_, fun j hj => ?_, fun j hj => h.F2a j hj, h.cphys, h.cbase, h.ctop,
     fun x hx p' sb' fi' d' hcx => ?_, ⟨src, h.hsrc, p, sb, fi, dev, h.hcs, by have := h.hA; omega, h.hAw, Or.inl h.hA⟩, hth,
-    h.F1, fun y hy hu => ?_⟩
+    h.F1, fun y hy hu => ?_, ⟨h.hsrc, p, sb, fi, nfi, dev, h.hcs, by rw [h.F2b _ h.hsrc, h.hcs1],
+      by have := h.hA; omega, by rw [h.hnfi], h.hAw, Or.inl h.hA,
+      fun y hy _ hys => by rw [h.F2b y hy, h.hc1 y hy hys]⟩⟩
   · have hys : y ≠ src := by rintro rfl; rw [hsrcU] at hu; cases hu
     exact ⟨h.F1b y hy, by rw [h.F2b y hy, h.hc1 y hy hys]⟩
   · exact (desc_mem hMf ((h.F3 _ src).2 (Or.inr ⟨j, hj, rfl, Or.inl rfl⟩))).1
@@ -133,17 +141,20 @@ theorem extendTh_shape {th : TypedHeap} {A k w : Nat} {kd : ObjKind} {cj : Nat �
     exact Or.inl ⟨hq, newQ_free hk hrf q kd' hq⟩
 
 /-- **`RetExp` moved back across writes keeping the slots.** -/
-theorem RetExp.same_left {th th' : TypedHeap} {m m0 m' : U64 → U64} {G G' : MdbGhost} {A k w : Nat}
+theorem RetExp.same_left {th th' : TypedHeap} {m m0 m' : U64 → U64} {G G' : MdbGhost} {A k w : Nat} {xs : U64}
     {dslot : Nat → U64} {cj : Nat → capability.Cap} (hM : MdbLinks th m G) (hS : SlotsSame th m m0)
-    (h : RetExp th th' m0 m' G G' A k w dslot cj) : RetExp th th' m m' G G' A k w dslot cj := by
+    (h : RetExp th th' m0 m' G G' A k w dslot cj xs) : RetExp th th' m m' G G' A k w dslot cj xs := by
   have hc : ∀ x ∈ G.chains.flatten, capV m0 x = capV m x := fun x hx => hS.capV ((hM.members x).1 hx).1
   refine ⟨h.k1, fun y hy hu => ?_, h.newm, h.newc, h.cphys, h.cbase, h.ctop, fun x hx p sb fi d hcx => ?_, ?_, h.th,
-    h.gmem, fun y hy hu => h.utk y hy (by rw [hc y hy]; exact hu)⟩
+    h.gmem, fun y hy hu => h.utk y hy (by rw [hc y hy]; exact hu), ?_⟩
   · rw [← hc y hy] at hu ⊢; exact h.keep y hy hu
   · obtain ⟨x0, hx0, p0, sb0, fi0, d0, e, h1, h2⟩ := h.ut x hx p sb fi d hcx
     exact ⟨x0, hx0, p0, sb0, fi0, d0, by rw [← hc x0 hx0]; exact e, h1, h2⟩
   · obtain ⟨x0, hx0, p0, sb0, fi0, d0, e, h1, h2, h3⟩ := h.src
     exact ⟨x0, hx0, p0, sb0, fi0, d0, by rw [← hc x0 hx0]; exact e, h1, h2, h3⟩
+  · obtain ⟨hx0, p0, sb0, fi0, fi1, d0, e0, e1, h1, h2, h3, h4, h5⟩ := h.usrc
+    exact ⟨hx0, p0, sb0, fi0, fi1, d0, by rw [← hc _ hx0]; exact e0, e1, h1, h2, h3, h4,
+      fun y hy hu hyx => by rw [← hc y hy] at hu ⊢; exact h5 y hy hu hyx⟩
 
 /-! ## `ksb` kept -/
 

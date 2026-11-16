@@ -18,21 +18,16 @@ variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulSt
 theorem sc_reply_word {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) {sc : U64} (hsc : sc ∈ C) :
     Aligned (scReplyA sc) ∧ (scReplyA sc).val = sc.val + 32 ∧
-      ∀ x n, σ.kheap sc.bv = some (.schedContext x n) → sc.val + 40 ≤ sc.val + 2 ^ n := by
+      ∀ x n, σ.kheap sc.bv = some (.schedContext x n) →
+        sc.val + 40 ≤ sc.val + 2 ^ (n + Fl4Spec.minSchedContextBits) := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x, n, hk, hx⟩ := hs.scs sc hsc
   obtain ⟨h8, h2, hfit⟩ := hx.bounds
   obtain ⟨ha, hin⟩ := hx.hdr (K := 32#u64) (by simp) (by simp)
   have hv : (scW sc 32#u64).val = sc.val + 32 := by rw [scW_val (by simp; omega)]; rfl
   refine ⟨by rw [scReplyA_eq]; exact ha, by rw [scReplyA_eq]; exact hv, fun x' n' hk' => ?_⟩
-  rw [hk] at hk'; cases hk'
-  have hin' := hx.in_obj hin
-  unfold ScObj at hin'; rw [hv] at hin'
-  have h6 : 6 ≤ n := by
-    by_contra h
-    have : 2 ^ n ≤ 2 ^ 5 := Nat.pow_le_pow_right (by norm_num) (by omega)
-    omega
-  have : 2 ^ 6 ≤ 2 ^ n := Nat.pow_le_pow_right (by norm_num) h6
+  have : 2 ^ 7 ≤ 2 ^ (n' + Fl4Spec.minSchedContextBits) :=
+    Nat.pow_le_pow_right (by norm_num) (by unfold Fl4Spec.minSchedContextBits; omega)
   omega
 
 

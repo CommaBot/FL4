@@ -27,10 +27,10 @@ def RingW (st : machine.Store S) [L : LawfulStore st] (s0 : S) (sc b : U64) : Pr
 /-- Only `sc`'s ring changed since `s0`, and it is well formed. -/
 structure RingAt (st : machine.Store S) [L : LawfulStore st] (s0 s : S) (sc : U64) (n : Nat) : Prop where
   w : WritesIn st s0 s (RingW st s0 sc)
-  wf : RefillsWF st s sc n
+  wf : RefillsWF st s sc (n + Fl4Spec.minSchedContextBits)
   mx : L.rmax s sc = L.rmax s0 sc
 
-theorem RingAt.refl {s : S} {sc : U64} {n : Nat} (h : RefillsWF st s sc n) : RingAt st s s sc n :=
+theorem RingAt.refl {s : S} {sc : U64} {n : Nat} (h : RefillsWF st s sc (n + Fl4Spec.minSchedContextBits)) : RingAt st s s sc n :=
   ⟨WritesIn.refl _ _, h, rfl⟩
 
 theorem RingAt.putS {s0 s : S} {sc : U64} {n : Nat} (h : RingAt st s0 s sc n) {i : U64}

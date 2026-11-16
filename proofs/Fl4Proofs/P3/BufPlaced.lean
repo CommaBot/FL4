@@ -34,7 +34,7 @@ structure BufPlaced (N C : Set U64) (B : Set (U64 × Fl4Spec.Word)) (c : U64) (s
   ntfn : ∀ wp ∈ B, ∀ n ∈ N, wp.1.val + 8 ≤ n.val ∨ n.val + 64 ≤ wp.1.val
   far : ∀ wp ∈ B, wp.1.val + 8 ≤ (L.ksb s).val ∨ L.nodeBase s c + 4288 ≤ wp.1.val
   sc : ∀ wp ∈ B, ∀ sc ∈ C, ∀ x n, σ.kheap sc.bv = some (.schedContext x n) →
-    wp.1.val + 8 ≤ sc.val ∨ sc.val + 2 ^ n ≤ wp.1.val
+    wp.1.val + 8 ≤ sc.val ∨ sc.val + 2 ^ (n + Fl4Spec.minSchedContextBits) ≤ wp.1.val
 
 /-- The words of a slot are words of the VSpace objects. -/
 theorem vobj_of_slot {th : TypedHeap} (hPl : Placed th) (P L4 L3 L2 L1 : Set U64) (ksb : U64) {x b : U64}

@@ -41,12 +41,12 @@ def MeetsW (A k w lo hi : Nat) : Prop := ¬ (hi ≤ A ∨ A + w * k ≤ lo)
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 variable {th th' : TypedHeap} {H H' : Heap} {G G' : MdbGhost} {D Cs : Set U64} {s s' : S} {m' : U64 → U64}
-  {A k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap}
+  {A k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap} {xs : U64}
 
 /-- **The objects meeting the new objects' window are dead**: uncovered
 (`ut_free_fi`, `ut_free`), so in the dead set. -/
 theorem retype_window_dead (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem s) G) (hI : MdbInv (L.mem s) G)
-    (hE : RetExp th th' (L.mem s) m' G G' A k w dslot cj) :
+    (hE : RetExp th th' (L.mem s) m' G G' A k w dslot cj xs) :
     (∀ q kd, H q = some kd → MeetsW A k w q.val (q.val + 2 ^ kd.bits) → q ∈ D ∧ DeadP (L := L) H s q) ∧
     (∀ q kd, th q = some kd → MeetsW A k w q.val (q.val + max (objSize kd) 1) → q ∈ D ∧ DeadP (L := L) H s q) := by
   obtain ⟨x0, hx0, p0, sb0, fi0, d0, hc0, h1, h2, h3⟩ := hE.src
@@ -65,7 +65,7 @@ theorem retype_window_dead (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem
     · exact ⟨hd, h.dead q hd⟩
 
 /-- A new object's range is covered by its new cap. -/
-theorem _root_.Fl4Proofs.P3.RetExp.cov_new {m m' : U64 → U64} (hE : RetExp th th' m m' G G' A k w dslot cj) {q : U64}
+theorem _root_.Fl4Proofs.P3.RetExp.cov_new {m m' : U64 → U64} (hE : RetExp th th' m m' G G' A k w dslot cj xs) {q : U64}
     (hq : NewQ A k w cj q) {n : Nat} (hn : n ≤ k) : Covered m' G' q.val (q.val + n) := by
   obtain ⟨j, hj, hv, hu⟩ := hq
   refine ⟨dslot j, hE.newm j hj, by rw [hE.newc j hj]; exact hE.cphys j hj, by rw [hE.newc j hj]; exact hu,
@@ -77,7 +77,7 @@ theorem _root_.Fl4Proofs.P3.RetExp.cov_new {m m' : U64 → U64} (hE : RetExp th 
 /-- **`JCovD` across retype** (module docstring): `H'` from P1's
 `RetypeP1Hyp`, the dead set losing the new objects' addresses. -/
 theorem JCovD.retype (h : JCovD (L := L) th H G D Cs s)
-    (hE : RetExp th th' (L.mem s) (L.mem s') G G' A k w dslot cj)
+    (hE : RetExp th th' (L.mem s) (L.mem s') G G' A k w dslot cj xs)
     (hH' : ∀ q kd, H' q = some kd → (H q = some kd ∧ ¬ NewQ A k w cj q) ∨ (NewQ A k w cj q ∧ 2 ^ kd.bits ≤ k))
     (hdead : ∀ q ∈ D, ¬ NewQ A k w cj q → H' q = H q → DeadP (L := L) H s q → DeadP (L := L) H' s' q)
     (hksb : L.ksb s' = L.ksb s) :
@@ -130,12 +130,12 @@ def RetypeP1Hyp {S : Type} (st : machine.Store S) [L : P1.LawfulStore st] (s s' 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 variable {th th' : TypedHeap} {H : Heap} {G G' : MdbGhost} {D Cs Ac : Set U64} {s s' : S}
-  {A k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap}
+  {A k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap} {xs : U64}
 
 /-- **`JCovD` and `BlkOK` across retype, from P1's `RetypeP1Hyp`**: the
 window's objects are dead (`retype_window_dead`), so P1's half applies. -/
 theorem JCovD.retype_p1 (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem s) G) (hI : MdbInv (L.mem s) G)
-    (hE : RetExp th th' (L.mem s) (L.mem s') G G' A k w dslot cj) (hksb : L.ksb s' = L.ksb s)
+    (hE : RetExp th th' (L.mem s) (L.mem s') G G' A k w dslot cj xs) (hksb : L.ksb s' = L.ksb s)
     (hb : BlkOK st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
       (Heap.scBits H) Ac s)
     (hP1 : RetypeP1Hyp st s s' H Cs Ac A k w (NewQ A k w cj)) :
@@ -163,7 +163,7 @@ end
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 variable {th th' : TypedHeap} {H : Heap} {G G' : MdbGhost} {D Cs Ac : Set U64} {s s' : S}
-  {A k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap}
+  {A k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap} {xs : U64}
 
 /-- P3's dead objects are P1's. -/
 theorem DeadP_iff {q : U64} : DeadP (L := L) H s q ↔ DeadQ st H s q := Iff.rfl
@@ -191,7 +191,7 @@ region `[lo, hi)` of an untyped cap's free part or of a childless one,
 holding the window; the new caps non-untyped when the new objects are heap
 objects). -/
 theorem JCovD.retype_step (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem s) G) (hI : MdbInv (L.mem s) G)
-    (hE : RetExp th th' (L.mem s) (L.mem s') G G' A k w dslot cj) (hksb : L.ksb s' = L.ksb s)
+    (hE : RetExp th th' (L.mem s) (L.mem s') G G' A k w dslot cj xs) (hksb : L.ksb s' = L.ksb s)
     {lo hi n us : Nat} {x0 : U64} (hx0 : x0 ∈ G.chains.flatten) {p0 sb0 fi0 : U64} {d0 : Bool}
     (hc0 : capV (L.mem s) x0 = .Untyped p0 sb0 fi0 d0)
     (hreg : (p0.val + fi0.val ≤ lo ∧ hi ≤ p0.val + 2 ^ sb0.val) ∨

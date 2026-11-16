@@ -36,7 +36,8 @@ node, the TCBs, and the SC objects. -/
 def Far (T C : Set U64) (c : U64) (s : S) (σ : Fl4Spec.State Unit) (a : U64) : Prop :=
   (a.val + 8 ≤ (L.ksb s).val ∨ L.nodeBase s c + 4288 ≤ a.val) ∧
   (∀ t ∈ T, a.val + 8 ≤ t.val ∨ t.val + 4096 ≤ a.val) ∧
-  (∀ sc ∈ C, ∀ x n, σ.kheap sc.bv = some (.schedContext x n) → a.val + 8 ≤ sc.val ∨ sc.val + 2 ^ n ≤ a.val)
+  (∀ sc ∈ C, ∀ x n, σ.kheap sc.bv = some (.schedContext x n) →
+    a.val + 8 ≤ sc.val ∨ sc.val + 2 ^ (n + Fl4Spec.minSchedContextBits) ≤ a.val)
 
 /-- The replies of `R`: 32-byte objects outside the kernel-global area and
 the node, the TCBs, the notifications and the SCs of `C`. -/
@@ -46,7 +47,7 @@ structure RPlaced (N T C R : Set U64) (c : U64) (s : S) (σ : Fl4Spec.State Unit
   tcb : ∀ r ∈ R, ∀ t ∈ T, r.val + 32 ≤ t.val ∨ t.val + 4096 ≤ r.val
   ntfn : ∀ r ∈ R, ∀ n ∈ N, r.val + 32 ≤ n.val ∨ n.val + 64 ≤ r.val
   sc : ∀ r ∈ R, ∀ sc ∈ C, ∀ x n, σ.kheap sc.bv = some (.schedContext x n) →
-    r.val + 32 ≤ sc.val ∨ sc.val + 2 ^ n ≤ r.val
+    r.val + 32 ≤ sc.val ∨ sc.val + 2 ^ (n + Fl4Spec.minSchedContextBits) ≤ r.val
 
 end Defs
 

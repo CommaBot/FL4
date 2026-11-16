@@ -70,7 +70,7 @@ theorem writesIn_head {s : S} {sc : obj.Sc} {sb : Nat} (hW : RefillsWF st s sc s
 /-- The relation of an SC whose ring changed (header words other than the
 ring indices unchanged). -/
 theorem ScRel1.ring {s s' : S} {sc : obj.Sc} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRel1 st s sc x n)
-    (hW : RefillsWF st s' sc n)
+    (hW : RefillsWF st s' sc (n + Fl4Spec.minSchedContextBits))
     (hw : ∀ K : U64, (K = 0#u64 ∨ K = 8#u64 ∨ K = 24#u64 ∨ K = 40#u64 ∨ K = 48#u64 ∨ K = 56#u64 ∨ K = 64#u64 ∨
       K = 72#u64) → L.mem s' (scW sc K) = L.mem s (scW sc K)) :
     ScRel1 st s' sc { x with scRefills := (L.refills s' sc).map toRefill } n := by
@@ -115,7 +115,7 @@ theorem hdr_putS_head {s : S} {sc : obj.Sc} {sb : Nat} (hW : RefillsWF st s sc s
 
 theorem the_some {α : Type} [Nonempty α] (a : α) : Fl4Spec.the (some a) = a := rfl
 
-theorem overlap_iff {s : S} {sc : obj.Sc} {n : Nat} (hW : RefillsWF st s sc n) {σ : Fl4Spec.State Unit}
+theorem overlap_iff {s : S} {sc : obj.Sc} {n : Nat} (hW : RefillsWF st s sc (n + Fl4Spec.minSchedContextBits)) {σ : Fl4Spec.State Unit}
     {x : Fl4Spec.SchedContext} (hk : σ.kheap sc.bv = some (.schedContext x n))
     (hx : x.scRefills = (L.refills s sc).map toRefill) :
     Fl4Spec.the (Fl4Spec.refillHeadOverlapping (Z := Unit) sc.bv σ) = true ↔ L.headOverlapping s sc = true := by
@@ -200,7 +200,7 @@ theorem unblock_loop_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.S
       have hne' : xk.scRefills ≠ [] := by rw [hx.refills]; exact refills_ne hW
       -- the new spec state
       set xk1 : Fl4Spec.SchedContext := { xk with scRefills := mergeHd xk }
-      have hW1 : RefillsWF st s1 sc n := by rw [s1_post]; exact hW.wr_head (nextIdx_lt hW.head_lt)
+      have hW1 : RefillsWF st s1 sc (n + Fl4Spec.minSchedContextBits) := by rw [s1_post]; exact hW.wr_head (nextIdx_lt hW.head_lt)
       have hm1 : L.rmax s1 sc = L.rmax sk sc := by
         obtain ⟨h8, -, -⟩ := hW.bounds; rw [s1_post, rmax_wr_head h8]
       have hwr : WritesIn st sk s2 (ScIn st sk sc) := by
@@ -318,7 +318,7 @@ theorem unblock_check_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.
       step
       -- s1: the head at `now`
       set r : sporadic.Refill := { h with time := now }
-      have hW1 : RefillsWF st s1 sc n := by rw [s1_post]; exact hW.putS hW.head_lt
+      have hW1 : RefillsWF st s1 sc (n + Fl4Spec.minSchedContextBits) := by rw [s1_post]; exact hW.putS hW.head_lt
       have hm1 : L.rmax s1 sc = L.rmax s sc := by
         obtain ⟨h8, hb', hfit⟩ := hW.bounds; have := hW.head_lt
         rw [s1_post, rmax_putS h8 (by omega)]
@@ -352,7 +352,7 @@ theorem unblock_check_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.
       obtain ⟨x2, n2, hk2', hx2⟩ := hs2.scs sc hsc
       rw [hk2] at hk2'; cases hk2'
       have hfuel : L.size s2 sc ≤ fuel.val := by
-        have := hx2.wf.size_le; have := hx2.wf.le_abs; have := absMax_lt n
+        have := hx2.wf.size_le; have := hx2.wf.le_abs; have := absMax_lt (n + Fl4Spec.minSchedContextBits)
         rw [fuel_post, wadd_val (by rw [i_post]; simp; omega), i_post]; simp; omega
       refine WP.spec_mono (unblock_loop_refines s2 σ2 hS2 hsc fuel ⟨x1, n, hk2, hx2, hfuel⟩) ?_
       rintro s' ⟨σ', hl, hf3, hv3, hS3⟩

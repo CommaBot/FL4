@@ -131,10 +131,10 @@ theorem wIn_trans {s₁ s₂ s₃ : S} {A : U64 → Prop} (h₁ : WritesIn st s�
 /-- **FL4's `refill_update`**: writes inside the object, keeps the header
 words other than the period, the ring size and the ring indices, and leaves
 the ring `rUpdL`. -/
-theorem refill_update_fl4 {s : S} {sc : U64} {n : Nat} (hW : RefillsWF st s sc n) (p b m : U64)
-    (hm2 : 2 ≤ m.val) (hmx : m.val ≤ absMax n)
+theorem refill_update_fl4 {s : S} {sc : U64} {n : Nat} (hW : RefillsWF st s sc (n + Fl4Spec.minSchedContextBits)) (p b m : U64)
+    (hm2 : 2 ≤ m.val) (hmx : m.val ≤ absMax (n + Fl4Spec.minSchedContextBits))
     (hct : Aligned (L.nodeA s layout.node.CUR_TIME) ∧ ¬ ScObj sc n (L.nodeA s layout.node.CUR_TIME)) :
-    sporadic.refill_update st s sc p b m ⦃ s' => WritesIn st s s' (ScObj sc n) ∧ RefillsWF st s' sc n ∧
+    sporadic.refill_update st s sc p b m ⦃ s' => WritesIn st s s' (ScObj sc n) ∧ RefillsWF st s' sc (n + Fl4Spec.minSchedContextBits) ∧
       L.rperiod s' sc = p ∧ L.rmax s' sc = m ∧
       L.refills s' sc = rUpdL (L.refill s sc (L.rhead s sc)) (L.curTime s) p b ∧
       ∀ K : U64, K.val < 96 → K.val % 8 = 0 → K.val ≠ 0 → K.val ≠ 72 → K.val ≠ 80 → K.val ≠ 88 →
@@ -183,8 +183,8 @@ theorem refill_update_fl4 {s : S} {sc : U64} {n : Nat} (hW : RefillsWF st s sc n
   step with obj.Sc.set_refill_tail.spec as ⟨s3, s3_post⟩
   step with obj.Sc.set_refill_max.spec as ⟨s4, s4_post⟩
   step with obj.Sc.set_period.spec as ⟨s5, s5_post⟩
-  have hW4 : RefillsWF st s4 sc n := by subst s4_post s3_post s2_post; exact RefillsWF.reset hP (by simpa using hm2) hmx
-  have hW5 : RefillsWF st s5 sc n := by subst s5_post; exact hW4.wr_period
+  have hW4 : RefillsWF st s4 sc (n + Fl4Spec.minSchedContextBits) := by subst s4_post s3_post s2_post; exact RefillsWF.reset hP (by simpa using hm2) hmx
+  have hW5 : RefillsWF st s5 sc (n + Fl4Spec.minSchedContextBits) := by subst s5_post; exact hW4.wr_period
   have hh5 : L.rhead s5 sc = 0#u64 := by
     subst s5_post s4_post s3_post s2_post
     rw [rhead_wr_period h8, rhead_wr_max h8, rhead_wr_tail h8, rhead_wr_head h8]
@@ -334,7 +334,7 @@ theorem rUpdL_map (h : sporadic.Refill) (now p b : U64) :
 /-- **`refill_update` refines `refill_update`.** -/
 theorem refill_update_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) {sc : U64} (hsc : sc ∈ C) {x : Fl4Spec.SchedContext} {n : Nat}
-    (hk : σ.kheap sc.bv = some (.schedContext x n)) (p b m : U64) (hm2 : 2 ≤ m.val) (hmx : m.val ≤ absMax n) :
+    (hk : σ.kheap sc.bv = some (.schedContext x n)) (p b m : U64) (hm2 : 2 ≤ m.val) (hmx : m.val ≤ absMax (n + Fl4Spec.minSchedContextBits)) :
     sporadic.refill_update st s sc p b m ⦃ s' => ∃ σ', Fl4Spec.refillUpdate (Z := Unit) sc.bv p.bv b.bv m.val σ =
       ({((), σ')}, False) ∧ SchedRel st N T C c s' σ' ∧ FootEq N T (L.mem s) (L.mem s') ∧ KView σ σ' ∧
       WritesIn st s s' (KFoot st T N C c s σ) ⦄ := by

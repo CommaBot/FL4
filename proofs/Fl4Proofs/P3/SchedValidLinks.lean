@@ -82,7 +82,7 @@ theorem objCover_of_joint {th : TypedHeap} (hJI : JointInv (L := L) th) {s : S} 
       BlkOK st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
         (Heap.scBits H) Ac s ∧ JPlaced (L := L) th H Tr C s σ ∧
       ObjCover (Heap.ntfns H) (Heap.tcbs H) {e | H e = some .ep} (Heap.replies H) C σ := by
-  obtain ⟨H, Cs, Ac, Tr, C, hb, hj, hc⟩ := hJI s σ G hDS
+  obtain ⟨H, Cs, Ac, Tr, C, hb, hj, hc, -⟩ := hJI s σ G hDS
   exact ⟨H, Cs, Ac, Tr, C, hb, hj, objCover_of hDS.2.2.kt hj hc (fun _ h => h) (fun _ h => h)⟩
 
 /-- **`EpRdyHyp` from `Inv`** (`Inv.rd` with the endpoint-blocked states of

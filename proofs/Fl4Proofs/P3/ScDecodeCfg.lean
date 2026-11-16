@@ -38,7 +38,7 @@ theorem decode_configure_refines (hT : TimeAgree ar) {N T C : Set U64} {c : U64}
     (excaps : List Fl4Spec.Cap) (hex : ExtraRel th (L.mem s) x0 excaps)
     (hsb : ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → sb.val < 64)
     (hsc : ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p ∈ C ∧ p ≠ 0#u64 ∧
-      ∃ x, σ.kheap p.bv = some (.schedContext x sb.val) ∧
+      ∃ x, σ.kheap p.bv = some (.schedContext x (sb.val - Fl4Spec.minSchedContextBits)) ∧
         ∀ t : U64, x.scTcb = some t.bv →
           t ∈ T ∧ ∃ xt, σ.kheap t.bv = some (.tcb xt) ∧ xt.tcbSchedContext = some p.bv)
     {xc : Fl4Spec.Tcb} (hkc : σ.kheap ct.bv = some (.tcb xc)) (hrun : Fl4Spec.runnable xc.tcbState = true) :
@@ -71,7 +71,7 @@ theorem decode_configure_refines (hT : TimeAgree ar) {N T C : Set U64} {c : U64}
   set σ1 := stsAct (updK σ ct.bv (.tcb { xc with tcbState := .restart })) ct.bv with hσ1
   have hk1 : ∀ q, q ≠ ct.bv → σ1.kheap q = σ.kheap q := fun q hq => by
     rw [stsAct_kheap]; simp [updK, hq]
-  have hkp1 : σ1.kheap p.bv = some (.schedContext x sb.val) := by rw [hk1 _ hpc]; exact hkp
+  have hkp1 : σ1.kheap p.bv = some (.schedContext x (sb.val - Fl4Spec.minSchedContextBits)) := by rw [hk1 _ hpc]; exact hkp
   have hI1 : Inv σ1 := hI.restart hkc hrun
   have hC1 : CurInv σ1 := by
     have := hC.restart (xt := xc) (by rw [hcur]; exact hkc); rw [hcur] at this; exact this
@@ -91,12 +91,19 @@ theorem decode_configure_refines (hT : TimeAgree ar) {N T C : Set U64} {c : U64}
       exact ⟨{ xc with tcbState := .restart }, by rw [stsAct_kheap, e]; simp [updK], hxt⟩
     · exact ⟨xt, by rw [hk1 _ e]; exact hkt, hxt⟩
   have hNb : Fl4Spec.maxNumRefills sb.val < 2 ^ 60 := by rw [← absMax_eq h64]; exact absMax_lt _
+  have h7 : Fl4Spec.minSchedContextBits ≤ sb.val := by
+    have h2 : 2 ≤ absMax sb.val := by rw [absMax_eq h64]; omega
+    by_contra hlt
+    have hp : 2 ^ sb.val ≤ 2 ^ 6 := Nat.pow_le_pow_right (by decide) (by unfold Fl4Spec.minSchedContextBits at hlt; omega)
+    unfold absMax at h2; rw [if_neg (by omega)] at h2
+    have : (2 ^ sb.val - 96) / 16 = 0 := by rw [Nat.div_eq_of_lt (by omega)]
+    omega
   have hmr : (core.num.U64.wrapping_add er sporadic.MIN_REFILLS).val = er.val + 2 := by
     rw [core.num.U64.wrapping_add_val_eq, show (sporadic.MIN_REFILLS).val = 2 by unfold sporadic.MIN_REFILLS; rfl]
     have hsz : UScalar.size .U64 = 2 ^ 64 := by simp [UScalar.size_def, UScalarTy.numBits]
     exact Nat.mod_eq_of_lt (by rw [hsz]; omega)
   refine WP.spec_bind (configure_flags_refines s1 a σ1 hS1 hR1 hN1 hI1 hC1 hO1 hpC hp0 hkp1 hbnd1 cpu budget
-    period (core.num.U64.wrapping_add er sporadic.MIN_REFILLS) bd fl hcpu (by rw [hmr]; omega) (by rw [hmr, absMax_eq h64]; exact hle) hmb hbp hT) ?_
+    period (core.num.U64.wrapping_add er sporadic.MIN_REFILLS) bd fl hcpu (by rw [hmr]; omega) (by rw [hmr, Nat.sub_add_cancel h7, absMax_eq h64]; exact hle) hmb hbp hT) ?_
   rintro ⟨s2, a2⟩ ⟨σ', hcfg, hS2, hR2, hN2, hI2, -, hw2⟩
   have hkc1 : σ1.kheap ct.bv = some (.tcb { xc with tcbState := .restart }) := by rw [stsAct_kheap]; simp [updK]
   refine (WP.spec_ok _).mpr ⟨σ1, σ', h1, ?_, rfl, hS2, hR2, hN2, hI2,

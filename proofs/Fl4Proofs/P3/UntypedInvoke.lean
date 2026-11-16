@@ -70,6 +70,10 @@ theorem UtInv.of_same {th : TypedHeap} {m m' : U64 → U64} {G : MdbGhost} (hM :
   · rw [hc x hx] at hcx; exact hU.fib x hx p sb fi d hcx
   · rw [hc x hx] at hcx hd; rw [hc y hy] at hp hd; exact hU.drange x hx p sb fi d hcx y hy hyx hp hd
 
+/-- The source slot of an untyped invocation. -/
+def invSrc : Fl4Spec.UntypedInvocation → U64
+  | .retype sl _ _ _ _ _ _ _ => cslotAddr sl
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
@@ -87,7 +91,7 @@ def RetPost {A' : Type} (th : TypedHeap) (m : U64 → U64) (G : MdbGhost) (σ : 
       MdbLinks th' (L.mem res.2.1) G' ∧ CdtRel th' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
       UtInv (L.mem res.2.1) G' ∧ MdbStep m G (L.mem res.2.1) G' ∧
       (FinInv th m σ G → FinInv th' (L.mem res.2.1) σ' G') ∧ L.ksb res.2.1 = ks ∧
-      ∃ A k w dslot cj, RetExp th th' m (L.mem res.2.1) G G' A k w dslot cj ∧
+      ∃ A k w dslot cj, RetExp th th' m (L.mem res.2.1) G G' A k w dslot cj (invSrc inv) ∧
         RetFrameI (L := L) arI ar th G s0 bitsApi inv A k w dslot cj th' res
 
 /-- **The success continuation of `decode`** (`set_thread_state Restart`,
@@ -183,7 +187,7 @@ theorem retype_cont {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
           (p.val + 2 ^ sb.val)) ∧
         (FinInv th (L.mem s2) σ1 G → FinInv th' (L.mem res.2.1) σ' G') ∧ L.ksb res.2.1 = L.ksb s2 ∧
         WFrame (L := L) s2 res.2.1 (SlotSpan th) ∧
-        ∃ A k w dslot cj, RetExp th th' (L.mem s2) (L.mem res.2.1) G G' A k w dslot cj ∧
+        ∃ A k w dslot cj, RetExp th th' (L.mem s2) (L.mem res.2.1) G G' A k w dslot cj (cslotAddr (pp.bv, idx)) ∧
           A = (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val ∧ (∀ j, j < w → isUt (cj j) = true → nt.val = 0) ∧ ThX th th' A k w nt.val us.val ∧ cj = cjOf nt.val us dev A k ∧ DslotC th dslot w) →
       (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) reset p.bv
           (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val

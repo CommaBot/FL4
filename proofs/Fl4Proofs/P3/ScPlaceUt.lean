@@ -149,7 +149,7 @@ theorem oobj_childless (hJ : JCov (L := L) th H G Cs s) {Tr C0 : Set U64} {σ : 
   · exact nin (hJ.h e _ (hE e he)) (by omega) (by simp only [HKind.bits]; omega)
   · exact nin (hJ.h r _ (hR r hr)) (by omega) (by simp only [HKind.bits]; omega)
   · exact nin (hJ.h n _ (hN n hn)) (by omega) (by simp only [HKind.bits]; omega)
-  · exact nin (hJ.h q _ (hP.sc q y n (hC q hq) hk).2) o1 (by simp only [HKind.bits]; omega)
+  · exact nin (hJ.h q _ (hP.sc q y n (hC q hq) hk).2) o1 (by simp only [HKind.bits]; have := Nat.pow_le_pow_right (show 0 < 2 by decide) (Nat.le_add_right n Fl4Spec.minSchedContextBits); omega)
   · exact nin (hB wp hw) o1 o2
 
 /-- **`OObj` at an outcome** keeping the kernel-state base and creating no

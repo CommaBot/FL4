@@ -32,7 +32,7 @@ def AddrApart (T N C R : Set U64) (c : U64) (s : S) (σ : Fl4Spec.State Unit) (a
     (∀ t ∈ T, a.val + 32 ≤ t.val + 256 ∨ t.val + 4096 ≤ a.val) ∧
     (a.val + 32 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ a.val) ∧
     (∀ n ∈ N, a.val + 32 ≤ n.val ∨ n.val + 40 ≤ a.val) ∧
-    (∀ sc ∈ C, ∀ x n, σ.kheap sc.bv = some (.schedContext x n) → a.val + 32 ≤ sc.val ∨ sc.val + 2 ^ n ≤ a.val) ∧
+    (∀ sc ∈ C, ∀ x n, σ.kheap sc.bv = some (.schedContext x n) → a.val + 32 ≤ sc.val ∨ sc.val + 2 ^ (n + Fl4Spec.minSchedContextBits) ≤ a.val) ∧
     (∀ r ∈ R, a.val + 32 ≤ r.val ∨ r.val + 32 ≤ a.val)
 
 /-- A `UFoot` word is in no apart block (`UFoot.not_slot`'s proof). -/
@@ -107,7 +107,7 @@ theorem JPlaced.irqApart {th : TypedHeap} {H : Heap} {Tr C0 : Set U64} {s : S} {
   · have := h.ks t _ (hT t ht); simp only [HKind.bits] at this; rw [hv]; omega
   · rw [hv]; left; simp only [LawfulStore.nodeBase]; omega
   · have := h.ks n _ (hN n hn); simp only [HKind.bits] at this; rw [hv]; omega
-  · have := h.ks q _ (h.sc q x n (hC q hq) hk).2; simp only [HKind.bits] at this; rw [hv]; omega
+  · have := h.ks q _ (h.sc q x n (hC q hq) hk).2; simp only [HKind.bits] at this; rw [hv]; have := Nat.pow_le_pow_right (show 0 < 2 by decide) (Nat.le_add_right n Fl4Spec.minSchedContextBits); omega
   · have := h.ks r _ (hR r hr); simp only [HKind.bits] at this; rw [hv]; omega
 
 /-- **`SlotsApart` from `JPlaced`**: the slots lie in CNodes and in the TCBs'
@@ -162,7 +162,7 @@ theorem JPlaced.slotsApart {th : TypedHeap} {H : Heap} {Tr C0 : Set U64} {s : S}
     rw [show (2 : ℕ) ^ HKind.ntfn.bits = 64 from rfl] at this; omega
   · have hp := (h.sc sc x n (hC sc hsc) hk).2
     have := disj sc _ hp (ne_of sc _ hp ⟨fun e => (by cases e), fun _ e => (by cases e)⟩)
-    rw [show (2 : ℕ) ^ (HKind.sc n).bits = 2 ^ n from rfl] at this; omega
+    rw [show (2 : ℕ) ^ (HKind.sc (n + Fl4Spec.minSchedContextBits)).bits = 2 ^ (n + Fl4Spec.minSchedContextBits) from rfl] at this; have := Nat.pow_le_pow_right (show 0 < 2 by decide) (Nat.le_add_right n Fl4Spec.minSchedContextBits); omega
   · have hp := hR r hr
     have := disj r _ hp (ne_of r _ hp ⟨fun e => (by cases e), fun _ e => (by cases e)⟩)
     rw [show (2 : ℕ) ^ HKind.reply.bits = 32 from rfl] at this; omega
@@ -309,7 +309,7 @@ theorem decode_invocation_sched_controlJ {N T C R : Set U64} {c : U64} (hT : Tim
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel th (L.mem s) x0 (excaps.map Prod.fst))
     (hsb : ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → sb.val < 64)
     (hsc : ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p ∈ C ∧ p ≠ 0#u64 ∧
-      ∃ x, σ.kheap p.bv = some (.schedContext x sb.val) ∧
+      ∃ x, σ.kheap p.bv = some (.schedContext x (sb.val - Fl4Spec.minSchedContextBits)) ∧
         ∀ t : U64, x.scTcb = some t.bv →
           t ∈ T ∧ ∃ xt, σ.kheap t.bv = some (.tcb xt) ∧ xt.tcbSchedContext = some p.bv)
     {xc : Fl4Spec.Tcb} (hkc : σ.kheap ct.bv = some (.tcb xc)) (hrun : Fl4Spec.runnable xc.tcbState = true)

@@ -275,7 +275,7 @@ window too, and, for a non-device retype but
 PML4s, leaves the window `WinZero` (the creation words of TCBs, `T`). -/
 def RetFrame {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A' : Type} (arI : machine.Arch A') (ar : A')
     (th th' : TypedHeap) (G : MdbGhost) (s : S) (x : U64) (A k win A0 k0 w0 : Nat) (pml4 T Z : Prop) (tK : Nat → Prop) (us : Nat)
-    (cj : Nat → capability.Cap) (dv : Bool) (dslot : Nat → U64)
+    (cj : Nat → capability.Cap) (dv : Bool) (dslot : Nat → U64) (RB : Prop)
     (res : core.result.Result Unit error.Exc × S × A') : Prop :=
   ∃ ct s0, sched.cur_thread st s = ok ct ∧ sched.set_thread_state st s ct sched.TS_RESTART = ok s0 ∧
     ((res.1 = .Err .Preempted ∧ untyped.reset_untyped st arI s0 ar x = ok res) ∨
@@ -284,7 +284,7 @@ def RetFrame {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A' : Typ
         ∃ a1 p sb fi d, untyped.reset_untyped st arI s0 ar x = ok (.Ok (), sR, a1) ∧
           capAt (L.mem s0) x = ok (.Untyped p sb fi d) ∧ capAt (L.mem s) x = ok (.Untyped p sb fi d) ∧ p.val % 8 = 0 ∧ 4 ≤ sb.val ∧
           x ∈ G.chains.flatten ∧ (∀ y, ¬ Mdb.Desc G.par y x) ∧ lo = p.val ∧ hi = p.val + 2 ^ sb.val ∧
-          thR = restrictTh th lo hi) ∧
+          thR = restrictTh th lo hi ∧ RB) ∧
        lo ≤ A ∧ A + win * k ≤ hi ∧ RegionFree thR lo hi ∧
        (∀ a, IsSlot thR a → IsSlot th a) ∧ (∃ n0, tK n0 ∧ ThX thR th' A k win n0 us ∧ ∃ uu : U64, uu.val = us ∧ cj = cjOf n0 uu dv A k) ∧ DslotC th dslot win ∧
        WFrame (L := L) sR res.2.1 (fun v => ((T ∧ TcbLoopW thR A win (L.nodeAt sR 0#u64 layout.node.DEBUG_TCBS)
@@ -301,9 +301,10 @@ def RetFrameI {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A' : Ty
     (A k win : Nat) (dslot : Nat → U64) (cj : Nat → capability.Cap) (th' : TypedHeap) (res : core.result.Result Unit error.Exc × S × A') :
     Prop :=
   match inv with
-  | .retype sl _ _ rb t us slots dev => RetFrame (L := L) arI ar th th' G s (cslotAddr sl) A k win rb.toNat
+  | .retype sl rs _ rb t us slots dev => RetFrame (L := L) arI ar th th' G s (cslotAddr sl) A k win rb.toNat
       (2 ^ bitsApi t us) slots.length (t = .archObject .pml4Obj)
-      (t = .tcbObject) (dev = false ∧ t ≠ .archObject .pml4Obj) (fun n0 => objTypeOf n0 = some t) us cj dev dslot res ∧
+      (t = .tcbObject) (dev = false ∧ t ≠ .archObject .pml4Obj) (fun n0 => objTypeOf n0 = some t) us cj dev dslot
+      (rs = true) res ∧
     (res.1 = .Ok () → ∀ j, j < win → isUt (cj j) = true → t = .untyped)
 
 

@@ -45,12 +45,14 @@ def toRefill (r : sporadic.Refill) : Fl4Spec.Refill := ⟨r.time.bv, r.amount.bv
 /-- The words of the SC at `sc` the relation reads. -/
 def ScIn (s : S) (sc a : U64) : Prop := sc.val ≤ a.val ∧ a.val < sc.val + 96 + 16 * (L.rmax s sc).val
 
-/-- The words of the SC object at `sc` of `2 ^ n` bytes. -/
-def ScObj (sc : U64) (n : Nat) (a : U64) : Prop := sc.val ≤ a.val ∧ a.val < sc.val + 2 ^ n
+/-- The words of the SC object at `sc` of the spec's size `n` (`2 ^ (n + 7)`
+bytes, l4v `obj_bits`). -/
+def ScObj (sc : U64) (n : Nat) (a : U64) : Prop :=
+  sc.val ≤ a.val ∧ a.val < sc.val + 2 ^ (n + Fl4Spec.minSchedContextBits)
 
-/-- The SC at `sc` and the spec's `.schedContext x n`. -/
+/-- The SC at `sc` and the spec's `.schedContext x n` (an object of `2 ^ (n + 7)` bytes, l4v `obj_bits`). -/
 structure ScRel1 (s : S) (sc : U64) (x : Fl4Spec.SchedContext) (n : Nat) : Prop where
-  wf : RefillsWF st s sc n
+  wf : RefillsWF st s sc (n + Fl4Spec.minSchedContextBits)
   period : x.scPeriod = (L.rperiod s sc).bv
   consumed : x.scConsumed = (L.mem s (scW sc 8#u64)).bv
   tcb : x.scTcb = optRef (L.mem s (scW sc 24#u64))
@@ -107,7 +109,7 @@ theorem ScRel1.agree {s s' : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} 
     simp only [LawfulStore.rtail, tailA_eq]; exact hw _ (by simp) (by simp)
   have ep : L.rperiod s' sc = L.rperiod s sc := by
     simp only [LawfulStore.rperiod, periodA_eq]; exact hw _ (by simp) (by simp)
-  have hW' : RefillsWF st s' sc n := h.wf.of_hdr em (by rw [eh]; exact h.wf.head_lt) (by rw [et]; exact h.wf.tail_lt)
+  have hW' : RefillsWF st s' sc (n + Fl4Spec.minSchedContextBits) := h.wf.of_hdr em (by rw [eh]; exact h.wf.head_lt) (by rw [et]; exact h.wf.tail_lt)
   have hsz : L.size s' sc = L.size s sc := by simp only [LawfulStore.size, em, eh, et]
   have hrf : ∀ k, L.rf s' sc k = L.rf s sc k := by
     intro k

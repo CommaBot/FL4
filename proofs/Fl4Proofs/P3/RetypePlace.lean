@@ -8,12 +8,15 @@ P3: **`JPlaced` across retype** (ScPlace's joint placement), from
   objects `K` at the window's slots.  `hOut_of_steps` derives it from P1's
   `ResetP1Step` (`reset_step`) and `RetypeP1Step` (`creation_step`).
 * `HeapOK` of the heap after (`heapOK_out`).
-* `JPlaced.retype`: the placement after, its scheduler side (`tr`, the
-  spec's SCs `sc`) and the IRQ slots as hypotheses.
+* `JPlaced.retype`: the placement after. The spec's SCs after (`sc`) come
+  from `SpecFree` before (`invokeUntyped_kheap`, `old_window`): an old SC
+  misses the dropped region and the window, a new one is the window's
+  (`sc_of_default`).
 -/
 import Fl4Proofs.P3.RetypeBridge
 import Fl4Proofs.P3.ScPlace
 import Fl4Proofs.P3.UntypedFrame
+import Fl4Proofs.P3.SpecFreeRetJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Sched
@@ -273,10 +276,13 @@ set_option maxRecDepth 8000 in
 /-- **`JPlaced` across a retype** (module docstring): from the placement
 before, `JCovD`, `RetPostN` with the retype done, the FL4 type number `n`
 of the spec type, the kernel-global area placed, the current thread a TCB, the preemption point's
-write frame (`hPPW`, P1's `PPW`) and the IRQ slots' caps null or in the MDB: the typed heap, spec state and window after, such that
-over any P1 heap after in `HOut`'s shape (the dropped region `[lo, hi)`),
-with the new TCBs among `Tr'` and the spec's SCs in `C'` and the heap after,
-the placement holds. -/
+write frame (`hPPW`, P1's `PPW`), the IRQ slots' caps null or in the MDB,
+`SpecFree` and well-formed spec CNodes (l4v `valid_objs`) before, and the
+source cap (FL4's, the spec's after `set_thread_state`, the window at or
+past its free index without a reset): the typed heap, spec state and window
+after, such that over any P1 heap after in `HOut`'s shape (the dropped
+region `[lo, hi)`), with the new TCBs among `Tr'` and the spec's SCs in
+`C'`, the placement holds. -/
 theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : Set U64} {s : S}
     {σ : Fl4Spec.State Unit} {A' : Type} {arI : machine.Arch A'} {ar : A'}
     {bitsApi : Fl4Spec.ApiObjectType → Nat → Nat} {sl : Fl4Spec.CslotPtr} {rs : Bool} {pb rb : Fl4Spec.ObjRef}
@@ -294,7 +300,13 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
     (hcurT : ∀ ct, sched.cur_thread st s = ok ct → th ct = some .tcb)
     (hPPW : ∀ (s1 : S) (a1 : A'), sched.preemption_point st arI s1 a1 ⦃ r => WritesIn st s1 r.2.1 (PPW st s1) ⦄)
     (hirqG : ∀ i : U64, i.val < 128 →
-      capV (L.mem s) (nodeA (L.ksb s) i) = .Null ∨ nodeA (L.ksb s) i ∈ G.chains.flatten):
+      capV (L.mem s) (nodeA (L.ksb s) i) = .Null ∨ nodeA (L.ksb s) i ∈ G.chains.flatten)
+    (hSF : SpecFree (L.mem s) G σ)
+    (hgc : ∀ o sz cs, σ.kheap o = some (.cnode sz cs) → Fl4Spec.wellFormedCnodeN sz cs)
+    {p0 sb0 fi0 : U64} {d0 : Bool} (hcs0 : capV (L.mem s) (cslotAddr sl) = .Untyped p0 sb0 fi0 d0)
+    (hg : ∀ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
+      Fl4Spec.getCap (Z := Unit) sl σ1 = ({(.untypedCap d0 p0.bv sb0.val fi0.val, σ1)}, False))
+    (hbelow : rs = false → p0.val + fi0.val ≤ rb.toNat) :
     ∃ (th' : TypedHeap) (σ' : Fl4Spec.State Unit) (A k w lo hi : Nat),
       A = rb.toNat ∧ k = 2 ^ bitsApi t us ∧ w = slots.length ∧ lo ≤ A ∧ A + w * k ≤ hi ∧
       ((lo = A ∧ hi = A + w * k) ∨ ∃ (ct : U64) (s0 sR : S) (a1 : A') (p sb fi : U64) (d : Bool),
@@ -302,10 +314,9 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
         untyped.reset_untyped st arI s0 ar (cslotAddr sl) = ok (.Ok (), sR, a1) ∧
         capAt (L.mem s0) (cslotAddr sl) = ok (.Untyped p sb fi d) ∧ lo = p.val ∧ hi = p.val + 2 ^ sb.val) ∧
       ∀ H' : Heap, HOut H H' lo hi A k w (newKind n us) →
-        (∀ (c : U64) y n', c ≠ 0#u64 → σ'.kheap c.bv = some (.schedContext y n') → H' c = some (.sc n')) →
         JPlaced (L := L) th' H' {q | q ∈ Tr ∨ th' q = some .tcb}
           {c | c ∈ C ∨ (c ≠ 0#u64 ∧ ∃ y n', σ'.kheap c.bv = some (.schedContext y n'))} res.2.1 σ' := by
-  obtain ⟨-, -, -, -, σ', G', th', -, -, hP', -, -, hM', -, -, -, -, -, hks, A, k, w, dslot, cj, hE,
+  obtain ⟨σ1, hst1, -, e, σ', G', th', he, hhas, hP', -, -, hM', -, -, -, -, -, hks, A, k, w, dslot, cj, hE,
     ⟨ct, s0, hct, hs0, hbr⟩, hut⟩ := hRP
   rcases hbr with ⟨e, -⟩ | ⟨-, ⟨eA, ek, ew, hAk⟩, sR, thR, lo, hi, hor, hlo, hhi, hRF, hsl,
     ⟨n0, hn0, hthx, uu, huu, hcjE⟩, hdsC, hW, hWZ, hHd⟩
@@ -315,7 +326,7 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
   have hk1 := hE.k1
   -- the dropped region is uncovered
   have hunc : ∀ a b, a < b → Covered (L.mem s) G a b → b ≤ lo ∨ hi ≤ a := by
-    rcases hor with ⟨-, -, rfl, rfl⟩ | ⟨a1, p, sb, fi, d, hr, hc, hcs, hp8, hsb4, hxG, hnd, rfl, rfl, -⟩
+    rcases hor with ⟨-, -, rfl, rfl⟩ | ⟨a1, p, sb, fi, d, hr, hc, hcs, hp8, hsb4, hxG, hnd, rfl, rfl, -, -⟩
     · intro a b hab hc
       obtain ⟨x0, hx0, p0, sb0, fi0, d0, hc0, h1, h2, h3⟩ := hE.src
       rcases h3 with h3 | h3
@@ -371,7 +382,7 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
     intro v hv h1 h2
     have e1 : L.mem s0 v = L.mem s v := hF1 v hv (hstA v h1 h2)
       (fun e => by have := hNd s (L.cpu s) layout.node.SCHED_ACTION rfl (le_refl _) (by rw [hSA]; decide); omega)
-    rcases hor with ⟨rfl, -, -, -⟩ | ⟨a1, p, sb, fi, d, hr, hc, hcs, hp8, hsb4, hxG, -, -, -, -⟩
+    rcases hor with ⟨rfl, -, -, -⟩ | ⟨a1, p, sb, fi, d, hr, hc, hcs, hp8, hsb4, hxG, -, -, -, -, -⟩
     · exact ⟨e1, hk0⟩
     · have hcv := capV_of_capAt hcs
       have hsb := capV_ut_sb hcv
@@ -441,8 +452,68 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
     rw [key _ (by unfold P1.Aligned; rw [hv0, show (L.ksb s).val + 1248 + 32 * i.val = 8 * (((L.ksb s).val + 1248) / 8 + 4 * i.val) by omega]; omega)
       (by rw [hv0]; omega) (by rw [hv0]; omega),
       key _ (by unfold P1.Aligned; rw [hv8, hv0]; omega) (by rw [hv8, hv0]; omega) (by rw [hv8, hv0]; omega)]
-  refine ⟨th', σ', A, k, w, lo, hi, eA, ek, ew, hlo, hhi, ?_, fun H' hO hSC => ?_⟩
-  · rcases hor with ⟨-, -, h1, h2⟩ | ⟨a1, p, sb, fi, d, hr, hc, -, -, -, -, -, h1, h2, -⟩
+  -- the spec's SCs after: old ones outside the region, or new ones of the window
+  have hscO : ∀ (c : U64) y n', c ≠ 0#u64 → σ'.kheap c.bv = some (.schedContext y n') →
+      (∃ y0, σ.kheap c.bv = some (.schedContext y0 n') ∧
+        ((c.val + 2 ^ (Fl4Spec.minSchedContextBits + n') ≤ lo ∨ hi ≤ c.val) ∧ ¬ NewAt A k w c)) ∨
+      (t = .schedContextObject ∧ n' = us - Fl4Spec.minSchedContextBits ∧ NewAt A k w c) := by
+    intro c yc n' hc0 hk
+    obtain ⟨y0, hy0, hy01, hK⟩ := hhas
+    have hy0ok : y0.1 = .ok () := by
+      rcases he with ⟨-, h⟩ | ⟨h, -⟩
+      · rw [hy01, h]
+      · rw [hok] at h; cases h
+    obtain ⟨-, hkh⟩ := invokeUntyped_kheap bitsApi sl rs pb rb t us slots dev σ1 (hg σ1 hst1) y0 hy0
+    rw [← hK.1] at hk
+    obtain ⟨hxG, p1, sb1, fi1', fi2, d1, e0, -, hpA, -, hAs, -, -⟩ := hE.usrc
+    have e0' : capV (L.mem s) (cslotAddr sl) = .Untyped p1 sb1 fi1' d1 := e0
+    have hxG : cslotAddr sl ∈ G.chains.flatten := hxG
+    rw [hcs0] at e0'; cases e0'
+    rcases hkh c.bv _ hk with ⟨ko1, h1, e1, hR⟩ | ⟨ht, hm, cd, ecd⟩
+    · obtain ⟨ko0, h0, e00⟩ := ksz_of_eq (nkz_setThreadState _ _) hst1 c.bv ko1 h1
+      have hty := e00.trans e1
+      rcases sc_of_aType hty with ⟨y00, rfl⟩ | ⟨sz, cs, rfl, hnw⟩
+      swap; · exact absurd (hgc _ _ _ h0) hnw
+      left
+      refine ⟨y00, h0, ?_⟩
+      have hOW := old_window hSF hU hxG hcs0 h0 hR (A := A) (fun hr => by rw [eA]; exact hbelow hr)
+      simp only [Fl4Spec.objBits] at hOW
+      have hcv : c.bv.toNat = c.val := rfl
+      rw [hcv] at hOW
+      have hnw : ¬ NewAt A k w c := by
+        intro hn; obtain ⟨j, hj, hv, h1', h2'⟩ := newAt_val hn hk1
+        have := Nat.one_le_two_pow (n := Fl4Spec.minSchedContextBits + n')
+        rcases hOW with (e | e) | ⟨-, -, e⟩ <;> omega
+      refine ⟨?_, hnw⟩
+      rcases hor with ⟨-, -, rfl, rfl⟩ | ⟨a1, p, sb, fi, d, hr, hc, hcs, -, -, -, -, rfl, rfl, -, hrsT⟩
+      · rcases hOW with (e | e) | ⟨-, -, e⟩
+        · left; omega
+        · right; omega
+        · left; omega
+      · have hcv' := capV_of_capAt hcs
+        rw [hcs0] at hcv'; cases hcv'
+        rcases hOW with e | ⟨hr', -⟩
+        · exact e
+        · rw [hrsT] at hr'; cases hr'
+    · have hsc := sc_of_default ecd ht
+      right
+      refine ⟨hsc.1, hsc.2, ?_⟩
+      by_cases hy1 : y0.1 = .ok ()
+      swap; · exact absurd hy0ok hy1
+      rw [if_pos hy1] at hm
+      obtain ⟨j, hj, hjc⟩ := regionPtrs_mem hm
+      refine ⟨j, by rw [ew]; exact hj, ?_⟩
+      have hjk : j * k + k ≤ w * k := by
+        have := Nat.mul_le_mul_right k (show j + 1 ≤ w by rw [ew]; omega); rw [Nat.add_mul, Nat.one_mul] at this; exact this
+      have hfit' : p0.val + 2 ^ sb0.val ≤ 2 ^ 64 := by
+        have hreg := hU.reg _ hxG (by rw [hcs0]; exact physF_ut _ _ _ _)
+        rw [hcs0] at hreg
+        exact (ut_range (capV_ut_sb hcs0) hreg).2.2
+      have : c.bv.toNat = A + j * k := by
+        rw [hjc, eA, ← ek]; exact ptrAdd_toNat (by rw [← eA]; omega)
+      exact this
+  refine ⟨th', σ', A, k, w, lo, hi, eA, ek, ew, hlo, hhi, ?_, fun H' hO => ?_⟩
+  · rcases hor with ⟨-, -, h1, h2⟩ | ⟨a1, p, sb, fi, d, hr, hc, -, -, -, -, -, h1, h2, -, -⟩
     · exact Or.inl ⟨h1, h2⟩
     · exact Or.inr ⟨ct, s0, sR, a1, p, sb, fi, d, hct, hs0, hr, hc, h1, h2⟩
   have hRk : k = 2 ^ bitsApi t us := ek
@@ -460,18 +531,35 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
   have hthR : ∀ q kd, thR q = some kd → 1 ≤ objSize kd → th q = some kd ∧ ¬ (lo ≤ q.val ∧ q.val < hi) := by
     intro q kd hq h1
     have hfree := hRF q kd hq
-    rcases hor with ⟨-, rfl, -, -⟩ | ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, rfl⟩
+    rcases hor with ⟨-, rfl, -, -⟩ | ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, rfl, -⟩
     · exact ⟨hq, by omega⟩
     · exact ⟨(restrictTh_some hq).1, by omega⟩
   have hthR' : ∀ q kd, th q = some kd → ¬ (lo ≤ q.val ∧ q.val < hi) → thR q = some kd := by
     intro q kd hq hout
-    rcases hor with ⟨-, rfl, -, -⟩ | ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, rfl⟩
+    rcases hor with ⟨-, rfl, -, -⟩ | ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, rfl, -⟩
     · exact hq
     · rw [restrictTh_out hout]; exact hq
   have hth' := hthx.1
   have hout_new : ∀ q, NewAt A k w q → lo ≤ q.val ∧ q.val < hi := fun q hn => by
     obtain ⟨j, hj, hv, h1, h2⟩ := newAt_val hn hk1; omega
   have hks' : L.ksb res.2.1 = L.ksb s := hks
+  have hSC : ∀ (c : U64) y n', c ≠ 0#u64 → σ'.kheap c.bv = some (.schedContext y n') →
+      H' c = some (.sc (n' + Fl4Spec.minSchedContextBits)) := by
+    intro c y n' hc hk
+    rcases hscO c y n' hc hk with ⟨y0, h0, hout, hnw⟩ | ⟨ht, hn', hnw⟩
+    · have hH := (hJP.sc c y0 n' hc h0).2
+      have n1 : ¬ (NewAt A k w c ∧ (newKind n us).isSome) := fun ⟨h, _⟩ => hnw h
+      have n2 : ¬ ∃ kd', H c = some kd' ∧ MeetsR lo hi c.val (c.val + 2 ^ kd'.bits) := by
+        rintro ⟨kd', hk', hm'⟩; rw [hH] at hk'; cases hk'
+        unfold MeetsR at hm'; simp only [HKind.bits] at hm'
+        rw [Nat.add_comm n'] at hm'; omega
+      rw [hO c, if_neg n1, if_neg n2]; exact hH
+    · subst ht
+      have h5 : n = 5 := objTypeOf_inj hnT (by rfl)
+      subst h5
+      have hz := hsc7 us (by simp [newKind])
+      rw [hO c, if_pos ⟨hnw, by simp [newKind]⟩]
+      simp only [newKind]; simp; rw [hn']; unfold Fl4Spec.minSchedContextBits; omega
   refine ⟨heapOK_out hJP.heap hO hlo hhi hk1 hAk (fun kd hK => ?_) hfit hlt hsc7, hP', fun q => ⟨fun h => ?_, fun h => ?_⟩,
     fun p r h => ?_, fun q h => Or.inr h,
     fun c y n' hc hk => ⟨Or.inr ⟨hc, y, n', hk⟩, hSC c y n' hc hk⟩, fun p kd hp => ?_, fun a ha => ?_, fun i hi => ?_, fun t' ht' => ?_⟩

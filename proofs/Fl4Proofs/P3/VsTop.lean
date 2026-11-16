@@ -479,7 +479,7 @@ theorem mpSR_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s s' : S) (a : A)
     · obtain ⟨Q, R0, -, hs⟩ := hS.1.1.lists
       obtain ⟨x, n, hk, -⟩ := hs.scs q hC
       exact hoq q hq (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl
-        ⟨q, hC, x, n, hk, le_refl _, by have := Nat.one_le_two_pow (n := n); omega⟩)))))))
+        ⟨q, hC, x, n, hk, le_refl _, by have := Nat.one_le_two_pow (n := n + Fl4Spec.minSchedContextBits); omega⟩)))))))
   · intro wp hw
     unfold Endp.loadWordAt
     congr 1

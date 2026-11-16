@@ -30,7 +30,7 @@ def SlotsApart (th : TypedHeap) (T N C R : Set U64) (c : U64) (s : S) (σ : Fl4S
     (∀ t ∈ T, a.val + 32 ≤ t.val + 256 ∨ t.val + 4096 ≤ a.val) ∧
     (a.val + 32 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ a.val) ∧
     (∀ n ∈ N, a.val + 32 ≤ n.val ∨ n.val + 40 ≤ a.val) ∧
-    (∀ sc ∈ C, ∀ x n, σ.kheap sc.bv = some (.schedContext x n) → a.val + 32 ≤ sc.val ∨ sc.val + 2 ^ n ≤ a.val) ∧
+    (∀ sc ∈ C, ∀ x n, σ.kheap sc.bv = some (.schedContext x n) → a.val + 32 ≤ sc.val ∨ sc.val + 2 ^ (n + Fl4Spec.minSchedContextBits) ≤ a.val) ∧
     (∀ r ∈ R, a.val + 32 ≤ r.val ∨ r.val + 32 ≤ a.val)
 
 /-- A `UFoot` word is no slot word. -/

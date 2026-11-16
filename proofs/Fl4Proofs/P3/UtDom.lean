@@ -232,9 +232,9 @@ theorem creation_dk4 {th thR : TypedHeap} (hP : Placed th) {sR s' : S} {A k win 
 (`restart_ut`), the reset (`reset_ut`) and the creation (`creation_dk4`). -/
 theorem retFrame_dk4 {A' : Type} (arI : machine.Arch A') (ar : A') (hA : P0.ArchTotal arI)
     {th th' : TypedHeap} {G : MdbGhost} (hP : Placed th) {s : S} {x : U64} {A k win A0 k0 w0 us : Nat} {pml4 T Z : Prop}
-    {tK : Nat → Prop} {cj : Nat → capability.Cap} {dv : Bool} {dslot : Nat → U64}
+    {tK : Nat → Prop} {cj : Nat → capability.Cap} {dv : Bool} {dslot : Nat → U64} {RB : Prop}
     {res : core.result.Result Unit error.Exc × S × A'}
-    (hRF : RetFrame (L := L) arI ar th th' G s x A k win A0 k0 w0 pml4 T Z tK us cj dv dslot res)
+    (hRF : RetFrame (L := L) arI ar th th' G s x A k win A0 k0 w0 pml4 T Z tK us cj dv dslot RB res)
     (hD : DomPlaced (L := L) th s) (hN : P1.NodePlaced st ∅ s (L.cpu s))
     {ct : U64} (hct : sched.cur_thread st s = ok ct) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))

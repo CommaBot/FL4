@@ -200,7 +200,7 @@ theorem budget_check_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
     step with obj.Sc.refill_max.spec as ⟨i2, i2_post⟩
     step as ⟨fuel2, fuel2_post⟩
     have hf2 : (L.refills s2 sc).length ≤ fuel2.val := by
-      have h1 := hR2.wf.size_le; have h2 := hR2.wf.le_abs; have h3 := absMax_lt n
+      have h1 := hR2.wf.size_le; have h2 := hR2.wf.le_abs; have h3 := absMax_lt (n + Fl4Spec.minSchedContextBits)
       rw [fuel2_post, refills_length, wadd_val (by rw [i2_post]; simp; omega), i2_post]; simp; omega
     have hmbv : mb.val = Fl4Spec.MIN_BUDGET.toNat := by rw [← hmb']; rfl
     refine WP.spec_mono (loop1_refines (σ0 := σ) (x := x) hR2 hP2 (by rw [hS2]; exact hsum) mb hmb' (by rw [hS2, hmbv]; exact hmin)
