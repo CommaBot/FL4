@@ -15,6 +15,27 @@ noncomputable section
 /-- The words of a typed heap's slots. -/
 def SlotSpan (th : TypedHeap) (w : U64) : Prop := ∃ a, IsSlot th a ∧ a.val ≤ w.val ∧ w.val < a.val + 32
 
+/-- The words of a TCB that creating it writes: past its cap slots, the
+context (below `F`), the domain (`F + 104`), the debug links (`F + 248`,
+`F + 256`) and the name (from `F + 272`); not its affinity word (offset
+3520, which `debug_append` reads) nor its other scheduler fields. -/
+def InT (t w : U64) : Prop := t.val + 256 ≤ w.val ∧ w.val < t.val + 4096 ∧ w.val ≠ t.val + 3520 ∧
+  (w.val < t.val + 3328 ∨ w.val = t.val + 3432 ∨ w.val = t.val + 3576 ∨ w.val = t.val + 3584 ∨ t.val + 3600 ≤ w.val)
+
+/-- The words the TCB loop may write: slot words, the new TCBs' creation
+words (`InT`), the debug-list head word `DW`, and the old head's
+`debug_prev` word. -/
+def TcbLoopW (th : TypedHeap) (A win : Nat) (DW h0 : U64) (w : U64) : Prop :=
+  SlotSpan th w ∨ (∃ j, j < win ∧ InT ⟨BitVec.ofNat 64 (A + j * 4096)⟩ w) ∨ w = DW ∨
+    (h0 ≠ 0#u64 ∧ w.val = h0.val + 3584)
+
+/-- **The window after a retype** (P1's `WinInit`): its aligned words zero,
+but, when `T` (TCBs), the new TCBs' creation words (`InT` of
+`A + j * 4096`). -/
+def WinZero (m : U64 → U64) (A k win : Nat) (T : Prop) : Prop :=
+  ∀ w : U64, P1.Aligned w → A ≤ w.val → w.val < A + win * k →
+    m w = 0#u64 ∨ (T ∧ ∃ j, j < win ∧ InT ⟨BitVec.ofNat 64 (A + j * 4096)⟩ w)
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
@@ -175,5 +196,61 @@ theorem create_loop_frame {A' : Type} (arI : machine.Arch A') (ar : A') (th' : T
 end
 
 end
+
+/-- **`WinZero` from the creation's frame**: the window zero before, and
+none of the old slots, `DW` nor the old head's `debug_prev` word in it. -/
+theorem winZero_of_frame {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {s s' : S}
+    {th : TypedHeap} {A k win : Nat} {DW h0 : U64}
+    (hW : WFrame (L := L) s s' (TcbLoopW th A win DW h0)) (hz : ZeroRegion (L.mem s) A (A + win * k))
+    (hsl : ∀ a, IsSlot th a → a.val + 32 ≤ A ∨ A + win * k ≤ a.val)
+    (hdw : ¬ (A ≤ DW.val ∧ DW.val < A + win * k))
+    (hh0 : h0 ≠ 0#u64 → ¬ (A ≤ h0.val + 3584 ∧ h0.val + 3584 < A + win * k)) :
+    WinZero (L.mem s') A k win True := by
+  intro w hw h1 h2
+  by_cases hF : TcbLoopW th A win DW h0 w
+  · rcases hF with ⟨a, ha, ha1, ha2⟩ | hT | e | ⟨hne, he⟩
+    · exfalso; rcases hsl a ha with h | h <;> omega
+    · exact Or.inr ⟨trivial, hT⟩
+    · exact absurd ⟨by rw [← e]; exact h1, by rw [← e]; exact h2⟩ hdw
+    · exact absurd ⟨by rw [← he]; exact h1, by rw [← he]; exact h2⟩ (hh0 hne)
+  · left; rw [hW.2 w hw hF]; exact hz w hw h1 h2
+
+/-- **`WinZero` from a slot-only frame** (no object initialised): the window
+zero before and none of the old slots in it. -/
+theorem winZero_of_slots {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {s s' : S}
+    {th : TypedHeap} {A k win : Nat} (hW : WFrame (L := L) s s' (SlotSpan th))
+    (hz : ZeroRegion (L.mem s) A (A + win * k)) (hsl : ∀ a, IsSlot th a → a.val + 32 ≤ A ∨ A + win * k ≤ a.val)
+    (T : Prop) : WinZero (L.mem s') A k win T := by
+  intro w hw h1 h2
+  left
+  rw [hW.2 w hw (fun ⟨a, ha, ha1, ha2⟩ => by rcases hsl a ha with h | h <;> omega)]
+  exact hz w hw h1 h2
+
+/-- **The retype's frame, as `RetPost` exposes it**: from the restart's
+state `s0` (the current thread `ct` set to Restart), either the reset
+preempted (`res` its outcome), or the creation ran from `sR` (`s0`, or the
+reset's state when done) over a heap `thR` of `th`'s slots: it writes only
+`TcbLoopW` (PML4s: their window too), and, for a non-device retype but
+PML4s, leaves the window `WinZero` (the creation words of TCBs, `T`). -/
+def RetFrame {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A' : Type} (arI : machine.Arch A') (ar : A')
+    (th : TypedHeap) (s : S) (x : U64) (A k win : Nat) (pml4 T Z : Prop)
+    (res : core.result.Result Unit error.Exc × S × A') : Prop :=
+  ∃ ct s0, sched.cur_thread st s = ok ct ∧ sched.set_thread_state st s ct sched.TS_RESTART = ok s0 ∧
+    ((res.1 = .Err .Preempted ∧ untyped.reset_untyped st arI s0 ar x = ok res) ∨
+     (res.1 = .Ok () ∧ ∃ sR thR, ((sR = s0 ∧ thR = th) ∨ ∃ a1, untyped.reset_untyped st arI s0 ar x = ok (.Ok (), sR, a1)) ∧
+       (∀ a, IsSlot thR a → IsSlot th a) ∧
+       WFrame (L := L) sR res.2.1 (fun v => TcbLoopW thR A win (L.nodeAt sR 0#u64 layout.node.DEBUG_TCBS)
+         (L.mem sR (L.nodeAt sR 0#u64 layout.node.DEBUG_TCBS)) v ∨ (pml4 ∧ A ≤ v.val ∧ v.val < A + win * k)) ∧
+       (Z → WinZero (L.mem res.2.1) A k win T)))
+
+/-- `RetFrame` for an untyped invocation (its source slot, type and device
+flag). -/
+def RetFrameI {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A' : Type} (arI : machine.Arch A') (ar : A')
+    (th : TypedHeap) (s : S) (inv : Fl4Spec.UntypedInvocation) (A k win : Nat)
+    (res : core.result.Result Unit error.Exc × S × A') : Prop :=
+  match inv with
+  | .retype sl _ _ _ t _ _ dev => RetFrame (L := L) arI ar th s (cslotAddr sl) A k win (t = .archObject .pml4Obj)
+      (t = .tcbObject) (dev = false ∧ t ≠ .archObject .pml4Obj) res
+
 
 end Fl4Proofs.P3

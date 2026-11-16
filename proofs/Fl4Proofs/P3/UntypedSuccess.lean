@@ -283,7 +283,8 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
           (p.val + 2 ^ sb.val)) ∧
         (FinInv th (L.mem s) σ G → FinInv th' (L.mem res.2.1) σ' G') ∧ L.ksb res.2.1 = L.ksb s ∧
         WFrame (L := L) s res.2.1 (SlotSpan th) ∧
-        ∃ A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj ⦄ := by
+        ∃ A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj ∧
+          A = (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val ⦄ := by
   -- sizes and the region
   have hsb : sb.val < 64 := capAt_untyped_inv hcap
   set z := zOf nt.val us.val with hzdef
@@ -374,7 +375,8 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
         (UtInv (L.mem res.2.1) G' ∧ MdbStep (L.mem s) G (L.mem res.2.1) G') ∧ (dev = false → ZeroRegion (L.mem res.2.1) (A + win.val * k) (p.val + 2 ^ sb.val)) ∧
         (FinInv th (L.mem s) σ G → FinInv th' (L.mem res.2.1) σ' G') ∧ L.ksb res.2.1 = L.ksb s ∧
         WFrame (L := L) s res.2.1 (SlotSpan th) ∧
-        ∃ A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj ⦄ := by
+        ∃ A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj ∧
+          A = Ab.toNat ∧ k = 2 ^ z ∧ w = win.val ⦄ := by
     intro th' σb hP' hR' hV' hM' hC' hrb hpp' hdest' hcv' hzs hKb hth
     -- the zero region kept by the loop: none for a device region
     set zl : Nat := if dev = true then p.val + 2 ^ sb.val else A + win.val * k with hzl
@@ -532,7 +534,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
         hFf (hFI.fm.recap hM.tree.nodup src
           (by rw [hcs1, hcv0]; exact CapSim.of_shape rfl rfl)
           (fun z hz hzs => hco1 z ((hM.members z).1 hz).1 hzs))⟩, hks2, hW, A, k, win.val, _, _,
-      hRD.toExp hU hMf hth⟩
+      hRD.toExp hU hMf hth, rfl, rfl, rfl⟩
     · rw [hbA] at hmx
       apply invokeUntyped_noreset_eq bitsApi (pp.bv, idx) p.bv Ab t us.val _ dev σ σa σb σf _ _ hgs hss hrb
       · exact objTypeOf_ne_pml4 (by omega) ht

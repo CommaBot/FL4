@@ -16,6 +16,7 @@ retype's exposed post `RetExp`, UntypedExp).
 import Fl4Proofs.P3.ScPlaceDead
 import Fl4Proofs.P3.UntypedExp
 import Fl4Proofs.P1.QueueRetype
+import Fl4Proofs.P3.UntypedTcbLoop
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Sched
@@ -220,6 +221,29 @@ theorem JCovD.retype_step (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem 
     have := hE.k1
     omega
   · exact Or.inr ⟨⟨j, hj, hv, hcj (by rw [hk]; rfl) j hj⟩, hbits kd hk⟩
+
+end
+
+section
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
+
+/-- **P1's `WinInit` from `WinZero`** (the window `[A, A + win * k)` as the
+region; TCBs 4 KiB). -/
+theorem winInit_of_winZero {s' : S} {A k win n us : Nat} (h : WinZero (L.mem s') A k win (n = 1))
+    (hk : n = 1 → k = 4096) (hfit : A + win * k ≤ 2 ^ 64) :
+    P1.WinInit st s' A (A + win * k) A k win n us := by
+  intro _ b hb h1 h2
+  rcases h b hb h1 h2 with e | ⟨hn, j, hj, hT⟩
+  · exact Or.inl e
+  · right
+    have hk' := hk hn
+    subst hk'
+    have hjv : (⟨BitVec.ofNat 64 (A + j * 4096)⟩ : U64).val = A + j * 4096 := by
+      have : j * 4096 < win * 4096 := Nat.mul_lt_mul_of_pos_right hj (by omega)
+      show (BitVec.ofNat 64 (A + j * 4096)).toNat = _; simp; omega
+    unfold InT at hT; rw [hjv] at hT
+    refine ⟨hn, j, hj, b.val - (A + j * 4096), ?_, by omega⟩
+    unfold P1.TcbInitK; omega
 
 end
 

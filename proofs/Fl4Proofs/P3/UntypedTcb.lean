@@ -22,13 +22,6 @@ set_option linter.unusedSimpArgs false
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
-/-- The words of a TCB that creating it writes: past its cap slots, the
-context (below `F`), the domain (`F + 104`), the debug links (`F + 248`,
-`F + 256`) and the name (from `F + 272`); not its affinity word (offset
-3520, which `debug_append` reads) nor its other scheduler fields. -/
-def InT (t w : U64) : Prop := t.val + 256 ≤ w.val ∧ w.val < t.val + 4096 ∧ w.val ≠ t.val + 3520 ∧
-  (w.val < t.val + 3328 ∨ w.val = t.val + 3432 ∨ w.val = t.val + 3576 ∨ w.val = t.val + 3584 ∨ t.val + 3600 ≤ w.val)
-
 theorem wa_val (a : U64) (n : Nat) (h : a.val + n < 2 ^ 64) :
     (core.num.U64.wrapping_add a ⟨BitVec.ofNat 64 n⟩).val = a.val + n := by
   have : (⟨BitVec.ofNat 64 n⟩ : U64).val = n := by show (BitVec.ofNat 64 n).toNat = n; simp; omega

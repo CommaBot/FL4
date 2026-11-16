@@ -135,7 +135,7 @@ theorem retype_reset_gen (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State 
     (hEk : EKept (L := L) E p sb (cslotAddr (pp.bv, idx))) (hE : E s)
     (base nt us dest off win : U64) (bitsApi : Fl4Spec.ApiObjectType → Nat → Nat) (rb : Fl4Spec.ObjRef)
     (t : Fl4Spec.ApiObjectType) (usv : Nat) (slots : List Fl4Spec.CslotPtr)
-    (X : TypedHeap → S → core.result.Result Unit error.Exc × S × A' → Prop)
+    (X : TypedHeap → S → core.result.Result Unit error.Exc × S × A' → Prop) (Y : Nat → Nat → Nat → Prop)
     (hRT : ∀ (t1 : S) (a1 : A') (σt : Fl4Spec.State Unit),
       ResetRel (restrictTh th p.val (p.val + 2 ^ sb.val)) G (cslotAddr (pp.bv, idx)) p sb dev (L.mem t1) σt 0#u64 →
       (dev = false → ZeroRegion (L.mem t1) (p.val + (0#u64 : U64).val) (p.val + 2 ^ sb.val)) →
@@ -153,7 +153,7 @@ theorem retype_reset_gen (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State 
           (FinInv (restrictTh th p.val (p.val + 2 ^ sb.val)) (L.mem t1) σt G → FinInv th'' (L.mem res.2.1) σ' G') ∧
           L.ksb res.2.1 = L.ksb t1 ∧ X th'' t1 res ∧
           ∃ A k w dslot cj, RetExp (restrictTh th p.val (p.val + 2 ^ sb.val)) th'' (L.mem t1) (L.mem res.2.1) G G'
-            A k w dslot cj ⦄)
+            A k w dslot cj ∧ Y A k w ⦄)
     (hEksb : ∀ t, E t → L.ksb t = L.ksb s) :
     untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) true base nt us dest off win dev ⦃ res =>
       NSat (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) true p.bv rb t usv slots dev)).run σ
@@ -164,7 +164,8 @@ theorem retype_reset_gen (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State 
           ResetRel (restrictTh th p.val (p.val + 2 ^ sb.val)) G (cslotAddr (pp.bv, idx)) p sb dev
             (L.mem res.2.1) σ' f ∧ MdbStep (L.mem s) G (L.mem res.2.1) G ∧
           (FinInv th (L.mem s) σ G → FinInv (restrictTh th p.val (p.val + 2 ^ sb.val)) (L.mem res.2.1) σ' G) ∧
-          L.ksb res.2.1 = L.ksb s ∧ ∀ dslot cj, RetExp th (restrictTh th p.val (p.val + 2 ^ sb.val)) (L.mem s)
+          L.ksb res.2.1 = L.ksb s ∧ untyped.reset_untyped st arI s ar (cslotAddr (pp.bv, idx)) = ok res ∧
+          ∀ dslot cj, RetExp th (restrictTh th p.val (p.val + 2 ^ sb.val)) (L.mem s)
             (L.mem res.2.1) G G p.val 1 0 dslot cj) ∨
        (res.1 = .Ok () ∧ ∃ σ' G' th'',
           NHas (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) true p.bv rb t usv slots dev)).run σ
@@ -174,7 +175,7 @@ theorem retype_reset_gen (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State 
           (UtInv (L.mem res.2.1) G' ∧ MdbStep (L.mem s) G (L.mem res.2.1) G') ∧
           (FinInv th (L.mem s) σ G → FinInv th'' (L.mem res.2.1) σ' G') ∧ L.ksb res.2.1 = L.ksb s ∧
           (∃ t1 a1, untyped.reset_untyped st arI s ar (cslotAddr (pp.bv, idx)) = ok (.Ok (), t1, a1) ∧ X th'' t1 res) ∧
-          ∃ A k w dslot cj, RetExp th th'' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj)) ⦄ := by
+          ∃ A k w dslot cj, RetExp th th'' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj ∧ Y A k w)) ⦄ := by
   set th' := restrictTh th p.val (p.val + 2 ^ sb.val) with hth'
   set x := cslotAddr (pp.bv, idx) with hxdef
   have hsb : sb.val < 64 := capAt_untyped_inv hcap
@@ -305,12 +306,12 @@ theorem retype_reset_gen (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State 
       (fun x hx hx2 => by
         rw [hKy.1]; simp only [setCnodeSlot, Function.update_of_ne hx2, Fl4Spec.detype]; rw [if_neg hx]) hE1) ?_
     · rintro res ⟨hr1, σf, G', th'', hrun, hP'', hR'', hV'', hM'', hC'', hI'', ⟨hU'', hSt''⟩, hFin, hks, hX, A, k, w,
-        dslot, cj, hEx⟩
+        dslot, cj, hEx, hY⟩
       refine ⟨hNS, Or.inr ⟨hr1, σf, G', th'', ?_, hP'', hR'', hV'', hM'', hC'', hI'',
         ⟨hU'', (hstep _ _ _ hRR (hio _ _ ⟨y, hy, hy1, hy2⟩) hF).trans hSt''⟩,
         fun hFI => hFin (reset_fin_of hFI hM.tree.nodup hsb hfit hg hfi0 ⟨y, hy, rfl⟩ x
           (by rw [hRR.cap, hcv]; exact CapSim.of_shape rfl rfl) (fun z hz hzx => hF z ((hRR.M.members z).1 hz).1 hzx)),
-        by rw [hks, hEksb _ hE1], ⟨s1, a1, rfl, hX⟩, A, k, w, dslot, cj, hEx.of_reset hM hP hN hns hcv hRR.cap hnd hF⟩⟩
+        by rw [hks, hEksb _ hE1], ⟨s1, a1, rfl, hX⟩, A, k, w, dslot, cj, hEx.of_reset hM hP hN hns hcv hRR.cap hnd hF, hY⟩⟩
       rw [invoke_true_eq]
       apply nhasE_bind
       refine ⟨y, hy, ?_⟩
@@ -324,7 +325,7 @@ theorem retype_reset_gen (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State 
       hstep _ _ _ hRR (hio _ _ ⟨y, hy, hy1, hy2⟩) hF,
       fun hFI => reset_fin_of hFI hM.tree.nodup hsb hfit hg hfi0 ⟨y, hy, hy2.1⟩ x
         (by rw [hRR.cap, hcv]; exact CapSim.of_shape rfl rfl) (fun z hz hzx => hF z ((hRR.M.members z).1 hz).1 hzx),
-      hEksb _ hE1, fun dslot cj => RetExp.reset_only hM hP hN hns hxm hcv hRR.cap hnd hF⟩⟩
+      hEksb _ hE1, rfl, fun dslot cj => RetExp.reset_only hM hP hN hns hxm hcv hRR.cap hnd hF⟩⟩
     rw [invoke_true_eq]
     apply nhasE_bind
     refine ⟨y, hy, ?_⟩
@@ -392,7 +393,8 @@ theorem retype_reset_full (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State
           ResetRel (restrictTh th p.val (p.val + 2 ^ sb.val)) G (cslotAddr (pp.bv, idx)) p sb dev
             (L.mem res.2.1) σ' f ∧ MdbStep (L.mem s) G (L.mem res.2.1) G ∧
           (FinInv th (L.mem s) σ G → FinInv (restrictTh th p.val (p.val + 2 ^ sb.val)) (L.mem res.2.1) σ' G) ∧
-          L.ksb res.2.1 = L.ksb s ∧ ∀ dslot cj, RetExp th (restrictTh th p.val (p.val + 2 ^ sb.val)) (L.mem s)
+          L.ksb res.2.1 = L.ksb s ∧ untyped.reset_untyped st arI s ar (cslotAddr (pp.bv, idx)) = ok res ∧
+          ∀ dslot cj, RetExp th (restrictTh th p.val (p.val + 2 ^ sb.val)) (L.mem s)
             (L.mem res.2.1) G G p.val 1 0 dslot cj) ∨
        (res.1 = .Ok () ∧ ∃ σ' G' th'',
           NHas (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) true p.bv
@@ -403,8 +405,11 @@ theorem retype_reset_full (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State
           (UtInv (L.mem res.2.1) G' ∧ MdbStep (L.mem s) G (L.mem res.2.1) G') ∧
           (FinInv th (L.mem s) σ G → FinInv th'' (L.mem res.2.1) σ' G') ∧ L.ksb res.2.1 = L.ksb s ∧
           (∃ t1 a1, untyped.reset_untyped st arI s ar (cslotAddr (pp.bv, idx)) = ok (.Ok (), t1, a1) ∧
-            WFrame (L := L) t1 res.2.1 (SlotSpan (restrictTh th p.val (p.val + 2 ^ sb.val)))) ∧
-          ∃ A k w dslot cj, RetExp th th'' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj)) ⦄ := by
+            WFrame (L := L) t1 res.2.1 (SlotSpan (restrictTh th p.val (p.val + 2 ^ sb.val))) ∧
+            (dev = false → WinZero (L.mem res.2.1) (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat
+              (2 ^ zOf nt.val us.val) win.val (t = .tcbObject))) ∧
+          ∃ A k w dslot cj, RetExp th th'' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj ∧
+            A = (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val)) ⦄ := by
   have hsb : sb.val < 64 := capAt_untyped_inv hcap
   have hcv := capV_of_capAt hcap
   have hxm : cslotAddr (pp.bv, idx) ∈ G.chains.flatten :=
@@ -413,7 +418,10 @@ theorem retype_reset_full (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State
   rw [hcv] at hrx
   obtain ⟨-, -, hfit⟩ := ut_range hsb hrx
   refine retype_reset_gen arI ar th s σ G hR hV hP hM hC hI hU hpp hidx hcap hfi0 hnd hpal hsb4 hN hns hzero hrcb hppS
-    hPP hEk hE _ nt us dest off win bitsApi _ t us.val _ (fun th'' t1 res => WFrame (L := L) t1 res.2.1 (SlotSpan (restrictTh th p.val (p.val + 2 ^ sb.val)))) ?_ hEksb
+    hPP hEk hE _ nt us dest off win bitsApi _ t us.val _ (fun th'' t1 res => WFrame (L := L) t1 res.2.1 (SlotSpan (restrictTh th p.val (p.val + 2 ^ sb.val))) ∧
+      (dev = false → WinZero (L.mem res.2.1) (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat
+              (2 ^ zOf nt.val us.val) win.val (t = .tcbObject)))
+    (fun A k w => A = (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val) ?_ hEksb
   intro t1 a1 σt hRR hZ hF hio _ _ _
   obtain ⟨hdest', he1⟩ := reset_window hP hdest hdout (by rw [hcap]; simp) off win hwin hempty hF
   have hcap1 : capAt (L.mem t1) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb 0#u64 dev) := by
@@ -426,9 +434,20 @@ theorem retype_reset_full (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State
   refine WP.spec_mono (retype_full (L := L) arI a1 _ t1 σt G hRR.R hRR.V hP.restrict hRR.M hRR.C hRR.I hRR.U
     (fun sl h => horig sl (by rw [← hio]; exact h)) hpp' hidx hcap1 hpal hfit (by simp) hhigh nt us t ht hn hus hz47
     hsc hct0 hdest' hr off win hwin hw1 hmem he1 (by simpa using RegionFree.restrict hN) hZ hdevT bitsApi hb) ?_
-  rintro res ⟨h1, -, σ', G', th'', hrun, h⟩
-  exact ⟨h1, σ', G', th'', hrun, h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2.1, h.2.2.2.2.2.2.1,
-    h.2.2.2.2.2.2.2.2⟩
+  have hreg : p.val + (0#u64 : U64).val ≤ (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat ∧ (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat % 2 ^ zOf nt.val us.val = 0 ∧
+      (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val ≤ p.val + 2 ^ sb.val ∧ _ :=
+    retype_region p 0#u64 sb.val (zOf nt.val us.val) win.val hsb (by omega) hpal hfit (by simp) hw1 hmem
+  have hsl : ∀ a, IsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) a → a.val + 32 ≤ (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat ∨
+      (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val ≤ a.val := by
+    intro a ha
+    rcases ha.restrict_words hP hN with h | h
+    · left; have := hreg.1; simp at this; omega
+    · right; have := hreg.2.2.1; omega
+  rintro res ⟨h1, -, σ', G', th'', hrun, hP'', hR'', hV'', hM'', hC'', hI'', hUS, -, hFin, hks, hWf, hEx⟩
+  refine ⟨h1, σ', G', th'', hrun, hP'', hR'', hV'', hM'', hC'', hI'', hUS, hFin, hks, ⟨hWf, fun hd =>
+    winZero_of_slots hWf (fun w hw e1 e2 => hZ hd w hw ?_ ?_) hsl _⟩, hEx⟩
+  · have := hreg.1; simp at this ⊢; omega
+  · have := hreg.2.2.1; omega
 
 
 /-- `ksb` and a word outside the region and the untyped cap's slot are kept
@@ -500,7 +519,8 @@ theorem retype_reset_tcb (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State 
           ResetRel (restrictTh th p.val (p.val + 2 ^ sb.val)) G (cslotAddr (pp.bv, idx)) p sb false
             (L.mem res.2.1) σ' f ∧ MdbStep (L.mem s) G (L.mem res.2.1) G ∧
           (FinInv th (L.mem s) σ G → FinInv (restrictTh th p.val (p.val + 2 ^ sb.val)) (L.mem res.2.1) σ' G) ∧
-          L.ksb res.2.1 = L.ksb s ∧ ∀ dslot cj, RetExp th (restrictTh th p.val (p.val + 2 ^ sb.val)) (L.mem s)
+          L.ksb res.2.1 = L.ksb s ∧ untyped.reset_untyped st arI s ar (cslotAddr (pp.bv, idx)) = ok res ∧
+          ∀ dslot cj, RetExp th (restrictTh th p.val (p.val + 2 ^ sb.val)) (L.mem s)
             (L.mem res.2.1) G G p.val 1 0 dslot cj) ∨
        (res.1 = .Ok () ∧ ∃ σ' G' th'',
           NHas (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) true p.bv
@@ -512,8 +532,11 @@ theorem retype_reset_tcb (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State 
           (FinInv th (L.mem s) σ G → FinInv th'' (L.mem res.2.1) σ' G') ∧ L.ksb res.2.1 = L.ksb s ∧
           (∃ t1 a1, untyped.reset_untyped st arI s ar (cslotAddr (pp.bv, idx)) = ok (.Ok (), t1, a1) ∧
             WFrame (L := L) t1 res.2.1 (TcbLoopW (restrictTh th p.val (p.val + 2 ^ sb.val)) (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat win.val
-              (L.nodeAt t1 0#u64 layout.node.DEBUG_TCBS) (L.mem t1 (L.nodeAt t1 0#u64 layout.node.DEBUG_TCBS)))) ∧
-          ∃ A k w dslot cj, RetExp th th'' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj)) ⦄ := by
+              (L.nodeAt t1 0#u64 layout.node.DEBUG_TCBS) (L.mem t1 (L.nodeAt t1 0#u64 layout.node.DEBUG_TCBS))) ∧
+            WinZero (L.mem res.2.1) (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat
+              (2 ^ zOf nt.val us.val) win.val (t = .tcbObject)) ∧
+          ∃ A k w dslot cj, RetExp th th'' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj ∧
+            A = (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val)) ⦄ := by
   have hsb : sb.val < 64 := capAt_untyped_inv hcap
   have hcv := capV_of_capAt hcap
   have hxm : cslotAddr (pp.bv, idx) ∈ G.chains.flatten :=
@@ -524,7 +547,10 @@ theorem retype_reset_tcb (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State 
   have hxs : IsSlot th (cslotAddr (pp.bv, idx)) := AbsSlot.isSlot ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩
   refine retype_reset_gen arI ar th s σ G hR hV hP hM hC hI hU hpp hidx hcap hfi0 hnd hpal hsb4 hN hns hzero hrcb hppS
     hPP (ekept_dw hP hxs _ hDWal hDWreg (hDWobj _ hxs) hfit _ _) ⟨rfl, rfl⟩ _ nt us dest off win bitsApi _ t us.val _ (fun th'' t1 res => WFrame (L := L) t1 res.2.1 (TcbLoopW (restrictTh th p.val (p.val + 2 ^ sb.val)) (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat win.val
-              (L.nodeAt t1 0#u64 layout.node.DEBUG_TCBS) (L.mem t1 (L.nodeAt t1 0#u64 layout.node.DEBUG_TCBS)))) ?_
+              (L.nodeAt t1 0#u64 layout.node.DEBUG_TCBS) (L.mem t1 (L.nodeAt t1 0#u64 layout.node.DEBUG_TCBS))) ∧
+      WinZero (L.mem res.2.1) (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat
+              (2 ^ zOf nt.val us.val) win.val (t = .tcbObject))
+    (fun A k w => A = (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val) ?_
     (fun _ h => h.1)
   intro t1 a1 σt hRR hZ hF hio _ _ ⟨hk1, hm1⟩
   have hn1 := nodeAt_ksb (L := L) hk1 0#u64 layout.node.DEBUG_TCBS
@@ -546,9 +572,34 @@ theorem retype_reset_tcb (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State 
       rcases hhead with h | ⟨h1, h2⟩
       · exact Or.inl h
       · exact Or.inr ⟨by rw [restrictTh_out hheadR]; exact h1, h2⟩) bitsApi hb) ?_
-  rintro res ⟨h1, -, σ', G', th'', hrun, h⟩
-  exact ⟨h1, σ', G', th'', hrun, h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2.1, h.2.2.2.2.2.2.1,
-    h.2.2.2.2.2.2.2.2⟩
+  have htT : t = .tcbObject := by rw [hnt] at ht; simpa [objTypeOf] using ht.symm
+  have hreg : p.val + (0#u64 : U64).val ≤ (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat ∧ (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat % 2 ^ zOf nt.val us.val = 0 ∧
+      (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val ≤ p.val + 2 ^ sb.val ∧ _ :=
+    retype_region p 0#u64 sb.val (zOf nt.val us.val) win.val hsb (by simp [zOf, hnt]) hpal hfit (by simp) hw1 hmem
+  have hr1 : p.val ≤ (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat := by
+    have := hreg.1; rwa [show (0#u64 : U64).val = 0 from rfl, Nat.add_zero] at this
+  have hr2 := hreg.2.2.1
+  have hsl : ∀ a, IsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) a → a.val + 32 ≤ (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat ∨
+      (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val ≤ a.val := by
+    intro a ha
+    rcases ha.restrict_words hP hN with h | h
+    · left; omega
+    · right; omega
+  rintro res ⟨h1, -, σ', G', th'', hrun, hP'', hR'', hV'', hM'', hC'', hI'', hUS, -, hFin, hks, hWf, hEx⟩
+  have e0 : U64.bv 0#u64 = (0 : BitVec 64) := rfl
+  rw [e0] at hWf
+  refine ⟨h1, σ', G', th'', hrun, hP'', hR'', hV'', hM'', hC'', hI'', hUS, hFin, hks, ⟨hWf, fun w hw e1 e2 =>
+    ((winZero_of_frame hWf (fun w hw e1 e2 => hZ rfl w hw (by rw [show (0#u64 : U64).val = 0 from rfl]; omega) (by omega)) hsl ?_ ?_) w hw e1 e2).imp id
+      (fun ⟨_, hj⟩ => ⟨htT, hj⟩)⟩, hEx⟩
+  · rw [hn1]; intro h; exact hDWreg ⟨by omega, by omega⟩
+  · rw [hn1, hm1]; intro hne h
+    rcases hhead with e | ⟨hq, -⟩
+    · exact hne e
+    · have e4 : objSize ObjKind.tcb = 4096 := rfl
+      rcases hN _ _ hq with h' | h' | h'
+      · exact hheadR ⟨h'.1, by omega⟩
+      · omega
+      · omega
 
 end
 

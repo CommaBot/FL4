@@ -379,12 +379,6 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
 /-! ## The TCB loop -/
 
-/-- The words the TCB loop may write: slot words, the window, the debug-list
-head word `DW`, and the old head's `debug_prev` word. -/
-def TcbLoopW (th : TypedHeap) (A win : Nat) (DW h0 : U64) (w : U64) : Prop :=
-  SlotSpan th w ∨ (∃ j, j < win ∧ InT ⟨BitVec.ofNat 64 (A + j * 4096)⟩ w) ∨ w = DW ∨
-    (h0 ≠ 0#u64 ∧ w.val = h0.val + 3584)
-
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
@@ -636,7 +630,8 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
         (FinInv th (L.mem s) σ G → FinInv th' (L.mem res.2.1) σ' G') ∧ L.ksb res.2.1 = L.ksb s ∧
         WFrame (L := L) s res.2.1 (TcbLoopW th (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat win.val
           (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))) ∧
-        ∃ A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj ⦄ := by
+        ∃ A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj ∧
+          A = (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val ⦄ := by
   -- sizes and the region
   have hsb : sb.val < 64 := capAt_untyped_inv hcap
   have htT : t = .tcbObject := by rw [hnt] at ht; simpa [objTypeOf] using ht.symm
@@ -942,7 +937,7 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
     refine WFrame.trans (s2 := s1) ⟨k1, fun w hw hn => hfr1 w hw (fun e => hn (Or.inl ⟨src, hs', by omega, by omega⟩))
       (fun e => hn (Or.inl ⟨src, hs', by omega, by omega⟩))⟩ hW2
   refine ⟨rfl, ha2, σf, Gf, th', ?_, hP', hRf, hVf, hMf, hCf, hIf, ?_, ?_, fun hFI => ⟨?_, ?_⟩, by rw [hks2],
-    hW, A, k, win.val, _, _, hRD.toExp hU hMf hth'⟩
+    hW, A, k, win.val, _, _, hRD.toExp hU hMf hth', rfl, rfl, rfl⟩
   rotate_right 2
   · exact (ktyped_region (hFI.kt.sub (ksub_of_eq (nks_setCap _ _) hσa)) Ab A win.val 4096 rfl (by omega) hfitA hrf4
       (fun q kd hq hs => extendTh_of_old (by omega) hrf4 hq hs) _
