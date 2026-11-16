@@ -1,7 +1,8 @@
 /-
 P1: InvGaps' `thread` family, continued: `CopyRegisters` and the other
-labels on top of QueueDecTcb's, and the family's decode (`tcb.decode.dec`,
-`decGap_thread`).
+labels on top of QueueDecTcb's, `SetSchedParams` from `SspHyps`
+(`tcb.decode_set_sched_params.dec`), and the family's decode
+(`tcb.decode.dec`, `decGap_thread`).
 -/
 import Fl4Proofs.P1.QueueDecTcb
 import Fl4Proofs.P1.QueueFinThr
@@ -529,6 +530,379 @@ theorem tcb.decode_configure.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
     · rw [e]; exact hxw x2 hxm2 hx02
     · exact absurd e h0)) fun s6 a6 c6 => (WP.spec_ok _).2 c6
 
+/-! ## `SetSchedParams` -/
+
+/-- `tcs_tail` with its result: `Ok`. -/
+theorem tcs_tail2 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s0 s1 : S) (a1 : A)
+    (target : obj.Tcb) (mcp prio : U64) (sc : obj.Sc) (flags : U64)
+    (h1 : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s1) (ht : target ∈ T) (pf : PFr st T Sg s0 s1)
+    (ec : L.curW s1 = L.curW s0)
+    (hrel : (L.mem s1 (inqA target) &&& sched.Q_RELEASE) ≠ 0#u64 → (L.mem s0 (inqA target) &&& sched.Q_RELEASE) ≠ 0#u64)
+    (hprio : (flags &&& tcb.SCHED_UPDATE_PRIO) ≠ 0#u64 → prio.val < 256 ∧ (target = L.curW s0 →
+      (L.mem s0 (inqA target) &&& sched.Q_RELEASE) = 0#u64 ∧ L.mem s0 (scA target) ≠ 0#u64 ∧
+        L.mem s0 (scA target) ∈ Ac))
+    (hbind : (flags &&& tcb.SCHED_UPDATE_SC) ≠ 0#u64 → sc ≠ 0#u64 → sc ∈ Scs ∧ L.mem s0 (scA target) = 0#u64 ∧
+      L.mem s0 (scTcbA sc) = 0#u64 ∧ (BlockedR (L.mem s0 (stA target)) → sc ∈ Ac))
+    (hunb : (flags &&& tcb.SCHED_UPDATE_SC) ≠ 0#u64 → sc = 0#u64 → L.actionW s0 ≠ target ∧ L.idleW s0 ≠ target) :
+    (do
+      let i1 ← lift (flags &&& tcb.SCHED_UPDATE_MCP)
+      let s3 ←
+        if i1 != 0#u64
+        then obj.Tcb.set_mcp st target s1 mcp
+        else ok s1
+      let i2 ← lift (flags &&& tcb.SCHED_UPDATE_PRIO)
+      let s4 ←
+        if i2 != 0#u64
+        then sched.set_priority st s3 target prio
+        else ok s3
+      let i3 ← lift (flags &&& tcb.SCHED_UPDATE_SC)
+      if i3 != 0#u64
+      then
+        let b ← obj.Sc.is_null sc
+        if b
+        then
+          let i4 ← obj.Tcb.sc st target s4
+          let b1 ← obj.Sc.is_null i4
+          if b1
+          then ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s4, a1)
+          else
+            let s5 ← schedcontext.unbind_tcb st s4 i4
+            ok (core.result.Result.Ok (), s5, a1)
+        else
+          let (s5, a2) ← schedcontext.bind_tcb st ar s4 a1 sc target
+          ok (core.result.Result.Ok (), s5, a2)
+      else ok (core.result.Result.Ok (), s4, a1)) ⦃ r => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2.1 ∧
+        r.1 = .Ok () ⦄ := by
+  have hT := h1.1.choose_spec.choose_spec.tcbs
+  have hta := hT target ht
+  simp only [lift, Aeneas.Std.bind_ok]
+  -- `MCP`
+  refine WP.spec_bind (Pₘ := fun s3 => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s3 ∧ PFr st T Sg s0 s3 ∧
+      L.curW s3 = L.curW s0 ∧
+      ((L.mem s3 (inqA target) &&& sched.Q_RELEASE) ≠ 0#u64 → (L.mem s0 (inqA target) &&& sched.Q_RELEASE) ≠ 0#u64))
+    ?_ ?_
+  · split
+    · refine WP.spec_mono (obj.Tcb.set_mcp.wr s1 target mcp) fun s' e => ?_
+      subst e
+      obtain ⟨Q1, R1, h1'⟩ := h1.1
+      have hN := h1'.nodes _ h1'.cur
+      refine ⟨(plainW_all (K := 3440#u64) (v := mcp) h1 ht (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)).1,
+        pf.trans (PFr.of_fr (fr_field (K := 3440#u64) h1' h1.2.2.2.2 ht (by simp) (by simp) (by simp))
+          (Or.inl (act_wr_field hN ht hta rfl (by simp) (by simp)))),
+        (cur_wr_field hN ht hta (by simp) (by simp)).trans ec, fun hf => hrel ?_⟩
+      rwa [inqA_eq, L.mem_wr_ne (field_aligned (K := 3440#u64) hta (by simp) (by simp))
+        (field_aligned (K := 3592#u64) hta (by simp) (by simp))
+        (fun e => field_ne (K1 := 3440#u64) (K2 := 3592#u64) hta hta (by simp) (by simp) (fun _ => by simp)
+          (UScalar.eq_of_val_eq e)), ← inqA_eq] at hf
+    · exact (WP.spec_ok _).2 ⟨h1, pf, ec, hrel⟩
+  rintro s3 ⟨h3, pf3, ec3, hrel3⟩
+  -- priority
+  refine WP.spec_bind (Pₘ := fun s4 => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧ PFr st T Sg s0 s4) ?_ ?_
+  · split
+    · rename_i hf
+      obtain ⟨hv, hc⟩ := hprio (by simpa using hf)
+      have hcur3 : target = L.mem s3 (L.nodeAt s3 (L.cpu s3) layout.node.CUR_THREAD) → target = L.curW s0 :=
+        fun e => e.trans ec3
+      refine WP.spec_mono (sched.set_priority.blk s3 target prio h3 ht hv
+        (fun e => by
+          by_contra hn; exact hrel3 hn (hc (hcur3 e)).1)
+        (fun e => by rw [pf3.sc target ht]; exact (hc (hcur3 e)).2.1)
+        (fun e => by rw [pf3.sc target ht]; exact (hc (hcur3 e)).2.2)) fun s4 hh => ⟨hh.1, pf3.trans hh.2.2⟩
+    · exact (WP.spec_ok _).2 ⟨h3, pf3⟩
+  rintro s4 ⟨h4, pf4⟩
+  -- the SC
+  split
+  · rename_i hfs
+    have hfs' : (flags &&& tcb.SCHED_UPDATE_SC) ≠ 0#u64 := by simpa using hfs
+    step with obj.Sc.is_null.spec as ⟨b, eb⟩
+    split
+    · rename_i hb
+      have hsc0 : sc = 0#u64 := by simpa [eb] using hb
+      obtain ⟨hna, hid⟩ := hunb hfs' hsc0
+      step with obj.Tcb.sc.spec as ⟨i4, ei4⟩
+      step with obj.Sc.is_null.spec as ⟨b1, eb1⟩
+      split
+      · exact (WP.spec_ok _).2 ⟨h4, rfl⟩
+      · rename_i hb1
+        have hi0 : i4 ≠ 0#u64 := fun e => hb1 (by rw [eb1, e]; rfl)
+        obtain ⟨hiS, hit, -⟩ := h4.2.2.1.2.2.bound target ht (by rw [← ei4]; exact hi0)
+        rw [← ei4] at hiS hit
+        have hT4 := h4.1.choose_spec.choose_spec.tcbs
+        refine WP.spec_bind (schedcontext.unbind_tcb.blk s4 i4 h4 hiS hi0 (fun _ => ?_) (fun _ => ?_))
+          fun s5 hh => (WP.spec_ok _).2 ⟨hh.1, rfl⟩
+        · rw [hit]
+          rcases pf4.act with e | e
+          · rw [e]; exact hna
+          · rw [e]; exact fun e' => notT_small hT4 (by simp) (e' ▸ ht)
+        · rw [hit, pf4.idle]; exact hid
+    · rename_i hb
+      have hsc0 : sc ≠ 0#u64 := fun e => hb (by rw [eb, e]; rfl)
+      obtain ⟨hsc, ht0, hc0, hbA⟩ := hbind hfs' hsc0
+      refine WP.spec_bind (schedcontext.bind_tcb.blk hA s4 a1 sc target h4 ht hsc hsc0
+        (by rw [pf4.sc target ht]; exact ht0)
+        (by rw [pf4.sig _ (h4.2.2.1.1.fixW sc hsc).1]; exact hc0)
+        (fun hb' => hbA (by rw [← pf4.st target ht]; exact hb'))) fun r hr => ?_
+      obtain ⟨s5, a2⟩ := r
+      exact (WP.spec_ok _).2 ⟨hr, rfl⟩
+  · exact (WP.spec_ok _).2 ⟨h4, rfl⟩
+
+
+/-- **`thread_control_sched` with the fault-handler update**, the install
+keeping `BlkOK` with the `CaiFr` frame and (for its error results) `Cur0`. -/
+theorem tcb.thread_control_sched.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {s0 s : S} (a : A)
+    (target : obj.Tcb) (slot : obj.Slot) (fh : capability.Cap × obj.Slot) (mcp prio : U64) (sc : obj.Sc)
+    (flags : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : target ∈ T)
+    (hfl : (flags &&& tcb.SCHED_UPDATE_FAULT) ≠ 0#u64)
+    (hinst : tcb.install_tcb_cap st ar s a target slot layout.tcb.SLOT_FAULT_HANDLER fh.1 fh.2 ⦃ r =>
+      (BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2.1 ∧ CaiFr st T Scs 0#u64 s r.2.1 ∧
+      (L.actionW r.2.1 = L.actionW s ∨ L.actionW r.2.1 = 1#u64)) ∧ Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ⦄)
+    (hprio : (flags &&& tcb.SCHED_UPDATE_PRIO) ≠ 0#u64 → prio.val < 256 ∧ (target = L.curW s →
+      (L.mem s (inqA target) &&& sched.Q_RELEASE) = 0#u64 ∧ L.mem s (scA target) ≠ 0#u64 ∧
+        L.mem s (scA target) ∈ Ac))
+    (hbind : (flags &&& tcb.SCHED_UPDATE_SC) ≠ 0#u64 → sc ≠ 0#u64 → sc ∈ Scs ∧ L.mem s (scA target) = 0#u64 ∧
+      L.mem s (scTcbA sc) = 0#u64 ∧ (BlockedR (L.mem s (stA target)) → sc ∈ Ac))
+    (hunb : (flags &&& tcb.SCHED_UPDATE_SC) ≠ 0#u64 → sc = 0#u64 → L.actionW s ≠ target ∧ L.idleW s ≠ target) :
+    tcb.thread_control_sched st ar s a target slot fh mcp prio sc flags ⦃ r =>
+      DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.1 r.2.1 ⦄ := by
+  have hT := h.1.choose_spec.choose_spec.tcbs
+  unfold tcb.thread_control_sched
+  simp only [lift, Aeneas.Std.bind_ok]
+  split
+  · obtain ⟨c, sl⟩ := fh
+    refine WP.spec_bind hinst ?_
+    rintro ⟨r, s2, a1⟩ ⟨⟨h2, F2, ha2⟩, c2⟩
+    simp only [uncurry_apply_pair] at h2 F2 ha2 c2 ⊢
+    cases r with
+    | Ok u =>
+      simp only [core.result.Result.Insts.CoreOpsTry.branch, Aeneas.Std.bind_ok]
+      obtain ⟨hp2, hb2, hu2⟩ := tcs_conds_of_caifr hT ht F2 ha2 hprio hbind hunb
+      have := tcs_tail2 hA s2 s2 a1 target mcp prio sc flags h2 ht (PFr.refl _ _) rfl id hp2 hb2 hu2
+      simp only [lift, Aeneas.Std.bind_ok] at this
+      exact WP.spec_mono this fun r hr => DecPost.of_bxi (BlkOK.bxi hr.1) (by rw [hr.2]; simp)
+    | Err e =>
+      simp only [core.result.Result.Insts.CoreOpsTry.branch,
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
+        Aeneas.Std.bind_ok]
+      exact WP.spec_bind (Pₘ := fun _ => True) (WP.spec_bind (Pₘ := fun _ => True) ((WP.spec_ok _).2 trivial)
+        fun _ _ => (WP.spec_ok _).2 trivial) fun _ _ => (WP.spec_ok _).2 (Cur0.post c2)
+  · rename_i hn
+    exfalso; simp at hn hfl; exact hfl hn
+
+/-- What `sched_params_sc` checks: the SC is null (and the target is not the
+caller), or a non-null SC object which, when it is not the target's SC
+already, is bound to nothing, the target has none, and it is released (so
+active, `SCsOK.act`) when the target is blocked. -/
+theorem tcb.sched_params_sc.ok {s : S} (t sl : U64)
+    (hc : obj.Slot.cap st sl s ⦃ c => CapOK st T Rp Scs Nt H s c ⦄) (hS : SCsOK st T Ω Sg Scs Z Ac s) :
+    tcb.sched_params_sc st s t sl ⦃ r => ∀ v, r = .Ok v → (v = 0#u64 ∧ t ≠ L.curW s) ∨
+      (v ∈ Scs ∧ v ≠ 0#u64 ∧ (L.mem s (scA t) ≠ v → L.mem s (scA t) = 0#u64 ∧ L.mem s (scTcbA v) = 0#u64 ∧
+        (BlockedR (L.mem s (stA t)) → v ∈ Ac))) ⦄ := by
+  unfold tcb.sched_params_sc
+  refine WP.spec_bind hc fun c hcO => ?_
+  cases c
+  all_goals first | (simp [error.invalid_cap]; done) | skip
+  · -- null
+    step with sched.cur_thread.spec as ⟨ct, ect⟩
+    simp only [obj.Tcb.Insts.CoreCmpPartialEqTcb.eq, bind_ok]
+    split
+    · simp [error.illegal]
+    · rename_i hne
+      exact (WP.spec_ok _).2 fun v e => by
+        cases e; exact Or.inl ⟨rfl, fun e' => hne (by subst e'; simp [ect, LawfulStore.curW])⟩
+  · -- an SC
+    rename_i ptr b
+    obtain ⟨hpS, hp0, -⟩ := hcO.2.2 ptr b rfl
+    dsimp only
+    step with obj.Tcb.sc.spec as ⟨i, ei⟩
+    split
+    · rename_i hne
+      split
+      · simp [error.illegal]
+      · rename_i hi0
+        step with obj.Sc.tcb.spec as ⟨j, ej⟩
+        split
+        · simp [error.illegal]
+        · rename_i hj0
+          have hz : L.mem s (scA t) ≠ ptr → L.mem s (scA t) = 0#u64 ∧ L.mem s (scTcbA ptr) = 0#u64 := fun _ =>
+            ⟨by rw [← ei]; exact UScalar.eq_of_val_eq (by simpa using hi0),
+              by rw [← ej]; exact UScalar.eq_of_val_eq (by simpa using hj0)⟩
+          refine WP.spec_bind (sched.is_blocked.br s t) fun bb hbb => ?_
+          split
+          · refine WP.spec_bind (sporadic.sc_released.act s ptr) fun b1 hb1 => ?_
+            split
+            · rename_i hb1t
+              refine (WP.spec_ok _).2 fun v e => ?_
+              cases e
+              exact Or.inr ⟨hpS, hp0, fun hne => ⟨(hz hne).1, (hz hne).2, fun _ => (hS.act ptr hpS).2 (hb1 hb1t)⟩⟩
+            · simp [error.illegal]
+          · rename_i hbf
+            refine (WP.spec_ok _).2 fun v e => ?_
+            cases e
+            exact Or.inr ⟨hpS, hp0, fun hne => ⟨(hz hne).1, (hz hne).2, fun hb => absurd hb (hbb (by simpa using hbf))⟩⟩
+    · rename_i heq
+      have hz : L.mem s (scA t) ≠ ptr → L.mem s (scA t) = 0#u64 ∧ L.mem s (scTcbA ptr) = 0#u64 := fun hne =>
+        absurd (by rw [← ei]; exact UScalar.eq_of_val_eq (by simpa using heq)) hne
+      refine WP.spec_bind (sched.is_blocked.br s t) fun bb hbb => ?_
+      split
+      · refine WP.spec_bind (sporadic.sc_released.act s ptr) fun b1 hb1 => ?_
+        split
+        · rename_i hb1t
+          refine (WP.spec_ok _).2 fun v e => ?_
+          cases e
+          exact Or.inr ⟨hpS, hp0, fun hne => ⟨(hz hne).1, (hz hne).2, fun _ => (hS.act ptr hpS).2 (hb1 hb1t)⟩⟩
+        · simp [error.illegal]
+      · rename_i hbf
+        refine (WP.spec_ok _).2 fun v e => ?_
+        cases e
+        exact Or.inr ⟨hpS, hp0, fun hne => ⟨(hz hne).1, (hz hne).2, fun hb => absurd hb (hbb (by simpa using hbf))⟩⟩
+
+theorem ssp_flags :
+    (tcb.SCHED_UPDATE_MCP ||| tcb.SCHED_UPDATE_PRIO ||| tcb.SCHED_UPDATE_FAULT) &&& tcb.SCHED_UPDATE_FAULT ≠ 0#u64 ∧
+    (tcb.SCHED_UPDATE_MCP ||| tcb.SCHED_UPDATE_PRIO ||| tcb.SCHED_UPDATE_FAULT ||| tcb.SCHED_UPDATE_SC) &&&
+      tcb.SCHED_UPDATE_FAULT ≠ 0#u64 ∧
+    (tcb.SCHED_UPDATE_MCP ||| tcb.SCHED_UPDATE_PRIO ||| tcb.SCHED_UPDATE_FAULT) &&& tcb.SCHED_UPDATE_SC = 0#u64 ∧
+    (tcb.SCHED_UPDATE_MCP ||| tcb.SCHED_UPDATE_PRIO ||| tcb.SCHED_UPDATE_FAULT) &&& tcb.SCHED_UPDATE_PRIO ≠ 0#u64 ∧
+    (tcb.SCHED_UPDATE_MCP ||| tcb.SCHED_UPDATE_PRIO ||| tcb.SCHED_UPDATE_FAULT ||| tcb.SCHED_UPDATE_SC) &&&
+      tcb.SCHED_UPDATE_PRIO ≠ 0#u64 := by
+  unfold tcb.SCHED_UPDATE_MCP tcb.SCHED_UPDATE_PRIO tcb.SCHED_UPDATE_FAULT tcb.SCHED_UPDATE_SC
+  decide
+
+set_option maxHeartbeats 8000000 in
+/-- **`SetSchedParams`** after the stall, from `SspHyps`. -/
+theorem tcb.decode_set_sched_params.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
+    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z)
+    (P : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U) (Y : SspHyps st ar T Cs Ω H Sg Rp Scs Nt Z U)
+    {s s1 : S} {a1 : A} {t len buf : U64} {call : Bool} {slot : obj.Slot}
+    {extra : Aeneas.Std.Array obj.Slot 3#usize}
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1)
+    (hΩ : ∀ x ∈ Ω, L.mem s1 x = L.mem s x) (hid1 : L.idleW s1 = L.idleW s) :
+    tcb.decode_set_sched_params st ar s1 a1 t { length := len, buf, call, slot, extra } ⦃ r s' _ =>
+      DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  have ht : t ∈ T := D.cap.2.1 t rfl
+  have hct : L.curW s ∈ T := D.bxi.1.choose_spec.choose_spec.curT
+  have hT := D.bxi.1.choose_spec.choose_spec.tcbs
+  have c1 := h1.cur0 D
+  have hxw := P.extraW Ac s _ _ D
+  have hb1 := h1.bxi.blk
+  unfold tcb.decode_set_sched_params
+  refine WP.spec_bind (tcb.extra_with_length.memi _ 0#usize _ (by simp)) ?_
+  rintro r hx
+  rcases r with x0 | e
+  swap
+  · errc
+  simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+  obtain ⟨hxm0, hx00⟩ := hx x0 rfl
+  refine WP.spec_bind (tcb.extra_with_length.memi _ 1#usize _ (by simp)) ?_
+  rintro r hx
+  rcases r with x1 | e
+  swap
+  · errc
+  simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+  obtain ⟨hxm1, hx01⟩ := hx x1 rfl
+  refine WP.spec_bind (tcb.extra_with_length.memi _ 2#usize _ (by simp)) ?_
+  rintro r hx
+  rcases r with x2 | e
+  swap
+  · errc
+  simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+  obtain ⟨hxm2, hx02⟩ := hx x2 rfl
+  refine WP.spec_bind (P0.tcb.arg.p0 st s1 _ _ hS) fun mcp _ => ?_
+  refine WP.spec_bind (P0.tcb.arg.p0 st s1 _ _ hS) fun prio _ => ?_
+  refine WP.spec_bind (tcb.thread_arg.tcb (pos := 1#u64) D h1.node hxm0 hx00) ?_
+  rintro r ⟨-, hT2⟩
+  rcases r with auth | e
+  swap
+  · errc
+  simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+  have hauth := hT2 auth rfl
+  refine WP.spec_bind (tcb.check_prio.le s1 mcp auth) ?_
+  rintro r ⟨-, -⟩
+  rcases r with u | e
+  swap
+  · errc
+  simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+  refine WP.spec_bind (tcb.check_prio.le s1 prio auth) ?_
+  rintro r ⟨-, hle⟩
+  rcases r with u | e
+  swap
+  · errc
+  simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+  have hv : prio.val < 256 := lt_of_le_of_lt (hle rfl) (P.mcp Ac s1 auth h1.bxi hauth)
+  refine WP.spec_bind (tcb.sched_params_sc.ok t x1 (D.extra s1 h1.node x1 hxm1 hx01) hb1.2.2.2.1) ?_
+  rintro r hsp
+  rcases r with v | e
+  swap
+  · errc
+  simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+  have hsp := hsp v rfl
+  simp only [lift, bind_ok]
+  refine WP.spec_bind (obj.Tcb.sc.spec s1 t) fun i1 ei1 => ?_
+  -- the restart, then the install and the scheduling words
+  have est : L.mem s1 (stA (L.curW s1)) = L.mem s (stA (L.curW s)) := by
+    rw [h1.cur, stA_eq]; exact h1.fld _ hct _ (by simp) (by simp)
+  have hr := runnable_ok D.run
+  have hsc0 := P.curSc Ac s _ _ D
+  have run : ∀ (flags : U64), (flags &&& tcb.SCHED_UPDATE_FAULT) ≠ 0#u64 →
+      ((flags &&& tcb.SCHED_UPDATE_SC) ≠ 0#u64 → L.mem s1 (scA t) ≠ v) → ∀ fhc : capability.Cap,
+      (do
+        let s2 ← tcb.restart_caller st s1
+        tcb.thread_control_sched st ar s2 a1 t slot (fhc, x2) mcp prio v flags) ⦃ r =>
+          DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2.1 ⦄ := by
+    intro flags hfl hfs fhc
+    refine WP.spec_bind (WP.spec_and (WP.spec_and (h1.restart D) (h1.restart0 D))
+      (tcb.restart_caller.blk (Es := EH H) s1 hb1 (est ▸ hr.1) (est ▸ hr.2))) ?_
+    rintro s2 ⟨⟨⟨h2, hna, ec2, k⟩, c2⟩, ⟨_, f2, est2, _⟩⟩
+    have agree : ∀ b, Aligned b → CapW T Ω Sg b → L.mem s2 b = L.mem s b := fun b hb hw => by
+      rw [f2.mem_eq hb fun hk => capw_not_kw hb1 hw hb (le_refl _) (by omega) hk]
+      rcases hw with ⟨y, hy, K, hK, rfl⟩ | ⟨hm, -⟩
+      · have := field_val (hT y hy) (by omega : K.val < 4096)
+        have := (hT y hy).align
+        unfold Aligned at hb
+        exact h1.fld y hy K (by omega) (by omega)
+      · exact hΩ b hm
+    have einq : L.mem s2 (inqA (L.curW s)) = L.mem s (inqA (L.curW s)) := by
+      rw [k.inqf hct, inqA_eq]; exact h1.fld _ hct _ (by simp) (by simp)
+    have esc : L.mem s2 (scA (L.curW s)) = L.mem s (scA (L.curW s)) := by
+      rw [k.scf hct, scA_eq]; exact h1.fld _ hct _ (by simp) (by simp)
+    refine tcb.thread_control_sched.dec hA a1 t slot (fhc, x2) mcp prio v flags h2 ht hfl
+      (WP.spec_and (tcb.install_tcb_cap.cai s2 a1 t slot _ fhc x2 _ (tcb_slot_val _ _) h2
+          (Y.fh Ac s t extra D s2 agree) (fun s1' a1' hag => Y.slot Ac s t extra D slot x2 fhc hxm2 hx02 s1' a1'
+            fun b hb hw => (hag b hb hw).trans (agree b hb hw)))
+        (tcb.install_tcb_cap.cur0 hA G C c2 ht (by simp [layout.tcb.SLOT_FAULT_HANDLER])
+          (fun _ => hxw x2 hxm2 hx02)))
+      (fun _ => ⟨hv, fun e => by rw [e, ec2, einq, esc]; exact ⟨D.cb.nr, hsc0, D.cb.ac hsc0⟩⟩) ?_ ?_
+    · intro hf h0
+      have hne := hfs hf
+      rcases hsp with ⟨e0, -⟩ | ⟨hvS, -, hc⟩
+      · exact absurd e0 h0
+      obtain ⟨z1, z2, z3⟩ := hc hne
+      refine ⟨hvS, by rw [k.scf ht]; exact z1, by rw [(k.fix v hvS).1]; exact z2, fun hb => z3 ?_⟩
+      by_cases e : t = L.curW s
+      · rw [e, ← h1.cur, est2] at hb
+        exact absurd hb nbr_restart
+      · rwa [stA_eq, k.fld t ht _ (by simp) (by simp) (by simp) (by simp) (fun e' => absurd e' e), ← stA_eq] at hb
+    · intro _ _
+      refine ⟨hna t ht, ?_⟩
+      rw [k.idleW, hid1]
+      exact fun e => Y.idle Ac s t extra D e.symm
+  split
+  · rename_i hne
+    refine WP.spec_bind (P0.obj.Slot.cap.p0 st x2 s1 hS) fun fhc _ => ?_
+    refine WP.spec_bind (P0.faults.valid_fault_handler.p0 fhc) fun b _ => ?_
+    split
+    swap
+    · simp only [error.invalid_cap, bind_ok]; exact (WP.spec_ok _).2 (Cur0.post c1)
+    exact WP.spec_mono (run _ ssp_flags.2.1 (fun _ e => by rw [ei1, e] at hne; simp at hne) fhc)
+      fun r hr => by obtain ⟨r1, r2, r3⟩ := r; exact hr
+  · refine WP.spec_bind (P0.obj.Slot.cap.p0 st x2 s1 hS) fun fhc _ => ?_
+    refine WP.spec_bind (P0.faults.valid_fault_handler.p0 fhc) fun b _ => ?_
+    split
+    swap
+    · simp only [error.invalid_cap, bind_ok]; exact (WP.spec_ok _).2 (Cur0.post c1)
+    exact WP.spec_mono (run _ ssp_flags.1 (fun hf => absurd ssp_flags.2.2.1 hf) fhc)
+      fun r hr => by obtain ⟨r1, r2, r3⟩ := r; exact hr
+
 set_option maxHeartbeats 4000000 in
 /-- **`tcb.decode`** keeps the invariants, from `TcbGaps` (the labels P1
 does not prove), `TcbPlace`, `DelGaps` and `CdtHyps`. -/
@@ -542,14 +916,12 @@ theorem tcb.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
   by_cases g0 : lbl = fl4_abi.label.TCBReadRegisters
   · subst g0; exact G.readRegisters Ac s a t len buf call slot extra D
-  by_cases g4 : lbl = fl4_abi.label.TCBSetSchedParams
-  · subst g4; exact G.setSchedParams Ac s a t len buf call slot extra D
   by_cases g18 : lbl = fl4_abi.label.TCBSetEPTRoot
   · subst g18; exact G.setEPTRoot Ac s a t len buf call slot extra D
   have ht : t ∈ T := D.cap.2.1 t rfl
   unfold tcb.decode
   refine WP.spec_bind (smp.remote_tcb_stall.bxi hA s a t D.bxi) ?_
-  rintro ⟨s1, a1⟩ ⟨hb1, ea, ec, -, ecs, fld, -, wn⟩
+  rintro ⟨s1, a1⟩ ⟨hb1, ea, ec, eid, ecs, fld, eΩ, wn⟩
   have h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1 := ⟨hb1, ea, ec, ecs, fld, wn⟩
   try simp only [uncurry_apply_pair, WP.uncurry'_pair]
   refine spec_ite (fun hc => absurd hc g18) fun _ => ?_
@@ -576,7 +948,8 @@ theorem tcb.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   · exact tcb.decode_set_priority.dec _ P D h1
   refine spec_ite (fun _ => ?_) fun _ => ?_
   · exact tcb.decode_set_priority.dec _ P D h1
-  refine spec_ite (fun hc => absurd hc g4) fun _ => ?_
+  refine spec_ite (fun _ => ?_) fun _ => ?_
+  · exact tcb.decode_set_sched_params.dec hA Gd C P G.ssp D h1 eΩ eid
   refine spec_ite (fun _ => ?_) fun _ => ?_
   · exact tcb.decode_set_ipc_buffer.dec hA Gd C (P.extraW Ac s _ _ D) D h1
   refine spec_ite (fun _ => ?_) fun _ => ?_

@@ -25,11 +25,35 @@ def TcbGap (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machin
     tcb.decode st ar s a lbl t { length := len, buf, call, slot, extra } ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄
 
-/-- The thread-family labels P1 does not prove. -/
+/-- **`SetSchedParams`' premises**, at a decode's start `s` (the stall and the
+caller's restart keep its cap-slot words): the target's old fault-handler cap
+is null or an endpoint cap (P3's `FhSlotHyp`), the slot part of the install
+from an extra slot (P3's `inst_hslot`), and the target is not the idle
+thread. -/
+structure SspHyps (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
+    (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
+  fh : ∀ (Ac : Set U64) (s : S) (t : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize),
+    DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra →
+    ∀ s1 : S, (∀ b, Aligned b → CapW T Ω Sg b → L.mem s1 b = L.mem s b) →
+      obj.Slot.cap st (slotIdx t layout.tcb.SLOT_FAULT_HANDLER) s1 ⦃ c => NullOrEp H c ⦄
+  slot : ∀ (Ac : Set U64) (s : S) (t : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize),
+    DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra →
+    ∀ (sl src : U64) (nc : capability.Cap), src ∈ extra.val → src ≠ 0#u64 →
+    ∀ (s1 : S) (a1 : A), (∀ b, Aligned b → CapW T Ω Sg b → L.mem s1 b = L.mem s b) →
+      cdt.empty_slot st ar s1 a1 (slotIdx t layout.tcb.SLOT_FAULT_HANDLER) .Null ⦃ r =>
+        WritesIn st s1 r.1 (CapW T Ω Sg) ∧
+        tcb.still_valid st r.1 t sl nc src ⦃ b1 => b1 = true →
+          cdt.insert st r.1 nc src (slotIdx t layout.tcb.SLOT_FAULT_HANDLER) ⦃ s3 =>
+            WritesIn st r.1 s3 (CapW T Ω Sg) ⦄ ⦄ ⦄
+  idle : ∀ (Ac : Set U64) (s : S) (t : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize),
+    DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra → t ≠ L.idleW s
+
+/-- The thread-family labels P1 does not prove, and `SetSchedParams`'
+premises (`SspHyps`). -/
 structure TcbGaps (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
   readRegisters : TcbGap st ar T Cs Ω H Sg Rp Scs Nt Z U fl4_abi.label.TCBReadRegisters
-  setSchedParams : TcbGap st ar T Cs Ω H Sg Rp Scs Nt Z U fl4_abi.label.TCBSetSchedParams
+  ssp : SspHyps st ar T Cs Ω H Sg Rp Scs Nt Z U
   setEPTRoot : TcbGap st ar T Cs Ω H Sg Rp Scs Nt Z U fl4_abi.label.TCBSetEPTRoot
 
 /-- The placement facts of the priority labels (P3's): TCBs' MCPs are
