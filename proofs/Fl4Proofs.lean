@@ -210,4 +210,7 @@ import Fl4Proofs.P3.TcbDataX
 import Fl4Proofs.P3.TcbReadRegs
 import Fl4Proofs.P3.TcbHypsX
 import Fl4Proofs.P3.TcbReadRegsSpec
+import Fl4Proofs.P3.DomRecDel
+import Fl4Proofs.P3.TcbDom
+import Fl4Proofs.P3.SchedValidLinks
 import Fl4Proofs.P3.SchedValidRel

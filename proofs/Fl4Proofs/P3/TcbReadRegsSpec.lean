@@ -6,14 +6,14 @@ P3 (DESIGN.md §9), TCB invocations: **the spec side of `ReadRegisters`**
   `PXK p m`, every outcome of `m` is `XK p`-related to its start; built from
   the monad's combinators and `set_object` (of no arch object, and of a TCB
   only at `p`): `pxk_cancelIpc`, `pxk_suspend`, `pxk_asUser`.
-* `dk_suspend`: `suspend` keeps the domain schedule (`DK`, VsDom).
+* `dk_suspend'` (DomRecDel): `suspend` keeps the domain schedule.
 * `cancelOK_off`: `cancel_ipc`'s facts carried to a state differing only at
   another TCB.
 * `readRegsSpecHyp_of`: from `SchedValid` and `BufSpecHyp` at the decode's
   state, the target a TCB other than the caller.
 -/
 import Fl4Proofs.P3.TcbHypsX
-import Fl4Proofs.P3.VsDom
+import Fl4Proofs.P3.DomRecDel
 import Fl4Proofs.P3.EpFaultUs
 import Fl4Proofs.P3.SpecFinFrames
 open Aeneas Aeneas.Std Result
@@ -247,73 +247,6 @@ theorem pxk_suspend : PXK p (suspend (Z := Unit) p) := by
 end Fns
 
 
-/-! ## `DK`: `suspend` keeps the domain schedule -/
-
-section DKs
-open Vs
-
-theorem dk_threadSet' (f : Tcb → Tcb) (t : ObjRef) : DK (threadSet (Z := Unit) f t) := by
-  unfold threadSet; dk_auto
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_threadSet' _ _)
-
-theorem dk_threadGet' {α : Type} (f : Tcb → α) (t : ObjRef) : DK (threadGet (Z := Unit) f t) := by
-  unfold threadGet; dk_auto
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_threadGet' _ _)
-
-theorem dk_setThreadState' (t : ObjRef) (ts : ThreadState) : DK (setThreadState (Z := Unit) t ts) := by
-  unfold setThreadState setThreadStateAct setSchedulerAction; dk_auto
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_setThreadState' _ _)
-
-theorem dk_getSimpleKo' {α : Type} [Nonempty α] (C : α → KernelObject) (q : ObjRef) :
-    DK (getSimpleKo (Z := Unit) C q) := by
-  unfold getSimpleKo; dk_auto
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_getSimpleKo' _ _)
-
-theorem dk_setSimpleKo' {α : Type} [Nonempty α] (C : α → KernelObject) (q : ObjRef) (e : α) :
-    DK (setSimpleKo (Z := Unit) C q e) := by
-  unfold setSimpleKo; dk_auto
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_setSimpleKo' _ _ _)
-
-theorem dk_updateSkObjRef' {α : Type} [Nonempty α] (C : α → KernelObject)
-    (f : (Option ObjRef → Option ObjRef) → α → α) (q : ObjRef) (new : Option ObjRef) :
-    DK (updateSkObjRef (Z := Unit) C f q new) := by
-  unfold updateSkObjRef; dk_auto
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_updateSkObjRef' _ _ _ _)
-
-theorem dk_getSchedContext' (q : ObjRef) : DK (getSchedContext (Z := Unit) q) := by
-  unfold getSchedContext; dk_auto
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_getSchedContext' _)
-
-theorem dk_updateSchedContext' (q : ObjRef) (f : SchedContext → SchedContext) :
-    DK (updateSchedContext (Z := Unit) q f) := by
-  unfold updateSchedContext; dk_auto
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_updateSchedContext' _ _)
-
-theorem dk_asUser' {α : Type} (t : ObjRef) (u : UserMonad α) : DK (asUser (Z := Unit) t u) := by
-  unfold asUser; dk_auto
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_asUser' _ _)
-
-theorem dk_replyUnlinkTcb' (t r : ObjRef) : DK (replyUnlinkTcb (Z := Unit) t r) := by
-  unfold replyUnlinkTcb getThreadState; dk_auto
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_replyUnlinkTcb' _ _)
-
-theorem dk_getThreadState' (t : ObjRef) : DK (getThreadState (Z := Unit) t) := by
-  unfold getThreadState; dk_auto
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_getThreadState' _)
-
-theorem dk_cancelIpc' (t : ObjRef) : DK (cancelIpc (Z := Unit) t) := by
-  unfold cancelIpc getThreadState blockedCancelIpc getBlockingObject tcbEpDequeue cancelSignal tcbNtfnDequeue
-    replyRemoveTcb getReplyObjRef getSkObjRef
-  dk_auto
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_cancelIpc' _)
-
-theorem dk_suspend' (t : ObjRef) : DK (suspend (Z := Unit) t) := by
-  unfold suspend updateRestartPc tcbSchedAction getTcbQueue setTcbQueue tcbReleaseRemove
-    schedContextCancelYieldTo getTcbObjRef getThreadState
-  dk_auto
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_suspend' _)
-
-end DKs
 
 /-- **`cancel_ipc`'s facts** carried to a state differing only at the TCB `c`. -/
 theorem cancelOK_off {σ σ' : State Unit} {c t : ObjRef} {x xc yc : Tcb} (hc : σ.kheap c = some (.tcb xc))
@@ -384,7 +317,7 @@ theorem readRegsSpecHyp_of {S : Type} {st : machine.Store S} [L : P1.LawfulStore
       exact ⟨σ2, h2, x2, hk2⟩
     · exact ⟨σ1, Set.mem_singleton _, xp, hkp⟩
   have hK2 : CKeep σ1 σ2 := nkc_when (nkc_suspend _) σ1 _ h2
-  have hD2 := Vs.dk_when _ (dk_suspend' p.bv) σ1 _ h2
+  have hD2 := Vs.dk_when _ (Vs.dk_suspend' p.bv) σ1 _ h2
   have hX2 : XK p.bv σ1 σ2 := pxk_when pxk_suspend σ1 _ h2
   set regs := (Fl4Spec.frame_registers ++ Fl4Spec.gp_registers).take (Fl4Spec.unat n.bv) with hregs
   have hrd := Endp.asUser_read_eq hkp2 (f := Fl4Spec.NonDet.mapM Fl4Spec.getRegister regs)
