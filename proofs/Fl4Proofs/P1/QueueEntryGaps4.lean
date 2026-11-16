@@ -5,6 +5,7 @@ SchedContext `YieldTo` (`InvGaps4`), with the placement facts `P3Place`,
 `CdtHyps2`, `DelPlace` and `TcbPlace`.  `InvGaps3` is unchanged.
 -/
 import Fl4Proofs.P1.QueueDecTcb
+import Fl4Proofs.P1.QueueFinCur
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -38,9 +39,9 @@ theorem InvGaps4.gaps3 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (C : CdtHyps2 st T Cs Ω H Sg Rp Scs Nt Z) (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V)
     (Pt : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U) (G : InvGaps4 st ar T Cs Ω H Sg Rp Scs Nt Z U) :
     InvGaps3 st ar T Cs Ω H Sg Rp Scs Nt Z U :=
-  ⟨G.untyped, decGap_thread hA G.thread Pt (delGaps_of hA Pd G.fin) C.toCdtHyps, G.irqControl, G.irqHandler,
+  ⟨G.untyped, decGap_thread hA G.thread Pt (delGaps_of hA Pd (G.fin.kinds hA Pd)) C.toCdtHyps, G.irqControl, G.irqHandler,
     G.schedControl, G.vspace, G.vcpu, G.ept, G.ioPortControl, G.ioPort, scYieldGap_holds hA U,
-    delGaps_of hA Pd G.fin⟩
+    delGaps_of hA Pd (G.fin.kinds hA Pd)⟩
 
 /-- **Native kernel entries keep `EntryInv`**, from `InvGaps4` and the
 placement facts. -/

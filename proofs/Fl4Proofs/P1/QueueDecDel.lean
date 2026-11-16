@@ -22,19 +22,20 @@ def SlotW (T Ω Sg : Set U64) (x : U64) : Prop :=
 
 /-- The state inside a deletion, from the decode's start `s0`: the
 invariants (for some active set), the current thread and SC kept, the
-current thread's `SC` field kept or cleared, the current thread not the
-switch-to candidate; and `s0`'s current-SC fact. -/
+current thread's `SC` field kept or cleared, the switch-to candidate no
+thread, the current thread not blocked (on IPC or a reply); and `s0`'s
+current-SC fact. -/
 def Cur0 (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64)
     (Z : U64 → Nat) (Ac : Set U64) (s0 s : S) : Prop :=
   (L.mem s0 (scA (L.curW s0)) ≠ 0#u64 → L.cscW s0 = L.mem s0 (scA (L.curW s0))) ∧
   ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s ∧ L.curW s = L.curW s0 ∧ L.cscW s = L.cscW s0 ∧
     (L.mem s (scA (L.curW s0)) = L.mem s0 (scA (L.curW s0)) ∨ L.mem s (scA (L.curW s0)) = 0#u64) ∧
-    L.actionW s ≠ L.curW s
+    (∀ y ∈ T, L.actionW s ≠ y) ∧ ¬ BlockedR (L.mem s (stA (L.curW s0)))
 
 theorem Cur0.post {s0 s : S} {r : core.result.Result Unit error.Exc}
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) : DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r s := by
-  obtain ⟨hc0, Ac', h1, ec, ecs, esc, na⟩ := h
-  refine ⟨Ac', h1, fun _ => ⟨⟨ecs, ec, fun _ _ => ?_, ?_⟩, na, fun hne => ?_⟩⟩
+  obtain ⟨hc0, Ac', h1, ec, ecs, esc, na, -⟩ := h
+  refine ⟨Ac', h1, fun _ => ⟨⟨ecs, ec, fun _ _ => ?_, ?_⟩, na _ h1.1.choose_spec.choose_spec.curT, fun hne => ?_⟩⟩
   · rcases esc with e | e
     · rw [e]
       by_cases z : L.mem s0 (scA (L.curW s0)) = 0#u64
@@ -49,19 +50,35 @@ theorem Cur0.post {s0 s : S} {r : core.result.Result Unit error.Exc}
     · rw [e] at hne ⊢; rw [ecs]; exact hc0 hne
     · exact absurd e hne
 
+theorem nbr_restart : ¬ BlockedR sched.TS_RESTART := fun h => h.elim not_blocked_restart restart_ne.1
+
+theorem nbr_runnable {v : U64} (h : Runnable v) : ¬ BlockedR v := fun h' =>
+  h'.elim (runnable_ok h).1 (runnable_ok h).2
+
 /-- `Cur0` across a step: the invariants for some active set, the current
-thread and SC kept, the current thread's `SC` kept or cleared, and the
-current thread not the candidate. -/
+thread and SC kept, the current thread's `SC` kept or cleared, the
+candidate kept or `CHOOSE_NEW`, and the current thread's state kept or not
+blocked. -/
 theorem Cur0.mk {s0 s s' : S} {Ac' : Set U64} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s)
     (hb : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s') (ec : L.curW s' = L.curW s) (ecs : L.cscW s' = L.cscW s)
     (esc : L.mem s' (scA (L.curW s)) = L.mem s (scA (L.curW s)) ∨ L.mem s' (scA (L.curW s)) = 0#u64)
-    (na : L.actionW s' ≠ L.curW s') : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' := by
-  obtain ⟨hc0, Ac1, -, ec1, ecs1, esc1, -⟩ := h
-  refine ⟨hc0, Ac', hb, ec.trans ec1, ecs.trans ecs1, ?_, na⟩
-  rw [ec1] at esc
-  rcases esc with e | e
-  · rw [e]; exact esc1
-  · exact Or.inr e
+    (ea : L.actionW s' = L.actionW s ∨ L.actionW s' = 1#u64)
+    (est : L.mem s' (stA (L.curW s)) = L.mem s (stA (L.curW s)) ∨ ¬ BlockedR (L.mem s' (stA (L.curW s)))) :
+    Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' := by
+  obtain ⟨hc0, Ac1, hb1, ec1, ecs1, esc1, na1, nb1⟩ := h
+  have hT := hb1.1.choose_spec.choose_spec.tcbs
+  refine ⟨hc0, Ac', hb, ec.trans ec1, ecs.trans ecs1, ?_, fun y hy => ?_, ?_⟩
+  · rw [ec1] at esc
+    rcases esc with e | e
+    · rw [e]; exact esc1
+    · exact Or.inr e
+  · rcases ea with e | e
+    · rw [e]; exact na1 y hy
+    · rw [e]; exact fun e' => notT_small hT (by simp) (e' ▸ hy)
+  · rw [ec1] at est
+    rcases est with e | e
+    · rw [e]; exact nb1
+    · exact e
 
 /-- `Cur0`'s invariants. -/
 theorem Cur0.bxi {s0 s : S} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) :
@@ -71,11 +88,12 @@ theorem Cur0.bxi {s0 s : S} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) :
 theorem Cur0.capw {s0 s s' : S} {B : U64 → Prop} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s)
     (hw : WritesIn st s s' B) (hB : ∀ b, B b → CapW T Ω Sg b) : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' := by
   have h0 := h
-  obtain ⟨-, Ac', h1, -, -, -, na⟩ := h0
+  obtain ⟨-, Ac', h1, -, -, -, -, -⟩ := h0
   have hct : L.curW s ∈ T := h1.1.choose_spec.choose_spec.curT
   obtain ⟨b, -, ec, ecs, ea, fld, -, -⟩ := blk_of_capw h1.blk hw hB
-  refine Cur0.mk h (BlkOK.bxi b) ec ecs (Or.inl ?_) (by rw [ea, ec]; exact na)
-  rw [scA_eq]; exact fld _ hct _ (by simp) (by simp) (by simp)
+  refine Cur0.mk h (BlkOK.bxi b) ec ecs (Or.inl ?_) (Or.inl ea) (Or.inl ?_)
+  · rw [scA_eq]; exact fld _ hct _ (by simp) (by simp) (by simp)
+  · rw [stA_eq]; exact fld _ hct _ (by simp) (by simp) (by simp)
 
 /-- `set_cap` of a cap slot. -/
 theorem obj.Slot.set_cap.capw {s : S} {x : U64} {c : capability.Cap} (hx' : SlotW T Ω Sg x) :
@@ -107,7 +125,7 @@ theorem sched.preemption_point.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) :
     sched.preemption_point st ar s a ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ⦄ := by
   have hh := h
-  obtain ⟨-, Ac', h1, -, -, -, na1⟩ := hh
+  obtain ⟨-, Ac', h1, -, -, -, -, -⟩ := hh
   have q := h1.1.choose_spec.choose_spec
   have hT := q.tcbs
   have hN := q.nodes _ q.cur
@@ -132,20 +150,21 @@ theorem sched.preemption_point.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.
     rw [w.2.1, nodeAt_of_ksb w.1]
     exact w.mem_eq (nodeAt_aligned hN (by omega) (by omega)) (nn o ho')
   have hct : L.curW s ∈ T := q.curT
-  have fsc : L.mem r.2.1 (scA (L.curW s)) = L.mem s (scA (L.curW s)) := by
-    rw [scA_eq]
-    refine w.mem_eq (field_aligned (hT _ hct) (by simp) (by simp)) fun hp => ?_
+  have ffld : ∀ K : U64, K.val < 4096 → K.val % 8 = 0 →
+      L.mem r.2.1 (core.num.U64.wrapping_add (L.curW s) K) = L.mem s (core.num.U64.wrapping_add (L.curW s) K) :=
+    fun K hK hK8 => by
+    refine w.mem_eq (field_aligned (hT _ hct) hK hK8) fun hp => ?_
     rcases hp with e | e | e
-    · exact out_ne_field (K := 3464#u64) ho hct (hT _ hct) (by decide) (congrArg UScalar.val e)
-    · exact node_ne_field (K := 3464#u64) (o := layout.node.CUR_TIME) hN (by simp [layout.node.CUR_TIME]) hct
-        (hT _ hct) (by decide) (by unfold LawfulStore.nodeA at e; exact e.symm)
-    · exact node_ne_field (K := 3464#u64) (o := layout.node.CONSUMED) hN (by simp [layout.node.CONSUMED]) hct
-        (hT _ hct) (by decide) (by unfold LawfulStore.nodeA at e; exact e.symm)
+    · exact out_ne_field (K := K) ho hct (hT _ hct) hK (congrArg UScalar.val e)
+    · exact node_ne_field (K := K) (o := layout.node.CUR_TIME) hN (by simp [layout.node.CUR_TIME]) hct
+        (hT _ hct) hK (by unfold LawfulStore.nodeA at e; exact e.symm)
+    · exact node_ne_field (K := K) (o := layout.node.CONSUMED) hN (by simp [layout.node.CONSUMED]) hct
+        (hT _ hct) hK (by unfold LawfulStore.nodeA at e; exact e.symm)
   have ec := nd _ (by rw [curth0]; simp)
   have ea := nd _ (by rw [act_val]; simp)
-  refine Cur0.mk h (BlkOK.bxi b) ec ?_ (Or.inl fsc) ?_
-  · unfold LawfulStore.cscW LawfulStore.nodeA; exact nd _ (by simp [layout.node.CUR_SC])
-  · unfold LawfulStore.actionW LawfulStore.curW; rw [ea, ec]; exact na1
+  refine Cur0.mk h (BlkOK.bxi b) ec ?_ (Or.inl (by rw [scA_eq]; exact ffld _ (by simp) (by simp))) (Or.inl ea)
+    (Or.inl (by rw [stA_eq]; exact ffld _ (by simp) (by simp)))
+  unfold LawfulStore.cscW LawfulStore.nodeA; exact nd _ (by simp [layout.node.CUR_SC])
 
 /-- The slot at index `i` of a slot array at `p`. -/
 def slotIdx (p i : U64) : U64 := core.num.U64.wrapping_add p (core.num.U64.wrapping_mul i 32#u64)
@@ -336,7 +355,7 @@ theorem cdt.revoke.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar
     have hf' : 0 < fuel.val := by simpa using hf
     step as ⟨fuel1, hf1⟩
     have h1' := h1
-    obtain ⟨-, Acx, hbx, -, -, -, -⟩ := h1'
+    obtain ⟨-, Acx, hbx, -, -, -, -, -⟩ := h1'
     refine WP.spec_bind (G.next Acx s1 x hbx hx) fun nx hnx => ?_
     simp only [obj.Slot.is_null, bind_ok]
     split
@@ -376,15 +395,14 @@ theorem Cur0.restart {s : S} {cap : capability.Cap} {extra : Aeneas.Std.Array ob
   have hT := D.bxi.1.choose_spec.choose_spec.tcbs
   have hct : L.curW s ∈ T := D.bxi.1.choose_spec.choose_spec.curT
   refine WP.spec_mono (sched.set_thread_state.restart_blk (Es := ∅) s _ D.bxi.blk hct (runnable_ok D.run).1
-    (runnable_ok D.run).2) fun s1 ⟨h1, _, _, k⟩ => ?_
+    (runnable_ok D.run).2) fun s1 ⟨h1, _, est, k⟩ => ?_
   have ec := k.curW
   have ecs := k.cscW
   have esc := k.scf hct
-  refine ⟨D.hcsc, Ac, BlkOK.bxi h1, ec, ecs, Or.inl esc, ?_⟩
-  rw [ec]
+  refine ⟨D.hcsc, Ac, BlkOK.bxi h1, ec, ecs, Or.inl esc, fun y hy => ?_, by rw [est]; exact nbr_restart⟩
   rcases k.act with e | e
-  · rw [e, D.act]; exact fun e' => notT_small hT (by simp) (e' ▸ hct)
-  · rw [e]; exact fun e' => notT_small hT (by simp) (e' ▸ hct)
+  · rw [e, D.act]; exact fun e' => notT_small hT (by simp) (e' ▸ hy)
+  · rw [e]; exact fun e' => notT_small hT (by simp) (e' ▸ hy)
 
 /-- **CNode `Delete`** from `DelGaps`. -/
 theorem cnode_del {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)

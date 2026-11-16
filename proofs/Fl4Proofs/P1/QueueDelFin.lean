@@ -1,11 +1,11 @@
 /-
 P1: the finalisation steps of CNode `Delete`/`Revoke`, by cap kind.  The
 kinds with no state change (and CNode/Zombie, whose remainder is a zombie),
-the VSpace kinds QueueVsFin covers (page table, non-EPT frame, PML4, ASID
-pool), `empty_slot` with `post_cap_deletion`, `cdt.swap` and
+the VSpace kinds (page table, page directory, PDPT, non-EPT frame, PML4,
+ASID pool: QueueVsFin's unmaps and `unmap_page_directory.vs`/`unmap_pdpt.vs`), `empty_slot` with `post_cap_deletion`, `cdt.swap` and
 `delete_deferred` are proved; the other kinds are named, one shape
-(`FinGap`, in `FinGaps`).  `delGaps_of` gives QueueDecDel's `DelGaps` from
-`FinGaps` and the placement facts `DelPlace` (typed caps in cap slots, CDT
+(`FinGap`, in `FinKinds`).  `delGaps_of` gives QueueDecDel's `DelGaps` from
+`FinKinds` and the placement facts `DelPlace` (typed caps in cap slots, CDT
 links naming cap slots, VSpace lookups naming VSpace words).
 -/
 import Fl4Proofs.P1.QueueEntryGaps3
@@ -87,6 +87,52 @@ structure DelPlace (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U6
       V (core.num.U64.wrapping_add pool (core.num.U64.wrapping_mul (asid &&& 511#u64) 8#u64)) ⦄
   aset : ∀ (Ac : Set U64) (s : S) (hi : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     vspace.set_asid_table st s hi 0#u64 ⦃ s1 => WritesIn st s s1 V ⦄
+  /-- An IRQ's handler slot holds no cap or a notification cap
+  (`deleting_irq_handler`). -/
+  irq : ∀ (Ac : Set U64) (s : S) (i : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → i.val < 128 →
+    obj.Slot.cap st (irqSlotA (L.ksb s) i) s ⦃ c => c = .Null ∨ ∃ n b0 b1 b2, c = .Notification n b0 b1 b2 ⦄
+  /-- The PML4 entries of an ASID's root are VSpace words (`unmap_pdpt`). -/
+  pml : ∀ (Ac : Set U64) (s : S) (asid : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    vspace.find_vspace_for_asid st s asid ⦃ r => ∀ r1, r = .Ok r1 → ∀ i : U64,
+      V (core.num.U64.wrapping_add r1 (core.num.U64.wrapping_mul (i &&& 511#u64) 8#u64)) ⦄
+
+/-- **`unmap_page_directory`** writes only the PDPT slot it looks up. -/
+theorem vspace.unmap_page_directory.vs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
+    (asid vaddr pd : U64) {V : U64 → Prop} (hV : VsOK Ω Sg V)
+    (hlk : ∀ r1, vspace.lookup_pdpt_slot st s r1 vaddr ⦃ r => ∀ x, r = .Ok x → V x ⦄) :
+    vspace.unmap_page_directory st ar s a asid vaddr pd ⦃ r => WritesIn st s r.1 V ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  have i1 := hA.invalidate_asid
+  have i2 := hA.invalidate_page_structures
+  unfold vspace.unmap_page_directory
+  refine WP.spec_bind (P0.vspace.find_vspace_for_asid.p0 st s asid hS) fun r _ => ?_
+  rcases r with r1 | e
+  · refine WP.spec_bind (hlk r1) fun r2 hr2 => ?_
+    rcases r2 with x | e
+    · have hx := hr2 x rfl
+      step*
+      all_goals first | exact WritesIn.refl _ _ | (subst_vars; exact writesIn_wr_V hV hx)
+    · exact (WP.spec_ok _).2 (WritesIn.refl _ _)
+  · exact (WP.spec_ok _).2 (WritesIn.refl _ _)
+
+/-- **`unmap_pdpt`** writes only the PML4 slot of the ASID's root. -/
+theorem vspace.unmap_pdpt.vs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
+    (asid vaddr pdpt : U64) {V : U64 → Prop} (hV : VsOK Ω Sg V)
+    (hpml : vspace.find_vspace_for_asid st s asid ⦃ r => ∀ r1, r = .Ok r1 → ∀ i : U64,
+      V (core.num.U64.wrapping_add r1 (core.num.U64.wrapping_mul (i &&& 511#u64) 8#u64)) ⦄) :
+    vspace.unmap_pdpt st ar s a asid vaddr pdpt ⦃ r => WritesIn st s r.1 V ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  have i1 := hA.invalidate_asid
+  unfold vspace.unmap_pdpt
+  refine WP.spec_bind hpml fun r hr => ?_
+  rcases r with r1 | e
+  · have hx := hr r1 rfl
+    refine WP.spec_bind (P0.vspace.idx.p0 vaddr 39#u64) fun i _ => ?_
+    unfold vspace.entry_addr
+    simp only [lift, bind_ok]
+    step*
+    all_goals first | exact WritesIn.refl _ _ | (subst_vars; exact writesIn_wr_V hV (hx i))
+  · exact (WP.spec_ok _).2 (WritesIn.refl _ _)
 
 theorem Cur0.vs {s0 s s' : S} {V : U64 → Prop} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hV : VsOK Ω Sg V)
     (hw : WritesIn st s s' V) : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' :=
@@ -98,7 +144,8 @@ theorem fin_vs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U6
     (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) {s0 s : S} {a : A} {c : capability.Cap} {fin : Bool}
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s)
     (hc : (∃ x y z w, c = .PageTable x y z w) ∨ (∃ x y z w m asid vaddr, c = .Frame x y z w m false asid vaddr) ∨
-      (∃ x y z, c = .Pml4 x y z) ∨ (∃ x y, c = .AsidPool x y)) :
+      (∃ x y z, c = .Pml4 x y z) ∨ (∃ x y, c = .AsidPool x y) ∨ (∃ x y z w, c = .PageDirectory x y z w) ∨
+      (∃ x y z w, c = .Pdpt x y z w)) :
     objects.finalise_cap st ar s a c fin false ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ∧
       DelCapOK T Ω Sg H Rp Nt r.1.1 ∧ DelCapOK T Ω Sg H Rp Nt r.1.2 ⦄ := by
   have hb := h.bxi
@@ -113,7 +160,8 @@ theorem fin_vs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U6
   have K : (ok ((capability.Cap.Null, capability.Cap.Null), s, a) : Result _) ⦃ r =>
       Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ∧ DelCapOK T Ω Sg H Rp Nt r.1.1 ∧
       DelCapOK T Ω Sg H Rp Nt r.1.2 ⦄ := (WP.spec_ok _).2 ⟨h, DelCapOK.null, DelCapOK.null⟩
-  rcases hc with ⟨x, y, z, w, rfl⟩ | ⟨x, y, z, w, m, asid, vaddr, rfl⟩ | ⟨x, y, z, rfl⟩ | ⟨x, y, rfl⟩
+  rcases hc with ⟨x, y, z, w, rfl⟩ | ⟨x, y, z, w, m, asid, vaddr, rfl⟩ | ⟨x, y, z, rfl⟩ | ⟨x, y, rfl⟩ |
+    ⟨x, y, z, w, rfl⟩ | ⟨x, y, z, w, rfl⟩
   · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok]
     split
     · split
@@ -138,15 +186,24 @@ theorem fin_vs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U6
     split
     · exact W _ (vspace.delete_asid_pool.vs hA s a y x fun hi => P.aset Ac' s hi hb)
     · exact K
+  · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok]
+    split
+    · split
+      · exact W _ (vspace.unmap_page_directory.vs hA s a z w x P.vs fun r1 => P.pdpt Ac' s r1 w hb)
+      · exact K
+    · exact K
+  · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok]
+    split
+    · split
+      · exact W _ (vspace.unmap_pdpt.vs hA s a z w x P.vs (P.pml Ac' s z hb))
+      · exact K
+    · exact K
 
-/-- The finalisations P1 does not prove here, one shape (`FinGap`): the
-endpoint, notification, reply, SC and thread kinds (whose invariant parts
-are `fin_cap_*.slots`; what is missing is the current thread's words:
-`CUR_THREAD`/`CUR_SC` and the current thread's `SC` kept, the candidate not
-the current thread), the IRQ handler (`deleting_irq_handler`), the page
-directory and PDPT unmaps, and the VCPU/EPT/I/O-port kinds (with EPT
-frames). -/
-structure FinGaps (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
+/-- The finalisations of the kinds this file does not prove, one shape
+(`FinGap`): the endpoint, notification, reply, SC, thread and IRQ handler
+kinds (QueueFinCur proves the endpoint, notification, reply and IRQ handler
+ones), and the VCPU/EPT/I/O-port kinds (with EPT frames). -/
+structure FinKinds (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
     (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) : Prop where
   ep : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1 x2 x3 x4 x5 x6, c = .Endpoint x1 x2 x3 x4 x5 x6
   ntfn : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1 x2 x3 x4, c = .Notification x1 x2 x3 x4
@@ -154,15 +211,13 @@ structure FinGaps (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar :
   sc : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1 x2, c = .SchedContext x1 x2
   thread : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1, c = .Thread x1
   irq : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1, c = .IrqHandler x1
-  pdir : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c =>
-    (∃ x1 x2 x3 x4, c = .PageDirectory x1 x2 x3 x4) ∨ (∃ x1 x2 x3 x4, c = .Pdpt x1 x2 x3 x4)
   arch : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => (∃ x1, c = .Vcpu x1) ∨
     (∃ x1 x2 x3 x4 x5, c = .Ept x1 x2 x3 x4 x5) ∨ (∃ x1 x2 x3, c = .IoPort x1 x2 x3) ∨
     (∃ x1 x2 x3 x4 x5 x6 x7, c = .Frame x1 x2 x3 x4 x5 true x6 x7)
 
-/-- **Every cap kind's finalisation**, from `FinGaps`. -/
+/-- **Every cap kind's finalisation**, from `FinKinds`. -/
 theorem fin_all {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (G : FinGaps st ar T Cs Ω H Sg Rp Scs Nt Z) :
+    (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (G : FinKinds st ar T Cs Ω H Sg Rp Scs Nt Z) :
     FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun _ => True := by
   intro Ac s0 s a c fin h hc _
   cases c with
@@ -177,7 +232,7 @@ theorem fin_all {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U
   | Zombie => exact fin_zombie h hc
   | PageTable => exact fin_vs hA P h (Or.inl ⟨_, _, _, _, rfl⟩)
   | Pml4 => exact fin_vs hA P h (Or.inr (Or.inr (Or.inl ⟨_, _, _, rfl⟩)))
-  | AsidPool => exact fin_vs hA P h (Or.inr (Or.inr (Or.inr ⟨_, _, rfl⟩)))
+  | AsidPool => exact fin_vs hA P h (Or.inr (Or.inr (Or.inr (Or.inl ⟨_, _, rfl⟩))))
   | Frame x1 x2 x3 x4 x5 e x6 x7 =>
     cases e
     · exact fin_vs hA P h (Or.inr (Or.inl ⟨_, _, _, _, _, _, _, rfl⟩))
@@ -188,8 +243,8 @@ theorem fin_all {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U
   | SchedContext => exact G.sc _ _ _ _ _ _ h hc ⟨_, _, rfl⟩
   | Thread => exact G.thread _ _ _ _ _ _ h hc ⟨_, rfl⟩
   | IrqHandler => exact G.irq _ _ _ _ _ _ h hc ⟨_, rfl⟩
-  | PageDirectory => exact G.pdir _ _ _ _ _ _ h hc (Or.inl ⟨_, _, _, _, rfl⟩)
-  | Pdpt => exact G.pdir _ _ _ _ _ _ h hc (Or.inr ⟨_, _, _, _, rfl⟩)
+  | PageDirectory => exact fin_vs hA P h (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨_, _, _, _, rfl⟩)))))
+  | Pdpt => exact fin_vs hA P h (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨_, _, _, _, rfl⟩)))))
   | Vcpu => exact G.arch _ _ _ _ _ _ h hc (Or.inl ⟨_, rfl⟩)
   | Ept => exact G.arch _ _ _ _ _ _ h hc (Or.inr (Or.inl ⟨_, _, _, _, _, rfl⟩))
   | IoPort => exact G.arch _ _ _ _ _ _ h hc (Or.inr (Or.inr (Or.inl ⟨_, _, _, rfl⟩)))
@@ -535,7 +590,7 @@ theorem cdt.delete_deferred.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
 
 /-- **`DelGaps`, discharged** from placement and the named finalisations. -/
 theorem delGaps_of {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (G : FinGaps st ar T Cs Ω H Sg Rp Scs Nt Z) :
+    (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (G : FinKinds st ar T Cs Ω H Sg Rp Scs Nt Z) :
     DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z where
   cap := P.cap
   fin Ac s0 s a c fin h hc := fin_all hA P G Ac s0 s a c fin h hc trivial
