@@ -14,10 +14,16 @@ the composite relation `IpcRel ∧ SRE ∧ RelTopB`.
 * `tcl_*`: the spec's `transfer_caps_loop` one cap at a time (unwrapped
   badge, insert, derive failure or null, no receive slot, end).
 * `tc_body`, `transfer_loop_top`: FL4's loop against the spec's, with the
-  extra caps related to the spec's (`SrcOK`), pairwise distinct and apart
-  from the receive slot, and `NoChildrenRel` at the sources (the MDB
-  hypothesis of `derive_cap`); after an insert the other sources' caps are
-  kept (`insert_capfr`, IpcInsFrame.lean).
+  extra caps related to the spec's (`SrcOK`) and `NoChildrenRel` at the
+  sources (the MDB hypothesis of `derive_cap`). FL4 (like seL4's C) reads
+  each source's cap again; the spec uses the caps looked up before. They
+  agree (`UwEq`): before the one insert only buffer words change; after it
+  the receive slot is gone, so only the unwrap test matters, and a later
+  source equal to the insert's source holds an untyped cap on both sides
+  (`set_untyped_cap_as_full`), one equal to the receive slot holds the
+  derived cap in FL4 and the null cap in the spec, both failing the test
+  (the derived cap has the source's shape, which failed it) (`insert_capfr2`,
+  IpcInsFrame.lean).
 * `transfer_caps_top`: `transfer_caps`, from the receive-slot lookup
   against `get_receive_slots` (`hG1`, named: G1) and the spec's lookup
   being deterministic (`hGRs`, EpBufMapHyps' `recvSlots`).
@@ -582,6 +588,25 @@ theorem capEpBadge_of {c : capability.Cap} {ep : U64} (h : UnwrapP ep (absCap c)
   cases c <;> simp [UnwrapP, absCap, Fl4Spec.isEpCap] at h
   rfl
 
+/-- FL4's cap at a source and the spec's agree on the unwrap test and the
+badge. -/
+def UwEq (ep : U64) (cv : capability.Cap) (a : Fl4Spec.Cap) : Prop :=
+  (UnwrapP ep (absCap cv) ↔ UnwrapP ep a) ∧ (UnwrapP ep a → (epBadgeW cv).bv = Fl4Spec.capEpBadge a)
+
+theorem UwEq.of_abs {ep : U64} {cv : capability.Cap} {a : Fl4Spec.Cap} (h : absCap cv = a) : UwEq ep cv a := by
+  subst h; exact ⟨Iff.rfl, fun h => (capEpBadge_of h).symm⟩
+
+/-- The unwrap test reads only a cap's shape. -/
+theorem unwrap_shape (ep : U64) (c : capability.Cap) : UnwrapP ep (absCap c) ↔ UnwrapP ep (absCap (shape c)) := by
+  cases c <;> simp [UnwrapP, absCap, shape, Fl4Spec.isEpCap, Fl4Spec.objRefOf]
+
+theorem not_unwrap_of_null {ep : U64} : ¬ UnwrapP ep (absCap .Null) := by
+  simp [UnwrapP, absCap, Fl4Spec.isEpCap]
+
+theorem not_unwrap_of_ut {ep : U64} {c : capability.Cap} (h : ∃ p sb f d, c = .Untyped p sb f d) :
+    ¬ UnwrapP ep (absCap c) := by
+  obtain ⟨p, sb, f, d, rfl⟩ := h; simp [UnwrapP, absCap, Fl4Spec.isEpCap]
+
 end Unwrap
 
 
@@ -648,7 +673,7 @@ def TInv (th : TypedHeap) (caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (extra
     IpcRel N T E R B (L.mem x.1) σ ∧ SRE st N T C E R B c x.1 σ ∧ (∃ G, RelTopB (L := L) th G N T C E R B c x.1 σ) ∧
     (∀ k, k < 128 → Fl4Spec.inUserFrame (bufAddr rb k) σ) ∧
     (∀ j (hj : j < caps.length), x.2.2.2.val ≤ j →
-      ∃ cv, capAt (L.mem x.1) (exAt extra j) = ok cv ∧ absCap cv = (caps[j]).1) ∧
+      ∃ cv, capAt (L.mem x.1) (exAt extra j) = ok cv ∧ UwEq ep cv (caps[j]).1) ∧
     ((x.2.2.1 = 0#u64 ∧ slots = []) ∨
       (x.2.2.1 = dest0 ∧ slots = slots0 ∧ dest0 ≠ 0#u64 ∧ SlotsSame th (L.mem s0) (L.mem x.1) ∧ σ.cdt = σ0.cdt))
 
@@ -706,11 +731,9 @@ theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec
     (hlen : caps.length ≤ 3)
     (hsrc : ∀ j (hj : j < caps.length), SrcOK th (L.mem s0) (exAt extra j) caps[j])
     (hnull : ∀ j, caps.length ≤ j → j < 3 → exAt extra j = 0#u64)
-    (hdist : ∀ j k, j < caps.length → k < caps.length → exAt extra j = exAt extra k → j = k)
     (hnc : ∀ j (hj : j < caps.length) (s' : S) (σ' : Fl4Spec.State Unit), SlotsSame th (L.mem s0) (L.mem s') →
       σ'.cdt = σ0.cdt → NoChildrenRel (st := st) s' σ' (exAt extra j) (caps[j]).2)
-    (hdest : dest0 ≠ 0#u64 → ∃ d, slots0 = [d] ∧ DestOK th (L.mem s0) dest0 d ∧
-      ∀ j, j < caps.length → exAt extra j ≠ dest0)
+    (hdest : dest0 ≠ 0#u64 → ∃ d, slots0 = [d] ∧ DestOK th (L.mem s0) dest0 d)
     (hm : BufMap B rbw rb) (x : S × msginfo.MessageInfo × obj.Slot × U64)
     (hx : TInv (L := L) (st := st) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) th caps extra ep rb
       s0 σ0 dest0 slots0 mi0 x) :
@@ -736,7 +759,7 @@ theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec
         rw [hxa]; exact AbsSlot.isSlot (⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩ : AbsSlot th (ps.bv, idx))
       have hne : exAt extra i.val ≠ 0#u64 := hsI.ne_zero hPl
       simp only [hne, decide_false, Bool.false_eq_true, ↓reduceIte]
-      obtain ⟨cv, hcv, habs⟩ := hpend i.val hlt le_rfl
+      obtain ⟨cv, hcv, huw⟩ := hpend i.val hlt le_rfl
       rw [slot_cap_eq, hcv]
       simp only [bind_ok]
       rw [unwrap_eq]
@@ -776,11 +799,11 @@ theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec
         · intro r σf hr
           refine hch r σf ?_
           rw [hdrop]
-          refine tcl_badge (hc := by show UnwrapP ep (caps[i.val]).1; rw [← habs]; exact hu') ?_
+          refine tcl_badge (hc := huw.1.mp hu') ?_
             (by rw [hi8] at hr; exact hr)
           unfold Fl4Spec.setExtraBadge
           show Fl4Spec.storeWordOffs rb (Fl4Spec.bufferCptrIndex + i.val) (Fl4Spec.capEpBadge (caps[i.val]).1) σ = _
-          rw [← habs, capEpBadge_of hu']
+          rw [← huw.2 (huw.1.mp hu')]
           rw [show Fl4Spec.bufferCptrIndex + i.val = (core.num.U64.wrapping_add 122#u64 i).val by
             rw [hk]; rfl]
           exact hst
@@ -798,8 +821,8 @@ theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec
         · simp only [decide_true, ↓reduceIte, WP.spec_ok]
           refine tpost_of hmi hch ?_ hR hS ⟨G, hB⟩
           rw [hdrop]
-          exact tcl_noslot (by show ¬ UnwrapP ep (caps[i.val]).1; rw [← habs]; exact hu')
-        · obtain ⟨d, hsl0, ⟨pd, rd, idxd, hpd, hld, rfl, hdA, hdN⟩, hdx⟩ := hdest hd0
+          exact tcl_noslot (fun h => hu' (huw.1.mpr h))
+        · obtain ⟨d, hsl0, ⟨pd, rd, idxd, hpd, hld, rfl, hdA, hdN⟩⟩ := hdest hd0
           subst hsl0
           simp only [hd0, decide_false, Bool.false_eq_true, ↓reduceIte]
           have hcvs : capAt (L.mem s) (exAt extra i.val) = ok cv0 := by rw [hSS.capAt hsI, hcv0]
@@ -807,14 +830,14 @@ theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec
           have hcvs' : cv = cv0 := by simpa using hcvs
           subst hcvs'
           have hsl' : (caps[i.val]).2 = (ps.bv, idx) := hsl
-          have hnot : ¬ UnwrapP ep (caps[i.val]).1 := by rw [← habs]; exact hu'
+          have hnot : ¬ UnwrapP ep (caps[i.val]).1 := fun h => hu' (huw.1.mpr h)
           have hAs : AbsSlot th (ps.bv, idx) := ⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩
           have hAd : AbsSlot th (pd.bv, idxd) := ⟨pd, rfl, Or.inl (by simpa [hld] using hpd)⟩
           have hdI : IsSlot th dest := by rw [hdA]; exact hAd.isSlot
           have hncs := hnc i.val hlt s σ hSS hcdt
           obtain ⟨r, hr, r', hr', hdr⟩ := derive_rel (Z := Unit) s σ (exAt extra i.val) (caps[i.val]).2 cv hw0 he0
             (fun _ => hncs)
-          rw [habs] at hr'
+          rw [← habs0] at hr'
           rw [hr]
           simp only [bind_ok]
           cases r with
@@ -861,7 +884,7 @@ theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec
                 have hins := WP.spec_and (insert_top hP0 hB hR hS hps hpd hls hld hsrcC hsnn hdst c' a' ⟨hw', ha'⟩
                   (hv' th hcvv0) he' hn hsh (Or.inl hbd) hut hzb (derive_okey hr hn)
                   (fun P L4 L3 L2 L1 => derive_vcap hr P L4 L3 L2 L1) (derive_ut hr))
-                  (insert_capfr hPl s c' _ _ hsI' hAd.isSlot cv hsrcC hnx)
+                  (insert_capfr2 hPl s c' _ _ hsI' hAd.isSlot cv hsrcC he0 he' hnx)
                 rw [← hxa, ← hdA] at hins
                 refine WP.spec_bind hins ?_
                 rintro s2 ⟨⟨σ2, hci, hR2, hS2, G2, hB2⟩, hfr⟩
@@ -884,10 +907,30 @@ theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec
                   have hjI : IsSlot th (exAt extra j) := by
                     rw [hxa']; exact AbsSlot.isSlot (⟨ps', rfl, Or.inl (by simpa [hls'] using hps')⟩ :
                       AbsSlot th (ps'.bv, idx'))
-                  have hji : exAt extra j ≠ exAt extra i.val := fun e => by
-                    have := hdist j i.val hj hlt e; rw [hi3v] at hij; omega
-                  refine ⟨cv', ?_, h2⟩
-                  rw [hfr.2 _ hjI hji (hdx j hj)]; exact h1
+                  obtain ⟨-, -, -, cvj, -, -, -, -, hcvj, habsj, -⟩ := hsrc j hj
+                  have hsrcfull : ∀ c'', fullF cv c' = some c'' → ¬ UnwrapP ep (absCap cv) := fun c'' hf =>
+                    not_unwrap_of_ut (by
+                      cases cv <;> simp [fullF] at hf
+                      exact ⟨_, _, _, _, rfl⟩)
+                  by_cases ejd : exAt extra j = dest
+                  · refine ⟨c', by rw [ejd]; exact hfr.2.1, ?_, fun h => ?_⟩
+                    · rw [ejd, hdN] at hcvj
+                      have : cvj = .Null := by simpa using hcvj.symm
+                      rw [habsj, this]
+                      refine ⟨fun h => absurd ((unwrap_shape ep cv).2 (hsh ▸ (unwrap_shape ep c').1 h)) hu',
+                        fun h => absurd h not_unwrap_of_null⟩
+                    · rw [ejd, hdN] at hcvj
+                      have : cvj = .Null := by simpa using hcvj.symm
+                      rw [habsj, this] at h; exact absurd h not_unwrap_of_null
+                  · rcases hfr.2.2 _ hjI ejd with heq | ⟨ejs, c'', hfc, hc''⟩
+                    · exact ⟨cv', by rw [heq]; exact h1, h2⟩
+                    · rw [ejs, hcv0] at hcvj
+                      have : cvj = cv := by simpa using hcvj.symm
+                      have hnu := hsrcfull c'' hfc
+                      have hnu'' := not_unwrap_of_ut (ep := ep) (fullF_ut hfc)
+                      refine ⟨c'', hc'', ⟨fun h => absurd h hnu'', fun h => ?_⟩, fun h => ?_⟩
+                      · rw [habsj, this] at h; exact absurd h hnu
+                      · rw [habsj, this] at h; exact absurd h hnu
     · have hieq : i.val = caps.length := by omega
       rw [hnull i.val (by omega) hi3]
       simp only [decide_true, ↓reduceIte, WP.spec_ok]
@@ -916,7 +959,7 @@ variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 def DestConf (th : TypedHeap) (m : U64 → U64) (caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (dest : U64) (slots : List Fl4Spec.CslotPtr) : Prop :=
   (dest = 0#u64 ∧ slots = []) ∨
-    (dest ≠ 0#u64 ∧ ∃ d, slots = [d] ∧ DestOK th m dest d ∧ ∀ j, j < caps.length → exAt extra j ≠ dest)
+    (dest ≠ 0#u64 ∧ ∃ d, slots = [d] ∧ DestOK th m dest d)
 
 /-- **The transfer loop refines the spec's** on the composite relation. -/
 theorem transfer_loop_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGhost}
@@ -927,7 +970,6 @@ theorem transfer_loop_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGho
     (hS0 : SRE st N T C E R B c s0 σ0) (hlen : caps.length ≤ 3)
     (hsrc : ∀ j (hj : j < caps.length), SrcOK th (L.mem s0) (exAt extra j) caps[j])
     (hnull : ∀ j, caps.length ≤ j → j < 3 → exAt extra j = 0#u64)
-    (hdist : ∀ j k, j < caps.length → k < caps.length → exAt extra j = exAt extra k → j = k)
     (hnc : ∀ j (hj : j < caps.length) (s' : S) (σ' : Fl4Spec.State Unit), SlotsSame th (L.mem s0) (L.mem s') →
       σ'.cdt = σ0.cdt → NoChildrenRel (st := st) s' σ' (exAt extra j) (caps[j]).2)
     (hD : DestConf th (L.mem s0) caps extra dest0 slots0)
@@ -935,8 +977,7 @@ theorem transfer_loop_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGho
     ipc.transfer_caps_loop st s0 extra ep rbw out0 dest0 0#u64 ⦃ y =>
       TPost (L := L) (st := st) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) th caps ep rb σ0
         slots0 mi0 y ⦄ := by
-  have hdest : dest0 ≠ 0#u64 → ∃ d, slots0 = [d] ∧ DestOK th (L.mem s0) dest0 d ∧
-      ∀ j, j < caps.length → exAt extra j ≠ dest0 := fun h => by
+  have hdest : dest0 ≠ 0#u64 → ∃ d, slots0 = [d] ∧ DestOK th (L.mem s0) dest0 d := fun h => by
     rcases hD with ⟨h0, -⟩ | ⟨-, hd⟩
     · exact absurd h0 h
     · exact hd
@@ -945,7 +986,7 @@ theorem transfer_loop_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGho
     (TInv (L := L) (st := st) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) th caps extra ep rb
       s0 σ0 dest0 slots0 mi0) _ _ _ (fun x hx => ?_) ?_
   · obtain ⟨s, o, d, i⟩ := x
-    have h := tc_body hP0 hlen hsrc hnull hdist hnc hdest hm (s, o, d, i) hx
+    have h := tc_body hP0 hlen hsrc hnull hnc hdest hm (s, o, d, i) hx
     refine WP.spec_mono h ?_
     intro r hr
     cases r with
@@ -954,7 +995,7 @@ theorem transfer_loop_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGho
   · refine ⟨σ0, mi0, slots0, by simp, hmi0, rfl, rfl, fun r σf h => by simpa using h, hR0, hS0, ⟨G, hB0⟩, hu,
       fun j hj _ => ?_, ?_⟩
     · obtain ⟨ps, rs, idx, cv, -, -, -, -, hcv, habs, -⟩ := hsrc j hj
-      exact ⟨cv, hcv, habs.symm⟩
+      exact ⟨cv, hcv, UwEq.of_abs habs.symm⟩
     · rcases hD with ⟨h0, h1⟩ | ⟨h0, -⟩
       · exact Or.inl ⟨h0, h1⟩
       · exact Or.inr ⟨rfl, rfl, h0, fun _ _ => ⟨rfl, rfl, rfl, rfl⟩, rfl⟩
@@ -964,7 +1005,7 @@ theorem transfer_loop_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGho
 from FL4's receive-slot lookup against the spec's (`hG1`, the remaining
 named fact of the transfer: `get_receive_slot` against
 `get_receive_slots`) and the extra caps related to the spec's
-(`hsrc`, `hnull`; pairwise distinct and apart from the receive slot). -/
+(`hsrc`, `hnull`). -/
 theorem transfer_caps_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGhost} {s : S}
     {σ : Fl4Spec.State Unit} (hB : RelTopB (L := L) th G N T C E R B c s σ) (hR : IpcRel N T E R B (L.mem s) σ)
     (hS : SRE st N T C E R B c s σ) (info : msginfo.MessageInfo) (mi : Fl4Spec.MessageInfo)
@@ -973,7 +1014,6 @@ theorem transfer_caps_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGho
     (hlen : caps.length ≤ 3)
     (hsrc : ∀ j (hj : j < caps.length), SrcOK th (L.mem s) (exAt extra j) caps[j])
     (hnull : ∀ j, caps.length ≤ j → j < 3 → exAt extra j = 0#u64)
-    (hdist : ∀ j k, j < caps.length → k < caps.length → exAt extra j = exAt extra k → j = k)
     (hnc : ∀ j (hj : j < caps.length) (s' : S) (σ' : Fl4Spec.State Unit), SlotsSame th (L.mem s) (L.mem s') →
       σ'.cdt = σ.cdt → NoChildrenRel (st := st) s' σ' (exAt extra j) (caps[j]).2)
     (ep : U64) (receiver : obj.Tcb) (rbw : U64) (rbo : Option Fl4Spec.Word) (hrb : rbw = 0#u64 ↔ rbo = none)
@@ -1033,7 +1073,7 @@ theorem transfer_caps_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGho
       obtain ⟨hmb, hu⟩ := hm rb hrbo
       refine WP.spec_bind (hG1 rb hrbo) ?_
       rintro dest ⟨slots, hsl, hD⟩
-      refine WP.spec_bind (transfer_loop_top hP0 _ hmi0 hB hR hS hlen hsrc hnull hdist hnc hD hmb hu) ?_
+      refine WP.spec_bind (transfer_loop_top hP0 _ hmi0 hB hR hS hlen hsrc hnull hnc hD hmb hu) ?_
       rintro ⟨s2, out1, i⟩ ⟨σ', mf, hloop, hmi1, hex, hR', hS', hB'⟩
       refine (WP.spec_ok _).2 ⟨σ', mf, ?_, hmi1, ?_, hR', hS', hB'⟩
       swap
