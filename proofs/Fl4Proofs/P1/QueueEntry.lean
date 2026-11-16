@@ -306,7 +306,8 @@ structure EntryHyps (st : machine.Store S) [L : LawfulStore st] (ar : machine.Ar
       obj.Tcb.slot (L.curW s) i ⦃ sl => obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄
   /-- The cap invocations (`handle_invocation`: lookup, decode, perform, reply). -/
   inv : ∀ (Ac : Set U64) (s : S) (a : A) (call blk don fp : Bool) (cptr : U64),
-    BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → L.cscW s ∈ Ac →
+    BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → L.cscW s ∈ Ac → L.actionW s ≠ L.curW s →
+      (L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s))) →
     syscall.handle_invocation st ar s a call blk don fp cptr ⦃ r s' _ => ∃ Ac',
       BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ∧
       (∀ e, r = .Err e → CurStep st Ac Ac' s s' ∧ L.actionW s' ≠ L.curW s' ∧
@@ -483,7 +484,7 @@ theorem syscall.dispatch_syscall.bxi (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt,
   have IA : ∀ (call blk don fp : Bool) (cptr : U64),
       syscall.handle_invocation st ar s a call blk don fp cptr ⦃ r s1 a1 =>
         syscall.after_invocation st ar s1 a1 r ⦃ _ s2 _ => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s2 ⦄ ⦄ :=
-    fun call blk don fp cptr => WP.spec_mono (E.inv Ac s a call blk don fp cptr h hcA) fun r hr => by
+    fun call blk don fp cptr => WP.spec_mono (E.inv Ac s a call blk don fp cptr h hcA hna hcsc) fun r hr => by
       obtain ⟨r', s1, a1⟩ := r
       simp only [WP.uncurry'_pair] at hr ⊢
       obtain ⟨Ac1, h1, e1⟩ := hr

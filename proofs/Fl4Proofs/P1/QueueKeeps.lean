@@ -216,7 +216,8 @@ theorem sched.set_domain.blkF (s : S) (t : obj.Tcb) (d : U64) (h : BlkOK st T Cs
 /-- Words whose writes keep every thread's `SC` field and the current SC:
 words of `Ω`, and TCB fields other than `SC`. -/
 def CSW (T Ω : Set U64) (b : U64) : Prop :=
-  b ∈ Ω ∨ ∃ y ∈ T, ∃ K : U64, K.val < 4096 ∧ K.val % 8 = 0 ∧ K.val ≠ 3464 ∧ b = core.num.U64.wrapping_add y K
+  b ∈ Ω ∨ ∃ y ∈ T, ∃ K : U64, K.val < 4096 ∧ K.val % 8 = 0 ∧ K.val ≠ 3464 ∧ K.val ≠ 3368 ∧ K.val ≠ 3328 ∧
+    b = core.num.U64.wrapping_add y K
 
 theorem cs_of_writes {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {B : U64 → Prop}
     (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hw : WritesIn st s s' B) (hB : ∀ b, B b → CSW T Ω b) :
@@ -227,21 +228,41 @@ theorem cs_of_writes {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R 
   · unfold LawfulStore.cscW LawfulStore.nodeA
     rw [hw.2.1, nodeAt_of_ksb hw.1]
     refine hw.mem_eq (nodeAt_aligned hN (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])) fun hb => ?_
-    rcases hB _ hb with hm | ⟨z, hz, K, hK, -, -, e⟩
+    rcases hB _ hb with hm | ⟨z, hz, K, hK, -, -, -, -, e⟩
     · exact out_ne_node (h.omega _ hm) h.cur hN (by simp [layout.node.CUR_SC]) rfl
     · exact node_ne_field hN (by simp [layout.node.CUR_SC]) hz (hT z hz) hK e
   · rw [scA_eq]
     refine hw.mem_eq (field_aligned (hT y hy) (by simp) (by simp)) fun hb => ?_
-    rcases hB _ hb with hm | ⟨z, hz, K, hK, -, hK3, e⟩
+    rcases hB _ hb with hm | ⟨z, hz, K, hK, -, hK3, -, -, e⟩
     · exact out_ne_field (h.omega _ hm) hy (hT y hy) (by simp) rfl
     · exact field_ne (hT y hy) (hT z hz) (by simp) hK (fun _ => by simp; omega) e
+
+/-- `CSW` writes keep every TCB's `SC`, `BOUND_NTFN` and `STATE` fields. -/
+theorem csw_keep {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {B : U64 → Prop}
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hw : WritesIn st s s' B) (hB : ∀ b, B b → CSW T Ω b) :
+    ∀ y ∈ T, L.mem s' (scA y) = L.mem s (scA y) ∧ L.mem s' (boundA y) = L.mem s (boundA y) ∧
+      L.mem s' (stA y) = L.mem s (stA y) := by
+  have hT := h.tcbs
+  have K : ∀ y ∈ T, ∀ K0 : U64, K0.val < 4096 → K0.val % 8 = 0 →
+      (K0.val = 3464 ∨ K0.val = 3368 ∨ K0.val = 3328) →
+      L.mem s' (core.num.U64.wrapping_add y K0) = L.mem s (core.num.U64.wrapping_add y K0) := by
+    intro y hy K0 h1 h2 h3
+    refine hw.mem_eq (field_aligned (hT y hy) h1 h2) fun hb => ?_
+    rcases hB _ hb with hm | ⟨z, hz, K, hK, -, a1, a2, a3, e⟩
+    · exact out_ne_field (h.omega _ hm) hy (hT y hy) h1 rfl
+    · exact field_ne (hT y hy) (hT z hz) h1 hK (fun _ => by omega) e
+  intro y hy
+  refine ⟨?_, ?_, ?_⟩
+  · rw [scA_eq]; exact K y hy _ (by simp) (by simp) (by simp)
+  · exact K y hy 3368#u64 (by simp) (by simp) (by simp)
+  · rw [stA_eq]; exact K y hy _ (by simp) (by simp) (by simp)
 
 theorem reg_cs {s : S} {t r v : U64} (hT : TcbPlaced T) (ht : t ∈ T) (hr : r.val < 384) :
     obj.Tcb.set_reg st t s r v ⦃ s' => WritesIn st s s' (CSW T Ω) ⦄ :=
   WP.spec_mono (obj.Tcb.set_reg.wrK s t r v (hT t ht) hr) fun s' ⟨K, hK, e⟩ => by
     subst e
     exact (writesIn_wr (field_aligned (hT t ht) (by omega) (by omega))).mono fun b e =>
-      Or.inr ⟨t, ht, K, by omega, by omega, by omega, e⟩
+      Or.inr ⟨t, ht, K, by omega, by omega, by omega, by omega, by omega, e⟩
 
 theorem sc_word_cs {s : S} {c o : U64} (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hc : c ∈ Scs) (ho : o.val < 128)
     (h8 : o.val % 8 = 0) : Aligned (core.num.U64.wrapping_add c o) ∧ CSW T Ω (core.num.U64.wrapping_add c o) := by
@@ -322,7 +343,7 @@ theorem schedcontext.cancel_yield_to.cs (s : S) (t : U64) (h : BlkOK st T Cs Ω 
     have w1 := (writesIn_wr (st := st) (s := s) (v := 0#u64) (h0.omega _ hm).1).mono fun b e => (by rw [e]; exact Or.inl hm : CSW T Ω b)
     have w2 := (writesIn_wr (st := st) (s := L.wr s (scYieldFromA i) 0#u64) (v := 0#u64)
       (field_aligned (K := 3472#u64) (hT t ht) (by simp) (by simp))).mono
-      fun b e => (Or.inr ⟨t, ht, 3472#u64, by simp, by simp, by simp, e⟩ : CSW T Ω b)
+      fun b e => (Or.inr ⟨t, ht, 3472#u64, by simp, by simp, by simp, by simp, by simp, e⟩ : CSW T Ω b)
     exact cs_trans w1 w2
   · exact (WP.spec_ok _).2 (WritesIn.refl _ _)
 
@@ -403,7 +424,7 @@ theorem sched.activate_thread.entry (hA : P0.ArchTotal ar) (s : S) (a : A)
     obtain ⟨h2, -, n2⟩ := regW_all (K := K) (v := pc) h1 hcT (by omega) hK' (by omega)
     have w2 : WritesIn st s1 (L.wr s1 (core.num.U64.wrapping_add (L.curW s) K) pc) (CSW T Ω) :=
       (writesIn_wr (field_aligned (hT _ hcT) (by omega) (by omega))).mono fun b e =>
-        Or.inr ⟨_, hcT, K, by omega, by omega, by omega, e⟩
+        Or.inr ⟨_, hcT, K, by omega, by omega, by omega, by omega, by omega, e⟩
     obtain ⟨ecs2, esc2⟩ := cs_of_writes h1.1.choose_spec.choose_spec w2 (fun b hb => hb)
     have E2 := EntryInv.of_step E1 h2 ecs2 (by rw [n2.2.2]) (Or.inl n2.1) esc2
     have st2 : L.mem (L.wr s1 (core.num.U64.wrapping_add (L.curW s) K) pc) (stA (L.curW s)) = sched.TS_RESTART := by
@@ -432,7 +453,8 @@ theorem EntryHyps.of {U : Set U64} (hA : P0.ArchTotal ar) (xfer : XferOK st ar T
       ∀ i, (i = layout.tcb.SLOT_TIMEOUT_HANDLER ∨ i = layout.tcb.SLOT_FAULT_HANDLER) →
         obj.Tcb.slot (L.curW s) i ⦃ sl => obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄)
     (inv : ∀ (Ac : Set U64) (s : S) (a : A) (call blk don fp : Bool) (cptr : U64),
-      BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → L.cscW s ∈ Ac →
+      BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → L.cscW s ∈ Ac → L.actionW s ≠ L.curW s →
+      (L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s))) →
       syscall.handle_invocation st ar s a call blk don fp cptr ⦃ r s' _ => ∃ Ac',
         BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ∧
         (∀ e, r = .Err e → CurStep st Ac Ac' s s' ∧ L.actionW s' ≠ L.curW s' ∧

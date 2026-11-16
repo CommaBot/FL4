@@ -49,6 +49,11 @@ import Fl4Proofs.P1.QueueFpu
 import Fl4Proofs.P1.QueueDebug
 import Fl4Proofs.P1.QueueXfer
 import Fl4Proofs.P1.QueueInvAll
+import Fl4Proofs.P1.QueueDecSc
+import Fl4Proofs.P1.QueueDecDom
+import Fl4Proofs.P1.QueueDecCnode
+import Fl4Proofs.P1.QueueEntryGaps
+import Fl4Proofs.P1.QueueFinFr
 import Fl4Proofs.P1.QueueFootD
 import Fl4Proofs.P1.QueueFootS
 import Fl4Proofs.P1.QueueRecv
