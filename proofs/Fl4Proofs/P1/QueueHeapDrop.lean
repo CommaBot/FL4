@@ -108,7 +108,8 @@ untyped round from `sym_refs`, `JCovD` and `ut_free`): the typed heap
 the dropped objects dead (`dead`: P3's `DeadP`, `DeadP_iff`), the current
 thread and SC kept (`cur`, `csc`: the current thread and its SC are not in
 the untyped's region, `ut_free`), the kernel-global words in no dropped object
-(`ks`: kernel memory is never untyped memory), and the references P1's
+(`ks`: kernel memory is never untyped memory), the cores' nodes in no dropped
+object (`nodes`: likewise), and the references P1's
 invariants hold without a back-pointer naming kept objects (`KeptRef`): the
 region's objects are unreferenced (`ut_free`: no cap, and by `sym_refs` no
 object field, names them), so each of these is `sym_refs` of the matching
@@ -129,6 +130,7 @@ structure DropOK (st : machine.Store S) [L : LawfulStore st] (H : Heap) (D : U64
   cur : ¬ D (L.curW s)
   csc : ¬ D (L.cscW s)
   ks : ∀ o : U64, o.val < 13568 → o.val % 8 = 0 → OffDrop H D (core.num.U64.wrapping_add (L.ksb s) o)
+  nodes : ∀ c ∈ Cs, ∀ b : U64, L.nodeBase s c ≤ b.val → b.val < L.nodeBase s c + 4288 → OffDrop H D b
   rnext : ∀ r ∈ H.replies, ¬ D r → KeptRef H D (L.mem s (rNextA r) &&& ~~~1#u64)
   rprev : ∀ r ∈ H.replies, ¬ D r → KeptRef H D (L.mem s (rPrevA r) &&& ~~~1#u64)
   screp : ∀ c ∈ H.scs, ¬ D c → KeptRef H D (L.mem s (scReplyA c))

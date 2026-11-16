@@ -89,7 +89,7 @@ theorem creation_step {sR s' : S} {H1 : Heap} {Cs Ac : Set U64} {thR : TypedHeap
     (hb : BlkOK st (Heap.tcbs H1) Cs (Heap.omega H1) H1 (Heap.frame H1) (Heap.replies H1) (Heap.scs H1)
       (Heap.ntfns H1) (Heap.scBits H1) Ac sR)
     (hbits : ∀ kd, newKind n us = some kd → 2 ^ kd.bits ≤ k)
-    (hdrop : DropOK st H1 (RegionD H1 A (A + win * k)) Cs sR)
+    (hdrop : DropOK st H1 (RegionD H1 A (A + win * k)) Cs sR) (hnode : RegionOffNodes st Cs sR A (A + win * k))
     (hW : WFrame (L := L) sR s' (fun v => ((T ∧ TcbLoopW thR A win (L.nodeAt sR 0#u64 layout.node.DEBUG_TCBS)
       (L.mem sR (L.nodeAt sR 0#u64 layout.node.DEBUG_TCBS)) v) ∨ SlotSpan thR v) ∨
       (pml4 ∧ A ≤ v.val ∧ v.val < A + win * k)))
@@ -106,7 +106,7 @@ theorem creation_step {sR s' : S} {H1 : Heap} {Cs Ac : Set U64} {thR : TypedHeap
         (NewAt A k win q ∧ newKind n us = some kd)) ∧
       (∀ q, NewAt A k win q → ∀ kd, newKind n us = some kd → H' q = some kd) ∧
       (∀ q, H' q = H1 q → DeadQ st H1 sR q → DeadQ st H' s' q) :=
-  hCR hb le_rfl le_rfl hbits hdrop (retFrame_writesIn hW hP hSC ⟨0#u64, h0Cs, rfl⟩ hh0 hk hfit)
+  hCR hb le_rfl le_rfl hbits hdrop hnode (retFrame_writesIn hW hP hSC ⟨0#u64, h0Cs, rfl⟩ hh0 hk hfit)
     (fun hs => winInit_of_winZero (hWZ hs) hn1 hfit hs)
 
 /-- **`JCovD` and `BlkOK` across a whole retype** (module docstring). -/
@@ -135,6 +135,7 @@ theorem JCovD.retype_post {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set
           L.mem sR (L.nodeAt sR 0#u64 layout.node.DEBUG_TCBS) ∈ Heap.tcbs H1) ∧
         ¬ (rb.toNat ≤ (L.curW sR).val ∧ (L.curW sR).val < rb.toNat + slots.length * 2 ^ bitsApi t us) ∧
         DropOK st H1 (RegionD H1 rb.toNat (rb.toNat + slots.length * 2 ^ bitsApi t us)) Cs sR ∧
+        RegionOffNodes st Cs sR rb.toNat (rb.toNat + slots.length * 2 ^ bitsApi t us) ∧
         (∀ q kd, H1 q = some kd → H q = some kd) ∧
         (∀ q, H1 q = H q → DeadP (L := L) H s q → DeadQ st H1 sR q)) :
     ∃ th' G' A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj (cslotAddr sl) ∧
@@ -148,7 +149,7 @@ theorem JCovD.retype_post {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set
   · rw [hok] at e; cases e
   have hor : (sR = s0 ∧ thR = th) ∨ ∃ a1, untyped.reset_untyped st arI s0 ar (cslotAddr sl) = ok (.Ok (), sR, a1) :=
     hor'.elim (fun ⟨a, b, _, _⟩ => Or.inl ⟨a, b⟩) (fun ⟨a1, _, _, _, _, h, _⟩ => Or.inr ⟨a1, h⟩)
-  obtain ⟨H1, Ac1, hb1, hPR, hSC, h0Cs, hh0, -, hdrop, hsub, hdk⟩ := hstep' ct s0 sR thR hct hs0 hor hsl
+  obtain ⟨H1, Ac1, hb1, hPR, hSC, h0Cs, hh0, -, hdrop, hnode, hsub, hdk⟩ := hstep' ct s0 sR thR hct hs0 hor hsl
   subst eA ek ew
   have hwd := (retype_window_dead hJ hU hI hE).1
   have hnewQ : ∀ q, NewAt rb.toNat (2 ^ bitsApi t us) slots.length q → (newKind n us).isSome →
@@ -159,7 +160,7 @@ theorem JCovD.retype_post {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set
     · rfl
     · exact absurd (hut hok j hj hu) (hnK hs).1
   obtain ⟨H', Ac', hb', -, hshape, -, hdead'⟩ := creation_step (hCR _ _ _ _ _ _ _ _ _ _ n us) hb1
-    hbits hdrop hW hPR hSC h0Cs hh0
+    hbits hdrop hnode hW hPR hSC h0Cs hh0
     (fun hT => hn1 (hnt.2 hT)) hfit
     (fun hs w hw h1 h2 => ((hWZ ⟨(hnK hs).2.2, (hnK hs).2.1⟩) w hw h1 h2).imp id (fun ⟨hT, hj⟩ => ⟨hnt.2 hT, hj⟩))
     (fun h => hn1 h)
@@ -196,13 +197,14 @@ theorem reset_step {A' : Type} {arI : machine.Arch A'} (hRS : ResetP1Step st arI
       CapW (Heap.tcbs H) (Heap.omega H) (Heap.frame H) (core.num.U64.wrapping_add x K))
     (hpal : p.val % 2 ^ sb.val = 0) (hfit : p.val + 2 ^ sb.val ≤ 2 ^ 64)
     (hdrop : DropOK st H (RegionD H p.val (p.val + 2 ^ sb.val)) Cs s0)
+    (hnode : RegionOffNodes st Cs s0 p.val (p.val + 2 ^ sb.val)) (hfi : fi.val ≤ 2 ^ sb.val)
     (heq : untyped.reset_untyped st arI s0 ar x = ok r) :
     ∃ (H1 : Heap) (Ac1 : Set U64),
       BlkOK st (Heap.tcbs H1) Cs (Heap.omega H1) H1 (Heap.frame H1) (Heap.replies H1) (Heap.scs H1)
         (Heap.ntfns H1) (Heap.scBits H1) Ac1 r.2.1 ∧
       (∀ q kd, H1 q = some kd → H q = some kd) ∧
       (∀ q, H1 q = H q → DeadQ st H s0 q → DeadQ st H1 r.2.1 q) := by
-  obtain ⟨r', hr', H1, Ac1, hb1, hsh, hdk, -⟩ := spec_exists (hRS H Cs Ac s0 ar x p sb fi dev hb hcap hx hpal hfit hdrop)
+  obtain ⟨r', hr', H1, Ac1, hb1, hsh, hdk, -⟩ := spec_exists (hRS H Cs Ac s0 ar x p sb fi dev hb hcap hx hpal hfit hdrop hnode hfi)
   rw [heq] at hr'; cases eq_of_ok_eq hr'
   refine ⟨H1, Ac1, hb1, fun q kd hq => ?_, hdk⟩
   rw [hsh q] at hq
