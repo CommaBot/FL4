@@ -72,6 +72,7 @@ import Fl4Proofs.P3.IpcEpBase
 import Fl4Proofs.P3.IpcEpSteps
 import Fl4Proofs.P3.IpcEpIpc
 import Fl4Proofs.P3.IpcEpBlock
+import Fl4Proofs.P3.IpcEpXfer
 import Fl4Proofs.P3.TcbRel
 import Fl4Proofs.P3.EpFaultUs
 import Fl4Proofs.P3.EpComb
