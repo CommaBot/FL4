@@ -17,7 +17,7 @@ import Fl4Proofs.P3.IpcEpGrant
 import Fl4Proofs.P3.IpcEpBlock
 import Fl4Proofs.P3.SchedValidRel
 import Fl4Proofs.P3.IpcSendTop
-import Fl4Proofs.P3.EpRecvX
+import Fl4Proofs.P3.EpSendX
 import Fl4Proofs.P3.IpcEpXfer
 open Aeneas Aeneas.Std Result
 
@@ -56,93 +56,6 @@ theorem hback_of {σ : Fl4Spec.State Unit} (hV : Sched.SchedValid σ) {d : Fl4Sp
   intro e' r dd xr hs hkr
   obtain ⟨xr', hkr', h⟩ := hV.recvReply d xd e' r dd hkd hs
   rw [hkr] at hkr'; cases hkr'; exact h
-
-/-- **What `send_ipc_top` does not cover**: a send to a waiting receiver that
-donates, or a call to a receiver with an IPC buffer. -/
-def SendRest (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (Rel : S → Fl4Spec.State Unit → Prop)
-    (T : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) (blk call : Bool) (badge : U64) (g gr don : Bool)
-    (t e : U64) : Prop :=
-  ∀ (d : U64) q xd, σ.kheap e.bv = some (.endpoint (.recvEP (d.bv :: q))) → d ∈ T →
-    σ.kheap d.bv = some (.tcb xd) → (don = true ∨ (call = true ∧ ipcBufOf true xd ≠ none)) →
-    endpoint.send_ipc st ar s a blk call badge g gr don t e ⦃ r => r.2 = a ∧
-      ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk call badge.bv g gr don t.bv e.bv σ).1, Rel r.1 z.2 ⦄
-
-set_option maxHeartbeats 4000000 in
-/-- **`send_ipc` on `IpcRel ∧ SRT … SRE`**, by the endpoint's state. -/
-theorem send_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hTl : IpcEpTailHyps st A N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hP : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (hR : IpcRel N T E R B (L.mem s) σ) (hSR : SRT st N T C E R B c (SRE st N T C E R B c) s σ)
-    (hV : Sched.SchedValid σ)
-    {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
-    (hnb : tsCode xt.tcbState ≠ 3 ∧ tsCode xt.tcbState ≠ 4) (hnn : ∀ m, xt.tcbState ≠ .blockedOnNotification m)
-    (hns : tsCode xt.tcbState ≠ 6) (hft : xt.tcbFault = none)
-    {e : U64} (he : e ∈ E)
-    (hsort : ∀ xs, QueueRel (L.mem s) T .Ep (qOf (L.mem s) e) xs → PrioSorted (fun y => L.mem s (prioA y)) xs)
-    (blk call : Bool) (badge : U64) (g gr don : Bool)
-    (hU : SendRest st ar (fun s σ => IpcRel N T E R B (L.mem s) σ ∧ SRT st N T C E R B c (SRE st N T C E R B c) s σ)
-      T s a σ blk call badge g gr don t e) :
-    endpoint.send_ipc st ar s a blk call badge g gr don t e ⦃ r => r.2 = a ∧
-      ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk call badge.bv g gr don t.bv e.bv σ).1,
-        IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 ⦄ := by
-  obtain ⟨x, hk, hx⟩ := hR.ep e he
-  have blockCase : CanBlock false x → endpoint.send_ipc st ar s a blk call badge g gr don t e ⦃ r => r.2 = a ∧
-      ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk call badge.bv g gr don t.bv e.bv σ).1,
-        IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 ⦄ := by
-    intro hc
-    cases blk
-    · exact WP.spec_mono (send_ipc_noblockI (ar := ar) s a σ hR hSR he hk hc call badge g gr don t)
-        fun _ ⟨h1, σ', h2, h3, h4⟩ => ⟨h1, ((), σ'), by rw [h2]; rfl, h3, h4⟩
-    · exact WP.spec_mono (send_ipc_blockI hH hP s a σ hR hSR ht hkt hnb hnn he hk hc hsort call badge g gr don)
-        fun _ ⟨h1, σ', h2, h3, h4⟩ => ⟨h1, ((), σ'), by rw [h2]; rfl, h3, h4⟩
-  cases x with
-  | idleEP => exact blockCase trivial
-  | sendEP q => exact blockCase rfl
-  | recvEP q =>
-    obtain ⟨-, xs, hne, hq, hQ, -⟩ := hx
-    obtain ⟨d, ys, rfl⟩ : ∃ d ys, xs = d :: ys := by
-      cases xs with
-      | nil => exact absurd rfl hne
-      | cons d ys => exact ⟨d, ys, rfl⟩
-    have hd : d ∈ T := hQ.mem d (by simp)
-    obtain ⟨xd, hkd, -⟩ := hR.tcb d hd
-    have hk' : σ.kheap e.bv = some (.endpoint (.recvEP (d.bv :: ys.map UScalar.bv))) := by rw [hk, hq]; rfl
-    have hback := hback_of hV hkd
-    have cv : ∀ r : S × A, (r.2 = a ∧ ¬ (Fl4Spec.sendIpc (Z := Unit) blk call badge.bv g gr don t.bv
-        e.bv σ).2 ∧ ∃ σ', ((), σ') ∈ (Fl4Spec.sendIpc (Z := Unit) blk call badge.bv g gr don t.bv e.bv σ).1 ∧
-        IpcRel N T E R B (L.mem r.1) σ' ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 σ') →
-        r.2 = a ∧ ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk call badge.bv g gr don t.bv e.bv σ).1,
-          IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 :=
-      fun _ ⟨h1, _, σ', h2, h3, h4⟩ => ⟨h1, ((), σ'), h2, h3, h4⟩
-    cases don
-    swap
-    · exact hU d _ xd hk' hd hkd (Or.inl rfl)
-    cases call
-    · cases hrb : ipcBufOf true xd with
-      | none =>
-        exact WP.spec_mono (send_ipc_recvG hH hBf hBm hTl hP s a σ hR hSR ht hkt hnb hft he hk' hkd hrb badge g gr
-          hback blk) cv
-      | some rp =>
-        exact WP.spec_mono (send_ipc_recv_bufG hH hBf hBm hTl hP s a σ hR hSR ht hkt hnb hft he hk' hkd hrb badge g
-          gr hback blk) cv
-    · by_cases hrb : ipcBufOf true xd = none
-      swap
-      · exact hU d _ xd hk' hd hkd (Or.inr ⟨rfl, hrb⟩)
-      by_cases hgg : g = true ∨ gr = true
-      · by_cases hrp : ∀ e' rep dd, xd.tcbState = .blockedOnReceive e' rep dd → rep ≠ none
-        · exact WP.spec_mono (send_ipc_callG hH hBf hBm hTl hP s a σ hR hSR ht hkt hnb hft hns he hk' hkd hrb badge
-            g gr hback hgg hrp blk) cv
-        · refine WP.spec_mono (send_ipc_call_inactiveG hH hBf hBm hTl hP s a σ hR hSR ht hkt hnb hft hns he hk' hkd
-            hrb badge g gr hback (Or.inr ?_) blk) cv
-          intro e' rep dd hs
-          by_contra hn
-          refine hrp fun e'' rep' dd' hs' => ?_
-          rw [hs] at hs'; cases hs'; exact hn
-      · refine WP.spec_mono (send_ipc_call_inactiveG hH hBf hBm hTl hP s a σ hR hSR ht hkt hnb hft hns he hk' hkd
-          hrb badge g gr hback (Or.inl ?_) blk) cv
-        cases g <;> cases gr <;> simp_all
 
 set_option maxHeartbeats 4000000 in
 /-- **The transfer step for `receive_ipc_cf*_gen`** on the grant bundle's
@@ -197,6 +110,106 @@ theorem xferX_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE 
     | some rp =>
       exact WP.spec_mono (do_ipc_transfer_fault (ar := ar) (hH.epHyps hP0) hBm.srs hP0.e s1 a σ1 hR1 hS1.1 hsd ht
         hne hks hkt hf hok hrb e bdg g) lift
+
+/-- **What `send_ipc_top` does not cover**: a send to a waiting receiver that
+donates (`can_donate`, `schedContextDonate`). -/
+def SendRest (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (Rel : S → Fl4Spec.State Unit → Prop)
+    (T : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) (blk call : Bool) (badge : U64) (g gr don : Bool)
+    (t e : U64) : Prop :=
+  ∀ (d : U64) q xd, σ.kheap e.bv = some (.endpoint (.recvEP (d.bv :: q))) → d ∈ T →
+    σ.kheap d.bv = some (.tcb xd) → don = true →
+    endpoint.send_ipc st ar s a blk call badge g gr don t e ⦃ r => r.2 = a ∧
+      ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk call badge.bv g gr don t.bv e.bv σ).1, Rel r.1 z.2 ⦄
+
+set_option maxHeartbeats 4000000 in
+/-- **`send_ipc` on `IpcRel ∧ SRT … SRE`**, by the endpoint's state. -/
+theorem send_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+    (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+    (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+    (hTl : IpcEpTailHyps st A N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+    (hP : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (hR : IpcRel N T E R B (L.mem s) σ) (hSR : SRT st N T C E R B c (SRE st N T C E R B c) s σ)
+    (hV : Sched.SchedValid σ)
+    {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
+    (hnb : tsCode xt.tcbState ≠ 3 ∧ tsCode xt.tcbState ≠ 4) (hnn : ∀ m, xt.tcbState ≠ .blockedOnNotification m)
+    (hns : tsCode xt.tcbState ≠ 6) (hft : xt.tcbFault = none)
+    {e : U64} (he : e ∈ E)
+    (hsort : ∀ xs, QueueRel (L.mem s) T .Ep (qOf (L.mem s) e) xs → PrioSorted (fun y => L.mem s (prioA y)) xs)
+    (blk call : Bool) (badge : U64) (g gr don : Bool)
+    (hU : SendRest st ar (fun s σ => IpcRel N T E R B (L.mem s) σ ∧ SRT st N T C E R B c (SRE st N T C E R B c) s σ)
+      T s a σ blk call badge g gr don t e) :
+    endpoint.send_ipc st ar s a blk call badge g gr don t e ⦃ r => r.2 = a ∧
+      ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk call badge.bv g gr don t.bv e.bv σ).1,
+        IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 ⦄ := by
+  obtain ⟨x, hk, hx⟩ := hR.ep e he
+  have blockCase : CanBlock false x → endpoint.send_ipc st ar s a blk call badge g gr don t e ⦃ r => r.2 = a ∧
+      ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk call badge.bv g gr don t.bv e.bv σ).1,
+        IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 ⦄ := by
+    intro hc
+    cases blk
+    · exact WP.spec_mono (send_ipc_noblockI (ar := ar) s a σ hR hSR he hk hc call badge g gr don t)
+        fun _ ⟨h1, σ', h2, h3, h4⟩ => ⟨h1, ((), σ'), by rw [h2]; rfl, h3, h4⟩
+    · exact WP.spec_mono (send_ipc_blockI hH hP s a σ hR hSR ht hkt hnb hnn he hk hc hsort call badge g gr don)
+        fun _ ⟨h1, σ', h2, h3, h4⟩ => ⟨h1, ((), σ'), by rw [h2]; rfl, h3, h4⟩
+  cases x with
+  | idleEP => exact blockCase trivial
+  | sendEP q => exact blockCase rfl
+  | recvEP q =>
+    obtain ⟨-, xs, hne, hq, hQ, hQO⟩ := hx
+    obtain ⟨d, ys, rfl⟩ : ∃ d ys, xs = d :: ys := by
+      cases xs with
+      | nil => exact absurd rfl hne
+      | cons d ys => exact ⟨d, ys, rfl⟩
+    have hd : d ∈ T := hQ.mem d (by simp)
+    obtain ⟨xd, hkd, -⟩ := hR.tcb d hd
+    have hk' : σ.kheap e.bv = some (.endpoint (.recvEP (d.bv :: ys.map UScalar.bv))) := by rw [hk, hq]; rfl
+    have hback := hback_of hV hkd
+    have cv : ∀ r : S × A, (r.2 = a ∧ ¬ (Fl4Spec.sendIpc (Z := Unit) blk call badge.bv g gr don t.bv
+        e.bv σ).2 ∧ ∃ σ', ((), σ') ∈ (Fl4Spec.sendIpc (Z := Unit) blk call badge.bv g gr don t.bv e.bv σ).1 ∧
+        IpcRel N T E R B (L.mem r.1) σ' ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 σ') →
+        r.2 = a ∧ ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk call badge.bv g gr don t.bv e.bv σ).1,
+          IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 :=
+      fun _ ⟨h1, _, σ', h2, h3, h4⟩ => ⟨h1, ((), σ'), h2, h3, h4⟩
+    cases don
+    swap
+    · exact hU d _ xd hk' hd hkd rfl
+    cases call
+    · cases hrb : ipcBufOf true xd with
+      | none =>
+        exact WP.spec_mono (send_ipc_recvG hH hBf hBm hTl hP s a σ hR hSR ht hkt hnb hft he hk' hkd hrb badge g gr
+          hback blk) cv
+      | some rp =>
+        exact WP.spec_mono (send_ipc_recv_bufG hH hBf hBm hTl hP s a σ hR hSR ht hkt hnb hft he hk' hkd hrb badge g
+          gr hback blk) cv
+    · obtain ⟨xt0, hkt0, hTRt⟩ := hR.tcb t ht
+      rw [hkt] at hkt0; cases hkt0
+      have htd : t ≠ d := by
+        rintro rfl
+        exact hnb.1 (hTRt.st.symm.trans (hQO t (by simp)).1)
+      have hXs := IpcSchedHyps.stepsG (A := A) hH hBf hBm hP
+      have hSB := IpcRel.toSRN hR hSR
+      have hXf := fun s1 σ1 => xferX_top (st := st) (xt := xd) hH hBf hBm hP ht hd htd
+        (fun b h => by rw [hft] at h; cases h) a e g s1 σ1 badge
+      have cvN : ∀ r : S × A, (r.2 = a ∧ ¬ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr false t.bv e.bv σ).2 ∧
+          ∃ σ', ((), σ') ∈ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr false t.bv e.bv σ).1 ∧
+          EpStateRel T E R B (L.mem r.1) σ' ∧
+          SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c))) r.1 σ') →
+          r.2 = a ∧ ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr false t.bv e.bv σ).1,
+            IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 :=
+        fun _ ⟨h1, _, σ', h2, h3, h4⟩ => ⟨h1, ((), σ'), h2, IpcRel.ofSRN h3 h4⟩
+      by_cases hgg : g = true ∨ gr = true
+      · by_cases hrp : ∀ e' rep dd, xd.tcbState = .blockedOnReceive e' rep dd → rep ≠ none
+        · exact WP.spec_mono (send_ipc_callX_gen hXs.toEpSteps (hTl.tail hP) hP.e s a σ hR.toE hSB ht hkt hnb hns he
+            hk' hkd badge g gr hXf hback hgg hrp blk) cvN
+        · refine WP.spec_mono (send_ipc_call_inactiveX_gen hXs.toEpSteps (hTl.tail hP) hP.e s a σ hR.toE hSB ht hkt
+            hnb hns he hk' hkd badge g gr hXf hback (Or.inr ?_) blk) cvN
+          intro e' rep dd hs
+          by_contra hn
+          refine hrp fun e'' rep' dd' hs' => ?_
+          rw [hs] at hs'; cases hs'; exact hn
+      · refine WP.spec_mono (send_ipc_call_inactiveX_gen hXs.toEpSteps (hTl.tail hP) hP.e s a σ hR.toE hSB ht hkt hnb
+          hns he hk' hkd badge g gr hXf hback (Or.inl ?_) blk) cvN
+        cases g <;> cases gr <;> simp_all
 
 /-- **What `receive_ipc_top` does not cover**: a waiting sender with a
 timeout fault and an SC (its fault message reads the SC), or a calling or
