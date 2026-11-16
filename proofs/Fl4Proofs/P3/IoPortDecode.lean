@@ -260,7 +260,7 @@ theorem port_out_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ 
           data.val = raw.val % 2 ^ (8 * portSz lbl) ∧
           inv = .invokeIOPort (.ioPortInvocation (BitVec.ofNat 16 port.val) (outData raw.bv (portSz lbl))) ∧
           arI.port_out ar port ⟨BitVec.ofNat 64 (portSz lbl)⟩ data = ok a' ∧
-          SlotsSame th (L.mem s) (L.mem s')) res ⦄ := by
+          SlotsSame th (L.mem s) (L.mem s') ∧ sched.set_thread_state st s ct sched.TS_RESTART = ok s') res ⦄ := by
   have hsz : portSz lbl = 1 ∨ portSz lbl = 2 ∨ portSz lbl = 4 := by unfold portSz; split_ifs <;> simp
   rw [decode_out_eq slbl _ _ hsz hlbl]
   unfold ioport.decode
@@ -333,11 +333,12 @@ theorem port_out_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ 
       refine ⟨_, rfl, ?_⟩; rw [UScalar.val_and, m32, Nat.and_two_pow_sub_one_eq_mod, h]
   obtain ⟨data, hd, hdv⟩ := hdata
   rw [hd]; simp only [bind_ok]
-  refine WP.spec_bind (set_thread_state_slots th hP s ct sched.TS_RESTART htcb hact) ?_
-  intro s1 hS1
+  refine WP.spec_bind (WP.spec_and (set_thread_state_slots th hP s ct sched.TS_RESTART htcb hact)
+    (spec_self (set_thread_state_slots th hP s ct sched.TS_RESTART htcb hact))) ?_
+  rintro s1 ⟨hS1, hr1⟩
   obtain ⟨a1, ha1⟩ := hout ar port ⟨BitVec.ofNat 64 (portSz lbl)⟩ data
   rw [ha1]; simp only [bind_ok, WP.spec_ok]
-  exact ⟨_, run_bind_ok hens _, port, data, y1, hpv, hdv, rfl, ha1, hS1⟩
+  exact ⟨_, run_bind_ok hens _, port, data, y1, hpv, hdv, rfl, ha1, hS1, hr1⟩
 
 end
 

@@ -26,8 +26,9 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
-/-- **Hypothesis: the arch relation is kept by the interrupt decodes' arch
-operations** (an IRQ's mask, an IOAPIC pin's programming). -/
+/-- **Hypothesis: the arch relation is kept by the interrupt and IO port
+decodes' arch operations** (an IRQ's mask, an IOAPIC pin's programming, a
+port access). -/
 def ARMask (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
   ∀ a c a', AR a c → ArchIrqStep arI a a' → AR a' c
 

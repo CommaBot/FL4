@@ -4,7 +4,7 @@ relation** (TopXAll's `XTop`). A decode's post records that its run is a
 composition of primitive steps by `StepClosed`: every relation `Q` closed
 under the current thread's restart (`restart`), a kernel-state step (`ks`:
 `KsW` words, the spec's `KsStep`, the domain words kept, the IRQ and IO-port
-relations kept, an arch operation of the interrupt decodes, `ArchIrqStep`) and a capability
+relations kept, an arch operation of the interrupt or IO port decodes, `ArchIrqStep`) and a capability
 insert into a CNode (`slot`, with the CSpace relation after), a scheduler
 step (`sched`: `SchedStep`, the queue, action and domain-schedule words and
 the scheduler relation after at every family of sets) and the deletion of a
@@ -111,12 +111,13 @@ def DomRelW (m : U64 → U64) (kb : U64) (σ : Fl4Spec.State Unit) : Prop :=
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
-/-- The arch operations of the interrupt decodes: none, an IRQ's mask, an
-IOAPIC pin's (remapped) programming. -/
+/-- The arch operations of the interrupt and IO port decodes: none, an
+IRQ's mask, an IOAPIC pin's (remapped) programming, a port access. -/
 def ArchIrqStep (a a' : A) : Prop :=
   a' = a ∨ (∃ irq b, arI.mask_irq a irq b = ok a') ∨
     (∃ i p l po v b, arI.ioapic_map a i p l po v = ok (b, a')) ∨
-    (∃ i p l po v h b, arI.ioapic_map_remapped a i p l po v h = ok (b, a'))
+    (∃ i p l po v h b, arI.ioapic_map_remapped a i p l po v h = ok (b, a')) ∨
+    (∃ p z v, arI.port_in a p z = ok (v, a')) ∨ (∃ p z d, arI.port_out a p z d = ok a')
 
 /-- The kernel-global words of the domain schedule a scheduler step may
 write: the domain time and index, the start and the table. -/

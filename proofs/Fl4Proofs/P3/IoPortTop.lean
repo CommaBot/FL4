@@ -159,7 +159,7 @@ theorem ioport_decode_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A)
   by_cases hO : 67 ≤ lbl.val ∧ lbl.val ≤ 69
   · refine WP.spec_mono (port_out_refines arI th hP s ar σ lbl hO slbl (hlO hO) length buf ct hct args hlen hargs
       htcb hact first last hfl hl16 call hout) (fun res h => PortPost.toC hCR hFI hcur htcb ?_ h)
-    rintro inv s' a' ⟨port, data, raw, -, -, rfl, -, hS⟩
+    rintro inv s' a' ⟨port, data, raw, -, -, rfl, -, hS, -⟩
     exact ⟨hS, _, _, rfl⟩
   have hX : lbl.val < 64 ∨ 69 < lbl.val := by omega
   exact WP.spec_mono (port_other_refines arI s ar σ lbl hX slbl (hlX hX) length buf ct hct _ first last call)
