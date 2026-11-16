@@ -207,12 +207,18 @@ def DecPostG (st : machine.Store S) [L : LawfulStore st] (Adm : PSets → Prop) 
     (r : core.result.Result Unit error.Exc) (s' : S) : Prop :=
   ∃ σ', Adm σ' ∧ L.curW s ∈ σ'.T ∧ DecPost st σ'.T Cs σ'.Ω σ'.H σ'.Sg σ'.Rp σ'.Scs σ'.Nt σ'.Z Ac s r s'
 
-/-- `DecGap` with the heap possibly growing (`DecPostG`). -/
+/-- A spec with the result's equation. -/
+theorem spec_eqv {α : Type _} {m : Result α} {P : α → Prop} (h : m ⦃ r => P r ⦄) : m ⦃ r => m = ok r ∧ P r ⦄ := by
+  revert h; cases m <;> simp [WP.spec_vis, WP.spec_div, WP.spec_ok]
+
+/-- `DecGap` with the heap possibly growing (`DecPostG`); the invoked slot
+holds the invoked cap. -/
 def DecGapG (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (Adm : PSets → Prop)
     (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (f : CapFam) : Prop :=
   ∀ (Ac : Set U64) (s : S) (a : A) (lbl len : U64) (slot : obj.Slot) (cap : capability.Cap)
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize),
     capFam cap = f → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → CapSlotW T Ω Sg slot →
+    obj.Slot.cap st slot s = ok cap →
     syscall.decode_invocation st ar s a lbl len slot cap blk call don fp buf extra ⦃ r s' _ =>
       DecPostG st Adm Cs Ac s r s' ⦄
 
@@ -220,7 +226,7 @@ def DecGapG (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machi
 theorem DecGap.toG {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} {U : Set U64} {f : CapFam}
     (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) (g : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U f) :
     DecGapG st ar Adm T Cs Ω H Sg Rp Scs Nt Z U f :=
-  fun Ac s a lbl len slot cap blk call don fp buf extra hf D hs =>
+  fun Ac s a lbl len slot cap blk call don fp buf extra hf D hs _ =>
     WP.spec_mono (g Ac s a lbl len slot cap blk call don fp buf extra hf D hs) fun r hr => by
       obtain ⟨r1, s1, a1⟩ := r
       exact ⟨_, hσ, D.bxi.1.choose_spec.choose_spec.curT, hr⟩
@@ -361,11 +367,12 @@ theorem syscall.decode_invocation.dec {A : Type _} {ar : machine.Arch A} {Adm : 
     (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (G : InvGaps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U)
     (s : S) (a : A) (lbl len : U64) (slot : obj.Slot) (cap : capability.Cap)
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hslot : CapSlotW T Ω Sg slot) :
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hslot : CapSlotW T Ω Sg slot)
+    (hcs : obj.Slot.cap st slot s = ok cap) :
     syscall.decode_invocation st ar s a lbl len slot cap blk call don fp buf extra ⦃ r s' _ =>
       DecPostG st Adm Cs Ac s r s' ⦄ := by
   by_cases hu : capFam cap = .untyped
-  · exact G.untyped _ _ _ _ _ _ _ _ _ _ _ _ _ hu D hslot
+  · exact G.untyped _ _ _ _ _ _ _ _ _ _ _ _ _ hu D hslot hcs
   · exact WP.spec_mono (syscall.decode_invocation.dec0 hA E G s a lbl len slot cap blk call don fp buf extra D
       hslot hu) fun r hr => by
         obtain ⟨r1, s1, a1⟩ := r
@@ -417,7 +424,7 @@ theorem syscall.handle_invocation.inv {A : Type _} {ar : machine.Arch A} {Adm : 
   refine WP.spec_bind (WP.spec_and (I.slotcap Ac s cptr h) (I.lookupSlot Ac s cptr h)) fun r ⟨hr, hsl⟩ => ?_
   rcases r with r1 | lf
   · try simp only
-    refine WP.spec_bind (hr r1 rfl) fun cap hcap => ?_
+    refine WP.spec_bind (spec_eqv (hr r1 rfl)) fun cap ⟨ecap, hcap⟩ => ?_
     refine WP.spec_bind (P0.msg.lookup_ipc_buffer.p0 st s false _ hS) fun buf _ => ?_
     refine WP.spec_bind (I.extra Ac s buf info h) fun r2 hx => ?_
     rcases r2 with ex | f
@@ -429,7 +436,7 @@ theorem syscall.handle_invocation.inv {A : Type _} {ar : machine.Arch A} {Adm : 
       obtain ⟨hrun, hact⟩ := I.cur Ac s h
       obtain ⟨hcb, hU⟩ := recvOK _ hσ Ac s h
       refine WP.spec_bind (syscall.decode_invocation.dec hA hσ E G s a info.label length r1.slot cap
-        blk call don fp buf ex ⟨h, hcA, hcap, hx ex rfl, hrun, hact, hcsc, hcb, hU⟩ (hsl r1 rfl)) ?_
+        blk call don fp buf ex ⟨h, hcA, hcap, hx ex rfl, hrun, hact, hcsc, hcb, hU⟩ (hsl r1 rfl) ecap) ?_
       rintro ⟨r3, s1, a1⟩ ⟨σ1, hσ1, hct1, Ac1, h1, hp⟩
       try simp only [WP.uncurry'_pair]
       obtain ⟨-, hU1⟩ := recvOK σ1 hσ1 Ac1 s1 h1

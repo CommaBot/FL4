@@ -103,18 +103,20 @@ section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
 
 /-- **What dropping the objects at `D` needs** (P3's, discharged in its
-untyped round from `sym_refs`, `JCovD` and `ut_free`): the typed heap
-(`heap`, `h0`: `HeapOK` and the null address, from the typed-heap relation),
-the dropped objects dead (`dead`: P3's `DeadP`, `DeadP_iff`), the current
-thread and SC kept (`cur`, `csc`: the current thread and its SC are not in
-the untyped's region, `ut_free`), the kernel-global words in no dropped object
-(`ks`: kernel memory is never untyped memory), the cores' nodes in no dropped
-object (`nodes`: likewise), and the references P1's
-invariants hold without a back-pointer naming kept objects (`KeptRef`): the
-region's objects are unreferenced (`ut_free`: no cap, and by `sym_refs` no
-object field, names them), so each of these is `sym_refs` of the matching
-spec field —
-* `rnext`, `rprev`: a reply's `reply_sc`/`reply_prev` (the reply stack);
+untyped round from `sym_refs`, `JCovD` and `ut_free`; every field is P3's):
+the typed heap (`heap`, `h0`: `HeapOK` and the null address, from the
+typed-heap relation), the dropped objects dead (`dead`: P3's `DeadP`,
+`DeadP_iff`), the current thread and SC kept (`cur`, `csc`: the current
+thread and its SC are not in the untyped's region, `ut_free`), the
+kernel-global words in no dropped object (`ks`: kernel memory is never
+untyped memory), the cores' nodes in no dropped object (`nodes`: likewise),
+and the references P1's invariants hold without a back-pointer naming kept
+objects (`KeptRef`): the region's objects are unreferenced (`ut_free`: no
+cap, and by `sym_refs` no object field, names them), so each of these is
+`sym_refs` of the matching spec field —
+* `rnext` (a reply's next reply, the head bit clear; the head bit set, the SC
+  it names is kept by P1's `RHead`, in `ReplyInv.drop`), `rprev`: a reply's
+  `reply_sc`/`reply_prev` (the reply stack);
 * `screp`: an SC's `sc_replies` head;
 * `bnd`, `ntb`: `tcb_bound_notification` / `ntfn_bound_tcb`;
 * `scn`: `sc_ntfn` (with `ntfn_sc`);
@@ -131,7 +133,8 @@ structure DropOK (st : machine.Store S) [L : LawfulStore st] (H : Heap) (D : U64
   csc : ¬ D (L.cscW s)
   ks : ∀ o : U64, o.val < 13568 → o.val % 8 = 0 → OffDrop H D (core.num.U64.wrapping_add (L.ksb s) o)
   nodes : ∀ c ∈ Cs, ∀ b : U64, L.nodeBase s c ≤ b.val → b.val < L.nodeBase s c + 4288 → OffDrop H D b
-  rnext : ∀ r ∈ H.replies, ¬ D r → KeptRef H D (L.mem s (rNextA r) &&& ~~~1#u64)
+  rnext : ∀ r ∈ H.replies, ¬ D r → headBit (L.mem s (rNextA r)) = false →
+    KeptRef H D (L.mem s (rNextA r) &&& ~~~1#u64)
   rprev : ∀ r ∈ H.replies, ¬ D r → KeptRef H D (L.mem s (rPrevA r) &&& ~~~1#u64)
   screp : ∀ c ∈ H.scs, ¬ D c → KeptRef H D (L.mem s (scReplyA c))
   bnd : ∀ t ∈ H.tcbs, ¬ D t → KeptRef H D (L.mem s (boundA t))
@@ -364,8 +367,14 @@ theorem ReplyInv.drop (P : DropOK st H D Cs s) (hT : TcbPlaced H.tcbs)
   · obtain ⟨h1, h2⟩ := h.recv t (T ht).1 hs h0
     exact ⟨rp (T ht).1 h1 h2, h2⟩
   · obtain ⟨h1, h2⟩ := h.next r (R hr).1 h0
-    have k := P.rnext r (R hr).1 (R hr).2
-    exact ⟨fun hb => k.mem_scs (h1 hb), fun hb => k.mem_replies (h2 hb)⟩
+    refine ⟨fun hb => Heap.mem_scs_drop.2 ⟨h1 hb, fun hD => ?_⟩,
+      fun hb => (P.rnext r (R hr).1 (R hr).2 hb).mem_replies (h2 hb)⟩
+    -- the head bit set: the SC names `r` back (`RHead`), but a dead SC has no replies
+    obtain ⟨z, hz⟩ := h1 hb
+    have hd := (P.dead _ _ hz hD).2.2.2.2 z hz
+    have e := h.head r (R hr).1 hb h0
+    rw [hd.2.1] at e
+    exact P.ne0 (by rw [show H r = some .reply from (R hr).1]; simp) e.symm
   · exact (P.rprev r (R hr).1 (R hr).2).mem_replies (h.prev r (R hr).1 h0)
   · obtain ⟨h1, h2, h3, h4⟩ := h.back r (R hr).1 h0
     refine ⟨h1, Heap.mem_tcbs_drop.2 ⟨h2, P.keepT h2 ?_⟩, h3, h4⟩

@@ -35,15 +35,27 @@ def UtArgs (st : machine.Store S) [L : LawfulStore st] (s0 : S) (extra : Aeneas.
       win.val ≤ i4.val) ∧
     (dev = true → objects.is_frame_type nt = ok true ∨ nt = fl4_abi.consts.object.Untyped)
 
+/-- P3's fact at every untyped decode's start (`P3Ok s slot cap extra`, of
+the state, the invoked slot (holding the cap), its untyped cap and the extra caps, e.g. l4v's
+`valid_untyped` of the joint state and the per-cap facts): what the retype's
+P3 facts rest on. -/
+def UtOkAt (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64)
+    (Z : U64 → Nat) (U : Set U64) (P3Ok : S → U64 → capability.Cap → Aeneas.Std.Array obj.Slot 3#usize → Prop) : Prop :=
+  ∀ (Ac : Set U64) (s : S) (slot ptr sb fi : U64) (dev : Bool) (extra : Aeneas.Std.Array obj.Slot 3#usize),
+    DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Untyped ptr sb fi dev) extra → CapSlotW T Ω Sg slot →
+      obj.Slot.cap st slot s = ok (.Untyped ptr sb fi dev) → P3Ok s slot (.Untyped ptr sb fi dev) extra
+
 /-- **The untyped family's retype, the named premise**: after the caller's
 restart (`Cur0` from the decode's start `s0`), the retype the decode
 checked (`UtArgs`) ends over some admissible set tuple (`DecPostG`: the
 heap may grow). -/
 structure UtPlace (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
-    (Adm : PSets → Prop) (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) :
-    Prop where
+    (Adm : PSets → Prop) (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64)
+    (P3Ok : S → U64 → capability.Cap → Aeneas.Std.Array obj.Slot 3#usize → Prop) : Prop where
   retype : ∀ (Ac : Set U64) (s0 s : S) (a : A) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (slot ptr sb fi : U64) (dev reset : Bool) (aligned nt us dest off win : U64),
+    P3Ok s0 slot (.Untyped ptr sb fi dev) extra →
+    sched.set_thread_state st s0 (L.curW s0) sched.TS_RESTART = ok s →
     DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s0 (.Untyped ptr sb fi dev) extra → CapSlotW T Ω Sg slot →
     UtArgs st s0 extra slot ptr sb fi dev reset aligned nt us dest off win →
     Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s →
@@ -76,8 +88,8 @@ local macro "utalign" dv:term : tactic => `(tactic| (
   obtain ⟨al, eal, -⟩ := spec_exists' (P0.untyped.align_up.p0 _ val)
   rw [eal]
   simp only [bind_ok]
-  refine WP.spec_bind (Cur0.restart D) fun s2 h2 => ?_
-  exact Pl.retype Ac s s2 a extra slot ptr sb fi dev _ al nt us dest off win D hslot
+  refine WP.spec_bind (spec_eqv (Cur0.restart D)) fun s2 ⟨erst, h2⟩ => ?_
+  exact Pl.retype Ac s s2 a extra slot ptr sb fi dev _ al nt us dest off win hOk erst D hslot
     ⟨x, hxm, hx0, idx, dep, val, ers, hv64, erd, ere,
       (by first
         | exact ⟨(fun _ => ⟨_, ern⟩), (fun _ => rfl)⟩
@@ -145,8 +157,10 @@ local macro "uttail" : tactic => `(tactic| (
 set_option maxHeartbeats 16000000 in
 /-- **`untyped.decode`** (Untyped_Retype) down to the retype (`UtPlace`). -/
 theorem untyped.decode.dec {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
-    (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) (Pl : UtPlace st ar Adm T Cs Ω H Sg Rp Scs Nt Z U) {s : S}
-    {extra : Aeneas.Std.Array obj.Slot 3#usize} (a : A) (lbl len slot buf ptr sb fi : U64) (dev : Bool)
+    (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {P3Ok : S → U64 → capability.Cap → Aeneas.Std.Array obj.Slot 3#usize → Prop}
+    (Pl : UtPlace st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    {s : S} {extra : Aeneas.Std.Array obj.Slot 3#usize} (a : A) (lbl len slot buf ptr sb fi : U64) (dev : Bool)
+    (hOk : P3Ok s slot (.Untyped ptr sb fi dev) extra)
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Untyped ptr sb fi dev) extra) (hslot : CapSlotW T Ω Sg slot) :
     untyped.decode st ar s a lbl len slot (.Untyped ptr sb fi dev) buf extra ⦃ r s' _ =>
       DecPostG st Adm Cs Ac s r s' ⦄ := by
@@ -190,14 +204,15 @@ theorem untyped.decode.dec {A : Type _} {ar : machine.Arch A} {Adm : PSets → P
 /-- **InvGaps' `untyped`, discharged** down to the retype premise
 `UtPlace`, over a growing heap. -/
 theorem decGap_untyped {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
-    (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) (Pl : UtPlace st ar Adm T Cs Ω H Sg Rp Scs Nt Z U) :
+    (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {P3Ok : S → U64 → capability.Cap → Aeneas.Std.Array obj.Slot 3#usize → Prop}
+    (Pl : UtPlace st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (hOk : UtOkAt st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) :
     DecGapG st ar Adm T Cs Ω H Sg Rp Scs Nt Z U .untyped := by
-  intro Ac s a lbl len slot cap blk call don fp buf extra hf D hslot
+  intro Ac s a lbl len slot cap blk call don fp buf extra hf D hslot hcs
   cases cap <;> simp [capFam] at hf
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩
   try dsimp only
-  exact untyped.decode.dec hA hσ Pl a lbl len slot buf _ _ _ _ D hslot
+  exact untyped.decode.dec hA hσ Pl a lbl len slot buf _ _ _ _ (hOk _ _ _ _ _ _ _ _ D hslot hcs) D hslot
 
 end
 

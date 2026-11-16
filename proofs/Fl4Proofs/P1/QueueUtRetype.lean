@@ -50,17 +50,21 @@ def CreateOK (st : machine.Store S) [L : LawfulStore st] (H1 : Heap) (Cs : Set U
 
 /-- **P3's facts for the untyped family's retype** (`UtPlace.retype`): the
 set tuple is the heap's; any well-formed heap without an object at null is
-admissible; core `0` is a core; and, after the restart, the reset's facts
-(when it resets) and what `untyped.retype` does: the reset's error, or the
-creation (`CreateOK`) after the reset's success or without a reset. -/
+admissible; core `0` is a core; and, from P3's state fact `P3Ok` at the
+decode's start (e.g. `valid_untyped` of the joint state), after the restart,
+the reset's facts (when it resets) and what `untyped.retype` does: the reset's
+error, or the creation (`CreateOK`) after the reset's success or without a
+reset. -/
 structure UtRetypeP3 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
-    (Adm : PSets → Prop) (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) :
-    Prop where
+    (Adm : PSets → Prop) (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64)
+    (P3Ok : S → U64 → capability.Cap → Aeneas.Std.Array obj.Slot 3#usize → Prop) : Prop where
   sets : T = H.tcbs ∧ Ω = H.omega ∧ Sg = H.frame ∧ Rp = H.replies ∧ Scs = H.scs ∧ Nt = H.ntfns ∧ Z = H.scBits
   adm : ∀ H' : Heap, HeapOK H' → H' 0#u64 = none → Adm (PSets.ofHeap H')
   core0 : 0#u64 ∈ Cs
   run : ∀ (Ac : Set U64) (s0 s : S) (a : A) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (slot ptr sb fi : U64) (dev reset : Bool) (aligned nt us dest off win : U64),
+    P3Ok s0 slot (.Untyped ptr sb fi dev) extra →
+    sched.set_thread_state st s0 (L.curW s0) sched.TS_RESTART = ok s →
     DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s0 (.Untyped ptr sb fi dev) extra → CapSlotW T Ω Sg slot →
     UtArgs st s0 extra slot ptr sb fi dev reset aligned nt us dest off win →
     Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s →
@@ -160,11 +164,12 @@ variable {T Cs Ω : Set U64} {H : Heap} {Sg Rp Scs Nt : Set U64} {Z : U64 → Na
 set_option maxHeartbeats 4000000 in
 /-- **`UtPlace` from P3's facts** (`UtRetypeP3`), P1's reset and retype. -/
 theorem UtRetypeP3.utPlace {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
-    (P : UtRetypeP3 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U) : UtPlace st ar Adm T Cs Ω H Sg Rp Scs Nt Z U := by
+    {P3Ok : S → U64 → capability.Cap → Aeneas.Std.Array obj.Slot 3#usize → Prop} (P : UtRetypeP3 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok) :
+    UtPlace st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok := by
   obtain ⟨eT, eΩ, eSg, eRp, eScs, eNt, eZ⟩ := P.sets
   subst eT eΩ eSg eRp eScs eNt eZ
-  refine ⟨fun Ac s0 s a extra slot ptr sb fi dev reset aligned nt us dest off win D hslot hU hC => ?_⟩
-  obtain ⟨hR, hrun⟩ := P.run Ac s0 s a extra slot ptr sb fi dev reset aligned nt us dest off win D hslot hU hC
+  refine ⟨fun Ac s0 s a extra slot ptr sb fi dev reset aligned nt us dest off win hOk hrs D hslot hU hC => ?_⟩
+  obtain ⟨hR, hrun⟩ := P.run Ac s0 s a extra slot ptr sb fi dev reset aligned nt us dest off win hOk hrs D hslot hU hC
   obtain ⟨hc0, Ac1, hX, ec, ecs, esc, na, nb⟩ := hC
   have hb := hX.blk
   have hcurT : L.curW s ∈ H.tcbs := hX.1.choose_spec.choose_spec.curT

@@ -32,8 +32,10 @@ structure InvGaps4 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar 
     (Adm : PSets → Prop) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
   /-- P3's facts for the untyped family's retype (the decode is proved,
-  `decGap_untyped`; the retype from them, `UtRetypeP3.utPlace`). -/
-  utPl : UtRetypeP3 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U
+  `decGap_untyped`; the retype from them, `UtRetypeP3.utPlace`), over P3's
+  state fact `P3Ok`, which holds at every untyped decode's start (`UtOkAt`). -/
+  utPl : ∃ P3Ok : S → U64 → capability.Cap → Aeneas.Std.Array obj.Slot 3#usize → Prop,
+    UtRetypeP3 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok ∧ UtOkAt st T Cs Ω H Sg Rp Scs Nt Z U P3Ok
   thread : TcbGaps st ar T Cs Ω H Sg Rp Scs Nt Z U
   /-- The IRQ handler family's placement premises (the family is proved, `decGap_irqHandler`). -/
   irqPl : IrqPlace st T Cs Ω H Sg Rp Scs Nt Z U
@@ -59,7 +61,7 @@ theorem InvGaps4.gaps3 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop}
     (Pt : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
     (G : InvGaps4 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U) :
     InvGaps3 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U :=
-  ⟨decGap_untyped hA hσ (G.utPl.utPlace hA), decGap_thread hA G.thread Pt E (delGaps_of hA Pd ((⟨finGap_ioPort hA G.ioPl, G.fin⟩ : FinGaps st ar T Cs Ω H Sg Rp Scs Nt Z).kinds hA Pd)) C.toCdtHyps,
+  ⟨decGap_untyped hA hσ (G.utPl.choose_spec.1.utPlace hA) G.utPl.choose_spec.2, decGap_thread hA G.thread Pt E (delGaps_of hA Pd ((⟨finGap_ioPort hA G.ioPl, G.fin⟩ : FinGaps st ar T Cs Ω H Sg Rp Scs Nt Z).kinds hA Pd)) C.toCdtHyps,
     decGap_irqControl hA C.toCdtHyps, decGap_irqHandler hA C.toCdtHyps Pd G.irqPl,
     decGap_schedControl hA G.scCtl, decGap_vspace hA Pd G.vsPl C.toCdtHyps E G.irqPl, G.vcpu, G.ept, decGap_ioPortControl C.toCdtHyps,
     decGap_ioPort hA E, scYieldGap_holds hA U, delGaps_of hA Pd ((⟨finGap_ioPort hA G.ioPl, G.fin⟩ : FinGaps st ar T Cs Ω H Sg Rp Scs Nt Z).kinds hA Pd)⟩
