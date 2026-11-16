@@ -294,8 +294,9 @@ its `CurStep` (for `HCur.step`) and, when it was preempted, what the
 preemption point needs. -/
 structure EntryHyps (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
-  /-- The message transfer writes only the user words `U` (`do_ipc_transfer`). -/
-  xfer : XferOK st ar T U
+  /-- The message transfer keeps the invariants within `XferFr` (`do_ipc_transfer`;
+  `xferOK_of` proves it from `XferHyps`). -/
+  xfer : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U
   /-- At a timeout fault of the current thread (`check_budget`'s
   `end_timeslice`): it can block, the user words are outside the kernel
   objects, and the caps (its timeout-handler slot) are typed. -/
@@ -307,8 +308,8 @@ structure EntryHyps (st : machine.Store S) [L : LawfulStore st] (ar : machine.Ar
   inv : ∀ (Ac : Set U64) (s : S) (a : A) (call blk don fp : Bool) (cptr : U64),
     BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → L.cscW s ∈ Ac →
     syscall.handle_invocation st ar s a call blk don fp cptr ⦃ r s' _ => ∃ Ac',
-      BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ∧ CurStep st Ac Ac' s s' ∧
-      (∀ e, r = .Err e → L.actionW s' ≠ L.curW s' ∧
+      BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ∧
+      (∀ e, r = .Err e → CurStep st Ac Ac' s s' ∧ L.actionW s' ≠ L.curW s' ∧
         (L.mem s' (scA (L.curW s')) ≠ 0#u64 → L.cscW s' = L.mem s' (scA (L.curW s')))) ⦄
   /-- At a receive (`handle_recv`): the current thread can block, the user
   words are outside the kernel objects, the caps the current thread looks
@@ -323,8 +324,8 @@ structure EntryHyps (st : machine.Store S) [L : LawfulStore st] (ar : machine.Ar
   irqcap : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → ∀ i : U64, i.val < 128 →
     obj.Slot.cap st (irqSlotA (L.ksb s) i) s ⦃ c => ∀ ptr b0 b1 b2, c = .Notification ptr b0 b1 b2 → ptr ∈ Nt ⦄
   /-- The debug syscalls (`debug_syscall`, which return to the thread directly). -/
-  debug : ∀ (Ac : Set U64) (s : S) (a : A) (t : obj.Tcb) (n : I64), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
-    syscall.debug_syscall st ar s a t n ⦃ _ s' _ => ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄
+  debug : ∀ (Ac : Set U64) (s : S) (a : A) (n : I64), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    syscall.debug_syscall st ar s a (L.curW s) n ⦃ _ s' _ => ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄
   /-- `activate_thread`, after `schedule`. -/
   act : ∀ (Ac : Set U64) (s : S) (a : A), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     sched.activate_thread st ar s a ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄
@@ -445,7 +446,7 @@ theorem syscall.finish.entry (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt, H n = s
 theorem syscall.after_invocation.bxi (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     (E : EntryHyps st ar T Cs Ω H Sg Rp Scs Nt Z U)
     {Ac : Set U64} (s : S) (a : A) (r : core.result.Result Unit error.Exc)
-    (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : HCur st Ac s)
+    (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : ∀ e, r = .Err e → HCur st Ac s)
     (herr : ∀ e, r = .Err e → L.actionW s ≠ L.curW s ∧
       (L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s)))) :
     syscall.after_invocation st ar s a r ⦃ _ s' _ => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ := by
@@ -456,7 +457,8 @@ theorem syscall.after_invocation.bxi (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt,
     obtain ⟨hna, hcsc⟩ := herr e rfl
     obtain ⟨⟨Q, R, h0⟩, hB, hX, hSg, hS⟩ := h
     dsimp only
-    refine WP.spec_bind (syscall.mcs_preemption_point.all hA s a Q R h0 hB hX hSg hS hcsc hna hc (E.tmo hA Ac)) ?_
+    refine WP.spec_bind (syscall.mcs_preemption_point.all hA s a Q R h0 hB hX hSg hS hcsc hna (hc e rfl)
+      (E.tmo hA Ac)) ?_
     rintro ⟨s1, a1⟩ h1
     try simp only [WP.uncurry'_pair]
     refine WP.spec_bind (hA.take_pending_irq a1) ?_
@@ -484,8 +486,9 @@ theorem syscall.dispatch_syscall.bxi (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt,
     fun call blk don fp cptr => WP.spec_mono (E.inv Ac s a call blk don fp cptr h hcA) fun r hr => by
       obtain ⟨r', s1, a1⟩ := r
       simp only [WP.uncurry'_pair] at hr ⊢
-      obtain ⟨Ac1, h1, k1, e1⟩ := hr
-      exact syscall.after_invocation.bxi hA hNt E s1 a1 r' h1 ((HCur.of_mem hcA).step k1) e1
+      obtain ⟨Ac1, h1, e1⟩ := hr
+      exact syscall.after_invocation.bxi hA hNt E s1 a1 r' h1
+        (fun e he => (HCur.of_mem hcA).step (e1 e he).1) fun e he => (e1 e he).2
   have IR : ∀ (call blk don fp : Bool) (cptr : U64) (b1 b2 : Bool),
       (do
         let (r, s1, a1) ← syscall.handle_invocation st ar s a call blk don fp cptr
@@ -631,7 +634,9 @@ theorem syscall.handle_unknown_syscall.entry (hA : P0.ArchTotal ar) (hNt : ∀ n
     exact (WP.spec_ok _).2 ⟨Ac, h⟩
   split
   · exact (WP.spec_ok _).2 ⟨Ac, h⟩
-  refine WP.spec_bind (E.debug Ac s a t number h) ?_
+  have et' : t = L.curW s := et
+  subst et'
+  refine WP.spec_bind (E.debug Ac s a number h) ?_
   rintro ⟨b, s1, a1⟩ ⟨Ac1, h1⟩
   try simp only [WP.uncurry'_pair]
   try simp only [uncurry_apply_pair]

@@ -165,7 +165,7 @@ thread can block, the user words are outside the kernel objects (`UserOK`)
 and the message transfer writes there (`XferOK`); cap faults are the fault
 family `hfault`. -/
 theorem syscall.handle_recv.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (hNt : ∀ n ∈ Nt, H n = some .ntfn) {U : Set U64} (hxf : XferOK st ar T U)
+    (hNt : ∀ n ∈ Nt, H n = some .ntfn) {U : Set U64} (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U)
     {Ac : Set U64} (s : S) (a : A) (blk rep : Bool) (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hU : UserOK st T Cs Ω H U s) (hc : CanBlock st T Ac s (L.curW s))
     (hlk : ∀ cptr, cspace.lookup_cap st s (L.curW s) cptr ⦃ r => ∀ c, r = .Ok c → CapTyped H Rp Nt c ⦄)
@@ -352,7 +352,7 @@ fault IPC (`send_fault_ipc`, no donation), if the handler cap is an
 endpoint.  From the hypotheses at the call: the handler cap is typed, the
 thread can block, `UserOK` and `XferOK`. -/
 theorem faults.handle_timeout.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
-    (hxf : XferOK st ar T U) {Ac : Set U64} (s : S) (a : A) (t : obj.Tcb) (f : error.Fault)
+    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U) {Ac : Set U64} (s : S) (a : A) (t : obj.Tcb) (f : error.Fault)
     (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hU : UserOK st T Cs Ω H U s) (hc : CanBlock st T Ac s t)
     (hcap : obj.Tcb.slot t layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl =>
       obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄) :
@@ -430,7 +430,7 @@ an endpoint cap (donating the thread's SC if it has one), else the fault is
 recorded and the thread made inactive.  From the hypotheses at the call:
 the handler cap is typed, the thread can block, `UserOK` and `XferOK`. -/
 theorem faults.handle_fault.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
-    (hxf : XferOK st ar T U) {Ac : Set U64} (s : S) (a : A) (t : obj.Tcb) (f : error.Fault)
+    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U) {Ac : Set U64} (s : S) (a : A) (t : obj.Tcb) (f : error.Fault)
     (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hU : UserOK st T Cs Ω H U s) (hc : CanBlock st T Ac s t)
     (hcap : obj.Tcb.slot t layout.tcb.SLOT_FAULT_HANDLER ⦃ sl =>
       obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄) :
