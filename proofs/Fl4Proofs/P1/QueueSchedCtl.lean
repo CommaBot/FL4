@@ -1201,7 +1201,7 @@ theorem schedcontext.decode_sched_control.dec {A : Type _} {ar : machine.Arch A}
 /-- **InvGaps' `schedControl`, discharged** from `ScCtlPlace`. -/
 theorem decGap_schedControl {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
     (Pl : ScCtlPlace st T Cs Ω H Sg Rp Scs Nt Z U) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .schedControl := by
-  intro Ac s a lbl len slot cap blk call don fp buf extra hf D
+  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot
   cases cap <;> simp [capFam] at hf
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩

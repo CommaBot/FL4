@@ -491,7 +491,7 @@ theorem cnode.decode.dec2 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
 theorem decGap_cnode2 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (C : CdtHyps2 st T Cs Ω H Sg Rp Scs Nt Z) (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) :
     DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .cnode := by
-  intro Ac s a lbl len slot cap blk call don fp buf extra hf D
+  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot
   cases cap <;> simp [capFam] at hf
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩

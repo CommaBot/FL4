@@ -445,7 +445,7 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
 theorem decGap_sc {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (Y : ScYieldGap st ar T Cs Ω H Sg Rp Scs Nt Z U) :
     DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .schedContext := by
-  intro Ac s a lbl len slot cap blk call don fp buf extra hf D
+  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot
   cases cap <;> simp [capFam] at hf
   rename_i sc b
   unfold syscall.decode_invocation

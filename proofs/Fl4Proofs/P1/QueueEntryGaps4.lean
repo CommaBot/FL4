@@ -7,6 +7,7 @@ SchedContext `YieldTo` (`InvGaps4`), with the placement facts `P3Place`,
 import Fl4Proofs.P1.QueueDecTcb2
 import Fl4Proofs.P1.QueueFinThr
 import Fl4Proofs.P1.QueueSchedCtl
+import Fl4Proofs.P1.QueueDecIrq
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -19,20 +20,20 @@ variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U : Set U64}
 /-- The families whose decode P1 still does not prove, the thread family's
 named labels (`TcbGaps`), and the named per-kind finalisations of CNode
 `Delete`/`Revoke` (`FinGaps`).  `YieldTo` is no longer a gap
-(`scYieldGap_holds`). -/
+(`scYieldGap_holds`); SchedControl, IrqControl, IrqHandler, IOPortControl and
+IOPort are proved (`QueueSchedCtl`, `QueueDecIrq`), up to their named
+placement premises (`scCtl`, `irqPl`). -/
 structure InvGaps4 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
   untyped : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .untyped
   thread : TcbGaps st ar T Cs Ω H Sg Rp Scs Nt Z U
-  irqControl : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .irqControl
-  irqHandler : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .irqHandler
+  /-- The IRQ handler family's placement premises (the family is proved, `decGap_irqHandler`). -/
+  irqPl : IrqPlace st T Cs Ω H Sg Rp Scs Nt Z U
   /-- `SchedControl`'s placement premises (the family is proved, `decGap_schedControl`). -/
   scCtl : ScCtlPlace st T Cs Ω H Sg Rp Scs Nt Z U
   vspace : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .vspace
   vcpu : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .vcpu
   ept : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .ept
-  ioPortControl : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .ioPortControl
-  ioPort : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .ioPort
   /-- The finalisations of CNode `Delete`/`Revoke` P1 does not prove. -/
   fin : FinGaps st ar T Cs Ω H Sg Rp Scs Nt Z
 
@@ -42,9 +43,10 @@ theorem InvGaps4.gaps3 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (Pt : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
     (G : InvGaps4 st ar T Cs Ω H Sg Rp Scs Nt Z U) :
     InvGaps3 st ar T Cs Ω H Sg Rp Scs Nt Z U :=
-  ⟨G.untyped, decGap_thread hA G.thread Pt E (delGaps_of hA Pd (G.fin.kinds hA Pd)) C.toCdtHyps, G.irqControl, G.irqHandler,
-    decGap_schedControl hA G.scCtl, G.vspace, G.vcpu, G.ept, G.ioPortControl, G.ioPort, scYieldGap_holds hA U,
-    delGaps_of hA Pd (G.fin.kinds hA Pd)⟩
+  ⟨G.untyped, decGap_thread hA G.thread Pt E (delGaps_of hA Pd (G.fin.kinds hA Pd)) C.toCdtHyps,
+    decGap_irqControl hA C.toCdtHyps, decGap_irqHandler hA C.toCdtHyps Pd G.irqPl,
+    decGap_schedControl hA G.scCtl, G.vspace, G.vcpu, G.ept, decGap_ioPortControl C.toCdtHyps,
+    decGap_ioPort hA E, scYieldGap_holds hA U, delGaps_of hA Pd (G.fin.kinds hA Pd)⟩
 
 /-- **Native kernel entries keep `EntryInv`**, from `InvGaps4` and the
 placement facts. -/

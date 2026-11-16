@@ -166,7 +166,7 @@ theorem domain.decode.dec (s : S) (lbl len buf : U64) (extra : Aeneas.Std.Array 
 
 /-- **InvGaps' `domain`, discharged.** -/
 theorem decGap_domain {A : Type _} (ar : machine.Arch A) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .domain := by
-  intro Ac s a lbl len slot cap blk call don fp buf extra hf D
+  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot
   cases cap <;> simp [capFam] at hf
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩

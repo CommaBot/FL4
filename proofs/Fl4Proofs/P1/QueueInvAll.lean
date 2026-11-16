@@ -196,7 +196,7 @@ def DecGap (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machin
     (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (f : CapFam) : Prop :=
   ∀ (Ac : Set U64) (s : S) (a : A) (lbl len : U64) (slot : obj.Slot) (cap : capability.Cap)
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize),
-    capFam cap = f → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra →
+    capFam cap = f → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → CapW T Ω Sg slot →
     syscall.decode_invocation st ar s a lbl len slot cap blk call don fp buf extra ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄
 
@@ -228,6 +228,9 @@ structure InvHyps (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64
   slotcap : ∀ (Ac : Set U64) (s : S) (cptr : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     cspace.lookup_slot st s (L.curW s) cptr ⦃ r => ∀ x, r = .Ok x →
       obj.Slot.cap st x.slot s ⦃ c => CapOK st T Rp Scs Nt H s c ⦄ ⦄
+  /-- The looked-up slot of the invoked cap is a cap slot. -/
+  lookupSlot : ∀ (Ac : Set U64) (s : S) (cptr : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    cspace.lookup_slot st s (L.curW s) cptr ⦃ r => ∀ x, r = .Ok x → CapW T Ω Sg x.slot ⦄
   extra : ∀ (Ac : Set U64) (s : S) (b : U64) (tag : msginfo.MessageInfo), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     ipc.lookup_extra_caps st s (L.curW s) b tag ⦃ r => ∀ e, r = .Ok e →
       ∀ s', WritesIn st s s' (NodeW st s) → ∀ sl ∈ e.val, sl ≠ 0#u64 →
@@ -252,7 +255,7 @@ theorem syscall.decode_invocation.dec {A : Type _} {ar : machine.Arch A} (hA : P
     (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (G : InvGaps st ar T Cs Ω H Sg Rp Scs Nt Z U)
     (s : S) (a : A) (lbl len : U64) (slot : obj.Slot) (cap : capability.Cap)
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) :
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hslot : CapW T Ω Sg slot) :
     syscall.decode_invocation st ar s a lbl len slot cap blk call don fp buf extra ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
   have h := D.bxi
@@ -301,26 +304,26 @@ theorem syscall.decode_invocation.dec {A : Type _} {ar : machine.Arch A} (hA : P
       simp only [WP.uncurry'_pair] at hr ⊢
       exact ⟨Ac, BlkOK.bxi hr.2.1, fun e => by rw [hr.1] at e; cases e⟩
     · exact rej (.Sys (.InvalidCapability 0#u64)) (by simp)
-  | Untyped => exact G.untyped _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
-  | Reply => exact G.reply _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
-  | CNode => exact G.cnode _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
-  | Thread => exact G.thread _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
-  | IrqControl => exact G.irqControl _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
-  | IrqHandler => exact G.irqHandler _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
-  | Domain => exact G.domain _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
-  | SchedContext => exact G.schedContext _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
-  | SchedControl => exact G.schedControl _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
-  | Frame => exact G.vspace _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
-  | PageTable => exact G.vspace _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
-  | PageDirectory => exact G.vspace _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
-  | Pdpt => exact G.vspace _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
-  | Pml4 => exact G.vspace _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
-  | AsidControl => exact G.vspace _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
-  | AsidPool => exact G.vspace _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
-  | Vcpu => exact G.vcpu _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
-  | Ept => exact G.ept _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
-  | IoPortControl => exact G.ioPortControl _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
-  | IoPort => exact G.ioPort _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D
+  | Untyped => exact G.untyped _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
+  | Reply => exact G.reply _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
+  | CNode => exact G.cnode _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
+  | Thread => exact G.thread _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
+  | IrqControl => exact G.irqControl _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
+  | IrqHandler => exact G.irqHandler _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
+  | Domain => exact G.domain _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
+  | SchedContext => exact G.schedContext _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
+  | SchedControl => exact G.schedControl _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
+  | Frame => exact G.vspace _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
+  | PageTable => exact G.vspace _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
+  | PageDirectory => exact G.vspace _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
+  | Pdpt => exact G.vspace _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
+  | Pml4 => exact G.vspace _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
+  | AsidControl => exact G.vspace _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
+  | AsidPool => exact G.vspace _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
+  | Vcpu => exact G.vcpu _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
+  | Ept => exact G.ept _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
+  | IoPortControl => exact G.ioPortControl _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
+  | IoPort => exact G.ioPort _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot
 
 /-- **EntryHyps' `inv`: `handle_invocation` over every cap family**, from
 the decode gaps `InvGaps`, the invocation facts `InvHyps`, the transfer's
@@ -363,7 +366,7 @@ theorem syscall.handle_invocation.inv {A : Type _} {ar : machine.Arch A} (hA : P
   have e : t = L.curW s := et
   subst e
   refine WP.spec_bind (P0.msg.msg_info.p0 st s _ hS) fun info _ => ?_
-  refine WP.spec_bind (I.slotcap Ac s cptr h) fun r hr => ?_
+  refine WP.spec_bind (WP.spec_and (I.slotcap Ac s cptr h) (I.lookupSlot Ac s cptr h)) fun r ⟨hr, hsl⟩ => ?_
   rcases r with r1 | lf
   · try simp only
     refine WP.spec_bind (hr r1 rfl) fun cap hcap => ?_
@@ -378,7 +381,7 @@ theorem syscall.handle_invocation.inv {A : Type _} {ar : machine.Arch A} (hA : P
       obtain ⟨hrun, hact⟩ := I.cur Ac s h
       obtain ⟨hcb, hU⟩ := recvOK Ac s h
       refine WP.spec_bind (syscall.decode_invocation.dec hA E G s a info.label length r1.slot cap
-        blk call don fp buf ex ⟨h, hcA, hcap, hx ex rfl, hrun, hact, hcsc, hcb, hU⟩) ?_
+        blk call don fp buf ex ⟨h, hcA, hcap, hx ex rfl, hrun, hact, hcsc, hcb, hU⟩ (hsl r1 rfl)) ?_
       rintro ⟨r3, s1, a1⟩ ⟨Ac1, h1, hp⟩
       try simp only [WP.uncurry'_pair]
       obtain ⟨-, hU1⟩ := recvOK Ac1 s1 h1
