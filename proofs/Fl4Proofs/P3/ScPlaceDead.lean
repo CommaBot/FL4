@@ -4,9 +4,12 @@ P3 (DESIGN.md §9): **keeping `JCov`: monotone ghost heaps and a dead set**
 
 * `DeadP H s q`: the object at `q` is read by nothing P1 tracks: a TCB
   inactive, in no queue, with no SC, bound notification or reply, neither
-  current, the scheduler action nor idle; an endpoint idle; a notification
-  idle with no bound TCB and no SC; a reply with no TCB; an SC with no TCB
-  and no reply, not the current SC.
+  the scheduler action nor idle; an endpoint idle; a notification not
+  waiting, with no bound TCB and no SC; a reply with no TCB; an SC with no
+  TCB, reply or notification.  (The current thread and the current SC may
+  still name a dead object: finalising the current thread's TCB or SC
+  leaves `CUR_THREAD` / `CUR_SC` until the next `schedule`, as in seL4; a
+  notification keeps an `Active` state and its badge.)
 * `JCovD th H G D Cs s`: every object of `th` and `H` is covered by a cap
   or in the dead set `D`, `D`'s objects are `DeadP`, and the untyped caps
   miss the kernel area (`JCov` with "covered" weakened to "covered or
@@ -17,10 +20,12 @@ P3 (DESIGN.md §9): **keeping `JCov`: monotone ghost heaps and a dead set**
   `JCovD.delete`: a slot's cap removed, the objects of its range dead).
 * `dead_childless`: an object meeting a childless untyped region is dead,
   so retype removes only dead objects.
-* `FinDeadHyp`: what P1's finalisation of a final cap must add to its
-  post (the `.slots` lemmas give `BlkOK` and the footprint, not this).
+* `FinDeadHyp`: P1's finalisation of a final cap leaves its object dead;
+  proved per kind from P1's `fin_cap_*.dead` (QueueDead): `finDead_ep`,
+  `finDead_ntfn`, `finDead_reply`, `finDead_sc`.
 -/
 import Fl4Proofs.P3.ScPlaceUt
+import Fl4Proofs.P1.QueueDead
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Sched
@@ -35,12 +40,12 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 def DeadP (H : Heap) (s : S) (q : U64) : Prop :=
   (H q = some .tcb → L.mem s (P1.stA q) = sched.TS_INACTIVE ∧ L.mem s (inqA q) = 0#u64 ∧
     L.mem s (scA q) = 0#u64 ∧ L.mem s (boundA q) = 0#u64 ∧ L.mem s (replyA q) = 0#u64 ∧
-    q ≠ L.curW s ∧ q ≠ L.actionW s ∧ q ≠ L.idleW s) ∧
+    q ≠ L.actionW s ∧ q ≠ L.idleW s) ∧
   (H q = some .ep → L.epState s q = 0#u64) ∧
-  (H q = some .ntfn → L.epState s q = 0#u64 ∧ L.mem s (ntfnBtA q) = 0#u64 ∧ L.mem s (ntfnScA q) = 0#u64) ∧
+  (H q = some .ntfn → L.epState s q ≠ 1#u64 ∧ L.mem s (ntfnBtA q) = 0#u64 ∧ L.mem s (ntfnScA q) = 0#u64) ∧
   (H q = some .reply → L.mem s (rTcbA q) = 0#u64) ∧
   (∀ z, H q = some (.sc z) → L.mem s (scTcbA q) = 0#u64 ∧ L.mem s (scReplyA q) = 0#u64 ∧
-    L.mem s (scNtfnA q) = 0#u64 ∧ q ≠ L.cscW s)
+    L.mem s (scNtfnA q) = 0#u64)
 
 /-- **`JCov` with a dead set** (module docstring). -/
 structure JCovD (th : TypedHeap) (H : Heap) (G : MdbGhost) (D : Set U64) (Cs : Set U64) (s : S) : Prop where
@@ -164,15 +169,64 @@ theorem dead_childless (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem s) 
 
 end
 
-/-- **What P1's finalisation of a final cap must add to its post**: the
-cap's object is dead afterwards (`DeadP`). P1's `fin_cap_*.slots` give
-`BlkOK`, the footprint and the cap-slot words only; this is the missing
-post, per kind (`K`, with the object `obj`). -/
+/-- The object a cap of a finalisable kind names. -/
+def finObj : capability.Cap → U64
+  | .Endpoint p _ _ _ _ _ => p
+  | .Notification p _ _ _ => p
+  | .Reply p _ => p
+  | .SchedContext p _ => p
+  | .Thread p => p
+  | _ => 0#u64
+
+/-- **P1's finalisation of a final cap leaves its object dead**: for the caps
+`K s c` (a kind, its object's heap kind and P1 set, and the state conditions
+P1's lemma takes), the object `obj c` is `DeadP` afterwards. -/
 def FinDeadHyp {S A : Type} (st : machine.Store S) [L : P1.LawfulStore st] (ar : machine.Arch A)
     (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (Ac : Set U64)
-    (K : capability.Cap → Prop) (obj : capability.Cap → U64) : Prop :=
-  ∀ (s : S) (a : A) (c : capability.Cap) (ex : Bool), K c → BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    (K : S → capability.Cap → Prop) (obj : capability.Cap → U64) : Prop :=
+  ∀ (s : S) (a : A) (c : capability.Cap) (ex : Bool), K s c → BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     objects.finalise_cap st ar s a c true ex ⦃ r => DeadP (L := L) H r.2.1 (obj c) ⦄
+
+section fin
+variable {S A : Type} {st : machine.Store S} [L : P1.LawfulStore st] {ar : machine.Arch A}
+variable {T Cs Ω : Set U64} {H : Heap} {Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64}
+
+/-- **Endpoint**: `cancel_all_ipc` leaves it idle. -/
+theorem finDead_ep : FinDeadHyp st ar T Cs Ω H Sg Rp Scs Nt Z Ac
+    (fun _ c => ∃ ep b0 b1 b2 b3 b4, c = .Endpoint ep b0 b1 b2 b3 b4 ∧ H ep = some .ep) finObj := by
+  rintro s a c ex ⟨ep, b0, b1, b2, b3, b4, rfl, hH⟩ h
+  exact WP.spec_mono (fin_cap_ep.dead (ar := ar) s a ep b0 b1 b2 b3 b4 ex h hH) fun r e =>
+    ⟨fun h' => by simp [finObj, hH] at h', fun _ => e, fun h' => by simp [finObj, hH] at h', fun h' => by simp [finObj, hH] at h',
+      fun z h' => by simp [finObj, hH] at h'⟩
+
+/-- **Notification**: unbound from its SC and TCB, and not waiting. -/
+theorem finDead_ntfn : FinDeadHyp st ar T Cs Ω H Sg Rp Scs Nt Z Ac
+    (fun _ c => ∃ n b0 b1 b2, c = .Notification n b0 b1 b2 ∧ n ∈ Nt ∧ H n = some .ntfn) finObj := by
+  rintro s a c ex ⟨n, b0, b1, b2, rfl, hn, hH⟩ h
+  exact WP.spec_mono (fin_cap_ntfn.dead (ar := ar) s a n b0 b1 b2 ex h hn hH) fun r e =>
+    ⟨fun h' => by simp [finObj, hH] at h', fun h' => by simp [finObj, hH] at h', fun _ => e, fun h' => by simp [finObj, hH] at h',
+      fun z h' => by simp [finObj, hH] at h'⟩
+
+/-- **Reply**: its `TCB` word cleared. -/
+theorem finDead_reply (hA : P0.ArchTotal ar) : FinDeadHyp st ar T Cs Ω H Sg Rp Scs Nt Z Ac
+    (fun _ c => ∃ p x, c = .Reply p x ∧ p ∈ Rp ∧ H p = some .reply) finObj := by
+  rintro s a c ex ⟨p, x, rfl, hp, hH⟩ h
+  exact WP.spec_mono (fin_cap_reply.dead hA s a p x ex h hp) fun r e =>
+    ⟨fun h' => by simp [finObj, hH] at h', fun h' => by simp [finObj, hH] at h', fun h' => by simp [finObj, hH] at h', fun _ => e,
+      fun z h' => by simp [finObj, hH] at h'⟩
+
+/-- **Scheduling context**: its `TCB`, `REPLY` and `NTFN` words cleared;
+P1's conditions: the SC's thread is neither the scheduler action nor idle. -/
+theorem finDead_sc (hA : P0.ArchTotal ar) : FinDeadHyp st ar T Cs Ω H Sg Rp Scs Nt Z Ac
+    (fun s c => ∃ p x z, c = .SchedContext p x ∧ p ∈ Scs ∧ p ≠ 0#u64 ∧ H p = some (.sc z) ∧
+      (L.mem s (scTcbA p) ≠ 0#u64 → L.actionW s ≠ L.mem s (scTcbA p)) ∧
+      (L.mem s (scTcbA p) ≠ 0#u64 → L.idleW s ≠ L.mem s (scTcbA p))) finObj := by
+  rintro s a c ex ⟨p, x, z, rfl, hp, hp0, hH, hna, hidle⟩ h
+  exact WP.spec_mono (fin_cap_sc.dead hA s a p x ex h hp hp0 hna hidle) fun r e =>
+    ⟨fun h' => by simp [finObj, hH] at h', fun h' => by simp [finObj, hH] at h', fun h' => by simp [finObj, hH] at h',
+      fun h' => by simp [finObj, hH] at h', fun _ _ => e⟩
+
+end fin
 
 end
 

@@ -170,8 +170,10 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
   (`rescheduleRequired_some`, `possibleSwitchTo_some`).
 * ScPlaceDead: `JCov` kept with a dead set (`JCovD`, `DeadP`): across
   steps (`JCovD.step`, `JCovD.same`), deletes (`JCovD.delete`), and the
-  childless region holding only dead objects (`dead_childless`); P1's
-  missing finalisation post `FinDeadHyp`.
+  childless region holding only dead objects (`dead_childless`);
+  finalisation of a final cap leaves its object dead (`FinDeadHyp`) for
+  endpoints, notifications, replies and SCs (`finDead_*`, from P1's
+  QueueDead).
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
