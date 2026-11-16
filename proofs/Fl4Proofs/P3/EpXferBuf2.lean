@@ -67,9 +67,10 @@ theorem do_ipc_transfer_buf (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E 
     (hks : σ.kheap snd.bv = some (.tcb xs)) (hkr : σ.kheap rcv.bv = some (.tcb xr)) (hf : xs.tcbFault = none)
     {rp : Fl4Spec.ObjRef} (hrb : ipcBufOf true xr = some rp) (ep badge : U64) (grant : Bool)
     (hcaps : grant = false ∨ ipcBufOf false xs = none ∨
-      Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0) :
+      Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0)
+    (epo : Option Fl4Spec.ObjRef := some ep.bv) :
     ipc.do_ipc_transfer st ar s a snd ep badge grant rcv ⦃ s' => ∃ σ',
-      Fl4Spec.doIpcTransfer (Z := Unit) snd.bv (some ep.bv) badge.bv grant rcv.bv σ = ({((), σ')}, False) ∧
+      Fl4Spec.doIpcTransfer (Z := Unit) snd.bv epo badge.bv grant rcv.bv σ = ({((), σ')}, False) ∧
       EpStateRel T E R B (L.mem s') σ' ∧ SR s' σ' ∧
       Agree (L.mem s) (L.mem s') (fun b => ¬ RcvReg rcv b ∧ ¬ BufW B b) ∧
       (∀ p, p ≠ rcv.bv → σ'.kheap p = σ.kheap p) ∧
@@ -138,7 +139,7 @@ theorem do_ipc_transfer_buf (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E 
   obtain ⟨sl, hsl⟩ := hBm.recvSlots s1 σc rcv x1 rp hRc hSc hr hkc (by rw [ipcBufOf_copyRegs]; exact hrb)
   have hcopy' := hcopy
   rw [hlenw] at hcopy'
-  have hspec := doIpcTransfer_recvBuf hks hkr hf hrb (some ep.bv) badge.bv grant hcaps hcopy' hkc hsl
+  have hspec := doIpcTransfer_recvBuf hks hkr hf hrb epo badge.bv grant hcaps hcopy' hkc hsl
   -- the two register writes
   obtain ⟨hR2, hW2, hS2⟩ := write_reg_rel hP s1 _ hRc hr hkc Fl4Spec.msg_info_register v
   rw [regIdx_msgInfo] at hR2 hW2

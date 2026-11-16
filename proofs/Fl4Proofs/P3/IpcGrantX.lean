@@ -119,9 +119,10 @@ theorem do_ipc_transfer_regsX (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T 
       tag.extra_caps.bv = (Fl4Spec.dataToMessageInfo (xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps →
       ipc.lookup_extra_caps st s snd sb tag ⦃ _ => ∃ l, Fl4Spec.NonDetE.catch (Fl4Spec.lookupExtraCaps (Z := Unit) snd.bv
         (ipcBufOf false xs) (Fl4Spec.dataToMessageInfo (xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)))
-        (fun _ => pure []) σ = ({(l, σ)}, False) ⦄) :
+        (fun _ => pure []) σ = ({(l, σ)}, False) ⦄)
+    (epo : Option Fl4Spec.ObjRef := some ep.bv) :
     ipc.do_ipc_transfer st ar s a snd ep badge grant rcv ⦃ s' =>
-      Fl4Spec.doIpcTransfer (Z := Unit) snd.bv (some ep.bv) badge.bv grant rcv.bv σ =
+      Fl4Spec.doIpcTransfer (Z := Unit) snd.bv epo badge.bv grant rcv.bv σ =
         ({((), updK σ rcv.bv (.tcb (xferTcb xr xs badge.bv)))}, False) ∧
       EpStateRel T E R B (L.mem s') (updK σ rcv.bv (.tcb (xferTcb xr xs badge.bv))) ∧
       SR s' (updK σ rcv.bv (.tcb (xferTcb xr xs badge.bv))) ∧
@@ -164,7 +165,7 @@ theorem do_ipc_transfer_regsX (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T 
       split <;> (rw [WP.spec_ok]; exact fun _ => hl)
   refine WP.spec_bind hex ?_
   rintro extra hlx
-  have hspec := doIpcTransfer_regsG (fun h => hne (eq_of_bv h)) hks hkr hf hrb (some ep.bv) badge.bv grant hlx
+  have hspec := doIpcTransfer_regsG (fun h => hne (eq_of_bv h)) hks hkr hf hrb epo badge.bv grant hlx
   refine WP.spec_bind (copy_mrs_norecv (L := L) hP s hs hr hne sb tag.length) ?_
   rintro ⟨i, s1⟩ ⟨hi, hregs, hag, hw⟩
   refine WP.spec_bind (transfer_caps_norecv (L := L) s1 tag extra ep rcv) ?_
@@ -530,9 +531,10 @@ theorem do_ipc_transfer_regsT (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E
     (hSR : SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c))) s σ)
     {snd rcv : U64} (hs : snd ∈ T) (hr : rcv ∈ T) (hne : snd ≠ rcv) {xs xr : Fl4Spec.Tcb}
     (hks : σ.kheap snd.bv = some (.tcb xs)) (hkr : σ.kheap rcv.bv = some (.tcb xr)) (hf : xs.tcbFault = none)
-    (hrb : ipcBufOf true xr = none) (ep badge : U64) (grant : Bool) :
+    (hrb : ipcBufOf true xr = none) (ep badge : U64) (grant : Bool)
+    (epo : Option Fl4Spec.ObjRef := some ep.bv) :
     ipc.do_ipc_transfer st ar s a snd ep badge grant rcv ⦃ s' =>
-      Fl4Spec.doIpcTransfer (Z := Unit) snd.bv (some ep.bv) badge.bv grant rcv.bv σ =
+      Fl4Spec.doIpcTransfer (Z := Unit) snd.bv epo badge.bv grant rcv.bv σ =
         ({((), updK σ rcv.bv (.tcb (xferTcb xr xs badge.bv)))}, False) ∧
       EpStateRel T E R B (L.mem s') (updK σ rcv.bv (.tcb (xferTcb xr xs badge.bv))) ∧
       SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c))) s'
@@ -541,7 +543,7 @@ theorem do_ipc_transfer_regsT (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E
   have hIR := (IpcRel.ofSRN hR hSR).1
   obtain ⟨⟨th, G, hB⟩, -⟩ := hSR.1.1
   refine WP.spec_mono (do_ipc_transfer_regsX (ar := ar) (hH.epHyps hP0) hBf.srs hBm.srs hP s a σ hR hSR.1 hs hr hne
-    hks hkr hf hrb ep badge grant ?_) fun _ ⟨h1, h2, h3, h4⟩ =>
+    hks hkr hf hrb ep badge grant ?_ epo) fun _ ⟨h1, h2, h3, h4⟩ =>
       ⟨h1, h2, ⟨h3, ntfn_lift_rcv hP0.toC hSR.2 h2 hr (h4.mono fun _ h => h.1) (fun p hp => by simp [hp]) hkr
         (by simp only [updK_kheap, Function.update_self]; exact rfl) (xferTcb_state _ _ _)⟩, h4⟩
   intro _ sb tag hsb hext
