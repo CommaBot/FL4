@@ -29,7 +29,7 @@ theorem blk_of_vs {s s' : S} {V : U64 → Prop} (h : BlkOK st T Cs Ω H Sg Rp Sc
     (hw : WritesIn st s s' V) :
     BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ CaiFr st T Scs 0#u64 s s' ∧ L.actionW s' = L.actionW s ∧
       L.curW s' = L.curW s ∧ L.cscW s' = L.cscW s ∧
-      (∀ y ∈ T, ∀ K : U64, 160 ≤ K.val → K.val < 4096 → K.val % 8 = 0 →
+      (∀ y ∈ T, ∀ K : U64, 192 ≤ K.val → K.val < 4096 → K.val % 8 = 0 →
         L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K)) ∧
       (∀ c ∈ Cs, ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)) ∧
       (∀ b ∈ Sg, L.mem s' b = L.mem s b) := by

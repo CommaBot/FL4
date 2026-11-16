@@ -106,6 +106,18 @@ theorem fin_cap_ntfn.slots {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (n
   exact WP.spec_mono (fin_ntfn.blk (ar := ar) s a n b0 b1 b2 fin h hn hH) fun r ⟨e, _, hb, f⟩ =>
     ⟨e, hb, f.mono hm, foot_keeps_capw h (f.mono hm)⟩
 
+/-- **Endpoint**: `finalise_cap` keeps `BlkOK` and every cap-slot word (a
+final cap cancels all IPC on the endpoint, `fin_endpoint.fr`). -/
+theorem fin_cap_ep.slots {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (ep : U64) (b0 b1 b2 b3 b4 : _)
+    (fin ex : Bool) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hH : H ep = some .ep) :
+    objects.finalise_cap st ar s a (.Endpoint ep b0 b1 b2 b3 b4) fin ex ⦃ r =>
+      r.1 = (.Null, .Null) ∧ BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2.1 ∧ Foot st T Cs Sg Scs Z (EH H) s r.2.1 ∧
+      ∀ b, Aligned b → CapW T Ω Sg b → L.mem r.2.1 b = L.mem s b ⦄ := by
+  rw [fin_cap_eq_obj (by simp)]
+  have hm : ({ep} : Set U64) ⊆ EH H := fun x hx => by rw [Set.mem_singleton_iff.1 hx]; exact Or.inl hH
+  exact WP.spec_mono (fin_endpoint.fr (ar := ar) s a ep b0 b1 b2 b3 b4 fin h hH) fun r ⟨e, _, hb, f, _, _⟩ =>
+    ⟨e, hb, f.mono hm, foot_keeps_capw h (f.mono hm)⟩
+
 /-- **Reply**: `finalise_cap` keeps `BlkOK` and every cap-slot word. -/
 theorem fin_cap_reply.slots {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A) (p : U64)
     (x fin ex : Bool) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hp : p ∈ Rp) :
