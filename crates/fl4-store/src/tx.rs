@@ -80,7 +80,10 @@ pub trait Mem {
     }
 }
 
-#[repr(C, align(64))]
+// Four version words per cache line keep page clears from walking 16 KiB
+// of metadata. Stripes stay independent, even when their counters share a
+// physical cache line.
+#[repr(C, align(16))]
 struct Entry(AtomicU64);
 
 static TABLE: [Entry; ENTRIES] = [const { Entry(AtomicU64::new(0)) }; ENTRIES];
@@ -91,7 +94,11 @@ static CLOCK: AtomicU64 = AtomicU64::new(0);
 #[inline(always)]
 pub fn stripe(addr: u64) -> usize {
     let l = addr >> STRIPE_BITS;
-    ((l ^ (l >> TABLE_BITS)) as usize) & (ENTRIES - 1)
+    // Spread aligned 256 KiB blocks across the table. Just XORing the
+    // block number makes equally aligned pages in nearby blocks alias.
+    // Multiplying the block number leaves each aligned power-of-two
+    // region's stripes contiguous, so clear_free still locks in order.
+    ((l ^ (l >> TABLE_BITS).wrapping_mul(0x9e37)) as usize) & (ENTRIES - 1)
 }
 
 /// Per core, the last few conflicts, for diagnosing contention: the word
@@ -593,6 +600,27 @@ mod tests {
             end(cpu);
             assert_eq!(m.load(0x100000 + cpu * 16 + 8), cpu + 10);
         }
+    }
+
+    #[test]
+    fn clearing_a_page_in_another_block_keeps_independent_reads_valid() {
+        let _test = TEST_LOCK.lock().unwrap();
+        let m = SparseMem::default();
+        let object = 0x100008;
+        let free_page = 0x140000;
+        m.store(object, 7);
+        m.store(free_page, 99);
+        begin(0, &m);
+        assert_eq!(read(0, &m, object), 7);
+        write(0, object, 8);
+        begin(1, &m);
+        clear_free(1, &m, free_page, 4096);
+        assert!(commit(1, &m));
+        end(1);
+        assert!(commit(0, &m));
+        end(0);
+        assert_eq!(m.load(object), 8);
+        assert_eq!(m.load(free_page), 0);
     }
 
     #[test]

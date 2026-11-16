@@ -279,7 +279,7 @@ seL4 SMP protects the whole kernel with one CLH lock (`NODE_LOCK_SYS` in `includ
 
 Endpoints are 16 bytes and cap slots 32, and a CNode holds thousands of slots. Instead of growing every small object and every slot by a lock word, FL4 keeps locks in a global table indexed by a hash of the 16-byte region a word lives in. Adjacent endpoints sharing a physical cache line have distinct stripes.
 
-- Each entry is one cache-line-padded 64-bit word: a lock bit and a 63-bit version. Committing writers set the bit and release it with a new version. Readers check an entry without writing to its line. There are 16384 entries (1 MiB), covering each aligned 256 KiB memory span without collisions within that span.
+- Each entry is a 64-bit word padded to 16 bytes: a lock bit and a 63-bit version. Committing writers set the bit and release it with a new version. Readers check an entry without writing to its line. There are 16384 entries (256 KiB), covering each aligned 256 KiB memory span without collisions within that span. The hash multiplies the span number by an odd constant before XORing it with the within-span index, spreading equally aligned pages from nearby spans across the table. Four version words share a cache line; this trades some metadata false sharing for less cache traffic during clears.
 - Two regions that hash to the same entry share it. This costs some false conflicts but never correctness: the protocol only needs every word to be covered by exactly one entry.
 - All kernel memory is covered the same way, per-core scheduler state included. Each core's state lies on its own cache lines, so cores conflict on it only when one really touches another's queues.
 - A global version clock orders commits.
