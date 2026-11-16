@@ -55,6 +55,7 @@ import Fl4Proofs.P1.QueueDecCnode
 import Fl4Proofs.P1.QueueEntryGaps
 import Fl4Proofs.P1.QueueYield
 import Fl4Proofs.P1.QueueRetype
+import Fl4Proofs.P1.QueueHeapDrop
 import Fl4Proofs.P1.QueueFinFr
 import Fl4Proofs.P1.QueueReplyX
 import Fl4Proofs.P1.QueueDecDel
