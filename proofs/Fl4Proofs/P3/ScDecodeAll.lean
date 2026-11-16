@@ -26,7 +26,7 @@ variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulSt
 /-- **Every word a SchedContext invocation may write.** -/
 def UFoot (st : machine.Store S) [L : LawfulStore st] (T N C R : Set U64) (c : U64) (s : S)
     (σ : Fl4Spec.State Unit) (b : U64) : Prop :=
-  TFoot st T N C c s σ b ∨ RW R C b
+  TFoot st T N C c s σ b ∨ RW R C b ∨ RegW T b
 
 /-- **The relations after a SchedContext invocation** from `(s0, σ0)`. -/
 def ScAll (N T C R : Set U64) (c : U64) (s0 : S) (σ0 : Fl4Spec.State Unit) (s : S) (σ : Fl4Spec.State Unit) :
@@ -48,19 +48,29 @@ theorem ScAll.of_k {N T C R : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spec.St
   exact ⟨hSR, hY.frame k2 (hsok.ykeep rfl), hM.frame k1 hsok.mcpKeep, ⟨Lst, hCR', RFree.carry hRF hCR k4 hck⟩,
     hRP', hw.mono fun b hb => Or.inl (Or.inl hb)⟩
 
-/-- `ScAll` from the YieldTo branch (`TFoot`; it carries the yield-to relation). -/
+/-- `ScAll` from a `TFootR` branch (YieldTo, Consumed: the yield-to relation
+carried, the caller's registers written by the reply). -/
+theorem ScAll.of_tr {N T C R : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spec.State Unit} {f : Bool × Bool}
+    (hS : SchedRel st N T C c s σ) (hRP : RPlaced st N T C R c s σ)
+    (hM : McpRel T (L.mem s) σ) {Lst : U64 → List U64} (hCR : CallRel (L.mem s) R C σ Lst)
+    (hRF : RFree (L.mem s) R C σ Lst) (hSR : SRels (st := st) N T C c s' σ') (hY' : YieldRel T C (L.mem s') σ')
+    (hw : WritesIn st s s' (TFootR st T N C c s σ)) (hsok : SOK f σ σ') (hf : f.2 = true) :
+    ScAll (st := st) N T C R c s σ s' σ' := by
+  obtain ⟨k1, k3, k4⟩ := TFootR.keep hS hRP hw
+  have hck := hsok.ckeep hf
+  obtain ⟨hCR', hRP'⟩ := CallRel.carry hCR hRP ⟨k3, k4⟩ hw.1 hck
+  exact ⟨hSR, hY', hM.frame k1 hsok.mcpKeep, ⟨Lst, hCR', RFree.carry hRF hCR k4 hck⟩, hRP',
+    hw.mono fun b hb => by rcases hb with hb | hb; exact Or.inl hb; exact Or.inr (Or.inr hb)⟩
+
+/-- `ScAll` from the YieldTo branch (`TFootR`; it carries the yield-to relation). -/
 theorem ScAll.of_t {N T C R : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) (hRP : RPlaced st N T C R c s σ)
     (hM : McpRel T (L.mem s) σ) {Lst : U64 → List U64} (hCR : CallRel (L.mem s) R C σ Lst)
     (hRF : RFree (L.mem s) R C σ Lst)
-    (h : YRels (st := st) N T C c s' σ' ∧ WritesIn st s s' (TFoot st T N C c s σ) ∧ SOK (false, true) σ σ') :
+    (h : YRels (st := st) N T C c s' σ' ∧ WritesIn st s s' (TFootR st T N C c s σ) ∧ SOK (false, true) σ σ') :
     ScAll (st := st) N T C R c s σ s' σ' := by
   obtain ⟨⟨hS', hR', hN', hI', hY', -⟩, hw, hsok⟩ := h
-  obtain ⟨k1, k3, k4⟩ := TFoot.keep hS hRP hw
-  have hck := hsok.ckeep rfl
-  obtain ⟨hCR', hRP'⟩ := CallRel.carry hCR hRP ⟨k3, k4⟩ hw.1 hck
-  exact ⟨⟨hS', hR', hN', hI'⟩, hY', hM.frame k1 hsok.mcpKeep, ⟨Lst, hCR', RFree.carry hRF hCR k4 hck⟩, hRP',
-    hw.mono fun b hb => Or.inl hb⟩
+  exact ScAll.of_tr hS hRP hM hCR hRF ⟨hS', hR', hN', hI'⟩ hY' hw hsok rfl
 
 /-- `ScAll` from the Unbind branch (`RFoot`; it carries the call-stack relation). -/
 theorem ScAll.of_u {N T C R : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
@@ -73,7 +83,21 @@ theorem ScAll.of_u {N T C R : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spec.St
   obtain ⟨hSR, hCR', hRP', hRF', hw⟩ := h
   obtain ⟨k1, k2⟩ := RFoot.keep hS hRP hw
   exact ⟨hSR, hY.frame k2 (hsok.ykeep rfl), hM.frame k1 hsok.mcpKeep, ⟨Lst', hCR', hRF'⟩, hRP',
-    hw.mono fun b hb => by rcases hb with hb | hb; exact Or.inl (Or.inl hb); exact Or.inr hb⟩
+    hw.mono fun b hb => by rcases hb with hb | hb; exact Or.inl (Or.inl hb); exact Or.inr (Or.inl hb)⟩
+
+/-- **The finer footprint** of a SchedContext invocation by label: Bind and
+UnbindObject write only `TFoot` words, and so does a YieldTo from an SC
+yielded to by none that leaves the caller restarting (it switched; a YieldTo
+returning at once has replied and set the caller running). -/
+def ScFine (N T C : Set U64) (c lbl sc ct : U64) (s0 : S) (σ0 : Fl4Spec.State Unit) (s : S)
+    (σ : Fl4Spec.State Unit) : Prop :=
+  ((lbl = fl4_abi.label.SchedContextBind ∨ lbl = fl4_abi.label.SchedContextUnbindObject) →
+    WritesIn st s0 s (TFoot st T N C c s0 σ0)) ∧
+  (lbl = fl4_abi.label.SchedContextYieldTo → L.mem s0 (scYieldFromA sc) = 0#u64 →
+    ∀ x', σ.kheap ct.bv = some (.tcb x') → x'.tcbState = .restart → WritesIn st s0 s (TFoot st T N C c s0 σ0))
+
+theorem lbl_ne {lbl x y : U64} (h : lbl = x) (hv : x.val ≠ y.val) : lbl ≠ y :=
+  fun e => hv (by rw [← h, e])
 
 /-- **SchedContext invocation decode refines l4v
 `decode_sched_context_invocation`**, then `set_thread_state Restart` and
@@ -111,7 +135,8 @@ theorem sc_decode_refines {N T C R : Set U64} {c : U64} (hT : TimeAgree ar) (th 
     (htu : ∀ v, ar.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st N T C c) :
     schedcontext.decode st ar s a lbl sc call extra ⦃ res =>
       CPost σ (Fl4Spec.decodeSchedContextInvocation (Z := Unit) slbl sc.bv excaps) s a
-        (ScQ (ScAll (st := st) N T C R c s σ) σ ct call) res ⦄ := by
+        (ScQ (fun s' σ' => ScAll (st := st) N T C R c s σ s' σ' ∧ ScFine (st := st) N T C c lbl sc ct s σ s' σ')
+          σ ct call) res ⦄ := by
   obtain ⟨Q, R', hc, hs⟩ := hS.lists
   have hsc0 := hC0 sc hsc
   have hct' : ct = nodeW st s c layout.node.CUR_THREAD := by
@@ -154,12 +179,14 @@ theorem sc_decode_refines {N T C R : Set U64} {c : U64} (hT : TimeAgree ar) (th 
     have hg : Fl4Spec.genInvocationType slbl = .schedContextConsumed := by
       rw [hlbl, l44]; unfold scLabelOf; simp
     refine WP.spec_mono (sc_consumed_refines s a σ hS hR hN hI hY hsc hctT hkc hrun hAI call hmax htu hmsg) ?_
-    rintro r ⟨h1, -, σ1, data, σ2, σ3, he1, he2, hst2, he3, hS3, hR3, hN3, hI3, -, -, hw3⟩
+    rintro r ⟨h1, -, σ1, data, σ2, σ3, he1, he2, hst2, he3, hS3, hR3, hN3, hI3, hY3, -, hw3⟩
     have hsok : SOK (true, true) σ σ3 := ((pres_setThreadState _ _ _).of_eq he1).trans
       (((pres_returnConsumed _ _).of_eq he2).trans
         ((pres_bind (pres_when _ (pres_replyFromKernel _ _ _)) fun _ => pres_setThreadState _ _ _).of_eq he3))
     exact Or.inr ⟨.invokeSchedContextConsumed sc.bv, by rw [hdec _ hg]; rfl, h1, σ1, data, σ2, σ3, he1, he2,
-      Or.inr ⟨hst2, he3⟩, ScAll.of_k hS hRP hY hM hCR hRF ⟨⟨hS3, hR3, hN3, hI3⟩, hw3, hsok⟩⟩
+      Or.inr ⟨hst2, he3⟩, ScAll.of_tr hS hRP hM hCR hRF ⟨hS3, hR3, hN3, hI3⟩ hY3 hw3 hsok rfl,
+      fun h => by rcases h with h | h <;> exact absurd h (lbl_ne l44 (by simp)),
+      fun h => absurd h (lbl_ne l44 (by simp))⟩
   rw [ite_eq_right l44]
   have h44 : lbl.val ≠ 44 := fun h => l44 (UScalar.eq_of_val_eq (by simp [h]))
   by_cases l41 : lbl = fl4_abi.label.SchedContextBind
@@ -168,7 +195,8 @@ theorem sc_decode_refines {N T C R : Set U64} {c : U64} (hT : TimeAgree ar) (th 
       rw [hlbl, l41]; unfold scLabelOf; simp
     exact WP.spec_mono (bind_branch_refines hT th s a σ hS hR hN hI hsc hsc0 extra x0 hx0 excaps hex hcapT hcapN
       hctT hkc hrun call) fun r h => CPost.congr (by rw [hdec _ hg])
-        (h.mono fun _ _ hq => hq.mono fun _ _ hk => ScAll.of_k hS hRP hY hM hCR hRF hk)
+        (h.mono fun _ _ hq => hq.mono fun _ _ hk => ⟨ScAll.of_k hS hRP hY hM hCR hRF hk,
+          fun _ => WritesIn.tfoot_of_kfoot hk.2.1, fun h => absurd h (lbl_ne l41 (by simp))⟩)
   rw [ite_eq_right l41]
   have h41 : lbl.val ≠ 41 := fun h => l41 (UScalar.eq_of_val_eq (by simp [h]))
   by_cases l43 : lbl = fl4_abi.label.SchedContextUnbindObject
@@ -177,7 +205,8 @@ theorem sc_decode_refines {N T C R : Set U64} {c : U64} (hT : TimeAgree ar) (th 
       rw [hlbl, l43]; unfold scLabelOf; simp
     exact WP.spec_mono (unbindobj_branch_refines th s a σ hS hR hN hI hsc hsc0 extra x0 hx0 excaps hex hcapT hcapN
       hctT hcur hkc hrun call) fun r h => CPost.congr (by rw [hdec _ hg])
-        (h.mono fun _ _ hq => hq.mono fun _ _ hk => ScAll.of_k hS hRP hY hM hCR hRF hk)
+        (h.mono fun _ _ hq => hq.mono fun _ _ hk => ⟨ScAll.of_k hS hRP hY hM hCR hRF hk,
+          fun _ => WritesIn.tfoot_of_kfoot hk.2.1, fun h => absurd h (lbl_ne l43 (by simp))⟩)
   rw [ite_eq_right l43]
   have h43 : lbl.val ≠ 43 := fun h => l43 (UScalar.eq_of_val_eq (by simp [h]))
   by_cases l42 : lbl = fl4_abi.label.SchedContextUnbind
@@ -212,7 +241,9 @@ theorem sc_decode_refines {N T C R : Set U64} {c : U64} (hT : TimeAgree ar) (th 
       (((pres_invokeSchedContext _).of_eq he3).weaken (fun _ => by simp)
         (fun h => by cases h))
     refine Or.inr ⟨.invokeSchedContextUnbind sc.bv, ?_, h1, σ0, [], σ3, σ3, he0, he3, Or.inl ⟨rfl, rfl⟩,
-      ScAll.of_u hS hRP hY hM ⟨hR3, hCR3, hRP3, hRF3, hw3⟩ hsok⟩
+      ⟨ScAll.of_u hS hRP hY hM ⟨hR3, hCR3, hRP3, hRF3, hw3⟩ hsok,
+        fun h => by rcases h with h | h <;> exact absurd h (lbl_ne l42 (by simp)),
+        fun h => absurd h (lbl_ne l42 (by simp))⟩⟩
     rw [hpre, wE_neg (fun h => he ((bv_optRef_some hct0).1 (hx.tcb ▸ h)))]; rfl
   rw [ite_eq_right l42]
   have h42 : lbl.val ≠ 42 := fun h => l42 (UScalar.eq_of_val_eq (by simp [h]))
@@ -224,7 +255,8 @@ theorem sc_decode_refines {N T C R : Set U64} {c : U64} (hT : TimeAgree ar) (th 
       (fun h0 => ⟨(hback h0).1, (hback h0).2.1⟩) hctT hcur hcs call hmb hmax htu hmsg) ?_
     intro r h
     exact CPost.congr (by rw [hdec _ hg]) (h.mono fun inv r' hq => hq.mono fun _ _ hr =>
-      ScAll.of_t hS hRP hM hCR hRF hr)
+      ⟨ScAll.of_t hS hRP hM hCR hRF ⟨hr.1, hr.2.1, hr.2.2.1⟩,
+        fun h => by rcases h with h | h <;> exact absurd h (lbl_ne l45 (by simp)), fun _ h0 x' hk hst => hr.2.2.2 h0 ⟨x', hk, hst⟩⟩)
   rw [ite_eq_right l45]
   have h45 : lbl.val ≠ 45 := fun h => l45 (UScalar.eq_of_val_eq (by simp [h]))
   have hg : Fl4Spec.genInvocationType slbl = .invalidInvocation := by

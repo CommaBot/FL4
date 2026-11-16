@@ -76,7 +76,7 @@ theorem decode_invocation_sched_contextF {N T C R : Set U64} {c : U64} (hT : Tim
       hback hbn hct hcs call extra x0 hx0 _ hex hcapT hcapN hmb hmax htu hmsg) ?_
     rintro ⟨r0, s', a'⟩ hq
     apply top_of_liftF (f := Fl4Spec.Fl4Invocation.invokeSchedContext)
-    rcases hq with ⟨e, e', he, hrun, herr⟩ | ⟨inv, hrun, hr1, σ0, data, σ1, σ2, he0, he1, -, hall⟩
+    rcases hq with ⟨e, e', he, hrun, herr⟩ | ⟨inv, hrun, hr1, σ0, data, σ1, σ2, he0, he1, -, ⟨hall, -⟩⟩
     · cases he
       exact Or.inl ⟨e, rfl, rfl, e', hrun, herr⟩
     · have hSS := slotsSame_of_ufoot hP hS hRP hA hall.2.2.2.2.2

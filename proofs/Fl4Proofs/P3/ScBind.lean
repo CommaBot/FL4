@@ -170,7 +170,7 @@ theorem bind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
   have hka : (updK σ t.bv (.tcb { xt with tcbSchedContext := some p.bv })).kheap p.bv =
       some (.schedContext y n) := by simp only [updK_kheap, Function.update_of_ne hpt]; exact hk
   have w1 : WritesIn st s (L.wr s (scA t) p) (SFoot st T c s) :=
-    writesIn_tcb (K := 3464#u64) hc.tcbs ht (by unfold SOff; decide) (by simp) p
+    writesIn_tcb (K := 3464#u64) hc.tcbs ht (by unfold SOff SOffL; decide) (by simp) p
   refine WP.spec_bind (obj.Sc.set_tcb.spec' _ p t) ?_
   rintro s2 rfl
   have w2 : WritesIn st s (L.wr (L.wr s (scA t) p) (scW p 24#u64) t) (KFoot st T N C c s σ) :=
@@ -201,7 +201,7 @@ theorem bind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
   subst hs3
   obtain ⟨hS3, hf3⟩ := hS2.wr_same (field_aligned (hc.tcbs t ht) (K := 3520#u64) (by simp) (by simp)) (hc2.aff t ht)
   have w3 := WritesIn.kfoot_sfoot w2 (writesIn_tcb (s := L.wr (L.wr s (scA t) p) (scW p 24#u64) t) (c := j) (K := 3520#u64)
-    hc.tcbs ht (by unfold SOff; decide) (by simp) j)
+    hc.tcbs ht (by unfold SOff SOffL; decide) (by simp) j)
   have hR3 := hR2.frame hP hf3 (KView.refl _)
   obtain ⟨Q3, R3, hc3, hs3⟩ := hS3.lists
   obtain ⟨x3, n3, hk3', hx3⟩ := hs3.scs p hp

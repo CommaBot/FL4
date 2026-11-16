@@ -2,8 +2,8 @@
 P3 (DESIGN.md §9), scheduling contexts: **the footprints of the
 scheduling-context code** (positive: the words a step may write).
 
-* `SOff`, `SFoot`: TCB words at offsets `≥ 256` other than `MCP` and
-  `YIELD_TO`, and the node's words (the scheduler's footprint);
+* `SOff`, `SFoot`: TCB words at the offsets the SC code writes (`SOffL`),
+  and the node's words (the scheduler's footprint);
 * `NW`: a notification's words; `SW`: the words of an SC of `C` other than
   its `REPLY` word (sizes from the spec state);
 * `KFoot = SFoot ∨ NW ∨ SW`: what Bind, UnbindObject and Consumed write;
@@ -23,10 +23,18 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 
+/-- **The TCB offsets the scheduling-context code writes**: the state
+(`STATE`, 3328), the SC pointer (`SC`, 3464), the ready-queue links (3480,
+3488), the release flag (3520) and the release-queue link (3592). The
+notification code's TCB words (state, blocking object, badge register, `Ep`
+links) are not here: `unbind_ntfn` writes only the notification's words. -/
+def SOffL (K : U64) : Prop :=
+  K = 3328#u64 ∨ K = 3464#u64 ∨ K = 3480#u64 ∨ K = 3488#u64 ∨ K = 3520#u64 ∨ K = 3592#u64
+
 /-- A TCB offset the scheduler code may write: past the cap slots and the
 `TCB` header (`≥ 256`), and neither the `MCP` (3440) nor the `YIELD_TO`
 (3472) word. -/
-def SOff (K : U64) : Prop := 256 ≤ K.val ∧ K.val < 4096 ∧ K ≠ 3440#u64 ∧ K ≠ 3472#u64
+def SOff (K : U64) : Prop := 256 ≤ K.val ∧ K.val < 4096 ∧ K ≠ 3440#u64 ∧ K ≠ 3472#u64 ∧ SOffL K
 
 /-- The scheduler footprint: words of the TCBs at `SOff` offsets, and of the
 node. -/
@@ -65,7 +73,7 @@ theorem SFoot.not_mcp {T : Set U64} {c : U64} {s : S} (hT : TcbPlaced T) (hN : N
 theorem SFoot.not_yield {T : Set U64} {c : U64} {s : S} (hT : TcbPlaced T) (hN : NodePlaced st T s c) {b : U64}
     (h : SFoot st T c s b) {u : U64} (hu : u ∈ T) : b ≠ core.num.U64.wrapping_add u 3472#u64 := by
   rintro rfl
-  rcases h with ⟨y, hy, K, ⟨k1, k2, -, k4⟩, e⟩ | ⟨g1, g2⟩
+  rcases h with ⟨y, hy, K, ⟨k1, k2, -, k4, -⟩, e⟩ | ⟨g1, g2⟩
   · rw [tt_eq_iff (hT u hu) (hT y hy) (by simp) k2] at e; exact k4 e.2.symm
   · have := hN.disj u hu; rw [tfield_val (hT u hu) (by simp)] at g1 g2; simp at g1 g2; omega
 
@@ -84,10 +92,10 @@ theorem qfoot_sfoot {T : Set U64} {c : U64} {s : S} {W : List U64} {P : Nat → 
     (hT : TcbPlaced T) (hW : ∀ w ∈ W, w ∈ T) (ht : t ∈ T) (hN : NodePlaced st T s c) (hcpu : L.cpu s = c)
     (h : L.QFoot s W c P t b) : SFoot st T c s b := by
   rcases h with ⟨w, hw, e | e⟩ | ⟨o, -, ho, -, e⟩ | e | ⟨o, -, ho, -, e⟩
-  · exact Or.inl ⟨w, hW w hw, 3480#u64, by unfold SOff; decide, e⟩
-  · exact Or.inl ⟨w, hW w hw, 3488#u64, by unfold SOff; decide, e⟩
+  · exact Or.inl ⟨w, hW w hw, 3480#u64, by unfold SOff SOffL; decide, e⟩
+  · exact Or.inl ⟨w, hW w hw, 3488#u64, by unfold SOff SOffL; decide, e⟩
   · exact Or.inr ⟨by rw [e, nodeAt_val hN ho]; omega, by rw [e, nodeAt_val hN ho]; omega⟩
-  · exact Or.inl ⟨t, ht, 3592#u64, by unfold SOff; decide, e⟩
+  · exact Or.inl ⟨t, ht, 3592#u64, by unfold SOff SOffL; decide, e⟩
   · rw [hcpu] at e
     exact Or.inr ⟨by rw [e, nodeAt_val hN ho]; omega, by rw [e, nodeAt_val hN ho]; omega⟩
 
@@ -241,7 +249,7 @@ theorem set_thread_state_sfoot {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec
   step
   subst s1_post
   rw [show stA t = tStA t from rfl, tStA_eq]
-  exact schedule_tcb_sfoot hS (writesIn_tcb hc.tcbs ht (by unfold SOff; decide) (by simp) v) t
+  exact schedule_tcb_sfoot hS (writesIn_tcb hc.tcbs ht (by unfold SOff SOffL; decide) (by simp) v) t
 
 /-- **`possible_switch_to`'s footprint.** -/
 theorem possible_switch_to_sfoot {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
@@ -282,6 +290,17 @@ def NW (N : Set U64) (b : U64) : Prop := ∃ n ∈ N, n.val ≤ b.val ∧ b.val 
 def SW (C : Set U64) (σ : Fl4Spec.State Unit) (b : U64) : Prop :=
   ∃ sc ∈ C, ∃ x n, σ.kheap sc.bv = some (.schedContext x n) ∧ ScObj sc n b ∧ b ≠ scReplyA sc
 
+/-- A register word of a TCB of `T` (offsets 256..448): what a reply from
+the kernel writes (`msgW`). -/
+def RegW (T : Set U64) (b : U64) : Prop :=
+  ∃ y ∈ T, ∃ K : U64, 256 ≤ K.val ∧ K.val < 448 ∧ b = core.num.U64.wrapping_add y K
+
+theorem RegW.range {T : Set U64} (hT : TcbPlaced T) {b : U64} (h : RegW T b) :
+    ∃ y ∈ T, y.val + 256 ≤ b.val ∧ b.val < y.val + 448 := by
+  obtain ⟨y, hy, K, k1, k2, rfl⟩ := h
+  exact ⟨y, hy, by rw [tfield_val (hT y hy) (by omega : K.val < 4096)]; omega,
+    by rw [tfield_val (hT y hy) (by omega : K.val < 4096)]; omega⟩
+
 /-- **The footprint of Bind, UnbindObject and Consumed.** -/
 def KFoot (st : machine.Store S) [L : LawfulStore st] (T N C : Set U64) (c : U64) (s : S)
     (σ : Fl4Spec.State Unit) (b : U64) : Prop :=
@@ -295,17 +314,6 @@ theorem KFoot.of_nw {T N C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit
 
 theorem KFoot.of_sw {T N C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit} {b : U64}
     (h : SW C σ b) : KFoot st T N C c s σ b := Or.inr (Or.inr h)
-
-/-- The notification code's writes are in the footprint. -/
-theorem KFoot.of_nwrite {T N C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit} {b : U64}
-    (h : NWrite N T b) : KFoot st T N C c s σ b := by
-  rcases h with h | ⟨t, ht, h | h | h | h | h⟩
-  · exact KFoot.of_nw h
-  · rw [h, tStA_eq]; exact KFoot.of_sfoot (sfoot_tcb ht (by unfold SOff; decide))
-  · rw [h, tBlockA_eq]; exact KFoot.of_sfoot (sfoot_tcb ht (by unfold SOff; decide))
-  · rw [h, badgeRegA_eq]; exact KFoot.of_sfoot (sfoot_tcb ht (by unfold SOff; decide))
-  · rw [h, nextEp_eq]; exact KFoot.of_sfoot (sfoot_tcb ht (by unfold SOff; decide))
-  · rw [h, prevEp_eq]; exact KFoot.of_sfoot (sfoot_tcb ht (by unfold SOff; decide))
 
 theorem scReplyA_eq' (sc : U64) : scReplyA sc = scW sc 32#u64 := by
   unfold scReplyA scW layout.sc.REPLY; rfl
@@ -359,6 +367,17 @@ theorem unblock_check_kfoot {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
   rcases hb with hb | hb
   · exact KFoot.of_sw (sw_ring hS hp hk hb)
   · rw [hb, e]; exact KFoot.of_sfoot (sfoot_node hN ho)
+
+/-- `WritesIn.kfoot_sfoot` with register words. -/
+theorem WritesIn.kfootR_sfootR {T N C : Set U64} {c : U64} {s s1 s2 : S} {σ : Fl4Spec.State Unit}
+    (h1 : WritesIn st s s1 (fun b => KFoot st T N C c s σ b ∨ RegW T b))
+    (h2 : WritesIn st s1 s2 (fun b => SFoot st T c s1 b ∨ RegW T b)) :
+    WritesIn st s s2 (fun b => KFoot st T N C c s σ b ∨ RegW T b) :=
+  (h1.trans h2).mono fun b hb => by
+    rcases hb with hb | hb | hb
+    · exact hb
+    · exact Or.inl (KFoot.of_sfoot ((SFoot.ksb h1.1).1 hb))
+    · exact Or.inr hb
 
 /-- An SFoot step after a footprint. -/
 theorem WritesIn.kfoot_sfoot {T N C : Set U64} {c : U64} {s s1 s2 : S} {σ : Fl4Spec.State Unit}
@@ -422,11 +441,11 @@ theorem WritesIn.kfoot_of_sfoot_scw {N T C : Set U64} {c : U64} {s s' : S} {σ :
 /-- A notification-or-SC-word step is a `KFoot` step. -/
 theorem WritesIn.kfoot_of_nw_scw {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) {p : U64} (hp : p ∈ C) {K : U64} (hK : K.val < 96) (hK8 : K.val % 8 = 0)
-    (h32 : K ≠ 32#u64) (h : WritesIn st s s' (fun b => NWrite N T b ∨ b = scW p K)) :
+    (h32 : K ≠ 32#u64) (h : WritesIn st s s' (fun b => NW N b ∨ b = scW p K)) :
     WritesIn st s s' (KFoot st T N C c s σ) :=
   h.mono fun b hb => by
     rcases hb with hb | rfl
-    · exact KFoot.of_nwrite hb
+    · exact KFoot.of_nw hb
     · exact KFoot.of_sw (sw_hdr hS hp hK hK8 h32)
 
 /-- A write of an SC's object words, its `REPLY` word kept, is a `KFoot` step. -/

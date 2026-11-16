@@ -1099,7 +1099,7 @@ theorem cfg_resume_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4
   obtain ⟨hS3, hf3⟩ := hS.wr_same (field_aligned (hc.tcbs t ht) (K := 3520#u64) (by simp) (by simp)) (hc.aff t ht)
   have hR3 : NtfnStateRel N T (L.mem (L.wr s (affA t) i)) σ := hR.frame hP hf3 (KView.refl σ)
   have hw4 : WritesIn st s (L.wr s (affA t) i) (SFoot st T i s) :=
-    writesIn_tcb (K := 3520#u64) hc.tcbs ht (by unfold SOff; decide) (by simp) i
+    writesIn_tcb (K := 3520#u64) hc.tcbs ht (by unfold SOff SOffL; decide) (by simp) i
   -- `resume`
   have hRel : RelOK σ :=
     ⟨fun u hu => by obtain ⟨x, p, -, -, h1, h2, -⟩ := hI.rel u hu; exact ⟨x, p, h1, h2⟩, hI.sorted⟩

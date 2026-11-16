@@ -44,7 +44,7 @@ theorem UFoot.not_slot {th : TypedHeap} (hP : Placed th) {N T C R : Set U64} {c 
   have hkl := hk.lt
   obtain ⟨g1, g2, g3, g4, g5⟩ := hA a ha
   rcases hb with (((⟨y, hy, K, hK, e⟩ | ⟨b1, b2⟩) | ⟨n, hn, b1, b2⟩ | ⟨sc, hsc, x, n, hkx, ⟨b1, b2⟩, -⟩) |
-      ⟨y, hy, e⟩) | (⟨r, hr, e⟩ | ⟨q, hq, e⟩)
+      ⟨y, hy, e⟩) | ((⟨r, hr, e⟩ | ⟨q, hq, e⟩) | hreg)
   · have := congrArg UScalar.val e
     rw [hv, tfield_val (hT y hy) hK.2.1] at this
     have := g1 y hy; have := hK.1; have := hK.2.1; omega
@@ -62,6 +62,9 @@ theorem UFoot.not_slot {th : TypedHeap} (hP : Placed th) {N T C R : Set U64} {c 
     have := congrArg UScalar.val e
     rw [hv, hvq] at this
     have := g4 q hq xq nq hkq; have := hsz xq nq hkq; omega
+  · obtain ⟨y, hy, r1, r2⟩ := hreg.range hT
+    rw [hv] at r1 r2
+    have := g1 y hy; omega
 
 /-- **The slots are kept** by a `UFoot` step. -/
 theorem slotsSame_of_ufoot {th : TypedHeap} (hP : Placed th) {N T C R : Set U64} {c : U64} {s s' : S}
@@ -124,7 +127,7 @@ theorem decode_invocation_sched_context {N T C R : Set U64} {c : U64} (hT : Time
       hback hbn hct hcs call extra x0 hx0 _ hex hcapT hcapN hmb hmax htu hmsg) ?_
     rintro ⟨r0, s', a'⟩ hq
     apply top_of_lift (f := Fl4Spec.Fl4Invocation.invokeSchedContext)
-    rcases hq with ⟨e, e', he, hrun, herr⟩ | ⟨inv, hrun, hr1, σ0, data, σ1, σ2, he0, he1, -, hall⟩
+    rcases hq with ⟨e, e', he, hrun, herr⟩ | ⟨inv, hrun, hr1, σ0, data, σ1, σ2, he0, he1, -, ⟨hall, -⟩⟩
     · cases he
       exact Or.inl ⟨e, rfl, rfl, e', hrun, herr⟩
     · refine Or.inr ⟨inv, hrun, σ0, by rw [hcur]; exact he0, (.ok data, σ1), ?_, th, G, Or.inl ⟨hr1, data, rfl⟩,
@@ -154,7 +157,7 @@ theorem UFoot.ne_ks {N T C R : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Un
   have ev := congrArg UScalar.val e
   rw [hv] at ev
   rcases hb with (((⟨y, hy, K, hK, rfl⟩ | ⟨b1, b2⟩) | ⟨n, hn, b1, b2⟩ | ⟨sc, hsc, x, n, hkx, ho', -⟩) |
-      ⟨y, hy, rfl⟩) | (⟨r, hr, rfl⟩ | ⟨q, hq, rfl⟩)
+      ⟨y, hy, rfl⟩) | ((⟨r, hr, rfl⟩ | ⟨q, hq, rfl⟩) | hreg)
   · rw [tfield_val (hT y hy) hK.2.1] at ev
     have := hc.ksOut y hy; have := hK.1; have := hK.2.1; omega
   · simp only [LawfulStore.nodeBase] at b1; omega
@@ -169,6 +172,8 @@ theorem UFoot.ne_ks {N T C R : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Un
     have hin : ScObj q nq (scReplyA q) := by have := hsz xq nq hkq; unfold ScObj; rw [hvq]; omega
     have := (hS.scOut q hq xq nq hkq _ hin).2.2.2
     rw [hvq] at ev this; omega
+  · obtain ⟨y, hy, r1, r2⟩ := hreg.range hT
+    have := hc.ksOut y hy; omega
 
 theorem domOffs_lt {o : U64} (ho : o ∈ domOffs) : o.val < 256 ∧ o.val % 8 = 0 := by
   simp only [domOffs, List.mem_cons, List.mem_nil_iff, or_false] at ho
@@ -239,7 +244,7 @@ theorem domFrame_sched_context {N T C R : Set U64} {c : U64} (hT : TimeAgree ar)
       refine WP.spec_mono (sc_decode_refines hT th s a σ hS hR hN hI hY hAI hM hC0 hCR hRP hRF lbl slbl hlbl hsc hpi
         hback hbn hct hcs call extra x0 hx0 _ hex hcapT hcapN hmb hmax htu hmsg) ?_
       rintro ⟨r0, s', a'⟩ hq
-      rcases hq with ⟨e, e', he, -, -⟩ | ⟨inv, -, -, σ0, data, σ1, σ2, -, -, -, hall⟩
+      rcases hq with ⟨e, e', he, -, -⟩ | ⟨inv, -, -, σ0, data, σ1, σ2, -, -, -, ⟨hall, -⟩⟩
       · cases he; exact ⟨rfl, fun _ _ => rfl⟩
       · have hw := hall.2.2.2.2.2
         refine ⟨hw.1, fun o ho => hw.mem_eq (ksW_al hkf hka (domOffs_lt ho).1 (domOffs_lt ho).2) fun hb =>

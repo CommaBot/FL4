@@ -448,14 +448,14 @@ theorem set_consumed_eq (s : S) (a : A) (sc t : U64) (wm : Bool) :
 refine `reply_from_kernel` with the consumed time, keeping the scheduler and
 notification relations; on the spec side only TCBs' user context and the
 user memory change, no `YIELD_TO` word is written, and FL4 writes only `t`'s
-registers (`SFoot`: TCB words past offset 256; `msgW` writes the badge, the
-first message register and the message info). -/
+registers (`RegW`: `msgW` writes the badge, the first message register and
+the message info), beside the scheduler's footprint (`SFoot`). -/
 def MsgOK (st : machine.Store S) [L : LawfulStore st] (N T C : Set U64) (c : U64) : Prop :=
   ∀ (s1 : S) (σ1 : Fl4Spec.State Unit) (t v : U64), t ∈ T → SchedRel st N T C c s1 σ1 →
     NtfnStateRel N T (L.mem s1) σ1 →
     msgW st s1 t v ⦃ s' => ∃ σ', Fl4Spec.replyFromKernel (Z := Unit) t.bv (0, Fl4Spec.wordsFromTime v.bv) σ1 =
       ({((), σ')}, False) ∧ SchedRel st N T C c s' σ' ∧ NtfnStateRel N T (L.mem s') σ' ∧ ArchStep σ1 σ' ∧
-      WritesIn st s1 s' (fun b => ¬ YW T b) ∧ WritesIn st s1 s' (SFoot st T c s1) ⦄
+      WritesIn st s1 s' (fun b => ¬ YW T b) ∧ WritesIn st s1 s' (fun b => SFoot st T c s1 b ∨ RegW T b) ⦄
 
 /-- **`set_consumed` refines l4v `set_consumed`** (`write_msg`) or
 `sched_context_update_consumed` (no message). -/
@@ -470,7 +470,7 @@ theorem set_consumed_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
         ({((), σ2)}, False)) ∧ (wm = false → σ2 = σ1) ∧ SFrame σ σ1 ∧
       SchedRel st N T C c s2 σ2 ∧ NtfnStateRel N T (L.mem s2) σ2 ∧ NSC N C σ2 ∧ Inv σ2 ∧
       YieldRel T C (L.mem s2) σ2 ∧ SFrame σ σ2 ∧ YKeep σ σ2 ∧ WritesIn st s s2 (fun b => ¬ YW T b) ∧
-      WritesIn st s s2 (KFoot st T N C c s σ) ⦄ := by
+      WritesIn st s s2 (fun b => KFoot st T N C c s σ b ∨ RegW T b) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hT := hc.tcbs
   have hsw8 := sw_hdr hS hpC (K := 8#u64) (by simp) (by simp) (by decide)
@@ -498,13 +498,13 @@ theorem set_consumed_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
   cases wm
   · simp only [Bool.false_eq_true, ↓reduceIte]
     exact (WP.spec_ok _).mpr ⟨cv, σ1, σ1, hsp1, fun h => absurd h (by decide), fun _ => rfl, hsf1, hS1, hR1, hN1, hI1,
-      hY1, hsf1, hyk1, hw1, hk1⟩
+      hY1, hsf1, hyk1, hw1, hk1.mono fun _ h => Or.inl h⟩
   · simp only [↓reduceIte]
     refine WP.spec_mono (hmsg _ σ1 t cv ht hS1 hR1) ?_
     rintro s2 ⟨σ2, hrfk, hS2, hR2, hA2, hw2, hf2⟩
     exact ⟨cv, σ1, σ2, hsp1, fun _ => hrfk, fun h => absurd h (by decide), hsf1, hS2, hR2, hA2.nsc hN1, hA2.inv hI1,
       hY1.frame (WritesIn.yield_keep hT hw2) hA2.ykeep, hsf1.trans hA2.sframe, hyk1.trans hA2.ykeep, WritesIn.yw_trans hw1 hw2,
-      WritesIn.kfoot_sfoot hk1 hf2⟩
+      WritesIn.kfootR_sfootR (hk1.mono fun _ h => Or.inl h) hf2⟩
 
 /-- **`complete_yield_to` refines l4v `complete_yield_to`**: if `y` yields to
 an SC, its consumed time is reported (`set_consumed`, the message part by
@@ -519,7 +519,7 @@ theorem complete_yield_to_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (�
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧
       YieldRel T C (L.mem r.1) σ' ∧ SFrame σ σ' ∧ L.mem r.1 (yieldA y) = 0#u64 ∧
       (∀ u ∈ T, u ≠ y → L.mem r.1 (yieldA u) = L.mem s (yieldA u)) ∧
-      WritesIn st s r.1 (TFoot st T N C c s σ) ⦄ := by
+      WritesIn st s r.1 (TFootR st T N C c s σ) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hT := hc.tcbs
   have hy0 : y ≠ 0#u64 := fun e => (hc.tcbs y hy).ne0 (by rw [e]; rfl)
@@ -593,7 +593,11 @@ theorem complete_yield_to_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (�
     hY2.clear hy hm2 hi0 hk2y hk2p hm4 hmy,
     hsf2.trans ((SFrame.updSc (x' := { y2 with scYieldFrom := none }) hk2p rfl rfl).trans (SFrame.ytUpd hkay none)), hmy,
     fun u hu hne => (hm4 u hu hne).trans (WritesIn.yield_keep hT hw12 u hu),
-    WritesIn.tfoot_add (WritesIn.tfoot_of_kfoot hk12) hwy⟩
+    (hk12.trans hwy).mono fun b hb => by
+      rcases hb with (h | h) | h
+      · exact Or.inl (Or.inl h)
+      · exact Or.inr h
+      · exact Or.inl h⟩
   rw [completeYieldTo_some hky (by rw [eyt, optRef_ne hi0])]
   have hsc : Fl4Spec.setConsumed (Z := Unit) i2.bv y.bv σ = ({((), σ2)}, False) := by
     unfold Fl4Spec.setConsumed; rw [nd_bind_one hsp1]; exact hrfk
@@ -885,12 +889,12 @@ theorem yield_to_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
     schedcontext.yield_to st ar s a sc call ⦃ r => r.2 = a ∧
       ∃ (data : List Fl4Spec.Data) (σ1 σ2 : Fl4Spec.State Unit),
       Fl4Spec.schedContextYieldTo (Z := Unit) sc.bv σ = ({(data, σ1)}, False) ∧
-      ((data = [] ∧ σ2 = σ1) ∨
+      ((data = [] ∧ σ2 = σ1 ∧ (L.mem s (scYieldFromA sc) = 0#u64 → WritesIn st s r.1 (TFoot st T N C c s σ))) ∨
         (∃ x', σ1.kheap ct.bv = some (.tcb x') ∧ x'.tcbState = xc.tcbState) ∧ (do
           Fl4Spec.NonDet.when (call = true) (Fl4Spec.replyFromKernel (Z := Unit) ct.bv (0, data))
           Fl4Spec.setThreadState (Z := Unit) ct.bv .running : Fl4Spec.SMonad Unit Unit) σ1 = ({((), σ2)}, False)) ∧
       SchedRel st N T C c r.1 σ2 ∧ NtfnStateRel N T (L.mem r.1) σ2 ∧ NSC N C σ2 ∧ Inv σ2 ∧
-      YieldRel T C (L.mem r.1) σ2 ∧ ActIdle σ2 ∧ WritesIn st s r.1 (TFoot st T N C c s σ) ⦄ := by
+      YieldRel T C (L.mem r.1) σ2 ∧ ActIdle σ2 ∧ WritesIn st s r.1 (TFootR st T N C c s σ) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hT := hc.tcbs
   obtain ⟨x0, n0, hk0, hx⟩ := hs.scs sc hsc
@@ -912,10 +916,12 @@ theorem yield_to_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
       SchedRel st N T C c r.1 σc ∧ NtfnStateRel N T (L.mem r.1) σc ∧ NSC N C σc ∧ Inv σc ∧
       YieldRel T C (L.mem r.1) σc ∧ SFrame σ σc ∧ L.mem r.1 (yieldA ct) = 0#u64 ∧
       (∀ x1, σc.kheap sc.bv = some (.schedContext x1 n) → x1.scYieldFrom = none) ∧
-      WritesIn st s r.1 (TFoot st T N C c s σ) ⦄ from ?_) ?_
+      WritesIn st s r.1 (TFootR st T N C c s σ) ∧
+      (L.mem s (scYieldFromA sc) = 0#u64 → WritesIn st s r.1 (TFoot st T N C c s σ)) ⦄ from ?_) ?_
   · by_cases h0 : L.mem s (scYieldFromA sc) = 0#u64
     · simp only [h0, decide_true, ↓reduceIte]
-      refine (WP.spec_ok _).mpr ⟨rfl, σ, ?_, hS, hR, hN, hI, hY, SFrame.refl σ, hyc0, fun x1 h1 => ?_, WritesIn.refl _ _⟩
+      refine (WP.spec_ok _).mpr ⟨rfl, σ, ?_, hS, hR, hN, hI, hY, SFrame.refl σ, hyc0, fun x1 h1 => ?_, WritesIn.refl _ _,
+        fun _ => WritesIn.refl _ _⟩
       · rw [nd_when_false_y (by rw [hyfw, h0, optRef_zero]; simp)]; rfl
       · rw [hk] at h1; cases h1; rw [hyfw, h0, optRef_zero]
     · simp only [h0, decide_false, Bool.false_eq_true, ↓reduceIte]
@@ -939,7 +945,8 @@ theorem yield_to_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
             rw [hvm, hk] at hz; cases hz
             rw [hxf] at ez
             exact absurd (eq_of_bv (Option.some.inj ez)).symm hvu
-      refine ⟨ha1, σc, ?_, hS1, hR1, hN1, hI1, hY1, hsf1, by rw [hmo ct hct hcu]; exact hyc0, hyf1, hwc⟩
+      refine ⟨ha1, σc, ?_, hS1, hR1, hN1, hI1, hY1, hsf1, by rw [hmo ct hct hcu]; exact hyc0, hyf1, hwc,
+        fun h => h.elim⟩
       obtain ⟨x1, hk1, -, -⟩ := hsf1.sc _ x n hk
       unfold Fl4Spec.NonDet.when
       rw [ite_eq_left (by rw [hxf]; simp)]
@@ -949,7 +956,7 @@ theorem yield_to_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
       show (({x | (none : Option Fl4Spec.ObjRef) = none ∧ x = ((), σc)}, ¬ (none : Option Fl4Spec.ObjRef) = none) :
         Set (Unit × Fl4Spec.State Unit) × Prop) = _
       simp
-  rintro ⟨s1, a1⟩ ⟨ha1, σc, hw1, hS1, hR1, hN1, hI1, hY1, hsf1, hyc1, hyf1, hwf1⟩
+  rintro ⟨s1, a1⟩ ⟨ha1, σc, hw1, hS1, hR1, hN1, hI1, hY1, hsf1, hyc1, hyf1, hwf1, hwfT⟩
   have hzc : SzKeepC C σ σc := SzKeepC.of_fwd hS fun p x n hp => by
     obtain ⟨x', h, -⟩ := hsf1.sc p x n hp; exact ⟨x', h⟩
   simp only at ha1 hS1 hR1 hN1 hI1 hY1 hyc1
@@ -976,7 +983,7 @@ theorem yield_to_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
   refine WP.spec_bind (yield_switches_refines s1 σc hS1 hR1 hN1 hI1 hY1 hC0 hsc hk1 (hyf1 x1 hk1) ht htc1 hct hcur1
     hyc1 hcs1) ?_
   rintro ⟨b1, s3⟩ ⟨σ3, hsw, hS3, hR3, hN3, hI3, hY3, hk3, hAI3', hws3⟩
-  have hw3 := WritesIn.tfoot_trans hwf1 hzc hws3
+  have hw3 := WritesIn.tfootR_trans hwf1 hzc (WritesIn.tfootR_of_tfoot hws3)
   have hAI3 := hAI3' (ActIdle.sframe hAI hsf1)
   have hsw' := hsw
   unfold yieldSwitch at hsw'
@@ -994,7 +1001,7 @@ theorem yield_to_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
     rintro s4 ⟨cv, σa, σb, hspc, hrt, hrf, hsfa, hS4, hR4, hN4, hI4, hY4, hsf4, -, -, hwk4⟩
     have hz3 : SzKeepC C σ σ3 := SzKeepC.of_fwd hS fun p x n hp => by
       obtain ⟨x', h, -⟩ := (hsf1.trans hsf3).sc p x n hp; exact ⟨x', h⟩
-    have hw4 := WritesIn.tfoot_trans hw3 hz3 (WritesIn.tfoot_of_kfoot hwk4)
+    have hw4 := WritesIn.tfootR_trans hw3 hz3 (WritesIn.tfootR_of_kfootR hwk4)
     obtain ⟨xc4, hkc4, hst4, -, -, -⟩ := (hsf1.trans (hsf3.trans hsf4)).tcb _ xc hkc
     have hrun : Fl4Spec.runnable xc.tcbState = true := by
       obtain ⟨xq, -, -, -, hq1, -, hq3, -⟩ := schedulable_inv hcs
@@ -1007,7 +1014,7 @@ theorem yield_to_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
     have hσ5 := the_result (Fl4Proofs.P3.Notif.setThreadState_eq .running hkc4) he5
     refine (WP.spec_ok _).mpr ⟨rfl, Fl4Spec.wordsFromTime cv.bv, σa, σ5, ?_, Or.inr ⟨?_, ?_⟩, hS5, hR5, ?_, ?_, ?_,
       by rw [hσ5]; exact ActIdle.ofSts (ActIdle.updState (ActIdle.sframe hAI3 hsf4) hkc4 hrun4 .running rfl) _,
-      WritesIn.tfoot_sfoot hw4 hwf5⟩
+      WritesIn.tfootR_sfoot hw4 hwf5⟩
     · rw [hpre]
       show (Fl4Spec.returnConsumed (Z := Unit) sc.bv) σ3 = _
       unfold Fl4Spec.returnConsumed
@@ -1023,7 +1030,8 @@ theorem yield_to_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
     · exact hY4.frame (WritesIn.yield_keep hT hw5) (by rw [hσ5]; exact (YKeep.updTcb (x' := { xc4 with tcbState := .running }) hkc4 rfl).trans (YKeep.stsAct _))
   · show (if true = true then _ else _) ⦃ _ ⦄
     rw [ite_eq_left rfl]
-    exact (WP.spec_ok _).mpr ⟨rfl, [], σ3, σ3, by rw [hpre]; rfl, Or.inl ⟨rfl, rfl⟩, hS3, hR3, hN3, hI3, hY3, hAI3, hw3⟩
+    exact (WP.spec_ok _).mpr ⟨rfl, [], σ3, σ3, by rw [hpre]; rfl,
+      Or.inl ⟨rfl, rfl, fun h => WritesIn.tfoot_trans (hwfT h) hzc hws3⟩, hS3, hR3, hN3, hI3, hY3, hAI3, hw3⟩
 
 
 theorem stsAct_cur' {σ : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} :
@@ -1081,7 +1089,7 @@ theorem sc_consumed_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
         Fl4Spec.NonDet.when (call = true) (Fl4Spec.replyFromKernel (Z := Unit) ct.bv (0, data))
         Fl4Spec.setThreadState (Z := Unit) ct.bv .running : Fl4Spec.SMonad Unit Unit) σ2 = ({((), σ3)}, False) ∧
       SchedRel st N T C c r.2.1 σ3 ∧ NtfnStateRel N T (L.mem r.2.1) σ3 ∧ NSC N C σ3 ∧ Inv σ3 ∧
-      YieldRel T C (L.mem r.2.1) σ3 ∧ ActIdle σ3 ∧ WritesIn st s r.2.1 (KFoot st T N C c s σ) ⦄ := by
+      YieldRel T C (L.mem r.2.1) σ3 ∧ ActIdle σ3 ∧ WritesIn st s r.2.1 (TFootR st T N C c s σ) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   refine WP.spec_bind (set_runnable_rels s σ hS hR hN hI hY hct hkc hrun _ .restart (by rw [tsVals.2.1]; rfl) rfl) ?_
   rintro s2 ⟨σ1, he1, hσ1, hS1, hR1, hN1, hI1, hY1, hA1, hw1⟩
@@ -1091,7 +1099,8 @@ theorem sc_consumed_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
     rw [hσ1]; intro q x m hq
     rw [stsAct_kheap] at hq
     exact SzKeep.updK hkc (fun _ _ e => by cases e) q x m hq
-  have hw13 := WritesIn.kfoot_trans (WritesIn.kfoot_of_sfoot (N := N) (C := C) (σ := σ) hw1) (SzKeepC.of hz1) hw3
+  have hw13 := WritesIn.tfootR_trans (WritesIn.tfootR_of_tfoot (WritesIn.tfoot_of_sfoot (N := N) (C := C) (σ := σ) hw1))
+    (SzKeepC.of hz1) (WritesIn.tfootR_of_kfootR hw3)
   have hkc1 : σ1.kheap ct.bv = some (.tcb { xc with tcbState := .restart }) := by
     rw [hσ1, stsAct_kheap]; simp [updK]
   obtain ⟨xc3, hkc3, hst3, -, -, -⟩ := hsf3.tcb _ _ hkc1
@@ -1100,7 +1109,7 @@ theorem sc_consumed_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
     (by rw [tsVals.1]; rfl) rfl) ?_
   rintro s4 ⟨σ4, he4, -, hS4, hR4, hN4, hI4, hY4, hA4, hw4⟩
   refine (WP.spec_ok _).mpr ⟨rfl, rfl, σ1, Fl4Spec.wordsFromTime cv.bv, σa, σ4, he1, ?_, ?_, ?_, hS4, hR4, hN4, hI4, hY4,
-    hA4 (ActIdle.sframe (hA1 hAI) hsf3), WritesIn.kfoot_sfoot hw13 hw4⟩
+    hA4 (ActIdle.sframe (hA1 hAI) hsf3), WritesIn.tfootR_sfoot hw13 hw4⟩
   · unfold Fl4Spec.returnConsumed; rw [nd_bind_one hspc]; rfl
   · obtain ⟨x', hk', hst', -⟩ := hsfa.tcb _ _ hkc1
     exact ⟨x', hk', hst'⟩
@@ -1132,12 +1141,12 @@ theorem yieldto_invoke_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ :
       ∃ (σ0 : Fl4Spec.State Unit) (data : List Fl4Spec.Data) (σ1 σ2 : Fl4Spec.State Unit),
       Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ0)}, False) ∧
       Fl4Spec.schedContextYieldTo (Z := Unit) sc.bv σ0 = ({(data, σ1)}, False) ∧
-      ((data = [] ∧ σ2 = σ1) ∨
+      ((data = [] ∧ σ2 = σ1 ∧ (L.mem s (scYieldFromA sc) = 0#u64 → WritesIn st s r.2.1 (TFoot st T N C c s σ))) ∨
         (∃ x', σ1.kheap ct.bv = some (.tcb x') ∧ x'.tcbState = .restart) ∧ (do
           Fl4Spec.NonDet.when (call = true) (Fl4Spec.replyFromKernel (Z := Unit) ct.bv (0, data))
           Fl4Spec.setThreadState (Z := Unit) ct.bv .running : Fl4Spec.SMonad Unit Unit) σ1 = ({((), σ2)}, False)) ∧
       SchedRel st N T C c r.2.1 σ2 ∧ NtfnStateRel N T (L.mem r.2.1) σ2 ∧ NSC N C σ2 ∧ Inv σ2 ∧
-      YieldRel T C (L.mem r.2.1) σ2 ∧ ActIdle σ2 ∧ WritesIn st s r.2.1 (TFoot st T N C c s σ) ⦄ := by
+      YieldRel T C (L.mem r.2.1) σ2 ∧ ActIdle σ2 ∧ WritesIn st s r.2.1 (TFootR st T N C c s σ) ⦄ := by
   obtain ⟨xq, scq, yq, nq, hq1, hq2, hq3, hq4, hq5, hq6⟩ := schedulable_inv hcs
   rw [hkc] at hq1; cases hq1
   refine WP.spec_bind (set_runnable_rels s σ hS hR hN hI hY hct hkc hq3 _ .restart (by rw [tsVals.2.1]; rfl) rfl) ?_
@@ -1159,8 +1168,21 @@ theorem yieldto_invoke_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ :
   have hz1 : SzKeepC C σ σ1 := SzKeepC.of fun q x m hq => by
     rw [hσ1, stsAct_kheap] at hq
     exact SzKeep.updK hkc (fun _ _ e => by cases e) q x m hq
-  exact (WP.spec_ok _).mpr ⟨rfl, ha2, σ1, data, σa, σb, he1, hyt, hcase, hS3, hR3, hN3, hI3, hY3, hA3,
-    WritesIn.tfoot_trans (WritesIn.tfoot_of_sfoot hwr1) hz1 hw3⟩
+  have hm56 : L.mem s2 (scYieldFromA sc) = L.mem s (scYieldFromA sc) := by
+    obtain ⟨Q0, R0, hc0, hs0⟩ := hS.lists
+    obtain ⟨x0, n0, hk0, hx0⟩ := hs0.scs sc hsc
+    have ha := hx0.hdr (K := 56#u64) (by simp) (by simp)
+    rw [scYieldFromA_eq]
+    refine hwr1.mem_eq ha.1 fun hb => ?_
+    obtain ⟨hnw, hnd, htc, -⟩ := hS.scOut sc hsc x0 n0 hk0 _ (hx0.in_obj ha.2)
+    rcases hb.range hc0.tcbs with ⟨y, hy, g1, g2⟩ | ⟨g1, g2⟩
+    · have := htc y hy; omega
+    · omega
+  refine (WP.spec_ok _).mpr ⟨rfl, ha2, σ1, data, σa, σb, he1, hyt, ?_, hS3, hR3, hN3, hI3, hY3, hA3,
+    WritesIn.tfootR_trans (WritesIn.tfootR_of_tfoot (WritesIn.tfoot_of_sfoot hwr1)) hz1 hw3⟩
+  rcases hcase with ⟨h1, h2, h3⟩ | h
+  · exact Or.inl ⟨h1, h2, fun h0 => WritesIn.tfoot_trans (WritesIn.tfoot_of_sfoot hwr1) hz1 (h3 (hm56.trans h0))⟩
+  · exact Or.inr h
 
 end
 

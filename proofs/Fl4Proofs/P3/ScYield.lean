@@ -211,6 +211,11 @@ def TFoot (st : machine.Store S) [L : LawfulStore st] (T N C : Set U64) (c : U64
     (σ : Fl4Spec.State Unit) (b : U64) : Prop :=
   KFoot st T N C c s σ b ∨ YW T b
 
+/-- `TFoot` with the register words of a reply from the kernel (`RegW`). -/
+def TFootR (st : machine.Store S) [L : LawfulStore st] (T N C : Set U64) (c : U64) (s : S)
+    (σ : Fl4Spec.State Unit) (b : U64) : Prop :=
+  TFoot st T N C c s σ b ∨ RegW T b
+
 theorem WritesIn.tfoot_of_kfoot {T N C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
     (h : WritesIn st s s' (KFoot st T N C c s σ)) : WritesIn st s s' (TFoot st T N C c s σ) :=
   h.mono fun _ hb => Or.inl hb
@@ -553,5 +558,39 @@ theorem yieldA_inj {T : Set U64} (hT : TcbPlaced T) {t y : U64} (ht : t ∈ T) (
 end
 
 end
+
+section TFootR
+variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
+
+theorem WritesIn.tfootR_of_tfoot {T N C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
+    (h : WritesIn st s s' (TFoot st T N C c s σ)) : WritesIn st s s' (TFootR st T N C c s σ) :=
+  h.mono fun _ hb => Or.inl hb
+
+theorem WritesIn.tfootR_of_kfootR {T N C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
+    (h : WritesIn st s s' (fun b => KFoot st T N C c s σ b ∨ RegW T b)) : WritesIn st s s' (TFootR st T N C c s σ) :=
+  h.mono fun _ hb => hb.imp_left Or.inl
+
+theorem WritesIn.tfootR_trans {T N C : Set U64} {c : U64} {s s1 s2 : S} {σ σ1 : Fl4Spec.State Unit}
+    (h1 : WritesIn st s s1 (TFootR st T N C c s σ)) (hz : SzKeepC C σ σ1)
+    (h2 : WritesIn st s1 s2 (TFootR st T N C c s1 σ1)) : WritesIn st s s2 (TFootR st T N C c s σ) :=
+  (h1.trans h2).mono fun b hb => by
+    rcases hb with hb | (((hb | hb | ⟨sc, hsc, x, n, hk', ho, hne⟩) | hb) | hb)
+    · exact hb
+    · exact Or.inl (Or.inl (KFoot.of_sfoot ((SFoot.ksb h1.1).1 hb)))
+    · exact Or.inl (Or.inl (KFoot.of_nw hb))
+    · obtain ⟨x0, hk0⟩ := hz sc hsc x n hk'
+      exact Or.inl (Or.inl (KFoot.of_sw ⟨sc, hsc, x0, n, hk0, ho, hne⟩))
+    · exact Or.inl (Or.inr hb)
+    · exact Or.inr hb
+
+theorem WritesIn.tfootR_sfoot {T N C : Set U64} {c : U64} {s s1 s2 : S} {σ : Fl4Spec.State Unit}
+    (h1 : WritesIn st s s1 (TFootR st T N C c s σ)) (h2 : WritesIn st s1 s2 (SFoot st T c s1)) :
+    WritesIn st s s2 (TFootR st T N C c s σ) :=
+  (h1.trans h2).mono fun b hb => by
+    rcases hb with hb | hb
+    · exact hb
+    · exact Or.inl (Or.inl (KFoot.of_sfoot ((SFoot.ksb h1.1).1 hb)))
+
+end TFootR
 
 end Fl4Proofs.P3.Sched

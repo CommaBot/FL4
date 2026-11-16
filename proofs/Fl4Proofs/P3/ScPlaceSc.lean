@@ -46,7 +46,7 @@ theorem UFoot.not_at {N T C R : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State U
   obtain ⟨g0, g1, g2, g3, g4, g5⟩ := hA
   have hv : (wordOf a k).val = a.val + k.val := wordOf_val (by omega)
   rcases hb with (((⟨y, hy, K, hK, e⟩ | ⟨b1, b2⟩) | ⟨n, hn, b1, b2⟩ | ⟨sc, hsc, x, n, hkx, ⟨b1, b2⟩, -⟩) |
-      ⟨y, hy, e⟩) | (⟨r, hr, e⟩ | ⟨q, hq, e⟩)
+      ⟨y, hy, e⟩) | ((⟨r, hr, e⟩ | ⟨q, hq, e⟩) | hreg)
   · have := congrArg UScalar.val e
     rw [hv, tfield_val (hT y hy) hK.2.1] at this
     have := g1 y hy; have := hK.1; have := hK.2.1; omega
@@ -64,6 +64,9 @@ theorem UFoot.not_at {N T C R : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State U
     have := congrArg UScalar.val e
     rw [hv, hvq] at this
     have := g4 q hq xq nq hkq; have := hsz xq nq hkq; omega
+  · obtain ⟨y, hy, r1, r2⟩ := hreg.range hT
+    rw [hv] at r1 r2
+    have := g1 y hy; omega
 
 /-- The IRQ handler slots are apart blocks. -/
 def IrqApart (T N C R : Set U64) (c : U64) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
@@ -276,7 +279,7 @@ theorem decode_invocation_sched_contextJ {N T C R : Set U64} {c : U64} (hT : Tim
       hback hbn hct hcs call extra x0 hx0 _ hex hcapT hcapN hmb hmax htu hmsg) ?_
     rintro ⟨r0, s', a'⟩ hq
     apply top_of_liftFJ (f := Fl4Spec.Fl4Invocation.invokeSchedContext)
-    rcases hq with ⟨e, e', he, hrun, herr⟩ | ⟨inv, hrun, hr1, σ0, data, σ1, σ2, he0, he1, -, hall⟩
+    rcases hq with ⟨e, e', he, hrun, herr⟩ | ⟨inv, hrun, hr1, σ0, data, σ1, σ2, he0, he1, -, ⟨hall, -⟩⟩
     · cases he
       exact Or.inl ⟨e, rfl, rfl, e', hrun, herr⟩
     · have hSS := slotsSame_of_ufoot hP hS hRP hA hall.2.2.2.2.2

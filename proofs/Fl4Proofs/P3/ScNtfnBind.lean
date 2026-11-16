@@ -256,7 +256,7 @@ theorem unbind_ntfn_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.St
     schedcontext.unbind_ntfn st s p ⦃ s' => ∃ σ',
       Fl4Spec.schedContextUnbindNtfn (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
       SchedRel st N T C c s' σ' ∧ NtfnStateRel N T (L.mem s') σ' ∧ NSC N C σ' ∧ Inv σ' ∧
-      (ActIdle σ → ActIdle σ') ∧ WritesIn st s s' (fun b => NWrite N T b ∨ b = scW p 40#u64) ∧ CKeep σ σ' ⦄ := by
+      (ActIdle σ → ActIdle σ') ∧ WritesIn st s s' (fun b => NW N b ∨ b = scW p 40#u64) ∧ CKeep σ σ' ⦄ := by
   have hP := hS.placed
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x', n', hk', hx⟩ := hs.scs p hp
@@ -293,12 +293,14 @@ theorem unbind_ntfn_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.St
   rintro s2 rfl
   obtain ⟨hS2, hf2, hK2⟩ := hS1.set_sc_ntfn hp hk1 0#u64
   rw [optRef_zero] at hS2 hK2
-  have hw1 : WritesIn st s (L.wr s (nScA i) 0#u64) (NWrite N T) := by
-    have h := nwr_wr (st := st) hP hn (K := 32#u64) (by simp) (by simp) s 0#u64
-    rw [← nScA_eq] at h; exact h.foot
+  have hw1 : WritesIn st s (L.wr s (nScA i) 0#u64) (NW N) := by
+    obtain ⟨ha, -⟩ := nword (T := T) hP hn (K := 32#u64) (by simp) (by simp)
+    rw [← nScA_eq] at ha
+    have hv : (nScA i).val = i.val + 32 := by rw [nScA_eq, nfield_val (hP.ntfn i hn) (by simp)]; rfl
+    exact (writesIn_wr ha).mono fun b hb => ⟨i, hn, by rw [hb, hv]; omega, by rw [hb, hv]; omega⟩
   have ha40 := (hx.hdr (K := 40#u64) (by simp) (by simp)).1
   have hw : WritesIn st s (L.wr (L.wr s (nScA i) 0#u64) (scW p 40#u64) 0#u64)
-      (fun b => NWrite N T b ∨ b = scW p 40#u64) :=
+      (fun b => NW N b ∨ b = scW p 40#u64) :=
     (hw1.trans (writesIn_wr ha40)).mono fun b hb => hb
   refine ⟨_, ?_, hS2, hR1.frame hS1.placed hf2 hK2, hN1.updSc, hI1.scFields hk1 rfl rfl rfl rfl, fun hA => ?_, hw,
     (CKeep.updOther hkn (fun _ _ e => by cases e) (fun _ e => by cases e) (fun _ _ e => by cases e)).trans

@@ -189,7 +189,7 @@ theorem KFoot.ne_mcp {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Uni
 /-- A `KFoot` word is no `YIELD_TO` word. -/
 theorem KFoot.ne_yield {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ)
     {b : U64} (hb : KFoot st T N C c s σ b) {t : U64} (ht : t ∈ T) : b ≠ yieldA t :=
-  hb.ne_tcbw hS ht (K := 3472#u64) (by simp) (fun h => h.2.2.2 rfl)
+  hb.ne_tcbw hS ht (K := 3472#u64) (by simp) (fun h => h.2.2.2.1 rfl)
 
 /-- A `KFoot` word is no SC `REPLY` word. -/
 theorem KFoot.ne_screply {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
@@ -305,6 +305,62 @@ theorem TFoot.keep {N T C R : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State 
     · rintro (hb | hb)
       · exact hb.ne_rword hS hRP hr (Or.inr (rNextA_val hA)) rfl
       · exact (hb.ne hS hRP).2.2 r hr _ (Or.inr (rNextA_val hA)) rfl
+
+/-- A register word (`RegW`) is no `MCP`, `YIELD_TO`, SC `REPLY` or reply link word. -/
+theorem RegW.ne {N T C R : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ)
+    (hRP : RPlaced st N T C R c s σ) {b : U64} (hb : RegW T b) :
+    (∀ t ∈ T, b ≠ mcpA t) ∧ (∀ t ∈ T, b ≠ yieldA t) ∧ (∀ q ∈ C, b ≠ scReplyA q) ∧
+    (∀ r ∈ R, ∀ a : U64, (a.val = r.val + 8 ∨ a.val = r.val + 16) → b ≠ a) := by
+  obtain ⟨Q, R', hc, hs⟩ := hS.lists
+  have hT := hc.tcbs
+  obtain ⟨y, hy, g1, g2⟩ := hb.range hT
+  obtain ⟨y', hy', K, k1, k2, rfl⟩ := hb
+  refine ⟨fun t ht e => ?_, fun t ht e => ?_, fun q hq e => ?_, fun r hr a ha e => ?_⟩
+  · rw [show mcpA t = core.num.U64.wrapping_add t 3440#u64 from rfl,
+      tt_eq_iff (hT y' hy') (hT t ht) (by omega) (by simp)] at e
+    have := congrArg UScalar.val e.2; simp at this; omega
+  · rw [show yieldA t = core.num.U64.wrapping_add t 3472#u64 from rfl,
+      tt_eq_iff (hT y' hy') (hT t ht) (by omega) (by simp)] at e
+    have := congrArg UScalar.val e.2; simp at this; omega
+  · obtain ⟨xq, nq, hkq, -⟩ := hs.scs q hq
+    obtain ⟨-, hvq, hsz⟩ := sc_reply_word hS hq
+    have hin : ScObj q nq (scReplyA q) := by have := hsz xq nq hkq; unfold ScObj; rw [hvq]; omega
+    have := (hS.scOut q hq xq nq hkq _ hin).2.2.1 y hy
+    rw [← e] at this; omega
+  · have := hRP.tcb r hr y hy
+    rw [e] at g1 g2; omega
+
+/-- **What a `TFootR` step keeps**: the `MCP`, SC `REPLY` and reply link words. -/
+theorem TFootR.keep {N T C R : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) (hRP : RPlaced st N T C R c s σ)
+    (hw : WritesIn st s s' (TFootR st T N C c s σ)) :
+    (∀ t ∈ T, L.mem s' (mcpA t) = L.mem s (mcpA t)) ∧
+    (∀ q ∈ C, L.mem s' (scReplyA q) = L.mem s (scReplyA q)) ∧
+    (∀ r ∈ R, L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧ L.mem s' (rNextA r) = L.mem s (rNextA r)) := by
+  obtain ⟨Q, R', hc, hs⟩ := hS.lists
+  have hT := hc.tcbs
+  have hw0 : WritesIn st s s' (fun b => TFoot st T N C c s σ b ∨ RegW T b) := hw
+  refine ⟨fun t ht => hw0.mem_eq (mcpA_aligned hT ht) ?_, fun q hq => hw0.mem_eq (sc_reply_word hS hq).1 ?_,
+    fun r hr => ?_⟩
+  · rintro ((hb | hb) | hb)
+    · exact hb.ne_mcp hS ht rfl
+    · exact (hb.ne hS hRP).1 t ht rfl
+    · exact (hb.ne hS hRP).1 t ht rfl
+  · rintro ((hb | hb) | hb)
+    · exact hb.ne_screply hS hq rfl
+    · exact (hb.ne hS hRP).2.1 q hq rfl
+    · exact (hb.ne hS hRP).2.2.1 q hq rfl
+  · have hA := hRP.align r hr
+    refine ⟨hw0.mem_eq (hRP.aligned hr (Or.inl (rPrevA_val hA))) ?_,
+      hw0.mem_eq (hRP.aligned hr (Or.inr (rNextA_val hA))) ?_⟩
+    · rintro ((hb | hb) | hb)
+      · exact hb.ne_rword hS hRP hr (Or.inl (rPrevA_val hA)) rfl
+      · exact (hb.ne hS hRP).2.2 r hr _ (Or.inl (rPrevA_val hA)) rfl
+      · exact (hb.ne hS hRP).2.2.2 r hr _ (Or.inl (rPrevA_val hA)) rfl
+    · rintro ((hb | hb) | hb)
+      · exact hb.ne_rword hS hRP hr (Or.inr (rNextA_val hA)) rfl
+      · exact (hb.ne hS hRP).2.2 r hr _ (Or.inr (rNextA_val hA)) rfl
+      · exact (hb.ne hS hRP).2.2.2 r hr _ (Or.inr (rNextA_val hA)) rfl
 
 /-- **What an `RFoot` step keeps**: the `MCP` and `YIELD_TO` words. -/
 theorem RFoot.keep {N T C R : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}

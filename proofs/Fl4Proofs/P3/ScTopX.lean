@@ -40,35 +40,6 @@ theorem specTail_of_restart {σ : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x : 
   rw [nd_bind_one (Notif.getThreadState_eq hk)]
   simp only [hrs]
 
-/-- After the reply and `set_thread_state Running`, the thread is running. -/
-theorem running_after {σ1 σ2 : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x : Fl4Spec.Tcb} {call : Bool}
-    {d : List Fl4Spec.Data} (hk : σ1.kheap t = some (.tcb x))
-    (h : (do
-      Fl4Spec.NonDet.when (call = true) (Fl4Spec.replyFromKernel (Z := Unit) t (0, d))
-      Fl4Spec.setThreadState (Z := Unit) t .running : Fl4Spec.SMonad Unit Unit) σ1 = ({((), σ2)}, False)) :
-    ∃ y, σ2.kheap t = some (.tcb y) ∧ y.tcbState = .running := by
-  have hm : ((), σ2) ∈ ((do
-      Fl4Spec.NonDet.when (call = true) (Fl4Spec.replyFromKernel (Z := Unit) t (0, d))
-      Fl4Spec.setThreadState (Z := Unit) t .running : Fl4Spec.SMonad Unit Unit) σ1).1 := by
-    rw [h]; exact Set.mem_singleton _
-  rw [nd_bind_apply'] at hm
-  obtain ⟨⟨u, σm⟩, h1, h2⟩ := hm
-  have hsok := pres_when (f := (false, false)) _ (pres_replyFromKernel (false, false) t (0, d)) σ1 _ h1
-  have ho := hsok.kh t
-  rw [hk] at ho
-  cases hkm : σm.kheap t with
-  | none => rw [hkm] at ho; exact ho.elim
-  | some o =>
-    rw [hkm] at ho
-    cases o with
-    | tcb y =>
-      simp only at h2
-      rw [Notif.setThreadState_eq (Z := Unit) .running hkm] at h2
-      simp only [Set.mem_singleton_iff, Prod.mk.injEq] at h2
-      rw [h2.2, stsAct_kheap]
-      exact ⟨{ y with tcbState := .running }, by simp [updK], rfl⟩
-    | _ => simp [ORel, PK] at ho
-
 section
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
 
@@ -118,7 +89,8 @@ theorem decode_invocation_sched_contextX {N T C R : Set U64} {c : U64} (hT : Tim
   have key : syscall.decode_invocation st ar s a lbl length slot (.SchedContext sc sb) blk call don fp buf extra
       ⦃ res => (fp = true ∧ res = (.Err (.Sys (.InvalidCapability 0#u64)), s, a)) ∨
         (fp = false ∧ CPost σ (Fl4Spec.decodeSchedContextInvocation (Z := Unit) slbl sc.bv (excaps.map Prod.fst)) s a
-          (ScQ (ScAll (st := st) N T C R c s σ) σ ct call) res) ⦄ := by
+          (ScQ (fun s' σ' => ScAll (st := st) N T C R c s σ s' σ' ∧ ScFine (st := st) N T C c lbl sc ct s σ s' σ')
+            σ ct call) res) ⦄ := by
     unfold syscall.decode_invocation
     rw [hct]; simp only [bind_ok]
     cases fp
@@ -135,7 +107,7 @@ theorem decode_invocation_sched_contextX {N T C R : Set U64} {c : U64} (hT : Tim
   · -- the first phase of a call: `InvalidCapability 0`
     left
     refine tr _ (Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, trivial⟩)
-  rcases hq with ⟨e, e', he, hrun, herr⟩ | ⟨inv, hrun, hr1, σ0, data, σ1, σ2, he0, he1, hcase, hall⟩
+  rcases hq with ⟨e, e', he, hrun, herr⟩ | ⟨inv, hrun, hr1, σ0, data, σ1, σ2, he0, he1, hcase, ⟨hall, -⟩⟩
   · left
     subst he
     exact tr _ (Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err hrun, herr⟩, trivial⟩)

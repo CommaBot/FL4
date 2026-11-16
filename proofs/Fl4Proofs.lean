@@ -195,6 +195,9 @@ import Fl4Proofs.P3.IpcFaultReply
 import Fl4Proofs.P3.IpcTimeout
 import Fl4Proofs.P3.IpcSchedLift
 import Fl4Proofs.P3.ScTmo
+import Fl4Proofs.P3.ScTK
+import Fl4Proofs.P3.ScXStep
+import Fl4Proofs.P3.ScXProd
 import Fl4Proofs.P3.EpSendX
 import Fl4Proofs.P3.EpSendF
 import Fl4Proofs.P3.CancelKSub

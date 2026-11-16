@@ -27,6 +27,35 @@ open fl4_core Fl4Proofs.P1 Fl4Proofs.P3.Notif
 
 noncomputable section
 
+/-- After the reply and `set_thread_state Running`, the thread is running. -/
+theorem running_after {σ1 σ2 : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x : Fl4Spec.Tcb} {call : Bool}
+    {d : List Fl4Spec.Data} (hk : σ1.kheap t = some (.tcb x))
+    (h : (do
+      Fl4Spec.NonDet.when (call = true) (Fl4Spec.replyFromKernel (Z := Unit) t (0, d))
+      Fl4Spec.setThreadState (Z := Unit) t .running : Fl4Spec.SMonad Unit Unit) σ1 = ({((), σ2)}, False)) :
+    ∃ y, σ2.kheap t = some (.tcb y) ∧ y.tcbState = .running := by
+  have hm : ((), σ2) ∈ ((do
+      Fl4Spec.NonDet.when (call = true) (Fl4Spec.replyFromKernel (Z := Unit) t (0, d))
+      Fl4Spec.setThreadState (Z := Unit) t .running : Fl4Spec.SMonad Unit Unit) σ1).1 := by
+    rw [h]; exact Set.mem_singleton _
+  rw [nd_bind_apply'] at hm
+  obtain ⟨⟨u, σm⟩, h1, h2⟩ := hm
+  have hsok := pres_when (f := (false, false)) _ (pres_replyFromKernel (false, false) t (0, d)) σ1 _ h1
+  have ho := hsok.kh t
+  rw [hk] at ho
+  cases hkm : σm.kheap t with
+  | none => rw [hkm] at ho; exact ho.elim
+  | some o =>
+    rw [hkm] at ho
+    cases o with
+    | tcb y =>
+      simp only at h2
+      rw [Fl4Proofs.P3.Notif.setThreadState_eq (Z := Unit) .running hkm] at h2
+      simp only [Set.mem_singleton_iff, Prod.mk.injEq] at h2
+      rw [h2.2, stsAct_kheap]
+      exact ⟨{ y with tcbState := .running }, by simp [updK], rfl⟩
+    | _ => simp [ORel, PK] at ho
+
 section
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
 
@@ -131,8 +160,10 @@ theorem yieldto_branch_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ :
               let (s3, a2) ← schedcontext.yield_to st ar s2 a sc call
               ok (core.result.Result.Ok (), s3, a2)) ⦃ res =>
       CPost σ (Fl4Spec.decodeSchedContextYieldTo (Z := Unit) sc.bv) s a
-        (ScQ (fun s' σ' => YRels (st := st) N T C c s' σ' ∧ WritesIn st s s' (TFoot st T N C c s σ) ∧
-          SOK (false, true) σ σ') σ ct call) res ⦄ := by
+        (ScQ (fun s' σ' => YRels (st := st) N T C c s' σ' ∧ WritesIn st s s' (TFootR st T N C c s σ) ∧
+          SOK (false, true) σ σ' ∧ (L.mem s (scYieldFromA sc) = 0#u64 →
+            (∃ x', σ'.kheap ct.bv = some (.tcb x') ∧ x'.tcbState = .restart) →
+            WritesIn st s s' (TFoot st T N C c s σ))) σ ct call) res ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x, n, hk, hx⟩ := hs.scs sc hsc
   have hsc0 := hC0 sc hsc
@@ -218,11 +249,19 @@ theorem yieldto_branch_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ :
   rintro r ⟨h1, -, σ0, data, σ1, σ2, he0, hyt, hcase, hS', hR', hN', hI', hY', hA', hw'⟩
   have hsok : SOK (false, true) σ σ2 := by
     refine ((pres_setThreadState _ _ _).of_eq he0).trans (((pres_schedContextYieldTo _).of_eq hyt).trans ?_)
-    rcases hcase with ⟨-, rfl⟩ | ⟨-, h⟩
+    rcases hcase with ⟨-, rfl, -⟩ | ⟨-, h⟩
     · exact SOK.refl _ _
     · exact (pres_bind (pres_when _ (pres_replyFromKernel _ _ _)) fun _ => pres_setThreadState _ _ _).of_eq h
-  exact Or.inr ⟨.invokeSchedContextYieldTo sc.bv, hpre3, h1, σ0, data, σ1, σ2, he0, hyt, hcase,
-    ⟨hS', hR', hN', hI', hY', hA'⟩, hw', hsok⟩
+  have hfine : L.mem s (scYieldFromA sc) = 0#u64 →
+      (∃ x', σ2.kheap ct.bv = some (.tcb x') ∧ x'.tcbState = .restart) →
+      WritesIn st s r.2.1 (TFoot st T N C c s σ) := by
+    intro h0 ⟨x', hk', hst'⟩
+    rcases hcase with ⟨-, -, h3⟩ | ⟨⟨x1, hk1, -⟩, hdo⟩
+    · exact h3 h0
+    · obtain ⟨y, hy, hyr⟩ := running_after hk1 hdo
+      rw [hk'] at hy; cases hy; rw [hst'] at hyr; cases hyr
+  exact Or.inr ⟨.invokeSchedContextYieldTo sc.bv, hpre3, h1, σ0, data, σ1, σ2, he0, hyt,
+    hcase.imp (fun h => ⟨h.1, h.2.1⟩) id, ⟨hS', hR', hN', hI', hY', hA'⟩, hw', hsok, fun h0 x' hk' hst' => hfine h0 ⟨x', hk', hst'⟩⟩
 
 
 /-- A word the notification code writes is a notification's or a TCB's. -/
@@ -403,8 +442,8 @@ theorem unbind_invoke_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ 
   refine WP.spec_bind (unbind_ntfn_refines s2 σ2 hS2 hR2 hN2 hI2 hsc hsc0 hk2
     (fun m hm => hbn m (hy2 ▸ hm))) ?_
   rintro s3 ⟨σ3, he3, hS3, hR3, hN3, hI3, -, hw3, hck3⟩
-  obtain ⟨hCR3, hRP3⟩ := CallRel.carry hCR2 hRP2 (callWords_of_nwfoot hS2 hRP2 hsc hw3) hw3.1 hck3
-  have hRF3 := RFree.carry hRF2 hCR2 (callWords_of_nwfoot hS2 hRP2 hsc hw3).2 hck3
+  obtain ⟨hCR3, hRP3⟩ := CallRel.carry hCR2 hRP2 (callWords_of_nwfoot hS2 hRP2 hsc (hw3.mono fun b hb => hb.imp_left Or.inl)) hw3.1 hck3
+  have hRF3 := RFree.carry hRF2 hCR2 (callWords_of_nwfoot hS2 hRP2 hsc (hw3.mono fun b hb => hb.imp_left Or.inl)).2 hck3
   obtain ⟨Q3, R3, hc3, hs3⟩ := hS3.lists
   obtain ⟨y3, n3, hk3, -⟩ := hs3.scs sc hsc
   -- `unbind_reply`
