@@ -524,12 +524,14 @@ theorem decode_encode_null : capability.Cap.encode .Null = ok (0#u64, 0#u64) ∧
 
 /-- FL4's lookup faults against l4v `lookup_failure`. `DepthMismatch` and
 `GuardMismatch` carry the same numbers; the guard is a word plus size in
-FL4 and a bit list in the spec. -/
+FL4 and a bit list in the spec. FL4 reports the CNode cap's own guard, which
+fits its guard size (`CapWf`; in l4v the guard is a list of that length). -/
 def LookupFaultRel : error.LookupFault → Fl4Spec.LookupFailure → Prop
   | .InvalidRoot, .invalidRoot => True
   | .MissingCapability bl, .missingCapability bl' => bl' = bl.val
   | .DepthMismatch found left, .depthMismatch left' found' => left' = left.val ∧ found' = found.val
-  | .GuardMismatch g left gs, .guardMismatch left' g' => left' = left.val ∧ g' = bitsOf g.val gs.val
+  | .GuardMismatch g left gs, .guardMismatch left' g' => left' = left.val ∧ g' = bitsOf g.val gs.val ∧
+      g.val < 2 ^ gs.val
   | _, _ => False
 
 end

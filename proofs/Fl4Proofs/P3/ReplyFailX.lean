@@ -353,8 +353,8 @@ theorem setmrs_lf_inv (s : S) (ms : List Fl4Spec.Word) (hms : ms.length = 1)
     refine WP.spec_mono (step s3 _ k2 (hBP.mono (k3.trans (g3.trans h3)) fun _ _ _ h => h) _ e4 (by simp [hms]) gs) ?_
     rintro ⟨i4, s4⟩ ⟨j1, j2, j3, j4⟩
     have hgb : Fl4Spec.ofBl gl = g.bv := by
-      rw [hlf.2, ofBl_bitsOf_eq, Nat.mod_eq_of_lt hg]; exact BitVec.eq_of_toNat_eq (by simp)
-    have hgl : gl.length = gs.val := by rw [hlf.2, length_bitsOf]
+      rw [hlf.2.1, ofBl_bitsOf_eq, Nat.mod_eq_of_lt hg]; exact BitVec.eq_of_toNat_eq (by simp)
+    have hgl : gl.length = gs.val := by rw [hlf.2.1, length_bitsOf]
     have hl : ms ++ Fl4Spec.msgFromLookupFailure (.guardMismatch n gl) =
         ms ++ [(fl4_abi.consts.lookup.GuardMismatch).bv] ++ [left.bv] ++ [g.bv] ++ [gs.bv] := by
       simp only [Fl4Spec.msgFromLookupFailure, hgb, hgl, hlf.1, List.append_assoc, List.cons_append,
