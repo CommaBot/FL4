@@ -108,7 +108,7 @@ theorem creation_step {sR s' : S} {H1 : Heap} {Cs Ac : Set U64} {thR : TypedHeap
       (∀ q, NewAt A k win q → ∀ kd, newKind n us = some kd → H' q = some kd) ∧
       (∀ q, H' q = H1 q → DeadQ st H1 sR q → DeadQ st H' s' q) :=
   hCR hb le_rfl le_rfl hbits hdrop hnode (retFrame_writesIn hW hP hSC ⟨0#u64, h0Cs, rfl⟩ hh0 hk hfit)
-    (fun hs => winInit_of_winZero (hWZ hs) hn1 hfit hs) hdbg hwp
+    (fun hs => winInit_of_winZero (hWZ hs) hn1 hfit hs) hdbg hwp h0Cs
 
 /-- **`JCovD` and `BlkOK` across a whole retype** (module docstring). -/
 theorem JCovD.retype_post {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set U64} {s : S}
