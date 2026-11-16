@@ -116,7 +116,7 @@ theorem ChgZ.of_fin {m0 m1 : U64 → U64} {y : U64}
   · exact Or.inl e
   · exact Or.inr (Or.inl e)
 
-def ImmInv (K : Nat) (th : TypedHeap) (sl : Fl4Spec.CslotPtr) (s0 : S) (σ0 : Fl4Spec.State Unit) (G0 : MdbGhost)
+def ImmInv (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (K : Nat) (th : TypedHeap) (sl : Fl4Spec.CslotPtr) (s0 : S) (σ0 : Fl4Spec.State Unit) (G0 : MdbGhost)
     (x : S × A × U64) : Prop :=
   ∃ σ G, DState (L := L) th x.1 σ G ∧
     psiD (L.mem x.1) G * (K + 1) + nuX K (L.mem x.1) (cslotAddr sl) < x.2.2.val ∧
@@ -124,9 +124,9 @@ def ImmInv (K : Nat) (th : TypedHeap) (sl : Fl4Spec.CslotPtr) (s0 : S) (σ0 : Fl
     (capV (L.mem x.1) (cslotAddr sl) = .Null → psiD (L.mem x.1) G < psiD (L.mem s0) G0) ∧
     (∀ y, RD (.finaliseSlotCall sl true) σ y → RD (.finaliseSlotCall sl true) σ0 y) ∧
     (∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgZ (L.mem s0) (L.mem x.1) y) ∧
-    MdbStep (L.mem s0) G0 (L.mem x.1) G
+    MdbStep (L.mem s0) G0 (L.mem x.1) G ∧ W x.1 x.2.1 σ G
 
-def ImmPost (th : TypedHeap) (sl : Fl4Spec.CslotPtr) (s0 : S) (σ0 : Fl4Spec.State Unit) (G0 : MdbGhost)
+def ImmPost (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (sl : Fl4Spec.CslotPtr) (s0 : S) (σ0 : Fl4Spec.State Unit) (G0 : MdbGhost)
     (res : core.result.Result cdt.Finalised error.Exc × S × A) : Prop :=
   ∃ σ' G', DState (L := L) th res.2.1 σ' G' ∧ (nnS G').card ≤ (nnS G0).card ∧
     psiD (L.mem res.2.1) G' ≤ psiD (L.mem s0) G0 ∧
@@ -135,7 +135,8 @@ def ImmPost (th : TypedHeap) (sl : Fl4Spec.CslotPtr) (s0 : S) (σ0 : Fl4Spec.Sta
     ((∃ f, res.1 = .Ok f ∧ CleanCap f.cleanup ∧ CapWf f.cleanup ∧
         RD (.finaliseSlotCall sl true) σ0 (.ok (true, absCap f.cleanup), σ') ∧
         ∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgZ (L.mem s0) (L.mem res.2.1) y) ∨
-      (res.1 = .Err .Preempted ∧ RD (.finaliseSlotCall sl true) σ0 (.error (), σ')))
+      (res.1 = .Err .Preempted ∧ RD (.finaliseSlotCall sl true) σ0 (.error (), σ'))) ∧
+    W res.2.1 res.2.2 σ' G'
 
 theorem nuX_zombie {K : Nat} {mem : U64 → U64} {x p zt n : U64} (h : capV mem x = .Zombie p zt n) :
     nuX K mem x = n.val := by unfold nuX; rw [h]
@@ -151,19 +152,19 @@ theorem nuX_le {K : Nat} {th : TypedHeap} (hK : ∀ p r, th p = some (.cnode r) 
   · exact le_refl _
 
 /-- **FL4's immediate finalisation loop refines `finalise_slot slot True`.** -/
-theorem immediate_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L) th)
-    (hO : FinObjHyp (L := L) arI th) (hPP : PPHypD (L := L) arI th) (hPD : PostDelHyp (L := L) arI th)
+theorem immediate_loop (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (hP : Placed th)
+    (hF : FinalHyp (L := L) th) (hH : DelHypsW (L := L) arI W th)
     (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK6 : 6 ≤ K)
     (sl : Fl4Spec.CslotPtr) (hA : AbsSlot th sl) (s0 : S) (σ0 : Fl4Spec.State Unit) (G0 : MdbGhost)
-    (s : S) (a : A) (fuel : U64) (hinv : ImmInv (L := L) (A := A) K th sl s0 σ0 G0 (s, a, fuel))
+    (s : S) (a : A) (fuel : U64) (hinv : ImmInv (L := L) (A := A) W K th sl s0 σ0 G0 (s, a, fuel))
     (hfuel : fuel.val ≤ 2 ^ 64 - 1) :
     cdt.finalise_slot_immediate_loop st arI s a (cslotAddr sl) fuel ⦃ res =>
-      ImmPost (L := L) th sl s0 σ0 G0 res ⦄ := by
+      ImmPost (L := L) W th sl s0 σ0 G0 res ⦄ := by
   unfold cdt.finalise_slot_immediate_loop
   refine loop.spec_decr_nat (fun x => x.2.2.val)
-    (fun x => ImmInv (L := L) K th sl s0 σ0 G0 x ∧ x.2.2.val ≤ 2 ^ 64 - 1) _ _ _ ?_ ⟨hinv, hfuel⟩
-  rintro ⟨s, a, fuel⟩ ⟨⟨σ, G, hDS, hlt, hcd, hps, hnul, htr, hcz, hmS⟩, hfu⟩
-  simp only at hlt hcd hps hnul htr hcz hmS hfu ⊢
+    (fun x => ImmInv (L := L) W K th sl s0 σ0 G0 x ∧ x.2.2.val ≤ 2 ^ 64 - 1) _ _ _ ?_ ⟨hinv, hfuel⟩
+  rintro ⟨s, a, fuel⟩ ⟨⟨σ, G, hDS, hlt, hcd, hps, hnul, htr, hcz, hmS, hW⟩, hfu⟩
+  simp only at hlt hcd hps hnul htr hcz hmS hW hfu ⊢
   unfold cdt.finalise_slot_immediate_loop.body
   have hf : fuel > 0#u64 := by scalar_tac
   obtain ⟨fuel1, hv, hv1⟩ := spec_exists (U64.sub_spec (x := fuel) (y := 1#u64) (by scalar_tac))
@@ -179,18 +180,18 @@ theorem immediate_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L)
     have ha : ac = .nullCap := hca.abs
     subst ha
     exact ⟨σ, G, ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, hcd, hps, hnul, hmS, Or.inl ⟨_, rfl, trivial, trivial,
-      htr _ (rd_fin_null hg), hcz⟩⟩
+      htr _ (rd_fin_null hg), hcz⟩, hW⟩
   rw [cap_is_null_ne hcn]; simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
   obtain ⟨bf, hbf1, hbf2, -⟩ := hF s σ G sl c ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hA hc hcn
   rw [is_final_with_cap_eq _ _ _ hc, hbf1]; simp only [bind_ok]
   rw [hca.abs] at hg
   have hcan : absCap c ≠ .nullCap := fun h => hcn (absCap_eq_null.1 h)
   have hcvx : capV (L.mem s) (cslotAddr sl) = c := capV_of_capAt hc
-  apply WP.spec_bind (fin_step arI th hO hF hP s a σ G ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hA hc hcn bf hbf2)
+  apply WP.spec_bind (fin_step arI W th hH.fin hF hP s a σ G ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hW hA hc hcn bf hbf2)
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨σ1, G1, hmem, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, hx1, hch1, hcl, hclw, hzr, hrem,
-    hfs1⟩
-  simp only [uncurry_apply_pair] at hmem hx1 hch1 hcl hclw hzr hrem hfs1 ⊢
-  dsimp only at hR1 hV1 hM1 hC1 hI1 hD1 hmem hx1 hch1 hcl hclw hzr hrem hfs1 ⊢
+    hfs1, hW1⟩
+  simp only [uncurry_apply_pair] at hmem hx1 hch1 hcl hclw hzr hrem hfs1 hW1 ⊢
+  dsimp only at hR1 hV1 hM1 hC1 hI1 hD1 hmem hx1 hch1 hcl hclw hzr hrem hfs1 hW1 ⊢
   have hmS1 := hmS.trans hfs1
   obtain ⟨hps1, hcd1⟩ := psiD_fin hM hM1 (by rw [hx1, hcvx]) hch1
   have hcz1 : ∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgZ (L.mem s0) (L.mem s1) y :=
@@ -199,14 +200,14 @@ theorem immediate_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L)
   · simp only [cdt.cap_removable, bind_ok, ↓reduceIte, WP.spec_ok]
     refine ⟨σ1, G1, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, le_trans hcd1 hcd, le_trans hps1 hps,
       fun h => absurd (h.symm.trans (by rw [hx1])) (Ne.symm hcn), hmS1, Or.inl ⟨_, rfl, hcl, hclw,
-      htr _ (rd_fin_removable hg hcan hmem trivial), hcz1⟩⟩
+      htr _ (rd_fin_removable hg hcan hmem trivial), hcz1⟩, hW1⟩
   obtain ⟨hrm, hrmS⟩ := removable_zombie hP hz.zok hA
   rw [hrm]; simp only [bind_ok]
   by_cases hrmv : n.val = 0 ∨ (n.val = 1 ∧ p = cslotAddr sl)
   · simp only [hrmv, decide_true, ↓reduceIte, WP.spec_ok]
     refine ⟨σ1, G1, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, le_trans hcd1 hcd, le_trans hps1 hps,
       fun h => absurd (h.symm.trans (by rw [hx1])) (Ne.symm hcn), hmS1, Or.inl ⟨_, rfl, hcl, hclw,
-      htr _ (rd_fin_removable hg hcan hmem (hrmS.2 hrmv)), hcz1⟩⟩
+      htr _ (rd_fin_removable hg hcan hmem (hrmS.2 hrmv)), hcz1⟩, hW1⟩
   simp only [hrmv, decide_false, Bool.false_eq_true, ↓reduceIte]
   have hn1 : 1 ≤ n.val := by omega
   have hnrm : ¬ Fl4Spec.capRemoveable (absCap (.Zombie p zt n)) sl := fun h => hrmv (hrmS.1 h)
@@ -221,12 +222,16 @@ theorem immediate_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L)
       rcases hz.zok with ⟨-, -, hn⟩ | ⟨-, hc', hn⟩
       · unfold tcbSlots at hn; omega
       · exact le_trans hn (hK p _ hc')
-  apply WP.spec_bind (set_zombie th s1 σ1 G1 hR1 hV1 hP hM1 hC1 hI1 hD1 hA hxn1 hz.wf hz.enc hz.zok hz.zu hz.bx hz.bf
-    hz.h1 hz.h2 hz.home)
-  rintro s2 ⟨σ2, hsc2, ⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hps2, hx2, hoth2, hrv2⟩
-  have hmS2 : MdbStep (L.mem s0) G0 (L.mem s2) G1 := hmS1.trans (MdbStep.recap hM1 _ (by rw [hx2]; exact hz.al) (by rw [hx2]; exact fun _ _ _ _ _ _ => trivial)
-    (fun z hz' hzx => hoth2 z ((hM1.members z).1 hz').1 hzx) (fun z hz' => hrv2 z ((hM1.members z).1 hz').1))
+  apply WP.spec_bind (WP.spec_and (set_zombie th s1 σ1 G1 hR1 hV1 hP hM1 hC1 hI1 hD1 hA hxn1 hz.wf hz.enc hz.zok
+    hz.zu hz.bx hz.bf hz.h1 hz.h2 hz.home) (set_zombie_frame hP s1 hxs _))
+  rintro s2 ⟨⟨σ2, hsc2, ⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hps2, hx2, hoth2, hrv2⟩, hF2⟩
+  have hrc2 : MdbStep (L.mem s1) G1 (L.mem s2) G1 := MdbStep.recap hM1 _ (by rw [hx2]; exact hz.al)
+    (by rw [hx2]; exact fun _ _ _ _ _ _ => trivial)
+    (fun z hz' hzx => hoth2 z ((hM1.members z).1 hz').1 hzx) (fun z hz' => hrv2 z ((hM1.members z).1 hz').1)
+  have hmS2 : MdbStep (L.mem s0) G0 (L.mem s2) G1 := hmS1.trans hrc2
   have hFI2 := hFI1.set_zombie hM1 (ksub_of_eq (nks_setCap _ _) hsc2) hx2 hoth2 hz.zf
+  have hW2 : W s2 a1 σ2 G1 := hH.slot s1 s2 a1 σ1 σ2 G1 G1 hW1 ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩
+    ⟨⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hFI2⟩ hF2 (Ipc.nkn_setCap _ _ σ1 ((), σ2) (mem_of_single hsc2)) hrc2
   have hcz2 : ∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgZ (L.mem s0) (L.mem s2) y :=
     fun y hy hyx => (hcz1 y hy hyx).trans (ChgZ.of_eq (hoth2 y hy hyx))
   -- the zombie's last slot
@@ -245,11 +250,11 @@ theorem immediate_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L)
   have hmul : psiD (L.mem s) G ≤ psiD (L.mem s) G * (K + 1) := Nat.le_mul_of_pos_right _ (by omega)
   have hfuel2 : psiD (L.mem s2) G1 < 2 ^ 64 - 1 :=
     lt_of_le_of_lt (le_trans hps2 (le_trans hps1 hmul)) (lt_of_le_of_lt (Nat.le_add_right _ _) (lt_of_lt_of_le hlt hfu))
-  apply WP.spec_bind (delete_deferred_refines arI th hP hF hO hPP hPD _ hEa s2 a1 σ2 G1
-    ⟨⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hFI2⟩ hfuel2)
-  rintro ⟨r3, s3, a3⟩ ⟨σ3, G3, ⟨⟨hR3, hV3, hM3, hC3, hI3⟩, hD3, hFI3⟩, hcd3, hps3, hch3, hsc3, hmS3, hres3⟩
-  simp only [uncurry_apply_pair] at hcd3 hps3 hch3 hsc3 hmS3 hres3 ⊢
-  dsimp only at hR3 hV3 hM3 hC3 hI3 hD3 hcd3 hps3 hch3 hsc3 hmS3 hres3 ⊢
+  apply WP.spec_bind (delete_deferred_refines arI W th hP hF hH _ hEa s2 a1 σ2 G1
+    ⟨⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hFI2⟩ hW2 hfuel2)
+  rintro ⟨r3, s3, a3⟩ ⟨σ3, G3, ⟨⟨hR3, hV3, hM3, hC3, hI3⟩, hD3, hFI3⟩, hcd3, hps3, hch3, hsc3, hmS3, hres3, hW3⟩
+  simp only [uncurry_apply_pair] at hcd3 hps3 hch3 hsc3 hmS3 hres3 hW3 ⊢
+  dsimp only at hR3 hV3 hM3 hC3 hI3 hD3 hcd3 hps3 hch3 hsc3 hmS3 hres3 hW3 ⊢
   have hmS3' := hmS2.trans hmS3
   have hzS : absCap (.Zombie p zt n) = .zombie p.bv (zombieBits zt) (m + 1) := by
     show Fl4Spec.Cap.zombie p.bv (zombieBits zt) n.val = _; rw [show n.val = m + 1 by omega]
@@ -264,7 +269,7 @@ theorem immediate_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L)
       rw [hzS]; exact rd_reduce_true_err hrd3
     refine ⟨σ3, G3, ⟨⟨hR3, hV3, hM3, hC3, hI3⟩, hD3, hFI3⟩, le_trans hcd3 (le_trans hcd1 hcd),
       le_trans hps3 (le_trans hps2 (le_trans hps1 hps)), fun h => ?_, hmS3', Or.inr ⟨rfl,
-      htr _ (rd_fin_reduce_err hg hcan hmem hnrm hcy' hsc2 hz3)⟩⟩
+      htr _ (rd_fin_reduce_err hg hcan hmem hnrm hcy' hsc2 hz3)⟩, hW3⟩
     have hne : capV (L.mem s3) (cslotAddr sl) ≠ capV (L.mem s2) (cslotAddr sl) := by rw [h, hx2]; simp
     have := hsc3 (cslotAddr sl) hxs hne (by
       by_cases he : cslotAddr sl = cslotAddr (zSlot p zt m)
@@ -306,7 +311,7 @@ theorem immediate_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L)
       · exact Or.inr ⟨h1, h2, by rw [hwv]; omega⟩
     have hxn3 : capV (L.mem s3) (cslotAddr sl) ≠ .Null := by rw [hcv3]; simp
     simp only [Std.bind_assoc, bind_ok, uncurry_apply_pair]
-    apply WP.spec_bind (set_zombie th s3 σ3 G3 hR3 hV3 hP hM3 hC3 hI3 hD3 hA hxn3 hZw' hZe' hZok'
+    apply WP.spec_bind (WP.spec_and (set_zombie th s3 σ3 G3 hR3 hV3 hP hM3 hC3 hI3 hD3 hA hxn3 hZw' hZe' hZok'
       (fun y hy hyx p' zt' n' e => hD3.zu y _ hy hxs hyx _ _ _ _ _ _ e hcv3)
       (by rw [hcv3]; rfl) (by rw [hcv3]; rfl)
       (fun y hy hyx => by
@@ -318,12 +323,15 @@ theorem immediate_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L)
             exact ⟨_, _, _, _, rfl⟩
           rw [e]; exact srB_ut_zombie_zombie q sb fi d p zt n w)
       (fun y _ _ => by rw [hcv3, srB_zombie])
-      (fun hh => by obtain ⟨zt', n', e⟩ := hh; rw [hcv3] at e; cases e; rfl))
-    rintro s4 ⟨σ4, hsc4, hCR4, hD4, hps4, hx4, hoth4, hrv4⟩
-    have hmS4 : MdbStep (L.mem s0) G0 (L.mem s4) G3 := hmS3'.trans (MdbStep.recap hM3 _
+      (fun hh => by obtain ⟨zt', n', e⟩ := hh; rw [hcv3] at e; cases e; rfl)) (set_zombie_frame hP s3 hxs _))
+    rintro s4 ⟨⟨σ4, hsc4, hCR4, hD4, hps4, hx4, hoth4, hrv4⟩, hF4⟩
+    have hrc4 : MdbStep (L.mem s3) G3 (L.mem s4) G3 := MdbStep.recap hM3 _
       (by rw [hx4, hcv3]; exact capAlike_zombie_zombie) (by rw [hx4]; exact fun _ _ _ _ _ _ => trivial)
-      (fun z hz' hzx => hoth4 z ((hM3.members z).1 hz').1 hzx) (fun z hz' => hrv4 z ((hM3.members z).1 hz').1))
+      (fun z hz' hzx => hoth4 z ((hM3.members z).1 hz').1 hzx) (fun z hz' => hrv4 z ((hM3.members z).1 hz').1)
+    have hmS4 : MdbStep (L.mem s0) G0 (L.mem s4) G3 := hmS3'.trans hrc4
     have hFI4 := hFI3.set_zombie hM3 (ksub_of_eq (nks_setCap _ _) hsc4) hx4 hoth4 (hFI3.zombie_alone hM3 hxs hcv3)
+    have hW4 : W s4 a3 σ4 G3 := hH.slot s3 s4 a3 σ3 σ4 G3 G3 hW3 ⟨⟨hR3, hV3, hM3, hC3, hI3⟩, hD3, hFI3⟩
+      ⟨hCR4, hD4, hFI4⟩ hF4 (Ipc.nkn_setCap _ _ σ3 ((), σ4) (mem_of_single hsc4)) hrc4
     have hcz4 : ∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgZ (L.mem s0) (L.mem s4) y :=
       fun y hy hyx => (hcz3 y hy hyx).trans (ChgZ.of_eq (hoth4 y hy hyx))
     obtain ⟨v4, hz4⟩ := rd_reduce_true_dec (ptr := p.bv) (bits := zombieBits zt) (n := m) (sl := sl)
@@ -342,9 +350,9 @@ theorem immediate_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L)
       fun h => by rw [hx4] at h; cases h
     have hDS4 : DState (L := L) th s4 σ4 G3 := ⟨hCR4, hD4, hFI4⟩
     obtain ⟨⟨hR4, hV4, hM4, hC4, hI4⟩, hD4, hFI4⟩ := hDS4
-    apply WP.spec_bind (hPP s4 a3 σ4 G3 ⟨⟨hR4, hV4, hM4, hC4, hI4⟩, hD4, hFI4⟩)
-    rintro ⟨r5, s5, a5⟩ ⟨hS5, σ5, hcase, hCR5⟩
-    simp only [uncurry_apply_pair] at hS5 hcase hCR5 ⊢
+    apply WP.spec_bind (hH.pp s4 a3 σ4 G3 ⟨⟨hR4, hV4, hM4, hC4, hI4⟩, hD4, hFI4⟩ hW4)
+    rintro ⟨r5, s5, a5⟩ ⟨hS5, σ5, hcase, hCR5, hW5⟩
+    simp only [uncurry_apply_pair] at hS5 hcase hCR5 hW5 ⊢
     have hD5 := hD4.of_same hS5
     have hmS5 := hmS4.same_right hM4 hS5
     have hcz5 : ∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgZ (L.mem s0) (L.mem s5) y :=
@@ -360,7 +368,7 @@ theorem immediate_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L)
     rcases hcase with ⟨rfl, hpm⟩ | ⟨rfl, hpm⟩
     · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok, WP.spec_ok]
       refine ⟨⟨⟨σ5, G3, ⟨hCR5, hD5, hFI5⟩, ?_, le_trans hcd3 (le_trans hcd1 hcd), hps5', hnul5, fun y hy => ?_,
-        hcz5, hmS5⟩, by omega⟩,
+        hcz5, hmS5, hW5⟩, by omega⟩,
         by omega⟩
       · show psiD (L.mem s5) G3 * (K + 1) + nuX K (L.mem s5) (cslotAddr sl) < fuel1.val
         rw [hps5, hnu5]; omega
@@ -369,7 +377,7 @@ theorem immediate_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L)
         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
         bind_ok, bind_tc_ok, WP.spec_ok]
       exact ⟨σ5, G3, ⟨hCR5, hD5, hFI5⟩, le_trans hcd3 (le_trans hcd1 hcd), hps5', hnul5, hmS5, Or.inr ⟨rfl,
-        htr _ (rd_fin_pp_err hg hcan hmem hnrm hcy' hsc2 hz4 hpm)⟩⟩
+        htr _ (rd_fin_pp_err hg hcan hmem hnrm hcy' hsc2 hz4 hpm)⟩, hW5⟩
 
   · -- changed: the spec's assertion
     have hcw3 : CapWf c3 := hca3.1
@@ -445,9 +453,9 @@ theorem immediate_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L)
       fun _ => lt_of_lt_of_le hstr hps2'
     have hDS3' : DState (L := L) th s3 σ3 G3 := ⟨⟨hR3, hV3, hM3, hC3, hI3⟩, hD3, hFI3⟩
     obtain ⟨⟨hR3', hV3', hM3', hC3', hI3'⟩, hD3', hFI3'⟩ := hDS3'
-    apply WP.spec_bind (hPP s3 a3 σ3 G3 ⟨⟨hR3', hV3', hM3', hC3', hI3'⟩, hD3', hFI3'⟩)
-    rintro ⟨r5, s5, a5⟩ ⟨hS5, σ5, hcase, hCR5⟩
-    simp only [uncurry_apply_pair] at hS5 hcase hCR5 ⊢
+    apply WP.spec_bind (hH.pp s3 a3 σ3 G3 ⟨⟨hR3', hV3', hM3', hC3', hI3'⟩, hD3', hFI3'⟩ hW3)
+    rintro ⟨r5, s5, a5⟩ ⟨hS5, σ5, hcase, hCR5, hW5⟩
+    simp only [uncurry_apply_pair] at hS5 hcase hCR5 hW5 ⊢
     have hD5 := hD3'.of_same hS5
     have hmS5 := hmS3'.same_right hM3' hS5
     have hcz5 : ∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgZ (L.mem s0) (L.mem s5) y :=
@@ -463,7 +471,7 @@ theorem immediate_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L)
     rcases hcase with ⟨rfl, hpm⟩ | ⟨rfl, hpm⟩
     · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok, WP.spec_ok]
       refine ⟨⟨⟨σ5, G3, ⟨hCR5, hD5, hFI5⟩, ?_, le_trans hcd3 (le_trans hcd1 hcd), hps5', hnul5, fun y hy => ?_,
-        hcz5, hmS5⟩, by omega⟩,
+        hcz5, hmS5, hW5⟩, by omega⟩,
         by omega⟩
       · show psiD (L.mem s5) G3 * (K + 1) + nuX K (L.mem s5) (cslotAddr sl) < fuel1.val
         rw [hps5, hnu5]; omega
@@ -472,7 +480,7 @@ theorem immediate_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L)
         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
         bind_ok, bind_tc_ok, WP.spec_ok]
       exact ⟨σ5, G3, ⟨hCR5, hD5, hFI5⟩, le_trans hcd3 (le_trans hcd1 hcd), hps5', hnul5, hmS5, Or.inr ⟨rfl,
-        htr _ (rd_fin_pp_err hg hcan hmem hnrm hcy' hsc2 hz4 hpm)⟩⟩
+        htr _ (rd_fin_pp_err hg hcan hmem hnrm hcy' hsc2 hz4 hpm)⟩, hW5⟩
 
 
 end

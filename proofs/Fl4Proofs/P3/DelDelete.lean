@@ -15,7 +15,7 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
 /-- What `delete_deferred` ends with. -/
-def DDPost (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) (sl : Fl4Spec.CslotPtr)
+def DDPost (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) (sl : Fl4Spec.CslotPtr)
     (res : core.result.Result Unit error.Exc × S × A) : Prop :=
   ∃ σ' G', DState (L := L) th res.2.1 σ' G' ∧ (nnS G').card ≤ (nnS G).card ∧
     psiD (L.mem res.2.1) G' ≤ psiD (L.mem s) G ∧
@@ -23,38 +23,39 @@ def DDPost (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) (sl
     StrictChg th (L.mem s) (L.mem res.2.1) G G' (cslotAddr sl) ∧ MdbStep (L.mem s) G (L.mem res.2.1) G' ∧
     ((res.1 = .Ok () ∧ (∃ v, RD (.cTEDeleteCall sl false) σ (.ok v, σ')) ∧
         (capV (L.mem res.2.1) (cslotAddr sl) = .Null ∨ HomeZ (L.mem res.2.1) (cslotAddr sl))) ∨
-      (res.1 = .Err .Preempted ∧ RD (.cTEDeleteCall sl false) σ (.error (), σ')))
+      (res.1 = .Err .Preempted ∧ RD (.cTEDeleteCall sl false) σ (.error (), σ'))) ∧
+    W res.2.1 res.2.2 σ' G'
 
-theorem delete_deferred_refines (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L) th)
-    (hO : FinObjHyp (L := L) arI th) (hPP : PPHypD (L := L) arI th) (hPD : PostDelHyp (L := L) arI th)
+theorem delete_deferred_refines (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap)
+    (hP : Placed th) (hF : FinalHyp (L := L) th) (hH : DelHypsW (L := L) arI W th)
     (sl : Fl4Spec.CslotPtr) (hA : AbsSlot th sl) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
-    (hDS : DState (L := L) th s σ G) (hfuel : psiD (L.mem s) G < 2 ^ 64 - 1) :
-    cdt.delete_deferred st arI s a (cslotAddr sl) ⦃ res => DDPost (L := L) th s σ G sl res ⦄ := by
+    (hDS : DState (L := L) th s σ G) (hW : W s a σ G) (hfuel : psiD (L.mem s) G < 2 ^ 64 - 1) :
+    cdt.delete_deferred st arI s a (cslotAddr sl) ⦃ res => DDPost (L := L) W th s σ G sl res ⦄ := by
   unfold cdt.delete_deferred cdt.finalise_slot_deferred
-  have hW : layout.WALK_FUEL.val = 2 ^ 64 - 1 := by simp [layout.WALK_FUEL, U64.rMax]
-  apply WP.spec_bind (deferred_loop arI th hP hF hO hPP sl hA s σ G s a layout.WALK_FUEL
-    ⟨σ, G, hDS, by simp only; rw [hW]; exact hfuel, le_refl _, le_refl _, fun _ h => h,
-      fun _ _ _ => ChgOK.refl _ _, StrictChg.refl _ _ _, MdbStep.refl hDS.1.2.2.1⟩)
-  rintro ⟨r, s1, a1⟩ ⟨σ1, G1, hDS1, hcd1, hps1, hch1, hsc1, hmS1, hres⟩
-  simp only [uncurry_apply_pair] at hDS1 hcd1 hps1 hch1 hsc1 hmS1 hres ⊢
+  have hWF : layout.WALK_FUEL.val = 2 ^ 64 - 1 := by simp [layout.WALK_FUEL, U64.rMax]
+  apply WP.spec_bind (deferred_loop arI W th hP hF hH.fin hH.pp hH.slot sl hA s σ G s a layout.WALK_FUEL
+    ⟨σ, G, hDS, by simp only; rw [hWF]; exact hfuel, le_refl _, le_refl _, fun _ h => h,
+      fun _ _ _ => ChgOK.refl _ _, StrictChg.refl _ _ _, MdbStep.refl hDS.1.2.2.1, hW⟩)
+  rintro ⟨r, s1, a1⟩ ⟨σ1, G1, hDS1, hcd1, hps1, hch1, hsc1, hmS1, hres, hW1⟩
+  simp only [uncurry_apply_pair] at hDS1 hcd1 hps1 hch1 hsc1 hmS1 hres hW1 ⊢
   rcases hres with ⟨f, rfl, hcl, hclw, hsf, hrd⟩ | ⟨rfl, hrd⟩
   · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
     cases hs : f.success
     · simp only [Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
       rw [hs] at hrd
       obtain ⟨v, hv⟩ := rd_cte_ok (σ2 := σ1) hrd (by simp only [Bool.false_eq_true, or_self]; rfl)
-      exact ⟨σ1, G1, hDS1, hcd1, hps1, hch1, hsc1, hmS1, Or.inl ⟨rfl, ⟨v, hv⟩, Or.inr (hsf hs)⟩⟩
+      exact ⟨σ1, G1, hDS1, hcd1, hps1, hch1, hsc1, hmS1, Or.inl ⟨rfl, ⟨v, hv⟩, Or.inr (hsf hs)⟩, hW1⟩
     · simp only [↓reduceIte]
       rw [hs] at hrd
       simp only [↓reduceIte] at hrd
-      apply WP.spec_bind (empty_step arI th hP hPD s1 a1 σ1 G1 hDS1 hA f.cleanup hcl hclw)
-      rintro ⟨s2, a2⟩ ⟨σ2, G2, hes, hDS2, hx2, hoth2, hps2, hcd2, hlt2, hmS2⟩
-      simp only [uncurry_apply_pair] at hes hDS2 hx2 hoth2 hps2 hcd2 hlt2 hmS2 ⊢
+      apply WP.spec_bind (empty_stepW arI W th hP hH.post hH.slot s1 a1 σ1 G1 hDS1 hW1 hA f.cleanup hcl hclw)
+      rintro ⟨s2, a2⟩ ⟨σ2, G2, hes, hDS2, hx2, hoth2, hps2, hcd2, hlt2, hmS2, hW2⟩
+      simp only [uncurry_apply_pair] at hes hDS2 hx2 hoth2 hps2 hcd2 hlt2 hmS2 hW2 ⊢
       rw [WP.spec_ok]
       obtain ⟨v, hv⟩ := rd_cte_ok (σ2 := σ2) hrd (by simp only [or_true, Fl4Spec.NonDet.when, ↓reduceIte]; exact hes)
       refine ⟨σ2, G2, hDS2, le_trans hcd2 hcd1, le_trans hps2 hps1,
         fun y hy hyx => (hch1 y hy hyx).trans (Or.inl (hoth2 y hy hyx)), ?_, hmS1.trans hmS2,
-        Or.inl ⟨rfl, ⟨v, hv⟩, Or.inl hx2⟩⟩
+        Or.inl ⟨rfl, ⟨v, hv⟩, Or.inl hx2⟩, hW2⟩
       refine hsc1.trans (fun y hy hne _ => ?_) hps1 hps2
       by_cases hyx : y = cslotAddr sl
       · subst hyx
@@ -65,7 +66,7 @@ theorem delete_deferred_refines (th : TypedHeap) (hP : Placed th) (hF : FinalHyp
   · simp only [core.result.Result.Insts.CoreOpsTry.branch,
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
       bind_ok, bind_tc_ok, WP.spec_ok]
-    exact ⟨σ1, G1, hDS1, hcd1, hps1, hch1, hsc1, hmS1, Or.inr ⟨rfl, rd_cte_err hrd⟩⟩
+    exact ⟨σ1, G1, hDS1, hcd1, hps1, hch1, hsc1, hmS1, Or.inr ⟨rfl, rd_cte_err hrd⟩, hW1⟩
 
 end
 

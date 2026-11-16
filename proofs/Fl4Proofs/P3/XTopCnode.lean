@@ -96,16 +96,6 @@ theorem invoke_cn {inv : CnodeInvocation} (hne : invSlots inv ≠ []) {σ σ' : 
   | deleteCall _ => exact absurd rfl hne
   | cancelBadgedSendsCall _ => exact absurd rfl hne
 
-/-- **`empty_slot` with no cleanup changes CNodes, TCBs' caps, the CDT and
-the original bits only.** -/
-theorem emptySlot_null_nkn (sl : CslotPtr) : NKN (emptySlot (Z := Unit) sl .nullCap) := by
-  unfold emptySlot setCdt setOriginal postCapDeletion
-  repeat (first | exact nkn_getCap _ | exact nkn_setCap _ _ | exact nkn_doExtendedOp _ |
-    exact nkn_pure _ | exact nkn_pure' _ | exact nkn_fail | exact nkn_gets _ | exact nkn_get |
-    exact nkn_assert _ | exact nkn_get_put (fun σ => ⟨rfl, fun _ => Or.inl rfl⟩) |
-    exact nkn_modify (fun σ => ⟨rfl, fun _ => Or.inl rfl⟩) | (refine nkn_bind ?_ (fun _ => ?_)) |
-    (apply nkn_ite) | split)
-
 end Spec
 
 section

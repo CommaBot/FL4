@@ -121,6 +121,16 @@ def EmptyPost (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) 
     (capV (L.mem s) (cslotAddr sl) ≠ .Null → (nnS G').card < (nnS G).card ∧ psiD (L.mem r.1) G' < psiD (L.mem s) G) ∧
     MdbStep (L.mem s) G (L.mem r.1) G'
 
+/-- `EmptyPost` with `W` after. -/
+def EmptyPostW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit)
+    (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (cl : capability.Cap) (r : S × A) : Prop :=
+  ∃ σ' G', ((), σ') ∈ (Fl4Spec.emptySlot (Z := Unit) sl (absCap cl) σ).1 ∧ DState (L := L) th r.1 σ' G' ∧
+    capV (L.mem r.1) (cslotAddr sl) = .Null ∧
+    (∀ y, IsSlot th y → y ≠ cslotAddr sl → capV (L.mem r.1) y = capV (L.mem s) y) ∧
+    psiD (L.mem r.1) G' ≤ psiD (L.mem s) G ∧ (nnS G').card ≤ (nnS G).card ∧
+    (capV (L.mem s) (cslotAddr sl) ≠ .Null → (nnS G').card < (nnS G).card ∧ psiD (L.mem r.1) G' < psiD (L.mem s) G) ∧
+    MdbStep (L.mem s) G (L.mem r.1) G' ∧ W r.1 r.2 σ' G'
+
 theorem DelInv.empty {th : TypedHeap} {mem mem' : U64 → U64} {G : MdbGhost} (hD : DelInv th mem)
     (hM : MdbLinks th mem G) {x : U64}
     (hcap : ∀ y, IsSlot th y → capAt mem' y = if y = x then ok .Null else capAt mem y)
@@ -145,10 +155,11 @@ theorem DelInv.empty {th : TypedHeap} {mem mem' : U64 → U64} {G : MdbGhost} (h
       rw [e1, e2]; exact hD.nc y hy h
 
 /-- **`empty_slot slot cl`** for a slot of the typed heap and a cleanup cap. -/
-theorem empty_step (th : TypedHeap) (hP : Placed th) (hPD : PostDelHyp (L := L) arI th)
-    (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+theorem empty_stepW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (hP : Placed th)
+    (hPD : PostDelHypW (L := L) arI W th) (hSl : SlotHypW (L := L) (A := A) W th)
+    (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hW : W s a σ G)
     {sl : Fl4Spec.CslotPtr} (hA : AbsSlot th sl) (cl : capability.Cap) (hcl : CleanCap cl) (hclw : CapWf cl) :
-    cdt.empty_slot st arI s a (cslotAddr sl) cl ⦃ r => EmptyPost (L := L) th s σ G sl cl r ⦄ := by
+    cdt.empty_slot st arI s a (cslotAddr sl) cl ⦃ r => EmptyPostW (L := L) W th s σ G sl cl r ⦄ := by
   obtain ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ := hDS
   have hxs := hA.isSlot
   obtain ⟨c, ac, hc, hca, hg⟩ := hR.abs_cap hA
@@ -157,15 +168,16 @@ theorem empty_step (th : TypedHeap) (hP : Placed th) (hPD : PostDelHyp (L := L) 
   · subst hcn
     rw [empty_slot_null arI s a _ hc, WP.spec_ok]
     refine ⟨σ, G, ?_, ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, capV_of_capAt hc, fun _ _ _ => rfl, le_refl _, le_refl _,
-      fun h => absurd (capV_of_capAt hc) h, MdbStep.refl hM⟩
+      fun h => absurd (capV_of_capAt hc) h, MdbStep.refl hM, hW⟩
     rw [emptySlot_null_cap _ hg]; rfl
   have hcan : absCap c ≠ .nullCap := fun h => hcn (absCap_eq_null.1 h)
   have hsplit := empty_slot_split (st := st) arI s a (cslotAddr sl) cl (c := c) (by rw [slot_cap_eq]; exact hc) hcn
   rw [hsplit]
   have hxm0 : cslotAddr sl ∈ G.chains.flatten := (hM.members _).2 ⟨hxs, c, hc, hcn⟩
-  apply WP.spec_bind (WP.spec_and (empty_full_abs (ar := arI) th s a σ G hR hV hP hM hC hI hA hc hcn)
-    (empty_mstep (ar := arI) hP s a G hM hxm0 hc hcn))
-  rintro ⟨s1, a1⟩ ⟨⟨-, σ1, G1, hes, hR1, hV1, hM1, hC1, hI1, hG1, hcap1, hp01, hn01, hl1⟩, hst1⟩
+  apply WP.spec_bind (WP.spec_and (WP.spec_and (empty_full_abs (ar := arI) th s a σ G hR hV hP hM hC hI hA hc hcn)
+    (empty_mstep (ar := arI) hP s a G hM hxm0 hc hcn)) (empty_null_frame arI hP s a hM hD hxs))
+  rintro ⟨s1, a1⟩ ⟨⟨⟨ha1, σ1, G1, hes, hR1, hV1, hM1, hC1, hI1, hG1, hcap1, hp01, hn01, hl1⟩, hst1⟩, hF1, -⟩
+  simp only at ha1; subst a1
   rw [← hG1] at hst1
   simp only at hes hR1 hV1 hM1 hC1 hI1 hcap1 hp01 hn01 hl1 ⊢
   have hD1 := hD.empty hM hcap1 hp01 hn01 hl1
@@ -204,19 +216,33 @@ theorem empty_step (th : TypedHeap) (hP : Placed th) (hPD : PostDelHyp (L := L) 
   rw [hes] at he0
   have e : σ1 = σ2 := by simpa using he0
   subst e
+  have hW1 : W s1 a σ1 G1 := hSl s s1 a σ σ1 G G1 hW ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩
+    ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩ hF1 (emptySlot_null_nkn _ σ ((), σ1) (mem_of_single hes)) hst1
   have hcl' := emptySlot_cl (absCap cl) hg hcan h2
   by_cases hcln : cl = .Null
   · subst hcln
-    show (objects.post_cap_deletion st arI s1 a1 .Null) ⦃ _ ⦄
-    rw [show objects.post_cap_deletion st arI s1 a1 .Null = ok (s1, a1) from rfl, WP.spec_ok]
-    refine ⟨σ1, G1, ?_, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, hx1, hoth, hps1, hcd.le, fun _ => ⟨hcd, hpslt⟩, hst1⟩
+    show (objects.post_cap_deletion st arI s1 a .Null) ⦃ _ ⦄
+    rw [show objects.post_cap_deletion st arI s1 a .Null = ok (s1, a) from rfl, WP.spec_ok]
+    refine ⟨σ1, G1, ?_, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, hx1, hoth, hps1, hcd.le, fun _ => ⟨hcd, hpslt⟩, hst1,
+      hW1⟩
     rw [hcl']; rfl
-  · refine WP.spec_mono (hPD s1 a1 σ1 G1 cl ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩ hcl hcln hclw) ?_
-    rintro ⟨s2, a2⟩ ⟨hS2, σ2, hpd, hCR2⟩
-    simp only at hS2 hpd hCR2 ⊢
+  · refine WP.spec_mono (hPD s1 a σ1 G1 cl ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩ hW1 hcl hcln hclw) ?_
+    rintro ⟨s2, a2⟩ ⟨hS2, σ2, hpd, hCR2, hW2⟩
+    simp only at hS2 hpd hCR2 hW2 ⊢
     refine ⟨σ2, G1, by rw [hcl']; exact hpd, ⟨hCR2, hD1.of_same hS2, hFI1.of_same hM1 hS2 (postCapDeletion_nks _ σ1 _ hpd)⟩, by rw [hS2.capV hxs]; exact hx1,
       fun y hy hyx => by rw [hS2.capV hy]; exact hoth y hy hyx, by rw [psiD_same hM1 hCR2.2.2.1 hS2]; exact hps1,
-      hcd.le, fun _ => ⟨hcd, by rw [psiD_same hM1 hCR2.2.2.1 hS2]; exact hpslt⟩, hst1.same_right hM1 hS2⟩
+      hcd.le, fun _ => ⟨hcd, by rw [psiD_same hM1 hCR2.2.2.1 hS2]; exact hpslt⟩, hst1.same_right hM1 hS2, hW2⟩
+
+/-- **`empty_slot slot cl`** for a slot of the typed heap and a cleanup cap
+(`empty_stepW` at `W := True`). -/
+theorem empty_step (th : TypedHeap) (hP : Placed th) (hPD : PostDelHyp (L := L) arI th)
+    (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    {sl : Fl4Spec.CslotPtr} (hA : AbsSlot th sl) (cl : capability.Cap) (hcl : CleanCap cl) (hclw : CapWf cl) :
+    cdt.empty_slot st arI s a (cslotAddr sl) cl ⦃ r => EmptyPost (L := L) th s σ G sl cl r ⦄ := by
+  refine WP.spec_mono (empty_stepW arI WTrue th hP (hPD.w arI) (fun _ _ _ _ _ _ _ _ _ _ _ _ _ => trivial) s a σ G hDS
+    trivial hA cl hcl hclw) ?_
+  rintro r ⟨σ', G', h1, h2, h3, h4, h5, h6, h7, h8, -⟩
+  exact ⟨σ', G', h1, h2, h3, h4, h5, h6, h7, h8⟩
 
 end
 
