@@ -407,7 +407,7 @@ theorem CanBlock.restart {s s1 : S} {t : U64} (hc : CanBlock st T Ac s t) (hT : 
 `send_ipc`.  The caller can block (`CanBlock`, as at a receive), and the user
 words are outside the kernel objects. -/
 theorem ep_send.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
-    (hxf : XferOK st ar T U) (s : S) (a : A) (blk call : Bool) (badge : U64) (grant grant_reply don : Bool)
+    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U) (s : S) (a : A) (blk call : Bool) (badge : U64) (grant grant_reply don : Bool)
     (ct e : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hU : UserOK st T Cs Ω H U s)
     (hc : CanBlock st T Ac s ct) (hdon : don = true → L.mem s (scA ct) ≠ 0#u64) (hH : H e = some .ep) :
     (do

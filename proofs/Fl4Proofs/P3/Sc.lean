@@ -149,6 +149,42 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
   `finEpSpecHyp` for a final endpoint cap), `hRT_of`/`hRS_of` from the
   scheduler relations, and SetSchedParams end to end
   (`tcb_set_sched_params_refines_disch`).
+* ScPlace: the joint P1/P3 placement invariant `JPlaced` (P3's typed heap
+  against P1's heap `H` and its sets), the placement hypotheses derived
+  from it (`JPlaced.ssp`, `JPlaced.kwOut`, `JPlaced.slotCapW`,
+  `ntfnP1Hyp_of`, `replyP1Hyp_of`, `JPlaced.slotCapTyped` for P1's slot
+  reads, the IRQ handler slots included), and its frames (`JPlaced.step`,
+  `JPlaced.same`).
+* ScPlaceCaps: `mask_cap_rights`, `update_cap_data` and `derive_cap` keep
+  P1's `CapTyped` (`mask_typed`, `update_typed`, `derive_typed`).
+* ScPlaceSc: the SchedContext and SchedControl caps keep `JPlaced`
+  (`decode_invocation_sched_contextJ`, `decode_invocation_sched_controlJ`,
+  `TopPostFJ`), with `SlotsApart` and the IRQ slots' apartness derived from
+  `JPlaced` (`JPlaced.slotsApart`, `JPlaced.irqApart`).
+* ScPlaceUt: objects covered by caps (`JCov`); a childless untyped region
+  holds no object of the typed heaps (`restrictTh_childless`) and no word
+  the other relations read (`oobj_childless`, `regOKTop_childless`,
+  `oobj_out`): MakePool's `MpPlacedHyp` (a) and (b).
+* ScSchedOut: the spec's `reschedule_required` and `possible_switch_to`
+  have one outcome keeping the heap, given `ActReady`
+  (`rescheduleRequired_some`, `possibleSwitchTo_some`).
+* ScPlaceDead: `JCov` kept with a dead set (`JCovD`, `DeadP`): across
+  steps (`JCovD.step`, `JCovD.same`), deletes (`JCovD.delete`), and the
+  childless region holding only dead objects (`dead_childless`);
+  finalisation of a final cap leaves its object dead (`FinDeadHyp`) for
+  endpoints, notifications, replies, SCs and threads (`finDead_*`, from P1's
+  QueueDead).
+* ScPlaceRet: `JCov` with a dead set across retype (`JCovD.retype`), from
+  retype's exposed post (`RetExp`, UntypedExp: the caps kept, the new caps,
+  the untyped ranges, the typed heap after, `ksb` kept) and P1's half
+  (`RetypeP1Hyp`: `BlkOK` over the heap with the window's dead objects
+  removed and the new ones added); the window's objects are dead
+  (`retype_window_dead`).
+* ScTopX: the SchedContext and SchedControl caps for
+  `handle_invocation_refinesMX` (`decode_invocation_sched_contextX`:
+  `DecOKDMX ∨ DecOKRMX`, the arm picked from the decode's one result — an
+  invocation that returned data has already replied, against the spec's
+  `specTail`; `decode_invocation_sched_controlX`: `DecOKDMX`).
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
@@ -181,3 +217,11 @@ import Fl4Proofs.P3.ScInstFoot
 import Fl4Proofs.P3.ScInstSpec
 import Fl4Proofs.P3.ScCancelFrame
 import Fl4Proofs.P3.ScInstPost
+import Fl4Proofs.P3.ScPlace
+import Fl4Proofs.P3.ScPlaceCaps
+import Fl4Proofs.P3.ScPlaceSc
+import Fl4Proofs.P3.ScPlaceUt
+import Fl4Proofs.P3.ScSchedOut
+import Fl4Proofs.P3.ScPlaceDead
+import Fl4Proofs.P3.ScPlaceRet
+import Fl4Proofs.P3.ScTopX

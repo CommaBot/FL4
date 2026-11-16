@@ -1544,7 +1544,7 @@ theorem fin_thread.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   subst r
   try dsimp only
   refine WP.spec_bind (notification.unbind_notification.blkF s1 p h1 hp) fun s2 ⟨h2, f2, n2⟩ => ?_
-  refine WP.spec_bind (timer.remove.tf (s0 := s2) s2 p ⟨h2, Foot.refl _, ANI.refl _⟩ hp) fun s3 ⟨h3, f3, n3⟩ => ?_
+  refine WP.spec_bind (timer.remove.tf (s0 := s2) s2 p (TF.start h2) hp) fun s3 ⟨h3, f3, n3, k3⟩ => ?_
   have ea3 : L.actionW s3 = L.actionW s := by rw [n3.1, n2.1, ea1]
   have ei3 : L.idleW s3 = L.idleW s := by rw [n3.2.1, n2.2.1, ei1]
   have f03 : Foot st T Cs Sg Scs Z ∅ s s3 := f1.trans (f2.trans f3)

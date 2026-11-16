@@ -2,10 +2,10 @@
 P1: writes to capability slots keep `BlkOK`.
 
 The cap slots are words the invariants do not read: the low words of the
-TCBs (below offset 160, the TCB's own slots) and, in the CNodes, words of
+TCBs (below offset 192, the TCB's own slots) and, in the CNodes, words of
 the other objects `Ω` outside the kernel-object words `Sg` (`CapW`).  A
 change confined to such words keeps `BlkOK` (`blk_of_capw`), with every TCB
-field from offset 160, every node word and every `Sg` word unchanged; so
+field from offset 192, every node word and every `Sg` word unchanged; so
 the scheduler words of the current thread and the frames `PFr`/`Fr` hold
 across it.  The P3 side gets `BlkOK` across `cdt::insert`, `empty_slot` and
 the slot writes of a delete from its slot frames (`SlotFrame`) and the fact
@@ -21,15 +21,20 @@ section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64}
 
-/-- The low words of the TCBs (below offset 160, where the TCB's cap slots
+/-- The low words of the TCBs (below offset 192, where the TCB's cap slots
 lie): no invariant reads them. -/
-def TLow (T : Set U64) (b : U64) : Prop := ∃ t ∈ T, ∃ K : U64, K.val < 160 ∧ b = core.num.U64.wrapping_add t K
+def TLow (T : Set U64) (b : U64) : Prop := ∃ t ∈ T, ∃ K : U64, K.val < 192 ∧ b = core.num.U64.wrapping_add t K
 
 /-- Capability-slot words as the invariants see them: TCB low words, or
 words of `Ω` outside `Sg`. -/
 def CapW (T Ω Sg : Set U64) (b : U64) : Prop := TLow T b ∨ (b ∈ Ω ∧ b ∉ Sg)
 
-theorem tlow_ne_field {y K b : U64} (hT : TcbPlaced T) (hy : y ∈ T) (hK0 : 160 ≤ K.val) (hK : K.val < 4096)
+/-- Every word below offset 192 of a TCB (its six cap slots) is a `TLow`
+word (the Sc side's `TLowSlots`). -/
+theorem tlow_slots : ∀ t ∈ T, ∀ K : U64, K.val < 192 → TLow T (core.num.U64.wrapping_add t K) :=
+  fun t ht K hK => ⟨t, ht, K, hK, rfl⟩
+
+theorem tlow_ne_field {y K b : U64} (hT : TcbPlaced T) (hy : y ∈ T) (hK0 : 192 ≤ K.val) (hK : K.val < 4096)
     (hb : TLow T b) : b ≠ core.num.U64.wrapping_add y K := by
   obtain ⟨t, ht, K', hK', rfl⟩ := hb
   exact field_ne (hT t ht) (hT y hy) (by omega) hK (fun _ => by omega)
@@ -49,7 +54,7 @@ theorem inv_of_capw {Cs X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {
     SchedQueuesInvX st T Cs Ω H X s' Q R := by
   have hT := h.tcbs
   have fld : ∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 →
-      160 ≤ K.val → L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K) := by
+      192 ≤ K.val → L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K) := by
     intro y hy K hK hK8 hK0
     refine hw.mem_eq (field_aligned (hT y hy) hK hK8) fun hb => ?_
     rcases hBw _ hb with (hm | ⟨c, hc, o, ho, e⟩) | hl
@@ -151,7 +156,7 @@ theorem BoundInv.capw {Ω : Set U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) 
     (hBw : ∀ b, B b → L.Free s Ω Cs b ∨ TLow T b) : BoundInv st T Ac s' := by
   have hT := h.tcbs
   have fld : ∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 →
-      160 ≤ K.val → L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K) := by
+      192 ≤ K.val → L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K) := by
     intro y hy K hK hK8 hK0
     refine hw.mem_eq (field_aligned (hT y hy) hK hK8) fun hb => ?_
     rcases hBw _ hb with (hm | ⟨c, hc, o, ho, e⟩) | hl
@@ -195,14 +200,14 @@ theorem BoundInv.capw {Ω : Set U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) 
   · rw [ea] at h0; rw [ec]; exact ⟨h.curT, hB.resume h0⟩
 
 /-- **Writes confined to cap-slot words keep `BlkOK`**, with every TCB field
-from offset 160, every node word of the cores and every frame word `Sg`
+from offset 192, every node word of the cores and every frame word `Sg`
 unchanged (so `PFr`, the current and idle threads, the current SC and the
 scheduler action hold). -/
 theorem blk_of_capw {s s' : S} {B : U64 → Prop} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hw : WritesIn st s s' B) (hB : ∀ b, B b → CapW T Ω Sg b) :
     BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ PFr st T Sg s s' ∧
       L.curW s' = L.curW s ∧ L.cscW s' = L.cscW s ∧ L.actionW s' = L.actionW s ∧
-      (∀ y ∈ T, ∀ K : U64, 160 ≤ K.val → K.val < 4096 → K.val % 8 = 0 →
+      (∀ y ∈ T, ∀ K : U64, 192 ≤ K.val → K.val < 4096 → K.val % 8 = 0 →
         L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K)) ∧
       (∀ c ∈ Cs, ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)) ∧
       (∀ b ∈ Sg, L.mem s' b = L.mem s b) := by
@@ -211,7 +216,7 @@ theorem blk_of_capw {s s' : S} {B : U64 → Prop} (h : BlkOK st T Cs Ω H Sg Rp 
   have hO := hX.1
   have hBw : ∀ b, B b → L.Free s Ω Cs b ∨ TLow T b := fun b hb =>
     (hB b hb).elim Or.inr fun h' => Or.inl (Or.inl h'.1)
-  have fld : ∀ y ∈ T, ∀ K : U64, 160 ≤ K.val → K.val < 4096 → K.val % 8 = 0 →
+  have fld : ∀ y ∈ T, ∀ K : U64, 192 ≤ K.val → K.val < 4096 → K.val % 8 = 0 →
       L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K) := by
     intro y hy K hK0 hK hK8
     refine hw.mem_eq (field_aligned (hT y hy) hK hK8) fun hb => ?_

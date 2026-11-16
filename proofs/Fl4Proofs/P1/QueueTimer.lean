@@ -490,11 +490,38 @@ theorem timer.core_of.cs (s : S) (t : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z
 
 /-! ## `TInv` with a footprint -/
 
+/-- The TCB fields outside the timer fields (offsets 3528–3568) are kept. -/
+def TKeep (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (s0 s : S) : Prop :=
+  ∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 → (K.val < 3528 ∨ 3576 ≤ K.val) →
+    L.mem s (core.num.U64.wrapping_add y K) = L.mem s0 (core.num.U64.wrapping_add y K)
+
+theorem TKeep.refl (s : S) : TKeep st T s s := fun _ _ _ _ _ _ => rfl
+
+theorem TKeep.trans {s1 s2 s3 : S} (h1 : TKeep st T s1 s2) (h2 : TKeep st T s2 s3) : TKeep st T s1 s3 :=
+  fun y hy K a b c => (h2 y hy K a b c).trans (h1 y hy K a b c)
+
+theorem TKeep.wr_field {s0 s : S} {x K' v : U64} (h : TKeep st T s0 s) (hT : TcbPlaced T) (hx : x ∈ T)
+    (hK1 : 3528 ≤ K'.val) (hK2 : K'.val < 3576) (hK8 : K'.val % 8 = 0) :
+    TKeep st T s0 (L.wr s (core.num.U64.wrapping_add x K') v) := fun y hy K a b c => by
+  rw [L.mem_wr_ne (field_aligned (hT x hx) (by omega) hK8) (field_aligned (hT y hy) a b)
+    (fun e => field_ne (hT x hx) (hT y hy) (by omega) a (fun _ => by omega) (UScalar.eq_of_val_eq e))]
+  exact h y hy K a b c
+
+theorem TKeep.wr_node {s0 s : S} {c o v : U64} (h : TKeep st T s0 s) (hT : TcbPlaced T) (hN : NodePlaced st T s c)
+    (ho : o.val < 4288) (ho8 : o.val % 8 = 0) :
+    TKeep st T s0 (L.wr s (L.nodeAt s c o) v) := fun y hy K a b cc => by
+  rw [L.mem_wr_ne (nodeAt_aligned hN ho ho8) (field_aligned (hT y hy) a b)
+    (fun e => node_ne_field hN ho hy (hT y hy) a (UScalar.eq_of_val_eq e))]
+  exact h y hy K a b cc
+
 /-- `TInv`, and a `KW ∅` footprint from `s0`: the timer code writes only TCB
-timer fields and node timer-tree words. -/
+timer fields and node timer-tree words (`TKeep`: the other TCB fields are kept). -/
 def TF (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64)
     (Z : U64 → Nat) (Ac : Set U64) (s0 s : S) : Prop :=
-  TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s ∧ Foot st T Cs Sg Scs Z ∅ s0 s ∧ ANI st s0 s
+  TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s ∧ Foot st T Cs Sg Scs Z ∅ s0 s ∧ ANI st s0 s ∧ TKeep st T s0 s
+
+theorem TF.start {s : S} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s s :=
+  ⟨h, Foot.refl _, ANI.refl _, TKeep.refl _⟩
 
 theorem TF.tm {s0 s : S} (h : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) : TimerOK st T Cs s := h.1.tm
 theorem TF.tcbs {s0 s : S} (h : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) : TcbPlaced T := h.1.tcbs
@@ -504,29 +531,34 @@ theorem TF.wr_ptr {s0 s : S} {x K v : U64} (h : TF st T Cs Ω H Sg Rp Scs Nt Z A
     (hx : x ∈ T) (hK : K.val = 3544 ∨ K.val = 3552 ∨ K.val = 3560) (hv : Tz T v) :
     TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 (L.wr s (core.num.U64.wrapping_add x K) v) :=
   ⟨h.1.wr_ptr hx hK hv, h.2.1.trans (foot_field h.tcbs hx (by omega) (by omega) (by omega) (by omega)),
-    h.2.2.trans (ani_field h.tcbs (h.nodes _ h.1.1.choose_spec.choose_spec.cur) hx (by omega) (by omega))⟩
+    h.2.2.1.trans (ani_field h.tcbs (h.nodes _ h.1.1.choose_spec.choose_spec.cur) hx (by omega) (by omega)),
+    h.2.2.2.wr_field h.tcbs hx (by omega) (by omega) (by omega)⟩
 
 theorem TF.wr_ht {s0 s : S} {x v : U64} (h : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s)
     (hx : x ∈ T) (hc : x ∈ T → L.mem s (tdA x) ≠ 0#u64 → ∀ c : U64, c.val = v.val >>> 8 → c ∈ Cs) :
     TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 (L.wr s (thA x) v) :=
   ⟨h.1.wr_ht hx hc, h.2.1.trans (foot_field (K := 3568#u64) h.tcbs hx (by simp) (by simp) (by simp) (by simp)),
-    h.2.2.trans (ani_field (K := 3568#u64) h.tcbs (h.nodes _ h.1.1.choose_spec.choose_spec.cur) hx (by simp) (by simp))⟩
+    h.2.2.1.trans (ani_field (K := 3568#u64) h.tcbs (h.nodes _ h.1.1.choose_spec.choose_spec.cur) hx (by simp) (by simp)),
+    h.2.2.2.wr_field (K' := 3568#u64) h.tcbs hx (by simp) (by simp) (by simp)⟩
 
 theorem TF.wr_node {s0 s : S} {c o v : U64} (h : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hc : c ∈ Cs)
     (ho : o.val = 104 ∨ o.val = 112) (hv : Tz T v) :
     TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 (L.wr s (L.nodeAt s c o) v) :=
   ⟨h.1.wr_node hc ho hv, h.2.1.trans (foot_node (h.nodes c hc) hc (by omega) (by omega) (by omega)),
-    h.2.2.trans (ani_node (h.nodes c hc) (h.nodes _ h.1.1.choose_spec.choose_spec.cur) (by omega) (by omega)
-      (fun _ => by omega))⟩
+    h.2.2.1.trans (ani_node (h.nodes c hc) (h.nodes _ h.1.1.choose_spec.choose_spec.cur) (by omega) (by omega)
+      (fun _ => by omega)),
+    h.2.2.2.wr_node h.tcbs (h.nodes c hc) (by omega) (by omega)⟩
 
 theorem TF.wr_clear {s0 s : S} {t : U64} (h : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (ht : t ∈ T) :
     TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 (L.wr (L.wr s (thA t) 0#u64) (tdA t) 0#u64) :=
   ⟨h.1.wr_clear ht, (h.2.1.trans (foot_field (K := 3568#u64) h.tcbs ht (by simp) (by simp) (by simp) (by simp))).trans
     (foot_field (K := 3528#u64) h.tcbs ht (by simp) (by simp) (by simp) (by simp)),
-    (h.2.2.trans (ani_field (K := 3568#u64) h.tcbs (h.nodes _ h.1.1.choose_spec.choose_spec.cur) ht (by simp)
+    (h.2.2.1.trans (ani_field (K := 3568#u64) h.tcbs (h.nodes _ h.1.1.choose_spec.choose_spec.cur) ht (by simp)
       (by simp))).trans (ani_field (K := 3528#u64) h.tcbs
         ((h.nodes _ h.1.1.choose_spec.choose_spec.cur).ksb (L.ksb_wr _ _ _) |> fun hh => by
-          rw [LawfulStore.cpu_wr]; exact hh) ht (by simp) (by simp))⟩
+          rw [LawfulStore.cpu_wr]; exact hh) ht (by simp) (by simp)),
+    (h.2.2.2.wr_field (K' := 3568#u64) h.tcbs ht (by simp) (by simp) (by simp)).wr_field (K' := 3528#u64) h.tcbs ht
+      (by simp) (by simp) (by simp)⟩
 
 theorem timer.core_of.csf {s0 : S} (s : S) (t : U64) (h : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (ht : t ∈ T)
     (hd : L.mem s (tdA t) ≠ 0#u64) : timer.core_of st s t ⦃ c => c ∈ Cs ⦄ :=
@@ -836,37 +868,37 @@ end ops
 /-! ## The `TInv` forms -/
 
 theorem timer.left.tz (s : S) (x : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hx : Tz T x) :
-    timer.left st s x ⦃ v => Tz T v ⦄ := timer.left.tzf (s0 := s) s x ⟨h, Foot.refl _, ANI.refl _⟩ hx
+    timer.left st s x ⦃ v => Tz T v ⦄ := timer.left.tzf (s0 := s) s x (TF.start h) hx
 theorem timer.right.tz (s : S) (x : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hx : Tz T x) :
-    timer.right st s x ⦃ v => Tz T v ⦄ := timer.right.tzf (s0 := s) s x ⟨h, Foot.refl _, ANI.refl _⟩ hx
+    timer.right st s x ⦃ v => Tz T v ⦄ := timer.right.tzf (s0 := s) s x (TF.start h) hx
 theorem timer.parent.tz (s : S) (x : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hx : Tz T x) :
-    timer.parent st s x ⦃ v => Tz T v ⦄ := timer.parent.tzf (s0 := s) s x ⟨h, Foot.refl _, ANI.refl _⟩ hx
+    timer.parent st s x ⦃ v => Tz T v ⦄ := timer.parent.tzf (s0 := s) s x (TF.start h) hx
 theorem timer.root.tz (s : S) (c : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : c ∈ Cs) :
-    timer.root st s c ⦃ v => Tz T v ⦄ := timer.root.tzf (s0 := s) s c ⟨h, Foot.refl _, ANI.refl _⟩ hc
+    timer.root st s c ⦃ v => Tz T v ⦄ := timer.root.tzf (s0 := s) s c (TF.start h) hc
 theorem timer.set_left.tinv (s : S) (x v : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hx : Tz T x)
     (hv : Tz T v) : timer.set_left st s x v ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
-  WP.spec_mono (timer.set_left.tf (s0 := s) s x v ⟨h, Foot.refl _, ANI.refl _⟩ hx hv) fun _ h' => h'.1
+  WP.spec_mono (timer.set_left.tf (s0 := s) s x v (TF.start h) hx hv) fun _ h' => h'.1
 theorem timer.set_right.tinv (s : S) (x v : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hx : Tz T x)
     (hv : Tz T v) : timer.set_right st s x v ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
-  WP.spec_mono (timer.set_right.tf (s0 := s) s x v ⟨h, Foot.refl _, ANI.refl _⟩ hx hv) fun _ h' => h'.1
+  WP.spec_mono (timer.set_right.tf (s0 := s) s x v (TF.start h) hx hv) fun _ h' => h'.1
 theorem timer.set_parent.tinv (s : S) (x v : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hx : Tz T x)
     (hv : Tz T v) : timer.set_parent st s x v ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
-  WP.spec_mono (timer.set_parent.tf (s0 := s) s x v ⟨h, Foot.refl _, ANI.refl _⟩ hx hv) fun _ h' => h'.1
+  WP.spec_mono (timer.set_parent.tf (s0 := s) s x v (TF.start h) hx hv) fun _ h' => h'.1
 theorem timer.set_root.tinv (s : S) (c v : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : c ∈ Cs)
     (hv : Tz T v) : timer.set_root st s c v ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
-  WP.spec_mono (timer.set_root.tf (s0 := s) s c v ⟨h, Foot.refl _, ANI.refl _⟩ hc hv) fun _ h' => h'.1
+  WP.spec_mono (timer.set_root.tf (s0 := s) s c v (TF.start h) hc hv) fun _ h' => h'.1
 theorem timer.set_red.tinv (s : S) (x : U64) (red : Bool) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hx : Tz T x) :
     timer.set_red st s x red ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
-  WP.spec_mono (timer.set_red.tf (s0 := s) s x red ⟨h, Foot.refl _, ANI.refl _⟩ hx) fun _ h' => h'.1
+  WP.spec_mono (timer.set_red.tf (s0 := s) s x red (TF.start h) hx) fun _ h' => h'.1
 theorem timer.rotate_left.tinv (s : S) (c x : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : c ∈ Cs)
     (hx : Tz T x) : timer.rotate_left st s c x ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
-  WP.spec_mono (timer.rotate_left.tf (s0 := s) s c x ⟨h, Foot.refl _, ANI.refl _⟩ hc hx) fun _ h' => h'.1
+  WP.spec_mono (timer.rotate_left.tf (s0 := s) s c x (TF.start h) hc hx) fun _ h' => h'.1
 theorem timer.rotate_right.tinv (s : S) (c x : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : c ∈ Cs)
     (hx : Tz T x) : timer.rotate_right st s c x ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
-  WP.spec_mono (timer.rotate_right.tf (s0 := s) s c x ⟨h, Foot.refl _, ANI.refl _⟩ hc hx) fun _ h' => h'.1
+  WP.spec_mono (timer.rotate_right.tf (s0 := s) s c x (TF.start h) hc hx) fun _ h' => h'.1
 theorem timer.remove.tinv (s : S) (t : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (ht : t ∈ T) : timer.remove st s t ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
-  WP.spec_mono (timer.remove.tf (s0 := s) s t ⟨h, Foot.refl _, ANI.refl _⟩ ht) fun _ h' => h'.1
+  WP.spec_mono (timer.remove.tf (s0 := s) s t (TF.start h) ht) fun _ h' => h'.1
 
 
 end

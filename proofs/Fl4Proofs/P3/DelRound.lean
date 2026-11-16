@@ -96,7 +96,7 @@ def FinalHyp (th : TypedHeap) : Prop :=
 for a final thread cap, else nothing. -/
 def finRem (c : capability.Cap) (fin : Bool) : capability.Cap :=
   match c with
-  | .Thread t => if fin then .Zombie t capability.ZOMBIE_TCB 5#u64 else .Null
+  | .Thread t => if fin then .Zombie t capability.ZOMBIE_TCB 6#u64 else .Null
   | _ => .Null
 
 /-- Cleanup caps: none, an IRQ handler, an IO port. -/
@@ -227,7 +227,7 @@ theorem thread_zcond {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {mem' : 
     (hx' : capV mem' (cslotAddr xsl) = .Thread t)
     (hch : ∀ y, IsSlot th y → y ≠ cslotAddr xsl → capV mem' y = capV (L.mem s) y ∨
       (capV mem' y = .Null ∧ isZb (capV (L.mem s) y) = false)) :
-    ZCond th mem' G' (cslotAddr xsl) t capability.ZOMBIE_TCB 5#u64 := by
+    ZCond th mem' G' (cslotAddr xsl) t capability.ZOMBIE_TCB 6#u64 := by
   have hfn := fun {y} (hy : IsSlot th y) (hyx : y ≠ cslotAddr xsl) =>
     final_not hR hP hxs hcx hfin (o := t) (by rw [objRefs_thread]; rfl) hy hyx
   have hslot : ∀ y, y ∈ G'.chains.flatten → IsSlot th y := fun y h => ((hM'.members y).1 h).1
@@ -253,7 +253,7 @@ theorem thread_zcond {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {mem' : 
       · obtain ⟨q, sb, fi, d, e⟩ : ∃ q sb fi d, capV (L.mem s) y = .Untyped q sb fi d := by
           cases h : capV (L.mem s) y <;> rw [h] at hu <;> simp [isUt] at hu
           exact ⟨_, _, _, _, rfl⟩
-        rw [e]; exact srB_ut_zombie_tcb q sb fi d t 5#u64
+        rw [e]; exact srB_ut_zombie_tcb q sb fi d t 6#u64
     · rw [h, srB_null, srB_null]
   · intro y hy hyx
     rw [hx']

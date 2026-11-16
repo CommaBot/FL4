@@ -73,7 +73,7 @@ def ScQ (Rels : S → Fl4Spec.State Unit → Prop) (σ : Fl4Spec.State Unit) (ct
     Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ0)}, False) ∧
     Fl4Spec.invokeSchedContext (Z := Unit) inv σ0 = ({(data, σ1)}, False) ∧
     ((data = [] ∧ σ2 = σ1) ∨
-      (do
+      (∃ x', σ1.kheap ct.bv = some (.tcb x') ∧ x'.tcbState = .restart) ∧ (do
         Fl4Spec.NonDet.when (call = true) (Fl4Spec.replyFromKernel (Z := Unit) ct.bv (0, data))
         Fl4Spec.setThreadState (Z := Unit) ct.bv .running : Fl4Spec.SMonad Unit Unit) σ1 = ({((), σ2)}, False)) ∧
     Rels res.2.1 σ2
@@ -218,7 +218,7 @@ theorem yieldto_branch_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ :
   rintro r ⟨h1, -, σ0, data, σ1, σ2, he0, hyt, hcase, hS', hR', hN', hI', hY', hA', hw'⟩
   have hsok : SOK (false, true) σ σ2 := by
     refine ((pres_setThreadState _ _ _).of_eq he0).trans (((pres_schedContextYieldTo _).of_eq hyt).trans ?_)
-    rcases hcase with ⟨-, rfl⟩ | h
+    rcases hcase with ⟨-, rfl⟩ | ⟨-, h⟩
     · exact SOK.refl _ _
     · exact (pres_bind (pres_when _ (pres_replyFromKernel _ _ _)) fun _ => pres_setThreadState _ _ _).of_eq h
   exact Or.inr ⟨.invokeSchedContextYieldTo sc.bv, hpre3, h1, σ0, data, σ1, σ2, he0, hyt, hcase,

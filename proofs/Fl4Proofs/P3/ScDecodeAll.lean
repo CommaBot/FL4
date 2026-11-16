@@ -154,12 +154,12 @@ theorem sc_decode_refines {N T C R : Set U64} {c : U64} (hT : TimeAgree ar) (th 
     have hg : Fl4Spec.genInvocationType slbl = .schedContextConsumed := by
       rw [hlbl, l44]; unfold scLabelOf; simp
     refine WP.spec_mono (sc_consumed_refines s a σ hS hR hN hI hY hsc hctT hkc hrun hAI call hmax htu hmsg) ?_
-    rintro r ⟨h1, -, σ1, data, σ2, σ3, he1, he2, he3, hS3, hR3, hN3, hI3, -, -, hw3⟩
+    rintro r ⟨h1, -, σ1, data, σ2, σ3, he1, he2, hst2, he3, hS3, hR3, hN3, hI3, -, -, hw3⟩
     have hsok : SOK (true, true) σ σ3 := ((pres_setThreadState _ _ _).of_eq he1).trans
       (((pres_returnConsumed _ _).of_eq he2).trans
         ((pres_bind (pres_when _ (pres_replyFromKernel _ _ _)) fun _ => pres_setThreadState _ _ _).of_eq he3))
     exact Or.inr ⟨.invokeSchedContextConsumed sc.bv, by rw [hdec _ hg]; rfl, h1, σ1, data, σ2, σ3, he1, he2,
-      Or.inr he3, ScAll.of_k hS hRP hY hM hCR hRF ⟨⟨hS3, hR3, hN3, hI3⟩, hw3, hsok⟩⟩
+      Or.inr ⟨hst2, he3⟩, ScAll.of_k hS hRP hY hM hCR hRF ⟨⟨hS3, hR3, hN3, hI3⟩, hw3, hsok⟩⟩
   rw [ite_eq_right l44]
   have h44 : lbl.val ≠ 44 := fun h => l44 (UScalar.eq_of_val_eq (by simp [h]))
   by_cases l41 : lbl = fl4_abi.label.SchedContextBind

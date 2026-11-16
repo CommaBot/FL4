@@ -182,6 +182,12 @@ theorem flags_T : ((tcb.UPDATE_TIMEOUT &&& tcb.UPDATE_FAULT) ≠ 0#u64) = False 
   simp only [tcb.UPDATE_TIMEOUT, tcb.UPDATE_FAULT, tcb.UPDATE_SPACE, tcb.UPDATE_IPC_BUFFER]
   decide
 
+/-- A valid fault handler is null or an endpoint cap. -/
+theorem vfh_ep {c : capability.Cap} (h : Fl4Spec.validFaultHandler (absCap c)) :
+    c ≠ .Null → ∃ e b x1 x2 x3 x4, c = .Endpoint e b x1 x2 x3 x4 := by
+  intro hn
+  cases c <;> simp_all [absCap, Fl4Spec.validFaultHandler, Fl4Spec.isEpCap]
+
 /-- A valid fault handler is no frame cap. -/
 theorem vfh_not_frame {c : capability.Cap} (h : Fl4Spec.validFaultHandler (absCap c)) : isFrame c = false := by
   cases c <;> simp_all [isFrame, absCap, Fl4Spec.validFaultHandler, Fl4Spec.isEpCap]
@@ -205,6 +211,8 @@ theorem tc_refines (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L := L) arI t
     (htmh : (flags &&& tcb.UPDATE_TIMEOUT) ≠ 0#u64 → NewCapOK th (L.mem s) tmh.1 tmh.2)
     (hcr : (flags &&& tcb.UPDATE_SPACE) ≠ 0#u64 → NewCapOK th (L.mem s) cr.1 cr.2)
     (hvr : (flags &&& tcb.UPDATE_SPACE) ≠ 0#u64 → NewCapOK th (L.mem s) vr.1 vr.2)
+    (hfhE : (flags &&& tcb.UPDATE_FAULT) ≠ 0#u64 → fh.1 ≠ .Null →
+      ∃ e b x1 x2 x3 x4, fh.1 = .Endpoint e b x1 x2 x3 x4)
     (addr : U64) (ptr : Fl4Spec.VSpaceRef)
     (hBuf : (flags &&& tcb.UPDATE_IPC_BUFFER) ≠ 0#u64 → BufHyp (L := L) (A := A) th t addr ptr)
     (bc0 : capability.Cap) (bfr : Option (capability.Cap × Fl4Spec.CslotPtr))
@@ -214,7 +222,7 @@ theorem tc_refines (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L := L) arI t
       InstPostQ (L := L) (MdbOKV (L.ksb s)) th t (tcCapsSpec t ssl flags fh tmh cr vr ptr bfr) s σ res ⦄ := by
   obtain ⟨hO, hPP, hPD, K, hK, hK6, hB⟩ := hT
   exact thread_control_caps_mdbOK arI th hP hO hPP hPD K hK hK6 hB s a σ G hDS hMO t ht ssl hAs flags fh tmh cr vr
-    hfh htmh hcr hvr addr ptr hBuf bc0 bfr hbfr
+    hfh htmh hcr hvr hfhE addr ptr hBuf bc0 bfr hbfr
 
 theorem decode_timeout_eq (s : S) (ar : A) (p : U64) (c : tcb.Ctx)
     (hstall : smp.remote_tcb_stall st arI s ar p = ok (s, ar)) :
@@ -308,7 +316,7 @@ theorem tcb_set_timeout_refines (th : TypedHeap) (hP : Placed th) (hT : TcHyps (
     have hcs := cslot_zero
     have hnf := vfh_not_frame hv
     have hc1 : capV (L.mem s1) x0 = capV (L.mem s) x0 := hS1.capV hxs
-    have hT' := tc_refines arI th hP hT s1 ar σ1 G hDS1 hfr1 p hp ssl hAs tcb.UPDATE_TIMEOUT (.Null, (0, []))
+    have hT' := tc_refines arI th hP hT s1 ar σ1 G hDS1 hfr1 p hp ssl hAs (hfhE := fun _ h => absurd rfl h) tcb.UPDATE_TIMEOUT (.Null, (0, []))
       (capV (L.mem s) x0, e.2) (.Null, (0, [])) (.Null, (0, [])) (fun h => (Eq.mp flags_T.1 h).elim)
       (fun _ => by
         show NewCapOK th (L.mem s1) (capV (L.mem s) x0) e.2
@@ -545,7 +553,7 @@ theorem tcb_set_ipc_refines (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L :=
       rw [hspec, if_pos hy', retOk_bind]
       simp only [tcInv, optArg, flags_B, ↓reduceIte, frameOf]
       rfl
-    have hT' := tc_refines arI th hP hT s1 ar σ1 G hDS1 hfr1 p hp ssl hAs tcb.UPDATE_IPC_BUFFER (.Null, (0, []))
+    have hT' := tc_refines arI th hP hT s1 ar σ1 G hDS1 hfr1 p hp ssl hAs (hfhE := fun _ h => absurd rfl h) tcb.UPDATE_IPC_BUFFER (.Null, (0, []))
       (.Null, (0, [])) (.Null, (0, [])) (.Null, (0, [])) (fun h => (Eq.mp flags_B.1 h).elim)
       (fun h => (Eq.mp flags_B.2.1 h).elim) (fun h => (Eq.mp flags_B.2.2.1 h).elim)
       (fun h => (Eq.mp flags_B.2.2.1 h).elim) y0 y0.bv (fun _ => hBuf y0) (capV (L.mem s) (cslotAddr e2)) none
@@ -608,7 +616,7 @@ theorem tcb_set_ipc_refines (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L :=
           rw [hspec, if_neg hy', run_bind_ok hin]
           simp only [tcInv, optArg, flags_B, ↓reduceIte, frameOf]
           rfl
-        have hT' := tc_refines arI th hP hT s1 ar σ1 G hDS1 hfr1 p hp ssl hAs tcb.UPDATE_IPC_BUFFER (.Null, (0, []))
+        have hT' := tc_refines arI th hP hT s1 ar σ1 G hDS1 hfr1 p hp ssl hAs (hfhE := fun _ h => absurd rfl h) tcb.UPDATE_IPC_BUFFER (.Null, (0, []))
           (.Null, (0, [])) (.Null, (0, [])) (.Null, (0, [])) (fun h => (Eq.mp flags_B.1 h).elim)
           (fun h => (Eq.mp flags_B.2.1 h).elim) (fun h => (Eq.mp flags_B.2.2.1 h).elim)
           (fun h => (Eq.mp flags_B.2.2.1 h).elim) y0 y0.bv (fun _ => hBuf y0) .Null
@@ -1137,7 +1145,7 @@ theorem tcb_set_space_refines (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L 
         subst he01
         simp only [optArg, flags_SF, ↓reduceIte]
         rfl
-      have hT' := tc_refines arI th hP hT s1 ar σ1 G hDS1 hfr1 p hp ssl hAs (tcb.UPDATE_SPACE ||| tcb.UPDATE_FAULT)
+      have hT' := tc_refines arI th hP hT s1 ar σ1 G hDS1 hfr1 p hp ssl hAs (hfhE := fun _ => vfh_ep hv) (tcb.UPDATE_SPACE ||| tcb.UPDATE_FAULT)
         (capV (L.mem s) x0, e0.2) (.Null, (0, [])) (cc, e1.2) (vc, e2.2)
         (fun _ => by
           show NewCapOK th (L.mem s1) (capV (L.mem s) x0) e0.2
@@ -1414,7 +1422,7 @@ theorem tcb_configure_refines (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L 
       rw [hspec]
       simp only [tcInv, optArg, flags_SB, ↓reduceIte]
       rfl
-    have hT' := tc_refines arI th hP hT s1 ar σ1 G hDS1 hfr1 p hp ssl hAs (tcb.UPDATE_SPACE ||| tcb.UPDATE_IPC_BUFFER)
+    have hT' := tc_refines arI th hP hT s1 ar σ1 G hDS1 hfr1 p hp ssl hAs (hfhE := fun _ h => absurd rfl h) (tcb.UPDATE_SPACE ||| tcb.UPDATE_IPC_BUFFER)
       (.Null, (0, [])) (.Null, (0, [])) (cc, e0.2) (vc, e1.2)
       (fun h => (Eq.mp flags_SB.1 h).elim) (fun h => (Eq.mp flags_SB.2.1 h).elim)
       (fun _ => hokc.of_same hS1) (fun _ => hokv.of_same hS1) y2 y2.bv (fun _ => hBuf y2) bc0 bfr

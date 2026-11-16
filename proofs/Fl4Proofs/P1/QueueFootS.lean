@@ -416,7 +416,7 @@ theorem timer.fire_loop.tinvF {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTo
       split
       · exact (WP.spec_ok _).2 ⟨hI1, F1⟩
       step with obj.Tcb.timer_badge.val as ⟨bd, ebd⟩
-      refine WP.spec_bind (timer.remove.tf (s0 := s1) s1 t ⟨hI1, Foot.refl _, ANI.refl _⟩ htT) ?_
+      refine WP.spec_bind (timer.remove.tf (s0 := s1) s1 t (TF.start hI1) htT) ?_
       rintro s2 ⟨h2, f2, -⟩
       have F2 : Foot st T Cs Sg Scs Z (EH H) s s2 := F1.trans (f2.mono (Set.empty_subset _))
       step with obj.Tcb.bound_ntfn.val as ⟨n, en⟩

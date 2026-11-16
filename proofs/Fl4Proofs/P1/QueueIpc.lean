@@ -1,6 +1,6 @@
 /-
 P1: the non-blocking ends of IPC: the message transfer (`do_ipc_transfer`,
-taken as an opaque write to the threads' user context and to user memory),
+taken as the hypothesis `XferOK`, proved in QueueXfer),
 `reply_push` with SC donation, `receive_from_sender`, the `send_ipc` branch
 on a receiving endpoint and `complete_signal`; then the whole `send_ipc` and
 `receive_ipc`.
@@ -2256,18 +2256,35 @@ theorem ep_state3 {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} 
 theorem empty_congr' {t : U64} : ∀ y, y ∈ {y : U64 | (y ∈ (∅ : Set U64) ∨ y = t) ∧ y ≠ t} ↔ y ∈ (∅ : Set U64) := by
   intro y; simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, false_or, iff_false, not_and]; exact fun a b => b a
 
-/-- The footprint of the message transfer, as a hypothesis on the opaque
-`do_ipc_transfer`. -/
-def XferOK (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T U : Set U64) : Prop :=
-  ∀ (s : S) (a : A) (snd ep badge : U64) (grant : Bool) (rcv : U64),
-    ipc.do_ipc_transfer st ar s a snd ep badge grant rcv ⦃ s' => WritesIn st s s' (XferFoot T U) ⦄
+/-- The frame of a message transfer: the scheduler words, the TCB fields from
+`STATE`, the reply objects' `TCB` words and the kernel base. -/
+def XferFr (st : machine.Store S) [L : LawfulStore st] (T Rp : Set U64) (s s' : S) : Prop :=
+  L.actionW s' = L.actionW s ∧ L.curW s' = L.curW s ∧ L.idleW s' = L.idleW s ∧ L.cscW s' = L.cscW s ∧
+    (∀ y ∈ T, ∀ K : U64, 3328 ≤ K.val → K.val < 4096 → K.val % 8 = 0 →
+      L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K)) ∧
+    (∀ r ∈ Rp, L.mem s' (rTcbA r) = L.mem s (rTcbA r)) ∧ L.ksb s' = L.ksb s
+
+/-- The message transfer between two TCBs keeps the invariants, within
+`XferFr`.  It writes the receiver's user context and IPC buffer (`XferFoot`),
+a granted cap's receive slot and CDT neighbours (cap-slot words) and, for a
+timeout fault, the sender's SC's `CONSUMED` word; `xferOK_of` (QueueXfer)
+proves it from the placement facts. -/
+def XferOK (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
+    (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop :=
+  ∀ (Ac X : Set U64) (Q : U64 → U64 → List U64) (R : U64 → List U64) (s : S) (a : A) (snd ep badge : U64)
+    (grant : Bool) (rcv : U64), snd ∈ T → rcv ∈ T →
+    SchedQueuesInvX st T Cs Ω H X s Q R → BoundInv st T Ac s → XInv st T Cs Ω Sg Rp Scs Nt Z s →
+    SCsOK st T Ω Sg Scs Z Ac s → SgOK st Ω Sg s → UserOK st T Cs Ω H U s →
+    ipc.do_ipc_transfer st ar s a snd ep badge grant rcv ⦃ s' =>
+      SchedQueuesInvX st T Cs Ω H X s' Q R ∧ BoundInv st T Ac s' ∧ XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧
+      SCsOK st T Ω Sg Scs Z Ac s' ∧ SgOK st Ω Sg s' ∧ XferFr st T Rp s s' ⦄
 
 /-- seL4 `receiveIPC`'s end on a sending endpoint: the head sender is
 dequeued, the message transferred, and the sender either becomes blocked on
 the receiver's reply (a call, with the reply bookkeeping and SC donation),
 inactive, or running. -/
 theorem endpoint.receive_from_sender.ipc {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    {U : Set U64} (hxf : XferOK st ar T U) (s : S) (a : A) (thread e reply : U64)
+    {U : Set U64} (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U) (s : S) (a : A) (thread e reply : U64)
     (Q : U64 → U64 → List U64) (R : U64 → List U64)
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s) (hU : UserOK st T Cs Ω H U s)
@@ -2304,10 +2321,8 @@ theorem endpoint.receive_from_sender.ipc {A : Type _} {ar : machine.Arch A} (hA 
   step with obj.Tcb.block_badge.any as ⟨badge, _⟩
   step with obj.Tcb.block_flags.any as ⟨flags, _⟩
   simp only [lift, Aeneas.Std.bind_ok]
-  refine WP.spec_bind (hxf s1 a hd e badge _ thread) ?_
-  rintro s2 hw2
-  obtain ⟨h2, hB2, hX2, hS2, hSg2, ea2, ec2, ei2, ecs2, f2, o2⟩ :=
-    xfer_all h1 hB1 hX1 hS1 hSg1 (hU.ksb k1) hw2
+  refine WP.spec_bind (hxf _ _ _ _ s1 a hd e badge _ thread hdT ht h1 hB1 hX1 hS1 hSg1 (hU.ksb k1)) ?_
+  rintro s2 ⟨h2, hB2, hX2, hS2, hSg2, ea2, ec2, ei2, ecs2, f2, o2, -⟩
   refine WP.spec_bind (endpoint.unblock_sporadic.all s2 hd h2 hB2 hX2 hS2 hSg2 hdT) ?_
   rintro s3 ⟨h3, hB3, hX3, hS3, hSg3, ea3, ec3, ei3, f3, r3⟩
   step with obj.Tcb.fault_type.any as ⟨ftype, _⟩
@@ -2326,7 +2341,7 @@ theorem endpoint.receive_from_sender.ipc {A : Type _} {ar : machine.Arch A} (hA 
   have hXc : ExcT {y | y ∈ (∅ : Set U64) ∨ y = hd} hd := fun y hy => by simpa using hy
   have hx3 : hd ∈ {y | y ∈ (∅ : Set U64) ∨ y = hd} := Or.inr rfl
   have rt3 : ∀ r ∈ Rp, L.mem s3 (rTcbA r) = L.mem s (rTcbA r) := fun r hr0 =>
-    (r3 r hr0).trans ((o2 _ (hSg.sub _ (hX.1.tcbW hr0))).trans (o1 _ (hSg.sub _ (hX.1.tcbW hr0))))
+    (r3 r hr0).trans ((o2 r hr0).trans (o1 _ (hSg.sub _ (hX.1.tcbW hr0))))
   have sc3 : L.mem s3 (scA hd) = L.mem s (scA hd) := by
     rw [scA_eq]; exact F hd hdT _ (by simp) (by simp) (by simp) (by simp) (by simp)
   have hdA : L.mem s3 (scA hd) ≠ 0#u64 → L.mem s3 (scA hd) ∈ Ac := fun h0 => by
@@ -2429,7 +2444,7 @@ is bound (`hdon`): on the syscall path the sender is the current thread,
 which has an SC in MCS, and on the fault path FL4 sets `can_donate` to
 `t.sc != 0`. -/
 theorem endpoint.send_ipc.ipc {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
-    (hxf : XferOK st ar T U) (s : S) (a : A) (blocking do_call : Bool)
+    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U) (s : S) (a : A) (blocking do_call : Bool)
     (badge : U64) (can_grant can_grant_reply can_donate : Bool) (t e : U64)
     (Q : U64 → U64 → List U64) (R : U64 → List U64)
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
@@ -2472,9 +2487,8 @@ theorem endpoint.send_ipc.ipc {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTo
   obtain ⟨hB1, hX1, hS1, hSg1, ea1, ec1, ei1⟩ := frame_bx h hB hX hS hSg f1 o1 n1 k1
     ⟨k1, fun y hy K a b c => f1 y hy K (by omega) c (by omega) (by omega),
       fun c hc o ho => nc1 c hc o (by omega) (by omega), fun n' hn' => o1 _ (hSg.sub _ (hX.1.ntB n' hn').2)⟩
-  refine WP.spec_bind (hxf s1 a t e badge can_grant hd) ?_
-  rintro s2 hw2
-  obtain ⟨h2, hB2, hX2, hS2, hSg2, ea2, ec2, ei2, ecs2, f2, o2⟩ := xfer_all h1 hB1 hX1 hS1 hSg1 (hU.ksb k1) hw2
+  refine WP.spec_bind (hxf _ _ _ _ s1 a t e badge can_grant hd ht hdT h1 hB1 hX1 hS1 hSg1 (hU.ksb k1)) ?_
+  rintro s2 ⟨h2, hB2, hX2, hS2, hSg2, ea2, ec2, ei2, ecs2, f2, o2, -⟩
   have F : ∀ y ∈ T, ∀ K : U64, 3328 ≤ K.val → K.val < 4096 → K.val % 8 = 0 → K.val ≠ 3496 → K.val ≠ 3504 →
       L.mem s2 (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K) :=
     fun y hy K h0 hK hK8 h1' h2' => (f2 y hy K h0 hK hK8).trans (f1 y hy K hK hK8 h1' h2')
@@ -2933,7 +2947,7 @@ invariants, only caller-level facts: `t` can block, the cap names a heap
 endpoint, a reply cap names a reply object, and `Nt` are heap notifications
 (true of the instantiation `Nt := H.ntfns`). -/
 theorem endpoint.receive_ipc.ipc {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
-    (hxf : XferOK st ar T U) (s : S) (a : A) (t : U64) (cap : capability.Cap) (blocking : Bool)
+    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U) (s : S) (a : A) (t : U64) (cap : capability.Cap) (blocking : Bool)
     (reply_cap : capability.Cap) (e : U64) (Q : U64 → U64 → List U64) (R : U64 → List U64)
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s) (hU : UserOK st T Cs Ω H U s)

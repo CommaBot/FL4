@@ -94,6 +94,10 @@ structure QKeeps (st : machine.Store S) [L : LawfulStore st] (N T : Set U64) (n 
   tcb : ∀ y ∈ T, TFieldsEq (L.mem s) (L.mem s') y
   links : ∀ y ∈ T, y ∉ W → TLinksEq (L.mem s) (L.mem s') y
   foot : WritesIn st s s' (NWrite N T)
+  /-- Memory is unchanged but for `n`'s head and tail words and the `Ep`
+  links of `W`. -/
+  agree : ∀ b, Aligned b → (∀ w ∈ W, b ≠ nextA .Ep w ∧ b ≠ prevA .Ep w) → b ≠ epHeadA n → b ≠ epTSA n →
+    L.mem s' b = L.mem s b
 
 theorem qkeeps_of (hP : NPlaced T N) {n : U64} (hn : n ∈ N) {W : List U64} (hW : ∀ w ∈ W, w ∈ T) {s s1 : S}
     (hf : Framed st .Ep W s s1) (h v : U64) :
@@ -103,7 +107,10 @@ theorem qkeeps_of (hP : NPlaced T N) {n : U64} (hn : n ∈ N) {W : List U64} (hW
   exact ⟨fun n' hn' e => (f1 n' hn').trans (g.ntfn n' hn' e), g1.trans (f1 n hn).badge,
     g2.trans (f1 n hn).bound, g3.trans (f1 n hn).sc, fun y hy => (f2 y hy).trans (g.tcb y hy).1,
     fun y hy hyW => (f3 y hy hyW).trans (g.tcb y hy).2,
-    (f4.trans g.foot).mono fun _ h => by rcases h with h | h <;> exact h⟩
+    (f4.trans g.foot).mono fun _ h => by rcases h with h | h <;> exact h,
+    fun b hb hW' hh ht => by
+      rw [rd_wr_ne (foot_ts hP hn).1 hb (Ne.symm ht), rd_wr_ne (foot_head hP hn).1 hb (Ne.symm hh)]
+      exact hf.2.2 b hb hW'⟩
 
 /-- `ntfn_dequeue` of a member, with its frame. -/
 theorem ntfn_dequeue_full (hP : NPlaced T N) (s : S) {n : U64} (hn : n ∈ N) (t : obj.Tcb) (xs : List U64)

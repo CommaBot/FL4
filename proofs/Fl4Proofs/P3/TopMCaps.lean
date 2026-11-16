@@ -362,7 +362,7 @@ theorem decode_invocation_untypedM (th : TypedHeap) (s : S) (ar : A)
   rintro res hq
   apply topM_of_lift (f := Fl4Spec.Fl4Invocation.invokeUntyped)
   rcases hq with ⟨e, e', rfl, h1, h2⟩ | ⟨inv, hrun, σ1, hst, -, ev, σ', G', th', hcase, ⟨⟨y1, y2⟩, hy, hy1, hK⟩,
-    hP', hR', hV', hM', hC', hI', -, hSt, hFin⟩
+    hP', hR', hV', hM', hC', hI', -, hSt, hFin, -⟩
   · exact Or.inl ⟨e, rfl, rfl, e', h1, Or.inl h2⟩
   · refine Or.inr ⟨inv, hrun, σ1, hst, ?_⟩
     simp only at hy1 hK

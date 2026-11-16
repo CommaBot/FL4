@@ -359,7 +359,7 @@ theorem timer.insert.foot (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Sc
     timer.insert st s t d bd ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ Foot st T Cs Sg Scs Z ∅ s s' ⦄ := by
   have htz : Tz T t := Tz.of_mem ht
   unfold timer.insert
-  refine WP.spec_bind (timer.remove.tf (s0 := s) s t ⟨h, Foot.refl _, ANI.refl _⟩ ht) fun s1 h1 => ?_
+  refine WP.spec_bind (timer.remove.tf (s0 := s) s t (TF.start h) ht) fun s1 h1 => ?_
   split
   · exact (WP.spec_ok _).2 ⟨h1.1, h1.2.1⟩
   refine WP.spec_bind (L.cur_cpu_spec s1) fun cpu ec => ?_
@@ -398,7 +398,7 @@ theorem timer.insert.foot (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Sc
   refine WP.spec_bind (obj.Tcb.set_timer_deadline.wr s2 t d) fun s3 e3 => ?_
   subst e3
   have hx3 := hx2.wr (K := 3528#u64) (v := d) ht (by simp) (by simp) (by simp) (fun h => by simp at h)
-  obtain ⟨f3, n3, N3⟩ := FA (K := 3528#u64) d h2.2.1 h2.2.2 hN2 (by simp) (by simp) (by simp) (by simp) (by simp)
+  obtain ⟨f3, n3, N3⟩ := FA (K := 3528#u64) d h2.2.1 h2.2.2.1 hN2 (by simp) (by simp) (by simp) (by simp) (by simp)
   refine WP.spec_bind (obj.Tcb.set_timer_badge.wr _ t bd) fun s4 e4 => ?_
   subst e4
   have hx4 := hx3.wr (K := 3536#u64) (v := bd) ht (by simp) (by simp) (by simp) (fun h => by simp at h)
@@ -423,7 +423,12 @@ theorem timer.insert.foot (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Sc
     rw [or1_shr8, shl8_shr8 (h1.1.cpu_small hc) hi1] at hcv
     rw [show c = cpu from UScalar.eq_of_val_eq hcv]; exact hc
   obtain ⟨f8, n8, -⟩ := FA (K := 3568#u64) (i ||| 1#u64) f7 n7 N7 (by simp) (by simp) (by simp) (by simp) (by simp)
-  refine WP.spec_bind (timer.insert_fixup.tf (s0 := s) _ cpu t ⟨h8, f8, n8⟩ hc htz) fun s9 h9 => ?_
+  have k8 := ((((((h2.2.2.2.wr_field (K' := 3528#u64) (v := d) hT ht (by simp) (by simp) (by simp)).wr_field
+    (K' := 3536#u64) (v := bd) hT ht (by simp) (by simp) (by simp)).wr_field (K' := 3560#u64) (v := p) hT ht
+    (by simp) (by simp) (by simp)).wr_field (K' := 3544#u64) (v := 0#u64) hT ht (by simp) (by simp) (by simp)).wr_field
+    (K' := 3552#u64) (v := 0#u64) hT ht (by simp) (by simp) (by simp)).wr_field (K' := 3568#u64) (v := i ||| 1#u64)
+    hT ht (by simp) (by simp) (by simp))
+  refine WP.spec_bind (timer.insert_fixup.tf (s0 := s) _ cpu t ⟨h8, f8, n8, k8⟩ hc htz) fun s9 h9 => ?_
   split
   · refine WP.spec_bind (obj.node_set.spec s9 cpu _ t) fun s10 e10 => ?_
     subst e10

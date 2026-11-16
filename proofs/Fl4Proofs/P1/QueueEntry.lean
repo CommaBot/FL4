@@ -196,6 +196,23 @@ theorem sched.update_timestamp.entry (hA : P0.ArchTotal ar) {Ac : Set U64} (s : 
     CurK.of hT hcT n1.2.2 (f1 _ hcT) (Or.inl n1.1)⟩
   rw [n1.2.2, f1 _ hcT, c1]; exact hcsc
 
+/-- The IRQ handler slot of `irq` in the kernel-global IRQ node. -/
+def irqSlotA (kb irq : U64) : U64 :=
+  core.num.U64.wrapping_add (core.num.U64.wrapping_add kb 1248#u64) (core.num.U64.wrapping_mul irq 32#u64)
+
+theorem irq_node_val : layout.ks.IRQ_NODE ⦃ v => v.val = 1248 ⦄ := by
+  unfold layout.ks.IRQ_NODE layout.irq.COUNT layout.irq.MAX layout.ks.IRQ_STATE layout.ks.DOM_SCHEDULE
+  step*
+
+theorem interrupt.irq_slot.val (s : S) (irq : U64) :
+    interrupt.irq_slot st s irq ⦃ sl => sl = irqSlotA (L.ksb s) irq ⦄ := by
+  unfold interrupt.irq_slot
+  step with LawfulStore.ks_base_spec as ⟨kb, ekb⟩
+  refine WP.spec_bind irq_node_val fun nd hnd => ?_
+  have e : nd = 1248#u64 := UScalar.eq_of_val_eq (by simp [hnd])
+  subst e ekb
+  simp only [lift, bind_ok, WP.spec_ok, irqSlotA, layout.cte.SIZE]
+
 /-- **seL4 `handleInterrupt`**: a signal IRQ signals the notification of its
 handler cap (`send_signal`), a timer IRQ marks the current core for
 reprogramming, a reschedule IPI requests a reschedule.  The notification
@@ -204,7 +221,7 @@ hypothesis `hirq` (P3's `CapValid`). -/
 theorem interrupt.handle_interrupt.bxi (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     {Ac : Set U64} (s : S) (a : A) (irq : U64)
     (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hirq : ∀ sl : obj.Slot, obj.Slot.cap st sl s ⦃ c => ∀ ptr b0 b1 b2,
+    (hirq : ∀ i : U64, i.val < 128 → obj.Slot.cap st (irqSlotA (L.ksb s) i) s ⦃ c => ∀ ptr b0 b1 b2,
       c = .Notification ptr b0 b1 b2 → ptr ∈ Nt ⦄) :
     interrupt.handle_interrupt st ar s a irq ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   have hST : P0.StoreTotal st := L.total
@@ -217,8 +234,13 @@ theorem interrupt.handle_interrupt.bxi (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ N
   step with P0.interrupt.irq_state.p0 st s irq hST as ⟨v⟩
   refine WP.spec_bind (Pₘ := fun r : S × A => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac r.1) ?_ ?_
   · split
-    · step with P0.interrupt.irq_slot.p0 st s irq hST as ⟨sl⟩
-      refine WP.spec_bind (hirq sl) fun c hc => ?_
+    · rename_i hle _
+      step with interrupt.irq_slot.val as ⟨sl, esl⟩
+      subst esl
+      have hirq' : irq.val < 128 := by
+        have : mx.val = 127 := by rw [emx]; simp [layout.irq.MAX]
+        simp at hle; omega
+      refine WP.spec_bind (hirq irq hirq') fun c hc => ?_
       refine WP.spec_bind (Pₘ := fun r : S × A => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac r.1) ?_ ?_
       · split
         all_goals try exact (WP.spec_ok _).2 h
@@ -272,20 +294,23 @@ its `CurStep` (for `HCur.step`) and, when it was preempted, what the
 preemption point needs. -/
 structure EntryHyps (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
-  /-- The message transfer writes only the user words `U` (`do_ipc_transfer`). -/
-  xfer : XferOK st ar T U
+  /-- The message transfer keeps the invariants within `XferFr` (`do_ipc_transfer`;
+  `xferOK_of` proves it from `XferHyps`). -/
+  xfer : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U
   /-- At a timeout fault of the current thread (`check_budget`'s
   `end_timeslice`): it can block, the user words are outside the kernel
   objects, and the caps (its timeout-handler slot) are typed. -/
   tmoOK : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     CanBlock st T Ac s (L.curW s) ∧ UserOK st T Cs Ω H U s ∧
-    ∀ sl : obj.Slot, obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄
+    ∀ i, (i = layout.tcb.SLOT_TIMEOUT_HANDLER ∨ i = layout.tcb.SLOT_FAULT_HANDLER) →
+      obj.Tcb.slot (L.curW s) i ⦃ sl => obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄
   /-- The cap invocations (`handle_invocation`: lookup, decode, perform, reply). -/
   inv : ∀ (Ac : Set U64) (s : S) (a : A) (call blk don fp : Bool) (cptr : U64),
-    BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → L.cscW s ∈ Ac →
+    BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → L.cscW s ∈ Ac → L.actionW s ≠ L.curW s →
+      (L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s))) →
     syscall.handle_invocation st ar s a call blk don fp cptr ⦃ r s' _ => ∃ Ac',
-      BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ∧ CurStep st Ac Ac' s s' ∧
-      (∀ e, r = .Err e → L.actionW s' ≠ L.curW s' ∧
+      BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ∧
+      (∀ e, r = .Err e → CurStep st Ac Ac' s s' ∧ L.actionW s' ≠ L.curW s' ∧
         (L.mem s' (scA (L.curW s')) ≠ 0#u64 → L.cscW s' = L.mem s' (scA (L.curW s')))) ⦄
   /-- At a receive (`handle_recv`): the current thread can block, the user
   words are outside the kernel objects, the caps the current thread looks
@@ -297,11 +322,11 @@ structure EntryHyps (st : machine.Store S) [L : LawfulStore st] (ar : machine.Ar
   /-- The notification caps (as in the IRQ handler slots) name heap
   notifications (P3's `CapValid`); `handle_interrupt` itself is proved
   (`interrupt.handle_interrupt.bxi`). -/
-  irqcap : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → ∀ sl : obj.Slot,
-    obj.Slot.cap st sl s ⦃ c => ∀ ptr b0 b1 b2, c = .Notification ptr b0 b1 b2 → ptr ∈ Nt ⦄
+  irqcap : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → ∀ i : U64, i.val < 128 →
+    obj.Slot.cap st (irqSlotA (L.ksb s) i) s ⦃ c => ∀ ptr b0 b1 b2, c = .Notification ptr b0 b1 b2 → ptr ∈ Nt ⦄
   /-- The debug syscalls (`debug_syscall`, which return to the thread directly). -/
-  debug : ∀ (Ac : Set U64) (s : S) (a : A) (t : obj.Tcb) (n : I64), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
-    syscall.debug_syscall st ar s a t n ⦃ _ s' _ => ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄
+  debug : ∀ (Ac : Set U64) (s : S) (a : A) (n : I64), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    syscall.debug_syscall st ar s a (L.curW s) n ⦃ _ s' _ => ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄
   /-- `activate_thread`, after `schedule`. -/
   act : ∀ (Ac : Set U64) (s : S) (a : A), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     sched.activate_thread st ar s a ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄
@@ -314,7 +339,8 @@ theorem EntryHyps.tmo {U : Set U64} (E : EntryHyps st ar T Cs Ω H Sg Rp Scs Nt 
       faults.handle_timeout st ar s a (L.curW s) f ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
   fun s a f Q R h hB hX hSg hS => by
     obtain ⟨hc, hU, hcap⟩ := E.tmoOK Ac s ⟨⟨Q, R, h⟩, hB, hX, hSg, hS⟩
-    exact WP.spec_mono (faults.handle_timeout.bxi hA E.xfer s a _ f ⟨⟨Q, R, h⟩, hB, hX, hS, hSg⟩ hU hc hcap)
+    exact WP.spec_mono (faults.handle_timeout.bxi hA E.xfer s a _ f ⟨⟨Q, R, h⟩, hB, hX, hS, hSg⟩ hU hc
+      (hcap _ (Or.inl rfl)))
       fun r hr => by obtain ⟨s', a'⟩ := r; exact BlkOK.bxi (by simpa using hr)
 
 /-- Faults of the current thread keep the invariants (`faults.handle_fault.bxi`,
@@ -323,7 +349,7 @@ theorem EntryHyps.fault {U : Set U64} (E : EntryHyps st ar T Cs Ω H Sg Rp Scs N
     (Ac : Set U64) (s : S) (a : A) (f : error.Fault) (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
     faults.handle_fault st ar s a (L.curW s) f ⦃ s' _ => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ := by
   obtain ⟨hc, hU, hcap⟩ := E.tmoOK Ac s h
-  exact WP.spec_mono (faults.handle_fault.bxi hA E.xfer s a _ f h.blk hU hc hcap)
+  exact WP.spec_mono (faults.handle_fault.bxi hA E.xfer s a _ f h.blk hU hc (hcap _ (Or.inr rfl)))
     fun r hr => by obtain ⟨s', a'⟩ := r; exact ⟨Ac, BlkOK.bxi (by simpa using hr)⟩
 
 /-- Receives keep the invariants (`syscall.handle_recv.bxi`). -/
@@ -421,7 +447,7 @@ theorem syscall.finish.entry (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt, H n = s
 theorem syscall.after_invocation.bxi (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     (E : EntryHyps st ar T Cs Ω H Sg Rp Scs Nt Z U)
     {Ac : Set U64} (s : S) (a : A) (r : core.result.Result Unit error.Exc)
-    (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : HCur st Ac s)
+    (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : ∀ e, r = .Err e → HCur st Ac s)
     (herr : ∀ e, r = .Err e → L.actionW s ≠ L.curW s ∧
       (L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s)))) :
     syscall.after_invocation st ar s a r ⦃ _ s' _ => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ := by
@@ -432,7 +458,8 @@ theorem syscall.after_invocation.bxi (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt,
     obtain ⟨hna, hcsc⟩ := herr e rfl
     obtain ⟨⟨Q, R, h0⟩, hB, hX, hSg, hS⟩ := h
     dsimp only
-    refine WP.spec_bind (syscall.mcs_preemption_point.all hA s a Q R h0 hB hX hSg hS hcsc hna hc (E.tmo hA Ac)) ?_
+    refine WP.spec_bind (syscall.mcs_preemption_point.all hA s a Q R h0 hB hX hSg hS hcsc hna (hc e rfl)
+      (E.tmo hA Ac)) ?_
     rintro ⟨s1, a1⟩ h1
     try simp only [WP.uncurry'_pair]
     refine WP.spec_bind (hA.take_pending_irq a1) ?_
@@ -457,11 +484,12 @@ theorem syscall.dispatch_syscall.bxi (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt,
   have IA : ∀ (call blk don fp : Bool) (cptr : U64),
       syscall.handle_invocation st ar s a call blk don fp cptr ⦃ r s1 a1 =>
         syscall.after_invocation st ar s1 a1 r ⦃ _ s2 _ => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s2 ⦄ ⦄ :=
-    fun call blk don fp cptr => WP.spec_mono (E.inv Ac s a call blk don fp cptr h hcA) fun r hr => by
+    fun call blk don fp cptr => WP.spec_mono (E.inv Ac s a call blk don fp cptr h hcA hna hcsc) fun r hr => by
       obtain ⟨r', s1, a1⟩ := r
       simp only [WP.uncurry'_pair] at hr ⊢
-      obtain ⟨Ac1, h1, k1, e1⟩ := hr
-      exact syscall.after_invocation.bxi hA hNt E s1 a1 r' h1 ((HCur.of_mem hcA).step k1) e1
+      obtain ⟨Ac1, h1, e1⟩ := hr
+      exact syscall.after_invocation.bxi hA hNt E s1 a1 r' h1
+        (fun e he => (HCur.of_mem hcA).step (e1 e he).1) fun e he => (e1 e he).2
   have IR : ∀ (call blk don fp : Bool) (cptr : U64) (b1 b2 : Bool),
       (do
         let (r, s1, a1) ← syscall.handle_invocation st ar s a call blk don fp cptr
@@ -607,7 +635,9 @@ theorem syscall.handle_unknown_syscall.entry (hA : P0.ArchTotal ar) (hNt : ∀ n
     exact (WP.spec_ok _).2 ⟨Ac, h⟩
   split
   · exact (WP.spec_ok _).2 ⟨Ac, h⟩
-  refine WP.spec_bind (E.debug Ac s a t number h) ?_
+  have et' : t = L.curW s := et
+  subst et'
+  refine WP.spec_bind (E.debug Ac s a number h) ?_
   rintro ⟨b, s1, a1⟩ ⟨Ac1, h1⟩
   try simp only [WP.uncurry'_pair]
   try simp only [uncurry_apply_pair]
