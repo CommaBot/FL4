@@ -267,6 +267,7 @@ import Fl4Proofs.P3.VsThX
 import Fl4Proofs.P3.IpcRS
 import Fl4Proofs.P3.XTopStep
 import Fl4Proofs.P3.ArchKeep
+import Fl4Proofs.P3.IpcEpTail
 import Fl4Proofs.P3.IpcXTop
 import Fl4Proofs.P3.XTopCaps
 import Fl4Proofs.P3.DomSched
