@@ -187,7 +187,7 @@ def IoCPost (th : TypedHeap) (kb : U64) (σ : Fl4Spec.State Unit) (m : Fl4Spec.S
       ∃ σ' G', (.ok [], σ') ∈ ((Fl4Spec.archPerformInvocation (Z := Unit) inv).run σ1).1 ∧
         CRel th (L.mem s') σ' G' ∧ IoRel (L.mem s') kb σ' ∧ FinInv th (L.mem s') σ' G' ∧
         IoPortsAlloc (L.mem s') kb G' ∧ MdbOKV kb (L.mem s') G' ∧ (DomPlaced (L := L) th s → DK4 (L := L) s s') ∧
-        Steps (L := L) arI th s ar σ s' a' σ'
+        (CurRun σ → Steps (L := L) arI th s ar σ s' a' σ')
 
 variable {arI} in
 theorem IoCPost.of_run {th : TypedHeap} {kb : U64} {σ : Fl4Spec.State Unit}
@@ -434,7 +434,7 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
   refine WP.spec_bind (WP.spec_and (WP.spec_and hrs (sts_dk4c hP s htcb sched.TS_RESTART)) (spec_self hrs)) ?_
   rintro s2 ⟨⟨⟨hkb, hS, σ1, hst, hCR1, hIo1, hw⟩, hdk1⟩, hs2⟩
   obtain ⟨xct, hkct, -⟩ := hR.tcb ct htcb
-  have hstp1 : Steps (L := L) arI th s ar σ s2 ar σ1 := Steps.restart arI hcur hkct htcb hs2 hst
+  have hstp1 : CurRun σ → Steps (L := L) arI th s ar σ s2 ar σ1 := Steps.restart arI hcur hkct htcb hs2 hst
   -- the bitmap
   have hL2 : IoLayout th (L.ksb s2) := by rw [hkb]; exact hL
   refine WP.spec_bind (set_mask_spec hL2 s2 rfl first last hfl hlv true) ?_
@@ -474,8 +474,8 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
   rintro s4 ⟨⟨⟨σ', G', hci, hR', hV', hM', hC', hI', hFI', hcap4, ⟨bG, hGe⟩, hSt4⟩, hF4⟩, hF4'⟩
   rw [WP.spec_ok]
   have hk3 : L.ksb s3 = L.ksb s := hM3.1.trans hkb
-  have hstp : Steps (L := L) arI th s ar σ s4 ar σ' :=
-    (hstp1.trans arI (Steps.mask arI hL2 hlv hfl hM3)).trans arI
+  have hstp : CurRun σ → Steps (L := L) arI th s ar σ s4 ar σ' := fun hC =>
+    ((hstp1 hC).trans arI (Steps.mask arI hL2 hlv hfl hM3)).trans arI
       (Steps.insert arI hP hps hpd rfl hci hF4' ⟨hR', hV', hM', hC', hI'⟩ hFI'
         (by rw [hk3]; exact (MdbStep.same_left hM hS23 hSt4).okv hFR)
         fun y hy hne => by rw [hcap4 y hy, if_neg hne])

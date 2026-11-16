@@ -74,7 +74,7 @@ theorem decode_invocation_domainX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMas
         show _ ∈ ((Fl4Spec.NonDetE.liftE (do Fl4Spec.invokeDomain (Z := Unit) inv; return ([] : List Fl4Spec.Data))).run
           σ1).1
         exact mem_liftE (x := ([], y.2)) (mem_bind_nd hy rfl)
-      obtain ⟨Z', hZ'⟩ := (hstp A arI ar).xtop arI hAM hDel hth hX0 hKA hC hTh
+      obtain ⟨Z', hZ'⟩ := (hstp hC A arI ar).xtop arI hAM hDel hth hX0 hKA hTh
       exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], y.2), hm,
         ⟨Z'.th, Z'.G, Or.inl ⟨he, rfl⟩, hZ'.rel.1, hZ'.rel.2.1, hZ'.rel.2.2.1, hZ'.rel.2.2.2.1,
           hZ'.rel.2.2.2.2.1⟩, ⟨Z', hZ'⟩⟩

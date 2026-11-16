@@ -290,3 +290,5 @@ import Fl4Proofs.P3.XTopIrqH
 import Fl4Proofs.P3.XTopIoPort
 import Fl4Proofs.P3.XTopPortIn
 import Fl4Proofs.P3.XTopCnode
+import Fl4Proofs.P3.XTopStepT
+import Fl4Proofs.P3.XTopDel

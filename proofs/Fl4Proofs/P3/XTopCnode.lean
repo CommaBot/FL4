@@ -108,7 +108,7 @@ theorem Steps.cnTrace {th : TypedHeap} (hP : Placed th) {s s2 s' : S} {a : A}
     (hcur : σ.curThread = ct.bv) (hk : σ.kheap ct.bv = some (.tcb x)) (htcb : th ct = some .tcb)
     (hs2 : sched.set_thread_state st s ct sched.TS_RESTART = ok s2)
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
-    (hR1 : StateRel th (L.mem s2) σ1) (hks : L.ksb s2 = L.ksb s)
+    (hC : CurRun σ) (hR1 : StateRel th (L.mem s2) σ1) (hks : L.ksb s2 = L.ksb s)
     {inv : Fl4Spec.CnodeInvocation} (hne : invSlots inv ≠ [])
     (hrun : (Fl4Spec.invokeCnode (Z := Unit) inv).run σ1 = ({(.ok (), σ')}, False))
     (hF : Vs.SlotFrame2 (L := L) th s2 s')
@@ -116,7 +116,7 @@ theorem Steps.cnTrace {th : TypedHeap} (hP : Placed th) {s s2 s' : S} {a : A}
     (hcap : ∀ y, IsSlot th y → (∀ sl ∈ invSlots inv, y ≠ cslotAddr sl) → capV (L.mem s') y = capV (L.mem s2) y)
     (hCR : CRel th (L.mem s') σ' G') (hFI : FinInv th (L.mem s') σ' G') (hMO : MdbOKV (L.ksb s) (L.mem s') G') :
     Steps (L := L) arI th s a σ s' a σ' := by
-  refine (Steps.restart arI hcur hk htcb hs2 hst).trans arI fun Q hQ => ?_
+  refine (Steps.restart arI hcur hk htcb hs2 hst hC).trans arI fun Q hQ => ?_
   have hmem : ((.ok (), σ') : Except Unit Unit × Fl4Spec.State Unit) ∈
       ((Fl4Spec.invokeCnode (Z := Unit) inv).run σ1).1 := by rw [hrun]; rfl
   obtain ⟨hcn, hO⟩ := invoke_cn hne hmem
@@ -167,9 +167,9 @@ theorem cn_topX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {Z : XSe
     have hst' : Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) := by rw [← hcur]; exact hst
     obtain ⟨hX1, hks, -⟩ := hX.restart' hC hcur hs2 hst'
     have hstp : Steps (L := L) arI Z.th s a' σ s' a' σ' :=
-      Steps.cnTrace arI hX.rel.1 hcur hk htcb hs2 hst hX1.rel.2.1.1 hks hne hrunI hF hsl hcap
+      Steps.cnTrace arI hX.rel.1 hcur hk htcb hs2 hst hC hX1.rel.2.1.1 hks hne hrunI hF hsl hcap
         ⟨hR', hV', hM', hC', hI'⟩ hFI' (hSt.okv hX.rel.2.2.2.2.1)
-    obtain ⟨Z', hZ'⟩ := hstp.xtop arI hAM hDel rfl hX hKA hC hTh
+    obtain ⟨Z', hZ'⟩ := hstp.xtop arI hAM hDel rfl hX hKA hTh
     have hx : ((.ok (), σ') : Except Unit Unit × Fl4Spec.State Unit) ∈
         ((Fl4Spec.invokeCnode (Z := Unit) inv).run σ1).1 := by rw [hrunI]; rfl
     exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], σ'),

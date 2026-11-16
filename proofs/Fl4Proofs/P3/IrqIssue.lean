@@ -199,7 +199,7 @@ theorem issue_tail (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4S
   refine WP.spec_bind (WP.spec_and (WP.spec_and hrs (sts_dk4c hP s htcb sched.TS_RESTART)) (spec_self hrs)) ?_
   rintro s1 ⟨⟨⟨hkb, hS, σ1, hst, hCR1, hIR1, -, -, hw⟩, hdk1⟩, hs1⟩
   obtain ⟨xct, hkct, -⟩ := hCR.1.tcb ct htcb
-  have hstp1 : Steps (L := L) arI th s ar σ s1 ar σ1 := Steps.restart arI hcur hkct htcb hs1 hst
+  have hstp1 : CurRun σ → Steps (L := L) arI th s ar σ s1 ar σ1 := Steps.restart arI hcur hkct htcb hs1 hst
   have hL1 : IntLayout th (L.ksb s1) := by rw [hkb]; exact hL
   have hIR1' : IrqRel (L.mem s1) (L.ksb s1) σ1 := by rw [hkb]; exact hIR1
   have hHA1 : HandlersActive (L.mem s1) (L.ksb s1) G := by
@@ -221,7 +221,7 @@ theorem issue_tail (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4S
   apply (WP.spec_ok (core.result.Result.Ok (), s2, a2)).mpr
   refine ⟨.irqControl (BitVec.ofNat 8 irq.val) (pd.bv, db) (ps.bv, idxs), rfl, σ1, hst, σ', G', ?_, hCR', ?_,
     hFI', ?_, by rw [← hkb]; exact hFR', fun hD => (hdk1 hD).trans (hdk2 (hD.toK.same (hdk1 hD).1)),
-    hstp1.trans arI hstp2⟩
+    fun hC => (hstp1 hC).trans arI hstp2⟩
   · exact mem_liftE (x := ((), σ')) hmem
   · rw [← hkb]; exact hIR'
   · rw [← hkb]; exact hHA'

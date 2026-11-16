@@ -5,6 +5,8 @@ swaps**, for the decodes' primitive-step traces (StepSem's `cslot` kind).
 * `move_frame2`: `cdt::move_cap` writes only slot words (as VsInsFrame's
   `insert_frame2` for `cdt::insert`).
 * `swap_frame2`: `cdt::swap` writes only slot words.
+* `empty_frame2`: `cdt::empty_slot` with no cleanup cap writes only slot
+  words.
 * `insert_trace`, `move_trace`, `swap_trace`: the frame and every other
   slot's cap kept.
 * `capMove_nkn`, `capSwap_nkn`: the spec's `cap_move` and `cap_swap` are
@@ -14,6 +16,7 @@ import Fl4Proofs.P3.VsInsFrame
 import Fl4Proofs.P3.Move
 import Fl4Proofs.P3.SpecCnK
 import Fl4Proofs.P3.Swap
+import Fl4Proofs.P3.Empty
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Vs
@@ -52,6 +55,36 @@ theorem move_frame2 (hP : Placed th) (s : S) (c : capability.Cap) (src dest : U6
     repeat (first
       | exact SlotFrame2.refl s
       | refine SlotFrame2.wr' hP ?_ (by assumption) (by first | exact off0 | exact off8 | exact off16 | exact off24) _)
+
+/-- **`cdt::empty_slot` (no cleanup cap) writes only slot words.** -/
+theorem empty_frame2 {A : Type} {ar : machine.Arch A} (hP : Placed th) (s : S) (a : A) (xs : U64) (hx : IsSlot th xs)
+    (c : capability.Cap) (hc : capAt (L.mem s) xs = ok c)
+    (hpv : prevOf (L.mem s) xs = 0#u64 ∨ IsSlot th (prevOf (L.mem s) xs))
+    (hnx : nextOf (L.mem s) xs = 0#u64 ∨ IsSlot th (nextOf (L.mem s) xs)) :
+    cdt.empty_slot st ar s a xs .Null ⦃ r => SlotFrame2 (L := L) th s r.1 ∧ r.2 = a ⦄ := by
+  unfold cdt.empty_slot
+  rw [slot_cap_eq, hc]
+  simp only [bind_ok, cap_is_null_eq]
+  cases hn : isNullB c
+  · simp only [Bool.false_eq_true, ↓reduceIte, slot_prev_eq, slot_next_eq]
+    by_cases hp0 : prevOf (L.mem s) xs = 0#u64 <;> by_cases hn0 : nextOf (L.mem s) xs = 0#u64 <;>
+      simp only [is_null_eq, hp0, hn0, decide_true, decide_false, ↓reduceIte, bind_ok, Bool.false_eq_true,
+        slot_first_badged_eq, ite_set_fb] <;>
+      step* <;> subst_vars <;> refine ⟨?_, rfl⟩
+    all_goals
+      first
+        | have hP' := hpv.resolve_left hp0
+        | skip
+    all_goals
+      first
+        | have hN' := hnx.resolve_left hn0
+        | skip
+    all_goals
+      repeat (first
+        | exact SlotFrame2.refl s
+        | refine SlotFrame2.wr' hP ?_ (by assumption) (by first | exact off0 | exact off8 | exact off16 | exact off24) _)
+  · simp only [↓reduceIte, WP.spec_ok]
+    exact ⟨SlotFrame2.refl s, trivial⟩
 
 /-- **`cdt::insert`'s trace**: slot words only, every slot's cap but the
 source's and the destination's kept. -/
