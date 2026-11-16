@@ -94,7 +94,7 @@ theorem insert_ws (hP : Placed th) (s : S) (c : capability.Cap) (src dest : U64)
     (srcC : capability.Cap) (hsrcC : capAt (L.mem s) src = ok srcC)
     (hnx : nextOf (L.mem s) src = 0#u64 ∨ IsSlot th (nextOf (L.mem s) src)) :
     cdt.insert st s c src dest ⦃ s' => P1.WritesIn st s s' (SlotWd th) ⦄ := by
-  unfold cdt.insert
+  unfold cdt.insert cdt.insert_with_cap
   rw [slot_cap_eq, hsrcC]
   simp only [bind_ok, is_cap_revocable_eq]
   step*

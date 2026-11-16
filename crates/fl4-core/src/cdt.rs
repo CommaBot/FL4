@@ -27,14 +27,18 @@ fn set_untyped_cap_as_full<S: Store>(s: &mut S, src_cap: Cap, new_cap: Cap, src:
 /// empty slot `dest` as `src`'s next sibling or child.
 pub fn insert<S: Store>(s: &mut S, new_cap: Cap, src: Slot, dest: Slot) {
     let src_cap = src.cap(s);
+    insert_with_cap(s, new_cap, src_cap, src, dest);
+}
+
+/// Insert using the source cap already read by this entry. The caller must
+/// not have changed it or crossed a preemption point since that read.
+pub(crate) fn insert_with_cap<S: Store>(s: &mut S, new_cap: Cap, src_cap: Cap, src: Slot, dest: Slot) {
     let revocable = objects::is_cap_revocable(new_cap, src_cap);
     let next = src.next(s);
     set_untyped_cap_as_full(s, src_cap, new_cap, src);
     dest.set_cap(s, new_cap);
     dest.set_prev(s, src);
-    dest.set_next(s, next);
-    dest.set_revocable(s, revocable);
-    dest.set_first_badged(s, revocable);
+    dest.set_next_flags(s, next, revocable, revocable);
     src.set_next(s, dest);
     if !next.is_null() {
         next.set_prev(s, dest);
@@ -49,9 +53,7 @@ pub fn move_cap<S: Store>(s: &mut S, new_cap: Cap, src: Slot, dest: Slot) {
     let first_badged = src.first_badged(s);
     dest.set_cap(s, new_cap);
     dest.set_prev(s, prev);
-    dest.set_next(s, next);
-    dest.set_revocable(s, revocable);
-    dest.set_first_badged(s, first_badged);
+    dest.set_next_flags(s, next, revocable, first_badged);
     src.clear(s);
     if !prev.is_null() {
         prev.set_next(s, dest);
@@ -80,13 +82,9 @@ pub fn swap<S: Store>(s: &mut S, cap1: Cap, slot1: Slot, cap2: Cap, slot2: Slot)
     let r2 = slot2.revocable(s);
     let f2 = slot2.first_badged(s);
     slot1.set_prev(s, p2);
-    slot1.set_next(s, n2);
-    slot1.set_revocable(s, r2);
-    slot1.set_first_badged(s, f2);
+    slot1.set_next_flags(s, n2, r2, f2);
     slot2.set_prev(s, p1);
-    slot2.set_next(s, n1);
-    slot2.set_revocable(s, r1);
-    slot2.set_first_badged(s, f1);
+    slot2.set_next_flags(s, n1, r1, f1);
     if !p2.is_null() {
         p2.set_next(s, slot1);
     }
@@ -159,6 +157,10 @@ pub fn ensure_empty_slot<S: Store>(s: &S, slot: Slot) -> KResult<()> {
 /// seL4 `isFinalCapability`.
 pub fn is_final_capability<S: Store>(s: &S, slot: Slot) -> bool {
     let cap = slot.cap(s);
+    is_final_capability_with_cap(s, slot, cap)
+}
+
+fn is_final_capability_with_cap<S: Store>(s: &S, slot: Slot, cap: Cap) -> bool {
     let prev = slot.prev(s);
     let prev_same = !prev.is_null() && objects::same_object_as(prev.cap(s), cap);
     if prev_same {
@@ -175,7 +177,7 @@ pub fn is_final_capability<S: Store>(s: &S, slot: Slot) -> bool {
 /// seL4 `slotCapLongRunningDelete`.
 pub fn slot_cap_long_running_delete<S: Store>(s: &S, slot: Slot) -> bool {
     let cap = slot.cap(s);
-    if cap.is_null() || !is_final_capability(s, slot) {
+    if cap.is_null() || !is_final_capability_with_cap(s, slot, cap) {
         return false;
     }
     matches!(cap, Cap::Thread { .. } | Cap::Zombie { .. } | Cap::CNode { .. })
@@ -186,9 +188,7 @@ pub fn insert_new_cap<S: Store>(s: &mut S, parent: Slot, slot: Slot, cap: Cap) {
     let next = parent.next(s);
     slot.set_cap(s, cap);
     slot.set_prev(s, parent);
-    slot.set_next(s, next);
-    slot.set_revocable(s, true);
-    slot.set_first_badged(s, true);
+    slot.set_next_flags(s, next, true, true);
     if !next.is_null() {
         next.set_prev(s, slot);
     }
@@ -248,7 +248,7 @@ fn finalise_slot_deferred<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot) -
         if cap.is_null() {
             return Ok(Finalised { success: true, cleanup: Cap::Null });
         }
-        let fin = is_final_capability(s, slot);
+        let fin = is_final_capability_with_cap(s, slot, cap);
         let (remainder, cleanup) = objects::finalise_cap(s, a, cap, fin, false);
         if cap_removable(remainder, slot) {
             return Ok(Finalised { success: true, cleanup });
@@ -276,7 +276,7 @@ fn finalise_slot_immediate<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot) 
         if cap.is_null() {
             return Ok(Finalised { success: true, cleanup: Cap::Null });
         }
-        let fin = is_final_capability(s, slot);
+        let fin = is_final_capability_with_cap(s, slot, cap);
         let (remainder, cleanup) = objects::finalise_cap(s, a, cap, fin, false);
         if cap_removable(remainder, slot) {
             return Ok(Finalised { success: true, cleanup });
@@ -320,7 +320,7 @@ pub fn delete<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot, exposed: bool
 pub fn delete_one<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot) {
     let cap = slot.cap(s);
     if !cap.is_null() {
-        let fin = is_final_capability(s, slot);
+        let fin = is_final_capability_with_cap(s, slot, cap);
         let _ = objects::finalise_cap_object(s, a, cap, fin);
         empty_slot(s, a, slot, Cap::Null);
     }

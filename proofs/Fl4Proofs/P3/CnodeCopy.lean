@@ -436,6 +436,7 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
         cases mv
         · -- insert
           simp only [Bool.false_eq_true, ↓reduceIte]
+          rw [insert_with_cap_eq _ _ _ _ _ hsc2]
           obtain ⟨hbd, hzb, hut⟩ := hbi rfl
           have hut' : isUt srcC = true → ∀ y, ¬ Mdb.Desc G.par y (cslotAddr (ps.bv, sb)) := by
             intro hu y hy

@@ -239,7 +239,7 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
 theorem is_final_eq (s : S) (x : U64) : cdt.is_final_capability st s x = ok (finF (L.mem s) x) := by
-  unfold cdt.is_final_capability finF
+  unfold cdt.is_final_capability cdt.is_final_capability_with_cap finF
   simp only [slot_cap_eq, capAt_capV, slot_prev_eq, slot_next_eq, is_null_eq, soB_eq, bind_ok]
   by_cases hp : prevOf (L.mem s) x = 0#u64
   · simp only [hp, decide_true, ↓reduceIte, ne_eq, not_true_eq_false, false_and]

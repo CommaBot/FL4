@@ -50,7 +50,8 @@ theorem cdt.finalise_slot_immediate.ep {A : Type _} {ar : machine.Arch A} (s : S
       · simp only [capability.Cap.is_null, bind_ok, if_true, WP.spec_ok]
         exact ⟨h, Foot.refl _, CaiFr.refl _ _, by first | trivial | exact Or.inl rfl | exact Or.inl trivial, fun v e => by cases e; rfl⟩
       · simp only [capability.Cap.is_null, bind_ok, Bool.false_eq_true, ite_false]
-        refine WP.spec_bind (P0.cdt.is_final_capability.p0 st s1 slot L.total) fun fin _ => ?_
+        refine WP.spec_bind (P0.cdt.is_final_capability_with_cap.p0 st s1 slot
+          (.Endpoint ep b0 b1 b2 b3 b4) L.total) fun fin _ => ?_
         unfold objects.finalise_cap
         simp only [bind_ok]
         refine WP.spec_bind (fin_endpoint.fr (ar := ar) s1 a1 ep b0 b1 b2 b3 b4 fin h hH) ?_

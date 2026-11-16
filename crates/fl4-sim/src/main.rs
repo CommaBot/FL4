@@ -599,28 +599,46 @@ impl tx::Mem for SimStore {
     }
 }
 
+impl SimStore {
+    fn before_tx_read(&self) {
+        if let Some(c) = &self.conc {
+            let z = &c.zombie[self.cpu as usize];
+            if tx::doomed(self.cpu) {
+                let n = z.fetch_add(1, Ordering::Relaxed) + 1;
+                assert!(n < ZOMBIE_LIMIT, "liveness: core {} read {ZOMBIE_LIMIT} words after its transaction was doomed, without reaching commit", self.cpu);
+            } else {
+                z.store(0, Ordering::Relaxed);
+                let k = DOOM_READS.load(Ordering::Relaxed);
+                if k != 0 && c.baton.lock().unwrap().rng.below(k) == 0 {
+                    tx::doom_serial(self.cpu);
+                }
+            }
+        }
+    }
+}
+
 impl Store for SimStore {
     fn read(&self, addr: u64) -> u64 {
         if self.tx {
-            if let Some(c) = &self.conc {
-                let z = &c.zombie[self.cpu as usize];
-                if tx::doomed(self.cpu) {
-                    let n = z.fetch_add(1, Ordering::Relaxed) + 1;
-                    assert!(n < ZOMBIE_LIMIT, "liveness: core {} read {ZOMBIE_LIMIT} words after its transaction was doomed, without reaching commit", self.cpu);
-                } else {
-                    z.store(0, Ordering::Relaxed);
-                    let k = DOOM_READS.load(Ordering::Relaxed);
-                    if k != 0 && c.baton.lock().unwrap().rng.below(k) == 0 {
-                        tx::doom_serial(self.cpu);
-                    }
-                }
-            }
+            self.before_tx_read();
             let v = tx::read(self.cpu, self, addr);
             self.log_read(addr, v);
             v
         } else {
             self.pause();
             self.mem_get(addr)
+        }
+    }
+    fn read_pair(&self, addr: u64) -> (u64, u64) {
+        if self.tx {
+            self.before_tx_read();
+            self.before_tx_read();
+            let (a, b) = tx::read_pair(self.cpu, self, addr);
+            self.log_read(addr, a);
+            self.log_read(addr.wrapping_add(8), b);
+            (a, b)
+        } else {
+            (self.read(addr), self.read(addr.wrapping_add(8)))
         }
     }
     fn write(&mut self, addr: u64, v: u64) {
@@ -2514,6 +2532,13 @@ mod tests {
         sim.s.conc = Some(conc.clone());
         sim.a.conc = Some(conc);
         sim.on(0);
+        // The quiet-core policy can execute directly. Back off its probe
+        // so this test actually exercises an aborted transaction, then
+        // remove the contender before the mandatory serial retry.
+        let plain = SimStore { conc: None, ..sim.s.clone() };
+        GATE.enter_tx(&plain, 1, || panic!("open gate"));
+        assert!(!GATE.opportunistic_acquire(&plain, 0, || panic!("no serial owner")));
+        GATE.leave_tx(&plain, 1);
         sim.a.raise(0, irq::RESCHEDULE_IPI);
         let runs = Cell::new(0);
         sim.enter(false, |s, a| {

@@ -157,7 +157,7 @@ theorem insert_frame (hP : Placed th) (s : S) (c : capability.Cap) (src dest : U
     (srcC : capability.Cap) (hsrcC : capAt (L.mem s) src = ok srcC)
     (hnx : nextOf (L.mem s) src = 0#u64 ∨ IsSlot th (nextOf (L.mem s) src)) :
     cdt.insert st s c src dest ⦃ s' => SlotFrame (L := L) th s s' ⦄ := by
-  unfold cdt.insert
+  unfold cdt.insert cdt.insert_with_cap
   rw [slot_cap_eq, hsrcC]
   simp only [bind_ok, is_cap_revocable_eq]
   step*

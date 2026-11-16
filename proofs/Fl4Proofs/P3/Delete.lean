@@ -229,6 +229,8 @@ theorem finalise_imm_triv (σ : Fl4Spec.State Unit) (s : S) (a : A) (slot : obj.
   · simp only [cap_is_null_null, bind_ok, ↓reduceIte]
   · have hcn : c ≠ .Null := by intro e; subst e; simp [TrivKind] at htk
     rw [cap_is_null_ne hcn]
+    simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
+    rw [is_final_with_cap_eq _ _ _ hc]
     simp only [bind_ok, Bool.false_eq_true, ↓reduceIte, hfin, finalise_cap_triv arI σ s a c fin htk,
       uncurry_apply_pair, cdt.cap_removable]
 

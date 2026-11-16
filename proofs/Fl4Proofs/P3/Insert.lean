@@ -60,6 +60,12 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 def wrCap (s : S) (sl : U64) (c : capability.Cap) : S :=
   L.wr (L.wr s sl ⟨(encodeF c).1⟩) (core.num.U64.wrapping_add sl 8#u64) ⟨(encodeF c).2⟩
 
+theorem insert_with_cap_eq (s : S) (c srcC : capability.Cap) (src dest : obj.Slot)
+    (hsrc : capAt (L.mem s) src = ok srcC) :
+    cdt.insert_with_cap st s c srcC src dest = cdt.insert st s c src dest := by
+  unfold cdt.insert
+  rw [slot_cap_eq, hsrc, bind_ok]
+
 theorem set_untyped_spec (s : S) (srcC newC : capability.Cap) (src : obj.Slot) :
     cdt.set_untyped_cap_as_full st s srcC newC src ⦃ s' =>
       s' = match fullF srcC newC with
@@ -153,7 +159,7 @@ theorem insert_mem (hP : Placed th) (s : S) (c : capability.Cap) (src dest : U64
     (hnx : nextOf (L.mem s) src = 0#u64 ∨
       (IsSlot th (nextOf (L.mem s) src) ∧ nextOf (L.mem s) src ≠ dest ∧ nextOf (L.mem s) src ≠ src)) :
     cdt.insert st s c src dest ⦃ s' => InsWords (L := L) th s s' c srcC src dest ⦄ := by
-  unfold cdt.insert
+  unfold cdt.insert cdt.insert_with_cap
   rw [slot_cap_eq, hsrcC]
   simp only [bind_ok, is_cap_revocable_eq]
   step*

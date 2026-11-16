@@ -78,7 +78,7 @@ theorem is_final_same {th : TypedHeap} {s s' : S} (hS : SlotsSame th (L.mem s) (
     (hx : IsSlot th x) (hp : prevOf (L.mem s) x = 0#u64 ∨ IsSlot th (prevOf (L.mem s) x))
     (hn : nextOf (L.mem s) x = 0#u64 ∨ IsSlot th (nextOf (L.mem s) x)) :
     cdt.is_final_capability st s' x = cdt.is_final_capability st s x := by
-  unfold cdt.is_final_capability
+  unfold cdt.is_final_capability cdt.is_final_capability_with_cap
   simp only [slot_cap_eq, slot_prev_eq, slot_next_eq, hS.capAt hx, hS.prevOf hx, hS.nextOf hx, bind_ok]
   rcases hp with hp | hp <;> rcases hn with hn | hn
   · simp [hp, hn, obj.Slot.is_null]

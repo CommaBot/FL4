@@ -67,7 +67,7 @@ fn decode_copy<S: Store>(s: &mut S, lbl: u64, length: u64, buf: u64, extra: &[Sl
     if is_move {
         cdt::move_cap(s, new_cap, src, dest);
     } else {
-        cdt::insert(s, new_cap, src, dest);
+        cdt::insert_with_cap(s, new_cap, src_cap, src, dest);
     }
     Ok(())
 }

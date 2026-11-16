@@ -308,6 +308,56 @@ pub fn read<M: Mem>(cpu: u64, m: &M, addr: u64) -> u64 {
     v
 }
 
+/// Read a capability-sized pair with one validation of its version stripe.
+/// Buffered writes take precedence independently for each word. Unless both
+/// words are forwarded, check the stripe before and after *all* memory loads
+/// and record it for commit validation, just as a scalar read does.
+pub fn read_pair<M: Mem>(cpu: u64, m: &M, addr: u64) -> (u64, u64) {
+    if addr & (STRIPE_BYTES - 1) != 0 {
+        return (read(cpu, m, addr), read(cpu, m, addr.wrapping_add(8)));
+    }
+    let t = st(cpu);
+    if t.doom != DOOM_NONE {
+        return (0, 0);
+    }
+    let mut first = None;
+    let mut second = None;
+    if t.nw != 0 {
+        let (i, hit) = find(t, addr);
+        if hit { first = Some(t.wval[i]); }
+        let (i, hit) = find(t, addr.wrapping_add(8));
+        if hit { second = Some(t.wval[i]); }
+        if let (Some(a), Some(b)) = (first, second) {
+            return (a, b);
+        }
+    }
+    let e = stripe(addr);
+    let v1 = m.a_load(&TABLE[e].0, Ordering::Acquire);
+    if v1 & 1 != 0 || v1 > t.rv {
+        t.doom = DOOM_CONFLICT;
+        log_conflict(cpu, addr);
+        return (0, 0);
+    }
+    let a = first.unwrap_or_else(|| m.load(addr));
+    let b = second.unwrap_or_else(|| m.load(addr.wrapping_add(8)));
+    m.fence(Ordering::Acquire);
+    if m.a_load(&TABLE[e].0, Ordering::Relaxed) != v1 {
+        t.doom = DOOM_CONFLICT;
+        log_conflict(cpu, addr);
+        return (0, 0);
+    }
+    if t.rstamp[e] != t.gen {
+        if t.nreads == MAX_READS {
+            t.doom = DOOM_SERIAL;
+            return (0, 0);
+        }
+        t.rstamp[e] = t.gen;
+        t.reads[t.nreads] = e as u16;
+        t.nreads += 1;
+    }
+    (a, b)
+}
+
 pub fn write(cpu: u64, addr: u64, v: u64) {
     let t = st(cpu);
     if t.doom != DOOM_NONE {
@@ -526,6 +576,125 @@ mod tests {
         fn store(&self, addr: u64, value: u64) {
             self.0.borrow_mut().insert(addr, value);
         }
+    }
+
+    #[test]
+    fn paired_reads_forward_each_word_and_handle_stripe_boundaries() {
+        let _test = TEST_LOCK.lock().unwrap();
+        let m = SparseMem::default();
+        for addr in [0x180000, 0x180008] {
+            for mask in 0..4 {
+                m.store(addr, 11);
+                m.store(addr + 8, 22);
+                begin(0, &m);
+                if mask & 1 != 0 { write(0, addr, 33); }
+                if mask & 2 != 0 { write(0, addr + 8, 44); }
+                assert_eq!(read_pair(0, &m, addr),
+                           (if mask & 1 != 0 { 33 } else { 11 }, if mask & 2 != 0 { 44 } else { 22 }));
+                assert!(commit(0, &m));
+                end(0);
+            }
+        }
+    }
+
+    #[test]
+    fn paired_reads_reject_a_commit_between_either_load_and_validation() {
+        let _test = TEST_LOCK.lock().unwrap();
+        struct Interleave {
+            m: SparseMem,
+            after: u64,
+            fired: core::cell::Cell<bool>,
+        }
+        impl Mem for Interleave {
+            fn load(&self, addr: u64) -> u64 {
+                let v = self.m.load(addr);
+                if addr == self.after && !self.fired.replace(true) {
+                    // Simulate another core committing a new capability
+                    // after either word was loaded by core 0.
+                    begin(1, self);
+                    write(1, 0x190000, 33);
+                    write(1, 0x190008, 44);
+                    assert!(commit(1, self));
+                    end(1);
+                }
+                v
+            }
+            fn store(&self, addr: u64, v: u64) { self.m.store(addr, v); }
+        }
+        for after in [0x190000, 0x190008] {
+            let m = Interleave { m: SparseMem::default(), after, fired: core::cell::Cell::new(false) };
+            m.store(0x190000, 11);
+            m.store(0x190008, 22);
+            begin(0, &m);
+            assert_eq!(read_pair(0, &m, 0x190000), (0, 0));
+            assert!(m.fired.get());
+            assert!(doomed(0));
+            assert!(!needs_serial(0));
+            assert!(!commit(0, &m));
+            end(0);
+        }
+    }
+
+    #[test]
+    fn paired_reads_validate_partial_forwarding_and_later_writes() {
+        let _test = TEST_LOCK.lock().unwrap();
+        let m = SparseMem::default();
+        let addr = 0x1a0000;
+        for mask in 0..3 {
+            m.store(addr, 11);
+            m.store(addr + 8, 22);
+            begin(0, &m);
+            if mask & 1 != 0 { write(0, addr, 33); }
+            if mask & 2 != 0 { write(0, addr + 8, 44); }
+            read_pair(0, &m, addr);
+            assert!(!doomed(0));
+            begin(1, &m);
+            write(1, addr, 55);
+            write(1, addr + 8, 66);
+            assert!(commit(1, &m));
+            end(1);
+            // Also make the non-forwarding case a writing transaction:
+            // commit must validate the pair it read before the update.
+            write(0, addr + 16, 77);
+            assert!(!commit(0, &m));
+            end(0);
+            assert_eq!((m.load(addr), m.load(addr + 8), m.load(addr + 16)), (55, 66, 0));
+        }
+    }
+
+    #[test]
+    fn paired_reads_reject_newer_or_locked_stripes_and_preserve_fallback() {
+        let _test = TEST_LOCK.lock().unwrap();
+        let m = SparseMem::default();
+        let addr = 0x1b0000;
+        m.store(addr, 11);
+        m.store(addr + 8, 22);
+        begin(0, &m);
+        begin(1, &m);
+        write(1, addr, 33);
+        assert!(commit(1, &m));
+        end(1);
+        assert_eq!(read_pair(0, &m, addr), (0, 0));
+        assert!(doomed(0));
+        end(0);
+        begin(0, &m);
+        let e = &TABLE[stripe(addr)].0;
+        let v = e.load(Ordering::Relaxed);
+        e.store(v | 1, Ordering::Relaxed);
+        assert_eq!(read_pair(0, &m, addr), (0, 0));
+        assert!(doomed(0));
+        e.store(v, Ordering::Relaxed);
+        end(0);
+        begin(0, &m);
+        st(0).nreads = MAX_READS;
+        assert_eq!(read_pair(0, &m, addr), (0, 0));
+        assert!(needs_serial(0));
+        end(0);
+        begin(0, &m);
+        doom_serial(0);
+        assert_eq!(read_pair(0, &m, addr), (0, 0));
+        assert!(needs_serial(0));
+        end(0);
     }
 
     #[test]

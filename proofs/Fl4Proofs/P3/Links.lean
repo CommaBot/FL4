@@ -167,6 +167,20 @@ theorem sext48_eq (w : U64) : obj.sext48 w = ok ⟨sextF w.bv⟩ := by
   show ¬ (x.bv &&& 1#64 <<< 49 = 0#64) ↔ _
   exact (bit_ne_zero x.bv 49 (Or.inr rfl))
 
+@[step] theorem slot_set_next_flags_spec (sl : obj.Slot) (s : S) (n : obj.Slot) (r f : Bool) :
+    obj.Slot.set_next_flags st sl s n r f ⦃ s' =>
+      s' = L.wr s (wordOf sl 24#u64)
+        ⟨setBitF (setBitF (setNextF (L.mem s (wordOf sl 24#u64)).bv n.bv) 48 r) 49 f⟩ ⦄ := by
+  unfold obj.Slot.set_next_flags
+  simp only [next_word_eq, mdb_revocable_eq, mdb_first_badged_eq, obj.MDB_PTR_MASK,
+    lift, bind_ok, layout.cte.NEXT]
+  cases r <;> cases f <;> simp only [Bool.false_eq_true, ↓reduceIte, L.write_eq, bind_ok, WP.spec_ok]
+  all_goals
+    congr 1
+    rw [UScalar.eq_equiv_bv_eq]
+    simp [setBitF, setNextF, M48]
+    bv_decide
+
 @[step] theorem slot_is_null_spec (sl : obj.Slot) : obj.Slot.is_null sl ⦃ b => b = decide (sl = 0#u64) ⦄ := by
   unfold obj.Slot.is_null; simp
 

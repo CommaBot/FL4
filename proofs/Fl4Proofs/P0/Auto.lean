@@ -723,6 +723,10 @@ theorem layout.tcb.IPC_BUFFER.p0  :
     objects.is_cap_revocable derived src ⦃ _ => True ⦄ := by
   unfold objects.is_cap_revocable; p0_auto
 
+@[step] theorem obj.Slot.set_next_flags.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot) (s : S) (n : obj.Slot) (revocable : Bool) (first_badged : Bool) (hS : StoreTotal machineStoreInst) :
+    obj.Slot.set_next_flags machineStoreInst self s n revocable first_badged ⦃ _ => True ⦄ := by
+  unfold obj.Slot.set_next_flags; p0_split
+
 @[step] theorem obj.Slot.set_next.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot) (s : S) (n : obj.Slot) (hS : StoreTotal machineStoreInst) :
     obj.Slot.set_next machineStoreInst self s n ⦃ _ => True ⦄ := by
   unfold obj.Slot.set_next; p0_auto
@@ -734,6 +738,10 @@ theorem layout.tcb.IPC_BUFFER.p0  :
 @[step] theorem cdt.set_untyped_cap_as_full.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src_cap : capability.Cap) (new_cap : capability.Cap) (src : obj.Slot) (hS : StoreTotal machineStoreInst) :
     cdt.set_untyped_cap_as_full machineStoreInst s src_cap new_cap src ⦃ _ => True ⦄ := by
   unfold cdt.set_untyped_cap_as_full; p0_auto
+
+@[step] theorem cdt.insert_with_cap.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (new_cap : capability.Cap) (src_cap : capability.Cap) (src : obj.Slot) (dest : obj.Slot) (hS : StoreTotal machineStoreInst) :
+    cdt.insert_with_cap machineStoreInst s new_cap src_cap src dest ⦃ _ => True ⦄ := by
+  unfold cdt.insert_with_cap; p0_auto
 
 @[step] theorem cdt.insert.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (new_cap : capability.Cap) (src : obj.Slot) (dest : obj.Slot) (hS : StoreTotal machineStoreInst) :
     cdt.insert machineStoreInst s new_cap src dest ⦃ _ => True ⦄ := by
@@ -960,6 +968,10 @@ theorem obj.Slot.Insts.CoreCmpPartialEqSlot.eq.p0 (self : obj.Slot) (other : obj
 @[step] theorem objects.same_object_as.p0 (a : capability.Cap) (b : capability.Cap) :
     objects.same_object_as a b ⦃ _ => True ⦄ := by
   unfold objects.same_object_as; p0_split
+
+@[step] theorem cdt.is_final_capability_with_cap.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (slot : obj.Slot) (cap : capability.Cap) (hS : StoreTotal machineStoreInst) :
+    cdt.is_final_capability_with_cap machineStoreInst s slot cap ⦃ _ => True ⦄ := by
+  unfold cdt.is_final_capability_with_cap; p0_split
 
 @[step] theorem cdt.is_final_capability.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (slot : obj.Slot) (hS : StoreTotal machineStoreInst) :
     cdt.is_final_capability machineStoreInst s slot ⦃ _ => True ⦄ := by
@@ -3129,6 +3141,10 @@ theorem layout.node.RELEASE_TAIL.p0  :
 theorem layout.ks.SIZE.p0  :
     layout.ks.SIZE ⦃ _ => True ⦄ := by
   exact WP.spec_mono Consts.layout.ks.SIZE.spec (fun _ _ => trivial)
+
+@[step] theorem machine.Store.read_pair.default.p0 {Self : Type _} (StoreInst : machine.Store Self) (self : Self) (addr : Std.U64) (hS : StoreTotal StoreInst) :
+    machine.Store.read_pair.default StoreInst self addr ⦃ _ => True ⦄ := by
+  unfold machine.Store.read_pair.default; p0_auto
 
 @[step] theorem machine.Arch.virtualization.default.p0 {Self : Type _} (self : Self) :
     machine.Arch.virtualization.default self ⦃ _ => True ⦄ := by

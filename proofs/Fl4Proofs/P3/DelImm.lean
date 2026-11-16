@@ -179,7 +179,7 @@ theorem immediate_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L)
       htr _ (rd_fin_null hg), hcz⟩⟩
   rw [cap_is_null_ne hcn]; simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
   obtain ⟨bf, hbf1, hbf2, -⟩ := hF s σ G sl c ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hA hc hcn
-  rw [hbf1]; simp only [bind_ok]
+  rw [is_final_with_cap_eq _ _ _ hc, hbf1]; simp only [bind_ok]
   rw [hca.abs] at hg
   have hcan : absCap c ≠ .nullCap := fun h => hcn (absCap_eq_null.1 h)
   have hcvx : capV (L.mem s) (cslotAddr sl) = c := capV_of_capAt hc
