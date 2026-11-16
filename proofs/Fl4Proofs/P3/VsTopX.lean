@@ -111,6 +111,47 @@ theorem vs_x_after {s s' : S} {a a' : A} {σ σ' : Fl4Spec.State Unit} {G : MdbG
   ⟨hSR.1, hR', hPt', Vs.PoolsIn.of_writes hPI hSR.2 hS.2.vs (fun _ hb => foot0_not_vs hS hb),
     CurOK.of_inv hCur hK hCR'.2.2.1 hMO'.2.2⟩
 
+/-- The spec's step of a VSpace invocation keeps the SC objects. -/
+theorem KFoot.szKeep {σ σ' : Fl4Spec.State Unit} (h : KFoot σ σ') : Sched.SzKeep σ σ' := by
+  intro p x n hp
+  by_cases e : σ'.kheap p = σ.kheap p
+  · exact ⟨x, by rw [← e]; exact hp⟩
+  · rcases h.2.2.1 p e with ⟨ao, ao', -, h2⟩ | ⟨r, cs, cs', -, -, h2⟩ | ⟨t, t', -, h2⟩ <;> rw [hp] at h2 <;> cases h2
+
+/-- **`FinX` with the CSpace relation at its own typed heap**, the kernel
+base `k` and the SC objects of `σ0` kept: what `FinXR` needs after a
+VSpace producer (TopXAll's `VsThX`). -/
+def FinXT (th : TypedHeap) (P L4 L3 L2 L1 N T C E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (c : U64)
+    (AR : A → Fl4Spec.Cr3 → Prop) (k : U64) (σ0 : Fl4Spec.State Unit) (s : S) (a : A) (σ : Fl4Spec.State Unit) :
+    Prop :=
+  FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s a σ ∧
+    (∃ G, CRel th (L.mem s) σ G ∧ FinInv th (L.mem s) σ G ∧ MdbOKV (L.ksb s) (L.mem s) G) ∧
+    L.ksb s = k ∧ Sched.SzKeep σ0 σ
+
+theorem FinXT.fin {k : U64} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (h : FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR k σ0 s a σ) :
+    FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s a σ := h.1
+
+/-- `FinXT` at the entry. -/
+theorem vs_x0T {s : S} {a : A} {σ : Fl4Spec.State Unit} {G : MdbGhost}
+    (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ)
+    (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ) (hPI : PoolsIn P L4 (L.mem s))
+    (hCur : CurOK st th s σ) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G) :
+    FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ s a σ :=
+  ⟨vs_x0 hS hR hPt hPI hCur, ⟨G, hCR, hFI, hMO⟩, rfl, Sched.SzKeep.of_kheap rfl⟩
+
+/-- **`FinXT` after an outcome** of the footprint without the pool words. -/
+theorem vs_x_afterT {s s' : S} {a a' : A} {σ σ' : Fl4Spec.State Unit} {G : MdbGhost}
+    (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ) (hPI : PoolsIn P L4 (L.mem s)) (hCur : CurOK st th s σ)
+    (hSR : FootSR st (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s (VsFootW0 st th L4 L3 L2 L1 s) s' a' σ')
+    (hR' : VsRel P (L.mem s') (L.ksb s') σ') (hPt' : PtRel L4 L3 L2 L1 (L.mem s') σ')
+    (hCR' : CRel th (L.mem s') σ' G) (hFI' : FinInv th (L.mem s') σ' G) (hMO' : MdbOKV (L.ksb s) (L.mem s') G)
+    (hK : KFoot σ σ') :
+    FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ s' a' σ' :=
+  ⟨vs_x_after hS hPI hCur hSR hR' hPt' hCR' hMO' hK, ⟨G, hCR', hFI', by rw [hSR.2.1]; exact hMO'⟩, hSR.2.1,
+    KFoot.szKeep hK⟩
+
 variable (arI : machine.Arch A)
 
 set_option maxHeartbeats 8000000 in
@@ -144,9 +185,9 @@ theorem decode_invocation_page_table_topX (th : TypedHeap) (s : S) (ar : A) (σ 
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
         ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
-    DecOKMX (L := L) arI (FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR)) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageTable ptr mp asid0 va0) blk call don fp
+    DecOKMX (L := L) arI (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageTable ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
-  DecOKMQX.toX arI (decode_invocation_page_tableX arI th hS.2.pl s ar σ G hCR hFI hMO (fun _ _ _ _ => trivial) (vs_x0 hS hR hPt hPI hCur) (fun _ _ _ hSR hR' hPt' hCR' hMO' hK => vs_x_after hS hPI hCur hSR hR' hPt' hCR' hMO' hK) ((vsPtMapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ((vsPtUnmapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
+  DecOKMQX.toX arI (decode_invocation_page_tableX arI th hS.2.pl s ar σ G hCR hFI hMO (fun _ _ _ _ => trivial) (vs_x0T hS hR hPt hPI hCur hCR hFI hMO) (fun _ _ _ hSR hR' hPt' hCR' hFI' hMO' hK => vs_x_afterT hS hPI hCur hSR hR' hPt' hCR' hFI' hMO' hK) ((vsPtMapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ((vsPtUnmapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
     hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer) (fun _ _ _ h => h)
 
@@ -179,7 +220,7 @@ theorem decode_invocation_page_table_capX (th : TypedHeap) (s : S) (ar : A) (σ 
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
     (hxs : ∀ x, vspace.extra extra 0#usize = ok (some x) → IsSlot th x)  :
-    DecOKMX (L := L) arI (FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR)) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageTable ptr mp asid0 va0) blk call don fp
+    DecOKMX (L := L) arI (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageTable ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := by
   have hsl : IsSlot th (cslotAddr (pc.bv, idx)) :=
     AbsSlot.isSlot (th := th) (sl := (pc.bv, idx)) ⟨pc, rfl, Or.inl (by simpa [hidx] using hpc)⟩
@@ -229,9 +270,9 @@ theorem decode_invocation_page_directory_topX (th : TypedHeap) (s : S) (ar : A) 
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
         ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
-    DecOKMX (L := L) arI (FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR)) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageDirectory ptr mp asid0 va0) blk call don fp
+    DecOKMX (L := L) arI (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageDirectory ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
-  DecOKMQX.toX arI (decode_invocation_page_directoryX arI th hS.2.pl s ar σ G hCR hFI hMO (fun _ _ _ _ => trivial) (vs_x0 hS hR hPt hPI hCur) (fun _ _ _ hSR hR' hPt' hCR' hMO' hK => vs_x_after hS hPI hCur hSR hR' hPt' hCR' hMO' hK) ((vsPdMapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ((vsPdUnmapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
+  DecOKMQX.toX arI (decode_invocation_page_directoryX arI th hS.2.pl s ar σ G hCR hFI hMO (fun _ _ _ _ => trivial) (vs_x0T hS hR hPt hPI hCur hCR hFI hMO) (fun _ _ _ hSR hR' hPt' hCR' hFI' hMO' hK => vs_x_afterT hS hPI hCur hSR hR' hPt' hCR' hFI' hMO' hK) ((vsPdMapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ((vsPdUnmapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
     hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer) (fun _ _ _ h => h)
 
@@ -264,7 +305,7 @@ theorem decode_invocation_page_directory_capX (th : TypedHeap) (s : S) (ar : A) 
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
     (hxs : ∀ x, vspace.extra extra 0#usize = ok (some x) → IsSlot th x)  :
-    DecOKMX (L := L) arI (FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR)) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageDirectory ptr mp asid0 va0) blk call don fp
+    DecOKMX (L := L) arI (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageDirectory ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := by
   have hsl : IsSlot th (cslotAddr (pc.bv, idx)) :=
     AbsSlot.isSlot (th := th) (sl := (pc.bv, idx)) ⟨pc, rfl, Or.inl (by simpa [hidx] using hpc)⟩
@@ -314,9 +355,9 @@ theorem decode_invocation_pdpt_topX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
         ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
-    DecOKMX (L := L) arI (FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR)) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Pdpt ptr mp asid0 va0) blk call don fp
+    DecOKMX (L := L) arI (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Pdpt ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
-  DecOKMQX.toX arI (decode_invocation_pdptX arI th hS.2.pl s ar σ G hCR hFI hMO (fun _ _ _ _ => trivial) (vs_x0 hS hR hPt hPI hCur) (fun _ _ _ hSR hR' hPt' hCR' hMO' hK => vs_x_after hS hPI hCur hSR hR' hPt' hCR' hMO' hK) ((vsPdptMapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ((vsPdptUnmapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
+  DecOKMQX.toX arI (decode_invocation_pdptX arI th hS.2.pl s ar σ G hCR hFI hMO (fun _ _ _ _ => trivial) (vs_x0T hS hR hPt hPI hCur hCR hFI hMO) (fun _ _ _ hSR hR' hPt' hCR' hFI' hMO' hK => vs_x_afterT hS hPI hCur hSR hR' hPt' hCR' hFI' hMO' hK) ((vsPdptMapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ((vsPdptUnmapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
     hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer) (fun _ _ _ h => h)
 
@@ -349,7 +390,7 @@ theorem decode_invocation_pdpt_capX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
     (hxs : ∀ x, vspace.extra extra 0#usize = ok (some x) → IsSlot th x)  :
-    DecOKMX (L := L) arI (FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR)) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Pdpt ptr mp asid0 va0) blk call don fp
+    DecOKMX (L := L) arI (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Pdpt ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := by
   have hsl : IsSlot th (cslotAddr (pc.bv, idx)) :=
     AbsSlot.isSlot (th := th) (sl := (pc.bv, idx)) ⟨pc, rfl, Or.inl (by simpa [hidx] using hpc)⟩
@@ -454,6 +495,25 @@ theorem finX_clr5 {s : S} {a : A} {σ : Fl4Spec.State Unit}
   · obtain ⟨t, h1, h2, h3⟩ := hCur
     exact ⟨t, h1, h2, fun q asid h => h3 q asid (by rw [← hcap _ ⟨t, 1, Or.inr ⟨h2, by decide⟩, rfl⟩]; exact h)⟩
 
+/-- **`FinXT` after the accessed-bit clear.** -/
+theorem finXT_clr5 {k : U64} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (hX : FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR k σ0 s a σ) {b : U64}
+    (hb : PtWAll L4 L3 L2 L1 b) (hal : P1.Aligned b) :
+    FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR k σ0 (L.wr s b (L.mem s b &&& ~~~32#u64)) a σ := by
+  obtain ⟨hF, ⟨G, hCR, hFI, hMO⟩, hk, hz⟩ := hX
+  have hPl := hF.1.2.pl
+  have hSS : SlotsSame th (L.mem s) (L.mem (L.wr s b (L.mem s b &&& ~~~32#u64))) := by
+    refine slotsSame_wr hPl s _ hal (fun a ha => ?_)
+    obtain ⟨p, k, hk, h1, h2, -⟩ := slot_in_object hPl ha
+    have := (hF.1.2.po b hb).2 p k hk
+    omega
+  have hksb : L.ksb (L.wr s b (L.mem s b &&& ~~~32#u64)) = L.ksb s := L.ksb_wr _ _ _
+  refine ⟨finX_clr5 hF hb hal, ⟨G, ⟨hCR.1.of_caps (fun y hy => hSS.capAt hy),
+      SlotsValid.of_caps hCR.2.1 (fun y hy => hSS.capAt hy), hCR.2.2.1.of_same hSS,
+      hCR.2.2.2.1.of_same hSS rfl rfl, MdbInv.of_same hCR.2.2.1 hCR.2.2.2.2 hSS⟩,
+    hFI.of_same hCR.2.2.1 hSS (KSub.refl σ), by rw [hksb]; exact MdbOKV.of_same hCR.2.2.1 hSS hMO⟩,
+    hksb.trans hk, hz⟩
+
 set_option maxHeartbeats 8000000 in
 /-- **A frame cap, every label, at `TopSR` with `VsCapsIn`**, `FinX` after;
 `GetAddress` and `TestAndClearAccessed` reply in the decode (`DecOKRMX`,
@@ -486,26 +546,26 @@ theorem decode_invocation_frame_capX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest)
     (hxs : ∀ x, vspace.extra extra 0#usize = ok (some x) → IsSlot th x)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
-    (hga : GetAddrHypX (L := L) (FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR)) s σ ar ct p
-      call)
-    (htac : TacHypX (L := L) (FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR)) L4 L3 L2 L1
+    (hga : GetAddrHypX (L := L) (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s σ ar ct p call)
+    (htac : TacHypX (L := L) (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) L4 L3 L2 L1
       s σ ar ct call) :
-    DecOKMX (L := L) arI (FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR)) s ar σ lbl length
+    (lbl ≠ fl4_abi.label.X86PageGetAddress ∧ lbl ≠ fl4_abi.label.X86PageTestAndClearAccessed ∧
+    DecOKMX (L := L) arI (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s ar σ lbl length
       (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m false asid va) blk call don fp
-      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ∨
-    DecOKRMX (L := L) arI (FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR)) s ar σ lbl length
+      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer) ∨
+    DecOKRMX (L := L) arI (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s ar σ lbl length
       (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m false asid va) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct := by
-  have hX0' := vs_x0 hS hR hPt hPI hCur
+  have hX0' := vs_x0T hS hR hPt hPI hCur hCR hFI hMO
   obtain ⟨xct0, hkt0', -⟩ := hCR.1.tcb ct htcb
   by_cases hga' : lbl = fl4_abi.label.X86PageGetAddress
   · exact Or.inr (decode_invocation_frame_getaddrX (L := L) arI s ar σ lbl slbl hlbl hga' length buf ct hct hcur
       hkt0' _ blk call don fp hga hX0' extra _ ci _ excaps buffer)
   by_cases htac' : lbl = fl4_abi.label.X86PageTestAndClearAccessed
   · exact Or.inr (decode_invocation_frame_tacX (L := L) arI s ar σ hR hPt hS.2.pt hPI lbl slbl hlbl htac' length buf
-      ct hct hcur hkt0' _ blk call don fp htac hX0' (fun b hb hal => finX_clr5 hX0' hb hal) extra _ ci _ excaps
+      ct hct hcur hkt0' _ blk call don fp htac hX0' (fun b hb hal => finXT_clr5 hX0' hb hal) extra _ ci _ excaps
       buffer)
-  refine Or.inl ?_
+  refine Or.inl ⟨hga', htac', ?_⟩
   have hnGA := hga'
   have hnTAC := htac'
   have hsl : IsSlot th (cslotAddr (pc.bv, idx)) :=
@@ -523,9 +583,9 @@ theorem decode_invocation_frame_capX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4
       rw [e] at hv
       obtain ⟨hv1, -, hv3⟩ := hv
       exact ⟨hv1, (hv3 rfl).1, (hv3 rfl).2⟩
-  have hX0 := vs_x0 hS hR hPt hPI hCur
+  have hX0 := vs_x0T hS hR hPt hPI hCur hCR hFI hMO
   have hDS : lbl = fl4_abi.label.X86PageDeriveSubframe →
-      DecOKMQX (L := L) arI (fun _ => True) (FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR))
+      DecOKMQX (L := L) arI (fun _ => True) (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ)
         s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m false asid va) blk call don fp
         buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := fun hl => by
     have hext'' : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
@@ -539,9 +599,10 @@ theorem decode_invocation_frame_capX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4
     obtain ⟨xct, hkt0, -⟩ := hCR.1.tcb ct htcb
     have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
     exact decode_invocation_frame_dsX (L := L) arI th hS.2.pl s ar σ G hCR hFI hU (fun _ _ _ _ => trivial) hX0
-      (fun _ _ _ G' hSR hR' hPt' hCR' hMO' => ⟨hSR.1.1, hR', hPt',
+      (fun _ _ _ G' hSR hR' hPt' hCR' hFI' hMO' hsz => ⟨⟨hSR.1.1, hR', hPt',
         Vs.PoolsIn.of_writes hPI hSR.2.1 hS.2.vs (fun _ hb => foot0_not_vs hS hb),
-        CurOK.of_inv' hCur hSR.1.2 hCR'.2.2.1 hMO'.2.2⟩)
+        CurOK.of_inv' hCur hSR.1.2 hCR'.2.2.1 hMO'.2.2⟩, ⟨G', hCR', hFI', by rw [hSR.2.1.1]; exact hMO'⟩,
+        hSR.2.1.1, hsz⟩)
       (Vs.VsSubHyps.foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl
         (VsSubHyps.cur (Vs.vsSubHyps_top (st := st) (L := L) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2)
           (L1 := L1) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) (AR := AR)) σ.curThread))
@@ -551,7 +612,7 @@ theorem decode_invocation_frame_capX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4
       (asid := asid) (va := va) (d := d) (m := m) hcap hno hMO hVC extra excaps hext'' blk call don fp ci buffer
   have h := decode_invocation_frameX arI th hS.2.pl s ar σ G hCR hFI hMO (fun _ _ _ _ => trivial)
     hX0
-    (fun _ _ _ hSR hR' hPt' hCR' hMO' hK => vs_x_after hS hPI hCur hSR hR' hPt' hCR' hMO' hK)
+    (fun _ _ _ hSR hR' hPt' hCR' hFI' hMO' hK => vs_x_afterT hS hPI hCur hSR hR' hPt' hCR' hFI' hMO' hK)
     ((vsFrameHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl)
     ((vsFrameHypsL_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl)
     ((vsFrameUnmapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl)
@@ -582,9 +643,9 @@ theorem decode_invocation_pml4_capX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
     (p asid : U64) (mp : Bool) (length slot buf : U64) (blk call don fp : Bool)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) :
-    DecOKMX (L := L) arI (FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR)) s ar σ lbl length
+    DecOKMX (L := L) arI (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s ar σ lbl length
       slot (.Pml4 p mp asid) blk call don fp buf extra slbl args ci sl excaps buffer := by
-  have hX0 := vs_x0 hS hR hPt hPI hCur
+  have hX0 := vs_x0T hS hR hPt hPI hCur hCR hFI hMO
   unfold DecOKMX syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   unfold vspace.decode
@@ -624,10 +685,12 @@ theorem decode_invocation_pml4_capX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
   have hst1 : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ =
       ({((), Notif.stsAct (Notif.updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv)}, False) := by
     rw [hcur]; exact Notif.setThreadState_eq .restart hkt0
-  refine WP.spec_bind (WP.spec_and (set_thread_state_slots th hS.2.pl s ct sched.TS_RESTART htcb hact)
+  refine WP.spec_bind (WP.spec_and (WP.spec_and (set_thread_state_slots th hS.2.pl s ct sched.TS_RESTART htcb hact)
+    (set_thread_state_cases s ct sched.TS_RESTART))
     (restart_full (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) s ar σ ct xct hSt hSV hR hS hcur.symm hkt0 htcb hact
       (hrun _ hkt))) ?_
-  rintro s1 ⟨hSS, hSt1, hSV1, hR1, hPt1, hS1, hk1, hPI1⟩
+  rintro s1 ⟨⟨hSS, hcs⟩, hSt1, hSV1, hR1, hPt1, hS1, hk1, hPI1⟩
+  have hks1 : L.ksb s1 = L.ksb s := by rcases hcs with rfl | rfl <;> simp
   refine WP.spec_bind (flushAllH_top hA s1 ar _ p.bv asid hS1) ?_
   rintro a' ⟨σ', hy, hS'⟩
   obtain ⟨ms, rfl⟩ := doMachineOp_mem hy
@@ -647,8 +710,8 @@ theorem decode_invocation_pml4_capX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
   have hMO' : MdbOKV (L.ksb s) (L.mem s1) G := MdbOKV.of_same hM hSS hMO
   refine topMX_of_lift2 ⟨.flush p.bv asid.bv, rfl, σ1, hst1, _, hmem, ⟨th, G,
     Or.inl ⟨rfl, [], rfl⟩, hS.2.pl, hCR', hFI.of_same hM hSS (KFoot.ksub hK), hMO'⟩, ?_⟩
-  refine ⟨hS', hR1.ms ms, (hPt1 hPt).same_heap rfl, ?_, CurOK.of_inv hCur hK hCR'.2.2.1 hMO'.2.2⟩
-  exact hPI1 hPI
+  exact ⟨⟨hS', hR1.ms ms, (hPt1 hPt).same_heap rfl, hPI1 hPI, CurOK.of_inv hCur hK hCR'.2.2.1 hMO'.2.2⟩,
+    ⟨G, hCR', hFI.of_same hM hSS (KFoot.ksub hK), by rw [hks1]; exact hMO'⟩, hks1, KFoot.szKeep hK⟩
 
 /-! ## `Assign` -/
 
@@ -740,7 +803,7 @@ theorem decode_invocation_asid_pool_capX (th : TypedHeap) (s : S) (ar : A) (σ :
     (slot : U64) (blk call don fp : Bool) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef)
     (hsl : IsSlot th slot) (hcap : capAt (L.mem s) slot = ok (.AsidPool ptr base))  :
-    DecOKMX (L := L) arI (FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR)) s ar σ lbl length
+    DecOKMX (L := L) arI (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s ar σ lbl length
       slot (.AsidPool ptr base) blk call don fp buf extra slbl args ci sl excaps buffer := by
   have hok := hVC.at hCR.2.2.1 hsl hcap (by simp)
   simp only [VCapOK] at hok
@@ -776,9 +839,10 @@ theorem decode_invocation_asid_pool_capX (th : TypedHeap) (s : S) (ar : A) (σ :
   refine DecOKMQX.toX arI (decode_invocation_asid_poolX arI th hS.2.pl s ar σ G hCR hFI hMO (fun _ _ _ _ => trivial)
     hH ⟨⟨hS, P1.WritesIn.refl _ _⟩, hPt⟩ hS.2.vs hS.2.sd hR hS.2.vo
     lbl slbl hlA length buf ct hct hcur htcb hact hrun ptr base hok.2.1 hok.2.2 extra excaps hNative hext'
-    (X := FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR)) (vs_x0 hS hR hPt hPI hCur)
-    (fun s' a' σ' hSR hR' hAW hCR' hMO' hK => ⟨hSR.1.1, hR', hSR.2, fun p hp lo hl hne => ?_,
-      CurOK.of_inv hCur hK hCR'.2.2.1 hMO'.2.2⟩)
+    (X := FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) (vs_x0T hS hR hPt hPI hCur hCR hFI hMO)
+    (fun s' a' σ' hSR hR' hAW hCR' hFI' hMO' hK => ⟨⟨hSR.1.1, hR', hSR.2, fun p hp lo hl hne => ?_,
+      CurOK.of_inv hCur hK hCR'.2.2.1 hMO'.2.2⟩, ⟨G, hCR', hFI', by rw [hSR.1.2.1]; exact hMO'⟩, hSR.1.2.1,
+      KFoot.szKeep hK⟩)
     slot blk call don fp args ci sl buffer) (fun _ _ _ h => h)
   by_cases e : L.mem s' (peA p lo) = L.mem s (peA p lo)
   · rw [e] at hne ⊢; exact hPI p hp lo hl hne
@@ -898,6 +962,12 @@ def FinXE (st : machine.Store S) [L : P1.LawfulStore st] {A : Type} (L4 L3 L2 L1
     (σ : Fl4Spec.State Unit) : Prop :=
   ∃ th P, FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s a σ
 
+/-- `FinXT` for some typed heap and pool set (`MakePool` re-picks them). -/
+def FinXET (st : machine.Store S) [L : P1.LawfulStore st] {A : Type} (L4 L3 L2 L1 N T C E R : Set U64)
+    (B : Set (U64 × Fl4Spec.Word)) (c : U64) (AR : A → Fl4Spec.Cr3 → Prop) (k : U64) (σ0 : Fl4Spec.State Unit)
+    (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
+  ∃ th P, FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR k σ0 s a σ
+
 set_option maxHeartbeats 8000000 in
 /-- **The ASID control cap at `TopSR`** (`MakePool`, any other label): `FinX`
 after at the new typed heap and the grown pool set (`FinXE`), the
@@ -934,21 +1004,22 @@ theorem decode_invocation_asid_control_capX (th : TypedHeap) (s : S) (ar : A) (�
           MpRegion th G P L4 L3 L2 L1 (L.ksb s) p ∧ RegOKTop (L := L) N T C E R B c s σ p)
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef) :
-    DecOKMX (L := L) arI (FinXE st L4 L3 L2 L1 N T C E R B c AR) s ar σ lbl length slot .AsidControl blk call don fp
+    DecOKMX (L := L) arI (FinXET st L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s ar σ lbl length slot .AsidControl blk call don fp
       buf extra slbl (args.map UScalar.bv) ci sl excaps buffer :=
   DecOKMQX.toX arI (decode_invocation_asid_controlX arI th hS.2.pl s ar σ G hCR hFI hU hMO (fun _ _ _ _ => trivial)
     vsMpHyps_top hS hR hPt hS.2.vs hS.2.pt
     hS.2.vo hS.2.po hS.2.pv lbl slbl hlM length buf ct hct hcur htcb hact hrun args hlen hargs extra excaps hext
-    (X := FinXE st L4 L3 L2 L1 N T C E R B c AR) ⟨th, P, vs_x0 hS hR hPt hPI hCur⟩
-    (fun s' a' σ' p th' G' hSR hR' hPt' hcur' hPI' hCR' hMO' hth hk hsc hRg hxu =>
-      ⟨th', insert p P, (hMP p th' s' a' σ' hth hk hsc hRg hxu).1 hSR, hR', hPt', hPI' L4 hPI, by
+    (X := FinXET st L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) ⟨th, P, vs_x0T hS hR hPt hPI hCur hCR hFI hMO⟩
+    (fun s' a' σ' p th' G' hSR hR' hPt' hcur' hPI' hCR' hFI' hMO' hth hk hsc hRg hxu =>
+      ⟨th', insert p P, ⟨(hMP p th' s' a' σ' hth hk hsc hRg hxu).1 hSR, hR', hPt', hPI' L4 hPI, by
         obtain ⟨t, h1, h2, -⟩ := hCur
         obtain ⟨⟨P', L4', L3', L2', L1', hVC⟩, -⟩ := hMO'.2.2
         have h2' := (hMP p th' s' a' σ' hth hk hsc hRg hxu).2 t h2
         refine ⟨t, h1.trans hcur'.symm, h2', fun q asid h => ?_⟩
         have hv := hVC.at hCR'.2.2.1 ⟨t, 1, Or.inr ⟨h2', by decide⟩, rfl⟩ h (by simp)
         simp only [VCapOK] at hv
-        exact (hv.2.2 trivial).1⟩)
+        exact (hv.2.2 trivial).1⟩, ⟨G', hCR', hFI', by rw [hk]; exact hMO'⟩, hk,
+        fun q y n hq => hsc ⟨q⟩ y n hq⟩)
     slot blk call don fp ci sl buffer) (fun _ _ _ h => h)
 
 
@@ -992,7 +1063,7 @@ theorem decode_invocation_asid_control_capJ (th : TypedHeap) (s : S) (ar : A) (�
           MpRegion th G P L4 L3 L2 L1 (L.ksb s) p)
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef) :
-    DecOKMX (L := L) arI (FinXE st L4 L3 L2 L1 N T C E R B c AR) s ar σ lbl length slot .AsidControl blk call don fp
+    DecOKMX (L := L) arI (FinXET st L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s ar σ lbl length slot .AsidControl blk call don fp
       buf extra slbl (args.map UScalar.bv) ci sl excaps buffer :=
   decode_invocation_asid_control_capX arI th s ar σ G hCR hFI hU hMO hS hR hPt hPI hCur
     (mpPlacedHyp_of hJC hJP hU hCR.2.2.2.2 hc hT hE hRp hN hC0 hB) lbl slbl hlM length buf ct hct hcur htcb hact hrun

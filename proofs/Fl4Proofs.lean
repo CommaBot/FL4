@@ -182,6 +182,7 @@ import Fl4Proofs.P3.IpcSchedInst
 import Fl4Proofs.P3.IpcCancel
 import Fl4Proofs.P3.IpcWake
 import Fl4Proofs.P3.IpcInsFrame
+import Fl4Proofs.P3.SpecCnK
 import Fl4Proofs.P3.IpcGrant
 import Fl4Proofs.P3.IpcGrantX
 import Fl4Proofs.P3.IpcEpGrant
@@ -254,6 +255,7 @@ import Fl4Proofs.P3.UtDom
 import Fl4Proofs.P3.DomAll
 import Fl4Proofs.P3.SchedValidRel
 import Fl4Proofs.P3.TopXAll
+import Fl4Proofs.P3.VsThX
 import Fl4Proofs.P3.IpcRS
 import Fl4Proofs.P3.XTopStep
 import Fl4Proofs.P3.XTopCaps

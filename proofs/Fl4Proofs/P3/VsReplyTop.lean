@@ -732,6 +732,58 @@ theorem reply1_inv {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {G : MdbGhost} (
         some (.tcb (Endp.replyTcb x v.bv)) := by simp
     rw [Notif.setThreadState_eq .running hkC, updK_updK]; exact Set.mem_singleton _
 
+/-- `reply1` keeps the kernel base. -/
+theorem reply1_ksb (s : S) (ct : U64) (call : Bool) (v : U64) :
+    vspace.reply1 st s ct call v ⦃ s2 => L.ksb s2 = L.ksb s ⦄ := by
+  unfold vspace.reply1
+  cases call
+  · simp only [Bool.false_eq_true, ↓reduceIte, bind_ok]
+    refine WP.spec_mono (set_thread_state_cases s ct sched.TS_RUNNING) ?_
+    rintro s' (rfl | rfl) <;> simp
+  · simp only [↓reduceIte]
+    have hin : (do
+        let buf ← msg.lookup_ipc_buffer st s true ct
+        let s2 ← obj.Tcb.set_reg st ct s layout.reg.BADGE 0#u64
+        let (n, s3) ← msg.set_mr st s2 ct buf 0#u64 v
+        let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 n
+        msg.set_msg_info st s3 ct mi) ⦃ s3 => L.ksb s3 = L.ksb s ⦄ := by
+      refine WP.spec_bind (Fl4Proofs.P0.msg.lookup_ipc_buffer.p0 st s true ct L.total) ?_
+      rintro buf -
+      refine WP.spec_bind (Endp.obj.Tcb.set_reg.spec s ct layout.reg.BADGE 0#u64) ?_
+      rintro s1 rfl
+      have hset : ∀ s1 : S, msg.set_mr st s1 ct buf 0#u64 v ⦃ r =>
+          r = (1#u64, L.wr s1 (Endp.regA ct (Endp.regIdx (Endp.mrIdx 0))) v) ⦄ := by
+        intro s1
+        unfold msg.set_mr
+        have h4 : (0#u64 : U64) < msg.N_MSG_REGISTERS := by unfold msg.N_MSG_REGISTERS; decide
+        simp only [h4, ↓reduceIte]
+        refine WP.spec_bind (Endp.msg_register_spec 0#u64 (by decide)) ?_
+        rintro r0 rfl
+        refine WP.spec_bind (Endp.obj.Tcb.set_reg.spec _ ct _ v) ?_
+        rintro s2 rfl
+        simp only [lift, bind_ok, WP.spec_ok]
+        rfl
+      refine WP.spec_bind (hset _) ?_
+      rintro r rfl
+      unfold msginfo.MessageInfo.new
+      simp only [bind_ok]
+      refine WP.spec_mono (Endp.set_msg_info_spec _ ct 0#u64 1#u64 (by decide)) ?_
+      rintro s3 ⟨w, rfl, -⟩
+      simp
+    refine WP.spec_bind hin ?_
+    rintro s3 h3
+    refine WP.spec_mono (set_thread_state_cases s3 ct sched.TS_RUNNING) ?_
+    rintro s' (rfl | rfl) <;> simp [h3]
+
+/-- A TCB update with the action kept keeps the SC objects. -/
+theorem szKeep_stsAct_tcb (σ : Fl4Spec.State Unit) (t : Fl4Spec.ObjRef) (y : Fl4Spec.Tcb) :
+    Sched.SzKeep σ (Notif.stsAct (Notif.updK σ t (.tcb y)) t) := by
+  intro p x n hp
+  rw [Notif.stsAct_kheap, Notif.updK_kheap] at hp
+  by_cases e : p = t
+  · subst e; simp at hp
+  · rw [Function.update_of_ne e] at hp; exact ⟨x, hp⟩
+
 /-- **`GetAddrHypX` at `FinX` of the composite relation is a theorem**: from
 the CSpace relation, `FinInv`, `MdbOKV` and the domain schedule at `s`,
 `set_thread_state Restart` then `reply1` (`restart_full`/`sts_inv`, then
@@ -766,6 +818,68 @@ theorem getAddrHypX_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (ar
   subst e
   rw [← paddr_bv]
   exact ⟨z, hz, hI2.relTop, hI2.2.2.2.2⟩
+
+/-- `reply1_inv` with the kernel base and the SC objects kept. -/
+theorem reply1_invT {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {G : MdbGhost} (s : S) (a : A)
+    (σ : Fl4Spec.State Unit) (hI : RInv (L := L) th P L4 L3 L2 L1 N T C E R B c AR G s a σ)
+    (ct : U64) (htcb : th ct = some .tcb) (hcur : ct.bv = σ.curThread) {x : Fl4Spec.Tcb}
+    (hk : σ.kheap ct.bv = some (.tcb x)) (hrs : x.tcbState = .restart)
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION)) (call : Bool) (v : U64) :
+    vspace.reply1 st s ct call v ⦃ s2 => L.mem s2 (stA ct) ≠ sched.TS_RESTART ∧ L.ksb s2 = L.ksb s ∧
+      ∃ z ∈ (specTail call ct.bv [v.bv] σ).1, RInv (L := L) th P L4 L3 L2 L1 N T C E R B c AR G s2 a z.2 ∧
+        Sched.SzKeep σ z.2 ⦄ := by
+  refine WP.spec_mono (WP.spec_and (reply1_core s a σ hI ct htcb hcur hk (by rw [hrs]; rfl) hact call v)
+    (reply1_ksb s ct call v)) ?_
+  rintro s2 ⟨⟨hne, hI2⟩, hks⟩
+  refine ⟨hne, hks, ((), _), ?_, hI2, szKeep_stsAct_tcb _ _ _⟩
+  rw [specTail_restart hk hrs call v.bv]
+  cases call
+  · simp only [Bool.false_eq_true, ↓reduceIte]
+    rw [Notif.setThreadState_eq .running hk]; exact Set.mem_singleton _
+  · simp only [↓reduceIte]
+    have hkC : (Notif.updK σ ct.bv (.tcb (Endp.replyTcb x v.bv))).kheap ct.bv =
+        some (.tcb (Endp.replyTcb x v.bv)) := by simp
+    rw [Notif.setThreadState_eq .running hkC, updK_updK]; exact Set.mem_singleton _
+
+theorem SzKeep.trans' {σ1 σ2 σ3 : Fl4Spec.State Unit} (h1 : Sched.SzKeep σ1 σ2) (h2 : Sched.SzKeep σ2 σ3) :
+    Sched.SzKeep σ1 σ3 := fun p x n hp => by
+  obtain ⟨x2, h⟩ := h2 p x n hp
+  exact h1 p x2 n h
+
+/-- **`GetAddrHypX` at `FinXT`.** -/
+theorem getAddrHypX_topT {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G) (hDom : DomRel (L.mem s) (L.ksb s) σ) (ct p : U64) (call : Bool)
+    (hcur : ct.bv = σ.curThread) (htcb : th ct = some .tcb)
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hrun : ∀ x, σ.kheap ct.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true) :
+    GetAddrHypX (L := L) (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s σ ar ct p call := by
+  intro hX
+  have hI : RInv (L := L) th P L4 L3 L2 L1 N T C E R B c AR G s ar σ := ⟨hCR, hFI, hMO, hDom, hX.1⟩
+  obtain ⟨x, hk, -⟩ := hCR.1.tcb ct htcb
+  have hcode : sched.TS_RESTART.val = Notif.tsCode .restart := by unfold sched.TS_RESTART; rfl
+  refine WP.spec_bind (WP.spec_and (sts_inv s ar σ hI ct htcb hcur hk (hrun x hk) hact .restart (by decide) _ hcode)
+    (set_thread_state_cases s ct sched.TS_RESTART)) ?_
+  rintro s1 ⟨⟨hI1, -, hnode⟩, hcs⟩
+  have hks1 : L.ksb s1 = L.ksb s := by rcases hcs with rfl | rfl <;> simp
+  set σR := Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv
+  have hkR : σR.kheap ct.bv = some (.tcb { x with tcbState := .restart }) := by simp [σR, Notif.stsAct_kheap]
+  have hcurR : ct.bv = σR.curThread := by
+    rw [hcur]; show σ.curThread = (Notif.stsAct _ _).curThread; unfold Notif.stsAct; split <;> rfl
+  have hact1 : OutsideObjects th (L.nodeAt s1 (L.cpu s1) layout.node.SCHED_ACTION) := by rw [hnode]; exact hact
+  refine WP.spec_bind (reply1_invT s1 ar σR hI1 ct htcb hcurR hkR rfl hact1 call _) ?_
+  rintro s2 ⟨hne, hks2, z, hz, hI2, hz2⟩
+  simp only [WP.spec_ok]
+  refine ⟨trivial, hne, fun σ1 hσ1 => ?_⟩
+  have e : σ1 = σR := by
+    rw [Notif.setThreadState_eq .restart hk] at hσ1
+    have := congrArg Prod.fst hσ1
+    simp only [Set.singleton_eq_singleton_iff, Prod.mk.injEq, true_and] at this
+    exact this.symm
+  subst e
+  rw [← paddr_bv]
+  exact ⟨z, hz, hI2.relTop, hI2.2.2.2.2, ⟨G, hI2.1, hI2.2.1, hI2.2.2.1⟩, hks2.trans hks1,
+    SzKeep.trans' (szKeep_stsAct_tcb _ _ _) hz2⟩
 
 /-! ### `TestAndClearAccessed`: the spec's `Restart` that FL4 omits -/
 
@@ -878,6 +992,77 @@ theorem tacHypX_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (ar : A
     rw [ey, stsAct_twice (hsch { Endp.replyTcb x v.bv with tcbState := .running } rfl rfl)]
     exact Set.mem_singleton _
 
+set_option maxHeartbeats 4000000 in
+/-- **`TacHypX` at `FinXT`.** -/
+theorem tacHypX_topT {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G) (hDom : DomRel (L.mem s) (L.ksb s) σ) (ct : U64) (call : Bool)
+    (hcur : ct.bv = σ.curThread) (htcb : th ct = some .tcb)
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hrun : ∀ x, σ.kheap ct.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true) :
+    TacHypX (L := L) (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) L4 L3 L2 L1
+      s σ ar ct call := by
+  intro b hb hba v _ hXT
+  have hX := hXT.1
+  set s' := L.wr s b (L.mem s b &&& ~~~32#u64) with hs'
+  have hPl := hX.1.2.pl
+  have hSS : SlotsSame th (L.mem s) (L.mem s') := by
+    refine slotsSame_wr hPl s _ hba (fun a ha => ?_)
+    obtain ⟨p, k, hk, h1, h2, -⟩ := slot_in_object hPl ha
+    have := (hX.1.2.po b hb).2 p k hk
+    omega
+  have hksb : L.ksb s' = L.ksb s := L.ksb_wr _ _ _
+  have hSt : StateRel th (L.mem s') σ := hCR.1.of_caps (fun y hy => hSS.capAt hy)
+  have hK0 : KFoot σ σ := ⟨rfl, rfl, fun o h => absurd rfl h, rfl⟩
+  obtain ⟨hCR', hFI', hMO'⟩ := cspace_step hCR hFI hMO hSS hK0 hSt
+  have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hX.1.2.vs.ksb_fit; rw [hksb] at this; omega
+  have hka : (L.ksb s).val % 8 = 0 := by have := hX.1.2.vs.ksb_al; rw [hksb] at this; exact this
+  have hDom' : DomRel (L.mem s') (L.ksb s) σ := by
+    refine hDom.of_same (domSame_low hkf hka fun b' hb' h1 h2 => ?_) rfl rfl
+    refine Notif.rd_wr_ne hba hb' (fun e => ?_)
+    subst e
+    obtain ⟨q, hq, i, hi, rfl⟩ := hb
+    refine hX.1.2.disj _ (Or.inr (Or.inl ⟨by rw [hksb]; omega, by rw [hksb]; omega⟩))
+      (table_vobj hX.1.2.pt hq hi _)
+  have hI : RInv (L := L) th P L4 L3 L2 L1 N T C E R B c AR G s' ar σ :=
+    ⟨hCR', hFI', by rw [hksb]; exact hMO', by rw [hksb]; exact hDom', hX⟩
+  obtain ⟨x, hk, -⟩ := hCR.1.tcb ct htcb
+  have hact' : OutsideObjects th (L.nodeAt s' (L.cpu s') layout.node.SCHED_ACTION) := by
+    rw [L.cpu_wr, Sched.nodeAt_ksb hksb]; exact hact
+  refine WP.spec_mono (WP.spec_and (reply1_core s' ar σ hI ct htcb hcur hk (hrun x hk) hact' call v)
+    (reply1_ksb s' ct call v)) ?_
+  rintro s2 ⟨⟨hne, hI2⟩, hks2⟩
+  refine ⟨hne, fun σ1 hσ1 => ?_⟩
+  have e : σ1 = Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv := by
+    rw [Notif.setThreadState_eq .restart hk] at hσ1
+    have := congrArg Prod.fst hσ1
+    simp only [Set.singleton_eq_singleton_iff, Prod.mk.injEq, true_and] at this
+    exact this.symm
+  subst e
+  have hk1 : (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv).kheap ct.bv =
+      some (.tcb { x with tcbState := .restart }) := by simp [Notif.stsAct_kheap]
+  refine ⟨((), Notif.stsAct (Notif.updK σ ct.bv
+    (.tcb { (if call then Endp.replyTcb x v.bv else x) with tcbState := .running })) ct.bv), ?_, hI2.relTop,
+    hI2.2.2.2.2, ⟨G, hI2.1, hI2.2.1, hI2.2.2.1⟩, hks2.trans hksb, szKeep_stsAct_tcb _ _ _⟩
+  rw [specTail_restart hk1 rfl call v.bv]
+  have hsch : ∀ y : Fl4Spec.Tcb, y.tcbSchedContext = x.tcbSchedContext → Fl4Spec.runnable y.tcbState = true →
+      Fl4Spec.schedulable ct.bv (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) =
+        Fl4Spec.schedulable ct.bv (Notif.updK σ ct.bv (.tcb y)) := fun y h1 h2 =>
+    schedulable_updK_tcb (by rw [h2]; rfl) h1.symm
+  cases call
+  · simp only [Bool.false_eq_true, ↓reduceIte]
+    rw [Notif.setThreadState_eq .running hk1, stsAct_twice (hsch { x with tcbState := .running } rfl rfl)]
+    exact Set.mem_singleton _
+  · simp only [↓reduceIte]
+    have hkC : (Notif.updK (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ct.bv
+        (.tcb (Endp.replyTcb { x with tcbState := .restart } v.bv))).kheap ct.bv =
+        some (.tcb (Endp.replyTcb { x with tcbState := .restart } v.bv)) := by simp
+    rw [Notif.setThreadState_eq .running hkC, updK_updK]
+    have ey : ({ Endp.replyTcb { x with tcbState := .restart } v.bv with tcbState := .running } : Fl4Spec.Tcb) =
+        { Endp.replyTcb x v.bv with tcbState := .running } := rfl
+    rw [ey, stsAct_twice (hsch { Endp.replyTcb x v.bv with tcbState := .running } rfl rfl)]
+    exact Set.mem_singleton _
+
 end
 
 end
@@ -924,16 +1109,17 @@ theorem decode_invocation_frame_capXR (th : TypedHeap) (s : S) (ar : A) (σ : Fl
     (hxs : ∀ x, vspace.extra extra 0#usize = ok (some x) → IsSlot th x)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
     (hDom : DomRel (L.mem s) (L.ksb s) σ) :
-    DecOKMX (L := L) arI (FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR)) s ar σ lbl length
+    (lbl ≠ fl4_abi.label.X86PageGetAddress ∧ lbl ≠ fl4_abi.label.X86PageTestAndClearAccessed ∧
+    DecOKMX (L := L) arI (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s ar σ lbl length
       (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m false asid va) blk call don fp
-      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ∨
-    DecOKRMX (L := L) arI (FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR)) s ar σ lbl length
+      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer) ∨
+    DecOKRMX (L := L) arI (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s ar σ lbl length
       (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m false asid va) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct :=
   decode_invocation_frame_capX arI th s ar σ G hCR hFI hU hMO hA hS hPI hCur hR hPt hVC lbl slbl hlbl length buf ct hct
     hcur htcb hact hrun args hlen hargs hpc hidx hcap hAl hno extra excaps hext hxs blk call don fp ci buffer
-    (Vs.getAddrHypX_top s ar σ G hCR hFI hMO hDom ct p call hcur.symm htcb hact (fun x hk => hrun x (hcur ▸ hk)))
-    (Vs.tacHypX_top s ar σ G hCR hFI hMO hDom ct call hcur.symm htcb hact (fun x hk => hrun x (hcur ▸ hk)))
+    (Vs.getAddrHypX_topT s ar σ G hCR hFI hMO hDom ct p call hcur.symm htcb hact (fun x hk => hrun x (hcur ▸ hk)))
+    (Vs.tacHypX_topT s ar σ G hCR hFI hMO hDom ct call hcur.symm htcb hact (fun x hk => hrun x (hcur ▸ hk)))
 
 end
 
