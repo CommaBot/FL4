@@ -86,16 +86,19 @@ def nuX (K : Nat) (mem : U64 → U64) (x : U64) : Nat :=
   | .Zombie _ _ n => n.val
   | _ => K
 
-/-- A slot's cap kept, emptied, or a zombie (what the other slots' caps
-become in an immediate finalisation). -/
+/-- A slot's cap kept, emptied, or a zombie at its home slot (`HomeZ`: what
+the other slots' caps become in an immediate finalisation). -/
 def ChgZ (mem0 mem : U64 → U64) (y : U64) : Prop :=
-  capV mem y = capV mem0 y ∨ capV mem y = .Null ∨ isZb (capV mem y) = true
+  capV mem y = capV mem0 y ∨ capV mem y = .Null ∨ HomeZ mem y
 
 theorem ChgZ.refl (mem : U64 → U64) (y : U64) : ChgZ mem mem y := Or.inl rfl
 
 theorem ChgZ.trans {m0 m1 m2 : U64 → U64} {y : U64} (h1 : ChgZ m0 m1 y) (h2 : ChgZ m1 m2 y) : ChgZ m0 m2 y := by
   rcases h2 with e | h | h
-  · rw [ChgZ, e]; exact h1
+  · rcases h1 with e1 | n1 | ⟨zt, n, z1⟩
+    · exact Or.inl (e.trans e1)
+    · exact Or.inr (Or.inl (e.trans n1))
+    · exact Or.inr (Or.inr ⟨zt, n, e.trans z1⟩)
   · exact Or.inr (Or.inl h)
   · exact Or.inr (Or.inr h)
 
@@ -105,7 +108,7 @@ theorem ChgZ.of_chgOK {m0 m1 : U64 → U64} {y : U64} (h : ChgOK m0 m1 y) : ChgZ
   rcases h with e | ⟨h | ⟨zt, n, e⟩, -⟩
   · exact Or.inl e
   · exact Or.inr (Or.inl h)
-  · exact Or.inr (Or.inr (by rw [e]; rfl))
+  · exact Or.inr (Or.inr ⟨zt, n, e⟩)
 
 theorem ChgZ.of_fin {m0 m1 : U64 → U64} {y : U64}
     (h : capV m1 y = capV m0 y ∨ (capV m1 y = .Null ∧ isZb (capV m0 y) = false)) : ChgZ m0 m1 y := by
@@ -276,7 +279,7 @@ theorem immediate_loop (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L)
     · subst hye
       rcases hxend with h | ⟨zt', n', h⟩
       · exact Or.inr (Or.inl h)
-      · exact Or.inr (Or.inr (by rw [h]; rfl))
+      · exact Or.inr (Or.inr ⟨zt', n', h⟩)
     · exact (hcz2 y hy hyx).trans (ChgZ.of_chgOK (hch3 y hy hye))
   simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok, slot_cap_eq, capAt_capV]
   have hps2' : psiD (L.mem s2) G1 ≤ psiD (L.mem s) G := le_trans hps2 hps1

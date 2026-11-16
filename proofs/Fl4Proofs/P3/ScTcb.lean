@@ -1468,8 +1468,8 @@ theorem ssp_tail (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L := L) arI th)
     rw [← hc1, hxe2]; exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps hps1 (by rw [← hxe2, hc1]; exact hnf)
   have hI := install_okQ arI (Q := MdbOKV (L.ksb s)) (MdbOKV.step _) th hP hO hPP hPD K hK hK6 hB s1 s1 ar σ1 G
     hDS1 (MdbOKV.of_same hDS.1.2.2.1 hS1 hFR) p hp 3 (by simp [tcbSlots])
-    layout.tcb.SLOT_FAULT_HANDLER (by simp [layout.tcb.SLOT_FAULT_HANDLER]) (fun y _ _ => ChgZ.refl _ y) ssl hAs
-    (capV (L.mem s) x2) e2.2 hok
+    layout.tcb.SLOT_FAULT_HANDLER (by simp [layout.tcb.SLOT_FAULT_HANDLER]) (InstFr.refl _ _ _) ssl hAs
+    (capV (L.mem s) x2) e2.2 hok (fun _ => vfh_ep hv)
   rw [← hxe2] at hI
   obtain ⟨⟨r, s2, a1⟩, hins, σ', G', hc, hDS', hfr2⟩ := spec_exists hI
   have he2 : e2 = (absCap (capV (L.mem s) x2), e2.2) := by rw [← he21]

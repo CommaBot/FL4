@@ -307,8 +307,7 @@ theorem capTyped_of_chgZ {H : Heap} {Rp Nt : Set U64} {m m' : U64 → U64} {y : 
   rcases hz with e | e | e
   · rw [e]; exact h
   · rw [e]; exact ⟨fun _ _ _ _ _ _ h => (by cases h), fun _ _ _ _ h => (by cases h), fun _ _ h => (by cases h)⟩
-  · obtain ⟨p, zt, k, hc⟩ : ∃ p zt k, capV m' y = .Zombie p zt k := by
-      generalize capV m' y = c at e ⊢; cases c <;> simp [isZb] at e; exact ⟨_, _, _, rfl⟩
+  · obtain ⟨zt, k, hc⟩ := e
     rw [hc]; exact ⟨fun _ _ _ _ _ _ h => (by cases h), fun _ _ _ _ h => (by cases h), fun _ _ h => (by cases h)⟩
 
 /-- **`JPlaced` across a step** keeping the typed heaps: every slot's cap kept,

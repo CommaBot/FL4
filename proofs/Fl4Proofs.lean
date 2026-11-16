@@ -159,3 +159,4 @@ import Fl4Proofs.P3.SpecCaps
 import Fl4Proofs.P3.SpecFinFrames
 import Fl4Proofs.P3.DelObjK
 import Fl4Proofs.P3.DelObjVs
+import Fl4Proofs.P3.TcbPlace
