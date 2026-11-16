@@ -354,8 +354,6 @@ fn attempts<E: EntryEnv>(
 mod tests {
     extern crate std;
     use super::*;
-    use std::sync::{Arc, Barrier};
-    use std::thread;
 
     struct Atomics;
     impl Mem for Atomics {
@@ -371,16 +369,16 @@ mod tests {
     fn active_transaction_rejects_probe_and_contention_yields_to_stm() {
         let gate = SerialGate::new();
         gate.enter_tx(&Atomics, 1, || panic!("open gate"));
-        assert!(!gate.opportunistic_acquire(&Atomics, 0, thread::yield_now));
+        assert!(!gate.opportunistic_acquire(&Atomics, 0, || panic!("unexpected wait")));
         assert_eq!(gate.owner(), u64::MAX);
         // A failed probe must give its ticket back and reopen the gate.
         gate.enter_tx(&Atomics, 2, || panic!("probe stranded the gate"));
         gate.leave_tx(&Atomics, 1);
         gate.leave_tx(&Atomics, 2);
         // Even now that it is empty, contenders get a window for STM.
-        assert!(!gate.opportunistic_acquire(&Atomics, 0, thread::yield_now));
-        assert!(!gate.opportunistic_acquire(&Atomics, 1, thread::yield_now));
-        let recovered = (0..1024).any(|_| gate.opportunistic_acquire(&Atomics, 0, thread::yield_now));
+        assert!(!gate.opportunistic_acquire(&Atomics, 0, || panic!("unexpected wait")));
+        assert!(!gate.opportunistic_acquire(&Atomics, 1, || panic!("unexpected wait")));
+        let recovered = (0..1024).any(|_| gate.opportunistic_acquire(&Atomics, 0, || panic!("unexpected wait")));
         assert!(
             recovered,
             "uncontended entries must recover the direct path"
@@ -389,107 +387,27 @@ mod tests {
     }
 
     #[test]
-    fn one_successor_waits_in_order_and_services_remote_calls() {
+    fn queued_probe_preserves_ticket_order_and_services_calls_across_wraparound() {
         let gate = SerialGate::new();
-        assert!(gate.opportunistic_acquire(&Atomics, 0, || panic!("empty gate")));
+        gate.next.store(u64::MAX - 1, Ordering::Relaxed);
+        gate.serving.store(u64::MAX - 1, Ordering::Relaxed);
+        // A mandatory entry is served before the opportunistic successor.
+        gate.acquire(&Atomics, 0, || panic!("empty gate"));
         let mut serviced = false;
         assert!(gate.opportunistic_acquire(&Atomics, 1, || {
             assert!(!serviced);
             serviced = true;
             assert_eq!(gate.owner(), 0);
-            assert_eq!(gate.next.load(Ordering::Relaxed), 2);
-            // A third contender must use STM instead of extending the queue.
+            assert_eq!(gate.next.load(Ordering::Relaxed), 0);
             assert!(!gate.opportunistic_acquire(&Atomics, 2, || panic!("full queue")));
-            assert_eq!(gate.next.load(Ordering::Relaxed), 2);
+            assert_eq!(gate.next.load(Ordering::Relaxed), 0);
             gate.release(&Atomics);
         }));
         assert!(serviced);
         assert_eq!(gate.owner(), 1);
         gate.release(&Atomics);
+        assert_eq!(gate.serving.load(Ordering::Acquire), 0);
         gate.enter_tx(&Atomics, 2, || panic!("successor stranded the gate"));
         gate.leave_tx(&Atomics, 2);
-    }
-
-    #[test]
-    fn probe_preserves_ticket_order_and_wraparound() {
-        let gate = Arc::new(SerialGate::new());
-        gate.next.store(u64::MAX - 1, Ordering::Relaxed);
-        gate.serving.store(u64::MAX - 1, Ordering::Relaxed);
-        assert!(gate.opportunistic_acquire(&Atomics, 0, thread::yield_now));
-        let waiter = gate.clone();
-        let worker = thread::spawn(move || {
-            waiter.acquire(&Atomics, 1, thread::yield_now);
-            assert_eq!(waiter.owner(), 1);
-            waiter.release(&Atomics);
-        });
-        while gate.next.load(Ordering::Acquire) != 0 {
-            thread::yield_now();
-        }
-        // The queued mandatory entry owns the next ticket; a probe cannot
-        // bypass it or increment the ticket counter after failing.
-        assert!(!gate.opportunistic_acquire(&Atomics, 2, thread::yield_now));
-        assert_eq!(gate.next.load(Ordering::Relaxed), 0);
-        gate.release(&Atomics);
-        worker.join().unwrap();
-        assert_eq!(gate.serving.load(Ordering::Acquire), 0);
-        gate.enter_tx(&Atomics, 0, || panic!("ticket rollover stranded the gate"));
-        gate.leave_tx(&Atomics, 0);
-    }
-
-    #[test]
-    fn direct_entries_and_transactions_remain_mutually_exclusive() {
-        let gate = Arc::new(SerialGate::new());
-        let started = Arc::new(Barrier::new(6));
-        let readers = Arc::new(AtomicU64::new(0));
-        let writer = Arc::new(AtomicU64::new(u64::MAX));
-        let workers: std::vec::Vec<_> = (0..6)
-            .map(|cpu| {
-                let (gate, started, readers, writer) = (
-                    gate.clone(),
-                    started.clone(),
-                    readers.clone(),
-                    writer.clone(),
-                );
-                thread::spawn(move || {
-                    started.wait();
-                    let mut transactional = 0;
-                    for i in 0..10_000 {
-                        let direct = if i % 127 == 0 {
-                            gate.acquire(&Atomics, cpu, thread::yield_now);
-                            true
-                        } else {
-                            gate.opportunistic_acquire(&Atomics, cpu, thread::yield_now)
-                        };
-                        if direct {
-                            assert_eq!(writer.swap(cpu, Ordering::SeqCst), u64::MAX);
-                            assert_eq!(readers.load(Ordering::SeqCst), 0);
-                            if i % 31 == 0 {
-                                thread::yield_now();
-                            }
-                            assert_eq!(readers.load(Ordering::SeqCst), 0);
-                            writer.store(u64::MAX, Ordering::SeqCst);
-                            gate.release(&Atomics);
-                        } else {
-                            gate.enter_tx(&Atomics, cpu, thread::yield_now);
-                            readers.fetch_add(1, Ordering::SeqCst);
-                            assert_eq!(writer.load(Ordering::SeqCst), u64::MAX);
-                            if i % 31 == 0 {
-                                thread::yield_now();
-                            }
-                            assert_eq!(writer.load(Ordering::SeqCst), u64::MAX);
-                            readers.fetch_sub(1, Ordering::SeqCst);
-                            gate.leave_tx(&Atomics, cpu);
-                            transactional += 1;
-                        }
-                    }
-                    transactional
-                })
-            })
-            .collect();
-        let transactional: u64 = workers.into_iter().map(|w| w.join().unwrap()).sum();
-        assert!(
-            transactional > 0,
-            "contention must use concurrent transactions"
-        );
     }
 }

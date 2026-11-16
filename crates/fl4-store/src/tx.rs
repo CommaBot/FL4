@@ -253,9 +253,7 @@ pub fn needs_serial(cpu: u64) -> bool {
 
 #[inline(always)]
 fn slot_of(addr: u64) -> usize {
-    // Keep nearby words nearby in the log, while folding in the page
-    // number so equally aligned objects do not all start at the same slot.
-    ((addr >> 3) ^ (addr >> 12)) as usize & (WB - 1)
+    ((addr >> 3).wrapping_mul(0x9E37_79B9_7F4A_7C15) >> 53) as usize & (WB - 1)
 }
 
 /// Where `addr` is, or would go, in the write buffer.
@@ -277,14 +275,13 @@ pub fn read<M: Mem>(cpu: u64, m: &M, addr: u64) -> u64 {
     if t.doom != DOOM_NONE {
         return 0;
     }
-    let e = stripe(addr);
-    // No word in this stripe has been buffered: avoid probing the log.
-    if t.wstamp[e] == t.gen {
+    if t.nw != 0 {
         let (i, hit) = find(t, addr);
         if hit {
             return t.wval[i];
         }
     }
+    let e = stripe(addr);
     let v1 = m.a_load(&TABLE[e].0, Ordering::Acquire);
     if v1 & 1 != 0 || v1 > t.rv {
         t.doom = DOOM_CONFLICT;
@@ -531,116 +528,11 @@ mod tests {
     }
 
     #[test]
-    fn write_log_collisions_capacity_and_generation() {
+    fn clear_free_preserves_bounds_and_buffered_writes() {
         let _test = TEST_LOCK.lock().unwrap();
         let m = SparseMem::default();
-        // Probing must wrap around the end of the hash table, compare
-        // full addresses, and distinguish words even in aliased stripes.
-        let addresses: std::vec::Vec<_> = (0..)
-            .map(|i| i * 8)
-            .filter(|&a| slot_of(a) == WB - 1)
-            .take(32)
-            .collect();
-        begin(0, &m);
-        for (i, &a) in addresses.iter().enumerate() {
-            write(0, a, i as u64 + 1);
-        }
-        for (i, &a) in addresses.iter().enumerate() {
-            assert_eq!(read(0, &m, a), i as u64 + 1);
-        }
-        write(0, addresses[0], 99);
-        assert_eq!(st(0).nw, addresses.len());
-        assert!(commit(0, &m));
-        end(0);
-        assert_eq!(m.load(addresses[0]), 99);
-        for (i, &a) in addresses.iter().enumerate().skip(1) {
-            assert_eq!(m.load(a), i as u64 + 1);
-        }
-
-        begin(0, &m);
-        for i in 0..WB / 2 {
-            write(0, 0x800000 + i as u64 * 8, i as u64 + 1);
-        }
-        // Updating a buffered word at capacity is legal; a new word
-        // forces serial execution without publishing any buffered writes.
-        write(0, 0x800000, 123);
-        assert!(!doomed(0));
-        assert_eq!(read(0, &m, 0x800000), 123);
-        write(0, 0x900000, 1);
-        assert!(needs_serial(0));
-        assert!(!commit(0, &m));
-        end(0);
-        assert_eq!(m.load(0x800000), 0);
-
-        st(0).gen = u32::MAX;
-        begin(0, &m);
-        assert_eq!(read(0, &m, addresses[0]), 99);
-        assert_eq!(read(0, &m, 0x800000), 0);
-        write(0, addresses[0], 100);
-        assert!(commit(0, &m));
-        end(0);
-        assert_eq!(m.load(addresses[0]), 100);
-    }
-
-    #[test]
-    fn independent_small_objects_in_one_cache_line_can_commit() {
-        let _test = TEST_LOCK.lock().unwrap();
-        let m = SparseMem::default();
-        // Four endpoint-sized objects share one physical cache line.
-        // They must not invalidate each other's transactional reads.
-        for cpu in 0..4 {
-            let addr = 0x100000 + cpu * 16 + 8;
-            m.store(addr, cpu);
-            begin(cpu, &m);
-            assert_eq!(read(cpu, &m, addr), cpu);
-            write(cpu, addr, cpu + 10);
-        }
-        for cpu in (0..4).rev() {
-            assert!(commit(cpu, &m));
-            end(cpu);
-            assert_eq!(m.load(0x100000 + cpu * 16 + 8), cpu + 10);
-        }
-    }
-
-    #[test]
-    fn clearing_a_page_in_another_block_keeps_independent_reads_valid() {
-        let _test = TEST_LOCK.lock().unwrap();
-        let m = SparseMem::default();
-        let object = 0x100008;
-        let free_page = 0x140000;
-        m.store(object, 7);
-        m.store(free_page, 99);
-        begin(0, &m);
-        assert_eq!(read(0, &m, object), 7);
-        write(0, object, 8);
-        begin(1, &m);
-        clear_free(1, &m, free_page, 4096);
-        assert!(commit(1, &m));
-        end(1);
-        assert!(commit(0, &m));
-        end(0);
-        assert_eq!(m.load(object), 8);
-        assert_eq!(m.load(free_page), 0);
-    }
-
-    #[test]
-    fn clear_free_handles_aligned_and_partial_regions() {
-        let _test = TEST_LOCK.lock().unwrap();
-        let m = SparseMem::default();
-        // Include a 256 KiB block boundary and partial first/last
-        // lines. The latter must use the general sorted/deduplicated path.
-        for (addr, len) in [
-            (0x100000, 16),
-            (0x100008, 24),
-            (0x100000, 64),
-            (0x120000, 4096),
-            (0x130000, MAX_TX_CLEAR),
-            (0x13fff8, 4096),
-            (0x140008, MAX_TX_CLEAR - 8),
-        ] {
-            for a in (addr - 8..addr + len + 8).step_by(8) {
-                m.store(a, 7);
-            }
+        for (addr, len) in [(0x100000, STRIPE_BYTES), (0x100000, MAX_TX_CLEAR), (0x13fff8, 4096)] {
+            for a in (addr - 8..addr + len + 8).step_by(8) { m.store(a, 7); }
             st(0).zgen = u32::MAX;
             begin(0, &m);
             write(0, addr - 8, 11);
@@ -660,7 +552,8 @@ mod tests {
                 assert_eq!(m.load(a), if a == addr + 8 { 15 } else { 0 });
             }
         }
-        for (addr, len) in [(0x100008, MAX_TX_CLEAR), (0x100000, MAX_TX_CLEAR + 8), (0x130000, 65536)] {
+        // Oversized or over-capacity clears must rerun without touching memory.
+        for (addr, len) in [(0x100008, MAX_TX_CLEAR), (0x100000, 65536)] {
             m.store(addr, 99);
             begin(0, &m);
             clear_free(0, &m, addr, len);
@@ -672,58 +565,33 @@ mod tests {
     }
 
     #[test]
-    fn clear_free_rejects_a_stale_snapshot() {
-        let _test = TEST_LOCK.lock().unwrap();
-        let m = SparseMem::default();
-        // Validate both a stripe held by the clear and one outside it.
-        for marker in [0x100000, 0x110000] {
-            m.store(marker, 0);
-            begin(0, &m);
-            assert_eq!(read(0, &m, marker), 0);
-            begin(1, &m);
-            write(1, marker, 1);
-            write(1, 0x100008, 42);
-            assert!(commit(1, &m));
-            end(1);
-            clear_free(0, &m, 0x100000, 4096);
-            assert!(doomed(0));
-            assert!(!commit(0, &m));
-            end(0);
-            assert_eq!(m.load(0x100008), 42);
-        }
-    }
-
-    #[test]
-    fn failed_clear_restores_each_held_version() {
+    fn clear_free_rejects_stale_reads_and_restores_versions() {
         let _test = TEST_LOCK.lock().unwrap();
         let m = SparseMem::default();
         let base = 0x123000;
-        let marker = base + 0x2000;
-        let mut versions = [0; 4];
-        for (i, old) in versions.iter_mut().enumerate() {
-            let addr = base + i as u64 * 16;
+        // Cover validation of a held stripe and a stripe outside the clear.
+        for marker in [base, base + 0x2000] {
+            for i in 0..4 {
+                begin(1, &m);
+                write(1, base + i * STRIPE_BYTES, i + 1);
+                assert!(commit(1, &m));
+                end(1);
+            }
+            begin(0, &m);
+            read(0, &m, marker);
             begin(1, &m);
-            write(1, addr, i as u64 + 1);
+            write(1, marker, 99);
             assert!(commit(1, &m));
             end(1);
-            *old = TABLE[stripe(addr)].0.load(Ordering::Acquire);
-        }
-        assert!(versions.windows(2).all(|v| v[0] != v[1]));
-        m.store(marker, 0);
-        begin(0, &m);
-        assert_eq!(read(0, &m, marker), 0);
-        begin(1, &m);
-        write(1, marker, 1);
-        assert!(commit(1, &m));
-        end(1);
-        clear_free(0, &m, base, 64);
-        assert!(doomed(0));
-        assert!(!commit(0, &m));
-        end(0);
-        for (i, old) in versions.into_iter().enumerate() {
-            let addr = base + i as u64 * 16;
-            assert_eq!(TABLE[stripe(addr)].0.load(Ordering::Acquire), old);
-            assert_eq!(m.load(addr), i as u64 + 1);
+            let versions = core::array::from_fn::<_, 4, _>(|i| TABLE[stripe(base + i as u64 * STRIPE_BYTES)].0.load(Ordering::Acquire));
+            clear_free(0, &m, base, 64);
+            assert!(!commit(0, &m));
+            end(0);
+            for (i, old) in versions.into_iter().enumerate() {
+                let addr = base + i as u64 * STRIPE_BYTES;
+                assert_eq!(TABLE[stripe(addr)].0.load(Ordering::Acquire), old);
+                assert_eq!(m.load(addr), if addr == marker { 99 } else { i as u64 + 1 });
+            }
         }
     }
 

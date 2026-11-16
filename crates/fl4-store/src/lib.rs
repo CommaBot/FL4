@@ -58,6 +58,7 @@ impl Store for PhysStore {
         }
     }
 
+    #[inline(always)]
     fn zero(&mut self, addr: u64, len: u64) {
         if self.tx {
             tx::zero(self.cpu, addr, len)
@@ -66,6 +67,7 @@ impl Store for PhysStore {
         }
     }
 
+    #[inline(always)]
     fn clear_free(&mut self, addr: u64, len: u64) {
         if self.tx {
             tx::clear_free(self.cpu, &Phys, addr, len)
@@ -103,45 +105,24 @@ impl PhysStore {
     }
 }
 
+impl<const TX: bool> EntryStore<TX> {
+    #[inline(always)]
+    fn phys(&self) -> PhysStore {
+        PhysStore { ks_base: self.ks_base, cpu: self.cpu, tx: TX }
+    }
+}
+
 impl<const TX: bool> Store for EntryStore<TX> {
     #[inline(always)]
-    fn read(&self, addr: u64) -> u64 {
-        debug_assert!(addr & 7 == 0);
-        if TX {
-            tx::read(self.cpu, &Phys, addr)
-        } else {
-            tx::Mem::load(&Phys, addr)
-        }
-    }
+    fn read(&self, addr: u64) -> u64 { self.phys().read(addr) }
     #[inline(always)]
-    fn write(&mut self, addr: u64, v: u64) {
-        debug_assert!(addr & 7 == 0);
-        if TX {
-            tx::write(self.cpu, addr, v)
-        } else {
-            tx::Mem::store(&Phys, addr, v)
-        }
-    }
-    fn zero(&mut self, addr: u64, len: u64) {
-        if TX {
-            tx::zero(self.cpu, addr, len)
-        } else {
-            tx::Mem::clear(&Phys, addr, len)
-        }
-    }
-    fn clear_free(&mut self, addr: u64, len: u64) {
-        if TX {
-            tx::clear_free(self.cpu, &Phys, addr, len)
-        } else {
-            tx::Mem::clear(&Phys, addr, len)
-        }
-    }
+    fn write(&mut self, addr: u64, v: u64) { self.phys().write(addr, v); }
     #[inline(always)]
-    fn ks_base(&self) -> u64 {
-        self.ks_base
-    }
+    fn zero(&mut self, addr: u64, len: u64) { self.phys().zero(addr, len); }
     #[inline(always)]
-    fn cur_cpu(&self) -> u64 {
-        self.cpu
-    }
+    fn clear_free(&mut self, addr: u64, len: u64) { self.phys().clear_free(addr, len); }
+    #[inline(always)]
+    fn ks_base(&self) -> u64 { self.ks_base }
+    #[inline(always)]
+    fn cur_cpu(&self) -> u64 { self.cpu }
 }
