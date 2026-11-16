@@ -285,6 +285,8 @@ import Fl4Proofs.P3.IpcTmo
 import Fl4Proofs.P3.IpcCancelBadged
 import Fl4Proofs.P3.XTopCnodeX
 import Fl4Proofs.P3.IpcReplyAll
+import Fl4Proofs.P3.EpSendD
+import Fl4Proofs.P3.IpcSendDon
 import Fl4Proofs.P3.IpcXTop
 import Fl4Proofs.P3.XTopCaps
 import Fl4Proofs.P3.DomSched

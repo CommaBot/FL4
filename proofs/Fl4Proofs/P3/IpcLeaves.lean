@@ -44,8 +44,9 @@ theorem qSorted_of_eps {Cs Ω : Set U64} {H : P1.Heap} {s : S} {E' O : Set U64} 
   rw [Sched.eqs_unique hW hTP (hsub he) hq]
   exact hS e (hsub he)
 
-/-- **The native-path scope**: no thread runs a guest (`RunningVM`; FL4's
-VT-x path is out of scope). -/
+/-- **The native-path scope**: no thread runs a guest (`RunningVM`).
+VT-x: RunningVM branch not yet refined (DESIGN §5); named until the VCPU/EPT
+round. -/
 def NativeScope (σ : Fl4Spec.State Unit) : Prop := ∀ p x, σ.kheap p = some (.tcb x) → x.tcbState ≠ .runningVM
 
 /-- The receiver's reply back-pointer, from `SchedValid`. -/
@@ -118,6 +119,8 @@ def SendRest (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (
     (t e : U64) : Prop :=
   ∀ (d : U64) q xd, σ.kheap e.bv = some (.endpoint (.recvEP (d.bv :: q))) → d ∈ T →
     σ.kheap d.bv = some (.tcb xd) → don = true →
+    t ∈ T → ∀ xt, σ.kheap t.bv = some (.tcb xt) → (tsCode xt.tcbState ≠ 3 ∧ tsCode xt.tcbState ≠ 4) →
+    tsCode xt.tcbState ≠ 6 → xt.tcbFault = none → Sched.SchedValid σ →
     endpoint.send_ipc st ar s a blk call badge g gr don t e ⦃ r => r.2 = a ∧
       ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk call badge.bv g gr don t.bv e.bv σ).1, Rel r.1 z.2 ⦄
 
@@ -172,7 +175,7 @@ theorem send_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R 
       fun _ ⟨h1, _, σ', h2, h3, h4⟩ => ⟨h1, ((), σ'), h2, h3, h4⟩
     cases don
     swap
-    · exact hU d _ xd hk' hd hkd rfl
+    · exact hU d _ xd hk' hd hkd rfl ht xt hkt hnb hns hft hV
     cases call
     · cases hrb : ipcBufOf true xd with
       | none =>

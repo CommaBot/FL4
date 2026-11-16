@@ -220,7 +220,7 @@ theorem send_ipc_callX_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Prop} (hX :
       rintro ⟨s7, a7⟩ ⟨ha7, hnf, σ', hm, hf, hv, hS'⟩
       exact ⟨ha7, hnf, σ', hm, hR5.frame hP hf hv, hS'⟩
 
-theorem send_ipc_call_inactiveX_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Prop} (hX : EpSteps st A ar T E R B SR NS GC) (hTl : EpTailHyps st A T E R B SR)
+theorem send_ipc_call_inactiveX_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Prop} {don : Bool} (hX : EpSteps st A ar T E R B SR NS GC) (hTl : EpTailHyps st A T E R B SR)
     (hP : EPlaced T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit) (hR : EpStateRel T E R B (L.mem s) σ)
     (hSR : SR s σ) {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hnb : tsCode xt.tcbState ≠ 3 ∧ tsCode xt.tcbState ≠ 4) (hns : NS xt.tcbState)
@@ -234,9 +234,9 @@ theorem send_ipc_call_inactiveX_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Pr
       xr.replyTcb = some d.bv)
     (hno : (g = false ∧ gr = false) ∨ ∀ e' rep dd, xd.tcbState = .blockedOnReceive e' rep dd → rep = none)
     (blk : Bool) :
-    endpoint.send_ipc st ar s a blk true badge g gr false t e ⦃ r => r.2 = a ∧
-      ¬ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr false t.bv e.bv σ).2 ∧
-      ∃ σ', ((), σ') ∈ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr false t.bv e.bv σ).1 ∧
+    endpoint.send_ipc st ar s a blk true badge g gr don t e ⦃ r => r.2 = a ∧
+      ¬ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr don t.bv e.bv σ).2 ∧
+      ∃ σ', ((), σ') ∈ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr don t.bv e.bv σ).1 ∧
         EpStateRel T E R B (L.mem r.1) σ' ∧ SR r.1 σ' ⦄ := by
   have hx := hR.at_ep he hk
   have hxt := hR.at_tcb ht hkt
@@ -367,7 +367,7 @@ theorem send_ipc_call_inactiveX_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Pr
       refine WP.spec_bind (hX.sts hP s4 σ4 hR4 hS4 hdT hkd4 hq4 (hX.ns_ep _ hns3) .running (by simp [tsCode])
         sched.TS_RUNNING (by unfold sched.TS_RUNNING; rfl)) ?_
       rintro s5 ⟨hR5, hS5⟩
-      have hspec := sendIpc_callInactive_eq hk hkd hde htd' hstd blk badge.bv _ _ hcond e2 hU hkt3 hkd3 (t := t.bv)
+      have hspec := sendIpc_callInactive_eq (don := don) hk hkd hde htd' hstd blk badge.bv _ _ hcond e2 hU hkt3 hkd3 (t := t.bv)
       rw [hspec]
       refine WP.spec_mono (hTl.wakeTail s5 _ _ d' hR5 hS5 hdT) ?_
       rintro ⟨s7, a7⟩ ⟨ha7, hnf, σ', hm, hf, hv, hS'⟩
@@ -396,7 +396,7 @@ theorem send_ipc_call_inactiveX_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Pr
       refine WP.spec_bind (hX.sts hP s4 σ4 hR4 hS4 hdT hkd4 hq4 (hX.ns_ep _ hns3) .running (by simp [tsCode])
         sched.TS_RUNNING (by unfold sched.TS_RUNNING; rfl)) ?_
       rintro s5 ⟨hR5, hS5⟩
-      have hspec := sendIpc_callInactive_eq hk hkd hde htd' hstd blk badge.bv _ _ hcond e2 hU hkt3 hkd3 (t := t.bv)
+      have hspec := sendIpc_callInactive_eq (don := don) hk hkd hde htd' hstd blk badge.bv _ _ hcond e2 hU hkt3 hkd3 (t := t.bv)
       rw [hspec]
       refine WP.spec_mono (hTl.wakeTail s5 _ _ d' hR5 hS5 hdT) ?_
       rintro ⟨s7, a7⟩ ⟨ha7, hnf, σ', hm, hf, hv, hS'⟩
