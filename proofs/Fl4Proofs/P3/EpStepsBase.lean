@@ -22,28 +22,33 @@ section Defs
 variable {S : Type} (st : machine.Store S) [L : LawfulStore st]
 
 /-- What a transfer step keeps of the spec's heap: every object but the
-receiver's TCB, or a CNode of the same size (a cap transferred into a
-receive slot). -/
+receiver's TCB, a CNode of the same size (a cap transferred into a
+receive slot), or an SC of the same size (a timeout fault's consumed time). -/
 def KeepNC (σ σ' : Fl4Spec.State Unit) (rcv : Fl4Spec.ObjRef) : Prop :=
   ∀ p, p ≠ rcv → σ'.kheap p = σ.kheap p ∨
-    ∃ r cs cs', σ.kheap p = some (.cnode r cs) ∧ σ'.kheap p = some (.cnode r cs')
+    (∃ r cs cs', σ.kheap p = some (.cnode r cs) ∧ σ'.kheap p = some (.cnode r cs')) ∨
+    ∃ y y' n, σ.kheap p = some (.schedContext y n) ∧ σ'.kheap p = some (.schedContext y' n)
 
 theorem KeepNC.of_eq {σ σ' : Fl4Spec.State Unit} {rcv : Fl4Spec.ObjRef}
     (h : ∀ p, p ≠ rcv → σ'.kheap p = σ.kheap p) : KeepNC σ σ' rcv := fun p hp => Or.inl (h p hp)
 
 theorem KeepNC.fwd {σ σ' : Fl4Spec.State Unit} {rcv : Fl4Spec.ObjRef} (h : KeepNC σ σ' rcv)
     {p : Fl4Spec.ObjRef} (hp : p ≠ rcv) {o : Fl4Spec.KernelObject} (hk : σ.kheap p = some o)
-    (ho : ∀ r cs, o ≠ .cnode r cs) : σ'.kheap p = some o := by
-  rcases h p hp with e | ⟨r, cs, cs', h1, -⟩
+    (ho : ∀ r cs, o ≠ .cnode r cs) (hs : ∀ y n, o ≠ .schedContext y n := by intro _ _ e; cases e) :
+    σ'.kheap p = some o := by
+  rcases h p hp with e | ⟨r, cs, cs', h1, -⟩ | ⟨y, y', n, h1, -⟩
   · rw [e, hk]
   · rw [hk] at h1; cases h1; exact absurd rfl (ho r cs)
+  · rw [hk] at h1; cases h1; exact absurd rfl (hs y n)
 
 theorem KeepNC.bwd {σ σ' : Fl4Spec.State Unit} {rcv : Fl4Spec.ObjRef} (h : KeepNC σ σ' rcv)
     {p : Fl4Spec.ObjRef} (hp : p ≠ rcv) {o : Fl4Spec.KernelObject} (hk : σ'.kheap p = some o)
-    (ho : ∀ r cs, o ≠ .cnode r cs) : σ.kheap p = some o := by
-  rcases h p hp with e | ⟨r, cs, cs', -, h2⟩
+    (ho : ∀ r cs, o ≠ .cnode r cs) (hs : ∀ y n, o ≠ .schedContext y n := by intro _ _ e; cases e) :
+    σ.kheap p = some o := by
+  rcases h p hp with e | ⟨r, cs, cs', -, h2⟩ | ⟨y, y', n, -, h2⟩
   · rw [← e, hk]
   · rw [hk] at h2; cases h2; exact absurd rfl (ho r cs')
+  · rw [hk] at h2; cases h2; exact absurd rfl (hs y' n)
 
 /-- The step lemmas (see the module docstring). `GC` says whether the
 transfers may carry caps (a grant with extra caps): when it does not hold,

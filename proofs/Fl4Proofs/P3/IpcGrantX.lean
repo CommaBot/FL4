@@ -566,7 +566,7 @@ theorem do_ipc_transfer_grant (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N
     simp only [updK_kheap, Function.update_of_ne hp]
     rcases hKC.1 p with e | ⟨r, cs, cs', h1, h2⟩
     · left; rw [e, hkco p hp]
-    · right; exact ⟨r, cs, cs', by rw [← hkco p hp]; exact h1, h2⟩
+    · right; left; exact ⟨r, cs, cs', by rw [← hkco p hp]; exact h1, h2⟩
 
 /-- **`do_ipc_transfer` without a receive buffer, caps looked up** (G4), on
 `SRT … SRE`: the transfer field `xregs` of the bundle with `GC := True`. -/
