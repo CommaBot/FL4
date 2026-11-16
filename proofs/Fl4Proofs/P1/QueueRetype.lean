@@ -7,10 +7,14 @@ TCBs).
 
 * `DeadQ H s q`: the object at `q` is read by nothing P1 tracks (P3's
   `DeadP` is this, `DeadP_iff`).
-* the region `[lo, hi)` the retype may overwrite (the new objects' window;
-  with a reset, the whole untyped region) and the window `[A, A + w k)`;
-* the write frame: the cap-slot words (`CapW`), the region, and the
-  debug-list words (`DbgW`, a new TCB is appended);
+* the reset is a step of its own (`ResetP1Step`): `reset_untyped` keeps
+  `BlkOK` over the heap with the untyped region's (dead) objects dropped;
+  its writes (the region, the cap's slot, the preemption point's words) are
+  P1's to follow, the preemption point by `preemption_point.pp`;
+* after it, the region `[lo, hi)` the object creation may overwrite (the
+  free part holding the window `[A, A + w k)`);
+* the write frame of the creation: the cap-slot words (`CapW`), the region,
+  and the debug-list words (`DbgW`, a new TCB is appended);
 * the region after: zero, but a new TCB's context, domain, debug-link and
   name words (`TcbInitK`), when the new objects are in the heap
   (`newKind`); the region before: its objects dead;
@@ -84,6 +88,29 @@ def RetypeP1Step (st : machine.Store S) [L : LawfulStore st] (s s' : S) (H : Hea
         (NewAt A k w q ∧ newKind n us = some kd)) ∧
       (∀ q, NewAt A k w q → ∀ kd, newKind n us = some kd → H' q = some kd) ∧
       (∀ q, H' q = H q → DeadQ st H s q → DeadQ st H' s' q)
+
+open Classical in
+/-- **P1's half of the reset** (module docstring): `reset_untyped` on the
+slot `x` (its cap words `CapW`) of an untyped cap `Untyped p sb fi dev`,
+from `BlkOK` over `H`'s sets with the objects meeting the region dead and
+the current thread off it, ends in `BlkOK` over `H` with those objects
+dropped, the dead staying dead. -/
+def ResetP1Step (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) : Prop :=
+  ∀ (H : Heap) (Cs Ac : Set U64) (s : S) (a : A) (x p sb fi : U64) (dev : Bool),
+    BlkOK st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
+      (Heap.scBits H) Ac s →
+    obj.Slot.cap st x s = ok (.Untyped p sb fi dev) →
+    (∀ K : U64, K.val < 16 → K.val % 8 = 0 →
+      CapW (Heap.tcbs H) (Heap.omega H) (Heap.frame H) (core.num.U64.wrapping_add x K)) →
+    p.val % 2 ^ sb.val = 0 → p.val + 2 ^ sb.val ≤ 2 ^ 64 →
+    (∀ q kd, H q = some kd → MeetsR p.val (p.val + 2 ^ sb.val) q.val (q.val + 2 ^ kd.bits) → DeadQ st H s q) →
+    ¬ (p.val ≤ (L.curW s).val ∧ (L.curW s).val < p.val + 2 ^ sb.val) →
+    untyped.reset_untyped st ar s a x ⦃ res => ∃ (H' : Heap) (Ac' : Set U64),
+      BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H')
+        (Heap.ntfns H') (Heap.scBits H') Ac' res.2.1 ∧
+      (∀ q, H' q = if MeetsR p.val (p.val + 2 ^ sb.val) q.val (q.val + 2 ^ ((H q).elim 0 HKind.bits))
+        then none else H q) ∧
+      (∀ q, H' q = H q → DeadQ st H s q → DeadQ st H' res.2.1 q) ⦄
 
 end
 
