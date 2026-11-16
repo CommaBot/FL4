@@ -16,6 +16,7 @@ The hypotheses on the state are the untyped invariant `UtInv` (l4v
 region being free (`RegionFree`) and zero (`ZeroRegion`), and `horig`.
 -/
 import Fl4Proofs.P3.UntypedExp
+import Fl4Proofs.P3.UntypedFrameBase
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -281,6 +282,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
           ((Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val)
           (p.val + 2 ^ sb.val)) ∧
         (FinInv th (L.mem s) σ G → FinInv th' (L.mem res.2.1) σ' G') ∧ L.ksb res.2.1 = L.ksb s ∧
+        WFrame (L := L) s res.2.1 (SlotSpan th) ∧
         ∃ A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj ⦄ := by
   -- sizes and the region
   have hsb : sb.val < 64 := capAt_untyped_inv hcap
@@ -371,6 +373,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
         MdbLinks th' (L.mem res.2.1) G' ∧ CdtRel th' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
         (UtInv (L.mem res.2.1) G' ∧ MdbStep (L.mem s) G (L.mem res.2.1) G') ∧ (dev = false → ZeroRegion (L.mem res.2.1) (A + win.val * k) (p.val + 2 ^ sb.val)) ∧
         (FinInv th (L.mem s) σ G → FinInv th' (L.mem res.2.1) σ' G') ∧ L.ksb res.2.1 = L.ksb s ∧
+        WFrame (L := L) s res.2.1 (SlotSpan th) ∧
         ∃ A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj ⦄ := by
     intro th' σb hP' hR' hV' hM' hC' hrb hpp' hdest' hcv' hzs hKb hth
     -- the zero region kept by the loop: none for a device region
@@ -446,11 +449,12 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
           simp at hmem; omega
         rw [hco1 y hys hya]
         unfold DisjR; left; simp only [Nat.zero_mul, Nat.add_zero]; omega
-    obtain ⟨⟨s2, a2⟩, hres, ha2, hfin⟩ := spec_exists (create_loop_rel (L := L) arI ar th' hP' hpp' hidx hsb hpfit σb
+    obtain ⟨⟨s2, a2⟩, hres, ha2, hfin, hW2⟩ := spec_exists (create_loop_frame (L := L) arI ar th' hP' hpp' hidx hsb hpfit σb
       hdest' (by omega) nt us dev t ht hn hus hz hsc off win aligned hwin
       (by simp only [← hzdef, ← hkdef, halv]; omega) (by simp only [halv]; omega) (by simp only [halv]; omega)
       (by simp only [← hzdef, ← hkdef, halv]; omega) hcv' zl (p.val + 2 ^ sb.val) hzs' G (L.mem s1)
-      hsrcd s1 hinv0)
+      hsrcd th (fun x hx => ((hM.members x).1 hx).1) (fun j hj => ⟨dest, off.val + j, Or.inl ⟨r, hdest, by omega⟩, rfl⟩)
+      hs s1 hinv0)
     rw [hres]
     simp only [bind_ok, uncurry_apply_pair]
     rw [WP.spec_ok]
@@ -514,6 +518,12 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
       obtain ⟨s1k, hs1k, k1⟩ := spec_exists (set_cap_ksb (L := L) src s srcC')
       rw [hs1] at hs1k; cases eq_of_ok_eq hs1k
       rw [k2, k1]
+    have hW : WFrame (L := L) s s2 (SlotSpan th) := by
+      have hs' : IsSlot th src := hs
+      obtain ⟨s1k, hs1k, k1⟩ := spec_exists (set_cap_ksb (L := L) src s srcC')
+      rw [hs1] at hs1k; cases eq_of_ok_eq hs1k
+      refine WFrame.trans (s2 := s1) ⟨k1, fun w hw hn => hfr1 w hw (fun e => hn ⟨src, hs', by omega, by omega⟩)
+        (fun e => hn ⟨src, hs', by omega, by omega⟩)⟩ hW2
     refine ⟨rfl, ha2, σf, Gf, th', ?_, hP', hRf, hVf, hMf, hCf, hIf, ⟨hRD.utinv hU, MdbStep.retype hRD hI hChf
           (fun z hz => by rw [hRvf z hz, hupd.rv ((hM.members z).1 hz).1])
           (cjOf_vplaced rfl hA2 (by omega) (by omega))⟩, fun hd => by
@@ -521,7 +531,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
       rw [← e]; exact hZf, fun hFI => ⟨(hKb hFI).sub (ksub_of_eq (nks_mapMx (nks_createCap _ _ _ _) _) hmx),
         hFf (hFI.fm.recap hM.tree.nodup src
           (by rw [hcs1, hcv0]; exact CapSim.of_shape rfl rfl)
-          (fun z hz hzs => hco1 z ((hM.members z).1 hz).1 hzs))⟩, hks2, A, k, win.val, _, _,
+          (fun z hz hzs => hco1 z ((hM.members z).1 hz).1 hzs))⟩, hks2, hW, A, k, win.val, _, _,
       hRD.toExp hU hMf hth⟩
     · rw [hbA] at hmx
       apply invokeUntyped_noreset_eq bitsApi (pp.bv, idx) p.bv Ab t us.val _ dev σ σa σb σf _ _ hgs hss hrb

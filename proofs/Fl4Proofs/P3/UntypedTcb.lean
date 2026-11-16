@@ -10,6 +10,7 @@ and the core's list-head word, so the new TCB's slots stay zero (null caps,
 l4v's `default_tcb` has null caps).
 -/
 import Fl4Proofs.P3.UntypedInvoke
+import Fl4Proofs.P3.UntypedFrameBase
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -21,28 +22,12 @@ set_option linter.unusedSimpArgs false
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
-/-- `s'` differs from `s` at most in the aligned words satisfying `P` (and has
-the same kernel-state base). -/
-def WFrame (s s' : S) (P : U64 → Prop) : Prop :=
-  L.ksb s' = L.ksb s ∧ ∀ w : U64, P1.Aligned w → ¬ P w → L.mem s' w = L.mem s w
-
-theorem WFrame.refl (s : S) (P : U64 → Prop) : WFrame (L := L) s s P := ⟨rfl, fun _ _ _ => rfl⟩
-
-theorem WFrame.trans {s1 s2 s3 : S} {P : U64 → Prop} (h1 : WFrame (L := L) s1 s2 P) (h2 : WFrame (L := L) s2 s3 P) :
-    WFrame (L := L) s1 s3 P := ⟨h2.1.trans h1.1, fun w hw hp => (h2.2 w hw hp).trans (h1.2 w hw hp)⟩
-
-theorem WFrame.mono {s1 s2 : S} {P Q : U64 → Prop} (h : WFrame (L := L) s1 s2 P) (hpq : ∀ w, P w → Q w) :
-    WFrame (L := L) s1 s2 Q := ⟨h.1, fun w hw hq => h.2 w hw (fun hp => hq (hpq w hp))⟩
-
-theorem WFrame.wr (s : S) {P : U64 → Prop} {a : U64} (ha : P1.Aligned a) (hp : P a) (v : U64) :
-    WFrame (L := L) s (L.wr s a v) P := by
-  refine ⟨by simp, fun w hw hnp => ?_⟩
-  apply L.mem_wr_ne ha hw
-  intro e; exact hnp (by rw [show w = a from UScalar.eq_of_val_eq e.symm]; exact hp)
-
-/-- The words of a TCB past its cap slots, but its affinity word (offset
-3520, which `debug_append` reads). -/
-def InT (t w : U64) : Prop := t.val + 256 ≤ w.val ∧ w.val < t.val + 4096 ∧ w.val ≠ t.val + 3520
+/-- The words of a TCB that creating it writes: past its cap slots, the
+context (below `F`), the domain (`F + 104`), the debug links (`F + 248`,
+`F + 256`) and the name (from `F + 272`); not its affinity word (offset
+3520, which `debug_append` reads) nor its other scheduler fields. -/
+def InT (t w : U64) : Prop := t.val + 256 ≤ w.val ∧ w.val < t.val + 4096 ∧ w.val ≠ t.val + 3520 ∧
+  (w.val < t.val + 3328 ∨ w.val = t.val + 3432 ∨ w.val = t.val + 3576 ∨ w.val = t.val + 3584 ∨ t.val + 3600 ≤ w.val)
 
 theorem wa_val (a : U64) (n : Nat) (h : a.val + n < 2 ^ 64) :
     (core.num.U64.wrapping_add a ⟨BitVec.ofNat 64 n⟩).val = a.val + n := by

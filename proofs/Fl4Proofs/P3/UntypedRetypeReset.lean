@@ -177,12 +177,15 @@ theorem retype_cont_allN {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
           MdbLinks th'' (L.mem res.2.1) G' ∧ CdtRel th'' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
           (UtInv (L.mem res.2.1) G' ∧ MdbStep (L.mem s2) G (L.mem res.2.1) G') ∧
           (FinInv th (L.mem s2) σ1 G → FinInv th'' (L.mem res.2.1) σ' G') ∧ L.ksb res.2.1 = L.ksb s2 ∧
+          (∃ t1 a1, untyped.reset_untyped st arI s2 ar (cslotAddr (pp.bv, idx)) = ok (.Ok (), t1, a1) ∧
+            WFrame (L := L) t1 res.2.1 (TcbLoopW (restrictTh th p.val (p.val + 2 ^ sb.val)) (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat win.val
+              (L.nodeAt t1 0#u64 layout.node.DEBUG_TCBS) (L.mem t1 (L.nodeAt t1 0#u64 layout.node.DEBUG_TCBS)))) ∧
           ∃ A k w dslot cj, RetExp th th'' (L.mem s2) (L.mem res.2.1) G G' A k w dslot cj))) →
       RetPostN (L := L) th (L.mem s) G σ bitsApi (L.ksb s) (.retype (pp.bv, idx) true p.bv
         (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val)
         dev) res := by
     rintro res ⟨hNS, ⟨h1, σ', f, hhas, hRR, hSt, hFr, hks, hE⟩ | ⟨h1, σ', G', th'', hhas, hP'', hR'', hV'', hM'', hC'',
-      hI'', ⟨hU'', hSt⟩, hFin, hks, A, k, w, dslot, cj, hE⟩⟩
+      hI'', ⟨hU'', hSt⟩, hFin, hks, -, A, k, w, dslot, cj, hE⟩⟩
     · exact ⟨σ1, by rw [hcur]; exact hst1, hNS, .error (), σ', G, _, Or.inr ⟨h1, rfl⟩, hhas, hP.restrict,
         hRR.R, hRR.V, hRR.M, hRR.C, hRR.I, hRR.U, MdbStep.same_left hM hSS hSt,
         fun hFI => hFr (hFI.of_same hM hSS (ksub_of_eq (setThreadState_nks _ _) hst1)), by rw [hks, hk2],
@@ -201,13 +204,21 @@ theorem retype_cont_allN {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
     refine WP.spec_mono (retype_reset_tcb (L := L) arI ar th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hU1 hpp hidx hcap1 hfi0 hnd
       hpal hsb4 hhigh hN hns hzero1 hrcb hppS hPP2 (by rw [hDW2]; exact hDWal) (by rw [hDW2]; exact hDWobj)
       (by rw [hDW2]; exact hDWreg) (by rw [hDW2, hDWm2]; exact hhead) (by rw [hDW2, hDWm2]; exact hheadR) horig2
-      nt us t ht h1 hus hdest hdout (by omega) off win hwin hw1 hmem hempty1 bitsApi hb) hpost
+      nt us t ht h1 hus hdest hdout (by omega) off win hwin hw1 hmem hempty1 bitsApi hb) fun res h => hpost res ?_
+    rcases h with ⟨hNS, hE | ⟨h1', σ', G', th'', e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, ⟨t1, a1, hr, hw⟩, e11⟩⟩
+    · exact ⟨hNS, Or.inl hE⟩
+    refine ⟨hNS, Or.inr ⟨h1', σ', G', th'', e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, ⟨t1, a1, hr, hw.mono fun w hw => ?_⟩, e11⟩⟩
+    exact hw
   · refine WP.spec_mono (retype_reset_full (L := L) arI ar th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hU1 hpp hidx hcap1 hfi0 hnd
       hpal hsb4 hhigh hN hns hzero1 hrcb hppS hPP2
       (ekept_dw hP hxs _ (by rw [hDW2]; exact hDWal) (by rw [hDW2]; exact hDWreg) (by rw [hDW2]; exact hDWobj _ hxs)
         hpfit _ _) ⟨rfl, rfl⟩ (fun _ h => h.1) horig2
       nt us t ht (by omega) hus hz47 hsc hct0 hdest hdout (by omega) off win hwin hw1 hmem hempty1 (fun hd => (dev_nt ht (hdevc hd)).2.1) bitsApi hb)
-      hpost
+      fun res h => hpost res ?_
+    rcases h with ⟨hNS, hE | ⟨h1', σ', G', th'', e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, ⟨t1, a1, hr, hw⟩, e11⟩⟩
+    · exact ⟨hNS, Or.inl hE⟩
+    exact ⟨hNS, Or.inr ⟨h1', σ', G', th'', e1, e2, e3, e4, e5, e6, e7, e8, e9, e10,
+      ⟨t1, a1, hr, hw.mono fun w hw => Or.inl hw⟩, e11⟩⟩
 
 
 /-- **FL4's untyped `Retype` refines FL4's spec, resets included**
