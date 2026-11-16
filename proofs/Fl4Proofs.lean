@@ -193,3 +193,6 @@ import Fl4Proofs.P3.SpecFinOutReply
 import Fl4Proofs.P3.SchedValid
 import Fl4Proofs.P3.SpecFinOutSc
 import Fl4Proofs.P3.SpecFinOutTcb
+import Fl4Proofs.P3.TcbNil
+import Fl4Proofs.P3.TcbReplyX
+import Fl4Proofs.P3.TcbDataX
