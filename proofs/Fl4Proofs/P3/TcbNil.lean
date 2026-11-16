@@ -61,6 +61,7 @@ theorem fl4tcb_nil {j : Fl4TcbInvocation} (h : NilFl4Tcb j) : OkAll (· = []) (i
   | fpuTransfer t toFrame fr =>
     dsimp only [invokeFl4Tcb]
     exact okAll_ite (fun _ => okAll_liftE (by ndall)) (fun _ => okAll_returnOk rfl)
+  | setTimer => dsimp only [invokeFl4Tcb]; exact okAll_liftE (by ndall)
   | _ => dsimp only [invokeFl4Tcb]; exact okAll_returnOk rfl
 
 theorem perform_nilT (b c d : Bool) {inv : Fl4Invocation} (h : NilInvT inv) :

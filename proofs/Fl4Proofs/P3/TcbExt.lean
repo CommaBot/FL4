@@ -189,6 +189,18 @@ theorem tcb_unset_bp_refines (th : TypedHeap) (hP : Placed th)
 
 /-! ## SetTimer -/
 
+/-- SetTimer leaves the spec's state as it is among its outcomes (the
+reprogram flag not set). -/
+theorem setTimer_mem (blk call don : Bool) (σ1 : Fl4Spec.State Unit) (t d b : Fl4Spec.Data) :
+    ((.ok [], σ1) : Except Unit (List Fl4Spec.Data) × Fl4Spec.State Unit) ∈
+      ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don (.invokeFl4TCB (.setTimer t d b))).run σ1).1 := by
+  show _ ∈ ((Fl4Spec.NonDetE.liftE _).run σ1).1
+  refine mem_liftE (x := ([], σ1)) ?_
+  refine mem_bind_nd (x := (false, σ1)) ⟨trivial, rfl⟩ ?_
+  refine mem_bind_nd (x := ((), σ1)) ?_ rfl
+  show ((), σ1) ∈ ({((), { σ1 with reprogramTimer := σ1.reprogramTimer || false })} : Set _)
+  rw [Bool.or_false]; rfl
+
 /-- **The timer work of SetTimer** (P1's): FL4's `timer::insert` after the
 restart keeps every slot word. -/
 def SetTimerHyp (th : TypedHeap) (s : S) (ct p : U64) : Prop :=
@@ -268,7 +280,8 @@ theorem tcb_set_timer_refines (th : TypedHeap) (hP : Placed th)
     rfl
   refine WP.spec_bind (hT s1 y0 y1 hs1) ?_
   intro s2 hS2
-  exact (WP.spec_ok _).2 (top_of_post hP (DecOut.of_eq hdec) hst1 hDS1 hfr1 (regPost_same hS2 (rr := []) rfl))
+  exact (WP.spec_ok _).2 (top_of_post hP (DecOut.of_eq hdec) hst1 hDS1 hfr1 (regPost_same hS2 (rr := [])
+    (setTimer_mem blk call don σ1 p.bv y0.bv y1.bv)))
 
 
 /-! ## GetBreakpoint (not called) -/

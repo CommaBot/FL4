@@ -369,7 +369,10 @@ details.
   `fl4GetMr` (FL4's `syscall_arg` on the spec's state) models. The debug
   registers, the FPU image and the l4h timer queue are not in the model:
   those invocations change no state but the frame ReadFPU writes (any
-  machine state), and their replies are any value of the right shape.
+  machine state) and, for SetTimer, `reprogram_timer`, which may be set
+  (never cleared): FL4 sets its reprogram flag when the new deadline is
+  the core's earliest, and the queue that decides this is not modelled.
+  Their replies are any value of the right shape.
   FL4's SetFlags differs from l4v's: the `TRAP_SYSCALLS` flag (l4h) is not
   an l4v `TcbFlag`, so it is not kept and the reply is any word of the new
   flags, and an enabled FPU is not restored lazily

@@ -9,7 +9,10 @@ register, else the IPC buffer word `i + 1`, else 0); `fl4GetMr` is that
 read on the spec's state. The effects on state the abstract model does not
 keep (debug registers, the FPU image, the l4h timer queue) are not
 modelled: those invocations change no state but the frame contents of
-ReadFPU, and their replies are any value of the right shape.
+ReadFPU and, for SetTimer, possibly `reprogram_timer` (FL4 sets its
+reprogram flag when the new deadline is the core's earliest; the spec sets
+it nondeterministically, never clearing it), and their replies are any
+value of the right shape.
 
 1. seL4's debug API (`CONFIG_HARDWARE_DEBUG_API`, not in l4v):
    `TCBSetBreakpoint`, `TCBGetBreakpoint`, `TCBUnsetBreakpoint`,
@@ -176,8 +179,10 @@ def decodeFl4TcbExt (l : Fl4TcbExtLabel) (args : List Data) (t : ObjRef) (excaps
 
 /-- The invocations. The debug registers, the FPU image and the l4h timer
 queue are not in the model: those invocations change no state (ReadFPU:
-the machine state, the frame it writes), and their replies are any value
-of the right shape. -/
+the machine state, the frame it writes; SetTimer: possibly
+`reprogram_timer`, set, never cleared, as FL4's reprogram flag after an
+insert at the head of the core's timer queue), and their replies are any
+value of the right shape. -/
 def invokeFl4Tcb : Fl4TcbInvocation → PMonad Z (List Data)
   | .setBreakpoint .. => NonDetE.returnOk []
   | .getBreakpoint .. => NonDetE.liftE <| NonDet.select {l | l.length = 5}
@@ -188,7 +193,13 @@ def invokeFl4Tcb : Fl4TcbInvocation → PMonad Z (List Data)
       doMachineOp (NonDet.select (Set.univ : Set MachineState) >>= fun ms => NonDet.modify fun _ => ms)
       return []
     else NonDetE.returnOk []
-  | .setTimer .. => NonDetE.returnOk []
+  | .setTimer .. => NonDetE.liftE <| do
+    -- the l4h timer queue is not modelled; FL4 asks for a timer reprogram
+    -- when the new deadline is the core's first, which `reprogram_timer`
+    -- may record (any value, kept if already set)
+    let b ← NonDet.select (Set.univ : Set Bool)
+    NonDet.modify fun σ => { σ with reprogramTimer := σ.reprogramTimer || b }
+    return []
   | .setFlags t clearFlags setFlags' => NonDetE.liftE <| do
     let flags ← threadGet Tcb.tcbFlags t
     let newFlags ← pure (flags \ wordToTcbFlags clearFlags ∪ wordToTcbFlags setFlags')
