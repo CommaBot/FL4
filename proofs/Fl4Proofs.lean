@@ -183,7 +183,9 @@ import Fl4Proofs.P3.IpcLeaves
 import Fl4Proofs.P3.EpRecvX
 import Fl4Proofs.P3.IpcReply
 import Fl4Proofs.P3.IpcFaultReply
+import Fl4Proofs.P3.IpcTimeout
 import Fl4Proofs.P3.EpSendX
+import Fl4Proofs.P3.EpSendF
 import Fl4Proofs.P3.CancelKSub
 import Fl4Proofs.P3.ResetFin
 import Fl4Proofs.P3.RetypeFresh

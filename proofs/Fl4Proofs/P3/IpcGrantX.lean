@@ -100,6 +100,29 @@ theorem doIpcTransfer_grant {σ : State Unit} {snd rcv : ObjRef} {xs xr : Tcb}
         (by simp only [updK_kheap, Function.update_self])]
     simp only [updK, Function.update_idem]
 
+/-- Caps none of which is an endpoint cap at address 0. -/
+def NoEp0 (caps : List (Cap × CslotPtr)) : Prop := ∀ y ∈ caps, ¬ (isEpCap y.1 = true ∧ objRefOf y.1 = 0)
+
+/-- **No endpoint and endpoint 0 unwrap alike** on caps with no endpoint cap
+at address 0 (`transfer_caps_loop`'s test). -/
+theorem transferCapsLoop_none (rb : ObjRef) : ∀ (caps : List (Cap × CslotPtr)) (n : Nat), NoEp0 caps →
+    transferCapsLoop (Z := Unit) none rb n caps = transferCapsLoop (Z := Unit) (some 0) rb n caps
+  | [], n, _ => by funext slots mi; rfl
+  | (cap, slot) :: more, n, hc => by
+    have ih := transferCapsLoop_none rb more (n + 1) fun y hy => hc y (List.mem_cons_of_mem _ hy)
+    have h1 : ¬ (isEpCap cap = true ∧ (none : Option ObjRef) = some (objRefOf cap)) := by simp
+    have h2 : ¬ (isEpCap cap = true ∧ (some 0 : Option ObjRef) = some (objRefOf cap)) :=
+      fun ⟨a, b⟩ => hc (cap, slot) List.mem_cons_self ⟨a, (Option.some.inj b).symm⟩
+    funext slots mi
+    simp only [transferCapsLoop, if_neg h1, if_neg h2, ih]
+
+theorem transferCaps_none (mi : MessageInfo) (caps : List (Cap × CslotPtr)) (rcv : ObjRef) (rbo : Option ObjRef)
+    (hc : NoEp0 caps) : transferCaps (Z := Unit) mi caps none rcv rbo = transferCaps (Z := Unit) mi caps (some 0) rcv rbo := by
+  unfold transferCaps
+  cases rbo with
+  | none => rfl
+  | some rb => simp only [transferCapsLoop_none rb caps 0 hc]
+
 end Spec
 
 section Regs
@@ -350,6 +373,19 @@ theorem RelTopB.stableE {th : TypedHeap} {G : MdbGhost} {s s' : S} {σ σ' : Fl4
   let ⟨hc, hl, hs⟩ := hK.ckeep
   h.frameN hW (fun _ ha => Or.inl (EWrite.iwords ha)) hc hl hs (Ipc.SzKeep.epStep hK)
 
+/-- The extra caps hold no endpoint cap at address 0 (`CapValid`). -/
+theorem noEp0_of_src {th : TypedHeap} {m : U64 → U64} {extra : Aeneas.Std.Array obj.Slot 3#usize}
+    {caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)}
+    (hsrc : ∀ j (hj : j < caps.length), Ipc.SrcOK th m (Ipc.exAt extra j) caps[j]) : NoEp0 caps := by
+  intro y hy ⟨he, h0⟩
+  obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.1 hy
+  obtain ⟨-, -, -, cv, -, -, -, -, -, habs, -, -, hcv⟩ := hsrc j hj
+  rw [habs] at he h0
+  cases cv with
+  | Endpoint p b sd rv g gr =>
+    exact capValid_ep_ne0 hcv (P1.eq_of_bv h0)
+  | _ => simp [absCap, Fl4Spec.isEpCap] at he
+
 set_option maxHeartbeats 4000000 in
 /-- **`do_ipc_transfer` with a receive buffer, caps granted** (G4), on
 `SRT … SRE`: the transfer field `xbuf` of the bundle with `GC := True`. -/
@@ -361,9 +397,11 @@ theorem do_ipc_transfer_grant (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E
     (hSR : SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c))) s σ)
     {snd rcv : U64} (hs : snd ∈ T) (hr : rcv ∈ T) (hne : snd ≠ rcv) {xs xr : Fl4Spec.Tcb}
     (hks : σ.kheap snd.bv = some (.tcb xs)) (hkr : σ.kheap rcv.bv = some (.tcb xr)) (hf : xs.tcbFault = none)
-    {rp : Fl4Spec.ObjRef} (hrb : ipcBufOf true xr = some rp) (ep badge : U64) (grant : Bool) :
+    {rp : Fl4Spec.ObjRef} (hrb : ipcBufOf true xr = some rp) (ep badge : U64) (grant : Bool)
+    (epo : Option Fl4Spec.ObjRef := some ep.bv)
+    (hepo : epo = some ep.bv ∨ (epo = none ∧ ep = 0#u64) := by exact Or.inl rfl) :
     ipc.do_ipc_transfer st ar s a snd ep badge grant rcv ⦃ s' => ∃ σ',
-      Fl4Spec.doIpcTransfer (Z := Unit) snd.bv (some ep.bv) badge.bv grant rcv.bv σ = ({((), σ')}, False) ∧
+      Fl4Spec.doIpcTransfer (Z := Unit) snd.bv epo badge.bv grant rcv.bv σ = ({((), σ')}, False) ∧
       EpStateRel T E R B (L.mem s') σ' ∧
       SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c))) s' σ' ∧
       Agree (L.mem s) (L.mem s') (fun b => AllTF T b ∧ ¬ RcvReg rcv b ∧ ¬ BufW B b) ∧
@@ -464,7 +502,12 @@ theorem do_ipc_transfer_grant (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E
   have hcopy' : Fl4Spec.copyMrs (Z := Unit) snd.bv (ipcBufOf false xs) rcv.bv (some rp)
       (Fl4Spec.dataToMessageInfo w).miLength σ = ({(n.bv, σc)}, False) := by
     rw [← hlenw]; exact hcopy
-  have hspec := doIpcTransfer_grant hks hkr hf hrb (some ep.bv) badge.bv grant hlk hcopy' htc hkt
+  have htc' : Fl4Spec.transferCaps (Z := Unit) (Fl4Spec.dataToMessageInfo w) caps epo rcv.bv (some rp) σc =
+      ({(mf, σt)}, False) := by
+    rcases hepo with rfl | ⟨rfl, rfl⟩
+    · exact htc
+    · rw [transferCaps_none _ _ _ _ (noEp0_of_src hok1.2.1)]; exact htc
+  have hspec := doIpcTransfer_grant hks hkr hf hrb epo badge.bv grant hlk hcopy' htc' hkt
   have hvx : v.bv = Fl4Spec.messageInfoToData
       ⟨n.bv, mf.miExtraCaps, mf.miCapsUnwrapped, (Fl4Spec.dataToMessageInfo w).miLabel⟩ := by
     rw [hv]

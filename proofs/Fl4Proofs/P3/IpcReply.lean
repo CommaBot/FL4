@@ -266,7 +266,8 @@ structure ReplyHyps : Prop where
   and `postpone`. -/
   tmo : ∀ s (a : A) σ (t sc ft : U64) (fault : Option Fl4Spec.Fault) (y : Fl4Spec.SchedContext) (n : Nat),
     IRel st N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap sc.bv = some (.schedContext y n) →
-    (ft = 0#u64 ↔ fault = none) → (ft = 5#u64 ↔ ∃ b, fault = some (.timeout b)) →
+    ∀ x : Fl4Spec.Tcb, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true →
+    x.tcbSchedContext = some sc.bv → (ft = 0#u64 ↔ fault = none) → (ft = 5#u64 ↔ ∃ b, fault = some (.timeout b)) →
     fl4ReplyTmo st ar t ft sc s a ⦃ res => ∃ z ∈ (specReplyTmo t.bv fault y sc.bv σ).1,
       IRel st N T C E R B c res.1 z.2 ⦄
 
@@ -283,7 +284,8 @@ theorem reply_tail_top (hTl : IpcEpTailHyps st A N T E R B (SRT st N T C E R B c
     (hmb : ∀ a : A, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (htmo : ∀ s (a : A) σ (t sc ft : U64) (fault : Option Fl4Spec.Fault) (y : Fl4Spec.SchedContext) (n : Nat),
       IRel st N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap sc.bv = some (.schedContext y n) →
-      (ft = 0#u64 ↔ fault = none) → (ft = 5#u64 ↔ ∃ b, fault = some (.timeout b)) →
+      ∀ x : Fl4Spec.Tcb, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true →
+      x.tcbSchedContext = some sc.bv → (ft = 0#u64 ↔ fault = none) → (ft = 5#u64 ↔ ∃ b, fault = some (.timeout b)) →
       fl4ReplyTmo st ar t ft sc s a ⦃ res => ∃ z ∈ (specReplyTmo t.bv fault y sc.bv σ).1,
         IRel st N T C E R B c res.1 z.2 ⦄) :
     ∀ s (a : A) σ (t ft : U64) (fault : Option Fl4Spec.Fault), IRel st N T C E R B c s σ → t ∈ T →
@@ -346,12 +348,12 @@ theorem reply_tail_top (hTl : IpcEpTailHyps st A N T E R B (SRT st N T C E R B c
       refine ⟨((), σ'), ?_, hIR.frame hP0 hf hv, hS'⟩
       rw [hspec, if_pos ⟨hb4' ▸ hrd, hb5' ▸ hsf⟩]; exact hm
     · rw [if_neg hsf]
-      refine WP.spec_mono (htmo s a σ t i3 ft fault y n ⟨hIR, hSRT⟩ ht hi3C hky hf0 hf5) ?_
+      refine WP.spec_mono (htmo s a σ t i3 ft fault y n ⟨hIR, hSRT⟩ ht hi3C hky x hk hrn hxsc hf0 hf5) ?_
       rintro _ ⟨z, hz, hXz⟩
       refine ⟨z, ?_, hXz⟩
       rw [hspec, if_neg (fun h => hsf (hb5' ▸ h.2))]; exact hz
   · rw [if_neg hrd]
-    refine WP.spec_mono (htmo s a σ t i3 ft fault y n ⟨hIR, hSRT⟩ ht hi3C hky hf0 hf5) ?_
+    refine WP.spec_mono (htmo s a σ t i3 ft fault y n ⟨hIR, hSRT⟩ ht hi3C hky x hk hrn hxsc hf0 hf5) ?_
     rintro _ ⟨z, hz, hXz⟩
     refine ⟨z, ?_, hXz⟩
     rw [hspec, if_neg (fun h => hrd (hb4' ▸ h.1))]; exact hz
