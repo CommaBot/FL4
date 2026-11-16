@@ -165,6 +165,9 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
   holds no object of the typed heaps (`restrictTh_childless`) and no word
   the other relations read (`oobj_childless`, `regOKTop_childless`,
   `oobj_out`): MakePool's `MpPlacedHyp` (a) and (b).
+* ScSchedOut: the spec's `reschedule_required` and `possible_switch_to`
+  have one outcome keeping the heap, given `ActReady`
+  (`rescheduleRequired_some`, `possibleSwitchTo_some`).
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
@@ -201,3 +204,4 @@ import Fl4Proofs.P3.ScPlace
 import Fl4Proofs.P3.ScPlaceCaps
 import Fl4Proofs.P3.ScPlaceSc
 import Fl4Proofs.P3.ScPlaceUt
+import Fl4Proofs.P3.ScSchedOut

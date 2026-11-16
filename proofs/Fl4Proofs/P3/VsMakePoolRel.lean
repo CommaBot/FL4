@@ -891,6 +891,7 @@ theorem makepool_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
     (hrv : CapValid th rc)
     (ysl : Fl4Spec.CslotPtr) (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hRg : ∀ p fi, uc = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false →
+      (¬ ∃ sl, σ.cdt sl = some (pp.bv, idx)) →
       MpRegion th G P L4 L3 L2 L1 (L.ksb s) p ∧ RegOK s σ p) (hFI : FinInv th (L.mem s) σ G)
     (hFR : Vs.FrameInv (L.mem s) G) :
     vspace.decode st ar s a fl4_abi.label.X86ASIDControlMakePool length slot .AsidControl call buf ex ⦃ res =>
@@ -1039,7 +1040,7 @@ theorem makepool_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
         simp only at hpd1 hpd
         subst hpd1
         refine WP.spec_mono (mp_perform_rel (L := L) hH s a σ G hPl hSt hSV hM hC hI hU hR hPt hS hVP hPP ct hcur hkt hrun
-          htcb hact hpp hidx hsb hcx hch hpd rfl hcd hi hbv (hRg p fi (by rw [hsb])).1 (hRg p fi (by rw [hsb])).2
+          htcb hact hpp hidx hsb hcx hch hpd rfl hcd hi hbv (hRg p fi (by rw [hsb]) hch).1 (hRg p fi (by rw [hsb]) hch).2
           hVO hPO hPV hFI hFR) ?_
         rintro res ⟨h1, -, hpost⟩
         have hk : ExceptT.run (mpRest a0.bv a1.bv (.untypedCap false p.bv Fl4Spec.pageBits fi.val) (pp.bv, idx) rc'

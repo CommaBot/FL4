@@ -479,6 +479,7 @@ theorem decode_invocation_asid_control_top (th : TypedHeap) (s : S) (ar : A) (σ
         capAt (L.mem s) y = ok rc ∧ CapRel rc rc' ∧ CapValid th rc ∧
         excaps = (uc', (pp.bv, idx)) :: (rc', ysl) :: rest ∧
         ∀ p fi, uc = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false →
+      (¬ ∃ sl, σ.cdt sl = some (pp.bv, idx)) →
           MpRegion th G P L4 L3 L2 L1 (L.ksb s) p ∧ RegOKTop (L := L) N T C E R B c s σ p)
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef) :

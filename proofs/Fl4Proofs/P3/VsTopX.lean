@@ -930,6 +930,7 @@ theorem decode_invocation_asid_control_capX (th : TypedHeap) (s : S) (ar : A) (�
         capAt (L.mem s) y = ok rc ∧ CapRel rc rc' ∧ CapValid th rc ∧
         excaps = (uc', (pp.bv, idx)) :: (rc', ysl) :: rest ∧
         ∀ p fi, uc = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false →
+      (¬ ∃ sl, σ.cdt sl = some (pp.bv, idx)) →
           MpRegion th G P L4 L3 L2 L1 (L.ksb s) p ∧ RegOKTop (L := L) N T C E R B c s σ p)
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef) :
@@ -949,6 +950,67 @@ theorem decode_invocation_asid_control_capX (th : TypedHeap) (s : S) (ar : A) (�
         simp only [VCapOK] at hv
         exact (hv.2.2 trivial).1⟩)
     slot blk call don fp ci sl buffer) (fun _ _ _ h => h)
+
+
+/-- **The ASID control cap at `TopSR`**, the placement facts of `MakePool`
+(`MpPlacedHyp`, the region's `RegOKTop`) from the joint placement invariant
+at the entry (`mpPlacedHyp_of`, `regOKTop_childless`). -/
+theorem decode_invocation_asid_control_capJ (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hU : UtInv (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
+    {P L4 L3 L2 L1 N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {AR : A → Fl4Spec.Cr3 → Prop}
+    (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
+    (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ) (hPI : PoolsIn P L4 (L.mem s))
+    (hCur : CurOK st th s σ)
+    {H : P1.Heap} {Cs Tr C0 : Set U64} (hJC : Sched.JCov (L := L) th H G Cs s)
+    (hJP : Sched.JPlaced (L := L) th H Tr C0 s σ) (hc : c ∈ Cs)
+    (hT : ∀ t ∈ T, H t = some .tcb) (hE : ∀ e ∈ E, H e = some .ep) (hRp : ∀ r ∈ R, H r = some .reply)
+    (hN : ∀ n ∈ N, H n = some .ntfn) (hC0 : ∀ q ∈ C, q ≠ 0#u64)
+    (hB : ∀ wp ∈ B, Sched.Covered (L.mem s) G wp.1.val (wp.1.val + 8))
+    (hB2 : ∀ wp ∈ B, wp.2.toNat + 8 ≤ 2 ^ 64 ∧ Sched.Covered (L.mem s) G wp.2.toNat (wp.2.toNat + 8))
+    (lbl : U64) (slbl : Fl4Spec.Data)
+    (hlM : lbl = fl4_abi.label.X86ASIDControlMakePool ↔
+      Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDControlMakePool)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
+    (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hrun : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.runnable x.tcbState = true)
+    (args : List U64) (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hext : (∃ o0 o1, vspace.extra extra 0#usize = ok o0 ∧ vspace.extra extra 1#usize = ok o1 ∧
+        (o0 = none ∨ o1 = none) ∧ excaps.length ≤ 1) ∨
+      ∃ (pp : U64) (rs : Nat) (idx : List Bool) (y : obj.Slot) (uc : capability.Cap) (uc' : Fl4Spec.Cap)
+        (rc : capability.Cap) (rc' : Fl4Spec.Cap) (ysl : Fl4Spec.CslotPtr)
+        (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)),
+        th pp = some (.cnode rs) ∧ idx.length = rs ∧
+        vspace.extra extra 0#usize = ok (some (cslotAddr (pp.bv, idx))) ∧ vspace.extra extra 1#usize = ok (some y) ∧
+        capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok uc ∧ CapRel uc uc' ∧
+        capAt (L.mem s) y = ok rc ∧ CapRel rc rc' ∧ CapValid th rc ∧
+        excaps = (uc', (pp.bv, idx)) :: (rc', ysl) :: rest ∧
+        ∀ p fi, uc = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false →
+      (¬ ∃ sl, σ.cdt sl = some (pp.bv, idx)) →
+          MpRegion th G P L4 L3 L2 L1 (L.ksb s) p)
+    (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (buffer : Option Fl4Spec.ObjRef) :
+    DecOKMX (L := L) arI (FinXE st L4 L3 L2 L1 N T C E R B c AR) s ar σ lbl length slot .AsidControl blk call don fp
+      buf extra slbl (args.map UScalar.bv) ci sl excaps buffer :=
+  decode_invocation_asid_control_capX arI th s ar σ G hCR hFI hU hMO hS hR hPt hPI hCur
+    (mpPlacedHyp_of hJC hJP hU hCR.2.2.2.2 hc hT hE hRp hN hC0 hB) lbl slbl hlM length buf ct hct hcur htcb hact hrun
+    args hlen hargs extra excaps (by
+      rcases hext with h | ⟨pp, rs, idx, y, uc, uc', rc, rc', ysl, rest, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, hRg⟩
+      · exact Or.inl h
+      · refine Or.inr ⟨pp, rs, idx, y, uc, uc', rc, rc', ysl, rest, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10,
+          fun p fi e hch => ⟨hRg p fi e hch, ?_⟩⟩
+        have hAs : AbsSlot th (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [h2] using h1)⟩
+        have hnd := nodesc_of_cdt hS.2.pl hCR.2.2.2.1 hAs hch
+        have hcv : capV (L.mem s) (cslotAddr (pp.bv, idx)) = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false := by
+          rw [capV_of_capAt h5, e]
+        have hxm : cslotAddr (pp.bv, idx) ∈ G.chains.flatten :=
+          (hCR.2.2.1.members _).2 ⟨hAs.isSlot, _, h5, by rw [e]; simp⟩
+        obtain ⟨hpal, hpfit, -⟩ := hRg p fi e hch
+        exact Sched.regOKTop_childless hJC hJP hU hCR.2.2.2.2 hxm hcv hnd
+          (by unfold fl4_abi.consts.bits.ASID_POOL; rfl) hpal hpfit hc hT hE hRp hN hC0 hB hB2)
+    slot blk call don fp ci sl buffer
 
 end
 

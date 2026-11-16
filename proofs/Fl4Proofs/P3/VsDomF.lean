@@ -621,6 +621,7 @@ theorem decode_invocation_asid_control_capD (th : TypedHeap) (s : S) (ar : A) (�
         capAt (L.mem s) y = ok rc ∧ CapRel rc rc' ∧ CapValid th rc ∧
         excaps = (uc', (pp.bv, idx)) :: (rc', ysl) :: rest ∧
         ∀ p fi, uc = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false →
+      (¬ ∃ sl, σ.cdt sl = some (pp.bv, idx)) →
           MpRegion th G P L4 L3 L2 L1 (L.ksb s) p ∧ RegOKTop (L := L) N T C E R B c s σ p)
     (hUK : Vs.UtKsOut (L.ksb s) (L.mem s) G)
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
@@ -641,11 +642,12 @@ theorem decode_invocation_asid_control_capD (th : TypedHeap) (s : S) (ar : A) (�
         capAt (L.mem s) y = ok rc ∧ CapRel rc rc' ∧ CapValid th rc ∧
         excaps = (uc', (pp.bv, idx)) :: (rc', ysl) :: rest ∧
         ∀ p fi, uc = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false →
+      (¬ ∃ sl, σ.cdt sl = some (pp.bv, idx)) →
           MpRegion th G P L4 L3 L2 L1 (L.ksb s) p ∧ RegOKF (RegOKTop (L := L) N T C E R B c) (fun b => VsFootW st th P L4 L3 L2 L1 s b ∨ ¬ ((L.ksb s).val ≤ b.val ∧ b.val < (L.ksb s).val + 13568)) s σ p := by
     rcases hext with h | ⟨pp, rs, idx, y, uc, uc', rc, rc', ysl, rest, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, hRg⟩
     · exact Or.inl h
     · exact Or.inr ⟨pp, rs, idx, y, uc, uc', rc, rc', ysl, rest, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10,
-        fun p fi e => ⟨(hRg p fi e).1, (hRg p fi e).2, fun b hb1 hb2 => Or.inr (by
+        fun p fi e hc => ⟨(hRg p fi e hc).1, (hRg p fi e hc).2, fun b hb1 hb2 => Or.inr (by
           have hk := hUK.pool hCR.2.2.1 (AbsSlot.isSlot (th := th) (sl := (pp.bv, idx))
             ⟨pp, rfl, Or.inl (by simpa [h2] using h1)⟩) (by rw [h5, e])
           rcases hk with h | h <;> omega)⟩⟩

@@ -16,7 +16,9 @@ heap `th` (CNodes, TCBs, other objects; `Placed th`) to P1's typed heap `H`
   (`JPlaced.kwOut`, with the nodes and `Ω` facts of P1's `BlkOK`),
   `SlotCapW` (`JPlaced.slotCapW`, given P1's TCB low words cover the six
   TCB slots, `TLowSlots`), and the CSpace side's `NtfnP1Hyp`/`ReplyP1Hyp`/`EpP1Hyp` (`capTypedP1Hyp_of`)
-  from the invariant at every related state (`JointInv`).
+  from the invariant at every related state (`JointInv`); the CSpace side's
+  `ThreadP1Hyp`/`ScP1Hyp` (`threadP1Hyp_of`, `scP1Hyp_of`) from it with the
+  state facts `JState` (`JointInvS`).
 -/
 import Fl4Proofs.P3.ScInstPost
 import Fl4Proofs.P3.DelObjK
@@ -273,6 +275,62 @@ theorem epP1Hyp_of (hJ : JointInv (L := L) th) (hTL : ∀ T, TLowSlots T) : EpP1
   intro s σ G sl c hDS hA hc hk
   obtain ⟨X, hb, hS, hty⟩ := capTypedP1Hyp_of hJ hTL s σ G sl c hDS hA hc hk
   exact ⟨X, hb, hS, hty.1⟩
+
+/-- P1's TCB low words cover the six TCB slots (P1's `tlow_slots`). -/
+theorem tLowSlots_all (T : Set U64) : TLowSlots T := fun t ht K hK => P1.tlow_slots t ht K hK
+
+/-- **The state facts of the joint invariant** that P1's thread and SC
+finalisations need: the scheduler action is resume or choose-new; no thread
+cap names the idle thread; an SC cap names a nonzero SC of `H` whose TCB,
+if any, is a TCB of `H` and not the idle thread (l4v `valid_global_refs`,
+`valid_sched_action` at kernel entry); the threads are native (their VCPU
+link word, at offset 3664, is zero). -/
+structure JState (th : TypedHeap) (H : Heap) (s : S) : Prop where
+  act : L.actionW s = 0#u64 ∨ L.actionW s = 1#u64
+  noIdle : ∀ a, IsSlot th a → ∀ p, capV (L.mem s) a = .Thread p → p ≠ L.idleW s
+  sc : ∀ a, IsSlot th a → ∀ p x, capV (L.mem s) a = .SchedContext p x → p ≠ 0#u64 ∧ (∃ z, H p = some (.sc z)) ∧
+    (L.mem s (P1.scTcbA p) ≠ 0#u64 → L.mem s (P1.scTcbA p) ∈ Heap.tcbs H ∧ L.mem s (P1.scTcbA p) ≠ L.idleW s)
+  vcpu : ∀ t, th t = some .tcb → L.mem s (core.num.U64.wrapping_add t 3664#u64) = 0#u64
+
+/-- **The joint invariant with its state facts** at every related state. -/
+def JointInvS (th : TypedHeap) : Prop :=
+  ∀ (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost), DState (L := L) th s σ G →
+    ∃ (H : Heap) (Cs Ac Tr C : Set U64),
+      BlkOK st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
+        (Heap.scBits H) Ac s ∧ JPlaced (L := L) th H Tr C s σ ∧ JState (L := L) th H s
+
+theorem JointInvS.toJ (h : JointInvS (L := L) th) : JointInv (L := L) th := fun s σ G hDS => by
+  obtain ⟨H, Cs, Ac, Tr, C, hb, hj, -⟩ := h s σ G hDS
+  exact ⟨H, Cs, Ac, Tr, C, hb, hj⟩
+
+/-- The scheduler action, resume or choose-new, is no TCB. -/
+theorem JState.act_ne {H : Heap} {s : S} (h : JState (L := L) th H s) {T : Set U64} (hT : TcbPlaced T) {p : U64}
+    (hp : p ∈ T) : L.actionW s ≠ p := by
+  intro e
+  rcases h.act with e' | e' <;> rw [e'] at e <;> subst e <;> exact notT_small hT (by decide) hp
+
+/-- **The CSpace side's `ThreadP1Hyp`.** -/
+theorem threadP1Hyp_of (hJ : JointInvS (L := L) th) : ThreadP1Hyp (L := L) th := by
+  intro s σ G sl c hDS hA hc _
+  obtain ⟨H, Cs, Ac, Tr, C, hb, hj, hs⟩ := hJ s σ G hDS
+  refine ⟨⟨_, Cs, _, H, _, _, _, _, _, Ac⟩, hb, hj.slotCapW (tLowSlots_all _), fun p e => ?_⟩
+  have hcv : capV (L.mem s) (cslotAddr sl) = .Thread p := by rw [capV_of_capAt hc, e]
+  have hth : th p = some .tcb := by
+    have := hDS.1.2.1.abs hA hc
+    rw [e] at this; exact this
+  have hT := hb.1.choose_spec.choose_spec.tcbs
+  have hpT : p ∈ Heap.tcbs H := hj.tcbT p hth
+  exact ⟨hpT, hs.act_ne hT hpT, (hs.noIdle _ hA.isSlot p hcv).symm, hs.vcpu p hth⟩
+
+/-- **The CSpace side's `ScP1Hyp`.** -/
+theorem scP1Hyp_of (hJ : JointInvS (L := L) th) : ScP1Hyp (L := L) th := by
+  intro s σ G sl c hDS hA hc _
+  obtain ⟨H, Cs, Ac, Tr, C, hb, hj, hs⟩ := hJ s σ G hDS
+  refine ⟨⟨_, Cs, _, H, _, _, _, _, _, Ac⟩, hb, hj.slotCapW (tLowSlots_all _), fun p x e => ?_⟩
+  have hcv : capV (L.mem s) (cslotAddr sl) = .SchedContext p x := by rw [capV_of_capAt hc, e]
+  obtain ⟨h0, hz, ht⟩ := hs.sc _ hA.isSlot p x hcv
+  have hT := hb.1.choose_spec.choose_spec.tcbs
+  exact ⟨hz, h0, fun hn => hs.act_ne hT (ht hn).1, fun hn => (ht hn).2.symm⟩
 
 /-- **The placement hypotheses of `tcb_set_sched_params_refines_disch`** at
 P1's sets drawn from `H`: `hTh`, `hK`, `hSC`, `hFh`, `hTr`, `hG`. -/
