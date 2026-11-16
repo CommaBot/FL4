@@ -1088,6 +1088,521 @@ theorem transfer_caps_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGho
 
 end Transfer
 
+
+/-! ## The extra caps (G2) -/
+
+section Extra
+open Fl4Spec
+
+variable {ε α β : Type} {f : α → NonDetE (State Unit) ε β} {σ : State Unit}
+
+theorem mapME_nil' : (NonDetE.mapME f []).run σ = ({(.ok [], σ)}, False) := rfl
+
+theorem mapME_cons_ok {a : α} {xs : List α} {b : β} {bs : List β}
+    (hf : (f a).run σ = ({(.ok b, σ)}, False)) (hr : (NonDetE.mapME f xs).run σ = ({(.ok bs, σ)}, False)) :
+    (NonDetE.mapME f (a :: xs)).run σ = ({(.ok (b :: bs), σ)}, False) := by
+  unfold NonDetE.mapME
+  rw [run_bind_ok hf, run_bind_ok hr]; rfl
+
+theorem mapME_cons_tail_err {a : α} {xs : List α} {b : β} {e : ε}
+    (hf : (f a).run σ = ({(.ok b, σ)}, False)) (hr : (NonDetE.mapME f xs).run σ = ({(.error e, σ)}, False)) :
+    (NonDetE.mapME f (a :: xs)).run σ = ({(.error e, σ)}, False) := by
+  unfold NonDetE.mapME
+  rw [run_bind_ok hf, run_bind_error hr]
+
+theorem mapME_cons_err {a : α} {xs : List α} {e : ε} (hf : (f a).run σ = ({(.error e, σ)}, False)) :
+    (NonDetE.mapME f (a :: xs)).run σ = ({(.error e, σ)}, False) := by
+  unfold NonDetE.mapME
+  rw [run_bind_error hf]
+
+/-- A looked-up extra cap. -/
+theorem lcs_ok {t : ObjRef} {cptr : CapRef} {sl : CslotPtr} {rest : CapRef} {a : Cap} (x : ObjRef)
+    (h : (lookupSlotForThread (Z := Unit) t cptr).run σ = ({(.ok (sl, rest), σ)}, False))
+    (hg : getCap (Z := Unit) sl σ = ({(a, σ)}, False)) :
+    (capFaultOnFailure (Z := Unit) x false (lookupCapAndSlot t cptr)).run σ = ({(.ok (a, sl), σ)}, False) := by
+  unfold capFaultOnFailure
+  apply run_handleE_ok
+  unfold lookupCapAndSlot
+  rw [run_bind_ok h]
+  dsimp only
+  rw [run_bind_ok (run_liftE hg)]; rfl
+
+theorem lcs_err {t : ObjRef} {cptr : CapRef} {lf : LookupFailure} (x : ObjRef)
+    (h : (lookupSlotForThread (Z := Unit) t cptr).run σ = ({(.error lf, σ)}, False)) :
+    (capFaultOnFailure (Z := Unit) x false (lookupCapAndSlot t cptr)).run σ =
+      ({(.error (.capFault x false lf), σ)}, False) := by
+  unfold capFaultOnFailure
+  rw [run_handleE_err]
+  · rfl
+  unfold lookupCapAndSlot
+  rw [run_bind_error h]
+
+end Extra
+
+
+section ExtraLoop
+variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
+variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+
+/-- The extra-cap array and the spec's extra caps. -/
+def ExtraOK (th : TypedHeap) (m : U64 → U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
+    (caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) : Prop :=
+  caps.length ≤ 3 ∧ (∀ j (hj : j < caps.length), SrcOK th m (exAt extra j) caps[j]) ∧
+    ∀ j, caps.length ≤ j → j < 3 → exAt extra j = 0#u64
+
+/-- The spec's extra cap pointers: words `122 ..` of the sender's buffer. -/
+def xCptrs (um : Fl4Spec.Word → Fl4Spec.Word8) (sb : Fl4Spec.Word) (n : Nat) : List Fl4Spec.CapRef :=
+  (List.range' 122 n).map (fun k => Fl4Spec.dataToCptr (loadWordAt um (bufAddr sb k)))
+
+/-- The spec's lookup of one extra cap. -/
+abbrev xLook (t : Fl4Spec.ObjRef) (cptr : Fl4Spec.CapRef) :
+    Fl4Spec.NonDetE (Fl4Spec.State Unit) Fl4Spec.Fault (Fl4Spec.Cap × Fl4Spec.CslotPtr) :=
+  Fl4Spec.capFaultOnFailure (Z := Unit) (Fl4Spec.ofBl cptr) false (Fl4Spec.lookupCapAndSlot t cptr)
+
+theorem exAt_none (j : Nat) (hj : j < 3) : exAt ipc.NO_EXTRA_CAPS j = 0#u64 := by
+  unfold exAt ipc.NO_EXTRA_CAPS
+  interval_cases j <;> rfl
+
+theorem exAt_set (extra : Aeneas.Std.Array obj.Slot 3#usize) (i : Usize) (x : U64) (j : Nat) :
+    exAt (extra.set i x) j = if i.val = j ∧ j < 3 then x else exAt extra j := by
+  have hl : extra.val.length = 3 := by simpa using extra.property
+  unfold exAt
+  rw [Aeneas.Std.Array.set_val_eq]
+  by_cases h : i.val = j
+  · subst h
+    by_cases h3 : i.val < 3
+    · rw [if_pos ⟨rfl, h3⟩, List.getD_eq_getElem _ _ (by simp; omega)]; simp
+    · rw [if_neg (fun h => h3 h.2), List.getD_eq_default _ _ (by simp; omega),
+        List.getD_eq_default _ _ (by omega)]
+  · rw [if_neg (fun h' => h h'.1)]
+    simp [List.getD_eq_getElem?_getD, List.getElem?_set_ne h]
+
+set_option maxHeartbeats 8000000 in
+/-- **`lookup_extra_caps`' loop refines the spec's lookups** of the extra
+caps (`map_mE` of `lookup_cap_and_slot`). -/
+theorem lookup_extra_loop {th : TypedHeap} {G : MdbGhost} {s : S} {σ : Fl4Spec.State Unit}
+    (hB : RelTopB (L := L) th G N T C E R B c s σ) (hR : IpcRel N T E R B (L.mem s) σ)
+    {t : U64} (ht : th t = some .tcb) {sbw : U64} {sb : Fl4Spec.Word} (hm : BufMap B sbw sb) (n : U64)
+    (hn : n.val ≤ 3) :
+    ipc.lookup_extra_caps_loop st s t sbw ipc.NO_EXTRA_CAPS n 0#u64 ⦃ r => match r with
+      | .Ok e => ∃ caps, (Fl4Spec.NonDetE.mapME (xLook t.bv)
+          (xCptrs σ.machineState.underlyingMemory sb n.val)).run σ = ({(.ok caps, σ)}, False) ∧
+          ExtraOK th (L.mem s) e caps
+      | .Err _ => ∃ e', (Fl4Spec.NonDetE.mapME (xLook t.bv)
+          (xCptrs σ.machineState.underlyingMemory sb n.val)).run σ = ({(.error e', σ)}, False) ⦄ := by
+  obtain ⟨hPl, ⟨hSt, hV, -⟩, -⟩ := hB
+  set cp := xCptrs σ.machineState.underlyingMemory sb n.val with hcp
+  have hcpl : cp.length = n.val := by simp [hcp, xCptrs]
+  unfold ipc.lookup_extra_caps_loop
+  refine loop.spec_decr_nat (fun x => 3 - x.2.val)
+    (fun x => x.2.val ≤ n.val ∧ ∃ acc : List (Fl4Spec.Cap × Fl4Spec.CslotPtr), acc.length = x.2.val ∧
+      (∀ j (hj : j < acc.length), SrcOK th (L.mem s) (exAt x.1 j) acc[j]) ∧
+      (∀ j, x.2.val ≤ j → j < 3 → exAt x.1 j = 0#u64) ∧
+      (∀ res, (Fl4Spec.NonDetE.mapME (xLook t.bv) (cp.drop x.2.val)).run σ = ({(.ok res, σ)}, False) →
+        (Fl4Spec.NonDetE.mapME (xLook t.bv) cp).run σ = ({(.ok (acc ++ res), σ)}, False)) ∧
+      (∀ e, (Fl4Spec.NonDetE.mapME (xLook t.bv) (cp.drop x.2.val)).run σ = ({(.error e, σ)}, False) →
+        (Fl4Spec.NonDetE.mapME (xLook t.bv) cp).run σ = ({(.error e, σ)}, False))) _ _ _ (fun x hx => ?_) ?_
+  · obtain ⟨arr, i⟩ := x
+    obtain ⟨hi, acc, hacc, hsrc, hz, hok, herr⟩ := hx
+    dsimp only at hi hacc hsrc hz hok herr ⊢
+    unfold ipc.lookup_extra_caps_loop.body
+    by_cases hin : i < n
+    · have hin' : i.val < n.val := by scalar_tac
+      have hi3 : i < 3#u64 := by scalar_tac
+      rw [if_pos hin, if_pos hi3, buf_caps_eq]
+      simp only [lift, bind_ok]
+      have hk : (core.num.U64.wrapping_add 122#u64 i).val = 122 + i.val := by
+        simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+      have hwp := hm _ (by rw [hk]; omega : (core.num.U64.wrapping_add 122#u64 i).val < 128)
+      have hw : (L.mem s (fl4BufA sbw (core.num.U64.wrapping_add 122#u64 i))).bv =
+          loadWordAt σ.machineState.underlyingMemory (bufAddr sb (122 + i.val)) := by
+        rw [← hk]; exact hR.buf _ hwp
+      have hdrop : cp.drop i.val = Fl4Spec.dataToCptr (loadWordAt σ.machineState.underlyingMemory
+          (bufAddr sb (122 + i.val))) :: cp.drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons (by omega)]
+        simp [hcp, xCptrs, List.getElem_range']
+      refine WP.spec_bind (msg.buf_get.spec s sbw _) ?_
+      rintro w rfl
+      refine WP.spec_bind (lookup_slot_refines th s σ hSt hV t ht _) ?_
+      rintro r ⟨e, he, hrel, hsok⟩
+      have he' : (Fl4Spec.lookupSlotForThread (Z := Unit) t.bv
+          (Fl4Spec.dataToCptr (loadWordAt σ.machineState.underlyingMemory (bufAddr sb (122 + i.val))))).run σ =
+          ({(e, σ)}, False) := by
+        rw [← hw]; exact he
+      cases r with
+      | Ok r1 =>
+        cases e with
+        | error _ => exact hrel.elim
+        | ok v =>
+          obtain ⟨sl, rest⟩ := v
+          obtain ⟨hsl, -⟩ := hrel
+          obtain ⟨p, hp1, hp⟩ := hsok
+          obtain ⟨cv, a, hcv, hca, hg⟩ := hSt.slot_cap (Z := Unit) hp1 hp
+          have hel := lcs_ok (Fl4Spec.ofBl (Fl4Spec.dataToCptr (loadWordAt σ.machineState.underlyingMemory
+            (bufAddr sb (122 + i.val))))) he' hg
+          simp only []
+          rw [show (UScalar.cast .Usize i : Usize) = UScalar.cast .Usize i from rfl]
+          obtain ⟨a', ha', ha'v⟩ := spec_exists (Aeneas.Std.Array.update_spec arr (UScalar.cast .Usize i) r1.slot
+            (by have hl : arr.val.length = 3 := by simpa using arr.property
+                rw [cast_us_val i (by omega)]; simp [Aeneas.Std.Array.length, hl]; omega))
+          rw [ha']
+          simp only [bind_ok]
+          obtain ⟨i4, h4e, h4v⟩ := spec_exists (U64.add_spec (x := i) (y := 1#u64) (by scalar_tac))
+          rw [h4e, bind_ok, WP.spec_ok]
+          have hi4 : i4.val = i.val + 1 := by simpa using h4v
+          subst ha'v
+          have hex : ∀ j, exAt (arr.set (UScalar.cast .Usize i) r1.slot) j =
+              if i.val = j ∧ j < 3 then r1.slot else exAt arr j := fun j => by
+            rw [exAt_set, cast_us_val i (by omega)]
+          have hAs : AbsSlot th sl := ⟨p, hp1, Or.inl hp⟩
+          refine ⟨⟨by rw [hi4]; omega, acc ++ [(a, sl)], by simp [hacc, hi4], fun j hj => ?_, fun j hj hj3 => ?_,
+            fun res hres => ?_, fun e hres => ?_⟩, by rw [hi4]; omega⟩
+          · by_cases hji : j < acc.length
+            · rw [List.getElem_append_left hji, hex, if_neg (fun h => by omega)]
+              exact hsrc j hji
+            · have hje : j = acc.length := by simp at hj; omega
+              subst hje
+              rw [List.getElem_append_right (by omega)]
+              simp only [Nat.sub_self, List.getElem_cons_zero]
+              rw [hex, if_pos ⟨hacc.symm, by omega⟩, hsl]
+              refine ⟨p, sl.2.length, sl.2, cv, hp, rfl, by rw [← hp1], by rw [← hp1], ?_, hca.2.symm, hca.1,
+                ?_, hV.abs hAs hcv⟩
+              · exact hcv
+              · rw [capAt_words] at hcv; exact decode_encWf hcv
+          · rw [hex, if_neg (fun h => by rw [hi4] at hj; omega)]
+            exact hz j (by rw [hi4] at hj; omega) hj3
+          · rw [hi4] at hres
+            have := hok ((a, sl) :: res) (by rw [hdrop]; exact mapME_cons_ok hel hres)
+            simpa using this
+          · rw [hi4] at hres
+            exact herr e (by rw [hdrop]; exact mapME_cons_tail_err hel hres)
+      | Err lf =>
+        cases e with
+        | ok _ => exact hrel.elim
+        | error lf' =>
+          simp only [WP.spec_ok]
+          exact ⟨_, herr _ (by rw [hdrop]; exact mapME_cons_err (lcs_err _ he'))⟩
+    · rw [if_neg hin, WP.spec_ok]
+      have hieq : i.val = n.val := by have : ¬ i.val < n.val := fun h => hin (by scalar_tac); omega
+      refine ⟨acc, ?_, by omega, fun j hj => by rw [← hacc] at *; exact hsrc j hj, fun j hj hj3 => hz j (by omega) hj3⟩
+      have := hok [] (by rw [hieq, ← hcpl, List.drop_length]; rfl)
+      simpa using this
+  · refine ⟨by simp, [], rfl, fun j hj => by simp at hj, fun j _ hj3 => exAt_none j hj3, fun res h => by simpa using h,
+      fun e h => by simpa using h⟩
+
+end ExtraLoop
+
+
+section ExtraTop
+open Fl4Spec
+
+theorem mapM_load (sb : Word) : ∀ (xs : List Nat) (σ : State Unit), (∀ x ∈ xs, (bufAddr sb x).toNat % 8 = 0) →
+    NonDet.mapM (loadWordOffs (Z := Unit) sb) xs σ =
+      ({(xs.map fun k => loadWordAt σ.machineState.underlyingMemory (bufAddr sb k), σ)}, False)
+  | [], σ, _ => by
+    show (pure [] : NonDet (State Unit) (List Word)) σ = _
+    rw [nd_pure_apply']; rfl
+  | x :: xs, σ, h => by
+    unfold NonDet.mapM
+    rw [nd_bind_one' (loadWordOffs_eq σ sb x (h x (by simp))),
+      nd_bind_one' (mapM_load sb xs σ fun y hy => h y (by simp [hy]))]
+    rfl
+
+theorem getExtraCptrs_some {σ : State Unit} {sb : Word} {mi : MessageInfo} (h3 : unat mi.miExtraCaps ≤ 3)
+    (hal : ∀ k, k < 128 → (bufAddr sb k).toNat % 8 = 0) :
+    getExtraCptrs (Z := Unit) (some sb) mi σ =
+      ({(xCptrs σ.machineState.underlyingMemory sb (unat mi.miExtraCaps), σ)}, False) := by
+  unfold getExtraCptrs
+  dsimp only
+  rw [show bufferCptrIndex + unat mi.miExtraCaps - bufferCptrIndex = unat mi.miExtraCaps by omega]
+  unfold NonDet.liftM
+  rw [nd_bind_one' (mapM_load sb _ σ fun k hk => hal k (by
+    simp [List.mem_range'] at hk; unfold bufferCptrIndex msgMaxLength at hk; omega))]
+  simp [xCptrs, bufferCptrIndex, msgMaxLength, NonDet.pure]
+
+end ExtraTop
+
+section ExtraTop2
+variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
+variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+
+theorem extraOK_none (th : TypedHeap) (m : U64 → U64) : ExtraOK th m ipc.NO_EXTRA_CAPS [] :=
+  ⟨by simp, fun j hj => by simp at hj, fun j _ hj3 => exAt_none j hj3⟩
+
+/-- **`lookup_extra_caps` refines `lookup_extra_caps`** under the
+transfer's `catch` (a failed lookup transfers no cap, on both sides). -/
+theorem lookup_extra_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGhost} {s : S}
+    {σ : Fl4Spec.State Unit} (hB : RelTopB (L := L) th G N T C E R B c s σ) (hR : IpcRel N T E R B (L.mem s) σ)
+    {t : U64} (ht : th t = some .tcb) (sbw : U64) (sbo : Option Fl4Spec.Word) (hsb : sbw = 0#u64 ↔ sbo = none)
+    (hm : ∀ sb, sbo = some sb → BufMap B sbw sb) (info : msginfo.MessageInfo) (mi : Fl4Spec.MessageInfo)
+    (hn : info.extra_caps.val = Fl4Spec.unat mi.miExtraCaps) (hn3 : info.extra_caps.val ≤ 3) :
+    ipc.lookup_extra_caps st s t sbw info ⦃ r => ∃ caps,
+      Fl4Spec.NonDetE.catch (Fl4Spec.lookupExtraCaps (Z := Unit) t.bv sbo mi) (fun _ => pure []) σ =
+        ({(caps, σ)}, False) ∧
+      ExtraOK th (L.mem s) (match r with | .Ok e => e | .Err _ => ipc.NO_EXTRA_CAPS) caps ⦄ := by
+  unfold ipc.lookup_extra_caps
+  by_cases h0 : sbw = 0#u64
+  · rw [if_pos h0, WP.spec_ok]
+    exact ⟨[], catch_lookupExtraCaps_nil (Or.inl (hsb.1 h0)), extraOK_none th _⟩
+  · rw [if_neg h0]
+    obtain ⟨sb, hsbo⟩ : ∃ sb, sbo = some sb := by
+      cases e : sbo with
+      | none => exact absurd (hsb.2 e) h0
+      | some sb => exact ⟨sb, rfl⟩
+    subst hsbo
+    have hmb := hm sb rfl
+    have hal : ∀ k, k < 128 → (bufAddr sb k).toNat % 8 = 0 := fun k hk => by
+      have hv : (⟨BitVec.ofNat 64 k⟩ : U64).val = k := by
+        show (BitVec.ofNat 64 k).toNat = k; simp; omega
+      have h := (hP0.e.balign _ (hmb ⟨BitVec.ofNat 64 k⟩ (by rw [hv]; omega))).2
+      rw [hv] at h; exact h
+    have hge := getExtraCptrs_some (σ := σ) (sb := sb) (mi := mi) (by omega) hal
+    rw [← hn] at hge
+    refine WP.spec_mono (lookup_extra_loop hB hR ht hmb info.extra_caps hn3) ?_
+    intro r hr
+    have hrun : ∀ res, (Fl4Spec.NonDetE.mapME (xLook t.bv)
+        (xCptrs σ.machineState.underlyingMemory sb info.extra_caps.val)).run σ = res →
+        (Fl4Spec.lookupExtraCaps (Z := Unit) t.bv (some sb) mi).run σ = res := by
+      intro res h
+      unfold Fl4Spec.lookupExtraCaps
+      rw [runE_liftE_bind hge]; exact h
+    cases r with
+    | Ok e =>
+      obtain ⟨caps, hc, hok⟩ := hr
+      exact ⟨caps, Vs.catch_ok (hrun _ hc), hok⟩
+    | Err _ =>
+      obtain ⟨e', he⟩ := hr
+      refine ⟨[], ?_, extraOK_none th _⟩
+      rw [Vs.catch_err (hrun _ he)]; rfl
+
+end ExtraTop2
+
+
+/-! ## The receive slot (G1) -/
+
+section Recv
+variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
+variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+
+theorem buf_recv_eq : msg.BUF_RECV_CNODE = ok 125#u64 ∧ msg.BUF_RECV_INDEX = ok 126#u64 ∧
+    msg.BUF_RECV_DEPTH = ok 127#u64 := by
+  have h1 : msg.BUF_RECV_CNODE = ok 125#u64 := by
+    unfold msg.BUF_RECV_CNODE msg.MSG_MAX_EXTRA_CAPS
+    rw [buf_caps_eq]; simp only [bind_ok]
+    obtain ⟨z, hz, hzv⟩ := spec_exists (U64.add_spec (x := 122#u64) (y := 3#u64) (by scalar_tac))
+    rw [hz]; congr 1; apply UScalar.eq_of_val_eq; rw [hzv]; rfl
+  have h2 : msg.BUF_RECV_INDEX = ok 126#u64 := by
+    unfold msg.BUF_RECV_INDEX
+    rw [h1]; simp only [bind_ok]
+    obtain ⟨z, hz, hzv⟩ := spec_exists (U64.add_spec (x := 125#u64) (y := 1#u64) (by scalar_tac))
+    rw [hz]; congr 1; apply UScalar.eq_of_val_eq; rw [hzv]; rfl
+  refine ⟨h1, h2, ?_⟩
+  unfold msg.BUF_RECV_DEPTH
+  rw [h2]; simp only [bind_ok]
+  obtain ⟨z, hz, hzv⟩ := spec_exists (U64.add_spec (x := 126#u64) (y := 1#u64) (by scalar_tac))
+  rw [hz]; congr 1; apply UScalar.eq_of_val_eq; rw [hzv]; rfl
+
+theorem dmo_loadWord_eq (σ : Fl4Spec.State Unit) (a : Fl4Spec.Word) (h : a.toNat % 8 = 0) :
+    Fl4Spec.doMachineOp (Z := Unit) (Fl4Spec.loadWord a) σ =
+      ({(loadWordAt σ.machineState.underlyingMemory a, σ)}, False) := by
+  unfold Fl4Spec.doMachineOp
+  rw [nd_gets_bind, loadWord_eq _ _ h, nd_bind_one (selectF_one _ σ)]
+  dsimp only
+  rw [nd_bind_one (show Fl4Spec.NonDet.modify (fun state : Fl4Spec.State Unit =>
+    { state with machineState := σ.machineState }) σ = ({((), σ)}, False) from rfl)]
+  rfl
+
+/-- The spec's cap-transfer words: words 125–127 of the receive buffer. -/
+theorem loadCapTransfer_eq {σ : Fl4Spec.State Unit} {rb : Fl4Spec.Word}
+    (hal : ∀ k, k < 128 → (bufAddr rb k).toNat % 8 = 0) :
+    Fl4Spec.loadCapTransfer (Z := Unit) rb σ =
+      ({(⟨Fl4Spec.dataToCptr (loadWordAt σ.machineState.underlyingMemory (bufAddr rb 125)),
+          Fl4Spec.dataToCptr (loadWordAt σ.machineState.underlyingMemory (bufAddr rb 126)),
+          loadWordAt σ.machineState.underlyingMemory (bufAddr rb 127)⟩, σ)}, False) := by
+  unfold Fl4Spec.loadCapTransfer Fl4Spec.captransferFromWords
+  rw [nd_pure_bind']
+  have e0 : rb + BitVec.ofNat 64 (Fl4Spec.msgMaxLength + Fl4Spec.msgMaxExtraCaps + 2) *
+      BitVec.ofNat 64 Fl4Spec.wordSize = bufAddr rb 125 := by
+    unfold bufAddr; congr 1
+  have e1 : bufAddr rb 125 + BitVec.ofNat 64 Fl4Spec.wordSize = bufAddr rb 126 := by
+    unfold bufAddr; rw [BitVec.add_assoc]; congr 1
+  have e2 : bufAddr rb 125 + 2 * BitVec.ofNat 64 Fl4Spec.wordSize = bufAddr rb 127 := by
+    unfold bufAddr; rw [BitVec.add_assoc]; congr 1
+  rw [e0, e1, e2, nd_bind_one (dmo_loadWord_eq σ _ (hal 125 (by omega))),
+    nd_bind_one (dmo_loadWord_eq σ _ (hal 126 (by omega))), nd_bind_one (dmo_loadWord_eq σ _ (hal 127 (by omega)))]
+  rfl
+
+/-- `lookup_cap` with the validity of the cap found. -/
+theorem lookup_cap_valid (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit)
+    (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (t : U64) (ht : th t = some .tcb)
+    (cptr : U64) :
+    cspace.lookup_cap st s t cptr ⦃ r =>
+      Single ((Fl4Spec.lookupCap (Z := Unit) t.bv (Fl4Spec.toBl cptr.bv)).run σ) σ (CapResRel r) ∧
+      ∀ c, r = .Ok c → CapValid th c ⦄ := by
+  unfold cspace.lookup_cap
+  refine WP.spec_bind (lookup_slot_refines th s σ hR hV t ht cptr) ?_
+  rintro r ⟨e, he, hrel, hok⟩
+  unfold Fl4Spec.lookupCap
+  cases r with
+  | Ok r1 =>
+    cases e with
+    | ok v =>
+      obtain ⟨sl, rest⟩ := v
+      obtain ⟨hsl, -⟩ := hrel
+      obtain ⟨p, hp, hth⟩ := hok
+      obtain ⟨c, a, hc, hca, hget⟩ := hR.slot_cap hp hth
+      simp only
+      rw [slot_cap_eq, hsl, hc]
+      simp only [bind_ok, WP.spec_ok]
+      exact ⟨⟨.ok a, by rw [run_bind_ok he]; exact run_liftE hget, hca⟩, fun c' h => by
+        cases h; exact hV.abs ⟨p, hp, Or.inl hth⟩ hc⟩
+    | error lf' => exact hrel.elim
+  | Err lf =>
+    cases e with
+    | ok v => exact hrel.elim
+    | error lf' =>
+      simp only [WP.spec_ok]
+      exact ⟨⟨.error lf', run_bind_error he _, hrel⟩, fun c h => by cases h⟩
+
+set_option maxHeartbeats 4000000 in
+/-- **`get_receive_slot` refines `get_receive_slots`** (G1). -/
+theorem get_receive_slot_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGhost} {s : S}
+    {σ : Fl4Spec.State Unit} (hB : RelTopB (L := L) th G N T C E R B c s σ) (hR : IpcRel N T E R B (L.mem s) σ)
+    {t : U64} (ht : th t = some .tcb) {rbw : U64} {rb : Fl4Spec.Word} (hm : BufMap B rbw rb) (hr0 : rbw ≠ 0#u64)
+    (caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (extra : Aeneas.Std.Array obj.Slot 3#usize) :
+    ipc.get_receive_slot st s t rbw ⦃ dest => ∃ slots,
+      Fl4Spec.getReceiveSlots (Z := Unit) t.bv (some rb) σ = ({(slots, σ)}, False) ∧
+      DestConf th (L.mem s) caps extra dest slots ⦄ := by
+  classical
+  obtain ⟨hPl, ⟨hSt, hV, -⟩, -⟩ := hB
+  have hal : ∀ k, k < 128 → (bufAddr rb k).toNat % 8 = 0 := fun k hk => by
+    have hv : (⟨BitVec.ofNat 64 k⟩ : U64).val = k := by
+      show (BitVec.ofNat 64 k).toNat = k; simp; omega
+    have h := (hP0.e.balign _ (hm ⟨BitVec.ofNat 64 k⟩ (by rw [hv]; omega))).2
+    rw [hv] at h; exact h
+  have hw : ∀ k : U64, k.val < 128 → (L.mem s (fl4BufA rbw k)).bv =
+      loadWordAt σ.machineState.underlyingMemory (bufAddr rb k.val) := fun k hk => hR.buf _ (hm k hk)
+  have hlct := loadCapTransfer_eq (σ := σ) hal
+  -- the spec, from the inner computation
+  have hspec : ∀ R, Fl4Spec.emptyOnFailure (Z := Unit) (do
+        let cnode ← Fl4Spec.unifyFailure (Fl4Spec.lookupCap t.bv
+          (Fl4Spec.dataToCptr (loadWordAt σ.machineState.underlyingMemory (bufAddr rb 125))))
+        let slot ← Fl4Spec.unifyFailure (Fl4Spec.lookupTargetSlot cnode
+          (Fl4Spec.dataToCptr (loadWordAt σ.machineState.underlyingMemory (bufAddr rb 126)))
+          (Fl4Spec.unat (loadWordAt σ.machineState.underlyingMemory (bufAddr rb 127))))
+        let cap ← Fl4Spec.NonDetE.liftE (Fl4Spec.getCap slot)
+        Fl4Spec.NonDetE.whenE (cap ≠ .nullCap) (Fl4Spec.NonDetE.throwError ())
+        Fl4Spec.NonDetE.returnOk [slot]) σ = R →
+      Fl4Spec.getReceiveSlots (Z := Unit) t.bv (some rb) σ = R := by
+    intro R h
+    unfold Fl4Spec.getReceiveSlots
+    dsimp only
+    rw [nd_bind_one hlct]
+    exact h
+  unfold ipc.get_receive_slot
+  rw [if_neg hr0, buf_recv_eq.1, buf_recv_eq.2.1, buf_recv_eq.2.2]
+  simp only [bind_ok]
+  refine WP.spec_bind (msg.buf_get.spec s rbw _) ?_
+  intro root hroot
+  refine WP.spec_bind (msg.buf_get.spec s rbw _) ?_
+  intro index hindex
+  refine WP.spec_bind (msg.buf_get.spec s rbw _) ?_
+  intro depth hdepth
+  have hrv : root.bv = loadWordAt σ.machineState.underlyingMemory (bufAddr rb 125) := by
+    rw [hroot]; exact hw 125#u64 (by decide)
+  have hiv : index.bv = loadWordAt σ.machineState.underlyingMemory (bufAddr rb 126) := by
+    rw [hindex]; exact hw 126#u64 (by decide)
+  have hdv : depth.bv = loadWordAt σ.machineState.underlyingMemory (bufAddr rb 127) := by
+    rw [hdepth]; exact hw 127#u64 (by decide)
+  have hthrow : ∀ (R : Type) (m : Fl4Spec.NonDetE (Fl4Spec.State Unit) Fl4Spec.LookupFailure R) lf,
+      m.run σ = ({(.error lf, σ)}, False) →
+      (Fl4Spec.unifyFailure (Z := Unit) m).run σ = ({(.error (), σ)}, False) := by
+    intro R m lf h
+    unfold Fl4Spec.unifyFailure
+    rw [run_handleE_err h]; rfl
+  have hthrow' : ∀ (R : Type) (m : Fl4Spec.NonDetE (Fl4Spec.State Unit) Fl4Spec.SyscallError R) lf,
+      m.run σ = ({(.error lf, σ)}, False) →
+      (Fl4Spec.unifyFailure (Z := Unit) m).run σ = ({(.error (), σ)}, False) := by
+    intro R m lf h
+    unfold Fl4Spec.unifyFailure
+    rw [run_handleE_err h]; rfl
+  have hempty : ∀ (m : Fl4Spec.NonDetE (Fl4Spec.State Unit) Unit (List Fl4Spec.CslotPtr)),
+      m.run σ = ({(.error (), σ)}, False) → Fl4Spec.emptyOnFailure (Z := Unit) m σ = ({([], σ)}, False) := by
+    intro m h
+    unfold Fl4Spec.emptyOnFailure
+    rw [Vs.catch_err h]; rfl
+  refine WP.spec_bind (lookup_cap_valid th s σ hSt hV t ht root) ?_
+  rintro r ⟨⟨e, he, hrel⟩, hval⟩
+  rw [hrv] at he
+  cases r with
+  | Err lf =>
+    cases e with
+    | ok _ => simp [CapResRel] at hrel
+    | error lf' =>
+      simp only [WP.spec_ok]
+      refine ⟨[], hspec _ (hempty _ ?_), Or.inl ⟨rfl, rfl⟩⟩
+      exact run_bind_error (hthrow _ _ _ he) _
+  | Ok c0 =>
+    cases e with
+    | error _ => simp [CapResRel] at hrel
+    | ok a =>
+      have hcv := hval c0 rfl
+      simp only []
+      unfold cspace.lookup_target_slot
+      refine WP.spec_bind (lookup_slot_for_cnode_op_refines th s σ hSt hV false c0 a hrel hcv index depth) ?_
+      rintro r1 ⟨e1, he1, hrel1⟩
+      rw [hiv] at he1
+      have hd : depth.val = Fl4Spec.unat (loadWordAt σ.machineState.underlyingMemory (bufAddr rb 127)) := by
+        rw [← hdv]; rfl
+      rw [hd] at he1
+      have hcn : (Fl4Spec.unifyFailure (Z := Unit) (Fl4Spec.lookupCap t.bv
+          (Fl4Spec.dataToCptr (loadWordAt σ.machineState.underlyingMemory (bufAddr rb 125))))).run σ =
+          ({(.ok a, σ)}, False) := run_handleE_ok he
+      cases r1 with
+      | Err e' =>
+        cases e1 with
+        | ok _ => exact hrel1.elim
+        | error e'' =>
+          simp only [WP.spec_ok]
+          refine ⟨[], hspec _ (hempty _ ?_), Or.inl ⟨rfl, rfl⟩⟩
+          rw [run_bind_ok hcn]
+          exact run_bind_error (hthrow' _ _ _ he1) _
+      | Ok slot =>
+        cases e1 with
+        | error _ => exact hrel1.elim
+        | ok sl =>
+          obtain ⟨hsl, p, hp1, hp⟩ := hrel1
+          obtain ⟨c1, a1, hc1, hca1, hg1⟩ := hSt.slot_cap (Z := Unit) hp1 hp
+          simp only []
+          rw [slot_cap_eq, hsl, hc1]
+          simp only [bind_ok]
+          have hts : (Fl4Spec.unifyFailure (Z := Unit) (Fl4Spec.lookupTargetSlot a
+              (Fl4Spec.dataToCptr (loadWordAt σ.machineState.underlyingMemory (bufAddr rb 126)))
+              (Fl4Spec.unat (loadWordAt σ.machineState.underlyingMemory (bufAddr rb 127))))).run σ =
+              ({(.ok sl, σ)}, False) := run_handleE_ok he1
+          by_cases hn : c1 = .Null
+          · subst hn
+            rw [cap_is_null_null, bind_ok, if_pos rfl, WP.spec_ok]
+            have ha1 : a1 = .nullCap := (CapRel.null_iff hca1).2 rfl
+            refine ⟨[sl], hspec _ ?_, Or.inr ⟨(AbsSlot.isSlot ⟨p, hp1, Or.inl hp⟩).ne_zero hPl, sl, rfl,
+              ⟨p, sl.2.length, sl.2, hp, rfl, by rw [← hp1], by rw [← hp1], hc1⟩⟩⟩
+            unfold Fl4Spec.emptyOnFailure
+            refine Vs.catch_ok ?_
+            rw [run_bind_ok hcn, run_bind_ok hts, run_bind_ok (run_liftE hg1)]
+            unfold Fl4Spec.NonDetE.whenE
+            rw [ha1, if_neg (fun h => h rfl)]
+            exact (run_bind_ok (show (pure () : Fl4Spec.NonDetE (Fl4Spec.State Unit) Unit Unit).run σ =
+              ({(.ok (), σ)}, False) from rfl) _).trans rfl
+          · rw [cap_is_null_ne hn, bind_ok, if_neg Bool.false_ne_true, WP.spec_ok]
+            have ha1 : a1 ≠ .nullCap := fun h => hn ((CapRel.null_iff hca1).1 h)
+            refine ⟨[], hspec _ (hempty _ ?_), Or.inl ⟨rfl, rfl⟩⟩
+            rw [run_bind_ok hcn, run_bind_ok hts, run_bind_ok (run_liftE hg1)]
+            unfold Fl4Spec.NonDetE.whenE
+            rw [if_pos ha1]
+            exact run_bind_error (run_throwError _ σ) _
+
+end Recv
+
 end
 
 end Fl4Proofs.P3.Ipc
