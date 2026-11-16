@@ -16,8 +16,10 @@ scheduler is asked to choose a new thread (l4v `cur_sc_tcb` is guarded by
 the current thread (`commit_time_cur`).
 
 What remains as hypotheses: the clock (`hnow`), one domain (`hnd`), the
-platform constants (`hmrt`, `hmb`), and the timeout-fault IPC (`hval`,
-`hto`). The idle SC word is part of the relation (`SchedSpec.idleSc`).
+platform constants (`hmrt`, `hmb`), and the timeout-fault IPC (`hto`).
+`hval` is asked only at states keeping the entry's timeout-handler slot and
+handler (`TmoKeep`), and follows from `StateRel` at the entry (`hval_of_rel`,
+ScTmo). The idle SC word is part of the relation (`SchedSpec.idleSc`).
 -/
 import Fl4Proofs.P3.ScTime
 open Aeneas Aeneas.Std Result
@@ -41,6 +43,7 @@ theorem budget_ok_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4S
     (hmrt : ∀ a : A, sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : ∀ a : A, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hval : ∀ (s' : S) (σ' : Fl4Spec.State Unit), SchedRel st N T C c s' σ' →
+      TmoKeep st (nodeW st s c layout.node.CUR_THREAD) s σ s' σ' →
       faults.valid_timeout_handler st s' (nodeW st s c layout.node.CUR_THREAD) ⦃ b =>
         Fl4Spec.isValidTimeoutHandler (Z := Unit) (nodeW st s c layout.node.CUR_THREAD).bv σ' =
           ({(b, σ')}, False) ⦄)
@@ -58,7 +61,7 @@ theorem budget_ok_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4S
       (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧ (OffReady σ → OffOK σ') ∧ (ActIdle σ → ActIdle σ') ⦄ := by
   unfold syscall.budget_ok
   refine WP.spec_bind (update_timestamp_refines s a σ hS hR hN hnd hnow) ?_
-  rintro ⟨s1, a1⟩ ⟨σ1, h1, hS1, hR1, hN1, hI1, hC1, -, hnw, hO1, hA1⟩
+  rintro ⟨s1, a1⟩ ⟨σ1, h1, hS1, hR1, hN1, hI1, hC1, -, hnw, hO1, hA1, hTK1⟩
   have hI1 := hI1 hI
   have hC1 := hC1 hC
   obtain ⟨hscC, hsc0, htw, hts, hact, hnr, hnb⟩ := CurInv.facts hS1 hI1 hC1
@@ -69,7 +72,7 @@ theorem budget_ok_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4S
     hnw _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
       (by simp [layout.node.CUR_SC])
   refine WP.spec_mono (check_budget_restart_refines s1 a1 σ1 hS1 hR1 hN1 hI1 hscC hsc0 htw hts
-    hS1.idle hact hnr hnb hnd (hmrt a1) (hmb a1) (by rw [e_ct]; exact hval)
+    hS1.idle hact hnr hnb hnd (hmrt a1) (hmb a1) (by rw [e_ct]; exact fun s' σ' h1' h2' => hval s' σ' h1' ((hTK1 _ (hS.lists.choose_spec.choose_spec.1.curT)).trans h2'))
     (fun s' σ' => by rw [e_ct, e_sc]; exact hto s' a1 σ')) ?_
   rintro r ⟨σ', h2, hS2, hI2, hR2, hN2, hC2, hO2, hA2⟩
   exact ⟨σ', by rw [nd_bind_one h1]; exact h2, hS2, hI2, hR2, hN2, hC2 hC1, fun ho => hO2 (hO1 ho),
@@ -86,6 +89,7 @@ theorem entry_check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (
     (hmrt : ∀ a : A, sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : ∀ a : A, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hval : ∀ (s' : S) (σ' : Fl4Spec.State Unit), SchedRel st N T C c s' σ' →
+      TmoKeep st (nodeW st s c layout.node.CUR_THREAD) s σ s' σ' →
       faults.valid_timeout_handler st s' (nodeW st s c layout.node.CUR_THREAD) ⦃ b =>
         Fl4Spec.isValidTimeoutHandler (Z := Unit) (nodeW st s c layout.node.CUR_THREAD).bv σ' =
           ({(b, σ')}, False) ⦄)
@@ -104,7 +108,7 @@ theorem entry_check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (
       SchedRel st N T C c r.2.1 σ' ∧ Inv σ' ∧ NtfnStateRel N T (L.mem r.2.1) σ' ∧ NSC N C σ' ∧
       (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧ (OffReady σ → OffOK σ') ∧ (ActIdle σ → ActIdle σ') ⦄ := by
   refine WP.spec_bind (update_timestamp_refines s a σ hS hR hN hnd hnow) ?_
-  rintro ⟨s1, a1⟩ ⟨σ1, h1, hS1, hR1, hN1, hI1, hC1, -, hnw, hO1, hA1⟩
+  rintro ⟨s1, a1⟩ ⟨σ1, h1, hS1, hR1, hN1, hI1, hC1, -, hnw, hO1, hA1, hTK1⟩
   have hI1 := hI1 hI
   have hC1 := hC1 hC
   obtain ⟨hscC, hsc0, htw, hts, hact, hnr, hnb⟩ := CurInv.facts hS1 hI1 hC1
@@ -119,7 +123,7 @@ theorem entry_check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (
     obtain ⟨x, n, hk, -⟩ := hs.scs _ hscC
     exact ⟨x, n, hk⟩
   refine WP.spec_mono (check_budget_refines s1 a1 σ1 hS1 hR1 hN1 hI1 hscC hsc0 htw hts
-    hS1.idle hact hnr hnb hnd (hmrt a1) (hmb a1) (by rw [e_ct]; exact hval)
+    hS1.idle hact hnr hnb hnd (hmrt a1) (hmb a1) (by rw [e_ct]; exact fun s' σ' h1' h2' => hval s' σ' h1' ((hTK1 _ (hS.lists.choose_spec.choose_spec.1.curT)).trans h2'))
     (fun s' σ' => by rw [e_ct, e_sc]; exact hto s' a1 σ')) ?_
   rintro r ⟨σ', h2, hS2, hI2, hR2, hN2, hK, hO2, hA2⟩
   exact ⟨σ', by rw [nd_bind_one h1]; exact h2, hS2, hI2, hR2, hN2, hK.imp id fun hK => hC1.keeps hK hkp,

@@ -66,6 +66,7 @@ theorem check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hval : ∀ (s' : S) (σ' : Fl4Spec.State Unit), SchedRel st N T C c s' σ' →
+      TmoKeep st (nodeW st s c layout.node.CUR_THREAD) s σ s' σ' →
       faults.valid_timeout_handler st s' (nodeW st s c layout.node.CUR_THREAD) ⦃ b =>
         Fl4Spec.isValidTimeoutHandler (Z := Unit) (nodeW st s c layout.node.CUR_THREAD).bv σ' =
           ({(b, σ')}, False) ⦄)
@@ -154,6 +155,7 @@ theorem check_budget_restart_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hval : ∀ (s' : S) (σ' : Fl4Spec.State Unit), SchedRel st N T C c s' σ' →
+      TmoKeep st (nodeW st s c layout.node.CUR_THREAD) s σ s' σ' →
       faults.valid_timeout_handler st s' (nodeW st s c layout.node.CUR_THREAD) ⦃ b =>
         Fl4Spec.isValidTimeoutHandler (Z := Unit) (nodeW st s c layout.node.CUR_THREAD).bv σ' =
           ({(b, σ')}, False) ⦄)

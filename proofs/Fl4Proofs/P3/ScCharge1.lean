@@ -133,6 +133,88 @@ theorem SchedRel.set_node_consumed {N T C : Set U64} {c : U64} {s : S} {σ : Fl4
 
 end
 
+
+/-! ## The current thread's timeout-handler slot, kept -/
+
+section Tmo
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
+
+/-- **The words of `ct`'s timeout-handler slot (TCB slot 4, bytes 128..160)
+and the spec's handler of `ct`, kept from `(s0, σ0)`**: what
+`valid_timeout_handler` reads (`hval`). -/
+def TmoKeep (st : machine.Store S) [L : LawfulStore st] (ct : U64) (s0 : S) (σ0 : Fl4Spec.State Unit) (s : S)
+    (σ : Fl4Spec.State Unit) : Prop :=
+  (∀ b : U64, Aligned b → ct.val + 128 ≤ b.val → b.val < ct.val + 160 → L.mem s b = L.mem s0 b) ∧
+  ∀ x0, σ0.kheap ct.bv = some (.tcb x0) → ∃ x, σ.kheap ct.bv = some (.tcb x) ∧
+    x.tcbTimeoutHandler = x0.tcbTimeoutHandler
+
+theorem TmoKeep.refl (ct : U64) (s : S) (σ : Fl4Spec.State Unit) : TmoKeep st ct s σ s σ :=
+  ⟨fun _ _ _ _ => rfl, fun x0 h => ⟨x0, h, rfl⟩⟩
+
+theorem TmoKeep.trans {ct : U64} {s1 s2 s3 : S} {σ1 σ2 σ3 : Fl4Spec.State Unit} (h1 : TmoKeep st ct s1 σ1 s2 σ2)
+    (h2 : TmoKeep st ct s2 σ2 s3 σ3) : TmoKeep st ct s1 σ1 s3 σ3 := by
+  refine ⟨fun b hb e1 e2 => (h2.1 b hb e1 e2).trans (h1.1 b hb e1 e2), fun x0 hx0 => ?_⟩
+  obtain ⟨x1, hx1, e1⟩ := h1.2 x0 hx0
+  obtain ⟨x2, hx2, e2⟩ := h2.2 x1 hx1
+  exact ⟨x2, hx2, e2.trans e1⟩
+
+/-- `TmoKeep` from writes outside `ct`'s first 256 bytes and the TCB's
+handler kept. -/
+theorem TmoKeep.of_writes {ct : U64} {s0 s : S} {σ0 σ : Fl4Spec.State Unit} {W : U64 → Prop}
+    (hw : WritesIn st s0 s W) (hW : ∀ b, W b → b.val < ct.val ∨ ct.val + 256 ≤ b.val)
+    (hK : ∀ x0, σ0.kheap ct.bv = some (.tcb x0) → ∃ x, σ.kheap ct.bv = some (.tcb x) ∧
+      x.tcbTimeoutHandler = x0.tcbTimeoutHandler) : TmoKeep st ct s0 σ0 s σ :=
+  ⟨fun b hb e1 e2 => hw.mem_eq hb fun hb' => by rcases hW b hb' with e | e <;> omega, hK⟩
+
+theorem TmoKeep.of_kheap {ct : U64} {s0 s : S} {σ0 σ : Fl4Spec.State Unit} {W : U64 → Prop}
+    (hw : WritesIn st s0 s W) (hW : ∀ b, W b → b.val < ct.val ∨ ct.val + 256 ≤ b.val)
+    (hk : σ.kheap ct.bv = σ0.kheap ct.bv) : TmoKeep st ct s0 σ0 s σ :=
+  TmoKeep.of_writes hw hW fun x0 h => ⟨x0, by rw [hk]; exact h, rfl⟩
+
+/-- **A scheduler footprint word is outside every TCB's first 256 bytes**
+(its slots): TCB words at `SOff` offsets, node words, notification words
+and SC words. -/
+theorem kfoot_tslot {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) {ct : U64} (ht : ct ∈ T) {b : U64} (hb : KFoot st T N C c s σ b) :
+    b.val < ct.val ∨ ct.val + 256 ≤ b.val := by
+  obtain ⟨Q, R, hc, hs⟩ := hS.lists
+  have hca := hc.tcbs ct ht
+  have h12 : (2 : ℕ) ^ 12 = 4096 := by norm_num
+  have ca := hca.align
+  rw [h12] at ca
+  rcases hb with (⟨y, hy, K, hK, rfl⟩ | ⟨h1, h2⟩) | ⟨n, hn, h1, h2⟩ | ⟨sc, hsc, x, n, hk, hobj, -⟩
+  · have hya := hc.tcbs y hy
+    have ya := hya.align
+    rw [h12] at ya
+    obtain ⟨k1, k2, -, -⟩ := hK
+    rw [tfield_val hya k2]
+    by_cases e : y.val = ct.val
+    · omega
+    · omega
+  · have := hc.node.disj ct ht; rw [h12] at this; omega
+  · have := hS.placed.disj n hn ct ht; omega
+  · have := (hS.scOut sc hsc x n hk b hobj).2.2.1 ct ht; omega
+
+/-- A node word is outside every TCB's first 256 bytes. -/
+theorem node_tslot {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) {ct : U64} (ht : ct ∈ T) {o : U64} (ho : o.val < 4288) :
+    (L.nodeAt s c o).val < ct.val ∨ ct.val + 256 ≤ (L.nodeAt s c o).val := by
+  obtain ⟨Q, R, hc, hs⟩ := hS.lists
+  have := hc.node.disj ct ht
+  rw [nodeAt_val hc.node ho]
+  have h12 : (2 : ℕ) ^ 12 = 4096 := by norm_num
+  rw [h12] at this; omega
+
+/-- **A node write keeps `TmoKeep`**, the spec's heap unchanged. -/
+theorem TmoKeep.node_wr {N T C : Set U64} {c : U64} {s : S} {σ σ' : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) {ct : U64} (ht : ct ∈ T) {o : U64} (ho : o.val < 4288) (h8 : o.val % 8 = 0)
+    (v : U64) (hk : σ'.kheap = σ.kheap) : TmoKeep st ct s σ (L.wr s (L.nodeAt s c o) v) σ' := by
+  obtain ⟨Q, R, hc, hs⟩ := hS.lists
+  refine TmoKeep.of_kheap (writesIn_wr (nodeAt_aligned hc.node ho h8)) (fun b e => ?_) (by rw [hk])
+  rw [e]; exact node_tslot hS ht ho
+
+end Tmo
+
 end
 
 end Fl4Proofs.P3.Sched

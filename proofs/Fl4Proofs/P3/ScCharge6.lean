@@ -193,7 +193,8 @@ theorem consumed_refines {N T C : Set U64} {c : U64} (s3 : S) (σ3 : Fl4Spec.Sta
         Fl4Spec.updateSchedContext (Z := Unit) sc.bv (fun y => { y with scConsumed := y.scConsumed + used.bv }) σ3 =
           ({((), σ2)}, False) ∧
         σ2 = updSc σ3 sc.bv { x3 with scConsumed := x3.scConsumed + used.bv } n ∧
-        SchedRel st N T C c s2 σ2 ∧ NtfnStateRel N T (L.mem s2) σ2 ∧ NSC N C σ2 ∧ InvBut σ2 t ⦄ := by
+        SchedRel st N T C c s2 σ2 ∧ NtfnStateRel N T (L.mem s2) σ2 ∧ NSC N C σ2 ∧ InvBut σ2 t ∧
+        WritesIn st s3 s2 (· = scW sc 8#u64) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x', n', hk', hx⟩ := hs.scs sc hsc
   rw [hk] at hk'; cases hk'
@@ -207,7 +208,7 @@ theorem consumed_refines {N T C : Set U64} {c : U64} (s3 : S) (σ3 : Fl4Spec.Sta
   obtain ⟨hS2, hf, hkv⟩ := hS.set_sc_consumed hsc hk (core.num.U64.wrapping_add i used)
   rw [e] at hS2 hkv
   exact ⟨_, updateSchedContext_eq hk _, rfl, hS2, hR.frame hS.placed hf hkv, hN.kview hR hkv,
-    hI.scUpd hk rfl rfl rfl rfl⟩
+    hI.scUpd hk rfl rfl rfl rfl, writesIn_wr (hx.hdr (K := 8#u64) (by simp) (by simp)).1⟩
 
 /-- **`charge_budget` before the consumed-time reset.** -/
 theorem charge_head_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
@@ -237,7 +238,8 @@ theorem charge_head_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
     else ok s) ⦃ s2 => ∃ σ2, chargeHead used.bv σ = ({((), σ2)}, False) ∧
       SchedRel st N T C c s2 σ2 ∧ NtfnStateRel N T (L.mem s2) σ2 ∧ NSC N C σ2 ∧
       InvBut σ2 (nodeW st s c layout.node.CUR_THREAD).bv ∧
-      HeadKeeps σ σ2 (nodeW st s c layout.node.CUR_SC).bv ⦄ := by
+      HeadKeeps σ σ2 (nodeW st s c layout.node.CUR_SC).bv ∧
+      TmoKeep st (nodeW st s c layout.node.CUR_THREAD) s σ s2 σ2 ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   set sc := nodeW st s c layout.node.CUR_SC with hscd
   set ct := nodeW st s c layout.node.CUR_THREAD with hctd
@@ -245,6 +247,11 @@ theorem charge_head_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
   have hct : ct ∈ T := hc.curT
   have hct0 : ct ≠ 0#u64 := fun e => (hc.tcbs ct hct).ne0 (by rw [e]; rfl)
   have hown : x.scTcb = some ct.bv := by rw [hx.tcb, htw, optRef_ne hct0]
+  obtain ⟨xct, hkct, -⟩ := hs.tcb ct hct
+  have hcts : ct.bv ≠ sc.bv := fun e => by rw [e, hk] at hkct; cases hkct
+  have hupd : ∀ (σ0 : Fl4Spec.State Unit) (y : Fl4Spec.SchedContext) (m : Nat),
+      (updSc σ0 sc.bv y m).kheap ct.bv = σ0.kheap ct.bv := fun σ0 y m => by
+    simp [updK, Function.update_of_ne hcts]
   have hspec : chargeHead used.bv σ = Fl4Spec.NonDet.when (sc.bv ≠ Fl4Spec.idleScPtr) (do
       let robin ← Fl4Spec.isRoundRobin (Z := Unit) sc.bv
       if robin
@@ -273,19 +280,27 @@ theorem charge_head_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
           else Fl4Spec.refillBudgetCheck used.bv) σ = ({((), updSc σ sc.bv y' n)}, False) →
         SchedRel st N T C c s3 (updSc σ sc.bv y' n) → NtfnStateRel N T (L.mem s3) (updSc σ sc.bv y' n) →
         NSC N C (updSc σ sc.bv y' n) → InvBut (updSc σ sc.bv y' n) ct.bv →
+        TmoKeep st ct s σ s3 (updSc σ sc.bv y' n) →
         (do
           let i ← obj.Sc.consumed st sc s3
           let total ← lift (core.num.U64.wrapping_add i used)
           obj.Sc.set_consumed st sc s3 total) ⦃ s2 => ∃ σ2, chargeHead used.bv σ = ({((), σ2)}, False) ∧
           SchedRel st N T C c s2 σ2 ∧ NtfnStateRel N T (L.mem s2) σ2 ∧ NSC N C σ2 ∧
-          InvBut σ2 ct.bv ∧ HeadKeeps σ σ2 sc.bv ⦄ := by
-      intro s3 y' hy' h3 hS3 hR3 hN3 hI3
+          InvBut σ2 ct.bv ∧ HeadKeeps σ σ2 sc.bv ∧ TmoKeep st ct s σ s2 σ2 ⦄ := by
+      intro s3 y' hy' h3 hS3 hR3 hN3 hI3 hT3
       have hk3 : (updSc σ sc.bv y' n).kheap sc.bv = some (.schedContext y' n) := by simp [updK]
       refine WP.spec_mono (consumed_refines s3 _ hS3 hR3 hN3 hI3 hscC hk3 used) ?_
-      rintro s2 ⟨σ2, h1, rfl, h2, h3', h4, h5⟩
-      refine ⟨_, by rw [hspec2 _ h3]; exact h1, h2, h3', h4, h5, ?_⟩
-      rw [updSc_updSc]
-      exact HeadKeeps.updSc hk (by rw [hy']) (by rw [hy'])
+      rintro s2 ⟨σ2, h1, rfl, h2, h3', h4, h5, hw5⟩
+      refine ⟨_, by rw [hspec2 _ h3]; exact h1, h2, h3', h4, h5, ?_, ?_⟩
+      · rw [updSc_updSc]
+        exact HeadKeeps.updSc hk (by rw [hy']) (by rw [hy'])
+      · refine hT3.trans (TmoKeep.of_kheap hw5 (fun b e => ?_) (hupd _ _ _))
+        subst e
+        obtain ⟨Q3, R3, -, hs3⟩ := hS3.lists
+        obtain ⟨x3, n3, hk3', hx3⟩ := hs3.scs sc hscC
+        rw [hk3] at hk3'; cases hk3'
+        have := (hS3.scOut sc hscC _ _ hk3 _ (hx3.in_obj (hx3.hdr (K := 8#u64) (by simp) (by simp)).2)).2.2.1 ct hct
+        omega
     step with sporadic.is_round_robin.spec as ⟨rr, hrr'⟩
     subst hrr'
     by_cases h0 : L.rperiod s sc = 0#u64
@@ -301,7 +316,8 @@ theorem charge_head_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
         hI.refillUpd hk rfl (by simp [rrResetL]) (fun _ hp => absurd hper hp)
           (fun _ _ => rrResetL_rr hx.refills (hI.rr _ x n hk (hact hid x n hk) hper)) hown hnr
       refine fin s3 _ rfl ?_ hS3 (by rw [← hl]; rw [← hl] at hkv; exact hR.frame hS.placed hf hkv)
-        (hN.kview hR hkv) hI3
+        (hN.kview hR hkv) hI3 (TmoKeep.of_kheap (RingAt.kfoot hS hscC hring) (fun b hb => kfoot_tslot hS hct hb)
+          (hupd _ _ _))
       rw [if_pos (by simpa using hper)]
       exact refillResetRr_eq hk hx.refills hne |>.trans rfl
     · have e0 : decide (L.rperiod s sc = 0#u64) = false := decide_eq_false h0
@@ -310,13 +326,13 @@ theorem charge_head_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
       simp only [e0, Bool.false_eq_true, ↓reduceIte]
       refine WP.spec_bind (budget_check_refines_inv s a σ hS hI hscC (hact hid) hmrt hmb h0 used
         (fun y m h => by rw [hk] at h; cases h; exact hown) hnr) ?_
-      rintro s3 ⟨σ3, h1, hf, hkv, hS3, hI3, hpost, -⟩
+      rintro s3 ⟨σ3, h1, hf, hkv, hS3, hI3, hpost, hw3⟩
       obtain ⟨y', rfl, hy', -⟩ := hpost x n hk
       exact fin s3 y' hy' (by rw [if_neg (by simpa using hper)]; exact h1) hS3 (hR.frame hS.placed hf hkv)
-        (hN.kview hR hkv) hI3
+        (hN.kview hR hkv) hI3 (TmoKeep.of_kheap hw3 (fun b hb => kfoot_tslot hS hct hb) (hupd _ _ _))
   · have hb' : b = false := by rw [hb]; simpa using hid
     simp only [hb', Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-    refine ⟨σ, ?_, hS, hR, hN, hI.toBut _, HeadKeeps.refl σ _⟩
+    refine ⟨σ, ?_, hS, hR, hN, hI.toBut _, HeadKeeps.refl σ _, TmoKeep.refl _ _ _⟩
     rw [hspec]; unfold Fl4Spec.NonDet.when; rw [if_neg hid]; rfl
 
 /-- **`charge_budget` after the head**: the consumed-time reset, and for a
@@ -331,6 +347,7 @@ theorem charge_tail_refines {N T C : Set U64} {c : U64} (s2 : S) (a : A) (σ2 : 
     (hyt : y2.scTcb = some ct.bv)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hval : ∀ (s' : S) (σ' : Fl4Spec.State Unit), SchedRel st N T C c s' σ' →
+      TmoKeep st ct s2 σ2 s' σ' →
       faults.valid_timeout_handler st s' ct ⦃ b =>
         Fl4Spec.isValidTimeoutHandler (Z := Unit) ct.bv σ' = ({(b, σ')}, False) ⦄)
     (hto : ∀ (s' : S) (σ' : Fl4Spec.State Unit), SchedRel st N T C c s' σ' → NtfnStateRel N T (L.mem s') σ' →
@@ -384,7 +401,7 @@ theorem charge_tail_refines {N T C : Set U64} {c : U64} (s2 : S) (a : A) (σ2 : 
     have hE := end_timeslice_refines (ar := ar) s3 a σ3 hS3 hR3 hN3 (by rw [e1]; exact hI3) (by rw [e2]; exact hscC)
       (by rw [e2]; exact hsc0) (by rw [e1, e2]; exact word24_of hS3 hscC hky hyt)
       (by rw [e1, e2]; exact scA_of hS3 hct hkt hxs) (by rw [e1]; exact hsch) hmb
-      (by rw [e1]; exact hval s3 σ3 hS3) (by rw [e1, e2]; exact hto s3 σ3 hS3 hR3 hN3 hI3) can
+      (by rw [e1]; exact hval s3 σ3 hS3 (TmoKeep.node_wr hS hct (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]) 0#u64 rfl)) (by rw [e1, e2]; exact hto s3 σ3 hS3 hR3 hN3 hI3) can
     refine WP.spec_bind hE ?_
     rintro ⟨s4, a1⟩ ⟨σ4, h4, hS4, hI4, hR4, hN4, hc4, hid4⟩
     refine WP.spec_bind (reschedule_required_refines s4 σ4 hR4 hS4 hI4.actReady) ?_
@@ -443,6 +460,7 @@ theorem charge_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : 
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hval : ∀ (s' : S) (σ' : Fl4Spec.State Unit), SchedRel st N T C c s' σ' →
+      TmoKeep st (nodeW st s c layout.node.CUR_THREAD) s σ s' σ' →
       faults.valid_timeout_handler st s' (nodeW st s c layout.node.CUR_THREAD) ⦃ b =>
         Fl4Spec.isValidTimeoutHandler (Z := Unit) (nodeW st s c layout.node.CUR_THREAD).bv σ' =
           ({(b, σ')}, False) ⦄)
@@ -481,13 +499,13 @@ theorem charge_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : 
     apply decide_eq_decide.2
     exact ⟨fun h e => h (eq_of_bv e), fun h e => h (by rw [e])⟩
   refine WP.spec_bind (charge_head_refines s a σ hS hR hN hI hscC htw hact hnr hmrt hmb used _ hb) ?_
-  rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, hK⟩
+  rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, hK, hTK⟩
   have ⟨hcs, hcc, _, _, _, _, _, hfr, hsck⟩ := hK
   obtain ⟨y2, hky, hyt, -⟩ := hsck x n hk
   have hkt2 : σ2.kheap (nodeW st s c layout.node.CUR_THREAD).bv = some (.tcb xt) := by
     rw [hfr _ (fun e => by rw [e, hk] at hkt; cases hkt)]; exact hkt
   refine WP.spec_mono (charge_tail_refines s2 a σ2 hS2 hR2 hN2 hI2 (by rw [hcs, hs.curSc])
-    (by rw [hcc, hs.curThread]) hscC hsc0 hkt2 hxs (hnb xt hkt) hky (by rw [hyt]; exact hown) hmb hval hto can) ?_
+    (by rw [hcc, hs.curThread]) hscC hsc0 hkt2 hxs (hnb xt hkt) hky (by rw [hyt]; exact hown) hmb (fun s' σ' h1 h2 => hval s' σ' h1 (hTK.trans h2)) hto can) ?_
   rintro r ⟨σ', h1, h3, h4, h5, h6, h7, h8, h9⟩
   refine ⟨σ', by rw [chargeBudget_eq, nd_bind_one h2]; exact h1, h3, h4, h5, h6, ?_, h8, fun hA => ?_⟩
   · rcases h7 with h7 | rfl
