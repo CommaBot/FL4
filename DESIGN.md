@@ -768,8 +768,8 @@ queues a real successor before a failed probe releases its ticket; neither
 may enter while a transaction remains active. The core, store, simulator
 and extracted proofs are unchanged from the preceding candidate, whose
 hashes and proof build were checked. The runtime remains trusted and tested.
-Raw data, rejected trial patches, load traces, the final kernel and full
-patch are retained in L4H's `tests/results/fork-gate-optimization-fl4-2026-11-16*`.
+Benchmark runners and setup are in [L4H PR #163](https://github.com/losfair/l4h/pull/163).
+Measurements and validation summaries are recorded in [FL4 PR #13](https://github.com/losfair/FL4/pull/13).
 
 ## 13. Milestones
 
