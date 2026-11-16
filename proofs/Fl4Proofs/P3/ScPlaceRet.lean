@@ -15,6 +15,7 @@ retype's exposed post `RetExp`, UntypedExp).
 -/
 import Fl4Proofs.P3.ScPlaceDead
 import Fl4Proofs.P3.UntypedExp
+import Fl4Proofs.P1.QueueRetype
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Sched
@@ -153,6 +154,72 @@ theorem JCovD.retype_p1 (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem s)
     have := hE.k1
     omega
   · exact Or.inr hn
+
+end
+
+/-! ## From P1's `RetypeP1Step` -/
+
+section
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
+variable {th th' : TypedHeap} {H : Heap} {G G' : MdbGhost} {D Cs Ac : Set U64} {s s' : S}
+  {A k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap}
+
+/-- P3's dead objects are P1's. -/
+theorem DeadP_iff {q : U64} : DeadP (L := L) H s q ↔ DeadQ st H s q := Iff.rfl
+
+/-- **The objects meeting a region of an untyped cap's free part, or of a
+childless untyped cap, are dead** (uncovered, so in the dead set). -/
+theorem region_dead (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem s) G) (hI : MdbInv (L.mem s) G)
+    {lo hi : Nat} {x0 : U64} (hx0 : x0 ∈ G.chains.flatten) {p0 sb0 fi0 : U64} {d0 : Bool}
+    (hc0 : capV (L.mem s) x0 = .Untyped p0 sb0 fi0 d0)
+    (hreg : (p0.val + fi0.val ≤ lo ∧ hi ≤ p0.val + 2 ^ sb0.val) ∨
+      ((∀ y, ¬ Mdb.Desc G.par y x0) ∧ p0.val ≤ lo ∧ hi ≤ p0.val + 2 ^ sb0.val)) :
+    ∀ q kd, H q = some kd → MeetsR lo hi q.val (q.val + 2 ^ kd.bits) → q ∈ D ∧ DeadP (L := L) H s q := by
+  intro q kd hq hm
+  unfold MeetsR at hm
+  rcases h.h q kd hq with hc | hd
+  · exfalso
+    have hlh : q.val < q.val + 2 ^ kd.bits := by have := Nat.one_le_two_pow (n := kd.bits); omega
+    rcases hreg with ⟨h1, h2⟩ | ⟨hnd, h1, h2⟩
+    · rcases ut_free_fi hU hx0 hc0 hlh hc with e | e <;> omega
+    · rcases ut_free hU hI hx0 hc0 hnd hlh hc with e | e <;> omega
+  · exact ⟨hd, h.dead q hd⟩
+
+/-- **`JCovD` and `BlkOK` across retype from P1's `RetypeP1Step`** (the
+region `[lo, hi)` of an untyped cap's free part or of a childless one,
+holding the window; the new caps non-untyped when the new objects are heap
+objects). -/
+theorem JCovD.retype_step (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem s) G) (hI : MdbInv (L.mem s) G)
+    (hE : RetExp th th' (L.mem s) (L.mem s') G G' A k w dslot cj) (hksb : L.ksb s' = L.ksb s)
+    {lo hi n us : Nat} {x0 : U64} (hx0 : x0 ∈ G.chains.flatten) {p0 sb0 fi0 : U64} {d0 : Bool}
+    (hc0 : capV (L.mem s) x0 = .Untyped p0 sb0 fi0 d0)
+    (hreg : (p0.val + fi0.val ≤ lo ∧ hi ≤ p0.val + 2 ^ sb0.val) ∨
+      ((∀ y, ¬ Mdb.Desc G.par y x0) ∧ p0.val ≤ lo ∧ hi ≤ p0.val + 2 ^ sb0.val))
+    (hlo : lo ≤ A) (hhi : A + w * k ≤ hi) (hbits : ∀ kd, newKind n us = some kd → 2 ^ kd.bits ≤ k)
+    (hcj : (newKind n us).isSome → ∀ j, j < w → isUt (cj j) = false)
+    (hcur : ¬ (lo ≤ (L.curW s).val ∧ (L.curW s).val < hi))
+    (hw : WritesIn st s s' (fun b => CapW (Heap.tcbs H) (Heap.omega H) (Heap.frame H) b ∨ (lo ≤ b.val ∧ b.val < hi) ∨
+      DbgW st (Heap.tcbs H) Cs s b))
+    (hwin : WinInit st s' lo hi A k w n us)
+    (hb : BlkOK st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
+      (Heap.scBits H) Ac s)
+    (hP1 : RetypeP1Step st s s' H Cs Ac lo hi A k w n us) :
+    ∃ (H' : Heap) (Ac' : Set U64),
+      BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H') (Heap.ntfns H')
+        (Heap.scBits H') Ac' s' ∧
+      JCovD (L := L) th' H' G' {q | q ∈ D ∧ ¬ NewQ A k w cj q} Cs s' := by
+  obtain ⟨H', Ac', hb', -, hshape, -, hdead⟩ := hP1 hb hlo hhi hbits
+    (fun q kd hq hm => ((region_dead h hU hI hx0 hc0 hreg) q kd hq hm).2) hcur hw hwin
+  refine ⟨H', Ac', hb', h.retype hE (fun q kd hq => ?_) (fun q _ e hd => hdead q e hd) hksb⟩
+  rcases hshape q kd hq with ⟨ho, hm⟩ | ⟨⟨j, hj, hv⟩, hk⟩
+  · refine Or.inl ⟨ho, fun ⟨j, hj, hv, _⟩ => hm ?_⟩
+    unfold MeetsR
+    have h1 : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right _ hj
+    rw [Nat.add_mul, Nat.one_mul] at h1
+    have := Nat.one_le_two_pow (n := kd.bits)
+    have := hE.k1
+    omega
+  · exact Or.inr ⟨⟨j, hj, hv, hcj (by rw [hk]; rfl) j hj⟩, hbits kd hk⟩
 
 end
 

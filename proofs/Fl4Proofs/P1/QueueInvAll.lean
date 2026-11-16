@@ -422,8 +422,8 @@ theorem syscall.handle_invocation.inv {A : Type _} {ar : machine.Arch A} (hA : P
 
 /-- The P3 placement facts the kernel entry rests on (with `InvGaps`):
 the transfer's (`XferHyps`), the invocation's (`InvHyps`), `tmoOK`,
-`recvOK` and `irqcap` (as in `EntryHyps`), and `dbg`: the thread caps the
-debug syscalls invoke name TCBs. -/
+`recvOK` and `irqcap` (as in `EntryHyps`), `dbg`: the thread caps the
+debug syscalls invoke name TCBs, and `tmoAny`. -/
 structure P3Place (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
   xfer : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U
@@ -440,6 +440,10 @@ structure P3Place (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar :
     obj.Slot.cap st (irqSlotA (L.ksb s) i) s ⦃ c => ∀ ptr b0 b1 b2, c = .Notification ptr b0 b1 b2 → ptr ∈ Nt ⦄
   dbg : ∀ (Ac : Set U64) (s : S), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     syscall.invoked_cap st s (L.curW s) ⦃ c => ∀ x, c = .Thread x → x ∈ T ⦄
+  /-- The timeout-handler cap of any thread is typed (`tmoOK`'s, for a thread
+  other than the current one: the reply's caller's timeout fault). -/
+  tmoAny : ∀ (Ac : Set U64) (s : S) (t : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → t ∈ T →
+    obj.Tcb.slot t layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl => obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄
 
 /-- **`EntryHyps` from the decode gaps and the placement facts.** -/
 theorem EntryHyps.of_gaps {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
