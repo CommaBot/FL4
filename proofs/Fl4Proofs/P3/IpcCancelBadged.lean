@@ -114,7 +114,7 @@ theorem resched_irel (hP0 : IPlaced N T E R B) (s : S) (σ : Fl4Spec.State Unit)
   have hf : Agree (L.mem s) (L.mem s') (IFoot N T E R B) :=
     fun a ha hf => hW.mem_eq ha (fun hs => sfootI_not_ifoot hP0 hS.2.1 hS.2.2 hs hf)
   have hv : IKView σ σ' := IKView.of_kheap hk (by rw [hms])
-  refine ⟨σ', heq, hk, hR.frame hP0 hf hv, hS.1.frameN hW (fun a ha => sfootI_iwords hP0.e.tcb ha) hck hdl hds
+  refine ⟨σ', heq, hk, hR.frame hP0 hf hv, hS.1.frameN hW (fun a ha => sfootI_iwords hP0.e.tcb ha) (fun a ha => sfootI_nobuf hP0.e.tcb ha) hck hdl hds
     (VsKeep.of_kheap hk har hist hino hct), hSch, hS.2.2.mono hW.1 (SzKeep.of_kheap hk)⟩
 
 end Restart
@@ -375,19 +375,19 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type}
 set_option maxHeartbeats 4000000 in
 /-- **`XCancelBadgedHyp`**: the caller's restart then `cancel_badged_sends`
 on `IRel` at every `Z` the entry's `XTopAt` holds at. Named, at `Z`:
-`KsApart`, the placement, the caller in `Z.T`, the endpoint in `Z.E`, the
+`KsApart`, `BufTop`, the placement, the caller in `Z.T`, the endpoint in `Z.E`, the
 switch target ready on `IRel`. -/
 theorem xCancelBadged {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit} {ct : U64}
     (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
     (hrun : tsCode xt.tcbState < 3)
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False)) {p b : U64}
     (hZ : ∀ Z : XSets, XTopAt (L := L) AR Z s ar σ → KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s) ∧
-      IPlaced Z.N Z.T Z.E Z.R Z.B ∧ ct ∈ Z.T ∧ p ∈ Z.E ∧
+      BufTop (L := L) Z.T Z.c s σ ∧ IPlaced Z.N Z.T Z.E Z.R Z.B ∧ ct ∈ Z.T ∧ p ∈ Z.E ∧
       ∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → ActReady σ') :
     XCancelBadgedHyp (L := L) AR s ar σ σ1 ct p b := by
   rintro ⟨Z, hX⟩
-  obtain ⟨hKA, hP0, hct, hp, hAct⟩ := hZ Z hX
-  have hI := hX.irelK hKA
+  obtain ⟨hKA, hBT, hP0, hct, hp, hAct⟩ := hZ Z hX
+  have hI := hX.irelK hKA hBT
   have hP := hP0.e
   -- the leaf on `IRel`, with the arch state returned unchanged
   have leaf : (do

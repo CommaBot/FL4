@@ -537,6 +537,11 @@ theorem do_ipc_transfer_grant (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N
         rcases hb with h | ⟨wp, hw, rfl⟩
         · exact Or.inr (Or.inr (Or.inr h))
         · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inr ⟨wp, hw, le_refl _, by omega⟩)))))
+      (fun b hb => by
+        have hP := hSR.1.1.1.eplaced
+        rcases hb with h | ⟨wp, hw, rfl⟩
+        · exact Or.inr (slotWd_nobuf hB.2.2.2.2.2.1 hB.1 hP.tcb h)
+        · exact Or.inr (NoBufW.out hP.tcb fun t ht => by have := hP.bt wp hw t ht; omega))
       hKC.vsKeep, hSEt⟩, ScRelM.of hIRt⟩
   have hSf := hEH.stable _ _ _ _ (hEH.stable _ _ _ _ hSRS2 hW2 hS2) hW3 hS3
   rw [hfin] at hSf

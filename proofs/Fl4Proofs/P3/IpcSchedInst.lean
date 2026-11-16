@@ -369,16 +369,17 @@ theorem relTopI_schedule_tcb (s : S) (σ : Fl4Spec.State Unit) (hS : SchedRel st
   obtain ⟨hK, hdl, hds⟩ := stsAct_ckeep σ t.bv
   refine WP.spec_mono (schedule_tcb_cases s t) ?_
   rintro s' (rfl | rfl)
-  · exact hT.frameN (W := fun _ => False) (WritesIn.refl _ _) (fun _ h => h.elim) hK hdl hds
+  · exact hT.frameN (W := fun _ => False) (WritesIn.refl _ _) (fun _ h => h.elim) (fun _ h => h.elim) hK hdl hds
       (VsKeep.stsAct σ t.bv)
   · rw [hc.cur]
     have ho : (layout.node.SCHED_ACTION).val < 4288 := by simp [layout.node.SCHED_ACTION]
     have hv := nodeAt_val hc.node ho
     refine hT.frameN (writesIn_wr (nodeAt_aligned hc.node ho (by simp [layout.node.SCHED_ACTION])))
-      (fun a ha => Or.inr ?_) hK hdl hds (VsKeep.stsAct σ t.bv)
-    have hnb : L.nodeBase s c = (L.ksb s).val + 13568 + c.val * 4288 := rfl
-    subst ha
-    unfold NodeW; rw [hv, ← hnb]; omega
+      (fun a ha => Or.inr ?_) (fun a ha => Or.inl ?_) hK hdl hds (VsKeep.stsAct σ t.bv)
+    all_goals
+      have hnb : L.nodeBase s c = (L.ksb s).val + 13568 + c.val * 4288 := rfl
+      subst ha
+      unfold NodeW; rw [hv, ← hnb]; omega
 
 end Sched
 
@@ -423,7 +424,7 @@ theorem ipcSchedHyps_sre (hP : EPlaced T E R B) (hX : IpcSchedRest st ar N T E R
   scheduleTcb s σ t hR _ h ht := by
     refine WP.spec_mono (WP.spec_and (schedule_tcb_refinesE s σ hR h.1 h.2 t ht) (schedule_tcb_cases s t)) ?_
     rintro s' ⟨⟨hF, hS'⟩, hc⟩
-    refine ⟨hF, hS', h.2.mono ?_ (VsKeep.stsAct σ t.bv).2.2.2.2.2⟩
+    refine ⟨hF, hS', h.2.mono ?_ (VsKeep.stsAct σ t.bv).2.2.2.2.2.1⟩
     rcases hc with rfl | rfl
     · rfl
     · exact L.ksb_wr _ _ _
@@ -435,18 +436,18 @@ across `schedule_tcb` too; the rest given for `SRT`. -/
 theorem ipcSchedHyps_top (hP : EPlaced T E R B)
     (hX : IpcSchedRest st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c))) :
     IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)) where
-  stableN s s' σ σ' h hW hK _ := ⟨h.1.stableN hP.tcb hW hK,
+  stableN s s' σ σ' h hW hK _ := ⟨h.1.stableN h.2.1.placed hW hK,
     h.2.1.stable hW hK, h.2.2.mono hW.1 (SzKeep.ntfnStep hK)⟩
   stableE s s' σ σ' h hW hK := ⟨h.1.stableE hW hK, h.2.1.stableE hP h.2.2 hW hK,
     h.2.2.mono hW.1 (SzKeep.epStep hK)⟩
   notQueued := hX.notQueued
-  block s s' σ σ' t h _ _ _ _ hW hK _ := ⟨h.1.stableN hP.tcb hW hK,
+  block s s' σ σ' t h _ _ _ _ hW hK _ := ⟨h.1.stableN h.2.1.placed hW hK,
     h.2.1.stable hW hK, h.2.2.mono hW.1 (SzKeep.ntfnStep hK)⟩
   scheduleTcb s σ t hR _ h ht := by
     refine WP.spec_mono (WP.spec_and (WP.spec_and (schedule_tcb_refinesE s σ hR h.2.1 h.2.2 t ht)
       (schedule_tcb_cases s t)) (relTopI_schedule_tcb s σ h.2.1 h.1 t)) ?_
     rintro s' ⟨⟨⟨hF, hS'⟩, hc⟩, hT'⟩
-    refine ⟨hF, hT', hS', h.2.2.mono ?_ (VsKeep.stsAct σ t.bv).2.2.2.2.2⟩
+    refine ⟨hF, hT', hS', h.2.2.mono ?_ (VsKeep.stsAct σ t.bv).2.2.2.2.2.1⟩
     rcases hc with rfl | rfl
     · rfl
     · exact L.ksb_wr _ _ _

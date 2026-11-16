@@ -293,8 +293,10 @@ theorem fault_clear_top {s : S} {σ : Fl4Spec.State Unit} (hS : SRT st th cr N T
       (updK σ t.bv (.tcb { x with tcbFault := none })) := by
   obtain ⟨Q, R0, hc, -⟩ := hS.2.1.lists
   have hta := hc.tcbs t ht
-  refine ⟨hS.1.frame (writesIn_wr (a_fault hta).1) (fun a ha => Or.inl ⟨t, ht, ?_, ?_⟩) ?_ rfl rfl
-    (VsKeep.updK_tcb hk),
+  refine ⟨hS.1.frame (writesIn_wr (a_fault hta).1) (fun a ha => Or.inl ⟨t, ht, ?_, ?_⟩)
+    (fun a ha => NoBufW.tcb hc.tcbs ht (by rw [ha, val_fault hta]; omega) (by rw [ha, val_fault hta]; omega)
+      (by rw [ha, val_fault hta]; omega)) ?_ rfl rfl
+    (VsKeep.updK_tcb hk rfl),
     fault_clear_sre hS.2 ht hk⟩
   · rw [ha, val_fault hta]; omega
   · rw [ha, val_fault hta]; omega

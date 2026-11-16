@@ -53,19 +53,43 @@ section Lift
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
+/-- An SC step keeps every TCB's `tcb_ipc_buffer`. -/
+theorem _root_.Fl4Proofs.P3.Sched.ScTKw.bufKeep {P : Fl4Spec.ObjRef → Prop} {σ σ' : Fl4Spec.State Unit}
+    (h : ScTKw P σ σ') : BufKeep σ σ' := by
+  intro p x hk
+  obtain ⟨y, hy, ho, -⟩ := h.tcb hk
+  exact ⟨y, hy, by rw [ho]⟩
+
+/-- **An SC-cap step writes node words or no IPC-buffer word** (`SOff`
+excludes `IPC_BUFFER`). -/
+theorem tfoot_nobuf (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ)
+    {b : U64} (h : TFoot st T N C c s σ b) : NodeW (L.ksb s) c b ∨ NoBufW T b := by
+  have hT := hP0.e.tcb
+  rcases h with ((⟨y, hy, K, ⟨k1, k2, -, -, k5, -⟩, rfl⟩ | ⟨g1, g2⟩) | ⟨n, hn, n1, n2⟩ | ⟨sc, hsc, x, n, hk, hobj, -⟩) |
+      ⟨y, hy, rfl⟩
+  · refine Or.inr (NoBufW.off hT hy k2 fun e => k5 ?_)
+    apply UScalar.eq_of_val_eq; simp [e]
+  · have hnb : L.nodeBase s c = (L.ksb s).val + 13568 + c.val * 4288 := rfl
+    exact Or.inl ⟨by omega, by omega⟩
+  · exact Or.inr (NoBufW.out hT fun t ht => by have := hP0.n.disj n hn t ht; omega)
+  · exact Or.inr (scObjW_nobuf hT hS ⟨sc, hsc, x, n, hk, hobj⟩)
+  · have hv := yieldA_val hT hy
+    exact Or.inr (NoBufW.tcb hT hy (by omega) (by omega) (by omega))
+
 /-- **A scheduling step keeps `IRel`** (module docstring). -/
 theorem tk_lift (hP0 : IPlaced N T E R B) {s s' : S} {σ σ' : Fl4Spec.State Unit} {ct : Fl4Spec.ObjRef}
     (hX : IRel st th cr N T C E R B c s σ)
     (hW : WritesIn st s s' (TFoot st T N C c s σ)) (hK : ScTKw (fun p => p = ct) σ σ')
     (hS' : SchedRel st N T C c s' σ') (hN' : NtfnStateRel N T (L.mem s') σ') :
     IRel st th cr N T C E R B c s' σ' := by
-  obtain ⟨⟨Z, hth, hN, hT, hC, hE, hR, hB, hc, hZ⟩, hKA⟩ :=
+  have hBT' := hX.2.1.2.bufTop.step hP0.e.tcb hW (fun b hb => tfoot_nobuf hP0 hX.2.2.1 hb) hK.bufKeep
+  obtain ⟨⟨Z, hth, hN, hT, hC, hE, hR, hB, hc, hZ⟩, hKA, -⟩ :=
     IRel.xtop (A := Unit) (AR := fun _ c' => c' = cr) (a := ()) hX rfl
   subst hth hN hT hC hE hR hB hc
   have hX' := xtop_sc_step (a' := ()) hZ hP0 (fun n hn => by have := hKA.ntfn n hn; omega) hW hK hS' hN' id
   have hks : L.ksb s' = L.ksb s := hW.1
   have hcr : σ'.archState.x64CurrentCr3 = cr := hX'.fin.1.1.2.2.2.2.2.2
-  have := XTopAt.irelK hX' (by rw [hks]; exact hKA)
+  have := XTopAt.irelK hX' (by rw [hks]; exact hKA) hBT'
   rw [hcr] at this
   exact this
 

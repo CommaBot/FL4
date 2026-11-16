@@ -199,8 +199,9 @@ theorem fault_word_top {s : S} {σ : Fl4Spec.State Unit} (hS : SRT st th cr N T 
   obtain ⟨k1, k2, k3⟩ := hK.val
   have hK' : K.val < 4096 := by omega
   have hv := tfield_val hta hK'
-  refine ⟨hS.1.frame (writesIn_wr (field_aligned hta hK' k3)) (fun a ha => Or.inl ⟨t, ht, ?_, ?_⟩) ?_ rfl rfl
-    (VsKeep.updK_tcb hk),
+  refine ⟨hS.1.frame (writesIn_wr (field_aligned hta hK' k3)) (fun a ha => Or.inl ⟨t, ht, ?_, ?_⟩)
+    (fun a ha => by rw [ha]; exact NoBufW.off hc.tcbs ht hK' (by omega)) ?_ rfl rfl
+    (VsKeep.updK_tcb hk rfl),
     fault_word_sre hS.2 ht hk f hK v⟩
   · rw [ha, hv]; omega
   · rw [ha, hv]; omega

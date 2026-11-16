@@ -8,7 +8,7 @@ FL4's `lookup_ipc_buffer` reads the TCB's IPC-buffer word (`t + 3512`,
 
 * `BufWordRel`: the IPC-buffer word is the spec's `tcb_ipc_buffer`, for the
   TCBs of `T`; `BufWordRel.frame`: kept by any step that writes no `t + 3512`
-  and keeps every TCB's `tcb_ipc_buffer`.
+  and keeps every TCB's `tcb_ipc_buffer` (both in IpcTopFrame; `VsP.bw` carries it).
 * `IpcBufCapOK` (l4v `valid_cap`, `valid_ipc_buffer_cap`): a buffer cap with
   read rights is of a non-device frame at a nonzero address, an existing
   data page, and the buffer pointer is aligned to the buffer size.
@@ -34,9 +34,6 @@ noncomputable section
 section Words
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 
-/-- The IPC-buffer word (`tcb::IPC_BUFFER`). -/
-def tIpcBufA (t : U64) : U64 := core.num.U64.wrapping_add t 3512#u64
-
 theorem obj.Tcb.ipc_buffer.spec' (s : S) (t : obj.Tcb) :
     obj.Tcb.ipc_buffer st t s ⦃ v => v = L.mem s (tIpcBufA t) ⦄ := by
   unfold obj.Tcb.ipc_buffer layout.tcb.IPC_BUFFER; step*
@@ -52,21 +49,6 @@ end Words
 
 section Defs
 open Fl4Spec
-
-/-- **The IPC-buffer word relation** (module docstring). -/
-def BufWordRel {Z : Type} (T : Set U64) (m : U64 → U64) (σ : State Z) : Prop :=
-  ∀ t ∈ T, ∃ x, σ.kheap t.bv = some (.tcb x) ∧ (m (tIpcBufA t)).bv = x.tcbIpcBuffer
-
-/-- **`BufWordRel` across a step** that writes no IPC-buffer word and keeps
-every TCB's `tcb_ipc_buffer`. -/
-theorem BufWordRel.frame {Z : Type} {T : Set U64} {m m' : U64 → U64} {σ σ' : State Z} (h : BufWordRel T m σ)
-    (hm : ∀ t ∈ T, m' (tIpcBufA t) = m (tIpcBufA t))
-    (hk : ∀ p x, σ.kheap p = some (.tcb x) → ∃ y, σ'.kheap p = some (.tcb y) ∧ y.tcbIpcBuffer = x.tcbIpcBuffer) :
-    BufWordRel T m' σ' := by
-  intro t ht
-  obtain ⟨x, hx, e⟩ := h t ht
-  obtain ⟨y, hy, ey⟩ := hk _ x hx
-  exact ⟨y, hy, by rw [hm t ht, ey, e]⟩
 
 /-- **The IPC-buffer caps** (module docstring; l4v `valid_cap`,
 `valid_ipc_buffer_cap`). -/
@@ -368,11 +350,10 @@ theorem buf_frame_base (vms : Fl4Spec.VMPageSize) (pb tb : BitVec 64) (k : Nat) 
   obtain ⟨a, ha⟩ := Nat.dvd_of_mod_eq_zero hpb
   rw [ha, Nat.add_assoc, Nat.mul_add_div hpos, Nat.div_eq_of_lt h3, Nat.add_zero, Nat.mul_comm]
 
-/-- **`EpBufMapHyps` for `SRT … SRE`**, from `IpcBufCapOK`, `BufWordRel`
-and `BufCover` (named). -/
+/-- **`EpBufMapHyps` for `SRT … SRE`**, from `IpcBufCapOK` and `BufCover`
+(named); `BufWordRel` is `VsP`'s. -/
 theorem epBufMapHyps_top (hP0 : Ipc.IPlaced N T E R B)
     (hOK : ∀ s σ, Ipc.SRT st th cr N T C E R B c (Ipc.SRE st N T C E R B c) s σ → IpcBufCapOK σ)
-    (hBW : ∀ s σ, Ipc.SRT st th cr N T C E R B c (Ipc.SRE st N T C E R B c) s σ → BufWordRel T (L.mem s) σ)
     (hBC : ∀ s σ, Ipc.SRT st th cr N T C E R B c (Ipc.SRE st N T C E R B c) s σ → BufCover T B σ) :
     EpBufMapHyps st T E R B (Ipc.SRT st th cr N T C E R B c (Ipc.SRE st N T C E R B c)) := by
   -- the spec's buffer, unfolded
@@ -399,7 +380,7 @@ theorem epBufMapHyps_top (hP0 : Ipc.IPlaced N T E R B)
   · obtain ⟨⟨G, hB⟩, -⟩ := hS.1
     refine WP.spec_mono (lookup_buf_full s σ hB.2.1.1 hB.2.1.2.1 (Ipc.RelTopB.tcbT hB hk) hk (hOK s σ hS) b) ?_
     rintro w ⟨h0, hw⟩
-    obtain ⟨x', hk', hwx⟩ := hBW s σ hS t ht
+    obtain ⟨x', hk', hwx⟩ := hS.1.2.bw t ht
     rw [hk] at hk'; cases hk'
     have hwp := hw hwx p hp
     exact ⟨fun e => (by have h := h0.1 e; rw [hp] at h; cases h), hBC s σ hS t ht x b p hk hp w hwp⟩

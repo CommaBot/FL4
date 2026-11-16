@@ -58,13 +58,16 @@ theorem KeepCV.trans {σ1 σ2 σ3 : State Unit} (h1 : KeepCV σ1 σ2) (h2 : Keep
     h2.2.2.2.2.trans h1.2.2.2.2⟩
 
 theorem KeepCV.vsKeep {σ σ' : State Unit} (h : KeepCV σ σ') : VsKeep σ σ' := by
-  refine ⟨h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2, fun q ao hq => ?_, fun p x n hp => ?_⟩
+  refine ⟨h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2, fun q ao hq => ?_, fun p x n hp => ?_, fun p x hp => ?_⟩
   · rcases h.1 q with e | ⟨r, cs, cs', h1, -⟩
     · exact e
     · rw [hq] at h1; cases h1
   · rcases h.1 p with e | ⟨r, cs, cs', -, h2⟩
     · exact ⟨x, e ▸ hp⟩
     · rw [hp] at h2; cases h2
+  · rcases h.1 p with e | ⟨r, cs, cs', h1, -⟩
+    · exact ⟨x, by rw [e]; exact hp, rfl⟩
+    · rw [hp] at h1; cases h1
 
 theorem CnK.keepCV {σ σ' : State Unit} (hK : CnK σ σ') (hC : KeepC σ σ') : KeepCV σ σ' :=
   ⟨hC, by have e := congrArg AbstractState.archState hK.1; exact e,

@@ -97,7 +97,8 @@ theorem ScOnlyK.szKeep {σ σ' : State Unit} (h : ScOnlyK σ σ') : SzKeep σ σ
 
 theorem ScOnlyK.vsKeep {σ σ' : State Unit} (h : ScOnlyK σ σ') : VsKeep σ σ' := by
   exact ⟨h.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.2,
-    fun q ao hq => by rw [h.fwd hq (by intros; nofun), hq], h.szKeep⟩
+    fun q ao hq => by rw [h.fwd hq (by intros; nofun), hq], h.szKeep,
+    fun q x hq => ⟨x, by rw [h.fwd hq (by intros; nofun)], rfl⟩⟩
 
 /-- Every outcome changes only SC objects. -/
 def NKS {α : Type} (m : NonDet (State Unit) α) : Prop := ∀ σ x, x ∈ (m σ).1 → ScOnlyK σ x.2
@@ -243,6 +244,21 @@ def ScW (st : machine.Store S) [L : LawfulStore st] (C : Set U64) (c : U64) (s :
 def ScObjW (C : Set U64) (σ : Fl4Spec.State Unit) (a : U64) : Prop :=
   ∃ sc ∈ C, ∃ x n, σ.kheap sc.bv = some (.schedContext x n) ∧ Sched.ScObj sc n a
 
+/-- **No SC word is an IPC-buffer word.** -/
+theorem scObjW_nobuf (hT : TcbPlaced T) {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ)
+    {a : U64} (h : ScObjW C σ a) : NoBufW T a :=
+  let ⟨sc, hsc, x, n, hk, hobj⟩ := h
+  NoBufW.out hT (hS.scOut sc hsc x n hk a hobj).2.2.1
+
+/-- An SC-step word is a node word or no IPC-buffer word. -/
+theorem scW_nobuf (hT : TcbPlaced T) {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ)
+    {a : U64} (h : ScW st C c s σ a ∨ SFootI st T c s a) : NodeW (L.ksb s) c a ∨ NoBufW T a := by
+  rcases h with (⟨sc, hsc, x, n, hk, hobj, -⟩ | ⟨g1, g2⟩) | hI
+  · exact Or.inr (scObjW_nobuf hT hS ⟨sc, hsc, x, n, hk, hobj⟩)
+  · have hnb : L.nodeBase s c = (L.ksb s).val + 13568 + c.val * 4288 := rfl
+    exact Or.inl ⟨by omega, by omega⟩
+  · exact sfootI_nobuf hT hI
+
 /-- **No SC or node word is read by the merged IPC relation.** -/
 theorem scw_not_ifoot (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) (hA : EpSchedApart st T C E R B c s σ) {b : U64} (h1 : ScW st C c s σ b)
@@ -332,7 +348,8 @@ theorem sc_step_lift (hP0 : IPlaced N T E R B) {s s' : S} {σ σ' : Fl4Spec.Stat
   refine ⟨hR.frame hP0 (fun a ha hf => hW.mem_eq ha (fun hw => hw.elim (fun hw => scw_not_ifoot hP0 hS hA hw hf)
       (fun hw => sfootI_not_ifoot hP0 hS hA hw hf))) hK.ikview,
     ⟨⟨G, hB'⟩, hV.frame hB.2.2.2.2.2.1 hB.1 hW (fun b hb => (hWI1 b hb).elim Or.inl
-      (fun h => h.elim (fun h => Or.inr (Or.inl h)) (fun h => Or.inr (Or.inr (Or.inl h))))) hK.vsKeep
+      (fun h => h.elim (fun h => Or.inr (Or.inl h)) (fun h => Or.inr (Or.inr (Or.inl h)))))
+      (fun b hb => scW_nobuf hP0.e.tcb hS hb) hK.vsKeep
       hB'.2.1.2.2.1 hB'.2.2.2.2.1.2.2⟩, hS', hA.mono hW.1 hK.szKeep⟩
 
 end Lift

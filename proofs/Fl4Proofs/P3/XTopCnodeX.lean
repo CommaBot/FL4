@@ -32,7 +32,7 @@ theorem decode_invocation_cnode_cancelXI {AR : A → Fl4Spec.Cr3 → Prop} {Z : 
     (hcur : σ.curThread = ct.bv) (hEp : CancelEpHyp (L := L) Z.th s σ)
     (hrun : ∀ xt, σ.kheap ct.bv = some (.tcb xt) → tsCode xt.tcbState < 3)
     (hZ : ∀ Z' : XSets, XTopAt (L := L) AR Z' s ar σ → KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s) ∧
-      IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧ ct ∈ Z'.T ∧
+      Ipc.BufTop (L := L) Z'.T Z'.c s σ ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧ ct ∈ Z'.T ∧
       ∀ s' σ', IRel st Z'.th σ.archState.x64CurrentCr3 Z'.N Z'.T Z'.C Z'.E Z'.R Z'.B Z'.c s' σ' → ActReady σ')
     (hE : ∀ (Z' : XSets) (e b : U64) (sl : Fl4Spec.CslotPtr), XTopAt (L := L) AR Z' s ar σ → AbsSlot Z.th sl →
       capV (L.mem s) (cslotAddr sl) = .Endpoint e b true true true true → e ∈ Z'.E)
@@ -44,8 +44,8 @@ theorem decode_invocation_cnode_cancelXI {AR : A → Fl4Spec.Cr3 → Prop} {Z : 
   refine decode_invocation_cnode_cancelX arI s ar σ hX hC slbl hlbl length buf ct hct args hlen hargs p r gs g hwf
     hcv extra excaps hact hcur hEp (fun σ1 e b sl' hsl hcV hst _ => ?_) slot blk call don fp ci sl buffer
   exact xCancelBadged hcur hkt (hrun xt hkt) hst fun Z' hX' =>
-    let ⟨h1, h2, h3, h4⟩ := hZ Z' hX'
-    ⟨h1, h2, h3, hE Z' e b sl' hX' hsl hcV, h4⟩
+    let ⟨h1, h0, h2, h3, h4⟩ := hZ Z' hX'
+    ⟨h1, h0, h2, h3, hE Z' e b sl' hX' hsl hcV, h4⟩
 
 end
 

@@ -334,6 +334,15 @@ theorem sfootI_iwords (hT : TcbPlaced T) {s : S} {b : U64} (h : SFootI st T c s 
   · have hnb : L.nodeBase s c = (L.ksb s).val + 13568 + c.val * 4288 := rfl
     exact Or.inr ⟨by omega, by omega⟩
 
+/-- The wake tail writes no IPC-buffer word outside the node. -/
+theorem sfootI_nobuf (hT : TcbPlaced T) {s : S} {b : U64} (h : SFootI st T c s b) :
+    NodeW (L.ksb s) c b ∨ NoBufW T b := by
+  rcases h with ⟨y, hy, hb⟩ | ⟨g1, g2⟩
+  · refine Or.inr ?_
+    rcases hb with rfl | rfl | rfl <;> exact NoBufW.off hT hy (by decide) (by decide)
+  · have hnb : L.nodeBase s c = (L.ksb s).val + 13568 + c.val * 4288 := rfl
+    exact Or.inl ⟨by omega, by omega⟩
+
 end Foot
 
 /-! ## `possible_switch_to` and the wake tail -/
@@ -357,7 +366,7 @@ theorem switch_top (hP0 : IPlaced N T E R B) (s : S) (σ : Fl4Spec.State Unit)
   obtain ⟨hms, hdl, hds, har, hist, hino, hct⟩ := nkm_possibleSwitchTo t.bv σ _ hmem
   have hck : CKeep σ σ' := nkc_possibleSwitchTo t.bv σ _ hmem
   refine ⟨σ', heq, hk, fun a ha hf => hW.mem_eq ha (fun hs => sfootI_not_ifoot hP0 hS.2.1 hS.2.2 hs hf),
-    IKView.of_kheap hk (by rw [hms]), hS.1.frameN hW (fun a ha => sfootI_iwords hP0.e.tcb ha) hck hdl hds (VsKeep.of_kheap hk har hist hino hct),
+    IKView.of_kheap hk (by rw [hms]), hS.1.frameN hW (fun a ha => sfootI_iwords hP0.e.tcb ha) (fun a ha => sfootI_nobuf hP0.e.tcb ha) hck hdl hds (VsKeep.of_kheap hk har hist hino hct),
     hSch, hS.2.2.mono hW.1 (SzKeep.of_kheap hk)⟩
 
 /-- **The SchedContext steps of the wake-up** (SchedNtfn's `WakeHyps`) on

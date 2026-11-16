@@ -37,6 +37,81 @@ import Fl4Proofs.P3.IpcNtfnBlock
 import Fl4Proofs.P3.IpcNtfnSend
 open Aeneas Aeneas.Std Result
 
+namespace Fl4Proofs.P3.Endp
+open fl4_core Fl4Proofs.P1 Fl4Proofs.P3.Notif
+
+/-! ## The IPC-buffer word -/
+
+/-- The IPC-buffer word (`tcb::IPC_BUFFER`). -/
+def tIpcBufA (t : U64) : U64 := core.num.U64.wrapping_add t 3512#u64
+
+/-- **The IPC-buffer word relation** (IpcBuf's docstring): for the TCBs of
+`T`, FL4's IPC-buffer word is the spec's `tcb_ipc_buffer`. -/
+def BufWordRel {Z : Type} (T : Set U64) (m : U64 → U64) (σ : Fl4Spec.State Z) : Prop :=
+  ∀ t ∈ T, ∃ x, σ.kheap t.bv = some (.tcb x) ∧ (m (tIpcBufA t)).bv = x.tcbIpcBuffer
+
+/-- **`BufWordRel` across a step** that writes no IPC-buffer word and keeps
+every TCB's `tcb_ipc_buffer`. -/
+theorem BufWordRel.frame {Z : Type} {T : Set U64} {m m' : U64 → U64} {σ σ' : Fl4Spec.State Z}
+    (h : BufWordRel T m σ) (hm : ∀ t ∈ T, m' (tIpcBufA t) = m (tIpcBufA t))
+    (hk : ∀ p x, σ.kheap p = some (.tcb x) → ∃ y, σ'.kheap p = some (.tcb y) ∧ y.tcbIpcBuffer = x.tcbIpcBuffer) :
+    BufWordRel T m' σ' := by
+  intro t ht
+  obtain ⟨x, hx, e⟩ := h t ht
+  obtain ⟨y, hy, ey⟩ := hk _ x hx
+  exact ⟨y, hy, by rw [hm t ht, ey, e]⟩
+
+/-- A word that is no IPC-buffer word of a TCB of `T`. -/
+def NoBufW (T : Set U64) (b : U64) : Prop := ∀ t ∈ T, b ≠ tIpcBufA t
+
+theorem tIpcBufA_val {t : U64} (ht : TcbAddr t) : (tIpcBufA t).val = t.val + 3512 :=
+  tfield_val ht (K := 3512#u64) (by simp)
+
+theorem tIpcBufA_aligned {t : U64} (ht : TcbAddr t) : Aligned (tIpcBufA t) := by
+  have := ht.align; have h12 : (2 : ℕ) ^ 12 = 4096 := by norm_num
+  unfold Aligned; rw [tIpcBufA_val ht]; omega
+
+theorem NoBufW.of_val {T : Set U64} (hT : TcbPlaced T) {b : U64}
+    (h : ∀ t ∈ T, b.val ≠ t.val + 3512) : NoBufW T b := by
+  rintro t ht rfl; exact h t ht (tIpcBufA_val (hT t ht))
+
+/-- A word outside every TCB. -/
+theorem NoBufW.out {T : Set U64} (hT : TcbPlaced T) {b : U64}
+    (h : ∀ t ∈ T, b.val < t.val ∨ t.val + 4096 ≤ b.val) : NoBufW T b :=
+  NoBufW.of_val hT fun t ht => by have := h t ht; omega
+
+/-- A word of a TCB of `T` other than its IPC-buffer word. -/
+theorem NoBufW.tcb {T : Set U64} (hT : TcbPlaced T) {y b : U64} (hy : y ∈ T)
+    (h1 : y.val ≤ b.val) (h2 : b.val < y.val + 4096) (hne : b.val ≠ y.val + 3512) : NoBufW T b := by
+  refine NoBufW.of_val hT fun t ht => ?_
+  by_cases e : t = y
+  · subst e; exact hne
+  · have a1 := (hT t ht).align
+    have a2 := (hT y hy).align
+    have := val_ne_of_ne e
+    have h12 : (2 : ℕ) ^ 12 = 4096 := by norm_num
+    rw [h12] at a1 a2
+    omega
+
+/-- A TCB word at an offset other than `IPC_BUFFER`. -/
+theorem NoBufW.off {T : Set U64} (hT : TcbPlaced T) {y K : U64} (hy : y ∈ T)
+    (hK : K.val < 4096) (hne : K.val ≠ 3512) : NoBufW T (core.num.U64.wrapping_add y K) := by
+  have hv := tfield_val (hT y hy) hK
+  exact NoBufW.tcb hT hy (by omega) (by omega) (by omega)
+
+/-- The endpoint code writes no IPC-buffer word. -/
+theorem EWrite.nobuf {T E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} (hP : EPlaced T E R B) {a : U64}
+    (h : EWrite T E R B a) : NoBufW T a := by
+  rcases h with ⟨e, he, h⟩ | ⟨r, hr, h⟩ | ⟨t, ht, h | h⟩ | ⟨wp, hw, rfl⟩
+  · exact NoBufW.out hP.tcb fun t ht => by have := hP.et e he t ht; omega
+  · exact NoBufW.out hP.tcb fun t ht => by have := hP.rt r hr t ht; omega
+  · obtain ⟨h1, h2⟩ := h; unfold TWOffN at h2
+    exact NoBufW.tcb hP.tcb ht h1 (by omega) (by omega)
+  · unfold TL at h; exact NoBufW.tcb hP.tcb ht (by omega) (by omega) (by omega)
+  · exact NoBufW.out hP.tcb fun t ht => by have := hP.bt wp hw t ht; omega
+
+end Fl4Proofs.P3.Endp
+
 namespace Fl4Proofs.P3.Ipc
 open fl4_core Fl4Proofs.P1 Fl4Proofs.P3 Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp
 
@@ -69,6 +144,20 @@ theorem NWrite.iwords (hT : TcbPlaced T) {a : U64} (h : NWrite N T a) : IWords N
       regA_val hta (regIdx_lt _)] at hv
     have := regIdx_lt Fl4Spec.badge_register
     exact Or.inl ⟨t, ht, by omega, by omega⟩
+
+/-- The notification code writes no IPC-buffer word. -/
+theorem NWrite.nobuf (hP : NPlaced T N) {a : U64} (h : NWrite N T a) : NoBufW T a := by
+  have hT := hP.tcb
+  rcases h with ⟨n, hn, h1, h2⟩ | ⟨t, ht, h⟩
+  · exact NoBufW.out hT fun t ht => by have := hP.disj n hn t ht; omega
+  · have hta := hT t ht
+    have hv : a.val = (tStA t).val ∨ a.val = (tBlockA t).val ∨ a.val = (badgeRegA t).val ∨
+        a.val = (nextA .Ep t).val ∨ a.val = (prevA .Ep t).val := by
+      rcases h with h | h | h | h | h <;> simp [h]
+    rw [val_st hta, val_blk hta, val_next hta, val_prev hta, badgeRegA_eq_regA,
+      regA_val hta (regIdx_lt _)] at hv
+    have := regIdx_lt Fl4Spec.badge_register
+    exact NoBufW.tcb hT ht (by omega) (by omega) (by omega)
 
 /-- The endpoint code writes IPC words. -/
 theorem EWrite.iwords {a : U64} (h : EWrite T E R B a) : IWords N T E R B a := by
@@ -174,23 +263,61 @@ structure VsP (th : TypedHeap) (cr : Fl4Spec.Cr3) (N T C E R : Set U64) (B : Set
     a.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ a.val
   /-- The spec's CR3 (for the arch relation, outside the IPC code). -/
   cr3 : σ.archState.x64CurrentCr3 = cr
+  /-- The IPC-buffer words (`BufWordRel`). -/
+  bw : BufWordRel T (L.mem s) σ
+  /-- No IPC-buffer word is in core `c`'s node ([P], placement: the nodes are
+  kernel static data, the TCBs in untyped memory). -/
+  bn : ∀ t ∈ T, ¬ NodeW (L.ksb s) c (tIpcBufA t)
+
+/-- **The IPC-buffer facts `VsP` carries** (a per-`Z` premise of the IPC
+leaves, as `KsApart`): `BufWordRel`, and no IPC-buffer word in core `c`'s
+node ([P], placement: the nodes are kernel static data). -/
+def BufTop (T : Set U64) (c : U64) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
+  BufWordRel T (L.mem s) σ ∧ ∀ t ∈ T, ¬ NodeW (L.ksb s) c (tIpcBufA t)
+
+theorem VsP.bufTop {s : S} {σ : Fl4Spec.State Unit} (h : VsP (L := L) th cr N T C E R B c s σ) :
+    BufTop (L := L) T c s σ := ⟨h.bw, h.bn⟩
+
+/-- Every TCB stays a TCB with its `tcb_ipc_buffer`. -/
+def BufKeep (σ σ' : Fl4Spec.State Unit) : Prop :=
+  ∀ p x, σ.kheap p = some (.tcb x) → ∃ y, σ'.kheap p = some (.tcb y) ∧ y.tcbIpcBuffer = x.tcbIpcBuffer
+
+/-- **`BufTop` across a step**: FL4 writing node words or no IPC-buffer word,
+the spec keeping every TCB's `tcb_ipc_buffer`. -/
+theorem BufTop.step {s s' : S} {σ σ' : Fl4Spec.State Unit} {W : U64 → Prop} (h : BufTop (L := L) T c s σ)
+    (hT : TcbPlaced T) (hW : WritesIn st s s' W) (hWB : ∀ b, W b → NodeW (L.ksb s) c b ∨ NoBufW T b)
+    (hK : BufKeep σ σ') : BufTop (L := L) T c s' σ' := by
+  obtain ⟨hksb, -, hmem⟩ := hW
+  refine ⟨h.1.frame (fun t ht => hmem _ (tIpcBufA_aligned (hT t ht)) fun hw => ?_) hK, by rw [hksb]; exact h.2⟩
+  rcases hWB _ hw with hn | hn
+  · exact h.2 t ht hn
+  · exact hn t ht rfl
 
 /-- **The spec step of IPC code** for `VsP`: the arch state, the IRQ state
 and node, the current thread, the arch objects and the SC sizes kept. -/
 def VsKeep (σ σ' : Fl4Spec.State Unit) : Prop :=
   σ'.archState = σ.archState ∧ σ'.interruptStates = σ.interruptStates ∧
     σ'.interruptIrqNode = σ.interruptIrqNode ∧ σ'.curThread = σ.curThread ∧
-    (∀ q ao, σ.kheap q = some (.archObj ao) → σ'.kheap q = σ.kheap q) ∧ Sched.SzKeep σ σ'
+    (∀ q ao, σ.kheap q = some (.archObj ao) → σ'.kheap q = σ.kheap q) ∧ Sched.SzKeep σ σ' ∧
+    BufKeep σ σ'
+
+theorem BufKeep.refl (σ : Fl4Spec.State Unit) : BufKeep σ σ := fun _ x h => ⟨x, h, rfl⟩
+
+theorem BufKeep.trans {σ1 σ2 σ3 : Fl4Spec.State Unit} (h1 : BufKeep σ1 σ2) (h2 : BufKeep σ2 σ3) : BufKeep σ1 σ3 :=
+  fun p x hp => let ⟨y, hy, e1⟩ := h1 p x hp; let ⟨z, hz, e2⟩ := h2 p y hy; ⟨z, hz, e2.trans e1⟩
+
+theorem BufKeep.of_kheap {σ σ' : Fl4Spec.State Unit} (hk : σ'.kheap = σ.kheap) : BufKeep σ σ' :=
+  fun _ x h => ⟨x, by rw [hk]; exact h, rfl⟩
 
 theorem VsKeep.refl (σ : Fl4Spec.State Unit) : VsKeep σ σ :=
-  ⟨rfl, rfl, rfl, rfl, fun _ _ _ => rfl, Sched.SzKeep.of_kheap rfl⟩
+  ⟨rfl, rfl, rfl, rfl, fun _ _ _ => rfl, Sched.SzKeep.of_kheap rfl, BufKeep.refl σ⟩
 
 theorem VsKeep.trans {σ1 σ2 σ3 : Fl4Spec.State Unit} (h1 : VsKeep σ1 σ2) (h2 : VsKeep σ2 σ3) : VsKeep σ1 σ3 :=
   ⟨h2.1.trans h1.1, h2.2.1.trans h1.2.1, h2.2.2.1.trans h1.2.2.1, h2.2.2.2.1.trans h1.2.2.2.1,
     fun q ao hq => (h2.2.2.2.2.1 q ao (by rw [h1.2.2.2.2.1 q ao hq]; exact hq)).trans (h1.2.2.2.2.1 q ao hq),
     fun p x n hp => by
-      obtain ⟨x2, h⟩ := h2.2.2.2.2.2 p x n hp
-      exact h1.2.2.2.2.2 p x2 n h⟩
+      obtain ⟨x2, h⟩ := h2.2.2.2.2.2.1 p x n hp
+      exact h1.2.2.2.2.2.1 p x2 n h, h1.2.2.2.2.2.2.trans h2.2.2.2.2.2.2⟩
 
 /-- **The words IPC code writes**: IPC words, core `c`'s node, SC words, slot
 words. -/
@@ -204,6 +331,14 @@ theorem slotWd_range' {th : TypedHeap} (hP : Placed th) {b : U64} (h : Sched.Slo
   obtain ⟨y, hy, k, hk, rfl⟩ := h
   have := hy.fit hP; have := hk.lt
   exact ⟨y, hy, by rw [wordOf_val (by omega)]; omega, by rw [wordOf_val (by omega)]; omega⟩
+
+/-- A slot word is no IPC-buffer word (`IpcApart.slot`). -/
+theorem slotWd_nobuf {th : TypedHeap} {kb : U64} (hIA : IpcApart th N T E R B kb c) (hPl : Placed th)
+    (hT : TcbPlaced T) {b : U64} (h : Sched.SlotWd th b) : NoBufW T b := by
+  obtain ⟨y, hy, g1, g2⟩ := slotWd_range' hPl h
+  rintro t ht rfl
+  have hv := tIpcBufA_val (hT t ht)
+  exact hIA.slot _ (Or.inl ⟨t, ht, by omega, by omega⟩) y hy ⟨g1, g2⟩
 
 /-- An IPC write word is either one the other relations read (`OObj`) or a
 slot word, never in the kernel-global block. -/
@@ -235,11 +370,12 @@ and slot words (`IpcVW`), the spec keeps what `VsKeep` says, and the MDB
 gives the current thread's root after (`MdbLinks`, `VsMdbInv`). -/
 theorem VsP.frame {th : TypedHeap} {s s' : S} {σ σ' : Fl4Spec.State Unit} {W : U64 → Prop} {G' : MdbGhost}
     (h : VsP (L := L) th cr N T C E R B c s σ) (hIA : IpcApart th N T E R B (L.ksb s) c) (hPl : Placed th)
-    (hW : WritesIn st s s' W) (hWI : ∀ b, W b → IpcVW (L := L) th N T C E R B c s σ b) (hK : VsKeep σ σ')
+    (hW : WritesIn st s s' W) (hWI : ∀ b, W b → IpcVW (L := L) th N T C E R B c s σ b)
+    (hWB : ∀ b, W b → NodeW (L.ksb s) c b ∨ NoBufW T b) (hK : VsKeep σ σ')
     (hM' : MdbLinks th (L.mem s') G') (hV' : Vs.VsMdbInv (L.ksb s') (L.mem s') G') :
     VsP (L := L) th cr N T C E R B c s' σ' := by
   obtain ⟨hksb, -, hmem⟩ := hW
-  obtain ⟨har, hist, hinode, hcur, harch, hsz⟩ := hK
+  obtain ⟨har, hist, hinode, hcur, harch, hsz, hbk⟩ := hK
   obtain ⟨P, L4, L3, L2, L1, hR, hPt, hPI, hCO, hP⟩ := h.ex
   have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
   have hka := hP.vs.ksb_al
@@ -276,7 +412,8 @@ theorem VsP.frame {th : TypedHeap} {s s' : S} {σ σ' : Fl4Spec.State Unit} {W :
       | exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr h))))))
       | (obtain ⟨x0, h0⟩ := hsz' sc x n hk
          exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨sc, hsc, x0, n, h0, hob⟩)))))))
-  refine ⟨⟨P, L4, L3, L2, L1, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, by rw [har]; exact h.cr3⟩
+  refine ⟨⟨P, L4, L3, L2, L1, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, by rw [har]; exact h.cr3,
+    ?_, by rw [hksb]; exact h.bn⟩
   · rw [hksb]
     refine hR.frame hvw (by rw [har]) fun p hp => ?_
     obtain ⟨f, hf, -⟩ := hR.pool p hp
@@ -317,6 +454,10 @@ theorem VsP.frame {th : TypedHeap} {s s' : S} {σ σ' : Fl4Spec.State Unit} {W :
   · intro sc hsc x n hk a ha
     obtain ⟨x0, h0⟩ := hsz' sc x n hk
     rw [hksb]; exact h.ksC sc hsc x0 n h0 a ha
+  · refine h.bw.frame (fun t ht => hmem _ (tIpcBufA_aligned (hP.ep.tcb t ht)) fun hw => ?_) hbk
+    rcases hWB _ hw with hn | hn
+    · exact h.bn t ht hn
+    · exact hn t ht rfl
 
 /-- **`RelTopM` for the IPC proofs** at the typed heap `th`: with its typed
 heap apart from the IPC words and the SC objects apart from the slots, and the
@@ -370,29 +511,32 @@ theorem RelTopB.frameN {th : TypedHeap} {G : MdbGhost} {s s' : S} {σ σ' : Fl4S
 theorem RelTopI.frameN {s s' : S} {σ σ' : Fl4Spec.State Unit} {W : U64 → Prop}
     (h : RelTopI (L := L) th cr N T C E R B c s σ) (hW : WritesIn st s s' W)
     (hWI : ∀ a, W a → IWords N T E R B a ∨ NodeW (L.ksb s) c a)
+    (hWB : ∀ b, W b → NodeW (L.ksb s) c b ∨ NoBufW T b)
     (hK : CKeep σ σ') (hdl : σ'.domainList = σ.domainList) (hds : σ'.domainStartIndex = σ.domainStartIndex)
     (hKV : VsKeep σ σ') :
     RelTopI (L := L) th cr N T C E R B c s' σ' :=
   let ⟨⟨G, hB⟩, hV⟩ := h
-  have hB' := hB.frameN hW hWI hK hdl hds hKV.2.2.2.2.2
-  ⟨⟨G, hB'⟩, hV.frame hB.2.2.2.2.2.1 hB.1 hW (fun b hb => (hWI b hb).elim Or.inl (fun h => Or.inr (Or.inl h))) hKV
-    hB'.2.1.2.2.1 hB'.2.2.2.2.1.2.2⟩
+  have hB' := hB.frameN hW hWI hK hdl hds hKV.2.2.2.2.2.1
+  ⟨⟨G, hB'⟩, hV.frame hB.2.2.2.2.2.1 hB.1 hW (fun b hb => (hWI b hb).elim Or.inl (fun h => Or.inr (Or.inl h))) hWB
+    hKV hB'.2.1.2.2.1 hB'.2.2.2.2.1.2.2⟩
 
 /-- **`RelTopI` from the post's `RelTopB`** over IPC writes and a `VsKeep` step. -/
 theorem RelTopI.of_B {s s' : S} {σ σ' : Fl4Spec.State Unit} {W : U64 → Prop} {G' : MdbGhost}
     (h : RelTopI (L := L) th cr N T C E R B c s σ) (hB' : RelTopB (L := L) th G' N T C E R B c s' σ')
-    (hW : WritesIn st s s' W) (hWI : ∀ b, W b → IpcVW (L := L) th N T C E R B c s σ b) (hKV : VsKeep σ σ') :
+    (hW : WritesIn st s s' W) (hWI : ∀ b, W b → IpcVW (L := L) th N T C E R B c s σ b)
+    (hWB : ∀ b, W b → NodeW (L.ksb s) c b ∨ NoBufW T b) (hKV : VsKeep σ σ') :
     RelTopI (L := L) th cr N T C E R B c s' σ' :=
   let ⟨⟨_, hB⟩, hV⟩ := h
-  ⟨⟨G', hB'⟩, hV.frame hB.2.2.2.2.2.1 hB.1 hW hWI hKV hB'.2.1.2.2.1 hB'.2.2.2.2.1.2.2⟩
+  ⟨⟨G', hB'⟩, hV.frame hB.2.2.2.2.2.1 hB.1 hW hWI hWB hKV hB'.2.1.2.2.1 hB'.2.2.2.2.1.2.2⟩
 
 /-- **The frame** for FL4 writing only IPC words. -/
 theorem RelTopI.frame {s s' : S} {σ σ' : Fl4Spec.State Unit} {W : U64 → Prop}
     (h : RelTopI (L := L) th cr N T C E R B c s σ) (hW : WritesIn st s s' W) (hWI : ∀ a, W a → IWords N T E R B a)
+    (hWB : ∀ b, W b → NoBufW T b)
     (hK : CKeep σ σ') (hdl : σ'.domainList = σ.domainList) (hds : σ'.domainStartIndex = σ.domainStartIndex)
     (hKV : VsKeep σ σ') :
     RelTopI (L := L) th cr N T C E R B c s' σ' :=
-  h.frameN hW (fun a ha => Or.inl (hWI a ha)) hK hdl hds hKV
+  h.frameN hW (fun a ha => Or.inl (hWI a ha)) (fun b hb => Or.inr (hWB b hb)) hK hdl hds hKV
 
 /-! ## The spec's IPC steps keep the caps -/
 
@@ -455,7 +599,7 @@ theorem SzKeep.epStep {σ σ' : Fl4Spec.State Unit} (h : EpStep σ σ') : Sched.
 theorem VsKeep.of_kheap {σ σ' : Fl4Spec.State Unit} (hk : σ'.kheap = σ.kheap) (ha : σ'.archState = σ.archState)
     (hi : σ'.interruptStates = σ.interruptStates) (hn : σ'.interruptIrqNode = σ.interruptIrqNode)
     (hc : σ'.curThread = σ.curThread) : VsKeep σ σ' :=
-  ⟨ha, hi, hn, hc, fun q _ _ => by rw [hk], Sched.SzKeep.of_kheap hk⟩
+  ⟨ha, hi, hn, hc, fun q _ _ => by rw [hk], Sched.SzKeep.of_kheap hk, BufKeep.of_kheap hk⟩
 
 theorem VsKeep.stsAct (σ : Fl4Spec.State Unit) (t : Fl4Spec.ObjRef) : VsKeep σ (Notif.stsAct σ t) :=
   VsKeep.of_kheap (stsAct_kheap σ t) (by unfold Notif.stsAct; split <;> rfl) (by unfold Notif.stsAct; split <;> rfl)
@@ -463,42 +607,59 @@ theorem VsKeep.stsAct (σ : Fl4Spec.State Unit) (t : Fl4Spec.ObjRef) : VsKeep σ
 
 /-- A TCB update keeps `VsKeep`. -/
 theorem VsKeep.updK_tcb {σ : Fl4Spec.State Unit} {p : Fl4Spec.ObjRef} {x y : Fl4Spec.Tcb}
-    (hk : σ.kheap p = some (.tcb x)) : VsKeep σ (updK σ p (.tcb y)) := by
-  refine ⟨rfl, rfl, rfl, rfl, fun q ao hq => ?_, fun q z n hq => ?_⟩
+    (hk : σ.kheap p = some (.tcb x)) (hb : y.tcbIpcBuffer = x.tcbIpcBuffer) : VsKeep σ (updK σ p (.tcb y)) := by
+  refine ⟨rfl, rfl, rfl, rfl, fun q ao hq => ?_, fun q z n hq => ?_, fun q z hq => ?_⟩
   · have e : q ≠ p := by rintro rfl; rw [hk] at hq; cases hq
     simp [updK, Function.update_of_ne e]
   · have e : q ≠ p := by rintro rfl; simp [updK] at hq
     exact ⟨z, by simpa [updK, Function.update_of_ne e] using hq⟩
+  · by_cases e : q = p
+    · subst e; rw [hk] at hq; cases hq; exact ⟨y, by simp [updK], hb⟩
+    · exact ⟨z, by simpa [updK, Function.update_of_ne e] using hq, rfl⟩
 
 theorem VsKeep.epStep {σ σ' : Fl4Spec.State Unit} (h : EpStep σ σ') : VsKeep σ σ' := by
   obtain ⟨-, hab, hk⟩ := h
   refine ⟨(by have e := congrArg Fl4Spec.AbstractState.archState hab; exact e), (by have e := congrArg Fl4Spec.AbstractState.interruptStates hab; exact e),
     (by have e := congrArg Fl4Spec.AbstractState.interruptIrqNode hab; exact e), (by have e := congrArg Fl4Spec.AbstractState.curThread hab; exact e),
-    fun q ao hq => ?_, SzKeep.epStep ⟨rfl, hab, hk⟩⟩
+    fun q ao hq => ?_, SzKeep.epStep ⟨rfl, hab, hk⟩, fun q x hq => ?_⟩
   · rcases hk q with e | ⟨x, y, h1, -⟩ | ⟨x, y, h1, -, -⟩ | ⟨x, y, h1, -, -⟩
     · exact e
     all_goals (rw [hq] at h1; cases h1)
+  · rcases hk q with e | ⟨a, b, h1, -⟩ | ⟨a, b, h1, -, -⟩ | ⟨a, b, h1, h2, hy⟩
+    · exact ⟨x, by rw [e]; exact hq, rfl⟩
+    · rw [hq] at h1; cases h1
+    · rw [hq] at h1; cases h1
+    · rw [hq] at h1; cases h1; exact ⟨b, h2, by rw [hy]⟩
 
 theorem VsKeep.ntfnStep {σ σ' : Fl4Spec.State Unit} (h : NtfnStep σ σ') : VsKeep σ σ' := by
   obtain ⟨-, hab, hk⟩ := h
   refine ⟨(by have e := congrArg Fl4Spec.AbstractState.archState hab; exact e), (by have e := congrArg Fl4Spec.AbstractState.interruptStates hab; exact e),
     (by have e := congrArg Fl4Spec.AbstractState.interruptIrqNode hab; exact e), (by have e := congrArg Fl4Spec.AbstractState.curThread hab; exact e),
-    fun q ao hq => ?_, Sched.SzKeep.ntfnStep ⟨rfl, hab, hk⟩⟩
+    fun q ao hq => ?_, Sched.SzKeep.ntfnStep ⟨rfl, hab, hk⟩, fun q x hq => ?_⟩
   · rcases hk q with e | ⟨x, y, h1, -⟩ | ⟨x, y, h1, -, -⟩
     · exact e
     all_goals (rw [hq] at h1; cases h1)
+  · rcases hk q with e | ⟨a, b, h1, -⟩ | ⟨a, b, h1, h2, hy⟩
+    · exact ⟨x, by rw [e]; exact hq, rfl⟩
+    · rw [hq] at h1; cases h1
+    · rw [hq] at h1; cases h1; exact ⟨b, h2, by rw [hy]⟩
 
-theorem RelTopI.stableN (hT : TcbPlaced T) {s s' : S} {σ σ' : Fl4Spec.State Unit}
+theorem RelTopI.stableN (hT : NPlaced T N) {s s' : S} {σ σ' : Fl4Spec.State Unit}
     (h : RelTopI (L := L) th cr N T C E R B c s σ) (hW : WritesIn st s s' (NWrite N T)) (hK : NtfnStep σ σ') :
     RelTopI (L := L) th cr N T C E R B c s' σ' :=
   let ⟨hc, hl, hs⟩ := hK.ckeep
-  h.frame hW (fun _ ha => NWrite.iwords hT ha) hc hl hs (VsKeep.ntfnStep hK)
+  h.frame hW (fun _ ha => NWrite.iwords hT.tcb ha) (fun _ ha => NWrite.nobuf hT ha) hc hl hs (VsKeep.ntfnStep hK)
+
+/-- `RelTopI`'s endpoint placement. -/
+theorem RelTopI.eplaced {s : S} {σ : Fl4Spec.State Unit} (h : RelTopI (L := L) th cr N T C E R B c s σ) :
+    EPlaced T E R B :=
+  let ⟨_, _, _, _, _, _, _, _, _, hP⟩ := h.2.ex; hP.ep
 
 theorem RelTopI.stableE {s s' : S} {σ σ' : Fl4Spec.State Unit}
     (h : RelTopI (L := L) th cr N T C E R B c s σ) (hW : WritesIn st s s' (EWrite T E R B)) (hK : EpStep σ σ') :
     RelTopI (L := L) th cr N T C E R B c s' σ' :=
   let ⟨hc, hl, hs⟩ := hK.ckeep
-  h.frame hW (fun _ ha => EWrite.iwords ha) hc hl hs (VsKeep.epStep hK)
+  h.frame hW (fun _ ha => EWrite.iwords ha) (fun _ ha => EWrite.nobuf h.eplaced ha) hc hl hs (VsKeep.epStep hK)
 
 end
 
@@ -539,7 +700,7 @@ variable {st ar}
 /-- **`IpcSchedHyps` for `RelTopI ∧ SR`**: the stabilities and `block` by the
 frame, `notQueued` from `SR`, the scheduler-side fields given. -/
 theorem IpcSchedHyps.withTop {SR : S → Fl4Spec.State Unit → Prop} (hH : IpcSchedHyps st ar N T E R B SR)
-    (hT : TcbPlaced T) (hX : IpcTopTails st ar th cr N T C E R B c SR) :
+    (hT : NPlaced T N) (hX : IpcTopTails st ar th cr N T C E R B c SR) :
     IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c SR) where
   stableN s s' σ σ' h hW hK hNB := ⟨h.1.stableN hT hW hK, hH.stableN s s' σ σ' h.2 hW hK hNB⟩
   stableE s s' σ σ' h hW hK := ⟨h.1.stableE hW hK, hH.stableE s s' σ σ' h.2 hW hK⟩

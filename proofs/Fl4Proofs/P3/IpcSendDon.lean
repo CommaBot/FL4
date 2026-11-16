@@ -211,7 +211,7 @@ theorem ipcVsFrame_endpointD {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {
     (hrun : tsCode xt.tcbState < 3) (hft : xt.tcbFault = none)
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
     (blk call don : Bool) (p b : U64) (rv g gr : Bool)
-    (hZ : ∀ Z : XSets, XTopAt (L := L) AR Z s a σ → IpcZ (L := L) arI σ.archState.x64CurrentCr3 s ct Z ∧
+    (hZ : ∀ Z : XSets, XTopAt (L := L) AR Z s a σ → IpcZ (L := L) arI σ.archState.x64CurrentCr3 s σ ct Z ∧
       (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → Sched.SchedValid σ') ∧
       (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → QSorted st Z.T Z.E s') ∧
       p ∈ Z.E ∧
