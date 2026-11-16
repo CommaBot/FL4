@@ -154,8 +154,8 @@ theorem wake_refinesI (hH : IpcSchedHyps st ar N T E R B SR) (hP : IPlaced N T E
     exact ⟨fun d p => by show t.bv ∉ σ2.readyQueues d p; rw [e1]; exact h0.1 d p,
       by show t.bv ∉ σ2.releaseQueue; rw [e2]; exact h0.2⟩
   refine WP.spec_mono (hH.wakeTail _ a σ3 t n _ hR3 hSR3 ht hn hk3 rfl hNQ) ?_
-  rintro r ⟨hnf, σ', hmem, hf, hv, hS⟩
-  exact ⟨hnf, σ', hmem, hR3.frame hP hf hv, hS⟩
+  rintro r ⟨hnf, σ', hmem, hR', hS⟩
+  exact ⟨hnf, σ', hmem, hR', hS⟩
 
 end Wake
 

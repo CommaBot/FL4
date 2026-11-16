@@ -370,7 +370,7 @@ structure IpcWakeHyps (st : machine.Store S) (ar : machine.Arch A) [L : LawfulSt
     x.tcbState = .running →
     notification.maybe_donate_sched_context st ar s a t n ⦃ r => ∃ σ1,
       Fl4Spec.maybeDonateSc (Z := Unit) t.bv n.bv σ = ({((), σ1)}, False) ∧
-      Agree (L.mem s) (L.mem r.1) (IFoot N T E R B) ∧ IKView σ σ1 ∧
+      IpcRel N T E R B (L.mem r.1) σ1 ∧
       SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 σ1 ∧ ActReady σ1 ⦄
   unblock : ∀ s σ (t : U64), IpcRel N T E R B (L.mem s) σ → SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ →
     t ∈ T →
@@ -385,12 +385,10 @@ theorem wakeTail_top (hP0 : IPlaced N T E R B) (hW : IpcWakeHyps st ar th cr N T
     (hS : SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ) (ht : t ∈ T) (hn : n ∈ N)
     (hk : σ.kheap t.bv = some (.tcb x)) (hx : x.tcbState = .running) :
     rustWakeTail st ar s a t n ⦃ r => ¬ (specWakeTail t.bv n.bv σ).2 ∧ ∃ σ', ((), σ') ∈ (specWakeTail t.bv n.bv σ).1 ∧
-      Agree (L.mem s) (L.mem r.1) (IFoot N T E R B) ∧ IKView σ σ' ∧
-      SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 σ' ⦄ := by
+      IpcRel N T E R B (L.mem r.1) σ' ∧ SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 σ' ⦄ := by
   unfold rustWakeTail
   refine WP.spec_bind (hW.donate s a σ t n x hR hS ht hn hk hx) ?_
-  rintro ⟨s4, a2⟩ ⟨σ1, hd, hf1, hv1, hS1, hr1⟩
-  have hR1 : IpcRel N T E R B (L.mem s4) σ1 := hR.frame hP0 hf1 hv1
+  rintro ⟨s4, a2⟩ ⟨σ1, hd, hR1, hS1, hr1⟩
   step with Sched.sched.is_schedulable.spec' as ⟨b1, b1_post⟩
   rw [schedulable_eq hR1.toN hS1.2.1 ht] at b1_post
   have hmid : (if b1 = true then sched.possible_switch_to st s4 t else ok s4) ⦃ s5 => ∃ σ2,
@@ -416,7 +414,7 @@ theorem wakeTail_top (hP0 : IPlaced N T E R B) (hW : IpcWakeHyps st ar th cr N T
     rw [nd_bind_one hd, nd_gets_bind, nd_bind_one hw2]
     rfl
   rw [hspec]
-  exact ⟨hnf, σ', hm, (hf1.trans hf2).trans hf3, (hv1.trans hv2).trans hv3, hS3⟩
+  exact ⟨hnf, σ', hm, hR2.frame hP0 hf3 hv3, hS3⟩
 
 /-- **`IpcSchedHyps` for `SRT … SRE`**, everything proved but the named
 facts: `notQueued` (l4v `valid_sched`), the SchedContext steps of the

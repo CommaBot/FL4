@@ -65,7 +65,7 @@ structure IpcSchedHyps (N T E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (SR :
   wakeTail : ∀ s (a : A) σ (t n : U64) (x : Fl4Spec.Tcb), IpcRel N T E R B (L.mem s) σ → SR s σ → t ∈ T →
     n ∈ N → σ.kheap t.bv = some (.tcb x) → x.tcbState = .running → NotQueued σ t.bv →
     rustWakeTail st ar s a t n ⦃ r => ¬ (specWakeTail t.bv n.bv σ).2 ∧ ∃ σ', ((), σ') ∈ (specWakeTail t.bv n.bv σ).1 ∧
-      Agree (L.mem s) (L.mem r.1) (IFoot N T E R B) ∧ IKView σ σ' ∧ SR r.1 σ' ⦄
+      IpcRel N T E R B (L.mem r.1) σ' ∧ SR r.1 σ' ⦄
   cancelIpc : ∀ s (a : A) σ (t : U64) (x : Fl4Spec.Tcb), IpcRel N T E R B (L.mem s) σ → SR s σ → t ∈ T →
     σ.kheap t.bv = some (.tcb x) → Fl4Spec.receiveBlocked x.tcbState = true →
     ipc.cancel_ipc st ar s a t ⦃ r => ∃ σ' x', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
