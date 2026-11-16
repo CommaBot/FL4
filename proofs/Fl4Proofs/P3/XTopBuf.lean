@@ -28,44 +28,44 @@ another heap, which agrees with `σ'`'s but at TCBs that differ only in
 `tcb_ipc_buffer`. -/
 def TcbBufStep (σ σ' : Fl4Spec.State Unit) : Prop :=
   ∃ k, σ = { σ' with kheap := k } ∧ ∀ p, σ'.kheap p = k p ∨
-    ∃ x b, k p = some (.tcb x) ∧ σ'.kheap p = some (.tcb { x with tcbIpcBuffer := b })
+    ∃ x b m, k p = some (.tcb x) ∧ σ'.kheap p = some (.tcb { x with tcbIpcBuffer := b, tcbMcpriority := m })
 
 theorem TcbBufStep.szKeep {σ σ' : Fl4Spec.State Unit} (h : TcbBufStep σ σ') : Sched.SzKeep σ σ' := by
   obtain ⟨k, rfl, hk⟩ := h
   intro p x n hp
-  rcases hk p with e | ⟨y, b, -, h2⟩
+  rcases hk p with e | ⟨y, b, m, -, h2⟩
   · exact ⟨x, by change k p = _; rw [← e]; exact hp⟩
   · rw [h2] at hp; cases hp
 
 theorem TcbBufStep.keep {σ σ' : Fl4Spec.State Unit} (h : TcbBufStep σ σ') {p : Fl4Spec.ObjRef}
     {o : Fl4Spec.KernelObject} (hp : σ.kheap p = some o) (ho : ∀ x, o ≠ .tcb x) : σ'.kheap p = some o := by
   obtain ⟨k, rfl, hk⟩ := h
-  rcases hk p with e | ⟨y, b, h1, -⟩
+  rcases hk p with e | ⟨y, b, m, h1, -⟩
   · rw [e]; exact hp
   · change k p = some o at hp
     rw [hp] at h1; cases h1; exact absurd rfl (ho y)
 
 theorem TcbBufStep.tcb {σ σ' : Fl4Spec.State Unit} (h : TcbBufStep σ σ') {p : Fl4Spec.ObjRef}
     {x : Fl4Spec.Tcb} (hp : σ.kheap p = some (.tcb x)) :
-    ∃ b, σ'.kheap p = some (.tcb { x with tcbIpcBuffer := b }) := by
+    ∃ b m, σ'.kheap p = some (.tcb { x with tcbIpcBuffer := b, tcbMcpriority := m }) := by
   obtain ⟨k, rfl, hk⟩ := h
   change k p = some (.tcb x) at hp
-  rcases hk p with e | ⟨y, b, h1, h2⟩
-  · exact ⟨x.tcbIpcBuffer, by rw [e, hp]⟩
-  · rw [hp] at h1; cases h1; exact ⟨b, h2⟩
+  rcases hk p with e | ⟨y, b, m, h1, h2⟩
+  · exact ⟨x.tcbIpcBuffer, x.tcbMcpriority, by rw [e, hp]⟩
+  · rw [hp] at h1; cases h1; exact ⟨b, m, h2⟩
 
 theorem TcbBufStep.ksub {σ σ' : Fl4Spec.State Unit} (h : TcbBufStep σ σ') : KSub σ σ' := by
   have hT := h
   obtain ⟨k, rfl, hk⟩ := hT
   intro o
   refine ⟨fun r cs ho hw => ⟨cs, ?_, hw⟩, fun t ho => ?_, fun ho => ?_⟩
-  · rcases hk o with e | ⟨y, b, -, h2⟩
+  · rcases hk o with e | ⟨y, b, m, -, h2⟩
     · rw [e] at ho; exact ho
     · rw [h2] at ho; cases ho
-  · rcases hk o with e | ⟨y, b, h1, -⟩
+  · rcases hk o with e | ⟨y, b, m, h1, -⟩
     · rw [e] at ho; exact ⟨t, ho⟩
     · exact ⟨y, h1⟩
-  · rcases hk o with e | ⟨y, b, h1, -⟩
+  · rcases hk o with e | ⟨y, b, m, h1, -⟩
     · rw [e]; exact ho
     · change k o = none at ho; rw [ho] at h1; cases h1
 
@@ -85,7 +85,7 @@ theorem SchedRel.bufFrame {s : S} {σ σ' : Fl4Spec.State Unit} (hS : Sched.Sche
     hs.curTime, hs.consumed, hs.curDom, fun t ht => ?_, hs.scMem, fun sc hsc => ?_, hs.idleSc, hs.domTime,
     hs.idleTh⟩
   · obtain ⟨x, hk, h1⟩ := hs.tcb t ht
-    obtain ⟨b, hk'⟩ := h.tcb hk
+    obtain ⟨b, m, hk'⟩ := h.tcb hk
     exact ⟨_, hk', h1⟩
   · obtain ⟨x, n, hk, e⟩ := hs.scs sc hsc
     exact ⟨x, n, h.keep hk (fun _ e => by cases e), e⟩
@@ -100,7 +100,7 @@ theorem EpStateRel.bufFrame {m : U64 → U64} {σ σ' : Fl4Spec.State Unit} (hR 
   · obtain ⟨x, hk, h1⟩ := hR.reply r hr
     exact ⟨x, h.keep hk (fun _ e => by cases e), h1⟩
   · obtain ⟨x, hk, h1⟩ := hR.tcb t ht
-    obtain ⟨b, hk'⟩ := h.tcb hk
+    obtain ⟨b, m, hk'⟩ := h.tcb hk
     exact ⟨_, hk', { h1 with }⟩
 
 theorem NtfnStateRel.bufFrame {m : U64 → U64} {σ σ' : Fl4Spec.State Unit} (hR : Notif.NtfnStateRel N T m σ)
@@ -109,7 +109,7 @@ theorem NtfnStateRel.bufFrame {m : U64 → U64} {σ σ' : Fl4Spec.State Unit} (h
   · obtain ⟨x, hk, h1⟩ := hR.ntfn n hn
     exact ⟨x, h.keep hk (fun _ e => by cases e), h1⟩
   · obtain ⟨x, hk, h1⟩ := hR.tcb t ht
-    obtain ⟨b, hk'⟩ := h.tcb hk
+    obtain ⟨b, m, hk'⟩ := h.tcb hk
     exact ⟨_, hk', { h1 with }⟩
 
 theorem OObj.of_bufStep {s : S} {σ σ' : Fl4Spec.State Unit} (h : TcbBufStep σ σ') {a : U64}
@@ -148,7 +148,7 @@ theorem StateRel.bufStep {th : TypedHeap} {m : U64 → U64} {σ σ' : Fl4Spec.St
   · obtain ⟨cs, hk, h1, h2⟩ := hR.cnode p r hp
     exact ⟨cs, h.keep hk (fun _ e => by cases e), h1, h2⟩
   · obtain ⟨x, hk, h1⟩ := hR.tcb t ht
-    obtain ⟨b, hk'⟩ := h.tcb hk
+    obtain ⟨b, m, hk'⟩ := h.tcb hk
     exact ⟨_, hk', h1⟩
 
 end
@@ -194,11 +194,13 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type}
 
 set_option maxHeartbeats 8000000 in
-/-- **`XTopAt` across FL4's write of a TCB's IPC-buffer word** (`t + 3512`,
-read by none of the relations), the spec state kept. -/
-theorem XTopAt.bufWr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (hX : XTopAt (L := L) AR Z s a σ) {t : U64} (ht : t ∈ Z.T) (v : U64) :
-    XTopAt (L := L) AR Z (L.wr s (Endp.tIpcBufA t) v) a σ := by
+/-- **`XTopAt` across FL4's write of a TCB's `MCP` (`t + 3440`) or IPC-buffer
+(`t + 3512`) word**, read by none of the relations, the spec state kept. -/
+theorem XTopAt.tcbWrA {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (hX : XTopAt (L := L) AR Z s a σ) {t : U64} (ht : t ∈ Z.T) (wa : U64) (Kv : Nat)
+    (hKw : Kv = 3440 ∨ Kv = 3512 ∨ (448 ≤ Kv ∧ Kv < 512 ∧ Kv % 8 = 0)) (hwav : wa.val = t.val + Kv)
+    (v : U64) :
+    XTopAt (L := L) AR Z (L.wr s (wa) v) a σ := by
   have hSch := hX.fin.1.1.1
   obtain ⟨Q, R0, hc, hs⟩ := hSch.lists
   have hT := hc.tcbs
@@ -208,16 +210,16 @@ theorem XTopAt.bufWr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : 
   have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
   have hka := hP.vs.ksb_al
   have hko := hc.ksOut t ht
-  have hwv : (Endp.tIpcBufA t).val = t.val + 3512 := Notif.tfield_val hta (by decide)
-  have hwa : P1.Aligned (Endp.tIpcBufA t) := by unfold P1.Aligned; rw [hwv]; have := hta.align; omega
-  have hw : P1.WritesIn st s (L.wr s (Endp.tIpcBufA t) v) (· = Endp.tIpcBufA t) := P1.writesIn_wr hwa
-  have hne : ∀ b : U64, P1.Aligned b → b.val ≠ t.val + 3512 →
-      L.mem (L.wr s (Endp.tIpcBufA t) v) b = L.mem s b := fun b hb hbv =>
+  have hwv : wa.val = t.val + Kv := hwav
+  have hwa : P1.Aligned (wa) := by unfold P1.Aligned; rw [hwv]; have := hta.align; omega
+  have hw : P1.WritesIn st s (L.wr s (wa) v) (· = wa) := P1.writesIn_wr hwa
+  have hne : ∀ b : U64, P1.Aligned b → b.val ≠ t.val + Kv →
+      L.mem (L.wr s (wa) v) b = L.mem s b := fun b hb hbv =>
     hw.mem_eq hb fun e => hbv (by rw [e, hwv])
   -- the scheduler relation
   have hN := hc.node
   have hnd := hN.disj t ht
-  have hSA : Sched.SAgree st Z.T Z.C Z.c s (L.wr s (Endp.tIpcBufA t) v) := by
+  have hSA : Sched.SAgree st Z.T Z.C Z.c s (L.wr s (wa) v) := by
     refine ⟨hw.1, hw.2.1, fun o ho h8 _ _ => hne _ (P1.nodeAt_aligned hN ho h8) ?_, fun y hy K hK => ?_,
       hne _ ?_ ?_, hne _ ?_ ?_, fun sc hsc b hb hin => hne _ hb ?_⟩
     · rw [P1.nodeAt_val hN ho]; omega
@@ -225,7 +227,7 @@ theorem XTopAt.bufWr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : 
       refine hne _ (P1.field_aligned (hT y hy) h1 h2) ?_
       rw [Notif.tfield_val (hT y hy) h1]
       by_cases e : y = t
-      · subst e; rcases hK with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp
+      · subst e; rcases hK with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp <;> omega
       · have := tcb_disj hPe ht hy e; omega
     · unfold Sched.curDomA; unfold P1.Aligned
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
@@ -236,7 +238,7 @@ theorem XTopAt.bufWr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : 
     · unfold Sched.dtA
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
     · have := (hSch.scOutIn hsc hin).2.2.1 t ht; omega
-  have hSch' : Sched.SchedRel st Z.N Z.T Z.C Z.c (L.wr s (Endp.tIpcBufA t) v) σ := by
+  have hSch' : Sched.SchedRel st Z.N Z.T Z.C Z.c (L.wr s (wa) v) σ := by
     refine hSch.of_sagree hSA ?_ ?_ ⟨rfl, rfl, fun _ => Or.inl rfl⟩
     · unfold Sched.nodeW; rw [Sched.nodeAt_ksb hw.1]
       exact hne _ (P1.nodeAt_aligned hN (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION]))
@@ -244,7 +246,7 @@ theorem XTopAt.bufWr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : 
     · unfold Sched.nodeW; rw [Sched.nodeAt_ksb hw.1]
       exact hne _ (P1.nodeAt_aligned hN (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM]))
         (by rw [P1.nodeAt_val hN (by simp [layout.node.REPROGRAM])]; simp only [layout.node.REPROGRAM]; simp; omega)
-  refine hX.frameStep hw (fun b hb => by subst hb; exact tcb_oobj ht hta (by decide) (by decide))
+  refine hX.frameStep hw (fun b hb => by subst hb; exact Or.inr (Or.inr (Or.inl ⟨t, ht, by omega, by omega⟩)))
     (fun b hb hf => ?_) (fun b hb hf => ?_) (fun hb => ?_) rfl rfl rfl rfl rfl rfl rfl hSch' ?_ ?_ ?_
     hX.fin.1.1.2.2.2.2.2.2
   · -- not read by the endpoint relation
@@ -252,7 +254,8 @@ theorem XTopAt.bufWr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : 
     rcases hf with ⟨e, he, h⟩ | ⟨r, hr, h⟩ | ⟨y, hy, h | h⟩ | ⟨wp, hwp, h⟩
     · have := hPe.et e he t ht; omega
     · have := hPe.rt r hr t ht; omega
-    · have hr := h.range
+    · obtain ⟨h1, h2⟩ := h
+      unfold Endp.TOffN at h2
       by_cases e : y = t
       · subst e; omega
       · have := tcb_disj hPe ht hy e; omega
@@ -295,6 +298,21 @@ theorem XTopAt.bufWr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : 
     have hv := ksW_val (kb := L.ksb s) (o := o) (by omega)
     exact hne _ (by unfold P1.Aligned; rw [hv]; omega) (by rw [hv]; omega)
 
+
+
+/-- `XTopAt.tcbWrA` at `t + K`. -/
+theorem XTopAt.tcbWr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (hX : XTopAt (L := L) AR Z s a σ) {t : U64} (ht : t ∈ Z.T) (Kw : U64)
+    (hKw : Kw.val = 3440 ∨ Kw.val = 3512 ∨ (448 ≤ Kw.val ∧ Kw.val < 512 ∧ Kw.val % 8 = 0)) (v : U64) :
+    XTopAt (L := L) AR Z (L.wr s (core.num.U64.wrapping_add t Kw) v) a σ := by
+  obtain ⟨Q, R0, hc, -⟩ := hX.fin.1.1.1.lists
+  exact hX.tcbWrA ht _ Kw.val hKw (Notif.tfield_val (hc.tcbs t ht) (by omega)) v
+
+/-- `XTopAt.tcbWr` at the IPC-buffer word. -/
+theorem XTopAt.bufWr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (hX : XTopAt (L := L) AR Z s a σ) {t : U64} (ht : t ∈ Z.T) (v : U64) :
+    XTopAt (L := L) AR Z (L.wr s (Endp.tIpcBufA t) v) a σ :=
+  hX.tcbWr ht 3512#u64 (Or.inr (Or.inl rfl)) v
 end
 
 
@@ -316,7 +334,16 @@ theorem tcbBufStep_upd {σ : Fl4Spec.State Unit} {p : Fl4Spec.ObjRef} {x : Fl4Sp
     TcbBufStep σ (Notif.updK σ p (.tcb { x with tcbIpcBuffer := b })) := by
   refine ⟨σ.kheap, rfl, fun q => ?_⟩
   by_cases e : q = p
-  · subst e; right; exact ⟨x, b, hk, by simp [Notif.updK]⟩
+  · subst e; right; exact ⟨x, b, x.tcbMcpriority, hk, by simp [Notif.updK]⟩
+  · left; simp [Notif.updK, Function.update_of_ne e]
+
+/-- The spec's `thread_set` of the MCP, as such a step. -/
+theorem tcbMcpStep_upd {σ : Fl4Spec.State Unit} {p : Fl4Spec.ObjRef} {x : Fl4Spec.Tcb}
+    (hk : σ.kheap p = some (.tcb x)) (m : Fl4Spec.Priority) :
+    TcbBufStep σ (Notif.updK σ p (.tcb { x with tcbMcpriority := m })) := by
+  refine ⟨σ.kheap, rfl, fun q => ?_⟩
+  by_cases e : q = p
+  · subst e; right; exact ⟨x, x.tcbIpcBuffer, m, hk, by simp [Notif.updK]⟩
   · left; simp [Notif.updK, Function.update_of_ne e]
 
 /-- **The IPC-buffer step establishes `BufWordRel`** (IpcBuf) at the target
