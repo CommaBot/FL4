@@ -1256,7 +1256,7 @@ theorem retype_cont_pml4N {A' : Type} (arI : machine.Arch A') (ar : A') (th : Ty
       by rw [hks, hk2], _, _, _, dslot, cj, hE.same_left hM hSS,
       ⟨⟨ct, s2, hct, hs2, Or.inr ⟨h1, ⟨rfl, by rw [hb], by simp [windowSlots], hWA2⟩, s2, th, _, _, Or.inl ⟨rfl, rfl, rfl, rfl⟩, le_rfl, le_rfl, hthx.2, fun a h => h, ⟨nt.val, ht, hthx, us, rfl, hcjE⟩, hdsC,
         hWf.mono fun v hv => hv.elim (fun h => Or.inl (Or.inr h)) (fun h => Or.inr ⟨htP, h⟩),
-        fun ⟨_, hne⟩ => absurd htP hne⟩⟩, fun _ j hj hu => by have h0 := hnu j hj hu; rw [h0] at ht; simpa [objTypeOf] using ht.symm⟩⟩
+        fun ⟨_, hne⟩ => absurd htP hne, fun hT => absurd (htP.symm.trans hT) (by simp)⟩⟩, fun _ j hj hu => by have h0 := hnu j hj hu; rw [h0] at ht; simpa [objTypeOf] using ht.symm⟩⟩
     rcases Bool.eq_false_or_eq_true reset with hrs | hrs <;> subst hrs
     · have hnc : ¬ ∃ x, σ.cdt x = some (pp.bv, idx) := by simpa using hreset.symm
       have hf0 : fiv = 0#u64 := UScalar.eq_of_val_eq (by rw [hunused hnc]; rfl)
@@ -1331,6 +1331,10 @@ theorem retype_cont_pml4N {A' : Type} (arI : machine.Arch A') (ar : A') (th : Ty
   have hWA2 : (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat % 2 ^ zOf nt.val us.val = 0 := hWR.2.1
   have hWLO : p.val ≤ (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat := by have := hWR.1; rwa [show (0#u64 : U64).val = 0 from rfl, Nat.add_zero] at this
   have hWHI : (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val ≤ p.val + 2 ^ sb.val := hWR.2.2.1
+  have hp8W : p.val % 8 = 0 := by
+    have h8 : 8 ∣ 2 ^ sb.val := by
+      have := Nat.pow_dvd_pow 2 (show 3 ≤ sb.val by omega); simpa using this
+    have := Nat.mod_mod_of_dvd p.val h8; rw [hpal, Nat.zero_mod] at this; exact this.symm
   have hpost : ∀ res : core.result.Result Unit error.Exc × S × A', (NSat (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) true p.bv
           (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)) t us.val
           (windowSlots dest r off.val win.val) false)).run σ1 (fun _ => True) ∧
@@ -1370,10 +1374,11 @@ theorem retype_cont_pml4N {A' : Type} (arI : machine.Arch A') (ar : A') (th : Ty
     · exact ⟨σ1, by rw [hcur]; exact hst1, hNS, .ok (), σ', G', th'', Or.inl ⟨h1, rfl⟩, hhas, hP'', hR'', hV'', hM'',
         hC'', hI'', hU'', MdbStep.same_left hM hSS hSt,
         fun hFI => hFin (hFI.of_same hM hSS (ksub_of_eq (setThreadState_nks _ _) hst1)), by rw [hks, hk2],
-        _, _, _, dslot, cj, hE.same_left hM hSS, ⟨⟨ct, s2, hct, hs2, Or.inr ⟨h1, ⟨rfl, by rw [hb], by simp [windowSlots], hWA2⟩, t1, (restrictTh th p.val (p.val + 2 ^ sb.val)), _, _, Or.inr ⟨a1, p, sb, _, _, hr, hcap1, rfl, rfl, rfl⟩, hWLO, hWHI,
+        _, _, _, dslot, cj, hE.same_left hM hSS, ⟨⟨ct, s2, hct, hs2, Or.inr ⟨h1, ⟨rfl, by rw [hb], by simp [windowSlots], hWA2⟩, t1, (restrictTh th p.val (p.val + 2 ^ sb.val)), _, _, Or.inr ⟨a1, p, sb, _, _, hr, hcap1, hcap, hp8W, hsb4,
+          (hM.members _).2 ⟨hAs.isSlot, _, hcap, by simp⟩, hnd, rfl, rfl, rfl⟩, hWLO, hWHI,
           by simpa using RegionFree.restrict hN,
           fun a h => h.of_restrict, ⟨nt.val, ht, hthx, us, rfl, hcjE⟩, (fun j hj => let ⟨q, r, hq, i, hi, e⟩ := hdsC j hj; ⟨q, r, (restrictTh_some hq).1, i, hi, e⟩), hWf.mono fun v hv => hv.elim (fun h => Or.inl (Or.inr h)) (fun h => Or.inr ⟨htP, h⟩),
-          fun ⟨_, hne⟩ => absurd htP hne⟩⟩, fun _ j hj hu => by have h0 := hnu j hj hu; rw [h0] at ht; simpa [objTypeOf] using ht.symm⟩⟩
+          fun ⟨_, hne⟩ => absurd htP hne, fun hT => absurd (htP.symm.trans hT) (by simp)⟩⟩, fun _ j hj hu => by have h0 := hnu j hj hu; rw [h0] at ht; simpa [objTypeOf] using ht.symm⟩⟩
   obtain ⟨σ1', hst1', hk1', harch1'⟩ := setThreadState_arch σ ct.bv tcb hkt .restart
   rw [hst1] at hst1'
   have e1 : σ1 = σ1' := by have := congrArg (fun x => x.1) hst1'; simpa using this

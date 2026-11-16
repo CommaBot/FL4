@@ -541,7 +541,8 @@ theorem retype_reset_tcb (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State 
             WFrame (L := L) t1 res.2.1 (TcbLoopW (restrictTh th p.val (p.val + 2 ^ sb.val)) (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat win.val
               (L.nodeAt t1 0#u64 layout.node.DEBUG_TCBS) (L.mem t1 (L.nodeAt t1 0#u64 layout.node.DEBUG_TCBS))) ∧
             WinZero (L.mem res.2.1) (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat
-              (2 ^ zOf nt.val us.val) win.val (t = .tcbObject)) ∧
+              (2 ^ zOf nt.val us.val) win.val (t = .tcbObject) ∧
+              (L.mem t1 (L.nodeAt t1 0#u64 layout.node.DEBUG_TCBS) = 0#u64 ∨ th (L.mem t1 (L.nodeAt t1 0#u64 layout.node.DEBUG_TCBS)) = some .tcb)) ∧
           ∃ A k w dslot cj, RetExp th th'' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj ∧
             A = (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val ∧ (∀ j, j < w → isUt (cj j) = true → nt.val = 0) ∧ ThX (restrictTh th p.val (p.val + 2 ^ sb.val)) th'' A k w nt.val us.val ∧ cj = cjOf nt.val us false A k ∧ DslotC (restrictTh th p.val (p.val + 2 ^ sb.val)) dslot w)) ⦄ := by
   have hsb : sb.val < 64 := capAt_untyped_inv hcap
@@ -556,7 +557,8 @@ theorem retype_reset_tcb (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State 
     hPP (ekept_dw hP hxs _ hDWal hDWreg (hDWobj _ hxs) hfit _ _) ⟨rfl, rfl⟩ _ nt us dest off win bitsApi _ t us.val _ (fun th'' t1 res => WFrame (L := L) t1 res.2.1 (TcbLoopW (restrictTh th p.val (p.val + 2 ^ sb.val)) (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat win.val
               (L.nodeAt t1 0#u64 layout.node.DEBUG_TCBS) (L.mem t1 (L.nodeAt t1 0#u64 layout.node.DEBUG_TCBS))) ∧
       WinZero (L.mem res.2.1) (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat
-              (2 ^ zOf nt.val us.val) win.val (t = .tcbObject))
+              (2 ^ zOf nt.val us.val) win.val (t = .tcbObject) ∧
+              (L.mem t1 (L.nodeAt t1 0#u64 layout.node.DEBUG_TCBS) = 0#u64 ∨ th (L.mem t1 (L.nodeAt t1 0#u64 layout.node.DEBUG_TCBS)) = some .tcb))
     (fun th'' A k w dslot cj => A = (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val ∧ (∀ j, j < w → isUt (cj j) = true → nt.val = 0) ∧ ThX (restrictTh th p.val (p.val + 2 ^ sb.val)) th'' A k w nt.val us.val ∧ cj = cjOf nt.val us false A k ∧ DslotC (restrictTh th p.val (p.val + 2 ^ sb.val)) dslot w) ?_
     (fun _ h => h.1)
   intro t1 a1 σt hRR hZ hF hio _ _ ⟨hk1, hm1⟩
@@ -597,7 +599,7 @@ theorem retype_reset_tcb (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State 
   rw [e0] at hWf
   refine ⟨h1, σ', G', th'', hrun, hP'', hR'', hV'', hM'', hC'', hI'', hUS, hFin, hks, ⟨hWf, fun w hw e1 e2 =>
     ((winZero_of_frame hWf (fun w hw e1 e2 => hZ rfl w hw (by rw [show (0#u64 : U64).val = 0 from rfl]; omega) (by omega)) hsl ?_ ?_) w hw e1 e2).imp id
-      (fun ⟨_, hj⟩ => ⟨htT, hj⟩)⟩, hEx⟩
+      (fun ⟨_, hj⟩ => ⟨htT, hj⟩), by rw [hn1, hm1]; exact hhead.imp id (fun h => h.1)⟩, hEx⟩
   · rw [hn1]; intro h; exact hDWreg ⟨by omega, by omega⟩
   · rw [hn1, hm1]; intro hne h
     rcases hhead with e | ⟨hq, -⟩

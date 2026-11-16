@@ -33,18 +33,15 @@ untyped cap `Untyped p sb fi dev` writes only `ResetW p sb x PW`, given a
 preemption point that writes only `PW` and keeps a property `Q` that the
 zeroing and the slot's write keep. -/
 theorem reset_frame {A' : Type} (arI : machine.Arch A') (s : S) (a : A') (x : U64) {p sb fi : U64} {dev : Bool}
-    (hcap : capAt (L.mem s) x = ok (.Untyped p sb fi dev)) (hpal : p.val % 2 ^ sb.val = 0) (hsb4 : 4 ≤ sb.val)
+    (hcap : capAt (L.mem s) x = ok (.Untyped p sb fi dev)) (hp8 : p.val % 8 = 0) (hsb4 : 4 ≤ sb.val)
     (hfit : p.val + 2 ^ sb.val ≤ 2 ^ 64) (hfib : fi.val ≤ 2 ^ sb.val)
     (hx : x.val % 8 = 0) (hxf : x.val + 16 ≤ 2 ^ 64)
     {Q : S → Prop} (hQk : EKept (L := L) Q p sb x) (hQ : Q s) {PW : U64 → Prop}
     (hPPF : ∀ (s1 : S) (a1 : A'), Q s1 → sched.preemption_point st arI s1 a1 ⦃ r => WFrame (L := L) s1 r.2.1 PW ∧ Q r.2.1 ⦄) :
     untyped.reset_untyped st arI s a x ⦃ res => WFrame (L := L) s res.2.1 (ResetW p sb x PW) ∧ Q res.2.1 ⦄ := by
   have hsb : sb.val < 64 := capAt_untyped_inv hcap
-  have hmod : ∀ d, d ∣ 2 ^ sb.val → p.val % d = 0 := by
-    intro d hd; have := Nat.mod_mod_of_dvd p.val hd; rw [hpal, Nat.zero_mod] at this; exact this.symm
   have h16 : 16 ∣ 2 ^ sb.val := by
     have := Nat.pow_dvd_pow 2 hsb4; simpa using this
-  have hp8 : p.val % 8 = 0 := hmod 8 (dvd_trans (by norm_num) h16)
   have hcapW : ∀ (s1 : S) c, Q s1 → WFrame (L := L) s s1 (ResetW p sb x PW) →
       obj.Slot.set_cap st x s1 c ⦃ s' => WFrame (L := L) s s' (ResetW p sb x PW) ∧ Q s' ⦄ := fun s1 c hq hw =>
     WP.spec_mono (WP.spec_and (set_cap_frame s1 x c hx hxf) (hQk.2 s1 c hq)) fun s' ⟨h1, h2⟩ =>
@@ -91,7 +88,6 @@ theorem reset_frame {A' : Type} (arI : machine.Arch A') (s : S) (a : A') (x : U6
         have := Nat.pow_dvd_pow 2 hsb16; simpa using this
       obtain ⟨t, ht⟩ := hdv
       have hq : (fi.val - 1) / 65536 < t := by rw [Nat.div_lt_iff_lt_mul (by decide)]; omega
-      have hp16 := hmod 65536 ⟨t, ht⟩
       unfold untyped.reset_untyped_loop
       refine loop.spec_decr_nat (measure := fun y => y.2.2.val)
         (inv := fun y => y.2.2.val % 65536 = 0 ∧ y.2.2.val + 65536 ≤ 2 ^ sb.val ∧
