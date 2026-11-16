@@ -127,7 +127,7 @@ theorem create_step {A' : Type} (arI : machine.Arch A') (ar : A') (th th' : Type
   have hSS : SlotsSame th' (L.mem s) (L.mem s') := by
     have key : ∀ a, IsSlot th' a → ∀ k, Off k → L.mem s' (wordOf a k) = L.mem s (wordOf a k) := by
       intro a ha k hk
-      apply hf.2 _ (slot_word_aligned hP' ha hk)
+      apply hf.2.2 _ (slot_word_aligned hP' ha hk)
       intro hw
       rcases hW _ hw with h | ⟨hne, he⟩ | he
       · exact slot_word_not_tcb hP' (hnew i hi) ha hk ⟨h.1, h.2.1⟩
@@ -141,7 +141,7 @@ theorem create_step {A' : Type} (arI : machine.Arch A') (ar : A') (th th' : Type
   have hzf : ∀ lo, A + (i + 1) * 4096 ≤ lo → ∀ w : U64, P1.Aligned w → lo ≤ w.val → w.val < zhi →
       L.mem s' w = L.mem s w := by
     intro lo hlo w hw h1 h2
-    apply hf.2 w hw
+    apply hf.2.2 w hw
     intro hw'
     rcases hW _ hw' with h | ⟨hne, he⟩ | he
     · have := hnotInT w h; omega
@@ -545,7 +545,7 @@ theorem create_loop_frame_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th 
         (newCapOf nt.val ⟨BitVec.ofNat 64 (base.val + i.val * 2 ^ zOf nt.val us.val)⟩ us dev) _ _ (hext _ hppo)
         (hext _ (hdsl i.val hit')) hnx)
       rw [hs3] at hs3'; cases eq_of_ok_eq hs3'
-      obtain ⟨s3', hs3', hk3⟩ := spec_exists (insert_new_ksb (L := L) s2 (cslotAddr (pp.bv, idx))
+      obtain ⟨s3', hs3', hk3⟩ := spec_exists (insert_new_cap_kc (L := L) s2 (cslotAddr (pp.bv, idx))
         (slotAddr dest.bv (BitVec.ofNat 64 (off.val + i.val)))
         (newCapOf nt.val ⟨BitVec.ofNat 64 (base.val + i.val * 2 ^ zOf nt.val us.val)⟩ us dev))
       rw [hs3] at hs3'; cases eq_of_ok_eq hs3'
@@ -569,7 +569,7 @@ theorem create_loop_frame_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th 
             · exact hG0 _ hg
             · rw [e']; exact hdsl j (by omega)
       have hW3 : WFrame (L := L) s s3 (TcbLoopW th base.val win.val DW (L.mem s DW)) :=
-        hW2.trans ⟨hk3, fun w hw hnp => hfr w hw (fun a ha hin => hnp (Or.inl ⟨a, hslw0 a ha, hin.1, hin.2⟩))⟩
+        hW2.trans ⟨hk3.1, hk3.2, fun w hw hnp => hfr w hw (fun a ha hin => hnp (Or.inl ⟨a, hslw0 a ha, hin.1, hin.2⟩))⟩
       have hD3 : L.mem s3 DW = ⟨BitVec.ofNat 64 (base.val + i.val * 4096)⟩ := by
         rw [hfr DW hDWal (fun a ha hin => hDWout a (hslw a ha) hin)]; exact hm2
       rw [hs3]; simp only [bind_ok]
@@ -631,7 +631,7 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
         WFrame (L := L) s res.2.1 (TcbLoopW th (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat win.val
           (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))) ∧
         ∃ A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj ∧
-          A = (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val ⦄ := by
+          A = (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val ∧ (∀ j, j < w → isUt (cj j) = true → nt.val = 0) ⦄ := by
   -- sizes and the region
   have hsb : sb.val < 64 := capAt_untyped_inv hcap
   have htT : t = .tcbObject := by rw [hnt] at ht; simpa [objTypeOf] using ht.symm
@@ -929,15 +929,15 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
     · exact absurd (isUt_newCap (by unfold cjOf at hu; exact hu)).1 (by omega)
   have hW : WFrame (L := L) s s2 (TcbLoopW th A win.val DW (L.mem s DW)) := by
     have hs' : IsSlot th src := hs
-    obtain ⟨s1k, hs1k, k1⟩ := spec_exists (set_cap_ksb (L := L) src s srcC')
+    obtain ⟨s1k, hs1k, k1⟩ := spec_exists (set_cap_kc (L := L) src s srcC')
     rw [hs1] at hs1k; cases eq_of_ok_eq hs1k
     have hd1 : L.mem s1 DW = L.mem s DW := hfr1 DW hDWal (fun e => hDWobj src hs ⟨by omega, by omega⟩)
       (fun e => hDWobj src hs ⟨by omega, by omega⟩)
     rw [hd1] at hW2
-    refine WFrame.trans (s2 := s1) ⟨k1, fun w hw hn => hfr1 w hw (fun e => hn (Or.inl ⟨src, hs', by omega, by omega⟩))
+    refine WFrame.trans (s2 := s1) ⟨k1.1, k1.2, fun w hw hn => hfr1 w hw (fun e => hn (Or.inl ⟨src, hs', by omega, by omega⟩))
       (fun e => hn (Or.inl ⟨src, hs', by omega, by omega⟩))⟩ hW2
   refine ⟨rfl, ha2, σf, Gf, th', ?_, hP', hRf, hVf, hMf, hCf, hIf, ?_, ?_, fun hFI => ⟨?_, ?_⟩, by rw [hks2],
-    hW, A, k, win.val, _, _, hRD.toExp hU hMf hth', rfl, rfl, rfl⟩
+    hW, A, k, win.val, _, _, hRD.toExp hU hMf hth', rfl, rfl, rfl, fun j hj hu => (isUt_newCap (by unfold cjOf at hu; exact hu)).1⟩
   rotate_right 2
   · exact (ktyped_region (hFI.kt.sub (ksub_of_eq (nks_setCap _ _) hσa)) Ab A win.val 4096 rfl (by omega) hfitA hrf4
       (fun q kd hq hs => extendTh_of_old (by omega) hrf4 hq hs) _

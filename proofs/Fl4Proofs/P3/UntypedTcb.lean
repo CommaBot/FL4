@@ -352,11 +352,11 @@ theorem create_tcb_frame {A' : Type} (arI : machine.Arch A') (s : S) (ar : A') (
     unfold tcbCpu
     obtain ⟨g1, g2⟩ := ht
     have hv : (core.num.U64.wrapping_add base 3520#u64).val = base.val + 3520 := by addr_tac
-    exact f.2 _ (by show _ % 8 = 0; rw [hv]; omega) (by unfold InT; rw [hv]; omega)
+    exact f.2.2 _ (by show _ % 8 = 0; rw [hv]; omega) (by unfold InT; rw [hv]; omega)
   have hdw : dbgW (L := L) s5 base = dbgW (L := L) s base := by
     unfold dbgW; rw [hcpu, nodeAt_ksb f.1]
   have hhv : L.mem s5 (dbgW (L := L) s5 base) = L.mem s (dbgW (L := L) s base) := by
-    rw [hdw]; exact f.2 _ hna hout
+    rw [hdw]; exact f.2.2 _ hna hout
   have hW : ∀ w, TcbW (L := L) s5 base w ↔ TcbW (L := L) s base w := by
     intro w; unfold TcbW; rw [hhv, hdw]
   obtain ⟨s6, hs6, f6⟩ := spec_exists (debug_append_frame (L := L) s5 base ht (by rw [hdw]; exact hna)

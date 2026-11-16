@@ -39,28 +39,49 @@ def WinZero (m : U64 → U64) (A k win : Nat) (T : Prop) : Prop :=
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
+theorem set_cap_kc (sl : obj.Slot) (s : S) (c : capability.Cap) :
+    obj.Slot.set_cap st sl s c ⦃ s' => L.ksb s' = L.ksb s ∧ L.cpu s' = L.cpu s ⦄ :=
+  WP.spec_mono (set_cap_spec (L := L) sl s c) (by rintro _ rfl; simp)
+
+theorem insert_new_cap_kc (s : S) (src dest : U64) (c : capability.Cap) :
+    cdt.insert_new_cap st s src dest c ⦃ s' => L.ksb s' = L.ksb s ∧ L.cpu s' = L.cpu s ⦄ := by
+  unfold cdt.insert_new_cap
+  step
+  obtain ⟨s1, h1, k1⟩ := spec_exists (set_cap_kc (L := L) dest s c)
+  rw [h1]; simp only [bind_ok]
+  step; step
+  simp only [obj.Slot.is_null, bind_ok]
+  by_cases hz0 : next = 0#u64
+  · simp only [hz0, decide_true, ↓reduceIte, bind_ok]
+    step*
+    subst_vars; simp_all
+  · simp only [hz0, decide_false, Bool.false_eq_true, ↓reduceIte, bind_ok]
+    step*
+    subst_vars; simp_all
+
+
 /-- `s'` differs from `s` at most in the aligned words satisfying `P` (and has
 the same kernel-state base). -/
 def WFrame (s s' : S) (P : U64 → Prop) : Prop :=
-  L.ksb s' = L.ksb s ∧ ∀ w : U64, P1.Aligned w → ¬ P w → L.mem s' w = L.mem s w
+  L.ksb s' = L.ksb s ∧ L.cpu s' = L.cpu s ∧ ∀ w : U64, P1.Aligned w → ¬ P w → L.mem s' w = L.mem s w
 
-theorem WFrame.refl (s : S) (P : U64 → Prop) : WFrame (L := L) s s P := ⟨rfl, fun _ _ _ => rfl⟩
+theorem WFrame.refl (s : S) (P : U64 → Prop) : WFrame (L := L) s s P := ⟨rfl, rfl, fun _ _ _ => rfl⟩
 
 theorem WFrame.trans {s1 s2 s3 : S} {P : U64 → Prop} (h1 : WFrame (L := L) s1 s2 P) (h2 : WFrame (L := L) s2 s3 P) :
-    WFrame (L := L) s1 s3 P := ⟨h2.1.trans h1.1, fun w hw hp => (h2.2 w hw hp).trans (h1.2 w hw hp)⟩
+    WFrame (L := L) s1 s3 P := ⟨h2.1.trans h1.1, h2.2.1.trans h1.2.1, fun w hw hp => (h2.2.2 w hw hp).trans (h1.2.2 w hw hp)⟩
 
 theorem WFrame.mono {s1 s2 : S} {P Q : U64 → Prop} (h : WFrame (L := L) s1 s2 P) (hpq : ∀ w, P w → Q w) :
-    WFrame (L := L) s1 s2 Q := ⟨h.1, fun w hw hq => h.2 w hw (fun hp => hq (hpq w hp))⟩
+    WFrame (L := L) s1 s2 Q := ⟨h.1, h.2.1, fun w hw hq => h.2.2 w hw (fun hp => hq (hpq w hp))⟩
 
 theorem WFrame.wr (s : S) {P : U64 → Prop} {a : U64} (ha : P1.Aligned a) (hp : P a) (v : U64) :
     WFrame (L := L) s (L.wr s a v) P := by
-  refine ⟨by simp, fun w hw hnp => ?_⟩
+  refine ⟨by simp, by simp, fun w hw hnp => ?_⟩
   apply L.mem_wr_ne ha hw
   intro e; exact hnp (by rw [show w = a from UScalar.eq_of_val_eq e.symm]; exact hp)
 
 theorem zr_frame (s : S) (a n : U64) (ha : P1.Aligned a) (hn : n.val % 8 = 0) (hf : a.val + n.val ≤ 2 ^ 64) :
     WFrame (L := L) s (L.zr s a n) (fun w => a.val ≤ w.val ∧ w.val < a.val + n.val) :=
-  ⟨L.ksb_zr _ _ _, fun w hw hnp => by rw [L.mem_zr s a n w ha hn hf hw, if_neg hnp]⟩
+  ⟨L.ksb_zr _ _ _, L.cpu_zr _ _ _, fun w hw hnp => by rw [L.mem_zr s a n w ha hn hf hw, if_neg hnp]⟩
 
 theorem set_cap_frame (s : S) (x : U64) (c : capability.Cap) (hx : x.val % 8 = 0) (hxf : x.val + 16 ≤ 2 ^ 64) :
     obj.Slot.set_cap st x s c ⦃ s' => WFrame (L := L) s s' (fun w => x.val ≤ w.val ∧ w.val < x.val + 16) ⦄ := by
@@ -173,8 +194,8 @@ theorem create_loop_frame {A' : Type} (arI : machine.Arch A') (ar : A') (th' : T
         · exact Or.inl h
         · exact Or.inr ((hMi.members _).1 h1).1
       refine WP.spec_bind (WP.spec_and hL (WP.spec_and (insert_new_frame hP' s1 _ _ _ hss hds hnx)
-        (insert_new_cap_ksb s1 _ _ _))) fun s3 ⟨hs3, hfr, hk⟩ => ?_
-      have hW3 : WFrame (L := L) s s3 (SlotSpan th0) := hW.trans ⟨hk, fun w hw hnp => hfr w hw (fun a ha hin => by
+        (insert_new_cap_kc s1 _ _ _))) fun s3 ⟨hs3, hfr, hk⟩ => ?_
+      have hW3 : WFrame (L := L) s s3 (SlotSpan th0) := hW.trans ⟨hk.1, hk.2, fun w hw hnp => hfr w hw (fun a ha hin => by
         refine hnp ⟨a, ?_, hin.1, hin.2⟩
         rcases ha with e | e | ⟨h0, e⟩
         · rw [e]; exact hs0
@@ -213,7 +234,7 @@ theorem winZero_of_frame {S : Type} {st : machine.Store S} [L : P1.LawfulStore s
     · exact Or.inr ⟨trivial, hT⟩
     · exact absurd ⟨by rw [← e]; exact h1, by rw [← e]; exact h2⟩ hdw
     · exact absurd ⟨by rw [← he]; exact h1, by rw [← he]; exact h2⟩ (hh0 hne)
-  · left; rw [hW.2 w hw hF]; exact hz w hw h1 h2
+  · left; rw [hW.2.2 w hw hF]; exact hz w hw h1 h2
 
 /-- **`WinZero` from a slot-only frame** (no object initialised): the window
 zero before and none of the old slots in it. -/
@@ -223,34 +244,39 @@ theorem winZero_of_slots {S : Type} {st : machine.Store S} [L : P1.LawfulStore s
     (T : Prop) : WinZero (L.mem s') A k win T := by
   intro w hw h1 h2
   left
-  rw [hW.2 w hw (fun ⟨a, ha, ha1, ha2⟩ => by rcases hsl a ha with h | h <;> omega)]
+  rw [hW.2.2 w hw (fun ⟨a, ha, ha1, ha2⟩ => by rcases hsl a ha with h | h <;> omega)]
   exact hz w hw h1 h2
 
 /-- **The retype's frame, as `RetPost` exposes it**: from the restart's
 state `s0` (the current thread `ct` set to Restart), either the reset
 preempted (`res` its outcome), or the creation ran from `sR` (`s0`, or the
 reset's state when done) over a heap `thR` of `th`'s slots: it writes only
-`TcbLoopW` (PML4s: their window too), and, for a non-device retype but
+its slot words (`SlotSpan`), with TCBs `TcbLoopW`, with PML4s their
+window too, and, for a non-device retype but
 PML4s, leaves the window `WinZero` (the creation words of TCBs, `T`). -/
 def RetFrame {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A' : Type} (arI : machine.Arch A') (ar : A')
-    (th : TypedHeap) (s : S) (x : U64) (A k win : Nat) (pml4 T Z : Prop)
+    (th : TypedHeap) (s : S) (x : U64) (A k win A0 k0 w0 : Nat) (pml4 T Z : Prop)
     (res : core.result.Result Unit error.Exc × S × A') : Prop :=
   ∃ ct s0, sched.cur_thread st s = ok ct ∧ sched.set_thread_state st s ct sched.TS_RESTART = ok s0 ∧
     ((res.1 = .Err .Preempted ∧ untyped.reset_untyped st arI s0 ar x = ok res) ∨
-     (res.1 = .Ok () ∧ ∃ sR thR, ((sR = s0 ∧ thR = th) ∨ ∃ a1, untyped.reset_untyped st arI s0 ar x = ok (.Ok (), sR, a1)) ∧
+     (res.1 = .Ok () ∧ (A = A0 ∧ k = k0 ∧ win = w0) ∧ ∃ sR thR, ((sR = s0 ∧ thR = th) ∨ ∃ a1, untyped.reset_untyped st arI s0 ar x = ok (.Ok (), sR, a1)) ∧
        (∀ a, IsSlot thR a → IsSlot th a) ∧
-       WFrame (L := L) sR res.2.1 (fun v => TcbLoopW thR A win (L.nodeAt sR 0#u64 layout.node.DEBUG_TCBS)
-         (L.mem sR (L.nodeAt sR 0#u64 layout.node.DEBUG_TCBS)) v ∨ (pml4 ∧ A ≤ v.val ∧ v.val < A + win * k)) ∧
+       WFrame (L := L) sR res.2.1 (fun v => ((T ∧ TcbLoopW thR A win (L.nodeAt sR 0#u64 layout.node.DEBUG_TCBS)
+         (L.mem sR (L.nodeAt sR 0#u64 layout.node.DEBUG_TCBS)) v) ∨ SlotSpan thR v) ∨
+         (pml4 ∧ A ≤ v.val ∧ v.val < A + win * k)) ∧
        (Z → WinZero (L.mem res.2.1) A k win T)))
 
 /-- `RetFrame` for an untyped invocation (its source slot, type and device
-flag). -/
+flag; the window its base, object size and slot count; the new caps
+untyped only for an untyped retype). -/
 def RetFrameI {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A' : Type} (arI : machine.Arch A') (ar : A')
-    (th : TypedHeap) (s : S) (inv : Fl4Spec.UntypedInvocation) (A k win : Nat)
-    (res : core.result.Result Unit error.Exc × S × A') : Prop :=
+    (th : TypedHeap) (s : S) (bitsApi : Fl4Spec.ApiObjectType → Nat → Nat) (inv : Fl4Spec.UntypedInvocation)
+    (A k win : Nat) (cj : Nat → capability.Cap) (res : core.result.Result Unit error.Exc × S × A') : Prop :=
   match inv with
-  | .retype sl _ _ _ t _ _ dev => RetFrame (L := L) arI ar th s (cslotAddr sl) A k win (t = .archObject .pml4Obj)
-      (t = .tcbObject) (dev = false ∧ t ≠ .archObject .pml4Obj) res
+  | .retype sl _ _ rb t us slots dev => RetFrame (L := L) arI ar th s (cslotAddr sl) A k win rb.toNat
+      (2 ^ bitsApi t us) slots.length (t = .archObject .pml4Obj)
+      (t = .tcbObject) (dev = false ∧ t ≠ .archObject .pml4Obj) res ∧
+    (res.1 = .Ok () → ∀ j, j < win → isUt (cj j) = true → t = .untyped)
 
 
 end Fl4Proofs.P3

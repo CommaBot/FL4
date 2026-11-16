@@ -79,7 +79,7 @@ theorem _root_.Fl4Proofs.P3.RetExp.cov_new {m m' : U64 → U64} (hE : RetExp th 
 theorem JCovD.retype (h : JCovD (L := L) th H G D Cs s)
     (hE : RetExp th th' (L.mem s) (L.mem s') G G' A k w dslot cj)
     (hH' : ∀ q kd, H' q = some kd → (H q = some kd ∧ ¬ NewQ A k w cj q) ∨ (NewQ A k w cj q ∧ 2 ^ kd.bits ≤ k))
-    (hdead : ∀ q ∈ D, H' q = H q → DeadP (L := L) H s q → DeadP (L := L) H' s' q)
+    (hdead : ∀ q ∈ D, ¬ NewQ A k w cj q → H' q = H q → DeadP (L := L) H s q → DeadP (L := L) H' s' q)
     (hksb : L.ksb s' = L.ksb s) :
     JCovD (L := L) th' H' G' {q | q ∈ D ∧ ¬ NewQ A k w cj q} Cs s' := by
   have hkeep : ∀ y ∈ G.chains.flatten, physF (capV (L.mem s) y) = true → isUt (capV (L.mem s) y) = false →
@@ -102,7 +102,7 @@ theorem JCovD.retype (h : JCovD (L := L) th H G D Cs s)
       refine ⟨fun e => ?_, fun e => ?_, fun e => ?_, fun e => ?_, fun z e => ?_⟩ <;> rw [hq] at e <;> cases e
     | some kd =>
       rcases hH' q kd hq with ⟨ho, -⟩ | ⟨hn', -⟩
-      · exact hdead q hd (hq.trans ho.symm) (h.dead q hd)
+      · exact hdead q hd hn (hq.trans ho.symm) (h.dead q hd)
       · exact absurd hn' hn
   · obtain ⟨x0, hx0, p0, sb0, fi0, d0, hc0, h1, h2⟩ := hE.ut x hx p sb fi d hcx
     obtain ⟨k1, k2⟩ := h.ks x0 hx0 p0 sb0 fi0 d0 hc0
@@ -144,7 +144,7 @@ theorem JCovD.retype_p1 (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem s)
         (Heap.scBits H') Ac' s' ∧
       JCovD (L := L) th' H' G' {q | q ∈ D ∧ ¬ NewQ A k w cj q} Cs s' := by
   obtain ⟨H', Ac', hb', -, hshape, hdead⟩ := hP1 hb fun q kd hq hm => ((retype_window_dead h hU hI hE).1 q kd hq hm).2
-  refine ⟨H', Ac', hb', h.retype hE (fun q kd hq => ?_) (fun q _ e hd => hdead q e hd) hksb⟩
+  refine ⟨H', Ac', hb', h.retype hE (fun q kd hq => ?_) (fun q _ _ e hd => hdead q e hd) hksb⟩
   rcases hshape q kd hq with ⟨ho, hm⟩ | hn
   · refine Or.inl ⟨ho, fun hn => hm ?_⟩
     obtain ⟨j, hj, hv, -⟩ := hn
@@ -211,7 +211,7 @@ theorem JCovD.retype_step (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem 
       JCovD (L := L) th' H' G' {q | q ∈ D ∧ ¬ NewQ A k w cj q} Cs s' := by
   obtain ⟨H', Ac', hb', -, hshape, -, hdead⟩ := hP1 hb hlo hhi hbits
     (fun q kd hq hm => ((region_dead h hU hI hx0 hc0 hreg) q kd hq hm).2) hcur hw hwin
-  refine ⟨H', Ac', hb', h.retype hE (fun q kd hq => ?_) (fun q _ e hd => hdead q e hd) hksb⟩
+  refine ⟨H', Ac', hb', h.retype hE (fun q kd hq => ?_) (fun q _ _ e hd => hdead q e hd) hksb⟩
   rcases hshape q kd hq with ⟨ho, hm⟩ | ⟨⟨j, hj, hv⟩, hk⟩
   · refine Or.inl ⟨ho, fun ⟨j, hj, hv, _⟩ => hm ?_⟩
     unfold MeetsR

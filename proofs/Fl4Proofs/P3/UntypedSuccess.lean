@@ -284,7 +284,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
         (FinInv th (L.mem s) σ G → FinInv th' (L.mem res.2.1) σ' G') ∧ L.ksb res.2.1 = L.ksb s ∧
         WFrame (L := L) s res.2.1 (SlotSpan th) ∧
         ∃ A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj ∧
-          A = (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val ⦄ := by
+          A = (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val ∧ (∀ j, j < w → isUt (cj j) = true → nt.val = 0) ⦄ := by
   -- sizes and the region
   have hsb : sb.val < 64 := capAt_untyped_inv hcap
   set z := zOf nt.val us.val with hzdef
@@ -376,7 +376,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
         (FinInv th (L.mem s) σ G → FinInv th' (L.mem res.2.1) σ' G') ∧ L.ksb res.2.1 = L.ksb s ∧
         WFrame (L := L) s res.2.1 (SlotSpan th) ∧
         ∃ A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj ∧
-          A = Ab.toNat ∧ k = 2 ^ z ∧ w = win.val ⦄ := by
+          A = Ab.toNat ∧ k = 2 ^ z ∧ w = win.val ∧ (∀ j, j < w → isUt (cj j) = true → nt.val = 0) ⦄ := by
     intro th' σb hP' hR' hV' hM' hC' hrb hpp' hdest' hcv' hzs hKb hth
     -- the zero region kept by the loop: none for a device region
     set zl : Nat := if dev = true then p.val + 2 ^ sb.val else A + win.val * k with hzl
@@ -522,9 +522,9 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
       rw [k2, k1]
     have hW : WFrame (L := L) s s2 (SlotSpan th) := by
       have hs' : IsSlot th src := hs
-      obtain ⟨s1k, hs1k, k1⟩ := spec_exists (set_cap_ksb (L := L) src s srcC')
+      obtain ⟨s1k, hs1k, k1⟩ := spec_exists (set_cap_kc (L := L) src s srcC')
       rw [hs1] at hs1k; cases eq_of_ok_eq hs1k
-      refine WFrame.trans (s2 := s1) ⟨k1, fun w hw hn => hfr1 w hw (fun e => hn ⟨src, hs', by omega, by omega⟩)
+      refine WFrame.trans (s2 := s1) ⟨k1.1, k1.2, fun w hw hn => hfr1 w hw (fun e => hn ⟨src, hs', by omega, by omega⟩)
         (fun e => hn ⟨src, hs', by omega, by omega⟩)⟩ hW2
     refine ⟨rfl, ha2, σf, Gf, th', ?_, hP', hRf, hVf, hMf, hCf, hIf, ⟨hRD.utinv hU, MdbStep.retype hRD hI hChf
           (fun z hz => by rw [hRvf z hz, hupd.rv ((hM.members z).1 hz).1])
@@ -534,7 +534,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
         hFf (hFI.fm.recap hM.tree.nodup src
           (by rw [hcs1, hcv0]; exact CapSim.of_shape rfl rfl)
           (fun z hz hzs => hco1 z ((hM.members z).1 hz).1 hzs))⟩, hks2, hW, A, k, win.val, _, _,
-      hRD.toExp hU hMf hth, rfl, rfl, rfl⟩
+      hRD.toExp hU hMf hth, rfl, rfl, rfl, fun j hj hu => (isUt_newCap (by unfold cjOf at hu; exact hu)).1⟩
     · rw [hbA] at hmx
       apply invokeUntyped_noreset_eq bitsApi (pp.bv, idx) p.bv Ab t us.val _ dev σ σa σb σf _ _ hgs hss hrb
       · exact objTypeOf_ne_pml4 (by omega) ht
