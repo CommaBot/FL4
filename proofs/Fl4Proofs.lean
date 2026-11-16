@@ -291,6 +291,7 @@ import Fl4Proofs.P3.IpcReplyAll
 import Fl4Proofs.P3.EpSendD
 import Fl4Proofs.P3.IpcSendDon
 import Fl4Proofs.P3.IpcBuf
+import Fl4Proofs.P3.IpcJ
 import Fl4Proofs.P3.IpcXTop
 import Fl4Proofs.P3.XTopCaps
 import Fl4Proofs.P3.DomSched
