@@ -9,8 +9,8 @@ P3 (DESIGN.md §9): **one extra relation for `handle_invocation_refinesMX`**
   relation, the placement, the ASID and page-table relations, the pools and
   the current thread), `rel` (`RelTopB`: the CSpace relation at the same
   typed heap, with the IPC words and SCs apart from its slots), `ipc`
-  (`IpcRel`) and `esa` (`EpSchedApart`). `XTopAt.irel`: the IPC proofs'
-  `IRel`. Fields can be added (the kernel-entry composition's) without
+  (`IpcRel`) and `esa` (`EpSchedApart`). The IPC proofs' `IRel` from it:
+  IpcXTop.lean's `XTopAt.irelK`. Fields can be added (the kernel-entry composition's) without
   touching the producers.
 * `DecOKDMX.imp`, `DecOKRMX.imp`: a producer at `X₁` gives one at `X₂` when
   `X₁` implies `X₂` (the only generic lift: the relations sit under the
@@ -77,11 +77,6 @@ structure XTopAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (a : A) (
 /-- **The composite relation** (module docstring). -/
 def XTop (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   ∃ Z : XSets, XTopAt (L := L) AR Z s a σ
-
-/-- The IPC proofs' `IRel`. -/
-theorem XTopAt.irel {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (h : XTopAt (L := L) AR Z s a σ) : IRel st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ :=
-  ⟨h.ipc, ⟨Z.th, Z.G, h.rel⟩, h.fin.1.1.1, h.esa⟩
 
 theorem XTopAt.relTop {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (h : XTopAt (L := L) AR Z s a σ) : RelTopM (L := L) s σ :=

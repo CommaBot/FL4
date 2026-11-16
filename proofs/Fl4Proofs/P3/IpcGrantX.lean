@@ -335,7 +335,7 @@ noncomputable section
 
 section Grant
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 theorem RelTopB.tcbT {th : TypedHeap} {G : MdbGhost} {s : S} {σ : Fl4Spec.State Unit}
     (hB : RelTopB (L := L) th G N T C E R B c s σ) {t : U64} {x : Fl4Spec.Tcb}
@@ -389,12 +389,12 @@ theorem noEp0_of_src {th : TypedHeap} {m : U64 → U64} {extra : Aeneas.Std.Arra
 set_option maxHeartbeats 4000000 in
 /-- **`do_ipc_transfer` with a receive buffer, caps granted** (G4), on
 `SRT … SRE`: the transfer field `xbuf` of the bundle with `GC := True`. -/
-theorem do_ipc_transfer_grant (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+theorem do_ipc_transfer_grant (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBf : EpBufHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBm : EpBufMapHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
     (hP0 : IPlaced N T E R B) (hP : EPlaced T E R B)
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hR : EpStateRel T E R B (L.mem s) σ)
-    (hSR : SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c))) s σ)
+    (hSR : SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c))) s σ)
     {snd rcv : U64} (hs : snd ∈ T) (hr : rcv ∈ T) (hne : snd ≠ rcv) {xs xr : Fl4Spec.Tcb}
     (hks : σ.kheap snd.bv = some (.tcb xs)) (hkr : σ.kheap rcv.bv = some (.tcb xr)) (hf : xs.tcbFault = none)
     {rp : Fl4Spec.ObjRef} (hrb : ipcBufOf true xr = some rp) (ep badge : U64) (grant : Bool)
@@ -403,7 +403,7 @@ theorem do_ipc_transfer_grant (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E
     ipc.do_ipc_transfer st ar s a snd ep badge grant rcv ⦃ s' => ∃ σ',
       Fl4Spec.doIpcTransfer (Z := Unit) snd.bv epo badge.bv grant rcv.bv σ = ({((), σ')}, False) ∧
       EpStateRel T E R B (L.mem s') σ' ∧
-      SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c))) s' σ' ∧
+      SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c))) s' σ' ∧
       Agree (L.mem s) (L.mem s') (fun b => AllTF T b ∧ ¬ RcvReg rcv b ∧ ¬ BufW B b) ∧
       KeepNC σ σ' rcv.bv ∧
       ∃ x', σ'.kheap rcv.bv = some (.tcb x') ∧ x'.tcbState = xr.tcbState ⦄ := by
@@ -412,7 +412,7 @@ theorem do_ipc_transfer_grant (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E
   have hwmi : (L.mem s (regA snd layout.reg.MSG_INFO)).bv = xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register := by
     rw [← regIdx_msgInfo]; exact hxs.regs _
   have hIR := (IpcRel.ofSRN hR hSR).1
-  obtain ⟨⟨th, G, hB⟩, -⟩ := hSR.1.1
+  obtain ⟨⟨⟨G, hB⟩, -⟩, -⟩ := hSR.1.1
   have hEH := hH.epHyps hP0
   have hu := hBm.frame s σ rcv xr rp hR hSR.1.1 hr hkr hrb
   unfold ipc.do_ipc_transfer
@@ -496,7 +496,7 @@ theorem do_ipc_transfer_grant (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E
   step with Fl4Proofs.P3.Endp.obj.Tcb.set_reg.spec as ⟨s4, hs4⟩
   subst hs3 hs4
   have hkt : σt.kheap rcv.bv = some (.tcb x1) := by
-    rcases hKC rcv.bv with e | ⟨r, cs, cs', h1, -⟩
+    rcases hKC.1 rcv.bv with e | ⟨r, cs, cs', h1, -⟩
     · rw [e, hkc]
     · rw [hkc] at h1; cases h1
   have hcopy' : Fl4Spec.copyMrs (Z := Unit) snd.bv (ipcBufOf false xs) rcv.bv (some rp)
@@ -532,8 +532,12 @@ theorem do_ipc_transfer_grant (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E
         Fl4Spec.badge_register badge.bv)) := by
     simp only [updK, Function.update_idem]; rw [hvx]
   rw [hfin] at hR3
-  have hSRS2 : SRS st T (SRT st N T C E R B c (SRE st N T C E R B c)) s2 σt :=
-    ⟨⟨⟨th, G', hBt⟩, hSEt⟩, ScRelM.of hIRt⟩
+  have hSRS2 : SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c)) s2 σt :=
+    ⟨⟨RelTopI.of_B (hSR.1.1.1.stableE hWc hEc) hBt hWt (fun b hb => by
+        rcases hb with h | ⟨wp, hw, rfl⟩
+        · exact Or.inr (Or.inr (Or.inr h))
+        · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inr ⟨wp, hw, le_refl _, by omega⟩)))))
+      hKC.vsKeep, hSEt⟩, ScRelM.of hIRt⟩
   have hSf := hEH.stable _ _ _ _ (hEH.stable _ _ _ _ hSRS2 hW2 hS2) hW3 hS3
   rw [hfin] at hSf
   have hA2 : Agree (L.mem s2) (L.mem (L.wr (L.wr s2 (regA rcv layout.reg.MSG_INFO) v) (regA rcv layout.reg.BADGE)
@@ -560,18 +564,18 @@ theorem do_ipc_transfer_grant (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E
     exact hAc b hb ⟨fun ⟨r, _, h'⟩ => hnr ⟨r, h'⟩, hnb⟩
   · intro p hp
     simp only [updK_kheap, Function.update_of_ne hp]
-    rcases hKC p with e | ⟨r, cs, cs', h1, h2⟩
+    rcases hKC.1 p with e | ⟨r, cs, cs', h1, h2⟩
     · left; rw [e, hkco p hp]
     · right; exact ⟨r, cs, cs', by rw [← hkco p hp]; exact h1, h2⟩
 
 /-- **`do_ipc_transfer` without a receive buffer, caps looked up** (G4), on
 `SRT … SRE`: the transfer field `xregs` of the bundle with `GC := True`. -/
-theorem do_ipc_transfer_regsT (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+theorem do_ipc_transfer_regsT (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBf : EpBufHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBm : EpBufMapHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
     (hP0 : IPlaced N T E R B) (hP : EPlaced T E R B)
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hR : EpStateRel T E R B (L.mem s) σ)
-    (hSR : SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c))) s σ)
+    (hSR : SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c))) s σ)
     {snd rcv : U64} (hs : snd ∈ T) (hr : rcv ∈ T) (hne : snd ≠ rcv) {xs xr : Fl4Spec.Tcb}
     (hks : σ.kheap snd.bv = some (.tcb xs)) (hkr : σ.kheap rcv.bv = some (.tcb xr)) (hf : xs.tcbFault = none)
     (hrb : ipcBufOf true xr = none) (ep badge : U64) (grant : Bool)
@@ -580,11 +584,11 @@ theorem do_ipc_transfer_regsT (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E
       Fl4Spec.doIpcTransfer (Z := Unit) snd.bv epo badge.bv grant rcv.bv σ =
         ({((), updK σ rcv.bv (.tcb (xferTcb xr xs badge.bv)))}, False) ∧
       EpStateRel T E R B (L.mem s') (updK σ rcv.bv (.tcb (xferTcb xr xs badge.bv))) ∧
-      SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c))) s'
+      SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c))) s'
         (updK σ rcv.bv (.tcb (xferTcb xr xs badge.bv))) ∧
       Agree (L.mem s) (L.mem s') (fun b => ¬ RcvReg rcv b) ⦄ := by
   have hIR := (IpcRel.ofSRN hR hSR).1
-  obtain ⟨⟨th, G, hB⟩, -⟩ := hSR.1.1
+  obtain ⟨⟨⟨G, hB⟩, -⟩, -⟩ := hSR.1.1
   refine WP.spec_mono (do_ipc_transfer_regsX (ar := ar) (hH.epHyps hP0) hBf.srs hBm.srs hP s a σ hR hSR.1 hs hr hne
     hks hkr hf hrb ep badge grant ?_ epo) fun _ ⟨h1, h2, h3, h4⟩ =>
       ⟨h1, h2, ⟨h3, ntfn_lift_rcv hP0.toC hSR.2 h2 hr (h4.mono fun _ h => h.1) (fun p hp => by simp [hp]) hkr
@@ -607,11 +611,11 @@ theorem do_ipc_transfer_regsT (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E
 /-- **The step lemmas with grants** (G4): the bundle with `GC := True`,
 the transfers carrying caps, on `SRT … SRE`; the other fields as in
 `IpcSchedHyps.steps`. -/
-theorem IpcSchedHyps.stepsG (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+theorem IpcSchedHyps.stepsG (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBf : EpBufHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBm : EpBufMapHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
     (hP0 : IPlaced N T E R B) :
-    EpStepsBuf st A ar T E R B (SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c))))
+    EpStepsBuf st A ar T E R B (SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c))))
       (fun ts => tsCode ts ≠ 6) True :=
   let h := hH.steps hBf hBm hP0
   { ns_ep := h.ns_ep, deq := h.deq, link := h.link, unlink := h.unlink, sts := h.sts, push := h.push,

@@ -259,4 +259,5 @@ import Fl4Proofs.P3.TopXAll
 import Fl4Proofs.P3.VsThX
 import Fl4Proofs.P3.IpcRS
 import Fl4Proofs.P3.XTopStep
+import Fl4Proofs.P3.IpcXTop
 import Fl4Proofs.P3.XTopCaps

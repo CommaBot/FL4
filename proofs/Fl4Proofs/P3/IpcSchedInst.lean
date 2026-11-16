@@ -114,7 +114,7 @@ end Spec
 
 section Stable
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-- **The endpoint subsystem's words apart from the scheduler's**: core
 `c`'s node, the domain words and the SC objects hold no endpoint word. -/
@@ -230,7 +230,7 @@ end Stable
 
 section Sched
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-- `is_schedulable` is `schedulable`, from the endpoint relation's state
 word. -/
@@ -363,19 +363,19 @@ theorem schedule_tcb_cases (s : S) (t : U64) :
 /-- **`schedule_tcb` keeps `RelTopI`**: it writes at most the action word of
 core `c`'s node. -/
 theorem relTopI_schedule_tcb (s : S) (σ : Fl4Spec.State Unit) (hS : SchedRel st N T C c s σ)
-    (hT : RelTopI (L := L) N T C E R B c s σ) (t : U64) :
-    sched.schedule_tcb st s t ⦃ s' => RelTopI (L := L) N T C E R B c s' (stsAct σ t.bv) ⦄ := by
+    (hT : RelTopI (L := L) th cr N T C E R B c s σ) (t : U64) :
+    sched.schedule_tcb st s t ⦃ s' => RelTopI (L := L) th cr N T C E R B c s' (stsAct σ t.bv) ⦄ := by
   obtain ⟨Q, R0, hc, -⟩ := hS.lists
   obtain ⟨hK, hdl, hds⟩ := stsAct_ckeep σ t.bv
   refine WP.spec_mono (schedule_tcb_cases s t) ?_
   rintro s' (rfl | rfl)
   · exact hT.frameN (W := fun _ => False) (WritesIn.refl _ _) (fun _ h => h.elim) hK hdl hds
-      (SzKeep.of_kheap (stsAct_kheap σ t.bv))
+      (VsKeep.stsAct σ t.bv)
   · rw [hc.cur]
     have ho : (layout.node.SCHED_ACTION).val < 4288 := by simp [layout.node.SCHED_ACTION]
     have hv := nodeAt_val hc.node ho
     refine hT.frameN (writesIn_wr (nodeAt_aligned hc.node ho (by simp [layout.node.SCHED_ACTION])))
-      (fun a ha => Or.inr ?_) hK hdl hds (SzKeep.of_kheap (stsAct_kheap σ t.bv))
+      (fun a ha => Or.inr ?_) hK hdl hds (VsKeep.stsAct σ t.bv)
     have hnb : L.nodeBase s c = (L.ksb s).val + 13568 + c.val * 4288 := rfl
     subst ha
     unfold NodeW; rw [hv, ← hnb]; omega
@@ -386,7 +386,7 @@ end Sched
 
 section Inst
 variable {S A : Type} (st : machine.Store S) (ar : machine.Arch A) [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-- **The scheduler relation for the IPC proofs**: `SchedRel` with the
 endpoint words apart from the scheduler's. -/
@@ -423,7 +423,7 @@ theorem ipcSchedHyps_sre (hP : EPlaced T E R B) (hX : IpcSchedRest st ar N T E R
   scheduleTcb s σ t hR _ h ht := by
     refine WP.spec_mono (WP.spec_and (schedule_tcb_refinesE s σ hR h.1 h.2 t ht) (schedule_tcb_cases s t)) ?_
     rintro s' ⟨⟨hF, hS'⟩, hc⟩
-    refine ⟨hF, hS', h.2.mono ?_ (SzKeep.of_kheap (stsAct_kheap σ t.bv))⟩
+    refine ⟨hF, hS', h.2.mono ?_ (VsKeep.stsAct σ t.bv).2.2.2.2.2⟩
     rcases hc with rfl | rfl
     · rfl
     · exact L.ksb_wr _ _ _
@@ -433,8 +433,8 @@ theorem ipcSchedHyps_sre (hP : EPlaced T E R B) (hX : IpcSchedRest st ar N T E R
 /-- **`IpcSchedHyps` with the CSpace relation** (`SRT … SRE`): `RelTopI`
 across `schedule_tcb` too; the rest given for `SRT`. -/
 theorem ipcSchedHyps_top (hP : EPlaced T E R B)
-    (hX : IpcSchedRest st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c))) :
-    IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)) where
+    (hX : IpcSchedRest st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c))) :
+    IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)) where
   stableN s s' σ σ' h hW hK _ := ⟨h.1.stableN hP.tcb hW hK,
     h.2.1.stable hW hK, h.2.2.mono hW.1 (SzKeep.ntfnStep hK)⟩
   stableE s s' σ σ' h hW hK := ⟨h.1.stableE hW hK, h.2.1.stableE hP h.2.2 hW hK,
@@ -446,7 +446,7 @@ theorem ipcSchedHyps_top (hP : EPlaced T E R B)
     refine WP.spec_mono (WP.spec_and (WP.spec_and (schedule_tcb_refinesE s σ hR h.2.1 h.2.2 t ht)
       (schedule_tcb_cases s t)) (relTopI_schedule_tcb s σ h.2.1 h.1 t)) ?_
     rintro s' ⟨⟨⟨hF, hS'⟩, hc⟩, hT'⟩
-    refine ⟨hF, hT', hS', h.2.2.mono ?_ (SzKeep.of_kheap (stsAct_kheap σ t.bv))⟩
+    refine ⟨hF, hT', hS', h.2.2.mono ?_ (VsKeep.stsAct σ t.bv).2.2.2.2.2⟩
     rcases hc with rfl | rfl
     · rfl
     · exact L.ksb_wr _ _ _

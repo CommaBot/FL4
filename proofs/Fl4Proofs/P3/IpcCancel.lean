@@ -204,7 +204,7 @@ end
 
 section Sched
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-- A write to a TCB word that is no scheduler field keeps what `SchedRel`
 reads. -/
@@ -271,10 +271,10 @@ end Sched
 
 section Top
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-- **`IpcCore` for `SRT … SRE`.** -/
-theorem ipcCore_top (hP : EPlaced T E R B) : IpcCore st N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)) where
+theorem ipcCore_top (hP : EPlaced T E R B) : IpcCore st N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)) where
   stableE s s' σ σ' h hW hK := ⟨h.1.stableE hW hK, h.2.1.stableE hP h.2.2 hW hK,
     h.2.2.mono hW.1 (SzKeep.epStep hK)⟩
   scheduleTcb s σ t hR _ h ht := by
@@ -287,14 +287,14 @@ theorem ipcCore_top (hP : EPlaced T E R B) : IpcCore st N T E R B (SRT st N T C 
     · exact L.ksb_wr _ _ _
 
 /-- **`RelTopI ∧ SRE` after clearing a TCB's fault.** -/
-theorem fault_clear_top {s : S} {σ : Fl4Spec.State Unit} (hS : SRT st N T C E R B c (SRE st N T C E R B c) s σ)
+theorem fault_clear_top {s : S} {σ : Fl4Spec.State Unit} (hS : SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ)
     {t : U64} (ht : t ∈ T) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) :
-    SRT st N T C E R B c (SRE st N T C E R B c) (L.wr s (tFaultA t) 0#u64)
+    SRT st th cr N T C E R B c (SRE st N T C E R B c) (L.wr s (tFaultA t) 0#u64)
       (updK σ t.bv (.tcb { x with tcbFault := none })) := by
   obtain ⟨Q, R0, hc, -⟩ := hS.2.1.lists
   have hta := hc.tcbs t ht
   refine ⟨hS.1.frame (writesIn_wr (a_fault hta).1) (fun a ha => Or.inl ⟨t, ht, ?_, ?_⟩) ?_ rfl rfl
-    (SzKeep.updK hk (fun _ _ h => by cases h)),
+    (VsKeep.updK_tcb hk),
     fault_clear_sre hS.2 ht hk⟩
   · rw [ha, val_fault hta]; omega
   · rw [ha, val_fault hta]; omega
@@ -518,13 +518,13 @@ theorem cancel_ipc_recvI (hH : IpcCore st N T E R B SR)
 `CancelRecvHyp` for every receiver of a related state. -/
 theorem cancelIpc_top {C : Set U64} {c : U64} (hP0 : IPlaced N T E R B)
     (hX : ∀ s σ (t : U64) (x : Fl4Spec.Tcb), IpcRel N T E R B (L.mem s) σ →
-      SRT st N T C E R B c (SRE st N T C E R B c) s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
+      SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
       Fl4Spec.receiveBlocked x.tcbState = true → CancelRecvHyp E (L.mem s) σ t x) :
     ∀ s (a : A) σ (t : U64) (x : Fl4Spec.Tcb), IpcRel N T E R B (L.mem s) σ →
-      SRT st N T C E R B c (SRE st N T C E R B c) s σ → t ∈ T →
+      SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ → t ∈ T →
       σ.kheap t.bv = some (.tcb x) → Fl4Spec.receiveBlocked x.tcbState = true →
       ipc.cancel_ipc st ar s a t ⦃ r => ∃ σ' x', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
-        IpcRel N T E R B (L.mem r.1) σ' ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 σ' ∧
+        IpcRel N T E R B (L.mem r.1) σ' ∧ SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 σ' ∧
         σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = .inactive ∧ RelIfBound σ' t.bv ⦄ :=
   fun s a σ t x hR hS ht hk hrb => cancel_ipc_recvI (ipcCore_top hP0.e)
     (fun _ _ _ _ h ht hk => fault_clear_top h ht hk) hP0 s a σ hR hS ht hk hrb (hX s σ t x hR hS ht hk hrb)

@@ -178,6 +178,33 @@ theorem KeepC.trans {σ1 σ2 σ3 : State Unit} (h1 : KeepC σ1 σ2) (h2 : KeepC 
   · rw [e2, b1]; exact Or.inr ⟨r, cs, cs', a1, rfl⟩
   · rw [b1] at a2; cases a2; exact Or.inr ⟨r, cs, ds', a1, b2⟩
 
+/-- `KeepC` with the arch state, the IRQ state and node and the current
+thread kept (for the VSpace parts, `VsKeep`). -/
+def KeepCV (σ σ' : State Unit) : Prop :=
+  KeepC σ σ' ∧ σ'.archState = σ.archState ∧ σ'.interruptStates = σ.interruptStates ∧
+    σ'.interruptIrqNode = σ.interruptIrqNode ∧ σ'.curThread = σ.curThread
+
+theorem KeepCV.refl (σ : State Unit) : KeepCV σ σ := ⟨KeepC.refl σ, rfl, rfl, rfl, rfl⟩
+
+theorem KeepCV.trans {σ1 σ2 σ3 : State Unit} (h1 : KeepCV σ1 σ2) (h2 : KeepCV σ2 σ3) : KeepCV σ1 σ3 :=
+  ⟨h1.1.trans h2.1, h2.2.1.trans h1.2.1, h2.2.2.1.trans h1.2.2.1, h2.2.2.2.1.trans h1.2.2.2.1,
+    h2.2.2.2.2.trans h1.2.2.2.2⟩
+
+theorem KeepCV.vsKeep {σ σ' : State Unit} (h : KeepCV σ σ') : VsKeep σ σ' := by
+  refine ⟨h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2, fun q ao hq => ?_, fun p x n hp => ?_⟩
+  · rcases h.1 q with e | ⟨r, cs, cs', h1, -⟩
+    · exact e
+    · rw [hq] at h1; cases h1
+  · rcases h.1 p with e | ⟨r, cs, cs', -, h2⟩
+    · exact ⟨x, e ▸ hp⟩
+    · rw [hp] at h2; cases h2
+
+theorem CnK.keepCV {σ σ' : State Unit} (hK : CnK σ σ') (hC : KeepC σ σ') : KeepCV σ σ' :=
+  ⟨hC, by have e := congrArg AbstractState.archState hK.1; exact e,
+    by have e := congrArg AbstractState.interruptStates hK.1; exact e,
+    by have e := congrArg AbstractState.interruptIrqNode hK.1; exact e,
+    by have e := congrArg AbstractState.curThread hK.1; exact e⟩
+
 /-- `CnK` with the heap changed at CNodes only. -/
 theorem keepC_of {σ σ' : State Unit} {Ps : Set ObjRef} (hK : CnK σ σ') (hO : ∀ p ∉ Ps, σ'.kheap p = σ.kheap p)
     (hc : ∀ p ∈ Ps, ∃ r cs, σ.kheap p = some (.cnode r cs)) : KeepC σ σ' := by
@@ -252,13 +279,7 @@ end CnK
 
 section Insert
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
-
-theorem RelTopB.relTopI {th : TypedHeap} {G : MdbGhost} {s : S} {σ : Fl4Spec.State Unit}
-    (h : RelTopB (L := L) th G N T C E R B c s σ) : RelTopI (L := L) N T C E R B c s σ := ⟨th, G, h⟩
-
-theorem RelTopI.exB {s : S} {σ : Fl4Spec.State Unit} (h : RelTopI (L := L) N T C E R B c s σ) :
-    ∃ th G, RelTopB (L := L) th G N T C E R B c s σ := h
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 theorem slotWd_range {th : TypedHeap} (hP : Placed th) {b : U64} (h : Sched.SlotWd th b) :
     ∃ y, IsSlot th y ∧ y.val ≤ b.val ∧ b.val < y.val + 32 := by
@@ -352,7 +373,7 @@ theorem insert_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGhost} {s 
     cdt.insert st s cc (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd)) ⦃ s' =>
       ∃ σ', Fl4Spec.capInsert (Z := Unit) a (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False) ∧
         IpcRel N T E R B (L.mem s') σ' ∧ SRE st N T C E R B c s' σ' ∧
-        (WritesIn st s s' (Sched.SlotWd th) ∧ KeepC σ σ') ∧
+        (WritesIn st s s' (Sched.SlotWd th) ∧ KeepCV σ σ') ∧
         ∃ G', RelTopB (L := L) th G' N T C E R B c s' σ' ⦄ := by
   obtain ⟨hPl, ⟨hSt, hV, hM, hC, hI⟩, hFI, hD, hMO, hA, hSA⟩ := hB
   have hsI : IsSlot th (cslotAddr (ps.bv, idxs)) :=
@@ -379,7 +400,7 @@ theorem insert_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGhost} {s 
       obtain ⟨y, hy, g1, g2⟩ := slotWd_range hPl hsw
       exact hA.ks b h1 (by omega) y hy ⟨g1, g2⟩
   refine ⟨σ', heq, hR.frame hP0 (fun b hb hf => hw.mem_eq hb fun hsw => ?_) hK.ikview,
-    sre_slotw hPl hS hA hSA hw hK, ⟨hw, hKC⟩, G', hPl, ⟨hSt', hV', hM', hC', hI'⟩, hFI', ?_, ?_, ?_,
+    sre_slotw hPl hS hA hSA hw hK, ⟨hw, hK.keepCV hKC⟩, G', hPl, ⟨hSt', hV', hM', hC', hI'⟩, hFI', ?_, ?_, ?_,
     hSA.mono (fun p y n hp => ⟨y, hK.sc' hp⟩)⟩
   · obtain ⟨y, hy, g1, g2⟩ := slotWd_range hPl hsw
     exact hA.slot _ (IFoot.iwords hP0 hf) y hy ⟨g1, g2⟩
@@ -396,7 +417,7 @@ end Insert
 
 section Buf
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-- **Writing a word of a mapped IPC buffer** refines `store_word_offs` on
 the composite relation. -/
@@ -589,7 +610,7 @@ end Unwrap
 
 section Loop
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-- A source cap of the transfer: the cap in a CNode slot, related to the
 spec's. -/
@@ -627,7 +648,7 @@ end Loop
 
 section Loop2
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 theorem CnK.inUserFrame {σ σ' : Fl4Spec.State Unit} (h : CnK σ σ') {a : Fl4Spec.Word}
     (hu : Fl4Spec.inUserFrame a σ) : Fl4Spec.inUserFrame a σ' := by
@@ -654,7 +675,7 @@ def TInv (th : TypedHeap) (caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (extra
       ∃ cv, capAt (L.mem x.1) (exAt extra j) = ok cv ∧ UwEq ep cv (caps[j]).1) ∧
     ((x.2.2.1 = 0#u64 ∧ slots = []) ∨
       (x.2.2.1 = dest0 ∧ slots = slots0 ∧ dest0 ≠ 0#u64 ∧ SlotsSame th (L.mem s0) (L.mem x.1) ∧ σ.cdt = σ0.cdt)) ∧
-    KeepC σ0 σ ∧ WritesIn st s0 x.1 (FW th B) ∧ x.2.1.caps_unwrapped.val < 8
+    KeepCV σ0 σ ∧ WritesIn st s0 x.1 (FW th B) ∧ x.2.1.caps_unwrapped.val < 8
 
 /-- The transfer loop's result. -/
 def TPost (th : TypedHeap) (caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (ep : U64) (rb : Fl4Spec.Word)
@@ -663,7 +684,7 @@ def TPost (th : TypedHeap) (caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (ep :
   ∃ σ' mf, Fl4Spec.transferCapsLoop (Z := Unit) (some ep.bv) rb 0 caps slots0 mi0 σ0 = ({(mf, σ')}, False) ∧
     MiRel y.2.1 mf ∧ mf.miExtraCaps = BitVec.ofNat 64 y.2.2.val ∧
     y.2.1.caps_unwrapped.val < 8 ∧ y.2.2.val ≤ 3 ∧ mf.miLabel = mi0.miLabel ∧
-    IpcRel N T E R B (L.mem y.1) σ' ∧ SRE st N T C E R B c y.1 σ' ∧ (KeepC σ0 σ' ∧ WritesIn st s0 y.1 (FW th B)) ∧
+    IpcRel N T E R B (L.mem y.1) σ' ∧ SRE st N T C E R B c y.1 σ' ∧ (KeepCV σ0 σ' ∧ WritesIn st s0 y.1 (FW th B)) ∧
     ∃ G, RelTopB (L := L) th G N T C E R B c y.1 σ'
 
 /-- A loop exit with the spec's loop ending at the same index. -/
@@ -677,7 +698,7 @@ theorem tpost_of {th : TypedHeap} {caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)
     (hend : Fl4Spec.transferCapsLoop (Z := Unit) (some ep.bv) rb i.val (caps.drop i.val) slots mi σ =
       ({(miAt mi i.val, σ)}, False))
     (hcu : out.caps_unwrapped.val < 8) (hi3 : i.val ≤ 3) (hlb : mi.miLabel = mi0.miLabel)
-    (hR : IpcRel N T E R B (L.mem s) σ) (hS : SRE st N T C E R B c s σ) {s0 : S} (hK : KeepC σ0 σ)
+    (hR : IpcRel N T E R B (L.mem s) σ) (hS : SRE st N T C E R B c s σ) {s0 : S} (hK : KeepCV σ0 σ)
     (hW : WritesIn st s0 s (FW th B))
     (hB : ∃ G, RelTopB (L := L) th G N T C E R B c s σ) :
     TPost (L := L) (st := st) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) th caps ep rb s0 σ0
@@ -688,7 +709,7 @@ end Loop2
 
 section Loop3
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 theorem buf_caps_eq : msg.BUF_CAPS = ok 122#u64 := by
   unfold msg.BUF_CAPS msg.BUF_USER_DATA msg.MSG_MAX_LENGTH
@@ -778,7 +799,7 @@ theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec
           slotsSame_wr hPl s _ hal fun a ha h => hB.2.2.2.2.2.1.slot _
             (Or.inr (Or.inr (Or.inr (Or.inr ⟨_, hwp, le_refl _, by omega⟩)))) a ha h
         refine ⟨⟨σ1, miUnwrap mi i.val, slots, by rw [hi8]; omega, ⟨hmi.1, ?_, hmi.2.2⟩, hml, hmlb, ?_, hR2, hS2,
-          ⟨G, hB2⟩, fun k hk => (inUserFrame_setUm _ _ _).2 (hu k hk), fun j hj hij => ?_, ?_, fun p => hK0 p,
+          ⟨G, hB2⟩, fun k hk => (inUserFrame_setUm _ _ _).2 (hu k hk), fun j hj hij => ?_, ?_, ⟨fun p => hK0.1 p, hK0.2⟩,
           (hW0.trans (writesIn_wr hal)).mono fun b h => h.elim id (fun e => Or.inr ⟨_, hwp, e⟩),
           by show (out.caps_unwrapped ||| i6).val < 2 ^ 3; rw [UScalar.val_or]; exact Nat.or_lt_two_pow hcu hi6⟩,
           by rw [hi8]; omega⟩
@@ -950,7 +971,7 @@ end Loop3
 
 section Transfer
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-- The receive slot FL4 found and the spec's receive slots. -/
 def DestConf (th : TypedHeap) (m : U64 → U64) (caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
@@ -988,7 +1009,7 @@ theorem transfer_loop_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGho
     | done y => exact hr
     | cont x' => exact hr
   · refine ⟨σ0, mi0, slots0, by simp, hmi0, rfl, rfl, fun r σf h => by simpa using h, hR0, hS0, ⟨G, hB0⟩, hu,
-      fun j hj _ => ?_, ?_, KeepC.refl σ0, WritesIn.refl s0 _, hcu0⟩
+      fun j hj _ => ?_, ?_, KeepCV.refl σ0, WritesIn.refl s0 _, hcu0⟩
     · obtain ⟨ps, rs, idx, cv, -, -, -, -, hcv, habs, -⟩ := hsrc j hj
       exact ⟨cv, hcv, UwEq.of_abs habs.symm⟩
     · rcases hD with ⟨h0, h1⟩ | ⟨h0, -⟩
@@ -1019,7 +1040,7 @@ theorem transfer_caps_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGho
       Fl4Spec.transferCaps (Z := Unit) mi caps (some ep.bv) receiver.bv rbo σ = ({(mf, σ')}, False) ∧
       MiRel r.1 mf ∧ r.1.extra_caps.bv = mf.miExtraCaps ∧ IpcRel N T E R B (L.mem r.2) σ' ∧
       r.1.caps_unwrapped.val < 8 ∧ r.1.extra_caps.val ≤ 3 ∧ mf.miLabel = mi.miLabel ∧
-      SRE st N T C E R B c r.2 σ' ∧ (KeepC σ σ' ∧ WritesIn st s r.2 (FW th B)) ∧
+      SRE st N T C E R B c r.2 σ' ∧ (KeepCV σ σ' ∧ WritesIn st s r.2 (FW th B)) ∧
       ∃ G', RelTopB (L := L) th G' N T C E R B c r.2 σ' ⦄ := by
   have hmi0 : MiRel { label := info.label, caps_unwrapped := 0#u64, extra_caps := 0#u64, length := info.length }
       ⟨mi.miLength, 0, 0, mi.miLabel⟩ := ⟨hil, rfl, hlb⟩
@@ -1053,14 +1074,14 @@ theorem transfer_caps_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGho
         rw [← hxa] at this; exact this h0
     rw [decide_eq_true h0, if_pos rfl, WP.spec_ok]
     refine ⟨σ, ⟨mi.miLength, 0, 0, mi.miLabel⟩, ?_, hmi0, rfl, hR, by simp, by simp, rfl, hS,
-      ⟨KeepC.refl σ, WritesIn.refl s _⟩, G, hB⟩
+      ⟨KeepCV.refl σ, WritesIn.refl s _⟩, G, hB⟩
     cases e : rbo with
     | none => rw [← e]; exact hnone e
     | some rb => rw [← e]; exact hnil hcn rb e
   · rw [decide_eq_false h0, if_neg Bool.false_ne_true]
     by_cases hr0 : rbw = 0#u64
     · rw [if_pos hr0, WP.spec_ok]
-      exact ⟨σ, _, hnone (hrb.1 hr0), hmi0, rfl, hR, by simp, by simp, rfl, hS, ⟨KeepC.refl σ, WritesIn.refl s _⟩,
+      exact ⟨σ, _, hnone (hrb.1 hr0), hmi0, rfl, hR, by simp, by simp, rfl, hS, ⟨KeepCV.refl σ, WritesIn.refl s _⟩,
         G, hB⟩
     · rw [if_neg hr0]
       obtain ⟨rb, hrbo⟩ : ∃ rb, rbo = some rb := by
@@ -1139,7 +1160,7 @@ end Extra
 
 section ExtraLoop
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-- The extra-cap array and the spec's extra caps. -/
 def ExtraOK (th : TypedHeap) (m : U64 → U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
@@ -1321,7 +1342,7 @@ end ExtraTop
 
 section ExtraTop2
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 theorem extraOK_none (th : TypedHeap) (m : U64 → U64) : ExtraOK th m ipc.NO_EXTRA_CAPS [] :=
   ⟨by simp, fun j hj => by simp at hj, fun j _ hj3 => exAt_none j hj3⟩
@@ -1379,7 +1400,7 @@ end ExtraTop2
 
 section Recv
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 theorem buf_recv_eq : msg.BUF_RECV_CNODE = ok 125#u64 ∧ msg.BUF_RECV_INDEX = ok 126#u64 ∧
     msg.BUF_RECV_DEPTH = ok 127#u64 := by

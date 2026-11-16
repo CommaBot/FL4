@@ -621,21 +621,21 @@ end Loops
 
 
 section Top
-variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st] {N T C E R : Set U64}
+variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st] {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64}
   {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 set_option maxHeartbeats 8000000 in
 /-- **The fault reply of `do_reply_transfer`** on `IRel` (`ReplyHyps.faultReply`):
 `handle_fault_reply` (`handle_fault_reply_rel`), `clear_fault`
 (`fault_clear_ipc`, `fault_clear_top`) and the receiver's new state. -/
-theorem fault_reply_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+theorem fault_reply_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBf : EpBufHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBm : EpBufMapHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
     (hP0 : IPlaced N T E R B) :
-    ∀ s (a : A) σ (t snd : U64) (x : Fl4Spec.Tcb) (f : Fl4Spec.Fault), IRel st N T C E R B c s σ →
+    ∀ s (a : A) σ (t snd : U64) (x : Fl4Spec.Tcb) (f : Fl4Spec.Fault), IRel st th cr N T C E R B c s σ →
     t ∈ T → snd ∈ T → t ≠ snd → σ.kheap t.bv = some (.tcb x) → x.tcbFault = some f → x.tcbState = .inactive →
     fl4FaultReply st ar s a t snd ⦃ res => ∃ z ∈ (specFaultReply snd.bv t.bv f σ).1,
-      IRel st N T C E R B c res.1 z.2 ⦄ := by
+      IRel st th cr N T C E R B c res.1 z.2 ⦄ := by
   intro s a σ t snd x f hX ht hs hts hkt hf hst
   obtain ⟨hIR, hSRT⟩ := hX
   have hSB := IpcRel.toSRN hIR hSRT
@@ -686,7 +686,7 @@ theorem fault_reply_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c
   have fin : ∀ (ts : Fl4Spec.ThreadState) (code : U64), tsCode ts < 3 → code.val = tsCode ts →
       ts = (if rst then .restart else .inactive) →
       (do let s6 ← sched.set_thread_state st (L.wr s4 (tFaultA t) 0#u64) t code; ok (s6, a3)) ⦃ res =>
-        ∃ z ∈ (specFaultReply snd.bv t.bv f σ).1, IRel st N T C E R B c res.1 z.2 ⦄ := by
+        ∃ z ∈ (specFaultReply snd.bv t.bv f σ).1, IRel st th cr N T C E R B c res.1 z.2 ⦄ := by
     intro ts code hts hcode hts'
     refine WP.spec_bind (hsteps.sts hP0.e _ _ hIR5.toE (IpcRel.toSRN hIR5 hSRT5) ht hkx5 hq
       (show tsCode x5.tcbState ≠ 6 by rw [hst5]; decide) ts hts code hcode) ?_
@@ -705,16 +705,16 @@ set_option maxHeartbeats 4000000 in
 /-- **The grant transfer of `do_reply_transfer`** (`ReplyHyps.grantXfer`):
 `do_ipc_transfer_grant` with no endpoint (FL4's endpoint 0, which no
 valid cap names). -/
-theorem grant_xfer_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+theorem grant_xfer_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBf : EpBufHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBm : EpBufMapHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
     (hP0 : IPlaced N T E R B) :
     ∀ s (a : A) σ (snd rcv : U64) (xs xr : Fl4Spec.Tcb) (rp : Fl4Spec.ObjRef),
-    IRel st N T C E R B c s σ → snd ∈ T → rcv ∈ T → snd ≠ rcv → σ.kheap snd.bv = some (.tcb xs) →
+    IRel st th cr N T C E R B c s σ → snd ∈ T → rcv ∈ T → snd ≠ rcv → σ.kheap snd.bv = some (.tcb xs) →
     σ.kheap rcv.bv = some (.tcb xr) → xs.tcbFault = none → ipcBufOf true xr = some rp →
     ipc.do_ipc_transfer st ar s a snd 0#u64 0#u64 true rcv ⦃ s' => ∃ σ',
       Fl4Spec.doIpcTransfer (Z := Unit) snd.bv none 0 true rcv.bv σ = ({((), σ')}, False) ∧
-      IRel st N T C E R B c s' σ' ∧ ∃ x', σ'.kheap rcv.bv = some (.tcb x') ∧ x'.tcbState = xr.tcbState ⦄ := by
+      IRel st th cr N T C E R B c s' σ' ∧ ∃ x', σ'.kheap rcv.bv = some (.tcb x') ∧ x'.tcbState = xr.tcbState ⦄ := by
   intro s a σ snd rcv xs xr rp hX hs hr hne hks hkr hf hrb
   obtain ⟨hIR, hSRT⟩ := hX
   refine WP.spec_mono (do_ipc_transfer_grant hH hBf hBm hP0 hP0.e s a σ hIR.toE (IpcRel.toSRN hIR hSRT) hs hr hne
@@ -724,21 +724,21 @@ theorem grant_xfer_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c 
 
 /-- **`ReplyHyps` from its three remaining steps**: `faultReply` is
 `fault_reply_top` and `grantXfer` is `grant_xfer_top`. -/
-theorem ReplyHyps.of (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+theorem ReplyHyps.of (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBf : EpBufHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBm : EpBufMapHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
     (hP0 : IPlaced N T E R B)
-    (hrem : ∀ s (a : A) σ (r t : U64) (x : Fl4Spec.Tcb), IRel st N T C E R B c s σ → r ∈ R → t ∈ T →
+    (hrem : ∀ s (a : A) σ (r t : U64) (x : Fl4Spec.Tcb), IRel st th cr N T C E R B c s σ → r ∈ R → t ∈ T →
       σ.kheap t.bv = some (.tcb x) → x.tcbState = .blockedOnReply r.bv →
       ipc.reply_remove st ar s a r t ⦃ res => res.2 = a ∧ ∃ σ' x',
-        Fl4Spec.replyRemove (Z := Unit) t.bv r.bv σ = ({((), σ')}, False) ∧ IRel st N T C E R B c res.1 σ' ∧
+        Fl4Spec.replyRemove (Z := Unit) t.bv r.bv σ = ({((), σ')}, False) ∧ IRel st th cr N T C E R B c res.1 σ' ∧
         σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = .inactive ∧ x'.tcbFault = x.tcbFault ∧
         ∀ p y, p ≠ t.bv → σ.kheap p = some (.tcb y) → ∃ y', σ'.kheap p = some (.tcb y') ∧
           y'.tcbFault = y.tcbFault ∧ y'.tcbState = y.tcbState ⦄)
     (hunb : ∀ s σ (t : U64) (x : Fl4Spec.Tcb) (k : S → Result (S × A)) (P : S × A → Prop),
-      IRel st N T C E R B c s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
+      IRel st th cr N T C E R B c s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
       (∀ s' σ', (Fl4Spec.getTcbObjRef (Z := Unit) Fl4Spec.Tcb.tcbSchedContext t.bv >>=
-          Fl4Spec.ifSporadicCurScTestRefillUnblockCheck) σ = ({((), σ')}, False) → IRel st N T C E R B c s' σ' →
+          Fl4Spec.ifSporadicCurScTestRefillUnblockCheck) σ = ({((), σ')}, False) → IRel st th cr N T C E R B c s' σ' →
         (∀ p y, σ.kheap p = some (.tcb y) → σ'.kheap p = some (.tcb y)) → k s' ⦃ P ⦄) →
       (do
         let i2 ← obj.Tcb.sc st t s
@@ -755,12 +755,12 @@ theorem ReplyHyps.of (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (S
           else ok s
         k s2) ⦃ P ⦄)
     (htmo : ∀ s (a : A) σ (t sc ft : U64) (fault : Option Fl4Spec.Fault) (y : Fl4Spec.SchedContext) (n : Nat),
-      IRel st N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap sc.bv = some (.schedContext y n) →
+      IRel st th cr N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap sc.bv = some (.schedContext y n) →
       ∀ x : Fl4Spec.Tcb, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true →
       x.tcbSchedContext = some sc.bv → (ft = 0#u64 ↔ fault = none) → (ft = 5#u64 ↔ ∃ b, fault = some (.timeout b)) →
       fl4ReplyTmo st ar t ft sc s a ⦃ res => ∃ z ∈ (specReplyTmo t.bv fault y sc.bv σ).1,
-        IRel st N T C E R B c res.1 z.2 ⦄) :
-    ReplyHyps st ar N T C E R B c :=
+        IRel st th cr N T C E R B c res.1 z.2 ⦄) :
+    ReplyHyps st ar th cr N T C E R B c :=
   ⟨hrem, hunb, fault_reply_top hH hBf hBm hP0, grant_xfer_top hH hBf hBm hP0, htmo⟩
 
 end Top

@@ -27,7 +27,7 @@ open fl4_core Fl4Proofs.P1 Fl4Proofs.P3.Notif Fl4Proofs.P3.Ipc
 noncomputable section
 
 section
-variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st] {N T C E R : Set U64}
+variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st] {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64}
   {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-- **The IPC queues of `O` are sorted by priority**, highest first, at `s`
@@ -62,16 +62,16 @@ set_option maxHeartbeats 4000000 in
 relation: the registers-only transfer, into a receive buffer (`stepsG`'s
 `xregs`, `xbuf`), or of a faulted sender (`do_ipc_transfer_fault`,
 `_faultN`); a timeout-faulted sender has no SC (`hto`). -/
-theorem xferX_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+theorem xferX_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBf : EpBufHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBm : EpBufMapHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
     (hP0 : IPlaced N T E R B) {sd t : U64} (hsd : sd ∈ T) (ht : t ∈ T) (hne : sd ≠ t) {xs xt : Fl4Spec.Tcb}
     (hto : ∀ b, xs.tcbFault = some (.timeout b) → xs.tcbSchedContext = none) (a : A) (e : U64) (g : Bool) :
     ∀ (s1 : S) (σ1 : Fl4Spec.State Unit) (bdg : U64), EpStateRel T E R B (L.mem s1) σ1 →
-      SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c))) s1 σ1 →
+      SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c))) s1 σ1 →
       σ1.kheap sd.bv = some (.tcb xs) → σ1.kheap t.bv = some (.tcb xt) →
       ipc.do_ipc_transfer st ar s1 a sd e bdg g t ⦃ s' => XferPost (L := L) T E R B
-        (SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c)))) s1 σ1 sd t e bdg g xt s' ⦄ := by
+        (SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c)))) s1 σ1 sd t e bdg g xt s' ⦄ := by
   intro s1 σ1 bdg hR1 hS1 hks hkt
   have hX := IpcSchedHyps.stepsG (A := A) hH hBf hBm hP0
   cases hf : xs.tcbFault with
@@ -94,11 +94,11 @@ theorem xferX_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE 
       | _ => trivial
     have lift : ∀ s' : S, (∃ σ', Fl4Spec.doIpcTransfer (Z := Unit) sd.bv (some e.bv) bdg.bv g t.bv σ1 =
         ({((), σ')}, False) ∧ EpStateRel T E R B (L.mem s') σ' ∧
-        SRS st T (SRT st N T C E R B c (SRE st N T C E R B c)) s' σ' ∧
+        SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c)) s' σ' ∧
         Agree (L.mem s1) (L.mem s') (fun b => ¬ RcvReg t b ∧ ¬ BufW B b) ∧
         (∀ q, q ≠ t.bv → σ'.kheap q = σ1.kheap q) ∧
         ∃ x', σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = xt.tcbState) →
-        XferPost (L := L) T E R B (SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c)))) s1 σ1 sd t e
+        XferPost (L := L) T E R B (SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c)))) s1 σ1 sd t e
           bdg g xt s' :=
       fun _ ⟨σ', h1, h2, h3, h4, h5, x', h6, h7⟩ =>
         ⟨σ', h1, h2, ⟨h3, ntfn_lift_rcv hP0.toC hS1.2 h2 ht h4 h5 hkt h6 h7⟩, h4.mono fun _ h => h.2,
@@ -123,12 +123,12 @@ def SendRest (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (
 
 set_option maxHeartbeats 4000000 in
 /-- **`send_ipc` on `IpcRel ∧ SRT … SRE`**, by the endpoint's state. -/
-theorem send_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hTl : IpcEpTailHyps st A N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+theorem send_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBf : EpBufHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBm : EpBufMapHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hTl : IpcEpTailHyps st A N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
     (hP : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (hR : IpcRel N T E R B (L.mem s) σ) (hSR : SRT st N T C E R B c (SRE st N T C E R B c) s σ)
+    (hR : IpcRel N T E R B (L.mem s) σ) (hSR : SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ)
     (hV : Sched.SchedValid σ)
     {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hnb : tsCode xt.tcbState ≠ 3 ∧ tsCode xt.tcbState ≠ 4) (hnn : ∀ m, xt.tcbState ≠ .blockedOnNotification m)
@@ -136,15 +136,15 @@ theorem send_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (S
     {e : U64} (he : e ∈ E)
     (hsort : ∀ xs, QueueRel (L.mem s) T .Ep (qOf (L.mem s) e) xs → PrioSorted (fun y => L.mem s (prioA y)) xs)
     (blk call : Bool) (badge : U64) (g gr don : Bool)
-    (hU : SendRest st ar (fun s σ => IpcRel N T E R B (L.mem s) σ ∧ SRT st N T C E R B c (SRE st N T C E R B c) s σ)
+    (hU : SendRest st ar (fun s σ => IpcRel N T E R B (L.mem s) σ ∧ SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ)
       T s a σ blk call badge g gr don t e) :
     endpoint.send_ipc st ar s a blk call badge g gr don t e ⦃ r => r.2 = a ∧
       ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk call badge.bv g gr don t.bv e.bv σ).1,
-        IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 ⦄ := by
+        IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 z.2 ⦄ := by
   obtain ⟨x, hk, hx⟩ := hR.ep e he
   have blockCase : CanBlock false x → endpoint.send_ipc st ar s a blk call badge g gr don t e ⦃ r => r.2 = a ∧
       ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk call badge.bv g gr don t.bv e.bv σ).1,
-        IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 ⦄ := by
+        IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 z.2 ⦄ := by
     intro hc
     cases blk
     · exact WP.spec_mono (send_ipc_noblockI (ar := ar) s a σ hR hSR he hk hc call badge g gr don t)
@@ -166,9 +166,9 @@ theorem send_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (S
     have hback := hback_of hV hkd
     have cv : ∀ r : S × A, (r.2 = a ∧ ¬ (Fl4Spec.sendIpc (Z := Unit) blk call badge.bv g gr don t.bv
         e.bv σ).2 ∧ ∃ σ', ((), σ') ∈ (Fl4Spec.sendIpc (Z := Unit) blk call badge.bv g gr don t.bv e.bv σ).1 ∧
-        IpcRel N T E R B (L.mem r.1) σ' ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 σ') →
+        IpcRel N T E R B (L.mem r.1) σ' ∧ SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 σ') →
         r.2 = a ∧ ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk call badge.bv g gr don t.bv e.bv σ).1,
-          IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 :=
+          IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 z.2 :=
       fun _ ⟨h1, _, σ', h2, h3, h4⟩ => ⟨h1, ((), σ'), h2, h3, h4⟩
     cases don
     swap
@@ -193,9 +193,9 @@ theorem send_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (S
       have cvN : ∀ r : S × A, (r.2 = a ∧ ¬ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr false t.bv e.bv σ).2 ∧
           ∃ σ', ((), σ') ∈ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr false t.bv e.bv σ).1 ∧
           EpStateRel T E R B (L.mem r.1) σ' ∧
-          SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c))) r.1 σ') →
+          SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c))) r.1 σ') →
           r.2 = a ∧ ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr false t.bv e.bv σ).1,
-            IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 :=
+            IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 z.2 :=
         fun _ ⟨h1, _, σ', h2, h3, h4⟩ => ⟨h1, ((), σ'), h2, IpcRel.ofSRN h3 h4⟩
       by_cases hgg : g = true ∨ gr = true
       · by_cases hrp : ∀ e' rep dd, xd.tcbState = .blockedOnReceive e' rep dd → rep ≠ none
@@ -228,12 +228,12 @@ def RecvRest (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (
 set_option maxHeartbeats 4000000 in
 /-- **`receive_ipc` on `IpcRel ∧ SRT … SRE`**, by the endpoint's state, for
 a thread without a bound notification and a reply cap as in `ReplyArg`. -/
-theorem receive_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hTl : IpcEpTailHyps st A N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+theorem receive_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBf : EpBufHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBm : EpBufMapHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hTl : IpcEpTailHyps st A N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
     (hP : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (hR : IpcRel N T E R B (L.mem s) σ) (hSR : SRT st N T C E R B c (SRE st N T C E R B c) s σ)
+    (hR : IpcRel N T E R B (L.mem s) σ) (hSR : SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ)
     {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hnb : tsCode xt.tcbState ≠ 3 ∧ tsCode xt.tcbState ≠ 4) (hnn : ∀ m, xt.tcbState ≠ .blockedOnNotification m)
     (hbn : xt.tcbBoundNotification = none)
@@ -241,15 +241,15 @@ theorem receive_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c
     (hsort : ∀ xs, QueueRel (L.mem s) T .Ep (qOf (L.mem s) e) xs → PrioSorted (fun y => L.mem s (prioA y)) xs)
     (cb : U64) (c1 c2 c3 c4 : Bool) {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64}
     (hrc : ReplyArg R (L.mem s) rc rc' rv) (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) (blk : Bool)
-    (hU : RecvRest st ar (fun s σ => IpcRel N T E R B (L.mem s) σ ∧ SRT st N T C E R B c (SRE st N T C E R B c) s σ)
+    (hU : RecvRest st ar (fun s σ => IpcRel N T E R B (L.mem s) σ ∧ SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ)
       T s a σ t xt (.Endpoint e cb c1 c2 c3 c4) (.endpointCap e.bv b rights) blk rc rc' rv e) :
     endpoint.receive_ipc st ar s a t (.Endpoint e cb c1 c2 c3 c4) blk rc ⦃ r => r.2 = a ∧
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
-        IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 ⦄ := by
+        IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 z.2 ⦄ := by
   obtain ⟨x, hk, hx⟩ := hR.ep e he
   have blockCase : CanBlock true x → endpoint.receive_ipc st ar s a t (.Endpoint e cb c1 c2 c3 c4) blk rc ⦃ r =>
       r.2 = a ∧ ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
-        IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 ⦄ := by
+        IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 z.2 ⦄ := by
     intro hc
     cases blk
     · exact WP.spec_mono (receive_ipc_pollI hH hP s a σ hR hSR ht hkt hbn he hk hc cb c1 c2 c3 c4 hrc b rights)
@@ -275,16 +275,16 @@ theorem receive_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c
     have hk' : σ.kheap e.bv = some (.endpoint (.sendEP (sd.bv :: ys.map UScalar.bv))) := by rw [hk, hq]; rfl
     have cv : ∀ r : S × A, (r.2 = a ∧ ¬ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc'
         σ).2 ∧ ∃ σ', ((), σ') ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1 ∧
-        IpcRel N T E R B (L.mem r.1) σ' ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 σ') →
+        IpcRel N T E R B (L.mem r.1) σ' ∧ SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 σ') →
         r.2 = a ∧ ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
-          IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 :=
+          IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 z.2 :=
       fun _ ⟨h1, _, σ', h2, h3, h4⟩ => ⟨h1, ((), σ'), h2, h3, h4⟩
     have cvN : ∀ r : S × A, (r.2 = a ∧ ¬ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc'
         σ).2 ∧ ∃ σ', ((), σ') ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1 ∧
         EpStateRel T E R B (L.mem r.1) σ' ∧
-        SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c))) r.1 σ') →
+        SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c))) r.1 σ') →
         r.2 = a ∧ ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
-          IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 :=
+          IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 z.2 :=
       fun _ ⟨h1, _, σ', h2, h3, h4⟩ => ⟨h1, ((), σ'), h2, IpcRel.ofSRN h3 h4⟩
     -- a timeout fault with an SC: named
     by_cases hto : ∀ b', xsd.tcbFault = some (.timeout b') → xsd.tcbSchedContext = none
@@ -298,7 +298,7 @@ theorem receive_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c
     have nonCall : xsd.tcbFault = none → (∀ e' dd, xsd.tcbState = .blockedOnSend e' dd → dd.senderIsCall = false) →
         endpoint.receive_ipc st ar s a t (.Endpoint e cb c1 c2 c3 c4) blk rc ⦃ r => r.2 = a ∧
           ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
-            IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 ⦄ := by
+            IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 z.2 ⦄ := by
       intro hfs hcall
       cases hrb : ipcBufOf true xt with
       | none =>
@@ -321,7 +321,7 @@ theorem receive_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c
       have inact : ((dd.senderCanGrant = false ∧ dd.senderCanGrantReply = false) ∨ rv = 0#u64) →
           endpoint.receive_ipc st ar s a t (.Endpoint e cb c1 c2 c3 c4) blk rc ⦃ r => r.2 = a ∧
             ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
-              IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 ⦄ := by
+              IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 z.2 ⦄ := by
         intro hno
         refine WP.spec_mono (receive_ipc_cfInactive_gen hX.toEpSteps (hTl.tail hP) hP.e s a σ hR.toE hSB ht hkt hnb
           hbn he hk' hks hXf hcf' cb c1 c2 c3 c4 hrc ?_ b rights blk) cvN
@@ -345,35 +345,35 @@ theorem receive_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c
 
 
 /-- `IpcRel ∧ SRT … SRE`. -/
-def IRel (st : machine.Store S) [L : LawfulStore st] (N T C E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (c : U64)
+def IRel (st : machine.Store S) [L : LawfulStore st] (th : TypedHeap) (cr : Fl4Spec.Cr3) (N T C E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (c : U64)
     (s : S) (σ : Fl4Spec.State Unit) : Prop :=
-  IpcRel N T E R B (L.mem s) σ ∧ SRT st N T C E R B c (SRE st N T C E R B c) s σ
+  IpcRel N T E R B (L.mem s) σ ∧ SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ
 
 set_option maxHeartbeats 4000000 in
 /-- **The send tail of an endpoint invocation** (`hsend` of
 `decode_endpointDMX`): `set_thread_state Restart` then `send_ipc`, on `IRel`.
 At related states: `SchedValid` (`hSV`), endpoint queues sorted by priority
 (`hsort`), and what `send_ipc_top` does not cover (`hU`). -/
-theorem send_tail_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hTl : IpcEpTailHyps st A N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+theorem send_tail_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBf : EpBufHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBm : EpBufMapHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hTl : IpcEpTailHyps st A N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
     (hP : IPlaced N T E R B)
-    (hSV : ∀ s' σ', IRel st N T C E R B c s' σ' → Sched.SchedValid σ')
-    (hsort : ∀ s' σ', IRel st N T C E R B c s' σ' → QSorted st T E s')
-    (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st N T C E R B c s σ)
+    (hSV : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → Sched.SchedValid σ')
+    (hsort : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → QSorted st T E s')
+    (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ)
     {ct : U64} (hct : ct ∈ T) (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
     (hrun : tsCode xt.tcbState < 3) (hft : xt.tcbFault = none)
     {σ1 : Fl4Spec.State Unit} (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
     {p : U64} (hp : p ∈ E) (b : U64) (blk call g gr don : Bool)
-    (hU : ∀ s' σ', IRel st N T C E R B c s' σ' → SendRest st ar (IRel st N T C E R B c) T s' a σ' blk call b g gr don
+    (hU : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → SendRest st ar (IRel st th cr N T C E R B c) T s' a σ' blk call b g gr don
       ct p) :
     (do
       let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
       let (s2, a1) ← endpoint.send_ipc st ar s1 a blk call b g gr don ct p
       ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a1)) ⦃ r => r.1 = .Ok () ∧
       ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk call b.bv g gr don σ1.curThread p.bv σ1).1,
-        RelTopM (L := L) r.2.1 z.2 ∧ IRel st N T C E R B c r.2.1 z.2 ⦄ := by
+        RelTopM (L := L) r.2.1 z.2 ∧ IRel st th cr N T C E R B c r.2.1 z.2 ⦄ := by
   obtain ⟨hIR, hSRT⟩ := hX
   have hSB := IpcRel.toSRN hIR hSRT
   have hsteps := IpcSchedHyps.stepsG (A := A) hH hBf hBm hP
@@ -391,7 +391,7 @@ theorem send_tail_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (
     simpa using this.symm
   subst hσ1
   obtain ⟨hIR1, hSRT1⟩ := IpcRel.ofSRN hE1 hS1
-  have hX1 : IRel st N T C E R B c s1 _ := ⟨hIR1, hSRT1⟩
+  have hX1 : IRel st th cr N T C E R B c s1 _ := ⟨hIR1, hSRT1⟩
   have hkt1 : (stsAct (updK σ ct.bv (.tcb { xt with tcbState := .restart })) ct.bv).kheap ct.bv =
       some (.tcb { xt with tcbState := .restart }) := by rw [stsAct_kheap]; simp
   have hc1 : (stsAct (updK σ ct.bv (.tcb { xt with tcbState := .restart })) ct.bv).curThread = ct.bv := by
@@ -408,20 +408,20 @@ theorem send_tail_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (
 set_option maxHeartbeats 4000000 in
 /-- **`send_signal` on `IRel`**, by the notification's state; named: no
 thread is `RunningVM` (`hvm`, FL4 has no VT-x). -/
-theorem send_signal_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hP : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st N T C E R B c s σ)
+theorem send_signal_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hP : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ)
     {n : U64} (hn : n ∈ N) (hvm : NativeScope σ) (badge : U64) :
     notification.send_signal st ar s a n badge ⦃ r =>
-      ∃ z ∈ (Fl4Spec.sendSignal (Z := Unit) n.bv badge.bv σ).1, IRel st N T C E R B c r.1 z.2 ⦄ := by
+      ∃ z ∈ (Fl4Spec.sendSignal (Z := Unit) n.bv badge.bv σ).1, IRel st th cr N T C E R B c r.1 z.2 ⦄ := by
   obtain ⟨hIR, hSRT⟩ := hX
   obtain ⟨x, hk, hx⟩ := hIR.ntfn n hn
   have single : ∀ r : S × A, (r.2 = a ∧ SingleRelI (st := st) N T E R B s σ (Fl4Spec.sendSignal n.bv badge.bv σ) r.1) →
-      ∃ z ∈ (Fl4Spec.sendSignal (Z := Unit) n.bv badge.bv σ).1, IRel st N T C E R B c r.1 z.2 :=
+      ∃ z ∈ (Fl4Spec.sendSignal (Z := Unit) n.bv badge.bv σ).1, IRel st th cr N T C E R B c r.1 z.2 :=
     fun _ ⟨_, σ', heq, hR', hS, hW, hNB⟩ => ⟨((), σ'), by rw [heq]; rfl, hR', hH.stableN _ _ _ _ hSRT hW hS hNB⟩
   have full : ∀ r : S × A, (¬ (Fl4Spec.sendSignal (Z := Unit) n.bv badge.bv σ).2 ∧ ∃ σ', ((), σ') ∈
       (Fl4Spec.sendSignal n.bv badge.bv σ).1 ∧ IpcRel N T E R B (L.mem r.1) σ' ∧
-      SRT st N T C E R B c (SRE st N T C E R B c) r.1 σ') →
-      ∃ z ∈ (Fl4Spec.sendSignal (Z := Unit) n.bv badge.bv σ).1, IRel st N T C E R B c r.1 z.2 :=
+      SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 σ') →
+      ∃ z ∈ (Fl4Spec.sendSignal (Z := Unit) n.bv badge.bv σ).1, IRel st th cr N T C E R B c r.1 z.2 :=
     fun _ ⟨_, σ', h1, h2, h3⟩ => ⟨((), σ'), h1, h2, h3⟩
   cases ho : x.ntfnObj with
   | activeNtfn b0 => exact WP.spec_mono (send_signal_activeI (ar := ar) hP s a σ hIR hn hk ho badge) single
@@ -442,12 +442,12 @@ theorem send_signal_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c
 set_option maxHeartbeats 4000000 in
 /-- **The send tail of a notification invocation** (`hsend` of
 `decode_notificationDMX`): `set_thread_state Restart` then `send_signal`. -/
-theorem send_tail_ntfn (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+theorem send_tail_ntfn (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBf : EpBufHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBm : EpBufMapHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
     (hP : IPlaced N T E R B)
-    (hvm : ∀ s' σ', IRel st N T C E R B c s' σ' → NativeScope σ')
-    (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st N T C E R B c s σ)
+    (hvm : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → NativeScope σ')
+    (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ)
     {ct : U64} (hct : ct ∈ T) (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
     (hrun : tsCode xt.tcbState < 3)
     {σ1 : Fl4Spec.State Unit} (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
@@ -457,7 +457,7 @@ theorem send_tail_ntfn (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c 
       let (s2, a1) ← notification.send_signal st ar s1 a p b
       ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a1)) ⦃ r => r.1 = .Ok () ∧
       ∃ z ∈ (Fl4Spec.sendSignal (Z := Unit) p.bv b.bv σ1).1,
-        RelTopM (L := L) r.2.1 z.2 ∧ IRel st N T C E R B c r.2.1 z.2 ⦄ := by
+        RelTopM (L := L) r.2.1 z.2 ∧ IRel st th cr N T C E R B c r.2.1 z.2 ⦄ := by
   obtain ⟨hIR, hSRT⟩ := hX
   have hSB := IpcRel.toSRN hIR hSRT
   have hsteps := IpcSchedHyps.stepsG (A := A) hH hBf hBm hP
@@ -475,7 +475,7 @@ theorem send_tail_ntfn (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c 
     simpa using this.symm
   subst hσ1
   obtain ⟨hIR1, hSRT1⟩ := IpcRel.ofSRN hE1 hS1
-  have hX1 : IRel st N T C E R B c s1 _ := ⟨hIR1, hSRT1⟩
+  have hX1 : IRel st th cr N T C E R B c s1 _ := ⟨hIR1, hSRT1⟩
   refine WP.spec_bind (send_signal_top hH hP s1 a _ hX1 hp (hvm _ _ hX1) b) ?_
   rintro ⟨s2, a1⟩ ⟨z, hz, hIR2, hSRT2⟩
   apply (WP.spec_ok _).2
@@ -533,14 +533,14 @@ theorem notQueued_of_blk {s : S} {σ : Fl4Spec.State Unit} (hS : Sched.SchedRel 
 queue invariant at related states (`hBlk`, P1's `BlkOK`), by
 `notQueued_of_blk`. -/
 theorem ipcSchedHyps_blk (hP0 : IPlaced N T E R B)
-    (hBlk : ∀ s σ, SRT st N T C E R B c (SRE st N T C E R B c) s σ →
+    (hBlk : ∀ s σ, SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ →
       ∃ (Cs Ω : Set U64) (H : P1.Heap) (Q : U64 → U64 → List U64) (R' : U64 → List U64),
         P1.SchedQueuesInv st T Cs Ω H s Q R' ∧ c ∈ Cs)
-    (hW : IpcWakeHyps st ar N T C E R B c)
+    (hW : IpcWakeHyps st ar th cr N T C E R B c)
     (hX : ∀ s σ (t : U64) (x : Fl4Spec.Tcb), IpcRel N T E R B (L.mem s) σ →
-      SRT st N T C E R B c (SRE st N T C E R B c) s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
+      SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
       Fl4Spec.receiveBlocked x.tcbState = true → CancelRecvHyp E (L.mem s) σ t x) :
-    IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)) :=
+    IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)) :=
   ipcSchedHyps_full hP0 (fun s σ _ _ hR hS hk hr =>
     let ⟨_, _, _, _, _, hQ, hc⟩ := hBlk s σ hS
     notQueued_of_blk hS.2.1 hR.toE hQ hc hk hr) hW hX
@@ -559,7 +559,7 @@ open fl4_core Fl4Proofs.P1 Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc
 noncomputable section
 
 section
-variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : P1.LawfulStore st] {N T C E R : Set U64}
+variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : P1.LawfulStore st] {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64}
   {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-- An endpoint of the spec's heap is one of the relation's (`ObjCover`). -/
@@ -571,23 +571,23 @@ theorem memE_of_cover {σ : Fl4Spec.State Unit} (hO : Sched.ObjCover N T E R C �
 
 /-- **An endpoint cap for `handle_invocation_refinesMX`**, with `X := IRel`:
 `decode_endpointDMX` with the send tail `send_tail_top`. -/
-theorem decode_endpoint_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hTl : IpcEpTailHyps st A N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+theorem decode_endpoint_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBf : EpBufHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBm : EpBufMapHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hTl : IpcEpTailHyps st A N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
     (hP : IPlaced N T E R B)
-    (hSV : ∀ s' σ', IRel st N T C E R B c s' σ' → Sched.SchedValid σ')
-    (hsort : ∀ s' σ', IRel st N T C E R B c s' σ' → QSorted st T E s')
-    (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st N T C E R B c s σ)
+    (hSV : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → Sched.SchedValid σ')
+    (hsort : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → QSorted st T E s')
+    (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ)
     (lbl length slot : U64) (p b : U64) (sd rv g gr : Bool) (blk call don fp : Bool) (buf : U64)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data) (args : List Fl4Spec.Data)
     (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (buffer : Option Fl4Spec.ObjRef) (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (hcT : ct ∈ T) (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
     (hrun : tsCode xt.tcbState < 3) (hft : xt.tcbFault = none) (hp : p ∈ E)
-    (hU : ∀ s' σ', IRel st N T C E R B c s' σ' → SendRest st ar (IRel st N T C E R B c) T s' a σ' blk call b g gr don
+    (hU : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → SendRest st ar (IRel st th cr N T C E R B c) T s' a σ' blk call b g gr don
       ct p) :
-    DecOKDMX (L := L) ar (fun s _ σ => IRel st N T C E R B c s σ) s a σ lbl length slot (.Endpoint p b sd rv g gr)
+    DecOKDMX (L := L) ar (fun s _ σ => IRel st th cr N T C E R B c s σ) s a σ lbl length slot (.Endpoint p b sd rv g gr)
       blk call don fp buf extra slbl args ci sl excaps buffer := by
   obtain ⟨σ1, hst⟩ : ∃ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) := by
     rw [hcur, Notif.setThreadState_eq .restart hkt]; exact ⟨_, rfl⟩
@@ -602,11 +602,11 @@ spec's objects are the relation's (`ObjCover`); named: the current thread
 running or restarting without a bound notification, the endpoint queues
 sorted, a reply cap whose reply is linked (`take_reply` cancels its thread's
 IPC first, `hlink`), and `RecvRest`. -/
-theorem recv_ipc_leaf (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hTl : IpcEpTailHyps st A N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hP : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st N T C E R B c s σ)
+theorem recv_ipc_leaf (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBf : EpBufHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBm : EpBufMapHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hTl : IpcEpTailHyps st A N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hP : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ)
     (hO : Sched.ObjCover N T E R C σ)
     {ct : U64} (hcT : ct ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
     (hrun : tsCode xt.tcbState < 3) (hbn : xt.tcbBoundNotification = none)
@@ -615,15 +615,15 @@ theorem recv_ipc_leaf (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (
     (hlink : ∀ p b sd g gr q g', q ∈ R → L.mem s (Endp.rTcbA q) ≠ 0#u64 →
       endpoint.receive_ipc st ar s a ct (.Endpoint p b sd true g gr) blocking (.Reply q g') ⦃ r =>
         ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) blocking
-          (absCap (.Reply q g')) σ).1, IRel st N T C E R B c r.1 z.2 ⦄)
-    (hU : ∀ p b sd g gr rc rc' rv, RecvRest st ar (IRel st N T C E R B c) T s a σ ct xt (.Endpoint p b sd true g gr)
+          (absCap (.Reply q g')) σ).1, IRel st th cr N T C E R B c r.1 z.2 ⦄)
+    (hU : ∀ p b sd g gr rc rc' rv, RecvRest st ar (IRel st th cr N T C E R B c) T s a σ ct xt (.Endpoint p b sd true g gr)
       (absCap (.Endpoint p b sd true g gr)) blocking rc rc' rv p) :
     ∀ p b sd g gr rc rc', (∃ x, σ.kheap p.bv = some (.endpoint x)) →
     ((rc = .Null ∧ rc' = .nullCap) ∨
       (CapRel rc rc' ∧ ∃ q g', rc = .Reply q g' ∧ ∃ x, σ.kheap q.bv = some (.reply x))) →
     endpoint.receive_ipc st ar s a ct (.Endpoint p b sd true g gr) blocking rc ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) blocking rc' σ).1,
-        IRel st N T C E R B c r.1 z.2 ⦄ := by
+        IRel st th cr N T C E R B c r.1 z.2 ⦄ := by
   intro p b sd g gr rc rc' hpE hrc
   have hp : p ∈ E := memE_of_cover hO hpE
   obtain ⟨hIR, hSRT⟩ := hX
@@ -632,7 +632,7 @@ theorem recv_ipc_leaf (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (
   have run : ∀ {rv : U64}, ReplyArg R (L.mem s) rc rc' rv →
       endpoint.receive_ipc st ar s a ct (.Endpoint p b sd true g gr) blocking rc ⦃ r =>
         ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) blocking rc' σ).1,
-          IRel st N T C E R B c r.1 z.2 ⦄ := fun {rv} hra =>
+          IRel st th cr N T C E R B c r.1 z.2 ⦄ := fun {rv} hra =>
     WP.spec_mono (receive_ipc_top hH hBf hBm hTl hP s a σ hIR hSRT hcT hkt ⟨by omega, by omega⟩ hnn hbn hp (hsort p hp) b sd true g gr hra b.bv (rightsOf sd true g gr) blocking
       (hU p b sd g gr rc rc' rv)) fun _ ⟨_, z, hz, h1, h2⟩ => ⟨z, hz, h1, h2⟩
   rcases hrc with ⟨rfl, rfl⟩ | ⟨hcr, q, g', rfl, hq⟩
@@ -670,9 +670,9 @@ set_option maxHeartbeats 4000000 in
 state (`receive_signal_activeI`, `_blockI`, `_pollI`); named: `IpcRecvHyps`,
 the current thread's scheduling facts (not queued, released if bound, not
 the switch target, not idle), `ActReady` and the notification queues sorted. -/
-theorem recv_sig_leaf (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hRV : IpcRecvHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hP : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st N T C E R B c s σ)
+theorem recv_sig_leaf (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hRV : IpcRecvHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hP : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ)
     (hO : Sched.ObjCover N T E R C σ)
     {ct : U64} (hcT : ct ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
     (hrr : xt.tcbState = .running ∨ xt.tcbState = .restart)
@@ -682,7 +682,7 @@ theorem recv_sig_leaf (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (
     (blocking : Bool) :
     ∀ p b w rd ac, CapRel (.Notification p b w rd) ac → (∃ x, σ.kheap p.bv = some (.notification x)) →
       notification.receive_signal st ar s a ct p blocking ⦃ r =>
-        ∃ z ∈ (Fl4Spec.receiveSignal (Z := Unit) ct.bv ac blocking σ).1, IRel st N T C E R B c r.1 z.2 ⦄ := by
+        ∃ z ∈ (Fl4Spec.receiveSignal (Z := Unit) ct.bv ac blocking σ).1, IRel st th cr N T C E R B c r.1 z.2 ⦄ := by
   rintro p b w rd ac hcr ⟨x, hk⟩
   have hac : ac = absCap (.Notification p b w rd) := hcr.abs
   subst hac
@@ -717,12 +717,12 @@ theorem recv_sig_leaf (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (
 /-- **`RecvLeaves` on `IRel`**: the `ipc`, `sig` and `bound` leaves from the
 IPC theorems (`recv_ipc_leaf`, `recv_sig_leaf`, `recv_bound_leaf`); the cap
 fault (`handle_fault`, `hflt`) named, with the named facts of the leaves. -/
-theorem recvLeaves_of (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hTl : IpcEpTailHyps st A N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hRV : IpcRecvHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hP : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st N T C E R B c s σ)
+theorem recvLeaves_of (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBf : EpBufHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBm : EpBufMapHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hTl : IpcEpTailHyps st A N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hRV : IpcRecvHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hP : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ)
     (hO : Sched.ObjCover N T E R C σ)
     {ct : U64} (hcT : ct ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
     (hrr : xt.tcbState = .running ∨ xt.tcbState = .restart) (hbn : xt.tcbBoundNotification = none)
@@ -733,14 +733,14 @@ theorem recvLeaves_of (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (
     (hlink : ∀ p b sd g gr q g', q ∈ R → L.mem s (Endp.rTcbA q) ≠ 0#u64 →
       endpoint.receive_ipc st ar s a ct (.Endpoint p b sd true g gr) blocking (.Reply q g') ⦃ r =>
         ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) blocking
-          (absCap (.Reply q g')) σ).1, IRel st N T C E R B c r.1 z.2 ⦄)
-    (hU : ∀ p b sd g gr rc rc' rv, RecvRest st ar (IRel st N T C E R B c) T s a σ ct xt (.Endpoint p b sd true g gr)
+          (absCap (.Reply q g')) σ).1, IRel st th cr N T C E R B c r.1 z.2 ⦄)
+    (hU : ∀ p b sd g gr rc rc' rv, RecvRest st ar (IRel st th cr N T C E R B c) T s a σ ct xt (.Endpoint p b sd true g gr)
       (absCap (.Endpoint p b sd true g gr)) blocking rc rc' rv p)
     (hflt : ∀ cptr lf lf', LookupFaultRel lf lf' →
       faults.handle_fault st ar s a ct (.Cap cptr true lf) ⦃ r =>
         ∃ z ∈ (Fl4Spec.handleFault (Z := Unit) ct.bv (.capFault (Fl4Spec.ofBl (Fl4Spec.toBl cptr.bv)) true lf') σ).1,
-          IRel st N T C E R B c r.1 z.2 ⦄) :
-    RecvLeaves (st := st) (ar := ar) (fun s _ σ => IRel st N T C E R B c s σ) ct blocking s a σ where
+          IRel st th cr N T C E R B c r.1 z.2 ⦄) :
+    RecvLeaves (st := st) (ar := ar) (fun s _ σ => IRel st th cr N T C E R B c s σ) ct blocking s a σ where
   ipc := recv_ipc_leaf hH hBf hBm hTl hP s a σ hX hO hcT hkt (by rcases hrr with h | h <;> rw [h] <;> decide) hbn
     hsort blocking hlink hU
   sig := recv_sig_leaf hH hRV hP s a σ hX hO hcT hkt hrr hsortN hAR hNQ hRB hsane hnidle blocking
@@ -757,19 +757,19 @@ theorem memN_of_cover {σ : Fl4Spec.State Unit} (hO : Sched.ObjCover N T E R C �
 
 /-- **A notification cap for `handle_invocation_refinesMX`**, with
 `X := IRel`: `decode_notificationDMX` with `send_tail_ntfn`. -/
-theorem decode_notification_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+theorem decode_notification_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBf : EpBufHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBm : EpBufMapHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
     (hP : IPlaced N T E R B)
-    (hvm : ∀ s' σ', IRel st N T C E R B c s' σ' → NativeScope σ')
-    (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st N T C E R B c s σ)
+    (hvm : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → NativeScope σ')
+    (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ)
     (lbl length slot : U64) (p b : U64) (sd rv : Bool) (blk call don fp : Bool) (buf : U64)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data) (args : List Fl4Spec.Data)
     (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (buffer : Option Fl4Spec.ObjRef) (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (hcT : ct ∈ T) (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
     (hrun : tsCode xt.tcbState < 3) (hp : p ∈ N) :
-    DecOKDMX (L := L) ar (fun s _ σ => IRel st N T C E R B c s σ) s a σ lbl length slot (.Notification p b sd rv)
+    DecOKDMX (L := L) ar (fun s _ σ => IRel st th cr N T C E R B c s σ) s a σ lbl length slot (.Notification p b sd rv)
       blk call don fp buf extra slbl args ci sl excaps buffer := by
   obtain ⟨σ1, hst⟩ : ∃ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) := by
     rw [hcur, Notif.setThreadState_eq .restart hkt]; exact ⟨_, rfl⟩

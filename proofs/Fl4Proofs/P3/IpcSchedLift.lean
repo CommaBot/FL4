@@ -42,14 +42,18 @@ def ScOnlyK (σ σ' : State Unit) : Prop :=
   (∀ p, σ'.kheap p = σ.kheap p ∨
     ∃ y n y', σ.kheap p = some (.schedContext y n) ∧ σ'.kheap p = some (.schedContext y' n)) ∧
   σ'.machineState = σ.machineState ∧ σ'.cdt = σ.cdt ∧ σ'.isOriginalCap = σ.isOriginalCap ∧
-  σ'.domainList = σ.domainList ∧ σ'.domainStartIndex = σ.domainStartIndex
+  σ'.domainList = σ.domainList ∧ σ'.domainStartIndex = σ.domainStartIndex ∧
+  (σ'.archState = σ.archState ∧ σ'.interruptStates = σ.interruptStates ∧
+    σ'.interruptIrqNode = σ.interruptIrqNode ∧ σ'.curThread = σ.curThread)
 
 theorem ScOnlyK.refl (σ : State Unit) : ScOnlyK σ σ :=
-  ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl⟩
+  ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem ScOnlyK.trans {σ1 σ2 σ3 : State Unit} (h1 : ScOnlyK σ1 σ2) (h2 : ScOnlyK σ2 σ3) : ScOnlyK σ1 σ3 := by
   refine ⟨fun p => ?_, h2.2.1.trans h1.2.1, h2.2.2.1.trans h1.2.2.1, h2.2.2.2.1.trans h1.2.2.2.1,
-    h2.2.2.2.2.1.trans h1.2.2.2.2.1, h2.2.2.2.2.2.trans h1.2.2.2.2.2⟩
+    h2.2.2.2.2.1.trans h1.2.2.2.2.1, h2.2.2.2.2.2.1.trans h1.2.2.2.2.2.1,
+    h2.2.2.2.2.2.2.1.trans h1.2.2.2.2.2.2.1, h2.2.2.2.2.2.2.2.1.trans h1.2.2.2.2.2.2.2.1,
+    h2.2.2.2.2.2.2.2.2.1.trans h1.2.2.2.2.2.2.2.2.1, h2.2.2.2.2.2.2.2.2.2.trans h1.2.2.2.2.2.2.2.2.2⟩
   rcases h1.1 p with e1 | ⟨y, n, y', a1, a2⟩ <;> rcases h2.1 p with e2 | ⟨z, m, z', b1, b2⟩
   · exact Or.inl (e2.trans e1)
   · rw [e1] at b1; exact Or.inr ⟨z, m, z', b1, b2⟩
@@ -91,6 +95,10 @@ theorem ScOnlyK.szKeep {σ σ' : State Unit} (h : ScOnlyK σ σ') : SzKeep σ σ
   · exact ⟨x, by rw [← e]; exact hp⟩
   · rw [hp] at a2; cases a2; exact ⟨y, a1⟩
 
+theorem ScOnlyK.vsKeep {σ σ' : State Unit} (h : ScOnlyK σ σ') : VsKeep σ σ' := by
+  exact ⟨h.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.2,
+    fun q ao hq => by rw [h.fwd hq (by intros; nofun), hq], h.szKeep⟩
+
 /-- Every outcome changes only SC objects. -/
 def NKS {α : Type} (m : NonDet (State Unit) α) : Prop := ∀ σ x, x ∈ (m σ).1 → ScOnlyK σ x.2
 
@@ -112,10 +120,12 @@ theorem nks_get : NKS (NonDet.get : NonDet (State Unit) (State Unit)) := by
 
 theorem nks_modify {f : State Unit → State Unit} (hf : ∀ σ, (f σ).kheap = σ.kheap ∧
     (f σ).machineState = σ.machineState ∧ (f σ).cdt = σ.cdt ∧ (f σ).isOriginalCap = σ.isOriginalCap ∧
-    (f σ).domainList = σ.domainList ∧ (f σ).domainStartIndex = σ.domainStartIndex) : NKS (NonDet.modify f) := by
+    (f σ).domainList = σ.domainList ∧ (f σ).domainStartIndex = σ.domainStartIndex ∧
+    ((f σ).archState = σ.archState ∧ (f σ).interruptStates = σ.interruptStates ∧
+      (f σ).interruptIrqNode = σ.interruptIrqNode ∧ (f σ).curThread = σ.curThread)) : NKS (NonDet.modify f) := by
   intro σ x hx; rw [Set.mem_singleton_iff.1 hx]
-  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hf σ
-  exact ⟨fun p => Or.inl (by rw [h1]), h2, h3, h4, h5, h6⟩
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := hf σ
+  exact ⟨fun p => Or.inl (by rw [h1]), h2, h3, h4, h5, h6, h7⟩
 
 theorem nks_assert (P : Prop) : NKS (NonDet.assert P : NonDet (State Unit) Unit) := by
   intro σ x hx; obtain ⟨-, rfl⟩ := hx; exact ScOnlyK.refl σ
@@ -179,7 +189,7 @@ theorem nks_updateSchedContext (p : ObjRef) (f : SchedContext → SchedContext) 
     obtain ⟨v, hv, hx⟩ := hx
     rw [Set.mem_singleton_iff.1 hv] at hx
     rw [Set.mem_singleton_iff.1 hx]
-    refine ⟨fun q => ?_, rfl, rfl, rfl, rfl, rfl⟩
+    refine ⟨fun q => ?_, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
     by_cases e : q = p
     · subst e
       exact Or.inr ⟨sc, n, f sc, hk, by simp⟩
@@ -194,7 +204,7 @@ theorem nks_mapM {α β : Type} {g : α → NonDet (State Unit) β} (h : ∀ a, 
 macro "nks_step" : tactic => `(tactic| first
   | exact nks_pure _ | exact nks_pure' _ | exact nks_fail | exact nks_gets _ | exact nks_get
   | exact nks_assert _ | exact nks_assertOpt _ | exact nks_getObject _ | exact nks_getsThe _
-  | exact nks_modify (fun σ => ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩)
+  | exact nks_modify (fun σ => ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩)
   | exact nks_getSchedContext _
   | exact nks_updateSchedContext _ _
   | (apply nks_when) | (apply nks_ite)
@@ -222,7 +232,7 @@ end Spec
 
 section Foot
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-- **The words an SC step writes**: SC words (`SW`) and core `c`'s node. -/
 def ScW (st : machine.Store S) [L : LawfulStore st] (C : Set U64) (c : U64) (s : S) (σ : Fl4Spec.State Unit)
@@ -298,27 +308,32 @@ end Foot
 
 section Lift
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-- **An SC step lifts to `IRel`**: FL4 writing SC and node words only, the
 spec changing SC objects only (`ScOnlyK`), and `SchedRel` after. -/
 theorem sc_step_lift (hP0 : IPlaced N T E R B) {s s' : S} {σ σ' : Fl4Spec.State Unit}
-    (hX : IRel st N T C E R B c s σ) (hW : WritesIn st s s' (fun b => ScW st C c s σ b ∨ SFootI st T c s b))
+    (hX : IRel st th cr N T C E R B c s σ) (hW : WritesIn st s s' (fun b => ScW st C c s σ b ∨ SFootI st T c s b))
     (hK : ScOnlyK σ σ')
-    (hS' : SchedRel st N T C c s' σ') : IRel st N T C E R B c s' σ' := by
-  obtain ⟨hR, ⟨th, G, hB⟩, hS, hA⟩ := hX
+    (hS' : SchedRel st N T C c s' σ') : IRel st th cr N T C E R B c s' σ' := by
+  obtain ⟨hR, ⟨⟨G, hB⟩, hV⟩, hS, hA⟩ := hX
+  have hWI1 : ∀ a, (ScW st C c s σ a ∨ SFootI st T c s a) →
+      IWords N T E R B a ∨ NodeW (L.ksb s) c a ∨ ScObjW C σ a := by
+    intro a ha
+    rcases ha with (⟨sc, hsc, x, n, hk, hobj, -⟩ | ⟨g1, g2⟩) | hI
+    · exact Or.inr (Or.inr ⟨sc, hsc, x, n, hk, hobj⟩)
+    · have hnb : L.nodeBase s c = (L.ksb s).val + 13568 + c.val * 4288 := rfl
+      exact Or.inr (Or.inl ⟨by omega, by omega⟩)
+    · rcases sfootI_iwords hP0.e.tcb hI with h | h
+      · exact Or.inl h
+      · exact Or.inr (Or.inl h)
+  have hB' := hB.frameS hW hWI1 (fun a ⟨sc, hsc, x, n, hk, hobj⟩ => (hS.scOut sc hsc x n hk a hobj).2.2.2)
+    hK.ckeep hK.2.2.2.2.1 hK.2.2.2.2.2.1 hK.szKeep
   refine ⟨hR.frame hP0 (fun a ha hf => hW.mem_eq ha (fun hw => hw.elim (fun hw => scw_not_ifoot hP0 hS hA hw hf)
       (fun hw => sfootI_not_ifoot hP0 hS hA hw hf))) hK.ikview,
-    ⟨th, G, hB.frameS hW (fun a ha => ?_) (fun a ⟨sc, hsc, x, n, hk, hobj⟩ => (hS.scOut sc hsc x n hk a hobj).2.2.2)
-      hK.ckeep hK.2.2.2.2.1 hK.2.2.2.2.2 hK.szKeep⟩, hS', hA.mono hW.1 hK.szKeep⟩
-  rcases ha with (⟨sc, hsc, x, n, hk, hobj, -⟩ | ⟨g1, g2⟩) | hI
-  · exact Or.inr (Or.inr ⟨sc, hsc, x, n, hk, hobj⟩)
-  swap
-  · rcases sfootI_iwords hP0.e.tcb hI with h | h
-    · exact Or.inl h
-    · exact Or.inr (Or.inl h)
-  · have hnb : L.nodeBase s c = (L.ksb s).val + 13568 + c.val * 4288 := rfl
-    exact Or.inr (Or.inl ⟨by omega, by omega⟩)
+    ⟨⟨G, hB'⟩, hV.frame hB.2.2.2.2.2.1 hB.1 hW (fun b hb => (hWI1 b hb).elim Or.inl
+      (fun h => h.elim (fun h => Or.inr (Or.inl h)) (fun h => Or.inr (Or.inr (Or.inl h))))) hK.vsKeep
+      hB'.2.1.2.2.1 hB'.2.2.2.2.1.2.2⟩, hS', hA.mono hW.1 hK.szKeep⟩
 
 end Lift
 
@@ -327,7 +342,7 @@ end Lift
 
 section Unblock
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-- `unblock_check` writes SC words and the `REPROGRAM` node word. -/
 theorem unblock_check_scw {s : S} {σ : Fl4Spec.State Unit}
@@ -359,9 +374,9 @@ SC's sporadic test and `unblock_check` (`unblock_check_refines`), lifted by
 `sc_step_lift`. -/
 theorem unblock_top (hP0 : IPlaced N T E R B) :
     ∀ s σ (t : U64) (x : Fl4Spec.Tcb) (k : S → Result (S × A)) (P : S × A → Prop),
-    IRel st N T C E R B c s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
+    IRel st th cr N T C E R B c s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
     (∀ s' σ', (Fl4Spec.getTcbObjRef (Z := Unit) Fl4Spec.Tcb.tcbSchedContext t.bv >>=
-        Fl4Spec.ifSporadicCurScTestRefillUnblockCheck) σ = ({((), σ')}, False) → IRel st N T C E R B c s' σ' →
+        Fl4Spec.ifSporadicCurScTestRefillUnblockCheck) σ = ({((), σ')}, False) → IRel st th cr N T C E R B c s' σ' →
       (∀ p y, σ.kheap p = some (.tcb y) → σ'.kheap p = some (.tcb y)) → k s' ⦃ P ⦄) →
     (do
       let i2 ← obj.Tcb.sc st t s
@@ -448,7 +463,7 @@ end Unblock
 
 section Postpone
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-- **`dequeue`'s footprint** at the precision of `SFootI`. -/
 theorem dequeue_sfootI {s : S} {σ : Fl4Spec.State Unit}
@@ -548,10 +563,10 @@ set_option maxHeartbeats 4000000 in
 with its footprint (`postpone_sfootI`), lifted by `sc_step_lift`. -/
 theorem postpone_top (hP0 : IPlaced N T E R B) :
     ∀ s (a : A) σ (t sc : U64) (x : Fl4Spec.Tcb) (y : Fl4Spec.SchedContext) (n : Nat),
-    IRel st N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap t.bv = some (.tcb x) →
+    IRel st th cr N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap t.bv = some (.tcb x) →
     x.tcbSchedContext = some sc.bv → σ.kheap sc.bv = some (.schedContext y n) → PostponeOK σ t.bv y →
     (do let s4 ← sched.postpone st s sc; ok (s4, a)) ⦃ res =>
-      ∃ z ∈ (Fl4Spec.postpone (Z := Unit) sc.bv σ).1, IRel st N T C E R B c res.1 z.2 ⦄ := by
+      ∃ z ∈ (Fl4Spec.postpone (Z := Unit) sc.bv σ).1, IRel st th cr N T C E R B c res.1 z.2 ⦄ := by
   intro s a σ t sc x y n hX ht hsc hkx hxsc hky ⟨hRel, hnr, hyt⟩
   have hS := hX.2.2.1
   obtain ⟨Q, R0, hc, hs⟩ := hS.lists
@@ -578,61 +593,61 @@ end Postpone
 
 section Reply
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-- **`ReplyTmoHyps` with `postpone` proved** (`postpone_top`), from the
 spec facts it needs (`PostponeOK`). -/
 theorem ReplyTmoHyps.ofPost (hP0 : IPlaced N T E R B)
     (hPO : ∀ s σ (t sc : U64) (x : Fl4Spec.Tcb) (y : Fl4Spec.SchedContext) (n : Nat),
-      IRel st N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap t.bv = some (.tcb x) →
+      IRel st th cr N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap t.bv = some (.tcb x) →
       Fl4Spec.runnable x.tcbState = true → x.tcbSchedContext = some sc.bv →
       σ.kheap sc.bv = some (.schedContext y n) → PostponeOK σ t.bv y)
     (htx : ∀ (a : A) (t : U64) (xt : Fl4Spec.Tcb) (bb : Fl4Spec.Word) (e bdg : U64) (g : Bool) (d : U64)
       (xd : Fl4Spec.Tcb), t ∈ T → d ∈ T → t ≠ d → xt.tcbFault = some (.timeout bb) → xt.tcbSchedContext ≠ none →
       ∀ (s1 : S) (σ1 : Fl4Spec.State Unit),
-        EpStateRel T E R B (L.mem s1) σ1 → SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c))) s1 σ1 →
+        EpStateRel T E R B (L.mem s1) σ1 → SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c))) s1 σ1 →
         σ1.kheap t.bv = some (.tcb xt) → σ1.kheap d.bv = some (.tcb xd) →
         ipc.do_ipc_transfer st ar s1 a t e bdg g d ⦃ s' => XferPost (L := L) T E R B
-          (SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c)))) s1 σ1 t d e bdg g xd s' ⦄)
+          (SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c)))) s1 σ1 t d e bdg g xd s' ⦄)
     (hepE : ∀ s σ (t : U64) (x : Fl4Spec.Tcb) (p bd : Fl4Spec.Word) (r : Fl4Spec.CapRights),
-      IRel st N T C E R B c s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
+      IRel st th cr N T C E R B c s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
       x.tcbTimeoutHandler = .endpointCap p bd r → ∀ e : U64, e.bv = p → e ∈ E) :
-    ReplyTmoHyps st ar N T C E R B c :=
+    ReplyTmoHyps st ar th cr N T C E R B c :=
   ⟨fun s a σ t sc x y n h1 h2 h3 h4 h5 h6 h7 =>
     postpone_top hP0 s a σ t sc x y n h1 h2 h3 h4 h6 h7 (hPO s σ t sc x y n h1 h2 h3 h4 h5 h6 h7), htx, hepE⟩
 
 /-- **`ReplyHyps` from `remove` and the spec facts of the timeout branch**:
 `unblock` (`unblock_top`), `postpone` (`postpone_top`), `faultReply`,
 `grantXfer` and `tmo` proved. -/
-theorem ReplyHyps.ofL (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
-    (hTl : IpcEpTailHyps st A N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+theorem ReplyHyps.ofL (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBf : EpBufHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hBm : EpBufMapHyps st T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
+    (hTl : IpcEpTailHyps st A N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
     (hP : IPlaced N T E R B)
-    (hSV : ∀ s' σ', IRel st N T C E R B c s' σ' → Sched.SchedValid σ')
-    (hsort : ∀ s' σ', IRel st N T C E R B c s' σ' → QSorted st T E s')
-    (hrem : ∀ s (a : A) σ (r t : U64) (x : Fl4Spec.Tcb), IRel st N T C E R B c s σ → r ∈ R → t ∈ T →
+    (hSV : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → Sched.SchedValid σ')
+    (hsort : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → QSorted st T E s')
+    (hrem : ∀ s (a : A) σ (r t : U64) (x : Fl4Spec.Tcb), IRel st th cr N T C E R B c s σ → r ∈ R → t ∈ T →
       σ.kheap t.bv = some (.tcb x) → x.tcbState = .blockedOnReply r.bv →
       ipc.reply_remove st ar s a r t ⦃ res => res.2 = a ∧ ∃ σ' x',
-        Fl4Spec.replyRemove (Z := Unit) t.bv r.bv σ = ({((), σ')}, False) ∧ IRel st N T C E R B c res.1 σ' ∧
+        Fl4Spec.replyRemove (Z := Unit) t.bv r.bv σ = ({((), σ')}, False) ∧ IRel st th cr N T C E R B c res.1 σ' ∧
         σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = .inactive ∧ x'.tcbFault = x.tcbFault ∧
         ∀ p y, p ≠ t.bv → σ.kheap p = some (.tcb y) → ∃ y', σ'.kheap p = some (.tcb y') ∧
           y'.tcbFault = y.tcbFault ∧ y'.tcbState = y.tcbState ⦄)
     (hPO : ∀ s σ (t sc : U64) (x : Fl4Spec.Tcb) (y : Fl4Spec.SchedContext) (n : Nat),
-      IRel st N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap t.bv = some (.tcb x) →
+      IRel st th cr N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap t.bv = some (.tcb x) →
       Fl4Spec.runnable x.tcbState = true → x.tcbSchedContext = some sc.bv →
       σ.kheap sc.bv = some (.schedContext y n) → PostponeOK σ t.bv y)
     (htx : ∀ (a : A) (t : U64) (xt : Fl4Spec.Tcb) (bb : Fl4Spec.Word) (e bdg : U64) (g : Bool) (d : U64)
       (xd : Fl4Spec.Tcb), t ∈ T → d ∈ T → t ≠ d → xt.tcbFault = some (.timeout bb) → xt.tcbSchedContext ≠ none →
       ∀ (s1 : S) (σ1 : Fl4Spec.State Unit),
-        EpStateRel T E R B (L.mem s1) σ1 → SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c))) s1 σ1 →
+        EpStateRel T E R B (L.mem s1) σ1 → SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c))) s1 σ1 →
         σ1.kheap t.bv = some (.tcb xt) → σ1.kheap d.bv = some (.tcb xd) →
         ipc.do_ipc_transfer st ar s1 a t e bdg g d ⦃ s' => XferPost (L := L) T E R B
-          (SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c)))) s1 σ1 t d e bdg g xd s' ⦄)
+          (SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c)))) s1 σ1 t d e bdg g xd s' ⦄)
     (hepE : ∀ s σ (t : U64) (x : Fl4Spec.Tcb) (p bd : Fl4Spec.Word) (r : Fl4Spec.CapRights),
-      IRel st N T C E R B c s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
+      IRel st th cr N T C E R B c s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
       x.tcbTimeoutHandler = .endpointCap p bd r → ∀ e : U64, e.bv = p → e ∈ E) :
-    ReplyHyps st ar N T C E R B c :=
+    ReplyHyps st ar th cr N T C E R B c :=
   ReplyHyps.ofT hH hBf hBm hTl hP hSV hsort (ReplyTmoHyps.ofPost hP hPO htx hepE) hrem (unblock_top hP)
 
 end Reply

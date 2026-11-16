@@ -174,32 +174,43 @@ noncomputable section
 section NKM
 open Fl4Spec
 
-/-- Every outcome keeps the machine state and the domain schedule. -/
+/-- The fields a scheduler step keeps: the machine state, the domain
+schedule, the arch state, the IRQ state and node, the current thread. -/
+def MK (σ σ' : State Unit) : Prop :=
+  σ'.machineState = σ.machineState ∧ σ'.domainList = σ.domainList ∧
+    σ'.domainStartIndex = σ.domainStartIndex ∧ σ'.archState = σ.archState ∧
+    σ'.interruptStates = σ.interruptStates ∧ σ'.interruptIrqNode = σ.interruptIrqNode ∧
+    σ'.curThread = σ.curThread
+
+theorem MK.refl (σ : State Unit) : MK σ σ := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+theorem MK.trans {σ1 σ2 σ3 : State Unit} (h1 : MK σ1 σ2) (h2 : MK σ2 σ3) : MK σ1 σ3 :=
+  ⟨h2.1.trans h1.1, h2.2.1.trans h1.2.1, h2.2.2.1.trans h1.2.2.1, h2.2.2.2.1.trans h1.2.2.2.1,
+    h2.2.2.2.2.1.trans h1.2.2.2.2.1, h2.2.2.2.2.2.1.trans h1.2.2.2.2.2.1, h2.2.2.2.2.2.2.trans h1.2.2.2.2.2.2⟩
+
+/-- Every outcome keeps the machine state, the domain schedule, the arch and
+IRQ state and the current thread (`MK`). -/
 def NKM {α : Type} (m : NonDet (State Unit) α) : Prop :=
-  ∀ σ x, x ∈ (m σ).1 → x.2.machineState = σ.machineState ∧ x.2.domainList = σ.domainList ∧
-    x.2.domainStartIndex = σ.domainStartIndex
+  ∀ σ x, x ∈ (m σ).1 → MK σ x.2
 
 theorem nkm_bind {α β : Type} {m : NonDet (State Unit) α} {f : α → NonDet (State Unit) β} (hm : NKM m)
     (hf : ∀ a, NKM (f a)) : NKM (m >>= f) := by
   intro σ x ⟨y, hy, hx⟩
-  obtain ⟨a1, a2, a3⟩ := hm σ y hy
-  obtain ⟨b1, b2, b3⟩ := hf y.1 y.2 x hx
-  exact ⟨b1.trans a1, b2.trans a2, b3.trans a3⟩
+  exact (hm σ y hy).trans (hf y.1 y.2 x hx)
 
 theorem nkm_pure {α : Type} (a : α) : NKM (pure a : NonDet (State Unit) α) := by
-  intro σ x hx; rw [Set.mem_singleton_iff.1 hx]; exact ⟨rfl, rfl, rfl⟩
+  intro σ x hx; rw [Set.mem_singleton_iff.1 hx]; exact MK.refl σ
 
 theorem nkm_pure' {α : Type} (a : α) : NKM (NonDet.pure a : NonDet (State Unit) α) := nkm_pure a
 
 theorem nkm_gets {α : Type} (f : State Unit → α) : NKM (NonDet.gets f) := by
-  intro σ x hx; rw [Set.mem_singleton_iff.1 hx]; exact ⟨rfl, rfl, rfl⟩
+  intro σ x hx; rw [Set.mem_singleton_iff.1 hx]; exact MK.refl σ
 
-theorem nkm_modify {f : State Unit → State Unit} (hf : ∀ σ, (f σ).machineState = σ.machineState ∧
-    (f σ).domainList = σ.domainList ∧ (f σ).domainStartIndex = σ.domainStartIndex) : NKM (NonDet.modify f) := by
+theorem nkm_modify {f : State Unit → State Unit} (hf : ∀ σ, MK σ (f σ)) : NKM (NonDet.modify f) := by
   intro σ x hx; rw [Set.mem_singleton_iff.1 hx]; exact hf σ
 
 theorem nkm_assert (P : Prop) : NKM (NonDet.assert P : NonDet (State Unit) Unit) := by
-  intro σ x hx; obtain ⟨-, rfl⟩ := hx; exact ⟨rfl, rfl, rfl⟩
+  intro σ x hx; obtain ⟨-, rfl⟩ := hx; exact MK.refl σ
 
 theorem nkm_fail {α : Type} : NKM (NonDet.fail : NonDet (State Unit) α) := by
   intro σ x hx; exact hx.elim
@@ -225,10 +236,10 @@ theorem nkm_tcbSchedAction (f : ObjRef → List ObjRef → List ObjRef) (t : Obj
   unfold tcbSchedAction getTcbQueue setTcbQueue
   exact nkm_bind (nkm_threadGet _ _) (fun _ => nkm_bind (nkm_threadGet _ _) (fun _ =>
     nkm_bind (nkm_bind (nkm_gets _) (fun _ => nkm_pure _)) (fun _ => nkm_bind (nkm_pure _) (fun _ =>
-      nkm_modify (fun σ => ⟨rfl, rfl, rfl⟩)))))
+      nkm_modify (fun σ => MK.refl σ)))))
 
 theorem nkm_setSchedulerAction (a : SchedulerAction) : NKM (setSchedulerAction (Z := Unit) a) := by
-  unfold setSchedulerAction; exact nkm_modify (fun σ => ⟨rfl, rfl, rfl⟩)
+  unfold setSchedulerAction; exact nkm_modify (fun σ => MK.refl σ)
 
 theorem nkm_rescheduleRequired : NKM (rescheduleRequired (Z := Unit)) := by
   unfold rescheduleRequired getScRefillSufficient getScRefillReady
@@ -265,7 +276,7 @@ end NKM
 
 section Foot
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-- A word of core `c`'s node is a `nodeAt` word. -/
 theorem node_word {s : S} (hN : NodePlaced st T s c) {b : U64} (h1 : L.nodeBase s c ≤ b.val)
@@ -329,52 +340,53 @@ end Foot
 
 section Wake
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
-variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-- **`possible_switch_to` refines `possible_switch_to`** keeping the merged
 footprint and view and `SRT … SRE`. -/
 theorem switch_top (hP0 : IPlaced N T E R B) (s : S) (σ : Fl4Spec.State Unit)
-    (hR : IpcRel N T E R B (L.mem s) σ) (hS : SRT st N T C E R B c (SRE st N T C E R B c) s σ)
+    (hR : IpcRel N T E R B (L.mem s) σ) (hS : SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ)
     (hr : ActReady σ) (t : U64) (ht : t ∈ T) :
     sched.possible_switch_to st s t ⦃ s' => ∃ σ', Fl4Spec.possibleSwitchTo (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
       σ'.kheap = σ.kheap ∧ Agree (L.mem s) (L.mem s') (IFoot N T E R B) ∧ IKView σ σ' ∧
-      SRT st N T C E R B c (SRE st N T C E R B c) s' σ' ⦄ := by
+      SRT st th cr N T C E R B c (SRE st N T C E R B c) s' σ' ⦄ := by
   refine WP.spec_mono (WP.spec_and (possible_switch_to_refines s σ hR.toN hS.2.1 hr t ht)
     (possible_switch_to_sfootI hR.toN hS.2.1 hr ht)) ?_
   rintro s' ⟨⟨σ', heq, hk, -, hSch⟩, hW⟩
   have hmem : ((), σ') ∈ (Fl4Spec.possibleSwitchTo (Z := Unit) t.bv σ).1 := by rw [heq]; rfl
-  obtain ⟨hms, hdl, hds⟩ := nkm_possibleSwitchTo t.bv σ _ hmem
+  obtain ⟨hms, hdl, hds, har, hist, hino, hct⟩ := nkm_possibleSwitchTo t.bv σ _ hmem
   have hck : CKeep σ σ' := nkc_possibleSwitchTo t.bv σ _ hmem
   refine ⟨σ', heq, hk, fun a ha hf => hW.mem_eq ha (fun hs => sfootI_not_ifoot hP0 hS.2.1 hS.2.2 hs hf),
-    IKView.of_kheap hk (by rw [hms]), hS.1.frameN hW (fun a ha => sfootI_iwords hP0.e.tcb ha) hck hdl hds (SzKeep.of_kheap hk),
+    IKView.of_kheap hk (by rw [hms]), hS.1.frameN hW (fun a ha => sfootI_iwords hP0.e.tcb ha) hck hdl hds (VsKeep.of_kheap hk har hist hino hct),
     hSch, hS.2.2.mono hW.1 (SzKeep.of_kheap hk)⟩
 
 /-- **The SchedContext steps of the wake-up** (SchedNtfn's `WakeHyps`) on
 the merged footprint and view and `SRT … SRE`. -/
-structure IpcWakeHyps (st : machine.Store S) (ar : machine.Arch A) [L : LawfulStore st] (N T C E R : Set U64)
+structure IpcWakeHyps (st : machine.Store S) (ar : machine.Arch A) [L : LawfulStore st] (th : TypedHeap)
+    (cr : Fl4Spec.Cr3) (N T C E R : Set U64)
     (B : Set (U64 × Fl4Spec.Word)) (c : U64) : Prop where
   donate : ∀ s (a : A) σ (t n : U64) (x : Fl4Spec.Tcb), IpcRel N T E R B (L.mem s) σ →
-    SRT st N T C E R B c (SRE st N T C E R B c) s σ → t ∈ T → n ∈ N → σ.kheap t.bv = some (.tcb x) →
+    SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ → t ∈ T → n ∈ N → σ.kheap t.bv = some (.tcb x) →
     x.tcbState = .running →
     notification.maybe_donate_sched_context st ar s a t n ⦃ r => ∃ σ1,
       Fl4Spec.maybeDonateSc (Z := Unit) t.bv n.bv σ = ({((), σ1)}, False) ∧
       Agree (L.mem s) (L.mem r.1) (IFoot N T E R B) ∧ IKView σ σ1 ∧
-      SRT st N T C E R B c (SRE st N T C E R B c) r.1 σ1 ∧ ActReady σ1 ⦄
-  unblock : ∀ s σ (t : U64), IpcRel N T E R B (L.mem s) σ → SRT st N T C E R B c (SRE st N T C E R B c) s σ →
+      SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 σ1 ∧ ActReady σ1 ⦄
+  unblock : ∀ s σ (t : U64), IpcRel N T E R B (L.mem s) σ → SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ →
     t ∈ T →
     notification.unblock_sporadic st s t ⦃ s' => ¬ (specUnblock t.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (specUnblock t.bv σ).1 ∧ Agree (L.mem s) (L.mem s') (IFoot N T E R B) ∧
-        IKView σ σ' ∧ SRT st N T C E R B c (SRE st N T C E R B c) s' σ' ⦄
+        IKView σ σ' ∧ SRT st th cr N T C E R B c (SRE st N T C E R B c) s' σ' ⦄
 
 /-- **The `wakeTail` field of `IpcSchedHyps` for `SRT … SRE`**, from
 `IpcWakeHyps` (SchedNtfn's `wakeTail_of` on the merged footprint). -/
-theorem wakeTail_top (hP0 : IPlaced N T E R B) (hW : IpcWakeHyps st ar N T C E R B c) (s : S) (a : A)
+theorem wakeTail_top (hP0 : IPlaced N T E R B) (hW : IpcWakeHyps st ar th cr N T C E R B c) (s : S) (a : A)
     (σ : Fl4Spec.State Unit) (t n : U64) (x : Fl4Spec.Tcb) (hR : IpcRel N T E R B (L.mem s) σ)
-    (hS : SRT st N T C E R B c (SRE st N T C E R B c) s σ) (ht : t ∈ T) (hn : n ∈ N)
+    (hS : SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ) (ht : t ∈ T) (hn : n ∈ N)
     (hk : σ.kheap t.bv = some (.tcb x)) (hx : x.tcbState = .running) :
     rustWakeTail st ar s a t n ⦃ r => ¬ (specWakeTail t.bv n.bv σ).2 ∧ ∃ σ', ((), σ') ∈ (specWakeTail t.bv n.bv σ).1 ∧
       Agree (L.mem s) (L.mem r.1) (IFoot N T E R B) ∧ IKView σ σ' ∧
-      SRT st N T C E R B c (SRE st N T C E R B c) r.1 σ' ⦄ := by
+      SRT st th cr N T C E R B c (SRE st N T C E R B c) r.1 σ' ⦄ := by
   unfold rustWakeTail
   refine WP.spec_bind (hW.donate s a σ t n x hR hS ht hn hk hx) ?_
   rintro ⟨s4, a2⟩ ⟨σ1, hd, hf1, hv1, hS1, hr1⟩
@@ -384,7 +396,7 @@ theorem wakeTail_top (hP0 : IPlaced N T E R B) (hW : IpcWakeHyps st ar N T C E R
   have hmid : (if b1 = true then sched.possible_switch_to st s4 t else ok s4) ⦃ s5 => ∃ σ2,
       (Fl4Spec.NonDet.when (Fl4Spec.schedulable t.bv σ1 = true) (Fl4Spec.possibleSwitchTo t.bv)) σ1 =
         ({((), σ2)}, False) ∧ Agree (L.mem s4) (L.mem s5) (IFoot N T E R B) ∧ IKView σ1 σ2 ∧
-        SRT st N T C E R B c (SRE st N T C E R B c) s5 σ2 ⦄ := by
+        SRT st th cr N T C E R B c (SRE st N T C E R B c) s5 σ2 ⦄ := by
     rw [b1_post]
     by_cases e : Fl4Spec.schedulable t.bv σ1 = true
     · simp only [e, ↓reduceIte, Fl4Spec.NonDet.when]
@@ -412,13 +424,13 @@ wake-up (`IpcWakeHyps`) and the receiver facts of `cancel_ipc`
 (`CancelRecvHyp`). -/
 theorem ipcSchedHyps_full (hP0 : IPlaced N T E R B)
     (hNQ : ∀ s σ (t : U64) (x : Fl4Spec.Tcb), IpcRel N T E R B (L.mem s) σ →
-      SRT st N T C E R B c (SRE st N T C E R B c) s σ →
+      SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ →
       σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = false → NotQueued σ t.bv)
-    (hW : IpcWakeHyps st ar N T C E R B c)
+    (hW : IpcWakeHyps st ar th cr N T C E R B c)
     (hX : ∀ s σ (t : U64) (x : Fl4Spec.Tcb), IpcRel N T E R B (L.mem s) σ →
-      SRT st N T C E R B c (SRE st N T C E R B c) s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
+      SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
       Fl4Spec.receiveBlocked x.tcbState = true → CancelRecvHyp E (L.mem s) σ t x) :
-    IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)) :=
+    IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)) :=
   ipcSchedHyps_top hP0.e ⟨hNQ, fun s a σ t n x hR hS ht hn hk hx _ => wakeTail_top hP0 hW s a σ t n x hR hS ht hn hk hx,
     cancelIpc_top hP0 hX⟩
 
