@@ -172,7 +172,7 @@ theorem retypeHeap_none {H : Heap} {lo hi A k w n us : Nat} (hkd : newKind n us 
   funext q; unfold retypeHeap
   by_cases hq : NewAt A k w q <;> simp [hq, hkd]
 
-/-- The family P1 has not yet done: TCBs (`n = 1`). -/
+/-- The TCB family (`n = 1`), done apart (`retypeFams`, QueueRetypeTcb). -/
 structure RetypeFams (st : machine.Store S) [L : LawfulStore st] : Prop where
   tcb : ∀ (s s' : S) (H : Heap) (Cs Ac : Set U64) (lo hi A k w us : Nat), RetypeP1Step st s s' H Cs Ac lo hi A k w 1 us
 
@@ -329,8 +329,8 @@ theorem retypeP1Step_base {s s' : S} {H : Heap} {Cs Ac : Set U64} {lo hi A k w n
 
 
 
-/-- **`RetypeP1Step` for every kind**, from the families P1 has not yet done
-(`RetypeFams`: TCBs). -/
+/-- **`RetypeP1Step` for every kind**, from the TCB family (`RetypeFams`;
+`retypeP1Step` in QueueRetypeTcb discharges it). -/
 theorem retypeP1Step_of (F : RetypeFams st) {s s' : S} {H : Heap} {Cs Ac : Set U64} {lo hi A k w n us : Nat} :
     RetypeP1Step st s s' H Cs Ac lo hi A k w n us := by
   by_cases h1 : n = 1

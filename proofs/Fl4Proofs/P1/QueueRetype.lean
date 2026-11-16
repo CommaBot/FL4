@@ -41,8 +41,9 @@ def newKind (n us : Nat) : Option HKind :=
 
 /-- The TCB words a new TCB's creation initialises: the context
 (registers, debug registers, FPU: below `F`), the domain (`F + 104`), the
-debug links (`F + 248`, `F + 256`) and the name (from `F + 272`). -/
-def TcbInitK (K : Nat) : Prop := K < 3328 ∨ K = 3432 ∨ K = 3576 ∨ K = 3584 ∨ 3600 ≤ K
+debug links (`F + 248`, `F + 256`) and the name (from `F + 272`), inside the
+TCB. -/
+def TcbInitK (K : Nat) : Prop := (K < 3328 ∨ K = 3432 ∨ K = 3576 ∨ K = 3584 ∨ 3600 ≤ K) ∧ K < 4096
 
 /-- **The region after a retype** (module docstring): zero, but the
 initialised words of the new TCBs, when the new objects are heap objects. -/

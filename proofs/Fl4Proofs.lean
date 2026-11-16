@@ -63,6 +63,8 @@ import Fl4Proofs.P1.QueueHeapDbg
 import Fl4Proofs.P1.QueueHeapAddO
 import Fl4Proofs.P1.QueueHeapAddSc
 import Fl4Proofs.P1.QueueRetypeP1
+import Fl4Proofs.P1.QueueHeapAddTcb
+import Fl4Proofs.P1.QueueRetypeTcb
 import Fl4Proofs.P1.QueueFinFr
 import Fl4Proofs.P1.QueueReplyX
 import Fl4Proofs.P1.QueueDecDel
