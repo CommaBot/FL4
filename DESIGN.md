@@ -273,7 +273,7 @@ A kernel entry's footprint is the set of objects it reads and writes. FL4 does n
 
 ## 7. Fine-grained locking
 
-seL4 SMP protects the whole kernel with one CLH lock (`NODE_LOCK_SYS` in `include/smp/lock.h`). FL4 runs every kernel entry as a short transaction over only the memory it touches, in the style of TL2 software transactional memory. The core does not know: the transaction lives in the `Store` and `Arch` it is given.
+seL4 SMP protects the whole kernel with one CLH lock (`NODE_LOCK_SYS` in `include/smp/lock.h`). FL4 uses the serial gate for quiet kernel entries and runs concurrent entries as short transactions over only the memory they touch, in the style of TL2 software transactional memory. The core does not know: the transaction lives in the `Store` and `Arch` it is given.
 
 ### The striped seqlock table
 
@@ -308,7 +308,6 @@ flowchart LR
 
 - **Consistent reads.** A read is valid only if its table entry is unlocked and no newer than the clock value the transaction began with. Otherwise the transaction is doomed: from then on reads return zero and nothing it does is kept. Every loop in the core is bounded (P0), so a doomed entry finishes quickly, and until it is doomed the core sees one consistent snapshot of memory. Reads are plain loads through the kernel window, which maps all of kernel memory, so they never fault.
 - **Buffered writes, two-phase commit.** Writes go to a per-core buffer, and later reads of the same word see them. At commit the entries covering the write set are locked in table order, which is deadlock free, then the read set is checked against the start clock, the buffer is written out, and the entries are released with the new version.
-- **Write-log locality.** The log's word-address hash preserves nearby words' locality and folds in the page number to separate equally aligned objects. Reads skip the log when their stripe has no writes in the current transaction. Hash collisions still compare full addresses and probe; log capacity, validation, and the commit protocol are unchanged.
 - **Deferred effects.** Arch operations other cores or the hardware could observe (reschedule IPIs, timer programming, interrupt masking and acknowledgement, address-space switches, console output) are queued and run after commit, never while holding entries. An interrupt accepted during the entry is kept and offered again if the transaction reruns.
 - **Irrevocable operations go serial.** Port I/O, remote stalls, FPU state moving between cores, TLB invalidation, and clears of more than 8 KiB rerun under the serial gate. An invalidation must follow the page-table change, which a transaction makes only at commit, and its shootdown IPIs need the gate; mapping into an empty entry invalidates nothing, so most maps stay transactions. A core switching address space publishes its ASID before it loads CR3 (or reads the ASID's invalidation generation, with PCIDs), and an invalidation changes the tables before it looks for cores to shoot down, so a switch racing with an unmap cannot keep a stale entry. The transaction aborts and the entry reruns under the serial gate, as does any entry after N failed attempts (default 4).
 - **Clearing free memory runs in place.** An untyped reset clears memory that no live object occupies, and so does making an ASID pool from a fresh frame. Such a clear does not need to be buffered: no other core depends on that memory. `Store::clear_free` means `zero` to the proofs. In a transaction it locks the region's stripes in order, validates the read set, zeroes memory in place along with any buffered writes into it, releases the stripes at a new version, and extends the transaction's read version to it. A reader of the region aborts at the new version. Clears larger than 8 KiB, including the 64 KiB reset chunk, rerun serially to avoid acquiring thousands of finer stripes.
@@ -316,7 +315,7 @@ flowchart LR
 - **The serial gate.** Transactions mark their core active while they run. A core that needs the gate takes it, waits for active transactions to drain, runs the entry directly on memory, and releases it; new transactions wait while it is held. Rare global operations (domain schedule, IRQ control, ASID pool allocation) also use it. With one core there are no transactions and no gate: the store is plain memory.
 - **Opportunistic gate probes.** Before starting a transaction, a core may reserve the next serial ticket with a CAS when the queue is empty or contains just one ticket. Allowing one queued successor avoids dropping immediately into STM when two short entries overlap. The successor services remote calls while waiting for its turn; a remote stall cancels a non-interrupt entry before it runs. Once served, the probe closes the gate with the same SeqCst store as the blocking acquisition and scans the transaction-active flags. If any other core is active, it releases its ticket immediately and uses STM; otherwise it runs the same core entry directly under the gate. A transaction arriving during the probe either publishes its active flag early enough to make the probe fail or observes the closed gate and waits. A failed probe has no memory effects beyond the gate protocol and remote-call servicing.
 - **Contention restores concurrency.** A failed probe or a transaction waiting for a closed gate advances a contention generation. Each core that observes a new generation skips probes for 256 entries. The per-core countdowns occupy separate cache lines. This prevents a busy exclusive owner from repeatedly probing ahead of waiting transactions and makes probes infrequent under sustained parallel load. Generation and countdown atomics only choose a strategy; correctness depends on the ticket and SeqCst handshake, even with stale policy reads. Mandatory serial entries still take FIFO tickets and service IPIs while waiting.
-- **Store specialization.** Once the runtime has selected direct or transactional execution, x86 entry dispatch uses the corresponding `EntryStore<TX>` implementation of the same `Store` interface. Both delegate to the existing primitives and remove a mode branch from each word access. Kernel logic, capability checks, scheduler semantics, and extracted proof definitions are unchanged. Runtime statistics remain enabled in debug builds; release builds avoid updating their otherwise unused shared counters.
+- **Store specialization.** Once the runtime has selected direct or transactional execution, x86 entry dispatch uses the corresponding `EntryStore<TX>` implementation of the same `Store` interface. Both forward through the existing `PhysStore` implementation with a constant mode, removing a mode branch from each word access. Kernel logic, capability checks, scheduler semantics, and extracted proof definitions are unchanged. Runtime statistics remain enabled in debug builds; release builds avoid updating their otherwise unused shared counters.
 - **IPI-aware spinning.** seL4 services remote-stall IPIs while spinning on its lock. FL4 does the same in every spin loop: waiting for the gate, for a transaction to drain, or for a remote call to be acknowledged. IPI handlers touch only core-local state, so a core waiting for an acknowledgement cannot deadlock with a core spinning on a lock.
 
 ### Footprints of common operations
@@ -604,531 +603,90 @@ What the table shows:
 - **seL4's map is about 50× FL4's on one core.** seL4 shoots down every core that has run the address space, even idle ones, which KVM must wake. FL4 interrupts only the cores currently running the ASID (§3).
 
 
-**Initial transaction optimizations (issue #11, 2026-11-15).** The standalone
-[issue probe](https://github.com/losfair/FL4/issues/11) compares `46b3cb6`
-with the write-log locality and bulk-clear changes in §7, before adaptive
-entry execution. Both use the
-same release configuration and probe ELF, six KVM vCPUs pinned to physical
-host cores 2–7, with emulator threads on 0–1. On the Ryzen 7 7700, three
-fresh boots per version in alternating order give 15 measured batches per
-primitive; no build or other benchmark runs concurrently. Medians in µs,
-using the issue's invariant TSC frequency of 3792848570 Hz:
+**SMP transaction performance (issue #11).** The runtime avoids transaction
+bookkeeping on quiet entries and reduces false conflicts between small
+objects under parallel Linux workloads. The current measurements and
+validation are summarized below; the core and its proof definitions are
+unchanged.
 
-| Primitive | Before | After |
-|---|---:|---:|
-| Fault/ReplyRecv, separate VSpaces, live client FPU | 1.5362 | 1.4442 |
-| Syscall-fault delivery, separate VSpaces, live client FPU (split probe) | 0.7733 | 0.7376 |
-| ReplyRecv resume, separate VSpaces, live client FPU (split probe) | 0.7903 | 0.7403 |
-| Fault/ReplyRecv, shared VSpace, no FPU | 1.3233 | 1.2515 |
-| Call0/ReplyRecv, shared VSpace | 1.1682 | 1.1052 |
-| Call19/ReplyRecv, shared VSpace | 1.4388 | 1.3388 |
-| TCB retype, reset 64 KiB | 6.5923 | 4.2412 |
-| Frame retype, reset 64 KiB | 6.3946 | 4.0649 |
-| TCB retype, no reset | 0.5602 | 0.5488 |
+The retained changes are opportunistic serial admission with contention
+backoff, per-entry store specialization, finer version stripes, and ordered
+bulk clears. The write log retains its locality hash: an isolated ablation
+recovered most of the SMP syscall/IPC loss from removing both word-log tweaks.
+The extra lookup shortcut was dropped. Removing ordered clears substantially
+hurt SMP retype throughput, so that optimization stays.
+The tests focus on gate exclusion/backoff, queued ticket ordering and IPI
+servicing, and clear bounds/validation/version restoration. Existing concurrent
+store tests, simulation and mutation campaigns supply broader coverage.
 
-This removes about 6% of fault/reply time and 36% of reset/retype time;
-it does not close the gap to the serial control. The reset still locks
-all 1,024 covering stripes. The split timings include instrumentation
-and should not be added to estimate the uninstrumented round trip.
+Fresh comparison on the issue's Ryzen 7 7700/KVM setup, three boots per cell:
+PR base `46b3cb6`, pre-cleanup PR `af5fa2b`, cleaned code
+`10ba06e`, and seL4. Six vCPUs are pinned to physical
+cores 2–7; emulator threads use 0–1. Linux 6.18.63, initramfs, workload,
+per-backend l4h root tasks and mitigation settings are held fixed. Linux runs
+one warmup suite before each measured suite. No builds or benchmarks overlap.
 
-The same pinned setup running FL4PERF0003 (three boots per version, median
-aggregate operations per million TSC ticks) retains SMP concurrency:
+Median Linux `getpid` throughput, million calls/s:
 
-| Workload | Version | 1 core | 2 | 4 | 6 |
-|---|---|---:|---:|---:|---:|
-| IPC | Before | 189 | 351 | 677 | 745 |
-| | After | 200 | 369 | 710 | 785 |
-| Cap copy/delete | Before | 352 | 625 | 1128 | 1723 |
-| | After | 363 | 647 | 1179 | 1806 |
-| Retype/delete, 4 KiB reset | Before | 200 | 282 | 577 | 658 |
-| | After | 281 | 476 | 814 | 1007 |
-
-These are KVM measurements, not bare-metal or Linux guest throughput
-claims. The shared-VSpace map benchmark remains noisy (one-core runs
-337–364 before and 332–389 after); its six-core median stays at 56.
-
-**Commit and individual store operations.** Temporary kernel probes on
-the separate-VSpace, live-FPU fault/reply workload time commit from the
-start of stripe sorting through the last unlock. Three boots, excluding
-each warm-up batch, give these medians of batch means in ns:
-
-| Transaction | Buffered words | Read stripes | Write stripes | Before, measured | After, measured | After, minus timestamp overhead |
-|---|---:|---:|---:|---:|---:|---:|
-| Fault delivery | 52 | 24 | 18 | 101.0 | 104.9 | 91.7 |
-| ReplyRecv | 43 | 31 | 12 | 67.5 | 65.0 | 51.8 |
-
-The empty `lfence; rdtsc; lfence` bracket costs about 13.2 ns. Subtracting
-it estimates 0.144 µs of commit work per round trip, about 10% of the
-uninstrumented 1.444 µs. Commit is essentially unchanged by the log and
-clear optimizations.
-Separate, more intrusive phase probes attribute most of it to stripe
-sorting, lock acquisition, and buffered writeback. With no intervening
-writer, the clock shortcut avoids walking the read set at commit. These
-are uncontended costs; they do not predict retries or cache-line transfer
-between busy cores.
-
-To examine the work before commit, a temporary probe captures one actual
-successful fault-delivery transaction and one ReplyRecv transaction,
-including each read/write address and its write-log lookup result. The
-following counts are identical across three boots. Each timing replays
-the prefix to establish transaction state, then brackets that one access
-100 times; values are medians across boots after subtracting the empty
-timestamp bracket. The helpers use the optimized runtime on CPU 0 and
-include the function-call and harness overhead. Times are approximate ns
-for hot state, **not additive contributions to end-to-end latency**.
-The fences prevent overlap with surrounding operations; subtracting their
-empty-bracket cost does not restore that out-of-order overlap:
-
-| Operation | Fault count | ReplyRecv count | Fault ns | ReplyRecv ns |
+| Linux vCPUs | PR base | Before cleanup | Cleaned PR | Patched seL4 |
 |---|---:|---:|---:|---:|
-| Read a buffered word | 37 | 23 | 3.7 | 3.7 |
-| Read memory, first read of its stripe | 24 | 31 | ~4.1 | ~4.1 |
-| Read memory, stripe already in read set | 77 | 102 | ~3.9 | ~3.9 |
-| Buffer a new word, first write to its stripe | 18 | 12 | 4.6 | 5.0 |
-| Buffer a new word, stripe already in write set | 34 | 31 | 4.3 | 4.2 |
-| Overwrite a buffered word | 13 | 8 | 3.1 | 3.4 |
+| 1 | 0.527 | 1.344 | 1.355 | 1.070 |
+| 2 | 0.617 | 1.409 | 1.339 | 1.313 |
+| 4 | 0.821 | 1.775 | 1.727 | 1.283 |
 
-There are 294 reads and 116 writes per pair. Of the reads, 60 hit the log,
-184 skip searching it because their stripe has no buffered writes, and
-50 search but miss. The 234 memory reads each load the stripe version
-twice, check it against the snapshot, and test read-set membership; only
-55 add a stripe to the read set. On this x86 build the acquire fence
-between the data load and second version load emits no hardware fence.
-The same isolated measurement puts steady-state `tx::begin` near 2 ns
-and `tx::end` near 1 ns, excluding serial-gate admission and effects.
+Other four-vCPU Linux results; throughput higher is better, latency lower:
 
-A second experiment replays each whole access sequence 2,000 times
-without committing, under the serial gate so memory stays stable. It
-compares normal helpers with helpers using the captured lookup answers,
-and checks equal read checksums. Variant dispatch occurs outside the timed
-loop; five measured batches per boot alternate variant order. Median ns
-per transaction:
-
-| Replay variant | Fault | ReplyRecv |
-|---|---:|---:|
-| Normal reads and writes | 366 | 372 |
-| Precomputed read-log lookup answers | 357 | 376 |
-| Precomputed read and write lookup answers | 366 | 383 |
-| Also replace reads with the selected memory/buffer load | 281 | 278 |
-| Also replace writes with the buffer-value store | 262 | 276 |
-
-Replacing read-log search gives no repeatable pair-level improvement:
-paired batch differences span about -30 to +31 ns. Removing the remaining
-read protocol saves about 190 ns per pair relative to the both-lookups
-variant, but this is a diagnostic ablation, not a safe implementation.
-The last two variants differ by only about 20 ns per pair despite the
-116 writes: much of the buffered-write work overlaps other operations.
-That marginal difference excludes lookup and depends on the surrounding
-work. Isolated 4–5 ns writes do not imply a 0.5 µs write budget. A buffered
-write also performs dependent log/stamp loads, branches, and counter/index
-updates; the CPU's store buffer hides store completion, not those inputs.
-These hot replay loops omit the core's computation, normal call sites,
-commit, entry/exit, deferred effects, address-space and FPU switching;
-they are not a decomposition of the 1.444 µs round trip. Read-your-writes
-search is not the dominant remaining cost in this experiment. Reducing
-repeated store accesses in the core and their metadata work is a better
-next investigation. All capture, timing, and ablation hooks are excluded
-from the shipped kernel.
-
-Coarse timestamps in the **actual entry path** further localize the gap.
-The same optimized kernel is compared with its test-only `serial-gate`
-build, using the fault/reply workload above, three alternating boots and
-15 batches per build. These are FL4-vs-FL4 diagnostics, not seL4 phase
-measurements. Approximate ns after subtracting the 13.1 ns empty timestamp
-bracket from each interval:
-
-| Phase | Transactional | Serial control |
-|---|---:|---:|
-| Fault delivery: fault encoding, endpoint and reply handoff | 267 | 66 |
-| ReplyRecv: reply invocation and transfer | 246 | 91 |
-| ReplyRecv: receive | 91 | 48 |
-| Scheduling and deferred effects, both entries combined | 353 | 132 |
-
-The last row includes deferred effects in the transaction build because
-the serial build executes address-space switches and timer programming
-inside scheduling. Register saving, exit preparation, and FPU switching
-are nearly equal between builds. The extra work is concentrated in the
-core operations executed through the transactional store. Phase markers
-also inhibit overlap, so these estimates locate expensive regions rather
-than forming an exact additive latency budget. The profiling patch is
-excluded from the kernel.
-
-The issue's seL4 fault/reply result is about 0.614 µs. Keeping the measured
-0.144 µs of commit work would leave only 0.470 µs for everything else;
-FL4's generic serial control is about 0.629 µs in the issue. Running STM
-on every SMP entry therefore needs more than a faster log lookup. The
-adaptive execution described below instead reuses the existing serial
-transition when the kernel is uncontended, and specializes the store
-mode for an entire entry. It needs no separate scheduler or IPC semantics
-and adds no assumptions to the core proofs.
-For this UnknownSyscall reply, seL4's `fastpath_reply_recv` falls back to
-its slow path too; the target is not explained by a missing IPC fastpath.
-
-**Linear write-log experiment.** Instrumenting successful transaction
-attempts in the issue probe finds 25/29 buffered words for Call0/ReplyRecv
-and 52/43 for fault delivery/ReplyRecv. A dense scalar log with reverse linear
-search, retaining the unwritten-stripe shortcut and the reset changes,
-raises fault/reply to 2.6025 µs and Call0/ReplyRecv to 1.5748 µs (the same
-three-boot procedure). It is not used in the kernel.
-
-The host-only `xtask/scripts/bench_tx_lookup.c` compares hashing, scalar
-search, and an AVX2 scan of 16 keys per loop, with synthetic nearby-word
-keys and 50% hits. Five-trial medians in ns per lookup:
-
-| Log words | Hash | Scalar | AVX2 |
-|---|---:|---:|---:|
-| 25 | 2.19 | 6.12 | 2.73 |
-| 43 | 2.69 | 9.37 | 3.00 |
-| 52 | 3.11 | 11.32 | 2.98 |
-| 128 | 6.83 | 24.37 | 3.84 |
-
-AVX2 is competitive at the larger sizes in this isolated test. These
-numbers exclude managing kernel SIMD ownership: FL4 normally preserves
-live user FPU state in registers across kernel entries, and may enter
-with CR0.TS set. A kernel vector path would need feature checks and safe
-state management in addition to its lookup cost. The current change
-keeps the scalar hash log and the existing FPU protocol.
-
-**Adaptive entry execution.** The final implementation uses the gate
-probe, contention backoff, and store specialization described in §7.
-It executes the existing core entry directly when the kernel is quiet;
-there is no transaction log or commit on that entry. Under contention,
-entries continue to use STM and the optimized log and clear paths above.
-The abstract P2 serial transition already permits this execution when
-no transaction is active. `fl4-core`, extracted definitions, and proof
-sources are unchanged; the gate remains trusted, with its implementation
-checked by simulation and concurrent tests.
-
-Fresh alternating runs compare the preceding transactional implementation
-(`696a7a4`), this implementation, and the issue's patched seL4 image.
-The hardware, pinning, configuration, and probe ELF are the same as above.
-Each primitive has 15 measured batches across three boots; no build or
-other benchmark ran concurrently. Medians in µs:
-
-| Primitive | Previous STM | Adaptive | seL4 |
-|---|---:|---:|---:|
-| Fault/ReplyRecv, separate VSpaces, live client FPU | 1.4470 | 0.5593 | 0.6045 |
-| Syscall-fault delivery (split probe, same workload) | 0.7333 | 0.2644 | 0.3038 |
-| ReplyRecv resume (split probe, same workload) | 0.7374 | 0.3242 | 0.3279 |
-| Fault/ReplyRecv, shared VSpace, no FPU | 1.2553 | 0.3634 | 0.3804 |
-| Fault/ReplyRecv, shared VSpace, live client FPU | 1.3132 | 0.4252 | 0.3647 |
-| Call0/ReplyRecv, shared VSpace | 1.1036 | 0.3964 | 0.3912 |
-| Call19/ReplyRecv, shared VSpace | 1.3331 | 0.4045 | 0.4084 |
-| TCB retype, reset 64 KiB | 4.2400 | 0.6955 | 2.0764 |
-| Frame retype, reset 64 KiB | 4.0633 | 0.6896 | 1.7438 |
-| TCB retype, no reset | 0.5513 | 0.2164 | 0.4888 |
-
-The primary fault/reply round trip is 61% below the preceding STM version
-and 7.5% below seL4 in this setup. Its batch range is 0.5577–0.5610 µs,
-versus seL4's 0.5985–0.6091 µs. The split ReplyRecv improvement is much
-smaller (about 1%); the individual batch ranges overlap. Split probes
-include instrumentation and are not an additive round-trip budget.
-This does not establish parity for every path: shared-VSpace fault/reply
-with live FPU state remains 17% slower than seL4, and the full data also
-shows gaps in capability and scheduling-context operations. The Linux
-SMP follow-up is below; bare metal has not been remeasured.
-
-FL4PERF0003, three alternating boots per version, median aggregate
-operations per million TSC ticks (higher is better):
-
-| Workload | Version | 1 core | 2 | 4 | 6 |
-|---|---|---:|---:|---:|---:|
-| IPC | Previous STM | 200 | 367 | 709 | 782 |
-| | Adaptive | 422 | 392 | 647 | 894 |
-| Cross-core IPC | Previous STM | – | 78 | 151 | 194 |
-| | Adaptive | – | 75 | 151 | 241 |
-| Cap copy/delete | Previous STM | 366 | 646 | 1175 | 1802 |
-| | Adaptive | 675 | 668 | 1263 | 1844 |
-| Retype/delete, 4 KiB reset | Previous STM | 277 | 474 | 812 | 994 |
-| | Adaptive | 541 | 491 | 935 | 913 |
-
-SMP concurrency remains useful: six-core IPC improves 14% and cross-core
-IPC 24%. There are tradeoffs: four-core IPC falls 9% and six-core retype
-falls 8% relative to the preceding STM version. The one-worker direct
-path is faster than two contending workers for some workloads, because
-those workers pay the transactional cost. The adaptive policy does not
-promise monotonically increasing throughput or remove STM overhead
-from contended entries.
-
-[Raw results](xtask/results/issue-11-adaptive.json) retain every measured
-batch for every primitive and all seven scaling workloads, along with
-image hashes and run order. Primitive ticks are ordered by boot then
-trial (three boots, trials 1–5); divide each by `operations_per_trial` and
-3792.848570 to get µs. Scaling arrays contain each boot's aggregate
-operations per million ticks. No measured batches were discarded.
-
-Validation includes host tests, the 200-seed simulation suite (TSO, PCT,
-targeted aborts, serial control, and bounded schedule exploration), all
-runtime mutants, and the strict extraction/Lean gate. A focused mutation
-also makes the active-transaction probe test fail when its exclusion
-check is removed. KVM runs pass 192 full-feature release sel4tests and
-26 fl4tests on four cores, plus 26 reduced-feature debug fl4tests on
-four cores and 193 debug sel4tests on one core. One initial release
-suite failed `MULTICORE0003` while host validation jobs overlapped; the
-full isolated rerun and three focused isolated reruns passed. Its cause
-has not been established. The test runner now handles leading CRs in
-LF-CR output so it reports the failing test name correctly.
-
-**SMP comparison with seL4 (2026-11-16).** Five fresh boots per variant
-compare original FL4 (`46b3cb6`), adaptive FL4 (`4c772f4`), and seL4 in
-rotating order. All 15 kernel-benchmark boots and 45 Linux boots passed.
-Runs use the same Ryzen 7 7700 and six KVM vCPUs pinned individually to
-physical cores 2–7, with emulator threads on 0–1. No builds or other
-benchmarks run concurrently; no measured samples are discarded.
-
-The direct kernel benchmark is FL4PERF0003 at 1, 2, 4, and 6 workers. It
-uses the repository's upstream seL4 (`c98d70a`), release MCS, no skim
-window or PCID, and MSR-based FS/GS switching. The FL4 root task is
-identical between its two variants; seL4 compiles the same benchmark
-source against its ABI. At six workers, median aggregate workload
-iterations per million TSC ticks (higher is better):
-
-| Workload | Original FL4 | Adaptive FL4 | seL4 | Adaptive / seL4 |
+| Workload | PR base | Before cleanup | Cleaned PR | Patched seL4 |
 |---|---:|---:|---:|---:|
-| Yield | 3279 | 3500 | 257 | 13.62× |
-| Signal/wait | 2563 | 2714 | 1413 | 1.92× |
-| Same-core Call/ReplyRecv | 739 | 896 | 108 | 8.30× |
-| Cross-core Call/ReplyRecv | 182 | 246 | 30 | 8.20× |
-| Cap copy/delete | 1730 | 1841 | 1044 | 1.76× |
-| Retype/delete, 4 KiB reset | 659 | 916 | 742 | 1.23× |
-| Unmap/map, shared VSpace | 56 | 56 | 7 | 8.00× |
+| 4 KiB faults/s | 569,983 | 633,892 | 687,635 | 665,454 |
+| Fork / exit / wait cycles/s | 9,624 | 11,463 | 11,125 | 12,014 |
+| Cross-core pipe (µs) | 15.532 | 11.975 | 11.763 | 10.944 |
+| Cross-core futex (µs) | 8.802 | 6.375 | 5.485 | 6.473 |
 
-Against original FL4, six-core IPC improves 21% and retype 39%; four-core
-IPC falls 4% (678 to 649). seL4 still leads signal, cap, and retype at
-one and two workers; adaptive FL4 overtakes it at four workers. These
-large kernel-only ratios apply to these KVM workloads, including their
-timer and shootdown behavior. They do not predict Linux throughput.
+Primitive latency, µs, from 15 measured batches per metric. The primary
+probe has one active core on the six-vCPU machine. Split timings include
+instrumentation and are not additive:
 
-The Linux comparison reuses the issue's patched seL4 (`62e345c`, l4h
-`bb87504`), per-backend l4h root tasks, Linux 6.18.63 ELF, initramfs, and
-benchmark binary. Original/adaptive FL4 differ only in their kernel
-image. Each of 1, 2, and 4 guest vCPUs gets five fresh boots per backend,
-a full warmup suite before measurement, and 512 MiB of guest memory.
-Throughput runs pin one worker to each guest CPU. Medians:
-
-| Linux workload | vCPUs | Original FL4 | Adaptive FL4 | seL4 |
+| Primitive | PR base | Before cleanup | Cleaned PR | Patched seL4 |
 |---|---:|---:|---:|---:|
-| Real getpid, million calls/s | 1 | 0.524 | 1.386 | 1.065 |
-| | 2 | 0.622 | 0.687 | 1.313 |
-| | 4 | 0.823 | 0.909 | 1.282 |
-| First-touch 4 KiB faults, thousand/s | 1 | 237.1 | 353.1 | 388.4 |
-| | 2 | 379.6 | 404.1 | 548.6 |
-| | 4 | 574.9 | 570.2 | 674.7 |
-| Fork/exit/wait, thousand cycles/s | 1 | 3.506 | 5.926 | 6.850 |
-| | 2 | 5.957 | 6.487 | 10.331 |
-| | 4 | 9.715 | 10.021 | 11.990 |
+| Fault/ReplyRecv, separate VSpaces, live FPU | 1.5522 | 0.5740 | 0.5627 | 0.6088 |
+| Syscall-fault delivery, split probe | 0.7789 | 0.2645 | 0.2638 | 0.3066 |
+| ReplyRecv resume, split probe | 0.7940 | 0.3359 | 0.3257 | 0.3302 |
 
-The single-vCPU syscall improvement survives the full Linux path:
-getpid throughput is 2.64× original FL4 and 30% above seL4. It does not
-carry over to contended entries: two-vCPU throughput is 48% below seL4
-and four-vCPU throughput is 29% below, despite a 10.5% gain over original
-FL4 at both counts. Moving from one to two busy vCPUs roughly halves
-FL4's aggregate getpid throughput. This is consistent with the adaptive
-policy returning to STM under sustained contention; it is not a profile
-of the individual contended costs. Four-vCPU fork improves 3% over
-original FL4 but remains 16% below seL4. First-touch faults have no clear
-four-vCPU improvement and retain a 15% gap to seL4. Compute throughput
-agrees within 0.2%, including about 3.495 billion iterations/s at four
-vCPUs on all variants.
+Kernel SMP throughput, aggregate operations per million TSC ticks:
 
-Linux IPC uses one process pair, pinned to the same CPU or across CPUs
-0 and 1, rather than one pair per vCPU. On a four-vCPU guest, median µs
-per round trip (lower is better):
+| Workload | Workers | PR base | Before cleanup | Cleaned PR | Upstream seL4 |
+|---|---:|---:|---:|---:|---:|
+| ipc | 6 | 737 | 995 | 965 | 107 |
+| cap | 6 | 1,711 | 1,355 | 1,317 | 1,057 |
+| retype | 2 | 278 | 326 | 327 | 785 |
+| retype | 4 | 567 | 585 | 601 | 753 |
+| retype | 6 | 653 | 941 | 926 | 735 |
 
-| IPC | Original FL4 | Adaptive FL4 | seL4 |
-|---|---:|---:|---:|
-| Pipe, same CPU | 14.283 | 7.453 | 6.911 |
-| Pipe, across CPUs | 15.540 | 14.812 | 10.953 |
-| Futex, same CPU | 12.364 | 6.149 | 6.001 |
-| Futex, across CPUs | 9.059 | 9.502 | 5.822 |
+Cleanup changes four-vCPU syscall throughput by
+-2.7% and six-worker
+IPC/retype by -3.0% /
+-1.6% versus the preceding PR.
+Performance is not uniform: the cleaned four-vCPU same-core pipe latency is
+7.671 µs versus seL4's 6.881 µs,
+and two-vCPU fork throughput is 6,454/s versus
+10,143/s. The transaction metadata reserves 3.30 MiB more
+BSS than the PR base. Kernel throughput uses upstream seL4 `c98d70a`; Linux
+and primitive probes use l4h-patched seL4 `62e345c`. This is one KVM host with
+pinned but non-isolated cores and boost enabled, not bare-metal or
+application-wide parity.
 
-Same-core pipe/futex latency roughly halves. Cross-core pipe latency
-improves only 5% and remains 35% above seL4. Cross-core futex latency has
-no repeatable improvement: adaptive FL4 spans 6.866–11.914 µs across the
-five boots, versus 8.770–9.291 for original FL4 and 5.660–6.831 for seL4.
-Its median remains 63% above seL4. The optimization closes the quiet
-fault/reply gap, but the Linux SMP comparison still exposes substantial
-contention costs.
+Validation: host tests, trusted-base check, 200-seed simulation (including
+TSO, PCT and bounded exploration), all runtime mutants, and the strict
+extraction/Lean gate passed. Four-core release KVM passed 192 sel4tests
+and 26 fl4tests; reduced-feature debug KVM passed 26 fl4tests on four cores
+and 193 sel4tests on one. All 60 comparison boots passed.
 
-![Linux SMP comparison: medians and full five-boot ranges](xtask/results/issue-11-smp-linux.png)
+[Raw measurements](xtask/results/issue-11-linux-optimized.json) retain all
+measured and emitted warmup samples, image hashes, revisions and run order;
+no measured samples were discarded. Runtime implementation remains trusted
+and tested; this adds no proof assumptions or operation-specific lock paths.
 
-[Raw SMP data](xtask/results/issue-11-smp.json) records image hashes,
-configurations, run order, all 405 kernel measurements, and all 330 Linux
-measured results plus 330 warmup results. Kernel arrays contain five
-boots in order. Linux arrays retain exact elapsed nanoseconds, operation
-counts, and checksums, so rates and latencies can be recomputed. The
-plot's error bars show full ranges, not confidence intervals. The same
-pinning and KVM limitations as the earlier measurements apply.
-
-**Linux contention optimizations (issue #11, 2026-11-16).**
-The preceding comparison exposed a Linux throughput collapse as a second
-vCPU became busy. This follow-up changes only the trusted transaction
-runtime and store, retaining the same core logic and proof definitions.
-The measured implementation is `fe06b5b`; "previous" below is
-`4c772f4`, the implementation in the preceding SMP report.
-
-Exploratory instrumentation counted commits, aborts, and direct entries
-over the whole Linux suite, including boot and warmup. At four vCPUs,
-51.09% of transactional syscall-fault attempts and 61.65% of ReplyRecv
-attempts aborted. A 16-byte-stripe prototype reduced these rates to 4.25%
-and 2.18%. At two vCPUs, the corresponding rates moved from 43.73% and
-46.95% to below 0.01% and 5.99%. These are invasive diagnostic runs, not
-per-`getpid` measurements or final-build retry rates. Counters and image
-hashes are retained in the raw data's `retry_diagnostics` metadata.
-
-The implementation makes four changes to §7's common runtime:
-
-- Use 16-byte stripes, so independent endpoint-sized objects in a physical
-  cache line can commit independently. Increase the table to 16384
-  entries to preserve a collision-free aligned 256 KiB span.
-- Multiply the span number before XORing it with the within-span index.
-  Equally aligned pages in nearby spans otherwise share almost all their
-  stripes. The multiplier preserves the ordered-interval clear shortcut.
-  Pack four version counters per physical cache line: a 4 KiB clear walks
-  4 KiB of version metadata instead of 16 KiB. This permits hardware false
-  sharing of counters without introducing logical transaction conflicts.
-- Permit one queued opportunistic serial successor, using the existing
-  FIFO ticket gate and IPI-aware wait. Check active transactions before
-  running directly, and honor remote-stall cancellation. Further
-  contention retains the existing 256-entry backoff and concurrent STM.
-- Rerun clears above 8 KiB under the existing serial gate. Save clear
-  versions only for held stripes, rather than for every table entry.
-
-No operation-specific lock paths, core changes, new proof assumptions,
-profiling counters, or timing hooks are included. The concrete runtime
-remains trusted and tested; the abstract P2 proof is not a proof of the
-Rust implementation. The table occupies 256 KiB, the same as the former
-4096-entry padded table. Total kernel BSS grows from 5,509,120 to
-8,966,144 bytes: **3.30 MiB extra**, mostly per-core transaction metadata
-reserved for the fixed 16-core capacity.
-
-**Fresh Linux comparison.** Five boots per variant at each of 1, 2 and
-4 Linux vCPUs, 45 boots total, rotate the previous FL4, optimized FL4,
-and patched seL4 images. All passed. The Linux 6.18.63 image, initramfs,
-workload binary and per-backend l4h root tasks are unchanged from the
-preceding comparison; only the FL4 kernel image changes. Each boot runs
-a complete warmup suite before measurement. Six KVM vCPUs are pinned to
-physical host cores 2–7, with emulator threads on 0–1, on the same Ryzen
-7 7700. No build or benchmark jobs overlap these runs.
-
-Median real `getpid` throughput, million calls/s (higher is better):
-
-| Linux vCPUs | Previous FL4 | Optimized FL4 | Patched seL4 |
-|---|---:|---:|---:|
-| 1 | 1.384 | 1.348 | 1.066 |
-| 2 | 0.683 | 1.485 | 1.307 |
-| 4 | 0.902 | 1.729 | 1.277 |
-
-The two-vCPU improvement over previous FL4 is
-117%;
-the four-vCPU improvement is
-92%.
-Relative to seL4, the optimized medians change
-+14% and
-+35%,
-respectively. At one vCPU, throughput changes
--2.6%.
-The two-vCPU optimized range is
-1.138–1.624
-million/s; the median is not a guarantee for every run.
-
-Other four-vCPU results (throughput higher is better; IPC latency lower
-is better). Throughput uses one worker per vCPU; IPC uses one pinned
-process pair, on one CPU or across CPUs 0 and 1:
-
-| Linux workload | Previous FL4 | Optimized FL4 | Patched seL4 |
-|---|---:|---:|---:|
-| First-touch 4 KiB faults/s | 565,557 | 655,938 | 669,785 |
-| Fork / exit / wait cycles/s | 9,846 | 11,110 | 12,039 |
-| Pipe, same CPU (µs) | 7.442 | 8.034 | 6.902 |
-| Pipe, across CPUs (µs) | 14.934 | 12.007 | 10.976 |
-| Futex, same CPU (µs) | 6.306 | 6.403 | 5.945 |
-| Futex, across CPUs (µs) | 9.512 | 6.163 | 5.330 |
-
-Four-vCPU first-touch and fork throughput improve
-16% and
-13%,
-respectively. Cross-core pipe and futex latency fall
-20% and
-35%.
-There are still gaps: two-vCPU fork throughput is
-6,454/s versus seL4's
-10,353/s, and first-touch faults reach
-411,191/s versus
-545,499/s. Same-core IPC does not get the
-cross-core improvement. At one vCPU, fork and first-touch throughput
-change -1.2%
-and -0.1%.
-The full five-boot ranges, including outliers, are retained.
-
-![Linux workload comparison](xtask/results/issue-11-linux-optimized.png)
-
-**Primary latency and kernel SMP tradeoffs.** Three fresh boots per
-variant repeat the issue's primitive probe and FL4PERF0003, another 18
-boots, all passing. The probe uses the patched seL4 baseline and one
-active core on the six-vCPU machine. Median µs per operation:
-
-| Primitive | Previous FL4 | Optimized FL4 | Patched seL4 |
-|---|---:|---:|---:|
-| Fault/ReplyRecv, separate VSpaces, live FPU | 0.5617 | 0.5746 | 0.6063 |
-| Syscall-fault delivery, split probe | 0.2643 | 0.2650 | 0.3061 |
-| ReplyRecv resume, split probe | 0.3248 | 0.3354 | 0.3299 |
-| Fault/ReplyRecv, shared VSpace, live FPU | 0.4306 | 0.4397 | 0.3630 |
-
-The primary separate-VSpace/live-FPU round trip is
-2.3% slower than previous FL4 but
-5.2% faster than seL4. Split ReplyRecv resume is now
-1.7% above seL4, so the individual-path parity target is not fully met.
-Split measurements include instrumentation and are not additive.
-Shared-VSpace/live-FPU latency still has a gap.
-
-Kernel throughput uses upstream seL4 `c98d70a`, release MCS, matching
-mitigations, and the same seven workloads as the preceding report.
-Median aggregate operations per million TSC ticks:
-
-| Kernel workload | Workers | Previous FL4 | Optimized FL4 | Upstream seL4 |
-|---|---:|---:|---:|---:|
-| yield | 6 | 3,461 | 3,250 | 253 |
-| signal | 6 | 2,688 | 2,539 | 1,388 |
-| ipc | 6 | 886 | 993 | 106 |
-| xipc | 6 | 237 | 225 | 30 |
-| cap | 6 | 1,829 | 1,341 | 1,054 |
-| retype | 6 | 905 | 932 | 727 |
-| map | 6 | 56 | 56 | 7 |
-| ipc | 4 | 640 | 662 | 108 |
-| retype | 2 | 484 | 326 | 790 |
-| retype | 4 | 926 | 584 | 752 |
-
-This is not a uniform kernel speedup. Retype throughput changes
--33% at two
-workers and -37%
-at four; six-worker cap copy/delete changes
--27%.
-Finer stripes require more metadata work for larger objects and clears,
-and packed counters can share cache lines. Preliminary 32-byte stripes
-recovered more retype throughput but lost Linux syscall performance;
-serializing every page clear also failed to recover the previous retype
-throughput. The selected version prioritizes the measured Linux gain
-while recording these remaining costs.
-
-Validation on this implementation: ABI/core/architecture/store/sync/xtask
-host tests; trusted-base check; 200-seed simulation with TSO, PCT,
-targeted aborts, serial control and bounded exploration; all runtime
-mutants caught; strict extraction/Lean gate passed. Four-core full-feature
-release KVM passed 192 sel4tests and 26 fl4tests. Reduced-feature debug
-KVM passed 26 fl4tests on four cores and 193 sel4tests on one. New tests
-cover independent small objects, cross-block clear conflicts, saved-version
-restoration, and queued gate successors servicing remote calls.
-
-[Raw results](xtask/results/issue-11-linux-optimized.json) retain all
-330 measured Linux results and 330 warmup results, 243 kernel throughput
-results, 1575 measured primitive batches and the 216 emitted warmup
-batches, plus revisions, image hashes and run order. No measured samples
-from this final comparison were discarded. Plot bars show full ranges,
-not confidence intervals. This remains one KVM host with pinned but
-non-isolated cores, a powersave governor with boost enabled, and the
-issue's Linux/l4h workload suite; it does not establish bare-metal or
-application-wide parity with seL4.
 
 ## 13. Milestones
 
