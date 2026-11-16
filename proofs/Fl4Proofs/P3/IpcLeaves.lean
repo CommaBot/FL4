@@ -17,6 +17,8 @@ import Fl4Proofs.P3.IpcEpGrant
 import Fl4Proofs.P3.IpcEpBlock
 import Fl4Proofs.P3.SchedValidRel
 import Fl4Proofs.P3.IpcSendTop
+import Fl4Proofs.P3.EpRecvX
+import Fl4Proofs.P3.IpcEpXfer
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Endp
@@ -27,6 +29,24 @@ noncomputable section
 section
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st] {N T C E R : Set U64}
   {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+
+/-- **The IPC queues of `O` are sorted by priority**, highest first, at `s`
+(seL4's `tcbEPAppend` order). -/
+def QSorted (st : machine.Store S) [L : LawfulStore st] (T O : Set U64) (s : S) : Prop :=
+  ∀ e ∈ O, ∀ xs, QueueRel (L.mem s) T .Ep (qOf (L.mem s) e) xs → PrioSorted (fun y => L.mem s (prioA y)) xs
+
+/-- `QSorted` from P1's queue witness (`EpsWit`, endpoints and notifications)
+with its lists sorted. -/
+theorem qSorted_of_eps {Cs Ω : Set U64} {H : P1.Heap} {s : S} {E' O : Set U64} {EQ : U64 → List U64}
+    (hW : P1.EpsWit st T Cs Ω H ∅ s E' EQ) (hTP : TcbPlaced T) (hsub : O ⊆ E')
+    (hS : ∀ e ∈ E', PrioSorted (fun y => L.mem s (prioA y)) (EQ e)) : QSorted st T O s := by
+  intro e he xs hq
+  rw [Sched.eqs_unique hW hTP (hsub he) hq]
+  exact hS e (hsub he)
+
+/-- **The native-path scope**: no thread runs a guest (`RunningVM`; FL4's
+VT-x path is out of scope). -/
+def NativeScope (σ : Fl4Spec.State Unit) : Prop := ∀ p x, σ.kheap p = some (.tcb x) → x.tcbState ≠ .runningVM
 
 /-- The receiver's reply back-pointer, from `SchedValid`. -/
 theorem hback_of {σ : Fl4Spec.State Unit} (hV : Sched.SchedValid σ) {d : Fl4Spec.ObjRef} {xd : Fl4Spec.Tcb}
@@ -124,17 +144,71 @@ theorem send_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (S
           hrb badge g gr hback (Or.inl ?_) blk) cv
         cases g <;> cases gr <;> simp_all
 
-/-- **What `receive_ipc_top` does not cover**: a waiting sender with a fault
-(`do_fault_transfer`), or a calling sender with the receiver's IPC buffer,
-or a granting caller with an SC and a reply (the donation). -/
+set_option maxHeartbeats 4000000 in
+/-- **The transfer step for `receive_ipc_cf*_gen`** on the grant bundle's
+relation: the registers-only transfer, into a receive buffer (`stepsG`'s
+`xregs`, `xbuf`), or of a faulted sender (`do_ipc_transfer_fault`,
+`_faultN`); a timeout-faulted sender has no SC (`hto`). -/
+theorem xferX_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+    (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+    (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
+    (hP0 : IPlaced N T E R B) {sd t : U64} (hsd : sd ∈ T) (ht : t ∈ T) (hne : sd ≠ t) {xs xt : Fl4Spec.Tcb}
+    (hto : ∀ b, xs.tcbFault = some (.timeout b) → xs.tcbSchedContext = none) (a : A) (e : U64) (g : Bool) :
+    ∀ (s1 : S) (σ1 : Fl4Spec.State Unit) (bdg : U64), EpStateRel T E R B (L.mem s1) σ1 →
+      SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c))) s1 σ1 →
+      σ1.kheap sd.bv = some (.tcb xs) → σ1.kheap t.bv = some (.tcb xt) →
+      ipc.do_ipc_transfer st ar s1 a sd e bdg g t ⦃ s' => XferPost (L := L) T E R B
+        (SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c)))) s1 σ1 sd t e bdg g xt s' ⦄ := by
+  intro s1 σ1 bdg hR1 hS1 hks hkt
+  have hX := IpcSchedHyps.stepsG (A := A) hH hBf hBm hP0
+  cases hf : xs.tcbFault with
+  | none =>
+    cases hrb : ipcBufOf true xt with
+    | none =>
+      exact WP.spec_mono (hX.xregs hP0.e s1 a σ1 hR1 hS1 hsd ht hne hks hkt hf hrb e bdg g (Or.inl trivial))
+        fun _ ⟨h1, h2, h3, h4⟩ => ⟨_, h1, h2, h3, h4.mono fun _ h => h.2.1,
+          KeepNC.of_eq fun p hp => by simp [hp], xferTcb xt xs bdg.bv, by simp, xferTcb_state _ _ _⟩
+    | some rp => exact hX.xbuf hP0.e s1 a σ1 hR1 hS1 hsd ht hne hks hkt hf hrb e bdg g (Or.inl trivial)
+  | some f =>
+    have hok : FaultOK (L := L) s1 sd xs f := by
+      cases f with
+      | timeout b =>
+        have hsc := hto b hf
+        obtain ⟨Q, R0, -, hsp⟩ := hS1.1.1.2.1.lists
+        obtain ⟨x, hk', -, -, hscw, -⟩ := hsp.tcb sd hsd
+        rw [hks] at hk'; cases hk'
+        exact ⟨hsc, optRef_none (hscw.symm.trans hsc)⟩
+      | _ => trivial
+    have lift : ∀ s' : S, (∃ σ', Fl4Spec.doIpcTransfer (Z := Unit) sd.bv (some e.bv) bdg.bv g t.bv σ1 =
+        ({((), σ')}, False) ∧ EpStateRel T E R B (L.mem s') σ' ∧
+        SRS st T (SRT st N T C E R B c (SRE st N T C E R B c)) s' σ' ∧
+        Agree (L.mem s1) (L.mem s') (fun b => ¬ RcvReg t b ∧ ¬ BufW B b) ∧
+        (∀ q, q ≠ t.bv → σ'.kheap q = σ1.kheap q) ∧
+        ∃ x', σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = xt.tcbState) →
+        XferPost (L := L) T E R B (SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c)))) s1 σ1 sd t e
+          bdg g xt s' :=
+      fun _ ⟨σ', h1, h2, h3, h4, h5, x', h6, h7⟩ =>
+        ⟨σ', h1, h2, ⟨h3, ntfn_lift_rcv hP0.toC hS1.2 h2 ht h4 h5 hkt h6 h7⟩, h4.mono fun _ h => h.2,
+          KeepNC.of_eq h5, x', h6, h7⟩
+    cases hrb : ipcBufOf true xt with
+    | none =>
+      exact WP.spec_mono (do_ipc_transfer_faultN (ar := ar) (hH.epHyps hP0) hBf.srs hP0.e s1 a σ1 hR1 hS1.1 hsd ht
+        hne hks hkt hf hok hrb e bdg g) lift
+    | some rp =>
+      exact WP.spec_mono (do_ipc_transfer_fault (ar := ar) (hH.epHyps hP0) hBm.srs hP0.e s1 a σ1 hR1 hS1.1 hsd ht
+        hne hks hkt hf hok hrb e bdg g) lift
+
+/-- **What `receive_ipc_top` does not cover**: a waiting sender with a
+timeout fault and an SC (its fault message reads the SC), or a calling or
+faulted sender with an SC, a grant right and a reply (the donation). -/
 def RecvRest (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (Rel : S → Fl4Spec.State Unit → Prop)
     (T : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) (t : U64) (xt : Fl4Spec.Tcb) (cap : capability.Cap)
     (ac : Fl4Spec.Cap) (blk : Bool) (rc : capability.Cap) (rc' : Fl4Spec.Cap) (rv e : U64) : Prop :=
   ∀ (sd : U64) q xs, σ.kheap e.bv = some (.endpoint (.sendEP (sd.bv :: q))) → sd ∈ T →
     σ.kheap sd.bv = some (.tcb xs) →
-    (xs.tcbFault ≠ none ∨ ∃ e' dd, xs.tcbState = .blockedOnSend e' dd ∧ dd.senderIsCall = true ∧
-      (ipcBufOf true xt ≠ none ∨ ((dd.senderCanGrant = true ∨ dd.senderCanGrantReply = true) ∧ rv ≠ 0#u64 ∧
-        xs.tcbSchedContext ≠ none))) →
+    ((∃ b, xs.tcbFault = some (.timeout b) ∧ xs.tcbSchedContext ≠ none) ∨
+      ∃ e' dd, xs.tcbState = .blockedOnSend e' dd ∧ (dd.senderIsCall = true ∨ xs.tcbFault ≠ none) ∧
+        (dd.senderCanGrant = true ∨ dd.senderCanGrantReply = true) ∧ rv ≠ 0#u64 ∧ xs.tcbSchedContext ≠ none) →
     endpoint.receive_ipc st ar s a t cap blk rc ⦃ r => r.2 = a ∧
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv ac blk rc' σ).1, Rel r.1 z.2 ⦄
 
@@ -173,13 +247,18 @@ theorem receive_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c
   | idleEP => exact blockCase trivial
   | recvEP q => exact blockCase rfl
   | sendEP q =>
-    obtain ⟨-, xs, hne, hq, hQ, -⟩ := hx
+    obtain ⟨-, xs, hne, hq, hQ, hQO⟩ := hx
     obtain ⟨sd, ys, rfl⟩ : ∃ d ys, xs = d :: ys := by
       cases xs with
       | nil => exact absurd rfl hne
       | cons d ys => exact ⟨d, ys, rfl⟩
     have hsd : sd ∈ T := hQ.mem sd (by simp)
-    obtain ⟨xsd, hks, -⟩ := hR.tcb sd hsd
+    obtain ⟨xsd, hks, hTRs⟩ := hR.tcb sd hsd
+    obtain ⟨xt0, hkt0, hTRt⟩ := hR.tcb t ht
+    rw [hkt] at hkt0; cases hkt0
+    have hsdt : sd ≠ t := by
+      rintro rfl
+      exact hnb.2 (hTRt.st.symm.trans (hQO sd (by simp)).1)
     have hk' : σ.kheap e.bv = some (.endpoint (.sendEP (sd.bv :: ys.map UScalar.bv))) := by rw [hk, hq]; rfl
     have cv : ∀ r : S × A, (r.2 = a ∧ ¬ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc'
         σ).2 ∧ ∃ σ', ((), σ') ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1 ∧
@@ -187,14 +266,27 @@ theorem receive_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c
         r.2 = a ∧ ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
           IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 :=
       fun _ ⟨h1, _, σ', h2, h3, h4⟩ => ⟨h1, ((), σ'), h2, h3, h4⟩
-    by_cases hfs : xsd.tcbFault = none
+    have cvN : ∀ r : S × A, (r.2 = a ∧ ¬ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc'
+        σ).2 ∧ ∃ σ', ((), σ') ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1 ∧
+        EpStateRel T E R B (L.mem r.1) σ' ∧
+        SRN st N T (SRS st T (SRT st N T C E R B c (SRE st N T C E R B c))) r.1 σ') →
+        r.2 = a ∧ ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
+          IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 :=
+      fun _ ⟨h1, _, σ', h2, h3, h4⟩ => ⟨h1, ((), σ'), h2, IpcRel.ofSRN h3 h4⟩
+    -- a timeout fault with an SC: named
+    by_cases hto : ∀ b', xsd.tcbFault = some (.timeout b') → xsd.tcbSchedContext = none
     swap
-    · exact hU sd _ xsd hk' hsd hks (Or.inl hfs)
-    have nonCall : (∀ e' dd, xsd.tcbState = .blockedOnSend e' dd → dd.senderIsCall = false) →
+    · push_neg at hto
+      obtain ⟨b', h1, h2⟩ := hto
+      exact hU sd _ xsd hk' hsd hks (Or.inl ⟨b', h1, h2⟩)
+    have hXf := fun e' (dd : Fl4Spec.SenderPayload) (_ : xsd.tcbState = .blockedOnSend e' dd) => xferX_top (st := st) (xt := xt) hH hBf hBm hP hsd ht hsdt hto a e dd.senderCanGrant
+    have hX := IpcSchedHyps.stepsG (A := A) hH hBf hBm hP
+    have hSB := IpcRel.toSRN hR hSR
+    have nonCall : xsd.tcbFault = none → (∀ e' dd, xsd.tcbState = .blockedOnSend e' dd → dd.senderIsCall = false) →
         endpoint.receive_ipc st ar s a t (.Endpoint e cb c1 c2 c3 c4) blk rc ⦃ r => r.2 = a ∧
           ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
             IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 ⦄ := by
-      intro hcall
+      intro hfs hcall
       cases hrb : ipcBufOf true xt with
       | none =>
         exact WP.spec_mono (receive_ipc_sendG hH hBf hBm hTl hP s a σ hR hSR ht hkt hnb hbn hrb he hk' hks hfs hcall
@@ -206,20 +298,20 @@ theorem receive_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c
     | blockedOnSend e' dd =>
       have uniq : ∀ e'' dd', xsd.tcbState = .blockedOnSend e'' dd' → dd' = dd := fun e'' dd' h => by
         rw [hs] at h; cases h; rfl
-      cases hc : dd.senderIsCall
-      · exact nonCall fun e'' dd' h => by rw [uniq e'' dd' h]; exact hc
-      have hcall : ∀ e'' dd', xsd.tcbState = .blockedOnSend e'' dd' → dd'.senderIsCall = true :=
-        fun e'' dd' h => by rw [uniq e'' dd' h]; exact hc
-      by_cases hrb : ipcBufOf true xt = none
+      by_cases hcf : dd.senderIsCall = true ∨ xsd.tcbFault ≠ none
       swap
-      · exact hU sd _ xsd hk' hsd hks (Or.inr ⟨e', dd, hs, hc, Or.inl hrb⟩)
+      · push_neg at hcf
+        exact nonCall (by simpa using hcf.2) fun e'' dd' h => by
+          rw [uniq e'' dd' h]; simpa using hcf.1
+      have hcf' : ∀ e'' dd', xsd.tcbState = .blockedOnSend e'' dd' → dd'.senderIsCall = true ∨ xsd.tcbFault ≠ none :=
+        fun e'' dd' h => by rw [uniq e'' dd' h]; exact hcf
       have inact : ((dd.senderCanGrant = false ∧ dd.senderCanGrantReply = false) ∨ rv = 0#u64) →
           endpoint.receive_ipc st ar s a t (.Endpoint e cb c1 c2 c3 c4) blk rc ⦃ r => r.2 = a ∧
             ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
               IpcRel N T E R B (L.mem r.1) z.2 ∧ SRT st N T C E R B c (SRE st N T C E R B c) r.1 z.2 ⦄ := by
         intro hno
-        refine WP.spec_mono (receive_ipc_sendCallInactiveG hH hBf hBm hTl hP s a σ hR hSR ht hkt hnb hbn hrb he hk'
-          hks hfs hcall cb c1 c2 c3 c4 hrc ?_ b rights blk) cv
+        refine WP.spec_mono (receive_ipc_cfInactive_gen hX.toEpSteps (hTl.tail hP) hP.e s a σ hR.toE hSB ht hkt hnb
+          hbn he hk' hks hXf hcf' cb c1 c2 c3 c4 hrc ?_ b rights blk) cvN
         rcases hno with h | h
         · exact Or.inl fun e'' dd' h' => by rw [uniq e'' dd' h']; exact h
         · exact Or.inr h
@@ -229,12 +321,13 @@ theorem receive_ipc_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c
         rcases hrc with ⟨-, -, h0⟩ | ⟨b', r', rfl, rfl, hrvR, hrv0⟩
         · exact absurd h0 hrv
         by_cases hscn : xsd.tcbSchedContext = none
-        · exact WP.spec_mono (receive_ipc_sendCallPushG hH hBf hBm hTl hP s a σ hR hSR ht hkt hnb hbn hrb he hk' hks
-            hfs hcall (fun e'' dd' h => by rw [uniq e'' dd' h]; exact hgg) hscn cb c1 c2 c3 c4 b' r' hrvR hrv0 b
-            rights blk) cv
-        · exact hU sd _ xsd hk' hsd hks (Or.inr ⟨e', dd, hs, hc, Or.inr ⟨hgg, hrv, hscn⟩⟩)
+        · exact WP.spec_mono (receive_ipc_cfPush_gen hX.toEpSteps (hTl.tail hP) hTl.sc hP.e s a σ hR.toE hSB ht hkt
+            hnb hbn he hk' hks hXf hcf' (fun e'' dd' h => by rw [uniq e'' dd' h]; exact hgg) hscn cb c1 c2 c3 c4 b' r'
+            hrvR hrv0 b rights blk) cvN
+        · exact hU sd _ xsd hk' hsd hks (Or.inr ⟨e', dd, hs, hcf, hgg, hrv, hscn⟩)
       · exact inact (Or.inl ⟨Bool.eq_false_iff.2 fun h => hgg (Or.inl h), Bool.eq_false_iff.2 fun h => hgg (Or.inr h)⟩)
-    | _ => exact nonCall fun e'' dd' h => by rw [hs] at h; cases h
+    | _ =>
+      exact absurd ((hQO sd (by simp)).1) (by rw [hTRs.st, hs]; simp [tsCode])
 
 
 
@@ -254,8 +347,7 @@ theorem send_tail_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (
     (hTl : IpcEpTailHyps st A N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
     (hP : IPlaced N T E R B)
     (hSV : ∀ s' σ', IRel st N T C E R B c s' σ' → Sched.SchedValid σ')
-    (hsort : ∀ s' σ', IRel st N T C E R B c s' σ' → ∀ e ∈ E, ∀ xs, QueueRel (L.mem s') T .Ep (qOf (L.mem s') e) xs →
-      PrioSorted (fun y => L.mem s' (prioA y)) xs)
+    (hsort : ∀ s' σ', IRel st N T C E R B c s' σ' → QSorted st T E s')
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st N T C E R B c s σ)
     {ct : U64} (hct : ct ∈ T) (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
     (hrun : tsCode xt.tcbState < 3) (hft : xt.tcbFault = none)
@@ -305,7 +397,7 @@ set_option maxHeartbeats 4000000 in
 thread is `RunningVM` (`hvm`, FL4 has no VT-x). -/
 theorem send_signal_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
     (hP : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st N T C E R B c s σ)
-    {n : U64} (hn : n ∈ N) (hvm : ∀ p x, σ.kheap p = some (.tcb x) → x.tcbState ≠ .runningVM) (badge : U64) :
+    {n : U64} (hn : n ∈ N) (hvm : NativeScope σ) (badge : U64) :
     notification.send_signal st ar s a n badge ⦃ r =>
       ∃ z ∈ (Fl4Spec.sendSignal (Z := Unit) n.bv badge.bv σ).1, IRel st N T C E R B c r.1 z.2 ⦄ := by
   obtain ⟨hIR, hSRT⟩ := hX
@@ -341,7 +433,7 @@ theorem send_tail_ntfn (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c 
     (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
     (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
     (hP : IPlaced N T E R B)
-    (hvm : ∀ s' σ', IRel st N T C E R B c s' σ' → ∀ p x, σ'.kheap p = some (.tcb x) → x.tcbState ≠ .runningVM)
+    (hvm : ∀ s' σ', IRel st N T C E R B c s' σ' → NativeScope σ')
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st N T C E R B c s σ)
     {ct : U64} (hct : ct ∈ T) (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
     (hrun : tsCode xt.tcbState < 3)
@@ -440,6 +532,8 @@ theorem ipcSchedHyps_blk (hP0 : IPlaced N T E R B)
     let ⟨_, _, _, _, _, hQ, hc⟩ := hBlk s σ hS
     notQueued_of_blk hS.2.1 hR.toE hQ hc hk hr) hW hX
 
+
+
 end
 
 end
@@ -470,8 +564,7 @@ theorem decode_endpoint_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R
     (hTl : IpcEpTailHyps st A N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
     (hP : IPlaced N T E R B)
     (hSV : ∀ s' σ', IRel st N T C E R B c s' σ' → Sched.SchedValid σ')
-    (hsort : ∀ s' σ', IRel st N T C E R B c s' σ' → ∀ e ∈ E, ∀ xs, P1.QueueRel (L.mem s') T .Ep (qOf (L.mem s') e) xs →
-      PrioSorted (fun y => L.mem s' (prioA y)) xs)
+    (hsort : ∀ s' σ', IRel st N T C E R B c s' σ' → QSorted st T E s')
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st N T C E R B c s σ)
     (lbl length slot : U64) (p b : U64) (sd rv g gr : Bool) (blk call don fp : Bool) (buf : U64)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data) (args : List Fl4Spec.Data)
@@ -504,7 +597,7 @@ theorem recv_ipc_leaf (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (
     (hO : Sched.ObjCover N T E R C σ)
     {ct : U64} (hcT : ct ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
     (hrun : tsCode xt.tcbState < 3) (hbn : xt.tcbBoundNotification = none)
-    (hsort : ∀ e ∈ E, ∀ xs, QueueRel (L.mem s) T .Ep (qOf (L.mem s) e) xs → PrioSorted (fun y => L.mem s (prioA y)) xs)
+    (hsort : QSorted st T E s)
     (blocking : Bool)
     (hlink : ∀ p b sd g gr q g', q ∈ R → L.mem s (Endp.rTcbA q) ≠ 0#u64 →
       endpoint.receive_ipc st ar s a ct (.Endpoint p b sd true g gr) blocking (.Reply q g') ⦃ r =>
@@ -570,8 +663,7 @@ theorem recv_sig_leaf (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (
     (hO : Sched.ObjCover N T E R C σ)
     {ct : U64} (hcT : ct ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
     (hrr : xt.tcbState = .running ∨ xt.tcbState = .restart)
-    (hsortN : ∀ n ∈ N, ∀ xs, QueueRel (L.mem s) T .Ep (qOf (L.mem s) n) xs →
-      PrioSorted (fun y => L.mem s (prioA y)) xs)
+    (hsortN : QSorted st T N s)
     (hAR : ActReady σ) (hNQ : NotQueued σ ct.bv) (hRB : RelIfBound σ ct.bv)
     (hsane : ∀ u, σ.schedulerAction = .switchThread u → u ≠ ct.bv) (hnidle : ct.bv ≠ σ.idleThread)
     (blocking : Bool) :
@@ -621,10 +713,7 @@ theorem recvLeaves_of (hH : IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (
     (hO : Sched.ObjCover N T E R C σ)
     {ct : U64} (hcT : ct ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
     (hrr : xt.tcbState = .running ∨ xt.tcbState = .restart) (hbn : xt.tcbBoundNotification = none)
-    (hsort : ∀ e ∈ E, ∀ xs, QueueRel (L.mem s) T .Ep (qOf (L.mem s) e) xs →
-      PrioSorted (fun y => L.mem s (prioA y)) xs)
-    (hsortN : ∀ n ∈ N, ∀ xs, QueueRel (L.mem s) T .Ep (qOf (L.mem s) n) xs →
-      PrioSorted (fun y => L.mem s (prioA y)) xs)
+    (hsort : QSorted st T E s) (hsortN : QSorted st T N s)
     (hAR : ActReady σ) (hNQ : NotQueued σ ct.bv) (hRB : RelIfBound σ ct.bv)
     (hsane : ∀ u, σ.schedulerAction = .switchThread u → u ≠ ct.bv) (hnidle : ct.bv ≠ σ.idleThread)
     (blocking : Bool)
@@ -659,7 +748,7 @@ theorem decode_notification_top (hH : IpcSchedHyps st ar N T E R B (SRT st N T C
     (hBf : EpBufHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
     (hBm : EpBufMapHyps st T E R B (SRT st N T C E R B c (SRE st N T C E R B c)))
     (hP : IPlaced N T E R B)
-    (hvm : ∀ s' σ', IRel st N T C E R B c s' σ' → ∀ p x, σ'.kheap p = some (.tcb x) → x.tcbState ≠ .runningVM)
+    (hvm : ∀ s' σ', IRel st N T C E R B c s' σ' → NativeScope σ')
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st N T C E R B c s σ)
     (lbl length slot : U64) (p b : U64) (sd rv : Bool) (blk call don fp : Bool) (buf : U64)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data) (args : List Fl4Spec.Data)
