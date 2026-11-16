@@ -825,8 +825,8 @@ smaller (about 1%); the individual batch ranges overlap. Split probes
 include instrumentation and are not an additive round-trip budget.
 This does not establish parity for every path: shared-VSpace fault/reply
 with live FPU state remains 17% slower than seL4, and the full data also
-shows gaps in capability and scheduling-context operations. Linux guest
-workloads and bare metal have not been remeasured.
+shows gaps in capability and scheduling-context operations. The Linux
+SMP follow-up is below; bare metal has not been remeasured.
 
 FL4PERF0003, three alternating boots per version, median aggregate
 operations per million TSC ticks (higher is better):
@@ -868,6 +868,97 @@ suite failed `MULTICORE0003` while host validation jobs overlapped; the
 full isolated rerun and three focused isolated reruns passed. Its cause
 has not been established. The test runner now handles leading CRs in
 LF-CR output so it reports the failing test name correctly.
+
+**SMP comparison with seL4 (2026-11-16).** Five fresh boots per variant
+compare original FL4 (`46b3cb6`), adaptive FL4 (`4c772f4`), and seL4 in
+rotating order. All 15 kernel-benchmark boots and 45 Linux boots passed.
+Runs use the same Ryzen 7 7700 and six KVM vCPUs pinned individually to
+physical cores 2–7, with emulator threads on 0–1. No builds or other
+benchmarks run concurrently; no measured samples are discarded.
+
+The direct kernel benchmark is FL4PERF0003 at 1, 2, 4, and 6 workers. It
+uses the repository's upstream seL4 (`c98d70a`), release MCS, no skim
+window or PCID, and MSR-based FS/GS switching. The FL4 root task is
+identical between its two variants; seL4 compiles the same benchmark
+source against its ABI. At six workers, median aggregate workload
+iterations per million TSC ticks (higher is better):
+
+| Workload | Original FL4 | Adaptive FL4 | seL4 | Adaptive / seL4 |
+|---|---:|---:|---:|---:|
+| Yield | 3279 | 3500 | 257 | 13.62× |
+| Signal/wait | 2563 | 2714 | 1413 | 1.92× |
+| Same-core Call/ReplyRecv | 739 | 896 | 108 | 8.30× |
+| Cross-core Call/ReplyRecv | 182 | 246 | 30 | 8.20× |
+| Cap copy/delete | 1730 | 1841 | 1044 | 1.76× |
+| Retype/delete, 4 KiB reset | 659 | 916 | 742 | 1.23× |
+| Unmap/map, shared VSpace | 56 | 56 | 7 | 8.00× |
+
+Against original FL4, six-core IPC improves 21% and retype 39%; four-core
+IPC falls 4% (678 to 649). seL4 still leads signal, cap, and retype at
+one and two workers; adaptive FL4 overtakes it at four workers. These
+large kernel-only ratios apply to these KVM workloads, including their
+timer and shootdown behavior. They do not predict Linux throughput.
+
+The Linux comparison reuses the issue's patched seL4 (`62e345c`, l4h
+`bb87504`), per-backend l4h root tasks, Linux 6.18.63 ELF, initramfs, and
+benchmark binary. Original/adaptive FL4 differ only in their kernel
+image. Each of 1, 2, and 4 guest vCPUs gets five fresh boots per backend,
+a full warmup suite before measurement, and 512 MiB of guest memory.
+Throughput runs pin one worker to each guest CPU. Medians:
+
+| Linux workload | vCPUs | Original FL4 | Adaptive FL4 | seL4 |
+|---|---:|---:|---:|---:|
+| Real getpid, million calls/s | 1 | 0.524 | 1.386 | 1.065 |
+| | 2 | 0.622 | 0.687 | 1.313 |
+| | 4 | 0.823 | 0.909 | 1.282 |
+| First-touch 4 KiB faults, thousand/s | 1 | 237.1 | 353.1 | 388.4 |
+| | 2 | 379.6 | 404.1 | 548.6 |
+| | 4 | 574.9 | 570.2 | 674.7 |
+| Fork/exit/wait, thousand cycles/s | 1 | 3.506 | 5.926 | 6.850 |
+| | 2 | 5.957 | 6.487 | 10.331 |
+| | 4 | 9.715 | 10.021 | 11.990 |
+
+The single-vCPU syscall improvement survives the full Linux path:
+getpid throughput is 2.64× original FL4 and 30% above seL4. It does not
+carry over to contended entries: two-vCPU throughput is 48% below seL4
+and four-vCPU throughput is 29% below, despite a 10.5% gain over original
+FL4 at both counts. Moving from one to two busy vCPUs roughly halves
+FL4's aggregate getpid throughput. This is consistent with the adaptive
+policy returning to STM under sustained contention; it is not a profile
+of the individual contended costs. Four-vCPU fork improves 3% over
+original FL4 but remains 16% below seL4. First-touch faults have no clear
+four-vCPU improvement and retain a 15% gap to seL4. Compute throughput
+agrees within 0.2%, including about 3.495 billion iterations/s at four
+vCPUs on all variants.
+
+Linux IPC uses one process pair, pinned to the same CPU or across CPUs
+0 and 1, rather than one pair per vCPU. On a four-vCPU guest, median µs
+per round trip (lower is better):
+
+| IPC | Original FL4 | Adaptive FL4 | seL4 |
+|---|---:|---:|---:|
+| Pipe, same CPU | 14.283 | 7.453 | 6.911 |
+| Pipe, across CPUs | 15.540 | 14.812 | 10.953 |
+| Futex, same CPU | 12.364 | 6.149 | 6.001 |
+| Futex, across CPUs | 9.059 | 9.502 | 5.822 |
+
+Same-core pipe/futex latency roughly halves. Cross-core pipe latency
+improves only 5% and remains 35% above seL4. Cross-core futex latency has
+no repeatable improvement: adaptive FL4 spans 6.866–11.914 µs across the
+five boots, versus 8.770–9.291 for original FL4 and 5.660–6.831 for seL4.
+Its median remains 63% above seL4. The optimization closes the quiet
+fault/reply gap, but the Linux SMP comparison still exposes substantial
+contention costs.
+
+![Linux SMP comparison: medians and full five-boot ranges](xtask/results/issue-11-smp-linux.png)
+
+[Raw SMP data](xtask/results/issue-11-smp.json) records image hashes,
+configurations, run order, all 405 kernel measurements, and all 330 Linux
+measured results plus 330 warmup results. Kernel arrays contain five
+boots in order. Linux arrays retain exact elapsed nanoseconds, operation
+counts, and checksums, so rates and latencies can be recomputed. The
+plot's error bars show full ranges, not confidence intervals. The same
+pinning and KVM limitations as the earlier measurements apply.
 
 ## 13. Milestones
 
