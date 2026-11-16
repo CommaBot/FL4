@@ -1165,7 +1165,12 @@ theorem decode_invocation_asid_controlX (th : TypedHeap) (hP : Placed th) (s : S
     (hXs : ∀ s' a' σ' (p : U64) (th' : TypedHeap) (G' : MdbGhost), SR s' a' σ' →
       VsRel (insert p P) (L.mem s') (L.ksb s') σ' → PtRel L4 L3 L2 L1 (L.mem s') σ' → σ'.curThread = σ.curThread →
       (∀ L4' : Set U64, Vs.PoolsIn P L4' (L.mem s) → Vs.PoolsIn (insert p P) L4' (L.mem s')) →
-      CRel th' (L.mem s') σ' G' → MdbOKV (L.ksb s) (L.mem s') G' → X s' a' σ')
+      CRel th' (L.mem s') σ' G' → MdbOKV (L.ksb s) (L.mem s') G' →
+      th' = restrictTh th p.val (p.val + 4096) → L.ksb s' = L.ksb s →
+      (∀ (q : U64) y n, σ'.kheap q.bv = some (.schedContext y n) → ∃ y0, σ.kheap q.bv = some (.schedContext y0 n)) →
+      MpRegion th G P L4 L3 L2 L1 (L.ksb s) p →
+      (∃ x fi, x ∈ G.chains.flatten ∧ capV (L.mem s) x = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false ∧
+        ∀ y, ¬ Mdb.Desc G.par y x) → X s' a' σ')
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef) :
     DecOKMQX (L := L) arI Q X s ar σ lbl length slot .AsidControl blk call don fp buf extra slbl (args.map UScalar.bv) ci sl
@@ -1206,7 +1211,7 @@ theorem decode_invocation_asid_controlX (th : TypedHeap) (hP : Placed th) (s : S
     ysl rest hRg hFI hMO.1.1
   refine WP.spec_mono hd ?_
   rintro res (⟨e, e', h1, he, hD, h2, h2a⟩ | ⟨h1, p, dest, ps, base, hmem, hnf, σ', th', G', hm, hnf', hP', hSt', hSV',
-    hM', hC', hI', -, hR', hPt', hSRq, hF', -, -, hMSp, -, hcur', hPI'⟩)
+    hM', hC', hI', -, hR', hPt', hSRq, hF', -, -, hMSp, -, hcur', hth', hk', hscs, hRgp, hxu, hPI'⟩)
   · exact topMQX_err (⟨e, h1, h2, e', hD, he⟩) (by rw [h2, h2a]; exact hX0)
   · have hst1 : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ =
         ({((), Notif.stsAct (Notif.updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv)}, False) := by
@@ -1216,7 +1221,7 @@ theorem decode_invocation_asid_controlX (th : TypedHeap) (hP : Placed th) (s : S
     exact ⟨topMX_of_lift2M ⟨_, ⟨hmem, hnf⟩, _, hst1, (.ok [], σ'),
       mem_liftE (ε := Unit) (x := ([], σ')) (mem_bind_nd (x := ((), σ')) hm' (Set.mem_singleton _)), ⟨th', G',
       Or.inl ⟨h1, [], rfl⟩, hP', ⟨hSt', hSV', hM', hC', hI'⟩, hF', hMSp.okv hMO⟩,
-      hXs _ _ _ p th' G' hSRq hR' hPt' hcur' hPI' ⟨hSt', hSV', hM', hC', hI'⟩ (hMSp.okv hMO)⟩, Or.inr (hQ _ _ _ hSRq)⟩
+      hXs _ _ _ p th' G' hSRq hR' hPt' hcur' hPI' ⟨hSt', hSV', hM', hC', hI'⟩ (hMSp.okv hMO) hth' hk' hscs hRgp hxu⟩, Or.inr (hQ _ _ _ hSRq)⟩
 
 /-- **The ASID control cap**, every label (`MakePool`: `makepool_rel`; the
 others l4v's `IllegalOperation`). -/
@@ -1256,7 +1261,7 @@ theorem decode_invocation_asid_control (th : TypedHeap) (hP : Placed th) (s : S)
     (buffer : Option Fl4Spec.ObjRef) :
     DecOKMQ (L := L) arI Q s ar σ lbl length slot .AsidControl blk call don fp buf extra slbl (args.map UScalar.bv) ci sl
       excaps buffer := by
-  exact DecOKMQX.toMQ arI (decode_invocation_asid_controlX arI th hP s ar σ G hCR hFI hU hMO hQ hH hS hR hPt hVP hPP hVO hPO hPV lbl slbl hlM length buf ct hct hcur htcb hact hrun args hlen hargs extra excaps hext (X := fun _ _ _ => True) trivial (fun _ _ _ _ _ _ _ _ _ _ _ _ _ => trivial) slot blk call don fp ci sl buffer)
+  exact DecOKMQX.toMQ arI (decode_invocation_asid_controlX arI th hP s ar σ G hCR hFI hU hMO hQ hH hS hR hPt hVP hPP hVO hPO hPV lbl slbl hlM length buf ct hct hcur htcb hact hrun args hlen hargs extra excaps hext (X := fun _ _ _ => True) trivial (fun _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ => trivial) slot blk call don fp ci sl buffer)
 
 end
 

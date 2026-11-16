@@ -23,7 +23,8 @@ the ASID pool caps (`Assign` of a native root: the pool word written is the
 extra cap's PML4, in `L4` by the cap invariant; `PtRel` carried through
 `VsInvHyps.ptTop`); the ASID control cap (`MakePool`: `FinXE`, the
 invariants at the new typed heap and the pool set grown by the new pool;
-the re-indexing of `TopSR` is the named hypothesis `MpPlacedHyp`).
+the re-indexing of `TopSR`, `MpPlacedHyp`, proved from the joint placement
+invariant at the entry by `mpPlacedHyp_of`).
 
 Guest-tagged pool entries (bit 0 set, nested roots): `PoolsIn` constrains
 the native entries only, `VsRel` relates every entry word to the spec's
@@ -32,6 +33,7 @@ entries on both sides (`find_vspace_for_asid_L4`).
 -/
 import Fl4Proofs.P3.VsDomF
 import Fl4Proofs.P3.VsFin
+import Fl4Proofs.P3.ScPlaceUt
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -786,32 +788,109 @@ theorem decode_invocation_asid_pool_capX (th : TypedHeap) (s : S) (ar : A) (σ :
 /-! ## `MakePool` -/
 
 omit arI in
-/-- **The named hypothesis of `MakePool`'s re-indexing**: at the outcome, the
+/-- **`MakePool`'s re-indexing**: from the facts of the step (the new typed
+heap is `th` without the page, the kernel-state base kept, no new SC, the
+page's `MpRegion`, its source untyped cap childless in the MDB), the
 composite relation at the old typed heap and pool set gives it at the new
 typed heap `th'` and the pool set grown by the new pool `p`, and the TCBs
-stay TCBs of `th'`. (The global invariant over the typed heap and the ghost
-sets is not designed yet.)
-
-With `th' = restrictTh th p (p + 4096)`, the fields of `TopPlaced` at the
-outcome split as follows. From facts already at hand: `ep`, `pt`, `nodeE`
-(independent of `th` and `P`); `pl` (`Placed.restrict`); `po`, `ps`, `tko`
-(`th'` has fewer objects); `vs`, `pv` (`MpRegion.pal`/`pfit`/`atab`/
-`tables`); `vo`, `sd` (the page is outside every object of `th'`:
-`MpRegion.nstr`, `NoStraddle`). What needs the joint placement invariant:
-* `disj` at the new pool page: no word of the other subsystems' objects at
-  the outcome (`OObj … s' σ'`: the core's node, the kernel-state block, the
-  TCB fields of `T`, endpoints, replies, notifications, the SCs of `σ'`, the
-  IPC-buffer words `B`) lies in `[p, p + 4096)` (`RegOKTop` gives it at the
-  entry state only);
-* `tcb`: no TCB of `th` lies in `[p, p + 4096)` (more generally, no object of
-  `th` does: then `th' = th`), i.e. a childless untyped region holds no
-  live object (l4v `untyped_children_in_mdb` / `obj_range` disjointness). -/
-structure MpPlacedHyp (st : machine.Store S) [L : P1.LawfulStore st] {A : Type} (th : TypedHeap)
+stay TCBs of `th'`. Proved from the joint placement invariant at the entry
+by `mpPlacedHyp_of`: the page holds no object of `th` (`th' = th`) and no
+word the other relations read at the outcome (`disj`), and `vs`, `pv`,
+`vo`, `sd` come from `MpRegion` and the page being outside every object. -/
+def MpPlacedHyp (st : machine.Store S) [L : P1.LawfulStore st] {A : Type} (th : TypedHeap)
     (P L4 L3 L2 L1 N T C E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (c : U64) (AR : A → Fl4Spec.Cr3 → Prop)
-    (p : U64) (th' : TypedHeap) (s' : S) (a' : A) (σ' : Fl4Spec.State Unit) : Prop where
-  top : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s' a' σ' →
-    TopSR st th' (insert p P) L4 L3 L2 L1 N T C E R B c AR s' a' σ'
-  tcb : ∀ t : U64, th t = some .tcb → th' t = some .tcb
+    (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) : Prop :=
+  ∀ (p : U64) (th' : TypedHeap) (s' : S) (a' : A) (σ' : Fl4Spec.State Unit),
+    th' = restrictTh th p.val (p.val + 4096) → L.ksb s' = L.ksb s →
+    (∀ (q : U64) y n, σ'.kheap q.bv = some (.schedContext y n) → ∃ y0, σ.kheap q.bv = some (.schedContext y0 n)) →
+    MpRegion th G P L4 L3 L2 L1 (L.ksb s) p →
+    (∃ x fi, x ∈ G.chains.flatten ∧ capV (L.mem s) x = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false ∧
+      ∀ y, ¬ Mdb.Desc G.par y x) →
+    (TopSR st th P L4 L3 L2 L1 N T C E R B c AR s' a' σ' →
+      TopSR st th' (insert p P) L4 L3 L2 L1 N T C E R B c AR s' a' σ') ∧
+    ∀ t : U64, th t = some .tcb → th' t = some .tcb
+
+/-- **`MpPlacedHyp` from the joint placement invariant at the entry**
+(`Sched.JCov`, `Sched.JPlaced`, the other relations' sets drawn from P1's
+heap `H`, the IPC-buffer words covered): the childless untyped region holds
+no object of `th` (`restrictTh_childless`, so `th' = th`) and no word the
+other relations read at the outcome (`oobj_out`); the rest from `MpRegion`. -/
+theorem mpPlacedHyp_of {H : P1.Heap} {G : MdbGhost} {Cs Tr C0 : Set U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hJC : Sched.JCov (L := L) th H G Cs s) (hJP : Sched.JPlaced (L := L) th H Tr C0 s σ)
+    (hU : UtInv (L.mem s) G) (hI : MdbInv (L.mem s) G) (hc : c ∈ Cs)
+    (hT : ∀ t ∈ T, H t = some .tcb) (hE : ∀ e ∈ E, H e = some .ep) (hR : ∀ r ∈ R, H r = some .reply)
+    (hN : ∀ n ∈ N, H n = some .ntfn) (hC : ∀ q ∈ C, q ≠ 0#u64)
+    (hB : ∀ wp ∈ B, Sched.Covered (L.mem s) G wp.1.val (wp.1.val + 8)) :
+    MpPlacedHyp st th P L4 L3 L2 L1 N T C E R B c AR s σ G := by
+  intro p th' s' a' σ' hth hk hsc hRg ⟨x, fi, hx, hcx, hnd⟩
+  have h2 : 2 ^ (fl4_abi.consts.bits.ASID_POOL).val = 4096 := by unfold fl4_abi.consts.bits.ASID_POOL; rfl
+  have hrt := Sched.restrictTh_childless hJC hU hI hx hcx hnd
+  rw [h2] at hrt
+  rw [hrt] at hth
+  subst th'
+  refine ⟨fun hS => ?_, fun t ht => ht⟩
+  obtain ⟨hO, hTP⟩ := hS
+  obtain ⟨hpal, hpfit, hp0, -, -, -, hPo, hLo, hTo⟩ := hRg
+  -- the page holds no object of `th`
+  have hout : ∀ q k, th q = some k → q.val + objSize k ≤ p.val ∨ p.val + 4096 ≤ q.val := by
+    intro q k hq
+    have := Sched.ut_free hU hI hx hcx hnd (by omega) (hJC.th q k hq)
+    rw [h2] at this
+    omega
+  have hoob := Sched.oobj_out hJC hJP hU hI hx hcx hnd hc hT hE hR hN hC hB hk hsc
+  rw [h2] at hoob
+  have hpool : ∀ b, VsWrite (insert p P) (L.ksb s') b → VsWrite P (L.ksb s') b ∨
+      (p.val ≤ b.val ∧ b.val < p.val + 4096 ∧ b.val % 8 = 0) := by
+    rintro b (h | ⟨q, hq, lo, hl, rfl⟩)
+    · exact Or.inl (Or.inl h)
+    · rcases hq with rfl | hq
+      · right; rw [peA_val hpfit hl]; refine ⟨by omega, by omega, by omega⟩
+      · exact Or.inl (Or.inr ⟨q, hq, lo, hl, rfl⟩)
+  refine ⟨hO, ⟨hTP.ep, ?_, hTP.pt, hTP.pl, fun a ha hv => ?_, hTP.nodeE, hTP.po, hTP.ps, fun b hb hw => ?_,
+    fun b hw => ?_, fun b hw hsw => ?_, hTP.tko⟩⟩
+  · -- `vs`
+    refine ⟨hTP.vs.ksb_al, hTP.vs.ksb_fit, fun q hq => ?_, fun q hq => ?_⟩
+    · rcases hq with rfl | hq
+      · exact ⟨hpal, hpfit⟩
+      · exact hTP.vs.pal q hq
+    · rcases hq with rfl | hq
+      · rw [hk]; exact hTo
+      · exact hTP.vs.ptab q hq
+  · -- `disj`
+    rcases hv with h | h | ⟨q, hq, h1, h2'⟩ | h
+    · exact hTP.disj a ha (Or.inl h)
+    · exact hTP.disj a ha (Or.inr (Or.inl h))
+    · rcases hq with (rfl | hq) | hq
+      · exact hoob a h1 h2' ha
+      · exact hTP.disj a ha (Or.inr (Or.inr (Or.inl ⟨q, Or.inl hq, h1, h2'⟩)))
+      · exact hTP.disj a ha (Or.inr (Or.inr (Or.inl ⟨q, Or.inr hq, h1, h2'⟩)))
+    · exact hTP.disj a ha (Or.inr (Or.inr (Or.inr h)))
+  · -- `pv`
+    rcases hpool b hw with h | ⟨h1, h2', -⟩
+    · exact hTP.pv b hb h
+    · obtain ⟨q, hq, i, hi, rfl⟩ := hb
+      have hqa := hTP.pt q hq
+      rw [peA_val (tbl_fit hqa) hi] at h1 h2'
+      have := hLo q hq; omega
+  · -- `vo`
+    rcases hpool b hw with h | ⟨h1, h2', h8⟩
+    · exact hTP.vo b h
+    · refine ⟨h8, fun q k hq hin => ?_⟩
+      have := hout q k hq; omega
+  · -- `sd`
+    rcases hpool b hw with h | ⟨h1, h2', -⟩
+    · exact hTP.sd b h hsw
+    · obtain ⟨y, hy, hb⟩ := hsw
+      obtain ⟨q, i, hqi, rfl⟩ := hy
+      have hv := hqi.val hTP.pl
+      obtain ⟨k, hk', hs⟩ := hqi.size
+      have := hout q k hk'
+      have hf := hTP.pl.fits q k hk'
+      rcases hb with rfl | rfl
+      · rw [hv] at h1 h2'; omega
+      · have : (core.num.U64.wrapping_add (slotOf q i) 8#u64).val = (slotOf q i).val + 8 := by
+          simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; rw [hv]; omega
+        rw [this, hv] at h1 h2'; omega
 
 /-- The VSpace invariants for some typed heap and pool set. -/
 def FinXE (st : machine.Store S) [L : P1.LawfulStore st] {A : Type} (L4 L3 L2 L1 N T C E R : Set U64)
@@ -822,7 +901,7 @@ def FinXE (st : machine.Store S) [L : P1.LawfulStore st] {A : Type} (L4 L3 L2 L1
 set_option maxHeartbeats 8000000 in
 /-- **The ASID control cap at `TopSR`** (`MakePool`, any other label): `FinX`
 after at the new typed heap and the grown pool set (`FinXE`), the
-re-indexing a named hypothesis (`MpPlacedHyp`). -/
+re-indexing by `MpPlacedHyp` (from `mpPlacedHyp_of`). -/
 theorem decode_invocation_asid_control_capX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hU : UtInv (L.mem s) G)
     (hMO : MdbOKV (L.ksb s) (L.mem s) G)
@@ -830,7 +909,7 @@ theorem decode_invocation_asid_control_capX (th : TypedHeap) (s : S) (ar : A) (�
     (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ) (hPI : PoolsIn P L4 (L.mem s))
     (hCur : CurOK st th s σ)
-    (hMP : ∀ p th' s' a' σ', MpPlacedHyp st th P L4 L3 L2 L1 N T C E R B c AR p th' s' a' σ')
+    (hMP : MpPlacedHyp st th P L4 L3 L2 L1 N T C E R B c AR s σ G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86ASIDControlMakePool ↔
       Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDControlMakePool)
@@ -860,11 +939,11 @@ theorem decode_invocation_asid_control_capX (th : TypedHeap) (s : S) (ar : A) (�
     vsMpHyps_top hS hR hPt hS.2.vs hS.2.pt
     hS.2.vo hS.2.po hS.2.pv lbl slbl hlM length buf ct hct hcur htcb hact hrun args hlen hargs extra excaps hext
     (X := FinXE st L4 L3 L2 L1 N T C E R B c AR) ⟨th, P, vs_x0 hS hR hPt hPI hCur⟩
-    (fun s' a' σ' p th' G' hSR hR' hPt' hcur' hPI' hCR' hMO' =>
-      ⟨th', insert p P, (hMP p th' s' a' σ').top hSR, hR', hPt', hPI' L4 hPI, by
+    (fun s' a' σ' p th' G' hSR hR' hPt' hcur' hPI' hCR' hMO' hth hk hsc hRg hxu =>
+      ⟨th', insert p P, (hMP p th' s' a' σ' hth hk hsc hRg hxu).1 hSR, hR', hPt', hPI' L4 hPI, by
         obtain ⟨t, h1, h2, -⟩ := hCur
         obtain ⟨⟨P', L4', L3', L2', L1', hVC⟩, -⟩ := hMO'.2.2
-        have h2' := (hMP p th' s' a' σ').tcb t h2
+        have h2' := (hMP p th' s' a' σ' hth hk hsc hRg hxu).2 t h2
         refine ⟨t, h1.trans hcur'.symm, h2', fun q asid h => ?_⟩
         have hv := hVC.at hCR'.2.2.1 ⟨t, 1, Or.inr ⟨h2', by decide⟩, rfl⟩ h (by simp)
         simp only [VCapOK] at hv

@@ -16,6 +16,38 @@ heaps, nor any word the other subsystems' relations read (for MakePool's
   (MpPlacedHyp's (b)); `oobj_childless`: no `OObj` word lies there
   (MpPlacedHyp's (a) at the entry state), and `OObj.mono` carries it to an
   outcome with the kernel-state base kept and no new SC.
+## Open design question: keeping `JCov`
+
+`JCov` asks every ghost object to be named by a cap. Deleting the last cap
+of an object breaks it unless the ghost heaps drop the object, and every
+theorem that fixes `th` (or P1's sets) across a step then has to re-index.
+The options:
+
+1. **Ghost heaps shrink on the last cap's deletion.** `th`, `H` and P1's
+   sets become per-state (`∃ th' H'` in every post, as `TopPostM` already
+   has `∃ th' G'`). Cost: the largest. P1's entry theorem fixes its sets
+   across entries, and every delete, revoke and finalisation proof (CSpace,
+   P1 `QueueFin*`, `FinWorkHyp`) would carry a re-indexing; the TCB, SC and
+   endpoint relations would have to drop the object too.
+2. **Monotone ghost heaps with a dead set** (recommended). Deletion marks
+   the object dead (a ghost set `D`, no reader: not queued, not current, no
+   cap) and changes nothing else; `JCov` asks each object to be covered or
+   dead. The childless-untyped lemma then shows only dead objects lie in a
+   retyped region, and only retype (which already changes `th`, through
+   `restrictTh`) removes them, from `th`, `H` and P1's sets. Cost: one
+   ghost set; P1's invariants need "a dead object is read by nothing", kept
+   by the finalisations (they already clear the queues and bindings); the
+   re-indexing happens at retype only, where it is already done.
+3. **No ghost liveness, l4v's `valid_untyped` instead**: objects meeting an
+   untyped's range lie in it and outside its free part, and every object
+   lies in some untyped range. Cost: stale objects below the free index
+   stay allowed, so MakePool and retype still have to remove them from
+   P1's sets and from the other relations (option 2's re-indexing, without
+   a name for the objects being removed), and the "some untyped range"
+   part needs the boot-time objects' untyped caps.
+
+Recommendation: option 2. It localizes the re-indexing to retype and
+makes the removed objects explicit.
 -/
 import Fl4Proofs.P3.ScPlace
 import Fl4Proofs.P3.UntypedUtOps

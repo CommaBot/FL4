@@ -203,6 +203,7 @@ structure MpRegion (th : TypedHeap) (G : MdbGhost) (P L4 L3 L2 L1 : Set U64) (ks
 
 /-- The post of `MakePool`'s perform. -/
 def MpPost {A : Type} (P L4 L3 L2 L1 : Set U64) (SR : S → A → Fl4Spec.State Unit → Prop)
+    (th0 : TypedHeap) (k0 : U64)
     (m0 : U64 → U64) (G0 : MdbGhost) (σ : Fl4Spec.State Unit) (p : U64) (dest ps : Fl4Spec.CslotPtr) (base : Fl4Spec.Asid)
     (res : core.result.Result Unit error.Exc × S × A) : Prop :=
   ∃ σ' th' G', ((), σ') ∈ ((Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart >>= fun _ =>
@@ -219,6 +220,12 @@ def MpPost {A : Type} (P L4 L3 L2 L1 : Set U64) (SR : S → A → Fl4Spec.State 
     MdbStep m0 G0 (L.mem res.2.1) G' ∧
     (∀ ksb : U64, Vs.VsMdbInv ksb m0 G0 → Vs.VsMdbInv ksb (L.mem res.2.1) G') ∧
     σ'.curThread = σ.curThread ∧
+    /- what the joint placement invariant needs of the step (`MpPlacedHyp`) -/
+    th' = restrictTh th0 p.val (p.val + 4096) ∧ L.ksb res.2.1 = k0 ∧
+    (∀ (q : U64) y n, σ'.kheap q.bv = some (.schedContext y n) → ∃ y0, σ.kheap q.bv = some (.schedContext y0 n)) ∧
+    MpRegion th0 G0 P L4 L3 L2 L1 k0 p ∧
+    (∃ x fi, x ∈ G0.chains.flatten ∧ capV m0 x = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false ∧
+      ∀ y, ¬ Mdb.Desc G0.par y x) ∧
     ∀ L4' : Set U64, Vs.PoolsIn P L4' m0 → Vs.PoolsIn (insert p P) L4' (L.mem res.2.1)
 
 set_option maxHeartbeats 4000000 in
@@ -260,7 +267,7 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
       let s4 ← cdt.insert st s3 (capability.Cap.AsidPool p base) (cslotAddr (pp.bv, idx)) (cslotAddr (pd.bv, idxd))
       let s5 ← vspace.set_asid_table st s4 i p
       ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s5, a)) ⦃ res =>
-      res.1 = .Ok () ∧ res.2.2 = a ∧ MpPost (L := L) P L4 L3 L2 L1 SR (L.mem s) G σ p (pd.bv, idxd) (pp.bv, idx) base.bv res ⦄ := by
+      res.1 = .Ok () ∧ res.2.2 = a ∧ MpPost (L := L) P L4 L3 L2 L1 SR th (L.ksb s) (L.mem s) G σ p (pd.bv, idxd) (pp.bv, idx) base.bv res ⦄ := by
   obtain ⟨hpal, hpfit, hp0, hN, hns, hcn, hPo, hLo, hTo⟩ := hRg
   set x := cslotAddr (pp.bv, idx) with hxdef
   set val := cslotAddr (pd.bv, idxd) with hvaldef
@@ -379,7 +386,7 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
   refine WP.spec_bind (set_asid_table_spec s4 i p) ?_
   rintro s5 rfl
   refine (WP.spec_ok _).2 ⟨rfl, rfl, ?_⟩
-  show MpPost (L := L) P L4 L3 L2 L1 SR (L.mem s) G σ p (pd.bv, idxd) (pp.bv, idx) base.bv
+  show MpPost (L := L) P L4 L3 L2 L1 SR th (L.ksb s) (L.mem s) G σ p (pd.bv, idxd) (pp.bv, idx) base.bv
     (.Ok (), L.wr s4 (atA (L.ksb s4) (i &&& 2047#u64)) p, a)
   -- FL4: the kernel-state base and the words
   have hksb2 : L.ksb s2 = L.ksb s1 := by
@@ -799,7 +806,18 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     exact W4.keep (fun z hz => hSS5.capV ((hM4.members z).1 hz).1)
   refine ⟨τf, th', G', by rw [hrun]; exact hmem, by rw [hrun]; exact hall.1, hP', hR5, hV5, hM5, hC5,
     MdbInv.of_same hM4 hI4 hSS5, UtInv.of_same hM4 hU4 hSS5, by rw [hksb5]; exact hVs5, hPt5, hSR5, ⟨hKTf, F5⟩, FR5, VC,
-    MS, VM, hMp.1.ct.trans (by rw [hσ1]; unfold Notif.stsAct; split_ifs <;> rfl), ?_⟩
+    MS, VM, hMp.1.ct.trans (by rw [hσ1]; unfold Notif.stsAct; split_ifs <;> rfl), by rw [hth', h2sb],
+    by rw [hksb5], ?_, ⟨hpal, hpfit, hp0, hN, hns, hcn, hPo, hLo, hTo⟩,
+    ⟨x, fi, hxm, by rw [← hsb]; exact capV_of_capAt hcap, hnd⟩, ?_⟩
+  · -- no new SC
+    intro q y n hk
+    have e := hMp.1.keep' (q := q.bv) (by
+      rw [hk]; rintro (h | ⟨r, cs, h⟩ | ⟨ao, h⟩) <;> cases h)
+    rw [e, hσ1, Notif.stsAct_kheap] at hk
+    by_cases hq : q.bv = ct.bv
+    · simp [hq] at hk
+    · simp only [Notif.updK, Function.update_of_ne hq] at hk
+      exact ⟨y, hk⟩
   -- the pools' entries: the new pool's zero, the others' kept
   intro L4' hPI q hq lo hl hne
   rcases hq with rfl | hq
@@ -833,12 +851,12 @@ variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 outcome `D`: an error, as the spec's, the state unchanged; or one of the
 spec's invocations, with no failure, performed (`MpPost`). -/
 def MpDecPost {A : Type} (P L4 L3 L2 L1 : Set U64) (SR : S → A → Fl4Spec.State Unit → Prop)
-    (m0 : U64 → U64) (G0 : MdbGhost) (σ : Fl4Spec.State Unit) (D : Set (Except Fl4Spec.SyscallError Fl4Spec.ArchInvocation × Fl4Spec.State Unit) × Prop)
+    (th0 : TypedHeap) (k0 : U64) (m0 : U64 → U64) (G0 : MdbGhost) (σ : Fl4Spec.State Unit) (D : Set (Except Fl4Spec.SyscallError Fl4Spec.ArchInvocation × Fl4Spec.State Unit) × Prop)
     (s : S) (a : A) (res : core.result.Result Unit error.Exc × S × A) : Prop :=
   (∃ e e', res.1 = .Err e ∧ VsErrRel e e' ∧ D = ({(.error e', σ)}, False) ∧ res.2.1 = s ∧ res.2.2 = a) ∨
   (res.1 = .Ok () ∧ ∃ (p : U64) (dest ps : Fl4Spec.CslotPtr) (base : Fl4Spec.Asid),
     (.ok (.invokeASIDControl (.makePool p.bv dest ps base)), σ) ∈ D.1 ∧ ¬ D.2 ∧
-    MpPost (L := L) P L4 L3 L2 L1 SR m0 G0 σ p dest ps base res)
+    MpPost (L := L) P L4 L3 L2 L1 SR th0 k0 m0 G0 σ p dest ps base res)
 
 /-- **ASIDControl `MakePool` refines l4v** (decode and perform; for the
 extra caps present): FL4's error is the spec decode's single outcome, or the
@@ -876,7 +894,7 @@ theorem makepool_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
       MpRegion th G P L4 L3 L2 L1 (L.ksb s) p ∧ RegOK s σ p) (hFI : FinInv th (L.mem s) σ G)
     (hFR : Vs.FrameInv (L.mem s) G) :
     vspace.decode st ar s a fl4_abi.label.X86ASIDControlMakePool length slot .AsidControl call buf ex ⦃ res =>
-      MpDecPost (L := L) P L4 L3 L2 L1 SR (L.mem s) G σ (ExceptT.run (Fl4Spec.archDecodeInvocation (Z := Unit) slbl
+      MpDecPost (L := L) P L4 L3 L2 L1 SR th (L.ksb s) (L.mem s) G σ (ExceptT.run (Fl4Spec.archDecodeInvocation (Z := Unit) slbl
         (args.map UScalar.bv) xs cte .asidControlCap ((uc', (pp.bv, idx)) :: (rc', ysl) :: rest)) σ) s a res ⦄ := by
   unfold vspace.decode
   rw [hct]
