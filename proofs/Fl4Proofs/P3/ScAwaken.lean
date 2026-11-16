@@ -70,10 +70,10 @@ theorem Inv.relPop {σ : State Unit} (h : Inv σ) {t : ObjRef} {rest : List ObjR
   · have hs := h.sorted
     rw [hq] at hs
     refine List.Pairwise.imp_of_mem (fun {a b} ha hb hab => ?_) (List.pairwise_cons.1 hs).2
-    obtain ⟨xa, pa, ya, na, h1, h2, -, h4, -⟩ := h.rel a (hsub a ha)
-    obtain ⟨xb, pb, yb, nb, g1, g2, -, g4, -⟩ := h.rel b (hsub b hb)
-    have nea := h.ne _ _ _ h4
-    have neb := h.ne _ _ _ g4
+    obtain ⟨xa, pa, ya, na, h1, h2, -, h4, h5⟩ := h.rel a (hsub a ha)
+    obtain ⟨xb, pb, yb, nb, g1, g2, -, g4, g5⟩ := h.rel b (hsub b hb)
+    have nea := h.ne _ _ _ h4 h5
+    have neb := h.ne _ _ _ g4 g5
     rw [specRt_eq (σ := setRel σ rest bb) h1 h2 h4 nea, specRt_eq (σ := setRel σ rest bb) g1 g2 g4 neb]
     rw [specRt_eq h1 h2 h4 nea, specRt_eq g1 g2 g4 neb] at hab
     exact hab
@@ -336,10 +336,10 @@ theorem awaken_loop_refines {N C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
       have hscp : scp = (L.mem sk (scA i1)).bv := by rw [hsc, optRef_ne h0] at h2; cases h2; rfl
       subst hscp
       have hscC := hs.scMem i1 ht h0
-      have hne := hIk.ne _ _ _ h4
+      have hne := hIk.ne _ _ _ h4 h5
       step with obj.Tcb.sc.spec as ⟨i2, hi2⟩
       subst hi2
-      refine WP.spec_bind (ready_refines sk σk hSk hscC h4) ?_
+      refine WP.spec_bind (ready_refines sk σk hSk hscC h4 h5) ?_
       intro b1 hb1
       rw [getScRefillReady_eq h4 hne] at hb1
       have hb1' : b1 = Fl4Spec.refillReady σk.curTime (Fl4Spec.refillHd y) := (pair_fst_eq hb1).symm

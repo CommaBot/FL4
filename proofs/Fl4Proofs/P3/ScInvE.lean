@@ -69,8 +69,8 @@ theorem Inv.stepE {σ σ' : State Unit} (h : Inv σ) (hn : EpStep σ σ')
     refine List.Pairwise.imp_of_mem (fun {a b} ha hb hab => ?_) h.sorted
     obtain ⟨xa, pa, ya, na, h1, h2, -, h4, h5⟩ := h.rel a ha
     obtain ⟨xb, pb, yb, nb, g1, g2, -, g4, g5⟩ := h.rel b hb
-    have nea := h.ne _ _ _ h4
-    have neb := h.ne _ _ _ g4
+    have nea := h.ne _ _ _ h4 h5
+    have neb := h.ne _ _ _ g4 g5
     obtain ⟨ya', hya, -, hsa, -⟩ := Ipc.EpStep.tcbSched hn h1
     obtain ⟨yb', hyb, -, hsb, -⟩ := Ipc.EpStep.tcbSched hn g1
     rw [specRt_eq hya (hsa.trans h2) (Ipc.EpStep.sc hn h4) nea,

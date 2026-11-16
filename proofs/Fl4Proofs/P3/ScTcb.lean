@@ -1323,7 +1323,7 @@ theorem dus_null {σ : State Unit} {p : ObjRef} {xp : Tcb} (hkp : σ.kheap p = s
 
 /-- l4v `decode_update_sc` with an SC cap. -/
 theorem dus_sc {σ : State Unit} {p sc : ObjRef} {xp : Tcb} {y : SchedContext} {n : Nat}
-    (hkp : σ.kheap p = some (.tcb xp)) (hks : σ.kheap sc = some (.schedContext y n)) (hne : y.scRefills ≠ [])
+    (hkp : σ.kheap p = some (.tcb xp)) (hks : σ.kheap sc = some (.schedContext y n)) (hne : scActive y = true → y.scRefills ≠ [])
     (sl : CslotPtr) (sz : Nat) :
     (decodeUpdateSc (Z := Unit) (.threadCap p) sl (.schedContextCap sc sz)).run σ =
       ((NonDetE.whenE (xp.tcbSchedContext ≠ some sc ∧ (xp.tcbSchedContext ≠ none ∨ y.scTcb ≠ none))
@@ -1821,7 +1821,8 @@ theorem tcb_set_sched_params_refines (th : TypedHeap) (hP : Placed th) (hT : TcH
     have hpC := hcapC ptr sz hc1
     have hptr0 := hC0 ptr hpC
     obtain ⟨y, n, hks, hx⟩ := hsL.scs ptr hpC
-    have hne : y.scRefills ≠ [] := by rw [hx.refills]; exact refills_ne hx.wf
+    have hne : Fl4Spec.scActive y = true → y.scRefills ≠ [] := fun ha => by
+      rw [(hx.strong ha).refills]; exact refills_ne (hx.strong ha).wf
     have hdus := dus_sc hkp hks hne ssl (sz.val - Fl4Spec.minSchedContextBits)
     have hst := (hR.at_tcb hpT hkp).st
     have hxt' : y.scTcb = Notif.optRef (L.mem s (scW ptr 24#u64)) := hx.tcb

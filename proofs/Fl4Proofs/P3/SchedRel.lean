@@ -98,7 +98,7 @@ structure SchedSpec (T C : Set U64) (c : U64) (s : S) (Q : U64 → List U64) (R 
   tcb : ∀ t ∈ T, ∃ x, σ.kheap t.bv = some (.tcb x) ∧ x.tcbDomain = 0 ∧ L.mem s (domA t) = 0#u64 ∧
     x.tcbSchedContext = optRef (L.mem s (scA t)) ∧ (L.mem s (prioA t)).val = x.tcbPriority.toNat
   scMem : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 → L.mem s (scA t) ∈ C
-  scs : ∀ sc ∈ C, ∃ x n, σ.kheap sc.bv = some (.schedContext x n) ∧ ScRel1 st s sc x n
+  scs : ∀ sc ∈ C, ∃ x n, σ.kheap sc.bv = some (.schedContext x n) ∧ ScRelW st s sc x n
   /-- The idle SC word is the spec's `idle_sc_ptr` (fixed at boot). -/
   idleSc : (nodeW st s c layout.node.IDLE_SC).bv = Fl4Spec.idleScPtr
   /-- `domain_time` is the `DOMAIN_TIME` word. -/

@@ -346,7 +346,7 @@ variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64
 
 /-- `unblock_check` writes SC words and the `REPROGRAM` node word. -/
 theorem unblock_check_scw {s : S} {σ : Fl4Spec.State Unit}
-    (hS : SchedRel st N T C c s σ) {p : U64} (hp : p ∈ C) :
+    (hS : SchedRel st N T C c s σ) {p : U64} (hp : p ∈ C) (ha : (L.rmax s p).val ≠ 0) :
     sporadic.unblock_check st s p ⦃ s' => WritesIn st s s' (ScW st C c s σ) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x, n, hk, hx⟩ := hs.scs p hp
@@ -363,7 +363,7 @@ theorem unblock_check_scw {s : S} {σ : Fl4Spec.State Unit}
     have := (hS.scOut p hp x n hk _ ⟨hin.1, hin.2⟩).2.1
     rw [e, nodeAt_val hN ho] at this
     omega
-  refine WP.spec_mono (sporadic.unblock_check.fr hx.wf ⟨hal, hout⟩) fun s' hw => hw.mono fun b hb => ?_
+  refine WP.spec_mono (sporadic.unblock_check.fr (hx.act ha).wf ⟨hal, hout⟩) fun s' hw => hw.mono fun b hb => ?_
   rcases hb with hb | hb
   · exact Or.inl (sw_ring hS hp hk hb)
   · rw [hb, e]; exact Or.inr ⟨by rw [nodeAt_val hN ho]; omega, by rw [nodeAt_val hN ho]; omega⟩
@@ -450,7 +450,7 @@ theorem unblock_top (hP0 : IPlaced N T E R B) :
     exact skip (by rw [hif', ite_f]; rw [e, ← hs.curSc]; simp)
   · have : (L.mem s (scA t) != i4) = true := by rw [hi4]; simpa [nodeW] using e
     simp only [this, ↓reduceIte]
-    refine WP.spec_bind (WP.spec_and (unblock_check_refines s σ hS hscC) (unblock_check_scw hS hscC)) ?_
+    refine WP.spec_bind (WP.spec_and (unblock_check_refines s σ hS hscC (hy.spor hsp')) (unblock_check_scw hS hscC (hy.spor hsp'))) ?_
     rintro s' ⟨⟨σ', he, -, -, hS'⟩, hW⟩
     have hK := nks_refillUnblockCheck _ σ ((), σ') (by rw [he]; rfl)
     refine hk s' σ' ?_ (sc_step_lift hP0 hX (hW.mono fun _ h => Or.inl h) hK hS') (fun p y' h => hK.fwd h (by intros; nofun))
@@ -565,9 +565,10 @@ theorem postpone_top (hP0 : IPlaced N T E R B) :
     ∀ s (a : A) σ (t sc : U64) (x : Fl4Spec.Tcb) (y : Fl4Spec.SchedContext) (n : Nat),
     IRel st th cr N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap t.bv = some (.tcb x) →
     x.tcbSchedContext = some sc.bv → σ.kheap sc.bv = some (.schedContext y n) → PostponeOK σ t.bv y →
+    Fl4Spec.scActive y = true →
     (do let s4 ← sched.postpone st s sc; ok (s4, a)) ⦃ res =>
       ∃ z ∈ (Fl4Spec.postpone (Z := Unit) sc.bv σ).1, IRel st th cr N T C E R B c res.1 z.2 ⦄ := by
-  intro s a σ t sc x y n hX ht hsc hkx hxsc hky ⟨hRel, hnr, hyt⟩
+  intro s a σ t sc x y n hX ht hsc hkx hxsc hky ⟨hRel, hnr, hyt⟩ hya
   have hS := hX.2.2.1
   obtain ⟨Q, R0, hc, hs⟩ := hS.lists
   obtain ⟨xt, hkt, -, -, hsct, -⟩ := hs.tcb t ht
@@ -580,7 +581,8 @@ theorem postpone_top (hP0 : IPlaced N T E R B) :
     by_contra hne
     have hm := (hc.released t ht).1 hne
     exact hnr (by rw [hs.rel, mem_map_bv]; exact hm)
-  refine WP.spec_bind (WP.spec_and (postpone_refines s σ hS hRel hsc ht htw h0 hr0)
+  have hst : L.mem s (scA t) = sc := eq_of_bv (Notif.optRef_some (hsct.symm.trans hxsc)).2
+  refine WP.spec_bind (WP.spec_and (postpone_refines s σ hS hRel hsc ht htw h0 hr0 (by rw [hst]; exact hy'.rmax_ne hya))
     (postpone_sfootI hS hsc ht htw hr0)) ?_
   rintro s' ⟨⟨σ', he, -, -, -, -, -, -, hS'⟩, hW⟩
   have hK := nks_postpone _ σ ((), σ') (by rw [he]; rfl)
@@ -613,8 +615,8 @@ theorem ReplyTmoHyps.ofPost (hP0 : IPlaced N T E R B)
       IRel st th cr N T C E R B c s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
       x.tcbTimeoutHandler = .endpointCap p bd r → ∀ e : U64, e.bv = p → e ∈ E) :
     ReplyTmoHyps st ar th cr N T C E R B c :=
-  ⟨fun s a σ t sc x y n h1 h2 h3 h4 h5 h6 h7 =>
-    postpone_top hP0 s a σ t sc x y n h1 h2 h3 h4 h6 h7 (hPO s σ t sc x y n h1 h2 h3 h4 h5 h6 h7), htx, hepE⟩
+  ⟨fun s a σ t sc x y n h1 h2 h3 h4 h5 h6 h7 h8 =>
+    postpone_top hP0 s a σ t sc x y n h1 h2 h3 h4 h6 h7 (hPO s σ t sc x y n h1 h2 h3 h4 h5 h6 h7) h8, htx, hepE⟩
 
 /-- **`ReplyHyps` from `remove` and the spec facts of the timeout branch**:
 `unblock` (`unblock_top`), `postpone` (`postpone_top`), `faultReply`,
@@ -631,6 +633,7 @@ theorem ReplyHyps.ofL (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
       ipc.reply_remove st ar s a r t ⦃ res => res.2 = a ∧ ∃ σ' x',
         Fl4Spec.replyRemove (Z := Unit) t.bv r.bv σ = ({((), σ')}, False) ∧ IRel st th cr N T C E R B c res.1 σ' ∧
         σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = .inactive ∧ x'.tcbFault = x.tcbFault ∧
+        (∀ p y n, σ'.kheap p = some (.schedContext y n) → y.scTcb = some t.bv → Fl4Spec.scActive y = true) ∧
         ∀ p y, p ≠ t.bv → σ.kheap p = some (.tcb y) → ∃ y', σ'.kheap p = some (.tcb y') ∧
           y'.tcbFault = y.tcbFault ∧ y'.tcbState = y.tcbState ⦄)
     (hPO : ∀ s σ (t sc : U64) (x : Fl4Spec.Tcb) (y : Fl4Spec.SchedContext) (n : Nat),
@@ -646,9 +649,10 @@ theorem ReplyHyps.ofL (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
           (SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c)))) s1 σ1 t d e bdg g xd s' ⦄)
     (hepE : ∀ s σ (t : U64) (x : Fl4Spec.Tcb) (p bd : Fl4Spec.Word) (r : Fl4Spec.CapRights),
       IRel st th cr N T C E R B c s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
-      x.tcbTimeoutHandler = .endpointCap p bd r → ∀ e : U64, e.bv = p → e ∈ E) :
+      x.tcbTimeoutHandler = .endpointCap p bd r → ∀ e : U64, e.bv = p → e ∈ E)
+    (hinv : ∀ s σ, IRel st th cr N T C E R B c s σ → Sched.Inv σ) :
     ReplyHyps st ar th cr N T C E R B c :=
-  ReplyHyps.ofT hH hBf hBm hTl hP hSV hsort (ReplyTmoHyps.ofPost hP hPO htx hepE) hrem (unblock_top hP)
+  ReplyHyps.ofT hH hBf hBm hTl hP hSV hsort (ReplyTmoHyps.ofPost hP hPO htx hepE) hrem (unblock_top hP) hinv
 
 end Reply
 

@@ -79,17 +79,18 @@ theorem refillUnblockCheck_some {σ : State Unit} {p : ObjRef} {y : SchedContext
 /-- **The sporadic unblock check of the bind has an outcome**, an update of
 the SC's refills (and possibly `reprogram_timer`). -/
 theorem unblockBind_some {σ : State Unit} {c : ObjRef} {y : SchedContext} {n : Nat}
-    (hk : σ.kheap c = some (.schedContext y n)) (hne : y.scRefills ≠ []) :
+    (hk : σ.kheap c = some (.schedContext y n)) (hne : scActive y = true → y.scRefills ≠ []) :
     ∃ σ3, ((), σ3) ∈ (ifSporadicActiveCurScTestRefillUnblockCheck (Z := Unit) (some c) σ).1 ∧
       ∃ z b, σ3 = updSc { σ with reprogramTimer := b } c z n ∧ z = { y with scRefills := z.scRefills } ∧
-        z.scRefills ≠ [] := by
+        (scActive z = true → z.scRefills ≠ []) := by
   rw [ifSporadicActive_some hk]
   split
-  · obtain ⟨σ3, h3⟩ := refillUnblockCheck_some hk hne
+  · rename_i hg
+    obtain ⟨σ3, h3⟩ := refillUnblockCheck_some hk (hne hg.2.1)
     refine ⟨σ3, h3, ?_⟩
-    rcases unblock_result hk hne h3 with ⟨rfl, -⟩ | ⟨z, rfl, -, -, hz, -, hzne, -⟩
+    rcases unblock_result hk (hne hg.2.1) h3 with ⟨rfl, -⟩ | ⟨z, rfl, -, -, hz, -, hzne, -⟩
     · exact ⟨y, σ3.reprogramTimer, (updSc_self hk).symm, rfl, hne⟩
-    · exact ⟨z, true, rfl, hz, hzne⟩
+    · exact ⟨z, true, rfl, hz, fun _ => hzne⟩
   · exact ⟨σ, Set.mem_singleton _, y, σ.reprogramTimer, (updSc_self hk).symm, rfl, hne⟩
 
 /-- **`ActReady` after the bind**: every other thread's SC and scheduling
@@ -99,7 +100,7 @@ theorem actReady_bind {σ σ5 : State Unit} {t c : ObjRef} {x x1 : Tcb} {y z : S
     (hA : Notif.ActReady σ) (hkt : σ.kheap t = some (.tcb x)) (hkc : σ.kheap c = some (.schedContext y n))
     (hnot : ∀ u xu, σ.kheap u = some (.tcb xu) → xu.tcbSchedContext ≠ some c)
     (hk5 : ∀ u, u ≠ t → u ≠ c → σ5.kheap u = σ.kheap u) (hk5t : σ5.kheap t = some (.tcb x1))
-    (hx1 : x1.tcbSchedContext = some c) (hk5c : σ5.kheap c = some (.schedContext z n)) (hzne : z.scRefills ≠ [])
+    (hx1 : x1.tcbSchedContext = some c) (hk5c : σ5.kheap c = some (.schedContext z n)) (hzne : scActive z = true → z.scRefills ≠ [])
     (hzact : scActive z = scActive y) (hct : σ5.curTime = σ.curTime)
     (hact : σ5.schedulerAction = σ.schedulerAction) (hrq : ∀ v ∈ σ.releaseQueue, v ∈ σ5.releaseQueue)
     (htt : schedulable t σ5 = true →
@@ -109,8 +110,11 @@ theorem actReady_bind {σ σ5 : State Unit} {t c : ObjRef} {x x1 : Tcb} {y z : S
   by_cases hut : u = t
   · subst hut
     obtain ⟨r1, r2⟩ := htt hs
-    exact ⟨x1, c, hk5t, hx1, by rw [getScRefillSufficient_eq hk5c hzne, r2],
-      by rw [getScRefillReady_eq hk5c hzne, r1]⟩
+    have hza : scActive z = true := by
+      obtain ⟨x', scp, y', n', hk', hsc', -, hky', ha', -⟩ := schedulable_inv hs
+      rw [hk5t] at hk'; cases hk'; rw [hx1] at hsc'; cases hsc'; rw [hk5c] at hky'; cases hky'; exact ha'
+    exact ⟨x1, c, hk5t, hx1, by rw [getScRefillSufficient_eq hk5c (hzne hza), r2],
+      by rw [getScRefillReady_eq hk5c (hzne hza), r1]⟩
   have huc : u ≠ c := by
     rintro rfl
     rw [schedulable_notcb (by rw [tcbsOf_eq, hk5c])] at hs; cases hs
@@ -141,7 +145,8 @@ the release queue's members are bound to SCs with refills, no TCB is bound
 to the SC, and `ActReady` holds. -/
 theorem schedContextBindTcb_some {σ : State Unit} {t c : ObjRef} {x : Tcb} {y : SchedContext} {n : Nat}
     (hkt : σ.kheap t = some (.tcb x)) (hxs : x.tcbSchedContext = none)
-    (hkc : σ.kheap c = some (.schedContext y n)) (hyt : y.scTcb = none) (hne : y.scRefills ≠ [])
+    (hkc : σ.kheap c = some (.schedContext y n)) (hyt : y.scTcb = none)
+    (hne : scActive y = true → y.scRefills ≠ [])
     (hnot : ∀ u xu, σ.kheap u = some (.tcb xu) → xu.tcbSchedContext ≠ some c)
     (hrq : ∀ d pr, t ∉ σ.readyQueues d pr)
     (hrel : ∀ u ∈ σ.releaseQueue, ∃ xu cu yu nu, σ.kheap u = some (.tcb xu) ∧ xu.tcbSchedContext = some cu ∧
@@ -163,7 +168,8 @@ theorem schedContextBindTcb_some {σ : State Unit} {t c : ObjRef} {x : Tcb} {y :
   set σ2 := updSc σ1 c y2 n with hσ2
   have hk2c : σ2.kheap c = some (.schedContext y2 n) := by simp [hσ2, Notif.updK]
   -- the unblock check
-  obtain ⟨σ3, hm3, z, b, hσ3, hz, hzne⟩ := unblockBind_some hk2c (by simpa [hy2, scTcbUpdate] using hne)
+  obtain ⟨σ3, hm3, z, b, hσ3, hz, hzne⟩ := unblockBind_some hk2c (fun ha => by
+    simpa [hy2, scTcbUpdate] using hne (by simpa [hy2, scTcbUpdate, scActive] using ha))
   refine Exists.imp (fun σc h => mem_bind_nd hm3 h) ?_
   dsimp only
   have hk3c : σ3.kheap c = some (.schedContext z n) := by simp [hσ3, Notif.updK]
@@ -189,11 +195,11 @@ theorem schedContextBindTcb_some {σ : State Unit} {t c : ObjRef} {x : Tcb} {y :
     rw [hrq3]; exact hrq _ _
   have hres := resume_spec_eq hk3c hzt hk3t hzne hrun hnq
   -- the ready times of the release queue
-  have hg : ∀ u, u = t ∨ u ∈ σ3.releaseQueue → ∃ xu scp yu nu, σ3.kheap u = some (.tcb xu) ∧
+  have hg : scActive z = true → ∀ u, u = t ∨ u ∈ σ3.releaseQueue → ∃ xu scp yu nu, σ3.kheap u = some (.tcb xu) ∧
       xu.tcbSchedContext = some scp ∧ σ3.kheap scp = some (.schedContext yu nu) ∧ yu.scRefills ≠ [] ∧
       ((readTcbReadyTime (Z := Unit) u σ3).getD 0) = (refillHd yu).rTime := by
-    rintro u (rfl | hu)
-    · exact ⟨x1, c, z, n, hk3t, hx1c, hk3c, hzne, by rw [readTcbReadyTime_eq hk3t hx1c hk3c hzne]; rfl⟩
+    rintro hza u (rfl | hu)
+    · exact ⟨x1, c, z, n, hk3t, hx1c, hk3c, hzne hza, by rw [readTcbReadyTime_eq hk3t hx1c hk3c (hzne hza)]; rfl⟩
     · rw [hrl3] at hu
       obtain ⟨xu, cu, yu, nu, h1, h2, h3, h4⟩ := hrel u hu
       have hut : u ≠ t := fun e => htr (e ▸ hu)
@@ -227,7 +233,7 @@ theorem schedContextBindTcb_some {σ : State Unit} {t c : ObjRef} {x : Tcb} {y :
     · exact ⟨σ4, Set.mem_singleton _⟩
   split at hres
   · rename_i hcond
-    obtain ⟨b', hb'⟩ := postpone_eq hk3c hzt hk3t _ hg
+    obtain ⟨b', hb'⟩ := postpone_eq hk3c hzt hk3t _ (hg (hrun hcond.1).2)
     rw [hb'] at hres
     rw [nd_bind_one hres]
     refine fin _ ?_ ?_ ?_ ?_ ?_
@@ -340,7 +346,7 @@ theorem setPriority_rq {σ : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t
 /-- The facts of the bind (`schedContextBindTcb_some`'s hypotheses). -/
 def BindOK (σ : State Unit) (t c : ObjRef) : Prop :=
   ∃ x y n, σ.kheap t = some (.tcb x) ∧ x.tcbSchedContext = none ∧ σ.kheap c = some (.schedContext y n) ∧
-    y.scTcb = none ∧ y.scRefills ≠ [] ∧ (∀ u xu, σ.kheap u = some (.tcb xu) → xu.tcbSchedContext ≠ some c) ∧
+    y.scTcb = none ∧ (scActive y = true → y.scRefills ≠ []) ∧ (∀ u xu, σ.kheap u = some (.tcb xu) → xu.tcbSchedContext ≠ some c) ∧
     (∀ d pr, t ∉ σ.readyQueues d pr) ∧ t ≠ σ.curThread ∧
     (∀ u ∈ σ.releaseQueue, ∃ xu cu yu nu, σ.kheap u = some (.tcb xu) ∧ xu.tcbSchedContext = some cu ∧
       σ.kheap cu = some (.schedContext yu nu) ∧ yu.scRefills ≠ []) ∧ Notif.ActReady σ

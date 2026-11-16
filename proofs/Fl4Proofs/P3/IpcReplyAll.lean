@@ -35,6 +35,7 @@ theorem replyHyps_of (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R 
     (hsort : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → QSorted st T E s')
     (hD : ∀ s σ (r t : U64), IRel st th cr N T C E R B c s σ → r ∈ R → t ∈ T → RemoveOK st N T C R c s σ r t)
     (hInv : ∀ s σ, IRel st th cr N T C E R B c s σ → Inv σ)
+    (hJ : ∀ s σ, IRel st th cr N T C E R B c s σ → BlockedScActive σ)
     (hnr : ∀ s σ (t : U64) (x : Fl4Spec.Tcb), IRel st th cr N T C E R B c s σ → t ∈ T →
       σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true → x.tcbSchedContext ≠ none →
       t.bv ∉ σ.releaseQueue)
@@ -43,11 +44,11 @@ theorem replyHyps_of (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R 
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ (a : A) v, ar.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
     ReplyHyps st ar th cr N T C E R B c :=
-  ReplyHyps.ofL hH hBf hBm (ipcEpTailHyps_top hP0 hAct) hP0 hSV hsort (remove_top hP0 hD)
+  ReplyHyps.ofL hH hBf hBm (ipcEpTailHyps_top hP0 hAct) hP0 hSV hsort (remove_top hP0 hD hJ)
     (fun s σ t sc x y n hX ht _ hk hrun hsc hky =>
       postponeOK_of (hInv s σ hX) hk hsc hky (hnr s σ t x hX ht hk hrun (by rw [hsc]; exact Option.some_ne_none _)))
     (tmoXfer_top hH hBf hBm hP0 hmax htu)
-    (fun s σ t x p bd r hX _ hk hh => epE_of (hO s σ hX) (hV s σ hX) hk hh)
+    (fun s σ t x p bd r hX _ hk hh => epE_of (hO s σ hX) (hV s σ hX) hk hh) hInv
 
 end
 

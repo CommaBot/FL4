@@ -185,8 +185,8 @@ theorem Inv.unblock {σ σ' : State Unit} (h : Inv σ) {p : ObjRef} {y : SchedCo
     refine List.Pairwise.imp_of_mem (fun {a b} ha hb hab => ?_) h.sorted
     obtain ⟨xa, pa, ya, na, h1, h2, -, h4, h5⟩ := h.rel a ha
     obtain ⟨xb, pb, yb, nb, g1, g2, -, g4, g5⟩ := h.rel b hb
-    have nea := h.ne _ _ _ h4
-    have neb := h.ne _ _ _ g4
+    have nea := h.ne _ _ _ h4 h5
+    have neb := h.ne _ _ _ g4 g5
     have hap : a ≠ p := by rintro rfl; rw [hk] at h1; cases h1
     have hbp : b ≠ p := by rintro rfl; rw [hk] at g1; cases g1
     have hpa : pa ≠ p := fun e => hnr' a ha xa h1 (e ▸ h2)
@@ -221,7 +221,7 @@ theorem Inv.unblock {σ σ' : State Unit} (h : Inv σ) {p : ObjRef} {y : SchedCo
     · subst e; exact ⟨z, n, hkz⟩
     · exact ⟨w, m, by rw [hkp q' e]; exact h1⟩
   · by_cases e : q = p
-    · subst e; rw [hkz] at hw; cases hw; exact hzne
+    · subst e; rw [hkz] at hw; cases hw; exact fun _ => hzne
     · rw [hkp q e] at hw; exact h.ne q w m hw
   · by_cases e : q = p
     · subst e; rw [hkz] at hw; cases hw; intro _ hp0; exact absurd (hzper.symm.trans hp0) hper

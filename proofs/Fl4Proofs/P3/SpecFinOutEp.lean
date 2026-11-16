@@ -28,7 +28,7 @@ def RepOK (σ : State Unit) (t : ObjRef) : Prop :=
 /-- A TCB's SC facts (`MemOK`'s, for a given TCB). -/
 def ScOK (σ : State Unit) (x : Tcb) : Prop :=
   ∀ c, x.tcbSchedContext = some c → ∃ y k, σ.kheap c = some (.schedContext y k) ∧
-    y.scRefills ≠ [] ∧
+    ((y.scSporadic = true ∨ scActive y = true) → y.scRefills ≠ []) ∧
     (scActive y = true → refillReady σ.curTime (refillHd y) = true ∧ refillSufficient 0 (refillHd y) = true) ∧
     (scActive y = true → y.scPeriod ≠ 0 → RefOK y)
 
@@ -57,7 +57,7 @@ theorem restart_tail {σ : State Unit} {t : ObjRef} {x : Tcb} (hkt : σ.kheap t 
     have hct : c ≠ t := by rintro rfl; rw [hkt] at hky; cases hky
     rw [hkp2 c hct, hky] at hky0; cases hky0
     obtain ⟨h1, h2⟩ := h12 hact0
-    exact ⟨x', c, _, _, hkt2, hsc0, by rw [hkp2 c hct]; exact hky, hne, h1, h2⟩
+    exact ⟨x', c, _, _, hkt2, hsc0, by rw [hkp2 c hct]; exact hky, hne (Or.inr hact0), h1, h2⟩
   have hA2' : ActReady σ2' := by
     rw [actReady_iff] at hA ⊢
     intro u hu hs
@@ -104,7 +104,7 @@ theorem restart_tail {σ : State Unit} {t : ObjRef} {x : Tcb} (hkt : σ.kheap t 
     obtain ⟨y, k, hky1, hne, -, hrf⟩ := hxs c hxc'
     have hct : c ≠ t := by rintro rfl; rw [hkt] at hky1; cases hky1
     have hky2 : σ2.kheap c = some (.schedContext y k) := by rw [hkp2' c hct]; exact hky1
-    obtain ⟨σ3, hm3, hcase⟩ := unblockCur_some hky2 hne
+    obtain ⟨σ3, hm3, hcase⟩ := unblockCur_some hky2 (fun h => hne (Or.inl h))
     rcases hcase with rfl | ⟨z, rfl, hRz, hrt3, hz, hzne, hper⟩
     · exact ⟨σ2, hm3, hkt2', hB2, hA2, hT2'', by rw [ht2]; rfl, fun p hp _ => hkp2' p hp⟩
     · obtain ⟨yb, kb, hkyb, hybt, -⟩ := hB2 t x' c hkt2' hxc
@@ -156,7 +156,7 @@ theorem restart_tail {σ : State Unit} {t : ObjRef} {x : Tcb} (hkt : σ.kheap t 
         obtain ⟨yu, ku, h1, h2, h3⟩ := hB2 u xu cu hku hcu
         by_cases e2 : cu = c
         · subst e2; rw [hky2] at h1; cases h1
-          exact ⟨z, _, hkc3, by rw [hzt]; exact h2, hzne⟩
+          exact ⟨z, _, hkc3, by rw [hzt]; exact h2, fun _ => hzne⟩
         · exact ⟨yu, ku, by rw [hkp3 cu e2]; exact h1, h2, h3⟩
       · rw [actReady_iff] at hA2 ⊢
         intro u hu hs
@@ -410,6 +410,7 @@ theorem cia_out {σ : State Unit} {r : ObjRef} (h : EpPre σ r) :
 distinct TCBs with ready and sufficient SCs (l4v's `released_ipc_queues`),
 a receiver's reply bound to it. -/
 theorem epPre_of_inv {σ : State Unit} {r : ObjRef} {x : Endpoint} (hI : Inv σ) (hA : ActReady σ)
+    (hsp : ∀ c y k, σ.kheap c = some (.schedContext y k) → y.scSporadic = true → scActive y = true)
     (hk : σ.kheap r = some (.endpoint x)) (hnd : x.epQueue.Nodup)
     (hq : ∀ u ∈ x.epQueue, ∃ xu, σ.kheap u = some (.tcb xu) ∧ (∀ c, xu.tcbSchedContext = some c →
       ∀ y k, σ.kheap c = some (.schedContext y k) → scActive y = true →
@@ -419,9 +420,10 @@ theorem epPre_of_inv {σ : State Unit} {r : ObjRef} {x : Endpoint} (hI : Inv σ)
   · obtain ⟨xu, hku, hc, hr⟩ := hq u hu
     refine ⟨⟨xu, hku, fun c e => ?_⟩, hr⟩
     obtain ⟨y, k, hky, -⟩ := hI.back u xu c hku e
-    exact ⟨y, k, hky, hI.ne c y k hky, hc c e y k hky, fun ha hp => hI.refills c y k hky ha hp⟩
+    exact ⟨y, k, hky, fun h => hI.ne c y k hky (h.elim (hsp c y k hky) id), hc c e y k hky,
+      fun ha hp => hI.refills c y k hky ha hp⟩
   · obtain ⟨y, k, hky, hyt⟩ := hI.back u xu c hku hc
-    exact ⟨y, k, hky, hyt, hI.ne c y k hky⟩
+    exact ⟨y, k, hky, hyt, fun h => hI.ne c y k hky (h.elim (hsp c y k hky) id)⟩
 
 /-- **The spec's finalisation of a final endpoint cap has an outcome.** -/
 theorem finEp_out {σ : State Unit} {r : ObjRef} (b : Badge) (R : CapRights) (h : EpPre σ r) :

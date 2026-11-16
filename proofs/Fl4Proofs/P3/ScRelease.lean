@@ -212,16 +212,85 @@ def specRt (σ : Fl4Spec.State Unit) (u : Fl4Spec.ObjRef) : Fl4Spec.Time :=
 structure RelOK (σ : Fl4Spec.State Unit) : Prop where
   sc : ∀ u ∈ σ.releaseQueue, ∃ x p, σ.kheap u = some (.tcb x) ∧ x.tcbSchedContext = some p
   sorted : σ.releaseQueue.Pairwise (fun a b => specRt σ a ≤ specRt σ b)
+  /-- Their SCs are active (l4v `valid_release_q`'s `active_sc`). -/
+  act : ∀ u ∈ σ.releaseQueue, ∀ x p, σ.kheap u = some (.tcb x) → x.tcbSchedContext = some p →
+    ∃ y n, σ.kheap p = some (.schedContext y n) ∧ Fl4Spec.scActive y = true
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
 
+/-- **An active SC from the spec's facts** (for call sites holding the
+thread's TCB, its SC and that SC's `sc_active`): its `REFILL_MAX` word is
+nonzero. -/
+theorem SchedRel.act_of {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) {t : U64} (ht : t ∈ T) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x))
+    {p : Fl4Spec.ObjRef} (hp : x.tcbSchedContext = some p) {y : Fl4Spec.SchedContext} {n : Nat}
+    (hky : σ.kheap p = some (.schedContext y n)) (ha : Fl4Spec.scActive y = true) :
+    (L.rmax s (L.mem s (scA t))).val ≠ 0 := by
+  obtain ⟨Q, R, hc, hs⟩ := hS.lists
+  obtain ⟨x', hk', -, -, hsc, -⟩ := hs.tcb t ht
+  rw [hk] at hk'; cases hk'
+  rw [hsc] at hp
+  obtain ⟨h0, hb⟩ := optRef_some hp
+  obtain ⟨y', n', hky', hy⟩ := hs.scs _ (hs.scMem t ht h0)
+  rw [hb, hky] at hky'; cases hky'
+  exact hy.rmax_ne ha
+
+/-- An SC given by its address in `C`: active from the spec's `sc_active`. -/
+theorem SchedRel.act_sc {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) {q : U64} (hq : q ∈ C) {y : Fl4Spec.SchedContext} {n : Nat}
+    (hky : σ.kheap q.bv = some (.schedContext y n)) (ha : Fl4Spec.scActive y = true) :
+    (L.rmax s q).val ≠ 0 := by
+  obtain ⟨Q, R, hc, hs⟩ := hS.lists
+  obtain ⟨y', n', hky', hy⟩ := hs.scs q hq
+  rw [hky] at hky'; cases hky'
+  exact hy.rmax_ne ha
+
+/-- **A sporadic SC is active** (from `ScRelW.spor`), for a thread's SC. -/
+theorem SchedRel.spor_act {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) {t : U64} (ht : t ∈ T) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) :
+    ∀ p y n, x.tcbSchedContext = some p → σ.kheap p = some (.schedContext y n) → y.scSporadic = true →
+      Fl4Spec.scActive y = true := by
+  intro p y n hp hky hsp
+  obtain ⟨Q, R, hc, hs⟩ := hS.lists
+  obtain ⟨x', hk', -, -, hsc, -⟩ := hs.tcb t ht
+  rw [hk] at hk'; cases hk'
+  rw [hsc] at hp
+  obtain ⟨h0, hb⟩ := optRef_some hp
+  obtain ⟨y', n', hky', hy⟩ := hs.scs _ (hs.scMem t ht h0)
+  rw [hb, hky] at hky'; cases hky'
+  have hw : L.mem s (scW (L.mem s (scA t)) 64#u64) ≠ 0#u64 := by
+    have := hy.sporadic; rw [hsp] at this; simpa using this.symm
+  exact hy.active_of_rmax (hy.spor hw)
+
+/-- A thread's SC's `REFILL_MAX` across a step keeping the spec's heap. -/
+theorem SchedRel.rmax_scA_eq {N T C : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) (hS' : SchedRel st N T C c s' σ') {t : U64} (ht : t ∈ T)
+    (hk : σ'.kheap = σ.kheap) (h0 : L.mem s (scA t) ≠ 0#u64) :
+    (L.rmax s' (L.mem s' (scA t))).val = (L.rmax s (L.mem s (scA t))).val := by
+  obtain ⟨Q, R, hc, hs⟩ := hS.lists
+  obtain ⟨Q', R', hc', hs'⟩ := hS'.lists
+  obtain ⟨x, hkx, -, -, hsc, -⟩ := hs.tcb t ht
+  obtain ⟨x', hkx', -, -, hsc', -⟩ := hs'.tcb t ht
+  rw [hk, hkx] at hkx'; cases hkx'
+  have e : L.mem s' (scA t) = L.mem s (scA t) := by
+    rw [hsc, optRef_ne h0] at hsc'
+    obtain ⟨-, hb⟩ := optRef_some hsc'.symm
+    exact eq_of_bv hb
+  rw [e]
+  obtain ⟨y, n, hky, hy⟩ := hs.scs _ (hs.scMem t ht h0)
+  obtain ⟨y', n', hky', hy'⟩ := hs'.scs _ (hs.scMem t ht h0)
+  rw [hk, hky] at hky'; cases hky'
+  rw [hy'.max, hy.max]
+
 theorem readyTime_rel {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
-    (hS : SchedRel st N T C c s σ) {u : U64} (hu : u ∈ T) (h0 : L.mem s (scA u) ≠ 0#u64) :
+    (hS : SchedRel st N T C c s σ) {u : U64} (hu : u ∈ T) (h0 : L.mem s (scA u) ≠ 0#u64)
+    (ha : (L.rmax s (L.mem s (scA u))).val ≠ 0) :
     Fl4Spec.readTcbReadyTime (Z := Unit) u.bv σ = some (L.rtime s u).bv := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x, hk, -, -, hsc, -⟩ := hs.tcb u hu
   obtain ⟨y, n, hky, hy⟩ := hs.scs _ (hs.scMem u hu h0)
+  replace hy := hy.act ha
   rw [readTcbReadyTime_eq hk (by rw [hsc, optRef_ne h0]) hky (by rw [hy.refills]; exact refills_ne hy.wf),
     refillHd_eq hy.wf hy.refills, rf0_eq hy.wf]
   rfl
@@ -249,7 +318,8 @@ theorem dropWhile_map_bv (P : Fl4Spec.ObjRef → Bool) (Q : U64 → Bool) :
 `RelOK`. -/
 theorem release_enqueue_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) (hRel : RelOK σ) (t : U64) (ht : t ∈ T) (h0 : L.mem s (scA t) ≠ 0#u64)
-    (hq0 : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64) (hr0 : (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64) :
+    (hq0 : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64) (hr0 : (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64)
+    (hta : (L.rmax s (L.mem s (scA t))).val ≠ 0) :
     sched.release_enqueue st s t ⦃ s' => ∃ q b, Fl4Spec.tcbReleaseEnqueue (Z := Unit) t.bv σ =
       ({((), setRel σ q b)}, False) ∧ (∀ u, u ∈ q ↔ u = t.bv ∨ u ∈ σ.releaseQueue) ∧ FootEq N T (L.mem s) (L.mem s') ∧
       SchedRel st N T C c s' (setRel σ q (decide (nodeW st s' c layout.node.REPROGRAM ≠ 0#u64))) ⦄ := by
@@ -272,8 +342,22 @@ theorem release_enqueue_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spe
     obtain ⟨x', hk', -, -, hsc', -⟩ := hs.tcb u (hc.release.mem u hu)
     rw [hk] at hk'; cases hk'
     rw [hsc', h0', optRef_zero] at hsc; cases hsc
+  have hRa : ∀ u ∈ T, (u = t ∨ u.bv ∈ σ.releaseQueue) → (L.rmax s (L.mem s (scA u))).val ≠ 0 := by
+    intro u hu h
+    rcases h with rfl | h
+    · exact hta
+    · obtain ⟨x, p, hk, hsc⟩ := hRel.sc _ h
+      obtain ⟨y, n, hky, hay⟩ := hRel.act _ h x p hk hsc
+      obtain ⟨x', hk', -, -, hsc', -⟩ := hs.tcb u hu
+      rw [hk] at hk'; cases hk'
+      rw [hsc'] at hsc
+      have h0 := (optRef_some hsc).1
+      obtain ⟨y', n', hky', hy⟩ := hs.scs _ (hs.scMem u hu h0)
+      rw [(optRef_some hsc).2, hky] at hky'; cases hky'
+      exact hy.rmax_ne hay
   have hrt : ∀ u ∈ R, specRt σ u.bv = (L.rtime s u).bv := fun u hu => by
-    unfold specRt; rw [readyTime_rel hS (hc.release.mem u hu) (hRsc u hu)]; rfl
+    unfold specRt; rw [readyTime_rel hS (hc.release.mem u hu) (hRsc u hu)
+      (hRa u (hc.release.mem u hu) (Or.inr (by rw [hs.rel]; exact List.mem_map_of_mem hu)))]; rfl
   have hsort : TimeSorted (L.rtime s) R := by
     have := hRel.sorted
     rw [hs.rel, List.pairwise_map] at this
@@ -281,10 +365,11 @@ theorem release_enqueue_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spe
     rw [hrt a ha, hrt b hb, BitVec.le_def] at hab
     exact hab
   set g : Fl4Spec.ObjRef → Fl4Spec.Time := fun p => (L.rtime s ⟨p⟩).bv
-  obtain ⟨b, he⟩ := tcbReleaseEnqueue_eq (σ := σ) t.bv g (readyTime_rel hS ht h0) (by
+  obtain ⟨b, he⟩ := tcbReleaseEnqueue_eq (σ := σ) t.bv g (readyTime_rel hS ht h0 (hRa t ht (Or.inl rfl))) (by
     rw [hs.rel]; intro y hy
     obtain ⟨u, hu, rfl⟩ := List.mem_map.1 hy
-    exact readyTime_rel hS (hc.release.mem u hu) (hRsc u hu))
+    exact readyTime_rel hS (hc.release.mem u hu) (hRsc u hu)
+      (hRa u (hc.release.mem u hu) (Or.inr (by rw [hs.rel]; exact List.mem_map_of_mem hu))))
   have hP : ∀ y ∈ R, @decide (g y.bv ≤ g t.bv) (Classical.propDecidable _) = decide (L.rtime s y ≤ L.rtime s t) :=
     fun y _ => decide_eq_decide.2 (u64_le_bv _ _).symm
   have hq' : specInsT σ.releaseQueue g t.bv = (relIns (L.rtime s) (L.rtime s t) t R).map UScalar.bv := by

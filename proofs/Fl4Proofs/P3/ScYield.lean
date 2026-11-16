@@ -107,9 +107,9 @@ theorem Inv.tcbUpd {σ : State Unit} (h : Inv σ) {p : ObjRef} {x : Tcb} (hk : �
     · rw [ko q e]
   have rt : ∀ u ∈ σ.releaseQueue, specRt σ' u = specRt σ u := by
     intro u hu
-    obtain ⟨xu, scp, yu, nu, h1, h2, -, h4, -⟩ := h.rel u hu
+    obtain ⟨xu, scp, yu, nu, h1, h2, -, h4, h5⟩ := h.rel u hu
     obtain ⟨xu', h1', -, e2⟩ := kf u xu h1
-    have hne := h.ne scp yu nu h4
+    have hne := h.ne scp yu nu h4 h5
     rw [specRt_eq h1' (e2.trans h2) ((ks _ _ _).2 h4) hne, specRt_eq h1 h2 h4 hne]
   refine ⟨fun d q u hu => ?_, fun u hu => ?_, ?_, fun u y hy hc => ?_, fun q y m hy => ?_,
     fun u y q hy hq => ?_, fun q y q' hy hq => ?_, fun q y m hy => ?_, fun q y m hy => ?_⟩
@@ -411,15 +411,10 @@ theorem SchedRel.set_sc_yf {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.Sta
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x', n', hk', hx⟩ := hs.scs sc hsc
   rw [hk] at hk'; cases hk'
-  obtain ⟨hW', ep, em, hrs, hw, hv, hwr⟩ := hx.wr_hdr (K := 56#u64) (by simp [HdrK]) v
-  have hx' : ScRel1 st (L.wr s (scW sc 56#u64) v) sc { x with scYieldFrom := optRef v } n :=
-    ⟨hW', by rw [ep]; exact hx.period, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.consumed,
-      by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.tcb,
-      by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.ntfn,
-      by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.badge, by rw [hv],
-      by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.sporadic, by rw [em]; exact hx.max,
-      by rw [hrs]; exact hx.refills⟩
-  exact ⟨hS.sc_update hsc hk (hwr.mono fun b hb => hx.in_obj hb) (hw _ (by simp) (by simp) (by decide)) _ hx',
+  obtain ⟨hst, ep, em, hw, hv, hwr⟩ := hx.wr_hdr (K := 56#u64) (by simp [HdrK]) v
+  have hx' : ScRelW st (L.wr s (scW sc 56#u64) v) sc { x with scYieldFrom := optRef v } n :=
+    ⟨hx.pl, by rw [ep]; exact hx.period, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.consumed, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.tcb, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.ntfn, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.badge, by rw [hv], by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.sporadic, fun h0 => by rw [em]; exact hx.spor (by rwa [hw _ (by simp) (by simp) (by decide)] at h0), fun h0 => by rw [em]; exact hx.idle h0, by rw [em]; exact hx.max, fun h0 => ScRel1.ofWF (hst (by rwa [em] at h0)).1 (by rw [ep]; exact hx.period) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.consumed) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.tcb) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.ntfn) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.badge) (by rw [hv]) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.sporadic) (by rw [em]; exact hx.max) (by rw [(hst (by rwa [em] at h0)).2]; exact (hx.act (by rwa [em] at h0)).refills)⟩
+  exact ⟨hS.sc_updateW hsc hk (hwr.mono fun b hb => hx.in_obj hb) (hw _ (by simp) (by simp) (by decide)) _ hx',
     scin_footEq hS hsc hwr, KView.of_sc hk, hwr.mono fun b hb => not_yw_scin hS hsc hb⟩
 
 /-- **Writing a TCB word the scheduler and notification relations do not

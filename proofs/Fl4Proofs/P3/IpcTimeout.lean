@@ -473,6 +473,7 @@ structure ReplyTmoHyps : Prop where
   postpone : ∀ s (a : A) σ (t sc : U64) (x : Fl4Spec.Tcb) (y : Fl4Spec.SchedContext) (n : Nat),
     IRel st th cr N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap t.bv = some (.tcb x) →
     Fl4Spec.runnable x.tcbState = true → x.tcbSchedContext = some sc.bv → σ.kheap sc.bv = some (.schedContext y n) →
+    Fl4Spec.scActive y = true →
     (do let s4 ← sched.postpone st s sc; ok (s4, a)) ⦃ res =>
       ∃ z ∈ (Fl4Spec.postpone (Z := Unit) sc.bv σ).1, IRel st th cr N T C E R B c res.1 z.2 ⦄
   tmoXfer : ∀ (a : A) (t : U64) (xt : Fl4Spec.Tcb) (bb : Fl4Spec.Word) (e bdg : U64) (g : Bool) (d : U64)
@@ -500,11 +501,11 @@ theorem reply_tmo_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
     (hTH : ReplyTmoHyps st ar th cr N T C E R B c) :
     ∀ s (a : A) σ (t sc ft : U64) (fault : Option Fl4Spec.Fault) (y : Fl4Spec.SchedContext) (n : Nat),
     IRel st th cr N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap sc.bv = some (.schedContext y n) →
-    ∀ x : Fl4Spec.Tcb, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true →
+    Fl4Spec.scActive y = true → ∀ x : Fl4Spec.Tcb, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true →
     x.tcbSchedContext = some sc.bv → (ft = 0#u64 ↔ fault = none) → (ft = 5#u64 ↔ ∃ b, fault = some (.timeout b)) →
     fl4ReplyTmo st ar t ft sc s a ⦃ res => ∃ z ∈ (specReplyTmo t.bv fault y sc.bv σ).1,
       IRel st th cr N T C E R B c res.1 z.2 ⦄ := by
-  intro s a σ t sc ft fault y n hX ht hsc hky x hk hrn hxsc hf0 hf5
+  intro s a σ t sc ft fault y n hX ht hsc hky hya x hk hrn hxsc hf0 hf5
   obtain ⟨hIR, hSRT⟩ := hX
   obtain ⟨⟨G, hB⟩, -⟩ := hSRT.1
   have htt := hB.tcbT hk
@@ -515,7 +516,7 @@ theorem reply_tmo_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
   have hspec' := hspec True
   have post : (do let s4 ← sched.postpone st s sc; ok (s4, a)) ⦃ res =>
       ∃ z ∈ (Fl4Spec.postpone (Z := Unit) sc.bv σ).1, IRel st th cr N T C E R B c res.1 z.2 ⦄ :=
-    hTH.postpone s a σ t sc x y n ⟨hIR, hSRT⟩ ht hsc hk hrn hxsc hky
+    hTH.postpone s a σ t sc x y n ⟨hIR, hSRT⟩ ht hsc hk hrn hxsc hky hya
   have hrunc : tsCode x.tcbState ≠ 3 ∧ tsCode x.tcbState ≠ 4 ∧ (∀ m, x.tcbState ≠ .blockedOnNotification m) ∧
       tsCode x.tcbState ≠ 6 := by
     cases h : x.tcbState <;> simp_all [Fl4Spec.runnable, tsCode]
@@ -578,6 +579,7 @@ theorem ReplyHyps.ofT (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
       ipc.reply_remove st ar s a r t ⦃ res => res.2 = a ∧ ∃ σ' x',
         Fl4Spec.replyRemove (Z := Unit) t.bv r.bv σ = ({((), σ')}, False) ∧ IRel st th cr N T C E R B c res.1 σ' ∧
         σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = .inactive ∧ x'.tcbFault = x.tcbFault ∧
+        (∀ p y n, σ'.kheap p = some (.schedContext y n) → y.scTcb = some t.bv → Fl4Spec.scActive y = true) ∧
         ∀ p y, p ≠ t.bv → σ.kheap p = some (.tcb y) → ∃ y', σ'.kheap p = some (.tcb y') ∧
           y'.tcbFault = y.tcbFault ∧ y'.tcbState = y.tcbState ⦄)
     (hunb : ∀ s σ (t : U64) (x : Fl4Spec.Tcb) (k : S → Result (S × A)) (P : S × A → Prop),
@@ -598,9 +600,10 @@ theorem ReplyHyps.ofT (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
             then sporadic.unblock_check st s i2
             else ok s
           else ok s
-        k s2) ⦃ P ⦄) :
+        k s2) ⦃ P ⦄)
+    (hinv : ∀ s σ, IRel st th cr N T C E R B c s σ → Sched.Inv σ) :
     ReplyHyps st ar th cr N T C E R B c :=
-  ReplyHyps.of hH hBf hBm hP hrem hunb (reply_tmo_top hH hBf hBm hTl hP hSV hsort hTH)
+  ReplyHyps.of hH hBf hBm hP hrem hunb (reply_tmo_top hH hBf hBm hTl hP hSV hsort hTH) hinv
 
 end SendF
 

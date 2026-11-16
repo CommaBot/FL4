@@ -107,7 +107,7 @@ theorem SchedSpec.transfer {T C C' : Set U64} {c : U64} {s s' : S} {Q : U64 → 
     (e6 : σ'.consumedTime = σ.consumedTime) (e7 : σ'.curDomain = σ.curDomain)
     (e8 : σ'.domainTime = σ.domainTime) (e9 : σ'.idleThread = σ.idleThread)
     (htcb : ∀ t ∈ T, ∀ x, σ.kheap t.bv = some (.tcb x) → σ'.kheap t.bv = some (.tcb x))
-    (hscs : ∀ sc ∈ C, ∃ x n, σ'.kheap sc.bv = some (.schedContext x n) ∧ ScRel1 st s' sc x n) :
+    (hscs : ∀ sc ∈ C, ∃ x n, σ'.kheap sc.bv = some (.schedContext x n) ∧ ScRelW st s' sc x n) :
     SchedSpec st T C c s' Q R σ' := by
   have w : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → o.val ≠ 16 → o.val ≠ 56 → nodeW st s' c o = nodeW st s c o :=
     fun o h1 h2 h3 h4 => ha.nodeW h1 h2 h3 h4
@@ -198,11 +198,11 @@ theorem scobj_footEq {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State 
 
 /-- **Writes inside one SC object**, with the spec's SC object replaced by a
 related one of the same size, keep `SchedRel`. -/
-theorem SchedRel.sc_update {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
+theorem SchedRel.sc_updateW {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) {sc0 : U64} (hsc0 : sc0 ∈ C) {x0 : Fl4Spec.SchedContext} {n : Nat}
     (hk : σ.kheap sc0.bv = some (.schedContext x0 n)) (hw : WritesIn st s s' (ScObj sc0 n))
     (hc0 : L.mem s' (scW sc0 16#u64) = L.mem s (scW sc0 16#u64))
-    (x : Fl4Spec.SchedContext) (hx : ScRel1 st s' sc0 x n) :
+    (x : Fl4Spec.SchedContext) (hx : ScRelW st s' sc0 x n) :
     SchedRel st N T C c s' (updSc σ sc0.bv x n) := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hN := hc.node
@@ -246,6 +246,14 @@ theorem SchedRel.sc_update {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.
     · subst e; exact ⟨x, n, by simp, hx⟩
     · obtain ⟨y, m, hky, ey⟩ := hs.scs sc hsc
       exact ⟨y, m, by simp [bv_inj e, hky], ey.agree (hoth sc hsc e)⟩
+
+theorem SchedRel.sc_update {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) {sc0 : U64} (hsc0 : sc0 ∈ C) {x0 : Fl4Spec.SchedContext} {n : Nat}
+    (hk : σ.kheap sc0.bv = some (.schedContext x0 n)) (hw : WritesIn st s s' (ScObj sc0 n))
+    (hc0 : L.mem s' (scW sc0 16#u64) = L.mem s (scW sc0 16#u64))
+    (x : Fl4Spec.SchedContext) (hx : ScRel1 st s' sc0 x n) :
+    SchedRel st N T C c s' (updSc σ sc0.bv x n) :=
+  hS.sc_updateW hsc0 hk hw hc0 x hx.toW
 
 /-! ## Writing the `REPROGRAM` word (`set_repr`: any value) -/
 

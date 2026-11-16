@@ -150,6 +150,7 @@ theorem commit_refill_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : 
   set cn := nodeW st s c layout.node.CONSUMED with hcnd
   obtain ⟨x', n', hk', hx⟩ := hs.scs sc hscC
   rw [hk] at hk'; cases hk'
+  replace hx := hx.strong hact
   have hrr : decide (L.rperiod s sc = 0#u64) = decide (x.scPeriod = 0) := by
     apply decide_eq_decide.2
     rw [hx.period]

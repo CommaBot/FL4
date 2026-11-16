@@ -64,26 +64,30 @@ theorem rap_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.St
   rw [hkt] at hkt'; cases hkt'
   rw [hsct'] at hsc'; cases hsc'
   rw [hk] at hky; cases hky
-  have hne : x.scRefills ≠ [] := hI.ne _ _ _ hk
+  have hne : x.scRefills ≠ [] := hI.ne _ _ _ hk hact
   have hct0 : ct ≠ 0#u64 := fun e => (hc.tcbs ct hct).ne0 (by rw [e]; rfl)
   have hr0 : (L.mem s (inqA ct) &&& sched.Q_RELEASE) = 0#u64 := by
     by_contra h
     exact hnr (by rw [hs.rel]; exact List.mem_map_of_mem ((hc.released ct hct).1 h))
   have hRel : RelOK σ :=
-    ⟨fun u hu => by obtain ⟨x, p, -, -, h1, h2, -⟩ := hI.rel u hu; exact ⟨x, p, h1, h2⟩, hI.sorted⟩
+    ⟨fun u hu => by obtain ⟨x, p, -, -, h1, h2, -⟩ := hI.rel u hu; exact ⟨x, p, h1, h2⟩, hI.sorted,
+      fun u hu x' p' hx hp => by
+        obtain ⟨x, p, y, n, h1, h2, -, h4, h5⟩ := hI.rel u hu
+        rw [hx] at h1; cases h1; rw [hp] at h2; cases h2; exact ⟨y, n, h4, h5⟩⟩
   have hpp : (do let s1 ← sched.postpone st s sc; ok (s1, a)) ⦃ r => r.2 = a ∧ ∃ σ',
       Fl4Spec.postpone (Z := Unit) sc.bv σ = ({((), σ')}, False) ∧ SchedRel st N T C c r.1 σ' ∧ Inv σ' ∧
       KView σ σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ σ'.consumedTime = σ.consumedTime ∧
       (IdleOK σ → IdleOK σ') ⦄ := by
-    refine WP.spec_bind (postpone_refines s σ hS hRel hsc hct htw (by rw [hts]; exact hsc0) hr0) ?_
+    refine WP.spec_bind (postpone_refines s σ hS hRel hsc hct htw (by rw [hts]; exact hsc0) hr0
+      (by rw [hts]; exact hS.act_sc hsc hk hact)) ?_
     rintro s1 ⟨σ', hp, hk', -, -, -, hf, -, hS'⟩
     simp only [WP.spec_ok]
     refine ⟨trivial, σ', hp, hS', ?_, KView.of_kheap hk', hR.frame hS.placed hf (KView.of_kheap hk'), ?_, ?_⟩
     all_goals obtain ⟨b0, hp2⟩ := postpone_eq hk (by rw [hx.tcb, htw, optRef_ne hct0]) hkt (specRt σ) (fun u hu => by
       rcases hu with rfl | hu
       · exact ⟨xt, sc.bv, x, n, hkt, hsct', hk, hne, specRt_eq hkt hsct' hk hne⟩
-      · obtain ⟨xu, pu, yu, nu, h1, h2, -, h4, -⟩ := hI.rel u hu
-        exact ⟨xu, pu, yu, nu, h1, h2, h4, hI.ne _ _ _ h4, specRt_eq h1 h2 h4 (hI.ne _ _ _ h4)⟩)
+      · obtain ⟨xu, pu, yu, nu, h1, h2, -, h4, h5⟩ := hI.rel u hu
+        exact ⟨xu, pu, yu, nu, h1, h2, h4, hI.ne _ _ _ h4 h5, specRt_eq h1 h2 h4 (hI.ne _ _ _ h4 h5)⟩)
     all_goals rw [hp2] at hp
     all_goals rw [pair_eq hp]
     · exact hI.postponed hkt hsct' hrun hk hact b0
@@ -93,7 +97,7 @@ theorem rap_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.St
       rcases mem_specInsT.1 hm with e | e
       · exact absurd e.symm (hid.ne_of_sched hsch)
       · exact e
-  refine WP.spec_bind (ready_refines s σ hS hsc hk) ?_
+  refine WP.spec_bind (ready_refines s σ hS hsc hk hact) ?_
   intro b hb
   rw [getScRefillReady_eq hk hne] at hb
   have eb := (Prod.mk.inj (Set.singleton_eq_singleton_iff.1 (congrArg Prod.fst hb))).1
@@ -110,7 +114,7 @@ theorem rap_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.St
   have hsp := hsp1 (pure ())
   by_cases hb' : b = true
   · simp only [hb', ↓reduceIte]
-    refine WP.spec_bind (sufficient_refines s a σ hS hsc hk 0#u64 hmb) ?_
+    refine WP.spec_bind (sufficient_refines s a σ hS hsc hk hact 0#u64 hmb) ?_
     intro b1 hb1
     rw [getScRefillSufficient_eq hk hne] at hb1
     have eb1 := (Prod.mk.inj (Set.singleton_eq_singleton_iff.1 (congrArg Prod.fst hb1))).1

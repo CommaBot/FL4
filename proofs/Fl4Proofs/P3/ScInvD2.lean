@@ -31,7 +31,7 @@ structure InvBut (σ : State Unit) (t : ObjRef) : Prop where
     ∃ y n, σ.kheap p = some (.schedContext y n) ∧ y.scTcb = some u
   ntfnSc : ∀ q x p, σ.kheap q = some (.notification x) → x.ntfnSc = some p →
     ∃ y n, σ.kheap p = some (.schedContext y n)
-  ne : ∀ p y n, σ.kheap p = some (.schedContext y n) → y.scRefills ≠ []
+  ne : ∀ p y n, σ.kheap p = some (.schedContext y n) → scActive y = true → y.scRefills ≠ []
   rr : ∀ p y n, σ.kheap p = some (.schedContext y n) → scActive y = true → y.scPeriod = 0 → RRok y
 
 theorem InvBut.inv {σ : State Unit} {t : ObjRef} (h : InvBut σ t)
@@ -87,10 +87,10 @@ theorem Inv.donated {σ : State Unit} (h : Inv σ) {p t : ObjRef} {ys : SchedCon
     obtain ⟨x, scp, y, m, h1, h2, -, h4, h5⟩ := h.rel u hu
     have hut : u ≠ t := fun e => hnq.2 (e ▸ hu)
     have hsp : scp ≠ p := fun e => hnp u x h1 (e ▸ h2)
-    have hne := h.ne scp y m h4
+    have hne := h.ne scp y m h4 h5
     rw [specRt_eq (tcb_o u x h1 hut) h2 (sc_o scp y m h4 hsp) hne, specRt_eq h1 h2 h4 hne]
   refine ⟨fun d q u hu => ?_, fun u hu => ?_, ?_, fun u x hut hx hc => ?_, fun q y m hy ha => ?_,
-    fun u x q hx hq => ?_, fun q x q' hx hq => ?_, fun q y m hy => ?_, fun q y m hy ha hp0 => ?_⟩
+    fun u x q hx hq => ?_, fun q x q' hx hq => ?_, fun q y m hy hya => ?_, fun q y m hy ha hp0 => ?_⟩
   · obtain ⟨x, scp, y, m, h1, h2, h3, h4, h5⟩ := h.rq d q u hu
     exact ⟨x, scp, y, m, tcb_o u x h1 (fun e => hnq.1 d q (e ▸ hu)), h2, h3,
       sc_o scp y m h4 (fun e => hnp u x h1 (e ▸ h2)), h5⟩
@@ -127,8 +127,8 @@ theorem Inv.donated {σ : State Unit} (h : Inv σ) {p t : ObjRef} {ys : SchedCon
     by_cases e : q' = p
     · subst e; exact ⟨_, ns, kp⟩
     · exact ⟨y, m, sc_o q' y m h1 e⟩
-  · obtain ⟨y0, hy0, hr, -, -⟩ := sc_b q y m hy
-    rw [hr]; exact h.ne q y0 m hy0
+  · obtain ⟨y0, hy0, hr, hm, -⟩ := sc_b q y m hy
+    rw [hr]; exact h.ne q y0 m hy0 (by simpa [scActive, hm] using hya)
   · obtain ⟨y0, hy0, hr, hm, hp⟩ := sc_b q y m hy
     exact (h.rr q y0 m hy0 (by simpa [scActive, hm] using ha) (hp ▸ hp0)).of_refills hr
 
@@ -152,8 +152,8 @@ theorem InvBut.postponed {σ : State Unit} {t p : ObjRef} (h : InvBut σ t) {x :
     · exact h.rel u hu
   have hrt : ∀ u ∈ σp.releaseQueue, specRt σp u = specRt σ u := by
     intro u hu
-    obtain ⟨xu, scp, yu, nu, h1, h2, -, h4, -⟩ := hfacts u hu
-    rw [specRt_eq (σ := σp) h1 h2 h4 (h.ne _ _ _ h4), specRt_eq h1 h2 h4 (h.ne _ _ _ h4)]
+    obtain ⟨xu, scp, yu, nu, h1, h2, -, h4, h5⟩ := hfacts u hu
+    rw [specRt_eq (σ := σp) h1 h2 h4 (h.ne _ _ _ h4 h5), specRt_eq h1 h2 h4 (h.ne _ _ _ h4 h5)]
   refine ⟨fun d q u hu => ?_, hfacts, ?_, fun u xu hxu hc => ?_, h.refills, h.back, h.ntfnSc, h.ne, h.rr⟩
   · simp only [σp, setRel, setQ] at hu
     split at hu
@@ -210,7 +210,7 @@ theorem Inv.donate {σ σ' : State Unit} (h : Inv σ) {t n : ObjRef} {xt : Tcb} 
       set ys' : SchedContext := { ys with scTcb := some t }
       have kt : σd.kheap t = some (.tcb xt') := by simp [σd, donSt, updK] <;> rfl
       have kp : σd.kheap p = some (.schedContext ys' ns) := by simp [σd, donSt, updK, hpt] <;> rfl
-      have hne : ys'.scRefills ≠ [] := h.ne p ys ns hks
+      have hne : scActive ys' = true → ys'.scRefills ≠ [] := h.ne p ys ns hks
       have hnr : t ∉ σd.releaseQueue := hnq.2
       rw [resume_spec_eq kp rfl kt hne
         (fun hs => by
@@ -224,9 +224,9 @@ theorem Inv.donate {σ σ' : State Unit} (h : Inv σ) {t n : ObjRef} {xt : Tcb} 
           rw [kt] at h1; cases h1; cases h2; rw [kp] at h4; cases h4; exact h5
         obtain ⟨b, hp⟩ := postpone_eq kp rfl kt (specRt σd) (fun u hu => by
           rcases hu with rfl | hu
-          · exact ⟨xt', p, ys', ns, kt, rfl, kp, hne, specRt_eq kt rfl kp hne⟩
-          · obtain ⟨xu, scp, yu, nu, h1, h2, -, h4, -⟩ := hb.rel u hu
-            exact ⟨xu, scp, yu, nu, h1, h2, h4, hb.ne _ _ _ h4, specRt_eq h1 h2 h4 (hb.ne _ _ _ h4)⟩)
+          · exact ⟨xt', p, ys', ns, kt, rfl, kp, hne hact, specRt_eq kt rfl kp (hne hact)⟩
+          · obtain ⟨xu, scp, yu, nu, h1, h2, -, h4, h5⟩ := hb.rel u hu
+            exact ⟨xu, scp, yu, nu, h1, h2, h4, hb.ne _ _ _ h4 h5, specRt_eq h1 h2 h4 (hb.ne _ _ _ h4 h5)⟩)
         rw [hp] at he
         rw [pair_eq he]
         refine ⟨hb.postponed kt rfl hrun kp hact b, fun x' q y m h1 h2 h3 _ => ?_⟩

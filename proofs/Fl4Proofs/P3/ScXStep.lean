@@ -312,7 +312,7 @@ theorem tfoot_efoot (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State Unit}
     (h1 : TFoot st T N C c s σ b) (h2 : EFoot T E R B b) : ∃ t ∈ T, b = tStA t := by
   obtain ⟨Q, R0, hc, -⟩ := hS.lists
   have hP := hP0.e
-  rcases h1 with ((⟨y, hy, K, ⟨-, hK4, -, -, hL⟩, rfl⟩ | ⟨g1, g2⟩) | ⟨n, hn, n1, n2⟩ | ⟨sc, hsc, x, n, hk, hobj, -⟩) |
+  rcases h1 with ((⟨y, hy, K, ⟨-, hK4, -, -, -, hL⟩, rfl⟩ | ⟨g1, g2⟩) | ⟨n, hn, n1, n2⟩ | ⟨sc, hsc, x, n, hk, hobj, -⟩) |
       ⟨y, hy, rfl⟩
   · have hya := hP.tcb y hy
     have hv := tw_val hya hK4

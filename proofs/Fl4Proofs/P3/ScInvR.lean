@@ -63,13 +63,13 @@ theorem Inv.unbound {σ : State Unit} (h : Inv σ) {t p : ObjRef} {xt : Tcb} {ys
       rw [ko q this e] at hq; exact ⟨y, hq, rfl, rfl, rfl⟩
   have rt_m : ∀ u ∈ σ.releaseQueue, specRt σ2 u = specRt σ u := by
     intro u hu
-    obtain ⟨x, scp, y, m, h1, h2, -, h4, -⟩ := h.rel u hu
+    obtain ⟨x, scp, y, m, h1, h2, -, h4, h5⟩ := h.rel u hu
     have hut : u ≠ t := fun e => hnq.2 (e ▸ hu)
     have hsp : scp ≠ p := fun e => hut (hown u x h1 (e ▸ h2))
-    have hne := h.ne scp y m h4
+    have hne := h.ne scp y m h4 h5
     rw [specRt_eq (tcb_o u x h1 hut) h2 (sc_o scp y m h4 hsp) hne, specRt_eq h1 h2 h4 hne]
   refine ⟨fun d q u hu => ?_, fun u hu => ?_, ?_, fun u x hx hc => ?_, fun q y m hy ha => ?_,
-    fun u x q hx hq => ?_, fun q x q' hx hq => ?_, fun q y m hy => ?_, fun q y m hy ha hp0 => ?_⟩
+    fun u x q hx hq => ?_, fun q x q' hx hq => ?_, fun q y m hy hya => ?_, fun q y m hy ha hp0 => ?_⟩
   · obtain ⟨x, scp, y, m, h1, h2, h3, h4, h5⟩ := h.rq d q u hu
     have hut : u ≠ t := fun e => hnq.1 d q (e ▸ hu)
     exact ⟨x, scp, y, m, tcb_o u x h1 hut, h2, h3, sc_o scp y m h4 (fun e => hut (hown u x h1 (e ▸ h2))), h5⟩
@@ -107,8 +107,8 @@ theorem Inv.unbound {σ : State Unit} (h : Inv σ) {t p : ObjRef} {xt : Tcb} {ys
     by_cases e : q' = p
     · subst e; exact ⟨_, ns, kp⟩
     · exact ⟨y, m, sc_o q' y m h1 e⟩
-  · obtain ⟨y0, hy0, hr, -, -⟩ := sc_b q y m hy
-    rw [hr]; exact h.ne q y0 m hy0
+  · obtain ⟨y0, hy0, hr, hm, -⟩ := sc_b q y m hy
+    rw [hr]; exact h.ne q y0 m hy0 (by simpa [scActive, hm] using hya)
   · obtain ⟨y0, hy0, hr, hm, hp⟩ := sc_b q y m hy
     exact (h.rr q y0 m hy0 (by simpa [scActive, hm] using ha) (hp ▸ hp0)).of_refills hr
 
@@ -151,8 +151,9 @@ theorem Inv.ret {σ σ' : State Unit} (h : Inv σ) {n t : ObjRef} {xt : Tcb} {xn
 theorem Inv.unblockOwn {σ σ' : State Unit} (h : Inv σ) {t p : ObjRef} {x : Tcb} {y : SchedContext} {n : Nat}
     (hkt : σ.kheap t = some (.tcb x)) (hsc : x.tcbSchedContext = some p) (hkp : σ.kheap p = some (.schedContext y n))
     (hrq : t ∈ σ.releaseQueue → refillReady σ.curTime (refillHd y) = false ∨ y.scPeriod = 0)
+    (ha : scActive y = true)
     {r : Unit} (hm : (r, σ') ∈ (refillUnblockCheck (Z := Unit) p σ).1) : Inv σ' := by
-  refine h.unblock hkp (h.ne p y n hkp) (fun hr hper u hu xu hxu hup => ?_) hm
+  refine h.unblock hkp (h.ne p y n hkp ha) (fun hr hper u hu xu hxu hup => ?_) hm
   obtain ⟨y1, m1, g1, g2⟩ := h.back u xu p hxu hup
   obtain ⟨y2, m2, g3, g4⟩ := h.back t x p hkt hsc
   rw [g1] at g3; cases g3; rw [g2] at g4; cases g4
@@ -164,6 +165,8 @@ theorem Inv.unblockOwn {σ σ' : State Unit} (h : Inv σ) {t p : ObjRef} {x : Tc
 theorem Inv.unblockTail {σ σ' : State Unit} (h : Inv σ) {t : ObjRef} {x : Tcb} (hkt : σ.kheap t = some (.tcb x))
     (hrq : ∀ p y n, x.tcbSchedContext = some p → σ.kheap p = some (.schedContext y n) → t ∈ σ.releaseQueue →
       refillReady σ.curTime (refillHd y) = false ∨ y.scPeriod = 0)
+    (hsa : ∀ p y n, x.tcbSchedContext = some p → σ.kheap p = some (.schedContext y n) → y.scSporadic = true →
+      scActive y = true)
     (hm : ((), σ') ∈ (specUnblock t σ).1) : Inv σ' := by
   unfold specUnblock getTcbObjRef at hm
   rw [nd_bind_one (threadGet_eq _ hkt)] at hm
@@ -174,8 +177,8 @@ theorem Inv.unblockTail {σ σ' : State Unit} (h : Inv σ) {t : ObjRef} {x : Tcb
     rw [hsc] at hm
     obtain ⟨y, n, hkp, -⟩ := h.back t x p hkt hsc
     rw [ifSporadic_some hkp] at hm
-    split_ifs at hm
-    · exact h.unblockOwn hkt hsc hkp (hrq p y n hsc hkp) hm
+    split_ifs at hm with hg
+    · exact h.unblockOwn hkt hsc hkp (hrq p y n hsc hkp) (hsa p y n hsc hkp hg.1) hm
     · rw [Set.mem_singleton_iff] at hm; cases hm; exact h
 
 /-- **The sporadic check after `complete_signal`'s donation.** -/
@@ -183,6 +186,8 @@ theorem Inv.completeCheck {σ σ' : State Unit} (h : Inv σ) {t m : ObjRef} {x :
     (hkt : σ.kheap t = some (.tcb x)) (hkn : σ.kheap m = some (.notification xn))
     (hrq : ∀ p y n, x.tcbSchedContext = some p → σ.kheap p = some (.schedContext y n) → t ∈ σ.releaseQueue →
       refillReady σ.curTime (refillHd y) = false ∨ y.scPeriod = 0)
+    (hsa : ∀ p y n, x.tcbSchedContext = some p → σ.kheap p = some (.schedContext y n) → y.scSporadic = true →
+      scActive y = true)
     (hm : ((), σ') ∈ (specCompleteCheck t m σ).1) : Inv σ' := by
   unfold specCompleteCheck getTcbObjRef at hm
   rw [nd_bind_one (threadGet_eq _ hkt)] at hm
@@ -196,10 +201,10 @@ theorem Inv.completeCheck {σ σ' : State Unit} (h : Inv σ) {t m : ObjRef} {x :
     simp only [NonDet.maybeM] at hm
     rw [nd_bind_one (getSchedContext_eq hkp)] at hm
     simp only [NonDet.when] at hm
-    split_ifs at hm
+    split_ifs at hm with hg
     · rw [nd_bind_one (getNtfnSc_eq hkn), nd_gets_bind] at hm
       split_ifs at hm
-      · exact h.unblockOwn hkt hsc hkp (hrq p y n hsc hkp) hm
+      · exact h.unblockOwn hkt hsc hkp (hrq p y n hsc hkp) (hsa p y n hsc hkp hg) hm
       · rw [mem_pure hm]; exact h
     · rw [mem_pure hm]; exact h
 

@@ -55,8 +55,8 @@ theorem InvBut.unblock {σ σ' : State Unit} {t : ObjRef} (h : InvBut σ t) {p :
     refine List.Pairwise.imp_of_mem (fun {a b} ha hb hab => ?_) h.sorted
     obtain ⟨xa, pa, ya, na, h1, h2, -, h4, h5⟩ := h.rel a ha
     obtain ⟨xb, pb, yb, nb, g1, g2, -, g4, g5⟩ := h.rel b hb
-    have nea := h.ne _ _ _ h4
-    have neb := h.ne _ _ _ g4
+    have nea := h.ne _ _ _ h4 h5
+    have neb := h.ne _ _ _ g4 g5
     have hap : a ≠ p := by rintro rfl; rw [hk] at h1; cases h1
     have hbp : b ≠ p := by rintro rfl; rw [hk] at g1; cases g1
     have hpa : pa ≠ p := fun e => hnr' a ha xa h1 (e ▸ h2)
@@ -91,7 +91,7 @@ theorem InvBut.unblock {σ σ' : State Unit} {t : ObjRef} (h : InvBut σ t) {p :
     · subst e; exact ⟨z, n, hkz⟩
     · exact ⟨w, m, by rw [hkp q' e]; exact h1⟩
   · by_cases e : q = p
-    · subst e; rw [hkz] at hw; cases hw; exact hzne
+    · subst e; rw [hkz] at hw; cases hw; exact fun _ => hzne
     · rw [hkp q e] at hw; exact h.ne q w m hw
   · by_cases e : q = p
     · subst e; rw [hkz] at hw; cases hw; intro _ hp0; exact absurd (hzper.symm.trans hp0) hper
@@ -206,7 +206,7 @@ theorem bind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
   obtain ⟨Q3, R3, hc3, hs3⟩ := hS3.lists
   obtain ⟨x3, n3, hk3', hx3⟩ := hs3.scs p hp
   rw [hkd] at hk3'; cases hk3'
-  have hne : y.scRefills ≠ [] := hI.ne p.bv y n hk
+  have hne : Fl4Spec.scActive y = true → y.scRefills ≠ [] := hI.ne p.bv y n hk
   -- the unblock check
   step with sporadic.sc_sporadic.spec' as ⟨b, hb⟩
   have hbb : b = y.scSporadic := by
@@ -214,7 +214,7 @@ theorem bind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
   subst hbb
   -- the unblock check
   have P2 : ∀ s3 : S, SchedRel st N T C j s3 σd → NtfnStateRel N T (L.mem s3) σd →
-      ScRel1 st s3 p { y with scTcb := some t.bv } n →
+      ScRelW st s3 p { y with scTcb := some t.bv } n →
       (if y.scSporadic = true then do
           let b1 ← sporadic.sc_active st s3 p
           if b1 = true then do
@@ -225,7 +225,7 @@ theorem bind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
         else ok s3) ⦃ s4 => ∃ σu,
         Fl4Spec.ifSporadicActiveCurScTestRefillUnblockCheck (Z := Unit) (some p.bv) σd = ({((), σu)}, False) ∧
         SchedRel st N T C j s4 σu ∧ NtfnStateRel N T (L.mem s4) σu ∧
-        (σu = σd ∨ Fl4Spec.refillUnblockCheck (Z := Unit) p.bv σd = ({((), σu)}, False)) ∧
+        (σu = σd ∨ Fl4Spec.scActive y = true ∧ Fl4Spec.refillUnblockCheck (Z := Unit) p.bv σd = ({((), σu)}, False)) ∧
         WritesIn st s3 s4 (KFoot st T N C j s3 σd) ⦄ := by
     intro s3 hS3 hR3 hx3
     obtain ⟨Q3, R3, hc3, hs3⟩ := hS3.lists
@@ -252,23 +252,24 @@ theorem bind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
             WritesIn.refl _ _⟩
         · have hd : decide (p ≠ nodeW st s3 j layout.node.CUR_SC) = true := decide_eq_true hcs
           rw [hd]; simp only [↓reduceIte]
-          refine WP.spec_mono (WP.spec_and (unblock_check_refines s3 σd hS3 hp) (unblock_check_kfoot hS3 hp)) ?_
+          refine WP.spec_mono (WP.spec_and (unblock_check_refines s3 σd hS3 hp (hx3.rmax_ne hact))
+            (unblock_check_kfoot hS3 hp (hx3.rmax_ne hact))) ?_
           rintro s4 ⟨⟨σu, he, hf, hK, hS4⟩, hw⟩
           exact ⟨σu, (hsp0.trans (if_pos ⟨hsp, hact, fun e => hcs (eq_of_bv (by rw [e, hs3.curSc]))⟩)).trans he,
-            hS4, hR3.frame hS3.placed hf hK, Or.inr he, hw⟩
+            hS4, hR3.frame hS3.placed hf hK, Or.inr ⟨hact, he⟩, hw⟩
       · rw [if_neg hact, WP.spec_ok]
         exact ⟨σd, hsp0.trans (if_neg (fun h => hact h.2.1)), hS3, hR3, Or.inl rfl, WritesIn.refl _ _⟩
     · rw [if_neg hsp, WP.spec_ok]
       exact ⟨σd, hsp0.trans (if_neg (fun h => hsp h.1)), hS3, hR3, Or.inl rfl, WritesIn.refl _ _⟩
   -- what the unblock check keeps
-  have U : ∀ σu, (σu = σd ∨ Fl4Spec.refillUnblockCheck (Z := Unit) p.bv σd = ({((), σu)}, False)) →
+  have U : ∀ σu, (σu = σd ∨ Fl4Spec.scActive y = true ∧ Fl4Spec.refillUnblockCheck (Z := Unit) p.bv σd = ({((), σu)}, False)) →
       ∃ yu, σu.kheap p.bv = some (.schedContext yu n) ∧ yu.scTcb = some t.bv ∧
         (∀ q, q ≠ p.bv → σu.kheap q = σd.kheap q) ∧ σu.releaseQueue = σd.releaseQueue ∧
         σu.readyQueues = σd.readyQueues ∧ σu.schedulerAction = σd.schedulerAction ∧
         σu.idleThread = σd.idleThread ∧
         (Fl4Spec.runnable xt.tcbState = false → inClass xt.tcbState → Fl4Spec.scActive yu = true →
           released σu yu) ∧ InvBut σu t.bv := by
-    rintro σu (rfl | he)
+    rintro σu (rfl | ⟨hya, he⟩)
     · exact ⟨_, hkd, rfl, fun _ _ => rfl, rfl, rfl, rfl, rfl, fun h1 h2 h3 => hblk h1 h2 h3, hId⟩
     · have hm : ((), σu) ∈ (Fl4Spec.refillUnblockCheck (Z := Unit) p.bv σd).1 := by rw [he]; rfl
       have hnr : Fl4Spec.refillReady σd.curTime (Fl4Spec.refillHd { y with scTcb := some t.bv }) = true →
@@ -282,8 +283,8 @@ theorem bind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
             simp only [σd, updSc, updK_kheap, Function.update_of_ne hup, Function.update_of_ne e] at hx; exact hx
           obtain ⟨y', n', h1, h2⟩ := hI.back u x p.bv hx0 hxp
           rw [hk] at h1; cases h1; rw [hy0] at h2; cases h2
-      have hIu := hId.unblock hkd hne hnr hm
-      rcases unblock_result hkd hne hm with ⟨rfl, -⟩ | ⟨z, rfl, hzR, hzt, hzy, hrdy, hzne, hper⟩
+      have hIu := hId.unblock hkd (hne hya) hnr hm
+      rcases unblock_result hkd (hne hya) hm with ⟨rfl, -⟩ | ⟨z, rfl, hzR, hzt, hzy, hrdy, hzne, hper⟩
       · exact ⟨_, hkd, rfl, fun _ _ => rfl, rfl, rfl, rfl, rfl, fun h1 h2 h3 => hblk h1 h2 h3, hIu⟩
       · refine ⟨z, by simp [updK], by rw [hzy], fun q hq => by simp [updK, hq], rfl, rfl, rfl, rfl,
           fun _ _ ha => ?_, hIu⟩
@@ -306,7 +307,10 @@ theorem bind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
   have hnqu : NotQueued σu t.bv :=
     ⟨fun d q => by rw [hrdu]; exact hnq0.1 d q, by rw [hrqu]; exact hnq0.2⟩
   have hRel : RelOK σu :=
-    ⟨fun u hu => by obtain ⟨x, p, -, -, h1, h2, -⟩ := hIu.rel u hu; exact ⟨x, p, h1, h2⟩, hIu.sorted⟩
+    ⟨fun u hu => by obtain ⟨x, p, -, -, h1, h2, -⟩ := hIu.rel u hu; exact ⟨x, p, h1, h2⟩, hIu.sorted,
+      fun u hu x' p' hx hp => by
+        obtain ⟨x, p, y, n, h1, h2, -, h4, h5⟩ := hIu.rel u hu
+        rw [hx] at h1; cases h1; rw [hp] at h2; cases h2; exact ⟨y, n, h4, h5⟩⟩
   -- `resume`
   refine WP.spec_bind (resume_refines s4 a σu hR4 hS4 hRel (hT.mb a) hp hp0 ht (word24_of hS4 hp hku hyu)
     (scA_of hS4 ht hktu rfl) (fun x hx => by rw [hktu] at hx; cases hx; exact hnqu.1 _ _)) ?_

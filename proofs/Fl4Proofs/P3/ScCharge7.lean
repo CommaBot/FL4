@@ -89,7 +89,11 @@ theorem check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
   step with sched.consumed.spec' as ⟨cn, hcn⟩
   rw [hc.cur] at hsc' hcn
   subst hsc' hcn
-  refine WP.spec_bind (sufficient_refines s a σ hS hscC hk _ hmb) ?_
+  have hax : Fl4Spec.scActive x = true := by
+    by_cases hi : (nodeW st s c layout.node.CUR_SC).bv = Fl4Spec.idleScPtr
+    · exact hx.active_of_rmax (hx.idle hi)
+    · exact hact hi x n hk
+  refine WP.spec_bind (sufficient_refines s a σ hS hscC hk hax _ hmb) ?_
   intro b hb
   have hsp : Fl4Spec.checkBudget (Z := Unit) σ = (if b = true then
       (do let domExp ← Fl4Spec.NonDet.gets Fl4Spec.isCurDomainExpired; return !domExp) σ
@@ -109,7 +113,7 @@ theorem check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
       have : Fl4Spec.isCurDomainExpired σ = false := by simp [Fl4Spec.isCurDomainExpired, hnd]
       rw [this]; rfl
     rw [hs.curSc, hk] at hy; cases hy
-    rw [getScRefillSufficient_eq hk (by rw [hx.refills]; exact refills_ne hx.wf)] at hb
+    rw [getScRefillSufficient_eq hk (by rw [(hx.strong hax).refills]; exact refills_ne (hx.strong hax).wf)] at hb
     have eb := (Prod.mk.inj (Set.singleton_eq_singleton_iff.1 (congrArg Prod.fst hb))).1
     rw [hs.consumed]; exact eb.trans hbt
   · simp only [Bool.not_eq_true] at hbt

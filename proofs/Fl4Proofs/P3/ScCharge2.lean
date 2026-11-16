@@ -112,9 +112,9 @@ theorem Inv.refillUpd {σ : State Unit} (h : Inv σ) {p u0 : ObjRef} {y y' : Sch
     have hbp : b ≠ p := by rintro rfl; rw [hk] at g1; cases g1
     have hpa : pa ≠ p := fun e => hnr' a ha xa h1 (e ▸ h2)
     have hpb : pb ≠ p := fun e => hnr' b hb xb g1 (e ▸ g2)
-    rw [specRt_eq (by rw [hkp a hap]; exact h1) h2 (by rw [hkp pa hpa]; exact h4) (h.ne _ _ _ h4),
-      specRt_eq (by rw [hkp b hbp]; exact g1) g2 (by rw [hkp pb hpb]; exact g4) (h.ne _ _ _ g4)]
-    rw [specRt_eq h1 h2 h4 (h.ne _ _ _ h4), specRt_eq g1 g2 g4 (h.ne _ _ _ g4)] at hab
+    rw [specRt_eq (by rw [hkp a hap]; exact h1) h2 (by rw [hkp pa hpa]; exact h4) (h.ne _ _ _ h4 h5),
+      specRt_eq (by rw [hkp b hbp]; exact g1) g2 (by rw [hkp pb hpb]; exact g4) (h.ne _ _ _ g4 g5)]
+    rw [specRt_eq h1 h2 h4 (h.ne _ _ _ h4 h5), specRt_eq g1 g2 g4 (h.ne _ _ _ g4 g5)] at hab
     exact hab
   · have hx0 := htcb u x hx
     intro x' scp w n h1 h2 h3 h4 h5
@@ -139,7 +139,7 @@ theorem Inv.refillUpd {σ : State Unit} (h : Inv σ) {p u0 : ObjRef} {y y' : Sch
     · subst e; exact ⟨y', m, hky⟩
     · exact ⟨w, n, by rw [hkp q' e]; exact h1⟩
   · by_cases e : q = p
-    · subst e; rw [hky] at hw; cases hw; exact hne'
+    · subst e; rw [hky] at hw; cases hw; exact fun _ => hne'
     · rw [hkp q e] at hw; exact h.ne q w n hw
   · by_cases e : q = p
     · subst e; rw [hky] at hw; cases hw; exact hrr

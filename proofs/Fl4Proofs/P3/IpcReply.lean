@@ -20,6 +20,7 @@ with no endpoint), `tmo` (the timeout branch of the tail: the
 timeout-handler test, `handle_timeout`, `postpone`).
 -/
 import Fl4Proofs.P3.IpcLeaves
+import Fl4Proofs.P3.ScMaxKeep
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Endp
@@ -56,6 +57,13 @@ def specFaultReply (sender receiver : ObjRef) (f : Fault) : SMonad Unit Unit := 
   let restart ← handleFaultReply f receiver mi.miLabel mrs
   threadSet (fun tcb => { tcb with tcbFault := none }) receiver
   setThreadState receiver (if restart then .restart else .inactive)
+
+/-- **`MK` for the fault reply** (`MaxK`, ScMaxKeep). -/
+theorem mk_specFaultReply (sender receiver : ObjRef) (f : Fault) : MaxK.MK (specFaultReply sender receiver f) := by
+  unfold specFaultReply
+  exact MaxK.mk_bind (MaxK.mk_getMessageInfo' _) fun _ => MaxK.mk_bind (MaxK.mk_lookupIpcBuffer' _ _) fun _ =>
+    MaxK.mk_bind (MaxK.mk_getMrs' _ _ _) fun _ => MaxK.mk_bind (MaxK.mk_handleFaultReply' _ _ _ _) fun _ =>
+    MaxK.mk_bind (MaxK.mk_threadSet' _ _) fun _ => MaxK.mk_setThreadState' _ _
 
 theorem nd_bind_assoc_fun {σ' α β γ : Type} (m : NonDet σ' α) (f : α → NonDet σ' β) (g : β → NonDet σ' γ) :
     ((m >>= f) >>= g) = (m >>= fun a => f a >>= g) := by
@@ -229,6 +237,7 @@ structure ReplyHyps : Prop where
     ipc.reply_remove st ar s a r t ⦃ res => res.2 = a ∧ ∃ σ' x',
       Fl4Spec.replyRemove (Z := Unit) t.bv r.bv σ = ({((), σ')}, False) ∧ IRel st th cr N T C E R B c res.1 σ' ∧
       σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = .inactive ∧ x'.tcbFault = x.tcbFault ∧
+      (∀ p y n, σ'.kheap p = some (.schedContext y n) → y.scTcb = some t.bv → Fl4Spec.scActive y = true) ∧
       ∀ p y, p ≠ t.bv → σ.kheap p = some (.tcb y) → ∃ y', σ'.kheap p = some (.tcb y') ∧
         y'.tcbFault = y.tcbFault ∧ y'.tcbState = y.tcbState ⦄
   unblock : ∀ s σ (t : U64) (x : Fl4Spec.Tcb) (k : S → Result (S × A)) (P : S × A → Prop),
@@ -266,10 +275,13 @@ structure ReplyHyps : Prop where
   and `postpone`. -/
   tmo : ∀ s (a : A) σ (t sc ft : U64) (fault : Option Fl4Spec.Fault) (y : Fl4Spec.SchedContext) (n : Nat),
     IRel st th cr N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap sc.bv = some (.schedContext y n) →
-    ∀ x : Fl4Spec.Tcb, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true →
+    Fl4Spec.scActive y = true → ∀ x : Fl4Spec.Tcb, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true →
     x.tcbSchedContext = some sc.bv → (ft = 0#u64 ↔ fault = none) → (ft = 5#u64 ↔ ∃ b, fault = some (.timeout b)) →
     fl4ReplyTmo st ar t ft sc s a ⦃ res => ∃ z ∈ (specReplyTmo t.bv fault y sc.bv σ).1,
       IRel st th cr N T C E R B c res.1 z.2 ⦄
+  /-- The Sc proofs' `Inv` at related states (for the SC's back-pointer at
+  the tail). -/
+  inv : ∀ s σ, IRel st th cr N T C E R B c s σ → Sched.Inv σ
 
 
 
@@ -284,14 +296,16 @@ theorem reply_tail_top (hTl : IpcEpTailHyps st A N T E R B (SRT st th cr N T C E
     (hmb : ∀ a : A, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (htmo : ∀ s (a : A) σ (t sc ft : U64) (fault : Option Fl4Spec.Fault) (y : Fl4Spec.SchedContext) (n : Nat),
       IRel st th cr N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap sc.bv = some (.schedContext y n) →
-      ∀ x : Fl4Spec.Tcb, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true →
+      Fl4Spec.scActive y = true → ∀ x : Fl4Spec.Tcb, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true →
       x.tcbSchedContext = some sc.bv → (ft = 0#u64 ↔ fault = none) → (ft = 5#u64 ↔ ∃ b, fault = some (.timeout b)) →
       fl4ReplyTmo st ar t ft sc s a ⦃ res => ∃ z ∈ (specReplyTmo t.bv fault y sc.bv σ).1,
         IRel st th cr N T C E R B c res.1 z.2 ⦄) :
     ∀ s (a : A) σ (t ft : U64) (fault : Option Fl4Spec.Fault), IRel st th cr N T C E R B c s σ → t ∈ T →
+    (∀ x p y n, σ.kheap t.bv = some (.tcb x) → x.tcbSchedContext = some p →
+      σ.kheap p = some (.schedContext y n) → Fl4Spec.scActive y = true) →
     (ft = 0#u64 ↔ fault = none) → (ft = 5#u64 ↔ ∃ b, fault = some (.timeout b)) →
     fl4ReplyTail st ar t ft s a ⦃ res => ∃ z ∈ (specReplyTail t.bv fault σ).1, IRel st th cr N T C E R B c res.1 z.2 ⦄ := by
-  intro s a σ t ft fault hX ht hf0 hf5
+  intro s a σ t ft fault hX ht hact hf0 hf5
   obtain ⟨hIR, hSRT⟩ := hX
   have hS := hSRT.2.1
   obtain ⟨Q, R0, hc, hsp⟩ := hS.lists
@@ -325,18 +339,20 @@ theorem reply_tail_top (hTl : IpcEpTailHyps st A N T E R B (SRT st th cr N T C E
   rw [if_pos hrn]
   have hi3C : i3 ∈ C := by rw [hi3]; exact hsp.scMem t ht (by rw [← hi3]; exact h0)
   obtain ⟨y, n, hky, hy⟩ := hsp.scs i3 hi3C
-  have hW := hy.wf
-  have hne : y.scRefills ≠ [] := by rw [hy.refills]; exact Fl4Proofs.P3.Sched.refills_ne hW
   have hxsc : x.tcbSchedContext = some i3.bv := by rw [hscw, ← hi3, optRef_ne h0]
+  have hya : Fl4Spec.scActive y = true := hact x i3.bv y n hk hxsc hky
+  have hy1 := hy.act (hy.rmax_ne hya)
+  have hW := hy1.wf
+  have hne : y.scRefills ≠ [] := by rw [hy1.refills]; exact Fl4Proofs.P3.Sched.refills_ne hW
   have hspec := specReplyTail_run hk hxsc hrn hky fault
-  refine WP.spec_bind (Fl4Proofs.P3.Sched.ready_refines s σ hS hi3C hky) ?_
+  refine WP.spec_bind (Fl4Proofs.P3.Sched.ready_refines s σ hS hi3C hky hya) ?_
   rintro b4 hb4
   rw [Fl4Proofs.P3.Sched.getScRefillReady_eq hky hne] at hb4
   have hb4' : b4 = Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) := by
     have := congrArg (fun q => (b4, σ) ∈ q.1) hb4; simpa using this.symm
   by_cases hrd : b4 = true
   · rw [if_pos hrd]
-    refine WP.spec_bind (Fl4Proofs.P3.Sched.sufficient_refines s a σ hS hi3C hky 0#u64 (hmb a)) ?_
+    refine WP.spec_bind (Fl4Proofs.P3.Sched.sufficient_refines s a σ hS hi3C hky hya 0#u64 (hmb a)) ?_
     rintro b5 hb5
     rw [Fl4Proofs.P3.Sched.getScRefillSufficient_eq hky hne] at hb5
     have hb5' : b5 = Fl4Spec.refillSufficient 0 (Fl4Spec.refillHd y) := by
@@ -348,12 +364,12 @@ theorem reply_tail_top (hTl : IpcEpTailHyps st A N T E R B (SRT st th cr N T C E
       refine ⟨((), σ'), ?_, hIR.frame hP0 hf hv, hS'⟩
       rw [hspec, if_pos ⟨hb4' ▸ hrd, hb5' ▸ hsf⟩]; exact hm
     · rw [if_neg hsf]
-      refine WP.spec_mono (htmo s a σ t i3 ft fault y n ⟨hIR, hSRT⟩ ht hi3C hky x hk hrn hxsc hf0 hf5) ?_
+      refine WP.spec_mono (htmo s a σ t i3 ft fault y n ⟨hIR, hSRT⟩ ht hi3C hky hya x hk hrn hxsc hf0 hf5) ?_
       rintro _ ⟨z, hz, hXz⟩
       refine ⟨z, ?_, hXz⟩
       rw [hspec, if_neg (fun h => hsf (hb5' ▸ h.2))]; exact hz
   · rw [if_neg hrd]
-    refine WP.spec_mono (htmo s a σ t i3 ft fault y n ⟨hIR, hSRT⟩ ht hi3C hky x hk hrn hxsc hf0 hf5) ?_
+    refine WP.spec_mono (htmo s a σ t i3 ft fault y n ⟨hIR, hSRT⟩ ht hi3C hky hya x hk hrn hxsc hf0 hf5) ?_
     rintro _ ⟨z, hz, hXz⟩
     refine ⟨z, ?_, hXz⟩
     rw [hspec, if_neg (fun h => hrd (hb4' ▸ h.1))]; exact hz
@@ -450,7 +466,7 @@ theorem do_reply_transfer_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N
   have hit : i ≠ ct := by
     rintro rfl; rw [hkc] at hkx; cases hkx; rw [hst] at hcs; simp [tsCode] at hcs
   refine WP.spec_bind (hRH.remove s a σ r i x ⟨hIR, hSRT⟩ hr hiT hkx hst) ?_
-  rintro ⟨s1, a1⟩ ⟨-, σ1, x1, hrm, hX1, hkx1, hx1s, hx1f, hoth1⟩
+  rintro ⟨s1, a1⟩ ⟨-, σ1, x1, hrm, hX1, hkx1, hx1s, hx1f, hact1, hoth1⟩
   obtain ⟨xc1, hkc1, hxc1f, hxc1s⟩ := hoth1 ct.bv xc (fun e => hit (P1.eq_of_bv e).symm) hkc
   refine hRH.unblock s1 σ1 i x1 _ _ hX1 hiT hkx1 ?_
   intro s2 σ2 hub hX2 hpres
@@ -490,7 +506,21 @@ theorem do_reply_transfer_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N
       exact WP.spec_mono (hRH.faultReply s2 a1 σ2 i ct x1 f ⟨hIR2, hSRT2⟩ hiT hct hit hkx2 hf' hx1s)
         fun _ ⟨z1, hz1, hX3⟩ => ⟨z1, Or.inr ⟨f, hf', hz1⟩, hX3⟩
   · rintro ⟨s3, a2⟩ ⟨z1, hbr, hX3⟩
-    exact WP.spec_mono (reply_tail_top hTl hP0 hmb hRH.tmo s3 a2 z1.2 i ft x1.tcbFault hX3 hiT hft0 hft5)
+    -- the receiver's SC, active after `reply_remove`, at the tail (`MaxK.SCK`, the SC's back-pointer)
+    have hK12 : MaxK.SCK σ1 σ2 := MaxK.mk_unblock i.bv σ1 ((), σ2) (by rw [hub]; rfl)
+    have hK2z : MaxK.SCK σ2 z1.2 := by
+      rcases hbr with ⟨-, hz1⟩ | ⟨f, -, hz1⟩
+      · exact MaxK.mk_bind (MaxK.mk_doIpcTransfer' _ _ _ _ _) (fun _ => MaxK.mk_setThreadState' _ _) σ2 z1 hz1
+      · exact mk_specFaultReply ct.bv i.bv f σ2 z1 hz1
+    have hactz : ∀ x p y n, z1.2.kheap i.bv = some (.tcb x) → x.tcbSchedContext = some p →
+        z1.2.kheap p = some (.schedContext y n) → Fl4Spec.scActive y = true := by
+      intro x p y n hk hp hky
+      obtain ⟨y', n', hky', hyt⟩ := (hRH.inv s3 z1.2 hX3).back i.bv x p hk hp
+      rw [hky] at hky'; cases hky'
+      obtain ⟨y0, hy0, hm, ht⟩ := (hK12.trans hK2z) p y n hky
+      have := hact1 p y0 n hy0 (ht ▸ hyt)
+      simpa [Fl4Spec.scActive, hm] using this
+    exact WP.spec_mono (reply_tail_top hTl hP0 hmb hRH.tmo s3 a2 z1.2 i ft x1.tcbFault hX3 hiT hactz hft0 hft5)
       fun _ ⟨z, hz, hXz⟩ =>
       ⟨z, mem_doReplyTransfer hkr hrep hkx hst g hrm hub hkx2 hbr hz, hXz⟩
 

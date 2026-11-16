@@ -307,6 +307,7 @@ theorem charge_head_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
     · have e0 : decide (L.rperiod s sc = 0#u64) = true := decide_eq_true h0
       have hper : x.scPeriod = 0 := by have := hrr ▸ e0; simpa using this
       simp only [e0, ↓reduceIte]
+      have hx := hx.strong (hact hid x n hk)
       refine WP.spec_bind (rr_reset_refines (RingAt.refl hx.wf)) ?_
       rintro s3 ⟨hring, hl⟩
       obtain ⟨hS3, hf, hkv⟩ := hS.ringAt hscC hk hring

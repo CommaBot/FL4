@@ -235,8 +235,10 @@ theorem SchedRel.set_replies {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.S
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x', n', hk', hx⟩ := hs.scs sc hsc
   rw [hk] at hk'; cases hk'
-  obtain ⟨a1, a2, a3, a4, a5, a6, a7, a8, a9, a10⟩ := hx
-  exact hS.sc_update hsc hk (WritesIn.refl _ _) rfl _ ⟨a1, a2, a3, a4, a5, a6, a7, a8, a9, a10⟩
+  obtain ⟨a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12⟩ := hx
+  exact hS.sc_updateW hsc hk (WritesIn.refl _ _) rfl _ ⟨a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, fun h => by
+    obtain ⟨b1, b2, b3, b4, b5, b6, b7, b8, b9, b10⟩ := a12 h
+    exact ⟨b1, b2, b3, b4, b5, b6, b7, b8, b9, b10⟩⟩
 
 theorem nd_when_false' {σ' : Type} {P : Prop} [Decidable P] (h : ¬ P) (m : Fl4Spec.NonDet σ' Unit) :
     Fl4Spec.NonDet.when P m = pure () := by

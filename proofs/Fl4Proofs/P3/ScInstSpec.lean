@@ -431,9 +431,9 @@ theorem specPost_restart {σ σ1 : State Unit} (hI : Inv σ) {ct : ObjRef} {xc :
       rw [hkp] at h1; cases h1
       rw [hx0] at h2; cases h2
     · rw [hrl1] at hu
-      obtain ⟨xu, cu, yu, nu, h1, h2, -, h4, -⟩ := hI.rel u hu
+      obtain ⟨xu, cu, yu, nu, h1, h2, -, h4, h5⟩ := hI.rel u hu
       obtain ⟨xu', h1', e'⟩ := htcb1' u xu h1
-      exact ⟨xu', cu, yu, nu, h1', by rw [e', h2], hksc cu yu nu h4, hI.ne cu yu nu h4⟩
+      exact ⟨xu', cu, yu, nu, h1', by rw [e', h2], hksc cu yu nu h4, hI.ne cu yu nu h4 h5⟩
 
 end Spec
 

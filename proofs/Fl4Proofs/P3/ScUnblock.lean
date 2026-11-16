@@ -268,11 +268,12 @@ def headAt (x : Fl4Spec.SchedContext) (t : Fl4Spec.Time) : List Fl4Spec.Refill :
 
 /-- **`unblock_check` refines `refill_unblock_check`.** -/
 theorem unblock_check_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State Unit)
-    (hS : SchedRel st N T C c s σ) {sc : obj.Sc} (hsc : sc ∈ C) :
+    (hS : SchedRel st N T C c s σ) {sc : obj.Sc} (hsc : sc ∈ C) (ha : (L.rmax s sc).val ≠ 0) :
     sporadic.unblock_check st s sc ⦃ s' => ∃ σ', Fl4Spec.refillUnblockCheck (Z := Unit) sc.bv σ =
       ({((), σ')}, False) ∧ FootEq N T (L.mem s) (L.mem s') ∧ KView σ σ' ∧ SchedRel st N T C c s' σ' ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x, n, hk, hx⟩ := hs.scs sc hsc
+  replace hx := hx.act ha
   have hW := hx.wf
   have hne : x.scRefills ≠ [] := by rw [hx.refills]; exact refills_ne hW
   have hrd : Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd x) =
@@ -351,6 +352,7 @@ theorem unblock_check_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.
       obtain ⟨Q2, R2, hc2, hs2⟩ := hS2.lists
       obtain ⟨x2, n2, hk2', hx2⟩ := hs2.scs sc hsc
       rw [hk2] at hk2'; cases hk2'
+      replace hx2 := hx2.act (by rw [hx2.max]; show _ ≠ 0; rw [← hx.max]; exact ha)
       have hfuel : L.size s2 sc ≤ fuel.val := by
         have := hx2.wf.size_le; have := hx2.wf.le_abs; have := absMax_lt (n + Fl4Spec.minSchedContextBits)
         rw [fuel_post, wadd_val (by rw [i_post]; simp; omega), i_post]; simp; omega

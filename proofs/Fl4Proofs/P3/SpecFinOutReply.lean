@@ -62,7 +62,7 @@ theorem UFr.updReply {σ : State Unit} {p : ObjRef} {x x' : Reply} (hk : σ.khea
 
 theorem UFr.updScR {σ : State Unit} {p : ObjRef} {y : SchedContext} {n : Nat} (hk : σ.kheap p = some (.schedContext y n))
     (f : List ObjRef → List ObjRef) : UFr σ (updSc σ p (scRepliesUpdate f y) n) := by
-  refine ⟨SFr.updSc hk rfl rfl rfl rfl, rfl, fun q x hq => ?_, fun q x hq => ?_⟩
+  refine ⟨SFr.updSc hk rfl rfl rfl rfl rfl, rfl, fun q x hq => ?_, fun q x hq => ?_⟩
   · have hne : q ≠ p := by rintro rfl; rw [hk] at hq; cases hq
     simp only [updSc, updK, Function.update_of_ne hne]; exact hq
   · have hne : q ≠ p := by rintro rfl; rw [hk] at hq; cases hq

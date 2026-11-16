@@ -483,12 +483,13 @@ theorem Inv.suff {σ : State Unit} (h : Inv σ) {p : ObjRef} {y : SchedContext} 
   · exact suff_of_min (h.refills p y n hk ha hp).2.2.2
 
 theorem getScReleased_eq {σ : State Unit} {p : ObjRef} {x : SchedContext} {n : Nat}
-    (hk : σ.kheap p = some (.schedContext x n)) (hne : x.scRefills ≠ []) :
+    (hk : σ.kheap p = some (.schedContext x n)) (hne : scActive x = true → x.scRefills ≠ []) :
     getScReleased (Z := Unit) p σ = ({(scReleased σ.curTime x, σ)}, False) := by
-  have hr : readScRefillReady (Z := Unit) p σ = some (refillReady σ.curTime (refillHd x)) := by
+  have hr : scActive x = true → readScRefillReady (Z := Unit) p σ = some (refillReady σ.curTime (refillHd x)) := by
+    intro ha
     show Option.bind (readRefillHead p σ) (fun h => Option.bind (Lookup.asks (fun s : State Unit => s.curTime) σ)
       (fun ct => Lookup.oreturn (refillReady ct h) σ)) = _
-    rw [readRefillHead_eq hk hne]; rfl
+    rw [readRefillHead_eq hk (hne ha)]; rfl
   have ha : readScActive (Z := Unit) p σ = some (scActive x) := by
     show Option.bind (readSchedContext p σ) (fun sc => Lookup.oreturn (scActive sc) σ) = _
     rw [readSchedContext_eq hk]; rfl
@@ -497,7 +498,7 @@ theorem getScReleased_eq {σ : State Unit} {p : ObjRef} {x : SchedContext} {n : 
     rw [ha]
     cases e : scActive x
     · simp [scReleased, e, Lookup.oreturn]
-    · simp [scReleased, e, hr]
+    · simp [scReleased, e, hr e]
   simp [getScReleased, NonDet.getsThe, this, NonDet.assertOpt]; rfl
 
 end Spec
@@ -509,7 +510,8 @@ theorem sc_released_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.St
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x', n', hk', hx⟩ := hs.scs sc hsc
   rw [hk] at hk'; cases hk'
-  have hne : x.scRefills ≠ [] := by rw [hx.refills]; exact refills_ne hx.wf
+  have hne : Fl4Spec.scActive x = true → x.scRefills ≠ [] := fun ha => by
+    rw [(hx.strong ha).refills]; exact refills_ne (hx.strong ha).wf
   have hact : decide (L.rmax s sc > 0#u64) = Fl4Spec.scActive x := by
     unfold Fl4Spec.scActive Fl4Spec.activeSc
     rw [← hx.max]
@@ -521,9 +523,10 @@ theorem sc_released_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.St
   by_cases h : L.rmax s sc > 0#u64
   · have hb : decide (L.rmax s sc > 0#u64) = true := decide_eq_true h
     rw [hb]; simp only [↓reduceIte]
-    refine WP.spec_mono (ready_refines s σ hS hsc hk) ?_
+    have hax : Fl4Spec.scActive x = true := by rw [← hact]; exact hb
+    refine WP.spec_mono (ready_refines s σ hS hsc hk hax) ?_
     intro b hb2
-    rw [getScRefillReady_eq hk hne] at hb2
+    rw [getScRefillReady_eq hk (hne hax)] at hb2
     have e := (Prod.mk.inj (Set.singleton_eq_singleton_iff.1 (congrArg Prod.fst hb2))).1
     rw [Fl4Spec.scReleased, ← hact, hb, Bool.true_and, e]
   · have hb : decide (L.rmax s sc > 0#u64) = false := decide_eq_false h
@@ -911,7 +914,8 @@ theorem bind_branch_refines {N T C : Set U64} {c : U64} (hT : TimeAgree ar) (th 
     have : (L.mem s (scA ptr) != 0#u64) = false := by simp [h2]
     simp only [this, Bool.false_eq_true, ↓reduceIte]
     have hxt0 : xt.tcbSchedContext = none := by rw [hxts, h2, optRef_zero]
-    have hne : y.scRefills ≠ [] := by rw [hx.refills]; exact refills_ne hx.wf
+    have hne : Fl4Spec.scActive y = true → y.scRefills ≠ [] := fun ha => by
+      rw [(hx.strong ha).refills]; exact refills_ne (hx.strong ha).wf
     rw [wE_neg (by simp [hxt0]), lE_bind (getThreadState_eq hkt), lE_bind (getScReleased_eq hk hne)] at hpre2
     refine WP.spec_bind (is_blocked_spec s ptr xt.tcbState hst) ?_
     rintro b rfl

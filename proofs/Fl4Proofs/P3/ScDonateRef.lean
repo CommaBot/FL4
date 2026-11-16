@@ -264,9 +264,18 @@ theorem maybe_donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
       rw [hkd_o u h1 h2]; exact hx)
     (fun p y m hy => by
       by_cases e : p = sc.bv
-      · subst e; rw [hks] at hy; cases hy; exact ⟨_, hkd_sc, rfl⟩
+      · subst e; rw [hks] at hy; cases hy; exact ⟨_, hkd_sc, rfl, rfl⟩
       · have et : p ≠ t.bv := by rintro rfl; rw [hkt0] at hy; cases hy
-        exact ⟨y, by rw [hkd_o p et e]; exact hy, rfl⟩)
+        exact ⟨y, by rw [hkd_o p et e]; exact hy, rfl, rfl⟩)
+    (fun u hu x' hx => by
+      have h1 : u ≠ t.bv := fun e => htR (e ▸ hu)
+      have h2 : u ≠ sc.bv := by rintro rfl; rw [hkd_sc] at hx; cases hx
+      exact ⟨x', by rw [← hkd_o u h1 h2]; exact hx, rfl⟩)
+    (fun p y' m hy => by
+      by_cases e : p = sc.bv
+      · subst e; rw [hkd_sc] at hy; cases hy; exact ⟨xs, hks, rfl⟩
+      · have et : p ≠ t.bv := by rintro rfl; rw [hkd_t] at hy; cases hy
+        exact ⟨y', by rw [← hkd_o p et e]; exact hy, rfl⟩)
   refine WP.spec_mono (resume_refines s1 a1 σd hR1 hS1 hRel1 hmb hscC hsc0 ht htw1 hts1 hnq1) ?_
   rintro ⟨s2, a2⟩ ⟨-, σr, hres, hkr, har, hctr, hrqr, htsr, hf2, hw2, hS2⟩
   obtain ⟨xs', ns', hks', hxs⟩ := hs.scs sc hscC

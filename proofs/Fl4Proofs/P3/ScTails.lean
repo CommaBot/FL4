@@ -116,7 +116,7 @@ theorem recv_check_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4
       by_cases hsp : L.mem s (scW (L.mem s (scA t)) 64#u64) ≠ 0#u64
       · have hb : b2 = true := by rw [b2_post]; simp [h0, hsp]
         simp only [hb, ↓reduceIte]
-        refine WP.spec_bind (unblock_check_refines s σ hS hscC) ?_
+        refine WP.spec_bind (unblock_check_refines s σ hS hscC (hx.spor hsp)) ?_
         rintro s' ⟨σ', he, hf, hv, hS'⟩
         simp only [WP.spec_ok]
         refine fin s' σ' ?_ hf hv hS'
@@ -244,7 +244,7 @@ theorem complete_check_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ :
         rfl
       · simp only [e2, ne_eq, not_false_eq_true, decide_true, ↓reduceIte]
         rw [← e1]
-        refine WP.spec_bind (unblock_check_refines s σ hS hscC) ?_
+        refine WP.spec_bind (unblock_check_refines s σ hS hscC (hx.spor hsp)) ?_
         rintro s' ⟨σ', he, hf, hv, hS'⟩
         simp only [WP.spec_ok]
         refine fin s' σ' ?_ hf hv hS'

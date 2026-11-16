@@ -53,9 +53,9 @@ theorem Inv.budgetPost {σ σ' : State Unit} (h : Inv σ) {p u0 : ObjRef} {y : S
     have hbp : b ≠ p := by rintro rfl; rw [hk] at g1; cases g1
     have hpa : pa ≠ p := fun e => hnr' a ha xa h1 (e ▸ h2)
     have hpb : pb ≠ p := fun e => hnr' b hb xb g1 (e ▸ g2)
-    rw [specRt_eq (by rw [hkp a hap]; exact h1) h2 (by rw [hkp pa hpa]; exact h4) (h.ne _ _ _ h4),
-      specRt_eq (by rw [hkp b hbp]; exact g1) g2 (by rw [hkp pb hpb]; exact g4) (h.ne _ _ _ g4)]
-    rw [specRt_eq h1 h2 h4 (h.ne _ _ _ h4), specRt_eq g1 g2 g4 (h.ne _ _ _ g4)] at hab
+    rw [specRt_eq (by rw [hkp a hap]; exact h1) h2 (by rw [hkp pa hpa]; exact h4) (h.ne _ _ _ h4 h5),
+      specRt_eq (by rw [hkp b hbp]; exact g1) g2 (by rw [hkp pb hpb]; exact g4) (h.ne _ _ _ g4 g5)]
+    rw [specRt_eq h1 h2 h4 (h.ne _ _ _ h4 h5), specRt_eq g1 g2 g4 (h.ne _ _ _ g4 g5)] at hab
     exact hab
   · have hx0 := htcb u x hx
     intro x' scp w n h1 h2 h3 h4 h5
@@ -80,7 +80,7 @@ theorem Inv.budgetPost {σ σ' : State Unit} (h : Inv σ) {p u0 : ObjRef} {y : S
     · subst e; exact ⟨y', m, hky⟩
     · exact ⟨w, n, by rw [hkp q' e]; exact h1⟩
   · by_cases e : q = p
-    · subst e; rw [hky] at hw; cases hw; exact hne'
+    · subst e; rw [hky] at hw; cases hw; exact fun _ => hne'
     · rw [hkp q e] at hw; exact h.ne q w n hw
   · by_cases e : q = p
     · subst e; rw [hky] at hw; cases hw
@@ -108,12 +108,14 @@ theorem budget_check_refines_inv {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
       WritesIn st s s' (KFoot st T N C c s σ) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x, n, hk, hx⟩ := hs.scs _ hcC
+  have hca := hx.rmax_ne (hact x n hk)
+  replace hx := hx.strong (hact x n hk)
   have hper : x.scPeriod ≠ 0 := by
     rw [hx.period]; intro e; exact hrr (eq_of_bv (by rw [e]; rfl))
   obtain ⟨hne, hpos, hsum, hmin⟩ := hI.refills _ x n hk (hact x n hk) hper
   have hl := lsum_eq_map (L.refills s (nodeW st s c layout.node.CUR_SC))
   rw [← hx.refills] at hl
-  refine WP.spec_mono (budget_check_refines s a σ hS hcC hmrt hmb hrr ?_ (by rw [hl]; exact hsum) ?_ usage) ?_
+  refine WP.spec_mono (budget_check_refines s a σ hS hcC hca hmrt hmb hrr ?_ (by rw [hl]; exact hsum) ?_ usage) ?_
   rotate_left 2
   · rintro s' ⟨σ', h1, h2, h3, h4, h5, h6⟩
     exact ⟨σ', h1, h2, h3, h4, hI.budgetPost hk h5 (hown x n hk) hnr hper, h5, h6⟩

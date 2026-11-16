@@ -45,9 +45,9 @@ theorem InvBut.unboundTcb {σ : State Unit} {t p : ObjRef} (h : InvBut σ t) {xt
     · rw [ko q e]
   have rt_m : ∀ u ∈ σ.releaseQueue, specRt σ2 u = specRt σ u := by
     intro u hu
-    obtain ⟨x, scp, y, m, h1, h2, -, h4, -⟩ := h.rel u hu
+    obtain ⟨x, scp, y, m, h1, h2, -, h4, h5⟩ := h.rel u hu
     have hut : u ≠ t := fun e => hnq.2 (e ▸ hu)
-    have hne := h.ne scp y m h4
+    have hne := h.ne scp y m h4 h5
     rw [specRt_eq (tcb_o u x h1 hut) h2 ((sc_s _ _ _).2 h4) hne, specRt_eq h1 h2 h4 hne]
   refine ⟨fun d q u hu => ?_, fun u hu => ?_, ?_, fun u x hx hc => ?_, fun q y m hy ha => ?_,
     fun u x q hx hq => ?_, fun q x q' hx hq => ?_, fun q y m hy => ?_, fun q y m hy ha hp0 => ?_⟩
@@ -115,7 +115,7 @@ theorem Inv.donatedW {σ : State Unit} (h : Inv σ) {p t : ObjRef} {ys : SchedCo
     obtain ⟨x, scp, y, m, h1, h2, -, h4, h5⟩ := h.rel u hu
     have hut : u ≠ t := fun e => hnq.2 (e ▸ hu)
     have hsp : scp ≠ p := fun e => hnp u x h1 (e ▸ h2)
-    have hne := h.ne scp y m h4
+    have hne := h.ne scp y m h4 h5
     rw [specRt_eq (tcb_o u x h1 hut) h2 (sc_o scp y m h4 hsp) hne, specRt_eq h1 h2 h4 hne]
   refine ⟨fun d q u hu => ?_, fun u hu => ?_, ?_, fun u x hut hx hc => ?_, fun q y m hy ha => ?_,
     fun u x q hx hq => ?_, fun q x q' hx hq => ?_, fun q y m hy => ?_, fun q y m hy ha hp0 => ?_⟩
@@ -154,8 +154,8 @@ theorem Inv.donatedW {σ : State Unit} (h : Inv σ) {p t : ObjRef} {ys : SchedCo
     by_cases e : q' = p
     · subst e; exact ⟨_, ns, kp⟩
     · exact ⟨y, m, sc_o q' y m h1 e⟩
-  · obtain ⟨y0, hy0, hr, -, -⟩ := sc_b q y m hy
-    rw [hr]; exact h.ne q y0 m hy0
+  · obtain ⟨y0, hy0, hr, hm, -⟩ := sc_b q y m hy
+    rw [hr]; intro hya; exact h.ne q y0 m hy0 (by simpa [scActive, hm] using hya)
   · obtain ⟨y0, hy0, hr, hm, hp⟩ := sc_b q y m hy
     exact (h.rr q y0 m hy0 (by simpa [scActive, hm] using ha) (hp ▸ hp0)).of_refills hr
 

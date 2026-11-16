@@ -45,7 +45,8 @@ theorem actReady_iff {σ : State Unit} :
 /-- Every TCB's SC exists, with refills, bound back to it. -/
 def ScBack (σ : State Unit) : Prop :=
   ∀ u xu c, σ.kheap u = some (.tcb xu) → xu.tcbSchedContext = some c →
-    ∃ y k, σ.kheap c = some (.schedContext y k) ∧ y.scTcb = some u ∧ y.scRefills ≠ []
+    ∃ y k, σ.kheap c = some (.schedContext y k) ∧ y.scTcb = some u ∧
+      ((y.scSporadic = true ∨ scActive y = true) → y.scRefills ≠ [])
 
 /-- The scheduling-relevant parts kept: every TCB with its state's
 runnability and SC; every SC with its size, refills, refill maximum and
@@ -55,7 +56,8 @@ structure SFr (σ σ' : State Unit) : Prop where
     runnable y.tcbState = runnable x.tcbState ∧ y.tcbSchedContext = x.tcbSchedContext
   tcb' : ∀ p y, σ'.kheap p = some (.tcb y) → ∃ x, σ.kheap p = some (.tcb x)
   sc : ∀ p y n, σ.kheap p = some (.schedContext y n) → ∃ y', σ'.kheap p = some (.schedContext y' n) ∧
-    y'.scRefills = y.scRefills ∧ y'.scRefillMax = y.scRefillMax ∧ y'.scTcb = y.scTcb ∧ y'.scPeriod = y.scPeriod
+    y'.scRefills = y.scRefills ∧ y'.scRefillMax = y.scRefillMax ∧ y'.scTcb = y.scTcb ∧ y'.scPeriod = y.scPeriod ∧
+    y'.scSporadic = y.scSporadic
   sc' : ∀ p y n, σ'.kheap p = some (.schedContext y n) → ∃ y0, σ.kheap p = some (.schedContext y0 n)
   tm : σ'.curTime = σ.curTime
   rq : σ'.releaseQueue = σ.releaseQueue
@@ -123,7 +125,7 @@ theorem SFr.actReady {σ σ' : State Unit} (h : SFr σ σ') (hA : ActReady σ)
   exact h.rdyAt (hA u hu' (by rw [← h.schedulable]; exact hs))
 
 theorem SFr.refl (σ : State Unit) : SFr σ σ :=
-  ⟨fun _ x h => ⟨x, h, rfl, rfl⟩, fun _ y h => ⟨y, h⟩, fun _ y _ h => ⟨y, h, rfl, rfl, rfl, rfl⟩,
+  ⟨fun _ x h => ⟨x, h, rfl, rfl⟩, fun _ y h => ⟨y, h⟩, fun _ y _ h => ⟨y, h, rfl, rfl, rfl, rfl, rfl⟩,
     fun _ y _ h => ⟨y, h⟩, rfl, rfl⟩
 
 theorem SFr.trans {σ1 σ2 σ3 : State Unit} (h1 : SFr σ1 σ2) (h2 : SFr σ2 σ3) : SFr σ1 σ3 := by
@@ -133,9 +135,9 @@ theorem SFr.trans {σ1 σ2 σ3 : State Unit} (h1 : SFr σ1 σ2) (h2 : SFr σ2 σ
     obtain ⟨z, hz, f1, f2⟩ := h2.tcb p y hy
     exact ⟨z, hz, f1.trans e1, f2.trans e2⟩
   · obtain ⟨x, hx⟩ := h2.tcb' p y hy; exact h1.tcb' p x hx
-  · obtain ⟨y', hy', e1, e2, e3, e4⟩ := h1.sc p y n hy
-    obtain ⟨z, hz, f1, f2, f3, f4⟩ := h2.sc p y' n hy'
-    exact ⟨z, hz, f1.trans e1, f2.trans e2, f3.trans e3, f4.trans e4⟩
+  · obtain ⟨y', hy', e1, e2, e3, e4, e5⟩ := h1.sc p y n hy
+    obtain ⟨z, hz, f1, f2, f3, f4, f5⟩ := h2.sc p y' n hy'
+    exact ⟨z, hz, f1.trans e1, f2.trans e2, f3.trans e3, f4.trans e4, f5.trans e5⟩
   · obtain ⟨y0, hy0⟩ := h2.sc' p y n hy; exact h1.sc' p y0 n hy0
 
 theorem SFr.scBack {σ σ' : State Unit} (h : SFr σ σ') (hB : ScBack σ) : ScBack σ' := by
@@ -144,8 +146,9 @@ theorem SFr.scBack {σ σ' : State Unit} (h : SFr σ σ') (hB : ScBack σ) : ScB
   obtain ⟨y1, hy1, -, hsc⟩ := h.tcb u x0 hx0
   rw [hk] at hy1; cases hy1
   obtain ⟨y, k, hky, hyt, hne⟩ := hB u x0 c hx0 (by rw [← hsc, hc])
-  obtain ⟨y', hy', e1, -, e3, -⟩ := h.sc c y k hky
-  exact ⟨y', k, hy', by rw [e3, hyt], by rw [e1]; exact hne⟩
+  obtain ⟨y', hy', e1, e2, e3, -, e5⟩ := h.sc c y k hky
+  exact ⟨y', k, hy', by rw [e3, hyt], fun ho => by
+    rw [e1]; exact hne (by simpa [scActive, e2, e5] using ho)⟩
 
 /-- An update of an object that is neither a TCB nor an SC, to another such. -/
 theorem SFr.updOther {σ : State Unit} {p : ObjRef} {o o' : KernelObject} (hk : σ.kheap p = some o)
@@ -158,7 +161,7 @@ theorem SFr.updOther {σ : State Unit} {p : ObjRef} {o o' : KernelObject} (hk : 
     · subst e; simp only [updK, Function.update_self, Option.some.injEq] at hq; exact absurd hq (h1' y)
     · exact ⟨y, by simp only [updK, Function.update_of_ne e] at hq; exact hq⟩
   · have hne : q ≠ p := by rintro rfl; rw [hk] at hq; exact h2 y n (Option.some.inj hq)
-    exact ⟨y, by simp only [updK, Function.update_of_ne hne]; exact hq, rfl, rfl, rfl, rfl⟩
+    exact ⟨y, by simp only [updK, Function.update_of_ne hne]; exact hq, rfl, rfl, rfl, rfl, rfl⟩
   · by_cases e : q = p
     · subst e; simp only [updK, Function.update_self, Option.some.injEq] at hq; exact absurd hq (h2' y n)
     · exact ⟨y, by simp only [updK, Function.update_of_ne e] at hq; exact hq⟩
@@ -175,7 +178,7 @@ theorem SFr.updTcb {σ : State Unit} {p : ObjRef} {x y : Tcb} (hk : σ.kheap p =
     · subst e; exact ⟨x, hk⟩
     · exact ⟨y', by simp only [updK, Function.update_of_ne e] at hq; exact hq⟩
   · have hne : q ≠ p := by rintro rfl; rw [hk] at hq; cases hq
-    exact ⟨y', by simp only [updK, Function.update_of_ne hne]; exact hq, rfl, rfl, rfl, rfl⟩
+    exact ⟨y', by simp only [updK, Function.update_of_ne hne]; exact hq, rfl, rfl, rfl, rfl, rfl⟩
   · by_cases e : q = p
     · subst e; simp [updK] at hq
     · exact ⟨y', by simp only [updK, Function.update_of_ne e] at hq; exact hq⟩
@@ -183,7 +186,8 @@ theorem SFr.updTcb {σ : State Unit} {p : ObjRef} {x y : Tcb} (hk : σ.kheap p =
 /-- An SC update keeping its refills, refill maximum and TCB. -/
 theorem SFr.updSc {σ : State Unit} {p : ObjRef} {y z : SchedContext} {n : Nat}
     (hk : σ.kheap p = some (.schedContext y n)) (e1 : z.scRefills = y.scRefills)
-    (e2 : z.scRefillMax = y.scRefillMax) (e3 : z.scTcb = y.scTcb) (e4 : z.scPeriod = y.scPeriod) :
+    (e2 : z.scRefillMax = y.scRefillMax) (e3 : z.scTcb = y.scTcb) (e4 : z.scPeriod = y.scPeriod)
+    (e5 : z.scSporadic = y.scSporadic) :
     SFr σ (updK σ p (.schedContext z n)) := by
   refine ⟨fun q x hq => ?_, fun q x hq => ?_, fun q y' n' hq => ?_, fun q y' n' hq => ?_, rfl, rfl⟩
   · have hne : q ≠ p := by rintro rfl; rw [hk] at hq; cases hq
@@ -192,8 +196,8 @@ theorem SFr.updSc {σ : State Unit} {p : ObjRef} {y z : SchedContext} {n : Nat}
     · subst e; simp [updK] at hq
     · exact ⟨x, by simp only [updK, Function.update_of_ne e] at hq; exact hq⟩
   · by_cases e : q = p
-    · subst e; rw [hk] at hq; cases hq; exact ⟨z, by simp [updK], e1, e2, e3, e4⟩
-    · exact ⟨y', by simp only [updK, Function.update_of_ne e]; exact hq, rfl, rfl, rfl, rfl⟩
+    · subst e; rw [hk] at hq; cases hq; exact ⟨z, by simp [updK], e1, e2, e3, e4, e5⟩
+    · exact ⟨y', by simp only [updK, Function.update_of_ne e]; exact hq, rfl, rfl, rfl, rfl, rfl⟩
   · by_cases e : q = p
     · subst e; simp only [updK, Function.update_self, Option.some.injEq, KernelObject.schedContext.injEq] at hq
       obtain ⟨-, rfl⟩ := hq; exact ⟨y, hk⟩
@@ -205,7 +209,7 @@ ready and sufficient head when active (l4v `released_ipc_queues`), valid
 when active and periodic. -/
 def MemOK (σ : State Unit) (t : ObjRef) : Prop :=
   ∃ x, σ.kheap t = some (.tcb x) ∧ ∀ c, x.tcbSchedContext = some c → ∃ y k, σ.kheap c = some (.schedContext y k) ∧
-    y.scRefills ≠ [] ∧
+    ((y.scSporadic = true ∨ scActive y = true) → y.scRefills ≠ []) ∧
     (scActive y = true → refillReady σ.curTime (refillHd y) = true ∧ refillSufficient 0 (refillHd y) = true) ∧
     (scActive y = true → y.scPeriod ≠ 0 → RefOK y)
 
@@ -214,10 +218,10 @@ theorem SFr.memOK {σ σ' : State Unit} (h : SFr σ σ') {t : ObjRef} (hm : MemO
   obtain ⟨x', hx', -, hsc⟩ := h.tcb t x hk
   refine ⟨x', hx', fun c e => ?_⟩
   obtain ⟨y, k, hky, hne, h12, h3⟩ := hc c (by rw [← hsc, e])
-  obtain ⟨y', hy', e1, e2, -, e4⟩ := h.sc c y k hky
+  obtain ⟨y', hy', e1, e2, -, e4, e5⟩ := h.sc c y k hky
   have hh : refillHd y' = refillHd y := by simp [refillHd, e1]
   have hact : scActive y' = true → scActive y = true := fun ha => by simpa [scActive, e2] using ha
-  refine ⟨y', k, hy', by rw [e1]; exact hne, fun ha => by rw [h.tm, hh]; exact h12 (hact ha), fun ha hp => ?_⟩
+  refine ⟨y', k, hy', fun ho => by rw [e1]; exact hne (by simpa [scActive, e2, e5] using ho), fun ha => by rw [h.tm, hh]; exact h12 (hact ha), fun ha hp => ?_⟩
   have ha' : scActive y = true := hact ha
   have hR := h3 ha' (by rw [← e4]; exact hp)
   obtain ⟨r1, r2, r3, r4⟩ := hR
@@ -227,7 +231,7 @@ theorem SFr.memOK {σ σ' : State Unit} (h : SFr σ σ') {t : ObjRef} (hm : MemO
 theorem SFr.of_heap {σ σ' : State Unit} (hk : σ'.kheap = σ.kheap) (ht : σ'.curTime = σ.curTime)
     (hr : σ'.releaseQueue = σ.releaseQueue) : SFr σ σ' :=
   ⟨fun _ x h => ⟨x, by rw [hk]; exact h, rfl, rfl⟩, fun _ y h => ⟨y, by rw [← hk]; exact h⟩,
-    fun _ y _ h => ⟨y, by rw [hk]; exact h, rfl, rfl, rfl, rfl⟩, fun _ y _ h => ⟨y, by rw [← hk]; exact h⟩, ht, hr⟩
+    fun _ y _ h => ⟨y, by rw [hk]; exact h, rfl, rfl, rfl, rfl, rfl⟩, fun _ y _ h => ⟨y, by rw [← hk]; exact h⟩, ht, hr⟩
 
 /-! ### The notification's links -/
 
@@ -270,7 +274,7 @@ theorem smun_eq {σ : State Unit} {r : ObjRef} {n : Notification} (hk : σ.kheap
       simp only [hσ1, updK, Function.update_of_ne (Ne.symm hrc)]; exact hky
     refine ⟨_, updateSchedContext_eq hky1 _, ?_, ⟨ntfnScUpdate (fun _ => none) n, ?_, rfl, rfl⟩, ?_, rfl⟩
     · exact (SFr.updOther hk (fun _ h => by cases h) (fun _ _ h => by cases h) (fun _ h => by cases h)
-        (fun _ _ h => by cases h)).trans (SFr.updSc hky1 rfl rfl rfl rfl)
+        (fun _ _ h => by cases h)).trans (SFr.updSc hky1 rfl rfl rfl rfl rfl)
     · simp [hσ1, updK, Function.update_of_ne hrc]
     · intro p x hp
       have h1 : p ≠ r := by rintro rfl; rw [hk] at hp; cases hp
@@ -364,7 +368,7 @@ theorem pst_actReady {σ σ' : State Unit} {t : ObjRef} (hA : ActReady σ) (hT :
 `refillUnblockCheck_some`, `unblock_result`): an outcome, the state kept or
 the SC's refills changed, its head now at the current time. -/
 theorem unblockCur_some {σ : State Unit} {c : ObjRef} {y : SchedContext} {k : Nat}
-    (hk : σ.kheap c = some (.schedContext y k)) (hne : y.scRefills ≠ []) :
+    (hk : σ.kheap c = some (.schedContext y k)) (hne : y.scSporadic = true → y.scRefills ≠ []) :
     ∃ σ', ((), σ') ∈ (ifSporadicCurScAssertRefillUnblockCheck (Z := Unit) (some c) σ).1 ∧
       (σ' = σ ∨ ∃ z, σ' = updSc { σ with reprogramTimer := true } c z k ∧ (RefOK y → RefOK z) ∧
         (refillHd z).rTime = σ.curTime ∧ z = { y with scRefills := z.scRefills } ∧ z.scRefills ≠ [] ∧
@@ -373,10 +377,10 @@ theorem unblockCur_some {σ : State Unit} {c : ObjRef} {y : SchedContext} {k : N
   simp only [NonDet.maybeM]
   rw [nd_bind_one (getSchedContext_eq hk), nd_gets_bind, nd_pure_bind']
   simp only [NonDet.when]
-  split_ifs
-  · obtain ⟨σ3, h3⟩ := refillUnblockCheck_some hk hne
+  split_ifs with hg
+  · obtain ⟨σ3, h3⟩ := refillUnblockCheck_some hk (hne hg.1)
     refine ⟨σ3, h3, ?_⟩
-    rcases unblock_result hk hne h3 with ⟨rfl, -⟩ | ⟨z, rfl, h1, h2, h3', -, h5, h6⟩
+    rcases unblock_result hk (hne hg.1) h3 with ⟨rfl, -⟩ | ⟨z, rfl, h1, h2, h3', -, h5, h6⟩
     · exact Or.inl rfl
     · exact Or.inr ⟨z, rfl, h1, h2, h3', h5, h6⟩
   · exact ⟨σ, Set.mem_singleton _, Or.inl rfl⟩
@@ -462,7 +466,7 @@ theorem ntfn_iter {σ : State Unit} {r t : ObjRef} {l : List ObjRef} {n : Notifi
     have hct : c ≠ t := by rintro rfl; rw [hkt] at hky; cases hky
     rw [hkp2 c hct, hky] at hky0; cases hky0
     obtain ⟨h1, h2⟩ := h12 hact0
-    exact ⟨x', c, _, _, hkt2, hsc0, by rw [hkp2 c hct]; exact hky, hne, h1, h2⟩
+    exact ⟨x', c, _, _, hkt2, hsc0, by rw [hkp2 c hct]; exact hky, hne (Or.inr hact0), h1, h2⟩
   have hA2' : ActReady σ2' := by
     rw [actReady_iff] at hA1 ⊢
     intro u hu hs
@@ -514,7 +518,7 @@ theorem ntfn_iter {σ : State Unit} {r t : ObjRef} {l : List ObjRef} {n : Notifi
     obtain ⟨y, k, hky1, hne, -, hrf⟩ := hxs c hxc'
     have hct : c ≠ t := by rintro rfl; rw [hkt] at hky1; cases hky1
     have hky2 : σ2.kheap c = some (.schedContext y k) := by rw [hk2, hkp2 c hct]; exact hky1
-    obtain ⟨σ3, hm3, hcase⟩ := unblockCur_some hky2 hne
+    obtain ⟨σ3, hm3, hcase⟩ := unblockCur_some hky2 (fun h => hne (Or.inl h))
     rcases hcase with rfl | ⟨z, rfl, hRz, hrt3, hz, hzne, hper⟩
     · exact ⟨σ2, hm3, hkt2', hkr2, hm2, hB2, hA2, hT2''⟩
     · -- the SC's refills changed
@@ -576,7 +580,7 @@ theorem ntfn_iter {σ : State Unit} {r t : ObjRef} {l : List ObjRef} {n : Notifi
         obtain ⟨yu, ku, h1, h2, h3⟩ := hB2 u xu cu hku hcu
         by_cases e2 : cu = c
         · subst e2; rw [hky2] at h1; cases h1
-          exact ⟨z, _, hkc3, by rw [hzt]; exact h2, hzne⟩
+          exact ⟨z, _, hkc3, by rw [hzt]; exact h2, fun _ => hzne⟩
         · exact ⟨yu, ku, by rw [hkp3 cu e2]; exact h1, h2, h3⟩
       · rw [actReady_iff] at hA2 ⊢
         intro u hu hs
@@ -628,6 +632,7 @@ def NtfnPre (σ : State Unit) (r : ObjRef) : Prop :=
 queued threads: distinct TCBs with ready and sufficient SCs (l4v's
 `released_ipc_queues`). -/
 theorem ntfnPre_of_inv {σ : State Unit} {r : ObjRef} {n : Notification} (hI : Inv σ) (hA : ActReady σ)
+    (hsp : ∀ c y k, σ.kheap c = some (.schedContext y k) → y.scSporadic = true → scActive y = true)
     (hk : σ.kheap r = some (.notification n)) (hb : ∀ t, n.ntfnBoundTcb = some t → ∃ x, σ.kheap t = some (.tcb x))
     (hnd : (ntfnQueueOf n).Nodup)
     (hq : ∀ u ∈ ntfnQueueOf n, ∃ x, σ.kheap u = some (.tcb x) ∧ ∀ c, x.tcbSchedContext = some c →
@@ -638,9 +643,10 @@ theorem ntfnPre_of_inv {σ : State Unit} {r : ObjRef} {n : Notification} (hI : I
   · obtain ⟨x, hku, hc⟩ := hq u hu
     refine ⟨x, hku, fun c e => ?_⟩
     obtain ⟨y, k, hky, -⟩ := hI.back u x c hku e
-    exact ⟨y, k, hky, hI.ne c y k hky, hc c e y k hky, fun ha hp => hI.refills c y k hky ha hp⟩
+    exact ⟨y, k, hky, fun h => hI.ne c y k hky (h.elim (hsp c y k hky) id), hc c e y k hky,
+      fun ha hp => hI.refills c y k hky ha hp⟩
   · obtain ⟨y, k, hky, hyt⟩ := hI.back u xu c hku hc
-    exact ⟨y, k, hky, hyt, hI.ne c y k hky⟩
+    exact ⟨y, k, hky, hyt, fun h => hI.ne c y k hky (h.elim (hsp c y k hky) id)⟩
 
 /-- **The spec's finalisation of a final notification cap has an outcome.** -/
 theorem finNtfn_out {σ : State Unit} {r : ObjRef} (b : Badge) (R : CapRights) (h : NtfnPre σ r) :

@@ -104,9 +104,9 @@ theorem Inv.tcbView {σ σ' : State Unit} (h : Inv σ)
     · rw [ha, hb]; simp
   have rt : ∀ u ∈ σ.releaseQueue, specRt σ' u = specRt σ u := by
     intro u hu
-    obtain ⟨xu, scp, yu, nu, h1, h2, -, h4, -⟩ := h.rel u hu
+    obtain ⟨xu, scp, yu, nu, h1, h2, -, h4, h5⟩ := h.rel u hu
     obtain ⟨xu', h1', -, e2⟩ := kf u xu h1
-    have hne := h.ne scp yu nu h4
+    have hne := h.ne scp yu nu h4 h5
     rw [specRt_eq h1' (e2.trans h2) ((ks _ _ _).2 h4) hne, specRt_eq h1 h2 h4 hne]
   refine ⟨fun d q u hu => ?_, fun u hu => ?_, ?_, fun u y hy hc => ?_, fun q y m hy => ?_,
     fun u y q hy hq => ?_, fun q y q' hy hq => ?_, fun q y m hy => ?_, fun q y m hy => ?_⟩
@@ -295,7 +295,7 @@ theorem getScObjRef_eq {σ : State Unit} {p : ObjRef} {x : SchedContext} {n : Na
 released, is a no-op. -/
 theorem resume_spec_noop {σ : State Unit} {p t : ObjRef} {x : SchedContext} {n : Nat} {xt : Tcb}
     (hk : σ.kheap p = some (.schedContext x n)) (htc : x.scTcb = some t) (hkt : σ.kheap t = some (.tcb xt))
-    (hne : x.scRefills ≠ [])
+    (hne : scActive x = true → x.scRefills ≠ [])
     (hrun : schedulable t σ = true → runnable xt.tcbState = true ∧ scActive x = true)
     (hrel : schedulable t σ = true → released σ x) :
     schedContextResume (Z := Unit) p σ = ({((), σ)}, False) := by
@@ -306,8 +306,8 @@ theorem resume_spec_noop {σ : State Unit} {p t : ObjRef} {x : SchedContext} {n 
   · obtain ⟨h1, h2⟩ := hrun hs
     have hc := hrel hs
     simp only [NonDet.when, hs, ↓reduceIte]
-    rw [nd_bind_one (threadGet_eq _ hkt), nd_bind_one (getScRefillReady_eq hk hne),
-      nd_bind_one (getScRefillSufficient_eq hk hne 0)]
+    rw [nd_bind_one (threadGet_eq _ hkt), nd_bind_one (getScRefillReady_eq hk (hne h2)),
+      nd_bind_one (getScRefillSufficient_eq hk (hne h2) 0)]
     rw [ite_f (fun h => h.2.2 hc)]; rfl
   · simp only [NonDet.when, hs, Bool.false_eq_true, ↓reduceIte]; rfl
 
@@ -605,6 +605,19 @@ theorem complete_yield_to_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (�
   exact cancelYieldTo_some hk2y (by rw [ey2, optRef_ne hi0]) hk2p hpy
 
 
+/-- A schedulable thread's SC is active. -/
+theorem SchedRel.sched_active {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) {t sc : U64} (ht : t ∈ T) (hts : L.mem s (scA t) = sc) (hsc0 : sc ≠ 0#u64)
+    {x : Fl4Spec.SchedContext} {n : Nat} (hk : σ.kheap sc.bv = some (.schedContext x n))
+    (hsb : Fl4Spec.schedulable t.bv σ = true) : Fl4Spec.scActive x = true := by
+  obtain ⟨Q, R, hc, hs⟩ := hS.lists
+  obtain ⟨xt, scp, y, m, hkt, hsc', -, hky, hact, -⟩ := schedulable_inv hsb
+  obtain ⟨xt', hkt', -, -, hsc, -⟩ := hs.tcb t ht
+  rw [hkt] at hkt'; cases hkt'
+  rw [hsc, hts, optRef_ne hsc0] at hsc'; cases hsc'
+  rw [hk] at hky; cases hky
+  exact hact
+
 /-- **`resume` is a no-op** when the SC's thread, if schedulable, has it
 released. -/
 theorem resume_noop {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
@@ -619,7 +632,6 @@ theorem resume_noop {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.St
   obtain ⟨x', n', hk', hx⟩ := hs.scs sc hsc
   rw [hk] at hk'; cases hk'
   have ht0 : t ≠ 0#u64 := fun e => (hc.tcbs t ht).ne0 (by rw [e]; rfl)
-  have hne : x.scRefills ≠ [] := by rw [hx.refills]; exact refills_ne hx.wf
   have hsched := schedulable_eq hR hS ht
   rw [hts] at hsched
   unfold schedcontext.resume
@@ -636,13 +648,15 @@ theorem resume_noop {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.St
   by_cases hsb : Fl4Spec.schedulable i.bv σ = true
   · simp only [hsb, ↓reduceIte]
     obtain ⟨hr1, hr2⟩ := hrel hsb
-    refine WP.spec_bind (ready_refines s σ hS hsc hk) ?_
+    have hax := hS.sched_active ht hts hsc0 hk hsb
+    have hne : x.scRefills ≠ [] := by rw [(hx.strong hax).refills]; exact refills_ne (hx.strong hax).wf
+    refine WP.spec_bind (ready_refines s σ hS hsc hk hax) ?_
     intro b3 hb3
     rw [getScRefillReady_eq hk hne] at hb3
     have eb3 := (Prod.mk.inj (Set.singleton_eq_singleton_iff.1 (congrArg Prod.fst hb3))).1
     have h3 : b3 = true := eb3.symm.trans hr1
     simp only [h3, ↓reduceIte]
-    refine WP.spec_bind (sufficient_refines s a σ hS hsc hk 0#u64 hmb) ?_
+    refine WP.spec_bind (sufficient_refines s a σ hS hsc hk hax 0#u64 hmb) ?_
     intro b4 hb4
     rw [getScRefillSufficient_eq hk hne] at hb4
     have eb4 := (Prod.mk.inj (Set.singleton_eq_singleton_iff.1 (congrArg Prod.fst hb4))).1

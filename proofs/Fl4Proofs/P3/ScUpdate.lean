@@ -334,13 +334,14 @@ theorem rUpdL_map (h : sporadic.Refill) (now p b : U64) :
 /-- **`refill_update` refines `refill_update`.** -/
 theorem refill_update_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) {sc : U64} (hsc : sc ∈ C) {x : Fl4Spec.SchedContext} {n : Nat}
-    (hk : σ.kheap sc.bv = some (.schedContext x n)) (p b m : U64) (hm2 : 2 ≤ m.val) (hmx : m.val ≤ absMax (n + Fl4Spec.minSchedContextBits)) :
+    (hk : σ.kheap sc.bv = some (.schedContext x n)) (ha : Fl4Spec.scActive x = true) (p b m : U64) (hm2 : 2 ≤ m.val) (hmx : m.val ≤ absMax (n + Fl4Spec.minSchedContextBits)) :
     sporadic.refill_update st s sc p b m ⦃ s' => ∃ σ', Fl4Spec.refillUpdate (Z := Unit) sc.bv p.bv b.bv m.val σ =
       ({((), σ')}, False) ∧ SchedRel st N T C c s' σ' ∧ FootEq N T (L.mem s) (L.mem s') ∧ KView σ σ' ∧
       WritesIn st s s' (KFoot st T N C c s σ) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x', n', hk', hx⟩ := hs.scs sc hsc
   rw [hk] at hk'; cases hk'
+  replace hx := hx.strong ha
   have hN := hc.node
   have hnA : L.nodeA s layout.node.CUR_TIME = L.nodeAt s c layout.node.CUR_TIME := by
     simp only [LawfulStore.nodeA, hc.cur]

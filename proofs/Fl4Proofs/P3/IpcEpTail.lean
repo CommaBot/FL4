@@ -125,7 +125,7 @@ theorem unblock_irel (hP0 : IPlaced N T E R B) (s : S) (σ : Fl4Spec.State Unit)
   · simp only [e, ne_eq, not_true_eq_false, decide_false, Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
     exact skip (by rw [hif, ite_f]; rw [e, ← hs.curSc]; simp)
   · simp only [e, ne_eq, not_false_eq_true, decide_true, ↓reduceIte]
-    refine WP.spec_mono (WP.spec_and (unblock_check_refines s σ hS hscC) (unblock_check_scw hS hscC)) ?_
+    refine WP.spec_mono (WP.spec_and (unblock_check_refines s σ hS hscC (hy.spor hsp')) (unblock_check_scw hS hscC (hy.spor hsp'))) ?_
     rintro s' ⟨⟨σ', he, -, -, hS'⟩, hW⟩
     have hK := nks_refillUnblockCheck _ σ ((), σ') (by rw [he]; rfl)
     refine ⟨σ', ?_, fun a ha hf => hW.mem_eq ha (fun hw => scw_not_ifoot hP0 hS hA hw hf), hK.ikview,

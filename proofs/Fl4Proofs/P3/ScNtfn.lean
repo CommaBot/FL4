@@ -106,7 +106,7 @@ theorem unblock_sporadic_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Sp
         refine fin s σ ?_ FootEq.rfl' (KView.refl σ) hS
         rw [hif', ite_f]; rw [e, ← hs.curSc]; simp
       · simp only [e, ne_eq, not_false_eq_true, decide_true, ↓reduceIte]
-        refine WP.spec_mono (unblock_check_refines s σ hS hscC) ?_
+        refine WP.spec_mono (unblock_check_refines s σ hS hscC (hx.spor hsp')) ?_
         rintro s' ⟨σ', he, hf, hv, hS'⟩
         refine fin s' σ' ?_ hf hv hS'
         rw [hif', ite_t ⟨hsp.2 hsp', by rw [hs.curSc]; exact bv_ne e⟩, he]

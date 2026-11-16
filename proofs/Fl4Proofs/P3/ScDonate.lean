@@ -27,11 +27,12 @@ variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulSt
 /-- **`ready` refines `refill_ready`.** -/
 theorem ready_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) {sc : obj.Sc} (hsc : sc ∈ C) {x : Fl4Spec.SchedContext} {n : Nat}
-    (hk : σ.kheap sc.bv = some (.schedContext x n)) :
+    (hk : σ.kheap sc.bv = some (.schedContext x n)) (ha : Fl4Spec.scActive x = true) :
     sporadic.ready st s sc ⦃ b => Fl4Spec.getScRefillReady (Z := Unit) sc.bv σ = ({(b, σ)}, False) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x', n', hk', hx⟩ := hs.scs sc hsc
   rw [hk] at hk'; cases hk'
+  replace hx := hx.strong ha
   have hW := hx.wf
   have hne : x.scRefills ≠ [] := by rw [hx.refills]; exact refills_ne hW
   step
@@ -47,13 +48,14 @@ theorem ready_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State Un
 minimum budget is the spec's. -/
 theorem sufficient_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) {sc : obj.Sc} (hsc : sc ∈ C) {x : Fl4Spec.SchedContext} {n : Nat}
-    (hk : σ.kheap sc.bv = some (.schedContext x n)) (usage : U64)
+    (hk : σ.kheap sc.bv = some (.schedContext x n)) (ha : Fl4Spec.scActive x = true) (usage : U64)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
     sporadic.sufficient st ar s a sc usage ⦃ b =>
       Fl4Spec.getScRefillSufficient (Z := Unit) sc.bv usage.bv σ = ({(b, σ)}, False) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x', n', hk', hx⟩ := hs.scs sc hsc
   rw [hk] at hk'; cases hk'
+  replace hx := hx.strong ha
   have hW := hx.wf
   have hne : x.scRefills ≠ [] := by rw [hx.refills]; exact refills_ne hW
   have hd : Fl4Spec.refillHd x = toRefill (L.refill s sc (L.rhead s sc)) := by

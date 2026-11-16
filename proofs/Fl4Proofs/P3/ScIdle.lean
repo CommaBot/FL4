@@ -292,7 +292,10 @@ theorem ActIdle.unblock {σ σ' : State Unit} (h : ActIdle σ) {p : ObjRef} {y :
 
 /-- **The sporadic check after a wake-up keeps `ActIdle`.** -/
 theorem ActIdle.unblockTail {σ σ' : State Unit} (h : ActIdle σ) (hI : Inv σ) {t : ObjRef} {x : Tcb}
-    (hkt : σ.kheap t = some (.tcb x)) (hm : ((), σ') ∈ (specUnblock t σ).1) : ActIdle σ' := by
+    (hkt : σ.kheap t = some (.tcb x))
+    (hsa : ∀ p y n, x.tcbSchedContext = some p → σ.kheap p = some (.schedContext y n) → y.scSporadic = true →
+      scActive y = true)
+    (hm : ((), σ') ∈ (specUnblock t σ).1) : ActIdle σ' := by
   unfold specUnblock getTcbObjRef at hm
   rw [nd_bind_one (threadGet_eq _ hkt)] at hm
   cases hsc : x.tcbSchedContext with
@@ -302,14 +305,16 @@ theorem ActIdle.unblockTail {σ σ' : State Unit} (h : ActIdle σ) (hI : Inv σ)
     rw [hsc] at hm
     obtain ⟨y, n, hkp, -⟩ := hI.back t x p hkt hsc
     rw [ifSporadic_some hkp] at hm
-    split_ifs at hm
-    · exact h.unblock hkp (hI.ne p y n hkp) hm
+    split_ifs at hm with hg
+    · exact h.unblock hkp (hI.ne p y n hkp (hsa p y n hsc hkp hg.1)) hm
     · rw [Set.mem_singleton_iff] at hm; cases hm; exact h
 
 /-- **The sporadic check after `complete_signal`'s donation keeps
 `ActIdle`.** -/
 theorem ActIdle.completeCheck {σ σ' : State Unit} (h : ActIdle σ) (hI : Inv σ) {t m : ObjRef} {x : Tcb}
     {xn : Notification} (hkt : σ.kheap t = some (.tcb x)) (hkn : σ.kheap m = some (.notification xn))
+    (hsa : ∀ p y n, x.tcbSchedContext = some p → σ.kheap p = some (.schedContext y n) → y.scSporadic = true →
+      scActive y = true)
     (hm : ((), σ') ∈ (specCompleteCheck t m σ).1) : ActIdle σ' := by
   unfold specCompleteCheck getTcbObjRef at hm
   rw [nd_bind_one (threadGet_eq _ hkt)] at hm
@@ -323,10 +328,10 @@ theorem ActIdle.completeCheck {σ σ' : State Unit} (h : ActIdle σ) (hI : Inv �
     simp only [NonDet.maybeM] at hm
     rw [nd_bind_one (getSchedContext_eq hkp)] at hm
     simp only [NonDet.when] at hm
-    split_ifs at hm
+    split_ifs at hm with hg
     · rw [nd_bind_one (getNtfnSc_eq hkn), nd_gets_bind] at hm
       split_ifs at hm
-      · exact h.unblock hkp (hI.ne p y n hkp) hm
+      · exact h.unblock hkp (hI.ne p y n hkp (hsa p y n hsc hkp hg)) hm
       · rw [mem_pure hm]; exact h
     · rw [mem_pure hm]; exact h
 
@@ -365,7 +370,7 @@ theorem ActIdle.donate {σ σ' : State Unit} (h : ActIdle σ) (hI : Inv σ) {t n
       set ys' : SchedContext := { ys with scTcb := some t }
       have kt : σd.kheap t = some (.tcb xt') := by simp [σd, donSt, updK] <;> rfl
       have kp : σd.kheap p = some (.schedContext ys' ns) := by simp [σd, donSt, updK, hpt] <;> rfl
-      have hne : ys'.scRefills ≠ [] := hI.ne p ys ns hks
+      have hne : scActive ys' = true → ys'.scRefills ≠ [] := hI.ne p ys ns hks
       have hnr : t ∉ σd.releaseQueue := hnq.2
       -- `t` has no SC, so it is neither the switch target nor idle
       have hEa : ∀ u, σ.schedulerAction = .switchThread u → u ≠ t := by
@@ -386,11 +391,14 @@ theorem ActIdle.donate {σ σ' : State Unit} (h : ActIdle σ) (hI : Inv σ) {t n
           rw [kt] at h1; cases h1; cases h2; rw [kp] at h4; cases h4; exact ⟨h3, h5⟩)
         (fun _ => hnq.1 _ _)] at he
       split_ifs at he with hc
-      · obtain ⟨b, hp⟩ := postpone_eq kp rfl kt (specRt σd) (fun u hu => by
+      · have hact : scActive ys' = true := by
+          obtain ⟨x, scp, y, m, h1, h2, -, h4, h5, -⟩ := schedulable_inv hc.1
+          rw [kt] at h1; cases h1; cases h2; rw [kp] at h4; cases h4; exact h5
+        obtain ⟨b, hp⟩ := postpone_eq kp rfl kt (specRt σd) (fun u hu => by
           rcases hu with rfl | hu
-          · exact ⟨xt', p, ys', ns, kt, rfl, kp, hne, specRt_eq kt rfl kp hne⟩
-          · obtain ⟨xu, scp, yu, nu, h1, h2, -, h4, -⟩ := hb.rel u hu
-            exact ⟨xu, scp, yu, nu, h1, h2, h4, hb.ne _ _ _ h4, specRt_eq h1 h2 h4 (hb.ne _ _ _ h4)⟩)
+          · exact ⟨xt', p, ys', ns, kt, rfl, kp, hne hact, specRt_eq kt rfl kp (hne hact)⟩
+          · obtain ⟨xu, scp, yu, nu, h1, h2, -, h4, h5⟩ := hb.rel u hu
+            exact ⟨xu, scp, yu, nu, h1, h2, h4, hb.ne _ _ _ h4 h5, specRt_eq h1 h2 h4 (hb.ne _ _ _ h4 h5)⟩)
         rw [hp] at he
         rw [pair_eq he]
         exact hd.keepE (E := (· = t)) (TKeepE.of_kheap _ rfl)

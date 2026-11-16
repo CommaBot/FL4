@@ -247,6 +247,7 @@ theorem SchedRel.ringAt {N T C : Set U64} {c : U64} {s0 s : S} {σ : Fl4Spec.Sta
   rw [hk] at hk'; cases hk'
   obtain ⟨h8, hb, hfit⟩ := h.wf.bounds
   have hm := h.mx
+  replace hx := hx.act (by rw [← hm]; have := h.wf.min_le; simp at this; omega)
   have hhd : ∀ K : U64, K.val < 80 → K.val % 8 = 0 → L.mem s (scW sc K) = L.mem s0 (scW sc K) :=
     fun K h1 h2 => h.hdr h1 h2 (hx.hdr (by omega) h2).1
   have hwr : WritesIn st s0 s (ScIn st s0 sc) := by

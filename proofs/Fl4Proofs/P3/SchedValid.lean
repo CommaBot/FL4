@@ -70,6 +70,9 @@ structure SchedValid (σ : State Unit) : Prop where
   tcbNtfn : ∀ t x n, σ.kheap t = some (.tcb x) → x.tcbBoundNotification = some n →
     ∃ xn, σ.kheap n = some (.notification xn)
   ntfnTcb : ∀ n xn t, σ.kheap n = some (.notification xn) → xn.ntfnBoundTcb = some t → ∃ x, σ.kheap t = some (.tcb x)
+  /-- A sporadic SC is active (Configure sets sporadic only with a budget of
+  at least `MIN_BUDGET`). -/
+  scSpor : ∀ sc y k, σ.kheap sc = some (.schedContext y k) → y.scSporadic = true → scActive y = true
 
 /-- l4v `valid_cap` for the object caps finalised here: the object of the
 cap's kind exists. -/
@@ -120,7 +123,7 @@ theorem ntfnPre_of_valid {σ : State Unit} {r : ObjRef} (hI : Inv σ) (hA : ActR
     (ho : ∃ x, σ.kheap r = some (.notification x)) : NtfnPre σ r := by
   obtain ⟨n, hk⟩ := ho
   obtain ⟨hnd, hq⟩ := hV.ntfnQ r n hk
-  exact ntfnPre_of_inv hI hA hk (fun t ht => hV.ntfnTcb r n t hk ht) hnd fun u hu => by
+  exact ntfnPre_of_inv hI hA hV.scSpor hk (fun t ht => hV.ntfnTcb r n t hk ht) hnd fun u hu => by
     obtain ⟨xu, hku, hs⟩ := hq u hu
     exact hI.qRdy_ntfn hku hs
 
@@ -128,7 +131,7 @@ theorem epPre_of_valid {σ : State Unit} {r : ObjRef} (hI : Inv σ) (hA : ActRea
     (ho : ∃ x, σ.kheap r = some (.endpoint x)) : EpPre σ r := by
   obtain ⟨x, hk⟩ := ho
   obtain ⟨hnd, hq⟩ := hV.epQ r x hk
-  refine epPre_of_inv hI hA hk hnd fun u hu => ?_
+  refine epPre_of_inv hI hA hV.scSpor hk hnd fun u hu => ?_
   obtain ⟨xu, hku, hc⟩ := hq u hu
   exact ⟨xu, hku, hc, hV.repOK u⟩
 

@@ -39,7 +39,8 @@ theorem push_donate_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : 
         Fl4Spec.bindScReply (Z := Unit) sc.bv r.bv
         Fl4Spec.schedContextDonate (Z := Unit) sc.bv t.bv) σ = ({((), σ')}, False) ∧
       SchedRel st N T C c res.1 σ' ∧ NtfnStateRel N T (L.mem res.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧
-      CallRel (L.mem res.1) R C σ' Lst' ∧ RPlaced st N T C R c res.1 σ' ∧ RFree (L.mem res.1) R C σ' Lst' ⦄ := by
+      CallRel (L.mem res.1) R C σ' Lst' ∧ RPlaced st N T C R c res.1 σ' ∧ RFree (L.mem res.1) R C σ' Lst' ∧
+      WritesIn st s res.1 (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) ⦄ := by
   have hP := hS.placed
   obtain ⟨⟨y0, n0, hk0, hyL⟩, hLR, hLnd, hLw⟩ := hCR.stack sc hsc
   rw [hk] at hk0; cases hk0
@@ -78,6 +79,13 @@ theorem push_donate_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : 
   have hpt : sc.bv ≠ t.bv := fun e => by rw [e, hkt] at hk; cases hk
   have hrf : r.bv ≠ f.bv := fun e => by rw [e, hkf] at hkr; cases hkr
   have hrt : r.bv ≠ t.bv := fun e => by rw [e, hkt] at hkr; cases hkr
+  have cwr : ∀ {s0 : S} {a : U64} {v : U64}, Aligned a → CallW' R C a →
+      WritesIn st s0 (L.wr s0 a v) (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) :=
+    fun ha hc => (writesIn_wr ha).mono fun b hb => hb ▸ Or.inr hc
+  have tr : ∀ {x y z : S}, WritesIn st x y (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) →
+      WritesIn st y z (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) →
+      WritesIn st x z (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) :=
+    fun h1 h2 => (h1.trans h2).mono fun b hb => hb.elim id id
   -- the part after the old head's `NEXT` word
   have cont : ∀ (s3 : S) (σA : Fl4Spec.State Unit),
       SchedRel st N T C c s3 σA → NtfnStateRel N T (L.mem s3) σA → NSC N C σA → Inv σA →
@@ -90,6 +98,7 @@ theorem push_donate_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : 
         σA = updK σ d.bv (.reply { x with replySc := none }))) →
       (∀ b, Aligned b → (∀ d, (Lst sc).head? = some d → b.val ≠ (rNextA d).val) → L.mem s3 b = L.mem s b) →
       (∀ d, (Lst sc).head? = some d → L.mem s3 (rNextA d) = r) →
+      WritesIn st s s3 (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) →
       (do
         let s4 ← obj.Reply.set_prev st r s3 ((Lst sc).headD 0#u64)
         let s5 ← obj.Sc.set_reply st sc s4 r
@@ -99,8 +108,9 @@ theorem push_donate_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : 
           Fl4Spec.bindScReply (Z := Unit) sc.bv r.bv
           Fl4Spec.schedContextDonate (Z := Unit) sc.bv t.bv) σ = ({((), σ')}, False) ∧
         SchedRel st N T C c res.1 σ' ∧ NtfnStateRel N T (L.mem res.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧
-        CallRel (L.mem res.1) R C σ' Lst' ∧ RPlaced st N T C R c res.1 σ' ∧ RFree (L.mem res.1) R C σ' Lst' ⦄ := by
-    intro s3 σA hS3 hR3 hN3 hI3 hks3 hkA hkh3 htm3 hcase hm3 hmH3
+        CallRel (L.mem res.1) R C σ' Lst' ∧ RPlaced st N T C R c res.1 σ' ∧ RFree (L.mem res.1) R C σ' Lst' ∧
+      WritesIn st s res.1 (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) ⦄ := by
+    intro s3 σA hS3 hR3 hN3 hI3 hks3 hkA hkh3 htm3 hcase hm3 hmH3 hw3
     have hPr := (hal r hr).1
     have hNr := (hal r hr).2
     have hnh_sc : ∀ d, (Lst sc).head? = some d → sc.bv ≠ d.bv := fun d h e => by
@@ -235,11 +245,19 @@ theorem push_donate_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : 
       hrelB) ?_
     rintro res ⟨σ', hdon, -, hS', hR', hN', hI', hw', hksc', hko', hkf', hkt', -, -, -⟩
     obtain ⟨cw1, cw2⟩ := callWords_of_dfoot hS6 hRP6 hsc hw'
+    have hw6 : WritesIn st s s6 (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) :=
+      tr (tr (tr hw3 (cwr hPr (Or.inl ⟨r, hr, Or.inr rfl⟩))) (cwr haP (Or.inr ⟨sc, hsc, rfl⟩)))
+        (cwr hNr (Or.inl ⟨r, hr, Or.inl rfl⟩))
+    have hwD : WritesIn st s res.1 (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) :=
+      tr hw6 (hw'.mono fun b hb => by
+        rcases hb with hb | rfl
+        · exact Or.inl (KFoot.of_sfoot ((SFoot.ksb hw6.1).1 hb))
+        · exact Or.inl (KFoot.of_sw (sw_hdr hS hsc (K := 24#u64) (by simp) (by simp) (by decide))))
     have hqC : ∀ q ∈ C, q.bv ≠ f.bv ∧ q.bv ≠ t.bv := fun q hq => by
       obtain ⟨Q, R', hc, hs⟩ := hS.lists
       obtain ⟨xq, nq, hkq, -⟩ := hs.scs q hq
       exact ⟨fun e => (by rw [e, hkf] at hkq; cases hkq), fun e => (by rw [e, hkt] at hkq; cases hkq)⟩
-    refine ⟨σ', Function.update Lst sc (r :: Lst sc), ?_, hS', hR', hN', hI', ?_, ?_, ?_⟩
+    refine ⟨σ', Function.update Lst sc (r :: Lst sc), ?_, hS', hR', hN', hI', ?_, ?_, ?_, hwD⟩
     · have hbind : Fl4Spec.bindScReply (Z := Unit) sc.bv r.bv σ = ({((), σB)}, False) := by
         unfold Fl4Spec.bindScReply
         rw [nd_bind_one (nd_liftM_one (getSchedContext_eq hk) _)]
@@ -309,7 +327,7 @@ theorem push_donate_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : 
     rw [hb]
     simp only [Bool.false_eq_true, ↓reduceIte, bind_ok]
     exact cont s σ hS hR hN hI rfl (fun q _ => rfl) (fun d x hh => by rw [hL] at hh; cases hh) rfl
-      (Or.inl ⟨hL, rfl⟩) (fun b _ _ => rfl) (fun d hh => by rw [hL] at hh; cases hh)
+      (Or.inl ⟨hL, rfl⟩) (fun b _ _ => rfl) (fun d hh => by rw [hL] at hh; cases hh) (WritesIn.refl _ _)
   · obtain ⟨d, l, hL'⟩ := List.exists_cons_of_ne_nil hL
     have hhd : (Lst sc).headD 0#u64 = d := by rw [hL']; rfl
     have hhh : (Lst sc).head? = some d := by rw [hL']; rfl
@@ -338,6 +356,7 @@ theorem push_donate_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : 
       rfl (Or.inr ⟨d, l, xd, hL', hkd, rfl⟩)
       (fun b hb' hne => L.mem_wr_ne hNd hb' (by rw [hhd]; exact (hne d hhh).symm))
       (fun d' hh => by rw [hhh] at hh; cases hh; rw [← hhd]; exact L.mem_wr_same hNd)
+      (cwr hNd (Or.inl ⟨d, hdR, Or.inl (by rw [hhd])⟩))
 
 end
 

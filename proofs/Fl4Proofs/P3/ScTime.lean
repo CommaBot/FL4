@@ -32,11 +32,11 @@ theorem Inv.time {σ σ' : State Unit} (h : Inv σ) (hk : σ'.kheap = σ.kheap)
   · rw [hr] at hu; rw [hk]; exact h.rel u hu
   · rw [hr]
     refine List.Pairwise.imp_of_mem (fun {a b} ha hb hab => ?_) h.sorted
-    obtain ⟨xa, pa, ya, na, h1, h2, -, h4, -⟩ := h.rel a ha
-    obtain ⟨xb, pb, yb, nb, g1, g2, -, g4, -⟩ := h.rel b hb
-    rw [specRt_eq (by rw [hk]; exact h1) h2 (by rw [hk]; exact h4) (h.ne _ _ _ h4),
-      specRt_eq (by rw [hk]; exact g1) g2 (by rw [hk]; exact g4) (h.ne _ _ _ g4)]
-    rw [specRt_eq h1 h2 h4 (h.ne _ _ _ h4), specRt_eq g1 g2 g4 (h.ne _ _ _ g4)] at hab
+    obtain ⟨xa, pa, ya, na, h1, h2, -, h4, h5⟩ := h.rel a ha
+    obtain ⟨xb, pb, yb, nb, g1, g2, -, g4, g5⟩ := h.rel b hb
+    rw [specRt_eq (by rw [hk]; exact h1) h2 (by rw [hk]; exact h4) (h.ne _ _ _ h4 h5),
+      specRt_eq (by rw [hk]; exact g1) g2 (by rw [hk]; exact g4) (h.ne _ _ _ g4 g5)]
+    rw [specRt_eq h1 h2 h4 (h.ne _ _ _ h4 h5), specRt_eq g1 g2 g4 (h.ne _ _ _ g4 g5)] at hab
     exact hab
   · rw [hk] at hx
     intro x' scp y n h1 h2 h3 h4 h5

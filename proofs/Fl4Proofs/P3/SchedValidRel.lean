@@ -47,6 +47,9 @@ structure ScLinkHyp (σ : State Unit) : Prop where
     ∃ xn, σ.kheap n = some (.notification xn)
   tcbNtfn : ∀ t x n, σ.kheap t = some (.tcb x) → x.tcbBoundNotification = some n →
     ∃ xn, σ.kheap n = some (.notification xn)
+  /-- A sporadic SC is active (Configure sets sporadic only with a budget of
+  at least `MIN_BUDGET`; FL4's `ScRelW.spor`). -/
+  scSpor : ∀ sc y k, σ.kheap sc = some (.schedContext y k) → y.scSporadic = true → scActive y = true
 
 theorem optRef_some {w : U64} {p : ObjRef} (h : optRef w = some p) : w ≠ 0#u64 ∧ w.bv = p := by
   unfold optRef at h
@@ -157,7 +160,7 @@ theorem schedValid_of {N T E R C Cs Ω Scs : Set U64} {B : Set (U64 × Fl4Spec.W
   refine ⟨fun e x hk => ?_, fun n x hk => ?_, fun t x ep ro d hk hs => ?_, fun t x ep pl hk hs => ?_,
     fun t x n hk hs => ?_, fun t x ep r d hk hs => ?_, fun t x r hk hs => ?_, fun r xr t hk ht => ?_,
     fun sc y k r hk hm => ?_, hSL.scTcb, hSL.scNtfn, fun sc y k t hk hyf => ?_, fun t x p hk hyt => ?_,
-    hSL.tcbNtfn, fun n xn t hk ht => ?_⟩
+    hSL.tcbNtfn, fun n xn t hk ht => ?_, hSL.scSpor⟩
   · -- epQ
     obtain ⟨e', he', rfl⟩ := hCv.ep e x hk
     obtain ⟨x', hk', hr⟩ := hI.ep e' he'

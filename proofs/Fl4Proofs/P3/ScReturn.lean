@@ -70,6 +70,37 @@ theorem ScRel1.wr_hdr {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h
       hne _ (by unfold Aligned; rw [h2']; omega) (by rw [h2', hv]; omega)]
   refine ⟨hW', ep, em, hrs, hw, rd_wr_eq ha.1, (writesIn_wr ha.1).mono fun b hb => hb ▸ ha.2⟩
 
+/-- `ScRel1.wr_hdr` for the relation of any SC (`ScRelW`): the ring facts
+when it is active. -/
+theorem ScRelW.wr_hdr {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRelW st s sc x n)
+    {K : U64} (hK : HdrK K) (v : U64) :
+    let s' := L.wr s (scW sc K) v
+    ((L.rmax s sc).val ≠ 0 → RefillsWF st s' sc (n + Fl4Spec.minSchedContextBits) ∧ L.refills s' sc = L.refills s sc) ∧
+      L.rperiod s' sc = L.rperiod s sc ∧ L.rmax s' sc = L.rmax s sc ∧
+      (∀ K' : U64, K'.val < 96 → K'.val % 8 = 0 → K' ≠ K → L.mem s' (scW sc K') = L.mem s (scW sc K')) ∧
+      L.mem s' (scW sc K) = v ∧ WritesIn st s s' (ScIn st s sc) := by
+  intro s'
+  obtain ⟨h8, h2, hfit⟩ := h.bounds
+  have hKv : K.val < 96 ∧ K.val % 8 = 0 := by rcases hK with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp
+  have ha := h.hdr hKv.1 hKv.2
+  have hne : ∀ b : U64, Aligned b → b.val ≠ (scW sc K).val → L.mem s' b = L.mem s b :=
+    fun b hb hb' => L.mem_wr_ne ha.1 hb (Ne.symm hb')
+  have hv := scW_val (sc := sc) (K := K) (by omega)
+  have hw : ∀ K' : U64, K'.val < 96 → K'.val % 8 = 0 → K' ≠ K → L.mem s' (scW sc K') = L.mem s (scW sc K') := by
+    intro K' h1 h2 h3
+    refine hne _ (h.hdr h1 h2).1 ?_
+    rw [scW_val (by omega), hv]
+    exact fun e => h3 (UScalar.eq_of_val_eq (by omega))
+  have K72 : (72#u64 : U64) ≠ K := by rcases hK with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> decide
+  have K0 : (0#u64 : U64) ≠ K := by rcases hK with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> decide
+  have em : L.rmax s' sc = L.rmax s sc := by
+    simp only [LawfulStore.rmax, maxA_eq]; exact hw _ (by simp) (by simp) K72
+  have ep : L.rperiod s' sc = L.rperiod s sc := by
+    simp only [LawfulStore.rperiod, periodA_eq]; exact hw _ (by simp) (by simp) K0
+  refine ⟨fun h0 => ?_, ep, em, hw, rd_wr_eq ha.1, (writesIn_wr ha.1).mono fun b hb => hb ▸ ha.2⟩
+  obtain ⟨hW', -, -, hrs, -⟩ := (h.act h0).wr_hdr hK v
+  exact ⟨hW', hrs⟩
+
 /-- Writing an SC's `TCB` word. -/
 theorem SchedRel.set_sc_tcb {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) {sc : U64} (hsc : sc ∈ C) {x : Fl4Spec.SchedContext} {n : Nat}
@@ -80,15 +111,10 @@ theorem SchedRel.set_sc_tcb {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x', n', hk', hx⟩ := hs.scs sc hsc
   rw [hk] at hk'; cases hk'
-  obtain ⟨hW', ep, em, hrs, hw, hv, hwr⟩ := hx.wr_hdr (K := 24#u64) (by simp [HdrK]) v
-  have hx' : ScRel1 st (L.wr s (scW sc 24#u64) v) sc { x with scTcb := optRef v } n :=
-    ⟨hW', by rw [ep]; exact hx.period, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.consumed,
-      by rw [hv], by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.ntfn,
-      by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.badge,
-      by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.yieldFrom,
-      by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.sporadic, by rw [em]; exact hx.max,
-      by rw [hrs]; exact hx.refills⟩
-  exact ⟨hS.sc_update hsc hk (hwr.mono fun b hb => hx.in_obj hb) (hw _ (by simp) (by simp) (by decide)) _ hx', scin_footEq hS hsc hwr, KView.of_sc hk⟩
+  obtain ⟨hst, ep, em, hw, hv, hwr⟩ := hx.wr_hdr (K := 24#u64) (by simp [HdrK]) v
+  have hx' : ScRelW st (L.wr s (scW sc 24#u64) v) sc { x with scTcb := optRef v } n :=
+    ⟨hx.pl, by rw [ep]; exact hx.period, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.consumed, by rw [hv], by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.ntfn, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.badge, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.yieldFrom, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.sporadic, fun h0 => by rw [em]; exact hx.spor (by rwa [hw _ (by simp) (by simp) (by decide)] at h0), fun h0 => by rw [em]; exact hx.idle h0, by rw [em]; exact hx.max, fun h0 => ScRel1.ofWF (hst (by rwa [em] at h0)).1 (by rw [ep]; exact hx.period) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.consumed) (by rw [hv]) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.ntfn) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.badge) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.yieldFrom) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.sporadic) (by rw [em]; exact hx.max) (by rw [(hst (by rwa [em] at h0)).2]; exact (hx.act (by rwa [em] at h0)).refills)⟩
+  exact ⟨hS.sc_updateW hsc hk (hwr.mono fun b hb => hx.in_obj hb) (hw _ (by simp) (by simp) (by decide)) _ hx', scin_footEq hS hsc hwr, KView.of_sc hk⟩
 
 /-- Writing a TCB's `SC` word, with `0` or an SC of `C`. -/
 theorem SchedRel.set_tcb_sc {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}

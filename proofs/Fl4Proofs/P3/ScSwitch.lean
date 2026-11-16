@@ -260,6 +260,7 @@ theorem switch_sched_context_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
       x.scTcb = some u0)
     (hback : ∀ xt, σ.kheap u0 = some (.tcb xt) → xt.tcbSchedContext = some σ.curSc)
     (hnr : u0 ∉ σ.releaseQueue) (hoff : OffOK σ)
+    (hna : (L.rmax s (L.mem s (scA (nodeW st s c layout.node.CUR_THREAD)))).val ≠ 0)
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
     sched.switch_sched_context st ar s a ⦃ r => ∃ σ', Fl4Spec.switchSchedContext (Z := Unit) σ = ({((), σ')}, False) ∧
@@ -276,7 +277,8 @@ theorem switch_sched_context_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
   have hnC : nsc ∈ C := hs.scMem _ hct hb0
   obtain ⟨x, n, hk, hx⟩ := hs.scs _ hscC
   obtain ⟨x', n', hk', hx'⟩ := hs.scs _ hnC
-  have hne' : x'.scRefills ≠ [] := by rw [hx'.refills]; exact refills_ne hx'.wf
+  have hx'S := hx'.act hna
+  have hne' : x'.scRefills ≠ [] := by rw [hx'S.refills]; exact refills_ne hx'S.wf
   have hspec : Fl4Spec.switchSchedContext (Z := Unit) σ = (Fl4Spec.NonDet.when (nsc.bv ≠ osc.bv) (do
       Fl4Spec.NonDet.modify fun s : Fl4Spec.State Unit => { s with reprogramTimer := true }
       Fl4Spec.ifConstantBandwidthRefillUnblockCheck (some nsc.bv)) >>= fun _ => sscTail nsc.bv) σ := by
@@ -381,7 +383,11 @@ theorem switch_sched_context_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
     · rename_i hcb
       have hw0 := of_decide_eq_true (hb1 ▸ hcb)
       have hspf : x'.scSporadic = false := by rw [hsp']; exact decide_eq_false (not_not.2 hw0)
-      refine WP.spec_bind (unblock_check_refines _ σr hS3 hnC) ?_
+      refine WP.spec_bind (unblock_check_refines _ σr hS3 hnC (by
+        obtain ⟨Q3, R3, hc3, hs3⟩ := hS3.lists
+        obtain ⟨x3, n3, hk3, hx3⟩ := hs3.scs nsc hnC
+        rw [hkr'] at hk3; cases hk3
+        rw [hx3.max, ← hx'.max]; exact hna)) ?_
       rintro s2 ⟨σ2, hu, hf2, hkv2, hS2⟩
       obtain ⟨k1, k2, k3, k4, k5, -, k7⟩ := unblock_keeps hkr' hne' hu
       have hm : ((), σ2) ∈ (Fl4Spec.refillUnblockCheck (Z := Unit) nsc.bv σr).1 := by rw [hu]; rfl
@@ -439,7 +445,12 @@ theorem switch_sched_context_cur {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
   have hxs : xt.tcbSchedContext = some (L.mem s (scA (nodeW st s c layout.node.CUR_THREAD))).bv := by
     rw [hsct, optRef_ne hb0]
   obtain ⟨x', n', hk', -⟩ := hs.scs _ (hs.scMem _ hct hb0)
-  refine WP.spec_mono (switch_sched_context_refines s a σ hS hR hN hI hscC hb0 hctr hown0 hback hnr hoff hmrt hmb) ?_
+  have hna : (L.rmax s (L.mem s (scA (nodeW st s c layout.node.CUR_THREAD)))).val ≠ 0 := by
+    obtain ⟨x0, n0, hk0, hx0⟩ := hs.scs _ (hs.scMem _ hct hb0)
+    by_cases hi : (L.mem s (scA (nodeW st s c layout.node.CUR_THREAD))).bv = Fl4Spec.idleScPtr
+    · exact hx0.idle hi
+    · exact hx0.rmax_ne (hact hi x0 n0 hk0)
+  refine WP.spec_mono (switch_sched_context_refines s a σ hS hR hN hI hscC hb0 hctr hown0 hback hnr hoff hna hmrt hmb) ?_
   rintro r ⟨σ', h1, h2, h3, h4, h5, e1, e2, e3, hsw, e4⟩
   refine ⟨σ', h1, h2, h3, h4, h5, ⟨⟨xt, ?_, ?_, hnb xt hkt⟩, ?_, fun hid y m hy => ?_, ?_⟩,
     fun hA => hA.swKeep hsw e3 (Or.inl hsw.2.2.2), e4⟩

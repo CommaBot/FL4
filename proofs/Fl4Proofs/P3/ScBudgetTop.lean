@@ -93,6 +93,7 @@ variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulSt
 /-- **`budget_check` refines `refill_budget_check`.** -/
 theorem budget_check_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) (hcC : nodeW st s c layout.node.CUR_SC ∈ C)
+    (hca : (L.rmax s (nodeW st s c layout.node.CUR_SC)).val ≠ 0)
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hrr : L.rperiod s (nodeW st s c layout.node.CUR_SC) ≠ 0#u64)
@@ -105,6 +106,7 @@ theorem budget_check_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   set sc := nodeW st s c layout.node.CUR_SC with hscdef
   obtain ⟨x, n, hk, hx⟩ := hs.scs sc hcC
+  replace hx := hx.act hca
   have hrr' : x.scPeriod ≠ 0 := by
     rw [hx.period]; intro e; exact hrr (eq_of_bv (by rw [e]; rfl))
   have hkk : ∀ s' : S, (specAt (st := st) σ sc x n s').kheap sc.bv =

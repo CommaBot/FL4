@@ -46,7 +46,10 @@ theorem NSC.step {N C : Set U64} {σ σ' : Fl4Spec.State Unit} (h : NSC N C σ) 
   exact h n hn' x0 p h0 (hs ▸ hp)
 
 theorem Inv.relOK {σ : Fl4Spec.State Unit} (h : Inv σ) : RelOK σ :=
-  ⟨fun u hu => by obtain ⟨x, p, -, -, h1, h2, -⟩ := h.rel u hu; exact ⟨x, p, h1, h2⟩, h.sorted⟩
+  ⟨fun u hu => by obtain ⟨x, p, -, -, h1, h2, -⟩ := h.rel u hu; exact ⟨x, p, h1, h2⟩, h.sorted,
+    fun u hu x' p' hx hp => by
+      obtain ⟨x, p, y, n, h1, h2, -, h4, h5⟩ := h.rel u hu
+      rw [hx] at h1; cases h1; rw [hp] at h2; cases h2; exact ⟨y, n, h4, h5⟩⟩
 
 theorem NSC.mem {N T C : Set U64} {s : S} {σ : Fl4Spec.State Unit} (h : NSC N C σ)
     (hR : NtfnStateRel N T (L.mem s) σ) {n : U64} (hn : n ∈ N) (h0 : L.mem s (nScA n) ≠ 0#u64) :
@@ -107,11 +110,11 @@ theorem wakeTail_SRI {N T C : Set U64} {c : U64}
   obtain ⟨x2, hkt2, -⟩ := hs2.tcb t ht
   have hI3 := hI2.unblockTail hkt2 (fun p y m h1 h2 h3 => by
     rw [hk2] at hkt2 h2; rw [hr2] at h3; rw [ht2]
-    exact hrq1 x2 p y m hkt2 h1 h2 h3) hm
+    exact hrq1 x2 p y m hkt2 h1 h2 h3) (hS2.spor_act ht hkt2) hm
   rw [hspec]
   exact ⟨hnf, σ', hm, FootEq.trans' (FootEq.trans' hf1 hf2) hf3,
     KView.trans (KView.trans hv1 (KView.of_kheap hk2)) hv3, hS3, hI3, hN2.kview hR2 hv3,
-    hA2.unblockTail hI2 hkt2 hm⟩
+    hA2.unblockTail hI2 hkt2 (hS2.spor_act ht hkt2) hm⟩
 
 /-- **`SchedHyps` for `SRI`**, from the platform's `MIN_BUDGET` and the IPC
 hypothesis `cancel_ipc`. -/
@@ -157,8 +160,9 @@ theorem recvTail_SRI {N T C : Set U64} {c : U64}
   obtain ⟨xt1, hkt1, -⟩ := hR1.tcb t ht
   rw [hspec]
   exact ⟨hnf, σ', hm, FootEq.trans' hf1 hf, KView.trans hv1 hv,
-    hS', hI1.unblockTail hkt1 (fun p y m h1 h2 h3 => hrq1 xt1 p y m hkt1 h1 h2 h3) hm, hN1.kview hR1 hv,
-    (hA.donate hI hkt hkn hNQ hd).unblockTail hI1 hkt1 hm⟩
+    hS', hI1.unblockTail hkt1 (fun p y m h1 h2 h3 => hrq1 xt1 p y m hkt1 h1 h2 h3) (hS1.spor_act ht hkt1) hm,
+    hN1.kview hR1 hv,
+    (hA.donate hI hkt hkn hNQ hd).unblockTail hI1 hkt1 (hS1.spor_act ht hkt1) hm⟩
 
 /-- **`RecvHyps.completeTail` for `SRI`.** -/
 theorem completeTail_SRI {N T C : Set U64} {c : U64}
@@ -186,8 +190,9 @@ theorem completeTail_SRI {N T C : Set U64} {c : U64}
   obtain ⟨xn1, hkn1, -⟩ := hR1.ntfn n hn
   rw [hspec]
   exact ⟨hnf, σ', hm, FootEq.trans' hf1 hf, KView.trans hv1 hv,
-    hS', hI1.completeCheck hkt1 hkn1 (fun p y m h1 h2 h3 => hrq1 xt1 p y m hkt1 h1 h2 h3) hm, hN1.kview hR1 hv,
-    (hA.donate hI hkt hkn hNQ hd).completeCheck hI1 hkt1 hkn1 hm⟩
+    hS', hI1.completeCheck hkt1 hkn1 (fun p y m h1 h2 h3 => hrq1 xt1 p y m hkt1 h1 h2 h3) (hS1.spor_act ht hkt1) hm,
+    hN1.kview hR1 hv,
+    (hA.donate hI hkt hkn hNQ hd).completeCheck hI1 hkt1 hkn1 (hS1.spor_act ht hkt1) hm⟩
 
 /-- **`RecvHyps.returnSc` for `SRI`.** -/
 theorem returnSc_SRI {N T C : Set U64} {c : U64} (s : S) (σ0 σ : Fl4Spec.State Unit) (t n : U64)

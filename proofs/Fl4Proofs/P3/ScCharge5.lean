@@ -27,11 +27,11 @@ theorem InvBut.congr {σ σ' : State Unit} {t : ObjRef} (h : InvBut σ t) (hk : 
   · rw [hr] at hu; rw [hk]; exact h.rel u hu
   · rw [hr]
     refine List.Pairwise.imp_of_mem (fun {a b} ha hb hab => ?_) h.sorted
-    obtain ⟨xa, pa, ya, na, h1, h2, -, h4, -⟩ := h.rel a ha
-    obtain ⟨xb, pb, yb, nb, g1, g2, -, g4, -⟩ := h.rel b hb
-    rw [specRt_eq (by rw [hk]; exact h1) h2 (by rw [hk]; exact h4) (h.ne _ _ _ h4),
-      specRt_eq (by rw [hk]; exact g1) g2 (by rw [hk]; exact g4) (h.ne _ _ _ g4)]
-    rw [specRt_eq h1 h2 h4 (h.ne _ _ _ h4), specRt_eq g1 g2 g4 (h.ne _ _ _ g4)] at hab
+    obtain ⟨xa, pa, ya, na, h1, h2, -, h4, h5⟩ := h.rel a ha
+    obtain ⟨xb, pb, yb, nb, g1, g2, -, g4, g5⟩ := h.rel b hb
+    rw [specRt_eq (by rw [hk]; exact h1) h2 (by rw [hk]; exact h4) (h.ne _ _ _ h4 h5),
+      specRt_eq (by rw [hk]; exact g1) g2 (by rw [hk]; exact g4) (h.ne _ _ _ g4 g5)]
+    rw [specRt_eq h1 h2 h4 (h.ne _ _ _ h4 h5), specRt_eq g1 g2 g4 (h.ne _ _ _ g4 g5)] at hab
     exact hab
   · rw [hk] at hx
     intro x' scp y n h1 h2 h3 h4 h5
@@ -71,9 +71,9 @@ theorem InvBut.scUpd {σ : State Unit} {t p : ObjRef} (h : InvBut σ t) {y y' : 
     · exact ⟨w, by rw [hkp q e]; exact hq, rfl⟩
   have hrt : ∀ u ∈ σ.releaseQueue, specRt (updSc σ p y' m) u = specRt σ u := by
     intro u hu
-    obtain ⟨xu, pu, yu, nu, h1, h2, -, h4, -⟩ := h.rel u hu
+    obtain ⟨xu, pu, yu, nu, h1, h2, -, h4, h5⟩ := h.rel u hu
     obtain ⟨w', hw', hr'⟩ := hsc' pu yu nu h4
-    rw [specRt_eq ((htcb u xu).2 h1) h2 hw' (by rw [hr']; exact h.ne _ _ _ h4), specRt_eq h1 h2 h4 (h.ne _ _ _ h4)]
+    rw [specRt_eq ((htcb u xu).2 h1) h2 hw' (by rw [hr']; exact h.ne _ _ _ h4 h5), specRt_eq h1 h2 h4 (h.ne _ _ _ h4 h5)]
     unfold refillHd; rw [hr']
   refine ⟨fun d q u hu => ?_, fun u hu => ?_, ?_, fun u x hut hx hc => ?_, fun q w n hw ha => ?_,
     fun u x q hx hq => ?_, fun q x q' hx hq => ?_, fun q w n hw => ?_, fun q w n hw ha hp0 => ?_⟩
@@ -111,8 +111,8 @@ theorem InvBut.scUpd {σ : State Unit} {t p : ObjRef} (h : InvBut σ t) {y y' : 
     obtain ⟨w, n, h1⟩ := h.ntfnSc q x q' hx0 hq
     obtain ⟨w', hw', -⟩ := hsc' q' w n h1
     exact ⟨w', n, hw'⟩
-  · obtain ⟨w0, hw0, hr, -⟩ := hsc q w n hw
-    rw [hr]; exact h.ne q w0 n hw0
+  · obtain ⟨w0, hw0, hr, hm, -⟩ := hsc q w n hw
+    rw [hr]; intro hya; exact h.ne q w0 n hw0 (by simpa [scActive, hm] using hya)
   · obtain ⟨w0, hw0, hr, hm, hp, -⟩ := hsc q w n hw
     exact (h.rr q w0 n hw0 (by simpa [scActive, hm] using ha) (hp ▸ hp0)).of_refills hr
 

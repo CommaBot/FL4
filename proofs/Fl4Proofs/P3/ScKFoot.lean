@@ -32,9 +32,9 @@ def SOffL (K : U64) : Prop :=
   K = 3328#u64 ∨ K = 3464#u64 ∨ K = 3480#u64 ∨ K = 3488#u64 ∨ K = 3520#u64 ∨ K = 3592#u64
 
 /-- A TCB offset the scheduler code may write: past the cap slots and the
-`TCB` header (`≥ 256`), and neither the `MCP` (3440) nor the `YIELD_TO`
-(3472) word. -/
-def SOff (K : U64) : Prop := 256 ≤ K.val ∧ K.val < 4096 ∧ K ≠ 3440#u64 ∧ K ≠ 3472#u64 ∧ SOffL K
+`TCB` header (`≥ 256`), and none of the `MCP` (3440), `YIELD_TO` (3472) and
+`IPC_BUFFER` (3512) words. -/
+def SOff (K : U64) : Prop := 256 ≤ K.val ∧ K.val < 4096 ∧ K ≠ 3440#u64 ∧ K ≠ 3472#u64 ∧ K ≠ 3512#u64 ∧ SOffL K
 
 /-- The scheduler footprint: words of the TCBs at `SOff` offsets, and of the
 node. -/
@@ -346,7 +346,7 @@ theorem sw_ring {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit} (h
 
 /-- **`unblock_check`'s footprint**: the SC's ring and the node's `REPROGRAM`. -/
 theorem unblock_check_kfoot {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
-    (hS : SchedRel st N T C c s σ) {p : U64} (hp : p ∈ C) :
+    (hS : SchedRel st N T C c s σ) {p : U64} (hp : p ∈ C) (ha : (L.rmax s p).val ≠ 0) :
     sporadic.unblock_check st s p ⦃ s' => WritesIn st s s' (KFoot st T N C c s σ) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x, n, hk, hx⟩ := hs.scs p hp
@@ -363,7 +363,7 @@ theorem unblock_check_kfoot {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
     have := (hS.scOut p hp x n hk _ ⟨hin.1, hin.2⟩).2.1
     rw [e, nodeAt_val hN ho] at this
     omega
-  refine WP.spec_mono (sporadic.unblock_check.fr hx.wf ⟨hal, hout⟩) fun s' hw => hw.mono fun b hb => ?_
+  refine WP.spec_mono (sporadic.unblock_check.fr (hx.act ha).wf ⟨hal, hout⟩) fun s' hw => hw.mono fun b hb => ?_
   rcases hb with hb | hb
   · exact KFoot.of_sw (sw_ring hS hp hk hb)
   · rw [hb, e]; exact KFoot.of_sfoot (sfoot_node hN ho)

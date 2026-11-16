@@ -32,16 +32,16 @@ theorem scW_ntfn (c : U64) : scW c 40#u64 = scNtfnA c := by unfold scW scNtfnA l
 /-- **`ScLinkHyp` from the relations and P1's `ScExtra0`.** -/
 theorem scLinkHyp_of {N T E R C Cs Scs Nt : Set U64} {B : Set (U64 × Word)} {s : S} {σ : State Unit}
     (hI : Ipc.IpcRel N T E R B (L.mem s) σ) (hCv : ObjCover N T E R C σ)
-    (hscs : ∀ c ∈ C, ∃ x n, σ.kheap c.bv = some (.schedContext x n) ∧ ScRel1 st s c x n)
+    (hscs : ∀ c ∈ C, ∃ x n, σ.kheap c.bv = some (.schedContext x n) ∧ ScRelW st s c x n)
     (hCS : ∀ c ∈ C, c ∈ Scs) (hX : ScExtra0 st T Cs Scs Nt s) (hNt : ∀ n ∈ Nt, n ∈ N) :
     ScLinkHyp σ := by
-  have scOf : ∀ sc y k, σ.kheap sc = some (.schedContext y k) → ∃ c ∈ C, c.bv = sc ∧ ScRel1 st s c y k := by
+  have scOf : ∀ sc y k, σ.kheap sc = some (.schedContext y k) → ∃ c ∈ C, c.bv = sc ∧ ScRelW st s c y k := by
     intro sc y k hk
     obtain ⟨c, hc, rfl⟩ := hCv.sc sc y k hk
     obtain ⟨x, n, hk', hr⟩ := hscs c hc
     rw [hk] at hk'; cases hk'
     exact ⟨c, hc, rfl, hr⟩
-  refine ⟨fun sc y k f hk hy => ?_, fun sc y k n hk hy => ?_, fun t x n hk hb => ?_⟩
+  refine ⟨fun sc y k f hk hy => ?_, fun sc y k n hk hy => ?_, fun t x n hk hb => ?_, fun sc y k hk hsp => ?_⟩
   · obtain ⟨c, hc, rfl, hr⟩ := scOf sc y k hk
     rw [hr.tcb, scW_tcb] at hy
     obtain ⟨h0, rfl⟩ := optRef_some hy
@@ -59,6 +59,10 @@ theorem scLinkHyp_of {N T E R C Cs Scs Nt : Set U64} {B : Set (U64 × Word)} {s 
     obtain ⟨h0, rfl⟩ := optRef_some hb
     obtain ⟨xn, hkn, -⟩ := hI.ntfn _ (hNt _ (hX.bnd u hu h0))
     exact ⟨xn, hkn⟩
+  · obtain ⟨c, -, rfl, hr⟩ := scOf sc y k hk
+    have hw : L.mem s (scW c 64#u64) ≠ 0#u64 := by
+      have := hr.sporadic; rw [hsp] at this; simpa using this.symm
+    exact hr.active_of_rmax (hr.spor hw)
 
 /-- **`ObjCover` from `KTyped`, `JPlaced` and `SpecCover`**, over `H`'s TCBs
 and replies, endpoints and notifications in `E` and `N`. -/
