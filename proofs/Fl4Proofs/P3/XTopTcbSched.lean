@@ -186,7 +186,7 @@ theorem XTopAt.regWr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : 
     (hk : σ.kheap t.bv = some (.tcb x)) (r : Fl4Spec.Register) (hr : r ≠ Fl4Spec.badge_register) (v : U64) :
     ∃ G', WX (L := L) AR Z.th (L.wr s (regA t (regIdx r)) v) a
       (Notif.updK σ t.bv (.tcb (Notif.setReg x r v.bv))) G' := by
-  obtain ⟨hIR, hSRT⟩ := hX.irelK hK hBT
+  obtain ⟨hIR, hSRT⟩ := hX.irelK hK hBT.1
   have hP := hX.fin.1.2
   have hPe := hP.ep
   have hSch := hX.fin.1.1.1

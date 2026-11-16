@@ -181,7 +181,7 @@ theorem tk_liftCW (hP0 : IPlaced N T E R B) {s s' : S} {σ σ' : Fl4Spec.State U
     (fun r hr => by have := hKA.rep r hr; omega) hW hK hS' hN' id
   have hks : L.ksb s' = L.ksb s := hW.1
   have hcr : σ'.archState.x64CurrentCr3 = cr := hX'.fin.1.1.2.2.2.2.2.2
-  have := XTopAt.irelK hX' (by rw [hks]; exact hKA) hBT'
+  have := XTopAt.irelK hX' (by rw [hks]; exact hKA) hBT'.1
   rw [hcr] at this
   exact this
 

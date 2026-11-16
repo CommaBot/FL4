@@ -89,7 +89,7 @@ theorem tk_lift (hP0 : IPlaced N T E R B) {s s' : S} {σ σ' : Fl4Spec.State Uni
   have hX' := xtop_sc_step (a' := ()) hZ hP0 (fun n hn => by have := hKA.ntfn n hn; omega) hW hK hS' hN' id
   have hks : L.ksb s' = L.ksb s := hW.1
   have hcr : σ'.archState.x64CurrentCr3 = cr := hX'.fin.1.1.2.2.2.2.2.2
-  have := XTopAt.irelK hX' (by rw [hks]; exact hKA) hBT'
+  have := XTopAt.irelK hX' (by rw [hks]; exact hKA) hBT'.1
   rw [hcr] at this
   exact this
 

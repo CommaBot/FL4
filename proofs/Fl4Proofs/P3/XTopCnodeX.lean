@@ -32,7 +32,7 @@ theorem decode_invocation_cnode_cancelXI {AR : A → Fl4Spec.Cr3 → Prop} {Z : 
     (hcur : σ.curThread = ct.bv) (hEp : CancelEpHyp (L := L) Z.th s σ)
     (hrun : ∀ xt, σ.kheap ct.bv = some (.tcb xt) → tsCode xt.tcbState < 3)
     (hZ : ∀ Z' : XSets, XTopAt (L := L) AR Z' s ar σ → KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s) ∧
-      Ipc.BufTop (L := L) Z'.T Z'.c s σ ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧ ct ∈ Z'.T ∧
+      BufWordRel Z'.T (L.mem s) σ ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧ ct ∈ Z'.T ∧
       ∀ s' σ', IRel st Z'.th σ.archState.x64CurrentCr3 Z'.N Z'.T Z'.C Z'.E Z'.R Z'.B Z'.c s' σ' → ActReady σ')
     (hE : ∀ (Z' : XSets) (e b : U64) (sl : Fl4Spec.CslotPtr), XTopAt (L := L) AR Z' s ar σ → AbsSlot Z.th sl →
       capV (L.mem s) (cslotAddr sl) = .Endpoint e b true true true true → e ∈ Z'.E)

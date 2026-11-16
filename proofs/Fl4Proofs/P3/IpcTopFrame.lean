@@ -265,15 +265,24 @@ structure VsP (th : TypedHeap) (cr : Fl4Spec.Cr3) (N T C E R : Set U64) (B : Set
   cr3 : σ.archState.x64CurrentCr3 = cr
   /-- The IPC-buffer words (`BufWordRel`). -/
   bw : BufWordRel T (L.mem s) σ
-  /-- No IPC-buffer word is in core `c`'s node ([P], placement: the nodes are
-  kernel static data, the TCBs in untyped memory). -/
+  /-- No IPC-buffer word is in core `c`'s node (from the scheduler relation's
+  node placement, `bn_of_node`). -/
   bn : ∀ t ∈ T, ¬ NodeW (L.ksb s) c (tIpcBufA t)
 
-/-- **The IPC-buffer facts `VsP` carries** (a per-`Z` premise of the IPC
-leaves, as `KsApart`): `BufWordRel`, and no IPC-buffer word in core `c`'s
-node ([P], placement: the nodes are kernel static data). -/
+/-- **The IPC-buffer facts `VsP` carries**: `BufWordRel`, and no IPC-buffer
+word in core `c`'s node (`bn_of_node`). -/
 def BufTop (T : Set U64) (c : U64) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
   BufWordRel T (L.mem s) σ ∧ ∀ t ∈ T, ¬ NodeW (L.ksb s) c (tIpcBufA t)
+
+/-- No IPC-buffer word is in a node placed apart from the TCBs. -/
+theorem bn_of_node {s : S} (hN : NodePlaced st T s c) (hT : TcbPlaced T) :
+    ∀ t ∈ T, ¬ NodeW (L.ksb s) c (tIpcBufA t) := by
+  intro t ht ⟨h1, h2⟩
+  have hv := tIpcBufA_val (hT t ht)
+  have := hN.disj t ht
+  have h12 : (2 : ℕ) ^ 12 = 4096 := by norm_num
+  simp only [LawfulStore.nodeBase, h12] at this
+  omega
 
 theorem VsP.bufTop {s : S} {σ : Fl4Spec.State Unit} (h : VsP (L := L) th cr N T C E R B c s σ) :
     BufTop (L := L) T c s σ := ⟨h.bw, h.bn⟩
