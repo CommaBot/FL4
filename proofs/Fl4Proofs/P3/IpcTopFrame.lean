@@ -44,7 +44,7 @@ noncomputable section
 
 section
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
-variable {N T E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-! ## The words -/
 
@@ -90,13 +90,15 @@ structure IpcApart (th : TypedHeap) (N T E R : Set U64) (B : Set (U64 × Fl4Spec
   node : ∀ a : U64, kb.val + 13568 + c.val * 4288 ≤ a.val → a.val < kb.val + 13568 + c.val * 4288 + 4288 →
     ∀ x, IsSlot th x → ¬ (x.val ≤ a.val ∧ a.val < x.val + 32)
   dom : ∀ a, IWords N T E R B a → a.val < kb.val ∨ kb.val + 256 ≤ a.val
+  /-- The kernel-global block holds no slot. -/
+  ks : ∀ a : U64, kb.val ≤ a.val → a.val < kb.val + 13568 → ∀ x, IsSlot th x → ¬ (x.val ≤ a.val ∧ a.val < x.val + 32)
   kfit : kb.val + 13568 ≤ 2 ^ 64
   kal : kb.val % 8 = 0
 
 /-- **`IpcApart` from `TopPlaced`** and the IPC objects' distance from the
 kernel-global block (for the TCBs, `SchedRel`'s `ksOut`; for the buffer
 words, `BufPlaced.dom`). -/
-theorem IpcApart.of_top {th : TypedHeap} {P L4 L3 L2 L1 C : Set U64} {s : S} {σ : Fl4Spec.State Unit}
+theorem IpcApart.of_top {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {s : S} {σ : Fl4Spec.State Unit}
     (hP : Vs.TopPlaced st th P L4 L3 L2 L1 N T C E R B c s σ)
     (hkT : ∀ t ∈ T, t.val + 4096 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ t.val)
     (hkE : ∀ e ∈ E, e.val + 16 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ e.val)
@@ -105,7 +107,10 @@ theorem IpcApart.of_top {th : TypedHeap} {P L4 L3 L2 L1 C : Set U64} {s : S} {σ
     (hkB : ∀ wp ∈ B, wp.1.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ wp.1.val) :
     IpcApart th N T E R B (L.ksb s) c := by
   refine ⟨fun a ha x hx ⟨h1, h2⟩ => ?_, fun a h1 h2 x hx ⟨h3, h4⟩ =>
-    hP.disj a (Or.inl ⟨h1, h2⟩) (Vs.vobj_of_slot hP.pl P L4 L3 L2 L1 (L.ksb s) hx h3 h4), fun a ha => ?_, by have := hP.vs.ksb_fit; omega, hP.vs.ksb_al⟩
+    hP.disj a (Or.inl ⟨h1, h2⟩) (Vs.vobj_of_slot hP.pl P L4 L3 L2 L1 (L.ksb s) hx h3 h4), fun a ha => ?_,
+    fun a h1 h2 x hx ⟨h3, h4⟩ =>
+    hP.disj a (Or.inr (Or.inl ⟨h1, h2⟩)) (Vs.vobj_of_slot hP.pl P L4 L3 L2 L1 (L.ksb s) hx h3 h4),
+    by have := hP.vs.ksb_fit; omega, hP.vs.ksb_al⟩
   · refine hP.disj a ?_ (Vs.vobj_of_slot hP.pl P L4 L3 L2 L1 (L.ksb s) hx h1 h2)
     rcases ha with h | h | h | h | h
     · exact Or.inr (Or.inr (Or.inl h))
@@ -120,17 +125,39 @@ theorem IpcApart.of_top {th : TypedHeap} {P L4 L3 L2 L1 C : Set U64} {s : S} {σ
     · have := hkN n hn; omega
     · have := hkB wp hw; omega
 
+/-- **The SC objects hold no slot.** -/
+def ScApart (th : TypedHeap) (C : Set U64) (σ : Fl4Spec.State Unit) : Prop :=
+  ∀ sc ∈ C, ∀ x n, σ.kheap sc.bv = some (.schedContext x n) → ∀ a : U64, Sched.ScObj sc n a →
+    ∀ y, IsSlot th y → ¬ (y.val ≤ a.val ∧ a.val < y.val + 32)
+
+theorem ScApart.of_top {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hP : Vs.TopPlaced st th P L4 L3 L2 L1 N T C E R B c s σ) : ScApart th C σ :=
+  fun sc hsc x n hk a ha y hy ⟨h1, h2⟩ =>
+    hP.disj a (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨sc, hsc, x, n, hk, ha⟩)))))))
+      (Vs.vobj_of_slot hP.pl P L4 L3 L2 L1 (L.ksb s) hy h1 h2)
+
+theorem ScApart.mono {th : TypedHeap} {σ σ' : Fl4Spec.State Unit} (h : ScApart th C σ)
+    (hz : Sched.SzKeep σ σ') : ScApart th C σ' := fun sc hsc x n hk a ha y hy => by
+  obtain ⟨x0, h0⟩ := hz _ x n hk
+  exact h sc hsc x0 n h0 a ha y hy
+
 /-! ## The relation and its frame -/
 
-/-- **`RelTopM` for the IPC proofs**: with its typed heap apart from the
-IPC words. -/
-def RelTopI (N T E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (c : U64) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
-  ∃ th G, Placed th ∧ CRel th (L.mem s) σ G ∧ FinInv th (L.mem s) σ G ∧ DomRel (L.mem s) (L.ksb s) σ ∧
-    MdbOKV (L.ksb s) (L.mem s) G ∧ IpcApart th N T E R B (L.ksb s) c
+/-- **The body of `RelTopI`** for a typed heap and a ghost tree. -/
+def RelTopB (th : TypedHeap) (G : MdbGhost) (N T C E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (c : U64)
+    (s : S) (σ : Fl4Spec.State Unit) : Prop :=
+  Placed th ∧ CRel th (L.mem s) σ G ∧ FinInv th (L.mem s) σ G ∧ DomRel (L.mem s) (L.ksb s) σ ∧
+    MdbOKV (L.ksb s) (L.mem s) G ∧ IpcApart th N T E R B (L.ksb s) c ∧ ScApart th C σ
 
-theorem RelTopI.relTop {s : S} {σ : Fl4Spec.State Unit} (h : RelTopI (L := L) N T E R B c s σ) :
+/-- **`RelTopM` for the IPC proofs**: with its typed heap apart from the
+IPC words and the SC objects apart from the slots. -/
+def RelTopI (N T C E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (c : U64) (s : S) (σ : Fl4Spec.State Unit) :
+    Prop :=
+  ∃ th G, RelTopB (L := L) th G N T C E R B c s σ
+
+theorem RelTopI.relTop {s : S} {σ : Fl4Spec.State Unit} (h : RelTopI (L := L) N T C E R B c s σ) :
     RelTopM (L := L) s σ :=
-  let ⟨th, G, hPl, hCR, hFI, hD, hMO, _⟩ := h
+  let ⟨th, G, hPl, hCR, hFI, hD, hMO, _, _⟩ := h
   ⟨th, G, hPl, hCR, hFI, hD, hMO⟩
 
 /-- The words of core `c`'s node. -/
@@ -139,12 +166,13 @@ def NodeW (kb c a : U64) : Prop :=
 
 /-- **The frame**: FL4 writing only IPC words and words of core `c`'s node,
 the spec keeping the caps and the domain schedule. -/
-theorem RelTopI.frameN {s s' : S} {σ σ' : Fl4Spec.State Unit} {W : U64 → Prop}
-    (h : RelTopI (L := L) N T E R B c s σ) (hW : WritesIn st s s' W)
+theorem RelTopB.frameN {th : TypedHeap} {G : MdbGhost} {s s' : S} {σ σ' : Fl4Spec.State Unit} {W : U64 → Prop}
+    (h : RelTopB (L := L) th G N T C E R B c s σ) (hW : WritesIn st s s' W)
     (hWI : ∀ a, W a → IWords N T E R B a ∨ NodeW (L.ksb s) c a)
-    (hK : CKeep σ σ') (hdl : σ'.domainList = σ.domainList) (hds : σ'.domainStartIndex = σ.domainStartIndex) :
-    RelTopI (L := L) N T E R B c s' σ' := by
-  obtain ⟨th, G, hPl, hCR, hFI, hD, hMO, hA⟩ := h
+    (hK : CKeep σ σ') (hdl : σ'.domainList = σ.domainList) (hds : σ'.domainStartIndex = σ.domainStartIndex)
+    (hz : Sched.SzKeep σ σ') :
+    RelTopB (L := L) th G N T C E R B c s' σ' := by
+  obtain ⟨hPl, hCR, hFI, hD, hMO, hA, hSA⟩ := h
   obtain ⟨hksb, -, hmem⟩ := hW
   have hSS : SlotsSame th (L.mem s) (L.mem s') := by
     intro a ha
@@ -165,20 +193,30 @@ theorem RelTopI.frameN {s s' : S} {σ σ' : Fl4Spec.State Unit} {W : U64 → Pro
       rcases hWI _ hw with hi | ⟨h3, -⟩
       · have := hA.dom _ hi; omega
       · omega
-  refine ⟨th, G, hPl, ⟨(hCR.1.of_ckeep hK).of_caps (fun x hx => hSS.capAt hx),
+  refine ⟨hPl, ⟨(hCR.1.of_ckeep hK).of_caps (fun x hx => hSS.capAt hx),
       SlotsValid.of_caps hCR.2.1 (fun y hy => hSS.capAt hy), hCR.2.2.1.of_same hSS,
       hCR.2.2.2.1.of_same hSS hK.cdt hK.orig, MdbInv.of_same hCR.2.2.1 hCR.2.2.2.2 hSS⟩,
-    hFI.of_same hCR.2.2.1 hSS hK.ks, ?_, ?_, ?_⟩
+    hFI.of_same hCR.2.2.1 hSS hK.ks, ?_, ?_, ?_, hSA.mono hz⟩
   · rw [hksb]; exact hD.of_same hDS hdl hds
   · rw [hksb]; exact MdbOKV.of_same hCR.2.2.1 hSS hMO
   · rw [hksb]; exact hA
 
+theorem RelTopI.frameN {s s' : S} {σ σ' : Fl4Spec.State Unit} {W : U64 → Prop}
+    (h : RelTopI (L := L) N T C E R B c s σ) (hW : WritesIn st s s' W)
+    (hWI : ∀ a, W a → IWords N T E R B a ∨ NodeW (L.ksb s) c a)
+    (hK : CKeep σ σ') (hdl : σ'.domainList = σ.domainList) (hds : σ'.domainStartIndex = σ.domainStartIndex)
+    (hz : Sched.SzKeep σ σ') :
+    RelTopI (L := L) N T C E R B c s' σ' :=
+  let ⟨th, G, hB⟩ := h
+  ⟨th, G, hB.frameN hW hWI hK hdl hds hz⟩
+
 /-- **The frame** for FL4 writing only IPC words. -/
 theorem RelTopI.frame {s s' : S} {σ σ' : Fl4Spec.State Unit} {W : U64 → Prop}
-    (h : RelTopI (L := L) N T E R B c s σ) (hW : WritesIn st s s' W) (hWI : ∀ a, W a → IWords N T E R B a)
-    (hK : CKeep σ σ') (hdl : σ'.domainList = σ.domainList) (hds : σ'.domainStartIndex = σ.domainStartIndex) :
-    RelTopI (L := L) N T E R B c s' σ' :=
-  h.frameN hW (fun a ha => Or.inl (hWI a ha)) hK hdl hds
+    (h : RelTopI (L := L) N T C E R B c s σ) (hW : WritesIn st s s' W) (hWI : ∀ a, W a → IWords N T E R B a)
+    (hK : CKeep σ σ') (hdl : σ'.domainList = σ.domainList) (hds : σ'.domainStartIndex = σ.domainStartIndex)
+    (hz : Sched.SzKeep σ σ') :
+    RelTopI (L := L) N T C E R B c s' σ' :=
+  h.frameN hW (fun a ha => Or.inl (hWI a ha)) hK hdl hds hz
 
 /-! ## The spec's IPC steps keep the caps -/
 
@@ -232,17 +270,23 @@ theorem _root_.Fl4Proofs.P3.Endp.EpStep.ckeep {σ σ' : Fl4Spec.State Unit} (h :
     · rw [ht] at h1; injection h1 with h1; injection h1 with h1; subst h1
       exact ⟨y, h2, by rw [hy]; rfl⟩
 
+theorem SzKeep.epStep {σ σ' : Fl4Spec.State Unit} (h : EpStep σ σ') : Sched.SzKeep σ σ' := by
+  intro p x n hp
+  rcases h.2.2 p with e | ⟨a, b, -, hb⟩ | ⟨a, b, -, hb, -⟩ | ⟨a, b, -, hb, -⟩
+  · exact ⟨x, e ▸ hp⟩
+  all_goals (rw [hp] at hb; cases hb)
+
 theorem RelTopI.stableN (hT : TcbPlaced T) {s s' : S} {σ σ' : Fl4Spec.State Unit}
-    (h : RelTopI (L := L) N T E R B c s σ) (hW : WritesIn st s s' (NWrite N T)) (hK : NtfnStep σ σ') :
-    RelTopI (L := L) N T E R B c s' σ' :=
+    (h : RelTopI (L := L) N T C E R B c s σ) (hW : WritesIn st s s' (NWrite N T)) (hK : NtfnStep σ σ') :
+    RelTopI (L := L) N T C E R B c s' σ' :=
   let ⟨hc, hl, hs⟩ := hK.ckeep
-  h.frame hW (fun _ ha => NWrite.iwords hT ha) hc hl hs
+  h.frame hW (fun _ ha => NWrite.iwords hT ha) hc hl hs (Sched.SzKeep.ntfnStep hK)
 
 theorem RelTopI.stableE {s s' : S} {σ σ' : Fl4Spec.State Unit}
-    (h : RelTopI (L := L) N T E R B c s σ) (hW : WritesIn st s s' (EWrite T E R B)) (hK : EpStep σ σ') :
-    RelTopI (L := L) N T E R B c s' σ' :=
+    (h : RelTopI (L := L) N T C E R B c s σ) (hW : WritesIn st s s' (EWrite T E R B)) (hK : EpStep σ σ') :
+    RelTopI (L := L) N T C E R B c s' σ' :=
   let ⟨hc, hl, hs⟩ := hK.ckeep
-  h.frame hW (fun _ ha => EWrite.iwords ha) hc hl hs
+  h.frame hW (fun _ ha => EWrite.iwords ha) hc hl hs (Ipc.SzKeep.epStep hK)
 
 end
 
@@ -250,32 +294,32 @@ end
 
 section Hyps
 variable {S A : Type} (st : machine.Store S) (ar : machine.Arch A) [L : LawfulStore st]
-variable {N T E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
 /-- `RelTopI` with the other subsystems' relation. -/
-def SRT (N T E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (c : U64) (SR : S → Fl4Spec.State Unit → Prop)
+def SRT (N T C E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (c : U64) (SR : S → Fl4Spec.State Unit → Prop)
     (s : S) (σ : Fl4Spec.State Unit) : Prop :=
-  RelTopI (L := L) N T E R B c s σ ∧ SR s σ
+  RelTopI (L := L) N T C E R B c s σ ∧ SR s σ
 
 /-- **The scheduler-side fields of `IpcSchedHyps` for `RelTopI ∧ SR`**: the
 operations that write scheduler words (`schedule_tcb`, the wake tail,
 `cancel_ipc`), outside the IPC frame. -/
-structure IpcTopTails (N T E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (c : U64) (SR : S → Fl4Spec.State Unit → Prop) :
+structure IpcTopTails (N T C E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (c : U64) (SR : S → Fl4Spec.State Unit → Prop) :
     Prop where
   scheduleTcb : ∀ s σ (t : U64), EpStateRel T E R B (L.mem s) σ → ScRelM T (L.mem s) σ →
-    SRT st N T E R B c SR s σ → t ∈ T →
+    SRT st N T C E R B c SR s σ → t ∈ T →
     sched.schedule_tcb st s t ⦃ s' => Agree (L.mem s) (L.mem s') (IFoot N T E R B) ∧
-      SRT st N T E R B c SR s' (stsAct σ t.bv) ⦄
+      SRT st N T C E R B c SR s' (stsAct σ t.bv) ⦄
   wakeTail : ∀ s (a : A) σ (t n : U64) (x : Fl4Spec.Tcb), IpcRel N T E R B (L.mem s) σ →
-    SRT st N T E R B c SR s σ → t ∈ T →
+    SRT st N T C E R B c SR s σ → t ∈ T →
     n ∈ N → σ.kheap t.bv = some (.tcb x) → x.tcbState = .running → NotQueued σ t.bv →
     rustWakeTail st ar s a t n ⦃ r => ¬ (specWakeTail t.bv n.bv σ).2 ∧ ∃ σ', ((), σ') ∈ (specWakeTail t.bv n.bv σ).1 ∧
-      Agree (L.mem s) (L.mem r.1) (IFoot N T E R B) ∧ IKView σ σ' ∧ SRT st N T E R B c SR r.1 σ' ⦄
+      Agree (L.mem s) (L.mem r.1) (IFoot N T E R B) ∧ IKView σ σ' ∧ SRT st N T C E R B c SR r.1 σ' ⦄
   cancelIpc : ∀ s (a : A) σ (t : U64) (x : Fl4Spec.Tcb), IpcRel N T E R B (L.mem s) σ →
-    SRT st N T E R B c SR s σ → t ∈ T →
+    SRT st N T C E R B c SR s σ → t ∈ T →
     σ.kheap t.bv = some (.tcb x) → Fl4Spec.receiveBlocked x.tcbState = true →
     ipc.cancel_ipc st ar s a t ⦃ r => ∃ σ' x', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
-      IpcRel N T E R B (L.mem r.1) σ' ∧ SRT st N T E R B c SR r.1 σ' ∧ σ'.kheap t.bv = some (.tcb x') ∧
+      IpcRel N T E R B (L.mem r.1) σ' ∧ SRT st N T C E R B c SR r.1 σ' ∧ σ'.kheap t.bv = some (.tcb x') ∧
       x'.tcbState = .inactive ∧ RelIfBound σ' t.bv ⦄
 
 variable {st ar}
@@ -283,8 +327,8 @@ variable {st ar}
 /-- **`IpcSchedHyps` for `RelTopI ∧ SR`**: the stabilities and `block` by the
 frame, `notQueued` from `SR`, the scheduler-side fields given. -/
 theorem IpcSchedHyps.withTop {SR : S → Fl4Spec.State Unit → Prop} (hH : IpcSchedHyps st ar N T E R B SR)
-    (hT : TcbPlaced T) (hX : IpcTopTails st ar N T E R B c SR) :
-    IpcSchedHyps st ar N T E R B (SRT st N T E R B c SR) where
+    (hT : TcbPlaced T) (hX : IpcTopTails st ar N T C E R B c SR) :
+    IpcSchedHyps st ar N T E R B (SRT st N T C E R B c SR) where
   stableN s s' σ σ' h hW hK hNB := ⟨h.1.stableN hT hW hK, hH.stableN s s' σ σ' h.2 hW hK hNB⟩
   stableE s s' σ σ' h hW hK := ⟨h.1.stableE hW hK, hH.stableE s s' σ σ' h.2 hW hK⟩
   notQueued s σ t x h hk hr := hH.notQueued s σ t x h.2 hk hr
@@ -295,17 +339,17 @@ theorem IpcSchedHyps.withTop {SR : S → Fl4Spec.State Unit → Prop} (hH : IpcS
   cancelIpc := hX.cancelIpc
 
 theorem EpBufHyps.withTop {SR : S → Fl4Spec.State Unit → Prop} (h : EpBufHyps st T E R B SR) :
-    EpBufHyps st T E R B (SRT st N T E R B c SR) :=
+    EpBufHyps st T E R B (SRT st N T C E R B c SR) :=
   ⟨fun s σ t x b hR hS => h.lookup s σ t x b hR hS.2⟩
 
 theorem EpBufMapHyps.withTop {SR : S → Fl4Spec.State Unit → Prop} (h : EpBufMapHyps st T E R B SR) :
-    EpBufMapHyps st T E R B (SRT st N T E R B c SR) :=
+    EpBufMapHyps st T E R B (SRT st N T C E R B c SR) :=
   ⟨fun s σ t x b p hR hS => h.lookupMap s σ t x b p hR hS.2, fun s σ t x p hR hS => h.frame s σ t x p hR hS.2,
     fun s σ t x p hR hS => h.recvSlots s σ t x p hR hS.2⟩
 
 /-- The composite relation after an IPC theorem with `SRT`. -/
 theorem SRT.relTop {SR : S → Fl4Spec.State Unit → Prop} {s : S} {σ : Fl4Spec.State Unit}
-    (h : IpcRel N T E R B (L.mem s) σ ∧ SRT st N T E R B c SR s σ) :
+    (h : IpcRel N T E R B (L.mem s) σ ∧ SRT st N T C E R B c SR s σ) :
     RelTopM (L := L) s σ ∧ IpcRel N T E R B (L.mem s) σ ∧ SR s σ :=
   ⟨h.2.1.relTop, h.1, h.2.2⟩
 

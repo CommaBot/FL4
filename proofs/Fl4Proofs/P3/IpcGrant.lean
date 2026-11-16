@@ -1,0 +1,1053 @@
+/-
+P3 (DESIGN.md §9), IPC: **the cap transfer** (the grant path of
+`do_ipc_transfer`): FL4's `transfer_caps` against l4v's `transfer_caps` on
+the composite relation `IpcRel ∧ SRE ∧ RelTopB`.
+
+* The spec side of `cap_insert`: `CnK` (only CNodes, TCBs' caps, the CDT,
+  the original bits and the extended state change), `capInsert_nkn`;
+  `CnK.ikview`, `CnK.schedStep`, `CnK.inUserFrame`.
+* `insert_top`: `cdt::insert` of a derived cap refines `cap_insert`
+  (`insert_full_fin`, `insert_ws`), keeping the merged IPC relation, the
+  scheduler relation (`sre_slotw`: slot writes are no scheduler word) and
+  `RelTopB` with the same typed heap.
+* `buf_set_top`: a badge into the receive buffer refines `store_word_offs`.
+* `tcl_*`: the spec's `transfer_caps_loop` one cap at a time (unwrapped
+  badge, insert, derive failure or null, no receive slot, end).
+* `tc_body`, `transfer_loop_top`: FL4's loop against the spec's, with the
+  extra caps related to the spec's (`SrcOK`), pairwise distinct and apart
+  from the receive slot, and `NoChildrenRel` at the sources (the MDB
+  hypothesis of `derive_cap`); after an insert the other sources' caps are
+  kept (`insert_capfr`, IpcInsFrame.lean).
+* `transfer_caps_top`: `transfer_caps`, from the receive-slot lookup
+  against `get_receive_slots` (`hG1`, named: G1) and the spec's lookup
+  being deterministic (`hGRs`, EpBufMapHyps' `recvSlots`).
+-/
+import Fl4Proofs.P3.IpcWake
+import Fl4Proofs.P3.IpcInsFrame
+open Aeneas Aeneas.Std Result
+
+namespace Fl4Proofs.P3.Ipc
+open fl4_core Fl4Proofs.P1 Fl4Proofs.P3 Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3.Sched
+
+noncomputable section
+
+section CnK
+open Fl4Spec
+
+/-- The abstract state without the heap, the CDT and the original bits. -/
+def abs0 (σ : State Unit) : AbstractState :=
+  { σ.toAbstractState with kheap := fun _ => none, cdt := fun _ => none, isOriginalCap := fun _ => false }
+
+/-- Two TCBs alike but for their caps. -/
+def CapsOnly (x y : Tcb) : Prop :=
+  y.tcbState = x.tcbState ∧ y.tcbIpcBuffer = x.tcbIpcBuffer ∧ y.tcbFault = x.tcbFault ∧
+  y.tcbBoundNotification = x.tcbBoundNotification ∧ y.tcbMcpriority = x.tcbMcpriority ∧
+  y.tcbSchedContext = x.tcbSchedContext ∧ y.tcbYieldTo = x.tcbYieldTo ∧ y.tcbPriority = x.tcbPriority ∧
+  y.tcbDomain = x.tcbDomain ∧ y.tcbFlags = x.tcbFlags ∧ y.tcbArch = x.tcbArch
+
+theorem CapsOnly.refl (x : Tcb) : CapsOnly x x := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+theorem CapsOnly.trans {x y z : Tcb} (h1 : CapsOnly x y) (h2 : CapsOnly y z) : CapsOnly x z :=
+  ⟨h2.1.trans h1.1, h2.2.1.trans h1.2.1, h2.2.2.1.trans h1.2.2.1, h2.2.2.2.1.trans h1.2.2.2.1,
+    h2.2.2.2.2.1.trans h1.2.2.2.2.1, h2.2.2.2.2.2.1.trans h1.2.2.2.2.2.1,
+    h2.2.2.2.2.2.2.1.trans h1.2.2.2.2.2.2.1, h2.2.2.2.2.2.2.2.1.trans h1.2.2.2.2.2.2.2.1,
+    h2.2.2.2.2.2.2.2.2.1.trans h1.2.2.2.2.2.2.2.2.1, h2.2.2.2.2.2.2.2.2.2.1.trans h1.2.2.2.2.2.2.2.2.2.1,
+    h2.2.2.2.2.2.2.2.2.2.2.trans h1.2.2.2.2.2.2.2.2.2.2⟩
+
+/-- An object replaced by one of the same CNode size, or a TCB by one alike
+but for its caps. -/
+def ObjCn (o o' : Option KernelObject) : Prop :=
+  o' = o ∨ (∃ r cs cs', o = some (.cnode r cs) ∧ o' = some (.cnode r cs')) ∨
+    (∃ x y, o = some (.tcb x) ∧ o' = some (.tcb y) ∧ CapsOnly x y)
+
+theorem ObjCn.trans {o1 o2 o3 : Option KernelObject} (h1 : ObjCn o1 o2) (h2 : ObjCn o2 o3) : ObjCn o1 o3 := by
+  rcases h1 with rfl | ⟨r, cs, cs', rfl, rfl⟩ | ⟨x, y, rfl, rfl, hxy⟩
+  · exact h2
+  · rcases h2 with rfl | ⟨r', ds, ds', h, rfl⟩ | ⟨x', y', h, rfl, -⟩
+    · exact Or.inr (Or.inl ⟨r, cs, cs', rfl, rfl⟩)
+    · cases h; exact Or.inr (Or.inl ⟨r, cs, ds', rfl, rfl⟩)
+    · cases h
+  · rcases h2 with rfl | ⟨r', ds, ds', h, rfl⟩ | ⟨x', y', h, rfl, hxy'⟩
+    · exact Or.inr (Or.inr ⟨x, y, rfl, rfl, hxy⟩)
+    · cases h
+    · cases h; exact Or.inr (Or.inr ⟨x, y', rfl, rfl, hxy.trans hxy'⟩)
+
+/-- **The spec's state changed in CNodes, TCBs' caps, the CDT, the original
+bits and the extended state only.** -/
+def CnK (σ σ' : State Unit) : Prop := abs0 σ' = abs0 σ ∧ ∀ p, ObjCn (σ.kheap p) (σ'.kheap p)
+
+theorem CnK.refl (σ : State Unit) : CnK σ σ := ⟨rfl, fun _ => Or.inl rfl⟩
+
+theorem CnK.trans {σ1 σ2 σ3 : State Unit} (h1 : CnK σ1 σ2) (h2 : CnK σ2 σ3) : CnK σ1 σ3 :=
+  ⟨h2.1.trans h1.1, fun p => (h1.2 p).trans (h2.2 p)⟩
+
+/-- Every outcome is `CnK`. -/
+def NKN {α : Type} (m : NonDet (State Unit) α) : Prop := ∀ σ x, x ∈ (m σ).1 → CnK σ x.2
+
+theorem nkn_bind {α β : Type} {m : NonDet (State Unit) α} {f : α → NonDet (State Unit) β} (hm : NKN m)
+    (hf : ∀ a, NKN (f a)) : NKN (m >>= f) := by
+  intro σ x ⟨y, hy, hx⟩
+  exact (hm σ y hy).trans (hf y.1 y.2 x hx)
+
+theorem nkn_pure {α : Type} (a : α) : NKN (pure a : NonDet (State Unit) α) := by
+  intro σ x hx; rw [Set.mem_singleton_iff.1 hx]; exact CnK.refl σ
+
+theorem nkn_pure' {α : Type} (a : α) : NKN (NonDet.pure a : NonDet (State Unit) α) := nkn_pure a
+
+theorem nkn_gets {α : Type} (f : State Unit → α) : NKN (NonDet.gets f) := by
+  intro σ x hx; rw [Set.mem_singleton_iff.1 hx]; exact CnK.refl σ
+
+theorem nkn_get : NKN (NonDet.get : NonDet (State Unit) (State Unit)) := by
+  intro σ x hx; rw [Set.mem_singleton_iff.1 hx]; exact CnK.refl σ
+
+theorem nkn_assert (P : Prop) : NKN (NonDet.assert P : NonDet (State Unit) Unit) := by
+  intro σ x hx; obtain ⟨-, rfl⟩ := hx; exact CnK.refl σ
+
+theorem nkn_fail {α : Type} : NKN (NonDet.fail : NonDet (State Unit) α) := by
+  intro σ x hx; exact hx.elim
+
+theorem nkn_assertOpt {α : Type} (o : Option α) : NKN (NonDet.assertOpt o : NonDet (State Unit) α) := by
+  cases o
+  · exact nkn_fail
+  · exact nkn_pure' _
+
+theorem nkn_getsThe {α : Type} (f : State Unit → Option α) : NKN (NonDet.getsThe f) := by
+  intro σ x hx
+  exact nkn_assertOpt (f σ) σ x hx
+
+theorem nkn_selectF {α : Type} (S : Set α × Prop) : NKN (NonDet.selectF S : NonDet (State Unit) α) := by
+  intro σ x hx; obtain ⟨-, h⟩ := hx; rw [h]; exact CnK.refl σ
+
+theorem nkn_getObject (p : ObjRef) : NKN (getObject (Z := Unit) p) := nkn_getsThe _
+
+theorem nkn_get_put {f : State Unit → State Unit} (hf : ∀ σ, CnK σ (f σ)) :
+    NKN (NonDet.get >>= fun s => NonDet.put (f s)) := by
+  intro σ x ⟨y, hy, hx⟩
+  rw [Set.mem_singleton_iff.1 hy] at hx
+  rw [Set.mem_singleton_iff.1 hx]
+  exact hf σ
+
+theorem nkn_modify {f : State Unit → State Unit} (hf : ∀ σ, CnK σ (f σ)) : NKN (NonDet.modify f) := by
+  intro σ x hx; rw [Set.mem_singleton_iff.1 hx]; exact hf σ
+
+theorem nkn_ite {α : Type} (P : Prop) [Decidable P] {m1 m2 : NonDet (State Unit) α} (h1 : NKN m1) (h2 : NKN m2) :
+    NKN (if P then m1 else m2) := by
+  split <;> assumption
+
+/-- The outcome of `set_object`. -/
+theorem setObject_out {σ : State Unit} {p : ObjRef} {o : KernelObject} {x : Unit × State Unit}
+    (hx : x ∈ (setObject (Z := Unit) p o σ).1) : x.2 = { σ with kheap := Function.update σ.kheap p (some o) } := by
+  unfold setObject at hx
+  obtain ⟨y, hy, hx⟩ := hx
+  obtain ⟨k, hk, rfl⟩ : ∃ k, σ.kheap p = some k ∧ y = (k, σ) := by
+    unfold getObject NonDet.getsThe readObject at hy
+    cases h : σ.kheap p with
+    | none => rw [h] at hy; exact hy.elim
+    | some k => rw [h] at hy; exact ⟨k, rfl, Set.mem_singleton_iff.1 hy⟩
+  obtain ⟨z, hz, hx⟩ := hx
+  obtain ⟨-, rfl⟩ := hz
+  obtain ⟨w, hw, hx⟩ := hx
+  rw [Set.mem_singleton_iff.1 hw] at hx
+  rw [Set.mem_singleton_iff.1 hx]
+
+theorem cnk_update {σ : State Unit} {p : ObjRef} {o : KernelObject} (h : ObjCn (σ.kheap p) (some o)) :
+    CnK σ { σ with kheap := Function.update σ.kheap p (some o) } := by
+  refine ⟨rfl, fun q => ?_⟩
+  by_cases e : q = p
+  · subst e; simpa using h
+  · simp [Function.update_of_ne e]; exact Or.inl rfl
+
+theorem nkn_getCap (sl : CslotPtr) : NKN (getCap (Z := Unit) sl) := by
+  obtain ⟨o, c⟩ := sl
+  unfold getCap
+  refine nkn_bind (nkn_getObject o) (fun obj => ?_)
+  cases obj <;> simp only [] <;>
+    repeat (first | exact nkn_pure _ | exact nkn_fail | exact nkn_assert _ | exact nkn_assertOpt _ |
+      (refine nkn_bind ?_ (fun _ => ?_)))
+
+/-- **`set_cap` changes a CNode or a TCB's caps.** -/
+theorem nkn_setCap (cap : Cap) (sl : CslotPtr) : NKN (setCap (Z := Unit) cap sl) := by
+  obtain ⟨o, c⟩ := sl
+  unfold setCap
+  intro σ x hx
+  dsimp only at hx
+  obtain ⟨y, hy, hx⟩ := hx
+  obtain ⟨k, hk, rfl⟩ : ∃ k, σ.kheap o = some k ∧ y = (k, σ) := by
+    unfold getObject NonDet.getsThe readObject at hy
+    cases h : σ.kheap o with
+    | none => rw [h] at hy; exact hy.elim
+    | some k => rw [h] at hy; exact ⟨k, rfl, Set.mem_singleton_iff.1 hy⟩
+  have fin : ∀ o', ObjCn (some k) (some o') → x ∈ (setObject (Z := Unit) o o' σ).1 → CnK σ x.2 :=
+    fun o' ho' hx' => by rw [setObject_out hx']; exact cnk_update (by rw [hk]; exact ho')
+  have pb : ∀ o', x ∈ ((pure o' >>= fun obj' => setObject (Z := Unit) o obj') σ).1 →
+      x ∈ (setObject (Z := Unit) o o' σ).1 := by
+    intro o' hx'; obtain ⟨z, hz, hx'⟩ := hx'; rw [Set.mem_singleton_iff.1 hz] at hx'; exact hx'
+  have fb : ∀ (f : KernelObject → NonDet (State Unit) Unit), x ∈ ((NonDet.fail >>= f) σ).1 → False := by
+    intro f hx'; obtain ⟨z, hz, -⟩ := hx'; exact hz
+  cases k with
+  | cnode r cs =>
+    dsimp only at hx
+    split at hx
+    · exact (fun h => fin _ h (pb _ hx)) (Or.inr (Or.inl ⟨r, cs, _, rfl, rfl⟩))
+    · exact (fb _ hx).elim
+  | tcb t =>
+    dsimp only at hx
+    repeat' split at hx
+    all_goals first
+      | exact (fb _ hx).elim
+      | exact (fun h => fin _ h (pb _ hx)) (Or.inr (Or.inr ⟨t, _, rfl, rfl, CapsOnly.refl t⟩))
+  | _ => dsimp only at hx; exact (fb _ hx).elim
+
+theorem nkn_doExtendedOp (eop : DetExtMonad Unit) : NKN (doExtendedOp (Z := Unit) eop) := by
+  unfold doExtendedOp
+  refine nkn_bind nkn_get (fun _ => nkn_bind (nkn_selectF _) (fun _ => ?_))
+  split
+  exact nkn_modify (fun σ => CnK.refl σ)
+
+/-- **`cap_insert` changes CNodes, TCBs' caps, the CDT and the original bits
+only.** -/
+theorem capInsert_nkn (c : Cap) (src dest : CslotPtr) : NKN (capInsert (Z := Unit) c src dest) := by
+  unfold capInsert setUntypedCapAsFull updateCdt setCdt setOriginal
+  repeat (first | exact nkn_getCap _ | exact nkn_setCap _ _ | exact nkn_doExtendedOp _ |
+    exact nkn_pure _ | exact nkn_pure' _ | exact nkn_fail | exact nkn_gets _ | exact nkn_get |
+    exact nkn_assert _ | exact nkn_get_put (fun σ => ⟨rfl, fun _ => Or.inl rfl⟩) |
+    exact nkn_modify (fun σ => ⟨rfl, fun _ => Or.inl rfl⟩) | (refine nkn_bind ?_ (fun _ => ?_)) |
+    (apply nkn_ite) | split)
+
+theorem CnK.other {σ σ' : State Unit} (h : CnK σ σ') {p : ObjRef} {o : KernelObject}
+    (hp : σ.kheap p = some o) (hc : ∀ r cs, o ≠ .cnode r cs) (ht : ∀ x, o ≠ .tcb x) : σ'.kheap p = some o := by
+  rcases h.2 p with e | ⟨r, cs, cs', h1, -⟩ | ⟨a, b, h1, -, -⟩
+  · rw [e, hp]
+  · rw [hp] at h1; cases h1; exact absurd rfl (hc r cs)
+  · rw [hp] at h1; cases h1; exact absurd rfl (ht a)
+
+theorem CnK.tcb {σ σ' : State Unit} (h : CnK σ σ') {p : ObjRef} {x : Tcb} (hp : σ.kheap p = some (.tcb x)) :
+    ∃ y, σ'.kheap p = some (.tcb y) ∧ CapsOnly x y := by
+  rcases h.2 p with e | ⟨r, cs, cs', h1, -⟩ | ⟨a, b, h1, h2, hab⟩
+  · exact ⟨x, by rw [e, hp], CapsOnly.refl x⟩
+  · rw [hp] at h1; cases h1
+  · rw [hp] at h1; injection h1 with h1; injection h1 with h1; subst h1; exact ⟨b, h2, hab⟩
+
+theorem CnK.sc' {σ σ' : State Unit} (h : CnK σ σ') {p : ObjRef} {y : SchedContext} {n : Nat}
+    (hp : σ'.kheap p = some (.schedContext y n)) : σ.kheap p = some (.schedContext y n) := by
+  rcases h.2 p with e | ⟨r, cs, cs', h1, h2⟩ | ⟨a, b, h1, h2, hab⟩
+  · rw [← e]; exact hp
+  · rw [hp] at h2; cases h2
+  · rw [hp] at h2; cases h2
+
+/-- The IPC relation's view is kept. -/
+theorem CnK.ikview {σ σ' : State Unit} (h : CnK σ σ') : IKView σ σ' := by
+  have hms : σ'.machineState = σ.machineState := by have := congrArg AbstractState.machineState h.1; exact this
+  refine ⟨⟨fun p x hp => h.other hp (fun _ _ e => by cases e) (fun _ e => by cases e), fun p x hp => ?_⟩,
+    ⟨fun p x hp => h.other hp (fun _ _ e => by cases e) (fun _ e => by cases e),
+     fun p x hp => ⟨x, h.other hp (fun _ _ e => by cases e) (fun _ e => by cases e), rfl⟩, fun p x hp => ?_,
+     by rw [hms]⟩, fun p x hp => ?_⟩
+  · obtain ⟨y, hy, c1, -, -, -, -, -, -, c8, -, -, c11⟩ := h.tcb hp
+    exact ⟨y, hy, c1, by unfold badgeOf; rw [c11], c8⟩
+  · obtain ⟨y, hy, c1, -, c3, c4, -, -, -, c8, -, -, c11⟩ := h.tcb hp
+    exact ⟨y, hy, c1, by rw [c11], c8, c3, c4⟩
+  · obtain ⟨y, hy, -, -, -, -, -, c6, -⟩ := h.tcb hp
+    exact ⟨y, hy, c6⟩
+
+/-- The scheduler's fields are kept. -/
+theorem CnK.schedStep {σ σ' : State Unit} (h : CnK σ σ') : SchedStep σ σ' := by
+  have e := h.1
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, fun p x hp => ?_, fun p x n hp => ?_, fun p x n hp => ?_⟩
+  · have := congrArg AbstractState.readyQueues e; exact this
+  · have := congrArg AbstractState.releaseQueue e; exact this
+  · have := congrArg AbstractState.curThread e; exact this
+  · have := congrArg AbstractState.schedulerAction e; exact this
+  · have := congrArg AbstractState.curSc e; exact this
+  · have := congrArg AbstractState.curTime e; exact this
+  · have := congrArg AbstractState.consumedTime e; exact this
+  · have := congrArg AbstractState.reprogramTimer e; exact this
+  · have := congrArg AbstractState.curDomain e; exact this
+  · have := congrArg AbstractState.domainTime e; exact this
+  · have := congrArg AbstractState.idleThread e; exact this
+  · obtain ⟨y, hy, hab⟩ := h.tcb hp
+    exact ⟨y, hy, hab.2.2.2.2.2.2.2.2.1, hab.2.2.2.2.2.1, hab.2.2.2.2.2.2.2.1⟩
+  · exact h.other hp (fun _ _ e => by cases e) (fun _ e => by cases e)
+  · exact ⟨x, h.sc' hp⟩
+
+end CnK
+
+
+/-! ## `cdt::insert` on the composite relation -/
+
+section Insert
+variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
+variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+
+theorem RelTopB.relTopI {th : TypedHeap} {G : MdbGhost} {s : S} {σ : Fl4Spec.State Unit}
+    (h : RelTopB (L := L) th G N T C E R B c s σ) : RelTopI (L := L) N T C E R B c s σ := ⟨th, G, h⟩
+
+theorem RelTopI.exB {s : S} {σ : Fl4Spec.State Unit} (h : RelTopI (L := L) N T C E R B c s σ) :
+    ∃ th G, RelTopB (L := L) th G N T C E R B c s σ := h
+
+theorem slotWd_range {th : TypedHeap} (hP : Placed th) {b : U64} (h : Sched.SlotWd th b) :
+    ∃ y, IsSlot th y ∧ y.val ≤ b.val ∧ b.val < y.val + 32 := by
+  obtain ⟨y, hy, k, hk, rfl⟩ := h
+  have := hy.fit hP; have := hk.lt
+  exact ⟨y, hy, by rw [wordOf_val (by omega)]; omega, by rw [wordOf_val (by omega)]; omega⟩
+
+theorem IFoot.iwords (hP0 : IPlaced N T E R B) {a : U64} (h : IFoot N T E R B a) : IWords N T E R B a := by
+  rcases h with (⟨e, he, h⟩ | ⟨r, hr, h⟩ | ⟨t, ht, h | h⟩ | ⟨wp, hw, rfl⟩) | ⟨n, hn, h1, h2⟩ | ⟨t, ht, rfl⟩
+  · exact Or.inr (Or.inl ⟨e, he, by omega, by omega⟩)
+  · exact Or.inr (Or.inr (Or.inl ⟨r, hr, by omega, by omega⟩))
+  · have := h.range; exact Or.inl ⟨t, ht, by omega, by omega⟩
+  · unfold TL at h; exact Or.inl ⟨t, ht, by omega, by omega⟩
+  · exact Or.inr (Or.inr (Or.inr (Or.inr ⟨wp, hw, le_refl _, by omega⟩)))
+  · exact Or.inr (Or.inr (Or.inr (Or.inl ⟨n, hn, h1, h2⟩)))
+  · have := scA_val (hP0.e.tcb t ht); exact Or.inl ⟨t, ht, by omega, by omega⟩
+
+/-- **Slot writes keep what `SchedRel` reads.** -/
+theorem sagree_slotw {th : TypedHeap} (hP : Placed th) {s s' : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) (hA : IpcApart th N T E R B (L.ksb s) c) (hSA : ScApart th C σ)
+    (hw : WritesIn st s s' (Sched.SlotWd th)) : SAgree st T C c s s' := by
+  obtain ⟨Q, R0, hc, hs⟩ := hS.lists
+  have hnb : L.nodeBase s c = (L.ksb s).val + 13568 + c.val * 4288 := rfl
+  have h1 := hc.node.align
+  have h2 := hc.node.fits
+  simp only [LawfulStore.nodeBase] at h1 h2
+  refine ⟨hw.1, hw.2.1, fun o ho h8 _ _ => hw.mem_eq (nodeAt_aligned hc.node ho h8) fun hsw => ?_,
+    fun y hy K hK => ?_, ?_, ?_, fun sc hsc a ha hin => hw.mem_eq ha fun hsw => ?_⟩
+  · obtain ⟨y, hy, g1, g2⟩ := slotWd_range hP hsw
+    have hv := nodeAt_val hc.node ho
+    exact hA.node _ (by rw [hv, ← hnb]; omega) (by rw [hv, ← hnb]; omega) y hy ⟨g1, g2⟩
+  · obtain ⟨k1, k2, -⟩ := schedField_ok hK
+    refine hw.mem_eq (field_aligned (hc.tcbs y hy) k1 k2) fun hsw => ?_
+    obtain ⟨x, hx, g1, g2⟩ := slotWd_range hP hsw
+    have hv := tfield_val (hc.tcbs y hy) k1
+    have hK' : 256 ≤ K.val := by rcases hK with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> decide
+    exact hA.slot _ (Or.inl ⟨y, hy, by rw [hv]; omega, by rw [hv]; omega⟩) x hx ⟨g1, g2⟩
+  · have hal : Aligned (curDomA st s) := by
+      unfold Aligned curDomA
+      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]
+      omega
+    refine hw.mem_eq hal fun hsw => ?_
+    obtain ⟨x, hx, g1, g2⟩ := slotWd_range hP hsw
+    have hv : (curDomA st s).val = (L.ksb s).val + 8 := by
+      unfold curDomA; simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+    exact hA.ks _ (by rw [hv]; omega) (by rw [hv]; omega) x hx ⟨g1, g2⟩
+  · refine hw.mem_eq (dtA_aligned hc.node) fun hsw => ?_
+    obtain ⟨x, hx, g1, g2⟩ := slotWd_range hP hsw
+    have hv := dtA_val hc.node
+    exact hA.ks _ (by rw [hv]; omega) (by rw [hv]; omega) x hx ⟨g1, g2⟩
+  · obtain ⟨x, hx, g1, g2⟩ := slotWd_range hP hsw
+    obtain ⟨y, n, hk, hy⟩ := hs.scs sc hsc
+    exact hSA sc hsc y n hk a (hy.in_obj hin) x hx ⟨g1, g2⟩
+
+/-- **The scheduler relation across slot writes and a `CnK` spec step.** -/
+theorem sre_slotw {th : TypedHeap} (hP : Placed th) {s s' : S} {σ σ' : Fl4Spec.State Unit}
+    (hS : SRE st N T C E R B c s σ) (hA : IpcApart th N T E R B (L.ksb s) c) (hSA : ScApart th C σ)
+    (hw : WritesIn st s s' (Sched.SlotWd th)) (hK : CnK σ σ') : SRE st N T C E R B c s' σ' := by
+  obtain ⟨Q, R0, hc, -⟩ := hS.1.lists
+  have ha := sagree_slotw hP hS.1 hA hSA hw
+  have hnb : L.nodeBase s c = (L.ksb s).val + 13568 + c.val * 4288 := rfl
+  have hn : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → nodeW st s' c o = nodeW st s c o := fun o ho h8 => by
+    unfold Fl4Proofs.P3.Sched.nodeW; rw [Sched.nodeAt_ksb (st := st) hw.1]
+    refine hw.mem_eq (nodeAt_aligned hc.node ho h8) fun hsw => ?_
+    obtain ⟨y, hy, g1, g2⟩ := slotWd_range hP hsw
+    have hv := nodeAt_val hc.node ho
+    have h2 := hc.node.fits
+    simp only [LawfulStore.nodeBase] at h2
+    exact hA.node _ (by rw [hv, ← hnb]; omega) (by rw [hv, ← hnb]; omega) y hy ⟨g1, g2⟩
+  exact ⟨hS.1.of_sagreeE ha (hn _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION]))
+    (hn _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])) hS.1.nodeNW hS.1.domNW hS.1.dtNW
+    hK.schedStep, hS.2.mono hw.1 (fun p y n hp => ⟨y, hK.sc' hp⟩)⟩
+
+/-- **`cdt::insert` of a derived cap refines `cap_insert` on the composite
+relation**: the merged IPC relation, the scheduler relation and the CSpace
+relation with the same typed heap (`insert_full_fin`, `insert_ws`). -/
+theorem insert_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGhost} {s : S} {σ : Fl4Spec.State Unit}
+    (hB : RelTopB (L := L) th G N T C E R B c s σ) (hR : IpcRel N T E R B (L.mem s) σ)
+    (hS : SRE st N T C E R B c s σ)
+    {ps pd : U64} {rs rd : Nat} (hps : th ps = some (.cnode rs)) (hpd : th pd = some (.cnode rd))
+    {idxs idxd : List Bool} (hls : idxs.length = rs) (hld : idxd.length = rd)
+    {srcC : capability.Cap} (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok srcC)
+    (hsnn : srcC ≠ .Null)
+    (hdst : capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null)
+    (cc : capability.Cap) (a : Fl4Spec.Cap) (hca : CapRel cc a) (hcv : CapValid th cc) (he : EncWf cc)
+    (hcnn : cc ≠ .Null) (hsh : shape cc = shape srcC) (hbd : badgeF cc = badgeF srcC ∨ badgeF srcC = 0#u64)
+    (hut : isUt srcC = true → ∀ y, ¬ Mdb.Desc G.par y (cslotAddr (ps.bv, idxs))) (hzb : isZb srcC = false)
+    (hkey : okey cc = okey srcC)
+    (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 srcC → Vs.VCapOK P L4 L3 L2 L1 cc)
+    (huc : isUt srcC = true → cc = srcC) :
+    cdt.insert st s cc (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd)) ⦃ s' =>
+      ∃ σ', Fl4Spec.capInsert (Z := Unit) a (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False) ∧
+        IpcRel N T E R B (L.mem s') σ' ∧ SRE st N T C E R B c s' σ' ∧
+        ∃ G', RelTopB (L := L) th G' N T C E R B c s' σ' ⦄ := by
+  obtain ⟨hPl, ⟨hSt, hV, hM, hC, hI⟩, hFI, hD, hMO, hA, hSA⟩ := hB
+  have hsI : IsSlot th (cslotAddr (ps.bv, idxs)) :=
+    AbsSlot.isSlot (⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩ : AbsSlot th (ps.bv, idxs))
+  have hdI : IsSlot th (cslotAddr (pd.bv, idxd)) :=
+    AbsSlot.isSlot (⟨pd, rfl, Or.inl (by simpa [hld] using hpd)⟩ : AbsSlot th (pd.bv, idxd))
+  have hnx : nextOf (L.mem s) (cslotAddr (ps.bv, idxs)) = 0#u64 ∨
+      IsSlot th (nextOf (L.mem s) (cslotAddr (ps.bv, idxs))) := by
+    have hm := (hM.members _).2 ⟨hsI, srcC, hsrcC, hsnn⟩
+    rcases hM.next_mem hm with h | ⟨h, -⟩
+    · exact Or.inl h
+    · exact Or.inr ((hM.members _).1 h).1
+  refine WP.spec_mono (WP.spec_and (insert_full_fin th s σ G hSt hV hPl hM hC hI hFI hps hpd hls hld hsrcC hsnn
+    hdst cc a hca hcv he hcnn hsh hbd hut hzb hkey hv) (Sched.insert_ws hPl s cc _ _ hsI hdI srcC hsrcC hnx)) ?_
+  rintro s' ⟨⟨σ', G', heq, hSt', hV', hM', hC', hI', hFI', hstep⟩, hw⟩
+  have hmem : ((), σ') ∈ (Fl4Spec.capInsert (Z := Unit) a (ps.bv, idxs) (pd.bv, idxd) σ).1 := by rw [heq]; rfl
+  have hK := capInsert_nkn a _ _ σ _ hmem
+  have hDS : DomSame (L.mem s) (L.mem s') (L.ksb s) :=
+    Vs.domSame_low hA.kfit hA.kal fun b hb h1 h2 => hw.mem_eq hb fun hsw => by
+      obtain ⟨y, hy, g1, g2⟩ := slotWd_range hPl hsw
+      exact hA.ks b h1 (by omega) y hy ⟨g1, g2⟩
+  refine ⟨σ', heq, hR.frame hP0 (fun b hb hf => hw.mem_eq hb fun hsw => ?_) hK.ikview,
+    sre_slotw hPl hS hA hSA hw hK, G', hPl, ⟨hSt', hV', hM', hC', hI'⟩, hFI', ?_, ?_, ?_,
+    hSA.mono (fun p y n hp => ⟨y, hK.sc' hp⟩)⟩
+  · obtain ⟨y, hy, g1, g2⟩ := slotWd_range hPl hsw
+    exact hA.slot _ (IFoot.iwords hP0 hf) y hy ⟨g1, g2⟩
+  · rw [hw.1]
+    exact hD.of_same hDS (by have := congrArg Fl4Spec.AbstractState.domainList hK.1; exact this)
+      (by have := congrArg Fl4Spec.AbstractState.domainStartIndex hK.1; exact this)
+  · rw [hw.1]; exact (hstep huc).okv hMO
+  · rw [hw.1]; exact hA
+
+end Insert
+
+
+/-! ## A badge into the receive buffer -/
+
+section Buf
+variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
+variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+
+/-- **Writing a word of a mapped IPC buffer** refines `store_word_offs` on
+the composite relation. -/
+theorem buf_set_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGhost} {s : S} {σ : Fl4Spec.State Unit}
+    (hB : RelTopB (L := L) th G N T C E R B c s σ) (hR : IpcRel N T E R B (L.mem s) σ)
+    (hS : SRE st N T C E R B c s σ) {w : U64} {p : Fl4Spec.Word} (hm : BufMap B w p) {k : U64} (hk : k.val < 128)
+    (v : U64) (hu : Fl4Spec.inUserFrame (bufAddr p k.val) σ) :
+    msg.buf_set st s w k v ⦃ s' => s' = L.wr s (fl4BufA w k) v ∧
+      Fl4Spec.storeWordOffs (Z := Unit) p k.val v.bv σ =
+        ({((), setUm σ (storeMem σ.machineState.underlyingMemory (bufAddr p k.val) v.bv))}, False) ∧
+      IpcRel N T E R B (L.mem s') (setUm σ (storeMem σ.machineState.underlyingMemory (bufAddr p k.val) v.bv)) ∧
+      SRE st N T C E R B c s' (setUm σ (storeMem σ.machineState.underlyingMemory (bufAddr p k.val) v.bv)) ∧
+      RelTopB (L := L) th G N T C E R B c s'
+        (setUm σ (storeMem σ.machineState.underlyingMemory (bufAddr p k.val) v.bv)) ⦄ := by
+  refine WP.spec_mono (msg.buf_set.spec s w k v) ?_
+  rintro s' rfl
+  have hw := hm k hk
+  set wp : U64 × Fl4Spec.Word := (fl4BufA w k, bufAddr p k.val) with hwp
+  have hal := hP0.e.balign wp hw
+  set σ' := setUm σ (storeMem σ.machineState.underlyingMemory (bufAddr p k.val) v.bv) with hσ'
+  have hag := agree_wr (L := L) (s := s) (v := v) hal.1
+  have g : ∀ a, Aligned a → a.val ≠ wp.1.val → L.mem (L.wr s wp.1 v) a = L.mem s a := fun a ha h => hag a ha h
+  have hE := hR.toE.upd_buf hP0.e hw v hag (rd_wr_eq hal.1)
+  have hkv : Notif.KView σ σ' := ⟨fun _ _ h => h, fun _ x h => ⟨x, h, rfl, rfl, rfl⟩⟩
+  have hN := hR.toN.frame hP0.n (fun a ha hf => g a ha fun hv => by
+    rcases hf with ⟨n, hn, h1, h2⟩ | ⟨t, ht, h⟩
+    · have := hP0.nb n hn wp hw; omega
+    · have hta := hP0.e.tcb t ht
+      have := hP0.e.bt wp hw t ht
+      have hv' : a.val = (tStA t).val ∨ a.val = (tBlockA t).val ∨ a.val = (badgeRegA t).val ∨
+          a.val = (prioA t).val ∨ a.val = (nextA .Ep t).val ∨ a.val = (prevA .Ep t).val := by
+        rcases h with h | h | h | h | h | h <;> simp [h]
+      rw [val_st hta, val_blk hta, val_prio hta, val_next hta, val_prev hta, badgeRegA_eq_regA,
+        regA_val hta (regIdx_lt _)] at hv'
+      have := regIdx_lt Fl4Spec.badge_register
+      omega) hkv
+  have hR' : IpcRel N T E R B (L.mem (L.wr s wp.1 v)) σ' := by
+    refine IpcRel.of hN hE fun t ht x hx => ?_
+    have hta := hP0.e.tcb t ht
+    rw [hR.sc t ht x hx, g _ (scA_aligned hta) (by
+      rw [scA_val hta]; have := hP0.e.bt wp hw t ht; omega)]
+  have hW : WritesIn st s (L.wr s wp.1 v) (EWrite T E R B) :=
+    (writesIn_wr hal.1).mono fun b hb => Or.inr (Or.inr (Or.inr ⟨_, hw, hb⟩))
+  refine ⟨rfl, storeWordOffs_eq σ p k.val v.bv hal.2 hu, hR', ⟨hS.1.stableE hP0.e hS.2 hW (EpStep.setUm' _ _),
+    hS.2.mono hW.1 (SzKeep.of_kheap rfl)⟩, hB.frameN hW (fun a ha => Or.inl (EWrite.iwords ha))
+    (CKeep.of_eq rfl rfl rfl) rfl rfl (SzKeep.of_kheap rfl)⟩
+
+end Buf
+
+
+/-! ## The spec's transfer loop, one cap at a time -/
+
+section SpecLoop
+open Fl4Spec
+
+/-- The message info a transfer ends with after `n` caps. -/
+def miAt (mi : MessageInfo) (n : Nat) : MessageInfo :=
+  ⟨mi.miLength, BitVec.ofNat 64 n, mi.miCapsUnwrapped, mi.miLabel⟩
+
+/-- The message info after unwrapping the `n`-th cap. -/
+def miUnwrap (mi : MessageInfo) (n : Nat) : MessageInfo :=
+  ⟨mi.miLength, mi.miExtraCaps, mi.miCapsUnwrapped ||| ((1 : Data) <<< n), mi.miLabel⟩
+
+variable {ep : Option ObjRef} {rb : ObjRef} {σ : State Unit}
+
+theorem tcl_nil (n : Nat) (slots : List CslotPtr) (mi : MessageInfo) :
+    transferCapsLoop (Z := Unit) ep rb n [] slots mi σ = ({(miAt mi n, σ)}, False) := rfl
+
+theorem tcl_badge {n : Nat} {cap : Cap} {slot : CslotPtr} {more : List (Cap × CslotPtr)} {slots : List CslotPtr}
+    {mi : MessageInfo} {σ1 σ2 : State Unit} {r : MessageInfo}
+    (hc : isEpCap cap ∧ ep = some (objRefOf cap))
+    (h1 : setExtraBadge (Z := Unit) rb (capEpBadge cap) n σ = ({((), σ1)}, False))
+    (h2 : transferCapsLoop (Z := Unit) ep rb (n + 1) more slots (miUnwrap mi n) σ1 = ({(r, σ2)}, False)) :
+    transferCapsLoop (Z := Unit) ep rb n ((cap, slot) :: more) slots mi σ = ({(r, σ2)}, False) := by
+  rw [transferCapsLoop]
+  unfold constOnFailure
+  refine Vs.catch_ok ?_
+  rw [run_bind_ok (run_returnOk _ σ), if_pos hc, run_bind_ok_st (run_liftE' h1)]
+  exact run_liftE' h2
+
+theorem tcl_insert {n : Nat} {cap cap' : Cap} {slot d : CslotPtr} {more : List (Cap × CslotPtr)}
+    {rest : List CslotPtr} {mi : MessageInfo} {σ1 σ2 : State Unit} {r : MessageInfo}
+    (hc : ¬ (isEpCap cap ∧ ep = some (objRefOf cap)))
+    (hd : (deriveCap (Z := Unit) slot cap).run σ = ({(.ok cap', σ)}, False)) (hn : cap' ≠ .nullCap)
+    (hi : capInsert (Z := Unit) cap' slot d σ = ({((), σ1)}, False))
+    (h2 : transferCapsLoop (Z := Unit) ep rb (n + 1) more rest mi σ1 = ({(r, σ2)}, False)) :
+    transferCapsLoop (Z := Unit) ep rb n ((cap, slot) :: more) (d :: rest) mi σ = ({(r, σ2)}, False) := by
+  rw [transferCapsLoop]
+  unfold constOnFailure
+  refine Vs.catch_ok ?_
+  rw [run_bind_ok (run_returnOk _ σ), if_neg hc, if_pos (List.cons_ne_nil d rest), run_bind_ok hd]
+  unfold NonDetE.whenE
+  rw [if_neg hn]
+  rw [run_bind_ok (show (pure () : NonDetE (State Unit) SyscallError Unit).run σ = ({(.ok (), σ)}, False) from rfl)]
+  refine (run_bind_ok_st (m := NonDetE.liftE (capInsert (Z := Unit) cap' slot (the (d :: rest).head?)))
+    (run_liftE' hi) _).trans ?_
+  exact run_liftE' h2
+
+theorem tcl_derr {n : Nat} {cap : Cap} {slot d : CslotPtr} {more : List (Cap × CslotPtr)}
+    {rest : List CslotPtr} {mi : MessageInfo} {e : SyscallError}
+    (hc : ¬ (isEpCap cap ∧ ep = some (objRefOf cap)))
+    (hd : (deriveCap (Z := Unit) slot cap).run σ = ({(.error e, σ)}, False)) :
+    transferCapsLoop (Z := Unit) ep rb n ((cap, slot) :: more) (d :: rest) mi σ = ({(miAt mi n, σ)}, False) := by
+  rw [transferCapsLoop]
+  unfold constOnFailure
+  rw [Vs.catch_err (e := e) (σ' := σ)]
+  · rfl
+  rw [run_bind_ok (run_returnOk _ σ), if_neg hc, if_pos (List.cons_ne_nil d rest), run_bind_error hd]
+
+theorem tcl_dnull {n : Nat} {cap : Cap} {slot d : CslotPtr} {more : List (Cap × CslotPtr)}
+    {rest : List CslotPtr} {mi : MessageInfo}
+    (hc : ¬ (isEpCap cap ∧ ep = some (objRefOf cap)))
+    (hd : (deriveCap (Z := Unit) slot cap).run σ = ({(.ok .nullCap, σ)}, False)) :
+    transferCapsLoop (Z := Unit) ep rb n ((cap, slot) :: more) (d :: rest) mi σ = ({(miAt mi n, σ)}, False) := by
+  rw [transferCapsLoop]
+  unfold constOnFailure
+  rw [Vs.catch_err (e := undefined) (σ' := σ)]
+  · rfl
+  rw [run_bind_ok (run_returnOk _ σ), if_neg hc, if_pos (List.cons_ne_nil d rest), run_bind_ok hd]
+  unfold NonDetE.whenE
+  rw [if_pos rfl]
+  exact run_bind_error (run_throwError _ σ) _
+
+theorem tcl_noslot {n : Nat} {cap : Cap} {slot : CslotPtr} {more : List (Cap × CslotPtr)} {mi : MessageInfo}
+    (hc : ¬ (isEpCap cap ∧ ep = some (objRefOf cap))) :
+    transferCapsLoop (Z := Unit) ep rb n ((cap, slot) :: more) [] mi σ = ({(miAt mi n, σ)}, False) := by
+  rw [transferCapsLoop]
+  unfold constOnFailure
+  refine Vs.catch_ok ?_
+  rw [run_bind_ok (run_returnOk _ σ), if_neg hc, if_neg (fun h => h rfl)]
+  rfl
+
+end SpecLoop
+
+
+
+
+/-! ## Unwrapping an endpoint cap -/
+
+section Unwrap
+
+/-- The badge of an endpoint cap. -/
+def epBadgeW : capability.Cap → U64
+  | .Endpoint _ b _ _ _ _ => b
+  | _ => 0#u64
+
+/-- FL4's unwrap test is the spec's (`is_ep_cap` of the transfer's endpoint). -/
+def UnwrapP (ep : U64) (a : Fl4Spec.Cap) : Prop :=
+  Fl4Spec.isEpCap a = true ∧ some ep.bv = some (Fl4Spec.objRefOf a)
+
+instance (ep : U64) (a : Fl4Spec.Cap) : Decidable (UnwrapP ep a) := by unfold UnwrapP; infer_instance
+
+theorem unwrap_eq (c : capability.Cap) (ep : U64) :
+    ipc.unwrapped_badge c ep = ok (if UnwrapP ep (absCap c) then some (epBadgeW c) else none) := by
+  cases c <;> simp [ipc.unwrapped_badge, absCap, UnwrapP, Fl4Spec.isEpCap, Fl4Spec.objRefOf, epBadgeW]
+  rename_i p b s r g gr
+  by_cases h : p = ep
+  · subst h; simp
+  · have : ¬ ep.bv = p.bv := fun e => h (P1.eq_of_bv e.symm)
+    simp [h, this]
+
+theorem capEpBadge_of {c : capability.Cap} {ep : U64} (h : UnwrapP ep (absCap c)) :
+    Fl4Spec.capEpBadge (absCap c) = (epBadgeW c).bv := by
+  cases c <;> simp [UnwrapP, absCap, Fl4Spec.isEpCap] at h
+  rfl
+
+end Unwrap
+
+
+/-! ## The transfer loop -/
+
+section Loop
+variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
+variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+
+/-- A source cap of the transfer: the cap in a CNode slot, related to the
+spec's. -/
+def SrcOK (th : TypedHeap) (m : U64 → U64) (x : U64) (y : Fl4Spec.Cap × Fl4Spec.CslotPtr) : Prop :=
+  ∃ ps rs idx cv, th ps = some (.cnode rs) ∧ idx.length = rs ∧ y.2 = (ps.bv, idx) ∧ x = cslotAddr (ps.bv, idx) ∧
+    capAt m x = ok cv ∧ y.1 = absCap cv ∧ CapWf cv ∧ EncWf cv ∧ CapValid th cv
+
+/-- The receive slot: an empty CNode slot. -/
+def DestOK (th : TypedHeap) (m : U64 → U64) (dest : U64) (d : Fl4Spec.CslotPtr) : Prop :=
+  ∃ pd rd idx, th pd = some (.cnode rd) ∧ idx.length = rd ∧ d = (pd.bv, idx) ∧ dest = cslotAddr (pd.bv, idx) ∧
+    capAt m dest = ok .Null
+
+/-- FL4's message info and the spec's. -/
+def MiRel (out : msginfo.MessageInfo) (mi : Fl4Spec.MessageInfo) : Prop :=
+  out.length.bv = mi.miLength ∧ out.caps_unwrapped.bv = mi.miCapsUnwrapped ∧ out.label.bv = mi.miLabel
+
+/-- Slot `j` of the extra caps. -/
+def exAt (extra : Aeneas.Std.Array obj.Slot 3#usize) (j : Nat) : U64 := extra.val.getD j 0#u64
+
+theorem index_exAt (extra : Aeneas.Std.Array obj.Slot 3#usize) (i : Usize) (hi : i.val < 3) :
+    Aeneas.Std.Array.index_usize extra i = ok (exAt extra i.val) := by
+  have hl : extra.val.length = 3 := by simpa using extra.property
+  unfold Aeneas.Std.Array.index_usize exAt
+  have : extra[i]? = some (extra.val[i.val]'(by omega)) := by
+    simp [Aeneas.Std.Array.getElem?_Usize_eq, List.getElem?_eq_getElem (by omega : i.val < extra.val.length)]
+  rw [this, List.getD_eq_getElem _ _ (by omega)]
+
+theorem cast_us_val (i : U64) (h : i.val < 3) : (UScalar.cast .Usize i).val = i.val := by
+  rw [UScalar.cast_val_eq]
+  refine Nat.mod_eq_of_lt ?_
+  rw [UScalarTy.Usize_numBits_eq]
+  rcases System.Platform.numBits_eq with e | e <;> rw [e] <;> omega
+
+end Loop
+
+section Loop2
+variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
+variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+
+theorem CnK.inUserFrame {σ σ' : Fl4Spec.State Unit} (h : CnK σ σ') {a : Fl4Spec.Word}
+    (hu : Fl4Spec.inUserFrame a σ) : Fl4Spec.inUserFrame a σ' := by
+  obtain ⟨sz, hsz⟩ := hu
+  exact ⟨sz, h.other hsz (fun _ _ e => by cases e) (fun _ e => by cases e)⟩
+
+/-- **The transfer loop's invariant** at FL4's state `x` (state, message
+info, receive slot, index). -/
+def TInv (th : TypedHeap) (caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (extra : Aeneas.Std.Array obj.Slot 3#usize)
+    (ep : U64) (rb : Fl4Spec.Word) (s0 : S) (σ0 : Fl4Spec.State Unit) (dest0 : U64)
+    (slots0 : List Fl4Spec.CslotPtr) (mi0 : Fl4Spec.MessageInfo) (x : S × msginfo.MessageInfo × obj.Slot × U64) :
+    Prop :=
+  ∃ σ mi slots, x.2.2.2.val ≤ caps.length ∧ MiRel x.2.1 mi ∧ mi.miLength = mi0.miLength ∧
+    mi.miLabel = mi0.miLabel ∧
+    (∀ r σf, Fl4Spec.transferCapsLoop (Z := Unit) (some ep.bv) rb x.2.2.2.val (caps.drop x.2.2.2.val) slots mi σ =
+        ({(r, σf)}, False) →
+      Fl4Spec.transferCapsLoop (Z := Unit) (some ep.bv) rb 0 caps slots0 mi0 σ0 = ({(r, σf)}, False)) ∧
+    IpcRel N T E R B (L.mem x.1) σ ∧ SRE st N T C E R B c x.1 σ ∧ (∃ G, RelTopB (L := L) th G N T C E R B c x.1 σ) ∧
+    (∀ k, k < 128 → Fl4Spec.inUserFrame (bufAddr rb k) σ) ∧
+    (∀ j (hj : j < caps.length), x.2.2.2.val ≤ j →
+      ∃ cv, capAt (L.mem x.1) (exAt extra j) = ok cv ∧ absCap cv = (caps[j]).1) ∧
+    ((x.2.2.1 = 0#u64 ∧ slots = []) ∨
+      (x.2.2.1 = dest0 ∧ slots = slots0 ∧ dest0 ≠ 0#u64 ∧ SlotsSame th (L.mem s0) (L.mem x.1) ∧ σ.cdt = σ0.cdt))
+
+/-- The transfer loop's result. -/
+def TPost (th : TypedHeap) (caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (ep : U64) (rb : Fl4Spec.Word)
+    (σ0 : Fl4Spec.State Unit) (slots0 : List Fl4Spec.CslotPtr) (mi0 : Fl4Spec.MessageInfo)
+    (y : S × msginfo.MessageInfo × U64) : Prop :=
+  ∃ σ' mf, Fl4Spec.transferCapsLoop (Z := Unit) (some ep.bv) rb 0 caps slots0 mi0 σ0 = ({(mf, σ')}, False) ∧
+    MiRel y.2.1 mf ∧ mf.miExtraCaps = BitVec.ofNat 64 y.2.2.val ∧
+    IpcRel N T E R B (L.mem y.1) σ' ∧ SRE st N T C E R B c y.1 σ' ∧ ∃ G, RelTopB (L := L) th G N T C E R B c y.1 σ'
+
+/-- A loop exit with the spec's loop ending at the same index. -/
+theorem tpost_of {th : TypedHeap} {caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {ep : U64} {rb : Fl4Spec.Word}
+    {σ0 σ : Fl4Spec.State Unit} {slots0 slots : List Fl4Spec.CslotPtr} {mi0 mi : Fl4Spec.MessageInfo} {s : S}
+    {out : msginfo.MessageInfo} {i : U64}
+    (hmi : MiRel out mi)
+    (hch : ∀ r σf, Fl4Spec.transferCapsLoop (Z := Unit) (some ep.bv) rb i.val (caps.drop i.val) slots mi σ =
+        ({(r, σf)}, False) →
+      Fl4Spec.transferCapsLoop (Z := Unit) (some ep.bv) rb 0 caps slots0 mi0 σ0 = ({(r, σf)}, False))
+    (hend : Fl4Spec.transferCapsLoop (Z := Unit) (some ep.bv) rb i.val (caps.drop i.val) slots mi σ =
+      ({(miAt mi i.val, σ)}, False))
+    (hR : IpcRel N T E R B (L.mem s) σ) (hS : SRE st N T C E R B c s σ)
+    (hB : ∃ G, RelTopB (L := L) th G N T C E R B c s σ) :
+    TPost (L := L) (st := st) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) th caps ep rb σ0 slots0 mi0
+      (s, out, i) :=
+  ⟨σ, miAt mi i.val, hch _ _ hend, hmi, rfl, hR, hS, hB⟩
+
+end Loop2
+
+section Loop3
+variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
+variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+
+theorem buf_caps_eq : msg.BUF_CAPS = ok 122#u64 := by
+  unfold msg.BUF_CAPS msg.BUF_USER_DATA msg.MSG_MAX_LENGTH
+  obtain ⟨z, hz, hzv⟩ := spec_exists (U64.add_spec (x := 1#u64) (y := 120#u64) (by scalar_tac))
+  rw [hz]; simp only [bind_ok]
+  obtain ⟨z2, hz2, hzv2⟩ := spec_exists (U64.add_spec (x := z) (y := 1#u64) (by scalar_tac))
+  rw [hz2]
+  congr 1
+  apply UScalar.eq_of_val_eq
+  rw [hzv2, hzv]; rfl
+
+theorem SlotsSame.trans' {th : TypedHeap} {m1 m2 m3 : U64 → U64} (h1 : SlotsSame th m1 m2) (h2 : SlotsSame th m2 m3) :
+    SlotsSame th m1 m3 := fun a ha =>
+  let ⟨a1, a2, a3, a4⟩ := h1 a ha
+  let ⟨b1, b2, b3, b4⟩ := h2 a ha
+  ⟨b1.trans a1, b2.trans a2, b3.trans a3, b4.trans a4⟩
+
+set_option maxHeartbeats 8000000 in
+/-- **One step of the transfer loop.** -/
+theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)}
+    {extra : Aeneas.Std.Array obj.Slot 3#usize} {ep rbw : U64} {rb : Fl4Spec.Word} {s0 : S}
+    {σ0 : Fl4Spec.State Unit} {dest0 : U64} {slots0 : List Fl4Spec.CslotPtr} {mi0 : Fl4Spec.MessageInfo}
+    (hlen : caps.length ≤ 3)
+    (hsrc : ∀ j (hj : j < caps.length), SrcOK th (L.mem s0) (exAt extra j) caps[j])
+    (hnull : ∀ j, caps.length ≤ j → j < 3 → exAt extra j = 0#u64)
+    (hdist : ∀ j k, j < caps.length → k < caps.length → exAt extra j = exAt extra k → j = k)
+    (hnc : ∀ j (hj : j < caps.length) (s' : S) (σ' : Fl4Spec.State Unit), SlotsSame th (L.mem s0) (L.mem s') →
+      σ'.cdt = σ0.cdt → NoChildrenRel (st := st) s' σ' (exAt extra j) (caps[j]).2)
+    (hdest : dest0 ≠ 0#u64 → ∃ d, slots0 = [d] ∧ DestOK th (L.mem s0) dest0 d ∧
+      ∀ j, j < caps.length → exAt extra j ≠ dest0)
+    (hm : BufMap B rbw rb) (x : S × msginfo.MessageInfo × obj.Slot × U64)
+    (hx : TInv (L := L) (st := st) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) th caps extra ep rb
+      s0 σ0 dest0 slots0 mi0 x) :
+    ipc.transfer_caps_loop.body st extra ep rbw x.1 x.2.1 x.2.2.1 x.2.2.2 ⦃ r => match r with
+      | .done y => TPost (L := L) (st := st) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) th caps ep
+          rb σ0 slots0 mi0 y
+      | .cont x' => TInv (L := L) (st := st) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) th caps
+          extra ep rb s0 σ0 dest0 slots0 mi0 x' ∧ 3 - x'.2.2.2.val < 3 - x.2.2.2.val ⦄ := by
+  obtain ⟨s, out, dest, i⟩ := x
+  obtain ⟨σ, mi, slots, hi, hmi, hml, hmlb, hch, hR, hS, ⟨G, hB⟩, hu, hpend, hdst⟩ := hx
+  dsimp only at hi hmi hch hR hS hB hpend hdst ⊢
+  have hPl : Placed th := hB.1
+  unfold ipc.transfer_caps_loop.body
+  by_cases h3 : i < 3#u64
+  · have hi3 : i.val < 3 := by scalar_tac
+    rw [if_pos h3]
+    simp only [lift, bind_ok]
+    rw [index_exAt extra _ (by rw [cast_us_val i hi3]; exact hi3), cast_us_val i hi3]
+    simp only [bind_ok, obj.Slot.is_null]
+    by_cases hlt : i.val < caps.length
+    · obtain ⟨ps, rs, idx, cv0, hps, hls, hsl, hxa, hcv0, habs0, hw0, he0, hcvv0⟩ := hsrc i.val hlt
+      have hsI : IsSlot th (exAt extra i.val) := by
+        rw [hxa]; exact AbsSlot.isSlot (⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩ : AbsSlot th (ps.bv, idx))
+      have hne : exAt extra i.val ≠ 0#u64 := hsI.ne_zero hPl
+      simp only [hne, decide_false, Bool.false_eq_true, ↓reduceIte]
+      obtain ⟨cv, hcv, habs⟩ := hpend i.val hlt le_rfl
+      rw [slot_cap_eq, hcv]
+      simp only [bind_ok]
+      rw [unwrap_eq]
+      simp only [bind_ok]
+      have hdrop : caps.drop i.val = caps[i.val] :: caps.drop (i.val + 1) := List.drop_eq_getElem_cons hlt
+      by_cases hu' : UnwrapP ep (absCap cv)
+      · rw [if_pos hu']
+        simp only [buf_caps_eq, bind_ok]
+        have hk : (core.num.U64.wrapping_add 122#u64 i).val = 122 + i.val := by
+          simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+        refine WP.spec_bind (buf_set_top hP0 hB hR hS hm (k := core.num.U64.wrapping_add 122#u64 i)
+          (by rw [hk]; omega) (epBadgeW cv) (hu _ (by rw [hk]; omega))) ?_
+        rintro s2 ⟨rfl, hst, hR2, hS2, hB2⟩
+        try simp only [lift, bind_ok]
+        have hand : (i &&& 63#u64).val = i.val := by
+          rw [UScalar.val_and]
+          have : i.val = 0 ∨ i.val = 1 ∨ i.val = 2 := by omega
+          rcases this with h | h | h <;> rw [h] <;> rfl
+        obtain ⟨i6, h6e, -, h6⟩ := spec_exists (U64.ShiftLeft_spec 1#u64 (i &&& 63#u64) (by rw [hand]; omega))
+        rw [h6e]
+        simp only [bind_ok]
+        obtain ⟨i8, h8e, h8⟩ := spec_exists (U64.add_spec (x := i) (y := 1#u64) (by scalar_tac))
+        rw [h8e, bind_ok, WP.spec_ok]
+        have hi8 : i8.val = i.val + 1 := by simpa using h8
+        set σ1 := setUm σ (storeMem σ.machineState.underlyingMemory (bufAddr rb (core.num.U64.wrapping_add 122#u64 i).val)
+          (epBadgeW cv).bv) with hσ1
+        have hwp := hm _ (by rw [hk]; omega : (core.num.U64.wrapping_add 122#u64 i).val < 128)
+        have hal := (hP0.e.balign _ hwp).1
+        have hSS : SlotsSame th (L.mem s) (L.mem (L.wr s (fl4BufA rbw (core.num.U64.wrapping_add 122#u64 i))
+            (epBadgeW cv))) :=
+          slotsSame_wr hPl s _ hal fun a ha h => hB.2.2.2.2.2.1.slot _
+            (Or.inr (Or.inr (Or.inr (Or.inr ⟨_, hwp, le_refl _, by omega⟩)))) a ha h
+        refine ⟨⟨σ1, miUnwrap mi i.val, slots, by rw [hi8]; omega, ⟨hmi.1, ?_, hmi.2.2⟩, hml, hmlb, ?_, hR2, hS2,
+          ⟨G, hB2⟩, fun k hk => (inUserFrame_setUm _ _ _).2 (hu k hk), fun j hj hij => ?_, ?_⟩, by rw [hi8]; omega⟩
+        · show (out.caps_unwrapped ||| i6).bv = mi.miCapsUnwrapped ||| ((1 : Fl4Spec.Data) <<< i.val)
+          rw [UScalar.bv_or, h6, hand]; exact congrArg₂ (· ||| ·) hmi.2.1 rfl
+        · intro r σf hr
+          refine hch r σf ?_
+          rw [hdrop]
+          refine tcl_badge (hc := by show UnwrapP ep (caps[i.val]).1; rw [← habs]; exact hu') ?_
+            (by rw [hi8] at hr; exact hr)
+          unfold Fl4Spec.setExtraBadge
+          show Fl4Spec.storeWordOffs rb (Fl4Spec.bufferCptrIndex + i.val) (Fl4Spec.capEpBadge (caps[i.val]).1) σ = _
+          rw [← habs, capEpBadge_of hu']
+          rw [show Fl4Spec.bufferCptrIndex + i.val = (core.num.U64.wrapping_add 122#u64 i).val by
+            rw [hk]; rfl]
+          exact hst
+        · obtain ⟨cv', h1, h2⟩ := hpend j hj (by rw [hi8] at hij; omega)
+          exact ⟨cv', by rw [hSS.capAt (by
+            obtain ⟨ps', rs', idx', cv'', hps', hls', -, hxa', -⟩ := hsrc j hj
+            rw [hxa']; exact AbsSlot.isSlot (⟨ps', rfl, Or.inl (by simpa [hls'] using hps')⟩ :
+              AbsSlot th (ps'.bv, idx')))]; exact h1, h2⟩
+        · rcases hdst with h | ⟨h1, h2, h3', h4, h5⟩
+          · exact Or.inl h
+          · exact Or.inr ⟨h1, h2, h3', SlotsSame.trans' h4 hSS, h5⟩
+      · rw [if_neg hu']
+        simp only []
+        rcases hdst with ⟨rfl, rfl⟩ | ⟨rfl, rfl, hd0, hSS, hcdt⟩
+        · simp only [decide_true, ↓reduceIte, WP.spec_ok]
+          refine tpost_of hmi hch ?_ hR hS ⟨G, hB⟩
+          rw [hdrop]
+          exact tcl_noslot (by show ¬ UnwrapP ep (caps[i.val]).1; rw [← habs]; exact hu')
+        · obtain ⟨d, hsl0, ⟨pd, rd, idxd, hpd, hld, rfl, hdA, hdN⟩, hdx⟩ := hdest hd0
+          subst hsl0
+          simp only [hd0, decide_false, Bool.false_eq_true, ↓reduceIte]
+          have hcvs : capAt (L.mem s) (exAt extra i.val) = ok cv0 := by rw [hSS.capAt hsI, hcv0]
+          rw [hcv] at hcvs
+          have hcvs' : cv = cv0 := by simpa using hcvs
+          subst hcvs'
+          have hsl' : (caps[i.val]).2 = (ps.bv, idx) := hsl
+          have hnot : ¬ UnwrapP ep (caps[i.val]).1 := by rw [← habs]; exact hu'
+          have hAs : AbsSlot th (ps.bv, idx) := ⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩
+          have hAd : AbsSlot th (pd.bv, idxd) := ⟨pd, rfl, Or.inl (by simpa [hld] using hpd)⟩
+          have hdI : IsSlot th dest := by rw [hdA]; exact hAd.isSlot
+          have hncs := hnc i.val hlt s σ hSS hcdt
+          obtain ⟨r, hr, r', hr', hdr⟩ := derive_rel (Z := Unit) s σ (exAt extra i.val) (caps[i.val]).2 cv hw0 he0
+            (fun _ => hncs)
+          rw [habs] at hr'
+          rw [hr]
+          simp only [bind_ok]
+          cases r with
+          | Err e =>
+            cases r' with
+            | ok _ => exact hdr.elim
+            | error e' =>
+              simp only [WP.spec_ok]
+              refine tpost_of hmi hch ?_ hR hS ⟨G, hB⟩
+              rw [hdrop]
+              exact tcl_derr hnot hr'
+          | Ok c' =>
+            cases r' with
+            | error _ => exact hdr.elim
+            | ok a' =>
+              obtain ⟨hw', ha', he', hv', hk'⟩ := hdr
+              simp only []
+              by_cases hn : c' = .Null
+              · subst hn
+                rw [cap_is_null_null]
+                simp only [bind_ok, ↓reduceIte, WP.spec_ok]
+                refine tpost_of hmi hch ?_ hR hS ⟨G, hB⟩
+                rw [hdrop]
+                rw [← ha'] at hr'
+                exact tcl_dnull hnot hr'
+              · rw [cap_is_null_ne hn]
+                simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
+                obtain ⟨hsh, hbd, hzb, hnu⟩ := derive_shape hr hn hncs
+                have hsnn : cv ≠ .Null := fun h => hn ((Vs.shape_kind hsh).2.2.2.2.2 h)
+                have hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idx)) = ok cv := by rw [← hxa]; exact hcv
+                have hdst : capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null := by
+                  rw [← hdA, hSS.capAt hdI]; exact hdN
+                have hut : isUt cv = true → ∀ y, ¬ Mdb.Desc G.par y (cslotAddr (ps.bv, idx)) := by
+                  intro hu0 y hy
+                  obtain ⟨z, hz⟩ := desc_tail_child hy
+                  exact hnu hu0 (by rw [hsl']; exact (hB.2.1.2.2.2.1.has_child_iff hPl hAs).2 ⟨z, hz⟩)
+                have hsI' : IsSlot th (cslotAddr (ps.bv, idx)) := hAs.isSlot
+                have hnx : nextOf (L.mem s) (cslotAddr (ps.bv, idx)) = 0#u64 ∨
+                    IsSlot th (nextOf (L.mem s) (cslotAddr (ps.bv, idx))) := by
+                  have hm := (hB.2.1.2.2.1.members _).2 ⟨hsI', cv, hsrcC, hsnn⟩
+                  rcases hB.2.1.2.2.1.next_mem hm with h | ⟨h, -⟩
+                  · exact Or.inl h
+                  · exact Or.inr ((hB.2.1.2.2.1.members _).1 h).1
+                have hins := WP.spec_and (insert_top hP0 hB hR hS hps hpd hls hld hsrcC hsnn hdst c' a' ⟨hw', ha'⟩
+                  (hv' th hcvv0) he' hn hsh (Or.inl hbd) hut hzb (derive_okey hr hn)
+                  (fun P L4 L3 L2 L1 => derive_vcap hr P L4 L3 L2 L1) (derive_ut hr))
+                  (insert_capfr hPl s c' _ _ hsI' hAd.isSlot cv hsrcC hnx)
+                rw [← hxa, ← hdA] at hins
+                refine WP.spec_bind hins ?_
+                rintro s2 ⟨⟨σ2, hci, hR2, hS2, G2, hB2⟩, hfr⟩
+                obtain ⟨i3, h3e, h3v⟩ := spec_exists (U64.add_spec (x := i) (y := 1#u64) (by scalar_tac))
+                rw [h3e, bind_ok, WP.spec_ok]
+                have hi3v : i3.val = i.val + 1 := by simpa using h3v
+                have hmem : ((), σ2) ∈ (Fl4Spec.capInsert (Z := Unit) a' (ps.bv, idx) (pd.bv, idxd) σ).1 := by
+                  rw [hci]; rfl
+                have hK := capInsert_nkn a' _ _ σ _ hmem
+                refine ⟨⟨σ2, mi, [], by rw [hi3v]; omega, hmi, hml, hmlb, fun r σf hr0 => ?_, hR2, hS2, ⟨G2, hB2⟩,
+                  fun k hk => hK.inUserFrame (hu k hk), fun j hj hij => ?_, Or.inl ⟨rfl, rfl⟩⟩, by rw [hi3v]; omega⟩
+                · refine hch r σf ?_
+                  rw [hdrop]
+                  refine tcl_insert hnot hr' (fun h => hn ((CapRel.null_iff ⟨hw', ha'⟩).1 h)) ?_
+                    (by rw [hi3v] at hr0; exact hr0)
+                  show Fl4Spec.capInsert a' (caps[i.val]).2 (pd.bv, idxd) σ = _
+                  rw [hsl']; exact hci
+                · obtain ⟨cv', h1, h2⟩ := hpend j hj (by rw [hi3v] at hij; omega)
+                  obtain ⟨ps', rs', idx', cv'', hps', hls', -, hxa', -⟩ := hsrc j hj
+                  have hjI : IsSlot th (exAt extra j) := by
+                    rw [hxa']; exact AbsSlot.isSlot (⟨ps', rfl, Or.inl (by simpa [hls'] using hps')⟩ :
+                      AbsSlot th (ps'.bv, idx'))
+                  have hji : exAt extra j ≠ exAt extra i.val := fun e => by
+                    have := hdist j i.val hj hlt e; rw [hi3v] at hij; omega
+                  refine ⟨cv', ?_, h2⟩
+                  rw [hfr.2 _ hjI hji (hdx j hj)]; exact h1
+    · have hieq : i.val = caps.length := by omega
+      rw [hnull i.val (by omega) hi3]
+      simp only [decide_true, ↓reduceIte, WP.spec_ok]
+      refine tpost_of hmi hch ?_ hR hS ⟨G, hB⟩
+      rw [hieq, List.drop_length, ← hieq]
+      exact tcl_nil _ _ _
+  · rw [if_neg h3]
+    simp only [WP.spec_ok]
+    have hieq : i.val = caps.length := by
+      have : 3 ≤ i.val := by scalar_tac
+      omega
+    refine tpost_of hmi hch ?_ hR hS ⟨G, hB⟩
+    rw [hieq, List.drop_length, ← hieq]
+    exact tcl_nil _ _ _
+
+end Loop3
+
+
+/-! ## The loop and `transfer_caps` -/
+
+section Transfer
+variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
+variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+
+/-- The receive slot FL4 found and the spec's receive slots. -/
+def DestConf (th : TypedHeap) (m : U64 → U64) (caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (dest : U64) (slots : List Fl4Spec.CslotPtr) : Prop :=
+  (dest = 0#u64 ∧ slots = []) ∨
+    (dest ≠ 0#u64 ∧ ∃ d, slots = [d] ∧ DestOK th m dest d ∧ ∀ j, j < caps.length → exAt extra j ≠ dest)
+
+/-- **The transfer loop refines the spec's** on the composite relation. -/
+theorem transfer_loop_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGhost}
+    {caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {extra : Aeneas.Std.Array obj.Slot 3#usize} {ep rbw : U64}
+    {rb : Fl4Spec.Word} {s0 : S} {σ0 : Fl4Spec.State Unit} {dest0 : U64} {slots0 : List Fl4Spec.CslotPtr}
+    {mi0 : Fl4Spec.MessageInfo} (out0 : msginfo.MessageInfo) (hmi0 : MiRel out0 mi0)
+    (hB0 : RelTopB (L := L) th G N T C E R B c s0 σ0) (hR0 : IpcRel N T E R B (L.mem s0) σ0)
+    (hS0 : SRE st N T C E R B c s0 σ0) (hlen : caps.length ≤ 3)
+    (hsrc : ∀ j (hj : j < caps.length), SrcOK th (L.mem s0) (exAt extra j) caps[j])
+    (hnull : ∀ j, caps.length ≤ j → j < 3 → exAt extra j = 0#u64)
+    (hdist : ∀ j k, j < caps.length → k < caps.length → exAt extra j = exAt extra k → j = k)
+    (hnc : ∀ j (hj : j < caps.length) (s' : S) (σ' : Fl4Spec.State Unit), SlotsSame th (L.mem s0) (L.mem s') →
+      σ'.cdt = σ0.cdt → NoChildrenRel (st := st) s' σ' (exAt extra j) (caps[j]).2)
+    (hD : DestConf th (L.mem s0) caps extra dest0 slots0)
+    (hm : BufMap B rbw rb) (hu : ∀ k, k < 128 → Fl4Spec.inUserFrame (bufAddr rb k) σ0) :
+    ipc.transfer_caps_loop st s0 extra ep rbw out0 dest0 0#u64 ⦃ y =>
+      TPost (L := L) (st := st) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) th caps ep rb σ0
+        slots0 mi0 y ⦄ := by
+  have hdest : dest0 ≠ 0#u64 → ∃ d, slots0 = [d] ∧ DestOK th (L.mem s0) dest0 d ∧
+      ∀ j, j < caps.length → exAt extra j ≠ dest0 := fun h => by
+    rcases hD with ⟨h0, -⟩ | ⟨-, hd⟩
+    · exact absurd h0 h
+    · exact hd
+  unfold ipc.transfer_caps_loop
+  refine loop.spec_decr_nat (fun x => 3 - x.2.2.2.val)
+    (TInv (L := L) (st := st) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) th caps extra ep rb
+      s0 σ0 dest0 slots0 mi0) _ _ _ (fun x hx => ?_) ?_
+  · obtain ⟨s, o, d, i⟩ := x
+    have h := tc_body hP0 hlen hsrc hnull hdist hnc hdest hm (s, o, d, i) hx
+    refine WP.spec_mono h ?_
+    intro r hr
+    cases r with
+    | done y => exact hr
+    | cont x' => exact hr
+  · refine ⟨σ0, mi0, slots0, by simp, hmi0, rfl, rfl, fun r σf h => by simpa using h, hR0, hS0, ⟨G, hB0⟩, hu,
+      fun j hj _ => ?_, ?_⟩
+    · obtain ⟨ps, rs, idx, cv, -, -, -, -, hcv, habs, -⟩ := hsrc j hj
+      exact ⟨cv, hcv, habs.symm⟩
+    · rcases hD with ⟨h0, h1⟩ | ⟨h0, -⟩
+      · exact Or.inl ⟨h0, h1⟩
+      · exact Or.inr ⟨rfl, rfl, h0, fun _ _ => ⟨rfl, rfl, rfl, rfl⟩, rfl⟩
+
+
+/-- **`transfer_caps` refines `transfer_caps`** on the composite relation,
+from FL4's receive-slot lookup against the spec's (`hG1`, the remaining
+named fact of the transfer: `get_receive_slot` against
+`get_receive_slots`) and the extra caps related to the spec's
+(`hsrc`, `hnull`; pairwise distinct and apart from the receive slot). -/
+theorem transfer_caps_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGhost} {s : S}
+    {σ : Fl4Spec.State Unit} (hB : RelTopB (L := L) th G N T C E R B c s σ) (hR : IpcRel N T E R B (L.mem s) σ)
+    (hS : SRE st N T C E R B c s σ) (info : msginfo.MessageInfo) (mi : Fl4Spec.MessageInfo)
+    (hil : info.length.bv = mi.miLength) (hlb : info.label.bv = mi.miLabel)
+    {caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {extra : Aeneas.Std.Array obj.Slot 3#usize}
+    (hlen : caps.length ≤ 3)
+    (hsrc : ∀ j (hj : j < caps.length), SrcOK th (L.mem s) (exAt extra j) caps[j])
+    (hnull : ∀ j, caps.length ≤ j → j < 3 → exAt extra j = 0#u64)
+    (hdist : ∀ j k, j < caps.length → k < caps.length → exAt extra j = exAt extra k → j = k)
+    (hnc : ∀ j (hj : j < caps.length) (s' : S) (σ' : Fl4Spec.State Unit), SlotsSame th (L.mem s) (L.mem s') →
+      σ'.cdt = σ.cdt → NoChildrenRel (st := st) s' σ' (exAt extra j) (caps[j]).2)
+    (ep : U64) (receiver : obj.Tcb) (rbw : U64) (rbo : Option Fl4Spec.Word) (hrb : rbw = 0#u64 ↔ rbo = none)
+    (hm : ∀ rb, rbo = some rb → BufMap B rbw rb ∧ ∀ k, k < 128 → Fl4Spec.inUserFrame (bufAddr rb k) σ)
+    (hGRs : ∀ rb, rbo = some rb → ∃ sl, Fl4Spec.getReceiveSlots (Z := Unit) receiver.bv (some rb) σ = ({(sl, σ)}, False))
+    (hG1 : ∀ rb, rbo = some rb → ipc.get_receive_slot st s receiver rbw ⦃ dest => ∃ slots,
+      Fl4Spec.getReceiveSlots (Z := Unit) receiver.bv (some rb) σ = ({(slots, σ)}, False) ∧
+      DestConf th (L.mem s) caps extra dest slots ⦄) :
+    ipc.transfer_caps st s info extra ep receiver rbw ⦃ r => ∃ σ' mf,
+      Fl4Spec.transferCaps (Z := Unit) mi caps (some ep.bv) receiver.bv rbo σ = ({(mf, σ')}, False) ∧
+      MiRel r.1 mf ∧ r.1.extra_caps.bv = mf.miExtraCaps ∧ IpcRel N T E R B (L.mem r.2) σ' ∧
+      SRE st N T C E R B c r.2 σ' ∧ ∃ G', RelTopB (L := L) th G' N T C E R B c r.2 σ' ⦄ := by
+  have hmi0 : MiRel { label := info.label, caps_unwrapped := 0#u64, extra_caps := 0#u64, length := info.length }
+      ⟨mi.miLength, 0, 0, mi.miLabel⟩ := ⟨hil, rfl, hlb⟩
+  -- the spec without caps or without a receive buffer
+  have hnone : rbo = none → Fl4Spec.transferCaps (Z := Unit) mi caps (some ep.bv) receiver.bv rbo σ =
+      ({(⟨mi.miLength, 0, 0, mi.miLabel⟩, σ)}, False) := by
+    rintro rfl
+    unfold Fl4Spec.transferCaps
+    rw [nd_bind_one (show Fl4Spec.getReceiveSlots (Z := Unit) receiver.bv none σ = ({([], σ)}, False) from rfl),
+      nd_pure_bind']
+    rfl
+  have hnil : caps = [] → ∀ rb, rbo = some rb → Fl4Spec.transferCaps (Z := Unit) mi caps (some ep.bv) receiver.bv rbo σ =
+      ({(⟨mi.miLength, 0, 0, mi.miLabel⟩, σ)}, False) := by
+    rintro rfl rb rfl
+    obtain ⟨sl, hsl⟩ := hGRs rb rfl
+    unfold Fl4Spec.transferCaps
+    rw [nd_bind_one hsl, nd_pure_bind']
+    exact tcl_nil _ _ _
+  unfold ipc.transfer_caps msginfo.MessageInfo.new
+  simp only [bind_ok]
+  rw [index_exAt extra 0#usize (by decide), show ((0#usize : Usize).val) = 0 from rfl]
+  simp only [bind_ok, obj.Slot.is_null]
+  by_cases h0 : exAt extra 0 = 0#u64
+  · have hcn : caps = [] := by
+      cases caps with
+      | nil => rfl
+      | cons y ys =>
+        exfalso
+        obtain ⟨ps, rs, idx, cv, hps, hls, -, hxa, -⟩ := hsrc 0 (by simp)
+        have := (AbsSlot.isSlot (⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩ : AbsSlot th (ps.bv, idx))).ne_zero hB.1
+        rw [← hxa] at this; exact this h0
+    rw [decide_eq_true h0, if_pos rfl, WP.spec_ok]
+    refine ⟨σ, ⟨mi.miLength, 0, 0, mi.miLabel⟩, ?_, hmi0, rfl, hR, hS, G, hB⟩
+    cases e : rbo with
+    | none => rw [← e]; exact hnone e
+    | some rb => rw [← e]; exact hnil hcn rb e
+  · rw [decide_eq_false h0, if_neg Bool.false_ne_true]
+    by_cases hr0 : rbw = 0#u64
+    · rw [if_pos hr0, WP.spec_ok]
+      exact ⟨σ, _, hnone (hrb.1 hr0), hmi0, rfl, hR, hS, G, hB⟩
+    · rw [if_neg hr0]
+      obtain ⟨rb, hrbo⟩ : ∃ rb, rbo = some rb := by
+        cases e : rbo with
+        | none => exact absurd (hrb.2 e) hr0
+        | some rb => exact ⟨rb, rfl⟩
+      obtain ⟨hmb, hu⟩ := hm rb hrbo
+      refine WP.spec_bind (hG1 rb hrbo) ?_
+      rintro dest ⟨slots, hsl, hD⟩
+      refine WP.spec_bind (transfer_loop_top hP0 _ hmi0 hB hR hS hlen hsrc hnull hdist hnc hD hmb hu) ?_
+      rintro ⟨s2, out1, i⟩ ⟨σ', mf, hloop, hmi1, hex, hR', hS', hB'⟩
+      refine (WP.spec_ok _).2 ⟨σ', mf, ?_, hmi1, ?_, hR', hS', hB'⟩
+      swap
+      · show i.bv = mf.miExtraCaps
+        rw [hex]; apply BitVec.eq_of_toNat_eq
+        show i.val = (BitVec.ofNat 64 i.val).toNat
+        rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by scalar_tac)]
+      subst hrbo
+      unfold Fl4Spec.transferCaps
+      rw [nd_bind_one hsl, nd_pure_bind']
+      exact hloop
+
+end Transfer
+
+end
+
+end Fl4Proofs.P3.Ipc

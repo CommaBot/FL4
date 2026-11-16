@@ -70,11 +70,6 @@ theorem EpStep.sc (h : EpStep σ σ') {p : Fl4Spec.ObjRef} {x : Fl4Spec.SchedCon
   · exact e.trans hk
   all_goals (rw [hk] at ha; cases ha)
 
-theorem SzKeep.epStep (h : EpStep σ σ') : SzKeep σ σ' := by
-  intro p x n hp
-  rcases h.2.2 p with e | ⟨a, b, -, hb⟩ | ⟨a, b, -, hb, -⟩ | ⟨a, b, -, hb, -⟩
-  · exact ⟨x, e ▸ hp⟩
-  all_goals (rw [hp] at hb; cases hb)
 
 /-- **A spec step the scheduler relation does not see**: the scheduler
 fields of the abstract state kept, the TCBs' domain, SC and priority kept,
@@ -368,18 +363,19 @@ theorem schedule_tcb_cases (s : S) (t : U64) :
 /-- **`schedule_tcb` keeps `RelTopI`**: it writes at most the action word of
 core `c`'s node. -/
 theorem relTopI_schedule_tcb (s : S) (σ : Fl4Spec.State Unit) (hS : SchedRel st N T C c s σ)
-    (hT : RelTopI (L := L) N T E R B c s σ) (t : U64) :
-    sched.schedule_tcb st s t ⦃ s' => RelTopI (L := L) N T E R B c s' (stsAct σ t.bv) ⦄ := by
+    (hT : RelTopI (L := L) N T C E R B c s σ) (t : U64) :
+    sched.schedule_tcb st s t ⦃ s' => RelTopI (L := L) N T C E R B c s' (stsAct σ t.bv) ⦄ := by
   obtain ⟨Q, R0, hc, -⟩ := hS.lists
   obtain ⟨hK, hdl, hds⟩ := stsAct_ckeep σ t.bv
   refine WP.spec_mono (schedule_tcb_cases s t) ?_
   rintro s' (rfl | rfl)
   · exact hT.frameN (W := fun _ => False) (WritesIn.refl _ _) (fun _ h => h.elim) hK hdl hds
+      (SzKeep.of_kheap (stsAct_kheap σ t.bv))
   · rw [hc.cur]
     have ho : (layout.node.SCHED_ACTION).val < 4288 := by simp [layout.node.SCHED_ACTION]
     have hv := nodeAt_val hc.node ho
     refine hT.frameN (writesIn_wr (nodeAt_aligned hc.node ho (by simp [layout.node.SCHED_ACTION])))
-      (fun a ha => Or.inr ?_) hK hdl hds
+      (fun a ha => Or.inr ?_) hK hdl hds (SzKeep.of_kheap (stsAct_kheap σ t.bv))
     have hnb : L.nodeBase s c = (L.ksb s).val + 13568 + c.val * 4288 := rfl
     subst ha
     unfold NodeW; rw [hv, ← hnb]; omega
@@ -436,8 +432,8 @@ theorem ipcSchedHyps_sre (hP : EPlaced T E R B) (hX : IpcSchedRest st ar N T E R
 /-- **`IpcSchedHyps` with the CSpace relation** (`SRT … SRE`): `RelTopI`
 across `schedule_tcb` too; the rest given for `SRT`. -/
 theorem ipcSchedHyps_top (hP : EPlaced T E R B)
-    (hX : IpcSchedRest st ar N T E R B (SRT st N T E R B c (SRE st N T C E R B c))) :
-    IpcSchedHyps st ar N T E R B (SRT st N T E R B c (SRE st N T C E R B c)) where
+    (hX : IpcSchedRest st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c))) :
+    IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)) where
   stableN s s' σ σ' h hW hK _ := ⟨h.1.stableN hP.tcb hW hK,
     h.2.1.stable hW hK, h.2.2.mono hW.1 (SzKeep.ntfnStep hK)⟩
   stableE s s' σ σ' h hW hK := ⟨h.1.stableE hW hK, h.2.1.stableE hP h.2.2 hW hK,

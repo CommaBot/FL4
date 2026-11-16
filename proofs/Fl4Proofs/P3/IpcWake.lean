@@ -334,11 +334,11 @@ variable {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 /-- **`possible_switch_to` refines `possible_switch_to`** keeping the merged
 footprint and view and `SRT … SRE`. -/
 theorem switch_top (hP0 : IPlaced N T E R B) (s : S) (σ : Fl4Spec.State Unit)
-    (hR : IpcRel N T E R B (L.mem s) σ) (hS : SRT st N T E R B c (SRE st N T C E R B c) s σ)
+    (hR : IpcRel N T E R B (L.mem s) σ) (hS : SRT st N T C E R B c (SRE st N T C E R B c) s σ)
     (hr : ActReady σ) (t : U64) (ht : t ∈ T) :
     sched.possible_switch_to st s t ⦃ s' => ∃ σ', Fl4Spec.possibleSwitchTo (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
       σ'.kheap = σ.kheap ∧ Agree (L.mem s) (L.mem s') (IFoot N T E R B) ∧ IKView σ σ' ∧
-      SRT st N T E R B c (SRE st N T C E R B c) s' σ' ⦄ := by
+      SRT st N T C E R B c (SRE st N T C E R B c) s' σ' ⦄ := by
   refine WP.spec_mono (WP.spec_and (possible_switch_to_refines s σ hR.toN hS.2.1 hr t ht)
     (possible_switch_to_sfootI hR.toN hS.2.1 hr ht)) ?_
   rintro s' ⟨⟨σ', heq, hk, -, hSch⟩, hW⟩
@@ -346,7 +346,7 @@ theorem switch_top (hP0 : IPlaced N T E R B) (s : S) (σ : Fl4Spec.State Unit)
   obtain ⟨hms, hdl, hds⟩ := nkm_possibleSwitchTo t.bv σ _ hmem
   have hck : CKeep σ σ' := nkc_possibleSwitchTo t.bv σ _ hmem
   refine ⟨σ', heq, hk, fun a ha hf => hW.mem_eq ha (fun hs => sfootI_not_ifoot hP0 hS.2.1 hS.2.2 hs hf),
-    IKView.of_kheap hk (by rw [hms]), hS.1.frameN hW (fun a ha => sfootI_iwords hP0.e.tcb ha) hck hdl hds,
+    IKView.of_kheap hk (by rw [hms]), hS.1.frameN hW (fun a ha => sfootI_iwords hP0.e.tcb ha) hck hdl hds (SzKeep.of_kheap hk),
     hSch, hS.2.2.mono hW.1 (SzKeep.of_kheap hk)⟩
 
 /-- **The SchedContext steps of the wake-up** (SchedNtfn's `WakeHyps`) on
@@ -354,27 +354,27 @@ the merged footprint and view and `SRT … SRE`. -/
 structure IpcWakeHyps (st : machine.Store S) (ar : machine.Arch A) [L : LawfulStore st] (N T C E R : Set U64)
     (B : Set (U64 × Fl4Spec.Word)) (c : U64) : Prop where
   donate : ∀ s (a : A) σ (t n : U64) (x : Fl4Spec.Tcb), IpcRel N T E R B (L.mem s) σ →
-    SRT st N T E R B c (SRE st N T C E R B c) s σ → t ∈ T → n ∈ N → σ.kheap t.bv = some (.tcb x) →
+    SRT st N T C E R B c (SRE st N T C E R B c) s σ → t ∈ T → n ∈ N → σ.kheap t.bv = some (.tcb x) →
     x.tcbState = .running →
     notification.maybe_donate_sched_context st ar s a t n ⦃ r => ∃ σ1,
       Fl4Spec.maybeDonateSc (Z := Unit) t.bv n.bv σ = ({((), σ1)}, False) ∧
       Agree (L.mem s) (L.mem r.1) (IFoot N T E R B) ∧ IKView σ σ1 ∧
-      SRT st N T E R B c (SRE st N T C E R B c) r.1 σ1 ∧ ActReady σ1 ⦄
-  unblock : ∀ s σ (t : U64), IpcRel N T E R B (L.mem s) σ → SRT st N T E R B c (SRE st N T C E R B c) s σ →
+      SRT st N T C E R B c (SRE st N T C E R B c) r.1 σ1 ∧ ActReady σ1 ⦄
+  unblock : ∀ s σ (t : U64), IpcRel N T E R B (L.mem s) σ → SRT st N T C E R B c (SRE st N T C E R B c) s σ →
     t ∈ T →
     notification.unblock_sporadic st s t ⦃ s' => ¬ (specUnblock t.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (specUnblock t.bv σ).1 ∧ Agree (L.mem s) (L.mem s') (IFoot N T E R B) ∧
-        IKView σ σ' ∧ SRT st N T E R B c (SRE st N T C E R B c) s' σ' ⦄
+        IKView σ σ' ∧ SRT st N T C E R B c (SRE st N T C E R B c) s' σ' ⦄
 
 /-- **The `wakeTail` field of `IpcSchedHyps` for `SRT … SRE`**, from
 `IpcWakeHyps` (SchedNtfn's `wakeTail_of` on the merged footprint). -/
 theorem wakeTail_top (hP0 : IPlaced N T E R B) (hW : IpcWakeHyps st ar N T C E R B c) (s : S) (a : A)
     (σ : Fl4Spec.State Unit) (t n : U64) (x : Fl4Spec.Tcb) (hR : IpcRel N T E R B (L.mem s) σ)
-    (hS : SRT st N T E R B c (SRE st N T C E R B c) s σ) (ht : t ∈ T) (hn : n ∈ N)
+    (hS : SRT st N T C E R B c (SRE st N T C E R B c) s σ) (ht : t ∈ T) (hn : n ∈ N)
     (hk : σ.kheap t.bv = some (.tcb x)) (hx : x.tcbState = .running) :
     rustWakeTail st ar s a t n ⦃ r => ¬ (specWakeTail t.bv n.bv σ).2 ∧ ∃ σ', ((), σ') ∈ (specWakeTail t.bv n.bv σ).1 ∧
       Agree (L.mem s) (L.mem r.1) (IFoot N T E R B) ∧ IKView σ σ' ∧
-      SRT st N T E R B c (SRE st N T C E R B c) r.1 σ' ⦄ := by
+      SRT st N T C E R B c (SRE st N T C E R B c) r.1 σ' ⦄ := by
   unfold rustWakeTail
   refine WP.spec_bind (hW.donate s a σ t n x hR hS ht hn hk hx) ?_
   rintro ⟨s4, a2⟩ ⟨σ1, hd, hf1, hv1, hS1, hr1⟩
@@ -384,7 +384,7 @@ theorem wakeTail_top (hP0 : IPlaced N T E R B) (hW : IpcWakeHyps st ar N T C E R
   have hmid : (if b1 = true then sched.possible_switch_to st s4 t else ok s4) ⦃ s5 => ∃ σ2,
       (Fl4Spec.NonDet.when (Fl4Spec.schedulable t.bv σ1 = true) (Fl4Spec.possibleSwitchTo t.bv)) σ1 =
         ({((), σ2)}, False) ∧ Agree (L.mem s4) (L.mem s5) (IFoot N T E R B) ∧ IKView σ1 σ2 ∧
-        SRT st N T E R B c (SRE st N T C E R B c) s5 σ2 ⦄ := by
+        SRT st N T C E R B c (SRE st N T C E R B c) s5 σ2 ⦄ := by
     rw [b1_post]
     by_cases e : Fl4Spec.schedulable t.bv σ1 = true
     · simp only [e, ↓reduceIte, Fl4Spec.NonDet.when]
@@ -411,13 +411,13 @@ facts: `notQueued` (l4v `valid_sched`), the SchedContext steps of the
 wake-up (`IpcWakeHyps`) and the receiver facts of `cancel_ipc`
 (`CancelRecvHyp`). -/
 theorem ipcSchedHyps_full (hP0 : IPlaced N T E R B)
-    (hNQ : ∀ s σ (t : U64) (x : Fl4Spec.Tcb), SRT st N T E R B c (SRE st N T C E R B c) s σ →
+    (hNQ : ∀ s σ (t : U64) (x : Fl4Spec.Tcb), SRT st N T C E R B c (SRE st N T C E R B c) s σ →
       σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = false → NotQueued σ t.bv)
     (hW : IpcWakeHyps st ar N T C E R B c)
     (hX : ∀ s σ (t : U64) (x : Fl4Spec.Tcb), IpcRel N T E R B (L.mem s) σ →
-      SRT st N T E R B c (SRE st N T C E R B c) s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
+      SRT st N T C E R B c (SRE st N T C E R B c) s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
       Fl4Spec.receiveBlocked x.tcbState = true → CancelRecvHyp E (L.mem s) σ t x) :
-    IpcSchedHyps st ar N T E R B (SRT st N T E R B c (SRE st N T C E R B c)) :=
+    IpcSchedHyps st ar N T E R B (SRT st N T C E R B c (SRE st N T C E R B c)) :=
   ipcSchedHyps_top hP0.e ⟨hNQ, fun s a σ t n x hR hS ht hn hk hx _ => wakeTail_top hP0 hW s a σ t n x hR hS ht hn hk hx,
     cancelIpc_top hP0 hX⟩
 
