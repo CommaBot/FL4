@@ -150,7 +150,7 @@ theorem insert_new_cap_ksb (s : S) (src dest : U64) (c : capability.Cap) :
   step
   obtain ⟨s1, h1, k1⟩ := spec_exists (set_cap_ksb (L := L) dest s c)
   rw [h1]; simp only [bind_ok]
-  step; step; step; step
+  step; step
   simp only [obj.Slot.is_null, bind_ok]
   by_cases hz0 : next = 0#u64
   · simp only [hz0, decide_true, ↓reduceIte, bind_ok]
