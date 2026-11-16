@@ -341,7 +341,7 @@ theorem unblock_check_scw {s : S} {σ : Fl4Spec.State Unit}
     unfold LawfulStore.nodeA; rw [hc.cur]
   have hal : Aligned (L.nodeA s layout.node.REPROGRAM) := by
     rw [e]; exact nodeAt_aligned hN ho (by simp [layout.node.REPROGRAM])
-  have hout : Outside (L.nodeA s layout.node.REPROGRAM) p n := by
+  have hout : Outside (L.nodeA s layout.node.REPROGRAM) p (n + Fl4Spec.minSchedContextBits) := by
     unfold Outside
     by_contra hin
     push_neg at hin
