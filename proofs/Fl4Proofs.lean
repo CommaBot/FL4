@@ -68,6 +68,10 @@ import Fl4Proofs.P3.IpcNtfnSched
 import Fl4Proofs.P3.IpcNtfnWake
 import Fl4Proofs.P3.IpcNtfnRecv
 import Fl4Proofs.P3.IpcNtfnBlock
+import Fl4Proofs.P3.IpcEpBase
+import Fl4Proofs.P3.IpcEpSteps
+import Fl4Proofs.P3.IpcEpIpc
+import Fl4Proofs.P3.IpcEpBlock
 import Fl4Proofs.P3.TcbRel
 import Fl4Proofs.P3.EpFaultUs
 import Fl4Proofs.P3.EpComb

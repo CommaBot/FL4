@@ -111,7 +111,7 @@ theorem receive_signal_blockI (hH : IpcSchedHyps st ar N T E R B SR) (hV : IpcRe
     step
     step
     subst s1_post s2_post
-    refine WP.spec_bind (hH.scheduleTcb _ σ1 t hR1 hSR1 ht) ?_
+    refine WP.spec_bind (hH.scheduleTcb _ σ1 t hR1.toE (ScRelM.of hR1) hSR1 ht) ?_
     rintro s3 ⟨hf3, hS3⟩
     have hR3 : IpcRel N T E R B (L.mem s3) σ2 := hR1.frame hP hf3 (IKView.stsAct _ _)
     obtain ⟨xs3, hQ3, hxs3, hB3⟩ := (hR3.toN.at_ntfn hn hk2).obj.queue

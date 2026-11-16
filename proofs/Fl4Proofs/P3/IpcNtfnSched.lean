@@ -88,7 +88,7 @@ theorem set_thread_state_runningI (hH : IpcSchedHyps st ar N T E R B SR) (hP : I
       exact hx.regs r
   have hSR1 := hH.stableN _ _ _ _ hSR hw.foot (NtfnStep.tcb hk .running x.tcbArch)
     (NoBlock.tcbUpd hk _ _ (Or.inr ⟨rfl, hni, hcls⟩))
-  refine WP.spec_mono (hH.scheduleTcb _ _ t hR1 hSR1 ht) ?_
+  refine WP.spec_mono (hH.scheduleTcb _ _ t hR1.toE (ScRelM.of hR1) hSR1 ht) ?_
   rintro s2 ⟨hf, hS⟩
   exact ⟨hR1.frame hP hf (IKView.stsAct _ _), hS⟩
 

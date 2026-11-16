@@ -9,6 +9,11 @@ are sound for both the notification writes (`NWrite`, `NtfnStep`) and the
 endpoint writes (`EWrite`, `EpStep`); `scheduleTcb` and `wakeTail` keep the
 merged footprint `IFoot` and view `IKView`, `cancelIpc` the merged relation.
 
+`scheduleTcb` assumes only the endpoint relation and the TCBs' SC words
+(`ScRelM`), not all of `IpcRel`, so that it also serves the endpoint proofs'
+`EpHyps` (IpcEpBase.lean). The Sc agent's `schedule_tcb_refines` is expected
+to discharge it: it reads only the TCB's state code and its SC pointer.
+
 `TcbRel.of_words`: the TCB relation after writes to its state, block-object
 and register words (`Volatile`), from the spec TCB's new fields.
 -/
@@ -22,6 +27,21 @@ open fl4_core Fl4Proofs.P1 Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp
 noncomputable section
 
 /-! ## The narrowed hypotheses -/
+
+/-- The SC words of the TCBs: the part of `IpcRel` outside both subsystems'
+relations. -/
+def ScRelM {Z : Type} (T : Set U64) (m : U64 → U64) (σ : Fl4Spec.State Z) : Prop :=
+  ∀ t ∈ T, ∃ x, σ.kheap t.bv = some (.tcb x) ∧ x.tcbSchedContext = optRef (m (scA t))
+
+theorem ScRelM.of {Z : Type} {N T E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {m : U64 → U64}
+    {σ : Fl4Spec.State Z} (h : IpcRel N T E R B m σ) : ScRelM T m σ :=
+  fun t ht => let ⟨x, hk, hx⟩ := h.tcb t ht; ⟨x, hk, hx.sc⟩
+
+theorem ScRelM.all {Z : Type} {T : Set U64} {m : U64 → U64} {σ : Fl4Spec.State Z} (h : ScRelM T m σ) :
+    ∀ t ∈ T, ∀ x, σ.kheap t.bv = some (.tcb x) → x.tcbSchedContext = optRef (m (scA t)) := by
+  intro t ht x hk
+  obtain ⟨y, hy, e⟩ := h t ht
+  rw [hk] at hy; injection hy with hy; injection hy with hy; subst hy; exact e
 
 section Hyps
 variable {S A : Type} (st : machine.Store S) (ar : machine.Arch A) [L : LawfulStore st]
@@ -39,7 +59,7 @@ structure IpcSchedHyps (N T E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (SR :
     WritesIn st s s' (NWrite N T) → NtfnStep σ σ' →
     (∀ p x y, σ.kheap p = some (.tcb x) → σ'.kheap p = some (.tcb y) → p ≠ t.bv → y.tcbState = x.tcbState) →
     SR s' σ'
-  scheduleTcb : ∀ s σ (t : U64), IpcRel N T E R B (L.mem s) σ → SR s σ → t ∈ T →
+  scheduleTcb : ∀ s σ (t : U64), EpStateRel T E R B (L.mem s) σ → ScRelM T (L.mem s) σ → SR s σ → t ∈ T →
     sched.schedule_tcb st s t ⦃ s' => Agree (L.mem s) (L.mem s') (IFoot N T E R B) ∧ SR s' (stsAct σ t.bv) ⦄
   wakeTail : ∀ s (a : A) σ (t n : U64) (x : Fl4Spec.Tcb), IpcRel N T E R B (L.mem s) σ → SR s σ → t ∈ T →
     n ∈ N → σ.kheap t.bv = some (.tcb x) → x.tcbState = .running → NotQueued σ t.bv →
