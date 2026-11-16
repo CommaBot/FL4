@@ -152,8 +152,15 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
 * ScPlace: the joint P1/P3 placement invariant `JPlaced` (P3's typed heap
   against P1's heap `H` and its sets), the placement hypotheses derived
   from it (`JPlaced.ssp`, `JPlaced.kwOut`, `JPlaced.slotCapW`,
-  `ntfnP1Hyp_of`, `replyP1Hyp_of`), and its frames (`JPlaced.step`,
+  `ntfnP1Hyp_of`, `replyP1Hyp_of`, `JPlaced.slotCapTyped` for P1's slot
+  reads, the IRQ handler slots included), and its frames (`JPlaced.step`,
   `JPlaced.same`).
+* ScPlaceCaps: `mask_cap_rights`, `update_cap_data` and `derive_cap` keep
+  P1's `CapTyped` (`mask_typed`, `update_typed`, `derive_typed`).
+* ScPlaceSc: the SchedContext and SchedControl caps keep `JPlaced`
+  (`decode_invocation_sched_contextJ`, `decode_invocation_sched_controlJ`,
+  `TopPostFJ`), with `SlotsApart` and the IRQ slots' apartness derived from
+  `JPlaced` (`JPlaced.slotsApart`, `JPlaced.irqApart`).
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
@@ -187,3 +194,5 @@ import Fl4Proofs.P3.ScInstSpec
 import Fl4Proofs.P3.ScCancelFrame
 import Fl4Proofs.P3.ScInstPost
 import Fl4Proofs.P3.ScPlace
+import Fl4Proofs.P3.ScPlaceCaps
+import Fl4Proofs.P3.ScPlaceSc

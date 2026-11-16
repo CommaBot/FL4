@@ -8,8 +8,9 @@ heap `th` (CNodes, TCBs, other objects; `Placed th`) to P1's typed heap `H`
   and conversely, a CNode of radix `r` is an object of `2 ^ (r + 5)` bytes of
   `H`; the TCBs are among the scheduler relation's `Tr`, the spec's SCs
   among `C` and `H`'s SCs; every cap in a slot names objects of the right
-  kind (P1's `CapTyped`), and the fault-handler slots hold the null or an
-  endpoint cap (l4v `valid_fault_handler`).
+  kind (P1's `CapTyped`), the IRQ handler slots too, the fault-handler
+  slots hold the null or an endpoint cap (l4v `valid_fault_handler`), and
+  `H`'s objects lie outside the kernel-global area.
 * Derived: `hTh`/`hTr` (`JPlaced.tcbT`, `JPlaced.tcbTr`), `ScSetsHyp`
   (`JPlaced.scSets`), `FhSlotHyp` (`JPlaced.fhSlot`), `KWOut`
   (`JPlaced.kwOut`, with the nodes and `Ω` facts of P1's `BlkOK`),
@@ -38,8 +39,12 @@ structure JPlaced (th : TypedHeap) (H : Heap) (Tr C : Set U64) (s : S) (σ : Fl4
   tcb : ∀ t, th t = some .tcb ↔ H t = some .tcb
   cnode : ∀ p r, th p = some (.cnode r) → H p = some (.other (r + 5))
   tr : ∀ t, th t = some .tcb → t ∈ Tr
-  sc : ∀ (c : U64) y n, c ≠ 0#u64 → σ.kheap c.bv = some (.schedContext y n) → c ∈ C ∧ ∃ z, H c = some (.sc z)
+  sc : ∀ (c : U64) y n, c ≠ 0#u64 → σ.kheap c.bv = some (.schedContext y n) → c ∈ C ∧ H c = some (.sc n)
+  /-- `H`'s objects lie outside the kernel-global area. -/
+  ks : ∀ p k, H p = some k → p.val + 2 ^ k.bits ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val
   typed : ∀ a, IsSlot th a → CapTyped H (Heap.replies H) (Heap.ntfns H) (capV (L.mem s) a)
+  /-- The IRQ handler slots (the kernel-global IRQ node) hold typed caps too. -/
+  irq : ∀ i : U64, i.val < 128 → CapTyped H (Heap.replies H) (Heap.ntfns H) (capV (L.mem s) (nodeA (L.ksb s) i))
   fh : ∀ t, th t = some .tcb → capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Null ∨
     ∃ ep b0 b1 b2 b3 b4, capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Endpoint ep b0 b1 b2 b3 b4
 
@@ -53,7 +58,7 @@ theorem JPlaced.tcbT (h : JPlaced (L := L) th H Tr C s σ) : ∀ t, th t = some 
 theorem JPlaced.tcbTr (h : JPlaced (L := L) th H Tr C s σ) : ∀ t, th t = some .tcb → t ∈ Tr := h.tr
 
 theorem JPlaced.scSets (h : JPlaced (L := L) th H Tr C s σ) : ScSetsHyp C (Heap.scs H) σ :=
-  fun c y n hc hk => ⟨(h.sc c y n hc hk).1, (h.sc c y n hc hk).2⟩
+  fun c y n hc hk => ⟨(h.sc c y n hc hk).1, n, (h.sc c y n hc hk).2⟩
 
 theorem JPlaced.fhSlot (h : JPlaced (L := L) th H Tr C s σ) : FhSlotHyp (L := L) th H s := by
   intro t ht
@@ -268,6 +273,21 @@ theorem JPlaced.ssp (h : JPlaced (L := L) th H Tr C s σ) {Cs Ac : Set U64}
     (∀ t, th t = some .tcb → t ∈ Tr) ∧ ScSetsHyp C (Heap.scs H) σ :=
   ⟨h.tcbT, h.kwOutBlk hb, h.slotCapW hTL, h.fhSlot, h.tcbTr, h.scSets⟩
 
+/-- **P1's cap typedness at the slots it reads** (`EntryHyps.tmoOK`'s and
+`irqcap`'s, restricted to the typed heap's slots and the IRQ handler slots). -/
+theorem JPlaced.slotCapTyped (h : JPlaced (L := L) th H Tr C s σ) {sl : U64}
+    (hsl : IsSlot th sl ∨ ∃ i : U64, i.val < 128 ∧ sl = nodeA (L.ksb s) i) :
+    obj.Slot.cap st sl s ⦃ c => CapTyped H (Heap.replies H) (Heap.ntfns H) c ⦄ := by
+  rw [slot_cap_eq, capAt_capV, WP.spec_ok]
+  rcases hsl with hs | ⟨i, hi, rfl⟩
+  · exact h.typed sl hs
+  · exact h.irq i hi
+
+theorem JPlaced.slotNtfn (h : JPlaced (L := L) th H Tr C s σ) {sl : U64}
+    (hsl : IsSlot th sl ∨ ∃ i : U64, i.val < 128 ∧ sl = nodeA (L.ksb s) i) :
+    obj.Slot.cap st sl s ⦃ c => ∀ ptr b0 b1 b2, c = .Notification ptr b0 b1 b2 → ptr ∈ Heap.ntfns H ⦄ :=
+  WP.spec_mono (h.slotCapTyped hsl) fun c hc ptr b0 b1 b2 e => (hc.2.1 ptr b0 b1 b2 e).1
+
 /-! ### Keeping `JPlaced` -/
 
 theorem capTyped_of_chgZ {H : Heap} {Rp Nt : Set U64} {m m' : U64 → U64} {y : U64}
@@ -293,11 +313,13 @@ theorem JPlaced.step (h : JPlaced (L := L) th H Tr C s σ) {s' : S} {σ' : Fl4Sp
       capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Null ∨
       ∃ ep b0 b1 b2 b3 b4, capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Endpoint ep b0 b1 b2 b3 b4)
     (hsc : ∀ (c : U64) y n, c ≠ 0#u64 → σ'.kheap c.bv = some (.schedContext y n) →
-      ∃ y0 n0, σ.kheap c.bv = some (.schedContext y0 n0)) :
+      ∃ y0, σ.kheap c.bv = some (.schedContext y0 n))
+    (hk : L.ksb s' = L.ksb s) (hI : ∀ i : U64, i.val < 128 → ChgZ (L.mem s) (L.mem s') (nodeA (L.ksb s) i)) :
     JPlaced (L := L) th H Tr C s' σ' := by
-  refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk => ?_, fun a ha => ?_, fun t ht => ?_⟩
-  · obtain ⟨y0, n0, hk0⟩ := hsc c y n hc hk
-    exact h.sc c y0 n0 hc hk0
+  refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk => ?_, by rw [hk]; exact h.ks, fun a ha => ?_,
+    fun i hi => by rw [hk]; exact capTyped_of_chgZ (h.irq i hi) (hI i hi), fun t ht => ?_⟩
+  · obtain ⟨y0, hk0⟩ := hsc c y n hc hk
+    exact h.sc c y0 n hc hk0
   · by_cases hx : X a
     · exact hX a ha hx
     · exact capTyped_of_chgZ (h.typed a ha) (hZ a ha hx)
@@ -307,15 +329,19 @@ theorem JPlaced.step (h : JPlaced (L := L) th H Tr C s σ) {s' : S} {σ' : Fl4Sp
 
 /-- **`JPlaced` across a step keeping every slot** (the scheduler-side TCB
 invocations: `set_priority`, `set_mcpriority`, the SC bind and unbind, the
-notification bind and unbind) and the spec's SC objects. -/
+notification bind and unbind) and the spec's SC objects, with the IRQ
+handler slots kept. -/
 theorem JPlaced.same (h : JPlaced (L := L) th H Tr C s σ) {s' : S} {σ' : Fl4Spec.State Unit}
     (hS : SlotsSame th (L.mem s) (L.mem s'))
     (hsc : ∀ (c : U64) y n, c ≠ 0#u64 → σ'.kheap c.bv = some (.schedContext y n) →
-      ∃ y0 n0, σ.kheap c.bv = some (.schedContext y0 n0)) :
+      ∃ y0, σ.kheap c.bv = some (.schedContext y0 n))
+    (hk : L.ksb s' = L.ksb s)
+    (hI : ∀ i : U64, i.val < 128 → capV (L.mem s') (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i)) :
     JPlaced (L := L) th H Tr C s' σ' := by
-  refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk => ?_, fun a ha => ?_, fun t ht => ?_⟩
-  · obtain ⟨y0, n0, hk0⟩ := hsc c y n hc hk
-    exact h.sc c y0 n0 hc hk0
+  refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk => ?_, by rw [hk]; exact h.ks, fun a ha => ?_,
+    fun i hi => by rw [hk, hI i hi]; exact h.irq i hi, fun t ht => ?_⟩
+  · obtain ⟨y0, hk0⟩ := hsc c y n hc hk
+    exact h.sc c y0 n hc hk0
   · rw [hS.capV ha]; exact h.typed a ha
   · have hs : IsSlot th (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) :=
       AbsSlot.isSlot ⟨t, rfl, Or.inr ⟨ht, 3, by decide, rfl⟩⟩
