@@ -282,7 +282,7 @@ theorem regw_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (a : A) (�
     (ct : U64) (x : Fl4Spec.Tcb) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ)
     (hR : VsRel P (L.mem s) (L.ksb s) σ)
     (hcur : ct.bv = σ.curThread) (hk : σ.kheap ct.bv = some (.tcb x))
-    (hrun : Fl4Spec.runnable x.tcbState = true) (r : Fl4Spec.Register) (v : U64) :
+    (r : Fl4Spec.Register) (v : U64) :
     VsRel P (L.mem (L.wr s (Endp.regA ct (Endp.regIdx r)) v)) (L.ksb (L.wr s (Endp.regA ct (Endp.regIdx r)) v))
         (Notif.updK σ ct.bv (.tcb (Notif.setReg x r v.bv))) ∧
       (PtRel L4 L3 L2 L1 (L.mem s) σ →
@@ -299,7 +299,6 @@ theorem regw_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (a : A) (�
     have : ct = Sched.nodeW st s c layout.node.CUR_THREAD := eq_of_bv (hcur.trans hs.curThread)
     rw [this]; exact hc.curT
   have hta := hc.tcbs ct hT
-  have hqN := runnable_not_ntfnQ hNt hT hk hrun
   set w := Endp.regA ct (Endp.regIdx r) with hw
   set σ1 := Notif.updK σ ct.bv (.tcb (Notif.setReg x r v.bv)) with hσ1
   have ha := Endp.a_reg hta r
@@ -513,12 +512,11 @@ theorem TopSR.cur_mem {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : 
 theorem regw_inv {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {G : MdbGhost} (s : S) (a : A)
     (σ : Fl4Spec.State Unit) (hI : RInv (L := L) th P L4 L3 L2 L1 N T C E R B c AR G s a σ)
     (ct : U64) (htcb : th ct = some .tcb) (hcur : ct.bv = σ.curThread) {x : Fl4Spec.Tcb}
-    (hk : σ.kheap ct.bv = some (.tcb x)) (hrun : Fl4Spec.runnable x.tcbState = true)
-    (r : Fl4Spec.Register) (v : U64) :
+    (hk : σ.kheap ct.bv = some (.tcb x)) (r : Fl4Spec.Register) (v : U64) :
     RInv (L := L) th P L4 L3 L2 L1 N T C E R B c AR G (L.wr s (Endp.regA ct (Endp.regIdx r)) v) a
       (Notif.updK σ ct.bv (.tcb (Notif.setReg x r v.bv))) := by
   obtain ⟨hCR, hFI, hMO, hDom, hS, hR, hPt, hPI, hCur⟩ := hI
-  obtain ⟨hR', hPt', hS', hksb, hmV⟩ := regw_top s a σ ct x hS hR hcur hk hrun r v
+  obtain ⟨hR', hPt', hS', hksb, hmV⟩ := regw_top s a σ ct x hS hR hcur hk r v
   have hT := hS.cur_mem hcur
   obtain ⟨Q, R0, hc, -⟩ := hS.1.1.lists
   have hta := hc.tcbs ct hT
@@ -688,14 +686,14 @@ theorem reply1_core {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {G : MdbGhost} 
       rw [Endp.regIdx_badge, Endp.regIdx_msgInfo]
     refine WP.spec_bind hin ?_
     rintro s3 ⟨w, rfl, hw⟩
-    have hI1 := regw_inv s a σ hI ct htcb hcur hk (hrun x hrs) Fl4Spec.badge_register 0#u64
+    have hI1 := regw_inv s a σ hI ct htcb hcur hk Fl4Spec.badge_register 0#u64
     set xA := Notif.setReg x Fl4Spec.badge_register (0#u64 : U64).bv
     have hkA : (Notif.updK σ ct.bv (.tcb xA)).kheap ct.bv = some (.tcb xA) := by simp
     have hcurA : ct.bv = (Notif.updK σ ct.bv (.tcb xA)).curThread := hcur
-    have hI2 := regw_inv _ a _ hI1 ct htcb hcurA hkA (hrun xA hrs) (Endp.mrIdx 0) v
+    have hI2 := regw_inv _ a _ hI1 ct htcb hcurA hkA (Endp.mrIdx 0) v
     set xB := Notif.setReg xA (Endp.mrIdx 0) v.bv
     have hkB : (Notif.updK (Notif.updK σ ct.bv (.tcb xA)) ct.bv (.tcb xB)).kheap ct.bv = some (.tcb xB) := by simp
-    have hI3 := regw_inv _ a _ hI2 ct htcb hcurA hkB (hrun xB hrs) Fl4Spec.msg_info_register w
+    have hI3 := regw_inv _ a _ hI2 ct htcb hcurA hkB Fl4Spec.msg_info_register w
     have hxC : Notif.setReg xB Fl4Spec.msg_info_register w.bv = Endp.replyTcb x v.bv := by
       rw [hw]; rfl
     rw [updK_updK, updK_updK, hxC] at hI3

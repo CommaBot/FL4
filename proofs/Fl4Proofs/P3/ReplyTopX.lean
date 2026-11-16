@@ -156,11 +156,11 @@ theorem replyHypMX_succ {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (ct : U64) 
         rw [hw]; congr 1
       refine WP.spec_bind hin ?_
       rintro s3 ⟨w, rfl, hw⟩
-      have hI1 := regw_inv s1 a1 σ' hI ct htcb hcur hk (hrun x hrs) Fl4Spec.badge_register 0#u64
+      have hI1 := regw_inv s1 a1 σ' hI ct htcb hcur hk Fl4Spec.badge_register 0#u64
       set xA := Notif.setReg x Fl4Spec.badge_register (0#u64 : U64).bv
       have hkA : (Notif.updK σ' ct.bv (.tcb xA)).kheap ct.bv = some (.tcb xA) := by simp
       have hcurA : ct.bv = (Notif.updK σ' ct.bv (.tcb xA)).curThread := hcur
-      have hI2 := regw_inv _ a1 _ hI1 ct htcb hcurA hkA (hrun xA hrs) Fl4Spec.msg_info_register w
+      have hI2 := regw_inv _ a1 _ hI1 ct htcb hcurA hkA Fl4Spec.msg_info_register w
       have hxC : Notif.setReg xA Fl4Spec.msg_info_register w.bv = Endp.replyTcbNil x := by
         rw [hw]; rfl
       rw [updK_updK, hxC] at hI2

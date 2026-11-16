@@ -147,6 +147,7 @@ import Fl4Proofs.P3.HandleTopX
 import Fl4Proofs.P3.PerformNil
 import Fl4Proofs.P3.ReplyTopX
 import Fl4Proofs.P3.BufPlaced
+import Fl4Proofs.P3.ReplyFailX
 import Fl4Proofs.P3.CancelKSub
 import Fl4Proofs.P3.ResetFin
 import Fl4Proofs.P3.RetypeFresh
