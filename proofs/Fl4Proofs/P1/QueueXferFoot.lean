@@ -16,6 +16,16 @@ open fl4_core Fl4Proofs.P0.Consts
 block at `k`. -/
 def KG (k b : U64) : Prop := b.val + 8 ≤ k.val ∨ k.val + 256 ≤ b.val
 
+/-- The words the transfer writes besides cap slots and SC words: the
+receiver's registers (TCB offsets in `[256, 3328)`) and user words. -/
+def XferRegW (T U : Set U64) (b : U64) : Prop :=
+  (∃ y ∈ T, ∃ K : U64, 256 ≤ K.val ∧ K.val < 3328 ∧ K.val % 8 = 0 ∧ b = core.num.U64.wrapping_add y K) ∨ b ∈ U
+
+theorem XferRegW.foot {T U : Set U64} {b : U64} (h : XferRegW T U b) : XferFoot T U b := by
+  rcases h with ⟨y, hy, K, -, h2, h3, e⟩ | h
+  · exact Or.inl ⟨y, hy, K, h2, h3, e⟩
+  · exact Or.inr h
+
 /-- The transfer's words: the receiver's user context and IPC buffer, cap-slot
 words apart from the kernel-global block's first 256 bytes, SC words. -/
 def XferW (T U Ω Sg Scs : Set U64) (Z : U64 → Nat) (k b : U64) : Prop :=
@@ -38,7 +48,7 @@ def XSF (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Hea
     (R : U64 → List U64) (s0 s : S) : Prop :=
   XI st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s ∧
     (XferFr st T Rp s0 s ∧ WritesIn st s0 s (XferW T U Ω Sg Scs Z (L.ksb s0)) ∧ RS s0 s ∧
-      ∀ s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (fun b => XferFoot T U b ∨ ∃ c ∈ Scs, InSC c (Z c) b) →
+      ∀ s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (fun b => XferRegW T U b ∨ ∃ c ∈ Scs, InSC c (Z c) b) →
         RS s0 s2)
 
 variable {U X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {RS : S → S → Prop}
@@ -50,17 +60,17 @@ theorem XSF.ksb {s0 s : S} (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0
   h.2.1.2.2.2.2.2.2
 
 theorem XSF.start {s : S} (h : XI st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s) (h0 : RS s s)
-    (hst : ∀ s1 s2 : S, RS s s1 → WritesIn st s1 s2 (fun b => XferFoot T U b ∨ ∃ c ∈ Scs, InSC c (Z c) b) →
+    (hst : ∀ s1 s2 : S, RS s s1 → WritesIn st s1 s2 (fun b => XferRegW T U b ∨ ∃ c ∈ Scs, InSC c (Z c) b) →
       RS s s2) :
     XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s s := ⟨h, XferFr.refl s, WritesIn.refl s _, h0, hst⟩
 
 theorem XSF.rs {s0 s : S} (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s) : RS s0 s := h.2.2.2.1
 
-/-- An `XferFoot` write. -/
+/-- A register or user-word write. -/
 theorem XSF.foot {s0 s s' : S} (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s)
-    (hw : WritesIn st s s' (XferFoot T U)) : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s' := by
-  have h' := XS.foot h.xs hw
-  exact ⟨h'.1, h'.2, (h.2.2.1.trans hw).mono (fun b hb => hb.elim id fun hb => Or.inl hb),
+    (hw : WritesIn st s s' (XferRegW T U)) : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s' := by
+  have h' := XS.foot h.xs (hw.mono fun _ hb => hb.foot)
+  exact ⟨h'.1, h'.2, (h.2.2.1.trans hw).mono (fun b hb => hb.elim id fun hb => Or.inl hb.foot),
     h.2.2.2.2 _ _ h.rs (hw.mono fun b hb => Or.inl hb), h.2.2.2.2⟩
 
 /-- A write of cap-slot words apart from the kernel-global block's first 256 bytes. -/
@@ -99,7 +109,7 @@ structure XferKG (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64)
     RS s0 s → CapW T Ω Sg src → CapW T Ω Sg dest → KG (L.ksb s) dest →
     cdt.insert st s c src dest ⦃ s' => WritesIn st s s' (KG (L.ksb s)) ∧ RS s0 s' ⦄
   /-- `RS` is kept by the transfer's other writes: user context, IPC buffer, SC words. -/
-  step : ∀ s0 s s' : S, RS s0 s → WritesIn st s s' (fun b => XferFoot T U b ∨ ∃ c ∈ Scs, InSC c (Z c) b) →
+  step : ∀ s0 s s' : S, RS s0 s → WritesIn st s s' (fun b => XferRegW T U b ∨ ∃ c ∈ Scs, InSC c (Z c) b) →
     RS s0 s'
 
 theorem obj.Tcb.set_reg.xsf {s0 s : S} {y r v : U64} (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s) (hy : y ∈ T)
@@ -109,7 +119,7 @@ theorem obj.Tcb.set_reg.xsf {s0 s : S} {y r v : U64} (h : XSF st T Cs Ω H Sg Rp
   refine WP.spec_mono (obj.Tcb.set_reg.wrK s y r v (hT y hy) hr) fun s' ⟨K, hK, e⟩ => ?_
   subst e
   exact h.foot ((writesIn_wr (field_aligned (hT y hy) (by omega) (by omega))).mono fun b e =>
-    Or.inl ⟨y, hy, K, by omega, by omega, e⟩)
+    Or.inl ⟨y, hy, K, by omega, by omega, by omega, e⟩)
 
 theorem msg.buf_set.xsf {s0 s : S} {buf i v : U64} (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s)
     (hb : BufOK U buf) (h0 : buf ≠ 0#u64) (hi : i.val < 512) :
