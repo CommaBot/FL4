@@ -1049,15 +1049,20 @@ def RegionUnref {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs : Set U64) : 
 /-- **[DbgLinksOK for new TCBs]** (named): a TCB retype's creation links the
 new TCBs into core 0's debug list (`debug_insert` in the creation loop), so
 the debug links after it name null, kept TCBs or the new ones. -/
-def UtDbgTcb {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs : Set U64) : Prop :=
+def UtDbgTcbP {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs : Set U64)
+    (P3Ok : S → U64 → capability.Cap → Aeneas.Std.Array obj.Slot 3#usize → Prop) : Prop :=
   ∀ (s0 s : S) (a : A') (extra : Aeneas.Std.Array obj.Slot 3#usize) (slot ptr sb fi : U64) (dev reset : Bool)
     (aligned nt us dest off win : U64),
-    UtP3Ok (L := L) arI H Cs s0 slot (.Untyped ptr sb fi dev) extra →
+    P3Ok s0 slot (.Untyped ptr sb fi dev) extra →
     sched.set_thread_state st s0 (L.curW s0) sched.TS_RESTART = ok s →
     UtArgs st s0 extra slot ptr sb fi dev reset aligned nt us dest off win → nt.val = 1 →
     untyped.retype st arI s a slot reset aligned nt us dest off win dev ⦃ r s' a' => r = .Ok () →
       DbgLinksOK st (utHeap H reset ptr sb) Cs s' aligned.val (aligned.val + win.val * 4096) aligned.val 4096
         win.val 1 ⦄
+
+/-- `UtDbgTcbP` at `UtP3Ok`. -/
+abbrev UtDbgTcb {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs : Set U64) : Prop :=
+  UtDbgTcbP (L := L) arI H Cs (UtP3Ok (L := L) arI H Cs)
 
 /-- P1's `UtRetypeP3.run` conclusion. -/
 def UtRunPost {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs : Set U64) (s : S) (a : A') (slot ptr sb fi : U64)
@@ -1071,16 +1076,37 @@ def UtRunPost {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs : Set U64) (s :
 
 /-- **[The VT-x types]** (named): the retype of the VT-x objects (types 14
 to 18: VMCS, EPT tables), outside `retype_cont_allN`'s native types. -/
-def UtVtx {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs U : Set U64) : Prop :=
+def UtVtxP {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs U : Set U64)
+    (P3Ok : S → U64 → capability.Cap → Aeneas.Std.Array obj.Slot 3#usize → Prop) : Prop :=
   ∀ (Ac : Set U64) (s0 s : S) (a : A') (extra : Aeneas.Std.Array obj.Slot 3#usize) (slot ptr sb fi : U64)
     (dev reset : Bool) (aligned nt us dest off win : U64),
-    UtP3Ok (L := L) arI H Cs s0 slot (.Untyped ptr sb fi dev) extra →
+    P3Ok s0 slot (.Untyped ptr sb fi dev) extra →
     sched.set_thread_state st s0 (L.curW s0) sched.TS_RESTART = ok s →
     DecPre st H.tcbs Cs H.omega H H.frame H.replies H.scs H.ntfns H.scBits U Ac s0 (.Untyped ptr sb fi dev) extra →
     CapSlotW H.tcbs H.omega H.frame slot →
     UtArgs st s0 extra slot ptr sb fi dev reset aligned nt us dest off win →
     Cur0 st H.tcbs Cs H.omega H H.frame H.replies H.scs H.ntfns H.scBits Ac s0 s →
     13 < nt.val → UtRunPost (L := L) arI H Cs s a slot ptr sb fi dev reset aligned nt us dest off win
+
+/-- `UtVtxP` at `UtP3Ok`. -/
+abbrev UtVtx {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs U : Set U64) : Prop :=
+  UtVtxP (L := L) arI H Cs U (UtP3Ok (L := L) arI H Cs)
+
+/-- **A state predicate gives the joint state and the region facts** after
+the restart: some `UtJoint` at the decode's start, and `RegionUnref`'s
+conclusion for its dead set. -/
+def UtOkRU {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs : Set U64)
+    (P3Ok : S → U64 → capability.Cap → Aeneas.Std.Array obj.Slot 3#usize → Prop) : Prop :=
+  ∀ (s0 s : S) (slot : obj.Slot) (cap : capability.Cap) (extra : Aeneas.Std.Array obj.Slot 3#usize),
+    P3Ok s0 slot cap extra → sched.set_thread_state st s0 (L.curW s0) sched.TS_RESTART = ok s →
+    ∃ th G D σ pp rs idx, UtJoint (L := L) arI H Cs s0 slot cap extra th G D σ pp rs idx ∧
+      ∀ lo hi : Nat, (∀ q k, H q = some k → RegionD H lo hi q → q ∈ D) →
+        KeptRefsP3 (L := L) H (RegionD H lo hi) s ∧ DbgTimerKept (L := L) H (RegionD H lo hi) Cs s
+
+theorem utOkRU_of {A' : Type} {arI : machine.Arch A'} {H : Heap} {Cs : Set U64}
+    (hRU : RegionUnref (L := L) arI H Cs) : UtOkRU (L := L) arI H Cs (UtP3Ok (L := L) arI H Cs) := by
+  rintro s0 s slot cap extra ⟨th, G, D, σ, pp, rs, idx, J⟩ hrs
+  exact ⟨th, G, D, σ, pp, rs, idx, J, hRU _ _ _ _ _ _ _ _ _ _ _ _ J hrs⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **P1's `UtRetypeP3` with `UtP3Ok` as `P3Ok`**: the reset's facts
@@ -1091,19 +1117,19 @@ preemption (a retype without a reset does not fail,
 (`createOK_reset`, the unused region's slots kept, `UtJoint.slots_unused`).
 Named: the kept links (`RegionUnref`), the new TCBs' debug links
 (`UtDbgTcb`), the VT-x types (`UtVtx`). -/
-theorem utRetypeP3_of {A' : Type} (arI : machine.Arch A') (hA : P0.ArchTotal arI) (H : Heap) (Cs U : Set U64)
+theorem utRetypeP3_gen {A' : Type} (arI : machine.Arch A') (hA : P0.ArchTotal arI) (H : Heap) (Cs U : Set U64)
     (Adm : PSets → Prop) (hAdm : ∀ H' : Heap, HeapOK H' → H' 0#u64 = none → Adm (PSets.ofHeap H'))
     (h0Cs : 0#u64 ∈ Cs) (hrcb : Fl4Spec.resetChunkBits = 16) (hppS : PPFrame)
-    (hRU : RegionUnref (L := L) arI H Cs) (hDbg : UtDbgTcb (L := L) arI H Cs)
-    (hVtx : UtVtx (L := L) arI H Cs U) :
-    UtRetypeP3 st arI Adm H.tcbs Cs H.omega H H.frame H.replies H.scs H.ntfns H.scBits U
-      (UtP3Ok (L := L) arI H Cs) := by
+    (P3Ok : S → U64 → capability.Cap → Aeneas.Std.Array obj.Slot 3#usize → Prop)
+    (hOk : UtOkRU (L := L) arI H Cs P3Ok) (hDbg : UtDbgTcbP (L := L) arI H Cs P3Ok)
+    (hVtx : UtVtxP (L := L) arI H Cs U P3Ok) :
+    UtRetypeP3 st arI Adm H.tcbs Cs H.omega H H.frame H.replies H.scs H.ntfns H.scBits U P3Ok := by
   refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, hAdm, h0Cs, ?_⟩
   intro Ac s0 s a extra slot ptr sb fi dev reset aligned nt us dest off win hP3 hrs hDP hCSW hUA hC0
   by_cases hnt : 13 < nt.val
   · exact hVtx Ac s0 s a extra slot ptr sb fi dev reset aligned nt us dest off win hP3 hrs hDP hCSW hUA hC0 hnt
   have hP3' := hP3
-  obtain ⟨th, G, D, σ, pp, rs, idx, J⟩ := hP3
+  obtain ⟨th, G, D, σ, pp, rs, idx, J, hRUJ⟩ := hOk _ _ _ _ _ hP3 hrs
   obtain ⟨hfr, hks, hcpu, hcapS⟩ := J.restart hrs
   obtain ⟨-, Ac', hbx, hcw, hcs, -, hact, -⟩ := hC0
   have hrun := hDP.run
@@ -1117,8 +1143,8 @@ theorem utRetypeP3_of {A' : Type} (arI : machine.Arch A') (hA : P0.ArchTotal arI
   have hnc : reset = true → ¬ ∃ x, σ.cdt x = some (pp.bv, idx) := fun h => by
     have := hctx.resetEq; rw [h] at this; simpa using this.symm
   have hROK : reset = true → ResetOK st H Cs s slot ptr sb fi dev := fun h =>
-    resetOK_of J hfr hks hcpu hcw hcs hact hrun hcapS' (hnc h) (fun hd => (hRU _ _ _ _ _ _ _ _ _ _ _ _ J hrs _ _ hd).1)
-      (fun hd => (hRU _ _ _ _ _ _ _ _ _ _ _ _ J hrs _ _ hd).2)
+    resetOK_of J hfr hks hcpu hcw hcs hact hrun hcapS' (hnc h) (fun hd => (hRUJ _ _ hd).1)
+      (fun hd => (hRUJ _ _ hd).2)
   refine ⟨hROK, ?_⟩
   rw [hv, WP.spec_ok]
   -- the outcome
@@ -1185,7 +1211,7 @@ theorem utRetypeP3_of {A' : Type} (arI : machine.Arch A') (hA : P0.ArchTotal arI
       · refine ⟨s, Or.inl ⟨rfl, rfl⟩, ?_⟩
         rw [utHeap_false]
         exact createOK_noreset J hfr hks hcpu hcw hcs hact hrun hTm hE hW hWZ hk hAk hTn hZ hn5 hk12
-          (fun hd => (hRU _ _ _ _ _ _ _ _ _ _ _ _ J hrs _ _ hd).1) (fun hd => (hRU _ _ _ _ _ _ _ _ _ _ _ _ J hrs _ _ hd).2)
+          (fun hd => (hRUJ _ _ hd).1) (fun hd => (hRUJ _ _ hd).2)
           (fun h => by have := hDbgT h; rw [utHeap_false] at this; exact this) h0Cs
       · obtain ⟨⟨p0, sb0, d0, hc0⟩, hres⟩ := hRB rfl
         rw [hx, hcapS] at hc0
@@ -1224,6 +1250,17 @@ theorem utRetypeP3_of {A' : Type} (arI : machine.Arch A') (hA : P0.ArchTotal arI
         (fun h => by have := hDbgT h; rw [utHeap_true] at this; exact this) h0Cs
       · rw [hRK.1, Heap.drop_of_not hROK'.2.2.2.1.cur, hcw, J.curH]; simp
       · rw [hRK.2.1, Heap.drop_of_not hROK'.2.2.2.1.csc, hcs]; exact J.cscH
+
+
+/-- **P1's `UtRetypeP3` with `UtP3Ok` as `P3Ok`** (`utRetypeP3_gen`). -/
+theorem utRetypeP3_of {A' : Type} (arI : machine.Arch A') (hA : P0.ArchTotal arI) (H : Heap) (Cs U : Set U64)
+    (Adm : PSets → Prop) (hAdm : ∀ H' : Heap, HeapOK H' → H' 0#u64 = none → Adm (PSets.ofHeap H'))
+    (h0Cs : 0#u64 ∈ Cs) (hrcb : Fl4Spec.resetChunkBits = 16) (hppS : PPFrame)
+    (hRU : RegionUnref (L := L) arI H Cs) (hDbg : UtDbgTcb (L := L) arI H Cs)
+    (hVtx : UtVtx (L := L) arI H Cs U) :
+    UtRetypeP3 st arI Adm H.tcbs Cs H.omega H H.frame H.replies H.scs H.ntfns H.scBits U
+      (UtP3Ok (L := L) arI H Cs) :=
+  utRetypeP3_gen arI hA H Cs U Adm hAdm h0Cs hrcb hppS _ (utOkRU_of hRU) hDbg hVtx
 
 end
 

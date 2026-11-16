@@ -135,6 +135,8 @@ import Fl4Proofs.P3.RetypePlace
 import Fl4Proofs.P3.ScUtRetype
 import Fl4Proofs.P3.ScRemoveTcb
 import Fl4Proofs.P3.JointAt
+import Fl4Proofs.P3.ScJoint
+import Fl4Proofs.P3.ScJointKeep
 import Fl4Proofs.P3.SpecKSz
 import Fl4Proofs.P3.SpecFreeRet
 import Fl4Proofs.P3.SpecFreeRetJ
