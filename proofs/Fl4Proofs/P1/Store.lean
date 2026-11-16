@@ -31,6 +31,7 @@ class LawfulStore {S : Type _} (st : machine.Store S) where
   ksb : S → U64
   cpu : S → U64
   read_eq : ∀ s a, st.read s a = ok (mem s a)
+  read_pair_eq : ∀ s a, st.read_pair s a = ok (mem s a, mem s (core.num.U64.wrapping_add a 8#u64))
   write_eq : ∀ s a v, st.write s a v = ok (wr s a v)
   zero_eq : ∀ s a n, st.zero s a n = ok (zr s a n)
   /-- `clear_free` (memory no live object occupies) has `zero`'s effect;
@@ -57,6 +58,7 @@ variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
 
 theorem LawfulStore.total : P0.StoreTotal st where
   read s a := by rw [L.read_eq]; simp
+  read_pair s a := by rw [L.read_pair_eq]; simp
   write s a v := by rw [L.write_eq]; simp
   zero s a n := by rw [L.zero_eq]; simp
   clear_free s a n := by rw [L.clear_free_eq]; simp
@@ -67,6 +69,9 @@ theorem LawfulStore.total : P0.StoreTotal st where
 
 @[step] theorem LawfulStore.read_spec s a : st.read s a ⦃ v => v = L.mem s a ⦄ := by
   rw [L.read_eq]; simp
+@[step] theorem LawfulStore.read_pair_spec s a :
+    st.read_pair s a ⦃ v => v = (L.mem s a, L.mem s (core.num.U64.wrapping_add a 8#u64)) ⦄ := by
+  rw [L.read_pair_eq]; simp
 @[step] theorem LawfulStore.write_spec s a v : st.write s a v ⦃ s' => s' = L.wr s a v ⦄ := by
   rw [L.write_eq]; simp
 @[step] theorem LawfulStore.zero_spec s a n : st.zero s a n ⦃ s' => s' = L.zr s a n ⦄ := by
@@ -139,6 +144,7 @@ abbrev ModelState := (U64 → U64) × U64 × U64
 
 def modelStore : machine.Store ModelState where
   read s a := ok (s.1 a)
+  read_pair s a := ok (s.1 a, s.1 (core.num.U64.wrapping_add a 8#u64))
   write s a v := ok (Function.update s.1 a v, s.2)
   zero s a n := ok (fun b => if a.val ≤ b.val ∧ b.val < a.val + n.val then 0#u64 else s.1 b, s.2)
   clear_free s a n := ok (fun b => if a.val ≤ b.val ∧ b.val < a.val + n.val then 0#u64 else s.1 b, s.2)
@@ -152,6 +158,7 @@ instance : LawfulStore modelStore where
   ksb s := s.2.1
   cpu s := s.2.2
   read_eq _ _ := rfl
+  read_pair_eq _ _ := rfl
   write_eq _ _ _ := rfl
   zero_eq _ _ _ := rfl
   clear_free_eq _ _ _ := rfl

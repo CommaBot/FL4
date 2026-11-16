@@ -655,7 +655,7 @@ theorem lrd_rel (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.State Un
   · subst hnull
     exact ⟨false, by simp [capability.Cap.is_null], rfl⟩
   obtain ⟨b', hb', hnf, -⟩ := finalHyp_full th hP s σ G _ c hDS hA hc hnull
-  rw [hb']
+  rw [is_final_with_cap_eq _ _ _ hc, hb']
   cases c
   case Null => exact absurd rfl hnull
   case CNode p r gs g =>

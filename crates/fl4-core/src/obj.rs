@@ -234,7 +234,8 @@ fn sext48(p: u64) -> u64 {
 
 impl Slot {
     pub fn cap<S: Store>(self, s: &S) -> Cap {
-        Cap::decode(s.read(self.0), s.read(self.0.wrapping_add(8)))
+        let (w0, w1) = s.read_pair(self.0);
+        Cap::decode(w0, w1)
     }
     pub fn set_cap<S: Store>(self, s: &mut S, c: Cap) {
         let (w0, w1) = c.encode();
@@ -256,6 +257,15 @@ impl Slot {
     pub fn set_next<S: Store>(self, s: &mut S, n: Slot) {
         let w = self.next_word(s);
         s.write(self.0.wrapping_add(layout::cte::NEXT), (w & !MDB_PTR_MASK) | (n.0 & MDB_PTR_MASK));
+    }
+    /// Set the link and both flags together, preserving the other bits.
+    /// Insertion and movement know all three fields: avoid three separate
+    /// read/modify/write operations through the transactional store.
+    pub fn set_next_flags<S: Store>(self, s: &mut S, n: Slot, revocable: bool, first_badged: bool) {
+        let w = self.next_word(s) & !(MDB_PTR_MASK | MDB_REVOCABLE | MDB_FIRST_BADGED);
+        let r = if revocable { MDB_REVOCABLE } else { 0 };
+        let f = if first_badged { MDB_FIRST_BADGED } else { 0 };
+        s.write(self.0.wrapping_add(layout::cte::NEXT), w | (n.0 & MDB_PTR_MASK) | r | f);
     }
     pub fn revocable<S: Store>(self, s: &S) -> bool {
         self.next_word(s) & MDB_REVOCABLE != 0

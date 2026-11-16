@@ -191,7 +191,7 @@ theorem cdt.finalise_slot_immediate.cur0 {A : Type _} {ar : machine.Arch A} (hA 
     refine WP.spec_bind (P0.capability.Cap.is_null.p0 c) fun bn _ => ?_
     split
     · exact (WP.spec_ok _).2 h1
-    refine WP.spec_bind (P0.cdt.is_final_capability.p0 st s1 x hS) fun fin _ => ?_
+    refine WP.spec_bind (P0.cdt.is_final_capability_with_cap.p0 st s1 x c hS) fun fin _ => ?_
     refine WP.spec_bind (hc fin) ?_
     rintro ⟨⟨rem, cl⟩, s2, a2⟩ h2'
     try simp only [uncurry_apply_pair, WP.uncurry'_pair]

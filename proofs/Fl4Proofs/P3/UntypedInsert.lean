@@ -49,7 +49,7 @@ theorem insert_new_mem (hP : Placed th) (s : S) (c : capability.Cap) (src dest :
       (IsSlot th (nextOf (L.mem s) src) ∧ nextOf (L.mem s) src ≠ dest ∧ nextOf (L.mem s) src ≠ src)) :
     cdt.insert_new_cap st s src dest c ⦃ s' => InsNWords (L := L) th s s' c src dest ⦄ := by
   unfold cdt.insert_new_cap
-  step; step; step; step; step; step
+  step; step; step; step
   simp only [obj.Slot.is_null, bind_ok]
   subst next_post
   by_cases hz0 : nextOf (L.mem s) src = 0#u64
@@ -194,7 +194,7 @@ theorem insert_new_frame (hP : Placed th) (s : S) (c : capability.Cap) (src dest
       (∀ a, (a = src ∨ a = dest ∨ (nextOf (L.mem s) src ≠ 0#u64 ∧ a = nextOf (L.mem s) src)) →
         ¬ (a.val ≤ w.val ∧ w.val < a.val + 32)) → L.mem s' w = L.mem s w ⦄ := by
   unfold cdt.insert_new_cap
-  step; step; step; step; step; step
+  step; step; step; step
   simp only [obj.Slot.is_null, bind_ok]
   subst next_post
   by_cases hz0 : nextOf (L.mem s) src = 0#u64

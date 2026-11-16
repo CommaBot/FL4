@@ -1695,7 +1695,7 @@ def boot.bi_set
   machineStoreInst.write s i1 v
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::clear]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 275:4-280:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 285:4-290:5
     Visibility: public -/
 def obj.Slot.clear
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot) (s : S) :
@@ -1715,7 +1715,7 @@ def obj.Slot.clear
 @[global_simps, irreducible] def layout.cte.NEXT : Std.U64 := 24#u64
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::next_word]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 250:4-252:5 -/
+    Source: 'crates/fl4-core/src/obj.rs', lines 251:4-253:5 -/
 def obj.Slot.next_word
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot) (s : S) :
   Result Std.U64
@@ -1729,7 +1729,7 @@ def obj.Slot.next_word
 def obj.MDB_FIRST_BADGED : Result Std.U64 := 1#u64 <<< 49#i32
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::set_first_badged]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 270:4-273:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 280:4-283:5
     Visibility: public -/
 def obj.Slot.set_first_badged
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot)
@@ -1753,7 +1753,7 @@ def obj.Slot.set_first_badged
 def obj.MDB_REVOCABLE : Result Std.U64 := 1#u64 <<< 48#i32
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::set_revocable]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 263:4-266:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 273:4-276:5
     Visibility: public -/
 def obj.Slot.set_revocable
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot)
@@ -2011,7 +2011,7 @@ def capability.Cap.encode
     ok (i2, i6)
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::set_cap]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 239:4-243:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 240:4-244:5
     Visibility: public -/
 def obj.Slot.set_cap
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot)
@@ -2041,7 +2041,7 @@ def boot.write_slot
 @[global_simps, irreducible] def layout.cte.SIZE : Std.U64 := 32#u64
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::index]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 285:4-287:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 295:4-297:5
     Visibility: public -/
 def obj.Slot.index (base : Std.U64) (i : Std.U64) : Result obj.Slot := do
   let i1 ← lift (core.num.U64.wrapping_mul i layout.cte.SIZE)
@@ -2194,7 +2194,7 @@ def boot.it_frame_cap
       capability.VM_READ_WRITE false mapped false i 0#u64)
 
 /-- [fl4_core::obj::ks_get]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 291:0-293:1
+    Source: 'crates/fl4-core/src/obj.rs', lines 301:0-303:1
     Visibility: public -/
 def obj.ks_get
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (off : Std.U64) :
@@ -3031,7 +3031,7 @@ def layout.node.SIZE : Result Std.U64 := do
   i2 * 64#u64
 
 /-- [fl4_core::obj::node_base]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 300:0-302:1
+    Source: 'crates/fl4-core/src/obj.rs', lines 310:0-312:1
     Visibility: public -/
 def obj.node_base
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) :
@@ -3045,7 +3045,7 @@ def obj.node_base
   ok (core.num.U64.wrapping_add i2 i4)
 
 /-- [fl4_core::obj::node_get]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 304:0-306:1
+    Source: 'crates/fl4-core/src/obj.rs', lines 314:0-316:1
     Visibility: public -/
 def obj.node_get
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
@@ -3453,7 +3453,7 @@ def boot.create_untypeds
   ok (s6, b2)
 
 /-- [fl4_core::obj::ks_set]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 295:0-298:1
+    Source: 'crates/fl4-core/src/obj.rs', lines 305:0-308:1
     Visibility: public -/
 def obj.ks_set
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (off : Std.U64)
@@ -3482,7 +3482,7 @@ def sched.set_dom_sched
   obj.ks_set machineStoreInst s1 i6 duration
 
 /-- [fl4_core::obj::node_set]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 308:0-311:1
+    Source: 'crates/fl4-core/src/obj.rs', lines 318:0-321:1
     Visibility: public -/
 def obj.node_set
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
@@ -3772,7 +3772,7 @@ def regs.init_context
   obj.Tcb.set_reg machineStoreInst t s3 layout.reg.SS regs.SEL_DS_3
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::is_null]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 281:4-283:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 291:4-293:5
     Visibility: public -/
 def obj.Slot.is_null (self : obj.Slot) : Result Bool := do
   ok (self = 0#u64)
@@ -3792,7 +3792,7 @@ def obj.sext48 (p : Std.U64) : Result Std.U64 := do
   else ok p1
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::next]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 253:4-255:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 254:4-256:5
     Visibility: public -/
 def obj.Slot.next
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot) (s : S) :
@@ -4549,7 +4549,7 @@ def objects.same_region_as
       else ok false
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::first_badged]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 267:4-269:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 277:4-279:5
     Visibility: public -/
 def obj.Slot.first_badged
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot) (s : S) :
@@ -4561,7 +4561,7 @@ def obj.Slot.first_badged
   ok (i2 != 0#u64)
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::revocable]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 260:4-262:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 270:4-272:5
     Visibility: public -/
 def obj.Slot.revocable
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot) (s : S) :
@@ -4708,19 +4708,17 @@ def capability.Cap.decode
   | _ => ok capability.Cap.Null
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::cap]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 236:4-238:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 236:4-239:5
     Visibility: public -/
 def obj.Slot.cap
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot) (s : S) :
   Result capability.Cap
   := do
-  let i ← machineStoreInst.read s self
-  let i1 ← lift (core.num.U64.wrapping_add self 8#u64)
-  let i2 ← machineStoreInst.read s i1
-  capability.Cap.decode i i2
+  let (w0, w1) ← machineStoreInst.read_pair s self
+  capability.Cap.decode w0 w1
 
 /-- [fl4_core::cdt::is_mdb_parent_of]:
-    Source: 'crates/fl4-core/src/cdt.rs', lines 108:0-140:1
+    Source: 'crates/fl4-core/src/cdt.rs', lines 106:0-138:1
     Visibility: public -/
 def cdt.is_mdb_parent_of
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (a : obj.Slot)
@@ -4830,7 +4828,7 @@ def cdt.is_mdb_parent_of
   else ok false
 
 /-- [fl4_core::cdt::ensure_no_children]:
-    Source: 'crates/fl4-core/src/cdt.rs', lines 143:0-149:1
+    Source: 'crates/fl4-core/src/cdt.rs', lines 141:0-147:1
     Visibility: public -/
 def cdt.ensure_no_children
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (slot : obj.Slot) :
@@ -5247,8 +5245,36 @@ def objects.is_cap_revocable
     | capability.Cap.IoPortControl => ok true
     | capability.Cap.IoPort _ _ _ => ok false
 
+/-- [fl4_core::obj::{fl4_core::obj::Slot}::set_next_flags]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 264:4-269:5
+    Visibility: public -/
+def obj.Slot.set_next_flags
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot)
+  (s : S) (n : obj.Slot) (revocable : Bool) (first_badged : Bool) :
+  Result S
+  := do
+  let i ← obj.Slot.next_word machineStoreInst self s
+  let i1 ← obj.MDB_REVOCABLE
+  let i2 ← lift (obj.MDB_PTR_MASK ||| i1)
+  let i3 ← obj.MDB_FIRST_BADGED
+  let i4 ← lift (i2 ||| i3)
+  let i5 ← lift (~~~ i4)
+  let w ← lift (i &&& i5)
+  let r ← if revocable
+            then ok i1
+            else ok 0#u64
+  let f ← if first_badged
+            then ok i3
+            else ok 0#u64
+  let i6 ← lift (core.num.U64.wrapping_add self layout.cte.NEXT)
+  let i7 ← lift (n &&& obj.MDB_PTR_MASK)
+  let i8 ← lift (w ||| i7)
+  let i9 ← lift (i8 ||| r)
+  let i10 ← lift (i9 ||| f)
+  machineStoreInst.write s i6 i10
+
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::set_next]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 256:4-259:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 257:4-260:5
     Visibility: public -/
 def obj.Slot.set_next
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot)
@@ -5269,7 +5295,7 @@ def obj.Slot.set_next
 @[global_simps, irreducible] def layout.cte.PREV : Std.U64 := 16#u64
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::set_prev]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 247:4-249:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 248:4-250:5
     Visibility: public -/
 def obj.Slot.set_prev
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot)
@@ -5347,8 +5373,29 @@ def cdt.set_untyped_cap_as_full
   | capability.Cap.IoPortControl => ok s
   | capability.Cap.IoPort _ _ _ => ok s
 
+/-- [fl4_core::cdt::insert_with_cap]:
+    Source: 'crates/fl4-core/src/cdt.rs', lines 35:0-46:1 -/
+def cdt.insert_with_cap
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S)
+  (new_cap : capability.Cap) (src_cap : capability.Cap) (src : obj.Slot)
+  (dest : obj.Slot) :
+  Result S
+  := do
+  let revocable ← objects.is_cap_revocable new_cap src_cap
+  let next ← obj.Slot.next machineStoreInst src s
+  let s1 ← cdt.set_untyped_cap_as_full machineStoreInst s src_cap new_cap src
+  let s2 ← obj.Slot.set_cap machineStoreInst dest s1 new_cap
+  let s3 ← obj.Slot.set_prev machineStoreInst dest s2 src
+  let s4 ←
+    obj.Slot.set_next_flags machineStoreInst dest s3 next revocable revocable
+  let s5 ← obj.Slot.set_next machineStoreInst src s4 dest
+  let b ← obj.Slot.is_null next
+  if b
+  then ok s5
+  else obj.Slot.set_prev machineStoreInst next s5 dest
+
 /-- [fl4_core::cdt::insert]:
-    Source: 'crates/fl4-core/src/cdt.rs', lines 28:0-42:1
+    Source: 'crates/fl4-core/src/cdt.rs', lines 28:0-31:1
     Visibility: public -/
 def cdt.insert
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
@@ -5356,19 +5403,7 @@ def cdt.insert
   Result S
   := do
   let src_cap ← obj.Slot.cap machineStoreInst src s
-  let revocable ← objects.is_cap_revocable new_cap src_cap
-  let next ← obj.Slot.next machineStoreInst src s
-  let s1 ← cdt.set_untyped_cap_as_full machineStoreInst s src_cap new_cap src
-  let s2 ← obj.Slot.set_cap machineStoreInst dest s1 new_cap
-  let s3 ← obj.Slot.set_prev machineStoreInst dest s2 src
-  let s4 ← obj.Slot.set_next machineStoreInst dest s3 next
-  let s5 ← obj.Slot.set_revocable machineStoreInst dest s4 revocable
-  let s6 ← obj.Slot.set_first_badged machineStoreInst dest s5 revocable
-  let s7 ← obj.Slot.set_next machineStoreInst src s6 dest
-  let b ← obj.Slot.is_null next
-  if b
-  then ok s7
-  else obj.Slot.set_prev machineStoreInst next s7 dest
+  cdt.insert_with_cap machineStoreInst s new_cap src_cap src dest
 
 /-- [fl4_core::layout::tcb::FPU]
     Source: 'crates/fl4-core/src/layout.rs', lines 56:4-56:31
@@ -7146,7 +7181,7 @@ def capability.mask_cap_rights
   | capability.Cap.IoPort _ _ _ => ok c
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::prev]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 244:4-246:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 245:4-247:5
     Visibility: public -/
 def obj.Slot.prev
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot) (s : S) :
@@ -7157,7 +7192,7 @@ def obj.Slot.prev
   ok i1
 
 /-- [fl4_core::cdt::move_cap]:
-    Source: 'crates/fl4-core/src/cdt.rs', lines 45:0-62:1
+    Source: 'crates/fl4-core/src/cdt.rs', lines 49:0-64:1
     Visibility: public -/
 def cdt.move_cap
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
@@ -7170,22 +7205,22 @@ def cdt.move_cap
   let first_badged ← obj.Slot.first_badged machineStoreInst src s
   let s1 ← obj.Slot.set_cap machineStoreInst dest s new_cap
   let s2 ← obj.Slot.set_prev machineStoreInst dest s1 prev
-  let s3 ← obj.Slot.set_next machineStoreInst dest s2 next
-  let s4 ← obj.Slot.set_revocable machineStoreInst dest s3 revocable
-  let s5 ← obj.Slot.set_first_badged machineStoreInst dest s4 first_badged
-  let s6 ← obj.Slot.clear machineStoreInst src s5
+  let s3 ←
+    obj.Slot.set_next_flags machineStoreInst dest s2 next revocable
+      first_badged
+  let s4 ← obj.Slot.clear machineStoreInst src s3
   let b ← obj.Slot.is_null prev
-  let s7 ←
+  let s5 ←
     if b
-    then ok s6
-    else obj.Slot.set_next machineStoreInst prev s6 dest
+    then ok s4
+    else obj.Slot.set_next machineStoreInst prev s4 dest
   let b1 ← obj.Slot.is_null next
   if b1
-  then ok s7
-  else obj.Slot.set_prev machineStoreInst next s7 dest
+  then ok s5
+  else obj.Slot.set_prev machineStoreInst next s5 dest
 
 /-- [fl4_core::cdt::swap]:
-    Source: 'crates/fl4-core/src/cdt.rs', lines 65:0-96:1
+    Source: 'crates/fl4-core/src/cdt.rs', lines 67:0-94:1
     Visibility: public -/
 def cdt.swap
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
@@ -7214,22 +7249,18 @@ def cdt.swap
   let r2 ← obj.Slot.revocable machineStoreInst slot2 s4
   let f2 ← obj.Slot.first_badged machineStoreInst slot2 s4
   let s5 ← obj.Slot.set_prev machineStoreInst slot1 s4 p2
-  let s6 ← obj.Slot.set_next machineStoreInst slot1 s5 n2
-  let s7 ← obj.Slot.set_revocable machineStoreInst slot1 s6 r2
-  let s8 ← obj.Slot.set_first_badged machineStoreInst slot1 s7 f2
-  let s9 ← obj.Slot.set_prev machineStoreInst slot2 s8 p1
-  let s10 ← obj.Slot.set_next machineStoreInst slot2 s9 n1
-  let s11 ← obj.Slot.set_revocable machineStoreInst slot2 s10 r1
-  let s12 ← obj.Slot.set_first_badged machineStoreInst slot2 s11 f1
+  let s6 ← obj.Slot.set_next_flags machineStoreInst slot1 s5 n2 r2 f2
+  let s7 ← obj.Slot.set_prev machineStoreInst slot2 s6 p1
+  let s8 ← obj.Slot.set_next_flags machineStoreInst slot2 s7 n1 r1 f1
   let b2 ← obj.Slot.is_null p2
-  let s13 ←
+  let s9 ←
     if b2
-    then ok s12
-    else obj.Slot.set_next machineStoreInst p2 s12 slot1
+    then ok s8
+    else obj.Slot.set_next machineStoreInst p2 s8 slot1
   let b3 ← obj.Slot.is_null n2
   if b3
-  then ok s13
-  else obj.Slot.set_prev machineStoreInst n2 s13 slot1
+  then ok s9
+  else obj.Slot.set_prev machineStoreInst n2 s9 slot1
 
 /-- [fl4_core::obj::{impl core::cmp::PartialEq<fl4_core::obj::Slot> for fl4_core::obj::Slot}::eq]:
     Source: 'crates/fl4-core/src/obj.rs', lines 36:22-36:31
@@ -7239,7 +7270,7 @@ def obj.Slot.Insts.CoreCmpPartialEqSlot.eq
   ok (self = other)
 
 /-- [fl4_core::cdt::cap_swap_for_delete]:
-    Source: 'crates/fl4-core/src/cdt.rs', lines 98:0-105:1 -/
+    Source: 'crates/fl4-core/src/cdt.rs', lines 96:0-103:1 -/
 def cdt.cap_swap_for_delete
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (slot1 : obj.Slot)
   (slot2 : obj.Slot) :
@@ -7254,7 +7285,7 @@ def cdt.cap_swap_for_delete
     cdt.swap machineStoreInst s c1 slot1 c2 slot2
 
 /-- [fl4_core::cdt::ensure_empty_slot]:
-    Source: 'crates/fl4-core/src/cdt.rs', lines 152:0-157:1
+    Source: 'crates/fl4-core/src/cdt.rs', lines 150:0-155:1
     Visibility: public -/
 def cdt.ensure_empty_slot
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (slot : obj.Slot) :
@@ -7363,14 +7394,13 @@ def objects.same_object_as
     else objects.same_region_as capability.Cap.IoPortControl b
   | capability.Cap.IoPort _ _ _ => objects.same_region_as a b
 
-/-- [fl4_core::cdt::is_final_capability]:
-    Source: 'crates/fl4-core/src/cdt.rs', lines 160:0-173:1
-    Visibility: public -/
-def cdt.is_final_capability
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (slot : obj.Slot) :
+/-- [fl4_core::cdt::is_final_capability_with_cap]:
+    Source: 'crates/fl4-core/src/cdt.rs', lines 163:0-175:1 -/
+def cdt.is_final_capability_with_cap
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (slot : obj.Slot)
+  (cap : capability.Cap) :
   Result Bool
   := do
-  let cap ← obj.Slot.cap machineStoreInst slot s
   let prev ← obj.Slot.prev machineStoreInst slot s
   let b ← obj.Slot.is_null prev
   let prev_same ←
@@ -7392,8 +7422,18 @@ def cdt.is_final_capability
       let b2 ← objects.same_object_as cap c
       ok (¬ b2)
 
+/-- [fl4_core::cdt::is_final_capability]:
+    Source: 'crates/fl4-core/src/cdt.rs', lines 158:0-161:1
+    Visibility: public -/
+def cdt.is_final_capability
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (slot : obj.Slot) :
+  Result Bool
+  := do
+  let cap ← obj.Slot.cap machineStoreInst slot s
+  cdt.is_final_capability_with_cap machineStoreInst s slot cap
+
 /-- [fl4_core::cdt::slot_cap_long_running_delete]:
-    Source: 'crates/fl4-core/src/cdt.rs', lines 176:0-182:1
+    Source: 'crates/fl4-core/src/cdt.rs', lines 178:0-184:1
     Visibility: public -/
 def cdt.slot_cap_long_running_delete
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (slot : obj.Slot) :
@@ -7404,7 +7444,7 @@ def cdt.slot_cap_long_running_delete
   if b
   then ok false
   else
-    let b1 ← cdt.is_final_capability machineStoreInst s slot
+    let b1 ← cdt.is_final_capability_with_cap machineStoreInst s slot cap
     if b1
     then
       match cap with
@@ -7435,7 +7475,7 @@ def cdt.slot_cap_long_running_delete
     else ok false
 
 /-- [fl4_core::cdt::insert_new_cap]:
-    Source: 'crates/fl4-core/src/cdt.rs', lines 185:0-196:1
+    Source: 'crates/fl4-core/src/cdt.rs', lines 187:0-196:1
     Visibility: public -/
 def cdt.insert_new_cap
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (parent : obj.Slot)
@@ -7445,15 +7485,13 @@ def cdt.insert_new_cap
   let next ← obj.Slot.next machineStoreInst parent s
   let s1 ← obj.Slot.set_cap machineStoreInst slot s cap
   let s2 ← obj.Slot.set_prev machineStoreInst slot s1 parent
-  let s3 ← obj.Slot.set_next machineStoreInst slot s2 next
-  let s4 ← obj.Slot.set_revocable machineStoreInst slot s3 true
-  let s5 ← obj.Slot.set_first_badged machineStoreInst slot s4 true
+  let s3 ← obj.Slot.set_next_flags machineStoreInst slot s2 next true true
   let b ← obj.Slot.is_null next
-  let s6 ←
+  let s4 ←
     if b
-    then ok s5
-    else obj.Slot.set_prev machineStoreInst next s5 slot
-  obj.Slot.set_next machineStoreInst parent s6 slot
+    then ok s3
+    else obj.Slot.set_prev machineStoreInst next s3 slot
+  obj.Slot.set_next machineStoreInst parent s4 slot
 
 /-- [fl4_core::ioport::word_off]:
     Source: 'crates/fl4-core/src/ioport.rs', lines 24:0-26:1 -/
@@ -13440,7 +13478,7 @@ def cdt.delete_one
   if b
   then ok (s, a)
   else
-    let fin ← cdt.is_final_capability machineStoreInst s slot
+    let fin ← cdt.is_final_capability_with_cap machineStoreInst s slot cap
     let (_, s1, a1) ←
       objects.finalise_cap_object machineStoreInst machineArchInst s a cap fin
     cdt.empty_slot machineStoreInst machineArchInst s1 a1 slot
@@ -13518,7 +13556,7 @@ def cdt.finalise_slot_deferred_loop.body
       ok (done (core.result.Result.Ok
         { success := true, cleanup := capability.Cap.Null }, s, a))
     else
-      let fin ← cdt.is_final_capability machineStoreInst s slot
+      let fin ← cdt.is_final_capability_with_cap machineStoreInst s slot cap
       let ((remainder, cleanup), s1, a1) ←
         objects.finalise_cap machineStoreInst machineArchInst s a cap fin false
       let b1 ← cdt.cap_removable remainder slot
@@ -13642,7 +13680,7 @@ def cdt.finalise_slot_immediate_loop.body
       ok (done (core.result.Result.Ok
         { success := true, cleanup := capability.Cap.Null }, s, a))
     else
-      let fin ← cdt.is_final_capability machineStoreInst s slot
+      let fin ← cdt.is_final_capability_with_cap machineStoreInst s slot cap
       let ((remainder, cleanup), s1, a1) ←
         objects.finalise_cap machineStoreInst machineArchInst s a cap fin false
       let b1 ← cdt.cap_removable remainder slot
@@ -14910,7 +14948,9 @@ def cnode.decode_copy
                   let s3 ← cdt.move_cap machineStoreInst s2 new_cap val dest
                   ok (core.result.Result.Ok (), s3)
                 else
-                  let s3 ← cdt.insert machineStoreInst s2 new_cap val dest
+                  let s3 ←
+                    cdt.insert_with_cap machineStoreInst s2 new_cap src_cap val
+                      dest
                   ok (core.result.Result.Ok (), s3)
             | core.ops.control_flow.ControlFlow.Break residual =>
               let r3 ←
@@ -20611,8 +20651,22 @@ def layout.ks.SIZE : Result Std.U64 := do
   let i1 ← layout.ks.ASID_TABLE
   i1 + i
 
+/-- [fl4_core::machine::Store::read_pair]:
+    Source: 'crates/fl4-core/src/machine.rs', lines 15:4-17:5
+    Visibility: public -/
+@[trait_default]
+def machine.Store.read_pair.default
+  {Self : Type _} (StoreInst : machine.Store Self) (self : Self)
+  (addr : Std.U64) :
+  Result (Std.U64 × Std.U64)
+  := do
+  let i ← StoreInst.read self addr
+  let i1 ← lift (core.num.U64.wrapping_add addr 8#u64)
+  let i2 ← StoreInst.read self i1
+  ok (i, i2)
+
 /-- [fl4_core::machine::Arch::virtualization]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 32:4-32:41
+    Source: 'crates/fl4-core/src/machine.rs', lines 37:4-37:41
     Visibility: public -/
 @[trait_default]
 def machine.Arch.virtualization.default
@@ -20620,7 +20674,7 @@ def machine.Arch.virtualization.default
   ok 0#u64
 
 /-- [fl4_core::machine::Arch::vcpu_capability]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 34:4-34:55
+    Source: 'crates/fl4-core/src/machine.rs', lines 39:4-39:55
     Visibility: public -/
 @[trait_default]
 def machine.Arch.vcpu_capability.default
@@ -20628,7 +20682,7 @@ def machine.Arch.vcpu_capability.default
   ok 0#u64
 
 /-- [fl4_core::machine::Arch::vcpu_barrier]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 36:4-36:33
+    Source: 'crates/fl4-core/src/machine.rs', lines 41:4-41:33
     Visibility: public -/
 @[trait_default]
 def machine.Arch.vcpu_barrier.default
@@ -20636,7 +20690,7 @@ def machine.Arch.vcpu_barrier.default
   ok self
 
 /-- [fl4_core::machine::Arch::invalidate_ept]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 38:4-38:59
+    Source: 'crates/fl4-core/src/machine.rs', lines 43:4-43:59
     Visibility: public -/
 @[trait_default]
 def machine.Arch.invalidate_ept.default

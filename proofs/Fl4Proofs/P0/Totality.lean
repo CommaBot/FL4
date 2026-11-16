@@ -11,6 +11,7 @@ open fl4_core
 
 structure StoreTotal {S : Type _} (st : machine.Store S) : Prop where
   read : ∀ s a, st.read s a ⦃ _ => True ⦄
+  read_pair : ∀ s a, st.read_pair s a ⦃ _ => True ⦄
   write : ∀ s a v, st.write s a v ⦃ _ => True ⦄
   zero : ∀ s a n, st.zero s a n ⦃ _ => True ⦄
   clear_free : ∀ s a n, st.clear_free s a n ⦃ _ => True ⦄
@@ -57,6 +58,7 @@ structure ArchTotal {A : Type _} (ar : machine.Arch A) : Prop where
 section
 variable {S : Type _} {st : machine.Store S}
 @[step] theorem StoreTotal.read_spec (h : StoreTotal st) s a : st.read s a ⦃ _ => True ⦄ := h.read s a
+@[step] theorem StoreTotal.read_pair_spec (h : StoreTotal st) s a : st.read_pair s a ⦃ _ => True ⦄ := h.read_pair s a
 @[step] theorem StoreTotal.write_spec (h : StoreTotal st) s a v : st.write s a v ⦃ _ => True ⦄ := h.write s a v
 @[step] theorem StoreTotal.zero_spec (h : StoreTotal st) s a n : st.zero s a n ⦃ _ => True ⦄ := h.zero s a n
 @[step] theorem StoreTotal.clear_free_spec (h : StoreTotal st) s a n : st.clear_free s a n ⦃ _ => True ⦄ := h.clear_free s a n

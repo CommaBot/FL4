@@ -35,6 +35,11 @@ theorem set_fb_eq (sl : obj.Slot) (s : S) (v : Bool) :
     obj.Slot.set_first_badged st sl s v =
       ok (L.wr s (wordOf sl 24#u64) ⟨setBitF (L.mem s (wordOf sl 24#u64)).bv 49 v⟩) :=
   spec_eq_ok (slot_set_first_badged_spec sl s v)
+theorem set_next_flags_eq (sl : obj.Slot) (s : S) (n : obj.Slot) (r f : Bool) :
+    obj.Slot.set_next_flags st sl s n r f =
+      ok (L.wr s (wordOf sl 24#u64)
+        ⟨setBitF (setBitF (setNextF (L.mem s (wordOf sl 24#u64)).bv n.bv) 48 r) 49 f⟩) :=
+  spec_eq_ok (slot_set_next_flags_spec sl s n r f)
 theorem set_cap_eq (sl : obj.Slot) (s : S) (c : capability.Cap) :
     obj.Slot.set_cap st sl s c = ok (wrCap (L := L) s sl c) := spec_eq_ok (set_cap_spec sl s c)
 theorem slot_rev_eq (sl : obj.Slot) (s : S) : obj.Slot.revocable st sl s = ok (revOf (L.mem s) sl) :=
@@ -77,7 +82,7 @@ theorem swap_fields (hP : Placed th) (s : S) (c1 c2 : capability.Cap) (s1 s2 : U
     cdt.swap st s c1 s1 c2 s2 ⦃ s' => SwapFields (L := L) th s s' c1 s1 c2 s2 ⦄ := by
   unfold cdt.swap
   simp only [set_cap_eq, slot_prev_eq, slot_next_eq, slot_rev_eq, slot_first_badged_eq, is_null_eq,
-    set_prev_eq, set_next_eq, set_rev_eq, set_fb_eq, bind_ok, bind_tc_ok, bind_ite_ok]
+    set_prev_eq, set_next_eq, set_rev_eq, set_fb_eq, set_next_flags_eq, bind_ok, bind_tc_ok, bind_ite_ok]
   simp only [prevOf_wrCap hP, nextOf_wrCap hP, revOf_wrCap hP, fbOf_wrCap hP, hs1, hs2]
   unfold SwapFields
   generalize hP1d : prevOf (L.mem s) s1 = P1 at *
@@ -108,6 +113,8 @@ theorem swap_fields (hP : Placed th) (s : S) (c1 c2 : capability.Cap) (s1 s2 : U
       nextOf_setPrev hP, revOf_setPrev hP, fbOf_setPrev hP, prevOf_setNext hP, nextOf_setNext hP,
       revOf_setNext hP, fbOf_setNext hP, prevOf_setBit hP, nextOf_setBit hP, revOf_setBit hP, fbOf_setBit hP,
       capAt_setPrev hP, capAt_setNext hP, capAt_setBit hP, capAt_wrCap hP,
+      prevOf_setNextFlags hP, nextOf_setNextFlags hP, revOf_setNextFlags hP, fbOf_setNextFlags hP,
+      capAt_setNextFlags hP,
       hk48, hk49, n4948, n4849, and_false, false_and, and_true, false_or, or_false, eq_self_iff_true, or_true, true_or, true_and, ne_eq, not_false_eq_true, not_true_eq_false,
       isSlot_ite, canonical_ite, hs1, hs2, hc1, hc2, canonical_zero, hs1z, hs2z, hne, hne',
       decide_false, decide_true, Bool.false_eq_true, ↓reduceIte, ite_self, hP1d, hN1d, hP2d, hN2d, he1, he2, *]
@@ -118,6 +125,8 @@ theorem swap_fields (hP : Placed th) (s : S) (c1 c2 : capability.Cap) (s1 s2 : U
       nextOf_setPrev hP, revOf_setPrev hP, fbOf_setPrev hP, prevOf_setNext hP, nextOf_setNext hP,
       revOf_setNext hP, fbOf_setNext hP, prevOf_setBit hP, nextOf_setBit hP, revOf_setBit hP, fbOf_setBit hP,
       capAt_setPrev hP, capAt_setNext hP, capAt_setBit hP, capAt_wrCap hP,
+      prevOf_setNextFlags hP, nextOf_setNextFlags hP, revOf_setNextFlags hP, fbOf_setNextFlags hP,
+      capAt_setNextFlags hP,
       hk48, hk49, n4948, n4849, and_false, false_and, and_true, false_or, or_false, eq_self_iff_true, or_true, true_or, true_and, ne_eq, not_false_eq_true, not_true_eq_false,
       isSlot_ite, canonical_ite, hs1, hs2, hc1, hc2, canonical_zero, hs1z, hs2z, hne, hne',
       decide_false, decide_true, Bool.false_eq_true, ↓reduceIte, ite_self, hP1d, hN1d, hP2d, hN2d, he1, he2, hx, *]

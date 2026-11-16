@@ -49,6 +49,16 @@ impl Store for PhysStore {
     }
 
     #[inline(always)]
+    fn read_pair(&self, addr: u64) -> (u64, u64) {
+        debug_assert!(addr & 7 == 0);
+        if self.tx {
+            tx::read_pair(self.cpu, &Phys, addr)
+        } else {
+            (self.read(addr), self.read(addr.wrapping_add(8)))
+        }
+    }
+
+    #[inline(always)]
     fn write(&mut self, addr: u64, v: u64) {
         debug_assert!(addr & 7 == 0);
         if self.tx {
@@ -115,6 +125,8 @@ impl<const TX: bool> EntryStore<TX> {
 impl<const TX: bool> Store for EntryStore<TX> {
     #[inline(always)]
     fn read(&self, addr: u64) -> u64 { self.phys().read(addr) }
+    #[inline(always)]
+    fn read_pair(&self, addr: u64) -> (u64, u64) { self.phys().read_pair(addr) }
     #[inline(always)]
     fn write(&mut self, addr: u64, v: u64) { self.phys().write(addr, v); }
     #[inline(always)]

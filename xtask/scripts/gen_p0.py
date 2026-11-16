@@ -105,10 +105,13 @@ for name in order:
     args = explicit(groups)
     argnames = [a for a, _ in args]
     hyps = []
-    if "machineStoreInst" in argnames:
-        hyps.append("(hS : StoreTotal machineStoreInst)")
-    if "machineArchInst" in argnames:
-        hyps.append("(hA : ArchTotal machineArchInst)")
+    # Default trait methods use `StoreInst` rather than `machineStoreInst`.
+    # Select trusted-interface assumptions by type, not the extracted name.
+    for arg, ty in args:
+        if ty.startswith("machine.Store "):
+            hyps.append(f"(hS : StoreTotal {arg})")
+        if ty.startswith("machine.Arch "):
+            hyps.append(f"(hA : ArchTotal {arg})")
     e = dict(name=name, binders=" ".join(groups + hyps), call=f"{name} {' '.join(argnames)}".strip())
     if name.endswith(".body") and name[:-5] in defs:
         e["kind"] = "body"

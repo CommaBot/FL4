@@ -253,7 +253,8 @@ theorem interrupt.deleting_irq_handler.blk {A : Type _} {ar : machine.Arch A} (s
   · simp only [capability.Cap.is_null, bind_ok, ite_true, WP.spec_ok]
     exact ⟨h, by first | exact Or.inl rfl | exact Or.inl trivial | trivial⟩
   · simp only [capability.Cap.is_null, bind_ok, Bool.false_eq_true, ite_false]
-    refine WP.spec_bind (P0.cdt.is_final_capability.p0 st s isl hS) fun fin _ => ?_
+    refine WP.spec_bind (P0.cdt.is_final_capability_with_cap.p0 st s isl
+      (.Notification n b0 b1 b2) hS) fun fin _ => ?_
     have hm : ({n} : Set U64) ⊆ EH H := fun x hx => by rw [Set.mem_singleton_iff.1 hx]; exact Or.inr hH
     refine WP.spec_bind (fin_ntfn.blk (ar := ar) s a n b0 b1 b2 fin h hn hH) ?_
     rintro ⟨rr, s1, a1⟩ ⟨-, -, h1, f1⟩

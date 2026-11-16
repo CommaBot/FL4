@@ -10,6 +10,11 @@
 pub trait Store {
     /// Read the aligned word at `addr`.
     fn read(&self, addr: u64) -> u64;
+    /// Read two adjacent words. A store may validate them together when
+    /// they share a version stripe; the default works for any word alignment.
+    fn read_pair(&self, addr: u64) -> (u64, u64) {
+        (self.read(addr), self.read(addr.wrapping_add(8)))
+    }
     /// Write the aligned word at `addr`.
     fn write(&mut self, addr: u64, v: u64);
     /// Zero `len` bytes at `addr`; both are multiples of 8.

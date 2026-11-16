@@ -1,6 +1,6 @@
 {
- "functions": 1041,
- "proved": 1041,
+ "functions": 1045,
+ "proved": 1045,
  "manual": [
   "ept.map_frame",
   "syscall.handle_unknown_syscall",

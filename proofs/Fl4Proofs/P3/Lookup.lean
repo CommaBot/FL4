@@ -197,7 +197,14 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
 theorem slot_cap_eq (sl : obj.Slot) (s : S) : obj.Slot.cap st sl s = capAt (L.mem s) sl := by
   unfold obj.Slot.cap capAt
-  simp [L.read_eq, lift]
+  simp [L.read_pair_eq, lift]
+
+/-- Reusing a cap from this snapshot is equivalent to loading it again. -/
+theorem is_final_with_cap_eq (s : S) (sl : obj.Slot) (c : capability.Cap)
+    (hc : capAt (L.mem s) sl = ok c) :
+    cdt.is_final_capability_with_cap st s sl c = cdt.is_final_capability st s sl := by
+  unfold cdt.is_final_capability
+  rw [slot_cap_eq, hc, bind_ok]
 
 @[step] theorem slot_cap_spec (sl : obj.Slot) (s : S) :
     obj.Slot.cap st sl s ⦃ c => capAt (L.mem s) sl = ok c ⦄ := by

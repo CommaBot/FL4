@@ -109,7 +109,7 @@ There are three profiles, **debug**, **release** and **bench**. Debug turns on `
 Two settings stay, because user programs are compiled against them. FL4 reads them from the same generated configuration as libsel4:
 
 - `KernelRootCNodeSizeBits`, the size of the root task's CNode (seL4's default is 12; sel4test uses 13, l4h 19).
-- `KernelMaxNumNodes` as an upper bound. FL4 starts min(cores found, this value) cores, so a program sized for N cores never sees more than N. The per-core arrays use a fixed internal maximum of 64.
+- `KernelMaxNumNodes` as an upper bound. FL4 starts min(cores found, this value, 16) cores, so a program sized for N cores never sees more than N. The core's logical state supports up to 64 nodes; the current x86 per-core storage and transaction runtime support 16.
 
 ### Boot command line
 
@@ -256,6 +256,7 @@ The core is written as a serial kernel: one entry point per kind of kernel entry
     // fl4-core: safe Rust, extracted by Aeneas
     pub trait Store {
         fn read(&self, addr: u64) -> u64;           // kernel memory, by kernel virtual address
+        fn read_pair(&self, addr: u64) -> (u64, u64); // adjacent words, defaulting to two reads
         fn write(&mut self, addr: u64, v: u64);
         fn zero(&mut self, addr: u64, len: u64);
         fn ks_base(&self) -> u64;                   // the kernel's global state
@@ -290,7 +291,7 @@ Each kernel entry, and each chunk of a preemptible operation, runs as follows:
 
 ``` mermaid
 flowchart LR
-  E[Kernel entry] --> P{at most one ticket and probe allowed?}
+  E[Kernel entry] --> P{at most two tickets and probe allowed?}
   P -->|yes: reserve, await turn, close, no active transactions| Q[run directly, release gate, exit]
   P -->|no: back off probes on contention| B[begin: mark core active, read clock]
   B --> R[run the core entry on the transactional store]
@@ -313,9 +314,12 @@ flowchart LR
 - **Clearing free memory runs in place.** An untyped reset clears memory that no live object occupies, and so does making an ASID pool from a fresh frame. Such a clear does not need to be buffered: no other core depends on that memory. `Store::clear_free` means `zero` to the proofs. In a transaction it locks the region's stripes in order, validates the read set, zeroes memory in place along with any buffered writes into it, releases the stripes at a new version, and extends the transaction's read version to it. A reader of the region aborts at the new version. Clears larger than 8 KiB, including the 64 KiB reset chunk, rerun serially to avoid acquiring thousands of finer stripes.
   Aligned power-of-two regions of 16 bytes through 8 KiB map to a contiguous stripe interval under the stripe hash, so the runtime enumerates that interval directly in lock order. Other regions retain sorting and deduplication. Saved versions occupy one slot per held stripe, with binary search for read-set validation, instead of an array as large as the global table. The physical backend uses a bulk zero while holding every covering stripe; the simulator retains individual word stores through `Mem::clear`, including their TSO buffering and version history.
 - **The serial gate.** Transactions mark their core active while they run. A core that needs the gate takes it, waits for active transactions to drain, runs the entry directly on memory, and releases it; new transactions wait while it is held. Rare global operations (domain schedule, IRQ control, ASID pool allocation) also use it. With one core there are no transactions and no gate: the store is plain memory.
-- **Opportunistic gate probes.** Before starting a transaction, a core may reserve the next serial ticket with a CAS when the queue is empty or contains just one ticket. Allowing one queued successor avoids dropping immediately into STM when two short entries overlap. The successor services remote calls while waiting for its turn; a remote stall cancels a non-interrupt entry before it runs. Once served, the probe closes the gate with the same SeqCst store as the blocking acquisition and scans the transaction-active flags. If any other core is active, it releases its ticket immediately and uses STM; otherwise it runs the same core entry directly under the gate. A transaction arriving during the probe either publishes its active flag early enough to make the probe fail or observes the closed gate and waits. A failed probe has no memory effects beyond the gate protocol and remote-call servicing.
-- **Contention restores concurrency.** A failed probe or a transaction waiting for a closed gate advances a contention generation. Each core that observes a new generation skips probes for 256 entries. The per-core countdowns occupy separate cache lines. This prevents a busy exclusive owner from repeatedly probing ahead of waiting transactions and makes probes infrequent under sustained parallel load. Generation and countdown atomics only choose a strategy; correctness depends on the ticket and SeqCst handshake, even with stale policy reads. Mandatory serial entries still take FIFO tickets and service IPIs while waiting.
+- **Opportunistic gate probes.** Before starting a transaction, a core may reserve the next serial ticket with a CAS when at most two tickets are outstanding. The bounded queue lets short overlapping entries use direct execution. A successor services remote calls while waiting; a remote stall cancels a non-interrupt entry before it runs. Once served, the probe inherits a drained gate or closes it with a SeqCst store and scans the transaction-active flags. If another core is active, it releases its ticket and uses STM; otherwise it runs the same core entry directly under the gate. A transaction arriving during a fresh probe either publishes its active flag early enough to make the probe fail or observes the closed gate and waits. A failed probe has no memory effects beyond the gate protocol and remote-call servicing.
+- **Serial handoff.** The closed word distinguishes open (0), closing/draining (1), and closed with transaction bodies excluded (2). After a successful drain, it stays at 2 while serial tickets are queued. A successor acquires the predecessor's release of the serving ticket, then can reuse that exclusion without another locked close or full flag scan. If release opens the gate, the successor must perform the complete handshake again. A failed probe leaves state 1, so it cannot pass an exclusion certificate while a transaction still runs. A transaction that announces itself late must still observe the continuously closed gate before running its body. The flag array matches the transaction runtime's 16 supported participants, instead of scanning 64 flags.
+- **Contention restores concurrency.** A failed probe or a transaction waiting for a closed gate advances a contention generation. Each core observing a new generation sends its next entry through STM, without the previous extra 256-entry cooldown. The bounded ticket queue and active-transaction check still reject probes under contention; mandatory serial entries retain FIFO tickets and IPI servicing. The generation is only an admission hint. Exclusion depends on the ticket handoff and SeqCst handshake even with stale policy reads. The shorter deferral avoids spending hundreds of short entries in STM after a transient collision; performance across workloads remains an empirical property.
 - **Store specialization.** Once the runtime has selected direct or transactional execution, x86 entry dispatch uses the corresponding `EntryStore<TX>` implementation of the same `Store` interface. Both forward through the existing `PhysStore` implementation with a constant mode, removing a mode branch from each word access. Kernel logic, capability checks, scheduler semantics, and extracted proof definitions are unchanged. Runtime statistics remain enabled in debug builds; release builds avoid updating their otherwise unused shared counters.
+- **Capability reads and metadata updates.** `Slot::cap` reads its two words through `Store::read_pair`. When they occupy one 16-byte stripe, the transactional store checks the version once before both loads and once after them, with the same acquire ordering and read-set validation as a scalar read. Each word can independently come from the write buffer; if both do, no memory read is needed. A pair crossing a stripe boundary uses two scalar reads. Direct stores also use two ordinary loads. `LawfulStore` states that the pair equals the two words of its memory view, with a concrete model instance; the physical implementation remains in the tested trusted base. The simulator uses the paired path and exposes each load to its interleaving and TSO schedulers.
+  Capability insertion, movement and swapping write the packed next pointer and its two flags together, preserving all other bits, instead of performing three read/modify/write operations on the same word. Copy and deletion reuse caps already loaded by the same entry, without crossing a preemption point or changing the source cap. The serial core proofs cover the new helper functions and combined metadata update; serial admission, stripe ownership and commit rules are unchanged.
 - **IPI-aware spinning.** seL4 services remote-stall IPIs while spinning on its lock. FL4 does the same in every spin loop: waiting for the gate, for a transaction to drain, or for a remote call to be acknowledged. IPI handlers touch only core-local state, so a core waiting for an acknowledgement cannot deadlock with a core spinning on a lock.
 
 ### Footprints of common operations
@@ -687,6 +691,85 @@ measured and emitted warmup samples, image hashes, revisions and run order;
 no measured samples were discarded. Runtime implementation remains trusted
 and tested; this adds no proof assumptions or operation-specific lock paths.
 
+
+**Capability transaction follow-up (base `6ba3aa0`).** The fork investigation
+in issue #11 attributes most two-vCPU kernel-entry time to Copy, Delete and
+Page_Map. The candidate changes in §7 remove repeated capability loads and
+metadata writes, and validate the two words of a capability together when
+they share a stripe. Separate release images retain the first change alone
+and both changes, so their effects can be measured independently.
+
+Two comparison campaigns completed 156 benchmark boots at task nice -20;
+the second also used a dedicated CPU group at weight 10000 (reported as
+group nice -20). Other builds continued. In that second campaign, two-core
+Copy/Delete/Page_Map raw median latencies changed from 0.466/0.442/0.407 µs
+to 0.441/0.427/0.393 µs, reductions of 5.4%/3.6%/3.5%. Medians of the ratios
+to adjacent seL4 controls improved by 2.1%/0.8%/1.5%, so some of the raw
+change reflects host conditions. The direct batched workload's aggregate
+throughput rose 4.3% at two workers and 11.3% at four. These are medians of
+three boot medians, with five measured batches per boot.
+
+Linux fork throughput is still inconclusive under load. With five boots
+per cell, the raw two-vCPU change was +5.3% in the task-priority-only
+campaign and +36.9% in the dedicated-group campaign; four-vCPU changes
+were +11.4% and -6.1%. Single-vCPU medians fell 10.9% and 2.1%. All samples
+are retained. These changing results do not establish an end-to-end fork
+gain or exclude a regression; the primitive measurements are the evidence
+for the candidate, while Linux needs a more controlled follow-up.
+
+Validation passed 30 host tests, the 20-seed simulator campaign (including
+PCT, TSO and transaction-failure injection), and 1,824 bounded interleaving
+schedules. Both candidate kernels booted Linux with 1, 2 and 4 vCPUs. The
+combined candidate and unmodified base each passed 192 sel4tests and 26
+fl4tests on four-core release KVM. Earlier loaded runs of the candidate had
+one `MULTICORE0003` failure and an `FL4PERF0003` timeout; neither reproduced
+in the subsequent full-suite comparison, and those logs are retained.
+
+The updated extraction and proofs pass: all 1,045 P0 functions are proved
+with no `sorry`, and the full Lean build succeeds. P1 specifies paired reads
+against its memory view and supplies a model; P3 proves the combined link
+update and reuse of a cap from the same snapshot. The P0 generator recognizes
+trusted interface arguments by type, including the differently named argument
+of a default trait method. An existing simulator IRQ test failed on the
+unmodified base because it expected a transaction on a quiet core, where
+opportunistic admission now runs serially. Its setup now enters policy
+backoff first, ensuring that the test actually exercises an aborted attempt.
+
+**Fork serial-gate follow-up (same base).** The gate changes in §7 recover
+direct execution promptly after transient contention, reuse exclusion
+between queued serial tickets, and scan the runtime's 16 supported cores.
+The two queued-successor bound still falls back to transactions under
+contention. Inlining, a transaction-local read cache and an activity-sampling
+policy were tested and removed after unsuccessful performance trials.
+
+On the same Ryzen 7 7700/KVM L4H setup, five interleaved nice -20 boots
+per configuration produce these fork/exit/wait medians (cycles/s):
+
+| Linux vCPUs | seL4 | FL4 base | Combined candidate | Candidate below seL4 |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 6,875 | 6,222 | 6,553 | 4.7% |
+| 2 | 10,700 | 6,466 | 9,757 | 8.8% |
+| 4 | 12,053 | 11,237 | 11,438 | 5.1% |
+
+Two-vCPU throughput improves 50.9% over unmodified `6ba3aa0`. An independent
+three-boot recheck also meets the predeclared 10% median gap target at every
+count. Both use task nice -20, CPU-group weight 10000, and physical CPU
+affinities. Other builds continue unchanged; every sample is retained.
+Two-core direct Copy/Delete/Page_Map is within 4.2% of seL4 or faster;
+aggregate direct throughput exceeds seL4 by 2.1% at two workers and 29.3%
+at four. The single-worker direct cycle and some vfork/CLONE_VM controls
+still lag more, so the 10% result applies to this fork workload and host.
+
+All 105 confirmation/recheck boots pass. Validation passes 31 host tests,
+the 200-seed simulator campaign (1,300 main/targeted seed-runs), 720 bounded
+schedules, all five mutation checks, 20 additional TSO seeds at 16 cores,
+192 sel4tests and 26 fl4tests on four-core release KVM. The new gate test
+queues a real successor before a failed probe releases its ticket; neither
+may enter while a transaction remains active. The core, store, simulator
+and extracted proofs are unchanged from the preceding candidate, whose
+hashes and proof build were checked. The runtime remains trusted and tested.
+Benchmark runners and setup are in [L4H PR #163](https://github.com/losfair/l4h/pull/163).
+Measurements and validation summaries are recorded in [FL4 PR #13](https://github.com/losfair/FL4/pull/13).
 
 ## 13. Milestones
 

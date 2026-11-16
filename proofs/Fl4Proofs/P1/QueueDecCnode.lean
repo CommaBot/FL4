@@ -2,7 +2,7 @@
 P1: InvGaps' `cnode` family: `cnode.decode` keeps the invariants, from
 `DecPre`, the CDT placement facts `CdtHyps` (the slots the lookups return
 are cap-slot words, the caps in them are typed, and the CDT writes of
-`insert`/`move_cap`/`swap` stay in cap-slot words) and the named delete and
+`insert_with_cap`/`move_cap`/`swap` stay in cap-slot words) and the named delete and
 revoke steps (`CnodeGaps`).  Copy/Mint/Move/Mutate/Rotate are the caller's
 restart and cap-slot writes (`blk_of_capw`); CancelBadgedSends is
 `cancel_badged_sends.blkF`.
@@ -29,8 +29,12 @@ structure CdtHyps (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64
     cnode.rotate_slots st s b e d ⦃ r => ∀ x, r = .Ok x → CapW T Ω Sg x.1 ∧ CapW T Ω Sg x.2 ⦄
   slotcap : ∀ (Ac : Set U64) (s : S) (x : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → CapW T Ω Sg x →
     obj.Slot.cap st x s ⦃ c => CapOK st T Rp Scs Nt H s c ⦄
-  ins : ∀ (Ac : Set U64) (s : S) (c : capability.Cap) (x y : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
-    CapW T Ω Sg x → CapW T Ω Sg y → cdt.insert st s c x y ⦃ s' => WritesIn st s s' (CapW T Ω Sg) ⦄
+  /-- The insertion footprint for the helper taking the previously loaded
+  source cap. This is a placement obligation for either source-cap value;
+  the snapshot equality is established separately by the P3 Copy proof. -/
+  ins : ∀ (Ac : Set U64) (s : S) (c srcC : capability.Cap) (x y : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    CapW T Ω Sg x → CapW T Ω Sg y →
+    cdt.insert_with_cap st s c srcC x y ⦃ s' => WritesIn st s s' (CapW T Ω Sg) ⦄
   mv : ∀ (Ac : Set U64) (s : S) (c : capability.Cap) (x y : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     CapW T Ω Sg x → CapW T Ω Sg y → cdt.move_cap st s c x y ⦃ s' => WritesIn st s s' (CapW T Ω Sg) ⦄
   sw : ∀ (Ac : Set U64) (s : S) (c1 : capability.Cap) (x : U64) (c2 : capability.Cap) (y : U64),
@@ -134,7 +138,7 @@ theorem cnode.decode_copy.dec (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) {s : S} 
   · errleaf
   cases mv
   · simp only [Bool.false_eq_true, ↓reduceIte]
-    exact restart_capw D fun s1 h1 => C.ins Ac s1 nc v dest h1 hv hd
+    exact restart_capw D fun s1 h1 => C.ins Ac s1 nc sc v dest h1 hv hd
   · simp only [↓reduceIte]
     exact restart_capw D fun s1 h1 => C.mv Ac s1 nc v dest h1 hv hd
 

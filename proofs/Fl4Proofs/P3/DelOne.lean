@@ -68,7 +68,7 @@ theorem delete_one_refines (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L :
     obtain ⟨bf, hbf, hbf2, -⟩ := hF s σ G sl _ hDS hA hc hcn
     have hNF : NeedsFin (.Notification p b w r) := Or.inl ⟨trivial, rfl⟩
     rw [hbf2 hNF] at hbf
-    rw [hbf]; simp only [bind_ok]
+    rw [is_final_with_cap_eq _ _ _ hc, hbf]; simp only [bind_ok]
     rw [← finalise_cap_ntfn arI s a p b w r _ false]
     apply WP.spec_bind (hO s a σ G sl _ hDS hA hc trivial)
     rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨hrem, hcl, -, σ1, G1, hmem, hDS1, -, -, hmO⟩
@@ -120,7 +120,7 @@ theorem delete_one_keep (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L
     simp only [isNullB_false hcn, Bool.false_eq_true, ↓reduceIte]
     obtain ⟨bf, hbf, hbf2, -⟩ := hF s σ G sl _ hDS hA hc hcn
     rw [hbf2 (Or.inl ⟨trivial, rfl⟩)] at hbf
-    rw [hbf]; simp only [bind_ok]
+    rw [is_final_with_cap_eq _ _ _ hc, hbf]; simp only [bind_ok]
     rw [← finalise_cap_ntfn arI s a p b w r _ false]
     apply WP.spec_bind (WP.spec_and (hO s a σ G sl _ hDS hA hc trivial) (hK s a σ G sl p b w r _ hDS hA hc))
     rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨hrem, hcl, -, σ1, G1, hmem, hDS1, -, -, -⟩, hkeep⟩
