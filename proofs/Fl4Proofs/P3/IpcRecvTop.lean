@@ -125,20 +125,30 @@ end Spec
 section
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : P1.LawfulStore st]
 
+/-- The object of an endpoint or reply cap exists (l4v `valid_cap`). -/
+def CapObjE (σ : Fl4Spec.State Unit) : capability.Cap → Prop
+  | .Endpoint p _ _ _ _ _ => ∃ x, σ.kheap p.bv = some (.endpoint x)
+  | .Reply p _ => ∃ x, σ.kheap p.bv = some (.reply x)
+  | .Notification p _ _ _ => ∃ x, σ.kheap p.bv = some (.notification x)
+  | _ => True
+
 /-- **The leaves of `handle_recv`** at `(s, a, σ)`, for a relation `Rel`. -/
 structure RecvLeaves (Rel : S → A → Fl4Spec.State Unit → Prop) (ct : U64) (blocking : Bool) (s : S) (a : A)
     (σ : Fl4Spec.State Unit) : Prop where
-  /-- `receive_ipc` on a related endpoint cap with the receive right, with no
-  reply cap or a related reply cap. -/
-  ipc : ∀ c ac rc rc', CapRel c ac → ((rc = .Null ∧ rc' = .nullCap) ∨ (CapRel rc rc' ∧ ∃ p g, rc = .Reply p g)) →
-    endpoint.receive_ipc st ar s a ct c blocking rc ⦃ r =>
-      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv ac blocking rc' σ).1, Rel r.1 r.2 z.2 ⦄
+  /-- `receive_ipc` on an endpoint cap with the receive right whose endpoint
+  exists, with no reply cap or a related reply cap whose reply exists. -/
+  ipc : ∀ p b sd g gr rc rc', (∃ x, σ.kheap p.bv = some (.endpoint x)) →
+    ((rc = .Null ∧ rc' = .nullCap) ∨
+      (CapRel rc rc' ∧ ∃ q g', rc = .Reply q g' ∧ ∃ x, σ.kheap q.bv = some (.reply x))) →
+    endpoint.receive_ipc st ar s a ct (.Endpoint p b sd true g gr) blocking rc ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) blocking rc' σ).1,
+        Rel r.1 r.2 z.2 ⦄
   /-- `receive_signal` on a related notification cap. -/
-  sig : ∀ p b w rd ac, CapRel (.Notification p b w rd) ac →
+  sig : ∀ p b w rd ac, CapRel (.Notification p b w rd) ac → (∃ x, σ.kheap p.bv = some (.notification x)) →
     notification.receive_signal st ar s a ct p blocking ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveSignal (Z := Unit) ct.bv ac blocking σ).1, Rel r.1 r.2 z.2 ⦄
   /-- The bound TCB of a related notification cap's object. -/
-  bound : ∀ p b w rd ac, CapRel (.Notification p b w rd) ac →
+  bound : ∀ p b w rd ac, CapRel (.Notification p b w rd) ac → (∃ x, σ.kheap p.bv = some (.notification x)) →
     Fl4Spec.getNtfnObjRef (Z := Unit) Fl4Spec.Notification.ntfnBoundTcb p.bv σ =
       ({(Notif.optRef (L.mem s (Notif.nBoundA p)), σ)}, False)
   /-- `handle_fault` of a cap fault. -/
@@ -157,6 +167,7 @@ theorem handle_recv_refines (Rel : S → A → Fl4Spec.State Unit → Prop) (s :
     (hrepr : (L.mem s (Endp.regA ct layout.reg.REPLY)).bv = x.tcbArch.tcbContext.userRegs Fl4Spec.replyRegister)
     (hL : ∀ cptr, cspace.lookup_cap st s ct cptr ⦃ r =>
       Single ((Fl4Spec.lookupCap (Z := Unit) ct.bv (Fl4Spec.toBl cptr.bv)).run σ) σ (CapResRel r) ⦄)
+    (hObj : ∀ cptr, cspace.lookup_cap st s ct cptr ⦃ r => ∀ c, r = .Ok c → CapObjE σ c ⦄)
     (hLv : RecvLeaves (st := st) (ar := ar) Rel ct blocking s a σ) :
     syscall.handle_recv st ar s a blocking canReply ⦃ r =>
       ∃ z ∈ (Fl4Spec.handleRecv (Z := Unit) blocking canReply σ).1, Rel r.1 r.2 z.2 ⦄ := by
@@ -192,8 +203,8 @@ theorem handle_recv_refines (Rel : S → A → Fl4Spec.State Unit → Prop) (s :
   rw [hct]; simp only [bind_ok]
   refine WP.spec_bind (Endp.obj.Tcb.reg.spec s ct layout.reg.CAP) ?_
   rintro c0 rfl
-  refine WP.spec_bind (hL cp) ?_
-  rintro r ⟨e, he, hrel⟩
+  refine WP.spec_bind (WP.spec_and (hL cp) (hObj cp)) ?_
+  rintro r ⟨⟨e, he, hrel⟩, hob⟩
   have hmiss : LookupFaultRel (.MissingCapability 0#u64) (.missingCapability 0) := by simp [LookupFaultRel]
   cases r with
   | Err ex =>
@@ -223,7 +234,8 @@ theorem handle_recv_refines (Rel : S → A → Fl4Spec.State Unit → Prop) (s :
         simp only [↓reduceIte]
         cases canReply
         · simp only [Bool.false_eq_true, ↓reduceIte]
-          refine WP.spec_mono (hLv.ipc _ _ .Null .nullCap hrel (Or.inl ⟨rfl, rfl⟩)) fun r ⟨z, hz, hR⟩ => ⟨z, okb z ?_, hR⟩
+          refine WP.spec_mono (hLv.ipc p b sd g gr .Null .nullCap (hob _ rfl) (Or.inl ⟨rfl, rfl⟩)) fun r ⟨z, hz, hR⟩ =>
+            ⟨z, okb z ?_, hR⟩
           unfold hrBody
           refine mem_bindE_ok hcf ?_
           dsimp only [absCap]
@@ -232,8 +244,8 @@ theorem handle_recv_refines (Rel : S → A → Fl4Spec.State Unit → Prop) (s :
         simp only [↓reduceIte]
         refine WP.spec_bind (Endp.obj.Tcb.reg.spec s ct layout.reg.REPLY) ?_
         rintro c1 rfl
-        refine WP.spec_bind (hL rp) ?_
-        rintro r1 ⟨e1, he1, hrel1⟩
+        refine WP.spec_bind (WP.spec_and (hL rp) (hObj rp)) ?_
+        rintro r1 ⟨⟨e1, he1, hrel1⟩, hob1⟩
         have he1' : (Fl4Spec.lookupCap (Z := Unit) σ.curThread
             (Fl4Spec.dataToCptr (x.tcbArch.tcbContext.userRegs Fl4Spec.replyRegister))).run σ = ({(e1, σ)}, False) := by
           rw [hrp, hcur]; exact he1
@@ -262,7 +274,8 @@ theorem handle_recv_refines (Rel : S → A → Fl4Spec.State Unit → Prop) (s :
             subst hac1
             cases c1
             case Reply rp' g' =>
-              refine WP.spec_mono (hLv.ipc _ _ _ _ hrel (Or.inr ⟨hrel1, rp', g', rfl⟩)) fun r ⟨z, hz, hR⟩ =>
+              refine WP.spec_mono (hLv.ipc p b sd g gr _ _ (hob _ rfl) (Or.inr ⟨hrel1, rp', g', rfl, hob1 _ rfl⟩))
+                fun r ⟨z, hz, hR⟩ =>
                 ⟨z, okb z ?_, hR⟩
               unfold hrBody
               refine mem_bindE_ok hcf ?_
@@ -285,7 +298,7 @@ theorem handle_recv_refines (Rel : S → A → Fl4Spec.State Unit → Prop) (s :
           simp [rightsOf, Fl4Spec.AllowRecv]
         refine WP.spec_bind (Notif.obj.Ntfn.bound_tcb.spec s p) ?_
         rintro v rfl
-        have hbd := hLv.bound p b w rd _ hrel
+        have hbd := hLv.bound p b w rd _ hrel (hob _ rfl)
         have hmemb : ∀ (bt : Option Fl4Spec.ObjRef), bt = Notif.optRef (L.mem s (Notif.nBoundA p)) →
             ((.ok bt, σ) : Except Fl4Spec.Fault _ × _) ∈ ((Fl4Spec.NonDetE.liftE (ε := Fl4Spec.Fault)
               (Fl4Spec.getNtfnObjRef (Z := Unit) Fl4Spec.Notification.ntfnBoundTcb p.bv)).run σ).1 := by
@@ -301,7 +314,7 @@ theorem handle_recv_refines (Rel : S → A → Fl4Spec.State Unit → Prop) (s :
             notification.receive_signal st ar s a ct p blocking ⦃ r =>
               ∃ z ∈ (Fl4Spec.handleRecv (Z := Unit) blocking canReply σ).1, Rel r.1 r.2 z.2 ⦄ := by
           intro hok
-          refine WP.spec_mono (hLv.sig p b w true _ hrel) fun r ⟨z, hz, hR⟩ => ⟨z, okb z ?_, hR⟩
+          refine WP.spec_mono (hLv.sig p b w true _ hrel (hob _ rfl)) fun r ⟨z, hz, hR⟩ => ⟨z, okb z ?_, hR⟩
           unfold hrBody
           refine mem_bindE_ok hcf ?_
           dsimp only [absCap]

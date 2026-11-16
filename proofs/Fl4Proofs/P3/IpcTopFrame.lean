@@ -331,7 +331,7 @@ theorem IpcSchedHyps.withTop {SR : S → Fl4Spec.State Unit → Prop} (hH : IpcS
     IpcSchedHyps st ar N T E R B (SRT st N T C E R B c SR) where
   stableN s s' σ σ' h hW hK hNB := ⟨h.1.stableN hT hW hK, hH.stableN s s' σ σ' h.2 hW hK hNB⟩
   stableE s s' σ σ' h hW hK := ⟨h.1.stableE hW hK, hH.stableE s s' σ σ' h.2 hW hK⟩
-  notQueued s σ t x h hk hr := hH.notQueued s σ t x h.2 hk hr
+  notQueued s σ t x hR h hk hr := hH.notQueued s σ t x hR h.2 hk hr
   block s s' σ σ' t h hq hb hsa hid hW hK hst :=
     ⟨h.1.stableN hT hW hK, hH.block s s' σ σ' t h.2 hq hb hsa hid hW hK hst⟩
   scheduleTcb := hX.scheduleTcb

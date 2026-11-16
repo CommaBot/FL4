@@ -170,6 +170,7 @@ import Fl4Proofs.P3.IpcInsFrame
 import Fl4Proofs.P3.IpcGrant
 import Fl4Proofs.P3.IpcGrantX
 import Fl4Proofs.P3.IpcEpGrant
+import Fl4Proofs.P3.IpcLeaves
 import Fl4Proofs.P3.CancelKSub
 import Fl4Proofs.P3.ResetFin
 import Fl4Proofs.P3.RetypeFresh

@@ -52,7 +52,8 @@ structure IpcSchedHyps (N T E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (SR :
     Prop where
   stableN : ∀ s s' σ σ', SR s σ → WritesIn st s s' (NWrite N T) → NtfnStep σ σ' → NoBlock σ σ' → SR s' σ'
   stableE : ∀ s s' σ σ', SR s σ → WritesIn st s s' (EWrite T E R B) → EpStep σ σ' → SR s' σ'
-  notQueued : ∀ s σ (t : U64) (x : Fl4Spec.Tcb), SR s σ → σ.kheap t.bv = some (.tcb x) →
+  notQueued : ∀ s σ (t : U64) (x : Fl4Spec.Tcb), IpcRel N T E R B (L.mem s) σ → SR s σ →
+    σ.kheap t.bv = some (.tcb x) →
     Fl4Spec.runnable x.tcbState = false → NotQueued σ t.bv
   block : ∀ s s' σ σ' (t : U64), SR s σ → NotQueued σ t.bv → RelIfBound σ t.bv →
     (∀ u, σ.schedulerAction = .switchThread u → u ≠ t.bv) → t.bv ≠ σ.idleThread →

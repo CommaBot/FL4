@@ -411,7 +411,8 @@ facts: `notQueued` (l4v `valid_sched`), the SchedContext steps of the
 wake-up (`IpcWakeHyps`) and the receiver facts of `cancel_ipc`
 (`CancelRecvHyp`). -/
 theorem ipcSchedHyps_full (hP0 : IPlaced N T E R B)
-    (hNQ : ∀ s σ (t : U64) (x : Fl4Spec.Tcb), SRT st N T C E R B c (SRE st N T C E R B c) s σ →
+    (hNQ : ∀ s σ (t : U64) (x : Fl4Spec.Tcb), IpcRel N T E R B (L.mem s) σ →
+      SRT st N T C E R B c (SRE st N T C E R B c) s σ →
       σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = false → NotQueued σ t.bv)
     (hW : IpcWakeHyps st ar N T C E R B c)
     (hX : ∀ s σ (t : U64) (x : Fl4Spec.Tcb), IpcRel N T E R B (L.mem s) σ →

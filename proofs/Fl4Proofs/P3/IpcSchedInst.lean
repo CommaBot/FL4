@@ -397,7 +397,8 @@ def SRE (N T C E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (c : U64) (s : S) 
 for a relation `SR` (see the module docstring). -/
 structure IpcSchedRest (N T E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (SR : S → Fl4Spec.State Unit → Prop) :
     Prop where
-  notQueued : ∀ s σ (t : U64) (x : Fl4Spec.Tcb), SR s σ → σ.kheap t.bv = some (.tcb x) →
+  notQueued : ∀ s σ (t : U64) (x : Fl4Spec.Tcb), IpcRel N T E R B (L.mem s) σ → SR s σ →
+    σ.kheap t.bv = some (.tcb x) →
     Fl4Spec.runnable x.tcbState = false → NotQueued σ t.bv
   wakeTail : ∀ s (a : A) σ (t n : U64) (x : Fl4Spec.Tcb), IpcRel N T E R B (L.mem s) σ → SR s σ → t ∈ T →
     n ∈ N → σ.kheap t.bv = some (.tcb x) → x.tcbState = .running → NotQueued σ t.bv →

@@ -146,7 +146,7 @@ theorem wake_refinesI (hH : IpcSchedHyps st ar N T E R B SR) (hP : IPlaced N T E
     exact this) (NoBlock.tcbUpd hk2 _ _ (Or.inl rfl))
   have hk3 : σ3.kheap t.bv = some (.tcb (setReg x1 Fl4Spec.badge_register badge.bv)) := by simp [σ3]
   have hNQ : NotQueued σ3 t.bv := by
-    have h0 := hH.notQueued s σ t x hSR hk hnr
+    have h0 := hH.notQueued s σ t x hR hSR hk hnr
     have e1 : σ2.readyQueues = σ.readyQueues := by
       show (stsAct _ _).readyQueues = _; unfold stsAct; split_ifs <;> rfl
     have e2 : σ2.releaseQueue = σ.releaseQueue := by

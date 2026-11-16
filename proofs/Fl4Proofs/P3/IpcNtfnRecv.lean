@@ -169,12 +169,18 @@ theorem receive_signal_pollI (hP : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4S
   · simp only [hst, ↓reduceIte, Bool.false_eq_true]
     step
     subst s1_post
-    exact ⟨_, hspec, hR', hS, hW⟩
+    refine ⟨_, hspec, hR', hS, hW, NoBlock.of fun q x1 y1 h1 h2 => ?_⟩
+    by_cases e : q = t.bv
+    · subst e; rw [hkt] at h1; cases h1; simp at h2; cases h2; rfl
+    · simp [e, h1] at h2; cases h2; rfl
   · simp only [hst, ntfn_consts.1, ntfn_consts.2.1, show (1#u64 : U64) ≠ 0#u64 by decide, ↓reduceIte,
       Bool.false_eq_true]
     step
     subst s1_post
-    exact ⟨_, hspec, hR', hS, hW⟩
+    refine ⟨_, hspec, hR', hS, hW, NoBlock.of fun q x1 y1 h1 h2 => ?_⟩
+    by_cases e : q = t.bv
+    · subst e; rw [hkt] at h1; cases h1; simp at h2; cases h2; rfl
+    · simp [e, h1] at h2; cases h2; rfl
 
 
 /-- Receiving from an active notification: the badge register and the

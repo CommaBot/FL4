@@ -142,7 +142,7 @@ variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulSt
 def SingleRelI (N T E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (s : S) (σ : Fl4Spec.State Unit)
     (spec : Set (Unit × Fl4Spec.State Unit) × Prop) (s' : S) : Prop :=
   ∃ σ', spec = ({((), σ')}, False) ∧ IpcRel N T E R B (L.mem s') σ' ∧ NtfnStep σ σ' ∧
-    WritesIn st s s' (NWrite N T)
+    WritesIn st s s' (NWrite N T) ∧ NoBlock σ σ'
 
 /-- **Idle, no bound TCB**: the notification becomes active with the badge. -/
 theorem send_signal_idle_unboundI (hP : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit)
@@ -163,7 +163,7 @@ theorem send_signal_idle_unboundI (hP : IPlaced N T E R B) (s : S) (a : A) (σ :
   step
   subst s1_post
   obtain ⟨hR', hW⟩ := set_active_relI hP hR hn hk hidle badge
-  exact ⟨_, sendSignal_activate hk hidle (Or.inl hb) badge.bv, hR', NtfnStep.ntfn hk rfl rfl, hW⟩
+  exact ⟨_, sendSignal_activate hk hidle (Or.inl hb) badge.bv, hR', NtfnStep.ntfn hk rfl rfl, hW, NoBlock.ntfnUpd _ _ _⟩
 
 /-- **Idle, bound TCB not receiving**: the notification becomes active with
 the badge. -/
@@ -217,7 +217,7 @@ theorem send_signal_idle_bound_idleI (hP : IPlaced N T E R B) (s : S) (a : A) (�
   step with Notif.obj.Tcb.state.spec as ⟨vm_state, hvs⟩
   simp only [hvs, hst', hnvm, decide_false, Bool.false_eq_true, ↓reduceIte, bind_ok, WP.spec_ok]
   exact ⟨trivial, _, sendSignal_activate hk hidle (Or.inr ⟨t, tcb, hb, hkt, hrb⟩) badge.bv, hR',
-    NtfnStep.ntfn hk rfl rfl, hW⟩
+    NtfnStep.ntfn hk rfl rfl, hW, NoBlock.ntfnUpd _ _ _⟩
 
 /-- **Active**: the badge is OR-ed into the pending one. -/
 theorem send_signal_activeI (hP : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit)
@@ -244,7 +244,7 @@ theorem send_signal_activeI (hP : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4Sp
     rw [i_post] at h
     exact h.trans ((BitVec.or_comm _ _).trans (congrArg (badge.bv ||| ·) hb0))
   rw [e] at hR'
-  exact ⟨_, sendSignal_active_eq hk hact badge.bv, hR', NtfnStep.ntfn hk rfl rfl, hW⟩
+  exact ⟨_, sendSignal_active_eq hk hact badge.bv, hR', NtfnStep.ntfn hk rfl rfl, hW, NoBlock.ntfnUpd _ _ _⟩
 
 end
 
