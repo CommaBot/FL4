@@ -355,7 +355,7 @@ def ReadRegsFrameHyp (th : TypedHeap) (s : S) (ct p : U64) : Prop :=
 the source's suspend): an outcome keeping `RL` at every FL4 state, the
 caller still `Restart`, its buffer (when called) in a user frame. -/
 def ReadRegsSpecHyp (th : TypedHeap) (G : MdbGhost) (σ : Fl4Spec.State Unit) (ct p : U64) : Prop :=
-  ∀ (s1 : S) σ1 (flags n : U64) (blk call don : Bool),
+  ∀ (s1 : S) σ1 (flags n : U64) (blk call don : Bool), p ≠ ct →
     Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
     RL (L := L) th G s1 σ1 → ∃ rr σy x, (.ok rr, σy) ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don
       (.invokeTCB (.readRegisters p.bv (Fl4Spec.testBit flags.bv 0) n.bv Fl4Spec.ArchDefaultExtraRegisters))).run
@@ -451,7 +451,7 @@ theorem tcb_read_regs_r (th : TypedHeap) (hP : Placed th)
         rw [run_bind_ok hrc, run_bind_ok (run_liftE (m := Fl4Spec.NonDet.gets fun s : Fl4Spec.State Unit =>
           s.curThread) rfl), whenE_neg (by show ¬ p.bv = σ.curThread; rw [hcur, bv_eq_iff']; exact hpc), retOk_bind]
         rfl
-      obtain ⟨rr, σy, xy, hy, hRLy, hky, hrsy, hnb⟩ := hRS s1 σ1 y0 y1 blk call don hst1 hRL1
+      obtain ⟨rr, σy, xy, hy, hRLy, hky, hrsy, hnb⟩ := hRS s1 σ1 y0 y1 blk call don hpc hst1 hRL1
       refine WP.spec_bind (hR s1 y0 y1 call ar hs1 hr.1 hr.2) ?_
       rintro ⟨s2, a2⟩ ⟨hW2, hst2⟩
       exact (WP.spec_ok _).2 (rm_close' hP a2 (DecOut.of_eq hdec) hst1 rr hy hRLy hky hrsy hnb hW2
