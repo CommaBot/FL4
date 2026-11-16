@@ -18,10 +18,10 @@ still names:
   `TcbDecFootP1` / `CnodeDecFootP1` and `KWDom`.
 * Notification: `decFootP1_notification` and `decDomHyp_of_foot` (DomFoot),
   from P1's `send_signal.tinvF` and `KWDom`.
-* Endpoint, Reply: `decWritesHyp_endpoint`, `decWritesHyp_reply` and
-  `decDomHyp_of_writes` (DomFoot); name P1's `SendIpcFootP1` / `ReplyFootP1`
-  with their placement premise `RS` (receive slots and `cdt.insert`'s MDB
-  neighbours apart from the first 256 bytes), which P1 has yet to state.
+* Endpoint, Reply: `decWritesHyp_endpoint_rsp`, `decWritesHyp_reply_rsp`
+  (IpcRS) and `decDomHyp_of_writes` (DomFoot): P1's `send_ipc.footB` /
+  `do_reply_transfer.foot` at P3's `RSP`; name P1's `XferHyps` and, for the
+  reply, `do_reply_transfer.foot`'s timeout-handler and user-word premises.
 * SchedContext, SchedControl: `domFrame_sched_context`,
   `domFrame_sched_control` (ScTop, ScTopCfg), whole `DomFrame`s under
   `ScPlaced`.

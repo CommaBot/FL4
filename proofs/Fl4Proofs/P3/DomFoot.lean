@@ -164,7 +164,7 @@ theorem decWritesHyp_endpoint {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : 
     (hB : P1.BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (hcb : P1.CanBlock st T Ac s ct) (hdon : don = true → L.mem s (P1.scA ct) ≠ 0#u64)
     (hUO : P1.UserOK st T Cs Ω H U s) (hxf : P1.XferOK st arI T Cs Ω H Sg Rp Scs Nt Z U)
-    (hH : H p = some .ep) (hRS : ∀ s1, L.ksb s1 = L.ksb s → RS s1)
+    (hH : H p = some .ep) (hRS : ∀ s1, P1.Foot st T Cs Sg Scs Z (P1.EH H) s s1 → RS s1)
     (hsend : SendIpcFootP1 (L := L) arI T Cs Ω H Sg Rp Scs Nt Z Ac U RS ct p blk call b g gr don)
     (hD : KWDom (L := L) T Cs Sg Scs Z (P1.EH H) s)
     (hTk : ∀ y ∈ T, y.val + 4096 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ y.val)
@@ -185,7 +185,7 @@ theorem decWritesHyp_endpoint {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : 
     refine WP.spec_bind (P1.sched.set_thread_state.restart_blk (Es := P1.EH H) s ct hB hcb.mem hcb.nb hcb.nrp) ?_
     rintro s1 ⟨hB1, f1, hst1, -⟩
     obtain ⟨hcb1, hdon1⟩ := hcbs s1 hB1 f1 hst1
-    refine WP.spec_bind (hsend hxf hH s1 ar hB1 hcb1 hdon1 (hUO.ksb f1.1) (hRS s1 f1.1)) ?_
+    refine WP.spec_bind (hsend hxf hH s1 ar hB1 hcb1 hdon1 (hUO.ksb f1.1) (hRS s1 f1)) ?_
     rintro ⟨s2, a1⟩ f2
     simp only [WP.uncurry'] at f2
     refine (WP.spec_ok _).2 ((P1.WritesIn.trans f1 f2).mono fun x hx => ?_)
@@ -207,7 +207,7 @@ theorem decWritesHyp_reply {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : Set
     (hctT : ct ∈ T) (hnb : ¬ P1.Blocked (L.mem s (P1.stA ct)))
     (hnr : L.mem s (P1.stA ct) ≠ sched.TS_BLOCKED_ON_REPLY)
     (hUO : P1.UserOK st T Cs Ω H U s) (hE : P1.XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (hr : r ∈ Rp)
-    (hRS : ∀ s1, L.ksb s1 = L.ksb s → RS s1)
+    (hRS : ∀ s1, P1.Foot st T Cs Sg Scs Z (P1.EH H) s s1 → RS s1)
     (hrep : ReplyFootP1 (L := L) arI T Cs Ω H Sg Rp Scs Nt Z Ac U RS ct r g)
     (hD : KWDom (L := L) T Cs Sg Scs Z (P1.EH H) s)
     (hTk : ∀ y ∈ T, y.val + 4096 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ y.val)
@@ -221,7 +221,7 @@ theorem decWritesHyp_reply {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : Set
   refine WP.spec_bind (P1.sched.set_thread_state.restart_blk (Es := P1.EH H) s ct hB hctT hnb hnr) ?_
   rintro s1 ⟨hB1, f1, -, -⟩
   obtain ⟨hq1, hb1, hx1, hs1, hg1⟩ := hB1
-  refine WP.spec_bind (hrep hE hr hctT s1 ar ⟨hq1, hb1, hx1, hg1, hs1⟩ (hUO.ksb f1.1) (hRS s1 f1.1)) ?_
+  refine WP.spec_bind (hrep hE hr hctT s1 ar ⟨hq1, hb1, hx1, hg1, hs1⟩ (hUO.ksb f1.1) (hRS s1 f1)) ?_
   rintro ⟨s2, a1⟩ f2
   simp only [WP.uncurry'] at f2
   refine (WP.spec_ok _).2 ((P1.WritesIn.trans f1 f2).mono fun x hx => ?_)
