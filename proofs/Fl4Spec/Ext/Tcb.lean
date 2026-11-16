@@ -9,10 +9,12 @@ register, else the IPC buffer word `i + 1`, else 0); `fl4GetMr` is that
 read on the spec's state. The effects on state the abstract model does not
 keep (debug registers, the FPU image, the l4h timer queue) are not
 modelled: those invocations change no state but the frame contents of
-ReadFPU and, for SetTimer, possibly `reprogram_timer` (FL4 sets its
+ReadFPU, for SetTimer, possibly `reprogram_timer` (FL4 sets its
 reprogram flag when the new deadline is the core's earliest; the spec sets
-it nondeterministically, never clearing it), and their replies are any
-value of the right shape.
+it nondeterministically, never clearing it), and for ConfigureSingleStepping
+with no instruction count the trap flag (bit 8 of the target's `FLAGS`
+register, cleared as FL4 does), and their replies are any value of the
+right shape.
 
 1. seL4's debug API (`CONFIG_HARDWARE_DEBUG_API`, not in l4v):
    `TCBSetBreakpoint`, `TCBGetBreakpoint`, `TCBUnsetBreakpoint`,
@@ -181,13 +183,20 @@ def decodeFl4TcbExt (l : Fl4TcbExtLabel) (args : List Data) (t : ObjRef) (excaps
 queue are not in the model: those invocations change no state (ReadFPU:
 the machine state, the frame it writes; SetTimer: possibly
 `reprogram_timer`, set, never cleared, as FL4's reprogram flag after an
-insert at the head of the core's timer queue), and their replies are any
-value of the right shape. -/
+insert at the head of the core's timer queue; ConfigureSingleStepping with
+no instruction count: the target's trap flag, cleared), and their replies
+are any value of the right shape. -/
 def invokeFl4Tcb : Fl4TcbInvocation → PMonad Z (List Data)
   | .setBreakpoint .. => NonDetE.returnOk []
   | .getBreakpoint .. => NonDetE.liftE <| NonDet.select {l | l.length = 5}
   | .unsetBreakpoint .. => NonDetE.returnOk []
-  | .configureSingleStepping .. => NonDetE.liftE <| NonDet.select {[0], [1]}
+  | .configureSingleStepping t _ n => NonDetE.liftE <| do
+    -- FL4 (and seL4's x86 `configureSingleStepping`) clears the trap flag
+    -- (bit 8 of `FLAGS`) of the target when single-stepping is turned off
+    NonDet.when (n = 0) <| asUser t do
+      let f ← getRegister .flags
+      setRegister .flags (f &&& ~~~((1 : Word) <<< 8))
+    NonDet.select {[0], [1]}
   | .fpuTransfer _ toFrame _ =>
     if toFrame then NonDetE.liftE <| do
       doMachineOp (NonDet.select (Set.univ : Set MachineState) >>= fun ms => NonDet.modify fun _ => ms)

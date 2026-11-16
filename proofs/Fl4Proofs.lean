@@ -312,3 +312,6 @@ import Fl4Proofs.P3.XTopTcbAll
 import Fl4Proofs.P3.XTopTcbSched
 import Fl4Proofs.P3.IpcSetPrio
 import Fl4Proofs.P3.IpcSetPrioX
+import Fl4Proofs.P3.XTopTcbRest
+import Fl4Proofs.P3.XTopReply
+import Fl4Proofs.P3.XTopTcbData

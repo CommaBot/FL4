@@ -26,12 +26,33 @@ def SingleStepHypW (th : TypedHeap) (s : S) (ct p : U64) : Prop :=
   ∀ s1 bp n (a : A), sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
     debug.configure_single_stepping st arI s1 a p bp n false ⦃ r => WFr (L := L) th s1 r.2.1 ⦄
 
+/-- `cssState` keeps `RL`. -/
+theorem css_rl {th : TypedHeap} {G : MdbGhost} {s : S} {σ1 : Fl4Spec.State Unit} (h : RL (L := L) th G s σ1)
+    {t : Fl4Spec.ObjRef} {x : Fl4Spec.Tcb} (hk : σ1.kheap t = some (.tcb x)) (n : Fl4Spec.Data) :
+    RL (L := L) th G s (cssState σ1 t x n) := by
+  unfold cssState
+  split
+  · exact h.spec hk rfl (fun _ => rfl) rfl rfl rfl rfl rfl
+  · exact h
+
+/-- `cssState` keeps every TCB's state. -/
+theorem css_tcb {σ1 : Fl4Spec.State Unit} {t q : Fl4Spec.ObjRef} {x y : Fl4Spec.Tcb}
+    (hk : σ1.kheap t = some (.tcb x)) (hq : σ1.kheap q = some (.tcb y)) (n : Fl4Spec.Data) :
+    ∃ y', (cssState σ1 t x n).kheap q = some (.tcb y') ∧ y'.tcbState = y.tcbState := by
+  unfold cssState
+  split
+  · by_cases e : q = t
+    · subst e; rw [hk] at hq; cases hq
+      exact ⟨Notif.setReg x .flags (x.tcbArch.tcbContext.userRegs .flags &&& tfMask), by simp [Notif.updK], rfl⟩
+    · exact ⟨y, by simp [Notif.updK, Function.update_of_ne e, hq], rfl⟩
+  · exact ⟨y, hq, rfl⟩
+
 /-- **`tcb::decode` at `TCBConfigureSingleStepping`, called or not**
 (`TcbOKR`). -/
 theorem tcb_single_step_r (th : TypedHeap) (hP : Placed th)
     (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
     (hFR : MdbOKV (L.ksb s) (L.mem s) G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
-    (p : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .invalidInvocation)
+    (p : U64) (hp : th p = some .tcb) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .invalidInvocation)
     (hext : Fl4Spec.fl4TcbExtLabelOf slbl = some .configureSingleStepping)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
     (hC : TCtx (L := L) th s ct)
@@ -63,11 +84,15 @@ theorem tcb_single_step_r (th : TypedHeap) (hP : Placed th)
     rw [run_bind_ok (show (Fl4Spec.fl4Arg (Z := Unit) buffer 0).run σ = _ from hbs),
       run_bind_ok (show (Fl4Spec.fl4Arg (Z := Unit) buffer 1).run σ = _ from hns)]
     rfl
-  have hy : (.ok [0], σ1) ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don
+  obtain ⟨xp, hkp, -⟩ := hRL1.1.1.tcb p hp
+  have hy : (.ok [0], cssState σ1 p.bv xp n.bv) ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don
       (.invokeFl4TCB (.configureSingleStepping p.bv bp.bv n.bv))).run σ1).1 :=
-    mem_liftE (x := ([0], σ1)) ⟨Or.inl rfl, rfl⟩
-  have hnb : call = true → ∀ q, Endp.ipcBufOf true x1 = some q → ∀ z ∈ Endp.mrPairs [0],
-      (Endp.bufAddr q z.1).toNat % 8 = 0 ∧ Fl4Spec.inUserFrame (Endp.bufAddr q z.1) σ1 :=
+    css_mem hkp bp.bv n.bv
+  have hRLy := css_rl hRL1 hkp n.bv
+  obtain ⟨xy, hky, hrsy⟩ := css_tcb hkp hk1 n.bv
+  rw [← hrsy] at hrs1
+  have hnb : call = true → ∀ q, Endp.ipcBufOf true xy = some q → ∀ z ∈ Endp.mrPairs [0],
+      (Endp.bufAddr q z.1).toNat % 8 = 0 ∧ Fl4Spec.inUserFrame (Endp.bufAddr q z.1) (cssState σ1 p.bv xp n.bv) :=
     fun _ _ _ z hz => by simp [Endp.mrPairs] at hz
   refine WP.spec_bind (hS s1 bp n ar hs1) ?_
   rintro ⟨consumed, s2, a2⟩ hW2
@@ -88,13 +113,13 @@ theorem tcb_single_step_r (th : TypedHeap) (hP : Placed th)
     intro s4 hW4
     refine WP.spec_bind (sts_t hP (hC3.wfr hW4) sched.TS_RUNNING) ?_
     rintro s5 ⟨hW5, hst5⟩
-    exact (WP.spec_ok _).2 (rm_close hP a2 (DecOut.of_eq hdec) hst1 hRL1 hk1 hrs1 [0] hy hnb
+    exact (WP.spec_ok _).2 (rm_close' hP a2 (DecOut.of_eq hdec) hst1 [0] hy hRLy hky hrs1 hnb
       (hW2.trans (hW3.trans (hW4.trans hW5))) (by rw [hst5]; exact running_ne_restart))
   cases call
   · simp only [Bool.false_eq_true, ↓reduceIte]
     refine WP.spec_bind (sts_t hP hC2 sched.TS_RUNNING) ?_
     rintro s3 ⟨hW3, hst3⟩
-    exact (WP.spec_ok _).2 (rm_close hP a2 (DecOut.of_eq hdec) hst1 hRL1 hk1 hrs1 [0] hy hnb (hW2.trans hW3)
+    exact (WP.spec_ok _).2 (rm_close' hP a2 (DecOut.of_eq hdec) hst1 [0] hy hRLy hky hrs1 hnb (hW2.trans hW3)
       (by rw [hst3]; exact running_ne_restart))
   · simp only [↓reduceIte]
     refine WP.spec_bind (Fl4Proofs.P0.msg.lookup_ipc_buffer.p0 st s2 true ct L.total) ?_
@@ -719,7 +744,7 @@ theorem tcbOKR_data (th : TypedHeap) (hP : Placed th) (hAT : P0.ArchTotal arI)
     have e : lbl = fl4_abi.label.TCBConfigureSingleStepping :=
       UScalar.eq_of_val_eq (by rw [tcbExtOf_ss he]; simp)
     subst e
-    exact tcb_single_step_r arI th hP s ar σ G hDS hFR hDR p slbl hg h length buf ct hct hcur hC hstall buffer hA hS
+    exact tcb_single_step_r arI th hP s ar σ G hDS hFR hDR p hpt slbl hg h length buf ct hct hcur hC hstall buffer hA hS
       slot extra blk call don _ ci sl excaps
 
 end

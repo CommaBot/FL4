@@ -181,12 +181,12 @@ register word, the spec's `as_user` (`setReg`); the endpoint relation by
 frame, then `IRel.xtop`. -/
 theorem XTopAt.regWr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (hX : XTopAt (L := L) AR Z s a σ) (hK : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s))
-    (hTh : ∀ t, Z.th t = some .tcb → t ∈ Z.T) (hBT : BufTop (L := L) Z.T Z.c s σ) {t : U64} (ht : t ∈ Z.T)
+    (hTh : ∀ t, Z.th t = some .tcb → t ∈ Z.T) (hBT : BufWordRel Z.T (L.mem s) σ) {t : U64} (ht : t ∈ Z.T)
     {x : Fl4Spec.Tcb}
     (hk : σ.kheap t.bv = some (.tcb x)) (r : Fl4Spec.Register) (hr : r ≠ Fl4Spec.badge_register) (v : U64) :
     ∃ G', WX (L := L) AR Z.th (L.wr s (regA t (regIdx r)) v) a
       (Notif.updK σ t.bv (.tcb (Notif.setReg x r v.bv))) G' := by
-  obtain ⟨hIR, hSRT⟩ := hX.irelK hK hBT.1
+  obtain ⟨hIR, hSRT⟩ := hX.irelK hK hBT
   have hP := hX.fin.1.2
   have hPe := hP.ep
   have hSch := hX.fin.1.1.1
@@ -249,7 +249,7 @@ theorem tcb_set_tlsX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar :
     (hX : XTopAt (L := L) AR Z s ar σ) (hKA : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)) (hC : CurRun σ)
     (hTh : ∀ t, Z.th t = some .tcb → t ∈ Z.T)
     (hA : ∀ s a σ G, WX (L := L) AR Z.th s a σ G → Notif.ActReady σ)
-    (hBT : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → BufTop (L := L) Z'.T Z'.c s' σ')
+    (hBT : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → BufWordRel Z'.T (L.mem s') σ')
     (p : U64) (hp : Z.th p = some .tcb) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetTLSBase)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -1173,7 +1173,8 @@ set_option maxHeartbeats 4000000 in
 /-- **TcbXRest's BindNotification at `XTop`**: ScTcb's decode
 (`tcb_bind_ntfn_refines`: the target unbound, the cap's receive right, the
 notification neither waited on nor bound; the bound words by the endpoint
-and notification relations; `NPlaced` [J]), then the leaf (`BindXLeaf`). -/
+and notification relations; `NPlaced` by the scheduler relation), then the
+leaf (`BindXLeaf`). -/
 theorem tcb_bind_ntfnX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (hX : XTopAt (L := L) AR Z s ar σ) (p : U64) (hpT : p ∈ Z.T) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .tcbBindNotification)
@@ -1183,7 +1184,6 @@ theorem tcb_bind_ntfnX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 x2 : U64)
     (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps)
-    (hNP : Notif.NPlaced Z.T Z.N)
     (hcapN : ∀ q b w r, capV (L.mem s) x0 = .Notification q b w r → q ∈ Z.N)
     (blk don : Bool) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef)
@@ -1200,6 +1200,7 @@ theorem tcb_bind_ntfnX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar
     unfold Fl4Spec.decodeTcbInvocation
     rw [hlbl]
   have hNR : Notif.NtfnStateRel Z.N Z.T (L.mem s) σ := hX.fin.1.1.2.2.1
+  have hNP : Notif.NPlaced Z.T Z.N := hX.fin.1.1.1.placed
   have hbnd : ∀ xp, σ.kheap p.bv = some (.tcb xp) → xp.tcbBoundNotification = Notif.optRef (L.mem s (P1.boundA p)) := by
     intro xp hk
     obtain ⟨xp', hkp', hxp⟩ := hX.fin.1.1.2.1.tcb p hpT

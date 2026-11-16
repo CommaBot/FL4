@@ -372,7 +372,10 @@ details.
   machine state) and, for SetTimer, `reprogram_timer`, which may be set
   (never cleared): FL4 sets its reprogram flag when the new deadline is
   the core's earliest, and the queue that decides this is not modelled.
-  Their replies are any value of the right shape.
+  ConfigureSingleStepping with an instruction count of 0 clears the
+  target's trap flag (bit 8 of its `FLAGS` register), as FL4 and seL4's
+  x86 `configureSingleStepping` do; the debug-register state is not
+  modelled. Their replies are any value of the right shape.
   FL4's SetFlags differs from l4v's: the `TRAP_SYSCALLS` flag (l4h) is not
   an l4v `TcbFlag`, so it is not kept and the reply is any word of the new
   flags, and an enabled FPU is not restored lazily

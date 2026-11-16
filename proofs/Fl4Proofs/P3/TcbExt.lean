@@ -385,12 +385,81 @@ theorem decode_step_eq (s : S) (ar : A) (p : U64) (c : tcb.Ctx)
   simp only [Nat.reduceEqDiff, ↓reduceIte]
   rfl
 
+/-- `as_user` of a computation with one outcome. -/
+theorem asUser_det1 {α : Type} {σ : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x : Fl4Spec.Tcb}
+    (hk : σ.kheap t = some (.tcb x)) {f : Fl4Spec.UserMonad α} {a : α} {uc' : Fl4Spec.UserContext}
+    (hf : f (Fl4Spec.archTcbContextGet x.tcbArch) = ({(a, uc')}, False)) :
+    Fl4Spec.asUser (Z := Unit) t f σ =
+      ({(a, Notif.updK σ t (.tcb { x with tcbArch := Fl4Spec.archTcbContextSet uc' x.tcbArch }))}, False) := by
+  unfold Fl4Spec.asUser
+  show (Fl4Spec.NonDet.getsThe _ >>= _) σ = _
+  rw [nd_bind_one (Notif.getTcb_eq hk)]
+  show ((pure _ : Fl4Spec.NonDet (Fl4Spec.State Unit) Fl4Spec.UserContext) >>= _) σ = _
+  rw [Notif.nd_pure_bind']
+  show (Fl4Spec.NonDet.selectF _ >>= _) σ = _
+  rw [nd_bind_one (show Fl4Spec.NonDet.selectF (σ := Fl4Spec.State Unit) (f (Fl4Spec.archTcbContextGet x.tcbArch)) σ =
+      (({((a, uc'), σ)}), False) by
+    rw [hf]; simp only [Fl4Spec.NonDet.selectF]
+    ext ⟨a', b⟩ <;> simp)]
+  show ((pure _ : Fl4Spec.NonDet (Fl4Spec.State Unit) Fl4Spec.Tcb) >>= _) σ = _
+  rw [Notif.nd_pure_bind']
+  exact (nd_bind_one (Notif.setObject_eq (o' := Fl4Spec.KernelObject.tcb
+    { x with tcbArch := Fl4Spec.archTcbContextSet uc' x.tcbArch }) hk rfl) _).trans rfl
+
+theorem mem_whenP_t {σ : Fl4Spec.State Unit} {P : Prop} [Decidable P] {m : Fl4Spec.SMonad Unit Unit}
+    {z : Unit × Fl4Spec.State Unit} (h : P → z ∈ (m σ).1) (h' : ¬ P → z = ((), σ)) :
+    z ∈ (Fl4Spec.NonDet.when P m σ).1 := by
+  unfold Fl4Spec.NonDet.when
+  by_cases hp : P
+  · rw [if_pos hp]; exact h hp
+  · rw [if_neg hp, h' hp]; rfl
+
+/-- The trap flag (bit 8 of `FLAGS`). -/
+def tfMask : Fl4Spec.Word := ~~~((1 : Fl4Spec.Word) <<< 8)
+
+/-- **The spec's state after ConfigureSingleStepping**: with no instruction
+count, the target's trap flag cleared. -/
+def cssState (σ : Fl4Spec.State Unit) (t : Fl4Spec.ObjRef) (x : Fl4Spec.Tcb) (n : Fl4Spec.Data) :
+    Fl4Spec.State Unit :=
+  if n = 0 then Notif.updK σ t (.tcb (Notif.setReg x .flags (x.tcbArch.tcbContext.userRegs .flags &&& tfMask)))
+  else σ
+
+/-- The spec's ConfigureSingleStepping has the outcome `[0]` at `cssState`. -/
+theorem css_mem {σ1 : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x : Fl4Spec.Tcb}
+    (hk : σ1.kheap t = some (.tcb x)) (bp n : Fl4Spec.Data) :
+    ((.ok [0], cssState σ1 t x n) : Except Unit (List Fl4Spec.Data) × Fl4Spec.State Unit) ∈
+      ((Fl4Spec.invokeFl4Tcb (Z := Unit) (.configureSingleStepping t bp n)).run σ1).1 := by
+  unfold Fl4Spec.invokeFl4Tcb
+  refine mem_liftE (x := ([0], cssState σ1 t x n)) ?_
+  refine mem_bind_nd (x := ((), cssState σ1 t x n)) (mem_whenP_t (fun h => ?_) (fun h => ?_)) ⟨Or.inl rfl, rfl⟩
+  · rw [asUser_det1 hk (a := ()) (uc' := ⟨(Fl4Spec.archTcbContextGet x.tcbArch).userFpuState,
+      Function.update (Fl4Spec.archTcbContextGet x.tcbArch).userRegs .flags
+        (x.tcbArch.tcbContext.userRegs .flags &&& tfMask)⟩) (by
+      rw [nd_bind_one (show Fl4Spec.getRegister .flags (Fl4Spec.archTcbContextGet x.tcbArch) =
+        ({((Fl4Spec.archTcbContextGet x.tcbArch).userRegs .flags, Fl4Spec.archTcbContextGet x.tcbArch)}, False)
+        from rfl)]
+      rfl)]
+    simp only [cssState, h, ↓reduceIte]
+    rfl
+  · simp only [cssState, h, ↓reduceIte]
+
+/-- `cssState` keeps the CSpace (`StateRel`, the CDT, `KSub`). -/
+theorem cssState_rel {σ1 : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x : Fl4Spec.Tcb}
+    (hk : σ1.kheap t = some (.tcb x)) (n : Fl4Spec.Data) :
+    (∀ th mm, StateRel th mm σ1 → StateRel th mm (cssState σ1 t x n)) ∧
+      (cssState σ1 t x n).cdt = σ1.cdt ∧ (cssState σ1 t x n).isOriginalCap = σ1.isOriginalCap ∧
+      KSub σ1 (cssState σ1 t x n) := by
+  unfold cssState
+  split
+  · exact ⟨fun _ _ h => h.set_reg hk _ _, rfl, rfl, ksub_updK_tcb hk⟩
+  · exact ⟨fun _ _ h => h, rfl, rfl, KSub.refl _⟩
+
 /-- **`tcb::decode` at `TCBConfigureSingleStepping`, not called**
 (`TcbOK`): no checks; the restart, the debug-register work
 (`SingleStepHyp`) and the caller's `Running`. -/
 theorem tcb_single_step_refines (th : TypedHeap) (hP : Placed th)
     (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
-    (p : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .invalidInvocation)
+    (p : U64) (hp : th p = some .tcb) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .invalidInvocation)
     (hext : Fl4Spec.fl4TcbExtLabelOf slbl = some .configureSingleStepping)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct)
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
@@ -433,8 +502,10 @@ theorem tcb_single_step_refines (th : TypedHeap) (hP : Placed th)
     rw [hc2, hc1]; simp only [P1.LawfulStore.nodeAt, hk2, hk1]; exact hact
   refine WP.spec_bind (set_thread_state_slots th hP s2 ct sched.TS_RUNNING htcb hact2) ?_
   intro s3 hS3
+  obtain ⟨xp, hkp, -⟩ := hDS1.1.1.tcb p hp
+  obtain ⟨hR, hcdt, hio, hK⟩ := cssState_rel hkp n.bv
   exact (WP.spec_ok _).2 (top_of_post hP (DecOut.of_eq hdec) hst1 hDS1 hfr1
-    (regPost_same (hS2.trans hS3) (rr := [0]) (mem_liftE (x := ([0], σ1)) ⟨Or.inl rfl, rfl⟩)))
+    ⟨hS2.trans hS3, _, css_mem hkp bp.bv n.bv, ⟨[0], rfl⟩, hR th, hcdt, hio, hK⟩)
 
 
 /-! ## SetFlags -/
@@ -1189,7 +1260,7 @@ theorem tcb_decode_ext (th : TypedHeap) (hP : Placed th) (hT : TcHyps (L := L) a
     obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf]) (show tcbExtOf _ = some .configureSingleStepping by
       simp [tcbExtOf])
     cases call
-    · exact tcb_single_step_refines arI th hP s ar σ G hDS hFR p slbl hg he length buf ct hct hcur htcb hact (hstall' p)
+    · exact tcb_single_step_refines arI th hP s ar σ G hDS hFR p hp slbl hg he length buf ct hct hcur htcb hact (hstall' p)
         buffer hA hS _ extra blk don _ ci ssl excaps
     · exact hStepCall rfl rfl
   · rintro rfl
