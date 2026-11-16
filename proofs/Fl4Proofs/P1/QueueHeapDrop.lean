@@ -8,11 +8,31 @@ over `H.drop D`'s sets, in the same state.  One lemma per `BlkOK` component
 (`BoundInv.drop`, `SgOK.drop`, `SCsOK.drop`, `XInv.drop`,
 `SchedQueuesInv.drop`) and `BlkOK.drop`.
 -/
-import Fl4Proofs.P1.QueueRetype
+import Fl4Proofs.P1.QueueFinCap
+import Fl4Proofs.P1.QueueHeap
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
 open fl4_core Fl4Proofs.P0.Consts
+
+section
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
+
+/-- **A dead object** for P1 (module docstring). -/
+def DeadQ (st : machine.Store S) [L : LawfulStore st] (H : Heap) (s : S) (q : U64) : Prop :=
+  (H q = some .tcb → L.mem s (stA q) = sched.TS_INACTIVE ∧
+    L.mem s (scA q) = 0#u64 ∧ L.mem s (boundA q) = 0#u64 ∧
+    q ≠ L.actionW s ∧ q ≠ L.idleW s) ∧
+  (H q = some .ep → L.epState s q = 0#u64) ∧
+  (H q = some .ntfn → L.epState s q ≠ 1#u64 ∧ L.mem s (ntfnBtA q) = 0#u64 ∧ L.mem s (ntfnScA q) = 0#u64) ∧
+  (H q = some .reply → L.mem s (rTcbA q) = 0#u64) ∧
+  (∀ z, H q = some (.sc z) → L.mem s (scTcbA q) = 0#u64 ∧ L.mem s (scReplyA q) = 0#u64 ∧
+    L.mem s (scNtfnA q) = 0#u64)
+
+/-- `[lo, hi)` met by `[a, b)`. -/
+def MeetsR (lo hi a b : Nat) : Prop := ¬ (b ≤ lo ∨ hi ≤ a)
+
+end
 
 /-- `H` with the objects at `D` removed. -/
 noncomputable def Heap.drop (H : Heap) (D : U64 → Prop) : Heap := fun q => by
@@ -82,11 +102,25 @@ def KeptRef (H : Heap) (D : U64 → Prop) (x : U64) : Prop := H x ≠ none → �
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
 
-/-- **What dropping the objects at `D` needs** (P3's, from `sym_refs` and the
-untyped region's emptiness): the typed heap, nothing at the null address,
-the dropped objects dead, the current thread and SC kept, the kernel-global
-words in no dropped object, and the references P1's invariants hold
-without a back-pointer naming kept objects. -/
+/-- **What dropping the objects at `D` needs** (P3's, discharged in its
+untyped round from `sym_refs`, `JCovD` and `ut_free`): the typed heap
+(`heap`, `h0`: `HeapOK` and the null address, from the typed-heap relation),
+the dropped objects dead (`dead`: P3's `DeadP`, `DeadP_iff`), the current
+thread and SC kept (`cur`, `csc`: the current thread and its SC are not in
+the untyped's region, `ut_free`), the kernel-global words in no dropped object
+(`ks`: kernel memory is never untyped memory), and the references P1's
+invariants hold without a back-pointer naming kept objects (`KeptRef`): the
+region's objects are unreferenced (`ut_free`: no cap, and by `sym_refs` no
+object field, names them), so each of these is `sym_refs` of the matching
+spec field —
+* `rnext`, `rprev`: a reply's `reply_sc`/`reply_prev` (the reply stack);
+* `screp`: an SC's `sc_replies` head;
+* `bnd`, `ntb`: `tcb_bound_notification` / `ntfn_bound_tcb`;
+* `scn`: `sc_ntfn` (with `ntfn_sc`);
+* `yto`, `yfrom`: `tcb_yield_to` / `sc_yield_from`;
+* `tl`, `node`: the timer trees and debug lists, FL4's own structures with no
+  spec counterpart: their members are live TCBs (the relation's placement of
+  the timer and debug links, `JPlaced`), so none is in the region. -/
 structure DropOK (st : machine.Store S) [L : LawfulStore st] (H : Heap) (D : U64 → Prop) (Cs : Set U64)
     (s : S) : Prop where
   heap : HeapOK H

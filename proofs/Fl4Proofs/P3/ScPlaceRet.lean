@@ -204,13 +204,13 @@ theorem JCovD.retype_step (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem 
     (hwin : WinInit st s' lo hi A k w n us)
     (hb : BlkOK st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
       (Heap.scBits H) Ac s)
+    (hdrop : DropOK st H (RegionD H lo hi) Cs s)
     (hP1 : RetypeP1Step st s s' H Cs Ac lo hi A k w n us) :
     ∃ (H' : Heap) (Ac' : Set U64),
       BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H') (Heap.ntfns H')
         (Heap.scBits H') Ac' s' ∧
       JCovD (L := L) th' H' G' {q | q ∈ D ∧ ¬ NewQ A k w cj q} Cs s' := by
-  obtain ⟨H', Ac', hb', -, hshape, -, hdead⟩ := hP1 hb hlo hhi hbits
-    (fun q kd hq hm => ((region_dead h hU hI hx0 hc0 hreg) q kd hq hm).2) hcur hw hwin
+  obtain ⟨H', Ac', hb', -, hshape, -, hdead⟩ := hP1 hb hlo hhi hbits hdrop hw hwin
   refine ⟨H', Ac', hb', h.retype hE (fun q kd hq => ?_) (fun q _ _ e hd => hdead q e hd) hksb⟩
   rcases hshape q kd hq with ⟨ho, hm⟩ | ⟨⟨j, hj, hv⟩, hk⟩
   · refine Or.inl ⟨ho, fun ⟨j, hj, hv, _⟩ => hm ?_⟩
