@@ -76,7 +76,7 @@ theorem addOKT_window {lo hi A k w us : Nat} {s s' : S}
     have hq4 : q.val % 2 ^ 12 = 0 := by rw [hv, Nat.add_mod, Nat.mul_mod, hk, hA]; simp
     have hbv : (core.num.U64.wrapping_add q K).val = q.val + K.val := by
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-    rcases hwin (by rw [hk1]; rfl) _ (by unfold Aligned; rw [hbv]; omega) (by rw [hbv]; omega)
+    rcases hwin (by rw [hk1]; rfl) (fun z e => by rw [hk1] at e; cases e) _ (by unfold Aligned; rw [hbv]; omega) (by rw [hbv]; omega)
         (by rw [hbv]; omega) with h | ⟨-, j, hj, K', ⟨hK', hK4⟩, he⟩
     · exact h
     · exfalso

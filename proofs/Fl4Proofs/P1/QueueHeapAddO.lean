@@ -16,7 +16,7 @@ variable {H : Heap} {N : U64 → Prop} {Cs : Set U64} {s : S}
 /-- A new `.other` object's word. -/
 def NewOW (N : U64 → Prop) (z : Nat) (b : U64) : Prop := Aligned b ∧ ∃ q, N q ∧ q.val ≤ b.val ∧ b.val < q.val + 2 ^ z
 
-theorem AddOK.frame_eq_other {z : Nat} (A : AddOK st H N (.other z) Cs s) :
+theorem AddOKP.frame_eq_other {z : Nat} (A : AddOKP st H N (.other z) Cs s) :
     (H.add N (.other z)).frame = H.frame := by
   ext b; simp only [Heap.frame, Set.mem_setOf_eq]
   constructor
@@ -27,7 +27,7 @@ theorem AddOK.frame_eq_other {z : Nat} (A : AddOK st H N (.other z) Cs s) :
     have hne : k ≠ .other z := by rcases hkk with h | ⟨z', h⟩ | ⟨h, -⟩ <;> subst h <;> simp
     exact ⟨ha, p, k, (A.some_ne hne).2 hp, hkk, hin⟩
 
-theorem AddOK.omega_other {z : Nat} (A : AddOK st H N (.other z) Cs s) {b : U64}
+theorem AddOKP.omega_other {z : Nat} (A : AddOKP st H N (.other z) Cs s) {b : U64}
     (h : b ∈ (H.add N (.other z)).omega) : b ∈ H.omega ∨ NewOW N z b := by
   obtain ⟨ha, p, k, hp, hk, hin⟩ := h
   rcases Heap.add_eq_some.1 hp with ⟨hn, rfl⟩ | ⟨hn, hp'⟩
@@ -36,7 +36,7 @@ theorem AddOK.omega_other {z : Nat} (A : AddOK st H N (.other z) Cs s) {b : U64}
 
 set_option maxHeartbeats 4000000 in
 /-- **`BlkOK` with zeroed `.other` objects (CNodes) added.** -/
-theorem BlkOK.addOther {z : Nat} (A : AddOK st H N (.other z) Cs s) (hH : HeapOK H) {Ac : Set U64}
+theorem BlkOK.addOther {z : Nat} (A : AddOKP st H N (.other z) Cs s) (hH : HeapOK H) {Ac : Set U64}
     (h : BlkOK st H.tcbs Cs H.omega H H.frame H.replies H.scs H.ntfns H.scBits Ac s) :
     BlkOK st (H.add N (.other z)).tcbs Cs (H.add N (.other z)).omega (H.add N (.other z)) (H.add N (.other z)).frame
       (H.add N (.other z)).replies (H.add N (.other z)).scs (H.add N (.other z)).ntfns

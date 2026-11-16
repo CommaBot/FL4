@@ -34,10 +34,15 @@ variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
 def NewAt (A k w : Nat) (q : U64) : Prop := ∃ j, j < w ∧ q.val = A + j * k
 
 /-- The heap kind of the new objects of FL4 type `n` (user size `us`), if
-they are heap objects: TCB, endpoint, notification, CNode, SC, reply. -/
+they are heap objects: TCB, endpoint, notification, CNode, SC, reply, and the
+untracked kernel objects (`.other`): the VSpace tables (PDPT, PML4, page
+table, page directory) and the EPT tables (4 KiB) and VCPUs (32 KiB).  Frames
+are not heap objects (their words are user words). -/
 def newKind (n us : Nat) : Option HKind :=
   if n = 1 then some .tcb else if n = 2 then some .ep else if n = 3 then some .ntfn else
-  if n = 4 then some (.other (us + 5)) else if n = 5 then some (.sc us) else if n = 6 then some .reply else none
+  if n = 4 then some (.other (us + 5)) else if n = 5 then some (.sc us) else if n = 6 then some .reply else
+  if n = 7 ∨ n = 8 ∨ n = 12 ∨ n = 13 ∨ (15 ≤ n ∧ n ≤ 18) then some (.other 12) else
+  if n = 14 then some (.other 15) else none
 
 /-- The TCB words a new TCB's creation initialises: the context
 (registers, debug registers, FPU: below `F`), the domain (`F + 104`), the
@@ -46,9 +51,13 @@ TCB. -/
 def TcbInitK (K : Nat) : Prop := (K < 3328 ∨ K = 3432 ∨ K = 3576 ∨ K = 3584 ∨ 3600 ≤ K) ∧ K < 4096
 
 /-- **The region after a retype** (module docstring): zero, but the
-initialised words of the new TCBs, when the new objects are heap objects. -/
+initialised words of the new TCBs, when the new objects are heap objects of
+a tracked kind.  The `.other` kinds' words are unconstrained: P1 reads none
+of them, and their creation writes non-zero words (a VCPU's `vcpu::init`:
+its list link, `XCR0`, the I/O bitmap and the VMCS/VMCB defaults; a PML4's
+kernel mappings, `copy_global_mappings`). -/
 def WinInit (st : machine.Store S) [L : LawfulStore st] (s' : S) (lo hi A k w n us : Nat) : Prop :=
-  (newKind n us).isSome → ∀ b : U64, Aligned b → lo ≤ b.val → b.val < hi →
+  (newKind n us).isSome → (∀ z, newKind n us ≠ some (.other z)) → ∀ b : U64, Aligned b → lo ≤ b.val → b.val < hi →
     L.mem s' b = 0#u64 ∨ (n = 1 ∧ ∃ j, j < w ∧ ∃ K, TcbInitK K ∧ b.val = A + j * k + K)
 
 /-- The objects meeting the region `[lo, hi)` (those a reset or retype drops). -/

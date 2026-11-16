@@ -94,12 +94,12 @@ theorem retype_writes {lo hi A k w n : Nat} {s s' : S} {Ac : Set U64} (hn1 : n �
       DbgW st (Heap.tcbs H) Cs s b)) → _ := fun b hb' => retype_write_cls P hnode hb'.1 hb'.2
   exact ⟨blk_of_writesD hb1 hw.al hB (hdbg.tz P hn1), agreeD_of_writes hb1 hw.al hB⟩
 
-/-- **The new objects' placement**, from the window. -/
-theorem addOK_window {lo hi A k w n us : Nat} {s s' : S} {kd : HKind} (hkd : newKind n us = some kd) (hn1 : n ≠ 1)
+/-- **The new objects' placement** (no zero words), from the window. -/
+theorem addOKP_window {lo hi A k w n us : Nat} {s s' : S} {kd : HKind} (hkd : newKind n us = some kd)
     (hlo : lo ≤ A) (hhi : A + w * k ≤ hi) (hbits : ∀ kd, newKind n us = some kd → 2 ^ kd.bits ≤ k)
-    (hnode : RegionOffNodes st Cs s lo hi) (hwin : WinInit st s' lo hi A k w n us) (hwp : WinPlaced A k w n us)
+    (hnode : RegionOffNodes st Cs s lo hi) (hwp : WinPlaced A k w n us)
     (hks : L.ksb s' = L.ksb s) :
-    AddOK st (H.drop (RegionD H lo hi)) (NewAt A k w) kd Cs s' := by
+    AddOKP st (H.drop (RegionD H lo hi)) (NewAt A k w) kd Cs s' := by
   have hb := hbits kd hkd
   obtain ⟨hal, hfit, hA0, -⟩ := hwp
   obtain ⟨hA, hk⟩ := hal kd hkd
@@ -108,7 +108,7 @@ theorem addOK_window {lo hi A k w n us : Nat} {s s' : S} {kd : HKind} (hkd : new
     rintro q ⟨j, hj, hq⟩; exact ⟨j, hj, hq, Nat.mul_le_mul_right _ hj⟩
   have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp [LawfulStore.nodeBase, hks]
   refine ⟨fun q hq => ?_, fun q hq => ?_, fun q hq => ?_, fun q hq => ?_, fun q hq p kp hp => ?_,
-    fun q q' hq hq' hne => ?_, fun q hq c hc => ?_, fun q hq => ?_, fun q hq b ha h1 h2 => ?_⟩
+    fun q q' hq hq' hne => ?_, fun q hq c hc => ?_, fun q hq => ?_⟩
   · obtain ⟨j, hj, hv, hjk⟩ := pos hq
     unfold Heap.drop
     by_cases hD : RegionD H lo hi q
@@ -146,11 +146,24 @@ theorem addOK_window {lo hi A k w n us : Nat} {s s' : S} {kd : HKind} (hkd : new
   · obtain ⟨j, -, hv, hjk⟩ := pos hq
     rw [Nat.add_mul, Nat.one_mul] at hjk
     rw [hks]; rcases hnode.2 with h | h <;> omega
-  · obtain ⟨j, -, hv, hjk⟩ := pos hq
-    rw [Nat.add_mul, Nat.one_mul] at hjk
-    rcases hwin (by rw [hkd]; rfl) b ha (by omega) (by omega) with h | ⟨h, -⟩
-    · exact h
-    · exact absurd h hn1
+
+/-- **The new objects' placement and zero words**, from the window (a
+tracked kind). -/
+theorem addOK_window {lo hi A k w n us : Nat} {s s' : S} {kd : HKind} (hkd : newKind n us = some kd) (hn1 : n ≠ 1)
+    (hno : ∀ z, kd ≠ .other z)
+    (hlo : lo ≤ A) (hhi : A + w * k ≤ hi) (hbits : ∀ kd, newKind n us = some kd → 2 ^ kd.bits ≤ k)
+    (hnode : RegionOffNodes st Cs s lo hi) (hwin : WinInit st s' lo hi A k w n us) (hwp : WinPlaced A k w n us)
+    (hks : L.ksb s' = L.ksb s) :
+    AddOK st (H.drop (RegionD H lo hi)) (NewAt A k w) kd Cs s' := by
+  refine ⟨addOKP_window hkd hlo hhi hbits hnode hwp hks, fun q hq b ha h1 h2 => ?_⟩
+  obtain ⟨j, hj, hv⟩ := hq
+  have hjk : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right _ hj
+  rw [Nat.add_mul, Nat.one_mul] at hjk
+  have hb := hbits kd hkd
+  rcases hwin (by rw [hkd]; rfl) (fun z e => hno z (by rw [hkd] at e; cases e; rfl)) b ha (by omega) (by omega)
+    with h | ⟨h, -⟩
+  · exact h
+  · exact absurd h hn1
 
 end
 
@@ -178,19 +191,10 @@ structure RetypeFams (st : machine.Store S) [L : LawfulStore st] : Prop where
 
 theorem newKind_cases {n us : Nat} (h1 : n ≠ 1) :
     newKind n us = none ∨ newKind n us = some .ep ∨ newKind n us = some .ntfn ∨ newKind n us = some .reply ∨
-      newKind n us = some (.other (us + 5)) ∨ (n = 5 ∧ newKind n us = some (.sc us)) := by
+      (∃ z, newKind n us = some (.other z) ∧ 5 ≤ z) ∨ (n = 5 ∧ newKind n us = some (.sc us)) := by
   unfold newKind
-  by_cases h5 : n = 5
-  · simp [h5]
-  by_cases h4 : n = 4
-  · simp [h4]
-  by_cases h2 : n = 2
-  · simp [h2]
-  by_cases h3 : n = 3
-  · simp [h3]
-  by_cases h6 : n = 6
-  · simp [h6]
-  simp [h1, h2, h3, h4, h5, h6]
+  simp only [h1, if_false]
+  split_ifs <;> simp_all
 
 end
 
@@ -213,25 +217,25 @@ theorem retypeP1Step_base {s s' : S} {H : Heap} {Cs Ac : Set U64} {lo hi A k w n
   intro hb hlo hhi hbits P hnode hw hwin hdbg hwp h0Cs
   obtain ⟨hb1, G⟩ := retype_writes hn hb P hnode hw hdbg
   have hus7 : ∀ z, newKind n us = some (.sc z) → 7 ≤ z := fun z hz => by
-    rcases newKind_cases (us := us) hn with h | h | h | h | h | ⟨h5, h⟩ <;> rw [h] at hz <;> cases hz
+    rcases newKind_cases (us := us) hn with h | h | h | h | ⟨z', h, -⟩ | ⟨h5, h⟩ <;> rw [h] at hz <;> cases hz
     exact hwp.2.2.2 h5
   have hH1 : HeapOK (H.drop (RegionD H lo hi)) := P.heap.drop
   have hB : ∃ Ac', BlkOK st (retypeHeap H lo hi A k w n us).tcbs Cs (retypeHeap H lo hi A k w n us).omega
       (retypeHeap H lo hi A k w n us) (retypeHeap H lo hi A k w n us).frame (retypeHeap H lo hi A k w n us).replies
       (retypeHeap H lo hi A k w n us).scs (retypeHeap H lo hi A k w n us).ntfns
       (retypeHeap H lo hi A k w n us).scBits Ac' s' := by
-    rcases newKind_cases hn with hk | hk | hk | hk | hk | ⟨h5, hk⟩
+    rcases newKind_cases hn with hk | hk | hk | hk | ⟨z, hk, -⟩ | ⟨h5, hk⟩
     · rw [retypeHeap_none hk]; exact ⟨_, hb1⟩
     · rw [retypeHeap_some hk]
-      exact ⟨_, BlkOK.addEp (addOK_window hk hn hlo hhi hbits hnode hwin hwp G.ksb) hH1 hb1⟩
+      exact ⟨_, BlkOK.addEp (addOK_window hk hn (by simp) hlo hhi hbits hnode hwin hwp G.ksb) hH1 hb1⟩
     · rw [retypeHeap_some hk]
-      exact ⟨_, BlkOK.addNtfn (addOK_window hk hn hlo hhi hbits hnode hwin hwp G.ksb) hH1 hb1⟩
+      exact ⟨_, BlkOK.addNtfn (addOK_window hk hn (by simp) hlo hhi hbits hnode hwin hwp G.ksb) hH1 hb1⟩
     · rw [retypeHeap_some hk]
-      exact ⟨_, BlkOK.addReply (addOK_window hk hn hlo hhi hbits hnode hwin hwp G.ksb) hH1 hb1⟩
+      exact ⟨_, BlkOK.addReply (addOK_window hk hn (by simp) hlo hhi hbits hnode hwin hwp G.ksb) hH1 hb1⟩
     · rw [retypeHeap_some hk]
-      exact ⟨_, BlkOK.addOther (addOK_window hk hn hlo hhi hbits hnode hwin hwp G.ksb) hH1 hb1⟩
+      exact ⟨_, BlkOK.addOther (addOKP_window hk hlo hhi hbits hnode hwp G.ksb) hH1 hb1⟩
     · rw [retypeHeap_some hk]
-      exact ⟨_, BlkOK.addSc (addOK_window hk hn hlo hhi hbits hnode hwin hwp G.ksb) hH1 (hus7 us hk) h0Cs hb1⟩
+      exact ⟨_, BlkOK.addSc (addOK_window hk hn (by simp) hlo hhi hbits hnode hwin hwp G.ksb) hH1 (hus7 us hk) h0Cs hb1⟩
   have heq : ∀ q, retypeHeap H lo hi A k w n us q =
       if NewAt A k w q ∧ (newKind n us).isSome then newKind n us else H.drop (RegionD H lo hi) q := fun q => by
     unfold retypeHeap; rfl
@@ -240,8 +244,8 @@ theorem retypeP1Step_base {s s' : S} {H : Heap} {Cs Ac : Set U64} {lo hi A k w n
     obtain ⟨kd, hkd⟩ := Option.isSome_iff_exists.1 hs
     have := hbits kd hkd
     have h8 : 8 ≤ 2 ^ kd.bits := by
-      rcases newKind_cases hn with h | h | h | h | h | ⟨-, h⟩ <;> rw [h] at hkd <;> cases hkd <;> simp [HKind.bits]
-      · exact le_trans (by decide) (Nat.pow_le_pow_right (by decide) (by omega : 3 ≤ us + 5))
+      rcases newKind_cases hn with h | h | h | h | ⟨z, h, hz⟩ | ⟨-, h⟩ <;> rw [h] at hkd <;> cases hkd <;> simp [HKind.bits]
+      · exact le_trans (by decide) (Nat.pow_le_pow_right (by decide) (by omega : 3 ≤ z))
       · exact le_trans (by decide) (Nat.pow_le_pow_right (by decide) (by have := hus7 us h; omega : 3 ≤ us))
     have : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right _ hj
     rw [Nat.add_mul, Nat.one_mul] at this
@@ -267,19 +271,24 @@ theorem retypeP1Step_base {s s' : S} {H : Heap} {Cs Ac : Set U64} {lo hi A k w n
     by_cases hc : NewAt A k w q ∧ (newKind n us).isSome
     · obtain ⟨kd, hkd⟩ := Option.isSome_iff_exists.1 hc.2
       have hq' : retypeHeap H lo hi A k w n us q = some kd := by rw [heq, if_pos hc, hkd]
-      have Aw := addOK_window (H := H) hkd hn hlo hhi hbits hnode hwin hwp G.ksb
+      by_cases ho : ∃ z, kd = .other z
+      · obtain ⟨z, rfl⟩ := ho
+        unfold DeadQ; rw [hq']
+        exact ⟨(fun h => by cases h), (fun h => by cases h), (fun h => by cases h), (fun h => by cases h),
+          (fun z h => by cases h)⟩
+      have Aw := addOK_window (H := H) hkd hn (fun z e => ho ⟨z, e⟩) hlo hhi hbits hnode hwin hwp G.ksb
       have z := Aw.zero q hc.1
       have al := Aw.align q hc.1
       have fi := Aw.fits q hc.1
-      have hkk : kd = .ep ∨ kd = .ntfn ∨ kd = .reply ∨ kd = .other (us + 5) ∨ (kd = .sc us ∧ 7 ≤ us) := by
-        rcases newKind_cases hn with h | h | h | h | h | ⟨-, h⟩ <;> rw [h] at hkd <;> cases hkd <;> simp
-        exact hus7 us h
+      have hkk : kd = .ep ∨ kd = .ntfn ∨ kd = .reply ∨ (kd = .sc us ∧ 7 ≤ us) := by
+        rcases newKind_cases hn with h | h | h | h | ⟨z', h, -⟩ | ⟨-, h⟩ <;> rw [h] at hkd <;> cases hkd <;> simp
+        · exact absurd ⟨z', rfl⟩ ho
+        · exact hus7 us h
       have zw : ∀ o : U64, o.val < 2 ^ kd.bits → o.val % 8 = 0 →
           L.mem s' (core.num.U64.wrapping_add q o) = 0#u64 := fun o ho h8 => by
         have h16 : 8 ∣ 2 ^ kd.bits := by
-          rcases hkk with rfl | rfl | rfl | rfl | ⟨rfl, h7⟩
+          rcases hkk with rfl | rfl | rfl | ⟨rfl, h7⟩
           any_goals decide
-          · exact Nat.pow_dvd_pow 2 (by omega : 3 ≤ us + 5)
           · exact Nat.pow_dvd_pow 2 (by omega : 3 ≤ us)
         have hq8 : q.val % 8 = 0 := by have := Nat.mod_mod_of_dvd q.val h16; omega
         have hv : (core.num.U64.wrapping_add q o).val = q.val + o.val := by
@@ -287,7 +296,7 @@ theorem retypeP1Step_base {s s' : S} {H : Heap} {Cs Ac : Set U64} {lo hi A k w n
         exact z _ (by unfold Aligned; rw [hv]; omega) (by rw [hv]; omega) (by rw [hv]; omega)
       unfold DeadQ
       rw [hq']
-      rcases hkk with rfl | rfl | rfl | rfl | ⟨rfl, h7⟩
+      rcases hkk with rfl | rfl | rfl | ⟨rfl, h7⟩
       · refine ⟨(fun h => by cases h), (fun _ => ?_), (fun h => by cases h), (fun h => by cases h), (fun z h => by cases h)⟩
         unfold LawfulStore.epState epTSA
         rw [zw _ (by simp [layout.ep.TAIL_STATE, HKind.bits]) (by simp [layout.ep.TAIL_STATE])]; rfl
@@ -299,8 +308,6 @@ theorem retypeP1Step_base {s s' : S} {H : Heap} {Cs Ac : Set U64} {lo hi A k w n
         · unfold ntfnScA; exact zw _ (by simp [layout.ntfn.SC, HKind.bits]) (by simp [layout.ntfn.SC])
       · refine ⟨(fun h => by cases h), (fun h => by cases h), (fun h => by cases h), (fun _ => ?_), (fun z h => by cases h)⟩
         unfold rTcbA; exact zw _ (by simp [layout.reply.TCB, HKind.bits]) (by simp [layout.reply.TCB])
-      · exact ⟨(fun h => by cases h), (fun h => by cases h), (fun h => by cases h), (fun h => by cases h),
-          (fun z h => by cases h)⟩
       · have h128 : 128 ≤ 2 ^ (HKind.sc us).bits := le_trans (by decide) (Nat.pow_le_pow_right (by decide) h7)
         refine ⟨(fun h => by cases h), (fun h => by cases h), (fun h => by cases h), (fun h => by cases h),
           (fun z' _ => ⟨?_, ?_, ?_⟩)⟩

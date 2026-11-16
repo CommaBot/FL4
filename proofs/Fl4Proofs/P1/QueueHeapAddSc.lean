@@ -125,7 +125,7 @@ theorem BlkOK.addSc (A : AddOK st H N (.sc z) Cs s) (hH : HeapOK H) (hz : 7 ≤ 
     nw c hc layout.sc.SPORADIC (by simp [layout.sc.SPORADIC]) (by simp [layout.sc.SPORADIC])
   have q : SchedQueuesInv st H.tcbs Cs (H.add N (.sc z)).omega (H.add N (.sc z)) s Q R :=
     { h0 with
-      eps := h0.eps.addOther (by simp) A hH fun a ha => (A.omega_sc ha).imp id fun ⟨hal, c, hc, h1, h2⟩ =>
+      eps := h0.eps.addOther (by simp) A.toAddOKP hH fun a ha => (A.omega_sc ha).imp id fun ⟨hal, c, hc, h1, h2⟩ =>
         ⟨c, hc, hal, h1, h2⟩
       omega := fun a ha => by
         rcases A.omega_sc ha with ha | ⟨hal, c, hc, h1, h2⟩

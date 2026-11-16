@@ -233,7 +233,7 @@ region; TCBs 4 KiB). -/
 theorem winInit_of_winZero {s' : S} {A k win n us : Nat} (h : WinZero (L.mem s') A k win (n = 1))
     (hk : n = 1 → k = 4096) (hfit : A + win * k ≤ 2 ^ 64) :
     P1.WinInit st s' A (A + win * k) A k win n us := by
-  intro _ b hb h1 h2
+  intro _ _ b hb h1 h2
   rcases h b hb h1 h2 with e | ⟨hn, j, hj, hT⟩
   · exact Or.inl e
   · right
