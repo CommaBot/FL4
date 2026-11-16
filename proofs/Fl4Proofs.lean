@@ -62,6 +62,12 @@ import Fl4Proofs.P3.MdbFull
 import Fl4Proofs.P3.Sc
 import Fl4Proofs.P3.Ep
 import Fl4Proofs.P3.IpcRel
+import Fl4Proofs.P3.IpcNtfnBase
+import Fl4Proofs.P3.IpcNtfnSend
+import Fl4Proofs.P3.IpcNtfnSched
+import Fl4Proofs.P3.IpcNtfnWake
+import Fl4Proofs.P3.IpcNtfnRecv
+import Fl4Proofs.P3.IpcNtfnBlock
 import Fl4Proofs.P3.TcbRel
 import Fl4Proofs.P3.EpFaultUs
 import Fl4Proofs.P3.EpComb
