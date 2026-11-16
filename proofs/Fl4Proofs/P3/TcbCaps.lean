@@ -13,6 +13,7 @@ import Fl4Proofs.P3.InsAbs
 import Fl4Proofs.P3.SoSpec
 import Fl4Proofs.P3.CnodeKey
 import Fl4Proofs.P3.MdbStepVs
+import Fl4Proofs.P3.DelWIns
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -505,11 +506,83 @@ theorem InstPostQ.old {Q : (U64 → U64) → MdbGhost → Prop} {th : TypedHeap}
     (h : InstPostQ (L := L) Q th t m s σ res) : InstPost (L := L) th t m s σ res := by
   obtain ⟨σ', G', hc, hDS, -⟩ := h; exact ⟨σ', G', hc, hDS⟩
 
+/-- `InstPostQ` with an invariant `W` of the whole state (the W-threading). -/
+def InstPostW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (t : U64)
+    (m : Fl4Spec.PMonad Unit Unit) (s : S) (σ : Fl4Spec.State Unit)
+    (res : core.result.Result Unit error.Exc × S × A) : Prop :=
+  ∃ σ' G', ((res.1 = .Ok () ∧ (.ok (), σ') ∈ (m.run σ).1 ∧ InstFr th t (L.mem s) (L.mem res.2.1)) ∨
+      (res.1 = .Err .Preempted ∧ (.error (), σ') ∈ (m.run σ).1)) ∧
+    DState (L := L) th res.2.1 σ' G' ∧ W res.2.1 res.2.2 σ' G'
+
+theorem InstPostW.toQ {Q : (U64 → U64) → MdbGhost → Prop} {th : TypedHeap} {t : U64} {m : Fl4Spec.PMonad Unit Unit}
+    {s : S} {σ : Fl4Spec.State Unit} {res : core.result.Result Unit error.Exc × S × A}
+    (h : InstPostW (L := L) (WQ (L := L) (A := A) Q) th t m s σ res) : InstPostQ (L := L) Q th t m s σ res := h
+
 /-- **`tcb::install_tcb_cap` refines l4v `install_tcb_cap`** (slot `n` of
 TCB `t`, the new cap `nc` derived from the cap at the source slot): FL4's
 `delete(slot, true)` against `cap_delete`, then the checks and the insert
 (`install_after`). The deletion's hypotheses are `DelRound`'s; the CSpace
 is small enough for its fuel (`hB`). -/
+theorem install_tcb_cap_refinesW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (hP : Placed th)
+    (hH : DelHypsW (L := L) arI W th)
+    (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK6 : 6 ≤ K)
+    (hB : ∀ m G, MdbLinks th m G → psiD m G * (K + 1) + K < 2 ^ 64 - 1)
+    (s0 s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    (hW : W s a σ G)
+    (t : U64) (ht : th t = some .tcb) (n : Nat) (hn : n < tcbSlots) (idx : U64) (hidx : idx.val = n)
+    (hcz0 : InstFr th t (L.mem s0) (L.mem s))
+    (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot th ssl)
+    (nc : capability.Cap) (hwf : CapWf nc) (hcv : CapValid th nc) (he : EncWf nc)
+    (hfw : isFrame nc = true → Fl4Spec.sameObjectAs (absCap nc) (absCap nc))
+    {ps : U64} {rs : Nat} (hps : th ps = some (.cnode rs)) {idxs : List Bool} (hls : idxs.length = rs)
+    {srcC0 : capability.Cap} (hsrc0 : capV (L.mem s0) (cslotAddr (ps.bv, idxs)) = srcC0)
+    (hsh : shape nc = shape srcC0) (hbd : badgeF nc = badgeF srcC0 ∨ badgeF srcC0 = 0#u64)
+    (hkey : okey nc = okey srcC0)
+    (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 srcC0 → Vs.VCapOK P L4 L3 L2 L1 nc)
+    (hep : n = 3 → nc ≠ .Null → ∃ e b x1 x2 x3 x4, nc = .Endpoint e b x1 x2 x3 x4) :
+    tcb.install_tcb_cap st arI s a t (cslotAddr ssl) idx nc (cslotAddr (ps.bv, idxs)) ⦃ res =>
+      InstPostW (L := L) W th t (Fl4Spec.installTcbCap t.bv ssl n (some (absCap nc, (ps.bv, idxs)))) s0 σ res ⦄ := by
+  have hAt : AbsSlot th (t.bv, Fl4Spec.tcbCnodeIndex n) := ⟨t, rfl, Or.inr ⟨ht, n, hn, rfl⟩⟩
+  have hAsrc : AbsSlot th (ps.bv, idxs) := ⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩
+  have hsrcT := cnode_slot_ne_tcb hP hps hls ht
+  have hczs0 := hcz0.1 _ hAsrc.isSlot hsrcT
+  have hsh0 : shape nc = shape (capV (L.mem s0) (cslotAddr (ps.bv, idxs))) := by rw [hsrc0]; exact hsh
+  unfold tcb.install_tcb_cap
+  rw [spec_eq_ok (tcb_slot_spec t idx), tcb_root_eq t idx hn hidx]
+  simp only [bind_ok]
+  obtain ⟨c0, a0, hc0, hca0, hg0⟩ := hDS.1.1.abs_cap hAt
+  by_cases hc0n : c0 = .Null
+  · subst hc0n
+    rw [delete_null_eq arI s a _ hc0 σ]
+    simp only [bind_ok, core.result.Result.Insts.CoreOpsTry.branch, uncurry_apply_pair]
+    refine WP.spec_mono (WP.spec_and (install_after th hP s0 s a σ G hDS t ht n hn (by rw [capV_of_capAt hc0])
+      ssl hAs nc hwf hcv he hfw hps hls hczs0 hsrc0 hsh hbd hkey hv)
+      (install_after_frame hP s a hDS.1.2.2.1 hDS.2.1 t (cslotAddr ssl) nc hAsrc.isSlot hAt.isSlot)) ?_
+    rintro res ⟨⟨σ', G', hrun, hr1, ha1, hDS', hcap, hst, htg⟩, hF⟩
+    have hg0' : Fl4Spec.getCap (Z := Unit) (t.bv, Fl4Spec.tcbCnodeIndex n) σ = ({(.nullCap, σ)}, False) := by
+      rw [hg0, hca0.abs]; rfl
+    refine ⟨σ', G', Or.inl ⟨hr1, mem_bindE_ok (by rw [capDelete_null hg0']; rfl) (mem_of_run hrun),
+      hcz0.install hP ht hn (fun y hy hne => ChgZ.of_eq (hcap y hy hne)) htg hAsrc.isSlot hsh0 hep⟩,
+      hDS', by rw [ha1]; exact hH.slot s res.2.1 a σ σ' G G' hW hDS hDS' hF (cnk_of_inst hrun) hst⟩
+  · apply WP.spec_bind (delete_fullW arI W th hP (finalHyp_full th hP) hH K hK hK6 _ hAt s a σ G hDS hW
+      (by rw [capV_of_capAt hc0]; exact hc0n) (hB _ G hDS.1.2.2.1))
+    rintro ⟨r, s1, a1⟩ ⟨σ1, G1, hDS1, -, -, hmD, hcase, hW1⟩
+    simp only [uncurry_apply_pair] at hcase hDS1 hmD hW1 ⊢
+    rcases hcase with ⟨rfl, hmem, -, hnull, hcz⟩ | ⟨rfl, hmem⟩
+    · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+      refine WP.spec_mono (WP.spec_and (install_after th hP s0 s1 a1 σ1 G1 hDS1 t ht n hn hnull ssl hAs nc hwf hcv he
+        hfw hps hls (hczs0.trans (hcz _ hAsrc.isSlot (hsrcT n hn))) hsrc0 hsh hbd hkey hv)
+        (install_after_frame hP s1 a1 hDS1.1.2.2.1 hDS1.2.1 t (cslotAddr ssl) nc hAsrc.isSlot hAt.isSlot)) ?_
+      rintro res ⟨⟨σ', G', hrun, hr1, ha1, hDS', hcap, hst, htg⟩, hF⟩
+      exact ⟨σ', G', Or.inl ⟨hr1, mem_bindE_ok hmem (mem_of_run hrun),
+        hcz0.install hP ht hn (fun y hy hne => (hcz y hy hne).trans (ChgZ.of_eq (hcap y hy hne))) htg
+          hAsrc.isSlot hsh0 hep⟩,
+        hDS', by rw [ha1]; exact hH.slot s1 res.2.1 a1 σ1 σ' G1 G' hW1 hDS1 hDS' hF (cnk_of_inst hrun) hst⟩
+    · simp only [core.result.Result.Insts.CoreOpsTry.branch,
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
+        bind_ok, bind_tc_ok, WP.spec_ok]
+      exact ⟨σ1, G1, Or.inr ⟨rfl, mem_bindE_err hmem⟩, hDS1, hW1⟩
+
 theorem install_tcb_cap_refinesQ {Q : (U64 → U64) → MdbGhost → Prop} (hQ : ∀ m G m' G', MdbStep m G m' G' → Q m G → Q m' G') (th : TypedHeap) (hP : Placed th) (hO : FinObjHyp (L := L) arI th)
     (hPP : PPHypD (L := L) arI th) (hPD : PostDelHyp (L := L) arI th)
     (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK6 : 6 ≤ K)
@@ -528,45 +601,9 @@ theorem install_tcb_cap_refinesQ {Q : (U64 → U64) → MdbGhost → Prop} (hQ :
     (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 srcC0 → Vs.VCapOK P L4 L3 L2 L1 nc)
     (hep : n = 3 → nc ≠ .Null → ∃ e b x1 x2 x3 x4, nc = .Endpoint e b x1 x2 x3 x4) :
     tcb.install_tcb_cap st arI s a t (cslotAddr ssl) idx nc (cslotAddr (ps.bv, idxs)) ⦃ res =>
-      InstPostQ (L := L) Q th t (Fl4Spec.installTcbCap t.bv ssl n (some (absCap nc, (ps.bv, idxs)))) s0 σ res ⦄ := by
-  have hAt : AbsSlot th (t.bv, Fl4Spec.tcbCnodeIndex n) := ⟨t, rfl, Or.inr ⟨ht, n, hn, rfl⟩⟩
-  have hAsrc : AbsSlot th (ps.bv, idxs) := ⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩
-  have hsrcT := cnode_slot_ne_tcb hP hps hls ht
-  have hczs0 := hcz0.1 _ hAsrc.isSlot hsrcT
-  have hsh0 : shape nc = shape (capV (L.mem s0) (cslotAddr (ps.bv, idxs))) := by rw [hsrc0]; exact hsh
-  unfold tcb.install_tcb_cap
-  rw [spec_eq_ok (tcb_slot_spec t idx), tcb_root_eq t idx hn hidx]
-  simp only [bind_ok]
-  obtain ⟨c0, a0, hc0, hca0, hg0⟩ := hDS.1.1.abs_cap hAt
-  by_cases hc0n : c0 = .Null
-  · subst hc0n
-    rw [delete_null_eq arI s a _ hc0 σ]
-    simp only [bind_ok, core.result.Result.Insts.CoreOpsTry.branch, uncurry_apply_pair]
-    refine WP.spec_mono (install_after th hP s0 s a σ G hDS t ht n hn (by rw [capV_of_capAt hc0])
-      ssl hAs nc hwf hcv he hfw hps hls hczs0 hsrc0 hsh hbd hkey hv) ?_
-    rintro res ⟨σ', G', hrun, hr1, -, hDS', hcap, hst, htg⟩
-    have hg0' : Fl4Spec.getCap (Z := Unit) (t.bv, Fl4Spec.tcbCnodeIndex n) σ = ({(.nullCap, σ)}, False) := by
-      rw [hg0, hca0.abs]; rfl
-    refine ⟨σ', G', Or.inl ⟨hr1, mem_bindE_ok (by rw [capDelete_null hg0']; rfl) (mem_of_run hrun),
-      hcz0.install hP ht hn (fun y hy hne => ChgZ.of_eq (hcap y hy hne)) htg hAsrc.isSlot hsh0 hep⟩,
-      hDS', hQ _ _ _ _ hst hMO⟩
-  · apply WP.spec_bind (delete_full arI th hP (finalHyp_full th hP) hO hPP hPD K hK hK6 _ hAt s a σ G hDS
-      (by rw [capV_of_capAt hc0]; exact hc0n) (hB _ G hDS.1.2.2.1))
-    rintro ⟨r, s1, a1⟩ ⟨σ1, G1, hDS1, -, -, hmD, hcase⟩
-    simp only [uncurry_apply_pair] at hcase hDS1 hmD ⊢
-    rcases hcase with ⟨rfl, hmem, -, hnull, hcz⟩ | ⟨rfl, hmem⟩
-    · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
-      refine WP.spec_mono (install_after th hP s0 s1 a1 σ1 G1 hDS1 t ht n hn hnull ssl hAs nc hwf hcv he
-        hfw hps hls (hczs0.trans (hcz _ hAsrc.isSlot (hsrcT n hn))) hsrc0 hsh hbd hkey hv) ?_
-      rintro res ⟨σ', G', hrun, hr1, -, hDS', hcap, hst, htg⟩
-      exact ⟨σ', G', Or.inl ⟨hr1, mem_bindE_ok hmem (mem_of_run hrun),
-        hcz0.install hP ht hn (fun y hy hne => (hcz y hy hne).trans (ChgZ.of_eq (hcap y hy hne))) htg
-          hAsrc.isSlot hsh0 hep⟩,
-        hDS', hQ _ _ _ _ (hmD.trans hst) hMO⟩
-    · simp only [core.result.Result.Insts.CoreOpsTry.branch,
-        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
-        bind_ok, bind_tc_ok, WP.spec_ok]
-      exact ⟨σ1, G1, Or.inr ⟨rfl, mem_bindE_err hmem⟩, hDS1, hQ _ _ _ _ hmD hMO⟩
+      InstPostQ (L := L) Q th t (Fl4Spec.installTcbCap t.bv ssl n (some (absCap nc, (ps.bv, idxs)))) s0 σ res ⦄ :=
+  WP.spec_mono (install_tcb_cap_refinesW arI (WQ (L := L) Q) th hP (delHypsW_Q arI hQ hO hPP hPD) K hK hK6 hB s0 s a σ G
+    hDS hMO t ht n hn idx hidx hcz0 ssl hAs nc hwf hcv he hfw hps hls hsrc0 hsh hbd hkey hv hep) fun _ h => h.toQ
 
 end
 
@@ -635,6 +672,63 @@ theorem inst_doneQ {Q : (U64 → U64) → MdbGhost → Prop} {th : TypedHeap} {t
   rw [WP.spec_ok]
   exact ⟨σ, G, Or.inl ⟨rfl, rfl, hcz⟩, hDS, hMO⟩
 
+theorem inst_seqW {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop} {th : TypedHeap} {t : U64} {s0 : S} {σ : Fl4Spec.State Unit} {m1 m2 : Fl4Spec.PMonad Unit Unit}
+    {P : Result (core.result.Result Unit error.Exc × S × A)}
+    {K : S → A → Result (core.result.Result Unit error.Exc × S × A)}
+    (h1 : P ⦃ res => InstPostW (L := L) W th t m1 s0 σ res ⦄)
+    (h2 : ∀ s1 a1 σ1 G1, DState (L := L) th s1 σ1 G1 → (.ok (), σ1) ∈ (m1.run σ).1 →
+      InstFr th t (L.mem s0) (L.mem s1) → W s1 a1 σ1 G1 →
+      K s1 a1 ⦃ res => InstPostW (L := L) W th t m2 s0 σ1 res ⦄) :
+    (do
+      let (r, s1, a1) ← P
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+      match cf with
+      | core.ops.control_flow.ControlFlow.Continue _ => K s1 a1
+      | core.ops.control_flow.ControlFlow.Break residual => do
+        let r1 ← core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual Unit
+          (core.convert.FromSame error.Exc) residual
+        ok (r1, s1, a1)) ⦃ res => InstPostW (L := L) W th t (m1 >>= fun _ => m2) s0 σ res ⦄ := by
+  apply WP.spec_bind h1
+  rintro ⟨r, s1, a1⟩ ⟨σ1, G1, hcase, hDS1, hMO1⟩
+  rcases hcase with ⟨hr, hmem, hcz⟩ | ⟨hr, hmem⟩
+  · simp only at hr; subst hr
+    simp only [uncurry_apply_pair, core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+    refine WP.spec_mono (h2 s1 a1 σ1 G1 hDS1 hmem hcz hMO1) ?_
+    rintro res ⟨σ2, G2, hc2, hDS2, hMO2⟩
+    refine ⟨σ2, G2, ?_, hDS2, hMO2⟩
+    rcases hc2 with ⟨h1, h2, h3⟩ | ⟨h1, h2⟩
+    · exact Or.inl ⟨h1, mem_bindE_ok hmem h2, h3⟩
+    · exact Or.inr ⟨h1, mem_bindE_ok hmem h2⟩
+  · simp only at hr; subst hr
+    simp only [uncurry_apply_pair, core.result.Result.Insts.CoreOpsTry.branch,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
+      bind_ok, bind_tc_ok]
+    rw [WP.spec_ok]
+    exact ⟨σ1, G1, Or.inr ⟨rfl, mem_bindE_err hmem⟩, hDS1, hMO1⟩
+
+theorem inst_skipW {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop} {th : TypedHeap} {t : U64} {s0 : S} {σ : Fl4Spec.State Unit} {m2 : Fl4Spec.PMonad Unit Unit}
+    {P : Result (core.result.Result Unit error.Exc × S × A)}
+    (h : P ⦃ res => InstPostW (L := L) W th t m2 s0 σ res ⦄) :
+    P ⦃ res => InstPostW (L := L) W th t (Fl4Spec.NonDetE.returnOk () >>= fun _ => m2) s0 σ res ⦄ := by
+  have e : ∀ x, x ∈ ((Fl4Spec.NonDetE.returnOk () >>= fun _ => m2 : Fl4Spec.PMonad Unit Unit).run σ).1 ↔
+      x ∈ (m2.run σ).1 := by
+    intro x; rw [run_bind_ok (m := (Fl4Spec.NonDetE.returnOk () : Fl4Spec.PMonad Unit Unit)) rfl]
+  refine WP.spec_mono h ?_
+  rintro res ⟨σ', G', hc, hDS, hMO⟩
+  refine ⟨σ', G', ?_, hDS, hMO⟩
+  rcases hc with ⟨h1, h2, h3⟩ | ⟨h1, h2⟩
+  · exact Or.inl ⟨h1, (e _).2 h2, h3⟩
+  · exact Or.inr ⟨h1, (e _).2 h2⟩
+
+theorem inst_doneW {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop} {th : TypedHeap} {t : U64} {s0 s : S} {a : A} {σ : Fl4Spec.State Unit} {G : MdbGhost}
+    (hDS : DState (L := L) th s σ G) (hMO : W s a σ G)
+    (hcz : InstFr th t (L.mem s0) (L.mem s)) :
+    (ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s, a) :
+      Result (core.result.Result Unit error.Exc × S × A)) ⦃ res =>
+      InstPostW (L := L) W th t (Fl4Spec.NonDetE.returnOk ()) s0 σ res ⦄ := by
+  rw [WP.spec_ok]
+  exact ⟨σ, G, Or.inl ⟨rfl, rfl, hcz⟩, hDS, hMO⟩
+
 end
 
 /-! ## The IPC buffer -/
@@ -696,6 +790,40 @@ structure BufHyp (th : TypedHeap) (t addr : U64) (ptr : Fl4Spec.VSpaceRef) : Pro
           Fl4Spec.NonDetE.liftE (Fl4Spec.NonDet.when (t.bv = cur) Fl4Spec.rescheduleRequired) :
             Fl4Spec.PMonad Unit Unit).run σ).1 ∧
         CRel th (L.mem res.2.1) σ' G ∧ KSub σ σ' ⦄
+
+/-- **`BufHyp` with `W`** before and after (the W-threading). -/
+structure BufHypW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (t addr : U64)
+    (ptr : Fl4Spec.VSpaceRef) : Prop where
+  ipc : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost), DState (L := L) th s σ G → W s a σ G →
+    obj.Tcb.set_ipc_buffer st t s addr ⦃ s' => SlotsSame th (L.mem s) (L.mem s') ∧ ∃ σ',
+      ((), σ') ∈ (Fl4Spec.threadSet (Z := Unit) (fun x => { x with tcbIpcBuffer := ptr }) t.bv σ).1 ∧
+      CRel th (L.mem s') σ' G ∧ KSub σ σ' ∧ W s' a σ' G ⦄
+  tail : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost), DState (L := L) th s σ G → W s a σ G →
+    (do
+      let t_1 ← sched.cur_thread st s
+      let b1 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t t_1
+      if b1 = true then do
+          let s5 ← sched.reschedule_required st s
+          ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s5, a)
+        else ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s, a)) ⦃ res =>
+      res.1 = .Ok () ∧ res.2.2 = a ∧ SlotsSame th (L.mem s) (L.mem res.2.1) ∧ ∃ σ',
+        (.ok (), σ') ∈ ((do
+          let cur ← Fl4Spec.NonDetE.liftE (Fl4Spec.NonDet.gets fun s : Fl4Spec.State Unit => s.curThread)
+          Fl4Spec.NonDetE.liftE (Fl4Spec.NonDet.when (t.bv = cur) Fl4Spec.rescheduleRequired) :
+            Fl4Spec.PMonad Unit Unit).run σ).1 ∧
+        CRel th (L.mem res.2.1) σ' G ∧ KSub σ σ' ∧ W res.2.1 res.2.2 σ' G ⦄
+
+/-- `BufHyp` gives `BufHypW` at `WQ Q`. -/
+theorem BufHyp.w {Q : (U64 → U64) → MdbGhost → Prop} (hQ : ∀ m G m' G', MdbStep m G m' G' → Q m G → Q m' G')
+    {th : TypedHeap} {t addr : U64} {ptr : Fl4Spec.VSpaceRef} (h : BufHyp (L := L) (A := A) th t addr ptr) :
+    BufHypW (L := L) (WQ (L := L) (A := A) Q) th t addr ptr := by
+  refine ⟨fun s a σ G hDS hW => ?_, fun s a σ G hDS hW => ?_⟩
+  · refine WP.spec_mono (h.ipc s σ G hDS) ?_
+    rintro s' ⟨hS, σ', h1, h2, h3⟩
+    exact ⟨hS, σ', h1, h2, h3, hQ _ _ _ _ (MdbStep.of_same hDS.1.2.2.1 hS) hW⟩
+  · refine WP.spec_mono (h.tail s a σ G hDS) ?_
+    rintro r ⟨h1, h2, hS, σ', h3, h4, h5⟩
+    exact ⟨h1, h2, hS, σ', h3, h4, h5, hQ _ _ _ _ (MdbStep.of_same hDS.1.2.2.1 hS) hW⟩
 
 /-- `DState` across a step keeping every cap slot and every CNode and TCB. -/
 theorem DState.of_same {th : TypedHeap} {s s' : S} {σ σ' : Fl4Spec.State Unit} {G : MdbGhost}
@@ -810,23 +938,23 @@ theorem tcb_slot_buffer (t : U64) :
 /-- **`tcb::install_buffer` refines l4v `install_tcb_frame_cap`**: the
 delete of the buffer slot, the IPC buffer word and the scheduler (`BufHyp`,
 P1's), the frame cap's checks and insert. -/
-theorem install_buffer_refinesQ {Q : (U64 → U64) → MdbGhost → Prop} (hQ : ∀ m G m' G', MdbStep m G m' G' → Q m G → Q m' G') (th : TypedHeap) (hP : Placed th) (hO : FinObjHyp (L := L) arI th)
-    (hPP : PPHypD (L := L) arI th) (hPD : PostDelHyp (L := L) arI th)
+theorem install_buffer_refinesW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (hP : Placed th)
+    (hH : DelHypsW (L := L) arI W th)
     (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK6 : 6 ≤ K)
     (hB : ∀ m G, MdbLinks th m G → psiD m G * (K + 1) + K < 2 ^ 64 - 1)
     (s0 s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
-    (hMO : Q (L.mem s) G) (t : U64) (ht : th t = some .tcb)
+    (hW : W s a σ G) (t : U64) (ht : th t = some .tcb)
     (hcz0 : InstFr th t (L.mem s0) (L.mem s))
     (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot th ssl)
-    (addr : U64) (ptr : Fl4Spec.VSpaceRef) (hBuf : BufHyp (L := L) (A := A) th t addr ptr)
+    (addr : U64) (ptr : Fl4Spec.VSpaceRef) (hBuf : BufHypW (L := L) W th t addr ptr)
     (bc0 : capability.Cap) (bfr : Option (capability.Cap × Fl4Spec.CslotPtr))
     (hbfr : ∀ c sl, bfr = some (c, sl) → NewCapOK th (L.mem s0) c sl) :
     tcb.install_buffer st arI s a t (cslotAddr ssl) addr (bufArg bc0 bfr) ⦃ res =>
-      InstPostQ (L := L) Q th t (Fl4Spec.installTcbFrameCap t.bv ssl (some (ptr, frameOf bfr))) s0 σ res ⦄ := by
+      InstPostW (L := L) W th t (Fl4Spec.installTcbFrameCap t.bv ssl (some (ptr, frameOf bfr))) s0 σ res ⦄ := by
   have hAt : AbsSlot th (t.bv, Fl4Spec.tcbCnodeIndex 2) := ⟨t, rfl, Or.inr ⟨ht, 2, by decide, rfl⟩⟩
   obtain ⟨c, s3, hbuf⟩ : ∃ c s3, bufArg bc0 bfr = (c, s3) := ⟨_, _, rfl⟩
   have cont : ∀ (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (G1 : MdbGhost), DState (L := L) th s1 σ1 G1 →
-      Q (L.mem s1) G1 →
+      W s1 a1 σ1 G1 →
       capV (L.mem s1) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 2)) = .Null →
       InstFr th t (L.mem s0) (L.mem s1) →
       (.ok (), σ1) ∈ ((Fl4Spec.capDelete (Z := Unit) (t.bv, Fl4Spec.tcbCnodeIndex 2)).run σ).1 →
@@ -840,12 +968,11 @@ theorem install_buffer_refinesQ {Q : (U64 → U64) → MdbGhost → Prop} (hQ : 
             let s5 ← sched.reschedule_required st s4
             ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s5, a1)
           else ok (core.result.Result.Ok (), s4, a1)) ⦃ res =>
-        InstPostQ (L := L) Q th t (Fl4Spec.installTcbFrameCap t.bv ssl (some (ptr, frameOf bfr))) s0 σ res ⦄ := by
+        InstPostW (L := L) W th t (Fl4Spec.installTcbFrameCap t.bv ssl (some (ptr, frameOf bfr))) s0 σ res ⦄ := by
     intro s1 a1 σ1 G1 hDS1 hMO1 hnull hcz hmem
-    apply WP.spec_bind (hBuf.ipc s1 σ1 G1 hDS1)
-    rintro s2 ⟨hS2, σ2, hts, hCR2, hK2⟩
+    apply WP.spec_bind (hBuf.ipc s1 a1 σ1 G1 hDS1 hMO1)
+    rintro s2 ⟨hS2, σ2, hts, hCR2, hK2, hMO2⟩
     have hDS2 := hDS1.of_same hS2 hCR2 hK2
-    have hMO2 := hQ _ _ _ _ (MdbStep.of_same hDS1.1.2.2.1 hS2) hMO1
     have hnull2 : capV (L.mem s2) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 2)) = .Null := by
       rw [hS2.capV hAt.isSlot, hnull]
     cases bfr with
@@ -853,10 +980,10 @@ theorem install_buffer_refinesQ {Q : (U64 → U64) → MdbGhost → Prop} (hQ : 
       simp only [bufArg, Prod.mk.injEq] at hbuf
       obtain ⟨rfl, rfl⟩ := hbuf
       simp only [still_valid_zero, bind_ok, Bool.false_eq_true, ↓reduceIte]
-      apply WP.spec_mono (hBuf.tail s2 a1 σ2 G1 hDS2)
-      rintro res ⟨hr1, -, hS5, σ5, htail, hCR5, hK6'⟩
+      apply WP.spec_mono (hBuf.tail s2 a1 σ2 G1 hDS2 hMO2)
+      rintro res ⟨hr1, -, hS5, σ5, htail, hCR5, hK6', hMO5⟩
       refine ⟨σ5, G1, Or.inl ⟨hr1, ?_, (hcz.same hS2 ht).same hS5 ht⟩,
-        hDS2.of_same hS5 hCR5 hK6', hQ _ _ _ _ (MdbStep.of_same hDS2.1.2.2.1 hS5) hMO2⟩
+        hDS2.of_same hS5 hCR5 hK6', hMO5⟩
       refine mem_bindE_ok hmem (mem_bindE_ok (mem_liftE_ok hts) (mem_bindE_ok (s' := σ2) (a := ()) ?_ htail))
       exact mem_liftE_ok (x := ((), σ2)) rfl
     | some p =>
@@ -874,17 +1001,17 @@ theorem install_buffer_refinesQ {Q : (U64 → U64) → MdbGhost → Prop} (hQ : 
       have hczs : ChgZ (L.mem s0) (L.mem s2) (cslotAddr sl) :=
         (hcz.1 _ hsrcIs hsrcT).trans (ChgZ.of_eq (hS2.capV hsrcIs))
       rw [← Std.bind_assoc]
-      apply WP.spec_bind (check_insert th hP s0 s2 σ2 G1 hDS2 t ht 2 (by decide) hnull2 ssl hAs c' sl
-        (hbfr c' sl rfl) hczs)
-      rintro s4 ⟨σ4, G4, hchk, hDS4, hcap4, hst4, htg4⟩
-      have hMO4 := hQ _ _ _ _ (MdbStep.same_left hDS1.1.2.2.1 hS2 hst4) hMO1
-      apply WP.spec_mono (hBuf.tail s4 a1 σ4 G4 hDS4)
-      rintro res ⟨hr1, -, hS5, σ5, htail, hCR5, hK6'⟩
+      apply WP.spec_bind (WP.spec_and (check_insert th hP s0 s2 σ2 G1 hDS2 t ht 2 (by decide) hnull2 ssl hAs c' sl
+        (hbfr c' sl rfl) hczs) (check_insert_frame hP s2 hDS2.1.2.2.1 hDS2.2.1 t (cslotAddr ssl) c' hsrcIs hAt.isSlot))
+      rintro s4 ⟨⟨σ4, G4, hchk, hDS4, hcap4, hst4, htg4⟩, hF4⟩
+      have hMO4 := hH.slot s2 s4 a1 σ2 σ4 G1 G4 hMO2 hDS2 hDS4 hF4 (cnk_of_check hchk) hst4
+      apply WP.spec_mono (hBuf.tail s4 a1 σ4 G4 hDS4 hMO4)
+      rintro res ⟨hr1, -, hS5, σ5, htail, hCR5, hK6', hMO5⟩
       have hAt2 : IsSlot th (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 2)) := hAt.isSlot
       refine ⟨σ5, G4, Or.inl ⟨hr1, ?_, (hcz.same hS2 ht).install hP ht (n := 2) (by decide)
         (fun y hy hne => (ChgZ.of_eq (hcap4 y hy hne)).trans (ChgZ.of_eq (hS5.capV hy)))
         (by rw [hS5.capV hAt2]; exact htg4) hsrcIs hshc (fun h => absurd h (by decide))⟩,
-        hDS4.of_same hS5 hCR5 hK6', hQ _ _ _ _ (MdbStep.of_same hDS4.1.2.2.1 hS5) hMO4⟩
+        hDS4.of_same hS5 hCR5 hK6', hMO5⟩
       refine mem_bindE_ok hmem (mem_bindE_ok (mem_liftE_ok hts) (mem_bindE_ok (s' := σ4) (a := ()) ?_ htail))
       exact mem_liftE_ok (x := ((), σ4)) (by simp only [frameOf]; rw [hchk]; rfl)
   rw [hbuf]
@@ -898,18 +1025,34 @@ theorem install_buffer_refinesQ {Q : (U64 → U64) → MdbGhost → Prop} (hQ : 
     simp only [bind_ok, core.result.Result.Insts.CoreOpsTry.branch, uncurry_apply_pair]
     have hg0' : Fl4Spec.getCap (Z := Unit) (t.bv, Fl4Spec.tcbCnodeIndex 2) σ = ({(.nullCap, σ)}, False) := by
       rw [hg0, hca0.abs]; rfl
-    exact cont s a σ G hDS hMO (by rw [capV_of_capAt hc0]) hcz0 (by rw [capDelete_null hg0']; rfl)
-  · apply WP.spec_bind (delete_full arI th hP (finalHyp_full th hP) hO hPP hPD K hK hK6 _ hAt s a σ G hDS
+    exact cont s a σ G hDS hW (by rw [capV_of_capAt hc0]) hcz0 (by rw [capDelete_null hg0']; rfl)
+  · apply WP.spec_bind (delete_fullW arI W th hP (finalHyp_full th hP) hH K hK hK6 _ hAt s a σ G hDS hW
       (by rw [capV_of_capAt hc0]; exact hc0n) (hB _ G hDS.1.2.2.1))
-    rintro ⟨r, s1, a1⟩ ⟨σ1, G1, hDS1, -, -, hmD, hcase⟩
-    simp only [uncurry_apply_pair] at hcase hDS1 hmD ⊢
+    rintro ⟨r, s1, a1⟩ ⟨σ1, G1, hDS1, -, -, hmD, hcase, hW1⟩
+    simp only [uncurry_apply_pair] at hcase hDS1 hmD hW1 ⊢
     rcases hcase with ⟨rfl, hmem, -, hnull, hcz⟩ | ⟨rfl, hmem⟩
     · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
-      exact cont s1 a1 σ1 G1 hDS1 (hQ _ _ _ _ hmD hMO) hnull (hcz0.delete hP ht (n := 2) (by decide) hcz hnull) hmem
+      exact cont s1 a1 σ1 G1 hDS1 hW1 hnull (hcz0.delete hP ht (n := 2) (by decide) hcz hnull) hmem
     · simp only [core.result.Result.Insts.CoreOpsTry.branch,
         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
         bind_ok, bind_tc_ok, WP.spec_ok]
-      exact ⟨σ1, G1, Or.inr ⟨rfl, mem_bindE_err hmem⟩, hDS1, hQ _ _ _ _ hmD hMO⟩
+      exact ⟨σ1, G1, Or.inr ⟨rfl, mem_bindE_err hmem⟩, hDS1, hW1⟩
+
+theorem install_buffer_refinesQ {Q : (U64 → U64) → MdbGhost → Prop} (hQ : ∀ m G m' G', MdbStep m G m' G' → Q m G → Q m' G') (th : TypedHeap) (hP : Placed th) (hO : FinObjHyp (L := L) arI th)
+    (hPP : PPHypD (L := L) arI th) (hPD : PostDelHyp (L := L) arI th)
+    (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK6 : 6 ≤ K)
+    (hB : ∀ m G, MdbLinks th m G → psiD m G * (K + 1) + K < 2 ^ 64 - 1)
+    (s0 s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    (hMO : Q (L.mem s) G) (t : U64) (ht : th t = some .tcb)
+    (hcz0 : InstFr th t (L.mem s0) (L.mem s))
+    (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot th ssl)
+    (addr : U64) (ptr : Fl4Spec.VSpaceRef) (hBuf : BufHyp (L := L) (A := A) th t addr ptr)
+    (bc0 : capability.Cap) (bfr : Option (capability.Cap × Fl4Spec.CslotPtr))
+    (hbfr : ∀ c sl, bfr = some (c, sl) → NewCapOK th (L.mem s0) c sl) :
+    tcb.install_buffer st arI s a t (cslotAddr ssl) addr (bufArg bc0 bfr) ⦃ res =>
+      InstPostQ (L := L) Q th t (Fl4Spec.installTcbFrameCap t.bv ssl (some (ptr, frameOf bfr))) s0 σ res ⦄ :=
+  WP.spec_mono (install_buffer_refinesW arI (WQ (L := L) Q) th hP (delHypsW_Q arI hQ hO hPP hPD) K hK hK6 hB s0 s a σ G
+    hDS hMO t ht hcz0 ssl hAs addr ptr (hBuf.w hQ) bc0 bfr hbfr) fun _ h => h.toQ
 
 end
 
@@ -943,6 +1086,25 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
 /-- `install_tcb_cap_refinesQ` with the new cap's conditions as `NewCapOK`. -/
+theorem install_okW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (hP : Placed th)
+    (hH : DelHypsW (L := L) arI W th)
+    (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK6 : 6 ≤ K)
+    (hB : ∀ m G, MdbLinks th m G → psiD m G * (K + 1) + K < 2 ^ 64 - 1)
+    (s0 s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    (hMO : W s a σ G)
+    (t : U64) (ht : th t = some .tcb) (n : Nat) (hn : n < tcbSlots) (idx : U64) (hidx : idx.val = n)
+    (hcz0 : InstFr th t (L.mem s0) (L.mem s))
+    (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot th ssl)
+    (nc : capability.Cap) (sl : Fl4Spec.CslotPtr) (hok : NewCapOK th (L.mem s0) nc sl)
+    (hep : n = 3 → nc ≠ .Null → ∃ e b x1 x2 x3 x4, nc = .Endpoint e b x1 x2 x3 x4) :
+    tcb.install_tcb_cap st arI s a t (cslotAddr ssl) idx nc (cslotAddr sl) ⦃ res =>
+      InstPostW (L := L) W th t (Fl4Spec.installTcbCap t.bv ssl n (some (absCap nc, sl))) s0 σ res ⦄ := by
+  obtain ⟨ps, rs, hps, h1s, hls, hwf, hcv, he, hfw, hsh, hbd, hkey, hvk⟩ := hok
+  obtain ⟨sa, idxs⟩ := sl
+  simp only at h1s hls; subst h1s
+  exact install_tcb_cap_refinesW arI W th hP hH K hK hK6 hB s0 s a σ G hDS hMO t ht n hn idx hidx hcz0 ssl hAs
+    nc hwf hcv he hfw hps hls rfl hsh hbd hkey hvk hep
+
 theorem install_okQ {Q : (U64 → U64) → MdbGhost → Prop} (hQ : ∀ m G m' G', MdbStep m G m' G' → Q m G → Q m' G') (th : TypedHeap) (hP : Placed th) (hO : FinObjHyp (L := L) arI th)
     (hPP : PPHypD (L := L) arI th) (hPD : PostDelHyp (L := L) arI th)
     (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK6 : 6 ≤ K)
@@ -968,6 +1130,67 @@ ThreadControl** (`tcCapsSpec`): each selected install deletes the TCB slot
 invoked cap the thread, inserts it; the IPC buffer's word and the
 scheduler are P1's (`BufHyp`). The new caps are derived from their source
 slots' caps at the start (`NewCapOK`). -/
+theorem thread_control_caps_refinesW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap)
+    (hP : Placed th) (hH : DelHypsW (L := L) arI W th)
+    (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK6 : 6 ≤ K)
+    (hB : ∀ m G, MdbLinks th m G → psiD m G * (K + 1) + K < 2 ^ 64 - 1)
+    (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    (hMO : W s a σ G)
+    (t : U64) (ht : th t = some .tcb) (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot th ssl) (flags : U64)
+    (fh tmh cr vr : capability.Cap × Fl4Spec.CslotPtr)
+    (hfh : (flags &&& tcb.UPDATE_FAULT) ≠ 0#u64 → NewCapOK th (L.mem s) fh.1 fh.2)
+    (htmh : (flags &&& tcb.UPDATE_TIMEOUT) ≠ 0#u64 → NewCapOK th (L.mem s) tmh.1 tmh.2)
+    (hcr : (flags &&& tcb.UPDATE_SPACE) ≠ 0#u64 → NewCapOK th (L.mem s) cr.1 cr.2)
+    (hvr : (flags &&& tcb.UPDATE_SPACE) ≠ 0#u64 → NewCapOK th (L.mem s) vr.1 vr.2)
+    (hfhE : (flags &&& tcb.UPDATE_FAULT) ≠ 0#u64 → fh.1 ≠ .Null →
+      ∃ e b x1 x2 x3 x4, fh.1 = .Endpoint e b x1 x2 x3 x4)
+    (addr : U64) (ptr : Fl4Spec.VSpaceRef)
+    (hBuf : (flags &&& tcb.UPDATE_IPC_BUFFER) ≠ 0#u64 → BufHypW (L := L) W th t addr ptr)
+    (bc0 : capability.Cap) (bfr : Option (capability.Cap × Fl4Spec.CslotPtr))
+    (hbfr : ∀ c sl, bfr = some (c, sl) → NewCapOK th (L.mem s) c sl) :
+    tcb.thread_control_caps st arI s a t (cslotAddr ssl) (fh.1, cslotAddr fh.2) (tmh.1, cslotAddr tmh.2)
+      (cr.1, cslotAddr cr.2) (vr.1, cslotAddr vr.2) addr (bufArg bc0 bfr) flags ⦃ res =>
+      InstPostW (L := L) W th t (tcCapsSpec t ssl flags fh tmh cr vr ptr bfr) s σ res ⦄ := by
+  have r0 : InstFr th t (L.mem s) (L.mem s) := InstFr.refl _ _ _
+  have i3 : (layout.tcb.SLOT_FAULT_HANDLER).val = 3 := by simp [layout.tcb.SLOT_FAULT_HANDLER]
+  have i4 : (layout.tcb.SLOT_TIMEOUT_HANDLER).val = 4 := by simp [layout.tcb.SLOT_TIMEOUT_HANDLER]
+  have i0 : (layout.tcb.SLOT_CTABLE).val = 0 := by simp [layout.tcb.SLOT_CTABLE]
+  have i1 : (layout.tcb.SLOT_VTABLE).val = 1 := by simp [layout.tcb.SLOT_VTABLE]
+  unfold tcb.thread_control_caps tcCapsSpec
+  by_cases hF : (flags &&& tcb.UPDATE_FAULT) = 0#u64 <;>
+  by_cases hT : (flags &&& tcb.UPDATE_TIMEOUT) = 0#u64 <;>
+  by_cases hS : (flags &&& tcb.UPDATE_SPACE) = 0#u64 <;>
+  by_cases hU : (flags &&& tcb.UPDATE_IPC_BUFFER) = 0#u64 <;>
+  simp only [lift, bind_ok, hF, hT, hS, hU, bne_iff_ne, ne_eq, not_false_eq_true, not_true_eq_false, ↓reduceIte,
+    optArg, installTcbCap_none, installTcbFrameCap_none] <;>
+  -- the fault handler
+  (first
+    | with_reducible refine inst_skipW ?_
+    | refine inst_seqW (install_okW arI W th hP hH K hK hK6 hB s s a σ G hDS hMO t ht 3 (by decide) _ i3 r0 ssl hAs
+        _ _ (hfh hF) (fun _ => hfhE hF)) (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
+  -- the timeout handler
+  (first
+    | with_reducible refine inst_skipW ?_
+    | refine inst_seqW (install_okW arI W th hP hH K hK hK6 hB s _ _ _ _ ‹DState _ _ _ _› (by first | assumption | exact hMO) t ht 4 (by decide) _ i4
+        (by first | assumption | exact r0) ssl hAs _ _ (htmh hT) (fun h => absurd h (by decide))) (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
+  -- the CSpace root
+  (first
+    | with_reducible refine inst_skipW ?_
+    | refine inst_seqW (install_okW arI W th hP hH K hK hK6 hB s _ _ _ _ ‹DState _ _ _ _› (by first | assumption | exact hMO) t ht 0 (by decide) _ i0
+        (by first | assumption | exact r0) ssl hAs _ _ (hcr hS) (fun h => absurd h (by decide))) (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
+  -- the VSpace root
+  (first
+    | with_reducible refine inst_skipW ?_
+    | refine inst_seqW (install_okW arI W th hP hH K hK hK6 hB s _ _ _ _ ‹DState _ _ _ _› (by first | assumption | exact hMO) t ht 1 (by decide) _ i1
+        (by first | assumption | exact r0) ssl hAs _ _ (hvr hS) (fun h => absurd h (by decide))) (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
+  -- the IPC buffer
+  (first
+    | with_reducible refine inst_skipW ?_
+    | refine inst_seqW (install_buffer_refinesW arI W th hP hH K hK hK6 hB s _ _ _ _ ‹DState _ _ _ _›
+        (by first | assumption | exact hMO) t ht
+        (by first | assumption | exact r0) ssl hAs addr ptr (hBuf hU) bc0 bfr hbfr) (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
+  exact inst_doneW ‹DState _ _ _ _› (by first | assumption | exact hMO) (by first | assumption | exact r0)
+
 theorem thread_control_caps_refinesQ {Q : (U64 → U64) → MdbGhost → Prop} (hQ : ∀ m G m' G', MdbStep m G m' G' → Q m G → Q m' G') (th : TypedHeap) (hP : Placed th) (hO : FinObjHyp (L := L) arI th)
     (hPP : PPHypD (L := L) arI th) (hPD : PostDelHyp (L := L) arI th)
     (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK6 : 6 ≤ K)
@@ -988,46 +1211,10 @@ theorem thread_control_caps_refinesQ {Q : (U64 → U64) → MdbGhost → Prop} (
     (hbfr : ∀ c sl, bfr = some (c, sl) → NewCapOK th (L.mem s) c sl) :
     tcb.thread_control_caps st arI s a t (cslotAddr ssl) (fh.1, cslotAddr fh.2) (tmh.1, cslotAddr tmh.2)
       (cr.1, cslotAddr cr.2) (vr.1, cslotAddr vr.2) addr (bufArg bc0 bfr) flags ⦃ res =>
-      InstPostQ (L := L) Q th t (tcCapsSpec t ssl flags fh tmh cr vr ptr bfr) s σ res ⦄ := by
-  have r0 : InstFr th t (L.mem s) (L.mem s) := InstFr.refl _ _ _
-  have i3 : (layout.tcb.SLOT_FAULT_HANDLER).val = 3 := by simp [layout.tcb.SLOT_FAULT_HANDLER]
-  have i4 : (layout.tcb.SLOT_TIMEOUT_HANDLER).val = 4 := by simp [layout.tcb.SLOT_TIMEOUT_HANDLER]
-  have i0 : (layout.tcb.SLOT_CTABLE).val = 0 := by simp [layout.tcb.SLOT_CTABLE]
-  have i1 : (layout.tcb.SLOT_VTABLE).val = 1 := by simp [layout.tcb.SLOT_VTABLE]
-  unfold tcb.thread_control_caps tcCapsSpec
-  by_cases hF : (flags &&& tcb.UPDATE_FAULT) = 0#u64 <;>
-  by_cases hT : (flags &&& tcb.UPDATE_TIMEOUT) = 0#u64 <;>
-  by_cases hS : (flags &&& tcb.UPDATE_SPACE) = 0#u64 <;>
-  by_cases hU : (flags &&& tcb.UPDATE_IPC_BUFFER) = 0#u64 <;>
-  simp only [lift, bind_ok, hF, hT, hS, hU, bne_iff_ne, ne_eq, not_false_eq_true, not_true_eq_false, ↓reduceIte,
-    optArg, installTcbCap_none, installTcbFrameCap_none] <;>
-  -- the fault handler
-  (first
-    | with_reducible refine inst_skipQ ?_
-    | refine inst_seqQ (install_okQ arI hQ th hP hO hPP hPD K hK hK6 hB s s a σ G hDS hMO t ht 3 (by decide) _ i3 r0 ssl hAs
-        _ _ (hfh hF) (fun _ => hfhE hF)) (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
-  -- the timeout handler
-  (first
-    | with_reducible refine inst_skipQ ?_
-    | refine inst_seqQ (install_okQ arI hQ th hP hO hPP hPD K hK hK6 hB s _ _ _ _ ‹DState _ _ _ _› (by first | assumption | exact hMO) t ht 4 (by decide) _ i4
-        (by first | assumption | exact r0) ssl hAs _ _ (htmh hT) (fun h => absurd h (by decide))) (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
-  -- the CSpace root
-  (first
-    | with_reducible refine inst_skipQ ?_
-    | refine inst_seqQ (install_okQ arI hQ th hP hO hPP hPD K hK hK6 hB s _ _ _ _ ‹DState _ _ _ _› (by first | assumption | exact hMO) t ht 0 (by decide) _ i0
-        (by first | assumption | exact r0) ssl hAs _ _ (hcr hS) (fun h => absurd h (by decide))) (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
-  -- the VSpace root
-  (first
-    | with_reducible refine inst_skipQ ?_
-    | refine inst_seqQ (install_okQ arI hQ th hP hO hPP hPD K hK hK6 hB s _ _ _ _ ‹DState _ _ _ _› (by first | assumption | exact hMO) t ht 1 (by decide) _ i1
-        (by first | assumption | exact r0) ssl hAs _ _ (hvr hS) (fun h => absurd h (by decide))) (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
-  -- the IPC buffer
-  (first
-    | with_reducible refine inst_skipQ ?_
-    | refine inst_seqQ (install_buffer_refinesQ arI hQ th hP hO hPP hPD K hK hK6 hB s _ _ _ _ ‹DState _ _ _ _›
-        (by first | assumption | exact hMO) t ht
-        (by first | assumption | exact r0) ssl hAs addr ptr (hBuf hU) bc0 bfr hbfr) (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
-  exact inst_doneQ ‹DState _ _ _ _› (by first | assumption | exact hMO) (by first | assumption | exact r0)
+      InstPostQ (L := L) Q th t (tcCapsSpec t ssl flags fh tmh cr vr ptr bfr) s σ res ⦄ :=
+  WP.spec_mono (thread_control_caps_refinesW arI (WQ (L := L) Q) th hP (delHypsW_Q arI hQ hO hPP hPD) K hK hK6 hB s a σ G
+    hDS hMO t ht ssl hAs flags fh tmh cr vr hfh htmh hcr hvr hfhE addr ptr (fun h => (hBuf h).w hQ) bc0 bfr hbfr)
+    fun _ h => h.toQ
 
 end
 
