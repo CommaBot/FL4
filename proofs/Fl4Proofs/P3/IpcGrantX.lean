@@ -484,7 +484,7 @@ theorem do_ipc_transfer_grant (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N
     hok1.2.1 hok1.2.2 ep rcv rw (some rp) ⟨fun h => absurd h hrw0, fun h => by cases h⟩
     (fun rb h => by cases h; exact ⟨hmr, hBm.frame s1 σc rcv x1 rp hRc hSc.1 hr hkc hrb1⟩)
     (fun rb h => by cases h; exact hBm.recvSlots s1 σc rcv x1 rp hRc hSc.1 hr hkc hrb1)
-    (fun rb h => by cases h; exact get_receive_slot_top hP0 hB1 hIR1 (hB1.tcbT hkc) hmr hrw0 caps extra)) ?_
+    (fun rb h => by cases h; exact get_receive_slot_top hP0 hB1 hIR1.toE (hB1.tcbT hkc) hmr hrw0 caps extra)) ?_
   rintro ⟨out, s2⟩ ⟨σt, mf, htc, hMi, hexc, hIRt, hcu, he3, hlbt, hSEt, ⟨hKC, hWt⟩, G', hBt⟩
   simp only at hMi hexc hIRt hcu he3 hSEt hWt hBt
   show (do
@@ -566,7 +566,7 @@ theorem do_ipc_transfer_grant (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N
     simp only [updK_kheap, Function.update_of_ne hp]
     rcases hKC.1 p with e | ⟨r, cs, cs', h1, h2⟩
     · left; rw [e, hkco p hp]
-    · right; exact ⟨r, cs, cs', by rw [← hkco p hp]; exact h1, h2⟩
+    · right; left; exact ⟨r, cs, cs', by rw [← hkco p hp]; exact h1, h2⟩
 
 /-- **`do_ipc_transfer` without a receive buffer, caps looked up** (G4), on
 `SRT … SRE`: the transfer field `xregs` of the bundle with `GC := True`. -/

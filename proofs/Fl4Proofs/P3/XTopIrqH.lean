@@ -59,7 +59,7 @@ theorem decode_invocation_irq_handlerX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : 
     exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, h2⟩, ⟨Z, hX0⟩⟩
   | Ok u =>
     obtain ⟨inv, hrun, σ1, hst, σ', G', hx, -, -, -, hstp⟩ := hq
-    obtain ⟨Z', hZ'⟩ := (hstp hdk.1).xtop arI hAM hDel hth hX0 hKA hC hTh
+    obtain ⟨Z', hZ'⟩ := (hstp hdk.1 hC).xtop arI hAM hDel hth hX0 hKA hTh
     exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], σ'),
       mem_bindE_ok (mem_liftE hx) (Set.mem_singleton _), ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩, hZ'.rel.1, hZ'.rel.2.1,
         hZ'.rel.2.2.1, hZ'.rel.2.2.2.1, hZ'.rel.2.2.2.2.1⟩, ⟨Z', hZ'⟩⟩

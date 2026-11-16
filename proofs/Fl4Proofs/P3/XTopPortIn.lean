@@ -68,7 +68,8 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
 /-- **Hypothesis: the value read** (module docstring): FL4's `port_in`'s
-value is the spec's `In` result at some outcome, the memory kept. -/
+value is the spec's `In` result at some outcome, the memory kept. An
+arch-backend obligation, with `ARMask` (XTopCaps) and `ARKeep` (ArchKeep). -/
 def PortInVal : Prop :=
   ∀ (a a' : A) (p z v : U64), arI.port_in a p z = ok (v, a') → ∀ σ : Fl4Spec.State Unit,
     ∃ ms : Fl4Spec.MachineState, ms.underlyingMemory = σ.machineState.underlyingMemory ∧
@@ -129,7 +130,7 @@ theorem portInTail_xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) 
     (Steps.ksSpec arI (s := s1) (σ := σ1) (σ' := σy) (by constructor <;> first | rfl | exact hu) rfl rfl
       (fun h => ⟨h.st, h.node⟩) (fun h => h)).trans arI
       (Steps.arch arI (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨port, z, v, hv⟩))))))
-  obtain ⟨G', hXy, -, hky⟩ := hstp _ (stepClosed_xtop arI hAM hDel) Z rfl hX1 (by rw [hk1]; exact hKA) hC1 hTh
+  obtain ⟨G', hXy, hky⟩ := hstp _ (stepClosed_xtop arI hAM hDel) Z rfl hX1 (by rw [hk1]; exact hKA) hTh
   -- `reply1`
   set Z' : XSets := { Z with G := G' }
   have hI : Vs.RInv (L := L) Z'.th Z'.P Z'.L4 Z'.L3 Z'.L2 Z'.L1 Z'.N Z'.T Z'.C Z'.E Z'.R Z'.B Z'.c AR Z'.G s1 a1 σy :=

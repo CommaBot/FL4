@@ -63,7 +63,7 @@ def HPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (G : MdbGhost)
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
       ∃ σ' G', ((), σ') ∈ (Fl4Spec.invokeIrqHandler (Z := Unit) inv σ1).1 ∧ CRel th (L.mem s') σ' G' ∧
         FinInv th (L.mem s') σ' G' ∧ MdbStep (L.mem s) G (L.mem s') G' ∧
-        (L.ksb s' = L.ksb s → Steps (L := L) arI th s ar σ s' a' σ')
+        (L.ksb s' = L.ksb s → CurRun σ → Steps (L := L) arI th s ar σ s' a' σ')
 
 /-- **`delete_one` of a null or notification cap** (`StepClosed.del`; a
 null cap's deletion changes nothing). -/
@@ -121,8 +121,8 @@ theorem irq_ack_refines (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Un
   · unfold Fl4Spec.decodeIrqHandlerInvocation; rw [hlbl]; rfl
   · let ms' : Fl4Spec.MachineState := { σ1.machineState with
       irqMasks := Function.update σ1.machineState.irqMasks (BitVec.ofNat 8 irq.val) false }
-    have hstp : Steps (L := L) arI th s ar σ s2 a' { σ1 with machineState := ms' } :=
-      (Steps.restart arI hcur hk' htcb hs2 hst).trans arI
+    have hstp : CurRun σ → Steps (L := L) arI th s ar σ s2 a' { σ1 with machineState := ms' } := fun hC =>
+      (Steps.restart arI hcur hk' htcb hs2 hst hC).trans arI
         ((Steps.ksSpec arI (σ := σ1) (σ' := { σ1 with machineState := ms' }) (by constructor <;> rfl) rfl rfl
           (fun h => ⟨h.st, h.node⟩) (fun h => h)).trans arI (Steps.arch arI (Or.inr (Or.inl ⟨irq, false, ha'⟩))))
     refine ⟨{ σ1 with machineState := ms' }, G, ?_, ?_⟩
@@ -179,7 +179,7 @@ theorem irq_clear_refines (th : TypedHeap) (hP : Placed th)
   apply (WP.spec_ok (core.result.Result.Ok (), s3, a3)).mpr
   have hdel' : ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) ((nodeA (L.ksb s) irq).bv, []) σ1).1 := hdel
   refine ⟨.clearIRQHandler (BitVec.ofNat 8 irq.val), ?_, σ1, hst, σ', G', ?_, hDS3.1, hDS3.2.2,
-    MdbStep.same_left hM hS hmS3, fun _ => (Steps.restart arI hcur hk' htcb hs2 hst).trans arI
+    MdbStep.same_left hM hS hmS3, fun _ hC => (Steps.restart arI hcur hk' htcb hs2 hst hC).trans arI
       (Steps.deleteOne arI hR1 hA hok3 (by rw [cslotAddr_nil]; exact hr3) hdel')⟩
   · unfold Fl4Spec.decodeIrqHandlerInvocation; rw [hlbl]; rfl
   · show _ ∈ ((Fl4Spec.getIrqSlot _ >>= fun sl => Fl4Spec.capDeleteOne sl) σ1).1
@@ -290,10 +290,10 @@ theorem irq_set_refines (th : TypedHeap) (hP : Placed th)
     have hmst : MdbStep (L.mem s) G (L.mem s4) G' :=
       (MdbStep.same_left hM hS hmS3).trans (hSti (fun h => absurd h (by simp [isUt])))
     refine ⟨.setIRQHandler (BitVec.ofNat 8 irq.val) (absCap (.Notification p b true r)) (ps.bv, idxs),
-      by rw [hdec2]; rfl, σ1, hst, σ', G', ?_, ⟨hR', hV', hM', hC', hI'⟩, hFI', hmst, fun hks => ?_⟩
+      by rw [hdec2]; rfl, σ1, hst, σ', G', ?_, ⟨hR', hV', hM', hC', hI'⟩, hFI', hmst, fun hks hC => ?_⟩
     swap
     · have hk3 : L.ksb s3 = L.ksb s := hF4.1.symm.trans hks
-      refine ((Steps.restart arI hcur hk' htcb hs2 hst).trans arI
+      refine ((Steps.restart arI hcur hk' htcb hs2 hst hC).trans arI
         (Steps.deleteOne arI hR1 hA hok3 (by rw [cslotAddr_nil]; exact hr3) hdel)).trans arI
         (Steps.insert arI hP hps (hL.node irq hirq) (idxd := []) rfl hci hF4 ⟨hR', hV', hM', hC', hI'⟩ hFI'
           (by rw [hk3]; exact hmst.okv hFR) fun y hy hne => ?_)

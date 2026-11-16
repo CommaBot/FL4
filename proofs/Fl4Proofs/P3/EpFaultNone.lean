@@ -64,12 +64,12 @@ theorem mrStateN_snoc_lt (σ : State Unit) (rcv : ObjRef) (x : Tcb) (ms : List W
 
 /-- **`do_fault_transfer` into a receiver without an IPC buffer**, given the
 fault message. -/
-theorem doFaultTransfer_eqN {σ : State Unit} {snd rcv : ObjRef} {xs xr : Tcb}
-    (hks : σ.kheap snd = some (.tcb xs)) (hkr : σ.kheap rcv = some (.tcb xr)) {f : Fault}
+theorem doFaultTransfer_eqN {σ σm : State Unit} {snd rcv : ObjRef} {xs xr : Tcb}
+    (hks : σ.kheap snd = some (.tcb xs)) (hkr : σm.kheap rcv = some (.tcb xr)) {f : Fault}
     (hf : xs.tcbFault = some f) {label : Data} {ms : List Word}
-    (hmsg : makeFaultMsg (Z := Unit) f snd σ = ({((label, ms), σ)}, False)) (badge : Data) :
+    (hmsg : makeFaultMsg (Z := Unit) f snd σ = ({((label, ms), σm)}, False)) (badge : Data) :
     doFaultTransfer (Z := Unit) badge snd rcv none σ =
-      ({((), updK (mrStateN σ rcv xr ms) rcv (.tcb (setReg (setReg
+      ({((), updK (mrStateN σm rcv xr ms) rcv (.tcb (setReg (setReg
         (withRegs xr (mrRegs xr.tcbArch.tcbContext.userRegs ms)) msg_info_register
         (messageInfoToData ⟨natToLen (min 4 ms.length), 0, 0, label⟩)) badge_register badge)))}, False) := by
   unfold doFaultTransfer
@@ -78,7 +78,7 @@ theorem doFaultTransfer_eqN {σ : State Unit} {snd rcv : ObjRef} {xs xr : Tcb}
   rw [nd_pure_bind', nd_bind_one hmsg]
   dsimp only
   rw [nd_bind_one (setMrs_eqN hkr ms)]
-  have hkm : (mrStateN σ rcv xr ms).kheap rcv = some (.tcb (withRegs xr (mrRegs xr.tcbArch.tcbContext.userRegs ms))) := by
+  have hkm : (mrStateN σm rcv xr ms).kheap rcv = some (.tcb (withRegs xr (mrRegs xr.tcbArch.tcbContext.userRegs ms))) := by
     simp [mrStateN]
   unfold setMessageInfo
   rw [nd_bind_one (asUser_setRegister_eq _ _ hkm), asUser_setRegister_eq (x := setReg
@@ -526,20 +526,20 @@ theorem set_mrs_fault_vmN {A : Type} {ar : machine.Arch A} (hH : EpHyps st T E R
 that `set_mrs_fault` writes the l4v message `ms` (returning `min |ms| 4`)
 and that the fault type word is the l4v label. -/
 theorem do_fault_transfer_fullN {A : Type} {ar : machine.Arch A} (hH : EpHyps st T E R B SR) (hP : EPlaced T E R B)
-    (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (s : S) (a : A) (σ : Fl4Spec.State Unit) {s0 : S} {σm : Fl4Spec.State Unit}
     {snd rcv : U64} (hs : snd ∈ T) (hr : rcv ∈ T) (hne : snd ≠ rcv) {xs xr : Fl4Spec.Tcb}
-    (hks : σ.kheap snd.bv = some (.tcb xs)) (hkr : σ.kheap rcv.bv = some (.tcb xr))
+    (hks : σ.kheap snd.bv = some (.tcb xs)) (hkr : σm.kheap rcv.bv = some (.tcb xr))
     {f : Fl4Spec.Fault} (hf : xs.tcbFault = some f) {label : Fl4Spec.Data} {ms : List Fl4Spec.Word}
-    (hmsg : Fl4Spec.makeFaultMsg (Z := Unit) f snd.bv σ = ({((label, ms), σ)}, False))
-    {lab : U64} (hty : L.mem s (tFaultA snd) = lab)
+    (hmsg : Fl4Spec.makeFaultMsg (Z := Unit) f snd.bv σ = ({((label, ms), σm)}, False))
+    {lab : U64} (hty : L.mem s0 (tFaultA snd) = lab)
     (hlab : lab.bv &&& Fl4Spec.mask Fl4Spec.msgLabelBits = label) (badge : U64)
     (hset : faults.set_mrs_fault st ar s a snd rcv 0#u64 ⦃ r => r.1.val = min ms.length 4 ∧
-      MrInvN (L := L) T E R B SR s σ rcv xr r.2 ms ⦄) :
+      MrInvN (L := L) T E R B SR s0 σm rcv xr r.2 ms ⦄) :
     ipc.do_fault_transfer st ar s a badge snd rcv 0#u64 ⦃ s' => ∃ σ',
       Fl4Spec.doFaultTransfer (Z := Unit) badge.bv snd.bv rcv.bv none σ = ({((), σ')}, False) ∧
       EpStateRel T E R B (L.mem s') σ' ∧ SR s' σ' ∧
-      Agree (L.mem s) (L.mem s') (fun b => ¬ RcvReg rcv b ∧ ¬ BufW B b) ∧
-      (∀ q, q ≠ rcv.bv → σ'.kheap q = σ.kheap q) ∧
+      Agree (L.mem s0) (L.mem s') (fun b => ¬ RcvReg rcv b ∧ ¬ BufW B b) ∧
+      (∀ q, q ≠ rcv.bv → σ'.kheap q = σm.kheap q) ∧
       ∃ x', σ'.kheap rcv.bv = some (.tcb x') ∧ x'.tcbState = xr.tcbState ⦄ := by
   have hsa := hP.tcb snd hs
   have hspec := doFaultTransfer_eqN hks hkr hf hmsg badge.bv
@@ -556,7 +556,7 @@ theorem do_fault_transfer_fullN {A : Type} {ar : machine.Arch A} (hH : EpHyps st
   rintro s2 ⟨v, hs2, hv⟩
   step as ⟨s3, hs3⟩
   subst hs2 hs3
-  have hkm : (mrStateN σ rcv.bv xr ms).kheap rcv.bv =
+  have hkm : (mrStateN σm rcv.bv xr ms).kheap rcv.bv =
       some (.tcb (withRegs xr (mrRegs xr.tcbArch.tcbContext.userRegs ms))) := by simp [mrStateN]
   obtain ⟨hR2, hW2, hS2⟩ := write_reg_rel hP s1 _ hR1 hr hkm Fl4Spec.msg_info_register v
   rw [regIdx_msgInfo] at hR2 hW2
@@ -565,11 +565,11 @@ theorem do_fault_transfer_fullN {A : Type} {ar : machine.Arch A} (hH : EpHyps st
   rw [regIdx_badge] at hR3 hW3
   have hvx : v.bv = Fl4Spec.messageInfoToData ⟨Fl4Spec.natToLen (min 4 ms.length), 0, 0, label⟩ := by
     rw [hv, hlab, bv_ofNat_val sent hn, Nat.min_comm]; rfl
-  have hfin : updK (updK (mrStateN σ rcv.bv xr ms) rcv.bv (.tcb (setReg (withRegs xr
+  have hfin : updK (updK (mrStateN σm rcv.bv xr ms) rcv.bv (.tcb (setReg (withRegs xr
       (mrRegs xr.tcbArch.tcbContext.userRegs ms)) Fl4Spec.msg_info_register v.bv))) rcv.bv
       (.tcb (setReg (setReg (withRegs xr (mrRegs xr.tcbArch.tcbContext.userRegs ms)) Fl4Spec.msg_info_register v.bv)
         Fl4Spec.badge_register badge.bv)) =
-      updK (mrStateN σ rcv.bv xr ms) rcv.bv (.tcb (setReg (setReg
+      updK (mrStateN σm rcv.bv xr ms) rcv.bv (.tcb (setReg (setReg
         (withRegs xr (mrRegs xr.tcbArch.tcbContext.userRegs ms)) Fl4Spec.msg_info_register
         (Fl4Spec.messageInfoToData ⟨Fl4Spec.natToLen (min 4 ms.length), 0, 0, label⟩))
         Fl4Spec.badge_register badge.bv)) := by
@@ -582,7 +582,7 @@ theorem do_fault_transfer_fullN {A : Type} {ar : machine.Arch A} (hH : EpHyps st
   have a2 := a_reg hra Fl4Spec.badge_register
   rw [regIdx_msgInfo] at a1
   rw [regIdx_badge] at a2
-  have hAg : Agree (L.mem s) (L.mem (L.wr (L.wr s1 (regA rcv layout.reg.MSG_INFO) v) (regA rcv layout.reg.BADGE)
+  have hAg : Agree (L.mem s0) (L.mem (L.wr (L.wr s1 (regA rcv layout.reg.MSG_INFO) v) (regA rcv layout.reg.BADGE)
       badge)) (fun b => ¬ RcvReg rcv b ∧ ¬ BufW B b) := by
     intro b hb hn
     rw [agree_wr (L := L) (s := L.wr s1 (regA rcv layout.reg.MSG_INFO) v) (v := badge) a2.1 b hb

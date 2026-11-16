@@ -8,6 +8,7 @@ pub mod cpu;
 pub mod fbcon;
 pub mod fpu;
 pub mod ioapic;
+mod kvm_clock;
 pub mod percpu;
 pub mod pic;
 pub mod pit;

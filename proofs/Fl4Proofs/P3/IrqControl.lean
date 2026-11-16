@@ -96,7 +96,7 @@ def CPost {X : Type} (invk : X → Fl4Spec.PMonad Unit Unit) (th : TypedHeap) (k
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
       ∃ σ' G', (.ok (), σ') ∈ ((invk inv).run σ1).1 ∧ CRel th (L.mem s') σ' G' ∧ IrqRel (L.mem s') kb σ' ∧
         FinInv th (L.mem s') σ' G' ∧ HandlersActive (L.mem s') kb G' ∧ MdbOKV kb (L.mem s') G' ∧
-        (DomPlaced (L := L) th s → DK4 (L := L) s s') ∧ Steps (L := L) arI th s ar σ s' a' σ'
+        (DomPlaced (L := L) th s → DK4 (L := L) s s') ∧ (CurRun σ → Steps (L := L) arI th s ar σ s' a' σ')
 
 variable {arI} in
 theorem CPost.of_run {X : Type} {invk : X → Fl4Spec.PMonad Unit Unit} {th : TypedHeap} {kb : U64}

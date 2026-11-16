@@ -7,8 +7,8 @@ P3 (DESIGN.md §9), IPC: **the notification wake-up's donation on `IRel`**
   relations after, keeps `IRel`: through `XTopAt` (`IRel.xtop`, the Sc
   proofs' `xtop_sc_step`, `XTopAt.irelK`), at the arch relation "the CR3 is
   `cr`".
-* `donate_irel` (`IpcWakeHyps.donate`): `maybe_donate_refinesW` (IpcDonateW:
-  ScDonateRef's proof with FL4's writes) lifted by `tk_lift`, the spec step
+* `donate_irel` (`IpcWakeHyps.donate`): ScDonateRef's `maybe_donate_refines`
+  (with FL4's writes, `KFoot`) lifted by `tk_lift`, the spec step
   `ScTKw` by `nkt_maybeDonateSc`; named: `DonOK` (ScDonateRef's
   `DonatePre`, and `ActReady`).
 * `ipcWakeHyps_top`: `IpcWakeHyps`, the unblock by IpcEpTail's
@@ -16,7 +16,7 @@ P3 (DESIGN.md §9), IPC: **the notification wake-up's donation on `IRel`**
 -/
 import Fl4Proofs.P3.ScXStep
 import Fl4Proofs.P3.IpcXTop
-import Fl4Proofs.P3.IpcDonateW
+import Fl4Proofs.P3.ScDonateRef
 import Fl4Proofs.P3.IpcEpTail
 open Aeneas Aeneas.Std Result
 
@@ -88,7 +88,7 @@ def DonOK (st : machine.Store S) [L : LawfulStore st] (C : Set U64) (s : S) (σ 
 
 set_option maxHeartbeats 1000000 in
 /-- **`maybe_donate_sched_context` on `IRel`** (`IpcWakeHyps.donate`):
-`maybe_donate_refinesW` lifted by `tk_lift`. -/
+`maybe_donate_refines` lifted by `tk_lift`. -/
 theorem donate_irel (hP0 : IPlaced N T E R B)
     (hmb : ∀ a : A, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (t n : U64) (hR : IpcRel N T E R B (L.mem s) σ)
@@ -101,7 +101,7 @@ theorem donate_irel (hP0 : IPlaced N T E R B)
   have hX : IRel st th cr N T C E R B c s σ := ⟨hR, hS⟩
   have hSch := hX.2.2.1
   obtain ⟨hRel, hnC, hnq, hAct⟩ := hD
-  refine WP.spec_mono (maybe_donate_refinesW s a σ hR.toN hSch hRel (hmb a) t n ht hn hnC hnq) ?_
+  refine WP.spec_mono (maybe_donate_refines s a σ hR.toN hSch hRel (hmb a) t n ht hn hnC hnq) ?_
   rintro r ⟨σ1, he, hf, hv, hS1, hw, hA⟩
   have hK : ScTKw (fun p => p = σ.curThread) σ σ1 := ScTKw.ofFalse (NKT.of_eq (nkt_maybeDonateSc t.bv n.bv) he)
   have hN1 : NtfnStateRel N T (L.mem r.1) σ1 := hR.toN.frame hSch.placed hf hv

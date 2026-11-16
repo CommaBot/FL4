@@ -6,7 +6,7 @@ words `V`), the CSpace placement facts `CdtHyps`, the invoked and extra
 slots being cap slots (`CapSlotW`, `IrqPlace.extra`) and `VsPlace` (the
 regions cleared by a table's unmap and by MakePool hold no tracked words;
 the subframe destination slots are cap slots; and the EPT steps on frames,
-out of scope, named).  The work is within `Cur0` (after the caller's
+named — VT-x: not yet refined (DESIGN §5)).  The work is within `Cur0` (after the caller's
 restart): VSpace words (`Cur0.vs`), cap-slot words (`Cur0.capw`), cleared
 regions (`Cur0.zr`) and kernel-global words (`Cur0.ks`).
 -/
@@ -52,7 +52,7 @@ theorem sched.set_thread_state.running_bxi' {s : S} {t : U64} (h : BXI st T Cs �
 /-- **The VSpace family's placement facts** (P3's): the regions a table's
 unmap and MakePool clear and the ASID table's entries hold no tracked words,
 the subframe destination slots are cap slots, and the EPT steps on frames
-(out of scope). -/
+(VT-x: not yet refined, DESIGN §5). -/
 structure VsPlace (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
     (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
   /-- A table cap's table (cleared by its unmap). -/
@@ -71,11 +71,11 @@ structure VsPlace (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar :
   sub : ∀ (Ac : Set U64) (s : S) (x i d off cnt : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     vspace.subframe_dest st s x i d off cnt ⦃ r => ∀ dst, r = .Ok dst → ∀ j : U64, j.val < cnt.val →
       obj.Slot.index dst (core.num.U64.wrapping_add off j) ⦃ sl => CapW T Ω Sg sl ⦄ ⦄
-  /-- EPT: mapping a frame into an EPT (out of scope). -/
+  /-- EPT: mapping a frame into an EPT (VT-x: not yet refined, DESIGN §5). -/
   eptMap : ∀ (Ac : Set U64) (s : S) (a : A) (len : U64) (cap : capability.Cap) (slot buf : U64)
     (extra : Aeneas.Std.Array obj.Slot 3#usize), DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra →
     ept.map_frame st ar s a len cap slot buf extra ⦃ r s' _ => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄
-  /-- EPT: unmapping a frame from an EPT (out of scope). -/
+  /-- EPT: unmapping a frame from an EPT (VT-x: not yet refined, DESIGN §5). -/
   eptUnmap : ∀ (Ac : Set U64) (s0 s : S) (a : A) (asid vaddr ptr bits : U64),
     Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s →
     ept.unmap st ar s a asid vaddr ptr bits false ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.1 ⦄

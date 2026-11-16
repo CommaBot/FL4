@@ -126,7 +126,8 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (dsl : Fl4Spec.CslotPtr) (pd : U64) (hpd1 : dsl.1 = pd.bv) (hpd : th pd = some (.cnode dsl.2.length)) :
     cnode.decode_rotate st s length buf extra (cslotAddr dsl) ⦃ res =>
-      InvPost (L := L) th σ G (copyTail slbl ((args.map UScalar.bv).drop 2) excaps dsl) s res ⦄ := by
+      InvPost (L := L) th σ G (copyTail slbl ((args.map UScalar.bv).drop 2) excaps dsl) s res
+        (CnTrace (L := L) th ct s) ⦄ := by
   have hts := set_thread_state_slots th hP s ct sched.TS_RESTART htcb hact
   have hAd : AbsSlot th dsl := ⟨pd, hpd1, Or.inl hpd⟩
   unfold cnode.decode_rotate
@@ -331,10 +332,18 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
                 ns (absCap ns) ⟨hnsw, rfl⟩ (hnscv th hscv) hnse hnsn hshs hbds' (update_okey hns hnsn)
                 np (absCap np) ⟨hnpw, rfl⟩ (hnpcv th hpcv) hnpe hnpn hshp hbdp' (update_okey hnp hnpn)
                 (update_vcap hns) (update_vcap hnp))
+            have htr := swap_trace hP s2 G hM1 ((hM1.members _).2 ⟨hAs.isSlot, srcC, hsc2, hsn⟩)
+              ((hM1.members _).2 ⟨hAp.isSlot, pivC, hpc2, hpn⟩) (fun h => e1 h.symm) ns np hnse hnpe
+            rw [hs3, WP.spec_ok] at htr
             rw [hs3]; simp only [bind_ok]
             rw [WP.spec_ok]
             refine ⟨.rotateCall (absCap ns) (absCap np) (ps.bv, sb) (ppv.bv, pb) (pd.bv, db), ?_, σ1, hst, σ', G', ?_,
-              hR', hV', hM', hC', hI', hFI', MdbStep.same_left hM hS (hSt (update_ut hns) (update_ut hnp))⟩
+              hR', hV', hM', hC', hI', hFI', MdbStep.same_left hM hS (hSt (update_ut hns) (update_ut hnp)),
+              s2, by simp [invSlots], hs2, htr.1, fun sl hsl => by
+                simp only [invSlots, List.mem_cons, List.not_mem_nil, or_false] at hsl
+                rcases hsl with rfl | rfl | rfl
+                exacts [⟨ps, _, rfl, hps, rfl⟩, ⟨ppv, _, rfl, hpl, rfl⟩, ⟨pd, _, rfl, hpd, rfl⟩],
+              fun y hy hne => htr.2 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots]))⟩
             · simp only [hnsan, hnpan, Fl4Spec.NonDetE.whenE, ↓reduceIte, ndE_pure_bind]; rfl
             · unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption
               simp only [e3', ↓reduceIte]
@@ -455,11 +464,24 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
             obtain ⟨s4, hs4, σ', G', hmv2, hR', hV', hM', hC', hI', hFI', hSt⟩ := spec_exists
               (move_full_fin th s3 σ2 G2 hR2 hV2 hP hM2 hC2 hI2 hFI2 hps hpl rfl rfl hsc3 hsn hpc3 ns (absCap ns) ⟨hnsw, rfl⟩
                 (hnscv th hscv) hnse hnsn hshs hbds' (update_okey hns hnsn) (update_vcap hns))
+            have htr1 := Vs.move_trace hP s2 G hM1 hpm hAd.isSlot hdm np hnpe
+            rw [hs3, WP.spec_ok] at htr1
+            have htr2 := Vs.move_trace hP s3 G2 hM2 ((hM2.members _).2 ⟨hAs.isSlot, srcC, hsc3, hsn⟩) hAp.isSlot
+              (fun h => by obtain ⟨-, c0, h0, hn⟩ := (hM2.members _).1 h; rw [hpc3] at h0
+                           exact hn (eq_of_ok_eq h0).symm) ns hnse
+            rw [hs4, WP.spec_ok] at htr2
             rw [hs4]; simp only [bind_ok]
             rw [WP.spec_ok]
             refine ⟨.rotateCall (absCap ns) (absCap np) (ps.bv, sb) (ppv.bv, pb) (pd.bv, db), ?_, σ1, hst, σ', G', ?_,
               hR', hV', hM', hC', hI', hFI',
-              (MdbStep.same_left hM hS (hSt2 (update_ut hnp))).trans (hSt (update_ut hns))⟩
+              (MdbStep.same_left hM hS (hSt2 (update_ut hnp))).trans (hSt (update_ut hns)),
+              s2, by simp [invSlots], hs2, ⟨htr2.1.1.trans htr1.1.1, htr2.1.2.1.trans htr1.1.2.1,
+                fun b hb hn => (htr2.1.2.2 b hb hn).trans (htr1.1.2.2 b hb hn)⟩, fun sl hsl => by
+                simp only [invSlots, List.mem_cons, List.not_mem_nil, or_false] at hsl
+                rcases hsl with rfl | rfl | rfl
+                exacts [⟨ps, _, rfl, hps, rfl⟩, ⟨ppv, _, rfl, hpl, rfl⟩, ⟨pd, _, rfl, hpd, rfl⟩],
+              fun y hy hne => (htr2.2 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots]))).trans
+                (htr1.2 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots])))⟩
             · simp only [hnsan, hnpan, Fl4Spec.NonDetE.whenE, ↓reduceIte, ndE_pure_bind]; rfl
             · unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption
               simp only [e3', ↓reduceIte]
@@ -491,7 +513,7 @@ theorem cnode_rotate_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb) :
     cnode.decode st arI s ar fl4_abi.label.CNodeRotate length cap buf extra ⦃ res =>
       InvPost (L := L) th σ G (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
-        (res.1, res.2.1) ⦄ := by
+        (res.1, res.2.1) (CnTrace (L := L) th ct s) ∧ res.2.2 = ar ⦄ := by
   have hin : Fl4Spec.genInvocationType slbl ∈
       Fl4Spec.GenInvocationLabels.uptoEnum .cnodeRevoke .cnodeRotate := by rw [hlbl]; decide
   unfold cnode.decode
@@ -503,7 +525,7 @@ theorem cnode_rotate_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
   · rw [if_pos h2]
     simp only [error.truncated, bind_ok]
     rw [WP.spec_ok]
-    exact ⟨rfl, .truncatedMessage, decode_short _ _ _ σ hin _ (by simp; scalar_tac), trivial⟩
+    exact ⟨⟨rfl, .truncatedMessage, decode_short _ _ _ σ hin _ (by simp; scalar_tac), trivial⟩, rfl⟩
   rw [if_neg h2]
   obtain ⟨y0, y1, rest, rfl⟩ : ∃ y0 y1 rest, args = y0 :: y1 :: rest := by
     match args with
@@ -528,7 +550,7 @@ theorem cnode_rotate_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
       simp only [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
         core.convert.FromSame, core.convert.FromSame.from, bind_ok, bind_tc_ok]
       rw [WP.spec_ok]
-      exact ⟨rfl, e', run_bind_error hlt _, hrel1⟩
+      exact ⟨⟨rfl, e', run_bind_error hlt _, hrel1⟩, rfl⟩
   | Ok dest =>
     cases e1 with
     | error _ => exact hrel1.elim
@@ -548,7 +570,7 @@ theorem cnode_rotate_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
       rw [hdc]; simp only [bind_ok, uncurry_apply_pair]
       rw [WP.spec_ok]
       simp only [List.map_cons, List.drop_succ_cons, List.drop_zero] at hpost
-      exact InvPost.of_run (run_bind_ok hlt _) hpost
+      exact ⟨InvPost.of_run (run_bind_ok hlt _) hpost, rfl⟩
 
 
 end

@@ -34,10 +34,10 @@ end
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
 
-/-- **What adding the objects at `N` needs**: fresh, placed and nonzero
+/-- **The placement of the objects at `N`**: fresh, placed and nonzero
 addresses, disjoint from `H`'s objects, from each other, from the nodes and
-from the kernel-global area, and zero words. -/
-structure AddOK (st : machine.Store S) [L : LawfulStore st] (H : Heap) (N : U64 → Prop) (kd : HKind)
+from the kernel-global area. -/
+structure AddOKP (st : machine.Store S) [L : LawfulStore st] (H : Heap) (N : U64 → Prop) (kd : HKind)
     (Cs : Set U64) (s : S) : Prop where
   fresh : ∀ q, N q → H q = none
   align : ∀ q, N q → q.val % 2 ^ kd.bits = 0
@@ -47,6 +47,11 @@ structure AddOK (st : machine.Store S) [L : LawfulStore st] (H : Heap) (N : U64 
   disjN : ∀ q q', N q → N q' → q ≠ q' → q.val + 2 ^ kd.bits ≤ q'.val ∨ q'.val + 2 ^ kd.bits ≤ q.val
   nodes : ∀ q, N q → ∀ c ∈ Cs, q.val + 2 ^ kd.bits ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ q.val
   ks : ∀ q, N q → q.val + 2 ^ kd.bits ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ q.val
+
+/-- **What adding the objects at `N` needs**: their placement (`AddOKP`)
+and zero words. -/
+structure AddOK (st : machine.Store S) [L : LawfulStore st] (H : Heap) (N : U64 → Prop) (kd : HKind)
+    (Cs : Set U64) (s : S) : Prop extends AddOKP st H N kd Cs s where
   zero : ∀ q, N q → ∀ b : U64, Aligned b → q.val ≤ b.val → b.val < q.val + 2 ^ kd.bits → L.mem s b = 0#u64
 
 variable {H : Heap} {N : U64 → Prop} {Cs : Set U64} {s : S}
@@ -54,7 +59,7 @@ variable {H : Heap} {N : U64 → Prop} {Cs : Set U64} {s : S}
 /-! ## The heap's sets -/
 
 /-- Away from the new kind, the heap is unchanged. -/
-theorem AddOK.some_ne (A : AddOK st H N kd Cs s) {q : U64} {k : HKind} (hk : k ≠ kd) :
+theorem AddOKP.some_ne (A : AddOKP st H N kd Cs s) {q : U64} {k : HKind} (hk : k ≠ kd) :
     H.add N kd q = some k ↔ H q = some k := by
   rw [Heap.add_eq_some]
   constructor
@@ -66,16 +71,16 @@ theorem AddOK.some_ne (A : AddOK st H N kd Cs s) {q : U64} {k : HKind} (hk : k �
     · rw [A.fresh q hn] at h; cases h
     · exact Or.inr ⟨hn, h⟩
 
-theorem AddOK.tcbs_eq (A : AddOK st H N kd Cs s) (hk : HKind.tcb ≠ kd) : (H.add N kd).tcbs = H.tcbs := by
+theorem AddOKP.tcbs_eq (A : AddOKP st H N kd Cs s) (hk : HKind.tcb ≠ kd) : (H.add N kd).tcbs = H.tcbs := by
   ext q; exact A.some_ne hk
-theorem AddOK.replies_eq (A : AddOK st H N kd Cs s) (hk : HKind.reply ≠ kd) : (H.add N kd).replies = H.replies := by
+theorem AddOKP.replies_eq (A : AddOKP st H N kd Cs s) (hk : HKind.reply ≠ kd) : (H.add N kd).replies = H.replies := by
   ext q; exact A.some_ne hk
-theorem AddOK.ntfns_eq (A : AddOK st H N kd Cs s) (hk : HKind.ntfn ≠ kd) : (H.add N kd).ntfns = H.ntfns := by
+theorem AddOKP.ntfns_eq (A : AddOKP st H N kd Cs s) (hk : HKind.ntfn ≠ kd) : (H.add N kd).ntfns = H.ntfns := by
   ext q; exact A.some_ne hk
-theorem AddOK.scs_eq (A : AddOK st H N kd Cs s) (hk : ∀ z, HKind.sc z ≠ kd) : (H.add N kd).scs = H.scs := by
+theorem AddOKP.scs_eq (A : AddOKP st H N kd Cs s) (hk : ∀ z, HKind.sc z ≠ kd) : (H.add N kd).scs = H.scs := by
   ext q; simp only [Heap.scs, Set.mem_setOf_eq]
   exact ⟨fun ⟨z, h⟩ => ⟨z, (A.some_ne (hk z)).1 h⟩, fun ⟨z, h⟩ => ⟨z, (A.some_ne (hk z)).2 h⟩⟩
-theorem AddOK.scBits_eq (A : AddOK st H N kd Cs s) (hk : ∀ z, HKind.sc z ≠ kd) : (H.add N kd).scBits = H.scBits := by
+theorem AddOKP.scBits_eq (A : AddOKP st H N kd Cs s) (hk : ∀ z, HKind.sc z ≠ kd) : (H.add N kd).scBits = H.scBits := by
   funext q; unfold Heap.scBits
   by_cases hn : N q
   · rw [Heap.add_of_mem hn, A.fresh q hn]
@@ -85,7 +90,7 @@ theorem AddOK.scBits_eq (A : AddOK st H N kd Cs s) (hk : ∀ z, HKind.sc z ≠ k
   · rw [Heap.add_of_not hn]
 
 /-- The words of objects of kinds other than `kd` are those of `H`. -/
-theorem AddOK.omega_eq (A : AddOK st H N kd Cs s) (hk : kd = .ep) : (H.add N kd).omega = H.omega := by
+theorem AddOKP.omega_eq (A : AddOKP st H N kd Cs s) (hk : kd = .ep) : (H.add N kd).omega = H.omega := by
   subst hk
   ext b; simp only [Heap.omega, Set.mem_setOf_eq]
   constructor
@@ -96,7 +101,7 @@ theorem AddOK.omega_eq (A : AddOK st H N kd Cs s) (hk : kd = .ep) : (H.add N kd)
     have hne : k ≠ .ep := by rcases hkk with h | ⟨z, h⟩ | ⟨z, h⟩ | ⟨h, -⟩ <;> subst h <;> simp
     exact ⟨ha, p, k, (A.some_ne hne).2 hp, hkk, hin⟩
 
-theorem AddOK.frame_eq (A : AddOK st H N kd Cs s) (hk : kd = .ep) : (H.add N kd).frame = H.frame := by
+theorem AddOKP.frame_eq (A : AddOKP st H N kd Cs s) (hk : kd = .ep) : (H.add N kd).frame = H.frame := by
   subst hk
   ext b; simp only [Heap.frame, Set.mem_setOf_eq]
   constructor
@@ -235,23 +240,23 @@ theorem ntfnW_vals {n b : U64} (hP : n.val % 64 = 0 ∧ n.val + 64 ≤ 2 ^ 64) (
   · rw [ntfnBdA_val hP]; omega
   · rw [ntfnBtA_val hP]; omega
 
-theorem AddOK.ntP (A : AddOK st H N .ntfn Cs s) {n : U64} (hn : N n) : n.val % 64 = 0 ∧ n.val + 64 ≤ 2 ^ 64 :=
+theorem AddOKP.ntP (A : AddOKP st H N .ntfn Cs s) {n : U64} (hn : N n) : n.val % 64 = 0 ∧ n.val + 64 ≤ 2 ^ 64 :=
   ⟨A.align n hn, A.fits n hn⟩
 
-theorem AddOK.omega_sub_ntfn (A : AddOK st H N .ntfn Cs s) : H.omega ⊆ (H.add N .ntfn).omega := by
+theorem AddOKP.omega_sub_ntfn (A : AddOKP st H N .ntfn Cs s) : H.omega ⊆ (H.add N .ntfn).omega := by
   rintro b ⟨ha, p, k, hp, hk, hin⟩
   exact ⟨ha, p, k, Heap.add_eq_some.2 (Or.inr ⟨fun hn => (by rw [A.fresh p hn] at hp; cases hp), hp⟩), hk, hin⟩
 
-theorem AddOK.frame_sub_ntfn (A : AddOK st H N .ntfn Cs s) : H.frame ⊆ (H.add N .ntfn).frame := by
+theorem AddOKP.frame_sub_ntfn (A : AddOKP st H N .ntfn Cs s) : H.frame ⊆ (H.add N .ntfn).frame := by
   rintro b ⟨ha, p, k, hp, hk, hin⟩
   exact ⟨ha, p, k, Heap.add_eq_some.2 (Or.inr ⟨fun hn => (by rw [A.fresh p hn] at hp; cases hp), hp⟩), hk, hin⟩
 
-theorem AddOK.newNt_frame (A : AddOK st H N .ntfn Cs s) {b : U64} (h : NewNtW N b) : b ∈ (H.add N .ntfn).frame := by
+theorem AddOKP.newNt_frame (A : AddOKP st H N .ntfn Cs s) {b : U64} (h : NewNtW N b) : b ∈ (H.add N .ntfn).frame := by
   obtain ⟨ha, n, hn, hw⟩ := h
   have hv := ntfnW_vals (A.ntP hn) hw
   exact ⟨ha, n, .ntfn, Heap.add_of_mem hn, Or.inr (Or.inr ⟨rfl, hw⟩), ⟨by omega, by simp only [HKind.bits]; omega⟩⟩
 
-theorem AddOK.omega_ntfn (A : AddOK st H N .ntfn Cs s) {b : U64} (h : b ∈ (H.add N .ntfn).omega) :
+theorem AddOKP.omega_ntfn (A : AddOKP st H N .ntfn Cs s) {b : U64} (h : b ∈ (H.add N .ntfn).omega) :
     b ∈ H.omega ∨ NewNtW N b := by
   obtain ⟨ha, p, k, hp, hk, hin⟩ := h
   rcases Heap.add_eq_some.1 hp with ⟨hn, rfl⟩ | ⟨hn, hp'⟩
@@ -262,7 +267,7 @@ theorem AddOK.omega_ntfn (A : AddOK st H N .ntfn Cs s) {b : U64} (h : b ∈ (H.a
     · exact Or.inr ⟨ha, p, hn, hw⟩
   · exact Or.inl ⟨ha, p, k, hp', hk, hin⟩
 
-theorem AddOK.frame_ntfn (A : AddOK st H N .ntfn Cs s) {b : U64} (h : b ∈ (H.add N .ntfn).frame) :
+theorem AddOKP.frame_ntfn (A : AddOKP st H N .ntfn Cs s) {b : U64} (h : b ∈ (H.add N .ntfn).frame) :
     b ∈ H.frame ∨ NewNtW N b := by
   obtain ⟨ha, p, k, hp, hk, hin⟩ := h
   rcases Heap.add_eq_some.1 hp with ⟨hn, rfl⟩ | ⟨hn, hp'⟩
@@ -272,7 +277,7 @@ theorem AddOK.frame_ntfn (A : AddOK st H N .ntfn Cs s) {b : U64} (h : b ∈ (H.a
     · exact Or.inr ⟨ha, p, hn, hw⟩
   · exact Or.inl ⟨ha, p, k, hp', hk, hin⟩
 
-theorem AddOK.ntfns_ntfn (A : AddOK st H N .ntfn Cs s) {n : U64} :
+theorem AddOKP.ntfns_ntfn (A : AddOKP st H N .ntfn Cs s) {n : U64} :
     n ∈ (H.add N .ntfn).ntfns ↔ n ∈ H.ntfns ∨ N n := by
   simp only [Heap.ntfns, Set.mem_setOf_eq, Heap.add_eq_some]
   constructor
@@ -393,7 +398,7 @@ theorem BlkOK.addNtfn (A : AddOK st H N .ntfn Cs s) (hH : HeapOK H) {Ac : Set U6
 
 /-- **The endpoint queues with objects of another kind added**, over `Ω` grown
 by words of the new objects. -/
-theorem EpsOK.addOther {kd : HKind} (hkd : HKind.ep ≠ kd ∧ HKind.ntfn ≠ kd) (A : AddOK st H N kd Cs s)
+theorem EpsOK.addOther {kd : HKind} (hkd : HKind.ep ≠ kd ∧ HKind.ntfn ≠ kd) (A : AddOKP st H N kd Cs s)
     (hH : HeapOK H) {Ω' : Set U64}
     (hΩ : ∀ a ∈ Ω', a ∈ H.omega ∨ ∃ q, N q ∧ a.val % 8 = 0 ∧ q.val ≤ a.val ∧ a.val < q.val + 2 ^ kd.bits)
     (h : EpsOK st H.tcbs Cs H.omega H ∅ s) : EpsOK st H.tcbs Cs Ω' (H.add N kd) ∅ s := by
@@ -421,33 +426,33 @@ theorem EpsOK.addOther {kd : HKind} (hkd : HKind.ep ≠ kd ∧ HKind.ntfn ≠ kd
 /-- A new reply's word. -/
 def NewRpW (N : U64 → Prop) (b : U64) : Prop := Aligned b ∧ ∃ r, N r ∧ r.val ≤ b.val ∧ b.val < r.val + 32
 
-theorem AddOK.omega_sub (A : AddOK st H N kd Cs s) : H.omega ⊆ (H.add N kd).omega := by
+theorem AddOKP.omega_sub (A : AddOKP st H N kd Cs s) : H.omega ⊆ (H.add N kd).omega := by
   rintro b ⟨ha, p, k, hp, hk, hin⟩
   exact ⟨ha, p, k, Heap.add_eq_some.2 (Or.inr ⟨fun hn => (by rw [A.fresh p hn] at hp; cases hp), hp⟩), hk, hin⟩
 
-theorem AddOK.frame_sub (A : AddOK st H N kd Cs s) : H.frame ⊆ (H.add N kd).frame := by
+theorem AddOKP.frame_sub (A : AddOKP st H N kd Cs s) : H.frame ⊆ (H.add N kd).frame := by
   rintro b ⟨ha, p, k, hp, hk, hin⟩
   exact ⟨ha, p, k, Heap.add_eq_some.2 (Or.inr ⟨fun hn => (by rw [A.fresh p hn] at hp; cases hp), hp⟩), hk, hin⟩
 
-theorem AddOK.newRp_frame (A : AddOK st H N .reply Cs s) {b : U64} (h : NewRpW N b) : b ∈ (H.add N .reply).frame := by
+theorem AddOKP.newRp_frame (A : AddOKP st H N .reply Cs s) {b : U64} (h : NewRpW N b) : b ∈ (H.add N .reply).frame := by
   obtain ⟨ha, r, hr, h1, h2⟩ := h
   exact ⟨ha, r, .reply, Heap.add_of_mem hr, Or.inl rfl, ⟨h1, by rw [show (HKind.reply).bits = 5 from rfl]; omega⟩⟩
 
-theorem AddOK.omega_reply (A : AddOK st H N .reply Cs s) {b : U64} (h : b ∈ (H.add N .reply).omega) :
+theorem AddOKP.omega_reply (A : AddOKP st H N .reply Cs s) {b : U64} (h : b ∈ (H.add N .reply).omega) :
     b ∈ H.omega ∨ NewRpW N b := by
   obtain ⟨ha, p, k, hp, hk, hin⟩ := h
   rcases Heap.add_eq_some.1 hp with ⟨hn, rfl⟩ | ⟨hn, hp'⟩
   · exact Or.inr ⟨ha, p, hn, hin.1, by have := hin.2; rw [show (HKind.reply).bits = 5 from rfl] at this; omega⟩
   · exact Or.inl ⟨ha, p, k, hp', hk, hin⟩
 
-theorem AddOK.frame_reply (A : AddOK st H N .reply Cs s) {b : U64} (h : b ∈ (H.add N .reply).frame) :
+theorem AddOKP.frame_reply (A : AddOKP st H N .reply Cs s) {b : U64} (h : b ∈ (H.add N .reply).frame) :
     b ∈ H.frame ∨ NewRpW N b := by
   obtain ⟨ha, p, k, hp, hk, hin⟩ := h
   rcases Heap.add_eq_some.1 hp with ⟨hn, rfl⟩ | ⟨hn, hp'⟩
   · exact Or.inr ⟨ha, p, hn, hin.1, by have := hin.2; rw [show (HKind.reply).bits = 5 from rfl] at this; omega⟩
   · exact Or.inl ⟨ha, p, k, hp', hk, hin⟩
 
-theorem AddOK.replies_reply (A : AddOK st H N .reply Cs s) {r : U64} :
+theorem AddOKP.replies_reply (A : AddOKP st H N .reply Cs s) {r : U64} :
     r ∈ (H.add N .reply).replies ↔ r ∈ H.replies ∨ N r := by
   simp only [Heap.replies, Set.mem_setOf_eq, Heap.add_eq_some]
   constructor
@@ -483,7 +488,7 @@ theorem BlkOK.addReply (A : AddOK st H N .reply Cs s) (hH : HeapOK H) {Ac : Set 
     unfold rNextA; exact hz r hr _ (by simp [layout.reply.NEXT]) (by simp [layout.reply.NEXT])
   have q : SchedQueuesInv st H.tcbs Cs (H.add N .reply).omega (H.add N .reply) s Q R :=
     { h0 with
-      eps := h0.eps.addOther (by simp) A hH fun a ha => (A.omega_reply ha).imp id fun ⟨hal, r, hr, h1, h2⟩ =>
+      eps := h0.eps.addOther (by simp) A.toAddOKP hH fun a ha => (A.omega_reply ha).imp id fun ⟨hal, r, hr, h1, h2⟩ =>
         ⟨r, hr, hal, h1, by rw [show (HKind.reply).bits = 5 from rfl]; omega⟩
       omega := fun a ha => by
         rcases A.omega_reply ha with ha | ⟨hal, r, hr, h1, h2⟩

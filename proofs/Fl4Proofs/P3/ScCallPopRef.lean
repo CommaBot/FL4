@@ -57,6 +57,7 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
         Fl4Spec.replyUnlinkSc (Z := Unit) sc.bv r.bv
         Fl4Spec.NonDet.when (xt.tcbSchedContext = none) (Fl4Spec.schedContextDonate (Z := Unit) sc.bv t.bv) :
         Fl4Spec.SMonad Unit Unit) σ = ({((), σ5)}, False) →
+      WritesIn st s s5 (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) →
       ipc.reply_unlink st s5 r t ⦃ s6 => Q (s6, a) ⦄) :
     ipc.reply_pop st ar s a r t ⦃ Q ⦄ := by
   have hP := hS.placed
@@ -141,6 +142,7 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
         L.mem s2 b = L.mem s b) →
       L.mem s2 (scReplyA sc) = rest.headD 0#u64 →
       (∀ d, rest.head? = some d → L.mem s2 (rNextA d) = sc ||| 1#u64) →
+      WritesIn st s s2 (CallW' R C) →
       (do
         let s3 ← obj.Reply.set_next st r s2 0#u64 false
         let i ← obj.Tcb.sc st t s3
@@ -148,7 +150,7 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
         let s5 ← obj.Reply.set_prev st r s4 0#u64
         let s6 ← ipc.reply_unlink st s5 r t
         ok (s6, a1)) ⦃ Q ⦄ := by
-    intro s2 σb hS2 hR2 hN2 hI2 hks2 hkb hkbsc hkbh htmb hcase hm2 hm2s hm2h
+    intro s2 σb hS2 hR2 hN2 hI2 hks2 hkb hkbsc hkbh htmb hcase hm2 hm2s hm2h hw2
     have hnh_sc : ∀ d, rest.head? = some d → sc.bv ≠ d.bv := fun d h e => by
       obtain ⟨xd, hkd, -⟩ := hCR.reply d (hhR d h); rw [← e, hk] at hkd; cases hkd
     have hnh_r : ∀ d, rest.head? = some d → r.bv ≠ d.bv := fun d h e => hhr d h (eq_of_bv e).symm
@@ -169,6 +171,15 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
     rw [rz_next]
     have hNr := (hal r hrR).2
     have hPr := (hal r hrR).1
+    have cwr : ∀ {s0 : S} {a : U64} {v : U64}, Aligned a → CallW' R C a →
+        WritesIn st s0 (L.wr s0 a v) (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) :=
+      fun ha hc => (writesIn_wr ha).mono fun b hb => hb ▸ Or.inr hc
+    have tr : ∀ {x y z : S}, WritesIn st x y (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) →
+        WritesIn st y z (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) →
+        WritesIn st x z (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) :=
+      fun h1 h2 => (h1.trans h2).mono fun b hb => hb.elim id id
+    have w3 : WritesIn st s (L.wr s2 (rNextA r) 0#u64) (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) :=
+      tr (hw2.mono fun _ h => Or.inr h) (cwr hNr (Or.inl ⟨r, hrR, Or.inl rfl⟩))
     set σc := updK σb r.bv (.reply { xr with replySc := none }) with hσc
     have hS3 := (hS2.wr_far hNr (hRP2.far hrR (Or.inr (rNextA_val hA))) 0#u64).stableW
       (WritesIn.refl _ _) (NtfnStepW.updReply hkrb { xr with replySc := none })
@@ -353,10 +364,16 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
           have hdf : d.bv ≠ f.bv := fun e => by rw [e, hkfc] at hx; cases hx
           have hdt : d.bv ≠ t.bv := fun e => by rw [e, hktc] at hx; cases hx
           exact ⟨x, by rw [hko4 _ hdsc hdf hdt]; exact hx, rfl⟩)
+      have w4 : WritesIn st (L.wr s2 (rNextA r) 0#u64) s4 (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) :=
+        hw4.mono fun b hb => by
+          rcases hb with hb | rfl
+          · exact Or.inl (KFoot.of_sfoot ((SFoot.ksb w3.1).1 hb))
+          · exact Or.inl (KFoot.of_sw (sw_hdr hS hsc (K := 24#u64) (by simp) (by simp) (by decide)))
+      have w5 := tr (tr w3 w4) (cwr (s0 := s4) (v := 0#u64) hPr (Or.inl ⟨r, hrR, Or.inr rfl⟩))
       refine WP.spec_bind (hU _ σ4 _ (hS4.wr_far hPr (hRP4.far hrR (Or.inl (rPrevA_val hA))) 0#u64)
         (hR4.frame hP (footEq_wr_far hP hPr (fun n hn => by have := hRP.ntfn r hrR n hn; rw [rPrevA_val hA]; omega)
           (fun t ht => by have := hRP.tcb r hrR t ht; rw [rPrevA_val hA]; omega) _) (KView.refl _))
-        hN4 hI4 hCR5 (hRP4.frame (by simp) (SzKeep.of_kheap rfl)) hiso5 (huf.trans ?_) hcs5 ?_) ?_
+        hN4 hI4 hCR5 (hRP4.frame (by simp) (SzKeep.of_kheap rfl)) hiso5 (huf.trans ?_) hcs5 ?_ w5) ?_
       · refine ⟨fun q x hq => ?_, fun q x hq => ?_⟩
         · have e1 : q ≠ sc.bv := by rintro rfl; rw [hkcsc] at hq; cases hq
           have e2 : q ≠ f.bv := by rintro rfl; rw [hkfc] at hq; cases hq
@@ -381,10 +398,11 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
       rw [zero_or_masked]
       obtain ⟨hCR5, hiso5, hcs5⟩ := hcall _ (fun q _ => rfl) (fun d _ => ⟨rfl, rfl⟩) σc
         (fun q _ y0 n0 hy0 => ⟨y0, hy0, rfl⟩) (fun d _ x hx => ⟨x, hx, rfl⟩)
+      have w5 := tr w3 (cwr (s0 := L.wr s2 (rNextA r) 0#u64) (v := 0#u64) hPr (Or.inl ⟨r, hrR, Or.inr rfl⟩))
       refine WP.spec_bind (hU _ σc _ (hS3.wr_far hPr (hRP3.far hrR (Or.inl (rPrevA_val hA))) 0#u64)
         (hR3.frame hP (footEq_wr_far hP hPr (fun n hn => by have := hRP.ntfn r hrR n hn; rw [rPrevA_val hA]; omega)
           (fun t ht => by have := hRP.tcb r hrR t ht; rw [rPrevA_val hA]; omega) _) (KView.refl _))
-        hN3 hI3 hCR5 (hRP3.frame (by simp) (SzKeep.of_kheap rfl)) hiso5 huf hcs5 ?_) ?_
+        hN3 hI3 hCR5 (hRP3.frame (by simp) (SzKeep.of_kheap rfl)) hiso5 huf hcs5 ?_ w5) ?_
       · rw [nd_bind_one hunl]
         unfold Fl4Spec.NonDet.when
         rw [if_neg hxt1]; rfl
@@ -398,6 +416,7 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
     exact cont _ σa hS1 hR1 hNa hIa (by simp) (fun q hq _ => hka q hq) hkasc
       (fun d x hh => by rw [hr0] at hh; cases hh) rfl (Or.inl ⟨hr0, rfl⟩)
       (fun b hb h1 _ => hm1 b hb h1) (L.mem_wr_same haP) (fun d hh => by rw [hr0] at hh; cases hh)
+      ((writesIn_wr haP).mono fun b hb => hb ▸ Or.inr ⟨sc, hsc, rfl⟩)
   · obtain ⟨d, l, hr'⟩ := List.exists_cons_of_ne_nil hr0
     have hhd : rest.headD 0#u64 = d := by rw [hr']; rfl
     have hhh : rest.head? = some d := by rw [hr']; rfl
@@ -437,6 +456,10 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
         rw [L.mem_wr_ne hNd haP (by rw [hhd]; exact fun e => (hfarS sc hsc d hdR).2 e.symm)]
         exact L.mem_wr_same haP)
       (fun d' hh => by rw [hhh] at hh; cases hh; rw [← hhd]; exact L.mem_wr_same hNd)
+      (((writesIn_wr haP).trans (writesIn_wr hNd)).mono fun b hb => by
+        rcases hb with rfl | rfl
+        · exact Or.inr ⟨sc, hsc, rfl⟩
+        · rw [hhd]; exact Or.inl ⟨d, hdR, Or.inl rfl⟩)
 
 end
 

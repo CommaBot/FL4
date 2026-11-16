@@ -93,6 +93,7 @@ theorem splice_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ' : Fl4S
       CallRel (L.mem s4) R C σ' Lst' → RPlaced st N T C R c s4 σ' → Isolated (L.mem s4) R r →
       (∀ d ∈ R, d ≠ r → d ≠ nx → d ≠ pv →
         L.mem s4 (rNextA d) = L.mem s (rNextA d) ∧ L.mem s4 (rPrevA d) = L.mem s (rPrevA d)) →
+      WritesIn st s s4 (CallW' R C) →
       ipc.reply_unlink st s4 r t ⦃ s6 => Q (s6, a) ⦄) :
     (do
       let s1 ← if nx != 0#u64 then obj.Reply.set_prev st nx s 0#u64 else ok s
@@ -193,8 +194,25 @@ theorem splice_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ' : Fl4S
       simp only [s2, h, ↓reduceIte]
       exact L.mem_wr_same (hal pv hR').2)
     hPr0 hNr0
+  have cw : ∀ {s0 : S} {a : U64} {v : U64}, Aligned a → CallW' R C a → WritesIn st s0 (L.wr s0 a v) (CallW' R C) :=
+    fun ha hc => (writesIn_wr ha).mono fun b hb => hb ▸ hc
+  have tr : ∀ {x y z : S}, WritesIn st x y (CallW' R C) → WritesIn st y z (CallW' R C) → WritesIn st x z (CallW' R C) :=
+    fun h1 h2 => (h1.trans h2).mono fun b hb => hb.elim id id
+  have w1 : WritesIn st s s1 (CallW' R C) := by
+    by_cases h : nx = 0#u64
+    · simp only [s1, h, ↓reduceIte]; exact WritesIn.refl _ _
+    · simp only [s1, h, ↓reduceIte]
+      exact cw (hal nx (hnx.resolve_left h)).1 (Or.inl ⟨nx, hnx.resolve_left h, Or.inr rfl⟩)
+  have w2 : WritesIn st s1 s2 (CallW' R C) := by
+    by_cases h : pv = 0#u64
+    · simp only [s2, h, ↓reduceIte]; exact WritesIn.refl _ _
+    · simp only [s2, h, ↓reduceIte]
+      exact cw (hal pv (hpv.resolve_left h)).2 (Or.inl ⟨pv, hpv.resolve_left h, Or.inl rfl⟩)
+  have hw4 : WritesIn st s s4 (CallW' R C) :=
+    tr (tr w1 w2) (tr (cw (hal r hr).1 (Or.inl ⟨r, hr, Or.inr rfl⟩))
+      (cw (hal r hr).2 (Or.inl ⟨r, hr, Or.inl rfl⟩)))
   refine WP.spec_bind (hU _ g4 g5 hN hI hCR g6 hiso
-    (fun d hd h1 h2 h3 => ⟨hNs d hd h1 h3, hPs d hd h1 h2⟩)) ?_
+    (fun d hd h1 h2 h3 => ⟨hNs d hd h1 h3, hPs d hd h1 h2⟩) hw4) ?_
   intro s6 h6; exact (WP.spec_ok _).mpr h6
 
 
@@ -252,6 +270,7 @@ theorem reply_remove_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ :
       CallRel (L.mem s5) R C σ5 Lst5 → RPlaced st N T C R c s5 σ5 → Isolated (L.mem s5) R r → UFrame σ σ5 →
       CallStep (L.mem s) (L.mem s5) R C Lst Lst5 r →
       replyRemoveSc t.bv r.bv σ = ({((), σ5)}, False) →
+      WritesIn st s s5 (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) →
       ipc.reply_unlink st s5 r t ⦃ s6 => Q (s6, a) ⦄) :
     ipc.reply_remove st ar s a r t ⦃ Q ⦄ := by
   have hev : ∀ d ∈ R, d.val % 2 = 0 := fun d hd => by have := (hRP.align d hd).1; omega
@@ -310,7 +329,7 @@ theorem reply_remove_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ :
       rw [hm0, headBit_or1]; simp only [↓reduceIte]
       exact reply_pop_refines s a σ hS hR hN hI hCR hRP hsc (hC0 sc hsc) hk hL ht hkt
         (hdon sc hsc y n hk hhd) (hrel sc hsc y n hk hhd) Q
-        (fun s5 σ5 Lst5 h1 h2 h3 h4 h5 h6 h7 hu hcs hsp => hU s5 σ5 Lst5 h1 h2 h3 h4 h5 h6 h7 hu hcs (hrem.trans hsp))
+        (fun s5 σ5 Lst5 h1 h2 h3 h4 h5 h6 h7 hu hcs hsp hw => hU s5 σ5 Lst5 h1 h2 h3 h4 h5 h6 h7 hu hcs (hrem.trans hsp) hw)
     · -- further down: cut out with the older replies
       obtain ⟨j, rfl⟩ : ∃ j, k = j + 1 := ⟨k - 1, by omega⟩
       subst e
@@ -398,7 +417,7 @@ theorem reply_remove_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ :
             (hmPn (hR0 _ (hmL _ hjl)))
             (fun h => by rw [← hpvE.2.1 h]; exact hmNp (by rw [hpvE.2.1 h]; exact hR0 _ (hmL _ h)))
             hmPr hmNr hk hkσ' hko)
-        (fun s4 h1 h2 h3 h4 h5 h6 h7 hm => hU s4 σ' _ h1 h2 h3 h4 h5 h6 h7 (UFrame.updSc hk) ⟨fun d hd hdet _ _ hdr => hm d hd hdr
+        (fun s4 h1 h2 h3 h4 h5 h6 h7 hm hw4 => hU s4 σ' _ h1 h2 h3 h4 h5 h6 h7 (UFrame.updSc hk) ⟨fun d hd hdet _ _ hdr => hm d hd hdr
           (fun e => hdet sc hsc (e ▸ List.getElem_mem hjl)) (fun e => by
             by_cases hlt : j + 2 < (Lst sc).length
             · rw [hpvE.2.1 hlt] at e; exact hdet sc hsc (e ▸ List.getElem_mem hlt)
@@ -415,7 +434,7 @@ theorem reply_remove_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ :
               have := nodup_idx hLnd (by simp at hi; omega) hkl hie
               simp at hi; omega
             · simp only [ne_eq, e, not_false_eq_true, Function.update_of_ne] at hdq
-              exact e (hCR.excl q hq sc hsc _ hdq (List.getElem_mem hkl))⟩ hrem)
+              exact e (hCR.excl q hq sc hsc _ hdq (List.getElem_mem hkl))⟩ hrem (hw4.mono fun _ h => Or.inr h))
       have hnz : ((Lst sc)[j] != 0#u64) = true := by simp [hR0 _ (hmL _ hjl)]
       simp only [hnz, ↓reduceIte] at H ⊢
       refine WP.spec_bind (obj.Reply.next_is_head.spec s _) ?_
@@ -454,14 +473,14 @@ theorem reply_remove_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ :
     have H := splice_refines s a σ hS hR hN hI hRP hr hnxR hpvR t Q (Lst' := Lst)
       (fun m' hmS hmP hmN hmPn hmNp hmPr hmNr =>
         CallRel.dsplice (m' := m') hCR hR0 hev hr hdet hmS hmP hmN hmPn hmNp hmPr hmNr)
-      (fun s4 h1 h2 h3 h4 h5 h6 h7 hm => hU s4 σ Lst h1 h2 h3 h4 h5 h6 h7 (UFrame.refl σ)
+      (fun s4 h1 h2 h3 h4 h5 h6 h7 hm hw4 => hU s4 σ Lst h1 h2 h3 h4 h5 h6 h7 (UFrame.refl σ)
         ⟨fun d hd hdet hn0 hp0 hdr => hm d hd hdr (fun e => by
             have h0 : L.mem s (rNextA r) ≠ 0#u64 := fun h => hR0 d hd (e.trans h)
             have := (t2 h0).2.2; rw [← e] at this; rw [hp0] at this; exact hR0 r hr this.symm)
           (fun e => by
             have h0 : L.mem s (rPrevA r) ≠ 0#u64 := fun h => hR0 d hd (e.trans h)
             have := (t3 h0).2.2; rw [← e] at this; rw [hn0] at this; exact hR0 r hr this.symm),
-          fun q _ d hdq => hdq, hdet⟩ hrem)
+          fun q _ d hdq => hdq, hdet⟩ hrem (hw4.mono fun _ h => Or.inr h))
     by_cases hz : L.mem s (rNextA r) = 0#u64
     · have hb : (L.mem s (rNextA r) != 0#u64) = false := by simp [hz]
       simp only [hb, Bool.false_eq_true, ↓reduceIte] at H ⊢

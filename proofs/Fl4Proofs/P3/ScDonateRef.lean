@@ -125,7 +125,7 @@ theorem donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec
       σ.kheap t.bv = some (.tcb xt) ∧
       Fl4Spec.schedContextDonate (Z := Unit) sc.bv t.bv σ = ({((), donSt σ sc.bv t.bv xs ns xt)}, False) ∧
       FootEq N T (L.mem s) (L.mem r.1) ∧ KView σ (donSt σ sc.bv t.bv xs ns xt) ∧
-      SchedRel st N T C c r.1 (donSt σ sc.bv t.bv xs ns xt) ⦄ := by
+      SchedRel st N T C c r.1 (donSt σ sc.bv t.bv xs ns xt) ∧ WritesIn st s r.1 (KFoot st T N C c s σ) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨xs, ns, hks, hxs⟩ := hs.scs sc hsc
   obtain ⟨xt, hkt, -, -, -, -⟩ := hs.tcb t ht
@@ -139,12 +139,16 @@ theorem donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec
   simp only [b_post, decide_true, ↓reduceIte, bind_ok]
   step as ⟨s2, s2_post⟩
   subst s2_post
+  have hal24 : Aligned (scW sc 24#u64) := (hxs.hdr (K := 24#u64) (by simp) (by simp)).1
+  have w1 : WritesIn st s (L.wr s (scW sc 24#u64) t) (KFoot st T N C c s σ) :=
+    (writesIn_wr hal24).mono fun b hb => Or.inr (Or.inr (hb ▸ sw_hdr hS hsc (K := 24#u64) (by simp) (by simp) (by decide)))
   obtain ⟨hS1, hf1, hv1⟩ := hS.set_sc_tcb hsc hks t
   rw [optRef_ne ht0] at hS1 hv1
   have hkt1 : (updSc σ sc.bv { xs with scTcb := some t.bv } ns).kheap t.bv = some (.tcb xt) := by
     simp [updK, Ne.symm hst, hkt]
   step as ⟨s3, s3_post⟩
   subst s3_post
+  have w2 := WritesIn.kfoot_sfoot w1 (writesIn_tcb (K := 3464#u64) (c := c) hc.tcbs ht (by unfold SOff SOffL; decide) (by simp) sc)
   obtain ⟨hS2, hf2, hv2⟩ := hS1.set_tcb_sc ht hkt1 (v := sc) (Or.inr hsc)
   rw [optRef_ne hsc0] at hS2 hv2
   step as ⟨cpu, cpu_post⟩
@@ -158,9 +162,10 @@ theorem donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec
   simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, bind_ok]
   step as ⟨s4, s4_post⟩
   subst s4_post
+  have w3 := WritesIn.kfoot_sfoot w2 (writesIn_tcb (K := 3520#u64) hc.tcbs ht (by unfold SOff SOffL; decide) (by simp) i)
   obtain ⟨hS3, hf3⟩ := hS2.wr_same (field_aligned (hc.tcbs t ht) (K := 3520#u64) (by simp) (by simp))
     (hc2.aff t ht)
-  refine ⟨xs, ns, xt, hks, hkt, ?_, FootEq.trans' (FootEq.trans' hf1 hf2) hf3, KView.trans hv1 hv2, hS3⟩
+  refine ⟨xs, ns, xt, hks, hkt, ?_, FootEq.trans' (FootEq.trans' hf1 hf2) hf3, KView.trans hv1 hv2, hS3, w3⟩
   -- the spec
   have hg : Fl4Spec.getScObjRef (Z := Unit) Fl4Spec.SchedContext.scTcb sc.bv σ = ({(xs.scTcb, σ)}, False) := by
     unfold Fl4Spec.getScObjRef; rw [nd_bind_one (getSchedContext_eq hks)]; rfl
@@ -175,6 +180,7 @@ theorem donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec
   rw [threadSet_eq _ hkt1]
   rfl
 
+set_option maxHeartbeats 1000000 in
 /-- **`maybe_donate_sched_context` refines `maybe_donate_sc`**, given
 `DonatePre`'s facts (see the module docstring); it keeps `ActReady`. -/
 theorem maybe_donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
@@ -186,7 +192,8 @@ theorem maybe_donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
       t.bv ∉ σ.readyQueues x.tcbDomain x.tcbPriority) :
     notification.maybe_donate_sched_context st ar s a t n ⦃ r => ∃ σ1,
       Fl4Spec.maybeDonateSc (Z := Unit) t.bv n.bv σ = ({((), σ1)}, False) ∧ FootEq N T (L.mem s) (L.mem r.1) ∧
-      KView σ σ1 ∧ SchedRel st N T C c r.1 σ1 ∧ (ActReady σ → ActReady σ1) ⦄ := by
+      KView σ σ1 ∧ SchedRel st N T C c r.1 σ1 ∧ WritesIn st s r.1 (KFoot st T N C c s σ) ∧
+      (ActReady σ → ActReady σ1) ⦄ := by
   have hP := hS.placed
   by_cases hd : L.mem s (scA t) = 0#u64 ∧ L.mem s (nScA n) ≠ 0#u64 ∧
       L.mem s (scW (L.mem s (nScA n)) 24#u64) = 0#u64
@@ -200,7 +207,7 @@ theorem maybe_donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
       · exact Or.inl h1
     refine WP.spec_mono (maybe_donate_nodonate s a σ hR hS t n ht hn hno) ?_
     rintro r ⟨rfl, he⟩
-    exact ⟨σ, he, FootEq.rfl', KView.refl σ, hS, id⟩
+    exact ⟨σ, he, FootEq.rfl', KView.refl σ, hS, WritesIn.refl _ _, id⟩
   obtain ⟨h0, hsc0, htw0⟩ := hd
   set sc := L.mem s (nScA n) with hscdef
   have hscC := hnC hsc0
@@ -220,7 +227,7 @@ theorem maybe_donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
   simp only [hi2, ↓reduceIte]
   rw [i1_post, ← hscdef]
   refine WP.spec_bind (donate_refines s a σ hS hscC hsc0 ht htw0) ?_
-  rintro ⟨s1, a1⟩ ⟨ha1, xs, ns, xt, hks, hkt, hdon, hf1, hv1, hS1⟩
+  rintro ⟨s1, a1⟩ ⟨ha1, xs, ns, xt, hks, hkt, hdon, hf1, hv1, hS1, hw1⟩
   simp only at ha1
   subst ha1
   rw [hkt0] at hkt; cases hkt
@@ -261,7 +268,7 @@ theorem maybe_donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
       · have et : p ≠ t.bv := by rintro rfl; rw [hkt0] at hy; cases hy
         exact ⟨y, by rw [hkd_o p et e]; exact hy, rfl⟩)
   refine WP.spec_mono (resume_refines s1 a1 σd hR1 hS1 hRel1 hmb hscC hsc0 ht htw1 hts1 hnq1) ?_
-  rintro ⟨s2, a2⟩ ⟨-, σr, hres, hkr, har, hctr, hrqr, htsr, hf2, -, hS2⟩
+  rintro ⟨s2, a2⟩ ⟨-, σr, hres, hkr, har, hctr, hrqr, htsr, hf2, hw2, hS2⟩
   obtain ⟨xs', ns', hks', hxs⟩ := hs.scs sc hscC
   rw [hks] at hks'; cases hks'
   have hspec : Fl4Spec.maybeDonateSc (Z := Unit) t.bv n.bv σ = Fl4Spec.schedContextResume (Z := Unit) sc.bv σd := by
@@ -276,7 +283,7 @@ theorem maybe_donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
     simp only [Fl4Spec.NonDet.when, ↓reduceIte]
     rw [nd_bind_one hdon]
   refine ⟨σr, by rw [hspec]; exact hres, FootEq.trans' hf1 hf2, KView.trans hv1 (KView.of_kheap hkr), hS2,
-    fun hA => ?_⟩
+    WritesIn.kfoot_sfoot hw1 hw2, fun hA => ?_⟩
   refine hA.donate (t := t.bv) (sc := sc.bv) (xs := xs) (xs' := { xs with scTcb := some t.bv }) (xt := xt0)
     (xt' := { xt0 with tcbSchedContext := some sc.bv }) (fun p h1 h2 => by rw [hkr, hkd_o p h1 h2]) hks
     (by rw [hkr]; exact hkd_sc) rfl rfl hkt0 (by rw [hsct0, h0, optRef_zero]) (by rw [hkr]; exact hkd_t) rfl
@@ -284,6 +291,7 @@ theorem maybe_donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
   obtain ⟨e, h1, h2⟩ := htsr h
   subst e
   exact ⟨h1, h2⟩
+
 end
 
 end

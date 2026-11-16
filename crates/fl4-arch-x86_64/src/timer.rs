@@ -2,13 +2,13 @@
 //! TSC-deadline mode when the CPU has it, one-shot mode otherwise
 //! (detected at boot, DESIGN.md §3).
 //!
-//! The TSC rate comes, in order, from CPUID 15H/16H on Intel, from the
-//! hypervisor's TSC leaf (40000010H, which KVM fills in), and from the PIT
-//! as the median of five measurements. It is measured once, on the boot
-//! core. The APIC timer's rate, needed only in one-shot mode, is measured
-//! against the TSC.
+//! Under KVM the TSC rate comes from pvclock; other hypervisors may expose
+//! a TSC frequency leaf. Native Intel CPUs use CPUID 15H/16H. The fallback
+//! is the PIT, as the median of five measurements. Calibration runs once
+//! on the boot core. The APIC timer's rate, needed only in one-shot mode,
+//! is measured against the TSC.
 use crate::apic;
-use crate::cpu::{cpuid, rdtsc, wrmsr, msr};
+use crate::cpu::{cpuid, rdtsc, wrmsr, msr, Cpuid};
 use crate::pit;
 use core::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 
@@ -26,38 +26,39 @@ const CALIBRATE_TICKS: u16 = (pit::HZ / 50) as u16;
 const CALIBRATE_US: u64 = 20_000;
 const RUNS: usize = 5;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Source {
     Cpuid = 1,
     Hypervisor = 2,
     Pit = 3,
+    Kvm = 4,
 }
 
 pub fn has_tsc_deadline() -> bool {
     cpuid(1, 0).ecx & (1 << 24) != 0
 }
 
-fn is_intel() -> bool {
-    let v = cpuid(0, 0);
+fn is_intel(read: impl Fn(u32, u32) -> Cpuid) -> bool {
+    let v = read(0, 0);
     // "GenuineIntel" in EBX, EDX, ECX.
     v.ebx == 0x756e_6547 && v.edx == 0x4965_6e69 && v.ecx == 0x6c65_746e
 }
 
 /// The TSC rate in kHz that the CPU reports (Intel CPUID 15H, or 16H's
 /// base frequency when the crystal rate is not given).
-fn cpuid_tsc_khz() -> Option<u64> {
-    if !is_intel() {
+fn cpuid_tsc_khz(read: impl Fn(u32, u32) -> Cpuid) -> Option<u64> {
+    if !is_intel(&read) {
         return None;
     }
-    let max = cpuid(0, 0).eax;
+    let max = read(0, 0).eax;
     if max >= 0x15 {
-        let l = cpuid(0x15, 0);
+        let l = read(0x15, 0);
         if l.eax != 0 && l.ebx != 0 && l.ecx != 0 {
             return Some(l.ecx as u64 * l.ebx as u64 / l.eax as u64 / 1000);
         }
     }
     if max >= 0x16 {
-        let base_mhz = cpuid(0x16, 0).eax & 0xffff;
+        let base_mhz = read(0x16, 0).eax & 0xffff;
         if base_mhz != 0 {
             return Some(base_mhz as u64 * 1000);
         }
@@ -66,18 +67,32 @@ fn cpuid_tsc_khz() -> Option<u64> {
 }
 
 /// The TSC rate in kHz a hypervisor reports in leaf 40000010H.
-fn hypervisor_tsc_khz() -> Option<u64> {
-    if cpuid(1, 0).ecx & (1 << 31) == 0 {
+fn hypervisor_tsc_khz(read: impl Fn(u32, u32) -> Cpuid) -> Option<u64> {
+    if read(1, 0).ecx & (1 << 31) == 0 {
         return None;
     }
-    if cpuid(0x4000_0000, 0).eax < 0x4000_0010 {
+    if read(0x4000_0000, 0).eax < 0x4000_0010 {
         return None;
     }
-    let khz = cpuid(0x4000_0010, 0).eax;
+    let khz = read(0x4000_0010, 0).eax;
     if khz == 0 {
         None
     } else {
         Some(khz as u64)
+    }
+}
+
+fn reported_tsc_khz(
+    read: impl Fn(u32, u32) -> Cpuid,
+    kvm: impl FnOnce() -> Option<u64>,
+) -> Option<(u64, Source)> {
+    if read(1, 0).ecx & (1 << 31) != 0 {
+        // A VM's native CPUID leaves can describe the physical host,
+        // not its scaled virtual TSC (GCE C3: 1.9 GHz vs 2.7 GHz).
+        kvm().map(|k| (k, Source::Kvm))
+            .or_else(|| hypervisor_tsc_khz(read).map(|k| (k, Source::Hypervisor)))
+    } else {
+        cpuid_tsc_khz(read).map(|k| (k, Source::Cpuid))
     }
 }
 
@@ -98,13 +113,10 @@ pub fn init(vector: u32) {
     pit::quiet_channel0();
     let deadline = has_tsc_deadline();
     DEADLINE.store(deadline, Ordering::Relaxed);
-    let (khz, src) = match cpuid_tsc_khz() {
-        Some(k) => (k, Source::Cpuid),
-        None => match hypervisor_tsc_khz() {
-            Some(k) => (k, Source::Hypervisor),
-            None => (pit_tsc_per_run() / (CALIBRATE_US / 1000), Source::Pit),
-        },
-    };
+    let (khz, src) = reported_tsc_khz(cpuid, || {
+        let mhz = crate::kvm_clock::tsc_mhz();
+        (mhz != 0).then_some(u64::from(mhz) * 1000)
+    }).unwrap_or_else(|| (pit_tsc_per_run() / (CALIBRATE_US / 1000), Source::Pit));
     let mhz = (khz + 500) / 1000;
     TSC_MHZ.store(if mhz == 0 { 1 } else { mhz }, Ordering::Relaxed);
     SOURCE.store(src as u8, Ordering::Relaxed);
@@ -134,6 +146,7 @@ pub fn source() -> &'static str {
     match SOURCE.load(Ordering::Relaxed) {
         1 => "CPUID",
         2 => "hypervisor",
+        4 => "KVM pvclock",
         _ => "PIT",
     }
 }
@@ -209,4 +222,46 @@ pub fn ticks_to_us(ticks: u64) -> u64 {
 
 pub fn max_us() -> u64 {
     u64::MAX / tsc_mhz()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn gce_cpuid(leaf: u32, _: u32) -> Cpuid {
+        let r = match leaf {
+            0 => [0x1f, 0x756e6547, 0x6c65746e, 0x49656e69],
+            1 => [0x806f8, 0, 1 << 31, 0],
+            0x15 => [2, 152, 25_000_000, 0],
+            0x16 => [2700, 3600, 100, 0],
+            0x4000_0000 => [0x4000_0001, 0x4b4d564b, 0x564b4d56, 0x4d],
+            _ => panic!("unadvertised leaf {leaf:x}"),
+        };
+        Cpuid { eax: r[0], ebx: r[1], ecx: r[2], edx: r[3] }
+    }
+
+    #[test]
+    fn gce_virtual_tsc_overrides_physical_cpu_rate() {
+        assert_eq!(cpuid_tsc_khz(gce_cpuid), Some(1_900_000));
+        assert_eq!(reported_tsc_khz(gce_cpuid, || Some(2_700_000)), Some((2_700_000, Source::Kvm)));
+        // No valid pvclock: use the PIT, never the misleading native leaves
+        // or leaf 40000010H, which this KVM does not advertise.
+        assert_eq!(reported_tsc_khz(gce_cpuid, || None), None);
+    }
+
+    #[test]
+    fn native_cpuid_and_hypervisor_leaf_remain_available() {
+        let native = |leaf, sub| {
+            let mut r = gce_cpuid(leaf, sub);
+            if leaf == 1 { r.ecx = 0; }
+            r
+        };
+        assert_eq!(reported_tsc_khz(native, || panic!("native CPU queried KVM")), Some((1_900_000, Source::Cpuid)));
+        let hypervisor = |leaf, sub| match leaf {
+            0x4000_0000 => Cpuid { eax: 0x4000_0010, ebx: 0, ecx: 0, edx: 0 },
+            0x4000_0010 => Cpuid { eax: 3_000_000, ebx: 0, ecx: 0, edx: 0 },
+            _ => gce_cpuid(leaf, sub),
+        };
+        assert_eq!(reported_tsc_khz(hypervisor, || None), Some((3_000_000, Source::Hypervisor)));
+    }
 }

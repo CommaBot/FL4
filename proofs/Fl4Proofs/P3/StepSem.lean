@@ -5,7 +5,9 @@ composition of primitive steps by `StepClosed`: every relation `Q` closed
 under the current thread's restart (`restart`), a kernel-state step (`ks`:
 `KsW` words, the spec's `KsStep`, the domain words kept, the IRQ and IO-port
 relations kept, an arch operation of the interrupt or IO port decodes, `ArchIrqStep`) and a capability
-insert into a CNode (`slot`, with the CSpace relation after), a scheduler
+insert into a CNode (`slot`, with the CSpace relation after), a CNode-only
+step (`cslot`: the spec's `CnK` changing CNodes only, FL4's slot words, the
+CSpace relation after: a move, a swap), a scheduler
 step (`sched`: `SchedStep`, the queue, action and domain-schedule words and
 the scheduler relation after at every family of sets) and the deletion of a
 notification cap (`del`, `delete_one`) relates its start and end. XTopStep
@@ -18,6 +20,7 @@ import Fl4Proofs.P3.MdbStepVs
 import Fl4Proofs.P3.CnodeRevoke
 import Fl4Proofs.P3.VsInsFrame
 import Fl4Proofs.P3.SchedRel
+import Fl4Proofs.P3.SpecCnK
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -149,13 +152,17 @@ def SchedStep (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (s' : S) (σ' :
     Sched.SchedRel st N T C c s' σ' ∧ P1.WritesIn st s s' (SchW (L := L) T c s) ∧
     (DomRelW (L.mem s) (L.ksb s) σ → DomRelW (L.mem s') (L.ksb s) σ')
 
+/-- The current thread runnable (what the restart needs). -/
+def CurRun (σ : Fl4Spec.State Unit) : Prop :=
+  ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.runnable x.tcbState = true
+
 /-- **Closure under the primitive steps** (module docstring). -/
 structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S → A → Fl4Spec.State Unit → Prop) :
     Prop where
   trans : ∀ s1 a1 σ1 s2 a2 σ2 s3 a3 σ3, Q s1 a1 σ1 s2 a2 σ2 → Q s2 a2 σ2 s3 a3 σ3 → Q s1 a1 σ1 s3 a3 σ3
   restart : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (ct : U64) (x : Fl4Spec.Tcb) (s1 : S),
     σ.curThread = ct.bv → σ.kheap ct.bv = some (.tcb x) → th ct = some .tcb →
-    sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+    Fl4Spec.runnable x.tcbState = true → sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
     Q s a σ s1 a (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv)
   ks : ∀ (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit), P1.WritesIn st s s' (KsW (L.ksb s)) → KsStep σ σ' →
     DK4 (L := L) s s' → σ'.domainList = σ.domainList → σ'.domainStartIndex = σ.domainStartIndex →
@@ -170,6 +177,13 @@ structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S 
     (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 1) = capAt (L.mem s) (slotOf t 1)) →
     Q s a σ s' a σ'
   sched : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit), SchedStep (L := L) th s σ s' σ' → Q s a σ s' a σ'
+  cslot : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit) (G' : MdbGhost), Ipc.CnK σ σ' →
+    (∀ p, σ'.kheap p = σ.kheap p ∨
+      ∃ r cs cs', σ.kheap p = some (.cnode r cs) ∧ σ'.kheap p = some (.cnode r cs')) →
+    P1.WritesIn st s s' (InSlot th) → CRel th (L.mem s') σ' G' → FinInv th (L.mem s') σ' G' →
+    MdbOKV (L.ksb s) (L.mem s') G' →
+    (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 1) = capAt (L.mem s) (slotOf t 1)) →
+    Q s a σ s' a σ'
   del : ∀ (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit) (sl : Fl4Spec.CslotPtr) (p b : U64) (w r : Bool),
     AbsSlot th sl → capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
     cdt.delete_one st arI s a (cslotAddr sl) = ok (s', a') → ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 →
@@ -207,16 +221,17 @@ single outcome. -/
 theorem Steps.restart {th : TypedHeap} {s s1 : S} {a : A} {σ σ1 : Fl4Spec.State Unit} {ct : U64}
     {x : Fl4Spec.Tcb} (hcur : σ.curThread = ct.bv) (hk : σ.kheap ct.bv = some (.tcb x)) (htcb : th ct = some .tcb)
     (hs1 : sched.set_thread_state st s ct sched.TS_RESTART = ok s1)
-    (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False)) :
+    (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False)) (hC : CurRun σ) :
     Steps (L := L) arI th s a σ s1 a σ1 := by
   intro Q hQ
+  have hrun : Fl4Spec.runnable x.tcbState = true := hC x (by rw [hcur]; exact hk)
   have e : σ1 = Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv := by
     rw [hcur, Notif.setThreadState_eq .restart hk] at hst
     have := congrArg (fun q => ((), σ1) ∈ q.1) hst
     simp only [Set.mem_singleton_iff, Prod.mk.injEq, true_and] at this
     exact of_eq_true this
   subst e
-  exact hQ.restart s a σ ct x s1 hcur hk htcb hs1
+  exact hQ.restart s a σ ct x s1 hcur hk htcb hrun hs1
 
 theorem IoRel.irqWr {th : TypedHeap} {kb : U64} (hL : IntLayout th kb) {s : S} {σ : Fl4Spec.State Unit}
     (hR : IoRel (L.mem s) kb σ) {i : U64} (hi : i.val < 128) (v : U64) (σ' : Fl4Spec.State Unit)

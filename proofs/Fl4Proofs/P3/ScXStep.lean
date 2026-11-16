@@ -33,17 +33,23 @@ theorem ScTKw.ep (h : ScTKw P σ σ') {p : ObjRef} {x : Endpoint} (hk : σ.kheap
   | none => rw [e] at this; exact this.elim
   | some o =>
     rw [e] at this
-    rcases this with rfl | ⟨_, _, h1, -⟩ | ⟨_, _, _, h1, -⟩ | ⟨_, _, h1, -⟩ <;> first | rfl | cases h1
+    rcases this with rfl | ⟨_, _, h1, -⟩ | ⟨_, _, _, h1, -⟩ | ⟨_, _, h1, -⟩ | ⟨_, _, h1, -⟩ <;> first | rfl | cases h1
 
+/-- A reply keeps its TCB (it may change its SC). -/
 theorem ScTKw.reply (h : ScTKw P σ σ') {p : ObjRef} {x : Reply} (hk : σ.kheap p = some (.reply x)) :
-    σ'.kheap p = some (.reply x) := by
+    ∃ y, σ'.kheap p = some (.reply y) ∧ y.replyTcb = x.replyTcb := by
   have := h.kh p
   rw [hk] at this
   cases e : σ'.kheap p with
   | none => rw [e] at this; exact this.elim
   | some o =>
     rw [e] at this
-    rcases this with rfl | ⟨_, _, h1, -⟩ | ⟨_, _, _, h1, -⟩ | ⟨_, _, h1, -⟩ <;> first | rfl | cases h1
+    rcases this with rfl | ⟨_, _, h1, -⟩ | ⟨_, _, _, h1, -⟩ | ⟨_, _, h1, -⟩ | ⟨_, y, h1, rfl, ey⟩
+    · exact ⟨x, rfl, rfl⟩
+    · cases h1
+    · cases h1
+    · cases h1
+    · cases h1; exact ⟨y, rfl, by rw [ey]⟩
 
 theorem ScTKw.tcb (h : ScTKw P σ σ') {p : ObjRef} {x : Tcb} (hk : σ.kheap p = some (.tcb x)) :
     ∃ y, σ'.kheap p = some (.tcb y) ∧ TcbSchedOnly x y ∧
@@ -54,15 +60,17 @@ theorem ScTKw.tcb (h : ScTKw P σ σ') {p : ObjRef} {x : Tcb} (hk : σ.kheap p =
   | none => rw [e] at this; exact this.elim
   | some o =>
     rw [e] at this
-    rcases this with rfl | ⟨x1, y1, h1, rfl, h3, h4⟩ | ⟨_, _, _, h1, -⟩ | ⟨_, _, h1, -⟩
+    rcases this with rfl | ⟨x1, y1, h1, rfl, h3, h4⟩ | ⟨_, _, _, h1, -⟩ | ⟨_, _, h1, -⟩ | ⟨_, _, h1, -⟩
     · exact ⟨x, rfl, TcbSchedOnly.refl x, Or.inl rfl⟩
     · cases h1; exact ⟨y1, rfl, h3, h4⟩
+    · cases h1
     · cases h1
     · cases h1
 
 
 theorem ScTKw.keep_other (h : ScTKw P σ σ') {p : ObjRef} {o : KernelObject} (hk : σ.kheap p = some o)
-    (h1 : ∀ x, o ≠ .tcb x) (h2 : ∀ y n, o ≠ .schedContext y n) (h3 : ∀ x, o ≠ .notification x) :
+    (h1 : ∀ x, o ≠ .tcb x) (h2 : ∀ y n, o ≠ .schedContext y n) (h3 : ∀ x, o ≠ .notification x)
+    (h4 : ∀ x, o ≠ .reply x) :
     σ'.kheap p = some o := by
   have := h.kh p
   rw [hk] at this
@@ -70,11 +78,12 @@ theorem ScTKw.keep_other (h : ScTKw P σ σ') {p : ObjRef} {o : KernelObject} (h
   | none => rw [e] at this; exact this.elim
   | some o' =>
     rw [e] at this
-    rcases this with rfl | ⟨x, _, e1, -⟩ | ⟨y, _, n, e1, -⟩ | ⟨x, _, e1, -⟩
+    rcases this with rfl | ⟨x, _, e1, -⟩ | ⟨y, _, n, e1, -⟩ | ⟨x, _, e1, -⟩ | ⟨x, _, e1, -⟩
     · rfl
     · exact absurd e1 (h1 x)
     · exact absurd e1 (h2 y n)
     · exact absurd e1 (h3 x)
+    · exact absurd e1 (h4 x)
 
 theorem ScTKw.none (h : ScTKw P σ σ') {p : ObjRef} (hk : σ.kheap p = none) : σ'.kheap p = none := by
   have := h.kh p
@@ -95,25 +104,27 @@ theorem ScTKw.back (h : ScTKw P σ σ') {p : ObjRef} {o' : KernelObject} (hk : �
 theorem ScTKw.szKeep (h : ScTKw P σ σ') : SzKeep σ σ' := by
   intro p y n hk
   obtain ⟨o, ho, ht⟩ := h.back hk
-  rcases ht with rfl | ⟨_, _, -, e, -⟩ | ⟨x, y', m, rfl, e⟩ | ⟨_, _, -, e, -⟩
+  rcases ht with rfl | ⟨_, _, -, e, -⟩ | ⟨x, y', m, rfl, e⟩ | ⟨_, _, -, e, -⟩ | ⟨_, _, -, e, -⟩
   · exact ⟨y, ho⟩
   · cases e
   · cases e; exact ⟨x, ho⟩
+  · cases e
   · cases e
 
 theorem ScTKw.ckeep (h : ScTKw P σ σ') : Fl4Proofs.P3.CKeep σ σ' := by
   refine ⟨fun o => ⟨fun r cs hc hw => ?_, fun t ht => ?_, fun hn => h.none hn⟩, fun o r cs hc _ => ?_,
     fun o t ht => ?_, h.cdt, h.orig⟩
   · obtain ⟨o0, ho0, htk⟩ := h.back hc
-    rcases htk with rfl | ⟨_, _, -, e, -⟩ | ⟨_, _, _, -, e⟩ | ⟨_, _, -, e, -⟩
+    rcases htk with rfl | ⟨_, _, -, e, -⟩ | ⟨_, _, _, -, e⟩ | ⟨_, _, -, e, -⟩ | ⟨_, _, -, e, -⟩
     · exact ⟨cs, ho0, hw⟩
     all_goals cases e
   · obtain ⟨o0, ho0, htk⟩ := h.back ht
-    rcases htk with rfl | ⟨x, _, rfl, -, -⟩ | ⟨_, _, _, -, e⟩ | ⟨_, _, -, e, -⟩
+    rcases htk with rfl | ⟨x, _, rfl, -, -⟩ | ⟨_, _, _, -, e⟩ | ⟨_, _, -, e, -⟩ | ⟨_, _, -, e, -⟩
     · exact ⟨t, ho0⟩
     · exact ⟨x, ho0⟩
     all_goals cases e
   · exact h.keep_other hc (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
+      (fun _ e => by cases e)
   · obtain ⟨y, hy, hso, -⟩ := h.tcb ht
     refine ⟨y, hy, ?_⟩
     unfold TcbSchedOnly at hso
@@ -209,7 +220,8 @@ theorem EpStateRel.scStep {m m' : U64 → U64} {P : Fl4Spec.ObjRef → Prop} {σ
   · obtain ⟨x, hkx, hx⟩ := hR.reply r hr
     have hra : ∀ t ∈ T, (Endp.rTcbA r).val < t.val ∨ t.val + 4096 ≤ (Endp.rTcbA r).val := fun t ht => by
       have := hP.rt r hr t ht; rw [Endp.rTcbA_val]; omega
-    exact ⟨x, hK.reply hkx, by rw [hx, hm _ (a_rtcb hP hr).1 (a_rtcb hP hr).2 (ne_st_of_apart hP hra)]⟩
+    obtain ⟨y, hky, ey⟩ := hK.reply hkx
+    exact ⟨y, hky, by rw [ey, hx, hm _ (a_rtcb hP hr).1 (a_rtcb hP hr).2 (ne_st_of_apart hP hra)]⟩
   · obtain ⟨x, hkx, hx⟩ := hR.tcb t ht
     obtain ⟨y, hky, hso, hs⟩ := hK.tcb hkx
     have hta := hP.tcb t ht
@@ -425,19 +437,26 @@ theorem OObj.of_szKeep {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c 
 /-- An arch object stays across an SC step. -/
 theorem ScTKw.arch_obj {P : Fl4Spec.ObjRef → Prop} {σ σ' : Fl4Spec.State Unit} (h : ScTKw P σ σ') {p : Fl4Spec.ObjRef}
     {ao : Fl4Spec.ArchKernelObj} (hk : σ.kheap p = some (.archObj ao)) : σ'.kheap p = σ.kheap p := by
-  rw [h.keep_other hk (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e), hk]
+  rw [h.keep_other hk (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e), hk]
 
 set_option maxHeartbeats 2000000 in
-/-- **An SC-cap step keeps `XTop`** at the same sets (module docstring): FL4
-writing only `TFoot` words, the spec changing only scheduling fields
+/-- **An SC-cap step keeps `XTop`, with extra writes `W`** apart from the
+kernel-global block, the endpoint relation's words, the VSpace objects and the
+slots (`xtop_sc_step` for `W` empty; `xtop_sc_stepCW` for the call-stack
+words). FL4 writing only `TFoot` words, the spec changing only scheduling fields
 (`ScTKw`, the current thread's state among non-blocking states), the
 scheduler and notification relations after; with the IPC placement and the
 notifications apart from the kernel-global block. -/
-theorem xtop_sc_step {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {a a' : A}
+theorem xtop_sc_stepW {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {a a' : A}
     {σ σ' : Fl4Spec.State Unit} {ct : Fl4Spec.ObjRef}
     (hX : XTopAt (L := L) AR Z s a σ) (hP0 : IPlaced Z.N Z.T Z.E Z.R Z.B)
     (hNk : ∀ n ∈ Z.N, n.val + 40 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val)
-    (hW : WritesIn st s s' (TFoot st Z.T Z.N Z.C Z.c s σ))
+    {W : U64 → Prop}
+    (hW : WritesIn st s s' (fun b => TFoot st Z.T Z.N Z.C Z.c s σ b ∨ W b))
+    (hWk : ∀ b, W b → b.val < (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ b.val)
+    (hWo : ∀ b, W b → Vs.OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b)
+    (hWe : ∀ b, W b → ¬ EFoot Z.T Z.E Z.R Z.B b)
+    (hWi : ∀ b, W b → IWords Z.N Z.T Z.E Z.R Z.B b ∨ NodeW (L.ksb s) Z.c b ∨ ScObjW Z.C σ b)
     (hK : ScTKw (fun p => p = ct) σ σ')
     (hS' : SchedRel st Z.N Z.T Z.C Z.c s' σ') (hN' : NtfnStateRel Z.N Z.T (L.mem s') σ')
     (hAR : AR a σ.archState.x64CurrentCr3 → AR a' σ.archState.x64CurrentCr3) :
@@ -445,19 +464,29 @@ theorem xtop_sc_step {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s
   obtain ⟨hF, hB, -, hA⟩ := hX
   obtain ⟨⟨⟨hSch, hEp, hNt, hIrq, hIo, hKr, hAr⟩, hTP⟩, hVs, hPt, hPI, hCur⟩ := hF
   have hks : L.ksb s' = L.ksb s := hW.1
-  have hmem : ∀ b, Aligned b → ¬ TFoot st Z.T Z.N Z.C Z.c s σ b → L.mem s' b = L.mem s b := hW.2.2
+  have hmem : ∀ b, Aligned b → ¬ (TFoot st Z.T Z.N Z.C Z.c s σ b ∨ W b) → L.mem s' b = L.mem s b := hW.2.2
+  have hiw : ∀ b, (TFoot st Z.T Z.N Z.C Z.c s σ b ∨ W b) →
+      IWords Z.N Z.T Z.E Z.R Z.B b ∨ NodeW (L.ksb s) Z.c b ∨ ScObjW Z.C σ b :=
+    fun b hb => hb.elim (tfoot_iw hSch) (hWi b)
+  have hoo : ∀ b, (TFoot st Z.T Z.N Z.C Z.c s σ b ∨ W b) → Vs.OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b :=
+    fun b hb => hb.elim (tfoot_oobj hSch) (hWo b)
   have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hTP.vs.ksb_fit; omega
   have hka := hTP.vs.ksb_al
   -- words of the kernel-global block
   have hkw : ∀ b, Aligned b → (L.ksb s).val ≤ b.val → b.val < (L.ksb s).val + 13568 → L.mem s' b = L.mem s b :=
-    fun b hb h1 h2 => hmem b hb fun ht => by rcases tfoot_ksb hSch hNk ht with e | e <;> omega
+    fun b hb h1 h2 => hmem b hb fun ht => by
+      rcases ht with ht | ht
+      · rcases tfoot_ksb hSch hNk ht with e | e <;> omega
+      · rcases hWk b ht with e | e <;> omega
   -- words of the VSpace objects
   have hvw : ∀ b, Aligned b → Vs.VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) b → L.mem s' b = L.mem s b :=
-    fun b hb hv => hmem b hb fun ht => hTP.disj b (tfoot_oobj hSch ht) hv
+    fun b hb hv => hmem b hb fun ht => hTP.disj b (hoo b ht) hv
   -- the endpoint relation
   have hE' : EpStateRel Z.T Z.E Z.R Z.B (L.mem s') σ' := EpStateRel.scStep hEp hTP.ep
     (fun x hx hf hns => hmem x hx fun ht => by
-      obtain ⟨t, htT, rfl⟩ := tfoot_efoot hP0 hSch hA ht hf; exact hns t htT rfl)
+      rcases ht with ht | ht
+      · obtain ⟨t, htT, rfl⟩ := tfoot_efoot hP0 hSch hA ht hf; exact hns t htT rfl
+      · exact hWe x ht hf)
     (fun t ht x' hk => by
       obtain ⟨y, hky, hy⟩ := hN'.tcb t ht; rw [hk] at hky; cases hky; exact hy.st) hK
   -- the IRQ, IO-port and kernel-root relations
@@ -509,16 +538,98 @@ theorem xtop_sc_step {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s
       · obtain ⟨f, hf, -⟩ := hPt.l2 q hq; exact hK.arch_obj hf
       · obtain ⟨f, hf, -⟩ := hPt.l1 q hq; exact hK.arch_obj hf
   have hPI' : Vs.PoolsIn Z.P Z.L4 (L.mem s') :=
-    Vs.PoolsIn.of_writes hPI hW hTP.vs fun b hb hv => hTP.disj b (tfoot_oobj hSch hb) (Vs.vsWrite_vobj hTP.vs hv)
+    Vs.PoolsIn.of_writes hPI hW hTP.vs fun b hb hv => hTP.disj b (hoo b hb) (Vs.vsWrite_vobj hTP.vs hv)
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
-    slotsSame_of_iw hB.1 hB.2.2.2.2.2.1 hB.2.2.2.2.2.2 hW (fun x hx => tfoot_iw hSch hx)
+    slotsSame_of_iw hB.1 hB.2.2.2.2.2.1 hB.2.2.2.2.2.2 hW hiw
   have hCur' := Vs.CurOK.of_same hCur hSS hK.ct
   -- the CSpace relation, the merged IPC relation and the apartness
-  have hB' := RelTopB.frameS hB hW (fun x hx => tfoot_iw hSch hx)
+  have hB' := RelTopB.frameS hB hW hiw
     (fun x ⟨sc, hsc, y, n, hk, hobj⟩ => (hSch.scOut sc hsc y n hk x hobj).2.2.2) hK.ckeep hK.dl hK.dsi hz
   refine ⟨⟨⟨⟨hS', hE', hN', hIrq', hIo', hKr', ?_⟩, hTP'⟩, hVs', hPt', hPI', hCur'⟩, hB',
     IpcRel.of hN' hE' (sched_sc hS'), hA.mono hks hz⟩
   rw [hK.arch]; exact hAR hAr
+
+
+set_option maxHeartbeats 2000000 in
+/-- **An SC-cap step keeps `XTop`** at the same sets (module docstring): FL4
+writing only `TFoot` words, the spec changing only scheduling fields
+(`ScTKw`, the current thread's state among non-blocking states), the
+scheduler and notification relations after; with the IPC placement and the
+notifications apart from the kernel-global block. -/
+theorem xtop_sc_step {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {a a' : A}
+    {σ σ' : Fl4Spec.State Unit} {ct : Fl4Spec.ObjRef}
+    (hX : XTopAt (L := L) AR Z s a σ) (hP0 : IPlaced Z.N Z.T Z.E Z.R Z.B)
+    (hNk : ∀ n ∈ Z.N, n.val + 40 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val)
+    (hW : WritesIn st s s' (TFoot st Z.T Z.N Z.C Z.c s σ))
+    (hK : ScTKw (fun p => p = ct) σ σ')
+    (hS' : SchedRel st Z.N Z.T Z.C Z.c s' σ') (hN' : NtfnStateRel Z.N Z.T (L.mem s') σ')
+    (hAR : AR a σ.archState.x64CurrentCr3 → AR a' σ.archState.x64CurrentCr3) :
+    XTopAt (L := L) AR Z s' a' σ' :=
+  xtop_sc_stepW (W := fun _ => False) hX hP0 hNk (hW.mono fun _ h => Or.inl h) (fun _ h => h.elim)
+    (fun _ h => h.elim) (fun _ h => h.elim) (fun _ h => h.elim) hK hS' hN' hAR
+
+/-- **The call-stack words at `XTop`**: a reply's `NEXT`/`PREV` word or an
+SC's `REPLY` word is outside the kernel-global block (the replies apart from
+it, `hRk`), a word of the other objects, no endpoint-relation word (replies
+are related by their `TCB` word only), and an IPC or SC word. -/
+theorem callW'_xtop {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A}
+    {σ : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z s a σ) (hP0 : IPlaced Z.N Z.T Z.E Z.R Z.B)
+    (hRk : ∀ r ∈ Z.R, r.val + 32 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ r.val) {b : U64}
+    (h : CallW' Z.R Z.C b) :
+    (b.val < (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ b.val) ∧ Vs.OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b ∧
+      ¬ EFoot Z.T Z.E Z.R Z.B b ∧ (IWords Z.N Z.T Z.E Z.R Z.B b ∨ NodeW (L.ksb s) Z.c b ∨ ScObjW Z.C σ b) := by
+  have hSch := hX.fin.1.1.1
+  have hA := hX.esa
+  have hP := hP0.e
+  rcases h with ⟨r, hr, e⟩ | ⟨q, hq, rfl⟩
+  · have hrA := hP.rep r hr
+    have hA' : r.val % 32 = 0 ∧ r ≠ 0#u64 ∧ r.val + 32 ≤ 2 ^ 64 :=
+      ⟨hrA.1, fun e => hrA.2.1 (by rw [e]; rfl), hrA.2.2⟩
+    have hv : b.val = r.val + 16 ∨ b.val = r.val + 8 := by
+      rcases e with rfl | rfl
+      · exact Or.inl (rNextA_val hA')
+      · exact Or.inr (rPrevA_val hA')
+    refine ⟨by have := hRk r hr; omega, Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨r, hr, by omega, by omega⟩)))),
+      fun hf => ?_, Or.inl (Or.inr (Or.inr (Or.inl ⟨r, hr, by omega, by omega⟩)))⟩
+    rcases hf with ⟨e', he, h'⟩ | ⟨r', hr', h'⟩ | ⟨t, ht, h' | h'⟩ | ⟨wp, hw, h'⟩
+    · have := hP.er e' he r hr; omega
+    · have := (hP.rep r' hr').1; omega
+    · have := hP.rt r hr t ht; have := h'.range; omega
+    · have := hP.rt r hr t ht; unfold TL at h'; omega
+    · have := hP.br wp hw r hr; rw [← h'] at this; omega
+  · obtain ⟨Q, R0, hc, hs⟩ := hSch.lists
+    obtain ⟨-, hvq, hsz⟩ := sc_reply_word hSch hq
+    obtain ⟨x, n, hk, -⟩ := hs.scs q hq
+    have hobj : ScObj q n (scReplyA q) := by have := hsz x n hk; unfold ScObj; rw [hvq]; omega
+    have hO := hSch.scOut q hq x n hk _ hobj
+    refine ⟨by have := hO.2.2.2; omega,
+      Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨q, hq, x, n, hk, hobj⟩)))))), fun hf => ?_,
+      Or.inr (Or.inr ⟨q, hq, x, n, hk, hobj⟩)⟩
+    have hE := hA.sc q hq x n hk _ hobj
+    have hT := hO.2.2.1
+    rcases hf with ⟨e, he, h⟩ | ⟨r, hr, h⟩ | ⟨t, ht, h | h⟩ | ⟨wp, hw, h⟩
+    · exact hE (Or.inl ⟨e, he, h⟩)
+    · exact hE (Or.inr (Or.inl ⟨r, hr, h⟩))
+    · have := hT t ht; have := h.range; omega
+    · have := hT t ht; unfold TL at h; omega
+    · exact hE (Or.inr (Or.inr (Or.inr ⟨wp, hw, h⟩)))
+
+set_option maxHeartbeats 1000000 in
+/-- **An SC-cap step with call-stack writes keeps `XTop`**: `xtop_sc_step`
+with FL4 also writing replies' `NEXT`/`PREV` words and SCs' `REPLY` words
+(`CallW'`), the replies apart from the kernel-global block. -/
+theorem xtop_sc_stepCW {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {a a' : A}
+    {σ σ' : Fl4Spec.State Unit} {ct : Fl4Spec.ObjRef}
+    (hX : XTopAt (L := L) AR Z s a σ) (hP0 : IPlaced Z.N Z.T Z.E Z.R Z.B)
+    (hNk : ∀ n ∈ Z.N, n.val + 40 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val)
+    (hRk : ∀ r ∈ Z.R, r.val + 32 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ r.val)
+    (hW : WritesIn st s s' (fun b => TFoot st Z.T Z.N Z.C Z.c s σ b ∨ CallW' Z.R Z.C b))
+    (hK : ScTKw (fun p => p = ct) σ σ')
+    (hS' : SchedRel st Z.N Z.T Z.C Z.c s' σ') (hN' : NtfnStateRel Z.N Z.T (L.mem s') σ')
+    (hAR : AR a σ.archState.x64CurrentCr3 → AR a' σ.archState.x64CurrentCr3) :
+    XTopAt (L := L) AR Z s' a' σ' :=
+  xtop_sc_stepW hX hP0 hNk hW (fun _ h => (callW'_xtop hX hP0 hRk h).1) (fun _ h => (callW'_xtop hX hP0 hRk h).2.1)
+    (fun _ h => (callW'_xtop hX hP0 hRk h).2.2.1) (fun _ h => (callW'_xtop hX hP0 hRk h).2.2.2) hK hS' hN' hAR
 
 end Step
 

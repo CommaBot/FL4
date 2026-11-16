@@ -18,7 +18,7 @@ open Fl4Spec
 
 /-- The spec's `send_ipc` (call) to a waiting receiver when the caller gets
 no reply: it becomes `Inactive`. -/
-theorem sendIpc_callInactive_eq {σ : State Unit} {t e d : ObjRef} {q : List ObjRef}
+theorem sendIpc_callInactive_eq {σ : State Unit} {t e d : ObjRef} {q : List ObjRef} {don : Bool}
     (hk : σ.kheap e = some (.endpoint (.recvEP (d :: q)))) {xd : Tcb} (hkd : σ.kheap d = some (.tcb xd))
     (hde : d ≠ e) (htd : t ≠ d) {e' : ObjRef} {rep : Option ObjRef} {dd : ReceiverPayload}
     (hst : xd.tcbState = .blockedOnReceive e' rep dd) (blk : Bool) (badge : Badge) (g gr : Bool)
@@ -27,7 +27,7 @@ theorem sendIpc_callInactive_eq {σ : State Unit} {t e d : ObjRef} {q : List Obj
       ({((), σ2)}, False))
     (hU : NonDet.maybeM (replyUnlinkTcb (Z := Unit) d) rep σ2 = ({((), σ3)}, False))
     {xt3 x3 : Tcb} (hkt3 : σ3.kheap t = some (.tcb xt3)) (hkd3 : σ3.kheap d = some (.tcb x3)) :
-    sendIpc (Z := Unit) blk true badge g gr false t e σ =
+    sendIpc (Z := Unit) blk true badge g gr don t e σ =
       specWakeTailE d (stsAct (updK (stsAct (updK σ3 t (.tcb { xt3 with tcbState := .inactive })) t) d
         (.tcb { x3 with tcbState := .running })) d) := by
   have hkd1 : (updK σ e (.endpoint (epDeq (.recvEP (d :: q)) d))).kheap d = some (.tcb xd) := by
@@ -196,7 +196,7 @@ theorem send_ipc_call_inactive_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Pro
       refine WP.spec_bind (hX.sts hP s4 σ4 hR4 hS4 hdT hkd4 hq4 (hX.ns_ep _ hns3) .running (by simp [tsCode])
         sched.TS_RUNNING (by unfold sched.TS_RUNNING; rfl)) ?_
       rintro s5 ⟨hR5, hS5⟩
-      have hspec := sendIpc_callInactive_eq hk hkd hde htd' hstd blk badge.bv _ _ hcond e2 hU hkt3 hkd3 (t := t.bv)
+      have hspec := sendIpc_callInactive_eq (don := false) hk hkd hde htd' hstd blk badge.bv _ _ hcond e2 hU hkt3 hkd3 (t := t.bv)
       rw [hspec]
       refine WP.spec_mono (hTl.wakeTail s5 _ _ d' hR5 hS5 hdT) ?_
       rintro ⟨s7, a7⟩ ⟨ha7, hnf, σ', hm, hf, hv, hS'⟩
@@ -225,7 +225,7 @@ theorem send_ipc_call_inactive_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Pro
       refine WP.spec_bind (hX.sts hP s4 σ4 hR4 hS4 hdT hkd4 hq4 (hX.ns_ep _ hns3) .running (by simp [tsCode])
         sched.TS_RUNNING (by unfold sched.TS_RUNNING; rfl)) ?_
       rintro s5 ⟨hR5, hS5⟩
-      have hspec := sendIpc_callInactive_eq hk hkd hde htd' hstd blk badge.bv _ _ hcond e2 hU hkt3 hkd3 (t := t.bv)
+      have hspec := sendIpc_callInactive_eq (don := false) hk hkd hde htd' hstd blk badge.bv _ _ hcond e2 hU hkt3 hkd3 (t := t.bv)
       rw [hspec]
       refine WP.spec_mono (hTl.wakeTail s5 _ _ d' hR5 hS5 hdT) ?_
       rintro ⟨s7, a7⟩ ⟨ha7, hnf, σ', hm, hf, hv, hS'⟩

@@ -309,7 +309,7 @@ def DomPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     ∃ y ∈ (Fl4Spec.invokeDomain (Z := Unit) inv σ1).1, SlotsSame th (L.mem s) (L.mem res.2) ∧
       CRel th (L.mem res.2) y.2 G ∧ FinInv th (L.mem res.2) y.2 G ∧ L.ksb res.2 = L.ksb s ∧
       DomRel (L.mem res.2) (L.ksb res.2) y.2 ∧
-      ∀ (A : Type) (arI : machine.Arch A) (a : A), Steps (L := L) arI th s a σ res.2 a y.2)
+      (CurRun σ → ∀ (A : Type) (arI : machine.Arch A) (a : A), Steps (L := L) arI th s a σ res.2 a y.2))
 
 theorem dom_err {th : TypedHeap} {σ : Fl4Spec.State Unit} {G : MdbGhost}
     {m : Fl4Spec.SEMonad Unit Fl4Spec.DomainInvocation} {s : S} {e : error.Exc} {e' : Fl4Spec.SyscallError}
@@ -344,7 +344,7 @@ theorem dom_restart (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.Stat
       L.ksb s1 = L.ksb s ∧ ∃ σ1, Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) ∧
       CRel th (L.mem s1) σ1 G ∧ FinInv th (L.mem s1) σ1 G ∧ DomRel (L.mem s1) (L.ksb s) σ1 ∧
       σ1.domainList = σ.domainList ∧
-      ∀ (A : Type) (arI : machine.Arch A) (a : A), Steps (L := L) arI th s a σ s1 a σ1 := by
+      (CurRun σ → ∀ (A : Type) (arI : machine.Arch A) (a : A), Steps (L := L) arI th s a σ s1 a σ1) := by
   have htf := hP.fits ct _ htcb
   have hta := hP.align ct _ htcb
   have hstv : (stA ct).val = ct.val + 3328 := by
@@ -377,8 +377,8 @@ theorem dom_restart (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.Stat
   refine ⟨s1, hs1, hS, hkb, σ1, hst1, ?_⟩
   have hK := ksub_of_eq (setThreadState_nks _ _) hst1
   obtain ⟨hCR1, hFI1⟩ := crel_step ⟨hR, hV, hM, hC, hI⟩ hFI hS hK hR1 hcdt1 hio1
-  exact ⟨hCR1, hFI1, hDR.of_same hDS hdl.1 hdl.2, hdl.1, fun A arI a =>
-    Steps.restart arI _hcur hkt htcb hs1 (by rw [_hcur]; exact hst1)⟩
+  exact ⟨hCR1, hFI1, hDR.of_same hDS hdl.1 hdl.2, hdl.1, fun hC A arI a =>
+    Steps.restart arI _hcur hkt htcb hs1 (by rw [_hcur]; exact hst1) hC⟩
 
 /-! ## FL4's steps -/
 
@@ -650,8 +650,8 @@ theorem dom_start_refines (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spe
   have hR5 : StateRel th (L.mem s5) y.2 := (hSR _ hR4).of_caps (fun x hx => hS5.capAt hx)
   obtain ⟨hCR5, hFI5⟩ := crel_step hCR1 hFI1 (hS4.trans hS5) ((KSub.of_kheap rfl).trans hK) hR5 hcdt hio
   refine Or.inr ⟨rfl, .invokeDomainScheduleSetStart y0.val, by rw [hmap, hspec, if_neg (by omega), if_neg hne], σ1, by rw [hcur]; exact hst1,
-    y, mem_setStart hy5, hS1.trans (hS4.trans hS5), hCR5, hFI5, hkb5, ?_, fun A arI a =>
-      ((hstR A arI a).trans arI (Steps.sched arI (schedStep_start th s1 σ1 y0 hkb1 hkf hka))).trans arI
+    y, mem_setStart hy5, hS1.trans (hS4.trans hS5), hCR5, hFI5, hkb5, ?_, fun hC A arI a =>
+      ((hstR hC A arI a).trans arI (Steps.sched arI (schedStep_start th s1 σ1 y0 hkb1 hkf hka))).trans arI
         (hss A arI a)⟩
   rw [hkb5]
   exact hDR4.of_same hDS5 hdl hst5
@@ -763,7 +763,7 @@ theorem dom_conf_ok (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.Stat
     by rw [hs2, L.ksb_wr, L.ksb_wr, hkb1], by
     show DomRel (L.mem s2) (L.ksb s2) σ2
     rw [hs2, L.ksb_wr, L.ksb_wr, hkb1]; exact hDR2,
-    fun A arI a => (hstR A arI a).trans arI (Steps.sched arI (schedStep_conf th s1 σ1 y1 y2 hkb1 hkf hka h1 h2))⟩
+    fun hC A arI a => (hstR hC A arI a).trans arI (Steps.sched arI (schedStep_conf th s1 σ1 y1 y2 hkb1 hkf hka h1 h2))⟩
 
 theorem maxdur_eq : domain.MAX_DURATION = ok ⟨BitVec.ofNat 64 (2 ^ 56 - 1)⟩ := by
   unfold domain.MAX_DURATION
@@ -945,7 +945,7 @@ theorem dom_set_refines (hcfg : DomConfig) (th : TypedHeap) (hP : Placed th) (s 
     obtain ⟨hCR2, hFI2⟩ := crel_step hCR1 hFI1 hS2 hK hR2 hcdt hio
     refine Or.inr ⟨rfl, .invokeDomainSet ptr.bv (Fl4Spec.ucast Fl4Spec.domainLen y0.bv),
       dec_set_thread hg _ _ nc1 _ _ _, σ1, by rw [hcur]; exact hst1, y, hy, hS1.trans hS2, hCR2, hFI2, hkb2.trans hkb1, ?_,
-      fun A arI a => (hstR A arI a).trans arI (hss A arI a)⟩
+      fun hC A arI a => (hstR hC A arI a).trans arI (hss A arI a)⟩
     show DomRel (L.mem s2) (L.ksb s2) y.2
     rw [hkb2, hkb1]
     rw [hkb1] at hDS

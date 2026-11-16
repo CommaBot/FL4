@@ -320,7 +320,7 @@ theorem irq_msi_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ :
   refine WP.spec_bind (WP.spec_and (WP.spec_and hrs (sts_dk4c hP s htcb sched.TS_RESTART)) (spec_self hrs)) ?_
   rintro s1 ⟨⟨⟨hkb, hS, σ1, hst, hCR1, hIR1, -, -, hw⟩, hdk1⟩, hs1⟩
   obtain ⟨xct, hkct, -⟩ := hR.tcb ct htcb
-  have hstp1 : Steps (L := L) arI th s ar σ s1 ar σ1 := Steps.restart arI hcur hkct htcb hs1 hst
+  have hstp1 : CurRun σ → Steps (L := L) arI th s ar σ s1 ar σ1 := Steps.restart arI hcur hkct htcb hs1 hst
   simp only [bind_ok, core.result.Result.Insts.CoreOpsTry.branch, uncurry_apply_pair]
   let irqSt : Fl4Spec.X64IRQState := .irqMSI (y2.bv &&& Fl4Spec.mask 8) (y3.bv &&& Fl4Spec.mask 5)
     (y4.bv &&& Fl4Spec.mask 3) (y5.bv &&& Fl4Spec.mask 32)
@@ -334,7 +334,7 @@ theorem irq_msi_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ :
   refine ⟨.issueIRQHandlerMSI (BitVec.ofNat 8 z.val) dsl (ps.bv, idxs) y2.bv y3.bv y4.bv y5.bv, rfl, σ1, hst,
     σ', G', ?_, hCR', hIR', hFI', hHA', hFR',
       fun hD => (hdk1 hD).trans (hdk2 (hD.toK.same (hdk1 hD).1)),
-      (hstp1.trans arI (Steps.ksSpec arI (s := s1) (a := ar) (σ' := σb) (by constructor <;> rfl) rfl rfl (fun h => ⟨h.st, h.node⟩) id)).trans arI hstp2⟩
+      fun hC => ((hstp1 hC).trans arI (Steps.ksSpec arI (s := s1) (a := ar) (σ' := σb) (by constructor <;> rfl) rfl rfl (fun h => ⟨h.st, h.node⟩) id)).trans arI hstp2⟩
   refine mem_liftE (x := ((), σ')) ?_
   refine mem_bind_nd (x := (irqSt, σ1)) rfl ?_
   refine mem_bind_nd (x := ((), σb)) (updateIrqState_mem _ _ _) ?_
@@ -584,7 +584,7 @@ theorem irq_ioapic_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (�
   refine WP.spec_bind (WP.spec_and (WP.spec_and hrs (sts_dk4c hP s htcb sched.TS_RESTART)) (spec_self hrs)) ?_
   rintro s1 ⟨⟨⟨hkb, hS, σ1, hst, hCR1, hIR1, ha1, -, hw⟩, hdk1⟩, hs1⟩
   obtain ⟨xct, hkct, -⟩ := hR.tcb ct htcb
-  have hstp1 : Steps (L := L) arI th s ar σ s1 ar σ1 := Steps.restart arI hcur hkct htcb hs1 hst
+  have hstp1 : CurRun σ → Steps (L := L) arI th s ar σ s1 ar σ1 := Steps.restart arI hcur hkct htcb hs1 hst
   obtain ⟨b, a1, hmap⟩ := hAR.map ar y2 y3 y4 y5 z2
   rw [hmap]
   simp only [bind_ok, core.result.Result.Insts.CoreOpsTry.branch, uncurry_apply_pair]
@@ -603,7 +603,7 @@ theorem irq_ioapic_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (�
   refine ⟨.issueIRQHandlerIOAPIC (BitVec.ofNat 8 z.val) dsl (ps.bv, idxs) y2.bv y3.bv y4.bv y5.bv
       (Fl4Spec.ucast 64 (BitVec.ofNat 8 z.val) + Fl4Spec.irqIntOffset), rfl, σ1, hst, σ', G', ?_, hCR', hIR', hFI', hHA', hFR',
       fun hD => (hdk1 hD).trans (hdk2 (hD.toK.same (hdk1 hD).1)),
-      (((hstp1.trans arI (Steps.arch arI (s := s1) (σ := σ1) (Or.inr (Or.inr (Or.inl ⟨_, _, _, _, _, _, hmap⟩))))).trans arI
+      fun hC => ((((hstp1 hC).trans arI (Steps.arch arI (s := s1) (σ := σ1) (Or.inr (Or.inr (Or.inl ⟨_, _, _, _, _, _, hmap⟩))))).trans arI
         (Steps.ksSpec arI (s := s1) (a := a1) (⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hums, rfl, rfl, rfl⟩ : KsStep σ1 σa) rfl rfl (fun h => ⟨h.st, h.node⟩) id)).trans arI
         (Steps.ksSpec arI (s := s1) (a := a1) (σ := σa) (σ' := σb) (by constructor <;> rfl) rfl rfl (fun h => ⟨h.st, h.node⟩) id)).trans arI hstp2⟩
   refine mem_liftE (x := ((), σ')) ?_
@@ -825,7 +825,7 @@ theorem irq_remap_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ
   refine WP.spec_bind (WP.spec_and (WP.spec_and hrs (sts_dk4c hP s htcb sched.TS_RESTART)) (spec_self hrs)) ?_
   rintro s1 ⟨⟨⟨hkb, hS, σ1, hst, hCR1, hIR1, ha1, -, hw⟩, hdk1⟩, hs1⟩
   obtain ⟨xct, hkct, -⟩ := hR.tcb ct htcb
-  have hstp1 : Steps (L := L) arI th s ar σ s1 ar σ1 := Steps.restart arI hcur hkct htcb hs1 hst
+  have hstp1 : CurRun σ → Steps (L := L) arI th s ar σ s1 ar σ1 := Steps.restart arI hcur hkct htcb hs1 hst
   obtain ⟨b, a1, hmap⟩ := hAR.mapr ar y2 y3 y4 y5 z2 y7
   rw [hmap]
   simp only [bind_ok, core.result.Result.Insts.CoreOpsTry.branch, uncurry_apply_pair]
@@ -845,7 +845,7 @@ theorem irq_remap_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ
   refine ⟨.ioapicRemapped (BitVec.ofNat 8 z.val) dsl (ps.bv, idxs) y2.bv y3.bv y4.bv y5.bv
       (Fl4Spec.ucast 64 (BitVec.ofNat 8 z.val) + Fl4Spec.irqIntOffset) y7.bv, rfl, σ1, hst, σ', G', ?_, hCR', hIR', hFI', hHA', hFR',
       fun hD => (hdk1 hD).trans (hdk2 (hD.toK.same (hdk1 hD).1)),
-      (((hstp1.trans arI (Steps.arch arI (s := s1) (σ := σ1) (Or.inr (Or.inr (Or.inr (Or.inl ⟨_, _, _, _, _, _, _, hmap⟩)))))).trans arI
+      fun hC => ((((hstp1 hC).trans arI (Steps.arch arI (s := s1) (σ := σ1) (Or.inr (Or.inr (Or.inr (Or.inl ⟨_, _, _, _, _, _, _, hmap⟩)))))).trans arI
         (Steps.ksSpec arI (s := s1) (a := a1) (⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hums, rfl, rfl, rfl⟩ : KsStep σ1 σa) rfl rfl (fun h => ⟨h.st, h.node⟩) id)).trans arI
         (Steps.ksSpec arI (s := s1) (a := a1) (σ := σa) (σ' := σb) (by constructor <;> rfl) rfl rfl (fun h => ⟨h.st, h.node⟩) id)).trans arI hstp2⟩
   refine mem_liftE (x := ((), σ')) ?_
