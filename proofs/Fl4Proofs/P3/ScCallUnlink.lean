@@ -37,7 +37,7 @@ theorem Inv.deactivate {σ : State Unit} (h : Inv σ) {p : ObjRef} {x : Tcb}
       · subst e
         simp only [updK_kheap, Function.update_self, Option.some.injEq, KernelObject.tcb.injEq] at h2
         subst h2
-        rcases hc with hc | ⟨n, hc⟩ <;> cases hc
+        rcases hc with hc | ⟨n, hc⟩ | ⟨e, d, hc⟩ | ⟨e, r, d, hc⟩ <;> cases hc
       · have h2' : σ.kheap u = some (.tcb y) := by simpa [updK, e] using h2
         exact h.rd u y h2' hc
   exact h1.qchange (qchange_stsAct _ _)

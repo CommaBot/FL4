@@ -326,7 +326,7 @@ theorem charge_tail_refines {N T C : Set U64} {c : U64} (s2 : S) (a : A) (σ2 : 
     (hS : SchedRel st N T C c s2 σ2) (hR : NtfnStateRel N T (L.mem s2) σ2) (hN : NSC N C σ2)
     {sc ct : U64} (hI : InvBut σ2 ct.bv) (hcs : σ2.curSc = sc.bv) (hcc : σ2.curThread = ct.bv)
     (hscC : sc ∈ C) (hsc0 : sc ≠ 0#u64) {xt : Fl4Spec.Tcb} (hkt : σ2.kheap ct.bv = some (.tcb xt))
-    (hxs : xt.tcbSchedContext = some sc.bv) (hnb : ∀ q, xt.tcbState ≠ .blockedOnNotification q)
+    (hxs : xt.tcbSchedContext = some sc.bv) (hnb : NotIpcBlk xt.tcbState)
     {y2 : Fl4Spec.SchedContext} {n2 : Nat} (hky : σ2.kheap sc.bv = some (.schedContext y2 n2))
     (hyt : y2.scTcb = some ct.bv)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -417,10 +417,8 @@ theorem charge_tail_refines {N T C : Set U64} {c : U64} (s2 : S) (a : A) (σ2 : 
       intro x' scp y n h1 h2 h3 h4 h5
       have hkt3 : σ3.kheap ct.bv = some (.tcb xt) := hkt
       rw [hkt3] at hx h1; cases hx; cases h1
-      rcases hcl with hrun | ⟨q, hq⟩
-      · have := schedulable_of hkt3 h2 hrun h3 h4 h5
-        rw [hsch] at this; cases this
-      · exact absurd hq (hnb q)
+      have := schedulable_of hkt3 h2 (inClass_runnable hcl hnb) h3 h4 h5
+      rw [hsch] at this; cases this
 
 /-- **`charge_budget` refines l4v `charge_budget`** and keeps the invariant.
 
@@ -441,7 +439,7 @@ theorem charge_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : 
       σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) → Fl4Spec.scActive x = true)
     (hnr : (nodeW st s c layout.node.CUR_THREAD).bv ∉ σ.releaseQueue)
     (hnb : ∀ xt, σ.kheap (nodeW st s c layout.node.CUR_THREAD).bv = some (.tcb xt) →
-      ∀ q, xt.tcbState ≠ .blockedOnNotification q)
+      NotIpcBlk xt.tcbState)
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hval : ∀ (s' : S) (σ' : Fl4Spec.State Unit), SchedRel st N T C c s' σ' →

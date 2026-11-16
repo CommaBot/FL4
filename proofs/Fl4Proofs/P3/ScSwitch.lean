@@ -420,7 +420,7 @@ theorem switch_sched_context_cur {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
     (hb0 : L.mem s (scA (nodeW st s c layout.node.CUR_THREAD)) ≠ 0#u64)
     (hctr : (nodeW st s c layout.node.CUR_THREAD).bv ∉ σ.releaseQueue)
     (hnb : ∀ xt, σ.kheap (nodeW st s c layout.node.CUR_THREAD).bv = some (.tcb xt) →
-      ∀ q, xt.tcbState ≠ .blockedOnNotification q)
+      NotIpcBlk xt.tcbState)
     (hact : (L.mem s (scA (nodeW st s c layout.node.CUR_THREAD))).bv ≠ Fl4Spec.idleScPtr → ∀ x n,
       σ.kheap (L.mem s (scA (nodeW st s c layout.node.CUR_THREAD))).bv = some (.schedContext x n) →
       Fl4Spec.scActive x = true)

@@ -85,8 +85,35 @@ def released (σ : State Unit) (y : SchedContext) : Prop :=
   refillReady σ.curTime (refillHd y) = true ∧ refillSufficient 0 (refillHd y) = true
 
 /-- The thread states whose bound SC is kept released (l4v `valid_ready_qs`,
-`valid_sched_action`, `released_ipc_queues`, restricted to notifications). -/
-def inClass (ts : ThreadState) : Prop := runnable ts = true ∨ ∃ n, ts = .blockedOnNotification n
+`valid_sched_action`, `released_ipc_queues`: the notification- and
+endpoint-blocked states). -/
+def inClass (ts : ThreadState) : Prop := runnable ts = true ∨ (∃ n, ts = .blockedOnNotification n) ∨
+  (∃ e d, ts = .blockedOnSend e d) ∨ (∃ e r d, ts = .blockedOnReceive e r d)
+
+/-- Blocked on no notification and no endpoint (the blocked states of
+`inClass`). -/
+def NotIpcBlk (ts : ThreadState) : Prop :=
+  (∀ q, ts ≠ .blockedOnNotification q) ∧ (∀ e d, ts ≠ .blockedOnSend e d) ∧ (∀ e r d, ts ≠ .blockedOnReceive e r d)
+
+/-- A state of `inClass` blocked on nothing is runnable. -/
+theorem inClass_runnable {ts : ThreadState} (h : inClass ts) (hn : NotIpcBlk ts) : runnable ts = true := by
+  rcases h with h | ⟨q, rfl⟩ | ⟨e, d, rfl⟩ | ⟨e, r, d, rfl⟩
+  · exact h
+  · exact absurd rfl (hn.1 q)
+  · exact absurd rfl (hn.2.1 e d)
+  · exact absurd rfl (hn.2.2 e r d)
+
+/-- The idle state is blocked on nothing. -/
+theorem NotIpcBlk.idle : NotIpcBlk .idleThreadState := by
+  refine ⟨fun q e => ?_, fun e d h => ?_, fun e r d h => ?_⟩
+  · cases e
+  · cases h
+  · cases h
+
+/-- A runnable state is blocked on nothing. -/
+theorem NotIpcBlk.of_runnable {ts : ThreadState} (h : runnable ts = true) : NotIpcBlk ts :=
+  ⟨fun q e => (by rw [e] at h; cases h), fun e d h' => (by rw [h'] at h; cases h),
+    fun e r d h' => (by rw [h'] at h; cases h)⟩
 
 /-- The TCB at `p` has a released SC if bound to an active one and not in
 the release queue. -/

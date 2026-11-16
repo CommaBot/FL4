@@ -901,9 +901,9 @@ theorem bind_branch_refines {N T C : Set U64} {c : U64} (hT : TimeAgree ar) (th 
       have hblk : Fl4Spec.runnable xt.tcbState = false → inClass xt.tcbState → Fl4Spec.scActive y = true →
           released σ y := by
         intro h1' h2' _
-        rcases h2' with h | ⟨m, h⟩
+        rcases h2' with h | ⟨m, h⟩ | ⟨e, d, h⟩ | ⟨e, r, d, h⟩
         · rw [h] at h1'; cases h1'
-        · rw [h] at hb; exact absurd rfl hb
+        all_goals (rw [h] at hb; exact absurd rfl hb)
       refine WP.spec_mono (hinv hblk hct hkc hrun call) fun r hr' => Or.inr ⟨_, ?_, hr'⟩
       rw [hpre2, wE_neg (by simp [hb])]; rfl
   case Notification ptr bb ww rr =>

@@ -134,7 +134,7 @@ theorem send_signal_waitingI (hH : IpcSchedHyps st ar N T E R B SR) (hP : IPlace
     have : d.bv ≠ n.bv := by intro e; rw [e, hk] at hkd; cases hkd
     simp [σ1, this, hkd]
   have hcls : inClass xd.tcbState ∨ RelIfBound σ1 d.bv := by
-    left; right
+    left; right; left
     have h6 := (hB d hd).1
     have := (hR.toN.at_tcb hdT hkd).st
     rw [h6] at this

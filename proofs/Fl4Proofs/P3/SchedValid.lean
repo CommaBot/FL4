@@ -102,7 +102,19 @@ theorem Inv.qRdy_ntfn {σ : State Unit} (hI : Inv σ) {u n : ObjRef} {xu : Tcb} 
     obtain ⟨x', -, -, -, hk', -, hr, -⟩ := hI.rel u hm
     rw [hku] at hk'; cases hk'
     rw [hs] at hr; cases hr
-  exact hI.rd u xu hku (Or.inr ⟨n, hs⟩) xu c y k hku hc hky ha hnq
+  exact hI.rd u xu hku (Or.inr (Or.inl ⟨n, hs⟩)) xu c y k hku hc hky ha hnq
+
+/-- A blocked thread of `inClass` (on a notification or an endpoint) has its
+SC released when active (`Inv.rd`; not runnable, it is in no release queue,
+`Inv.rel`). -/
+theorem Inv.qRdy_blk {σ : State Unit} (hI : Inv σ) {u : ObjRef} {xu : Tcb} (hku : σ.kheap u = some (.tcb xu))
+    (hcl : inClass xu.tcbState) (hnr : runnable xu.tcbState = false) : QRdy σ u := by
+  refine ⟨xu, hku, fun c hc y k hky ha => ?_⟩
+  have hnq : u ∉ σ.releaseQueue := fun hm => by
+    obtain ⟨x', -, -, -, hk', -, hr, -⟩ := hI.rel u hm
+    rw [hku] at hk'; cases hk'
+    rw [hnr] at hr; cases hr
+  exact hI.rd u xu hku hcl xu c y k hku hc hky ha hnq
 
 theorem ntfnPre_of_valid {σ : State Unit} {r : ObjRef} (hI : Inv σ) (hA : ActReady σ) (hV : SchedValid σ)
     (ho : ∃ x, σ.kheap r = some (.notification x)) : NtfnPre σ r := by

@@ -61,7 +61,7 @@ theorem check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
       σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) → Fl4Spec.scActive x = true)
     (hnr : (nodeW st s c layout.node.CUR_THREAD).bv ∉ σ.releaseQueue)
     (hnb : ∀ xt, σ.kheap (nodeW st s c layout.node.CUR_THREAD).bv = some (.tcb xt) →
-      ∀ q, xt.tcbState ≠ .blockedOnNotification q)
+      NotIpcBlk xt.tcbState)
     (hnd : Fl4Spec.numDomains = 1)
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -149,7 +149,7 @@ theorem check_budget_restart_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
       σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) → Fl4Spec.scActive x = true)
     (hnr : (nodeW st s c layout.node.CUR_THREAD).bv ∉ σ.releaseQueue)
     (hnb : ∀ xt, σ.kheap (nodeW st s c layout.node.CUR_THREAD).bv = some (.tcb xt) →
-      ∀ q, xt.tcbState ≠ .blockedOnNotification q)
+      NotIpcBlk xt.tcbState)
     (hnd : Fl4Spec.numDomains = 1)
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)

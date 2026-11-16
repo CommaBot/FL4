@@ -44,17 +44,17 @@ theorem newcur_of {σ σ' : State Unit} (h : σ'.curThread = σ.idleThread ∨ s
       σ'.curThread = σ.curThread)
     (hk : σ'.kheap = σ.kheap) (hr : σ'.releaseQueue = σ.releaseQueue) (hId : IdleOK σ) (hC : CurInv σ) :
     ∃ xt scp, σ'.kheap σ'.curThread = some (.tcb xt) ∧ xt.tcbSchedContext = some scp ∧
-      (∀ q, xt.tcbState ≠ .blockedOnNotification q) ∧ σ'.curThread ∉ σ'.releaseQueue ∧
+      NotIpcBlk xt.tcbState ∧ σ'.curThread ∉ σ'.releaseQueue ∧
       (scp ≠ idleScPtr → ∀ x n, σ'.kheap scp = some (.schedContext x n) → scActive x = true) := by
   rw [hk, hr]
   rcases h with h | h | h
   · rw [h]
     obtain ⟨x, h1, h2, h3, h4⟩ := hId
     refine ⟨x, idleScPtr, h1, h2, ?_, h4, fun hne => absurd rfl hne⟩
-    intro q e; rw [h3] at e; cases e
+    rw [h3]; exact NotIpcBlk.idle
   · obtain ⟨x, scp, y, n, h1, h2, h3, h4, h5, h6⟩ := schedulable_inv h
     refine ⟨x, scp, h1, h2, ?_, h6, fun _ x' n' hx => ?_⟩
-    · intro q e; rw [e] at h3; cases h3
+    · exact NotIpcBlk.of_runnable h3
     · rw [h4] at hx; cases hx; exact h5
   · rw [h]
     obtain ⟨xt, hkt, hxs, hnb⟩ := hC.tcb
@@ -566,7 +566,7 @@ is one of `C`, bound to `u0` and back. It ends in `Inv` and `CurInv`. -/
 theorem tail_refines {N T C : Set U64} {c : U64} (s3 : S) (a2 : A) (σ3 : Fl4Spec.State Unit)
     (hS3 : SchedRel st N T C c s3 σ3) (hR3 : NtfnStateRel N T (L.mem s3) σ3) (hN3 : NSC N C σ3) (hI3 : Inv σ3)
     (hnew : ∃ xt scp, σ3.kheap σ3.curThread = some (.tcb xt) ∧ xt.tcbSchedContext = some scp ∧
-      (∀ q, xt.tcbState ≠ .blockedOnNotification q) ∧ σ3.curThread ∉ σ3.releaseQueue ∧
+      NotIpcBlk xt.tcbState ∧ σ3.curThread ∉ σ3.releaseQueue ∧
       (scp ≠ Fl4Spec.idleScPtr → ∀ x n, σ3.kheap scp = some (.schedContext x n) → Fl4Spec.scActive x = true))
     (hcsc : ∃ sc ∈ C, sc.bv = σ3.curSc)
     {u0 : Fl4Spec.ObjRef} (hown0 : ∀ x n, σ3.kheap σ3.curSc = some (.schedContext x n) → x.scTcb = some u0)
@@ -620,7 +620,7 @@ theorem tail_refines {N T C : Set U64} {c : U64} (s3 : S) (a2 : A) (σ3 : Fl4Spe
   have hscw : nodeW st s4 c layout.node.CUR_SC = sc := eq_of_bv (by rw [← e2, hscv])
   refine WP.spec_bind (switch_sched_context_cur s4 a2 σ4 hS4 hR4 hN4 hI4 (by rw [hscw]; exact hscC0) hb0
     (by rw [← e1]; exact hntr)
-    (fun xt0 hk0 q => by rw [← e1, hkt] at hk0; cases hk0; exact hnbt q)
+    (fun xt0 hk0 => by rw [← e1, hkt] at hk0; cases hk0; exact hnbt)
     (fun hid x n hx => hactt (by rw [← hscp]; exact hid) x n (by rw [← hscp]; exact hx))
     (u0 := u0) (fun x n hx => hown0 x n (by rw [e2]; exact hx)) hback hnr hoff (hT.mrt a2) (hT.mb a2)) ?_
   rintro ⟨s5, a3⟩ ⟨σ5, h5, hS5, hR5, hN5, hI5, hC5, hA5, rfl⟩

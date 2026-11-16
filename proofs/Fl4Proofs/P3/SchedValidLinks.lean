@@ -9,6 +9,9 @@ TCBs and notifications): `scLinkHyp_of`.
 **`ObjCover` at related states**: TCBs by `KTyped` and `JPlaced.tcb`,
 nonzero SCs by `JPlaced.sc`, the rest by `SpecCover` (a field of
 `JointInv`): `objCover_of`, `objCover_of_joint`.
+
+**`EpRdyHyp` from `Inv`** (`Inv.rd` covering the endpoint-blocked states):
+`epRdyHyp_of`; `schedValid_of_inv`.
 -/
 import Fl4Proofs.P3.SchedValidRel
 import Fl4Proofs.P3.ScPlace
@@ -81,6 +84,49 @@ theorem objCover_of_joint {th : TypedHeap} (hJI : JointInv (L := L) th) {s : S} 
       ObjCover (Heap.ntfns H) (Heap.tcbs H) {e | H e = some .ep} (Heap.replies H) C σ := by
   obtain ⟨H, Cs, Ac, Tr, C, hb, hj, hc⟩ := hJI s σ G hDS
   exact ⟨H, Cs, Ac, Tr, C, hb, hj, objCover_of hDS.2.2.kt hj hc (fun _ h => h) (fun _ h => h)⟩
+
+/-- **`EpRdyHyp` from `Inv`** (`Inv.rd` with the endpoint-blocked states of
+`inClass`): an endpoint's queued threads are TCBs blocked on send or receive
+(`EpObjRel`, `TcbRel.st`), so their SCs are released when active
+(`Inv.qRdy_blk`). -/
+theorem epRdyHyp_of {N T E R C : Set U64} {B : Set (U64 × Word)} {s : S} {σ : State Unit}
+    (hI : Ipc.IpcRel N T E R B (L.mem s) σ) (hCv : ObjCover N T E R C σ) (hInv : Inv σ) : EpRdyHyp σ := by
+  intro e x hk u hu
+  obtain ⟨e', he', rfl⟩ := hCv.ep e x hk
+  obtain ⟨x', hk', hr⟩ := hI.ep e' he'
+  rw [hk] at hk'; cases hk'
+  have blk : ∀ (xs : List U64) (k : Nat), QueueRel (L.mem s) T .Ep (qOf (L.mem s) e') xs →
+      (∀ y ∈ xs, QueuedOn (L.mem s) e' k y) → u ∈ xs.map UScalar.bv →
+      (∀ ts, tsCode ts = k → inClass ts ∧ runnable ts = false) → QRdy σ u := by
+    intro xs k hq hon hm hk
+    obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hm
+    obtain ⟨xy, hky, hR⟩ := hI.tcb y (hq.mem y hy)
+    have hc : tsCode xy.tcbState = k := by rw [← hR.st]; exact (hon y hy).1
+    obtain ⟨h1, h2⟩ := hk _ hc
+    exact hInv.qRdy_blk hky h1 h2
+  cases x with
+  | idleEP => cases hu
+  | sendEP q =>
+    obtain ⟨-, xs, -, rfl, hq, hon⟩ := hr
+    refine blk xs 4 hq hon hu fun ts h => ?_
+    obtain ⟨e1, d, rfl⟩ := tsCode_four h
+    exact ⟨Or.inr (Or.inr (Or.inl ⟨e1, d, rfl⟩)), rfl⟩
+  | recvEP q =>
+    obtain ⟨-, xs, -, rfl, hq, hon⟩ := hr
+    refine blk xs 3 hq hon hu fun ts h => ?_
+    obtain ⟨e1, r, d, rfl⟩ := tsCode_three h
+    exact ⟨Or.inr (Or.inr (Or.inr ⟨e1, r, d, rfl⟩)), rfl⟩
+
+/-- **`SchedValid` at related states with `Inv`**: `schedValid_of` with
+`EpRdyHyp` from `Inv` (`epRdyHyp_of`). -/
+theorem schedValid_of_inv {N T E R C Cs Ω Scs : Set U64} {B : Set (U64 × Word)} {H : Heap} {s : S}
+    {σ : State Unit} {E' : Set U64} {EQ : U64 → List U64} {Lst : U64 → List U64}
+    (hI : Ipc.IpcRel N T E R B (L.mem s) σ) (hTP : TcbPlaced T) (hCv : ObjCover N T E R C σ)
+    (hW : EpsWit st T Cs Ω H ∅ s E' EQ) (hHE : ∀ e, H e = some .ep → e ∈ E)
+    (hHN : ∀ n, H n = some .ntfn → n ∈ N)
+    (hRI : ReplyInv0 st T R Scs s) (hCR : CallRel (L.mem s) R C σ Lst) (hY : YieldRel T C (L.mem s) σ)
+    (hC0 : ∀ c ∈ C, c ≠ 0#u64) (hInv : Inv σ) (hSL : ScLinkHyp σ) : SchedValid σ :=
+  schedValid_of hI hTP hCv hW hHE hHN hRI hCR hY hC0 (epRdyHyp_of hI hCv hInv) hSL
 
 end
 

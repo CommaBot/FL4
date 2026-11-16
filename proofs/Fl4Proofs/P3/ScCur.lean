@@ -32,7 +32,7 @@ open Fl4Spec
 /-- The current-thread invariant (see the module docstring). -/
 structure CurInv (σ : State Unit) : Prop where
   tcb : ∃ xt, σ.kheap σ.curThread = some (.tcb xt) ∧ xt.tcbSchedContext = some σ.curSc ∧
-    ∀ q, xt.tcbState ≠ .blockedOnNotification q
+    NotIpcBlk xt.tcbState
   sc : ∃ x n, σ.kheap σ.curSc = some (.schedContext x n)
   active : σ.curSc ≠ idleScPtr → ∀ x n, σ.kheap σ.curSc = some (.schedContext x n) → scActive x = true
   notRel : σ.curThread ∉ σ.releaseQueue
@@ -122,11 +122,11 @@ theorem CurInv.stable {σ σ' : State Unit} (h : CurInv σ) (hn : NtfnStep σ σ
   obtain ⟨x, n, hx⟩ := h.sc
   obtain ⟨y, hky, -, hys, -⟩ := NtfnStep.tcbSched hn hkt
   have hx' := NtfnStep.sc hn hx
-  refine ⟨⟨y, by rw [e3]; exact hky, by rw [hys, e5]; exact hxs, fun q e => ?_⟩, ⟨x, n, by rw [e5]; exact hx'⟩,
+  refine ⟨⟨y, by rw [e3]; exact hky, by rw [hys, e5]; exact hxs, ?_⟩, ⟨x, n, by rw [e5]; exact hx'⟩,
     fun hid z m hz => ?_, by rw [e2, e3]; exact h.notRel⟩
   · rcases hb _ xt y hkt hky with e' | ⟨hr, -⟩
-    · exact hnb q (e'.symm.trans e)
-    · rw [e] at hr; cases hr
+    · rw [e']; exact hnb
+    · exact NotIpcBlk.of_runnable hr
   · rw [e5] at hid hz; rw [hx'] at hz; cases hz; exact h.active hid x n hx
 
 /-- Blocking the current thread asks for a new one: after `set_thread_state`'s
@@ -159,7 +159,7 @@ theorem CurInv.restart {σ : State Unit} (h : CurInv σ) {xt : Tcb} (hk : σ.khe
   obtain ⟨x, n, hx⟩ := h.sc
   have hne : σ.curSc ≠ σ.curThread := by rintro e; rw [e, hk] at hx; cases hx
   have h1 : CurInv (updK σ σ.curThread (.tcb { xt with tcbState := .restart })) :=
-    ⟨⟨{ xt with tcbState := .restart }, by simp [updK], hxs, fun q e => by cases e⟩, ⟨x, n, by simp [updK, hne, hx]⟩,
+    ⟨⟨{ xt with tcbState := .restart }, by simp [updK], hxs, NotIpcBlk.of_runnable rfl⟩, ⟨x, n, by simp [updK, hne, hx]⟩,
       fun hid y m hy => h.active hid y m (by simpa [updK, hne] using hy), h.notRel⟩
   exact h1.congr e1 e2 e3 e4
 
@@ -280,7 +280,7 @@ theorem CurInv.facts {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Uni
       σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) → Fl4Spec.scActive x = true) ∧
     (nodeW st s c layout.node.CUR_THREAD).bv ∉ σ.releaseQueue ∧
     (∀ xt, σ.kheap (nodeW st s c layout.node.CUR_THREAD).bv = some (.tcb xt) →
-      ∀ q, xt.tcbState ≠ .blockedOnNotification q) := by
+      NotIpcBlk xt.tcbState) := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hct := hc.curT
   obtain ⟨xt, hkt, hxs, hnb⟩ := h.tcb
@@ -294,10 +294,10 @@ theorem CurInv.facts {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Uni
   have hts : L.mem s (scA (nodeW st s c layout.node.CUR_THREAD)) = nodeW st s c layout.node.CUR_SC := eq_of_bv hbv
   have hscC : nodeW st s c layout.node.CUR_SC ∈ C := hts ▸ hs.scMem _ hct h0
   obtain ⟨y, n, hky, hyt⟩ := hI.back _ xt _ hkt hxs
-  refine ⟨hscC, hts ▸ h0, word24_of hS hscC hky hyt, hts, fun hid x m hx => ?_, ?_, fun xt' hk q => ?_⟩
+  refine ⟨hscC, hts ▸ h0, word24_of hS hscC hky hyt, hts, fun hid x m hx => ?_, ?_, fun xt' hk => ?_⟩
   · rw [← hs.curSc] at hid hx; exact h.active hid x m hx
   · rw [← hs.curThread]; exact h.notRel
-  · rw [hkt] at hk; cases hk; exact hnb q
+  · rw [hkt] at hk; cases hk; exact hnb
 
 end
 
