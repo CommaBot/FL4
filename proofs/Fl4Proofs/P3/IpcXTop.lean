@@ -14,10 +14,12 @@ SCs apart from the kernel-global block), so:
 -/
 import Fl4Proofs.P3.XTopStep
 import Fl4Proofs.P3.IpcSchedLift
+import Fl4Proofs.P3.IpcLeaves
+import Fl4Proofs.P3.IpcReply
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
-open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc
+open fl4_core Classical Fl4Proofs.P1 Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc
 
 noncomputable section
 
@@ -57,7 +59,8 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type}
 
 /-- **An IPC leaf on `IRel` ends at `XTopAt`**: from `XTopAt Z` with the IPC
 objects outside the kernel-global block, a leaf proved on `IRel` at `Z.th`
-(and the spec's CR3), whose FL4 side keeps the arch state (`hAk`), ends at
+(and the spec's CR3), whose FL4 side keeps the arch relation (`hAk`: the
+IPC paths' arch calls are the FPU and remote-stall ones), ends at
 `XTopAt` at the same typed heap and sets, with `KsApart` again. -/
 theorem xtopAt_of_irel {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (hX : XTopAt (L := L) AR Z s a σ) (hK : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s))
@@ -65,14 +68,14 @@ theorem xtopAt_of_irel {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a 
     (hI : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ → prog ⦃ r => r.1 = .Ok () ∧
       ∃ z ∈ spec.1, RelTopM (L := L) r.2.1 z.2 ∧
         IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c r.2.1 z.2 ⦄)
-    (hAk : prog ⦃ r => r.2.2 = a ⦄) :
+    (hAk : ∀ cr, AR a cr → prog ⦃ r => AR r.2.2 cr ⦄) :
     prog ⦃ r => r.1 = .Ok () ∧ ∃ z ∈ spec.1, RelTopM (L := L) r.2.1 z.2 ∧
       (∃ Z' : XSets, Z'.th = Z.th ∧ Z'.N = Z.N ∧ Z'.T = Z.T ∧ Z'.C = Z.C ∧ Z'.E = Z.E ∧ Z'.R = Z.R ∧ Z'.B = Z.B ∧
         Z'.c = Z.c ∧ XTopAt (L := L) AR Z' r.2.1 r.2.2 z.2) ∧ KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb r.2.1) ⦄ := by
   have hAR : AR a σ.archState.x64CurrentCr3 := hX.fin.1.1.2.2.2.2.2.2
-  refine WP.spec_mono (WP.spec_and (hI (hX.irelK hK)) hAk) ?_
+  refine WP.spec_mono (WP.spec_and (hI (hX.irelK hK)) (hAk _ hAR)) ?_
   rintro r ⟨⟨h1, z, hz, hRT, hIz⟩, ha⟩
-  exact ⟨h1, z, hz, hRT, IRel.xtop hIz (by rw [ha]; exact hAR)⟩
+  exact ⟨h1, z, hz, hRT, IRel.xtop hIz ha⟩
 
 /-- **The XLeaf shape** (TopXAll's `XLeaf (XTop AR)`): for every `Z` the
 entry's `XTopAt Z` holds at, `KsApart` and the leaf on `IRel` at `Z.th`. -/
@@ -83,12 +86,107 @@ theorem xleaf_of_irel {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ : Fl
       IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ → prog ⦃ r => r.1 = .Ok () ∧
         ∃ z ∈ spec.1, RelTopM (L := L) r.2.1 z.2 ∧
           IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c r.2.1 z.2 ⦄)
-    (hAk : prog ⦃ r => r.2.2 = a ⦄) :
+    (hAk : ∀ cr, AR a cr → prog ⦃ r => AR r.2.2 cr ⦄) :
     XLeaf (L := L) (XTop (L := L) AR) s a σ prog spec := by
   rintro ⟨Z, hZ⟩
   refine WP.spec_mono (xtopAt_of_irel hZ (hKA Z hZ) (hI Z hZ) hAk) ?_
   rintro r ⟨h1, z, hz, hRT, ⟨Z', -, -, -, -, -, -, -, -, hZ'⟩, -⟩
   exact ⟨h1, z, hz, hRT, Z', hZ'⟩
+
+end
+
+
+/-! ## The IPC leaves at `XTop` (`IpcVsFrame`) -/
+
+section
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
+
+/-- The IPC tails' shared hypotheses at sets `Z` (with the spec's CR3 `cr`):
+`KsApart`, the scheduler, buffer and endpoint-tail steps (`IpcSchedHyps`,
+`EpBufHyps`, `EpBufMapHyps`, `IpcEpTailHyps`), placement, and the current
+thread in `Z.T`. -/
+structure IpcZ (cr : Fl4Spec.Cr3) (s : S) (ct : U64) (Z : XSets) : Prop where
+  ks : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)
+  H : IpcSchedHyps st arI Z.N Z.T Z.E Z.R Z.B (SRT st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c
+    (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c))
+  Bf : EpBufHyps st Z.T Z.E Z.R Z.B (SRT st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c))
+  Bm : EpBufMapHyps st Z.T Z.E Z.R Z.B (SRT st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c))
+  Tl : IpcEpTailHyps st A Z.N Z.T Z.E Z.R Z.B (SRT st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c
+    (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c))
+  P : IPlaced Z.N Z.T Z.E Z.R Z.B
+  ct : ct ∈ Z.T
+
+/-- **`IpcVsFrame` for an endpoint cap with the send right**: `send_tail_top`
+at every `Z` the entry's `XTopAt` holds at. Named: `IpcZ` and the send
+tail's own hypotheses at `Z` (`SchedValid`, `QSorted` on `IRel`, the
+endpoint in `Z.E`, `SendRest`), and the arch relation kept (`hAk`). -/
+theorem ipcVsFrame_endpoint {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ σ1 : Fl4Spec.State Unit}
+    {ct : U64} (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
+    (hrun : tsCode xt.tcbState < 3) (hft : xt.tcbFault = none)
+    (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
+    (blk call don : Bool) (p b : U64) (rv g gr : Bool)
+    (hZ : ∀ Z : XSets, XTopAt (L := L) AR Z s a σ → IpcZ (L := L) arI σ.archState.x64CurrentCr3 s ct Z ∧
+      (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → Sched.SchedValid σ') ∧
+      (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → QSorted st Z.T Z.E s') ∧
+      p ∈ Z.E ∧
+      (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' →
+        SendRest st arI (IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c) Z.T s' a σ' blk call b
+          g gr don ct p))
+    (hAk : ∀ cr, AR a cr → (do
+      let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
+      let (s2, a1) ← endpoint.send_ipc st arI s1 a blk call b g gr don ct p
+      ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a1)) ⦃ r => AR r.2.2 cr ⦄) :
+    IpcVsFrame (L := L) arI AR s a σ σ1 ct blk call don (.Endpoint p b true rv g gr) :=
+  xleaf_of_irel (fun Z hX => (hZ Z hX).1.ks) (fun Z hX hI =>
+    let ⟨hz, hSV, hso, hp, hU⟩ := hZ Z hX
+    send_tail_top hz.H hz.Bf hz.Bm hz.Tl hz.P hSV hso s a σ hI hz.ct hcur hkt hrun hft hst hp b blk call g gr don hU)
+    hAk
+
+/-- **`IpcVsFrame` for a notification cap with the send right**:
+`send_tail_ntfn` at every `Z`. Named: `IpcZ`, no thread `RunningVM` on
+`IRel`, the notification in `Z.N`, and the arch relation kept. -/
+theorem ipcVsFrame_notification {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ σ1 : Fl4Spec.State Unit}
+    {ct : U64} (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
+    (hrun : tsCode xt.tcbState < 3)
+    (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
+    (blk call don : Bool) (p b : U64) (rv : Bool)
+    (hZ : ∀ Z : XSets, XTopAt (L := L) AR Z s a σ → IpcZ (L := L) arI σ.archState.x64CurrentCr3 s ct Z ∧
+      (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → NativeScope σ') ∧
+      p ∈ Z.N)
+    (hAk : ∀ cr, AR a cr → (do
+      let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
+      let (s2, a1) ← notification.send_signal st arI s1 a p b
+      ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a1)) ⦃ r => AR r.2.2 cr ⦄) :
+    IpcVsFrame (L := L) arI AR s a σ σ1 ct blk call don (.Notification p b true rv) :=
+  xleaf_of_irel (fun Z hX => (hZ Z hX).1.ks) (fun Z hX hI =>
+    let ⟨hz, hvm, hp⟩ := hZ Z hX
+    send_tail_ntfn hz.H hz.Bf hz.Bm hz.P hvm s a σ hI hz.ct hcur hkt hrun hst hp b)
+    hAk
+
+/-- **`IpcVsFrame` for a reply cap**: `reply_tail_inv` at every `Z`. Named:
+`IpcZ`, `ReplyHyps`, `min_budget`, `SchedValid` and `ObjCover` on `IRel`,
+the reply in `Z.R`, and the arch relation kept. -/
+theorem ipcVsFrame_reply {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ σ1 : Fl4Spec.State Unit}
+    {ct : U64} (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
+    (hrun : tsCode xt.tcbState < 3) (hft : xt.tcbFault = none)
+    (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
+    (blk call don : Bool) (p : U64) (g : Bool)
+    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (hZ : ∀ Z : XSets, XTopAt (L := L) AR Z s a σ → IpcZ (L := L) arI σ.archState.x64CurrentCr3 s ct Z ∧
+      ReplyHyps st arI Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c ∧
+      (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → Sched.SchedValid σ') ∧
+      (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' →
+        Sched.ObjCover Z.N Z.T Z.E Z.R Z.C σ') ∧
+      p ∈ Z.R)
+    (hAk : ∀ cr, AR a cr → (do
+      let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
+      let (s2, a1) ← ipc.do_reply_transfer st arI s1 a ct p g
+      ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a1)) ⦃ r => AR r.2.2 cr ⦄) :
+    IpcVsFrame (L := L) arI AR s a σ σ1 ct blk call don (.Reply p g) :=
+  xleaf_of_irel (fun Z hX => (hZ Z hX).1.ks) (fun Z hX hI =>
+    let ⟨hz, hRH, hSV, hOC, hp⟩ := hZ Z hX
+    reply_tail_inv hz.H hz.Bf hz.Bm hz.P hRH hz.Tl hmb hSV hOC s a σ hI hz.ct hcur hkt hrun hft hst hp g)
+    hAk
 
 end
 
