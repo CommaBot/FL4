@@ -149,6 +149,11 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
   `finEpSpecHyp` for a final endpoint cap), `hRT_of`/`hRS_of` from the
   scheduler relations, and SetSchedParams end to end
   (`tcb_set_sched_params_refines_disch`).
+* ScPlace: the joint P1/P3 placement invariant `JPlaced` (P3's typed heap
+  against P1's heap `H` and its sets), the placement hypotheses derived
+  from it (`JPlaced.ssp`, `JPlaced.kwOut`, `JPlaced.slotCapW`,
+  `ntfnP1Hyp_of`, `replyP1Hyp_of`), and its frames (`JPlaced.step`,
+  `JPlaced.same`).
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
@@ -181,3 +186,4 @@ import Fl4Proofs.P3.ScInstFoot
 import Fl4Proofs.P3.ScInstSpec
 import Fl4Proofs.P3.ScCancelFrame
 import Fl4Proofs.P3.ScInstPost
+import Fl4Proofs.P3.ScPlace
