@@ -168,6 +168,10 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
 * ScSchedOut: the spec's `reschedule_required` and `possible_switch_to`
   have one outcome keeping the heap, given `ActReady`
   (`rescheduleRequired_some`, `possibleSwitchTo_some`).
+* ScPlaceDead: `JCov` kept with a dead set (`JCovD`, `DeadP`): across
+  steps (`JCovD.step`, `JCovD.same`), deletes (`JCovD.delete`), and the
+  childless region holding only dead objects (`dead_childless`); P1's
+  missing finalisation post `FinDeadHyp`.
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
@@ -205,3 +209,4 @@ import Fl4Proofs.P3.ScPlaceCaps
 import Fl4Proofs.P3.ScPlaceSc
 import Fl4Proofs.P3.ScPlaceUt
 import Fl4Proofs.P3.ScSchedOut
+import Fl4Proofs.P3.ScPlaceDead
