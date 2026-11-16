@@ -181,3 +181,6 @@ import Fl4Proofs.P3.TcbPlace
 import Fl4Proofs.P3.SpecFinOut
 import Fl4Proofs.P3.SpecFinOutEp
 import Fl4Proofs.P3.SpecFinOutReply
+import Fl4Proofs.P3.SchedValid
+import Fl4Proofs.P3.SpecFinOutSc
+import Fl4Proofs.P3.SpecFinOutTcb

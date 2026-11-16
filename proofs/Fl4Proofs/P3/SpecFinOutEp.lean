@@ -28,7 +28,8 @@ def RepOK (σ : State Unit) (t : ObjRef) : Prop :=
 /-- A TCB's SC facts (`MemOK`'s, for a given TCB). -/
 def ScOK (σ : State Unit) (x : Tcb) : Prop :=
   ∀ c, x.tcbSchedContext = some c → ∃ y k, σ.kheap c = some (.schedContext y k) ∧
-    y.scRefills ≠ [] ∧ refillReady σ.curTime (refillHd y) = true ∧ refillSufficient 0 (refillHd y) = true ∧
+    y.scRefills ≠ [] ∧
+    (scActive y = true → refillReady σ.curTime (refillHd y) = true ∧ refillSufficient 0 (refillHd y) = true) ∧
     (scActive y = true → y.scPeriod ≠ 0 → RefOK y)
 
 /-- **The restart, the refill check and the switch** of a thread `t` whose
@@ -50,11 +51,13 @@ theorem restart_tail {σ : State Unit} {t : ObjRef} {x : Tcb} (hkt : σ.kheap t 
   have hkt2 : σ2'.kheap t = some (.tcb x') := by simp [hσ2', updK]
   have hT2 : schedulable t σ2' = true → RdyAt σ2' t := by
     intro hs
-    obtain ⟨x0, c, y0, k0, hk0, hsc0, -, hky0, -, -⟩ := schedulable_inv hs
+    obtain ⟨x0, c, y0, k0, hk0, hsc0, -, hky0, hact0, -⟩ := schedulable_inv hs
     rw [hkt2] at hk0; cases hk0
-    obtain ⟨y, k, hky, hne, h1, h2, -⟩ := hxs c hsc0
+    obtain ⟨y, k, hky, hne, h12, -⟩ := hxs c hsc0
     have hct : c ≠ t := by rintro rfl; rw [hkt] at hky; cases hky
-    exact ⟨x', c, y, k, hkt2, hsc0, by rw [hkp2 c hct]; exact hky, hne, h1, h2⟩
+    rw [hkp2 c hct, hky] at hky0; cases hky0
+    obtain ⟨h1, h2⟩ := h12 hact0
+    exact ⟨x', c, _, _, hkt2, hsc0, by rw [hkp2 c hct]; exact hky, hne, h1, h2⟩
   have hA2' : ActReady σ2' := by
     rw [actReady_iff] at hA ⊢
     intro u hu hs
@@ -98,7 +101,7 @@ theorem restart_tail {σ : State Unit} {t : ObjRef} {x : Tcb} (hkt : σ.kheap t 
     exact ⟨σ2, Set.mem_singleton _, hkt2', hB2, hA2, hT2'', by rw [ht2]; rfl, fun p hp _ => hkp2' p hp⟩
   | some c =>
     have hxc' : x.tcbSchedContext = some c := hxc
-    obtain ⟨y, k, hky1, hne, hrd, hsf, hrf⟩ := hxs c hxc'
+    obtain ⟨y, k, hky1, hne, -, hrf⟩ := hxs c hxc'
     have hct : c ≠ t := by rintro rfl; rw [hkt] at hky1; cases hky1
     have hky2 : σ2.kheap c = some (.schedContext y k) := by rw [hkp2' c hct]; exact hky1
     obtain ⟨σ3, hm3, hcase⟩ := unblockCur_some hky2 hne
@@ -409,15 +412,14 @@ a receiver's reply bound to it. -/
 theorem epPre_of_inv {σ : State Unit} {r : ObjRef} {x : Endpoint} (hI : Inv σ) (hA : ActReady σ)
     (hk : σ.kheap r = some (.endpoint x)) (hnd : x.epQueue.Nodup)
     (hq : ∀ u ∈ x.epQueue, ∃ xu, σ.kheap u = some (.tcb xu) ∧ (∀ c, xu.tcbSchedContext = some c →
-      ∀ y k, σ.kheap c = some (.schedContext y k) →
+      ∀ y k, σ.kheap c = some (.schedContext y k) → scActive y = true →
         refillReady σ.curTime (refillHd y) = true ∧ refillSufficient 0 (refillHd y) = true) ∧ RepOK σ u) :
     EpPre σ r := by
   refine ⟨x, hk, hnd, fun u hu => ?_, fun u xu c hku hc => ?_, hA⟩
   · obtain ⟨xu, hku, hc, hr⟩ := hq u hu
     refine ⟨⟨xu, hku, fun c e => ?_⟩, hr⟩
     obtain ⟨y, k, hky, -⟩ := hI.back u xu c hku e
-    obtain ⟨h1, h2⟩ := hc c e y k hky
-    exact ⟨y, k, hky, hI.ne c y k hky, h1, h2, fun ha hp => hI.refills c y k hky ha hp⟩
+    exact ⟨y, k, hky, hI.ne c y k hky, hc c e y k hky, fun ha hp => hI.refills c y k hky ha hp⟩
   · obtain ⟨y, k, hky, hyt⟩ := hI.back u xu c hku hc
     exact ⟨y, k, hky, hyt, hI.ne c y k hky⟩
 

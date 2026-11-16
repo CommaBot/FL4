@@ -200,22 +200,25 @@ theorem SFr.updSc {σ : State Unit} {p : ObjRef} {y z : SchedContext} {n : Nat}
     · exact ⟨y', by simp only [updK, Function.update_of_ne e] at hq; exact hq⟩
 
 
-/-- A queued thread's facts: a TCB whose SC, if any, has refills with a
-ready and sufficient head, valid when active and periodic. -/
+/-- A queued thread's facts: a TCB whose SC, if any, has refills, with a
+ready and sufficient head when active (l4v `released_ipc_queues`), valid
+when active and periodic. -/
 def MemOK (σ : State Unit) (t : ObjRef) : Prop :=
   ∃ x, σ.kheap t = some (.tcb x) ∧ ∀ c, x.tcbSchedContext = some c → ∃ y k, σ.kheap c = some (.schedContext y k) ∧
-    y.scRefills ≠ [] ∧ refillReady σ.curTime (refillHd y) = true ∧ refillSufficient 0 (refillHd y) = true ∧
+    y.scRefills ≠ [] ∧
+    (scActive y = true → refillReady σ.curTime (refillHd y) = true ∧ refillSufficient 0 (refillHd y) = true) ∧
     (scActive y = true → y.scPeriod ≠ 0 → RefOK y)
 
 theorem SFr.memOK {σ σ' : State Unit} (h : SFr σ σ') {t : ObjRef} (hm : MemOK σ t) : MemOK σ' t := by
   obtain ⟨x, hk, hc⟩ := hm
   obtain ⟨x', hx', -, hsc⟩ := h.tcb t x hk
   refine ⟨x', hx', fun c e => ?_⟩
-  obtain ⟨y, k, hky, hne, h1, h2, h3⟩ := hc c (by rw [← hsc, e])
+  obtain ⟨y, k, hky, hne, h12, h3⟩ := hc c (by rw [← hsc, e])
   obtain ⟨y', hy', e1, e2, -, e4⟩ := h.sc c y k hky
   have hh : refillHd y' = refillHd y := by simp [refillHd, e1]
-  refine ⟨y', k, hy', by rw [e1]; exact hne, by rw [h.tm, hh]; exact h1, by rw [hh]; exact h2, fun ha hp => ?_⟩
-  have ha' : scActive y = true := by simpa [scActive, e2] using ha
+  have hact : scActive y' = true → scActive y = true := fun ha => by simpa [scActive, e2] using ha
+  refine ⟨y', k, hy', by rw [e1]; exact hne, fun ha => by rw [h.tm, hh]; exact h12 (hact ha), fun ha hp => ?_⟩
+  have ha' : scActive y = true := hact ha
   have hR := h3 ha' (by rw [← e4]; exact hp)
   obtain ⟨r1, r2, r3, r4⟩ := hR
   exact ⟨by rw [e1]; exact r1, by rw [e1]; exact r2, by rw [e1]; exact r3, by rw [hh]; exact r4⟩
@@ -453,11 +456,13 @@ theorem ntfn_iter {σ : State Unit} {r t : ObjRef} {l : List ObjRef} {n : Notifi
   have hkt2 : σ2'.kheap t = some (.tcb x') := by simp [hσ2', updK]
   have hT2 : schedulable t σ2' = true → RdyAt σ2' t := by
     intro hs
-    obtain ⟨x0, c, y0, k0, hk0, hsc0, -, hky0, -, -⟩ := schedulable_inv hs
+    obtain ⟨x0, c, y0, k0, hk0, hsc0, -, hky0, hact0, -⟩ := schedulable_inv hs
     rw [hkt2] at hk0; cases hk0
-    obtain ⟨y, k, hky, hne, h1, h2, -⟩ := hxs c hsc0
+    obtain ⟨y, k, hky, hne, h12, -⟩ := hxs c hsc0
     have hct : c ≠ t := by rintro rfl; rw [hkt] at hky; cases hky
-    exact ⟨x', c, y, k, hkt2, hsc0, by rw [hkp2 c hct]; exact hky, hne, h1, h2⟩
+    rw [hkp2 c hct, hky] at hky0; cases hky0
+    obtain ⟨h1, h2⟩ := h12 hact0
+    exact ⟨x', c, _, _, hkt2, hsc0, by rw [hkp2 c hct]; exact hky, hne, h1, h2⟩
   have hA2' : ActReady σ2' := by
     rw [actReady_iff] at hA1 ⊢
     intro u hu hs
@@ -506,7 +511,7 @@ theorem ntfn_iter {σ : State Unit} {r t : ObjRef} {l : List ObjRef} {n : Notifi
     exact ⟨σ2, Set.mem_singleton _, hkt2', hkr2, hm2, hB2, hA2, hT2''⟩
   | some c =>
     have hxc' : x.tcbSchedContext = some c := hxc
-    obtain ⟨y, k, hky1, hne, hrd, hsf, hrf⟩ := hxs c hxc'
+    obtain ⟨y, k, hky1, hne, -, hrf⟩ := hxs c hxc'
     have hct : c ≠ t := by rintro rfl; rw [hkt] at hky1; cases hky1
     have hky2 : σ2.kheap c = some (.schedContext y k) := by rw [hk2, hkp2 c hct]; exact hky1
     obtain ⟨σ3, hm3, hcase⟩ := unblockCur_some hky2 hne
@@ -626,15 +631,14 @@ theorem ntfnPre_of_inv {σ : State Unit} {r : ObjRef} {n : Notification} (hI : I
     (hk : σ.kheap r = some (.notification n)) (hb : ∀ t, n.ntfnBoundTcb = some t → ∃ x, σ.kheap t = some (.tcb x))
     (hnd : (ntfnQueueOf n).Nodup)
     (hq : ∀ u ∈ ntfnQueueOf n, ∃ x, σ.kheap u = some (.tcb x) ∧ ∀ c, x.tcbSchedContext = some c →
-      ∀ y k, σ.kheap c = some (.schedContext y k) →
+      ∀ y k, σ.kheap c = some (.schedContext y k) → scActive y = true →
         refillReady σ.curTime (refillHd y) = true ∧ refillSufficient 0 (refillHd y) = true) :
     NtfnPre σ r := by
   refine ⟨n, hk, fun c hc => hI.ntfnSc r n c hk hc, hb, hnd, fun u hu => ?_, fun u xu c hku hc => ?_, hA⟩
   · obtain ⟨x, hku, hc⟩ := hq u hu
     refine ⟨x, hku, fun c e => ?_⟩
     obtain ⟨y, k, hky, -⟩ := hI.back u x c hku e
-    obtain ⟨h1, h2⟩ := hc c e y k hky
-    exact ⟨y, k, hky, hI.ne c y k hky, h1, h2, fun ha hp => hI.refills c y k hky ha hp⟩
+    exact ⟨y, k, hky, hI.ne c y k hky, hc c e y k hky, fun ha hp => hI.refills c y k hky ha hp⟩
   · obtain ⟨y, k, hky, hyt⟩ := hI.back u xu c hku hc
     exact ⟨y, k, hky, hyt, hI.ne c y k hky⟩
 
