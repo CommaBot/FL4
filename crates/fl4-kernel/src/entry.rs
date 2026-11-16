@@ -165,7 +165,9 @@ fn unlock() {
 }
 
 /// The kernel's side of `fl4_sync::run_entry`.
-struct KernelEnv;
+struct KernelEnv {
+    serial: bool,
+}
 
 impl fl4_sync::EntryEnv for KernelEnv {
     type S = PhysStore;
@@ -176,6 +178,9 @@ impl fl4_sync::EntryEnv for KernelEnv {
     }
     fn multi(&self) -> bool {
         smp::multi()
+    }
+    fn prefer_serial(&self) -> bool {
+        self.serial
     }
     fn store(&self, tx: bool) -> PhysStore {
         PhysStore { ks_base: unsafe { KS_BASE }, cpu: self.cpu(), tx }
@@ -245,8 +250,8 @@ impl fl4_sync::EntryEnv for KernelEnv {
 }
 
 /// Run the kernel's part of an entry (DESIGN.md §7, `fl4_sync::run_entry`).
-fn run_entry(irq: bool, body: impl FnMut(&mut PhysStore, &mut PhysArch)) -> bool {
-    fl4_sync::run_entry(&KernelEnv, &GATE, irq, body)
+fn run_entry(irq: bool, serial: bool, body: impl FnMut(&mut PhysStore, &mut PhysArch)) -> bool {
+    fl4_sync::run_entry(&KernelEnv { serial }, &GATE, irq, body)
 }
 
 /// Called by entry.S for every kernel entry.
@@ -291,7 +296,7 @@ extern "C" fn fl4_entry(f: &mut Frame) {
                     service_remote();
                 }
                 if irq {
-                    run_entry(true, |s, a| syscall::handle_interrupt_entry(s, a, v - VEC_IRQ_MIN));
+                    run_entry(true, false, |s, a| syscall::handle_interrupt_entry(s, a, v - VEC_IRQ_MIN));
                 }
                 exit();
             }
@@ -353,7 +358,10 @@ extern "C" fn fl4_entry(f: &mut Frame) {
     };
     // An interrupt is handled even if a stall cancelled the entry: it has
     // been accepted and needs its EOI.
-    run_entry(irq, |s, a| {
+    // VMEnter always needs the serial gate. Avoid a transaction that
+    // would only request serial fallback in vcpu::enter.
+    let serial = v == VEC_SYSCALL && f.rdx as i64 == fl4_abi::syscall::SysVMEnter;
+    run_entry(irq, serial, |s, a| {
         if s.tx {
             dispatch_entry(&mut s.specialize::<true>(), a, v, irq, f.rdx as i64, f.error, cr2, dr6);
         } else {
@@ -396,7 +404,9 @@ fn dispatch_entry<S: fl4_core::machine::Store>(
 /// context no other core changes without stalling this one first.
 pub fn exit() -> ! {
     loop {
-        let s = &mut store();
+        // Exit never runs in a transaction. Use the direct specialization
+        // for guest entry/exit and scheduling, as syscall dispatch does.
+        let s = &mut store().specialize::<false>();
         let mut ct = sched::cur_thread(s);
         if ct.state(s) == sched::TS_RUNNING_VM {
             // Register the nested root before releasing the gate. An
@@ -458,7 +468,7 @@ pub fn exit() -> ! {
 
 /// Load a thread's breakpoints and single-step flag (seL4
 /// `restore_user_debug_context`).
-fn load_debug_state(s: &mut PhysStore, t: Tcb) {
+fn load_debug_state<S: Store>(s: &mut S, t: Tcb) {
     let dr7 = t.debug_reg(s, 5);
     let pc = percpu::get();
     if dr7 & 0xff != 0 || pc.dr_loaded {
