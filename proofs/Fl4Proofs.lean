@@ -102,6 +102,7 @@ import Fl4Proofs.P3.UntypedPml4
 import Fl4Proofs.P3.UntypedFrameBase
 import Fl4Proofs.P3.UntypedFrame
 import Fl4Proofs.P3.RetypeBridge
+import Fl4Proofs.P3.RetypePlace
 import Fl4Proofs.P3.Vs
 import Fl4Proofs.P3.CnodeRotate
 import Fl4Proofs.P3.CnodeCancel

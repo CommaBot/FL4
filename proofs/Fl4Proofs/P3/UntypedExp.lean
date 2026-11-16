@@ -47,6 +47,10 @@ structure RetExp (th th' : TypedHeap) (m m' : U64 → U64) (G G' : MdbGhost) (A 
     p0.val ≤ A ∧ A + w * k ≤ p0.val + 2 ^ sb0.val ∧ (p0.val + fi0.val ≤ A ∨ ∀ y, ¬ Mdb.Desc G.par y x0)
   th : ∀ q kd, th' q = some kd → (th q = some kd ∧ (NewQ A k w cj q → objSize kd = 0)) ∨
     (NewQ A k w cj q ∧ objSize kd ≤ k)
+  /-- The MDB after: the old slots and the new caps' slots. -/
+  gmem : ∀ x ∈ G'.chains.flatten, x ∈ G.chains.flatten ∨ ∃ j, j < w ∧ x = dslot j
+  /-- Untyped caps stay untyped. -/
+  utk : ∀ y ∈ G.chains.flatten, isUt (capV m y) = true → isUt (capV m' y) = true
 
 theorem isUt_untyped (p sb fi : U64) (d : Bool) : isUt (.Untyped p sb fi d) = true := rfl
 
@@ -67,7 +71,8 @@ theorem RetypeDelta.toExp (h : RetypeDelta th m0 m1 mf G0 Gf src p sb fi nfi dev
   obtain ⟨-, -, hfit⟩ := ut_range hsb hreg
   have hsrcU : isUt (capV m0 src) = true := by rw [h.hcs]; rfl
   refine ⟨h.hk, fun y hy hu => ?_, fun j hj => ?_, fun j hj => h.F2a j hj, h.cphys, h.cbase, h.ctop,
-    fun x hx p' sb' fi' d' hcx => ?_, ⟨src, h.hsrc, p, sb, fi, dev, h.hcs, by have := h.hA; omega, h.hAw, Or.inl h.hA⟩, hth⟩
+    fun x hx p' sb' fi' d' hcx => ?_, ⟨src, h.hsrc, p, sb, fi, dev, h.hcs, by have := h.hA; omega, h.hAw, Or.inl h.hA⟩, hth,
+    h.F1, fun y hy hu => ?_⟩
   · have hys : y ≠ src := by rintro rfl; rw [hsrcU] at hu; cases hu
     exact ⟨h.F1b y hy, by rw [h.F2b y hy, h.hc1 y hy hys]⟩
   · exact (desc_mem hMf ((h.F3 _ src).2 (Or.inr ⟨j, hj, rfl, Or.inl rfl⟩))).1
@@ -91,6 +96,10 @@ theorem RetypeDelta.toExp (h : RetypeDelta th m0 m1 mf G0 Gf src p sb fi nfi dev
       refine ⟨src, h.hsrc, p, sb, fi, dev, h.hcs, ?_, ?_⟩
       · rw [hv]; have := h.hA; omega
       · rw [hv, hk]; have := h.hAw; omega
+  · rw [h.F2b y hy]
+    by_cases hys : y = src
+    · subst hys; rw [h.hcs1]; rfl
+    · rw [h.hc1 y hy hys]; exact hu
 
 end
 
@@ -128,7 +137,8 @@ theorem RetExp.same_left {th th' : TypedHeap} {m m0 m' : U64 → U64} {G G' : Md
     {dslot : Nat → U64} {cj : Nat → capability.Cap} (hM : MdbLinks th m G) (hS : SlotsSame th m m0)
     (h : RetExp th th' m0 m' G G' A k w dslot cj) : RetExp th th' m m' G G' A k w dslot cj := by
   have hc : ∀ x ∈ G.chains.flatten, capV m0 x = capV m x := fun x hx => hS.capV ((hM.members x).1 hx).1
-  refine ⟨h.k1, fun y hy hu => ?_, h.newm, h.newc, h.cphys, h.cbase, h.ctop, fun x hx p sb fi d hcx => ?_, ?_, h.th⟩
+  refine ⟨h.k1, fun y hy hu => ?_, h.newm, h.newc, h.cphys, h.cbase, h.ctop, fun x hx p sb fi d hcx => ?_, ?_, h.th,
+    h.gmem, fun y hy hu => h.utk y hy (by rw [hc y hy]; exact hu)⟩
   · rw [← hc y hy] at hu ⊢; exact h.keep y hy hu
   · obtain ⟨x0, hx0, p0, sb0, fi0, d0, e, h1, h2⟩ := h.ut x hx p sb fi d hcx
     exact ⟨x0, hx0, p0, sb0, fi0, d0, by rw [← hc x0 hx0]; exact e, h1, h2⟩

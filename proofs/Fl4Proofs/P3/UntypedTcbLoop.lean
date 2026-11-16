@@ -631,7 +631,7 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
         WFrame (L := L) s res.2.1 (TcbLoopW th (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat win.val
           (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))) ∧
         ∃ A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj ∧
-          A = (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val ∧ (∀ j, j < w → isUt (cj j) = true → nt.val = 0) ⦄ := by
+          A = (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val ∧ (∀ j, j < w → isUt (cj j) = true → nt.val = 0) ∧ ThX th th' A k w nt.val us.val ∧ cj = cjOf nt.val us dev A k ∧ DslotC th dslot w ⦄ := by
   -- sizes and the region
   have hsb : sb.val < 64 := capAt_untyped_inv hcap
   have htT : t = .tcbObject := by rw [hnt] at ht; simpa [objTypeOf] using ht.symm
@@ -937,7 +937,9 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
     refine WFrame.trans (s2 := s1) ⟨k1.1, k1.2, fun w hw hn => hfr1 w hw (fun e => hn (Or.inl ⟨src, hs', by omega, by omega⟩))
       (fun e => hn (Or.inl ⟨src, hs', by omega, by omega⟩))⟩ hW2
   refine ⟨rfl, ha2, σf, Gf, th', ?_, hP', hRf, hVf, hMf, hCf, hIf, ?_, ?_, fun hFI => ⟨?_, ?_⟩, by rw [hks2],
-    hW, A, k, win.val, _, _, hRD.toExp hU hMf hth', rfl, rfl, rfl, fun j hj hu => (isUt_newCap (by unfold cjOf at hu; exact hu)).1⟩
+    hW, A, k, win.val, _, _, hRD.toExp hU hMf hth', rfl, rfl, rfl, fun j hj hu => (isUt_newCap (by unfold cjOf at hu; exact hu)).1,
+    ⟨fun q => by show extendTh th A 4096 win.val .tcb q = _; simp [extendTh, thKindN, hnt, hk4], hrf⟩, rfl,
+    fun j hj => ⟨dest, r, hdest, off.val + j, by omega, rfl⟩⟩
   rotate_right 2
   · exact (ktyped_region (hFI.kt.sub (ksub_of_eq (nks_setCap _ _) hσa)) Ab A win.val 4096 rfl (by omega) hfitA hrf4
       (fun q kd hq hs => extendTh_of_old (by omega) hrf4 hq hs) _

@@ -103,7 +103,7 @@ theorem retype_cont_all {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
       exact (UScalar.eq_of_val_eq (by rw [hunused hnc]; rfl))
   subst hfiv'
   have hsb : sb.val < 64 := capAt_untyped_inv hcap
-  obtain ⟨hA1, -, hA3, -⟩ := retype_region p fiv sb.val (zOf nt.val us.val) win.val hsb (by omega) hpal hpfit hfi hw1 hmem
+  obtain ⟨hA1, hWA2, hA3, -⟩ := retype_region p fiv sb.val (zOf nt.val us.val) win.val hsb (by omega) hpal hpfit hfi hw1 hmem
   have hsl : ∀ a, IsSlot th a → a.val + 32 ≤ (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)).toNat ∨
       (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val ≤ a.val := by
     intro a ha
@@ -132,7 +132,7 @@ theorem retype_cont_all {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
         (dev = false → WinZero (L.mem res.2.1) (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)).toNat
           (2 ^ zOf nt.val us.val) win.val (t = .tcbObject)) ∧
         ∃ A k w dslot cj, RetExp th th' (L.mem s2) (L.mem res.2.1) G G' A k w dslot cj ∧
-          A = (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val ∧ (∀ j, j < w → isUt (cj j) = true → nt.val = 0) ⦄ := by
+          A = (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val ∧ (∀ j, j < w → isUt (cj j) = true → nt.val = 0) ∧ ThX th th' A k w nt.val us.val ∧ cj = cjOf nt.val us dev A k ∧ DslotC th dslot w ⦄ := by
     by_cases h1 : nt.val = 1
     · refine WP.spec_mono (retype_full_tcb (L := L) arI ar th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hU1 horig1 hpp hidx hcap1
         hpal hpfit hfi hhigh nt us t ht h1 hus hdest (by omega) off win hwin hw1 hmem hempty1 hfree hzero1
@@ -171,7 +171,7 @@ theorem retype_cont_all {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
         (dev = false → WinZero (L.mem res.2.1) (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)).toNat
           (2 ^ zOf nt.val us.val) win.val (t = .tcbObject)) ∧
         ∃ A k w dslot cj, RetExp th th' (L.mem s2) (L.mem res.2.1) G G' A k w dslot cj ∧
-          A = (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val ∧ (∀ j, j < w → isUt (cj j) = true → nt.val = 0)) →
+          A = (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val ∧ (∀ j, j < w → isUt (cj j) = true → nt.val = 0) ∧ ThX th th' A k w nt.val us.val ∧ cj = cjOf nt.val us dev A k ∧ DslotC th dslot w) →
       (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) reset p.bv
           (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val
           (windowSlots dest r off.val win.val) dev)).run σ1 =
@@ -181,11 +181,11 @@ theorem retype_cont_all {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
       RetPost (L := L) th (L.mem s) G σ ar arI s bitsApi (L.ksb s) (.retype (pp.bv, idx) reset p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) dev) res := by
     rintro res ⟨h1, h2, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', ⟨hU', hSt'⟩, -, hFin, hks, hWf, hWZ, A, k, w,
-      dslot, cj, hE, rfl, rfl, rfl, hnu⟩ he
+      dslot, cj, hE, rfl, rfl, rfl, hnu, hthx, hcjE, hdsC⟩ he
     exact ⟨h1, h2, σ1, by rw [hcur]; exact hst1, σ', G', th', he.trans hrun, hP', hR', hV', hM', hC', hI', hU',
       MdbStep.same_left hM hSS hSt', fun hFI => hFin (hFI.of_same hM hSS (ksub_of_eq (setThreadState_nks _ _) hst1)),
       by rw [hks, hk2], _, _, _, dslot, cj, hE.same_left hM hSS,
-      ⟨⟨ct, s2, hct, hs2, Or.inr ⟨h1, ⟨rfl, by rw [hb], by simp [windowSlots]⟩, s2, th, Or.inl ⟨rfl, rfl⟩, fun a h => h, hWf.mono fun v hv => Or.inl hv,
+      ⟨⟨ct, s2, hct, hs2, Or.inr ⟨h1, ⟨rfl, by rw [hb], by simp [windowSlots], hWA2⟩, s2, th, _, _, Or.inl ⟨rfl, rfl, rfl, rfl⟩, le_rfl, le_rfl, hthx.2, fun a h => h, ⟨nt.val, ht, hthx, us, rfl, hcjE⟩, hdsC, hWf.mono fun v hv => Or.inl hv,
         fun ⟨hd, _⟩ => hWZ hd⟩⟩, fun _ j hj hu => by have h0 := hnu j hj hu; rw [h0] at ht; simpa [objTypeOf] using ht.symm⟩⟩
   rcases Bool.eq_false_or_eq_true reset with hrs | hrs <;> subst hrs
   · have hnc : ¬ ∃ x, σ.cdt x = some (pp.bv, idx) := by simpa using hreset.symm

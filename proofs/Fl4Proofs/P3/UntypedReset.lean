@@ -20,10 +20,6 @@ noncomputable section
 
 /-! ## The ghost typed heap without a region -/
 
-/-- `th` without the objects whose address is in `[lo, hi)` (l4v `detype`). -/
-def restrictTh (th : TypedHeap) (lo hi : Nat) : TypedHeap :=
-  fun q => if lo ≤ q.val ∧ q.val < hi then none else th q
-
 /-- Hypothesis: every object lies wholly inside `[lo, hi)` or wholly outside. -/
 def NoStraddle (th : TypedHeap) (lo hi : Nat) : Prop :=
   ∀ q k, th q = some k → (lo ≤ q.val ∧ q.val + objSize k ≤ hi) ∨ q.val + objSize k ≤ lo ∨ hi ≤ q.val

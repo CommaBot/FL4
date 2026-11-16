@@ -247,20 +247,45 @@ theorem winZero_of_slots {S : Type} {st : machine.Store S} [L : P1.LawfulStore s
   rw [hW.2.2 w hw (fun ⟨a, ha, ha1, ha2⟩ => by rcases hsl a ha with h | h <;> omega)]
   exact hz w hw h1 h2
 
+/-- `th` without the objects whose address is in `[lo, hi)` (l4v `detype`). -/
+def restrictTh (th : TypedHeap) (lo hi : Nat) : TypedHeap :=
+  fun q => if lo ≤ q.val ∧ q.val < hi then none else th q
+
+/-- The typed-heap kind of the new objects of FL4 type `n` (user size
+`us`): TCBs and CNodes; the other objects are not in the typed heap. -/
+def thKindN (n us : Nat) : Option ObjKind := if n = 1 then some .tcb else if n = 4 then some (.cnode us) else none
+
+/-- **The typed heap after the creation**: `th` with the new objects of
+kind `thKindN n us` at the window's slots, over a window free in `th`. -/
+def ThX (th th' : TypedHeap) (A k w n us : Nat) : Prop :=
+  (∀ q, th' q = if (∃ i, i < w ∧ q.val = A + i * k) ∧ (thKindN n us).isSome then thKindN n us else th q) ∧
+  RegionFree th A (A + w * k)
+
+/-- The new caps' slots are slots of `th`'s CNodes. -/
+def DslotC (th : TypedHeap) (dslot : Nat → U64) (w : Nat) : Prop :=
+  ∀ j, j < w → ∃ q r, th q = some (.cnode r) ∧ ∃ i, i < 2 ^ r ∧ dslot j = slotOf q i
+
 /-- **The retype's frame, as `RetPost` exposes it**: from the restart's
 state `s0` (the current thread `ct` set to Restart), either the reset
 preempted (`res` its outcome), or the creation ran from `sR` (`s0`, or the
-reset's state when done) over a heap `thR` of `th`'s slots: it writes only
+reset's state when done, its cap's region `[lo, hi)` dropped from `th`) over
+a heap `thR` of `th`'s slots, free over `[lo, hi)` (the window when no reset): it writes only
 its slot words (`SlotSpan`), with TCBs `TcbLoopW`, with PML4s their
 window too, and, for a non-device retype but
 PML4s, leaves the window `WinZero` (the creation words of TCBs, `T`). -/
 def RetFrame {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A' : Type} (arI : machine.Arch A') (ar : A')
-    (th : TypedHeap) (s : S) (x : U64) (A k win A0 k0 w0 : Nat) (pml4 T Z : Prop)
+    (th th' : TypedHeap) (s : S) (x : U64) (A k win A0 k0 w0 : Nat) (pml4 T Z : Prop) (tK : Nat → Prop) (us : Nat)
+    (cj : Nat → capability.Cap) (dv : Bool) (dslot : Nat → U64)
     (res : core.result.Result Unit error.Exc × S × A') : Prop :=
   ∃ ct s0, sched.cur_thread st s = ok ct ∧ sched.set_thread_state st s ct sched.TS_RESTART = ok s0 ∧
     ((res.1 = .Err .Preempted ∧ untyped.reset_untyped st arI s0 ar x = ok res) ∨
-     (res.1 = .Ok () ∧ (A = A0 ∧ k = k0 ∧ win = w0) ∧ ∃ sR thR, ((sR = s0 ∧ thR = th) ∨ ∃ a1, untyped.reset_untyped st arI s0 ar x = ok (.Ok (), sR, a1)) ∧
-       (∀ a, IsSlot thR a → IsSlot th a) ∧
+     (res.1 = .Ok () ∧ (A = A0 ∧ k = k0 ∧ win = w0 ∧ A % k = 0) ∧ ∃ sR thR lo hi,
+       ((sR = s0 ∧ thR = th ∧ lo = A ∧ hi = A + win * k) ∨
+        ∃ a1 p sb fi d, untyped.reset_untyped st arI s0 ar x = ok (.Ok (), sR, a1) ∧
+          capAt (L.mem s0) x = ok (.Untyped p sb fi d) ∧ lo = p.val ∧ hi = p.val + 2 ^ sb.val ∧
+          thR = restrictTh th lo hi) ∧
+       lo ≤ A ∧ A + win * k ≤ hi ∧ RegionFree thR lo hi ∧
+       (∀ a, IsSlot thR a → IsSlot th a) ∧ (∃ n0, tK n0 ∧ ThX thR th' A k win n0 us ∧ ∃ uu : U64, uu.val = us ∧ cj = cjOf n0 uu dv A k) ∧ DslotC th dslot win ∧
        WFrame (L := L) sR res.2.1 (fun v => ((T ∧ TcbLoopW thR A win (L.nodeAt sR 0#u64 layout.node.DEBUG_TCBS)
          (L.mem sR (L.nodeAt sR 0#u64 layout.node.DEBUG_TCBS)) v) ∨ SlotSpan thR v) ∨
          (pml4 ∧ A ≤ v.val ∧ v.val < A + win * k)) ∧
@@ -271,11 +296,12 @@ flag; the window its base, object size and slot count; the new caps
 untyped only for an untyped retype). -/
 def RetFrameI {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A' : Type} (arI : machine.Arch A') (ar : A')
     (th : TypedHeap) (s : S) (bitsApi : Fl4Spec.ApiObjectType → Nat → Nat) (inv : Fl4Spec.UntypedInvocation)
-    (A k win : Nat) (cj : Nat → capability.Cap) (res : core.result.Result Unit error.Exc × S × A') : Prop :=
+    (A k win : Nat) (dslot : Nat → U64) (cj : Nat → capability.Cap) (th' : TypedHeap) (res : core.result.Result Unit error.Exc × S × A') :
+    Prop :=
   match inv with
-  | .retype sl _ _ rb t us slots dev => RetFrame (L := L) arI ar th s (cslotAddr sl) A k win rb.toNat
+  | .retype sl _ _ rb t us slots dev => RetFrame (L := L) arI ar th th' s (cslotAddr sl) A k win rb.toNat
       (2 ^ bitsApi t us) slots.length (t = .archObject .pml4Obj)
-      (t = .tcbObject) (dev = false ∧ t ≠ .archObject .pml4Obj) res ∧
+      (t = .tcbObject) (dev = false ∧ t ≠ .archObject .pml4Obj) (fun n0 => objTypeOf n0 = some t) us cj dev dslot res ∧
     (res.1 = .Ok () → ∀ j, j < win → isUt (cj j) = true → t = .untyped)
 
 
