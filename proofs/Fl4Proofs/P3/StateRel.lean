@@ -81,12 +81,30 @@ def frameBitsN : capability.FrameSize → Nat
 /-- Hypothesis: `c` points at an object of the right kind (l4v `valid_cap`
 for CNode and thread caps; CNodes have radix at least 1, as seL4's retype
 enforces, `untyped.rs`: `CapTable && user_size == 0` is rejected), and a
-frame cap's frame is aligned to its size (l4v `cap_aligned`). -/
+frame cap's frame is aligned to its size (l4v `cap_aligned`); an endpoint,
+notification, reply or scheduling-context cap names a nonzero address (l4v
+`valid_cap`: `ep_at` etc., and no object is at 0), so FL4's `0` is the
+spec's `none`. -/
 def CapValid (th : TypedHeap) : capability.Cap → Prop
   | .CNode p r _ _ => th p = some (.cnode r.val) ∧ r.val ≠ 0
   | .Thread p => th p = some .tcb
+  | .Endpoint p _ _ _ _ _ => p ≠ 0#u64
+  | .Notification p _ _ _ => p ≠ 0#u64
+  | .Reply p _ => p ≠ 0#u64
+  | .SchedContext p _ => p ≠ 0#u64
   | .Frame p sz _ _ _ _ _ _ => p.val % 2 ^ frameBitsN sz = 0
   | _ => True
+
+/-- **An endpoint cap names no object at 0.** -/
+theorem capValid_ep_ne0 {th : TypedHeap} {p b : U64} {sd rv g gr : Bool}
+    (h : CapValid th (.Endpoint p b sd rv g gr)) : p ≠ 0#u64 := h
+
+theorem capValid_ntfn_ne0 {th : TypedHeap} {p b : U64} {sd rv : Bool}
+    (h : CapValid th (.Notification p b sd rv)) : p ≠ 0#u64 := h
+
+theorem capValid_reply_ne0 {th : TypedHeap} {p : U64} {g : Bool} (h : CapValid th (.Reply p g)) : p ≠ 0#u64 := h
+
+theorem capValid_sc_ne0 {th : TypedHeap} {p sb : U64} (h : CapValid th (.SchedContext p sb)) : p ≠ 0#u64 := h
 
 /-- Number of cap slots of a TCB (layout.rs `tcb::SLOT_CTABLE` ..
 `SLOT_EPT`; l4v `tcb_cnode_map`). -/

@@ -909,8 +909,14 @@ theorem retype_full_pml4 {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
   have h4 : ¬ nt.val = 4 := by omega
   -- PML4s: the typed heap stays; the spec copies the global mappings
   have hcvo : ∀ i, i < win.val → CapValid th (newCapOf nt.val ⟨BitVec.ofNat 64 (A + i * k)⟩ us dev) := by
-    intro i _
-    apply newCapOf_ind (CapValid th) <;> intros <;> first | trivial | omega
+    intro i hi
+    have hlt : A + i * k < 2 ^ 64 := by
+      have : (i + 1) * k ≤ win.val * k := Nat.mul_le_mul_right _ hi
+      rw [Nat.add_mul, Nat.one_mul] at this; omega
+    have hv : (⟨BitVec.ofNat 64 (A + i * k)⟩ : U64).val = A + i * k := by
+      show (BitVec.ofNat 64 (A + i * k)).toNat = _; rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlt]
+    apply newCapOf_ind (CapValid th) <;> intros <;> first | trivial | omega |
+      (simp only [CapValid]; intro he; have h0 : A + i * k = 0 := hv.symm.trans (congrArg UScalar.val he); omega)
   have h4096 : k = 4096 := by rw [hkdef, hzdef]; simp [zOf, hnt]
   obtain ⟨hR', hC'⟩ := extend_other_rel th (L.mem s1) σa G hR1 hC1 Ab A win.val k rfl hk1 hfitA hrf
     (Fl4Spec.defaultObject (.archObject .pml4Obj) dev us.val σa.curDomain)

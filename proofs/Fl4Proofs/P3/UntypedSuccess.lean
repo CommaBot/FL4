@@ -621,6 +621,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
         apply Nat.mod_eq_zero_of_dvd
         exact Nat.dvd_add (Nat.dvd_trans hm (Nat.dvd_of_mod_eq_zero hA2)) (Nat.dvd_trans hm (Nat.dvd_mul_left _ _))
       apply newCapOf_ind (CapValid th) <;> intros <;> first | trivial | omega |
+        (simp only [CapValid]; intro he; have h0 : A + i * k = 0 := hv.symm.trans (congrArg UScalar.val he); omega) |
         (rename_i hn; simp only [CapValid, frameBitsN]; rw [hv]
          exact hfr _ (by rw [hkdef]; exact Nat.pow_dvd_pow 2 (by rw [hzdef]; simp [zOf, hn])))
     by_cases hu : t = .untyped

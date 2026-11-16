@@ -235,4 +235,7 @@ import Fl4Proofs.P3.EmptyFrame
 import Fl4Proofs.P3.DomKeep
 import Fl4Proofs.P3.IrqDom
 import Fl4Proofs.P3.DomCaps
+import Fl4Proofs.P3.PPWrites
+import Fl4Proofs.P3.UtDom
+import Fl4Proofs.P3.DomAll
 import Fl4Proofs.P3.SchedValidRel

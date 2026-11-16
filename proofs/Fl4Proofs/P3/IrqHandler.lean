@@ -218,7 +218,7 @@ theorem irq_set_refines (th : TypedHeap) (hP : Placed th)
       have := capAt_capV (L.mem s) x0
       rw [hcx, capAt_words] at this; exact decode_encWf this
     have hins := insert_full_fin th s3 σ2 G2 hR3 hV3 hP hM3 hC3 hI3 hFI3 hps (hL.node irq hirq) hls (rd := 0)
-      (idxd := []) rfl hsrc3 (by simp) hdst3 (.Notification p b true r) _ ⟨trivial, rfl⟩ trivial he (by simp) rfl
+      (idxd := []) rfl hsrc3 (by simp) hdst3 (.Notification p b true r) _ ⟨trivial, rfl⟩ (hV3.abs hAs hsrc3) he (by simp) rfl
       (Or.inl rfl) (by simp [isUt]) (by simp [isZb]) rfl (fun _ _ _ _ _ _ => trivial)
     rw [cslotAddr_nil, ← hxe] at hins
     refine WP.spec_bind hins ?_
