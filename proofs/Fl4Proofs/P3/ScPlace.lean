@@ -15,7 +15,7 @@ heap `th` (CNodes, TCBs, other objects; `Placed th`) to P1's typed heap `H`
   (`JPlaced.scSets`), `FhSlotHyp` (`JPlaced.fhSlot`), `KWOut`
   (`JPlaced.kwOut`, with the nodes and `Ω` facts of P1's `BlkOK`),
   `SlotCapW` (`JPlaced.slotCapW`, given P1's TCB low words cover the six
-  TCB slots, `TLowSlots`), and the CSpace side's `NtfnP1Hyp`/`ReplyP1Hyp`
+  TCB slots, `TLowSlots`), and the CSpace side's `NtfnP1Hyp`/`ReplyP1Hyp`/`EpP1Hyp` (`capTypedP1Hyp_of`)
   from the invariant at every related state (`JointInv`).
 -/
 import Fl4Proofs.P3.ScInstPost
@@ -246,21 +246,33 @@ def JointInv (th : TypedHeap) : Prop :=
       BlkOK st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
         (Heap.scBits H) Ac s ∧ JPlaced (L := L) th H Tr C s σ
 
-/-- **The CSpace side's `NtfnP1Hyp`.** -/
-theorem ntfnP1Hyp_of (hJ : JointInv (L := L) th) (hTL : ∀ T, TLowSlots T) : NtfnP1Hyp (L := L) th := by
-  intro s σ G sl n b0 b1 b2 hDS hA hc
+/-- **P1's invariant at a cap, with the cap typed** (`CapTyped`), from the
+joint invariant: the uniform shape of the CSpace side's couplings. -/
+theorem capTypedP1Hyp_of (hJ : JointInv (L := L) th) (hTL : ∀ T, TLowSlots T) :
+    P1CapHyp (L := L) th (fun c X _ => CapTyped X.H X.Rp X.Nt c) := by
+  intro s σ G sl c hDS hA hc _
   obtain ⟨H, Cs, Ac, Tr, C, hb, hj⟩ := hJ s σ G hDS
   have hty := hj.typed _ hA.isSlot
   rw [capV_of_capAt hc] at hty
-  exact ⟨_, Cs, _, H, _, _, _, _, _, Ac, hb, hj.slotCapW (hTL _), hty.2.1 n b0 b1 b2 rfl⟩
+  exact ⟨⟨_, Cs, _, H, _, _, _, _, _, Ac⟩, hb, hj.slotCapW (hTL _), hty⟩
+
+/-- **The CSpace side's `NtfnP1Hyp`.** -/
+theorem ntfnP1Hyp_of (hJ : JointInv (L := L) th) (hTL : ∀ T, TLowSlots T) : NtfnP1Hyp (L := L) th := by
+  intro s σ G sl c hDS hA hc hk
+  obtain ⟨X, hb, hS, hty⟩ := capTypedP1Hyp_of hJ hTL s σ G sl c hDS hA hc hk
+  exact ⟨X, hb, hS, hty.2.1⟩
 
 /-- **The CSpace side's `ReplyP1Hyp`.** -/
 theorem replyP1Hyp_of (hJ : JointInv (L := L) th) (hTL : ∀ T, TLowSlots T) : ReplyP1Hyp (L := L) th := by
-  intro s σ G sl p x hDS hA hc
-  obtain ⟨H, Cs, Ac, Tr, C, hb, hj⟩ := hJ s σ G hDS
-  have hty := hj.typed _ hA.isSlot
-  rw [capV_of_capAt hc] at hty
-  exact ⟨_, Cs, _, H, _, _, _, _, _, Ac, hb, hj.slotCapW (hTL _), hty.2.2 p x rfl⟩
+  intro s σ G sl c hDS hA hc hk
+  obtain ⟨X, hb, hS, hty⟩ := capTypedP1Hyp_of hJ hTL s σ G sl c hDS hA hc hk
+  exact ⟨X, hb, hS, hty.2.2⟩
+
+/-- **The CSpace side's `EpP1Hyp`.** -/
+theorem epP1Hyp_of (hJ : JointInv (L := L) th) (hTL : ∀ T, TLowSlots T) : EpP1Hyp (L := L) th := by
+  intro s σ G sl c hDS hA hc hk
+  obtain ⟨X, hb, hS, hty⟩ := capTypedP1Hyp_of hJ hTL s σ G sl c hDS hA hc hk
+  exact ⟨X, hb, hS, hty.1⟩
 
 /-- **The placement hypotheses of `tcb_set_sched_params_refines_disch`** at
 P1's sets drawn from `H`: `hTh`, `hK`, `hSC`, `hFh`, `hTr`, `hG`. -/

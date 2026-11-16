@@ -238,6 +238,11 @@ Conventions of the ported base layer that later modules rely on.
   (2048 ASID pools) and `asid_len` 20; l4v has 3 and 12. `cr3_addr_mask`
   keeps the 12-bit PCID field (l4v writes `asid_bits` for it), and
   `x64_asid_table` is indexed by `asid_high_index` (l4v writes `3 word`).
+- **FL4 extension, the EPT-root TCB slot** (VT-x/AMD-V, README.md
+  "x86 virtualization"): a TCB has six cap slots; the sixth, `tcbEpt`, holds
+  the thread's EPT root, as in seL4's C with `CONFIG_VTX`. l4v's x64 TCB has
+  five. `tcbCnodeMap` maps index 5 to it, and `finalise_cap` of a final
+  thread cap returns a zombie of 6 slots (l4v: 5).
 - **Kernel_Config** is generated from a C build; here `numDomains` is an
   unspecified constant (`opaque kernelConfig`) constrained by exactly the
   facts of `Kernel_Config_Lemmas`; `config_HAVE_FPU` is `true` (x86-64).

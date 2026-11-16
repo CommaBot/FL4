@@ -150,4 +150,5 @@ import Fl4Proofs.P3.TopMCaps
 import Fl4Proofs.P3.DelObj
 import Fl4Proofs.P3.MdbStepVs
 import Fl4Proofs.P3.SpecCaps
+import Fl4Proofs.P3.SpecFinFrames
 import Fl4Proofs.P3.DelObjK

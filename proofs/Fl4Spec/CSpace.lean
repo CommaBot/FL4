@@ -366,7 +366,9 @@ def finaliseCap : Cap → Bool → SMonad Z (Cap × Cap)
       -- suspend sets the TS to Inactive
       NonDet.when final <| suspend r
       NonDet.when final <| prepareThreadDelete r
-      return (if final then .zombie r none 5 else .nullCap, .nullCap)
+      -- FL4 (VT-x port): six TCB cap slots, the sixth `tcbEpt` (the EPT root,
+      -- as in seL4's C with CONFIG_VTX); l4v's x64 TCB has five, so l4v says 5.
+      return (if final then .zombie r none 6 else .nullCap, .nullCap)
   | .domainCap, _ => return (.nullCap, .nullCap)
   | .schedContextCap sc _, final => do
       NonDet.when final <| schedContextUnbindAllTcbs sc
