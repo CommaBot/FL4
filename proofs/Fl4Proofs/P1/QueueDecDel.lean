@@ -179,6 +179,14 @@ def DelCapOK (T Ω Sg : Set U64) (H : Heap) (Rp Nt : Set U64) (c : capability.Ca
   (∀ p t n, c = .Zombie p t n → SlotW T Ω Sg p ∧ ∀ i : U64, i.val < n.val → SlotW T Ω Sg (slotIdx p i)) ∧
   (∀ p, c = .Thread p → p ∈ T)
 
+/-- The placement facts of a cap's finalisation that depend on the state
+(P3's: no cap names the idle thread or its SC; native TCBs have no bound
+VCPU; SC caps name SCs). -/
+def FinPl (st : machine.Store S) [L : LawfulStore st] (Scs : Set U64) (s : S) (c : capability.Cap) : Prop :=
+  (∀ p, c = .Thread p → p ≠ L.idleW s ∧ L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64) ∧
+  (∀ p b, c = .SchedContext p b → p ∈ Scs ∧ p ≠ 0#u64 ∧
+    (L.mem s (scTcbA p) ≠ 0#u64 → L.idleW s ≠ L.mem s (scTcbA p)))
+
 theorem DelCapOK.null : DelCapOK T Ω Sg H Rp Nt .Null := by
   refine ⟨⟨?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, ?_⟩ <;> intros <;> simp_all
 
@@ -192,9 +200,9 @@ per-kind finalisations (`FinGaps`). -/
 structure DelGaps (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
     (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) : Prop where
   cap : ∀ (Ac : Set U64) (s : S) (x : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → SlotW T Ω Sg x →
-    obj.Slot.cap st x s ⦃ c => DelCapOK T Ω Sg H Rp Nt c ⦄
+    obj.Slot.cap st x s ⦃ c => DelCapOK T Ω Sg H Rp Nt c ∧ FinPl st Scs s c ⦄
   fin : ∀ (Ac : Set U64) (s0 s : S) (a : A) (c : capability.Cap) (fin : Bool),
-    Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s → DelCapOK T Ω Sg H Rp Nt c →
+    Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s → DelCapOK T Ω Sg H Rp Nt c → FinPl st Scs s c →
     objects.finalise_cap st ar s a c fin false ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ∧
       DelCapOK T Ω Sg H Rp Nt r.1.1 ∧ DelCapOK T Ω Sg H Rp Nt r.1.2 ⦄
   deferred : ∀ (Ac : Set U64) (s0 s : S) (a : A) (x : U64), Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s →
@@ -259,12 +267,12 @@ theorem cdt.finalise_slot_immediate.cur0 {A : Type _} {ar : machine.Arch A} (hA 
     rename_i hf
     step as ⟨fuel1, hf1⟩
     obtain ⟨Acx, hbx⟩ := h1.bxi
-    refine WP.spec_bind (G.cap Acx s1 x hbx hx) fun c hc => ?_
+    refine WP.spec_bind (G.cap Acx s1 x hbx hx) fun c ⟨hc, hpl⟩ => ?_
     refine WP.spec_bind (P0.capability.Cap.is_null.p0 c) fun bn _ => ?_
     split
     · exact (WP.spec_ok _).2 ⟨h1, fun v hv => by cases hv; exact DelCapOK.null⟩
     refine WP.spec_bind (P0.cdt.is_final_capability_with_cap.p0 st s1 x c hS) fun fin _ => ?_
-    refine WP.spec_bind (G.fin Ac s0 s1 a1 c fin h1 hc) ?_
+    refine WP.spec_bind (G.fin Ac s0 s1 a1 c fin h1 hc hpl) ?_
     rintro ⟨⟨rem, cl⟩, s2, a2⟩ ⟨h2', hrem, hcl⟩
     try simp only [uncurry_apply_pair, WP.uncurry'_pair]
     refine WP.spec_bind (cdt.cap_removable.zombie rem x) fun br hbr => ?_

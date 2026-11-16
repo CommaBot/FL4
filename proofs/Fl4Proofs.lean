@@ -61,8 +61,12 @@ import Fl4Proofs.P1.QueueDecDel
 import Fl4Proofs.P1.QueueEntryGaps3
 import Fl4Proofs.P1.QueueDelFin
 import Fl4Proofs.P1.QueueFinCur
+import Fl4Proofs.P1.QueueTimerC
+import Fl4Proofs.P1.QueueFinThr
 import Fl4Proofs.P1.QueueDecTcb
+import Fl4Proofs.P1.QueueDecTcb2
 import Fl4Proofs.P1.QueueEntryGaps4
+import Fl4Proofs.P1.QueueSuspendP1
 import Fl4Proofs.P1.QueueFootD
 import Fl4Proofs.P1.QueueFootS
 import Fl4Proofs.P1.QueueRecv

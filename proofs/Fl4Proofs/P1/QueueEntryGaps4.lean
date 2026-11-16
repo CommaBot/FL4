@@ -4,8 +4,8 @@ family's proved labels, CNode Delete/Revoke's finalisation dispatch and
 SchedContext `YieldTo` (`InvGaps4`), with the placement facts `P3Place`,
 `CdtHyps2`, `DelPlace` and `TcbPlace`.  `InvGaps3` is unchanged.
 -/
-import Fl4Proofs.P1.QueueDecTcb
-import Fl4Proofs.P1.QueueFinCur
+import Fl4Proofs.P1.QueueDecTcb2
+import Fl4Proofs.P1.QueueFinThr
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -37,9 +37,10 @@ structure InvGaps4 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar 
 /-- `InvGaps4` gives `InvGaps3`. -/
 theorem InvGaps4.gaps3 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
     (C : CdtHyps2 st T Cs Ω H Sg Rp Scs Nt Z) (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V)
-    (Pt : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U) (G : InvGaps4 st ar T Cs Ω H Sg Rp Scs Nt Z U) :
+    (Pt : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
+    (G : InvGaps4 st ar T Cs Ω H Sg Rp Scs Nt Z U) :
     InvGaps3 st ar T Cs Ω H Sg Rp Scs Nt Z U :=
-  ⟨G.untyped, decGap_thread hA G.thread Pt (delGaps_of hA Pd (G.fin.kinds hA Pd)) C.toCdtHyps, G.irqControl, G.irqHandler,
+  ⟨G.untyped, decGap_thread hA G.thread Pt E (delGaps_of hA Pd (G.fin.kinds hA Pd)) C.toCdtHyps, G.irqControl, G.irqHandler,
     G.schedControl, G.vspace, G.vcpu, G.ept, G.ioPortControl, G.ioPort, scYieldGap_holds hA U,
     delGaps_of hA Pd (G.fin.kinds hA Pd)⟩
 
@@ -54,7 +55,7 @@ theorem kernel_entry.entry_of4 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchT
       ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄) ∧
     (∀ irq : U64, syscall.handle_interrupt_entry st ar s a irq ⦃ s' _ =>
       ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄) :=
-  kernel_entry.entry_of3 hA hNt P C (G.gaps3 hA C Pd Pt) s a h
+  kernel_entry.entry_of3 hA hNt P C (G.gaps3 hA C Pd Pt P.xfer) s a h
 
 end
 

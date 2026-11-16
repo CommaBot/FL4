@@ -24,7 +24,7 @@ variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {U : Set U
 def FinGap (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (P : capability.Cap → Prop) : Prop :=
   ∀ (Ac : Set U64) (s0 s : S) (a : A) (c : capability.Cap) (fin : Bool),
-    Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s → DelCapOK T Ω Sg H Rp Nt c → P c →
+    Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s → DelCapOK T Ω Sg H Rp Nt c → FinPl st Scs s c → P c →
     objects.finalise_cap st ar s a c fin false ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ∧
       DelCapOK T Ω Sg H Rp Nt r.1.1 ∧ DelCapOK T Ω Sg H Rp Nt r.1.2 ⦄
 
@@ -71,7 +71,7 @@ structure DelPlace (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U6
     (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (V : U64 → Prop) : Prop where
   vs : VsOK Ω Sg V
   cap : ∀ (Ac : Set U64) (s : S) (x : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → SlotW T Ω Sg x →
-    obj.Slot.cap st x s ⦃ c => DelCapOK T Ω Sg H Rp Nt c ⦄
+    obj.Slot.cap st x s ⦃ c => DelCapOK T Ω Sg H Rp Nt c ∧ FinPl st Scs s c ⦄
   next : ∀ (Ac : Set U64) (s : S) (x : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → SlotW T Ω Sg x →
     obj.Slot.next st x s ⦃ n => n = 0#u64 ∨ SlotW T Ω Sg n ⦄
   prev : ∀ (Ac : Set U64) (s : S) (x : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → SlotW T Ω Sg x →
@@ -219,7 +219,7 @@ structure FinKinds (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar 
 theorem fin_all {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
     (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (G : FinKinds st ar T Cs Ω H Sg Rp Scs Nt Z) :
     FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun _ => True := by
-  intro Ac s0 s a c fin h hc _
+  intro Ac s0 s a c fin h hc hpl _
   cases c with
   | Null => exact fin_noop h (Or.inl rfl)
   | Untyped => exact fin_noop h (Or.inr (Or.inl ⟨_, _, _, _, rfl⟩))
@@ -236,18 +236,18 @@ theorem fin_all {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U
   | Frame x1 x2 x3 x4 x5 e x6 x7 =>
     cases e
     · exact fin_vs hA P h (Or.inr (Or.inl ⟨_, _, _, _, _, _, _, rfl⟩))
-    · exact G.arch _ _ _ _ _ _ h hc (Or.inr (Or.inr (Or.inr ⟨_, _, _, _, _, _, _, rfl⟩)))
-  | Endpoint => exact G.ep _ _ _ _ _ _ h hc ⟨_, _, _, _, _, _, rfl⟩
-  | Notification => exact G.ntfn _ _ _ _ _ _ h hc ⟨_, _, _, _, rfl⟩
-  | Reply => exact G.reply _ _ _ _ _ _ h hc ⟨_, _, rfl⟩
-  | SchedContext => exact G.sc _ _ _ _ _ _ h hc ⟨_, _, rfl⟩
-  | Thread => exact G.thread _ _ _ _ _ _ h hc ⟨_, rfl⟩
-  | IrqHandler => exact G.irq _ _ _ _ _ _ h hc ⟨_, rfl⟩
+    · exact G.arch _ _ _ _ _ _ h hc hpl (Or.inr (Or.inr (Or.inr ⟨_, _, _, _, _, _, _, rfl⟩)))
+  | Endpoint => exact G.ep _ _ _ _ _ _ h hc hpl ⟨_, _, _, _, _, _, rfl⟩
+  | Notification => exact G.ntfn _ _ _ _ _ _ h hc hpl ⟨_, _, _, _, rfl⟩
+  | Reply => exact G.reply _ _ _ _ _ _ h hc hpl ⟨_, _, rfl⟩
+  | SchedContext => exact G.sc _ _ _ _ _ _ h hc hpl ⟨_, _, rfl⟩
+  | Thread => exact G.thread _ _ _ _ _ _ h hc hpl ⟨_, rfl⟩
+  | IrqHandler => exact G.irq _ _ _ _ _ _ h hc hpl ⟨_, rfl⟩
   | PageDirectory => exact fin_vs hA P h (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨_, _, _, _, rfl⟩)))))
   | Pdpt => exact fin_vs hA P h (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨_, _, _, _, rfl⟩)))))
-  | Vcpu => exact G.arch _ _ _ _ _ _ h hc (Or.inl ⟨_, rfl⟩)
-  | Ept => exact G.arch _ _ _ _ _ _ h hc (Or.inr (Or.inl ⟨_, _, _, _, _, rfl⟩))
-  | IoPort => exact G.arch _ _ _ _ _ _ h hc (Or.inr (Or.inr (Or.inl ⟨_, _, _, rfl⟩)))
+  | Vcpu => exact G.arch _ _ _ _ _ _ h hc hpl (Or.inl ⟨_, rfl⟩)
+  | Ept => exact G.arch _ _ _ _ _ _ h hc hpl (Or.inr (Or.inl ⟨_, _, _, _, _, rfl⟩))
+  | IoPort => exact G.arch _ _ _ _ _ _ h hc hpl (Or.inr (Or.inr (Or.inl ⟨_, _, _, rfl⟩)))
 
 /-! ## `empty_slot` and `post_cap_deletion` -/
 
@@ -544,12 +544,12 @@ theorem cdt.finalise_slot_deferred.cur0 {A : Type _} {ar : machine.Arch A} (hA :
     have hf' : 0 < fuel.val := by simpa using hf
     step as ⟨fuel1, hf1⟩
     obtain ⟨Acx, hbx⟩ := h1.bxi
-    refine WP.spec_bind (P.cap Acx s1 x hbx hx) fun c hc => ?_
+    refine WP.spec_bind (P.cap Acx s1 x hbx hx) fun c ⟨hc, hpl⟩ => ?_
     refine WP.spec_bind (P0.capability.Cap.is_null.p0 c) fun bn _ => ?_
     split
     · exact (WP.spec_ok _).2 ⟨h1, fun v hv => by cases hv; exact DelCapOK.null⟩
     refine WP.spec_bind (P0.cdt.is_final_capability_with_cap.p0 st s1 x c hS) fun fin _ => ?_
-    refine WP.spec_bind (F Ac s0 s1 a1 c fin h1 hc trivial) ?_
+    refine WP.spec_bind (F Ac s0 s1 a1 c fin h1 hc hpl trivial) ?_
     rintro ⟨⟨rem, cl⟩, s2, a2⟩ ⟨h2', hrem, hcl⟩
     try simp only [uncurry_apply_pair]
     refine WP.spec_bind (P0.cdt.cap_removable.p0 rem x) fun br _ => ?_
@@ -593,7 +593,7 @@ theorem delGaps_of {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V 
     (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (G : FinKinds st ar T Cs Ω H Sg Rp Scs Nt Z) :
     DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z where
   cap := P.cap
-  fin Ac s0 s a c fin h hc := fin_all hA P G Ac s0 s a c fin h hc trivial
+  fin Ac s0 s a c fin h hc hpl := fin_all hA P G Ac s0 s a c fin h hc hpl trivial
   deferred _ _ _ _ _ h hx := cdt.delete_deferred.cur0 hA P (fin_all hA P G) h hx
   empty _ _ _ _ _ _ h hx hc := cdt.empty_slot.cur0 hA P h hx hc
   next := P.next

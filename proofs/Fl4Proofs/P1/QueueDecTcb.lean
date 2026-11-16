@@ -29,17 +29,7 @@ def TcbGap (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machin
 structure TcbGaps (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
   readRegisters : TcbGap st ar T Cs Ω H Sg Rp Scs Nt Z U fl4_abi.label.TCBReadRegisters
-  writeRegisters : TcbGap st ar T Cs Ω H Sg Rp Scs Nt Z U fl4_abi.label.TCBWriteRegisters
-  copyRegisters : TcbGap st ar T Cs Ω H Sg Rp Scs Nt Z U fl4_abi.label.TCBCopyRegisters
-  configure : TcbGap st ar T Cs Ω H Sg Rp Scs Nt Z U fl4_abi.label.TCBConfigure
   setSchedParams : TcbGap st ar T Cs Ω H Sg Rp Scs Nt Z U fl4_abi.label.TCBSetSchedParams
-  setTimeoutEndpoint : TcbGap st ar T Cs Ω H Sg Rp Scs Nt Z U fl4_abi.label.TCBSetTimeoutEndpoint
-  setSpace : TcbGap st ar T Cs Ω H Sg Rp Scs Nt Z U fl4_abi.label.TCBSetSpace
-  bindNotification : TcbGap st ar T Cs Ω H Sg Rp Scs Nt Z U fl4_abi.label.TCBBindNotification
-  setBreakpoint : TcbGap st ar T Cs Ω H Sg Rp Scs Nt Z U fl4_abi.label.TCBSetBreakpoint
-  getBreakpoint : TcbGap st ar T Cs Ω H Sg Rp Scs Nt Z U fl4_abi.label.TCBGetBreakpoint
-  unsetBreakpoint : TcbGap st ar T Cs Ω H Sg Rp Scs Nt Z U fl4_abi.label.TCBUnsetBreakpoint
-  configureSingleStepping : TcbGap st ar T Cs Ω H Sg Rp Scs Nt Z U fl4_abi.label.TCBConfigureSingleStepping
   setEPTRoot : TcbGap st ar T Cs Ω H Sg Rp Scs Nt Z U fl4_abi.label.TCBSetEPTRoot
 
 /-- The placement facts of the priority labels (P3's): TCBs' MCPs are
@@ -636,114 +626,498 @@ theorem tcb.decode_set_flags.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
       exact TL s5 _ (rf_trans w4 w5)
     · exact TL s3 _ (WritesIn.refl _ _)
 
-set_option maxHeartbeats 4000000 in
-/-- **`tcb.decode`** keeps the invariants, from `TcbGaps` (the labels P1
-does not prove), `TcbPlace`, `DelGaps` and `CdtHyps`. -/
-theorem tcb.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (G : TcbGaps st ar T Cs Ω H Sg Rp Scs Nt Z U) (P : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U)
-    (Gd : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z)
-    {s : S} {a : A} {lbl t len buf : U64} {call : Bool} {slot : obj.Slot}
-    {extra : Aeneas.Std.Array obj.Slot 3#usize} (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) :
-    tcb.decode st ar s a lbl t { length := len, buf, call, slot, extra } ⦃ r s' _ =>
-      DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
-  by_cases g0 : lbl = fl4_abi.label.TCBReadRegisters
-  · subst g0; exact G.readRegisters Ac s a t len buf call slot extra D
-  by_cases g1 : lbl = fl4_abi.label.TCBWriteRegisters
-  · subst g1; exact G.writeRegisters Ac s a t len buf call slot extra D
-  by_cases g2 : lbl = fl4_abi.label.TCBCopyRegisters
-  · subst g2; exact G.copyRegisters Ac s a t len buf call slot extra D
-  by_cases g3 : lbl = fl4_abi.label.TCBConfigure
-  · subst g3; exact G.configure Ac s a t len buf call slot extra D
-  by_cases g4 : lbl = fl4_abi.label.TCBSetSchedParams
-  · subst g4; exact G.setSchedParams Ac s a t len buf call slot extra D
-  by_cases g5 : lbl = fl4_abi.label.TCBSetTimeoutEndpoint
-  · subst g5; exact G.setTimeoutEndpoint Ac s a t len buf call slot extra D
-  by_cases g7 : lbl = fl4_abi.label.TCBSetSpace
-  · subst g7; exact G.setSpace Ac s a t len buf call slot extra D
-  by_cases g8 : lbl = fl4_abi.label.TCBBindNotification
-  · subst g8; exact G.bindNotification Ac s a t len buf call slot extra D
-  by_cases g9 : lbl = fl4_abi.label.TCBSetBreakpoint
-  · subst g9; exact G.setBreakpoint Ac s a t len buf call slot extra D
-  by_cases g10 : lbl = fl4_abi.label.TCBGetBreakpoint
-  · subst g10; exact G.getBreakpoint Ac s a t len buf call slot extra D
-  by_cases g11 : lbl = fl4_abi.label.TCBUnsetBreakpoint
-  · subst g11; exact G.unsetBreakpoint Ac s a t len buf call slot extra D
-  by_cases g12 : lbl = fl4_abi.label.TCBConfigureSingleStepping
-  · subst g12; exact G.configureSingleStepping Ac s a t len buf call slot extra D
-  by_cases g18 : lbl = fl4_abi.label.TCBSetEPTRoot
-  · subst g18; exact G.setEPTRoot Ac s a t len buf call slot extra D
-  have ht : t ∈ T := D.cap.2.1 t rfl
-  unfold tcb.decode
-  refine WP.spec_bind (smp.remote_tcb_stall.bxi hA s a t D.bxi) ?_
-  rintro ⟨s1, a1⟩ ⟨hb1, ea, ec, -, ecs, fld, -, wn⟩
-  have h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1 := ⟨hb1, ea, ec, ecs, fld, wn⟩
-  try simp only [uncurry_apply_pair, WP.uncurry'_pair]
-  refine spec_ite (fun hc => absurd hc g18) fun _ => ?_
-  refine spec_ite (fun hc => absurd hc g0) fun _ => ?_
-  refine spec_ite (fun hc => absurd hc g1) fun _ => ?_
-  refine spec_ite (fun hc => absurd hc g2) fun _ => ?_
-  refine spec_ite (fun _ => ?_) fun _ => ?_
-  · -- Suspend
-    refine WP.spec_bind (h1.restart D) fun s2 ⟨h2, hna, _, _⟩ => ?_
-    refine WP.spec_bind (sched.suspend.blk s2 a1 t h2 ht (hna t ht)) ?_
-    rintro ⟨s3, a2⟩ ⟨h3, _⟩
-    exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi h3))
-  refine spec_ite (fun _ => ?_) fun _ => ?_
-  · -- Resume
-    refine WP.spec_bind (h1.restart D) fun s2 ⟨h2, _, _, _⟩ => ?_
-    refine WP.spec_bind (sched.restart.tinv hA s2 a1 t h2 ht) ?_
-    rintro ⟨s3, a2⟩ h3
-    exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi h3))
-  refine spec_ite (fun hc => absurd hc g3) fun _ => ?_
-  refine spec_ite (fun _ => ?_) fun _ => ?_
-  · exact tcb.decode_set_priority.dec _ P D h1
-  refine spec_ite (fun _ => ?_) fun _ => ?_
-  · exact tcb.decode_set_priority.dec _ P D h1
-  refine spec_ite (fun hc => absurd hc g4) fun _ => ?_
-  refine spec_ite (fun _ => ?_) fun _ => ?_
-  · exact tcb.decode_set_ipc_buffer.dec hA Gd C (P.extraW Ac s _ _ D) D h1
-  refine spec_ite (fun hc => absurd hc g7) fun _ => ?_
-  refine spec_ite (fun hc => absurd hc g5) fun _ => ?_
-  refine spec_ite (fun hc => absurd hc g8) fun _ => ?_
-  refine spec_ite (fun _ => ?_) fun _ => ?_
-  · -- UnbindNotification
-    refine WP.spec_bind (obj.Tcb.bound_ntfn.val s1 t) fun i _ => ?_
-    split
-    · simp only [error.illegal, bind_ok]
-      exact (WP.spec_ok _).2 (DecPost.of_bxi h1.bxi (by simp))
-    refine WP.spec_bind (h1.restart D) fun s2 ⟨h2, _, _, _⟩ => ?_
-    refine WP.spec_bind (notification.unbind_notification.blk s2 t h2 ht) fun s3 h3 => ?_
-    exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi h3))
-  refine spec_ite (fun hc => absurd hc g12) fun _ => ?_
-  refine spec_ite (fun hc => absurd hc g9) fun _ => ?_
-  refine spec_ite (fun hc => absurd hc g10) fun _ => ?_
-  refine spec_ite (fun hc => absurd hc g11) fun _ => ?_
-  refine spec_ite (fun _ => ?_) fun _ => ?_
-  · exact tcb.decode_set_tls_base.dec D h1
-  refine spec_ite (fun _ => ?_) fun _ => ?_
-  · exact tcb.decode_set_flags.dec hA D h1
-  refine spec_ite (fun _ => ?_) fun _ => ?_
-  · exact tcb.set_timer.dec D h1
-  refine spec_ite (fun _ => ?_) fun _ => ?_
-  · exact tcb.fpu_transfer.dec hA P D h1
-  refine spec_ite (fun _ => ?_) fun _ => ?_
-  · exact tcb.fpu_transfer.dec hA P D h1
-  exact (WP.spec_ok _).2 (DecPost.of_bxi h1.bxi (by simp))
+/-! ## `BindNotification`, `UnsetBreakpoint`, `GetBreakpoint` -/
 
-/-- **InvGaps' `thread`, from the per-label gaps** `TcbGaps`, `TcbPlace`, `DelGaps`
-and `CdtHyps`. -/
-theorem decGap_thread {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (G : TcbGaps st ar T Cs Ω H Sg Rp Scs Nt Z U) (P : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U)
-    (Gd : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) :
-    DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .thread := by
-  intro Ac s a lbl len slot cap blk call don fp buf extra hf D
-  cases cap <;> simp [capFam] at hf
-  unfold syscall.decode_invocation
-  step with sched.cur_thread.spec as ⟨ct, _⟩
-  try dsimp only
+theorem tcb.decode_bind_notification.dec {A : Type _} {s s1 : S} {a1 : A} {t len buf : U64} {call : Bool}
+    {slot : obj.Slot} {extra : Aeneas.Std.Array obj.Slot 3#usize}
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
+    (do
+      let (r, s2) ← tcb.decode_bind_notification st s1 t { length := len, buf, call, slot, extra }
+      ok (r, s2, a1)) ⦃ r s' _ => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  have ht : t ∈ T := D.cap.2.1 t rfl
+  have c1 := h1.cur0 D
+  refine WP.spec_bind (Pₘ := fun r : (core.result.Result Unit error.Exc) × S =>
+    DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2) ?_ ?_
+  swap
+  · rintro ⟨r, s2⟩ hr
+    exact (WP.spec_ok _).2 hr
+  unfold tcb.decode_bind_notification
+  refine WP.spec_bind (tcb.extra_with_length.mem _ 0#u64) ?_
+  rintro r ⟨-, hx⟩
+  rcases r with x | e
+  swap
+  · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
+      bind_tc_ok]
+    exact (WP.spec_ok _).2 (Cur0.post c1)
+  simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+  obtain ⟨hxm, hx0⟩ := hx x rfl
+  refine WP.spec_bind (obj.Tcb.bound_ntfn.val s1 t) fun i _ => ?_
   split
-  · exact (WP.spec_ok _).2 (DecPost.keep D.bxi (by simp))
-  · exact tcb.decode.dec hA G P Gd C D
+  · simp only [error.illegal, bind_ok]
+    exact (WP.spec_ok _).2 (Cur0.post c1)
+  refine WP.spec_bind (Pₘ := fun r : core.result.Result obj.Ntfn error.Exc => ∀ n, r = .Ok n → n ∈ Nt) ?_ ?_
+  · unfold tcb.bindable_ntfn
+    refine WP.spec_bind (D.extra s1 h1.node x hxm hx0) fun c hc => ?_
+    cases c <;> dsimp only
+    all_goals first | (simp [error.illegal, WP.spec_ok]; done) | skip
+    rename_i n b0 b1 rv
+    have hn := (hc.1.2.1 n b0 b1 rv rfl).1
+    split
+    · refine WP.spec_bind (P0.obj.Ntfn.head.p0 st n s1 hS) fun _ _ => ?_
+      split
+      · simp [error.illegal, WP.spec_ok]
+      · refine WP.spec_bind (P0.obj.Ntfn.bound_tcb.p0 st n s1 hS) fun _ _ => ?_
+        split
+        · simp [error.illegal, WP.spec_ok]
+        · exact (WP.spec_ok _).2 fun n' e => by cases e; exact hn
+    · simp [error.illegal, WP.spec_ok]
+  rintro r hr
+  rcases r with n | e
+  swap
+  · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
+      bind_tc_ok]
+    exact (WP.spec_ok _).2 (Cur0.post c1)
+  simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+  refine WP.spec_bind (h1.restart D) fun s2 ⟨h2, _, _, _⟩ => ?_
+  refine WP.spec_bind (notification.bind_notification.blk s2 t n h2 ht (hr n rfl)) fun s3 h3 => ?_
+  exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi h3))
+
+theorem debug.check_bp_num.lt (bp : U64) :
+    debug.check_bp_num bp ⦃ r => NP r ∧ (r = .Ok () → bp.val < 4) ⦄ := by
+  unfold debug.check_bp_num
+  split
+  · simp [NP]
+  · rename_i h
+    refine (WP.spec_ok _).2 ⟨by simp [NP], fun _ => ?_⟩
+    simp [debug.N_REGS] at h; exact h
+
+theorem debug.unset_breakpoint.rf {s : S} {t bp : U64} (hT : TcbPlaced T) (ht : t ∈ T) (hbp : bp.val < 4) :
+    debug.unset_breakpoint st s t bp ⦃ s' => WritesIn st s s' (XferFoot T ∅) ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  unfold debug.unset_breakpoint debug.set_dr7
+  refine WP.spec_bind (P0.debug.dr7.p0 st s t hS) fun i _ => ?_
+  refine WP.spec_bind (P0.debug.enable_bit.p0 bp) fun i1 _ => ?_
+  simp only [lift, bind_ok]
+  step as ⟨i4, hi4⟩
+  step as ⟨i5, _⟩
+  step as ⟨i6, hi6⟩
+  step as ⟨i7, _⟩
+  refine WP.spec_bind (obj.Tcb.set_debug_reg.rf (s := s) (v := _) hT ht (by simp [debug.DR7])) fun s1 w1 => ?_
+  exact WP.spec_mono (obj.Tcb.set_debug_reg.rf (s := s1) (v := 0#u64) hT ht (by omega)) fun s2 w2 => rf_trans w1 w2
+
+theorem tcb.reply_words.xs {Q : U64 → U64 → List U64} {R : U64 → List U64} {X : Set U64} {s0 s : S} {t n : U64}
+    (h : XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s) (ht : t ∈ T) :
+    tcb.reply_words st s t n ⦃ s' => XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s' ⦄ := by
+  unfold tcb.reply_words msg.set_msg_info
+  refine WP.spec_bind (obj.Tcb.set_reg.xs (v := 0#u64) h ht (by simp [layout.reg.BADGE, layout.reg.RDI]))
+    fun s1 h1 => ?_
+  refine WP.spec_bind (P0.msginfo.MessageInfo.new.p0 _ _ _ _) fun mi _ => ?_
+  exact WP.spec_bind (P0.msginfo.MessageInfo.to_word.p0 _) fun w _ =>
+    obj.Tcb.set_reg.xs (v := w) h1 ht (by simp [layout.reg.MSG_INFO, layout.reg.RSI])
+
+set_option maxHeartbeats 4000000 in
+/-- **`GetBreakpoint`** after the stall, the reply's buffer from `XferHyps`. -/
+theorem tcb.decode_get_breakpoint.dec {A : Type _} (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
+    {s s1 : S} {a1 : A} {t len buf : U64} {call : Bool}
+    {slot : obj.Slot} {extra : Aeneas.Std.Array obj.Slot 3#usize}
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
+    (do
+      let (r, s2) ← tcb.decode_get_breakpoint st s1 t { length := len, buf, call, slot, extra }
+      ok (r, s2, a1)) ⦃ r s' _ => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  have hct : L.curW s ∈ T := D.bxi.1.choose_spec.choose_spec.curT
+  have c1 := h1.cur0 D
+  have est : L.mem s1 (stA (L.curW s1)) = L.mem s (stA (L.curW s)) := by
+    rw [h1.cur, stA_eq]; exact h1.fld _ hct _ (by simp) (by simp)
+  have hr := runnable_ok D.run
+  refine WP.spec_bind (Pₘ := fun r : (core.result.Result Unit error.Exc) × S =>
+    DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2) ?_ ?_
+  swap
+  · rintro ⟨r, s2⟩ hr
+    exact (WP.spec_ok _).2 hr
+  unfold tcb.decode_get_breakpoint
+  refine WP.spec_bind (sched.cur_thread.spec s1) fun ct ect => ?_
+  have ect' : ct = L.curW s := ect.trans h1.cur
+  subst ect'
+  refine WP.spec_bind (P0.tcb.arg.p0 st s1 _ _ hS) fun bp _ => ?_
+  refine WP.spec_bind (debug.check_bp_num.lt bp) ?_
+  rintro r ⟨-, -⟩
+  rcases r with _ | e
+  swap
+  · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
+      bind_tc_ok]
+    exact (WP.spec_ok _).2 (Cur0.post c1)
+  simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+  refine WP.spec_bind (tcb.restart_caller.blk (Es := ∅) s1 h1.bxi.blk (est ▸ hr.1) (est ▸ hr.2)) ?_
+  rintro s2 ⟨h2, -, est2, k⟩
+  rw [h1.cur] at est2 k
+  refine WP.spec_bind (P0.debug.get_breakpoint.p0 st s2 t bp hS) fun r1 _ => ?_
+  have hU2 : UserOK st T Cs Ω H U s2 := D.user.ksb (k.ksb.trans h1.node.1)
+  obtain ⟨Q2, R2, x2⟩ := BXI.xs (BlkOK.bxi h2) hU2
+  have TL : ∀ (s3 : S), XS st T Cs Ω H Sg Rp Scs Nt Z U Ac ∅ Q2 R2 s2 s3 →
+      (do
+        let s4 ← sched.set_thread_state st s3 (L.curW s) sched.TS_RUNNING
+        ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s4)) ⦃ r =>
+          DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2 ⦄ := fun s3 x3 => by
+    have hst : L.mem s3 (stA (L.curW s)) = sched.TS_RESTART := by
+      rw [stA_eq, x3.2.2.2.2.2.1 _ hct _ (by simp) (by simp) (by simp), ← stA_eq, est2]
+    refine WP.spec_bind (sched.set_thread_state.running_bxi x3.bxi hct hst) fun s4 h4 => ?_
+    exact (WP.spec_ok _).2 (DecPost.ok_bxi h4)
+  split
+  · refine WP.spec_bind (E.buf _ _ _ _ s2 (L.curW s) x2.1 hct) fun b hb => ?_
+    refine WP.spec_bind (msg.set_mr.xs x2 hct hb (by simp)) ?_
+    rintro ⟨_, sa⟩ ⟨xa, -⟩
+    try simp only [uncurry_apply_pair]
+    refine WP.spec_bind (msg.set_mr.xs xa hct hb (by simp)) ?_
+    rintro ⟨_, sb⟩ ⟨xb, -⟩
+    try simp only [uncurry_apply_pair]
+    refine WP.spec_bind (msg.set_mr.xs xb hct hb (by simp)) ?_
+    rintro ⟨_, sc⟩ ⟨xc, -⟩
+    try simp only [uncurry_apply_pair]
+    refine WP.spec_bind (msg.set_mr.xs xc hct hb (by simp)) ?_
+    rintro ⟨_, sd⟩ ⟨xd, -⟩
+    try simp only [uncurry_apply_pair]
+    split
+    · refine WP.spec_bind (msg.set_mr.xs xd hct hb (by simp)) ?_
+      rintro ⟨n, se⟩ ⟨xe, -⟩
+      try simp only [uncurry_apply_pair]
+      refine WP.spec_bind (tcb.reply_words.xs xe hct) fun sf xf => ?_
+      exact TL sf xf
+    · refine WP.spec_bind (msg.set_mr.xs xd hct hb (by simp)) ?_
+      rintro ⟨n, se⟩ ⟨xe, -⟩
+      try simp only [uncurry_apply_pair]
+      refine WP.spec_bind (tcb.reply_words.xs xe hct) fun sf xf => ?_
+      exact TL sf xf
+  · exact TL s2 x2
+
+theorem debug.set_breakpoint.rf {s : S} {t bp vaddr ty size rw : U64} (hT : TcbPlaced T) (ht : t ∈ T)
+    (hbp : bp.val < 4) :
+    debug.set_breakpoint st s t bp vaddr ty size rw ⦃ s' => WritesIn st s s' (XferFoot T ∅) ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  unfold debug.set_breakpoint debug.set_dr7
+  refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> first | exact (WP.spec_ok _).2 trivial |
+    (split <;> exact (WP.spec_ok _).2 trivial)) fun _ _ => ?_
+  refine WP.spec_bind (Pₘ := fun _ => True) (by
+    split
+    · exact (WP.spec_ok _).2 trivial
+    · split
+      · exact (WP.spec_ok _).2 trivial
+      · split
+        · exact (WP.spec_ok _).2 trivial
+        · split <;> exact (WP.spec_ok _).2 trivial) fun _ _ => ?_
+  refine WP.spec_bind (obj.Tcb.set_debug_reg.rf (s := s) (v := vaddr) hT ht (by omega)) fun s1 w1 => ?_
+  refine WP.spec_bind (P0.debug.dr7.p0 st s1 t hS) fun i _ => ?_
+  step as ⟨i1, hi1⟩
+  step as ⟨i2, _⟩
+  step as ⟨i3, hi3⟩
+  step as ⟨i4, _⟩
+  simp only [lift, bind_ok]
+  step as ⟨i7, _⟩
+  step as ⟨i8, _⟩
+  step as ⟨i10, _⟩
+  try simp only [lift, bind_ok]
+  exact WP.spec_mono (obj.Tcb.set_debug_reg.rf (s := s1) hT ht (by simp [debug.DR7])) fun s2 w2 => rf_trans w1 w2
+
+set_option maxHeartbeats 40000000 in
+/-- **`SetBreakpoint`** after the stall. -/
+theorem tcb.set_breakpoint_checked.dec {A : Type _} {s s1 : S} {a1 : A} {t len buf : U64} {call : Bool}
+    {slot : obj.Slot} {extra : Aeneas.Std.Array obj.Slot 3#usize}
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
+    (do
+      let (r, s2) ← tcb.set_breakpoint_checked st s1 t { length := len, buf, call, slot, extra }
+      ok (r, s2, a1)) ⦃ r s' _ => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  have ht : t ∈ T := D.cap.2.1 t rfl
+  have hT := D.bxi.1.choose_spec.choose_spec.tcbs
+  have c1 := h1.cur0 D
+  refine WP.spec_bind (Pₘ := fun r : (core.result.Result Unit error.Exc) × S =>
+    DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2) ?_ ?_
+  swap
+  · rintro ⟨r, s2⟩ hr
+    exact (WP.spec_ok _).2 hr
+  have KB : ∀ {bp vaddr ty size rw : U64}, bp.val < 4 →
+      (do
+        let s2 ← tcb.restart_caller st s1
+        let s3 ← debug.set_breakpoint st s2 t bp vaddr ty size rw
+        ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s3)) ⦃ r =>
+          DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2 ⦄ := fun {bp vaddr ty size rw} hbp => by
+    refine WP.spec_bind (h1.restart D) fun s2 ⟨h2, _, _, _⟩ => ?_
+    refine WP.spec_bind (debug.set_breakpoint.rf (vaddr := vaddr) (ty := ty) (size := size) (rw := rw)
+      (s := s2) hT ht hbp) fun s3 w3 => ?_
+    exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi (blk_rf h2 w3).1))
+  unfold tcb.set_breakpoint_checked
+  repeat' (first
+    | exact (WP.spec_ok _).2 (Cur0.post c1)
+    | (simp only [error.invalid_arg, error.sys, bind_ok]; exact (WP.spec_ok _).2 (Cur0.post c1))
+    | exact KB ‹_›
+    | (refine WP.spec_bind (debug.check_bp_num.lt _) ?_
+       rintro (_ | e) ⟨-, hbp⟩
+       swap
+       · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
+           core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
+           bind_tc_ok]
+         exact (WP.spec_ok _).2 (Cur0.post c1)
+       simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+       replace hbp := hbp rfl)
+    | refine spec_ite (fun _ => ?_) (fun _ => ?_)
+    | step
+    | scalar_tac)
+
+/-! ## `WriteRegisters`, `CopyRegisters` -/
+
+theorem cast_usize_small {j : U64} (h : j.val < 2 ^ 32) : (UScalar.cast .Usize j : Usize).val = j.val := by
+  rw [UScalar.cast_val_eq]
+  apply Nat.mod_eq_of_lt
+  rcases System.Platform.numBits_eq with e | e <;> simp [e] <;> omega
+
+theorem tcb.write_registers_loop0.rf {s0 s : S} {dest buf ct n i : U64} (hT : TcbPlaced T) (hd : dest ∈ T)
+    (h : WritesIn st s0 s (XferFoot T ∅)) :
+    tcb.write_registers_loop0 st s dest buf ct n i ⦃ s' => WritesIn st s0 s' (XferFoot T ∅) ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  unfold tcb.write_registers_loop0
+  apply loop.spec_decr_nat (measure := fun y => 18 - y.2.val)
+    (inv := fun y => WritesIn st s0 y.1 (XferFoot T ∅))
+  · rintro ⟨s1, j⟩ h1
+    simp only at h1
+    try dsimp only
+    unfold tcb.write_registers_loop0.body
+    try dsimp only
+    split
+    swap
+    · exact (WP.spec_ok _).2 h1
+    rename_i hj
+    have hj' : j.val < 18 := by simpa [tcb.N_FRAME, tcb.N_GP] using hj
+    split
+    swap
+    · exact (WP.spec_ok _).2 h1
+    simp only [lift, bind_ok]
+    have hl : (UScalar.cast .Usize j : Usize).val < regs.FRAME_REGISTERS.val.length := by
+      rw [regs.FRAME_REGISTERS.property]; rw [cast_usize_small (by omega)]; simp; omega
+    refine WP.spec_bind (Aeneas.Std.Array.index_usize_spec _ _ hl) fun r hr => ?_
+    have hr' : r.val < 384 := by
+      rw [hr]; unfold regs.FRAME_REGISTERS
+      exact regs_lt _ _ (by simp [layout.reg.FAULT_IP, layout.reg.RSP, layout.reg.FLAGS, layout.reg.RAX,
+        layout.reg.RBX, layout.reg.RCX, layout.reg.RDX, layout.reg.RSI, layout.reg.RDI, layout.reg.RBP,
+        layout.reg.R8, layout.reg.R9, layout.reg.R10, layout.reg.R11, layout.reg.R12, layout.reg.R13,
+        layout.reg.R14, layout.reg.R15]) _ (List.getElem_mem _)
+    step as ⟨i2, _⟩
+    refine WP.spec_bind (P0.msg.syscall_arg.p0 st s1 ct buf _ hS) fun v _ => ?_
+    refine WP.spec_bind (P0.regs.sanitise.p0 r v) fun v5 _ => ?_
+    refine WP.spec_bind (obj.Tcb.set_reg.rf (v := v5) (s := s1) hT hd hr') fun s2 w2 => ?_
+    step as ⟨j2, hj2⟩
+    exact ⟨rf_trans h1 w2, by omega⟩
+  · exact h
+
+theorem tcb.write_registers_loop1.rf {s0 s : S} {dest buf ct n i : U64} (hT : TcbPlaced T) (hd : dest ∈ T)
+    (h : WritesIn st s0 s (XferFoot T ∅)) :
+    tcb.write_registers_loop1 st s dest buf ct n i ⦃ s' => WritesIn st s0 s' (XferFoot T ∅) ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  unfold tcb.write_registers_loop1
+  apply loop.spec_decr_nat (measure := fun y => 2 - y.2.val)
+    (inv := fun y => WritesIn st s0 y.1 (XferFoot T ∅))
+  · rintro ⟨s1, j⟩ h1
+    simp only at h1
+    try dsimp only
+    unfold tcb.write_registers_loop1.body
+    try dsimp only
+    split
+    swap
+    · exact (WP.spec_ok _).2 h1
+    rename_i hj
+    have hj' : j.val < 2 := by simpa [tcb.N_FRAME, tcb.N_GP] using hj
+    step as ⟨i0, _⟩
+    split
+    swap
+    · exact (WP.spec_ok _).2 h1
+    simp only [lift, bind_ok]
+    have hl : (UScalar.cast .Usize j : Usize).val < regs.GP_REGISTERS.val.length := by
+      rw [regs.GP_REGISTERS.property]; rw [cast_usize_small (by omega)]; simp; omega
+    refine WP.spec_bind (Aeneas.Std.Array.index_usize_spec _ _ hl) fun r hr => ?_
+    have hr' : r.val < 384 := by
+      rw [hr]; unfold regs.GP_REGISTERS
+      exact regs_lt _ _ (by simp [layout.reg.FS_BASE, layout.reg.GS_BASE]) _ (List.getElem_mem _)
+    step as ⟨i2, _⟩
+    refine WP.spec_bind (P0.msg.syscall_arg.p0 st s1 ct buf _ hS) fun v _ => ?_
+    refine WP.spec_bind (P0.regs.sanitise.p0 r v) fun v5 _ => ?_
+    refine WP.spec_bind (obj.Tcb.set_reg.rf (v := v5) (s := s1) hT hd hr') fun s2 w2 => ?_
+    step as ⟨j2, hj2⟩
+    exact ⟨rf_trans h1 w2, by omega⟩
+  · exact h
+
+theorem tcb.copy_registers_loop0.rf {s0 s : S} {dest src i : U64} (hT : TcbPlaced T) (hd : dest ∈ T)
+    (h : WritesIn st s0 s (XferFoot T ∅)) :
+    tcb.copy_registers_loop0 st s dest src i ⦃ s' => WritesIn st s0 s' (XferFoot T ∅) ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  unfold tcb.copy_registers_loop0
+  apply loop.spec_decr_nat (measure := fun y => 18 - y.2.val)
+    (inv := fun y => WritesIn st s0 y.1 (XferFoot T ∅))
+  · rintro ⟨s1, j⟩ h1
+    simp only at h1
+    try dsimp only
+    unfold tcb.copy_registers_loop0.body
+    try dsimp only
+    split
+    swap
+    · exact (WP.spec_ok _).2 h1
+    rename_i hj
+    have hj' : j.val < 18 := by simpa [tcb.N_FRAME, tcb.N_GP] using hj
+    simp only [lift, bind_ok]
+    have hl : (UScalar.cast .Usize j : Usize).val < regs.FRAME_REGISTERS.val.length := by
+      rw [regs.FRAME_REGISTERS.property]; rw [cast_usize_small (by omega)]; simp; omega
+    refine WP.spec_bind (Aeneas.Std.Array.index_usize_spec _ _ hl) fun r hr => ?_
+    have hr' : r.val < 384 := by
+      rw [hr]; unfold regs.FRAME_REGISTERS
+      exact regs_lt _ _ (by simp [layout.reg.FAULT_IP, layout.reg.RSP, layout.reg.FLAGS, layout.reg.RAX, layout.reg.RBX, layout.reg.RCX, layout.reg.RDX, layout.reg.RSI, layout.reg.RDI, layout.reg.RBP, layout.reg.R8, layout.reg.R9, layout.reg.R10, layout.reg.R11, layout.reg.R12, layout.reg.R13, layout.reg.R14, layout.reg.R15]) _ (List.getElem_mem _)
+    refine WP.spec_bind (P0.obj.Tcb.reg.p0 st src s1 r hS) fun v _ => ?_
+    refine WP.spec_bind (P0.regs.sanitise.p0 r v) fun v5 _ => ?_
+    refine WP.spec_bind (obj.Tcb.set_reg.rf (v := v5) (s := s1) hT hd hr') fun s2 w2 => ?_
+    step as ⟨j2, hj2⟩
+    exact ⟨rf_trans h1 w2, by omega⟩
+  · exact h
+
+theorem tcb.copy_registers_loop1.rf {s0 s : S} {dest src i : U64} (hT : TcbPlaced T) (hd : dest ∈ T)
+    (h : WritesIn st s0 s (XferFoot T ∅)) :
+    tcb.copy_registers_loop1 st s dest src i ⦃ s' => WritesIn st s0 s' (XferFoot T ∅) ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  unfold tcb.copy_registers_loop1
+  apply loop.spec_decr_nat (measure := fun y => 2 - y.2.val)
+    (inv := fun y => WritesIn st s0 y.1 (XferFoot T ∅))
+  · rintro ⟨s1, j⟩ h1
+    simp only at h1
+    try dsimp only
+    unfold tcb.copy_registers_loop1.body
+    try dsimp only
+    split
+    swap
+    · exact (WP.spec_ok _).2 h1
+    rename_i hj
+    have hj' : j.val < 2 := by simpa [tcb.N_FRAME, tcb.N_GP] using hj
+    simp only [lift, bind_ok]
+    have hl : (UScalar.cast .Usize j : Usize).val < regs.GP_REGISTERS.val.length := by
+      rw [regs.GP_REGISTERS.property]; rw [cast_usize_small (by omega)]; simp; omega
+    refine WP.spec_bind (Aeneas.Std.Array.index_usize_spec _ _ hl) fun r hr => ?_
+    have hr' : r.val < 384 := by
+      rw [hr]; unfold regs.GP_REGISTERS
+      exact regs_lt _ _ (by simp [layout.reg.FS_BASE, layout.reg.GS_BASE]) _ (List.getElem_mem _)
+    refine WP.spec_bind (P0.obj.Tcb.reg.p0 st src s1 r hS) fun v _ => ?_
+    refine WP.spec_bind (P0.regs.sanitise.p0 r v) fun v5 _ => ?_
+    refine WP.spec_bind (obj.Tcb.set_reg.rf (v := v5) (s := s1) hT hd hr') fun s2 w2 => ?_
+    step as ⟨j2, hj2⟩
+    exact ⟨rf_trans h1 w2, by omega⟩
+  · exact h
+
+theorem tcb.copy_registers_loop2.rf {s0 s : S} {dest src i : U64} (hT : TcbPlaced T) (hd : dest ∈ T)
+    (h : WritesIn st s0 s (XferFoot T ∅)) :
+    tcb.copy_registers_loop2 st s dest src i ⦃ s' => WritesIn st s0 s' (XferFoot T ∅) ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  unfold tcb.copy_registers_loop2
+  apply loop.spec_decr_nat (measure := fun y => 2 - y.2.val)
+    (inv := fun y => WritesIn st s0 y.1 (XferFoot T ∅))
+  · rintro ⟨s1, j⟩ h1
+    simp only at h1
+    try dsimp only
+    unfold tcb.copy_registers_loop2.body
+    try dsimp only
+    split
+    swap
+    · exact (WP.spec_ok _).2 h1
+    rename_i hj
+    have hj' : j.val < 2 := by simpa [tcb.N_FRAME, tcb.N_GP] using hj
+    simp only [lift, bind_ok]
+    have hl : (UScalar.cast .Usize j : Usize).val < regs.GP_REGISTERS.val.length := by
+      rw [regs.GP_REGISTERS.property]; rw [cast_usize_small (by omega)]; simp; omega
+    refine WP.spec_bind (Aeneas.Std.Array.index_usize_spec _ _ hl) fun r hr => ?_
+    have hr' : r.val < 384 := by
+      rw [hr]; unfold regs.GP_REGISTERS
+      exact regs_lt _ _ (by simp [layout.reg.FS_BASE, layout.reg.GS_BASE]) _ (List.getElem_mem _)
+    refine WP.spec_bind (P0.obj.Tcb.reg.p0 st src s1 r hS) fun v _ => ?_
+    refine WP.spec_bind (P0.regs.sanitise.p0 r v) fun v5 _ => ?_
+    refine WP.spec_bind (obj.Tcb.set_reg.rf (v := v5) (s := s1) hT hd hr') fun s2 w2 => ?_
+    step as ⟨j2, hj2⟩
+    exact ⟨rf_trans h1 w2, by omega⟩
+  · exact h
+
+
+theorem tcb.post_modify_registers.rf {s : S} {t : U64} (hT : TcbPlaced T) (ht : t ∈ T) :
+    tcb.post_modify_registers st s t ⦃ s' => WritesIn st s s' (XferFoot T ∅) ⦄ := by
+  unfold tcb.post_modify_registers
+  refine WP.spec_bind (sched.cur_thread.spec s) fun t1 _ => ?_
+  refine WP.spec_bind (tcb_ne.blk t t1) fun b _ => ?_
+  split
+  · exact obj.Tcb.set_reg.rf (v := 0#u64) hT ht (by simp [layout.reg.ERROR])
+  · exact (WP.spec_ok _).2 (WritesIn.refl _ _)
+
+/-- The reschedule tail of the register writes. -/
+theorem resched_tail {A : Type _} {s : S} {a : A} {d : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
+    (do
+      let t ← sched.cur_thread st s
+      let b ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq d t
+      if b then do
+        let s6 ← sched.reschedule_required st s
+        ok (s6, a)
+      else ok (s, a)) ⦃ r => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ⦄ := by
+  refine WP.spec_bind (sched.cur_thread.spec s) fun t1 _ => ?_
+  simp only [obj.Tcb.Insts.CoreCmpPartialEqTcb.eq, bind_ok]
+  split
+  · exact WP.spec_bind (sched.reschedule_required.blk s h) fun s6 h6 => (WP.spec_ok _).2 h6.1
+  · exact (WP.spec_ok _).2 h
+
+set_option maxHeartbeats 2000000 in
+theorem tcb.write_registers.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {s : S} {a : A}
+    {dest : U64} {resume : Bool} {n buf : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hd : dest ∈ T) :
+    tcb.write_registers st ar s a dest resume n buf ⦃ r => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  have hT := h.1.choose_spec.choose_spec.tcbs
+  unfold tcb.write_registers
+  refine WP.spec_bind (sched.cur_thread.spec s) fun ct _ => ?_
+  step as ⟨i, _⟩
+  refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> exact (WP.spec_ok _).2 trivial) fun nn _ => ?_
+  refine WP.spec_bind (tcb.write_registers_loop0.rf (s0 := s) hT hd (WritesIn.refl _ _)) fun s1 w1 => ?_
+  refine WP.spec_bind (tcb.write_registers_loop1.rf (s0 := s) hT hd w1) fun s2 w2 => ?_
+  refine WP.spec_bind (P0.obj.Tcb.reg.p0 st dest s2 _ hS) fun pc _ => ?_
+  refine WP.spec_bind (obj.Tcb.set_reg.rf (v := pc) (s := s2) hT hd (by simp [layout.reg.NEXT_IP])) fun s3 w3 => ?_
+  refine WP.spec_bind (tcb.post_modify_registers.rf (s := s3) hT hd) fun s4 w4 => ?_
+  have h4 := (blk_rf h (rf_trans (rf_trans w2 w3) w4)).1
+  refine WP.spec_bind (Pₘ := fun r : S × A => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.1) ?_ ?_
+  · split
+    · exact WP.spec_mono (sched.restart.tinv hA s4 a dest h4 hd) fun r hr => by
+        obtain ⟨s5, a5⟩ := r; exact hr
+    · exact (WP.spec_ok _).2 h4
+  rintro ⟨s5, a5⟩ h5
+  exact resched_tail h5
+
+set_option maxHeartbeats 2000000 in
+/-- **`WriteRegisters`** after the stall. -/
+theorem tcb.decode_write_registers.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
+    {s s1 : S} {a1 : A} {t len buf : U64} {call : Bool} {slot : obj.Slot}
+    {extra : Aeneas.Std.Array obj.Slot 3#usize}
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
+    tcb.decode_write_registers st ar s1 a1 t { length := len, buf, call, slot, extra } ⦃ r s' _ =>
+      DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  have ht : t ∈ T := D.cap.2.1 t rfl
+  have c1 := h1.cur0 D
+  unfold tcb.decode_write_registers
+  split
+  · simp only [error.truncated, bind_ok]; exact (WP.spec_ok _).2 (Cur0.post c1)
+  refine WP.spec_bind (P0.tcb.arg.p0 st s1 _ _ hS) fun flags _ => ?_
+  refine WP.spec_bind (P0.tcb.arg.p0 st s1 _ _ hS) fun w _ => ?_
+  step as ⟨i, _⟩
+  split
+  · simp only [error.truncated, bind_ok]; exact (WP.spec_ok _).2 (Cur0.post c1)
+  refine WP.spec_bind (sched.cur_thread.spec s1) fun ct _ => ?_
+  simp only [obj.Tcb.Insts.CoreCmpPartialEqTcb.eq, bind_ok]
+  split
+  · simp only [error.illegal, bind_ok]; exact (WP.spec_ok _).2 (Cur0.post c1)
+  refine WP.spec_bind (h1.restart D) fun s2 ⟨h2, _, _, _⟩ => ?_
+  simp only [lift, bind_ok]
+  refine WP.spec_bind (tcb.write_registers.blk hA h2 ht) ?_
+  rintro ⟨s3, a3⟩ h3
+  exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi h3))
 
 end
 

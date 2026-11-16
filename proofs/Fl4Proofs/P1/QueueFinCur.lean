@@ -319,7 +319,7 @@ theorem Cur0.step {s0 s s' : S} {Ac' : Set U64} (h : Cur0 st T Cs Ω H Sg Rp Scs
 /-- **The endpoint kind's finalisation** (`FinGaps.ep`). -/
 theorem finGap_ep {A : Type _} {ar : machine.Arch A} :
     FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1 x2 x3 x4 x5 x6, c = .Endpoint x1 x2 x3 x4 x5 x6 := by
-  intro Ac s0 s a c fin h hc ⟨ep, b0, b1, b2, b3, b4, e⟩
+  intro Ac s0 s a c fin h hc _ ⟨ep, b0, b1, b2, b3, b4, e⟩
   subst e
   have hH := hc.1.1 ep b0 b1 b2 b3 b4 rfl
   obtain ⟨Ac', hb⟩ := h.bxi
@@ -637,7 +637,7 @@ theorem fin_ntfn_obj.cur0 {A : Type _} {ar : machine.Arch A} {s0 s : S} {a : A} 
 /-- **The notification kind's finalisation** (`FinGaps.ntfn`). -/
 theorem finGap_ntfn {A : Type _} {ar : machine.Arch A} :
     FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1 x2 x3 x4, c = .Notification x1 x2 x3 x4 := by
-  intro Ac s0 s a c fin h hc ⟨n, b0, b1, b2, e⟩
+  intro Ac s0 s a c fin h hc _ ⟨n, b0, b1, b2, e⟩
   subst e
   obtain ⟨hn, hH⟩ := hc.1.2.1 n b0 b1 b2 rfl
   rw [fin_cap_eq_obj (by simp)]
@@ -684,7 +684,7 @@ theorem finGap_irq {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V 
     (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) :
     FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1, c = .IrqHandler x1 := by
   have hS : P0.StoreTotal st := L.total
-  intro Ac s0 s a c fin h hc ⟨irq, e⟩
+  intro Ac s0 s a c fin h hc _ ⟨irq, e⟩
   subst e
   have hi := hc.2.1 irq rfl
   obtain ⟨Ac', hb⟩ := h.bxi
@@ -705,7 +705,7 @@ theorem finGap_irq {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V 
       rcases hc' with rfl | ⟨n, b0, b1, b2, rfl⟩
       · simp [objects.finalise_cap_object]
         exact cdt.empty_slot.cur0 hA P h hW DelCapOK.null
-      · obtain ⟨hn, hH⟩ := hcd.1.2.1 n b0 b1 b2 rfl
+      · obtain ⟨hn, hH⟩ := hcd.1.1.2.1 n b0 b1 b2 rfl
         refine WP.spec_bind (fin_ntfn_obj.cur0 (ar := ar) (a := a) (fin := f) (b0 := b0) (b1 := b1) (b2 := b2) h hn hH) ?_
         rintro ⟨_, s1, a1⟩ ⟨-, h1⟩
         exact cdt.empty_slot.cur0 hA P h1 hW DelCapOK.null
@@ -1215,7 +1215,7 @@ theorem ipc.reply_remove.curR {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTo
 /-- **The reply kind's finalisation** (`FinGaps.reply`). -/
 theorem finGap_reply {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) :
     FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1 x2, c = .Reply x1 x2 := by
-  intro Ac s0 s a c fin h hc ⟨p, x, e⟩
+  intro Ac s0 s a c fin h hc _ ⟨p, x, e⟩
   subst e
   have hp := hc.1.2.2 p x rfl
   obtain ⟨Ac', hb⟩ := h.bxi
@@ -1262,24 +1262,6 @@ theorem finGap_reply {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) :
   simp only at e hb2 ec ecs esc ea enb ⊢
   cases e
   exact ⟨Cur0.mk h (BlkOK.bxi hb2) ec ecs esc ea (Or.inr (enb hnb)), DelCapOK.null, DelCapOK.null⟩
-
-/-! ## The kinds still named -/
-
-/-- The finalisations P1 does not prove, one shape (`FinGap`): the SC and
-thread kinds, and the VCPU/EPT/I/O-port kinds (with EPT frames). -/
-structure FinGaps (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
-    (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) : Prop where
-  sc : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1 x2, c = .SchedContext x1 x2
-  thread : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1, c = .Thread x1
-  arch : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => (∃ x1, c = .Vcpu x1) ∨
-    (∃ x1 x2 x3 x4 x5, c = .Ept x1 x2 x3 x4 x5) ∨ (∃ x1 x2 x3, c = .IoPort x1 x2 x3) ∨
-    (∃ x1 x2 x3 x4 x5 x6 x7, c = .Frame x1 x2 x3 x4 x5 true x6 x7)
-
-/-- `FinGaps` with the proved kinds gives every kind (`FinKinds`). -/
-theorem FinGaps.kinds {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (G : FinGaps st ar T Cs Ω H Sg Rp Scs Nt Z) :
-    FinKinds st ar T Cs Ω H Sg Rp Scs Nt Z :=
-  ⟨finGap_ep, finGap_ntfn, finGap_reply hA, G.sc, G.thread, finGap_irq hA P, G.arch⟩
 
 end
 
