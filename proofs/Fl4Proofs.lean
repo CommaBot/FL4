@@ -219,4 +219,6 @@ import Fl4Proofs.P3.TcbDom
 import Fl4Proofs.P3.SchedValidLinks
 import Fl4Proofs.P3.CnodeDom
 import Fl4Proofs.P3.AllDom
+import Fl4Proofs.P3.ScInvE
+import Fl4Proofs.P3.DomFoot
 import Fl4Proofs.P3.SchedValidRel
