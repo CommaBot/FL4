@@ -79,6 +79,13 @@ def DbgLinksOK (st : machine.Store S) [L : LawfulStore st] (H : Heap) (Cs : Set 
     NewTcbRef H lo hi A k w n (L.mem s' (dnA y)) ∧ NewTcbRef H lo hi A k w n (L.mem s' (dpA y))) ∧
   ∀ c ∈ Cs, NewTcbRef H lo hi A k w n (L.mem s' (L.nodeAt s' c layout.node.DEBUG_TCBS))
 
+/-- **The retype window's placement** (P3's: the window's base is aligned to
+the object size, the slot size `k` is the object's `2^bits`, the window lies
+in the untyped's region, which does not wrap, and untyped memory is never at
+the null address). -/
+def WinPlaced (A k w n us : Nat) : Prop :=
+  (∀ kd, newKind n us = some kd → A % 2 ^ kd.bits = 0 ∧ k % 2 ^ kd.bits = 0) ∧ A + w * k ≤ 2 ^ 64 ∧ 0 < A
+
 /-- **P1's half of retype** (module docstring): from `BlkOK` over `H`'s
 sets, with the region's objects droppable (`DropOK`: dead, unreferenced, the
 current thread and SC off the region),
@@ -94,7 +101,7 @@ def RetypeP1Step (st : machine.Store S) [L : LawfulStore st] (s s' : S) (H : Hea
     DropOK st H (RegionD H lo hi) Cs s → RegionOffNodes st Cs s lo hi →
     WritesIn st s s' (fun b => CapW (Heap.tcbs H) (Heap.omega H) (Heap.frame H) b ∨ (lo ≤ b.val ∧ b.val < hi) ∨
       DbgW st (Heap.tcbs H) Cs s b) →
-    WinInit st s' lo hi A k w n us → DbgLinksOK st H Cs s' lo hi A k w n →
+    WinInit st s' lo hi A k w n us → DbgLinksOK st H Cs s' lo hi A k w n → WinPlaced A k w n us →
     ∃ (H' : Heap) (Ac' : Set U64),
       BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H') (Heap.ntfns H')
         (Heap.scBits H') Ac' s' ∧

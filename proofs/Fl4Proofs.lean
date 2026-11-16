@@ -59,6 +59,8 @@ import Fl4Proofs.P1.QueueRetype
 import Fl4Proofs.P1.QueueHeapFree
 import Fl4Proofs.P1.QueueReset
 import Fl4Proofs.P1.QueueHeapAdd
+import Fl4Proofs.P1.QueueHeapDbg
+import Fl4Proofs.P1.QueueRetypeP1
 import Fl4Proofs.P1.QueueFinFr
 import Fl4Proofs.P1.QueueReplyX
 import Fl4Proofs.P1.QueueDecDel
