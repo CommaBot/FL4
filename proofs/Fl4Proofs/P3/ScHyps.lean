@@ -105,7 +105,7 @@ theorem wakeHyps_of' {N T C : Set U64} {c : U64}
   refine wakeHyps_of (fun s a σ t n x hR hS ht hn hk hx => ?_)
   obtain ⟨hp, hA⟩ := hI s a σ t n x hR hS ht hn hk hx
   refine WP.spec_mono (maybe_donate_refines s a σ hR hS hp.rel hp.minBudget t n ht hn hp.ntfnSc hp.notQueued) ?_
-  rintro r ⟨σ1, h1, h2, h3, h4, h5⟩
+  rintro r ⟨σ1, h1, h2, h3, h4, -, h5⟩
   exact ⟨σ1, h1, h2, h3, h4, h5 hA⟩
 
 end

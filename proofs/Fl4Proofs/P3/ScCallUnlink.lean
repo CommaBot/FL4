@@ -236,6 +236,30 @@ theorem nd_assoc_f {σ' α β γ : Type} (m : Fl4Spec.NonDet σ' α) (f : α →
       · exact Or.inl (Or.inr ⟨y, hy, h⟩)
       · exact Or.inr ⟨x, ⟨y, hy, hx⟩, h⟩
 
+/-- **`reply_unlink`'s footprint**: the reply's `TCB` word and the thread's
+state word. -/
+theorem reply_unlink_foot {N T C R : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) (hRP : RPlaced st N T C R c s σ) {r : U64} (hr : r ∈ R) {t : U64} (ht : t ∈ T) :
+    ipc.reply_unlink st s r t ⦃ s' => WritesIn st s s' (fun b => SFoot st T c s b ∨ CallW R C b) ⦄ := by
+  have hA := hRP.align r hr
+  have hva := rTcbA_val hA
+  have hal : Aligned (rTcbA r) := by unfold Aligned; rw [hva]; omega
+  have hfar : Far st T C c s σ (rTcbA r) := by
+    refine ⟨?_, fun t ht => ?_, fun sc hsc x n hx => ?_⟩
+    · have := hRP.ksb r hr; rw [hva]; omega
+    · have := hRP.tcb r hr t ht; rw [hva]; omega
+    · have := hRP.sc r hr sc hsc x n hx; rw [hva]; omega
+  unfold ipc.reply_unlink
+  refine WP.spec_bind (obj.Reply.set_tcb.spec s r 0#u64) ?_
+  rintro s1 rfl
+  refine WP.spec_mono (set_thread_state_sfoot (hS.wr_far hal hfar 0#u64) ht _) fun s' hw => ?_
+  have w1 : WritesIn st s (L.wr s (rTcbA r) 0#u64) (fun b => SFoot st T c s b ∨ CallW R C b) :=
+    (writesIn_wr hal).mono fun b hb => hb ▸ Or.inr (Or.inl ⟨r, hr, Or.inr (Or.inr rfl)⟩)
+  exact (w1.trans hw).mono fun b hb => by
+    rcases hb with hb | hb
+    · exact hb
+    · exact Or.inl ((SFoot.ksb w1.1).1 hb)
+
 /-- **`reply_remove` refines l4v `reply_remove`**: the call-stack part
 (`reply_remove_refines`) and `reply_unlink_tcb` (`reply_unlink_refines`).
 The Ep side provides l4v's assertions: the reply's `reply_tcb` is `t`
@@ -257,14 +281,22 @@ theorem reply_remove_full_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) 
       Fl4Spec.replyRemove (Z := Unit) t.bv r.bv σ = ({((), σ')}, False) ∧
       SchedRel st N T C c res.1 σ' ∧ NtfnStateRel N T (L.mem res.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧
       CallRel (L.mem res.1) R C σ' Lst' ∧ RPlaced st N T C R c res.1 σ' ∧ Isolated (L.mem res.1) R r ∧
-      RFree (L.mem res.1) R C σ' Lst' ∧ ∃ x', σ'.kheap r.bv = some (.reply x') ∧ x'.replyTcb = none ⦄ := by
+      RFree (L.mem res.1) R C σ' Lst' ∧ (∃ x', σ'.kheap r.bv = some (.reply x') ∧ x'.replyTcb = none) ∧
+      WritesIn st s res.1 (fun b => TFoot st T N C c s σ b ∨ CallW R C b) ⦄ := by
   refine reply_remove_refines s a σ hS hR hN hI hCR hRP hC0 hSCs hr ht hkt hdon hrel _ ?_
-  intro s5 σ5 Lst5 h1 h2 h3 h4 h5 h6 h7 huf hcs hsp
+  intro s5 σ5 Lst5 h1 h2 h3 h4 h5 h6 h7 huf hcs hsp hw5
   obtain ⟨xr5, hkr5, er5⟩ := huf.1 _ xr hkr
   obtain ⟨xt5, hkt5, et5⟩ := huf.2 _ xt hkt
-  refine WP.spec_mono (reply_unlink_refines s5 σ5 h1 h2 h3 h4 h5 h6 hr h7 ht hkr5 (er5.trans hrt) hkt5
-    (by rw [et5]; exact hts)) ?_
-  rintro s6 ⟨σ6, hul, hS6, hR6, hN6, hI6, hCR6, hRP6, hiso6, ⟨x', hkx, hx1, -⟩, -, hm6, hk6⟩
+  refine WP.spec_mono (WP.spec_and (reply_unlink_refines s5 σ5 h1 h2 h3 h4 h5 h6 hr h7 ht hkr5 (er5.trans hrt) hkt5
+    (by rw [et5]; exact hts)) (reply_unlink_foot h1 h6 hr ht)) ?_
+  rintro s6 ⟨⟨σ6, hul, hS6, hR6, hN6, hI6, hCR6, hRP6, hiso6, ⟨x', hkx, hx1, -⟩, -, hm6, hk6⟩, hw6⟩
+  have hw : WritesIn st s s6 (fun b => TFoot st T N C c s σ b ∨ CallW R C b) :=
+    (hw5.trans hw6).mono fun b hb => by
+      rcases hb with (hb | hb) | (hb | hb)
+      · exact Or.inl (Or.inl hb)
+      · exact Or.inr hb
+      · exact Or.inl (Or.inl (KFoot.of_sfoot ((SFoot.ksb hw5.1).1 hb)))
+      · exact Or.inr hb
   have hRF6 : RFree (L.mem s6) R C σ6 Lst5 := by
     refine RFree.step hRF ⟨fun d hd hdet h0n h0p hdr => ?_, hcs.2.1, hcs.2.2⟩ (fun d hd hfd hdr => ?_)
       (fun _ => ⟨hiso6.1, hiso6.2.1⟩)
@@ -279,7 +311,7 @@ theorem reply_remove_full_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) 
       obtain ⟨xd5, hkd5, ed⟩ := huf.1 _ xd hkd
       rw [hkd5] at hk6d; cases hk6d
       exact ⟨xd, hkd, ed ▸ hx6⟩
-  refine ⟨rfl, σ6, Lst5, ?_, hS6, hR6, hN6, hI6, hCR6, hRP6, hiso6, hRF6, x', hkx, hx1⟩
+  refine ⟨rfl, σ6, Lst5, ?_, hS6, hR6, hN6, hI6, hCR6, hRP6, hiso6, hRF6, ⟨x', hkx, hx1⟩, hw⟩
   unfold replyRemoveSc at hsp
   rw [nd_gets_bind] at hsp
   unfold Fl4Spec.replyRemove

@@ -223,6 +223,12 @@ theorem callWords_of_sfoot {N T C R : Set U64} {c : U64} {s s' : S} {σ : Fl4Spe
       · have := k2 y hy; omega
       · simp only [LawfulStore.nodeBase] at k1 g1 g2; omega
 
+/-- **The call-stack words**: the replies' `PREV`, `NEXT` and `TCB` words and
+the SCs' `REPLY` words, what `reply_remove`, `reply_pop` and `reply_unlink`
+write besides the scheduler's footprint. -/
+def CallW (R C : Set U64) (b : U64) : Prop :=
+  (∃ r ∈ R, b = rNextA r ∨ b = rPrevA r ∨ b = rTcbA r) ∨ (∃ q ∈ C, b = scReplyA q)
+
 /-- **A call-stack step on `r`**: the replies off every stack with no links
 (other than `r`) keep their words, no stack gains a reply, and `r` leaves
 every stack. -/

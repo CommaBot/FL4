@@ -33,17 +33,23 @@ theorem ScTKw.ep (h : ScTKw P σ σ') {p : ObjRef} {x : Endpoint} (hk : σ.kheap
   | none => rw [e] at this; exact this.elim
   | some o =>
     rw [e] at this
-    rcases this with rfl | ⟨_, _, h1, -⟩ | ⟨_, _, _, h1, -⟩ | ⟨_, _, h1, -⟩ <;> first | rfl | cases h1
+    rcases this with rfl | ⟨_, _, h1, -⟩ | ⟨_, _, _, h1, -⟩ | ⟨_, _, h1, -⟩ | ⟨_, _, h1, -⟩ <;> first | rfl | cases h1
 
+/-- A reply keeps its TCB (it may change its SC). -/
 theorem ScTKw.reply (h : ScTKw P σ σ') {p : ObjRef} {x : Reply} (hk : σ.kheap p = some (.reply x)) :
-    σ'.kheap p = some (.reply x) := by
+    ∃ y, σ'.kheap p = some (.reply y) ∧ y.replyTcb = x.replyTcb := by
   have := h.kh p
   rw [hk] at this
   cases e : σ'.kheap p with
   | none => rw [e] at this; exact this.elim
   | some o =>
     rw [e] at this
-    rcases this with rfl | ⟨_, _, h1, -⟩ | ⟨_, _, _, h1, -⟩ | ⟨_, _, h1, -⟩ <;> first | rfl | cases h1
+    rcases this with rfl | ⟨_, _, h1, -⟩ | ⟨_, _, _, h1, -⟩ | ⟨_, _, h1, -⟩ | ⟨_, y, h1, rfl, ey⟩
+    · exact ⟨x, rfl, rfl⟩
+    · cases h1
+    · cases h1
+    · cases h1
+    · cases h1; exact ⟨y, rfl, by rw [ey]⟩
 
 theorem ScTKw.tcb (h : ScTKw P σ σ') {p : ObjRef} {x : Tcb} (hk : σ.kheap p = some (.tcb x)) :
     ∃ y, σ'.kheap p = some (.tcb y) ∧ TcbSchedOnly x y ∧
@@ -54,15 +60,17 @@ theorem ScTKw.tcb (h : ScTKw P σ σ') {p : ObjRef} {x : Tcb} (hk : σ.kheap p =
   | none => rw [e] at this; exact this.elim
   | some o =>
     rw [e] at this
-    rcases this with rfl | ⟨x1, y1, h1, rfl, h3, h4⟩ | ⟨_, _, _, h1, -⟩ | ⟨_, _, h1, -⟩
+    rcases this with rfl | ⟨x1, y1, h1, rfl, h3, h4⟩ | ⟨_, _, _, h1, -⟩ | ⟨_, _, h1, -⟩ | ⟨_, _, h1, -⟩
     · exact ⟨x, rfl, TcbSchedOnly.refl x, Or.inl rfl⟩
     · cases h1; exact ⟨y1, rfl, h3, h4⟩
+    · cases h1
     · cases h1
     · cases h1
 
 
 theorem ScTKw.keep_other (h : ScTKw P σ σ') {p : ObjRef} {o : KernelObject} (hk : σ.kheap p = some o)
-    (h1 : ∀ x, o ≠ .tcb x) (h2 : ∀ y n, o ≠ .schedContext y n) (h3 : ∀ x, o ≠ .notification x) :
+    (h1 : ∀ x, o ≠ .tcb x) (h2 : ∀ y n, o ≠ .schedContext y n) (h3 : ∀ x, o ≠ .notification x)
+    (h4 : ∀ x, o ≠ .reply x) :
     σ'.kheap p = some o := by
   have := h.kh p
   rw [hk] at this
@@ -70,11 +78,12 @@ theorem ScTKw.keep_other (h : ScTKw P σ σ') {p : ObjRef} {o : KernelObject} (h
   | none => rw [e] at this; exact this.elim
   | some o' =>
     rw [e] at this
-    rcases this with rfl | ⟨x, _, e1, -⟩ | ⟨y, _, n, e1, -⟩ | ⟨x, _, e1, -⟩
+    rcases this with rfl | ⟨x, _, e1, -⟩ | ⟨y, _, n, e1, -⟩ | ⟨x, _, e1, -⟩ | ⟨x, _, e1, -⟩
     · rfl
     · exact absurd e1 (h1 x)
     · exact absurd e1 (h2 y n)
     · exact absurd e1 (h3 x)
+    · exact absurd e1 (h4 x)
 
 theorem ScTKw.none (h : ScTKw P σ σ') {p : ObjRef} (hk : σ.kheap p = none) : σ'.kheap p = none := by
   have := h.kh p
@@ -95,25 +104,27 @@ theorem ScTKw.back (h : ScTKw P σ σ') {p : ObjRef} {o' : KernelObject} (hk : �
 theorem ScTKw.szKeep (h : ScTKw P σ σ') : SzKeep σ σ' := by
   intro p y n hk
   obtain ⟨o, ho, ht⟩ := h.back hk
-  rcases ht with rfl | ⟨_, _, -, e, -⟩ | ⟨x, y', m, rfl, e⟩ | ⟨_, _, -, e, -⟩
+  rcases ht with rfl | ⟨_, _, -, e, -⟩ | ⟨x, y', m, rfl, e⟩ | ⟨_, _, -, e, -⟩ | ⟨_, _, -, e, -⟩
   · exact ⟨y, ho⟩
   · cases e
   · cases e; exact ⟨x, ho⟩
+  · cases e
   · cases e
 
 theorem ScTKw.ckeep (h : ScTKw P σ σ') : Fl4Proofs.P3.CKeep σ σ' := by
   refine ⟨fun o => ⟨fun r cs hc hw => ?_, fun t ht => ?_, fun hn => h.none hn⟩, fun o r cs hc _ => ?_,
     fun o t ht => ?_, h.cdt, h.orig⟩
   · obtain ⟨o0, ho0, htk⟩ := h.back hc
-    rcases htk with rfl | ⟨_, _, -, e, -⟩ | ⟨_, _, _, -, e⟩ | ⟨_, _, -, e, -⟩
+    rcases htk with rfl | ⟨_, _, -, e, -⟩ | ⟨_, _, _, -, e⟩ | ⟨_, _, -, e, -⟩ | ⟨_, _, -, e, -⟩
     · exact ⟨cs, ho0, hw⟩
     all_goals cases e
   · obtain ⟨o0, ho0, htk⟩ := h.back ht
-    rcases htk with rfl | ⟨x, _, rfl, -, -⟩ | ⟨_, _, _, -, e⟩ | ⟨_, _, -, e, -⟩
+    rcases htk with rfl | ⟨x, _, rfl, -, -⟩ | ⟨_, _, _, -, e⟩ | ⟨_, _, -, e, -⟩ | ⟨_, _, -, e, -⟩
     · exact ⟨t, ho0⟩
     · exact ⟨x, ho0⟩
     all_goals cases e
   · exact h.keep_other hc (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
+      (fun _ e => by cases e)
   · obtain ⟨y, hy, hso, -⟩ := h.tcb ht
     refine ⟨y, hy, ?_⟩
     unfold TcbSchedOnly at hso
@@ -209,7 +220,8 @@ theorem EpStateRel.scStep {m m' : U64 → U64} {P : Fl4Spec.ObjRef → Prop} {σ
   · obtain ⟨x, hkx, hx⟩ := hR.reply r hr
     have hra : ∀ t ∈ T, (Endp.rTcbA r).val < t.val ∨ t.val + 4096 ≤ (Endp.rTcbA r).val := fun t ht => by
       have := hP.rt r hr t ht; rw [Endp.rTcbA_val]; omega
-    exact ⟨x, hK.reply hkx, by rw [hx, hm _ (a_rtcb hP hr).1 (a_rtcb hP hr).2 (ne_st_of_apart hP hra)]⟩
+    obtain ⟨y, hky, ey⟩ := hK.reply hkx
+    exact ⟨y, hky, by rw [ey, hx, hm _ (a_rtcb hP hr).1 (a_rtcb hP hr).2 (ne_st_of_apart hP hra)]⟩
   · obtain ⟨x, hkx, hx⟩ := hR.tcb t ht
     obtain ⟨y, hky, hso, hs⟩ := hK.tcb hkx
     have hta := hP.tcb t ht
@@ -425,7 +437,7 @@ theorem OObj.of_szKeep {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c 
 /-- An arch object stays across an SC step. -/
 theorem ScTKw.arch_obj {P : Fl4Spec.ObjRef → Prop} {σ σ' : Fl4Spec.State Unit} (h : ScTKw P σ σ') {p : Fl4Spec.ObjRef}
     {ao : Fl4Spec.ArchKernelObj} (hk : σ.kheap p = some (.archObj ao)) : σ'.kheap p = σ.kheap p := by
-  rw [h.keep_other hk (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e), hk]
+  rw [h.keep_other hk (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e), hk]
 
 set_option maxHeartbeats 2000000 in
 /-- **An SC-cap step keeps `XTop`** at the same sets (module docstring): FL4

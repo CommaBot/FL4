@@ -5,8 +5,8 @@ relations need to be framed across them (`tcbsc_step_lift`, ScXStep).
 
 * `TKObj P o o'`: a TCB changes only its state, SC and yield-to fields, its
   state only when `P` and between states that block on no IPC object
-  (`IpcFree`); an SC keeps its size; a notification changes only its SC;
-  every other object stays.
+  (`IpcFree`); an SC keeps its size; a notification changes only its SC; a
+  reply only its SC (`reply_unlink_sc`); every other object stays.
 * `ScTKw P σ σ'`: every object `TKObj`-steps (`P` per address), and the user
   memory, the CDT, the original caps, the domain schedule, the arch state,
   the interrupt states and nodes and the current thread are kept.
@@ -46,14 +46,15 @@ def TKObj (P : Prop) (o o' : KernelObject) : Prop :=
   (∃ x y, o = .tcb x ∧ o' = .tcb y ∧ TcbSchedOnly x y ∧
     (y.tcbState = x.tcbState ∨ (P ∧ IpcFree x.tcbState ∧ IpcFree y.tcbState))) ∨
   (∃ x y n, o = .schedContext x n ∧ o' = .schedContext y n) ∨
-  (∃ x y, o = .notification x ∧ o' = .notification y ∧ y = { x with ntfnSc := y.ntfnSc })
+  (∃ x y, o = .notification x ∧ o' = .notification y ∧ y = { x with ntfnSc := y.ntfnSc }) ∨
+  (∃ x y, o = .reply x ∧ o' = .reply y ∧ y = { x with replySc := y.replySc })
 
 theorem TKObj.refl (P : Prop) (o : KernelObject) : TKObj P o o := Or.inl rfl
 
 theorem TKObj.trans {P : Prop} {a b c : KernelObject} (h1 : TKObj P a b) (h2 : TKObj P b c) : TKObj P a c := by
-  rcases h1 with rfl | ⟨x, y, rfl, rfl, e1, s1⟩ | ⟨x, y, n, rfl, rfl⟩ | ⟨x, y, rfl, rfl, e1⟩
+  rcases h1 with rfl | ⟨x, y, rfl, rfl, e1, s1⟩ | ⟨x, y, n, rfl, rfl⟩ | ⟨x, y, rfl, rfl, e1⟩ | ⟨x, y, rfl, rfl, e1⟩
   · exact h2
-  · rcases h2 with rfl | ⟨y', z, e, rfl, e2, s2⟩ | ⟨_, _, _, e, -⟩ | ⟨_, _, e, -⟩
+  · rcases h2 with rfl | ⟨y', z, e, rfl, e2, s2⟩ | ⟨_, _, _, e, -⟩ | ⟨_, _, e, -⟩ | ⟨_, _, e, -⟩
     · exact Or.inr (Or.inl ⟨x, y, rfl, rfl, e1, s1⟩)
     · cases e
       refine Or.inr (Or.inl ⟨x, z, rfl, rfl, e1.trans e2, ?_⟩)
@@ -62,25 +63,32 @@ theorem TKObj.trans {P : Prop} {a b c : KernelObject} (h1 : TKObj P a b) (h2 : T
       · exact Or.inr ⟨p2, s1 ▸ f2, g2⟩
       · exact Or.inr ⟨p1, f1, s2 ▸ g1⟩
       · exact Or.inr ⟨p1, f1, g2⟩
-    · cases e
-    · cases e
-  · rcases h2 with rfl | ⟨_, _, e, -⟩ | ⟨y', z, m, e, rfl⟩ | ⟨_, _, e, -⟩
+    all_goals cases e
+  · rcases h2 with rfl | ⟨_, _, e, -⟩ | ⟨y', z, m, e, rfl⟩ | ⟨_, _, e, -⟩ | ⟨_, _, e, -⟩
     · exact Or.inr (Or.inr (Or.inl ⟨x, y, n, rfl, rfl⟩))
     · cases e
     · cases e; exact Or.inr (Or.inr (Or.inl ⟨x, z, n, rfl, rfl⟩))
+    all_goals cases e
+  · rcases h2 with rfl | ⟨_, _, e, -⟩ | ⟨_, _, _, e, -⟩ | ⟨y', z, e, rfl, e2⟩ | ⟨_, _, e, -⟩
+    · exact Or.inr (Or.inr (Or.inr (Or.inl ⟨x, y, rfl, rfl, e1⟩)))
     · cases e
-  · rcases h2 with rfl | ⟨_, _, e, -⟩ | ⟨_, _, _, e, -⟩ | ⟨y', z, e, rfl, e2⟩
-    · exact Or.inr (Or.inr (Or.inr ⟨x, y, rfl, rfl, e1⟩))
+    · cases e
+    · cases e; refine Or.inr (Or.inr (Or.inr (Or.inl ⟨x, z, rfl, rfl, ?_⟩))); rw [e2, e1]
+    · cases e
+  · rcases h2 with rfl | ⟨_, _, e, -⟩ | ⟨_, _, _, e, -⟩ | ⟨_, _, e, -⟩ | ⟨y', z, e, rfl, e2⟩
+    · exact Or.inr (Or.inr (Or.inr (Or.inr ⟨x, y, rfl, rfl, e1⟩)))
     · cases e
     · cases e
-    · cases e; refine Or.inr (Or.inr (Or.inr ⟨x, z, rfl, rfl, ?_⟩)); rw [e2, e1]
+    · cases e
+    · cases e; refine Or.inr (Or.inr (Or.inr (Or.inr ⟨x, z, rfl, rfl, ?_⟩))); rw [e2, e1]
 
 theorem TKObj.mono {P Q : Prop} {a b : KernelObject} (h : TKObj P a b) (hPQ : P → Q) : TKObj Q a b := by
-  rcases h with h | ⟨x, y, h1, h2, h3, h4⟩ | h | h
+  rcases h with h | ⟨x, y, h1, h2, h3, h4⟩ | h | h | h
   · exact Or.inl h
   · exact Or.inr (Or.inl ⟨x, y, h1, h2, h3, h4.imp_right fun ⟨p, f, g⟩ => ⟨hPQ p, f, g⟩⟩)
   · exact Or.inr (Or.inr (Or.inl h))
-  · exact Or.inr (Or.inr (Or.inr h))
+  · exact Or.inr (Or.inr (Or.inr (Or.inl h)))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr h)))
 
 /-- `TKObj` on optional objects: none stays none. -/
 def OTK (P : Prop) : Option KernelObject → Option KernelObject → Prop
@@ -330,7 +338,8 @@ macro "nkt_step0" : tactic => `(tactic| first
   | with_reducible exact nkt_doExtendedOp _
   | ((with_reducible apply nkt_threadSet); intro _; exact Or.inr (Or.inl ⟨_, _, rfl, rfl, rfl, Or.inl rfl⟩))
   | with_reducible exact nkt_updateSchedContext _ _
-  | ((with_reducible apply nkt_updateSkObjRef); intro _; exact Or.inr (Or.inr (Or.inr ⟨_, _, rfl, rfl, rfl⟩)))
+  | ((with_reducible apply nkt_updateSkObjRef); intro _; exact Or.inr (Or.inr (Or.inr (Or.inl ⟨_, _, rfl, rfl, rfl⟩))))
+  | ((with_reducible apply nkt_updateSkObjRef); intro _; exact Or.inr (Or.inr (Or.inr (Or.inr ⟨_, _, rfl, rfl, rfl⟩))))
   | ((with_reducible apply nkt_updateSkObjRef); intro _; exact Or.inr (Or.inr (Or.inl ⟨_, _, _, rfl, rfl⟩)))
   | ((with_reducible apply nkt_updateSkObjRef); intro _; exact Or.inr (Or.inl ⟨_, _, rfl, rfl, rfl, Or.inl rfl⟩))
   | (with_reducible refine nkt_bind ?_ (fun _ => ?_))
