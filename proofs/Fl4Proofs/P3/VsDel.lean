@@ -213,7 +213,12 @@ theorem clear_native_tag (w : U64) (h : w &&& 1#u64 = 0#u64) :
   change w.bv &&& 1#64 = 0#64 at hb
   apply (UScalar.eq_equiv_bv_eq _ _).mpr
   change w.bv &&& ~~~1#64 = w.bv
-  bv_decide
+  apply BitVec.eq_of_getElem_eq; intro i hi
+  have h0 := congrArg (fun y : BitVec 64 => y[0]) hb
+  simp only [BitVec.getElem_and, BitVec.getElem_not] at h0 ⊢
+  by_cases hi0 : i = 0
+  · subst hi0; simp_all
+  · simp [hi0]
 
 theorem daBody_native {σ : Fl4Spec.State Unit} (asid root pool : U64)
     (f : Fl4Spec.AsidLowIndex → Option Fl4Spec.ObjRef) (v : U64)

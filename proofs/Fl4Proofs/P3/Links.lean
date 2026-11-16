@@ -179,7 +179,11 @@ theorem sext48_eq (w : U64) : obj.sext48 w = ok ⟨sextF w.bv⟩ := by
     congr 1
     rw [UScalar.eq_equiv_bv_eq]
     simp [setBitF, setNextF, M48]
-    bv_decide
+    generalize (P1.LawfulStore.mem st s (wordOf sl 24#u64)).bv = x
+    generalize U64.bv n = y
+    apply BitVec.eq_of_getElem_eq; intro i hi
+    simp only [BitVec.getElem_and, BitVec.getElem_or]
+    interval_cases i <;> simp
 
 @[step] theorem slot_is_null_spec (sl : obj.Slot) : obj.Slot.is_null sl ⦃ b => b = decide (sl = 0#u64) ⦄ := by
   unfold obj.Slot.is_null; simp
