@@ -3,8 +3,9 @@ P3 (DESIGN.md §9): **keeping `JCov`: monotone ghost heaps and a dead set**
 (ScPlaceUt's design note, option 2).
 
 * `DeadP H s q`: the object at `q` is read by nothing P1 tracks: a TCB
-  inactive, in no queue, with no SC, bound notification or reply, neither
-  the scheduler action nor idle; an endpoint idle; a notification not
+  inactive (so in no queue and named by no reply, through `runQ`/`runR`
+  and `back`), with no SC or bound notification, neither the scheduler
+  action nor idle; an endpoint idle; a notification not
   waiting, with no bound TCB and no SC; a reply with no TCB; an SC with no
   TCB, reply or notification.  (The current thread and the current SC may
   still name a dead object: finalising the current thread's TCB or SC
@@ -38,8 +39,8 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
 /-- **A dead object** (module docstring). -/
 def DeadP (H : Heap) (s : S) (q : U64) : Prop :=
-  (H q = some .tcb → L.mem s (P1.stA q) = sched.TS_INACTIVE ∧ L.mem s (inqA q) = 0#u64 ∧
-    L.mem s (scA q) = 0#u64 ∧ L.mem s (boundA q) = 0#u64 ∧ L.mem s (replyA q) = 0#u64 ∧
+  (H q = some .tcb → L.mem s (P1.stA q) = sched.TS_INACTIVE ∧
+    L.mem s (scA q) = 0#u64 ∧ L.mem s (boundA q) = 0#u64 ∧
     q ≠ L.actionW s ∧ q ≠ L.idleW s) ∧
   (H q = some .ep → L.epState s q = 0#u64) ∧
   (H q = some .ntfn → L.epState s q ≠ 1#u64 ∧ L.mem s (ntfnBtA q) = 0#u64 ∧ L.mem s (ntfnScA q) = 0#u64) ∧

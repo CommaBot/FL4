@@ -47,6 +47,13 @@ theorem set_thread_state_frame (s : S) (t v : U64) (hst : P1.Aligned (stA t))
         L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION := by simp
     rw [e, L.mem_wr_ne hact hw (Ne.symm h2), L.mem_wr_ne hst hw (Ne.symm h1)]
 
+theorem sts_ksb_ret (s : S) (t v : U64) :
+    sched.set_thread_state st s t v ⦃ s' => L.ksb s' = L.ksb s ⦄ := by
+  unfold sched.set_thread_state sched.schedule_tcb
+  rw [tcb_set_state_eq]; simp only [bind_ok]
+  step*
+  all_goals subst_vars; simp
+
 end
 
 theorem UtInv.of_same {th : TypedHeap} {m m' : U64 → U64} {G : MdbGhost} (hM : MdbLinks th m G)
@@ -68,16 +75,18 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
 /-- The result of an untyped invocation that `decode` hands to `retype`:
 the spec's `set_thread_state Restart` and `invoke_untyped` (object sizes
-`bitsApi`) have single outcomes related to FL4's. -/
+`bitsApi`) have single outcomes related to FL4's, with `ksb` kept (`ks` before) and what the retype did
+exposed (`RetExp`). -/
 def RetPost {A' : Type} (th : TypedHeap) (m : U64 → U64) (G : MdbGhost) (σ : Fl4Spec.State Unit) (ar : A')
-    (bitsApi : Fl4Spec.ApiObjectType → Nat → Nat)
+    (bitsApi : Fl4Spec.ApiObjectType → Nat → Nat) (ks : U64)
     (inv : Fl4Spec.UntypedInvocation) (res : core.result.Result Unit error.Exc × S × A') : Prop :=
   res.1 = .Ok () ∧ res.2.2 = ar ∧ ∃ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
     ∃ σ' G' th', (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi inv).run σ1 = ({(.ok (), σ')}, False) ∧
       Placed th' ∧ StateRel th' (L.mem res.2.1) σ' ∧ SlotsValid th' (L.mem res.2.1) ∧
       MdbLinks th' (L.mem res.2.1) G' ∧ CdtRel th' (L.mem res.2.1) σ' G' ∧ MdbInv (L.mem res.2.1) G' ∧
       UtInv (L.mem res.2.1) G' ∧ MdbStep m G (L.mem res.2.1) G' ∧
-      (FinInv th m σ G → FinInv th' (L.mem res.2.1) σ' G')
+      (FinInv th m σ G → FinInv th' (L.mem res.2.1) σ' G') ∧ L.ksb res.2.1 = ks ∧
+      ∃ A k w dslot cj, RetExp th th' m (L.mem res.2.1) G G' A k w dslot cj
 
 /-- **The success continuation of `decode`** (`set_thread_state Restart`,
 then `retype`) satisfies `RetPost`, for the types 0, 2..7 and 9..13. -/
@@ -106,7 +115,7 @@ theorem retype_cont {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
       untyped.retype st arI s2 ar (cslotAddr (pp.bv, idx)) reset
         ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win dev) ⦃ res =>
-      RetPost (L := L) th (L.mem s) G σ ar bitsApi (.retype (pp.bv, idx) reset p.bv
+      RetPost (L := L) th (L.mem s) G σ ar bitsApi (L.ksb s) (.retype (pp.bv, idx) reset p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) dev) res ⦄ := by
   obtain ⟨ht, ⟨hus, hz47, hsB, hsC, hsD⟩, ⟨hdest, hr64, -⟩, ⟨hw1, -, hwin⟩, hempty, hreset, hfiv, -, hmem, hdevc⟩ := hctx
   -- set_thread_state
@@ -118,6 +127,8 @@ theorem retype_cont {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
   obtain ⟨s2', hs2', hF⟩ := spec_exists (set_thread_state_frame (L := L) s ct sched.TS_RESTART
     (by unfold P1.Aligned; rw [hstv]; omega) hact.1)
   rw [hs2] at hs2'; have := eq_of_ok_eq hs2'; subst this
+  obtain ⟨s2k, hs2k, hk2⟩ := spec_exists (sts_ksb_ret (L := L) s ct sched.TS_RESTART)
+  rw [hs2] at hs2k; cases eq_of_ok_eq hs2k
   rw [hs2]; simp only [bind_ok]
   obtain ⟨tcb, hkt, -⟩ := hR.tcb ct htcb
   obtain ⟨σ1, hst1, hR1, hV1, hM1, hC1, hcdt1, hio1⟩ := restart_rel hR hV hM hC hSS (t := ct.bv) hkt .restart
@@ -159,18 +170,21 @@ theorem retype_cont {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
         (UtInv (L.mem res.2.1) G' ∧ MdbStep (L.mem s2) G (L.mem res.2.1) G') ∧ (dev = false → ZeroRegion (L.mem res.2.1)
           ((Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val)
           (p.val + 2 ^ sb.val)) ∧
-        (FinInv th (L.mem s2) σ1 G → FinInv th' (L.mem res.2.1) σ' G')) →
+        (FinInv th (L.mem s2) σ1 G → FinInv th' (L.mem res.2.1) σ' G') ∧ L.ksb res.2.1 = L.ksb s2 ∧
+        ∃ A k w dslot cj, RetExp th th' (L.mem s2) (L.mem res.2.1) G G' A k w dslot cj) →
       (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) reset p.bv
           (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val
           (windowSlots dest r off.val win.val) dev)).run σ1 =
         (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) false p.bv
           (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val
           (windowSlots dest r off.val win.val) dev)).run σ1 →
-      RetPost (L := L) th (L.mem s) G σ ar bitsApi (.retype (pp.bv, idx) reset p.bv
+      RetPost (L := L) th (L.mem s) G σ ar bitsApi (L.ksb s) (.retype (pp.bv, idx) reset p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) dev) res := by
-    rintro res ⟨h1, h2, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', ⟨hU', hSt'⟩, -, hFin⟩ he
+    rintro res ⟨h1, h2, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', ⟨hU', hSt'⟩, -, hFin, hks, A, k, w, dslot, cj,
+      hE⟩ he
     exact ⟨h1, h2, σ1, by rw [hcur]; exact hst1, σ', G', th', he.trans hrun, hP', hR', hV', hM', hC', hI', hU',
-      MdbStep.same_left hM hSS hSt', fun hFI => hFin (hFI.of_same hM hSS (ksub_of_eq (setThreadState_nks _ _) hst1))⟩
+      MdbStep.same_left hM hSS hSt', fun hFI => hFin (hFI.of_same hM hSS (ksub_of_eq (setThreadState_nks _ _) hst1)),
+      by rw [hks, hk2], A, k, w, dslot, cj, hE.same_left hM hSS⟩
   rcases Bool.eq_false_or_eq_true reset with hrs | hrs <;> subst hrs
   · have hnc : ¬ ∃ x, σ.cdt x = some (pp.bv, idx) := by simpa using hreset.symm
     have hf0 : fiv = 0#u64 := UScalar.eq_of_val_eq (by rw [hunused hnc]; rfl)
@@ -230,7 +244,7 @@ theorem untyped_retype_refines {A' : Type} (arI : machine.Arch A') (th : TypedHe
     (hfan : Fl4Spec.retypeFanOutLimit = 256#64) :
     untyped.decode st arI s ar lbl length (cslotAddr (pp.bv, idx)) (.Untyped p sb fi dev) buf extra ⦃ res =>
       UPost σ (Fl4Spec.decodeUntypedInvocation slbl (args.map UScalar.bv) (pp.bv, idx) (absCap (.Untyped p sb fi dev))
-        excaps) s ar (RetPost (L := L) th (L.mem s) G σ ar Fl4Spec.objBitsApi) res ⦄ := by
+        excaps) s ar (RetPost (L := L) th (L.mem s) G σ ar Fl4Spec.objBitsApi (L.ksb s)) res ⦄ := by
   have hAs : AbsSlot th (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩
   refine untyped_decode_refines arI th s ar σ G hR hV hP hM hC hI lbl slbl hlbl length buf ct hct args hlen hargs
     (fun x hx => Or.inl (by have := hnt x hx; omega))

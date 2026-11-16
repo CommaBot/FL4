@@ -174,6 +174,12 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
   finalisation of a final cap leaves its object dead (`FinDeadHyp`) for
   endpoints, notifications, replies and SCs (`finDead_*`, from P1's
   QueueDead).
+* ScPlaceRet: `JCov` with a dead set across retype (`JCovD.retype`), from
+  retype's exposed post (`RetExp`, UntypedExp: the caps kept, the new caps,
+  the untyped ranges, the typed heap after, `ksb` kept) and P1's half
+  (`RetypeP1Hyp`: `BlkOK` over the heap with the window's dead objects
+  removed and the new ones added); the window's objects are dead
+  (`retype_window_dead`).
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
@@ -212,3 +218,4 @@ import Fl4Proofs.P3.ScPlaceSc
 import Fl4Proofs.P3.ScPlaceUt
 import Fl4Proofs.P3.ScSchedOut
 import Fl4Proofs.P3.ScPlaceDead
+import Fl4Proofs.P3.ScPlaceRet

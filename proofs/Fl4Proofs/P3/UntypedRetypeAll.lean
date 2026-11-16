@@ -19,13 +19,6 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 attribute [local step] tcb_state_spec' sc_is_null_spec' action_spec' set_action_spec' cur_thread_spec'
   is_schedulable_spec'
 
-theorem set_thread_state_ksb (s : S) (t v : U64) :
-    sched.set_thread_state st s t v ⦃ s' => L.ksb s' = L.ksb s ⦄ := by
-  unfold sched.set_thread_state sched.schedule_tcb
-  rw [tcb_set_state_eq]; simp only [bind_ok]
-  step*
-  all_goals subst_vars; simp
-
 theorem retype_cont_all {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHeap) (s : S)
     (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
@@ -61,7 +54,7 @@ theorem retype_cont_all {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
       untyped.retype st arI s2 ar (cslotAddr (pp.bv, idx)) reset
         ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win dev) ⦃ res =>
-      RetPost (L := L) th (L.mem s) G σ ar bitsApi (.retype (pp.bv, idx) reset p.bv
+      RetPost (L := L) th (L.mem s) G σ ar bitsApi (L.ksb s) (.retype (pp.bv, idx) reset p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) dev) res ⦄ := by
   obtain ⟨ht, ⟨hus, hz47, hsB, hsC, hsD⟩, ⟨hdest, hr64, -⟩, ⟨hw1, -, hwin⟩, hempty, hreset, hfiv, -, hmem, hdevc⟩ := hctx
   -- set_thread_state
@@ -95,7 +88,7 @@ theorem retype_cont_all {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
   have horig1 : ∀ sl, σ1.isOriginalCap sl = true → AbsSlot th sl := by rw [hio1]; exact horig
   have hsc : nt.val = 5 → 7 ≤ us.val := fun h => by omega
   have hct0 : nt.val = 4 → us.val ≠ 0 := fun h e => hsB ⟨h, e⟩
-  obtain ⟨s2', hs2', hk2⟩ := spec_exists (set_thread_state_ksb (L := L) s ct sched.TS_RESTART)
+  obtain ⟨s2', hs2', hk2⟩ := spec_exists (sts_ksb_ret (L := L) s ct sched.TS_RESTART)
   rw [hs2] at hs2'; cases eq_of_ok_eq hs2'
   have hDW2 : L.nodeAt s2 0#u64 layout.node.DEBUG_TCBS = L.nodeAt s 0#u64 layout.node.DEBUG_TCBS :=
     nodeAt_ksb hk2 _ _
@@ -120,7 +113,8 @@ theorem retype_cont_all {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
         (UtInv (L.mem res.2.1) G' ∧ MdbStep (L.mem s2) G (L.mem res.2.1) G') ∧ (dev = false → ZeroRegion (L.mem res.2.1)
           ((Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val)
           (p.val + 2 ^ sb.val)) ∧
-        (FinInv th (L.mem s2) σ1 G → FinInv th' (L.mem res.2.1) σ' G') ⦄ := by
+        (FinInv th (L.mem s2) σ1 G → FinInv th' (L.mem res.2.1) σ' G') ∧ L.ksb res.2.1 = L.ksb s2 ∧
+        ∃ A k w dslot cj, RetExp th th' (L.mem s2) (L.mem res.2.1) G G' A k w dslot cj ⦄ := by
     by_cases h1 : nt.val = 1
     · refine WP.spec_mono (retype_full_tcb (L := L) arI ar th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hU1 horig1 hpp hidx hcap1
         hpal hpfit hfi hhigh nt us t ht h1 hus hdest (by omega) off win hwin hw1 hmem hempty1 hfree hzero1
@@ -140,18 +134,21 @@ theorem retype_cont_all {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
         (UtInv (L.mem res.2.1) G' ∧ MdbStep (L.mem s2) G (L.mem res.2.1) G') ∧ (dev = false → ZeroRegion (L.mem res.2.1)
           ((Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val)
           (p.val + 2 ^ sb.val)) ∧
-        (FinInv th (L.mem s2) σ1 G → FinInv th' (L.mem res.2.1) σ' G')) →
+        (FinInv th (L.mem s2) σ1 G → FinInv th' (L.mem res.2.1) σ' G') ∧ L.ksb res.2.1 = L.ksb s2 ∧
+        ∃ A k w dslot cj, RetExp th th' (L.mem s2) (L.mem res.2.1) G G' A k w dslot cj) →
       (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) reset p.bv
           (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val
           (windowSlots dest r off.val win.val) dev)).run σ1 =
         (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype (pp.bv, idx) false p.bv
           (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val
           (windowSlots dest r off.val win.val) dev)).run σ1 →
-      RetPost (L := L) th (L.mem s) G σ ar bitsApi (.retype (pp.bv, idx) reset p.bv
+      RetPost (L := L) th (L.mem s) G σ ar bitsApi (L.ksb s) (.retype (pp.bv, idx) reset p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) dev) res := by
-    rintro res ⟨h1, h2, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', ⟨hU', hSt'⟩, -, hFin⟩ he
+    rintro res ⟨h1, h2, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', ⟨hU', hSt'⟩, -, hFin, hks, A, k, w, dslot, cj,
+      hE⟩ he
     exact ⟨h1, h2, σ1, by rw [hcur]; exact hst1, σ', G', th', he.trans hrun, hP', hR', hV', hM', hC', hI', hU',
-      MdbStep.same_left hM hSS hSt', fun hFI => hFin (hFI.of_same hM hSS (ksub_of_eq (setThreadState_nks _ _) hst1))⟩
+      MdbStep.same_left hM hSS hSt', fun hFI => hFin (hFI.of_same hM hSS (ksub_of_eq (setThreadState_nks _ _) hst1)),
+      by rw [hks, hk2], A, k, w, dslot, cj, hE.same_left hM hSS⟩
   rcases Bool.eq_false_or_eq_true reset with hrs | hrs <;> subst hrs
   · have hnc : ¬ ∃ x, σ.cdt x = some (pp.bv, idx) := by simpa using hreset.symm
     have hf0 : fiv = 0#u64 := UScalar.eq_of_val_eq (by rw [hunused hnc]; rfl)
@@ -224,7 +221,7 @@ theorem untyped_retype_refines_fl4 {A' : Type} (arI : machine.Arch A') (th : Typ
         TcbOk (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)))) :
     untyped.decode st arI s ar lbl length (cslotAddr (pp.bv, idx)) (.Untyped p sb fi dev) buf extra ⦃ res =>
       UPost σ (Fl4Spec.fl4DecodeUntypedInvocation slbl (args.map UScalar.bv) (pp.bv, idx)
-        (absCap (.Untyped p sb fi dev)) excaps) s ar (RetPost (L := L) th (L.mem s) G σ ar Fl4Spec.fl4ObjBitsApi) res ⦄ := by
+        (absCap (.Untyped p sb fi dev)) excaps) s ar (RetPost (L := L) th (L.mem s) G σ ar Fl4Spec.fl4ObjBitsApi (L.ksb s)) res ⦄ := by
   have hAs : AbsSlot th (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩
   refine untyped_decode_refines_fl4 arI th s ar σ G hR hV hP hM hC hI lbl slbl hlbl length buf ct hct args hlen hargs
     (fun x hx => Or.inl (by have := hnt x hx; omega))

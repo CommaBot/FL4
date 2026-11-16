@@ -281,7 +281,8 @@ theorem create_loop_rel_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th th
       (Fl4Spec.createCap (Z := Unit) t us.val (pp.bv, idx) dev)
       ((windowSlots dest r off.val win.val).zip (regionPtrs (BitVec.ofNat 64 base.val) win.val (2 ^ zOf nt.val us.val)))
       base.val (2 ^ zOf nt.val us.val) win.val (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off.val + j)))
-      (base.val + win.val * 4096) zhi G0 m0 (cjOf nt.val us dev base.val (2 ^ zOf nt.val us.val)) res.1 win.val ⦄ := by
+      (base.val + win.val * 4096) zhi G0 m0 (cjOf nt.val us dev base.val (2 ^ zOf nt.val us.val)) res.1 win.val ∧
+      L.ksb res.1 = ksb0 ⦄ := by
   have hz12 : zOf nt.val us.val = 12 := by simp [zOf, hnt]
   have hk : 2 ^ zOf nt.val us.val = 4096 := by rw [hz12]; rfl
   have hn14 : nt.val < 14 := by omega
@@ -368,7 +369,7 @@ theorem create_loop_rel_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th th
     · rw [if_neg hit, WP.spec_ok]
       have : i.val = win.val := by have : ¬ i.val < win.val := hit; omega
       rw [this] at hI
-      exact ⟨rfl, hI⟩
+      exact ⟨rfl, hI, hXi.1⟩
   · exact ⟨rfl, by simp, hinv, hX⟩
 
 end
@@ -419,7 +420,8 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
         (UtInv (L.mem res.2.1) G' ∧ MdbStep (L.mem s) G (L.mem res.2.1) G') ∧ ZeroRegion (L.mem res.2.1)
           ((Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val)
           (p.val + 2 ^ sb.val) ∧
-        (FinInv th (L.mem s) σ G → FinInv th' (L.mem res.2.1) σ' G') ⦄ := by
+        (FinInv th (L.mem s) σ G → FinInv th' (L.mem res.2.1) σ' G') ∧ L.ksb res.2.1 = L.ksb s ∧
+        ∃ A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj ⦄ := by
   -- sizes and the region
   have hsb : sb.val < 64 := capAt_untyped_inv hcap
   have htT : t = .tcbObject := by rw [hnt] at ht; simpa [objTypeOf] using ht.symm
@@ -644,7 +646,7 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
         rcases hfree _ _ h1 with h | h
         · left; simp only [Nat.zero_mul, Nat.add_zero]; omega
         · right; exact h
-  obtain ⟨⟨s2, a2⟩, hres, ha2, hfin⟩ := spec_exists (create_loop_rel_tcb (L := L) arI ar th th' hP' hext
+  obtain ⟨⟨s2, a2⟩, hres, ha2, hfin, hks2⟩ := spec_exists (create_loop_rel_tcb (L := L) arI ar th th' hP' hext
     ((extendTh_of_old (by omega) hrf4 hpp (objSize_pos_cnode _)).trans hpp) hidx hs hsb hpfit _
     ((extendTh_of_old (by omega) hrf4 hdest (objSize_pos_cnode _)).trans hdest) hdest (by omega)
     nt us dev .tcbObject ht hnt hus off win aligned hwin (by rw [halv]; omega) (by rw [halv]; omega)
@@ -662,7 +664,61 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
     apply List.drop_of_length_le; simp [windowSlots, regionPtrs]
   rw [hdrop] at hchain
   have hmx := hchain σf (mapMx_nil _ _)
-  refine ⟨rfl, ha2, σf, Gf, th', ?_, hP', hRf, hVf, hMf, hCf, hIf, ?_, ?_, fun hFI => ⟨?_, ?_⟩⟩
+  have hfiL : fi.val < 2 ^ sb.val := by
+    have : (1#64 <<< sb.val - fi.bv : BitVec 64).toNat = 2 ^ sb.val - fi.val := by
+      rw [BitVec.toNat_sub, BitVec.toNat_shiftLeft]
+      simp only [BitVec.toNat_ofNat, Nat.shiftLeft_eq, show fi.bv.toNat = fi.val from rfl]
+      have hM' : 2 ^ sb.val < 2 ^ 64 := Nat.pow_lt_pow_right (by decide) hsb
+      rw [show (1 % 2 ^ 64 * 2 ^ sb.val) % 2 ^ 64 = 2 ^ sb.val by
+        rw [show (1 : Nat) % 2 ^ 64 = 1 from rfl, Nat.one_mul, Nat.mod_eq_of_lt hM']]
+      omega
+    rw [this, Nat.shiftRight_eq_div_pow] at hmem
+    by_contra hc
+    rw [show 2 ^ sb.val - fi.val = 0 by omega] at hmem; simp at hmem; omega
+  have hnfiv : nfi.val = A + win.val * k - p.val := by
+    rw [← hA4]
+    show (core.num.U64.wrapping_sub (core.num.U64.wrapping_add aligned total) p).bv.toNat = _
+    rw [core.num.U64.wrapping_sub_bv_eq, core.num.U64.wrapping_add_bv_eq, htot, ← bv_eq_ofNat]
+  have hzv : zOf nt.val us.val < 64 := by omega
+  have hkk : 2 ^ zOf nt.val us.val = k := rfl
+  have hRD : RetypeDelta th (L.mem s) (L.mem s1) (L.mem s2) G Gf src p sb fi nfi dev A k win.val
+        (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off.val + j))) (cjOf nt.val us dev aligned.val k) := by
+      refine ⟨hM, hsrcm, hcv0, hcs1, fun x hx hxs => hco1 x ((hM.members x).1 hx).1 hxs, hfiL, hA1,
+        by omega, by omega, by omega, fun j _ => physF_newCap _ _ _ _, fun j hj => ?_, fun j hj => ?_,
+        fun j hj hu => ?_, fun j hj hm => ?_, fun j l hj hl he => ?_, hT1, hT1b, hT2a, hT2b, hT3⟩
+      · have h1 : (j + 1) * k ≤ win.val * k := Nat.mul_le_mul_right _ hj
+        rw [Nat.add_mul, Nat.one_mul] at h1
+        obtain ⟨c1, -⟩ := newCap_range (n := nt.val) (by omega) ⟨BitVec.ofNat 64 (A + j * k)⟩ us dev hus hzv
+          (by show (BitVec.ofNat 64 (A + j * k)).toNat + _ ≤ _; rw [hkk]; simp; omega)
+        unfold cjOf; rw [halv, c1]; show (BitVec.ofNat 64 (A + j * k)).toNat = _; simp; omega
+      · have h1 : (j + 1) * k ≤ win.val * k := Nat.mul_le_mul_right _ hj
+        rw [Nat.add_mul, Nat.one_mul] at h1
+        obtain ⟨-, c2⟩ := newCap_range (n := nt.val) (by omega) ⟨BitVec.ofNat 64 (A + j * k)⟩ us dev hus hzv
+          (by show (BitVec.ofNat 64 (A + j * k)).toNat + _ ≤ _; rw [hkk]; simp; omega)
+        unfold cjOf; rw [halv, c2]; show (BitVec.ofNat 64 (A + j * k)).toNat + _ - 1 = _; simp; omega
+      · unfold cjOf at hu ⊢
+        rw [halv] at hu ⊢
+        obtain ⟨hn0, he⟩ := isUt_newCap hu
+        refine ⟨us, dev, he, ?_⟩
+        show 2 ^ us.val = 2 ^ zOf nt.val us.val
+        simp [zOf, hn0]
+      · obtain ⟨-, c0, h0, hn0⟩ := (hM.members _).1 hm
+        rw [hempty (off.val + j) (by omega) (by omega)] at h0
+        exact hn0 (eq_of_ok_eq h0).symm
+      · have hj' : IsSlotAt th dest (off.val + j) := Or.inl ⟨r, hdest, by omega⟩
+        have hl' : IsSlotAt th dest (off.val + l) := Or.inl ⟨r, hdest, by omega⟩
+        by_contra hne
+        rcases hj'.apart hP hl' (fun ⟨_, h2⟩ => hne (by omega)) with h | h <;>
+          (change slotOf dest (off.val + j) = slotOf dest (off.val + l) at he; rw [he] at h; omega)
+  have hth' : ∀ q kd, th' q = some kd → (th q = some kd ∧ (NewQ A k win.val (cjOf nt.val us dev aligned.val k) q →
+      objSize kd = 0)) ∨ (NewQ A k win.val (cjOf nt.val us dev aligned.val k) q ∧ objSize kd ≤ k) := by
+    rw [hk4]
+    refine extendTh_shape (by omega) hrf4 (le_refl _) fun j _ => ?_
+    cases hu : isUt (cjOf nt.val us dev aligned.val 4096 j)
+    · rfl
+    · exact absurd (isUt_newCap (by unfold cjOf at hu; exact hu)).1 (by omega)
+  refine ⟨rfl, ha2, σf, Gf, th', ?_, hP', hRf, hVf, hMf, hCf, hIf, ?_, ?_, fun hFI => ⟨?_, ?_⟩, by rw [hks2],
+    A, k, win.val, _, _, hRD.toExp hU hMf hth'⟩
   rotate_right 2
   · exact (ktyped_region (hFI.kt.sub (ksub_of_eq (nks_setCap _ _) hσa)) Ab A win.val 4096 rfl (by omega) hfitA hrf4
       (fun q kd hq hs => extendTh_of_old (by omega) hrf4 hq hs) _
@@ -680,55 +736,9 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
     · simp
     · rw [hwl]; rw [show 2 ^ zOf nt.val us.val = 4096 from hk4] at hmx; exact hmx
   · -- the untyped invariant
-    have hfiL : fi.val < 2 ^ sb.val := by
-      have : (1#64 <<< sb.val - fi.bv : BitVec 64).toNat = 2 ^ sb.val - fi.val := by
-        rw [BitVec.toNat_sub, BitVec.toNat_shiftLeft]
-        simp only [BitVec.toNat_ofNat, Nat.shiftLeft_eq, show fi.bv.toNat = fi.val from rfl]
-        have hM' : 2 ^ sb.val < 2 ^ 64 := Nat.pow_lt_pow_right (by decide) hsb
-        rw [show (1 % 2 ^ 64 * 2 ^ sb.val) % 2 ^ 64 = 2 ^ sb.val by
-          rw [show (1 : Nat) % 2 ^ 64 = 1 from rfl, Nat.one_mul, Nat.mod_eq_of_lt hM']]
-        omega
-      rw [this, Nat.shiftRight_eq_div_pow] at hmem
-      by_contra hc
-      rw [show 2 ^ sb.val - fi.val = 0 by omega] at hmem; simp at hmem; omega
-    have hnfiv : nfi.val = A + win.val * k - p.val := by
-      rw [← hA4]
-      show (core.num.U64.wrapping_sub (core.num.U64.wrapping_add aligned total) p).bv.toNat = _
-      rw [core.num.U64.wrapping_sub_bv_eq, core.num.U64.wrapping_add_bv_eq, htot, ← bv_eq_ofNat]
-    have hzv : zOf nt.val us.val < 64 := by omega
-    have hkk : 2 ^ zOf nt.val us.val = k := rfl
-    suffices hRD : RetypeDelta th (L.mem s) (L.mem s1) (L.mem s2) G Gf src p sb fi nfi dev A k win.val
-        (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off.val + j))) (cjOf nt.val us dev aligned.val k) by
-      exact ⟨hRD.utinv hU, MdbStep.retype hRD hI hChf
+    exact ⟨hRD.utinv hU, MdbStep.retype hRD hI hChf
         (fun z hz => by rw [hRvf z hz, hupd.rv ((hM.members z).1 hz).1])
           (cjOf_vplaced rfl hA2 (by omega) (by omega))⟩
-    refine ⟨hM, hsrcm, hcv0, hcs1, fun x hx hxs => hco1 x ((hM.members x).1 hx).1 hxs, hfiL, hA1,
-      by omega, by omega, by omega, fun j _ => physF_newCap _ _ _ _, fun j hj => ?_, fun j hj => ?_,
-      fun j hj hu => ?_, fun j hj hm => ?_, fun j l hj hl he => ?_, hT1, hT1b, hT2a, hT2b, hT3⟩
-    · have h1 : (j + 1) * k ≤ win.val * k := Nat.mul_le_mul_right _ hj
-      rw [Nat.add_mul, Nat.one_mul] at h1
-      obtain ⟨c1, -⟩ := newCap_range (n := nt.val) (by omega) ⟨BitVec.ofNat 64 (A + j * k)⟩ us dev hus hzv
-        (by show (BitVec.ofNat 64 (A + j * k)).toNat + _ ≤ _; rw [hkk]; simp; omega)
-      unfold cjOf; rw [halv, c1]; show (BitVec.ofNat 64 (A + j * k)).toNat = _; simp; omega
-    · have h1 : (j + 1) * k ≤ win.val * k := Nat.mul_le_mul_right _ hj
-      rw [Nat.add_mul, Nat.one_mul] at h1
-      obtain ⟨-, c2⟩ := newCap_range (n := nt.val) (by omega) ⟨BitVec.ofNat 64 (A + j * k)⟩ us dev hus hzv
-        (by show (BitVec.ofNat 64 (A + j * k)).toNat + _ ≤ _; rw [hkk]; simp; omega)
-      unfold cjOf; rw [halv, c2]; show (BitVec.ofNat 64 (A + j * k)).toNat + _ - 1 = _; simp; omega
-    · unfold cjOf at hu ⊢
-      rw [halv] at hu ⊢
-      obtain ⟨hn0, he⟩ := isUt_newCap hu
-      refine ⟨us, dev, he, ?_⟩
-      show 2 ^ us.val = 2 ^ zOf nt.val us.val
-      simp [zOf, hn0]
-    · obtain ⟨-, c0, h0, hn0⟩ := (hM.members _).1 hm
-      rw [hempty (off.val + j) (by omega) (by omega)] at h0
-      exact hn0 (eq_of_ok_eq h0).symm
-    · have hj' : IsSlotAt th dest (off.val + j) := Or.inl ⟨r, hdest, by omega⟩
-      have hl' : IsSlotAt th dest (off.val + l) := Or.inl ⟨r, hdest, by omega⟩
-      by_contra hne
-      rcases hj'.apart hP hl' (fun ⟨_, h2⟩ => hne (by omega)) with h | h <;>
-        (change slotOf dest (off.val + j) = slotOf dest (off.val + l) at he; rw [he] at h; omega)
   · rw [← hk4] at hZf; exact hZf
 
 end
