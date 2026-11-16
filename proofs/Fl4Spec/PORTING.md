@@ -374,6 +374,15 @@ details.
   an l4v `TcbFlag`, so it is not kept and the reply is any word of the new
   flags, and an enabled FPU is not restored lazily
   (`arch_post_set_flags`'s `lazy_fpu_restore`).
+- **`Ext/ReplyError`: the error reply with seL4's
+  `CONFIG_KERNEL_INVOCATION_REPORT_ERROR_IPC`** (FL4's
+  `KERNEL_INVOCATION_REPORT_ERROR_IPC`, set in the debug profile; l4v's
+  verified configuration leaves it off). `fl4ReplyFromKernelError reportError`
+  is l4v's `reply_from_kernel` when `reportError` is false (by `rfl`); when it
+  is set and the caller has an IPC buffer, it also clears the low 8 bits of
+  buffer word `DEBUG_MESSAGE_START + 1` (`debugMessageStart`, 6) and counts
+  that word in the reply's length. `fl4HandleInvocationR reportError` is
+  `fl4HandleInvocation` with this error reply (by `rfl` for `false`).
 - **`Ext/Invocation`: the invocation dispatcher.** `fl4DecodeInvocation` and
   `fl4PerformInvocation` are `decode_invocation` (Decode_A) and
   `perform_invocation` (Syscall_A) with exactly four substitutions:

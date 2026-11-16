@@ -10,11 +10,16 @@ P3 (DESIGN.md §9): **`handle_invocation` with an extra relation `X`**
   `Running`), so only an empty result reaches FL4's success tail
   (`reply_success_empty`). `DecOKDMX.ofDM` gives it from `DecOKDM` and the
   decode's `rr = []` (for `X` true).
-* `ReplyHypMX`: `ReplyHypM` keeping `X`, its success tail for `rr = []` only.
+* `ReplyHypMX`: `ReplyHypM` keeping `X`, its success tail for `rr = []` only,
+  its error reply against `fl4ReplyFromKernelError rep` (Ext/ReplyError:
+  with `rep`, FL4's `KERNEL_INVOCATION_REPORT_ERROR_IPC`, the debug word);
+  `handle_invocation_refinesMX` is against `fl4HandleInvocationR rep`, which
+  is `fl4HandleInvocation` for `rep` false.
 * `FaultHypAtMX`, `HIPostMX`, with the projections `TopPostDMX.toDM`,
   `HIPostMX.toM`, `ReplyHypM.toX`.
 -/
 import Fl4Proofs.P3.VsDecReply
+import Fl4Spec.Ext.ReplyError
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -75,7 +80,7 @@ abbrev DecOKDMX (X : S → A → Fl4Spec.State Unit → Prop) (s : S) (ar : A) (
 
 /-- **The reply writes keeping `X`**: the success tail for an empty result,
 and the error reply. -/
-structure ReplyHypMX (X : S → A → Fl4Spec.State Unit → Prop) (ct : U64) (is_call : Bool) : Prop where
+structure ReplyHypMX (X : S → A → Fl4Spec.State Unit → Prop) (rep : Bool) (ct : U64) (is_call : Bool) : Prop where
   succ : ∀ (s1 : S) (a1 : A) (σ' : Fl4Spec.State Unit), RelTopM (L := L) s1 σ' → X s1 a1 σ' →
     flTail (st := st) ct is_call s1 a1 ⦃ res => res.1 = .Ok () ∧
       ∃ z ∈ (specTail is_call ct.bv [] σ').1, RelTopM (L := L) res.2.1 z.2 ∧ X res.2.1 res.2.2 z.2 ⦄
@@ -87,12 +92,12 @@ structure ReplyHypMX (X : S → A → Fl4Spec.State Unit → Prop) (ct : U64) (i
       else ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s1, a1)) :
       Result ((core.result.Result Unit error.Exc) × S × A)) ⦃ res =>
       res.1 = .Ok () ∧ ∃ z ∈ ((Fl4Spec.NonDet.when is_call <|
-        Fl4Spec.replyFromKernel ct.bv (Fl4Spec.msgFromSyscallError e')) σ').1,
+        Fl4Spec.fl4ReplyFromKernelError rep ct.bv (Fl4Spec.msgFromSyscallError e')) σ').1,
         RelTopM (L := L) res.2.1 z.2 ∧ X res.2.1 res.2.2 z.2 ⦄
 
 /-- `ReplyHypM` is `ReplyHypMX` for `X` true. -/
 theorem ReplyHypM.toX {ct : U64} {is_call : Bool} (h : ReplyHypM (L := L) ct is_call (A := A)) :
-    ReplyHypMX (L := L) (fun (_ : S) (_ : A) (_ : Fl4Spec.State Unit) => True) ct is_call :=
+    ReplyHypMX (L := L) (fun (_ : S) (_ : A) (_ : Fl4Spec.State Unit) => True) false ct is_call :=
   ⟨fun s1 a1 σ' hR _ => WP.spec_mono (h.succ s1 a1 σ' [] hR) fun _ ⟨h1, z, hz, h2⟩ => ⟨h1, z, hz, h2, trivial⟩,
    fun s1 a1 σ' e e' hR _ he => WP.spec_mono (h.fail s1 a1 σ' e e' hR he) fun _ ⟨h1, z, hz, h2⟩ =>
      ⟨h1, z, hz, h2, trivial⟩⟩
@@ -108,24 +113,41 @@ theorem FaultHypAtM.toX {s : S} {σ : Fl4Spec.State Unit} {ct : U64} {f : error.
   fun a _ => WP.spec_mono (h a) fun _ ⟨z, hz, h2⟩ => ⟨z, hz, h2, trivial⟩
 
 /-- **The result of `handle_invocation` with `X`.** -/
-def HIPostMX (X : S → A → Fl4Spec.State Unit → Prop) (σ : Fl4Spec.State Unit)
+def HIPostMX (X : S → A → Fl4Spec.State Unit → Prop) (rep : Bool) (σ : Fl4Spec.State Unit)
     (calling blocking canDonate firstPhase : Bool) (cptr : Fl4Spec.CapRef)
     (res : core.result.Result Unit error.Exc × S × A) : Prop :=
-  ∃ y ∈ ((Fl4Spec.fl4HandleInvocation (Z := Unit) calling blocking canDonate firstPhase cptr).run σ).1,
+  ∃ y ∈ ((Fl4Spec.fl4HandleInvocationR (Z := Unit) rep calling blocking canDonate firstPhase cptr).run σ).1,
     ((res.1 = .Ok () ∧ y.1 = .ok ()) ∨ (res.1 = .Err .Preempted ∧ y.1 = .error ())) ∧
     RelTopM (L := L) res.2.1 y.2 ∧ X res.2.1 res.2.2 y.2
 
 theorem HIPostMX.toM {X : S → A → Fl4Spec.State Unit → Prop} {σ : Fl4Spec.State Unit}
     {calling blocking canDonate firstPhase : Bool} {cptr : Fl4Spec.CapRef}
     {res : core.result.Result Unit error.Exc × S × A}
-    (h : HIPostMX (L := L) X σ calling blocking canDonate firstPhase cptr res) :
+    (h : HIPostMX (L := L) X false σ calling blocking canDonate firstPhase cptr res) :
     HIPostM (L := L) σ calling blocking canDonate firstPhase cptr res := by
   obtain ⟨y, hy, h1, h2, -⟩ := h
   exact ⟨y, hy, h1, h2⟩
 
+/-- `hi_mem` for `fl4HandleInvocationR`. -/
+theorem hi_memR {σ : Fl4Spec.State Unit} (rep : Bool) {calling blocking canDonate firstPhase : Bool}
+    {cptr : Fl4Spec.CapRef} {mi : Fl4Spec.MessageInfo} {t : Fl4Spec.ObjRef} (hcur : σ.curThread = t)
+    (hmi : Fl4Spec.getMessageInfo (Z := Unit) t σ = ({(mi, σ)}, False))
+    {y : Except Unit Unit × Fl4Spec.State Unit}
+    (h : y ∈ ((Fl4Spec.syscall (hiMF t mi cptr) (fun fault => Fl4Spec.NonDet.when blocking <| Fl4Spec.handleFault t fault)
+      (hiME t mi cptr firstPhase)
+      (fun err => Fl4Spec.NonDet.when calling <| Fl4Spec.fl4ReplyFromKernelError rep t <|
+        Fl4Spec.msgFromSyscallError err)
+      (hiMFin t calling blocking canDonate)).run σ).1) :
+    y ∈ ((Fl4Spec.fl4HandleInvocationR (Z := Unit) rep calling blocking canDonate firstPhase cptr).run σ).1 := by
+  unfold Fl4Spec.fl4HandleInvocationR
+  refine mem_bindE_ok (a := σ.curThread) (s' := σ) (mem_liftE (x := (σ.curThread, σ)) rfl) ?_
+  refine mem_bindE_ok (a := mi) (s' := σ) (mem_liftE (x := (mi, σ)) (by rw [hcur, hmi]; rfl)) ?_
+  rw [hcur]
+  exact h
+
 /-- **`handle_invocation` refines l4v's, keeping `X`** (`handle_invocation_refinesM`
 with `X` threaded through the decode, the reply and the fault handler). -/
-theorem handle_invocation_refinesMX (X : S → A → Fl4Spec.State Unit → Prop) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (th : TypedHeap) (G : MdbGhost)
+theorem handle_invocation_refinesMX (X : S → A → Fl4Spec.State Unit → Prop) (rep : Bool) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (th : TypedHeap) (G : MdbGhost)
     (hP : Placed th) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
     (hDR : DomRel (L.mem s) (L.ksb s) σ) (hFR : MdbOKV (L.ksb s) (L.mem s) G)
     (hX0 : X s ar σ)
@@ -149,7 +171,7 @@ theorem handle_invocation_refinesMX (X : S → A → Fl4Spec.State Unit → Prop
       FaultHypAtMX (L := L) arI X s σ ct (.Cap cptr false lf)
         (.capFault (Fl4Spec.ofBl (Fl4Spec.toBl cptr.bv)) false lf'))
     -- the reply writes
-    (hRep : ReplyHypMX (L := L) X ct is_call)
+    (hRep : ReplyHypMX (L := L) X rep ct is_call)
     -- the decode and invocation of the cap
     (hDec : ∀ (sl : Fl4Spec.CslotPtr) (c : capability.Cap) (e : Aeneas.Std.Array obj.Slot 3#usize)
       (exs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)), capAt (L.mem s) (cslotAddr sl) = ok c →
@@ -159,7 +181,7 @@ theorem handle_invocation_refinesMX (X : S → A → Fl4Spec.State Unit → Prop
       DecOKRMX (L := L) arI X s ar σ info.label (msgLen info buf) (cslotAddr sl) c blocking is_call can_donate first_phase
         buf e mi.miLabel args (Fl4Spec.toBl cptr.bv) sl exs buffer ct) :
     syscall.handle_invocation st arI s ar is_call blocking can_donate first_phase cptr ⦃ res =>
-      HIPostMX (L := L) X σ is_call blocking can_donate first_phase (Fl4Spec.toBl cptr.bv) res ⦄ := by
+      HIPostMX (L := L) X rep σ is_call blocking can_donate first_phase (Fl4Spec.toBl cptr.bv) res ⦄ := by
   have hRT0 : RelTopM (L := L) s σ := ⟨th, G, hP, hCR, hFI, hDR, hFR⟩
   unfold syscall.handle_invocation
   rw [hct]; simp only [bind_ok, hinfo]
@@ -177,13 +199,13 @@ theorem handle_invocation_refinesMX (X : S → A → Fl4Spec.State Unit → Prop
       have hmF := hiMF_lookup_err (mi := mi) hl
       cases blocking
       · simp only [Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-        exact ⟨(.ok (), σ), hi_mem hcur hmi (mem_syscall_fault (z := ((), σ)) hmF
+        exact ⟨(.ok (), σ), hi_memR rep hcur hmi (mem_syscall_fault (z := ((), σ)) hmF
           (mem_when (fun h => by cases h) (fun _ => rfl))), Or.inl ⟨rfl, rfl⟩, hRT0, hX0⟩
       · simp only [↓reduceIte]
         refine WP.spec_bind (hFL rfl lf lf' hrel ar hX0) ?_
         rintro ⟨s1, a1⟩ ⟨z, hz, hRT, hXz⟩
         refine (WP.spec_ok _).2 ?_
-        exact ⟨(.ok z.1, z.2), hi_mem hcur hmi (mem_syscall_fault hmF (mem_when (fun _ => hz) (fun h => by cases h))),
+        exact ⟨(.ok z.1, z.2), hi_memR rep hcur hmi (mem_syscall_fault hmF (mem_when (fun _ => hz) (fun h => by cases h))),
           Or.inl ⟨rfl, rfl⟩, hRT, hXz⟩
   | Ok r1 =>
     cases e with
@@ -221,7 +243,7 @@ theorem handle_invocation_refinesMX (X : S → A → Fl4Spec.State Unit → Prop
             | Sys e2 =>
               refine WP.spec_mono (hRep.fail _ a1 σ e2 e' hRT0 hXe herr) ?_
               rintro res ⟨hres, z, hz, hRT, hXz⟩
-              exact ⟨(.ok z.1, z.2), hi_mem hcur hmi (mem_syscall_err hmF (by rw [hmE, hdec]; rfl) hz),
+              exact ⟨(.ok z.1, z.2), hi_memR rep hcur hmi (mem_syscall_err hmF (by rw [hmE, hdec]; rfl) hz),
                 Or.inl ⟨hres, rfl⟩, hRT, hXz⟩
             | Fault _ => exact absurd herr (by rintro (h | ⟨n, h, -⟩) <;> cases h)
             | Lookup _ => exact absurd herr (by rintro (h | ⟨n, h, -⟩) <;> cases h)
@@ -231,7 +253,7 @@ theorem handle_invocation_refinesMX (X : S → A → Fl4Spec.State Unit → Prop
           rintro v rfl
           rw [if_neg hne]
           refine (WP.spec_ok _).2 ?_
-          exact ⟨(.ok z.1, z.2), hi_mem hcur hmi (mem_syscall_fin hmF (by rw [hmE]; exact hdec.1)
+          exact ⟨(.ok z.1, z.2), hi_memR rep hcur hmi (mem_syscall_fin hmF (by rw [hmE]; exact hdec.1)
             (hiMFin_ok (by rw [← hcur]; exact hst) hy hz)), Or.inl ⟨rfl, rfl⟩, hRT, hXz⟩
         refine WP.spec_bind hD ?_
         rintro ⟨r3, s1, a1⟩ hq
@@ -243,7 +265,7 @@ theorem handle_invocation_refinesMX (X : S → A → Fl4Spec.State Unit → Prop
           | Sys e2 =>
             refine WP.spec_mono (hRep.fail _ a1 σ e2 e' hRT0 hXe herr) ?_
             rintro res ⟨hres, z, hz, hRT, hXz⟩
-            exact ⟨(.ok z.1, z.2), hi_mem hcur hmi (mem_syscall_err hmF (by rw [hmE, hdec]; rfl) hz),
+            exact ⟨(.ok z.1, z.2), hi_memR rep hcur hmi (mem_syscall_err hmF (by rw [hmE, hdec]; rfl) hz),
               Or.inl ⟨hres, rfl⟩, hRT, hXz⟩
           | Fault _ => exact absurd herr (by rintro (h | ⟨n, h, -⟩) <;> cases h)
           | Lookup _ => exact absurd herr (by rintro (h | ⟨n, h, -⟩) <;> cases h)
@@ -255,27 +277,27 @@ theorem handle_invocation_refinesMX (X : S → A → Fl4Spec.State Unit → Prop
             rintro res ⟨hres, z, hz, hRT, hXz⟩
             obtain ⟨y1, y2⟩ := y
             simp only at hyr; subst hyr
-            exact ⟨(.ok z.1, z.2), hi_mem hcur hmi (mem_syscall_fin hmF (by rw [hmE]; exact hdec.1)
+            exact ⟨(.ok z.1, z.2), hi_memR rep hcur hmi (mem_syscall_fin hmF (by rw [hmE]; exact hdec.1)
               (hiMFin_ok (by rw [← hcur]; exact hst) hy hz)), Or.inl ⟨hres, rfl⟩, hRT, hXz⟩
           · simp only at hpre
             subst hpre
             refine (WP.spec_ok _).2 ?_
             obtain ⟨y1, y2⟩ := y
             simp only at hyr; subst hyr
-            exact ⟨(.error (), y2), hi_mem hcur hmi (mem_syscall_fin hmF (by rw [hmE]; exact hdec.1)
+            exact ⟨(.error (), y2), hi_memR rep hcur hmi (mem_syscall_fin hmF (by rw [hmE]; exact hdec.1)
               (hiMFin_pre (by rw [← hcur]; exact hst) hy)), Or.inr ⟨rfl, rfl⟩,
               ⟨th', G', hP', hCR', hFI', hDR', hFR'⟩, hXy⟩
       · simp only
         have hmF := hiMF_extra_err (cptr := Fl4Spec.toBl cptr.bv) hl hbuffer her
         cases blocking
         · simp only [Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-          exact ⟨(.ok (), σ), hi_mem hcur hmi (mem_syscall_fault (z := ((), σ)) hmF
+          exact ⟨(.ok (), σ), hi_memR rep hcur hmi (mem_syscall_fault (z := ((), σ)) hmF
             (mem_when (fun h => by cases h) (fun _ => rfl))), Or.inl ⟨rfl, rfl⟩, hRT0, hX0⟩
         · simp only [↓reduceIte]
           refine WP.spec_bind (hfh rfl ar hX0) ?_
           rintro ⟨s1, a1⟩ ⟨z, hz, hRT, hXz⟩
           refine (WP.spec_ok _).2 ?_
-          exact ⟨(.ok z.1, z.2), hi_mem hcur hmi (mem_syscall_fault hmF (mem_when (fun _ => hz) (fun h => by cases h))),
+          exact ⟨(.ok z.1, z.2), hi_memR rep hcur hmi (mem_syscall_fault hmF (mem_when (fun _ => hz) (fun h => by cases h))),
             Or.inl ⟨rfl, rfl⟩, hRT, hXz⟩
 
 end
