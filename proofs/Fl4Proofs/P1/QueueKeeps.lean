@@ -447,7 +447,8 @@ theorem sched.activate_thread.entry (hA : P0.ArchTotal ar) (s : S) (a : A)
 
 /-- **`EntryHyps` with `act` discharged** (`sched.activate_thread.entry`);
 `fault` is no longer a field (`EntryHyps.fault`, from `tmoOK` and `xfer`). -/
-theorem EntryHyps.of {U : Set U64} (hA : P0.ArchTotal ar) (xfer : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U)
+theorem EntryHyps.of {U : Set U64} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
+    (xfer : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U)
     (tmoOK : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
       CanBlock st T Ac s (L.curW s) ∧ UserOK st T Cs Ω H U s ∧
       ∀ i, (i = layout.tcb.SLOT_TIMEOUT_HANDLER ∨ i = layout.tcb.SLOT_FAULT_HANDLER) →
@@ -455,8 +456,8 @@ theorem EntryHyps.of {U : Set U64} (hA : P0.ArchTotal ar) (xfer : XferOK st ar T
     (inv : ∀ (Ac : Set U64) (s : S) (a : A) (call blk don fp : Bool) (cptr : U64),
       BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → L.cscW s ∈ Ac → L.actionW s ≠ L.curW s →
       (L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s))) →
-      syscall.handle_invocation st ar s a call blk don fp cptr ⦃ r s' _ => ∃ Ac',
-        BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ∧
+      syscall.handle_invocation st ar s a call blk don fp cptr ⦃ r s' _ => ∃ σ', Adm σ' ∧ ∃ Ac',
+        BXIs st Cs σ' Ac' s' ∧
         (∀ e, r = .Err e → CurStep st Ac Ac' s s' ∧ L.actionW s' ≠ L.curW s' ∧
           (L.mem s' (scA (L.curW s')) ≠ 0#u64 → L.cscW s' = L.mem s' (scA (L.curW s')))) ⦄)
     (recvOK : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
@@ -467,9 +468,9 @@ theorem EntryHyps.of {U : Set U64} (hA : P0.ArchTotal ar) (xfer : XferOK st ar T
       obj.Slot.cap st (irqSlotA (L.ksb s) i) s ⦃ c => ∀ ptr b0 b1 b2, c = .Notification ptr b0 b1 b2 → ptr ∈ Nt ⦄)
     (debug : ∀ (Ac : Set U64) (s : S) (a : A) (n : I64), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
       syscall.debug_syscall st ar s a (L.curW s) n ⦃ _ s' _ => ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄) :
-    EntryHyps st ar T Cs Ω H Sg Rp Scs Nt Z U :=
-  ⟨xfer, tmoOK, inv, recvOK, irqcap, debug, fun Ac s a h =>
-    WP.spec_mono (sched.activate_thread.entry hA s a h) fun r hr => by obtain ⟨s', a'⟩ := r; simpa using hr⟩
+    EntryHyps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U :=
+  ⟨⟨xfer, tmoOK, recvOK, irqcap, debug, fun Ac s a h =>
+    WP.spec_mono (sched.activate_thread.entry hA s a h) fun r hr => by obtain ⟨s', a'⟩ := r; simpa using hr⟩, inv⟩
 
 end
 

@@ -24,9 +24,10 @@ named labels (`TcbGaps`), and the named per-kind finalisations of CNode
 (`scYieldGap_holds`); SchedControl, IrqControl, IrqHandler, IOPortControl and
 IOPort and VSpace are proved (`QueueSchedCtl`, `QueueDecIrq`, `QueueDecVs`), up
 to their named placement premises (`scCtl`, `irqPl`, `vsPl`). -/
-structure InvGaps4 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
+structure InvGaps4 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
+    (Adm : PSets → Prop) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
-  untyped : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .untyped
+  untyped : DecGapG st ar Adm T Cs Ω H Sg Rp Scs Nt Z U .untyped
   thread : TcbGaps st ar T Cs Ω H Sg Rp Scs Nt Z U
   /-- The IRQ handler family's placement premises (the family is proved, `decGap_irqHandler`). -/
   irqPl : IrqPlace st T Cs Ω H Sg Rp Scs Nt Z U
@@ -40,28 +41,38 @@ structure InvGaps4 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar 
   fin : FinGaps st ar T Cs Ω H Sg Rp Scs Nt Z
 
 /-- `InvGaps4` gives `InvGaps3`. -/
-theorem InvGaps4.gaps3 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
+theorem InvGaps4.gaps3 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar) {V : U64 → Prop}
     (C : CdtHyps2 st T Cs Ω H Sg Rp Scs Nt Z) (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V)
     (Pt : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
-    (G : InvGaps4 st ar T Cs Ω H Sg Rp Scs Nt Z U) :
-    InvGaps3 st ar T Cs Ω H Sg Rp Scs Nt Z U :=
+    (G : InvGaps4 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U) :
+    InvGaps3 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U :=
   ⟨G.untyped, decGap_thread hA G.thread Pt E (delGaps_of hA Pd (G.fin.kinds hA Pd)) C.toCdtHyps,
     decGap_irqControl hA C.toCdtHyps, decGap_irqHandler hA C.toCdtHyps Pd G.irqPl,
     decGap_schedControl hA G.scCtl, decGap_vspace hA Pd G.vsPl C.toCdtHyps E G.irqPl, G.vcpu, G.ept, decGap_ioPortControl C.toCdtHyps,
     decGap_ioPort hA E, scYieldGap_holds hA U, delGaps_of hA Pd (G.fin.kinds hA Pd)⟩
 
+/-- The placement facts and gaps of an admissible set tuple (`InvGaps4`'s
+kernel entry). -/
+def Hyps4 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (Adm : PSets → Prop)
+    (Cs U : Set U64) (σ : PSets) : Prop :=
+  P3Place st ar σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z U ∧ CdtHyps2 st σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z ∧
+    (∃ V : U64 → Prop, DelPlace st σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z V) ∧ TcbPlace st σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z U ∧
+    InvGaps4 st ar Adm σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z U ∧ ∀ n ∈ σ.Nt, σ.H n = some .ntfn
+
 /-- **Native kernel entries keep `EntryInv`**, from `InvGaps4` and the
-placement facts. -/
-theorem kernel_entry.entry_of4 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (hNt : ∀ n ∈ Nt, H n = some .ntfn) (P : P3Place st ar T Cs Ω H Sg Rp Scs Nt Z U)
-    (C : CdtHyps2 st T Cs Ω H Sg Rp Scs Nt Z) {V : U64 → Prop} (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V)
-    (Pt : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U) (G : InvGaps4 st ar T Cs Ω H Sg Rp Scs Nt Z U)
-    {Ac : Set U64} (s : S) (a : A) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
+placement facts of every admissible tuple (`Hyps4`); the entry ends over
+some admissible tuple (a retype grows the heap). -/
+theorem kernel_entry.entry_of4 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
+    (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U σ)
+    (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A)
+    (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
     (∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter → syscall.handle_syscall st ar s a number ⦃ s' _ =>
-      ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄) ∧
+      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) ∧
     (∀ irq : U64, syscall.handle_interrupt_entry st ar s a irq ⦃ s' _ =>
-      ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄) :=
-  kernel_entry.entry_of3 hA hNt P C (G.gaps3 hA C Pd Pt P.xfer) s a h
+      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) :=
+  kernel_entry.entry_of3 hA (fun σ h' => by
+    obtain ⟨P, C, ⟨V, Pd⟩, Pt, G, hNt⟩ := GF σ h'
+    exact ⟨P, C, G.gaps3 hA C Pd Pt P.xfer, hNt⟩) hσ s a h
 
 end
 
