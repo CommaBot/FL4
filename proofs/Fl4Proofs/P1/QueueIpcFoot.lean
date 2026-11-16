@@ -401,7 +401,8 @@ theorem endpoint.send_ipc.foot {A : Type _} {ar : machine.Arch A} (hA : P0.ArchT
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s) (hU : UserOK st T Cs Ω H U s)
     (hc : CanBlock st T Ac s t) (hdon : can_donate = true → L.mem s (scA t) ≠ 0#u64)
-    (hH : H e = some .ep) (hRS : ∀ s', WritesIn st s s' (KW st T Cs Sg Scs Z (EH H) s) → RS s' s') :
+    (hH : H e = some .ep) (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (KW st T Cs Sg Scs Z (EH H) s1) → RS s2 s2)
+    (hRS0 : RS s s) :
     endpoint.send_ipc st ar s a blocking do_call badge can_grant can_grant_reply can_donate t e
       ⦃ s' _ => IpcFoot st T Cs Ω Sg Scs Z (EH H) U s s' ⦄ := by
   have hidle := hc.ni
@@ -445,7 +446,7 @@ theorem endpoint.send_ipc.foot {A : Type _} {ar : machine.Arch A} (hA : P0.ArchT
     ⟨k1, fun y hy K a b c => f1 y hy K (by omega) c (by omega) (by omega),
       fun c hc o ho => nc1 c hc o (by omega) (by omega), fun n' hn' => o1 _ (hSg.sub _ (hX.1.ntB n' hn').2)⟩
   refine WP.spec_bind (WP.spec_and (hxf _ _ _ _ s1 a t e badge can_grant hd ht hdT h1 hB1 hX1 hS1 hSg1 (hU.ksb k1))
-    (hxw _ _ _ _ s1 a t e badge can_grant hd ht hdT h1 hB1 hX1 hS1 hSg1 (hU.ksb k1) (hRS s1 F1))) ?_
+    (hxw _ _ _ _ s1 a t e badge can_grant hd ht hdT h1 hB1 hX1 hS1 hSg1 (hU.ksb k1) (hRSK s s s1 hRS0 F1))) ?_
   rintro s2 ⟨⟨h2, hB2, hX2, hS2, hSg2, ea2, ec2, ei2, ecs2, f2, o2, -⟩, w2, -⟩
   have F2 : IpcFoot st T Cs Ω Sg Scs Z (EH H) U s s2 := (Foot.ipc F1).trans (XferW.ipc w2)
   have F : ∀ y ∈ T, ∀ K : U64, 3328 ≤ K.val → K.val < 4096 → K.val % 8 = 0 → K.val ≠ 3496 → K.val ≠ 3504 →
@@ -646,6 +647,194 @@ theorem endpoint.send_ipc.foot {A : Type _} {ar : machine.Arch A} (hA : P0.ArchT
 
 
 
+/-! ## `handle_fault_reply` writes only the receiver's registers -/
+
+theorem obj.Tcb.set_reg.rg {s : S} {t r v : U64} (hT : TcbPlaced T) (ht : t ∈ T) (hr : r.val < 384) :
+    obj.Tcb.set_reg st t s r v ⦃ s' => WritesIn st s s' (XferRegW T ∅) ⦄ :=
+  WP.spec_mono (obj.Tcb.set_reg.wrK s t r v (hT t ht) hr) fun s' ⟨K, hK, e⟩ => by
+    subst e
+    exact (writesIn_wr (field_aligned (hT t ht) (by omega) (by omega))).mono fun b e =>
+      Or.inl ⟨t, ht, K, by omega, by omega, by omega, e⟩
+
+theorem obj.Tcb.set_debug_reg.rg {s : S} {t i v : U64} (hT : TcbPlaced T) (ht : t ∈ T) (hi : i.val < 8) :
+    obj.Tcb.set_debug_reg st t s i v ⦃ s' => WritesIn st s s' (XferRegW T ∅) ⦄ := by
+  unfold obj.Tcb.set_debug_reg
+  simp only [lift, bind_ok]
+  refine WP.spec_mono (LawfulStore.write_spec s _ v) fun s' e => ?_
+  subst e
+  have hta := hT t ht
+  let K : U64 := ⟨BitVec.ofNat 64 (448 + 8 * i.val)⟩
+  have hK : K.val = 448 + 8 * i.val := by
+    show (BitVec.ofNat 64 (448 + 8 * i.val)).toNat = _
+    simp; omega
+  have ea : core.num.U64.wrapping_add (core.num.U64.wrapping_add t layout.tcb.DEBUG)
+      (core.num.U64.wrapping_mul i 8#u64) = core.num.U64.wrapping_add t K := by
+    apply UScalar.eq_of_val_eq
+    rw [field_val hta (by omega)]
+    have := hta.fits
+    simp [core.num.U64.wrapping_add_val_eq, core.num.U64.wrapping_mul_val_eq, U64.size_def, U64.numBits,
+      layout.tcb.DEBUG] at ⊢
+    omega
+  rw [ea]
+  exact (writesIn_wr (field_aligned hta (by omega) (by omega))).mono fun b e =>
+    Or.inl ⟨t, ht, K, by omega, by omega, by omega, e⟩
+
+theorem rg_trans {s1 s2 s3 : S} (h1 : WritesIn st s1 s2 (XferRegW T ∅)) (h2 : WritesIn st s2 s3 (XferRegW T ∅)) :
+    WritesIn st s1 s3 (XferRegW T ∅) := (h1.trans h2).mono fun _ hb => hb.elim id id
+
+theorem faults.copy_mrs_fault_reply_loop0.rg {s0 s : S} {snd rcv : U64} {regs : Slice U64} {n i : Usize}
+    (hT : TcbPlaced T) (hr : rcv ∈ T) (hR : ∀ x ∈ regs.val, x.val < 384) (h : WritesIn st s0 s (XferRegW T ∅)) :
+    faults.copy_mrs_fault_reply_loop0 st s snd rcv regs n i ⦃ r => WritesIn st s0 r.1 (XferRegW T ∅) ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  unfold faults.copy_mrs_fault_reply_loop0
+  apply loop.spec_decr_nat (measure := fun y => n.val - y.2.val)
+    (inv := fun y => WritesIn st s0 y.1 (XferRegW T ∅))
+  · rintro ⟨s1, j⟩ h1
+    simp only at h1
+    dsimp only
+    unfold faults.copy_mrs_fault_reply_loop0.body
+    dsimp only
+    split
+    · rename_i hjn
+      split
+      · rename_i hj
+        have hj' : j.val < regs.val.length := by simpa using hj
+        simp only [lift, bind_ok]
+        split
+        · refine WP.spec_bind (Slice.index_usize_spec regs j hj') fun rg hrg => ?_
+          have hrg' : rg.val < 384 := hR rg (hrg ▸ List.getElem_mem hj')
+          refine WP.spec_bind (msg.msg_register.lt _) fun i4 _ => ?_
+          refine WP.spec_bind (P0.obj.Tcb.reg.p0 st snd s1 i4 hS) fun v _ => ?_
+          refine WP.spec_bind (P0.regs.sanitise.p0 rg v) fun v5 _ => ?_
+          refine WP.spec_bind (obj.Tcb.set_reg.rg (v := v5) (s := s1) hT hr hrg') fun s2 w2 => ?_
+          step as ⟨j2, hj2⟩
+          refine ⟨rg_trans h1 w2, ?_⟩
+          have : j.val < n.val := by simpa using hjn
+          omega
+        · exact (WP.spec_ok _).2 h1
+      · exact (WP.spec_ok _).2 h1
+    · exact (WP.spec_ok _).2 h1
+  · exact h
+
+theorem faults.copy_mrs_fault_reply_loop1.rg {s0 s : S} {rcv buf : U64} {regs : Slice U64} {n i : Usize}
+    (hT : TcbPlaced T) (hr : rcv ∈ T) (hR : ∀ x ∈ regs.val, x.val < 384) (h : WritesIn st s0 s (XferRegW T ∅)) :
+    faults.copy_mrs_fault_reply_loop1 st s rcv regs n i buf ⦃ s' => WritesIn st s0 s' (XferRegW T ∅) ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  unfold faults.copy_mrs_fault_reply_loop1
+  apply loop.spec_decr_nat (measure := fun y => n.val - y.2.val)
+    (inv := fun y => WritesIn st s0 y.1 (XferRegW T ∅))
+  · rintro ⟨s1, j⟩ h1
+    simp only at h1
+    dsimp only
+    unfold faults.copy_mrs_fault_reply_loop1.body
+    dsimp only
+    split
+    · rename_i hjn
+      split
+      · rename_i hj
+        have hj' : j.val < regs.val.length := by simpa using hj
+        refine WP.spec_bind (Slice.index_usize_spec regs j hj') fun rg hrg => ?_
+        have hrg' : rg.val < 384 := hR rg (hrg ▸ List.getElem_mem hj')
+        simp only [lift, bind_ok]
+        refine WP.spec_bind (P0.msg.buf_get.p0 st s1 buf _ hS) fun v _ => ?_
+        refine WP.spec_bind (P0.regs.sanitise.p0 rg v) fun v5 _ => ?_
+        refine WP.spec_bind (obj.Tcb.set_reg.rg (v := v5) (s := s1) hT hr hrg') fun s2 w2 => ?_
+        step as ⟨j2, hj2⟩
+        refine ⟨rg_trans h1 w2, ?_⟩
+        have : j.val < n.val := by simpa using hjn
+        omega
+      · exact (WP.spec_ok _).2 h1
+    · exact (WP.spec_ok _).2 h1
+  · exact h
+
+theorem faults.copy_mrs_fault_reply.rg {s : S} {snd rcv len : U64} {regs : Slice U64}
+    (hT : TcbPlaced T) (hr : rcv ∈ T) (hR : ∀ x ∈ regs.val, x.val < 384) :
+    faults.copy_mrs_fault_reply st s snd rcv regs len ⦃ s' => WritesIn st s s' (XferRegW T ∅) ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  unfold faults.copy_mrs_fault_reply
+  simp only [lift, bind_ok]
+  refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> exact (WP.spec_ok _).2 trivial) fun n _ => ?_
+  refine WP.spec_bind (faults.copy_mrs_fault_reply_loop0.rg (snd := snd) (n := n) (i := 0#usize) hT hr hR
+    (WritesIn.refl s _)) ?_
+  rintro ⟨s1, i2⟩ w1
+  simp only at w1
+  try simp only [WP.uncurry'_pair]
+  try simp only [uncurry_apply_pair]
+  split
+  · refine WP.spec_bind (P0.msg.lookup_ipc_buffer.p0 st s1 false snd hS) fun buf _ => ?_
+    split
+    · exact faults.copy_mrs_fault_reply_loop1.rg hT hr hR w1
+    · exact (WP.spec_ok _).2 w1
+  · exact (WP.spec_ok _).2 w1
+
+theorem debug.configure_single_stepping.rg {A : Type _} {ar : machine.Arch A} {s : S} {a : A} {t bp n : U64}
+    {rep : Bool} (hT : TcbPlaced T) (ht : t ∈ T) :
+    debug.configure_single_stepping st ar s a t bp n rep ⦃ r => WritesIn st s r.2.1 (XferRegW T ∅) ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  unfold debug.configure_single_stepping
+  refine WP.spec_bind (Pₘ := fun s1 => WritesIn st s s1 (XferRegW T ∅)) ?_ fun s1 w1 => ?_
+  · split
+    · refine WP.spec_bind (obj.Tcb.set_debug_reg.rg (s := s) (v := 0#u64) hT ht (by simp [debug.SS_ENABLED]))
+        fun s2 w2 => ?_
+      refine WP.spec_bind (P0.obj.Tcb.reg.p0 st t s2 _ hS) fun i _ => ?_
+      unfold debug.EFLAGS_TF
+      step as ⟨i1, _⟩
+      simp only [lift, bind_ok]
+      exact WP.spec_mono (obj.Tcb.set_reg.rg (s := s2) hT ht (by simp [layout.reg.FLAGS])) fun s3 w3 =>
+        rg_trans w2 w3
+    · exact obj.Tcb.set_debug_reg.rg hT ht (by simp [debug.SS_ENABLED])
+  refine WP.spec_bind (obj.Tcb.set_debug_reg.rg (s := s1) (v := n) hT ht (by simp [debug.SS_COUNT])) fun s2 w2 => ?_
+  exact (WP.spec_ok _).2 (rg_trans w1 w2)
+
+theorem faults.handle_fault_reply.rg {A : Type _} {ar : machine.Arch A} {s : S} {a : A} {rcv snd : U64}
+    (hT : TcbPlaced T) (hr : rcv ∈ T) :
+    faults.handle_fault_reply st ar s a rcv snd ⦃ r => WritesIn st s r.2.1 (XferRegW T ∅) ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  unfold faults.handle_fault_reply
+  refine WP.spec_bind (P0.msg.msg_info.p0 st s snd hS) fun tag _ => ?_
+  refine WP.spec_bind (P0.obj.Tcb.fault_type.p0 st rcv s hS) fun ty _ => ?_
+  have C : ∀ (regs : Slice U64), (∀ x ∈ regs.val, x.val < 384) →
+      (do
+        let s2 ← faults.copy_mrs_fault_reply st s snd rcv regs tag.length
+        ok (decide (tag.label = 0#u64), s2, a)) ⦃ r => WritesIn st s r.2.1 (XferRegW T ∅) ⦄ := fun regs hR =>
+    WP.spec_bind (faults.copy_mrs_fault_reply.rg hT hr hR) fun s2 w2 => (WP.spec_ok _).2 w2
+  split
+  · exact (WP.spec_ok _).2 (WritesIn.refl _ _)
+  split
+  · simp only [lift, bind_ok]
+    exact C _ (by simp [faults.SYSCALL_MESSAGE, Aeneas.Std.Array.make, Aeneas.Std.Array.to_slice, layout.reg.RAX,
+      layout.reg.RBX, layout.reg.RCX, layout.reg.RDX, layout.reg.RSI, layout.reg.RDI, layout.reg.RBP, layout.reg.R8,
+      layout.reg.R9, layout.reg.R10, layout.reg.R11, layout.reg.R12, layout.reg.R13, layout.reg.R14, layout.reg.R15,
+      layout.reg.FAULT_IP, layout.reg.RSP, layout.reg.FLAGS])
+  split
+  · simp only [lift, bind_ok]
+    exact C _ (by simp [faults.EXCEPTION_MESSAGE, Aeneas.Std.Array.make, Aeneas.Std.Array.to_slice,
+      layout.reg.FAULT_IP, layout.reg.RSP, layout.reg.FLAGS])
+  split
+  · simp only [lift, bind_ok]
+    exact C _ (by simp [faults.TIMEOUT_REPLY_MESSAGE, Aeneas.Std.Array.make, Aeneas.Std.Array.to_slice,
+      layout.reg.RAX, layout.reg.RBX, layout.reg.RCX, layout.reg.RDX, layout.reg.RSI, layout.reg.RDI, layout.reg.RBP,
+      layout.reg.R8, layout.reg.R9, layout.reg.R10, layout.reg.R11, layout.reg.R12, layout.reg.R13, layout.reg.R14,
+      layout.reg.R15, layout.reg.FAULT_IP, layout.reg.RSP, layout.reg.FLAGS, layout.reg.TLS_BASE])
+  split
+  · refine WP.spec_bind (P0.obj.Tcb.fault_w0.p0 st rcv s hS) fun w0 _ => ?_
+    split
+    · exact (WP.spec_ok _).2 (WritesIn.refl _ _)
+    refine WP.spec_bind (Pₘ := fun _ => True) (by
+      split
+      · exact (WP.spec_ok _).2 trivial
+      · exact WP.spec_bind (msg.msg_register.lt _) fun _ _ => WP.spec_mono (P0.obj.Tcb.reg.p0 st snd s _ hS)
+          fun _ _ => trivial) fun ni _ => ?_
+    refine WP.spec_bind (debug.configure_single_stepping.rg (s := s) (a := a) (bp := 0#u64) (n := ni) (rep := true)
+      hT hr) ?_
+    rintro ⟨b, s1, a1⟩ w1
+    try simp only [WP.uncurry'_pair]
+    exact (WP.spec_ok _).2 w1
+  · exact (WP.spec_ok _).2 (WritesIn.refl _ _)
+
+/-! ## Field and state writes from `BXI` -/
+
+
 /-- `send_ipc.foot` from `BlkOK` (P3's `SendIpcFootP1` shape, with the
 widened footprint). -/
 theorem endpoint.send_ipc.footB {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
@@ -653,12 +842,13 @@ theorem endpoint.send_ipc.footB {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
     (s : S) (a : A) (blocking do_call : Bool) (badge : U64) (can_grant can_grant_reply can_donate : Bool) (t e : U64)
     (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hU : UserOK st T Cs Ω H U s)
     (hc : CanBlock st T Ac s t) (hdon : can_donate = true → L.mem s (scA t) ≠ 0#u64)
-    (hH : H e = some .ep) (hRS : ∀ s', WritesIn st s s' (KW st T Cs Sg Scs Z (EH H) s) → RS s' s') :
+    (hH : H e = some .ep) (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (KW st T Cs Sg Scs Z (EH H) s1) → RS s2 s2)
+    (hRS0 : RS s s) :
     endpoint.send_ipc st ar s a blocking do_call badge can_grant can_grant_reply can_donate t e
       ⦃ s' _ => IpcFoot st T Cs Ω Sg Scs Z (EH H) U s s' ⦄ := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   exact endpoint.send_ipc.foot hA hxf hxw s a blocking do_call badge can_grant can_grant_reply can_donate t e Q R
-    h0 hB hX hS hSg hU hc hdon hH hRS
+    h0 hB hX hS hSg hU hc hdon hH hRSK hRS0
 
 theorem faults.set_fault.kw (s : S) (t : obj.Tcb) (f : error.Fault) (hT : TcbPlaced T) (ht : t ∈ T) :
     faults.set_fault st s t f ⦃ s' => Foot st T Cs Sg Scs Z Es s s' ⦄ := by
@@ -730,7 +920,8 @@ theorem faults.handle_timeout.foot {A : Type _} {ar : machine.Arch A} (hA : P0.A
     (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hU : UserOK st T Cs Ω H U s) (hc : CanBlock st T Ac s t)
     (hcap : obj.Tcb.slot t layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl =>
       obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄)
-    (hRS : ∀ s', IpcFoot st T Cs Ω Sg Scs Z (EH H) U s s' → RS s' s') :
+    (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (KW st T Cs Sg Scs Z (EH H) s1) → RS s2 s2)
+    (hRS0 : RS s s) :
     faults.handle_timeout st ar s a t f ⦃ s' _ => IpcFoot st T Cs Ω Sg Scs Z (EH H) U s s' ⦄ := by
   have ht := hc.mem
   unfold faults.handle_timeout
@@ -747,7 +938,7 @@ theorem faults.handle_timeout.foot {A : Type _} {ar : machine.Arch A} (hA : P0.A
     rintro s1 ⟨⟨h1, hU1, hc1⟩, F1⟩
     obtain ⟨⟨Q1, R1, q1⟩, hB1, hX1, hS1, hSg1⟩ := h1
     refine WP.spec_bind (endpoint.send_ipc.foot hA hxf hxw s1 a true false b g gr false t p Q1 R1 q1 hB1 hX1 hS1 hSg1
-      hU1 hc1 (fun e => by cases e) hpH (fun s' w => hRS s' ((Foot.ipc F1).trans (Foot.ipc w)))) ?_
+      hU1 hc1 (fun e => by cases e) hpH hRSK (hRSK s s s1 hRS0 F1)) ?_
     rintro ⟨s2, a1⟩ h2
     exact (WP.spec_ok _).2 ((Foot.ipc F1).trans (by simpa using h2))
   · rintro ⟨x, s2, a2⟩ h2
@@ -770,7 +961,8 @@ theorem reply_tail.foot {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar
       obj.Tcb.slot t layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl => obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄)
     {s3 : S} {a2 : A} {i ft : U64}
     (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s3) (r : RTail st T Ac s3 i) (hU : UserOK st T Cs Ω H U s3)
-    (hRS : ∀ s', IpcFoot st T Cs Ω Sg Scs Z (EH H) U s3 s' → RS s' s') :
+    (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (KW st T Cs Sg Scs Z (EH H) s1) → RS s2 s2)
+    (hRS0 : RS s3 s3) :
     (do
       let i3 ← obj.Tcb.sc st i s3
       let b2 ← obj.Sc.is_null i3
@@ -828,7 +1020,7 @@ theorem reply_tail.foot {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar
       ok (s4, a2)) ⦃ s' _ => IpcFoot st T Cs Ω Sg Scs Z (EH H) U s3 s' ⦄ :=
     WP.spec_bind (r.postponeK (Sg := Sg) (Scs := Scs) (Z := Z) (Es := EH H) h hi0) fun s4 h4 => (WP.spec_ok _).2 (Foot.ipc h4)
   have TO : ∀ badge : U64, faults.handle_timeout st ar s3 a2 i (error.Fault.Timeout badge) ⦃ s' _ =>
-      IpcFoot st T Cs Ω Sg Scs Z (EH H) U s3 s' ⦄ := fun badge => faults.handle_timeout.foot hA (xferOK_of hA E) hxw s3 a2 i _ h.blk hU r.cb (tmoAny Ac s3 i h r.mem) hRS
+      IpcFoot st T Cs Ω Sg Scs Z (EH H) U s3 s' ⦄ := fun badge => faults.handle_timeout.foot hA (xferOK_of hA E) hxw s3 a2 i _ h.blk hU r.cb (tmoAny Ac s3 i h r.mem) hRSK hRS0
   have VT : (do
       let b6 ← faults.valid_timeout_handler st s3 i
       if b6 then
@@ -865,7 +1057,9 @@ theorem ipc.do_reply_transfer.foot {A : Type _} {ar : machine.Arch A} (hA : P0.A
       obj.Tcb.slot t layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl => obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄)
     (userOK : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → UserOK st T Cs Ω H U s)
     (s : S) (a : A) (ct r : U64) (grant : Bool) (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hr : r ∈ Rp)
-    (hct : ct ∈ T) (hRS : ∀ s', IpcFoot st T Cs Ω Sg Scs Z (EH H) U s s' → RS s' s') :
+    (hct : ct ∈ T)
+    (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (KW st T Cs Sg Scs Z (EH H) s1) → RS s2 s2)
+    (hRS0 : RS s s) :
     ipc.do_reply_transfer st ar s a ct r grant ⦃ s' _ => IpcFoot st T Cs Ω Sg Scs Z (EH H) U s s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
   have hT := h.1.choose_spec.choose_spec.tcbs
@@ -917,25 +1111,27 @@ theorem ipc.do_reply_transfer.foot {A : Type _} {ar : machine.Arch A} (hA : P0.A
   rintro s4 ⟨h4, R4, F4⟩
   refine WP.spec_bind (P0.obj.Tcb.fault_type.p0 st i s4 hS) fun ft _ => ?_
   refine WP.spec_bind (Pₘ := fun r : S × A => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ∧ RTail st T Ac r.1 i ∧
-    IpcFoot st T Cs Ω Sg Scs Z (EH H) U s r.1) ?_ ?_
+    IpcFoot st T Cs Ω Sg Scs Z (EH H) U s r.1 ∧ RS r.1 r.1) ?_ ?_
   · split
     · -- the message
       obtain ⟨⟨Q, R, q4⟩, hB4, hX4, hSg4, hS4⟩ := h4
       refine WP.spec_bind (WP.spec_and (xferOK_of hA E Ac ∅ Q R s4 a2 ct 0#u64 0#u64 grant i hct hiT q4 hB4 hX4 hS4 hSg4
         (userOK Ac s4 ⟨⟨Q, R, q4⟩, hB4, hX4, hSg4, hS4⟩))
         (hxw Ac ∅ Q R s4 a2 ct 0#u64 0#u64 grant i hct hiT q4 hB4 hX4 hS4 hSg4
-        (userOK Ac s4 ⟨⟨Q, R, q4⟩, hB4, hX4, hSg4, hS4⟩) (hRS s4 (Foot.ipc F4)))) ?_
-      rintro s5 ⟨⟨q5, hB5, hX5, hS5, hSg5, ea5, -, ei5, -, f5, -, -⟩, w5, -⟩
+        (userOK Ac s4 ⟨⟨Q, R, q4⟩, hB4, hX4, hSg4, hS4⟩) (hRSK s s s4 hRS0 F4))) ?_
+      rintro s5 ⟨⟨q5, hB5, hX5, hS5, hSg5, ea5, -, ei5, -, f5, -, -⟩, w5, r5⟩
       have h5 : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s5 := ⟨⟨Q, R, q5⟩, hB5, hX5, hSg5, hS5⟩
       have R5 : RPre st T Ac s5 i := R4.keep (by rw [stA_eq]; exact f5 i hiT _ (by simp) (by simp) (by simp))
         (by rw [inqA_eq]; exact f5 i hiT _ (by simp) (by simp) (by simp))
         (by rw [scA_eq]; exact f5 i hiT _ (by simp) (by simp) (by simp)) ea5 ei5
       refine WP.spec_bind (WP.spec_and (R5.set h5 not_blocked_running running_ne)
         (sched.set_thread_state.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := EH H) s5 i _ q5 hiT)) fun s6 h6 => ?_
-      exact (WP.spec_ok _).2 ⟨h6.1.1, h6.1.2, (Foot.ipc F4).trans ((XferW.ipc w5).trans (Foot.ipc h6.2))⟩
+      exact (WP.spec_ok _).2 ⟨h6.1.1, h6.1.2, (Foot.ipc F4).trans ((XferW.ipc w5).trans (Foot.ipc h6.2)),
+        hRSK s4 s5 _ r5 h6.2⟩
     · -- the fault reply
-      refine WP.spec_bind (faults.handle_fault_reply.rf (s := s4) (a := a2) (snd := ct) hT hiT) ?_
-      rintro ⟨rs, s5, a3⟩ w5
+      refine WP.spec_bind (WP.spec_and (faults.handle_fault_reply.rf (s := s4) (a := a2) (snd := ct) hT hiT)
+        (faults.handle_fault_reply.rg (s := s4) (a := a2) (snd := ct) hT hiT)) ?_
+      rintro ⟨rs, s5, a3⟩ ⟨w5, g5⟩
       try simp only [WP.uncurry'_pair]
       obtain ⟨⟨Q, R, q4⟩, hB4, hX4, hSg4, hS4⟩ := h4
       obtain ⟨q5, hB5, hX5, hS5, hSg5, ea5, -, ei5, -, f5, -⟩ :=
@@ -968,18 +1164,25 @@ theorem ipc.do_reply_transfer.foot {A : Type _} {ar : machine.Arch A} (hA : P0.A
       have F6 : Foot st T Cs Sg Scs Z (EH H) s5 (L.wr s5 (faultA i) fl4_abi.consts.fault.NullFault) :=
         foot_field (K := 3376#u64) hT hiT (by simp) (by simp) (by simp) (by simp)
       have q6 := h6.1.choose_spec.choose_spec
+      have G5 : Foot st T Cs Sg Scs Z (EH H) s4 s5 := Foot.of g5 fun b hb => by
+        rcases hb with ⟨y, hy, K, h1, h2, -, rfl⟩ | hb
+        · exact kw_field hy (by omega) (by omega) (by omega)
+        · exact absurd hb (Set.notMem_empty _)
+      have RS4 : RS s4 s4 := hRSK s s s4 hRS0 F4
       split
       · refine WP.spec_bind (WP.spec_and (R6.set h6 not_blocked_restart restart_ne)
           (sched.set_thread_state.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := EH H) _ i _ q6 hiT)) fun s7 h7 => ?_
         exact (WP.spec_ok _).2 ⟨h7.1.1, h7.1.2,
-          (Foot.ipc F4).trans (W5.trans ((Foot.ipc F6).trans (Foot.ipc h7.2)))⟩
+          (Foot.ipc F4).trans (W5.trans ((Foot.ipc F6).trans (Foot.ipc h7.2))),
+          hRSK s4 s4 _ RS4 (G5.trans (F6.trans h7.2))⟩
       · refine WP.spec_bind (WP.spec_and (R6.set h6 not_blocked_inactive inactive_ne)
           (sched.set_thread_state.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := EH H) _ i _ q6 hiT)) fun s7 h7 => ?_
         exact (WP.spec_ok _).2 ⟨h7.1.1, h7.1.2,
-          (Foot.ipc F4).trans (W5.trans ((Foot.ipc F6).trans (Foot.ipc h7.2)))⟩
-  rintro ⟨s6, a6⟩ ⟨h6, r6, F6⟩
+          (Foot.ipc F4).trans (W5.trans ((Foot.ipc F6).trans (Foot.ipc h7.2))),
+          hRSK s4 s4 _ RS4 (G5.trans (F6.trans h7.2))⟩
+  rintro ⟨s6, a6⟩ ⟨h6, r6, F6, RS6⟩
   try simp only [WP.uncurry'_pair]
-  refine WP.spec_mono (reply_tail.foot hA E hxw tmoAny h6 r6 (userOK Ac s6 h6) fun s' w => hRS s' (F6.trans w))
+  refine WP.spec_mono (reply_tail.foot hA E hxw tmoAny h6 r6 (userOK Ac s6 h6) hRSK RS6)
     fun r hr => ?_
   obtain ⟨s', a'⟩ := r
   simp only [WP.uncurry'_pair] at hr ⊢
