@@ -1,6 +1,6 @@
 /-
 P3 (DESIGN.md §9): **the spec's deletions keep the domain schedule** (`DK`,
-VsDom): `dk_recDel`, `dk_capDelete`, for any cap (CNode and TCB
+VsDom): `dk_recDel`, `dk_capDelete`, `dk_capRevoke`, `dke_invokeCnode`, for any cap (CNode and TCB
 `DomFrame`s), from `DK` lemmas of `finalise_cap`'s branches (mirroring
 SpecFinFrames' `nkc_` lemmas) and the pre-fixed point of `rec_del` with
 every outcome keeping the schedule (`lfp_le_prefixed`).
@@ -440,6 +440,43 @@ macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_recDel _)
 theorem dk_capDelete (sl : CslotPtr) : DKE (capDelete (Z := Unit) sl) := by
   unfold capDelete; dk_auto
 macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_capDelete _)
+
+/-! ## `cap_revoke` and the CNode invocations -/
+
+/-- One step of `cap_revoke` keeps the schedule, its recursive calls keeping it. -/
+theorem dk_capRevokeF {f : CslotPtr → NonDet (State Unit) (Except Unit Unit)}
+    (hrec : ∀ k, DK (f k)) (sl : CslotPtr) : DKE (capRevokeF (Z := Unit) f sl) := by
+  have hrec' : ∀ k, DKE (ε := Unit) (f k : NonDetE (State Unit) Unit Unit) := hrec
+  unfold capRevokeF withoutPreemption selectExt
+  dk_auto
+  all_goals exact hrec' _
+
+/-- **`cap_revoke` keeps the domain schedule.** -/
+theorem dk_capRevoke (sl : CslotPtr) : DKE (capRevoke (Z := Unit) sl) := by
+  intro σ x hx
+  let f : CslotPtr → NonDet (State Unit) (Except Unit Unit) := fun _ t =>
+    ({y | y.2.domainList = t.domainList ∧ y.2.domainStartIndex = t.domainStartIndex}, True)
+  have hf : ∀ k t, (fun r c => capRevokeF (Z := Unit) r c) f k t ≤ f k t := fun k t =>
+    ⟨fun y hy => dk_capRevokeF (f := f) (fun _ _ _ hz => hz) k t y hy, fun _ => trivial⟩
+  exact (lfp_le_prefixed _ f hf sl σ).1 hx
+macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_capRevoke _)
+
+theorem dk_capMove' (c : Cap) (s1 s2 : CslotPtr) : DK (capMove (Z := Unit) c s1 s2) := by
+  unfold capMove; dk_auto
+macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_capMove' _ _ _)
+
+theorem dk_removeAndRestartBadgedThread' (t e : ObjRef) (b : Badge) :
+    DK (removeAndRestartBadgedThread (Z := Unit) t e b) := by
+  unfold removeAndRestartBadgedThread; dk_auto
+macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_removeAndRestartBadgedThread' _ _ _)
+
+theorem dk_cancelBadgedSends' (e : ObjRef) (b : Badge) : DK (cancelBadgedSends (Z := Unit) e b) := by
+  unfold cancelBadgedSends; dk_auto
+macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_cancelBadgedSends' _ _)
+
+/-- **Every CNode invocation keeps the domain schedule.** -/
+theorem dke_invokeCnode (i : CnodeInvocation) : DKE (invokeCnode (Z := Unit) i) := by
+  cases i <;> unfold invokeCnode withoutPreemption <;> dk_auto
 
 end
 

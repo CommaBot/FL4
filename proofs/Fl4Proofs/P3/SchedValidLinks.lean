@@ -5,8 +5,13 @@ the spec, from the spec's SCs and TCBs being the relations' (`ObjCover`),
 the SC relation (`ScRel1`: the `TCB` and `NTFN` words), the IPC relation
 (TCBs, notifications, `TcbRel.bound`) and P1's `ScExtra0` (the words name
 TCBs and notifications): `scLinkHyp_of`.
+
+**`ObjCover` at related states**: TCBs by `KTyped` and `JPlaced.tcb`,
+nonzero SCs by `JPlaced.sc`, the rest by `SpecCover` (a field of
+`JointInv`): `objCover_of`, `objCover_of_joint`.
 -/
 import Fl4Proofs.P3.SchedValidRel
+import Fl4Proofs.P3.ScPlace
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Sched
@@ -51,6 +56,31 @@ theorem scLinkHyp_of {N T E R C Cs Scs Nt : Set U64} {B : Set (U64 × Word)} {s 
     obtain ⟨h0, rfl⟩ := optRef_some hb
     obtain ⟨xn, hkn, -⟩ := hI.ntfn _ (hNt _ (hX.bnd u hu h0))
     exact ⟨xn, hkn⟩
+
+/-- **`ObjCover` from `KTyped`, `JPlaced` and `SpecCover`**, over `H`'s TCBs
+and replies, endpoints and notifications in `E` and `N`. -/
+theorem objCover_of {th : TypedHeap} {H : Heap} {Tr C N E : Set U64} {s : S} {σ : State Unit}
+    (hKT : KTyped th σ) (hJ : JPlaced (L := L) th H Tr C s σ) (hSC : SpecCover H σ)
+    (hE : ∀ e, H e = some .ep → e ∈ E) (hN : ∀ n, H n = some .ntfn → n ∈ N) :
+    ObjCover N (Heap.tcbs H) E (Heap.replies H) C σ := by
+  refine ⟨fun o x hk => ⟨⟨o⟩, (hJ.tcb _).1 ((hKT o).2 x hk), rfl⟩,
+    fun o x hk => ⟨⟨o⟩, hN _ (hSC.ntfn o x hk), rfl⟩, fun o x hk => ⟨⟨o⟩, hE _ (hSC.ep o x hk), rfl⟩,
+    fun o x hk => ⟨⟨o⟩, hSC.reply o x hk, rfl⟩, fun o y k hk => ?_⟩
+  by_cases h0 : (⟨o⟩ : U64) = 0#u64
+  · exfalso
+    have e : o = (0#u64 : U64).bv := congrArg UScalar.bv h0
+    exact hSC.sc0 y k (e ▸ hk)
+  · exact ⟨⟨o⟩, (hJ.sc ⟨o⟩ y k h0 hk).1, rfl⟩
+
+/-- **`ObjCover` at every related state**, from the joint invariant. -/
+theorem objCover_of_joint {th : TypedHeap} (hJI : JointInv (L := L) th) {s : S} {σ : State Unit} {G : MdbGhost}
+    (hDS : DState (L := L) th s σ G) :
+    ∃ (H : Heap) (Cs Ac Tr C : Set U64),
+      BlkOK st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
+        (Heap.scBits H) Ac s ∧ JPlaced (L := L) th H Tr C s σ ∧
+      ObjCover (Heap.ntfns H) (Heap.tcbs H) {e | H e = some .ep} (Heap.replies H) C σ := by
+  obtain ⟨H, Cs, Ac, Tr, C, hb, hj, hc⟩ := hJI s σ G hDS
+  exact ⟨H, Cs, Ac, Tr, C, hb, hj, objCover_of hDS.2.2.kt hj hc (fun _ h => h) (fun _ h => h)⟩
 
 end
 

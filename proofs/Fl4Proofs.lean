@@ -214,4 +214,5 @@ import Fl4Proofs.P3.TcbReadRegsSpec
 import Fl4Proofs.P3.DomRecDel
 import Fl4Proofs.P3.TcbDom
 import Fl4Proofs.P3.SchedValidLinks
+import Fl4Proofs.P3.CnodeDom
 import Fl4Proofs.P3.SchedValidRel

@@ -240,20 +240,31 @@ theorem JPlaced.kwOutBlk (h : JPlaced (L := L) th H Tr C s σ) {Cs Ac : Set U64}
   obtain ⟨⟨Q, R, h0⟩, -⟩ := hb
   exact h.kwOut rfl (fun _ h => h) (fun c ⟨z, hz⟩ => ⟨z, hz, Heap.scBits_eq hz⟩) h0.nodes h0.omega
 
+/-- **The spec's objects in `H`**, the part of the spec-to-FL4 object
+coverage (`Sched.ObjCover`) that the CSpace relation does not give: the
+spec's notifications, endpoints and replies are `H`'s, and no SC sits at
+address 0 (TCBs: `KTyped` and `JPlaced.tcb`; nonzero SCs: `JPlaced.sc`). -/
+structure SpecCover (H : Heap) (σ : Fl4Spec.State Unit) : Prop where
+  ntfn : ∀ o x, σ.kheap o = some (.notification x) → H ⟨o⟩ = some .ntfn
+  ep : ∀ o x, σ.kheap o = some (.endpoint x) → H ⟨o⟩ = some .ep
+  reply : ∀ o x, σ.kheap o = some (.reply x) → H ⟨o⟩ = some .reply
+  sc0 : ∀ y k, σ.kheap (0#u64 : U64).bv ≠ some (.schedContext y k)
+
 /-- **The joint invariant at every related state**: P1's `BlkOK` over the
-sets of some heap `H` with `JPlaced`. -/
+sets of some heap `H` with `JPlaced`, the spec's objects in `H`
+(`SpecCover`). -/
 def JointInv (th : TypedHeap) : Prop :=
   ∀ (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost), DState (L := L) th s σ G →
     ∃ (H : Heap) (Cs Ac Tr C : Set U64),
       BlkOK st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
-        (Heap.scBits H) Ac s ∧ JPlaced (L := L) th H Tr C s σ
+        (Heap.scBits H) Ac s ∧ JPlaced (L := L) th H Tr C s σ ∧ SpecCover H σ
 
 /-- **P1's invariant at a cap, with the cap typed** (`CapTyped`), from the
 joint invariant: the uniform shape of the CSpace side's couplings. -/
 theorem capTypedP1Hyp_of (hJ : JointInv (L := L) th) (hTL : ∀ T, TLowSlots T) :
     P1CapHyp (L := L) th (fun c X _ => CapTyped X.H X.Rp X.Nt c) := by
   intro s σ G sl c hDS hA hc _
-  obtain ⟨H, Cs, Ac, Tr, C, hb, hj⟩ := hJ s σ G hDS
+  obtain ⟨H, Cs, Ac, Tr, C, hb, hj, -⟩ := hJ s σ G hDS
   have hty := hj.typed _ hA.isSlot
   rw [capV_of_capAt hc] at hty
   exact ⟨⟨_, Cs, _, H, _, _, _, _, _, Ac⟩, hb, hj.slotCapW (hTL _), hty⟩
@@ -297,11 +308,11 @@ def JointInvS (th : TypedHeap) : Prop :=
   ∀ (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost), DState (L := L) th s σ G →
     ∃ (H : Heap) (Cs Ac Tr C : Set U64),
       BlkOK st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
-        (Heap.scBits H) Ac s ∧ JPlaced (L := L) th H Tr C s σ ∧ JState (L := L) th H s
+        (Heap.scBits H) Ac s ∧ JPlaced (L := L) th H Tr C s σ ∧ JState (L := L) th H s ∧ SpecCover H σ
 
 theorem JointInvS.toJ (h : JointInvS (L := L) th) : JointInv (L := L) th := fun s σ G hDS => by
-  obtain ⟨H, Cs, Ac, Tr, C, hb, hj, -⟩ := h s σ G hDS
-  exact ⟨H, Cs, Ac, Tr, C, hb, hj⟩
+  obtain ⟨H, Cs, Ac, Tr, C, hb, hj, -, hc⟩ := h s σ G hDS
+  exact ⟨H, Cs, Ac, Tr, C, hb, hj, hc⟩
 
 /-- The scheduler action, resume or choose-new, is no TCB. -/
 theorem JState.act_ne {H : Heap} {s : S} (h : JState (L := L) th H s) {T : Set U64} (hT : TcbPlaced T) {p : U64}
@@ -312,7 +323,7 @@ theorem JState.act_ne {H : Heap} {s : S} (h : JState (L := L) th H s) {T : Set U
 /-- **The CSpace side's `ThreadP1Hyp`.** -/
 theorem threadP1Hyp_of (hJ : JointInvS (L := L) th) : ThreadP1Hyp (L := L) th := by
   intro s σ G sl c hDS hA hc _
-  obtain ⟨H, Cs, Ac, Tr, C, hb, hj, hs⟩ := hJ s σ G hDS
+  obtain ⟨H, Cs, Ac, Tr, C, hb, hj, hs, -⟩ := hJ s σ G hDS
   refine ⟨⟨_, Cs, _, H, _, _, _, _, _, Ac⟩, hb, hj.slotCapW (tLowSlots_all _), fun p e => ?_⟩
   have hcv : capV (L.mem s) (cslotAddr sl) = .Thread p := by rw [capV_of_capAt hc, e]
   have hth : th p = some .tcb := by
@@ -325,7 +336,7 @@ theorem threadP1Hyp_of (hJ : JointInvS (L := L) th) : ThreadP1Hyp (L := L) th :=
 /-- **The CSpace side's `ScP1Hyp`.** -/
 theorem scP1Hyp_of (hJ : JointInvS (L := L) th) : ScP1Hyp (L := L) th := by
   intro s σ G sl c hDS hA hc _
-  obtain ⟨H, Cs, Ac, Tr, C, hb, hj, hs⟩ := hJ s σ G hDS
+  obtain ⟨H, Cs, Ac, Tr, C, hb, hj, hs, -⟩ := hJ s σ G hDS
   refine ⟨⟨_, Cs, _, H, _, _, _, _, _, Ac⟩, hb, hj.slotCapW (tLowSlots_all _), fun p x e => ?_⟩
   have hcv : capV (L.mem s) (cslotAddr sl) = .SchedContext p x := by rw [capV_of_capAt hc, e]
   obtain ⟨h0, hz, ht⟩ := hs.sc _ hA.isSlot p x hcv
