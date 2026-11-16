@@ -89,6 +89,7 @@ import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine
 import Fl4Proofs.P3.EmptyRefine
 import Fl4Proofs.P3.SwapRefine
+import Fl4Proofs.P3.CnFrame
 import Fl4Proofs.P3.CnodeCopy
 import Fl4Proofs.P3.Delete
 import Fl4Proofs.P3.CnodeOther
@@ -191,6 +192,7 @@ import Fl4Proofs.P3.IpcCancel
 import Fl4Proofs.P3.IpcWake
 import Fl4Proofs.P3.IpcInsFrame
 import Fl4Proofs.P3.SpecCnK
+import Fl4Proofs.P3.SpecNKO
 import Fl4Proofs.P3.IpcGrant
 import Fl4Proofs.P3.IpcGrantX
 import Fl4Proofs.P3.IpcEpGrant
@@ -281,3 +283,4 @@ import Fl4Proofs.P3.DomSched
 import Fl4Proofs.P3.XTopIrqH
 import Fl4Proofs.P3.XTopIoPort
 import Fl4Proofs.P3.XTopPortIn
+import Fl4Proofs.P3.XTopCnode

@@ -149,7 +149,7 @@ theorem cnode_cancel_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
         · subst hb
           simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, bind_ok, uncurry_apply_pair]
           rw [WP.spec_ok]
-          refine ⟨_, hdec', σ1, hst, σ1, G, ?_, hR1, hV1, hM1, hC1, hI1, hFI1, MdbStep.of_same hM hS⟩
+          refine ⟨_, hdec', σ1, hst, σ1, G, ?_, hR1, hV1, hM1, hC1, hI1, hFI1, MdbStep.of_same hM hS, trivial⟩
           show (Fl4Spec.invokeCnode (Z := Unit) (.cancelBadgedSendsCall
             (.endpointCap p.bv (0#u64 : U64).bv (rightsOf true true true true)))).run σ1 = _
           unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption
@@ -169,7 +169,7 @@ theorem cnode_cancel_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
         refine ⟨_, hdec', σ1, hst, σ2, G, ?_, hR2, hV1.of_caps hcap, hM1.of_same hS3,
           hC1.of_same hS3 hcdt2 hio2, MdbInv.of_same hM1 hI1 hS3,
           hFI1.of_same hM1 hS3 (ksub_of_eq (cancelBadgedSends_nks _ _) hcb),
-          (MdbStep.of_same hM hS).same_right hM1 hS3⟩
+          (MdbStep.of_same hM hS).same_right hM1 hS3, trivial⟩
         show (Fl4Spec.invokeCnode (Z := Unit) (.cancelBadgedSendsCall
           (.endpointCap p.bv b.bv (rightsOf true true true true)))).run σ1 = _
         unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption

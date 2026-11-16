@@ -376,7 +376,7 @@ theorem cnode_other_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (
         have hng : ¬ ∃ y, G.par y = some (cslotAddr dsl) := fun h => hnc ((hC.has_child_iff hP hAd).2 h)
         rw [revoke_none arI th hP s2 ar G hM1 ((MdbInv.of_same hM hI hS).parentAdj (th := th)) hx hng, WP.spec_ok]
         refine ⟨.revokeCall dsl, ?_, σ1', hst, σ1', G, ?_, hR1, hV1, hM1, hC1, MdbInv.of_same hM hI hS, hFI1,
-          MdbStep.of_same hM hS⟩
+          MdbStep.of_same hM hS, trivial⟩
         · rw [run_bind_ok hlt, copyTail_revoke _ _ _ _ hg]; rfl
         · exact capRevoke_none dsl σ1' hgd2 (by rw [hcdt1]; exact hnc)
       · -- Delete
@@ -411,7 +411,7 @@ theorem cnode_other_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (
         subst hok
         rw [hd3, WP.spec_ok]
         refine ⟨.deleteCall (pd.bv, db), ?_, σ1', hst, σ', G', hcd, hR', hV', hM', hC', hI', hFI',
-          MdbStep.same_left hM hS hSt⟩
+          MdbStep.same_left hM hS hSt, trivial⟩
         rw [run_bind_ok hlt, copyTail_delete _ _ _ _ hg]; rfl
       · -- CancelBadgedSends
         have hg : Fl4Spec.genInvocationType slbl = .cnodeCancelBadgedSends := by
@@ -446,7 +446,7 @@ theorem cnode_other_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (
           simp only [uncurry_apply_pair, hct, bind_ok, hs2, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
           rw [WP.spec_ok]
           refine ⟨.cancelBadgedSendsCall (absCap (.Endpoint p 0#u64 true true true true)), ?_, σ1', hst,
-            σ1', G, ?_, hR1, hV1, hM1, hC1, MdbInv.of_same hM hI hS, hFI1, MdbStep.of_same hM hS⟩
+            σ1', G, ?_, hR1, hV1, hM1, hC1, MdbInv.of_same hM hI hS, hFI1, MdbStep.of_same hM hS, trivial⟩
           · rw [run_bind_ok hlt, hsp]
             simp only [Fl4Spec.NonDetE.unlessE, hy, ↓reduceIte, ndE_pure_bind]; rfl
           · show (Fl4Spec.invokeCnode (Z := Unit) (.cancelBadgedSendsCall

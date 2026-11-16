@@ -25,6 +25,7 @@ import Fl4Proofs.P3.StateFrame
 import Fl4Proofs.P3.NoChildren
 import Fl4Proofs.P3.CnodeShape
 import Fl4Proofs.P3.CnodeKey
+import Fl4Proofs.P3.CnFrame
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -227,20 +228,40 @@ same error with the state unchanged, or an invocation after which (with
 `set_thread_state Restart` first) `invoke_cnode` ends in a related state,
 with the MDB invariant, `FinInv`, and the `MdbStep` taken. -/
 def InvPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (G : MdbGhost)
-    (m : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation) (s : S) :
-    core.result.Result Unit error.Exc × S → Prop
+    (m : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation) (s : S) (res : core.result.Result Unit error.Exc × S)
+    (Q : Fl4Spec.CnodeInvocation → S → Prop := fun _ _ => True) : Prop :=
+  match res with
   | (.Err e, s') => s' = s ∧ ∃ e', m.run σ = ({(.error e', σ)}, False) ∧ SysErrRel e e'
   | (.Ok (), s') => ∃ inv, m.run σ = ({(.ok inv, σ)}, False) ∧ ∃ σ1,
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
       ∃ σ' G', (Fl4Spec.invokeCnode (Z := Unit) inv).run σ1 = ({(.ok (), σ')}, False) ∧
         StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
         CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G' ∧ FinInv th (L.mem s') σ' G' ∧
-        MdbStep (L.mem s) G (L.mem s') G'
+        MdbStep (L.mem s) G (L.mem s') G' ∧ Q inv s'
+
+/-- The CNode slots an invocation writes: a copy's or move's source and
+destination, a rotate's three. -/
+def invSlots : Fl4Spec.CnodeInvocation → List Fl4Spec.CslotPtr
+  | .insertCall _ a b => [a, b]
+  | .moveCall _ a b => [a, b]
+  | .rotateCall _ _ a b c => [a, b, c]
+  | _ => []
+
+/-- **FL4's run of a CNode copy, move or rotate**, for the primitive-step
+trace (built downstream, StepSem's `cslot`): the caller's restart, then
+writes in slot words only, every slot's cap kept but at the invocation's
+CNode slots (`invSlots`). -/
+def CnTrace (th : TypedHeap) (ct : U64) (s : S) (inv : Fl4Spec.CnodeInvocation) (s' : S) : Prop :=
+  ∃ s2, invSlots inv ≠ [] ∧ sched.set_thread_state st s ct sched.TS_RESTART = ok s2 ∧
+    Vs.SlotFrame2 (L := L) th s2 s' ∧
+    (∀ sl ∈ invSlots inv, ∃ p r, sl.1 = p.bv ∧ th p = some (.cnode r) ∧ sl.2.length = r) ∧
+    ∀ y, IsSlot th y → (∀ sl ∈ invSlots inv, y ≠ cslotAddr sl) → capV (L.mem s') y = capV (L.mem s2) y
 
 theorem InvPost.of_run {th : TypedHeap} {σ : Fl4Spec.State Unit} {G : MdbGhost}
     {m m' : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation} (h : m.run σ = m'.run σ) {s : S}
-    {res : core.result.Result Unit error.Exc × S} (hq : InvPost (L := L) th σ G m' s res) :
-    InvPost (L := L) th σ G m s res := by
+    {res : core.result.Result Unit error.Exc × S} {Q : Fl4Spec.CnodeInvocation → S → Prop}
+    (hq : InvPost (L := L) th σ G m' s res Q) :
+    InvPost (L := L) th σ G m s res Q := by
   obtain ⟨r, s'⟩ := res
   cases r with
   | Err e => obtain ⟨h1, e', h2, h3⟩ := hq; exact ⟨h1, e', h.trans h2, h3⟩
@@ -248,8 +269,8 @@ theorem InvPost.of_run {th : TypedHeap} {σ : Fl4Spec.State Unit} {G : MdbGhost}
 
 theorem InvPost.congr {th : TypedHeap} {σ : Fl4Spec.State Unit} {G : MdbGhost}
     {m m' : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation} (h : m.run σ = m'.run σ) {s : S}
-    {prog : Result (core.result.Result Unit error.Exc × S)}
-    (hp : prog ⦃ res => InvPost (L := L) th σ G m' s res ⦄) : prog ⦃ res => InvPost (L := L) th σ G m s res ⦄ := by
+    {prog : Result (core.result.Result Unit error.Exc × S)} {Q : Fl4Spec.CnodeInvocation → S → Prop}
+    (hp : prog ⦃ res => InvPost (L := L) th σ G m' s res Q ⦄) : prog ⦃ res => InvPost (L := L) th σ G m s res Q ⦄ := by
   refine WP.spec_mono hp ?_
   rintro ⟨r, s'⟩ hq
   cases r with
@@ -287,7 +308,8 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (dsl : Fl4Spec.CslotPtr) (pd : U64) (hpd1 : dsl.1 = pd.bv) (hpd : th pd = some (.cnode dsl.2.length)) :
     cnode.decode_copy st s lbl length buf extra (cslotAddr dsl) ⦃ res =>
-      InvPost (L := L) th σ G (copyTail slbl ((args.map UScalar.bv).drop 2) excaps dsl) s res ⦄ := by
+      InvPost (L := L) th σ G (copyTail slbl ((args.map UScalar.bv).drop 2) excaps dsl) s res
+        (CnTrace (L := L) th ct s) ⦄ := by
   have hts := set_thread_state_slots th hP s ct sched.TS_RESTART htcb hact
   have hgl : IsCopyLabel (Fl4Spec.genInvocationType slbl) := by
     rw [hlbl]; unfold cnodeLabelOf IsCopyLabel
@@ -445,20 +467,38 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
           obtain ⟨s3, hs3, σ', G', hins, hR', hV', hM', hC', hI', hFI', hSt⟩ := spec_exists
             (insert_full_fin th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hps hpd rfl rfl hsc2 hsn hdc2 nc (absCap nc)
               ⟨hw', rfl⟩ hv' he' hnn hsh hbd hut' hzb hkey (copied_vcap hr2))
+          have htr := Vs.insert_trace hP s2 G hM1 ((hM1.members _).2 ⟨hAs.isSlot, srcC, hsc2, hsn⟩) hAd.isSlot
+            (fun h => by obtain ⟨-, c0, h0, hn⟩ := (hM1.members _).1 h; rw [hdc2] at h0
+                         exact hn (eq_of_ok_eq h0).symm) hsc2 nc he'
+          rw [hs3, WP.spec_ok] at htr
           rw [hs3]; simp only [bind_ok]
           rw [WP.spec_ok]
           refine ⟨.insertCall (absCap nc) (ps.bv, sb) (pd.bv, db), ?_, σ1, hst,
-            σ', G', run_liftE' hins, hR', hV', hM', hC', hI', hFI', MdbStep.same_left hM hS (hSt (copied_ut hr2))⟩
+            σ', G', run_liftE' hins, hR', hV', hM', hC', hI', hFI', MdbStep.same_left hM hS (hSt (copied_ut hr2)),
+            s2, by simp [invSlots], hs2, htr.1, fun sl hsl => by
+              simp only [invSlots, List.mem_cons, List.not_mem_nil, or_false] at hsl
+              rcases hsl with rfl | rfl
+              exacts [⟨ps, _, rfl, hps, rfl⟩, ⟨pd, _, rfl, hpd, rfl⟩],
+            fun y hy hne => htr.2 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots]))⟩
           rw [run_ofExcept]; simp [finishRes, hann]
         · -- move
           simp only [↓reduceIte]
           obtain ⟨s3, hs3, σ', G', hmv, hR', hV', hM', hC', hI', hFI', hSt⟩ := spec_exists
             (move_full_fin th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hps hpd rfl rfl hsc2 hsn hdc2 nc (absCap nc) ⟨hw', rfl⟩
               hv' he' hnn hsh (hbm rfl) hkey (copied_vcap hr2))
+          have htr := Vs.move_trace hP s2 G hM1 ((hM1.members _).2 ⟨hAs.isSlot, srcC, hsc2, hsn⟩) hAd.isSlot
+            (fun h => by obtain ⟨-, c0, h0, hn⟩ := (hM1.members _).1 h; rw [hdc2] at h0
+                         exact hn (eq_of_ok_eq h0).symm) nc he'
+          rw [hs3, WP.spec_ok] at htr
           rw [hs3]; simp only [bind_ok]
           rw [WP.spec_ok]
           refine ⟨.moveCall (absCap nc) (ps.bv, sb) (pd.bv, db), ?_, σ1, hst,
-            σ', G', run_liftE' hmv, hR', hV', hM', hC', hI', hFI', MdbStep.same_left hM hS (hSt (copied_ut hr2))⟩
+            σ', G', run_liftE' hmv, hR', hV', hM', hC', hI', hFI', MdbStep.same_left hM hS (hSt (copied_ut hr2)),
+            s2, by simp [invSlots], hs2, htr.1, fun sl hsl => by
+              simp only [invSlots, List.mem_cons, List.not_mem_nil, or_false] at hsl
+              rcases hsl with rfl | rfl
+              exacts [⟨ps, _, rfl, hps, rfl⟩, ⟨pd, _, rfl, hpd, rfl⟩],
+            fun y hy hne => htr.2 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots]))⟩
           rw [run_ofExcept]; simp [finishRes, hann]
 
 /-- **FL4's CNode Copy, Mint, Move and Mutate refine l4v's**: for labels
@@ -483,7 +523,7 @@ theorem cnode_copy_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb) :
     cnode.decode st arI s ar lbl length cap buf extra ⦃ res =>
       InvPost (L := L) th σ G (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
-        (res.1, res.2.1) ⦄ := by
+        (res.1, res.2.1) (CnTrace (L := L) th ct s) ∧ res.2.2 = ar ⦄ := by
   have hgl : IsCopyLabel (Fl4Spec.genInvocationType slbl) := by
     rw [hlbl]; unfold cnodeLabelOf IsCopyLabel
     have : lbl.val = 28 ∨ lbl.val = 29 ∨ lbl.val = 30 ∨ lbl.val = 31 := by omega
@@ -496,7 +536,7 @@ theorem cnode_copy_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s
   · rw [if_pos h2]
     simp only [error.truncated, bind_ok]
     rw [WP.spec_ok]
-    exact ⟨rfl, .truncatedMessage, decode_short _ _ _ σ hgl.facts.1 _ (by simp; scalar_tac), trivial⟩
+    exact ⟨⟨rfl, .truncatedMessage, decode_short _ _ _ σ hgl.facts.1 _ (by simp; scalar_tac), trivial⟩, rfl⟩
   rw [if_neg h2]
   obtain ⟨y0, y1, rest, rfl⟩ : ∃ y0 y1 rest, args = y0 :: y1 :: rest := by
     match args with
@@ -521,7 +561,7 @@ theorem cnode_copy_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s
       simp only [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
         core.convert.FromSame, core.convert.FromSame.from, bind_ok, bind_tc_ok]
       rw [WP.spec_ok]
-      exact ⟨rfl, e', run_bind_error hlt _, hrel1⟩
+      exact ⟨⟨rfl, e', run_bind_error hlt _, hrel1⟩, rfl⟩
   | Ok dest =>
     cases e1 with
     | error _ => exact hrel1.elim
@@ -536,7 +576,7 @@ theorem cnode_copy_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s
       rw [hdc]; simp only [bind_ok, uncurry_apply_pair]
       rw [WP.spec_ok]
       simp only [List.map_cons, List.drop_succ_cons, List.drop_zero] at hpost
-      exact InvPost.of_run (run_bind_ok hlt _) hpost
+      exact ⟨InvPost.of_run (run_bind_ok hlt _) hpost, rfl⟩
 
 end
 

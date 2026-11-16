@@ -68,7 +68,8 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
 /-- **Hypothesis: the value read** (module docstring): FL4's `port_in`'s
-value is the spec's `In` result at some outcome, the memory kept. -/
+value is the spec's `In` result at some outcome, the memory kept. An
+arch-backend obligation, with `ARMask` (XTopCaps) and `ARKeep` (ArchKeep). -/
 def PortInVal : Prop :=
   ∀ (a a' : A) (p z v : U64), arI.port_in a p z = ok (v, a') → ∀ σ : Fl4Spec.State Unit,
     ∃ ms : Fl4Spec.MachineState, ms.underlyingMemory = σ.machineState.underlyingMemory ∧

@@ -69,6 +69,7 @@ theorem stepClosed_xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) 
     fun s s' a a' σ σ' hw hO hdk hdl hds hirq hio harch Z hth hX hK hC hTh => ?_,
     fun s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hw hCR hFI hMO hTS Z hth hX hK hC hTh => ?_,
     fun s s' a σ σ' hS Z hth hX hK hC hTh => ?_,
+    fun s s' a σ σ' G' hcn hkc hw hCR hFI hMO hTS Z hth hX hK hC hTh => ?_,
     fun s s' a a' σ σ' sl p b w r hA hc hd hm Z hth hX hK hC hTh =>
       hDel Z s s' a a' σ σ' sl p b w r hth hX hK hC hTh hA hc hd hm⟩
   · obtain ⟨G1, hX1, hC1, hk1⟩ := h1 Z hth hX hK hC hTh
@@ -109,6 +110,16 @@ theorem stepClosed_xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) 
     refine ⟨Z.G, hX.schedStep hK hTh hS, fun y hy => ?_, hS.2 Z.N Z.T Z.C Z.c hTh hX.fin.1.1.1
       hX.fin.1.1.2.2.1 |>.2.1.1⟩
     rw [hS.1.ct, hS.1.kh] at hy; exact hC y hy
+  · subst hth
+    have hPl := hX.rel.1
+    have hw' : P1.WritesIn st s s' (Sched.SlotWd Z.th) :=
+      ⟨hw.1, hw.2.1, fun b hb hn => hw.2.2 b hb fun h => hn (Sched.slotSpan_wd hPl hb h)⟩
+    refine ⟨G', XTopAt.slotStep hX hw' hcn hkc hCR hFI hMO hTS, fun y hy => ?_, hw.1⟩
+    obtain ⟨hO, -, -⟩ := ostep_of_cnk hcn hkc
+    rw [hO.ct] at hy
+    rcases hkc σ.curThread with e | ⟨r, cs, cs', h1, h2⟩
+    · rw [e] at hy; exact hC y hy
+    · rw [h2] at hy; cases hy
 
 /-- **`XTop` after a run of primitive steps.** -/
 theorem Steps.xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {th : TypedHeap}

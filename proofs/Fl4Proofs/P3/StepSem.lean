@@ -5,7 +5,9 @@ composition of primitive steps by `StepClosed`: every relation `Q` closed
 under the current thread's restart (`restart`), a kernel-state step (`ks`:
 `KsW` words, the spec's `KsStep`, the domain words kept, the IRQ and IO-port
 relations kept, an arch operation of the interrupt or IO port decodes, `ArchIrqStep`) and a capability
-insert into a CNode (`slot`, with the CSpace relation after), a scheduler
+insert into a CNode (`slot`, with the CSpace relation after), a CNode-only
+step (`cslot`: the spec's `CnK` changing CNodes only, FL4's slot words, the
+CSpace relation after: a move, a swap), a scheduler
 step (`sched`: `SchedStep`, the queue, action and domain-schedule words and
 the scheduler relation after at every family of sets) and the deletion of a
 notification cap (`del`, `delete_one`) relates its start and end. XTopStep
@@ -18,6 +20,7 @@ import Fl4Proofs.P3.MdbStepVs
 import Fl4Proofs.P3.CnodeRevoke
 import Fl4Proofs.P3.VsInsFrame
 import Fl4Proofs.P3.SchedRel
+import Fl4Proofs.P3.SpecCnK
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -170,6 +173,13 @@ structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S 
     (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 1) = capAt (L.mem s) (slotOf t 1)) →
     Q s a σ s' a σ'
   sched : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit), SchedStep (L := L) th s σ s' σ' → Q s a σ s' a σ'
+  cslot : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit) (G' : MdbGhost), Ipc.CnK σ σ' →
+    (∀ p, σ'.kheap p = σ.kheap p ∨
+      ∃ r cs cs', σ.kheap p = some (.cnode r cs) ∧ σ'.kheap p = some (.cnode r cs')) →
+    P1.WritesIn st s s' (InSlot th) → CRel th (L.mem s') σ' G' → FinInv th (L.mem s') σ' G' →
+    MdbOKV (L.ksb s) (L.mem s') G' →
+    (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 1) = capAt (L.mem s) (slotOf t 1)) →
+    Q s a σ s' a σ'
   del : ∀ (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit) (sl : Fl4Spec.CslotPtr) (p b : U64) (w r : Bool),
     AbsSlot th sl → capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
     cdt.delete_one st arI s a (cslotAddr sl) = ok (s', a') → ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 →

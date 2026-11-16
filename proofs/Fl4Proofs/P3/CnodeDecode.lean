@@ -44,14 +44,14 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 /-- A single spec outcome is one of its outcomes. -/
 theorem InvPost.toP {th : TypedHeap} {σ : Fl4Spec.State Unit} {G : MdbGhost}
     {m : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation} {s : S} {res : core.result.Result Unit error.Exc × S}
-    (h : InvPost (L := L) th σ G m s res) : PInvPost (L := L) th σ G m s res := by
+    {Q : Fl4Spec.CnodeInvocation → S → Prop} (h : InvPost (L := L) th σ G m s res Q) : PInvPost (L := L) th σ G m s res := by
   obtain ⟨r, s'⟩ := res
   cases r with
   | Err e =>
     obtain ⟨h1, e', h2, h3⟩ := h
     exact Or.inl ⟨e, rfl, h1, e', h2, h3⟩
   | Ok u =>
-    obtain ⟨inv, h2, σ1, hst, σ', G', hrun, hR, hV, hM, hC, hI, hF, hSt⟩ := h
+    obtain ⟨inv, h2, σ1, hst, σ', G', hrun, hR, hV, hM, hC, hI, hF, hSt, -⟩ := h
     exact Or.inr ⟨inv, h2, σ1, hst, σ', G', Or.inl ⟨rfl, by rw [hrun]; rfl⟩, ⟨hR, hV, hM, hC, hI⟩, hF, hSt⟩
 
 end
@@ -118,7 +118,7 @@ theorem cnode_decode_refines (th : TypedHeap) (s : S) (ar : A)
   have hl : 25 ≤ lbl.val ∧ lbl.val ≤ 32 := by omega
   by_cases hcp : 28 ≤ lbl.val ∧ lbl.val ≤ 31
   · exact WP.spec_mono (cnode_copy_refines arI th s ar σ G hR hV hP hM hC lbl slbl hlbl hcp length buf ct hct args
-      hlen hargs cap a hca hcv extra x0 hx0 excaps hex.one hI hFI hact hcur htcb) (fun res h => h.toP)
+      hlen hargs cap a hca hcv extra x0 hx0 excaps hex.one hI hFI hact hcur htcb) (fun res h => h.1.toP)
   have hcase : lbl.val = 25 ∨ lbl.val = 26 ∨ lbl.val = 27 ∨ lbl.val = 32 := by omega
   rcases hcase with h | h | h | h
   · have e : lbl = fl4_abi.label.CNodeRevoke := UScalar.eq_of_val_eq (by rw [h, lbl_revoke_val])
@@ -137,7 +137,7 @@ theorem cnode_decode_refines (th : TypedHeap) (s : S) (ar : A)
     subst e
     exact WP.spec_mono (cnode_rotate_refines arI th s ar σ G hR hV hP hM hC slbl (by rw [hlbl]; simp [cnodeLabelOf])
       length buf ct hct args hlen hargs cap a hca hcv extra x0 x1 hx0 hx1 excaps hex hI hFI hact hcur htcb)
-      (fun res h => h.toP)
+      (fun res h => h.1.toP)
 
 end
 
