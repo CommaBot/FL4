@@ -281,7 +281,7 @@ Endpoints are 16 bytes and cap slots 32, and a CNode holds thousands of slots. I
 
 - Each entry is a 64-bit word padded to 16 bytes: a lock bit and a 63-bit version. Committing writers set the bit and release it with a new version. Readers check an entry without writing to its line. There are 16384 entries (256 KiB), covering each aligned 256 KiB memory span without collisions within that span. The hash multiplies the span number by an odd constant before XORing it with the within-span index, spreading equally aligned pages from nearby spans across the table. Four version words share a cache line; this trades some metadata false sharing for less cache traffic during clears.
 - Two regions that hash to the same entry share it. This costs some false conflicts but never correctness: the protocol only needs every word to be covered by exactly one entry.
-- All kernel memory is covered the same way, per-core scheduler state included. Each core's state lies on its own cache lines, so cores conflict on it only when one really touches another's queues.
+- All kernel memory is covered the same way, per-core scheduler state included. Each core's state lies on separate cache lines; table hash collisions can still cause false conflicts.
 - A global version clock orders commits.
 
 ### Transaction protocol
@@ -959,6 +959,176 @@ boots in order. Linux arrays retain exact elapsed nanoseconds, operation
 counts, and checksums, so rates and latencies can be recomputed. The
 plot's error bars show full ranges, not confidence intervals. The same
 pinning and KVM limitations as the earlier measurements apply.
+
+**Linux contention optimizations (issue #11, 2026-11-16).**
+The preceding comparison exposed a Linux throughput collapse as a second
+vCPU became busy. This follow-up changes only the trusted transaction
+runtime and store, retaining the same core logic and proof definitions.
+The measured implementation is `fe06b5b`; "previous" below is
+`4c772f4`, the implementation in the preceding SMP report.
+
+Exploratory instrumentation counted commits, aborts, and direct entries
+over the whole Linux suite, including boot and warmup. At four vCPUs,
+51.09% of transactional syscall-fault attempts and 61.65% of ReplyRecv
+attempts aborted. A 16-byte-stripe prototype reduced these rates to 4.25%
+and 2.18%. At two vCPUs, the corresponding rates moved from 43.73% and
+46.95% to below 0.01% and 5.99%. These are invasive diagnostic runs, not
+per-`getpid` measurements or final-build retry rates. Counters and image
+hashes are retained in the raw data's `retry_diagnostics` metadata.
+
+The implementation makes four changes to §7's common runtime:
+
+- Use 16-byte stripes, so independent endpoint-sized objects in a physical
+  cache line can commit independently. Increase the table to 16384
+  entries to preserve a collision-free aligned 256 KiB span.
+- Multiply the span number before XORing it with the within-span index.
+  Equally aligned pages in nearby spans otherwise share almost all their
+  stripes. The multiplier preserves the ordered-interval clear shortcut.
+  Pack four version counters per physical cache line: a 4 KiB clear walks
+  4 KiB of version metadata instead of 16 KiB. This permits hardware false
+  sharing of counters without introducing logical transaction conflicts.
+- Permit one queued opportunistic serial successor, using the existing
+  FIFO ticket gate and IPI-aware wait. Check active transactions before
+  running directly, and honor remote-stall cancellation. Further
+  contention retains the existing 256-entry backoff and concurrent STM.
+- Rerun clears above 8 KiB under the existing serial gate. Save clear
+  versions only for held stripes, rather than for every table entry.
+
+No operation-specific lock paths, core changes, new proof assumptions,
+profiling counters, or timing hooks are included. The concrete runtime
+remains trusted and tested; the abstract P2 proof is not a proof of the
+Rust implementation. The table occupies 256 KiB, the same as the former
+4096-entry padded table. Total kernel BSS grows from 5,509,120 to
+8,966,144 bytes: **3.30 MiB extra**, mostly per-core transaction metadata
+reserved for the fixed 16-core capacity.
+
+**Fresh Linux comparison.** Five boots per variant at each of 1, 2 and
+4 Linux vCPUs, 45 boots total, rotate the previous FL4, optimized FL4,
+and patched seL4 images. All passed. The Linux 6.18.63 image, initramfs,
+workload binary and per-backend l4h root tasks are unchanged from the
+preceding comparison; only the FL4 kernel image changes. Each boot runs
+a complete warmup suite before measurement. Six KVM vCPUs are pinned to
+physical host cores 2–7, with emulator threads on 0–1, on the same Ryzen
+7 7700. No build or benchmark jobs overlap these runs.
+
+Median real `getpid` throughput, million calls/s (higher is better):
+
+| Linux vCPUs | Previous FL4 | Optimized FL4 | Patched seL4 |
+|---|---:|---:|---:|
+| 1 | 1.384 | 1.348 | 1.066 |
+| 2 | 0.683 | 1.485 | 1.307 |
+| 4 | 0.902 | 1.729 | 1.277 |
+
+The two-vCPU improvement over previous FL4 is
+117%;
+the four-vCPU improvement is
+92%.
+Relative to seL4, the optimized medians change
++14% and
++35%,
+respectively. At one vCPU, throughput changes
+-2.6%.
+The two-vCPU optimized range is
+1.138–1.624
+million/s; the median is not a guarantee for every run.
+
+Other four-vCPU results (throughput higher is better; IPC latency lower
+is better). Throughput uses one worker per vCPU; IPC uses one pinned
+process pair, on one CPU or across CPUs 0 and 1:
+
+| Linux workload | Previous FL4 | Optimized FL4 | Patched seL4 |
+|---|---:|---:|---:|
+| First-touch 4 KiB faults/s | 565,557 | 655,938 | 669,785 |
+| Fork / exit / wait cycles/s | 9,846 | 11,110 | 12,039 |
+| Pipe, same CPU (µs) | 7.442 | 8.034 | 6.902 |
+| Pipe, across CPUs (µs) | 14.934 | 12.007 | 10.976 |
+| Futex, same CPU (µs) | 6.306 | 6.403 | 5.945 |
+| Futex, across CPUs (µs) | 9.512 | 6.163 | 5.330 |
+
+Four-vCPU first-touch and fork throughput improve
+16% and
+13%,
+respectively. Cross-core pipe and futex latency fall
+20% and
+35%.
+There are still gaps: two-vCPU fork throughput is
+6,454/s versus seL4's
+10,353/s, and first-touch faults reach
+411,191/s versus
+545,499/s. Same-core IPC does not get the
+cross-core improvement. At one vCPU, fork and first-touch throughput
+change -1.2%
+and -0.1%.
+The full five-boot ranges, including outliers, are retained.
+
+![Linux workload comparison](xtask/results/issue-11-linux-optimized.png)
+
+**Primary latency and kernel SMP tradeoffs.** Three fresh boots per
+variant repeat the issue's primitive probe and FL4PERF0003, another 18
+boots, all passing. The probe uses the patched seL4 baseline and one
+active core on the six-vCPU machine. Median µs per operation:
+
+| Primitive | Previous FL4 | Optimized FL4 | Patched seL4 |
+|---|---:|---:|---:|
+| Fault/ReplyRecv, separate VSpaces, live FPU | 0.5617 | 0.5746 | 0.6063 |
+| Syscall-fault delivery, split probe | 0.2643 | 0.2650 | 0.3061 |
+| ReplyRecv resume, split probe | 0.3248 | 0.3354 | 0.3299 |
+| Fault/ReplyRecv, shared VSpace, live FPU | 0.4306 | 0.4397 | 0.3630 |
+
+The primary separate-VSpace/live-FPU round trip is
+2.3% slower than previous FL4 but
+5.2% faster than seL4. Split ReplyRecv resume is now
+1.7% above seL4, so the individual-path parity target is not fully met.
+Split measurements include instrumentation and are not additive.
+Shared-VSpace/live-FPU latency still has a gap.
+
+Kernel throughput uses upstream seL4 `c98d70a`, release MCS, matching
+mitigations, and the same seven workloads as the preceding report.
+Median aggregate operations per million TSC ticks:
+
+| Kernel workload | Workers | Previous FL4 | Optimized FL4 | Upstream seL4 |
+|---|---:|---:|---:|---:|
+| yield | 6 | 3,461 | 3,250 | 253 |
+| signal | 6 | 2,688 | 2,539 | 1,388 |
+| ipc | 6 | 886 | 993 | 106 |
+| xipc | 6 | 237 | 225 | 30 |
+| cap | 6 | 1,829 | 1,341 | 1,054 |
+| retype | 6 | 905 | 932 | 727 |
+| map | 6 | 56 | 56 | 7 |
+| ipc | 4 | 640 | 662 | 108 |
+| retype | 2 | 484 | 326 | 790 |
+| retype | 4 | 926 | 584 | 752 |
+
+This is not a uniform kernel speedup. Retype throughput changes
+-33% at two
+workers and -37%
+at four; six-worker cap copy/delete changes
+-27%.
+Finer stripes require more metadata work for larger objects and clears,
+and packed counters can share cache lines. Preliminary 32-byte stripes
+recovered more retype throughput but lost Linux syscall performance;
+serializing every page clear also failed to recover the previous retype
+throughput. The selected version prioritizes the measured Linux gain
+while recording these remaining costs.
+
+Validation on this implementation: ABI/core/architecture/store/sync/xtask
+host tests; trusted-base check; 200-seed simulation with TSO, PCT,
+targeted aborts, serial control and bounded exploration; all runtime
+mutants caught; strict extraction/Lean gate passed. Four-core full-feature
+release KVM passed 192 sel4tests and 26 fl4tests. Reduced-feature debug
+KVM passed 26 fl4tests on four cores and 193 sel4tests on one. New tests
+cover independent small objects, cross-block clear conflicts, saved-version
+restoration, and queued gate successors servicing remote calls.
+
+[Raw results](xtask/results/issue-11-linux-optimized.json) retain all
+330 measured Linux results and 330 warmup results, 243 kernel throughput
+results, 1575 measured primitive batches and the 216 emitted warmup
+batches, plus revisions, image hashes and run order. No measured samples
+from this final comparison were discarded. Plot bars show full ranges,
+not confidence intervals. This remains one KVM host with pinned but
+non-isolated cores, a powersave governor with boost enabled, and the
+issue's Linux/l4h workload suite; it does not establish bare-metal or
+application-wide parity with seL4.
 
 ## 13. Milestones
 
