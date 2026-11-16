@@ -15,7 +15,7 @@ retype's exposed post `RetExp`, UntypedExp).
 -/
 import Fl4Proofs.P3.ScPlaceDead
 import Fl4Proofs.P3.UntypedExp
-import Fl4Proofs.P1.QueueRetype
+import Fl4Proofs.P1.QueueRetypeTcb
 import Fl4Proofs.P3.UntypedTcbLoop
 open Aeneas Aeneas.Std Result
 
@@ -205,13 +205,13 @@ theorem JCovD.retype_step (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem 
     (hb : BlkOK st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
       (Heap.scBits H) Ac s)
     (hdrop : DropOK st H (RegionD H lo hi) Cs s) (hnode : RegionOffNodes st Cs s lo hi)
-    (hdbg : DbgLinksOK st H Cs s' lo hi A k w n) (hwp : WinPlaced A k w n us) (h0Cs : 0#u64 ∈ Cs)
-    (hP1 : RetypeP1Step st s s' H Cs Ac lo hi A k w n us) :
+    (hdbg : DbgLinksOK st H Cs s' lo hi A k w n) (hwp : WinPlaced A k w n us) (h0Cs : 0#u64 ∈ Cs) :
     ∃ (H' : Heap) (Ac' : Set U64),
       BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H') (Heap.ntfns H')
         (Heap.scBits H') Ac' s' ∧
       JCovD (L := L) th' H' G' {q | q ∈ D ∧ ¬ NewQ A k w cj q} Cs s' := by
-  obtain ⟨H', Ac', hb', -, hshape, -, hdead⟩ := hP1 hb hlo hhi hbits hdrop hnode hw hwin hdbg hwp h0Cs
+  obtain ⟨H', Ac', hb', -, hshape, -, hdead⟩ :=
+    (P1.retypeP1Step : RetypeP1Step st s s' H Cs Ac lo hi A k w n us) hb hlo hhi hbits hdrop hnode hw hwin hdbg hwp h0Cs
   refine ⟨H', Ac', hb', h.retype hE (fun q kd hq => ?_) (fun q _ _ e hd => hdead q e hd) hksb⟩
   rcases hshape q kd hq with ⟨ho, hm⟩ | ⟨⟨j, hj, hv⟩, hk⟩
   · refine Or.inl ⟨ho, fun ⟨j, hj, hv, _⟩ => hm ?_⟩

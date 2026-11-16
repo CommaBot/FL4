@@ -10,6 +10,7 @@ import Fl4Proofs.P1.QueueSchedCtl
 import Fl4Proofs.P1.QueueDecIrq
 import Fl4Proofs.P1.QueueDecVs
 import Fl4Proofs.P1.QueueDecUt
+import Fl4Proofs.P1.QueueUtRetype
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -25,12 +26,13 @@ named labels (`TcbGaps`), and the named per-kind finalisations of CNode
 (`scYieldGap_holds`); SchedControl, IrqControl, IrqHandler, IOPortControl and
 IOPort, VSpace and Untyped (down to the retype) are proved (`QueueSchedCtl`,
 `QueueDecIrq`, `QueueDecVs`, `QueueDecUt`), up to their named premises
-(`scCtl`, `irqPl`, `vsPl`, `utPl`). -/
+(`scCtl`, `irqPl`, `vsPl`, and P3's `utPl` for the untyped retype). -/
 structure InvGaps4 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
     (Adm : PSets → Prop) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
-  /-- The untyped family's retype premise (the decode is proved, `decGap_untyped`). -/
-  utPl : UtPlace st ar Adm T Cs Ω H Sg Rp Scs Nt Z U
+  /-- P3's facts for the untyped family's retype (the decode is proved,
+  `decGap_untyped`; the retype from them, `UtRetypeP3.utPlace`). -/
+  utPl : UtRetypeP3 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U
   thread : TcbGaps st ar T Cs Ω H Sg Rp Scs Nt Z U
   /-- The IRQ handler family's placement premises (the family is proved, `decGap_irqHandler`). -/
   irqPl : IrqPlace st T Cs Ω H Sg Rp Scs Nt Z U
@@ -50,7 +52,7 @@ theorem InvGaps4.gaps3 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop}
     (Pt : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
     (G : InvGaps4 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U) :
     InvGaps3 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U :=
-  ⟨decGap_untyped hA hσ G.utPl, decGap_thread hA G.thread Pt E (delGaps_of hA Pd (G.fin.kinds hA Pd)) C.toCdtHyps,
+  ⟨decGap_untyped hA hσ (G.utPl.utPlace hA), decGap_thread hA G.thread Pt E (delGaps_of hA Pd (G.fin.kinds hA Pd)) C.toCdtHyps,
     decGap_irqControl hA C.toCdtHyps, decGap_irqHandler hA C.toCdtHyps Pd G.irqPl,
     decGap_schedControl hA G.scCtl, decGap_vspace hA Pd G.vsPl C.toCdtHyps E G.irqPl, G.vcpu, G.ept, decGap_ioPortControl C.toCdtHyps,
     decGap_ioPort hA E, scYieldGap_holds hA U, delGaps_of hA Pd (G.fin.kinds hA Pd)⟩
