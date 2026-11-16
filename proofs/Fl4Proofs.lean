@@ -276,7 +276,6 @@ import Fl4Proofs.P3.IpcRS
 import Fl4Proofs.P3.XTopStep
 import Fl4Proofs.P3.ArchKeep
 import Fl4Proofs.P3.IpcEpTail
-import Fl4Proofs.P3.IpcDonateW
 import Fl4Proofs.P3.IpcDonate
 import Fl4Proofs.P3.IpcRemove
 import Fl4Proofs.P3.IpcTmo
