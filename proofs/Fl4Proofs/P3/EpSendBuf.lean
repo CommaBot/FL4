@@ -16,14 +16,14 @@ variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulSt
   {B : Set (U64 × Fl4Spec.Word)} {SR : S → Fl4Spec.State Unit → Prop}
 
 /-- `send_ipc_recv_buf` over the bundled step lemmas (`EpSteps`). -/
-theorem send_ipc_recv_buf_gen {NS : Fl4Spec.ThreadState → Prop} (hX : EpStepsBuf st A ar T E R B SR NS) (hTl : EpTailHyps st A T E R B SR)
+theorem send_ipc_recv_buf_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Prop} (hX : EpStepsBuf st A ar T E R B SR NS GC) (hTl : EpTailHyps st A T E R B SR)
     (hP : EPlaced T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit) (hR : EpStateRel T E R B (L.mem s) σ)
     (hSR : SR s σ) {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hnb : tsCode xt.tcbState ≠ 3 ∧ tsCode xt.tcbState ≠ 4) (hft : xt.tcbFault = none)
     {e d : U64} (he : e ∈ E) {q : List Fl4Spec.ObjRef} (hk : σ.kheap e.bv = some (.endpoint (.recvEP (d.bv :: q))))
     {xd : Fl4Spec.Tcb} (hkd : σ.kheap d.bv = some (.tcb xd)) {rp : Fl4Spec.ObjRef} (hrb : ipcBufOf true xd = some rp)
     (badge : U64) (g gr : Bool)
-    (hcaps : g = false ∨ ipcBufOf false xt = none ∨
+    (hcaps : GC ∨ g = false ∨ ipcBufOf false xt = none ∨
       Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xt.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0)
     (hback : ∀ e' r dd xr, xd.tcbState = .blockedOnReceive e' (some r) dd → σ.kheap r = some (.reply xr) →
       xr.replyTcb = some d.bv)
@@ -74,7 +74,7 @@ theorem send_ipc_recv_buf_gen {NS : Fl4Spec.ThreadState → Prop} (hX : EpStepsB
     hcaps) ?_
   rintro s2 ⟨σ2, e2, hR2, hS2, hA2, hk2o, x2, hkd2, hx2st⟩
   have htd' : t.bv ≠ d'.bv := bv_inj htd
-  have hkt2 : σ2.kheap t.bv = some (.tcb xt) := (hk2o _ htd').trans hkt1
+  have hkt2 : σ2.kheap t.bv = some (.tcb xt) := hk2o.fwd htd' hkt1 (fun _ _ e => by cases e)
   have hst2' : x2.tcbState = .blockedOnReceive e.bv rep dd := by rw [hx2st, hstd]
   -- `d'` is in no endpoint queue from `σ1` on
   have hk1e : σ1.kheap e.bv = some (.endpoint (epDeq (.recvEP (d'.bv :: q)) d'.bv)) := by simp [σ1]
@@ -84,10 +84,10 @@ theorem send_ipc_recv_buf_gen {NS : Fl4Spec.ThreadState → Prop} (hX : EpStepsB
   have hq2 : ∀ e'' ∈ E, ∀ z, σ2.kheap e''.bv = some (.endpoint z) → d'.bv ∉ z.epQueue := by
     intro e'' he'' z hz
     have hne : d'.bv ≠ e''.bv := by intro h; rw [← h, hkd2] at hz; cases hz
-    exact hq1 e'' he'' z (by rw [← hk2o _ (Ne.symm hne)]; exact hz)
+    exact hq1 e'' he'' z (hk2o.bwd (Ne.symm hne) hz (fun _ _ e => by cases e))
   -- the reply word
   have hrw : L.mem s2 (tReplyA d') = L.mem s (tReplyA d') := by
-    rw [hA2 _ (a_reply hda).1 ⟨?_, ?_⟩, hA1 _ (a_reply hda).1 ⟨d', hdT, (a_reply hda).2⟩]
+    rw [hA2 _ (a_reply hda).1 ⟨⟨d', hdT, (a_reply hda).2⟩, ?_, ?_⟩, hA1 _ (a_reply hda).1 ⟨d', hdT, (a_reply hda).2⟩]
     · rintro ⟨r', hr'⟩
       rw [val_reply hda, regA_val hda (regIdx_lt r')] at hr'; have := regIdx_lt r'; omega
     · rintro ⟨wp, hw, he⟩
@@ -119,7 +119,7 @@ theorem send_ipc_recv_buf_gen {NS : Fl4Spec.ThreadState → Prop} (hX : EpStepsB
       have hwe : w.bv ≠ e.bv := kheap_ne hkr hk (fun _ h1 h2 => by subst h1; cases h2)
       have hwd : w.bv ≠ d'.bv := kheap_ne hkr hkd (fun _ h1 h2 => by subst h1; cases h2)
       have hwt : w.bv ≠ t.bv := kheap_ne hkr hkt (fun _ h1 h2 => by subst h1; cases h2)
-      have hkr2 : σ2.kheap w.bv = some (.reply xr) := (hk2o _ hwd).trans (by simp [σ1, hwe, hkr])
+      have hkr2 : σ2.kheap w.bv = some (.reply xr) := hk2o.fwd hwd (by simp [σ1, hwe, hkr]) (fun _ _ e => by cases e)
       have hb' := hback e.bv w.bv dd xr (by rw [hstd, hrp]) hkr
       refine WP.spec_mono (hX.unlink hP s2 σ2 hR2 hS2 hdT hkd2 hst2' hwR hkr2 hb' hq2) ?_
       rintro s3 ⟨e3, hR3, hS3⟩
@@ -167,7 +167,7 @@ theorem send_ipc_recv_buf (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E R 
       ¬ (Fl4Spec.sendIpc (Z := Unit) blk false badge.bv g gr false t.bv e.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.sendIpc (Z := Unit) blk false badge.bv g gr false t.bv e.bv σ).1 ∧
         EpStateRel T E R B (L.mem r.1) σ' ∧ SR r.1 σ' ⦄ :=
-  send_ipc_recv_buf_gen (EpHyps.stepsBuf (ar := ar) hH hBf hBm (fun _ => True) (fun _ _ => trivial)) hTl hP s a σ hR hSR ht hkt hnb hft he hk hkd hrb badge g gr hcaps hback blk
+  send_ipc_recv_buf_gen (EpHyps.stepsBuf (ar := ar) hH hBf hBm (fun _ => True) (fun _ _ => trivial)) hTl hP s a σ hR hSR ht hkt hnb hft he hk hkd hrb badge g gr (Or.inr hcaps) hback blk
 
 end
 

@@ -14,8 +14,11 @@ the composite relation `IpcRel ∧ SRE ∧ RelTopB`.
 * `tcl_*`: the spec's `transfer_caps_loop` one cap at a time (unwrapped
   badge, insert, derive failure or null, no receive slot, end).
 * `tc_body`, `transfer_loop_top`: FL4's loop against the spec's, with the
-  extra caps related to the spec's (`SrcOK`) and `NoChildrenRel` at the
-  sources (the MDB hypothesis of `derive_cap`). FL4 (like seL4's C) reads
+  extra caps related to the spec's (`SrcOK`); `derive_cap`'s MDB fact
+  (`NoChildrenRel`) at the sources from the relation (`noChildren_of_adj`),
+  and the frame of the loop (`KeepC`: the spec's heap changes in CNodes only,
+  by `capInsert_nko`; FL4 writes slot and buffer words only, `FW`). FL4
+  (like seL4's C) reads
   each source's cap again; the spec uses the caps looked up before. They
   agree (`UwEq`): before the one insert only buffer words change; after it
   the receive slot is gone, so only the unwrap test matters, and a later
@@ -220,6 +223,152 @@ theorem capInsert_nkn (c : Cap) (src dest : CslotPtr) : NKN (capInsert (Z := Uni
     exact nkn_modify (fun σ => ⟨rfl, fun _ => Or.inl rfl⟩) | (refine nkn_bind ?_ (fun _ => ?_)) |
     (apply nkn_ite) | split)
 
+/-! ### Where the heap changes -/
+
+/-- Every outcome keeps the heap outside `Ps`. -/
+def NKO {α : Type} (Ps : Set ObjRef) (m : NonDet (State Unit) α) : Prop :=
+  ∀ σ x, x ∈ (m σ).1 → ∀ p ∉ Ps, x.2.kheap p = σ.kheap p
+
+section NKO
+variable {Ps : Set ObjRef}
+
+theorem nko_bind {α β : Type} {m : NonDet (State Unit) α} {f : α → NonDet (State Unit) β} (hm : NKO Ps m)
+    (hf : ∀ a, NKO Ps (f a)) : NKO Ps (m >>= f) := by
+  intro σ x ⟨y, hy, hx⟩ p hp
+  exact (hf y.1 y.2 x hx p hp).trans (hm σ y hy p hp)
+
+theorem nko_pure {α : Type} (a : α) : NKO Ps (pure a : NonDet (State Unit) α) := by
+  intro σ x hx p _; rw [Set.mem_singleton_iff.1 hx]
+
+theorem nko_pure' {α : Type} (a : α) : NKO Ps (NonDet.pure a : NonDet (State Unit) α) := nko_pure a
+
+theorem nko_gets {α : Type} (f : State Unit → α) : NKO Ps (NonDet.gets f) := by
+  intro σ x hx p _; rw [Set.mem_singleton_iff.1 hx]
+
+theorem nko_get : NKO Ps (NonDet.get : NonDet (State Unit) (State Unit)) := by
+  intro σ x hx p _; rw [Set.mem_singleton_iff.1 hx]
+
+theorem nko_assert (P : Prop) : NKO Ps (NonDet.assert P : NonDet (State Unit) Unit) := by
+  intro σ x hx p _; obtain ⟨-, rfl⟩ := hx; rfl
+
+theorem nko_fail {α : Type} : NKO Ps (NonDet.fail : NonDet (State Unit) α) := by
+  intro σ x hx; exact hx.elim
+
+theorem nko_assertOpt {α : Type} (o : Option α) : NKO Ps (NonDet.assertOpt o : NonDet (State Unit) α) := by
+  cases o
+  · exact nko_fail
+  · exact nko_pure' _
+
+theorem nko_getsThe {α : Type} (f : State Unit → Option α) : NKO Ps (NonDet.getsThe f) := by
+  intro σ x hx
+  exact nko_assertOpt (f σ) σ x hx
+
+theorem nko_selectF {α : Type} (S : Set α × Prop) : NKO Ps (NonDet.selectF S : NonDet (State Unit) α) := by
+  intro σ x hx p _; obtain ⟨-, h⟩ := hx; rw [h]
+
+theorem nko_getObject (p : ObjRef) : NKO Ps (getObject (Z := Unit) p) := nko_getsThe _
+
+theorem nko_get_put {f : State Unit → State Unit} (hf : ∀ σ, (f σ).kheap = σ.kheap) :
+    NKO Ps (NonDet.get >>= fun s => NonDet.put (f s)) := by
+  intro σ x ⟨y, hy, hx⟩ p _
+  rw [Set.mem_singleton_iff.1 hy] at hx
+  rw [Set.mem_singleton_iff.1 hx]
+  exact congrFun (hf σ) p
+
+theorem nko_modify {f : State Unit → State Unit} (hf : ∀ σ, (f σ).kheap = σ.kheap) : NKO Ps (NonDet.modify f) := by
+  intro σ x hx p _; rw [Set.mem_singleton_iff.1 hx]; exact congrFun (hf σ) p
+
+theorem nko_ite {α : Type} (P : Prop) [Decidable P] {m1 m2 : NonDet (State Unit) α} (h1 : NKO Ps m1)
+    (h2 : NKO Ps m2) : NKO Ps (if P then m1 else m2) := by
+  split <;> assumption
+
+theorem nko_getCap (sl : CslotPtr) : NKO Ps (getCap (Z := Unit) sl) := by
+  obtain ⟨o, c⟩ := sl
+  unfold getCap
+  refine nko_bind (nko_getObject o) (fun obj => ?_)
+  cases obj <;> simp only [] <;>
+    repeat (first | exact nko_pure _ | exact nko_fail | exact nko_assert _ | exact nko_assertOpt _ |
+      (refine nko_bind ?_ (fun _ => ?_)))
+
+/-- `set_cap` changes the heap at the slot's object only. -/
+theorem nko_setCap (cap : Cap) (sl : CslotPtr) (hs : sl.1 ∈ Ps) : NKO Ps (setCap (Z := Unit) cap sl) := by
+  obtain ⟨o, c⟩ := sl
+  unfold setCap
+  intro σ x hx p hp
+  dsimp only at hx
+  obtain ⟨y, hy, hx⟩ := hx
+  obtain ⟨k, hk, rfl⟩ : ∃ k, σ.kheap o = some k ∧ y = (k, σ) := by
+    unfold getObject NonDet.getsThe readObject at hy
+    cases h : σ.kheap o with
+    | none => rw [h] at hy; exact hy.elim
+    | some k => rw [h] at hy; exact ⟨k, rfl, Set.mem_singleton_iff.1 hy⟩
+  have hpo : p ≠ o := fun e => hp (e ▸ hs)
+  have fin : ∀ o', x ∈ (setObject (Z := Unit) o o' σ).1 → x.2.kheap p = σ.kheap p :=
+    fun o' hx' => by rw [setObject_out hx']; simp [Function.update_of_ne hpo]
+  have pb : ∀ o', x ∈ ((pure o' >>= fun obj' => setObject (Z := Unit) o obj') σ).1 →
+      x ∈ (setObject (Z := Unit) o o' σ).1 := by
+    intro o' hx'; obtain ⟨z, hz, hx'⟩ := hx'; rw [Set.mem_singleton_iff.1 hz] at hx'; exact hx'
+  have fb : ∀ (f : KernelObject → NonDet (State Unit) Unit), x ∈ ((NonDet.fail >>= f) σ).1 → False := by
+    intro f hx'; obtain ⟨z, hz, -⟩ := hx'; exact hz
+  cases k with
+  | cnode r cs =>
+    dsimp only at hx
+    split at hx
+    · exact fin _ (pb _ hx)
+    · exact (fb _ hx).elim
+  | tcb t =>
+    dsimp only at hx
+    repeat' split at hx
+    all_goals first
+      | exact (fb _ hx).elim
+      | exact fin _ (pb _ hx)
+  | _ => dsimp only at hx; exact (fb _ hx).elim
+
+theorem nko_doExtendedOp (eop : DetExtMonad Unit) : NKO Ps (doExtendedOp (Z := Unit) eop) := by
+  unfold doExtendedOp
+  refine nko_bind nko_get (fun _ => nko_bind (nko_selectF _) (fun _ => ?_))
+  split
+  exact nko_modify (fun σ => rfl)
+
+end NKO
+
+/-- **`cap_insert` changes the heap at the source's and the destination's
+objects only.** -/
+theorem capInsert_nko (c : Cap) (src dest : CslotPtr) :
+    NKO {src.1, dest.1} (capInsert (Z := Unit) c src dest) := by
+  unfold capInsert setUntypedCapAsFull updateCdt setCdt setOriginal
+  repeat (first | exact nko_getCap _ | exact nko_setCap _ _ (by simp) | exact nko_doExtendedOp _ |
+    exact nko_pure _ | exact nko_pure' _ | exact nko_fail | exact nko_gets _ | exact nko_get |
+    exact nko_assert _ | exact nko_get_put (fun σ => rfl) |
+    exact nko_modify (fun σ => rfl) | (refine nko_bind ?_ (fun _ => ?_)) |
+    (apply nko_ite) | split)
+
+/-- **The spec's heap changed in CNodes only** (keeping their sizes). -/
+def KeepC (σ σ' : State Unit) : Prop :=
+  ∀ p, σ'.kheap p = σ.kheap p ∨ ∃ r cs cs', σ.kheap p = some (.cnode r cs) ∧ σ'.kheap p = some (.cnode r cs')
+
+theorem KeepC.refl (σ : State Unit) : KeepC σ σ := fun _ => Or.inl rfl
+
+theorem KeepC.trans {σ1 σ2 σ3 : State Unit} (h1 : KeepC σ1 σ2) (h2 : KeepC σ2 σ3) : KeepC σ1 σ3 := by
+  intro p
+  rcases h1 p with e1 | ⟨r, cs, cs', a1, b1⟩ <;> rcases h2 p with e2 | ⟨r', ds, ds', a2, b2⟩
+  · exact Or.inl (e2.trans e1)
+  · rw [e1] at a2; exact Or.inr ⟨r', ds, ds', a2, b2⟩
+  · rw [e2, b1]; exact Or.inr ⟨r, cs, cs', a1, rfl⟩
+  · rw [b1] at a2; cases a2; exact Or.inr ⟨r, cs, ds', a1, b2⟩
+
+/-- `CnK` with the heap changed at CNodes only. -/
+theorem keepC_of {σ σ' : State Unit} {Ps : Set ObjRef} (hK : CnK σ σ') (hO : ∀ p ∉ Ps, σ'.kheap p = σ.kheap p)
+    (hc : ∀ p ∈ Ps, ∃ r cs, σ.kheap p = some (.cnode r cs)) : KeepC σ σ' := by
+  intro p
+  by_cases hp : p ∈ Ps
+  · obtain ⟨r, cs, hk⟩ := hc p hp
+    rcases hK.2 p with e | ⟨r', cs1, cs', h1, h2⟩ | ⟨x, y, h1, -, -⟩
+    · exact Or.inl e
+    · rw [hk] at h1; cases h1; exact Or.inr ⟨r, cs, cs', hk, h2⟩
+    · rw [hk] at h1; cases h1
+  · exact Or.inl (hO p hp)
+
 theorem CnK.other {σ σ' : State Unit} (h : CnK σ σ') {p : ObjRef} {o : KernelObject}
     (hp : σ.kheap p = some o) (hc : ∀ r cs, o ≠ .cnode r cs) (ht : ∀ x, o ≠ .tcb x) : σ'.kheap p = some o := by
   rcases h.2 p with e | ⟨r, cs, cs', h1, -⟩ | ⟨a, b, h1, -, -⟩
@@ -382,6 +531,7 @@ theorem insert_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGhost} {s 
     cdt.insert st s cc (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd)) ⦃ s' =>
       ∃ σ', Fl4Spec.capInsert (Z := Unit) a (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False) ∧
         IpcRel N T E R B (L.mem s') σ' ∧ SRE st N T C E R B c s' σ' ∧
+        (WritesIn st s s' (Sched.SlotWd th) ∧ KeepC σ σ') ∧
         ∃ G', RelTopB (L := L) th G' N T C E R B c s' σ' ⦄ := by
   obtain ⟨hPl, ⟨hSt, hV, hM, hC, hI⟩, hFI, hD, hMO, hA, hSA⟩ := hB
   have hsI : IsSlot th (cslotAddr (ps.bv, idxs)) :=
@@ -399,12 +549,16 @@ theorem insert_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGhost} {s 
   rintro s' ⟨⟨σ', G', heq, hSt', hV', hM', hC', hI', hFI', hstep⟩, hw⟩
   have hmem : ((), σ') ∈ (Fl4Spec.capInsert (Z := Unit) a (ps.bv, idxs) (pd.bv, idxd) σ).1 := by rw [heq]; rfl
   have hK := capInsert_nkn a _ _ σ _ hmem
+  have hKC : KeepC σ σ' := keepC_of hK (capInsert_nko a _ _ σ _ hmem) (by
+    rintro p (rfl | hp)
+    · obtain ⟨cs, h, -⟩ := hSt.cnode ps rs hps; exact ⟨rs, cs, h⟩
+    · rw [Set.mem_singleton_iff.1 hp]; obtain ⟨cs, h, -⟩ := hSt.cnode pd rd hpd; exact ⟨rd, cs, h⟩)
   have hDS : DomSame (L.mem s) (L.mem s') (L.ksb s) :=
     Vs.domSame_low hA.kfit hA.kal fun b hb h1 h2 => hw.mem_eq hb fun hsw => by
       obtain ⟨y, hy, g1, g2⟩ := slotWd_range hPl hsw
       exact hA.ks b h1 (by omega) y hy ⟨g1, g2⟩
   refine ⟨σ', heq, hR.frame hP0 (fun b hb hf => hw.mem_eq hb fun hsw => ?_) hK.ikview,
-    sre_slotw hPl hS hA hSA hw hK, G', hPl, ⟨hSt', hV', hM', hC', hI'⟩, hFI', ?_, ?_, ?_,
+    sre_slotw hPl hS hA hSA hw hK, ⟨hw, hKC⟩, G', hPl, ⟨hSt', hV', hM', hC', hI'⟩, hFI', ?_, ?_, ?_,
     hSA.mono (fun p y n hp => ⟨y, hK.sc' hp⟩)⟩
   · obtain ⟨y, hy, g1, g2⟩ := slotWd_range hPl hsw
     exact hA.slot _ (IFoot.iwords hP0 hf) y hy ⟨g1, g2⟩
@@ -659,6 +813,9 @@ theorem CnK.inUserFrame {σ σ' : Fl4Spec.State Unit} (h : CnK σ σ') {a : Fl4S
   obtain ⟨sz, hsz⟩ := hu
   exact ⟨sz, h.other hsz (fun _ _ e => by cases e) (fun _ e => by cases e)⟩
 
+/-- The words the transfer loop writes: slot words and receive-buffer words. -/
+def FW (th : TypedHeap) (B : Set (U64 × Fl4Spec.Word)) (b : U64) : Prop := Sched.SlotWd th b ∨ BufW B b
+
 /-- **The transfer loop's invariant** at FL4's state `x` (state, message
 info, receive slot, index). -/
 def TInv (th : TypedHeap) (caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (extra : Aeneas.Std.Array obj.Slot 3#usize)
@@ -675,15 +832,18 @@ def TInv (th : TypedHeap) (caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (extra
     (∀ j (hj : j < caps.length), x.2.2.2.val ≤ j →
       ∃ cv, capAt (L.mem x.1) (exAt extra j) = ok cv ∧ UwEq ep cv (caps[j]).1) ∧
     ((x.2.2.1 = 0#u64 ∧ slots = []) ∨
-      (x.2.2.1 = dest0 ∧ slots = slots0 ∧ dest0 ≠ 0#u64 ∧ SlotsSame th (L.mem s0) (L.mem x.1) ∧ σ.cdt = σ0.cdt))
+      (x.2.2.1 = dest0 ∧ slots = slots0 ∧ dest0 ≠ 0#u64 ∧ SlotsSame th (L.mem s0) (L.mem x.1) ∧ σ.cdt = σ0.cdt)) ∧
+    KeepC σ0 σ ∧ WritesIn st s0 x.1 (FW th B) ∧ x.2.1.caps_unwrapped.val < 8
 
 /-- The transfer loop's result. -/
 def TPost (th : TypedHeap) (caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (ep : U64) (rb : Fl4Spec.Word)
-    (σ0 : Fl4Spec.State Unit) (slots0 : List Fl4Spec.CslotPtr) (mi0 : Fl4Spec.MessageInfo)
+    (s0 : S) (σ0 : Fl4Spec.State Unit) (slots0 : List Fl4Spec.CslotPtr) (mi0 : Fl4Spec.MessageInfo)
     (y : S × msginfo.MessageInfo × U64) : Prop :=
   ∃ σ' mf, Fl4Spec.transferCapsLoop (Z := Unit) (some ep.bv) rb 0 caps slots0 mi0 σ0 = ({(mf, σ')}, False) ∧
     MiRel y.2.1 mf ∧ mf.miExtraCaps = BitVec.ofNat 64 y.2.2.val ∧
-    IpcRel N T E R B (L.mem y.1) σ' ∧ SRE st N T C E R B c y.1 σ' ∧ ∃ G, RelTopB (L := L) th G N T C E R B c y.1 σ'
+    y.2.1.caps_unwrapped.val < 8 ∧ y.2.2.val ≤ 3 ∧ mf.miLabel = mi0.miLabel ∧
+    IpcRel N T E R B (L.mem y.1) σ' ∧ SRE st N T C E R B c y.1 σ' ∧ (KeepC σ0 σ' ∧ WritesIn st s0 y.1 (FW th B)) ∧
+    ∃ G, RelTopB (L := L) th G N T C E R B c y.1 σ'
 
 /-- A loop exit with the spec's loop ending at the same index. -/
 theorem tpost_of {th : TypedHeap} {caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {ep : U64} {rb : Fl4Spec.Word}
@@ -695,11 +855,13 @@ theorem tpost_of {th : TypedHeap} {caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)
       Fl4Spec.transferCapsLoop (Z := Unit) (some ep.bv) rb 0 caps slots0 mi0 σ0 = ({(r, σf)}, False))
     (hend : Fl4Spec.transferCapsLoop (Z := Unit) (some ep.bv) rb i.val (caps.drop i.val) slots mi σ =
       ({(miAt mi i.val, σ)}, False))
-    (hR : IpcRel N T E R B (L.mem s) σ) (hS : SRE st N T C E R B c s σ)
+    (hcu : out.caps_unwrapped.val < 8) (hi3 : i.val ≤ 3) (hlb : mi.miLabel = mi0.miLabel)
+    (hR : IpcRel N T E R B (L.mem s) σ) (hS : SRE st N T C E R B c s σ) {s0 : S} (hK : KeepC σ0 σ)
+    (hW : WritesIn st s0 s (FW th B))
     (hB : ∃ G, RelTopB (L := L) th G N T C E R B c s σ) :
-    TPost (L := L) (st := st) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) th caps ep rb σ0 slots0 mi0
-      (s, out, i) :=
-  ⟨σ, miAt mi i.val, hch _ _ hend, hmi, rfl, hR, hS, hB⟩
+    TPost (L := L) (st := st) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) th caps ep rb s0 σ0
+      slots0 mi0 (s, out, i) :=
+  ⟨σ, miAt mi i.val, hch _ _ hend, hmi, rfl, hcu, hi3, hlb, hR, hS, ⟨hK, hW⟩, hB⟩
 
 end Loop2
 
@@ -731,19 +893,17 @@ theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec
     (hlen : caps.length ≤ 3)
     (hsrc : ∀ j (hj : j < caps.length), SrcOK th (L.mem s0) (exAt extra j) caps[j])
     (hnull : ∀ j, caps.length ≤ j → j < 3 → exAt extra j = 0#u64)
-    (hnc : ∀ j (hj : j < caps.length) (s' : S) (σ' : Fl4Spec.State Unit), SlotsSame th (L.mem s0) (L.mem s') →
-      σ'.cdt = σ0.cdt → NoChildrenRel (st := st) s' σ' (exAt extra j) (caps[j]).2)
     (hdest : dest0 ≠ 0#u64 → ∃ d, slots0 = [d] ∧ DestOK th (L.mem s0) dest0 d)
     (hm : BufMap B rbw rb) (x : S × msginfo.MessageInfo × obj.Slot × U64)
     (hx : TInv (L := L) (st := st) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) th caps extra ep rb
       s0 σ0 dest0 slots0 mi0 x) :
     ipc.transfer_caps_loop.body st extra ep rbw x.1 x.2.1 x.2.2.1 x.2.2.2 ⦃ r => match r with
       | .done y => TPost (L := L) (st := st) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) th caps ep
-          rb σ0 slots0 mi0 y
+          rb s0 σ0 slots0 mi0 y
       | .cont x' => TInv (L := L) (st := st) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) th caps
           extra ep rb s0 σ0 dest0 slots0 mi0 x' ∧ 3 - x'.2.2.2.val < 3 - x.2.2.2.val ⦄ := by
   obtain ⟨s, out, dest, i⟩ := x
-  obtain ⟨σ, mi, slots, hi, hmi, hml, hmlb, hch, hR, hS, ⟨G, hB⟩, hu, hpend, hdst⟩ := hx
+  obtain ⟨σ, mi, slots, hi, hmi, hml, hmlb, hch, hR, hS, ⟨G, hB⟩, hu, hpend, hdst, hK0, hW0, hcu⟩ := hx
   dsimp only at hi hmi hch hR hS hB hpend hdst ⊢
   have hPl : Placed th := hB.1
   unfold ipc.transfer_caps_loop.body
@@ -778,7 +938,11 @@ theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec
           rw [UScalar.val_and]
           have : i.val = 0 ∨ i.val = 1 ∨ i.val = 2 := by omega
           rcases this with h | h | h <;> rw [h] <;> rfl
-        obtain ⟨i6, h6e, -, h6⟩ := spec_exists (U64.ShiftLeft_spec 1#u64 (i &&& 63#u64) (by rw [hand]; omega))
+        obtain ⟨i6, h6e, h6v, h6⟩ := spec_exists (U64.ShiftLeft_spec 1#u64 (i &&& 63#u64) (by rw [hand]; omega))
+        have hi6 : i6.val < 8 := by
+          rw [h6v, hand]
+          rcases (show i.val = 0 ∨ i.val = 1 ∨ i.val = 2 by omega) with h | h | h <;> rw [h] <;>
+            simp [U64.size, U64.numBits]
         rw [h6e]
         simp only [bind_ok]
         obtain ⟨i8, h8e, h8⟩ := spec_exists (U64.add_spec (x := i) (y := 1#u64) (by scalar_tac))
@@ -793,7 +957,10 @@ theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec
           slotsSame_wr hPl s _ hal fun a ha h => hB.2.2.2.2.2.1.slot _
             (Or.inr (Or.inr (Or.inr (Or.inr ⟨_, hwp, le_refl _, by omega⟩)))) a ha h
         refine ⟨⟨σ1, miUnwrap mi i.val, slots, by rw [hi8]; omega, ⟨hmi.1, ?_, hmi.2.2⟩, hml, hmlb, ?_, hR2, hS2,
-          ⟨G, hB2⟩, fun k hk => (inUserFrame_setUm _ _ _).2 (hu k hk), fun j hj hij => ?_, ?_⟩, by rw [hi8]; omega⟩
+          ⟨G, hB2⟩, fun k hk => (inUserFrame_setUm _ _ _).2 (hu k hk), fun j hj hij => ?_, ?_, fun p => hK0 p,
+          (hW0.trans (writesIn_wr hal)).mono fun b h => h.elim id (fun e => Or.inr ⟨_, hwp, e⟩),
+          by show (out.caps_unwrapped ||| i6).val < 2 ^ 3; rw [UScalar.val_or]; exact Nat.or_lt_two_pow hcu hi6⟩,
+          by rw [hi8]; omega⟩
         · show (out.caps_unwrapped ||| i6).bv = mi.miCapsUnwrapped ||| ((1 : Fl4Spec.Data) <<< i.val)
           rw [UScalar.bv_or, h6, hand]; exact congrArg₂ (· ||| ·) hmi.2.1 rfl
         · intro r σf hr
@@ -819,7 +986,7 @@ theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec
         simp only []
         rcases hdst with ⟨rfl, rfl⟩ | ⟨rfl, rfl, hd0, hSS, hcdt⟩
         · simp only [decide_true, ↓reduceIte, WP.spec_ok]
-          refine tpost_of hmi hch ?_ hR hS ⟨G, hB⟩
+          refine tpost_of hmi hch ?_ hcu (by omega) hmlb hR hS hK0 hW0 ⟨G, hB⟩
           rw [hdrop]
           exact tcl_noslot (fun h => hu' (huw.1.mpr h))
         · obtain ⟨d, hsl0, ⟨pd, rd, idxd, hpd, hld, rfl, hdA, hdN⟩⟩ := hdest hd0
@@ -834,9 +1001,15 @@ theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec
           have hAs : AbsSlot th (ps.bv, idx) := ⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩
           have hAd : AbsSlot th (pd.bv, idxd) := ⟨pd, rfl, Or.inl (by simpa [hld] using hpd)⟩
           have hdI : IsSlot th dest := by rw [hdA]; exact hAd.isSlot
-          have hncs := hnc i.val hlt s σ hSS hcdt
+          have hncs : cv ≠ .Null → NoChildrenRel (st := st) s σ (exAt extra i.val) (caps[i.val]).2 := by
+            intro hut
+            obtain ⟨-, ⟨-, -, hM, hC, hI⟩, -⟩ := hB
+            rw [hsl', hxa]
+            refine noChildren_of_adj th hPl s σ G hM hC (hI.parentAdj (th := th)) _ hAs
+              ((hM.members _).2 ⟨hAs.isSlot, cv, by rw [← hxa]; exact hcv, ?_⟩)
+            exact hut
           obtain ⟨r, hr, r', hr', hdr⟩ := derive_rel (Z := Unit) s σ (exAt extra i.val) (caps[i.val]).2 cv hw0 he0
-            (fun _ => hncs)
+            (fun h => hncs (by rintro rfl; exact h))
           rw [← habs0] at hr'
           rw [hr]
           simp only [bind_ok]
@@ -846,7 +1019,7 @@ theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec
             | ok _ => exact hdr.elim
             | error e' =>
               simp only [WP.spec_ok]
-              refine tpost_of hmi hch ?_ hR hS ⟨G, hB⟩
+              refine tpost_of hmi hch ?_ hcu (by omega) hmlb hR hS hK0 hW0 ⟨G, hB⟩
               rw [hdrop]
               exact tcl_derr hnot hr'
           | Ok c' =>
@@ -859,13 +1032,15 @@ theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec
               · subst hn
                 rw [cap_is_null_null]
                 simp only [bind_ok, ↓reduceIte, WP.spec_ok]
-                refine tpost_of hmi hch ?_ hR hS ⟨G, hB⟩
+                refine tpost_of hmi hch ?_ hcu (by omega) hmlb hR hS hK0 hW0 ⟨G, hB⟩
                 rw [hdrop]
                 rw [← ha'] at hr'
                 exact tcl_dnull hnot hr'
               · rw [cap_is_null_ne hn]
                 simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
-                obtain ⟨hsh, hbd, hzb, hnu⟩ := derive_shape hr hn hncs
+                have hcvn : cv ≠ .Null := by
+                  rintro rfl; unfold objects.derive_cap at hr; simp at hr; exact hn hr.symm
+                obtain ⟨hsh, hbd, hzb, hnu⟩ := derive_shape hr hn (hncs hcvn)
                 have hsnn : cv ≠ .Null := fun h => hn ((Vs.shape_kind hsh).2.2.2.2.2 h)
                 have hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idx)) = ok cv := by rw [← hxa]; exact hcv
                 have hdst : capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null := by
@@ -887,7 +1062,7 @@ theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec
                   (insert_capfr2 hPl s c' _ _ hsI' hAd.isSlot cv hsrcC he0 he' hnx)
                 rw [← hxa, ← hdA] at hins
                 refine WP.spec_bind hins ?_
-                rintro s2 ⟨⟨σ2, hci, hR2, hS2, G2, hB2⟩, hfr⟩
+                rintro s2 ⟨⟨σ2, hci, hR2, hS2, ⟨hW2, hK2⟩, G2, hB2⟩, hfr⟩
                 obtain ⟨i3, h3e, h3v⟩ := spec_exists (U64.add_spec (x := i) (y := 1#u64) (by scalar_tac))
                 rw [h3e, bind_ok, WP.spec_ok]
                 have hi3v : i3.val = i.val + 1 := by simpa using h3v
@@ -895,7 +1070,8 @@ theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec
                   rw [hci]; rfl
                 have hK := capInsert_nkn a' _ _ σ _ hmem
                 refine ⟨⟨σ2, mi, [], by rw [hi3v]; omega, hmi, hml, hmlb, fun r σf hr0 => ?_, hR2, hS2, ⟨G2, hB2⟩,
-                  fun k hk => hK.inUserFrame (hu k hk), fun j hj hij => ?_, Or.inl ⟨rfl, rfl⟩⟩, by rw [hi3v]; omega⟩
+                  fun k hk => hK.inUserFrame (hu k hk), fun j hj hij => ?_, Or.inl ⟨rfl, rfl⟩, hK0.trans hK2,
+                  (hW0.trans hW2).mono fun b h => h.elim id Or.inl, hcu⟩, by rw [hi3v]; omega⟩
                 · refine hch r σf ?_
                   rw [hdrop]
                   refine tcl_insert hnot hr' (fun h => hn ((CapRel.null_iff ⟨hw', ha'⟩).1 h)) ?_
@@ -934,7 +1110,7 @@ theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec
     · have hieq : i.val = caps.length := by omega
       rw [hnull i.val (by omega) hi3]
       simp only [decide_true, ↓reduceIte, WP.spec_ok]
-      refine tpost_of hmi hch ?_ hR hS ⟨G, hB⟩
+      refine tpost_of hmi hch ?_ hcu (by omega) hmlb hR hS hK0 hW0 ⟨G, hB⟩
       rw [hieq, List.drop_length, ← hieq]
       exact tcl_nil _ _ _
   · rw [if_neg h3]
@@ -942,7 +1118,7 @@ theorem tc_body (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spec
     have hieq : i.val = caps.length := by
       have : 3 ≤ i.val := by scalar_tac
       omega
-    refine tpost_of hmi hch ?_ hR hS ⟨G, hB⟩
+    refine tpost_of hmi hch ?_ hcu (by omega) hmlb hR hS hK0 hW0 ⟨G, hB⟩
     rw [hieq, List.drop_length, ← hieq]
     exact tcl_nil _ _ _
 
@@ -966,16 +1142,14 @@ theorem transfer_loop_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGho
     {caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {extra : Aeneas.Std.Array obj.Slot 3#usize} {ep rbw : U64}
     {rb : Fl4Spec.Word} {s0 : S} {σ0 : Fl4Spec.State Unit} {dest0 : U64} {slots0 : List Fl4Spec.CslotPtr}
     {mi0 : Fl4Spec.MessageInfo} (out0 : msginfo.MessageInfo) (hmi0 : MiRel out0 mi0)
-    (hB0 : RelTopB (L := L) th G N T C E R B c s0 σ0) (hR0 : IpcRel N T E R B (L.mem s0) σ0)
+    (hcu0 : out0.caps_unwrapped.val < 8) (hB0 : RelTopB (L := L) th G N T C E R B c s0 σ0) (hR0 : IpcRel N T E R B (L.mem s0) σ0)
     (hS0 : SRE st N T C E R B c s0 σ0) (hlen : caps.length ≤ 3)
     (hsrc : ∀ j (hj : j < caps.length), SrcOK th (L.mem s0) (exAt extra j) caps[j])
     (hnull : ∀ j, caps.length ≤ j → j < 3 → exAt extra j = 0#u64)
-    (hnc : ∀ j (hj : j < caps.length) (s' : S) (σ' : Fl4Spec.State Unit), SlotsSame th (L.mem s0) (L.mem s') →
-      σ'.cdt = σ0.cdt → NoChildrenRel (st := st) s' σ' (exAt extra j) (caps[j]).2)
     (hD : DestConf th (L.mem s0) caps extra dest0 slots0)
     (hm : BufMap B rbw rb) (hu : ∀ k, k < 128 → Fl4Spec.inUserFrame (bufAddr rb k) σ0) :
     ipc.transfer_caps_loop st s0 extra ep rbw out0 dest0 0#u64 ⦃ y =>
-      TPost (L := L) (st := st) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) th caps ep rb σ0
+      TPost (L := L) (st := st) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) th caps ep rb s0 σ0
         slots0 mi0 y ⦄ := by
   have hdest : dest0 ≠ 0#u64 → ∃ d, slots0 = [d] ∧ DestOK th (L.mem s0) dest0 d := fun h => by
     rcases hD with ⟨h0, -⟩ | ⟨-, hd⟩
@@ -986,14 +1160,14 @@ theorem transfer_loop_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGho
     (TInv (L := L) (st := st) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) th caps extra ep rb
       s0 σ0 dest0 slots0 mi0) _ _ _ (fun x hx => ?_) ?_
   · obtain ⟨s, o, d, i⟩ := x
-    have h := tc_body hP0 hlen hsrc hnull hnc hdest hm (s, o, d, i) hx
+    have h := tc_body hP0 hlen hsrc hnull hdest hm (s, o, d, i) hx
     refine WP.spec_mono h ?_
     intro r hr
     cases r with
     | done y => exact hr
     | cont x' => exact hr
   · refine ⟨σ0, mi0, slots0, by simp, hmi0, rfl, rfl, fun r σf h => by simpa using h, hR0, hS0, ⟨G, hB0⟩, hu,
-      fun j hj _ => ?_, ?_⟩
+      fun j hj _ => ?_, ?_, KeepC.refl σ0, WritesIn.refl s0 _, hcu0⟩
     · obtain ⟨ps, rs, idx, cv, -, -, -, -, hcv, habs, -⟩ := hsrc j hj
       exact ⟨cv, hcv, UwEq.of_abs habs.symm⟩
     · rcases hD with ⟨h0, h1⟩ | ⟨h0, -⟩
@@ -1014,8 +1188,6 @@ theorem transfer_caps_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGho
     (hlen : caps.length ≤ 3)
     (hsrc : ∀ j (hj : j < caps.length), SrcOK th (L.mem s) (exAt extra j) caps[j])
     (hnull : ∀ j, caps.length ≤ j → j < 3 → exAt extra j = 0#u64)
-    (hnc : ∀ j (hj : j < caps.length) (s' : S) (σ' : Fl4Spec.State Unit), SlotsSame th (L.mem s) (L.mem s') →
-      σ'.cdt = σ.cdt → NoChildrenRel (st := st) s' σ' (exAt extra j) (caps[j]).2)
     (ep : U64) (receiver : obj.Tcb) (rbw : U64) (rbo : Option Fl4Spec.Word) (hrb : rbw = 0#u64 ↔ rbo = none)
     (hm : ∀ rb, rbo = some rb → BufMap B rbw rb ∧ ∀ k, k < 128 → Fl4Spec.inUserFrame (bufAddr rb k) σ)
     (hGRs : ∀ rb, rbo = some rb → ∃ sl, Fl4Spec.getReceiveSlots (Z := Unit) receiver.bv (some rb) σ = ({(sl, σ)}, False))
@@ -1025,7 +1197,9 @@ theorem transfer_caps_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGho
     ipc.transfer_caps st s info extra ep receiver rbw ⦃ r => ∃ σ' mf,
       Fl4Spec.transferCaps (Z := Unit) mi caps (some ep.bv) receiver.bv rbo σ = ({(mf, σ')}, False) ∧
       MiRel r.1 mf ∧ r.1.extra_caps.bv = mf.miExtraCaps ∧ IpcRel N T E R B (L.mem r.2) σ' ∧
-      SRE st N T C E R B c r.2 σ' ∧ ∃ G', RelTopB (L := L) th G' N T C E R B c r.2 σ' ⦄ := by
+      r.1.caps_unwrapped.val < 8 ∧ r.1.extra_caps.val ≤ 3 ∧ mf.miLabel = mi.miLabel ∧
+      SRE st N T C E R B c r.2 σ' ∧ (KeepC σ σ' ∧ WritesIn st s r.2 (FW th B)) ∧
+      ∃ G', RelTopB (L := L) th G' N T C E R B c r.2 σ' ⦄ := by
   have hmi0 : MiRel { label := info.label, caps_unwrapped := 0#u64, extra_caps := 0#u64, length := info.length }
       ⟨mi.miLength, 0, 0, mi.miLabel⟩ := ⟨hil, rfl, hlb⟩
   -- the spec without caps or without a receive buffer
@@ -1057,14 +1231,16 @@ theorem transfer_caps_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGho
         have := (AbsSlot.isSlot (⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩ : AbsSlot th (ps.bv, idx))).ne_zero hB.1
         rw [← hxa] at this; exact this h0
     rw [decide_eq_true h0, if_pos rfl, WP.spec_ok]
-    refine ⟨σ, ⟨mi.miLength, 0, 0, mi.miLabel⟩, ?_, hmi0, rfl, hR, hS, G, hB⟩
+    refine ⟨σ, ⟨mi.miLength, 0, 0, mi.miLabel⟩, ?_, hmi0, rfl, hR, by simp, by simp, rfl, hS,
+      ⟨KeepC.refl σ, WritesIn.refl s _⟩, G, hB⟩
     cases e : rbo with
     | none => rw [← e]; exact hnone e
     | some rb => rw [← e]; exact hnil hcn rb e
   · rw [decide_eq_false h0, if_neg Bool.false_ne_true]
     by_cases hr0 : rbw = 0#u64
     · rw [if_pos hr0, WP.spec_ok]
-      exact ⟨σ, _, hnone (hrb.1 hr0), hmi0, rfl, hR, hS, G, hB⟩
+      exact ⟨σ, _, hnone (hrb.1 hr0), hmi0, rfl, hR, by simp, by simp, rfl, hS, ⟨KeepC.refl σ, WritesIn.refl s _⟩,
+        G, hB⟩
     · rw [if_neg hr0]
       obtain ⟨rb, hrbo⟩ : ∃ rb, rbo = some rb := by
         cases e : rbo with
@@ -1073,9 +1249,9 @@ theorem transfer_caps_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGho
       obtain ⟨hmb, hu⟩ := hm rb hrbo
       refine WP.spec_bind (hG1 rb hrbo) ?_
       rintro dest ⟨slots, hsl, hD⟩
-      refine WP.spec_bind (transfer_loop_top hP0 _ hmi0 hB hR hS hlen hsrc hnull hnc hD hmb hu) ?_
-      rintro ⟨s2, out1, i⟩ ⟨σ', mf, hloop, hmi1, hex, hR', hS', hB'⟩
-      refine (WP.spec_ok _).2 ⟨σ', mf, ?_, hmi1, ?_, hR', hS', hB'⟩
+      refine WP.spec_bind (transfer_loop_top hP0 _ hmi0 (by simp) hB hR hS hlen hsrc hnull hD hmb hu) ?_
+      rintro ⟨s2, out1, i⟩ ⟨σ', mf, hloop, hmi1, hex, hcu1, hi31, hlb1, hR', hS', hF', hB'⟩
+      refine (WP.spec_ok _).2 ⟨σ', mf, ?_, hmi1, ?_, hR', hcu1, hi31, hlb1, hS', hF', hB'⟩
       swap
       · show i.bv = mf.miExtraCaps
         rw [hex]; apply BitVec.eq_of_toNat_eq

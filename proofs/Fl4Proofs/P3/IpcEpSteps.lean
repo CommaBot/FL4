@@ -183,7 +183,7 @@ theorem reply_push_i (hH : IpcSchedHyps st ar N T E R B SR) (hP0 : IPlaced N T E
 /-- **The step lemmas for the combined relation.** -/
 theorem _root_.Fl4Proofs.P3.Ipc.IpcSchedHyps.steps (hH : IpcSchedHyps st ar N T E R B SR) (hBf : EpBufHyps st T E R B SR)
     (hBm : EpBufMapHyps st T E R B SR) (hP0 : IPlaced N T E R B) :
-    EpStepsBuf st A ar T E R B (SRN st N T (SRS st T SR)) (fun ts => tsCode ts ≠ 6) where
+    EpStepsBuf st A ar T E R B (SRN st N T (SRS st T SR)) (fun ts => tsCode ts ≠ 6) False where
   ns_ep _ h := h
   deq hP s σ hR hSR e he x hk d hd := by
     obtain ⟨xs, hQ, hxs, hB⟩ := (hR.at_ep he hk).queue
@@ -205,13 +205,13 @@ theorem _root_.Fl4Proofs.P3.Ipc.IpcSchedHyps.steps (hH : IpcSchedHyps st ar N T 
     exact ⟨h1, h2, ⟨h3, ntfn_frame_ep hP0.toC hSR.2 he hW hQA hkv⟩, h4⟩
   xregs hP s a σ hR hSR snd rcv hs hr hne xs xr hks hkr hf hrb ep badge grant hcaps :=
     WP.spec_mono (do_ipc_transfer_regs (ar := ar) (hH.epHyps hP0) hBf.srs hP s a σ hR hSR.1 hs hr hne hks hkr hf hrb ep badge
-      grant hcaps) fun _ ⟨h1, h2, h3, h4⟩ =>
+      grant (hcaps.resolve_left id)) fun _ ⟨h1, h2, h3, h4⟩ =>
       ⟨h1, h2, ⟨h3, ntfn_lift_rcv hP0.toC hSR.2 h2 hr (h4.mono fun _ h => h.1) (fun p hp => by simp [hp]) hkr
         (by simp only [updK_kheap, Function.update_self]; exact rfl) (xferTcb_state _ _ _)⟩, h4⟩
   xbuf hP s a σ hR hSR snd rcv hs hr hne xs xr hks hkr hf rp hrb ep badge grant hcaps :=
     WP.spec_mono (do_ipc_transfer_buf (ar := ar) (hH.epHyps hP0) hBf.srs hBm.srs hP s a σ hR hSR.1 hs hr hne hks hkr hf hrb ep
-      badge grant hcaps) fun _ ⟨σ', h1, h2, h3, h4, h5, x', h6, h7⟩ =>
-      ⟨σ', h1, h2, ⟨h3, ntfn_lift_rcv hP0.toC hSR.2 h2 hr h4 h5 hkr h6 h7⟩, h4, h5, x', h6, h7⟩
+      badge grant (hcaps.resolve_left id)) fun _ ⟨σ', h1, h2, h3, h4, h5, x', h6, h7⟩ =>
+      ⟨σ', h1, h2, ⟨h3, ntfn_lift_rcv hP0.toC hSR.2 h2 hr h4 h5 hkr h6 h7⟩, h4.mono fun _ h => h.2, KeepNC.of_eq h5, x', h6, h7⟩
   link hP s σ hR hSR r hr xr hkr t ht := by
     obtain ⟨e1, hR1, hS1, hA1⟩ := reply_link_rel (hH.epHyps hP0) hP s σ hR hSR.1 hr hkr ht
     exact ⟨e1, hR1, ⟨hS1, ntfn_reply_write hP0.toC hSR.2 hr hA1 hkr _⟩, hA1⟩

@@ -53,14 +53,14 @@ variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulSt
   {B : Set (U64 × Fl4Spec.Word)} {SR : S → Fl4Spec.State Unit → Prop}
 
 /-- `send_ipc_call` over the bundled step lemmas (`EpSteps`). -/
-theorem send_ipc_call_gen {NS : Fl4Spec.ThreadState → Prop} (hX : EpSteps st A ar T E R B SR NS) (hTl : EpTailHyps st A T E R B SR)
+theorem send_ipc_call_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Prop} (hX : EpSteps st A ar T E R B SR NS GC) (hTl : EpTailHyps st A T E R B SR)
     (hP : EPlaced T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit) (hR : EpStateRel T E R B (L.mem s) σ)
     (hSR : SR s σ) {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hnb : tsCode xt.tcbState ≠ 3 ∧ tsCode xt.tcbState ≠ 4) (hft : xt.tcbFault = none) (hns : NS xt.tcbState)
     {e d : U64} (he : e ∈ E) {q : List Fl4Spec.ObjRef} (hk : σ.kheap e.bv = some (.endpoint (.recvEP (d.bv :: q))))
     {xd : Fl4Spec.Tcb} (hkd : σ.kheap d.bv = some (.tcb xd)) (hrb : ipcBufOf true xd = none)
     (badge : U64) (g gr : Bool)
-    (hcaps : g = false ∨ ipcBufOf false xt = none ∨
+    (hcaps : GC ∨ g = false ∨ ipcBufOf false xt = none ∨
       Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xt.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0)
     (hback : ∀ e' r dd xr, xd.tcbState = .blockedOnReceive e' (some r) dd → σ.kheap r = some (.reply xr) →
       xr.replyTcb = some d.bv)
@@ -276,7 +276,7 @@ theorem send_ipc_call (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E R B SR
       ¬ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr false t.bv e.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr false t.bv e.bv σ).1 ∧
         EpStateRel T E R B (L.mem r.1) σ' ∧ SR r.1 σ' ⦄ :=
-  send_ipc_call_gen (EpHyps.steps (ar := ar) hH hBf (fun _ => True) (fun _ _ => trivial)) hTl hP s a σ hR hSR ht hkt hnb hft trivial he hk hkd hrb badge g gr hcaps hback hg hrp0 blk
+  send_ipc_call_gen (EpHyps.steps (ar := ar) hH hBf (fun _ => True) (fun _ _ => trivial)) hTl hP s a σ hR hSR ht hkt hnb hft trivial he hk hkd hrb badge g gr (Or.inr hcaps) hback hg hrp0 blk
 
 end
 

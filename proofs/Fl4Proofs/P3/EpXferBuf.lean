@@ -104,17 +104,17 @@ theorem copy_mrs_loop1_rel (hH : EpHyps st T E R B SR) (hP : EPlaced T E R B) (s
       EpStateRel T E R B (L.mem r.2)
         (setUm σ (copyBufMem σ.machineState.underlyingMemory sp rp (List.range' 5 (n.val - 4)))) ∧
       SR r.2 (setUm σ (copyBufMem σ.machineState.underlyingMemory sp rp (List.range' 5 (n.val - 4)))) ∧
-      Agree (L.mem s) (L.mem r.2) (fun b => ¬ BufW B b) ⦄ := by
+      Agree (L.mem s) (L.mem r.2) (fun b => ¬ BufW B b) ∧ WritesIn st s r.2 (EWrite T E R B) ⦄ := by
   unfold msg.copy_mrs_loop1
   apply loop.spec_decr_nat (measure := fun x => n.val - x.2.val)
     (inv := fun x => i0.val ≤ x.2.val ∧ x.2.val ≤ n.val ∧
       EpStateRel T E R B (L.mem x.1)
         (setUm σ (copyBufMem σ.machineState.underlyingMemory sp rp (List.range' 5 (x.2.val - 4)))) ∧
       SR x.1 (setUm σ (copyBufMem σ.machineState.underlyingMemory sp rp (List.range' 5 (x.2.val - 4)))) ∧
-      Agree (L.mem s) (L.mem x.1) (fun b => ¬ BufW B b))
-  · rintro ⟨s', i⟩ ⟨h1, h2, hR', hS', hA'⟩
+      Agree (L.mem s) (L.mem x.1) (fun b => ¬ BufW B b) ∧ WritesIn st s x.1 (EWrite T E R B))
+  · rintro ⟨s', i⟩ ⟨h1, h2, hR', hS', hA', hW'⟩
     unfold msg.copy_mrs_loop1.body
-    simp only at h1 h2 hR' hS' hA' ⊢
+    simp only at h1 h2 hR' hS' hA' hW' ⊢
     by_cases hc1 : i < n
     · have hlt : i.val < n.val := (gt_iff_val).1 hc1
       have h4 : 4 ≤ i.val := by omega
@@ -140,15 +140,15 @@ theorem copy_mrs_loop1_rel (hH : EpHyps st T E R B SR) (hP : EPlaced T E R B) (s
         rw [hlist, copyBufMem_snoc, hvb]
       have hW : WritesIn st s' (L.wr s' (fl4BufA rw i1) (L.mem s' (fl4BufA sw i1))) (EWrite T E R B) :=
         (writesIn_wr hal).mono fun b hb => Or.inr (Or.inr (Or.inr ⟨_, hwr, hb⟩))
-      refine ⟨by omega, by omega, ?_, ?_, ?_, by omega⟩
+      refine ⟨by omega, by omega, ?_, ?_, ?_, (hW'.trans hW).mono fun b h => h.elim id id, by omega⟩
       · rw [hmem]; exact hR1
       · rw [hmem]; exact hH.stable _ _ _ _ hS' hW (EpStep.setUm' _ _)
       · exact fun b hb hn => (hag b hb fun h => hn ⟨_, hwr, UScalar.eq_of_val_eq h⟩).trans (hA' b hb hn)
     · simp only [hc1, ↓reduceIte, WP.spec_ok]
       have : i.val = n.val := by have : ¬ i.val < n.val := fun h => hc1 ((gt_iff_val).2 h); omega
-      refine ⟨this, ?_, ?_, hA'⟩ <;> rw [← this] <;> assumption
+      refine ⟨this, ?_, ?_, hA', hW'⟩ <;> rw [← this] <;> assumption
   · dsimp only
-    refine ⟨le_refl _, by omega, ?_, ?_, Agree.rfl'⟩
+    refine ⟨le_refl _, by omega, ?_, ?_, Agree.rfl', WritesIn.refl s _⟩
     · rw [show i0.val - 4 = 0 by omega]; exact hR
     · rw [show i0.val - 4 = 0 by omega]; exact hSR
 
@@ -225,27 +225,32 @@ theorem copy_mrs_rel (hH : EpHyps st T E R B SR) (hP : EPlaced T E R B) (s : S) 
       σc.kheap = Function.update σ.kheap rcv.bv (some (.tcb (copyRegsTcb xr xs.tcbArch.tcbContext.userRegs
         (Fl4Spec.msg_registers.take n.val)))) ∧
       EpStateRel T E R B (L.mem r.2) σc ∧ SR r.2 σc ∧
-      Agree (L.mem s) (L.mem r.2) (fun b => ¬ RcvMR rcv b ∧ ¬ BufW B b) ∧ r.1.val ≤ 120 ⦄ := by
+      Agree (L.mem s) (L.mem r.2) (fun b => ¬ RcvMR rcv b ∧ ¬ BufW B b) ∧ r.1.val ≤ 120 ∧
+      WritesIn st s r.2 (EWrite T E R B) ∧ EpStep σ σc ⦄ := by
   unfold msg.copy_mrs
   refine WP.spec_bind (copy_mrs_loop0_spec (L := L) hP s hs hr hne n) ?_
   rintro ⟨s1, i⟩ ⟨hi, hregs, hag, hw⟩
   obtain ⟨hR1, hS1⟩ := loop0_rel hH hP hR hSR hs hr hks hkr n.val hregs hag hw
   have hun : Fl4Spec.unat n.bv = n.val := rfl
   set σ1 := updK σ rcv.bv (.tcb (copyRegsTcb xr xs.tcbArch.tcbContext.userRegs (Fl4Spec.msg_registers.take n.val)))
+  have hE1 : EpStep σ σ1 := by
+    have h := EpStep.tcb hkr xr.tcbState (copyRegsTcb xr xs.tcbArch.tcbContext.userRegs
+      (Fl4Spec.msg_registers.take n.val)).tcbArch
+    rwa [← copyRegsTcb_other] at h
   simp only [hrw0, ↓reduceIte]
   rcases hsw with ⟨rfl, rfl⟩ | ⟨sp, rfl, hsw0, hms⟩
   · simp only [↓reduceIte]
     show (ok (i, s1)) ⦃ _ ⦄
     simp only [WP.spec_ok]
-    refine ⟨σ1, ?_, rfl, hR1, hS1, hag.mono fun b hb => hb.1, by rw [hi]; omega⟩
+    refine ⟨σ1, ?_, rfl, hR1, hS1, hag.mono fun b hb => hb.1, by rw [hi]; omega, hw, hE1⟩
     rw [copyMrs_noSendBuf (bv_inj hne) hks hkr _ _, hun]
     congr
     exact (xfer_len (by rw [hi]; rfl)).symm
   · simp only [hsw0, ↓reduceIte]
     refine WP.spec_mono (copy_mrs_loop1_rel hH hP s1 σ1 hR1 hS1 hms hmr n i hn hi) ?_
-    rintro ⟨n2, s2⟩ ⟨hn2, hR2, hS2, hA2⟩
+    rintro ⟨n2, s2⟩ ⟨hn2, hR2, hS2, hA2, hW2⟩
     refine ⟨_, ?_, rfl, hR2, hS2, fun b hb hn' => (hA2 b hb hn'.2).trans (hag b hb hn'.1),
-      by rw [hn2]; exact hn⟩
+      by rw [hn2]; exact hn, (hw.trans hW2).mono fun b h => h.elim id id, hE1.trans (EpStep.setUm' _ _)⟩
     rw [copyMrs_bufs (bv_inj hne) hks hkr sp rp n.bv ?_]
     · have e : n2 = n := UScalar.eq_of_val_eq hn2
       subst e

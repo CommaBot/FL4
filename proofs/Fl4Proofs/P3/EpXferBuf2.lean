@@ -114,7 +114,7 @@ theorem do_ipc_transfer_buf (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E 
   refine WP.spec_bind hex ?_
   rintro extra rfl
   refine WP.spec_bind (copy_mrs_rel hH hP s σ hR hSR hs hr hne hks hkr hmr hrw0 hu hsw tag.length hle) ?_
-  rintro ⟨n, s1⟩ ⟨σc, hcopy, hkcf, hRc, hSc, hAc, hn⟩
+  rintro ⟨n, s1⟩ ⟨σc, hcopy, hkcf, hRc, hSc, hAc, hn, -⟩
   simp only at hcopy hkcf hRc hSc hAc hn
   have hkc : σc.kheap rcv.bv = some (.tcb (copyRegsTcb xr xs.tcbArch.tcbContext.userRegs
       (Fl4Spec.msg_registers.take tag.length.val))) := by rw [hkcf]; simp

@@ -21,9 +21,35 @@ noncomputable section
 section Defs
 variable {S : Type} (st : machine.Store S) [L : LawfulStore st]
 
-/-- The step lemmas (see the module docstring). -/
+/-- What a transfer step keeps of the spec's heap: every object but the
+receiver's TCB, or a CNode of the same size (a cap transferred into a
+receive slot). -/
+def KeepNC (σ σ' : Fl4Spec.State Unit) (rcv : Fl4Spec.ObjRef) : Prop :=
+  ∀ p, p ≠ rcv → σ'.kheap p = σ.kheap p ∨
+    ∃ r cs cs', σ.kheap p = some (.cnode r cs) ∧ σ'.kheap p = some (.cnode r cs')
+
+theorem KeepNC.of_eq {σ σ' : Fl4Spec.State Unit} {rcv : Fl4Spec.ObjRef}
+    (h : ∀ p, p ≠ rcv → σ'.kheap p = σ.kheap p) : KeepNC σ σ' rcv := fun p hp => Or.inl (h p hp)
+
+theorem KeepNC.fwd {σ σ' : Fl4Spec.State Unit} {rcv : Fl4Spec.ObjRef} (h : KeepNC σ σ' rcv)
+    {p : Fl4Spec.ObjRef} (hp : p ≠ rcv) {o : Fl4Spec.KernelObject} (hk : σ.kheap p = some o)
+    (ho : ∀ r cs, o ≠ .cnode r cs) : σ'.kheap p = some o := by
+  rcases h p hp with e | ⟨r, cs, cs', h1, -⟩
+  · rw [e, hk]
+  · rw [hk] at h1; cases h1; exact absurd rfl (ho r cs)
+
+theorem KeepNC.bwd {σ σ' : Fl4Spec.State Unit} {rcv : Fl4Spec.ObjRef} (h : KeepNC σ σ' rcv)
+    {p : Fl4Spec.ObjRef} (hp : p ≠ rcv) {o : Fl4Spec.KernelObject} (hk : σ'.kheap p = some o)
+    (ho : ∀ r cs, o ≠ .cnode r cs) : σ.kheap p = some o := by
+  rcases h p hp with e | ⟨r, cs, cs', -, h2⟩
+  · rw [← e, hk]
+  · rw [hk] at h2; cases h2; exact absurd rfl (ho r cs')
+
+/-- The step lemmas (see the module docstring). `GC` says whether the
+transfers may carry caps (a grant with extra caps): when it does not hold,
+the transfers carry none (`hcaps`). -/
 structure EpSteps (A : Type) (ar : machine.Arch A) (T E R : Set U64) (B : Set (U64 × Fl4Spec.Word))
-    (SR : S → Fl4Spec.State Unit → Prop) (NS : Fl4Spec.ThreadState → Prop) : Prop where
+    (SR : S → Fl4Spec.State Unit → Prop) (NS : Fl4Spec.ThreadState → Prop) (GC : Prop) : Prop where
   ns_ep : ∀ ts, tsCode ts ≠ 6 → NS ts
   deq : ∀ (hP : EPlaced T E R B) (s : S) (σ : Fl4Spec.State Unit)
     (hR : EpStateRel T E R B (L.mem s) σ) (hSR : SR s σ) {e : U64} (he : e ∈ E) {x : Fl4Spec.Endpoint}
@@ -38,7 +64,7 @@ structure EpSteps (A : Type) (ar : machine.Arch A) (T E R : Set U64) (B : Set (U
     {snd rcv : U64} (hs : snd ∈ T) (hr : rcv ∈ T) (hne : snd ≠ rcv) {xs xr : Fl4Spec.Tcb}
     (hks : σ.kheap snd.bv = some (.tcb xs)) (hkr : σ.kheap rcv.bv = some (.tcb xr)) (hf : xs.tcbFault = none)
     (hrb : ipcBufOf true xr = none) (ep badge : U64) (grant : Bool)
-    (hcaps : grant = false ∨ ipcBufOf false xs = none ∨
+    (hcaps : GC ∨ grant = false ∨ ipcBufOf false xs = none ∨
       Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0),
     ipc.do_ipc_transfer st ar s a snd ep badge grant rcv ⦃ s' =>
       Fl4Spec.doIpcTransfer (Z := Unit) snd.bv (some ep.bv) badge.bv grant rcv.bv σ =
@@ -92,20 +118,20 @@ structure EpSteps (A : Type) (ar : machine.Arch A) (T E R : Set U64) (B : Set (U
 
 /-- The step lemmas with the transfer into a receive buffer. -/
 structure EpStepsBuf (A : Type) (ar : machine.Arch A) (T E R : Set U64) (B : Set (U64 × Fl4Spec.Word))
-    (SR : S → Fl4Spec.State Unit → Prop) (NS : Fl4Spec.ThreadState → Prop) : Prop
-    extends EpSteps st A ar T E R B SR NS where
+    (SR : S → Fl4Spec.State Unit → Prop) (NS : Fl4Spec.ThreadState → Prop) (GC : Prop) : Prop
+    extends EpSteps st A ar T E R B SR NS GC where
   xbuf : ∀ (hP : EPlaced T E R B)
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hR : EpStateRel T E R B (L.mem s) σ) (hSR : SR s σ)
     {snd rcv : U64} (hs : snd ∈ T) (hr : rcv ∈ T) (hne : snd ≠ rcv) {xs xr : Fl4Spec.Tcb}
     (hks : σ.kheap snd.bv = some (.tcb xs)) (hkr : σ.kheap rcv.bv = some (.tcb xr)) (hf : xs.tcbFault = none)
     {rp : Fl4Spec.ObjRef} (hrb : ipcBufOf true xr = some rp) (ep badge : U64) (grant : Bool)
-    (hcaps : grant = false ∨ ipcBufOf false xs = none ∨
+    (hcaps : GC ∨ grant = false ∨ ipcBufOf false xs = none ∨
       Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0),
     ipc.do_ipc_transfer st ar s a snd ep badge grant rcv ⦃ s' => ∃ σ',
       Fl4Spec.doIpcTransfer (Z := Unit) snd.bv (some ep.bv) badge.bv grant rcv.bv σ = ({((), σ')}, False) ∧
       EpStateRel T E R B (L.mem s') σ' ∧ SR s' σ' ∧
-      Agree (L.mem s) (L.mem s') (fun b => ¬ RcvReg rcv b ∧ ¬ BufW B b) ∧
-      (∀ p, p ≠ rcv.bv → σ'.kheap p = σ.kheap p) ∧
+      Agree (L.mem s) (L.mem s') (fun b => AllTF T b ∧ ¬ RcvReg rcv b ∧ ¬ BufW B b) ∧
+      KeepNC σ σ' rcv.bv ∧
       ∃ x', σ'.kheap rcv.bv = some (.tcb x') ∧ x'.tcbState = xr.tcbState ⦄
 
 end Defs
@@ -117,11 +143,11 @@ variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulSt
 /-- **The step lemmas for the endpoint relation.** -/
 theorem EpHyps.steps (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E R B SR)
     (NS : Fl4Spec.ThreadState → Prop) (hNS : ∀ ts, tsCode ts ≠ 6 → NS ts) :
-    EpSteps st A ar T E R B SR NS where
+    EpSteps st A ar T E R B SR NS False where
   ns_ep := hNS
   deq hP s σ hR hSR _ he _ hk _ hd := ep_dequeue_rel hH hP s σ hR hSR he hk hd
   xregs hP s a σ hR hSR _ _ hs hr hne _ _ hks hkr hf hrb ep badge grant hcaps :=
-    do_ipc_transfer_regs hH hBf hP s a σ hR hSR hs hr hne hks hkr hf hrb ep badge grant hcaps
+    do_ipc_transfer_regs hH hBf hP s a σ hR hSR hs hr hne hks hkr hf hrb ep badge grant (hcaps.resolve_left id)
   link hP s σ hR hSR _ hr _ hkr _ ht := reply_link_rel hH hP s σ hR hSR hr hkr ht
   unlink hP s σ hR hSR _ ht _ hk _ _ _ hst hr _ hkr hback hq :=
     reply_unlink_rel hH hP s σ hR hSR ht hk hst hr hkr hback hq
@@ -131,10 +157,12 @@ theorem EpHyps.steps (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E R B SR)
 /-- **The step lemmas for the endpoint relation**, with the buffer transfer. -/
 theorem EpHyps.stepsBuf (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E R B SR)
     (hBm : EpBufMapHyps st T E R B SR) (NS : Fl4Spec.ThreadState → Prop) (hNS : ∀ ts, tsCode ts ≠ 6 → NS ts) :
-    EpStepsBuf st A ar T E R B SR NS where
+    EpStepsBuf st A ar T E R B SR NS False where
   toEpSteps := EpHyps.steps hH hBf NS hNS
   xbuf hP s a σ hR hSR _ _ hs hr hne _ _ hks hkr hf _ hrb ep badge grant hcaps :=
-    do_ipc_transfer_buf hH hBf hBm hP s a σ hR hSR hs hr hne hks hkr hf hrb ep badge grant hcaps
+    WP.spec_mono (do_ipc_transfer_buf hH hBf hBm hP s a σ hR hSR hs hr hne hks hkr hf hrb ep badge grant
+      (hcaps.resolve_left id)) fun _ ⟨σ', h1, h2, h3, h4, h5, h6⟩ =>
+      ⟨σ', h1, h2, h3, h4.mono fun _ h => h.2, KeepNC.of_eq h5, h6⟩
 
 end
 

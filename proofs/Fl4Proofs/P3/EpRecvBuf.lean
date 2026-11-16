@@ -16,7 +16,7 @@ variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulSt
   {B : Set (U64 × Fl4Spec.Word)} {SR : S → Fl4Spec.State Unit → Prop}
 
 /-- `receive_ipc_send_buf` over the bundled step lemmas (`EpSteps`). -/
-theorem receive_ipc_send_buf_gen {NS : Fl4Spec.ThreadState → Prop} (hX : EpStepsBuf st A ar T E R B SR NS)
+theorem receive_ipc_send_buf_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Prop} (hX : EpStepsBuf st A ar T E R B SR NS GC)
     (hTl : EpTailHyps st A T E R B SR) (hP : EPlaced T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hR : EpStateRel T E R B (L.mem s) σ) (hSR : SR s σ)
     {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
@@ -25,7 +25,7 @@ theorem receive_ipc_send_buf_gen {NS : Fl4Spec.ThreadState → Prop} (hX : EpSte
     {e sd : U64} (he : e ∈ E) {q : List Fl4Spec.ObjRef} (hk : σ.kheap e.bv = some (.endpoint (.sendEP (sd.bv :: q))))
     {xs : Fl4Spec.Tcb} (hks : σ.kheap sd.bv = some (.tcb xs)) (hfs : xs.tcbFault = none)
     (hcall : ∀ e' dd, xs.tcbState = .blockedOnSend e' dd → dd.senderIsCall = false)
-    (hcaps : ∀ e' dd, xs.tcbState = .blockedOnSend e' dd → dd.senderCanGrant = false ∨ ipcBufOf false xs = none ∨
+    (hcaps : ∀ e' dd, xs.tcbState = .blockedOnSend e' dd → GC ∨ dd.senderCanGrant = false ∨ ipcBufOf false xs = none ∨
       Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0)
     (cb : U64) (c1 c2 c3 c4 : Bool) {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64}
     (hrc : ReplyArg R (L.mem s) rc rc' rv) (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) (blk : Bool) :
@@ -95,9 +95,9 @@ theorem receive_ipc_send_buf_gen {NS : Fl4Spec.ThreadState → Prop} (hX : EpSte
   have e2' : Fl4Spec.doIpcTransfer (Z := Unit) sd'.bv (some e.bv) dd.senderBadge dd.senderCanGrant t.bv σ1 =
       ({((), σ2)}, False) := by rw [← hbb, ← hg]; exact e2
   have hst' : sd'.bv ≠ t.bv := bv_inj (Ne.symm hts)
-  have hks2 : σ2.kheap sd'.bv = some (.tcb xs) := (hk2o _ hst').trans hks1
+  have hks2 : σ2.kheap sd'.bv = some (.tcb xs) := hk2o.fwd hst' hks1 (fun _ _ e => by cases e)
   have hk2e : σ2.kheap e.bv = some (.endpoint (epDeq (.sendEP (sd'.bv :: q)) sd'.bv)) :=
-    (hk2o _ hte.symm).trans (by simp [σ1])
+    hk2o.fwd hte.symm (by simp [σ1]) (fun _ _ e => by cases e)
   refine WP.spec_bind (hTl.sporadicAssert s2 σ2 sd' hR2 hS2 hsT) ?_
   rintro s3 ⟨σ3, hA, hf3, hv3, hS3⟩
   have hR3 := hR2.frame hP hf3 hv3
@@ -111,7 +111,7 @@ theorem receive_ipc_send_buf_gen {NS : Fl4Spec.ThreadState → Prop} (hX : EpSte
   -- the sender is in no queue
   have hb3 : L.mem s3 (tBlockA sd') = e := by
     rw [hf3 _ (a_blk hsa).1 (Or.inr (Or.inr (Or.inl ⟨sd', hsT, Or.inl (a_blk hsa).2⟩)))]
-    rw [hA2 _ (a_blk hsa).1 ⟨?_, ?_⟩, hA1 _ (a_blk hsa).1 ⟨sd', hsT, (a_blk hsa).2⟩, hsb]
+    rw [hA2 _ (a_blk hsa).1 ⟨⟨sd', hsT, (a_blk hsa).2⟩, ?_, ?_⟩, hA1 _ (a_blk hsa).1 ⟨sd', hsT, (a_blk hsa).2⟩, hsb]
     · rintro ⟨r', hr'⟩
       have := tcb_disj hP ht hsT hts.symm
       rw [val_blk hsa, regA_val hta (regIdx_lt r')] at hr'; have := regIdx_lt r'; omega
@@ -150,7 +150,7 @@ theorem receive_ipc_send_buf (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E
       ¬ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1 ∧
         EpStateRel T E R B (L.mem r.1) σ' ∧ SR r.1 σ' ⦄ :=
-  receive_ipc_send_buf_gen (EpHyps.stepsBuf (ar := ar) hH hBf hBm (fun _ => True) (fun _ _ => trivial)) hTl hP s a σ hR hSR ht hkt hnb hbn hrb he hk hks hfs hcall hcaps cb c1 c2 c3 c4 hrc b rights blk
+  receive_ipc_send_buf_gen (EpHyps.stepsBuf (ar := ar) hH hBf hBm (fun _ => True) (fun _ _ => trivial)) hTl hP s a σ hR hSR ht hkt hnb hbn hrb he hk hks hfs hcall (fun e' dd h => Or.inr (hcaps e' dd h)) cb c1 c2 c3 c4 hrc b rights blk
 
 end
 
