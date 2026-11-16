@@ -229,12 +229,17 @@ theorem smp.remote_tcb_stall.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
 
 /-- The named YieldTo gap: `yield_to` (`complete_yield_to`, `resume`,
 `yield_switches`, the consumed-time reply) after the caller's restart, with
-the decoder's checks. -/
+the decoder's checks and the caller's entry facts (`DecPre`: the action
+resume, or choose-new after the restart; the caller's SC bound and active,
+`CanBlock.ac`; the caller in no release queue, `CanBlock.nr`).  Discharged
+in QueueYield (`scYieldGap_holds`). -/
 def ScYieldGap (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop :=
   ∀ (Ac : Set U64) (s : S) (a : A) (sc : U64) (call : Bool), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     UserOK st T Cs Ω H U s → sc ∈ Scs → sc ≠ 0#u64 → L.mem s (stA (L.curW s)) = sched.TS_RESTART →
     L.mem s (scTcbA sc) ≠ 0#u64 → L.mem s (scTcbA sc) ≠ L.curW s → L.mem s (yieldA (L.curW s)) = 0#u64 →
+    (L.actionW s = 0#u64 ∨ L.actionW s = 1#u64) → L.mem s (scA (L.curW s)) ≠ 0#u64 →
+    L.mem s (scA (L.curW s)) ∈ Ac → (L.mem s (inqA (L.curW s)) &&& sched.Q_RELEASE) = 0#u64 →
     schedcontext.yield_to st ar s a sc call ⦃ s' _ => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄
 
 theorem DecPost.of_bxi {s s' : S} {r : core.result.Result Unit error.Exc} {Ac' : Set U64}
@@ -422,7 +427,15 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
     refine WP.spec_bind (Y Ac s2 a1 sc call (BlkOK.bxi h2) (hU1.ksb k2.ksb) hsc hsc0 (by rw [hc2]; exact e2)
       (by rw [t2]; intro e; exact hbn (by rw [ebn, e]; rfl))
       (by rw [t2, hc2]; intro e; exact hbe (by rw [ebe, e]; simp))
-      (by rw [hc2]; exact y2)) ?_
+      (by rw [hc2]; exact y2)
+      (by rcases k2.act with e | e
+          · left; rw [e, act1]
+          · right; exact e)
+      (by rw [hc2, k2.scf hct, scA_eq, f1 _ hct _ (by simp) (by simp), ← scA_eq]; exact h.2.1.resume D.act)
+      (by rw [hc2, k2.scf hct, scA_eq, f1 _ hct _ (by simp) (by simp), ← scA_eq]
+          exact D.cb.ac (h.2.1.resume D.act))
+      (by rw [hc2, inqA_eq, k2.fld _ hct _ (by simp) (by simp) (by simp) (by simp) (fun _ => ⟨by simp, by simp⟩),
+            f1 _ hct _ (by simp) (by simp), ← inqA_eq]; exact D.cb.nr)) ?_
     rintro ⟨s3, a2⟩ ⟨Ac3, h3⟩
     try simp only [WP.uncurry'_pair]
     exact (WP.spec_ok _).2 (DecPost.of_bxi h3 (by simp))
