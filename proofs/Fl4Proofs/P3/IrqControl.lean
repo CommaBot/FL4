@@ -17,6 +17,7 @@ import Fl4Proofs.P3.IrqHandler
 import Fl4Proofs.P3.IntFrame
 import Fl4Spec.Ext.IrqControl
 import Fl4Proofs.P3.MdbStepVs
+import Fl4Proofs.P3.DomKeep
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -92,7 +93,8 @@ def CPost {X : Type} (invk : X → Fl4Spec.PMonad Unit Unit) (th : TypedHeap) (k
   | (.Ok (), s', _) => ∃ inv, m.run σ = ({(.ok inv, σ)}, False) ∧ ∃ σ1,
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
       ∃ σ' G', (.ok (), σ') ∈ ((invk inv).run σ1).1 ∧ CRel th (L.mem s') σ' G' ∧ IrqRel (L.mem s') kb σ' ∧
-        FinInv th (L.mem s') σ' G' ∧ HandlersActive (L.mem s') kb G' ∧ MdbOKV kb (L.mem s') G'
+        FinInv th (L.mem s') σ' G' ∧ HandlersActive (L.mem s') kb G' ∧ MdbOKV kb (L.mem s') G' ∧
+        (DomPlaced (L := L) th s → DK4 (L := L) s s')
 
 theorem CPost.of_run {X : Type} {invk : X → Fl4Spec.PMonad Unit Unit} {th : TypedHeap} {kb : U64}
     {σ : Fl4Spec.State Unit} {m m' : Fl4Spec.SEMonad Unit X} (h : m.run σ = m'.run σ) {s : S}

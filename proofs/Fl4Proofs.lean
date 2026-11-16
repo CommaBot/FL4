@@ -228,4 +228,8 @@ import Fl4Proofs.P3.CnodeDom
 import Fl4Proofs.P3.AllDom
 import Fl4Proofs.P3.ScInvE
 import Fl4Proofs.P3.DomFoot
+import Fl4Proofs.P3.EmptyFrame
+import Fl4Proofs.P3.DomKeep
+import Fl4Proofs.P3.IrqDom
+import Fl4Proofs.P3.DomCaps
 import Fl4Proofs.P3.SchedValidRel

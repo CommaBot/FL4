@@ -134,6 +134,21 @@ theorem FrameInv.of_same' {th : TypedHeap} {m m' : U64 → U64} {G : MdbGhost} (
     (hF : Vs.FrameInv m G) (hS : SlotsSame th m m') : Vs.FrameInv m' G :=
   hF.of_caps (fun z hz => hS.capV ((hM.members z).1 hz).1)
 
+
+/-- **The bitmap writes keep the domain schedule's words** (`MaskPost`: only
+the bitmap words, past them, change). -/
+theorem DK4.of_mask {s s' : S} (hf : (L.ksb s).val + 13568 ≤ 2 ^ 64) (ha : (L.ksb s).val % 8 = 0)
+    {low high : U64} {set : Bool} (h : MaskPost (L := L) (L.ksb s) low high set s s') : DK4 (L := L) s s' := by
+  refine ⟨h.1, fun o ho => h.2.1 _ ?_ fun w hw e => ?_⟩
+  · have hv := dw_val hf ho
+    have := domOffs0_lt ho
+    unfold P1.Aligned; rw [hv]; omega
+  · have hv := dw_val hf ho
+    have := (domOffs0_lt ho).1
+    have hv2 := ioA_val (kb := L.ksb s) hf hw
+    have := congrArg UScalar.val e
+    rw [hv, hv2] at this; omega
+
 /-- The outcome of an IOPortControl invocation against a spec decode `m`:
 the same error with the state unchanged, or an invocation after which (with
 `set_thread_state Restart` first) `arch_perform_invocation` has an outcome
@@ -145,7 +160,7 @@ def IoCPost (th : TypedHeap) (kb : U64) (σ : Fl4Spec.State Unit) (m : Fl4Spec.S
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
       ∃ σ' G' r, (.ok r, σ') ∈ ((Fl4Spec.archPerformInvocation (Z := Unit) inv).run σ1).1 ∧
         CRel th (L.mem s') σ' G' ∧ IoRel (L.mem s') kb σ' ∧ FinInv th (L.mem s') σ' G' ∧
-        IoPortsAlloc (L.mem s') kb G' ∧ MdbOKV kb (L.mem s') G'
+        IoPortsAlloc (L.mem s') kb G' ∧ MdbOKV kb (L.mem s') G' ∧ (DomPlaced (L := L) th s → DK4 (L := L) s s')
 
 theorem IoCPost.of_run {th : TypedHeap} {kb : U64} {σ : Fl4Spec.State Unit}
     {m m' : Fl4Spec.SEMonad Unit Fl4Spec.ArchInvocation} (h : m.run σ = m'.run σ) {s : S}
@@ -385,8 +400,9 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
   obtain ⟨da, db⟩ := dsl
   simp only at hpd1 hpd; subst hpd1
   -- `set_thread_state Restart`
-  refine WP.spec_bind (restart_io th hP s σ G ⟨hR, hV, hM, hC, hI⟩ hL hIo ct hcur htcb hact hact3) ?_
-  rintro s2 ⟨hkb, hS, σ1, hst, hCR1, hIo1, hw⟩
+  refine WP.spec_bind (WP.spec_and (restart_io th hP s σ G ⟨hR, hV, hM, hC, hI⟩ hL hIo ct hcur htcb hact hact3)
+    (sts_dk4c hP s htcb sched.TS_RESTART)) ?_
+  rintro s2 ⟨⟨hkb, hS, σ1, hst, hCR1, hIo1, hw⟩, hdk1⟩
   -- the bitmap
   have hL2 : IoLayout th (L.ksb s2) := by rw [hkb]; exact hL
   refine WP.spec_bind (set_mask_spec hL2 s2 rfl first last hfl hlv true) ?_
@@ -432,7 +448,12 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
     unfold bitOf
     rw [hF4.out (hL.out _ (by rw [wI_val hp]; omega))]
   refine ⟨.invokeIOPortControl (.ioPortControlInvocation (BitVec.ofNat 16 first.val) (BitVec.ofNat 16 last.val)
-    (pd.bv, db) (ps.bv, idxs)), rfl, σ1, hst, σ', G', [], ?_, ⟨hR', hV', hM', hC', hI'⟩, hIo4, hFI', ?_, ?_⟩
+    (pd.bv, db) (ps.bv, idxs)), rfl, σ1, hst, σ', G', [], ?_, ⟨hR', hV', hM', hC', hI'⟩, hIo4, hFI', ?_, ?_,
+    fun hD => ?_⟩
+  rotate_right
+  · have hK2 : KsbOK (L := L) th s2 := hD.toK.same (hdk1 hD).1
+    have hdk3 : DK4 (L := L) s2 s3 := DK4.of_mask hK2.fits hK2.align hM3
+    exact (hdk1 hD).trans (hdk3.trans (DK4.of_slotFrame (hK2.same hdk3.1) hF4))
   · refine mem_liftE (x := ([], σ')) ?_
     refine mem_bind_nd (x := ((), σ')) ?_ rfl
     refine mem_bind_nd (x := ((), σ2)) (setIoportMask_mem _ _ _ _) ?_

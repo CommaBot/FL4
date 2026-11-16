@@ -198,7 +198,7 @@ theorem tcbDomHyp_of_foot {s : S} {ar : A} {lbl p : U64} {c : tcb.Ctx}
   obtain ⟨h1, h2⟩ := Sched.domOffs_lt ho
   refine hr.mem_eq (ksW_al hkf hka h1 h2) fun hk => ?_
   have hv := ksW_val (kb := L.ksb s) (o := o) (by omega)
-  rcases hD _ hk with e | e <;> rw [hv] at e <;> omega
+  rcases hD _ (ksW_al hkf hka h1 h2) hk with e | e <;> rw [hv] at e <;> omega
 
 /-- **The Thread cap's `DomFrame`**, from `TcbDomHyp` at the label (when not
 the first phase) and `dk_spec_thread`. -/

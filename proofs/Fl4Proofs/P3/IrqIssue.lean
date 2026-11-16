@@ -193,8 +193,9 @@ theorem issue_tail (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4S
         (Fl4Spec.NonDetE.returnOk (.irqControl (BitVec.ofNat 8 irq.val) dsl (ps.bv, idxs))) s res ⦄ := by
   obtain ⟨da, db⟩ := dsl
   simp only at hpd1 hpd; subst hpd1
-  refine WP.spec_bind (restart_irq th hP s σ G hCR hL hIR ct hcur htcb hact hact2) ?_
-  rintro s1 ⟨hkb, hS, σ1, hst, hCR1, hIR1, -, -, hw⟩
+  refine WP.spec_bind (WP.spec_and (restart_irq th hP s σ G hCR hL hIR ct hcur htcb hact hact2)
+    (sts_dk4c hP s htcb sched.TS_RESTART)) ?_
+  rintro s1 ⟨⟨hkb, hS, σ1, hst, hCR1, hIR1, -, -, hw⟩, hdk1⟩
   have hL1 : IntLayout th (L.ksb s1) := by rw [hkb]; exact hL
   have hIR1' : IrqRel (L.mem s1) (L.ksb s1) σ1 := by rw [hkb]; exact hIR1
   have hHA1 : HandlersActive (L.mem s1) (L.ksb s1) G := by
@@ -209,12 +210,13 @@ theorem issue_tail (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4S
   have hsrc1 : capAt (L.mem s1) (cslotAddr (ps.bv, idxs)) = ok .IrqControl := by rw [hS.capAt hAs.isSlot, hsrcC]
   have hdst1 : capAt (L.mem s1) (cslotAddr (pd.bv, db)) = ok .Null := by rw [hS.capAt hAd.isSlot, hdst]
   have hFR1 : MdbOKV (L.ksb s1) (L.mem s1) G := by rw [hkb]; exact MdbOKV.of_same hCR.2.2.1 hS hFR
-  refine WP.spec_bind (invoke_ctl_rel arI th hP s1 ar σ1 G hCR1 hL1 hIR1' hHA1 hFI1 hFR1 hmask irq hirq hin1 hps hpd hls
-    rfl hsrc1 hdst1) ?_
-  rintro ⟨s2, a2⟩ ⟨σ', G', hmem, hCR', hIR', -, hFI', hHA', hFR'⟩
+  refine WP.spec_bind (WP.spec_and (invoke_ctl_rel arI th hP s1 ar σ1 G hCR1 hL1 hIR1' hHA1 hFI1 hFR1 hmask irq hirq
+    hin1 hps hpd hls rfl hsrc1 hdst1)
+    (invoke_ctl_dk4c arI hP s1 ar hL1 hCR1.2.2.1 hmask irq hirq hAs.isSlot hAd.isSlot hsrc1)) ?_
+  rintro ⟨s2, a2⟩ ⟨⟨σ', G', hmem, hCR', hIR', -, hFI', hHA', hFR'⟩, hdk2⟩
   apply (WP.spec_ok (core.result.Result.Ok (), s2, a2)).mpr
   refine ⟨.irqControl (BitVec.ofNat 8 irq.val) (pd.bv, db) (ps.bv, idxs), rfl, σ1, hst, σ', G', ?_, hCR', ?_,
-    hFI', ?_, by rw [← hkb]; exact hFR'⟩
+    hFI', ?_, by rw [← hkb]; exact hFR', fun hD => (hdk1 hD).trans (hdk2 (hD.toK.same (hdk1 hD).1))⟩
   · exact mem_liftE (x := ((), σ')) hmem
   · rw [← hkb]; exact hIR'
   · rw [← hkb]; exact hHA'

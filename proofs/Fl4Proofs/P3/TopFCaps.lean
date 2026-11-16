@@ -204,7 +204,7 @@ theorem decode_invocation_ioport_controlF (th : TypedHeap) (hP : Placed th) (s :
   | Err e => obtain ⟨rfl, e', h1, h2⟩ := hq; exact Or.inl ⟨e, rfl, rfl, e', h1, h2⟩
   | Ok u =>
     obtain ⟨inv, hrun, σ1, hst, σ', G', rr, hx, hCR', -, hF, -, hFr⟩ := hq
-    exact Or.inr ⟨inv, hrun, σ1, hst, (.ok rr, σ'), hx, th, G', Or.inl ⟨rfl, rr, rfl⟩, hP, hCR', hF, hFr.1.1⟩
+    exact Or.inr ⟨inv, hrun, σ1, hst, (.ok rr, σ'), hx, th, G', Or.inl ⟨rfl, rr, rfl⟩, hP, hCR', hF, hFr.1.1.1⟩
 
 
 theorem decode_invocation_irq_controlF (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
@@ -246,7 +246,7 @@ theorem decode_invocation_irq_controlF (th : TypedHeap) (hP : Placed th) (s : S)
   | Ok u =>
     obtain ⟨inv, hrun, σ1, hst, σ', G', hx, hCR', -, hF, -, hFr⟩ := hq
     exact Or.inr ⟨inv, hrun, σ1, hst, (.ok [], σ'), mem_bindE_ok hx (Set.mem_singleton _), th, G',
-      Or.inl ⟨rfl, [], rfl⟩, hP, hCR', hF, hFr.1.1⟩
+      Or.inl ⟨rfl, [], rfl⟩, hP, hCR', hF, hFr.1.1.1⟩
 
 
 end

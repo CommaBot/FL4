@@ -14,6 +14,8 @@ import Fl4Proofs.P3.IoBitmap
 import Fl4Proofs.P3.ScTop
 import Fl4Proofs.P3.ScSpecStep
 import Fl4Proofs.P3.SpecFinOutTcb
+import Fl4Proofs.P3.ScPlace
+import Fl4Proofs.P1.QueueSuspendP1
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -24,10 +26,10 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
-/-- **`KW` apart from the domain schedule** (the first 256 bytes of the
-kernel-global block). -/
+/-- **`KW`'s aligned words apart from the domain schedule** (the first 256
+bytes of the kernel-global block; P1's `KWLow`). -/
 def KWDom (T Cs Sg Scs : Set U64) (Z : U64 → Nat) (Es : Set U64) (s : S) : Prop :=
-  ∀ b, P1.KW st T Cs Sg Scs Z Es s b → b.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ b.val
+  ∀ b, P1.Aligned b → P1.KW st T Cs Sg Scs Z Es s b → b.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ b.val
 
 /-- **A P1 `Foot` step is a `WFr` step**, its words apart from the slots and
 the domain schedule. -/
@@ -37,7 +39,7 @@ theorem wfr_of_foot {th : TypedHeap} (hP : Placed th) {T Cs Sg Scs Es : Set U64}
     WFr (L := L) th s s' := by
   refine ⟨Sched.slotsSame_of_foot hP hK hw, hw.1, hw.2.1,
     Vs.domSame_low hKs.fits hKs.align fun b hb h1 h2 => hw.mem_eq hb fun hkw => ?_⟩
-  rcases hD b hkw with h | h
+  rcases hD b hb hkw with h | h
   · unfold P1.Aligned at hb; omega
   · omega
 
@@ -64,6 +66,25 @@ theorem suspendWFrHyp_of {A : Type} (arI : machine.Arch A) {th : TypedHeap} (hP 
   obtain ⟨⟨Q, R, hSQ⟩, hBd, hX, -, hSg⟩ := hB
   exact WP.spec_mono (P1.sched.suspend.kw s1 a p hSQ hpT hBd hX hSg.sub) fun r hr =>
     wfr_of_foot hP hKs hK hD hr
+
+/-- **`SuspendP1Hyp` from P1's `suspendP1`** over the joint invariant's sets:
+P1 gives `BlkOK`, the target in `T` and `KWLow` (this file's `KWDom`) after
+the restart; `KWOut` is the typed heap's (`JPlaced.kwOutBlk`), kept with the
+base. -/
+theorem suspendP1Hyp_of_joint {th : TypedHeap} {H : P1.Heap} {Tr C Cs Ac : Set U64} {s : S}
+    {σ : Fl4Spec.State Unit} (hJ : Sched.JPlaced (L := L) th H Tr C s σ)
+    (hb : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s)
+    {ct p : U64} (hct : ct = L.curW s) (hnb : ¬ P1.Blocked (L.mem s (P1.stA ct)))
+    (hnr : L.mem s (P1.stA ct) ≠ sched.TS_BLOCKED_ON_REPLY) (hp : p ∈ P1.Heap.tcbs H)
+    (hSc : ∀ c ∈ P1.Heap.scs H, c.val + 2 ^ P1.Heap.scBits H c ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ c.val) :
+    SuspendP1Hyp (L := L) th s ct p := by
+  intro s1 hs1
+  obtain ⟨h1, h2, h3⟩ := P1.suspendP1 hb hct hnb hnr hp hSc s1 hs1
+  have hk : L.ksb s1 = L.ksb s := by
+    have h := set_thread_state_ksb (st := st) s ct sched.TS_RESTART
+    rw [hs1] at h; exact (WP.spec_ok (p := fun s' => L.ksb s' = L.ksb s) s1).1 h
+  exact ⟨_, Cs, _, H, _, _, _, _, _, Ac, h1, h2, (hJ.kwOutBlk hb).ksb hk, h3⟩
 
 /-! ## `GetBpHyp`: `get_breakpoint` is total -/
 
