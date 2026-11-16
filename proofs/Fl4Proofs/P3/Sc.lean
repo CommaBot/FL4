@@ -172,7 +172,7 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
   steps (`JCovD.step`, `JCovD.same`), deletes (`JCovD.delete`), and the
   childless region holding only dead objects (`dead_childless`);
   finalisation of a final cap leaves its object dead (`FinDeadHyp`) for
-  endpoints, notifications, replies and SCs (`finDead_*`, from P1's
+  endpoints, notifications, replies, SCs and threads (`finDead_*`, from P1's
   QueueDead).
 * ScPlaceRet: `JCov` with a dead set across retype (`JCovD.retype`), from
   retype's exposed post (`RetExp`, UntypedExp: the caps kept, the new caps,
@@ -180,6 +180,11 @@ P3 (DESIGN.md §9), scheduling contexts (MCS): top module.
   (`RetypeP1Hyp`: `BlkOK` over the heap with the window's dead objects
   removed and the new ones added); the window's objects are dead
   (`retype_window_dead`).
+* ScTopX: the SchedContext and SchedControl caps for
+  `handle_invocation_refinesMX` (`decode_invocation_sched_contextX`:
+  `DecOKDMX ∨ DecOKRMX`, the arm picked from the decode's one result — an
+  invocation that returned data has already replied, against the spec's
+  `specTail`; `decode_invocation_sched_controlX`: `DecOKDMX`).
 -/
 import Fl4Proofs.P3.ScBudgetTop
 import Fl4Proofs.P3.ScInvB
@@ -219,3 +224,4 @@ import Fl4Proofs.P3.ScPlaceUt
 import Fl4Proofs.P3.ScSchedOut
 import Fl4Proofs.P3.ScPlaceDead
 import Fl4Proofs.P3.ScPlaceRet
+import Fl4Proofs.P3.ScTopX

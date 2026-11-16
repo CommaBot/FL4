@@ -23,7 +23,7 @@ P3 (DESIGN.md §9): **keeping `JCov`: monotone ghost heaps and a dead set**
   so retype removes only dead objects.
 * `FinDeadHyp`: P1's finalisation of a final cap leaves its object dead;
   proved per kind from P1's `fin_cap_*.dead` (QueueDead): `finDead_ep`,
-  `finDead_ntfn`, `finDead_reply`, `finDead_sc`.
+  `finDead_ntfn`, `finDead_reply`, `finDead_sc`, `finDead_thread`.
 -/
 import Fl4Proofs.P3.ScPlaceUt
 import Fl4Proofs.P1.QueueDead
@@ -226,6 +226,17 @@ theorem finDead_sc (hA : P0.ArchTotal ar) : FinDeadHyp st ar T Cs Ω H Sg Rp Scs
   exact WP.spec_mono (fin_cap_sc.dead hA s a p x ex h hp hp0 hna hidle) fun r e =>
     ⟨fun h' => by simp [finObj, hH] at h', fun h' => by simp [finObj, hH] at h', fun h' => by simp [finObj, hH] at h',
       fun h' => by simp [finObj, hH] at h', fun _ _ => e⟩
+
+/-- **Thread**: inactive, with no SC and no bound notification, neither the
+scheduler action nor idle; P1's conditions: the thread is neither the
+scheduler action nor idle, and has no VCPU. -/
+theorem finDead_thread (hA : P0.ArchTotal ar) : FinDeadHyp st ar T Cs Ω H Sg Rp Scs Nt Z Ac
+    (fun s c => ∃ p, c = .Thread p ∧ p ∈ T ∧ H p = some .tcb ∧ L.actionW s ≠ p ∧ L.idleW s ≠ p ∧
+      L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64) finObj := by
+  rintro s a c ex ⟨p, rfl, hp, hH, hna, hidle, hv0⟩ h
+  exact WP.spec_mono (fin_cap_thread.dead hA s a p ex h hp hna hidle hv0) fun r ⟨e1, e2, e3, e4, e5⟩ =>
+    ⟨fun _ => ⟨e1, e2, e3, Ne.symm e4, Ne.symm e5⟩, fun h' => by simp [finObj, hH] at h',
+      fun h' => by simp [finObj, hH] at h', fun h' => by simp [finObj, hH] at h', fun z h' => by simp [finObj, hH] at h'⟩
 
 end fin
 
