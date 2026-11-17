@@ -188,6 +188,9 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   -- 1e: P1
   blk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
     (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s
+  /-- [carried] The interrupt state and node layout (`IntLayout`, the boot's
+  [P]; kept by every step: `Z.th` and the kernel-state base are kept). -/
+  intL : IntLayout Z.th (L.ksb s)
 
 /-- **`JAt`: the joint invariant at a state** (the ghosts existential). -/
 def JAt (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
