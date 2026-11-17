@@ -49,14 +49,14 @@ def XDelNtfnHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
     Z.th = th → XTopAt (L := L) AR Z s a σ → KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s) →
     (∀ t, th t = some .tcb → t ∈ Z.T) → AbsSlot th sl → capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
     cdt.delete_one st arI s a (cslotAddr sl) = ok (s', a') → ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 →
-    ∃ G', XTopAt (L := L) AR { Z with G := G' } s' a' σ' ∧ L.ksb s' = L.ksb s
+    ∃ G' V', XTopAt (L := L) AR (Z.mv G' V') s' a' σ' ∧ L.ksb s' = L.ksb s
 
 /-- **`XTop`'s instance of `StepClosed`** (module docstring). -/
 def QX (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (a : A) (σ : Fl4Spec.State Unit) (s' : S) (a' : A)
     (σ' : Fl4Spec.State Unit) : Prop :=
   ∀ Z : XSets, Z.th = th → XTopAt (L := L) AR Z s a σ → KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s) →
     (∀ t, th t = some .tcb → t ∈ Z.T) →
-    ∃ G', XTopAt (L := L) AR { Z with G := G' } s' a' σ' ∧ L.ksb s' = L.ksb s
+    ∃ G' V', XTopAt (L := L) AR (Z.mv G' V') s' a' σ' ∧ L.ksb s' = L.ksb s
 
 theorem stepClosed_xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {th : TypedHeap}
     (hDel : XDelNtfnHyp (L := L) arI AR th) :
@@ -69,16 +69,16 @@ theorem stepClosed_xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) 
     fun s s' a σ σ' G' hcn hkc _ _ _ hw hCR hFI hMO hTS _ _ _ _ _ _ _ _ _ Z hth hX hK hTh => ?_,
     fun s s' a a' σ σ' sl p b w r hA hc hd hm Z hth hX hK hTh =>
       hDel Z s s' a a' σ σ' sl p b w r hth hX hK hTh hA hc hd hm⟩
-  · obtain ⟨G1, hX1, hk1⟩ := h1 Z hth hX hK hTh
-    obtain ⟨G2, hX2, hk2⟩ := h2 { Z with G := G1 } hth hX1 (by rw [hk1]; exact hK) hTh
-    exact ⟨G2, hX2, hk2.trans hk1⟩
+  · obtain ⟨G1, V1, hX1, hk1⟩ := h1 Z hth hX hK hTh
+    obtain ⟨G2, V2, hX2, hk2⟩ := h2 (Z.mv G1 V1) hth hX1 (by rw [hk1]; exact hK) hTh
+    exact ⟨G2, V2, hX2, hk2.trans hk1⟩
   · have h := XTopAt.restart hX hcur hk hrun
     rw [hs1, WP.spec_ok] at h
     obtain ⟨hX1, -, hk1⟩ := h
-    exact ⟨Z.G, hX1, hk1⟩
+    exact ⟨Z.G, Z.vs, hX1, hk1⟩
   · have hD := hX.rel.2.2.2.1
     have hAR := hX.fin.1.1.2.2.2.2.2.2
-    exact ⟨Z.G, XTopAt.ksStep hX hK hw hO (hirq hX.fin.1.1.2.2.2.1) (hio hX.fin.1.1.2.2.2.2.1)
+    exact ⟨Z.G, Z.vs, XTopAt.ksStep hX hK hw hO (hirq hX.fin.1.1.2.2.2.1) (hio hX.fin.1.1.2.2.2.2.1)
       (hD.frame (fun o ho => hdk.2 o ho) hdl hds) (by rw [hO.cr3]; exact hAM _ _ _ hAR harch), hw.1⟩
   · subst hth
     have hmem : ((), σ') ∈ (Fl4Spec.capInsert (Z := Unit) c (ps.bv, idxs) (pd.bv, idxd) σ).1 := by rw [hci]; rfl
@@ -91,15 +91,15 @@ theorem stepClosed_xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) 
     have hPl := hX.rel.1
     have hw' : P1.WritesIn st s s' (Sched.SlotWd Z.th) :=
       ⟨hw.1, hw.2.1, fun b hb hn => hw.2.2 b hb fun h => hn (Sched.slotSpan_wd hPl hb h)⟩
-    exact ⟨G', XTopAt.slotStep hX hw' hcn hkc hCR hFI hMO hTS, hw.1⟩
+    exact ⟨G', Z.vs, XTopAt.slotStep hX hw' hcn hkc hCR hFI hMO hTS, hw.1⟩
   · subst hth
-    exact ⟨Z.G, hX.schedStep hK hTh hS, hS.2.1 Z.N Z.T Z.C Z.c hTh hX.fin.1.1.1
+    exact ⟨Z.G, Z.vs, hX.schedStep hK hTh hS, hS.2.1 Z.N Z.T Z.C Z.c hTh hX.fin.1.1.1
       hX.fin.1.1.2.2.1 |>.2.1.1⟩
   · subst hth
     have hPl := hX.rel.1
     have hw' : P1.WritesIn st s s' (Sched.SlotWd Z.th) :=
       ⟨hw.1, hw.2.1, fun b hb hn => hw.2.2 b hb fun h => hn (Sched.slotSpan_wd hPl hb h)⟩
-    exact ⟨G', XTopAt.slotStep hX hw' hcn hkc hCR hFI hMO hTS, hw.1⟩
+    exact ⟨G', Z.vs, XTopAt.slotStep hX hw' hcn hkc hCR hFI hMO hTS, hw.1⟩
 
 /-- **`XTop` after a run of primitive steps.** -/
 theorem Steps.xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {th : TypedHeap}
@@ -108,7 +108,7 @@ theorem Steps.xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {th :
     (hX : XTopAt (L := L) AR Z s a σ) (hK : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s))
     (hTh : ∀ t, th t = some .tcb → t ∈ Z.T) :
     XTop (L := L) AR s' a' σ' :=
-  let ⟨_, hX', _⟩ := h _ (stepClosed_xtop arI hAM hDel) Z hth hX hK hTh
+  let ⟨_, _, hX', _⟩ := h _ (stepClosed_xtop arI hAM hDel) Z hth hX hK hTh
   ⟨_, hX'⟩
 
 /-- **`IrqXHyp` for the IRQ control cap**: every label (the legacy, MSI,

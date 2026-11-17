@@ -28,25 +28,25 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 /-- **The deletion's invariant at the sets `Z`** (`WX` with the sets fixed). -/
 def WXZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (kb : U64) (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) : Prop :=
-  XTopAt (L := L) AR { Z with G := G } s a σ ∧ KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s) ∧
+  (∃ V, XTopAt (L := L) AR (Z.mv G V) s a σ) ∧ KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s) ∧
     (∀ t, Z.th t = some .tcb → t ∈ Z.T) ∧ L.ksb s = kb
 
 theorem slotHypW_XZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (kb : U64) :
     SlotHypW (L := L) (A := A) (WXZ (L := L) AR Z kb) Z.th := by
-  rintro s s' a σ σ' G G' ⟨hX, hK, hTh, hkb⟩ - ⟨hCR', -, hFI'⟩ hF hcn hSt
+  rintro s s' a σ σ' G G' ⟨⟨V, hX⟩, hK, hTh, hkb⟩ - ⟨hCR', -, hFI'⟩ hF hcn hSt
   have hMO := hSt.okv hX.rel.2.2.2.2.1
   have hct : σ'.curThread = σ.curThread := by have e := congrArg Fl4Spec.AbstractState.curThread hcn.1; exact e
   have hCO := CurOK.of_inv' hX.fin.2.2.2.2 hct hCR'.2.2.1 hMO.2.2
-  exact ⟨XTopAt.slotStepT hX (SlotFrame2.writesIn hF) hcn hCR' hFI' hMO hCO, by rw [hF.1]; exact hK, hTh,
+  exact ⟨⟨V, XTopAt.slotStepT hX (SlotFrame2.writesIn hF) hcn hCR' hFI' hMO hCO⟩, by rw [hF.1]; exact hK, hTh,
     by rw [hF.1]; exact hkb⟩
 
 theorem postDelHypW_XZ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {kb : U64}
     (hXD : XPostDelHyp (L := L) arI AR Z.th) :
     PostDelHypW (L := L) arI (WXZ (L := L) AR Z kb) Z.th := by
-  rintro s a σ G cl hDS ⟨hX, hK, hTh, hkb⟩ h1 h2 h3
-  refine WP.spec_mono (hXD { Z with G := G } s a σ cl rfl hX hK hTh hDS h1 h2 h3) ?_
+  rintro s a σ G cl hDS ⟨⟨V, hX⟩, hK, hTh, hkb⟩ h1 h2 h3
+  refine WP.spec_mono (hXD (Z.mv G V) s a σ cl rfl hX hK hTh hDS h1 h2 h3) ?_
   rintro r ⟨hS, hk', σ', hm, hCR, hX'⟩
-  exact ⟨hS, σ', hm, hCR, hX', by rw [hk']; exact hK, hTh, by rw [hk']; exact hkb⟩
+  exact ⟨hS, σ', hm, hCR, ⟨V, hX'⟩, by rw [hk']; exact hK, hTh, by rw [hk']; exact hkb⟩
 
 /-- **A notification cap's finalisation at `WXZ Z`**: when final, from
 `XFinAt FinNtfnK`; otherwise it does nothing (`fin_idle`). -/
@@ -62,18 +62,18 @@ theorem finNtfnW_XZ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {kb : U64} (hN
           (absCap (.Notification p b w r)) (decide (Fl4Spec.isFinalCap' (absCap (.Notification p b w r)) σ)) σ).1 ∧
         DState (L := L) Z.th res.2.1 σ' G' ∧ MdbStep (L.mem s) G (L.mem res.2.1) G' ∧
         WXZ (L := L) AR Z kb res.2.1 res.2.2 σ' G' ⦄ := by
-  obtain ⟨hX, hK, hTh, hkb⟩ := hW
+  obtain ⟨⟨V, hX⟩, hK, hTh, hkb⟩ := hW
   set c : capability.Cap := .Notification p b w r
   by_cases hw : FinWork c (decide (Fl4Spec.isFinalCap' (absCap c) σ))
-  · refine WP.spec_mono (hN { Z with G := G } s a σ sl c rfl hX hK hTh ⟨p, b, w, r, rfl⟩ hDS hA hc trivial hw) ?_
-    rintro res ⟨h1, h2, h3, σ', G', h4, h5, -, -, h8, hX', hk'⟩
-    exact ⟨h1, h2, h3, σ', G', h4, h5, h8, hX', by rw [hk']; exact hK, hTh, by rw [hk']; exact hkb⟩
+  · refine WP.spec_mono (hN (Z.mv G V) s a σ sl c rfl hX hK hTh ⟨p, b, w, r, rfl⟩ hDS hA hc trivial hw) ?_
+    rintro res ⟨h1, h2, h3, σ', G', h4, h5, -, -, h8, ⟨V', hX'⟩, hk'⟩
+    exact ⟨h1, h2, h3, σ', G', h4, h5, h8, ⟨V', hX'⟩, by rw [hk']; exact hK, hTh, by rw [hk']; exact hkb⟩
   obtain ⟨cl, he, hmem, hcl, hrem, hnio⟩ := fin_idle (st := st) (L := L) arI s a σ c trivial _ hw
   rw [he, WP.spec_ok]
   have hcw : CapWf c := by
     obtain ⟨c', a', hc', hca, -⟩ := hDS.1.1.abs_cap hA
     rw [hc] at hc'; cases eq_of_ok_eq hc'; exact hca.1
-  refine ⟨hrem.symm, ?_, ?_, σ, G, hmem, hDS, MdbStep.refl hDS.1.2.2.1, hX, hK, hTh, hkb⟩
+  refine ⟨hrem.symm, ?_, ?_, σ, G, hmem, hDS, MdbStep.refl hDS.1.2.2.1, ⟨V, hX⟩, hK, hTh, hkb⟩
   · rcases hcl with h | h
     · rw [h]; trivial
     · rw [hnio (fun f l e => absurd e (by simp [c]))]; trivial
@@ -91,7 +91,7 @@ theorem delete_one_xtop {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {kb : U64}
     (hk : capV (L.mem s) (cslotAddr sl) = .Notification p b w r) :
     cdt.delete_one st arI s a (cslotAddr sl) ⦃ res =>
       ∃ σ' G', ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 ∧ WXZ (L := L) AR Z kb res.1 res.2 σ' G' ⦄ := by
-  have hP := hW.1.rel.1
+  have hP := (Classical.choose_spec hW.1).rel.1
   obtain ⟨c, ac, hc, hca, hg⟩ := hDS.1.1.abs_cap hA
   rw [hca.abs] at hg
   have hcv := capV_of_capAt hc
@@ -136,7 +136,7 @@ theorem delete_one_xtopK {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {kb : U64
         capV (L.mem res.1) (cslotAddr sl) = .Null ∧
         (∀ y, IsSlot Z.th y → y ≠ cslotAddr sl → capV (L.mem res.1) y = capV (L.mem s) y) ∧
         MdbStep (L.mem s) Z.G (L.mem res.1) G' ∧ WXZ (L := L) AR Z kb res.1 res.2 σ' G' ⦄ := by
-  have hP := hW.1.rel.1
+  have hP := (Classical.choose_spec hW.1).rel.1
   obtain ⟨c, ac, hc, hca, hg⟩ := hDS.1.1.abs_cap hA
   rw [hca.abs] at hg
   have hcv := capV_of_capAt hc
@@ -177,10 +177,10 @@ theorem xDelNtfnHyp_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
   intro Z s s' a a' σ σ' sl p b w r hth hX hK hTh hA hc hd hm
   subst hth
   have hDS : DState (L := L) Z.th s σ Z.G := ⟨hX.rel.2.1, hDI Z s a σ rfl hX, hX.rel.2.2.1⟩
-  have hW : WXZ (L := L) AR Z (L.ksb s) s a σ Z.G := ⟨hX, hK, hTh, rfl⟩
+  have hW : WXZ (L := L) AR Z (L.ksb s) s a σ Z.G := ⟨⟨Z.vs, hX⟩, hK, hTh, rfl⟩
   have h := delete_one_xtop arI (hN Z rfl) hXD s a σ hDS hW hA hc
   rw [hd, WP.spec_ok] at h
-  obtain ⟨σ2, G2, hm2, hX2, -, -, hk2⟩ := h
+  obtain ⟨σ2, G2, hm2, ⟨V2, hX2⟩, -, -, hk2⟩ := h
   obtain ⟨c, ac, hcA, hca, hg⟩ := hDS.1.1.abs_cap hA
   rw [hca.abs] at hg
   rw [capV_of_capAt hcA] at hc
@@ -188,7 +188,7 @@ theorem xDelNtfnHyp_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
   have e := (Det.detAt_capDeleteOne_ntfn hg).eq hm2 hm
   have e2 : σ2 = σ' := congrArg Prod.snd e
   subst e2
-  exact ⟨G2, hX2, hk2⟩
+  exact ⟨G2, V2, hX2, hk2⟩
 
 end
 

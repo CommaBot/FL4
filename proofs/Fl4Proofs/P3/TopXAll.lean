@@ -64,6 +64,18 @@ structure XSets where
   B : Set (U64 × Fl4Spec.Word)
   c : U64
 
+/-- The VSpace sets (`P`, `L4`..`L1`). -/
+abbrev XVs : Type := Set U64 × Set U64 × Set U64 × Set U64 × Set U64
+
+/-- `Z` with the MDB ghost `G` and the VSpace sets `V` (`P`, `L4`..`L1`)
+replaced: what a step keeps of the sets when the VSpace sets after are only
+known to exist (the IPC side's `IRel`). -/
+abbrev XSets.mv (Z : XSets) (G : MdbGhost) (V : Set U64 × Set U64 × Set U64 × Set U64 × Set U64) : XSets :=
+  { Z with G := G, P := V.1, L4 := V.2.1, L3 := V.2.2.1, L2 := V.2.2.2.1, L1 := V.2.2.2.2 }
+
+/-- `Z`'s VSpace sets. -/
+abbrev XSets.vs (Z : XSets) : Set U64 × Set U64 × Set U64 × Set U64 × Set U64 := (Z.P, Z.L4, Z.L3, Z.L2, Z.L1)
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type}
 

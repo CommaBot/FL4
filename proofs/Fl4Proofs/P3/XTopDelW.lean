@@ -60,8 +60,8 @@ theorem finObjHypW_X {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (hXF : X
   rintro s a σ G sl c hDS ⟨Z, rfl, rfl, hX, hK, hTh⟩ hA hc hk
   by_cases hw : FinWork c (decide (Fl4Spec.isFinalCap' (absCap c) σ))
   · refine WP.spec_mono (hXF.at arI Z s a σ sl c rfl hX hK hTh trivial hDS hA hc hk hw) ?_
-    rintro r ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, hX', hk'⟩
-    refine ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, { Z with G := G' }, rfl, rfl, hX', by rw [hk']; exact hK, hTh⟩
+    rintro r ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, ⟨V', hX'⟩, hk'⟩
+    refine ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, Z.mv G' V', rfl, rfl, hX', by rw [hk']; exact hK, hTh⟩
   obtain ⟨cl, he, hmem, hcl, hrem, hnio⟩ := fin_idle (st := st) (L := L) arI s a σ c hk _ hw
   rw [he, WP.spec_ok]
   have hcw : CapWf c := by

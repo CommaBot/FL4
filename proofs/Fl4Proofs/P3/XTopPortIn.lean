@@ -130,9 +130,9 @@ theorem portInTail_xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) 
     (Steps.ksSpec arI (s := s1) (σ := σ1) (σ' := σy) (by constructor <;> first | rfl | exact hu) rfl rfl
       (fun h => ⟨h.st, h.node⟩) (fun h => h)).trans arI
       (Steps.arch arI (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨port, z, v, hv⟩))))))
-  obtain ⟨G', hXy, hky⟩ := hstp _ (stepClosed_xtop arI hAM hDel) Z rfl hX1 (by rw [hk1]; exact hKA) hTh
+  obtain ⟨G', V', hXy, hky⟩ := hstp _ (stepClosed_xtop arI hAM hDel) Z rfl hX1 (by rw [hk1]; exact hKA) hTh
   -- `reply1`
-  set Z' : XSets := { Z with G := G' }
+  set Z' : XSets := Z.mv G' V'
   have hI : Vs.RInv (L := L) Z'.th Z'.P Z'.L4 Z'.L3 Z'.L2 Z'.L1 Z'.N Z'.T Z'.C Z'.E Z'.R Z'.B Z'.c AR Z'.G s1 a1 σy :=
     ⟨hXy.rel.2.1, hXy.rel.2.2.1, hXy.rel.2.2.2.2.1, hXy.rel.2.2.2.1, hXy.fin⟩
   have hkY : σy.kheap ct.bv = some (.tcb { x with tcbState := .restart }) := by
