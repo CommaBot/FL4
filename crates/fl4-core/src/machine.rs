@@ -59,6 +59,9 @@ pub trait Arch {
     fn take_pending_irq(&mut self) -> u64;
     fn mask_irq(&mut self, irq: u64, mask: bool);
     fn ack_irq(&mut self, irq: u64);
+    /// Release backend routing state when `irq`'s handler capability is
+    /// deleted.
+    fn irq_free(&mut self, _irq: u64) {}
 
     /// Switch to the address space whose top-level table is at `root`
     /// (a kernel virtual address).

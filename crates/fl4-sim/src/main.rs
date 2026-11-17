@@ -1618,6 +1618,21 @@ impl Sim {
             }
         }
         let threads = self.threads();
+        // Debug TCB lists: well linked, and each thread is on the list of
+        // the core it runs on (deletion unlinks it from that core's list
+        // only, so a thread left on another core's list would leave a
+        // dangling head there once deleted).
+        for c in 0..self.ncores {
+            let mut t = node_get(s, c, node::DEBUG_TCBS);
+            let mut prev = 0;
+            while t != 0 {
+                let tt = Tcb(t);
+                assert_eq!(tt.debug_prev(s), prev, "{what}: debug list of core {c} badly linked at {t:#x}");
+                assert_eq!(tt.affinity(s), c, "{what}: thread {t:#x} of core {} is on core {c}'s debug list", tt.affinity(s));
+                prev = t;
+                t = tt.debug_next(s);
+            }
+        }
         for c in 0..self.ncores {
             let ct = Tcb(node_get(s, c, node::CUR_THREAD));
             let idle = Tcb(node_get(s, c, node::IDLE_THREAD));

@@ -213,6 +213,7 @@ pub fn deleting_irq_handler<S: Store, A: Arch>(s: &mut S, a: &mut A, irq: u64) {
 
 pub fn deleted_irq_handler<S: Store, A: Arch>(s: &mut S, a: &mut A, irq: u64) {
     set_irq_state(s, a, IRQ_INACTIVE, irq);
+    a.irq_free(irq);
 }
 
 /// seL4 `handleInterrupt`.
