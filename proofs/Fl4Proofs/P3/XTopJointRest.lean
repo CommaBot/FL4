@@ -499,23 +499,14 @@ theorem irqNode_keep {s s' : S} {W : U64 → Prop} (hw : P1.WritesIn st s s' W)
     hw.mem_eq (b := wordOf (nodeA (L.ksb s) i) 8#u64) (by unfold P1.Aligned; rw [hv8]; omega) fun h => by
       rcases hW _ h with e | e <;> omega]
 
-/-- **What a kernel-state step still owes** [W]: P1's `BlkOK` (the untyped
-caps' facts are kept: the caps and the free parts lie outside the
-kernel-state block). -/
-def KsRest (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s' : S) (σ' : Fl4Spec.State Unit) : Prop :=
-  ∃ (Ac' : Set U64),
-    P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
-      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s'
-
 set_option maxHeartbeats 4000000 in
-/-- **`JStepHyps.ks` from `KsRest`**: FL4 writes kernel-state words only
+/-- **`JStepHyps.ks`**, with no premise: FL4 writes kernel-state words only
 (`ksW_keeps`), the spec keeps the heap and the scheduler's fields (`KsStep`,
-so `CnStep`). -/
+so `CnStep`); the untyped caps' facts kept (the caps and their free parts lie
+outside the kernel-state block); P1's `BlkOK` kept (`blk_of_capw`: the
+kernel-state words are in `Ω` and none is an SC word, `SgOK`). -/
 theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit)
-    (hw : P1.WritesIn st s s' (KsW (L.ksb s))) (hO : KsStep σ σ')
-    (hR : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → XTopAt (L := L) AR Z s' a' σ' →
-      KsRest (L := L) Z H Cs D s' σ') :
+    (hw : P1.WritesIn st s s' (KsW (L.ksb s))) (hO : KsStep σ σ') :
     JOwes (L := L) arI AR th s a σ s' a' σ' := by
   intro Z H Cs Ac Lst D hth J hX'
   have hC : CnStep σ σ' := ⟨⟨fun p => Or.inl (by rw [hO.kh]), hO.rel, hO.ct, hO.csc, hO.ctime, hO.cons, hO.idle⟩,
@@ -528,7 +519,21 @@ theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (
   have mk : McpKeep σ σ' := fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
-  obtain ⟨Ac', hblk⟩ := hR Z H Cs Ac Lst D hth J hX'
+  have hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s' := by
+    have hw' : P1.WritesIn st s s' (fun b => KsW (L.ksb s) b ∧ P1.Aligned b) :=
+      ⟨hw.1, hw.2.1, fun b hb hn => hw.2.2 b hb fun h => hn ⟨h, hb⟩⟩
+    have hSg := J.blk.2.2.2.2
+    have h0 := J.blk.1.choose_spec.choose_spec
+    refine (P1.blk_of_capw J.blk hw' fun b hb => ?_).1
+    obtain ⟨⟨K, h1, h2, -, e, -⟩, hal⟩ := hb
+    refine Or.inr ⟨?_, fun hm => ?_⟩
+    · have hK8 : K.val % 8 = 0 := by
+        have := J.kern.ksbAl; have hb8 : b.val % 8 = 0 := hal; omega
+      have eb : b = core.num.U64.wrapping_add (L.ksb s) K :=
+        UScalar.eq_of_val_eq (by rw [P1.ks_val h0 h2]; exact e)
+      rw [eb]; exact hSg.ksΩ K h2 hK8
+    · have := hSg.ks b hm; omega
   have hI : ∀ i : U64, i.val < 128 → capV (L.mem s') (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i) :=
     irqNode_keep hw J.kern.ksbFit J.kern.ksbAl fun b hb => by
       obtain ⟨K, -, -, -, e, h⟩ := hb; omega
@@ -570,7 +575,7 @@ theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (
     · rw [hO.cdt] at h0
       obtain ⟨r1, r2, r3⟩ := U.rst h0 hf0
       exact ⟨fun sl' h => r1 sl' (by rw [← hO.orig]; exact h), r2, by rw [hna, hDbg]; exact r3⟩
-  exact ⟨Ac', Lst, D, ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 mk,
+  exact ⟨Ac, Lst, D, ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 mk,
     J.buf.frame kb (fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_kheap hO.kh),
     J.jpl_keep arI hSS hO.kh hw.1 hI, J.jcov_keep hw.1 hSS hdead, hkern, hutc, J.nsc.cn hC.toHStep, J.inv.cn hC, CurInvW.cn J.cur hC, J.own.cn hC.toHStep, J.off.cn hC.toHStep,
     J.act.cn hC,
