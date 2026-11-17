@@ -35,7 +35,7 @@ Named, besides `JAtZ` and CSpace's `JStepHyps`: no reschedule pending
 caller's buffer mapped and the syscall arguments for WriteRegisters, a
 thread cap's object among the TCBs for CopyRegisters); the notification to
 bind among the notifications by `JAtZ.capN`; at every `XTopAt` of the typed heap the caller's IPC buffer valid
-[global]; `SuspendKeeps` and `InstallJ` [J-step]; SetSchedParams' spec facts
+[global]; `SuspendSV` and `InstallJ` [J-step]; SetSchedParams' spec facts
 after the install (`hSP`); the platform's facts [P]. -/
 theorem tcbXIpc_ofJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ : Fl4Spec.State Unit} {p ct buf : U64}
@@ -48,7 +48,7 @@ theorem tcbXIpc_ofJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     (hsT : ∀ src : U64, (∃ x, IsSlot Z.th x ∧ capV (L.mem s) x = .Thread src) → src ∈ Z.T)
     (hZ : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
       Endp.IpcBufCapOK σ' ∧ Endp.BufCover Z'.T Z'.B σ' ∧ Vs.BufPlaced (L := L) Z'.N Z'.C Z'.B Z'.c s' σ')
-    (hSK : SuspendKeeps st arI Z H Cs) (hJ2 : InstallJ (L := L) arI AR Z.th s σ ct)
+    (hSK : SuspendSV st arI Z H Cs) (hJ2 : InstallJ (L := L) arI AR Z.th s σ ct)
     (hSP : ∀ (σ1 σ2 : Fl4Spec.State Unit) (p : U64) (sco : Option (Option Fl4Spec.ObjRef)) (ssl : Fl4Spec.CslotPtr)
       (fh : Fl4Spec.Cap × Fl4Spec.CslotPtr), ScDec σ p.bv sco →
       Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) →
