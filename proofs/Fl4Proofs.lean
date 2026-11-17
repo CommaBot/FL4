@@ -331,6 +331,7 @@ import Fl4Proofs.P3.SpecDet
 import Fl4Proofs.P3.XTopDelOne
 import Fl4Proofs.P3.XTopFinIrq
 import Fl4Proofs.P3.XTopJoint
+import Fl4Proofs.P3.XTopJointStep
 import Fl4Proofs.P3.IpcCancelAll
 import Fl4Proofs.P3.IpcRelQ
 import Fl4Proofs.P3.IpcTcbBind
