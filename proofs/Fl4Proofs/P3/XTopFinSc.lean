@@ -14,8 +14,9 @@ refinement lemmas (`unbind_all_tcbs_refines`, `unbind_ntfn_refines`,
 
 Named: `ScYieldFinHyp` [W], the yielder's `complete_yield_to` at `XTop`
 (its `set_consumed` reply writes the yielder's registers, XProd's
-`ScReplyLeaf`); `ScFinPreX` [J], at the `XTopAt` states: the IPC placement,
-the notifications and replies apart from the kernel-global block, `NSC`,
+`ScReplyLeaf`); `ScFinPreX` [J], at the `XTopAt` states: the IPC placement
+(the notifications and replies apart from the kernel-global block from
+`XFinAt`'s `KsApart`), `NSC`,
 `Inv`, the call-stack relation, and the cap's SC among the SCs, non-null, not
 the idle SC, its bound thread and notification among the sets.
 -/
@@ -201,10 +202,7 @@ def ScYieldFinHyp (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (p : U64) : Prop
 
 /-- **What an SC cap's finalisation at `XTop` reads** [J] (module docstring). -/
 def ScFinPreX (Z : XSets) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
-  IPlaced Z.N Z.T Z.E Z.R Z.B ∧
-  (∀ n ∈ Z.N, n.val + 40 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val) ∧
-  (∀ r ∈ Z.R, r.val + 32 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ r.val) ∧
-  NSC Z.N Z.C σ ∧ Inv σ ∧
+  IPlaced Z.N Z.T Z.E Z.R Z.B ∧ NSC Z.N Z.C σ ∧ Inv σ ∧
   (∃ Lst, CallRel (L.mem s) Z.R Z.C σ Lst ∧ RPlaced st Z.N Z.T Z.C Z.R Z.c s σ ∧ RFree (L.mem s) Z.R Z.C σ Lst) ∧
   ∀ sl p sb, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.SchedContext p sb) →
     p ∈ Z.C ∧ p ≠ 0#u64 ∧ p.bv ≠ Fl4Spec.idleScPtr ∧
@@ -220,7 +218,10 @@ theorem xFinSc_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
   intro Z s a σ sl c hth hX hK hTh ⟨p, sb, hc0⟩ hDS hA hc hk hw
   have hYp := hY Z p hth
   subst hth hc0
-  obtain ⟨hP0, hNk, hRk, hNS, hInv, ⟨Lst, hCR, hRP, hRF⟩, hcap⟩ := hpre Z s a σ rfl hX
+  obtain ⟨hP0, hNS, hInv, ⟨Lst, hCR, hRP, hRF⟩, hcap⟩ := hpre Z s a σ rfl hX
+  have hNk : ∀ n ∈ Z.N, n.val + 40 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val := fun n hn =>
+    (hK.ntfn n hn).imp (fun h => by omega) id
+  have hRk : ∀ r ∈ Z.R, r.val + 32 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ r.val := hK.rep
   obtain ⟨hpC, hp0, hpi, hyk⟩ := hcap sl p sb hA hc
   have hfin := finWork_sc hw
   set fin := decide (Fl4Spec.isFinalCap' (absCap (.SchedContext p sb)) σ) with hfd
