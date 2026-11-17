@@ -147,7 +147,7 @@ theorem schedTailXHyp_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {s :
   rw [hcra] at hIa
   -- `set_priority`
   obtain ⟨hSVa, hInva, hOCa, hSEa, hSNa, -, -, hrela⟩ := hJ _ _ hIa
-  refine WP.spec_bind (set_priority_irel hP0 hIa hpT prio hpr (fun s' σ' h => (hJ s' σ' h).2.2.2.2.2.1)
+  refine WP.spec_bind (set_priority_irel hP0 hIa hpT prio hpr (hJ _ _ hIa).2.2.2.2.2.1
     (hrela p) hSVa hInva hOCa hSEa hSNa) ?_
   rintro s4 ⟨σb, hsb, hIb⟩
   have hb : ((), σb) ∈ (Fl4Spec.setPriority (Z := Unit) p.bv (Fl4Spec.ucast 8 prio.bv) σa).1 := by

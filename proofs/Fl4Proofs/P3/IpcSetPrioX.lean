@@ -106,7 +106,7 @@ theorem setPrioXLeaf_of {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {ar : A} {σ �
   obtain ⟨-, hP0, hpT, hAct, hOK⟩ := hZ Z hX
   have hAR : AR ar σ.archState.x64CurrentCr3 := hX.fin.1.1.2.2.2.2.2.2
   obtain ⟨hRel, hSV, hInv, hOC, hSE, hSN⟩ := hOK _ _ hI1
-  refine WP.spec_bind (set_priority_irel hP0 hI1 hpT v hv hAct hRel hSV hInv hOC hSE hSN) ?_
+  refine WP.spec_bind (set_priority_irel hP0 hI1 hpT v hv (hAct _ _ hI1) hRel hSV hInv hOC hSE hSN) ?_
   rintro s2 ⟨σ2, hm, hI2⟩
   simp only [WP.spec_ok]
   exact ⟨trivial, hAR, ((), σ2), by rw [hm]; exact Set.mem_singleton _, hI2⟩

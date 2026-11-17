@@ -651,11 +651,11 @@ variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64
 set_option maxHeartbeats 8000000 in
 /-- **`set_priority`'s requeue on `IRel`**: `dequeue`, the priority word,
 `enqueue`, `reschedule_required`, against the spec's (the thread not in the
-release queue, the action's thread ready on `IRel`, `ActReady`). -/
+release queue, `ActReady` at the start, carried across the dequeue, the priority word and the enqueue). -/
 theorem requeue_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State Unit}
     (hX : IRel st th cr N T C E R B c s σ) {t : U64} (ht : t ∈ T)
     (hr0 : (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64) (v : U64) (hv : v.val < 256)
-    (hAct : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → ActReady σ') :
+    (hA : ActReady σ) :
     (do
       let s1 ← sched.dequeue st s t
       let s2 ← obj.Tcb.set_prio st t s1 v
@@ -676,6 +676,12 @@ theorem requeue_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State Unit}
   refine WP.spec_bind (WP.spec_and (WP.spec_and (dequeue_refines s σ hS t ht) (dequeue_sfootI hS ht))
     (sched.dequeue.foot s t _ hc.tcbs ht hp hN hN' (hR1.1.rel _ hp) (hc.queued t ht).1)) ?_
   rintro s1 ⟨⟨⟨σ1, he1, -, -, -, hS1⟩, hw1⟩, -, hinq1⟩
+  obtain ⟨x0, hkx0, -⟩ := hX.1.tcb t ht
+  have hA1 : ActReady σ1 := by
+    have he1' := he1
+    rw [tcbSchedAction_gen hkx0] at he1'
+    rw [pair_eq he1']
+    exact actReady_upd hA hkx0 rfl rfl (Function.update_eq_self_iff.2 hkx0.symm).symm rfl rfl rfl
   have hX1 := sc_step_lift hP0 hX (hw1.mono fun _ h => Or.inr h) (NKS.of_eq (nks_tcbSchedActionI _ _) he1) hS1
   have hq1 : (L.mem s1 (inqA t) &&& sched.Q_QUEUED) = 0#u64 := by
     rw [hinq1]; split_ifs with h
@@ -697,8 +703,17 @@ theorem requeue_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State Unit}
   refine WP.spec_bind (WP.spec_and (enqueue_refines _ _ hS2 t ht (fun _ => by rw [hinq2]; exact hrel1))
     (enqueue_sfootI hS2 ht)) ?_
   rintro s3 ⟨⟨σ3, he3, -, -, -, hS3⟩, hw3⟩
+  have hA3 : ActReady σ3 := by
+    have hk2 : (updK σ1 t.bv (.tcb { x1 with tcbPriority := specPrio v })).kheap t.bv =
+        some (.tcb { x1 with tcbPriority := specPrio v }) := by simp [updK]
+    have hA2 := actReady_upd (σ' := updK σ1 t.bv (.tcb { x1 with tcbPriority := specPrio v })) (y := { x1 with tcbPriority := specPrio v }) hA1 hkx1 rfl rfl
+      rfl rfl rfl rfl
+    have he3' := he3
+    rw [tcbSchedAction_gen hk2] at he3'
+    rw [pair_eq he3']
+    exact actReady_upd hA2 hk2 rfl rfl (Function.update_eq_self_iff.2 hk2.symm).symm rfl rfl rfl
   have hX3 := sc_step_lift hP0 hX2 (hw3.mono fun _ h => Or.inr h) (NKS.of_eq (nks_tcbSchedActionI _ _) he3) hS3
-  refine WP.spec_mono (WP.spec_and (reschedule_required_refines s3 σ3 hX3.1.toN hS3 (hAct _ _ hX3))
+  refine WP.spec_mono (WP.spec_and (reschedule_required_refines s3 σ3 hX3.1.toN hS3 hA3)
     (reschedule_required_sfootI hS3)) ?_
   rintro s4 ⟨⟨σ4, he4, -, -, -, hS4⟩, hw4⟩
   have hX4 := sc_step_lift hP0 hX3 (hw4.mono fun _ h => Or.inr h) (NKS.of_eq nks_rescheduleRequiredI he4) hS4
@@ -762,7 +777,7 @@ current (the current thread in no release queue, l4v `ct_not_in_release_q`
 theorem prio_run_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State Unit}
     (hX : IRel st th cr N T C E R B c s σ) {t : U64} (ht : t ∈ T) {x : Fl4Spec.Tcb}
     (hk : σ.kheap t.bv = some (.tcb x)) (hrun : Fl4Spec.runnable x.tcbState = true) (v : U64) (hv : v.val < 256)
-    (hAct : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → ActReady σ')
+    (hAc : ActReady σ)
     (hRel : σ.curThread = t.bv → t.bv ∉ σ.releaseQueue) :
     (do
       let b ← sched.queued st s t
@@ -812,7 +827,7 @@ theorem prio_run_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State Unit
         rw [hrq, mem_map_bv] at h
         rw [hs.rel, mem_map_bv] at hm
         exact hc.excl t ht h hm
-    refine WP.spec_mono (requeue_irel hP0 hX ht hr0 v hv hAct) ?_
+    refine WP.spec_mono (requeue_irel hP0 hX ht hr0 v hv hAc) ?_
     rintro s' ⟨σ', he, hX'⟩
     refine ⟨σ', ?_, hX'⟩
     rw [setPriority_run hk hrun, if_pos (hcq.elim (fun h => Or.inr h.symm) Or.inl), ucast8_specPrio]
@@ -880,12 +895,12 @@ set_option maxHeartbeats 16000000 in
 /-- **`set_priority` on `IRel`**: the requeue of a queued or current runnable
 thread (`prio_run_irel`), the reorder of an endpoint (`ep_reorder_irel`) or
 notification (`ntfn_reorder_irel`) queue the thread is blocked on, else the
-priority word. Named: `ActReady` on `IRel` [J], the current thread in no
+priority word. Named: `ActReady` [J], the current thread in no
 release queue [J], `SchedValid` [J], `Inv` [J], `ObjCover` [J], the endpoint and
 notification queues sorted (`QSorted`) [J]. -/
 theorem set_priority_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State Unit}
     (hX : IRel st th cr N T C E R B c s σ) {t : U64} (ht : t ∈ T) (v : U64) (hv : v.val < 256)
-    (hAct : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → ActReady σ')
+    (hAc : ActReady σ)
     (hRel : σ.curThread = t.bv → t.bv ∉ σ.releaseQueue) (hSV : SchedValid σ) (hInv : Inv σ)
     (hOC : ObjCover N T E R C σ) (hSE : QSorted st T E s) (hSN : QSorted st T N s) :
     sched.set_priority st s t v ⦃ s' => ∃ σ',
@@ -1057,15 +1072,15 @@ theorem set_priority_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State 
   | running =>
     have hv0 : L.mem s (tStA t) = 1#u64 := UScalar.eq_of_val_eq (by rw [hst, hts]; rfl)
     simp only [hv0, ↓reduceIte]
-    exact prio_run_irel hP0 hX ht hk (by rw [hts]; rfl) v hv hAct hRel
+    exact prio_run_irel hP0 hX ht hk (by rw [hts]; rfl) v hv hAc hRel
   | restart =>
     have hv0 : L.mem s (tStA t) = 2#u64 := UScalar.eq_of_val_eq (by rw [hst, hts]; rfl)
     simp (config := { decide := true }) only [hv0, ↓reduceIte]
-    exact prio_run_irel hP0 hX ht hk (by rw [hts]; rfl) v hv hAct hRel
+    exact prio_run_irel hP0 hX ht hk (by rw [hts]; rfl) v hv hAc hRel
   | runningVM =>
     have hv0 : L.mem s (tStA t) = 8#u64 := UScalar.eq_of_val_eq (by rw [hst, hts]; rfl)
     simp (config := { decide := true }) only [hv0, ↓reduceIte]
-    exact prio_run_irel hP0 hX ht hk (by rw [hts]; rfl) v hv hAct hRel
+    exact prio_run_irel hP0 hX ht hk (by rw [hts]; rfl) v hv hAc hRel
   | inactive =>
     have hv0 : L.mem s (tStA t) = 0#u64 := UScalar.eq_of_val_eq (by rw [hst, hts]; rfl)
     simp (config := { decide := true }) only [hv0, ↓reduceIte]
