@@ -33,7 +33,7 @@ structure InvGaps3 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar 
   /-- SchedContext `YieldTo`. -/
   yield : ScYieldGap st ar T Cs Ω H Sg Rp Scs Nt Z U
   /-- The finalisation steps of CNode `Delete` and `Revoke`. -/
-  del : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z
+  del : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z P3Ok
 
 theorem InvGaps3.gaps {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (P : P3Place st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (C : CdtHyps2 st T Cs Ω H Sg Rp Scs Nt Z P3Ok)

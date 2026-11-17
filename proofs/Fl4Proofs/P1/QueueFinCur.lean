@@ -684,10 +684,10 @@ theorem irq_slotW {s : S} {i : U64} (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (
 
 /-- **The IRQ handler kind's finalisation** (`FinGaps.irq`), from `DelPlace`. -/
 theorem finGap_irq {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) :
-    FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1, c = .IrqHandler x1 := by
+    {s0 : S} (P : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s0) :
+    FinGapAt st ar T Cs Ω H Sg Rp Scs Nt Z (fun c => ∃ x1, c = .IrqHandler x1) s0 := by
   have hS : P0.StoreTotal st := L.total
-  intro Ac s0 s a c fin h hc _ ⟨irq, e⟩
+  intro Ac s a c fin h hc _ ⟨irq, e⟩
   subst e
   have hi := hc.2.1 irq rfl
   obtain ⟨Ac', hb⟩ := h.bxi
@@ -700,7 +700,7 @@ theorem finGap_irq {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V 
       subst eisl
       have hW := irq_slotW hb hi
       unfold cdt.delete_one
-      refine WP.spec_bind (WP.spec_and (P.irq Ac' s irq hb hi) (P.cap Ac' s _ hb hW)) fun c ⟨hc', hcd⟩ => ?_
+      refine WP.spec_bind (WP.spec_and (P.irq Ac' s irq h.fr hb hi) (P.cap Ac' s _ h.fr hb hW)) fun c ⟨hc', hcd⟩ => ?_
       refine WP.spec_bind (P0.capability.Cap.is_null.p0 c) fun bn _ => ?_
       split
       · exact (WP.spec_ok _).2 h

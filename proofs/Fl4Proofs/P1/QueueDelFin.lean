@@ -28,6 +28,18 @@ def FinGap (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machin
     objects.finalise_cap st ar s a c fin false ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ∧
       DelCapOK T Ω Sg H Rp Nt r.1.1 ∧ DelCapOK T Ω Sg H Rp Nt r.1.2 ⦄
 
+/-- `FinGap` from one decode start `s0`. -/
+def FinGapAt (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
+    (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (P : capability.Cap → Prop) (s0 : S) : Prop :=
+  ∀ (Ac : Set U64) (s : S) (a : A) (c : capability.Cap) (fin : Bool),
+    Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s → DelCapOK T Ω Sg H Rp Nt c → FinPl st Scs s c → P c →
+    objects.finalise_cap st ar s a c fin false ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ∧
+      DelCapOK T Ω Sg H Rp Nt r.1.1 ∧ DelCapOK T Ω Sg H Rp Nt r.1.2 ⦄
+
+theorem FinGap.at {A : Type _} {ar : machine.Arch A} {P : capability.Cap → Prop}
+    (g : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z P) (s0 : S) : FinGapAt st ar T Cs Ω H Sg Rp Scs Nt Z P s0 :=
+  fun Ac s a c fin => g Ac s0 s a c fin
+
 theorem fin_noop {A : Type _} {ar : machine.Arch A} {s0 s : S} {a : A} {c : capability.Cap} {fin : Bool}
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s)
     (hc : c = .Null ∨ (∃ x y z w, c = .Untyped x y z w) ∨ c = .IrqControl ∨ c = .Domain ∨
@@ -67,34 +79,40 @@ theorem fin_zombie {A : Type _} {ar : machine.Arch A} {s0 s : S} {a : A} {p t n 
 for their deletion (`DelCapOK`); the CDT links of a cap slot are cap slots
 or null; the VSpace lookups of the unmaps name VSpace words `V` (aligned
 words of the other objects outside `Sg`), and so do the ASID tables. -/
-structure DelPlace (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
-    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (V : U64 → Prop) : Prop where
+structure DelPlaceAt (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
+    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (V : U64 → Prop) (s0 : S) : Prop where
   vs : VsOK Ω Sg V
-  cap : ∀ (Ac : Set U64) (s : S) (x : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → SlotW T Ω Sg x →
+  cap : ∀ (Ac : Set U64) (s : S) (x : U64), Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → SlotW T Ω Sg x →
     obj.Slot.cap st x s ⦃ c => DelCapOK T Ω Sg H Rp Nt c ∧ FinPl st Scs s c ⦄
-  next : ∀ (Ac : Set U64) (s : S) (x : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → SlotW T Ω Sg x →
+  next : ∀ (Ac : Set U64) (s : S) (x : U64), Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → SlotW T Ω Sg x →
     obj.Slot.next st x s ⦃ n => n = 0#u64 ∨ SlotW T Ω Sg n ⦄
-  prev : ∀ (Ac : Set U64) (s : S) (x : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → SlotW T Ω Sg x →
+  prev : ∀ (Ac : Set U64) (s : S) (x : U64), Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → SlotW T Ω Sg x →
     obj.Slot.prev st x s ⦃ n => n = 0#u64 ∨ SlotW T Ω Sg n ⦄
-  pt : ∀ (Ac : Set U64) (s : S) (r1 v : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+  pt : ∀ (Ac : Set U64) (s : S) (r1 v : U64), Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     vspace.lookup_pt_slot st s r1 v ⦃ r => ∀ x, r = .Ok x → V x ⦄
-  pd : ∀ (Ac : Set U64) (s : S) (r1 v : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+  pd : ∀ (Ac : Set U64) (s : S) (r1 v : U64), Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     vspace.lookup_pd_slot st s r1 v ⦃ r => ∀ x, r = .Ok x → V x ⦄
-  pdpt : ∀ (Ac : Set U64) (s : S) (r1 v : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+  pdpt : ∀ (Ac : Set U64) (s : S) (r1 v : U64), Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     vspace.lookup_pdpt_slot st s r1 v ⦃ r => ∀ x, r = .Ok x → V x ⦄
-  pool : ∀ (Ac : Set U64) (s : S) (asid i : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+  pool : ∀ (Ac : Set U64) (s : S) (asid i : U64), Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     vspace.asid_table st s i ⦃ pool => pool ≠ 0#u64 →
       V (core.num.U64.wrapping_add pool (core.num.U64.wrapping_mul (asid &&& 511#u64) 8#u64)) ⦄
-  aset : ∀ (Ac : Set U64) (s : S) (hi : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+  aset : ∀ (Ac : Set U64) (s : S) (hi : U64), Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     vspace.set_asid_table st s hi 0#u64 ⦃ s1 => WritesIn st s s1 V ⦄
   /-- An IRQ's handler slot holds no cap or a notification cap
   (`deleting_irq_handler`). -/
-  irq : ∀ (Ac : Set U64) (s : S) (i : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → i.val < 128 →
+  irq : ∀ (Ac : Set U64) (s : S) (i : U64), Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → i.val < 128 →
     obj.Slot.cap st (irqSlotA (L.ksb s) i) s ⦃ c => c = .Null ∨ ∃ n b0 b1 b2, c = .Notification n b0 b1 b2 ⦄
   /-- The PML4 entries of an ASID's root are VSpace words (`unmap_pdpt`). -/
-  pml : ∀ (Ac : Set U64) (s : S) (asid : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+  pml : ∀ (Ac : Set U64) (s : S) (asid : U64), Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     vspace.find_vspace_for_asid st s asid ⦃ r => ∀ r1, r = .Ok r1 → ∀ i : U64,
       V (core.num.U64.wrapping_add r1 (core.num.U64.wrapping_mul (i &&& 511#u64) 8#u64)) ⦄
+
+/-- **The deletion placement facts** (P3's), at every decode start reached
+from a `P3Ok` entry, along the decode's frame (`Fr0`). -/
+def DelPlace (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
+    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (V : U64 → Prop) (P3Ok : S → Prop) : Prop :=
+  ∀ s0, EntAt st P3Ok s0 → DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s0
 
 /-- **`unmap_page_directory`** writes only the PDPT slot it looks up. -/
 theorem vspace.unmap_page_directory.vs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
@@ -141,7 +159,7 @@ theorem Cur0.vs {s0 s s' : S} {V : U64 → Prop} (h : Cur0 st T Cs Ω H Sg Rp Sc
 set_option maxHeartbeats 2000000 in
 /-- The VSpace kinds QueueVsFin covers. -/
 theorem fin_vs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) {s0 s : S} {a : A} {c : capability.Cap} {fin : Bool}
+    {s0 s : S} (P : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s0) {a : A} {c : capability.Cap} {fin : Bool}
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s)
     (hc : (∃ x y z w, c = .PageTable x y z w) ∨ (∃ x y z w m asid vaddr, c = .Frame x y z w m false asid vaddr) ∨
       (∃ x y z, c = .Pml4 x y z) ∨ (∃ x y, c = .AsidPool x y) ∨ (∃ x y z w, c = .PageDirectory x y z w) ∨
@@ -165,37 +183,37 @@ theorem fin_vs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U6
   · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok]
     split
     · split
-      · exact W _ (vspace.unmap_page_table.vs hA s a z w x P.vs fun r1 => P.pd Ac' s r1 w hb)
+      · exact W _ (vspace.unmap_page_table.vs hA s a z w x P.vs fun r1 => P.pd Ac' s r1 w h.fr hb)
       · exact K
     · exact K
   · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok]
     split
     · split
       · simp only [Bool.false_eq_true, ↓reduceIte]
-        exact W _ (vspace.unmap_page.vs hA s a y asid vaddr x P.vs (fun r1 => P.pt Ac' s r1 vaddr hb)
-          (fun r1 => P.pd Ac' s r1 vaddr hb) (fun r1 => P.pdpt Ac' s r1 vaddr hb))
+        exact W _ (vspace.unmap_page.vs hA s a y asid vaddr x P.vs (fun r1 => P.pt Ac' s r1 vaddr h.fr hb)
+          (fun r1 => P.pd Ac' s r1 vaddr h.fr hb) (fun r1 => P.pdpt Ac' s r1 vaddr h.fr hb))
       · exact K
     · exact K
   · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok]
     split
     · split
-      · exact W _ (vspace.delete_asid.vs hA s a z x P.vs fun i => P.pool Ac' s z i hb)
+      · exact W _ (vspace.delete_asid.vs hA s a z x P.vs fun i => P.pool Ac' s z i h.fr hb)
       · exact K
     · exact K
   · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok]
     split
-    · exact W _ (vspace.delete_asid_pool.vs hA s a y x fun hi => P.aset Ac' s hi hb)
+    · exact W _ (vspace.delete_asid_pool.vs hA s a y x fun hi => P.aset Ac' s hi h.fr hb)
     · exact K
   · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok]
     split
     · split
-      · exact W _ (vspace.unmap_page_directory.vs hA s a z w x P.vs fun r1 => P.pdpt Ac' s r1 w hb)
+      · exact W _ (vspace.unmap_page_directory.vs hA s a z w x P.vs fun r1 => P.pdpt Ac' s r1 w h.fr hb)
       · exact K
     · exact K
   · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok]
     split
     · split
-      · exact W _ (vspace.unmap_pdpt.vs hA s a z w x P.vs (P.pml Ac' s z hb))
+      · exact W _ (vspace.unmap_pdpt.vs hA s a z w x P.vs (P.pml Ac' s z h.fr hb))
       · exact K
     · exact K
 
@@ -203,25 +221,25 @@ theorem fin_vs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U6
 (`FinGap`): the endpoint, notification, reply, SC, thread and IRQ handler
 kinds (QueueFinCur proves the endpoint, notification, reply and IRQ handler
 ones), and the VCPU/EPT/I/O-port kinds (with EPT frames). -/
-structure FinKinds (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
-    (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) : Prop where
-  ep : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1 x2 x3 x4 x5 x6, c = .Endpoint x1 x2 x3 x4 x5 x6
-  ntfn : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1 x2 x3 x4, c = .Notification x1 x2 x3 x4
-  reply : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1 x2, c = .Reply x1 x2
-  sc : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1 x2, c = .SchedContext x1 x2
-  thread : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1, c = .Thread x1
-  irq : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1, c = .IrqHandler x1
-  ioPort : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1 x2 x3, c = .IoPort x1 x2 x3
+structure FinKindsAt (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
+    (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (s0 : S) : Prop where
+  ep : FinGapAt st ar T Cs Ω H Sg Rp Scs Nt Z (fun c => ∃ x1 x2 x3 x4 x5 x6, c = .Endpoint x1 x2 x3 x4 x5 x6) s0
+  ntfn : FinGapAt st ar T Cs Ω H Sg Rp Scs Nt Z (fun c => ∃ x1 x2 x3 x4, c = .Notification x1 x2 x3 x4) s0
+  reply : FinGapAt st ar T Cs Ω H Sg Rp Scs Nt Z (fun c => ∃ x1 x2, c = .Reply x1 x2) s0
+  sc : FinGapAt st ar T Cs Ω H Sg Rp Scs Nt Z (fun c => ∃ x1 x2, c = .SchedContext x1 x2) s0
+  thread : FinGapAt st ar T Cs Ω H Sg Rp Scs Nt Z (fun c => ∃ x1, c = .Thread x1) s0
+  irq : FinGapAt st ar T Cs Ω H Sg Rp Scs Nt Z (fun c => ∃ x1, c = .IrqHandler x1) s0
+  ioPort : FinGapAt st ar T Cs Ω H Sg Rp Scs Nt Z (fun c => ∃ x1 x2 x3, c = .IoPort x1 x2 x3) s0
   /-- The VT-x kinds: VCPUs, EPTs and EPT frames. -/
-  arch : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => (∃ x1, c = .Vcpu x1) ∨
+  arch : FinGapAt st ar T Cs Ω H Sg Rp Scs Nt Z (fun c => (∃ x1, c = .Vcpu x1) ∨
     (∃ x1 x2 x3 x4 x5, c = .Ept x1 x2 x3 x4 x5) ∨
-    (∃ x1 x2 x3 x4 x5 x6 x7, c = .Frame x1 x2 x3 x4 x5 true x6 x7)
+    (∃ x1 x2 x3 x4 x5 x6 x7, c = .Frame x1 x2 x3 x4 x5 true x6 x7)) s0
 
 /-- **Every cap kind's finalisation**, from `FinKinds`. -/
 theorem fin_all {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (G : FinKinds st ar T Cs Ω H Sg Rp Scs Nt Z) :
-    FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun _ => True := by
-  intro Ac s0 s a c fin h hc hpl _
+    {s0 : S} (P : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s0) (G : FinKindsAt st ar T Cs Ω H Sg Rp Scs Nt Z s0) :
+    FinGapAt st ar T Cs Ω H Sg Rp Scs Nt Z (fun _ => True) s0 := by
+  intro Ac s a c fin h hc hpl _
   cases c with
   | Null => exact fin_noop h (Or.inl rfl)
   | Untyped => exact fin_noop h (Or.inr (Or.inl ⟨_, _, _, _, rfl⟩))
@@ -238,18 +256,18 @@ theorem fin_all {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U
   | Frame x1 x2 x3 x4 x5 e x6 x7 =>
     cases e
     · exact fin_vs hA P h (Or.inr (Or.inl ⟨_, _, _, _, _, _, _, rfl⟩))
-    · exact G.arch _ _ _ _ _ _ h hc hpl (Or.inr (Or.inr ⟨_, _, _, _, _, _, _, rfl⟩))
-  | Endpoint => exact G.ep _ _ _ _ _ _ h hc hpl ⟨_, _, _, _, _, _, rfl⟩
-  | Notification => exact G.ntfn _ _ _ _ _ _ h hc hpl ⟨_, _, _, _, rfl⟩
-  | Reply => exact G.reply _ _ _ _ _ _ h hc hpl ⟨_, _, rfl⟩
-  | SchedContext => exact G.sc _ _ _ _ _ _ h hc hpl ⟨_, _, rfl⟩
-  | Thread => exact G.thread _ _ _ _ _ _ h hc hpl ⟨_, rfl⟩
-  | IrqHandler => exact G.irq _ _ _ _ _ _ h hc hpl ⟨_, rfl⟩
+    · exact G.arch _ _ _ _ _ h hc hpl (Or.inr (Or.inr ⟨_, _, _, _, _, _, _, rfl⟩))
+  | Endpoint => exact G.ep _ _ _ _ _ h hc hpl ⟨_, _, _, _, _, _, rfl⟩
+  | Notification => exact G.ntfn _ _ _ _ _ h hc hpl ⟨_, _, _, _, rfl⟩
+  | Reply => exact G.reply _ _ _ _ _ h hc hpl ⟨_, _, rfl⟩
+  | SchedContext => exact G.sc _ _ _ _ _ h hc hpl ⟨_, _, rfl⟩
+  | Thread => exact G.thread _ _ _ _ _ h hc hpl ⟨_, rfl⟩
+  | IrqHandler => exact G.irq _ _ _ _ _ h hc hpl ⟨_, rfl⟩
   | PageDirectory => exact fin_vs hA P h (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨_, _, _, _, rfl⟩)))))
   | Pdpt => exact fin_vs hA P h (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨_, _, _, _, rfl⟩)))))
-  | Vcpu => exact G.arch _ _ _ _ _ _ h hc hpl (Or.inl ⟨_, rfl⟩)
-  | Ept => exact G.arch _ _ _ _ _ _ h hc hpl (Or.inr (Or.inl ⟨_, _, _, _, _, rfl⟩))
-  | IoPort => exact G.ioPort _ _ _ _ _ _ h hc hpl ⟨_, _, _, rfl⟩
+  | Vcpu => exact G.arch _ _ _ _ _ h hc hpl (Or.inl ⟨_, rfl⟩)
+  | Ept => exact G.arch _ _ _ _ _ h hc hpl (Or.inr (Or.inl ⟨_, _, _, _, _, rfl⟩))
+  | IoPort => exact G.ioPort _ _ _ _ _ h hc hpl ⟨_, _, _, rfl⟩
 
 /-! ## `empty_slot` and `post_cap_deletion` -/
 
@@ -417,7 +435,7 @@ theorem objects.post_cap_deletion.cur0 {A : Type _} {ar : machine.Arch A} (hA : 
 set_option maxHeartbeats 1000000 in
 /-- **`empty_slot`** of a cap slot, its cleanup cap typed. -/
 theorem cdt.empty_slot.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) {s0 s : S} {a : A} {x : U64} {c : capability.Cap}
+    {s0 s : S} (P : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s0) {a : A} {x : U64} {c : capability.Cap}
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hx : SlotW T Ω Sg x) (hc : DelCapOK T Ω Sg H Rp Nt c) :
     cdt.empty_slot st ar s a x c ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.1 ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -427,8 +445,8 @@ theorem cdt.empty_slot.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTota
   refine WP.spec_bind (P0.capability.Cap.is_null.p0 c0) fun bn _ => ?_
   split
   · exact (WP.spec_ok _).2 h
-  refine WP.spec_bind (P.prev Ac' s x hb hx) fun pv hpv => ?_
-  refine WP.spec_bind (P.next Ac' s x hb hx) fun nx hnx => ?_
+  refine WP.spec_bind (P.prev Ac' s x h.fr hb hx) fun pv hpv => ?_
+  refine WP.spec_bind (P.next Ac' s x h.fr hb hx) fun nx hnx => ?_
   refine WP.spec_bind (P0.obj.Slot.first_badged.p0 st x s hS) fun fb _ => ?_
   simp only [obj.Slot.is_null, bind_ok]
   refine WP.spec_bind (Pₘ := fun s1 => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s1) ?_ fun s1 h1 => ?_
@@ -457,7 +475,7 @@ theorem Cur0.cw {s0 s : S} {m : Result S} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z 
 
 set_option maxHeartbeats 2000000 in
 /-- **`cdt.swap`** of two cap slots. -/
-theorem cdt.swap.cur0 {V : U64 → Prop} (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) {s0 s : S}
+theorem cdt.swap.cur0 {V : U64 → Prop} {s0 s : S} (P : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s0)
     {c1 c2 : capability.Cap} {x1 x2 : U64} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s)
     (h1 : SlotW T Ω Sg x1) (h2 : SlotW T Ω Sg x2) :
     cdt.swap st s c1 x1 c2 x2 ⦃ s' => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ⦄ := by
@@ -466,8 +484,8 @@ theorem cdt.swap.cur0 {V : U64 → Prop} (P : DelPlace st T Cs Ω H Sg Rp Scs Nt
   refine WP.spec_bind (h.cw (obj.Slot.set_cap.capw h1)) fun sa ha => ?_
   refine WP.spec_bind (ha.cw (obj.Slot.set_cap.capw h2)) fun sb hb => ?_
   obtain ⟨Acb, hbb⟩ := hb.bxi
-  refine WP.spec_bind (P.prev Acb sb x1 hbb h1) fun p1 hp1 => ?_
-  refine WP.spec_bind (P.next Acb sb x1 hbb h1) fun n1 hn1 => ?_
+  refine WP.spec_bind (P.prev Acb sb x1 hb.fr hbb h1) fun p1 hp1 => ?_
+  refine WP.spec_bind (P.next Acb sb x1 hb.fr hbb h1) fun n1 hn1 => ?_
   refine WP.spec_bind (P0.obj.Slot.revocable.p0 st x1 sb hS) fun r1 _ => ?_
   refine WP.spec_bind (P0.obj.Slot.first_badged.p0 st x1 sb hS) fun f1 _ => ?_
   simp only [obj.Slot.is_null, bind_ok]
@@ -480,8 +498,8 @@ theorem cdt.swap.cur0 {V : U64 → Prop} (P : DelPlace st T Cs Ω H Sg Rp Scs Nt
     · exact (WP.spec_ok _).2 hc
     · rename_i e; exact hc.cw (obj.Slot.set_prev.capw (hn1.resolve_left (by simpa using e)))
   obtain ⟨Acd, hbd⟩ := hd.bxi
-  refine WP.spec_bind (P.prev Acd sd x2 hbd h2) fun p2 hp2 => ?_
-  refine WP.spec_bind (P.next Acd sd x2 hbd h2) fun n2 hn2 => ?_
+  refine WP.spec_bind (P.prev Acd sd x2 hd.fr hbd h2) fun p2 hp2 => ?_
+  refine WP.spec_bind (P.next Acd sd x2 hd.fr hbd h2) fun n2 hn2 => ?_
   refine WP.spec_bind (P0.obj.Slot.revocable.p0 st x2 sd hS) fun r2 _ => ?_
   refine WP.spec_bind (P0.obj.Slot.first_badged.p0 st x2 sd hS) fun f2 _ => ?_
   refine WP.spec_bind (hd.cw (obj.Slot.set_prev.capw h1)) fun s5 h5 => ?_
@@ -496,7 +514,7 @@ theorem cdt.swap.cur0 {V : U64 → Prop} (P : DelPlace st T Cs Ω H Sg Rp Scs Nt
   · exact (WP.spec_ok _).2 h13
   · rename_i e; exact h13.cw (obj.Slot.set_prev.capw (hn2.resolve_left (by simpa using e)))
 
-theorem cdt.cap_swap_for_delete.cur0 {V : U64 → Prop} (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) {s0 s : S}
+theorem cdt.cap_swap_for_delete.cur0 {V : U64 → Prop} {s0 s : S} (P : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s0)
     {x1 x2 : U64} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (h1 : SlotW T Ω Sg x1) (h2 : SlotW T Ω Sg x2) :
     cdt.cap_swap_for_delete st s x1 x2 ⦃ s' => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -527,8 +545,8 @@ local macro "dtail" : tactic => `(tactic| (
 set_option maxHeartbeats 4000000 in
 /-- **`finalise_slot_deferred`** of a cap slot: `Cur0`, the cleanup cap typed. -/
 theorem cdt.finalise_slot_deferred.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (F : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun _ => True)
-    {s0 s : S} {a : A} {x : U64} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hx : SlotW T Ω Sg x) :
+    {s0 s : S} (P : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s0) (F : FinGapAt st ar T Cs Ω H Sg Rp Scs Nt Z (fun _ => True) s0)
+    {a : A} {x : U64} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hx : SlotW T Ω Sg x) :
     cdt.finalise_slot_deferred st ar s a x ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ∧
       ∀ v, r.1 = .Ok v → DelCapOK T Ω Sg H Rp Nt v.cleanup ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -546,12 +564,12 @@ theorem cdt.finalise_slot_deferred.cur0 {A : Type _} {ar : machine.Arch A} (hA :
     have hf' : 0 < fuel.val := by simpa using hf
     step as ⟨fuel1, hf1⟩
     obtain ⟨Acx, hbx⟩ := h1.bxi
-    refine WP.spec_bind (P.cap Acx s1 x hbx hx) fun c ⟨hc, hpl⟩ => ?_
+    refine WP.spec_bind (P.cap Acx s1 x h1.fr hbx hx) fun c ⟨hc, hpl⟩ => ?_
     refine WP.spec_bind (P0.capability.Cap.is_null.p0 c) fun bn _ => ?_
     split
     · exact (WP.spec_ok _).2 ⟨h1, fun v hv => by cases hv; exact DelCapOK.null⟩
     refine WP.spec_bind (P0.cdt.is_final_capability_with_cap.p0 st s1 x c hS) fun fin _ => ?_
-    refine WP.spec_bind (F Ac s0 s1 a1 c fin h1 hc hpl trivial) ?_
+    refine WP.spec_bind (F Ac s1 a1 c fin h1 hc hpl trivial) ?_
     rintro ⟨⟨rem, cl⟩, s2, a2⟩ ⟨h2', hrem, hcl⟩
     try simp only [uncurry_apply_pair]
     refine WP.spec_bind (P0.cdt.cap_removable.p0 rem x) fun br _ => ?_
@@ -571,8 +589,8 @@ theorem cdt.finalise_slot_deferred.cur0 {A : Type _} {ar : machine.Arch A} (hA :
 
 /-- **`delete_deferred`** of a cap slot. -/
 theorem cdt.delete_deferred.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (F : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun _ => True)
-    {s0 s : S} {a : A} {x : U64} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hx : SlotW T Ω Sg x) :
+    {s0 s : S} (P : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s0) (F : FinGapAt st ar T Cs Ω H Sg Rp Scs Nt Z (fun _ => True) s0)
+    {a : A} {x : U64} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hx : SlotW T Ω Sg x) :
     cdt.delete_deferred st ar s a x ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ⦄ := by
   unfold cdt.delete_deferred
   refine WP.spec_bind (cdt.finalise_slot_deferred.cur0 hA P F h hx) ?_
@@ -592,12 +610,12 @@ theorem cdt.delete_deferred.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
 
 /-- **`DelGaps`, discharged** from placement and the named finalisations. -/
 theorem delGaps_of {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (G : FinKinds st ar T Cs Ω H Sg Rp Scs Nt Z) :
-    DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z where
+    {s0 : S} (P : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s0) (G : FinKindsAt st ar T Cs Ω H Sg Rp Scs Nt Z s0) :
+    DelGapsAt st ar T Cs Ω H Sg Rp Scs Nt Z s0 where
   cap := P.cap
-  fin Ac s0 s a c fin h hc hpl := fin_all hA P G Ac s0 s a c fin h hc hpl trivial
-  deferred _ _ _ _ _ h hx := cdt.delete_deferred.cur0 hA P (fin_all hA P G) h hx
-  empty _ _ _ _ _ _ h hx hc := cdt.empty_slot.cur0 hA P h hx hc
+  fin Ac s a c fin h hc hpl := fin_all hA P G Ac s a c fin h hc hpl trivial
+  deferred _ _ _ _ h hx := cdt.delete_deferred.cur0 hA P (fin_all hA P G) h hx
+  empty _ _ _ _ _ h hx hc := cdt.empty_slot.cur0 hA P h hx hc
   next := P.next
 
 end

@@ -217,21 +217,26 @@ a cap slot; emptying a cap slot with its CDT unlinking and the typed cleanup
 cap's `post_cap_deletion`; and the CDT's `NEXT` links of cap slots name cap
 slots.  QueueDelFin proves this from placement (`DelPlace`) and the named
 per-kind finalisations (`FinGaps`). -/
-structure DelGaps (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
-    (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) : Prop where
-  cap : ∀ (Ac : Set U64) (s : S) (x : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → SlotW T Ω Sg x →
-    obj.Slot.cap st x s ⦃ c => DelCapOK T Ω Sg H Rp Nt c ∧ FinPl st Scs s c ⦄
-  fin : ∀ (Ac : Set U64) (s0 s : S) (a : A) (c : capability.Cap) (fin : Bool),
+structure DelGapsAt (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
+    (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (s0 : S) : Prop where
+  cap : ∀ (Ac : Set U64) (s : S) (x : U64), Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    SlotW T Ω Sg x → obj.Slot.cap st x s ⦃ c => DelCapOK T Ω Sg H Rp Nt c ∧ FinPl st Scs s c ⦄
+  fin : ∀ (Ac : Set U64) (s : S) (a : A) (c : capability.Cap) (fin : Bool),
     Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s → DelCapOK T Ω Sg H Rp Nt c → FinPl st Scs s c →
     objects.finalise_cap st ar s a c fin false ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ∧
       DelCapOK T Ω Sg H Rp Nt r.1.1 ∧ DelCapOK T Ω Sg H Rp Nt r.1.2 ⦄
-  deferred : ∀ (Ac : Set U64) (s0 s : S) (a : A) (x : U64), Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s →
+  deferred : ∀ (Ac : Set U64) (s : S) (a : A) (x : U64), Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s →
     SlotW T Ω Sg x → cdt.delete_deferred st ar s a x ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ⦄
-  empty : ∀ (Ac : Set U64) (s0 s : S) (a : A) (x : U64) (c : capability.Cap),
+  empty : ∀ (Ac : Set U64) (s : S) (a : A) (x : U64) (c : capability.Cap),
     Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s → SlotW T Ω Sg x → DelCapOK T Ω Sg H Rp Nt c →
     cdt.empty_slot st ar s a x c ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.1 ⦄
-  next : ∀ (Ac : Set U64) (s : S) (x : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → SlotW T Ω Sg x →
-    obj.Slot.next st x s ⦃ n => n = 0#u64 ∨ SlotW T Ω Sg n ⦄
+  next : ∀ (Ac : Set U64) (s : S) (x : U64), Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    SlotW T Ω Sg x → obj.Slot.next st x s ⦃ n => n = 0#u64 ∨ SlotW T Ω Sg n ⦄
+
+/-- The deletion gaps at every decode start reached from a `P3Ok` entry. -/
+def DelGaps (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
+    (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (P3Ok : S → Prop) : Prop :=
+  ∀ s0, EntAt st P3Ok s0 → DelGapsAt st ar T Cs Ω H Sg Rp Scs Nt Z s0
 
 theorem cte_size : layout.cte.SIZE = 32#u64 := by unfold layout.cte.SIZE; rfl
 
@@ -269,7 +274,7 @@ local macro "pptail" : tactic => `(tactic| (
 
 set_option maxHeartbeats 4000000 in
 theorem cdt.finalise_slot_immediate.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) {s0 s : S} {a : A} {x : U64}
+    {s0 s : S} (G : DelGapsAt st ar T Cs Ω H Sg Rp Scs Nt Z s0) {a : A} {x : U64}
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hx : SlotW T Ω Sg x) :
     cdt.finalise_slot_immediate st ar s a x ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ∧
       ∀ v, r.1 = .Ok v → DelCapOK T Ω Sg H Rp Nt v.cleanup ⦄ := by
@@ -287,12 +292,12 @@ theorem cdt.finalise_slot_immediate.cur0 {A : Type _} {ar : machine.Arch A} (hA 
     rename_i hf
     step as ⟨fuel1, hf1⟩
     obtain ⟨Acx, hbx⟩ := h1.bxi
-    refine WP.spec_bind (G.cap Acx s1 x hbx hx) fun c ⟨hc, hpl⟩ => ?_
+    refine WP.spec_bind (G.cap Acx s1 x h1.fr hbx hx) fun c ⟨hc, hpl⟩ => ?_
     refine WP.spec_bind (P0.capability.Cap.is_null.p0 c) fun bn _ => ?_
     split
     · exact (WP.spec_ok _).2 ⟨h1, fun v hv => by cases hv; exact DelCapOK.null⟩
     refine WP.spec_bind (P0.cdt.is_final_capability_with_cap.p0 st s1 x c hS) fun fin _ => ?_
-    refine WP.spec_bind (G.fin Ac s0 s1 a1 c fin h1 hc hpl) ?_
+    refine WP.spec_bind (G.fin Ac s1 a1 c fin h1 hc hpl) ?_
     rintro ⟨⟨rem, cl⟩, s2, a2⟩ ⟨h2', hrem, hcl⟩
     try simp only [uncurry_apply_pair, WP.uncurry'_pair]
     refine WP.spec_bind (cdt.cap_removable.zombie rem x) fun br hbr => ?_
@@ -311,7 +316,7 @@ theorem cdt.finalise_slot_immediate.cur0 {A : Type _} {ar : machine.Arch A} (hA 
     have hen := zombie_last hrem (hbr' zp zt zn rfl)
     unfold obj.Slot.index
     simp only [lift, bind_ok, cte_size]
-    refine WP.spec_bind (G.deferred Ac s0 s2' a2 _ h2 hen) ?_
+    refine WP.spec_bind (G.deferred Ac s2' a2 _ h2 hen) ?_
     rintro ⟨r, s3, a3⟩ h3
     try simp only [uncurry_apply_pair] at h3 ⊢
     rcases r with _ | e
@@ -343,7 +348,7 @@ theorem cdt.finalise_slot_immediate.cur0 {A : Type _} {ar : machine.Arch A} (hA 
 
 /-- `cdt.delete` (exposed) of a cap slot. -/
 theorem cdt.delete.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) {s0 s : S} {a : A} {x : U64}
+    {s0 s : S} (G : DelGapsAt st ar T Cs Ω H Sg Rp Scs Nt Z s0) {a : A} {x : U64}
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hx : SlotW T Ω Sg x) :
     cdt.delete st ar s a x true ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ⦄ := by
   unfold cdt.delete
@@ -353,7 +358,7 @@ theorem cdt.delete.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar
   try simp only [uncurry_apply_pair] at h1 hv1 ⊢
   rcases r with v | e
   · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
-    refine WP.spec_bind (G.empty Ac s0 s1 a1 x _ h1 hx (hv1 v rfl)) ?_
+    refine WP.spec_bind (G.empty Ac s1 a1 x _ h1 hx (hv1 v rfl)) ?_
     rintro ⟨s2, a2⟩ h2
     try simp only [uncurry_apply_pair] at h2 ⊢
     exact (WP.spec_ok _).2 h2
@@ -365,7 +370,7 @@ theorem cdt.delete.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar
 set_option maxHeartbeats 2000000 in
 /-- `cdt.revoke` of a cap slot. -/
 theorem cdt.revoke.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) {s0 s : S} {a : A} {x : U64}
+    {s0 s : S} (G : DelGapsAt st ar T Cs Ω H Sg Rp Scs Nt Z s0) {a : A} {x : U64}
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hx : SlotW T Ω Sg x) :
     cdt.revoke st ar s a x ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -384,7 +389,7 @@ theorem cdt.revoke.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar
     step as ⟨fuel1, hf1⟩
     have h1' := h1
     obtain ⟨-, Acx, hbx, -, -, -, -, -⟩ := h1'
-    refine WP.spec_bind (G.next Acx s1 x hbx hx) fun nx hnx => ?_
+    refine WP.spec_bind (G.next Acx s1 x h1.fr hbx hx) fun nx hnx => ?_
     simp only [obj.Slot.is_null, bind_ok]
     split
     · exact (WP.spec_ok _).2 h1
@@ -435,7 +440,7 @@ theorem Cur0.restart {s : S} {cap : capability.Cap} {extra : Aeneas.Std.Array ob
 
 /-- **CNode `Delete`** from `DelGaps`. -/
 theorem cnode_del {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) {s : S} {a : A} {cap : capability.Cap}
+    {s : S} (G : DelGapsAt st ar T Cs Ω H Sg Rp Scs Nt Z s) {a : A} {cap : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} {x : U64}
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hx : SlotW T Ω Sg x) :
     (do
@@ -446,7 +451,7 @@ theorem cnode_del {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
 
 /-- **CNode `Revoke`** from `DelGaps`. -/
 theorem cnode_rev {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) {s : S} {a : A} {cap : capability.Cap}
+    {s : S} (G : DelGapsAt st ar T Cs Ω H Sg Rp Scs Nt Z s) {a : A} {cap : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} {x : U64}
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hx : SlotW T Ω Sg x) :
     (do
@@ -473,7 +478,7 @@ local macro "errleaf2" : tactic => `(tactic| first
 set_option maxHeartbeats 4000000 in
 /-- **`cnode.decode`**, Delete and Revoke included. -/
 theorem cnode.decode.dec2 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (C : CdtHyps2 st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) {s : S}
+    (C : CdtHyps2 st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {s : S} (G : DelGapsAt st ar T Cs Ω H Sg Rp Scs Nt Z s)
     {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize} (a : A) (lbl len buf : U64)
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hE : EntAt st P3Ok s) (c : capability.Cap) :
     cnode.decode st ar s a lbl len c buf extra ⦃ r s' _ => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
@@ -510,7 +515,7 @@ theorem cnode.decode.dec2 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
 
 /-- **InvGaps' `cnode`, discharged** from `CdtHyps2` and `DelGaps`. -/
 theorem decGap_cnode2 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (C : CdtHyps2 st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) :
+    (C : CdtHyps2 st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z P3Ok) :
     DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .cnode := by
   intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot hE
   cases cap <;> simp [capFam] at hf
@@ -519,7 +524,7 @@ theorem decGap_cnode2 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   try dsimp only
   split
   · exact (WP.spec_ok _).2 (DecPost.keep D.bxi (by simp))
-  · exact cnode.decode.dec2 hA C G a lbl len buf D hE _
+  · exact cnode.decode.dec2 hA C (G s hE) a lbl len buf D hE _
 
 end
 

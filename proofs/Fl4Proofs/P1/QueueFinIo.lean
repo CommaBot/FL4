@@ -50,13 +50,19 @@ variable {T Cs Ω : Set U64} {H : Heap} {Sg Rp Scs Nt : Set U64} {Z : U64 → Na
 finalisation): a listed VCPU's I/O bitmap words are aligned untracked object
 words (`Ω` but not `Sg`), its `NEXT` word an object word, and no bitmap word
 of a listed VCPU is a listed VCPU's `NEXT` word or the list's head. -/
-structure IoPortPlace (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
-    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) : Prop where
-  io : ∀ (Ac : Set U64) (s : S) (v k : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → VListed st s v →
+structure IoPortPlaceAt (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
+    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (s0 : S) : Prop where
+  io : ∀ (Ac : Set U64) (s : S) (v k : U64), Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → VListed st s v →
     k.val < 8192 → k.val % 8 = 0 → Aligned (ioW v k) ∧ ioW v k ∈ Ω ∧ ioW v k ∉ Sg
-  nxt : ∀ (Ac : Set U64) (s : S) (v : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → VListed st s v → vNextA v ∈ Ω
-  disj : ∀ (Ac : Set U64) (s : S) (v w k : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → VListed st s v →
+  nxt : ∀ (Ac : Set U64) (s : S) (v : U64), Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → VListed st s v → vNextA v ∈ Ω
+  disj : ∀ (Ac : Set U64) (s : S) (v w k : U64), Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → VListed st s v →
     VListed st s w → k.val < 8192 → k.val % 8 = 0 → ioW v k ≠ vNextA w ∧ ioW v k ≠ vHeadA st s
+
+/-- **The VCPU list's placement** at every decode start reached from a
+`P3Ok` entry, along the decode's frame. -/
+def IoPortPlace (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
+    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (P3Ok : S → Prop) : Prop :=
+  ∀ s0, EntAt st P3Ok s0 → IoPortPlaceAt st T Cs Ω H Sg Rp Scs Nt Z s0
 
 variable {Ac : Set U64}
 
@@ -75,7 +81,7 @@ theorem smp.remote_tcb_stall.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.Ar
   · rw [← ec] at nb ⊢; rw [stA_eq, fld _ hct _ (by simp) (by simp), ← stA_eq]; exact nb
 
 /-- The ports loop: bitmap writes of a listed VCPU. -/
-theorem vcpu.ports_loop.cur0 (P : IoPortPlace st T Cs Ω H Sg Rp Scs Nt Z) {s0 s : S} {v high : U64} {port : U64}
+theorem vcpu.ports_loop.cur0 {s0 s : S} (P : IoPortPlaceAt st T Cs Ω H Sg Rp Scs Nt Z s0) {v high : U64} {port : U64}
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hv : VListed st s v) :
     vcpu.ports_loop st s v high true port ⦃ s' => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ∧
       VListed st s' v ∧ L.ksb s' = L.ksb s ∧ ∀ w, VListed st s w → VListed st s' w ⦄ := by
@@ -102,7 +108,7 @@ theorem vcpu.ports_loop.cur0 (P : IoPortPlace st T Cs Ω H Sg Rp Scs Nt Z) {s0 s
     have hk8 : i2.val < 8192 ∧ i2.val % 8 = 0 := by
       have : i1.val = p.val >>> 6 := by simpa using hi1
       rw [hi2, this, Nat.shiftRight_eq_div_pow]; omega
-    obtain ⟨al, hΩ, hSg⟩ := P.io Ac1 s1 v i2 hX1 hv1 hk8.1 hk8.2
+    obtain ⟨al, hΩ, hSg⟩ := P.io Ac1 s1 v i2 h1.fr hX1 hv1 hk8.1 hk8.2
     step as ⟨bit, _⟩
     refine WP.spec_bind (LawfulStore.read_spec s1 _) fun old _ => ?_
     simp only [if_true]
@@ -112,9 +118,9 @@ theorem vcpu.ports_loop.cur0 (P : IoPortPlace st T Cs Ω H Sg Rp Scs Nt Z) {s0 s
     have keepL : ∀ w, VListed st s1 w → VListed st (L.wr s1 (ioW v i2) (old ||| bit)) w := fun w hw' =>
       VListed.keep hw.1
         (L.mem_wr_ne al (hX1.2.2.2.1.ksΩ _ (by simp [layout.ks.VCPU_HEAD]) (by simp [layout.ks.VCPU_HEAD]) |>
-          fun hm => (hX1.1.choose_spec.choose_spec.omega _ hm).1) (fun e => (P.disj Ac1 s1 v v i2 hX1 hv1 hv1 hk8.1 hk8.2).2 (UScalar.eq_of_val_eq e)))
-        (fun u hu => L.mem_wr_ne al (hX1.1.choose_spec.choose_spec.omega _ (P.nxt Ac1 s1 u hX1 hu)).1
-          (fun e => (P.disj Ac1 s1 v u i2 hX1 hv1 hu hk8.1 hk8.2).1 (UScalar.eq_of_val_eq e))) hw'
+          fun hm => (hX1.1.choose_spec.choose_spec.omega _ hm).1) (fun e => (P.disj Ac1 s1 v v i2 h1.fr hX1 hv1 hv1 hk8.1 hk8.2).2 (UScalar.eq_of_val_eq e)))
+        (fun u hu => L.mem_wr_ne al (hX1.1.choose_spec.choose_spec.omega _ (P.nxt Ac1 s1 u h1.fr hX1 hu)).1
+          (fun e => (P.disj Ac1 s1 v u i2 h1.fr hX1 hv1 hu hk8.1 hk8.2).1 (UScalar.eq_of_val_eq e))) hw'
     step as ⟨p1, hp1⟩
     have c' := Cur0.capw h1 hw fun b hb => Or.inr (hb ▸ ⟨hΩ, hSg⟩)
     exact ⟨c', keepL v hv1, hw.1.trans hk1, fun w hw0 => keepL w (hw1 w hw0), by omega⟩
@@ -143,7 +149,7 @@ theorem vcpu.stall.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar
 
 /-- The list walk. -/
 theorem vcpu.revoke_ports_loop.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (P : IoPortPlace st T Cs Ω H Sg Rp Scs Nt Z) {s0 s : S} {a : A} {owner low high v fuel : U64}
+    {s0 s : S} (P : IoPortPlaceAt st T Cs Ω H Sg Rp Scs Nt Z s0) {a : A} {owner low high v fuel : U64}
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hv : v = 0#u64 ∨ VListed st s v) :
     vcpu.revoke_ports_loop st ar s a owner low high v fuel ⦃ s' _ => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -173,7 +179,7 @@ theorem vcpu.revoke_ports_loop.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.
         obtain ⟨-, Ac1, hX1, -⟩ := id h1
         have hl2 : VListed st s2 v1 := VListed.keep k2
           (o2 _ (hX1.2.2.2.1.ksΩ _ (by simp [layout.ks.VCPU_HEAD]) (by simp [layout.ks.VCPU_HEAD])))
-          (fun w hw => o2 _ (P.nxt Ac1 s1 w hX1 hw)) hl
+          (fun w hw => o2 _ (P.nxt Ac1 s1 w h1.fr hX1 hw)) hl
         unfold vcpu.ports
         refine WP.spec_bind (vcpu.ports_loop.cur0 (port := low) (high := high) P h2 hl2) ?_
         rintro s3 ⟨h3, hl3, -, -⟩
@@ -196,7 +202,7 @@ theorem vcpu.revoke_ports_loop.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.
   · exact ⟨h, hv⟩
 
 theorem vcpu.revoke_ports.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (P : IoPortPlace st T Cs Ω H Sg Rp Scs Nt Z) {s0 s : S} {a : A} {owner low high : U64}
+    {s0 s : S} (P : IoPortPlaceAt st T Cs Ω H Sg Rp Scs Nt Z s0) {a : A} {owner low high : U64}
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) :
     vcpu.revoke_ports st ar s a owner low high ⦃ s' _ => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ⦄ := by
   unfold vcpu.revoke_ports
@@ -213,9 +219,9 @@ theorem vcpu.revoke_ports.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchT
 
 /-- **The I/O-port caps' finalisation**, from the VCPU list's placement. -/
 theorem finGap_ioPort {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (P : IoPortPlace st T Cs Ω H Sg Rp Scs Nt Z) :
-    FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1 x2 x3, c = .IoPort x1 x2 x3 := by
-  rintro Ac s0 s a c fin h hc - ⟨f, l, o, rfl⟩
+    {s0 : S} (P : IoPortPlaceAt st T Cs Ω H Sg Rp Scs Nt Z s0) :
+    FinGapAt st ar T Cs Ω H Sg Rp Scs Nt Z (fun c => ∃ x1 x2 x3, c = .IoPort x1 x2 x3) s0 := by
+  rintro Ac s a c fin h hc - ⟨f, l, o, rfl⟩
   simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok]
   refine WP.spec_bind (vcpu.revoke_ports.cur0 hA P h) ?_
   rintro ⟨s1, a1⟩ h1

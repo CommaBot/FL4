@@ -53,28 +53,31 @@ structure InvGaps4 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar 
   eptPl : EptPlaceH st T Cs Ω H Sg Rp Scs Nt Z U P3Ok
   /-- The finalisations of CNode `Delete`/`Revoke` P1 does not prove: the
   VT-x kinds (VCPUs, EPTs, EPT frames; not yet refined, DESIGN §5). -/
-  fin : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => (∃ x1, c = .Vcpu x1) ∨
+  fin : ∀ s0, EntAt st P3Ok s0 → FinGapAt st ar T Cs Ω H Sg Rp Scs Nt Z (fun c => (∃ x1, c = .Vcpu x1) ∨
     (∃ x1 x2 x3 x4 x5, c = .Ept x1 x2 x3 x4 x5) ∨
-    (∃ x1 x2 x3 x4 x5 x6 x7, c = .Frame x1 x2 x3 x4 x5 true x6 x7)
+    (∃ x1 x2 x3 x4 x5 x6 x7, c = .Frame x1 x2 x3 x4 x5 true x6 x7)) s0
 
 /-- `InvGaps4` gives `InvGaps3`. -/
 theorem InvGaps4.gaps3 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {V : U64 → Prop}
-    (C : CdtHyps2 st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V)
+    (C : CdtHyps2 st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V P3Ok)
     (Pt : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
     (G : InvGaps4 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok) :
     InvGaps3 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok :=
-  ⟨decGap_untyped hA hσ (G.utPl.choose_spec.1.utPlace hA) G.utPl.choose_spec.2, decGap_thread hA G.thread Pt E (delGaps_of hA Pd ((⟨finGap_ioPort hA G.vcpuPl.ioPl, G.fin⟩ : FinGaps st ar T Cs Ω H Sg Rp Scs Nt Z).kinds hA Pd)) C.toCdtHyps,
+  have DG : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z P3Ok := fun s0 hE =>
+    delGaps_of hA (Pd s0 hE) ((⟨finGap_ioPort hA (G.vcpuPl.ioPl s0 hE), G.fin s0 hE⟩ :
+      FinGapsAt st ar T Cs Ω H Sg Rp Scs Nt Z s0).kinds hA (Pd s0 hE))
+  ⟨decGap_untyped hA hσ (G.utPl.choose_spec.1.utPlace hA) G.utPl.choose_spec.2, decGap_thread hA G.thread Pt E DG C.toCdtHyps,
     decGap_irqControl hA C.toCdtHyps, decGap_irqHandler hA C.toCdtHyps Pd G.irqPl,
-    decGap_schedControl hA G.scCtl, decGap_vspace hA Pd G.vsPl C.toCdtHyps E G.irqPl, decGap_vcpu hA G.vcpuPl E G.irqPl.extra, decGap_ept hA G.eptPl, decGap_ioPortControl C.toCdtHyps,
-    decGap_ioPort hA E, scYieldGap_holds hA U, delGaps_of hA Pd ((⟨finGap_ioPort hA G.vcpuPl.ioPl, G.fin⟩ : FinGaps st ar T Cs Ω H Sg Rp Scs Nt Z).kinds hA Pd)⟩
+    decGap_schedControl hA G.scCtl, decGap_vspace hA Pd G.vsPl G.eptPl.pl C.toCdtHyps E G.irqPl, decGap_vcpu hA G.vcpuPl E G.irqPl.extra, decGap_ept hA G.eptPl, decGap_ioPortControl C.toCdtHyps,
+    decGap_ioPort hA E, scYieldGap_holds hA U, DG⟩
 
 /-- The placement facts and gaps of an admissible set tuple (`InvGaps4`'s
 kernel entry). -/
 def Hyps4 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (Adm : PSets → Prop)
     (Cs U : Set U64) (P3Ok : S → Prop) (σ : PSets) : Prop :=
   P3Place st ar σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z U P3Ok ∧ CdtHyps2 st σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z P3Ok ∧
-    (∃ V : U64 → Prop, DelPlace st σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z V) ∧ TcbPlace st σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z U P3Ok ∧
+    (∃ V : U64 → Prop, DelPlace st σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z V P3Ok) ∧ TcbPlace st σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z U P3Ok ∧
     InvGaps4 st ar Adm σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z U P3Ok ∧ ∀ n ∈ σ.Nt, σ.H n = some .ntfn
 
 /-- **Native kernel entries keep `EntryInv`**, from `InvGaps4` and the

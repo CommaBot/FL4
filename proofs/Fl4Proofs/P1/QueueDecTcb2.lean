@@ -202,7 +202,7 @@ theorem tcb_slot_val (p i : U64) : obj.Tcb.slot p i = ok (slotIdx p i) := by
 
 /-- **`install_tcb_cap`** of a TCB cap slot, the source a cap slot or null. -/
 theorem tcb.install_tcb_cap.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
+    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z P3Ok) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     {s0 s : S} {a : A} {target slot index src : U64} {c : capability.Cap}
     (hE : EntAt st P3Ok s0) (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (ht : target ∈ T) (hi : index.val < 6)
     (hsrc : src ≠ 0#u64 → CapW T Ω Sg src) :
@@ -214,7 +214,7 @@ theorem tcb.install_tcb_cap.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
   unfold tcb.install_tcb_cap
   rw [tcb_slot_val]
   simp only [bind_ok]
-  refine WP.spec_bind (cdt.delete.cur0 hA G h hW) ?_
+  refine WP.spec_bind (cdt.delete.cur0 hA (G _ hE) h hW) ?_
   rintro ⟨r, s1, a1⟩ h1
   try simp only [uncurry_apply_pair]
   rcases r with _ | e
@@ -245,7 +245,7 @@ theorem tcb.install_tcb_cap.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
 
 /-- **`install_buffer`**, the buffer's source slot a cap slot or null. -/
 theorem tcb.install_buffer.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
+    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z P3Ok) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     {s0 s : S} {a : A} {target slot baddr : U64} {buffer : capability.Cap × obj.Slot}
     (hE : EntAt st P3Ok s0) (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (ht : target ∈ T)
     (hsrc : buffer.2 ≠ 0#u64 → CapW T Ω Sg buffer.2) :
@@ -257,7 +257,7 @@ theorem tcb.install_buffer.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
   rw [tcb_slot_val]
   simp only [bind_ok]
   have hW := tcb_slotIdxW (Ω := Ω) (Sg := Sg) (i := layout.tcb.SLOT_BUFFER) hT ht (by simp [layout.tcb.SLOT_BUFFER])
-  refine WP.spec_bind (cdt.delete.cur0 hA G h hW) ?_
+  refine WP.spec_bind (cdt.delete.cur0 hA (G _ hE) h hW) ?_
   rintro ⟨r, s1, a1⟩ h1
   try simp only [uncurry_apply_pair]
   rcases r with _ | e
@@ -332,7 +332,7 @@ theorem inst_bind {A : Type _} {s0 : S} {m : Result ((core.result.Result Unit er
 set_option maxHeartbeats 4000000 in
 /-- **`SetTimeoutEndpoint`** after the stall. -/
 theorem tcb.decode_set_timeout_endpoint.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
+    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z P3Ok) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     {s s1 : S} {a1 : A} {t len buf : U64} {call : Bool} {slot : obj.Slot}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (hxw : ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapW T Ω Sg sl)
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (hE : EntAt st P3Ok s)
@@ -410,7 +410,7 @@ local macro "xslot" i:term : tactic => `(tactic| (
 set_option maxHeartbeats 8000000 in
 /-- **`SetSpace`** after the stall. -/
 theorem tcb.decode_set_space.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
+    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z P3Ok) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     {s s1 : S} {a1 : A} {t len buf : U64} {call : Bool} {slot : obj.Slot}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (hxw : ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapW T Ω Sg sl)
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (hE : EntAt st P3Ok s)
@@ -472,7 +472,7 @@ theorem tcb.decode_set_space.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
 set_option maxHeartbeats 8000000 in
 /-- **`Configure`** after the stall. -/
 theorem tcb.decode_configure.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
+    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z P3Ok) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     {s s1 : S} {a1 : A} {t len buf : U64} {call : Bool} {slot : obj.Slot}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (hxw : ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapW T Ω Sg sl)
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (hE : EntAt st P3Ok s)
@@ -776,7 +776,7 @@ theorem ssp_flags :
 set_option maxHeartbeats 8000000 in
 /-- **`SetSchedParams`** after the stall, from `SspHyps`. -/
 theorem tcb.decode_set_sched_params.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
+    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z P3Ok) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     (P : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (Y : SspHyps st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     {s s1 : S} {a1 : A} {t len buf : U64} {call : Bool} {slot : obj.Slot}
     {extra : Aeneas.Std.Array obj.Slot 3#usize}
@@ -916,7 +916,7 @@ does not prove), `TcbPlace`, `DelGaps` and `CdtHyps`. -/
 theorem tcb.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (G : TcbGaps st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (P : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
-    (Gd : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
+    (Gd : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z P3Ok) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     {s : S} {a : A} {lbl t len buf : U64} {call : Bool} {slot : obj.Slot}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra)
     (hE : EntAt st P3Ok s) :
@@ -1014,7 +1014,7 @@ and `CdtHyps`. -/
 theorem decGap_thread {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (G : TcbGaps st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (P : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
-    (Gd : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) :
+    (Gd : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z P3Ok) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) :
     DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .thread := by
   intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot hE
   cases cap <;> simp [capFam] at hf

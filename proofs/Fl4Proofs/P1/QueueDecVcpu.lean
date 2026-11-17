@@ -348,8 +348,8 @@ theorem io_off {k : U64} (hk : k.val < 8192) : (core.num.U64.wrapping_add vcpu.I
 
 set_option maxHeartbeats 4000000 in
 /-- **The VCPU list's placement from the VCPU objects' placement.** -/
-theorem VcpuPl.ioPl (P : VcpuPl st H Cs Rp Scs Nt Z) :
-    IoPortPlace st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z := by
+theorem VcpuPl.ioPl {s0 : S} (P : VcpuPl st H Cs Rp Scs Nt Z s0) :
+    IoPortPlaceAt st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z s0 := by
   have hH := P.heap
   have obj : ∀ {v : U64}, H v = some (.other 15) → v.val % 2 ^ 15 = 0 ∧ v.val + 2 ^ 15 ≤ 2 ^ 64 :=
     fun {v} hv => ⟨hH.align v _ hv, hH.fits v _ hv⟩
@@ -357,16 +357,16 @@ theorem VcpuPl.ioPl (P : VcpuPl st H Cs Rp Scs Nt Z) :
       (core.num.U64.wrapping_add v o).val = v.val + o.val := fun {v o} hv ho => by
     have := (obj hv).2
     simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-  refine ⟨fun Ac s v k hX hl hk h8 => ?_, fun Ac s v hX hl => ?_, fun Ac s v w k hX hl hl' hk h8 => ?_⟩
-  · have hv := (P.listed Ac s v hX hl).1
+  refine ⟨fun Ac s v k hf hX hl hk h8 => ?_, fun Ac s v hf hX hl => ?_, fun Ac s v w k hf hX hl hl' hk h8 => ?_⟩
+  · have hv := (P.listed Ac s v hf hX hl).1
     have ho : (core.num.U64.wrapping_add vcpu.IO k).val < 2 ^ 15 := by rw [io_off hk]; omega
     have ho8 : (core.num.U64.wrapping_add vcpu.IO k).val % 8 = 0 := by rw [io_off hk]; omega
     rw [ioW_eq v k hk]
     exact ⟨vcpu_obj_aligned hH hv ho ho8, vcpu_obj_om hH hv ho ho8⟩
-  · exact (vcpu_obj_om hH (P.listed Ac s v hX hl).1 (o := vcpu.NEXT) (by simp [vcpu.NEXT])
+  · exact (vcpu_obj_om hH (P.listed Ac s v hf hX hl).1 (o := vcpu.NEXT) (by simp [vcpu.NEXT])
       (by simp [vcpu.NEXT])).1
-  · obtain ⟨hv, hks⟩ := P.listed Ac s v hX hl
-    have hw := (P.listed Ac s w hX hl').1
+  · obtain ⟨hv, hks⟩ := P.listed Ac s v hf hX hl
+    have hw := (P.listed Ac s w hf hX hl').1
     have ho : (core.num.U64.wrapping_add vcpu.IO k).val < 2 ^ 15 := by rw [io_off hk]; omega
     have hiv : (ioW v k).val = v.val + 24576 + k.val := by
       rw [ioW_eq v k hk, wv hv ho, io_off hk]; omega
@@ -391,7 +391,7 @@ theorem VcpuPl.ioPl (P : VcpuPl st H Cs Rp Scs Nt Z) :
       omega
 
 theorem vcpu.decode_loop3.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (P : IoPortPlace st T Cs Ω H Sg Rp Scs Nt Z) {s0 s : S} {a : A} {first last prior v fuel : U64}
+    {s0 s : S} (P : IoPortPlaceAt st T Cs Ω H Sg Rp Scs Nt Z s0) {a : A} {first last prior v fuel : U64}
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hv : v = 0#u64 ∨ VListed st s v) :
     vcpu.decode_loop3 st ar s a first last prior v fuel ⦃ s' _ => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -421,7 +421,7 @@ theorem vcpu.decode_loop3.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchT
         obtain ⟨-, Ac1, hX1, -⟩ := id h1
         have hl2 : VListed st s2 v1 := VListed.keep k2
           (o2 _ (hX1.2.2.2.1.ksΩ _ (by simp [layout.ks.VCPU_HEAD]) (by simp [layout.ks.VCPU_HEAD])))
-          (fun w hw => o2 _ (P.nxt Ac1 s1 w hX1 hw)) hl
+          (fun w hw => o2 _ (P.nxt Ac1 s1 w h1.fr hX1 hw)) hl
         unfold vcpu.ports
         refine WP.spec_bind (vcpu.ports_loop.cur0 (port := first) (high := last) P h2 hl2) ?_
         rintro s3 ⟨h3, hl3, -, -⟩
@@ -444,7 +444,7 @@ theorem vcpu.decode_loop3.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchT
   · exact ⟨h, hv⟩
 
 theorem vcpu.decode_loop4.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (P : IoPortPlace st T Cs Ω H Sg Rp Scs Nt Z) {s0 s : S} {a : A} {first last prior v fuel : U64}
+    {s0 s : S} (P : IoPortPlaceAt st T Cs Ω H Sg Rp Scs Nt Z s0) {a : A} {first last prior v fuel : U64}
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hv : v = 0#u64 ∨ VListed st s v) :
     vcpu.decode_loop4 st ar s a first last prior v fuel ⦃ s' _ => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -474,7 +474,7 @@ theorem vcpu.decode_loop4.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchT
         obtain ⟨-, Ac1, hX1, -⟩ := id h1
         have hl2 : VListed st s2 v1 := VListed.keep k2
           (o2 _ (hX1.2.2.2.1.ksΩ _ (by simp [layout.ks.VCPU_HEAD]) (by simp [layout.ks.VCPU_HEAD])))
-          (fun w hw => o2 _ (P.nxt Ac1 s1 w hX1 hw)) hl
+          (fun w hw => o2 _ (P.nxt Ac1 s1 w h1.fr hX1 hw)) hl
         unfold vcpu.ports
         refine WP.spec_bind (vcpu.ports_loop.cur0 (port := first) (high := last) P h2 hl2) ?_
         rintro s3 ⟨h3, hl3, -, -⟩
@@ -604,7 +604,7 @@ theorem vcpu.decode.wregs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
 set_option maxHeartbeats 4000000 in
 /-- **`X86VCPUSetTCB`.** -/
 theorem vcpu.decode.settcb {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U) (P : VcpuPl st H Cs Rp Scs Nt Z) {s : S} {a : A}
+    (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U) {s : S} (P : VcpuPl st H Cs Rp Scs Nt Z s) {a : A}
     {len v buf : U64} {call : Bool} {extra : Aeneas.Std.Array obj.Slot 3#usize} (hv : H v = some (.other 15))
     (D : DecPre st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac s (.Vcpu v) extra) :
     vcpu.decode st ar s a fl4_abi.label.X86VCPUSetTCB len v call buf extra ⦃ r s' _ =>
@@ -637,7 +637,7 @@ theorem vcpu.decode.settcb {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal
       · rename_i hb
         obtain ⟨Ac4, hX4⟩ := c4.bxi
         have hi1 : i1 ∈ H.tcbs := by
-          rcases P.tcb Ac4 s4 v hX4 hv with h0 | h1
+          rcases P.tcb Ac4 s4 v c4.fr hX4 hv with h0 | h1
           · rw [← ei1] at h0; subst h0; simp at eb1; exact absurd eb1 hb
           · rw [ei1]; exact h1
         exact WP.spec_mono (vcpu.detach.cur0 hA E P c4 ((hU1.ksb k3).ksb k4) hi1) fun r ⟨c, _⟩ => c
@@ -821,8 +821,8 @@ theorem vcpu.decode.msr {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar
 
 set_option maxHeartbeats 8000000 in
 /-- **`X86VCPUEnableIOPort`** and **`X86VCPUDisableIOPort`** (VMX). -/
-theorem vcpu.decode.ioport {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (P : VcpuPl st H Cs Rp Scs Nt Z)
-    {s : S} {a : A} {lbl len v buf : U64} {call : Bool} {extra : Aeneas.Std.Array obj.Slot 3#usize}
+theorem vcpu.decode.ioport {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {s : S}
+    (P : VcpuPl st H Cs Rp Scs Nt Z s) {a : A} {lbl len v buf : U64} {call : Bool} {extra : Aeneas.Std.Array obj.Slot 3#usize}
     (hv : H v = some (.other 15))
     (D : DecPre st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac s (.Vcpu v) extra)
     (hxs : ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapSlotW H.tcbs H.omega H.frame sl)
@@ -919,7 +919,7 @@ names a VCPU object. -/
 structure VcpuPlace (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
     (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop where
   sets : T = H.tcbs ∧ Ω = H.omega ∧ Sg = H.frame
-  pl : VcpuPl st H Cs Rp Scs Nt Z
+  pl : ∀ s0, EntAt st P3Ok s0 → VcpuPl st H Cs Rp Scs Nt Z s0
   cap : ∀ (Ac : Set U64) (s : S) (v : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize),
     EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Vcpu v) extra → H v = some (.other 15)
 
@@ -948,35 +948,36 @@ theorem decGap_vcpu {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   step with sched.cur_thread.spec as ⟨ct, _⟩
   try dsimp only
   by_cases l1 : lbl = fl4_abi.label.X86VCPUSetTCB
-  · subst l1; exact vcpu.decode.settcb hA E P.pl hv D
+  · subst l1; exact vcpu.decode.settcb hA E (P.pl s hE) hv D
   by_cases l2 : lbl = fl4_abi.label.X86VCPUWriteRegisters
-  · subst l2; exact vcpu.decode.wregs hA P.pl.heap hv (Cur0.ofPre D)
+  · subst l2; exact vcpu.decode.wregs hA (P.pl s hE).heap hv (Cur0.ofPre D)
   by_cases l3 : lbl = fl4_abi.label.X86VCPUFlushTLB
   · subst l3; exact vcpu.decode.flush hA (Cur0.ofPre D)
   by_cases l4 : lbl = fl4_abi.label.X86VCPUReadVMCS
-  · exact vcpu.decode.vmcs hA E P.pl.heap hv D (Or.inl l4)
+  · exact vcpu.decode.vmcs hA E (P.pl s hE).heap hv D (Or.inl l4)
   by_cases l5 : lbl = fl4_abi.label.X86VCPUWriteVMCS
-  · exact vcpu.decode.vmcs hA E P.pl.heap hv D (Or.inr l5)
+  · exact vcpu.decode.vmcs hA E (P.pl s hE).heap hv D (Or.inr l5)
   by_cases l6 : lbl = fl4_abi.label.X86VCPUReadVMCB
-  · exact vcpu.decode.vmcb hA E P.pl.heap hv D (Or.inl l6)
+  · exact vcpu.decode.vmcb hA E (P.pl s hE).heap hv D (Or.inl l6)
   by_cases l7 : lbl = fl4_abi.label.X86VCPUWriteVMCB
-  · exact vcpu.decode.vmcb hA E P.pl.heap hv D (Or.inr l7)
+  · exact vcpu.decode.vmcb hA E (P.pl s hE).heap hv D (Or.inr l7)
   by_cases l8 : lbl = fl4_abi.label.X86VCPUReadMSR
-  · exact vcpu.decode.msr hA E P.pl.heap hv D (Or.inl l8)
+  · exact vcpu.decode.msr hA E (P.pl s hE).heap hv D (Or.inl l8)
   by_cases l9 : lbl = fl4_abi.label.X86VCPUWriteMSR
-  · exact vcpu.decode.msr hA E P.pl.heap hv D (Or.inr l9)
+  · exact vcpu.decode.msr hA E (P.pl s hE).heap hv D (Or.inr l9)
   by_cases l10 : lbl = fl4_abi.label.X86VCPUEnableIOPort
-  · exact vcpu.decode.ioport hA P.pl hv D hxs (Or.inl l10)
+  · exact vcpu.decode.ioport hA (P.pl s hE) hv D hxs (Or.inl l10)
   by_cases l11 : lbl = fl4_abi.label.X86VCPUDisableIOPort
-  · exact vcpu.decode.ioport hA P.pl hv D hxs (Or.inr l11)
+  · exact vcpu.decode.ioport hA (P.pl s hE) hv D hxs (Or.inr l11)
   exact vcpu.decode.other hA (Cur0.ofPre D) l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 l11
 
 
 /-- The VCPU list's placement, for the I/O-port caps' finalisation. -/
-theorem VcpuPlace.ioPl (P : VcpuPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) : IoPortPlace st T Cs Ω H Sg Rp Scs Nt Z := by
+theorem VcpuPlace.ioPl (P : VcpuPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) :
+    IoPortPlace st T Cs Ω H Sg Rp Scs Nt Z P3Ok := by
   obtain ⟨eT, eΩ, eSg⟩ := P.sets
   subst eT eΩ eSg
-  exact P.pl.ioPl
+  exact fun s0 hE => (P.pl s0 hE).ioPl
 
 end
 

@@ -328,7 +328,7 @@ set_option maxHeartbeats 4000000 in
 /-- **`SetIPCBuffer`** after the stall, from `DelGaps` (the buffer slot's
 delete), `CdtHyps` (the insert) and the extra slots' placement. -/
 theorem tcb.decode_set_ipc_buffer.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
+    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z P3Ok) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     {s s1 : S} {a1 : A} {t len buf : U64} {call : Bool} {slot : obj.Slot}
     {extra : Aeneas.Std.Array obj.Slot 3#usize}
     (hxw : ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapW T Ω Sg sl)
@@ -376,7 +376,7 @@ theorem tcb.decode_set_ipc_buffer.dec {A : Type _} {ar : machine.Arch A} (hA : P
   -- `install_buffer`
   unfold tcb.install_buffer obj.Tcb.slot
   simp only [lift, bind_ok, layout.tcb.SLOT_BUFFER, cte_size]
-  refine WP.spec_bind (cdt.delete.cur0 hA G c2 (tcb_slotW hT ht)) ?_
+  refine WP.spec_bind (cdt.delete.cur0 hA (G _ hE) c2 (tcb_slotW hT ht)) ?_
   rintro ⟨r, s3, a3⟩ c3
   try simp only [uncurry_apply_pair] at c3 ⊢
   rcases r with _ | e

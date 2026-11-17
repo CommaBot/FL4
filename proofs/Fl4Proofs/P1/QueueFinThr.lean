@@ -702,18 +702,19 @@ theorem finGap_sc {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) :
 I/O-port kind (proved in QueueFinIo from the VCPU list's placement,
 `finGap_ioPort`) and the VT-x kinds (VCPUs, EPTs, EPT frames: not yet
 refined, DESIGN §5). -/
-structure FinGaps (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
-    (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) : Prop where
-  ioPort : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => ∃ x1 x2 x3, c = .IoPort x1 x2 x3
-  arch : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => (∃ x1, c = .Vcpu x1) ∨
+structure FinGapsAt (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
+    (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (s0 : S) : Prop where
+  ioPort : FinGapAt st ar T Cs Ω H Sg Rp Scs Nt Z (fun c => ∃ x1 x2 x3, c = .IoPort x1 x2 x3) s0
+  arch : FinGapAt st ar T Cs Ω H Sg Rp Scs Nt Z (fun c => (∃ x1, c = .Vcpu x1) ∨
     (∃ x1 x2 x3 x4 x5, c = .Ept x1 x2 x3 x4 x5) ∨
-    (∃ x1 x2 x3 x4 x5 x6 x7, c = .Frame x1 x2 x3 x4 x5 true x6 x7)
+    (∃ x1 x2 x3 x4 x5 x6 x7, c = .Frame x1 x2 x3 x4 x5 true x6 x7)) s0
 
-/-- `FinGaps` with the proved kinds gives every kind (`FinKinds`). -/
-theorem FinGaps.kinds {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (G : FinGaps st ar T Cs Ω H Sg Rp Scs Nt Z) :
-    FinKinds st ar T Cs Ω H Sg Rp Scs Nt Z :=
-  ⟨finGap_ep, finGap_ntfn, finGap_reply hA, finGap_sc hA, finGap_thread hA, finGap_irq hA P, G.ioPort, G.arch⟩
+/-- `FinGapsAt` with the proved kinds gives every kind (`FinKindsAt`). -/
+theorem FinGapsAt.kinds {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop} {s0 : S}
+    (P : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s0) (G : FinGapsAt st ar T Cs Ω H Sg Rp Scs Nt Z s0) :
+    FinKindsAt st ar T Cs Ω H Sg Rp Scs Nt Z s0 :=
+  ⟨finGap_ep.at s0, finGap_ntfn.at s0, (finGap_reply hA).at s0, (finGap_sc hA).at s0, (finGap_thread hA).at s0,
+    finGap_irq hA P, G.ioPort, G.arch⟩
 
 end
 

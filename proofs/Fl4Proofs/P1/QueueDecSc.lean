@@ -16,6 +16,23 @@ variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {U X : Set
 
 /-! ## Two writes in either order -/
 
+/-- Kernel words and object words: what the SchedContext decodes write. -/
+def KO (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Scs : Set U64) (Z : U64 → Nat)
+    (s0 : S) (b : U64) : Prop :=
+  KW st T Cs Sg Scs Z (EH H) s0 b ∨ b ∈ Ω
+
+theorem KO.ksb {s0 s1 : S} {b : U64} (hk : L.ksb s1 = L.ksb s0) (h : KO st T Cs Ω H Sg Scs Z s1 b) :
+    KO st T Cs Ω H Sg Scs Z s0 b :=
+  h.elim (fun h => Or.inl (KW.ksb hk h)) Or.inr
+
+theorem KO.trans {s0 s s' : S} (h : WritesIn st s0 s (KO st T Cs Ω H Sg Scs Z s0))
+    (hw : WritesIn st s s' (KO st T Cs Ω H Sg Scs Z s)) : WritesIn st s0 s' (KO st T Cs Ω H Sg Scs Z s0) :=
+  (h.trans hw).mono fun _ hb => hb.elim id (KO.ksb h.1)
+
+theorem Foot.ko {s s' : S} {Es : Set U64} (f : Foot st T Cs Sg Scs Z Es s s') (hE : Es ⊆ EH H) :
+    WritesIn st s s' (KO st T Cs Ω H Sg Scs Z s) :=
+  WritesIn.mono f fun _ hb => Or.inl (KW.mono hb hE)
+
 /-- Two writes to distinct aligned words commute (as far as the invariants
 see: `WritesIn` with no footprint). -/
 theorem wr_swap {s : S} {a b v w : U64} (ha : Aligned a) (hb : Aligned b) (hne : a.val ≠ b.val) :
@@ -30,6 +47,31 @@ theorem BlkOK.same {s s' : S} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hw :
   (blk_of_capw h hw fun _ hb => hb.elim).1
 
 /-! ## `bind_ntfn` -/
+
+/-- **`bind_ntfn`** writes two object words. -/
+theorem schedcontext.bind_ntfn.ko (s : S) (c n : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hc : c ∈ Scs) (hn : n ∈ Nt) :
+    schedcontext.bind_ntfn st s c n ⦃ s' => WritesIn st s s' (KO st T Cs Ω H Sg Scs Z s) ⦄ := by
+  unfold schedcontext.bind_ntfn
+  refine WP.spec_bind (obj.Ntfn.set_sc.wr s n c) fun s1 e1 => ?_
+  subst e1
+  refine WP.spec_mono (obj.Sc.set_ntfn.wr _ c n) fun s2 e2 => ?_
+  subst e2
+  obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
+  have hO := hX.1
+  have hmB : scNtfnA c ∈ Ω := hSg.sub _ (hO.snW c hc)
+  have hmA : ntfnScA n ∈ Ω := hSg.sub _ (hO.ntW n hn)
+  have alA : Aligned (ntfnScA n) := hO.ntAl n hn
+  have alB : Aligned (scNtfnA c) := (h0.omega _ hmB).1
+  refine ((writesIn_wr alA).trans (writesIn_wr alB)).mono fun b hb => ?_
+  rcases hb with rfl | rfl
+  · exact Or.inr hmA
+  · exact Or.inr hmB
+
+/-- The current node's words (but its debug head) are `KO` words. -/
+theorem NodeW.ko {s : S} {b : U64} (hc : L.cpu s ∈ Cs) (h : NodeW st s b) : KO st T Cs Ω H Sg Scs Z s b := by
+  obtain ⟨o, ho, h88, rfl⟩ := h
+  exact Or.inl (kw_node hc ho h88)
 
 /-- **`bind_ntfn`** of an SC and a notification bound to nothing. -/
 theorem schedcontext.bind_ntfn.blk (s : S) (c n : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
@@ -242,7 +284,8 @@ def ScYieldGap (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : ma
     L.mem s (scTcbA sc) ≠ 0#u64 → L.mem s (scTcbA sc) ≠ L.curW s → L.mem s (yieldA (L.curW s)) = 0#u64 →
     (L.actionW s = 0#u64 ∨ L.actionW s = 1#u64) → L.mem s (scA (L.curW s)) ≠ 0#u64 →
     L.mem s (scA (L.curW s)) ∈ Ac → (L.mem s (inqA (L.curW s)) &&& sched.Q_RELEASE) = 0#u64 →
-    schedcontext.yield_to st ar s a sc call ⦃ s' _ => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄
+    schedcontext.yield_to st ar s a sc call ⦃ s' _ => (∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s') ∧
+      WritesIn st s s' (KO st T Cs Ω H Sg Scs Z s) ⦄
 
 theorem DecPost.of_bxi {s s' : S} {r : core.result.Result Unit error.Exc} {Ac' : Set U64}
     (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s') (hr : r ≠ .Err .Preempted) :
@@ -254,7 +297,8 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
     (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (Y : ScYieldGap st ar T Cs Ω H Sg Rp Scs Nt Z U)
     (s : S) (a : A) (lbl sc : U64) (call : Bool) (extra : Aeneas.Std.Array obj.Slot 3#usize) (b : U64)
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.SchedContext sc b) extra) :
-    schedcontext.decode st ar s a lbl sc call extra ⦃ r s' _ => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
+    schedcontext.decode st ar s a lbl sc call extra ⦃ r s' _ => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ∧
+      WritesIn st s s' (KO st T Cs Ω H Sg Scs Z s) ⦄ := by
   have hS : P0.StoreTotal st := L.total
   have h := D.bxi
   obtain ⟨hsc, hsc0, hidle⟩ := D.cap.2.2 sc b rfl
@@ -272,6 +316,10 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
     · exact (WP.spec_ok _).2 ⟨h, rfl, rfl, rfl, rfl, fun _ _ _ _ _ => rfl, fun _ _ => rfl, WritesIn.refl _ _⟩
   rintro ⟨s1, a1⟩ ⟨h1, ea1, ec1, ei1, ecs1, f1, o1, w1⟩
   try simp only [WP.uncurry'_pair]
+  have W1 : WritesIn st s s1 (KO st T Cs Ω H Sg Scs Z s) :=
+    WritesIn.mono w1 fun _ hb => NodeW.ko h.1.choose_spec.choose_spec.cur hb
+  have KT : ∀ {s' : S}, WritesIn st s1 s' (KO st T Cs Ω H Sg Scs Z s1) → WritesIn st s s' (KO st T Cs Ω H Sg Scs Z s) :=
+    fun w => KO.trans W1 w
   have hct : L.curW s ∈ T := h.1.choose_spec.choose_spec.curT
   have hO := h.2.2.1.1
   have hsub := h.2.2.2.1.sub
@@ -283,8 +331,9 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
   have hU1 : UserOK st T Cs Ω H U s1 := D.user.ksb w1.1
   have hx1 := D.extra s1 w1
   have Er : ∀ e : error.SysError, (ok ((core.result.Result.Err (error.Exc.Sys e) : core.result.Result Unit error.Exc),
-      s1, a1) : Result _) ⦃ r s' _ => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := fun e =>
-    (WP.spec_ok _).2 (DecPost.of_bxi h1 (by simp))
+      s1, a1) : Result _) ⦃ r s' _ => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ∧
+        WritesIn st s s' (KO st T Cs Ω H Sg Scs Z s) ⦄ := fun e =>
+    (WP.spec_ok _).2 ⟨DecPost.of_bxi h1 (by simp), W1⟩
   step with sched.cur_thread.spec as ⟨ct, ect⟩
   have ect' : ct = L.curW s := ect.trans ec1
   subst ect'
@@ -292,13 +341,16 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
   split
   · -- Consumed
     refine WP.spec_bind (sched.set_thread_state.restart_blk (Es := ∅) s1 _ h1.blk hct (runnable_ok run1).1
-      (runnable_ok run1).2) fun s2 ⟨h2, _, e2, k2⟩ => ?_
+      (runnable_ok run1).2) fun s2 ⟨h2, f2, e2, k2⟩ => ?_
     obtain ⟨Q2, R2, x2⟩ := BXI.xs (BlkOK.bxi h2) (hU1.ksb k2.ksb)
-    refine WP.spec_bind (schedcontext.set_consumed.xs hA E x2 hsc hct) fun s3 x3 => ?_
+    refine WP.spec_bind (WP.spec_and (schedcontext.set_consumed.xs hA E x2 hsc hct)
+      (schedcontext.set_consumed.blk hA s2 a1 sc (L.curW s) call h2 hsc hct)) fun s3 ⟨x3, _, f3, _⟩ => ?_
     have hst : L.mem s3 (stA (L.curW s)) = sched.TS_RESTART := by
       rw [stA_eq, x3.2.2.2.2.2.1 _ hct _ (by simp) (by simp) (by simp), ← stA_eq, e2]
-    refine WP.spec_bind (sched.set_thread_state.running_bxi x3.bxi hct hst) fun s4 h4 => ?_
-    exact (WP.spec_ok _).2 (DecPost.of_bxi h4 (by simp))
+    refine WP.spec_bind (WP.spec_and (sched.set_thread_state.running_bxi x3.bxi hct hst)
+      (sched.set_thread_state.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := ∅) s3 _ _ x3.1.1 hct)) fun s4 ⟨h4, f4⟩ => ?_
+    exact (WP.spec_ok _).2 ⟨DecPost.of_bxi h4 (by simp), KT (KO.trans (Foot.ko f2 (Set.empty_subset _))
+      (KO.trans (Foot.ko f3 (Set.empty_subset _)) (Foot.ko f4 (Set.empty_subset _))))⟩
   split
   · -- Bind
     refine WP.spec_bind (schedcontext.extra_cap.ok (fun sl hsl h0 => hx1 sl hsl h0)) fun o ho => ?_
@@ -320,13 +372,14 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
       · exact Er _
       rename_i hi2
       refine WP.spec_bind (sched.set_thread_state.restart_blk (Es := ∅) s1 _ h1.blk hct (runnable_ok run1).1
-        (runnable_ok run1).2) fun s2 ⟨h2, _, e2, k2⟩ => ?_
+        (runnable_ok run1).2) fun s2 ⟨h2, f2, e2, k2⟩ => ?_
       have z1 : L.mem s2 (ntfnScA ptr) = 0#u64 := by
         rw [k2.nsc ptr hpN, ← ei2]; exact UScalar.eq_of_val_eq (by simpa using hi2)
       have z2 : L.mem s2 (scNtfnA sc) = 0#u64 := by
         rw [k2.snt sc hsc, ← ei1]; exact UScalar.eq_of_val_eq (by simpa using hi1)
-      refine WP.spec_bind (schedcontext.bind_ntfn.blk s2 sc ptr h2 hsc hsc0 hpN z1 z2) fun s3 h3 => ?_
-      exact (WP.spec_ok _).2 (DecPost.of_bxi (BlkOK.bxi h3) (by simp))
+      refine WP.spec_bind (WP.spec_and (schedcontext.bind_ntfn.blk s2 sc ptr h2 hsc hsc0 hpN z1 z2)
+        (schedcontext.bind_ntfn.ko s2 sc ptr h2 hsc hpN)) fun s3 ⟨h3, f3⟩ => ?_
+      exact (WP.spec_ok _).2 ⟨DecPost.of_bxi (BlkOK.bxi h3) (by simp), KT (KO.trans (Foot.ko f2 (Set.empty_subset _)) f3)⟩
     · -- a thread
       rename_i ptr
       have hpT : ptr ∈ T := hcO.2.1 ptr rfl
@@ -347,11 +400,11 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
             let s2 ← sched.set_thread_state st s1 (L.curW s) sched.TS_RESTART
             let (s3, a2) ← schedcontext.bind_tcb st ar s2 a1 sc ptr
             ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s3, a2)) ⦃ r s' _ =>
-              DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := fun hbA =>
+              DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ∧ WritesIn st s s' (KO st T Cs Ω H Sg Scs Z s) ⦄ := fun hbA =>
         WP.spec_mono (sc_bind_tcb.blkF hA s1 a1 _ sc ptr h1.blk hct run1 hpT hsc hsc0 z2 z1 hbA) fun r hr => by
           obtain ⟨r', s', a'⟩ := r
           simp only [WP.uncurry'_pair] at hr ⊢
-          exact DecPost.of_bxi (BlkOK.bxi hr.2.1) (by rw [hr.1]; simp)
+          exact ⟨DecPost.of_bxi (BlkOK.bxi hr.2.1) (by rw [hr.1]; simp), KT (Foot.ko hr.2.2 (Set.empty_subset _))⟩
       split
       · refine WP.spec_bind (sporadic.sc_released.act s1 sc) fun b1 hb1 => ?_
         split
@@ -376,7 +429,7 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
       exact WP.spec_mono (sc_unbind_ntfn.blkF s1 a1 _ sc h1.blk hct run1 hsc) fun r hr => by
         obtain ⟨r', s', a'⟩ := r
         simp only [WP.uncurry'_pair] at hr ⊢
-        exact DecPost.of_bxi (BlkOK.bxi hr.2.1) (by rw [hr.1]; simp)
+        exact ⟨DecPost.of_bxi (BlkOK.bxi hr.2.1) (by rw [hr.1]; simp), KT (Foot.ko hr.2.2.1 (Set.empty_subset _))⟩
     · rename_i ptr
       dsimp only
       refine WP.spec_bind (obj.Sc.tcb.spec s1 sc) fun i1 ei1 => ?_
@@ -388,7 +441,7 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
         (fun hz e => hz (by rw [← e, act1])) (fun _ => Ne.symm idle1)) fun r hr => by
         obtain ⟨r', s', a'⟩ := r
         simp only [WP.uncurry'_pair] at hr ⊢
-        exact DecPost.of_bxi (BlkOK.bxi hr.2.1) (by rw [hr.1]; simp)
+        exact ⟨DecPost.of_bxi (BlkOK.bxi hr.2.1) (by rw [hr.1]; simp), KT (Foot.ko hr.2.2.1 (Set.empty_subset _))⟩
   split
   · -- Unbind
     refine WP.spec_bind (obj.Sc.tcb.spec s1 sc) fun i1 ei1 => ?_
@@ -398,7 +451,7 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
       (fun hz e => hz (by rw [← e, act1])) (fun _ => Ne.symm idle1)) fun r hr => by
       obtain ⟨r', s', a'⟩ := r
       simp only [WP.uncurry'_pair] at hr ⊢
-      exact DecPost.of_bxi (BlkOK.bxi hr.2.1) (by rw [hr.1]; simp)
+      exact ⟨DecPost.of_bxi (BlkOK.bxi hr.2.1) (by rw [hr.1]; simp), KT (Foot.ko hr.2.2.1 (Set.empty_subset _))⟩
   split
   · -- YieldTo
     refine WP.spec_bind (obj.Sc.tcb.spec s1 sc) fun i1 ei1 => ?_
@@ -419,7 +472,7 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
     · exact Er _
     rename_i hi4
     refine WP.spec_bind (sched.set_thread_state.restart_blk (Es := ∅) s1 _ h1.blk hct (runnable_ok run1).1
-      (runnable_ok run1).2) fun s2 ⟨h2, _, e2, k2⟩ => ?_
+      (runnable_ok run1).2) fun s2 ⟨h2, f2, e2, k2⟩ => ?_
     have hc2 : L.curW s2 = L.curW s := k2.curW.trans ec1
     have t2 : L.mem s2 (scTcbA sc) = i1 := (k2.fix sc hsc).1.trans ei1.symm
     have y2 : L.mem s2 (yieldA (L.curW s)) = 0#u64 := by
@@ -438,9 +491,9 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
           exact D.cb.ac (h.2.1.resume D.act))
       (by rw [hc2, inqA_eq, k2.fld _ hct _ (by simp) (by simp) (by simp) (by simp) (fun _ => ⟨by simp, by simp⟩),
             f1 _ hct _ (by simp) (by simp), ← inqA_eq]; exact D.cb.nr)) ?_
-    rintro ⟨s3, a2⟩ ⟨Ac3, h3⟩
+    rintro ⟨s3, a2⟩ ⟨⟨Ac3, h3⟩, f3⟩
     try simp only [WP.uncurry'_pair]
-    exact (WP.spec_ok _).2 (DecPost.of_bxi h3 (by simp))
+    exact (WP.spec_ok _).2 ⟨DecPost.of_bxi h3 (by simp), KT (KO.trans (Foot.ko f2 (Set.empty_subset _)) f3)⟩
   · exact Er _
 
 /-- **InvGaps' `schedContext`, discharged** but for the named `ScYieldGap`. -/
@@ -455,7 +508,7 @@ theorem decGap_sc {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   try dsimp only
   split
   · exact (WP.spec_ok _).2 (DecPost.keep D.bxi (by simp))
-  · exact schedcontext.decode.dec hA E Y s a lbl sc call extra b D
+  · exact WP.spec_mono (schedcontext.decode.dec hA E Y s a lbl sc call extra b D) fun _ hr => hr.1
 
 end
 

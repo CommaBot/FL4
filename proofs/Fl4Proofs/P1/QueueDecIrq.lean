@@ -447,14 +447,14 @@ structure IrqPlace (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U6
 /-- **`delete_one` of an IRQ's handler slot**: no cap, or a notification
 cap's finalisation and the slot's emptying (as `finGap_irq`). -/
 theorem cdt.delete_one.irq_cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) {s0 s : S} {a : A} {irq : U64}
+    {s0 s : S} (P : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s0) {a : A} {irq : U64}
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hi : irq.val < 128) :
     cdt.delete_one st ar s a (irqSlotA (L.ksb s) irq) ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.1 ⦄ := by
   have hS : P0.StoreTotal st := L.total
   obtain ⟨Ac', hb⟩ := h.bxi
   have hW := irq_slotW hb hi
   unfold cdt.delete_one
-  refine WP.spec_bind (WP.spec_and (P.irq Ac' s irq hb hi) (P.cap Ac' s _ hb hW)) fun c ⟨hc', hcd⟩ => ?_
+  refine WP.spec_bind (WP.spec_and (P.irq Ac' s irq h.fr hb hi) (P.cap Ac' s _ h.fr hb hW)) fun c ⟨hc', hcd⟩ => ?_
   refine WP.spec_bind (P0.capability.Cap.is_null.p0 c) fun bn _ => ?_
   split
   · exact (WP.spec_ok _).2 h
@@ -471,8 +471,8 @@ set_option maxHeartbeats 4000000 in
 /-- **`decode_irq_handler`** (Ack, SetIRQHandler, ClearIRQHandler) keeps the
 invariants. -/
 theorem interrupt.decode_irq_handler.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {V : U64 → Prop} (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V)
-    {s : S} {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize} (a : A) (lbl irq : U64)
+    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {V : U64 → Prop} {s : S} (P : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s)
+    {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize} (a : A) (lbl irq : U64)
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hE : EntAt st P3Ok s) (hi : irq.val < 128)
     (hx : ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapW T Ω Sg sl) :
     interrupt.decode_irq_handler st ar s a lbl irq extra ⦃ r s' _ =>
@@ -529,7 +529,7 @@ theorem interrupt.decode_irq_handler.dec {A : Type _} {ar : machine.Arch A} (hA 
 /-- **InvGaps' `irqHandler`, discharged** from the CSpace and deletion
 placement facts and `IrqPlace`. -/
 theorem decGap_irqHandler {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {V : U64 → Prop} (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V)
+    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {V : U64 → Prop} (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V P3Ok)
     (Pl : IrqPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .irqHandler := by
   intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot hE
   cases cap <;> simp [capFam] at hf
@@ -537,7 +537,7 @@ theorem decGap_irqHandler {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩
   try dsimp only
-  exact interrupt.decode_irq_handler.dec hA C P a lbl irq D hE (Pl.irq _ _ _ _ hE D irq rfl)
+  exact interrupt.decode_irq_handler.dec hA C (P s hE) a lbl irq D hE (Pl.irq _ _ _ _ hE D irq rfl)
     (fun sl h1 h2 => SlotW.capw0 (Pl.extra _ _ _ _ hE D sl h1 h2))
 
 

@@ -578,22 +578,22 @@ variable {H : Heap} {Cs Rp Scs Nt : Set U64} {Z : U64 → Nat} {U Ac : Set U64}
 well formed, a VCPU's `TCB` word is null or a TCB, a TCB's VCPU word is null
 or a VCPU, and the listed VCPUs are VCPU objects off the kernel-global
 area. -/
-structure VcpuPl (st : machine.Store S) [L : LawfulStore st] (H : Heap) (Cs Rp Scs Nt : Set U64) (Z : U64 → Nat) :
-    Prop where
+structure VcpuPl (st : machine.Store S) [L : LawfulStore st] (H : Heap) (Cs Rp Scs Nt : Set U64) (Z : U64 → Nat)
+    (s0 : S) : Prop where
   heap : HeapOK H
-  tcb : ∀ (Ac : Set U64) (s : S) (v : U64), BXI st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s →
+  tcb : ∀ (Ac : Set U64) (s : S) (v : U64), Fr0 st H.tcbs Cs H.omega H H.frame Scs Z s0 s → BXI st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s →
     H v = some (.other 15) → Tz H.tcbs (L.mem s (core.num.U64.wrapping_add v vcpu.TCB))
-  bound : ∀ (Ac : Set U64) (s : S) (t : U64), BXI st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s → t ∈ H.tcbs →
+  bound : ∀ (Ac : Set U64) (s : S) (t : U64), Fr0 st H.tcbs Cs H.omega H H.frame Scs Z s0 s → BXI st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s → t ∈ H.tcbs →
     L.mem s (core.num.U64.wrapping_add t 3664#u64) ≠ 0#u64 →
       H (L.mem s (core.num.U64.wrapping_add t 3664#u64)) = some (.other 15)
-  listed : ∀ (Ac : Set U64) (s : S) (v : U64), BXI st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s →
+  listed : ∀ (Ac : Set U64) (s : S) (v : U64), Fr0 st H.tcbs Cs H.omega H H.frame Scs Z s0 s → BXI st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s →
     VListed st s v → H v = some (.other 15) ∧ (v.val + 2 ^ 15 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ v.val)
 
 set_option maxHeartbeats 4000000 in
 /-- **`detach` keeps `Cur0`**: the VCPU's stall, the thread's report when it
 runs in the VCPU, the VCPU's `TCB` word and the thread's VCPU word cleared. -/
 theorem vcpu.detach.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U) (P : VcpuPl st H Cs Rp Scs Nt Z) {s0 s : S} {a : A}
+    (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U) {s0 s : S} (P : VcpuPl st H Cs Rp Scs Nt Z s0) {a : A}
     {t : U64} (h : Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 s) (hU : UserOK st H.tcbs Cs H.omega H U s)
     (ht : t ∈ H.tcbs) :
     vcpu.detach st ar s a t ⦃ r => Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 r.1 ∧
@@ -607,7 +607,7 @@ theorem vcpu.detach.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
   · exact (WP.spec_ok _).2 ⟨h, rfl⟩
   rename_i hv0
   obtain ⟨Ac1, hX⟩ := h.bxi
-  have hv : H v = some (.other 15) := by rw [ev]; exact P.bound Ac1 s t hX ht (by rw [← ev]; exact hv0)
+  have hv : H v = some (.other 15) := by rw [ev]; exact P.bound Ac1 s t h.fr hX ht (by rw [← ev]; exact hv0)
   refine WP.spec_bind (vcpu.stall.cur0 hA a v h) ?_
   rintro ⟨s1, a1⟩ ⟨h1, k1, -⟩
   try simp only [uncurry_apply_pair]
@@ -618,7 +618,7 @@ theorem vcpu.detach.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
     · rename_i hrv
       obtain ⟨Ac2, hX1⟩ := h1.bxi
       refine WP.spec_mono (vcpu.report.cur0 hA E P.heap h1 (hU.ksb k1) ht ?_
-        (fun hn => P.bound Ac2 s1 t hX1 ht hn)) fun s' ⟨c, k⟩ => ⟨c, k.trans k1⟩
+        (fun hn => P.bound Ac2 s1 t h1.fr hX1 ht hn)) fun s' ⟨c, k⟩ => ⟨c, k.trans k1⟩
       rw [← ei, hrv]; exact nbr_runnable (by unfold Runnable; simp)
     · exact (WP.spec_ok _).2 ⟨h1, k1⟩
   simp only [vcpu.set, lift, bind_ok]

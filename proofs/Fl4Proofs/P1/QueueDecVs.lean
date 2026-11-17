@@ -5,8 +5,9 @@ deletion placement facts `DelPlace` (the looked-up paging entries are VSpace
 words `V`), the CSpace placement facts `CdtHyps`, the invoked and extra
 slots being cap slots (`CapSlotW`, `IrqPlace.extra`) and `VsPlace` (the
 regions cleared by a table's unmap and by MakePool hold no tracked words;
-the subframe destination slots are cap slots; and the EPT steps on frames,
-named — VT-x: not yet refined (DESIGN §5)).  The work is within `Cur0` (after the caller's
+the subframe destination slots are cap slots; and mapping a frame into an
+EPT, named — VT-x: not yet refined (DESIGN §5)); a frame's EPT unmap is
+proved from `EptPlace.find` (`ept.unmap.cur0`).  The work is within `Cur0` (after the caller's
 restart): VSpace words (`Cur0.vs`), cap-slot words (`Cur0.capw`), cleared
 regions (`Cur0.zr`) and kernel-global words (`Cur0.ks`).
 -/
@@ -50,10 +51,76 @@ theorem sched.set_thread_state.running_bxi' {s : S} {t : U64} (h : BXI st T Cs �
   rintro s' ⟨h1, hB1, hX1, hS1, hSg1, -, -⟩
   exact ⟨⟨Q, R, h1.congrX empty_congr⟩, hB1, hX1, hSg1, hS1⟩
 
+/-- An EPT table at `s`: every walk from it ends at an aligned untracked
+object word. -/
+def EptTbl (st : machine.Store S) (Ω Sg : Set U64) (s : S) (r : U64) : Prop :=
+  ∀ gpa level, ept.lookup st s r gpa level ⦃ o => ∀ x, o = .Ok x → Aligned x ∧ x ∈ Ω ∧ x ∉ Sg ⦄
+
+/-- **The EPT tables' placement** (P3's): a found EPT root is an EPT table,
+and an invoked non-root EPT table cap's table holds no tracked word. -/
+structure EptPlace (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
+    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop where
+  /-- At the caller's restart after the decode's start `s0` (its footprint `Foot`). -/
+  find : ∀ (Ac : Set U64) (s0 s : S) (asid : U64), EntAt st P3Ok s0 → Fr0 st T Cs Ω H Sg Scs Z s0 s →
+    BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    ept.find st s asid ⦃ r => ∀ r1, r = .Ok r1 → EptTbl st Ω Sg s r1 ⦄
+  tbl : ∀ (Ac : Set U64) (s : S) (cap : capability.Cap) (extra : Aeneas.Std.Array obj.Slot 3#usize),
+    EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ ptr level m asid va,
+      cap = .Ept ptr level m asid va → level ≠ 0#u64 → FreeRegion Ω Sg ptr 4096#u64
+
+/-- **`ept.unmap`** from a found EPT table: at most one EPT entry cleared. -/
+theorem ept.unmap.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {s0 s : S} (a : A)
+    (asid gpa ptr level : U64) (table : Bool)
+    (hf : ept.find st s asid ⦃ r => ∀ r1, r = .Ok r1 → EptTbl st Ω Sg s r1 ⦄)
+    (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) :
+    ept.unmap st ar s a asid gpa ptr level table ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.1 ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  unfold ept.unmap
+  refine WP.spec_bind hf ?_
+  rintro (r1 | e) hr
+  swap
+  · exact (WP.spec_ok _).2 h
+  refine WP.spec_bind (hr r1 rfl gpa level) ?_
+  rintro (x | e) hx
+  swap
+  · exact (WP.spec_ok _).2 h
+  obtain ⟨al, hΩ, hSg⟩ := hx x rfl
+  try dsimp only
+  refine WP.spec_bind (LawfulStore.read_spec s x) fun e _ => ?_
+  have fin : (do
+      let s1 ← st.write s x 0#u64
+      ept.invalidate st ar s1 a r1) ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.1 ⦄ := by
+    refine WP.spec_bind (LawfulStore.write_spec s x 0#u64) fun s1 e1 => ?_
+    subst e1
+    refine WP.spec_mono (ept.invalidate.same hA _ a r1) fun r er => ?_
+    rw [er]
+    exact Cur0.capw h (writesIn_wr al) fun b hb => Or.inr (hb ▸ ⟨hΩ, hSg⟩)
+  refine WP.spec_bind (Pₘ := fun _ => True) (by
+    split
+    · exact (WP.spec_ok _).2 trivial
+    split <;> exact (WP.spec_ok _).2 trivial) fun large _ => ?_
+  refine WP.spec_bind (Pₘ := fun _ => True) (by
+    split
+    · simp only [lift, bind_ok]
+      step*
+    · exact (WP.spec_ok _).2 trivial) fun mask _ => ?_
+  simp only [lift, bind_ok, layout.paddr]
+  split
+  · exact (WP.spec_ok _).2 h
+  split
+  · split
+    · exact (WP.spec_ok _).2 h
+    split
+    · exact (WP.spec_ok _).2 h
+    · exact fin
+  · split
+    · exact (WP.spec_ok _).2 h
+    · exact fin
+
 /-- **The VSpace family's placement facts** (P3's): the regions a table's
 unmap and MakePool clear and the ASID table's entries hold no tracked words,
-the subframe destination slots are cap slots, and the EPT steps on frames
-(VT-x: not yet refined, DESIGN §5). -/
+the subframe destination slots are cap slots, and mapping a frame into an
+EPT (VT-x: not yet refined, DESIGN §5). -/
 structure VsPlace (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
     (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop where
   /-- A table cap's table (cleared by its unmap). -/
@@ -77,15 +144,11 @@ structure VsPlace (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar :
   eptMap : ∀ (Ac : Set U64) (s : S) (a : A) (len : U64) (cap : capability.Cap) (slot buf : U64)
     (extra : Aeneas.Std.Array obj.Slot 3#usize), EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra →
     ept.map_frame st ar s a len cap slot buf extra ⦃ r s' _ => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄
-  /-- EPT: unmapping a frame from an EPT (VT-x: not yet refined, DESIGN §5). -/
-  eptUnmap : ∀ (Ac : Set U64) (s0 s : S) (a : A) (asid vaddr ptr bits : U64),
-    Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s →
-    ept.unmap st ar s a asid vaddr ptr bits false ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.1 ⦄
 
 /-! ## The paging lookups give VSpace words -/
 
-theorem vspace.check_vspace.vs {V : U64 → Prop} (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) {s : S}
-    (hb : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (vcap : capability.Cap) :
+theorem vspace.check_vspace.vs {V : U64 → Prop} {s0 : S} (Pd : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s0) {s : S}
+    (hf : Fr0 st T Cs Ω H Sg Scs Z s0 s) (hb : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (vcap : capability.Cap) :
     vspace.check_vspace st s vcap ⦃ r => ∀ p, r = .Ok p → ∀ i : U64,
       V (core.num.U64.wrapping_add p.1 (core.num.U64.wrapping_mul (i &&& 511#u64) 8#u64)) ⦄ := by
   unfold vspace.check_vspace
@@ -93,7 +156,7 @@ theorem vspace.check_vspace.vs {V : U64 → Prop} (Pd : DelPlace st T Cs Ω H Sg
   all_goals try (simp only [error.invalid_cap]; exact (WP.spec_ok _).2 (fun p hp => by cases hp))
   rename_i ptr b asid
   split
-  · refine WP.spec_bind (Pd.pml Ac s asid hb) fun r hr => ?_
+  · refine WP.spec_bind (Pd.pml Ac s asid hf hb) fun r hr => ?_
     rcases r with r1 | lf
     · dsimp only
       split
@@ -105,17 +168,17 @@ theorem vspace.check_vspace.vs {V : U64 → Prop} (Pd : DelPlace st T Cs Ω H Sg
     · exact (WP.spec_ok _).2 (fun p hp => by cases hp)
   · simp only [error.invalid_cap]; exact (WP.spec_ok _).2 (fun p hp => by cases hp)
 
-theorem vspace.table_entry_slot.vs {V : U64 → Prop} (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) {s : S}
-    (hb : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) {root : U64}
+theorem vspace.table_entry_slot.vs {V : U64 → Prop} {s0 : S} (Pd : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s0) {s : S}
+    (hf : Fr0 st T Cs Ω H Sg Scs Z s0 s) (hb : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) {root : U64}
     (hroot : ∀ i : U64, V (core.num.U64.wrapping_add root (core.num.U64.wrapping_mul (i &&& 511#u64) 8#u64)))
     (vaddr level : U64) :
     vspace.table_entry_slot st s root vaddr level ⦃ r => ∀ x, r = .Ok x → V x ⦄ := by
   unfold vspace.table_entry_slot
   refine WP.spec_bind (Pₘ := fun r => ∀ x, r = .Ok x → V x) ?_ fun r hr => ?_
   · split
-    · exact Pd.pd Ac s root vaddr hb
+    · exact Pd.pd Ac s root vaddr hf hb
     split
-    · exact Pd.pdpt Ac s root vaddr hb
+    · exact Pd.pdpt Ac s root vaddr hf hb
     · refine WP.spec_bind (P0.vspace.idx.p0 vaddr _) fun ix _ => ?_
       unfold vspace.entry_addr
       simp only [lift, bind_ok, WP.spec_ok]
@@ -124,16 +187,16 @@ theorem vspace.table_entry_slot.vs {V : U64 → Prop} (Pd : DelPlace st T Cs Ω 
   · exact (WP.spec_ok _).2 fun x' hx => by cases hx; exact hr x rfl
   · simp only [vspace.failed_lookup]; exact (WP.spec_ok _).2 fun x' hx => by cases hx
 
-theorem vspace.page_entry_slot.vs {V : U64 → Prop} (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) {s : S}
-    (hb : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (root vaddr : U64) (fs : capability.FrameSize) :
+theorem vspace.page_entry_slot.vs {V : U64 → Prop} {s0 : S} (Pd : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s0) {s : S}
+    (hf : Fr0 st T Cs Ω H Sg Scs Z s0 s) (hb : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (root vaddr : U64) (fs : capability.FrameSize) :
     vspace.page_entry_slot st s root vaddr fs ⦃ r => ∀ x, r = .Ok x → V x ⦄ := by
   have hS : P0.StoreTotal st := L.total
   unfold vspace.page_entry_slot
   refine WP.spec_bind (Pₘ := fun r => ∀ x, r = .Ok x → V x) ?_ fun r hr => ?_
   · cases fs
-    · exact Pd.pt Ac s root vaddr hb
-    · exact Pd.pd Ac s root vaddr hb
-    · exact Pd.pdpt Ac s root vaddr hb
+    · exact Pd.pt Ac s root vaddr hf hb
+    · exact Pd.pd Ac s root vaddr hf hb
+    · exact Pd.pdpt Ac s root vaddr hf hb
   rcases r with x | lf
   · have hx := hr x rfl
     dsimp only
@@ -150,16 +213,16 @@ theorem vspace.page_entry_slot.vs {V : U64 → Prop} (Pd : DelPlace st T Cs Ω H
   · simp only [vspace.failed_lookup]; exact (WP.spec_ok _).2 fun x' hx => by cases hx
 
 
-theorem vspace.mapped_entry.vs {V : U64 → Prop} (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) {s : S}
-    (hb : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (f : vspace.FrameCap) (root : U64) :
+theorem vspace.mapped_entry.vs {V : U64 → Prop} {s0 : S} (Pd : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s0) {s : S}
+    (hf : Fr0 st T Cs Ω H Sg Scs Z s0 s) (hb : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (f : vspace.FrameCap) (root : U64) :
     vspace.mapped_entry st s f root ⦃ o => ∀ x, o = some x → V x ⦄ := by
   unfold vspace.mapped_entry
   refine WP.spec_bind (P0.layout.paddr.p0 _) fun pa _ => ?_
   refine WP.spec_bind (Pₘ := fun _ => True) (by cases f.size <;> exact (WP.spec_ok _).2 trivial) fun large _ => ?_
   refine WP.spec_bind (Pₘ := fun r => ∀ x, r = .Ok x → V x) ?_ fun r hr => ?_
   · split
-    · exact Pd.pd Ac s root _ hb
-    · exact Pd.pt Ac s root _ hb
+    · exact Pd.pd Ac s root _ hf hb
+    · exact Pd.pt Ac s root _ hf hb
   rcases r with x | lf
   · have hx := hr x rfl
     dsimp only
@@ -188,7 +251,7 @@ set_option maxHeartbeats 4000000 in
 /-- **A table's unmap**: the restart, the unmap of its mapping (VSpace
 words), the table's clearing, and the cap's update. -/
 theorem vspace.decode_table_unmap.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) {s : S} {cap0 : capability.Cap}
+    {s : S} (Pd : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s)  {cap0 : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap0 extra)
     (a : A) (slot : U64) (cap : capability.Cap) (level ptr : U64) (mapped : Bool) (masid mvaddr : U64)
     (hslot : CapSlotW T Ω Sg slot) (hz : FreeRegion Ω Sg ptr 4096#u64) :
@@ -210,11 +273,11 @@ theorem vspace.decode_table_unmap.dec {A : Type _} {ar : machine.Arch A} (hA : P
     · refine WP.spec_bind (Pₘ := fun r : S × A => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1) ?_ ?_
       · split
         · exact WP.spec_mono (vspace.unmap_page_table.vs hA s1 a masid mvaddr ptr Pd.vs
-            fun r1 => Pd.pd Ac1 s1 r1 mvaddr hb1) fun r w => h1.vs Pd.vs w
+            fun r1 => Pd.pd Ac1 s1 r1 mvaddr h1.fr hb1) fun r w => h1.vs Pd.vs w
         split
         · exact WP.spec_mono (vspace.unmap_page_directory.vs hA s1 a masid mvaddr ptr Pd.vs
-            fun r1 => Pd.pdpt Ac1 s1 r1 mvaddr hb1) fun r w => h1.vs Pd.vs w
-        · exact WP.spec_mono (vspace.unmap_pdpt.vs hA s1 a masid mvaddr ptr Pd.vs (Pd.pml Ac1 s1 masid hb1))
+            fun r1 => Pd.pdpt Ac1 s1 r1 mvaddr h1.fr hb1) fun r w => h1.vs Pd.vs w
+        · exact WP.spec_mono (vspace.unmap_pdpt.vs hA s1 a masid mvaddr ptr Pd.vs (Pd.pml Ac1 s1 masid h1.fr hb1))
             fun r w => h1.vs Pd.vs w
       rintro ⟨s3, a2⟩ h3
       try simp only [uncurry_apply_pair]
@@ -232,7 +295,7 @@ set_option maxHeartbeats 4000000 in
 /-- **A table's map**: the restart, the cap's update and the table entry's
 write (a VSpace word). -/
 theorem vspace.decode_table_map.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) {s : S} {cap0 : capability.Cap}
+    {s : S} (Pd : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s)  {cap0 : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap0 extra)
     (a : A) (len slot : U64) (cap : capability.Cap) (level ptr buf : U64) (hslot : CapSlotW T Ω Sg slot) :
     vspace.decode_table_map st ar s a len slot cap level ptr buf extra ⦃ r s' _ =>
@@ -262,13 +325,13 @@ theorem vspace.decode_table_map.dec {A : Type _} {ar : machine.Arch A} (hA : P0.
   · errV
   split
   · errV
-  refine WP.spec_bind (vspace.check_vspace.vs Pd hb vcap) fun r hr => ?_
+  refine WP.spec_bind (vspace.check_vspace.vs Pd (WritesIn.refl _ _) hb vcap) fun r hr => ?_
   rcases r with ⟨root, asid⟩ | e
   swap
   · errV
   have hroot := hr _ rfl
   simp only [irq_branch_ok, bind_ok]
-  refine WP.spec_bind (vspace.table_entry_slot.vs Pd hb hroot _ level) fun r1 hr1 => ?_
+  refine WP.spec_bind (vspace.table_entry_slot.vs Pd (WritesIn.refl _ _) hb hroot _ level) fun r1 hr1 => ?_
   rcases r1 with v | e
   swap
   · errV
@@ -294,7 +357,7 @@ theorem vspace.decode_table_map.dec {A : Type _} {ar : machine.Arch A} (hA : P0.
 set_option maxHeartbeats 4000000 in
 /-- **The paging-structure caps' decode** (map, unmap). -/
 theorem vspace.decode_table.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) {s : S}
+    {s : S} (Pd : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) 
     {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize}
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hE : EntAt st P3Ok s)
     (a : A) (lbl len slot buf : U64) (hslot : CapSlotW T Ω Sg slot) :
@@ -350,7 +413,7 @@ set_option hygiene false in
 VSpace word), the restart, the cap's update and the entry's write. -/
 local macro "pmtail" : tactic => `(tactic| (
   try simp only [bind_ok, uncurry_apply_pair]
-  refine WP.spec_bind (vspace.page_entry_slot.vs Pd hb _ _ _) fun r3 hr3 => ?_
+  refine WP.spec_bind (vspace.page_entry_slot.vs Pd (WritesIn.refl _ _) hb _ _ _) fun r3 hr3 => ?_
   rcases r3 with v | e
   swap
   · errV
@@ -384,7 +447,7 @@ set_option maxHeartbeats 8000000 in
 /-- **The page map**: the restart, the frame cap's update and the entry's
 write (a VSpace word). -/
 theorem vspace.decode_page_map.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) {s : S} {cap0 : capability.Cap}
+    {s : S} (Pd : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s)  {cap0 : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap0 extra)
     (a : A) (len slot : U64) (f : vspace.FrameCap) (buf : U64) (hslot : CapSlotW T Ω Sg slot) :
     vspace.decode_page_map st ar s a len slot f buf extra ⦃ r s' _ =>
@@ -459,8 +522,8 @@ theorem vspace.reply1.bxi (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) {s : S}
 set_option maxHeartbeats 4000000 in
 /-- **TestAndClearAccessed**: the entry's accessed bit cleared (a VSpace
 word), then the reply. -/
-theorem vspace.decode_test_and_clear_accessed.dec {V : U64 → Prop} (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) {s : S} {cap0 : capability.Cap}
+theorem vspace.decode_test_and_clear_accessed.dec {V : U64 → Prop} {s : S} (Pd : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s)
+    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)  {cap0 : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap0 extra)
     (f : vspace.FrameCap) (call : Bool) :
     vspace.decode_test_and_clear_accessed st s f call ⦃ r =>
@@ -485,7 +548,7 @@ theorem vspace.decode_test_and_clear_accessed.dec {V : U64 → Prop} (Pd : DelPl
     swap
     · errV
     try dsimp only
-    refine WP.spec_bind (vspace.mapped_entry.vs Pd hb _ r1) fun o ho => ?_
+    refine WP.spec_bind (vspace.mapped_entry.vs Pd (WritesIn.refl _ _) hb _ r1) fun o ho => ?_
     rcases o with _ | x
     · errV
     have hx := ho x rfl
@@ -605,8 +668,9 @@ theorem vspace.derive_subframe.dec {A : Type _} {ar : machine.Arch A} (C : CdtHy
 set_option maxHeartbeats 8000000 in
 /-- **The frame caps' decode**. -/
 theorem vspace.decode_frame.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
-    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) {s : S}
+    {s : S} (Pd : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (Pe : EptPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) 
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (fp fsz : _) (fr : U64) (fd fm fe : Bool) (fa fv : U64)
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Frame fp fsz fr fd fm fe fa fv) extra) (hE : EntAt st P3Ok s)
     (a : A) (lbl len slot : U64) (call : Bool) (buf : U64) (hslot : CapSlotW T Ω Sg slot) :
@@ -636,9 +700,9 @@ theorem vspace.decode_frame.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
       · split
         · split
           · refine WP.spec_bind (P0.capability.FrameSize.bits.p0 _) fun i _ => ?_
-            exact Vs.eptUnmap _ _ _ _ _ _ _ _ h1
-          · exact WP.spec_mono (vspace.unmap_page.vs hA s1 a _ _ _ _ Pd.vs (fun r1 => Pd.pt Ac1 s1 r1 _ hb1)
-              (fun r1 => Pd.pd Ac1 s1 r1 _ hb1) (fun r1 => Pd.pdpt Ac1 s1 r1 _ hb1)) fun r w => h1.vs Pd.vs w
+            exact ept.unmap.cur0 hA _ _ _ _ _ _ (Pe.find Ac1 s s1 _ hE h1.fr hb1) h1
+          · exact WP.spec_mono (vspace.unmap_page.vs hA s1 a _ _ _ _ Pd.vs (fun r1 => Pd.pt Ac1 s1 r1 _ h1.fr hb1)
+              (fun r1 => Pd.pd Ac1 s1 r1 _ h1.fr hb1) (fun r1 => Pd.pdpt Ac1 s1 r1 _ h1.fr hb1)) fun r w => h1.vs Pd.vs w
         · exact (WP.spec_ok _).2 h1
       · exact (WP.spec_ok _).2 h1
     rintro ⟨s2, a1⟩ h2
@@ -693,8 +757,9 @@ theorem mask511_mul8 (x : U64) (y : U64) (hy : y.val = (x &&& 511#u64).val * 8) 
 set_option maxHeartbeats 16000000 in
 /-- **`vspace.decode`** over the VSpace family's caps. -/
 theorem vspace.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
-    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) {s : S}
+    {s : S} (Pd : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (Pe : EptPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) 
     {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize}
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hE : EntAt st P3Ok s)
     (hx : ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapSlotW T Ω Sg sl)
@@ -710,7 +775,7 @@ theorem vspace.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
   cases cap
   all_goals try (simp only [error.invalid_cap, bind_ok]; exact (WP.spec_ok _).2 (D.err _))
   case Frame fp fsz fr fd fm fe fa fv =>
-    exact vspace.decode_frame.dec hA Pd Vs C E fp fsz fr fd fm fe fa fv D hE a lbl len slot call buf hslot
+    exact vspace.decode_frame.dec hA Pd Vs Pe C E fp fsz fr fd fm fe fa fv D hE a lbl len slot call buf hslot
   case PageTable => exact vspace.decode_table.dec hA Pd Vs D hE a lbl len slot buf hslot
   case PageDirectory => exact vspace.decode_table.dec hA Pd Vs D hE a lbl len slot buf hslot
   case Pdpt => exact vspace.decode_table.dec hA Pd Vs D hE a lbl len slot buf hslot
@@ -814,7 +879,7 @@ theorem vspace.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
       have hpool : ∀ asid, pool ≠ 0#u64 →
           V (core.num.U64.wrapping_add pool (core.num.U64.wrapping_mul (asid &&& 511#u64) 8#u64)) := by
         intro asid
-        have := Pd.pool Ac s asid i hb
+        have := Pd.pool Ac s asid i (WritesIn.refl _ _) hb
         rw [epool] at this
         exact (WP.spec_ok _).1 this
       rw [epool]
@@ -849,7 +914,7 @@ theorem vspace.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
         have hpool : ∀ asid, pool ≠ 0#u64 →
             V (core.num.U64.wrapping_add pool (core.num.U64.wrapping_mul (asid &&& 511#u64) 8#u64)) := by
           intro asid
-          have := Pd.pool Ac s asid i1 hb
+          have := Pd.pool Ac s asid i1 (WritesIn.refl _ _) hb
           rw [epool] at this
           exact (WP.spec_ok _).1 this
         rw [epool]
@@ -880,7 +945,8 @@ theorem vspace.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
 placement facts, the transfer's (a reply's buffer), `IrqPlace.extra` (the
 extra caps' slots) and `VsPlace`. -/
 theorem decGap_vspace {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V P3Ok) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (Pe : EptPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
     (Pl : IrqPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .vspace := by
   intro Ac s a lbl len slot cap blk call don fp buf extra hf D hslot hE
@@ -889,7 +955,7 @@ theorem decGap_vspace {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) 
     unfold syscall.decode_invocation
     step with sched.cur_thread.spec as ⟨ct, _⟩
     try dsimp only
-    exact vspace.decode.dec hA Pd Vs C E D hE (Pl.extra _ _ _ _ hE D) a lbl len slot call buf hslot
+    exact vspace.decode.dec hA (Pd s hE) Vs Pe C E D hE (Pl.extra _ _ _ _ hE D) a lbl len slot call buf hslot
 
 end
 

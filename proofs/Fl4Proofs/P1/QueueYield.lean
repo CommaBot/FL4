@@ -57,6 +57,12 @@ theorem yw_keep {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64
   · rw [stA_eq]; exact K y hy _ (by simp) (by simp) (by simp)
   · rw [inqA_eq]; exact K y hy _ (by simp) (by simp) (by simp)
 
+/-- `YW` words are `KO` words. -/
+theorem YW.ko {s : S} {b : U64} (hT : TcbPlaced T) (h : YW T Ω b) : KO st T Cs Ω H Sg Scs Z s b := by
+  rcases h with h | ⟨y, hy, K, hK, h8, rfl⟩
+  · exact Or.inr h
+  · exact Or.inl (kw_field hy (by omega) (by omega) (by omega))
+
 theorem reg_yw {s : S} {t r v : U64} (hT : TcbPlaced T) (ht : t ∈ T) (hr : r.val < 384) :
     obj.Tcb.set_reg st t s r v ⦃ s' => WritesIn st s s' (YW T Ω) ⦄ :=
   WP.spec_mono (obj.Tcb.set_reg.wrK s t r v (hT t ht) hr) fun s' ⟨K, hK, e⟩ => by
@@ -524,7 +530,7 @@ theorem schedcontext.yield_switches.blkY (s : S) (sc ct : U64) (h : BlkOK st T C
     (hrun : Runnable (L.mem s (stA ct))) (hbd : L.mem s (scA ct) ≠ 0#u64) (hba : L.mem s (scA ct) ∈ Ac)
     (hr : (L.mem s (inqA ct) &&& sched.Q_RELEASE) = 0#u64) :
     schedcontext.yield_switches st s sc ct ⦃ r => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2 ∧
-      (r.1 = false → L.mem r.2 (stA ct) = L.mem s (stA ct)) ⦄ := by
+      (r.1 = false → L.mem r.2 (stA ct) = L.mem s (stA ct)) ∧ WritesIn st s r.2 (KO st T Cs Ω H Sg Scs Z s) ⦄ := by
   unfold schedcontext.yield_switches
   step with obj.Sc.tcb.spec as ⟨i, ei⟩
   have hiT : i ∈ T := by rw [ei]; exact h.2.2.1.2.2.yt.1 sc hsc hi0
@@ -538,11 +544,16 @@ theorem schedcontext.yield_switches.blkY (s : S) (sc ct : U64) (h : BlkOK st T C
         let s1 ← sched.dequeue st s i
         let s2 ← sched.enqueue st s1 i
         ok (false, s2)) ⦃ r => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2 ∧
-          (r.1 = false → L.mem r.2 (stA ct) = L.mem s (stA ct)) ⦄ := by
-      refine WP.spec_bind (sched.dequeue.blkY s i h hiT) fun s1 ⟨h1, _, r1, k1⟩ => ?_
-      refine WP.spec_bind (sched.enqueue.blkY s1 i h1 hiT (by rw [(k1 i hiT).1]; exact hrun_i)
-        (by rw [(k1 i hiT).2.1]; exact hbd_i) (by rw [(k1 i hiT).2.1]; exact hba_i) (r1 hr_i)) fun s2 ⟨h2, k2⟩ => ?_
-      exact (WP.spec_ok _).2 ⟨h2, fun _ => (k2 ct hct).1.trans (k1 ct hct).1⟩
+          (r.1 = false → L.mem r.2 (stA ct) = L.mem s (stA ct)) ∧ WritesIn st s r.2 (KO st T Cs Ω H Sg Scs Z s) ⦄ := by
+      refine WP.spec_bind (WP.spec_and (sched.dequeue.blkY s i h hiT)
+        (sched.dequeue.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := ∅) s i h.1.choose_spec.choose_spec hiT))
+        fun s1 ⟨⟨h1, _, r1, k1⟩, f1⟩ => ?_
+      refine WP.spec_bind (WP.spec_and (sched.enqueue.blkY s1 i h1 hiT (by rw [(k1 i hiT).1]; exact hrun_i)
+        (by rw [(k1 i hiT).2.1]; exact hbd_i) (by rw [(k1 i hiT).2.1]; exact hba_i) (r1 hr_i))
+        (sched.enqueue.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := ∅) s1 i h1.1.choose_spec.choose_spec hiT))
+        fun s2 ⟨⟨h2, k2⟩, f2⟩ => ?_
+      exact (WP.spec_ok _).2 ⟨h2, fun _ => (k2 ct hct).1.trans (k1 ct hct).1,
+        KO.trans (Foot.ko f1 (Set.empty_subset _)) (Foot.ko f2 (Set.empty_subset _))⟩
     step with obj.Sc.cpu.spec as ⟨i1, _⟩
     step with LawfulStore.cur_cpu_spec as ⟨i2, _⟩
     split
@@ -557,20 +568,38 @@ theorem schedcontext.yield_switches.blkY (s : S) (sc ct : U64) (h : BlkOK st T C
     refine WP.spec_bind (obj.Sc.set_yield_from.spec _ sc ct) fun s2 e2 => ?_
     subst e2
     obtain ⟨h2, k2⟩ := yield_link.blk h hct hsc
-    refine WP.spec_bind (sched.dequeue.blkY _ i h2 hiT) fun s3 ⟨h3, _, r3, k3⟩ => ?_
-    refine WP.spec_bind (sched.enqueue.blkY s3 ct h3 hct
+    have hO := h.2.2.1.1
+    have f2 : WritesIn st s (L.wr (L.wr s (yieldA ct) sc) (scYieldFromA sc) ct) (KO st T Cs Ω H Sg Scs Z s) := by
+      have hT := h.1.choose_spec.choose_spec.tcbs
+      have hy := sc_word_yw (T := T) hO hsc (o := layout.sc.YIELD_FROM) (by simp [layout.sc.YIELD_FROM])
+        (by simp [layout.sc.YIELD_FROM])
+      refine ((writesIn_wr (field_aligned (K := 3472#u64) (hT ct hct) (by simp) (by simp))).trans
+        (writesIn_wr hy.1)).mono fun b hb => ?_
+      rcases hb with rfl | rfl
+      · exact Or.inl (kw_field hct (by simp) (by simp) (by simp))
+      · exact KO.ksb (L.ksb_wr _ _ _) (YW.ko (s := L.wr s (yieldA ct) sc) hT hy.2)
+    refine WP.spec_bind (WP.spec_and (sched.dequeue.blkY _ i h2 hiT)
+      (sched.dequeue.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := ∅) _ i h2.1.choose_spec.choose_spec hiT))
+      fun s3 ⟨⟨h3, _, r3, k3⟩, f3⟩ => ?_
+    refine WP.spec_bind (WP.spec_and (sched.enqueue.blkY s3 ct h3 hct
       (by rw [(k3 ct hct).1, (k2 ct hct).2.1]; exact hrun)
       (by rw [(k3 ct hct).2.1, (k2 ct hct).1]; exact hbd)
       (by rw [(k3 ct hct).2.1, (k2 ct hct).1]; exact hba)
-      (by rw [(k3 ct hct).2.2 (Ne.symm hic), (k2 ct hct).2.2]; exact hr)) fun s4 ⟨h4, k4⟩ => ?_
-    refine WP.spec_bind (sched.enqueue.blkY s4 i h4 hiT
+      (by rw [(k3 ct hct).2.2 (Ne.symm hic), (k2 ct hct).2.2]; exact hr))
+      (sched.enqueue.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := ∅) s3 ct h3.1.choose_spec.choose_spec hct))
+      fun s4 ⟨⟨h4, k4⟩, f4⟩ => ?_
+    refine WP.spec_bind (WP.spec_and (sched.enqueue.blkY s4 i h4 hiT
       (by rw [(k4 i hiT).1, (k3 i hiT).1, (k2 i hiT).2.1]; exact hrun_i)
       (by rw [(k4 i hiT).2.1, (k3 i hiT).2.1, (k2 i hiT).1]; exact hbd_i)
       (by rw [(k4 i hiT).2.1, (k3 i hiT).2.1, (k2 i hiT).1]; exact hba_i)
-      (by rw [(k4 i hiT).2.2 hic]; exact r3 (by rw [(k2 i hiT).2.2]; exact hr_i))) fun s5 ⟨h5, _⟩ => ?_
-    refine WP.spec_bind (sched.reschedule_required.blk s5 h5) fun s6 ⟨h6, _⟩ => ?_
-    exact (WP.spec_ok _).2 ⟨h6, fun e => absurd e (by simp)⟩
-  · exact (WP.spec_ok _).2 ⟨h, fun _ => rfl⟩
+      (by rw [(k4 i hiT).2.2 hic]; exact r3 (by rw [(k2 i hiT).2.2]; exact hr_i)))
+      (sched.enqueue.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := ∅) s4 i h4.1.choose_spec.choose_spec hiT))
+      fun s5 ⟨⟨h5, _⟩, f5⟩ => ?_
+    refine WP.spec_bind (sched.reschedule_required.blk s5 h5) fun s6 ⟨h6, f6⟩ => ?_
+    exact (WP.spec_ok _).2 ⟨h6, fun e => absurd e (by simp),
+      KO.trans (KO.trans (KO.trans (KO.trans f2 (Foot.ko f3 (Set.empty_subset _))) (Foot.ko f4 (Set.empty_subset _)))
+        (Foot.ko f5 (Set.empty_subset _))) (Foot.ko f6 (Set.empty_subset _))⟩
+  · exact (WP.spec_ok _).2 ⟨h, fun _ => rfl, WritesIn.refl _ _⟩
 
 /-! ## `yield_to` -/
 
@@ -588,17 +617,19 @@ theorem scYieldGap_holds (hA : P0.ArchTotal ar) (U : Set U64) : ScYieldGap st ar
   refine WP.spec_bind (Pₘ := fun r : S × A => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ∧
       L.actionW r.1 = L.actionW s ∧ L.curW r.1 = L.curW s ∧
       (∀ y ∈ T, L.mem r.1 (scA y) = L.mem s (scA y) ∧ L.mem r.1 (stA y) = L.mem s (stA y) ∧
-        L.mem r.1 (inqA y) = L.mem s (inqA y)) ∧ L.mem r.1 (scTcbA sc) = L.mem s (scTcbA sc)) ?_ ?_
+        L.mem r.1 (inqA y) = L.mem s (inqA y)) ∧ L.mem r.1 (scTcbA sc) = L.mem s (scTcbA sc) ∧
+      WritesIn st s r.1 (KO st T Cs Ω H Sg Scs Z s)) ?_ ?_
   · split
-    · exact (WP.spec_ok _).2 ⟨h, rfl, rfl, fun _ _ => ⟨rfl, rfl, rfl⟩, rfl⟩
+    · exact (WP.spec_ok _).2 ⟨h, rfl, rfl, fun _ _ => ⟨rfl, rfl, rfl⟩, rfl, WritesIn.refl _ _⟩
     · have hy : yf ≠ 0#u64 → yf ∈ T := fun hy0 => by
         rw [eyf]; exact h.2.2.1.2.2.yt.2.2 sc hsc (by rw [← eyf]; exact hy0)
       refine WP.spec_mono (WP.spec_and (schedcontext.complete_yield_to.blkS hA s a yf sc h hy hsc)
         (schedcontext.complete_yield_to.yw hA s a yf h hy)) ?_
       rintro ⟨s1, a1⟩ ⟨⟨h1, -, n1, k1⟩, w1⟩
       have kk := yw_keep h00 w1
-      exact ⟨h1, n1.1, n1.2.2, fun y hy => ⟨(kk y hy).1, (kk y hy).2.2.1, (kk y hy).2.2.2⟩, k1.1⟩
-  rintro ⟨s1, a1⟩ ⟨h1, ea1, ec1, k1, t1⟩
+      exact ⟨h1, n1.1, n1.2.2, fun y hy => ⟨(kk y hy).1, (kk y hy).2.2.1, (kk y hy).2.2.2⟩, k1.1,
+        WritesIn.mono w1 fun _ hb => YW.ko hT hb⟩
+  rintro ⟨s1, a1⟩ ⟨h1, ea1, ec1, k1, t1, W1⟩
   try simp only [WP.uncurry'_pair]
   obtain ⟨⟨Q1, R1, h01⟩, hB1, hX1, hS1, hSg1⟩ := h1
   have hO1 := hX1.1
@@ -609,8 +640,9 @@ theorem scYieldGap_holds (hA : P0.ArchTotal ar) (U : Set U64) : ScYieldGap st ar
     ⟨hiT, h01.omega _ (hSg1.sub _ (hO1.fixW sc hsc).2), hX1.2.2.core sc hsc, fun e => by
       rw [ea1] at e
       rcases hact with e0 | e0 <;> rw [e0] at e <;> exact notT_small h01.tcbs (by rw [← e]; simp) hiT⟩
-  refine WP.spec_bind (schedcontext.resume.allF hA s1 a1 sc Q1 R1 h01 hB1 hX1 hSg1 hS1 hsc') ?_
-  rintro ⟨s2, a2⟩ ⟨Q2, R2, h02, hB2, hX2, hSg2, fr2, ea2, ec2, iq2⟩
+  refine WP.spec_bind (WP.spec_and (schedcontext.resume.allF hA s1 a1 sc Q1 R1 h01 hB1 hX1 hSg1 hS1 hsc')
+    (schedcontext.resume.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := ∅) hA s1 a1 sc Q1 R1 h01 hsc')) ?_
+  rintro ⟨s2, a2⟩ ⟨⟨Q2, R2, h02, hB2, hX2, hSg2, fr2, ea2, ec2, iq2⟩, F2⟩
   try simp only [WP.uncurry'_pair]
   have h2 : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s2 := ⟨⟨Q2, R2, h02⟩, hB2, hX2, hS1.fr fr2, hSg2⟩
   step with sched.cur_thread.spec as ⟨ct', ect'⟩
@@ -626,20 +658,25 @@ theorem scYieldGap_holds (hA : P0.ArchTotal ar) (U : Set U64) : ScYieldGap st ar
     (by rw [fr2.sc ct hct, (k1 ct hct).1]; exact hbd)
     (by rw [fr2.sc ct hct, (k1 ct hct).1]; exact hba)
     (by rw [iq2 ct hct hnei, (k1 ct hct).2.2]; exact hnr)) ?_
-  rintro ⟨b1, s3⟩ ⟨h3, hk3⟩
-  simp only at h3 hk3
+  rintro ⟨b1, s3⟩ ⟨h3, hk3, F3⟩
+  simp only at h3 hk3 F3
+  have W3 : WritesIn st s s3 (KO st T Cs Ω H Sg Scs Z s) :=
+    KO.trans (KO.trans W1 (Foot.ko F2 (Set.empty_subset _))) F3
   cases b1
   · try simp only [Bool.false_eq_true, ↓reduceIte]
     have st3 : L.mem s3 (stA ct) = sched.TS_RESTART := by
       rw [hk3 rfl, fr2.st ct hct, (k1 ct hct).2.1, hst]
     refine WP.spec_bind (WP.spec_and (schedcontext.set_consumed.blk hA s3 a2 sc ct call h3 hsc hct)
-      (schedcontext.set_consumed.yw hA s3 a2 sc ct call h3 hsc hct)) fun s4 ⟨⟨h4, _, _⟩, w4⟩ => ?_
+      (schedcontext.set_consumed.yw hA s3 a2 sc ct call h3 hsc hct)) fun s4 ⟨⟨h4, f4, _⟩, w4⟩ => ?_
     have st4 : L.mem s4 (stA ct) = sched.TS_RESTART := by
       rw [(yw_keep h3.1.choose_spec.choose_spec w4 ct hct).2.2.1]; exact st3
-    refine WP.spec_bind (sched.set_thread_state.running_bxi h4.bxi hct st4) fun s5 h5 => ?_
-    exact (WP.spec_ok _).2 ⟨Ac, h5⟩
+    refine WP.spec_bind (WP.spec_and (sched.set_thread_state.running_bxi h4.bxi hct st4)
+      (sched.set_thread_state.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := ∅) s4 _ _ h4.1.choose_spec.choose_spec hct))
+      fun s5 ⟨h5, f5⟩ => ?_
+    exact (WP.spec_ok _).2 ⟨⟨Ac, h5⟩, KO.trans (KO.trans W3 (Foot.ko f4 (Set.empty_subset _)))
+      (Foot.ko f5 (Set.empty_subset _))⟩
   · try simp only [↓reduceIte]
-    exact (WP.spec_ok _).2 ⟨Ac, h3.bxi⟩
+    exact (WP.spec_ok _).2 ⟨⟨Ac, h3.bxi⟩, W3⟩
 
 end
 end Fl4Proofs.P1
