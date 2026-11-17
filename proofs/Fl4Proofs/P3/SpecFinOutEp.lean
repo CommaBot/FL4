@@ -32,17 +32,22 @@ def ScOK (σ : State Unit) (x : Tcb) : Prop :=
     (scActive y = true → refillReady σ.curTime (refillHd y) = true ∧ refillSufficient 0 (refillHd y) = true) ∧
     (scActive y = true → y.scPeriod ≠ 0 → RefOK y)
 
-/-- **The restart, the refill check and the switch** of a thread `t` whose
-SC is ready and sufficient: an outcome keeping `ScBack` and `ActReady`, the
-time, `t` a TCB with its SC, and every object but `t` and its SC. -/
-theorem restart_tail {σ : State Unit} {t : ObjRef} {x : Tcb} (hkt : σ.kheap t = some (.tcb x))
+/-- What a thread's `restart_thread_if_no_fault` keeps (`rtinf_ok`):
+`ScBack`, `ActReady`, the time, every object but the thread and its SC. -/
+def RtFacts (σ σ' : State Unit) (t : ObjRef) (x : Tcb) : Prop :=
+  ScBack σ' ∧ ActReady σ' ∧ σ'.curTime = σ.curTime ∧ ∀ p, p ≠ t → x.tcbSchedContext ≠ some p → σ'.kheap p = σ.kheap p
+
+/-- **The restart and the refill check** of a thread `t` whose SC is ready
+and sufficient: `ScBack` and `ActReady` kept, `t` ready and sufficient when
+schedulable, the time and every object but `t` and its SC kept. -/
+theorem restart_tail_mid {σ : State Unit} {t : ObjRef} {x : Tcb} (hkt : σ.kheap t = some (.tcb x))
     (hxs : ScOK σ x) (hB : ScBack σ) (hA : ActReady σ) :
-    ∃ σ', ((), σ') ∈ ((setThreadState (Z := Unit) t .restart >>= fun _ =>
-        getTcbObjRef (Z := Unit) Tcb.tcbSchedContext t >>= fun scOpt =>
-        ifSporadicCurScAssertRefillUnblockCheck (Z := Unit) scOpt >>= fun _ => possibleSwitchTo (Z := Unit) t) σ).1 ∧
-      ScBack σ' ∧ ActReady σ' ∧ σ'.curTime = σ.curTime ∧
-      (∃ x', σ'.kheap t = some (.tcb x') ∧ x'.tcbSchedContext = x.tcbSchedContext) ∧
-      ∀ p, p ≠ t → x.tcbSchedContext ≠ some p → σ'.kheap p = σ.kheap p := by
+    ∃ σ3, ((), σ3) ∈ (ifSporadicCurScAssertRefillUnblockCheck (Z := Unit) x.tcbSchedContext
+        (stsAct (updK σ t (.tcb { x with tcbState := .restart })) t)).1 ∧
+      σ3.kheap t = some (.tcb { x with tcbState := .restart }) ∧ ScBack σ3 ∧ ActReady σ3 ∧
+      (schedulable t σ3 = true → RdyAt σ3 t) ∧
+      σ3.curTime = σ.curTime ∧ ∀ p, p ≠ t → x.tcbSchedContext ≠ some p → σ3.kheap p = σ.kheap p := by
+  rw [show x.tcbSchedContext = ({ x with tcbState := .restart } : Tcb).tcbSchedContext from rfl]
   -- the restart
   set x' : Tcb := { x with tcbState := .restart } with hx'
   set σ2' := updK σ t (.tcb x') with hσ2'
@@ -65,7 +70,6 @@ theorem restart_tail {σ : State Unit} {t : ObjRef} {x : Tcb} (hkt : σ.kheap t 
     · subst e; exact hT2 hs
     · have hK := tcbUpd_keeps (x' := x') hkt rfl e
       exact hK.1 (hA u hu (by rw [← hK.2.2]; exact hs))
-  have hst := setThreadState_eq' hkt .restart
   set σ2 := stsAct σ2' t with hσ2
   obtain ⟨hk2, ht2, hr2, ha2⟩ := stsAct_heap σ2' t
   have hF2 : SFr σ2' σ2 := SFr.of_heap hk2 ht2 hr2
@@ -86,16 +90,6 @@ theorem restart_tail {σ : State Unit} {t : ObjRef} {x : Tcb} (hkt : σ.kheap t 
   have hB2 := hF2.scBack hB2'
   have hkt2' : σ2.kheap t = some (.tcb x') := by rw [hk2]; exact hkt2
   have hkp2' : ∀ p, p ≠ t → σ2.kheap p = σ.kheap p := fun p hp => by rw [hk2, hkp2 p hp]
-  rw [nd_bind_one hst, nd_bind_one (show getTcbObjRef (Z := Unit) Tcb.tcbSchedContext t σ2 = _ from threadGet_eq _ hkt2')]
-  suffices hS : ∃ σ3, ((), σ3) ∈ (ifSporadicCurScAssertRefillUnblockCheck (Z := Unit) x'.tcbSchedContext σ2).1 ∧
-      σ3.kheap t = some (.tcb x') ∧ ScBack σ3 ∧ ActReady σ3 ∧ (schedulable t σ3 = true → RdyAt σ3 t) ∧
-      σ3.curTime = σ.curTime ∧ ∀ p, p ≠ t → x.tcbSchedContext ≠ some p → σ3.kheap p = σ.kheap p by
-    obtain ⟨σ3, hm3, hkt3, hB3, hA3, hT3, ht3, hkp3⟩ := hS
-    obtain ⟨σ4, he4, hk4, ht4, hr4, ha4⟩ := pst_ok hkt3 hA3
-    have hF4 := SFr.of_heap hk4 ht4 hr4
-    refine ⟨σ4, mem_bind_nd hm3 (by rw [he4]; exact Set.mem_singleton _), hF4.scBack hB3,
-      pst_actReady hA3 hT3 hk4 ht4 hr4 ha4, by rw [ht4, ht3], ⟨x', by rw [hk4]; exact hkt3, rfl⟩,
-      fun p hp hpc => by rw [hk4, hkp3 p hp hpc]⟩
   cases hxc : x'.tcbSchedContext with
   | none =>
     exact ⟨σ2, Set.mem_singleton _, hkt2', hB2, hA2, hT2'', by rw [ht2]; rfl, fun p hp _ => hkp2' p hp⟩
@@ -168,6 +162,28 @@ theorem restart_tail {σ : State Unit} {t : ObjRef} {x : Tcb} (hkt : σ.kheap t 
           have hcc := hother u xu cu h1 h2 e
           exact ⟨xu, cu, yu, ku, by rw [hkp3 u huc]; exact h1, h2, by rw [hkp3 cu hcc]; exact h3, h4,
             by rw [ht3]; exact h5, h6⟩
+
+/-- **The restart, the refill check and the switch** of a thread `t` whose
+SC is ready and sufficient: an outcome keeping `ScBack` and `ActReady`, the
+time, `t` a TCB with its SC, and every object but `t` and its SC. -/
+theorem restart_tail {σ : State Unit} {t : ObjRef} {x : Tcb} (hkt : σ.kheap t = some (.tcb x))
+    (hxs : ScOK σ x) (hB : ScBack σ) (hA : ActReady σ) :
+    ∃ σ', ((), σ') ∈ ((setThreadState (Z := Unit) t .restart >>= fun _ =>
+        getTcbObjRef (Z := Unit) Tcb.tcbSchedContext t >>= fun scOpt =>
+        ifSporadicCurScAssertRefillUnblockCheck (Z := Unit) scOpt >>= fun _ => possibleSwitchTo (Z := Unit) t) σ).1 ∧
+      ScBack σ' ∧ ActReady σ' ∧ σ'.curTime = σ.curTime ∧
+      (∃ x', σ'.kheap t = some (.tcb x') ∧ x'.tcbSchedContext = x.tcbSchedContext) ∧
+      ∀ p, p ≠ t → x.tcbSchedContext ≠ some p → σ'.kheap p = σ.kheap p := by
+  obtain ⟨σ3, hm3, hkt3, hB3, hA3, hT3, ht3, hkp3⟩ := restart_tail_mid hkt hxs hB hA
+  have hst := setThreadState_eq' hkt .restart
+  have hkt2' : (stsAct (updK σ t (.tcb { x with tcbState := .restart })) t).kheap t =
+      some (.tcb { x with tcbState := .restart }) := by rw [(stsAct_heap _ t).1]; simp [updK]
+  rw [nd_bind_one hst, nd_bind_one (show getTcbObjRef (Z := Unit) Tcb.tcbSchedContext t _ = _ from threadGet_eq _ hkt2')]
+  obtain ⟨σ4, he4, hk4, ht4, hr4, ha4⟩ := pst_ok hkt3 hA3
+  have hF4 := SFr.of_heap hk4 ht4 hr4
+  exact ⟨σ4, mem_bind_nd hm3 (by rw [he4]; exact Set.mem_singleton _), hF4.scBack hB3,
+    pst_actReady hA3 hT3 hk4 ht4 hr4 ha4, by rw [ht4, ht3], ⟨{ x with tcbState := .restart }, by rw [hk4]; exact hkt3, rfl⟩,
+    fun p hp hpc => by rw [hk4, hkp3 p hp hpc]⟩
 
 /-- **Making `t` inactive** keeps `ScBack` and `ActReady` (an inactive thread
 is no schedulable switch target). -/
@@ -250,6 +266,75 @@ theorem memRep_agree {σ σ' : State Unit} {u : ObjRef} (hm : MemOK σ u) (hr : 
   · rw [hag u hu, hku] at hku'; cases hku'
     obtain ⟨xr, h1, h2⟩ := hr x hku ep r d hst
     exact ⟨xr, by rw [hag r (hrep x ep r d hku hst)]; exact h1, h2⟩
+
+/-- **A queued thread's facts after another thread `t`'s restart** (every
+object but `t` and its SC kept, the time kept): `t`'s SC is not `u`'s
+(`ScBack`). -/
+theorem memOK_after {σ σ' : State Unit} {t u : ObjRef} {x : Tcb} (hkt : σ.kheap t = some (.tcb x))
+    (hB : ScBack σ) (hut : u ≠ t) (hm : MemOK σ u)
+    (hkeep : ∀ p, p ≠ t → x.tcbSchedContext ≠ some p → σ'.kheap p = σ.kheap p)
+    (ht : σ'.curTime = σ.curTime) : MemOK σ' u := by
+  obtain ⟨xu, hku, hcu⟩ := hm
+  have hu1 : x.tcbSchedContext ≠ some u := fun h => by
+    obtain ⟨y, k, hky, -⟩ := hB t x u hkt h
+    rw [hku] at hky; cases hky
+  refine ⟨xu, by rw [hkeep u hut hu1]; exact hku, fun c e => ?_⟩
+  obtain ⟨y, k, h1, h2⟩ := hcu c e
+  have hct : c ≠ t := by rintro rfl; rw [hkt] at h1; cases h1
+  have hc1 : x.tcbSchedContext ≠ some c := fun h => by
+    obtain ⟨y1, k1, hk1, hy1, -⟩ := hB t x c hkt h
+    obtain ⟨y2, k2, hk2, hy2, -⟩ := hB u xu c hku e
+    rw [hk1] at hk2; cases hk2
+    rw [hy1] at hy2; cases hy2; exact hut rfl
+  exact ⟨y, k, by rw [hkeep c hct hc1]; exact h1, by rw [ht]; exact h2⟩
+
+/-- **What `cancel_badged_sends` carries along its loop, at its start**:
+the queued threads' facts (`MemOK`), `ScBack`, `ActReady`. -/
+def EpQPre (σ : State Unit) (r : ObjRef) : Prop :=
+  ∀ y, σ.kheap r = some (.endpoint y) → (∀ u ∈ y.epQueue, MemOK σ u) ∧ ScBack σ ∧ ActReady σ
+
+/-- **`EpQPre` after a thread's restart** (the caller's, before
+`cancel_badged_sends`), the thread not the switch target. -/
+theorem epQPre_restart {σ : State Unit} {t e : ObjRef} {x : Tcb} (hkt : σ.kheap t = some (.tcb x))
+    (hQ : EpQPre σ e) (hsw : ∀ u, σ.schedulerAction = .switchThread u → u ≠ t) :
+    EpQPre (stsAct (updK σ t (.tcb { x with tcbState := .restart })) t) e := by
+  intro y hy
+  set x' : Tcb := { x with tcbState := .restart } with hx'
+  set σ' := updK σ t (.tcb x') with hσ'
+  have hkp : ∀ p, p ≠ t → σ'.kheap p = σ.kheap p := fun p hp => by
+    simp only [hσ', updK, Function.update_of_ne hp]
+  have hkt' : σ'.kheap t = some (.tcb x') := by simp [hσ', updK]
+  obtain ⟨hk2, ht2, hr2, ha2⟩ := stsAct_heap σ' t
+  have hF2 : SFr σ' (stsAct σ' t) := SFr.of_heap hk2 ht2 hr2
+  rw [hk2] at hy
+  have het : e ≠ t := by rintro rfl; rw [hkt'] at hy; cases hy
+  rw [hkp e het] at hy
+  obtain ⟨hm, hB, hA⟩ := hQ y hy
+  refine ⟨fun u hu => hF2.memOK ?_, hF2.scBack ?_, hF2.actReady ?_ ha2⟩
+  · by_cases hut : u = t
+    · subst hut
+      obtain ⟨x0, hk0, hc⟩ := hm u hu
+      rw [hkt] at hk0; cases hk0
+      refine ⟨x', hkt', fun c ec => ?_⟩
+      obtain ⟨y0, k0, h1, h2⟩ := hc c ec
+      have hct : c ≠ u := by rintro rfl; rw [hkt] at h1; cases h1
+      exact ⟨y0, k0, by rw [hkp c hct]; exact h1, h2⟩
+    · exact (tcbUpd_keeps (x' := x') hkt rfl hut).2.1 (hm u hu)
+  · intro u xu c hku hc
+    by_cases hut : u = t
+    · subst hut; rw [hkt'] at hku; cases hku
+      obtain ⟨y0, k0, hky, hyt, hne⟩ := hB u x c hkt hc
+      have hct : c ≠ u := by rintro rfl; rw [hkt] at hky; cases hky
+      exact ⟨y0, k0, by rw [hkp c hct]; exact hky, hyt, hne⟩
+    · rw [hkp u hut] at hku
+      obtain ⟨y0, k0, hky, hyt, hne⟩ := hB u xu c hku hc
+      have hct : c ≠ t := by rintro rfl; rw [hkt] at hky; cases hky
+      exact ⟨y0, k0, by rw [hkp c hct]; exact hky, hyt, hne⟩
+  · rw [actReady_iff] at hA ⊢
+    intro u hu hs
+    have hut : u ≠ t := hsw u hu
+    have hK := tcbUpd_keeps (x' := x') hkt rfl hut
+    exact hK.1 (hA u hu (by rw [← hK.2.2]; exact hs))
 
 /-- **One thread of `cancel_all_ipc`** (`remove_and_restart_ep_queued_thread`). -/
 theorem ep_iter {σ : State Unit} {e t : ObjRef} {l : List ObjRef} {x : Endpoint}

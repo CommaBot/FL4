@@ -18,8 +18,10 @@ Restart`, `unblock_sporadic`, `possible_switch_to`); the spec runs
 Every slot and the kernel-global base are kept (`IFrame`, from the steps' footprints:
 `unblock_sporadic_tfoot` for the sporadic unblock).
 
-Named, as for `cancel_badged_irel`: the switch target ready (`ActReady`)
-at every `IRel` state, the notification in `N`.
+The spec's scheduler facts are carried along the loop (`SpecFinOut`'s
+`ntfn_restart_mid`, `pst_actReady`): the queued threads' SCs ready and sufficient
+(`MemOK`), `ScBack`, `ActReady`; named at the start (`NtfnQPre`), with the
+notification in `N`.
 -/
 import Fl4Proofs.P3.IpcCancelBadged
 import Fl4Proofs.P3.IpcCancelAll
@@ -79,13 +81,15 @@ set_option maxHeartbeats 8000000 in
 /-- **One waiting thread of a notification restarted** (the head `t` of its
 queue `t :: rest`) on `IRel`: the notification's queue `rest` after. -/
 theorem ntfn_restart_irel (hP0 : IPlaced N T E R B)
-    (hAct : ∀ s σ, IRel st th cr N T C E R B c s σ → ActReady σ)
     (s : S) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ) {n : U64} (hnN : n ∈ N)
     {xn : Fl4Spec.Notification} (hkn : σ.kheap n.bv = some (.notification xn)) {t : U64} {rest : List U64}
-    (hq : Fl4Spec.ntfnQueueOf xn = (t :: rest).map UScalar.bv) {γ : Type} (k : S → Result γ) {Q : γ → Prop}
+    (hq : Fl4Spec.ntfnQueueOf xn = (t :: rest).map UScalar.bv)
+    (hm : ∀ u ∈ Fl4Spec.ntfnQueueOf xn, MemOK σ u) (hBk : ScBack σ) (hAr : ActReady σ)
+    {γ : Type} (k : S → Result γ) {Q : γ → Prop}
     (hkont : ∀ s' σ' xn', ((), σ') ∈ (rrn n t.bv σ).1 → IRel st th cr N T C E R B c s' σ' →
       σ'.kheap n.bv = some (.notification xn') → Fl4Spec.ntfnQueueOf xn' = rest.map UScalar.bv →
-      IFrame (L := L) th s s' → k s' ⦃ Q ⦄) :
+      IFrame (L := L) th s s' → (∀ u ∈ rest.map UScalar.bv, MemOK σ' u) → ScBack σ' → ActReady σ' →
+      k s' ⦃ Q ⦄) :
     (do
       let s1 ← notification.ntfn_dequeue st s n t
       let s2 ← sched.set_thread_state st s1 t sched.TS_RESTART
@@ -202,14 +206,41 @@ theorem ntfn_restart_irel (hP0 : IPlaced N T E R B)
   rintro s4 ⟨⟨σ4, hu, hf4, hv4, hX4⟩, hw4⟩
   have hSS3 : IFrame (L := L) th s3 s4 :=
     IRel.iframe_of hX3 hw4 fun b hb => tfoot_oobj hX3.2.2.1 hb
-  refine WP.spec_bind (WP.spec_and (switch_top hP0 s4 σ4 hX4.1 hX4.2 (hAct _ _ hX4) t ht)
-    (possible_switch_to_sfootI hX4.1.toN hX4.2.2.1 (hAct _ _ hX4) ht)) ?_
+  -- the spec's scheduler facts at the unblock check (`ntfn_restart_mid`)
+  have hF1 : SFr σ σ2 := SFr.updOther hkn (fun _ h => by cases h) (fun _ _ h => by cases h)
+    (fun _ h => by cases h) (fun _ _ h => by cases h)
+  have hm1 : ∀ u ∈ t.bv :: rest.map UScalar.bv, MemOK σ2 u := fun u hu =>
+    hF1.memOK (hm u (by rw [hq]; simpa using hu))
+  have htl : t.bv ∉ rest.map UScalar.bv := by
+    rw [mem_map_bv]; exact (List.nodup_cons.1 hnd).1
+  obtain ⟨σ3', hm3', hkt3', -, hmm3, hB3, hA3, hT3⟩ :=
+    ntfn_restart_mid hkn2 hk2 htl hm1 (hF1.scBack hBk) (hF1.actReady hAr (Or.inl rfl))
+  have hkt3 : σ3.kheap t.bv = some (.tcb { x with tcbState := .restart }) := by
+    rw [hσ3, stsAct_kheap]; simp [updK]
+  have e34 : σ3' = σ4 := by
+    have hmem : ((), σ3') ∈ (specUnblock t.bv σ3).1 := by
+      rw [← specSporadicAssert_eq]; unfold specSporadicAssert
+      rw [nd_bind_one (show Fl4Spec.getTcbObjRef (Z := Unit) Fl4Spec.Tcb.tcbSchedContext t.bv σ3 = _ from
+        threadGet_eq _ hkt3)]
+      exact hm3'
+    rw [hu] at hmem
+    exact (Prod.mk.inj (Set.mem_singleton_iff.1 hmem)).2
+  subst e34
+  refine WP.spec_bind (WP.spec_and (switch_top hP0 s4 σ3' hX4.1 hX4.2 hA3 t ht)
+    (possible_switch_to_sfootI hX4.1.toN hX4.2.2.1 hA3 ht)) ?_
   rintro s5 ⟨⟨σ5, hps, hk5, hf5, hv5, hS5⟩, hw5⟩
   have hSS4 : IFrame (L := L) th s4 s5 :=
     IRel.iframe_of hX4 hw5 fun b hb => sfootI_oobj hP.tcb hb
-  refine hkont s5 σ5 xn' ?_ ⟨hX4.1.frame hP0 hf5 hv5, hS5⟩ (by rw [hk5]; exact hv4.1.1 _ _ hkn3) ?_
-    (((hSS1.trans hSS2).trans hSS3).trans hSS4)
-  · show ((), σ5) ∈ (Fl4Spec.removeAndRestartNtfnQueuedThread (Z := Unit) t.bv n.bv σ).1
+  obtain ⟨σ6, he6, hk6, ht6, hr6, ha6⟩ := pst_ok hkt3' hA3
+  have e56 : σ6 = σ5 := by
+    have h : ((), σ6) ∈ (Fl4Spec.possibleSwitchTo (Z := Unit) t.bv σ3').1 := by rw [he6]; rfl
+    rw [hps] at h; exact (Prod.mk.inj (Set.mem_singleton_iff.1 h)).2
+  subst e56
+  have hF6 := SFr.of_heap hk6 ht6 hr6
+  refine hkont s5 σ6 xn' ?_ ⟨hX4.1.frame hP0 hf5 hv5, hS5⟩ (by rw [hk5]; exact hv4.1.1 _ _ hkn3) ?_
+    (((hSS1.trans hSS2).trans hSS3).trans hSS4) (fun u hu => hF6.memOK (hmm3 u hu)) (hF6.scBack hB3)
+    (pst_actReady hA3 hT3 hk6 ht6 hr6 ha6)
+  · show ((), σ6) ∈ (Fl4Spec.removeAndRestartNtfnQueuedThread (Z := Unit) t.bv n.bv σ).1
     unfold Fl4Spec.removeAndRestartNtfnQueuedThread
     rw [nd_bind_one hdeq, nd_bind_one (Notif.setThreadState_eq .restart hk2), restart_spec_eq,
       specSporadicAssert_eq, nd_bind_one hu, hps]
@@ -234,23 +265,23 @@ def SInv (n : U64) (s0 : S) (σ0 : Fl4Spec.State Unit) (q0 : List Fl4Spec.ObjRef
   ∃ σ' xn, ∃ rest : List U64, IRel st th cr N T C E R B c x.1 σ' ∧ σ'.kheap n.bv = some (.notification xn) ∧
     Fl4Spec.ntfnQueueOf xn = rest.map UScalar.bv ∧ x.2.1 = rest.headD 0#u64 ∧ rest.length ≤ x.2.2.val ∧
     (∀ z, z ∈ (Fl4Spec.NonDet.mapMx (rrn n) (rest.map UScalar.bv) σ').1 →
-      z ∈ (Fl4Spec.NonDet.mapMx (rrn n) q0 σ0).1) ∧ IFrame (L := L) th s0 x.1
+      z ∈ (Fl4Spec.NonDet.mapMx (rrn n) q0 σ0).1) ∧ IFrame (L := L) th s0 x.1 ∧
+    (∀ u ∈ rest.map UScalar.bv, MemOK σ' u) ∧ ScBack σ' ∧ ActReady σ'
 
 set_option maxHeartbeats 4000000 in
 /-- **The loop of `cancel_all_signals`** on `IRel`. -/
 theorem signals_loop (hP0 : IPlaced N T E R B)
-    (hAct : ∀ s σ, IRel st th cr N T C E R B c s σ → ActReady σ)
     {n : U64} (hnN : n ∈ N) (s0 : S) (σ0 : Fl4Spec.State Unit) (q0 : List Fl4Spec.ObjRef) (x0 : S × U64 × U64)
     (h0 : SInv st th cr N T C E R B c n s0 σ0 q0 x0) :
     notification.cancel_all_signals_loop st x0.1 n x0.2.1 x0.2.2 ⦃ s' => ∃ σf,
       ((), σf) ∈ (Fl4Spec.NonDet.mapMx (rrn n) q0 σ0).1 ∧ IRel st th cr N T C E R B c s' σf ∧
-      IFrame (L := L) th s0 s' ⦄ := by
+      IFrame (L := L) th s0 s' ∧ ActReady σf ⦄ := by
   have hP := hP0.e
   unfold notification.cancel_all_signals_loop
   apply loop.spec_decr_nat (measure := fun x : S × U64 × U64 => x.2.2.val)
     (inv := SInv st th cr N T C E R B c n s0 σ0 q0) _ _ x0 ?_ h0
-  rintro ⟨s, t, fuel⟩ ⟨σ', xn, rest, hX, hkn, hq, ht, hlen, hinc, hss⟩
-  simp only at hX hkn hq ht hlen hinc hss ⊢
+  rintro ⟨s, t, fuel⟩ ⟨σ', xn, rest, hX, hkn, hq, ht, hlen, hinc, hss, hm, hBk, hAr⟩
+  simp only at hX hkn hq ht hlen hinc hss hm hBk hAr ⊢
   have hx2 := hX.1.toN.at_ntfn hnN hkn
   obtain ⟨xs, hQ, hxs, -⟩ := hx2.obj.queue
   have hxs' : xs = rest := by
@@ -265,7 +296,7 @@ theorem signals_loop (hP0 : IPlaced N T E R B)
     simp only [List.headD_nil] at ht
     subst ht
     simp only [hbn, decide_true, ↓reduceIte, WP.spec_ok]
-    exact ⟨σ', hinc _ rfl, hX, hss⟩
+    exact ⟨σ', hinc _ rfl, hX, hss, hAr⟩
   | cons t0 rest' =>
     simp only [List.headD_cons] at ht
     subst t
@@ -283,9 +314,10 @@ theorem signals_loop (hP0 : IPlaced N T E R B)
     unfold tcbqueue.next_of
     step with tcbqueue.next.spec as ⟨nx, hnx⟩
     try simp only [bind_ok]
-    refine ntfn_restart_irel hP0 hAct s σ' hX hnN hkn hq _ fun s4 σ'' xn' hres hX4 hkn4 hq4 hss4 => ?_
+    refine ntfn_restart_irel hP0 s σ' hX hnN hkn hq (by rw [hq]; exact hm) hBk hAr _
+      fun s4 σ'' xn' hres hX4 hkn4 hq4 hss4 hm4 hB4 hA4 => ?_
     rw [WP.spec_ok]
-    refine ⟨⟨σ'', xn', rest', hX4, hkn4, hq4, by rw [hnx, hnext], ?_, ?_, hss.trans hss4⟩, ?_⟩
+    refine ⟨⟨σ'', xn', rest', hX4, hkn4, hq4, by rw [hnx, hnext], ?_, ?_, hss.trans hss4, hm4, hB4, hA4⟩, ?_⟩
     · rw [hfuel1]; simp only [List.length_cons] at hlen; scalar_tac
     · exact fun z hz => hinc z (by rw [List.map_cons]; exact mapMx_cons_mem (l := rest'.map UScalar.bv) hres z hz)
     · rw [hfuel1]; scalar_tac
@@ -293,13 +325,14 @@ theorem signals_loop (hP0 : IPlaced N T E R B)
 set_option maxHeartbeats 4000000 in
 /-- **`cancel_all_signals` on `IRel`.** -/
 theorem cancel_all_signals_irel (hP0 : IPlaced N T E R B)
-    (hAct : ∀ s σ, IRel st th cr N T C E R B c s σ → ActReady σ)
-    (s : S) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ) {n : U64} (hnN : n ∈ N) :
+    (s : S) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ) {n : U64} (hnN : n ∈ N)
+    (hpre : Sched.NtfnQPre σ n.bv) :
     notification.cancel_all_signals st s n ⦃ s' => ∃ σ',
       ((), σ') ∈ (Fl4Spec.cancelAllSignals (Z := Unit) n.bv σ).1 ∧ IRel st th cr N T C E R B c s' σ' ∧
       IFrame (L := L) th s s' ⦄ := by
   have hP := hP0.e
   obtain ⟨xn, hkn, hx2⟩ := hX.1.toN.ntfn n hnN
+  obtain ⟨hm0, hB0, hA0⟩ := hpre xn hkn
   unfold notification.cancel_all_signals
   step with obj.Ntfn.state.spec as ⟨i, hi⟩
   rw [epState_eq] at hi
@@ -333,10 +366,11 @@ theorem cancel_all_signals_irel (hP0 : IPlaced N T E R B)
     have hI0 : SInv st th cr N T C E R B c n s σ q (s, qq.head, layout.WALK_FUEL) :=
       ⟨σ, xn, xs, hX, hkn, by show xn.ntfnObj.ntfnQueue = _; rw [hxo, hqx]; rfl,
         by rw [hqq, epQ_eq, hQ.head], by rw [hfuel]; exact len_le_max xs hQ.nodup (hQ.ne0 hP.tcb),
-        fun z hz => by rw [hqx]; exact hz, IFrame.refl _ _⟩
-    refine WP.spec_bind (signals_loop hP0 hAct hnN s σ q _ hI0) ?_
-    rintro s1 ⟨σf, hmf, hXf, hss1⟩
-    refine WP.spec_mono (WP.spec_and (resched_irel hP0 s1 σf hXf (hAct _ _ hXf))
+        fun z hz => by rw [hqx]; exact hz, IFrame.refl _ _,
+        fun u hu => hm0 u (by show u ∈ xn.ntfnObj.ntfnQueue; rw [hxo]; show u ∈ q; rw [hqx]; exact hu), hB0, hA0⟩
+    refine WP.spec_bind (signals_loop hP0 hnN s σ q _ hI0) ?_
+    rintro s1 ⟨σf, hmf, hXf, hss1, hAf⟩
+    refine WP.spec_mono (WP.spec_and (resched_irel hP0 s1 σf hXf hAf)
       (reschedule_required_sfootI hXf.2.2.1)) ?_
     rintro s2 ⟨⟨σr, hrs, -, hX2⟩, hw2⟩
     refine ⟨σr, ?_, hX2, hss1.trans (IRel.iframe_of hXf hw2 fun b hb => sfootI_oobj hP.tcb hb)⟩

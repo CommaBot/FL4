@@ -554,8 +554,8 @@ theorem decode_invocation_cnodeJ_step (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel2 Z.th (L.mem s) x0 x1 (excaps.map Prod.fst))
     (hrun : ∀ xt, σ.kheap ct.bv = some (.tcb xt) → tsCode xt.tcbState < 3)
     (hZ : ∀ Z' : XSets, XTopAt (L := L) AR Z' s ar σ → KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s) ∧
-      BufWordRel Z'.T (L.mem s) σ ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧
-      ∀ s' σ', IRel st Z'.th σ.archState.x64CurrentCr3 Z'.N Z'.T Z'.C Z'.E Z'.R Z'.B Z'.c s' σ' → ActReady σ')
+      BufWordRel Z'.T (L.mem s) σ ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B)
+    (hQ : ∀ e, Sched.EpQPre σ e) (hsw : ∀ u, σ.schedulerAction = .switchThread u → u ≠ σ.curThread)
     (hE : ∀ (Z' : XSets) (e b : U64) (sl : Fl4Spec.CslotPtr), XTopAt (L := L) AR Z' s ar σ → AbsSlot Z.th sl →
       capV (L.mem s) (cslotAddr sl) = .Endpoint e b true true true true → e ∈ Z'.E)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
@@ -563,7 +563,7 @@ theorem decode_invocation_cnodeJ_step (s : S) (ar : A) (σ : Fl4Spec.State Unit)
       slbl (args.map UScalar.bv) ci sl excaps buffer ct) :
     XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.CNode p r gs g) blk call don fp buf extra
       slbl (args.map UScalar.bv) ci sl excaps buffer ct :=
-  XCap.jat arI (decode_invocation_cnodeJAt arI s ar σ J hni hG hARI hT lbl slbl hlbl length buf ct hct args hlen hargs sl hAs p r gs g hsc extra x0 x1 hx0 hx1 excaps hex hrun hZ hE blk call don fp ci buffer) J hR
+  XCap.jat arI (decode_invocation_cnodeJAt arI s ar σ J hni hG hARI hT lbl slbl hlbl length buf ct hct args hlen hargs sl hAs p r gs g hsc extra x0 x1 hx0 hx1 excaps hex hrun hZ hQ hsw hE blk call don fp ci buffer) J hR
 
 set_option maxHeartbeats 4000000 in
 /-- **The CNode cap, `JAt` after**, the copy, mint, move, mutate and rotate
@@ -585,8 +585,8 @@ theorem decode_invocation_cnodeJ_steps (s : S) (ar : A) (σ : Fl4Spec.State Unit
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel2 Z.th (L.mem s) x0 x1 (excaps.map Prod.fst))
     (hrun : ∀ xt, σ.kheap ct.bv = some (.tcb xt) → tsCode xt.tcbState < 3)
     (hZ : ∀ Z' : XSets, XTopAt (L := L) AR Z' s ar σ → KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s) ∧
-      BufWordRel Z'.T (L.mem s) σ ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧
-      ∀ s' σ', IRel st Z'.th σ.archState.x64CurrentCr3 Z'.N Z'.T Z'.C Z'.E Z'.R Z'.B Z'.c s' σ' → ActReady σ')
+      BufWordRel Z'.T (L.mem s) σ ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B)
+    (hQ : ∀ e, Sched.EpQPre σ e) (hsw : ∀ u, σ.schedulerAction = .switchThread u → u ≠ σ.curThread)
     (hE : ∀ (Z' : XSets) (e b : U64) (sl : Fl4Spec.CslotPtr), XTopAt (L := L) AR Z' s ar σ → AbsSlot Z.th sl →
       capV (L.mem s) (cslotAddr sl) = .Endpoint e b true true true true → e ∈ Z'.E)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
@@ -603,7 +603,7 @@ theorem decode_invocation_cnodeJ_steps (s : S) (ar : A) (σ : Fl4Spec.State Unit
       length buf ct hct args hlen hargs p r gs g hwf hcv ⟨cslotAddr sl, hAs.isSlot, hsc⟩ extra x0 x1 hx0 hx1
       excaps hex J.kern.act hcur (cslotAddr sl) blk call don fp ci sl buffer
   · exact decode_invocation_cnodeJ_step arI s ar σ J hni hG hARI hT lbl slbl hlbl length buf ct hct args hlen hargs
-      sl hAs p r gs g hsc extra x0 x1 hx0 hx1 excaps hex hrun hZ hE blk call don fp ci buffer (hR hcp)
+      sl hAs p r gs g hsc extra x0 x1 hx0 hx1 excaps hex hrun hZ hQ hsw hE blk call don fp ci buffer (hR hcp)
 
 set_option maxHeartbeats 4000000 in
 /-- **The domain cap, `JAt` after**: its decode's scheduler and kernel-state

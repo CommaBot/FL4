@@ -431,28 +431,20 @@ theorem tcbUpd_keeps {σ : State Unit} {t : ObjRef} {x x' : Tcb} (hkt : σ.kheap
       · rw [hkp p e]
     · rfl
 
-/-- **One thread of `cancel_all_signals`** (`remove_and_restart_ntfn_queued_thread`):
-an outcome, with the notification's queue its tail, the other queued
-threads' facts, `ScBack` and `ActReady` kept. -/
-theorem ntfn_iter {σ : State Unit} {r t : ObjRef} {l : List ObjRef} {n : Notification}
-    (hk : σ.kheap r = some (.notification n)) (hq : ntfnQueueOf n = t :: l) (hnd : (t :: l).Nodup)
-    (hm : ∀ u ∈ t :: l, MemOK σ u) (hB : ScBack σ) (hA : ActReady σ) :
-    ∃ σ5, ((), σ5) ∈ (removeAndRestartNtfnQueuedThread (Z := Unit) t r σ).1 ∧
-      (∃ n5, σ5.kheap r = some (.notification n5) ∧ ntfnQueueOf n5 = l) ∧
-      (∀ u ∈ l, MemOK σ5 u) ∧ ScBack σ5 ∧ ActReady σ5 := by
-  have htl : t ∉ l := (List.nodup_cons.1 hnd).1
-  -- the dequeue
-  obtain ⟨n1, hdq, hq1⟩ := dequeue_eq hk hq hnd
-  set σ1 := updK σ r (.notification n1) with hσ1
-  have hF1 : SFr σ σ1 := SFr.updOther hk (fun _ h => by cases h) (fun _ _ h => by cases h) (fun _ h => by cases h)
-    (fun _ _ h => by cases h)
-  have hm1 : ∀ u ∈ t :: l, MemOK σ1 u := fun u hu => hF1.memOK (hm u hu)
-  have hB1 := hF1.scBack hB
-  have hA1 := hF1.actReady hA (Or.inl rfl)
-  have hk1 : σ1.kheap r = some (.notification n1) := by simp [hσ1, updK]
-  obtain ⟨x, hkt, hxs⟩ := hm1 t (List.mem_cons_self ..)
+/-- **A dequeued thread restarted, to its refill check**: the restarted
+thread ready and sufficient when schedulable, the other queued threads'
+facts, `ScBack` and `ActReady` kept. -/
+theorem ntfn_restart_mid {σ1 : State Unit} {r t : ObjRef} {l : List ObjRef} {n1 : Notification} {x : Tcb}
+    (hk1 : σ1.kheap r = some (.notification n1)) (hkt : σ1.kheap t = some (.tcb x)) (htl : t ∉ l)
+    (hm1 : ∀ u ∈ t :: l, MemOK σ1 u) (hB1 : ScBack σ1) (hA1 : ActReady σ1) :
+    ∃ σ3, ((), σ3) ∈ (ifSporadicCurScAssertRefillUnblockCheck (Z := Unit) x.tcbSchedContext
+        (stsAct (updK σ1 t (.tcb { x with tcbState := .restart })) t)).1 ∧
+      σ3.kheap t = some (.tcb { x with tcbState := .restart }) ∧ σ3.kheap r = some (.notification n1) ∧
+      (∀ u ∈ l, MemOK σ3 u) ∧ ScBack σ3 ∧ ActReady σ3 ∧ (schedulable t σ3 = true → RdyAt σ3 t) := by
+  obtain ⟨x0, hkt0, hxs⟩ := hm1 t (List.mem_cons_self ..)
+  rw [hkt] at hkt0; cases hkt0
   have hrt : r ≠ t := by rintro rfl; rw [hk1] at hkt; cases hkt
-  -- the restart
+  rw [show x.tcbSchedContext = ({ x with tcbState := .restart } : Tcb).tcbSchedContext from rfl]
   set x' : Tcb := { x with tcbState := .restart } with hx'
   set σ2' := updK σ1 t (.tcb x') with hσ2'
   have hkp2 : ∀ p, p ≠ t → σ2'.kheap p = σ1.kheap p := fun p hp => by
@@ -474,7 +466,6 @@ theorem ntfn_iter {σ : State Unit} {r t : ObjRef} {l : List ObjRef} {n : Notifi
     · subst e; exact hT2 hs
     · have hK := tcbUpd_keeps (x' := x') hkt rfl e
       exact hK.1 (hA1 u hu (by rw [← hK.2.2]; exact hs))
-  have hst := setThreadState_eq' hkt .restart
   set σ2 := stsAct σ2' t with hσ2
   obtain ⟨hk2, ht2, hr2, ha2⟩ := stsAct_heap σ2' t
   have hF2 : SFr σ2' σ2 := SFr.of_heap hk2 ht2 hr2
@@ -497,19 +488,6 @@ theorem ntfn_iter {σ : State Unit} {r t : ObjRef} {l : List ObjRef} {n : Notifi
   have hB2 := hF2.scBack hB2'
   have hkt2' : σ2.kheap t = some (.tcb x') := by rw [hk2]; exact hkt2
   have hkr2 : σ2.kheap r = some (.notification n1) := by rw [hk2, hkp2 r hrt]; exact hk1
-  -- the steps to the refill check
-  unfold removeAndRestartNtfnQueuedThread
-  rw [nd_bind_one hdq, nd_bind_one hst,
-    nd_bind_one (show getTcbObjRef (Z := Unit) Tcb.tcbSchedContext t σ2 = _ from threadGet_eq _ hkt2')]
-  -- the refill check, then the switch
-  suffices hS : ∃ σ3, ((), σ3) ∈ (ifSporadicCurScAssertRefillUnblockCheck (Z := Unit) x'.tcbSchedContext σ2).1 ∧
-      σ3.kheap t = some (.tcb x') ∧ σ3.kheap r = some (.notification n1) ∧ (∀ u ∈ l, MemOK σ3 u) ∧
-      ScBack σ3 ∧ ActReady σ3 ∧ (schedulable t σ3 = true → RdyAt σ3 t) by
-    obtain ⟨σ3, hm3, hkt3, hkr3, hmm3, hB3, hA3, hT3⟩ := hS
-    obtain ⟨σ4, he4, hk4, ht4, hr4, ha4⟩ := pst_ok hkt3 hA3
-    have hF4 := SFr.of_heap hk4 ht4 hr4
-    refine ⟨σ4, mem_bind_nd hm3 (by rw [he4]; exact Set.mem_singleton _), ⟨n1, by rw [hk4]; exact hkr3, hq1⟩,
-      fun u hu => hF4.memOK (hmm3 u hu), hF4.scBack hB3, pst_actReady hA3 hT3 hk4 ht4 hr4 ha4⟩
   cases hxc : x'.tcbSchedContext with
   | none =>
     exact ⟨σ2, Set.mem_singleton _, hkt2', hkr2, hm2, hB2, hA2, hT2''⟩
@@ -593,6 +571,38 @@ theorem ntfn_iter {σ : State Unit} {r t : ObjRef} {l : List ObjRef} {n : Notifi
           exact ⟨xu, cu, yu, ku, by rw [hkp3 u huc]; exact h1, h2, by rw [hkp3 cu hcc]; exact h3, h4, by rw [ht3]; exact h5, h6⟩
 
 
+
+/-- **One thread of `cancel_all_signals`** (`remove_and_restart_ntfn_queued_thread`):
+an outcome, with the notification's queue its tail, the other queued
+threads' facts, `ScBack` and `ActReady` kept. -/
+theorem ntfn_iter {σ : State Unit} {r t : ObjRef} {l : List ObjRef} {n : Notification}
+    (hk : σ.kheap r = some (.notification n)) (hq : ntfnQueueOf n = t :: l) (hnd : (t :: l).Nodup)
+    (hm : ∀ u ∈ t :: l, MemOK σ u) (hB : ScBack σ) (hA : ActReady σ) :
+    ∃ σ5, ((), σ5) ∈ (removeAndRestartNtfnQueuedThread (Z := Unit) t r σ).1 ∧
+      (∃ n5, σ5.kheap r = some (.notification n5) ∧ ntfnQueueOf n5 = l) ∧
+      (∀ u ∈ l, MemOK σ5 u) ∧ ScBack σ5 ∧ ActReady σ5 := by
+  have htl : t ∉ l := (List.nodup_cons.1 hnd).1
+  obtain ⟨n1, hdq, hq1⟩ := dequeue_eq hk hq hnd
+  set σ1 := updK σ r (.notification n1) with hσ1
+  have hF1 : SFr σ σ1 := SFr.updOther hk (fun _ h => by cases h) (fun _ _ h => by cases h) (fun _ h => by cases h)
+    (fun _ _ h => by cases h)
+  have hm1 : ∀ u ∈ t :: l, MemOK σ1 u := fun u hu => hF1.memOK (hm u hu)
+  have hk1 : σ1.kheap r = some (.notification n1) := by simp [hσ1, updK]
+  obtain ⟨x, hkt, -⟩ := hm1 t (List.mem_cons_self ..)
+  obtain ⟨σ3, hm3, hkt3, hkr3, hmm3, hB3, hA3, hT3⟩ :=
+    ntfn_restart_mid hk1 hkt htl hm1 (hF1.scBack hB) (hF1.actReady hA (Or.inl rfl))
+  have hst := setThreadState_eq' hkt .restart
+  have hkt2' : (stsAct (updK σ1 t (.tcb { x with tcbState := .restart })) t).kheap t =
+      some (.tcb { x with tcbState := .restart }) := by rw [(stsAct_heap _ t).1]; simp [updK]
+  unfold removeAndRestartNtfnQueuedThread
+  rw [nd_bind_one hdq, nd_bind_one hst,
+    nd_bind_one (show getTcbObjRef (Z := Unit) Tcb.tcbSchedContext t _ = _ from threadGet_eq _ hkt2')]
+  obtain ⟨σ4, he4, hk4, ht4, hr4, ha4⟩ := pst_ok hkt3 hA3
+  have hF4 := SFr.of_heap hk4 ht4 hr4
+  refine ⟨σ4, mem_bind_nd hm3 (by rw [he4]; exact Set.mem_singleton _), ⟨n1, by rw [hk4]; exact hkr3, hq1⟩,
+    fun u hu => hF4.memOK (hmm3 u hu), hF4.scBack hB3, pst_actReady hA3 hT3 hk4 ht4 hr4 ha4⟩
+
+
 /-- **The loop of `cancel_all_signals`** over the notification's queue. -/
 theorem ntfn_loop {r : ObjRef} :
     ∀ (l : List ObjRef) (σ : State Unit), (∃ n, σ.kheap r = some (.notification n) ∧ ntfnQueueOf n = l) →
@@ -604,6 +614,11 @@ theorem ntfn_loop {r : ObjRef} :
     obtain ⟨σ5, h5, hq5, hm5, hB5, hA5⟩ := ntfn_iter hk hq hnd hm hB hA
     obtain ⟨σ', h', hA'⟩ := ntfn_loop l σ5 hq5 (List.nodup_cons.1 hnd).2 hm5 hB5 hA5
     exact ⟨σ', mem_bind_nd h5 h', hA'⟩
+
+/-- **What `cancel_all_signals` carries along its loop, at its start**: the
+queued threads' facts (`MemOK`), `ScBack`, `ActReady`. -/
+def NtfnQPre (σ : State Unit) (r : ObjRef) : Prop :=
+  ∀ n, σ.kheap r = some (.notification n) → (∀ u ∈ ntfnQueueOf n, MemOK σ u) ∧ ScBack σ ∧ ActReady σ
 
 /-- **`cancel_all_signals` has an outcome.** -/
 theorem cas_out {σ : State Unit} {r : ObjRef} {n : Notification} (hk : σ.kheap r = some (.notification n))
@@ -647,6 +662,30 @@ theorem ntfnPre_of_inv {σ : State Unit} {r : ObjRef} {n : Notification} (hI : I
       fun ha hp => hI.refills c y k hky ha hp⟩
   · obtain ⟨y, k, hky, hyt⟩ := hI.back u xu c hku hc
     exact ⟨y, k, hky, hyt, fun h => hI.ne c y k hky (h.elim (hsp c y k hky) id)⟩
+
+theorem singleton_one_eq {α : Type} {a b : α} (h : (({a} : Set α), False) = ({b}, False)) : a = b :=
+  Set.singleton_eq_singleton_iff.1 (congrArg Prod.fst h)
+
+/-- **`NtfnQPre` after the notification's unbinding steps** (the start of
+`cancel_all_signals` in a notification's finalisation), from `NtfnPre`. -/
+theorem ntfnQPre_of_pre {σ σ1 σ2 : State Unit} {r : ObjRef} (h : NtfnPre σ r)
+    (he1 : schedContextMaybeUnbindNtfn (Z := Unit) r σ = ({((), σ1)}, False))
+    (he2 : unbindMaybeNotification (Z := Unit) r σ1 = ({((), σ2)}, False)) : NtfnQPre σ2 r := by
+  obtain ⟨n, hk, hsc, hb, -, hm, hB, hA⟩ := h
+  obtain ⟨σA, hA1, hFA, ⟨nA, hkA, hoA, hbA⟩, htA, haA⟩ := smun_eq hk hsc
+  rw [hA1] at he1
+  obtain rfl : σA = σ1 := congrArg Prod.snd (singleton_one_eq he1)
+  have hbA' : ∀ t, nA.ntfnBoundTcb = some t → ∃ x, σA.kheap t = some (.tcb x) := fun t e => by
+    obtain ⟨x, hx⟩ := hb t (by rw [← hbA]; exact e); exact ⟨x, htA t x hx⟩
+  obtain ⟨σB, hB1, hFB, ⟨nB, hkB, hoB⟩, haB⟩ := umn_eq hkA hbA'
+  rw [hB1] at he2
+  obtain rfl : σB = σ2 := congrArg Prod.snd (singleton_one_eq he2)
+  have hF := hFA.trans hFB
+  have hqB : ntfnQueueOf nB = ntfnQueueOf n := by simp [ntfnQueueOf, hoB, hoA]
+  intro n' hk'
+  rw [hkB] at hk'; cases hk'
+  exact ⟨fun u hu => hF.memOK (hm u (by rw [← hqB]; exact hu)), hF.scBack hB,
+    hF.actReady hA (Or.inl (by rw [haB, haA]))⟩
 
 /-- **The spec's finalisation of a final notification cap has an outcome.** -/
 theorem finNtfn_out {σ : State Unit} {r : ObjRef} (b : Badge) (R : CapRights) (h : NtfnPre σ r) :

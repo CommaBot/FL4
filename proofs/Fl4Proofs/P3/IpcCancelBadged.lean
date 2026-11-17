@@ -48,13 +48,13 @@ set_option maxHeartbeats 2000000 in
 /-- **`restart_thread_if_no_fault` on `IRel`**, keeping the other
 endpoints. -/
 theorem restart_irel (hP0 : IPlaced N T E R B)
-    (hAct : ∀ s σ, IRel st th cr N T C E R B c s σ → ActReady σ)
     (s : S) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ) {t : U64} (ht : t ∈ T)
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hns : tsCode x.tcbState ≠ 6)
-    (hq : ∀ e ∈ E, ∀ z, σ.kheap e.bv = some (.endpoint z) → t.bv ∉ z.epQueue) :
+    (hq : ∀ e ∈ E, ∀ z, σ.kheap e.bv = some (.endpoint z) → t.bv ∉ z.epQueue)
+    (hxs : ScOK σ x) (hBk : ScBack σ) (hAr : ActReady σ) :
     endpoint.restart_thread_if_no_fault st s t ⦃ s' => ∃ σ', ((), σ') ∈ (Fl4Spec.restartThreadIfNoFault (Z := Unit) t.bv σ).1 ∧
       IRel st th cr N T C E R B c s' σ' ∧
-      ∀ p y, σ.kheap p = some (.endpoint y) → σ'.kheap p = some (.endpoint y) ⦄ := by
+      (∀ p y, σ.kheap p = some (.endpoint y) → σ'.kheap p = some (.endpoint y)) ∧ RtFacts σ σ' t.bv x ⦄ := by
   have hP := hP0.e
   have hH := ipcCore_top (st := st) (th := th) (cr := cr) (N := N) (C := C) (c := c) hP
   have hTR := hX.1.toE.at_tcb ht hk
@@ -73,9 +73,28 @@ theorem restart_irel (hP0 : IPlaced N T E R B)
     rw [endpoint_unblock_sporadic_eq]
     refine WP.spec_bind (unblock_irel hP0 s1 _ hX1 t ht) ?_
     rintro s2 ⟨σ2, hu, hf2, hv2, hX2⟩
-    refine WP.spec_mono (switch_top hP0 s2 σ2 hX2.1 hX2.2 (hAct _ _ hX2) t ht) ?_
+    have hkt1 : (stsAct (updK σ t.bv (.tcb { x with tcbState := .restart })) t.bv).kheap t.bv =
+        some (.tcb { x with tcbState := .restart }) := by rw [stsAct_kheap]; simp [updK]
+    obtain ⟨σm, hmm, hktm, hBm, hAm, hTm, htm, hkpm⟩ := restart_tail_mid hk hxs hBk hAr
+    have e2 : σm = σ2 := by
+      have hmem : ((), σm) ∈ (specUnblock t.bv (stsAct (updK σ t.bv (.tcb { x with tcbState := .restart })) t.bv)).1 := by
+        rw [← specSporadicAssert_eq]; unfold specSporadicAssert
+        rw [nd_bind_one (show Fl4Spec.getTcbObjRef (Z := Unit) Fl4Spec.Tcb.tcbSchedContext t.bv _ = _ from
+          threadGet_eq _ hkt1)]
+        exact hmm
+      rw [hu] at hmem
+      exact (Prod.mk.inj (Set.mem_singleton_iff.1 hmem)).2
+    rw [e2] at hktm hBm hAm hTm htm hkpm
+    refine WP.spec_mono (switch_top hP0 s2 σ2 hX2.1 hX2.2 hAm t ht) ?_
     rintro s3 ⟨σ3, hps, hk3, hf3, hv3, hS3⟩
-    refine ⟨σ3, ?_, ⟨hX2.1.frame hP0 hf3 hv3, hS3⟩, fun p y hy => ?_⟩
+    obtain ⟨σ6, he6, hk6, ht6, hr6, ha6⟩ := pst_ok hktm hAm
+    have e3 : σ6 = σ3 := by
+      have h : ((), σ6) ∈ (Fl4Spec.possibleSwitchTo (Z := Unit) t.bv σ2).1 := by rw [he6]; rfl
+      rw [hps] at h; exact (Prod.mk.inj (Set.mem_singleton_iff.1 h)).2
+    rw [e3] at hk6 ht6 hr6 ha6
+    have hRF : RtFacts σ σ3 t.bv x := ⟨(SFr.of_heap hk6 ht6 hr6).scBack hBm, pst_actReady hAm hTm hk6 ht6 hr6 ha6,
+      by rw [ht6, htm], fun p hp hpc => by rw [hk6, hkpm p hp hpc]⟩
+    refine ⟨σ3, ?_, ⟨hX2.1.frame hP0 hf3 hv3, hS3⟩, fun p y hy => ?_, hRF⟩
     · unfold Fl4Spec.restartThreadIfNoFault
       rw [nd_bind_one (threadGet_eq _ hk), hf]
       simp only [↓reduceIte]
@@ -91,7 +110,12 @@ theorem restart_irel (hP0 : IPlaced N T E R B)
     refine WP.spec_mono (set_thread_state_c hH hP0 hP s σ hX.1.toE (IpcRel.toSRN hX.1 hX.2) ht hk hq hns
       .inactive (by decide) sched.TS_INACTIVE hcode) ?_
     rintro s1 ⟨hE1, hS1⟩
-    refine ⟨_, ?_, IpcRel.ofSRN hE1 hS1, fun p y hy => ?_⟩
+    obtain ⟨σi, hei, hBi, hAi, hti, -, hkpi⟩ := inactive_ok hk hBk hAr
+    rw [Notif.setThreadState_eq .inactive hk] at hei
+    have ei := (Prod.mk.inj (singleton_one_eq hei)).2
+    have hRF : RtFacts σ (stsAct (updK σ t.bv (.tcb { x with tcbState := .inactive })) t.bv) t.bv x := by
+      rw [ei]; exact ⟨hBi, hAi, hti, fun p hp _ => hkpi p hp⟩
+    refine ⟨_, ?_, IpcRel.ofSRN hE1 hS1, fun p y hy => ?_, hRF⟩
     · unfold Fl4Spec.restartThreadIfNoFault
       rw [nd_bind_one (threadGet_eq _ hk)]
       simp only [hf, ↓reduceIte]
@@ -171,24 +195,25 @@ def BInv (e b : U64) (σ0 : Fl4Spec.State Unit) (q0 : List Fl4Spec.ObjRef) (x : 
   ∃ σ' y, ∃ kept rest : List U64, IRel st th cr N T C E R B c x.1 σ' ∧ σ'.kheap e.bv = some (.endpoint y) ∧
     y.epQueue = (kept ++ rest).map UScalar.bv ∧ (∀ q, y ≠ .recvEP q) ∧ x.2.1 = rest.headD 0#u64 ∧
     rest.length ≤ x.2.2.val ∧
-    ∀ z, z ∈ (Fl4Spec.NonDet.mapMx (rrb e b) (rest.map UScalar.bv) σ').1 →
-      z ∈ (Fl4Spec.NonDet.mapMx (rrb e b) q0 σ0).1
+    (∀ z, z ∈ (Fl4Spec.NonDet.mapMx (rrb e b) (rest.map UScalar.bv) σ').1 →
+      z ∈ (Fl4Spec.NonDet.mapMx (rrb e b) q0 σ0).1) ∧
+    (∀ u ∈ rest.map UScalar.bv, MemOK σ' u) ∧ ScBack σ' ∧ ActReady σ'
 
 set_option maxHeartbeats 4000000 in
 /-- **The loop of `cancel_badged_sends`** on `IRel`. -/
 theorem badged_loop (hP0 : IPlaced N T E R B)
-    (hAct : ∀ s σ, IRel st th cr N T C E R B c s σ → ActReady σ)
     {e b : U64} (he : e ∈ E) (σ0 : Fl4Spec.State Unit) (q0 : List Fl4Spec.ObjRef) (x0 : S × U64 × U64)
     (h0 : BInv st th cr N T C E R B c e b σ0 q0 x0) :
     endpoint.cancel_badged_sends_loop st x0.1 e b x0.2.1 x0.2.2 ⦃ s' => ∃ σf,
-      ((), σf) ∈ (Fl4Spec.NonDet.mapMx (rrb e b) q0 σ0).1 ∧ IRel st th cr N T C E R B c s' σf ⦄ := by
+      ((), σf) ∈ (Fl4Spec.NonDet.mapMx (rrb e b) q0 σ0).1 ∧ IRel st th cr N T C E R B c s' σf ∧
+      ActReady σf ⦄ := by
   have hP := hP0.e
   have hH := ipcCore_top (st := st) (th := th) (cr := cr) (N := N) (C := C) (c := c) hP
   unfold endpoint.cancel_badged_sends_loop
   apply loop.spec_decr_nat (measure := fun x : S × U64 × U64 => x.2.2.val)
     (inv := BInv st th cr N T C E R B c e b σ0 q0) _ _ x0 ?_ h0
-  rintro ⟨s, t, fuel⟩ ⟨σ', y, kept, rest, hX, hky, hq, hnr, ht, hlen, hinc⟩
-  simp only at hX hky hq hnr ht hlen hinc ⊢
+  rintro ⟨s, t, fuel⟩ ⟨σ', y, kept, rest, hX, hky, hq, hnr, ht, hlen, hinc, hmm, hBk, hAr⟩
+  simp only at hX hky hq hnr ht hlen hinc hmm hBk hAr ⊢
   have hEP := hX.1.toE.at_ep he hky
   obtain ⟨xs, hQ, hxs, hB⟩ := hEP.queue
   have hxs' : xs = kept ++ rest := by
@@ -202,7 +227,7 @@ theorem badged_loop (hP0 : IPlaced N T E R B)
     simp only [List.headD_nil] at ht
     subst ht
     simp only [hbn, decide_true, ↓reduceIte, WP.spec_ok]
-    exact ⟨σ', hinc _ rfl, hX⟩
+    exact ⟨σ', hinc _ rfl, hX, hAr⟩
   | cons t0 rest' =>
     simp only [List.headD_cons] at ht
     subst t
@@ -279,11 +304,20 @@ theorem badged_loop (hP0 : IPlaced N T E R B)
         · exact this.2.2 _ h _ (by simp) rfl
         · exact (List.nodup_cons.1 this.2.1).1 h
       have hq1 := dequeued_not_queued hR1 he hb1 hkyd hnq
-      refine WP.spec_bind (restart_irel hP0 hAct s1 σd hX1 ht0T hktd (by rw [hst]; simp [tsCode]) hq1) ?_
-      rintro s2 ⟨σ'', hres, hX2, hkeep⟩
+      -- the spec's facts at the dequeued state
+      have hFd : SFr σ' σd := SFr.updOther hky (fun _ h => by cases h)
+        (fun _ _ h => by cases h) (fun _ h => by cases h) (fun _ _ h => by cases h)
+      have hBd : ScBack σd := hFd.scBack hBk
+      have hxsd : ScOK σd xt := by
+        obtain ⟨x', hk', hsc⟩ := hFd.memOK (hmm t0.bv (by simp))
+        rw [hktd] at hk'; cases hk'; exact hsc
+      refine WP.spec_bind (restart_irel hP0 s1 σd hX1 ht0T hktd (by rw [hst]; simp [tsCode]) hq1 hxsd hBd
+        (hFd.actReady hAr (Or.inl rfl))) ?_
+      rintro s2 ⟨σ'', hres, hX2, hkeep, hB'', hA'', ht'', hkp''⟩
+      have hnd' : t0 ∉ rest' := (List.nodup_cons.1 (List.nodup_append.1 hnd).2.1).1
       rw [WP.spec_ok]
       refine ⟨⟨σ'', epDeq y t0.bv, kept, rest', hX2, hkeep _ _ hkyd, by rw [hdqq, hrm], hdnr,
-        by rw [hnx, hnext], ?_, ?_⟩, ?_⟩
+        by rw [hnx, hnext], ?_, ?_, fun u hu => ?_, hB'', hA''⟩, ?_⟩
       · rw [hfuel1]; simp only [List.length_cons] at hlen; scalar_tac
       · refine fun z hz => hinc z (mapMx_cons_mem (l := rest'.map UScalar.bv) ?_ z hz)
         show ((), σ'') ∈ (Fl4Spec.removeAndRestartBadgedThread (Z := Unit) t0.bv e.bv b.bv σ').1
@@ -293,10 +327,14 @@ theorem badged_loop (hP0 : IPlaced N T E R B)
           rw [Fl4Spec.blockingIpcBadge, ← hbdg, hm]
         simp only [Fl4Spec.NonDet.when, hb', ↓reduceIte]
         exact ⟨((), σd), by rw [hdq]; rfl, hres⟩
+      · obtain ⟨u0, hu0, rfl⟩ := List.mem_map.1 hu
+        exact memOK_after hktd hBd (fun h => hnd' (eq_of_bv h ▸ hu0))
+          (hFd.memOK (hmm _ (List.mem_map_of_mem (List.mem_cons_of_mem _ hu0)))) hkp'' ht''
       · rw [hfuel1]; scalar_tac
     · -- kept
       simp only [hm, ↓reduceIte, WP.spec_ok]
-      refine ⟨⟨σ', y, kept ++ [t0], rest', hX, hky, by rw [hq]; simp, hnr, by rw [hnx, hnext], ?_, ?_⟩, ?_⟩
+      refine ⟨⟨σ', y, kept ++ [t0], rest', hX, hky, by rw [hq]; simp, hnr, by rw [hnx, hnext], ?_, ?_,
+        fun u hu => hmm u (by simp only [List.map_cons, List.mem_cons]; exact Or.inr hu), hBk, hAr⟩, ?_⟩
       · rw [hfuel1]; simp only [List.length_cons] at hlen; scalar_tac
       · refine fun z hz => hinc z (mapMx_cons_mem (l := rest'.map UScalar.bv) ?_ z hz)
         show ((), σ') ∈ (Fl4Spec.removeAndRestartBadgedThread (Z := Unit) t0.bv e.bv b.bv σ').1
@@ -311,12 +349,13 @@ theorem badged_loop (hP0 : IPlaced N T E R B)
 set_option maxHeartbeats 4000000 in
 /-- **`cancel_badged_sends` on `IRel`.** -/
 theorem cancel_badged_irel (hP0 : IPlaced N T E R B)
-    (hAct : ∀ s σ, IRel st th cr N T C E R B c s σ → ActReady σ)
-    (s : S) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ) {e : U64} (he : e ∈ E) (b : U64) :
+    (s : S) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ) {e : U64} (he : e ∈ E) (b : U64)
+    (hpre : EpQPre σ e.bv) :
     endpoint.cancel_badged_sends st s e b ⦃ s' => ∃ σ',
       ((), σ') ∈ (Fl4Spec.cancelBadgedSends (Z := Unit) e.bv b.bv σ).1 ∧ IRel st th cr N T C E R B c s' σ' ⦄ := by
   have hP := hP0.e
   obtain ⟨y, hky, hEP⟩ := hX.1.toE.ep e he
+  obtain ⟨hm0, hB0, hA0⟩ := hpre y hky
   unfold endpoint.cancel_badged_sends
   step with obj.Ep.state.spec as ⟨i, hi⟩
   rw [epState_eq] at hi
@@ -347,10 +386,11 @@ theorem cancel_badged_irel (hP0 : IPlaced N T E R B)
     have hI0 : BInv st th cr N T C E R B c e b σ q (s, qq.head, layout.WALK_FUEL) :=
       ⟨σ, .sendEP q, [], xs, hX, hky, by rw [hqx]; rfl, (fun q' e' => by cases e'),
         by rw [hqq, epQ_eq, hQ.head], by rw [hfuel]; exact len_le_max xs hQ.nodup (hQ.ne0 hP.tcb),
-        fun z hz => by rw [hqx]; exact hz⟩
-    refine WP.spec_bind (badged_loop hP0 hAct he σ q _ hI0) ?_
-    rintro s1 ⟨σf, hmf, hXf⟩
-    refine WP.spec_mono (resched_irel hP0 s1 σf hXf (hAct _ _ hXf)) ?_
+        fun z hz => by rw [hqx]; exact hz, fun u hu => hm0 u (by show u ∈ q; rw [hqx]; simpa using hu),
+        hB0, hA0⟩
+    refine WP.spec_bind (badged_loop hP0 he σ q _ hI0) ?_
+    rintro s1 ⟨σf, hmf, hXf, hAf⟩
+    refine WP.spec_mono (resched_irel hP0 s1 σf hXf hAf) ?_
     rintro s2 ⟨σr, hrs, -, hX2⟩
     refine ⟨σr, ?_, hX2⟩
     rw [hsp (pure ())]
@@ -375,18 +415,19 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type}
 set_option maxHeartbeats 4000000 in
 /-- **`XCancelBadgedHyp`**: the caller's restart then `cancel_badged_sends`
 on `IRel` at every `Z` the entry's `XTopAt` holds at. Named, at `Z`:
-`KsApart`, `BufWordRel`, the placement, the caller in `Z.T`, the endpoint in `Z.E`, the
-switch target ready on `IRel`. -/
+`KsApart`, `BufWordRel`, the placement, the caller in `Z.T`, the endpoint in `Z.E`; and
+at the entry's spec state the endpoint's queued threads' facts, `ScBack`,
+`ActReady` (`EpQPre`), the caller not the switch target. -/
 theorem xCancelBadged {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit} {ct : U64}
     (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
     (hrun : tsCode xt.tcbState < 3)
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False)) {p b : U64}
     (hZ : ∀ Z : XSets, XTopAt (L := L) AR Z s ar σ → KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s) ∧
-      BufWordRel Z.T (L.mem s) σ ∧ IPlaced Z.N Z.T Z.E Z.R Z.B ∧ ct ∈ Z.T ∧ p ∈ Z.E ∧
-      ∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → ActReady σ') :
+      BufWordRel Z.T (L.mem s) σ ∧ IPlaced Z.N Z.T Z.E Z.R Z.B ∧ ct ∈ Z.T ∧ p ∈ Z.E)
+    (hQ : Sched.EpQPre σ p.bv) (hsw : ∀ u, σ.schedulerAction = .switchThread u → u ≠ ct.bv) :
     XCancelBadgedHyp (L := L) AR s ar σ σ1 ct p b := by
   rintro ⟨Z, hX⟩
-  obtain ⟨hKA, hBT, hP0, hct, hp, hAct⟩ := hZ Z hX
+  obtain ⟨hKA, hBT, hP0, hct, hp⟩ := hZ Z hX
   have hI := hX.irelK hKA hBT
   have hP := hP0.e
   -- the leaf on `IRel`, with the arch state returned unchanged
@@ -412,7 +453,7 @@ theorem xCancelBadged {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {ar : A} {σ σ1
       simp only [Set.mem_singleton_iff, Prod.mk.injEq, true_and, iff_true] at this
       simpa using this.symm
     subst hσ1
-    refine WP.spec_bind (cancel_badged_irel hP0 hAct s1 _ (IpcRel.ofSRN hE1 hS1) hp b) ?_
+    refine WP.spec_bind (cancel_badged_irel hP0 s1 _ (IpcRel.ofSRN hE1 hS1) hp b (Sched.epQPre_restart hkt hQ hsw)) ?_
     rintro s2 ⟨σ2, hm, hX2⟩
     rw [WP.spec_ok]
     exact ⟨⟨rfl, ((), σ2), hm, (SRT.relTop hX2).1, hX2⟩, rfl⟩

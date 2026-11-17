@@ -11,8 +11,10 @@ slots kept** (toward `XFinHyps.ntfn`).
   `cancel_all_signals_irel`), at `Z.mv Z.G V'` (`XTopAt.irel_same`), the
   spec's finalisation keeping the caps (`finNtfn_nkc`). Named (`NtfnFinPre`,
   at the `XTopAt` states): `BufWordRel`, the IPC placement, `NSC`, the SC
-  back-links, the switch targets ready at the `IRel` states (as
-  `cancel_badged_irel`), the notification caps' objects among `Z.N`.
+  back-links, the spec's facts of `cancel_all_signals` at each notification
+  of `Z.N` (`NtfnPre`: its queued threads' SCs ready and sufficient,
+  `ScBack`, `ActReady`; carried to the loop by `ntfnQPre_of_pre`), the
+  notification caps' objects among `Z.N`.
 -/
 import Fl4Proofs.P3.IpcSlotsSame
 import Fl4Proofs.P3.IpcCancelSignals
@@ -170,7 +172,7 @@ def NtfnFinPre (Z : XSets) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
   BufWordRel Z.T (L.mem s) σ ∧ IPlaced Z.N Z.T Z.E Z.R Z.B ∧ NSC Z.N Z.C σ ∧
   (∀ n ∈ Z.N, ∀ xn p, σ.kheap n.bv = some (.notification xn) → xn.ntfnSc = some p →
     ∃ y m, σ.kheap p = some (.schedContext y m) ∧ y.scNtfn = some n.bv) ∧
-  (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → ActReady σ') ∧
+  (∀ n ∈ Z.N, NtfnPre σ n.bv) ∧
   ∀ sl p b w r, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.Notification p b w r) → p ∈ Z.N
 
 set_option maxHeartbeats 8000000 in
@@ -193,7 +195,7 @@ theorem xFinNtfn_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
   rintro s1 ⟨σ1, he1, hI1, hk1⟩
   refine WP.spec_bind (unbind_maybe_irel hP0 hI1 hp) ?_
   rintro s2 ⟨σ2, he2, hI2, hk2⟩
-  refine WP.spec_bind (cancel_all_signals_irel hP0 hAct s2 σ2 hI2 hp) ?_
+  refine WP.spec_bind (cancel_all_signals_irel hP0 s2 σ2 hI2 hp (ntfnQPre_of_pre (hAct p hp) he1 he2)) ?_
   rintro s3 ⟨σ3, hm3, hI3, hk3⟩
   rw [WP.spec_ok]
   have hmem : ((absCap capability.Cap.Null, absCap capability.Cap.Null), σ3) ∈

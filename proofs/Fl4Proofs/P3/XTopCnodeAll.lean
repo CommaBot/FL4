@@ -98,8 +98,8 @@ theorem decode_invocation_cnodeX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask
     (hcur : σ.curThread = ct.bv)
     (hrun : ∀ xt, σ.kheap ct.bv = some (.tcb xt) → tsCode xt.tcbState < 3)
     (hZ : ∀ Z' : XSets, XTopAt (L := L) AR Z' s ar σ → KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s) ∧
-      BufWordRel Z'.T (L.mem s) σ ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧ ct ∈ Z'.T ∧
-      ∀ s' σ', IRel st Z'.th σ.archState.x64CurrentCr3 Z'.N Z'.T Z'.C Z'.E Z'.R Z'.B Z'.c s' σ' → ActReady σ')
+      BufWordRel Z'.T (L.mem s) σ ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧ ct ∈ Z'.T)
+    (hQ : ∀ e, EpQPre σ e) (hsw : ∀ u, σ.schedulerAction = .switchThread u → u ≠ ct.bv)
     (hE : ∀ (Z' : XSets) (e b : U64) (sl : Fl4Spec.CslotPtr), XTopAt (L := L) AR Z' s ar σ → AbsSlot Z.th sl →
       capV (L.mem s) (cslotAddr sl) = .Endpoint e b true true true true → e ∈ Z'.E)
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
@@ -127,7 +127,7 @@ theorem decode_invocation_cnodeX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask
   · have e : lbl = fl4_abi.label.CNodeCancelBadgedSends := UScalar.eq_of_val_eq (by rw [h, lbl_cancel_val])
     subst e
     exact decode_invocation_cnode_cancelXI arI s ar σ hX hC slbl (by rw [hlbl]; simp [cnodeLabelOf]) length buf ct
-      hct args hlen hargs p r gs g hwf hcv extra excaps hact hcur hrun hZ hE slot blk call don fp ci sl buffer
+      hct args hlen hargs p r gs g hwf hcv extra excaps hact hcur hrun hZ hQ hsw hE slot blk call don fp ci sl buffer
 
 end
 
