@@ -23,9 +23,9 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 
 /-- **`delete(slot, true)` refines `cap_delete`**, with `W` and the
 readiness `Rd` threaded. -/
-theorem delete_fullWR (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+theorem delete_fullWR (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) (hP : Placed th)
-    (hF : FinalHyp (L := L) th) (hH : DelHypsWR (L := L) arI W Rd th)
+    (hF : FinalHyp (L := L) th) (hH : DelHypsWR (L := L) arI W Wp Rd th)
     (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK6 : 6 ≤ K)
     (sl : Fl4Spec.CslotPtr) (hA : AbsSlot th sl) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hDS : DState (L := L) th s σ G) (hWs : W s a σ G) (hxn : capV (L.mem s) (cslotAddr sl) ≠ .Null)
@@ -37,12 +37,12 @@ theorem delete_fullWR (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
           psiD (L.mem r.2.1) G' < psiD (L.mem s) G ∧ capV (L.mem r.2.1) (cslotAddr sl) = .Null ∧
           ∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgZ (L.mem s) (L.mem r.2.1) y) ∨
         (r.1 = .Err .Preempted ∧ (.error (), σ') ∈ ((Fl4Spec.capDelete (Z := Unit) sl).run σ).1)) ∧
-      W r.2.1 r.2.2 σ' G' ⦄ := by
+      WPost W Wp r.1 r.2.1 r.2.2 σ' G' ⦄ := by
   unfold cdt.delete cdt.finalise_slot_immediate
   simp only [↓reduceIte]
   have hW : layout.WALK_FUEL.val = 2 ^ 64 - 1 := by simp [layout.WALK_FUEL, U64.rMax]
   have hnu := nuX_le hK hK6 hDS.2.1 hA.isSlot (K := K)
-  apply WP.spec_bind (immediate_loop arI W Rd th hP hF hH K hK hK6 sl hA s σ G s a layout.WALK_FUEL
+  apply WP.spec_bind (immediate_loop arI W Wp Rd th hP hF hH K hK hK6 sl hA s σ G s a layout.WALK_FUEL
     ⟨σ, G, hDS, by simp only; rw [hW]; omega, le_refl _, le_refl _, fun h => absurd h hxn, fun _ h => h,
       fun _ _ _ => ChgZ.refl _ _, MdbStep.refl hDS.1.2.2.1, hWs⟩
     (by rw [hW]))
@@ -81,7 +81,8 @@ theorem delete_fullW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) 
           ∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgZ (L.mem s) (L.mem r.2.1) y) ∨
         (r.1 = .Err .Preempted ∧ (.error (), σ') ∈ ((Fl4Spec.capDelete (Z := Unit) sl).run σ).1)) ∧
       W r.2.1 r.2.2 σ' G' ⦄ :=
-  delete_fullWR arI W RdT th hP hF (hH.toR arI) K hK hK6 sl hA s a σ G hDS hWs hxn hbound
+  WP.spec_mono (delete_fullWR arI W W RdT th hP hF (hH.toR arI) K hK hK6 sl hA s a σ G hDS hWs hxn hbound)
+    fun _ ⟨σ', G', h1, h2, h3, h4, h5, h6⟩ => ⟨σ', G', h1, h2, h3, h4, h5, WPost_self.1 h6⟩
 
 /-- **`delete(slot, true)` refines `cap_delete`.** -/
 theorem delete_full (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L) th)
@@ -149,18 +150,19 @@ theorem delHyp_full (th : TypedHeap) (hP : Placed th) (hF : FinalHyp (L := L) th
 
 /-- **`DelHypW` holds** for the measure `psiD` and the invariant `DelE` with
 `W` (W-threading, with the readiness `Rd`). -/
-theorem delHyp_fullWR (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+theorem delHyp_fullWR (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) (hP : Placed th)
-    (hF : FinalHyp (L := L) th) (hH : DelHypsWR (L := L) arI W Rd th)
+    (hF : FinalHyp (L := L) th) (hH : DelHypsWR (L := L) arI W Wp Rd th)
     (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK6 : 6 ≤ K) :
-    DelHypW (L := L) arI psiD th (fun s a σ G => DelE (L := L) th K s σ ∧ W s a σ G) := by
+    DelHypW (L := L) arI psiD th (fun s a σ G => DelE (L := L) th K s σ ∧ W s a σ G)
+      (fun s a σ G => DelE (L := L) th K s σ ∧ Wp s a σ G) := by
   intro s a σ G c hCR ⟨⟨hD, hB, hKT, hFM⟩, hWs⟩ hA hxm
   have hxn : capV (L.mem s) (cslotAddr c) ≠ .Null := ((mem_nnS hCR.2.2.1 _).1 (List.mem_toFinset.2 hxm)).2
-  refine WP.spec_mono (delete_fullWR arI W Rd th hP hF hH K hK hK6 c hA s a σ G
+  refine WP.spec_mono (delete_fullWR arI W Wp Rd th hP hF hH K hK hK6 c hA s a σ G
     ⟨hCR, hD, hKT, hFM G hCR.2.2.1⟩ hWs hxn (hB G hCR.2.2.1)) ?_
   rintro r ⟨σ', G', ⟨hCR', hD', hFI'⟩, hps', -, hmS', hcase, hW'⟩
-  refine ⟨σ', G', ?_, hCR', ⟨⟨hD', fun G'' hM'' => ?_, hFI'.kt,
-    fun G'' hM'' => FinM.of_links hP hCR'.2.2.1 hM'' hFI'.fm⟩, hW'⟩, hmS'⟩
+  refine ⟨σ', G', ?_, hCR', WPost.andL (P := fun s _ σ _ => DelE (L := L) th K s σ) ⟨hD', fun G'' hM'' => ?_, hFI'.kt,
+    fun G'' hM'' => FinM.of_links hP hCR'.2.2.1 hM'' hFI'.fm⟩ hW', hmS'⟩
   · rcases hcase with ⟨h1, h2, h3, -⟩ | ⟨h1, h2⟩
     · exact Or.inl ⟨h1, h2, h3⟩
     · exact Or.inr ⟨h1, h2⟩
@@ -174,17 +176,20 @@ theorem delHyp_fullWR (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
 theorem delHyp_fullW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (hP : Placed th)
     (hF : FinalHyp (L := L) th) (hH : DelHypsW (L := L) arI W th)
     (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK6 : 6 ≤ K) :
-    DelHypW (L := L) arI psiD th (fun s a σ G => DelE (L := L) th K s σ ∧ W s a σ G) :=
-  delHyp_fullWR arI W RdT th hP hF (hH.toR arI) K hK hK6
+    DelHypW (L := L) arI psiD th (fun s a σ G => DelE (L := L) th K s σ ∧ W s a σ G)
+      (fun s a σ G => DelE (L := L) th K s σ ∧ W s a σ G) :=
+  delHyp_fullWR arI W W RdT th hP hF (hH.toR arI) K hK hK6
 
 /-- The preemption point keeps `DelE` and `W`. -/
-theorem rppHyp_fullW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (K : Nat)
-    (hPP : PPHypDW (L := L) arI W th) :
-    RPPHypW (L := L) arI th (fun s a σ G => DelE (L := L) th K s σ ∧ W s a σ G) := by
+theorem rppHyp_fullW (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (K : Nat)
+    (hPP : PPHypDW (L := L) arI W Wp th) :
+    RPPHypW (L := L) arI th (fun s a σ G => DelE (L := L) th K s σ ∧ W s a σ G)
+      (fun s a σ G => DelE (L := L) th K s σ ∧ Wp s a σ G) := by
   intro s a σ G hCR ⟨⟨hD, hB, hKT, hFM⟩, hWs⟩
   refine WP.spec_mono (hPP s a σ G ⟨hCR, hD, hKT, hFM G hCR.2.2.1⟩ hWs) ?_
   rintro r ⟨hS, σ', hcase, hCR', hW'⟩
-  refine ⟨hS, σ', hcase, hCR', ⟨hD.of_same hS, fun G'' hM'' => ?_, hKT.sub (pp_ksub hcase), finM_same hFM hS⟩, hW'⟩
+  refine ⟨hS, σ', hcase, hCR', WPost.andL (P := fun s _ σ _ => DelE (L := L) th K s σ)
+    ⟨hD.of_same hS, fun G'' hM'' => ?_, hKT.sub (pp_ksub hcase), finM_same hFM hS⟩ hW'⟩
   rw [psiD_links_eq hM'' (hCR.2.2.1.of_same hS), psiD_same hCR.2.2.1 (hCR.2.2.1.of_same hS) hS]
   exact hB G hCR.2.2.1
 

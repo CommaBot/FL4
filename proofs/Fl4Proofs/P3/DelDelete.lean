@@ -15,7 +15,7 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
 /-- What `delete_deferred` ends with. -/
-def DDPost (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) (sl : Fl4Spec.CslotPtr)
+def DDPost (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) (sl : Fl4Spec.CslotPtr)
     (res : core.result.Result Unit error.Exc × S × A) : Prop :=
   ∃ σ' G', DState (L := L) th res.2.1 σ' G' ∧ (nnS G').card ≤ (nnS G).card ∧
     psiD (L.mem res.2.1) G' ≤ psiD (L.mem s) G ∧
@@ -24,17 +24,17 @@ def DDPost (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : Type
     ((res.1 = .Ok () ∧ (∃ v, RD (.cTEDeleteCall sl false) σ (.ok v, σ')) ∧
         (capV (L.mem res.2.1) (cslotAddr sl) = .Null ∨ HomeZ (L.mem res.2.1) (cslotAddr sl))) ∨
       (res.1 = .Err .Preempted ∧ RD (.cTEDeleteCall sl false) σ (.error (), σ'))) ∧
-    W res.2.1 res.2.2 σ' G'
+    WPost W Wp res.1 res.2.1 res.2.2 σ' G'
 
-theorem delete_deferred_refines (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+theorem delete_deferred_refines (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap)
-    (hP : Placed th) (hF : FinalHyp (L := L) th) (hH : DelHypsWR (L := L) arI W Rd th)
+    (hP : Placed th) (hF : FinalHyp (L := L) th) (hH : DelHypsWR (L := L) arI W Wp Rd th)
     (sl : Fl4Spec.CslotPtr) (hA : AbsSlot th sl) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hDS : DState (L := L) th s σ G) (hW : W s a σ G) (hfuel : psiD (L.mem s) G < 2 ^ 64 - 1) :
-    cdt.delete_deferred st arI s a (cslotAddr sl) ⦃ res => DDPost (L := L) W th s σ G sl res ⦄ := by
+    cdt.delete_deferred st arI s a (cslotAddr sl) ⦃ res => DDPost (L := L) W Wp th s σ G sl res ⦄ := by
   unfold cdt.delete_deferred cdt.finalise_slot_deferred
   have hWF : layout.WALK_FUEL.val = 2 ^ 64 - 1 := by simp [layout.WALK_FUEL, U64.rMax]
-  apply WP.spec_bind (deferred_loop arI W Rd th hP hF hH sl hA s σ G s a layout.WALK_FUEL
+  apply WP.spec_bind (deferred_loop arI W Wp Rd th hP hF hH sl hA s σ G s a layout.WALK_FUEL
     ⟨σ, G, hDS, by simp only; rw [hWF]; exact hfuel, le_refl _, le_refl _, fun _ h => h,
       fun _ _ _ => ChgOK.refl _ _, StrictChg.refl _ _ _, MdbStep.refl hDS.1.2.2.1, hW⟩)
   rintro ⟨r, s1, a1⟩ ⟨σ1, G1, hDS1, hcd1, hps1, hch1, hsc1, hmS1, hres, hW1⟩

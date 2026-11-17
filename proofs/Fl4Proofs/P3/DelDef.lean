@@ -207,7 +207,7 @@ def DefInv (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : Type
     W x.1 x.2.1 σ G
 
 /-- What `finalise_slot_deferred` ends with. -/
-def DefPost (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+def DefPost (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) (sl : Fl4Spec.CslotPtr) (s0 : S) (σ0 : Fl4Spec.State Unit) (G0 : MdbGhost)
     (res : core.result.Result cdt.Finalised error.Exc × S × A) : Prop :=
   ∃ σ' G', DState (L := L) th res.2.1 σ' G' ∧ (nnS G').card ≤ (nnS G0).card ∧
@@ -221,16 +221,16 @@ def DefPost (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
         RD (.finaliseSlotCall sl false) σ0
           (.ok (f.success, if f.success then absCap f.cleanup else .nullCap), σ')) ∨
       (res.1 = .Err .Preempted ∧ RD (.finaliseSlotCall sl false) σ0 (.error (), σ'))) ∧
-    W res.2.1 res.2.2 σ' G'
+    WPost W Wp res.1 res.2.1 res.2.2 σ' G'
 
 /-- **FL4's deferred finalisation loop refines `finalise_slot slot False`.** -/
-theorem deferred_loop (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+theorem deferred_loop (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) (hP : Placed th)
-    (hF : FinalHyp (L := L) th) (hH : DelHypsWR (L := L) arI W Rd th)
+    (hF : FinalHyp (L := L) th) (hH : DelHypsWR (L := L) arI W Wp Rd th)
     (sl : Fl4Spec.CslotPtr) (hA : AbsSlot th sl) (s0 : S) (σ0 : Fl4Spec.State Unit) (G0 : MdbGhost)
     (s : S) (a : A) (fuel : U64) (hinv : DefInv (L := L) W th sl s0 σ0 G0 (s, a, fuel)) :
     cdt.finalise_slot_deferred_loop st arI s a (cslotAddr sl) fuel ⦃ res =>
-      DefPost (L := L) W Rd th sl s0 σ0 G0 res ⦄ := by
+      DefPost (L := L) W Wp Rd th sl s0 σ0 G0 res ⦄ := by
   unfold cdt.finalise_slot_deferred_loop
   refine loop.spec_decr_nat (fun x => x.2.2.val) (DefInv (L := L) W th sl s0 σ0 G0) _ _ _ ?_ hinv
   rintro ⟨s, a, fuel⟩ ⟨σ, G, hDS, hlt, hcd, hps, htr, hch, hsc, hmS, hW⟩

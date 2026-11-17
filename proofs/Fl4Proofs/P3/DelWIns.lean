@@ -138,7 +138,7 @@ theorem delHypsW_Q {Q : (U64 → U64) → MdbGhost → Prop} (hQ : ∀ m G m' G'
     exact ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, hQ _ _ _ _ h8 hW⟩
   · refine WP.spec_mono (hPP s a σ G hDS) ?_
     rintro r ⟨hS, σ', hc, hCR⟩
-    exact ⟨hS, σ', hc, hCR, hQ _ _ _ _ (MdbStep.of_same hDS.1.2.2.1 hS) hW⟩
+    exact ⟨hS, σ', hc, hCR, WPost_self.2 (hQ _ _ _ _ (MdbStep.of_same hDS.1.2.2.1 hS) hW)⟩
   · refine WP.spec_mono (hPD s a σ G cl hDS h1 h2 h3) ?_
     rintro r ⟨hS, σ', hc, hCR⟩
     exact ⟨hS, σ', hc, hCR, hQ _ _ _ _ (MdbStep.of_same hDS.1.2.2.1 hS) hW⟩
