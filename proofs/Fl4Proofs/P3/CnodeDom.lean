@@ -50,7 +50,7 @@ theorem dk_spec_cnode {fp : Bool} {slbl : Data} {args : List Data} {ci : CapRef}
   intro inv σ1 hd he y hy
   have h1 := setThreadState_dom hkt he
   obtain ⟨c, rfl⟩ := hd.okAll (okAll_specDec_cnodeK fp slbl args ci sl p r gs g excaps buffer)
-  have h2 := dke_fl4PerformCnode blk call don c σ1 y hy
+  have h2 := Vs.DK.dom (dke_fl4PerformCnode blk call don c) hy
   exact ⟨h2.1.trans h1.1, h2.2.trans h1.2⟩
 
 section
