@@ -183,7 +183,7 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
   have hB' : BlockedScActive σ' := bsa_configure J.bsa (hcur ▸ hkc) hrun (hcur ▸ hm1) hm2
   -- the configured SC is the extra cap's
   obtain ⟨p, sb, hcap, hpq⟩ : ∃ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) ∧ p.bv = q := by
-    rcases hex with ⟨-, he⟩ | ⟨-, c, a1, rest', hc, hCR, -, he⟩
+    rcases hex with ⟨-, he⟩ | ⟨-, -, c, a1, rest', hc, hCR, -, he⟩
     · rw [he] at hex'; cases hex'
     rw [he] at hex'
     injection hex' with ha
@@ -495,7 +495,7 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     · have hg : Fl4Spec.genInvocationType slbl = .schedContextBind := by rw [hlbl, l]; unfold scLabelOf; simp
       simp only [Fl4Spec.decodeSchedContextInvocation, hg] at hrun
       obtain ⟨a0, rest, hex', rfl⟩ := (retP_bindHead _ _).of_run hrun
-      rcases hex with ⟨-, he⟩ | ⟨hx0n, c, a1, rest', hc, hCR, hCV, he⟩
+      rcases hex with ⟨-, he⟩ | ⟨hx0n, -, c, a1, rest', hc, hCR, hCV, he⟩
       · rw [he] at hex'; cases hex'
       rw [he] at hex'
       injection hex' with ha

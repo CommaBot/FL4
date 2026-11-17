@@ -220,7 +220,7 @@ theorem io_target_tail (th : TypedHeap) (kb : U64)
     (c : capability.Cap) (ac : Fl4Spec.Cap) (hca : CapRel c ac) (hcv : CapValid th c) (idx dep : U64)
     (ks : Fl4Spec.CslotPtr → Fl4Spec.SEMonad Unit Fl4Spec.ArchInvocation)
     (K : obj.Slot → Result (core.result.Result Unit error.Exc × S × A))
-    (hK : ∀ dsl pd, dsl.1 = pd.bv → th pd = some (.cnode dsl.2.length) →
+    (hK : ∀ dsl pd, dsl.1 = pd.bv → th pd = some (.cnode dsl.2.length) → CnRef th (L.mem s) c pd →
       capAt (L.mem s) (cslotAddr dsl) = ok .Null →
       K (cslotAddr dsl) ⦃ res => IoCPost (L := L) arI th kb σ (ks dsl) s ar res ⦄) :
     (do
@@ -260,7 +260,7 @@ theorem io_target_tail (th : TypedHeap) (kb : U64)
     cases e1 with
     | error _ => exact hrel1.elim
     | ok dsl =>
-      obtain ⟨rfl, pd, hpd1, hpd, -⟩ := hrel1
+      obtain ⟨rfl, pd, hpd1, hpd, hpdr⟩ := hrel1
       obtain ⟨cd, ad, hcd, hcad, hgd⟩ := hR.slot_cap (Z := Unit) hpd1 hpd
       unfold cdt.ensure_empty_slot
       simp only [slot_cap_eq, hcd, bind_ok]
@@ -281,7 +281,7 @@ theorem io_target_tail (th : TypedHeap) (kb : U64)
       rw [cap_is_null_null]
       simp only [bind_ok, ↓reduceIte, core.result.Result.Insts.CoreOpsTry.branch]
       refine IoCPost.congr (run_bind_ok hee _) ?_
-      exact hK dsl pd hpd1 hpd hcd
+      exact hK dsl pd hpd1 hpd hpdr hcd
 
 theorem MaskPost.slotsSame {th : TypedHeap} (hP : Placed th) {kb : U64} (hL : IoLayout th kb) {s s' : S}
     {low high : U64} {set : Bool} (h : MaskPost (L := L) kb low high set s s') : SlotsSame th (L.mem s) (L.mem s') :=
@@ -358,7 +358,7 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
     exact IoCPost.err (e := .Sys .TruncatedMessage) (e' := .truncatedMessage) rfl (Or.inl trivial)
   rw [if_neg h4]
   rw [hx0]; simp only [bind_ok, is_null_eq]
-  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, c0, ac0, erest, hc0, hca0, hcv0, rfl⟩
+  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, hx0s, c0, ac0, erest, hc0, hca0, hcv0, rfl⟩
   · simp only [decide_true, ↓reduceIte, error.truncated, bind_ok]
     rw [if_neg (show ¬ ((args.map UScalar.bv).length ≥ 4 ∧ ([] : List Fl4Spec.Cap).length ≥ 1) by simp)]
     exact IoCPost.err (e := .Sys .TruncatedMessage) (e' := .truncatedMessage) rfl (Or.inl trivial)
@@ -426,7 +426,7 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
   have hfree' : ∀ p, first.val ≤ p → p ≤ last.val → bitOf (L.mem s) (L.ksb s) p = false := by
     simpa using hb.symm
   refine io_target_tail arI th (L.ksb s) s ar σ hR hV c0 ac0 hca0 hcv0 y2 y3 _ _ ?_
-  intro dsl pd hpd1 hpd hdst
+  intro dsl pd hpd1 hpd hpdr hdst
   obtain ⟨da, db⟩ := dsl
   simp only at hpd1 hpd; subst hpd1
   -- `set_thread_state Restart`
@@ -483,7 +483,8 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
         (by rw [hk3]; exact (MdbStep.same_left hM hS23 hSt4).okv hFR)
         (fun y hy hne => by rw [hcap4 y hy, if_neg hne]) hdst3
         (fun p sb fi d h => by rw [hcap4 _ hAd.isSlot, if_pos rfl] at h; cases h)
-        (typedKept_set hcap4 (Or.inl rfl)) hdi)
+        (typedKept_set hcap4 (Or.inl rfl))
+        ((DestLive.of_cnRef hpdr ⟨x0, hx0s, capV_of_capAt hc0⟩).same hS23 hk3) hdi)
   have hkeep := capInsert_keeps (absCap (.IoPort first last 0#u64)) (ps.bv, idxs) (pd.bv, db) σ2 ((), σ')
     (by rw [hci]; rfl)
   have hIo4 : IoRel (L.mem s4) (L.ksb s) σ' := by

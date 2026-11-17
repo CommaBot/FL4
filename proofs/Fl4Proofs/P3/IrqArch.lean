@@ -99,7 +99,7 @@ theorem ctl_finish (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.State
     {ps : U64} {rs : Nat} (hps : th ps = some (.cnode rs)) {idxs : List Bool} (hls : idxs.length = rs)
     (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok .IrqControl)
     (dsl : Fl4Spec.CslotPtr) (pd : U64) (hpd1 : dsl.1 = pd.bv) (hpd : th pd = some (.cnode dsl.2.length))
-    (hdst : capAt (L.mem s) (cslotAddr dsl) = ok .Null)
+    (hdst : capAt (L.mem s) (cslotAddr dsl) = ok .Null) (hDL : DestLive th (L.mem s) (L.ksb s) pd)
     (s1 : S) (σ1 : Fl4Spec.State Unit) (hkb : L.ksb s1 = L.ksb s) (hS : SlotsSame th (L.mem s) (L.mem s1))
     (hCR1 : CRel th (L.mem s1) σ1 G) (hIR1 : IrqRel (L.mem s1) (L.ksb s) σ1)
     (hw : ∀ i : U64, i.val < 128 → L.mem s1 (irqStA (L.ksb s) i) = L.mem s (irqStA (L.ksb s) i))
@@ -130,7 +130,7 @@ theorem ctl_finish (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.State
   have hFI1 : FinInv th (L.mem s1) σ1' G := hFI.of_same hCR.2.2.1 hS (hK1.trans (KSub.of_kheap hk))
   have hFR1 : MdbOKV (L.ksb s1) (L.mem s1) G := by rw [hkb]; exact MdbOKV.of_same hCR.2.2.1 hS hFR
   refine WP.spec_mono (invoke_ctl_rel arI th hP s1 a1 σ1' G hCR1' hL1 hIR2 hHA1 hFI1 hFR1 hmask irq hirq hin1 hps hpd
-    hls rfl hsrc1 hdst1) ?_
+    hls rfl hsrc1 hdst1 (hDL.same hS hkb)) ?_
   rintro ⟨s2, a2⟩ ⟨σ', G', hmem, hCR', hIR', -, hFI', hHA', hFR', hstp⟩
   exact ⟨σ', G', hmem, hCR', by rw [← hkb]; exact hIR', hFI', by rw [← hkb]; exact hHA', by rw [← hkb]; exact hFR',
     hstp⟩
@@ -207,7 +207,7 @@ theorem irq_msi_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ :
   unfold Fl4Spec.archDecodeIrqControlInvocation
   rw [if_neg (show ¬ Fl4Spec.invocationType slbl = .archInvocationLabel .x64IRQIssueIRQHandlerIOAPIC by
     rw [hlbl]; decide), if_pos hlbl]
-  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, c0, ac0, erest, hc0, hca0, hcv0, rfl⟩
+  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, hx0s, c0, ac0, erest, hc0, hca0, hcv0, rfl⟩
   · simp only [decide_true, ↓reduceIte, error.truncated, bind_ok]
     rw [if_neg (show ¬ ((args.map UScalar.bv).length ≥ 7 ∧ ([] : List Fl4Spec.Cap).length ≥ 1) by simp)]
     exact CPost.err (e' := .truncatedMessage) rfl (Or.inl trivial)
@@ -270,7 +270,7 @@ theorem irq_msi_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ :
   rw [whenE_neg (by simp [hact0])]
   refine CPost.congr (run_bind_ok (m := (Fl4Spec.NonDetE.returnOk () : Fl4Spec.SEMonad Unit Unit)) rfl _) ?_
   refine target_tail arI _ th (L.ksb s) s ar σ hR hV c0 ac0 hca0 hcv0 y0 y1 _ _ ?_
-  intro dsl pd hpd1 hpd hdst
+  intro dsl pd hpd1 hpd hpdr hdst
   try rw [if_pos rfl]
   unfold interrupt.check_msi
   simp only [hct, hargs 2#u64 y2 (by simp), hargs 3#u64 y3 (by simp), hargs 4#u64 y4 (by simp), bind_ok]
@@ -327,7 +327,7 @@ theorem irq_msi_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ :
   let σb : Fl4Spec.State Unit := { σ1 with archState := { σ1.archState with
     x64IrqState := Function.update σ1.archState.x64IrqState (BitVec.ofNat 8 z.val) irqSt } }
   refine WP.spec_bind (WP.spec_and (ctl_finish arI th hP s σ G ⟨hR, hV, hM, hC, hI⟩ hL hHA hFI hFR hmask z hz128 hact0 hps hls hsrcC
-    dsl pd hpd1 hpd hdst s1 σ1 hkb hS hCR1 hIR1 hw (ksub_of_eq (setThreadState_nks _ _) hst) ar σb rfl rfl rfl rfl rfl)
+    dsl pd hpd1 hpd hdst (DestLive.of_cnRef hpdr ⟨x0, hx0s, capV_of_capAt hc0⟩) s1 σ1 hkb hS hCR1 hIR1 hw (ksub_of_eq (setThreadState_nks _ _) hst) ar σb rfl rfl rfl rfl rfl)
     (ctl_dk4_at arI th hP s s1 hkb hS hL hCR1.2.2.1 hmask z hz128 hps hls hsrcC dsl pd hpd1 hpd ar)) ?_
   rintro ⟨s2, a2⟩ ⟨⟨σ', G', hmem, hCR', hIR', hFI', hHA', hFR', hstp2⟩, hdk2⟩
   apply (WP.spec_ok (core.result.Result.Ok (), s2, a2)).mpr
@@ -424,7 +424,7 @@ theorem irq_ioapic_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (�
   refine CPost.liftME' ?_
   unfold Fl4Spec.archDecodeIrqControlInvocation
   rw [if_pos hlbl]
-  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, c0, ac0, erest, hc0, hca0, hcv0, rfl⟩
+  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, hx0s, c0, ac0, erest, hc0, hca0, hcv0, rfl⟩
   · simp only [decide_true, ↓reduceIte, error.truncated, bind_ok]
     rw [if_neg (show ¬ ((args.map UScalar.bv).length ≥ 7 ∧ ([] : List Fl4Spec.Cap).length ≥ 1) by simp)]
     exact CPost.err (e' := .truncatedMessage) rfl (Or.inl trivial)
@@ -487,7 +487,7 @@ theorem irq_ioapic_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (�
   rw [whenE_neg (by simp [hact0])]
   refine CPost.congr (run_bind_ok (m := (Fl4Spec.NonDetE.returnOk () : Fl4Spec.SEMonad Unit Unit)) rfl _) ?_
   refine target_tail arI _ th (L.ksb s) s ar σ hR hV c0 ac0 hca0 hcv0 y0 y1 _ _ ?_
-  intro dsl pd hpd1 hpd hdst
+  intro dsl pd hpd1 hpd hpdr hdst
   -- the vector
   have hio : layout.irq.INT_OFFSET = 32#u64 := by unfold layout.irq.INT_OFFSET; rfl
   rw [hio]
@@ -596,7 +596,7 @@ theorem irq_ioapic_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (�
   let σb : Fl4Spec.State Unit := { σa with archState := { σa.archState with
     x64IrqState := Function.update σa.archState.x64IrqState (BitVec.ofNat 8 z.val) irqSt } }
   refine WP.spec_bind (WP.spec_and (ctl_finish arI th hP s σ G ⟨hR, hV, hM, hC, hI⟩ hL hHA hFI hFR hAR.mask z hz128 hact0 hps hls hsrcC
-    dsl pd hpd1 hpd hdst s1 σ1 hkb hS hCR1 hIR1 hw (ksub_of_eq (setThreadState_nks _ _) hst) a1 σb rfl rfl rfl rfl rfl)
+    dsl pd hpd1 hpd hdst (DestLive.of_cnRef hpdr ⟨x0, hx0s, capV_of_capAt hc0⟩) s1 σ1 hkb hS hCR1 hIR1 hw (ksub_of_eq (setThreadState_nks _ _) hst) a1 σb rfl rfl rfl rfl rfl)
     (ctl_dk4_at arI th hP s s1 hkb hS hL hCR1.2.2.1 hAR.mask z hz128 hps hls hsrcC dsl pd hpd1 hpd a1)) ?_
   rintro ⟨s2, a2⟩ ⟨⟨σ', G', hmem, hCR', hIR', hFI', hHA', hFR', hstp2⟩, hdk2⟩
   apply (WP.spec_ok (core.result.Result.Ok (), s2, a2)).mpr
@@ -652,7 +652,7 @@ theorem irq_remap_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ
   unfold Fl4Spec.decodeFl4IrqControl
   simp only [↓reduceIte]
   unfold Fl4Spec.decodeIrqControlRemapped
-  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, c0, ac0, erest, hc0, hca0, hcv0, rfl⟩
+  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, hx0s, c0, ac0, erest, hc0, hca0, hcv0, rfl⟩
   · simp only [decide_true, ↓reduceIte, error.truncated, bind_ok]
     rw [if_neg (show ¬ ((args.map UScalar.bv).length ≥ 8 ∧ ([] : List Fl4Spec.Cap).length ≥ 1) by simp)]
     exact CPost.err (e' := .truncatedMessage) rfl (Or.inl trivial)
@@ -718,7 +718,7 @@ theorem irq_remap_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ
   rw [whenE_neg (by simp [hact0])]
   refine CPost.congr (run_bind_ok (m := (Fl4Spec.NonDetE.returnOk () : Fl4Spec.SEMonad Unit Unit)) rfl _) ?_
   refine target_tail arI _ th (L.ksb s) s ar σ hR hV c0 ac0 hca0 hcv0 y0 y1 _ _ ?_
-  intro dsl pd hpd1 hpd hdst
+  intro dsl pd hpd1 hpd hpdr hdst
   -- the vector
   have hio : layout.irq.INT_OFFSET = 32#u64 := by unfold layout.irq.INT_OFFSET; rfl
   rw [hio]
@@ -838,7 +838,7 @@ theorem irq_remap_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ
   let σb : Fl4Spec.State Unit := { σa with archState := { σa.archState with
     x64IrqState := Function.update σa.archState.x64IrqState (BitVec.ofNat 8 z.val) irqSt } }
   refine WP.spec_bind (WP.spec_and (ctl_finish arI th hP s σ G ⟨hR, hV, hM, hC, hI⟩ hL hHA hFI hFR hAR.mask z hz128 hact0 hps hls hsrcC
-    dsl pd hpd1 hpd hdst s1 σ1 hkb hS hCR1 hIR1 hw (ksub_of_eq (setThreadState_nks _ _) hst) a1 σb rfl rfl rfl rfl rfl)
+    dsl pd hpd1 hpd hdst (DestLive.of_cnRef hpdr ⟨x0, hx0s, capV_of_capAt hc0⟩) s1 σ1 hkb hS hCR1 hIR1 hw (ksub_of_eq (setThreadState_nks _ _) hst) a1 σb rfl rfl rfl rfl rfl)
     (ctl_dk4_at arI th hP s s1 hkb hS hL hCR1.2.2.1 hAR.mask z hz128 hps hls hsrcC dsl pd hpd1 hpd a1)) ?_
   rintro ⟨s2, a2⟩ ⟨⟨σ', G', hmem, hCR', hIR', hFI', hHA', hFR', hstp2⟩, hdk2⟩
   apply (WP.spec_ok (core.result.Result.Ok (), s2, a2)).mpr
