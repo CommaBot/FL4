@@ -402,3 +402,4 @@ import Fl4Proofs.P3.IpcFinNtfnInv
 import Fl4Proofs.P3.XTopJointFinW
 import Fl4Proofs.P3.XTopJointFin
 import Fl4Proofs.P3.XTopJointDel
+import Fl4Proofs.P3.ScFireJ
