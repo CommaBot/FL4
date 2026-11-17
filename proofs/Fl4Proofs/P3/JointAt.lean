@@ -154,6 +154,9 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   inv : Sched.Inv σ
   /-- `CurInv` unless a reschedule is pending (mid-entry, as `ScEntry`). -/
   cur : σ.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ
+  /-- The current SC's owner (`CurOwn`, what `schedule` from a mid-entry
+  state reads; `curOwn_of_curInv` where `CurInv` holds). -/
+  own : Sched.CurOwn Z.T σ
   off : Sched.OffOK σ
   act : Sched.ActIdle σ
   c0 : ∀ q ∈ Z.C, q ≠ 0#u64
