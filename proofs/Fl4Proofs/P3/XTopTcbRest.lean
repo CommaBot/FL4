@@ -14,7 +14,7 @@ side's leaves, the labels still open and the [J]/[P] facts as premises
   XTopTcbData (`tcbXOpen_of`), the other four [W] (`TcbXOpen4`).
 * `tcbXIpc_setPrio`: the SetPriority leaf from IpcSetPrioX's `setPrioXLeaf_of`.
 -/
-import Fl4Proofs.P3.XTopTcbSched
+import Fl4Proofs.P3.XTopTcbTls
 import Fl4Proofs.P3.IpcSetPrioX
 open Aeneas Aeneas.Std Result
 
@@ -98,6 +98,7 @@ theorem tcbXRest_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar : 
     (hXD : XPostDelHyp (L := L) arI AR Z.th) (hKB : DelBound Z.th)
     (hA : ∀ s a σ G, WX (L := L) AR Z.th s a σ G → Notif.ActReady σ)
     (hBT : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → BufWordRel Z'.T (L.mem s') σ')
+    (hP0 : IPlaced Z.N Z.T Z.E Z.R Z.B)
     (lbl length : U64) (p : U64) (hp : Z.th p = some .tcb)
     (blk call don : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ct : U64)
     (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
@@ -164,7 +165,7 @@ theorem tcbXRest_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar : 
     exact tcb_unset_bpX arI s ar σ hX hC hDI p hpT slbl hg he length buf ct hct hcur hact (hstall' p) buffer hAr1
       call _ extra blk don _ ci sl excaps
   · rintro rfl
-    exact tcb_set_tlsX arI s ar σ hX hKA hC hTh hA hBT p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct
+    exact tcb_set_tlsX arI s ar σ hX hKA hC hTh hA hBT hP0 p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct
       argsU hlen hargs hcur hact hcw (hstall' p) call _ extra blk don ci sl excaps buffer
 
 set_option maxHeartbeats 4000000 in
@@ -178,6 +179,7 @@ theorem decode_invocation_threadXL {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
     (hXD : XPostDelHyp (L := L) arI AR Z.th) (hKB : DelBound Z.th)
     (hA : ∀ s a σ G, WX (L := L) AR Z.th s a σ G → Notif.ActReady σ)
     (hBT : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → BufWordRel Z'.T (L.mem s') σ')
+    (hP0 : IPlaced Z.N Z.T Z.E Z.R Z.B)
     (lbl length : U64) (p : U64) (hp : Z.th p = some .tcb)
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ct : U64)
     (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
@@ -210,7 +212,7 @@ theorem decode_invocation_threadXL {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
   decode_invocation_threadXC arI s ar σ hX hKA hC hTh hDI hXF hXP hXD hKB hA lbl length p hp blk call don fp buf
     extra ct hct hcur slbl hlbl argsU hlen hargs ci sl hAs excaps buffer hext (hstall' p) hNative hact x0 x1 x2 hx0
     hx1 hx2 hXc hnc hnc0
-    (tcbXRest_of arI s ar σ hX hKA hC hTh hDI hXF hXP hXD hKB hA hBT lbl length p hp blk call don buf extra ct hct
+    (tcbXRest_of arI s ar σ hX hKA hC hTh hDI hXF hXP hXD hKB hA hBT hP0 lbl length p hp blk call don buf extra ct hct
       hcur slbl hlbl argsU hlen hargs ci sl hAs excaps buffer hext hstall' hact hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hM
       hcapT hcapC hC0 hcapN hAr1 hI hO)
 

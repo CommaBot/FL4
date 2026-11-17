@@ -38,7 +38,7 @@ theorem css_xtop {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s1 : S} {a : A} 
     (hX : XTopAt (L := L) AR Z s1 a σ1) (hK : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s1))
     (hTh : ∀ t, Z.th t = some .tcb → t ∈ Z.T)
     (hBT : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → BufWordRel Z'.T (L.mem s') σ')
-    {p : U64} (hp : Z.th p = some .tcb) {xp : Fl4Spec.Tcb} (hkp : σ1.kheap p.bv = some (.tcb xp)) (bp n : U64) :
+    (hP0 : IPlaced Z.N Z.T Z.E Z.R Z.B) {p : U64} (hp : Z.th p = some .tcb) {xp : Fl4Spec.Tcb} (hkp : σ1.kheap p.bv = some (.tcb xp)) (bp n : U64) :
     debug.configure_single_stepping st arI s1 a p bp n false ⦃ r => r.1 = false ∧ r.2.2 = a ∧
       L.ksb r.2.1 = L.ksb s1 ∧ L.cpu r.2.1 = L.cpu s1 ∧
       ∃ G', WX (L := L) AR Z.th r.2.1 a (cssState σ1 p.bv xp n.bv) G' ⦄ := by
@@ -62,7 +62,7 @@ theorem css_xtop {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s1 : S} {a : A} 
     obtain ⟨x2, hk2, hx2⟩ := hX2.fin.1.1.2.1.tcb p hpT
     rw [hkp] at hk2; cases hk2
     have hK2 : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s2) := by rw [L.ksb_wr]; exact hK
-    obtain ⟨G2, Z2, hth2, hG2, hX3, hK3, hTh3⟩ := hX2.regWr hK2 hTh (hBT Z _ _ _ rfl hX2) hpT hkp
+    obtain ⟨G2, Z2, hth2, hG2, hX3, hK3, hTh3⟩ := hX2.regWr hK2 hTh (hBT Z _ _ _ rfl hX2) hP0 hpT hkp
       Fl4Spec.Register.flags (by decide) (L.mem s2 (regA p layout.reg.FLAGS) &&& ~~~256#u64)
     rw [regIdx_flags] at hX3 hK3
     have hpT2 : p ∈ Z2.T := hTh3 p hp
@@ -101,7 +101,7 @@ theorem tcb_single_stepX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (
     (hX : XTopAt (L := L) AR Z s ar σ) (hKA : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)) (hC : CurRun σ)
     (hTh : ∀ t, Z.th t = some .tcb → t ∈ Z.T) (hDI : DelInv Z.th (L.mem s))
     (hBT : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → BufWordRel Z'.T (L.mem s') σ')
-    (p : U64) (hp : Z.th p = some .tcb) (slbl : Fl4Spec.Data)
+    (hP0 : IPlaced Z.N Z.T Z.E Z.R Z.B) (p : U64) (hp : Z.th p = some .tcb) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .invalidInvocation)
     (hext : Fl4Spec.fl4TcbExtLabelOf slbl = some .configureSingleStepping)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
@@ -148,7 +148,7 @@ theorem tcb_single_stepX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (
     rfl
   obtain ⟨xp, hkp, -⟩ := hX1.fin.1.1.2.1.tcb p (hTh p hp)
   have hKA1 : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s1) := by rw [hk1]; exact hKA
-  refine WP.spec_bind (css_xtop arI hX1 hKA1 hTh hBT hp hkp bp n) ?_
+  refine WP.spec_bind (css_xtop arI hX1 hKA1 hTh hBT hP0 hp hkp bp n) ?_
   rintro ⟨consumed, s2, a2⟩ ⟨hcons, ha2, hks2, hcp2, G2, Z2, hth2, hG2, hX2, -, -⟩
   simp only at hcons ha2 hks2 hcp2
   subst hcons ha2
@@ -632,6 +632,7 @@ theorem tcbXOpen_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar : 
     (hX : XTopAt (L := L) AR Z s ar σ) (hKA : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)) (hC : CurRun σ)
     (hTh : ∀ t, Z.th t = some .tcb → t ∈ Z.T) (hDI : DelInv Z.th (L.mem s))
     (hBT : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → BufWordRel Z'.T (L.mem s') σ')
+    (hP0 : IPlaced Z.N Z.T Z.E Z.R Z.B)
     (hOK : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.IpcBufCapOK σ')
     (hBC : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.BufCover Z'.T Z'.B σ')
     (hBPl : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
@@ -663,7 +664,7 @@ theorem tcbXOpen_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar : 
   · rintro rfl
     obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf]) (show tcbExtOf _ = some .configureSingleStepping by
       simp [tcbExtOf])
-    exact tcb_single_stepX arI s ar σ hX hKA hC hTh hDI hBT p hp slbl hg he length buf ct hct hcur hact (hstall' p)
+    exact tcb_single_stepX arI s ar σ hX hKA hC hTh hDI hBT hP0 p hp slbl hg he length buf ct hct hcur hact (hstall' p)
       buffer hA2 call _ extra blk don _ ci sl excaps
   · rintro rfl
     exact tcb_set_flagsX arI s ar σ hX hC hTh hDI hFl p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct

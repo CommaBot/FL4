@@ -319,6 +319,7 @@ import Fl4Proofs.P3.XTopTcbCtl
 import Fl4Proofs.P3.XTopBuf
 import Fl4Proofs.P3.XTopTcbAll
 import Fl4Proofs.P3.XTopTcbSched
+import Fl4Proofs.P3.XTopTcbTls
 import Fl4Proofs.P3.IpcSetPrio
 import Fl4Proofs.P3.IpcSetPrioX
 import Fl4Proofs.P3.XTopTcbRest
@@ -328,6 +329,7 @@ import Fl4Proofs.P3.XTopPostDel
 import Fl4Proofs.P3.SpecDet
 import Fl4Proofs.P3.XTopDelOne
 import Fl4Proofs.P3.XTopFinIrq
+import Fl4Proofs.P3.XTopJoint
 import Fl4Proofs.P3.IpcCancelAll
 import Fl4Proofs.P3.IpcRelQ
 import Fl4Proofs.P3.IpcTcbBind

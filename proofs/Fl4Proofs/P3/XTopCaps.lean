@@ -116,16 +116,15 @@ IOAPIC and remapped issues, the errors), from `CPost`'s `Steps`; beyond
 `decode_invocation_irq_control`'s hypotheses, `XTopAt` at its typed heap,
 `KsApart`, the current thread runnable and `ARMask`. -/
 theorem decode_invocation_irq_controlX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR)
-    (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
-    (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
-    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
-    (hFR : MdbOKV (L.ksb s) (L.mem s) G)
+    (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+    (hL : IntLayout th (L.ksb s))
+    (hHA : HandlersActive (L.mem s) (L.ksb s) G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : IrqCLabel lbl slbl)
     (hrm : decide (lbl.val = 72) = Fl4Spec.isFl4RemappedLabel slbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
-    (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
+    (hcur : σ.curThread = ct.bv)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hact2 : ∀ i : U64, i.val < 128 → L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION ≠ irqStA (L.ksb s) i)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
@@ -134,12 +133,21 @@ theorem decode_invocation_irq_controlX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : 
     (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok .IrqControl)
     (nA : U64) (hnum : arI.num_ioapics ar = ok nA) (hnA : nA.bv = σ.archState.x64NumIoapics)
     (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
-    (hAR : ArchIrqRel arI ar σ) {Z : XSets} (hth : Z.th = th) (hX0 : XTopAt (L := L) AR Z s ar σ)
+    (hAR : ArchIrqRel arI ar σ) {Z : XSets} (hth : Z.th = th) (hG : Z.G = G) (hX0 : XTopAt (L := L) AR Z s ar σ)
     (hKA : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)) (hC : CurRun σ) (hTh : ∀ t, th t = some .tcb → t ∈ Z.T)
     (hDel : XDelNtfnHyp (L := L) arI AR th) (blk call don fp : Bool) (ci : Fl4Spec.CapRef)
     (buffer : Option Fl4Spec.ObjRef) :
     XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length (cslotAddr (ps.bv, idxs)) .IrqControl blk call don fp buf
       extra slbl (args.map UScalar.bv) ci (ps.bv, idxs) excaps buffer ct := by
+  subst hth hG
+  have hP := hX0.rel.1
+  have hCR := hX0.rel.2.1
+  have hFI := hX0.rel.2.2.1
+  have hFR := hX0.rel.2.2.2.2.1
+  have hIR := hX0.fin.1.1.2.2.2.1
+  have htcb : Z.th ct = some .tcb := by
+    obtain ⟨t, htb, hth, -⟩ := hX0.fin.2.2.2.2
+    rwa [← P1.eq_of_bv (htb.trans hcur)]
   left
   unfold DecOKDMX syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
@@ -149,7 +157,7 @@ theorem decode_invocation_irq_controlX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : 
           (excaps.map Prod.fst)) := by
     rw [hrm]; rfl
   rw [e]
-  refine WP.spec_mono (irq_control_decode_refines arI th hP s ar σ G hCR hL hIR hHA hFI hFR lbl slbl hlbl length buf ct
+  refine WP.spec_mono (irq_control_decode_refines arI Z.th hP s ar σ Z.G hCR hL hIR hHA hFI hFR lbl slbl hlbl length buf ct
     hct args hlen hargs hcur htcb hact hact2 extra x0 hx0 _ hex hps hls hsrcC nA hnum hnA hmask hAR) ?_
   rintro ⟨r0, s', a'⟩ hq
   cases r0 with
@@ -158,7 +166,7 @@ theorem decode_invocation_irq_controlX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : 
     exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, h2⟩, ⟨Z, hX0⟩⟩
   | Ok u =>
     obtain ⟨inv, hrun, σ1, hst, σ', G', hx, -, -, -, -, -, -, hstp⟩ := hq
-    obtain ⟨Z', hZ'⟩ := (hstp hC).xtop arI hAM hDel hth hX0 hKA hTh
+    obtain ⟨Z', hZ'⟩ := (hstp hC).xtop arI hAM hDel rfl hX0 hKA hTh
     exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], σ'),
       mem_bindE_ok hx (Set.mem_singleton _), ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩, hZ'.rel.1, hZ'.rel.2.1,
         hZ'.rel.2.2.1, hZ'.rel.2.2.2.1, hZ'.rel.2.2.2.2.1⟩, ⟨Z', hZ'⟩⟩
@@ -167,32 +175,40 @@ theorem decode_invocation_irq_controlX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : 
 `Steps`; beyond `decode_invocation_ioport_control`'s hypotheses, `XTopAt`
 at its typed heap, `KsApart`, the current thread runnable and `ARMask`. -/
 theorem decode_invocation_ioport_controlX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR)
-    (th : TypedHeap) (hP : Placed th) (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hL : IoLayout th (L.ksb s))
-    (hIo : IoRel (L.mem s) (L.ksb s) σ) (hPA : IoPortsAlloc (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
-    (hFR : MdbOKV (L.ksb s) (L.mem s) G)
+    (th : TypedHeap) (s : S) (ar : A)
+    (σ : Fl4Spec.State Unit) (G : MdbGhost) (hL : IoLayout th (L.ksb s))
+    (hPA : IoPortsAlloc (L.mem s) (L.ksb s) G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : lbl.val = 63 ↔ Fl4Spec.invocationType slbl = .archInvocationLabel .x64IOPortControlIssue)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
-    (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
+    (hcur : σ.curThread = ct.bv)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hact3 : ∀ w : U64, w.val < 1024 → L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION ≠ ioA (L.ksb s) w)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel th (L.mem s) x0 (excaps.map Prod.fst))
     {ps : U64} {rs : Nat} (hps : th ps = some (.cnode rs)) {idxs : List Bool} (hls : idxs.length = rs)
     (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok .IoPortControl)
-    {Z : XSets} (hth : Z.th = th) (hX0 : XTopAt (L := L) AR Z s ar σ)
+    {Z : XSets} (hth : Z.th = th) (hG : Z.G = G) (hX0 : XTopAt (L := L) AR Z s ar σ)
     (hKA : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)) (hC : CurRun σ) (hTh : ∀ t, th t = some .tcb → t ∈ Z.T)
     (hDel : XDelNtfnHyp (L := L) arI AR th) (blk call don fp : Bool) (ci : Fl4Spec.CapRef)
     (buffer : Option Fl4Spec.ObjRef) :
     XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length (cslotAddr (ps.bv, idxs)) .IoPortControl blk call don fp buf
       extra slbl (args.map UScalar.bv) ci (ps.bv, idxs) excaps buffer ct := by
+  subst hth hG
+  have hP := hX0.rel.1
+  have hCR := hX0.rel.2.1
+  have hFI := hX0.rel.2.2.1
+  have hFR := hX0.rel.2.2.2.2.1
+  have hIo := hX0.fin.1.1.2.2.2.2.1
+  have htcb : Z.th ct = some .tcb := by
+    obtain ⟨t, htb, hth, -⟩ := hX0.fin.2.2.2.2
+    rwa [← P1.eq_of_bv (htb.trans hcur)]
   left
   unfold DecOKDMX syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
-  refine WP.spec_mono (ioport_control_decode_refines arI th hP s ar σ G hCR hL hIo hPA hFI hFR lbl slbl hlbl length buf
+  refine WP.spec_mono (ioport_control_decode_refines arI Z.th hP s ar σ Z.G hCR hL hIo hPA hFI hFR lbl slbl hlbl length buf
     ct hct args hlen hargs hcur htcb hact hact3 extra x0 hx0 _ hex hps hls hsrcC .ioPortControlCap) ?_
   rintro ⟨r0, s', a'⟩ hq
   cases r0 with
@@ -201,7 +217,7 @@ theorem decode_invocation_ioport_controlX {AR : A → Fl4Spec.Cr3 → Prop} (hAM
     exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err (run_liftME_err h1), h2⟩, ⟨Z, hX0⟩⟩
   | Ok u =>
     obtain ⟨inv, hrun, σ1, hst, σ', G', hx, -, -, -, -, -, -, hstp⟩ := hq
-    obtain ⟨Z', hZ'⟩ := (hstp hC).xtop arI hAM hDel hth hX0 hKA hTh
+    obtain ⟨Z', hZ'⟩ := (hstp hC).xtop arI hAM hDel rfl hX0 hKA hTh
     exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok (run_liftME_ok hrun)), σ1, hst, (.ok [], σ'), hx,
       ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩, hZ'.rel.1, hZ'.rel.2.1, hZ'.rel.2.2.1, hZ'.rel.2.2.2.1, hZ'.rel.2.2.2.2.1⟩,
       ⟨Z', hZ'⟩⟩
