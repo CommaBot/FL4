@@ -8,7 +8,8 @@ and the ghost tree too), and each step of the deletion keeps it by a
 premise:
 
 * `FinObjHypW`, `PPHypDW`, `PostDelHypW`: `FinObjHyp`, `PPHypD`,
-  `PostDelHyp` with `W` before and after (at the spec outcome they choose).
+  `PostDelHyp` with `W` before and after (at the spec outcome they choose);
+  after a preemption, `Wp` (`WPost`: the loops stop there).
 * `SlotHypW`: a slot edit of the deletion (a zombie written, a swap for
   delete, a slot emptied) keeps `W`: FL4 writes only slot words
   (`Vs.SlotFrame2`), the spec's step is `CnK`, with `DState` before and
@@ -127,14 +128,14 @@ def FinObjHypW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : 
           (capV (L.mem r.2.1) y = .Null ∧ isZb (capV (L.mem s) y) = false)) ∧
         MdbStep (L.mem s) G (L.mem r.2.1) G' ∧ W r.2.1 r.2.2 σ' G' ⦄
 
-/-- **`PPHypD` with `W`** before and after. -/
-def PPHypDW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) : Prop :=
+/-- **`PPHypD` with `W`** before and `W` after (`Wp` after a preemption). -/
+def PPHypDW (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) : Prop :=
   ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost), DState (L := L) th s σ G → W s a σ G →
     sched.preemption_point st arI s a ⦃ r =>
       SlotsSame th (L.mem s) (L.mem r.2.1) ∧ ∃ σ',
         ((r.1 = .Ok () ∧ (.ok (), σ') ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1) ∨
           (r.1 = .Err .Preempted ∧ (.error (), σ') ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1)) ∧
-        CRel th (L.mem r.2.1) σ' G ∧ W r.2.1 r.2.2 σ' G ⦄
+        CRel th (L.mem r.2.1) σ' G ∧ WPost W Wp r.1 r.2.1 r.2.2 σ' G ⦄
 
 /-- **`PostDelHyp` with `W`** before and after. -/
 def PostDelHypW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) : Prop :=
@@ -155,7 +156,7 @@ def SlotHypW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : Ty
 /-- The W-premises bundled. -/
 structure DelHypsW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) : Prop where
   fin : FinObjHypW (L := L) arI W th
-  pp : PPHypDW (L := L) arI W th
+  pp : PPHypDW (L := L) arI W W th
   post : PostDelHypW (L := L) arI W th
   slot : SlotHypW (L := L) (A := A) W th
 
@@ -168,11 +169,11 @@ theorem FinObjHyp.w {th : TypedHeap} (h : FinObjHyp (L := L) arI th) : FinObjHyp
   rintro r ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8⟩
   exact ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, trivial⟩
 
-theorem PPHypD.w {th : TypedHeap} (h : PPHypD (L := L) arI th) : PPHypDW (L := L) arI WTrue th := by
+theorem PPHypD.w {th : TypedHeap} (h : PPHypD (L := L) arI th) : PPHypDW (L := L) arI WTrue WTrue th := by
   intro s a σ G hDS _
   refine WP.spec_mono (h s a σ G hDS) ?_
   rintro r ⟨h1, σ', h2, h3⟩
-  exact ⟨h1, σ', h2, h3, trivial⟩
+  exact ⟨h1, σ', h2, h3, WPost_self.2 trivial⟩
 
 theorem PostDelHyp.w {th : TypedHeap} (h : PostDelHyp (L := L) arI th) : PostDelHypW (L := L) arI WTrue th := by
   intro s a σ G cl hDS _ h1 h2 h3
@@ -277,11 +278,11 @@ def EmptyHypWR (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     MdbStep (L.mem s) G (L.mem s') G' → W s' a σ' G'
 
 /-- The premises with `Rd` bundled. -/
-structure DelHypsWR (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+structure DelHypsWR (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) : Prop where
   fin : FinObjHypWR (L := L) arI W Rd th
   triv : RdTrivHyp (L := L) W Rd th
-  pp : PPHypDW (L := L) arI W th
+  pp : PPHypDW (L := L) arI W Wp th
   post : PostDelHypW (L := L) arI W th
   zomb : ZombieHypW (L := L) (A := A) W th
   swap : SwapHypW (L := L) (A := A) W th
@@ -312,7 +313,7 @@ theorem SlotHypW.empty {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop
 
 /-- **`DelHypsW` is `DelHypsWR` at `Rd := True`.** -/
 theorem DelHypsW.toR {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop} {th : TypedHeap}
-    (h : DelHypsW (L := L) arI W th) : DelHypsWR (L := L) arI W RdT th :=
+    (h : DelHypsW (L := L) arI W th) : DelHypsWR (L := L) arI W W RdT th :=
   ⟨h.fin.r arI, fun _ _ _ _ _ _ _ _ _ _ _ _ => trivial, h.pp, h.post, h.slot.zomb, h.slot.swap, h.slot.empty⟩
 
 end

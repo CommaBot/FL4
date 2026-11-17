@@ -52,26 +52,46 @@ abbrev EJ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set 
     (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) : Prop :=
   DelE (L := L) Z.th K s σ ∧ WJ (L := L) arI AR Z H Cs kb s a σ G
 
+/-- **The deletion's state after a preemption at `J`**: the post of a
+preempting preemption point from `WJ` (FL4's `preemption_point` returning
+`Preempted`, a preempting outcome of the spec's). Not `WJ` itself: the
+preemption point updates the time, and the current SC's budget may then be
+exhausted (`JAtZ`'s `OffOK` false), which the caller's
+`mcs_preemption_point` charges before `schedule`. -/
+def WJP (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (s : S) (a : A)
+    (σ : Fl4Spec.State Unit) (G : MdbGhost) : Prop :=
+  ∃ (s0 : S) (a0 : A) (σ0 : Fl4Spec.State Unit), WJ (L := L) arI AR Z H Cs kb s0 a0 σ0 G ∧
+    sched.preemption_point st arI s0 a0 = ok (.Err .Preempted, s, a) ∧
+    (.error (), σ) ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ0).1 ∧
+    DomRel (L.mem s) (L.ksb s) σ ∧ MdbOKV (L.ksb s) (L.mem s) G
+
+/-- `WJP` with `DelE`. -/
+abbrev EJP (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (K : Nat) (s : S)
+    (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) : Prop :=
+  DelE (L := L) Z.th K s σ ∧ WJP (L := L) arI AR Z H Cs kb s a σ G
+
 /-- **The readiness at `J`** of a slot to be emptied: `EmptyReady`. -/
 abbrev RdJ (H : P1.Heap) : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop :=
   fun s _ _ G x => EmptyReady (L := L) H G s x
 
 /-- **One cap's deletion at `J`**: FL4's exposed `delete` of an MDB slot from
 `EJ` (a `JAtZ` state at the sets `Z.mv G V`), a spec outcome of `cap_delete`
-of the same kind, the CSpace relation, `EJ` after and the ghost step
-(`DelHypW`). Derived from `JDelParts` (`JDelHyp.of_parts`). -/
+of the same kind, the CSpace relation, `EJ` after (`EJP` after a
+preemption) and the ghost step (`DelHypW`). Derived from `JDelParts`
+(`JDelHyp.of_parts`). -/
 def JDelHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (K : Nat), Z.th = th →
     (∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) → 6 ≤ K →
-    DelHypW (L := L) arI psiD th (EJ (L := L) arI AR Z H Cs kb K)
+    DelHypW (L := L) arI psiD th (EJ (L := L) arI AR Z H Cs kb K) (EJP (L := L) arI AR Z H Cs kb K)
 
 /-- **Hypothesis: the preemption point at `J`** [J]: from `WJ` (a `JAtZ`
 state), the cap slots kept, a spec outcome of the same kind, the CSpace
-relation and `WJ` after at the same MDB ghost (`PPHypDW`). FL4's
-preemption point runs `update_timestamp` (the SC and time fields). -/
+relation and `WJ` after at the same MDB ghost, `WJP` after a preemption
+(`PPHypDW`). FL4's preemption point runs `update_timestamp` (the SC and
+time fields). -/
 def JPreemptHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
-    PPHypDW (L := L) arI (WJ (L := L) arI AR Z H Cs kb) th
+    PPHypDW (L := L) arI (WJ (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb) th
 
 /-! ## The named steps -/
 
@@ -325,11 +345,12 @@ theorem JDelHyp.of_parts (h : JDelParts (L := L) arI AR th) : JDelHyp (L := L) a
   intro Z H Cs kb K hth hK hK6 s a σ G c hCR hE hA hxm
   obtain ⟨V, Ac, Lst, D, J, -⟩ := hE.2
   have hP : Placed th := hth ▸ J.xtop.rel.1
-  have hH : DelHypsWR (L := L) arI (WJ (L := L) arI AR Z H Cs kb) (RdJ (L := L) (A := A) H) th :=
+  have hH : DelHypsWR (L := L) arI (WJ (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb)
+      (RdJ (L := L) (A := A) H) th :=
     ⟨finJ arI h.fin Z H Cs kb hth, rdTrivJ arI h.triv Z H Cs kb hth, h.pp Z H Cs kb hth, h.post Z H Cs kb hth,
       h.zomb Z H Cs kb hth, h.swap Z H Cs kb hth, emptyHypJ arI h.empUt h.empTcb Z H Cs kb hth⟩
   subst hth
-  exact delHyp_fullWR arI _ _ Z.th hP (finalHyp_full Z.th hP) hH K hK hK6 s a σ G c hCR hE hA hxm
+  exact delHyp_fullWR arI _ _ _ Z.th hP (finalHyp_full Z.th hP) hH K hK hK6 s a σ G c hCR hE hA hxm
 
 end
 

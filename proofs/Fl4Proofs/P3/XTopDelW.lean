@@ -80,11 +80,11 @@ theorem finObjHypW_X {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (hXF : X
 
 /-- **The preemption points at `WX`**, from `XPreemptHyp`. -/
 theorem ppHypDW_X {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (hXP : XPreemptHyp (L := L) arI AR th) :
-    PPHypDW (L := L) arI (WX (L := L) AR th) th := by
+    PPHypDW (L := L) arI (WX (L := L) AR th) (WX (L := L) AR th) th := by
   rintro s a σ G - ⟨Z, rfl, rfl, hX, hK, hTh⟩
   refine WP.spec_mono (hXP.pp arI rfl hX hK hTh) ?_
   rintro r ⟨hS, σ', hcase, hCR, hX', hk'⟩
-  exact ⟨hS, σ', hcase, hCR, Z, rfl, rfl, hX', by rw [hk']; exact hK, hTh⟩
+  exact ⟨hS, σ', hcase, hCR, WPost_self.2 ⟨Z, rfl, rfl, hX', by rw [hk']; exact hK, hTh⟩⟩
 
 /-- **Hypothesis: `post_cap_deletion` at `XTop`** (an IRQ handler's or an IO
 port's cleanup, kernel-state words and the arch state; `XTopAt.ksStep`'s
@@ -128,13 +128,14 @@ set_option maxHeartbeats 4000000 in
 theorem cn_del_topX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {ar : A} {σ : Fl4Spec.State Unit}
     (hX : XTopAt (L := L) AR Z s ar σ) {K : Nat} {blk call don : Bool}
     {m : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation} {res : core.result.Result Unit error.Exc × S × A}
-    (hq : PInvPostW (L := L) Z.th σ Z.G m (EX (L := L) AR Z.th K) s ar res) :
+    (hq : PInvPostW (L := L) Z.th σ Z.G m (EX (L := L) AR Z.th K) (EX (L := L) AR Z.th K) s ar res) :
     TopPostDMX (L := L) (XTop (L := L) AR) σ blk call don (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeCNode m)
       s res := by
   obtain ⟨r, s', a'⟩ := res
-  rcases hq with ⟨e, rfl, rfl, rfl, e', h1, h2⟩ | ⟨inv, hrun, σ1, hst, σ', G', hcase, -, -, -, -, Z', -, -, hX', -, -⟩
+  rcases hq with ⟨e, rfl, rfl, rfl, e', h1, h2⟩ | ⟨inv, hrun, σ1, hst, σ', G', hcase, -, -, -, hE'⟩
   · exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, Or.inl h2⟩, ⟨Z, hX⟩⟩
-  · rcases hcase with ⟨rfl, hx⟩ | ⟨rfl, hx⟩
+  · obtain ⟨-, Z', -, -, hX', -, -⟩ := WPost_self.1 hE'
+    rcases hcase with ⟨rfl, hx⟩ | ⟨rfl, hx⟩
     · exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], σ'),
         mem_bindE_ok hx (Set.mem_singleton _), ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩, hX'.rel.1, hX'.rel.2.1,
           hX'.rel.2.2.1, hX'.rel.2.2.2.1, hX'.rel.2.2.2.2.1⟩, ⟨Z', hX'⟩⟩
@@ -194,9 +195,11 @@ theorem decode_invocation_cnode_revokeX {AR : A → Fl4Spec.Cr3 → Prop} {Z : X
   cases fp
   · simp only [Bool.false_eq_true, ↓reduceIte]
     exact WP.spec_mono (cnode_revoke_refinesW arI Z.th s ar σ Z.G hR hV hP hM hCd slbl hlbl length buf ct hct
-      args hlen hargs _ _ ⟨hwf, rfl⟩ hcv extra _ hI hact hcur htcb (EX (L := L) AR Z.th K) psiD psiD_slotsSame
+      args hlen hargs _ _ ⟨hwf, rfl⟩ hcv extra _ hI hact hcur htcb (EX (L := L) AR Z.th K) (EX (L := L) AR Z.th K)
+      psiD psiD_slotsSame
       (delHyp_fullW arI (WX (L := L) AR Z.th) Z.th hP (finalHyp_full Z.th hP) hH K hK hK6)
-      (rppHyp_fullW arI (WX (L := L) AR Z.th) Z.th K hH.pp) (EX.restart hX hKA hC hTh hDE hcur)
+      (rppHyp_fullW arI (WX (L := L) AR Z.th) (WX (L := L) AR Z.th) Z.th K hH.pp) (EX.restart hX hKA hC hTh hDE hcur)
+      (fun _ _ _ G1 hCR hE1 => ⟨hE1.1.2.2.1, hE1.1.2.2.2 G1 hCR.2.2.1⟩)
       (fun _ _ _ G1 hCR hE1 => ⟨hE1.1.2.2.1, hE1.1.2.2.2 G1 hCR.2.2.1⟩) hfew)
       fun res h => cn_del_topX hX h
   · simp only [↓reduceIte]
@@ -233,9 +236,10 @@ theorem decode_invocation_cnode_deleteX {AR : A → Fl4Spec.Cr3 → Prop} {Z : X
   cases fp
   · simp only [Bool.false_eq_true, ↓reduceIte]
     exact WP.spec_mono (cnode_delete_refinesW arI Z.th s ar σ Z.G hR hV hP hM hCd slbl hlbl length buf ct hct
-      args hlen hargs _ _ ⟨hwf, rfl⟩ hcv extra _ hI hact hcur htcb (EX (L := L) AR Z.th K) psiD
+      args hlen hargs _ _ ⟨hwf, rfl⟩ hcv extra _ hI hact hcur htcb (EX (L := L) AR Z.th K) (EX (L := L) AR Z.th K) psiD
       (delHyp_fullW arI (WX (L := L) AR Z.th) Z.th hP (finalHyp_full Z.th hP) hH K hK hK6)
       (EX.restart hX hKA hC hTh hDE hcur)
+      (fun _ _ _ G1 hCR hE1 => ⟨hE1.1.2.2.1, hE1.1.2.2.2 G1 hCR.2.2.1⟩)
       (fun _ _ _ G1 hCR hE1 => ⟨hE1.1.2.2.1, hE1.1.2.2.2 G1 hCR.2.2.1⟩))
       fun res h => cn_del_topX hX h
   · simp only [↓reduceIte]
