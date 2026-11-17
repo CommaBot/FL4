@@ -181,6 +181,11 @@ def xferTcb (xr xs : Tcb) (badge : Badge) : Tcb :=
       (msg_registers.take (unat (dataToMessageInfo w).miLength)))
     msg_info_register (messageInfoToData (xferInfo w))) badge_register badge
 
+theorem xferTcb_sc (xr xs : Tcb) (badge : Badge) : (xferTcb xr xs badge).tcbSchedContext = xr.tcbSchedContext := by
+  unfold xferTcb
+  show (copyRegsTcb xr _ _).tcbSchedContext = _
+  rw [copyRegsTcb_other]
+
 theorem copyMrs_noRecvBuf {σ : State Z} {snd rcv : ObjRef} {xs xr : Tcb} (hne : snd ≠ rcv)
     (hks : σ.kheap snd = some (.tcb xs)) (hkr : σ.kheap rcv = some (.tcb xr)) (sbuf : Option ObjRef)
     (n : LengthType) :
