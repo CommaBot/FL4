@@ -168,7 +168,7 @@ theorem Steps.mask {th : TypedHeap} {s s' : S} {a : A} {σ : Fl4Spec.State Unit}
     have hK : (⟨BitVec.ofNat 64 (5344 + 8 * w.val)⟩ : U64).val = 5344 + 8 * w.val := by
       show (BitVec.ofNat 64 _).toNat = _; simp; omega
     exact ⟨⟨BitVec.ofNat 64 (5344 + 8 * w.val)⟩, by rw [hK]; omega, by rw [hK]; omega, by rw [hK]; omega,
-      by rw [hK, hv]; omega⟩
+      by rw [hK, hv]; omega, by rw [hK]; omega⟩
   · have hv := irqStA_val hL.fit hi
     rw [hM.2.2.1 _ (by unfold P1.Aligned; rw [hv]; omega) fun w hw e => by
       have := ioA_val hL.fit hw; rw [← e, hv] at this; omega]

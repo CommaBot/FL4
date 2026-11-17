@@ -341,12 +341,10 @@ theorem irqNode_keep {s s' : S} {W : U64 → Prop} (hw : P1.WritesIn st s s' W)
     hw.mem_eq (b := wordOf (nodeA (L.ksb s) i) 8#u64) (by unfold P1.Aligned; rw [hv8]; omega) fun h => by
       rcases hW _ h with e | e <;> omega]
 
-/-- **What a kernel-state step still owes** [W]: the IRQ node's caps kept
-(they lie in the kernel-state block, which `KsW` covers), the untyped caps'
-facts and P1's `BlkOK`. -/
-def KsRest (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s s' : S) (σ' : Fl4Spec.State Unit) : Prop :=
+/-- **What a kernel-state step still owes** [W]: the untyped caps' facts and
+P1's `BlkOK`. -/
+def KsRest (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s' : S) (σ' : Fl4Spec.State Unit) : Prop :=
   ∃ (Ac' : Set U64),
-    (∀ i : U64, i.val < 128 → capV (L.mem s') (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i)) ∧
     (∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
       UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi) ∧
     P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
@@ -360,7 +358,7 @@ theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (
     (hw : P1.WritesIn st s s' (KsW (L.ksb s))) (hO : KsStep σ σ')
     (hR : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → XTopAt (L := L) AR Z s' a' σ' →
-      KsRest (L := L) arI Z H Cs D s s' σ') :
+      KsRest (L := L) arI Z H Cs D s' σ') :
     JOwes (L := L) arI AR th s a σ s' a' σ' := by
   intro Z H Cs Ac Lst D hth J hX'
   have hC : CnStep σ σ' := ⟨⟨fun p => Or.inl (by rw [hO.kh]), hO.rel, hO.ct, hO.csc, hO.ctime, hO.cons, hO.idle⟩,
@@ -373,7 +371,10 @@ theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (
   have mk : McpKeep σ σ' := fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
-  obtain ⟨Ac', hI, hutc, hblk⟩ := hR Z H Cs Ac Lst D hth J hX'
+  obtain ⟨Ac', hutc, hblk⟩ := hR Z H Cs Ac Lst D hth J hX'
+  have hI : ∀ i : U64, i.val < 128 → capV (L.mem s') (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i) :=
+    irqNode_keep hw J.kern.ksbFit J.kern.ksbAl fun b hb => by
+      obtain ⟨K, -, -, -, e, h⟩ := hb; omega
   have hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) := by
     have hf := J.kern.nodeFit
     have hv := nodeAt_val' (st := st) (s := s) (c := 0#u64) (off := layout.node.DEBUG_TCBS) (by simp; omega)

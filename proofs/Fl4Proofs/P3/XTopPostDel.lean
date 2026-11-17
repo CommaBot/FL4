@@ -46,7 +46,7 @@ theorem post_irqX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {Z : X
     have hK : (⟨BitVec.ofNat 64 (224 + 8 * irq.val)⟩ : U64).val = 224 + 8 * irq.val := by
       show (BitVec.ofNat 64 _).toNat = _; simp; omega
     exact ⟨⟨BitVec.ofNat 64 (224 + 8 * irq.val)⟩, by rw [hK]; omega, by rw [hK]; omega, by rw [hK]; omega,
-      by rw [hK, hv]; omega⟩
+      by rw [hK, hv]; omega, by rw [hK]; omega⟩
   have hsti : irqSt interrupt.IRQ_INACTIVE = .irqInactive := by unfold interrupt.IRQ_INACTIVE; rfl
   have hX' : XTopAt (L := L) AR Z s' a1 σ' :=
     XTopAt.ksStep hX hK hw (by constructor <;> rfl)
@@ -83,7 +83,7 @@ theorem post_ioX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A}
     have hK : (⟨BitVec.ofNat 64 (5344 + 8 * w.val)⟩ : U64).val = 5344 + 8 * w.val := by
       show (BitVec.ofNat 64 _).toNat = _; simp; omega
     exact ⟨⟨BitVec.ofNat 64 (5344 + 8 * w.val)⟩, by rw [hK]; omega, by rw [hK]; omega, by rw [hK]; omega,
-      by rw [hK, hv]; omega⟩
+      by rw [hK, hv]; omega, by rw [hK]; omega⟩
   set σ' := ioMaskSt (BitVec.ofNat 16 f.val) (BitVec.ofNat 16 l.val) false σ
   have hX' : XTopAt (L := L) AR Z s1 a σ' := by
     refine XTopAt.ksStep hX hK hw (by constructor <;> rfl) ⟨fun i hi => ?_, hX.fin.1.1.2.2.2.1.node⟩

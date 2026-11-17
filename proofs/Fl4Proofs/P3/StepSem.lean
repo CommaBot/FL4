@@ -29,8 +29,10 @@ open fl4_core Classical
 noncomputable section
 
 /-- The kernel-global words a kernel-state step may write: past the current
-domain and domain time words, not the kernel root. -/
-def KsW (kb b : U64) : Prop := ∃ K : U64, 24 ≤ K.val ∧ K.val < 13568 ∧ K.val ≠ 48 ∧ b.val = kb.val + K.val
+domain and domain time words, not the kernel root, not the IRQ node's CTEs
+(`ksb + 1248 .. ksb + 5344`, written by slot steps only). -/
+def KsW (kb b : U64) : Prop := ∃ K : U64, 24 ≤ K.val ∧ K.val < 13568 ∧ K.val ≠ 48 ∧ b.val = kb.val + K.val ∧
+  (K.val < 1248 ∨ 5344 ≤ K.val)
 
 /-- The spec's kernel-state steps: only the interrupt states, the IRQ masks,
 the IO ports, the arch IRQ states and the domain schedule change. -/
@@ -264,7 +266,7 @@ theorem Steps.irqWr {th : TypedHeap} {s : S} {a a1 : A} {σ : Fl4Spec.State Unit
   have hK : (⟨BitVec.ofNat 64 (224 + 8 * irq.val)⟩ : U64).val = 224 + 8 * irq.val := by
     show (BitVec.ofNat 64 _).toNat = _; simp; omega
   exact ⟨⟨BitVec.ofNat 64 (224 + 8 * irq.val)⟩, by rw [hK]; omega, by rw [hK]; omega, by rw [hK]; omega,
-    by rw [hK, hv]; omega⟩
+    by rw [hK, hv]; omega, by rw [hK]; omega⟩
 
 /-- **A spec-only kernel-state step** (an arch IRQ state, say). -/
 theorem Steps.ksSpec {th : TypedHeap} {s : S} {a : A} {σ σ' : Fl4Spec.State Unit} (hO : KsStep σ σ')
