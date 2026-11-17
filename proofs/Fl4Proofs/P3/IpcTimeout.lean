@@ -410,8 +410,7 @@ theorem handle_timeout_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T 
     (hTl : IpcEpTailHyps st A N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
     (hP : IPlaced N T E R B)
     (hSV : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → Sched.SchedValid σ')
-    (hsort : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → QSorted st T E s')
-    (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ)
+    (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ) (hS0 : Sched.IpcSorted σ)
     {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hnb : tsCode xt.tcbState ≠ 3 ∧ tsCode xt.tcbState ≠ 4) (hnn : ∀ m, xt.tcbState ≠ .blockedOnNotification m)
     (hns : tsCode xt.tcbState ≠ 6)
@@ -454,7 +453,8 @@ theorem handle_timeout_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T 
     have hk1 : (updK σ t.bv (.tcb xt')).kheap t.bv = some (.tcb xt') := by simp
     have hpE' := hpE ptr rfl
     refine WP.spec_bind (send_ipc_faultI hH hBf hBm hTl hP s1 a _ hX1.1 hX1.2 (hSV _ _ hX1) ht hk1 hnb hnn hns
-      (by simp [xt']) hpE' (hsort _ _ hX1 ptr hpE') true bdg g gr
+      (by simp [xt']) hpE' (Sched.qSorted_of_spec (L := L) hX1.1.toE hX1.1.toN hP.e.tcb
+        (QPK.QPS.sorted (QPK.qps_upd (ko := .tcb xt') hkt rfl) hS0) ptr (Or.inl hpE')) true bdg g gr
       (fun d xd hd htd => hXf ptr bdg g d xd hd htd)) ?_
     rintro ⟨s2, a2⟩ ⟨ha2, z, hz, hIz, hSz⟩
     simp only at ha2
@@ -498,16 +498,15 @@ theorem reply_tmo_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
     (hTl : IpcEpTailHyps st A N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
     (hP : IPlaced N T E R B)
     (hSV : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → Sched.SchedValid σ')
-    (hsort : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → QSorted st T E s')
     (hTH : ReplyTmoHyps st ar th cr N T C E R B c) :
     ∀ s (a : A) σ (t sc ft : U64) (fault : Option Fl4Spec.Fault) (y : Fl4Spec.SchedContext) (n : Nat),
     IRel st th cr N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap sc.bv = some (.schedContext y n) →
     Fl4Spec.scActive y = true → ∀ x : Fl4Spec.Tcb, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true →
-    x.tcbSchedContext = some sc.bv → t.bv ∉ σ.releaseQueue → (ft = 0#u64 ↔ fault = none) →
+    x.tcbSchedContext = some sc.bv → t.bv ∉ σ.releaseQueue → Sched.IpcSorted σ → (ft = 0#u64 ↔ fault = none) →
     (ft = 5#u64 ↔ ∃ b, fault = some (.timeout b)) →
     fl4ReplyTmo st ar t ft sc s a ⦃ res => ∃ z ∈ (specReplyTmo t.bv fault y sc.bv σ).1,
       IRel st th cr N T C E R B c res.1 z.2 ⦄ := by
-  intro s a σ t sc ft fault y n hX ht hsc hky hya x hk hrn hxsc hnrq hf0 hf5
+  intro s a σ t sc ft fault y n hX ht hsc hky hya x hk hrn hxsc hnrq hS0 hf0 hf5
   obtain ⟨hIR, hSRT⟩ := hX
   obtain ⟨⟨G, hB⟩, -⟩ := hSRT.1
   have htt := hB.tcbT hk
@@ -558,7 +557,7 @@ theorem reply_tmo_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
     cases h : x.tcbTimeoutHandler <;> simp [h, Fl4Spec.isEpCap] at hv
     exact ⟨_, _, _, rfl⟩
   have hsc0 : x.tcbSchedContext ≠ none := by rw [hxsc]; simp
-  refine WP.spec_mono (handle_timeout_top hH hBf hBm hTl hP hSV hsort s a σ ⟨hIR, hSRT⟩ ht hk
+  refine WP.spec_mono (handle_timeout_top hH hBf hBm hTl hP hSV s a σ ⟨hIR, hSRT⟩ hS0 ht hk
     ⟨hrunc.1, hrunc.2.1⟩ hrunc.2.2.1 hrunc.2.2.2 hc (hTH.epE s σ t x p bd r ⟨hIR, hSRT⟩ ht hk hc)
     (L.mem s (Sched.scW sc 48#u64))
     (fun e bdg g d xd hd htd => hTH.tmoXfer a t { x with tcbFault := some (.timeout (L.mem s (Sched.scW sc 48#u64)).bv) }
@@ -574,7 +573,6 @@ theorem ReplyHyps.ofT (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
     (hTl : IpcEpTailHyps st A N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
     (hP : IPlaced N T E R B)
     (hSV : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → Sched.SchedValid σ')
-    (hsort : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → QSorted st T E s')
     (hTH : ReplyTmoHyps st ar th cr N T C E R B c)
     (hrem : ∀ s (a : A) σ (r t : U64) (x : Fl4Spec.Tcb), IRel st th cr N T C E R B c s σ → r ∈ R → t ∈ T →
       σ.kheap t.bv = some (.tcb x) → x.tcbState = .blockedOnReply r.bv →
@@ -605,7 +603,7 @@ theorem ReplyHyps.ofT (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
         k s2) ⦃ P ⦄)
     (hinv : ∀ s σ, IRel st th cr N T C E R B c s σ → Sched.Inv σ) :
     ReplyHyps st ar th cr N T C E R B c :=
-  ReplyHyps.of hH hBf hBm hP hrem hunb (reply_tmo_top hH hBf hBm hTl hP hSV hsort hTH) hinv
+  ReplyHyps.of hH hBf hBm hP hrem hunb (reply_tmo_top hH hBf hBm hTl hP hSV hTH) hinv
 
 end SendF
 

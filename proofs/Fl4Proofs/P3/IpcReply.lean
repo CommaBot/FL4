@@ -22,6 +22,7 @@ timeout-handler test, `handle_timeout`, `postpone`).
 import Fl4Proofs.P3.IpcLeaves
 import Fl4Proofs.P3.ScMaxKeep
 import Fl4Proofs.P3.IpcRelQ
+import Fl4Proofs.P3.IpcQP
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Endp
@@ -65,6 +66,14 @@ theorem rq_specFaultReply (sender receiver : ObjRef) (f : Fault) : RelQ.RQ (spec
   exact RelQ.rq_bind (RelQ.rq_getMessageInfo' _) fun _ => RelQ.rq_bind (RelQ.rq_lookupIpcBuffer' _ _) fun _ =>
     RelQ.rq_bind (RelQ.rq_getMrs' _ _ _) fun _ => RelQ.rq_bind (RelQ.rq_handleFaultReply' _ _ _ _) fun _ =>
     RelQ.rq_bind (RelQ.rq_threadSet' _ _) fun _ => RelQ.rq_setThreadState' _ _
+
+/-- **`QPM` for the fault reply** (`QPK`, IpcQP). -/
+theorem qp_specFaultReply (sender receiver : ObjRef) (f : Fault) : QPK.QPM (specFaultReply sender receiver f) := by
+  unfold specFaultReply
+  exact QPK.qp_bind (QPK.qp_getMessageInfo' _) fun _ => QPK.qp_bind (QPK.qp_lookupIpcBuffer' _ _) fun _ =>
+    QPK.qp_bind (QPK.qp_getMrs' _ _ _) fun _ => QPK.qp_bind (QPK.qp_handleFaultReply' _ _ _ _) fun _ =>
+    QPK.qp_bind (QPK.qp_threadSet' (fun tcb => { tcb with tcbFault := none }) (fun _ => rfl) _) fun _ =>
+      QPK.qp_setThreadState' _ _
 
 /-- **`MK` for the fault reply** (`MaxK`, ScMaxKeep). -/
 theorem mk_specFaultReply (sender receiver : ObjRef) (f : Fault) : MaxK.MK (specFaultReply sender receiver f) := by
@@ -284,7 +293,7 @@ structure ReplyHyps : Prop where
   tmo : ∀ s (a : A) σ (t sc ft : U64) (fault : Option Fl4Spec.Fault) (y : Fl4Spec.SchedContext) (n : Nat),
     IRel st th cr N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap sc.bv = some (.schedContext y n) →
     Fl4Spec.scActive y = true → ∀ x : Fl4Spec.Tcb, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true →
-    x.tcbSchedContext = some sc.bv → t.bv ∉ σ.releaseQueue → (ft = 0#u64 ↔ fault = none) →
+    x.tcbSchedContext = some sc.bv → t.bv ∉ σ.releaseQueue → Sched.IpcSorted σ → (ft = 0#u64 ↔ fault = none) →
     (ft = 5#u64 ↔ ∃ b, fault = some (.timeout b)) →
     fl4ReplyTmo st ar t ft sc s a ⦃ res => ∃ z ∈ (specReplyTmo t.bv fault y sc.bv σ).1,
       IRel st th cr N T C E R B c res.1 z.2 ⦄
@@ -306,17 +315,17 @@ theorem reply_tail_top (hTl : IpcEpTailHyps st A N T E R B (SRT st th cr N T C E
     (htmo : ∀ s (a : A) σ (t sc ft : U64) (fault : Option Fl4Spec.Fault) (y : Fl4Spec.SchedContext) (n : Nat),
       IRel st th cr N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap sc.bv = some (.schedContext y n) →
       Fl4Spec.scActive y = true → ∀ x : Fl4Spec.Tcb, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true →
-      x.tcbSchedContext = some sc.bv → t.bv ∉ σ.releaseQueue → (ft = 0#u64 ↔ fault = none) →
+      x.tcbSchedContext = some sc.bv → t.bv ∉ σ.releaseQueue → Sched.IpcSorted σ → (ft = 0#u64 ↔ fault = none) →
       (ft = 5#u64 ↔ ∃ b, fault = some (.timeout b)) →
       fl4ReplyTmo st ar t ft sc s a ⦃ res => ∃ z ∈ (specReplyTmo t.bv fault y sc.bv σ).1,
         IRel st th cr N T C E R B c res.1 z.2 ⦄) :
     ∀ s (a : A) σ (t ft : U64) (fault : Option Fl4Spec.Fault), IRel st th cr N T C E R B c s σ → t ∈ T →
     t.bv ∉ σ.releaseQueue →
     (∀ x p y n, σ.kheap t.bv = some (.tcb x) → x.tcbSchedContext = some p →
-      σ.kheap p = some (.schedContext y n) → Fl4Spec.scActive y = true) →
+      σ.kheap p = some (.schedContext y n) → Fl4Spec.scActive y = true) → Sched.IpcSorted σ →
     (ft = 0#u64 ↔ fault = none) → (ft = 5#u64 ↔ ∃ b, fault = some (.timeout b)) →
     fl4ReplyTail st ar t ft s a ⦃ res => ∃ z ∈ (specReplyTail t.bv fault σ).1, IRel st th cr N T C E R B c res.1 z.2 ⦄ := by
-  intro s a σ t ft fault hX ht hnrq hact hf0 hf5
+  intro s a σ t ft fault hX ht hnrq hact hS0 hf0 hf5
   obtain ⟨hIR, hSRT⟩ := hX
   have hS := hSRT.2.1
   obtain ⟨Q, R0, hc, hsp⟩ := hS.lists
@@ -375,12 +384,12 @@ theorem reply_tail_top (hTl : IpcEpTailHyps st A N T E R B (SRT st th cr N T C E
       refine ⟨((), σ'), ?_, hIR.frame hP0 hf hv, hS'⟩
       rw [hspec, if_pos ⟨hb4' ▸ hrd, hb5' ▸ hsf⟩]; exact hm
     · rw [if_neg hsf]
-      refine WP.spec_mono (htmo s a σ t i3 ft fault y n ⟨hIR, hSRT⟩ ht hi3C hky hya x hk hrn hxsc hnrq hf0 hf5) ?_
+      refine WP.spec_mono (htmo s a σ t i3 ft fault y n ⟨hIR, hSRT⟩ ht hi3C hky hya x hk hrn hxsc hnrq hS0 hf0 hf5) ?_
       rintro _ ⟨z, hz, hXz⟩
       refine ⟨z, ?_, hXz⟩
       rw [hspec, if_neg (fun h => hsf (hb5' ▸ h.2))]; exact hz
   · rw [if_neg hrd]
-    refine WP.spec_mono (htmo s a σ t i3 ft fault y n ⟨hIR, hSRT⟩ ht hi3C hky hya x hk hrn hxsc hnrq hf0 hf5) ?_
+    refine WP.spec_mono (htmo s a σ t i3 ft fault y n ⟨hIR, hSRT⟩ ht hi3C hky hya x hk hrn hxsc hnrq hS0 hf0 hf5) ?_
     rintro _ ⟨z, hz, hXz⟩
     refine ⟨z, ?_, hXz⟩
     rw [hspec, if_neg (fun h => hrd (hb4' ▸ h.1))]; exact hz
@@ -430,7 +439,7 @@ theorem do_reply_transfer_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N
     (hTl : IpcEpTailHyps st A N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
     (hmb : ∀ a : A, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ)
-    (hV : Sched.SchedValid σ) (hO : Sched.ObjCover N T E R C σ)
+    (hV : Sched.SchedValid σ) (hO : Sched.ObjCover N T E R C σ) (hS0 : Sched.IpcSorted σ)
     {ct : U64} (hct : ct ∈ T) {xc : Fl4Spec.Tcb} (hkc : σ.kheap ct.bv = some (.tcb xc))
     (hcf : xc.tcbFault = none) (hcs : tsCode xc.tcbState < 3) {r : U64} (hr : r ∈ R) (g : Bool) :
     ipc.do_reply_transfer st ar s a ct r g ⦃ res =>
@@ -541,7 +550,16 @@ theorem do_reply_transfer_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N
       · exact RelQ.rq_bind (RelQ.rq_doIpcTransfer' _ _ _ _ _) (fun _ => RelQ.rq_setThreadState' _ _) σ2 z1 hz1
       · exact rq_specFaultReply ct.bv i.bv f σ2 z1 hz1
     have hnrz : i.bv ∉ z1.2.releaseQueue := fun hm => hnr1 (hR12 _ (hR2z _ hm))
-    exact WP.spec_mono (reply_tail_top hTl hP0 hmb hRH.tmo s3 a2 z1.2 i ft x1.tcbFault hX3 hiT hnrz hactz hft0 hft5)
+    -- the queues' order kept to the tail (`QPK.QPS`)
+    have hQ1 : QPK.QPS σ σ1 := QPK.qp_replyRemove i.bv r.bv σ ((), σ1) (by rw [hrm]; exact Set.mem_singleton _)
+    have hQ12 : QPK.QPS σ1 σ2 := QPK.qp_unblock i.bv σ1 ((), σ2) (by rw [hub]; rfl)
+    have hQ2z : QPK.QPS σ2 z1.2 := by
+      rcases hbr with ⟨-, hz1⟩ | ⟨f, -, hz1⟩
+      · exact QPK.qp_bind (QPK.qp_doIpcTransfer' _ _ _ _ _) (fun _ => QPK.qp_setThreadState' _ _) σ2 z1 hz1
+      · exact qp_specFaultReply ct.bv i.bv f σ2 z1 hz1
+    have hSz : Sched.IpcSorted z1.2 := (hQ1.trans (hQ12.trans hQ2z)).sorted hS0
+    exact WP.spec_mono (reply_tail_top hTl hP0 hmb hRH.tmo s3 a2 z1.2 i ft x1.tcbFault hX3 hiT hnrz hactz hSz hft0
+      hft5)
       fun _ ⟨z, hz, hXz⟩ =>
       ⟨z, mem_doReplyTransfer hkr hrep hkx hst g hrm hub hkx2 hbr hz, hXz⟩
 
@@ -557,6 +575,7 @@ theorem reply_tail_inv (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E 
     (hmb : ∀ a : A, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hSV : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → Sched.SchedValid σ')
     (hOC : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → Sched.ObjCover N T E R C σ')
+    (hIS : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → Sched.IpcSorted σ')
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ)
     {ct : U64} (hct : ct ∈ T) (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
     (hrun : tsCode xt.tcbState < 3) (hft : xt.tcbFault = none)
@@ -590,7 +609,7 @@ theorem reply_tail_inv (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E 
       some (.tcb { xt with tcbState := .restart }) := by rw [stsAct_kheap]; simp
   have hc1 : (stsAct (updK σ ct.bv (.tcb { xt with tcbState := .restart })) ct.bv).curThread = ct.bv := by
     unfold stsAct; split_ifs <;> exact hcur
-  refine WP.spec_bind (do_reply_transfer_top hH hBf hBm hP0 hRH hTl hmb s1 a _ hX1 (hSV _ _ hX1) (hOC _ _ hX1) hct hkt1
+  refine WP.spec_bind (do_reply_transfer_top hH hBf hBm hP0 hRH hTl hmb s1 a _ hX1 (hSV _ _ hX1) (hOC _ _ hX1) (hIS _ _ hX1) hct hkt1
     hft (by simp [tsCode]) hp g) ?_
   rintro ⟨s2, a1⟩ ⟨z, hz, hIR2, hSRT2⟩
   apply (WP.spec_ok _).2
@@ -628,6 +647,7 @@ theorem decode_reply_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C 
     (hmb : ∀ a : A, sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hSV : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → Sched.SchedValid σ')
     (hOC : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → Sched.ObjCover N T E R C σ')
+    (hIS : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → Sched.IpcSorted σ')
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ)
     (lbl length slot : U64) (p : U64) (g : Bool) (blk call don fp : Bool) (buf : U64)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data) (args : List Fl4Spec.Data)
@@ -640,7 +660,7 @@ theorem decode_reply_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C 
   obtain ⟨σ1, hst⟩ : ∃ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) := by
     rw [hcur, Notif.setThreadState_eq .restart hkt]; exact ⟨_, rfl⟩
   exact decode_replyDMX ar _ s a σ lbl length slot p g blk call don fp buf extra slbl args ci sl excaps buffer ct hct
-    hst (reply_tail_inv hH hBf hBm hP0 hRH hTl hmb hSV hOC s a σ hX hcT hcur hkt hrun hft hst hp g)
+    hst (reply_tail_inv hH hBf hBm hP0 hRH hTl hmb hSV hOC hIS s a σ hX hcT hcur hkt hrun hft hst hp g)
 
 end
 

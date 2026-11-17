@@ -760,7 +760,7 @@ theorem ReplyHyps.of (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R 
     (htmo : ∀ s (a : A) σ (t sc ft : U64) (fault : Option Fl4Spec.Fault) (y : Fl4Spec.SchedContext) (n : Nat),
       IRel st th cr N T C E R B c s σ → t ∈ T → sc ∈ C → σ.kheap sc.bv = some (.schedContext y n) →
       Fl4Spec.scActive y = true → ∀ x : Fl4Spec.Tcb, σ.kheap t.bv = some (.tcb x) → Fl4Spec.runnable x.tcbState = true →
-      x.tcbSchedContext = some sc.bv → t.bv ∉ σ.releaseQueue → (ft = 0#u64 ↔ fault = none) →
+      x.tcbSchedContext = some sc.bv → t.bv ∉ σ.releaseQueue → Sched.IpcSorted σ → (ft = 0#u64 ↔ fault = none) →
       (ft = 5#u64 ↔ ∃ b, fault = some (.timeout b)) →
       fl4ReplyTmo st ar t ft sc s a ⦃ res => ∃ z ∈ (specReplyTmo t.bv fault y sc.bv σ).1,
         IRel st th cr N T C E R B c res.1 z.2 ⦄)

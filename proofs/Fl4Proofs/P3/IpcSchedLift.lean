@@ -644,7 +644,6 @@ theorem ReplyHyps.ofL (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
     (hTl : IpcEpTailHyps st A N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)))
     (hP : IPlaced N T E R B)
     (hSV : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → Sched.SchedValid σ')
-    (hsort : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → QSorted st T E s')
     (hrem : ∀ s (a : A) σ (r t : U64) (x : Fl4Spec.Tcb), IRel st th cr N T C E R B c s σ → r ∈ R → t ∈ T →
       σ.kheap t.bv = some (.tcb x) → x.tcbState = .blockedOnReply r.bv →
       ipc.reply_remove st ar s a r t ⦃ res => res.2 = a ∧ ∃ σ' x',
@@ -669,7 +668,7 @@ theorem ReplyHyps.ofL (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
       x.tcbTimeoutHandler = .endpointCap p bd r → ∀ e : U64, e.bv = p → e ∈ E)
     (hinv : ∀ s σ, IRel st th cr N T C E R B c s σ → Sched.Inv σ) :
     ReplyHyps st ar th cr N T C E R B c :=
-  ReplyHyps.ofT hH hBf hBm hTl hP hSV hsort (ReplyTmoHyps.ofPost hP hPO htx hepE) hrem (unblock_top hP) hinv
+  ReplyHyps.ofT hH hBf hBm hTl hP hSV (ReplyTmoHyps.ofPost hP hPO htx hepE) hrem (unblock_top hP) hinv
 
 end Reply
 

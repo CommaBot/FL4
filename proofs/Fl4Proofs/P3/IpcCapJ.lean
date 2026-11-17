@@ -123,7 +123,7 @@ theorem reply_tail_invS (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E
     {ct : U64} (hct : ct ∈ T) (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
     (hrun : tsCode xt.tcbState < 3) (hft : xt.tcbFault = none)
     {σ1 : Fl4Spec.State Unit} (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
-    {p : U64} (hp : p ∈ R) (g : Bool) (hF : Sched.SchedValid σ1 ∧ Sched.ObjCover N T E R C σ1) :
+    {p : U64} (hp : p ∈ R) (g : Bool) (hF : Sched.SchedValid σ1 ∧ Sched.ObjCover N T E R C σ1 ∧ Sched.IpcSorted σ1) :
     (do
       let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
       let (s2, a1) ← ipc.do_reply_transfer st ar s1 a ct p g
@@ -153,7 +153,7 @@ theorem reply_tail_invS (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E
       some (.tcb { xt with tcbState := .restart }) := by rw [stsAct_kheap]; simp
   have hc1 : (stsAct (updK σ ct.bv (.tcb { xt with tcbState := .restart })) ct.bv).curThread = ct.bv := by
     unfold stsAct; split_ifs <;> exact hcur
-  refine WP.spec_bind (do_reply_transfer_top hH hBf hBm hP0 hRH hTl hmb s1 a _ hX1 hF.1 hF.2 hct hkt1
+  refine WP.spec_bind (do_reply_transfer_top hH hBf hBm hP0 hRH hTl hmb s1 a _ hX1 hF.1 hF.2.1 hF.2.2 hct hkt1
     hft (by simp [tsCode]) hp g) ?_
   rintro ⟨s2, a1⟩ ⟨z, hz, hIR2, hSRT2⟩
   apply (WP.spec_ok _).2
@@ -266,7 +266,7 @@ theorem ipcVsFrame_replyJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
   obtain ⟨s1, hs1, -⟩ := spec_exists (XTopAt.restart J.xtop hcur hk hrn)
   obtain ⟨Ac', Lst', D', J'⟩ := jat_restart J hJS hcur hs1 hst'
   exact xleaf_of_irelJ J (fun hI => reply_tail_invS hz.H hz.Bf hz.Bm hz.P hRH hz.Tl hmb s ar σ hI hz.ct hcur hkt hrun
-    hft hst hp g ⟨J'.sv, J'.obj⟩) (fun _ h => AK.reply_tail hS hA hK h)
+    hft hst hp g ⟨J'.sv, J'.obj, J'.isorted⟩) (fun _ h => AK.reply_tail hS hA hK h)
 
 end
 
