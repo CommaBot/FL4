@@ -364,3 +364,7 @@ import Fl4Proofs.P3.IpcSuspendJ
 import Fl4Proofs.P3.IpcResumeJ
 import Fl4Proofs.P3.ScRestartSpec
 import Fl4Proofs.P3.IpcWriteRegsJ
+import Fl4Proofs.P3.IpcReadRegsJ
+import Fl4Proofs.P3.IpcCopyRegsJ
+import Fl4Proofs.P3.IpcSchedTailJ
+import Fl4Proofs.P3.IpcTcbJAll

@@ -156,9 +156,9 @@ theorem setPrioXLeafJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit} {p v : U64}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hJS : JStepHyps (L := L) arI AR Z.th)
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False)) (hv : v.val < 256)
-    (hpT : p ∈ Z.T) (hres : σ.schedulerAction ≠ .chooseNewThread) :
+    (hpT : p ∈ Z.T) (hres : σ.schedulerAction = .resumeCurThread) :
     SetPrioXLeaf (L := L) AR s ar σ σ1 p v := by
-  have hNR : σ.curThread ∉ σ.releaseQueue := (J.curInv hres).notRel
+  have hNR : σ.curThread ∉ σ.releaseQueue := (J.curInv (by rw [hres]; exact fun h => nomatch h)).notRel
   obtain ⟨ct, hcur, x, hk⟩ := xtop_cur J.xtop
   obtain ⟨-, hrq, hct, -⟩ := restart_facts hk hst
   refine xleaf_restartJ J hJS hst fun s1 Ac' Lst' D' J' _ hI1 => ?_

@@ -13,6 +13,7 @@ fold's re-scoping of `writeRegsXHyp_of`).
 -/
 import Fl4Proofs.P3.IpcWriteRegs
 import Fl4Proofs.P3.IpcResumeJ
+import Fl4Proofs.P3.ScRestartSpec
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Ipc
@@ -67,6 +68,15 @@ theorem removeTcbOK_regs {s s' : S} {σ σ' : Fl4Spec.State Unit} (hX : IRel st 
       hag _ (hRP.aligned hd (Or.inr (rNextA_val hra))) fun hR => ?_⟩
     · have := hreg _ hR; rw [rPrevA_val hra] at this; omega
     · have := hreg _ hR; rw [rNextA_val hra] at this; omega
+
+/-- `Inv` across a TCB update keeping its view. -/
+theorem inv_updView' {σ : Fl4Spec.State Unit} (h : Inv σ) {p : Fl4Spec.ObjRef} {x y : Fl4Spec.Tcb}
+    (hk : σ.kheap p = some (.tcb x)) (hv : TcbViewEq y x) : Inv (Notif.updK σ p (.tcb y)) := by
+  have hTV := TView.upd hk hv.1 hv.2.1 hv.2.2.1 hv.2.2.2
+  refine h.tcbView (fun q => ?_) rfl rfl rfl
+  rcases hTV q with e | ⟨a1, b1, h1, h2, e1, e2, -⟩
+  · exact Or.inl e
+  · exact Or.inr ⟨a1, b1, h1, h2, e1, e2⟩
 
 set_option maxHeartbeats 16000000 in
 /-- **`write_registers` on `IRel`, re-scoped** (module docstring). -/
@@ -231,8 +241,9 @@ after the caller's restart (`jat_restart`), `IRel` at its sets, then
 `write_registers_irelS` with its scheduler facts and `RemoveTcbOK`. Named:
 the target and the caller among the TCBs, the caller's IPC buffer mapped
 (`BufMap`), the syscall arguments after the restart (the decode's), the
-restart's spec facts at the state after the register writes
-(`RestartSpecOK`) [J-step, spec only], the platform's `MIN_BUDGET` [P]. -/
+platform's `MIN_BUDGET` [P]. The restart's spec facts after the register
+writes by `restartSpecOK_of` (ScRestartSpec), from `Inv` and `SchedValid`
+there. -/
 theorem writeRegsXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ : Fl4Spec.State Unit} {ct p buf : U64}
     {args : List U64} {blk call don : Bool}
@@ -241,8 +252,6 @@ theorem writeRegsXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     (hbuf : buf ≠ 0#u64 → ∃ sp, BufMap Z.B buf sp)
     (hargs : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
       ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s1 ct buf i = ok x)
-    (hRS : ∀ σ1, Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) →
-      ∀ x x4, σ1.kheap p.bv = some (.tcb x) → TcbViewEq x4 x → RestartSpecOK p.bv (Notif.updK σ1 p.bv (.tcb x4)))
     (hmb : ∀ a, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
     WriteRegsXHyp (L := L) arI AR s σ ct p buf args blk call don := by
   intro s1 σ1 flags n a hs1 hst hn ⟨Z', hX'⟩
@@ -271,7 +280,8 @@ theorem writeRegsXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     simp only [hV, List.getElem_take, List.getElem_map, List.getElem_drop]
     congr 2; omega
   refine WP.spec_mono (write_registers_irelS (ar := arI) hP0 s1 a σ1 hI hpT _ n buf hVn hcur1 hk hRd J'.sv J'.obj
-    J'.inv J'.removeTcbOK (fun x4 hv => hRS σ1 hst x x4 hk hv) (hmb a)) ?_
+    J'.inv J'.removeTcbOK (fun x4 hv => Sched.restartSpecOK_of (inv_updView' J'.inv hk hv)
+      (fun q y n hq => (J'.sv.tcbView (TView.upd hk hv.1 hv.2.1 hv.2.2.1 hv.2.2.2) rfl).scSpor q y n hq)) (hmb a)) ?_
   rintro r ⟨hr2, σ', hsp, hI'⟩
   obtain ⟨⟨Z'', -, -, -, -, -, -, -, -, hZ''⟩, -⟩ :=
     IRel.xtop (L := L) (AR := AR) (a := r.2) hI' (by rw [hr2]; exact hAR)
@@ -280,6 +290,26 @@ theorem writeRegsXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
   rw [invokeTcb_wr, ← and1_ne0]
   exact mem_liftE (x := ([], σ')) (mem_bind_nd (by rw [hsp]; exact Set.mem_singleton _) (Set.mem_singleton _))
 
+
+set_option maxHeartbeats 4000000 in
+/-- **Resume from `JAtZ`, discharged** (`resumeXLeafJ` with its
+`RestartSpecOK` by `restartSpecOK_of` from `JAtZ`'s `Inv` and `SchedValid`
+after the caller's restart). Named: the target among the TCBs, the
+platform's `MIN_BUDGET` [P]. -/
+theorem resumeXLeafJD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit} {p : U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hJS : JStepHyps (L := L) arI AR Z.th)
+    (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False)) (hpT : p ∈ Z.T)
+    (hmb : sporadic.min_budget arI ar ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
+    ResumeXLeaf (L := L) arI AR s ar σ σ1 p := by
+  refine xleaf_restartJ J hJS hst fun s1 Ac' Lst' D' J' _ hI1 => ?_
+  have hP0 := J.ip
+  have hAR : AR ar σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2
+  refine WP.spec_bind (restart_tcb_irelS (ar := arI) hP0 (removeTcbHypP_ok hP0) s1 ar σ1 hI1 hpT J'.sv J'.obj
+    J'.inv (fun x hk => removeTcbOK_fault hP0 hI1 hpT hk J'.removeTcbOK)
+    (Sched.restartSpecOK_of J'.inv J'.sv.scSpor) hmb) ?_
+  rintro ⟨s2, a2⟩ ⟨rfl, σ2, hm, hI2, -, -⟩
+  exact (WP.spec_ok _).2 ⟨rfl, hAR, ((), σ2), by rw [hm]; exact Set.mem_singleton _, hI2⟩
 end
 
 end
