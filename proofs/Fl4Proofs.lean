@@ -399,3 +399,5 @@ import Fl4Proofs.P3.IpcQP
 import Fl4Proofs.P3.IpcSV
 import Fl4Proofs.P3.IpcWakeDon
 import Fl4Proofs.P3.IpcFinNtfnInv
+import Fl4Proofs.P3.XTopJointFinW
+import Fl4Proofs.P3.XTopJointFin

@@ -26,8 +26,8 @@ set_option maxHeartbeats 4000000 in
 /-- **The dead stay dead** (module docstring). -/
 theorem JAtZ.deadP_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
-    {G' : MdbGhost} (hX' : XTopAt (L := L) AR { Z with G := G' } s' a' σ')
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+    (hS' : Sched.SchedRel st Z.N Z.T Z.C Z.c s' σ') (hI' : IpcRel Z.N Z.T Z.E Z.R Z.B (L.mem s') σ')
     {q : U64}
     (hT : ∀ x, σ.kheap q.bv = some (.tcb x) → tsCode x.tcbState = 0 → ∃ y, σ'.kheap q.bv = some (.tcb y) ∧
       y.tcbState = x.tcbState ∧ y.tcbBoundNotification = x.tcbBoundNotification ∧
@@ -45,11 +45,9 @@ theorem JAtZ.deadP_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     (hd : DeadP (L := L) H s q) : DeadP (L := L) H s' q := by
   have hX := J.xtop
   have hS := hX.fin.1.1.1
-  have hS' := hX'.fin.1.1.1
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨Q', R', hc', hs'⟩ := hS'.lists
   have hI := hX.ipc
-  have hI' := hX'.ipc
   refine ⟨fun hq => ?_, fun hq => ?_, fun hq => ?_, fun hq => ?_, fun z hq => ?_⟩
   · -- a TCB
     obtain ⟨d1, d2, d3, d4, d5⟩ := hd.1 hq
@@ -262,7 +260,7 @@ theorem JAtZ.deadP_hstep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.H
     (hOut : ∀ q z, H q = some (.sc z) → ∀ K : U64, K.val % 8 = 0 → K.val < 128 →
       L.mem s' (scW q K) = L.mem s (scW q K)) (hAS : ActSched σ')
     {q : U64} (hd : DeadP (L := L) H s q) : DeadP (L := L) H s' q :=
-  J.deadP_keep hX' (fun x hx _ => ⟨x, hC.tcb.2 hx, rfl, rfl, Or.inl rfl⟩)
+  J.deadP_keep hX'.fin.1.1.1 hX'.ipc (fun x hx _ => ⟨x, hC.tcb.2 hx, rfl, rfl, Or.inl rfl⟩)
     (fun x hx => (hC.look (fun _ _ e => by cases e)).2 hx)
     (fun x hx => ⟨x, hC.ntfn.2 hx, rfl, rfl, Or.inl rfl⟩)
     (fun x hx => ⟨x, (hC.look (fun _ _ e => by cases e)).2 hx, rfl⟩)
@@ -386,7 +384,7 @@ theorem JAtZ.kern_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     K.heap, K.h0, by rw [hks]; exact K.hks, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
-    fun h => hcl (by rw [ecs] at h; exact h), K.csLt⟩
+    fun h => hcl (by rw [ecs] at h; exact h), K.csLt, K.cs0⟩
   rw [hna, hDbg]; exact K.head
 
 

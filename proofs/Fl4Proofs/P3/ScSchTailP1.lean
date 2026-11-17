@@ -13,7 +13,7 @@ P3 (DESIGN.md §9), scheduler: **`SchTailHyps`' P1 facts from P1's
 
 `jat_scheduleT2` is `jat_scheduleT` with `hTail` giving only the remaining
 fact (`SchTailHypsR`: the CR3 after the arch switch, [P]), given P1's
-`ArchTotal`, core 0 among the cores and, at the `JAtZ` states, every TCB of
+`ArchTotal` (core 0 among the cores is `JKern.cs0`) and, at the `JAtZ` states, every TCB of
 the sets in the typed heap with its mapped vtable PML4's ASID non-zero ([J],
 issue #16's vtable-ASID fact; `CurOK` after from it at the new current
 thread, the slots kept); the dead set stays dead by
@@ -105,7 +105,7 @@ docstring). -/
 theorem jat_scheduleT2 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hnd : Fl4Spec.numDomains = 1)
-    (hAT : P0.ArchTotal arI) (h0Cs : 0#u64 ∈ Cs)
+    (hAT : P0.ArchTotal arI)
     (hVt : ∀ (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D1 : Set U64),
       JAtZ (L := L) arI AR Z H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T, Z.th t = some .tcb ∧
         ∀ p asid, capAt (L.mem s1) (slotOf t 1) = ok (.Pml4 p true asid) → asid ≠ 0#u64)
@@ -121,6 +121,7 @@ theorem jat_scheduleT2 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
       SchTailHypsR AR Z H D1 r.1 r.2 σ' ⦄) :
     sched.schedule st arI s a ⦃ r => ∃ (σ' : Fl4Spec.State Unit) (Ac' : Set U64) (Lst' : U64 → List U64)
       (D' : Set U64), JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.1 r.2 σ' ∧ CurInv σ' ⦄ := by
+  have h0Cs : 0#u64 ∈ Cs := J.kern.cs0
   have hX := J.xtop
   have hS := hX.fin.1.1.1
   have hR := hX.fin.1.1.2.2.1
