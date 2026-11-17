@@ -68,7 +68,7 @@ theorem retype_cont_allN {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
     (hzero : ZeroRegion (L.mem s) (p.val + fi.val) (p.val + 2 ^ sb.val))
     -- the reset of a used region
     (hsb4 : 4 ≤ sb.val) (hN : NoStraddle th p.val (p.val + 2 ^ sb.val))
-    (hns : ∀ a ∈ G.chains.flatten, a.val < p.val ∨ p.val + 2 ^ sb.val ≤ a.val)
+    (hns : (¬ ∃ x, σ.cdt x = some (pp.bv, idx)) → ∀ a ∈ G.chains.flatten, a.val < p.val ∨ p.val + 2 ^ sb.val ≤ a.val)
     (hrcb : Fl4Spec.resetChunkBits = 16) (hppS : PPFrame)
     (hPP : ∀ k0 v0 : U64, PPHyp (L := L) arI th p sb (fun t => L.ksb t = k0 ∧
       L.mem t (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = v0))
@@ -221,7 +221,7 @@ theorem retype_cont_allN {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
       · exact absurd h1 (dev_nt ht (hdevc hd)).1
     subst hdf
     refine WP.spec_mono (retype_reset_tcb (L := L) arI ar th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hU1 hpp hidx hcap1 hfi0 hnd
-      hpal hsb4 hhigh hN hns hzero1 hrcb hppS hPP2 (by rw [hDW2]; exact hDWal) (by rw [hDW2]; exact hDWobj)
+      hpal hsb4 hhigh hN (hns hnc) hzero1 hrcb hppS hPP2 (by rw [hDW2]; exact hDWal) (by rw [hDW2]; exact hDWobj)
       (by rw [hDW2]; exact hDWreg) (by rw [hDW2, hDWm2]; exact hhead) (by rw [hDW2, hDWm2]; exact hheadR) horig2
       nt us t ht h1 hus hdest hdout (by omega) off win hwin hw1 hmem hempty1 bitsApi hb) fun res h => hpost res ?_
     rcases h with ⟨hNS, hE | ⟨h1', σ', G', th'', e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, ⟨t1, a1, hr, hw⟩, e11⟩⟩
@@ -230,7 +230,7 @@ theorem retype_cont_allN {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
     have htT : t = .tcbObject := by rw [h1] at ht; simpa [objTypeOf] using ht.symm
     exact ⟨hNS, Or.inr ⟨h1', σ', G', th'', e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, ⟨t1, a1, hr, hw.mono fun v hv => Or.inl ⟨htT, hv⟩, fun _ => hz, fun _ => hhd⟩, e11⟩⟩
   · refine WP.spec_mono (retype_reset_full (L := L) arI ar th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hU1 hpp hidx hcap1 hfi0 hnd
-      hpal hsb4 hhigh hN hns hzero1 hrcb hppS hPP2
+      hpal hsb4 hhigh hN (hns hnc) hzero1 hrcb hppS hPP2
       (ekept_dw hP hxs _ (by rw [hDW2]; exact hDWal) (by rw [hDW2]; exact hDWreg) (by rw [hDW2]; exact hDWobj _ hxs)
         hpfit _ _) ⟨rfl, rfl⟩ (fun _ h => h.1) horig2
       nt us t ht (by omega) hus hz47 hsc hct0 hdest hdout (by omega) off win hwin hw1 hmem hempty1 (fun hd => (dev_nt ht (hdevc hd)).2.1) bitsApi hb)
@@ -281,7 +281,7 @@ theorem untyped_retype_refines_fl4N {A' : Type} (arI : machine.Arch A') (th : Ty
     (hfree : RegionFree th (p.val + fi.val) (p.val + 2 ^ sb.val))
     (hzero : ZeroRegion (L.mem s) (p.val + fi.val) (p.val + 2 ^ sb.val))
     (hsb4 : 4 ≤ sb.val) (hN : NoStraddle th p.val (p.val + 2 ^ sb.val))
-    (hns : ∀ a ∈ G.chains.flatten, a.val < p.val ∨ p.val + 2 ^ sb.val ≤ a.val)
+    (hns : (¬ ∃ x, σ.cdt x = some (pp.bv, idx)) → ∀ a ∈ G.chains.flatten, a.val < p.val ∨ p.val + 2 ^ sb.val ≤ a.val)
     (hrcb : Fl4Spec.resetChunkBits = 16) (hppS : PPFrame)
     (hPP : ∀ k0 v0 : U64, PPHyp (L := L) arI th p sb (fun t => L.ksb t = k0 ∧
       L.mem t (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = v0))

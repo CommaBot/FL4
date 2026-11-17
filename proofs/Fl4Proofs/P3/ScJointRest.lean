@@ -210,7 +210,8 @@ theorem JAtZ.sc_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   have hcC : Z.c ∈ Cs := hc.cur ▸ J.kern.cpuCs
   have hfi := U.fiLe
-  refine ⟨U.pal, U.pfit, U.fiLe, U.high, by rw [hcpu, hna]; exact U.actZ, U.free, ?_, U.sb4, U.nostr, U.ns,
+  refine ⟨U.pal, U.pfit, U.fiLe, U.high, by rw [hcpu, hna]; exact U.actZ, U.free, ?_, U.sb4, U.nostr, U.nsFree,
+    fun h0 => U.ns (by rw [hK.cdt] at h0; exact h0),
     fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, by rw [hna]; exact U.dwReg,
     by rw [hK.arch]; exact U.gReg⟩
   · intro w hal h1 h2
