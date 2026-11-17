@@ -581,12 +581,11 @@ theorem decode_invocation_threadJ_step (s : S) (ar : A) (σ : Fl4Spec.State Unit
     (hFr : ∀ (x ptr offset r : U64) (sz : capability.FrameSize) (m ep : Bool) (asid va : U64),
       capV (L.mem s) x = .Frame ptr sz r false m ep asid va → FpuPass true offset r sz →
       FpuFrameXHyp (L := L) AR Z p (core.num.U64.wrapping_add ptr offset))
-    (hTI : TimerInsHyp (L := L) Z.T Z.c s ct p)
     (hR : JPostHyp (L := L) arI AR s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf extra slbl
       (argsU.map UScalar.bv) ci sl excaps buffer ct) :
     XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf extra slbl
       (argsU.map UScalar.bv) ci sl excaps buffer ct :=
-  XCap.jat arI (decode_invocation_threadJAt arI s ar σ J hG hARI hT hA hBT hOK hBC hBPl hFl lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl hAs hsc excaps buffer hext hstall' hNative hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapT hcapC hC0 hcapN hA5 hGb hFpu hI hFr hTI) J hR
+  XCap.jat arI (decode_invocation_threadJAt arI s ar σ J hG hARI hT hA hBT hOK hBC hBPl hFl lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl hAs hsc excaps buffer hext hstall' hNative hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapT hcapC hC0 hcapN hA5 hGb hFpu hI hFr) J hR
 
 set_option maxHeartbeats 4000000 in
 /-- **`decode_invocation_ioportJAt`, `JAt` after**, with the per-op premise (`JPostHyp` [W]). -/

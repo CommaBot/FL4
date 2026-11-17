@@ -72,17 +72,79 @@ theorem slot_cap_wf {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64}
 
-/-- **`TimerInsHypR` on `JAt`** (P1's `set_thread_state.restart_ok` and
+/-- **The other cores' timer words on `JAt`** (`OtherTmOK`): each other
+core's node misses `H`'s objects (`JKern.hnd`), which hold the slots' CNodes
+and TCBs (`JPlaced`), the sets' objects (`zH`), the SCs (`JPlaced.sc`) and the
+arch objects (`SpecCover.arch`); it lies below the ASID table (`JKern.csLt`)
+and misses the IPC-buffer words (`nodeB`). -/
+theorem JAtZ.otherTmOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    OtherTmOK (L := L) Z Cs s σ := by
+  intro c' hc' e
+  have hX := J.xtop
+  have K := J.kern
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  have hTe : Z.T = P1.Heap.tcbs H :=
+    Set.ext fun t => ⟨fun h => J.zH.1 t h, fun h => J.thT t ((hJ.tcb t).2 h)⟩
+  have hNP : P1.NodePlaced st Z.T s c' := by rw [hTe]; exact P1.TInv.nodes J.blk c' hc'
+  have hlt := K.csLt c' hc'
+  have hnb : L.nodeBase s c' = (L.ksb s).val + 13568 + c'.val * 4288 := rfl
+  have hout : ∀ p k, H p = some k → p.val + 2 ^ k.bits ≤ L.nodeBase s c' ∨ L.nodeBase s c' + 4288 ≤ p.val :=
+    fun p k hp => K.hnd p k hp c' hc'
+  refine ⟨hNP, fun o ho => ?_⟩
+  have hv := P1.nodeAt_val hNP (off := o) (by omega)
+  have hb : L.nodeBase s c' ≤ (L.nodeAt s c' o).val ∧ (L.nodeAt s c' o).val + 8 ≤ L.nodeBase s c' + 4288 := by
+    rw [hv]; omega
+  -- a word in an object of `H` of `2 ^ k.bits` bytes is not in the node
+  have miss : ∀ p k, H p = some k → ¬ (p.val ≤ (L.nodeAt s c' o).val ∧ (L.nodeAt s c' o).val < p.val + 2 ^ k.bits) :=
+    fun p k hp ⟨h1, h2⟩ => by rcases hout p k hp with h | h <;> omega
+  have hVs := hX.fin.2.1
+  have hPt := hX.fin.2.2.1
+  have arch : ∀ q : U64, (∃ ao, σ.kheap q.bv = some (.archObj ao)) →
+      ¬ (q.val ≤ (L.nodeAt s c' o).val ∧ (L.nodeAt s c' o).val < q.val + 4096) := by
+    rintro q ⟨ao, hq⟩ ⟨h1, h2⟩
+    obtain ⟨n, hn, hH⟩ := J.cover.arch _ ao hq
+    have : (4096 : Nat) ≤ 2 ^ n := by
+      have := Nat.pow_le_pow_right (show 0 < 2 by norm_num) hn; simpa using this
+    exact miss q _ hH ⟨h1, by simp only [P1.HKind.bits]; omega⟩
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · -- no VSpace object
+    rintro (⟨q, r, hq, h1, h2⟩ | ⟨t, ht, h1, h2⟩ | ⟨q, hq, h1, h2⟩ | ⟨h1, h2⟩)
+    · exact miss q _ (hJ.cnode q r hq) ⟨h1, by simp only [P1.HKind.bits]; rw [pow_add]; omega⟩
+    · exact miss t _ ((hJ.tcb t).1 ht) ⟨h1, by simp only [P1.HKind.bits]; omega⟩
+    · refine arch q ?_ ⟨h1, h2⟩
+      rcases hq with hq | hq | hq | hq | hq
+      · obtain ⟨f, hf, -⟩ := hVs.pool q hq; exact ⟨_, hf⟩
+      · obtain ⟨f, hf, -⟩ := hPt.l4 q hq; exact ⟨_, hf⟩
+      · obtain ⟨f, hf, -⟩ := hPt.l3 q hq; exact ⟨_, hf⟩
+      · obtain ⟨f, hf, -⟩ := hPt.l2 q hq; exact ⟨_, hf⟩
+      · obtain ⟨f, hf, -⟩ := hPt.l1 q hq; exact ⟨_, hf⟩
+    · rw [hnb] at hb; omega
+  · -- no endpoint-relation word
+    rintro (⟨e, he, h⟩ | ⟨r, hr, h⟩ | ⟨t, ht, h | h⟩ | ⟨wp, hwp, h⟩)
+    · exact miss e _ (J.zH.2.1 e he) ⟨by omega, by simp only [P1.HKind.bits]; omega⟩
+    · exact miss r _ (J.zH.2.2.1 r hr) ⟨by omega, by simp only [P1.HKind.bits]; omega⟩
+    · obtain ⟨h1, h2⟩ := h; unfold Endp.TOffN at h2
+      exact miss t _ (J.zH.1 t ht) ⟨h1, by simp only [P1.HKind.bits]; omega⟩
+    · unfold Endp.TL at h
+      exact miss t _ (J.zH.1 t ht) ⟨by omega, by simp only [P1.HKind.bits]; omega⟩
+    · have := J.nodeB wp hwp c' hc'; rw [← h] at this; omega
+  · -- no notification-relation word
+    rintro (⟨n, hn, h1, h2⟩ | ⟨t, ht, h⟩)
+    · exact miss n _ (J.zH.2.2.2 n hn) ⟨h1, by simp only [P1.HKind.bits]; omega⟩
+    · have hv' := nfootT_val (hX.fin.1.1.1.placed.tcb t ht) h
+      exact miss t _ (J.zH.1 t ht) ⟨by omega, by simp only [P1.HKind.bits]; omega⟩
+  · -- no SC word
+    intro sc hsc x n hk ⟨h1, h2⟩
+    obtain ⟨-, hH⟩ := hJ.sc sc x n (J.c0 sc hsc) hk
+    exact miss sc _ hH ⟨h1, by simp only [P1.HKind.bits]; omega⟩
+
+/-- **`TimerInsHyp` on `JAt`** (P1's `set_thread_state.restart_ok` and
 `timer.insert.foot` at `JAtZ.blk`; the current thread runnable, so neither
-blocked nor waiting for a reply): all but the other cores' timer words
-(`OtherTmOK` [J], from the placement fields `SpecCover.arch`, `JKern.csLt`
-and `JKern.nodeB`). -/
-theorem JAtZ.timerInsR {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    {ct p : U64} (hct : sched.cur_thread st s = ok ct) (hp : p ∈ Z.T)
-    (hOT : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 → OtherTmOK (L := L) Z Cs s1) :
-    TimerInsHypR (L := L) Z Cs s ct p := by
+blocked nor waiting for a reply). -/
+theorem JAtZ.timerIns {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {ct p : U64} (hct : sched.cur_thread st s = ok ct) (hp : p ∈ Z.T) :
+    TimerInsHyp (L := L) Z.T Cs s ct p := by
   intro s1 d b hs1
-  refine ⟨hOT s1 hs1, ?_⟩
   obtain ⟨hcur, x, hk, hrun⟩ := J.curRunnable hct
   have hctT : ct ∈ Z.T := J.thT ct (J.xtop.curTcb hcur).1
   obtain ⟨x', hk', hR⟩ := J.xtop.ipc.tcb ct hctT
@@ -148,7 +210,7 @@ the target not idle, the argument reads, the remote stall the identity [P],
 the core's `CUR_THREAD` word outside the objects); the IPC/Sc leaves
 (`TcbXIpc`), the arguments (`ArgRel` [J], five), GetBreakpoint's read (`GetBpHyp`
 [P]), SetFlags' FPU release (`FpuRelXHyp` [P]), ReadFPU's user-frame write (`FpuFrameXHyp`
-[W], `fpuFrameX_of`), SetTimer's footprint (`TimerInsHyp` [W]). -/
+[W], `fpuFrameX_of`), SetTimer's footprint from P1's (`JAtZ.timerIns`, `JAtZ.otherTmOK`). -/
 theorem decode_invocation_threadJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hG : CsGlobal (L := L) arI AR Z.th)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
@@ -187,8 +249,7 @@ theorem decode_invocation_threadJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (hI : TcbXIpc (L := L) arI AR Z.th s ar σ p ct buf argsU blk call don)
     (hFr : ∀ (x ptr offset r : U64) (sz : capability.FrameSize) (m ep : Bool) (asid va : U64),
       capV (L.mem s) x = .Frame ptr sz r false m ep asid va → FpuPass true offset r sz →
-      FpuFrameXHyp (L := L) AR Z p (core.num.U64.wrapping_add ptr offset))
-    (hTI : TimerInsHyp (L := L) Z.T Z.c s ct p) :
+      FpuFrameXHyp (L := L) AR Z p (core.num.U64.wrapping_add ptr offset)) :
     XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf extra slbl
       (argsU.map UScalar.bv) ci sl excaps buffer ct := by
   have hX := J.xtop
@@ -207,80 +268,7 @@ theorem decode_invocation_threadJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
         (tcbXOpen3_of arI hARI.toARKeep s ar σ hX J.curRun J.thT J.del lbl length p hp blk call don buf extra ct hct
           hcur slbl hlbl argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act x0 x1 x2 hx0 hXc hFr
           (tcbXOpen1_of arI s ar σ hX J.ks J.curRun J.del lbl length p blk call don buf extra ct hct hcur slbl hlbl
-            argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act hTI))))
-
-set_option maxHeartbeats 4000000 in
-/-- **The Thread cap on `JAt`** (`decode_invocation_threadXL`, with
-`tcbXOpen_of`): `JAtZ` at the decode's start; the invoked slot's cap; the
-CSpace globals, the arch interface [P]; at every `XTopAt` state of the typed
-heap [global]: `ActReady` (at `WX`), `BufWordRel`, the IPC-buffer caps
-(`IpcBufCapOK`, `BufCover`, `BufPlaced`) and `FlagsRel`; the decode's own
-facts (the extra caps, the authority's and the SC caps' objects, no null SC,
-the target not idle, the argument reads, the remote stall the identity [P],
-the core's `CUR_THREAD` word outside the objects); the IPC/Sc leaves
-(`TcbXIpc`), the arguments (`ArgRel` [J], five), GetBreakpoint's read (`GetBpHyp`
-[P]), SetFlags' FPU release (`FpuRelXHyp` [P]), ReadFPU's user-frame write (`FpuFrameXHyp`
-[W], `fpuFrameX_of`), SetTimer's other cores' timer words (`OtherTmOK` [J]; the rest by
-`JAtZ.timerInsR`). -/
-theorem decode_invocation_threadJAtR (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hG : CsGlobal (L := L) arI AR Z.th)
-    (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
-    (hA : ∀ s a σ G, WX (L := L) AR Z.th s a σ G → Notif.ActReady σ)
-    (hBT : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → BufWordRel Z'.T (L.mem s') σ')
-    (hOK : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.IpcBufCapOK σ')
-    (hBC : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.BufCover Z'.T Z'.B σ')
-    (hBPl : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
-      Vs.BufPlaced (L := L) Z'.N Z'.C Z'.B Z'.c s' σ')
-    (hFl : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → FlagsRel Z'.T (L.mem s') σ')
-    (lbl length : U64) (p : U64)
-    (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ct : U64)
-    (hct : sched.cur_thread st s = ok ct)
-    (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = tcbLabelOf lbl)
-    (argsU : List U64) (hlen : length.val = argsU.length)
-    (hargs : ∀ (i : U64) x, argsU[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
-    (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th sl)
-    (hsc : capV (L.mem s) (cslotAddr sl) = .Thread p)
-    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
-    (hext : Fl4Spec.genInvocationType slbl = .invalidInvocation → Fl4Spec.fl4TcbExtLabelOf slbl = tcbExtOf lbl)
-    (hstall' : ∀ q, smp.remote_tcb_stall st arI s ar q = ok (s, ar))
-    (hNative : lbl ≠ fl4_abi.label.TCBSetEPTRoot)
-    (hcw : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD))
-    (hpI : p ≠ L.idleW s)
-    (x0 x1 x2 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
-    (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
-    (hx2 : Aeneas.Std.Array.index_usize extra 2#usize = ok x2)
-    (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps) (hnc : NcHyp (st := st) s σ x0 x1 x2)
-    (hnc0 : ∀ sl : Fl4Spec.CslotPtr, x0 = cslotAddr sl → isUt (capV (L.mem s) x0) = true →
-      NoChildrenRel (st := st) s σ x0 sl)
-    (hcapT : ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T)
-    (hcapC : ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ Z.C) (hC0 : ∀ q ∈ Z.C, q ≠ 0#u64)
-    (hcapN : ∀ q b w r, capV (L.mem s) x0 = .Notification q b w r → q ∈ Z.N)
-    (hA5 : ArgRel (st := st) s σ ct buf buffer 5) (hGb : GetBpHyp (st := st) s ct p)
-    (hFpu : FpuRelXHyp (L := L) arI AR Z.th p ct)
-    (hI : TcbXIpc (L := L) arI AR Z.th s ar σ p ct buf argsU blk call don)
-    (hFr : ∀ (x ptr offset r : U64) (sz : capability.FrameSize) (m ep : Bool) (asid va : U64),
-      capV (L.mem s) x = .Frame ptr sz r false m ep asid va → FpuPass true offset r sz →
-      FpuFrameXHyp (L := L) AR Z p (core.num.U64.wrapping_add ptr offset))
-    (hOT : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 → OtherTmOK (L := L) Z Cs s1) :
-    XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf extra slbl
-      (argsU.map UScalar.bv) ci sl excaps buffer ct := by
-  have hX := J.xtop
-  obtain ⟨hcur, -, -, -⟩ := J.curRunnable hct
-  have hp : Z.th p = some .tcb := (slot_cap_wf hX hAs hsc).2
-  have hpT := J.thT p hp
-  exact decode_invocation_threadXL arI s ar σ hX J.ks J.curRun J.thT J.del hG.fin hG.pre (hG.postDel arI hARI hT)
-    J.bound hA hBT J.ip lbl length p hp blk call don fp buf extra ct hct hcur slbl hlbl argsU hlen hargs ci sl hAs
-    excaps buffer hext hstall' hNative J.kern.act hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 J.mcp hcapT hcapC hC0
-    hcapN (fun i hi => hA5 i (by omega)) hI
-    (tcbXOpen_of arI s ar σ hX J.ks J.curRun J.thT J.del hBT J.ip hOK hBC hBPl hFl lbl length p hp blk call don buf
-      extra ct hct hcur slbl hlbl argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act
-      (fun i hi => hA5 i (by omega)) hGb hFpu
-      (tcbXOpen4_of arI s ar σ hX J.curRun J.thT J.del lbl length p hp blk call don buf extra ct hct hcur slbl hlbl
-        (argsU.map UScalar.bv) ci sl excaps buffer hext hstall' J.kern.act hA5
-        (tcbXOpen3_of arI hARI.toARKeep s ar σ hX J.curRun J.thT J.del lbl length p hp blk call don buf extra ct hct
-          hcur slbl hlbl argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act x0 x1 x2 hx0 hXc hFr
-          (tcbXOpen1R_of arI s ar σ hX J.ks J.curRun J.del lbl length p blk call don buf extra ct hct hcur slbl hlbl
-            argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act (J.timerInsR arI hct hpT hOT)))))
+            argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act J.otherTmOK (J.timerIns arI hct hpT)))))
 
 set_option maxHeartbeats 4000000 in
 /-- **The IRQ control cap on `JAt`** (`decode_invocation_irq_controlX`; the
