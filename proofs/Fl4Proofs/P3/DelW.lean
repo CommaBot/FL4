@@ -184,6 +184,137 @@ theorem delHypsW_true {th : TypedHeap} (hO : FinObjHyp (L := L) arI th) (hPP : P
     (hPD : PostDelHyp (L := L) arI th) : DelHypsW (L := L) arI WTrue th :=
   ⟨hO.w arI, hPP.w arI, hPD.w arI, fun _ _ _ _ _ _ _ _ _ _ _ _ _ => trivial⟩
 
+/-! ## The premises with a readiness predicate `Rd`
+
+`SlotHypW` asks every slot edit to keep `W`, which is false for a `W` that
+carries a coverage invariant (`JAtZ`'s `JCovD`): emptying the only cap of a
+live object loses its cover. What makes the deletion's edits safe is a fact
+about the edited slot that the loop knows at the edit: the slot's cap was
+finalised just before (its objects dead or covered by another cap). The
+premises below thread it as a readiness predicate `Rd s a σ G x` (the slot
+`x` is ready to be emptied), produced by the finalisation and consumed by the
+empty, and split `SlotHypW` by edit:
+
+* `FinObjHypWR`: `FinObjHypW` with `Rd` at the finalised slot after.
+* `RdTrivHyp`: `Rd` at the slot of a cap whose finalisation does nothing to
+  the state (no object: the trivial caps, CNode caps, zombies).
+* `ZombieHypW`: a zombie written over a cap alike it (`CapAlike`: the same
+  range and objects), the other slots kept.
+* `SwapHypW`: the zombie at a slot swapped with its first slot.
+* `EmptyHypWR`: a non-null slot emptied (`empty_slot` with a null cleanup),
+  the other slots kept, given `Rd` at it before.
+* `DelHypsWR`: the seven premises bundled; `DelHypsW.toR`: from `DelHypsW`
+  at `Rd := True` (`RdT`), so `DelHypsW` users are unchanged.
+-/
+
+/-- No readiness asked. -/
+abbrev RdT : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop := fun _ _ _ _ _ => True
+
+/-- **`FinObjHypW` with `Rd`** at the finalised slot after, for the object
+caps of the kinds `Kd`. -/
+def FinObjHypWRK (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+    (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap)
+    (Kd : capability.Cap → Prop) : Prop :=
+  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (c : capability.Cap),
+    DState (L := L) th s σ G → W s a σ G → AbsSlot th sl → capAt (L.mem s) (cslotAddr sl) = ok c →
+    FinObjKind c → Kd c →
+    objects.finalise_cap st arI s a c (decide (Fl4Spec.isFinalCap' (absCap c) σ)) false ⦃ r =>
+      r.1.1 = finRem c (decide (Fl4Spec.isFinalCap' (absCap c) σ)) ∧ CleanCap r.1.2 ∧ CapWf r.1.2 ∧
+      ∃ σ' G', ((absCap r.1.1, absCap r.1.2), σ') ∈
+          (Fl4Spec.finaliseCap (Z := Unit) (absCap c) (decide (Fl4Spec.isFinalCap' (absCap c) σ)) σ).1 ∧
+        DState (L := L) th r.2.1 σ' G' ∧ capV (L.mem r.2.1) (cslotAddr sl) = c ∧
+        (∀ y, IsSlot th y → y ≠ cslotAddr sl → capV (L.mem r.2.1) y = capV (L.mem s) y ∨
+          (capV (L.mem r.2.1) y = .Null ∧ isZb (capV (L.mem s) y) = false)) ∧
+        MdbStep (L.mem s) G (L.mem r.2.1) G' ∧ W r.2.1 r.2.2 σ' G' ∧ Rd r.2.1 r.2.2 σ' G' (cslotAddr sl) ⦄
+
+/-- **`FinObjHypW` with `Rd`** at the finalised slot after, every object cap. -/
+abbrev FinObjHypWR (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+    (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) : Prop :=
+  FinObjHypWRK (L := L) arI W Rd th (fun _ => True)
+
+/-- **`Rd` at the slot of a cap finalised without effect** (not an object
+cap: the trivial caps, CNode caps, zombies; their finalisation leaves the
+state as it is). -/
+def RdTrivHyp (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+    (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) : Prop :=
+  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (c : capability.Cap),
+    DState (L := L) th s σ G → W s a σ G → AbsSlot th sl → capAt (L.mem s) (cslotAddr sl) = ok c →
+    c ≠ .Null → ¬ FinObjKind c → Rd s a σ G (cslotAddr sl)
+
+/-- **A zombie written over a cap alike it keeps `W`** (the other slots kept,
+the spec's `set_cap`, the same ghost tree). -/
+def ZombieHypW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) : Prop :=
+  ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit) (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (p zt n : U64),
+    W s a σ G → DState (L := L) th s σ G → DState (L := L) th s' σ' G → Vs.SlotFrame2 (L := L) th s s' →
+    Fl4Spec.setCap (Z := Unit) (absCap (.Zombie p zt n)) sl σ = ({((), σ')}, False) → AbsSlot th sl →
+    capV (L.mem s) (cslotAddr sl) ≠ .Null → capV (L.mem s') (cslotAddr sl) = .Zombie p zt n →
+    CapAlike (.Zombie p zt n) (capV (L.mem s) (cslotAddr sl)) →
+    (∀ y, IsSlot th y → y ≠ cslotAddr sl → capV (L.mem s') y = capV (L.mem s) y) →
+    MdbStep (L.mem s) G (L.mem s') G → W s' a σ' G
+
+/-- **The zombie at a slot swapped with its first slot keeps `W`** (the
+spec's `cap_swap_for_delete`, the ghost tree renamed). -/
+def SwapHypW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) : Prop :=
+  ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit) (G G' : MdbGhost) (sl : Fl4Spec.CslotPtr) (p zt n : U64),
+    W s a σ G → DState (L := L) th s σ G → DState (L := L) th s' σ' G' → Vs.SlotFrame2 (L := L) th s s' →
+    Fl4Spec.capSwapForDelete (Z := Unit) (homeSl p zt) sl σ = ({((), σ')}, False) → AbsSlot th sl →
+    capV (L.mem s) (cslotAddr sl) = .Zombie p zt n → p ≠ cslotAddr sl →
+    G' = renG G (Equiv.swap p (cslotAddr sl)) →
+    (∀ y, IsSlot th y → capV (L.mem s') y = if y = cslotAddr sl then capV (L.mem s) p
+      else if y = p then capV (L.mem s) (cslotAddr sl) else capV (L.mem s) y) →
+    MdbStep (L.mem s) G (L.mem s') G' → W s' a σ' G'
+
+/-- **A ready non-null slot emptied keeps `W`** (FL4's `empty_slot` with a
+null cleanup, the spec's `empty_slot` with a null cleanup, the other slots
+kept). -/
+def EmptyHypWR (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+    (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) : Prop :=
+  ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit) (G G' : MdbGhost) (sl : Fl4Spec.CslotPtr),
+    W s a σ G → Rd s a σ G (cslotAddr sl) → DState (L := L) th s σ G → DState (L := L) th s' σ' G' →
+    Vs.SlotFrame2 (L := L) th s s' → ((), σ') ∈ (Fl4Spec.emptySlot (Z := Unit) sl .nullCap σ).1 →
+    AbsSlot th sl → capV (L.mem s) (cslotAddr sl) ≠ .Null → capV (L.mem s') (cslotAddr sl) = .Null →
+    (∀ y, IsSlot th y → y ≠ cslotAddr sl → capV (L.mem s') y = capV (L.mem s) y) →
+    MdbStep (L.mem s) G (L.mem s') G' → W s' a σ' G'
+
+/-- The premises with `Rd` bundled. -/
+structure DelHypsWR (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+    (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) : Prop where
+  fin : FinObjHypWR (L := L) arI W Rd th
+  triv : RdTrivHyp (L := L) W Rd th
+  pp : PPHypDW (L := L) arI W th
+  post : PostDelHypW (L := L) arI W th
+  zomb : ZombieHypW (L := L) (A := A) W th
+  swap : SwapHypW (L := L) (A := A) W th
+  empty : EmptyHypWR (L := L) W Rd th
+
+theorem FinObjHypW.r {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop} {th : TypedHeap}
+    (h : FinObjHypW (L := L) arI W th) : FinObjHypWR (L := L) arI W RdT th := by
+  intro s a σ G sl c hDS hW hA hc hk _
+  refine WP.spec_mono (h s a σ G sl c hDS hW hA hc hk) ?_
+  rintro r ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, h9⟩
+  exact ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, h9, trivial⟩
+
+/-- `SlotHypW` gives the three edits' premises. -/
+theorem SlotHypW.zomb {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop} {th : TypedHeap}
+    (h : SlotHypW (L := L) (A := A) W th) : ZombieHypW (L := L) (A := A) W th :=
+  fun s s' a σ σ' G sl _ _ _ hW hD hD' hF hsc _ _ _ _ _ hmS =>
+    h s s' a σ σ' G G hW hD hD' hF (Ipc.nkn_setCap _ _ σ ((), σ') (mem_of_single hsc)) hmS
+
+theorem SlotHypW.swap {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop} {th : TypedHeap}
+    (h : SlotHypW (L := L) (A := A) W th) : SwapHypW (L := L) (A := A) W th :=
+  fun s s' a σ σ' G G' _ p zt _ hW hD hD' hF hsw _ _ _ _ _ hmS =>
+    h s s' a σ σ' G G' hW hD hD' hF (capSwapForDelete_nkn _ _ σ ((), σ') (mem_of_single hsw)) hmS
+
+theorem SlotHypW.empty {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop} {th : TypedHeap}
+    (h : SlotHypW (L := L) (A := A) W th) : EmptyHypWR (L := L) W RdT th :=
+  fun s s' a σ σ' G G' _ hW _ hD hD' hF hes _ _ _ _ hmS =>
+    h s s' a σ σ' G G' hW hD hD' hF (emptySlot_null_nkn _ σ ((), σ') hes) hmS
+
+/-- **`DelHypsW` is `DelHypsWR` at `Rd := True`.** -/
+theorem DelHypsW.toR {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop} {th : TypedHeap}
+    (h : DelHypsW (L := L) arI W th) : DelHypsWR (L := L) arI W RdT th :=
+  ⟨h.fin.r arI, fun _ _ _ _ _ _ _ _ _ _ _ _ => trivial, h.pp, h.post, h.slot.zomb, h.slot.swap, h.slot.empty⟩
+
 end
 
 end
