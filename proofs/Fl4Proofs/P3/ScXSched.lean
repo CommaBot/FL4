@@ -7,8 +7,8 @@ notification relations after, the current thread's `CurOK` and the CR3
 relation after (the arch switch's facts, `xtop_sched_step`).
 
 * `SchStep P σ σ'`: `ScTKw P` but for the current thread and the arch
-  state's current CR3 (`choose_thread`/`switch_to_thread`'s
-  `set_vm_root`). Reflexive, transitive; `ScTKw.toSch`.
+  state beyond its IO ports, global PML4 and ASID table (`switch_to_thread`'s
+  `set_vm_root`, the FPU owner). Reflexive, transitive; `ScTKw.toSch`.
 * `SchStep.toTK`: an `ScTKw` step to `σ'` with `σ`'s current thread and
   arch state (same heap), for the heap-reading lemmas.
 -/
@@ -31,32 +31,29 @@ structure SchStep (P : ObjRef → Prop) (σ σ' : State Unit) : Prop where
   orig : σ'.isOriginalCap = σ.isOriginalCap
   dl : σ'.domainList = σ.domainList
   dsi : σ'.domainStartIndex = σ.domainStartIndex
-  arch : σ'.archState = { σ.archState with x64CurrentCr3 := σ'.archState.x64CurrentCr3 }
+  io : σ'.archState.x64AllocatedIoPorts = σ.archState.x64AllocatedIoPorts
+  gpml4 : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4
+  asid : σ'.archState.x64AsidTable = σ.archState.x64AsidTable
   ist : σ'.interruptStates = σ.interruptStates
   inode : σ'.interruptIrqNode = σ.interruptIrqNode
 
 theorem SchStep.refl (P : ObjRef → Prop) (σ : State Unit) : SchStep P σ σ :=
-  ⟨fun _ => OTK.refl _ _, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  ⟨fun _ => OTK.refl _ _, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem SchStep.trans {P : ObjRef → Prop} {σ1 σ2 σ3 : State Unit} (h1 : SchStep P σ1 σ2) (h2 : SchStep P σ2 σ3) :
     SchStep P σ1 σ3 :=
   ⟨fun p => (h1.kh p).trans (h2.kh p), h2.um.trans h1.um, h2.cdt.trans h1.cdt, h2.orig.trans h1.orig,
-    h2.dl.trans h1.dl, h2.dsi.trans h1.dsi, by rw [h2.arch, h1.arch], h2.ist.trans h1.ist,
-    h2.inode.trans h1.inode⟩
+    h2.dl.trans h1.dl, h2.dsi.trans h1.dsi, h2.io.trans h1.io, h2.gpml4.trans h1.gpml4, h2.asid.trans h1.asid,
+    h2.ist.trans h1.ist, h2.inode.trans h1.inode⟩
 
 theorem ScTKw.toSch {P : ObjRef → Prop} {σ σ' : State Unit} (h : ScTKw P σ σ') : SchStep P σ σ' :=
-  ⟨h.kh, h.um, h.cdt, h.orig, h.dl, h.dsi, by rw [h.arch], h.ist, h.inode⟩
+  ⟨h.kh, h.um, h.cdt, h.orig, h.dl, h.dsi, by rw [h.arch], by rw [h.arch], by rw [h.arch], h.ist, h.inode⟩
 
 /-- The state `σ'` with `σ`'s current thread and arch state. -/
 def schBack (σ σ' : State Unit) : State Unit := { σ' with curThread := σ.curThread, archState := σ.archState }
 
 theorem SchStep.toTK {P : ObjRef → Prop} {σ σ' : State Unit} (h : SchStep P σ σ') : ScTKw P σ (schBack σ σ') :=
   ⟨h.kh, h.um, h.cdt, h.orig, h.dl, h.dsi, rfl, h.ist, h.inode, rfl⟩
-
-/-- A field of the arch state other than the current CR3 is kept. -/
-theorem SchStep.archF {P : ObjRef → Prop} {σ σ' : State Unit} (h : SchStep P σ σ') {β : Type}
-    (f : ArchState → β) (hf : ∀ a c, f { a with x64CurrentCr3 := c } = f a) : f σ'.archState = f σ.archState := by
-  rw [h.arch, hf]
 
 end Spec
 
@@ -112,7 +109,7 @@ theorem xtop_sched_step {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
     have hv := ioA_val hkf hw
     unfold bitOf
     rw [hkw _ (by unfold Aligned; rw [hv]; omega) (by rw [hv]; omega) (by rw [hv]; omega),
-      hK.archF (fun a => a.x64AllocatedIoPorts) (fun _ _ => rfl)]
+      hK.io]
     exact hIo p hp
   have hKr' : Vs.KRootRel (L.mem s') (L.ksb s') σ' := by
     unfold Vs.KRootRel Vs.globCr3 at hKr ⊢
@@ -120,7 +117,7 @@ theorem xtop_sched_step {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
       unfold layout.ks.KERNEL_ROOT
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
     rw [hks, hkw _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega),
-      hK.archF (fun a => a.x64GlobalPml4) (fun _ _ => rfl)]
+      hK.gpml4]
     exact hKr
   have hz : SzKeep σ σ' := hT.szKeep
   have hTP' : Vs.TopPlaced st Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' := by
@@ -132,7 +129,7 @@ theorem xtop_sched_step {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
   have hVs' : Vs.VsRel Z.P (L.mem s') (L.ksb s') σ' := by
     rw [hks]
     refine Vs.VsRel.frame hVs (fun b hb => hvw b (hb.aligned hTP.vs) (Vs.vsWrite_vobj hTP.vs hb))
-      (hK.archF (fun a => a.x64AsidTable) (fun _ _ => rfl)) fun p hp => ?_
+      hK.asid fun p hp => ?_
     obtain ⟨f, hf, -⟩ := hVs.pool p hp
     exact hT.arch_obj hf
   have hPt' : Vs.PtRel Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s') σ' := by

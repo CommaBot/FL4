@@ -250,7 +250,7 @@ theorem EpStateRel.scStep {m m' : U64 → U64} {P : Fl4Spec.ObjRef → Prop} {σ
     have hyx := hso
     unfold TcbSchedOnly at hyx
     -- the fields other than the state are kept
-    have hregs : y.tcbArch = x.tcbArch := by rw [hyx]
+    have hregs : y.tcbArch.tcbContext.userRegs = x.tcbArch.tcbContext.userRegs := by rw [hyx]
     have hprio : y.tcbPriority = x.tcbPriority := by rw [hyx]
     have hfault : y.tcbFault = x.tcbFault := by rw [hyx]
     have hbound : y.tcbBoundNotification = x.tcbBoundNotification := by rw [hyx]

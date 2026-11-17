@@ -367,14 +367,14 @@ theorem awaken_loop_refines {N C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
     sched.awaken_loop st s fuel ⦃ s' => ∃ σ', Fl4Spec.awaken (Z := Unit) σ = ({((), σ')}, False) ∧
       SchedRel st N T C c s' σ' ∧ NtfnStateRel N T (L.mem s') σ' ∧ NSC N C σ' ∧ Inv σ' ∧
       (ActSched σ' ∧ (σ.schedulerAction = .chooseNewThread → σ'.schedulerAction = .chooseNewThread)) ∧
-      Calm σ σ' ∧ ∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue ⦄ := by
+      Calm σ σ' ∧ (∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue) ∧ WritesIn st s s' (SFoot st T c s) ⦄ := by
   unfold sched.awaken_loop
   apply loop.spec_decr_nat (measure := fun x => x.2.val) (inv := fun x => ∃ σk,
     SchedRel st N T C c x.1 σk ∧ NtfnStateRel N T (L.mem x.1) σk ∧ NSC N C σk ∧ Inv σk ∧
     (ActSched σk ∧ (σ.schedulerAction = .chooseNewThread → σk.schedulerAction = .chooseNewThread)) ∧
     σk.releaseQueue.length < x.2.val ∧ Fl4Spec.awaken (Z := Unit) σ = Fl4Spec.awaken (Z := Unit) σk ∧
-    Calm σ σk ∧ ∀ u ∈ σk.releaseQueue, u ∈ σ.releaseQueue)
-  · rintro ⟨sk, fk⟩ ⟨σk, hSk, hRk, hNk, hIk, ⟨hAk, hCk⟩, hlen, hloop, hcalm, hsub⟩
+    Calm σ σk ∧ (∀ u ∈ σk.releaseQueue, u ∈ σ.releaseQueue) ∧ WritesIn st s x.1 (SFoot st T c s))
+  · rintro ⟨sk, fk⟩ ⟨σk, hSk, hRk, hNk, hIk, ⟨hAk, hCk⟩, hlen, hloop, hcalm, hsub, hwk⟩
     dsimp only at *
     obtain ⟨Q, R, hc, hs⟩ := hSk.lists
     unfold sched.awaken_loop.body
@@ -393,7 +393,7 @@ theorem awaken_loop_refines {N C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
       have hb' : b = true := by rw [hb, hhd]; rfl
       simp only [hb', ↓reduceIte, WP.spec_ok]
       have hq : σk.releaseQueue = [] := by rw [hs.rel]; rfl
-      refine ⟨σk, ?_, hSk, hRk, hNk, hIk, hAk, hCk, hcalm, hsub⟩
+      refine ⟨σk, ?_, hSk, hRk, hNk, hIk, hAk, hCk, hcalm, hsub, hwk⟩
       rw [hloop]; unfold Fl4Spec.awaken
       exact wl_done (by rw [readRQ_nil hq]; simp [Fl4Spec.the])
     | cons t R0 =>
@@ -423,8 +423,8 @@ theorem awaken_loop_refines {N C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
       · simp only [hr, ↓reduceIte]
         have hnd : i1.bv ∉ R0.map UScalar.bv := by
           rw [mem_map_bv]; exact (List.nodup_cons.1 hc.release.nodup).1
-        refine WP.spec_bind (release_remove_head_refines sk σk hSk ht hq) ?_
-        rintro s1 ⟨he1, hf1, hS1⟩
+        refine WP.spec_bind (WP.spec_and (release_remove_head_refines sk σk hSk ht hq) (release_remove_sfoot hSk ht)) ?_
+        rintro s1 ⟨⟨he1, hf1, hS1⟩, hw1⟩
         have hR1 : NtfnStateRel N T (L.mem s1) (setRel σk (R0.map UScalar.bv) true) :=
           hRk.frame hSk.placed hf1 (KView.of_kheap rfl)
         have hI1 : Inv (setRel σk (R0.map UScalar.bv) true) :=
@@ -434,8 +434,9 @@ theorem awaken_loop_refines {N C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
         have hsch : Fl4Spec.schedulable i1.bv (setRel σk (R0.map UScalar.bv) true) = true :=
           schedulable_of (σ := setRel σk (R0.map UScalar.bv) true) h1 h2 h3 h4 h5
             (show i1.bv ∉ (setRel σk (R0.map UScalar.bv) true).releaseQueue from hnd)
-        refine WP.spec_bind (possible_switch_to_refines s1 _ hR1 hS1 hI1.actReady i1 ht) ?_
-        rintro s2 ⟨σ2, he2, hk2, hf2, hS2⟩
+        refine WP.spec_bind (WP.spec_and (possible_switch_to_refines s1 _ hR1 hS1 hI1.actReady i1 ht)
+          (possible_switch_to_sfoot hR1 hS1 hI1.actReady ht)) ?_
+        rintro s2 ⟨⟨σ2, he2, hk2, hf2, hS2⟩, hw2⟩
         rw [WP.spec_ok]
         have hq2 := possibleSwitchTo_qchange hI1 hsch he2
         have hc2 := possibleSwitchTo_calm hI1 hsch he2
@@ -443,7 +444,7 @@ theorem awaken_loop_refines {N C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
           hAk.sub rfl (fun u hu => by rw [hq]; exact List.mem_cons_of_mem _ hu) rfl
         refine ⟨⟨σ2, hS2, hR1.frame hS1.placed hf2 (KView.of_kheap hk2), ?_, hI1.qchange hq2,
           possibleSwitchTo_actSched hI1 hsch hA1 he2, fun h => possibleSwitchTo_cn hI1 hsch he2 (hCk h), ?_, ?_,
-          hcalm.trans ((Calm.refl _).trans hc2), fun u hu => ?_⟩, ?_⟩
+          hcalm.trans ((Calm.refl _).trans hc2), fun u hu => ?_, WritesIn.sfoot_trans (WritesIn.sfoot_trans hwk hw1) hw2⟩, ?_⟩
         · intro m hm x0 p hx hp; rw [hk2] at hx; exact hNk m hm x0 p hx hp
         · rw [hq2.2.1]; show (R0.map UScalar.bv).length < fk1.val
           rw [hfk1]; rw [hq] at hlen; simp at hlen ⊢; omega
@@ -454,10 +455,10 @@ theorem awaken_loop_refines {N C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
         · rw [hfk1]; omega
       · have hr' : b1 = false := by simpa using hr
         simp only [hr', Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-        refine ⟨σk, ?_, hSk, hRk, hNk, hIk, hAk, hCk, hcalm, hsub⟩
+        refine ⟨σk, ?_, hSk, hRk, hNk, hIk, hAk, hCk, hcalm, hsub, hwk⟩
         rw [hloop]; unfold Fl4Spec.awaken
         exact wl_done (by rw [hC, hr']; simp)
-  · exact ⟨σ, hS, hR, hN, hI, ⟨hA, id⟩, hf, rfl, Calm.refl σ, fun _ h => h⟩
+  · exact ⟨σ, hS, hR, hN, hI, ⟨hA, id⟩, hf, rfl, Calm.refl σ, fun _ h => h, WritesIn.refl _ _⟩
 
 /-- The release queue is shorter than `WALK_FUEL`: its members are distinct
 TCB addresses, none of them 0 or 1. -/
@@ -492,20 +493,21 @@ theorem SchedPre.toW {N C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
 
 /-- **`awaken_refines` from `SchedPreW`.** -/
 theorem awaken_refinesW {A : Type} {ar : machine.Arch A} {N C : Set U64} {c : U64} (s : S) (a : A)
-    (σ : Fl4Spec.State Unit)
+    (σ : Fl4Spec.State Unit) {Pf : S × A → Fl4Spec.State Unit → Prop}
     (hfire : timer.fire st ar s a ⦃ r => ∃ σ1, Fires σ σ1 ∧ SchedRel st N T C c r.1 σ1 ∧
-      NtfnStateRel N T (L.mem r.1) σ1 ∧ NSC N C σ1 ∧ SchedPreW T C σ1 ⦄) :
+      NtfnStateRel N T (L.mem r.1) σ1 ∧ NSC N C σ1 ∧ SchedPreW T C σ1 ∧ Pf r σ1 ⦄) :
     sched.awaken st ar s a ⦃ r => ∃ σ1 σ2, Fires σ σ1 ∧ Fl4Spec.awaken (Z := Unit) σ1 = ({((), σ2)}, False) ∧
       SchedRel st N T C c r.1 σ2 ∧ NtfnStateRel N T (L.mem r.1) σ2 ∧ NSC N C σ2 ∧ SchedPreW T C σ2 ∧ Calm σ1 σ2 ∧
-      ∀ u ∈ σ2.releaseQueue, u ∈ σ1.releaseQueue ⦄ := by
+      (∀ u ∈ σ2.releaseQueue, u ∈ σ1.releaseQueue) ∧
+      ∃ rf : S × A, Pf rf σ1 ∧ r.2 = rf.2 ∧ WritesIn st rf.1 r.1 (SFoot st T c rf.1) ⦄ := by
   unfold sched.awaken
   refine WP.spec_bind hfire ?_
-  rintro ⟨s1, a1⟩ ⟨σ1, hF, hS1, hR1, hN1, hI1, hC1, hO1, ⟨hA1, hId1⟩, hd1, hW1⟩
+  rintro ⟨s1, a1⟩ ⟨σ1, hF, hS1, hR1, hN1, ⟨hI1, hC1, hO1, ⟨hA1, hId1⟩, hd1, hW1⟩, hPf⟩
   refine WP.spec_bind (awaken_loop_refines s1 σ1 hS1 hR1 hN1 hI1 hA1 _ (rel_len_lt hS1)) ?_
-  rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, ⟨hA2, hcn2⟩, hc2, hsub⟩
+  rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, ⟨hA2, hcn2⟩, hc2, hsub, hw2⟩
   rw [WP.spec_ok]
   refine ⟨σ1, σ2, hF, h2, hS2, hR2, hN2, ⟨hI2, ?_, hO1.calm hc2, ⟨hA2, hId1.sub hc2 hsub⟩,
-    by rw [hc2.2.2.2.2.2.2.2]; exact hd1, hW1.sub hc2 hsub⟩, hc2, hsub⟩
+    by rw [hc2.2.2.2.2.2.2.2]; exact hd1, hW1.sub hc2 hsub⟩, hc2, hsub, (s1, a1), hPf, rfl, hw2⟩
   rcases hC1 with e | hC
   · exact Or.inl (hcn2 e)
   · exact Or.inr (hC.sub hc2 hsub)
@@ -524,7 +526,7 @@ theorem awaken_refines {A : Type} {ar : machine.Arch A} {N C : Set U64} {c : U64
   refine WP.spec_bind hfire ?_
   rintro ⟨s1, a1⟩ ⟨σ1, hF, hS1, hR1, hN1, hI1, hC1, hO1, ⟨hA1, hId1⟩, hd1⟩
   refine WP.spec_bind (awaken_loop_refines s1 σ1 hS1 hR1 hN1 hI1 hA1 _ (rel_len_lt hS1)) ?_
-  rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, ⟨hA2, -⟩, hc2, hsub⟩
+  rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, ⟨hA2, -⟩, hc2, hsub, -⟩
   rw [WP.spec_ok]
   exact ⟨σ1, σ2, hF, h2, hS2, hR2, hN2, ⟨hI2, hC1.sub hc2 hsub, hO1.calm hc2, ⟨hA2, hId1.sub hc2 hsub⟩,
     by rw [hc2.2.2.2.2.2.2.2]; exact hd1⟩, hc2, hsub⟩

@@ -173,6 +173,42 @@ theorem sched.set_cur_thread.spec2 (s : S) (t : obj.Tcb) :
     sched.set_cur_thread st s t ⦃ s' => s' = L.wr s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) t ⦄ := by
   unfold sched.set_cur_thread; step*; simp_all
 
+/-- A total triple and a partial fact: the post and the fact. -/
+theorem spec_and_eq {α : Type} {m : Result α} {P Q : α → Prop} (h : m ⦃ P ⦄) (hq : ∀ r, m = ok r → Q r) :
+    m ⦃ fun r => P r ∧ Q r ⦄ := by
+  cases hm : m with
+  | ret r => rw [hm] at h hq; rw [WP.spec_ok] at h ⊢; exact ⟨h, hq r rfl⟩
+  | _ => rw [hm] at h; simp [WP.spec_vis, WP.spec_div] at h
+
+theorem bind_pair_s {s : S} {x : Result A} {r : S × A} (h : (do let a1 ← x; ok (s, a1)) = ok r) : r.1 = s := by
+  cases x <;> simp at h
+  subst h; rfl
+
+/-- **`set_kernel_vm_root` writes no store word.** -/
+theorem set_kernel_vm_root_s {s : S} {a : A} {r : S × A} (h : vspace.set_kernel_vm_root st ar s a = ok r) :
+    r.1 = s := by
+  unfold vspace.set_kernel_vm_root at h
+  cases h1 : vspace.kernel_root st s <;> simp [h1] at h
+  exact bind_pair_s h
+
+/-- **`set_vm_root` writes no store word.** -/
+theorem set_vm_root_s {s : S} {a : A} {t : obj.Tcb} {r : S × A} (h : vspace.set_vm_root st ar s a t = ok r) :
+    r.1 = s := by
+  unfold vspace.set_vm_root at h
+  cases h1 : obj.Tcb.slot t layout.tcb.SLOT_VTABLE <;> simp [h1] at h
+  rename_i sl
+  cases h2 : obj.Slot.cap st sl s <;> simp [h2] at h
+  split at h <;> first | exact set_kernel_vm_root_s h | skip
+  split at h
+  · rename_i asid _
+    cases h3 : vspace.find_vspace_for_asid st s asid <;> simp [h3] at h
+    split at h
+    · split at h
+      · exact bind_pair_s h
+      · exact set_kernel_vm_root_s h
+    · exact set_kernel_vm_root_s h
+  · exact set_kernel_vm_root_s h
+
 /-- What the arch part of a thread switch keeps (it changes the arch and
 machine state). -/
 def ArchKeeps (σ σ' : Fl4Spec.State Unit) : Prop :=
@@ -197,15 +233,16 @@ theorem switch_to_thread_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
     sched.switch_to_thread st ar s a t ⦃ r => ∃ σ', Fl4Spec.switchToThread (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ (Inv σ → Inv σ') ∧
       σ'.curThread = t.bv ∧ σ'.curSc = σ.curSc ∧ σ'.releaseQueue = σ.releaseQueue ∧ σ'.kheap = σ.kheap ∧
-      σ'.schedulerAction = σ.schedulerAction ∧ TK σ σ' ⦄ := by
+      σ'.schedulerAction = σ.schedulerAction ∧ TK σ σ' ∧ WritesIn st s r.1 (SFoot st T c s) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨xt, hkt, -⟩ := hs.tcb t ht
   unfold sched.switch_to_thread
-  refine WP.spec_bind hvm ?_
-  rintro ⟨s1, a1⟩ ⟨σ1, h1, hS1, hR1, ek, eq, er, ect, esc, etm, ecn, eact, eid, ecd, edt⟩
+  refine WP.spec_bind (spec_and_eq hvm fun r hr => set_vm_root_s hr) ?_
+  rintro ⟨s1, a1⟩ ⟨⟨σ1, h1, hS1, hR1, ek, eq, er, ect, esc, etm, ecn, eact, eid, ecd, edt⟩, hs1⟩
+  simp only at hs1; subst s1
   have hkt1 : σ1.kheap t.bv = some (.tcb xt) := by rw [ek]; exact hkt
-  refine WP.spec_bind (dequeue_refines s1 σ1 hS1 t ht) ?_
-  rintro s2 ⟨σ2, h2, ek2, er2, hf2, hS2⟩
+  refine WP.spec_bind (WP.spec_and (dequeue_refines s σ1 hS1 t ht) (dequeue_sfoot hS1 ht)) ?_
+  rintro s2 ⟨⟨σ2, h2, ek2, er2, hf2, hS2⟩, hw2⟩
   refine WP.spec_bind (sched.set_cur_thread.spec2 s2 t) ?_
   rintro s3 rfl
   rw [WP.spec_ok]
@@ -217,7 +254,8 @@ theorem switch_to_thread_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
   rw [tcbSchedAction_gen hkt1] at h2
   have e2 := pair_eq h2
   refine ⟨{ σ2 with curThread := t.bv }, ?_, hS3, hR2.frame hS2.placed hf3 (KView.of_kheap rfl), ?_, ?_, rfl, ?_, ?_,
-    ?_, ?_, ?_⟩
+    ?_, ?_, ?_, WritesIn.sfoot_trans hw2 (sfoot_wr_node hS2.lists.choose_spec.choose_spec.1.node
+      (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) t)⟩
   · unfold Fl4Spec.switchToThread
     rw [nd_bind_one (show Fl4Spec.NonDet.get (σ := Fl4Spec.State Unit) σ = ({(σ, σ)}, False) from rfl),
       nd_bind_one (assert_true (by simp [Fl4Spec.getTcb, Fl4Spec.readObject, hkt, Fl4Spec.Lookup.oreturn]) σ),
@@ -244,25 +282,27 @@ theorem switch_to_idle_thread_refines {N T C : Set U64} {c : U64} (s : S) (a : A
     sched.switch_to_idle_thread st ar s a ⦃ r => ∃ σ', Fl4Spec.switchToIdleThread (Z := Unit) σ = ({((), σ')}, False) ∧
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ (Inv σ → Inv σ') ∧
       σ'.curThread = σ.idleThread ∧ σ'.curSc = σ.curSc ∧ σ'.releaseQueue = σ.releaseQueue ∧ σ'.kheap = σ.kheap ∧
-      σ'.schedulerAction = σ.schedulerAction ∧ TK σ σ' ⦄ := by
+      σ'.schedulerAction = σ.schedulerAction ∧ TK σ σ' ∧ WritesIn st s r.1 (SFoot st T c s) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hiT := hc.idleT
   unfold sched.switch_to_idle_thread
   step with sched.idle_thread.spec2 as ⟨it, hit⟩
   rw [hc.cur] at hit
   subst it
-  refine WP.spec_bind hvm ?_
-  rintro ⟨s1, a1⟩ ⟨σ1, h1, hS1, hR1, ek, eq, er, ect, esc, etm, ecn, eact, eid, ecd, edt⟩
-  refine WP.spec_bind (sched.set_cur_thread.spec2 s1 _) ?_
+  refine WP.spec_bind (spec_and_eq hvm fun r hr => set_kernel_vm_root_s hr) ?_
+  rintro ⟨s1, a1⟩ ⟨⟨σ1, h1, hS1, hR1, ek, eq, er, ect, esc, etm, ecn, eact, eid, ecd, edt⟩, hs1⟩
+  simp only at hs1; subst s1
+  refine WP.spec_bind (sched.set_cur_thread.spec2 s _) ?_
   rintro s2 rfl
   rw [WP.spec_ok]
-  show ∃ σ', _ ∧ SchedRel st N T C c (L.wr s1 (L.nodeAt s1 (L.cpu s1) layout.node.CUR_THREAD)
+  show ∃ σ', _ ∧ SchedRel st N T C c (L.wr s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD)
     (nodeW st s c layout.node.IDLE_THREAD)) σ' ∧ _
   rw [hS1.lists.choose_spec.choose_spec.1.cur]
   obtain ⟨hS2, hf2, -⟩ := hS1.set_cur_thread hiT
   refine ⟨{ σ1 with curThread := (nodeW st s c layout.node.IDLE_THREAD).bv }, ?_, hS2,
     hR1.frame hS1.placed hf2 (KView.of_kheap rfl), ?_, fun hI => (hI.congr ek eq er etm).congr rfl rfl rfl rfl,
-    hidleT, esc, er, ek, eact, etm, ecn, eid, ecd, edt⟩
+    hidleT, esc, er, ek, eact, ⟨etm, ecn, eid, ecd, edt⟩,
+    sfoot_wr_node hc.node (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) _⟩
   · unfold Fl4Spec.switchToIdleThread
     rw [nd_gets_bind, nd_bind_one h1, ← hidleT]
     rfl

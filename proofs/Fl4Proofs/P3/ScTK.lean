@@ -3,7 +3,8 @@ P3, scheduling contexts: **the spec steps of the SC caps' invocations
 change only scheduling fields** (`ScTK`), what the IPC and VSpace
 relations need to be framed across them (`tcbsc_step_lift`, ScXStep).
 
-* `TKObj P o o'`: a TCB changes only its state, SC and yield-to fields, its
+* `TKObj P o o'`: a TCB changes only its state, SC and yield-to fields (and
+  its FPU state, the lazy FPU switch), its
   state only when `P` and between states that block on no IPC object
   (`IpcFree`); an SC keeps its size; a notification changes only its SC; a
   reply only its SC (`reply_unlink_sc`); every other object stays.
@@ -31,9 +32,12 @@ section Rel
 def IpcFree (ts : ThreadState) : Prop :=
   epBlocked ts = none ∧ ntfnBlocked ts = none ∧ ∀ r, ts ≠ .blockedOnReply r
 
-/-- A TCB changed only in its state, SC and yield-to fields. -/
+/-- A TCB changed only in its state, SC and yield-to fields and its FPU
+state and owner flag (the lazy FPU switch); its registers kept. -/
 def TcbSchedOnly (x y : Tcb) : Prop :=
-  y = { x with tcbState := y.tcbState, tcbSchedContext := y.tcbSchedContext, tcbYieldTo := y.tcbYieldTo }
+  y = { x with tcbState := y.tcbState, tcbSchedContext := y.tcbSchedContext, tcbYieldTo := y.tcbYieldTo,
+               tcbArch := (⟨⟨y.tcbArch.tcbContext.userFpuState, x.tcbArch.tcbContext.userRegs⟩,
+                 y.tcbArch.tcbCurFpu⟩ : ArchTcb) }
 
 theorem TcbSchedOnly.refl (x : Tcb) : TcbSchedOnly x x := rfl
 

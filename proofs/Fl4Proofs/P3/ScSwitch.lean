@@ -174,6 +174,11 @@ end Spec
 section
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
 
+/-- A node word's write is in the scheduler footprint. -/
+theorem sfoot_wr_node {T : Set U64} {c : U64} {s : S} (hN : NodePlaced st T s c) {o : U64} (ho : o.val < 4288)
+    (h8 : o.val % 8 = 0) (v : U64) : WritesIn st s (L.wr s (L.nodeAt s c o) v) (SFoot st T c s) :=
+  (writesIn_wr (nodeAt_aligned hN ho h8)).mono fun b hb => hb ▸ sfoot_node hN ho
+
 /-- The spec's `switch_sched_context` after the unblock step. -/
 def sscTail (scp : Fl4Spec.ObjRef) : Fl4Spec.SMonad Unit Unit := do
   let reprogram ← Fl4Spec.NonDet.gets fun s : Fl4Spec.State Unit => s.reprogramTimer
@@ -199,7 +204,8 @@ theorem ssc_tail_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
       let s4 ← obj.node_set st s3 c' layout.node.CUR_SC nsc
       ok (s4, a)) ⦃ r => ∃ σ', sscTail nsc.bv σ = ({((), σ')}, False) ∧ SchedRel st N T C c r.1 σ' ∧
         NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧ σ'.curSc = nsc.bv ∧
-        σ'.curThread = σ.curThread ∧ σ'.releaseQueue = σ.releaseQueue ∧ SwKeep σ σ' ∧ r.2 = a ⦄ := by
+        σ'.curThread = σ.curThread ∧ σ'.releaseQueue = σ.releaseQueue ∧ SwKeep σ σ' ∧ r.2 = a ∧
+        WritesIn st s r.1 (KFoot st T N C c s σ) ⦄ := by
   have hc0 := hS.lists.choose_spec.choose_spec.1.cur
   have hpo : ∃ y n, σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext y n) := by
     obtain ⟨Q, R, -, hs⟩ := hS.lists
@@ -214,13 +220,15 @@ theorem ssc_tail_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
   have fin : ∀ (s3 : S) (σ3 : Fl4Spec.State Unit), SchedRel st N T C c s3 σ3 → NtfnStateRel N T (L.mem s3) σ3 →
       NSC N C σ3 → Inv σ3 → σ3.curThread = σ.curThread → σ3.releaseQueue = σ.releaseQueue → SwKeep σ σ3 →
       (Fl4Spec.NonDet.when σ.reprogramTimer Fl4Spec.commitTime) σ = ({((), σ3)}, False) →
+      WritesIn st s s3 (KFoot st T N C c s σ) →
       (do
         let c' ← st.cur_cpu s3
         let s4 ← obj.node_set st s3 c' layout.node.CUR_SC nsc
         ok (s4, a)) ⦃ r => ∃ σ', sscTail nsc.bv σ = ({((), σ')}, False) ∧ SchedRel st N T C c r.1 σ' ∧
           NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧ σ'.curSc = nsc.bv ∧
-          σ'.curThread = σ.curThread ∧ σ'.releaseQueue = σ.releaseQueue ∧ SwKeep σ σ' ∧ r.2 = a ⦄ := by
-    intro s3 σ3 hS3 hR3 hN3 hI3 e1 e2 e3 h3
+          σ'.curThread = σ.curThread ∧ σ'.releaseQueue = σ.releaseQueue ∧ SwKeep σ σ' ∧ r.2 = a ∧
+          WritesIn st s r.1 (KFoot st T N C c s σ) ⦄ := by
+    intro s3 σ3 hS3 hR3 hN3 hI3 e1 e2 e3 h3 hw3
     step with LawfulStore.cur_cpu_spec as ⟨c3, hc3⟩
     rw [hS3.lists.choose_spec.choose_spec.1.cur] at hc3
     subst c3
@@ -228,7 +236,8 @@ theorem ssc_tail_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
     subst hs4
     obtain ⟨hS4, hf4, -⟩ := hS3.set_node_cursc nsc
     refine ⟨{ σ3 with curSc := nsc.bv }, ?_, hS4, hR3.frame hS3.placed hf4 (KView.of_kheap rfl), hN3,
-      hI3.congr rfl rfl rfl rfl, rfl, e1, e2, e3⟩
+      hI3.congr rfl rfl rfl rfl, rfl, e1, e2, e3, WritesIn.kfoot_sfoot hw3 (sfoot_wr_node
+        hS3.lists.choose_spec.choose_spec.1.node (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) nsc)⟩
     unfold sscTail
     rw [nd_gets_bind, nd_bind_one h3]; rfl
   split
@@ -237,15 +246,15 @@ theorem ssc_tail_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
       rw [hi2] at hne; simpa [nodeW] using hne
     have hrt : σ.reprogramTimer = true := by rw [hrep]; simpa using hw
     refine WP.spec_bind (commit_time_inv s a σ hS hR hN hI hscC hown0 hback hS.idle hnr hoff hmrt hmb) ?_
-    rintro s3 ⟨σ3, h1, hS3, hR3, hN3, hI3, hK⟩
-    exact fin s3 σ3 hS3 hR3 hN3 hI3 hK.2.1 hK.2.2.1 (SwKeep.of_headKeeps hK hpo) (by rw [hrt]; exact h1)
+    rintro s3 ⟨σ3, h1, hS3, hR3, hN3, hI3, hK, hw3⟩
+    exact fin s3 σ3 hS3 hR3 hN3 hI3 hK.2.1 hK.2.2.1 (SwKeep.of_headKeeps hK hpo) (by rw [hrt]; exact h1) hw3
   · rename_i hne
     have hw : nodeW st s c layout.node.REPROGRAM = 0#u64 := by
       apply UScalar.eq_of_val_eq
       rw [hi2] at hne; simp only [nodeW]; simpa using hne
     have hrt : σ.reprogramTimer = false := by rw [hrep]; simp [hw]
     rw [bind_ok]
-    exact fin s σ hS hR hN hI rfl rfl (SwKeep.refl σ) (by rw [hrt]; rfl)
+    exact fin s σ hS hR hN hI rfl rfl (SwKeep.refl σ) (by rw [hrt]; rfl) (WritesIn.refl _ _)
 
 /-- **`switch_sched_context` refines l4v `switch_sched_context`** and keeps
 the full `Inv`. Hypotheses: the current thread is bound to an SC and not in
@@ -266,7 +275,7 @@ theorem switch_sched_context_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
     sched.switch_sched_context st ar s a ⦃ r => ∃ σ', Fl4Spec.switchSchedContext (Z := Unit) σ = ({((), σ')}, False) ∧
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧
       σ'.curSc = (L.mem s (scA (nodeW st s c layout.node.CUR_THREAD))).bv ∧ σ'.curThread = σ.curThread ∧
-      σ'.releaseQueue = σ.releaseQueue ∧ SwKeep σ σ' ∧ r.2 = a ⦄ := by
+      σ'.releaseQueue = σ.releaseQueue ∧ SwKeep σ σ' ∧ r.2 = a ∧ WritesIn st s r.1 (KFoot st T N C c s σ) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   set ct := nodeW st s c layout.node.CUR_THREAD with hctd
   set osc := nodeW st s c layout.node.CUR_SC with hoscd
@@ -323,6 +332,9 @@ theorem switch_sched_context_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
     have hIr : Inv σr := hI.congr rfl rfl rfl rfl
     have hNr : NSC N C σr := hN
     have hkr' : σr.kheap nsc.bv = some (.schedContext x' n') := hk'
+    have hwR : WritesIn st s (L.wr s (L.nodeAt s c layout.node.REPROGRAM) 1#u64) (KFoot st T N C c s σ) :=
+      WritesIn.kfoot_of_sfoot (sfoot_wr_node hc.node (by simp [layout.node.REPROGRAM])
+        (by simp [layout.node.REPROGRAM]) _)
     -- the spec's unblock step, from the state after it
     have pre : ∀ σ2, (Fl4Spec.ifConstantBandwidthRefillUnblockCheck (Z := Unit) (some nsc.bv)) σr =
         ({((), σ2)}, False) → Fl4Spec.switchSchedContext (Z := Unit) σ = sscTail nsc.bv σ2 := by
@@ -336,6 +348,7 @@ theorem switch_sched_context_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
         σ2.releaseQueue = σ.releaseQueue → σ2.curTime = σ.curTime → σ2.consumedTime = σ.consumedTime →
         (∀ q, q ≠ nsc.bv → σ2.kheap q = σ.kheap q) → (∃ y m, σ2.kheap nsc.bv = some (.schedContext y m)) →
         SwKeep σ σ2 → (Fl4Spec.ifConstantBandwidthRefillUnblockCheck (Z := Unit) (some nsc.bv)) σr = ({((), σ2)}, False) →
+        WritesIn st s s2 (KFoot st T N C c s σ) →
         (do
           let i1 ← st.cur_cpu s2
           let i2 ← obj.node_get st s2 i1 layout.node.REPROGRAM
@@ -345,8 +358,8 @@ theorem switch_sched_context_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
           ok (s4, a)) ⦃ r => ∃ σ', Fl4Spec.switchSchedContext (Z := Unit) σ = ({((), σ')}, False) ∧
             SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧
             σ'.curSc = nsc.bv ∧ σ'.curThread = σ.curThread ∧ σ'.releaseQueue = σ.releaseQueue ∧
-            SwKeep σ σ' ∧ r.2 = a ⦄ := by
-      intro s2 σ2 hS2 hR2 hN2 hI2 e1 e2 e3 e4 e5 e6 e7 e8 h2
+            SwKeep σ σ' ∧ r.2 = a ∧ WritesIn st s r.1 (KFoot st T N C c s σ) ⦄ := by
+      intro s2 σ2 hS2 hR2 hN2 hI2 e1 e2 e3 e4 e5 e6 e7 e8 h2 hw2
       have esc : nodeW st s2 c layout.node.CUR_SC = osc :=
         eq_of_bv (by rw [← hS2.lists.choose_spec.choose_spec.2.curSc, e1, hs.curSc])
       have hko : σ2.kheap osc.bv = σ.kheap osc.bv := e6 _ (Ne.symm hb')
@@ -363,8 +376,10 @@ theorem switch_sched_context_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
           rw [e5, e4]; exact hoff hc0 y m hy) hmrt hmb) ?_
       rintro r ⟨σ', h1, h3⟩
       refine ⟨σ', by rw [pre σ2 h2]; exact h1, ?_⟩
-      obtain ⟨a1, a2, a3, a4, a5, a6, a7, a8, a9⟩ := h3
-      exact ⟨a1, a2, a3, a4, a5, a6.trans e2, a7.trans e3, e8.trans a8, a9⟩
+      obtain ⟨a1, a2, a3, a4, a5, a6, a7, a8, a9, a10⟩ := h3
+      exact ⟨a1, a2, a3, a4, a5, a6.trans e2, a7.trans e3, e8.trans a8, a9,
+        WritesIn.kfoot_trans hw2 (SzKeepC.of_fwd hS fun p x n hp => by
+          obtain ⟨y, hy, -⟩ := e8.2.1 p x n hp; exact ⟨y, hy⟩) a10⟩
     have hnr' : Fl4Spec.refillReady σr.curTime (Fl4Spec.refillHd x') = true → x'.scPeriod ≠ 0 →
         ∀ u ∈ σr.releaseQueue, ∀ xu, σr.kheap u = some (.tcb xu) → xu.tcbSchedContext ≠ some nsc.bv := by
       intro _ _ u hu xu hku hsu
@@ -383,12 +398,14 @@ theorem switch_sched_context_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
     · rename_i hcb
       have hw0 := of_decide_eq_true (hb1 ▸ hcb)
       have hspf : x'.scSporadic = false := by rw [hsp']; exact decide_eq_false (not_not.2 hw0)
-      refine WP.spec_bind (unblock_check_refines _ σr hS3 hnC (by
+      have hna3 : (L.rmax (L.wr s (L.nodeAt s c layout.node.REPROGRAM) 1#u64) nsc).val ≠ 0 := by
         obtain ⟨Q3, R3, hc3, hs3⟩ := hS3.lists
         obtain ⟨x3, n3, hk3, hx3⟩ := hs3.scs nsc hnC
         rw [hkr'] at hk3; cases hk3
-        rw [hx3.max, ← hx'.max]; exact hna)) ?_
-      rintro s2 ⟨σ2, hu, hf2, hkv2, hS2⟩
+        rw [hx3.max, ← hx'.max]; exact hna
+      refine WP.spec_bind (WP.spec_and (unblock_check_refines _ σr hS3 hnC hna3)
+        (unblock_check_kfoot hS3 hnC hna3)) ?_
+      rintro s2 ⟨⟨σ2, hu, hf2, hkv2, hS2⟩, hwu⟩
       obtain ⟨k1, k2, k3, k4, k5, -, k7⟩ := unblock_keeps hkr' hne' hu
       have hm : ((), σ2) ∈ (Fl4Spec.refillUnblockCheck (Z := Unit) nsc.bv σr).1 := by rw [hu]; rfl
       have hI2 : Inv σ2 := hIr.unblock hkr' hne' hnr' hm
@@ -407,7 +424,7 @@ theorem switch_sched_context_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
               exact ⟨z, by simp [updK], by rw [hzy]⟩
             · exact ⟨y0, by simp only [updK_kheap, ne_eq, e, not_false_eq_true, Function.update_of_ne]; exact hq, rfl⟩
       exact tail _ σ2 hS2 (hR3.frame hS3.placed hf2 hkv2) (hNr.kview hR3 hkv2) hI2 k1 k2 k3 k4 k5 k7 hex hsw
-        (by rw [ifCB_eq hkr', if_pos hspf]; exact hu)
+        (by rw [ifCB_eq hkr', if_pos hspf]; exact hu) (WritesIn.kfoot_trans hwR (SzKeepC.of (SzKeep.of_kheap rfl)) hwu)
     · rename_i hcb
       have hw0 : L.mem (L.wr s (L.nodeAt s c layout.node.REPROGRAM) 1#u64) (scW nsc 64#u64) ≠ 0#u64 :=
         fun h => hcb (by rw [hb1]; exact decide_eq_true h)
@@ -415,7 +432,7 @@ theorem switch_sched_context_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
         rw [hsp', decide_eq_true hw0]; decide
       rw [bind_ok]
       exact tail _ σr hS3 hR3 hNr hIr rfl rfl rfl rfl rfl (fun _ _ => rfl) ⟨x', n', hkr'⟩ (SwKeep.of_kheap rfl rfl rfl)
-        (by rw [ifCB_eq hkr', if_neg hspf])
+        (by rw [ifCB_eq hkr', if_neg hspf]) hwR
 
 /-- **`switch_sched_context` establishes `CurInv`**: the chosen thread (bound
 to an SC, not released, not blocked on a notification) runs on its SC,
@@ -438,7 +455,7 @@ theorem switch_sched_context_cur {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
     sched.switch_sched_context st ar s a ⦃ r => ∃ σ', Fl4Spec.switchSchedContext (Z := Unit) σ = ({((), σ')}, False) ∧
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧ CurInv σ' ∧
-      (ActIdle σ → ActIdle σ') ∧ r.2 = a ⦄ := by
+      (ActIdle σ → ActIdle σ') ∧ r.2 = a ∧ WritesIn st s r.1 (KFoot st T N C c s σ) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hct := hc.curT
   obtain ⟨xt, hkt, -, -, hsct, -⟩ := hs.tcb _ hct
@@ -451,9 +468,9 @@ theorem switch_sched_context_cur {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
     · exact hx0.idle hi
     · exact hx0.rmax_ne (hact hi x0 n0 hk0)
   refine WP.spec_mono (switch_sched_context_refines s a σ hS hR hN hI hscC hb0 hctr hown0 hback hnr hoff hna hmrt hmb) ?_
-  rintro r ⟨σ', h1, h2, h3, h4, h5, e1, e2, e3, hsw, e4⟩
+  rintro r ⟨σ', h1, h2, h3, h4, h5, e1, e2, e3, hsw, e4, hw⟩
   refine ⟨σ', h1, h2, h3, h4, h5, ⟨⟨xt, ?_, ?_, hnb xt hkt⟩, ?_, fun hid y m hy => ?_, ?_⟩,
-    fun hA => hA.swKeep hsw e3 (Or.inl hsw.2.2.2), e4⟩
+    fun hA => hA.swKeep hsw e3 (Or.inl hsw.2.2.2), e4, hw⟩
   · rw [e2, hs.curThread]; exact hsw.1 _ _ hkt
   · rw [e1]; exact hxs
   · obtain ⟨y, hy, -⟩ := hsw.2.1 _ _ _ hk'

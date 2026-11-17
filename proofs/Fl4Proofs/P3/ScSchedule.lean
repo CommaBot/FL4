@@ -78,7 +78,7 @@ theorem choose_thread_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : 
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧
       (σ'.curThread = σ.idleThread ∨ Fl4Spec.schedulable σ'.curThread σ = true) ∧
       σ'.curSc = σ.curSc ∧ σ'.releaseQueue = σ.releaseQueue ∧ σ'.kheap = σ.kheap ∧
-      σ'.schedulerAction = σ.schedulerAction ∧ TK σ σ' ⦄ := by
+      σ'.schedulerAction = σ.schedulerAction ∧ TK σ σ' ∧ WritesIn st s r.1 (SFoot st T c s) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   unfold sched.choose_thread
   rw [num_domains_eq, if_neg (by decide)]
@@ -100,9 +100,9 @@ theorem choose_thread_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : 
     refine choose_pick_k s σ hS hne _ _ ?_
     rintro t ⟨ht, hteq, p, hmem⟩
     refine WP.spec_mono (switch_to_thread_refines s a σ hS hR hN ht (hvm t ht)) ?_
-    rintro r ⟨σ', h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11⟩
+    rintro r ⟨σ', h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12⟩
     obtain ⟨hsch, x, scp, hk, hsc, hdom⟩ := ready_sched hS hI hmem
-    refine ⟨σ', ?_, h2, h3, h4, h5 hI, Or.inr (by rw [h6]; exact hsch), h7, h8, h9, h10, h11⟩
+    refine ⟨σ', ?_, h2, h3, h4, h5 hI, Or.inr (by rw [h6]; exact hsch), h7, h8, h9, h10, h11, h12⟩
     unfold Fl4Spec.chooseThread
     rw [nd_gets_bind, nd_gets_bind, if_neg (by rw [← choose_empty hS]; exact hne), ← hteq,
       guardedSwitchTo_eq hk hsc hsch hdom]
@@ -110,8 +110,8 @@ theorem choose_thread_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : 
   · rename_i hne0
     have he : L.l1W s c = 0#u64 := by apply UScalar.eq_of_val_eq; simpa using hne0
     refine WP.spec_mono (switch_to_idle_thread_refines s a σ hS hR hN hidleT hvmi) ?_
-    rintro r ⟨σ', h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11⟩
-    refine ⟨σ', ?_, h2, h3, h4, h5 hI, Or.inl h6, h7, h8, h9, h10, h11⟩
+    rintro r ⟨σ', h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12⟩
+    refine ⟨σ', ?_, h2, h3, h4, h5 hI, Or.inl h6, h7, h8, h9, h10, h11, h12⟩
     unfold Fl4Spec.chooseThread
     rw [nd_gets_bind, nd_gets_bind, if_pos ((choose_empty hS).1 he)]
     exact h1
