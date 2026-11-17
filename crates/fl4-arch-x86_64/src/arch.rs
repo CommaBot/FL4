@@ -30,6 +30,7 @@ fn irq_requested() -> bool {
 pub enum Effect {
     Deadline(u64),
     Mask(u64, bool),
+    Forget(u64),
     Ack,
     VSpace(u64, u64),
     Reschedule(u64),
@@ -68,6 +69,7 @@ pub fn apply_effects() {
         match percpu::get().effects[i] {
             Effect::Deadline(t) => timer::set_deadline(t),
             Effect::Mask(irq, m) => ioapic::mask(irq, m),
+            Effect::Forget(irq) => ioapic::forget(irq),
             Effect::Ack => apic::eoi(),
             Effect::VSpace(root, asid) => switch_vspace(root, asid),
             Effect::Reschedule(m) => smp::reschedule(m),
@@ -80,6 +82,14 @@ pub fn apply_effects() {
 /// Drop the effects of a transaction that did not commit.
 pub fn discard_effects() {
     percpu::get().neffects = 0;
+}
+
+/// IRQ `irq` is free again (its handler was deleted): mask its pin and drop
+/// its route (`ioapic::forget`), after commit inside a transaction.
+pub fn forget_irq(irq: u64) {
+    if !defer(Effect::Forget(irq)) {
+        ioapic::forget(irq)
+    }
 }
 
 fn switch_vspace(root: u64, asid: u64) {
@@ -141,6 +151,9 @@ impl Arch for PhysArch {
         if !defer(Effect::Mask(irq, mask)) {
             ioapic::mask(irq, mask)
         }
+    }
+    fn irq_free(&mut self, irq: u64) {
+        forget_irq(irq);
     }
     fn ack_irq(&mut self, _irq: u64) {
         if !defer(Effect::Ack) {

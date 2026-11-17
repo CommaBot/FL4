@@ -184,7 +184,12 @@ pub fn debug_exception<S: Store>(s: &mut S, t: Tcb, vector: u64, dr6: u64) -> Op
     }
     if dr6 & DR6_SINGLE_STEP != 0 {
         let pc = t.reg(s, reg::FAULT_IP);
-        let f = t.reg(s, reg::FLAGS) | EFLAGS_RF;
+        // A trap flag the user set itself (not the debug API's single
+        // step) is cleared so the step is reported once.
+        let mut f = t.reg(s, reg::FLAGS) | EFLAGS_RF;
+        if t.debug_reg(s, SS_ENABLED) == 0 {
+            f &= !EFLAGS_TF;
+        }
         t.set_reg(s, reg::FLAGS, f);
         let n = t.debug_reg(s, SS_COUNT);
         let n = if n > 0 { n - 1 } else { 0 };

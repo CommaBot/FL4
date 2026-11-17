@@ -667,3 +667,247 @@ static int test_unmap_pat(env_t env)
     return sel4test_get_result();
 }
 DEFINE_TEST(FL4VM0005, "Unmapping a 4K page mapped with PAT removes the mapping", test_unmap_pat, true)
+
+/* ---- Security audit: debug exceptions and FS/GS bases at the boundary - */
+
+#define RFLAGS_TF 0x100
+#define FL4_DONE_LABEL 0x7d
+
+/* Give `t` `fault_ep` as its fault handler. */
+static int set_fault_ep(env_t env, helper_thread_t *t, seL4_CPtr fault_ep)
+{
+    return api_tcb_set_space(get_helper_tcb(t), fault_ep, env->cspace_root,
+                             api_make_guard_skip_word(seL4_WordBits - env->cspace_size_bits),
+                             env->page_directory, seL4_NilData);
+}
+
+static void reply_to(seL4_CPtr reply, seL4_MessageInfo_t info)
+{
+#ifdef CONFIG_KERNEL_MCS
+    seL4_Send(reply, info);
+#else
+    (void) reply;
+    seL4_Reply(info);
+#endif
+}
+
+/* Answer a single-step or breakpoint fault so the thread goes on without
+ * stepping: with the debug API, stop single-stepping; without it (a plain
+ * #DB UserException), resume after the trap with TF clear. Returns 0 if
+ * `tag` was such a fault. */
+static int resume_after_debug_fault(seL4_MessageInfo_t tag, seL4_CPtr reply)
+{
+    seL4_Word label = seL4_MessageInfo_get_label(tag);
+#ifdef CONFIG_HARDWARE_DEBUG_API
+    if (label == seL4_Fault_DebugException) {
+        seL4_SetMR(0, 0);
+        reply_to(reply, seL4_MessageInfo_new(0, 0, 0, 1));
+        return 0;
+    }
+#endif
+    if (label == seL4_Fault_UserException && seL4_GetMR(seL4_UserException_Number) == 1) {
+        seL4_Word ip = seL4_GetMR(seL4_UserException_FaultIP);
+        seL4_Word sp = seL4_GetMR(seL4_UserException_SP);
+        seL4_Word flags = seL4_GetMR(seL4_UserException_FLAGS) & ~(seL4_Word) RFLAGS_TF;
+        seL4_SetMR(seL4_UserException_FaultIP, ip);
+        seL4_SetMR(seL4_UserException_SP, sp);
+        seL4_SetMR(seL4_UserException_FLAGS, flags);
+        reply_to(reply, seL4_MessageInfo_new(0, 0, 0, 3));
+        return 0;
+    }
+    return -1;
+}
+
+/* Set TF itself: the next instruction raises #DB from user mode, on the
+ * #DB IST stack. */
+static int set_trap_flag(seL4_Word a, seL4_Word b, seL4_Word c, seL4_Word d)
+{
+    __asm__ volatile("pushfq\n\torq $0x100, (%%rsp)\n\tpopfq\n\tnop" ::: "memory", "cc");
+    return 0x5a5a;
+}
+
+/* A user #DB on another core is that core's entry: the kernel must not run
+ * it as core 0 (whose current thread, state and gate slot it would use). */
+static int test_user_debug_trap_on_ap(env_t env)
+{
+    helper_thread_t t;
+    vka_object_t reply;
+    test_error_eq(vka_alloc_reply(&env->vka, &reply), 0);
+    seL4_CPtr fault_ep = vka_alloc_endpoint_leaky(&env->vka);
+    create_helper_thread(env, &t);
+    test_error_eq(set_fault_ep(env, &t, fault_ep), seL4_NoError);
+    if (env->cores >= 2) {
+        set_helper_affinity(env, &t, 1);
+    }
+    start_helper(env, &t, set_trap_flag, 0, 0, 0, 0);
+    seL4_Word badge;
+    seL4_MessageInfo_t tag = api_recv(fault_ep, &badge, reply.cptr);
+#ifdef CONFIG_HARDWARE_DEBUG_API
+    test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) seL4_Fault_DebugException);
+    test_eq(seL4_GetMR(seL4_DebugException_ExceptionReason), (seL4_Word) seL4_SingleStep);
+#else
+    test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) seL4_Fault_UserException);
+    test_eq(seL4_GetMR(seL4_UserException_Number), (seL4_Word) 1);
+#endif
+    test_eq(resume_after_debug_fault(tag, reply.cptr), 0);
+    test_eq(wait_for_helper(&t), 0x5a5a);
+    cleanup_helper(env, &t);
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4SMP0002, "A user-set trap flag on another core faults on that core", test_user_debug_trap_on_ap, true)
+
+/* The selector MOV SS loads, under a data breakpoint. */
+static volatile uint16_t fl4_ss_selector = 0x2b;
+
+/* Path 0: single-step a SYSCALL. Path 1: MOV SS from a watched word, then
+ * SYSCALL, so the #DB the CPU holds back for MOV SS arrives after SYSCALL
+ * has switched to kernel mode (CVE-2018-8897). Either #DB belongs to user
+ * mode; the thread then says it is done on `done_ep`. */
+static int debug_across_syscall(seL4_Word path, seL4_Word done_ep, seL4_Word c, seL4_Word d)
+{
+    seL4_Word rax = 0;
+    if (path == 0) {
+        __asm__ volatile("pushfq\n\torq $0x100, (%%rsp)\n\tpopfq\n\tsyscall"
+                         : "+a"(rax) : "d"((seL4_Word) seL4_SysYield) : "rcx", "r11", "memory", "cc");
+    } else {
+        __asm__ volatile("movw (%1), %%ss\n\tsyscall"
+                         : "+a"(rax) : "r"(&fl4_ss_selector), "d"((seL4_Word) seL4_SysYield)
+                         : "rcx", "r11", "memory");
+    }
+    seL4_Send(done_ep, seL4_MessageInfo_new(FL4_DONE_LABEL, 0, 0, 0));
+    return 0x7e57;
+}
+
+/* A kernel-mode #DB at the SYSCALL entry is user mode's: the kernel goes
+ * on with the syscall instead of stopping at a kernel exception. */
+static int test_debug_across_syscall(env_t env)
+{
+    int paths = 1;
+#ifdef CONFIG_HARDWARE_DEBUG_API
+    paths = 2;
+#endif
+    for (int path = 0; path < paths; path++) {
+        helper_thread_t t;
+        vka_object_t reply;
+        test_error_eq(vka_alloc_reply(&env->vka, &reply), 0);
+        seL4_CPtr fault_ep = vka_alloc_endpoint_leaky(&env->vka);
+        create_helper_thread(env, &t);
+        test_error_eq(set_fault_ep(env, &t, fault_ep), seL4_NoError);
+#ifdef CONFIG_HARDWARE_DEBUG_API
+        if (path == 1) {
+            int err = seL4_TCB_SetBreakpoint(get_helper_tcb(&t), 0, (seL4_Word) &fl4_ss_selector,
+                                             seL4_DataBreakpoint, 2, seL4_BreakOnReadWrite);
+            test_error_eq(err, seL4_NoError);
+        }
+#endif
+        start_helper(env, &t, debug_across_syscall, path, fault_ep, 0, 0);
+        /* Debug faults, if the CPU reports the #DB in user mode, then done. */
+        for (int faults = 0; ; faults++) {
+            test_assert(faults < 4);
+            seL4_Word badge;
+            seL4_MessageInfo_t tag = api_recv(fault_ep, &badge, reply.cptr);
+            if (seL4_MessageInfo_get_label(tag) == FL4_DONE_LABEL) {
+                break;
+            }
+            test_eq(resume_after_debug_fault(tag, reply.cptr), 0);
+        }
+        test_eq(wait_for_helper(&t), 0x7e57);
+        cleanup_helper(env, &t);
+    }
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4DBG0001, "A #DB held across SYSCALL (single step, MOV SS) is not a kernel fault",
+            test_debug_across_syscall, true)
+
+/* Raw syscalls that touch no thread-local storage: these threads run with
+ * an FS base that is not their TLS. */
+static inline __attribute__((always_inline)) void raw_recv(seL4_Word ep, seL4_Word reply)
+{
+    register seL4_Word r12 __asm__("r12") = reply;
+    seL4_Word src = ep, info;
+    __asm__ volatile("movq %%rsp, %%rbx\n\tsyscall\n\tmovq %%rbx, %%rsp"
+                     : "+D"(src), "=S"(info)
+                     : "d"((seL4_Word) seL4_SysRecv), "r"(r12)
+                     : "rbx", "rcx", "r11", "r10", "r8", "r9", "r15", "memory");
+}
+
+static inline __attribute__((always_inline)) void raw_send(seL4_Word ep, seL4_Word mr0)
+{
+    register seL4_Word r10 __asm__("r10") = mr0;
+    __asm__ volatile("movq %%rsp, %%rbx\n\tsyscall\n\tmovq %%rbx, %%rsp"
+                     :
+                     : "d"((seL4_Word) seL4_SysSend), "D"(ep), "S"(seL4_MessageInfo_new(0, 0, 0, 1).words[0]), "r"(r10)
+                     : "rbx", "rcx", "r11", "memory");
+}
+
+/* Waits for `go`, loads FS with a selector (which sets the hidden base to
+ * the descriptor's, 0), then wakes the reader. */
+__attribute__((no_stack_protector))
+static int fs_clobberer(seL4_Word ready, seL4_Word go, seL4_Word reply, seL4_Word next)
+{
+    seL4_Send(ready, seL4_MessageInfo_new(0, 0, 0, 0));
+    raw_recv(go, reply);
+    __asm__ volatile("movw %0, %%fs" : : "r"((uint16_t) 0x2b));
+    raw_send(next, 0);
+    raw_recv(go, reply);
+    return 0;
+}
+
+/* Waits to be woken, then reads the word at its FS base and sends it. */
+__attribute__((no_stack_protector))
+static int fs_reader(seL4_Word ready, seL4_Word go, seL4_Word reply, seL4_Word result)
+{
+    seL4_Send(ready, seL4_MessageInfo_new(0, 0, 0, 0));
+    raw_recv(go, reply);
+    seL4_Word v;
+    __asm__ volatile("movq %%fs:0, %0" : "=r"(v));
+    raw_send(result, v);
+    raw_recv(go, reply);
+    return 0;
+}
+
+/* Two threads with the same FS base: the first changes its hidden FS base
+ * by loading a selector (which needs no FSGSBASE), then switches to the
+ * second, which must run with the base it was given. */
+static int test_fs_base_after_selector_load(env_t env)
+{
+    const uint64_t magic = 0x1122334455667788ULL;
+    seL4_CPtr fcap;
+    uint64_t *page = map_frame(env, &fcap);
+    test_assert(page != NULL);
+    page[0] = magic;
+    seL4_CPtr ready = vka_alloc_endpoint_leaky(&env->vka);
+    seL4_CPtr go1 = vka_alloc_endpoint_leaky(&env->vka);
+    seL4_CPtr go2 = vka_alloc_endpoint_leaky(&env->vka);
+    seL4_CPtr result = vka_alloc_endpoint_leaky(&env->vka);
+    vka_object_t r1, r2, rmain;
+    test_error_eq(vka_alloc_reply(&env->vka, &r1), 0);
+    test_error_eq(vka_alloc_reply(&env->vka, &r2), 0);
+    test_error_eq(vka_alloc_reply(&env->vka, &rmain), 0);
+    helper_thread_t t1, t2;
+    create_helper_thread(env, &t1);
+    create_helper_thread(env, &t2);
+    /* A fault of the reader (reading through a stale base) comes here too. */
+    test_error_eq(set_fault_ep(env, &t2, result), seL4_NoError);
+    /* Below this thread: once it waits for the result, only they run on
+     * this core, the reader right after the writer. */
+    set_helper_priority(env, &t1, env->priority - 1);
+    set_helper_priority(env, &t2, env->priority - 1);
+    start_helper(env, &t2, fs_reader, ready, go2, r2.cptr, result);
+    start_helper(env, &t1, fs_clobberer, ready, go1, r1.cptr, go2);
+    seL4_Word badge;
+    api_recv(ready, &badge, rmain.cptr);
+    api_recv(ready, &badge, rmain.cptr);
+    /* Both are past their last use of their TLS. */
+    test_error_eq(seL4_TCB_SetTLSBase(get_helper_tcb(&t1), (seL4_Word) page), seL4_NoError);
+    test_error_eq(seL4_TCB_SetTLSBase(get_helper_tcb(&t2), (seL4_Word) page), seL4_NoError);
+    seL4_Send(go1, seL4_MessageInfo_new(0, 0, 0, 0));
+    seL4_MessageInfo_t tag = api_recv(result, &badge, rmain.cptr);
+    test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) 0);
+    test_eq((uint64_t) seL4_GetMR(0), magic);
+    cleanup_helper(env, &t1);
+    cleanup_helper(env, &t2);
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4TLS0001, "A selector load in one thread does not change the FS base of the next",
+            test_fs_base_after_selector_load, true)

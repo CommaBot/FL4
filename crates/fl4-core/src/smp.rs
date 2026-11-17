@@ -8,12 +8,17 @@ use crate::sched;
 
 /// seL4 `migrateTCB`: move a thread to the core of its new SC. Its FPU
 /// state may be live in the old core's registers (seL4 `Arch_migrateTCB`).
+/// The per-core debug list is keyed by affinity, so the thread moves from
+/// the old core's list to the new one's; otherwise deleting it later would
+/// leave the old core's `DEBUG_TCBS` pointing at freed memory.
 pub fn migrate_tcb<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb, cpu: u64) {
     if t.affinity(s) != cpu {
+        crate::objects::debug_remove(s, t);
         a.fpu_flush(t.0);
         a.fpu_release(t.0);
+        t.set_affinity(s, cpu);
+        crate::objects::debug_append(s, t);
     }
-    t.set_affinity(s, cpu);
 }
 
 /// seL4 `remoteTCBStall`: a thread running on another core is stopped

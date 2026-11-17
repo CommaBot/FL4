@@ -581,16 +581,16 @@ pub fn handle_trap_syscall<S: Store, A: Arch>(s: &mut S, a: &mut A, vector: u64)
     handle_unknown_syscall(s, a, num as i64);
 }
 
-/// #DB and #BP with the hardware debug API.
+/// #DB and #BP with the hardware debug API. The time the thread ran is
+/// charged even when no fault is delivered (a pending multi-step).
 pub fn handle_debug_exception<S: Store, A: Arch>(s: &mut S, a: &mut A, vector: u64, dr6: u64) {
+    sched::update_timestamp(s, a);
     let t = sched::cur_thread(s);
-    match debug::debug_exception(s, t, vector, dr6) {
-        Some(f) => {
-            faults::handle_fault(s, a, t, f);
-            finish(s, a);
-        }
-        None => {}
+    if let Some(f) = debug::debug_exception(s, t, vector, dr6) {
+        faults::handle_fault(s, a, t, f);
     }
+    sched::check_budget(s, a);
+    finish(s, a);
 }
 
 /// A VM exit has saved its results before remote calls could stall its

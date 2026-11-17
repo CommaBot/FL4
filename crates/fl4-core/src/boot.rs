@@ -641,8 +641,10 @@ fn init_root_thread<S: Store, A: Arch>(s: &mut S, a: &mut A, r: &Root, p: &BootP
 
 /// seL4 `init_core_state`: the root task runs first.
 fn init_core_state<S: Store>(s: &mut S, tcb: Tcb, num_nodes: u64) {
+    // Every TCB that can be migrated or deleted is on its core's debug
+    // list, as `objects::create_object` keeps for the others.
+    objects::debug_append(s, tcb);
     if fl4_abi::config::DEBUG_BUILD {
-        objects::debug_append(s, tcb);
         let mut c = 0;
         while c < num_nodes {
             let idle = Tcb(node_get(s, c, node::IDLE_THREAD));

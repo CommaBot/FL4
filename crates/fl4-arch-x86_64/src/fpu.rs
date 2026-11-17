@@ -61,9 +61,6 @@ fn insn() -> Insn {
     }
 }
 
-/// AMX tile configuration and data (17, 18): left off, the data alone is
-/// 8 KiB. They are enabled together or not at all.
-const AMX: u64 = (1 << 17) | (1 << 18);
 /// AVX-512 (opmask, ZMM_Hi256, Hi16_ZMM): together, and only with AVX.
 const AVX512: u64 = 0xe0;
 const AVX: u64 = 1 << 2;
@@ -85,25 +82,49 @@ const COMPACTED: u64 = 1 << 63;
 #[repr(C, align(64))]
 struct Scratch([u8; 512]);
 
-/// The user state components to enable: every one the CPU has except AMX,
-/// dropping the largest groups until the image fits the TCB.
-fn components() -> u64 {
-    let sup = cpuid(0xd, 0);
-    let mut x = (sup.eax as u64 | ((sup.edx as u64) << 32)) & !AMX;
+/// PKRU.
+const PKRU: u64 = 1 << 9;
+/// The user state components FL4 knows the standard-format layout of (x87,
+/// SSE, AVX, MPX, AVX-512, PKRU). Anything else (AMX, whose tile data alone
+/// is 8 KiB, APX, components future CPUs add) stays off: its offset could
+/// lie past the TCB's image.
+const ALLOWED: u64 = 0x3 | AVX | MPX | AVX512 | PKRU;
+
+/// The user state components to enable, given the ones the CPU supports
+/// (CPUID 0DH.0 EDX:EAX) and `size`, the XSAVE image size with a given XCR0
+/// (which `size` sets). Only `ALLOWED` components; AVX and AVX-512 only
+/// with SSE; the largest groups dropped until the image fits the TCB, and
+/// x87 and SSE alone if it still does not.
+fn choose_components(supported: u64, mut size: impl FnMut(u64) -> u64) -> u64 {
+    let mut x = (supported & ALLOWED) | 1;
+    if x & 2 == 0 {
+        x &= !(AVX | AVX512);
+    }
     if x & AVX512 != AVX512 || x & AVX == 0 {
         x &= !AVX512;
     }
     if x & MPX != MPX {
         x &= !MPX;
     }
-    for drop in [AVX512, MPX, 1 << 19] {
-        xsetbv(0, x);
-        if cpuid(0xd, 0).ebx as u64 <= tcb::FPU_SIZE {
-            break;
+    for drop in [AVX512, MPX] {
+        if size(x) <= tcb::FPU_SIZE {
+            return x;
         }
         x &= !drop;
     }
+    if size(x) > tcb::FPU_SIZE {
+        x = 0x3;
+        size(x);
+    }
     x
+}
+
+fn components() -> u64 {
+    let sup = cpuid(0xd, 0);
+    choose_components(sup.eax as u64 | ((sup.edx as u64) << 32), |x| {
+        xsetbv(0, x);
+        cpuid(0xd, 0).ebx as u64
+    })
 }
 
 /// Enable the FPU on this core and pick the state components and the save
@@ -312,7 +333,7 @@ pub fn switch_to(t: u64, fpu_disabled: bool) {
         return;
     }
     let pc = percpu::get();
-    if pc.fpu_owner == t {
+    if pc.fpu_owner.load(Ordering::Relaxed) == t {
         set_ts(false);
         return;
     }
@@ -332,11 +353,12 @@ pub fn switch_to(t: u64, fpu_disabled: bool) {
 /// Save the owner's state, if any, and load `t`'s.
 fn load(t: u64) {
     let pc = percpu::get();
-    if pc.fpu_owner != 0 {
-        save(pc.fpu_owner);
+    let owner = pc.fpu_owner.load(Ordering::Relaxed);
+    if owner != 0 {
+        save(owner);
     }
     restore(t);
-    percpu::get().fpu_owner = t;
+    percpu::get().fpu_owner.store(t, Ordering::Release);
 }
 
 /// #NM from thread `t` on the lazy path: give it the FPU. Runs in the
@@ -348,7 +370,7 @@ pub fn lazy_load(t: u64) {
         core::ptr::write_volatile(use_count(t), n.saturating_add(1).max(1));
     }
     set_ts(false);
-    if percpu::get().fpu_owner != t {
+    if percpu::get().fpu_owner.load(Ordering::Relaxed) != t {
         load(t);
     }
 }
@@ -357,7 +379,7 @@ pub fn lazy_load(t: u64) {
 /// goes back to what it was: from a remote call, the interrupted thread may
 /// be one that must still trap on its first FPU instruction.
 pub fn flush_local(t: u64) {
-    if percpu::get().fpu_owner == t {
+    if percpu::get().fpu_owner.load(Ordering::Relaxed) == t {
         let ts = percpu::get().ts_set;
         set_ts(false);
         save(t);
@@ -368,14 +390,14 @@ pub fn flush_local(t: u64) {
 /// Forget `t`'s state if it is live on this core.
 pub fn forget_local(t: u64) {
     let pc = percpu::get();
-    if pc.fpu_owner == t {
-        pc.fpu_owner = 0;
+    if pc.fpu_owner.load(Ordering::Relaxed) == t {
+        pc.fpu_owner.store(0, Ordering::Release);
     }
 }
 
 /// The core whose registers hold `t`'s FPU state, if any.
 fn owner_core(t: u64) -> Option<usize> {
-    (0..percpu::MAX_CPUS).find(|&c| unsafe { core::ptr::read_volatile(&percpu::get_for(c).fpu_owner) } == t)
+    (0..percpu::MAX_CPUS).find(|&c| percpu::get_for(c).fpu_owner.load(Ordering::Acquire) == t)
 }
 
 /// Whether some core's registers hold `t`'s FPU state.
@@ -426,5 +448,60 @@ pub fn sanitise(t: u64) {
                 i += 1;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Standard-format image size for XCR0 `x` (CPUID 0DH.0 EBX), on a CPU
+    /// with every component below and an unknown one at a high offset.
+    fn size(x: u64) -> u64 {
+        let mut end = 576;
+        for (bits, e) in [(AVX, 832), (MPX, 1088), (AVX512, 2688), (PKRU, 2696), (1 << 19, 1216), (1 << 40, 8192)] {
+            if x & bits != 0 {
+                end = end.max(e);
+            }
+        }
+        end
+    }
+
+    #[test]
+    fn known_components_that_fit_are_kept() {
+        let all = 0x3 | AVX | MPX | AVX512 | PKRU;
+        assert_eq!(choose_components(all, size), all);
+    }
+
+    /// A component FL4 has no layout for (here one past the TCB's image)
+    /// is never enabled, so XSAVE cannot write beyond the image.
+    #[test]
+    fn unknown_components_stay_off() {
+        let amx = (1 << 17) | (1 << 18);
+        let all = 0x3 | AVX | MPX | AVX512 | PKRU | amx | (1 << 19) | (1 << 40);
+        let x = choose_components(all, size);
+        assert_eq!(x, 0x3 | AVX | MPX | AVX512 | PKRU);
+        assert!(size(x) <= tcb::FPU_SIZE);
+    }
+
+    /// If even the allowed groups do not fit after dropping AVX-512 and
+    /// MPX, only x87 and SSE stay on.
+    #[test]
+    fn an_image_that_never_fits_falls_back_to_x87_and_sse() {
+        let mut last = 0;
+        let x = choose_components(0x3 | AVX | MPX | AVX512, |x| {
+            last = x;
+            if x == 0x3 { 576 } else { tcb::FPU_SIZE + 1 }
+        });
+        assert_eq!(x, 0x3);
+        // The last XCR0 written is the one returned.
+        assert_eq!(last, 0x3);
+    }
+
+    #[test]
+    fn avx_needs_sse() {
+        assert_eq!(choose_components(0x1 | AVX | AVX512, size), 0x1);
+        assert_eq!(choose_components(0x3 | AVX512, size), 0x3);
+        assert_eq!(choose_components(0x3 | (MPX & 0x8), size), 0x3);
     }
 }

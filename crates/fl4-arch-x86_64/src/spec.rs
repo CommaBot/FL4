@@ -13,10 +13,13 @@ use policy::*;
 // Written during serialized BSP/AP startup, frozen before users run.
 // Native entries use the union, so NMI/IST entries need neither GS nor a
 // CPU-index lookup before the barrier. Every enabled action is legal on
-// all admitted cores; VM exits use each core's own plan.
+// all admitted cores; VM exits use each core's own plan. Entries read them
+// on the user's tables, so they live in the skim window (paging.rs).
 #[no_mangle]
+#[cfg_attr(target_os = "none", link_section = ".bss.skim")]
 static FL4_SPEC_ENTRY: AtomicU32 = AtomicU32::new(0);
 #[no_mangle]
+#[cfg_attr(target_os = "none", link_section = ".bss.skim")]
 static FL4_SPEC_BUFFERS: AtomicU32 = AtomicU32::new(0);
 static NO_SMT: AtomicBool = AtomicBool::new(false);
 static SKIM: AtomicBool = AtomicBool::new(false);
