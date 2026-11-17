@@ -461,7 +461,7 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
     rw [hS23.capV ((hM.members y).1 hy).1]
     exact ovl_fresh_io hPA hfl hlv hfree' y hy
   have hins := insert_ctl_full_fin th s3 σ2 G hR2 hV2 hP hM2 hC2 hI2 hFI2 hps hpd hls rfl hsrc3 hdst3
-    (.IoPort first last 0#u64) ⟨hfv, hlv⟩ trivial ⟨hfv, hlv, canonical_zero⟩ trivial hfr hov
+    (.IoPort first last 0#u64) ⟨hfv, hlv, hfl⟩ trivial ⟨hfv, hlv, canonical_zero⟩ trivial hfr hov
   have hnx : nextOf (L.mem s3) (cslotAddr (ps.bv, idxs)) = 0#u64 ∨
       IsSlot th (nextOf (L.mem s3) (cslotAddr (ps.bv, idxs))) := by
     have hsm : cslotAddr (ps.bv, idxs) ∈ G.chains.flatten := (hM2.members _).2 ⟨hAs.isSlot, _, hsrc3, by simp⟩

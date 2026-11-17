@@ -230,7 +230,7 @@ theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : 
   have hin1 : ∀ y ∈ G.chains.flatten, ¬ Ovl (absCap (.IrqHandler irq)) (absCap (capV (L.mem s1) y)) := by
     intro y hy; rw [hS.capV ((hM.members y).1 hy).1]; exact ovl_fresh_irq hHA hirq hin y hy
   have hins := insert_ctl_full_fin th s1 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hps hpd hls hld hsrc1 hdst1
-    (.IrqHandler irq) (show irq.val < 256 by omega) trivial (by simp [EncWf]) trivial hfr1 hin1
+    (.IrqHandler irq) (show irq.val < 128 by omega) trivial (by simp [EncWf]) trivial hfr1 hin1
   have hnx : nextOf (L.mem s1) (cslotAddr (ps.bv, idxs)) = 0#u64 ∨
       IsSlot th (nextOf (L.mem s1) (cslotAddr (ps.bv, idxs))) := by
     have hsm : cslotAddr (ps.bv, idxs) ∈ G.chains.flatten := (hM1.members _).2 ⟨hAs.isSlot, _, hsrc1, by simp⟩

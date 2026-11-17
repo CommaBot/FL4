@@ -69,7 +69,7 @@ the labels' (each used by its labels only):
 * Revoke, Delete: the deletion's premises at `XTop` (`XFinHyps` [W],
   `XPreemptHyp` [W], `XPostDelHyp` [W]), the bound `K` on CNode sizes and
   `DelE` (`DelInv`, the fuel bound) [J];
-* CancelBadgedSends: `CancelEpHyp` [W], the caller's state code below 3,
+* CancelBadgedSends: the caller's state code below 3,
   and at every `XTopAt` sets `KsApart`, `BufWordRel`, the IPC placement, the caller among
   the TCBs, the switch target ready, the endpoint of a full-rights endpoint
   cap among the endpoints [J];
@@ -94,7 +94,7 @@ theorem decode_invocation_cnodeX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask
     (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel2 Z.th (L.mem s) x0 x1 (excaps.map Prod.fst))
     (hact : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
-    (hcur : σ.curThread = ct.bv) (hEp : CancelEpHyp (L := L) Z.th s σ)
+    (hcur : σ.curThread = ct.bv)
     (hrun : ∀ xt, σ.kheap ct.bv = some (.tcb xt) → tsCode xt.tcbState < 3)
     (hZ : ∀ Z' : XSets, XTopAt (L := L) AR Z' s ar σ → KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s) ∧
       BufWordRel Z'.T (L.mem s) σ ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧ ct ∈ Z'.T ∧
@@ -126,7 +126,7 @@ theorem decode_invocation_cnodeX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask
   · have e : lbl = fl4_abi.label.CNodeCancelBadgedSends := UScalar.eq_of_val_eq (by rw [h, lbl_cancel_val])
     subst e
     exact decode_invocation_cnode_cancelXI arI s ar σ hX hC slbl (by rw [hlbl]; simp [cnodeLabelOf]) length buf ct
-      hct args hlen hargs p r gs g hwf hcv extra excaps hact hcur hEp hrun hZ hE slot blk call don fp ci sl buffer
+      hct args hlen hargs p r gs g hwf hcv extra excaps hact hcur hrun hZ hE slot blk call don fp ci sl buffer
 
 end
 

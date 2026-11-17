@@ -123,7 +123,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 theorem postIoHyp_of (th : TypedHeap) (hP : Placed th) (hio : ∀ s : S, IoLayout th (L.ksb s)) :
     PostIoHyp (L := L) arI th := by
   intro s a σ G f l owner hDS hwf
-  obtain ⟨hf, hl⟩ := hwf
+  obtain ⟨hf, hl, -⟩ := hwf
   unfold objects.post_cap_deletion ioport.free_ioports
   simp only
   refine WP.spec_bind (set_mask_frame (hio s) s rfl f l hf hl false) ?_

@@ -243,7 +243,7 @@ theorem cn_cancel_topX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {ar
       b ≠ 0#u64 → XCancelBadgedHyp (L := L) AR s ar σ σ1 ct p b)
     {blk call don : Bool}
     {m : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation} {res : core.result.Result Unit error.Exc × S × A}
-    (hq : InvPost (L := L) Z.th σ Z.G m s (res.1, res.2.1) (CancelTrace (L := L) Z.th ct s) ∧ res.2.2 = ar) :
+    (hq : CancelDec (L := L) Z.th ct σ m s (res.1, res.2.1) ∧ res.2.2 = ar) :
     TopPostDMX (L := L) (XTop (L := L) AR) σ blk call don (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeCNode m)
       s res := by
   obtain ⟨r, s', a'⟩ := res
@@ -253,7 +253,7 @@ theorem cn_cancel_topX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {ar
     obtain ⟨rfl, e', h1, h2⟩ := hq
     exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, Or.inl h2⟩, ⟨Z, hX⟩⟩
   | Ok u =>
-    obtain ⟨inv, hrun, σ1, hst, σ', G', hrunI, -, -, -, -, -, -, -, p, b, rfl, ⟨sl, hsl, hcV⟩, s2, hs2, h0, h1⟩ := hq
+    obtain ⟨inv, hrun, σ1, hst, p, b, rfl, ⟨sl, hsl, hcV⟩, s2, hs2, h0, h1⟩ := hq
     have hst' : Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) := by rw [← hcur]; exact hst
     by_cases hb : b = 0#u64
     · subst hb
@@ -298,7 +298,7 @@ theorem cn_cancel_topX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {ar
         mem_bindE_ok hx (Set.mem_singleton _), ⟨th', G2, Or.inl ⟨rfl, rfl⟩, hPl, hCR2, hFI2, hD2, hMO2⟩, hXT⟩
 
 /-- **`CnodeXHyp` at the CancelBadgedSends label** (27): `cnode_cancel_refines`
-(with the CSpace side `CancelEpHyp`), then `cn_cancel_topX` (with
+(the decode, `cnode_cancel_dec`), then `cn_cancel_topX` (with
 `XCancelBadgedHyp`). -/
 theorem decode_invocation_cnode_cancelX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S)
     (ar : A) (σ : Fl4Spec.State Unit) (hX : XTopAt (L := L) AR Z s ar σ) (hC : CurRun σ)
@@ -309,7 +309,7 @@ theorem decode_invocation_cnode_cancelX {AR : A → Fl4Spec.Cr3 → Prop} {Z : X
     (p r gs g : U64) (hwf : CapWf (.CNode p r gs g)) (hcv : CapValid Z.th (.CNode p r gs g))
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hact : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
-    (hcur : σ.curThread = ct.bv) (hEp : CancelEpHyp (L := L) Z.th s σ)
+    (hcur : σ.curThread = ct.bv)
     (hcan : ∀ σ1 p b sl, AbsSlot Z.th sl → capV (L.mem s) (cslotAddr sl) = .Endpoint p b true true true true →
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
       b ≠ 0#u64 → XCancelBadgedHyp (L := L) AR s ar σ σ1 ct p b)
@@ -324,8 +324,8 @@ theorem decode_invocation_cnode_cancelX {AR : A → Fl4Spec.Cr3 → Prop} {Z : X
   rw [hct]; simp only [bind_ok]
   cases fp
   · simp only [Bool.false_eq_true, ↓reduceIte]
-    exact WP.spec_mono (cnode_cancel_refines arI Z.th s ar σ Z.G hR hV hX.rel.1 hM hCd slbl hlbl length buf ct hct
-      args hlen hargs _ _ ⟨hwf, rfl⟩ hcv extra _ hI hFI hact hcur htcb hEp)
+    exact WP.spec_mono (cnode_cancel_dec arI Z.th s ar σ Z.G hR hV hX.rel.1 hM hCd slbl hlbl length buf ct hct
+      args hlen hargs _ _ ⟨hwf, rfl⟩ hcv extra _ hI hFI hact hcur htcb)
       fun res h => cn_cancel_topX hX hC hcur hcan h
   · simp only [↓reduceIte]
     rw [WP.spec_ok]

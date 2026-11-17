@@ -43,7 +43,7 @@ theorem handlersActive_of_spec {s : S} {kb : U64} {σ : Fl4Spec.State Unit} {G :
   obtain ⟨ysl, hys, rfl⟩ := ((hM.members _).1 hy).1.abs
   obtain ⟨c, ac, hc, hca, hg⟩ := hR.abs_cap hys
   rw [capV_of_capAt hc] at hi; subst hi
-  have hwf : i.val < 256 := hca.1
+  have hwf : i.val < 256 := by have : i.val < 128 := hca.1; omega
   rw [hca.abs] at hg
   obtain ⟨h1, h2⟩ := hS ysl _ hg
   have hi8 : (BitVec.ofNat 8 i.val : BitVec 8).toNat = i.val := by
@@ -64,7 +64,7 @@ theorem ioPortsAlloc_of_spec {s : S} {kb : U64} {σ : Fl4Spec.State Unit} {G : M
   obtain ⟨ysl, hys, rfl⟩ := ((hM.members _).1 hy).1.abs
   obtain ⟨c, ac, hc, hca, hg⟩ := hR.abs_cap hys
   rw [capV_of_capAt hc] at hfl; subst hfl
-  obtain ⟨hf, hl⟩ := hca.1
+  obtain ⟨hf, hl, -⟩ := hca.1
   rw [hca.abs] at hg
   obtain ⟨h1, h2⟩ := hS ysl _ _ hg
   have e : ∀ x : U64, x.val < 2 ^ 16 → (BitVec.ofNat 16 x.val : BitVec 16).toNat = x.val := fun x hx => by

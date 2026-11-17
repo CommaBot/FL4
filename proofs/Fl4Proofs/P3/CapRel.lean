@@ -20,7 +20,15 @@ mapped VSpace caps carry `Option (asid, vaddr)`.
 Where the abstraction loses information, it is deliberate and listed here:
 - `SchedControl { cpu }` maps to `schedControlCap`: the spec is
   single-core (DESIGN.md §8; the per-core difference goes in `Fl4Spec/Ext`).
-- `IrqHandler { irq }` maps to the 8-bit `Irq` (`CapWf`: `irq < 256`).
+- `IrqHandler { irq }` maps to the 8-bit `Irq` (`CapWf`: `irq < 128`, FL4's
+  IRQ count, l4v `valid_cap`'s `irq ≤ maxIRQ`: every FL4 path creating an
+  IRQ handler cap, the IRQ control issues, bounds it below 128 (ISA:
+  `irq ≤ ISA_MAX = 15`; MSI, IOAPIC, remapped: `irq ≤ USER_MAX - USER_MIN`,
+  then `irq + USER_MIN ≤ 123`), and copies keep it; so `deleted_irq_handler`'s
+  unchecked state write stays in the 128-entry IRQ table).
+- `IoPort { first, last }`: `CapWf` also orders the range (`first ≤ last`,
+  l4v `valid_cap`; FL4's IOPortControl issue rejects `last < first`), so
+  `free_ioports` clears exactly the spec's `free_ioport_range`.
 - `SchedContext { size_bits }` is absolute in FL4 and relative to
   `min_sched_context_bits` in the spec (`Retype_A.default_cap`), so the
   abstraction subtracts it (`CapWf`: `size_bits ≥ 7`).
@@ -272,11 +280,11 @@ produces satisfies the CNode bounds on radix and guard size
 `valid_cap`: the guard is a list of `guard_size` bits by construction). -/
 def CapWf : capability.Cap → Prop
   | .CNode _ r gs g => r.val < 64 ∧ gs.val < 64 ∧ g.val < 2 ^ gs.val
-  | .IrqHandler i => i.val < 256
+  | .IrqHandler i => i.val < 128
   | .Zombie _ zt _ => zt.val ≤ 64 ∨ zt.val = 65
   | .SchedContext _ sb => Fl4Spec.minSchedContextBits ≤ sb.val
   | .Frame _ _ r _ _ _ _ _ => 1 ≤ r.val ∧ r.val ≤ 3
-  | .IoPort f l _ => f.val < 2 ^ 16 ∧ l.val < 2 ^ 16
+  | .IoPort f l _ => f.val < 2 ^ 16 ∧ l.val < 2 ^ 16 ∧ f.val ≤ l.val
   | _ => True
 
 /-- The capability relation: FL4 cap `c` represents abstract cap `a`. -/

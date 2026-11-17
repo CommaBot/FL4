@@ -33,8 +33,8 @@ theorem soB_iff_nf (a b : capability.Cap) (ha : CapWf a) (hb : CapWf b) (hnu : i
       apply BitVec.eq_of_toNat_eq
       have := congrArg BitVec.toNat h
       simp only [BitVec.toNat_setWidth] at this
-      have h1 : i.bv.toNat < 256 := ha
-      have h2 : j.bv.toNat < 256 := hb
+      have h1 : i.bv.toNat < 256 := by rw [UScalar.bv_toNat]; omega
+      have h2 : j.bv.toNat < 256 := by rw [UScalar.bv_toNat]; omega
       rw [Nat.mod_eq_of_lt h1, Nat.mod_eq_of_lt h2] at this
       exact this
   case SchedContext.SchedContext p sb p' sb' =>
@@ -58,7 +58,7 @@ theorem soB_iff_nf (a b : capability.Cap) (ha : CapWf a) (hb : CapWf b) (hnu : i
         have h2 : y.bv.toNat < 2 ^ 16 := hy
         rw [Nat.mod_eq_of_lt h1, Nat.mod_eq_of_lt h2] at this
         exact this
-    rw [k f f' ha.1 hb.1, k l l' ha.2 hb.2]
+    rw [k f f' ha.1 hb.1, k l l' ha.2.1 hb.2.1]
   case Ept.Ept p level m asid va p' level' m' asid' va' =>
     intro _
     exact ⟨fun h => congrArg BitVec.toNat h, fun h => BitVec.eq_of_toNat_eq h⟩
