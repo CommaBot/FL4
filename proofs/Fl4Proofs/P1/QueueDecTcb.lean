@@ -237,7 +237,8 @@ theorem Stalled.cur0 {s s1 : S} {cap : capability.Cap} {extra : Aeneas.Std.Array
     Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s s1 := by
   have hT := D.bxi.1.choose_spec.choose_spec.tcbs
   have hct : L.curW s ∈ T := D.bxi.1.choose_spec.choose_spec.curT
-  refine ⟨D.hcsc, Ac, h1.bxi, h1.cur, h1.csc, Or.inl ?_, fun y hy => ?_, ?_⟩
+  refine ⟨D.hcsc, Ac, h1.bxi, h1.cur, h1.csc, Or.inl ?_, fun y hy => ?_, ?_,
+    WritesIn.mono h1.node fun _ hb => NodeW.cur0w D.bxi.1.choose_spec.choose_spec.cur hb⟩
   · rw [scA_eq]; exact h1.fld _ hct _ (by simp) (by simp)
   · rw [h1.act, D.act]; exact fun e => notT_small hT (by simp) (e ▸ hy)
   · rw [stA_eq, h1.fld _ hct _ (by simp) (by simp), ← stA_eq]; exact nbr_runnable D.run
@@ -252,10 +253,12 @@ theorem Stalled.restart0 {s s1 : S} {cap : capability.Cap} {extra : Aeneas.Std.A
     rw [h1.cur, stA_eq]; exact h1.fld _ hct _ (by simp) (by simp)
   have hr := runnable_ok D.run
   refine WP.spec_mono (tcb.restart_caller.blk (Es := ∅) s1 h1.bxi.blk (est ▸ hr.1) (est ▸ hr.2))
-    fun s2 ⟨h2, _, est2, k⟩ => ?_
+    fun s2 ⟨h2, f2, est2, k⟩ => ?_
   rw [h1.cur] at est2 k
   refine ⟨D.hcsc, Ac, BlkOK.bxi h2, k.curW.trans h1.cur, k.cscW.trans h1.csc, Or.inl ?_, fun y hy => ?_,
-    by rw [est2]; exact nbr_restart⟩
+    by rw [est2]; exact nbr_restart,
+    Cur0W.trans (WritesIn.mono h1.node fun _ hb => NodeW.cur0w D.bxi.1.choose_spec.choose_spec.cur hb)
+      (WritesIn.mono f2 fun _ hb => Or.inl (KW.mono hb (Set.empty_subset _)))⟩
   · rw [k.scf hct, scA_eq]; exact h1.fld _ hct _ (by simp) (by simp)
   · rcases k.act with e | e
     · rw [e, h1.act, D.act]; exact fun e' => notT_small hT (by simp) (e' ▸ hy)
@@ -329,7 +332,8 @@ theorem tcb.decode_set_ipc_buffer.dec {A : Type _} {ar : machine.Arch A} (hA : P
     {s s1 : S} {a1 : A} {t len buf : U64} {call : Bool} {slot : obj.Slot}
     {extra : Aeneas.Std.Array obj.Slot 3#usize}
     (hxw : ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapW T Ω Sg sl)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (hE : EntAt st P3Ok s)
+    (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
     tcb.decode_set_ipc_buffer st ar s1 a1 t { length := len, buf, call, slot, extra } ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -387,6 +391,9 @@ theorem tcb.decode_set_ipc_buffer.dec {A : Type _} {ar : machine.Arch A} (hA : P
   subst e4
   have h4 := (plainW_all (K := 3512#u64) (v := baddr) hb3.blk ht (by simp) (by simp) (by simp) (by simp) (by simp)
     (by simp) (by simp)).1
+  have f4 : Fr0 st T Cs Ω H Sg Scs Z s (L.wr s3 (core.num.U64.wrapping_add t 3512#u64) baddr) :=
+    Cur0W.trans c3.fr (WritesIn.mono (writesIn_wr (field_aligned (hT t ht) (by simp) (by simp))) fun _ hb =>
+      Or.inl (hb ▸ kw_field (Es := EH H) ht (by simp) (by simp) (by simp)))
   obtain ⟨vc, vs⟩ := v
   simp only at hv2
   try simp only [uncurry_apply_pair]
@@ -404,7 +411,7 @@ theorem tcb.decode_set_ipc_buffer.dec {A : Type _} {ar : machine.Arch A} (hA : P
         rwa [h0] at this
       unfold cdt.insert
       refine WP.spec_bind (P0.obj.Slot.cap.p0 st vs _ hS) fun sc _ => ?_
-      exact WP.spec_mono (C.ins Ac3 _ vc sc vs _ (BlkOK.bxi h4) hxW hbW) fun s' w =>
+      exact WP.spec_mono (C.ins Ac3 s _ vc sc vs _ hE f4 (BlkOK.bxi h4) hxW hbW) fun s' w =>
         (blk_of_capw h4 w fun _ hb => hb).1
     · exact (WP.spec_ok _).2 h4
   refine WP.spec_bind (sched.cur_thread.spec s5) fun ct _ => ?_
@@ -442,6 +449,7 @@ theorem Cur0.xf {s0 s s' : S} {U' : Set U64} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt
   obtain ⟨q', hB', hX', hS', hSg', ea, ec, -, ecs, f, -⟩ := xfer_all q hB hX hS hSg hU w
   have hct : L.curW s ∈ T := q.curT
   refine Cur0.mk h ⟨⟨Q, R, q'⟩, hB', hX', hSg', hS'⟩ ec ecs (Or.inl ?_) (Or.inl ea) (Or.inl ?_)
+    (WritesIn.mono w fun _ hb => XferFoot.cur0w hU hb)
   · rw [scA_eq]; exact f _ hct _ (by simp) (by simp) (by simp)
   · rw [stA_eq]; exact f _ hct _ (by simp) (by simp) (by simp)
 

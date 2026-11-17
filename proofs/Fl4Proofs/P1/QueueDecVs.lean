@@ -66,7 +66,8 @@ structure VsPlace (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar :
     EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ x ∈ extra.val, x ≠ 0#u64 →
       obj.Slot.cap st x s ⦃ c => ∀ ptr sb fi dev, c = .Untyped ptr sb fi dev → FreeRegion Ω Sg ptr 4096#u64 ⦄
   /-- The ASID table's entries hold no tracked words (MakePool's pool install). -/
-  aset : ∀ (Ac : Set U64) (s : S) (hi v : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+  aset : ∀ (Ac : Set U64) (s0 s : S) (hi v : U64), EntAt st P3Ok s0 → Fr0 st T Cs Ω H Sg Scs Z s0 s →
+    BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     vspace.set_asid_table st s hi v ⦃ s1 => WritesIn st s s1 (fun b => b ∈ Ω ∧ b ∉ Sg) ⦄
   /-- The subframe destination slots. -/
   sub : ∀ (Ac : Set U64) (s : S) (x i d off cnt : U64), EntAt st P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
@@ -511,7 +512,7 @@ theorem vspace.decode_test_and_clear_accessed.dec {V : U64 → Prop} (Pd : DelPl
 /-- **`insert_subframes`**: the subframe caps' insertions under the source
 slot, into cap slots. -/
 theorem vspace.insert_subframes.cur0 (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {s0 s : S}
-    (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) {src dest first base count vm : U64} (hsrc : CapW T Ω Sg src)
+    (hE : EntAt st P3Ok s0) (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) {src dest first base count vm : U64} (hsrc : CapW T Ω Sg src)
     (hd : ∀ j : U64, j.val < count.val → obj.Slot.index dest (core.num.U64.wrapping_add first j) ⦃ sl =>
       CapW T Ω Sg sl ⦄) :
     vspace.insert_subframes st s src dest first base count vm ⦃ s' => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ⦄ := by
@@ -533,7 +534,7 @@ theorem vspace.insert_subframes.cur0 (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3
       refine WP.spec_bind (Pₘ := fun s4 => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s4) ?_ fun s4 h4 => ?_
       · unfold cdt.insert
         refine WP.spec_bind (P0.obj.Slot.cap.p0 st src s3 hS) fun c0 _ => ?_
-        exact WP.spec_mono (C.ins Ac' s3 _ c0 src sl hb hsrc hsl) fun s5 w => h3.capw w fun _ hb => hb
+        exact WP.spec_mono (C.ins Ac' s0 s3 _ c0 src sl hE h3.fr hb hsrc hsl) fun s5 w => h3.capw w fun _ hb => hb
       step as ⟨i4, hi4⟩
       exact ⟨h4, by scalar_tac⟩
     · exact (WP.spec_ok _).2 h3
@@ -597,7 +598,7 @@ theorem vspace.derive_subframe.dec {A : Type _} {ar : machine.Arch A} (C : CdtHy
   refine WP.spec_bind (P0.capability.mask_vm_rights.p0 _ _) fun _ _ => ?_
   refine WP.spec_bind (Cur0.restart D) fun s1 h1 => ?_
   try simp only [lift, bind_ok]
-  refine WP.spec_bind (vspace.insert_subframes.cur0 C h1 (SlotW.capw0 hsrc) hd) fun s2 h2 => ?_
+  refine WP.spec_bind (vspace.insert_subframes.cur0 C hE h1 (SlotW.capw0 hsrc) hd) fun s2 h2 => ?_
   exact (WP.spec_ok _).2 h2.post
 
 
@@ -787,9 +788,9 @@ theorem vspace.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
       refine WP.spec_bind (Pₘ := fun s4 => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s s4) ?_ fun s4 h4 => ?_
       · unfold cdt.insert
         refine WP.spec_bind (P0.obj.Slot.cap.p0 st x _ hS) fun c0 _ => ?_
-        exact WP.spec_mono (C.ins Ac3 _ _ c0 x v hb3 (SlotW.capw0 hxs) hv) fun s5 w => h3.capw w fun _ hb => hb
+        exact WP.spec_mono (C.ins Ac3 s _ _ c0 x v hE h3.fr hb3 (SlotW.capw0 hxs) hv) fun s5 w => h3.capw w fun _ hb => hb
       obtain ⟨Ac4, hb4⟩ := h4.bxi
-      refine WP.spec_bind (Vs.aset Ac4 s4 i _ hb4) fun s5 w5 => ?_
+      refine WP.spec_bind (Vs.aset Ac4 s s4 i _ hE h4.fr hb4) fun s5 w5 => ?_
       exact (WP.spec_ok _).2 (h4.capw w5 fun b hb => Or.inr hb).post
   case AsidPool pptr abase =>
     try dsimp only

@@ -44,33 +44,59 @@ theorem interrupt.set_irq_state.blk {A : Type _} {ar : machine.Arch A} (hA : P0.
   refine WP.spec_bind (obj.ks_set.blk s o v h (by omega) (by omega)) fun s1 h1 => ?_
   exact WP.spec_bind (hA.mask_irq a irq _) fun a1 _ => (WP.spec_ok _).2 h1.1
 
+/-- The IRQ-state write's frame (a kernel-global word). -/
+theorem interrupt.set_irq_state.fr {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
+    (v irq : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hi : irq.val < 128) :
+    interrupt.set_irq_state st ar s a v irq ⦃ r => Fr0 st T Cs Ω H Sg Scs Z s r.1 ⦄ := by
+  have hb := BlkOK.bxi h
+  have q := hb.1.choose_spec.choose_spec
+  have hSg := hb.2.2.2.1
+  unfold interrupt.set_irq_state interrupt.state_off
+  simp only [lift, bind_ok]
+  refine WP.spec_bind (Pₘ := fun o : U64 => o.val = 224 + 8 * irq.val) ?_ fun o ho => ?_
+  · refine WP.spec_bind P0.Consts.layout.ks.IRQ_STATE.spec fun b eb => ?_
+    subst eb
+    refine (WP.spec_ok _).2 ?_
+    simp [core.num.U64.wrapping_add_val_eq, core.num.U64.wrapping_mul_val_eq, U64.size_def, U64.numBits]; omega
+  refine WP.spec_bind (obj.ks_set.spec s o v) fun s1 e1 => ?_
+  subst e1
+  have ho' : o.val < 13568 := by omega
+  have h8 : o.val % 8 = 0 := by omega
+  refine WP.spec_bind (hA.mask_irq a irq _) fun a1 _ => (WP.spec_ok _).2 ?_
+  exact (writesIn_wr (ks_aligned q ho' h8)).mono fun b e => e ▸ Or.inr (Or.inr (Or.inl (Or.inr
+    ⟨hSg.ksΩ o ho' h8, fun hb' => by have := hSg.ks _ hb'; rw [ks_val q ho'] at this; omega⟩)))
+
 /-- **`invoke_irq_control`**: the IRQ-state write and the IrqHandler cap's
 insertion under the IrqControl cap's slot. -/
 theorem interrupt.invoke_irq_control.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (s : S) (a : A) (irq handler control : U64)
+    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {s0 : S} (hE : EntAt st P3Ok s0) (s : S) (a : A)
+    (irq handler control : U64) (hf : Fr0 st T Cs Ω H Sg Scs Z s0 s)
     (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hi : irq.val < 128) (hh : CapW T Ω Sg handler)
     (hc : CapW T Ω Sg control) :
     interrupt.invoke_irq_control st ar s a irq handler control ⦃ r => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ⦄ := by
   have hS : P0.StoreTotal st := L.total
   unfold interrupt.invoke_irq_control
-  refine WP.spec_bind (interrupt.set_irq_state.blk hA s a _ irq h hi) ?_
-  rintro ⟨s1, a1⟩ h1
+  refine WP.spec_bind (WP.spec_and (interrupt.set_irq_state.blk hA s a _ irq h hi)
+    (interrupt.set_irq_state.fr hA s a _ irq h hi)) ?_
+  rintro ⟨s1, a1⟩ ⟨h1, f1⟩
   try dsimp only
   refine WP.spec_bind (Pₘ := fun s2 => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s2) ?_ fun s2 h2 => (WP.spec_ok _).2 h2
   unfold cdt.insert
   refine WP.spec_bind (P0.obj.Slot.cap.p0 st control s1 hS) fun c0 _ => ?_
-  exact WP.spec_mono (C.ins Ac s1 _ c0 control handler (BlkOK.bxi h1) hc hh) fun s2 w2 =>
+  exact WP.spec_mono (C.ins Ac s0 s1 _ c0 control handler hE (Cur0W.trans hf f1) (BlkOK.bxi h1) hc hh) fun s2 w2 =>
     (blk_of_capw h1 w2 fun _ hb => hb).1
 
 /-- **`check_msi`**: the caller's restart, or an error with the state unchanged. -/
 theorem interrupt.check_msi.blk {s : S} {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize}
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (buf : U64) :
-    interrupt.check_msi st s buf ⦃ r => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2 ∧ (∀ e, r.1 = .Err e → r.2 = s) ⦄ := by
+    interrupt.check_msi st s buf ⦃ r => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2 ∧ (∀ e, r.1 = .Err e → r.2 = s) ∧
+      Fr0 st T Cs Ω H Sg Scs Z s r.2 ⦄ := by
   have hS : P0.StoreTotal st := L.total
   have hct : L.curW s ∈ T := D.bxi.1.choose_spec.choose_spec.curT
   have K : ∀ r : core.result.Result Unit error.Exc,
-      (ok (r, s) : Result _) ⦃ r => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2 ∧ (∀ e, r.1 = .Err e → r.2 = s) ⦄ :=
-    fun r => (WP.spec_ok _).2 ⟨D.bxi.blk, fun _ _ => rfl⟩
+      (ok (r, s) : Result _) ⦃ r => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2 ∧ (∀ e, r.1 = .Err e → r.2 = s) ∧
+        Fr0 st T Cs Ω H Sg Scs Z s r.2 ⦄ :=
+    fun r => (WP.spec_ok _).2 ⟨D.bxi.blk, fun _ _ => rfl, WritesIn.refl _ _⟩
   unfold interrupt.check_msi
   step with sched.cur_thread.spec as ⟨ct, ect⟩
   have e : ct = L.curW s := ect
@@ -87,7 +113,7 @@ theorem interrupt.check_msi.blk {s : S} {cap : capability.Cap} {extra : Aeneas.S
   · exact K _
   refine WP.spec_bind (sched.set_thread_state.restart_blk (Es := ∅) s _ D.bxi.blk hct (runnable_ok D.run).1
     (runnable_ok D.run).2) fun s1 h1 => ?_
-  exact (WP.spec_ok _).2 ⟨h1.1, fun e he => by cases he⟩
+  exact (WP.spec_ok _).2 ⟨h1.1, fun e he => by simp at he, Foot.cur0w h1.2.1 (Set.empty_subset _)⟩
 
 /-- **`map_ioapic`**: the caller's restart and the arch's IOAPIC mapping, or an
 error with the state unchanged. -/
@@ -95,13 +121,15 @@ theorem interrupt.map_ioapic.blk {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
     {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize}
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (a : A) (buf vector : U64) (remapped : Bool) :
     interrupt.map_ioapic st ar s a buf vector remapped ⦃ r =>
-      BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2.1 ∧ (∀ e, r.1 = .Err e → r.2.1 = s) ⦄ := by
+      BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2.1 ∧ (∀ e, r.1 = .Err e → r.2.1 = s) ∧
+        Fr0 st T Cs Ω H Sg Scs Z s r.2.1 ⦄ := by
   have hS : P0.StoreTotal st := L.total
   have hct : L.curW s ∈ T := D.bxi.1.choose_spec.choose_spec.curT
   have K : ∀ (r : core.result.Result Unit error.Exc) (a' : A),
       (ok (r, s, a') : Result _) ⦃ r =>
-        BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2.1 ∧ (∀ e, r.1 = .Err e → r.2.1 = s) ⦄ :=
-    fun r _ => (WP.spec_ok _).2 ⟨D.bxi.blk, fun _ _ => rfl⟩
+        BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2.1 ∧ (∀ e, r.1 = .Err e → r.2.1 = s) ∧
+          Fr0 st T Cs Ω H Sg Scs Z s r.2.1 ⦄ :=
+    fun r _ => (WP.spec_ok _).2 ⟨D.bxi.blk, fun _ _ => rfl, WritesIn.refl _ _⟩
   unfold interrupt.map_ioapic
   step with sched.cur_thread.spec as ⟨ct, ect⟩
   have e : ct = L.curW s := ect
@@ -116,7 +144,7 @@ theorem interrupt.map_ioapic.blk {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
   · exact K _ _
   split
   · step as ⟨i, _⟩
-    first | exact K _ _ | exact ⟨D.bxi.blk, by simp⟩
+    first | exact K _ _ | exact ⟨D.bxi.blk, by simp, WritesIn.refl _ _⟩
   refine WP.spec_bind (hA.ioapic_pins a _) fun pins _ => ?_
   split
   · simp only [lift, bind_ok]
@@ -137,10 +165,10 @@ theorem interrupt.map_ioapic.blk {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
   split
   · refine WP.spec_bind (hA.ioapic_map_remapped a _ _ _ _ _ _) ?_
     rintro ⟨_, a1⟩ _
-    exact (WP.spec_ok _).2 ⟨h1.1, fun e he => by cases he⟩
+    exact (WP.spec_ok _).2 ⟨h1.1, fun e he => by simp at he, Foot.cur0w h1.2.1 (Set.empty_subset _)⟩
   · refine WP.spec_bind (hA.ioapic_map a _ _ _ _ _) ?_
     rintro ⟨_, a1⟩ _
-    exact (WP.spec_ok _).2 ⟨h1.1, fun e he => by cases he⟩
+    exact (WP.spec_ok _).2 ⟨h1.1, fun e he => by simp at he, Foot.cur0w h1.2.1 (Set.empty_subset _)⟩
 
 
 theorem irq_branch_ok {α β : Type} (x : α) :
@@ -212,7 +240,8 @@ theorem interrupt.decode_issue_isa.dec {A : Type _} {ar : machine.Arch A} (hA : 
   irqtail
   refine WP.spec_bind (sched.set_thread_state.restart_blk (Es := ∅) s _ D.bxi.blk hct (runnable_ok D.run).1
     (runnable_ok D.run).2) fun s1 h1 => ?_
-  refine WP.spec_bind (interrupt.invoke_irq_control.blk hA C s1 a irq v src h1.1 hi hv hsrc) ?_
+  refine WP.spec_bind (interrupt.invoke_irq_control.blk hA C hE s1 a irq v src (Foot.cur0w h1.2.1 (Set.empty_subset _))
+    h1.1 hi hv hsrc) ?_
   rintro ⟨s2, a1⟩ h2
   exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi h2))
 
@@ -264,11 +293,11 @@ theorem interrupt.decode_irq_control.dec {A : Type _} {ar : machine.Arch A} (hA 
         irqtail
         split
         · refine WP.spec_bind (interrupt.check_msi.blk D buf) ?_
-          rintro ⟨r2, s1⟩ ⟨h1, he⟩
+          rintro ⟨r2, s1⟩ ⟨h1, he, f1⟩
           try simp only [uncurry_apply_pair]
           rcases r2 with _ | e
           · simp only [irq_branch_ok, bind_ok]
-            refine WP.spec_bind (interrupt.invoke_irq_control.blk hA C s1 a irq1 v slot h1 hi hv hslot) ?_
+            refine WP.spec_bind (interrupt.invoke_irq_control.blk hA C hE s1 a irq1 v slot f1 h1 hi hv hslot) ?_
             rintro ⟨s2, a1⟩ h2
             exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi h2))
           · have e2 := he _ rfl
@@ -277,11 +306,11 @@ theorem interrupt.decode_irq_control.dec {A : Type _} {ar : machine.Arch A} (hA 
             errI
         · step as ⟨i2, _⟩
           refine WP.spec_bind (interrupt.map_ioapic.blk hA D a buf i2 _) ?_
-          rintro ⟨r2, s1, a1⟩ ⟨h1, he⟩
+          rintro ⟨r2, s1, a1⟩ ⟨h1, he, f1⟩
           try simp only [uncurry_apply_pair]
           rcases r2 with _ | e
           · simp only [irq_branch_ok, bind_ok]
-            refine WP.spec_bind (interrupt.invoke_irq_control.blk hA C s1 a1 irq1 v slot h1 hi hv hslot) ?_
+            refine WP.spec_bind (interrupt.invoke_irq_control.blk hA C hE s1 a1 irq1 v slot f1 h1 hi hv hslot) ?_
             rintro ⟨s2, a2⟩ h2
             exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi h2))
           · have e2 := he _ rfl
@@ -321,11 +350,11 @@ theorem interrupt.decode_irq_control.dec {A : Type _} {ar : machine.Arch A} (hA 
       irqtail
       split
       · refine WP.spec_bind (interrupt.check_msi.blk D buf) ?_
-        rintro ⟨r2, s1⟩ ⟨h1, he⟩
+        rintro ⟨r2, s1⟩ ⟨h1, he, f1⟩
         try simp only [uncurry_apply_pair]
         rcases r2 with _ | e
         · simp only [irq_branch_ok, bind_ok]
-          refine WP.spec_bind (interrupt.invoke_irq_control.blk hA C s1 a irq1 v slot h1 hi hv hslot) ?_
+          refine WP.spec_bind (interrupt.invoke_irq_control.blk hA C hE s1 a irq1 v slot f1 h1 hi hv hslot) ?_
           rintro ⟨s2, a1⟩ h2
           exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi h2))
         · have e2 := he _ rfl
@@ -366,11 +395,11 @@ theorem interrupt.decode_irq_control.dec {A : Type _} {ar : machine.Arch A} (hA 
     irqtail
     split
     · refine WP.spec_bind (interrupt.check_msi.blk D buf) ?_
-      rintro ⟨r2, s1⟩ ⟨h1, he⟩
+      rintro ⟨r2, s1⟩ ⟨h1, he, f1⟩
       try simp only [uncurry_apply_pair]
       rcases r2 with _ | e
       · simp only [irq_branch_ok, bind_ok]
-        refine WP.spec_bind (interrupt.invoke_irq_control.blk hA C s1 a irq1 v slot h1 hi hv hslot) ?_
+        refine WP.spec_bind (interrupt.invoke_irq_control.blk hA C hE s1 a irq1 v slot f1 h1 hi hv hslot) ?_
         rintro ⟨s2, a1⟩ h2
         exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi h2))
       · have e2 := he _ rfl
@@ -379,11 +408,11 @@ theorem interrupt.decode_irq_control.dec {A : Type _} {ar : machine.Arch A} (hA 
         errI
     · step as ⟨i2, _⟩
       refine WP.spec_bind (interrupt.map_ioapic.blk hA D a buf i2 _) ?_
-      rintro ⟨r2, s1, a1⟩ ⟨h1, he⟩
+      rintro ⟨r2, s1, a1⟩ ⟨h1, he, f1⟩
       try simp only [uncurry_apply_pair]
       rcases r2 with _ | e
       · simp only [irq_branch_ok, bind_ok]
-        refine WP.spec_bind (interrupt.invoke_irq_control.blk hA C s1 a1 irq1 v slot h1 hi hv hslot) ?_
+        refine WP.spec_bind (interrupt.invoke_irq_control.blk hA C hE s1 a1 irq1 v slot f1 h1 hi hv hslot) ?_
         rintro ⟨s2, a2⟩ h2
         exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi h2))
       · have e2 := he _ rfl
@@ -444,7 +473,7 @@ invariants. -/
 theorem interrupt.decode_irq_handler.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {V : U64 → Prop} (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V)
     {s : S} {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize} (a : A) (lbl irq : U64)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hi : irq.val < 128)
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hE : EntAt st P3Ok s) (hi : irq.val < 128)
     (hx : ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapW T Ω Sg sl) :
     interrupt.decode_irq_handler st ar s a lbl irq extra ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
@@ -487,7 +516,7 @@ theorem interrupt.decode_irq_handler.dec {A : Type _} {ar : machine.Arch A} (hA 
       fun s3 h3 => (WP.spec_ok _).2 h3.post
     unfold cdt.insert
     refine WP.spec_bind (P0.obj.Slot.cap.p0 st sl s2 hS) fun c0 _ => ?_
-    exact WP.spec_mono (C.ins Ac2 s2 _ c0 sl _ hb2 (hx sl hmem hne) hW) fun s3 w => h2.capw w fun _ hb => hb
+    exact WP.spec_mono (C.ins Ac2 s s2 _ c0 sl _ hE h2.fr hb2 (hx sl hmem hne) hW) fun s3 w => h2.capw w fun _ hb => hb
   split
   · refine WP.spec_bind (Cur0.restart D) fun s1 h1 => ?_
     refine WP.spec_bind (interrupt.irq_slot.val s1 irq) fun isl e => ?_
@@ -508,7 +537,7 @@ theorem decGap_irqHandler {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩
   try dsimp only
-  exact interrupt.decode_irq_handler.dec hA C P a lbl irq D (Pl.irq _ _ _ _ hE D irq rfl)
+  exact interrupt.decode_irq_handler.dec hA C P a lbl irq D hE (Pl.irq _ _ _ _ hE D irq rfl)
     (fun sl h1 h2 => SlotW.capw0 (Pl.extra _ _ _ _ hE D sl h1 h2))
 
 
@@ -563,7 +592,7 @@ theorem ioport.decode_control.dec (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     fun s4 h4 => (WP.spec_ok _).2 h4.post
   unfold cdt.insert
   refine WP.spec_bind (P0.obj.Slot.cap.p0 st slot s3 hS) fun c0 _ => ?_
-  exact WP.spec_mono (C.ins Ac3 s3 _ c0 slot v hb3 hslot hv) fun s4 w => h3.capw w fun _ hb => hb
+  exact WP.spec_mono (C.ins Ac3 s s3 _ c0 slot v hE h3.fr hb3 hslot hv) fun s4 w => h3.capw w fun _ hb => hb
 
 /-- **InvGaps' `ioPortControl`, discharged** from the CSpace placement facts. -/
 theorem decGap_ioPortControl {A : Type _} {ar : machine.Arch A} (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) :

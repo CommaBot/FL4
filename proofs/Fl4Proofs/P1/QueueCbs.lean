@@ -359,13 +359,32 @@ theorem timer.remove.tw (s : S) (t : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z 
     timer.remove st s t ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ WritesIn st s s' (TW st T Cs s) ⦄ :=
   WP.spec_mono (timer.remove.tf (s0 := s) s t (TF.start h) ht) fun _ h' => ⟨h'.1, h'.2.2.2.2⟩
 
+/-- The timer words leave the current core's other node words alone. -/
+theorem TW.keep_node {s s' : S} {o : U64} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (w : WritesIn st s s' (TW st T Cs s)) (ho : o.val < 4288) (h8 : o.val % 8 = 0) (h1 : o.val ≠ 104)
+    (h2 : o.val ≠ 112) : L.mem s' (L.nodeAt s (L.cpu s) o) = L.mem s (L.nodeAt s (L.cpu s) o) := by
+  have hc : L.cpu s ∈ Cs := h.1.choose_spec.choose_spec.cur
+  have hN := h.nodes _ hc
+  refine w.mem_eq (nodeAt_aligned hN ho h8) ?_
+  rintro (⟨y, hy, K, hK1, hK2, e⟩ | ⟨c, hc', o', ho', e⟩)
+  · exact node_ne_field hN ho hy (h.tcbs y hy) (by omega) e
+  · by_cases ec : c = L.cpu s
+    · subst ec; exact nodeAt_ne hN ho (by omega) (by omega) e
+    · exact nodeAt_ne_cpu hN (h.nodes c hc') ho (by omega) (Ne.symm ec) e
+
 /-- **`timer.insert` with its footprint** (P3's `SetTimerHyp`): arming `t`'s
 timer keeps `TInv` (`BlkOK`) and writes only footprint words (TCB timer
 fields, the tree root and min words and `REPROGRAM` of the core): coarsely
 `Foot`, finely the timer words `TW` and the current core's `REPROGRAM`. -/
 theorem timer.insert.foot (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T) :
     timer.insert st s t d bd ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ Foot st T Cs Sg Scs Z ∅ s s' ∧
-      WritesIn st s s' (fun b => TW st T Cs s b ∨ b = L.nodeAt s (L.cpu s) layout.node.REPROGRAM) ⦄ := by
+      WritesIn st s s' (fun b => TW st T Cs s b ∨ b = L.nodeAt s (L.cpu s) layout.node.REPROGRAM) ∧
+      (L.mem s' (L.nodeAt s (L.cpu s) layout.node.REPROGRAM) = L.mem s (L.nodeAt s (L.cpu s) layout.node.REPROGRAM) ∨
+        L.mem s' (L.nodeAt s (L.cpu s) layout.node.REPROGRAM) = 1#u64) ⦄ := by
+  have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
+  have KR : ∀ {s' : S}, WritesIn st s s' (TW st T Cs s) →
+      L.mem s' (L.nodeAt s (L.cpu s) layout.node.REPROGRAM) = L.mem s (L.nodeAt s (L.cpu s) layout.node.REPROGRAM) :=
+    fun w => TW.keep_node h w (by rw [rp]; omega) (by rw [rp]) (by rw [rp]; omega) (by rw [rp]; omega)
   have htz : Tz T t := Tz.of_mem ht
   unfold timer.insert
   refine WP.spec_bind (timer.remove.tf (s0 := s) s t (TF.start h) ht) fun s1 h1 => ?_
@@ -373,7 +392,7 @@ theorem timer.insert.foot (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Sc
       WritesIn st s sa (fun b => TW st T Cs s b ∨ b = L.nodeAt s (L.cpu s) layout.node.REPROGRAM) :=
     fun w => w.mono fun _ hb => Or.inl hb
   split
-  · exact (WP.spec_ok _).2 ⟨h1.1, h1.2.1, TWR h1.2.2.2.2⟩
+  · exact (WP.spec_ok _).2 ⟨h1.1, h1.2.1, TWR h1.2.2.2.2, Or.inl (KR h1.2.2.2.2)⟩
   refine WP.spec_bind (L.cur_cpu_spec s1) fun cpu ec => ?_
   have hc : cpu ∈ Cs := by
     obtain ⟨⟨Q, R, h0⟩, -⟩ := h1.1
@@ -458,16 +477,19 @@ theorem timer.insert.foot (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Sc
       (by rw [timer_min_val]; simp)
     refine WP.spec_mono (obj.node_set.spec _ cpu _ 1#u64) fun s11 e11 => ?_
     subst e11
-    have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
-    refine ⟨reprogram_at.tinv h10 hc, f10.trans ?_, ?_⟩
+    have hcs : cpu = L.cpu s := by rw [ec, h1.2.2.2.2.2.1]
+    refine ⟨reprogram_at.tinv h10 hc, f10.trans ?_, ?_, Or.inr ?_⟩
     · exact foot_node (h10.nodes cpu hc) hc (by rw [rp]; omega) (by rw [rp]) (by rw [rp]; omega)
-    · have hcs : cpu = L.cpu s := by rw [ec, h1.2.2.2.2.2.1]
-      refine ((TWR w10).trans (writesIn_wr (nodeAt_aligned (h10.nodes cpu hc) (by rw [rp]; omega)
+    · refine ((TWR w10).trans (writesIn_wr (nodeAt_aligned (h10.nodes cpu hc) (by rw [rp]; omega)
         (by rw [rp])))).mono fun b hb => ?_
       rcases hb with hb | hb
       · exact hb
       · right; rw [hb, nodeAt_of_ksb w10.1, hcs]
-  · exact (WP.spec_ok _).2 ⟨h9.1, h9.2.1, TWR h9.2.2.2.2⟩
+    · rw [show L.nodeAt s (L.cpu s) layout.node.REPROGRAM =
+          L.nodeAt (L.wr s9 (L.nodeAt s9 cpu layout.node.TIMER_MIN) t) cpu layout.node.REPROGRAM by
+        rw [nodeAt_of_ksb w10.1, ← hcs]]
+      exact L.mem_wr_same (nodeAt_aligned (h10.nodes cpu hc) (by rw [rp]; omega) (by rw [rp]))
+  · exact (WP.spec_ok _).2 ⟨h9.1, h9.2.1, TWR h9.2.2.2.2, Or.inl (KR h9.2.2.2.2)⟩
 
 end timer
 

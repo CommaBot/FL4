@@ -99,12 +99,77 @@ variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
 variable {T Cs Ω : Set U64} {H : Heap} {Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U Ac : Set U64}
 variable {Q : U64 → U64 → List U64} {R : U64 → List U64}
 
+/-- `XS` with the `Cur0W` frame from `s0` (for a `Cur0` state's reply). -/
+def XSV (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64)
+    (Z : U64 → Nat) (U Ac X : Set U64) (Q : U64 → U64 → List U64) (R : U64 → List U64) (s0 s : S) : Prop :=
+  XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s ∧ WritesIn st s0 s (Cur0W st T Cs Ω H Sg Scs Z s0)
+
+theorem XSV.start {s : S} {X : Set U64} (h : XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s s) :
+    XSV st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s s := ⟨h, WritesIn.refl _ _⟩
+
+theorem XSV.foot {s0 s s' : S} {X : Set U64} (h : XSV st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s)
+    (hw : WritesIn st s s' (XferFoot T U)) : XSV st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s' :=
+  ⟨h.1.foot hw, Cur0W.trans h.2 (hw.mono fun _ hb => XferFoot.cur0w h.1.1.2.2.2.2.2 hb)⟩
+
+theorem XSV.capw {s0 s s' : S} {X : Set U64} {B : U64 → Prop} (h : XSV st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s)
+    (hw : WritesIn st s s' B) (hB : ∀ b, B b → CapW T Ω Sg b) : XSV st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s' :=
+  ⟨h.1.capw hw hB, Cur0W.trans h.2 (hw.mono fun b hb => Or.inr (Or.inr (Or.inl (hB b hb))))⟩
+
+theorem XSV.bxi {s0 s : S} (h : XSV st T Cs Ω H Sg Rp Scs Nt Z U Ac ∅ Q R s0 s) :
+    BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s := h.1.bxi
+
+theorem obj.Tcb.set_reg.xsv {s0 s : S} {y r v : U64} (h : XSV st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s) (hy : y ∈ T)
+    (hr : r.val < 384) :
+    obj.Tcb.set_reg st y s r v ⦃ s' => XSV st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s' ⦄ := by
+  have hT := h.1.1.1.tcbs
+  refine WP.spec_mono (obj.Tcb.set_reg.wrK s y r v (hT y hy) hr) fun s' ⟨K, hK, e⟩ => ?_
+  subst e
+  exact XSV.foot h ((writesIn_wr (field_aligned (hT y hy) (by omega) (by omega))).mono fun b e =>
+    Or.inl ⟨y, hy, K, by omega, by omega, e⟩)
+
+theorem msg.buf_set.xsv {s0 s : S} {buf i v : U64} (h : XSV st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s)
+    (hb : BufOK U buf) (h0 : buf ≠ 0#u64) (hi : i.val < 512) :
+    msg.buf_set st s buf i v ⦃ s' => XSV st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s' ⦄ := by
+  unfold msg.buf_set
+  simp only [lift, bind_ok]
+  refine WP.spec_mono (LawfulStore.write_spec s _ v) fun s' e => ?_
+  subst e
+  have hu := hb h0 i hi
+  exact XSV.foot h ((writesIn_wr (h.1.1.2.2.2.2.2 _ hu).1.1).mono fun b e => Or.inr (e ▸ hu))
+
+theorem msg.set_mr.xsv {s0 s : S} {y buf i v : U64} (h : XSV st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s)
+    (hy : y ∈ T) (hb : BufOK U buf) (hi : i.val < 511) :
+    msg.set_mr st s y buf i v ⦃ r => XSV st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 r.2 ∧ r.1.val ≤ i.val + 4 ⦄ := by
+  unfold msg.set_mr
+  split
+  · have hreg : ∀ j, msg.msg_register j ⦃ r => r.val < 384 ⦄ := fun j => by
+      unfold msg.msg_register
+      split; · simp [layout.reg.R10]
+      split; · simp [layout.reg.R8]
+      split; · simp [layout.reg.R9]
+      simp [layout.reg.R15]
+    refine WP.spec_bind (hreg i) fun r hr => ?_
+    refine WP.spec_bind (obj.Tcb.set_reg.xsv (v := v) h hy hr) fun s1 h1 => ?_
+    try simp only [lift, bind_ok]
+    refine (WP.spec_ok _).2 ⟨h1, ?_⟩
+    simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+  · split
+    · rename_i hne
+      have h0 : buf ≠ 0#u64 := by simpa using hne
+      simp only [lift, bind_ok]
+      have hi1 : (core.num.U64.wrapping_add i 1#u64).val < 512 := by
+        simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+      refine WP.spec_bind (msg.buf_set.xsv (v := v) h hb h0 hi1) fun s1 h1 => ?_
+      refine (WP.spec_ok _).2 ⟨h1, ?_⟩
+      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+    · exact (WP.spec_ok _).2 ⟨h, by simp [msg.N_MSG_REGISTERS]⟩
+
 /-- `Cur0` from an `XS` stretch started at a `Cur0` state. -/
 theorem Cur0.ofXS {s0 s s' : S} {Ac' : Set U64} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s)
-    (x : XS st T Cs Ω H Sg Rp Scs Nt Z U Ac' ∅ Q R s s') : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' := by
+    (x : XSV st T Cs Ω H Sg Rp Scs Nt Z U Ac' ∅ Q R s s') : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' := by
   have hct : L.curW s ∈ T := h.2.choose_spec.1.1.choose_spec.choose_spec.curT
-  obtain ⟨ea, ec, -, ecs, f, -, -⟩ := x.2
-  refine Cur0.mk h x.bxi ec ecs (Or.inl ?_) (Or.inl ea) (Or.inl ?_)
+  obtain ⟨ea, ec, -, ecs, f, -, -⟩ := x.1.2
+  refine Cur0.mk h x.bxi ec ecs (Or.inl ?_) (Or.inl ea) (Or.inl ?_) x.2
   · rw [scA_eq]; exact f _ hct _ (by simp) (by simp) (by simp)
   · rw [stA_eq]; exact f _ hct _ (by simp) (by simp) (by simp)
 
@@ -120,12 +185,13 @@ theorem sched.set_thread_state.running_cur0 {s0 s : S} {t : U64} (h : Cur0 st T 
   have hnv : L.mem s (stA t) ≠ sched.TS_BLOCKED_ON_RECV := fun h => hnb (Or.inr (Or.inl h))
   have hnoref : ∀ r ∈ Rp, L.mem s (rTcbA r) ≠ t := hX.noref (h0.tcbs t ht) hnr hnv
   have hct : L.curW s ∈ T := h0.curT
-  refine WP.spec_mono (sts_all s t _ Q R h0 hB hX hS hSg ht not_blocked_running running_ne
+  refine WP.spec_mono (WP.spec_and (sts_all s t _ Q R h0 hB hX hS hSg ht not_blocked_running running_ne
     (Or.inr hnb) hnoref
-    ⟨fun _ _ _ _ _ => runnable_running, fun _ _ _ => runnable_running, fun _ => runnable_running⟩) ?_
-  rintro s' ⟨h1, hB1, hX1, hS1, hSg1, est, k⟩
-  refine ⟨Cur0.mk h ⟨⟨Q, R, h1.congrX empty_congr⟩, hB1, hX1, hSg1, hS1⟩ k.curW k.cscW (Or.inl (k.scf hct)) k.act ?_,
-    k.ksb⟩
+    ⟨fun _ _ _ _ _ => runnable_running, fun _ _ _ => runnable_running, fun _ => runnable_running⟩)
+    (sched.set_thread_state.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := ∅) s t _ h0 ht)) ?_
+  rintro s' ⟨⟨h1, hB1, hX1, hS1, hSg1, est, k⟩, f1⟩
+  refine ⟨Cur0.mk h ⟨⟨Q, R, h1.congrX empty_congr⟩, hB1, hX1, hSg1, hS1⟩ k.curW k.cscW (Or.inl (k.scf hct)) k.act ?_
+    (Foot.cur0w f1 (Set.empty_subset _)), k.ksb⟩
   by_cases e : t = L.curW s
   · subst e; rw [est]; exact Or.inr (nbr_runnable runnable_running)
   · left; rw [stA_eq]
@@ -151,6 +217,7 @@ theorem Cur0.tvcpu {s0 s : S} {t v : U64} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z 
   have n3 : L.nodeAt s (L.cpu s) layout.node.CUR_SC ≠ core.num.U64.wrapping_add t 3664#u64 :=
     node_ne_field hN (by simp [layout.node.CUR_SC]) ht (hT t ht) k1
   refine Cur0.step h b ani.2.2 ?_ (Or.inl ?_) (Or.inl ani.1) (fun hn => ?_)
+    (WritesIn.mono (writesIn_wr al) fun _ hb => Or.inl (hb ▸ kw_field (Es := EH H) ht (by simp) (by simp) (by simp)))
   · simp only [LawfulStore.cscW, LawfulStore.nodeA, L.cpu_wr, nodeAt_of_ksb (L.ksb_wr s _ v)]
     exact L.mem_wr_ne al (nodeAt_aligned hN (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]))
       (fun e => n3 (UScalar.eq_of_val_eq e).symm)
@@ -179,20 +246,20 @@ theorem vcpu.read_vmcs.any (s : S) (v f : U64) : vcpu.read_vmcs st s v f ⦃ _ =
 /-- A VCPU word write within `XS`. -/
 theorem vcpu.set.xs (hH : HeapOK H) {s0 s : S} {v o x : U64} (hv : H v = some (.other 15))
     (ho : o.val < 2 ^ 15) (h8 : o.val % 8 = 0)
-    (h : XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 s) :
-    vcpu.set st s v o x ⦃ s' => XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 s' ⦄ := by
+    (h : XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 s) :
+    vcpu.set st s v o x ⦃ s' => XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 s' ⦄ := by
   unfold vcpu.set
   simp only [lift, bind_ok]
   exact WP.spec_mono (LawfulStore.write_spec s _ x) fun s' e => e ▸
-    h.capw (writesIn_wr (vcpu_obj_aligned hH hv ho h8)) fun b e => e ▸ vcpu_obj_capw hH hv ho h8
+    XSV.capw h (writesIn_wr (vcpu_obj_aligned hH hv ho h8)) fun b e => e ▸ vcpu_obj_capw hH hv ho h8
 
 theorem vcpu.report_loop0.xs {s0 s : S} {t v b i : U64} {pending : Bool}
-    (h : XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 s) (ht : t ∈ H.tcbs) (hb : BufOK U b) :
-    vcpu.report_loop0 st s t v pending b i ⦃ s' => XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 s' ⦄ := by
+    (h : XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 s) (ht : t ∈ H.tcbs) (hb : BufOK U b) :
+    vcpu.report_loop0 st s t v pending b i ⦃ s' => XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
   unfold vcpu.report_loop0
   apply loop.spec_decr_nat (measure := fun y => 30 - y.2.val)
-    (inv := fun y => XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 y.1)
+    (inv := fun y => XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 y.1)
   · rintro ⟨s1, j⟩ h1
     simp only at h1
     try dsimp only
@@ -210,7 +277,7 @@ theorem vcpu.report_loop0.xs {s0 s : S} {t v b i : U64} {pending : Bool}
         | split
         | (step as ⟨_, _⟩)
         | refine WP.spec_bind (vcpu.get.any _ _ _) fun _ _ => ?_)
-    refine WP.spec_bind (msg.set_mr.xs (v := val) h1 ht hb (by omega)) ?_
+    refine WP.spec_bind (msg.set_mr.xsv (v := val) h1 ht hb (by omega)) ?_
     rintro ⟨_, s2⟩ ⟨h2, -⟩
     try simp only [uncurry_apply_pair]
     step as ⟨j2, hj2⟩
@@ -218,12 +285,12 @@ theorem vcpu.report_loop0.xs {s0 s : S} {t v b i : U64} {pending : Bool}
   · exact h
 
 theorem vcpu.report_loop1.xs {s0 s : S} {t v b j : U64}
-    (h : XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 s) (ht : t ∈ H.tcbs) (hb : BufOK U b) :
-    vcpu.report_loop1 st s t v b j ⦃ s' => XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 s' ⦄ := by
+    (h : XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 s) (ht : t ∈ H.tcbs) (hb : BufOK U b) :
+    vcpu.report_loop1 st s t v b j ⦃ s' => XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
   unfold vcpu.report_loop1
   apply loop.spec_decr_nat (measure := fun y => 15 - y.2.val)
-    (inv := fun y => XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 y.1)
+    (inv := fun y => XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 y.1)
   · rintro ⟨s1, k⟩ h1
     simp only at h1
     try dsimp only
@@ -238,7 +305,7 @@ theorem vcpu.report_loop1.xs {s0 s : S} {t v b j : U64}
     step as ⟨i1, _⟩
     step as ⟨i2, _⟩
     refine WP.spec_bind (vcpu.get.any _ _ _) fun val _ => ?_
-    refine WP.spec_bind (msg.set_mr.xs (v := val) h1 ht hb (by omega)) ?_
+    refine WP.spec_bind (msg.set_mr.xsv (v := val) h1 ht hb (by omega)) ?_
     rintro ⟨_, s2⟩ ⟨h2, -⟩
     try simp only [uncurry_apply_pair]
     step as ⟨k2, hk2⟩
@@ -321,8 +388,8 @@ def rTail (st : machine.Store S) (s2 : S) (t b badge : U64) (pending : Bool) (f 
 
 theorem rFour.xs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {s0 s1 : S} {a : A} {t b v : U64}
     {Ac1 : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64}
-    (x : XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s0 s1) (ht : t ∈ H.tcbs) (hb : BufOK U b) :
-    rFour st ar s1 a t b v ⦃ s' => XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s0 s' ⦄ := by
+    (x : XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s0 s1) (ht : t ∈ H.tcbs) (hb : BufOK U b) :
+    rFour st ar s1 a t b v ⦃ s' => XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s0 s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
   unfold rFour
   refine WP.spec_bind (hA.virtualization a) fun i1 _ => ?_
@@ -344,50 +411,50 @@ theorem rFour.xs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {s0 s
     split
     · exact WP.spec_bind (vcpu.svm.CR2.spec) fun _ _ => vcpu.get.any _ _ _
     · exact vcpu.get.any _ _ _) fun cr2 _ => ?_
-  refine WP.spec_bind (msg.set_mr.xs x ht hb (by simp)) ?_
+  refine WP.spec_bind (msg.set_mr.xsv x ht hb (by simp)) ?_
   rintro ⟨_, s3⟩ ⟨x3, -⟩
   try simp only [uncurry_apply_pair]
-  refine WP.spec_bind (msg.set_mr.xs x3 ht hb (by simp)) ?_
+  refine WP.spec_bind (msg.set_mr.xsv x3 ht hb (by simp)) ?_
   rintro ⟨_, s4⟩ ⟨x4, -⟩
   try simp only [uncurry_apply_pair]
-  refine WP.spec_bind (msg.set_mr.xs x4 ht hb (by simp)) ?_
+  refine WP.spec_bind (msg.set_mr.xsv x4 ht hb (by simp)) ?_
   rintro ⟨_, s5⟩ ⟨x5, -⟩
   try simp only [uncurry_apply_pair]
-  refine WP.spec_bind (msg.set_mr.xs x5 ht hb (by simp)) ?_
+  refine WP.spec_bind (msg.set_mr.xsv x5 ht hb (by simp)) ?_
   rintro ⟨_, s6⟩ ⟨x6, -⟩
   try simp only [uncurry_apply_pair]
   exact (WP.spec_ok _).2 x6
 
 theorem report_final {s0 s sX : S} {t : U64} {Ac1 : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64}
     (h : Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 s)
-    (x : XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s sX) (ht : t ∈ H.tcbs)
+    (x : XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s sX) (ht : t ∈ H.tcbs)
     (nb : ¬ BlockedR (L.mem sX (stA t))) :
     sched.set_thread_state st sX t sched.TS_RUNNING ⦃ s' => Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 s' ∧
       L.ksb s' = L.ksb s ⦄ :=
   WP.spec_mono (sched.set_thread_state.running_cur0 (h.ofXS x) ht nb) fun _ ⟨c, k⟩ =>
-    ⟨c, k.trans x.2.2.2.2.2.2.2⟩
+    ⟨c, k.trans x.1.2.2.2.2.2.2.2⟩
 
 theorem rTail.spec {s0 s s2 : S} {t b badge : U64} {pending : Bool} {Ac1 : Set U64}
     {Q : U64 → U64 → List U64} {R : U64 → List U64} {f : S → Result S}
     (h : Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 s)
-    (x : XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s2) (ht : t ∈ H.tcbs) (hb : BufOK U b)
+    (x : XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s2) (ht : t ∈ H.tcbs) (hb : BufOK U b)
     (hst : ¬ BlockedR (L.mem s (stA t)))
-    (hf : ∀ s3, XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s3 →
-      f s3 ⦃ s' => XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s' ⦄) :
+    (hf : ∀ s3, XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s3 →
+      f s3 ⦃ s' => XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s' ⦄) :
     rTail st s2 t b badge pending f ⦃ s' => Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 s' ∧
       L.ksb s' = L.ksb s ⦄ := by
-  have NB : ∀ s', XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s' →
+  have NB : ∀ s', XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s' →
       ¬ BlockedR (L.mem s' (stA t)) := fun s' x => by
-    rw [stA_eq, x.2.2.2.2.2.1 _ ht _ (by simp) (by simp) (by simp), ← stA_eq]; exact hst
+    rw [stA_eq, x.1.2.2.2.2.2.1 _ ht _ (by simp) (by simp) (by simp), ← stA_eq]; exact hst
   unfold rTail
-  refine WP.spec_bind (Pₘ := fun s' => XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s') ?_
+  refine WP.spec_bind (Pₘ := fun s' => XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s') ?_
     fun s3 x3 => ?_
   · split
     · exact (WP.spec_ok _).2 x
-    · refine WP.spec_bind (msg.set_mr.xs x ht hb (by simp)) ?_
+    · refine WP.spec_bind (msg.set_mr.xsv x ht hb (by simp)) ?_
       rintro ⟨_, s4⟩ ⟨x4, -⟩
       try simp only [uncurry_apply_pair]
-      refine WP.spec_bind (msg.set_mr.xs x4 ht hb (by simp)) ?_
+      refine WP.spec_bind (msg.set_mr.xsv x4 ht hb (by simp)) ?_
       rintro ⟨_, s5⟩ ⟨x5, -⟩
       exact (WP.spec_ok _).2 x5
   refine WP.spec_bind (hf s3 x3) fun s4 x4 => ?_
@@ -396,8 +463,8 @@ theorem rTail.spec {s0 s s2 : S} {t b badge : U64} {pending : Bool} {Ac1 : Set U
       let s6 ← obj.Tcb.set_reg st t s5 layout.reg.BADGE i
       sched.set_thread_state st s6 t sched.TS_RUNNING) ⦃ s' => Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 s' ∧
         L.ksb s' = L.ksb s ⦄ := fun m i =>
-    WP.spec_bind (obj.Tcb.set_reg.xs x4 ht (by simp [layout.reg.MSG_INFO, layout.reg.RSI])) fun s5 x5 =>
-      WP.spec_bind (obj.Tcb.set_reg.xs x5 ht (by simp [layout.reg.BADGE, layout.reg.RDI])) fun s6 x6 =>
+    WP.spec_bind (obj.Tcb.set_reg.xsv x4 ht (by simp [layout.reg.MSG_INFO, layout.reg.RSI])) fun s5 x5 =>
+      WP.spec_bind (obj.Tcb.set_reg.xsv x5 ht (by simp [layout.reg.BADGE, layout.reg.RDI])) fun s6 x6 =>
         report_final h x6 ht (NB _ x6)
   split <;> first | exact FIN _ _ | (split <;> exact FIN _ _)
 
@@ -428,13 +495,13 @@ theorem vcpu.report.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
     · exact WP.spec_bind (vcpu.get.any _ _ _) fun _ _ => (WP.spec_ok _).2 trivial
     · exact (WP.spec_ok _).2 trivial
   refine WP.spec_bind (E.buf _ _ _ _ s t x0.1 ht) fun b hb => ?_
-  refine WP.spec_bind (vcpu.report_loop0.xs x0 ht hb) fun s1 x1 => ?_
-  have TL1 : v ≠ 0#u64 → ∀ (s2 : S), XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s2 →
+  refine WP.spec_bind (vcpu.report_loop0.xs (XSV.start x0) ht hb) fun s1 x1 => ?_
+  have TL1 : v ≠ 0#u64 → ∀ (s2 : S), XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s2 →
       rTail st s2 t b badge pending (fun s3 => vcpu.set st s3 v vcpu.PENDING 0#u64) ⦃ s' =>
         Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 s' ∧ L.ksb s' = L.ksb s ⦄ := fun hv0 s2 x2 =>
     rTail.spec h x2 ht hb hst fun s3 x3 =>
       vcpu.set.xs hH (HV hv0) (by simp [vcpu.PENDING]) (by simp [vcpu.PENDING]) x3
-  have TL2 : ∀ (s2 : S), XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s2 →
+  have TL2 : ∀ (s2 : S), XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s2 →
       rTail st s2 t b badge pending (fun s3 => ok s3) ⦃ s' =>
         Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 s' ∧ L.ksb s' = L.ksb s ⦄ := fun s2 x2 =>
     rTail.spec h x2 ht hb hst fun s3 x3 => (WP.spec_ok _).2 x3
@@ -456,17 +523,17 @@ theorem vcpu.report.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
         split
         · exact vcpu.get.any _ _ _
         · exact vcpu.read_vmcs.any _ _ _) fun intr _ => ?_
-      refine WP.spec_bind (msg.set_mr.xs x1 ht hb (by simp)) ?_
+      refine WP.spec_bind (msg.set_mr.xsv x1 ht hb (by simp)) ?_
       rintro ⟨_, s2⟩ ⟨x2, -⟩
       try simp only [uncurry_apply_pair]
-      refine WP.spec_bind (msg.set_mr.xs x2 ht hb (by simp)) ?_
+      refine WP.spec_bind (msg.set_mr.xsv x2 ht hb (by simp)) ?_
       rintro ⟨_, s3⟩ ⟨x3, -⟩
       try simp only [uncurry_apply_pair]
-      refine WP.spec_bind (msg.set_mr.xs x3 ht hb (by simp)) ?_
+      refine WP.spec_bind (msg.set_mr.xsv x3 ht hb (by simp)) ?_
       rintro ⟨_, s4⟩ ⟨x4, -⟩
       try simp only [uncurry_apply_pair]
       refine WP.spec_bind (vcpu.report_loop1.xs x4 ht hb) fun s5 x5 => ?_
-      refine WP.spec_bind (Pₘ := fun s' => XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s') ?_
+      refine WP.spec_bind (Pₘ := fun s' => XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s') ?_
         fun s6 x6 => TL1 hv0 s6 x6
       first
         | exact (WP.spec_ok _).2 x5
@@ -480,7 +547,7 @@ theorem vcpu.report.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
              · exact rFour.xs hA x5 ht hb
              · exact (WP.spec_ok _).2 x5
            · exact (WP.spec_ok _).2 x5)
-    · refine WP.spec_bind (Pₘ := fun s' => XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s') ?_
+    · refine WP.spec_bind (Pₘ := fun s' => XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s') ?_
         fun s2 x2 => TL1 hv0 s2 x2
       first
         | exact (WP.spec_ok _).2 x1
@@ -489,7 +556,7 @@ theorem vcpu.report.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
            · first | exact rFour.xs hA x1 ht hb | exact (WP.spec_ok _).2 x1 | (split <;> first
                | exact rFour.xs hA x1 ht hb | exact (WP.spec_ok _).2 x1)
            · exact (WP.spec_ok _).2 x1)
-  · refine WP.spec_bind (Pₘ := fun s' => XS st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s') ?_
+  · refine WP.spec_bind (Pₘ := fun s' => XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s') ?_
       fun s2 x2 => TL2 s2 x2
     first
       | exact (WP.spec_ok _).2 x1

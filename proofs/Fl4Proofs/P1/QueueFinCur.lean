@@ -302,7 +302,7 @@ theorem endpoint.cancel_all_ipc.csc (s : S) (ep : U64) (h : BlkOK st T Cs Ω H S
 /-- The current thread is not blocked in a `Cur0` state. -/
 theorem Cur0.nb {s0 s : S} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) :
     ¬ BlockedR (L.mem s (stA (L.curW s))) := by
-  obtain ⟨-, -, -, ec, -, -, -, nb⟩ := h
+  obtain ⟨-, -, -, ec, -, -, -, nb, -⟩ := h
   rw [ec]; exact nb
 
 /-- `Cur0` from a step with the invariants, the current thread, the current
@@ -312,9 +312,10 @@ theorem Cur0.step {s0 s s' : S} {Ac' : Set U64} (h : Cur0 st T Cs Ω H Sg Rp Scs
     (hb : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac' s') (ec : L.curW s' = L.curW s) (ecs : L.cscW s' = L.cscW s)
     (esc : L.mem s' (scA (L.curW s)) = L.mem s (scA (L.curW s)) ∨ L.mem s' (scA (L.curW s)) = 0#u64)
     (ea : L.actionW s' = L.actionW s ∨ L.actionW s' = 1#u64)
-    (est : ¬ BlockedR (L.mem s (stA (L.curW s))) → ¬ BlockedR (L.mem s' (stA (L.curW s)))) :
+    (est : ¬ BlockedR (L.mem s (stA (L.curW s))) → ¬ BlockedR (L.mem s' (stA (L.curW s))))
+    (hw : WritesIn st s s' (Cur0W st T Cs Ω H Sg Scs Z s)) :
     Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' := by
-  refine Cur0.mk h (BlkOK.bxi hb) ec ecs esc ea (Or.inr (est h.nb))
+  refine Cur0.mk h (BlkOK.bxi hb) ec ecs esc ea (Or.inr (est h.nb)) hw
 
 /-- **The endpoint kind's finalisation** (`FinGaps.ep`). -/
 theorem finGap_ep {A : Type _} {ar : machine.Arch A} :
@@ -333,10 +334,11 @@ theorem finGap_ep {A : Type _} {ar : machine.Arch A} :
     · exact WP.spec_bind (endpoint.cancel_all_ipc.csc s ep hb.blk hH) fun s1 e1 => (WP.spec_ok _).2 e1
     · exact (WP.spec_ok _).2 rfl
   refine WP.spec_mono (WP.spec_and (fin_endpoint.fr (ar := ar) s a ep b0 b1 b2 b3 b4 fin hb.blk hH) CS) ?_
-  rintro ⟨⟨r1, r2⟩, s', a'⟩ ⟨⟨e, -, hb', -, F, ea⟩, ecs⟩
-  simp only at e hb' F ea ecs ⊢
+  rintro ⟨⟨r1, r2⟩, s', a'⟩ ⟨⟨e, -, hb', f', F, ea⟩, ecs⟩
+  simp only at e hb' f' F ea ecs ⊢
   cases e
-  refine ⟨h.step hb' F.cur ecs (Or.inl (F.sc _ hct)) ea fun hnb => ?_, DelCapOK.null, DelCapOK.null⟩
+  refine ⟨h.step hb' F.cur ecs (Or.inl (F.sc _ hct)) ea (fun hnb => ?_)
+    (Foot.cur0w f' fun x hx => by rw [Set.mem_singleton_iff.1 hx]; exact Or.inl hH), DelCapOK.null, DelCapOK.null⟩
   rcases F.st _ hct with e | e | e
   · rw [e]; exact hnb
   · rw [e]; exact nbr_restart
@@ -630,9 +632,10 @@ theorem fin_ntfn_obj.cur0 {A : Type _} {ar : machine.Arch A} {s0 s : S} {a : A} 
       · exact Or.inr e
     · exact (WP.spec_ok _).2 ⟨CurF.refl _, Or.inl rfl⟩
   refine WP.spec_mono (WP.spec_and (fin_ntfn.blk (ar := ar) s a n b0 b1 b2 fin hb.blk hn hH) CS) ?_
-  rintro ⟨⟨r1, r2⟩, s', a'⟩ ⟨⟨e, -, hb', -⟩, ⟨ec, ecs, esc, enb⟩, ea⟩
-  simp only at e hb' ec ecs esc enb ea ⊢
-  exact ⟨e, h.step hb' ec ecs (Or.inl (esc _ hct)) ea (enb _ hct)⟩
+  rintro ⟨⟨r1, r2⟩, s', a'⟩ ⟨⟨e, -, hb', f'⟩, ⟨ec, ecs, esc, enb⟩, ea⟩
+  simp only at e hb' f' ec ecs esc enb ea ⊢
+  exact ⟨e, h.step hb' ec ecs (Or.inl (esc _ hct)) ea (enb _ hct)
+    (Foot.cur0w f' fun x hx => by rw [Set.mem_singleton_iff.1 hx]; exact Or.inr hH)⟩
 
 /-- **The notification kind's finalisation** (`FinGaps.ntfn`). -/
 theorem finGap_ntfn {A : Type _} {ar : machine.Arch A} :
@@ -1258,10 +1261,11 @@ theorem finGap_reply {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) :
           ← stA_eq]; exact hb0
     · exact (WP.spec_ok _).2 (CurR.refl _ _)
   refine WP.spec_mono (WP.spec_and (fin_reply.blk hA s a p x fin hb' hp) CS) ?_
-  rintro ⟨⟨r1, r2⟩, s', a'⟩ ⟨⟨e, hb2, -⟩, ec, ecs, esc, ea, enb⟩
-  simp only at e hb2 ec ecs esc ea enb ⊢
+  rintro ⟨⟨r1, r2⟩, s', a'⟩ ⟨⟨e, hb2, f2⟩, ec, ecs, esc, ea, enb⟩
+  simp only at e hb2 f2 ec ecs esc ea enb ⊢
   cases e
-  exact ⟨Cur0.mk h (BlkOK.bxi hb2) ec ecs esc ea (Or.inr (enb hnb)), DelCapOK.null, DelCapOK.null⟩
+  exact ⟨Cur0.mk h (BlkOK.bxi hb2) ec ecs esc ea (Or.inr (enb hnb)) (Foot.cur0w f2 le_rfl), DelCapOK.null,
+    DelCapOK.null⟩
 
 end
 

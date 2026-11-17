@@ -27,9 +27,9 @@ theorem Stalled.stall {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) 
   refine ⟨hb2, ea.trans h1.act, ec.trans h1.cur, ecs.trans h1.csc,
     fun z hz K hK hK8 => (fld z hz K hK hK8).trans (h1.fld z hz K hK hK8), ?_⟩
   refine (h1.node.trans wn).mono fun b hb => ?_
-  rcases hb with hb | ⟨o, e⟩
+  rcases hb with hb | ⟨o, ho, h88, e⟩
   · exact hb
-  · exact ⟨o, by rw [e, h1.node.2.1, nodeAt_of_ksb h1.node.1]⟩
+  · exact ⟨o, ho, h88, by rw [e, h1.node.2.1, nodeAt_of_ksb h1.node.1]⟩
 
 set_option maxHeartbeats 2000000 in
 theorem tcb.copy_registers.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {s : S} {a : A}
@@ -193,8 +193,8 @@ theorem Cur0.resched {s0 s : S} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) :
   have hct : L.curW s ∈ T := hb.1.choose_spec.choose_spec.curT
   obtain ⟨⟨Q, R, q⟩, -, -, hSg, -⟩ := id hb
   refine WP.spec_mono (WP.spec_and (sched.reschedule_required.blk s hb.blk)
-    (sched.reschedule_required.curR s Q R q hSg hct)) fun s' ⟨⟨h', _⟩, ec, ecs, esc, ea, enb⟩ => ?_
-  exact Cur0.mk h (BlkOK.bxi h') ec ecs esc ea (Or.inr (enb h.nb))
+    (sched.reschedule_required.curR s Q R q hSg hct)) fun s' ⟨⟨h', f'⟩, ec, ecs, esc, ea, enb⟩ => ?_
+  exact Cur0.mk h (BlkOK.bxi h') ec ecs esc ea (Or.inr (enb h.nb)) (Foot.cur0w f' (Set.empty_subset _))
 
 theorem tcb_slot_val (p i : U64) : obj.Tcb.slot p i = ok (slotIdx p i) := by
   unfold obj.Tcb.slot slotIdx
@@ -204,7 +204,7 @@ theorem tcb_slot_val (p i : U64) : obj.Tcb.slot p i = ok (slotIdx p i) := by
 theorem tcb.install_tcb_cap.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     {s0 s : S} {a : A} {target slot index src : U64} {c : capability.Cap}
-    (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (ht : target ∈ T) (hi : index.val < 6)
+    (hE : EntAt st P3Ok s0) (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (ht : target ∈ T) (hi : index.val < 6)
     (hsrc : src ≠ 0#u64 → CapW T Ω Sg src) :
     tcb.install_tcb_cap st ar s a target slot index c src ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -240,14 +240,14 @@ theorem tcb.install_tcb_cap.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
       fun s2 h2 => (WP.spec_ok _).2 h2
     unfold cdt.insert
     refine WP.spec_bind (P0.obj.Slot.cap.p0 st src s1 hS) fun sc _ => ?_
-    exact WP.spec_mono (C.ins Ac1 s1 c sc src _ hb1 (hsrc (hbv hb')) hW0) fun s2 w2 => h1.capw w2 fun _ hb => hb
+    exact WP.spec_mono (C.ins Ac1 s0 s1 c sc src _ hE h1.fr hb1 (hsrc (hbv hb')) hW0) fun s2 w2 => h1.capw w2 fun _ hb => hb
   · exact (WP.spec_ok _).2 h1
 
 /-- **`install_buffer`**, the buffer's source slot a cap slot or null. -/
 theorem tcb.install_buffer.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     {s0 s : S} {a : A} {target slot baddr : U64} {buffer : capability.Cap × obj.Slot}
-    (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (ht : target ∈ T)
+    (hE : EntAt st P3Ok s0) (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (ht : target ∈ T)
     (hsrc : buffer.2 ≠ 0#u64 → CapW T Ω Sg buffer.2) :
     tcb.install_buffer st ar s a target slot baddr buffer ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -279,6 +279,8 @@ theorem tcb.install_buffer.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
         (by simp) (by simp))
       (Or.inl (by rw [scA_eq]; exact fr _ hct _ (by simp) (by simp) (fun _ => by simp)))
       (Or.inl an.1) (Or.inl (by rw [stA_eq]; exact fr _ hct _ (by simp) (by simp) (fun _ => by simp)))
+      (WritesIn.mono (writesIn_wr (field_aligned (hT1 target ht) (by simp) (by simp))) fun _ hb =>
+        Or.inl (hb ▸ kw_field (Es := EH H) ht (by simp) (by simp) (by simp)))
   obtain ⟨vc, vs⟩ := buffer
   simp only at hsrc
   try simp only [uncurry_apply_pair]
@@ -295,7 +297,7 @@ theorem tcb.install_buffer.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
         rwa [h0] at this
       unfold cdt.insert
       refine WP.spec_bind (P0.obj.Slot.cap.p0 st vs _ hS) fun sc _ => ?_
-      exact WP.spec_mono (C.ins Ac2 _ vc sc vs _ hb2 (hsrc (hbv hb')) hW0) fun s' w => h2.capw w fun _ hb => hb
+      exact WP.spec_mono (C.ins Ac2 s0 _ vc sc vs _ hE h2.fr hb2 (hsrc (hbv hb')) hW0) fun s' w => h2.capw w fun _ hb => hb
     · exact (WP.spec_ok _).2 h2
   refine WP.spec_bind (sched.cur_thread.spec s3) fun ct _ => ?_
   simp only [obj.Tcb.Insts.CoreCmpPartialEqTcb.eq, bind_ok]
@@ -333,7 +335,8 @@ theorem tcb.decode_set_timeout_endpoint.dec {A : Type _} {ar : machine.Arch A} (
     (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     {s s1 : S} {a1 : A} {t len buf : U64} {call : Bool} {slot : obj.Slot}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (hxw : ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapW T Ω Sg sl)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (hE : EntAt st P3Ok s)
+    (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
     tcb.decode_set_timeout_endpoint st ar s1 a1 t { length := len, buf, call, slot, extra } ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -361,7 +364,7 @@ theorem tcb.decode_set_timeout_endpoint.dec {A : Type _} {ar : machine.Arch A} (
   unfold tcb.thread_control_caps
   simp only [lift, bind_ok, tcb.UPDATE_FAULT, tcb.UPDATE_TIMEOUT, tcb.UPDATE_SPACE, tcb.UPDATE_IPC_BUFFER]
   simp
-  exact inst_bind (tcb.install_tcb_cap.cur0 hA G C c2 ht (by simp [layout.tcb.SLOT_TIMEOUT_HANDLER])
+  exact inst_bind (tcb.install_tcb_cap.cur0 hA G C hE c2 ht (by simp [layout.tcb.SLOT_TIMEOUT_HANDLER])
     (fun _ => hxw x hxm hx0)) fun s' a' h' => (WP.spec_ok _).2 h'
 
 theorem tcb.extra_with_length.memi (c : tcb.Ctx) (i : Usize) (n : U64) (hi : i.val < 3) :
@@ -410,7 +413,8 @@ theorem tcb.decode_set_space.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
     (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     {s s1 : S} {a1 : A} {t len buf : U64} {call : Bool} {slot : obj.Slot}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (hxw : ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapW T Ω Sg sl)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (hE : EntAt st P3Ok s)
+    (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
     tcb.decode_set_space st ar s1 a1 t { length := len, buf, call, slot, extra } ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -458,11 +462,11 @@ theorem tcb.decode_set_space.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
   unfold tcb.thread_control_caps
   simp only [lift, bind_ok, tcb.UPDATE_FAULT, tcb.UPDATE_TIMEOUT, tcb.UPDATE_SPACE, tcb.UPDATE_IPC_BUFFER]
   simp
-  refine inst_bind (tcb.install_tcb_cap.cur0 hA G C c2 ht (by simp [layout.tcb.SLOT_FAULT_HANDLER])
+  refine inst_bind (tcb.install_tcb_cap.cur0 hA G C hE c2 ht (by simp [layout.tcb.SLOT_FAULT_HANDLER])
     (fun _ => hxw x0 hxm0 hx00)) fun s3 a3 c3 => ?_
-  refine inst_bind (tcb.install_tcb_cap.cur0 hA G C c3 ht (by simp [layout.tcb.SLOT_CTABLE])
+  refine inst_bind (tcb.install_tcb_cap.cur0 hA G C hE c3 ht (by simp [layout.tcb.SLOT_CTABLE])
     (fun _ => hxw x1 hxm1 hx01)) fun s4 a4 c4 => ?_
-  exact inst_bind (tcb.install_tcb_cap.cur0 hA G C c4 ht (by simp [layout.tcb.SLOT_VTABLE])
+  exact inst_bind (tcb.install_tcb_cap.cur0 hA G C hE c4 ht (by simp [layout.tcb.SLOT_VTABLE])
     (fun _ => hxw x2 hxm2 hx02)) fun s5 a5 c5 => (WP.spec_ok _).2 c5
 
 set_option maxHeartbeats 8000000 in
@@ -471,7 +475,8 @@ theorem tcb.decode_configure.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
     (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     {s s1 : S} {a1 : A} {t len buf : U64} {call : Bool} {slot : obj.Slot}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (hxw : ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapW T Ω Sg sl)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (hE : EntAt st P3Ok s)
+    (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
     tcb.decode_configure st ar s1 a1 t { length := len, buf, call, slot, extra } ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -522,11 +527,11 @@ theorem tcb.decode_configure.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
   unfold tcb.thread_control_caps
   simp only [lift, bind_ok, tcb.UPDATE_FAULT, tcb.UPDATE_TIMEOUT, tcb.UPDATE_SPACE, tcb.UPDATE_IPC_BUFFER]
   simp
-  refine inst_bind (tcb.install_tcb_cap.cur0 hA G C c2 ht (by simp [layout.tcb.SLOT_CTABLE])
+  refine inst_bind (tcb.install_tcb_cap.cur0 hA G C hE c2 ht (by simp [layout.tcb.SLOT_CTABLE])
     (fun _ => hxw x0 hxm0 hx00)) fun s4 a4 c4 => ?_
-  refine inst_bind (tcb.install_tcb_cap.cur0 hA G C c4 ht (by simp [layout.tcb.SLOT_VTABLE])
+  refine inst_bind (tcb.install_tcb_cap.cur0 hA G C hE c4 ht (by simp [layout.tcb.SLOT_VTABLE])
     (fun _ => hxw x1 hxm1 hx01)) fun s5 a5 c5 => ?_
-  exact inst_bind (tcb.install_buffer.cur0 hA G C c5 ht (fun h0 => by
+  exact inst_bind (tcb.install_buffer.cur0 hA G C hE c5 ht (fun h0 => by
     rcases hbf' with e | e
     · rw [e]; exact hxw x2 hxm2 hx02
     · exact absurd e h0)) fun s6 a6 c6 => (WP.spec_ok _).2 c6
@@ -871,7 +876,7 @@ theorem tcb.decode_set_sched_params.dec {A : Type _} {ar : machine.Arch A} (hA :
       (WP.spec_and (tcb.install_tcb_cap.cai s2 a1 t slot _ fhc x2 _ (tcb_slot_val _ _) h2
           (Y.fh Ac s t extra hE D s2 agree) (fun s1' a1' hag => Y.slot Ac s t extra hE D slot x2 fhc hxm2 hx02 s1' a1'
             fun b hb hw => (hag b hb hw).trans (agree b hb hw)))
-        (tcb.install_tcb_cap.cur0 hA G C c2 ht (by simp [layout.tcb.SLOT_FAULT_HANDLER])
+        (tcb.install_tcb_cap.cur0 hA G C hE c2 ht (by simp [layout.tcb.SLOT_FAULT_HANDLER])
           (fun _ => hxw x2 hxm2 hx02)))
       (fun _ => ⟨hv, fun e => by rw [e, ec2, einq, esc]; exact ⟨D.cb.nr, hsc0, D.cb.ac hsc0⟩⟩) ?_ ?_
     · intro hf h0
@@ -944,7 +949,7 @@ theorem tcb.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     rintro ⟨s3, a2⟩ h3
     exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi h3))
   refine spec_ite (fun _ => ?_) fun _ => ?_
-  · exact tcb.decode_configure.dec hA Gd C (P.extraW Ac s _ _ hE D) D h1
+  · exact tcb.decode_configure.dec hA Gd C (P.extraW Ac s _ _ hE D) D hE h1
   refine spec_ite (fun _ => ?_) fun _ => ?_
   · exact tcb.decode_set_priority.dec _ P D hE h1
   refine spec_ite (fun _ => ?_) fun _ => ?_
@@ -952,11 +957,11 @@ theorem tcb.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   refine spec_ite (fun _ => ?_) fun _ => ?_
   · exact tcb.decode_set_sched_params.dec hA Gd C P G.ssp D hE h1 eΩ eid
   refine spec_ite (fun _ => ?_) fun _ => ?_
-  · exact tcb.decode_set_ipc_buffer.dec hA Gd C (P.extraW Ac s _ _ hE D) D h1
+  · exact tcb.decode_set_ipc_buffer.dec hA Gd C (P.extraW Ac s _ _ hE D) D hE h1
   refine spec_ite (fun _ => ?_) fun _ => ?_
-  · exact tcb.decode_set_space.dec hA Gd C (P.extraW Ac s _ _ hE D) D h1
+  · exact tcb.decode_set_space.dec hA Gd C (P.extraW Ac s _ _ hE D) D hE h1
   refine spec_ite (fun _ => ?_) fun _ => ?_
-  · exact tcb.decode_set_timeout_endpoint.dec hA Gd C (P.extraW Ac s _ _ hE D) D h1
+  · exact tcb.decode_set_timeout_endpoint.dec hA Gd C (P.extraW Ac s _ _ hE D) D hE h1
   refine spec_ite (fun _ => ?_) fun _ => ?_
   · exact tcb.decode_bind_notification.dec D h1
   refine spec_ite (fun _ => ?_) fun _ => ?_

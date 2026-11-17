@@ -18,6 +18,62 @@ variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} 
 variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {U : Set U64}
 
+/-- A user-memory word (`UserOK`'s): outside the TCBs, the nodes, `Ω` and
+the endpoints and notifications. -/
+def UserW (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (s0 : S) (b : U64) : Prop :=
+  OutsideObjs st T Cs s0 b ∧ b ∉ Ω ∧ ∀ e, (H e = some .ep ∨ H e = some .ntfn) → b.val + 8 ≤ e.val ∨ e.val + 16 ≤ b.val
+
+/-- The words a step inside a decode may write, from the decode's start
+`s0`: kernel words (`KW`, every endpoint's head), the debug-list words
+(`DbgW`), the cap-slot words (`CapW`) and user-memory words (`UserW`). -/
+def Cur0W (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Scs : Set U64)
+    (Z : U64 → Nat) (s0 : S) (b : U64) : Prop :=
+  KW st T Cs Sg Scs Z (EH H) s0 b ∨ DbgW st T Cs s0 b ∨ CapW T Ω Sg b ∨ UserW st T Cs Ω H s0 b
+
+theorem Cur0W.ksb {s0 s1 : S} {b : U64} (hk : L.ksb s1 = L.ksb s0) (h : Cur0W st T Cs Ω H Sg Scs Z s1 b) :
+    Cur0W st T Cs Ω H Sg Scs Z s0 b := by
+  rcases h with h | (⟨y, hy, e⟩ | ⟨c, hc, e⟩) | h | ⟨ho, h2⟩
+  · exact Or.inl (KW.ksb hk h)
+  · exact Or.inr (Or.inl (Or.inl ⟨y, hy, e⟩))
+  · exact Or.inr (Or.inl (Or.inr ⟨c, hc, by rw [e, nodeAt_of_ksb hk]⟩))
+  · exact Or.inr (Or.inr (Or.inl h))
+  · exact Or.inr (Or.inr (Or.inr ⟨ho.ksb hk.symm, h2⟩))
+
+/-- A kernel-word footprint is a `Cur0W` frame. -/
+theorem Foot.cur0w {s s' : S} {Es : Set U64} (f : Foot st T Cs Sg Scs Z Es s s') (hE : Es ⊆ EH H) :
+    WritesIn st s s' (Cur0W st T Cs Ω H Sg Scs Z s) :=
+  WritesIn.mono f fun _ hb => Or.inl (KW.mono hb hE)
+
+/-- A kernel-word and debug-list footprint is a `Cur0W` frame. -/
+theorem FootD.cur0w {s s' : S} {Es : Set U64} (f : FootD st T Cs Sg Scs Z Es s s') (hE : Es ⊆ EH H) :
+    WritesIn st s s' (Cur0W st T Cs Ω H Sg Scs Z s) :=
+  WritesIn.mono f fun _ hb => hb.elim (fun h => Or.inl (KW.mono h hE)) fun h => Or.inr (Or.inl h)
+
+/-- The current node's words (but its debug head) are `Cur0W` words. -/
+theorem NodeW.cur0w {s : S} {b : U64} (hc : L.cpu s ∈ Cs) (h : NodeW st s b) : Cur0W st T Cs Ω H Sg Scs Z s b := by
+  obtain ⟨o, ho, h88, rfl⟩ := h
+  exact Or.inl (kw_node hc ho h88)
+
+/-- The transfer's words (`XferFoot`) are `Cur0W` words. -/
+theorem XferFoot.cur0w {U' : Set U64} {s : S} {b : U64} (hU : UserOK st T Cs Ω H U' s) (h : XferFoot T U' b) :
+    Cur0W st T Cs Ω H Sg Scs Z s b := by
+  rcases h with ⟨y, hy, K, hK, h8, rfl⟩ | hb
+  · by_cases hl : K.val < 192
+    · exact Or.inr (Or.inr (Or.inl (Or.inl ⟨y, hy, K, hl, rfl⟩)))
+    · exact Or.inl (Or.inl ⟨y, hy, K, by omega, by omega, by omega, by omega, rfl⟩)
+  · exact Or.inr (Or.inr (Or.inr (hU b hb)))
+
+/-- A frame of `Cur0W` words, composed. -/
+theorem Cur0W.trans {s0 s s' : S} (h : WritesIn st s0 s (Cur0W st T Cs Ω H Sg Scs Z s0))
+    (hw : WritesIn st s s' (Cur0W st T Cs Ω H Sg Scs Z s)) : WritesIn st s0 s' (Cur0W st T Cs Ω H Sg Scs Z s0) :=
+  (h.trans hw).mono fun _ hb => hb.elim id (Cur0W.ksb h.1)
+
+/-- The frame of a decode step from the decode's start `s0`: only `Cur0W`
+words written (the frame every `Cur0` state carries). -/
+abbrev Fr0 (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Scs : Set U64)
+    (Z : U64 → Nat) (s0 s : S) : Prop :=
+  WritesIn st s0 s (Cur0W st T Cs Ω H Sg Scs Z s0)
+
 /-- The CDT placement facts (P3's: cap slots, `valid_caps`, `valid_mdb`). -/
 structure CdtHyps (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
     (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (P3Ok : S → Prop) : Prop where
@@ -33,13 +89,15 @@ structure CdtHyps (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64
   /-- The insertion footprint for the helper taking the previously loaded
   source cap. This is a placement obligation for either source-cap value;
   the snapshot equality is established separately by the P3 Copy proof. -/
-  ins : ∀ (Ac : Set U64) (s : S) (c srcC : capability.Cap) (x y : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+  ins : ∀ (Ac : Set U64) (s0 s : S) (c srcC : capability.Cap) (x y : U64), EntAt st P3Ok s0 →
+    Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     CapW T Ω Sg x → CapW T Ω Sg y →
     cdt.insert_with_cap st s c srcC x y ⦃ s' => WritesIn st s s' (CapW T Ω Sg) ⦄
-  mv : ∀ (Ac : Set U64) (s : S) (c : capability.Cap) (x y : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+  mv : ∀ (Ac : Set U64) (s0 s : S) (c : capability.Cap) (x y : U64), EntAt st P3Ok s0 →
+    Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     CapW T Ω Sg x → CapW T Ω Sg y → cdt.move_cap st s c x y ⦃ s' => WritesIn st s s' (CapW T Ω Sg) ⦄
-  sw : ∀ (Ac : Set U64) (s : S) (c1 : capability.Cap) (x : U64) (c2 : capability.Cap) (y : U64),
-    BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → CapW T Ω Sg x → CapW T Ω Sg y →
+  sw : ∀ (Ac : Set U64) (s0 s : S) (c1 : capability.Cap) (x : U64) (c2 : capability.Cap) (y : U64),
+    EntAt st P3Ok s0 → Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → CapW T Ω Sg x → CapW T Ω Sg y →
     cdt.swap st s c1 x c2 y ⦃ s' => WritesIn st s s' (CapW T Ω Sg) ⦄
 
 /-- The named CNode steps: Delete and Revoke of a cap slot, after the
@@ -68,7 +126,8 @@ theorem cnode.full_endpoint.ep (c : capability.Cap) :
 /-- The restart and then cap-slot writes. -/
 theorem restart_capw {s : S} {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize}
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) {m : S → Result S}
-    (hm : ∀ s1, BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s1 → m s1 ⦃ s' => WritesIn st s1 s' (CapW T Ω Sg) ⦄) :
+    (hm : ∀ s1, Fr0 st T Cs Ω H Sg Scs Z s s1 → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s1 →
+      m s1 ⦃ s' => WritesIn st s1 s' (CapW T Ω Sg) ⦄) :
     (do
       let s1 ← sched.set_thread_state st s (L.curW s) sched.TS_RESTART
       let s2 ← m s1
@@ -76,8 +135,8 @@ theorem restart_capw {s : S} {cap : capability.Cap} {extra : Aeneas.Std.Array ob
         DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2 ⦄ := by
   have hct : L.curW s ∈ T := D.bxi.1.choose_spec.choose_spec.curT
   refine WP.spec_bind (sched.set_thread_state.restart_blk (Es := ∅) s _ D.bxi.blk hct (runnable_ok D.run).1
-    (runnable_ok D.run).2) fun s1 ⟨h1, _, _, _⟩ => ?_
-  refine WP.spec_bind (hm s1 (BlkOK.bxi h1)) fun s2 w2 => ?_
+    (runnable_ok D.run).2) fun s1 ⟨h1, f1, _, _⟩ => ?_
+  refine WP.spec_bind (hm s1 (Foot.cur0w f1 (Set.empty_subset _)) (BlkOK.bxi h1)) fun s2 w2 => ?_
   exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi (blk_of_capw h1 w2 fun _ hb => hb).1))
 
 set_option hygiene false in
@@ -139,9 +198,9 @@ theorem cnode.decode_copy.dec (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {s 
   · errleaf
   cases mv
   · simp only [Bool.false_eq_true, ↓reduceIte]
-    exact restart_capw D fun s1 h1 => C.ins Ac s1 nc sc v dest h1 hv hd
+    exact restart_capw D fun s1 f1 h1 => C.ins Ac s s1 nc sc v dest hE f1 h1 hv hd
   · simp only [↓reduceIte]
-    exact restart_capw D fun s1 h1 => C.mv Ac s1 nc v dest h1 hv hd
+    exact restart_capw D fun s1 f1 h1 => C.mv Ac s s1 nc v dest hE f1 h1 hv hd
 
 set_option maxHeartbeats 2000000 in
 theorem cnode.decode_rotate.dec (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {s : S} {cap : capability.Cap}
@@ -188,14 +247,17 @@ theorem cnode.decode_rotate.dec (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {
   split
   · errleaf
   refine WP.spec_bind (sched.set_thread_state.restart_blk (Es := ∅) s _ D.bxi.blk hct (runnable_ok D.run).1
-    (runnable_ok D.run).2) fun s3 ⟨h3, _, _, _⟩ => ?_
+    (runnable_ok D.run).2) fun s3 ⟨h3, f3', _, _⟩ => ?_
+  have f3 : Fr0 st T Cs Ω H Sg Scs Z s s3 := Foot.cur0w f3' (Set.empty_subset _)
   refine WP.spec_bind (P0.obj.Slot.Insts.CoreCmpPartialEqSlot.eq.p0 src dest) fun b4 _ => ?_
   split
-  · refine WP.spec_bind (C.sw Ac s3 ns src np pv (BlkOK.bxi h3) hsrc hpv) fun s4 w4 => ?_
+  · refine WP.spec_bind (C.sw Ac s s3 ns src np pv hE f3 (BlkOK.bxi h3) hsrc hpv) fun s4 w4 => ?_
     exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi (blk_of_capw h3 w4 fun _ hb => hb).1))
-  · refine WP.spec_bind (C.mv Ac s3 np pv dest (BlkOK.bxi h3) hpv hd) fun s4 w4 => ?_
+  · refine WP.spec_bind (C.mv Ac s s3 np pv dest hE f3 (BlkOK.bxi h3) hpv hd) fun s4 w4 => ?_
     have h4 := (blk_of_capw h3 w4 fun _ hb => hb).1
-    refine WP.spec_bind (C.mv Ac s4 ns src pv (BlkOK.bxi h4) hsrc hpv) fun s5 w5 => ?_
+    have f4 : Fr0 st T Cs Ω H Sg Scs Z s s4 :=
+      Cur0W.trans f3 (WritesIn.mono w4 fun _ hb => Or.inr (Or.inr (Or.inl hb)))
+    refine WP.spec_bind (C.mv Ac s s4 ns src pv hE f4 (BlkOK.bxi h4) hsrc hpv) fun s5 w5 => ?_
     exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi (blk_of_capw h4 w5 fun _ hb => hb).1))
 
 theorem cnode.decode_cancel_badged_sends.dec (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {s : S}

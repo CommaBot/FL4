@@ -27,7 +27,7 @@ and an invoked non-root EPT table cap's table holds no tracked word. -/
 structure EptPlace (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
     (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop where
   /-- At the caller's restart after the decode's start `s0` (its footprint `Foot`). -/
-  find : ∀ (Ac : Set U64) (s0 s : S) (asid : U64), EntAt st P3Ok s0 → Foot st T Cs Sg Scs Z ∅ s0 s →
+  find : ∀ (Ac : Set U64) (s0 s : S) (asid : U64), EntAt st P3Ok s0 → Fr0 st T Cs Ω H Sg Scs Z s0 s →
     BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     ept.find st s asid ⦃ r => ∀ r1, r = .Ok r1 → EptTbl st Ω Sg s r1 ⦄
   tbl : ∀ (Ac : Set U64) (s : S) (cap : capability.Cap) (extra : Aeneas.Std.Array obj.Slot 3#usize),
@@ -82,14 +82,6 @@ theorem ept.unmap.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   · split
     · exact (WP.spec_ok _).2 h
     · exact fin
-
-/-- The caller's restart at the decode's start, with its footprint. -/
-theorem Cur0.restartF {s : S} {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize}
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) :
-    sched.set_thread_state st s (L.curW s) sched.TS_RESTART ⦃ s1 => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s s1 ∧
-      Foot st T Cs Sg Scs Z ∅ s s1 ⦄ :=
-  WP.spec_and (Cur0.restart D) (WP.spec_mono (sched.set_thread_state.restart_blk (Es := ∅) s _ D.bxi.blk
-    D.bxi.1.choose_spec.choose_spec.curT (runnable_ok D.run).1 (runnable_ok D.run).2) fun _ h => h.2.1)
 
 /-- A found root's walk, through `ept.root` and `ept.slot`. -/
 theorem ept.slot.place {s : S} {r gpa level : U64} (hr : EptTbl st Ω Sg s r) :
@@ -175,11 +167,11 @@ theorem ept.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     split
     swap
     · exact (WP.spec_ok _).2 (Cur0.post c0)
-    refine WP.spec_bind (Cur0.restartF D) fun s1 ⟨h1, f1⟩ => ?_
+    refine WP.spec_bind (Cur0.restart D) fun s1 h1 => ?_
     obtain ⟨Ac1, hb1⟩ := h1.bxi
     refine WP.spec_bind (Pₘ := fun r : S × A => Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s r.1) ?_ ?_
     · split
-      · refine WP.spec_bind (ept.unmap.cur0 hA a asid vaddr ptr level true (P.find Ac1 s s1 asid hE f1 hb1) h1) ?_
+      · refine WP.spec_bind (ept.unmap.cur0 hA a asid vaddr ptr level true (P.find Ac1 s s1 asid hE h1.fr hb1) h1) ?_
         rintro ⟨s3, a2⟩ h3
         try simp only [uncurry_apply_pair]
         refine WP.spec_bind (LawfulStore.zero_spec s3 ptr 4096#u64) fun s4 e4 => ?_

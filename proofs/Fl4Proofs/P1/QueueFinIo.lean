@@ -65,12 +65,12 @@ theorem smp.remote_tcb_stall.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.Ar
     (t : obj.Tcb) (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) :
     smp.remote_tcb_stall st ar s a t ⦃ s1 _ => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s1 ∧
       L.ksb s1 = L.ksb s ∧ ∀ x ∈ Ω, L.mem s1 x = L.mem s x ⦄ := by
-  obtain ⟨hc0, Ac', hX, ec, ecs, esc, na, nb⟩ := h
+  obtain ⟨hc0, Ac', hX, ec, ecs, esc, na, nb, w0⟩ := h
   have hct : L.curW s ∈ T := hX.1.choose_spec.choose_spec.curT
   refine WP.spec_mono (smp.remote_tcb_stall.bxi hA s a t hX) ?_
   rintro ⟨s1, a1⟩ ⟨hX1, ea, ec1, -, ecs1, fld, hΩ, wn⟩
-  refine ⟨⟨hc0, Ac', hX1, ec1.trans ec, ecs1.trans ecs, ?_, fun y hy => by rw [ea]; exact na y hy, ?_⟩,
-    wn.1, hΩ⟩
+  refine ⟨⟨hc0, Ac', hX1, ec1.trans ec, ecs1.trans ecs, ?_, fun y hy => by rw [ea]; exact na y hy, ?_,
+    Cur0W.trans w0 (WritesIn.mono wn fun _ hb => NodeW.cur0w hX.1.choose_spec.choose_spec.cur hb)⟩, wn.1, hΩ⟩
   · rw [← ec] at esc ⊢; rw [scA_eq, fld _ hct _ (by simp) (by simp), ← scA_eq]; exact esc
   · rw [← ec] at nb ⊢; rw [stA_eq, fld _ hct _ (by simp) (by simp), ← stA_eq]; exact nb
 

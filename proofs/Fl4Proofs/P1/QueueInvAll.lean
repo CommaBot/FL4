@@ -169,7 +169,7 @@ def CapOK (st : machine.Store S) [L : LawfulStore st] (T Rp Scs Nt : Set U64) (H
 
 /-- The words of the current core's node (where `remote_tcb_stall` writes). -/
 def NodeW (st : machine.Store S) [L : LawfulStore st] (s : S) (b : U64) : Prop :=
-  ∃ o : U64, b = L.nodeAt s (L.cpu s) o
+  ∃ o : U64, o.val < 4288 ∧ o.val ≠ 88 ∧ b = L.nodeAt s (L.cpu s) o
 
 /-- What `decode_invocation` may assume: the invariants, the current SC is
 active, the invoked and the extra caps are typed (the extra caps also after writes

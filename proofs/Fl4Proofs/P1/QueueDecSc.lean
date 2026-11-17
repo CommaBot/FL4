@@ -224,7 +224,8 @@ theorem smp.remote_tcb_stall.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
   rcases e with rfl | ⟨v, rfl⟩
   · exact WritesIn.refl _ _
   · exact (writesIn_wr (nodeAt_aligned (h0.nodes _ h0.cur) (by simp [layout.node.IPI_PENDING])
-      (by simp [layout.node.IPI_PENDING]))).mono fun b e => ⟨_, e⟩
+      (by simp [layout.node.IPI_PENDING]))).mono fun b e =>
+        ⟨_, by simp [layout.node.IPI_PENDING], by simp [layout.node.IPI_PENDING], e⟩
 
 /-! ## The decoder -/
 

@@ -665,9 +665,9 @@ theorem finGap_thread {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) 
   refine WP.spec_mono (WP.spec_and (WP.spec_and (fin_thread.rem hA s a p fin)
     (fin_thread.blk hA s a p fin hb' hp hna (Ne.symm hid) hv0))
     (fin_thread.curR hA s a p (L.curW s) fin hb' hp hna (Ne.symm hid) hv0 hct)) ?_
-  rintro ⟨⟨r1, r2⟩, s', a'⟩ ⟨⟨e, hb2, -⟩, ec, ecs, esc, ea, enb⟩
-  simp only at e hb2 ec ecs esc ea enb ⊢
-  refine ⟨Cur0.mk h (BlkOK.bxi hb2) ec ecs esc ea (Or.inr (enb h.nb)), ?_, ?_⟩
+  rintro ⟨⟨r1, r2⟩, s', a'⟩ ⟨⟨e, hb2, f2⟩, ec, ecs, esc, ea, enb⟩
+  simp only at e hb2 f2 ec ecs esc ea enb ⊢
+  refine ⟨Cur0.mk h (BlkOK.bxi hb2) ec ecs esc ea (Or.inr (enb h.nb)) (FootD.cur0w f2 le_rfl), ?_, ?_⟩
   · simp only [Prod.mk.injEq] at e
     rw [e.1]; split
     · exact tcb_zombieOK hT hp
@@ -690,10 +690,11 @@ theorem finGap_sc {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) :
   refine WP.spec_mono (WP.spec_and (WP.spec_and (fin_sc.rem hA s a p x fin)
     (fin_sc.blk hA s a p x fin hb' hpS hp0 hna hid))
     (fin_sc.curR hA s a p x (L.curW s) fin hb' hpS hp0 hna hid hct)) ?_
-  rintro ⟨⟨r1, r2⟩, s', a'⟩ ⟨⟨e, Ac2, -, hb2, -⟩, ec, ecs, esc, ea, enb⟩
-  simp only at e hb2 ec ecs esc ea enb ⊢
+  rintro ⟨⟨r1, r2⟩, s', a'⟩ ⟨⟨e, Ac2, -, hb2, f2⟩, ec, ecs, esc, ea, enb⟩
+  simp only at e hb2 f2 ec ecs esc ea enb ⊢
   cases e
-  exact ⟨Cur0.mk h (BlkOK.bxi hb2) ec ecs esc ea (Or.inr (enb h.nb)), DelCapOK.null, DelCapOK.null⟩
+  exact ⟨Cur0.mk h (BlkOK.bxi hb2) ec ecs esc ea (Or.inr (enb h.nb)) (Foot.cur0w f2 (Set.empty_subset _)),
+    DelCapOK.null, DelCapOK.null⟩
 
 /-! ## The kinds still named -/
 

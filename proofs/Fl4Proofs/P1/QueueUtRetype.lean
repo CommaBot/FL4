@@ -170,7 +170,7 @@ theorem UtRetypeP3.utPlace {A : Type _} {ar : machine.Arch A} {Adm : PSets → P
   subst eT eΩ eSg eRp eScs eNt eZ
   refine ⟨fun Ac s0 s a extra slot ptr sb fi dev reset aligned nt us dest off win hOk hrs D hslot hU hC => ?_⟩
   obtain ⟨hR, hrun⟩ := P.run Ac s0 s a extra slot ptr sb fi dev reset aligned nt us dest off win hOk hrs D hslot hU hC
-  obtain ⟨hc0, Ac1, hX, ec, ecs, esc, na, nb⟩ := hC
+  obtain ⟨hc0, Ac1, hX, ec, ecs, esc, na, nb, -⟩ := hC
   have hb := hX.blk
   have hcurT : L.curW s ∈ H.tcbs := hX.1.choose_spec.choose_spec.curT
   -- the reset, when it runs
@@ -198,15 +198,10 @@ theorem UtRetypeP3.utPlace {A : Type _} {ar : machine.Arch A} {Adm : PSets → P
   · -- the reset's error
     obtain ⟨Ac2, hb2, hK, hok2, h02, hcur2⟩ := RS hr _ heq
     refine ⟨PSets.ofHeap (utHeap H true ptr sb), P.adm _ hok2 h02, by rw [← ec]; exact hcur2, ?_⟩
-    have C : Cur0 st (utHeap H true ptr sb).tcbs Cs (utHeap H true ptr sb).omega (utHeap H true ptr sb)
-        (utHeap H true ptr sb).frame (utHeap H true ptr sb).replies (utHeap H true ptr sb).scs
-        (utHeap H true ptr sb).ntfns (utHeap H true ptr sb).scBits Ac s0 s' := by
-      obtain ⟨k1, k2, k3, k4, k5⟩ := hK
-      refine ⟨hc0, Ac2, hb2.bxi, k1.trans ec, k2.trans ecs, ?_, fun y hy => ?_, ?_⟩
-      · rw [← ec] at esc ⊢; rw [k4]; exact esc
-      · rw [k3]; simp only [utHeap, if_true] at hy; exact na y (Heap.mem_tcbs_drop.1 hy).1
-      · rw [← ec] at nb ⊢; rw [k5]; exact nb
-    exact C.post
+    obtain ⟨k1, k2, k3, k4, k5⟩ := hK
+    refine Cur0.postOf hc0 hb2.bxi (k1.trans ec) (k2.trans ecs) ?_ fun y hy => ?_
+    · rw [← ec] at esc ⊢; rw [k4]; exact esc
+    · rw [k3]; simp only [utHeap, if_true] at hy; exact na y (Heap.mem_tcbs_drop.1 hy).1
   · -- the creation
     have base : ∃ Ac2, BlkOK st (utHeap H reset ptr sb).tcbs Cs (utHeap H reset ptr sb).omega (utHeap H reset ptr sb)
         (utHeap H reset ptr sb).frame (utHeap H reset ptr sb).replies (utHeap H reset ptr sb).scs

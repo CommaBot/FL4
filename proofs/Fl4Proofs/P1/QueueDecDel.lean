@@ -31,11 +31,15 @@ def Cur0 (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : He
   (L.mem s0 (scA (L.curW s0)) ≠ 0#u64 → L.cscW s0 = L.mem s0 (scA (L.curW s0))) ∧
   ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s ∧ L.curW s = L.curW s0 ∧ L.cscW s = L.cscW s0 ∧
     (L.mem s (scA (L.curW s0)) = L.mem s0 (scA (L.curW s0)) ∨ L.mem s (scA (L.curW s0)) = 0#u64) ∧
-    (∀ y ∈ T, L.actionW s ≠ y) ∧ ¬ BlockedR (L.mem s (stA (L.curW s0)))
+    (∀ y ∈ T, L.actionW s ≠ y) ∧ ¬ BlockedR (L.mem s (stA (L.curW s0))) ∧
+    WritesIn st s0 s (Cur0W st T Cs Ω H Sg Scs Z s0)
 
-theorem Cur0.post {s0 s : S} {r : core.result.Result Unit error.Exc}
-    (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) : DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r s := by
-  obtain ⟨hc0, Ac', h1, ec, ecs, esc, na, -⟩ := h
+/-- `DecPost` from `Cur0`'s parts (the frame is not needed). -/
+theorem Cur0.postOf {s0 s : S} {r : core.result.Result Unit error.Exc} {Ac' : Set U64}
+    (hc0 : L.mem s0 (scA (L.curW s0)) ≠ 0#u64 → L.cscW s0 = L.mem s0 (scA (L.curW s0)))
+    (h1 : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s) (ec : L.curW s = L.curW s0) (ecs : L.cscW s = L.cscW s0)
+    (esc : L.mem s (scA (L.curW s0)) = L.mem s0 (scA (L.curW s0)) ∨ L.mem s (scA (L.curW s0)) = 0#u64)
+    (na : ∀ y ∈ T, L.actionW s ≠ y) : DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r s := by
   refine ⟨Ac', h1, fun _ => ⟨⟨ecs, ec, fun _ _ => ?_, ?_⟩, na _ h1.1.choose_spec.choose_spec.curT, fun hne => ?_⟩⟩
   · rcases esc with e | e
     · rw [e]
@@ -51,6 +55,11 @@ theorem Cur0.post {s0 s : S} {r : core.result.Result Unit error.Exc}
     · rw [e] at hne ⊢; rw [ecs]; exact hc0 hne
     · exact absurd e hne
 
+theorem Cur0.post {s0 s : S} {r : core.result.Result Unit error.Exc}
+    (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) : DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r s := by
+  obtain ⟨hc0, Ac', h1, ec, ecs, esc, na, -⟩ := h
+  exact Cur0.postOf hc0 h1 ec ecs esc na
+
 theorem nbr_restart : ¬ BlockedR sched.TS_RESTART := fun h => h.elim not_blocked_restart restart_ne.1
 
 theorem nbr_runnable {v : U64} (h : Runnable v) : ¬ BlockedR v := fun h' =>
@@ -64,11 +73,12 @@ theorem Cur0.mk {s0 s s' : S} {Ac' : Set U64} (h : Cur0 st T Cs Ω H Sg Rp Scs N
     (hb : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s') (ec : L.curW s' = L.curW s) (ecs : L.cscW s' = L.cscW s)
     (esc : L.mem s' (scA (L.curW s)) = L.mem s (scA (L.curW s)) ∨ L.mem s' (scA (L.curW s)) = 0#u64)
     (ea : L.actionW s' = L.actionW s ∨ L.actionW s' = 1#u64)
-    (est : L.mem s' (stA (L.curW s)) = L.mem s (stA (L.curW s)) ∨ ¬ BlockedR (L.mem s' (stA (L.curW s)))) :
+    (est : L.mem s' (stA (L.curW s)) = L.mem s (stA (L.curW s)) ∨ ¬ BlockedR (L.mem s' (stA (L.curW s))))
+    (hw : WritesIn st s s' (Cur0W st T Cs Ω H Sg Scs Z s)) :
     Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' := by
-  obtain ⟨hc0, Ac1, hb1, ec1, ecs1, esc1, na1, nb1⟩ := h
+  obtain ⟨hc0, Ac1, hb1, ec1, ecs1, esc1, na1, nb1, w1⟩ := h
   have hT := hb1.1.choose_spec.choose_spec.tcbs
-  refine ⟨hc0, Ac', hb, ec.trans ec1, ecs.trans ecs1, ?_, fun y hy => ?_, ?_⟩
+  refine ⟨hc0, Ac', hb, ec.trans ec1, ecs.trans ecs1, ?_, fun y hy => ?_, ?_, Cur0W.trans w1 hw⟩
   · rw [ec1] at esc
     rcases esc with e | e
     · rw [e]; exact esc1
@@ -80,6 +90,10 @@ theorem Cur0.mk {s0 s s' : S} {Ac' : Set U64} (h : Cur0 st T Cs Ω H Sg Rp Scs N
     rcases est with e | e
     · rw [e]; exact nb1
     · exact e
+
+/-- `Cur0`'s frame. -/
+theorem Cur0.fr {s0 s : S} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) : Fr0 st T Cs Ω H Sg Scs Z s0 s :=
+  h.2.choose_spec.2.2.2.2.2.2
 
 /-- `Cur0`'s invariants. -/
 theorem Cur0.bxi {s0 s : S} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) :
@@ -93,6 +107,7 @@ theorem Cur0.capw {s0 s s' : S} {B : U64 → Prop} (h : Cur0 st T Cs Ω H Sg Rp 
   have hct : L.curW s ∈ T := h1.1.choose_spec.choose_spec.curT
   obtain ⟨b, -, ec, ecs, ea, fld, -, -⟩ := blk_of_capw h1.blk hw hB
   refine Cur0.mk h (BlkOK.bxi b) ec ecs (Or.inl ?_) (Or.inl ea) (Or.inl ?_)
+    (hw.mono fun b hb => Or.inr (Or.inr (Or.inl (hB b hb))))
   · rw [scA_eq]; exact fld _ hct _ (by simp) (by simp) (by simp)
   · rw [stA_eq]; exact fld _ hct _ (by simp) (by simp) (by simp)
 
@@ -130,7 +145,7 @@ theorem sched.preemption_point.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.
   have q := h1.1.choose_spec.choose_spec
   have hT := q.tcbs
   have hN := q.nodes _ q.cur
-  obtain ⟨-, hΩ, -⟩ := ks_work_units h1.blk
+  obtain ⟨-, hΩ, hSgw⟩ := ks_work_units h1.blk
   have ho := q.omega _ hΩ
   refine WP.spec_mono (sched.preemption_point.pp (Ac := Ac') hA s a h1.blk) fun r ⟨b, w⟩ => ?_
   -- the preemption point's words are not the scheduler words nor any TCB field
@@ -164,8 +179,12 @@ theorem sched.preemption_point.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.
   have ec := nd _ (by rw [curth0]; simp)
   have ea := nd _ (by rw [act_val]; simp)
   refine Cur0.mk h (BlkOK.bxi b) ec ?_ (Or.inl (by rw [scA_eq]; exact ffld _ (by simp) (by simp))) (Or.inl ea)
-    (Or.inl (by rw [stA_eq]; exact ffld _ (by simp) (by simp)))
-  unfold LawfulStore.cscW LawfulStore.nodeA; exact nd _ (by simp [layout.node.CUR_SC])
+    (Or.inl (by rw [stA_eq]; exact ffld _ (by simp) (by simp))) (w.mono fun b hb => ?_)
+  · unfold LawfulStore.cscW LawfulStore.nodeA; exact nd _ (by simp [layout.node.CUR_SC])
+  · rcases hb with e | e | e
+    · exact Or.inr (Or.inr (Or.inl (Or.inr (e ▸ ⟨hΩ, hSgw⟩))))
+    · exact Or.inl (e ▸ kw_node q.cur (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))
+    · exact Or.inl (e ▸ kw_node q.cur (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]))
 
 /-- The slot at index `i` of a slot array at `p`. -/
 def slotIdx (p i : U64) : U64 := core.num.U64.wrapping_add p (core.num.U64.wrapping_mul i 32#u64)
@@ -404,11 +423,12 @@ theorem Cur0.restart {s : S} {cap : capability.Cap} {extra : Aeneas.Std.Array ob
   have hT := D.bxi.1.choose_spec.choose_spec.tcbs
   have hct : L.curW s ∈ T := D.bxi.1.choose_spec.choose_spec.curT
   refine WP.spec_mono (sched.set_thread_state.restart_blk (Es := ∅) s _ D.bxi.blk hct (runnable_ok D.run).1
-    (runnable_ok D.run).2) fun s1 ⟨h1, _, est, k⟩ => ?_
+    (runnable_ok D.run).2) fun s1 ⟨h1, f1, est, k⟩ => ?_
   have ec := k.curW
   have ecs := k.cscW
   have esc := k.scf hct
-  refine ⟨D.hcsc, Ac, BlkOK.bxi h1, ec, ecs, Or.inl esc, fun y hy => ?_, by rw [est]; exact nbr_restart⟩
+  refine ⟨D.hcsc, Ac, BlkOK.bxi h1, ec, ecs, Or.inl esc, fun y hy => ?_, by rw [est]; exact nbr_restart,
+    WritesIn.mono f1 fun _ hb => Or.inl (KW.mono hb (Set.empty_subset _))⟩
   rcases k.act with e | e
   · rw [e, D.act]; exact fun e' => notT_small hT (by simp) (e' ▸ hy)
   · rw [e]; exact fun e' => notT_small hT (by simp) (e' ▸ hy)
