@@ -12,8 +12,8 @@ closure** (`JStepHyps`, XTopJointStep), in the SC family's pattern
   `CurOwn`), `OffOK` (`OffOK.restart`), `ActIdle` (`ActIdle.updState`),
   `BlockedScActive` (`bk_restart`), the sorted IPC queues (`IpcSorted.tkw`), `CurRun`.
   The dead stay dead (`JAtZ.deadP_sc_step`: `ScTKw`, `LK ∅` by
-  `lkm_setThreadState`). Named (`RestartRest` [W], as `ScStepRest`'s): the
-  node-0 `DEBUG_TCBS` word kept, P1's `BlkOK` after.
+  `lkm_setThreadState`); the node-0 `DEBUG_TCBS` word kept (`set_thread_state_frame`).
+  Named (`RestartRest` [W], as `ScStepRest`'s): P1's `BlkOK` after.
 -/
 import Fl4Proofs.P3.XTopJointStep
 import Fl4Proofs.P3.ScJointRest
@@ -125,11 +125,11 @@ end Spec
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
-/-- **What the restart still owes** [W] (`ScStepRest`'s P1-supplied parts):
-the node-0 `DEBUG_TCBS` word kept, P1's `BlkOK` after. -/
+/-- **What the restart still owes** [W] (`ScStepRest`'s P1-supplied part):
+P1's `BlkOK` after (the node-0 `DEBUG_TCBS` word is kept: `set_thread_state`
+writes the TCB's state word and the scheduler-action word only, `JKern.dwNe`). -/
 def RestartRest (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s s1 : S) : Prop :=
   ∃ (Ac' : Set U64),
-    L.mem s1 (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) ∧
     P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s1
 
@@ -166,7 +166,19 @@ theorem jowes_restart {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s : S)
   obtain ⟨-, hY', hM', ⟨Lst', hCR', hRF'⟩, hRP', -⟩ :=
     ScAll.of_k hS J.rp J.yld J.mcp J.call J.rfree ⟨⟨hS1, hN1, hNsc, hI1⟩, hwK, hSOK⟩
   have hF : FK σ σ1 := (fk_setThreadState _ _).of_eq he1
-  obtain ⟨Ac', hDbg, hBlk'⟩ := hR Z H Cs Ac Lst D hth J
+  obtain ⟨Ac', hBlk'⟩ := hR Z H Cs Ac Lst D hth J
+  have hDbg : L.mem s1 (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) =
+      L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) := by
+    have hP := hX.rel.1
+    have hctW : ct = L.curW s := P1.eq_of_bv (hcur.symm.trans J.kern.cur)
+    have htf := hP.fits ct _ (hth ▸ htcb)
+    have hta := hP.align ct _ (hth ▸ htcb)
+    have hstv : (stA ct).val = ct.val + 3328 := by
+      rw [stA_eq, wordOf_val (by simp [objSize] at htf; simp; omega)]; simp
+    have h := set_thread_state_frame (L := L) s ct sched.TS_RESTART (by unfold P1.Aligned; rw [hstv]; omega)
+      J.kern.act.1
+    rw [hs1, WP.spec_ok] at h
+    exact h _ J.kern.dwAl (fun e => J.kern.dwNe.1 (by rw [← hctW]; exact e)) J.kern.dwNe.2
   have hkc : σ.kheap σ.curThread = some (.tcb x) := by rw [hcur]; exact hk
   have hcur' : σ1.schedulerAction = .chooseNewThread ∨ CurInv σ1 := by
     rcases J.cur with h | h
@@ -481,12 +493,11 @@ theorem irqNode_keep {s s' : S} {W : U64 → Prop} (hw : P1.WritesIn st s s' W)
     hw.mem_eq (b := wordOf (nodeA (L.ksb s) i) 8#u64) (by unfold P1.Aligned; rw [hv8]; omega) fun h => by
       rcases hW _ h with e | e <;> omega]
 
-/-- **What a kernel-state step still owes** [W]: the untyped caps' facts and
-P1's `BlkOK`. -/
+/-- **What a kernel-state step still owes** [W]: P1's `BlkOK` (the untyped
+caps' facts are kept: the caps and the free parts lie outside the
+kernel-state block). -/
 def KsRest (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s' : S) (σ' : Fl4Spec.State Unit) : Prop :=
   ∃ (Ac' : Set U64),
-    (∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
-      UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi) ∧
     P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s'
 
@@ -498,7 +509,7 @@ theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (
     (hw : P1.WritesIn st s s' (KsW (L.ksb s))) (hO : KsStep σ σ')
     (hR : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → XTopAt (L := L) AR Z s' a' σ' →
-      KsRest (L := L) arI Z H Cs D s' σ') :
+      KsRest (L := L) Z H Cs D s' σ') :
     JOwes (L := L) arI AR th s a σ s' a' σ' := by
   intro Z H Cs Ac Lst D hth J hX'
   have hC : CnStep σ σ' := ⟨⟨fun p => Or.inl (by rw [hO.kh]), hO.rel, hO.ct, hO.csc, hO.ctime, hO.cons, hO.idle⟩,
@@ -511,7 +522,7 @@ theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (
   have mk : McpKeep σ σ' := fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
-  obtain ⟨Ac', hutc, hblk⟩ := hR Z H Cs Ac Lst D hth J hX'
+  obtain ⟨Ac', hblk⟩ := hR Z H Cs Ac Lst D hth J hX'
   have hI : ∀ i : U64, i.val < 128 → capV (L.mem s') (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i) :=
     irqNode_keep hw J.kern.ksbFit J.kern.ksbAl fun b hb => by
       obtain ⟨K, -, -, -, e, h⟩ := hb; omega
@@ -526,6 +537,33 @@ theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (
     J.xtop.slotsSame_of hw fun b hb => by obtain ⟨K, h1, h2, -, e⟩ := hb; exact Or.inr (Or.inl ⟨by omega, by omega⟩)
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := fun q hq =>
     J.deadP_hstep hX' hC.toHStep k3 (fun q z hq K h8 hK => J.ksW_scKeep hw hq h8 hK) (J.act.cn hC).1 (J.jcov.dead q hq)
+  -- the untyped caps' facts: the caps kept, the free parts outside the kernel-state block
+  have hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+      UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi := by
+    intro sl p sb fi dev hsl hcap
+    have hks : L.ksb s' = L.ksb s := hw.1
+    have hcpu : L.cpu s' = L.cpu s := hw.2.1
+    have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hks
+    obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
+    have hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev := by
+      rw [← hSS.capV hsl.isSlot]; exact capV_of_capAt hcap
+    have hcap0 : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) := by rw [capAt_capV, hcv]
+    have U := J.utc sl p sb fi dev hsl hcap0
+    have hxm : cslotAddr sl ∈ Z.G.chains.flatten :=
+      (hM.members _).2 ⟨hsl.isSlot, _, hcap0, fun h => by cases h⟩
+    have hfi := U.fiLe
+    have hk8 := J.kern.ksbAl
+    have hapart := (J.jcov.ks _ hxm p sb fi dev hcv).1
+    refine ⟨U.pal, U.pfit, U.fiLe, U.high, by rw [hcpu, hna]; exact U.actZ, U.free, fun w hal h1 h2 => ?_, U.sb4,
+      U.nostr, U.nsFree, fun h0 => U.ns (by rw [hO.cdt] at h0; exact h0),
+      fun k0 v0 => by simpa only [hna] using U.pp k0 v0, fun h0 hf0 => ?_, by rw [hna]; exact U.dwReg,
+      by rw [hO.gpml4]; exact U.gReg⟩
+    · have hw8 : w.val % 8 = 0 := hal
+      rw [ksW_keep hw hal (by omega)]
+      exact U.zero w hal h1 h2
+    · rw [hO.cdt] at h0
+      obtain ⟨r1, r2, r3⟩ := U.rst h0 hf0
+      exact ⟨fun sl' h => r1 sl' (by rw [← hO.orig]; exact h), r2, by rw [hna, hDbg]; exact r3⟩
   exact ⟨Ac', Lst, D, ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 mk,
     J.buf.frame kb (fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_kheap hO.kh),
     J.jpl_keep arI hSS hO.kh hw.1 hI, J.jcov_keep hw.1 hSS hdead, hkern, hutc, J.nsc.cn hC.toHStep, J.inv.cn hC, CurInvW.cn J.cur hC, J.own.cn hC.toHStep, J.off.cn hC.toHStep,
