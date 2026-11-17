@@ -243,7 +243,7 @@ theorem decode_invocation_threadJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (hnc0 : ∀ sl : Fl4Spec.CslotPtr, x0 = cslotAddr sl → isUt (capV (L.mem s) x0) = true →
       NoChildrenRel (st := st) s σ x0 sl)
     (hcapT : ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T)
-    (hcapC : ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ Z.C) (hC0 : ∀ q ∈ Z.C, q ≠ 0#u64)
+    (hcapC : ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ Z.C)
     (hcapN : ∀ q b w r, capV (L.mem s) x0 = .Notification q b w r → q ∈ Z.N)
     (hA5 : ArgRel (st := st) s σ ct buf buffer 5) (hGb : GetBpHyp (st := st) s ct p)
     (hFpu : FpuRelXHyp (L := L) arI AR Z.th p ct)
@@ -259,7 +259,7 @@ theorem decode_invocation_threadJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
   have hpT := J.thT p hp
   exact decode_invocation_threadXL arI s ar σ hX J.ks (J.curRun.run hni) J.thT J.del hG.fin hG.pre (hG.postDel arI hARI hT)
     J.bound hA hBT J.ip lbl length p hp blk call don fp buf extra ct hct hcur slbl hlbl argsU hlen hargs ci sl hAs
-    excaps buffer hext hstall' hNative J.kern.act hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 J.mcp hcapT hcapC hC0
+    excaps buffer hext hstall' hNative J.kern.act hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 J.mcp hcapT hcapC J.c0
     hcapN (fun i hi => hA5 i (by omega)) hI
     (tcbXOpen_of arI s ar σ hX J.ks (J.curRun.run hni) J.thT J.del hBT J.ip hOK hBC hBPl hFl lbl length p hp blk call don buf
       extra ct hct hcur slbl hlbl argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act

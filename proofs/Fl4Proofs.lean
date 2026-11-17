@@ -412,3 +412,4 @@ import Fl4Proofs.P3.ScFireJ
 import Fl4Proofs.P3.ScSignalJ
 import Fl4Proofs.P3.IpcSignalWakeSpec
 import Fl4Proofs.P3.IpcSignalWake
+import Fl4Proofs.P3.JProducers

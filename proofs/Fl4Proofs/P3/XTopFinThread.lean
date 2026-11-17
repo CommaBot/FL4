@@ -18,7 +18,7 @@ gives `XTopAt` at `Z`'s ghost tree (`XTopAt.irel_same`).
 Named: `ThreadFinPre` [J] at the `XTopAt` states (`KsApart`, `BufWordRel`,
 the notifications apart from the kernel-global block, the IPC placement,
 `SchedValid`, `ObjCover`, `Inv`, `NSC`, `OtherTmOK`, `RemoveTcbHyp`, the
-yield relation on `IRel`); the thread cap's object among the TCBs [J]; P1's
+yield relation on `IRel`); P1's
 `ThreadP1Hyp` and `ArchTotal`; `timer::remove`'s footprint [W] (P1's
 `timer.remove.tf`); `ScYieldFinHyp` [W]; the debug-list removal's
 footprint [W] (the TCBs' debug links and the core's `DEBUG_TCBS` word, P1's
@@ -129,8 +129,6 @@ set_option maxHeartbeats 16000000 in
 /-- **`XFinHyps.thread` holds** (module docstring). -/
 theorem xFinThread_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (Cs : Set U64)
     (hpre : ∀ (Z : XSets) s a σ, Z.th = th → XTopAt (L := L) AR Z s a σ → ThreadFinPre (L := L) Cs Z s σ)
-    (hpT : ∀ (Z : XSets) s a σ sl p, Z.th = th → XTopAt (L := L) AR Z s a σ → AbsSlot th sl →
-      capAt (L.mem s) (cslotAddr sl) = ok (.Thread p) → p ∈ Z.T)
     (hP1 : ThreadP1Hyp (L := L) th) (hAT : P0.ArchTotal arI)
     (hTm : ∀ (Z : XSets) s a σ (p : U64), Z.th = th → XTopAt (L := L) AR Z s a σ → p ∈ Z.T →
       timer.remove st s p ⦃ s' => P1.WritesIn st s s' (TmW (L := L) Z.T Cs Z.c s) ∧
@@ -144,7 +142,7 @@ theorem xFinThread_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (Cs : S
     XFinAt (L := L) arI FinThreadK AR th := by
   intro Z s a σ sl c hth hX hK hTh ⟨p, hc0⟩ hDS hA hc hk hw
   subst hth hc0
-  have hpZ := hpT Z s a σ sl p rfl hX hA hc
+  have hpZ : p ∈ Z.T := hTh p (hX.rel.2.1.2.1.abs hA hc)
   obtain ⟨X, hB, hSC, hO⟩ := hP1 s σ Z.G sl _ hDS hA hc hk
   obtain ⟨hpX, hna, hidle, hv0⟩ := hO p rfl
   have hfin : decide (Fl4Spec.isFinalCap' (absCap (.Thread p)) σ) = true := by
