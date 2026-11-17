@@ -42,7 +42,7 @@ theorem JAtZ.curEq {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {
 thread): `curEq`, and the TCB runnable (`CurRunW.run`). -/
 theorem JAtZ.curRunnable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : σ.curThread ≠ σ.idleThread) {ct : U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) :
     σ.curThread = ct.bv ∧ ∃ x, σ.kheap ct.bv = some (.tcb x) ∧ Fl4Spec.runnable x.tcbState = true := by
   obtain ⟨hcur, x, hk⟩ := J.curEq hct
@@ -51,7 +51,7 @@ theorem JAtZ.curRunnable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.H
 /-- **The SchedControl cap on `JAt`** (`decode_invocation_sched_controlXT`). -/
 theorem decode_invocation_sched_controlJAt {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : σ.curThread ≠ σ.idleThread) (hres : σ.schedulerAction ≠ .chooseNewThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) (hres : σ.schedulerAction ≠ .chooseNewThread)
     (htm : TimeAgree arI) (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st Z.N Z.T Z.C Z.c)
