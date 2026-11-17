@@ -111,6 +111,8 @@ structure JKern (H : P1.Heap) (Cs D : Set U64) (th : TypedHeap) (s : S) (σ : Fl
   curH : H (L.curW s) = some .tcb
   cscH : H (L.cscW s) ≠ none
   cscLive : L.cscW s ∉ D
+  /-- [carried] The cores are numbered below 64 (boot; `Cs` never grows). -/
+  csLt : ∀ c ∈ Cs, c.val < 64
 
 /-- **The joint invariant at the ghosts** (module docstring; plan §1). -/
 structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64)
@@ -132,6 +134,9 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   rp : Sched.RPlaced st Z.N Z.T Z.C Z.R Z.c s σ
   apart : Sched.SlotsApart (st := st) Z.th Z.T Z.N Z.C Z.R Z.c s σ
   nk : ∀ n ∈ Z.N, n.val + 40 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val
+  /-- [carried] The IPC-buffer words miss every core's node ([W] producer: the
+  buffer words' frames). -/
+  nodeB : ∀ wp ∈ Z.B, ∀ c ∈ Cs, wp.1.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ wp.1.val
   jpl : ∃ Tr Cq, Sched.JPlaced (L := L) Z.th H Tr Cq s σ
   cover : Sched.SpecCover H σ
   obj : Sched.ObjCover Z.N Z.T Z.E Z.R Z.C σ

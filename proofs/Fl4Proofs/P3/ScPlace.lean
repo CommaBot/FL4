@@ -244,12 +244,16 @@ theorem JPlaced.kwOutBlk (h : JPlaced (L := L) th H Tr C s σ) {Cs Ac : Set U64}
 /-- **The spec's objects in `H`**, the part of the spec-to-FL4 object
 coverage (`Sched.ObjCover`) that the CSpace relation does not give: the
 spec's notifications, endpoints and replies are `H`'s, and no SC sits at
-address 0 (TCBs: `KTyped` and `JPlaced.tcb`; nonzero SCs: `JPlaced.sc`). -/
+address 0 (TCBs: `KTyped` and `JPlaced.tcb`; nonzero SCs: `JPlaced.sc`); the
+arch objects are `H`'s page-sized (or larger) `other` objects. -/
 structure SpecCover (H : Heap) (σ : Fl4Spec.State Unit) : Prop where
   ntfn : ∀ o x, σ.kheap o = some (.notification x) → H ⟨o⟩ = some .ntfn
   ep : ∀ o x, σ.kheap o = some (.endpoint x) → H ⟨o⟩ = some .ep
   reply : ∀ o x, σ.kheap o = some (.reply x) → H ⟨o⟩ = some .reply
   sc0 : ∀ y k, σ.kheap (0#u64 : U64).bv ≠ some (.schedContext y k)
+  /-- The spec's arch objects (page tables, pools, frames) are `H`'s `other`
+  objects of at least a page ([W] producer: retype). -/
+  arch : ∀ o ao, σ.kheap o = some (.archObj ao) → ∃ n, 12 ≤ n ∧ H ⟨o⟩ = some (.other n)
 
 /-- **No spec object in an untyped cap's free part** (l4v `valid_untyped`):
 every object of the spec's heap that meets the range of an untyped cap of

@@ -50,19 +50,20 @@ def KBack (σ σ' : State Unit) : Prop :=
   ∀ o ko', σ'.kheap o = some ko' → ∃ ko, σ.kheap o = some ko ∧
     ((∃ x, ko' = .notification x) → ∃ x, ko = .notification x) ∧
     ((∃ x, ko' = .endpoint x) → ∃ x, ko = .endpoint x) ∧ ((∃ x, ko' = .reply x) → ∃ x, ko = .reply x) ∧
-    ((∃ x, ko' = .tcb x) → ∃ x, ko = .tcb x) ∧ ((∃ x n, ko' = .schedContext x n) → ∃ x n, ko = .schedContext x n)
+    ((∃ x, ko' = .tcb x) → ∃ x, ko = .tcb x) ∧ ((∃ x n, ko' = .schedContext x n) → ∃ x n, ko = .schedContext x n) ∧
+    ((∃ x, ko' = .archObj x) → ∃ x, ko = .archObj x)
 
 theorem KBack.of_kheap {σ σ' : State Unit} (h : σ'.kheap = σ.kheap) : KBack σ σ' := by
   intro o ko' ho
   rw [h] at ho
-  exact ⟨ko', ho, id, id, id, id, id⟩
+  exact ⟨ko', ho, id, id, id, id, id, id⟩
 
 theorem KBack.of_keepC {σ σ' : State Unit} (h : KeepC σ σ') : KBack σ σ' := by
   intro o ko' ho
   rcases h o with e | ⟨r, cs, cs', h1, h2⟩
-  · rw [e] at ho; exact ⟨ko', ho, id, id, id, id, id⟩
+  · rw [e] at ho; exact ⟨ko', ho, id, id, id, id, id, id⟩
   · rw [h2] at ho; cases ho
-    refine ⟨_, h1, ?_, ?_, ?_, ?_, ?_⟩ <;> simp
+    refine ⟨_, h1, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> simp
 
 /-- A TCB replaced by a TCB, the rest of the heap kept. -/
 theorem kback_ksz_upd {σ σ' : State Unit} {p : ObjRef} {x y : Tcb} (hk : σ.kheap p = some (.tcb x))
@@ -71,8 +72,8 @@ theorem kback_ksz_upd {σ σ' : State Unit} {p : ObjRef} {x y : Tcb} (hk : σ.kh
   · rw [he] at ho
     by_cases e : o = p
     · subst e; rw [Function.update_self] at ho; cases ho
-      refine ⟨_, hk, ?_, ?_, ?_, fun _ => ⟨x, rfl⟩, ?_⟩ <;> simp
-    · rw [Function.update_of_ne e] at ho; exact ⟨ko', ho, id, id, id, id, id⟩
+      refine ⟨_, hk, ?_, ?_, ?_, fun _ => ⟨x, rfl⟩, ?_, ?_⟩ <;> simp
+    · rw [Function.update_of_ne e] at ho; exact ⟨ko', ho, id, id, id, id, id, id⟩
   · rw [he] at ho
     by_cases e : o = p
     · subst e; rw [Function.update_self] at ho; cases ho; exact ⟨_, hk, rfl⟩
@@ -80,15 +81,17 @@ theorem kback_ksz_upd {σ σ' : State Unit} {p : ObjRef} {x y : Tcb} (hk : σ.kh
 
 theorem Sched.SpecCover.kback {H : P1.Heap} {σ σ' : State Unit} (h : Sched.SpecCover H σ) (hK : KBack σ σ') :
     Sched.SpecCover H σ' := by
-  refine ⟨fun o x ho => ?_, fun o x ho => ?_, fun o x ho => ?_, fun y k ho => ?_⟩
+  refine ⟨fun o x ho => ?_, fun o x ho => ?_, fun o x ho => ?_, fun y k ho => ?_, fun o ao ho => ?_⟩
   · obtain ⟨ko, hk, h1, -⟩ := hK o _ ho
     obtain ⟨x0, rfl⟩ := h1 ⟨x, rfl⟩; exact h.ntfn o x0 hk
   · obtain ⟨ko, hk, -, h1, -⟩ := hK o _ ho
     obtain ⟨x0, rfl⟩ := h1 ⟨x, rfl⟩; exact h.ep o x0 hk
   · obtain ⟨ko, hk, -, -, h1, -⟩ := hK o _ ho
     obtain ⟨x0, rfl⟩ := h1 ⟨x, rfl⟩; exact h.reply o x0 hk
-  · obtain ⟨ko, hk, -, -, -, -, h1⟩ := hK _ _ ho
+  · obtain ⟨ko, hk, -, -, -, -, h1, -⟩ := hK _ _ ho
     obtain ⟨y0, k0, rfl⟩ := h1 ⟨y, k, rfl⟩; exact h.sc0 y0 k0 hk
+  · obtain ⟨ko, hk, -, -, -, -, -, h1⟩ := hK _ _ ho
+    obtain ⟨a0, rfl⟩ := h1 ⟨ao, rfl⟩; exact h.arch o a0 hk
 
 theorem Sched.ObjCover.kback {N T E R C : Set U64} {σ σ' : State Unit} (h : Sched.ObjCover N T E R C σ)
     (hK : KBack σ σ') : Sched.ObjCover N T E R C σ' := by
@@ -101,7 +104,7 @@ theorem Sched.ObjCover.kback {N T E R C : Set U64} {σ σ' : State Unit} (h : Sc
     obtain ⟨x0, rfl⟩ := h1 ⟨x, rfl⟩; exact h.ep o x0 hk
   · obtain ⟨ko, hk, -, -, h1, -⟩ := hK o _ ho
     obtain ⟨x0, rfl⟩ := h1 ⟨x, rfl⟩; exact h.reply o x0 hk
-  · obtain ⟨ko, hk, -, -, -, -, h1⟩ := hK o _ ho
+  · obtain ⟨ko, hk, -, -, -, -, h1, -⟩ := hK o _ ho
     obtain ⟨y0, k0, rfl⟩ := h1 ⟨y, k, rfl⟩; exact h.sc o y0 k0 hk
 
 end Spec
@@ -162,7 +165,8 @@ theorem JAtZ.cs_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     JAtZ (L := L) arI AR { Z with G := G' } H Cs Ac' Lst' D' s' a' σ' :=
   have hsl : Sched.ScLinkHyp σ' := scLink_rebuild hX J.tcbs_eq.1 (J.obj.kback hkb) R.blk J.hset.2.1 R.jpl J.c0
   ⟨hX, R.call, R.rfree, R.yld, R.mcp, R.buf, by rw [hks]; exact J.ks, J.thT, J.thk, J.ip, R.rp, R.apart,
-    fun n hn => by rw [hks]; exact J.nk n hn, R.jpl, J.cover.kback hkb, J.obj.kback hkb, J.zH, hC.sfree, J.hset, R.jcov,
+    fun n hn => by rw [hks]; exact J.nk n hn,
+    fun wp hw c hc => by simp only [P1.LawfulStore.nodeBase, hks]; exact J.nodeB wp hw c hc, R.jpl, J.cover.kback hkb, J.obj.kback hkb, J.zH, hC.sfree, J.hset, R.jcov,
     R.kern, hC.del, hC.ut, J.bound, hC.finM, R.utc, R.nsc, R.inv, R.cur, R.own, R.off, R.act, J.c0, R.bsa,
     schedValid_rebuild hX J.tcbs_eq.1 J.tcbs_eq.2 (J.obj.kback hkb) R.blk J.hset.1 J.hset.2.1 R.call R.yld J.c0 R.inv
       hsl, R.isorted, hsl, R.curRun, R.blk⟩

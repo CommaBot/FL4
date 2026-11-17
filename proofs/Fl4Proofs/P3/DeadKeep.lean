@@ -325,7 +325,7 @@ theorem JAtZ.kern_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     K.heap, K.h0, by rw [hks]; exact K.hks, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
-    fun h => K.cscLive (hD (by rw [ecs] at h; exact h))⟩
+    fun h => K.cscLive (hD (by rw [ecs] at h; exact h)), K.csLt⟩
   rw [hna, hDbg]; exact K.head
 
 

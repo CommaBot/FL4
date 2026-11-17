@@ -56,9 +56,23 @@ theorem Sched.ScTKw.kind_back {P : ObjRef → Prop} {σ σ' : State Unit} (hK : 
     · subst e; exact ⟨id, id, id, id, id⟩
     all_goals (subst e1; subst e2; refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> intro h <;> simp_all)
 
+/-- The SC code's spec step keeps the arch objects. -/
+theorem Sched.ScTKw.arch_back {P : ObjRef → Prop} {σ σ' : State Unit} (hK : Sched.ScTKw P σ σ') {o : ObjRef}
+    {ao : ArchKernelObj} (ho : σ'.kheap o = some (.archObj ao)) : σ.kheap o = some (.archObj ao) := by
+  have hk := hK.kh o
+  rw [ho] at hk
+  cases h0 : σ.kheap o with
+  | none => rw [h0] at hk; exact hk.elim
+  | some ko =>
+    rw [h0] at hk
+    rcases hk with e | ⟨x, y, -, e2, -⟩ | ⟨x, y, n, -, e2⟩ | ⟨x, y, -, e2, -⟩ | ⟨x, y, -, e2, -⟩
+    · rw [e]
+    all_goals cases e2
+
 theorem Sched.SpecCover.tkw {H : P1.Heap} {P : ObjRef → Prop} {σ σ' : State Unit} (h : Sched.SpecCover H σ)
     (hK : Sched.ScTKw P σ σ') : Sched.SpecCover H σ' := by
-  refine ⟨fun o x ho => ?_, fun o x ho => ?_, fun o x ho => ?_, fun y k ho => ?_⟩
+  refine ⟨fun o x ho => ?_, fun o x ho => ?_, fun o x ho => ?_, fun y k ho => ?_,
+    fun o ao ho => h.arch o ao (hK.arch_back ho)⟩
   · obtain ⟨ko, hk, h1, -⟩ := hK.kind_back ho
     obtain ⟨x0, rfl⟩ := h1 ⟨x, rfl⟩; exact h.ntfn o x0 hk
   · obtain ⟨ko, hk, -, h1, -⟩ := hK.kind_back ho
@@ -222,7 +236,8 @@ theorem JAtZ.sc_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   have hsv : Sched.SchedValid σ' := schedValid_rebuild hX J.tcbs_eq.1 J.tcbs_eq.2 (J.obj.tkw hK) hblk J.hset.1
     J.hset.2.1 hcall hyl J.c0 hinv hsl
   refine ⟨hX, hcall, hrf, hyl, hmcp, hbuf, by rw [hks]; exact J.ks, J.thT, J.thk, J.ip, hrp, hap,
-    fun n hn => by rw [hks]; exact J.nk n hn, hjpl, J.cover.tkw hK, J.obj.tkw hK, J.zH, ?_, J.hset, hjc, hkern,
+    fun n hn => by rw [hks]; exact J.nk n hn,
+    fun wp hw c hc => by simp only [P1.LawfulStore.nodeBase, hks]; exact J.nodeB wp hw c hc, hjpl, J.cover.tkw hK, J.obj.tkw hK, J.zH, ?_, J.hset, hjc, hkern,
     J.del.of_same hSS, UtInv.of_same hM J.ut hSS, J.bound, fun G hG => ?_, hutc, hnsc, hinv, hcur, hown, hoff, hact,
     J.c0, hbsa, hsv, J.isorted.tkw hK, hsl, hcr, hblk⟩
   · refine SpecFree.frame J.sfree (fun x' hx' p sb fi' d hc => ⟨x', hx', fi', d, ?_, le_rfl⟩) hK.ksz
