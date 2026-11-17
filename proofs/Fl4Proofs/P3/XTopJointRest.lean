@@ -1054,6 +1054,31 @@ theorem jowes_sched {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S
     J.jpl_keep arI hSS hK.kh hw.1 hI, J.jcov_keep hw.1 hSS hdead, hkern, hutc, J.nsc.cn hC, hI', hcur', J.own.cn hC, J.off.cn hC, hA', J.bsa.cn hC, J.isorted.cn hC,
     J.curRun.cn hC, hblk⟩⟩
 
+
+/-- **`JStepHyps` from its deletion field alone**: every other primitive
+step's residue is discharged (`jowes_restart`, `jowes_ks`, `jowes_ins`,
+`jowes_sched`, `jowes_cn`); the notification cap's deletion (`del`, the IPC
+side's finalisation) stays the named premise [W]. -/
+theorem JStepHyps.of_del {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
+    (hdel : ∀ (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit) (sl : Fl4Spec.CslotPtr) (p b : U64) (w r : Bool),
+      AbsSlot th sl → capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
+      cdt.delete_one st arI s a (cslotAddr sl) = ok (s', a') → ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 →
+      ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
+        JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → ∃ G' : MdbGhost,
+          XTopAt (L := L) AR { Z with G := G' } s' a' σ' ∧ L.ksb s' = L.ksb s ∧ KBack σ σ' ∧
+          JCs (L := L) { Z with G := G' } s' σ' ∧
+          ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+            JRest (L := L) arI { Z with G := G' } H Cs Ac' Lst' D' s' σ') :
+    JStepHyps (L := L) arI AR th where
+  restart := fun s a σ ct x s1 hcur hk htcb hrun hs1 => jowes_restart arI s a σ ct x s1 hcur hk htcb hrun hs1
+  ks := fun s s' a a' σ σ' hw hO _ _ _ _ _ _ => jowes_ks arI s s' a a' σ σ' hw hO
+  slot := fun s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu hw _ hFI hMO _ hTK hT3 hDL hDl =>
+    jowes_ins arI s s' a σ σ' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu hw hFI hMO hTK hT3 hDL hDl
+  sched := fun s s' a σ σ' hS => jowes_sched arI s s' a σ σ' hS
+  cslot := fun s s' a σ σ' G' hcn hkc hCK hUK horig hw _ hFI hMO _ hTK hT3 hkz hDl W hW hcW hoW hUS =>
+    jowes_cn arI s s' a σ σ' hcn hkc hCK hUK horig hw hFI hMO hkz hTK hT3 hDl W hW hcW hoW hUS
+  del := hdel
+
 end
 
 end
