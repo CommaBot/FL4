@@ -19,16 +19,20 @@ ScFireJ), by the notification's state.
   register, `TChg`) and its scheduler invariants (`Inv`, `BlockedScActive`,
   `ActIdle`, `CurInv` unless `choose_new_thread`, `CurRunM`), `JRest` as
   `finNtfnJ`'s; P1's `BlkOK` and footprint by `send_signal.tinvF`.
-* `SignalRestJHyp` [J]: the other branches (a waiting notification's head
-  given the notification's SC, the head having none and the SC bound to no
-  thread: `schedContextDonate`/`Resume`; idle and bound to a thread blocked
-  receiving: its `cancel_ipc`; or the bound thread `RunningVM`, FL4's remote
+* The idle notification bound to a thread blocked receiving, without SC
+  donation: `JAtZ.signal_boundJ` (ScSignalBoundJ: its `cancel_ipc`, then the
+  wake, in the frame `CFr`), with the named premise `RecvReplyHyp` [J].
+* `SignalRestJHyp` [J]: the other branches (the woken thread given the
+  notification's SC, the thread having none and the SC bound to no thread:
+  `schedContextDonate`/`Resume`, for a waiting notification's head or a bound
+  thread blocked receiving; or the bound thread `RunningVM`, FL4's remote
   stall).
-* `signalJHyp_of`: `SignalJHyp` from `SignalRestJHyp` and P1's `ArchTotal`;
-  `jat_scheduleS`: `jat_scheduleF` with it.
+* `signalJHyp_of`: `SignalJHyp` from `SignalRestJHyp`, `RecvReplyHyp` and P1's
+  `ArchTotal`; `jat_scheduleS`: `jat_scheduleF` with it.
 -/
 import Fl4Proofs.P3.ScFireJ
 import Fl4Proofs.P3.IpcSignalWake
+import Fl4Proofs.P3.ScSignalBoundJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -170,14 +174,15 @@ theorem JAtZ.wake_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
   exact ⟨V', J.cs_frameV hks hX3 F.kback hC R⟩
 
 variable (arI) in
-/-- **The waking signals with a donation or a cancelled receive on `JAtZ`**
-[J] (module docstring): `SignalJHyp`'s statement where `send_signal` wakes
-the head of a waiting notification by donating the notification's SC to it
-(the head without an SC, the SC bound to no thread: `schedContextDonate`,
+/-- **The waking signals with a donation on `JAtZ`** [J] (module
+docstring): `SignalJHyp`'s statement where `send_signal` wakes the head of a
+waiting notification by donating the notification's SC to it (the head
+without an SC, the SC bound to no thread: `schedContextDonate`,
 `schedContextResume`), or wakes the idle notification's bound thread blocked
-receiving (its `cancel_ipc` first), or stalls a remote `RunningVM` thread
-(FL4 runs no VT-x guest). The waiting case without donation is proved
-(`JAtZ.wake_post`). -/
+receiving (its `cancel_ipc` first) with such a donation (`¬ NoDon`), or
+stalls a remote `RunningVM` thread (FL4 runs no VT-x guest). The waiting
+case and the bound-receiver case without donation are proved
+(`JAtZ.wake_post`, `JAtZ.signal_boundJ`). -/
 def SignalRestJHyp (AR : A → Fl4Spec.Cr3 → Prop) (H : P1.Heap) (Cs : Set U64) : Prop :=
   ∀ (Z : XSets) (Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (n badge : U64) (x : Fl4Spec.Notification), JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → n ∈ Z.N →
@@ -186,7 +191,8 @@ def SignalRestJHyp (AR : A → Fl4Spec.Cr3 → Prop) (H : P1.Heap) (Cs : Set U64
         xd.tcbSchedContext = none ∧ x.ntfnSc = some cq ∧ σ.kheap cq = some (.schedContext y k) ∧
         y.scTcb = none) ∨
       (x.ntfnObj = .idleNtfn ∧ ∃ t tcb, x.ntfnBoundTcb = some t ∧
-      σ.kheap t = some (.tcb tcb) ∧ (Fl4Spec.receiveBlocked tcb.tcbState = true ∨ tcb.tcbState = .runningVM))) →
+      σ.kheap t = some (.tcb tcb) ∧ ((Fl4Spec.receiveBlocked tcb.tcbState = true ∧ ¬ NoDon Z.C σ t n.bv) ∨
+        tcb.tcbState = .runningVM))) →
     notification.send_signal st arI s a n badge ⦃ r => ∃ (σ' : Fl4Spec.State Unit) (V' : XVs) (Ac' : Set U64)
       (Lst' : U64 → List U64) (D' : Set U64),
       Fl4Spec.sendSignal (Z := Unit) n.bv badge.bv σ = ({((), σ')}, False) ∧ σ'.domainTime = σ.domainTime ∧
@@ -194,7 +200,8 @@ def SignalRestJHyp (AR : A → Fl4Spec.Cr3 → Prop) (H : P1.Heap) (Cs : Set U64
 
 set_option maxHeartbeats 8000000 in
 /-- **`SignalJHyp` from the waking signals' premise** (module docstring). -/
-theorem signalJHyp_of (hAT : P0.ArchTotal arI) (hW : SignalRestJHyp (L := L) arI AR H Cs) :
+theorem signalJHyp_of (hAT : P0.ArchTotal arI) (hW : SignalRestJHyp (L := L) arI AR H Cs)
+    (hRR : RecvReplyHyp (L := L) arI AR H Cs) :
     SignalJHyp (L := L) arI AR H Cs := by
   intro Z Ac Lst D s a σ n badge J hn
   obtain ⟨x, hk, hx⟩ := J.xtop.ipc.toN.ntfn n hn
@@ -287,7 +294,10 @@ theorem signalJHyp_of (hAT : P0.ArchTotal arI) (hW : SignalRestJHyp (L := L) arI
       obtain ⟨tcb, hkt, -⟩ := hI.1.tcb _ (hx.bound_mem hb0)
       rw [hbt] at hkt
       by_cases hrb : Fl4Spec.receiveBlocked tcb.tcbState = true
-      · exact hW Z Ac Lst D s a σ n badge x J hn hk (Or.inr ⟨ho, t, tcb, hb, hkt, Or.inl hrb⟩)
+      · by_cases hND : NoDon Z.C σ t n.bv
+        · exact J.signal_boundJ hAT hRR hn hk ho (t := L.mem s (nBoundA n)) (by rw [hbt]; exact hb)
+            (by rw [hbt]; exact hkt) hrb (by rw [hbt]; exact hND) badge
+        · exact hW Z Ac Lst D s a σ n badge x J hn hk (Or.inr ⟨ho, t, tcb, hb, hkt, Or.inl ⟨hrb, hND⟩⟩)
       by_cases hvm : tcb.tcbState = .runningVM
       · exact hW Z Ac Lst D s a σ n badge x J hn hk (Or.inr ⟨ho, t, tcb, hb, hkt, Or.inr hvm⟩)
       have hrb' : Fl4Spec.receiveBlocked tcb.tcbState = false := by simpa using hrb
@@ -306,7 +316,7 @@ theorem jat_scheduleS {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
         Z.th t = some .tcb ∧ ∀ p asid, capAt (L.mem s1) (slotOf t 1) = ok (.Pml4 p true asid) → asid ≠ 0#u64)
-    (hW : SignalRestJHyp (L := L) arI AR H Cs)
+    (hW : SignalRestJHyp (L := L) arI AR H Cs) (hRR : RecvReplyHyp (L := L) arI AR H Cs)
     (hA : ArchSw st arI Z.N Z.T Z.C Z.c)
     (hsni : SniHyp st arI Z.N Z.T Z.C Z.c) (hsend : SendHyp st arI Z.N Z.T Z.C Z.c) (hT : TimeAgree arI)
     (hTail : sched.schedule st arI s a ⦃ r => ∀ (rf : S × A) σ1 σ' (D1 : Set U64), Fires σ σ1 →
@@ -317,7 +327,7 @@ theorem jat_scheduleS {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     sched.schedule st arI s a ⦃ r => ∃ (σ' : Fl4Spec.State Unit) (V' : XVs) (Ac' : Set U64)
       (Lst' : U64 → List U64) (D' : Set U64), JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' r.1 r.2 σ' ∧
         CurInv σ' ⦄ :=
-  jat_scheduleF s a σ J hd hnd hAT hVt (signalJHyp_of hAT hW) hA hsni hsend hT hTail
+  jat_scheduleF s a σ J hd hnd hAT hVt (signalJHyp_of hAT hW hRR) hA hsni hsend hT hTail
 
 end
 
