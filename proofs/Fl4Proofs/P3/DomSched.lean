@@ -32,6 +32,58 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
+/-- **The domain cap at any `X` reached by the primitive steps** (as
+`decode_invocation_domainX`, from `DomPost`'s `Steps`). -/
+theorem decode_invocation_domainXS {AR : A → Fl4Spec.Cr3 → Prop} (hcfg : DomConfig)
+    (th : TypedHeap) (hP : Placed th) (s : S) (ar : A)
+    (σ : Fl4Spec.State Unit) (G : MdbGhost)
+    (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
+    (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64) (hka : (L.ksb s).val % 8 = 0)
+    (hksO : ∀ o : U64, o.val < 256 → o.val % 8 = 0 → OutsideObjects th (ksW (L.ksb s) o))
+    (hactK : ∀ o : U64, o.val < 256 → (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION).val ≠ (ksW (L.ksb s) o).val)
+    (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = domLabelOf lbl)
+    (length buf : U64) (args : List U64) (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (excs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraSRel th (L.mem s) x0 excs)
+    (hSet : DomSetHyp (L := L) th s σ ct) (hRes : DomResHyp (L := L) th s σ ct) (hC : CurRun σ)
+    {X : S → A → Fl4Spec.State Unit → Prop} (hX0 : X s ar σ)
+    (hstep : ∀ s' a' σ', Steps (L := L) arI th s ar σ s' a' σ' → X s' a' σ')
+    (hXX : ∀ s' a' σ', X s' a' σ' → XTop (L := L) AR s' a' σ')
+    (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (buffer : Option Fl4Spec.ObjRef) :
+    XCap (L := L) arI X s ar σ lbl length slot .Domain blk call don fp buf extra slbl
+      (args.map UScalar.bv) ci sl excs buffer ct := by
+  left
+  unfold DecOKDMX syscall.decode_invocation
+  rw [hct]; simp only [bind_ok]
+  cases fp
+  · simp only [Bool.false_eq_true, ↓reduceIte]
+    refine WP.spec_bind (domain_decode_refines hcfg th hP s σ G hCR hFI hDR ct hct hcur htcb hact hkf hka hksO hactK
+      lbl slbl hlbl length buf args hlen hargs extra x0 hx0 excs hex hSet hRes) ?_
+    rintro ⟨r0, s'⟩ hq
+    simp only [uncurry_apply_pair]
+    rw [WP.spec_ok]
+    rcases hq with ⟨e, he, hs', e', h1, h2⟩ | ⟨he, inv, hrun, σ1, hst, y, hy, -, -, -, -, -, hstp⟩
+    · simp only at he hs'
+      subst hs'
+      exact Or.inl ⟨e, he, rfl, ⟨e', run_liftME_err h1, Or.inl h2⟩, hX0⟩
+    · have hm : ((.ok [], y.2) : Except Unit (List Fl4Spec.Data) × Fl4Spec.State Unit) ∈
+          ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don (.invokeDomain inv)).run σ1).1 := by
+        show _ ∈ ((Fl4Spec.NonDetE.liftE (do Fl4Spec.invokeDomain (Z := Unit) inv; return ([] : List Fl4Spec.Data))).run
+          σ1).1
+        exact mem_liftE (x := ([], y.2)) (mem_bind_nd hy rfl)
+      have hXa := hstep _ _ _ (hstp hC A arI ar)
+      obtain ⟨Z', hZ'⟩ := hXX _ _ _ hXa
+      exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], y.2), hm,
+        ⟨Z'.th, Z'.G, Or.inl ⟨he, rfl⟩, hZ'.rel.1, hZ'.rel.2.1, hZ'.rel.2.2.1, hZ'.rel.2.2.2.1,
+          hZ'.rel.2.2.2.2.1⟩, hXa⟩
+  · simp only [↓reduceIte]
+    rw [WP.spec_ok]
+    exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, hX0⟩
+
 /-- **`DomXHyp` for the domain cap**, every label, from `DomPost`'s `Steps`;
 beyond `decode_invocation_domain`'s hypotheses, `XTopAt` at its typed heap,
 `KsApart`, the current thread runnable, the typed heap's TCBs in `Z.T`,
