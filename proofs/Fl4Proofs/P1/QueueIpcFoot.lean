@@ -400,20 +400,28 @@ theorem IpcW.cur0w {s : S} {b : U64} (hU : UserOK st T Cs Ω H U s) (h : IpcW st
   · exact XferFoot.cur0w hU h
   · exact Or.inr (Or.inr (Or.inl h.1))
 
-/-- **`send_ipc`'s footprint**: under `send_ipc.ipc`'s hypotheses, with the
-transfer's footprint (`XferFootOK`) and `RS` after the receiver's dequeue
-(a `KW` step from `s`), `send_ipc` writes only `IpcW` words. -/
-theorem endpoint.send_ipc.foot {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
-    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U (XG st T Cs Ω H Sg Scs Z P3Ok)) {RS : S → S → Prop} (hxw : XferFootOK st ar T Cs Ω H Sg Rp Scs Nt Z U RS (XG st T Cs Ω H Sg Scs Z P3Ok)) (s : S) (a : A) (blocking do_call : Bool)
+/-- **A property `send_ipc` keeps**: under `send_ipc.ipc`'s hypotheses, a
+property `Pst` of the states that holds at the start, is kept by `KW` steps
+(`hPK`) and holds after the message transfer from a state the receiver's
+dequeue (a `KW` step from `s`) reached (`hxP`), holds at the end
+(`send_ipc.foot`: `IpcFoot` from `s`; `send_ipc.xg`: `XG`). -/
+theorem endpoint.send_ipc.footP {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
+    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U (XG st T Cs Ω H Sg Scs Z P3Ok)) (s : S) (a : A) (blocking do_call : Bool)
     (badge : U64) (can_grant can_grant_reply can_donate : Bool) (t e : U64)
     (Q : U64 → U64 → List U64) (R : U64 → List U64)
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s) (hU : UserOK st T Cs Ω H U s)
     (hc : CanBlock st T Ac s t) (hdon : can_donate = true → L.mem s (scA t) ≠ 0#u64)
-    (hH : H e = some .ep) (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (KW st T Cs Sg Scs Z (EH H) s1) → RS s2 s2)
-    (hRS0 : RS s s) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) :
+    (hH : H e = some .ep) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) (Pst : S → Prop)
+    (hPK : ∀ s1 s2 : S, Pst s1 → Foot st T Cs Sg Scs Z (EH H) s1 s2 → Pst s2) (hP0 : Pst s)
+    (hxP : ∀ (Ac X : Set U64) (Q : U64 → U64 → List U64) (R : U64 → List U64) (s1 : S) (a : A) (snd ep badge : U64)
+      (grant : Bool) (rcv : U64), snd ∈ T → rcv ∈ T →
+      SchedQueuesInvX st T Cs Ω H X s1 Q R → BoundInv st T Ac s1 → XInv st T Cs Ω Sg Rp Scs Nt Z s1 →
+      SCsOK st T Ω Sg Scs Z Ac s1 → SgOK st Ω Sg s1 → UserOK st T Cs Ω H U s1 →
+      Foot st T Cs Sg Scs Z (EH H) s s1 → XG st T Cs Ω H Sg Scs Z P3Ok s1 →
+      ipc.do_ipc_transfer st ar s1 a snd ep badge grant rcv ⦃ s2 => Pst s2 ⦄) :
     endpoint.send_ipc st ar s a blocking do_call badge can_grant can_grant_reply can_donate t e
-      ⦃ s' _ => IpcFoot st T Cs Ω Sg Scs Z (EH H) U s s' ⦄ := by
+      ⦃ s' _ => Pst s' ⦄ := by
   have hidle := hc.ni
   have hT := h.tcbs
   have ht := hc.mem
@@ -421,10 +429,10 @@ theorem endpoint.send_ipc.foot {A : Type _} {ar : machine.Arch A} (hA : P0.ArchT
   rcases ep_state3 h hH with e0 | e0 | e0
   · exact WP.spec_mono (endpoint.send_ipc.blockFoot (Sg := Sg) (Scs := Scs) (Z := Z) ar s a blocking do_call badge
       can_grant can_grant_reply can_donate t e h (fun _ => hc) hH (Or.inl e0)) fun r hh => by
-        obtain ⟨s', a'⟩ := r; simp only [WP.uncurry'_pair] at hh ⊢; exact Foot.ipc hh
+        obtain ⟨s', a'⟩ := r; simp only [WP.uncurry'_pair] at hh ⊢; exact hPK _ _ hP0 hh
   · exact WP.spec_mono (endpoint.send_ipc.blockFoot (Sg := Sg) (Scs := Scs) (Z := Z) ar s a blocking do_call badge
       can_grant can_grant_reply can_donate t e h (fun _ => hc) hH (Or.inr e0)) fun r hh => by
-        obtain ⟨s', a'⟩ := r; simp only [WP.uncurry'_pair] at hh ⊢; exact Foot.ipc hh
+        obtain ⟨s', a'⟩ := r; simp only [WP.uncurry'_pair] at hh ⊢; exact hPK _ _ hP0 hh
   -- a receiving endpoint
   obtain ⟨hdT, hbe, -, hds⟩ := ep_head h hH (Or.inr rfl) e0
   have hds := hds rfl
@@ -456,10 +464,8 @@ theorem endpoint.send_ipc.foot {A : Type _} {ar : machine.Arch A} (hA : P0.ArchT
       fun c hc o ho => nc1 c hc o (by omega) (by omega), fun n' hn' => o1 _ (hSg.sub _ (hX.1.ntB n' hn').2)⟩
   refine WP.spec_bind (WP.spec_and (hxf _ _ _ _ s1 a t e badge can_grant hd ht hdT h1 hB1 hX1 hS1 hSg1 (hU.ksb k1)
       (hG.foot F1))
-    (hxw _ _ _ _ s1 a t e badge can_grant hd ht hdT h1 hB1 hX1 hS1 hSg1 (hU.ksb k1) (hRSK s s s1 hRS0 F1)
-      (hG.foot F1))) ?_
-  rintro s2 ⟨⟨h2, hB2, hX2, hS2, hSg2, ⟨ea2, ec2, ei2, ecs2, f2, o2, -⟩, -⟩, w2, -⟩
-  have F2 : IpcFoot st T Cs Ω Sg Scs Z (EH H) U s s2 := (Foot.ipc F1).trans (XferW.ipc w2)
+    (hxP _ _ _ _ s1 a t e badge can_grant hd ht hdT h1 hB1 hX1 hS1 hSg1 (hU.ksb k1) F1 (hG.foot F1))) ?_
+  rintro s2 ⟨⟨h2, hB2, hX2, hS2, hSg2, ⟨ea2, ec2, ei2, ecs2, f2, o2, -⟩, -⟩, F2⟩
   have F : ∀ y ∈ T, ∀ K : U64, 3328 ≤ K.val → K.val < 4096 → K.val % 8 = 0 → K.val ≠ 3496 → K.val ≠ 3504 →
       L.mem s2 (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K) :=
     fun y hy K h0 hK hK8 h1' h2' => (f2 y hy K h0 hK hK8).trans (f1 y hy K hK hK8 h1' h2')
@@ -483,7 +489,7 @@ theorem endpoint.send_ipc.foot {A : Type _} {ar : machine.Arch A} (hA : P0.ArchT
       ((i != 0#u64) = true → hd ∉ X3 ∧ i ∈ Rp ∧ L.mem s3 (rTcbA i) = 0#u64) ∧
       L.mem s3 (stA t) = L.mem s (stA t) ∧ L.mem s3 (inqA t) = L.mem s (inqA t) ∧
       L.mem s3 (scA t) = L.mem s (scA t) ∧ L.actionW s3 ≠ t ∧ L.idleW s3 = L.idleW s ∧
-      L.mem s3 (scA hd) = L.mem s (scA hd) ∧ IpcFoot st T Cs Ω Sg Scs Z (EH H) U s s3) ?_ ?_
+      L.mem s3 (scA hd) = L.mem s (scA hd) ∧ Pst s3) ?_ ?_
   · split
     · rename_i hi
       have hi0 : i ≠ 0#u64 := by simpa using hi
@@ -504,7 +510,7 @@ theorem endpoint.send_ipc.foot {A : Type _} {ar : machine.Arch A} (hA : P0.ArchT
         fun y hy => ?_, Or.inr (by rw [e3]; exact not_blocked_inactive), by rw [e3]; exact not_runnable_inactive,
         fun hm => absurd rfl hm.2, fun _ => e3, fun _ => ⟨fun hm => hm.2 rfl, hiR, z3⟩,
         (k3.stf ht (Ne.symm hdt)).trans (Fst t ht), (k3.inqf ht).trans (Fiq t ht), (k3.scf ht).trans (Fsc t ht),
-        ?_, k3.idleW.trans ei2', (k3.scf hdT).trans (Fsc hd hdT), F2.trans (Foot.ipc fu)⟩
+        ?_, k3.idleW.trans ei2', (k3.scf hdT).trans (Fsc hd hdT), hPK _ _ F2 fu⟩
       · obtain ⟨hy1, hy2⟩ := hy
         rcases hy1 with hy1 | hy1
         · exact absurd hy1 (Set.notMem_empty _)
@@ -551,7 +557,7 @@ theorem endpoint.send_ipc.foot {A : Type _} {ar : machine.Arch A} (hA : P0.ArchT
       hSg4 hdT hXc4 hx4 hnr4 hdA4) fun r hr => ?_
     obtain ⟨s', a'⟩ := r
     simp only [WP.uncurry'_pair] at hr ⊢
-    exact F3.trans (Foot.ipc (f4.trans hr))
+    exact hPK _ _ F3 (f4.trans hr)
   have Ppush : ∀ cd : Bool, (i != 0#u64) = true → ipc.reply_push st ar s3 a t hd i cd ⦃ r => ∃ X4 : Set U64,
       (∃ Q4 R4, SchedQueuesInvX st T Cs Ω H X4 r.1 Q4 R4) ∧
       BoundInv st T Ac r.1 ∧ XInv st T Cs Ω Sg Rp Scs Nt Z r.1 ∧ SCsOK st T Ω Sg Scs Z Ac r.1 ∧ SgOK st Ω Sg r.1 ∧
@@ -655,6 +661,46 @@ theorem endpoint.send_ipc.foot {A : Type _} {ar : machine.Arch A} (hA : P0.ArchT
       | exact Ppush _ (by assumption)
       | exact Pdon (by assumption)
       | exact Pok
+
+
+/-- **`send_ipc`'s footprint**: under `send_ipc.ipc`'s hypotheses, with the
+transfer's footprint (`XferFootOK`) and `RS` after the receiver's dequeue
+(a `KW` step from `s`), `send_ipc` writes only `IpcW` words. -/
+theorem endpoint.send_ipc.foot {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
+    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U (XG st T Cs Ω H Sg Scs Z P3Ok)) {RS : S → S → Prop} (hxw : XferFootOK st ar T Cs Ω H Sg Rp Scs Nt Z U RS (XG st T Cs Ω H Sg Scs Z P3Ok)) (s : S) (a : A) (blocking do_call : Bool)
+    (badge : U64) (can_grant can_grant_reply can_donate : Bool) (t e : U64)
+    (Q : U64 → U64 → List U64) (R : U64 → List U64)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
+    (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s) (hU : UserOK st T Cs Ω H U s)
+    (hc : CanBlock st T Ac s t) (hdon : can_donate = true → L.mem s (scA t) ≠ 0#u64)
+    (hH : H e = some .ep) (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (KW st T Cs Sg Scs Z (EH H) s1) → RS s2 s2)
+    (hRS0 : RS s s) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) :
+    endpoint.send_ipc st ar s a blocking do_call badge can_grant can_grant_reply can_donate t e
+      ⦃ s' _ => IpcFoot st T Cs Ω Sg Scs Z (EH H) U s s' ⦄ :=
+  endpoint.send_ipc.footP hA hxf s a blocking do_call badge can_grant can_grant_reply can_donate t e Q R h hB hX hS
+    hSg hU hc hdon hH hG (fun s' => IpcFoot st T Cs Ω Sg Scs Z (EH H) U s s')
+    (fun _ _ p f => IpcFoot.trans p (Foot.ipc f)) (IpcFoot.refl s)
+    fun Ac' X Q' R' s1 a' snd ep badge' grant rcv hs hr h1 hB1 hX1 hS1 hSg1 hU1 F1 hG1 =>
+      WP.spec_mono (hxw Ac' X Q' R' s1 a' snd ep badge' grant rcv hs hr h1 hB1 hX1 hS1 hSg1 hU1 (hRSK s s s1 hRS0 F1) hG1)
+        fun s2 hh => (Foot.ipc F1).trans (XferW.ipc hh.1)
+
+/-- **`send_ipc` keeps `XG`**: the message transfer's guard is kept by the
+transfer (`XferOK`), and every other step is a `KW` step. -/
+theorem endpoint.send_ipc.xg {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
+    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U (XG st T Cs Ω H Sg Scs Z P3Ok)) (s : S) (a : A) (blocking do_call : Bool)
+    (badge : U64) (can_grant can_grant_reply can_donate : Bool) (t e : U64)
+    (Q : U64 → U64 → List U64) (R : U64 → List U64)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
+    (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s) (hU : UserOK st T Cs Ω H U s)
+    (hc : CanBlock st T Ac s t) (hdon : can_donate = true → L.mem s (scA t) ≠ 0#u64)
+    (hH : H e = some .ep) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) :
+    endpoint.send_ipc st ar s a blocking do_call badge can_grant can_grant_reply can_donate t e
+      ⦃ s' _ => XG st T Cs Ω H Sg Scs Z P3Ok s' ⦄ :=
+  endpoint.send_ipc.footP hA hxf s a blocking do_call badge can_grant can_grant_reply can_donate t e Q R h hB hX hS
+    hSg hU hc hdon hH hG (XG st T Cs Ω H Sg Scs Z P3Ok) (fun _ _ p f => XG.foot p f) hG
+    fun Ac' X Q' R' s1 a' snd ep badge' grant rcv hs hr h1 hB1 hX1 hS1 hSg1 hU1 _ hG1 =>
+      WP.spec_mono (hxf Ac' X Q' R' s1 a' snd ep badge' grant rcv hs hr h1 hB1 hX1 hS1 hSg1 hU1 hG1)
+        fun _ hh => hh.2.2.2.2.2.2
 
 
 
@@ -890,6 +936,42 @@ theorem faults.handle_timeout.foot {A : Type _} {ar : machine.Arch A} (hA : P0.A
     exact (WP.spec_ok _).2 ((Foot.ipc F1).trans (by simpa using h2))
   · rintro ⟨x, s2, a2⟩ h2
     exact (WP.spec_ok _).2 h2
+
+/-- **A timeout fault keeps `XG`**: `set_fault` is a `KW` step and
+`send_ipc` keeps `XG` (`send_ipc.xg`). -/
+theorem faults.handle_timeout.xg {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
+    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U (XG st T Cs Ω H Sg Scs Z P3Ok)) {Ac : Set U64} (s : S) (a : A)
+    (t : obj.Tcb) (f : error.Fault)
+    (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hU : UserOK st T Cs Ω H U s) (hc : CanBlock st T Ac s t)
+    (hcap : obj.Tcb.slot t layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl =>
+      obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄)
+    (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) :
+    faults.handle_timeout st ar s a t f ⦃ s' _ => XG st T Cs Ω H Sg Scs Z P3Ok s' ⦄ := by
+  have ht := hc.mem
+  unfold faults.handle_timeout
+  refine WP.spec_bind hcap fun sl hsl => ?_
+  refine WP.spec_bind hsl fun c hct => ?_
+  unfold faults.send_fault_ipc
+  refine WP.spec_bind (Pₘ := fun r : Bool × S × A => XG st T Cs Ω H Sg Scs Z P3Ok r.2.1) ?_ ?_
+  · split
+    all_goals first | exact (WP.spec_ok _).2 hG | skip
+    rename_i p b x y g gr
+    have hpH := hct.1 p b x y g gr rfl
+    refine WP.spec_bind (WP.spec_and (faults.set_fault.blk s t f h ht hU hc)
+      (faults.set_fault.kw (Cs := Cs) (Sg := Sg) (Scs := Scs) (Z := Z) (Es := EH H) s t f h.1.choose_spec.choose_spec.tcbs ht)) ?_
+    rintro s1 ⟨⟨h1, hU1, hc1⟩, F1⟩
+    obtain ⟨⟨Q1, R1, q1⟩, hB1, hX1, hS1, hSg1⟩ := h1
+    refine WP.spec_bind (endpoint.send_ipc.xg hA hxf s1 a true false b g gr false t p Q1 R1 q1 hB1 hX1 hS1 hSg1
+      hU1 hc1 (fun e => by cases e) hpH (hG.foot F1)) ?_
+    rintro ⟨s2, a1⟩ h2
+    exact (WP.spec_ok _).2 (by simpa using h2)
+  · rintro ⟨x, s2, a2⟩ h2
+    exact (WP.spec_ok _).2 h2
+
+/-- **`TmoXG` holds**: a timeout fault from an `XG` state ends at an `XG`
+state (`handle_timeout.xg`). -/
+theorem tmoXG_holds {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) : TmoXG st ar :=
+  fun _ _ _ _ _ _ _ _ _ _ _ hxf _ s a t f hG h hU hc hcap => faults.handle_timeout.xg hA hxf s a t f h hU hc hcap hG
 
 
 theorem RTail.postponeK {s : S} {i : U64} (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (r : RTail st T Ac s i)

@@ -524,7 +524,8 @@ structure P3Place (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar :
   recvOK : ∀ (Ac : Set U64) (s : S), XG st T Cs Ω H Sg Scs Z P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     (∀ cptr, cspace.lookup_cap st s (L.curW s) cptr ⦃ r => ∀ c, r = .Ok c → CapTyped H Rp Nt c ⦄) ∧
     (∀ n ∈ Nt, L.epState s n ≠ 3#u64)
-  irqcap : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → ∀ i : U64, i.val < 128 →
+  irqcap : ∀ (Ac : Set U64) (s : S), XG st T Cs Ω H Sg Scs Z P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    ∀ i : U64, i.val < 128 →
     obj.Slot.cap st (irqSlotA (L.ksb s) i) s ⦃ c => ∀ ptr b0 b1 b2, c = .Notification ptr b0 b1 b2 → ptr ∈ Nt ⦄
   dbg : ∀ (Ac : Set U64) (s : S), EntAt st P3Ok s → EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     syscall.invoked_cap st s (L.curW s) ⦃ c => ∀ x, c = .Thread x → x ∈ T ⦄
@@ -567,6 +568,7 @@ theorem EntryHyps.of_gaps {A : Type _} {ar : machine.Arch A} {Adm : PSets → Pr
 and the P3 placement facts `P3Place`** of every admissible tuple; the entry
 ends over some admissible tuple. -/
 theorem kernel_entry.entry_of {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
+    (TX : TmoXG st ar)
     (GF : ∀ σ : PSets, Adm σ → P3Place st ar σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z U P3Ok ∧
       InvGaps st ar Adm σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z U P3Ok ∧ ∀ n ∈ σ.Nt, σ.H n = some .ntfn)
     (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)
@@ -575,7 +577,7 @@ theorem kernel_entry.entry_of {A : Type _} {ar : machine.Arch A} {Adm : PSets �
       ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) ∧
     (∀ irq : U64, syscall.handle_interrupt_entry st ar s a irq ⦃ s' _ =>
       ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) :=
-  kernel_entry.entry hA (fun σ h' => ⟨EntryHyps.of_gaps hA h' (fun σ'' h'' => (GF σ'' h'').1) (GF σ h').1
+  kernel_entry.entry hA TX (fun σ h' => ⟨EntryHyps.of_gaps hA h' (fun σ'' h'' => (GF σ'' h'').1) (GF σ h').1
     (GF σ h').2.1, (GF σ h').2.2⟩) hσ s a hP h
 
 end

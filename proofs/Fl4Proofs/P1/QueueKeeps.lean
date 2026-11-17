@@ -465,7 +465,8 @@ theorem EntryHyps.of {U : Set U64} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (recvOK : ∀ (Ac : Set U64) (s : S), XG st T Cs Ω H Sg Scs Z P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
       (∀ cptr, cspace.lookup_cap st s (L.curW s) cptr ⦃ r => ∀ c, r = .Ok c → CapTyped H Rp Nt c ⦄) ∧
       (∀ n ∈ Nt, L.epState s n ≠ 3#u64))
-    (irqcap : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → ∀ i : U64, i.val < 128 →
+    (irqcap : ∀ (Ac : Set U64) (s : S), XG st T Cs Ω H Sg Scs Z P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+      ∀ i : U64, i.val < 128 →
       obj.Slot.cap st (irqSlotA (L.ksb s) i) s ⦃ c => ∀ ptr b0 b1 b2, c = .Notification ptr b0 b1 b2 → ptr ∈ Nt ⦄)
     (debug : ∀ (Ac : Set U64) (s : S) (a : A) (n : I64), EntAt st P3Ok s → EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
       syscall.debug_syscall st ar s a (L.curW s) n ⦃ _ s' _ => ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄)
