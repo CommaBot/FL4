@@ -263,7 +263,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
     }
     cpu::write_cr4(cr4);
     let (kernel_root, window_top) = paging::init(nx, spec::skim());
-    let stack_top = percpu::init(0);
+    let stack_top = percpu::stack_top(0);
     gdt::init_idt();
     gdt::init_core(0, stack_top);
     cpu::init_pat();
@@ -271,7 +271,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
     assert!(spec::init_core(true));
     assert!(fl4_arch_x86_64::vm::init(true));
     kprintln!("FL4: virtualization {}", match fl4_arch_x86_64::vm::backend() { 1 => "VT-x", 2 => "AMD-V", _ => "unavailable" });
-    percpu::get().cr3 = paging::root_paddr();
+    percpu::get().cr3.set(paging::root_paddr());
     if spec::skim() {
         entry::set_kernel_cr3(tlb::kernel_cr3(paging::root_paddr()));
     }
@@ -288,7 +288,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
     apic::write(apic::REG_LVT_LINT0, 1 << 16);
     apic::write(apic::REG_LVT_LINT1, 1 << 16);
     apic::write(apic::REG_LVT_ERROR, 1 << 16);
-    percpu::get().apic_id = apic::id();
+    percpu::set_apic_id(apic::id());
     for i in 0..acpi.n_ioapics {
         ioapic::add(pptr(acpi.ioapics[i]));
     }

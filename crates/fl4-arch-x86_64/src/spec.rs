@@ -156,8 +156,8 @@ pub fn init_core(bsp: bool) -> bool {
     }
     let plan = select(&c);
     let pc = percpu::get();
-    pc.spec_plan = plan.ok();
-    pc.spec_rejected = plan.err();
+    pc.spec_plan.set(plan.ok());
+    pc.spec_rejected.set(plan.err());
     let mut entry = 0;
     let mut spec_ctrl = 0;
     let mut auto = false;
@@ -221,7 +221,7 @@ pub fn init_core(bsp: bool) -> bool {
 }
 
 pub(crate) fn vmexit() -> Option<u32> {
-    percpu::get().spec_plan.map(|p| p.vmexit)
+    percpu::get().spec_plan.get().map(|p| p.vmexit)
 }
 pub fn skim() -> bool {
     SKIM.load(Ordering::Relaxed)
@@ -309,7 +309,7 @@ impl fmt::Display for Status {
 }
 pub fn describe() -> Status {
     let pc = percpu::get();
-    Status(pc.spec_plan, pc.spec_rejected)
+    Status(pc.spec_plan.get(), pc.spec_rejected.get())
 }
 
 #[cfg(test)]

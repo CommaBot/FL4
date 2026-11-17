@@ -125,10 +125,10 @@ fn save_user(s: &mut PhysStore, f: &Frame) {
     // With FSGSBASE the thread may have moved its FS or GS base itself.
     if cpu::fsgsbase() {
         let pc = percpu::get();
-        pc.fs_base = cpu::fs_base();
-        pc.gs_base = cpu::gs_base();
-        w(s, reg::FS_BASE, pc.fs_base);
-        w(s, reg::GS_BASE, pc.gs_base);
+        pc.fs_base.set(cpu::fs_base());
+        pc.gs_base.set(cpu::gs_base());
+        w(s, reg::FS_BASE, pc.fs_base.get());
+        w(s, reg::GS_BASE, pc.gs_base.get());
     }
 }
 
@@ -176,15 +176,15 @@ pub fn lock() -> bool {
                 stalled.set(true);
             }
         });
-        percpu::get().gate_held = true;
+        percpu::get().gate_held.set(true);
     }
     !stalled.get()
 }
 
 fn unlock() {
     let pc = percpu::get();
-    if pc.gate_held {
-        pc.gate_held = false;
+    if pc.gate_held.get() {
+        pc.gate_held.set(false);
         GATE.release(&Phys);
     }
 }
@@ -221,9 +221,9 @@ impl fl4_sync::EntryEnv for KernelEnv {
     }
     fn set_tx(&self, on: bool) {
         let pc = percpu::get();
-        pc.tx = on;
+        pc.tx.set(on);
         if on {
-            pc.held_used = false;
+            pc.held_used.set(false);
         }
     }
     fn finish_effects(&self, committed: bool) {
@@ -236,21 +236,21 @@ impl fl4_sync::EntryEnv for KernelEnv {
     fn entry_done(&self) {
         // An interrupt only an aborted attempt took stays for unhandled_irq.
         let pc = percpu::get();
-        if pc.held_used {
-            pc.held_irq = percpu::NO_IRQ;
+        if pc.held_used.get() {
+            pc.held_irq.set(percpu::NO_IRQ);
         }
-        pc.held_used = false;
+        pc.held_used.set(false);
     }
     fn unhandled_irq(&self) -> Option<u64> {
         let pc = percpu::get();
-        let v = core::mem::replace(&mut pc.held_irq, percpu::NO_IRQ);
-        pc.held_used = false;
+        let v = pc.held_irq.replace(percpu::NO_IRQ);
+        pc.held_used.set(false);
         (v != percpu::NO_IRQ).then_some(v)
     }
     fn holding_gate(&self) {
         let pc = percpu::get();
-        pc.gate_held = true;
-        pc.held_used = false;
+        pc.gate_held.set(true);
+        pc.held_used.set(false);
     }
     fn count(&self, what: fl4_sync::Count) {
         // These counters are exposed only by debug diagnostics. In a
@@ -312,23 +312,23 @@ extern "C" fn fl4_entry(f: &mut Frame) -> u64 {
     if f.cs & 3 == 0 {
         let pc = percpu::get();
         if (VEC_IRQ_MIN..=VEC_SPURIOUS).contains(&v) {
-            if pc.polling {
+            if pc.polling.get() {
                 // take_pending_irq accepted an interrupt: record it and
                 // go back with interrupts off so only one is taken. (This
                 // core holds the gate, so no remote call is meant for it.)
                 if v <= VEC_IRQ_MAX {
-                    pc.polled_irq = v - VEC_IRQ_MIN;
+                    pc.polled_irq.set(v - VEC_IRQ_MIN);
                 }
                 f.rflags &= !RFLAGS_IF;
                 return 0;
             }
-            if pc.idle && v == TIMER_VECTOR as u64 && timer::early() {
+            if pc.idle.get() && v == TIMER_VECTOR as u64 && timer::early() {
                 // Back to idle (l4h 0012); fl4_idle's loop halts again.
                 apic::eoi();
                 return 0;
             }
-            if pc.idle {
-                pc.idle = false;
+            if pc.idle.get() {
+                pc.idle.set(false);
                 if v == smp::REMOTE_CALL_VECTOR as u64 {
                     service_remote();
                 }
@@ -462,7 +462,7 @@ pub fn exit() -> ! {
             // Register the nested root before releasing the gate. An
             // unmap must then interrupt this core even if it has not yet
             // executed its entry instruction.
-            if !percpu::get().gate_held {
+            if !percpu::get().gate_held.get() {
                 lock();
                 ct = sched::cur_thread(s);
             }
@@ -480,11 +480,11 @@ pub fn exit() -> ! {
                 let irq = if vector == 0x100 {
                     // This poll is outside the transaction runner; it
                     // must not leave a held IRQ for the next kernel entry.
-                    percpu::get().polled_irq = percpu::NO_IRQ;
-                    percpu::get().polling = true;
+                    percpu::get().polled_irq.set(percpu::NO_IRQ);
+                    percpu::get().polling.set(true);
                     cpu::enable_interrupts_briefly();
-                    percpu::get().polling = false;
-                    percpu::get().polled_irq
+                    percpu::get().polling.set(false);
+                    percpu::get().polled_irq.get()
                 } else if (VEC_IRQ_MIN..=VEC_IRQ_MAX).contains(&vector) {
                     vector - VEC_IRQ_MIN
                 } else { syscall::NO_IRQ };
@@ -501,9 +501,9 @@ pub fn exit() -> ! {
         let core = s.cur_cpu();
         let idle = ct.0 == node_get(s, core, node::IDLE_THREAD);
         unlock();
-        let stack_top = percpu::get().stack_top;
+        let stack_top = percpu::stack_top(percpu::cpu_index());
         if idle {
-            percpu::get().idle = true;
+            percpu::get().idle.set(true);
             unsafe { fl4_idle(stack_top) }
         }
         fpu::switch_to(ct.0, ct.flags(s) & fl4_abi::consts::tcb_flag::FPU_DISABLED != 0);
@@ -512,15 +512,15 @@ pub fn exit() -> ! {
         let gs = ct.reg(s, reg::GS_BASE);
         if cpu::fsgsbase() {
             // The thread's own changes reached the TCB (save_user).
-            if fs != pc.fs_base { cpu::set_fs_base(fs); pc.fs_base = fs; }
-            if gs != pc.gs_base { cpu::set_gs_base(gs); pc.gs_base = gs; }
+            if fs != pc.fs_base.get() { cpu::set_fs_base(fs); pc.fs_base.set(fs); }
+            if gs != pc.gs_base.get() { cpu::set_gs_base(gs); pc.gs_base.set(gs); }
         } else {
             // Loading FS or GS in user mode changes the base behind the
             // kernel's back: compare with what the CPU holds.
             if cpu::rdmsr(cpu::msr::FS_BASE) != fs { cpu::wrmsr(cpu::msr::FS_BASE, fs); }
             if cpu::rdmsr(cpu::msr::GS_BASE) != gs { cpu::wrmsr(cpu::msr::GS_BASE, gs); }
-            pc.fs_base = fs;
-            pc.gs_base = gs;
+            pc.fs_base.set(fs);
+            pc.gs_base.set(gs);
         }
         if fl4_abi::config::HARDWARE_DEBUG_API { load_debug_state(s, ct); }
         let cr3 = if tlb::skim() { tlb::take_exit_cr3() } else { 0 };
@@ -534,12 +534,12 @@ pub fn exit() -> ! {
 fn load_debug_state<S: Store>(s: &mut S, t: Tcb) {
     let dr7 = t.debug_reg(s, 5);
     let pc = percpu::get();
-    if dr7 & 0xff != 0 || pc.dr_loaded {
+    if dr7 & 0xff != 0 || pc.dr_loaded.get() {
         for i in 0..4 {
             cpu::write_dr(i, t.debug_reg(s, i));
         }
         cpu::write_dr7(dr7);
-        pc.dr_loaded = dr7 & 0xff != 0;
+        pc.dr_loaded.set(dr7 & 0xff != 0);
     }
     if debug::single_step_enabled(s, t) {
         let f = t.reg(s, reg::FLAGS) | RFLAGS_TF;

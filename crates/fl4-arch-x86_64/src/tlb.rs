@@ -22,7 +22,7 @@
 //! words, and `SLOTS` entries per core.
 use crate::cpu::{self, cpuid};
 use crate::percpu;
-use core::sync::atomic::{fence, AtomicBool, AtomicU64, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 /// PCIDs per core (PCID 0 is the kernel's).
 pub const SLOTS: usize = 512;
@@ -99,7 +99,7 @@ fn tag(asid: u64) -> u64 {
 
 /// This core's PCID holds `asid`'s TLB entries, if any are cached.
 fn holds(asid: u64) -> bool {
-    pcid() && percpu::get().pcids[slot(asid)].asid == asid
+    pcid() && percpu::get().pcids[slot(asid)].get().asid == asid
 }
 
 /// Run address space `cr3` (a page-table root's physical address) with
@@ -107,26 +107,25 @@ fn holds(asid: u64) -> bool {
 pub fn switch(cr3: u64, asid: u64) {
     let pc = percpu::get();
     let t = tag(asid);
-    if pc.cr3 == cr3 | t && pc.asid == asid {
+    if pc.cr3.get() == cr3 | t && percpu::current_asid(percpu::cpu_index()) == asid {
         // Still current: invalidations of it reached this core by IPI.
         return;
     }
-    // Publish the ASID before looking at its generation (module comment);
-    // with one core there is no one to race with.
-    unsafe { core::ptr::write_volatile(&mut pc.asid, asid) };
-    if crate::smp::multi() {
-        fence(Ordering::SeqCst);
-    }
+    // Publish the ASID before looking at its generation (module comment).
+    percpu::publish_asid(asid);
     let mut flush = true;
     if pcid() {
         let g = GEN[gen_index(asid)].load(Ordering::SeqCst);
-        flush = pc.pcids[slot(asid)].claim(asid, g);
+        let cell = &pc.pcids[slot(asid)];
+        let mut slot = cell.get();
+        flush = slot.claim(asid, g);
+        cell.set(slot);
     }
     let v = cr3 | t | if flush { 0 } else { NOFLUSH };
-    pc.cr3 = cr3 | t;
+    pc.cr3.set(cr3 | t);
     if SKIM.load(Ordering::Relaxed) {
         // The kernel stays on its own tables; the exit loads these.
-        pc.exit_cr3 = v;
+        pc.exit_cr3.set(v);
     } else {
         cpu::write_cr3(v);
     }
@@ -136,8 +135,8 @@ pub fn switch(cr3: u64, asid: u64) {
 /// it then resets so the next exit does not flush again.
 pub fn take_exit_cr3() -> u64 {
     let pc = percpu::get();
-    let v = pc.exit_cr3;
-    pc.exit_cr3 = pc.cr3 | if pcid() { NOFLUSH } else { 0 };
+    let v = pc.exit_cr3.get();
+    pc.exit_cr3.set(pc.cr3.get() | if pcid() { NOFLUSH } else { 0 });
     v
 }
 
@@ -175,12 +174,11 @@ pub fn invalidate_page(asid: u64, vaddr: u64) -> u64 {
 /// A PCID that holds another ASID has no entries for this one (taking it
 /// flushed them).
 fn local_invalidate_page(asid: u64, vaddr: u64) {
-    let pc = percpu::get();
     if skim() {
         if holds(asid) {
             invpcid(0, tag(asid), vaddr);
         }
-    } else if pc.asid == asid {
+    } else if percpu::current_asid(percpu::cpu_index()) == asid {
         cpu::invlpg(vaddr);
     } else if invpcid_available() && holds(asid) {
         invpcid(0, tag(asid), vaddr);
@@ -193,8 +191,8 @@ fn local_invalidate_asid(asid: u64) {
         if holds(asid) {
             invpcid(1, tag(asid), 0);
         }
-    } else if pc.asid == asid {
-        cpu::write_cr3(pc.cr3);
+    } else if percpu::current_asid(percpu::cpu_index()) == asid {
+        cpu::write_cr3(pc.cr3.get());
     } else if invpcid_available() && holds(asid) {
         invpcid(1, tag(asid), 0);
     }
@@ -209,24 +207,23 @@ pub fn invalidate_asid(asid: u64) -> u64 {
 
 /// Remote side of a shootdown.
 pub fn remote_invalidate_page(asid: u64, vaddr: u64) {
-    if percpu::get().asid == asid {
+    if percpu::current_asid(percpu::cpu_index()) == asid {
         local_invalidate_page(asid, vaddr);
     }
 }
 
 pub fn remote_invalidate_asid(asid: u64) {
-    if percpu::get().asid == asid {
+    if percpu::current_asid(percpu::cpu_index()) == asid {
         local_invalidate_asid(asid);
     }
 }
 
 /// Other cores whose current address space is `asid`.
 fn cores_on(asid: u64) -> u64 {
-    fence(Ordering::SeqCst);
     let me = percpu::cpu_index();
     let mut m = 0;
     for c in 0..percpu::MAX_CPUS {
-        if c != me && crate::smp::online_mask() & (1 << c) != 0 && unsafe { core::ptr::read_volatile(&percpu::get_for(c).asid) } == asid {
+        if c != me && crate::smp::online_mask() & (1 << c) != 0 && percpu::current_asid(c) == asid {
             m |= 1 << c;
         }
     }
