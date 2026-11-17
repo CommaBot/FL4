@@ -449,7 +449,7 @@ theorem SchedRel.set_tw {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State 
     refine nfo _ (field_aligned (hc.tcbs y hy) h1 h2) ?_
     rw [Ne, tt_eq_iff (hc.tcbs y hy) hta h1 hK]
     rintro ⟨rfl, rfl⟩; exact h3 rfl rfl
-  have hcag : CAgree st T c s s' := ⟨hk', L.cpu_wr _ _ _, fun o ho h8 _ _ _ _ _ => nout o ho h8,
+  have hcag : CAgree st T c s s' := ⟨hk', L.cpu_wr _ _ _, fun o ho h8 _ _ _ _ _ _ _ => nout o ho h8,
     fun y hy K' hK' => by
       have hsf : SchedField K' := by rcases hK' with h | h | h | h | h <;> simp [SchedField, h]
       obtain ⟨h1, h2, -⟩ := schedField_ok hsf

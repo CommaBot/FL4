@@ -230,7 +230,7 @@ theorem sagree_tcb_wr {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C 
   have h1 := hc.node.align
   have h2 := hc.node.fits
   simp only [LawfulStore.nodeBase] at h1 h2
-  refine ⟨L.ksb_wr _ _ _, L.cpu_wr _ _ _, fun o ho h8 _ _ => rd_wr_ne hw (nodeAt_aligned hc.node ho h8)
+  refine ⟨L.ksb_wr _ _ _, L.cpu_wr _ _ _, fun o ho h8 _ _ _ _ => rd_wr_ne hw (nodeAt_aligned hc.node ho h8)
     (Ne.symm (nodeAt_ne_tfield hc.node ho ht hta hK)), fun y hy K' hK' => ?_, ?_, ?_,
     fun sc hsc a ha hin => rd_wr_ne hw ha fun e => ?_⟩
   · obtain ⟨k1, k2, -⟩ := schedField_ok hK'

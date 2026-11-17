@@ -159,7 +159,7 @@ theorem sagree_of_ewrite {s s' : S} {σ : Fl4Spec.State Unit} (hP : EPlaced T E 
     (hS : SchedRel st N T C c s σ) (hA : EpSchedApart st T C E R B c s σ) (hw : WritesIn st s s' (EWrite T E R B)) :
     SAgree st T C c s s' := by
   obtain ⟨Q, R0, hc, hs⟩ := hS.lists
-  refine ⟨hw.1, hw.2.1, fun o ho h8 _ _ => hw.mem_eq (nodeAt_aligned hc.node ho h8) fun hE => ?_,
+  refine ⟨hw.1, hw.2.1, fun o ho h8 _ _ _ _ => hw.mem_eq (nodeAt_aligned hc.node ho h8) fun hE => ?_,
     fun y hy K hK => ?_, hw.mem_eq ?_ hA.dom, hw.mem_eq ?_ hA.dt, fun sc hsc a ha hin => hw.mem_eq ha ?_⟩
   · have hv := nodeAt_val hc.node ho
     exact hA.node _ (by rw [hv]; omega) (by rw [hv]; omega) hE.foot

@@ -74,7 +74,7 @@ theorem SchedRel.wr_far {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State 
     refine L.mem_wr_ne ha ?_ (by rw [hv]; omega)
     unfold Aligned; rw [hv]; omega
   have ha' : SAgree st T C c s (L.wr s a v) := by
-    refine ⟨L.ksb_wr _ _ _, L.cpu_wr _ _ _, fun o ho h8 _ _ => hnode o ho h8, fun y hy K hK => ?_,
+    refine ⟨L.ksb_wr _ _ _, L.cpu_wr _ _ _, fun o ho h8 _ _ _ _ => hnode o ho h8, fun y hy K hK => ?_,
       by unfold curDomA; exact hksb 8#u64 (by simp) (by simp) (by simp),
       by unfold dtA; exact hksb 16#u64 (by simp) (by simp) (by simp), fun sc' hsc' b hb hin => ?_⟩
     · obtain ⟨h1, h2, -⟩ := schedField_ok hK

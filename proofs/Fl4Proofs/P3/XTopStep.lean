@@ -267,7 +267,7 @@ theorem Sched.SchedRel.ksW {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
     exact hw.mem_eq (by unfold P1.Aligned; rw [hv]; omega) (hnot _ (Or.inl (by rw [hv]; omega)))
   have ha' : Sched.SAgree st T C c s s' := by
-    refine ⟨hw.1, hw.2.1, fun o ho h8 _ _ => hnode o ho h8, fun y hy K hK => ?_,
+    refine ⟨hw.1, hw.2.1, fun o ho h8 _ _ _ _ => hnode o ho h8, fun y hy K hK => ?_,
       by unfold Sched.curDomA; exact hksb 8#u64 (by simp) (by simp) (by simp),
       by unfold Sched.dtA; exact hksb 16#u64 (by simp) (by simp) (by simp), fun sc' hsc' b hb hin => ?_⟩
     · obtain ⟨h1, h2, -⟩ := Sched.schedField_ok hK

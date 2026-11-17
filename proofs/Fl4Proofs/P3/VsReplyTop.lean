@@ -42,7 +42,7 @@ theorem sagree_wr_reg {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Un
   have hal := hta.align
   have hko := hc.ksOut t ht
   have hnd := hN.disj t ht
-  refine ⟨L.ksb_wr _ _ _, L.cpu_wr _ _ _, fun o ho h8 _ _ => ?_, fun y hy K hK => ?_, ?_, ?_,
+  refine ⟨L.ksb_wr _ _ _, L.cpu_wr _ _ _, fun o ho h8 _ _ _ _ => ?_, fun y hy K hK => ?_, ?_, ?_,
     fun sc hsc b hb hin => ?_⟩
   · refine L.mem_wr_ne ha (nodeAt_aligned hN ho h8) ?_
     rw [nodeAt_val hN ho]; omega
