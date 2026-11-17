@@ -149,6 +149,23 @@ theorem actReady_of_w {σ : Fl4Spec.State Unit} (h : SVK.ActReadyW σ) : ActRead
   exact ⟨x, scp, hk, hsc, by rw [Sched.getScRefillSufficient_eq hky hne, hsf],
     by rw [Sched.getScRefillReady_eq hky hne, hrd]⟩
 
+/-- **`TailOK` from the scheduler invariants** (l4v `valid_sched_action`):
+the switch target schedulable (`ActSched`), hence runnable, its SC ready and
+sufficient (`Inv.actReady`); the SCs bound back (`Inv.back`). -/
+theorem tailOK_of {σ : Fl4Spec.State Unit} (hS : Sched.ActSched σ) (hI : Sched.Inv σ) : SVK.TailOK σ := by
+  refine ⟨fun u hu x scp y n hk hsc hky hact => ?_, fun u x p hk hp => hI.back u x p hk hp, fun u hu => ?_⟩
+  · obtain ⟨x', scp', hk', hsc', h1, h2⟩ := hI.actReady u hu (hS u hu)
+    rw [hk] at hk'; cases hk'
+    rw [hsc] at hsc'; cases hsc'
+    have hne : y.scRefills ≠ [] := hI.ne scp y n hky hact
+    rw [Sched.getScRefillSufficient_eq hky hne] at h1
+    rw [Sched.getScRefillReady_eq hky hne] at h2
+    have e1 := congrArg Prod.fst (Set.singleton_eq_singleton_iff.1 (congrArg Prod.fst h1))
+    have e2 := congrArg Prod.fst (Set.singleton_eq_singleton_iff.1 (congrArg Prod.fst h2))
+    exact ⟨hne, e1, e2⟩
+  · obtain ⟨x, -, -, -, hk, -, hr, -⟩ := Sched.schedulable_inv (hS u hu)
+    exact ⟨x, hk, hr⟩
+
 /-- **`ActReady` after the woken thread's sporadic check** from `WakeOK`. -/
 theorem actReady_unblock {σ σ1 : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x : Fl4Spec.Tcb}
     (hk : σ.kheap t = some (.tcb x)) (hW : SVK.WakeOK σ t)
