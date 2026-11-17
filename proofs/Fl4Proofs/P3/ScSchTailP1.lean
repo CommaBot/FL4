@@ -12,8 +12,11 @@ P3 (DESIGN.md §9), scheduler: **`SchTailHyps`' P1 facts from P1's
   `SCsOK`) with `SgOK` (the kernel base kept).
 
 `jat_scheduleT2` is `jat_scheduleT` with `hTail` giving only the remaining
-facts (`SchTailHypsR`: `CurOK` and the CR3 after the arch switch), given
-P1's `ArchTotal` and core 0 among the cores; the dead set stays dead by
+fact (`SchTailHypsR`: the CR3 after the arch switch, [P]), given P1's
+`ArchTotal`, core 0 among the cores and, at the `JAtZ` states, every TCB of
+the sets in the typed heap with its mapped vtable PML4's ASID non-zero ([J],
+issue #16's vtable-ASID fact; `CurOK` after from it at the new current
+thread, the slots kept); the dead set stays dead by
 `deadP_sch_step` with the spec's `schedule` cutting no links (`lkm_schedule`).
 -/
 import Fl4Proofs.P3.ScJointSchTail
@@ -94,7 +97,6 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 P1 facts). -/
 structure SchTailHypsR (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (D : Set U64)
     (s' : S) (a' : A) (σ' : Fl4Spec.State Unit) : Prop where
-  curOK : Vs.CurOK st Z.th s' σ'
   ar : AR a' σ'.archState.x64CurrentCr3
 
 set_option maxHeartbeats 4000000 in
@@ -104,6 +106,9 @@ theorem jat_scheduleT2 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hnd : Fl4Spec.numDomains = 1)
     (hAT : P0.ArchTotal arI) (h0Cs : 0#u64 ∈ Cs)
+    (hVt : ∀ (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D1 : Set U64),
+      JAtZ (L := L) arI AR Z H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T, Z.th t = some .tcb ∧
+        ∀ p asid, capAt (L.mem s1) (slotOf t 1) = ok (.Pml4 p true asid) → asid ≠ 0#u64)
     (hfireJ : timer.fire st arI s a ⦃ r => ∃ σ1, Fires σ σ1 ∧ SchedRel st Z.N Z.T Z.C Z.c r.1 σ1 ∧
       NtfnStateRel Z.N Z.T (L.mem r.1) σ1 ∧ NSC Z.N Z.C σ1 ∧ SchedPreW Z.T Z.C σ1 ∧
       ∃ (Ac1 : Set U64) (Lst1 : U64 → List U64) (D1 : Set U64), JAtZ (L := L) arI AR Z H Cs Ac1 Lst1 D1 r.1 r.2 σ1 ⦄)
@@ -113,7 +118,7 @@ theorem jat_scheduleT2 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
       Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) →
       P1.WritesIn st rf.1 r.1 (KFoot st Z.T Z.N Z.C Z.c rf.1 σ1) →
       SchedRel st Z.N Z.T Z.C Z.c r.1 σ' → Inv σ' → CurInv σ' → ActIdle σ' →
-      SchTailHypsR (L := L) AR Z H D1 r.1 r.2 σ' ⦄) :
+      SchTailHypsR AR Z H D1 r.1 r.2 σ' ⦄) :
     sched.schedule st arI s a ⦃ r => ∃ (σ' : Fl4Spec.State Unit) (Ac' : Set U64) (Lst' : U64 → List U64)
       (D' : Set U64), JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.1 r.2 σ' ∧ CurInv σ' ⦄ := by
   have hX := J.xtop
@@ -166,13 +171,21 @@ theorem jat_scheduleT2 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
   have hK1 : SchStep (fun _ => False) σ1 σ' := (schs_schedule.of_eq hsc).1
   have hL1 : LK (fun _ => False) σ1 σ' := lkm_schedule σ1 ((), σ') (by rw [hsc]; exact Set.mem_singleton _)
   have hwT := WritesIn.tfoot_of_kfoot hw
+  have hSS : SlotsSame Z.th (L.mem rf.1) (L.mem s') :=
+    slotsSame_of_iw J1.xtop.rel.1 J1.xtop.rel.2.2.2.2.2.1 J1.xtop.rel.2.2.2.2.2.2 hwT
+      fun b hb => tfoot_iw J1.xtop.fin.1.1.1 hb
+  obtain ⟨Qc, Rc, hcc, hsc'⟩ := hS'.lists
+  obtain ⟨hth, hvt⟩ := hVt _ _ _ _ _ _ J1 _ hcc.curT
+  have hcur : Vs.CurOK st Z.th s' σ' :=
+    ⟨_, hsc'.curThread.symm, hth, fun p asid h => hvt p asid (by
+      rwa [hSS.capAt ⟨_, 1, Or.inr ⟨hth, by decide⟩, rfl⟩] at h)⟩
   have hX' : XTopAt (L := L) AR Z s' a' σ' :=
     xtop_sched_step J1.xtop J1.ip J1.nk hwT (ct := σ1.curThread)
-      { hK1 with kh := fun p => (hK1.kh p).mono False.elim } hS' hR' hTl.curOK hTl.ar
+      { hK1 with kh := fun p => (hK1.kh p).mono False.elim } hS' hR' hcur hTl.ar
   have hdead : ∀ q ∈ D1, Sched.DeadP (L := L) H s' q := fun q hq =>
     J1.deadP_sch_step hX' hwT hK1 hL1 hA' (fun h => h) (J1.jcov.dead q hq)
   have hT2 : SchTailHyps (L := L) AR Z H Cs D1 rf.1 s' a' σ' Ac :=
-    ⟨hTl.curOK, hTl.ar, hdbg, hdw, hdead,
+    ⟨hcur, hTl.ar, hdbg, hdw, hdead,
       ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', hSg.ksb' hks'⟩⟩
   obtain ⟨Lst', J'⟩ := J1.sch_tail hsc hw hS' hR' hN' hI' hC' hA' (RunW.scAndTimer (hr3 J1.curRun) he3)
     (OffOK.scAndTimer ho3 he3) (bsa_schedule J1.bsa hsc) hT2
