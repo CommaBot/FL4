@@ -316,6 +316,12 @@ theorem rsw_of_kw {s : S} {b : U64} (h : KW st T Cs Sg Scs Z (EH H) s b) : RSW (
   · exact Or.inr (Or.inr (Or.inr (Or.inl h)))
   · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h))))
 
+theorem rsw_of_dbg {s : S} {b : U64} (h : DbgW st T Cs s b) : RSW (L := L) T Cs Sg Scs Z H U s b := by
+  rcases h with ⟨y, hy, e | e⟩ | ⟨c, hc, e⟩
+  · exact Or.inl ⟨y, hy, 3576#u64, by simp, by simp, e⟩
+  · exact Or.inl ⟨y, hy, 3584#u64, by simp, by simp, e⟩
+  · exact Or.inr (Or.inl ⟨c, hc, layout.node.DEBUG_TCBS, by simp [layout.node.DEBUG_TCBS], e⟩)
+
 /-- **P1's `XferKG` at P3's `RS` and `RD`.** -/
 theorem xferKG_rsi {Ω Rp Nt : Set U64} (th : TypedHeap) :
     XferKG st T Cs Ω H Sg Rp Scs Nt Z U (RSI (L := L) T Cs Sg Scs Z H U th) (RDI (L := L) T Cs Sg Scs Z H U th) := by
@@ -345,6 +351,15 @@ theorem rsi_kw (th : TypedHeap) :
       RSI (L := L) T Cs Sg Scs Z H U th s2 s2 := by
   rintro s0 s1 s2 ⟨-, -, σ, G, -, h⟩ hw
   have h' := h.of_writes hw fun b hb => rsw_of_kw hb
+  exact ⟨σ, G, σ, G, h', h'⟩
+
+/-- `RSI` across `KW` and debug-list writes (`hRSK` of the reply path). -/
+theorem rsi_kwd (th : TypedHeap) :
+    ∀ s0 s1 s2 : S, RSI (L := L) T Cs Sg Scs Z H U th s0 s1 →
+      WritesIn st s1 s2 (fun b => KW st T Cs Sg Scs Z (EH H) s1 b ∨ DbgW st T Cs s1 b) →
+      RSI (L := L) T Cs Sg Scs Z H U th s2 s2 := by
+  rintro s0 s1 s2 ⟨-, -, σ, G, -, h⟩ hw
+  have h' := h.of_writes hw fun b hb => hb.elim rsw_of_kw rsw_of_dbg
   exact ⟨σ, G, σ, G, h', h'⟩
 
 theorem rsi_refl {th : TypedHeap} {σ : Fl4Spec.State Unit} {G : MdbGhost} {s : S}
@@ -380,7 +395,7 @@ theorem replyFootP1_rsp {P3Ok : S → Prop} (hA : P0.ArchTotal arI) (th : TypedH
       (fun s => ∃ σ G, RSP (L := L) T Cs Sg Scs Z H U th σ G s) ct r g := by
   intro E hr hct s1 a hB _ ⟨σ, G, hrs⟩ hG
   exact ipc.do_reply_transfer.foot hA E (xferFootOK_of hA E (xferKG_rsi (Ω := Ω) (Rp := Rp) (Nt := Nt) th)) tmoAny
-    userOK s1 a ct r g hB hr hct (rsi_kw th) (rsi_refl hrs) hG
+    userOK s1 a ct r g hB hr hct (rsi_kwd th) (rsi_refl hrs) hG
 
 /-- **The endpoint cap's write footprint at `RSP`** (`decWritesHyp_endpoint`
 with `SendIpcFootP1` discharged): no IPC hypothesis left but P1's

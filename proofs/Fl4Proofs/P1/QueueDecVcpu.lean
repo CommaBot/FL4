@@ -572,13 +572,16 @@ local macro "vpre" : tactic => `(tactic| (
     ite_true, ite_false, if_true, if_false]))
 
 /-- **`X86VCPUFlushTLB`.** -/
-theorem vcpu.decode.flush {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {s : S} {a : A}
-    {len v buf : U64} {call : Bool} {ex : Aeneas.Std.Array obj.Slot 3#usize}
+theorem vcpu.decode.flush {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (hH : HeapOK H) {s : S} {a : A}
+    {len v buf : U64} {call : Bool} {ex : Aeneas.Std.Array obj.Slot 3#usize} (hv : H v = some (.other 15))
     (c0 : Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s s) :
     vcpu.decode st ar s a fl4_abi.label.X86VCPUFlushTLB len v call buf ex ⦃ r s' _ =>
       DecPost st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s r s' ⦄ := by
   vpre
-  exact restart_leaf c1 ect
+  -- the flush clears the VCPU's `SVM_CPU` word (forces a full VMCB reload), then restarts
+  refine WP.spec_bind (vcpu.set.cur0k hH hv (by simp [vcpu.SVM_CPU]) (by simp [vcpu.SVM_CPU]) c1)
+    fun s2 ⟨c2, _⟩ => ?_
+  exact restart_leaf c2 (ect.trans (c1.curW_eq.trans c2.curW_eq.symm))
 
 
 /-- **`X86VCPUWriteRegisters`.** -/
@@ -772,13 +775,21 @@ theorem vcpu.decode.vmcb {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
       rcases r with val | e
       · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
         refine WP.spec_bind (vcpu.set.cur0k hH hv (o := f) (x := val) (by omega) hf.2 c1) fun s2 ⟨c2, k2⟩ => ?_
+        -- a write to a clean-bit-tracked field clears `SVM_CPU` (forces a VMCB reload)
+        refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> exact (WP.spec_ok _).2 trivial) fun b _ => ?_
+        refine WP.spec_bind (Pₘ := fun s3 => Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s s3 ∧
+            L.ksb s3 = L.ksb s1) (by
+          split
+          · exact WP.spec_mono (vcpu.set.cur0k hH hv (by simp [vcpu.SVM_CPU]) (by simp [vcpu.SVM_CPU]) c2)
+              fun s3 ⟨c3, k3⟩ => ⟨c3, k3.trans k2⟩
+          · exact (WP.spec_ok _).2 ⟨c2, k2⟩) fun s2' ⟨c2', k2'⟩ => ?_
         refine WP.spec_bind (vcpu.svm.RAX.spec) fun _ _ => ?_
         refine WP.spec_bind (Pₘ := fun s3 => Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s s3 ∧
             L.ksb s3 = L.ksb s1) ?_ fun s3 ⟨c3, k3⟩ => reply_leaf E he c3 (hU1.ksb k3)
         split
-        · exact WP.spec_mono (vcpu.set.cur0k hH hv (by simp [vcpu.REGS]) (by simp [vcpu.REGS]) c2)
-            fun s3 ⟨c3, k3⟩ => ⟨c3, k3.trans k2⟩
-        · exact (WP.spec_ok _).2 ⟨c2, k2⟩
+        · exact WP.spec_mono (vcpu.set.cur0k hH hv (by simp [vcpu.REGS]) (by simp [vcpu.REGS]) c2')
+            fun s3 ⟨c3, k3⟩ => ⟨c3, k3.trans k2'⟩
+        · exact (WP.spec_ok _).2 ⟨c2', k2'⟩
       · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
           core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
           bind_tc_ok]
@@ -952,7 +963,7 @@ theorem decGap_vcpu {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   by_cases l2 : lbl = fl4_abi.label.X86VCPUWriteRegisters
   · subst l2; exact vcpu.decode.wregs hA (P.pl s hE).heap hv (Cur0.ofPre D)
   by_cases l3 : lbl = fl4_abi.label.X86VCPUFlushTLB
-  · subst l3; exact vcpu.decode.flush hA (Cur0.ofPre D)
+  · subst l3; exact vcpu.decode.flush hA (P.pl s hE).heap hv (Cur0.ofPre D)
   by_cases l4 : lbl = fl4_abi.label.X86VCPUReadVMCS
   · exact vcpu.decode.vmcs hA E (P.pl s hE).heap hv D hE (Or.inl l4)
   by_cases l5 : lbl = fl4_abi.label.X86VCPUWriteVMCS

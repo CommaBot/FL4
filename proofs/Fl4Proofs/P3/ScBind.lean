@@ -197,12 +197,9 @@ theorem bind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
   have hji : j = i := by rw [hj]; exact hc2.aff t ht
   subst hji
   simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, bind_ok]
-  step as ⟨s3, hs3⟩
-  subst hs3
-  obtain ⟨hS3, hf3⟩ := hS2.wr_same (field_aligned (hc.tcbs t ht) (K := 3520#u64) (by simp) (by simp)) (hc2.aff t ht)
-  have w3 := WritesIn.kfoot_sfoot w2 (writesIn_tcb (s := L.wr (L.wr s (scA t) p) (scW p 24#u64) t) (c := j) (K := 3520#u64)
-    hc.tcbs ht (by unfold SOff SOffL; decide) (by simp) j)
-  have hR3 := hR2.frame hP hf3 (KView.refl _)
+  have hS3 := hS2
+  have w3 := w2
+  have hR3 := hR2
   obtain ⟨Q3, R3, hc3, hs3⟩ := hS3.lists
   obtain ⟨x3, n3, hk3', hx3⟩ := hs3.scs p hp
   rw [hkd] at hk3'; cases hk3'
@@ -210,7 +207,7 @@ theorem bind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
   -- the unblock check
   step with sporadic.sc_sporadic.spec' as ⟨b, hb⟩
   have hbb : b = y.scSporadic := by
-    rw [hb, show y.scSporadic = _ from hx3.sporadic]; simp [hp0]; exact Iff.rfl
+    rw [hb, show y.scSporadic = _ from hx3.sporadic]; simp [hp0] <;> exact Iff.rfl
   subst hbb
   -- the unblock check
   have P2 : ∀ s3 : S, SchedRel st N T C j s3 σd → NtfnStateRel N T (L.mem s3) σd →

@@ -161,6 +161,70 @@ theorem ep_not_kw {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 
     have := hΩ b (hO.scW c hc b hal hin); omega
   · exact absurd he' (Set.notMem_empty e')
 
+/-- **No `KW` word is a debug-list word** (`KW` leaves out the TCBs' debug
+links and the nodes' debug-list heads). -/
+theorem kw_not_dbg {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {b : U64}
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω)
+    (hE : ∀ e ∈ Es, H e = some .ep ∨ H e = some .ntfn) (hal : Aligned b) (hk : KW st T Cs Sg Scs Z Es s b) : ¬ DbgW st T Cs s b := by
+  have hT := h.tcbs
+  rcases hk with ⟨y, hy, K, h1, h2, h3, h4, e⟩ | ⟨c, hc, o, ho, ho88, e⟩ | hm | ⟨c, hc, hin⟩ | ⟨e', he', hb⟩
+  · subst e; exact notDbgW_field hT h.nodes hy h2 ⟨h3, h4⟩
+  · subst e; exact notDbgW_node hT h.nodes hc ho ho88
+  · exact notDbgW_out hT h.nodes (h.omega _ (hsub _ hm))
+  · exact notDbgW_out hT h.nodes (h.omega _ (hO.scW c hc _ hal hin))
+  · obtain ⟨E, EQ, w1, -, -, -, -, ty⟩ := h.eps
+    have heE : e' ∈ E := (ty.2.2.1 e').2 (hE e' he')
+    obtain ⟨hE', hEN, -⟩ := w1 e' heE
+    obtain ⟨o1, o2⟩ := ep_out hE' hEN
+    rcases hb with rfl | rfl
+    · exact notDbgW_out hT h.nodes o1
+    · exact notDbgW_out hT h.nodes o2
+
+/-- A `KW` footprint keeps the debug lists typed. -/
+theorem DbgTz.of_foot {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω)
+    (hE : ∀ e ∈ Es, H e = some .ep ∨ H e = some .ntfn) (f : Foot st T Cs Sg Scs Z Es s s') (D : DbgTz st T Cs s) : DbgTz st T Cs s' :=
+  DbgTz.of_writes h.tcbs h.nodes f (fun _ hal hk => kw_not_dbg h hO hsub hE hal hk) D
+
+/-! ### `KW` with no frame, SC or endpoint words (TCB fields and node words) -/
+
+theorem kw0_not_dbg {s : S} {b : U64} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodePlaced st T s c)
+    (hk : KW st T Cs ∅ ∅ Z ∅ s b) : ¬ DbgW st T Cs s b := by
+  rcases hk with ⟨y, hy, K, h1, h2, h3, h4, rfl⟩ | ⟨c, hc, o, ho, ho88, rfl⟩ | hm | ⟨c, hc, -⟩ | ⟨e, he, -⟩
+  · exact notDbgW_field hT hN hy h2 ⟨h3, h4⟩
+  · exact notDbgW_node hT hN hc ho ho88
+  · exact absurd hm (Set.notMem_empty _)
+  · exact absurd hc (Set.notMem_empty _)
+  · exact absurd he (Set.notMem_empty _)
+
+theorem kw0_out {s : S} {a b : U64} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodePlaced st T s c)
+    (ha : OutsideObjs st T Cs s a) (hk : KW st T Cs ∅ ∅ Z ∅ s b) : b ≠ a := by
+  rcases hk with ⟨y, hy, K, h1, h2, -, -, rfl⟩ | ⟨c, hc, o, ho, -, rfl⟩ | hm | ⟨c, hc, -⟩ | ⟨e, he, -⟩
+  · exact fun e => out_ne_field ha hy (hT y hy) h2 (congrArg UScalar.val e)
+  · exact fun e => out_ne_node ha hc (hN c hc) ho (congrArg UScalar.val e)
+  · exact absurd hm (Set.notMem_empty _)
+  · exact absurd hc (Set.notMem_empty _)
+  · exact absurd he (Set.notMem_empty _)
+
+/-- A footprint of TCB fields and node words keeps the debug lists typed. -/
+theorem Foot0.dbg {s s' : S} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodePlaced st T s c)
+    (f : Foot st T Cs ∅ ∅ Z ∅ s s') (D : DbgTz st T Cs s) : DbgTz st T Cs s' :=
+  DbgTz.of_writes hT hN f (fun _ _ hk => kw0_not_dbg hT hN hk) D
+
+/-- A footprint of TCB fields and node words keeps the other objects' words. -/
+theorem Foot0.out {s s' : S} {a : U64} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodePlaced st T s c)
+    (f : Foot st T Cs ∅ ∅ Z ∅ s s') (ha : OutsideObjs st T Cs s a) : L.mem s' a = L.mem s a :=
+  f.mem_eq ha.1 (fun hk => kw0_out hT hN ha hk rfl)
+
+theorem Foot.of0 {s s' : S} (f : Foot st T Cs ∅ ∅ Z ∅ s s') : Foot st T Cs Sg Scs Z Es s s' :=
+  WritesIn.mono f fun b hb => by
+    rcases hb with h | h | hm | ⟨c, hc, -⟩ | ⟨e, he, -⟩
+    · exact Or.inl h
+    · exact Or.inr (Or.inl h)
+    · exact absurd hm (Set.notMem_empty _)
+    · exact absurd hc (Set.notMem_empty _)
+    · exact absurd he (Set.notMem_empty _)
+
 /-- A `KW ∅` footprint keeps the queue of a heap endpoint or notification. -/
 theorem Foot.epQ {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {e : U64}
     (f : Foot st T Cs Sg Scs Z ∅ s s') (h : SchedQueuesInvX st T Cs Ω H X s Q R)

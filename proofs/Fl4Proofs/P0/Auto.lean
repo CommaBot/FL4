@@ -3162,6 +3162,10 @@ theorem layout.ks.SIZE.p0  :
     machine.Arch.invalidate_ept.default self _root _mask ⦃ _ => True ⦄ := by
   unfold machine.Arch.invalidate_ept.default; p0_auto
 
+@[step] theorem machine.Arch.irq_free.default.p0 {Self : Type _} (self : Self) (_irq : Std.U64) :
+    machine.Arch.irq_free.default self _irq ⦃ _ => True ⦄ := by
+  unfold machine.Arch.irq_free.default; p0_auto
+
 @[step] theorem msg.get_mr.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (buf : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
     msg.get_mr machineStoreInst s t buf i ⦃ _ => True ⦄ := by
   unfold msg.get_mr; p0_auto
@@ -4631,10 +4635,10 @@ theorem vcpu.svm.RAX.p0  :
 
 @[step] theorem syscall.handle_debug_exception.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (vector : Std.U64) (dr6 : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.handle_debug_exception machineStoreInst machineArchInst s a vector dr6 ⦃ _ => True ⦄ := by
-  unfold syscall.handle_debug_exception; p0_auto
+  unfold syscall.handle_debug_exception; p0_split
 
-@[step] theorem syscall.handle_vcpu_exit.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (irq : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
-    syscall.handle_vcpu_exit machineStoreInst machineArchInst s a irq ⦃ _ => True ⦄ := by
+@[step] theorem syscall.handle_vcpu_exit.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (irq : Std.U64) (stalled : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    syscall.handle_vcpu_exit machineStoreInst machineArchInst s a irq stalled ⦃ _ => True ⦄ := by
   unfold syscall.handle_vcpu_exit; p0_split
 
 @[step] theorem tcbqueue.Queue.Insts.CoreCloneClone.clone.p0 (self : tcbqueue.Queue) :

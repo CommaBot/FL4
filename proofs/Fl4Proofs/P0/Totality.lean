@@ -33,6 +33,7 @@ structure ArchTotal {A : Type _} (ar : machine.Arch A) : Prop where
   take_pending_irq : ∀ a, ar.take_pending_irq a ⦃ _ => True ⦄
   mask_irq : ∀ a i m, ar.mask_irq a i m ⦃ _ => True ⦄
   ack_irq : ∀ a i, ar.ack_irq a i ⦃ _ => True ⦄
+  irq_free : ∀ a i, ar.irq_free a i ⦃ _ => True ⦄
   set_vspace : ∀ a r i, ar.set_vspace a r i ⦃ _ => True ⦄
   invalidate_page : ∀ a i v, ar.invalidate_page a i v ⦃ _ => True ⦄
   invalidate_asid : ∀ a i, ar.invalidate_asid a i ⦃ _ => True ⦄
@@ -82,6 +83,7 @@ variable {A : Type _} {ar : machine.Arch A}
 @[step] theorem ArchTotal.take_pending_irq_spec (h : ArchTotal ar) a : ar.take_pending_irq a ⦃ _ => True ⦄ := h.take_pending_irq a
 @[step] theorem ArchTotal.mask_irq_spec (h : ArchTotal ar) a i m : ar.mask_irq a i m ⦃ _ => True ⦄ := h.mask_irq a i m
 @[step] theorem ArchTotal.ack_irq_spec (h : ArchTotal ar) a i : ar.ack_irq a i ⦃ _ => True ⦄ := h.ack_irq a i
+@[step] theorem ArchTotal.irq_free_spec (h : ArchTotal ar) a i : ar.irq_free a i ⦃ _ => True ⦄ := h.irq_free a i
 @[step] theorem ArchTotal.set_vspace_spec (h : ArchTotal ar) a r i : ar.set_vspace a r i ⦃ _ => True ⦄ := h.set_vspace a r i
 @[step] theorem ArchTotal.invalidate_page_spec (h : ArchTotal ar) a i v : ar.invalidate_page a i v ⦃ _ => True ⦄ := h.invalidate_page a i v
 @[step] theorem ArchTotal.invalidate_asid_spec (h : ArchTotal ar) a i : ar.invalidate_asid a i ⦃ _ => True ⦄ := h.invalidate_asid a i

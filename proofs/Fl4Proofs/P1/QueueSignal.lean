@@ -289,11 +289,11 @@ theorem ntfn_state_all {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
   obtain ⟨kf, kΩ, kn⟩ := epfoot_keep h hEW he hWT hwr
   have knc := epfoot_nodes h hEW he hWT hwr
   obtain ⟨b1, b2, b3, b4, ea, -, ei⟩ := frame_bx h hB hX hS hSg kf kΩ (fun o h1 h2 => kn o h1 h2) hwr.1
-    ⟨hwr.1, fun y hy K h1 h2 h3 => kf y hy K (by omega) h3 (by omega) (by omega),
-      fun c hc o ho => knc c hc o (by omega) (by omega), fun n' hn' => kΩ _ (hSg.sub _ (hX.1.ntB n' hn').2)⟩
-  refine ⟨hinv, b1, b2, b3, b4, kf, kΩ, ea, ei, hst', hwr.1,
+    (TmFr.mk0 ⟨hwr.1, fun y hy K h1 h2 h3 => kf y hy K (by omega) h3 (by omega) (by omega),
+      fun c hc o ho => knc c hc o (by omega) (by omega), fun n' hn' => kΩ _ (hSg.sub _ (hX.1.ntB n' hn').2)⟩)
+  refine ⟨hinv, b1, b2, b3, b4, kf, kΩ, ea, ei, hst', TmFr.mk0 ⟨hwr.1,
     fun y hy K h1 h2 h3 => kf y hy K (by omega) h3 (by omega) (by omega),
-    fun c hc o ho => knc c hc o (by omega) (by omega), fun n' hn' => kΩ _ (hSg.sub _ (hX.1.ntB n' hn').2)⟩
+    fun c hc o ho => knc c hc o (by omega) (by omega), fun n' hn' => kΩ _ (hSg.sub _ (hX.1.ntB n' hn').2)⟩⟩
 
 
 /-! ## `send_signal` -/
@@ -429,7 +429,7 @@ theorem notification.send_signal.tinv {A : Type _} {ar : machine.Arch A} (hA : P
       rw [hbe] at hdq
       refine WP.spec_bind hdq ?_
       rintro s1 ⟨h1, f1, o1, n1, k1, c1, nc1⟩
-      have tm1 : TmFr st T Cs Nt s s1 := ⟨k1, fun y hy K a b c => f1 y hy K (by omega) c (by omega) (by omega),
+      have tm1 : TmFr st T Cs Nt s s1 := TmFr.mk0 ⟨k1, fun y hy K a b c => f1 y hy K (by omega) c (by omega) (by omega),
         fun c hc o ho => nc1 c hc o (by omega) (by omega), fun n' hn' => o1 _ (hSg.sub _ (hX.1.ntB n' hn').2)⟩
       obtain ⟨hB1, hX1, hS1, hSg1, ea1, ec1, ei1⟩ := frame_bx h0 hB hX hS hSg f1 o1 n1 k1 tm1
       have st1 : L.mem s1 (stA hd) = sched.TS_BLOCKED_ON_NTFN := by

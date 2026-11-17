@@ -51,9 +51,14 @@ theorem maskIrq_total (hT : P0.ArchTotal arI) : ∀ (a : A) (irq : U64) (b : Boo
   obtain ⟨a', h, -⟩ := spec_exists (hT.mask_irq a irq b)
   exact ⟨a', h⟩
 
+theorem freeIrq_total (hT : P0.ArchTotal arI) : ∀ (a : A) (irq : U64), ∃ a', arI.irq_free a irq = ok a' := by
+  intro a irq
+  obtain ⟨a', h, -⟩ := spec_exists (hT.irq_free a irq)
+  exact ⟨a', h⟩
+
 theorem CsGlobal.postDel {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (hG : CsGlobal (L := L) arI AR th)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) : XPostDelHyp (L := L) arI AR th :=
-  xPostDelHyp_of arI hARI.toMask hG.lay (maskIrq_total arI hT)
+  xPostDelHyp_of arI hARI.toMask hG.lay (maskIrq_total arI hT) (freeIrq_total arI hT)
 
 theorem CsGlobal.delNtfn {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (hG : CsGlobal (L := L) arI AR th)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) : XDelNtfnHyp (L := L) arI AR th :=

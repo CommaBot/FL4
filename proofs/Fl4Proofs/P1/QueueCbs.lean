@@ -256,7 +256,7 @@ theorem endpoint.cancel_badged_sends_loop.blk (s0 s : S) (ep badge t fuel : U64)
     rw [hbe] at hdq
     refine WP.spec_bind (WP.spec_and hdq (endpoint.ep_dequeue.foot s1 ep y _ hT hE hq hyQ)) ?_
     rintro s2 ⟨⟨h2, f2, o2, n2, k2, c2, nc2⟩, w2'⟩
-    have tm2 : TmFr st T Cs Nt s1 s2 := ⟨k2, fun y hy K a b c => f2 y hy K (by omega) c (by omega) (by omega),
+    have tm2 : TmFr st T Cs Nt s1 s2 := TmFr.mk0 ⟨k2, fun y hy K a b c => f2 y hy K (by omega) c (by omega) (by omega),
       fun c hc o ho => nc2 c hc o (by omega) (by omega), fun n' hn' => o2 _ (hSg.sub _ (hX.1.ntB n' hn').2)⟩
     obtain ⟨hB2, hX2, hS2, hSg2, ea2, -, -⟩ := frame_bx h0 hB hX hS hSg f2 o2 n2 k2 tm2
     have fw2 : Foot st T Cs Sg Scs Z {ep} s1 s2 := Foot.of w2' fun b hb => hb.kw hq.mem rfl

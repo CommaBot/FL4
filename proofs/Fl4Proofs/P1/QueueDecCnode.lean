@@ -18,10 +18,8 @@ variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} 
 variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {U : Set U64}
 
-/-- A kernel-word and debug-list footprint is a `Cur0W` frame. -/
-theorem FootD.cur0w {s s' : S} {Es : Set U64} (f : FootD st T Cs Sg Scs Z Es s s') (hE : Es ⊆ EH H) :
-    WritesIn st s s' (Cur0W st T Cs Ω H Sg Scs Z s) :=
-  WritesIn.mono f fun _ hb => hb.elim (fun h => Or.inl (KW.mono h hE)) fun h => Or.inr (Or.inl h)
+/- `FootD.cur0w` (a kernel-word and debug-list footprint is a `Cur0W` frame)
+is in `QueueFinal`. -/
 
 /-- The current node's words (but its debug head) are `Cur0W` words. -/
 theorem NodeW.cur0w {s : S} {b : U64} (hc : L.cpu s ∈ Cs) (h : NodeW st s b) : Cur0W st T Cs Ω H Sg Scs Z s b := by

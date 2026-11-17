@@ -130,30 +130,30 @@ theorem jat_scheduleT2 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
   have hNt : ∀ n ∈ P1.Heap.ntfns H, H n = some .ntfn := fun _ h => h
   have hal : P1.Aligned (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
     P1.nodeAt_aligned (hq.nodes 0#u64 h0Cs) (by simp [P1.debug_val]) (by simp [P1.debug_val])
-  have hnot := P1.dbg0_not_schedW hB h0Cs
   have hfire2 : timer.fire st arI s a ⦃ r => ∃ σ1, Fires σ σ1 ∧ SchedRel st Z.N Z.T Z.C Z.c r.1 σ1 ∧
       NtfnStateRel Z.N Z.T (L.mem r.1) σ1 ∧ NSC Z.N Z.C σ1 ∧ SchedPreW Z.T Z.C σ1 ∧
       ((∃ (Ac1 : Set U64) (Lst1 : U64 → List U64) (D1 : Set U64), JAtZ (L := L) arI AR Z H Cs Ac1 Lst1 D1 r.1 r.2 σ1) ∧
-        L.mem r.1 (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) ∧
-        L.ksb r.1 = L.ksb s) ⦄ := by
-    refine WP.spec_mono (WP.spec_and hfireJ (P1.timer.fire.kw hAT hNt s a hB)) ?_
-    rintro ⟨s1, a1⟩ ⟨⟨σ1, h1, h2, h3, h4, h5, hJ⟩, hk⟩
+        timer.fire st arI s a = ok r ∧ L.ksb r.1 = L.ksb s) ⦄ := by
+    refine WP.spec_mono (P1.spec_eq' (WP.spec_and hfireJ (P1.timer.fire.kw hAT hNt s a hB))) ?_
+    rintro ⟨s1, a1⟩ ⟨hf, ⟨σ1, h1, h2, h3, h4, h5, hJ⟩, hk⟩
     simp only [WP.uncurry'_pair] at hk
-    exact ⟨σ1, h1, h2, h3, h4, h5, hJ, hk.mem_eq hal fun hb => hnot (Or.inl hb), hk.1⟩
+    exact ⟨σ1, h1, h2, h3, h4, h5, hJ, hf, hk.1⟩
   refine WP.spec_mono (WP.spec_and (WP.spec_and (schedule_refinesWP s a σ hS hR J.nsc hnd hfire2 hA hsni hsend hT)
     (P1.sched.schedule.kw hAT hNt s a hB)) (WP.spec_and (P1.sched.schedule.tinv hAT hNt s a Q R hq hBd hSc hXi hSg)
       hTail)) ?_
-  rintro ⟨s', a'⟩ ⟨⟨⟨σ1, σ', hF, hsc, hS', hR', hN', hI', hC', hA', rf, ⟨⟨Ac1, Lst1, D1, J1⟩, hdf, hkf⟩, hw, hrun⟩,
+  rintro ⟨s', a'⟩ ⟨⟨⟨σ1, σ', hF, hsc, hS', hR', hN', hI', hC', hA', rf, ⟨⟨Ac1, Lst1, D1, J1⟩, hfr, hkf⟩, hw, hrun⟩,
     hkw⟩, ⟨htinv, hRest⟩⟩
   simp only [WP.uncurry'_pair] at hkw htinv
+  obtain ⟨rf', hrf', -, hkw⟩ := hkw
+  obtain rfl : rf = rf' := by simpa using (hrf'.symm.trans hfr).symm
   have hTl := hRest rf σ1 σ' D1 hF hsc hw hS' hI' hC' hA'
   obtain ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', -, -, -, -⟩ := htinv
-  have hks' : L.ksb s' = L.ksb s := hkw.1
+  have hks' : L.ksb s' = L.ksb s := hkw.1.trans hkf
   have hnA : L.nodeAt rf.1 0#u64 layout.node.DEBUG_TCBS = L.nodeAt s 0#u64 layout.node.DEBUG_TCBS :=
     P1.nodeAt_of_ksb hkf _ _
   have hdbg : L.mem s' (L.nodeAt rf.1 0#u64 layout.node.DEBUG_TCBS) =
       L.mem rf.1 (L.nodeAt rf.1 0#u64 layout.node.DEBUG_TCBS) := by
-    rw [hnA, hkw.mem_eq hal hnot, hdf]
+    exact hkw.mem_eq (by rw [hnA]; exact hal) (P1.dbg0_not_schedW J1.blk h0Cs)
   have hdw : (L.nodeAt rf.1 0#u64 layout.node.DEBUG_TCBS).val ≠ (P1.stA (L.curW s')).val := by
     have hN0 := hq'.nodes 0#u64 h0Cs
     have hct : L.curW s' ∈ P1.Heap.tcbs H := hq'.curT

@@ -122,10 +122,10 @@ theorem fin_cap_ep.slots {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (ep 
 theorem fin_cap_reply.slots {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A) (p : U64)
     (x fin ex : Bool) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hp : p ∈ Rp) :
     objects.finalise_cap st ar s a (.Reply p x) fin ex ⦃ r =>
-      r.1 = (.Null, .Null) ∧ BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2.1 ∧ Foot st T Cs Sg Scs Z (EH H) s r.2.1 ∧
+      r.1 = (.Null, .Null) ∧ BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2.1 ∧ FootD st T Cs Sg Scs Z (EH H) s r.2.1 ∧
       ∀ b, Aligned b → CapW T Ω Sg b → L.mem r.2.1 b = L.mem s b ⦄ := by
   rw [fin_cap_eq_obj (by simp)]
-  exact WP.spec_mono (fin_reply.blk hA s a p x fin h hp) fun r ⟨e, hb, f⟩ => ⟨e, hb, f, foot_keeps_capw h f⟩
+  exact WP.spec_mono (fin_reply.blk hA s a p x fin h hp) fun r ⟨e, hb, f⟩ => ⟨e, hb, f, footD_keeps_capw h le_rfl f⟩
 
 /-- **Scheduling context**: `finalise_cap` keeps `BlkOK` (the SC leaves the
 active set when deactivated) and every cap-slot word. -/

@@ -284,7 +284,8 @@ theorem schedTailHyp_disch (hA : P0.ArchTotal arI) (th : TypedHeap) (hP : Placed
         exact scStep_some_unbind (hv.actReady hA2) hkb (by rw [hscb, hcx]) ((hv.sc c y n).2 hks) hy
   refine WP.spec_mono (schedTail_foot arI hA s2 a1 p mcp prio scv scf hb2 hpT hpr hcur2 hbind2 hunb2) ?_
   rintro r ⟨-, hF, hr⟩
-  exact ⟨slotsSame_of_foot hP hK2 hF, hr, σa, σb, σc, ha, hb, hc⟩
+  exact ⟨slotsSame_of_footD hP hK2 hb2.1.choose_spec.choose_spec.tcbs hb2.1.choose_spec.choose_spec.nodes hF, hr,
+    σa, σb, σc, ha, hb, hc⟩
 
 /-- **Placement hypothesis: every spec SC at a nonzero address is one of
 the scheduler relation's SCs `C` and of P1's SCs `Scs`.** -/

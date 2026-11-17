@@ -2,9 +2,10 @@
 P1: the debug-list head of every core's node (`DEBUG_TCBS`, node offset 88)
 lies outside the kernel-word footprint `KW` and the object words `Ω`
 (`node88_out`); so a step whose writes stay within `KW ∪ Ω` keeps it
-(`KO.node88`).  The SchedContext decodes write only such words
-(`schedcontext.decode.dec`'s frame), so they keep every core's debug head
-(`schedcontext.decode.node88`).
+(`KO.node88`).  The SchedContext decodes do not keep the debug heads in
+general: binding a thread to an SC of another core moves the thread between
+the cores' debug lists (`smp.migrate_tcb`), so `schedcontext.decode.dec`'s
+frame is `KOD` (`KO` and the debug-list words).
 -/
 import Fl4Proofs.P1.QueueYield
 open Aeneas Aeneas.Std Result
@@ -57,39 +58,5 @@ theorem KO.node88 {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U
 
 end
 
-
-section
-variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
-variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {U : Set U64} {P3Ok : S → Prop}
-
-/-- **The SchedContext decodes keep every core's debug-list head**
-(`DEBUG_TCBS`): they write only `KO` words (`schedcontext.decode.dec`). -/
-theorem schedcontext.decode.node88 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
-    (s : S) (a : A) (lbl sc : U64) (call : Bool) (extra : Aeneas.Std.Array obj.Slot 3#usize) (b : U64)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.SchedContext sc b) extra) (he : EntAt st P3Ok s) :
-    schedcontext.decode st ar s a lbl sc call extra ⦃ r s' _ => ∀ c ∈ Cs,
-      L.mem s' (L.nodeAt s c layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s c layout.node.DEBUG_TCBS) ⦄ := by
-  have hb := D.bxi
-  refine WP.spec_mono (schedcontext.decode.dec hA E (scYieldGap_holds hA U) s a lbl sc call extra b D he) ?_
-  rintro ⟨r, s', a'⟩ ⟨-, w⟩
-  exact fun c hc => KO.node88 hb.1.choose_spec.choose_spec hb.2.2.1.1 hb.2.2.2.1.sub w hc
-
-/-- **`decode_invocation` on a SchedContext cap keeps every core's
-debug-list head.** -/
-theorem syscall.decode_invocation.sc_node88 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (s : S) (a : A) (lbl len : U64) (slot : obj.Slot) (sc b : U64)
-    (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.SchedContext sc b) extra) (he : EntAt st P3Ok s) :
-    syscall.decode_invocation st ar s a lbl len slot (.SchedContext sc b) blk call don fp buf extra ⦃ r s' _ =>
-      ∀ c ∈ Cs, L.mem s' (L.nodeAt s c layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s c layout.node.DEBUG_TCBS) ⦄ := by
-  unfold syscall.decode_invocation
-  step with sched.cur_thread.spec as ⟨ct, _⟩
-  try dsimp only
-  split
-  · exact (WP.spec_ok _).2 fun _ _ => rfl
-  · exact schedcontext.decode.node88 hA E s a lbl sc call extra b D he
-
-end
 
 end Fl4Proofs.P1

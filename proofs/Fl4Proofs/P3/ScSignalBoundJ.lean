@@ -34,6 +34,23 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
+/-- **The threads all sit on the notification's SC's core** (P1's
+`DonCore`): the TCBs on core `Z.c` (`SchedCore.aff`), the notification's SC,
+when it has one, in `Z.C` (`NSC`) and so on core `Z.c` (`SchedRel.core`). A
+wake donation then moves no thread across cores. -/
+theorem JAtZ.donCore {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.N) :
+    P1.DonCore st (P1.Heap.tcbs H) (P1.Heap.scs H) n s := by
+  intro x _ h0 e y hy
+  have hSR := J.xtop.fin.1.1.1
+  obtain ⟨Q, R, hc, -⟩ := hSR.lists
+  have hyT : y ∈ Z.T := by rw [J.tcbs_eq.1]; exact hy
+  have hxC : x ∈ Z.C := by
+    have h0' : L.mem s (nScA n) ≠ 0#u64 := by rw [show nScA n = P1.ntfnScA n from rfl, e]; exact h0
+    have := NSC.mem J.nsc J.xtop.fin.1.1.2.2.1 hn h0'
+    rwa [show nScA n = P1.ntfnScA n from rfl, e] at this
+  rw [hc.aff y hyT, Fl4Proofs.P3.Sched.scCoreA_eq, hSR.core x hxC]
+
 /-- `CnW`'s words beyond `FinW`. -/
 def CnX (E R : Set U64) (b : U64) : Prop := (∃ e ∈ E, EW e b) ∨ (∃ r ∈ R, b.val = r.val)
 
@@ -462,7 +479,8 @@ theorem JAtZ.signal_boundJ (hAT : P0.ArchTotal arI) (hRRH : RecvReplyHyp (L := L
     (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH))) ?_
   rintro ⟨s', a'⟩ ⟨⟨ea, s1, σ1, σ', x1, hc, hk1, hin, hrib, hX1, hF1, hW1, hdon, hsend, hmw, hIR, hF2, hFS⟩, hbk⟩
   try simp only [WP.uncurry'_pair] at hbk
-  obtain ⟨hbk, hfoot⟩ := hbk
+  obtain ⟨hbk, -, hfoot⟩ := hbk
+  have hfoot := hfoot (J.donCore hn)
   subst ea
   obtain ⟨F1, hI1, hm1⟩ := post1 σ1 x1 hc hk1 hin hrib
   obtain ⟨-, hk1', hact1⟩ := cancelIpc_recv_cfr (r := n.bv) hkt hst hke hqe hro hm1
