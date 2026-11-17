@@ -1,7 +1,7 @@
 /-
 P3 (DESIGN.md §9), CSpace: **the invariant and the measures of `rec_del`**.
 
-`DelInv`: every zombie cap is well formed (its object a CNode of its radix
+`DelInv` (defined in CnDelInv): every zombie cap is well formed (its object a CNode of its radix
 or a TCB, its count within the object), no two zombies cover the same
 object, and an empty slot has clear MDB links (`cdt::empty_slot` and
 `cdt::move_cap` clear the slot; l4v: an empty slot has a null MDB node).
@@ -12,6 +12,7 @@ first slot ("at home"). A round of the deferred loop that swaps a zombie
 home takes a slot out of `mzS`.
 -/
 import Fl4Proofs.P3.DelFin
+import Fl4Proofs.P3.CnDelInv
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -19,20 +20,8 @@ open fl4_core Classical
 
 noncomputable section
 
-/-- A well-formed zombie: over a TCB (type 65, at most 5 slots) or over a
-CNode of radix `zt` (at most `2 ^ zt` slots). -/
-def ZOK (th : TypedHeap) (p zt n : U64) : Prop :=
-  (zt.val = 65 ∧ th p = some .tcb ∧ n.val ≤ tcbSlots) ∨
-  (zt.val ≠ 65 ∧ th p = some (.cnode zt.val) ∧ n.val ≤ 2 ^ zt.val)
-
 /-- The slot `y` holds a zombie at home (in the zombie's first slot). -/
 def HomeZ (mem : U64 → U64) (y : U64) : Prop := ∃ zt n, capV mem y = .Zombie y zt n
-
-structure DelInv (th : TypedHeap) (mem : U64 → U64) : Prop where
-  zwf : ∀ y, IsSlot th y → ∀ p zt n, capV mem y = .Zombie p zt n → ZOK th p zt n
-  zu : ∀ y y', IsSlot th y → IsSlot th y' → y ≠ y' → ∀ p zt n p' zt' n',
-    capV mem y = .Zombie p zt n → capV mem y' = .Zombie p' zt' n' → p ≠ p'
-  nc : ∀ y, IsSlot th y → capV mem y = .Null → prevOf mem y = 0#u64 ∧ nextOf mem y = 0#u64
 
 /-! ## Measures -/
 

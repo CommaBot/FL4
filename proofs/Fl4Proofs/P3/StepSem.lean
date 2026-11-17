@@ -114,6 +114,10 @@ def DomRelW (m : U64 → U64) (kb : U64) (σ : Fl4Spec.State Unit) : Prop :=
         (core.num.U64.wrapping_add 192#u64 (core.num.U64.wrapping_mul i 16#u64))) = 0#u64)) ∧
   σ.domainStartIndex = (m (core.num.U64.wrapping_add kb 32#u64)).val
 
+/-- Every object of `σ'` was an object of the same type in `σ` (SpecKSz). -/
+def KSz (σ σ' : Fl4Spec.State Unit) : Prop :=
+  ∀ o ko', σ'.kheap o = some ko' → ∃ ko, σ.kheap o = some ko ∧ Fl4Spec.aType ko = Fl4Spec.aType ko'
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
@@ -191,7 +195,7 @@ structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S 
     P1.WritesIn st s s' (InSlot th) → CRel th (L.mem s') σ' G' → FinInv th (L.mem s') σ' G' →
     MdbOKV (L.ksb s) (L.mem s') G' →
     (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 1) = capAt (L.mem s) (slotOf t 1)) →
-    Q s a σ s' a σ'
+    (DelInv th (L.mem s) → DelInv th (L.mem s')) → Q s a σ s' a σ'
   sched : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit), SchedStep (L := L) th s σ s' σ' → Q s a σ s' a σ'
   cslot : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit) (G' : MdbGhost), Ipc.CnK σ σ' →
     (∀ p, σ'.kheap p = σ.kheap p ∨
@@ -201,7 +205,7 @@ structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S 
     P1.WritesIn st s s' (InSlot th) → CRel th (L.mem s') σ' G' → FinInv th (L.mem s') σ' G' →
     MdbOKV (L.ksb s) (L.mem s') G' →
     (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 1) = capAt (L.mem s) (slotOf t 1)) →
-    Q s a σ s' a σ'
+    KSz σ σ' → (DelInv th (L.mem s) → DelInv th (L.mem s')) → Q s a σ s' a σ'
   del : ∀ (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit) (sl : Fl4Spec.CslotPtr) (p b : U64) (w r : Bool),
     AbsSlot th sl → capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
     cdt.delete_one st arI s a (cslotAddr sl) = ok (s', a') → ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 →
@@ -307,11 +311,12 @@ theorem Steps.insert {th : TypedHeap} (hP : Placed th) {s s' : S} {a : A} {σ σ
     (hMO : MdbOKV (L.ksb s) (L.mem s') G')
     (hcap : ∀ y, IsSlot th y → y ≠ cslotAddr (pd.bv, idxd) → capV (L.mem s') y = capV (L.mem s) y)
     (hnull : capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null)
-    (hnu : ∀ p sb fi d, capV (L.mem s') (cslotAddr (pd.bv, idxd)) ≠ .Untyped p sb fi d) :
+    (hnu : ∀ p sb fi d, capV (L.mem s') (cslotAddr (pd.bv, idxd)) ≠ .Untyped p sb fi d)
+    (hDl : DelInv th (L.mem s) → DelInv th (L.mem s')) :
     Steps (L := L) arI th s a σ s' a σ' := by
   intro Q hQ
   refine hQ.slot s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu
-    ⟨hF.1, hF.2.1, fun b hb hn => hF.2.2 b hb fun ⟨x, k, hx, hk, e⟩ => hn ⟨x, hx, ?_⟩⟩ hCR hFI hMO fun t ht => ?_
+    ⟨hF.1, hF.2.1, fun b hb hn => hF.2.2 b hb fun ⟨x, k, hx, hk, e⟩ => hn ⟨x, hx, ?_⟩⟩ hCR hFI hMO (fun t ht => ?_) hDl
   · have hf := hx.fit hP
     have := hk.lt
     have hv := wordOf_val (a := x) (k := k) (by omega)

@@ -335,6 +335,10 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
             have htr := swap_trace hP s2 G hM1 ((hM1.members _).2 ⟨hAs.isSlot, srcC, hsc2, hsn⟩)
               ((hM1.members _).2 ⟨hAp.isSlot, pivC, hpc2, hpn⟩) (fun h => e1 h.symm) ns np hnse hnpe
             rw [hs3, WP.spec_ok] at htr
+            have hdi := swap_delinv_imp hP s2 G hM1 ((hM1.members _).2 ⟨hAs.isSlot, srcC, hsc2, hsn⟩)
+              ((hM1.members _).2 ⟨hAp.isSlot, pivC, hpc2, hpn⟩) (fun h => e1 h.symm) ns np hnse hnpe hnsn hnpn
+              (by rw [capV_of_capAt hsc2]; exact hshs) (by rw [capV_of_capAt hpc2]; exact hshp)
+            rw [hs3, WP.spec_ok] at hdi
             rw [hs3]; simp only [bind_ok]
             rw [WP.spec_ok]
             refine ⟨.rotateCall (absCap ns) (absCap np) (ps.bv, sb) (ppv.bv, pb) (pd.bv, db), ?_, σ1, hst, σ', G', ?_,
@@ -343,7 +347,7 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
                 simp only [invSlots, List.mem_cons, List.not_mem_nil, or_false] at hsl
                 rcases hsl with rfl | rfl | rfl
                 exacts [⟨ps, _, rfl, hps, rfl⟩, ⟨ppv, _, rfl, hpl, rfl⟩, ⟨pd, _, rfl, hpd, rfl⟩],
-              fun y hy hne => htr.2.1 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots])),
+              fun y hy hne => htr.2.1 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots])), hdi,
               coverUt_swap hAs.isSlot hAp.isSlot (fun h => e1 h.symm) (capV_of_capAt hsc2) (capV_of_capAt hpc2)
                 htr.2.2.1 htr.2.2.2 htr.2.1 hshs hshp (fun _ _ _ _ hc _ _ hs => by
                 have hu : isUt srcC = true := by rw [hs]; rfl
@@ -477,6 +481,13 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
               (fun h => by obtain ⟨-, c0, h0, hn⟩ := (hM2.members _).1 h; rw [hpc3] at h0
                            exact hn (eq_of_ok_eq h0).symm) ns hnse
             rw [hs4, WP.spec_ok] at htr2
+            have hdi1 := move_delinv_imp hP s2 G hM1 hpm hAd.isSlot hdm np hnpe hnpn
+              (by rw [capV_of_capAt hpc2]; exact hshp)
+            rw [hs3, WP.spec_ok] at hdi1
+            have hdi2 := move_delinv_imp hP s3 G2 hM2 ((hM2.members _).2 ⟨hAs.isSlot, srcC, hsc3, hsn⟩) hAp.isSlot
+              (fun h => by obtain ⟨-, c0, h0, hn⟩ := (hM2.members _).1 h; rw [hpc3] at h0
+                           exact hn (eq_of_ok_eq h0).symm) ns hnse hnsn (by rw [capV_of_capAt hsc3]; exact hshs)
+            rw [hs4, WP.spec_ok] at hdi2
             rw [hs4]; simp only [bind_ok]
             rw [WP.spec_ok]
             refine ⟨.rotateCall (absCap ns) (absCap np) (ps.bv, sb) (ppv.bv, pb) (pd.bv, db), ?_, σ1, hst, σ', G', ?_,
@@ -489,6 +500,7 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
                 exacts [⟨ps, _, rfl, hps, rfl⟩, ⟨ppv, _, rfl, hpl, rfl⟩, ⟨pd, _, rfl, hpd, rfl⟩],
               fun y hy hne => (htr2.2.1 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots]))).trans
                 (htr1.2.1 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots]))),
+              fun hD => hdi2 (hdi1 hD),
               (coverUt_mov hAd.isSlot (fun e => hdm (e ▸ hpm)) (capV_of_capAt hpc2) (capV_of_capAt hdc2)
                 htr1.2.2.1 htr1.2.2.2 htr1.2.1 hshp hAp.isSlot (fun _ _ _ _ hc _ _ hs => by
                 have hu : isUt pivC = true := by rw [hs]; rfl

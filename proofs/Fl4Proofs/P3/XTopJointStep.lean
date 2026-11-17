@@ -236,7 +236,7 @@ structure JStepHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
     P1.WritesIn st s s' (InSlot th) → CRel th (L.mem s') σ' G' → FinInv th (L.mem s') σ' G' →
     MdbOKV (L.ksb s) (L.mem s') G' →
     (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 1) = capAt (L.mem s) (slotOf t 1)) →
-    JOwesCs (L := L) arI AR th G' s a σ s' a σ'
+    (DelInv th (L.mem s) → DelInv th (L.mem s')) → JOwesCs (L := L) arI AR th G' s a σ s' a σ'
   sched : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit), SchedStep (L := L) th s σ s' σ' →
     JOwes (L := L) arI AR th s a σ s' a σ'
   cslot : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit) (G' : MdbGhost), Ipc.CnK σ σ' →
@@ -247,7 +247,7 @@ structure JStepHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
     P1.WritesIn st s s' (InSlot th) → CRel th (L.mem s') σ' G' → FinInv th (L.mem s') σ' G' →
     MdbOKV (L.ksb s) (L.mem s') G' →
     (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 1) = capAt (L.mem s) (slotOf t 1)) →
-    JOwesCs (L := L) arI AR th G' s a σ s' a σ'
+    KSz σ σ' → (DelInv th (L.mem s) → DelInv th (L.mem s')) → JOwesCs (L := L) arI AR th G' s a σ s' a σ'
   del : ∀ (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit) (sl : Fl4Spec.CslotPtr) (p b : U64) (w r : Bool),
     AbsSlot th sl → capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
     cdt.delete_one st arI s a (cslotAddr sl) = ok (s', a') → ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 →
@@ -284,9 +284,9 @@ theorem stepClosed_jat {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {
   refine ⟨fun s1 a1 σ1 s2 a2 σ2 s3 a3 σ3 h1 h2 Z H Cs Ac Lst D hth J => ?_,
     fun s a σ ct x s1 hcur hk htcb hrun hs1 Z H Cs Ac Lst D hth J => ?_,
     fun s s' a a' σ σ' hw hO hdk hdl hds hirq hio harch Z H Cs Ac Lst D hth J => ?_,
-    fun s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu hw hCR hFI hMO hTS Z H Cs Ac Lst D hth J => ?_,
+    fun s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu hw hCR hFI hMO hTS hDl Z H Cs Ac Lst D hth J => ?_,
     fun s s' a σ σ' hS Z H Cs Ac Lst D hth J => ?_,
-    fun s s' a σ σ' G' hcn hkc hCK hUK horig hw hCR hFI hMO hTS Z H Cs Ac Lst D hth J => ?_,
+    fun s s' a σ σ' G' hcn hkc hCK hUK horig hw hCR hFI hMO hTS hkz hDl Z H Cs Ac Lst D hth J => ?_,
     fun s s' a a' σ σ' sl p b w r hA hc hd hm Z H Cs Ac Lst D hth J => ?_⟩
   · obtain ⟨G1, Ac1, Lst1, D1, J1⟩ := h1 Z H Cs Ac Lst D hth J
     exact h2 { Z with G := G1 } H Cs Ac1 Lst1 D1 hth J1
@@ -327,7 +327,7 @@ theorem stepClosed_jat {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {
       ⟨hw.1, hw.2.1, fun b hb hn => hw.2.2 b hb fun h => hn (Sched.slotSpan_wd hPl hb h)⟩
     have hX1 := XTopAt.slotStep hX hw' hcn hkc hCR hFI hMO hTS
     obtain ⟨hC, Ac', Lst', D', R⟩ :=
-      hJ.slot s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu hw hCR hFI hMO hTS Z H Cs Ac Lst D rfl J hX1
+      hJ.slot s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu hw hCR hFI hMO hTS hDl Z H Cs Ac Lst D rfl J hX1
     exact ⟨G', Ac', Lst', D', J.cs_frame hw.1 hX1 (KBack.of_keepC hkc) hC R⟩
   · -- a scheduler step: the scheduler's words
     subst hth
@@ -346,7 +346,7 @@ theorem stepClosed_jat {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {
     have hw' : P1.WritesIn st s s' (Sched.SlotWd Z.th) :=
       ⟨hw.1, hw.2.1, fun b hb hn => hw.2.2 b hb fun h => hn (Sched.slotSpan_wd hPl hb h)⟩
     have hX1 := XTopAt.slotStep hX hw' hcn hkc hCR hFI hMO hTS
-    obtain ⟨hC, Ac', Lst', D', R⟩ := hJ.cslot s s' a σ σ' G' hcn hkc hCK hUK horig hw hCR hFI hMO hTS Z H Cs Ac Lst D rfl J hX1
+    obtain ⟨hC, Ac', Lst', D', R⟩ := hJ.cslot s s' a σ σ' G' hcn hkc hCK hUK horig hw hCR hFI hMO hTS hkz hDl Z H Cs Ac Lst D rfl J hX1
     exact ⟨G', Ac', Lst', D', J.cs_frame hw.1 hX1 (KBack.of_keepC hkc) hC R⟩
   · -- a notification cap's deletion
     obtain ⟨G', hX1, hks, hkb, hC, Ac', Lst', D', R⟩ := hJ.del s s' a a' σ σ' sl p b w r hA hc hd hm Z H Cs Ac Lst D

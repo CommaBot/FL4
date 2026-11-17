@@ -34,9 +34,6 @@ theorem objBits_of_aType {ko ko' : KernelObject} (h : aType ko = aType ko') : ob
   cases ko <;> cases ko' <;> simp only [aType] at h <;> (try split_ifs at h) <;> simp_all [objBits] <;>
     (try (rename_i a b; cases a <;> cases b <;> simp_all [aaType, archKobjSize] <;> split_ifs at h <;> simp_all))
 
-/-- Every object of `σ'` was an object of the same type in `σ`. -/
-def KSz (σ σ' : State Unit) : Prop :=
-  ∀ o ko', σ'.kheap o = some ko' → ∃ ko, σ.kheap o = some ko ∧ aType ko = aType ko'
 
 theorem KSz.refl (σ : State Unit) : KSz σ σ := fun _ ko h => ⟨ko, h, rfl⟩
 
@@ -282,6 +279,34 @@ theorem SpecFree.frame {m m' : U64 → U64} {G G' : MdbGhost} {σ σ' : State Un
   rcases h x hx p sb fi d0 hc0 o ko hko with e | e
   · exact Or.inl e
   · right; omega
+
+/-- **`cap_insert` keeps the objects' kinds** (only CNodes' and TCBs' caps,
+the CDT and the original bits change). -/
+theorem capInsert_nkz (c : Fl4Spec.Cap) (src dest : Fl4Spec.CslotPtr) : NKZ (Fl4Spec.capInsert (Z := Unit) c src dest) := by
+  unfold Fl4Spec.capInsert Fl4Spec.setUntypedCapAsFull Fl4Spec.updateCdt Fl4Spec.setCdt Fl4Spec.setOriginal
+  repeat (first | exact nkz_getCap _ | exact nkz_setCap _ _ | exact nkz_doExtendedOp _ |
+    exact nkz_pure _ | exact nkz_pure' _ | exact nkz_fail | exact nkz_gets _ | exact nkz_get |
+    exact nkz_assert _ | exact nkz_get_put (fun σ => rfl) |
+    exact nkz_modify (fun σ => rfl) | (refine nkz_bind ?_ (fun _ => ?_)) |
+    (apply nkz_ite) | split)
+
+theorem capMove_nkz (c : Fl4Spec.Cap) (src dest : Fl4Spec.CslotPtr) : NKZ (Fl4Spec.capMove (Z := Unit) c src dest) := by
+  unfold Fl4Spec.capMove Fl4Spec.setCdt Fl4Spec.setOriginal
+  repeat (first | exact nkz_getCap _ | exact nkz_setCap _ _ | exact nkz_doExtendedOp _ |
+    exact nkz_pure _ | exact nkz_pure' _ | exact nkz_fail | exact nkz_gets _ | exact nkz_get |
+    exact nkz_assert _ | exact nkz_get_put (fun σ => rfl) |
+    exact nkz_modify (fun σ => rfl) | (refine nkz_bind ?_ (fun _ => ?_)) |
+    (apply nkz_ite) | split)
+
+theorem capSwap_nkz (c1 : Fl4Spec.Cap) (s1 : Fl4Spec.CslotPtr) (c2 : Fl4Spec.Cap) (s2 : Fl4Spec.CslotPtr) :
+    NKZ (Fl4Spec.capSwap (Z := Unit) c1 s1 c2 s2) := by
+  unfold Fl4Spec.capSwap Fl4Spec.setCdt Fl4Spec.setOriginal
+  repeat (first | exact nkz_getCap _ | exact nkz_setCap _ _ | exact nkz_doExtendedOp _ |
+    exact nkz_pure _ | exact nkz_pure' _ | exact nkz_fail | exact nkz_gets _ | exact nkz_get |
+    exact nkz_assert _ | exact nkz_get_put (fun σ => rfl) |
+    exact nkz_modify (fun σ => rfl) | (refine nkz_bind ?_ (fun _ => ?_)) |
+    (apply nkz_ite) | split)
+
 
 end
 

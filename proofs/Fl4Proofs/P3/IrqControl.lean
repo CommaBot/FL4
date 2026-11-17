@@ -238,9 +238,11 @@ theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : 
     · exact Or.inl h
     · exact Or.inr ((hM1.members _).1 h).1
   have hfrm := insert_frame hP s1 (.IrqHandler irq) _ _ hAs.isSlot hAd.isSlot _ hsrc1 hnx
-  refine WP.spec_bind (WP.spec_and (WP.spec_and hins hfrm)
-    (Vs.insert_frame2 hP s1 (.IrqHandler irq) _ _ hAs.isSlot hAd.isSlot _ hsrc1 hnx)) ?_
-  rintro s2 ⟨⟨⟨σ2, G2, hci, hR2, hV2, hM2, hC2, hI2, hFI2, hcap2, ⟨bG2, hG2e⟩, hSt2⟩, hF2⟩, hF2'⟩
+  refine WP.spec_bind (WP.spec_and (WP.spec_and (WP.spec_and hins hfrm)
+    (Vs.insert_frame2 hP s1 (.IrqHandler irq) _ _ hAs.isSlot hAd.isSlot _ hsrc1 hnx))
+    (insert_delinv_imp hP s1 G hM1 ((hM1.members _).2 ⟨hAs.isSlot, _, hsrc1, by simp⟩) hAd.isSlot
+      (capV_null_not_mem hM1 (capV_of_capAt hdst1)) hsrc1 (.IrqHandler irq) (by simp [EncWf]) (by simp) rfl)) ?_
+  rintro s2 ⟨⟨⟨⟨σ2, G2, hci, hR2, hV2, hM2, hC2, hI2, hFI2, hcap2, ⟨bG2, hG2e⟩, hSt2⟩, hF2⟩, hF2'⟩, hdi⟩
   rw [WP.spec_ok]
   have hkeep := capInsert_keeps (absCap (.IrqHandler irq)) (ps.bv, idxs) (pd.bv, idxd) σ1 ((), σ2)
     (by rw [hci]; rfl)
@@ -251,7 +253,7 @@ theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : 
     Steps.trans arI (Steps.irqWr arI hL hirq interrupt.IRQ_SIGNAL ha1 .irqSignal hsig)
       (Steps.insert arI hP hps hpd hld hci hF2' ⟨hR2, hV2, hM2, hC2, hI2⟩ hFI2 (by rw [hk1]; exact hFRG)
         (fun y hy hne => by rw [hcap2 y hy, if_neg hne]) hdst1
-        (fun p sb fi d h => by rw [hcap2 _ hAd.isSlot, if_pos rfl] at h; cases h))
+        (fun p sb fi d h => by rw [hcap2 _ hAd.isSlot, if_pos rfl] at h; cases h) hdi)
   refine ⟨σ2, G2, ?_, ⟨hR2, hV2, hM2, hC2, hI2⟩, ⟨fun i hi => ?_, fun i hi => ?_⟩, hkb2, hFI2, ?_, hFRG, hstp⟩
   rotate_right
   · intro y hy i hi
