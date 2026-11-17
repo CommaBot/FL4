@@ -7,6 +7,7 @@ fold's re-scoping of `copyRegsXHyp_of`).
 -/
 import Fl4Proofs.P3.IpcCopyRegs
 import Fl4Proofs.P3.IpcWriteRegsJ
+import Fl4Proofs.P3.TcbSpecInv
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Ipc
@@ -314,19 +315,52 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type}
 
 variable (st) in
-/-- **The scheduler facts across a suspend** [J-step; the Suspend `JAtZ`
-step's building block]: from `IRel` with `JAtZ`'s scheduler facts and P1's
-`BlkOK`, `suspend` relates to the spec's and keeps `SchedValid`,
-`ObjCover`, `Inv` and `RemoveTcbOK`. -/
-def SuspendKeeps (arI : machine.Arch A) (Z : XSets) (H : P1.Heap) (Cs : Set U64) : Prop :=
+/-- **The rest of the scheduler facts across a suspend** [J-step; the
+Suspend `JAtZ` step's building block, narrowed from the former
+`SuspendKeeps`]: from `IRel` with `JAtZ`'s scheduler facts and P1's
+`BlkOK`, at the outcome of the spec's `suspend` related to FL4's state after
+`sched::suspend`: l4v `valid_sched`/`valid_objs` (`SchedValid`, `ObjCover`)
+and the call stacks (`CallRel`, `RFree` at some ghost lists).
+
+The rest of the former premise is proved (`copyRegsXHypJ`): `IRel` by
+`suspend_irelY`; `Inv` by TcbSpecInv's `suspend_inv` (the thread queued at
+most in its own ready queue by `SchedSpec`, `rq_own`); `NSC`, the SCs'
+sizes and so `RPlaced` from its `OIK` frame and P1's `sched.suspend.kw`
+(the kernel-state base kept); the SCs nonzero (static).
+
+Not proved here: the four facts need `cancel_ipc`'s per-state effects
+beyond `IK` (the endpoint/notification queue removal and the waiter's state
+for `SchedValid`'s queue clauses; the endpoint and reply objects' kinds for
+`ObjCover`, which `IK` does not track; the call-stack pop of
+`reply_remove_tcb` with FL4's reply links for `CallRel`/`RFree`), i.e. a
+`cancel_ipc` `JAtZ` step (as `finNtfnJ` for `cancel_all_signals`). -/
+def SuspendSV (arI : machine.Arch A) (Z : XSets) (H : P1.Heap) (Cs : Set U64) : Prop :=
   ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (cr : Fl4Spec.Cr3) (t : U64) (Ac : Set U64),
     IRel st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ → SchedValid σ → ObjCover Z.N Z.T Z.E Z.R Z.C σ → Inv σ →
     RemoveTcbOK st Z.N Z.T Z.C Z.E Z.R Z.c s σ → YieldRel Z.T Z.C (L.mem s) σ →
     P1.BlkOK st Z.T Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H) (P1.Heap.scs H)
       (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s → t ∈ Z.T →
-    sched.suspend st arI s a t ⦃ r => r.2 = a ∧ ∃ σ', Fl4Spec.suspend (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
-      IRel st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c r.1 σ' ∧ SchedValid σ' ∧ ObjCover Z.N Z.T Z.E Z.R Z.C σ' ∧
-      Inv σ' ∧ RemoveTcbOK st Z.N Z.T Z.C Z.E Z.R Z.c r.1 σ' ⦄
+    sched.suspend st arI s a t ⦃ r => ∀ σ', Fl4Spec.suspend (Z := Unit) t.bv σ = ({((), σ')}, False) →
+      IRel st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c r.1 σ' → SchedValid σ' ∧ ObjCover Z.N Z.T Z.E Z.R Z.C σ' ∧
+      ∃ Lst : U64 → List U64, CallRel (L.mem r.1) Z.R Z.C σ' Lst ∧ RFree (L.mem r.1) Z.R Z.C σ' Lst ⦄
+
+/-- A thread is at most in its own ready queue (`SchedSpec`: domain 0, the
+queue of its priority word). -/
+theorem rq_own {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ)
+    {t : U64} (ht : t ∈ T) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) :
+    ∀ d p, t.bv ∈ σ.readyQueues d p → d = x.tcbDomain ∧ p = x.tcbPriority := by
+  obtain ⟨Q, R0, hc, hs⟩ := hS.lists
+  obtain ⟨x', hk', hd, -, -, hpr⟩ := hs.tcb t ht
+  rw [hk] at hk'; cases hk'
+  intro d p hm
+  by_cases hd0 : d = 0
+  · subst hd0
+    obtain ⟨pw, hpw, rfl⟩ := Sched.prio_of_spec p
+    rw [hs.rq pw hpw, Sched.mem_map_bv] at hm
+    have e := hc.inQ pw hpw t hm
+    refine ⟨hd.symm, ?_⟩
+    rw [← e]; exact Sched.specPrio_eq hpr
+  · rw [hs.rqDom d p hd0] at hm; simp at hm
 
 variable {arI : machine.Arch A}
 
@@ -335,15 +369,15 @@ set_option maxHeartbeats 8000000 in
 after the caller's restart (`jat_restart`), `IRel` at its sets, then
 `copy_registers_irelS` with its facts. Named: the target among the TCBs, a
 thread cap's object among them (l4v `valid_cap`, the decode's); the
-scheduler facts across the source's suspend (`SuspendKeeps`) [J-step]; the
-platform's `MIN_BUDGET` [P]. -/
+scheduler facts across the source's suspend not proved here (`SuspendSV`)
+[J-step]; the platform's `MIN_BUDGET` [P]. -/
 theorem copyRegsXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ : Fl4Spec.State Unit} {ct p : U64}
     {blk call don : Bool}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hJS : JStepHyps (L := L) arI AR Z.th)
     (hcur : σ.curThread = ct.bv) (hpT : p ∈ Z.T)
     (hsT : ∀ src : U64, (∃ x, IsSlot Z.th x ∧ capV (L.mem s) x = .Thread src) → src ∈ Z.T)
-    (hSK : SuspendKeeps st arI Z H Cs)
+    (hSK : SuspendSV st arI Z H Cs)
     (hmb : ∀ a, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
     CopyRegsXHyp (L := L) arI AR Z.th s σ ct p blk call don := by
   intro s1 σ1 src flags a hs1 hst hsrc ⟨Zx, hXx⟩
@@ -354,9 +388,27 @@ theorem copyRegsXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   have hsrcT := hsT src hsrc
   have hB := J'.blk
   rw [← J'.tcbs_eq.1] at hB
+  -- the source's suspend: `IRel`, the proved facts, `SuspendSV`
+  have hSus : sched.suspend st arI s1 a src ⦃ r => r.2 = a ∧ ∃ σ',
+      Fl4Spec.suspend (Z := Unit) src.bv σ1 = ({((), σ')}, False) ∧
+      IRel st Z.th σ1.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c r.1 σ' ∧ SchedValid σ' ∧
+      ObjCover Z.N Z.T Z.E Z.R Z.C σ' ∧ Inv σ' ∧ RemoveTcbOK st Z.N Z.T Z.C Z.E Z.R Z.c r.1 σ' ⦄ := by
+    have hB' := hB
+    obtain ⟨⟨Q1, R1, h0⟩, hBd, hXI, -, hSg⟩ := hB'
+    refine WP.spec_mono (WP.spec_and (WP.spec_and (suspend_irelY (ar := arI) hP0 (removeTcbHypP_ok hP0) s1 a σ1
+      hI hsrcT J'.sv J'.obj J'.inv (fun x hk => removeTcbOK_fault hP0 hI hsrcT hk J'.removeTcbOK) J'.yld hB)
+      (Fl4Proofs.P1.sched.suspend.kw s1 a src h0 hsrcT hBd hXI hSg.sub))
+      (hSK s1 a σ1 _ src Ac' hI J'.sv J'.obj J'.inv J'.removeTcbOK J'.yld hB hsrcT)) ?_
+    rintro ⟨s2, a2⟩ ⟨⟨⟨h1, σ2, h2, h3⟩, hF⟩, hW⟩
+    try simp only [WP.uncurry'_pair] at hF
+    obtain ⟨hsv2, hoc2, Lst2, hcr2, hrf2⟩ := hW σ2 h2 h3
+    obtain ⟨xs, hks, -⟩ := hI.1.tcb src hsrcT
+    obtain ⟨hInv2, hO⟩ := Sched.suspend_inv J'.inv hks (rq_own hI.2.2.1 hsrcT hks)
+      (by rw [h2]; exact Set.mem_singleton _)
+    exact ⟨h1, σ2, h2, h3, hsv2, hoc2, hInv2, Lst2, hcr2, hrf2, J'.rp.frame hF.1 (Sched.oik_szKeep hO),
+      J'.nsc.oik hO, hInv2, J'.c0, hsv2, hoc2⟩
   refine WP.spec_mono (copy_registers_irelS (ar := arI) hP0 s1 a σ1 hI hsrcT hpT flags J'.sv J'.obj J'.inv
-    J'.removeTcbOK (hSK s1 a σ1 _ src Ac' hI J'.sv J'.obj J'.inv J'.removeTcbOK J'.yld hB hsrcT)
-(hmb a)) ?_
+    J'.removeTcbOK hSus (hmb a)) ?_
   rintro r ⟨h1, hr2, σ', hsp, hI'⟩
   obtain ⟨⟨Z', -, -, -, -, -, -, -, -, hZ'⟩, -⟩ := IRel.xtop (L := L) (AR := AR) (a := r.2.2) hI' (by rw [hr2]; exact hAR)
   refine ⟨h1, (.ok [], σ'), ?_, rfl, (SRT.relTop hI').1, Z', hZ'⟩

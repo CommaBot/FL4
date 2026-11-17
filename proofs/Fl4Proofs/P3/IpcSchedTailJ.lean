@@ -2,12 +2,15 @@
 P3 (DESIGN.md §9), TCB invocations: **SetSchedParams' scheduler step from
 `JAtZ`** (the fold's re-scoping of `schedTailXHyp_of`): `JAtZ` after the
 fault-handler install (`InstallJ`, the CSpace side's install step, with the
-current thread in no release queue), the facts after `set_mcp` carried from
-it (a `TView` step), and the spec's facts after `set_priority`
-(`SetPrioSpecOK`).
+current thread in no release queue and kept), the facts after `set_mcp`
+carried from it (a `TView` step), and the spec's facts after `set_priority`
+proved (TcbSpecInv's `setPriority_inv`: the target is not the current thread
+on both SC branches, by the decoder's `ScDec` for an unbind and `BindOK` for
+a bind).
 -/
 import Fl4Proofs.P3.IpcSchedTail
 import Fl4Proofs.P3.IpcCopyRegsJ
+import Fl4Proofs.P3.TcbSpecInv
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -15,20 +18,17 @@ open fl4_core Classical Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc Fl4Proofs.P3.Sched
 
 noncomputable section
 
-/-- **The spec facts after `set_priority`** [J-step, spec only]: `Inv`,
-`ObjCover` and `NSC` at its outcome (l4v `valid_sched`, `valid_objs`). -/
-def SetPrioSpecOK (Z : XSets) (p : Fl4Spec.ObjRef) (pr : Fl4Spec.Priority) (σ : Fl4Spec.State Unit) : Prop :=
-  ∀ σ', Fl4Spec.setPriority (Z := Unit) p pr σ = ({((), σ')}, False) →
-    Inv σ' ∧ ObjCover Z.N Z.T Z.E Z.R Z.C σ' ∧ NSC Z.N Z.C σ'
-
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 open Fl4Proofs.P3.Notif (inClass released)
 
 /-- **`JAtZ` after SetSchedParams' fault-handler install** [J-step, the
 CSpace side's install], with the current thread in no release queue
-(l4v `ct_not_in_release_q`), and `SetPrioSpecOK` after the `MCP` write
-[J-step, spec only]: at `SchedTailXHyp`'s hypotheses. -/
+(l4v `ct_not_in_release_q`), and the current thread kept by the install
+(the spec's `install_tcb_cap` writes no `cur_thread`; with `JAtZ` after the
+install only, not derivable: l4v `ct_not_in_release_q`/`CurInv` are not
+`JAtZ` facts when the install's endpoint finalisation leaves
+`ChooseNewThread`): at `SchedTailXHyp`'s hypotheses. -/
 def InstallJ (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (ct : U64) : Prop :=
   ∀ (s1 : S) (σ1 : Fl4Spec.State Unit) (a : A) (p mcp prio scv x2 : U64) (scf : Bool) (ssl : Fl4Spec.CslotPtr)
     (fh : Fl4Spec.Cap × Fl4Spec.CslotPtr) (q : Fl4Spec.ObjRef) (sco : Option (Option Fl4Spec.ObjRef))
@@ -45,8 +45,7 @@ def InstallJ (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (σ : Fl
     DState (L := L) th s2 σ2 G2 → WX (L := L) AR th s2 a1 σ2 G2 →
     ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th ∧
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s2 a1 σ2 ∧ σ2.curThread ∉ σ2.releaseQueue ∧
-      ∀ x, σ2.kheap p.bv = some (.tcb x) → SetPrioSpecOK Z p.bv (Fl4Spec.ucast 8 prio.bv)
-        (Notif.updK σ2 p.bv (.tcb { x with tcbMcpriority := Fl4Spec.ucast 8 mcp.bv }))
+      σ2.curThread = σ.curThread
 
 set_option maxHeartbeats 32000000 in
 /-- **`SchedTailXHyp` from `JAtZ`** (module docstring). Named: the spec's
@@ -65,7 +64,7 @@ theorem schedTailXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {s : S
     SchedTailXHyp (L := L) arI AR th s σ ct := by
   intro s1 σ1 a p mcp prio scv x2 scf ssl fh q sco s2 a1 σ2 G2 hs1 hst1 hp hm hpr h1 h2 h3 hD hpI hx2 hinsI hins hDS
     hWX
-  obtain ⟨Z, H, Cs, Ac, Lst, D, hth, J2, hNR2, hPS⟩ :=
+  obtain ⟨Z, H, Cs, Ac, Lst, D, hth, J2, hNR2, hct2⟩ :=
     hJ2 s1 σ1 a p mcp prio scv x2 scf ssl fh q sco s2 a1 σ2 G2 hs1 hst1 hp hm hpr h1 h2 h3 hD hpI hx2 hinsI hins hDS hWX
   have hX := J2.xtop
   have hKA := J2.ks
@@ -127,7 +126,12 @@ theorem schedTailXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {s : S
     intro s5 a5 σc hc hI5 hAR5
     obtain ⟨⟨Z', -, -, -, -, -, -, -, -, hZ'⟩, -⟩ := IRel.xtop (L := L) (AR := AR) (a := a5) hI5 hAR5
     exact ⟨rfl, σa, σb, σc, ha, hb, hc, (SRT.relTop hI5).1, Z', hZ'⟩
-  obtain ⟨hInvb, hOCb, hNb⟩ := hPS x hk2 σb hsb
+  -- the spec facts after `set_priority`, the target not the current thread
+  have hka : σa.kheap p.bv = some (.tcb { x with tcbMcpriority := Fl4Spec.ucast 8 mcp.bv }) := by
+    simp [hσa, Notif.updK]
+  have hPS : p.bv ≠ σa.curThread → Inv σb ∧ NSC Z.N Z.C σb := fun hne => by
+    obtain ⟨hI, hO⟩ := setPriority_inv hInva hka hne _ hb
+    exact ⟨hI, (J2.nsc.tcbView hTVa).oik hO⟩
   cases scf
   · -- no SC step
     have hsco : sco = none := h1.2 rfl
@@ -149,6 +153,10 @@ theorem schedTailXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {s : S
     rw [hbz, decide_eq_true hs0]
     simp only [↓reduceIte]
     obtain ⟨cc, y, n, hcx, hks, hy⟩ := hU2 rfl
+    obtain ⟨hInvb, hNb⟩ := hPS (by
+      obtain ⟨xd, -, hU, -⟩ := hD
+      show p.bv ≠ σ2.curThread
+      rw [hct2]; exact (hU rfl).1)
     have hksb : σb.kheap cc = some (.schedContext y n) := (hv.sc cc y n).2 hks
     have hxbsc : xb.tcbSchedContext = some cc := by rw [hscb, hcx]
     obtain ⟨Qb, Rb, hcb, hsbl⟩ := hIb.2.2.1.lists
@@ -182,10 +190,11 @@ theorem schedTailXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {s : S
     subst hsco
     rw [hbz, decide_eq_false hs0]
     simp only [Bool.false_eq_true, ↓reduceIte]
-    obtain ⟨x0, y, n, hkt0, hxs0, hkc0, hyt0, -, -, -, -, -, -⟩ := hB2 _ rfl
+    obtain ⟨x0, y, n, hkt0, hxs0, hkc0, hyt0, -, -, -, hnc0, -, -⟩ := hB2 _ rfl
     rw [hk2] at hkt0; cases hkt0
+    obtain ⟨hInvb, hNb⟩ := hPS hnc0
     have hkcb : σb.kheap scv.bv = some (.schedContext y n) := (hv.sc _ y n).2 hkc0
-    obtain ⟨c', hc'C, hc'e⟩ := hOCb.sc _ y n hkcb
+    obtain ⟨c', hc'C, hc'e⟩ := J2.obj.sc _ y n hkc0
     have hc' : scv = c' := (P1.eq_of_bv hc'e).symm
     subst hc'
     have hblk : Fl4Spec.runnable xb.tcbState = false → inClass xb.tcbState → Fl4Spec.scActive y = true →
