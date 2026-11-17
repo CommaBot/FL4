@@ -302,16 +302,13 @@ theorem Sched.JPlaced.slot {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s s'
 
 /-- **What a slot step still owes** [W] (each reads the caps changed): the covering caps
 surviving and no new untyped region (`CoverKept`, `UtKept`: `jcov_cover`),
-the new original bits at `AbsSlot`s (`kern_keep`), the untyped caps' facts
-and P1's `BlkOK`. -/
-def SlotRest (Z : XSets) (H : P1.Heap) (Cs : Set U64) (s s' : S) (σ σ' : Fl4Spec.State Unit) : Prop :=
-  ∃ (Ac' : Set U64),
+the new original bits at `AbsSlot`s (`kern_keep`) and the untyped caps'
+facts. -/
+def SlotRest (Z : XSets) (s s' : S) (σ σ' : Fl4Spec.State Unit) : Prop :=
     CoverKept Z.th (L.mem s) (L.mem s') ∧ UtKept Z.th (L.mem s) (L.mem s') ∧
     (∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot Z.th sl) ∧
     (∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
-      UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi) ∧
-    P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
-      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s'
+      UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi)
 
 set_option maxHeartbeats 4000000 in
 /-- **A slot step's `JOwesCs` from `SlotRest`**: FL4 writes slot words only
@@ -325,7 +322,7 @@ theorem jowes_slotOf {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : Md
     (hDl : DelInv th (L.mem s) → DelInv th (L.mem s'))
     (hR : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → XTopAt (L := L) AR { Z with G := G' } s' a σ' →
-      SlotRest (L := L) arI { Z with G := G' } H Cs s s' σ σ') :
+      SlotRest (L := L) arI { Z with G := G' } s s' σ σ') :
     JOwesCs (L := L) arI AR th G' s a σ s' a σ' := by
   intro Z H Cs Ac Lst D hth J hX'
   subst hth
@@ -338,7 +335,14 @@ theorem jowes_slotOf {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : Md
   have mk : McpKeep σ σ' := fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
-  obtain ⟨Ac', hCK, hUK, horig, hutc, hblk⟩ := hR Z H Cs Ac Lst D rfl J hX'
+  obtain ⟨hCK, hUK, horig, hutc⟩ := hR Z H Cs Ac Lst D rfl J hX'
+  -- P1's `BlkOK`: the slot words are cap-slot words (`JPlaced.slotCapW`)
+  have hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s' := by
+    have hPl := J.xtop.rel.1
+    have hw' : P1.WritesIn st s s' (Sched.SlotWd Z.th) :=
+      ⟨hw.1, hw.2.1, fun b hb hn => hw.2.2 b hb fun h => hn (Sched.slotSpan_wd hPl hb h)⟩
+    exact (P1.blk_of_capw J.blk hw' (J.slotCapW P1.tlow_slots)).1
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' :=
     let ⟨Tr, Cq, hJ⟩ := J.jpl
     ⟨Tr, Cq, hJ.slot hkc hw.1 J.intL hTK hT3⟩
@@ -354,7 +358,7 @@ theorem jowes_slotOf {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : Md
   have hkern := J.kern_keep hw.1 hw.2.1 hX'.fin.1.1.1 hC.ct hC.csc horig hgp
     (fun p ao h => (hC.look (fun _ _ e => by cases e)).2 h) hDbg
     (D' := D) J.kern.cscLive
-  refine ⟨hJC, Ac', Lst, D, ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 mk,
+  refine ⟨hJC, Ac, Lst, D, ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 mk,
     J.buf.frame kb (fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_keepC hkc), hjpl,
     hjc, hkern, hutc, J.nsc.cn hC.toHStep, J.inv.cn hC, CurInvW.cn J.cur hC, J.own.cn hC.toHStep, J.off.cn hC.toHStep,
     J.act.cn hC,
@@ -362,14 +366,11 @@ theorem jowes_slotOf {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : Md
 
 /-- **What an insertion still owes** [W]: `SlotRest` but for the caps' cover,
 the untyped regions and the original bits, which the insertion gives (one
-slot changed, from `Null`, to no untyped cap; `capInsert_orig`): the untyped caps' facts and P1's
-`BlkOK`. -/
-def InsRest (Z : XSets) (H : P1.Heap) (Cs : Set U64) (s' : S) (σ' : Fl4Spec.State Unit) : Prop :=
-  ∃ (Ac' : Set U64),
-    (∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
-      UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi) ∧
-    P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
-      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s'
+slot changed, from `Null`, to no untyped cap; `capInsert_orig`): the untyped
+caps' facts. -/
+def InsRest (Z : XSets) (s' : S) (σ' : Fl4Spec.State Unit) : Prop :=
+  ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+    UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi
 
 /-- **`JStepHyps.slot` from `InsRest`** (an insertion between two CNodes'
 slots: `CnK`, and `KeepC` from the two CNodes, `capInsert_nko`; the
@@ -389,7 +390,7 @@ theorem jowes_ins {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : MdbGh
     (hDl : DelInv th (L.mem s) → DelInv th (L.mem s'))
     (hR : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → XTopAt (L := L) AR { Z with G := G' } s' a σ' →
-      InsRest (L := L) arI { Z with G := G' } H Cs s' σ') :
+      InsRest (L := L) arI { Z with G := G' } s' σ') :
     JOwesCs (L := L) arI AR th G' s a σ s' a σ' := by
   intro Z H Cs Ac Lst D hth J hX'
   have hmem : ((), σ') ∈ (Fl4Spec.capInsert (Z := Unit) c (ps.bv, idxs) (pd.bv, idxd) σ).1 := by rw [hci]; rfl
@@ -402,12 +403,12 @@ theorem jowes_ins {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : MdbGh
     · rw [Set.mem_singleton_iff.1 hp]; obtain ⟨cs, h, -⟩ := hSt.cnode pd rd hpd; exact ⟨rd, cs, h⟩)
   refine jowes_slotOf arI s s' a σ σ' hcn hkc hw hFI hMO (capInsert_nkz c _ _ σ _ hmem) hTK hT3 hDl
     (fun Z2 H2 Cs2 Ac2 Lst2 D2 hth2 J2 hX2 => ?_) Z H Cs Ac Lst D rfl J hX'
-  obtain ⟨Ac', hutc, hblk⟩ := hR Z2 H2 Cs2 Ac2 Lst2 D2 hth2 J2 hX2
+  have hutc := hR Z2 H2 Cs2 Ac2 Lst2 D2 hth2 J2 hX2
   have hcap' : ∀ y, IsSlot Z2.th y → y ≠ cslotAddr (pd.bv, idxd) → capV (L.mem s') y = capV (L.mem s) y :=
     fun y h => hcap y (hth2 ▸ h)
   have hn0 : capV (L.mem s) (cslotAddr (pd.bv, idxd)) = .Null := by
     have h := capAt_capV (L.mem s) (cslotAddr (pd.bv, idxd)); rw [hnull] at h; exact (eq_of_ok_eq h).symm
-  refine ⟨Ac', fun y hy hp hu => ?_, fun x hx p sb fi d hc => ?_, fun sl h => ?_, hutc, hblk⟩
+  refine ⟨fun y hy hp hu => ?_, fun x hx p sb fi d hc => ?_, fun sl h => ?_, hutc⟩
   · have hyd : y ≠ cslotAddr (pd.bv, idxd) := fun e => by rw [e, hn0, physF_null] at hp; cases hp
     have e := hcap' y hy hyd
     exact ⟨y, hy, by rw [e]; exact hp, by rw [e]; exact hu, by rw [e], by rw [e]⟩
@@ -430,12 +431,12 @@ theorem jowes_cn {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : MdbGho
     (hDl : DelInv th (L.mem s) → DelInv th (L.mem s'))
     (hR : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → XTopAt (L := L) AR { Z with G := G' } s' a σ' →
-      InsRest (L := L) arI { Z with G := G' } H Cs s' σ') :
+      InsRest (L := L) arI { Z with G := G' } s' σ') :
     JOwesCs (L := L) arI AR th G' s a σ s' a σ' := by
   refine jowes_slotOf arI s s' a σ σ' hcn hkc hw hFI hMO hkz hTK hT3 hDl (fun Z2 H2 Cs2 Ac2 Lst2 D2 hth2 J2 hX2 => ?_)
-  obtain ⟨Ac', hutc, hblk⟩ := hR Z2 H2 Cs2 Ac2 Lst2 D2 hth2 J2 hX2
+  have hutc := hR Z2 H2 Cs2 Ac2 Lst2 D2 hth2 J2 hX2
   subst hth2
-  exact ⟨Ac', hCK, hUK, horig, hutc, hblk⟩
+  exact ⟨hCK, hUK, horig, hutc⟩
 
 /-! ## A kernel-state step -/
 
