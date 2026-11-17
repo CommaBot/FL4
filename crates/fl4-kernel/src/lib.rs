@@ -8,6 +8,7 @@ mod gdt;
 mod mboot;
 mod paging;
 mod smp;
+mod trace;
 
 use core::cell::UnsafeCell;
 use core::fmt::Write;

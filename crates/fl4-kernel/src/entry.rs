@@ -489,9 +489,11 @@ pub fn exit() -> ! {
                     vector - VEC_IRQ_MIN
                 } else { syscall::NO_IRQ };
                 // Results are already durable if this call stalls us.
-                service_remote();
-                lock();
-                syscall::handle_vcpu_exit(s, &mut a, irq);
+                let stalled = service_remote();
+                // Always acquire, even if the first call stalled us: an
+                // accepted host IRQ still needs handling under the gate.
+                let resumed = lock();
+                syscall::handle_vcpu_exit(s, &mut a, irq, stalled || !resumed);
                 unlock();
                 continue;
             }
@@ -546,34 +548,20 @@ fn load_debug_state<S: Store>(s: &mut S, t: Tcb) {
 }
 
 const TRACE_N: usize = 8192;
-static mut TRACE: [[u64; 8]; TRACE_N] = [[0; 8]; TRACE_N];
-static mut TRACE_I: usize = 0;
+static TRACE: crate::trace::Trace<TRACE_N> = crate::trace::Trace::new();
 
 fn trace(f: &Frame) {
     if !fl4_abi::config::DEBUG_BUILD {
         return;
     }
-    unsafe {
-        let s = store();
-        let ct = sched::cur_thread(&s).0;
-        let e = [f.vector, f.rip, f.rdi, f.rsi, f.rdx, ct, f.rbx, f.rbp];
-        // Collapse loops of period 1 and 2.
-        if TRACE_I >= 2 && (TRACE[(TRACE_I - 1) % TRACE_N] == e || TRACE[(TRACE_I - 2) % TRACE_N] == e) {
-            return;
-        }
-        TRACE[TRACE_I % TRACE_N] = e;
-        TRACE_I += 1;
-    }
+    let s = store();
+    let ct = sched::cur_thread(&s).0;
+    TRACE.record([f.vector, f.rip, f.rdi, f.rsi, f.rdx, ct, f.rbx, f.rbp]);
 }
 
 /// Print the most recent kernel entries (for panics).
 pub fn dump_trace() {
-    unsafe {
-        let n = TRACE_I;
-        let start = n.saturating_sub(64);
-        for i in start..n {
-            let t = TRACE[i % TRACE_N];
-            kprintln!("  #{} vec {:#x} rip {:#x} rdi {:#x} rsi {:#x} rdx {:#x} tcb {:#x}", i, t[0], t[1], t[2], t[3], t[4] as i64, t[5]);
-        }
-    }
+    TRACE.visit_recent(64, |i, t| {
+        kprintln!("  #{} vec {:#x} rip {:#x} rdi {:#x} rsi {:#x} rdx {:#x} tcb {:#x}", i, t[0], t[1], t[2], t[3], t[4] as i64, t[5]);
+    });
 }
