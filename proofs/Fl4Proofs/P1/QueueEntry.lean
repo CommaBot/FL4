@@ -394,15 +394,19 @@ structure EntryHyps0 (st : machine.Store S) [L : LawfulStore st] (ar : machine.A
   /-- At a timeout fault of the current thread (`check_budget`'s
   `end_timeslice`): it can block, the user words are outside the kernel
   objects, and the caps (its timeout-handler slot) are typed. -/
-  tmoOK : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+  tmoOK : ∀ (Ac : Set U64) (s : S), XG st T Cs Ω H Sg Scs Z P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     CanBlock st T Ac s (L.curW s) ∧ UserOK st T Cs Ω H U s ∧
     ∀ i, (i = layout.tcb.SLOT_TIMEOUT_HANDLER ∨ i = layout.tcb.SLOT_FAULT_HANDLER) →
       obj.Tcb.slot (L.curW s) i ⦃ sl => obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄
-  /-- At a receive (`handle_recv`): the current thread can block, the user
-  words are outside the kernel objects, the caps the current thread looks
-  up are typed, and the notification states are the three states. -/
-  recvOK : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
-    CanBlock st T Ac s (L.curW s) ∧ UserOK st T Cs Ω H U s ∧
+  /-- The current thread can block and the user words are outside the kernel
+  objects, at every `BXI` state (unguarded: `handle_invocation.inv` reads it
+  after the invocation, over the sets after, and `decGap_reply`). -/
+  blkU : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    CanBlock st T Ac s (L.curW s) ∧ UserOK st T Cs Ω H U s
+  /-- At a receive (`handle_recv`, an `XG` state): the caps the current
+  thread looks up are typed, and the notification states are the three
+  states. -/
+  recvOK : ∀ (Ac : Set U64) (s : S), XG st T Cs Ω H Sg Scs Z P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     (∀ cptr, cspace.lookup_cap st s (L.curW s) cptr ⦃ r => ∀ c, r = .Ok c → CapTyped H Rp Nt c ⦄) ∧
     (∀ n ∈ Nt, L.epState s n ≠ 3#u64)
   /-- The notification caps (as in the IRQ handler slots) name heap
@@ -458,7 +462,7 @@ theorem EntryHyps0.tmo {U : Set U64} (E : EntryHyps0 st ar T Cs Ω H Sg Rp Scs N
     TmoK st ar T Cs Ω H Sg Rp Scs Nt Z Ac s0 :=
   fun s a f Q R h hB hX hSg hS w => by
     have hG := hG0.chg hc0 w
-    obtain ⟨hc, hU, hcap⟩ := E.tmoOK Ac s ⟨⟨Q, R, h⟩, hB, hX, hSg, hS⟩
+    obtain ⟨hc, hU, hcap⟩ := E.tmoOK Ac s hG ⟨⟨Q, R, h⟩, hB, hX, hSg, hS⟩
     exact WP.spec_mono (faults.handle_timeout.bxi hA E.xfer s a _ f
       (XG.faultG hG ⟨⟨Q, R, h⟩, hB, hX, hS, hSg⟩ hU hc) ⟨⟨Q, R, h⟩, hB, hX, hS, hSg⟩ hU hc
       (hcap _ (Or.inl rfl)))
@@ -470,7 +474,7 @@ theorem EntryHyps0.fault {U : Set U64} (E : EntryHyps0 st ar T Cs Ω H Sg Rp Scs
     (Ac : Set U64) (s : S) (a : A) (f : error.Fault) (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) :
     faults.handle_fault st ar s a (L.curW s) f ⦃ s' _ => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ := by
-  obtain ⟨hc, hU, hcap⟩ := E.tmoOK Ac s h
+  obtain ⟨hc, hU, hcap⟩ := E.tmoOK Ac s hG h
   exact WP.spec_mono (faults.handle_fault.bxi hA E.xfer s a _ f (XG.faultG hG h.blk hU hc) h.blk hU hc
     (hcap _ (Or.inr rfl)))
     fun r hr => by obtain ⟨s', a'⟩ := r; exact ⟨Ac, BlkOK.bxi (by simpa using hr)⟩
@@ -480,7 +484,8 @@ theorem EntryHyps0.recv {U : Set U64} (E : EntryHyps0 st ar T Cs Ω H Sg Rp Scs 
     (hNt : ∀ n ∈ Nt, H n = some .ntfn) (Ac : Set U64) (s : S) (a : A) (blk rep : Bool)
     (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) :
     syscall.handle_recv st ar s a blk rep ⦃ s' _ => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ := by
-  obtain ⟨hc, hU, hlk, h3⟩ := E.recvOK Ac s h
+  obtain ⟨hc, hU⟩ := E.blkU Ac s h
+  obtain ⟨hlk, h3⟩ := E.recvOK Ac s hG h
   exact syscall.handle_recv.bxi hA hNt E.xfer s a blk rep h (XG.recvG hG h hc) hU hc hlk h3
     fun f => E.fault hA Ac s a f h hG
 

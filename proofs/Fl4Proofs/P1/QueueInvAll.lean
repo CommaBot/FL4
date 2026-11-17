@@ -509,18 +509,19 @@ theorem syscall.handle_invocation.inv {A : Type _} {ar : machine.Arch A} {Adm : 
 
 /-- The P3 placement facts the kernel entry rests on (with `InvGaps`):
 the transfer's (`XferHyps`), the invocation's (`InvHyps`), `tmoOK`,
-`recvOK` and `irqcap` (as in `EntryHyps`), `dbg`: the thread caps the
+`blkU`, `recvOK` and `irqcap` (as in `EntryHyps`), `dbg`: the thread caps the
 debug syscalls invoke name TCBs, and `tmoAny`. -/
 structure P3Place (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop where
   xfer : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok
   inv : InvHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok
-  tmoOK : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+  tmoOK : ∀ (Ac : Set U64) (s : S), XG st T Cs Ω H Sg Scs Z P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     CanBlock st T Ac s (L.curW s) ∧ UserOK st T Cs Ω H U s ∧
     ∀ i, (i = layout.tcb.SLOT_TIMEOUT_HANDLER ∨ i = layout.tcb.SLOT_FAULT_HANDLER) →
       obj.Tcb.slot (L.curW s) i ⦃ sl => obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄
-  recvOK : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
-    CanBlock st T Ac s (L.curW s) ∧ UserOK st T Cs Ω H U s ∧
+  blkU : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    CanBlock st T Ac s (L.curW s) ∧ UserOK st T Cs Ω H U s
+  recvOK : ∀ (Ac : Set U64) (s : S), XG st T Cs Ω H Sg Scs Z P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     (∀ cptr, cspace.lookup_cap st s (L.curW s) cptr ⦃ r => ∀ c, r = .Ok c → CapTyped H Rp Nt c ⦄) ∧
     (∀ n ∈ Nt, L.epState s n ≠ 3#u64)
   irqcap : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → ∀ i : U64, i.val < 128 →
@@ -552,15 +553,15 @@ theorem EntryHyps.of_gaps {A : Type _} {ar : machine.Arch A} {Adm : PSets → Pr
       EntAt st P3Ok s →
       faults.handle_fault st ar s a (L.curW s) f ⦃ s' _ => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ :=
     fun Ac s a f h he => by
-      obtain ⟨hc, hU, hcap⟩ := P.tmoOK Ac s h
+      obtain ⟨hc, hU, hcap⟩ := P.tmoOK Ac s he.xg h
       exact WP.spec_mono (faults.handle_fault.bxi hA hxf s a _ f (XG.faultG he.xg h.blk hU hc) h.blk hU hc
         (hcap _ (Or.inr rfl)))
         fun r hr => by obtain ⟨s', a'⟩ := r; exact ⟨Ac, BlkOK.bxi (by simpa using hr)⟩
   exact EntryHyps.of hA hxf P.tmoOK
     (fun Ac s a call blk don fp cptr he h hcA _ hcsc => syscall.handle_invocation.inv hA hσ P.xfer G P.inv
-      (fun σ' h' Ac s h => ⟨((PF σ' h').recvOK Ac s h).1, ((PF σ' h').recvOK Ac s h).2.1⟩)
+      (fun σ' h' Ac s h => (PF σ' h').blkU Ac s h)
       (fun σ' h' => (PF σ' h').xfer) (fun σ' h' => (PF σ' h').errG) hflt s a call blk don fp cptr he h hcA hcsc)
-    P.recvOK P.irqcap (fun Ac s a n he h => syscall.debug_syscall.entry hA s a n h (P.dbg Ac s he h)) P.postG
+    P.blkU P.recvOK P.irqcap (fun Ac s a n he h => syscall.debug_syscall.entry hA s a n h (P.dbg Ac s he h)) P.postG
 
 /-- **Native kernel entries keep `EntryInv`, from the decode gaps `InvGaps`
 and the P3 placement facts `P3Place`** of every admissible tuple; the entry

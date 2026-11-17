@@ -449,7 +449,7 @@ theorem sched.activate_thread.entry (hA : P0.ArchTotal ar) (s : S) (a : A)
 `fault` is no longer a field (`EntryHyps.fault`, from `tmoOK` and `xfer`). -/
 theorem EntryHyps.of {U : Set U64} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (xfer : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U (XG st T Cs Ω H Sg Scs Z P3Ok))
-    (tmoOK : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    (tmoOK : ∀ (Ac : Set U64) (s : S), XG st T Cs Ω H Sg Scs Z P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
       CanBlock st T Ac s (L.curW s) ∧ UserOK st T Cs Ω H U s ∧
       ∀ i, (i = layout.tcb.SLOT_TIMEOUT_HANDLER ∨ i = layout.tcb.SLOT_FAULT_HANDLER) →
         obj.Tcb.slot (L.curW s) i ⦃ sl => obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄)
@@ -460,8 +460,9 @@ theorem EntryHyps.of {U : Set U64} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
         BXIs st Cs σ' Ac' s' ∧
         (∀ e, r = .Err e → CurStep st Ac Ac' s s' ∧ L.actionW s' ≠ L.curW s' ∧
           (L.mem s' (scA (L.curW s')) ≠ 0#u64 → L.cscW s' = L.mem s' (scA (L.curW s')))) ⦄)
-    (recvOK : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
-      CanBlock st T Ac s (L.curW s) ∧ UserOK st T Cs Ω H U s ∧
+    (blkU : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+      CanBlock st T Ac s (L.curW s) ∧ UserOK st T Cs Ω H U s)
+    (recvOK : ∀ (Ac : Set U64) (s : S), XG st T Cs Ω H Sg Scs Z P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
       (∀ cptr, cspace.lookup_cap st s (L.curW s) cptr ⦃ r => ∀ c, r = .Ok c → CapTyped H Rp Nt c ⦄) ∧
       (∀ n ∈ Nt, L.epState s n ≠ 3#u64))
     (irqcap : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → ∀ i : U64, i.val < 128 →
@@ -473,7 +474,7 @@ theorem EntryHyps.of {U : Set U64} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
       XG st T Cs Ω H Sg Scs Z P3Ok s1 ∧ ∀ (b : Bool) (s2 : S) (a2 : A),
         syscall.after_invocation st ar s1 a1 r = ok (b, s2, a2) → XG st T Cs Ω H Sg Scs Z P3Ok s2) :
     EntryHyps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok :=
-  ⟨⟨xfer, tmoOK, recvOK, irqcap, debug, postG, fun Ac s a h =>
+  ⟨⟨xfer, tmoOK, blkU, recvOK, irqcap, debug, postG, fun Ac s a h =>
     WP.spec_mono (sched.activate_thread.entry hA s a h) fun r hr => by obtain ⟨s', a'⟩ := r; simpa using hr⟩, inv⟩
 
 end
