@@ -119,6 +119,8 @@ import Fl4Proofs.P3.XTopYield
 import Fl4Proofs.P3.ScJointSchFrame
 import Fl4Proofs.P3.ScJointSchTail
 import Fl4Proofs.P3.ScSchTailP1
+import Fl4Proofs.P3.ScSchedLK
+import Fl4Proofs.P3.ScDeadSch
 import Fl4Proofs.P3.ScSchedRun
 import Fl4Proofs.P3.ScSchedOff
 import Fl4Proofs.P3.ScSchedBsa

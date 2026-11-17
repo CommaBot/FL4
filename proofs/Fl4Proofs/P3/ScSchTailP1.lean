@@ -12,10 +12,12 @@ P3 (DESIGN.md §9), scheduler: **`SchTailHyps`' P1 facts from P1's
   `SCsOK`) with `SgOK` (the kernel base kept).
 
 `jat_scheduleT2` is `jat_scheduleT` with `hTail` giving only the remaining
-facts (`SchTailHypsR`: `CurOK` and the CR3 after the arch switch, the dead
-set still dead), given P1's `ArchTotal` and core 0 among the cores.
+facts (`SchTailHypsR`: `CurOK` and the CR3 after the arch switch), given
+P1's `ArchTotal` and core 0 among the cores; the dead set stays dead by
+`deadP_sch_step` with the spec's `schedule` cutting no links (`lkm_schedule`).
 -/
 import Fl4Proofs.P3.ScJointSchTail
+import Fl4Proofs.P3.ScDeadSch
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -94,7 +96,6 @@ structure SchTailHypsR (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Hea
     (s' : S) (a' : A) (σ' : Fl4Spec.State Unit) : Prop where
   curOK : Vs.CurOK st Z.th s' σ'
   ar : AR a' σ'.archState.x64CurrentCr3
-  dead : ∀ q ∈ D, Sched.DeadP (L := L) H s' q
 
 set_option maxHeartbeats 4000000 in
 /-- **`jat_scheduleT` with `SchTailHyps`' P1 facts proved** (module
@@ -162,8 +163,16 @@ theorem jat_scheduleT2 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     rw [e12] at hdj
     omega
   obtain ⟨σ3, ho3, hr3, he3⟩ := hrun
+  have hK1 : SchStep (fun _ => False) σ1 σ' := (schs_schedule.of_eq hsc).1
+  have hL1 : LK (fun _ => False) σ1 σ' := lkm_schedule σ1 ((), σ') (by rw [hsc]; exact Set.mem_singleton _)
+  have hwT := WritesIn.tfoot_of_kfoot hw
+  have hX' : XTopAt (L := L) AR Z s' a' σ' :=
+    xtop_sched_step J1.xtop J1.ip J1.nk hwT (ct := σ1.curThread)
+      { hK1 with kh := fun p => (hK1.kh p).mono False.elim } hS' hR' hTl.curOK hTl.ar
+  have hdead : ∀ q ∈ D1, Sched.DeadP (L := L) H s' q := fun q hq =>
+    J1.deadP_sch_step hX' hwT hK1 hL1 hA' (fun h => h) (J1.jcov.dead q hq)
   have hT2 : SchTailHyps (L := L) AR Z H Cs D1 rf.1 s' a' σ' Ac :=
-    ⟨hTl.curOK, hTl.ar, hdbg, hdw, hTl.dead,
+    ⟨hTl.curOK, hTl.ar, hdbg, hdw, hdead,
       ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', hSg.ksb' hks'⟩⟩
   obtain ⟨Lst', J'⟩ := J1.sch_tail hsc hw hS' hR' hN' hI' hC' hA' (RunW.scAndTimer (hr3 J1.curRun) he3)
     (OffOK.scAndTimer ho3 he3) (bsa_schedule J1.bsa hsc) hT2
