@@ -77,6 +77,28 @@ theorem restart_irelF (hP0 : IPlaced N T E R B)
       rfl
     · rw [stsAct_kheap]; simp [updK, hkp p y hy, hy]
 
+
+/-- **`reply_unlink`'s frame**: the reply's TCB word, then the thread's
+state (`set_thread_state_sfoot`). -/
+theorem reply_unlink_iframe (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State Unit}
+    (hX : IRel st th cr N T C E R B c s σ) {t r : U64} (ht : t ∈ T) (hr : r ∈ R) {xr : Fl4Spec.Reply}
+    (hkr : σ.kheap r.bv = some (.reply xr)) :
+    ipc.reply_unlink st s r t ⦃ s' => IFrame (L := L) th s s' ⦄ := by
+  have hP := hP0.e
+  have hH := ipcCore_top (st := st) (th := th) (cr := cr) (N := N) (C := C) (c := c) hP
+  have hSR := IpcRel.toSRN hX.1 hX.2
+  obtain ⟨-, -, hS1, hA1⟩ := reply_write_rel (hH.epHyps hP0) hP s σ hX.1.toE hSR.1 hr hkr 0#u64
+  obtain ⟨-, ⟨⟨G, hB⟩, hV⟩, -, -⟩ := hX
+  obtain ⟨P, L4, L3, L2, L1, -, -, -, -, hPt⟩ := hV.ex
+  have hF1 : IFrame (L := L) th s (L.wr s (Endp.rTcbA r) 0#u64) := by
+    refine ⟨slotsSame_of_vobj hB.1 fun b hb hv => hA1 b hb fun e => hPt.disj b ?_ hv, L.ksb_wr _ _ _⟩
+    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨r, hr, by omega, by omega⟩))))
+  unfold ipc.reply_unlink
+  step as ⟨s1, hs1⟩
+  subst hs1
+  refine WP.spec_mono (set_thread_state_sfoot hS1.1.2.1 ht sched.TS_INACTIVE) fun s2 hw2 => ?_
+  exact hF1.trans (SRT.iframe_of hS1.1 hw2 fun b hb => tfoot_oobj hS1.1.2.1 (Or.inl (KFoot.of_sfoot hb)))
+
 end Restart
 
 end

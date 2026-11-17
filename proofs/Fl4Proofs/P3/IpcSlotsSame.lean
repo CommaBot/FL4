@@ -45,6 +45,15 @@ theorem IRel.iframe_of {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64}
     (hw : P1.WritesIn st s s' W) (hWO : ∀ b, W b → OObj st N T C E R B c s σ b) : IFrame (L := L) th s s' :=
   ⟨IRel.slotsSame_of h hw hWO, hw.1⟩
 
+/-- `IRel.iframe_of` from the top part alone (`SRT`, any scheduler part). -/
+theorem SRT.iframe_of {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)}
+    {c : U64} {SR' : S → Fl4Spec.State Unit → Prop} {s s' : S} {σ : Fl4Spec.State Unit}
+    (h : SRT st th cr N T C E R B c SR' s σ) {W : U64 → Prop}
+    (hw : P1.WritesIn st s s' W) (hWO : ∀ b, W b → OObj st N T C E R B c s σ b) : IFrame (L := L) th s s' := by
+  obtain ⟨⟨⟨G, hB⟩, hV⟩, -⟩ := h
+  obtain ⟨P, L4, L3, L2, L1, -, -, -, -, hP⟩ := hV.ex
+  exact ⟨slotsSame_of_vobj hB.1 fun b hb hv => hw.mem_eq hb fun hwb => hP.disj b (hWO b hwb) hv, hw.1⟩
+
 /-- **The IPC words are words of the other objects.** -/
 theorem iwords_oobj {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {s : S}
     {σ : Fl4Spec.State Unit} {b : U64} (h : IWords N T E R B b) : OObj st N T C E R B c s σ b := by
