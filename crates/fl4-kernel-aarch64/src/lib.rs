@@ -257,7 +257,7 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
     let mut gicr_va = [(0u64, 0u64); hw::MAX_GICR];
     let mut dev_used = Ranges::new();
     dev_used.add(h.gicd, h.gicd + 0x1_0000);
-    if h.uart_kind != serial::KIND_NONE {
+    if fl4_abi::config::PRINTING && h.uart_kind != serial::KIND_NONE {
         dev_used.add(h.uart_base & !(PAGE - 1), (h.uart_base & !(PAGE - 1)) + PAGE);
     }
     let gicc = if h.gic_version == 3 {
@@ -399,6 +399,10 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
         fail("root task");
     }
     kprintln!("FL4: starting the root task at {:#x}", root.entry);
+    // With kernel printing disabled, the root task owns the UART page.
+    if !fl4_abi::config::PRINTING {
+        serial::release();
+    }
     entry::lock();
     smp::release_aps();
     sched::schedule(&mut s, &mut a);

@@ -30,6 +30,10 @@ pub fn init(kind: u64, base: u64, shift: u64, wide: bool) {
     KIND.store(kind, Ordering::Release);
 }
 
+pub fn release() {
+    KIND.store(KIND_NONE, Ordering::Release);
+}
+
 fn rd32(a: u64) -> u32 {
     unsafe { core::ptr::read_volatile(a as *const u32) }
 }
