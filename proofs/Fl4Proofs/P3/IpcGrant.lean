@@ -164,7 +164,7 @@ theorem sagree_slotw {th : TypedHeap} (hP : Placed th) {s s' : S} {σ : Fl4Spec.
   have h1 := hc.node.align
   have h2 := hc.node.fits
   simp only [LawfulStore.nodeBase] at h1 h2
-  refine ⟨hw.1, hw.2.1, fun o ho h8 _ _ _ _ => hw.mem_eq (nodeAt_aligned hc.node ho h8) fun hsw => ?_,
+  refine ⟨hw.1, hw.2.1, fun o ho h8 _ _ _ _ _ => hw.mem_eq (nodeAt_aligned hc.node ho h8) fun hsw => ?_,
     fun y hy K hK => ?_, ?_, ?_, fun sc hsc a ha hin => hw.mem_eq ha fun hsw => ?_⟩
   · obtain ⟨y, hy, g1, g2⟩ := slotWd_range hP hsw
     have hv := nodeAt_val hc.node ho

@@ -90,7 +90,7 @@ theorem SchedRel.set_node_consumed {N T C : Set U64} {c : U64} {s : S} {σ : Fl4
     have := congrArg UScalar.val e
     rw [nodeAt_val hN (by omega)] at this
     have := (hS.scOutIn hsc hin).2.1; omega
-  have hca : CAgree st T c s s' := ⟨hk, L.cpu_wr _ _ _, fun o ho h8 _ _ h _ _ _ _ => hne o ho h8 h,
+  have hca : CAgree st T c s s' := ⟨hk, L.cpu_wr _ _ _, fun o ho h8 _ _ h _ _ _ _ _ => hne o ho h8 h,
     fun y hy K hK => htf y hy K (by rcases hK with h | h | h | h | h <;> simp [SchedField, h])⟩
   have hm := hs.rmax_eq hscw
   refine ⟨⟨hS.placed, fun o ho => by rw [nodeAt_ksb hk]; exact hS.nodeNW o ho,

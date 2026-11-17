@@ -153,7 +153,7 @@ theorem SchedRel.set_action {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
   set s' := L.wr s (L.nodeAt s c layout.node.SCHED_ACTION) w
   have hk : L.ksb s' = L.ksb s := L.ksb_wr _ _ _
   have hag : SAgree st T C c s s' := by
-    refine ⟨hk, L.cpu_wr _ _ _, fun o ho h8 hne _ _ _ => ?_, fun y hy K hK => ?_, ?_, ?_, fun sc hsc => ?_⟩
+    refine ⟨hk, L.cpu_wr _ _ _, fun o ho h8 hne _ _ _ _ => ?_, fun y hy K hK => ?_, ?_, ?_, fun sc hsc => ?_⟩
     · refine rd_wr_ne hA (nodeAt_aligned hN ho h8) fun e => hne ?_
       have := congrArg UScalar.val e
       rw [nodeAt_val hN (by omega), nodeAt_val hN ho] at this; omega

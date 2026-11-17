@@ -137,7 +137,7 @@ theorem XTopAt.tmStep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {Cs : Set U6
       · rw [hnb] at g; omega
       · rw [hnb] at g; omega
   have hSA : Sched.SAgree st Z.T Z.C Z.c s s' := by
-    refine ⟨hw.1, hw.2.1, fun o ho h8 _ h56' h1 h2 => hnk o ho h8 h1 h2 h56', fun y hy K hK => ?_, ?_, ?_,
+    refine ⟨hw.1, hw.2.1, fun o ho h8 _ h56' h1 h2 _ => hnk o ho h8 h1 h2 h56', fun y hy K hK => ?_, ?_, ?_,
       fun sc hsc b hb hin => hw.mem_eq hb fun hb' => ?_⟩
     · obtain ⟨h1, h2, -⟩ := Sched.schedField_ok hK
       refine hw.mem_eq (P1.field_aligned (hT y hy) h1 h2) fun hb => ?_

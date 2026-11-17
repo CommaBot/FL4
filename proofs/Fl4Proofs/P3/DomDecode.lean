@@ -486,7 +486,7 @@ theorem Sched.SchedRel.domW {N T C : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4
       simp [Sched.curDomA, core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
     exact hm _ (by unfold P1.Aligned; rw [hv]; omega) (Or.inl (by omega))
   have hca : Sched.CAgree st T c s s' :=
-    ⟨hk, hw.2.1, fun o ho h8 _ _ _ _ _ _ _ => hnode o ho h8, fun y hy K hK => htf y hy K (by
+    ⟨hk, hw.2.1, fun o ho h8 _ _ _ _ _ _ _ _ => hnode o ho h8, fun y hy K hK => htf y hy K (by
       rcases hK with rfl | rfl | rfl | rfl | rfl <;> simp) (by rcases hK with rfl | rfl | rfl | rfl | rfl <;> simp)⟩
   have hz : Sched.SzKeep σ σ' := Sched.SzKeep.of_kheap hK.kh
   refine ⟨hS.placed, fun o ho => by rw [Sched.nodeAt_ksb hk]; exact hS.nodeNW o ho,
