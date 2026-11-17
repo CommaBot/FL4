@@ -165,8 +165,9 @@ set_option maxHeartbeats 4000000 in
 decode's start; the invoked slot's cap; the CSpace globals (`CsGlobal`), the
 arch interface (`ARIface`, `ArchTotal`) [P]; CancelBadgedSends' caller code
 below 3 (`NativeScope`'s, [P]) and its facts at every `XTopAt` sets of the
-state ([global]: `KsApart`, `BufWordRel`, `IPlaced`, the switch target ready,
-the endpoint among the endpoints); the copies' extra caps (`ExtraRel2`). -/
+state ([global]: `KsApart`, `BufWordRel`, `IPlaced`, the endpoint among the
+endpoints), and at the spec state the endpoints' queued threads' facts,
+`ScBack`, `ActReady` (`EpQPre`), the current thread not the switch target; the copies' extra caps (`ExtraRel2`). -/
 theorem decode_invocation_cnodeJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hG : CsGlobal (L := L) arI AR Z.th)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
@@ -182,8 +183,8 @@ theorem decode_invocation_cnodeJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel2 Z.th (L.mem s) x0 x1 (excaps.map Prod.fst))
     (hrun : ∀ xt, σ.kheap ct.bv = some (.tcb xt) → tsCode xt.tcbState < 3)
     (hZ : ∀ Z' : XSets, XTopAt (L := L) AR Z' s ar σ → KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s) ∧
-      BufWordRel Z'.T (L.mem s) σ ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧
-      ∀ s' σ', IRel st Z'.th σ.archState.x64CurrentCr3 Z'.N Z'.T Z'.C Z'.E Z'.R Z'.B Z'.c s' σ' → ActReady σ')
+      BufWordRel Z'.T (L.mem s) σ ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B)
+    (hQ : ∀ e, Sched.EpQPre σ e) (hsw : ∀ u, σ.schedulerAction = .switchThread u → u ≠ σ.curThread)
     (hE : ∀ (Z' : XSets) (e b : U64) (sl : Fl4Spec.CslotPtr), XTopAt (L := L) AR Z' s ar σ → AbsSlot Z.th sl →
       capV (L.mem s) (cslotAddr sl) = .Endpoint e b true true true true → e ∈ Z'.E)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
@@ -196,8 +197,8 @@ theorem decode_invocation_cnodeJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
   exact decode_invocation_cnodeX arI hARI.toMask s ar σ hX J.ks (J.curRun.run hni) J.thT (hG.delNtfn arI hARI hT) hG.fin hG.pre
     (hG.postDel arI hARI hT) K hK hK6 hDE lbl slbl hlbl length buf ct hct args hlen hargs p r gs g hwf hcv
     ⟨cslotAddr sl, hAs.isSlot, hsc⟩ extra x0 x1 hx0 hx1 excaps hex J.kern.act hcur hrun
-    (fun Z' hX' => let ⟨h1, h2, h3, h4⟩ := hZ Z' hX'
-      ⟨h1, h2, h3, hX'.fin.1.cur_mem hcur.symm, h4⟩) hE (cslotAddr sl) blk call don fp ci sl buffer
+    (fun Z' hX' => let ⟨h1, h2, h3⟩ := hZ Z' hX'
+      ⟨h1, h2, h3, hX'.fin.1.cur_mem hcur.symm⟩) hQ (by rw [← hcur]; exact hsw) hE (cslotAddr sl) blk call don fp ci sl buffer
 
 set_option maxHeartbeats 4000000 in
 /-- **The Thread cap on `JAt`** (`decode_invocation_threadXL`, with

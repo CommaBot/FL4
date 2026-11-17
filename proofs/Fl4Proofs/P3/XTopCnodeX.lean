@@ -19,7 +19,8 @@ discharged by `xCancelBadged`: beyond `decode_invocation_cnode_cancelX`'s
 CSpace premises, the caller's state code below 3 (running, restarting or
 inactive), and at every `XTopAt` sets `KsApart`, the IPC placement, the
 caller among the TCBs, the endpoint of a full-rights endpoint cap in a slot
-among the endpoints, and the switch target ready on `IRel`. -/
+among the endpoints; at the spec state every endpoint's queued threads'
+facts, `ScBack` and `ActReady` (`EpQPre`), the caller not the switch target. -/
 theorem decode_invocation_cnode_cancelXI {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S)
     (ar : A) (σ : Fl4Spec.State Unit) (hX : XTopAt (L := L) AR Z s ar σ) (hC : CurRun σ)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .cnodeCancelBadgedSends)
@@ -32,8 +33,8 @@ theorem decode_invocation_cnode_cancelXI {AR : A → Fl4Spec.Cr3 → Prop} {Z : 
     (hcur : σ.curThread = ct.bv)
     (hrun : ∀ xt, σ.kheap ct.bv = some (.tcb xt) → tsCode xt.tcbState < 3)
     (hZ : ∀ Z' : XSets, XTopAt (L := L) AR Z' s ar σ → KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s) ∧
-      BufWordRel Z'.T (L.mem s) σ ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧ ct ∈ Z'.T ∧
-      ∀ s' σ', IRel st Z'.th σ.archState.x64CurrentCr3 Z'.N Z'.T Z'.C Z'.E Z'.R Z'.B Z'.c s' σ' → ActReady σ')
+      BufWordRel Z'.T (L.mem s) σ ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧ ct ∈ Z'.T)
+    (hQ : ∀ e, EpQPre σ e) (hsw : ∀ u, σ.schedulerAction = .switchThread u → u ≠ ct.bv)
     (hE : ∀ (Z' : XSets) (e b : U64) (sl : Fl4Spec.CslotPtr), XTopAt (L := L) AR Z' s ar σ → AbsSlot Z.th sl →
       capV (L.mem s) (cslotAddr sl) = .Endpoint e b true true true true → e ∈ Z'.E)
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
@@ -43,9 +44,9 @@ theorem decode_invocation_cnode_cancelXI {AR : A → Fl4Spec.Cr3 → Prop} {Z : 
   obtain ⟨-, xt, hkt⟩ := hX.curTcb hcur
   refine decode_invocation_cnode_cancelX arI s ar σ hX hC slbl hlbl length buf ct hct args hlen hargs p r gs g hwf
     hcv extra excaps hact hcur (fun σ1 e b sl' hsl hcV hst _ => ?_) slot blk call don fp ci sl buffer
-  exact xCancelBadged hcur hkt (hrun xt hkt) hst fun Z' hX' =>
-    let ⟨h1, h0, h2, h3, h4⟩ := hZ Z' hX'
-    ⟨h1, h0, h2, h3, hE Z' e b sl' hX' hsl hcV, h4⟩
+  exact xCancelBadged hcur hkt (hrun xt hkt) hst (fun Z' hX' =>
+    let ⟨h1, h0, h2, h3⟩ := hZ Z' hX'
+    ⟨h1, h0, h2, h3, hE Z' e b sl' hX' hsl hcV⟩) (hQ _) hsw
 
 end
 
