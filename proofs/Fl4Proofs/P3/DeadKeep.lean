@@ -306,10 +306,40 @@ theorem JAtZ.jcov_cover {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
   obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
   refine ⟨fun q k hq => (J.jcov.th q k hq).imp_left fun hc => covered_keepC hM hM' hc hC,
     fun q k hq => (J.jcov.h q k hq).imp_left fun hc => covered_keepC hM hM' hc hC, hdead, fun x hx p sb fi d hc => ?_⟩
-  obtain ⟨y, hy, fi', d', hc'⟩ := hU x ((hM'.members x).1 hx).1 p sb fi d hc
+  obtain ⟨y, hy, fi', d', hc', -⟩ := hU x ((hM'.members x).1 hx).1 p sb fi d hc
   have hym : y ∈ Z.G.chains.flatten := (hM.members y).2 ⟨hy, _, capAt_capV _ _, by rw [hc']; simp⟩
   obtain ⟨h1, h2⟩ := J.jcov.ks y hym p sb fi' d' hc'
   exact ⟨by rw [hks]; exact h1, fun c hc' => by rw [hnb]; exact h2 c hc'⟩
+
+/-- **`SpecFree` across a step moving caps** (`UtKept`: each untyped region
+after an old one, its free index no lower or the new one full; the spec's
+objects kept in kind, `KSz`; `UtInv`'s `fib` before). -/
+theorem JAtZ.sfree_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
+    (hM' : MdbLinks Z.th (L.mem s') G') (hU : UtKept Z.th (L.mem s) (L.mem s')) (hk : KSz σ σ') :
+    Sched.SpecFree (L.mem s') G' σ' := by
+  obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
+  intro x hx p sb fi d hc o ko' ho
+  obtain ⟨y, hy, fi', d', hc', hle⟩ := hU x ((hM'.members x).1 hx).1 p sb fi d hc
+  have hym : y ∈ Z.G.chains.flatten := (hM.members y).2 ⟨hy, _, capAt_capV _ _, by rw [hc']; simp⟩
+  obtain ⟨ko, hko, hty⟩ := hk o ko' ho
+  rw [← objBits_of_aType hty]
+  have hfib := J.ut.fib y hym p sb fi' d' hc'
+  rcases J.sfree y hym p sb fi' d' hc' o ko hko with e | e
+  · exact Or.inl e
+  · right; rcases hle with h | h <;> omega
+
+/-- **`JCs` after a slot step** (`DelInv` after given; `UtInv` from the
+step's `MdbOKV`, `FinM` at every tree from `FinInv` after, `SpecFree` from
+`sfree_keep`). -/
+theorem JAtZ.jcs_slot {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost} {kb : U64}
+    (hM' : MdbLinks Z.th (L.mem s') G') (hMO : MdbOKV kb (L.mem s') G') (hFI : FinInv Z.th (L.mem s') σ' G')
+    (hU : UtKept Z.th (L.mem s) (L.mem s')) (hk : KSz σ σ') (hD : DelInv Z.th (L.mem s')) :
+    JCs (L := L) { Z with G := G' } s' σ' :=
+  ⟨hD, hMO.1.2.1, fun G hG => FinM.of_links J.xtop.rel.1 hM' hG hFI.fm, J.sfree_keep hM' hU hk⟩
 
 /-- **`JKern` across a step** keeping the kernel-state base, the core, the
 current thread and SC, the original bits (new ones only at `AbsSlot`s), the

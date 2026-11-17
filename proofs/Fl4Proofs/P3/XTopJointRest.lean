@@ -321,7 +321,7 @@ theorem jowes_ins {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : MdbGh
     have e := hcap' y hy hyd
     exact ⟨y, hy, by rw [e]; exact hp, by rw [e]; exact hu, by rw [e], by rw [e]⟩
   · have hxd : x ≠ cslotAddr (pd.bv, idxd) := fun e => hnu p sb fi d (e ▸ hc)
-    exact ⟨x, hx, fi, d, by rw [← hcap' x hx hxd]; exact hc⟩
+    exact ⟨x, hx, fi, d, by rw [← hcap' x hx hxd]; exact hc, Or.inl le_rfl⟩
   · by_cases e : sl = (pd.bv, idxd)
     · right; subst e; exact ⟨pd, rfl, Or.inl (by rw [hld]; exact hth2 ▸ hpd)⟩
     · left; rw [← capInsert_orig c _ _ σ ((), σ') hmem sl e]; exact h

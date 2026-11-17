@@ -345,7 +345,12 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
                 exacts [⟨ps, _, rfl, hps, rfl⟩, ⟨ppv, _, rfl, hpl, rfl⟩, ⟨pd, _, rfl, hpd, rfl⟩],
               fun y hy hne => htr.2.1 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots])),
               coverUt_swap hAs.isSlot hAp.isSlot (fun h => e1 h.symm) (capV_of_capAt hsc2) (capV_of_capAt hpc2)
-                htr.2.2.1 htr.2.2.2 htr.2.1 hshs hshp⟩
+                htr.2.2.1 htr.2.2.2 htr.2.1 hshs hshp (fun _ _ _ _ hc _ _ hs => by
+                have hu : isUt srcC = true := by rw [hs]; rfl
+                rw [update_ut hns hu, hs] at hc; cases hc; exact Or.inl le_rfl)
+                (fun _ _ _ _ hc _ _ hs => by
+                have hu : isUt pivC = true := by rw [hs]; rfl
+                rw [update_ut hnp hu, hs] at hc; cases hc; exact Or.inl le_rfl)⟩
             · simp only [hnsan, hnpan, Fl4Spec.NonDetE.whenE, ↓reduceIte, ndE_pure_bind]; rfl
             · unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption
               simp only [e3', ↓reduceIte]
@@ -485,13 +490,21 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
               fun y hy hne => (htr2.2.1 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots]))).trans
                 (htr1.2.1 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots]))),
               (coverUt_mov hAd.isSlot (fun e => hdm (e ▸ hpm)) (capV_of_capAt hpc2) (capV_of_capAt hdc2)
-                htr1.2.2.1 htr1.2.2.2 htr1.2.1 hshp hAp.isSlot).1.trans
+                htr1.2.2.1 htr1.2.2.2 htr1.2.1 hshp hAp.isSlot (fun _ _ _ _ hc _ _ hs => by
+                have hu : isUt pivC = true := by rw [hs]; rfl
+                rw [update_ut hnp hu, hs] at hc; cases hc; exact Or.inl le_rfl)).1.trans
                 (coverUt_mov hAp.isSlot (fun h => e1 h.symm) (capV_of_capAt hsc3) (capV_of_capAt hpc3)
-                htr2.2.2.1 htr2.2.2.2 htr2.2.1 hshs hAs.isSlot).1,
+                htr2.2.2.1 htr2.2.2.2 htr2.2.1 hshs hAs.isSlot (fun _ _ _ _ hc _ _ hs => by
+                have hu : isUt srcC = true := by rw [hs]; rfl
+                rw [update_ut hns hu, hs] at hc; cases hc; exact Or.inl le_rfl)).1,
               (coverUt_mov hAd.isSlot (fun e => hdm (e ▸ hpm)) (capV_of_capAt hpc2) (capV_of_capAt hdc2)
-                htr1.2.2.1 htr1.2.2.2 htr1.2.1 hshp hAp.isSlot).2.trans
+                htr1.2.2.1 htr1.2.2.2 htr1.2.1 hshp hAp.isSlot (fun _ _ _ _ hc _ _ hs => by
+                have hu : isUt pivC = true := by rw [hs]; rfl
+                rw [update_ut hnp hu, hs] at hc; cases hc; exact Or.inl le_rfl)).2.trans
                 (coverUt_mov hAp.isSlot (fun h => e1 h.symm) (capV_of_capAt hsc3) (capV_of_capAt hpc3)
-                htr2.2.2.1 htr2.2.2.2 htr2.2.1 hshs hAs.isSlot).2⟩
+                htr2.2.2.1 htr2.2.2.2 htr2.2.1 hshs hAs.isSlot (fun _ _ _ _ hc _ _ hs => by
+                have hu : isUt srcC = true := by rw [hs]; rfl
+                rw [update_ut hns hu, hs] at hc; cases hc; exact Or.inl le_rfl)).2⟩
             · simp only [hnsan, hnpan, Fl4Spec.NonDetE.whenE, ↓reduceIte, ndE_pure_bind]; rfl
             · unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption
               simp only [e3', ↓reduceIte]

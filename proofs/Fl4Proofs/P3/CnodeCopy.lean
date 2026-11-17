@@ -485,7 +485,8 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
               exacts [⟨ps, _, rfl, hps, rfl⟩, ⟨pd, _, rfl, hpd, rfl⟩],
             fun y hy hne => htr.2.1 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots])),
             coverUt_ins hAs.isSlot hsd (capV_of_capAt hsc2) (capV_of_capAt hdc2) htr.2.2.1 htr.2.2.2 htr.2.1 hsh
-              (copied_ut hr2)⟩
+              (copied_ut hr2) (fun _ _ _ _ e => by
+                have h := hsc2; rw [capAt_words, e] at h; exact (decode_encWf h).2)⟩
           rw [run_ofExcept]; simp [finishRes, hann]
         · -- move
           simp only [↓reduceIte]
@@ -506,7 +507,9 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
               exacts [⟨ps, _, rfl, hps, rfl⟩, ⟨pd, _, rfl, hpd, rfl⟩],
             fun y hy hne => htr.2.1 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots])),
             coverUt_mov hAd.isSlot hsd (capV_of_capAt hsc2) (capV_of_capAt hdc2) htr.2.2.1 htr.2.2.2 htr.2.1 hsh
-              hAs.isSlot⟩
+              hAs.isSlot (fun _ _ _ _ hc _ _ hs => by
+                have hu : isUt srcC = true := by rw [hs]; rfl
+                rw [copied_ut hr2 hu, hs] at hc; cases hc; exact Or.inl le_rfl)⟩
           rw [run_ofExcept]; simp [finishRes, hann]
 
 /-- **FL4's CNode Copy, Mint, Move and Mutate refine l4v's**: for labels
