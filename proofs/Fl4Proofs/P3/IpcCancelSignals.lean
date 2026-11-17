@@ -124,6 +124,75 @@ theorem tsw_bound {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s 
     TSW T C (tBoundA y) :=
   tsw_tcb hS hy (val_bound (hS.placed.tcb y hy)) (by omega) (by omega) (by omega) (by omega)
 
+/-- **The words a notification's finalisation writes**, against a start's
+sets and SC sizes: the scheduler's (`KFoot`) and the TCBs' words off their
+frame offsets. -/
+def FinW (T N C : Set U64) (c : U64) (s : S) (σ : Fl4Spec.State Unit) (b : U64) : Prop :=
+  KFoot st T N C c s σ b ∨
+    ∃ y ∈ T, ∃ K : Nat, 256 ≤ K ∧ K < 4096 ∧ K ≠ 3440 ∧ K ≠ 3472 ∧ K ≠ 3512 ∧ b.val = y.val + K
+
+theorem SzKeepC.trans' {C : Set U64} {σ1 σ2 σ3 : Fl4Spec.State Unit} (h1 : SzKeepC C σ1 σ2)
+    (h2 : SzKeepC C σ2 σ3) : SzKeepC C σ1 σ3 :=
+  fun sc hsc x n hk => by obtain ⟨x1, h⟩ := h2 sc hsc x n hk; exact h1 sc hsc x1 n h
+
+theorem FinW.back {s s' : S} {σ σ' : Fl4Spec.State Unit} (hk : L.ksb s' = L.ksb s) (hz : SzKeepC C σ σ') {b : U64}
+    (h : FinW (st := st) T N C c s' σ' b) : FinW (st := st) T N C c s σ b := by
+  rcases h with (h | h | ⟨sc, hsc, x, n, hx, ho, hne⟩) | h
+  · exact Or.inl (Or.inl ((SFoot.ksb hk).1 h))
+  · exact Or.inl (Or.inr (Or.inl h))
+  · obtain ⟨x0, hx0⟩ := hz sc hsc x n hx
+    exact Or.inl (Or.inr (Or.inr ⟨sc, hsc, x0, n, hx0, ho, hne⟩))
+  · exact Or.inr h
+
+/-- A step of the finalisation: its writes `FinW` (at its start), the SCs'
+sizes kept. -/
+def FinStep (T N C : Set U64) (c : U64) (s : S) (σ : Fl4Spec.State Unit) (s' : S) (σ' : Fl4Spec.State Unit) : Prop :=
+  WritesIn st s s' (FinW (st := st) T N C c s σ) ∧ SzKeepC C σ σ'
+
+theorem FinStep.refl (s : S) (σ : Fl4Spec.State Unit) : FinStep (st := st) T N C c s σ s σ :=
+  ⟨WritesIn.refl _ _, fun _ _ x _ h => ⟨x, h⟩⟩
+
+theorem FinStep.trans {s1 s2 s3 : S} {σ1 σ2 σ3 : Fl4Spec.State Unit} (h1 : FinStep (st := st) T N C c s1 σ1 s2 σ2)
+    (h2 : FinStep (st := st) T N C c s2 σ2 s3 σ3) : FinStep (st := st) T N C c s1 σ1 s3 σ3 :=
+  ⟨h1.1.trans1 (h2.1.mono fun _ hb => FinW.back h1.1.1 h1.2 hb), SzKeepC.trans' h1.2 h2.2⟩
+
+theorem FinW.tsw {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ) {b : U64}
+    (h : FinW (st := st) T N C c s σ b) : TSW T C b := by
+  rcases h with h | ⟨y, hy, K, h1, h2, h3, h4, h5, e⟩
+  · exact KFoot.tsw hS h
+  · exact tsw_tcb hS hy e h2 h3 h4 h5
+
+theorem NWrite.finW {s : S} {σ : Fl4Spec.State Unit} (hT : TcbPlaced T) {b : U64} (hb : NWrite N T b) :
+    FinW (st := st) T N C c s σ b := by
+  rcases hb with ⟨n, hn, g1, g2⟩ | ⟨t, ht, h⟩
+  · exact Or.inl (KFoot.of_nw ⟨n, hn, g1, g2⟩)
+  · have hta := hT t ht
+    have := regIdx_lt Fl4Spec.badge_register
+    refine Or.inr ⟨t, ht, ?_⟩
+    rcases h with rfl | rfl | rfl | rfl | rfl
+    · exact ⟨3328, by omega, by omega, by omega, by omega, by omega, val_st hta⟩
+    · exact ⟨3336, by omega, by omega, by omega, by omega, by omega, val_blk hta⟩
+    · rw [badgeRegA_eq_regA]
+      exact ⟨256 + 8 * (regIdx Fl4Spec.badge_register).val, by omega, by omega, by omega, by omega, by omega,
+        regA_val hta (regIdx_lt _)⟩
+    · exact ⟨3496, by omega, by omega, by omega, by omega, by omega, val_next hta⟩
+    · exact ⟨3504, by omega, by omega, by omega, by omega, by omega, val_prev hta⟩
+
+theorem SFootI.finW {s : S} {σ : Fl4Spec.State Unit} (hT : TcbPlaced T) {b : U64} (hb : SFootI st T c s b) :
+    FinW (st := st) T N C c s σ b := by
+  rcases hb with ⟨y, hy, rfl | rfl | rfl⟩ | ⟨g1, g2, -⟩
+  · exact Or.inr ⟨y, hy, 3480, by omega, by omega, by omega, by omega, by omega,
+      tfield_val (hT y hy) (K := 3480#u64) (by simp)⟩
+  · exact Or.inr ⟨y, hy, 3488, by omega, by omega, by omega, by omega, by omega,
+      tfield_val (hT y hy) (K := 3488#u64) (by simp)⟩
+  · exact Or.inr ⟨y, hy, 3592, by omega, by omega, by omega, by omega, by omega,
+      tfield_val (hT y hy) (K := 3592#u64) (by simp)⟩
+  · exact Or.inl (KFoot.of_sfoot (Or.inr ⟨g1, g2⟩))
+
+theorem finW_bound {s : S} {σ : Fl4Spec.State Unit} (hT : TcbPlaced T) {y : U64} (hy : y ∈ T) :
+    FinW (st := st) T N C c s σ (tBoundA y) :=
+  Or.inr ⟨y, hy, 3368, by omega, by omega, by omega, by omega, by omega, val_bound (hT y hy)⟩
+
 /-- **`unblock_sporadic` writes in the SC code's footprint** (`TFoot`): the
 SC's words (`unblock_check_scw`), or nothing. -/
 theorem unblock_sporadic_kfoot {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ) (t : U64)
@@ -174,7 +243,7 @@ theorem ntfn_restart_irel (hP0 : IPlaced N T E R B)
     {γ : Type} (k : S → Result γ) {Q : γ → Prop}
     (hkont : ∀ s' σ' xn', ((), σ') ∈ (rrn n t.bv σ).1 → IRel st th cr N T C E R B c s' σ' →
       σ'.kheap n.bv = some (.notification xn') → Fl4Spec.ntfnQueueOf xn' = rest.map UScalar.bv →
-      IFrame (L := L) th s s' → WritesIn st s s' (TSW T C) → (∀ u ∈ rest.map UScalar.bv, MemOK σ' u) →
+      IFrame (L := L) th s s' → FinStep (st := st) T N C c s σ s' σ' → (∀ u ∈ rest.map UScalar.bv, MemOK σ' u) →
       ScBack σ' → ActReady σ' → k s' ⦃ Q ⦄) :
     (do
       let s1 ← notification.ntfn_dequeue st s n t
@@ -205,7 +274,6 @@ theorem ntfn_restart_irel (hP0 : IPlaced N T E R B)
   rintro s2 ⟨hA1, hA2, hA3⟩
   have hSS1 : IFrame (L := L) th s s2 :=
     IRel.iframe_of ⟨hR, hSRT⟩ hA3.foot fun b hb => iwords_oobj (NWrite.iwords hP.tcb hb)
-  have hTW1 : WritesIn st s s2 (TSW T C) := hA3.foot.mono fun b hb => NWrite.tsw hSRT.2.1 hb
   obtain ⟨q', hq'⟩ : ∃ q', Fl4Spec.removeAll t.bv (Fl4Spec.ntfnQueueOf xn) = q' := ⟨_, rfl⟩
   have herase : (t :: rest).erase t = rest := List.erase_cons_head t rest
   have hrm : q' = rest.map UScalar.bv := by
@@ -249,6 +317,8 @@ theorem ntfn_restart_irel (hP0 : IPlaced N T E R B)
     · rw [hA3.bound]; exact hx2.bound_mem
     · show xn.ntfnSc = _; rw [hA3.sc]; exact hx2.sc
   have hK := NtfnStep.ntfn (y := xn') hkn rfl rfl
+  have hTW1 : FinStep (st := st) T N C c s σ s2 σ2 :=
+    ⟨hA3.foot.mono fun b hb => NWrite.finW hP.tcb hb, SzKeepC.of (SzKeep.ntfnStep hK)⟩
   have hS2 : SRT st th cr N T C E R B c (SRE st N T C E R B c) s2 σ2 :=
     ⟨hSRT.1.stableN hSRT.2.1.placed hA3.foot hK, hSRT.2.1.stable hA3.foot hK,
       hSRT.2.2.mono hA3.foot.1 (SzKeep.ntfnStep hK)⟩
@@ -284,9 +354,12 @@ theorem ntfn_restart_irel (hP0 : IPlaced N T E R B)
   rintro s3 ⟨⟨hE3, hS3⟩, hw3⟩
   have hSS2 : IFrame (L := L) th s2 s3 :=
     IRel.iframe_of ⟨hR2, hS2⟩ hw3 fun b hb => tfoot_oobj hS2.2.1 (Or.inl (KFoot.of_sfoot hb))
-  have hTW2 : WritesIn st s2 s3 (TSW T C) := hw3.mono fun b hb => KFoot.tsw hS2.2.1 (KFoot.of_sfoot hb)
   have hX3 := IpcRel.ofSRN hE3 hS3
   set σ3 := stsAct (updK σ2 t.bv (.tcb { x with tcbState := .restart })) t.bv with hσ3
+  have hTW2 : FinStep (st := st) T N C c s2 σ2 s3 σ3 :=
+    ⟨hw3.mono fun b hb => Or.inl (KFoot.of_sfoot hb), SzKeepC.of (SzKeep.of_tcb (p := t.bv)
+      (x' := { x with tcbState := .restart }) (fun q hq => by rw [hσ3, stsAct_kheap]; simp [updK, hq])
+      (by rw [hσ3, stsAct_kheap]; simp [updK]))⟩
   have hkn3 : σ3.kheap n.bv = some (.notification xn') := by
     rw [hσ3, stsAct_kheap]; simp [updK, Ne.symm htn, hkn2]
   -- the sporadic unblock and the switch
@@ -294,7 +367,15 @@ theorem ntfn_restart_irel (hP0 : IPlaced N T E R B)
   rintro s4 ⟨⟨σ4, hu, hf4, hv4, hX4⟩, hw4⟩
   have hSS3 : IFrame (L := L) th s3 s4 :=
     IRel.iframe_of hX3 hw4 fun b hb => tfoot_oobj hX3.2.2.1 (Or.inl hb)
-  have hTW3 : WritesIn st s3 s4 (TSW T C) := hw4.mono fun b hb => KFoot.tsw hX3.2.2.1 hb
+  have hTW3 : FinStep (st := st) T N C c s3 σ3 s4 σ4 := by
+    refine ⟨hw4.mono fun b hb => Or.inl hb, SzKeepC.of fun p y k hp => ?_⟩
+    have hmem : ((), σ4) ∈ ((Fl4Spec.getTcbObjRef (Z := Unit) Fl4Spec.Tcb.tcbSchedContext t.bv >>=
+        Fl4Spec.ifSporadicCurScTestRefillUnblockCheck (Z := Unit)) σ3).1 := by
+      rw [show (Fl4Spec.getTcbObjRef (Z := Unit) Fl4Spec.Tcb.tcbSchedContext t.bv >>=
+        Fl4Spec.ifSporadicCurScTestRefillUnblockCheck (Z := Unit)) = specUnblock t.bv from rfl, hu]
+      exact Set.mem_singleton _
+    obtain ⟨y0, h0, -, -⟩ := MaxK.mk_unblock t.bv σ3 ((), σ4) hmem p y k hp
+    exact ⟨y0, h0⟩
   -- the spec's scheduler facts at the unblock check (`ntfn_restart_mid`)
   have hF1 : SFr σ σ2 := SFr.updOther hkn (fun _ h => by cases h) (fun _ _ h => by cases h)
     (fun _ h => by cases h) (fun _ _ h => by cases h)
@@ -320,7 +401,8 @@ theorem ntfn_restart_irel (hP0 : IPlaced N T E R B)
   rintro s5 ⟨⟨σ5, hps, hk5, hf5, hv5, hS5⟩, hw5⟩
   have hSS4 : IFrame (L := L) th s4 s5 :=
     IRel.iframe_of hX4 hw5 fun b hb => sfootI_oobj hP.tcb hb
-  have hTW4 : WritesIn st s4 s5 (TSW T C) := hw5.mono fun b hb => SFootI.tsw hX4.2.2.1 hb
+  have hTW4 : FinStep (st := st) T N C c s4 σ3' s5 σ5 :=
+    ⟨hw5.mono fun b hb => SFootI.finW hP.tcb hb, SzKeepC.of (SzKeep.of_kheap hk5)⟩
   obtain ⟨σ6, he6, hk6, ht6, hr6, ha6⟩ := pst_ok hkt3' hA3
   have e56 : σ6 = σ5 := by
     have h : ((), σ6) ∈ (Fl4Spec.possibleSwitchTo (Z := Unit) t.bv σ3').1 := by rw [he6]; rfl
@@ -328,7 +410,7 @@ theorem ntfn_restart_irel (hP0 : IPlaced N T E R B)
   subst e56
   have hF6 := SFr.of_heap hk6 ht6 hr6
   refine hkont s5 σ6 xn' ?_ ⟨hX4.1.frame hP0 hf5 hv5, hS5⟩ (by rw [hk5]; exact hv4.1.1 _ _ hkn3) ?_
-    (((hSS1.trans hSS2).trans hSS3).trans hSS4) (((hTW1.trans1 hTW2).trans1 hTW3).trans1 hTW4)
+    (((hSS1.trans hSS2).trans hSS3).trans hSS4) (((hTW1.trans hTW2).trans hTW3).trans hTW4)
     (fun u hu => hF6.memOK (hmm3 u hu)) (hF6.scBack hB3)
     (pst_actReady hA3 hT3 hk6 ht6 hr6 ha6)
   · show ((), σ6) ∈ (Fl4Spec.removeAndRestartNtfnQueuedThread (Z := Unit) t.bv n.bv σ).1
@@ -356,7 +438,7 @@ def SInv (n : U64) (s0 : S) (σ0 : Fl4Spec.State Unit) (q0 : List Fl4Spec.ObjRef
   ∃ σ' xn, ∃ rest : List U64, IRel st th cr N T C E R B c x.1 σ' ∧ σ'.kheap n.bv = some (.notification xn) ∧
     Fl4Spec.ntfnQueueOf xn = rest.map UScalar.bv ∧ x.2.1 = rest.headD 0#u64 ∧ rest.length ≤ x.2.2.val ∧
     (∀ z, z ∈ (Fl4Spec.NonDet.mapMx (rrn n) (rest.map UScalar.bv) σ').1 →
-      z ∈ (Fl4Spec.NonDet.mapMx (rrn n) q0 σ0).1) ∧ IFrame (L := L) th s0 x.1 ∧ WritesIn st s0 x.1 (TSW T C) ∧
+      z ∈ (Fl4Spec.NonDet.mapMx (rrn n) q0 σ0).1) ∧ IFrame (L := L) th s0 x.1 ∧ FinStep (st := st) T N C c s0 σ0 x.1 σ' ∧
     (∀ u ∈ rest.map UScalar.bv, MemOK σ' u) ∧ ScBack σ' ∧ ActReady σ'
 
 set_option maxHeartbeats 4000000 in
@@ -366,7 +448,7 @@ theorem signals_loop (hP0 : IPlaced N T E R B)
     (h0 : SInv st th cr N T C E R B c n s0 σ0 q0 x0) :
     notification.cancel_all_signals_loop st x0.1 n x0.2.1 x0.2.2 ⦃ s' => ∃ σf,
       ((), σf) ∈ (Fl4Spec.NonDet.mapMx (rrn n) q0 σ0).1 ∧ IRel st th cr N T C E R B c s' σf ∧
-      IFrame (L := L) th s0 s' ∧ WritesIn st s0 s' (TSW T C) ∧ ActReady σf ⦄ := by
+      IFrame (L := L) th s0 s' ∧ FinStep (st := st) T N C c s0 σ0 s' σf ∧ ActReady σf ⦄ := by
   have hP := hP0.e
   unfold notification.cancel_all_signals_loop
   apply loop.spec_decr_nat (measure := fun x : S × U64 × U64 => x.2.2.val)
@@ -408,7 +490,7 @@ theorem signals_loop (hP0 : IPlaced N T E R B)
     refine ntfn_restart_irel hP0 s σ' hX hnN hkn hq (by rw [hq]; exact hm) hBk hAr _
       fun s4 σ'' xn' hres hX4 hkn4 hq4 hss4 htw4 hm4 hB4 hA4 => ?_
     rw [WP.spec_ok]
-    refine ⟨⟨σ'', xn', rest', hX4, hkn4, hq4, by rw [hnx, hnext], ?_, ?_, hss.trans hss4, htw.trans1 htw4, hm4, hB4,
+    refine ⟨⟨σ'', xn', rest', hX4, hkn4, hq4, by rw [hnx, hnext], ?_, ?_, hss.trans hss4, htw.trans htw4, hm4, hB4,
       hA4⟩, ?_⟩
     · rw [hfuel1]; simp only [List.length_cons] at hlen; scalar_tac
     · exact fun z hz => hinc z (by rw [List.map_cons]; exact mapMx_cons_mem (l := rest'.map UScalar.bv) hres z hz)
@@ -421,7 +503,7 @@ theorem cancel_all_signals_irel (hP0 : IPlaced N T E R B)
     (hpre : Sched.NtfnQPre σ n.bv) :
     notification.cancel_all_signals st s n ⦃ s' => ∃ σ',
       ((), σ') ∈ (Fl4Spec.cancelAllSignals (Z := Unit) n.bv σ).1 ∧ IRel st th cr N T C E R B c s' σ' ∧
-      IFrame (L := L) th s s' ∧ WritesIn st s s' (TSW T C) ⦄ := by
+      IFrame (L := L) th s s' ∧ FinStep (st := st) T N C c s σ s' σ' ⦄ := by
   have hP := hP0.e
   obtain ⟨xn, hkn, hx2⟩ := hX.1.toN.ntfn n hnN
   obtain ⟨hm0, hB0, hA0⟩ := hpre xn hkn
@@ -442,12 +524,12 @@ theorem cancel_all_signals_irel (hP0 : IPlaced N T E R B)
     rw [hxo] at hob
     have h0 : i ≠ obj.NTFN_WAITING := by rw [hi, hob.1]; unfold obj.NTFN_WAITING; decide
     simp only [h0, bne_iff_ne, ne_eq, not_false_eq_true, ↓reduceIte, WP.spec_ok]
-    exact ⟨σ, by rw [hsp, hxo]; rfl, hX, IFrame.refl _ _, WritesIn.refl _ _⟩
+    exact ⟨σ, by rw [hsp, hxo]; rfl, hX, IFrame.refl _ _, FinStep.refl _ _⟩
   | activeNtfn b =>
     rw [hxo] at hob
     have h0 : i ≠ obj.NTFN_WAITING := by rw [hi, hob.1]; unfold obj.NTFN_WAITING; decide
     simp only [h0, bne_iff_ne, ne_eq, not_false_eq_true, ↓reduceIte, WP.spec_ok]
-    exact ⟨σ, by rw [hsp, hxo]; rfl, hX, IFrame.refl _ _, WritesIn.refl _ _⟩
+    exact ⟨σ, by rw [hsp, hxo]; rfl, hX, IFrame.refl _ _, FinStep.refl _ _⟩
   | waitingNtfn q =>
     rw [hxo] at hob
     obtain ⟨h1, xs, -, hqx, hQ, -⟩ := hob
@@ -458,15 +540,15 @@ theorem cancel_all_signals_irel (hP0 : IPlaced N T E R B)
     have hI0 : SInv st th cr N T C E R B c n s σ q (s, qq.head, layout.WALK_FUEL) :=
       ⟨σ, xn, xs, hX, hkn, by show xn.ntfnObj.ntfnQueue = _; rw [hxo, hqx]; rfl,
         by rw [hqq, epQ_eq, hQ.head], by rw [hfuel]; exact len_le_max xs hQ.nodup (hQ.ne0 hP.tcb),
-        fun z hz => by rw [hqx]; exact hz, IFrame.refl _ _, WritesIn.refl _ _,
+        fun z hz => by rw [hqx]; exact hz, IFrame.refl _ _, FinStep.refl _ _,
         fun u hu => hm0 u (by show u ∈ xn.ntfnObj.ntfnQueue; rw [hxo]; show u ∈ q; rw [hqx]; exact hu), hB0, hA0⟩
     refine WP.spec_bind (signals_loop hP0 hnN s σ q _ hI0) ?_
     rintro s1 ⟨σf, hmf, hXf, hss1, htw1, hAf⟩
     refine WP.spec_mono (WP.spec_and (resched_irel hP0 s1 σf hXf hAf)
       (reschedule_required_sfootI hXf.2.2.1)) ?_
-    rintro s2 ⟨⟨σr, hrs, -, hX2⟩, hw2⟩
+    rintro s2 ⟨⟨σr, hrs, hkr, hX2⟩, hw2⟩
     refine ⟨σr, ?_, hX2, hss1.trans (IRel.iframe_of hXf hw2 fun b hb => sfootI_oobj hP.tcb hb),
-      htw1.trans1 (hw2.mono fun b hb => SFootI.tsw hXf.2.2.1 hb)⟩
+      htw1.trans ⟨hw2.mono fun b hb => SFootI.finW hP.tcb hb, SzKeepC.of (SzKeep.of_kheap hkr)⟩⟩
     rw [hsp, hxo]
     exact ⟨((), σf), hmf, by show ((), σr) ∈ (Fl4Spec.rescheduleRequired σf).1; rw [hrs]; rfl⟩
 
