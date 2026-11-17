@@ -1,7 +1,7 @@
 /-
 P3 (DESIGN.md §9), TCB invocations: **Suspend on `IRel`** (`sched::suspend`
-against l4v `suspend`); the leaf from `JAtZ` is IpcSuspendJ's
-`suspendXLeafJ` (`suspendXLeaf_of` is retired).
+against l4v `suspend`); the theorem is IpcSuspendJ's
+`suspend_irelY` (the leaf from `JAtZ`: `suspendXLeafJ`); here its steps.
 
 `cancel_ipc` (`cancel_ipc_irel`), the restart PC of a running thread
 (`reg_wr_irel`: XTopTcbSched's register write at `IRel`), the scheduler
@@ -188,96 +188,6 @@ theorem cancelSt_code (ts : Fl4Spec.ThreadState) :
   cases ts <;> simp [cancelSt, tsCode]
 
 end
-
-section
-variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
-variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
-
-set_option maxHeartbeats 8000000 in
-/-- **`suspend` on `IRel`** (module docstring). Named: `SchedValid`,
-`ObjCover`, `Inv` at the start (`cancel_ipc_irel`) [J], `RemoveTcbHyp`,
-and the yield-to relation `YieldRel` on `IRel` [J]. -/
-theorem suspend_irel (hP0 : IPlaced N T E R B) (hRT : RemoveTcbHyp st th cr N T C E R B c)
-    (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ) {t : U64} (ht : t ∈ T)
-    (hSV : SchedValid σ) (hOC : ObjCover N T E R C σ) (hInv : Inv σ)
-    (hY : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → YieldRel T C (L.mem s') σ') :
-    sched.suspend st ar s a t ⦃ r => r.2 = a ∧ ∃ σ', Fl4Spec.suspend (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
-      IRel st th cr N T C E R B c r.1 σ' ⦄ := by
-  obtain ⟨x, hk, -⟩ := hX.1.tcb t ht
-  unfold sched.suspend
-  refine WP.spec_bind (cancel_ipc_irel hP0 hRT s a σ hX ht hk hSV hOC hInv) ?_
-  rintro ⟨s1, a1⟩ ⟨rfl, σ1, x1, hc1, hX1, hk1, hs1⟩
-  step with P1.obj.Tcb.state.spec as ⟨i, hi⟩
-  obtain ⟨x1', hk1', hTR1⟩ := hX1.1.tcb t ht
-  rw [hk1] at hk1'; cases hk1'
-  have hw : i.val = tsCode x1.tcbState := by rw [hi]; exact hTR1.st
-  have hrun : i = sched.TS_RUNNING ↔ x1.tcbState = .running := by
-    constructor
-    · intro h; rw [h] at hw; unfold sched.TS_RUNNING at hw
-      generalize x1.tcbState = ts at hw ⊢; cases ts <;> simp_all [tsCode]
-    · intro h; rw [h] at hw; apply UScalar.eq_of_val_eq; unfold sched.TS_RUNNING; simp [tsCode] at hw; simp [hw]
-  -- the restart PC
-  have hreg : (if i = sched.TS_RUNNING then do
-        let ip ← obj.Tcb.reg st t s1 layout.reg.NEXT_IP
-        obj.Tcb.set_reg st t s1 layout.reg.FAULT_IP ip
-      else ok s1) ⦃ s2 => ∃ σ2 x2,
-        Fl4Spec.NonDet.when (x1.tcbState = .running) (Fl4Spec.updateRestartPc (Z := Unit) t.bv) σ1 =
-          ({((), σ2)}, False) ∧ IRel st th cr N T C E R B c s2 σ2 ∧ σ2.kheap t.bv = some (.tcb x2) ∧
-          x2.tcbState = x1.tcbState ⦄ := by
-    by_cases hr : x1.tcbState = .running
-    · rw [if_pos (hrun.2 hr)]
-      step with Endp.obj.Tcb.reg.spec as ⟨ip, hip⟩
-      refine WP.spec_mono (Endp.obj.Tcb.set_reg.spec s1 t _ ip) ?_
-      rintro s2 rfl
-      have hF : layout.reg.FAULT_IP = regIdx .faultIP := by unfold layout.reg.FAULT_IP; rfl
-      have hNx : layout.reg.NEXT_IP = regIdx .nextIP := by unfold layout.reg.NEXT_IP; rfl
-      have hipv : ip.bv = x1.tcbArch.tcbContext.userRegs .nextIP := by rw [hip, hNx]; exact hTR1.regs .nextIP
-      rw [hF]
-      refine ⟨_, Notif.setReg x1 .faultIP ip.bv, ?_, reg_wr_irel hP0 hX1 ht hk1 .faultIP (by decide) ip,
-        by simp [Notif.updK], rfl⟩
-      unfold Fl4Spec.NonDet.when
-      rw [if_pos hr, updateRestartPc_eq hk1, hipv]
-    · rw [if_neg (fun h => hr (hrun.1 h)), WP.spec_ok]
-      refine ⟨σ1, x1, ?_, hX1, hk1, rfl⟩
-      unfold Fl4Spec.NonDet.when
-      rw [if_neg hr]; rfl
-  refine WP.spec_bind hreg ?_
-  rintro s2 ⟨σ2, x2, hw2, hX2, hk2, hs2⟩
-  -- the ready queue
-  have hS2 := hX2.2.2.1
-  refine WP.spec_bind (WP.spec_and (dequeue_refines s2 σ2 hS2 t ht) (dequeue_sfootI hS2 ht)) ?_
-  rintro s3 ⟨⟨σ3, he3, hk3, -, -, hS3⟩, hw3⟩
-  have hX3 := sc_step_lift hP0 hX2 (hw3.mono fun _ h => Or.inr h) (NKS.of_eq (nks_tcbSchedActionI _ _) he3) hS3
-  -- the release queue
-  have hS3' := hX3.2.2.1
-  refine WP.spec_bind (WP.spec_and (release_remove_refines s3 σ3 hS3' ht) (release_remove_sfootI hS3' ht)) ?_
-  rintro s4 ⟨⟨σ4, he4, ⟨bb, hσ4⟩, -, hS4⟩, hw4⟩
-  have hX4 := sc_step_lift hP0 hX3 (hw4.mono fun _ h => Or.inr h) (NKS.of_eq (nks_tcbReleaseRemove _) he4) hS4
-  have hk4 : σ4.kheap t.bv = some (.tcb x2) := by rw [hσ4]; show σ3.kheap t.bv = _; rw [hk3]; exact hk2
-  -- the yield-to pair
-  refine WP.spec_bind (cancel_yield_to_irel hP0 hX4 (hY _ _ hX4) ht) ?_
-  rintro s5 ⟨σ5, he5, hX5, hk5f⟩
-  obtain ⟨x5, hk5, hs5⟩ := hk5f x2 hk4
-  have hst5 : x5.tcbState = cancelSt x.tcbState := by rw [hs5, hs2, hs1]
-  -- inactive
-  obtain ⟨x5', hk5', hTR5⟩ := hX5.1.tcb t ht
-  rw [hk5] at hk5'; cases hk5'
-  have hc5 := cancelSt_code x.tcbState
-  have hw5 : (L.mem s5 (tStA t)).val = tsCode (cancelSt x.tcbState) := by rw [hTR5.st, hst5]
-  have hq := IpcRel.not_ep_queued hX5.1 (t := t) ⟨by rw [hw5]; exact hc5.1, by rw [hw5]; exact hc5.2.1⟩
-  have hH := ipcCore_top (st := st) (th := th) (cr := cr) (N := N) (C := C) (c := c) hP0.e
-  have hSR := IpcRel.toSRN hX5.1 hX5.2
-  refine WP.spec_bind (set_thread_state_c hH hP0 hP0.e _ _ hX5.1.toE hSR ht hk5 hq (by rw [hst5]; exact hc5.2.2)
-    .inactive (by simp [tsCode]) sched.TS_INACTIVE (by unfold sched.TS_INACTIVE; rfl)) ?_
-  rintro s6 ⟨hR6, hS6⟩
-  rw [WP.spec_ok]
-  refine ⟨rfl, _, ?_, IpcRel.ofSRN hR6 hS6⟩
-  unfold Fl4Spec.suspend
-  rw [nd_bind_one hc1, nd_bind_one (getThreadState_eq hk1), nd_bind_one hw2, nd_bind_one he3, nd_bind_one he4,
-    nd_bind_one he5, Notif.setThreadState_eq _ hk5]
-
-end
-
 end
 
 end Fl4Proofs.P3.Ipc
