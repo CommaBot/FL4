@@ -46,7 +46,7 @@ theorem tcb_set_mcpX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar :
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 x2 : U64)
     (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps)
-    {T : Set U64} (hM : McpRel T (L.mem s) σ) (hcapT : ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ T)
+    {T : Set U64} (hM : McpRel T (L.mem s) σ) (hcapT : x0 ≠ 0#u64 → ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ T)
     (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     TcbOKX (L := L) arI (XTop (L := L) AR) s ar σ fl4_abi.label.TCBSetMCPriority p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer := by
@@ -101,7 +101,7 @@ theorem tcb_set_mcpX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar :
   · obtain ⟨q, hq⟩ := hth
     rw [thread_arg_thread s 1#u64 hq]
     simp only [bind_ok, check_prio_eq]
-    obtain ⟨xq, hkq, hmq⟩ := hM q (hcapT q hq)
+    obtain ⟨xq, hkq, hmq⟩ := hM q (hcapT h0 q hq)
     have hu : (Fl4Spec.ucast 64 xq.tcbMcpriority) = (L.mem s (mcpA q)).bv := by
       apply BitVec.eq_of_toNat_eq; simp [Fl4Spec.ucast, hmq]
       have := xq.tcbMcpriority.isLt; omega
@@ -521,7 +521,7 @@ theorem tcb_set_prioX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar 
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 x2 : U64)
     (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps)
-    {T : Set U64} (hM : McpRel T (L.mem s) σ) (hcapT : ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ T)
+    {T : Set U64} (hM : McpRel T (L.mem s) σ) (hcapT : x0 ≠ 0#u64 → ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ T)
     (hL : ∀ σ1 (v : U64), Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
       v.val < 256 → SetPrioXLeaf (L := L) AR s ar σ σ1 p v)
     (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
@@ -578,7 +578,7 @@ theorem tcb_set_prioX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar 
   · obtain ⟨q, hq⟩ := hth
     rw [thread_arg_thread s 1#u64 hq]
     simp only [bind_ok, check_prio_eq]
-    obtain ⟨xq, hkq, hmq⟩ := hM q (hcapT q hq)
+    obtain ⟨xq, hkq, hmq⟩ := hM q (hcapT h0 q hq)
     have hu : (Fl4Spec.ucast 64 xq.tcbMcpriority) = (L.mem s (mcpA q)).bv := by
       apply BitVec.eq_of_toNat_eq; simp [Fl4Spec.ucast, hmq]
       have := xq.tcbMcpriority.isLt; omega
@@ -959,7 +959,7 @@ theorem tcb_bind_ntfnX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 x2 : U64)
     (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps)
-    (hcapN : ∀ q b w r, capV (L.mem s) x0 = .Notification q b w r → q ∈ Z.N)
+    (hcapN : x0 ≠ 0#u64 → ∀ q b w r, capV (L.mem s) x0 = .Notification q b w r → q ∈ Z.N)
     (blk don : Bool) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef)
     (hL : ∀ q, q ∈ Z.N → (∃ x b w r, IsSlot Z.th x ∧ capV (L.mem s) x = .Notification q b w r) →
@@ -1058,7 +1058,7 @@ theorem tcb_bind_ntfnX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar
     rw [hc] at hsp1
     simp only [absCap] at hsp1
     rw [retOk_bind] at hsp1
-    have hqN := hcapN q b w r hc
+    have hqN := hcapN h0 q b w r hc
     obtain ⟨xn, hkn, hrn⟩ := hNR.ntfn q hqN
     by_cases hr : r = true
     swap
@@ -1279,8 +1279,8 @@ theorem tcb_set_sched_paramsX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
     (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
     (hx2 : Aeneas.Std.Array.index_usize extra 2#usize = ok x2)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps)
-    (hM : McpRel Z.T (L.mem s) σ) (hcapT : ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T)
-    (hcapC : ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ Z.C) (hC0 : ∀ q ∈ Z.C, q ≠ 0#u64)
+    (hM : McpRel Z.T (L.mem s) σ) (hcapT : x0 ≠ 0#u64 → ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T)
+    (hcapC : x1 ≠ 0#u64 → ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ Z.C) (hC0 : ∀ q ∈ Z.C, q ≠ 0#u64)
     (hH : SchedTailXHyp (L := L) arI AR Z.th s σ ct)
     (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     TcbOKX (L := L) arI (XTop (L := L) AR) s ar σ fl4_abi.label.TCBSetSchedParams p ⟨length, buf, call, cslotAddr ssl, extra⟩ blk
@@ -1387,7 +1387,7 @@ theorem tcb_set_sched_paramsX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
   obtain ⟨q, hq⟩ := hth
   rw [thread_arg_thread s 1#u64 hq]
   simp only [bind_ok, check_prio_eq]
-  have hqT := hcapT q hq
+  have hqT := hcapT h0 q hq
   have he0' : e0.1 = .threadCap q.bv := by rw [he01, hq]; rfl
   rw [he0'] at hspec0
   simp only [] at hspec0
@@ -1540,7 +1540,7 @@ theorem tcb_set_sched_paramsX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
   case SchedContext ptr sz =>
     rw [he11, hc1] at hspec1
     simp only [absCap] at hspec1
-    have hpC := hcapC ptr sz hc1
+    have hpC := hcapC h1 ptr sz hc1
     have hptr0 := hC0 ptr hpC
     obtain ⟨y, n, hks, hx⟩ := hsL.scs ptr hpC
     have hne : Fl4Spec.scActive y = true → y.scRefills ≠ [] := fun ha => by

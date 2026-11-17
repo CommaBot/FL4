@@ -279,8 +279,8 @@ theorem decode_invocation_sched_contextXT {AR : A → Fl4Spec.Cr3 → Prop} {Z :
     {ct : U64} (hct : sched.cur_thread st s = ok ct) (hcs : Fl4Spec.schedulable ct.bv σ = true)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel Z.th (L.mem s) x0 (excaps.map Prod.fst))
-    (hcapT : ∀ p, capAt (L.mem s) x0 = ok (.Thread p) → p ∈ Z.T)
-    (hcapN : ∀ p b w r, capAt (L.mem s) x0 = ok (.Notification p b w r) → p ∈ Z.N ∧ p ≠ 0#u64)
+    (hcapT : x0 ≠ 0#u64 → ∀ p, capAt (L.mem s) x0 = ok (.Thread p) → p ∈ Z.T)
+    (hcapN : x0 ≠ 0#u64 → ∀ p b w r, capAt (L.mem s) x0 = ok (.Notification p b w r) → p ∈ Z.N ∧ p ≠ 0#u64)
     (length slot buf : U64) (blk call don fp : Bool) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (buffer : Option Fl4Spec.ObjRef)
     (hArch : syscall.decode_invocation st ar s a lbl length slot (.SchedContext sc sb) blk call don fp buf extra

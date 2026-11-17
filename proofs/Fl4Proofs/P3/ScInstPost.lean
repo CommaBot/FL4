@@ -365,8 +365,8 @@ theorem tcb_set_sched_params_refines_disch (hA : P0.ArchTotal arI) (th : TypedHe
     (hx2 : Aeneas.Std.Array.index_usize extra 2#usize = ok x2)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hX : XcRel th (L.mem s) x0 x1 x2 excaps)
     {N Tr C : Set U64} {c : U64} (hS : SchedRel st N Tr C c s σ) (hR : Notif.NtfnStateRel N Tr (L.mem s) σ)
-    (hpT : p ∈ Tr) (hM : McpRel Tr (L.mem s) σ) (hcapT : ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Tr)
-    (hcapC : ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ C) (hC0 : ∀ q ∈ C, q ≠ 0#u64)
+    (hpT : p ∈ Tr) (hM : McpRel Tr (L.mem s) σ) (hcapT : x0 ≠ 0#u64 → ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Tr)
+    (hcapC : x1 ≠ 0#u64 → ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ C) (hC0 : ∀ q ∈ C, q ≠ 0#u64)
     (hb : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hnb : ¬ Blocked (L.mem s (P1.stA (L.curW s)))) (hnr : L.mem s (P1.stA (L.curW s)) ≠ sched.TS_BLOCKED_ON_REPLY)
     (hcurC : (L.mem s (inqA (L.curW s)) &&& sched.Q_RELEASE) = 0#u64 ∧ L.mem s (scA (L.curW s)) ≠ 0#u64 ∧
