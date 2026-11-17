@@ -296,8 +296,10 @@ theorem irq_set_refines (th : TypedHeap) (hP : Placed th)
       refine ((Steps.restart arI hcur hk' htcb hs2 hst hC).trans arI
         (Steps.deleteOne arI hR1 hA hok3 (by rw [cslotAddr_nil]; exact hr3) hdel)).trans arI
         (Steps.insert arI hP hps (hL.node irq hirq) (idxd := []) rfl hci hF4 ⟨hR', hV', hM', hC', hI'⟩ hFI'
-          (by rw [hk3]; exact hmst.okv hFR) fun y hy hne => ?_)
-      rw [hcap4 y hy, if_neg (by rwa [cslotAddr_nil] at hne)]
+          (by rw [hk3]; exact hmst.okv hFR) (fun y hy hne => ?_) hdst3
+          (fun p sb fi d h => ?_))
+      · rw [hcap4 y hy, if_neg (by rwa [cslotAddr_nil] at hne)]
+      · rw [cslotAddr_nil, hcap4 _ hns, if_pos rfl] at h; cases h
     show _ ∈ ((Fl4Spec.getIrqSlot _ >>= fun irqSlot => Fl4Spec.capDeleteOne irqSlot >>= fun _ =>
       Fl4Spec.capInsert _ _ irqSlot) σ1).1
     refine mem_bind_nd (x := ((σ1.interruptIrqNode (BitVec.ofNat 8 irq.val), []), σ1)) rfl ?_

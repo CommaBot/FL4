@@ -174,6 +174,9 @@ structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S 
   slot : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit) (G' : MdbGhost) (c : Fl4Spec.Cap) (ps pd : U64)
     (rs rd : Nat) (idxs idxd : List Bool), th ps = some (.cnode rs) → th pd = some (.cnode rd) →
     Fl4Spec.capInsert (Z := Unit) c (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False) →
+    idxd.length = rd → (∀ y, IsSlot th y → y ≠ cslotAddr (pd.bv, idxd) → capV (L.mem s') y = capV (L.mem s) y) →
+    capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null →
+    (∀ p sb fi d, capV (L.mem s') (cslotAddr (pd.bv, idxd)) ≠ .Untyped p sb fi d) →
     P1.WritesIn st s s' (InSlot th) → CRel th (L.mem s') σ' G' → FinInv th (L.mem s') σ' G' →
     MdbOKV (L.ksb s) (L.mem s') G' →
     (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 1) = capAt (L.mem s) (slotOf t 1)) →
@@ -289,10 +292,12 @@ theorem Steps.insert {th : TypedHeap} (hP : Placed th) {s s' : S} {a : A} {σ σ
     (hci : Fl4Spec.capInsert (Z := Unit) c (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False))
     (hF : Vs.SlotFrame2 (L := L) th s s') (hCR : CRel th (L.mem s') σ' G') (hFI : FinInv th (L.mem s') σ' G')
     (hMO : MdbOKV (L.ksb s) (L.mem s') G')
-    (hcap : ∀ y, IsSlot th y → y ≠ cslotAddr (pd.bv, idxd) → capV (L.mem s') y = capV (L.mem s) y) :
+    (hcap : ∀ y, IsSlot th y → y ≠ cslotAddr (pd.bv, idxd) → capV (L.mem s') y = capV (L.mem s) y)
+    (hnull : capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null)
+    (hnu : ∀ p sb fi d, capV (L.mem s') (cslotAddr (pd.bv, idxd)) ≠ .Untyped p sb fi d) :
     Steps (L := L) arI th s a σ s' a σ' := by
   intro Q hQ
-  refine hQ.slot s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci
+  refine hQ.slot s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu
     ⟨hF.1, hF.2.1, fun b hb hn => hF.2.2 b hb fun ⟨x, k, hx, hk, e⟩ => hn ⟨x, hx, ?_⟩⟩ hCR hFI hMO fun t ht => ?_
   · have hf := hx.fit hP
     have := hk.lt

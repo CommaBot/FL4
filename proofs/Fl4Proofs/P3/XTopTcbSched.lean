@@ -962,7 +962,8 @@ theorem tcb_bind_ntfnX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar
     (hcapN : ∀ q b w r, capV (L.mem s) x0 = .Notification q b w r → q ∈ Z.N)
     (blk don : Bool) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef)
-    (hL : ∀ q, q ∈ Z.N → L.mem s (P1.boundA p) = 0#u64 → L.mem s (Notif.nBoundA q) = 0#u64 → ∀ σ1,
+    (hL : ∀ q, q ∈ Z.N → (∃ x b w r, IsSlot Z.th x ∧ capV (L.mem s) x = .Notification q b w r) →
+      L.mem s (P1.boundA p) = 0#u64 → L.mem s (Notif.nBoundA q) = 0#u64 → ∀ σ1,
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
       BindXLeaf (L := L) AR s ar σ σ1 p q) :
     TcbOKX (L := L) arI (XTop (L := L) AR) s ar σ fl4_abi.label.TCBBindNotification p ⟨length, buf, call, slot, extra⟩ blk
@@ -1128,7 +1129,10 @@ theorem tcb_bind_ntfnX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar
       | idleNtfn => exact (congrArg (fun m : Fl4Spec.SEMonad Unit Fl4Spec.TcbInvocation => m.run σ) (retOk_bind () _)).trans rfl
       | activeNtfn b => exact (congrArg (fun m : Fl4Spec.SEMonad Unit Fl4Spec.TcbInvocation => m.run σ) (retOk_bind () _)).trans rfl
     obtain ⟨σ1, hst⟩ := XTop.restart (L := L) (AR := AR) ⟨Z, hX⟩
-    have hl := hL q hqN hb0 hnb σ1 hst ⟨Z, hX⟩
+    have hx0s : IsSlot Z.th x0 := by
+      obtain ⟨e, -, ex, -, ps, hps, he⟩ := hXc.get hx0' h0
+      rw [ex]; exact AbsSlot.isSlot (th := Z.th) (sl := e.2) ⟨ps, he, Or.inl hps⟩
+    have hl := hL q hqN ⟨x0, b, w, r, hx0s, hc⟩ hb0 hnb σ1 hst ⟨Z, hX⟩
     unfold BindXLeaf at hl
     refine WP.spec_mono (leaf_assoc hl) fun res h => topX_of_leaf hdec hst (fun z hz => ?_) h
     show _ ∈ ((Fl4Spec.NonDetE.liftE _).run σ1).1
@@ -1712,7 +1716,7 @@ theorem tcb_read_regsX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
     (hstall : smp.remote_tcb_stall st arI s ar p = ok (s, ar))
     (call : Bool) (slot : obj.Slot) (extra : Aeneas.Std.Array obj.Slot 3#usize) (blk don : Bool)
     (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
-    (buffer : Option Fl4Spec.ObjRef) (hR : ReadRegsXHyp (L := L) arI AR s σ ct p blk call don) :
+    (buffer : Option Fl4Spec.ObjRef) (hR : p ≠ ct → ReadRegsXHyp (L := L) arI AR s σ ct p blk call don) :
     TcbOKRX (L := L) arI (XTop (L := L) AR) s ar σ fl4_abi.label.TCBReadRegisters p ⟨length, buf, call, slot, extra⟩
       blk call don slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
   have hDS : DState (L := L) Z.th s σ Z.G := ⟨hX.rel.2.1, hDI, hX.rel.2.2.1⟩
@@ -1793,7 +1797,7 @@ theorem tcb_read_regsX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
         rw [run_bind_ok hrc, run_bind_ok (run_liftE (m := Fl4Spec.NonDet.gets fun s : Fl4Spec.State Unit =>
           s.curThread) rfl), whenE_neg (by show ¬ p.bv = σ.curThread; rw [hcur, bv_eq_iff']; exact hpc), retOk_bind]
         rfl
-      refine WP.spec_bind (hR s1 σ1 y0 y1 ar hs1 hst1' ⟨Z, hX1⟩) ?_
+      refine WP.spec_bind (hR hpc s1 σ1 y0 y1 ar hs1 hst1' ⟨Z, hX1⟩) ?_
       rintro ⟨s2, a2⟩ ⟨hne, rr, σy, hm, z, hz, hRz, hXz⟩
       exact (WP.spec_ok _).2 (Or.inr ⟨rfl, hne, _, DecOut.of_eq hdec, σ1, hst1, rr, σy, hm, z, hz, hRz, hXz⟩)
   · have hrc : (Fl4Spec.rangeCheck (Z := Unit) y1.bv 1 (BitVec.ofNat 64 20)).run σ =

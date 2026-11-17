@@ -51,7 +51,7 @@ structure TcbXOpen (X : S → A → Fl4Spec.State Unit → Prop) (s : S) (ar : A
 state: one per label whose invocation is theirs. -/
 structure TcbXIpc (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (p ct buf : U64) (argsU : List U64) (blk call don : Bool) : Prop where
-  readRegs : ReadRegsXHyp (L := L) arI AR s σ ct p blk call don
+  readRegs : p ≠ ct → ReadRegsXHyp (L := L) arI AR s σ ct p blk call don
   writeRegs : WriteRegsXHyp (L := L) arI AR s σ ct p buf argsU blk call don
   copyRegs : CopyRegsXHyp (L := L) arI AR th s σ ct p blk call don
   setPrio : ∀ σ1 (v : U64), Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
@@ -61,7 +61,8 @@ structure TcbXIpc (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (ar
     SuspendXLeaf (L := L) arI AR s ar σ σ1 p
   resume : ∀ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
     ResumeXLeaf (L := L) arI AR s ar σ σ1 p
-  bind : ∀ q, L.mem s (P1.boundA p) = 0#u64 → L.mem s (Notif.nBoundA q) = 0#u64 → ∀ σ1,
+  bind : ∀ q, (∃ x b w r, IsSlot th x ∧ capV (L.mem s) x = .Notification q b w r) →
+    L.mem s (P1.boundA p) = 0#u64 → L.mem s (Notif.nBoundA q) = 0#u64 → ∀ σ1,
     Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
     BindXLeaf (L := L) AR s ar σ σ1 p q
   unbind : L.mem s (P1.boundA p) ≠ 0#u64 → ∀ σ1,
@@ -155,7 +156,7 @@ theorem tcbXRest_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar : 
       sl excaps buffer hI.resume
   · rintro rfl
     exact tcb_bind_ntfnX arI s ar σ hX p hpT slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf (hstall' p) call _
-      extra x0 x1 x2 hx0 excaps hXc hcapN blk don _ ci sl buffer (fun q _ => hI.bind q)
+      extra x0 x1 x2 hx0 excaps hXc hcapN blk don _ ci sl buffer (fun q _ hq => hI.bind q hq)
   · rintro rfl
     exact tcb_unbind_ntfnX arI s ar σ hX p hpT slbl (by rw [hlbl]; simp [tcbLabelOf]) (hstall' p) length buf call _
       extra blk don _ ci sl excaps buffer hI.unbind

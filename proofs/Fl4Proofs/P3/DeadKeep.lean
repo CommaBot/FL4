@@ -283,6 +283,40 @@ theorem JAtZ.jcov_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
   obtain ⟨h1, h2⟩ := J.jcov.ks x hx p sb fi d hc
   exact ⟨by rw [hks]; exact h1, fun c hc' => by rw [hnb]; exact h2 c hc'⟩
 
+/-- **The covering caps survive** (a step moving caps between slots): each
+physical non-untyped cap of `G` has one of `G'` after over the same range. -/
+def CoverKept (m m' : U64 → U64) (G G' : MdbGhost) : Prop :=
+  ∀ y ∈ G.chains.flatten, physF (capV m y) = true → isUt (capV m y) = false →
+    ∃ y' ∈ G'.chains.flatten, physF (capV m' y') = true ∧ isUt (capV m' y') = false ∧
+      baseF (capV m' y') = baseF (capV m y) ∧ topF (capV m' y') = topF (capV m y)
+
+/-- **No new untyped region**: each untyped cap of `G'` after has one of `G`
+before over the same region. -/
+def UtKept (m m' : U64 → U64) (G G' : MdbGhost) : Prop :=
+  ∀ x ∈ G'.chains.flatten, ∀ p sb fi d, capV m' x = .Untyped p sb fi d →
+    ∃ y ∈ G.chains.flatten, ∃ fi' d', capV m y = .Untyped p sb fi' d'
+
+theorem covered_keepC {m m' : U64 → U64} {G G' : MdbGhost} {lo hi : Nat} (hc : Covered m G lo hi)
+    (hk : CoverKept m m' G G') : Covered m' G' lo hi := by
+  obtain ⟨y, hy, hp, hu, hb, ht⟩ := hc
+  obtain ⟨y', hy', hp', hu', eb, et⟩ := hk y hy hp hu
+  exact ⟨y', hy', hp', hu', by rw [eb]; exact hb, by rw [et]; exact ht⟩
+
+/-- **`JCovD` across a step moving caps** (`CoverKept`, `UtKept`), the dead
+set kept: nothing loses its cover, the untyped regions are the old ones. -/
+theorem JAtZ.jcov_cover {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {G' : MdbGhost} (hks : L.ksb s' = L.ksb s)
+    (hC : CoverKept (L.mem s) (L.mem s') Z.G G') (hU : UtKept (L.mem s) (L.mem s') Z.G G')
+    (hdead : ∀ q ∈ D, DeadP (L := L) H s' q) :
+    JCovD (L := L) Z.th H G' D Cs s' := by
+  have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
+  refine ⟨fun q k hq => (J.jcov.th q k hq).imp_left fun hc => covered_keepC hc hC,
+    fun q k hq => (J.jcov.h q k hq).imp_left fun hc => covered_keepC hc hC, hdead, fun x hx p sb fi d hc => ?_⟩
+  obtain ⟨y, hy, fi', d', hc'⟩ := hU x hx p sb fi d hc
+  obtain ⟨h1, h2⟩ := J.jcov.ks y hy p sb fi' d' hc'
+  exact ⟨by rw [hks]; exact h1, fun c hc' => by rw [hnb]; exact h2 c hc'⟩
+
 /-- **`JKern` across a step** keeping the kernel-state base, the core, the
 current thread and SC, the original bits (new ones only at `AbsSlot`s), the
 global PML4 and the arch

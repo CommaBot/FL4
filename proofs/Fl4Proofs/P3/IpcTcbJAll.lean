@@ -50,14 +50,14 @@ theorem tcbXIpc_ofJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     (hStT : P0.StoreTotal st) (hArT : P0.ArchTotal arI) (hAK : ARKeep arI AR) (hTA : TimeAgree arI)
     (hmb : ∀ a, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
     TcbXIpc (L := L) arI AR Z.th s ar σ p ct buf argsU blk call don where
-  readRegs := readRegsXHypJ J hJS hcur hpne hpT hZ
+  readRegs := fun _ => readRegsXHypJ J hJS hcur hpne hpT hZ
   writeRegs := writeRegsXHypJ J hJS hcur hpT (J.thT ct (J.xtop.curTcb hcur).1) hbuf hargs hmb
   copyRegs := copyRegsXHypJ J hJS hcur hpT hsT hSK hmb
   setPrio := fun _ _ hst hv => setPrioXLeafJ J hJS hst hv hpT hres
   schedTail := schedTailXHypJ arI hStT hArT hAK hTA hSP hJ2
   suspend := fun _ hst => suspendXLeafJ J hJS hst hpT
   resume := fun _ hst => resumeXLeafJD J hJS hst hpT (hmb ar)
-  bind := fun q h0 h1 _ hst => bindXLeafJ J hJS hst hpT (hqN q h0 h1).1 (hqN q h0 h1).2
+  bind := fun q _ h0 h1 _ hst => bindXLeafJ J hJS hst hpT (hqN q h0 h1).1 (hqN q h0 h1).2
   unbind := fun h0 _ hst => unbindXLeafJ J hJS hst h0 hpT
 
 end
