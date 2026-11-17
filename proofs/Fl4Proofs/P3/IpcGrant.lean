@@ -1112,7 +1112,7 @@ theorem lookup_extra_loop {th : TypedHeap} {G : MdbGhost} {s : S} {σ : Fl4Spec.
         | ok v =>
           obtain ⟨sl, rest⟩ := v
           obtain ⟨hsl, -⟩ := hrel
-          obtain ⟨p, hp1, hp⟩ := hsok
+          obtain ⟨p, hp1, hp, -⟩ := hsok
           obtain ⟨cv, a, hcv, hca, hg⟩ := hSt.slot_cap (Z := Unit) hp1 hp
           have hel := lcs_ok (Fl4Spec.ofBl (Fl4Spec.dataToCptr (loadWordAt σ.machineState.underlyingMemory
             (bufAddr sb (122 + i.val))))) he' hg
@@ -1325,7 +1325,7 @@ theorem lookup_cap_valid (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit)
     | ok v =>
       obtain ⟨sl, rest⟩ := v
       obtain ⟨hsl, -⟩ := hrel
-      obtain ⟨p, hp, hth⟩ := hok
+      obtain ⟨p, hp, hth, -⟩ := hok
       obtain ⟨c, a, hc, hca, hget⟩ := hR.slot_cap hp hth
       simp only
       rw [slot_cap_eq, hsl, hc]
@@ -1447,7 +1447,7 @@ theorem get_receive_slot_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : Mdb
         cases e1 with
         | error _ => exact hrel1.elim
         | ok sl =>
-          obtain ⟨hsl, p, hp1, hp⟩ := hrel1
+          obtain ⟨hsl, p, hp1, hp, -⟩ := hrel1
           obtain ⟨c1, a1, hc1, hca1, hg1⟩ := hSt.slot_cap (Z := Unit) hp1 hp
           simp only []
           rw [slot_cap_eq, hsl, hc1]

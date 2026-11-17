@@ -383,7 +383,7 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
     cases e1 with
     | error _ => exact hrel1.elim
     | ok sl =>
-      obtain ⟨rfl, ps, hps1, hps⟩ := hrel1
+      obtain ⟨rfl, ps, hps1, hps, -⟩ := hrel1
       refine InvPost.congr (run_bind_ok hls _) ?_
       have hAs : AbsSlot th sl := ⟨ps, hps1, Or.inl hps⟩
       obtain ⟨srcC, srcA, hsc, hsca, hgs⟩ := hR.slot_cap (Z := Unit) hps1 hps
@@ -589,7 +589,7 @@ theorem cnode_copy_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s
     cases e1 with
     | error _ => exact hrel1.elim
     | ok dsl =>
-      obtain ⟨rfl, pd, hpd1, hpd⟩ := hrel1
+      obtain ⟨rfl, pd, hpd1, hpd, -⟩ := hrel1
       have g1 : lbl ≥ fl4_abi.label.CNodeCopy := by have := lbl_copy_val; scalar_tac
       have g2 : lbl ≤ fl4_abi.label.CNodeMutate := by have := lbl_mutate_val; scalar_tac
       simp only [g1, g2, ↓reduceIte, bind_ok]

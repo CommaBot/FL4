@@ -111,7 +111,7 @@ theorem cnode_cancel_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
     cases e1 with
     | error _ => exact hrel1.elim
     | ok dsl =>
-      obtain ⟨rfl, pd, hpd1, hpd⟩ := hrel1
+      obtain ⟨rfl, pd, hpd1, hpd, -⟩ := hrel1
       have g1 : ¬ fl4_abi.label.CNodeCancelBadgedSends ≥ fl4_abi.label.CNodeCopy := by
         have := lbl_copy_val; have := lbl_cancel_val; scalar_tac
       have k1 : ¬ fl4_abi.label.CNodeCancelBadgedSends = fl4_abi.label.CNodeRevoke := by rw [u64_eq_iff]; simp
@@ -260,7 +260,7 @@ theorem cnode_cancel_dec {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s :
     cases e1 with
     | error _ => exact hrel1.elim
     | ok dsl =>
-      obtain ⟨rfl, pd, hpd1, hpd⟩ := hrel1
+      obtain ⟨rfl, pd, hpd1, hpd, -⟩ := hrel1
       have g1 : ¬ fl4_abi.label.CNodeCancelBadgedSends ≥ fl4_abi.label.CNodeCopy := by
         have := lbl_copy_val; have := lbl_cancel_val; scalar_tac
       have k1 : ¬ fl4_abi.label.CNodeCancelBadgedSends = fl4_abi.label.CNodeRevoke := by rw [u64_eq_iff]; simp

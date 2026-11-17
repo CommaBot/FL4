@@ -281,7 +281,7 @@ theorem handle_invocation_refinesM (s : S) (ar : A) (σ : Fl4Spec.State Unit) (t
     | ok v =>
       obtain ⟨sl, rest⟩ := v
       obtain ⟨hsl, -⟩ := hrel
-      obtain ⟨p, hp, hth⟩ := hok
+      obtain ⟨p, hp, hth, -⟩ := hok
       obtain ⟨c, a, hc, hca, hget⟩ := hCR.1.slot_cap hp hth
       have hl : (Fl4Spec.lookupCapAndSlot (Z := Unit) ct.bv (Fl4Spec.toBl cptr.bv)).run σ =
           ({(.ok (a, sl), σ)}, False) := by

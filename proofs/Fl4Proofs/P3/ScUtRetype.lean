@@ -45,7 +45,7 @@ theorem dest_of_retype_dest {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit}
       cases e1 with
       | error _ => exact hrel.elim
       | ok sl' =>
-        obtain ⟨rfl, pp, hpp1, hpp⟩ := hrel
+        obtain ⟨rfl, pp, hpp1, hpp, -⟩ := hrel
         obtain ⟨c', a', hc', hca', -⟩ := hR.slot_cap hpp1 hpp
         have hcv' : CapValid th c' := hV.abs ⟨pp, hpp1, Or.inl hpp⟩ hc'
         exact ⟨c', hca'.1, hcv', retype_dest_ok s x idx dep off win h0 c hc _ hl' c' hc' hca'.1⟩

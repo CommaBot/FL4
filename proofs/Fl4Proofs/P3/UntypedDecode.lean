@@ -288,7 +288,7 @@ theorem untyped_decode_refines_with (bitsApi : Fl4Spec.ApiObjectType → Nat →
       cases e1 with
       | error _ => exact hrel.elim
       | ok sl' =>
-        obtain ⟨rfl, pp, hpp1, hpp⟩ := hrel
+        obtain ⟨rfl, pp, hpp1, hpp, -⟩ := hrel
         obtain ⟨c', a', hc', hca', hg⟩ := hR.slot_cap hpp1 hpp
         have hcv' : CapValid th c' := hV.abs ⟨pp, hpp1, Or.inl hpp⟩ hc'
         refine Or.inr ⟨c', hca'.1, hcv', retype_dest_ok s x0 idx dep off win h0 c0 hc0 _ hl' c' hc' hca'.1, ?_⟩

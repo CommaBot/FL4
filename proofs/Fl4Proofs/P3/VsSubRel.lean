@@ -698,7 +698,7 @@ theorem subframe_dest_rel {th : TypedHeap} (s : S) (σ : Fl4Spec.State Unit) (hS
     cases e1 with
     | error _ => exact hrel1.elim
     | ok dsl =>
-      obtain ⟨rfl, pd, hpd1, hpd⟩ := hrel1
+      obtain ⟨rfl, pd, hpd1, hpd, -⟩ := hrel1
       obtain ⟨c2, a2', hc2, hca2, hg2⟩ := hSt.slot_cap (Z := Unit) hpd1 hpd
       have HNV : CapValid th c2 := hSV.abs ⟨pd, hpd1, Or.inl hpd⟩ hc2
       simp only [bind_ok]

@@ -1016,7 +1016,7 @@ theorem makepool_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
       cases e1 with
       | error _ => exact hrel1.elim
       | ok dsl =>
-        obtain ⟨rfl, pd, hpd1, hpd⟩ := hrel1
+        obtain ⟨rfl, pd, hpd1, hpd, -⟩ := hrel1
         obtain ⟨cd, ad, hcd, hcad, hgd⟩ := hSt.slot_cap (Z := Unit) hpd1 hpd
         unfold cdt.ensure_empty_slot
         simp only [slot_cap_eq, hcd, bind_ok]

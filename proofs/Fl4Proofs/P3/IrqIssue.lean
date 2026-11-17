@@ -128,7 +128,7 @@ theorem target_tail {X : Type} (invk : X → Fl4Spec.PMonad Unit Unit) (th : Typ
     cases e1 with
     | error _ => exact hrel1.elim
     | ok dsl =>
-      obtain ⟨rfl, pd, hpd1, hpd⟩ := hrel1
+      obtain ⟨rfl, pd, hpd1, hpd, -⟩ := hrel1
       obtain ⟨cd, ad, hcd, hcad, hgd⟩ := hR.slot_cap (Z := Unit) hpd1 hpd
       unfold cdt.ensure_empty_slot
       simp only [slot_cap_eq, hcd, bind_ok]

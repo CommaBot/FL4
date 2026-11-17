@@ -587,7 +587,7 @@ theorem cnode_revoke_refinesW (th : TypedHeap) (s : S) (ar : A)
     cases e1 with
     | error _ => exact hrel1.elim
     | ok dsl =>
-      obtain ⟨rfl, pd, hpd1, hpd⟩ := hrel1
+      obtain ⟨rfl, pd, hpd1, hpd, -⟩ := hrel1
       have g1 : ¬ fl4_abi.label.CNodeRevoke ≥ fl4_abi.label.CNodeCopy := by
         have := lbl_copy_val; have := lbl_revoke_val; scalar_tac
       simp only [g1, ↓reduceIte, bind_ok]
@@ -705,7 +705,7 @@ theorem cnode_delete_refinesW (th : TypedHeap) (s : S) (ar : A)
     cases e1 with
     | error _ => exact hrel1.elim
     | ok dsl =>
-      obtain ⟨rfl, pd, hpd1, hpd⟩ := hrel1
+      obtain ⟨rfl, pd, hpd1, hpd, -⟩ := hrel1
       have g1 : ¬ fl4_abi.label.CNodeDelete ≥ fl4_abi.label.CNodeCopy := by
         have := lbl_copy_val; have := lbl_delete_val; scalar_tac
       have k1 : ¬ fl4_abi.label.CNodeDelete = fl4_abi.label.CNodeRevoke := by rw [u64_eq_iff]; simp
