@@ -33,10 +33,10 @@ theorem decode_illegal (label : Fl4Spec.Data) (args : List Fl4Spec.Data) (cap : 
 
 theorem ExtraRel2.one {th : TypedHeap} {mem : U64 → U64} {x0 x1 : U64} {excaps : List Fl4Spec.Cap}
     (h : ExtraRel2 th mem x0 x1 excaps) : ExtraRel th mem x0 excaps := by
-  rcases h with h | ⟨hx, c, a, hc, hca, hcv, ⟨-, rfl⟩ | ⟨-, c', a', rest, -, -, -, rfl⟩⟩
+  rcases h with h | ⟨hx, hxs, c, a, hc, hca, hcv, ⟨-, rfl⟩ | ⟨-, -, c', a', rest, -, -, -, rfl⟩⟩
   · exact Or.inl h
-  · exact Or.inr ⟨hx, c, a, [], hc, hca, hcv, rfl⟩
-  · exact Or.inr ⟨hx, c, a, a' :: rest, hc, hca, hcv, rfl⟩
+  · exact Or.inr ⟨hx, hxs, c, a, [], hc, hca, hcv, rfl⟩
+  · exact Or.inr ⟨hx, hxs, c, a, a' :: rest, hc, hca, hcv, rfl⟩
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]

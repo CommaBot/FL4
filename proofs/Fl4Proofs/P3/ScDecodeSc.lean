@@ -846,7 +846,7 @@ theorem bind_branch_refines {N T C : Set U64} {c : U64} (hT : TimeAgree ar) (th 
   unfold schedcontext.extra_cap
   have h03 : ¬ (0#usize ≥ 3#usize) := by decide
   simp only [h03, ↓reduceIte, hx0, bind_ok, obj.Slot.is_null]
-  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, c0, a0, rest0, hc0, hca0, hcv0, rfl⟩
+  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, -, c0, a0, rest0, hc0, hca0, hcv0, rfl⟩
   · simp only [decide_true, ↓reduceIte, bind_ok, error.truncated]
     apply CPost.err (e := .Sys .TruncatedMessage) (e' := .truncatedMessage) _ (Or.inl trivial)
     unfold Fl4Spec.decodeSchedContextBind
@@ -1112,7 +1112,7 @@ theorem unbindobj_branch_refines {N T C : Set U64} {c : U64} (th : TypedHeap)
   unfold schedcontext.extra_cap
   have h03 : ¬ (0#usize ≥ 3#usize) := by decide
   simp only [h03, ↓reduceIte, hx0, bind_ok, obj.Slot.is_null]
-  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, c0, a0, rest0, hc0, hca0, hcv0, rfl⟩
+  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, -, c0, a0, rest0, hc0, hca0, hcv0, rfl⟩
   · simp only [decide_true, ↓reduceIte, bind_ok, error.truncated]
     apply CPost.err (e := .Sys .TruncatedMessage) (e' := .truncatedMessage) _ (Or.inl trivial)
     unfold Fl4Spec.decodeSchedContextUnbindObject

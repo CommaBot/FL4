@@ -182,7 +182,7 @@ theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : 
     {ps pd : U64} {rs rd : Nat} (hps : th ps = some (.cnode rs)) (hpd : th pd = some (.cnode rd))
     {idxs idxd : List Bool} (hls : idxs.length = rs) (hld : idxd.length = rd)
     (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok .IrqControl)
-    (hdst : capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null) :
+    (hdst : capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null) (hDL : DestLive th (L.mem s) (L.ksb s) pd) :
     interrupt.invoke_irq_control st arI s ar irq (cslotAddr (pd.bv, idxd)) (cslotAddr (ps.bv, idxs)) ⦃ r =>
       ∃ σ' G', ((), σ') ∈ ((Fl4Spec.setIrqState (Z := Unit) .irqSignal (BitVec.ofNat 8 irq.val) >>= fun _ =>
           Fl4Spec.capInsert (Z := Unit) (.irqHandlerCap (BitVec.ofNat 8 irq.val)) (ps.bv, idxs) (pd.bv, idxd)) σ).1 ∧
@@ -254,7 +254,7 @@ theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : 
       (Steps.insert arI hP hps hpd hld hci hF2' ⟨hR2, hV2, hM2, hC2, hI2⟩ hFI2 (by rw [hk1]; exact hFRG)
         (fun y hy hne => by rw [hcap2 y hy, if_neg hne]) hdst1
         (fun p sb fi d h => by rw [hcap2 _ hAd.isSlot, if_pos rfl] at h; cases h)
-        (typedKept_set hcap2 (Or.inl rfl)) hdi)
+        (typedKept_set hcap2 (Or.inl rfl)) (hDL.same hS hk1) hdi)
   refine ⟨σ2, G2, ?_, ⟨hR2, hV2, hM2, hC2, hI2⟩, ⟨fun i hi => ?_, fun i hi => ?_⟩, hkb2, hFI2, ?_, hFRG, hstp⟩
   rotate_right
   · intro y hy i hi

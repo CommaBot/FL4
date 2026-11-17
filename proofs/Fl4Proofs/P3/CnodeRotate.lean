@@ -57,9 +57,10 @@ end
 is none, else the slot of the cap. -/
 def ExtraRel2 (th : TypedHeap) (mem : U64 → U64) (x0 x1 : U64) (excaps : List Fl4Spec.Cap) : Prop :=
   (x0 = 0#u64 ∧ excaps = []) ∨
-  (x0 ≠ 0#u64 ∧ ∃ c a, capAt mem x0 = ok c ∧ CapRel c a ∧ CapValid th c ∧
+  (x0 ≠ 0#u64 ∧ IsSlot th x0 ∧ ∃ c a, capAt mem x0 = ok c ∧ CapRel c a ∧ CapValid th c ∧
     ((x1 = 0#u64 ∧ excaps = [a]) ∨
-     (x1 ≠ 0#u64 ∧ ∃ c' a' rest, capAt mem x1 = ok c' ∧ CapRel c' a' ∧ CapValid th c' ∧ excaps = a :: a' :: rest)))
+     (x1 ≠ 0#u64 ∧ IsSlot th x1 ∧ ∃ c' a' rest, capAt mem x1 = ok c' ∧ CapRel c' a' ∧ CapValid th c' ∧
+       excaps = a :: a' :: rest)))
 
 
 theorem slot_ne_eq (a b : obj.Slot) :
@@ -145,13 +146,13 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
       exfalso; simp at hlen; scalar_tac
   simp only [List.map_cons, List.drop_succ_cons, List.drop_zero]
   rw [hx0]; simp only [bind_ok, obj.Slot.is_null]
-  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, c0, e0, hc0, hca0, hcv0, hx1r⟩
+  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, hx0s, c0, e0, hc0, hca0, hcv0, hx1r⟩
   · simp only [decide_true, ↓reduceIte, error.truncated, bind_ok, WP.spec_ok]
     refine ⟨rfl, .truncatedMessage, ?_, trivial⟩
     rw [copyTail_rotate_short hg _ _ _ (fun ⟨_, h⟩ => by simp at h)]; rfl
   simp only [hx0n, decide_false, Bool.false_eq_true, ↓reduceIte]
   rw [hx1]; simp only [bind_ok]
-  rcases hx1r with ⟨rfl, rfl⟩ | ⟨hx1n, c1, e1, erest, hc1, hca1, hcv1, rfl⟩
+  rcases hx1r with ⟨rfl, rfl⟩ | ⟨hx1n, hx1s, c1, e1, erest, hc1, hca1, hcv1, rfl⟩
   · simp only [decide_true, ↓reduceIte, error.truncated, bind_ok, WP.spec_ok]
     refine ⟨rfl, .truncatedMessage, ?_, trivial⟩
     rw [copyTail_rotate_short hg _ _ _ (fun ⟨_, h⟩ => by simp at h)]; rfl

@@ -133,7 +133,7 @@ theorem decode_sched_control_refines (hT : TimeAgree ar) (th : TypedHeap) (s : S
   unfold schedcontext.extra_cap
   have h03 : ¬ (0#usize ≥ 3#usize) := by decide
   simp only [h03, ↓reduceIte, hx0, bind_ok, obj.Slot.is_null]
-  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, c0, a0, rest0, hc0, hca0, hcv0, rfl⟩
+  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, -, c0, a0, rest0, hc0, hca0, hcv0, rfl⟩
   · simp only [decide_true, ↓reduceIte, bind_ok, error.truncated]
     apply CPost.err (e := .Sys .TruncatedMessage) (e' := .truncatedMessage) _ (Or.inl trivial)
     simp only [List.length_nil, Fl4Spec.NonDetE.whenE, ↓reduceIte, Fl4Spec.NonDetE.throwError, ndE_throw_bind]

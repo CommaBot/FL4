@@ -182,7 +182,7 @@ theorem untyped_decode_refines_with (bitsApi : Fl4Spec.ApiObjectType → Nat →
     simp only [Fl4Spec.NonDetE.whenE, this, ↓reduceIte, Fl4Spec.NonDetE.throwError, ndE_throw_bind]; rfl
   have h6' : ¬ (args.map UScalar.bv).length < 6 := by simp; scalar_tac
   simp only [h6, ↓reduceIte, Fl4Spec.NonDetE.whenE, h6', ndE_pure_bind, hx0, bind_ok, obj.Slot.is_null]
-  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, c0, a0, rest0, hc0, hca0, hcv0, rfl⟩
+  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, -, c0, a0, rest0, hc0, hca0, hcv0, rfl⟩
   · simp only [↓reduceIte, error.truncated, bind_ok, decide_true]
     apply UPost.err (e := .Sys .TruncatedMessage) (e' := .truncatedMessage) _ trivial
     simp only [List.length_nil, ↓reduceIte, Fl4Spec.NonDetE.throwError, ndE_throw_bind]; rfl

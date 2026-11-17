@@ -204,7 +204,7 @@ end
 the slot of the first extra cap, related to the spec's. -/
 def ExtraRel (th : TypedHeap) (mem : U64 → U64) (x0 : U64) (excaps : List Fl4Spec.Cap) : Prop :=
   (x0 = 0#u64 ∧ excaps = []) ∨
-  (x0 ≠ 0#u64 ∧ ∃ c a rest, capAt mem x0 = ok c ∧ CapRel c a ∧ CapValid th c ∧ excaps = a :: rest)
+  (x0 ≠ 0#u64 ∧ IsSlot th x0 ∧ ∃ c a rest, capAt mem x0 = ok c ∧ CapRel c a ∧ CapValid th c ∧ excaps = a :: rest)
 
 
 theorem run_liftE' {σ α ε : Type} {m : Fl4Spec.NonDet σ α} {s s' : σ} {a : α} (h : m s = ({(a, s')}, False)) :
@@ -334,7 +334,7 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
     | a0 :: a1 :: i1 :: d1 :: rest, _ => exact ⟨a0, a1, i1, d1, rest, rfl⟩
   simp only [List.map_cons, List.drop_succ_cons, List.drop_zero]
   rw [hx0]; simp only [bind_ok, obj.Slot.is_null]
-  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, c0, ac0, erest, hc0, hca0, hcv0, rfl⟩
+  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, hx0s, c0, ac0, erest, hc0, hca0, hcv0, rfl⟩
   · -- no extra cap
     simp only [decide_true, ↓reduceIte, error.truncated, bind_ok, WP.spec_ok]
     refine ⟨rfl, .truncatedMessage, ?_, trivial⟩

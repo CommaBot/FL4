@@ -88,7 +88,7 @@ theorem target_tail {X : Type} (invk : X → Fl4Spec.PMonad Unit Unit) (th : Typ
     (c : capability.Cap) (ac : Fl4Spec.Cap) (hca : CapRel c ac) (hcv : CapValid th c) (idx dep : U64)
     (ks : Fl4Spec.CslotPtr → Fl4Spec.SEMonad Unit X)
     (K : obj.Slot → Result (core.result.Result Unit error.Exc × S × A))
-    (hK : ∀ dsl pd, dsl.1 = pd.bv → th pd = some (.cnode dsl.2.length) →
+    (hK : ∀ dsl pd, dsl.1 = pd.bv → th pd = some (.cnode dsl.2.length) → CnRef th (L.mem s) c pd →
       capAt (L.mem s) (cslotAddr dsl) = ok .Null →
       K (cslotAddr dsl) ⦃ res => CPost (L := L) arI invk th kb σ (ks dsl) s ar res ⦄) :
     (do
@@ -128,7 +128,7 @@ theorem target_tail {X : Type} (invk : X → Fl4Spec.PMonad Unit Unit) (th : Typ
     cases e1 with
     | error _ => exact hrel1.elim
     | ok dsl =>
-      obtain ⟨rfl, pd, hpd1, hpd, -⟩ := hrel1
+      obtain ⟨rfl, pd, hpd1, hpd, hpdr⟩ := hrel1
       obtain ⟨cd, ad, hcd, hcad, hgd⟩ := hR.slot_cap (Z := Unit) hpd1 hpd
       unfold cdt.ensure_empty_slot
       simp only [slot_cap_eq, hcd, bind_ok]
@@ -149,7 +149,7 @@ theorem target_tail {X : Type} (invk : X → Fl4Spec.PMonad Unit Unit) (th : Typ
       rw [cap_is_null_null]
       simp only [bind_ok, ↓reduceIte, core.result.Result.Insts.CoreOpsTry.branch]
       refine CPost.congr (run_bind_ok hee _) ?_
-      exact hK dsl pd hpd1 hpd hcd
+      exact hK dsl pd hpd1 hpd hpdr hcd
 
 variable {arI} in
 theorem CPost.liftME {X Y : Type} {f : X → Y} {invk : Y → Fl4Spec.PMonad Unit Unit} {th : TypedHeap} {kb : U64}
@@ -186,7 +186,7 @@ theorem issue_tail (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4S
     {ps : U64} {rs : Nat} (hps : th ps = some (.cnode rs)) {idxs : List Bool} (hls : idxs.length = rs)
     (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok .IrqControl)
     (dsl : Fl4Spec.CslotPtr) (pd : U64) (hpd1 : dsl.1 = pd.bv) (hpd : th pd = some (.cnode dsl.2.length))
-    (hdst : capAt (L.mem s) (cslotAddr dsl) = ok .Null) :
+    (hdst : capAt (L.mem s) (cslotAddr dsl) = ok .Null) (hDL : DestLive th (L.mem s) (L.ksb s) pd) :
     (do
       let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
       let (s2, a1) ← interrupt.invoke_irq_control st arI s1 ar irq (cslotAddr dsl) (cslotAddr (ps.bv, idxs))
@@ -215,7 +215,7 @@ theorem issue_tail (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4S
   have hdst1 : capAt (L.mem s1) (cslotAddr (pd.bv, db)) = ok .Null := by rw [hS.capAt hAd.isSlot, hdst]
   have hFR1 : MdbOKV (L.ksb s1) (L.mem s1) G := by rw [hkb]; exact MdbOKV.of_same hCR.2.2.1 hS hFR
   refine WP.spec_bind (WP.spec_and (invoke_ctl_rel arI th hP s1 ar σ1 G hCR1 hL1 hIR1' hHA1 hFI1 hFR1 hmask irq hirq
-    hin1 hps hpd hls rfl hsrc1 hdst1)
+    hin1 hps hpd hls rfl hsrc1 hdst1 (hDL.same hS hkb))
     (invoke_ctl_dk4c arI hP s1 ar hL1 hCR1.2.2.1 hmask irq hirq hAs.isSlot hAd.isSlot hsrc1)) ?_
   rintro ⟨s2, a2⟩ ⟨⟨σ', G', hmem, hCR', hIR', -, hFI', hHA', hFR', hstp2⟩, hdk2⟩
   apply (WP.spec_ok (core.result.Result.Ok (), s2, a2)).mpr
@@ -257,7 +257,7 @@ theorem irq_issue_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ
   refine CPost.liftME' ?_
   unfold Fl4Spec.decodeIrqControlInvocationWith
   rw [if_pos hlbl]
-  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, c0, ac0, erest, hc0, hca0, hcv0, rfl⟩
+  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, hx0s, c0, ac0, erest, hc0, hca0, hcv0, rfl⟩
   · simp only [decide_true, ↓reduceIte, error.truncated, bind_ok]
     rw [if_neg (show ¬ ((args.map UScalar.bv).length ≥ 3 ∧ ([] : List Fl4Spec.Cap).length ≥ 1) by simp)]
     exact CPost.err (e' := .truncatedMessage) rfl (Or.inl trivial)
@@ -326,9 +326,9 @@ theorem irq_issue_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ
   refine target_tail arI (Fl4Spec.invokeFl4IrqControl ∘ Fl4Spec.Fl4IrqControlInvocation.spec) th (L.ksb s) s ar σ
     hR hV c0 ac0 hca0 hcv0 y1 y2
     (fun d => Fl4Spec.NonDetE.returnOk (.irqControl (BitVec.ofNat 8 y0.val) d (ps.bv, idxs))) _ ?_
-  intro dsl pd hpd1 hpd hdst
+  intro dsl pd hpd1 hpd hpdr hdst
   exact issue_tail arI th hP s ar σ G ⟨hR, hV, hM, hC, hI⟩ hL hIR hHA hFI hFR hmask ct hcur htcb hact hact2 y0 (by omega)
-    hact0 hps hls hsrcC dsl pd hpd1 hpd hdst
+    hact0 hps hls hsrcC dsl pd hpd1 hpd hdst (DestLive.of_cnRef hpdr ⟨x0, hx0s, capV_of_capAt hc0⟩)
 
 end
 

@@ -114,6 +114,29 @@ def DomRelW (m : U64 → U64) (kb : U64) (σ : Fl4Spec.State Unit) : Prop :=
         (core.num.U64.wrapping_add 192#u64 (core.num.U64.wrapping_mul i 16#u64))) = 0#u64)) ∧
   σ.domainStartIndex = (m (core.num.U64.wrapping_add kb 32#u64)).val
 
+/-- The destination of a slot step lies in a live CNode (named by a CNode
+cap held in a slot) or in the kernel-state block (the IRQ node). -/
+def DestLive (th : TypedHeap) (mem : U64 → U64) (kb pd : U64) : Prop :=
+  (∃ y r gs g, IsSlot th y ∧ capV mem y = .CNode pd r gs g) ∨
+    (∀ k, th pd = some k → kb.val ≤ pd.val ∧ pd.val + objSize k ≤ kb.val + 13568)
+
+theorem DestLive.same {th : TypedHeap} {m m' : U64 → U64} {kb kb' pd : U64} (h : DestLive th m kb pd)
+    (hS : SlotsSame th m m') (hk : kb' = kb) : DestLive th m' kb' pd := by
+  subst hk
+  rcases h with ⟨y, r, gs, g, hy, hc⟩ | h
+  · exact Or.inl ⟨y, r, gs, g, hy, by rw [hS.capV hy]; exact hc⟩
+  · exact Or.inr h
+
+/-- A CNode reached by a lookup from a root held in a slot is live. -/
+theorem DestLive.of_cnRef {th : TypedHeap} {mem : U64 → U64} {c0 : capability.Cap} {kb pd : U64}
+    (h : CnRef th mem c0 pd) (hroot : ∃ y, IsSlot th y ∧ capV mem y = c0) : DestLive th mem kb pd := by
+  obtain ⟨r, gs, g, hr⟩ := h
+  rcases hr with ⟨p, r', idx, hp, hl, hc⟩ | e
+  · exact Or.inl ⟨cslotAddr (p.bv, idx), r, gs, g, AbsSlot.isSlot ⟨p, rfl, Or.inl (by rw [hl]; exact hp)⟩,
+      capV_of_capAt hc⟩
+  · obtain ⟨y, hy, hyc⟩ := hroot
+    exact Or.inl ⟨y, r, gs, g, hy, by rw [hyc, e]⟩
+
 /-- Every object of `σ'` was an object of the same type in `σ` (SpecKSz). -/
 def KSz (σ σ' : Fl4Spec.State Unit) : Prop :=
   ∀ o ko', σ'.kheap o = some ko' → ∃ ko, σ.kheap o = some ko ∧ Fl4Spec.aType ko = Fl4Spec.aType ko'
@@ -197,6 +220,7 @@ structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S 
     (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 1) = capAt (L.mem s) (slotOf t 1)) →
     TypedKept th (L.mem s) (L.mem s') →
     (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3)) →
+    DestLive th (L.mem s) (L.ksb s) pd →
     (DelInv th (L.mem s) → DelInv th (L.mem s')) → Q s a σ s' a σ'
   sched : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit), SchedStep (L := L) th s σ s' σ' → Q s a σ s' a σ'
   cslot : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit) (G' : MdbGhost), Ipc.CnK σ σ' →
@@ -316,11 +340,12 @@ theorem Steps.insert {th : TypedHeap} (hP : Placed th) {s s' : S} {a : A} {σ σ
     (hcap : ∀ y, IsSlot th y → y ≠ cslotAddr (pd.bv, idxd) → capV (L.mem s') y = capV (L.mem s) y)
     (hnull : capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null)
     (hnu : ∀ p sb fi d, capV (L.mem s') (cslotAddr (pd.bv, idxd)) ≠ .Untyped p sb fi d)
-    (hTK : TypedKept th (L.mem s) (L.mem s')) (hDl : DelInv th (L.mem s) → DelInv th (L.mem s')) :
+    (hTK : TypedKept th (L.mem s) (L.mem s')) (hDL : DestLive th (L.mem s) (L.ksb s) pd)
+    (hDl : DelInv th (L.mem s) → DelInv th (L.mem s')) :
     Steps (L := L) arI th s a σ s' a σ' := by
   intro Q hQ
   refine hQ.slot s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu
-    ⟨hF.1, hF.2.1, fun b hb hn => hF.2.2 b hb fun ⟨x, k, hx, hk, e⟩ => hn ⟨x, hx, ?_⟩⟩ hCR hFI hMO (fun t ht => ?_) hTK (fun t ht => ?_) hDl
+    ⟨hF.1, hF.2.1, fun b hb hn => hF.2.2 b hb fun ⟨x, k, hx, hk, e⟩ => hn ⟨x, hx, ?_⟩⟩ hCR hFI hMO (fun t ht => ?_) hTK (fun t ht => ?_) hDL hDl
   · have hf := hx.fit hP
     have := hk.lt
     have hv := wordOf_val (a := x) (k := k) (by omega)
