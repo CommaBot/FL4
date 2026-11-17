@@ -595,6 +595,38 @@ theorem decode_invocation_cnodeJ_steps (s : S) (ar : A) (σ : Fl4Spec.State Unit
       sl hAs p r gs g hsc extra x0 x1 hx0 hx1 excaps hex hrun hZ hE blk call don fp ci buffer (hR hcp)
 
 set_option maxHeartbeats 4000000 in
+/-- **The domain cap, `JAt` after**: its decode's scheduler and kernel-state
+steps (`decode_invocation_domainXS`, `DomSetHyp`/`DomResHyp` from `XTopAt`,
+`ActReady` from `Inv`), `Steps.jat` with `JStepHyps`; the kernel-state
+words' placement as `decode_invocation_domainXT`'s. -/
+theorem decode_invocation_domainJ_step (hcfg : DomConfig) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread)
+    (hARI : ARIface arI AR) (hJ : JStepHyps (L := L) arI AR Z.th)
+    (ct : U64) (hct : sched.cur_thread st s = ok ct)
+    (hksO : ∀ o : U64, o.val < 256 → o.val % 8 = 0 → OutsideObjects Z.th (ksW (L.ksb s) o))
+    (hactK : ∀ o : U64, o.val < 256 → (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION).val ≠ (ksW (L.ksb s) o).val)
+    (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = domLabelOf lbl)
+    (length buf : U64) (args : List U64) (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (excs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraSRel Z.th (L.mem s) x0 excs)
+    (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (buffer : Option Fl4Spec.ObjRef) :
+    XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length slot .Domain blk call don fp buf extra slbl
+      (args.map UScalar.bv) ci sl excs buffer ct := by
+  have hX := J.xtop
+  obtain ⟨hcur, -⟩ := J.curEq hct
+  have hP := hX.fin.1.2
+  have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
+  have hC := J.curRun.run hni
+  have hA : Notif.ActReady σ := J.inv.actReady
+  exact decode_invocation_domainXS arI hcfg Z.th hX.rel.1 s ar σ Z.G hX.rel.2.1 hX.rel.2.2.1 hX.rel.2.2.2.1 ct hct
+    hcur (hX.curTcb hcur).1 J.kern.act hkf hP.vs.ksb_al hksO hactK lbl slbl hlbl length buf args hlen hargs extra x0
+    hx0 excs hex (domSetHyp_of hX J.thT hC hA hcur) (domResHyp_of hX J.ks J.thT hC hA hcur) hC
+    ⟨Z, H, Cs, Ac, Lst, D, J⟩ (fun _ _ _ h => Steps.jat arI hARI.toMask hJ h rfl J) (fun _ _ _ h => JAt.xtop arI h)
+    slot blk call don fp ci sl buffer
+
+set_option maxHeartbeats 4000000 in
 /-- **`decode_invocation_threadJAt`, `JAt` after**, with the per-op premise (`JPostHyp` [W]). -/
 theorem decode_invocation_threadJ_step (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hG : CsGlobal (L := L) arI AR Z.th)
