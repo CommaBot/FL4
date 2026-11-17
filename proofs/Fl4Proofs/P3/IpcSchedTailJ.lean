@@ -25,10 +25,15 @@ open Fl4Proofs.P3.Notif (inClass released)
 /-- **`JAtZ` after SetSchedParams' fault-handler install** [J-step, the
 CSpace side's install], with the current thread in no release queue
 (l4v `ct_not_in_release_q`), and the current thread kept by the install
-(the spec's `install_tcb_cap` writes no `cur_thread`; with `JAtZ` after the
-install only, not derivable: l4v `ct_not_in_release_q`/`CurInv` are not
-`JAtZ` facts when the install's endpoint finalisation leaves
-`ChooseNewThread`): at `SchedTailXHyp`'s hypotheses. -/
+[spec frame: `install_tcb_cap` writes no `cur_thread`; no `cur_thread`
+frame of its deletion path (`cap_delete`, `finalise_cap`) exists yet; FL4-side
+it is P1's `CaiFr.cur` with `SchedSpec.curThread` at both `XTopAt`s]. It
+replaces the former `SetPrioSpecOK` (`Inv`/`ObjCover`/`NSC` after
+`set_priority`), now proved by `setPriority_inv` from `JAtZ` and this fact
+(the unbind target is not the current thread by `ScDec` at entry): `JAtZ`
+alone does not give it, since with `ChooseNewThread` (an endpoint
+finalisation in the install) `CurInv` is not a `JAtZ` fact and a requeued
+current thread's SC need not be active. At `SchedTailXHyp`'s hypotheses. -/
 def InstallJ (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (ct : U64) : Prop :=
   ∀ (s1 : S) (σ1 : Fl4Spec.State Unit) (a : A) (p mcp prio scv x2 : U64) (scf : Bool) (ssl : Fl4Spec.CslotPtr)
     (fh : Fl4Spec.Cap × Fl4Spec.CslotPtr) (q : Fl4Spec.ObjRef) (sco : Option (Option Fl4Spec.ObjRef))
