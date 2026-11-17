@@ -20,21 +20,21 @@ open Fl4Spec
 noncomputable section
 
 /-- Every TCB of `σ'` was one of `σ`, with the same bound SC; the ready
-queues are kept. -/
+queues and the current thread are kept. -/
 def TSK (σ σ' : State Unit) : Prop :=
   (∀ p y, σ'.kheap p = some (.tcb y) → ∃ y0, σ.kheap p = some (.tcb y0) ∧ y.tcbSchedContext = y0.tcbSchedContext) ∧
-  σ'.readyQueues = σ.readyQueues
+  σ'.readyQueues = σ.readyQueues ∧ σ'.curThread = σ.curThread
 
-theorem TSK.refl (σ : State Unit) : TSK σ σ := ⟨fun _ y h => ⟨y, h, rfl⟩, rfl⟩
+theorem TSK.refl (σ : State Unit) : TSK σ σ := ⟨fun _ y h => ⟨y, h, rfl⟩, rfl, rfl⟩
 
 theorem TSK.trans {σ1 σ2 σ3 : State Unit} (h1 : TSK σ1 σ2) (h2 : TSK σ2 σ3) : TSK σ1 σ3 := by
-  refine ⟨fun p y h => ?_, h2.2.trans h1.2⟩
+  refine ⟨fun p y h => ?_, h2.2.1.trans h1.2.1, h2.2.2.trans h1.2.2⟩
   obtain ⟨y2, h2', e1⟩ := h2.1 p y h
   obtain ⟨y1, h1', f1⟩ := h1.1 p y2 h2'
   exact ⟨y1, h1', e1.trans f1⟩
 
-theorem TSK.of_kheap {σ σ' : State Unit} (h : σ'.kheap = σ.kheap ∧ σ'.readyQueues = σ.readyQueues) :
-    TSK σ σ' := by
+theorem TSK.of_kheap {σ σ' : State Unit}
+    (h : σ'.kheap = σ.kheap ∧ σ'.readyQueues = σ.readyQueues ∧ σ'.curThread = σ.curThread) : TSK σ σ' := by
   refine ⟨fun p y hp => ?_, h.2⟩; rw [h.1] at hp; exact ⟨y, hp, rfl⟩
 
 /-- Every outcome of `m` keeps the TCBs' bound SCs (backward). -/
@@ -113,18 +113,18 @@ theorem sk_maybeM {α : Type} {g : α → NonDet (State Unit) Unit} (h : ∀ a, 
 theorem sk_liftM {α β : Type} (g : α → β) {m : NonDet (State Unit) α} (h : SK m) :
     SK (NonDet.liftM g m) := sk_bind' h fun _ => sk_pure' _
 
-theorem sk_modify {g : State Unit → State Unit} (hg : ∀ σ, (g σ).kheap = σ.kheap ∧ (g σ).readyQueues = σ.readyQueues) :
+theorem sk_modify {g : State Unit → State Unit} (hg : ∀ σ, (g σ).kheap = σ.kheap ∧ (g σ).readyQueues = σ.readyQueues ∧ (g σ).curThread = σ.curThread) :
     SK (NonDet.modify g) := by
   intro σ x hx; rw [Set.mem_singleton_iff.1 hx]; exact TSK.of_kheap (hg σ)
 
-theorem sk_get_put {g : State Unit → State Unit} (hg : ∀ σ, (g σ).kheap = σ.kheap ∧ (g σ).readyQueues = σ.readyQueues) :
+theorem sk_get_put {g : State Unit → State Unit} (hg : ∀ σ, (g σ).kheap = σ.kheap ∧ (g σ).readyQueues = σ.readyQueues ∧ (g σ).curThread = σ.curThread) :
     SK (NonDet.get >>= fun s => NonDet.put (g s)) := by
   intro σ x ⟨y, hy, hx⟩
   rw [Set.mem_singleton_iff.1 hy] at hx
   rw [Set.mem_singleton_iff.1 hx]
   exact TSK.of_kheap (hg σ)
 
-theorem sk_get_put' {g : State Unit → State Unit} (hg : ∀ σ, (g σ).kheap = σ.kheap ∧ (g σ).readyQueues = σ.readyQueues) :
+theorem sk_get_put' {g : State Unit → State Unit} (hg : ∀ σ, (g σ).kheap = σ.kheap ∧ (g σ).readyQueues = σ.readyQueues ∧ (g σ).curThread = σ.curThread) :
     SK (do let s ← NonDet.get; NonDet.put (g s)) := sk_get_put hg
 
 theorem sk_getObject (p : ObjRef) : SK (getObject (Z := Unit) p) := sk_getsThe _
@@ -155,13 +155,13 @@ theorem sk_doMachineOp {α : Type} (mop : NonDet MachineState α) : SK (doMachin
   unfold doMachineOp
   refine sk_bind (sk_gets _) (fun _ => sk_bind (sk_selectF _) (fun x => ?_))
   obtain ⟨r, ms⟩ := x
-  exact sk_bind (sk_modify (fun σ => ⟨rfl, rfl⟩)) (fun _ => sk_pure _)
+  exact sk_bind (sk_modify (fun σ => ⟨rfl, rfl, rfl⟩)) (fun _ => sk_pure _)
 
 theorem sk_doExtendedOp (eop : DetExtMonad Unit) : SK (doExtendedOp (Z := Unit) eop) := by
   unfold doExtendedOp
   refine sk_bind sk_get (fun _ => sk_bind (sk_selectF _) (fun _ => ?_))
   split
-  exact sk_modify (fun σ => ⟨rfl, rfl⟩)
+  exact sk_modify (fun σ => ⟨rfl, rfl, rfl⟩)
 
 end Comb
 
@@ -259,10 +259,10 @@ macro "sk_step0" : tactic => `(tactic| first
   | with_reducible exact sk_assert _ | with_reducible exact sk_assertOpt _
   | with_reducible exact sk_getsThe _
   | with_reducible exact sk_selectF _ | with_reducible exact sk_select _
-  | ((with_reducible apply sk_modify); intro _; exact ⟨rfl, rfl⟩)
-  | ((with_reducible apply sk_get_put); intro _; exact ⟨rfl, rfl⟩)
-  | (exact sk_get_put' (fun _ => ⟨rfl, rfl⟩))
-  | (exact sk_get_put (fun _ => ⟨rfl, rfl⟩))
+  | ((with_reducible apply sk_modify); intro _; exact ⟨rfl, rfl, rfl⟩)
+  | ((with_reducible apply sk_get_put); intro _; exact ⟨rfl, rfl, rfl⟩)
+  | (exact sk_get_put' (fun _ => ⟨rfl, rfl, rfl⟩))
+  | (exact sk_get_put (fun _ => ⟨rfl, rfl, rfl⟩))
   | with_reducible exact sk_getObject _
   | with_reducible exact sk_doMachineOp _ | with_reducible exact sk_doExtendedOp _
   | (with_reducible refine sk_bind_pure ?_) | (with_reducible exact sk_fail_bind)
@@ -328,7 +328,7 @@ theorem sk_setObject (p : ObjRef) (o : KernelObject) (ho : ∀ y, o ≠ .tcb y) 
   intro σ x hx
   obtain ⟨k, -, -, e⟩ := sk_setObject_mem hx
   rw [e]
-  refine ⟨fun q y hq => ?_, rfl⟩
+  refine ⟨fun q y hq => ?_, rfl, rfl⟩
   by_cases hqp : q = p
   · subst hqp; simp only [Function.update_self, Option.some.injEq] at hq; exact absurd hq (ho y)
   · simp only [Function.update_of_ne hqp] at hq; exact ⟨y, hq, rfl⟩
@@ -361,7 +361,7 @@ theorem sk_updateSchedContext (q : ObjRef) (f : SchedContext → SchedContext) :
   intro σ x hx
   obtain ⟨sc, n, hk, e⟩ := updSc_mem hx
   rw [e]
-  refine ⟨fun r z hr => ?_, rfl⟩
+  refine ⟨fun r z hr => ?_, rfl, rfl⟩
   by_cases hrq : r = q
   · subst hrq; simp at hr
   · simp only [Function.update_of_ne hrq] at hr; exact ⟨z, hr, rfl⟩
@@ -406,7 +406,7 @@ theorem sk_threadSet (f : Tcb → Tcb) (hf : ∀ x, (f x).tcbSchedContext = x.tc
   obtain ⟨x0, hk0, rfl⟩ := hy'
   obtain ⟨k, -, -, e⟩ := sk_setObject_mem hx
   rw [e]
-  refine ⟨fun q z hq => ?_, rfl⟩
+  refine ⟨fun q z hq => ?_, rfl, rfl⟩
   by_cases hqp : q = t
   · subst hqp
     simp only [Function.update_self, Option.some.injEq, KernelObject.tcb.injEq] at hq

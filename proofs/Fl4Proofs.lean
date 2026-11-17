@@ -339,3 +339,4 @@ import Fl4Proofs.P3.IpcRemoveTcb
 import Fl4Proofs.P3.IpcSuspend
 import Fl4Proofs.P3.IpcTscK
 import Fl4Proofs.P3.IpcResume
+import Fl4Proofs.P3.IpcWriteRegs

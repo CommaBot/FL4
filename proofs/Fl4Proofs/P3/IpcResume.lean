@@ -72,7 +72,7 @@ theorem restart_tcb_irel (hP0 : IPlaced N T E R B) (hRT : RemoveTcbHyp st th cr 
     (hAct : ∀ s' σ', IRel st th cr N T C E R B c s' σ' → ActReady σ')
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
     sched.restart st ar s a t ⦃ r => r.2 = a ∧ ∃ σ', Fl4Spec.restart (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
-      IRel st th cr N T C E R B c r.1 σ' ⦄ := by
+      IRel st th cr N T C E R B c r.1 σ' ∧ σ'.curThread = σ.curThread ⦄ := by
   obtain ⟨x, hk, hTR⟩ := hX.1.tcb t ht
   have hspec0 : ∀ (m : Fl4Spec.SMonad Unit Unit), Fl4Spec.restart (Z := Unit) t.bv σ =
       Fl4Spec.NonDet.when (¬ Fl4Spec.runnable x.tcbState = true ∧ ¬ Fl4Spec.idle x.tcbState) (do
@@ -91,7 +91,7 @@ theorem restart_tcb_irel (hP0 : IPlaced N T E R B) (hRT : RemoveTcbHyp st th cr 
   swap
   · rw [decide_eq_false hc]
     simp only [Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-    refine ⟨trivial, σ, ?_, hX⟩
+    refine ⟨trivial, σ, ?_, hX, rfl⟩
     rw [hspec0 (pure ()), Fl4Spec.NonDet.when, if_neg hc]; rfl
   rw [decide_eq_true hc]
   simp only [↓reduceIte]
@@ -152,7 +152,7 @@ theorem restart_tcb_irel (hP0 : IPlaced N T E R B) (hRT : RemoveTcbHyp st th cr 
           let s5 ← sched.possible_switch_to st s4 t
           ok (s5, a1)
         else ok (s4, a1)) ⦃ r => r.2 = a1 ∧ ∃ σe, Fl4Spec.testPossibleSwitchTo (Z := Unit) t.bv σd = ({((), σe)}, False) ∧
-          IRel st th cr N T C E R B c r.1 σe ⦄ := by
+          IRel st th cr N T C E R B c r.1 σe ∧ σe.curThread = σd.curThread ⦄ := by
     intro s4 σd hXd
     step with Sched.sched.is_schedulable.spec' as ⟨b2, hb2⟩
     rw [hb2, schedulable_eq hXd.1.toN hXd.2.2.1 ht]
@@ -161,11 +161,13 @@ theorem restart_tcb_irel (hP0 : IPlaced N T E R B) (hRT : RemoveTcbHyp st th cr 
       refine WP.spec_bind (switch_top hP0 s4 σd hXd.1 hXd.2 (hAct _ _ hXd) t ht) ?_
       rintro s5 ⟨σe, hps, -, hf, hv, hSe⟩
       rw [WP.spec_ok]
-      refine ⟨rfl, σe, ?_, hXd.1.frame hP0 hf hv, hSe⟩
+      have hmem : ((), σe) ∈ (Fl4Spec.possibleSwitchTo (Z := Unit) t.bv σd).1 := by rw [hps]; rfl
+      obtain ⟨-, -, -, -, -, -, hct⟩ := nkm_possibleSwitchTo t.bv σd _ hmem
+      refine ⟨rfl, σe, ?_, ⟨hXd.1.frame hP0 hf hv, hSe⟩, hct⟩
       unfold Fl4Spec.testPossibleSwitchTo
       rw [nd_gets_bind, hsch]; exact hps
     · rw [if_neg hsch, WP.spec_ok]
-      refine ⟨rfl, σd, ?_, hXd⟩
+      refine ⟨rfl, σd, ?_, hXd, rfl⟩
       unfold Fl4Spec.testPossibleSwitchTo
       rw [nd_gets_bind, show Fl4Spec.schedulable t.bv σd = false by simpa using hsch]; rfl
   have hfin : ∀ σd σe, Fl4Spec.NonDet.maybeM (Fl4Spec.schedContextResume (Z := Unit)) x.tcbSchedContext σc =
@@ -180,8 +182,8 @@ theorem restart_tcb_irel (hP0 : IPlaced N T E R B) (hRT : RemoveTcbHyp st th cr 
     rw [hbz, decide_eq_true hi0]
     simp only [↓reduceIte, bind_ok]
     refine WP.spec_mono (tail s3 σc hXc) ?_
-    rintro r ⟨h1, σe, h2, h3⟩
-    refine ⟨h1, σe, hfin σc σe ?_ h2, h3⟩
+    rintro r ⟨h1, σe, h2, h3, h4⟩
+    refine ⟨h1, σe, hfin σc σe ?_ h2, h3, h4.trans hK3.2.2⟩
     rw [hxi, hi0, optRef_zero]; rfl
   have hiC : L.mem s2 (scA t) ∈ C := by rw [← hi3]; exact hsc.scMem t ht (by rw [hi3]; exact hi0)
   have hxcs : xc.tcbSchedContext = some (L.mem s2 (scA t)).bv := by rw [hxc, hxi, Notif.optRef_ne hi0]
@@ -189,7 +191,7 @@ theorem restart_tcb_irel (hP0 : IPlaced N T E R B) (hRT : RemoveTcbHyp st th cr 
   have htw := word24_of hXc.2.2.1 hiC hky hyt
   have hnq : ∀ x', σc.kheap t.bv = some (.tcb x') → t.bv ∉ σc.readyQueues x'.tcbDomain x'.tcbPriority := by
     intro x' _ hm
-    rw [hK3.2] at hm
+    rw [hK3.2.1] at hm
     obtain ⟨x0, -, -, -, hk0, -, hr0, -⟩ := hInv.rq _ _ _ hm
     rw [hk] at hk0; cases hk0
     rw [hnr] at hr0; cases hr0
@@ -200,8 +202,8 @@ theorem restart_tcb_irel (hP0 : IPlaced N T E R B) (hRT : RemoveTcbHyp st th cr 
   have hXd := tk_liftCW hP0 hXc (hwd.mono fun _ h => Or.inl (Or.inl (Or.inl h))) hK hSd
     (hXc.1.toN.frame hXc.2.2.1.placed hfd (KView.of_kheap hkd))
   refine WP.spec_mono (tail s4 σd hXd) ?_
-  rintro r ⟨h1, σe, h2, h3⟩
-  refine ⟨h1, σe, hfin σd σe ?_ h2, h3⟩
+  rintro r ⟨h1, σe, h2, h3, h4⟩
+  refine ⟨h1, σe, hfin σd σe ?_ h2, h3, h4.trans (hK.ct.trans hK3.2.2)⟩
   rw [hxi, Notif.optRef_ne hi0]; exact hres
 
 end
@@ -243,7 +245,7 @@ theorem resumeXLeaf_of {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {ar : A} {σ σ
   refine WP.spec_bind (restart_tcb_irel (ar := arI) hP0 (removeTcbHyp_of hP0 fun s' σ' h => (hOK s' σ' h).1)
     s1 ar σ1 hI1 hpT hSV hOC hInv (fun s' σ' h => let ⟨⟨_, _, _, _, _, hI, _⟩, _⟩ := hOK s' σ' h; hI)
     (fun s' σ' h => (hOK s' σ' h).2) hmb) ?_
-  rintro ⟨s2, a2⟩ ⟨rfl, σ2, hm, hI2⟩
+  rintro ⟨s2, a2⟩ ⟨rfl, σ2, hm, hI2, -⟩
   exact (WP.spec_ok _).2 ⟨rfl, hAR, ((), σ2), by rw [hm]; exact Set.mem_singleton _, hI2⟩
 
 end
