@@ -268,7 +268,8 @@ structure JStepHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
     (∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ sl ∈ W) →
     UtSrc th (L.mem s) (L.mem s') σ σ' → JOwesCs (L := L) arI AR th G' s a σ s' a σ'
   del : ∀ (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit) (sl : Fl4Spec.CslotPtr) (p b : U64) (w r : Bool),
-    AbsSlot th sl → capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
+    AbsSlot th sl → (∃ q, sl.1 = q.bv ∧ th q = some (.cnode sl.2.length)) →
+    capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
     cdt.delete_one st arI s a (cslotAddr sl) = ok (s', a') → ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 →
     ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → ∃ (G' : MdbGhost) (V' : XVs),
@@ -306,7 +307,7 @@ theorem stepClosed_jat {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {
     fun s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu hw hCR hFI hMO hTS hTK hT3 hDL hDl Z H Cs Ac Lst D hth J => ?_,
     fun s s' a σ σ' hS Z H Cs Ac Lst D hth J => ?_,
     fun s s' a σ σ' G' hcn hkc hCK hUK horig hw hCR hFI hMO hTS hTK hT3 hkz hDl W hW hcW hoW hUS Z H Cs Ac Lst D hth J => ?_,
-    fun s s' a a' σ σ' sl p b w r hA hc hd hm Z H Cs Ac Lst D hth J => ?_⟩
+    fun s s' a a' σ σ' sl p b w r hA hcn hc hd hm Z H Cs Ac Lst D hth J => ?_⟩
   · obtain ⟨G1, V1, Ac1, Lst1, D1, J1⟩ := h1 Z H Cs Ac Lst D hth J
     obtain ⟨G2, V2, Ac2, Lst2, D2, J2⟩ := h2 (Z.mv G1 V1) H Cs Ac1 Lst1 D1 hth J1
     exact ⟨G2, V2, Ac2, Lst2, D2, J2⟩
@@ -369,7 +370,7 @@ theorem stepClosed_jat {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {
     obtain ⟨hC, Ac', Lst', D', R⟩ := hJ.cslot s s' a σ σ' G' hcn hkc hCK hUK horig hw hCR hFI hMO hTS hTK hT3 hkz hDl W hW hcW hoW hUS Z H Cs Ac Lst D rfl J hX1
     exact ⟨G', Z.vs, Ac', Lst', D', J.cs_frame hw.1 hX1 (KBack.of_keepC hkc) hC R⟩
   · -- a notification cap's deletion
-    obtain ⟨G', V', hX1, hks, hkb, hC, Ac', Lst', D', R⟩ := hJ.del s s' a a' σ σ' sl p b w r hA hc hd hm Z H Cs Ac Lst D
+    obtain ⟨G', V', hX1, hks, hkb, hC, Ac', Lst', D', R⟩ := hJ.del s s' a a' σ σ' sl p b w r hA hcn hc hd hm Z H Cs Ac Lst D
       hth J
     exact ⟨G', V', Ac', Lst', D', J.cs_frameV hks hX1 hkb hC R⟩
 

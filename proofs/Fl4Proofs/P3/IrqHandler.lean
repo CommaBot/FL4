@@ -69,6 +69,7 @@ def HPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (G : MdbGhost)
 null cap's deletion changes nothing). -/
 theorem Steps.deleteOne {th : TypedHeap} {s s' : S} {a a' : A} {σ σ' : Fl4Spec.State Unit}
     (hR : StateRel th (L.mem s) σ) {sl : Fl4Spec.CslotPtr} (hA : AbsSlot th sl)
+    (hcn : ∃ q, sl.1 = q.bv ∧ th q = some (.cnode sl.2.length))
     (hk : capV (L.mem s) (cslotAddr sl) = .Null ∨
       ∃ p b w r, capV (L.mem s) (cslotAddr sl) = .Notification p b w r)
     (hrun : cdt.delete_one st arI s a (cslotAddr sl) = ok (s', a'))
@@ -93,7 +94,7 @@ theorem Steps.deleteOne {th : TypedHeap} {s s' : S} {a a' : A} {σ σ' : Fl4Spec
     have e3 := (Prod.mk.inj (Set.mem_singleton_iff.1 hm)).2
     subst e3
     exact Steps.arch arI (Or.inl rfl)
-  · exact fun _ hQ => hQ.del s s' a a' σ σ' sl p b w r hA hk hrun hm
+  · exact fun _ hQ => hQ.del s s' a a' σ σ' sl p b w r hA hcn hk hrun hm
 
 /-- **`Ack`.** -/
 theorem irq_ack_refines (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
@@ -180,7 +181,7 @@ theorem irq_clear_refines (th : TypedHeap) (hP : Placed th)
   have hdel' : ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) ((nodeA (L.ksb s) irq).bv, []) σ1).1 := hdel
   refine ⟨.clearIRQHandler (BitVec.ofNat 8 irq.val), ?_, σ1, hst, σ', G', ?_, hDS3.1, hDS3.2.2,
     MdbStep.same_left hM hS hmS3, fun _ hC => (Steps.restart arI hcur hk' htcb hs2 hst hC).trans arI
-      (Steps.deleteOne arI hR1 hA hok3 (by rw [cslotAddr_nil]; exact hr3) hdel')⟩
+      (Steps.deleteOne arI hR1 hA ⟨_, rfl, by simpa using hL.node irq hirq⟩ hok3 (by rw [cslotAddr_nil]; exact hr3) hdel')⟩
   · unfold Fl4Spec.decodeIrqHandlerInvocation; rw [hlbl]; rfl
   · show _ ∈ ((Fl4Spec.getIrqSlot _ >>= fun sl => Fl4Spec.capDeleteOne sl) σ1).1
     refine mem_bind_nd (x := ((σ1.interruptIrqNode (BitVec.ofNat 8 irq.val), []), σ1)) rfl ?_
@@ -295,7 +296,7 @@ theorem irq_set_refines (th : TypedHeap) (hP : Placed th)
     swap
     · have hk3 : L.ksb s3 = L.ksb s := hF4.1.symm.trans hks
       refine ((Steps.restart arI hcur hk' htcb hs2 hst hC).trans arI
-        (Steps.deleteOne arI hR1 hA hok3 (by rw [cslotAddr_nil]; exact hr3) hdel)).trans arI
+        (Steps.deleteOne arI hR1 hA ⟨_, rfl, by simpa using hL.node irq hirq⟩ hok3 (by rw [cslotAddr_nil]; exact hr3) hdel)).trans arI
         (Steps.insert arI hP hps (hL.node irq hirq) (idxd := []) rfl hci hF4 ⟨hR', hV', hM', hC', hI'⟩ hFI'
           (by rw [hk3]; exact hmst.okv hFR) (fun y hy hne => ?_) hdst3
           (fun p sb fi d h => ?_)
