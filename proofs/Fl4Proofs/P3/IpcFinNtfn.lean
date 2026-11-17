@@ -4,10 +4,16 @@ slots kept** (toward `XFinHyps.ntfn`).
 
 * `unbind_maybe_irel`: `unbind_maybe_notification` (the bound TCB's and the
   notification's bound words cleared, `bound_wr_irel`).
+* `maybe_unbind_irel`: `maybe_unbind_ntfn` (`unbind_ntfn_refines0`, lifted by
+  `tk_liftCW`). Named, at the start state: the notification's SC among `C`
+  (`NSC`) and bound back to it (l4v `sym_refs` for the SC binding).
 -/
 import Fl4Proofs.P3.IpcSlotsSame
 import Fl4Proofs.P3.IpcCancelSignals
 import Fl4Proofs.P3.IpcTcbBind
+import Fl4Proofs.P3.IpcSchedTail
+import Fl4Proofs.P3.ScNtfnBind
+import Fl4Proofs.P3.ScXProd
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Ipc
@@ -73,6 +79,60 @@ theorem unbind_maybe_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State 
     · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨n, hn, by rw [hbv]; omega, by rw [hbv]; omega⟩)))))
     · have e : (P1.boundA (L.mem s (nBoundA n))).val = (L.mem s (nBoundA n)).val + 3368 := hbvp
       exact Or.inr (Or.inr (Or.inl ⟨_, hiT, by rw [e]; omega, by rw [e]; omega⟩))
+
+
+set_option maxHeartbeats 4000000 in
+/-- **`maybe_unbind_ntfn` on `IRel`**, the slots kept (module docstring). -/
+theorem maybe_unbind_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State Unit}
+    (hX : IRel st th cr N T C E R B c s σ) {n : U64} (hn : n ∈ N) (hNs : NSC N C σ)
+    (hlink : ∀ xn p, σ.kheap n.bv = some (.notification xn) → xn.ntfnSc = some p →
+      ∃ y m, σ.kheap p = some (.schedContext y m) ∧ y.scNtfn = some n.bv) :
+    schedcontext.maybe_unbind_ntfn st s n ⦃ s' => ∃ σ',
+      Fl4Spec.schedContextMaybeUnbindNtfn (Z := Unit) n.bv σ = ({((), σ')}, False) ∧
+      IRel st th cr N T C E R B c s' σ' ∧ SlotsSame th (L.mem s) (L.mem s') ⦄ := by
+  have hS := hX.2.2.1
+  obtain ⟨xn, hkn, -⟩ := hX.1.toN.ntfn n hn
+  have hx := hX.1.toN.at_ntfn hn hkn
+  have hg : Fl4Spec.getNtfnObjRef (Z := Unit) Fl4Spec.Notification.ntfnSc n.bv σ = ({(xn.ntfnSc, σ)}, False) := by
+    unfold Fl4Spec.getNtfnObjRef Fl4Spec.getSkObjRef
+    rw [nd_bind_one (m := Fl4Spec.getSimpleKo Fl4Spec.KernelObject.notification n.bv) (getNotification_eq hkn)]
+    rfl
+  unfold schedcontext.maybe_unbind_ntfn
+  step with P1.obj.Ntfn.sc.val as ⟨i, hi⟩
+  step with P1.obj.Sc.is_null.spec as ⟨b, hb⟩
+  have hsc : xn.ntfnSc = Notif.optRef i := by rw [hx.sc, hi]; rfl
+  by_cases h0 : i = 0#u64
+  · subst h0
+    have hb' : b = true := by rw [hb]; rfl
+    simp only [hb', ↓reduceIte, WP.spec_ok]
+    refine ⟨σ, ?_, hX, SlotsSame.refl _ _⟩
+    unfold Fl4Spec.schedContextMaybeUnbindNtfn
+    rw [nd_bind_one hg, hsc, Notif.optRef_zero]; rfl
+  have hb' : b = false := by rw [hb]; simp [h0]
+  simp only [hb', Bool.false_eq_true, ↓reduceIte]
+  have hsn : xn.ntfnSc = some i.bv := by rw [hsc, Notif.optRef_ne h0]
+  obtain ⟨sc, hscC, hscv⟩ := hNs n hn xn _ hkn hsn
+  have e : sc = i := P1.eq_of_bv hscv
+  subst e
+  obtain ⟨y, m, hky, hyn⟩ := hlink xn _ hkn hsn
+  have hsw := sw_hdr hS hscC (K := 40#u64) (by simp) (by simp) (by decide)
+  have hgy : Fl4Spec.getScObjRef (Z := Unit) Fl4Spec.SchedContext.scNtfn sc.bv σ = ({(y.scNtfn, σ)}, False) := by
+    unfold Fl4Spec.getScObjRef; rw [nd_bind_one (getSchedContext_eq hky)]; rfl
+  refine WP.spec_mono (unbind_ntfn_refines0 s σ hS hX.1.toN hscC h0 hky
+    (fun n' e => (P1.eq_of_bv (Option.some.inj (hyn.symm.trans e))) ▸ hn)) ?_
+  rintro s' ⟨σ', he, hS', hR', hw, -⟩
+  have hK : ScTKw (fun q => q = σ.curThread) σ σ' :=
+    ScTKw.ofFalse (NKT.of_eq (Sched.nkt_schedContextUnbindNtfn _) he)
+  have hkf : ∀ b, (Sched.NW N b ∨ b = scW sc 40#u64) → KFoot st T N C c s σ b := fun b hb => by
+    rcases hb with h | h
+    · exact KFoot.of_nw h
+    · subst h; exact KFoot.of_sw hsw
+  refine ⟨σ', ?_, tk_liftCW hP0 hX (hw.mono fun b hb => Or.inl (Or.inl (hkf b hb))) hK hS' hR',
+    IRel.slotsSame_of hX hw fun b hb => tfoot_oobj hS (Or.inl (hkf b hb))⟩
+  rw [← he]
+  unfold Fl4Spec.schedContextMaybeUnbindNtfn Fl4Spec.schedContextUnbindNtfn
+  rw [nd_bind_one hg, hsn, nd_bind_one hgy, hyn]
+  rfl
 
 end
 
