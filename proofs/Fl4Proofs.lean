@@ -20,6 +20,7 @@ import Fl4Proofs.P1.QueueSuspend
 import Fl4Proofs.P1.QueueRestart
 import Fl4Proofs.P1.QueueBudget
 import Fl4Proofs.P1.QueueBudget2
+import Fl4Proofs.P1.QueueBudgetG
 import Fl4Proofs.P1.QueueHeap
 import Fl4Proofs.P1.QueueAppend
 import Fl4Proofs.P1.QueueBlock
