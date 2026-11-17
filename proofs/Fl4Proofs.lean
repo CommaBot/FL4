@@ -345,3 +345,5 @@ import Fl4Proofs.P3.IpcTscK
 import Fl4Proofs.P3.IpcResume
 import Fl4Proofs.P3.IpcWriteRegs
 import Fl4Proofs.P3.IpcCopyRegs
+import Fl4Proofs.P3.IpcStK
+import Fl4Proofs.P3.IpcReadRegs
