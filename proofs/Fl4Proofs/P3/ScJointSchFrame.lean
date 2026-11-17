@@ -7,10 +7,11 @@ current thread and arch state has `σ'`'s heap).
 -/
 import Fl4Proofs.P3.ScJointFrame
 import Fl4Proofs.P3.ScXSched
+import Fl4Proofs.P3.ScJointRest
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
-open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc
+open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc Fl4Proofs.P3.Sched
 
 noncomputable section
 
@@ -68,6 +69,106 @@ theorem JAtZ.sch_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     have hsl' : ∀ x ∈ G.chains.flatten, IsSlot Z.th x := fun x h => ((hG0.members x).1 h).1
     exact (J.finM G hG0).of_capV fun x hx => hSS.capV (hsl' x hx)
 
+
+
+/-! ## The re-established fields across a scheduler step -/
+
+/-- **`BufWordRel` after a scheduler step** (`sc_buf` through `toTK`). -/
+theorem JAtZ.sch_buf {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ') :
+    BufWordRel Z.T (L.mem s') σ' := by
+  have hS := J.xtop.fin.1.1.1
+  obtain ⟨Q, R, hc, -⟩ := hS.lists
+  have hb0 := hK.toTK.bufKeep
+  have hb : BufKeep σ σ' := hb0
+  exact J.buf.frame (fun t ht => hw.mem_eq (tIpcBufA_aligned (hc.tcbs t ht)) fun hb => hb.ne_buf hS ht rfl) hb
+
+/-- **`SlotsApart` after a scheduler step.** -/
+theorem JAtZ.sch_apart {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ') :
+    Sched.SlotsApart (st := st) Z.th Z.T Z.N Z.C Z.R Z.c s' σ' := by
+  have hz0 := hK.toTK.szKeep
+  have hz : Sched.SzKeep σ σ' := hz0
+  exact J.apart.sc_frame hw.1 hz
+
+/-- **`JPlaced` after a scheduler step.** -/
+theorem JAtZ.sch_jpl {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ') :
+    ∃ Tr Cq, Sched.JPlaced (L := L) Z.th H Tr Cq s' σ' := by
+  have hS := J.xtop.fin.1.1.1
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  have hz0 := hK.toTK.szKeep
+  have hz : Sched.SzKeep σ σ' := hz0
+  have hwU : P1.WritesIn st s s' (UFoot st Z.T Z.N Z.C Z.R Z.c s σ) := hw.mono fun b hb => Or.inl hb
+  have hSS : SlotsSame Z.th (L.mem s) (L.mem s') := slotsSame_of_ufoot hJ.pl hS J.rp J.apart hwU
+  have hIA := hJ.irqApart (c := Z.c) J.zH.1 J.zH.2.2.2 J.c0 J.zH.2.2.1 J.kern.ksbFit
+  exact ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => hz q.bv y n hq) hw.1 (irq_of_ufoot hS J.rp hIA hwU)⟩
+
+
+set_option maxHeartbeats 1000000 in
+/-- **The untyped caps' facts after a scheduler step** (`sc_utc`'s proof; the
+global PML4 kept by `SchStep`): the caps kept (slots
+apart), the free parts zero (no SC-step word there: the TCBs are typed, the
+notifications and SCs are spec objects outside it, `SpecFree`, the node is
+outside every untyped cap, `JCovD`), the rest by the kept kernel state and
+the node-0 `DEBUG_TCBS` word (`hDbg`, P1-supplied). -/
+theorem JAtZ.sch_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ')
+    (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+      Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi := by
+  intro sl p sb fi dev hsl hcap
+  have hS := J.xtop.fin.1.1.1
+  have hR := J.xtop.fin.1.1.2.2.1
+  obtain ⟨Q, R, hc, hs⟩ := hS.lists
+  have hks : L.ksb s' = L.ksb s := hw.1
+  have hcpu : L.cpu s' = L.cpu s := hw.2.1
+  have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hks
+  have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
+    J.xtop.slotsSame_of hw fun b h => Sched.tfoot_oobj hS h
+  obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
+  have hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev := by
+    rw [← hSS.capV hsl.isSlot]; exact capV_of_capAt hcap
+  have hcap0 : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) := by rw [capAt_capV, hcv]
+  have U := J.utc sl p sb fi dev hsl hcap0
+  have hxm : cslotAddr sl ∈ Z.G.chains.flatten :=
+    (hM.members _).2 ⟨hsl.isSlot, _, hcap0, fun h => by cases h⟩
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  have hcC : Z.c ∈ Cs := hc.cur ▸ J.kern.cpuCs
+  have hfi := U.fiLe
+  refine ⟨U.pal, U.pfit, U.fiLe, U.high, by rw [hcpu, hna]; exact U.actZ, U.free, ?_, U.sb4, U.nostr, U.nsFree,
+    fun h0 => U.ns (by rw [hK.cdt] at h0; exact h0),
+    fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, by rw [hna]; exact U.dwReg,
+    by rw [hK.gpml4]; exact U.gReg⟩
+  · intro w hal h1 h2
+    rw [hw.mem_eq hal fun hb => ?_]
+    · exact U.zero w hal h1 h2
+    rcases tfoot_tcb hS hb with ⟨y, hy, g1, g2⟩ | ⟨g1, g2⟩ | ⟨n, hn, g1, g2⟩ | ⟨sc, hsc, x, n, hk, g1, g2⟩
+    · have hth : Z.th y = some .tcb := (hJ.tcb y).2 (J.zH.1 y hy)
+      have := U.free y .tcb hth
+      simp only [objSize] at this; omega
+    · have := (J.jcov.ks _ hxm p sb fi dev hcv).2 Z.c hcC
+      omega
+    · obtain ⟨x, hx, -⟩ := hR.ntfn n hn
+      have := J.sfree _ hxm p sb fi dev hcv n.bv _ hx
+      simp only [Fl4Spec.objBits, Fl4Spec.ntfnBits, UScalar.bv_toNat] at this
+      omega
+    · have := J.sfree _ hxm p sb fi dev hcv sc.bv _ hk
+      simp only [Fl4Spec.objBits, UScalar.bv_toNat] at this
+      rw [Nat.add_comm Fl4Spec.minSchedContextBits n] at this
+      omega
+  · intro h0 hf0
+    rw [hK.cdt] at h0
+    obtain ⟨r1, r2, r3⟩ := U.rst h0 hf0
+    exact ⟨fun sl' h => r1 sl' (by rw [← hK.orig]; exact h), r2, by rw [hna, hDbg]; exact r3⟩
 
 end
 
