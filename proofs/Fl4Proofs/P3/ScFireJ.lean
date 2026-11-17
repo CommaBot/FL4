@@ -16,7 +16,8 @@ one `Fire`: the signal (`Signal`), then `reprogram_timer` set.
   and the spec's frame `NFr` with only the flag changed).
 * `SignalJHyp` [J]: `send_signal` from `JAtZ` at a notification of `N`
   keeps `JAtZ` (at fresh VSpace sets) and the domain time, against the
-  spec's `send_signal` (the one step of the loop not proved here).
+  spec's `send_signal` (the one step of the loop not proved here; ScSignalJ
+  proves it but for the waking branches, `signalJHyp_of`).
 * `JAtZ.fireJ`: the loop (`timer.fire_loop`), from `JAtZ` to `JAtZ` after
   `Fires`, the domain time kept.
 * `jat_scheduleF`: `jat_scheduleT2` with `hfireJ` discharged by `fireJ`

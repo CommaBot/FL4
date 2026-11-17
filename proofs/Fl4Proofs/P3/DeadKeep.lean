@@ -34,7 +34,8 @@ theorem JAtZ.deadP_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
       (y.tcbSchedContext = x.tcbSchedContext ∨ y.tcbSchedContext = none))
     (hE : ∀ x, σ.kheap q.bv = some (.endpoint x) → σ'.kheap q.bv = some (.endpoint x))
     (hN : ∀ x, σ.kheap q.bv = some (.notification x) → ∃ y, σ'.kheap q.bv = some (.notification y) ∧
-      y.ntfnObj = x.ntfnObj ∧ y.ntfnBoundTcb = x.ntfnBoundTcb ∧ (y.ntfnSc = x.ntfnSc ∨ y.ntfnSc = none))
+      (y.ntfnObj = x.ntfnObj ∨ ∀ l, y.ntfnObj ≠ .waitingNtfn l) ∧ y.ntfnBoundTcb = x.ntfnBoundTcb ∧
+      (y.ntfnSc = x.ntfnSc ∨ y.ntfnSc = none))
     (hRp : ∀ x, σ.kheap q.bv = some (.reply x) → ∃ y, σ'.kheap q.bv = some (.reply y) ∧ y.replyTcb = x.replyTcb)
     (hSc : ∀ x n, σ.kheap q.bv = some (.schedContext x n) → ∃ y, σ'.kheap q.bv = some (.schedContext y n) ∧
       (y.scTcb = x.scTcb ∨ y.scTcb = none) ∧ (y.scNtfn = x.scNtfn ∨ y.scNtfn = none))
@@ -119,8 +120,14 @@ theorem JAtZ.deadP_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     refine ⟨?_, ?_, ?_⟩
     · rw [epState_eq]
       have hO' := hR'.obj
-      rw [ho] at hO'
-      rw [stOf_ntfn hR.obj hO', ← epState_eq]; exact d1
+      rcases ho with ho | ho
+      · rw [ho] at hO'
+        rw [stOf_ntfn hR.obj hO', ← epState_eq]; exact d1
+      · revert hO'
+        cases hx' : x'.ntfnObj with
+        | waitingNtfn l => exact absurd hx' (ho l)
+        | idleNtfn => intro hO'; rw [hO'.1]; decide
+        | activeNtfn b => intro hO'; rw [hO'.1]; decide
     · have h1 := hR.bound
       rw [show nBoundA q = P1.ntfnBtA q from rfl, d2, optRef_zero] at h1
       exact optRef_eq_none (by rw [show P1.ntfnBtA q = nBoundA q from rfl, ← hR'.bound, hb, h1])
@@ -262,7 +269,7 @@ theorem JAtZ.deadP_hstep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.H
     {q : U64} (hd : DeadP (L := L) H s q) : DeadP (L := L) H s' q :=
   J.deadP_keep hX'.fin.1.1.1 hX'.ipc (fun x hx _ => ⟨x, hC.tcb.2 hx, rfl, rfl, Or.inl rfl⟩)
     (fun x hx => (hC.look (fun _ _ e => by cases e)).2 hx)
-    (fun x hx => ⟨x, hC.ntfn.2 hx, rfl, rfl, Or.inl rfl⟩)
+    (fun x hx => ⟨x, hC.ntfn.2 hx, Or.inl rfl, rfl, Or.inl rfl⟩)
     (fun x hx => ⟨x, (hC.look (fun _ _ e => by cases e)).2 hx, rfl⟩)
     (fun x n hx => ⟨x, hC.sc.2 hx, Or.inl rfl, Or.inl rfl⟩) (hRW q) (fun z hz _ => hOut q z hz) hC.idle hAS hd
 

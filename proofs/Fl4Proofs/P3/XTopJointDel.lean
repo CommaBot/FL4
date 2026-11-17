@@ -58,7 +58,7 @@ theorem JAtZ.deadP_slot {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
   obtain ⟨-, -, -, k3, -⟩ := inSlot_keeps arI J hw
   exact J.deadP_keep hX'.fin.1.1.1 hX'.ipc (fun x hx _ => ⟨x, hC.tcb.2 hx, rfl, rfl, Or.inl rfl⟩)
     (fun x hx => (hC.look (fun _ _ e => by cases e)).2 hx)
-    (fun x hx => ⟨x, hC.ntfn.2 hx, rfl, rfl, Or.inl rfl⟩)
+    (fun x hx => ⟨x, hC.ntfn.2 hx, Or.inl rfl, rfl, Or.inl rfl⟩)
     (fun x hx => ⟨x, (hC.look (fun _ _ e => by cases e)).2 hx, rfl⟩)
     (fun x n hx => ⟨x, hC.sc.2 hx, Or.inl rfl, Or.inl rfl⟩) (fun hqC => k3 q hqC)
     (fun z hz _ K h8 hK => J.inSlot_scKeep hw hz h8 hK) hC.idle (J.act.cn hC).1 hd

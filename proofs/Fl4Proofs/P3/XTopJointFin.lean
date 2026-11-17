@@ -32,10 +32,10 @@ variable {q : Bool} {r : ObjRef} {σ σ' : State Unit}
 
 theorem Sched.NFr.ntfnF (h : NFr q r σ σ') {p : ObjRef} {x : Notification} (hp : σ.kheap p = some (.notification x)) :
     ∃ y, σ'.kheap p = some (.notification y) ∧ (p ≠ r → y = x) ∧
-      ((∀ l, x.ntfnObj ≠ .waitingNtfn l) → y.ntfnObj = x.ntfnObj) ∧
+      ((∀ l, x.ntfnObj ≠ .waitingNtfn l) → NObj x.ntfnObj y.ntfnObj) ∧
       (y.ntfnBoundTcb = x.ntfnBoundTcb ∨ y.ntfnBoundTcb = none) ∧ (y.ntfnSc = x.ntfnSc ∨ y.ntfnSc = none) := by
   rcases h.kh p with e | ⟨o, o', h1, h2, hc⟩
-  · exact ⟨x, by rw [e, hp], fun _ => rfl, fun _ => rfl, Or.inl rfl, Or.inl rfl⟩
+  · exact ⟨x, by rw [e, hp], fun _ => rfl, fun _ => Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
   · rw [hp] at h1; cases h1
     rcases hc with ⟨_, _, _, e1, -⟩ | ⟨_, _, _, _, e1, -⟩ | ⟨x', y, e1, rfl, hpr, -, -, hs, hw, hb⟩ <;> cases e1
     exact ⟨y, h2, fun hne => absurd hpr hne, hw, hb, hs⟩
@@ -122,6 +122,67 @@ theorem JAtZ.finNtfn_p3 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     hI3, (hk1.trans hk2).trans hk3, (hf1.trans hf2).trans hf3⟩
 
 
+set_option maxHeartbeats 4000000 in
+/-- **The dead stay dead across a step with the spec frame `NFr`** and the
+footprint `FinW` (`deadP_keep`'s facts: a dead TCB's state and null bound
+notification kept, a dead notification not waiting and unbound). -/
+theorem JAtZ.deadP_nfr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {qq : Bool} {r : Fl4Spec.ObjRef} {s3 : S}
+    {σ3 : Fl4Spec.State Unit} (F : Sched.NFr qq r σ σ3) (hS3 : SchedRel st Z.N Z.T Z.C Z.c s3 σ3)
+    (hI3 : IpcRel Z.N Z.T Z.E Z.R Z.B (L.mem s3) σ3)
+    (hw : P1.WritesIn st s s3 (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ))
+    (k3 : ∀ q ∈ Z.C, L.mem s3 (P1.scReplyA q) = L.mem s (P1.scReplyA q)) (hAS : ActSched σ3) :
+    ∀ q ∈ D, DeadP (L := L) H s3 q := fun q hq => by
+  have hd := J.jcov.dead q hq
+  refine J.deadP_keep hS3 hI3 (fun x hx h0 => ?_)
+    (fun x hx => F.othF hx (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e))
+    (fun x hx => ?_)
+    (fun x hx => ⟨x, F.othF hx (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e), rfl⟩)
+    (fun x n hx => ?_) (fun hqC => k3 q hqC) (fun z hz hqC K hK8 hK => J.finW_scOut hw hz hqC hK8 hK)
+    F.sk.idle hAS hd
+  · -- a dead TCB: its state and (null) bound notification kept
+    obtain ⟨t, ht, e⟩ := J.obj.tcb q.bv x hx
+    have htq : t = q := P1.eq_of_bv e
+    subst htq
+    obtain ⟨-, -, d3, -, -⟩ := hd.1 (J.zH.1 t ht)
+    obtain ⟨x', hk', hR⟩ := J.xtop.ipc.tcb t ht
+    rw [hx] at hk'; cases hk'
+    have hbn : x.tcbBoundNotification = none := by
+      rw [hR.bound, show tBoundA t = P1.boundA t from rfl, d3, optRef_zero]
+    obtain ⟨st', bn, hk3, hs, hbb⟩ := F.tcbF hx
+    refine ⟨_, hk3, ?_, ?_, Or.inl rfl⟩
+    · show st' = x.tcbState
+      rcases hs with e | ⟨-, e, -⟩
+      · exact e
+      · rw [e] at h0; simp [tsCode] at h0
+    · show bn = x.tcbBoundNotification
+      rcases hbb with e | e
+      · exact e
+      · rw [e, hbn]
+  · -- a dead notification: not waiting, unbound
+    obtain ⟨n', hn', e⟩ := J.obj.ntfn q.bv x hx
+    have hnq : n' = q := P1.eq_of_bv e
+    subst hnq
+    obtain ⟨d1, d2, -⟩ := hd.2.2.1 (J.zH.2.2.2 n' hn')
+    obtain ⟨x', hk', hR⟩ := J.xtop.ipc.toN.ntfn n' hn'
+    rw [hx] at hk'; cases hk'
+    obtain ⟨y, hy, -, hobj, hbd, hsc'⟩ := F.ntfnF hx
+    have hbn : x.ntfnBoundTcb = none := by
+      rw [hR.bound, show nBoundA n' = P1.ntfnBtA n' from rfl, d2, optRef_zero]
+    have hnw : ∀ l, x.ntfnObj ≠ .waitingNtfn l := by
+      intro l e
+      have hO := hR.obj
+      rw [e] at hO
+      exact d1 (by rw [epState_eq]; exact hO.1)
+    refine ⟨y, hy, (hobj hnw).imp id And.right, ?_, hsc'⟩
+    rcases hbd with e | e
+    · exact e
+    · rw [e, hbn]
+  · -- an SC: its thread kept, its notification kept or cut
+    obtain ⟨rf, nt, hk3, -, hn⟩ := F.scF hx
+    exact ⟨_, hk3, Or.inl rfl, hn⟩
+
 set_option maxHeartbeats 8000000 in
 /-- **`JAtZ` across a final notification cap's finalisation** (module
 docstring): at `Z.mv Z.G V'`, the dead set and P1's sets kept. -/
@@ -193,55 +254,7 @@ theorem JAtZ.finNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
       · exact Or.inl (by rw [(Fq.act rfl).1, e])
       · exact Or.inr (Fq.curRunW hR)
   -- the dead stay dead
-  have hdead : ∀ q ∈ D, DeadP (L := L) H s3 q := fun q hq => by
-    have hd := J.jcov.dead q hq
-    refine J.deadP_keep hS3 hI3.1 (fun x hx h0 => ?_)
-      (fun x hx => F.othF hx (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e))
-      (fun x hx => ?_)
-      (fun x hx => ⟨x, F.othF hx (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e), rfl⟩)
-      (fun x n hx => ?_) (fun hqC => k3 q hqC) (fun z hz hqC K hK8 hK => J.finW_scOut hw hz hqC hK8 hK)
-      F.sk.idle hAI3.1 hd
-    · -- a dead TCB: its state and (null) bound notification kept
-      obtain ⟨t, ht, e⟩ := J.obj.tcb q.bv x hx
-      have htq : t = q := P1.eq_of_bv e
-      subst htq
-      obtain ⟨-, -, d3, -, -⟩ := hd.1 (J.zH.1 t ht)
-      obtain ⟨x', hk', hR⟩ := J.xtop.ipc.tcb t ht
-      rw [hx] at hk'; cases hk'
-      have hbn : x.tcbBoundNotification = none := by
-        rw [hR.bound, show tBoundA t = P1.boundA t from rfl, d3, optRef_zero]
-      obtain ⟨st', bn, hk3, hs, hbb⟩ := F.tcbF hx
-      refine ⟨_, hk3, ?_, ?_, Or.inl rfl⟩
-      · show st' = x.tcbState
-        rcases hs with e | ⟨-, e, -⟩
-        · exact e
-        · rw [e] at h0; simp [tsCode] at h0
-      · show bn = x.tcbBoundNotification
-        rcases hbb with e | e
-        · exact e
-        · rw [e, hbn]
-    · -- a dead notification: not waiting, unbound
-      obtain ⟨n', hn', e⟩ := J.obj.ntfn q.bv x hx
-      have hnq : n' = q := P1.eq_of_bv e
-      subst hnq
-      obtain ⟨d1, d2, -⟩ := hd.2.2.1 (J.zH.2.2.2 n' hn')
-      obtain ⟨x', hk', hR⟩ := J.xtop.ipc.toN.ntfn n' hn'
-      rw [hx] at hk'; cases hk'
-      obtain ⟨y, hy, -, hobj, hbd, hsc'⟩ := F.ntfnF hx
-      have hbn : x.ntfnBoundTcb = none := by
-        rw [hR.bound, show nBoundA n' = P1.ntfnBtA n' from rfl, d2, optRef_zero]
-      have hnw : ∀ l, x.ntfnObj ≠ .waitingNtfn l := by
-        intro l e
-        have hO := hR.obj
-        rw [e] at hO
-        exact d1 (by rw [epState_eq]; exact hO.1)
-      refine ⟨y, hy, hobj hnw, ?_, hsc'⟩
-      rcases hbd with e | e
-      · exact e
-      · rw [e, hbn]
-    · -- an SC: its thread kept, its notification kept or cut
-      obtain ⟨rf, nt, hk3, -, hn⟩ := F.scF hx
-      exact ⟨_, hk3, Or.inl rfl, hn⟩
+  have hdead : ∀ q ∈ D, DeadP (L := L) H s3 q := J.deadP_nfr F hS3 hI3.1 hw k3 hAI3.1
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s3 σ3 := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
     exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => F.szKeep q.bv y n hq) hks (J.finW_irq hw)⟩
