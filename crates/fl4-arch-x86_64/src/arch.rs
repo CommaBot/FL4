@@ -152,6 +152,9 @@ impl Arch for PhysArch {
             ioapic::mask(irq, mask)
         }
     }
+    fn irq_free(&mut self, irq: u64) {
+        forget_irq(irq);
+    }
     fn ack_irq(&mut self, _irq: u64) {
         if !defer(Effect::Ack) {
             apic::eoi()
