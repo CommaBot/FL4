@@ -24,6 +24,7 @@ supply).
   `JPostHyp` [W] only at CancelBadgedSends and the invalid labels.
 -/
 import Fl4Proofs.P3.XTopJointPP
+import Fl4Proofs.P3.XTopJointPost
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -251,15 +252,18 @@ labels by their primitive steps (`decode_invocation_cnode_copyXS`,
 `Steps.jat` with `JStepHyps`), Revoke and Delete by the deletion at `J`
 (`decode_invocation_cnode_{revoke,delete}J`: `JDelHyp` from the deletion
 loop's named steps `JDelParts` [J], `JDelHyp.of_parts`; the preemption point by
-`jPreemptHyp_of`: the platform's `PPPlat` [P] and `PPReady` [J]), the per-op premise (`JPostHyp` [W]) only at the other labels
+`jPreemptHyp_of`: the platform's `PPPlat` [P] and `PPReady` [J]; the cleanups by `jPostDelHyp_of`:
+the kernel-state layout and the arch IRQ operations [P]), the per-op premise (`JPostHyp` [W]) only at the other labels
 (CancelBadgedSends, the invalid ones). -/
 theorem decode_invocation_cnodeJ_steps (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hG : CsGlobal (L := L) arI AR Z.th)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hJ : JStepHyps (L := L) arI AR Z.th)
     (hJDP : JDelParts (L := L) arI AR Z.th)
-    (hAK : ARKeep arI AR) (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
+    (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
     (hRd : ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S) (a' : A)
       (σ' : Fl4Spec.State Unit), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σ' → PPReady Z'.T σ')
+    (hLay : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
+      IntLayout Z.th (L.ksb s') ∧ IoLayout Z.th (L.ksb s'))
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = cnodeLabelOf lbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -283,8 +287,12 @@ theorem decode_invocation_cnodeJ_steps (s : S) (ar : A) (σ : Fl4Spec.State Unit
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl)
       (.CNode p r gs g) blk call don fp buf extra slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
   have hX := J.xtop
-  have hJP := jPreemptHyp_of arI hAK hT hnd hPP Z.th hRd
-  have hJD := JDelHyp.of_parts arI hJDP hJP
+  have hJP := jPreemptHyp_of arI hARI.toARKeep hT hnd hPP Z.th hRd
+  have hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a' := fun a i m => by
+    obtain ⟨a', h, -⟩ := spec_exists (hT.mask_irq a i m); exact ⟨a', h⟩
+  have hfree : ∀ (a : A) (irq : U64), ∃ a', arI.irq_free a irq = ok a' := fun a i => by
+    obtain ⟨a', h, -⟩ := spec_exists (hT.irq_free a i); exact ⟨a', h⟩
+  have hJD := JDelHyp.of_parts arI hJDP hJP (jPostDelHyp_of arI hARI.toMask hLay hmask hfree)
   obtain ⟨hwf, hcv⟩ := slot_cap_wf hX hAs hsc
   by_cases hcp : 28 ≤ lbl.val ∧ lbl.val ≤ 32
   · obtain ⟨hcur, -⟩ := J.curEq hct

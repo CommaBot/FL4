@@ -43,7 +43,8 @@ theorem post_irqX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {Z : X
     objects.post_cap_deletion st arI s a (.IrqHandler irq) ⦃ r =>
       SlotsSame Z.th (L.mem s) (L.mem r.1) ∧ L.ksb r.1 = L.ksb s ∧ ∃ σ',
         ((), σ') ∈ (Fl4Spec.postCapDeletion (Z := Unit) (absCap (.IrqHandler irq)) σ).1 ∧
-        CRel Z.th (L.mem r.1) σ' Z.G ∧ XTopAt (L := L) AR Z r.1 r.2 σ' ⦄ := by
+        CRel Z.th (L.mem r.1) σ' Z.G ∧ P1.WritesIn st s r.1 (KsW (L.ksb s)) ∧ KsStep σ σ' ∧
+        XTopAt (L := L) AR Z r.1 r.2 σ' ⦄ := by
   unfold objects.post_cap_deletion
   simp only
   obtain ⟨a1, hm⟩ := hmask a irq (decide (interrupt.IRQ_INACTIVE = interrupt.IRQ_INACTIVE))
@@ -68,7 +69,7 @@ theorem post_irqX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {Z : X
       (hX.rel.2.2.2.1.frame (fun o ho => (DK4.irqSt hL.fit ha8 hirq interrupt.IRQ_INACTIVE).2 o ho) rfl rfl)
       (hAM _ _ _ (hAM _ _ _ hX.fin.1.1.2.2.2.2.2.2 (Or.inr (Or.inl ⟨irq, _, hm⟩)))
         (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨irq, hf⟩)))))))
-  refine ⟨hX.slotsSame_of hw (fun b hb => ?_), hw.1, σ', ?_, hX'.rel.2.1, hX'⟩
+  refine ⟨hX.slotsSame_of hw (fun b hb => ?_), hw.1, σ', ?_, hX'.rel.2.1, hw, by constructor <;> rfl, hX'⟩
   · obtain ⟨K, h1, h2, -, e⟩ := hb
     exact Or.inr (Or.inl ⟨by omega, by omega⟩)
   · exact setIrqState_mem' _ _ _
@@ -81,7 +82,8 @@ theorem post_ioX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A}
     objects.post_cap_deletion st arI s a (.IoPort f l owner) ⦃ r =>
       SlotsSame Z.th (L.mem s) (L.mem r.1) ∧ L.ksb r.1 = L.ksb s ∧ ∃ σ',
         ((), σ') ∈ (Fl4Spec.postCapDeletion (Z := Unit) (absCap (.IoPort f l owner)) σ).1 ∧
-        CRel Z.th (L.mem r.1) σ' Z.G ∧ XTopAt (L := L) AR Z r.1 r.2 σ' ⦄ := by
+        CRel Z.th (L.mem r.1) σ' Z.G ∧ P1.WritesIn st s r.1 (KsW (L.ksb s)) ∧ KsStep σ σ' ∧
+        XTopAt (L := L) AR Z r.1 r.2 σ' ⦄ := by
   unfold objects.post_cap_deletion ioport.free_ioports
   simp only
   refine WP.spec_bind (set_mask_spec hIo s rfl f l hfl hl false) ?_
@@ -108,7 +110,8 @@ theorem post_ioX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A}
     rw [hM.2.2.1 _ (by unfold P1.Aligned; rw [hv]; omega) fun w hw e => by
       have := ioA_val hIo.fit hw; rw [← e, hv] at this; omega]
     exact hX.fin.1.1.2.2.2.1.st i hi
-  refine ⟨hX.slotsSame_of hw (fun b hb => ?_), hw.1, σ', setIoportMask_mem _ _ _ _, hX'.rel.2.1, hX'⟩
+  refine ⟨hX.slotsSame_of hw (fun b hb => ?_), hw.1, σ', setIoportMask_mem _ _ _ _, hX'.rel.2.1, hw,
+    by constructor <;> rfl, hX'⟩
   obtain ⟨K, h1, h2, -, e⟩ := hb
   exact Or.inr (Or.inl ⟨by omega, by omega⟩)
 
@@ -126,9 +129,11 @@ theorem xPostDelHyp_of {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {
   subst hth
   cases cl <;> simp only [CleanCap] at hcl
   · exact absurd rfl hcln
-  · exact post_irqX arI hAM hX hK hLy.1 hmask hfree _ hclw
+  · exact WP.spec_mono (post_irqX arI hAM hX hK hLy.1 hmask hfree _ hclw)
+      fun _ ⟨h1, h2, σ', h3, h4, _, _, h5⟩ => ⟨h1, h2, σ', h3, h4, h5⟩
   · obtain ⟨hf, hl, hfl⟩ := hclw
-    exact post_ioX arI hX hK hLy.2 _ _ _ hfl hl
+    exact WP.spec_mono (post_ioX arI hX hK hLy.2 _ _ _ hfl hl)
+      fun _ ⟨h1, h2, σ', h3, h4, _, _, h5⟩ => ⟨h1, h2, σ', h3, h4, h5⟩
 
 end
 
