@@ -108,6 +108,7 @@ import Fl4Proofs.P3.SlotLive
 import Fl4Proofs.P3.CnUtSrc
 import Fl4Proofs.P3.IpcCancelSignals
 import Fl4Proofs.P3.IpcSlotsSame
+import Fl4Proofs.P3.IpcFinNtfn
 import Fl4Proofs.P3.ScJointSchFrame
 import Fl4Proofs.P3.ScJointSchTail
 import Fl4Proofs.P3.ScSchedRun
