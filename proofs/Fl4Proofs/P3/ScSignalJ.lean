@@ -11,13 +11,24 @@ ScFireJ), by the notification's state.
   true` (the notification's object non-waiting before and after, `NObj`);
   `JRest` as `finNtfnJ`'s from `FinW` (`NWrite.finW`); P1's `BlkOK` by
   `send_signal.tinv`.
-* `SignalRestJHyp` [J]: the other branches (a thread woken: the
-  notification waiting, or idle and bound to a thread blocked receiving; or
-  the bound thread `RunningVM`, FL4's remote stall).
+* `JAtZ.wake_post`: a waiting notification's head woken without SC
+  donation: FL4's side on `IRel` with the footprint `FinStep` and the slots
+  kept (`send_signal_wait_irel`, IpcSignalWake), `XTopAt` by
+  `XTopAt.irel_same`, the spec's frame `NFr false` (the dequeue, then
+  `wake_spec`, IpcSignalWakeSpec: the woken thread `running` with its badge
+  register, `TChg`) and its scheduler invariants (`Inv`, `BlockedScActive`,
+  `ActIdle`, `CurInv` unless `choose_new_thread`, `CurRunM`), `JRest` as
+  `finNtfnJ`'s; P1's `BlkOK` and footprint by `send_signal.tinvF`.
+* `SignalRestJHyp` [J]: the other branches (a waiting notification's head
+  given the notification's SC, the head having none and the SC bound to no
+  thread: `schedContextDonate`/`Resume`; idle and bound to a thread blocked
+  receiving: its `cancel_ipc`; or the bound thread `RunningVM`, FL4's remote
+  stall).
 * `signalJHyp_of`: `SignalJHyp` from `SignalRestJHyp` and P1's `ArchTotal`;
   `jat_scheduleS`: `jat_scheduleF` with it.
 -/
 import Fl4Proofs.P3.ScFireJ
+import Fl4Proofs.P3.IpcSignalWake
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -116,17 +127,65 @@ theorem JAtZ.signal_badge_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ3 := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   exact ⟨σ3, V', hspec, rfl, J.cs_frameV hks hX3 F.kback hC R⟩
 
+set_option maxHeartbeats 8000000 in
+/-- **A waking signal keeps `JAtZ`** (module docstring): FL4's side on `IRel`
+with the footprint `FinStep` and the slots kept (`IFrame`), the spec's frame
+`NFr false` and its scheduler invariants given; `JRest` as `finNtfnJ`'s. -/
+theorem JAtZ.wake_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} {s' : S} {σ' : Fl4Spec.State Unit}
+    (hIR : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ')
+    (hF : IFrame (L := L) Z.th s s') (hFS : FinStep (st := st) Z.T Z.N Z.C Z.c s σ s' σ')
+    (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s')
+    (hfoot : P1.WritesIn st s s' (P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H)
+      (P1.EH H) s))
+    (F : NFr false n.bv σ σ') (I3 : Inv σ') (B3 : BlockedScActive σ') (hAI3 : ActIdle σ')
+    (hcur3 : σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') (hrun3 : CurRunM σ') :
+    ∃ V' : XVs, JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac Lst D s' a σ' := by
+  have hAR : AR a σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2
+  obtain ⟨V', hX3⟩ := XTopAt.irel_same J.xtop hIR hAR hF.1 F.sk.cdt F.sk.orig F.ksub hF.2
+  have hks : L.ksb s' = L.ksb s := hF.2
+  have hw := hFS.1
+  obtain ⟨k1, k2, kb, k3, k4⟩ := J.finW_keeps hw
+  have ck := F.ckeep
+  obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hks ck
+  have hRF' := RFree.carry J.rfree J.call k4 ck
+  have hDbg := J.kw_dbg hfoot
+  have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hIR.2.2.1
+  have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_nfr F hS3 hIR.1 hw k3 hAI3.1
+  have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := by
+    obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+    exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => F.szKeep q.bv y n hq) hks (J.finW_irq hw)⟩
+  have hkern := J.kern_keep hks hw.2.1 hS3 F.sk.ct F.sk.csc (fun sl h => Or.inl (by rw [← F.sk.orig]; exact h))
+    (by rw [F.sk.arch])
+    (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) hDbg
+    (D' := D) J.kern.cscLive
+  have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
+    ⟨hCR', hRF', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
+      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead, hkern,
+      J.finW_utc hw hF.1 F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, I3, hcur3, F.own J.own, F.off J.off,
+      hAI3, B3, F.isorted J.isorted, hrun3, hblk⟩
+  have hC0 := JCs.same J hF.1 F.ksz
+  have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
+  exact ⟨V', J.cs_frameV hks hX3 F.kback hC R⟩
+
 variable (arI) in
-/-- **The waking signals on `JAtZ`** [J] (module docstring): `SignalJHyp`'s
-statement where `send_signal` wakes a thread (the notification waiting, or
-idle and bound to a thread blocked receiving: the dequeue or the receiver's
-`cancel_ipc`, the restart, the SC donation, the switch, the sporadic check)
-or stalls a remote `RunningVM` thread (FL4 runs no VT-x guest). -/
+/-- **The waking signals with a donation or a cancelled receive on `JAtZ`**
+[J] (module docstring): `SignalJHyp`'s statement where `send_signal` wakes
+the head of a waiting notification by donating the notification's SC to it
+(the head without an SC, the SC bound to no thread: `schedContextDonate`,
+`schedContextResume`), or wakes the idle notification's bound thread blocked
+receiving (its `cancel_ipc` first), or stalls a remote `RunningVM` thread
+(FL4 runs no VT-x guest). The waiting case without donation is proved
+(`JAtZ.wake_post`). -/
 def SignalRestJHyp (AR : A → Fl4Spec.Cr3 → Prop) (H : P1.Heap) (Cs : Set U64) : Prop :=
   ∀ (Z : XSets) (Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (n badge : U64) (x : Fl4Spec.Notification), JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → n ∈ Z.N →
     σ.kheap n.bv = some (.notification x) →
-    ((∃ l, x.ntfnObj = .waitingNtfn l) ∨ (x.ntfnObj = .idleNtfn ∧ ∃ t tcb, x.ntfnBoundTcb = some t ∧
+    ((∃ d l xd cq y k, x.ntfnObj = .waitingNtfn (d :: l) ∧ σ.kheap d = some (.tcb xd) ∧
+        xd.tcbSchedContext = none ∧ x.ntfnSc = some cq ∧ σ.kheap cq = some (.schedContext y k) ∧
+        y.scTcb = none) ∨
+      (x.ntfnObj = .idleNtfn ∧ ∃ t tcb, x.ntfnBoundTcb = some t ∧
       σ.kheap t = some (.tcb tcb) ∧ (Fl4Spec.receiveBlocked tcb.tcbState = true ∨ tcb.tcbState = .runningVM))) →
     notification.send_signal st arI s a n badge ⦃ r => ∃ (σ' : Fl4Spec.State Unit) (V' : XVs) (Ac' : Set U64)
       (Lst' : U64 → List U64) (D' : Set U64),
@@ -166,7 +225,56 @@ theorem signalJHyp_of (hAT : P0.ArchTotal arI) (hW : SignalRestJHyp (L := L) arI
       (by rw [ho]; intro l e; cases e) (fun l e => by simp [Fl4Spec.ntfnObjUpdate] at e) rfl rfl
       (sendSignal_active_eq hk ho badge.bv) (send_signal_activeI (ar := arI) J.ip s a σ hI.1 hn hk ho badge)
   | waitingNtfn l =>
-    exact hW Z Ac Lst D s a σ n badge x J hn hk (Or.inl ⟨l, ho⟩)
+    by_cases hdon : ∃ d l' xd cq y k, x.ntfnObj = .waitingNtfn (d :: l') ∧ σ.kheap d = some (.tcb xd) ∧
+        xd.tcbSchedContext = none ∧ x.ntfnSc = some cq ∧ σ.kheap cq = some (.schedContext y k) ∧
+        y.scTcb = none
+    · exact hW Z Ac Lst D s a σ n badge x J hn hk (Or.inl hdon)
+    -- no donation: the head woken (IpcSignalWake, IpcSignalWakeSpec)
+    have hND : ∀ d l', l = d :: l' → NoDon Z.C σ d n.bv := by
+      intro d l' e xt xn h1 h2
+      have hxn : xn = x := by
+        rw [hk] at h2; exact (Fl4Spec.KernelObject.notification.inj (Option.some.inj h2)).symm
+      rw [hxn]
+      by_cases hs : xt.tcbSchedContext = none
+      · obtain hc | ⟨cq, hc⟩ : x.ntfnSc = none ∨ ∃ cq, x.ntfnSc = some cq := by
+          cases x.ntfnSc <;> simp
+        · exact Or.inr (Or.inl hc)
+        · obtain ⟨y, k, hky⟩ := J.inv.ntfnSc n.bv x cq hk hc
+          obtain ⟨sc, hscC, hscv⟩ := J.nsc n hn x cq hk hc
+          refine Or.inr (Or.inr ⟨sc, hscC, by rw [hc, hscv], y, k, by rw [hscv]; exact hky, fun hy => hdon
+            ⟨d, l', xt, cq, y, k, by rw [ho, e], h1, hs, hc, hky, hy⟩⟩)
+      · exact Or.inl hs
+    have hbl := (J.sv.ntfnQ n.bv x hk).2
+    refine WP.spec_mono (WP.spec_and (send_signal_wait_irel (ar := arI) J.ip s a σ hI J.inv hn hk ho hbl hND badge)
+      (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH))) ?_
+    rintro ⟨s', a'⟩ ⟨⟨ea, d, xd, σ', hmq, hkd, hxs, hdon', hsend, hmw, hIR, hF, hFS⟩, hb⟩
+    try simp only [WP.uncurry'_pair] at hb
+    obtain ⟨hb, hfoot⟩ := hb
+    subst ea
+    have hdn : d.bv ≠ n.bv := by intro e; rw [e, hk] at hkd; cases hkd
+    have hk1 : (updK σ n.bv (.notification (afterDequeue x d))).kheap d.bv = some (.tcb xd) := by
+      simp [updK, hdn, hkd]
+    have hsub : (afterDequeue x d).ntfnObj.ntfnQueue.Sublist x.ntfnObj.ntfnQueue := by
+      show (match Fl4Spec.removeAll d.bv (Fl4Spec.ntfnQueueOf x) with
+        | [] => Fl4Spec.Ntfn.idleNtfn
+        | _ => Fl4Spec.Ntfn.waitingNtfn (Fl4Spec.removeAll d.bv (Fl4Spec.ntfnQueueOf x))).ntfnQueue.Sublist
+          (Fl4Spec.ntfnQueueOf x)
+      split
+      · exact List.nil_sublist _
+      · unfold Fl4Spec.removeAll; apply List.filter_sublist
+    have F1 : NFr false n.bv σ (updK σ n.bv (.notification (afterDequeue x d))) :=
+      NFr.upd hk (Or.inr (Or.inr ⟨x, afterDequeue x d, rfl, rfl, rfl, hsub, (fun h => by cases h), Or.inl rfl,
+        fun hw => absurd ho (hw l), Or.inl rfl⟩))
+    have hI1 : Inv (updK σ n.bv (.notification (afterDequeue x d))) :=
+      J.inv.updNtfn hk (fun p hp => J.inv.ntfnSc n.bv x p hk hp)
+    have hAI1 : ActIdle (updK σ n.bv (.notification (afterDequeue x d))) :=
+      ⟨fun u hu => F1.sched (J.act.1 u hu), F1.idleOK J.act.2⟩
+    have hcur1 : (updK σ n.bv (.notification (afterDequeue x d))).schedulerAction = .chooseNewThread ∨
+        CurInv (updK σ n.bv (.notification (afterDequeue x d))) := Or.imp id F1.curInv J.cur
+    have hrun1 : CurRunM (updK σ n.bv (.notification (afterDequeue x d))) := Or.imp id F1.curRunW J.curRun
+    obtain ⟨I', B', F2, AI', cur', run'⟩ := wake_spec hI1 (F1.bsa J.bsa) hAI1 hcur1 hrun1 hk1 hxs hdon' hmw
+    obtain ⟨V', J'⟩ := J.wake_post hIR hF hFS hb hfoot (F1.trans F2) I' B' AI' cur' run'
+    exact ⟨σ', V', Ac, Lst, D, hsend, (F1.trans F2).sk.dt, J'⟩
   | idleNtfn =>
     cases hb : x.ntfnBoundTcb with
     | none =>

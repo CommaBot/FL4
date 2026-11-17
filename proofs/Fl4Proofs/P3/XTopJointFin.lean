@@ -37,7 +37,7 @@ theorem Sched.NFr.ntfnF (h : NFr q r σ σ') {p : ObjRef} {x : Notification} (hp
   rcases h.kh p with e | ⟨o, o', h1, h2, hc⟩
   · exact ⟨x, by rw [e, hp], fun _ => rfl, fun _ => Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
   · rw [hp] at h1; cases h1
-    rcases hc with ⟨_, _, _, e1, -⟩ | ⟨_, _, _, _, e1, -⟩ | ⟨x', y, e1, rfl, hpr, -, -, hs, hw, hb⟩ <;> cases e1
+    rcases hc with ⟨_, _, _, _, e1, -⟩ | ⟨_, _, _, _, e1, -⟩ | ⟨x', y, e1, rfl, hpr, -, -, hs, hw, hb⟩ <;> cases e1
     exact ⟨y, h2, fun hne => absurd hpr hne, hw, hb, hs⟩
 
 /-- `KBack` (the kinds back) across the frame. -/
@@ -46,7 +46,7 @@ theorem Sched.NFr.kback (h : NFr q r σ σ') : KBack σ σ' := by
   rcases h.kh o with e | ⟨ko, ko'', h1, h2, hc⟩
   · exact ⟨ko', by rw [← e, ho], id, id, id, id, id, id⟩
   · rw [ho] at h2; cases h2
-    rcases hc with ⟨x, st, bn, rfl, rfl, -⟩ | ⟨y, n, rf, nt, rfl, rfl, -⟩ | ⟨x, y, rfl, rfl, -⟩ <;>
+    rcases hc with ⟨x, st, bn, ar, rfl, rfl, -⟩ | ⟨y, n, rf, nt, rfl, rfl, -⟩ | ⟨x, y, rfl, rfl, -⟩ <;>
       exact ⟨_, h1, by simp⟩
 
 theorem Sched.NFr.ksz (h : NFr q r σ σ') : KSz σ σ' := fun o ko' ho => by
@@ -57,7 +57,7 @@ theorem Sched.NFr.ksub (h : NFr q r σ σ') : KSub σ σ' := by
   intro o
   refine ⟨fun rr cs hc hw => ⟨cs, ?_, hw⟩, fun t ht => ?_, fun hn => ?_⟩
   · exact h.othB hc (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
-  · obtain ⟨x, -, -, hx, -⟩ := h.tcbB ht; exact ⟨x, hx⟩
+  · obtain ⟨x, -, -, -, hx, -⟩ := h.tcbB ht; exact ⟨x, hx⟩
   · rcases h.kh o with e | ⟨ko, ko', h1, -, -⟩
     · rw [e]; exact hn
     · rw [hn] at h1; cases h1
@@ -150,10 +150,10 @@ theorem JAtZ.deadP_nfr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     rw [hx] at hk'; cases hk'
     have hbn : x.tcbBoundNotification = none := by
       rw [hR.bound, show tBoundA t = P1.boundA t from rfl, d3, optRef_zero]
-    obtain ⟨st', bn, hk3, hs, hbb⟩ := F.tcbF hx
+    obtain ⟨st', bn, ar, hk3, hs, hbb⟩ := F.tcbF hx
     refine ⟨_, hk3, ?_, ?_, Or.inl rfl⟩
     · show st' = x.tcbState
-      rcases hs with e | ⟨-, e, -⟩
+      rcases hs with ⟨e, -⟩ | ⟨-, e, -⟩
       · exact e
       · rw [e] at h0; simp [tsCode] at h0
     · show bn = x.tcbBoundNotification
