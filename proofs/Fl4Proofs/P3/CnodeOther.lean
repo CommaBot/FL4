@@ -399,7 +399,7 @@ theorem cnode_other_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (
     cases e1 with
     | error _ => exact hrel1.elim
     | ok dsl =>
-      obtain ⟨rfl, pd, hpd1, hpd⟩ := hrel1
+      obtain ⟨rfl, pd, hpd1, hpd, -⟩ := hrel1
       obtain ⟨c, hc, h25, h26, h27⟩ := hT y0 y1 rest dsl rfl hlt
       have g1 : ¬ lbl ≥ fl4_abi.label.CNodeCopy := by have := lbl_copy_val; scalar_tac
       simp only [g1, ↓reduceIte, bind_ok]

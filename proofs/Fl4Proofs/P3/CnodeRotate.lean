@@ -182,7 +182,7 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
     cases ee1 with
     | error _ => exact hrel1.elim
     | ok sl =>
-      obtain ⟨rfl, ps, hps1, hps⟩ := hrel1
+      obtain ⟨rfl, ps, hps1, hps, -⟩ := hrel1
       refine InvPost.congr (run_bind_ok hls _) ?_
       have hAs : AbsSlot th sl := ⟨ps, hps1, Or.inl hps⟩
       simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
@@ -207,7 +207,7 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
         cases ee2 with
         | error _ => exact hrel2.elim
         | ok pl =>
-          obtain ⟨rfl, ppv, hpl1, hpl⟩ := hrel2
+          obtain ⟨rfl, ppv, hpl1, hpl, -⟩ := hrel2
           refine InvPost.congr (run_bind_ok hlp _) ?_
           have hAp : AbsSlot th pl := ⟨ppv, hpl1, Or.inl hpl⟩
           simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok, slot_eq_eq]
@@ -594,7 +594,7 @@ theorem cnode_rotate_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
     cases e1 with
     | error _ => exact hrel1.elim
     | ok dsl =>
-      obtain ⟨rfl, pd, hpd1, hpd⟩ := hrel1
+      obtain ⟨rfl, pd, hpd1, hpd, -⟩ := hrel1
       have g1 : fl4_abi.label.CNodeRotate ≥ fl4_abi.label.CNodeCopy := by
         have := lbl_copy_val; have := lbl_rotate_val; scalar_tac
       have g2 : ¬ fl4_abi.label.CNodeRotate ≤ fl4_abi.label.CNodeMutate := by

@@ -269,16 +269,38 @@ def ResRel : core.result.Result cspace.Resolved error.LookupFault →
   | .Err lf, .error lf' => LookupFaultRel lf lf'
   | _, _ => False
 
+/-- A cap the walk reaches from the root `c0`: the root, or a cap held in a
+slot of the typed heap. -/
+def RefCap (th : TypedHeap) (mem : U64 → U64) (c0 c : capability.Cap) : Prop :=
+  (∃ p r idx, th p = some (.cnode r) ∧ idx.length = r ∧ capAt mem (cslotAddr (p.bv, idx)) = ok c) ∨ c = c0
+
+/-- The cap at a word pair (`capAt` is total, `capAt_total`). -/
+noncomputable def capOf (mem : U64 → U64) (a : U64) : capability.Cap := Classical.choose (capAt_total mem a)
+
+theorem capOf_eq {mem : U64 → U64} {a : U64} {c : capability.Cap} (h : capAt mem a = ok c) : capOf mem a = c := by
+  have e : capAt mem a = ok (capOf mem a) := Classical.choose_spec (capAt_total mem a)
+  rw [h] at e
+  simpa using e.symm
+
+/-- A CNode named by a cap the walk reaches (`RefCap`; with the root in a
+slot, a CNode named by a cap held in a slot: `JCovD`'s cover of a live
+object). -/
+def CnRef (th : TypedHeap) (mem : U64 → U64) (c0 : capability.Cap) (p : U64) : Prop :=
+  ∃ r gs g, RefCap th mem c0 (.CNode p r gs g)
+
 /-- A slot the walk returns is a slot of a CNode of the typed heap, with an
-index of the CNode's radix (what reading the cap there needs). -/
-def SlotOk (th : TypedHeap) : Except Fl4Spec.LookupFailure (Fl4Spec.CslotPtr × Fl4Spec.CapRef) → Prop
-  | .ok (sl, _) => ∃ p, sl.1 = p.bv ∧ th p = some (.cnode sl.2.length)
+index of the CNode's radix (what reading the cap there needs), the CNode
+reached from the root (`CnRef`). -/
+def SlotOk (th : TypedHeap) (mem : U64 → U64) (c0 : capability.Cap) :
+    Except Fl4Spec.LookupFailure (Fl4Spec.CslotPtr × Fl4Spec.CapRef) → Prop
+  | .ok (sl, _) => ∃ p, sl.1 = p.bv ∧ th p = some (.cnode sl.2.length) ∧ CnRef th mem c0 p
   | .error _ => True
 
 /-- The walk's results against the spec's outcomes, with `SlotOk`. -/
-def WalkRel (th : TypedHeap) (r : core.result.Result cspace.Resolved error.LookupFault)
+def WalkRel (th : TypedHeap) (mem : U64 → U64) (c0 : capability.Cap)
+    (r : core.result.Result cspace.Resolved error.LookupFault)
     (e : Except Fl4Spec.LookupFailure (Fl4Spec.CslotPtr × Fl4Spec.CapRef)) : Prop :=
-  ResRel r e ∧ SlotOk th e
+  ResRel r e ∧ SlotOk th mem c0 e
 
 /-- `m` (a spec computation run from `σ`) has exactly one outcome, `e`,
 satisfying `P`, does not change the state and cannot fail. -/
@@ -289,8 +311,8 @@ variable (th : TypedHeap) (mem : U64 → U64) (σ : Fl4Spec.State Z) (cptr : U64
 
 /-- The loop invariant of the walk: from the current cap and depth, the spec
 computes what it computes from the start `p0`. -/
-def WalkInv (p0 : Fl4Spec.Cap × Fl4Spec.CapRef) (x : capability.Cap × U64 × U64) : Prop :=
-  x.2.1.val ≤ 64 ∧ x.2.1.val < x.2.2.val ∧
+def WalkInv (c0 : capability.Cap) (p0 : Fl4Spec.Cap × Fl4Spec.CapRef) (x : capability.Cap × U64 × U64) : Prop :=
+  RefCap th mem c0 x.1 ∧ x.2.1.val ≤ 64 ∧ x.2.1.val < x.2.2.val ∧
   ∃ a, CapRel x.1 a ∧ CapValid th x.1 ∧ rab (a, bitsOf cptr.val x.2.1.val) σ = rab p0 σ
 
 end Walk
@@ -299,14 +321,14 @@ section WalkProof
 variable {Z : Type} {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
 theorem body_spec (th : TypedHeap) (s : S) (σ : Fl4Spec.State Z) (hR : StateRel th (L.mem s) σ)
-    (hV : SlotsValid th (L.mem s)) (cptr : U64) (p0 : Fl4Spec.Cap × Fl4Spec.CapRef)
-    (cap : capability.Cap) (n fuel : U64) (hx : WalkInv th σ cptr p0 (cap, n, fuel)) :
+    (hV : SlotsValid th (L.mem s)) (cptr : U64) (c0 : capability.Cap) (p0 : Fl4Spec.Cap × Fl4Spec.CapRef)
+    (cap : capability.Cap) (n fuel : U64) (hx : WalkInv th (L.mem s) σ cptr c0 p0 (cap, n, fuel)) :
     cspace.resolve_address_bits_loop.body st s cptr cap n fuel ⦃ r =>
       match r with
-      | .done y => Single (rab p0 σ) σ (WalkRel th y)
-      | .cont x' => WalkInv th σ cptr p0 x' ∧ x'.2.1.val < n.val ⦄ := by
-  obtain ⟨hn, hf, a, ⟨hwf, rfl⟩, hcv, hrab⟩ := hx
-  simp only at hn hf hrab hcv hwf ⊢
+      | .done y => Single (rab p0 σ) σ (WalkRel th (L.mem s) c0 y)
+      | .cont x' => WalkInv th (L.mem s) σ cptr c0 p0 x' ∧ x'.2.1.val < n.val ⦄ := by
+  obtain ⟨hrf, hn, hf, a, ⟨hwf, rfl⟩, hcv, hrab⟩ := hx
+  simp only at hn hf hrab hcv hwf hrf ⊢
   rw [← hrab]
   cases cap
   case CNode ptr radix gs guard =>
@@ -392,7 +414,8 @@ theorem body_spec (th : TypedHeap) (s : S) (σ : Fl4Spec.State Z) (hR : StateRel
       have hr' : (bitsOf cptr.val n.val).drop (radix.val + (bitsOf guard.val gs.val).length) = [] := by
         rw [length_bitsOf, rest_list _ _ _ (by omega), bitsOf_eq_nil]; omega
       refine ⟨_, rab_last _ _ _ _ _ h0 hp (by simp; omega) hr', ?_⟩
-      simp only [WalkRel, ResRel, SlotOk]; rw [hoffL]; exact ⟨⟨hslot', by simp⟩, ptr, rfl, by simpa using hth⟩
+      simp only [WalkRel, ResRel, SlotOk]; rw [hoffL]
+      exact ⟨⟨hslot', by simp⟩, ptr, rfl, by simpa using hth, radix, gs, guard, hrf⟩
     have hlt : level.val < n.val := by
       rename_i h; have : n.val ≠ level.val := fun e => h (UScalar.eq_of_val_eq e); omega
     obtain ⟨cs, c, a', hk, hwf, hca', hcap, hrel, hval⟩ :=
@@ -411,7 +434,7 @@ theorem body_spec (th : TypedHeap) (s : S) (σ : Fl4Spec.State Z) (hR : StateRel
     rw [hrest, hoffL] at hstep
     have hdone : Fl4Spec.isCnodeCap a' = false →
         Single (rab (absCap (.CNode ptr radix gs guard), bitsOf cptr.val n.val) σ) σ
-          (WalkRel th (.Ok { slot := slot, bits_left := i3 })) := by
+          (WalkRel th (L.mem s) c0 (.Ok { slot := slot, bits_left := i3 })) := by
       intro hc
       refine ⟨.ok ((ptr.bv, bitsOf (cptr.val / 2 ^ (n.val - (radix.val + gs.val))) radix.val),
         bitsOf cptr.val i3.val), ?_, ?_⟩
@@ -419,7 +442,7 @@ theorem body_spec (th : TypedHeap) (s : S) (σ : Fl4Spec.State Z) (hR : StateRel
         rw [show absCap (.CNode ptr radix gs guard) = .cnodeCap ptr.bv radix.val (bitsOf guard.val gs.val) from rfl,
           hstep, hc]
         rfl
-      · exact ⟨⟨hslot', by simp⟩, ptr, rfl, by simpa using hth⟩
+      · exact ⟨⟨hslot', by simp⟩, ptr, rfl, by simpa using hth, radix, gs, guard, hrf⟩
     have hcont : Fl4Spec.isCnodeCap a' = true →
         rab (a', bitsOf cptr.val i3.val) σ = rab p0 σ := by
       intro hc
@@ -435,8 +458,10 @@ theorem body_spec (th : TypedHeap) (s : S) (σ : Fl4Spec.State Z) (hR : StateRel
     cases next
     case CNode p' r' gs' g' =>
       simp only [WP.spec_ok]
-      exact ⟨⟨show i3.val ≤ 64 by omega, show i3.val < fuel1.val by omega, a', hrel, hval,
-        hcont (by rw [ha']; rfl)⟩, show i3.val < n.val by omega⟩
+      have hsl : capAt (L.mem s) (cslotAddr (ptr.bv, bitsOf (cptr.val / 2 ^ (n.val - (radix.val + gs.val))) radix.val)) =
+          ok (.CNode p' r' gs' g') := by rw [← hslot']; exact hcap
+      exact ⟨⟨Or.inl ⟨ptr, radix.val, _, by simpa using hth, by simp, hsl⟩, show i3.val ≤ 64 by omega, show i3.val < fuel1.val by omega,
+        a', hrel, hval, hcont (by rw [ha']; rfl)⟩, show i3.val < n.val by omega⟩
     all_goals
       simp only [WP.spec_ok]
       exact hdone (by rw [ha']; rfl)
@@ -455,15 +480,15 @@ theorem resolve_address_bits_refines (th : TypedHeap) (s : S) (σ : Fl4Spec.Stat
     (c : capability.Cap) (a : Fl4Spec.Cap) (hc : CapRel c a) (hcv : CapValid th c)
     (cptr n : U64) (hn : n.val ≤ 64) :
     cspace.resolve_address_bits st s c cptr n ⦃ r =>
-      Single (rab (a, bitsOf cptr.val n.val) σ) σ (WalkRel th r) ⦄ := by
+      Single (rab (a, bitsOf cptr.val n.val) σ) σ (WalkRel th (L.mem s) c r) ⦄ := by
   unfold cspace.resolve_address_bits cspace.resolve_address_bits_loop
   apply loop.spec_decr_nat (measure := fun x => x.2.1.val)
-    (inv := WalkInv th σ cptr (a, bitsOf cptr.val n.val))
+    (inv := WalkInv th (L.mem s) σ cptr c (a, bitsOf cptr.val n.val))
   · rintro ⟨c1, n1, f1⟩ hx
-    have h := body_spec th s σ hR hV cptr _ c1 n1 f1 hx
+    have h := body_spec th s σ hR hV cptr c _ c1 n1 f1 hx
     convert h using 2
     rename_i r; cases r <;> rfl
-  · exact ⟨hn, by simp; omega, a, hc, hcv, rfl⟩
+  · exact ⟨Or.inr rfl, hn, by simp; omega, a, hc, hcv, rfl⟩
 
 end WalkProof
 
@@ -583,7 +608,8 @@ theorem lookup_slot_refines (th : TypedHeap) (s : S) (σ : Fl4Spec.State Z)
     (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (t : U64) (ht : th t = some .tcb)
     (cptr : U64) :
     cspace.lookup_slot st s t cptr ⦃ r =>
-      Single ((Fl4Spec.lookupSlotForThread (Z := Z) t.bv (Fl4Spec.toBl cptr.bv)).run σ) σ (WalkRel th r) ⦄ := by
+      Single ((Fl4Spec.lookupSlotForThread (Z := Z) t.bv (Fl4Spec.toBl cptr.bv)).run σ) σ
+        (WalkRel th (L.mem s) (capOf (L.mem s) (slotAddr t.bv 0#64)) r) ⦄ := by
   obtain ⟨tcb, c, hk, hc, hrel, hval⟩ := hR.ctable hV ht
   rw [lookupSlotForThread_eq hk, toBl_eq_bitsOf]
   unfold cspace.lookup_slot
@@ -592,6 +618,7 @@ theorem lookup_slot_refines (th : TypedHeap) (s : S) (σ : Fl4Spec.State Z)
   simp only [bind_ok]
   have := resolve_address_bits_refines th s σ hR hV c _ hrel hval cptr cspace.WORD_BITS
     (by simp [cspace.WORD_BITS])
+  rw [capOf_eq hc]
   simpa [cspace.WORD_BITS] using this
 
 /-- FL4's `lookup_cap` results against the spec's: a related cap, or the
@@ -636,7 +663,7 @@ theorem lookup_cap_refines (th : TypedHeap) (s : S) (σ : Fl4Spec.State Z)
     | ok v =>
       obtain ⟨sl, rest⟩ := v
       obtain ⟨hsl, -⟩ := hrel
-      obtain ⟨p, hp, hth⟩ := hok
+      obtain ⟨p, hp, hth, -⟩ := hok
       obtain ⟨c, a, hc, hca, hget⟩ := hR.slot_cap hp hth
       simp only
       rw [slot_cap_eq, hsl, hc]
@@ -666,7 +693,7 @@ theorem lookup_cap_and_slot_refines (th : TypedHeap) (s : S) (σ : Fl4Spec.State
     | ok v =>
       obtain ⟨sl, rest⟩ := v
       obtain ⟨hsl, -⟩ := hrel
-      obtain ⟨p, hp, hth⟩ := hok
+      obtain ⟨p, hp, hth, -⟩ := hok
       obtain ⟨c, a, hc, hca, hget⟩ := hR.slot_cap hp hth
       simp only
       rw [slot_cap_eq, hsl, hc]
@@ -701,9 +728,10 @@ def SysErrRel : error.Exc → Fl4Spec.SyscallError → Prop
 
 /-- `lookup_slot_for_cnode_op` results: the slot's address (a slot of a
 CNode of the typed heap), or the corresponding syscall error. -/
-def SlotResRel (th : TypedHeap) : core.result.Result obj.Slot error.Exc →
+def SlotResRel (th : TypedHeap) (mem : U64 → U64) (root : capability.Cap) : core.result.Result obj.Slot error.Exc →
     Except Fl4Spec.SyscallError Fl4Spec.CslotPtr → Prop
-  | .Ok sl, .ok sl' => sl = cslotAddr sl' ∧ ∃ p, sl'.1 = p.bv ∧ th p = some (.cnode sl'.2.length)
+  | .Ok sl, .ok sl' => sl = cslotAddr sl' ∧ ∃ p, sl'.1 = p.bv ∧ th p = some (.cnode sl'.2.length) ∧
+      CnRef th mem root p
   | .Err e, .error e' => SysErrRel e e'
   | _, _ => False
 
@@ -717,7 +745,7 @@ theorem lookup_slot_for_cnode_op_refines (th : TypedHeap) (s : S) (σ : Fl4Spec.
     (cptr depth : U64) :
     cspace.lookup_slot_for_cnode_op st s b root cptr depth ⦃ r =>
       Single ((Fl4Spec.lookupSlotForCnodeOp (Z := Z) b a (Fl4Spec.toBl cptr.bv) depth.val).run σ) σ
-        (SlotResRel th r) ⦄ := by
+        (SlotResRel th (L.mem s) root r) ⦄ := by
   obtain ⟨hwf, rfl⟩ := hc
   unfold cspace.lookup_slot_for_cnode_op
   cases root

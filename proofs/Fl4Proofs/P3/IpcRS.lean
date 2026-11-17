@@ -74,7 +74,7 @@ theorem get_receive_slot_slot {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit}
         cases e1 with
         | error _ => exact hrel1.elim
         | ok sl =>
-          obtain ⟨hsl, p, hp1, hp⟩ := hrel1
+          obtain ⟨hsl, p, hp1, hp, -⟩ := hrel1
           have hCS : CSlot th slot := by
             obtain ⟨o, idx⟩ := sl
             simp only at hp1 hp
@@ -196,7 +196,7 @@ theorem lookup_extra_cslot {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} (h
         | ok v =>
           obtain ⟨sl, rest⟩ := v
           obtain ⟨hsl, -⟩ := hrel
-          obtain ⟨p, hp1, hp⟩ := hsok
+          obtain ⟨p, hp1, hp, -⟩ := hsok
           simp only []
           obtain ⟨a', ha', ha'v⟩ := spec_exists (Aeneas.Std.Array.update_spec arr (UScalar.cast .Usize i) r1.slot
             (by have hl : arr.val.length = 3 := by simp
