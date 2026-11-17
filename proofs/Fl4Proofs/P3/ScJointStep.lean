@@ -26,15 +26,18 @@ and idle ones) or, for Configure of an SC other than the current one, a
 `MidKn` step (its `possible_switch_to`; `ActIdle` then from
 `decode_configure_refinesA`, premise `hpi`).
 
+Configure of the current SC (bound to the current thread) is a `MidKW` step
+ending with the consumed time cleared and a reschedule pending
+(`mkw_configureCur`, ScMidCur), hence `MidA`.
+
 Named per-op premise (`hRest`, at the decode's post, over its spec run,
-`ScStepP1`): P1-supplied, the node-0 `DEBUG_TCBS` word kept and `BlkOK`;
-and for Configure of the current SC [W] the mid-entry facts but `ActIdle`
-(`MidA`: a reschedule follows; the commit, the postponed current thread).
+`ScStepP1`): P1-supplied, the node-0 `DEBUG_TCBS` word kept and `BlkOK`.
 -/
 import Fl4Proofs.P3.ScJointRest
 import Fl4Proofs.P3.ScBsaOps
 import Fl4Proofs.P3.ScDeadStep
 import Fl4Proofs.P3.ScMidKeep
+import Fl4Proofs.P3.ScMidCur
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -127,9 +130,7 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
           ({(.ok inv, σ)}, False) →
         Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) →
         Fl4Spec.invokeSchedControlConfigureFlags (Z := Unit) inv σ1 = ({((), σ')}, False) →
-        ScStepP1 (L := L) Z H Cs s r.2.1 ∧
-        -- [W] the current SC reconfigured (a reschedule follows)
-        ((∃ b per mr bd fl, inv = .invokeSchedControlConfigureFlags σ.curSc b per mr bd fl) → MidA Z.T σ') ⦄) :
+        ScStepP1 (L := L) Z H Cs s r.2.1 ⦄) :
     syscall.decode_invocation st arI s a lbl length slot (.SchedControl cpu) blk call don fp buf extra
       ⦃ r => ∃ (σ' : Fl4Spec.State Unit) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
         JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.2.1 r.2.2 σ' ⦄ := by
@@ -175,7 +176,7 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       (pres_invokeSchedControlConfigureFlags (true, true) _ σ1 _ hm2)
   obtain ⟨-, hY', hM', ⟨Lst', hCR', hRF'⟩, hRP', -⟩ :=
     ScAll.of_k hS J.rp J.yld J.mcp J.call J.rfree ⟨⟨hS', hR', hN', hI'⟩, hw, hSOK⟩
-  obtain ⟨⟨Ac', hDbg, hBlk'⟩, hCurA⟩ := hRst hr1 σ' inv σ1 hdec he1 he2
+  obtain ⟨Ac', hDbg, hBlk'⟩ := hRst hr1 σ' inv σ1 hdec he1 he2
   obtain ⟨a0, rest, hex', q, sz, rfl, b, per, k, badge, flag, rfl⟩ :=
     (rdp_decodeCfgHead slbl (args.map UScalar.bv) (excaps.map Prod.fst) σ _ (by rw [hdec]; exact Set.mem_singleton _)).2
       _ rfl
@@ -203,13 +204,24 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
   have hid1 : σ1.idleThread = σ.idleThread := by
     rw [hσ1]; unfold Fl4Proofs.P3.Notif.stsAct; split_ifs <;> rfl
   obtain ⟨hC', hOw', hO'⟩ : MidA Z.T σ' := by
-    by_cases hq : q = σ.curSc
-    · exact hCurA ⟨_, _, _, _, _, by rw [hq]⟩
     obtain ⟨hpC, -, x, hkx, hbnd⟩ := hsc p sb hcap
     have hpc : p.bv ≠ ct.bv := fun e => by rw [e, hkc] at hkx; cases hkx
     have hkx1 : σ1.kheap p.bv = some (.schedContext x (sb.val - Fl4Spec.minSchedContextBits)) := by
       rw [hσ1, (stsAct_fields _ _).1]; simp [Fl4Proofs.P3.Notif.updK, hpc, hkx]
     obtain ⟨xt, hkt, hxs, -⟩ := hC.tcb
+    by_cases hq : q = σ.curSc
+    · -- the current SC, bound to the current thread: `commit_time`, a reschedule
+      obtain ⟨y1, n1, hy1, hy1t⟩ := J.inv.back _ xt σ.curSc hkt hxs
+      rw [← hq, ← hpq, hkx] at hy1; cases hy1
+      have hci : σ1.curThread ≠ σ1.idleThread := by
+        rw [hct1, hid1, ← hcur]; intro e
+        obtain ⟨xi, hki, -, hti, -⟩ := J.act.2
+        rw [← e, hkt] at hki; cases hki
+        rw [hcur, hkc] at hkt; cases hkt; rw [hti] at hrun; cases hrun
+      obtain ⟨kW, h0, hcn⟩ := mkw_configureCur (b := b) (per := per) (mr := k + Fl4Spec.MIN_REFILLS) (badge := badge)
+        (flag := flag) (hpq ▸ hkx1) (by rw [hcs1]; exact hq) (by rw [hy1t, hct1, hcur]) hci
+        (by simp [Fl4Spec.activeSc, Fl4Spec.MIN_REFILLS]) _ hm2
+      exact kW.midA h0 hcn hC1 hI1 ⟨ct, hctT, hct1.symm⟩
     have ht : ∀ t, x.scTcb = some t → t ≠ σ1.idleThread ∧ t ≠ σ1.curThread := by
       intro t ht
       obtain ⟨-, xt', hkt', hxt'⟩ := hbnd ⟨t⟩ ht
