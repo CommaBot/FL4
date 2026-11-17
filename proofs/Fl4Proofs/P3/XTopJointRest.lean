@@ -931,27 +931,19 @@ theorem schW_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {
     · rcases ht y hy with h | h <;> omega
     · rcases ht y hy with h | h <;> omega
 
-/-- **What a scheduler step still owes** [W]: `Inv` (its ready queues), the
-current thread's invariant and `ActIdle` (the action changed), and P1's
-`BlkOK`. -/
-def SchedRest (H : P1.Heap) (Cs : Set U64) (s' : S) (σ' : Fl4Spec.State Unit) : Prop :=
-  Inv σ' ∧ (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧ ActIdle σ' ∧
-  ∃ (Ac' : Set U64),
-    P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
-      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s'
-
 set_option maxHeartbeats 4000000 in
-/-- **`JStepHyps.sched` from `SchedRest`**: FL4 writes the scheduler's words
-(`schW_keeps`), the spec keeps the heap (`SchedK`, so `HStep`). -/
+/-- **`JStepHyps.sched`**, with no premise: FL4 writes the scheduler's words
+(`schW_keeps`), the spec keeps the heap (`SchedK`, so `HStep`); `Inv`, the
+current thread's invariant and `ActIdle` after (`SchedQOK`: the ready queues
+gain schedulable threads only, the action kept or `chooseNewThread`); P1's
+`BlkOK` after (`BlkKeep`); the node-0 debug word and the untyped caps'
+facts kept (the footprint `SchW` misses them). -/
 theorem jowes_sched {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit)
-    (hS : SchedStep (L := L) th s σ s' σ')
-    (hR : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → XTopAt (L := L) AR Z s' a σ' →
-      SchedRest (L := L) H Cs s' σ') :
+    (hS : SchedStep (L := L) th s σ s' σ') :
     JOwes (L := L) arI AR th s a σ s' a σ' := by
   intro Z H Cs Ac Lst D hth J hX'
   subst hth
-  obtain ⟨hK, hS2⟩ := hS
+  obtain ⟨hK, hS2, hQ, hBK⟩ := hS
   have hw := (hS2 Z.N Z.T Z.C Z.c J.thT J.xtop.fin.1.1.1 J.xtop.fin.1.1.2.2.1).2.1
   have hC : HStep σ σ' := ⟨fun p => Or.inl (by rw [hK.kh]), hK.rel, hK.ct, hK.csc, hK.ctime, hK.cons, hK.idle⟩
   obtain ⟨k1, k2, kb, k3, k4⟩ := schW_keeps arI J hw
@@ -962,7 +954,26 @@ theorem jowes_sched {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S
   have mk : McpKeep σ σ' := fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
-  obtain ⟨hI', hcur', hA', Ac', hblk⟩ := hR Z H Cs Ac Lst D rfl J hX'
+  -- the spec's scheduler invariants after
+  have hI' : Inv σ' := J.inv.congr' hK.kh (fun d p u hu => by
+    rcases hQ.1 d p u hu with ⟨d', p', h'⟩ | hs
+    · exact J.inv.rq d' p' u h'
+    · obtain ⟨x, scp, y, n, h1, h2, h3, h4, h5, -⟩ := schedulable_inv hs
+      exact ⟨x, scp, y, n, h1, h2, h3, h4, h5⟩) hK.rel hK.ctime
+  have hcur' : σ'.schedulerAction = .chooseNewThread ∨ CurInv σ' := by
+    rcases J.cur with h | h
+    · rcases hQ.2 with e | e
+      · exact Or.inl e
+      · exact Or.inl (by rw [e, h])
+    · exact Or.inr (h.congr hK.kh hK.ct hK.csc hK.rel)
+  have hA' : ActIdle σ' := by
+    refine ⟨fun t ht => ?_, ?_⟩
+    · rcases hQ.2 with e | e
+      · rw [e] at ht; cases ht
+      · rw [e] at ht; rw [schedulable_heap hK.kh hK.rel]; exact J.act.1 t ht
+    · obtain ⟨x, h1, h2, h3, h4⟩ := J.act.2
+      exact ⟨x, by rw [hK.kh, hK.idle]; exact h1, h2, h3, by rw [hK.idle, hK.rel]; exact h4⟩
+  have hblk := hBK _ _ _ H _ _ _ _ _ Ac (fun t ht => J.zH.1 t (J.thT t ht)) J.blk
   have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := J.kern.ksbFit
   obtain ⟨Q, R0, hcq, -⟩ := J.xtop.fin.1.1.1.lists
   have hnb : L.nodeBase s Z.c = (L.ksb s).val + 13568 + Z.c.val * 4288 := rfl
@@ -1038,7 +1049,7 @@ theorem jowes_sched {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S
     J.xtop.slotsSame_of hw fun b hb => schW_oobj J.xtop.fin.1.1.1.placed.tcb hb
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := fun q hq =>
     J.deadP_hstep hX' hC k3 (fun q z hq K h8 hK => J.schW_scKeep hw hq h8 hK) hA'.1 (J.jcov.dead q hq)
-  exact ⟨Ac', Lst, D, ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 mk,
+  exact ⟨Ac, Lst, D, ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 mk,
     J.buf.frame kb (fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_kheap hK.kh),
     J.jpl_keep arI hSS hK.kh hw.1 hI, J.jcov_keep hw.1 hSS hdead, hkern, hutc, J.nsc.cn hC, hI', hcur', J.own.cn hC, J.off.cn hC, hA', J.bsa.cn hC, J.isorted.cn hC,
     J.curRun.cn hC, hblk⟩⟩

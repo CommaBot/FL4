@@ -22,6 +22,7 @@ import Fl4Proofs.P3.VsInsFrame
 import Fl4Proofs.P3.SchedRel
 import Fl4Proofs.P3.SpecCnK
 import Fl4Proofs.P3.SlotCover
+import Fl4Proofs.P1.QueueBlock
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -147,17 +148,36 @@ def SchW (T : Set U64) (c : U64) (s : S) (b : U64) : Prop :=
     b = core.num.U64.wrapping_add y 3592#u64) ∨
   (L.nodeBase s c ≤ b.val ∧ b.val < L.nodeBase s c + 4288 ∧ b.val ≠ L.nodeBase s c + 88) ∨ DomKW (L.ksb s) b
 
+/-- **A scheduler step's ready queues and action**: every member of a ready
+queue after was a member before or was schedulable; the action is kept or
+becomes `chooseNewThread`. -/
+def SchedQOK (σ σ' : Fl4Spec.State Unit) : Prop :=
+  (∀ d p u, u ∈ σ'.readyQueues d p → (∃ d' p', u ∈ σ.readyQueues d' p') ∨ Fl4Spec.schedulable u σ = true) ∧
+  (σ'.schedulerAction = .chooseNewThread ∨ σ'.schedulerAction = σ.schedulerAction)
+
+theorem SchedQOK.refl (σ : Fl4Spec.State Unit) : SchedQOK σ σ :=
+  ⟨fun d p _ hu => Or.inl ⟨d, p, hu⟩, Or.inr rfl⟩
+
+/-- **P1's `BlkOK` kept**, at every family of sets whose TCBs include the
+typed heap's. -/
+def BlkKeep (th : TypedHeap) (s s' : S) : Prop :=
+  ∀ (T Cs Ω : Set U64) (H : P1.Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (Ac : Set U64),
+    (∀ t, th t = some .tcb → t ∈ T) → P1.BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    P1.BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s'
+
 /-- **A scheduler step** (`set_domain`, `reschedule_required`, the domain
 schedule's start and configuration): the spec changes only the scheduler's
 fields (`SchedK`); at every family of sets whose TCBs include the typed
 heap's, from the scheduler and notification relations, FL4 writes only
 `SchW` words and the scheduler relation holds after; the domain relation is
-kept. -/
+kept; the ready queues gain only schedulable threads (`SchedQOK`) and P1's
+`BlkOK` is kept (`BlkKeep`). -/
 def SchedStep (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (s' : S) (σ' : Fl4Spec.State Unit) : Prop :=
-  SchedK σ σ' ∧ ∀ (N T C : Set U64) (c : U64), (∀ t, th t = some .tcb → t ∈ T) →
+  SchedK σ σ' ∧ (∀ (N T C : Set U64) (c : U64), (∀ t, th t = some .tcb → t ∈ T) →
     Sched.SchedRel st N T C c s σ → Notif.NtfnStateRel N T (L.mem s) σ →
     Sched.SchedRel st N T C c s' σ' ∧ P1.WritesIn st s s' (SchW (L := L) T c s) ∧
-    (DomRelW (L.mem s) (L.ksb s) σ → DomRelW (L.mem s') (L.ksb s) σ')
+    (DomRelW (L.mem s) (L.ksb s) σ → DomRelW (L.mem s') (L.ksb s) σ')) ∧
+    SchedQOK σ σ' ∧ BlkKeep (st := st) th s s'
 
 /-- The current thread runnable (what the restart needs). -/
 def CurRun (σ : Fl4Spec.State Unit) : Prop :=

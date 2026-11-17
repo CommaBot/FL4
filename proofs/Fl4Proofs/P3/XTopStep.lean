@@ -452,7 +452,7 @@ theorem XTopAt.schedStep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S
     {σ σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z s a σ) (hKA : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s))
     (hTh : ∀ t, Z.th t = some .tcb → t ∈ Z.T) (hS : SchedStep (L := L) Z.th s σ s' σ') :
     XTopAt (L := L) AR Z s' a σ' := by
-  obtain ⟨hK, hS⟩ := hS
+  obtain ⟨hK, hS, -, -⟩ := hS
   have hSch := hX.fin.1.1.1
   have hNt := hX.fin.1.1.2.2.1
   have hP := hX.fin.1.2

@@ -342,7 +342,7 @@ theorem stepClosed_jat {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {
     subst hth
     have hX := J.xtop
     have hX1 := hX.schedStep J.ks J.thT hS
-    have hW := (hS.2 Z.N Z.T Z.C Z.c J.thT hX.fin.1.1.1 hX.fin.1.1.2.2.1).2.1
+    have hW := (hS.2.1 Z.N Z.T Z.C Z.c J.thT hX.fin.1.1.1 hX.fin.1.1.2.2.1).2.1
     have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
       hX.slotsSame_of hW fun b hb => schW_oobj hX.fin.1.1.1.placed.tcb hb
     obtain ⟨Ac', Lst', D', R⟩ := hJ.sched s s' a σ σ' hS Z H Cs Ac Lst D rfl J hX1
