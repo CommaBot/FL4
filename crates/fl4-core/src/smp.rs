@@ -40,6 +40,11 @@ pub fn remote_tcb_stall<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
 pub fn stall<S: Store, A: Arch>(s: &mut S, a: &mut A) {
     let ct = sched::cur_thread(s);
     if ct != sched::idle_thread(s) {
+        // The gate holder may delete or donate this SC as soon as the
+        // stall is acknowledged. Settle its time while it is still live.
+        sched::update_timestamp(s, a);
+        sched::check_budget(s, a);
+        sched::commit_time(s, a);
         if ct.state(s) == sched::TS_RUNNING {
             sched::set_thread_state(s, ct, sched::TS_RESTART);
         }
@@ -47,6 +52,11 @@ pub fn stall<S: Store, A: Arch>(s: &mut S, a: &mut A) {
             sched::enqueue(s, ct);
         }
         sched::switch_to_idle_thread(s, a);
+        let cpu = s.cur_cpu();
+        let idle_sc = sched::idle_sc(s);
+        node_set(s, cpu, node::CUR_SC, idle_sc.0);
+        node_set(s, cpu, node::CONSUMED, 0);
+        sched::set_reprogram(s);
         sched::set_action(s, sched::ACTION_RESUME_CURRENT);
     }
 }

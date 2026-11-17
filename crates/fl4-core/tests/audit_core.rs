@@ -15,12 +15,15 @@ use std::collections::BTreeMap;
 struct Memory {
     words: BTreeMap<u64, u64>,
     cpu: u64,
+    freed_range: Option<(u64, u64)>,
 }
 impl Store for Memory {
     fn read(&self, a: u64) -> u64 {
+        if let Some((base, len)) = self.freed_range { assert!(a < base || a >= base + len, "read freed SC at {a:#x}"); }
         *self.words.get(&a).unwrap_or(&0)
     }
     fn write(&mut self, a: u64, v: u64) {
+        if let Some((base, len)) = self.freed_range { assert!(a < base || a >= base + len, "write freed SC at {a:#x}"); }
         self.words.insert(a, v);
     }
     fn zero(&mut self, a: u64, len: u64) {
@@ -42,6 +45,8 @@ impl Store for Memory {
 #[derive(Default)]
 struct Machine {
     time: u64,
+    events: Vec<(&'static str, u64)>,
+    acked: Vec<u64>,
     freed: Vec<u64>,
     masked: Vec<(u64, bool)>,
 }
@@ -71,13 +76,13 @@ impl Arch for Machine {
     fn mask_irq(&mut self, irq: u64, mask: bool) {
         self.masked.push((irq, mask));
     }
-    fn ack_irq(&mut self, _: u64) {}
+    fn ack_irq(&mut self, irq: u64) { self.acked.push(irq); }
     fn irq_free(&mut self, irq: u64) {
         self.freed.push(irq);
     }
     fn set_vspace(&mut self, _: u64, _: u64) {}
     fn invalidate_page(&mut self, _: u64, _: u64) {}
-    fn invalidate_asid(&mut self, _: u64) {}
+    fn invalidate_asid(&mut self, asid: u64) { self.events.push(("invalidate_asid", asid)); }
     fn invalidate_page_structures(&mut self, _: u64) {}
     fn ioapic_map(&mut self, _: u64, _: u64, _: u64, _: u64, _: u64) -> bool {
         false
@@ -95,11 +100,11 @@ impl Arch for Machine {
         0
     }
     fn port_out(&mut self, _: u64, _: u64, _: u64) {}
-    fn fpu_flush(&mut self, _: u64) {}
-    fn fpu_sanitise(&mut self, _: u64) {}
-    fn fpu_reload(&mut self, _: u64) {}
-    fn fpu_release(&mut self, _: u64) {}
-    fn remote_stall(&mut self, _: u64) {}
+    fn fpu_flush(&mut self, t: u64) { self.events.push(("flush", t)); }
+    fn fpu_sanitise(&mut self, t: u64) { self.events.push(("sanitise", t)); }
+    fn fpu_reload(&mut self, t: u64) { self.events.push(("reload", t)); }
+    fn fpu_release(&mut self, t: u64) { self.events.push(("release", t)); }
+    fn remote_stall(&mut self, cpu: u64) { self.events.push(("stall", cpu)); }
     fn send_reschedule(&mut self, _: u64) {}
     fn putc(&mut self, _: u64) {}
     fn get_char(&mut self) -> u64 {
@@ -270,4 +275,109 @@ fn pending_single_step_still_charges_time() {
     assert_eq!(node_get(&s, 0, node::CUR_TIME), 150, "the timestamp was not updated");
     // The SC has no budget left, so the 50 ticks are charged to it.
     assert_eq!(sc.consumed(&s), 50, "the time was not charged");
+}
+
+
+/// All four invocations enter the common decoder before touching remote state.
+#[test]
+fn remote_tcb_invocations_stall_before_fpu_and_space_changes() {
+    use fl4_abi::{consts::tcb_flag, label};
+    use fl4_core::{msg, sched, tcb};
+    for lbl in [label::TCBReadFPU, label::TCBWriteFPU, label::TCBSetFlags, label::TCBSetSpace] {
+        let mut s = Memory::default();
+        let mut a = Machine::default();
+        let caller = Tcb(0x20000);
+        let target = Tcb(0x30000);
+        target.set_affinity(&mut s, 1);
+        node_set(&mut s, 0, node::CUR_THREAD, caller.0);
+        node_set(&mut s, 1, node::CUR_THREAD, target.0);
+        let extra = [Slot(0x50000), Slot(0x50020), Slot(0x50040)];
+        extra[0].set_cap(&mut s, Cap::Frame {
+            ptr: 0x60000, size: FrameSize::Small, rights: 3, is_device: false,
+            mapped: false, is_ept: false, asid: 0, vaddr: 0,
+        });
+        caller.set_reg(&mut s, msg::msg_register(0), 0);
+        caller.set_reg(&mut s, msg::msg_register(1), tcb_flag::FPU_DISABLED);
+        let invoked = Slot(0x50060);
+        invoked.set_cap(&mut s, Cap::Thread { ptr: target.0 });
+        if lbl == label::TCBSetSpace {
+            caller.set_reg(&mut s, msg::msg_register(1), 0);
+            extra[0].set_cap(&mut s, Cap::Null);
+            extra[1].set_cap(&mut s, Cap::CNode { ptr: 0x70000, radix: 4, guard: 0, guard_size: 0 });
+            extra[2].set_cap(&mut s, Cap::Pml4 { ptr: 0x80000, mapped: true, asid: 1 });
+            target.slot(fl4_core::layout::tcb::SLOT_VTABLE).set_cap(&mut s,
+                Cap::Pml4 { ptr: 0x90000, mapped: true, asid: 2 });
+            let table = s.ks_base() + fl4_core::layout::ks::ASID_TABLE;
+            s.write(table, 0xa0000);
+            s.write(0xa0000 + 2 * 8, 0x90000);
+        }
+        s.write(target.fpu_addr(), 123);
+        s.write(0x60000, 456);
+        let ctx = tcb::Ctx { length: 2, buf: 0, call: false, slot: invoked, extra: &extra };
+        assert!(tcb::decode(&mut s, &mut a, lbl, target, &ctx).is_ok(), "label {lbl}");
+        assert_eq!(a.events[0], ("stall", 1));
+        assert_eq!(node_get(&s, 0, node::IPI_PENDING), 2);
+        if lbl == label::TCBReadFPU {
+            assert_eq!(s.read(0x60000), 123);
+            assert_eq!(a.events[1], ("flush", target.0));
+        } else if lbl == label::TCBWriteFPU {
+            assert_eq!(s.read(target.fpu_addr()), 456);
+            assert_eq!(&a.events[1..], &[("flush", target.0), ("sanitise", target.0), ("reload", target.0)]);
+        } else if lbl == label::TCBSetFlags {
+            assert_eq!(target.flags(&s), tcb_flag::FPU_DISABLED);
+            assert_eq!(a.events[1], ("release", target.0));
+        } else {
+            assert!(target.slot(fl4_core::layout::tcb::SLOT_VTABLE).cap(&s) == extra[2].cap(&s));
+            assert_eq!(a.events[1], ("invalidate_asid", 2));
+            assert_eq!(s.read(0xa0000 + 2 * 8), 0);
+        }
+        assert!(caller.state(&s) == sched::TS_RUNNING || caller.state(&s) == sched::TS_RESTART);
+    }
+}
+
+/// Once the stall is acknowledged, the other core can retype the old SC.
+/// Neither VM completion nor the next ordinary interrupt may touch it.
+#[test]
+fn stalled_vm_exit_and_following_irq_do_not_access_retyped_sc() {
+    use fl4_core::{sched, smp, sporadic};
+    for (irq, time) in [(syscall::NO_IRQ, 20), (7, 20), (7, 1020)] {
+        let mut s = Memory::default();
+        let mut a = Machine { time, ..Default::default() };
+        let guest = Tcb(0x20000);
+        let idle = Tcb(0x30000);
+        let old_sc = Sc(0x40000);
+        let idle_sc = Sc(0x50000);
+        guest.set_state(&mut s, sched::TS_RUNNING_VM);
+        guest.set_sc(&mut s, old_sc.0);
+        idle.set_state(&mut s, sched::TS_IDLE);
+        idle.set_sc(&mut s, idle_sc.0);
+        old_sc.set_tcb(&mut s, guest.0);
+        node_set(&mut s, 0, node::CUR_THREAD, guest.0);
+        node_set(&mut s, 0, node::IDLE_THREAD, idle.0);
+        node_set(&mut s, 0, node::CUR_SC, old_sc.0);
+        node_set(&mut s, 0, node::IDLE_SC, idle_sc.0);
+        node_set(&mut s, 0, node::CUR_TIME, 10);
+        node_set(&mut s, 0, node::CONSUMED, 3);
+        sporadic::refill_new(&mut s, old_sc, 2, 1000, 0);
+        sporadic::refill_new(&mut s, idle_sc, 2, 100000, 0);
+        smp::stall(&mut s, &mut a);
+        assert_eq!(sched::cur_thread(&s).0, idle.0);
+        assert_eq!(sched::cur_sc(&s).0, idle_sc.0);
+        assert_eq!(sched::consumed(&s), 0);
+        assert_eq!(old_sc.consumed(&s), time - 7);
+        assert_eq!(sporadic::head(&s, old_sc).amount, if time == 20 { 987 } else { 1000 });
+        schedcontext::unbind_all_tcbs(&mut s, &mut a, old_sc);
+        s.zero(old_sc.0, 256);
+        s.freed_range = Some((old_sc.0, 256));
+        smp::stall(&mut s, &mut a); // repeated stalls while idle are harmless
+        a.time += 5;
+        syscall::handle_vcpu_exit(&mut s, &mut a, irq, true);
+        assert_eq!(sched::cur_time(&s), time, "cancelled completion must not re-charge time");
+        assert_eq!(a.acked, if irq == syscall::NO_IRQ { vec![] } else { vec![irq] });
+        assert_eq!(sched::cur_sc(&s).0, idle_sc.0);
+        a.time += 10;
+        syscall::handle_interrupt_entry(&mut s, &mut a, 8);
+        assert_eq!(*a.acked.last().unwrap(), 8);
+        assert_eq!(sched::cur_sc(&s).0, idle_sc.0);
+    }
 }

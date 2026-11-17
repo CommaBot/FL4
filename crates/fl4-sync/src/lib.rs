@@ -351,8 +351,10 @@ fn attempts<E: EntryEnv>(
         let ok = tx::commit(cpu, env.mem());
         let serial = tx::needs_serial(cpu);
         tx::end(cpu);
-        gate.leave_tx(env.mem(), cpu);
         env.finish_effects(ok);
+        // Committed effects may still use objects that a serial entry can
+        // delete. Keep its exclusion until those effects have completed.
+        gate.leave_tx(env.mem(), cpu);
         if ok {
             env.count(Count::Commit);
             env.entry_done();
@@ -493,4 +495,128 @@ mod tests {
         gate.enter_tx(&Atomics, 3, || panic!("successor stranded the gate"));
         gate.leave_tx(&Atomics, 3);
     }
+
+    #[derive(Default)]
+    struct NoopArch;
+    impl fl4_core::machine::Arch for NoopArch {
+        fn now(&mut self) -> u64 {
+            0
+        }
+        fn set_deadline(&mut self, _: u64) {}
+        fn us_to_ticks(&self, x: u64) -> u64 {
+            x
+        }
+        fn ticks_to_us(&self, x: u64) -> u64 {
+            x
+        }
+        fn max_us(&self) -> u64 {
+            u64::MAX
+        }
+        fn kernel_wcet_ticks(&self) -> u64 {
+            1
+        }
+        fn irq_pending(&mut self) -> bool {
+            false
+        }
+        fn take_pending_irq(&mut self) -> u64 {
+            u64::MAX
+        }
+        fn mask_irq(&mut self, irq: u64, mask: bool) {
+            let _ = (irq, mask);
+        }
+        fn ack_irq(&mut self, _: u64) {}
+        fn irq_free(&mut self, irq: u64) {
+            let _ = irq;
+        }
+        fn set_vspace(&mut self, _: u64, _: u64) {}
+        fn invalidate_page(&mut self, _: u64, _: u64) {}
+        fn invalidate_asid(&mut self, _: u64) {}
+        fn invalidate_page_structures(&mut self, _: u64) {}
+        fn ioapic_map(&mut self, _: u64, _: u64, _: u64, _: u64, _: u64) -> bool {
+            false
+        }
+        fn ioapic_map_remapped(&mut self, _: u64, _: u64, _: u64, _: u64, _: u64, _: u64) -> bool {
+            false
+        }
+        fn num_ioapics(&self) -> u64 {
+            0
+        }
+        fn ioapic_pins(&self, _: u64) -> u64 {
+            0
+        }
+        fn port_in(&mut self, _: u64, _: u64) -> u64 {
+            0
+        }
+        fn port_out(&mut self, _: u64, _: u64, _: u64) {}
+        fn fpu_flush(&mut self, _: u64) {}
+        fn fpu_sanitise(&mut self, _: u64) {}
+        fn fpu_reload(&mut self, _: u64) {}
+        fn fpu_release(&mut self, _: u64) {}
+        fn remote_stall(&mut self, _: u64) {}
+        fn send_reschedule(&mut self, _: u64) {}
+        fn putc(&mut self, _: u64) {}
+        fn get_char(&mut self) -> u64 {
+            0
+        }
+        fn halt(&mut self) {}
+    }
+
+    // One test owns CPU 0's process-global STM state across both outcomes.
+    #[cfg(not(feature = "serial-gate"))]
+    #[test]
+    fn serial_entries_cannot_overtake_committed_or_discarded_effects() {
+        use core::cell::Cell;
+        struct Env<'a> {
+            gate: &'a SerialGate,
+            abort: bool,
+            finishes: Cell<u64>,
+            held: Cell<bool>,
+        }
+        impl EntryEnv for Env<'_> {
+            type S = fl4_store::PhysStore;
+            type A = NoopArch;
+            type M = Atomics;
+            fn cpu(&self) -> u64 { 0 }
+            fn multi(&self) -> bool { true }
+            fn store(&self, tx: bool) -> Self::S { fl4_store::PhysStore { ks_base: 0, cpu: 0, tx } }
+            fn arch(&self) -> NoopArch { NoopArch }
+            fn mem(&self) -> &Atomics { &Atomics }
+            fn service_remote(&self) -> bool { false }
+            fn set_tx(&self, _: bool) {}
+            fn finish_effects(&self, committed: bool) {
+                assert_eq!(committed, !self.abort);
+                assert!(!fl4_store::tx::active(0));
+                // The blocker forced run_entry through STM; remove it now
+                // so only unfinished effects can exclude a serial probe.
+                self.gate.leave_tx(&Atomics, 1);
+                let generation = self.gate.contention.0.load(Ordering::Relaxed);
+                self.gate.policy[2].seen.store(generation, Ordering::Relaxed);
+                assert!(!self.gate.opportunistic_acquire(&Atomics, 2, || panic!("empty ticket queue")),
+                    "serial code could delete an object still used by queued effects");
+                self.finishes.set(self.finishes.get() + 1);
+            }
+            fn entry_done(&self) {}
+            fn unhandled_irq(&self) -> Option<u64> { None }
+            fn holding_gate(&self) { self.held.set(true); }
+        }
+        for abort in [false, true] {
+            let gate = SerialGate::new();
+            gate.enter_tx(&Atomics, 1, || panic!("open gate"));
+            let env = Env { gate: &gate, abort, finishes: Cell::new(0), held: Cell::new(false) };
+            let mut bodies = 0;
+            assert!(run_entry(&env, &gate, false, |_, _| {
+                bodies += 1;
+                if abort && fl4_store::tx::active(0) { fl4_store::tx::doom_serial(0); }
+            }));
+            assert_eq!(env.finishes.get(), 1);
+            assert_eq!(bodies, if abort { 2 } else { 1 });
+            if env.held.get() { gate.release(&Atomics); }
+            // Exclusion must end after effects finish.
+            let generation = gate.contention.0.load(Ordering::Relaxed);
+            gate.policy[2].seen.store(generation, Ordering::Relaxed);
+            assert!(gate.opportunistic_acquire(&Atomics, 2, || panic!("gate stranded")));
+            gate.release(&Atomics);
+        }
+    }
+
 }

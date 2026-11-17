@@ -595,12 +595,15 @@ pub fn handle_debug_exception<S: Store, A: Arch>(s: &mut S, a: &mut A, vector: u
 
 /// A VM exit has saved its results before remote calls could stall its
 /// thread. Charge guest time, handle host IRQs, and complete pending exits
-/// before delivering bound notifications.
-pub fn handle_vcpu_exit<S: Store, A: Arch>(s: &mut S, a: &mut A, irq: u64) {
-    sched::update_timestamp(s, a);
-    let ct = sched::cur_thread(s);
-    crate::vcpu::check(s, a, ct);
-    sched::check_budget(s, a);
+/// before delivering bound notifications. A stall has already settled the
+/// guest's time and detached its SC; only the accepted host IRQ remains.
+pub fn handle_vcpu_exit<S: Store, A: Arch>(s: &mut S, a: &mut A, irq: u64, stalled: bool) {
+    if !stalled {
+        sched::update_timestamp(s, a);
+        let ct = sched::cur_thread(s);
+        crate::vcpu::check(s, a, ct);
+        sched::check_budget(s, a);
+    }
     if irq != NO_IRQ { interrupt::handle_interrupt(s, a, irq); }
     finish(s, a);
 }
