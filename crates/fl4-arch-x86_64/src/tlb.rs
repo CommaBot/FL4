@@ -174,7 +174,6 @@ pub fn invalidate_page(asid: u64, vaddr: u64) -> u64 {
 /// A PCID that holds another ASID has no entries for this one (taking it
 /// flushed them).
 fn local_invalidate_page(asid: u64, vaddr: u64) {
-    let pc = percpu::get();
     if skim() {
         if holds(asid) {
             invpcid(0, tag(asid), vaddr);
