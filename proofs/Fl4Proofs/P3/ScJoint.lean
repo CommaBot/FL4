@@ -96,8 +96,6 @@ theorem decode_invocation_sched_contextJAt {AR : A → Fl4Spec.Cr3 → Prop} {Z 
     {ct : U64} (hct : sched.cur_thread st s = ok ct) (hcs : Fl4Spec.schedulable ct.bv σ = true)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel Z.th (L.mem s) x0 (excaps.map Prod.fst))
-    (hcapT : ∀ p, capAt (L.mem s) x0 = ok (.Thread p) → p ∈ Z.T)
-    (hcapN : ∀ p b w r, capAt (L.mem s) x0 = ok (.Notification p b w r) → p ∈ Z.N ∧ p ≠ 0#u64)
     (length slot buf : U64) (blk call don fp : Bool) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (buffer : Option Fl4Spec.ObjRef)
     (hArch : syscall.decode_invocation st arI s a lbl length slot (.SchedContext sc sb) blk call don fp buf extra
@@ -105,9 +103,23 @@ theorem decode_invocation_sched_contextJAt {AR : A → Fl4Spec.Cr3 → Prop} {Z 
     DecOKDMX (L := L) arI (XTop (L := L) AR) s a σ lbl length slot (.SchedContext sc sb) blk call don fp buf extra
       slbl args ci sl excaps buffer ∨
     DecOKRMX (L := L) arI (fun _ _ _ => True) s a σ lbl length slot (.SchedContext sc sb) blk call don fp buf extra
-      slbl args ci sl excaps buffer ct :=
-  decode_invocation_sched_contextXT s a σ J.xtop (J.scExtra hres htm hmb hmax htu hmsg) lbl slbl hlbl sb hsc hpi hl hback
-    hbn hct hcs extra x0 hx0 excaps hex hcapT hcapN length slot buf blk call don fp args ci sl buffer hArch
+      slbl args ci sl excaps buffer ct := by
+  have hcapT : x0 ≠ 0#u64 → ∀ p, capAt (L.mem s) x0 = ok (.Thread p) → p ∈ Z.T := by
+    intro hx p hc
+    rcases hex with ⟨h0, -⟩ | ⟨-, -, c, a', rest, hc', -, hv, -⟩
+    · exact absurd h0 hx
+    · rw [hc] at hc'; cases eq_of_ok_eq hc'
+      exact J.thT p hv
+  have hcapN : x0 ≠ 0#u64 → ∀ p b w r, capAt (L.mem s) x0 = ok (.Notification p b w r) → p ∈ Z.N ∧ p ≠ 0#u64 := by
+    intro hx p b w r hc
+    rcases hex with ⟨h0, -⟩ | ⟨-, hS, -⟩
+    · exact absurd h0 hx
+    · obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+      have hH : H p = some .ntfn := ((hJ.typed x0 hS).2.1 p b w r (capV_of_capAt hc)).2
+      refine ⟨J.hset.2.1 p hH, fun e => ?_⟩
+      rw [e, J.kern.h0] at hH; cases hH
+  exact decode_invocation_sched_contextXT s a σ J.xtop (J.scExtra hres htm hmb hmax htu hmsg) lbl slbl hlbl sb hsc hpi hl hback
+      hbn hct hcs extra x0 hx0 excaps hex hcapT hcapN length slot buf blk call don fp args ci sl buffer hArch
 
 /-! ## The untyped retype on `JAt` -/
 

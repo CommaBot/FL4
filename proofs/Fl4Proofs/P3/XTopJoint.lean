@@ -206,7 +206,9 @@ set_option maxHeartbeats 4000000 in
 CSpace globals, the arch interface [P]; at every `XTopAt` state of the typed
 heap [global]: `ActReady` (at `WX`), `BufWordRel`, the IPC-buffer caps
 (`IpcBufCapOK`, `BufCover`, `BufPlaced`) and `FlagsRel`; the decode's own
-facts (the extra caps, the authority's and the SC caps' objects, no null SC,
+facts (the extra caps, the SC cap's object among the SCs when present (`hcapC`, l4v
+`valid_cap`: `JAtZ` relates no SC cap to an SC object; the thread and
+notification caps' objects from `XcRel` and `JPlaced`),
 the target not idle, the argument reads, the remote stall the identity [P],
 the core's `CUR_THREAD` word outside the objects); the IPC/Sc leaves
 (`TcbXIpc`), the arguments (`ArgRel` [J], five), GetBreakpoint's read (`GetBpHyp`
@@ -242,9 +244,7 @@ theorem decode_invocation_threadJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps) (hnc : NcHyp (st := st) s σ x0 x1 x2)
     (hnc0 : ∀ sl : Fl4Spec.CslotPtr, x0 = cslotAddr sl → isUt (capV (L.mem s) x0) = true →
       NoChildrenRel (st := st) s σ x0 sl)
-    (hcapT : ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T)
-    (hcapC : ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ Z.C)
-    (hcapN : ∀ q b w r, capV (L.mem s) x0 = .Notification q b w r → q ∈ Z.N)
+    (hcapC : x1 ≠ 0#u64 → ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ Z.C)
     (hA5 : ArgRel (st := st) s σ ct buf buffer 5) (hGb : GetBpHyp (st := st) s ct p)
     (hFpu : FpuRelXHyp (L := L) arI AR Z.th p ct)
     (hI : TcbXIpc (L := L) arI AR Z.th s ar σ p ct buf argsU blk call don)
@@ -255,6 +255,26 @@ theorem decode_invocation_threadJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
       (argsU.map UScalar.bv) ci sl excaps buffer ct := by
   have hX := J.xtop
   obtain ⟨hcur, -⟩ := J.curEq hct
+  -- the first extra cap, when present, is in a CNode slot of the typed heap (`XcRel`)
+  have hsl0 : x0 ≠ 0#u64 → ∃ sl0, AbsSlot Z.th sl0 ∧ x0 = cslotAddr sl0 := by
+    intro hx
+    have h0 := hXc.2 0 x0 rfl
+    obtain ⟨e, he⟩ : ∃ e, excaps[0]? = some e := by
+      rcases excaps with _ | ⟨e, rest⟩
+      · exact absurd (h0.1.2 (by simp)) hx
+      · exact ⟨e, rfl⟩
+    obtain ⟨hxe, -, ps, hps, hpe⟩ := h0.2 e he
+    exact ⟨e.2, ⟨ps, hpe, Or.inl hps⟩, hxe⟩
+  have hcapT : x0 ≠ 0#u64 → ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T := by
+    intro hx q hc
+    obtain ⟨sl0, hA0, hxe⟩ := hsl0 hx
+    exact J.thT q (show CapValid Z.th (.Thread q) from
+      hX.rel.2.1.2.1.abs hA0 (by rw [← hxe, capAt_capV, hc]))
+  have hcapN : x0 ≠ 0#u64 → ∀ q b w r, capV (L.mem s) x0 = .Notification q b w r → q ∈ Z.N := by
+    intro hx q b w r hc
+    obtain ⟨sl0, hA0, hxe⟩ := hsl0 hx
+    obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+    exact J.hset.2.1 q ((hJ.typed x0 (hxe ▸ hA0.isSlot)).2.1 q b w r hc).2
   have hp : Z.th p = some .tcb := (slot_cap_wf hX hAs hsc).2
   have hpT := J.thT p hp
   exact decode_invocation_threadXL arI s ar σ hX J.ks (J.curRun.run hni) J.thT J.del hG.fin hG.pre (hG.postDel arI hARI hT)

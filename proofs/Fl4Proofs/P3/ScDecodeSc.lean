@@ -713,8 +713,8 @@ theorem bind_branch_refines {N T C : Set U64} {c : U64} (hT : TimeAgree ar) (th 
     {sc : U64} (hsc : sc ∈ C) (hsc0 : sc ≠ 0#u64)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List Fl4Spec.Cap) (hex : ExtraRel th (L.mem s) x0 excaps)
-    (hcapT : ∀ p, capAt (L.mem s) x0 = ok (.Thread p) → p ∈ T)
-    (hcapN : ∀ p b w r, capAt (L.mem s) x0 = ok (.Notification p b w r) → p ∈ N ∧ p ≠ 0#u64)
+    (hcapT : x0 ≠ 0#u64 → ∀ p, capAt (L.mem s) x0 = ok (.Thread p) → p ∈ T)
+    (hcapN : x0 ≠ 0#u64 → ∀ p b w r, capAt (L.mem s) x0 = ok (.Notification p b w r) → p ∈ N ∧ p ≠ 0#u64)
     {ct : U64} (hct : ct ∈ T) {xc : Fl4Spec.Tcb} (hkc : σ.kheap ct.bv = some (.tcb xc))
     (hrun : Fl4Spec.runnable xc.tcbState = true) (call : Bool) :
     ((do
@@ -883,7 +883,7 @@ theorem bind_branch_refines {N T C : Set U64} {c : U64} (hT : TimeAgree ar) (th 
         ({(.error .illegalOperation, σ)}, False) := fun P _ h f => wE_pos h _ f σ
   cases c0
   case Thread ptr =>
-    have hpT := hcapT ptr hc0
+    have hpT := hcapT hx0n ptr hc0
     obtain ⟨xt, hkt, -, -, hxts, -⟩ := hs.tcb ptr hpT
     have hst := (hR.at_tcb hpT hkt).st
     step with obj.Sc.tcb.spec as ⟨i1, hi1⟩
@@ -950,7 +950,7 @@ theorem bind_branch_refines {N T C : Set U64} {c : U64} (hT : TimeAgree ar) (th 
       refine WP.spec_mono (hinv hblk hct hkc hrun call) fun r hr' => Or.inr ⟨_, ?_, hr'⟩
       rw [hpre2, wE_neg (by simp [hb])]; rfl
   case Notification ptr bb ww rr =>
-    obtain ⟨hpN, hp0⟩ := hcapN ptr bb ww rr hc0
+    obtain ⟨hpN, hp0⟩ := hcapN hx0n ptr bb ww rr hc0
     obtain ⟨xm, hkm, hxm⟩ := hR.ntfn ptr hpN
     step with obj.Sc.ntfn.spec2 as ⟨i1, hi1⟩
     subst hi1
@@ -1003,8 +1003,8 @@ theorem unbindobj_branch_refines {N T C : Set U64} {c : U64} (th : TypedHeap)
     {sc : U64} (hsc : sc ∈ C) (hsc0 : sc ≠ 0#u64)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List Fl4Spec.Cap) (hex : ExtraRel th (L.mem s) x0 excaps)
-    (hcapT : ∀ p, capAt (L.mem s) x0 = ok (.Thread p) → p ∈ T)
-    (hcapN : ∀ p b w r, capAt (L.mem s) x0 = ok (.Notification p b w r) → p ∈ N ∧ p ≠ 0#u64)
+    (hcapT : x0 ≠ 0#u64 → ∀ p, capAt (L.mem s) x0 = ok (.Thread p) → p ∈ T)
+    (hcapN : x0 ≠ 0#u64 → ∀ p b w r, capAt (L.mem s) x0 = ok (.Notification p b w r) → p ∈ N ∧ p ≠ 0#u64)
     {ct : U64} (hct : ct ∈ T) (hcur : σ.curThread = ct.bv) {xc : Fl4Spec.Tcb}
     (hkc : σ.kheap ct.bv = some (.tcb xc)) (hrun : Fl4Spec.runnable xc.tcbState = true) (call : Bool) :
     ((do
@@ -1144,7 +1144,7 @@ theorem unbindobj_branch_refines {N T C : Set U64} {c : U64} (th : TypedHeap)
         ({(.error .illegalOperation, σ)}, False) := fun P _ h f => wE_pos h _ f σ
   cases c0
   case Thread ptr =>
-    have hpT := hcapT ptr hc0
+    have hpT := hcapT hx0n ptr hc0
     have hp0 : ptr ≠ 0#u64 := fun e => (hc.tcbs ptr hpT).ne0 (by rw [e]; rfl)
     have hpre2 := hpre (.threadCap ptr.bv)
     simp only [absCap] at hpre2 ⊢
@@ -1174,7 +1174,7 @@ theorem unbindobj_branch_refines {N T C : Set U64} {c : U64} (th : TypedHeap)
       fun r hr' => Or.inr ⟨_, ?_, hr'⟩
     rw [hpre2, wE_neg (fun h => h2 (eq_of_bv h))]; rfl
   case Notification ptr bb ww rr =>
-    obtain ⟨hpN, hp0⟩ := hcapN ptr bb ww rr hc0
+    obtain ⟨hpN, hp0⟩ := hcapN hx0n ptr bb ww rr hc0
     have hpre2 := hpre (absCap (.Notification ptr bb ww rr))
     simp only [absCap] at hpre2 ⊢
     rw [lE_bind (getScObjRef_eq hk _)] at hpre2
