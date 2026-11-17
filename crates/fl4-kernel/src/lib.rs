@@ -271,7 +271,9 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
     assert!(fl4_arch_x86_64::vm::init(true));
     kprintln!("FL4: virtualization {}", match fl4_arch_x86_64::vm::backend() { 1 => "VT-x", 2 => "AMD-V", _ => "unavailable" });
     percpu::get().cr3 = paging::root_paddr();
-    percpu::get().kernel_cr3 = tlb::kernel_cr3(paging::root_paddr());
+    if spec::skim() {
+        entry::set_kernel_cr3(tlb::kernel_cr3(paging::root_paddr()));
+    }
 
     // Interrupt controllers and the timer.
     let acpi = match acpi::init(mb.rsdp) {
@@ -403,10 +405,9 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
     let mut s = entry::store();
     s.zero(ks_base, ks::SIZE);
     // The kernel half user address spaces copy: everything, or with the
-    // skim window only the kernel image.
+    // skim window only the entry code and data (paging::init_skim).
     let template = if spec::skim() {
-        let end = paging::image_paddr(unsafe { &__kernel_end as *const u8 as u64 });
-        paging::init_skim(KERNEL_PHYS_START, end)
+        paging::init_skim(nx)
     } else {
         kernel_root
     };

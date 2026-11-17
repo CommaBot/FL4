@@ -129,9 +129,7 @@ extern "C" fn fl4_ap_main(c: u64) -> ! {
     fpu::init();
     if !fl4_arch_x86_64::spec::init_core(false) { reject_ap(REJECT_SPEC); }
     if !fl4_arch_x86_64::vm::init(false) { reject_ap(REJECT_VM); }
-    let pc = percpu::get();
-    pc.cr3 = paging::root_paddr();
-    pc.kernel_cr3 = fl4_arch_x86_64::tlb::kernel_cr3(paging::root_paddr());
+    percpu::get().cr3 = paging::root_paddr();
     apic::enable(pptr(apic::base_paddr()));
     apic::write(apic::REG_SVR, (1 << 8) | 0xff);
     apic::write(apic::REG_LVT_LINT0, 1 << 16);

@@ -1,21 +1,34 @@
 /* FL4 x86_64 kernel entry and exit.
  *
- * Every entry builds the same frame on the per-core kernel stack and calls
- * fl4_entry (entry.rs). From low to high addresses:
+ * Every entry builds the same frame and calls fl4_entry (entry.rs). From
+ * low to high addresses:
  *   r15 r14 r13 r12 r11 r10 r9 r8 rbp rdi rsi rdx rcx rbx rax
  *   vector error rip cs rflags rsp ss
  * Exceptions and interrupts get the hardware part from the CPU (with a
  * zero error code pushed for vectors without one); SYSCALL builds it by
- * hand, with vector 0x100. fl4_entry returns only for an interrupt taken
- * in kernel mode while the kernel polls for pending interrupts; every
- * other entry leaves through fl4_restore_user or fl4_idle.
+ * hand, with vector 0x100.
+ *
+ * Entries from user mode arrive on the core's entry stack (TSS.RSP0, and
+ * SYSCALL's through KERNEL_GS_BASE) or, for NMI, #DB, #MC and #DF, on an
+ * IST stack, all in the core's entry area (gdt.rs SkimCpu), which the skim
+ * window maps into user address spaces. fl4_common_entry switches to the
+ * kernel's tables, moves the frame to the core's kernel stack (KSTACKS,
+ * which user address spaces never map), clearing it where it was, and runs
+ * fl4_entry there. Entries from kernel mode run fl4_entry where they
+ * arrived. fl4_entry returns (with the CR3 value to leave on, or 0) only
+ * for an entry it answers without a kernel entry proper; every other entry
+ * leaves through fl4_restore_user or fl4_idle.
+ *
+ * Any entry may arrive on the user's tables, even from kernel mode (an NMI
+ * or #DB in the trampolines here), so every entry switches CR3 itself and
+ * restores the interrupted CR3 when it returns to kernel mode.
  *
  * The kernel never uses GS: the user GS base stays live in GS_BASE, and
- * KERNEL_GS_BASE points at the per-core block whose first word is the
- * kernel stack top and second a scratch word. SYSCALL swaps GS only long
- * enough to find the stack. */
+ * KERNEL_GS_BASE points at the core's gs_block (gdt.rs): entry stack top,
+ * a scratch word, kernel stack top. SYSCALL swaps GS only long enough to
+ * find the stack. */
 
-    .text
+    .section .skim.text, "ax", @progbits
     .align 16
     .global fl4_vectors
 fl4_vectors:
@@ -40,6 +53,7 @@ fl4_syscall_entry:
     movq %gs:0, %rsp
     pushq $0x2b
     pushq %gs:8
+    movq $0, %gs:8
     swapgs
     pushq %r11
     pushq $0x33
@@ -47,6 +61,7 @@ fl4_syscall_entry:
     pushq $0
     pushq $0x100
 
+    .global fl4_common_entry
 fl4_common_entry:
     pushq %rax
     pushq %rbx
@@ -67,8 +82,71 @@ fl4_common_entry:
     movl FL4_SPEC_ENTRY(%rip), %r11d
     fl4_spec_barrier %r11d
     fl4_clear_guest_gprs
+    movq %rsp, %rbp
+    /* The kernel's tables, if not on them already. rbx keeps the CR3 to
+     * go back to on a return to kernel mode: 0 for none; the user's, with
+     * the no-flush bit if PCIDs are on (it names a nonzero PCID then). */
+    movq FL4_KERNEL_CR3(%rip), %rax
+    testq %rax, %rax
+    jz .Lcr3_done
+    movq %cr3, %rbx
+    movq %rbx, %rcx
+    xorq %rax, %rcx
+    movabsq $0x000ffffffffff000, %rdx
+    testq %rdx, %rcx
+    jnz .Lcr3_user
+    xorl %ebx, %ebx
+    jmp .Lcr3_done
+.Lcr3_user:
+    testl $0xfff, %ebx
+    jz .Lcr3_load
+    btsq $63, %rbx
+.Lcr3_load:
+    movq %rax, %cr3
+.Lcr3_done:
+    /* From user mode: move the frame to the kernel stack. The entry area
+     * holding this stack is size-aligned; its third word is the top of
+     * the core's kernel stack. */
+    testb $3, 18*8(%rbp)
+    jz .Lon_stack
+    movq %rbp, %rax
+    andq $-{skim_cpu_size}, %rax
+    movq 16(%rax), %rdi
+    subq $22*8, %rdi
+    xorl %ecx, %ecx
+.Lcopy_in:
+    movq (%rbp,%rcx,8), %rdx
+    movq %rdx, (%rdi,%rcx,8)
+    movq $0, (%rbp,%rcx,8)
+    incl %ecx
+    cmpl $22, %ecx
+    jne .Lcopy_in
+    movq %rdi, %rsp
+.Lon_stack:
+    lfence
     movq %rsp, %rdi
     call fl4_entry
+    /* Back to the interrupted code. A frame that moved goes back where it
+     * came from (the kernel stack copy is never mapped for user code). */
+    cmpq %rsp, %rbp
+    je .Lframe_back
+    xorl %ecx, %ecx
+.Lcopy_out:
+    movq (%rsp,%rcx,8), %rdx
+    movq %rdx, (%rbp,%rcx,8)
+    incl %ecx
+    cmpl $22, %ecx
+    jne .Lcopy_out
+    movq %rbp, %rsp
+.Lframe_back:
+    testq %rax, %rax
+    jnz .Lcr3_back
+    movq %rbx, %rax
+    testq %rax, %rax
+    jz .Lcr3_kept
+.Lcr3_back:
+    movq %rax, %cr3
+.Lcr3_kept:
     popq %r15
     popq %r14
     popq %r13
@@ -85,14 +163,34 @@ fl4_common_entry:
     popq %rbx
     popq %rax
     addq $16, %rsp
+    /* Leave none of the registers just restored in the entry area. */
+    movq $0, -8(%rsp)
+    movq $0, -16(%rsp)
+    movq $0, -24(%rsp)
+    movq $0, -32(%rsp)
+    movq $0, -40(%rsp)
+    movq $0, -48(%rsp)
+    movq $0, -56(%rsp)
+    movq $0, -64(%rsp)
+    movq $0, -72(%rsp)
+    movq $0, -80(%rsp)
+    movq $0, -88(%rsp)
+    movq $0, -96(%rsp)
+    movq $0, -104(%rsp)
+    movq $0, -112(%rsp)
+    movq $0, -120(%rsp)
+    movq $0, -128(%rsp)
+    movq $0, -136(%rsp)
     fl4_clear_buffers
     iretq
 
 /* fl4_restore_user(regs: *const u64, stack_top: u64, cr3: u64) -> !
- * regs is a TCB's register array (fl4_core::layout::reg order). A nonzero
- * cr3 (the skim window, spec.rs) is loaded after the last read of the TCB,
- * which the user's tables do not map; the kernel stack is in the image,
- * which they do.
+ * regs is a TCB's register array (fl4_core::layout::reg order); stack_top
+ * is the core's entry stack top (gdt.rs). A nonzero cr3 (the skim window,
+ * spec.rs) is loaded after the last read of the TCB, which the user's
+ * tables do not map; the entry stack is in the skim window, which they
+ * do. What earlier entries and exits left on the entry stack is cleared
+ * first, so no other thread's registers stay there.
  *
  * A thread whose context SYSCALL saved (Error = -1, as in seL4; changing
  * its registers through the API clears it) leaves by SYSRET, which loads
@@ -104,6 +202,11 @@ fl4_common_entry:
     .global fl4_restore_user
 fl4_restore_user:
     movq %rsi, %rsp
+    movq $-22, %rcx
+.Lclear_entry:
+    movq $0, (%rsi,%rcx,8)
+    incq %rcx
+    jnz .Lclear_entry
     movq 14*8(%rdi), %rcx
     shrq $47, %rcx
     jnz 1f
@@ -141,7 +244,7 @@ fl4_restore_user:
     fl4_clear_buffers
     iretq
 
-3:  /* SYSRET path. The frame on the kernel stack: user rsp, cr3, rdi. */
+3:  /* SYSRET path. The frame on the entry stack: user rsp, cr3, rdi. */
     pushq 16*8(%rdi)
     pushq %rdx
     pushq 0*8(%rdi)
@@ -175,8 +278,9 @@ fl4_restore_user:
     fl4_clear_buffers
     sysretq
 
-/* fl4_idle(stack_top: u64) -> !: the idle thread. Interrupts arrive in
- * kernel mode on this stack and never return here. */
+/* fl4_idle(stack_top: u64) -> !: the idle thread, on the kernel stack and
+ * the kernel's tables. Interrupts arrive in kernel mode on this stack and
+ * never return here. */
     .align 16
     .global fl4_idle
 fl4_idle:
@@ -187,3 +291,5 @@ fl4_idle:
     hlt
     cli
     jmp 1b
+
+    .text
