@@ -89,7 +89,7 @@ theorem send_ipc_recvD_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Prop} (hX :
           Fl4Spec.schedContextDonate (Z := Unit) (Fl4Spec.the threadSc) d.bv) σ3 = ({((), σ4)}, False) ∧
         EpStateRel T E R B (L.mem r.1) σ4 ∧ SR r.1 σ4 ∧ σ4.kheap d.bv = some (.tcb x4) ∧ tsCode x4.tcbState ≠ 6 ∧
         (∀ e'' ∈ E, ∀ z, σ4.kheap e''.bv = some (.endpoint z) → d.bv ∉ z.epQueue) ⦄)
-    (blk : Bool) :
+    (hTO : SVK.TailOK σ) (blk : Bool) :
     endpoint.send_ipc st ar s a blk false badge g gr true t e ⦃ r => r.2 = a ∧
       ¬ (Fl4Spec.sendIpc (Z := Unit) blk false badge.bv g gr true t.bv e.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.sendIpc (Z := Unit) blk false badge.bv g gr true t.bv e.bv σ).1 ∧
@@ -206,7 +206,8 @@ theorem send_ipc_recvD_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Prop} (hX :
     rintro s5 ⟨hR5, hS5⟩
     have hspec := sendIpc_recvD_eq hk hkd hde hstd blk badge.bv g gr e2 hU hkt3 hft hkd3 hmid hkd4 (t := t.bv)
     rw [hspec]
-    refine WP.spec_mono (hTl.wakeTail s5 a _ d' hR5 hS5 hdT) ?_
+    refine WP.spec_mono (hTl.wakeTail s5 a _ d' hR5 hS5 hdT
+      (wake_recvD hTO hk hkd (by rw [hstd]; rfl) e2 hU hmid hkd4)) ?_
     rintro ⟨s7, a7⟩ ⟨ha7, hnf, σ', hm, hf, hv, hS'⟩
     exact ⟨ha7, hnf, σ', hm, hR5.frame hP hf hv, hS'⟩
 
@@ -236,7 +237,7 @@ theorem send_ipc_recv_bufD_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Prop} (
           Fl4Spec.schedContextDonate (Z := Unit) (Fl4Spec.the threadSc) d.bv) σ3 = ({((), σ4)}, False) ∧
         EpStateRel T E R B (L.mem r.1) σ4 ∧ SR r.1 σ4 ∧ σ4.kheap d.bv = some (.tcb x4) ∧ tsCode x4.tcbState ≠ 6 ∧
         (∀ e'' ∈ E, ∀ z, σ4.kheap e''.bv = some (.endpoint z) → d.bv ∉ z.epQueue) ⦄)
-    (blk : Bool) :
+    (hTO : SVK.TailOK σ) (blk : Bool) :
     endpoint.send_ipc st ar s a blk false badge g gr true t e ⦃ r => r.2 = a ∧
       ¬ (Fl4Spec.sendIpc (Z := Unit) blk false badge.bv g gr true t.bv e.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.sendIpc (Z := Unit) blk false badge.bv g gr true t.bv e.bv σ).1 ∧
@@ -356,7 +357,8 @@ theorem send_ipc_recv_bufD_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Prop} (
     rintro s5 ⟨hR5, hS5⟩
     have hspec := sendIpc_recvD_eq hk hkd hde hstd blk badge.bv g gr e2 hU hkt3 hft hkd3 hmid hkd4 (t := t.bv)
     rw [hspec]
-    refine WP.spec_mono (hTl.wakeTail s5 a _ d' hR5 hS5 hdT) ?_
+    refine WP.spec_mono (hTl.wakeTail s5 a _ d' hR5 hS5 hdT
+      (wake_recvD hTO hk hkd (by rw [hstd]; rfl) e2 hU hmid hkd4)) ?_
     rintro ⟨s7, a7⟩ ⟨ha7, hnf, σ', hm, hf, hv, hS'⟩
     exact ⟨ha7, hnf, σ', hm, hR5.frame hP hf hv, hS'⟩
 

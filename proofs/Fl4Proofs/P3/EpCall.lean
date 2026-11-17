@@ -66,7 +66,7 @@ theorem send_ipc_call_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Prop} (hX : 
       xr.replyTcb = some d.bv)
     (hg : g = true ∨ gr = true)
     (hrp0 : ∀ e' rep dd, xd.tcbState = .blockedOnReceive e' rep dd → rep ≠ none)
-    (blk : Bool) :
+    (hTO : SVK.TailOK σ) (blk : Bool) :
     endpoint.send_ipc st ar s a blk true badge g gr false t e ⦃ r => r.2 = a ∧
       ¬ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr false t.bv e.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr false t.bv e.bv σ).1 ∧
@@ -191,7 +191,10 @@ theorem send_ipc_call_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Prop} (hX : 
     have hspec := sendIpc_call_eq hk hkd hde (by rw [hstd]) blk badge.bv _ _ hg' e2 e3 hkt3 hkd3 hP4 hkd4
       (t := t.bv)
     rw [hspec]
-    refine WP.spec_mono (hTl.wakeTail s5 _ _ d' hR5 hS5 hdT) ?_
+    refine WP.spec_mono (hTl.wakeTail s5 _ _ d' hR5 hS5 hdT
+      (wake_call hTO hk hkd (by rw [hstd]; rfl) e2
+        (by first | exact SVK.SVM.of_eq (SVK.sv_replyUnlinkTcb _ _) e3 | exact SVK.SVM.of_eq (SVK.sv_maybeM (fun r => SVK.sv_replyUnlinkTcb _ r) _) e3)
+        hkt3 hkd3 hP4 hkd4)) ?_
     rintro ⟨s7, a7⟩ ⟨ha7, hnf, σ', hm, hf, hv, hS'⟩
     exact ⟨ha7, hnf, σ', hm, hR5.frame hP hf hv, hS'⟩
   · cases g with
@@ -220,7 +223,10 @@ theorem send_ipc_call_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Prop} (hX : 
       have hspec := sendIpc_call_eq hk hkd hde (by rw [hstd]) blk badge.bv _ _ hg' e2 e3 hkt3 hkd3 hP4 hkd4
         (t := t.bv)
       rw [hspec]
-      refine WP.spec_mono (hTl.wakeTail s5 _ _ d' hR5 hS5 hdT) ?_
+      refine WP.spec_mono (hTl.wakeTail s5 _ _ d' hR5 hS5 hdT
+      (wake_call hTO hk hkd (by rw [hstd]; rfl) e2
+        (by first | exact SVK.SVM.of_eq (SVK.sv_replyUnlinkTcb _ _) e3 | exact SVK.SVM.of_eq (SVK.sv_maybeM (fun r => SVK.sv_replyUnlinkTcb _ r) _) e3)
+        hkt3 hkd3 hP4 hkd4)) ?_
       rintro ⟨s7, a7⟩ ⟨ha7, hnf, σ', hm, hf, hv, hS'⟩
       exact ⟨ha7, hnf, σ', hm, hR5.frame hP hf hv, hS'⟩
 
@@ -250,7 +256,10 @@ theorem send_ipc_call_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Prop} (hX : 
       have hspec := sendIpc_call_eq hk hkd hde (by rw [hstd]) blk badge.bv _ _ hg' e2 e3 hkt3 hkd3 hP4 hkd4
         (t := t.bv)
       rw [hspec]
-      refine WP.spec_mono (hTl.wakeTail s5 _ _ d' hR5 hS5 hdT) ?_
+      refine WP.spec_mono (hTl.wakeTail s5 _ _ d' hR5 hS5 hdT
+      (wake_call hTO hk hkd (by rw [hstd]; rfl) e2
+        (by first | exact SVK.SVM.of_eq (SVK.sv_replyUnlinkTcb _ _) e3 | exact SVK.SVM.of_eq (SVK.sv_maybeM (fun r => SVK.sv_replyUnlinkTcb _ r) _) e3)
+        hkt3 hkd3 hP4 hkd4)) ?_
       rintro ⟨s7, a7⟩ ⟨ha7, hnf, σ', hm, hf, hv, hS'⟩
       exact ⟨ha7, hnf, σ', hm, hR5.frame hP hf hv, hS'⟩
 
@@ -271,12 +280,12 @@ theorem send_ipc_call (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E R B SR
       xr.replyTcb = some d.bv)
     (hg : g = true ∨ gr = true)
     (hrp0 : ∀ e' rep dd, xd.tcbState = .blockedOnReceive e' rep dd → rep ≠ none)
-    (blk : Bool) :
+    (hTO : SVK.TailOK σ) (blk : Bool) :
     endpoint.send_ipc st ar s a blk true badge g gr false t e ⦃ r => r.2 = a ∧
       ¬ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr false t.bv e.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr false t.bv e.bv σ).1 ∧
         EpStateRel T E R B (L.mem r.1) σ' ∧ SR r.1 σ' ⦄ :=
-  send_ipc_call_gen (EpHyps.steps (ar := ar) hH hBf (fun _ => True) (fun _ _ => trivial)) hTl hP s a σ hR hSR ht hkt hnb hft trivial he hk hkd hrb badge g gr (Or.inr hcaps) hback hg hrp0 blk
+  send_ipc_call_gen (EpHyps.steps (ar := ar) hH hBf (fun _ => True) (fun _ _ => trivial)) hTl hP s a σ hR hSR ht hkt hnb hft trivial he hk hkd hrb badge g gr (Or.inr hcaps) hback hg hrp0 hTO blk
 
 end
 

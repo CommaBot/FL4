@@ -667,9 +667,10 @@ theorem ReplyHyps.ofL (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
     (hepE : ∀ s σ (t : U64) (x : Fl4Spec.Tcb) (p bd : Fl4Spec.Word) (r : Fl4Spec.CapRights),
       IRel st th cr N T C E R B c s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
       x.tcbTimeoutHandler = .endpointCap p bd r → ∀ e : U64, e.bv = p → e ∈ E)
-    (hinv : ∀ s σ, IRel st th cr N T C E R B c s σ → Sched.Inv σ) :
+    (hinv : ∀ s σ, IRel st th cr N T C E R B c s σ → Sched.Inv σ)
+    (hTOI : ∀ s σ, IRel st th cr N T C E R B c s σ → SVK.TailOK σ) :
     ReplyHyps st ar th cr N T C E R B c :=
-  ReplyHyps.ofT hH hBf hBm hTl hP hSV (ReplyTmoHyps.ofPost hP hPO htx hepE) hrem (unblock_top hP) hinv
+  ReplyHyps.ofT hH hBf hBm hTl hP hSV (ReplyTmoHyps.ofPost hP hPO htx hepE) hrem (unblock_top hP) hinv hTOI
 
 end Reply
 

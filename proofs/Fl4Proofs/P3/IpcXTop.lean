@@ -109,9 +109,10 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 
 /-- The IPC tails' shared hypotheses at sets `Z` (with the spec's CR3 `cr`):
 `KsApart`, the scheduler and buffer steps (`IpcSchedHyps`, `EpBufHyps`,
-`EpBufMapHyps`), the switch target ready on `IRel` (`act`, for the
-endpoint tails `IpcEpTailHyps`: `IpcZ.Tl`), placement, and the current
-thread in `Z.T`. -/
+`EpBufMapHyps`), the spec's scheduler view at the entry state ready for the
+endpoint tails' wakes (`tail`: `TailOK`, the switch target's SC ready, the
+SCs bound back, the target runnable), placement, and the current thread in
+`Z.T`. -/
 structure IpcZ (cr : Fl4Spec.Cr3) (s : S) (σ : Fl4Spec.State Unit) (ct : U64) (Z : XSets) : Prop where
   ks : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)
   bt : BufWordRel Z.T (L.mem s) σ
@@ -119,8 +120,7 @@ structure IpcZ (cr : Fl4Spec.Cr3) (s : S) (σ : Fl4Spec.State Unit) (ct : U64) (
     (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c))
   Bf : EpBufHyps st Z.T Z.E Z.R Z.B (SRT st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c))
   Bm : EpBufMapHyps st Z.T Z.E Z.R Z.B (SRT st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c))
-  act : ∀ s σ, IpcRel Z.N Z.T Z.E Z.R Z.B (L.mem s) σ →
-    SRT st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c) s σ → ActReady σ
+  tail : SVK.TailOK σ
   P : IPlaced Z.N Z.T Z.E Z.R Z.B
   ct : ct ∈ Z.T
 
@@ -129,7 +129,7 @@ theorem IpcZ.Tl {cr : Fl4Spec.Cr3} {s : S} {σ : Fl4Spec.State Unit} {ct : U64} 
     (h : IpcZ (L := L) arI cr s σ ct Z) :
     IpcEpTailHyps st A Z.N Z.T Z.E Z.R Z.B (SRT st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c
       (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c)) :=
-  ipcEpTailHyps_top h.P h.act
+  ipcEpTailHyps_top h.P
 
 /-- **`IpcVsFrame` for an endpoint cap with the send right**: `send_tail_top`
 at every `Z` the entry's `XTopAt` holds at. Named: `IpcZ` and the send
@@ -151,7 +151,7 @@ theorem ipcVsFrame_endpoint {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {�
     IpcVsFrame (L := L) arI AR s a σ σ1 ct blk call don (.Endpoint p b true rv g gr) :=
   xleaf_of_irel (fun Z hX => ⟨(hZ Z hX).1.ks, (hZ Z hX).1.bt⟩) (fun Z hX hI =>
     let ⟨hz, hSV, hso, hp, hU⟩ := hZ Z hX
-    send_tail_top hz.H hz.Bf hz.Bm hz.Tl hz.P hSV hso s a σ hI hz.ct hcur hkt hrun hft hst hp b blk call g gr don hU)
+    send_tail_top hz.H hz.Bf hz.Bm hz.Tl hz.P hSV hso s a σ hI hz.ct hcur hkt hrun hft hst hp b blk call g gr don hz.tail hU)
     (fun _ h => AK.send_tail hS hA hK h)
 
 /-- **`IpcVsFrame` for a notification cap with the send right**:
@@ -192,7 +192,7 @@ theorem ipcVsFrame_reply {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ �
     IpcVsFrame (L := L) arI AR s a σ σ1 ct blk call don (.Reply p g) :=
   xleaf_of_irel (fun Z hX => ⟨(hZ Z hX).1.ks, (hZ Z hX).1.bt⟩) (fun Z hX hI =>
     let ⟨hz, hRH, hSV, hOC, hIS, hp⟩ := hZ Z hX
-    reply_tail_inv hz.H hz.Bf hz.Bm hz.P hRH hz.Tl hmb hSV hOC hIS s a σ hI hz.ct hcur hkt hrun hft hst hp g)
+    reply_tail_inv hz.H hz.Bf hz.Bm hz.P hRH hz.Tl hmb hSV hOC hIS s a σ hI hz.ct hcur hkt hrun hft hst hp g hz.tail)
     (fun _ h => AK.reply_tail hS hA hK h)
 
 end

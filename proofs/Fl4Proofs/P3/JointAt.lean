@@ -227,11 +227,9 @@ theorem ipcZ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (cr : Fl4Spec.Cr3
     (hBf : EpBufHyps st Z.T Z.E Z.R Z.B (SRT st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c)))
     (hBm : EpBufMapHyps st Z.T Z.E Z.R Z.B (SRT st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c
       (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c)))
-    (hact : ∀ s σ, IpcRel Z.N Z.T Z.E Z.R Z.B (L.mem s) σ →
-      SRT st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c) s σ → ActReady σ)
-    (hct : ct ∈ Z.T) :
+    (htail : SVK.TailOK σ) (hct : ct ∈ Z.T) :
     IpcZ (L := L) arI cr s σ ct Z :=
-  ⟨J.ks, J.buf, hH, hBf, hBm, hact, J.ip, hct⟩
+  ⟨J.ks, J.buf, hH, hBf, hBm, htail, J.ip, hct⟩
 
 /-- `CurInv` when no reschedule is pending. -/
 theorem curInv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (h : σ.schedulerAction ≠ .chooseNewThread) :

@@ -78,7 +78,7 @@ sporadic check keeping a TCB's SC. -/
 structure IpcEpTailHyps (A : Type) (N T E R : Set U64) (B : Set (U64 × Fl4Spec.Word))
     (SR : S → Fl4Spec.State Unit → Prop) : Prop where
   wakeTail : ∀ s (a : A) σ (t : U64), IpcRel N T E R B (L.mem s) σ → SR s σ → t ∈ T →
-    (do
+    SVK.WakeOK σ t.bv → (do
       let s1 ← endpoint.unblock_sporadic st s t
       let s2 ← sched.possible_switch_to st s1 t
       ok (s2, a)) ⦃ r => r.2 = a ∧ TailPostI st N T E R B SR s σ (specWakeTailE t.bv) r.1 ⦄
@@ -86,7 +86,7 @@ structure IpcEpTailHyps (A : Type) (N T E R : Set U64) (B : Set (U64 × Fl4Spec.
     endpoint.unblock_sporadic st s t ⦃ s' => ∃ σ', specSporadicAssert t.bv σ = ({((), σ')}, False) ∧
       Agree (L.mem s) (L.mem s') (IFoot N T E R B) ∧ IKView σ σ' ∧ SR s' σ' ⦄
   switchTo : ∀ s (a : A) σ (t : U64), IpcRel N T E R B (L.mem s) σ → SR s σ → t ∈ T →
-    (do
+    SVK.ActReadyW σ → (do
       let s1 ← sched.possible_switch_to st s t
       ok (s1, a)) ⦃ r => r.2 = a ∧ TailPostI st N T E R B SR s σ (Fl4Spec.possibleSwitchTo t.bv) r.1 ⦄
   sporadicSc : ∀ σ σ' (t : U64) (x : Fl4Spec.Tcb), specSporadicAssert t.bv σ = ({((), σ')}, False) →
@@ -134,13 +134,13 @@ theorem EpBufMapHyps.srs (h : EpBufMapHyps st T E R B SR) : EpBufMapHyps st T E 
 /-- The tails for `SRN N T (SRS T SR)`. -/
 theorem IpcEpTailHyps.tail (h : IpcEpTailHyps st A N T E R B SR) (hP : IPlaced N T E R B) :
     EpTailHyps st A T E R B (SRN st N T (SRS st T SR)) :=
-  ⟨fun s a σ t hR hS ht => WP.spec_mono (h.wakeTail s a σ t (IpcRel.ofSRN hR hS).1 hS.1.1 ht)
+  ⟨fun s a σ t hR hS ht hW => WP.spec_mono (h.wakeTail s a σ t (IpcRel.ofSRN hR hS).1 hS.1.1 ht hW)
       fun _ ⟨h1, h2, σ', h3, h4, h5, h6⟩ => ⟨h1, h2, σ', h3, fun b hb hf => h4 b hb (EFoot.ifoot hf), h5.2.1,
         ⟨h6, ScRelM.frame hP hS.1.2 h4 h5⟩, hS.2.frame hP.n (fun b hb hf => h4 b hb (NFoot.ifoot hP hf)) h5.1⟩,
    fun s σ t hR hS ht => WP.spec_mono (h.sporadicAssert s σ t (IpcRel.ofSRN hR hS).1 hS.1.1 ht)
       fun _ ⟨σ', h1, h4, h5, h6⟩ => ⟨σ', h1, fun b hb hf => h4 b hb (EFoot.ifoot hf), h5.2.1,
         ⟨h6, ScRelM.frame hP hS.1.2 h4 h5⟩, hS.2.frame hP.n (fun b hb hf => h4 b hb (NFoot.ifoot hP hf)) h5.1⟩,
-   fun s a σ t hR hS ht => WP.spec_mono (h.switchTo s a σ t (IpcRel.ofSRN hR hS).1 hS.1.1 ht)
+   fun s a σ t hR hS ht hW => WP.spec_mono (h.switchTo s a σ t (IpcRel.ofSRN hR hS).1 hS.1.1 ht hW)
       fun _ ⟨h1, h2, σ', h3, h4, h5, h6⟩ => ⟨h1, h2, σ', h3, fun b hb hf => h4 b hb (EFoot.ifoot hf), h5.2.1,
         ⟨h6, ScRelM.frame hP hS.1.2 h4 h5⟩, hS.2.frame hP.n (fun b hb hf => h4 b hb (NFoot.ifoot hP hf)) h5.1⟩⟩
 
