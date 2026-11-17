@@ -555,6 +555,46 @@ theorem decode_invocation_cnodeJ_step (s : S) (ar : A) (σ : Fl4Spec.State Unit)
   XCap.jat arI (decode_invocation_cnodeJAt arI s ar σ J hni hG hARI hT lbl slbl hlbl length buf ct hct args hlen hargs sl hAs p r gs g hsc extra x0 x1 hx0 hx1 excaps hex hrun hZ hE blk call don fp ci buffer) J hR
 
 set_option maxHeartbeats 4000000 in
+/-- **The CNode cap, `JAt` after**, the copy, mint, move, mutate and rotate
+labels by their primitive steps (`decode_invocation_cnode_copyXS`,
+`Steps.jat` with `JStepHyps`), the per-op premise (`JPostHyp` [W]) only at
+the other labels (Revoke, Delete, CancelBadgedSends, the invalid ones). -/
+theorem decode_invocation_cnodeJ_steps (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hG : CsGlobal (L := L) arI AR Z.th)
+    (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hJ : JStepHyps (L := L) arI AR Z.th)
+    (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = cnodeLabelOf lbl)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (sl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th sl) (p r gs g : U64)
+    (hsc : capV (L.mem s) (cslotAddr sl) = .CNode p r gs g)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 : U64)
+    (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel2 Z.th (L.mem s) x0 x1 (excaps.map Prod.fst))
+    (hrun : ∀ xt, σ.kheap ct.bv = some (.tcb xt) → tsCode xt.tcbState < 3)
+    (hZ : ∀ Z' : XSets, XTopAt (L := L) AR Z' s ar σ → KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s) ∧
+      BufWordRel Z'.T (L.mem s) σ ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧
+      ∀ s' σ', IRel st Z'.th σ.archState.x64CurrentCr3 Z'.N Z'.T Z'.C Z'.E Z'.R Z'.B Z'.c s' σ' → ActReady σ')
+    (hE : ∀ (Z' : XSets) (e b : U64) (sl : Fl4Spec.CslotPtr), XTopAt (L := L) AR Z' s ar σ → AbsSlot Z.th sl →
+      capV (L.mem s) (cslotAddr sl) = .Endpoint e b true true true true → e ∈ Z'.E)
+    (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
+    (hR : ¬ (28 ≤ lbl.val ∧ lbl.val ≤ 32) → JPostHyp (L := L) arI AR s ar σ lbl length (cslotAddr sl)
+      (.CNode p r gs g) blk call don fp buf extra slbl (args.map UScalar.bv) ci sl excaps buffer ct) :
+    XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.CNode p r gs g) blk call don fp buf extra
+      slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
+  by_cases hcp : 28 ≤ lbl.val ∧ lbl.val ≤ 32
+  · have hX := J.xtop
+    obtain ⟨hcur, -⟩ := J.curEq hct
+    obtain ⟨hwf, hcv⟩ := slot_cap_wf hX hAs hsc
+    exact decode_invocation_cnode_copyXS arI s ar σ hX (J.curRun.run hni) ⟨Z, H, Cs, Ac, Lst, D, J⟩
+      (fun _ _ _ h => Steps.jat arI hARI.toMask hJ h rfl J) (fun _ _ _ h => JAt.xtop arI h) lbl hcp slbl hlbl
+      length buf ct hct args hlen hargs p r gs g hwf hcv ⟨cslotAddr sl, hAs.isSlot, hsc⟩ extra x0 x1 hx0 hx1
+      excaps hex J.kern.act hcur (cslotAddr sl) blk call don fp ci sl buffer
+  · exact decode_invocation_cnodeJ_step arI s ar σ J hni hG hARI hT lbl slbl hlbl length buf ct hct args hlen hargs
+      sl hAs p r gs g hsc extra x0 x1 hx0 hx1 excaps hex hrun hZ hE blk call don fp ci buffer (hR hcp)
+
+set_option maxHeartbeats 4000000 in
 /-- **`decode_invocation_threadJAt`, `JAt` after**, with the per-op premise (`JPostHyp` [W]). -/
 theorem decode_invocation_threadJ_step (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hG : CsGlobal (L := L) arI AR Z.th)
