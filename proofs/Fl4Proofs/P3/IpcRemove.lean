@@ -289,6 +289,23 @@ theorem remove_act {σ σ5 σ' : Fl4Spec.State Unit} (hJ : BlockedScActive σ) {
     · exact hJ.replies p y0 n hy0 hne
   simpa [Fl4Spec.scActive, hm] using ha0
 
+/-- **The receiver after `reply_unlink_tcb`**, from `Inv` after the call-stack
+part (`reply_remove_refines`): not released (it was blocked on the reply,
+`not_released_of`), and its SC, if any, bound back to it (`Inv.back`; the
+unlink writes only the reply and the thread's state). -/
+theorem unlink_rel_back {σ5 : Fl4Spec.State Unit} (hI : Inv σ5) {t r : Fl4Spec.ObjRef} {xt5 : Fl4Spec.Tcb}
+    {xr5 : Fl4Spec.Reply} (hkt : σ5.kheap t = some (.tcb xt5)) (hkr : σ5.kheap r = some (.reply xr5))
+    (hnr : Fl4Spec.runnable xt5.tcbState = false) :
+    t ∉ (unlinkSt σ5 t r xt5 xr5).releaseQueue ∧ ∀ p, xt5.tcbSchedContext = some p →
+      ∃ y n, (unlinkSt σ5 t r xt5 xr5).kheap p = some (.schedContext y n) ∧ y.scTcb = some t := by
+  have hq : (unlinkSt σ5 t r xt5 xr5).releaseQueue = σ5.releaseQueue := by
+    unfold unlinkSt stsAct; split_ifs <;> rfl
+  refine ⟨by rw [hq]; exact not_released_of hI hkt hnr, fun p hp => ?_⟩
+  obtain ⟨y, n, hy, hyt⟩ := hI.back t xt5 p hkt hp
+  have hpr : p ≠ r := fun e => by rw [e, hkr] at hy; cases hy
+  have hpt : p ≠ t := fun e => by rw [e, hkt] at hy; cases hy
+  exact ⟨y, n, by simp [unlinkSt, stsAct_kheap, updK, hpr, hpt, hy], hyt⟩
+
 set_option maxHeartbeats 4000000 in
 /-- **`reply_remove` on `IRel`** (`ReplyHyps.remove`): the call-stack part
 (`reply_remove_refines`) lifted by `tk_liftCW` (the spec's step `ScTKw` by
@@ -302,6 +319,8 @@ theorem remove_top (hP0 : IPlaced N T E R B)
         Fl4Spec.replyRemove (Z := Unit) t.bv r.bv σ = ({((), σ')}, False) ∧ IRel st th cr N T C E R B c res.1 σ' ∧
         σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = .inactive ∧ x'.tcbFault = x.tcbFault ∧
         (∀ p y n, σ'.kheap p = some (.schedContext y n) → y.scTcb = some t.bv → Fl4Spec.scActive y = true) ∧
+        t.bv ∉ σ'.releaseQueue ∧
+        (∀ p, x'.tcbSchedContext = some p → ∃ y n, σ'.kheap p = some (.schedContext y n) ∧ y.scTcb = some t.bv) ∧
         ∀ p y, p ≠ t.bv → σ.kheap p = some (.tcb y) → ∃ y', σ'.kheap p = some (.tcb y') ∧
           y'.tcbFault = y.tcbFault ∧ y'.tcbState = y.tcbState ⦄ := by
   intro s a σ r t x hX hr ht hk hst
@@ -321,12 +340,13 @@ theorem remove_top (hP0 : IPlaced N T E R B)
   obtain ⟨y5, hy5, hso5, -⟩ := hK.tcb hk
   rw [hkt5] at hy5; cases hy5
   have hrt' : r.bv ≠ t.bv := kheap_ne hkr hk (fun _ h1 h2 => by subst h1; cases h2)
+  have hRB := unlink_rel_back h4 hkt5 hkr5 (by rw [et5, hst]; rfl)
   refine ⟨rfl, _, { xt5 with tcbState := .inactive }, replyRemove_split hkr hrt hsp hul, hX6,
     by simp [unlinkSt, stsAct_kheap, updK], rfl, by rw [hso5],
     remove_act (hJ s σ hX) hk hst hsp (fun p y n hp => by
       have hpr : p ≠ r.bv := by rintro rfl; simp [unlinkSt, stsAct_kheap, updK, hrt'] at hp
       have hpt : p ≠ t.bv := by rintro rfl; simp [unlinkSt, stsAct_kheap, updK] at hp
-      simpa [unlinkSt, stsAct_kheap, updK, hpr, hpt] using hp), fun p y hp hy => ?_⟩
+      simpa [unlinkSt, stsAct_kheap, updK, hpr, hpt] using hp), hRB.1, hRB.2, fun p y hp hy => ?_⟩
   obtain ⟨y', hy', hso, -⟩ := hK.tcb hy
   obtain ⟨y'', hy'', es⟩ := huf.2 _ y hy
   rw [hy'] at hy''; cases hy''

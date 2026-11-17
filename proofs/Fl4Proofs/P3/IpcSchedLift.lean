@@ -651,6 +651,8 @@ theorem ReplyHyps.ofL (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
         Fl4Spec.replyRemove (Z := Unit) t.bv r.bv σ = ({((), σ')}, False) ∧ IRel st th cr N T C E R B c res.1 σ' ∧
         σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = .inactive ∧ x'.tcbFault = x.tcbFault ∧
         (∀ p y n, σ'.kheap p = some (.schedContext y n) → y.scTcb = some t.bv → Fl4Spec.scActive y = true) ∧
+        t.bv ∉ σ'.releaseQueue ∧
+        (∀ p, x'.tcbSchedContext = some p → ∃ y n, σ'.kheap p = some (.schedContext y n) ∧ y.scTcb = some t.bv) ∧
         ∀ p y, p ≠ t.bv → σ.kheap p = some (.tcb y) → ∃ y', σ'.kheap p = some (.tcb y') ∧
           y'.tcbFault = y.tcbFault ∧ y'.tcbState = y.tcbState ⦄)
     (hPO : ∀ s σ (t sc : U64) (x : Fl4Spec.Tcb) (y : Fl4Spec.SchedContext) (n : Nat),
@@ -666,10 +668,9 @@ theorem ReplyHyps.ofL (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
           (SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c)))) s1 σ1 t d e bdg g xd s' ⦄)
     (hepE : ∀ s σ (t : U64) (x : Fl4Spec.Tcb) (p bd : Fl4Spec.Word) (r : Fl4Spec.CapRights),
       IRel st th cr N T C E R B c s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
-      x.tcbTimeoutHandler = .endpointCap p bd r → ∀ e : U64, e.bv = p → e ∈ E)
-    (hinv : ∀ s σ, IRel st th cr N T C E R B c s σ → Sched.Inv σ) :
+      x.tcbTimeoutHandler = .endpointCap p bd r → ∀ e : U64, e.bv = p → e ∈ E) :
     ReplyHyps st ar th cr N T C E R B c :=
-  ReplyHyps.ofT hH hBf hBm hTl hP hSV (ReplyTmoHyps.ofPost hP hPO htx hepE) hrem (unblock_top hP) hinv
+  ReplyHyps.ofT hH hBf hBm hTl hP hSV (ReplyTmoHyps.ofPost hP hPO htx hepE) hrem (unblock_top hP)
 
 end Reply
 

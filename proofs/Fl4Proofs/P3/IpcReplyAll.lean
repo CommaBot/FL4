@@ -8,9 +8,10 @@ endpoint (`epE_of`) and the endpoint tails (IpcEpTail's
 `ipcEpTailHyps_top`). What is left is named l4v and platform facts:
 `IpcSchedHyps`, `EpBufHyps` and `EpBufMapHyps` (the scheduler and buffer
 steps), `SchedValid`, `QSorted`, `ActReady`, `RemoveOK`, `Inv`, `ObjCover`,
-`TmoCapsValid`, `hmax`, `htu`. The receiver not released at `postpone` is
-derived at the call site (IpcReply: inactive after `reply_remove`, `Inv.rel`,
-carried by IpcRelQ's `RQK`), l4v's `not_in_release_q`.
+`TmoCapsValid`, `hmax`, `htu` (`Inv` only for `postponeOK_of`). The receiver
+not released at `postpone` and its SC bound back to it are `remove_top`'s post
+(`unlink_rel_back`: `Inv` after the call-stack part, inside `reply_remove`),
+carried to the tail by IpcRelQ's `RQK` and `SVS`/`MaxK.SCK` (IpcReply).
 -/
 import Fl4Proofs.P3.IpcRemove
 import Fl4Proofs.P3.IpcTmo
@@ -42,7 +43,7 @@ theorem replyHyps_of (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R 
   ReplyHyps.ofL hH hBf hBm (ipcEpTailHyps_top hP0) hP0 hSV (remove_top hP0 hD hJ)
     (fun s σ t sc x y n hX ht _ hk _ hsc hky hnrq => postponeOK_of (hInv s σ hX) hk hsc hky hnrq)
     (tmoXfer_top hH hBf hBm hP0 hmax htu)
-    (fun s σ t x p bd r hX _ hk hh => epE_of (hO s σ hX) (hV s σ hX) hk hh) hInv
+    (fun s σ t x p bd r hX _ hk hh => epE_of (hO s σ hX) (hV s σ hX) hk hh)
 
 end
 
