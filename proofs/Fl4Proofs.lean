@@ -113,6 +113,7 @@ import Fl4Proofs.P3.IpcCancelAllIpc
 import Fl4Proofs.P3.IpcFinReply
 import Fl4Proofs.P3.XTopFinVs
 import Fl4Proofs.P3.XTopFinSc
+import Fl4Proofs.P3.XTopFinThread
 import Fl4Proofs.P3.ScJointSchFrame
 import Fl4Proofs.P3.ScJointSchTail
 import Fl4Proofs.P3.ScSchedRun
