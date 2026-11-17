@@ -62,7 +62,7 @@ theorem JAtZ.sch_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     ⟨pt, by rw [hK.gpml4]; exact hT.archObj hpt⟩, by rw [hK.gpml4]; exact K.ga, by rw [hK.gpml4]; exact K.gf,
     K.heap, K.h0, by rw [hks]; exact K.hks, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
-    by rw [hcpu]; exact K.cpuCs, J.zH.1 _ hcT, hcscH, hcscL, K.csLt⟩
+    by rw [hcpu]; exact K.cpuCs, J.zH.1 _ hcT, hcscH, hcscL, K.csLt, K.cs0⟩
   rw [hna, hDbg]; exact K.head
 
 /-- **The new current SC after a scheduler step**: `H`'s (the spec's SC,

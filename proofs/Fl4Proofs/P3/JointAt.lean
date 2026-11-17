@@ -113,6 +113,9 @@ structure JKern (H : P1.Heap) (Cs D : Set U64) (th : TypedHeap) (s : S) (σ : Fl
   cscLive : L.cscW s ∉ D
   /-- [carried] The cores are numbered below 64 (boot; `Cs` never grows). -/
   csLt : ∀ c ∈ Cs, c.val < 64
+  /-- [carried] Core 0, the boot core, is among the cores (boot; `Cs` never
+  shrinks). -/
+  cs0 : 0#u64 ∈ Cs
 
 /-- **The joint invariant at the ghosts** (module docstring; plan §1). -/
 structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64)
