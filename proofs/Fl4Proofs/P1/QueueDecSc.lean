@@ -33,6 +33,25 @@ theorem Foot.ko {s s' : S} {Es : Set U64} (f : Foot st T Cs Sg Scs Z Es s s') (h
     WritesIn st s s' (KO st T Cs Ω H Sg Scs Z s) :=
   WritesIn.mono f fun _ hb => Or.inl (KW.mono hb hE)
 
+/-- `KO` with the debug-list words (`bind_tcb` moves a thread between cores'
+debug lists). -/
+def KOD (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Scs : Set U64) (Z : U64 → Nat)
+    (s0 : S) (b : U64) : Prop :=
+  KO st T Cs Ω H Sg Scs Z s0 b ∨ DbgW st T Cs s0 b
+
+theorem KOD.trans {s0 s s' : S} (h : WritesIn st s0 s (KO st T Cs Ω H Sg Scs Z s0))
+    (hw : WritesIn st s s' (KOD st T Cs Ω H Sg Scs Z s)) : WritesIn st s0 s' (KOD st T Cs Ω H Sg Scs Z s0) :=
+  (h.trans hw).mono fun _ hb => by
+    rcases hb with hb | hb | ⟨y, hy, e⟩ | ⟨c, hc, e⟩
+    · exact Or.inl hb
+    · exact Or.inl (KO.ksb h.1 hb)
+    · exact Or.inr (Or.inl ⟨y, hy, e⟩)
+    · exact Or.inr (Or.inr ⟨c, hc, by rw [e, nodeAt_of_ksb h.1]⟩)
+
+theorem FootD.kod {s s' : S} {Es : Set U64} (f : FootD st T Cs Sg Scs Z Es s s') (hE : Es ⊆ EH H) :
+    WritesIn st s s' (KOD st T Cs Ω H Sg Scs Z s) :=
+  WritesIn.mono f fun _ hb => hb.elim (fun hb => Or.inl (Or.inl (KW.mono hb hE))) Or.inr
+
 /-- Two writes to distinct aligned words commute (as far as the invariants
 see: `WritesIn` with no footprint). -/
 theorem wr_swap {s : S} {a b v w : U64} (ha : Aligned a) (hb : Aligned b) (hne : a.val ≠ b.val) :
@@ -307,7 +326,7 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
     (s : S) (a : A) (lbl sc : U64) (call : Bool) (extra : Aeneas.Std.Array obj.Slot 3#usize) (b : U64)
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.SchedContext sc b) extra) (he : EntAt st P3Ok s) :
     schedcontext.decode st ar s a lbl sc call extra ⦃ r s' _ => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ∧
-      WritesIn st s s' (KO st T Cs Ω H Sg Scs Z s) ⦄ := by
+      WritesIn st s s' (KOD st T Cs Ω H Sg Scs Z s) ⦄ := by
   have hS : P0.StoreTotal st := L.total
   have h := D.bxi
   obtain ⟨hsc, hsc0, hidle⟩ := D.cap.2.2 sc b rfl
@@ -327,8 +346,11 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
   try simp only [WP.uncurry'_pair]
   have W1 : WritesIn st s s1 (KO st T Cs Ω H Sg Scs Z s) :=
     WritesIn.mono w1 fun _ hb => NodeW.ko h.1.choose_spec.choose_spec.cur hb
-  have KT : ∀ {s' : S}, WritesIn st s1 s' (KO st T Cs Ω H Sg Scs Z s1) → WritesIn st s s' (KO st T Cs Ω H Sg Scs Z s) :=
-    fun w => KO.trans W1 w
+  have KT : ∀ {s' : S}, WritesIn st s1 s' (KO st T Cs Ω H Sg Scs Z s1) → WritesIn st s s' (KOD st T Cs Ω H Sg Scs Z s) :=
+    fun w => (KO.trans W1 w).mono fun _ hb => Or.inl hb
+  have KTD : ∀ {s' : S}, WritesIn st s1 s' (KOD st T Cs Ω H Sg Scs Z s1) →
+      WritesIn st s s' (KOD st T Cs Ω H Sg Scs Z s) :=
+    fun w => KOD.trans W1 w
   have hct : L.curW s ∈ T := h.1.choose_spec.choose_spec.curT
   have hO := h.2.2.1.1
   have hsub := h.2.2.2.1.sub
@@ -341,8 +363,8 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
   have hx1 := D.extra s1 w1
   have Er : ∀ e : error.SysError, (ok ((core.result.Result.Err (error.Exc.Sys e) : core.result.Result Unit error.Exc),
       s1, a1) : Result _) ⦃ r s' _ => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ∧
-        WritesIn st s s' (KO st T Cs Ω H Sg Scs Z s) ⦄ := fun e =>
-    (WP.spec_ok _).2 ⟨DecPost.of_bxi h1 (by simp), W1⟩
+        WritesIn st s s' (KOD st T Cs Ω H Sg Scs Z s) ⦄ := fun e =>
+    (WP.spec_ok _).2 ⟨DecPost.of_bxi h1 (by simp), W1.mono fun _ hb => Or.inl hb⟩
   step with sched.cur_thread.spec as ⟨ct, ect⟩
   have ect' : ct = L.curW s := ect.trans ec1
   subst ect'
@@ -412,11 +434,11 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
             let s2 ← sched.set_thread_state st s1 (L.curW s) sched.TS_RESTART
             let (s3, a2) ← schedcontext.bind_tcb st ar s2 a1 sc ptr
             ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s3, a2)) ⦃ r s' _ =>
-              DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ∧ WritesIn st s s' (KO st T Cs Ω H Sg Scs Z s) ⦄ := fun hbA =>
+              DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ∧ WritesIn st s s' (KOD st T Cs Ω H Sg Scs Z s) ⦄ := fun hbA =>
         WP.spec_mono (sc_bind_tcb.blkF hA s1 a1 _ sc ptr h1.blk hct run1 hpT hsc hsc0 z2 z1 hbA) fun r hr => by
           obtain ⟨r', s', a'⟩ := r
           simp only [WP.uncurry'_pair] at hr ⊢
-          exact ⟨DecPost.of_bxi (BlkOK.bxi hr.2.1) (by rw [hr.1]; simp), KT (Foot.ko hr.2.2 (Set.empty_subset _))⟩
+          exact ⟨DecPost.of_bxi (BlkOK.bxi hr.2.1) (by rw [hr.1]; simp), KTD (FootD.kod hr.2.2 (Set.empty_subset _))⟩
       split
       · refine WP.spec_bind (sporadic.sc_released.act s1 sc) fun b1 hb1 => ?_
         split

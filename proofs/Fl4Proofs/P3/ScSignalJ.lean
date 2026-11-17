@@ -256,7 +256,8 @@ theorem signalJHyp_of (hAT : P0.ArchTotal arI) (hW : SignalRestJHyp (L := L) arI
       (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH))) ?_
     rintro ⟨s', a'⟩ ⟨⟨ea, d, xd, σ', hmq, hkd, hxs, hdon', hsend, hmw, hIR, hF, hFS⟩, hb⟩
     try simp only [WP.uncurry'_pair] at hb
-    obtain ⟨hb, hfoot⟩ := hb
+    obtain ⟨hb, -, hfoot⟩ := hb
+    have hfoot := hfoot (J.donCore hn)
     subst ea
     have hdn : d.bv ≠ n.bv := by intro e; rw [e, hk] at hkd; cases hkd
     have hk1 : (updK σ n.bv (.notification (afterDequeue x d))).kheap d.bv = some (.tcb xd) := by

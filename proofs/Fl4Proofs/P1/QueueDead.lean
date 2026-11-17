@@ -192,7 +192,7 @@ theorem cai_round.dead {β : Type _} (s : S) (ep t : U64) (fuel1 : U64) (h : Blk
   rintro s1 ⟨⟨h1, f1, o1, n1, k1, c1, nc1⟩, ⟨hq1, hst1⟩, w1⟩
   have herase : (y :: ys).erase y = ys := List.erase_cons_head y ys
   rw [herase] at hq1 hst1
-  have tm1 : TmFr st T Cs Nt s s1 := ⟨k1, fun y hy K a b c => f1 y hy K (by omega) c (by omega) (by omega),
+  have tm1 : TmFr st T Cs Nt s s1 := TmFr.mk0 ⟨k1, fun y hy K a b c => f1 y hy K (by omega) c (by omega) (by omega),
     fun c hc o ho => nc1 c hc o (by omega) (by omega), fun n' hn' => o1 _ (hSg.sub _ (hX.1.ntB n' hn').2)⟩
   obtain ⟨hB1, hX1, hS1, hSg1, ea1, ec1, ei1⟩ := frame_bx h0 hB hX hS hSg f1 o1 n1 k1 tm1
   have F1 : CaiFr st T Scs y s s1 := CaiFr.of_fields k1 ec1 ei1 ea1
@@ -563,7 +563,7 @@ theorem cas_round.dead {β : Type _} (s : S) (n t : U64) (fuel1 : U64) (h : BlkO
   have hnd := hq.nodup
   have herase : (y :: ys).erase y = ys := List.erase_cons_head y ys
   rw [herase] at hq1 hst1
-  have tm1 : TmFr st T Cs Nt s s1 := ⟨k1, fun y hy K a b c => f1 y hy K (by omega) c (by omega) (by omega),
+  have tm1 : TmFr st T Cs Nt s s1 := TmFr.mk0 ⟨k1, fun y hy K a b c => f1 y hy K (by omega) c (by omega) (by omega),
     fun c hc o ho => nc1 c hc o (by omega) (by omega), fun n' hn' => o1 _ (hSg.sub _ (hX.1.ntB n' hn').2)⟩
   obtain ⟨hB1, hX1, hS1, hSg1, ea1, ec1, ei1⟩ := frame_bx h0 hB hX hS hSg f1 o1 n1 k1 tm1
   have st1 : L.mem s1 (stA y) = sched.TS_BLOCKED_ON_NTFN := by
@@ -722,7 +722,7 @@ theorem ipc.reply_pop.blkZ {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal
     (hst : L.mem s (stA t) = sched.TS_BLOCKED_ON_REPLY)
     (hb : headBit (L.mem s (rNextA r)) = true) (hn0 : L.mem s (rNextA r) &&& ~~~1#u64 ≠ 0#u64) :
     ipc.reply_pop st ar s a r t ⦃ res => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac res.1 ∧
-      L.mem res.1 (stA t) = sched.TS_INACTIVE ∧ Foot st T Cs Sg Scs Z Es s res.1 ∧ L.mem res.1 (rTcbA r) = 0#u64 ⦄ := by
+      L.mem res.1 (stA t) = sched.TS_INACTIVE ∧ FootD st T Cs Sg Scs Z Es s res.1 ∧ L.mem res.1 (rTcbA r) = 0#u64 ⦄ := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   have hO := hX.1
   have hsub := hSg.sub
@@ -844,7 +844,7 @@ theorem ipc.reply_pop.blkZ {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal
   have hk3 : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s2 (rNextA r) 0#u64) := ⟨⟨Q, R, h3⟩, hB3, hX3', hS3, hSg3⟩
   refine WP.spec_bind (Pₘ := fun res : S × A => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac res.1 ∧
       L.mem res.1 (stA t) = sched.TS_BLOCKED_ON_REPLY ∧ L.mem res.1 (replyA t) = r ∧
-      Foot st T Cs Sg Scs Z Es (L.wr s2 (rNextA r) 0#u64) res.1) ?_ ?_
+      FootD st T Cs Sg Scs Z Es (L.wr s2 (rNextA r) 0#u64) res.1) ?_ ?_
   · split
     · rename_i hi0
       have hsc0 : L.mem (L.wr s2 (rNextA r) 0#u64) (scA t) = 0#u64 := by rw [← ei]; exact hi0
@@ -865,7 +865,7 @@ theorem ipc.reply_pop.blkZ {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal
         · intro e; rw [← e, hsc0] at hscf; exact hn0 hscf.symm
         · rintro ⟨s4, a4⟩ ⟨⟨hk, st4, rp4, -⟩, fk⟩
           exact ⟨hk, by rw [st4 t ht]; exact hst3, by rw [rp4 t ht]; exact hrp3, fk⟩
-    · exact (WP.spec_ok _).2 ⟨hk3, hst3, hrp3, Foot.refl _⟩
+    · exact (WP.spec_ok _).2 ⟨hk3, hst3, hrp3, Foot.d (Foot.refl _)⟩
   rintro ⟨s4, a4⟩ ⟨hk4, st4, rp4, G4⟩
   dsimp only at hk4 st4 rp4 G4 ⊢
   refine WP.spec_bind (obj.Reply.set_prev.val s4 r 0#u64) fun s5 e5 => ?_
@@ -882,7 +882,7 @@ theorem ipc.reply_pop.blkZ {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal
     foot_sgw (hal _ (hrΩ r hr).2.1) (hO.prevW hr)
   refine WP.spec_bind (ipc.reply_unlink.blk (Es := Es) _ r t hk5 hr ht hrt5 hst5) ?_
   rintro s6 ⟨h6, e6, -, z6, G6⟩
-  exact (WP.spec_ok _).2 ⟨h6, e6, G3.trans (G4.trans (G5.trans G6)), z6⟩
+  exact (WP.spec_ok _).2 ⟨h6, e6, (Foot.d G3).trans (G4.trans (Foot.d (G5.trans G6))), z6⟩
 
 /-- seL4 `reply_remove`: a stack head is popped (`reply_pop`); otherwise the
 reply leaves the middle of its stack (its neighbours' links to it are
@@ -892,7 +892,7 @@ theorem ipc.reply_remove.blkZ {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTo
     (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hr : r ∈ Rp) (ht : t ∈ T) (hrt : L.mem s (rTcbA r) = t)
     (hst : L.mem s (stA t) = sched.TS_BLOCKED_ON_REPLY) :
     ipc.reply_remove st ar s a r t ⦃ res => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac res.1 ∧
-      L.mem res.1 (stA t) = sched.TS_INACTIVE ∧ Foot st T Cs Sg Scs Z Es s res.1 ∧ L.mem res.1 (rTcbA r) = 0#u64 ⦄ := by
+      L.mem res.1 (stA t) = sched.TS_INACTIVE ∧ FootD st T Cs Sg Scs Z Es s res.1 ∧ L.mem res.1 (rTcbA r) = 0#u64 ⦄ := by
   have hX := h.2.2.1
   have hO := hX.1
   have ht0 : t ≠ 0#u64 := fun e0 => (h.1.choose_spec.choose_spec.tcbs t ht).ne0 (by rw [e0]; rfl)
@@ -971,10 +971,10 @@ theorem ipc.reply_remove.blkZ {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTo
       refine WP.spec_bind (obj.Reply.set_prev.val s _ 0#u64) fun s1 e1 => ?_
       rw [zero_or_masked] at e1; subst e1
       obtain ⟨h1, e1, r1, g1⟩ := W h hst hrp hnR (Or.inl rfl)
-      exact WP.spec_mono (P _ h1 e1 r1) fun r hr => ⟨hr.1, hr.2.1, g1.trans hr.2.2.1, hr.2.2.2⟩
+      exact WP.spec_mono (P _ h1 e1 r1) fun r hr => ⟨hr.1, hr.2.1, Foot.d (g1.trans hr.2.2.1), hr.2.2.2⟩
   · rename_i hn0
     simp only [Aeneas.Std.bind_ok]
-    exact P s h hst hrp
+    exact WP.spec_mono (P s h hst hrp) fun r hr => ⟨hr.1, hr.2.1, Foot.d hr.2.2.1, hr.2.2.2⟩
 
 
 

@@ -418,15 +418,19 @@ theorem objects.post_cap_deletion.cur0 {A : Type _} {ar : machine.Arch A} (hA : 
   all_goals try exact (WP.spec_ok _).2 h
   · rename_i irq
     have hi := hc.2.1 irq rfl
-    unfold interrupt.deleted_irq_handler interrupt.set_irq_state interrupt.state_off
-    simp only [lift, bind_ok]
-    refine WP.spec_bind (Pₘ := fun o : U64 => o.val = 224 + 8 * irq.val) ?_ fun o ho => ?_
-    · refine WP.spec_bind P0.Consts.layout.ks.IRQ_STATE.spec fun b eb => ?_
-      subst eb
-      refine (WP.spec_ok _).2 ?_
-      simp [core.num.U64.wrapping_add_val_eq, core.num.U64.wrapping_mul_val_eq, U64.size_def, U64.numBits]; omega
-    refine WP.spec_bind (h.ks (v := interrupt.IRQ_INACTIVE) (by omega) (by omega)) fun s1 h1 => ?_
-    exact WP.spec_bind (hA.mask_irq a irq _) fun a1 _ => (WP.spec_ok _).2 h1
+    unfold interrupt.deleted_irq_handler
+    refine WP.spec_bind (Pₘ := fun r : S × A => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.1) ?_ ?_
+    · unfold interrupt.set_irq_state interrupt.state_off
+      simp only [lift, bind_ok]
+      refine WP.spec_bind (Pₘ := fun o : U64 => o.val = 224 + 8 * irq.val) ?_ fun o ho => ?_
+      · refine WP.spec_bind P0.Consts.layout.ks.IRQ_STATE.spec fun b eb => ?_
+        subst eb
+        refine (WP.spec_ok _).2 ?_
+        simp [core.num.U64.wrapping_add_val_eq, core.num.U64.wrapping_mul_val_eq, U64.size_def, U64.numBits]; omega
+      refine WP.spec_bind (h.ks (v := interrupt.IRQ_INACTIVE) (by omega) (by omega)) fun s1 h1 => ?_
+      exact WP.spec_bind (hA.mask_irq a irq _) fun a1 _ => (WP.spec_ok _).2 h1
+    rintro ⟨s1, a1⟩ h1
+    exact WP.spec_bind (hA.irq_free a1 irq) fun a2 _ => (WP.spec_ok _).2 h1
   · rename_i f l o
     obtain ⟨hfl, hl⟩ := hc.2.2.1 f l o rfl
     unfold ioport.free_ioports

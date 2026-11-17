@@ -162,7 +162,7 @@ structure boot.Pick where
   start : Std.U64
 
 /-- Trait declaration: [fl4_core::machine::Arch]
-    Source: 'crates/fl4-core/src/machine.rs', lines 35:0-106:1
+    Source: 'crates/fl4-core/src/machine.rs', lines 35:0-109:1
     Visibility: public -/
 structure machine.Arch (Self : Type _) where
   virtualization : Self → Result Std.U64
@@ -179,6 +179,7 @@ structure machine.Arch (Self : Type _) where
   take_pending_irq : Self → Result (Std.U64 × Self)
   mask_irq : Self → Std.U64 → Bool → Result Self
   ack_irq : Self → Std.U64 → Result Self
+  irq_free : Self → Std.U64 → Result Self
   set_vspace : Self → Std.U64 → Std.U64 → Result Self
   invalidate_page : Self → Std.U64 → Std.U64 → Result Self
   invalidate_asid : Self → Std.U64 → Result Self

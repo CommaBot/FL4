@@ -2,7 +2,8 @@
 P3 (DESIGN.md §9): **FL4's half of `DomFrame` from P1's footprints**.
 
 * `DecFootP1`: a cap's branch of `decode_invocation` writes in `KW` of P1's
-  sets (`Foot`), `KW` lying apart from the domain schedule (`KWDom`);
+  sets and the debug-list words (`FootD`), both apart from the domain
+  schedule (`KWDom`, `DbgDom`);
   `decDomHyp_of_foot` turns it into `DecDomHyp` (AllDom), for any cap.
 * `decFootP1_notification`: the notification cap's, from P1's
   `set_thread_state.restart_blk` and `send_signal.tinvF`.
@@ -27,14 +28,21 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
+/-- P1's debug-list words (`DbgW`: the TCBs' debug links, the nodes'
+`DEBUG_TCBS` words) lie apart from the domain schedule (as `KWDom`). -/
+def DbgDom (T Cs : Set U64) (s : S) : Prop :=
+  ∀ b, P1.Aligned b → P1.DbgW st T Cs s b → b.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ b.val
+
 /-- **`DecDomHyp` in P1's shape**: the cap's branch of `decode_invocation`
-writes in `KW` of P1's sets (`Foot`), `KW` lying apart from the domain
-schedule. -/
+writes in `KW` of P1's sets and the debug-list words (`FootD`: a signal that
+donates an SC may move the receiver to another core's debug list), both
+lying apart from the domain schedule. -/
 def DecFootP1 (s : S) (ar : A) (lbl length slot : U64) (c : capability.Cap) (blk call don fp : Bool) (buf : U64)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) : Prop :=
   ∃ (T Cs Sg Scs : Set U64) (Z : U64 → Nat) (H : P1.Heap),
     syscall.decode_invocation st arI s ar lbl length slot c blk call don fp buf extra ⦃ r =>
-      P1.Foot st T Cs Sg Scs Z (P1.EH H) s r.2.1 ⦄ ∧ KWDom (L := L) T Cs Sg Scs Z (P1.EH H) s
+      P1.FootD st T Cs Sg Scs Z (P1.EH H) s r.2.1 ⦄ ∧ KWDom (L := L) T Cs Sg Scs Z (P1.EH H) s ∧
+      DbgDom (L := L) T Cs s
 
 /-- **`DecDomHyp` from P1's footprint**, for any cap. -/
 theorem decDomHyp_of_foot {s : S} {ar : A} {lbl length slot : U64} {c : capability.Cap} {blk call don fp : Bool}
@@ -42,12 +50,14 @@ theorem decDomHyp_of_foot {s : S} {ar : A} {lbl length slot : U64} {c : capabili
     (hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64) (hka : (L.ksb s).val % 8 = 0)
     (h : DecFootP1 (L := L) arI s ar lbl length slot c blk call don fp buf extra) :
     DecDomHyp (L := L) arI s ar lbl length slot c blk call don fp buf extra := by
-  obtain ⟨T, Cs, Sg, Scs, Z, H, hf, hD⟩ := h
+  obtain ⟨T, Cs, Sg, Scs, Z, H, hf, hD, hDD⟩ := h
   refine WP.spec_mono hf fun r hr => ⟨hr.1, fun o ho => ?_⟩
   obtain ⟨h1, h2⟩ := Sched.domOffs_lt ho
   refine hr.mem_eq (ksW_al hkf hka h1 h2) fun hk => ?_
   have hv := ksW_val (kb := L.ksb s) (o := o) (by omega)
-  rcases hD _ (ksW_al hkf hka h1 h2) hk with e | e <;> rw [hv] at e <;> omega
+  rcases hk with hk | hk
+  · rcases hD _ (ksW_al hkf hka h1 h2) hk with e | e <;> rw [hv] at e <;> omega
+  · rcases hDD _ (ksW_al hkf hka h1 h2) hk with e | e <;> rw [hv] at e <;> omega
 
 /-- **The notification cap's footprint**: the restart of a caller blocked on
 nothing (P1's `set_thread_state.restart_blk`), then `send_signal`
@@ -58,20 +68,20 @@ theorem decFootP1_notification {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt :
     (hB : P1.BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (hctT : ct ∈ T) (hnb : ¬ P1.Blocked (L.mem s (P1.stA ct)))
     (hnr : L.mem s (P1.stA ct) ≠ sched.TS_BLOCKED_ON_REPLY) (hpN : p ∈ Nt) (hH : H p = some .ntfn)
-    (hD : KWDom (L := L) T Cs Sg Scs Z (P1.EH H) s) :
+    (hD : KWDom (L := L) T Cs Sg Scs Z (P1.EH H) s) (hDD : DbgDom (L := L) T Cs s) :
     DecFootP1 (L := L) arI s ar lbl length slot (.Notification p b sd rv) blk call don fp buf extra := by
-  refine ⟨T, Cs, Sg, Scs, Z, H, ?_, hD⟩
+  refine ⟨T, Cs, Sg, Scs, Z, H, ?_, hD, hDD⟩
   unfold syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   cases sd
   · simp only [Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-    exact P1.Foot.refl _
+    exact P1.Foot.d (P1.Foot.refl _)
   · simp only [↓reduceIte]
     refine WP.spec_bind (P1.sched.set_thread_state.restart_blk (Es := P1.EH H) s ct hB hctT hnb hnr) ?_
     rintro s1 ⟨hB1, f1, -, -⟩
     refine WP.spec_bind (P1.notification.send_signal.tinvF hA s1 ar p b hB1 hpN hH) ?_
-    rintro ⟨s2, a1⟩ ⟨-, f2⟩
-    exact (WP.spec_ok _).2 (f1.trans f2)
+    rintro ⟨s2, a1⟩ ⟨-, f2, -⟩
+    exact (WP.spec_ok _).2 ((P1.Foot.d f1).trans f2)
 
 
 /-- **`DecDomHyp` from any write footprint** apart from the domain schedule
@@ -101,7 +111,7 @@ memory), and cap-slot words (`CapW`: a grant's receive slot and its MDB
 neighbours) apart from the first 256 bytes of the kernel-global block. -/
 def IpcFoot (T Cs Ω Sg Scs : Set U64) (Z : U64 → Nat) (H : P1.Heap) (U : Set U64) (s : S) (b : U64) : Prop :=
   P1.KW st T Cs Sg Scs Z (P1.EH H) s b ∨ P1.XferFoot T U b ∨
-    (P1.CapW T Ω Sg b ∧ (b.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ b.val))
+    (P1.CapW T Ω Sg b ∧ (b.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ b.val)) ∨ P1.DbgW st T Cs s b
 
 /-- **P1's footprint of `send_ipc`** (for the P1 side), under
 `send_ipc.ipc`'s preconditions (`XferOK`, an endpoint, a caller that can
@@ -132,13 +142,14 @@ words since they are not in `Ω` (`UserOK`) while the kernel-global words are
 (`SCsOK.ksΩ`); the cap-slot words by their own condition. -/
 theorem ipcFoot_apart {T Cs Ω Sg Scs : Set U64} {Z : U64 → Nat} {H : P1.Heap} {U Ac : Set U64} {s : S}
     (hD : KWDom (L := L) T Cs Sg Scs Z (P1.EH H) s) (hTP : P1.TcbPlaced T)
+    (hN : ∀ c ∈ Cs, P1.NodePlaced st T s c)
     (hTk : ∀ y ∈ T, y.val + 4096 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ y.val)
     (hUO : P1.UserOK st T Cs Ω H U s) (hSC : P1.SCsOK st T Ω Sg Scs Z Ac s)
     (hka : (L.ksb s).val % 8 = 0) (hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64) :
     ∀ b, P1.Aligned b → IpcFoot (L := L) T Cs Ω Sg Scs Z H U s b →
       b.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ b.val := by
   intro b hb h
-  rcases h with h | (⟨y, hy, K, hK, -, rfl⟩ | h) | ⟨-, h⟩
+  rcases h with h | (⟨y, hy, K, hK, -, rfl⟩ | h) | ⟨-, h⟩ | (⟨y, hy, e | e⟩ | ⟨c, hc, e⟩)
   · exact hD b hb h
   · have hf := (hTP y hy).fits
     have hv : (core.num.U64.wrapping_add y K).val = y.val + K.val := by
@@ -157,6 +168,17 @@ theorem ipcFoot_apart {T Cs Ω Sg Scs : Set U64} {Z : U64 → Nat} {H : P1.Heap}
     rw [e] at hm
     exact (hUO b h).2.1 hm
   · exact h
+  · have hf := (hTP y hy).fits
+    have h3 : (3576#u64).val = 3576 := by simp
+    rw [e, show P1.dnA y = core.num.U64.wrapping_add y 3576#u64 from rfl, P1.field_val (hTP y hy) (by simp)]
+    rcases hTk y hy with e' | e' <;> omega
+  · have hf := (hTP y hy).fits
+    have h3 : (3584#u64).val = 3584 := by simp
+    rw [e, show P1.dpA y = core.num.U64.wrapping_add y 3584#u64 from rfl, P1.field_val (hTP y hy) (by simp)]
+    rcases hTk y hy with e' | e' <;> omega
+  · rw [e, P1.nodeAt_val (hN c hc) (by simp [layout.node.DEBUG_TCBS])]
+    unfold P1.LawfulStore.nodeBase
+    right; omega
 
 /-- **The endpoint cap's write footprint** (`DecWritesHyp`): the caller's
 restart (`restart_blk`, a `Foot`) then `send_ipc` (`SendIpcFootP1`). -/
@@ -178,7 +200,7 @@ theorem decWritesHyp_endpoint {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : 
     DecWritesHyp (L := L) arI s ar lbl length slot (.Endpoint p b sd rv g gr) blk call don fp buf extra := by
   obtain ⟨⟨Q, R, hq⟩, -, -, hSC, -⟩ := id hB
   refine ⟨IpcFoot (L := L) T Cs Ω Sg Scs Z H U s,
-    ipcFoot_apart hD hq.tcbs hTk hUO hSC hka hkf, ?_⟩
+    ipcFoot_apart hD hq.tcbs hq.nodes hTk hUO hSC hka hkf, ?_⟩
   unfold syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   cases sd
@@ -195,10 +217,11 @@ theorem decWritesHyp_endpoint {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : 
     rcases hx with hx | hx
     · exact Or.inl hx
     unfold IpcFoot at hx
-    rcases hx with hx | hx | ⟨hc, hl⟩
+    rcases hx with hx | hx | ⟨hc, hl⟩ | hx
     · exact Or.inl (P1.KW.ksb f1.1 hx)
     · exact Or.inr (Or.inl hx)
-    · rw [f1.1] at hl; exact Or.inr (Or.inr ⟨hc, hl⟩)
+    · rw [f1.1] at hl; exact Or.inr (Or.inr (Or.inl ⟨hc, hl⟩))
+    · exact Or.inr (Or.inr (Or.inr (P1.DbgW.ksb f1.1 hx)))
 
 
 /-- **The reply cap's write footprint** (`DecWritesHyp`): the caller's
@@ -219,7 +242,7 @@ theorem decWritesHyp_reply {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : Set
     DecWritesHyp (L := L) arI s ar lbl length slot (.Reply r g) blk call don fp buf extra := by
   obtain ⟨⟨Q, R, hq⟩, -, -, hSC, -⟩ := id hB
   refine ⟨IpcFoot (L := L) T Cs Ω Sg Scs Z H U s,
-    ipcFoot_apart hD hq.tcbs hTk hUO hSC hka hkf, ?_⟩
+    ipcFoot_apart hD hq.tcbs hq.nodes hTk hUO hSC hka hkf, ?_⟩
   unfold syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   refine WP.spec_bind (P1.sched.set_thread_state.restart_blk (Es := P1.EH H) s ct hB hctT hnb hnr) ?_
@@ -232,10 +255,11 @@ theorem decWritesHyp_reply {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : Set
   rcases hx with hx | hx
   · exact Or.inl hx
   unfold IpcFoot at hx
-  rcases hx with hx | hx | ⟨hc, hl⟩
+  rcases hx with hx | hx | ⟨hc, hl⟩ | hx
   · exact Or.inl (P1.KW.ksb f1.1 hx)
   · exact Or.inr (Or.inl hx)
-  · rw [f1.1] at hl; exact Or.inr (Or.inr ⟨hc, hl⟩)
+  · rw [f1.1] at hl; exact Or.inr (Or.inr (Or.inl ⟨hc, hl⟩))
+  · exact Or.inr (Or.inr (Or.inr (P1.DbgW.ksb f1.1 hx)))
 
 end
 

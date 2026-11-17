@@ -26,6 +26,7 @@ import Fl4Proofs.P1.QueueAppend
 import Fl4Proofs.P1.QueueBlock
 import Fl4Proofs.P1.QueueIpc
 import Fl4Proofs.P1.QueueTimer
+import Fl4Proofs.P1.QueueTimerW
 import Fl4Proofs.P1.QueueSignal
 import Fl4Proofs.P1.QueueFire
 import Fl4Proofs.P1.QueueTimerSet

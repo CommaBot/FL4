@@ -31,11 +31,7 @@ structure AgreeD (st : machine.Store S) [L : LawfulStore st] (T Cs : Set U64) (H
   epw : ∀ e, (H e = some .ep ∨ H e = some .ntfn) →
     L.mem s' (epHeadA e) = L.mem s (epHeadA e) ∧ L.mem s' (epTSA e) = L.mem s (epTSA e)
 
-/-- The debug lists typed. -/
-structure DbgTz (st : machine.Store S) [L : LawfulStore st] (T Cs : Set U64) (s : S) : Prop where
-  dn : ∀ y ∈ T, Tz T (L.mem s (dnA y))
-  dp : ∀ y ∈ T, Tz T (L.mem s (dpA y))
-  dh : ∀ c ∈ Cs, Tz T (L.mem s (L.nodeAt s c layout.node.DEBUG_TCBS))
+/- `DbgTz` (the debug lists typed) is in `QueueObjs`. -/
 
 section
 variable {s s' : S} (G : AgreeD st T Cs H Sg s s')

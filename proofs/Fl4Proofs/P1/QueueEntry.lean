@@ -314,6 +314,10 @@ theorem XG.foot {P3Ok : S → Prop} {s s' : S} (h : XG st T Cs Ω H Sg Scs Z P3O
     (f : Foot st T Cs Sg Scs Z (EH H) s s') : XG st T Cs Ω H Sg Scs Z P3Ok s' :=
   h.of_fr (Foot.cur0w f fun _ hb => hb)
 
+theorem XG.footD {P3Ok : S → Prop} {s s' : S} (h : XG st T Cs Ω H Sg Scs Z P3Ok s)
+    (f : FootD st T Cs Sg Scs Z (EH H) s s') : XG st T Cs Ω H Sg Scs Z P3Ok s' :=
+  h.of_fr (FootD.cur0w f fun _ hb => hb)
+
 /-- An entered state is an `XG` state. -/
 theorem EntAt.xg {P3Ok : S → Prop} {s : S} (h : EntAt st P3Ok s) : XG st T Cs Ω H Sg Scs Z P3Ok s :=
   ⟨s, h, WritesIn.refl _ _⟩

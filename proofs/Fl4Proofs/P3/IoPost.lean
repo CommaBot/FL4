@@ -137,10 +137,11 @@ theorem postIoHyp_of (th : TypedHeap) (hP : Placed th) (hio : ∀ s : S, IoLayou
 /-- **`PostDelHyp` holds**, from the IRQ handler and IO port cases. -/
 theorem postDelHyp_full (th : TypedHeap) (hP : Placed th)
     (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
+    (hfree : ∀ (a : A) (irq : U64), ∃ a', arI.irq_free a irq = ok a')
     (hout : ∀ (s : S) (irq : U64), interrupt.state_off irq ⦃ off =>
       OutsideObjects th (core.num.U64.wrapping_add (L.ksb s) off) ⦄)
     (hio : ∀ s : S, IoLayout th (L.ksb s)) : PostDelHyp (L := L) arI th :=
-  postDelHyp_of arI th hP hmask hout (postIoHyp_of arI th hP hio)
+  postDelHyp_of arI th hP hmask hfree hout (postIoHyp_of arI th hP hio)
 
 /-- `IoRel` after `set_mask low high set` and the spec's `set_ioport_mask`. -/
 theorem IoRel.mask {kb : U64} {s s' : S} {σ : Fl4Spec.State Unit} (hI : IoRel (L.mem s) kb σ)

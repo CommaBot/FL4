@@ -66,18 +66,28 @@ theorem ntfnBt_aligned {n : U64} (h : n.val % 64 = 0 ∧ n.val + 64 ≤ 2 ^ 64) 
 
 /-! ## Frames of the timer words -/
 
+/-- The debug lists are typed: each TCB's debug links and each core's list
+head are null or TCBs (the `dn`/`dp`/`dh` part of `TimerOK`). -/
+structure DbgTz (st : machine.Store S) [L : LawfulStore st] (T Cs : Set U64) (s : S) : Prop where
+  dn : ∀ y ∈ T, Tz T (L.mem s (dnA y))
+  dp : ∀ y ∈ T, Tz T (L.mem s (dpA y))
+  dh : ∀ c ∈ Cs, Tz T (L.mem s (L.nodeAt s c layout.node.DEBUG_TCBS))
+
 /-- An operation that leaves the timer-tree words alone: the TCBs' timer
 fields, the nodes' timer-tree words and the notifications' `BOUND_TCB`
-words. -/
+words. The debug lists (the TCBs' debug links and the nodes' list heads)
+may change (`migrate_tcb` moves a thread between cores' lists) but stay
+typed. -/
 def TmFr (st : machine.Store S) [L : LawfulStore st] (T Cs Nt : Set U64) (s s' : S) : Prop :=
   L.ksb s' = L.ksb s ∧
-  (∀ y ∈ T, ∀ K : U64, 3528 ≤ K.val → K.val < 3592 → K.val % 8 = 0 →
+  (∀ y ∈ T, ∀ K : U64, 3528 ≤ K.val → K.val < 3576 → K.val % 8 = 0 →
     L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K)) ∧
-  (∀ c ∈ Cs, ∀ o : U64, (o.val = 88 ∨ o.val = 104 ∨ o.val = 112) → L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)) ∧
-  (∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n))
+  (∀ c ∈ Cs, ∀ o : U64, (o.val = 104 ∨ o.val = 112) → L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)) ∧
+  (∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n)) ∧
+  (DbgTz st T Cs s → DbgTz st T Cs s')
 
 theorem TmFr.refl (s : S) : TmFr st T Cs Nt s s :=
-  ⟨rfl, fun _ _ _ _ _ _ => rfl, fun _ _ _ _ => rfl, fun _ _ => rfl⟩
+  ⟨rfl, fun _ _ _ _ _ _ => rfl, fun _ _ _ _ => rfl, fun _ _ => rfl, id⟩
 
 theorem TmFr.trans {s₁ s₂ s₃ : S} (h₁ : TmFr st T Cs Nt s₁ s₂) (h₂ : TmFr st T Cs Nt s₂ s₃) :
     TmFr st T Cs Nt s₁ s₃ :=
@@ -86,15 +96,32 @@ theorem TmFr.trans {s₁ s₂ s₃ : S} (h₁ : TmFr st T Cs Nt s₁ s₂) (h₂
       have e := h₂.2.2.1 c hc o ho
       rw [nodeAt_of_ksb h₁.1] at e
       exact e.trans (h₁.2.2.1 c hc o ho),
-    fun n hn => (h₂.2.2.2 n hn).trans (h₁.2.2.2 n hn)⟩
+    fun n hn => (h₂.2.2.2.1 n hn).trans (h₁.2.2.2.1 n hn), fun h => h₂.2.2.2.2 (h₁.2.2.2.2 h)⟩
+
+/-- `TmFr` when every timer-tree word is kept, the debug words among them. -/
+theorem TmFr.mk0 {s s' : S} (h : L.ksb s' = L.ksb s ∧
+    (∀ y ∈ T, ∀ K : U64, 3528 ≤ K.val → K.val < 3592 → K.val % 8 = 0 →
+      L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K)) ∧
+    (∀ c ∈ Cs, ∀ o : U64, (o.val = 88 ∨ o.val = 104 ∨ o.val = 112) →
+      L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)) ∧
+    (∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n))) : TmFr st T Cs Nt s s' := by
+  obtain ⟨fk, ft, fd, fn⟩ := h
+  refine ⟨fk, fun y hy K a b c => ft y hy K a (by omega) c, fun c hc o ho => fd c hc o (Or.inr ho), fn, ?_⟩
+  rintro ⟨hn, hp, hh⟩
+  refine ⟨fun y hy => ?_, fun y hy => ?_, fun c hc => ?_⟩
+  · rw [show dnA y = core.num.U64.wrapping_add y 3576#u64 from rfl, ft y hy _ (by simp) (by simp) (by simp)]
+    exact hn y hy
+  · rw [show dpA y = core.num.U64.wrapping_add y 3584#u64 from rfl, ft y hy _ (by simp) (by simp) (by simp)]
+    exact hp y hy
+  · rw [nodeAt_of_ksb fk, fd c hc _ (by rw [debug_val]; simp)]; exact hh c hc
 
 theorem TmFr.of_keepT {t : U64} {s s' : S} (k : KeepT st T Cs Rp Scs Nt t s s') : TmFr st T Cs Nt s s' :=
-  ⟨k.ksb, fun y hy K h1 h2 h3 => k.fld y hy K (by omega) h3 (by omega) (by omega) (fun _ => ⟨by omega, by omega⟩),
+  TmFr.mk0 ⟨k.ksb, fun y hy K h1 h2 h3 => k.fld y hy K (by omega) h3 (by omega) (by omega) (fun _ => ⟨by omega, by omega⟩),
     k.tnd, k.ntb⟩
 
 theorem TmFr.of_fr {s s' : S} (f : Fr st T Sg s s') (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
     (hN : ∀ c ∈ Cs, NodePlaced st T s c) : TmFr st T Cs Nt s s' := by
-  exact ⟨f.ksb, f.tmr,
+  exact TmFr.mk0 ⟨f.ksb, f.tmr,
     fun c hc o ho => f.tnd c (hN c hc) o ho, fun n hn => f.sig _ (hO.ntB n hn).2⟩
 
 /-- The timer-tree words. -/
@@ -106,7 +133,7 @@ def TmW (st : machine.Store S) [L : LawfulStore st] (T Cs Nt : Set U64) (s : S) 
 theorem TmFr.of_writes {s s' : S} {B : U64 → Prop} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodePlaced st T s c)
     (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hw : WritesIn st s s' B) (hB : ∀ b, B b → ¬ TmW st T Cs Nt s b) :
     TmFr st T Cs Nt s s' :=
-  ⟨hw.1, fun y hy K h1 h2 h3 => hw.mem_eq (field_aligned (hT y hy) (by omega) h3)
+  TmFr.mk0 ⟨hw.1, fun y hy K h1 h2 h3 => hw.mem_eq (field_aligned (hT y hy) (by omega) h3)
       (fun hb => hB _ hb (Or.inl ⟨y, hy, K, h1, h2, h3, rfl⟩)),
     fun c hc o ho => hw.mem_eq (nodeAt_aligned (hN c hc) (by omega) (by omega))
       (fun hb => hB _ hb (Or.inr (Or.inl ⟨c, hc, o, ho, rfl⟩))),
@@ -126,6 +153,45 @@ theorem TmFr.wr {s : S} {a v : U64} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodeP
     (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (ha : Aligned a) (hna : ¬ TmW st T Cs Nt s a) :
     TmFr st T Cs Nt s (L.wr s a v) :=
   TmFr.of_writes hT hN hO (writesIn_wr ha) (fun b hb => by subst hb; exact hna)
+
+/-- A write that puts a null or a TCB into whatever debug word it hits keeps
+the debug lists typed. -/
+theorem DbgTz.wr {s : S} {a v : U64} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodePlaced st T s c) (ha : Aligned a)
+    (hv : Tz T v) (h : DbgTz st T Cs s) : DbgTz st T Cs (L.wr s a v) := by
+  have k : ∀ b, Aligned b → Tz T (L.mem s b) → Tz T (L.mem (L.wr s a v) b) := fun b hb hb' => by
+    rw [L.mem_wr_val ha hb]; split
+    · exact hv
+    · exact hb'
+  refine ⟨fun y hy => k _ (field_aligned (K := 3576#u64) (hT y hy) (by simp) (by simp)) (h.dn y hy),
+    fun y hy => k _ (field_aligned (K := 3584#u64) (hT y hy) (by simp) (by simp)) (h.dp y hy), fun c hc => ?_⟩
+  rw [nodeAt_of_ksb (L.ksb_wr _ _ _)]
+  exact k _ (nodeAt_aligned (hN c hc) (by simp [debug_val]) (by simp [debug_val])) (h.dh c hc)
+
+/-- A write of a TCB's debug link (a null or a TCB) keeps `TmFr`. -/
+theorem TmFr.dbgF {s : S} {y K v : U64} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodePlaced st T s c)
+    (hΩ : ∀ n ∈ Nt, OutsideObjs st T Cs s (ntfnBtA n)) (hy : y ∈ T) (hK : K.val = 3576 ∨ K.val = 3584)
+    (hv : Tz T v) : TmFr st T Cs Nt s (L.wr s (core.num.U64.wrapping_add y K) v) := by
+  have hya := hT y hy
+  have ha : Aligned (core.num.U64.wrapping_add y K) := field_aligned hya (by omega) (by omega)
+  refine ⟨L.ksb_wr _ _ _, fun y' hy' K' h1 h2 h3 => ?_, fun c hc o ho => ?_,
+    fun n hn => L.mem_wr_ne ha (hΩ n hn).1 (out_ne_field (hΩ n hn) hy hya (by omega)), DbgTz.wr hT hN ha hv⟩
+  · exact L.mem_wr_ne ha (field_aligned (hT y' hy') (by omega) h3)
+      (fun e => field_ne hya (hT y' hy') (by omega) (by omega) (fun _ => by omega) (UScalar.eq_of_val_eq e))
+  · exact L.mem_wr_ne ha (nodeAt_aligned (hN c hc) (by omega) (by omega))
+      (fun e => node_ne_field (hN c hc) (by omega) hy hya (by omega) (UScalar.eq_of_val_eq e).symm)
+
+/-- A write of a core's debug-list head (a null or a TCB) keeps `TmFr`. -/
+theorem TmFr.dbgN {s : S} {c v : U64} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodePlaced st T s c)
+    (hΩ : ∀ n ∈ Nt, OutsideObjs st T Cs s (ntfnBtA n)) (hc : c ∈ Cs) (hv : Tz T v) :
+    TmFr st T Cs Nt s (L.wr s (L.nodeAt s c layout.node.DEBUG_TCBS) v) := by
+  have d88 := debug_val
+  have ha : Aligned (L.nodeAt s c layout.node.DEBUG_TCBS) := nodeAt_aligned (hN c hc) (by omega) (by omega)
+  refine ⟨L.ksb_wr _ _ _, fun y hy K h1 h2 h3 => ?_, fun c' hc' o ho => ?_,
+    fun n hn => L.mem_wr_ne ha (hΩ n hn).1 (out_ne_node (hΩ n hn) hc (hN c hc) (by omega)), DbgTz.wr hT hN ha hv⟩
+  · exact L.mem_wr_ne ha (field_aligned (hT y hy) (by omega) h3)
+      (fun e => node_ne_field (hN c hc) (by omega) hy (hT y hy) (by omega) (UScalar.eq_of_val_eq e))
+  · exact L.mem_wr_ne ha (nodeAt_aligned (hN c' hc') (by omega) (by omega))
+      (node_ne_node (hN c hc) (hN c' hc') (by omega) (by omega) (fun _ => by omega))
 
 /-- A word of another object that is no notification `BOUND_TCB` word is no
 timer-tree word. -/
@@ -148,17 +214,13 @@ theorem notTmW_node {s : S} {c o : U64} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, N
 
 
 theorem TimerOK.tmfr {s s' : S} (h : TimerOK st T Cs s) (f : TmFr st T Cs Nt s s') : TimerOK st T Cs s' := by
-  obtain ⟨fk, ft, fd, -⟩ := f
+  obtain ⟨fk, ft, fd, -, fg⟩ := f
+  obtain ⟨gn, gp, gh⟩ := fg ⟨h.dn, h.dp, h.dh⟩
   have lk : ∀ y K, y ∈ T → K.val = 3544 ∨ K.val = 3552 ∨ K.val = 3560 →
       L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K) :=
     fun y K hy hK => ft y hy K (by omega) (by omega) (by omega)
   refine ⟨fun c hc => (h.npl c hc).ksb fk, fun y hy => ?_, fun y hy => ?_, fun y hy => ?_, fun c hc => ?_,
-    fun c hc => ?_, fun y hy hd c hcv => ?_,
-    fun y hy => by rw [show dnA y = core.num.U64.wrapping_add y 3576#u64 from rfl,
-      ft y hy _ (by simp) (by simp) (by simp)]; exact h.dn y hy,
-    fun y hy => by rw [show dpA y = core.num.U64.wrapping_add y 3584#u64 from rfl,
-      ft y hy _ (by simp) (by simp) (by simp)]; exact h.dp y hy,
-    fun c hc => by rw [nodeAt_of_ksb fk, fd c hc _ (by rw [debug_val]; simp)]; exact h.dh c hc⟩
+    fun c hc => ?_, fun y hy hd c hcv => ?_, gn, gp, gh⟩
   · rw [show tlA y = core.num.U64.wrapping_add y 3544#u64 from rfl, lk y _ hy (by simp)]; exact h.lt y hy
   · rw [show trA y = core.num.U64.wrapping_add y 3552#u64 from rfl, lk y _ hy (by simp)]; exact h.rt y hy
   · rw [show tpA y = core.num.U64.wrapping_add y 3560#u64 from rfl, lk y _ hy (by simp)]; exact h.pt y hy
@@ -169,17 +231,17 @@ theorem TimerOK.tmfr {s s' : S} (h : TimerOK st T Cs s) (f : TmFr st T Cs Nt s s
     exact h.core y hy hd c hcv
 
 theorem NtbOK.tmfr {s s' : S} (h : NtbOK st T Nt s) (f : TmFr st T Cs Nt s s') : NtbOK st T Nt s' :=
-  fun n hn => by rw [f.2.2.2 n hn]; exact h n hn
+  fun n hn => by rw [f.2.2.2.1 n hn]; exact h n hn
 
 /-- A write of a word of another object keeps `TimerOK`. -/
 theorem TimerOK.wr_out {s : S} {a v : U64} (h : TimerOK st T Cs s) (hT : TcbPlaced T)
     (hN : ∀ c ∈ Cs, NodePlaced st T s c) (ho : OutsideObjs st T Cs s a) : TimerOK st T Cs (L.wr s a v) :=
-  h.tmfr (Nt := ∅) ⟨L.ksb_wr _ _ _,
+  h.tmfr (Nt := ∅) (TmFr.mk0 ⟨L.ksb_wr _ _ _,
     fun y hy K h1 h2 h3 => L.mem_wr_ne ho.1 (field_aligned (hT y hy) (by omega) h3)
       (fun e => out_ne_field ho hy (hT y hy) (by omega) e.symm),
     fun c hc o hoo => L.mem_wr_ne ho.1 (nodeAt_aligned (hN c hc) (by omega) (by omega))
       (fun e => out_ne_node ho hc (hN c hc) (by omega) e.symm),
-    fun n hn => absurd hn (Set.notMem_empty n)⟩
+    fun n hn => absurd hn (Set.notMem_empty n)⟩)
 
 /-- A write that puts a null or a TCB into any `BOUND_TCB` word it hits keeps `NtbOK`. -/
 theorem NtbOK.wr_tz {s : S} {a v : U64} (h : NtbOK st T Nt s) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (ha : Aligned a)
@@ -721,7 +783,7 @@ theorem TmFr.of_epfoot {X : Set U64} {s' : S} {Q : U64 → U64 → List U64} {R 
     (hWT : ∀ w ∈ W, w ∈ T) (hw : WritesIn st s s' (EpFoot W e)) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
     (hsub : ∀ b ∈ Sg, b ∈ Ω) : TmFr st T Cs Nt s s' := by
   obtain ⟨kf, kΩ, -⟩ := epfoot_keep h hEW he hWT hw
-  exact ⟨hw.1, fun y hy K a b c => kf y hy K (by omega) c (by omega) (by omega),
+  exact TmFr.mk0 ⟨hw.1, fun y hy K a b c => kf y hy K (by omega) c (by omega) (by omega),
     fun c hc o ho => epfoot_nodes h hEW he hWT hw c hc o (by omega) (by omega),
     fun n hn => kΩ _ (hsub _ (hO.ntB n hn).2)⟩
 

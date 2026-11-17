@@ -56,6 +56,7 @@ theorem crel_same {th : TypedHeap} {m m' : U64 → U64} {σ σ' : Fl4Spec.State 
 /-- **`post_cap_deletion` of an IRQ handler cap.** -/
 theorem post_irq (th : TypedHeap) (hP : Placed th)
     (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
+    (hfree : ∀ (a : A) (irq : U64), ∃ a', arI.irq_free a irq = ok a')
     (hout : ∀ (s : S) (irq : U64), interrupt.state_off irq ⦃ off =>
       OutsideObjects th (core.num.U64.wrapping_add (L.ksb s) off) ⦄)
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (irq : U64) :
@@ -63,8 +64,17 @@ theorem post_irq (th : TypedHeap) (hP : Placed th)
       SlotsSame th (L.mem s) (L.mem r.1) ∧ ∃ σ',
         ((), σ') ∈ (Fl4Spec.postCapDeletion (Z := Unit) (absCap (.IrqHandler irq)) σ).1 ∧
         CRel th (L.mem r.1) σ' G ⦄ := by
-  unfold objects.post_cap_deletion interrupt.deleted_irq_handler interrupt.set_irq_state
+  unfold objects.post_cap_deletion interrupt.deleted_irq_handler
   simp only
+  refine WP.spec_bind (Pₘ := fun r : S × A => SlotsSame th (L.mem s) (L.mem r.1) ∧ ∃ σ',
+      ((), σ') ∈ (Fl4Spec.postCapDeletion (Z := Unit) (absCap (.IrqHandler irq)) σ).1 ∧
+      CRel th (L.mem r.1) σ' G) ?_ ?_
+  swap
+  · rintro ⟨s1, a1⟩ h1
+    obtain ⟨a2, hf⟩ := hfree a1 irq
+    refine WP.spec_bind (Pₘ := fun _ => True) (by rw [hf]; exact (WP.spec_ok _).2 trivial) fun a3 _ => ?_
+    exact (WP.spec_ok _).2 h1
+  unfold interrupt.set_irq_state
   apply WP.spec_bind (hout s irq)
   intro off ho
   unfold obj.ks_set
@@ -84,13 +94,14 @@ theorem post_irq (th : TypedHeap) (hP : Placed th)
 /-- **`PostDelHyp` holds**, from the IRQ handler case and `PostIoHyp`. -/
 theorem postDelHyp_of (th : TypedHeap) (hP : Placed th)
     (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
+    (hfree : ∀ (a : A) (irq : U64), ∃ a', arI.irq_free a irq = ok a')
     (hout : ∀ (s : S) (irq : U64), interrupt.state_off irq ⦃ off =>
       OutsideObjects th (core.num.U64.wrapping_add (L.ksb s) off) ⦄)
     (hio : PostIoHyp (L := L) arI th) : PostDelHyp (L := L) arI th := by
   intro s a σ G cl hDS hcl hcln hclw
   cases cl <;> simp only [CleanCap] at hcl
   · exact absurd rfl hcln
-  · exact post_irq arI th hP hmask hout s a σ G hDS.1 _
+  · exact post_irq arI th hP hmask hfree hout s a σ G hDS.1 _
   · exact hio s a σ G _ _ _ hDS hclw
 
 end

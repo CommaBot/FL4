@@ -221,6 +221,54 @@ theorem slotsSame_of_foot {th : TypedHeap} (hP : Placed th) {T Cs Sg Scs Es : Se
   have := w _ (Or.inl rfl)
   rwa [wordOf_zero] at this
 
+/-- **The debug-list words lie outside the slots too**, by `KWOut` at their
+neighbour words (a slot is 32 bytes; a debug link's neighbours 3568 or 3592
+of its TCB, a debug head's neighbours 80 or 96 of its node, are `KW` words). -/
+theorem KWOut.dbg {th : TypedHeap} {T Cs Sg Scs Es : Set U64} {Z : U64 → Nat} {s : S}
+    (hK : KWOut (st := st) th T Cs Sg Scs Z Es s) (hT : P1.TcbPlaced T) (hN : ∀ c ∈ Cs, P1.NodePlaced st T s c) :
+    ∀ a, IsSlot th a → ∀ b, P1.DbgW st T Cs s b → ¬ (a.val ≤ b.val ∧ b.val < a.val + 32) := by
+  rintro a ha b hb ⟨h1, h2⟩
+  have k1 : (3568#u64).val = 3568 := by simp
+  have k2 : (3592#u64).val = 3592 := by simp
+  have n1 : (80#u64).val = 80 := by simp
+  have n2 : (96#u64).val = 96 := by simp
+  have d88 : layout.node.DEBUG_TCBS.val = 88 := by simp [layout.node.DEBUG_TCBS]
+  rcases hb with ⟨y, hy, e | e⟩ | ⟨c, hc, e⟩
+  · have hv : b.val = y.val + 3576 := by
+      rw [e, show P1.dnA y = core.num.U64.wrapping_add y 3576#u64 from rfl, P1.field_val (hT y hy) (by simp)]; simp
+    have f1 := P1.field_val (K := 3568#u64) (hT y hy) (by simp)
+    have f2 := P1.field_val (K := 3592#u64) (hT y hy) (by simp)
+    by_cases hlo : a.val ≤ y.val + 3568
+    · exact hK a ha _ (P1.kw_field (K := 3568#u64) hy (by simp) (by simp) (by simp)) ⟨by omega, by omega⟩
+    · exact hK a ha _ (P1.kw_field (K := 3592#u64) hy (by simp) (by simp) (by simp)) ⟨by omega, by omega⟩
+  · have hv : b.val = y.val + 3584 := by
+      rw [e, show P1.dpA y = core.num.U64.wrapping_add y 3584#u64 from rfl, P1.field_val (hT y hy) (by simp)]; simp
+    have f1 := P1.field_val (K := 3568#u64) (hT y hy) (by simp)
+    have f2 := P1.field_val (K := 3592#u64) (hT y hy) (by simp)
+    by_cases hlo : a.val ≤ y.val + 3568
+    · exact hK a ha _ (P1.kw_field (K := 3568#u64) hy (by simp) (by simp) (by simp)) ⟨by omega, by omega⟩
+    · exact hK a ha _ (P1.kw_field (K := 3592#u64) hy (by simp) (by simp) (by simp)) ⟨by omega, by omega⟩
+  · have hv : b.val = L.nodeBase s c + 88 := by rw [e, P1.nodeAt_val (hN c hc) (by omega), d88]
+    have f1 := P1.nodeAt_val (off := 80#u64) (hN c hc) (by simp)
+    have f2 := P1.nodeAt_val (off := 96#u64) (hN c hc) (by simp)
+    by_cases hlo : a.val ≤ L.nodeBase s c + 80
+    · exact hK a ha _ (P1.kw_node (o := 80#u64) hc (by simp) (by simp)) ⟨by omega, by omega⟩
+    · exact hK a ha _ (P1.kw_node (o := 96#u64) hc (by simp) (by simp)) ⟨by omega, by omega⟩
+
+/-- **A P1 `FootD` step keeps every slot word.** -/
+theorem slotsSame_of_footD {th : TypedHeap} (hP : Placed th) {T Cs Sg Scs Es : Set U64} {Z : U64 → Nat} {s s' : S}
+    (hK : KWOut (st := st) th T Cs Sg Scs Z Es s) (hT : P1.TcbPlaced T) (hN : ∀ c ∈ Cs, P1.NodePlaced st T s c)
+    (hw : P1.FootD st T Cs Sg Scs Z Es s s') :
+    SlotsSame th (L.mem s) (L.mem s') := by
+  intro a ha
+  have w : ∀ k, Off k → L.mem s' (wordOf a k) = L.mem s (wordOf a k) := fun k hk =>
+    hw.mem_eq (slot_word_aligned hP ha hk) fun hb => hb.elim
+      (fun hb => hK a ha _ hb (by rw [slot_word_val hP ha hk]; have := hk.lt; omega))
+      (fun hb => KWOut.dbg hK hT hN a ha _ hb (by rw [slot_word_val hP ha hk]; have := hk.lt; omega))
+  refine ⟨?_, w _ (Or.inr (Or.inl rfl)), w _ (Or.inr (Or.inr (Or.inl rfl))), w _ (Or.inr (Or.inr (Or.inr rfl)))⟩
+  have := w _ (Or.inl rfl)
+  rwa [wordOf_zero] at this
+
 /-- **`SetPrioHyp` discharged** from P1's `sched.set_priority.blk`: after the
 caller's restart, P1's `BlkOK` with `set_priority`'s current-thread
 conditions and `KWOut` (`hB`, P1's facts about the restart state), and the
@@ -292,7 +340,7 @@ theorem schedTail_foot (hA : P0.ArchTotal arI) (s2 : S) (a1 : A) (p mcp prio sc 
       L.mem s2 (scTcbA sc) = 0#u64 ∧ (BlockedR (L.mem s2 (P1.stA p)) → sc ∈ Ac))
     (hunb : scf = true → sc = 0#u64 → L.actionW s2 ≠ p ∧ L.idleW s2 ≠ p) :
     schedTail (st := st) arI s2 a1 p mcp prio sc scf ⦃ r => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2.1 ∧
-      Foot st T Cs Sg Scs Z (EH H) s2 r.2.1 ∧ r.1 = .Ok () ⦄ := by
+      FootD st T Cs Sg Scs Z (EH H) s2 r.2.1 ∧ r.1 = .Ok () ⦄ := by
   have hT := h2.1.choose_spec.choose_spec.tcbs
   have hta := hT p hpT
   rw [schedTail_eq]
@@ -339,14 +387,14 @@ theorem schedTail_foot (hA : P0.ArchTotal arI) (s2 : S) (a1 : A) (p mcp prio sc 
       step with obj.Tcb.sc.spec as ⟨i4, ei4⟩
       step with obj.Sc.is_null.spec as ⟨b1, eb1⟩
       split
-      · exact (WP.spec_ok _).2 ⟨h4, f24, rfl⟩
+      · exact (WP.spec_ok _).2 ⟨h4, f24.d, rfl⟩
       · rename_i hb1
         have hi0 : i4 ≠ 0#u64 := fun e => hb1 (by rw [eb1, e]; rfl)
         obtain ⟨hiS, hit, -⟩ := h4.2.2.1.2.2.bound p hpT (by rw [← ei4]; exact hi0)
         rw [← ei4] at hiS hit
         have hT4 := h4.1.choose_spec.choose_spec.tcbs
         refine WP.spec_bind (schedcontext.unbind_tcb.blk s4 i4 h4 hiS hi0 (fun _ => ?_) (fun _ => ?_))
-          fun s5 hh => (WP.spec_ok _).2 ⟨hh.1, f24.trans (hh.2.1.mono (Set.empty_subset _)), rfl⟩
+          fun s5 hh => (WP.spec_ok _).2 ⟨hh.1, (f24.trans (hh.2.1.mono (Set.empty_subset _))).d, rfl⟩
         · rw [hit]
           rcases pf4.act with e | e
           · rw [e]; exact hna
@@ -360,8 +408,8 @@ theorem schedTail_foot (hA : P0.ArchTotal arI) (s2 : S) (a1 : A) (p mcp prio sc 
         (by rw [pf4.sig _ (h4.2.2.1.1.fixW sc hsc).1]; exact hc0)
         (fun hb' => hbA (by rw [← pf4.st p hpT]; exact hb'))) fun r hr => ?_
       obtain ⟨s5, a2⟩ := r
-      exact (WP.spec_ok _).2 ⟨hr.1, f24.trans hr.2, rfl⟩
-  · exact (WP.spec_ok _).2 ⟨h4, f24, rfl⟩
+      exact (WP.spec_ok _).2 ⟨hr.1, f24.d.trans hr.2, rfl⟩
+  · exact (WP.spec_ok _).2 ⟨h4, f24.d, rfl⟩
 
 /-- **The restart facts of `setPrioHyp_of`** (`hB`) from P1's `restart_hB`:
 the caller is the current thread, every TCB of the typed heap is in `T`,
@@ -458,7 +506,8 @@ theorem schedTailHyp_of (hA : P0.ArchTotal arI) (th : TypedHeap) (hP : Placed th
   -- FL4
   refine WP.spec_mono (schedTail_foot arI hA s2 a1 p mcp prio scv scf hb2 hpT hpr hcur hbind hunb) ?_
   rintro r ⟨-, hF, hr⟩
-  exact ⟨slotsSame_of_foot hP hKA hF, hr, σa, σb, σc, ha, hb, hc⟩
+  exact ⟨slotsSame_of_footD hP hKA hb2.1.choose_spec.choose_spec.tcbs hb2.1.choose_spec.choose_spec.nodes hF, hr,
+    σa, σb, σc, ha, hb, hc⟩
 
 end
 

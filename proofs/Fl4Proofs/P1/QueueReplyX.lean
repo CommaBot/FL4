@@ -472,7 +472,7 @@ theorem ipc.do_reply_transfer.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.Ar
   have h3 := BlkOK.bxi h3b
   obtain ⟨dq3, dr3, da3⟩ := blocked_out h3.1.choose_spec.choose_spec hiT (by rw [st3]; exact not_runnable_inactive)
   have R3 : RPre st T Ac s3 i := ⟨hiT, st3, dq3, dr3, da3, by rw [id3]; exact hni, sca3⟩
-  have hG3 : XG st T Cs Ω H Sg Scs Z P3Ok s3 := hG.foot (F3.mono (Set.empty_subset _))
+  have hG3 : XG st T Cs Ω H Sg Scs Z P3Ok s3 := hG.footD (F3.mono (Set.empty_subset _))
   -- the SC's refills
   step with obj.Tcb.sc.spec as ⟨i2, ei2⟩
   refine WP.spec_bind (sporadic.sc_sporadic.spec s3 i2) fun b1 hb1 => ?_

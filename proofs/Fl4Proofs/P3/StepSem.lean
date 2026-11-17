@@ -128,7 +128,8 @@ def ArchIrqStep (a a' : A) : Prop :=
   a' = a ∨ (∃ irq b, arI.mask_irq a irq b = ok a') ∨
     (∃ i p l po v b, arI.ioapic_map a i p l po v = ok (b, a')) ∨
     (∃ i p l po v h b, arI.ioapic_map_remapped a i p l po v h = ok (b, a')) ∨
-    (∃ p z v, arI.port_in a p z = ok (v, a')) ∨ (∃ p z d, arI.port_out a p z d = ok a')
+    (∃ p z v, arI.port_in a p z = ok (v, a')) ∨ (∃ p z d, arI.port_out a p z d = ok a') ∨
+    (∃ irq, arI.irq_free a irq = ok a')
 
 /-- The kernel-global words of the domain schedule a scheduler step may
 write: the domain time and index, the start and the table. -/
