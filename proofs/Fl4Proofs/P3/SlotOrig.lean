@@ -14,17 +14,21 @@ noncomputable section
 section
 open Fl4Spec
 
-/-- The original bits off the slot `d` are kept. -/
-def OKeep (d : CslotPtr) (σ σ' : State Unit) : Prop := ∀ sl, sl ≠ d → σ'.isOriginalCap sl = σ.isOriginalCap sl
+/-- The original bits off the slots `d` are kept. -/
+def OKeep (d : CslotPtr → Prop) (σ σ' : State Unit) : Prop :=
+  ∀ sl, ¬ d sl → σ'.isOriginalCap sl = σ.isOriginalCap sl
 
-theorem OKeep.refl (d : CslotPtr) (σ : State Unit) : OKeep d σ σ := fun _ _ => rfl
-theorem OKeep.trans {d : CslotPtr} {σ1 σ2 σ3 : State Unit} (h1 : OKeep d σ1 σ2) (h2 : OKeep d σ2 σ3) :
+theorem OKeep.refl (d : CslotPtr → Prop) (σ : State Unit) : OKeep d σ σ := fun _ _ => rfl
+theorem OKeep.trans {d : CslotPtr → Prop} {σ1 σ2 σ3 : State Unit} (h1 : OKeep d σ1 σ2) (h2 : OKeep d σ2 σ3) :
     OKeep d σ1 σ3 := fun sl h => (h2 sl h).trans (h1 sl h)
 
 /-- Every outcome keeps `OKeep d`. -/
-def NO {α : Type} (d : CslotPtr) (m : NonDet (State Unit) α) : Prop := ∀ σ x, x ∈ (m σ).1 → OKeep d σ x.2
+def NO {α : Type} (d : CslotPtr → Prop) (m : NonDet (State Unit) α) : Prop := ∀ σ x, x ∈ (m σ).1 → OKeep d σ x.2
 
-variable {d : CslotPtr}
+theorem no_mono {α : Type} {d d' : CslotPtr → Prop} (h : ∀ sl, d sl → d' sl) {m : NonDet (State Unit) α}
+    (hm : NO d m) : NO d' m := fun σ x hx sl hn => hm σ x hx sl fun hd => hn (h sl hd)
+
+variable {d : CslotPtr → Prop}
 
 theorem no_bind {α β : Type} {m : NonDet (State Unit) α} {f : α → NonDet (State Unit) β} (hm : NO d m)
     (hf : ∀ a, NO d (f a)) : NO d (m >>= f) := by
@@ -84,14 +88,14 @@ theorem no_setObject (p : ObjRef) (o : KernelObject) : NO d (setObject (Z := Uni
   rw [Set.mem_singleton_iff.1 hx]
   exact OKeep.refl d σ
 
-/-- `set_original` at `d` keeps the other slots' bits. -/
-theorem no_setOriginal (v : Bool) : NO d (setOriginal (Z := Unit) d v) := by
+/-- `set_original` at a slot of `d` keeps the other slots' bits. -/
+theorem no_setOriginal {sl0 : CslotPtr} (hd : d sl0) (v : Bool) : NO d (setOriginal (Z := Unit) sl0 v) := by
   unfold setOriginal
   intro σ x ⟨y, hy, hx⟩
   rw [Set.mem_singleton_iff.1 hy] at hx
   rw [Set.mem_singleton_iff.1 hx]
   intro sl h
-  exact Function.update_of_ne h _ _
+  exact Function.update_of_ne (fun e => h (by subst e; exact hd)) _ _
 
 macro "no_step" : tactic => `(tactic| first
   | exact no_pure _ | exact no_pure' _ | exact no_fail | exact no_gets _ | exact no_get
@@ -122,10 +126,24 @@ theorem no_doExtendedOp (eop : DetExtMonad Unit) : NO d (doExtendedOp (Z := Unit
 
 /-- **The spec's `cap_insert` keeps every original bit but the
 destination's.** -/
-theorem capInsert_orig (c : Cap) (src dest : CslotPtr) : NO dest (capInsert (Z := Unit) c src dest) := by
+theorem capInsert_orig (c : Cap) (src dest : CslotPtr) : NO (· = dest) (capInsert (Z := Unit) c src dest) := by
   unfold capInsert setUntypedCapAsFull updateCdt setCdt
-  repeat (first | exact no_setOriginal _ | exact no_getCap _ | exact no_setCap _ _ | exact no_doExtendedOp _ |
+  repeat (first | exact no_setOriginal (by rfl) _ | exact no_getCap _ | exact no_setCap _ _ | exact no_doExtendedOp _ |
     no_step)
+
+/-- **`cap_move` sets the source's and the destination's bits only.** -/
+theorem capMove_orig (c : Cap) (src dest : CslotPtr) :
+    NO (fun sl => sl = src ∨ sl = dest) (capMove (Z := Unit) c src dest) := by
+  unfold capMove setCdt
+  repeat (first | exact no_setOriginal (by first | exact Or.inl rfl | exact Or.inr rfl) _ | exact no_getCap _ |
+    exact no_setCap _ _ | exact no_doExtendedOp _ | no_step)
+
+/-- **`cap_swap` sets the two slots' bits only.** -/
+theorem capSwap_orig (c1 : Cap) (s1 : CslotPtr) (c2 : Cap) (s2 : CslotPtr) :
+    NO (fun sl => sl = s1 ∨ sl = s2) (capSwap (Z := Unit) c1 s1 c2 s2) := by
+  unfold capSwap setCdt
+  repeat (first | exact no_setOriginal (by first | exact Or.inl rfl | exact Or.inr rfl) _ | exact no_getCap _ |
+    exact no_setCap _ _ | exact no_doExtendedOp _ | no_step)
 
 end
 

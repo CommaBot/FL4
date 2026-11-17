@@ -92,7 +92,8 @@ theorem insert_trace (hP : Placed th) (s : S) (G : MdbGhost) (hM : MdbLinks th (
     {src dest : U64} (hsrc : src ∈ G.chains.flatten) (hd : IsSlot th dest) (hdest : dest ∉ G.chains.flatten)
     {srcC : capability.Cap} (hsrcC : capAt (L.mem s) src = ok srcC) (c : capability.Cap) (he : EncWf c) :
     cdt.insert st s c src dest ⦃ s' => SlotFrame2 (L := L) th s s' ∧
-      ∀ y, IsSlot th y → y ≠ src → y ≠ dest → capV (L.mem s') y = capV (L.mem s) y ⦄ := by
+      (∀ y, IsSlot th y → y ≠ src → y ≠ dest → capV (L.mem s') y = capV (L.mem s) y) ∧
+      capV (L.mem s') dest = c ∧ capV (L.mem s') src = (fullF srcC c).getD srcC ⦄ := by
   have hslot : ∀ x, x ∈ G.chains.flatten → IsSlot th x := fun x h => ((hM.members x).1 h).1
   have hs := hslot src hsrc
   have hne : src ≠ dest := fun e => hdest (e ▸ hsrc)
@@ -109,10 +110,16 @@ theorem insert_trace (hP : Placed th) (s : S) (G : MdbGhost) (hM : MdbLinks th (
   refine WP.spec_mono (WP.spec_and (insert_frame2 hP s c src dest hs hd srcC hsrcC hnx')
     (insert_mem hP s c src dest hs hd hne srcC hsrcC hnx)) ?_
   rintro s' ⟨hF, hW⟩
-  refine ⟨hF, fun y hy h1 h2 => ?_⟩
-  have := hW.capAt' hy he hes hsrcC
-  rw [if_neg h2, if_neg h1, capAt_capV, capAt_capV] at this
-  exact eq_of_ok_eq this
+  refine ⟨hF, fun y hy h1 h2 => ?_, ?_, ?_⟩
+  · have := hW.capAt' hy he hes hsrcC
+    rw [if_neg h2, if_neg h1, capAt_capV, capAt_capV] at this
+    exact eq_of_ok_eq this
+  · have := hW.capAt' hd he hes hsrcC
+    rw [if_pos rfl, capAt_capV] at this
+    exact eq_of_ok_eq this
+  · have := hW.capAt' hs he hes hsrcC
+    rw [if_neg hne, if_pos rfl, capAt_capV] at this
+    exact eq_of_ok_eq this
 
 /-- **`cdt::move_cap`'s trace**: slot words only, every slot's cap but the
 source's and the destination's kept. -/
@@ -120,7 +127,8 @@ theorem move_trace (hP : Placed th) (s : S) (G : MdbGhost) (hM : MdbLinks th (L.
     {src dest : U64} (hsrc : src ∈ G.chains.flatten) (hd : IsSlot th dest) (hdest : dest ∉ G.chains.flatten)
     (c : capability.Cap) (he : EncWf c) :
     cdt.move_cap st s c src dest ⦃ s' => SlotFrame2 (L := L) th s s' ∧
-      ∀ y, IsSlot th y → y ≠ src → y ≠ dest → capV (L.mem s') y = capV (L.mem s) y ⦄ := by
+      (∀ y, IsSlot th y → y ≠ src → y ≠ dest → capV (L.mem s') y = capV (L.mem s) y) ∧
+      capV (L.mem s') dest = c ∧ capV (L.mem s') src = .Null ⦄ := by
   have hslot : ∀ x, x ∈ G.chains.flatten → IsSlot th x := fun x h => ((hM.members x).1 h).1
   have hs := hslot src hsrc
   have hne : src ≠ dest := fun e => hdest (e ▸ hsrc)
@@ -146,10 +154,16 @@ theorem move_trace (hP : Placed th) (s : S) (G : MdbGhost) (hM : MdbLinks th (L.
   refine WP.spec_mono (WP.spec_and (move_frame2 hP s c src dest hs hd (or1 hpv) (or1 hnx))
     (move_mem hP s c src dest hs hd hne hpv hnx)) ?_
   rintro s' ⟨hF, hW⟩
-  refine ⟨hF, fun y hy h1 h2 => ?_⟩
-  have := hW.capAt' hy he hne
-  rw [if_neg h2, if_neg h1, capAt_capV, capAt_capV] at this
-  exact eq_of_ok_eq this
+  refine ⟨hF, fun y hy h1 h2 => ?_, ?_, ?_⟩
+  · have := hW.capAt' hy he hne
+    rw [if_neg h2, if_neg h1, capAt_capV, capAt_capV] at this
+    exact eq_of_ok_eq this
+  · have := hW.capAt' hd he hne
+    rw [if_pos rfl, capAt_capV] at this
+    exact eq_of_ok_eq this
+  · have := hW.capAt' hs he hne
+    rw [if_neg hne, if_pos rfl, capAt_capV] at this
+    exact eq_of_ok_eq this
 
 end
 
@@ -272,7 +286,8 @@ theorem swap_trace (hP : Placed th) (s : S) (G : MdbGhost) (hM : MdbLinks th (L.
     {s1 s2 : U64} (h1m : s1 ∈ G.chains.flatten) (h2m : s2 ∈ G.chains.flatten) (hne : s1 ≠ s2)
     (c1 c2 : capability.Cap) (he1 : EncWf c1) (he2 : EncWf c2) :
     cdt.swap st s c1 s1 c2 s2 ⦃ s' => Vs.SlotFrame2 (L := L) th s s' ∧
-      ∀ y, IsSlot th y → y ≠ s1 → y ≠ s2 → capV (L.mem s') y = capV (L.mem s) y ⦄ := by
+      (∀ y, IsSlot th y → y ≠ s1 → y ≠ s2 → capV (L.mem s') y = capV (L.mem s) y) ∧
+      capV (L.mem s') s2 = c1 ∧ capV (L.mem s') s1 = c2 ⦄ := by
   have hs1 : IsSlot th s1 := ((hM.members _).1 h1m).1
   have hs2 : IsSlot th s2 := ((hM.members _).1 h2m).1
   obtain ⟨hP1, hN1⟩ := hM.nb hP h1m
@@ -280,10 +295,16 @@ theorem swap_trace (hP : Placed th) (s : S) (G : MdbGhost) (hM : MdbLinks th (L.
   refine WP.spec_mono (WP.spec_and (swap_frame2 hP s c1 c2 s1 s2 hs1 hs2 hne hP1 hN1 hP2 hN2 he1 he2)
     (swap_fields hP s c1 c2 s1 s2 hs1 hs2 hne he1 he2 hP1 hN1 hP2 hN2)) ?_
   rintro s' ⟨hF, hW⟩
-  refine ⟨hF, fun y hy h1 h2 => ?_⟩
-  have := (hW y hy).1
-  rw [if_neg h2, if_neg h1, capAt_capV, capAt_capV] at this
-  exact eq_of_ok_eq this
+  refine ⟨hF, fun y hy h1 h2 => ?_, ?_, ?_⟩
+  · have := (hW y hy).1
+    rw [if_neg h2, if_neg h1, capAt_capV, capAt_capV] at this
+    exact eq_of_ok_eq this
+  · have := (hW s2 hs2).1
+    rw [if_pos rfl, capAt_capV] at this
+    exact eq_of_ok_eq this
+  · have := (hW s1 hs1).1
+    rw [if_neg hne, if_pos rfl, capAt_capV] at this
+    exact eq_of_ok_eq this
 
 
 /-- **`set_cap` writes only the slot's cap words.** -/
@@ -314,7 +335,7 @@ theorem swap_for_delete_trace (hP : Placed th) (s : S) (G : MdbGhost) (hM : MdbL
       have h := capAt_capV (L.mem s) s1; rw [capAt_words] at h; exact decode_encWf h
     have he2 : EncWf (capV (L.mem s) s2) := by
       have h := capAt_capV (L.mem s) s2; rw [capAt_words] at h; exact decode_encWf h
-    exact swap_trace hP s G hM h1m h2m hne _ _ he1 he2
+    exact WP.spec_mono (swap_trace hP s G hM h1m h2m hne _ _ he1 he2) fun _ h => ⟨h.1, h.2.1⟩
 
 end
 

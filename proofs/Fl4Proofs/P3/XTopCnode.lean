@@ -14,6 +14,7 @@ import Fl4Proofs.P3.DomSched
 import Fl4Proofs.P3.CnodeDecode
 import Fl4Proofs.P3.SpecNKO
 import Fl4Proofs.P3.XTopStepT
+import Fl4Proofs.P3.SlotOrig
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -96,6 +97,36 @@ theorem invoke_cn {inv : CnodeInvocation} (hne : invSlots inv ≠ []) {σ σ' : 
   | deleteCall _ => exact absurd rfl hne
   | cancelBadgedSendsCall _ => exact absurd rfl hne
 
+/-- **The spec's original bits of a CNode copy, move or rotate** are kept
+off the invocation's slots (`capInsert_orig`, `capMove_orig`,
+`capSwap_orig`). -/
+theorem invoke_orig {inv : CnodeInvocation} (hne : invSlots inv ≠ []) {σ σ' : State Unit}
+    (h : ((.ok (), σ') : Except Unit Unit × State Unit) ∈ ((invokeCnode (Z := Unit) inv).run σ).1) :
+    ∀ sl, sl ∉ invSlots inv → σ'.isOriginalCap sl = σ.isOriginalCap sl := by
+  intro sl hsl
+  cases inv with
+  | insertCall c a b =>
+    obtain ⟨x, hx, e⟩ := Sched.liftE_mem_inv h
+    simp only at e; subst e
+    exact capInsert_orig c a b σ x hx sl fun e => hsl (by simp [invSlots, e])
+  | moveCall c a b =>
+    obtain ⟨x, hx, e⟩ := Sched.liftE_mem_inv h
+    simp only at e; subst e
+    exact capMove_orig c a b σ x hx sl fun e => hsl (by rcases e with e | e <;> simp [invSlots, e])
+  | rotateCall c1 c2 a b d =>
+    obtain ⟨x, hx, e⟩ := Sched.liftE_mem_inv h
+    simp only at e; subst e
+    have hn : ¬ (sl = a ∨ sl = b ∨ sl = d) := fun e => hsl (by rcases e with e | e | e <;> simp [invSlots, e])
+    split_ifs at hx with hs
+    · exact no_mono (d' := fun sl => sl = a ∨ sl = b ∨ sl = d) (fun q hq => by rcases hq with h | h <;> simp [h])
+        (capSwap_orig c1 a c2 b) σ x hx sl hn
+    · exact no_bind (d := fun sl => sl = a ∨ sl = b ∨ sl = d)
+        (no_mono (fun q hq => by rcases hq with h | h <;> simp [h]) (capMove_orig c2 b d))
+        (fun _ => no_mono (fun q hq => by rcases hq with h | h <;> simp [h]) (capMove_orig c1 a b)) σ x hx sl hn
+  | revokeCall _ => exact absurd rfl hne
+  | deleteCall _ => exact absurd rfl hne
+  | cancelBadgedSendsCall _ => exact absurd rfl hne
+
 end Spec
 
 section
@@ -115,6 +146,7 @@ theorem Steps.cnTrace {th : TypedHeap} (hP : Placed th) {s s2 s' : S} {a : A}
     (hF : Vs.SlotFrame2 (L := L) th s2 s')
     (hsl : ∀ sl ∈ invSlots inv, ∃ p r, sl.1 = p.bv ∧ th p = some (.cnode r) ∧ sl.2.length = r)
     (hcap : ∀ y, IsSlot th y → (∀ sl ∈ invSlots inv, y ≠ cslotAddr sl) → capV (L.mem s') y = capV (L.mem s2) y)
+    (hCK : CoverKept th (L.mem s2) (L.mem s')) (hUK : UtKept th (L.mem s2) (L.mem s'))
     (hCR : CRel th (L.mem s') σ' G') (hFI : FinInv th (L.mem s') σ' G') (hMO : MdbOKV (L.ksb s) (L.mem s') G') :
     Steps (L := L) arI th s a σ s' a σ' := by
   refine (Steps.restart arI hcur hk htcb hs2 hst hC).trans arI fun Q hQ => ?_
@@ -126,7 +158,12 @@ theorem Steps.cnTrace {th : TypedHeap} (hP : Placed th) {s s2 s' : S} {a : A}
       obtain ⟨q, r, h1, h2, -⟩ := hsl sl hs
       obtain ⟨cs, h, -⟩ := hR1.cnode q r h2
       exact ⟨r, cs, by rw [e, h1]; exact h⟩)
-  refine hQ.cslot s2 s' a σ1 σ' G' hcn hkc
+  have horig : ∀ sl, σ'.isOriginalCap sl = true → σ1.isOriginalCap sl = true ∨ AbsSlot th sl := fun sl h => by
+    by_cases hs : sl ∈ invSlots inv
+    · obtain ⟨p, r, h1, h2, h3⟩ := hsl sl hs
+      exact Or.inr ⟨p, h1, Or.inl (by rw [h3]; exact h2)⟩
+    · exact Or.inl (by rw [← invoke_orig hne hmem sl hs]; exact h)
+  refine hQ.cslot s2 s' a σ1 σ' G' hcn hkc hCK hUK horig
     ⟨hF.1, hF.2.1, fun b hb hn => hF.2.2 b hb fun ⟨y, k, hy, hk', e⟩ => hn ⟨y, hy, ?_⟩⟩ hCR hFI
     (by rw [hks]; exact hMO) fun t ht => ?_
   · have hf := hy.fit hP
@@ -163,12 +200,13 @@ theorem cn_topX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {Z : XSe
     obtain ⟨rfl, e', h1, h2⟩ := hq
     exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, Or.inl h2⟩, ⟨Z, hX⟩⟩
   | Ok u =>
-    obtain ⟨inv, hrun, σ1, hst, σ', G', hrunI, hR', hV', hM', hC', hI', hFI', hSt, s2, hne, hs2, hF, hsl, hcap⟩ := hq
+    obtain ⟨inv, hrun, σ1, hst, σ', G', hrunI, hR', hV', hM', hC', hI', hFI', hSt, s2, hne, hs2, hF, hsl, hcap, hCK,
+      hUK⟩ := hq
     obtain ⟨htcb, x, hk⟩ := hX.curTcb hcur
     have hst' : Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) := by rw [← hcur]; exact hst
     obtain ⟨hX1, hks, -⟩ := hX.restart' hC hcur hs2 hst'
     have hstp : Steps (L := L) arI Z.th s a' σ s' a' σ' :=
-      Steps.cnTrace arI hX.rel.1 hcur hk htcb hs2 hst hC hX1.rel.2.1.1 hks hne hrunI hF hsl hcap
+      Steps.cnTrace arI hX.rel.1 hcur hk htcb hs2 hst hC hX1.rel.2.1.1 hks hne hrunI hF hsl hcap hCK hUK
         ⟨hR', hV', hM', hC', hI'⟩ hFI' (hSt.okv hX.rel.2.2.2.2.1)
     obtain ⟨Z', hZ'⟩ := hstp.xtop arI hAM hDel rfl hX hKA hTh
     have hx : ((.ok (), σ') : Except Unit Unit × Fl4Spec.State Unit) ∈

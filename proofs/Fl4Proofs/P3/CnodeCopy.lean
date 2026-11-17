@@ -26,6 +26,7 @@ import Fl4Proofs.P3.NoChildren
 import Fl4Proofs.P3.CnodeShape
 import Fl4Proofs.P3.CnodeKey
 import Fl4Proofs.P3.CnFrame
+import Fl4Proofs.P3.SlotCover
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -255,7 +256,8 @@ def CnTrace (th : TypedHeap) (ct : U64) (s : S) (inv : Fl4Spec.CnodeInvocation) 
   ∃ s2, invSlots inv ≠ [] ∧ sched.set_thread_state st s ct sched.TS_RESTART = ok s2 ∧
     Vs.SlotFrame2 (L := L) th s2 s' ∧
     (∀ sl ∈ invSlots inv, ∃ p r, sl.1 = p.bv ∧ th p = some (.cnode r) ∧ sl.2.length = r) ∧
-    ∀ y, IsSlot th y → (∀ sl ∈ invSlots inv, y ≠ cslotAddr sl) → capV (L.mem s') y = capV (L.mem s2) y
+    (∀ y, IsSlot th y → (∀ sl ∈ invSlots inv, y ≠ cslotAddr sl) → capV (L.mem s') y = capV (L.mem s2) y) ∧
+    CoverKept th (L.mem s2) (L.mem s') ∧ UtKept th (L.mem s2) (L.mem s')
 
 theorem InvPost.of_run {th : TypedHeap} {σ : Fl4Spec.State Unit} {G : MdbGhost}
     {m m' : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation} (h : m.run σ = m'.run σ) {s : S}
@@ -455,6 +457,8 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
         have hAd : AbsSlot th (pd.bv, db) := ⟨pd, rfl, Or.inl hpd⟩
         have hsc2 : capAt (L.mem s2) (cslotAddr (ps.bv, sb)) = ok srcC := by rw [hS.capAt hAs.isSlot, hsc]
         have hdc2 : capAt (L.mem s2) (cslotAddr (pd.bv, db)) = ok .Null := by rw [hS.capAt hAd.isSlot, hcd]
+        have hsd : cslotAddr (ps.bv, sb) ≠ cslotAddr (pd.bv, db) := fun e => by
+          rw [e, hdc2] at hsc2; exact hsn (eq_of_ok_eq hsc2).symm
         cases mv
         · -- insert
           simp only [Bool.false_eq_true, ↓reduceIte]
@@ -479,7 +483,9 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
               simp only [invSlots, List.mem_cons, List.not_mem_nil, or_false] at hsl
               rcases hsl with rfl | rfl
               exacts [⟨ps, _, rfl, hps, rfl⟩, ⟨pd, _, rfl, hpd, rfl⟩],
-            fun y hy hne => htr.2 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots]))⟩
+            fun y hy hne => htr.2.1 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots])),
+            coverUt_ins hAs.isSlot hsd (capV_of_capAt hsc2) (capV_of_capAt hdc2) htr.2.2.1 htr.2.2.2 htr.2.1 hsh
+              (copied_ut hr2)⟩
           rw [run_ofExcept]; simp [finishRes, hann]
         · -- move
           simp only [↓reduceIte]
@@ -498,7 +504,9 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
               simp only [invSlots, List.mem_cons, List.not_mem_nil, or_false] at hsl
               rcases hsl with rfl | rfl
               exacts [⟨ps, _, rfl, hps, rfl⟩, ⟨pd, _, rfl, hpd, rfl⟩],
-            fun y hy hne => htr.2 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots]))⟩
+            fun y hy hne => htr.2.1 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots])),
+            coverUt_mov hAd.isSlot hsd (capV_of_capAt hsc2) (capV_of_capAt hdc2) htr.2.2.1 htr.2.2.2 htr.2.1 hsh
+              hAs.isSlot⟩
           rw [run_ofExcept]; simp [finishRes, hann]
 
 /-- **FL4's CNode Copy, Mint, Move and Mutate refine l4v's**: for labels

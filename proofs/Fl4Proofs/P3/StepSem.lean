@@ -21,6 +21,7 @@ import Fl4Proofs.P3.CnodeRevoke
 import Fl4Proofs.P3.VsInsFrame
 import Fl4Proofs.P3.SchedRel
 import Fl4Proofs.P3.SpecCnK
+import Fl4Proofs.P3.SlotCover
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -185,6 +186,8 @@ structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S 
   cslot : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit) (G' : MdbGhost), Ipc.CnK σ σ' →
     (∀ p, σ'.kheap p = σ.kheap p ∨
       ∃ r cs cs', σ.kheap p = some (.cnode r cs) ∧ σ'.kheap p = some (.cnode r cs')) →
+    CoverKept th (L.mem s) (L.mem s') → UtKept th (L.mem s) (L.mem s') →
+    (∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot th sl) →
     P1.WritesIn st s s' (InSlot th) → CRel th (L.mem s') σ' G' → FinInv th (L.mem s') σ' G' →
     MdbOKV (L.ksb s) (L.mem s') G' →
     (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 1) = capAt (L.mem s) (slotOf t 1)) →

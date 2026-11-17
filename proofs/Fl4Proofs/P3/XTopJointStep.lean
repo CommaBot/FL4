@@ -242,6 +242,8 @@ structure JStepHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   cslot : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit) (G' : MdbGhost), Ipc.CnK σ σ' →
     (∀ p, σ'.kheap p = σ.kheap p ∨
       ∃ r cs cs', σ.kheap p = some (.cnode r cs) ∧ σ'.kheap p = some (.cnode r cs')) →
+    CoverKept th (L.mem s) (L.mem s') → UtKept th (L.mem s) (L.mem s') →
+    (∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot th sl) →
     P1.WritesIn st s s' (InSlot th) → CRel th (L.mem s') σ' G' → FinInv th (L.mem s') σ' G' →
     MdbOKV (L.ksb s) (L.mem s') G' →
     (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 1) = capAt (L.mem s) (slotOf t 1)) →
@@ -284,7 +286,7 @@ theorem stepClosed_jat {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {
     fun s s' a a' σ σ' hw hO hdk hdl hds hirq hio harch Z H Cs Ac Lst D hth J => ?_,
     fun s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu hw hCR hFI hMO hTS Z H Cs Ac Lst D hth J => ?_,
     fun s s' a σ σ' hS Z H Cs Ac Lst D hth J => ?_,
-    fun s s' a σ σ' G' hcn hkc hw hCR hFI hMO hTS Z H Cs Ac Lst D hth J => ?_,
+    fun s s' a σ σ' G' hcn hkc hCK hUK horig hw hCR hFI hMO hTS Z H Cs Ac Lst D hth J => ?_,
     fun s s' a a' σ σ' sl p b w r hA hc hd hm Z H Cs Ac Lst D hth J => ?_⟩
   · obtain ⟨G1, Ac1, Lst1, D1, J1⟩ := h1 Z H Cs Ac Lst D hth J
     exact h2 { Z with G := G1 } H Cs Ac1 Lst1 D1 hth J1
@@ -344,7 +346,7 @@ theorem stepClosed_jat {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {
     have hw' : P1.WritesIn st s s' (Sched.SlotWd Z.th) :=
       ⟨hw.1, hw.2.1, fun b hb hn => hw.2.2 b hb fun h => hn (Sched.slotSpan_wd hPl hb h)⟩
     have hX1 := XTopAt.slotStep hX hw' hcn hkc hCR hFI hMO hTS
-    obtain ⟨hC, Ac', Lst', D', R⟩ := hJ.cslot s s' a σ σ' G' hcn hkc hw hCR hFI hMO hTS Z H Cs Ac Lst D rfl J hX1
+    obtain ⟨hC, Ac', Lst', D', R⟩ := hJ.cslot s s' a σ σ' G' hcn hkc hCK hUK horig hw hCR hFI hMO hTS Z H Cs Ac Lst D rfl J hX1
     exact ⟨G', Ac', Lst', D', J.cs_frame hw.1 hX1 (KBack.of_keepC hkc) hC R⟩
   · -- a notification cap's deletion
     obtain ⟨G', hX1, hks, hkb, hC, Ac', Lst', D', R⟩ := hJ.del s s' a a' σ σ' sl p b w r hA hc hd hm Z H Cs Ac Lst D
