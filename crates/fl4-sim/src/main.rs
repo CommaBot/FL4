@@ -957,6 +957,11 @@ impl fl4_sync::EntryEnv for SimEnv {
     fn multi(&self) -> bool {
         true
     }
+    fn prefer_serial(&self) -> bool {
+        // Mix entries known to require exclusion with transactions and
+        // abort-driven fallback, exercising the same admission protocol.
+        self.conc.baton.lock().unwrap().rng.below(8) == 0
+    }
     fn store(&self, tx: bool) -> SimStore {
         SimStore { tx, ..self.s.clone() }
     }

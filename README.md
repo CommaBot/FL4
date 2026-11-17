@@ -55,14 +55,26 @@ on exit, so entries write only changed VMCS fields. The VCPU's software
 image remains complete before remote operations or migration; the hardware
 VMCS stays on its core. EPT translations survive entries. Nested unmaps and
 root/ASID-pool deletion synchronously invalidate every core recorded in
-the root before memory can be reused. VMX uses no VPID, and SVM flushes its
-ASID on every entry. Guest FPU state is the bound TCB's;
+the root before memory can be reused. Recording a core already present in
+the root's lifetime bitmap does not write the hardware page table again.
+VMX uses no VPID. SVM retains ASID 1 only for the last VCPU/root on each
+core. VCPU switches, migration, retype, failed entry, nested invalidation,
+explicit TLB flushes and software paging writes force a flush before reuse.
+Guest-linear translations can survive SVM entries. A VMM that edits guest
+page tables or emulates translation-invalidating operations (such as INVLPG,
+INVPCID or a task switch) must call `seL4_X86_VCPU_FlushTLB` before reentry,
+unless a software paging-register write already requested the flush.
+VMCB clean bits track both software writes and hardware's exit state.
+The host VMLOAD image is refreshed when FS/GS selectors or bases change
+(on every entry with the dangerous-MSR API); AMD entry avoids VMX-only
+MSR and descriptor-table work. Guest FPU state is the bound TCB's;
 XCR0, CR2, syscall MSRs, descriptor-table limits, and host state are
 restored on successful and failed entries.
 
 Virtualization regression tests run real guests and cover field restrictions,
 CPUID/HLT exits, repeated entry, failed entry, GPRs, notifications,
-replacement of cached nested mappings, cross-core rebinding, migration,
+replacement of cached nested mappings, explicit guest TLB invalidation,
+same-value CR3 writes, cross-core rebinding, migration,
 revocation, and deletion of a running VCPU:
 
 ```
@@ -75,7 +87,7 @@ FL4_P0_STRICT=1 cargo xtask gate
 
 The strict extraction/proof gate passes. The proof project builds with the
 expanded capability and TCB layouts,
-VM thread state, and mixed native/nested ASID pools. All 1,041 extracted
+VM thread state, and mixed native/nested ASID pools. All 1,045 extracted
 core functions have checked totality proofs with zero `sorry`s. Existing
 P1/P3 native proofs are ported; VMEnter, SetEPTRoot, EPT mapping, guest-root
 ASID assignment, and VCPU/EPT functional refinement remain outside their

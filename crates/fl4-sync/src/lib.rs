@@ -232,6 +232,12 @@ pub trait EntryEnv {
     fn cpu(&self) -> u64;
     /// More than one core runs the kernel.
     fn multi(&self) -> bool;
+    /// Skip speculation when the entry is expected to require the gate.
+    /// This changes admission policy only: the body still validates the
+    /// request, and waits still service stalls and accepted interrupts.
+    fn prefer_serial(&self) -> bool {
+        false
+    }
     /// The store, inside this core's transaction or direct.
     fn store(&self, tx: bool) -> Self::S;
     fn arch(&self) -> Self::A;
@@ -308,6 +314,7 @@ fn attempts<E: EntryEnv>(
 ) -> (bool, bool) {
     use fl4_store::tx;
     let cpu = env.cpu();
+    let max_attempts = if env.prefer_serial() { 0 } else { TX_ATTEMPTS };
     let mut a = env.arch();
     if !env.multi() {
         body(&mut env.store(false), &mut a);
@@ -320,7 +327,7 @@ fn attempts<E: EntryEnv>(
             stalled.set(true);
         }
     };
-    if TX_ATTEMPTS != 0 && gate.opportunistic_acquire(env.mem(), cpu, wait) {
+    if max_attempts != 0 && gate.opportunistic_acquire(env.mem(), cpu, wait) {
         env.count(Count::Serial);
         env.holding_gate();
         if stalled.get() && !irq {
@@ -330,7 +337,7 @@ fn attempts<E: EntryEnv>(
         env.entry_done();
         return (true, true);
     }
-    for _ in 0..TX_ATTEMPTS {
+    for _ in 0..max_attempts {
         gate.enter_tx(env.mem(), cpu, wait);
         if stalled.get() && !irq {
             gate.leave_tx(env.mem(), cpu);

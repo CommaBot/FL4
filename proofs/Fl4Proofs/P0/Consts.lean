@@ -1557,6 +1557,9 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem msg.BUF_MSG.val_eq : msg.BUF_MSG.val = 1 := by
   unfold msg.BUF_MSG; rfl
 
+@[simp, scalar_tac_simps] theorem vcpu.SVM_CPU.val_eq : vcpu.SVM_CPU.val = 20536 := by
+  unfold vcpu.SVM_CPU; rfl
+
 @[simp, scalar_tac_simps] theorem vcpu.vmx.GUEST_SYSENTER_EIP.val_eq : vcpu.vmx.GUEST_SYSENTER_EIP.val = 26662 := by
   unfold vcpu.vmx.GUEST_SYSENTER_EIP; rfl
 

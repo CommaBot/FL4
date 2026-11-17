@@ -8123,7 +8123,7 @@ def sched.cur_thread
 @[global_simps, irreducible] def ept.CORES : Result Std.U64 := 510#u64 * 8#u64
 
 /-- [fl4_core::ept::invalidate]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 49:0-56:1
+    Source: 'crates/fl4-core/src/ept.rs', lines 55:0-62:1
     Visibility: public -/
 def ept.invalidate
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -8613,12 +8613,12 @@ def vspace.unmap_page
   | core.result.Result.Err _ => ok (s, a)
 
 /-- [fl4_core::vcpu::IO]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 28:0-28:27
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 31:0-31:27
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.IO : Std.U64 := 24576#u64
 
 /-- [fl4_core::vcpu::ports]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 703:4-709:5 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 707:4-713:5 -/
 @[rust_loop_body]
 def vcpu.ports_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (v : Std.U64)
@@ -8652,7 +8652,7 @@ def vcpu.ports_loop.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::ports]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 703:4-709:5 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 707:4-713:5 -/
 @[rust_loop]
 def vcpu.ports_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
@@ -8665,7 +8665,7 @@ def vcpu.ports_loop
     (s, port)
 
 /-- [fl4_core::vcpu::ports]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 701:0-710:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 705:0-714:1 -/
 @[reducible]
 def vcpu.ports
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
@@ -8675,7 +8675,7 @@ def vcpu.ports
   vcpu.ports_loop machineStoreInst s v high disable low
 
 /-- [fl4_core::vcpu::get]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 422:0-424:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 425:0-427:1
     Visibility: public -/
 def vcpu.get
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
@@ -8741,7 +8741,7 @@ def obj.Tcb.is_null (self : obj.Tcb) : Result Bool := do
   ok (self = 0#u64)
 
 /-- [fl4_core::vcpu::stall]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 655:0-661:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 659:0-665:1
     Visibility: public -/
 def vcpu.stall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -8771,7 +8771,7 @@ def vcpu.stall
 @[global_simps, irreducible] def layout.WALK_FUEL : Std.U64 := core.num.U64.MAX
 
 /-- [fl4_core::vcpu::revoke_ports]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 720:4-727:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 724:4-731:5
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.revoke_ports_loop.body
@@ -8799,7 +8799,7 @@ def vcpu.revoke_ports_loop.body
   else ok (done (s, a))
 
 /-- [fl4_core::vcpu::revoke_ports]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 720:4-727:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 724:4-731:5
     Visibility: public -/
 @[rust_loop]
 def vcpu.revoke_ports_loop
@@ -8814,7 +8814,7 @@ def vcpu.revoke_ports_loop
     (s, a, v, fuel)
 
 /-- [fl4_core::vcpu::revoke_ports]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 713:0-728:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 717:0-732:1
     Visibility: public -/
 def vcpu.revoke_ports
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -8836,7 +8836,7 @@ def vcpu.revoke_ports
 @[global_simps, irreducible] def vcpu.SHADOW : Std.U64 := 4096#u64
 
 /-- [fl4_core::vcpu::vmcs_addr]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 431:0-434:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 434:0-437:1
     Visibility: public -/
 def vcpu.vmcs_addr (v : Std.U64) (f : Std.U64) : Result Std.U64 := do
   let i ← lift (f &&& 255#u64)
@@ -8854,7 +8854,7 @@ def vcpu.vmcs_addr (v : Std.U64) (f : Std.U64) : Result Std.U64 := do
   ok (core.num.U64.wrapping_add i10 i11)
 
 /-- [fl4_core::vcpu::read_vmcs]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 435:0-437:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 438:0-440:1
     Visibility: public -/
 def vcpu.read_vmcs
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
@@ -8878,7 +8878,7 @@ def layout.tcb.VCPU : Result Std.U64 := do
   i + layout.tcb.NAME_LEN
 
 /-- [fl4_core::vcpu::bound]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 428:0-430:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 431:0-433:1
     Visibility: public -/
 def vcpu.bound
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -8889,7 +8889,7 @@ def vcpu.bound
   machineStoreInst.read s i1
 
 /-- [fl4_core::vcpu::set]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 425:0-427:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 428:0-430:1
     Visibility: public -/
 def vcpu.set
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
@@ -8900,89 +8900,89 @@ def vcpu.set
   machineStoreInst.write s i x
 
 /-- [fl4_core::vcpu::svm::SAVE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 225:4-225:32
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 228:4-228:32
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.SAVE : Std.U64 := 1024#u64
 
 /-- [fl4_core::vcpu::svm::CR2]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 255:4-255:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 258:4-258:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.CR2 : Result Std.U64 := vcpu.svm.SAVE + 576#u64
 
 /-- [fl4_core::vcpu::svm::RIP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 244:4-244:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 247:4-247:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.RIP : Result Std.U64 := vcpu.svm.SAVE + 376#u64
 
 /-- [fl4_core::vcpu::svm::RFLAGS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 243:4-243:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 246:4-246:41
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.RFLAGS : Result Std.U64 := vcpu.svm.SAVE + 368#u64
 
 /-- [fl4_core::vcpu::svm::CR3]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 239:4-239:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 242:4-242:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.CR3 : Result Std.U64 := vcpu.svm.SAVE + 336#u64
 
 /-- [fl4_core::vcpu::svm::EVENT_INJ]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 215:4-215:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 218:4-218:37
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.EVENT_INJ : Std.U64 := 168#u64
 
 /-- [fl4_core::vcpu::svm::INT_STATE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 207:4-207:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 210:4-210:37
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.INT_STATE : Std.U64 := 104#u64
 
 /-- [fl4_core::vcpu::svm::INTERCEPT_EXC]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 197:4-197:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 200:4-200:41
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.INTERCEPT_EXC : Std.U64 := 8#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_RFLAGS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 177:4-177:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 180:4-180:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_RFLAGS : Std.U64 := 26656#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_RIP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 176:4-176:42
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 179:4-179:42
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_RIP : Std.U64 := 26654#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_INTERRUPTABILITY]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 141:4-141:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 144:4-144:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_INTERRUPTABILITY : Std.U64 := 18468#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_ENTRY_INTERRUPTION_INFO]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 108:4-108:64
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 111:4-111:64
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_ENTRY_INTERRUPTION_INFO : Std.U64 := 16406#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_PRIMARY_PROCESSOR_CONTROLS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 98:4-98:67
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 101:4-101:67
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_PRIMARY_PROCESSOR_CONTROLS : Std.U64 := 16386#u64
 
 /-- [fl4_core::vcpu::NUM_MRS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 29:0-29:28
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 32:0-32:28
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.NUM_MRS : Std.U64 := 30#u64
 
 /-- [fl4_core::vcpu::EXIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 27:0-27:29
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 30:0-30:29
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.EXIT : Std.U64 := 20992#u64
 
 /-- [fl4_core::vcpu::REGS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 25:0-25:29
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 28:0-28:29
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.REGS : Std.U64 := 20736#u64
 
@@ -9332,7 +9332,7 @@ def layout.reg.MSG_INFO : Std.U64 := layout.reg.RSI
 @[global_simps, irreducible] def layout.reg.BADGE : Std.U64 := layout.reg.RDI
 
 /-- [fl4_core::vcpu::report]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1035:4-1043:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1045:4-1053:5
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.report_loop0.body
@@ -9367,7 +9367,7 @@ def vcpu.report_loop0.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::report]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1035:4-1043:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1045:4-1053:5
     Visibility: public -/
 @[rust_loop]
 def vcpu.report_loop0
@@ -9381,7 +9381,7 @@ def vcpu.report_loop0
     (s, i)
 
 /-- [fl4_core::vcpu::report]: loop body 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1066:8-1069:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1076:8-1079:9
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.report_loop1.body
@@ -9401,7 +9401,7 @@ def vcpu.report_loop1.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::report]: loop 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1066:8-1069:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1076:8-1079:9
     Visibility: public -/
 @[rust_loop]
 def vcpu.report_loop1
@@ -9414,7 +9414,7 @@ def vcpu.report_loop1
     (s, j)
 
 /-- [fl4_core::vcpu::report]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1030:0-1104:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1040:0-1114:1
     Visibility: public -/
 def vcpu.report
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -9693,7 +9693,7 @@ def vcpu.report
         sched.set_thread_state machineStoreInst s6 t sched.TS_RUNNING
 
 /-- [fl4_core::vcpu::detach]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 672:0-683:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 676:0-687:1
     Visibility: public -/
 def vcpu.detach
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -9722,7 +9722,7 @@ def vcpu.detach
 @[global_simps, irreducible] def vcpu.PREV : Std.U64 := 20496#u64
 
 /-- [fl4_core::vcpu::finalise]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 684:0-700:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 688:0-704:1
     Visibility: public -/
 def vcpu.finalise
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -12936,7 +12936,7 @@ def ipc.reply_remove
 @[global_simps, irreducible] def ept.ADDRESS : Std.U64 := 4503599627366400#u64
 
 /-- [fl4_core::ept::lookup]: loop body 0:
-    Source: 'crates/fl4-core/src/ept.rs', lines 60:4-69:1
+    Source: 'crates/fl4-core/src/ept.rs', lines 66:4-75:1
     Visibility: public -/
 @[rust_loop_body]
 def ept.lookup_loop.body
@@ -12987,7 +12987,7 @@ def ept.lookup_loop.body
     ok (done (core.result.Result.Ok i4))
 
 /-- [fl4_core::ept::lookup]: loop 0:
-    Source: 'crates/fl4-core/src/ept.rs', lines 60:4-69:1
+    Source: 'crates/fl4-core/src/ept.rs', lines 66:4-75:1
     Visibility: public -/
 @[rust_loop]
 def ept.lookup_loop
@@ -13001,7 +13001,7 @@ def ept.lookup_loop
     (table, shift)
 
 /-- [fl4_core::ept::lookup]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 57:0-69:1
+    Source: 'crates/fl4-core/src/ept.rs', lines 63:0-75:1
     Visibility: public -/
 @[reducible]
 def ept.lookup
@@ -13034,7 +13034,7 @@ def ept.find
       Std.U64 (core.convert.FromSame error.LookupFault) residual
 
 /-- [fl4_core::ept::unmap]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 170:0-199:1
+    Source: 'crates/fl4-core/src/ept.rs', lines 176:0-205:1
     Visibility: public -/
 def ept.unmap
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -13094,7 +13094,7 @@ def ept.unmap
   | core.result.Result.Err _ => ok (s, a)
 
 /-- [fl4_core::ept::finalise]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 200:0-215:1
+    Source: 'crates/fl4-core/src/ept.rs', lines 206:0-221:1
     Visibility: public -/
 def ept.finalise
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -17714,7 +17714,7 @@ def ept.root
   | capability.Cap.IoPort _ _ _ => error.invalid_cap (Std.U64 × Std.U64) 1#u64
 
 /-- [fl4_core::ept::mark_core]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 43:0-48:1
+    Source: 'crates/fl4-core/src/ept.rs', lines 43:0-54:1
     Visibility: public -/
 def ept.mark_core
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64) :
@@ -17730,11 +17730,13 @@ def ept.mark_core
   let i4 ← cpu % 32#u64
   let i5 ← 32#u64 + i4
   let i6 ← 1#u64 <<< i5
-  let i7 ← lift (old ||| i6)
-  machineStoreInst.write s addr i7
+  let new ← lift (old ||| i6)
+  if old != new
+  then machineStoreInst.write s addr new
+  else ok s
 
 /-- [fl4_core::ept::slot::{impl core::ops::function::FnOnce<(fl4_core::error::LookupFault,), fl4_core::error::Exc> for fl4_core::ept::slot::{closure}<S>}::call_once]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 71:40-71:99 -/
+    Source: 'crates/fl4-core/src/ept.rs', lines 77:40-77:99 -/
 def ept.slot.closure.Insts.CoreOpsFunctionFnOnceTupleLookupFaultExc.call_once
   {S : Type _} (machineStoreInst : machine.Store S) (c : ept.slot.closure S)
   (tupled_args : error.LookupFault) :
@@ -17743,7 +17745,7 @@ def ept.slot.closure.Insts.CoreOpsFunctionFnOnceTupleLookupFaultExc.call_once
   ok (error.Exc.Sys (error.SysError.FailedLookup false tupled_args))
 
 /-- Trait implementation: [fl4_core::ept::slot::{impl core::ops::function::FnOnce<(fl4_core::error::LookupFault,), fl4_core::error::Exc> for fl4_core::ept::slot::{closure}<S>}]
-    Source: 'crates/fl4-core/src/ept.rs', lines 71:40-71:99 -/
+    Source: 'crates/fl4-core/src/ept.rs', lines 77:40-77:99 -/
 @[reducible]
 def ept.slot.closure.Insts.CoreOpsFunctionFnOnceTupleLookupFaultExc {S :
   Type _} (machineStoreInst : machine.Store S) : core.ops.function.FnOnce
@@ -17754,7 +17756,7 @@ def ept.slot.closure.Insts.CoreOpsFunctionFnOnceTupleLookupFaultExc {S :
 }
 
 /-- [fl4_core::ept::slot]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 70:0-72:1 -/
+    Source: 'crates/fl4-core/src/ept.rs', lines 76:0-78:1 -/
 def ept.slot
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64)
   (gpa : Std.U64) (level : Std.U64) :
@@ -17766,7 +17768,7 @@ def ept.slot
     machineStoreInst) r ()
 
 /-- [fl4_core::ept::memory_type]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 73:0-79:1 -/
+    Source: 'crates/fl4-core/src/ept.rs', lines 79:0-85:1 -/
 def ept.memory_type (attr : Std.U64) : Result Std.U64 := do
   let b ←
     match attr with
@@ -17780,7 +17782,7 @@ def ept.memory_type (attr : Std.U64) : Result Std.U64 := do
   else ok 6#u64
 
 /-- [fl4_core::ept::frame_entry]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 80:0-101:1 -/
+    Source: 'crates/fl4-core/src/ept.rs', lines 86:0-107:1 -/
 def ept.frame_entry
   (amd : Bool) (ptr : Std.U64) (rights : Std.U64) (attr : Std.U64)
   (large : Bool) :
@@ -17834,7 +17836,7 @@ def ept.frame_entry
       ok (i4 ||| i6)
 
 /-- [fl4_core::ept::map_frame]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 104:0-169:1
+    Source: 'crates/fl4-core/src/ept.rs', lines 110:0-175:1
     Visibility: public -/
 def ept.map_frame
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -18006,7 +18008,7 @@ def ept.map_frame
           ok (r, s, a)
 
 /-- [fl4_core::ept::decode]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 216:0-295:1
+    Source: 'crates/fl4-core/src/ept.rs', lines 222:0-301:1
     Visibility: public -/
 def ept.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -21396,43 +21398,48 @@ def objects.init_fpu
   machineStoreInst.write s1 i 281470681751424#u64
 
 /-- [fl4_core::vcpu::svm::END]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 257:4-257:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 260:4-260:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.END : Result Std.U64 := vcpu.svm.SAVE + 744#u64
 
 /-- [fl4_core::vcpu::svm::G_PAT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 256:4-256:40
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 259:4-259:40
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.G_PAT : Result Std.U64 := vcpu.svm.SAVE + 616#u64
 
 /-- [fl4_core::vcpu::svm::DR6]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 242:4-242:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 245:4-245:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.DR6 : Result Std.U64 := vcpu.svm.SAVE + 360#u64
 
 /-- [fl4_core::vcpu::svm::DR7]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 241:4-241:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 244:4-244:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.DR7 : Result Std.U64 := vcpu.svm.SAVE + 352#u64
 
 /-- [fl4_core::vcpu::svm::CR0]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 240:4-240:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 243:4-243:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.CR0 : Result Std.U64 := vcpu.svm.SAVE + 344#u64
 
 /-- [fl4_core::vcpu::svm::EFER]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 237:4-237:39
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 240:4-240:39
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.EFER : Result Std.U64 := vcpu.svm.SAVE + 208#u64
 
+/-- [fl4_core::vcpu::SVM_CPU]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 27:0-27:32
+    Visibility: public -/
+@[global_simps, irreducible] def vcpu.SVM_CPU : Std.U64 := 20536#u64
+
 /-- [fl4_core::vcpu::reset_svm]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 632:4-644:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 636:4-648:5
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.reset_svm_loop.body
@@ -21459,7 +21466,7 @@ def vcpu.reset_svm_loop.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::reset_svm]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 632:4-644:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 636:4-648:5
     Visibility: public -/
 @[rust_loop]
 def vcpu.reset_svm_loop
@@ -21472,418 +21479,419 @@ def vcpu.reset_svm_loop
     (s, off)
 
 /-- [fl4_core::vcpu::reset_svm]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 629:0-654:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 632:0-658:1
     Visibility: public -/
 def vcpu.reset_svm
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64) :
   Result S
   := do
+  let s1 ← vcpu.set machineStoreInst s v vcpu.SVM_CPU 0#u64
   let i ← lift (core.num.U64.wrapping_add v 1024#u64)
   let i1 ← vcpu.svm.END
   let i2 ← i1 - 1024#u64
-  let s1 ← machineStoreInst.zero s i i2
-  let s2 ← vcpu.reset_svm_loop machineStoreInst s1 v 1024#u64
-  let s3 ← vcpu.set machineStoreInst s2 v 1040#u64 281470691962880#u64
-  let s4 ← vcpu.set machineStoreInst s3 v 1048#u64 4294901760#u64
+  let s2 ← machineStoreInst.zero s1 i i2
+  let s3 ← vcpu.reset_svm_loop machineStoreInst s2 v 1024#u64
+  let s4 ← vcpu.set machineStoreInst s3 v 1040#u64 281470691962880#u64
+  let s5 ← vcpu.set machineStoreInst s4 v 1048#u64 4294901760#u64
   let i3 ← 1#u64 <<< 12#i32
   let i4 ← vcpu.svm.EFER
-  let s5 ← vcpu.set machineStoreInst s4 v i4 i3
+  let s6 ← vcpu.set machineStoreInst s5 v i4 i3
   let i5 ← vcpu.svm.CR0
-  let s6 ← vcpu.set machineStoreInst s5 v i5 16#u64
+  let s7 ← vcpu.set machineStoreInst s6 v i5 16#u64
   let i6 ← vcpu.svm.DR6
-  let s7 ← vcpu.set machineStoreInst s6 v i6 4294905840#u64
+  let s8 ← vcpu.set machineStoreInst s7 v i6 4294905840#u64
   let i7 ← vcpu.svm.DR7
-  let s8 ← vcpu.set machineStoreInst s7 v i7 1024#u64
+  let s9 ← vcpu.set machineStoreInst s8 v i7 1024#u64
   let i8 ← vcpu.svm.RFLAGS
-  let s9 ← vcpu.set machineStoreInst s8 v i8 2#u64
+  let s10 ← vcpu.set machineStoreInst s9 v i8 2#u64
   let i9 ← vcpu.svm.RIP
-  let s10 ← vcpu.set machineStoreInst s9 v i9 65520#u64
+  let s11 ← vcpu.set machineStoreInst s10 v i9 65520#u64
   let i10 ← vcpu.svm.G_PAT
-  vcpu.set machineStoreInst s10 v i10 1974748653749254#u64
+  vcpu.set machineStoreInst s11 v i10 1974748653749254#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_SYSENTER_EIP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 180:4-180:51
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 183:4-183:51
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_SYSENTER_EIP : Std.U64 := 26662#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_SYSENTER_ESP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 179:4-179:51
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 182:4-182:51
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_SYSENTER_ESP : Std.U64 := 26660#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_PENDING_DEBUG_EXCEPTIONS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 178:4-178:63
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 181:4-181:63
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_PENDING_DEBUG_EXCEPTIONS : Std.U64 := 26658#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_RSP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 175:4-175:42
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 178:4-178:42
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_RSP : Std.U64 := 26652#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_DR7]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 174:4-174:42
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 177:4-177:42
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_DR7 : Std.U64 := 26650#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_IDTR_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 173:4-173:48
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 176:4-176:48
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_IDTR_BASE : Std.U64 := 26648#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_GDTR_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 172:4-172:48
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 175:4-175:48
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_GDTR_BASE : Std.U64 := 26646#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_TR_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 171:4-171:46
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 174:4-174:46
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_TR_BASE : Std.U64 := 26644#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_LDTR_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 170:4-170:48
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 173:4-173:48
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_LDTR_BASE : Std.U64 := 26642#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_GS_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 169:4-169:46
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 172:4-172:46
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_GS_BASE : Std.U64 := 26640#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_FS_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 168:4-168:46
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 171:4-171:46
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_FS_BASE : Std.U64 := 26638#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_DS_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 167:4-167:46
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 170:4-170:46
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_DS_BASE : Std.U64 := 26636#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_SS_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 166:4-166:46
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 169:4-169:46
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_SS_BASE : Std.U64 := 26634#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_CS_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 165:4-165:46
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 168:4-168:46
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_CS_BASE : Std.U64 := 26632#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_ES_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 164:4-164:46
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 167:4-167:46
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_ES_BASE : Std.U64 := 26630#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_CR4]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 163:4-163:42
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 166:4-166:42
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_CR4 : Std.U64 := 26628#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_CR3]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 162:4-162:42
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 165:4-165:42
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_CR3 : Std.U64 := 26626#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_CR0]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 161:4-161:42
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 164:4-164:42
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_CR0 : Std.U64 := 26624#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_CR4_READ_SHADOW]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 150:4-150:56
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 153:4-153:56
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_CR4_READ_SHADOW : Std.U64 := 24582#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_CR0_READ_SHADOW]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 149:4-149:56
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 152:4-152:56
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_CR0_READ_SHADOW : Std.U64 := 24580#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_CR4_MASK]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 148:4-148:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 151:4-151:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_CR4_MASK : Std.U64 := 24578#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_CR0_MASK]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 147:4-147:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 150:4-150:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_CR0_MASK : Std.U64 := 24576#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_PREEMPTION_TIMER_VALUE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 145:4-145:61
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 148:4-148:61
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_PREEMPTION_TIMER_VALUE : Std.U64 := 18478#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_SYSENTER_CS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 144:4-144:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 147:4-147:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_SYSENTER_CS : Std.U64 := 18474#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_SMBASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 143:4-143:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 146:4-146:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_SMBASE : Std.U64 := 18472#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_ACTIVITY]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 142:4-142:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 145:4-145:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_ACTIVITY : Std.U64 := 18470#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_TR_ACCESS_RIGHTS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 140:4-140:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 143:4-143:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_TR_ACCESS_RIGHTS : Std.U64 := 18466#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_LDTR_ACCESS_RIGHTS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 139:4-139:57
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 142:4-142:57
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_LDTR_ACCESS_RIGHTS : Std.U64 := 18464#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_GS_ACCESS_RIGHTS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 138:4-138:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 141:4-141:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_GS_ACCESS_RIGHTS : Std.U64 := 18462#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_FS_ACCESS_RIGHTS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 137:4-137:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 140:4-140:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_FS_ACCESS_RIGHTS : Std.U64 := 18460#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_DS_ACCESS_RIGHTS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 136:4-136:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 139:4-139:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_DS_ACCESS_RIGHTS : Std.U64 := 18458#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_SS_ACCESS_RIGHTS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 135:4-135:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 138:4-138:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_SS_ACCESS_RIGHTS : Std.U64 := 18456#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_CS_ACCESS_RIGHTS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 134:4-134:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 137:4-137:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_CS_ACCESS_RIGHTS : Std.U64 := 18454#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_ES_ACCESS_RIGHTS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 133:4-133:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 136:4-136:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_ES_ACCESS_RIGHTS : Std.U64 := 18452#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_IDTR_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 132:4-132:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 135:4-135:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_IDTR_LIMIT : Std.U64 := 18450#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_GDTR_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 131:4-131:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 134:4-134:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_GDTR_LIMIT : Std.U64 := 18448#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_TR_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 130:4-130:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 133:4-133:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_TR_LIMIT : Std.U64 := 18446#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_LDTR_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 129:4-129:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 132:4-132:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_LDTR_LIMIT : Std.U64 := 18444#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_GS_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 128:4-128:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 131:4-131:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_GS_LIMIT : Std.U64 := 18442#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_FS_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 127:4-127:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 130:4-130:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_FS_LIMIT : Std.U64 := 18440#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_DS_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 126:4-126:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 129:4-129:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_DS_LIMIT : Std.U64 := 18438#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_SS_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 125:4-125:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 128:4-128:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_SS_LIMIT : Std.U64 := 18436#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_CS_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 124:4-124:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 127:4-127:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_CS_LIMIT : Std.U64 := 18434#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_ES_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 123:4-123:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 126:4-126:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_ES_LIMIT : Std.U64 := 18432#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_SECONDARY_PROCESSOR_CONTROLS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 112:4-112:69
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 115:4-115:69
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_SECONDARY_PROCESSOR_CONTROLS : Std.U64 := 16414#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_ENTRY_INSTRUCTION_LENGTH]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 110:4-110:65
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 113:4-113:65
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_ENTRY_INSTRUCTION_LENGTH : Std.U64 := 16410#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_ENTRY_EXCEPTION_ERROR_CODE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 109:4-109:67
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 112:4-112:67
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_ENTRY_EXCEPTION_ERROR_CODE : Std.U64 := 16408#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_ENTRY_CONTROLS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 106:4-106:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 109:4-109:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_ENTRY_CONTROLS : Std.U64 := 16402#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_EXIT_CONTROLS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 103:4-103:54
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 106:4-106:54
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_EXIT_CONTROLS : Std.U64 := 16396#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_EXCEPTION_BITMAP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 99:4-99:57
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 102:4-102:57
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_EXCEPTION_BITMAP : Std.U64 := 16388#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_PIN_EXECUTION_CONTROLS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 97:4-97:63
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 100:4-100:63
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_PIN_EXECUTION_CONTROLS : Std.U64 := 16384#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_PDPTE3]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 93:4-93:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 96:4-96:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_PDPTE3 : Std.U64 := 10256#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_PDPTE2]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 92:4-92:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 95:4-95:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_PDPTE2 : Std.U64 := 10254#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_PDPTE1]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 91:4-91:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 94:4-94:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_PDPTE1 : Std.U64 := 10252#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_PDPTE0]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 90:4-90:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 93:4-93:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_PDPTE0 : Std.U64 := 10250#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_PERF_GLOBAL_CTRL]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 89:4-89:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 92:4-92:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_PERF_GLOBAL_CTRL : Std.U64 := 10248#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_EFER]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 88:4-88:43
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 91:4-91:43
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_EFER : Std.U64 := 10246#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_PAT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 87:4-87:42
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 90:4-90:42
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_PAT : Std.U64 := 10244#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_DEBUGCTRL]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 86:4-86:48
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 89:4-89:48
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_DEBUGCTRL : Std.U64 := 10242#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_TSC_OFFSET]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 79:4-79:51
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 82:4-82:51
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_TSC_OFFSET : Std.U64 := 8208#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_TR_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 64:4-64:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 67:4-67:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_TR_SELECTOR : Std.U64 := 2062#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_LDTR_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 63:4-63:52
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 66:4-66:52
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_LDTR_SELECTOR : Std.U64 := 2060#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_GS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 62:4-62:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 65:4-65:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_GS_SELECTOR : Std.U64 := 2058#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_FS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 61:4-61:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 64:4-64:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_FS_SELECTOR : Std.U64 := 2056#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_DS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 60:4-60:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 63:4-63:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_DS_SELECTOR : Std.U64 := 2054#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_SS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 59:4-59:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 62:4-62:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_SS_SELECTOR : Std.U64 := 2052#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_CS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 58:4-58:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 61:4-61:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_CS_SELECTOR : Std.U64 := 2050#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_ES_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 57:4-57:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 60:4-60:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_ES_SELECTOR : Std.U64 := 2048#u64
 
 /-- [fl4_core::vcpu::WRITE_FIELDS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 260:0-334:2
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 263:0-337:2
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.WRITE_FIELDS : Array Std.U64 73#usize :=
@@ -21926,17 +21934,17 @@ def vcpu.WRITE_FIELDS : Array Std.U64 73#usize :=
     ]
 
 /-- [fl4_core::vcpu::SVM_I2_FORCED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 550:0-550:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 553:0-553:38
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.SVM_I2_FORCED : Std.U64 := 32381#u64
 
 /-- [fl4_core::vcpu::SVM_I1_FORCED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 548:0-548:43
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 551:0-551:43
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.SVM_I1_FORCED : Std.U64 := 2621472783#u64
 
 /-- [fl4_core::vcpu::controls]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 476:0-480:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 479:0-483:1 -/
 def vcpu.controls
   {A : Type _} (machineArchInst : machine.Arch A) (a : A) (msr : Std.U64)
   (value : Std.U64) (forced : Std.U64) (allowed : Std.U64) :
@@ -21952,7 +21960,7 @@ def vcpu.controls
   ok (i3 &&& i4)
 
 /-- [fl4_core::vcpu::contains]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 468:4-473:5 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 471:4-476:5 -/
 @[rust_loop_body]
 def vcpu.contains_loop.body
   (fields : Slice Std.U64) (f : Std.U64) (i : Std.Usize) (found : Bool) :
@@ -21970,7 +21978,7 @@ def vcpu.contains_loop.body
   else ok (done found)
 
 /-- [fl4_core::vcpu::contains]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 468:4-473:5 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 471:4-476:5 -/
 @[rust_loop]
 def vcpu.contains_loop
   (fields : Slice Std.U64) (f : Std.U64) (i : Std.Usize) (found : Bool) :
@@ -21981,13 +21989,13 @@ def vcpu.contains_loop
     (i, found)
 
 /-- [fl4_core::vcpu::contains]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 465:0-475:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 468:0-478:1 -/
 @[reducible]
 def vcpu.contains (fields : Slice Std.U64) (f : Std.U64) : Result Bool := do
   vcpu.contains_loop fields f 0#usize false
 
 /-- [fl4_core::vcpu::EXIT_FORCED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 53:0-53:97
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 56:0-56:97
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.EXIT_FORCED : Result Std.U64 := do
@@ -22004,7 +22012,7 @@ def vcpu.EXIT_FORCED : Result Std.U64 := do
   ok (i8 ||| i9)
 
 /-- [fl4_core::vcpu::SECONDARY_ALLOWED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 44:0-52:16
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 47:0-55:16
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.SECONDARY_ALLOWED : Result Std.U64 := do
@@ -22027,7 +22035,7 @@ def vcpu.SECONDARY_ALLOWED : Result Std.U64 := do
   ok (i14 ||| i15)
 
 /-- [fl4_core::vcpu::PRIMARY_FORCED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 35:0-43:16
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 38:0-46:16
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.PRIMARY_FORCED : Result Std.U64 := do
@@ -22050,13 +22058,13 @@ def vcpu.PRIMARY_FORCED : Result Std.U64 := do
   ok (i14 ||| i15)
 
 /-- [fl4_core::vcpu::PRIMARY_ALLOWED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 34:0-34:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 37:0-37:45
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.PRIMARY_ALLOWED : Std.U64 := 4225343116#u64
 
 /-- [fl4_core::vcpu::PIN_ALLOWED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 33:0-33:60
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 36:0-36:60
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.PIN_ALLOWED : Result Std.U64 := do
@@ -22067,7 +22075,7 @@ def vcpu.PIN_ALLOWED : Result Std.U64 := do
   ok (i2 ||| i3)
 
 /-- [fl4_core::vcpu::EXCEPTIONS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 32:0-32:61
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 35:0-35:61
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.EXCEPTIONS : Result Std.U64 := do
@@ -22078,7 +22086,7 @@ def vcpu.EXCEPTIONS : Result Std.U64 := do
   ok (i2 ||| i3)
 
 /-- [fl4_core::vcpu::CR0_OWNED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 31:0-31:80
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 34:0-34:80
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.CR0_OWNED : Result Std.U64 := do
@@ -22091,7 +22099,7 @@ def vcpu.CR0_OWNED : Result Std.U64 := do
   ok (i4 ||| i5)
 
 /-- [fl4_core::vcpu::CR4_ALLOWED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 30:0-30:96
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 33:0-33:96
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.CR4_ALLOWED : Result Std.U64 := do
@@ -22107,7 +22115,7 @@ def vcpu.CR4_ALLOWED : Result Std.U64 := do
   ok (i7 ||| i8)
 
 /-- [fl4_core::vcpu::sanitize_vmcs]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 481:0-547:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 484:0-550:1
     Visibility: public -/
 def vcpu.sanitize_vmcs
   {A : Type _} (machineArchInst : machine.Arch A) (a : A) (f : Std.U64)
@@ -22316,7 +22324,7 @@ def vcpu.sanitize_vmcs
   else error.illegal Std.U64
 
 /-- [fl4_core::vcpu::write_vmcs]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 438:0-440:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 441:0-443:1
     Visibility: public -/
 def vcpu.write_vmcs
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
@@ -22327,12 +22335,12 @@ def vcpu.write_vmcs
   machineStoreInst.write s i value
 
 /-- [fl4_core::vcpu::svm::NESTED_CTL]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 212:4-212:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 215:4-215:38
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.NESTED_CTL : Std.U64 := 144#u64
 
 /-- [fl4_core::vcpu::svm::INT_CTL]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 206:4-206:35
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 209:4-209:35
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.INT_CTL : Std.U64 := 96#u64
 
@@ -22342,7 +22350,7 @@ def vcpu.write_vmcs
 @[global_simps, irreducible] def vcpu.XCR0 : Std.U64 := 20504#u64
 
 /-- [fl4_core::vcpu::init]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 603:4-606:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 606:4-609:5
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.init_loop0.body
@@ -22360,7 +22368,7 @@ def vcpu.init_loop0.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::init]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 603:4-606:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 606:4-609:5
     Visibility: public -/
 @[rust_loop]
 def vcpu.init_loop0
@@ -22373,7 +22381,7 @@ def vcpu.init_loop0
     (s, i)
 
 /-- [fl4_core::vcpu::init]: loop body 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 616:8-622:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 619:8-625:9
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.init_loop1.body
@@ -22398,7 +22406,7 @@ def vcpu.init_loop1.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::init]: loop 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 616:8-622:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 619:8-625:9
     Visibility: public -/
 @[rust_loop]
 def vcpu.init_loop1
@@ -22413,7 +22421,7 @@ def vcpu.init_loop1
     (s, j)
 
 /-- [fl4_core::vcpu::init]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 594:0-628:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 597:0-631:1
     Visibility: public -/
 def vcpu.init
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -27062,81 +27070,81 @@ def vspace.decode
     ok (r, s, a)
 
 /-- [fl4_core::vcpu::vmx::DATA_GUEST_LINEAR_ADDRESS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 160:4-160:58
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 163:4-163:58
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.DATA_GUEST_LINEAR_ADDRESS : Std.U64 := 25610#u64
 
 /-- [fl4_core::vcpu::vmx::DATA_IO_RIP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 159:4-159:44
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 162:4-162:44
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.DATA_IO_RIP : Std.U64 := 25608#u64
 
 /-- [fl4_core::vcpu::vmx::DATA_IO_RDI]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 158:4-158:44
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 161:4-161:44
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.DATA_IO_RDI : Std.U64 := 25606#u64
 
 /-- [fl4_core::vcpu::vmx::DATA_IO_RSI]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 157:4-157:44
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 160:4-160:44
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.DATA_IO_RSI : Std.U64 := 25604#u64
 
 /-- [fl4_core::vcpu::vmx::DATA_IO_RCX]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 156:4-156:44
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 159:4-159:44
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.DATA_IO_RCX : Std.U64 := 25602#u64
 
 /-- [fl4_core::vcpu::vmx::DATA_EXIT_INSTRUCTION_INFO]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 122:4-122:59
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 125:4-125:59
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.DATA_EXIT_INSTRUCTION_INFO : Std.U64 := 17422#u64
 
 /-- [fl4_core::vcpu::vmx::DATA_EXIT_INSTRUCTION_LENGTH]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 121:4-121:61
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 124:4-124:61
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.DATA_EXIT_INSTRUCTION_LENGTH : Std.U64 := 17420#u64
 
 /-- [fl4_core::vcpu::vmx::DATA_IDT_VECTOR_ERROR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 120:4-120:54
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 123:4-123:54
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.DATA_IDT_VECTOR_ERROR : Std.U64 := 17418#u64
 
 /-- [fl4_core::vcpu::vmx::DATA_IDT_VECTOR_INFO]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 119:4-119:53
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 122:4-122:53
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.DATA_IDT_VECTOR_INFO : Std.U64 := 17416#u64
 
 /-- [fl4_core::vcpu::vmx::DATA_EXIT_INTERRUPT_ERROR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 118:4-118:58
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 121:4-121:58
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.DATA_EXIT_INTERRUPT_ERROR : Std.U64 := 17414#u64
 
 /-- [fl4_core::vcpu::vmx::DATA_EXIT_INTERRUPT_INFO]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 117:4-117:57
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 120:4-120:57
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.DATA_EXIT_INTERRUPT_INFO : Std.U64 := 17412#u64
 
 /-- [fl4_core::vcpu::vmx::DATA_INSTRUCTION_ERROR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 115:4-115:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 118:4-118:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.DATA_INSTRUCTION_ERROR : Std.U64 := 17408#u64
 
 /-- [fl4_core::vcpu::vmx::DATA_GUEST_PHYSICAL]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 83:4-83:52
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 86:4-86:52
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.DATA_GUEST_PHYSICAL : Std.U64 := 9216#u64
 
 /-- [fl4_core::vcpu::READ_FIELDS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 335:0-420:2
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 338:0-423:2
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.READ_FIELDS : Array Std.U64 84#usize :=
@@ -27183,12 +27191,12 @@ def vcpu.READ_FIELDS : Array Std.U64 84#usize :=
     ]
 
 /-- [fl4_core::vcpu::MSRS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 26:0-26:29
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 29:0-29:29
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.MSRS : Std.U64 := 20864#u64
 
 /-- [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure#1}<'_0>}::call_once]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 761:20-761:76 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 765:20-765:76 -/
 def vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64.call_once
   (c : vcpu.msr_addr.closure_1) (tupled_args : Std.U64) : Result Std.U64 := do
   let i ← lift (core.num.U64.wrapping_add c vcpu.MSRS)
@@ -27196,7 +27204,7 @@ def vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64.call_once
   ok (core.num.U64.wrapping_add i i1)
 
 /-- Trait implementation: [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure#1}<'_0>}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 761:20-761:76 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 765:20-765:76 -/
 @[reducible]
 def vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64 :
   core.ops.function.FnOnce vcpu.msr_addr.closure_1 Std.U64 Std.U64 := {
@@ -27205,13 +27213,13 @@ def vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64 :
 }
 
 /-- [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure}<'_0>}::call_once]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 756:30-756:55 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 760:30-760:55 -/
 def vcpu.msr_addr.closure.Insts.CoreOpsFunctionFnOnceTupleU64U64.call_once
   (c : vcpu.msr_addr.closure) (tupled_args : Std.U64) : Result Std.U64 := do
   ok (core.num.U64.wrapping_add c tupled_args)
 
 /-- Trait implementation: [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure}<'_0>}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 756:30-756:55 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 760:30-760:55 -/
 @[reducible]
 def vcpu.msr_addr.closure.Insts.CoreOpsFunctionFnOnceTupleU64U64 :
   core.ops.function.FnOnce vcpu.msr_addr.closure Std.U64 Std.U64 := {
@@ -27220,37 +27228,37 @@ def vcpu.msr_addr.closure.Insts.CoreOpsFunctionFnOnceTupleU64U64 :
 }
 
 /-- [fl4_core::vcpu::svm::KERNEL_GS_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 251:4-251:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 254:4-254:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.KERNEL_GS_BASE : Result Std.U64 := vcpu.svm.SAVE + 544#u64
 
 /-- [fl4_core::vcpu::svm::SFMASK]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 250:4-250:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 253:4-253:41
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.SFMASK : Result Std.U64 := vcpu.svm.SAVE + 536#u64
 
 /-- [fl4_core::vcpu::svm::CSTAR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 249:4-249:40
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 252:4-252:40
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.CSTAR : Result Std.U64 := vcpu.svm.SAVE + 528#u64
 
 /-- [fl4_core::vcpu::svm::LSTAR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 248:4-248:40
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 251:4-251:40
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.LSTAR : Result Std.U64 := vcpu.svm.SAVE + 520#u64
 
 /-- [fl4_core::vcpu::svm::STAR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 247:4-247:39
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 250:4-250:39
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.STAR : Result Std.U64 := vcpu.svm.SAVE + 512#u64
 
 /-- [fl4_core::vcpu::svm_msr]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 740:0-750:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 744:0-754:1 -/
 def vcpu.svm_msr (f : Std.U64) : Result (Option Std.U64) := do
   match f with
   | 3221225601#uscalar => let i ← vcpu.svm.STAR
@@ -27268,7 +27276,7 @@ def vcpu.svm_msr (f : Std.U64) : Result (Option Std.U64) := do
   | _ => ok none
 
 /-- [fl4_core::vcpu::msr_slot]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 730:0-739:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 734:0-743:1 -/
 def vcpu.msr_slot (f : Std.U64) : Result (Option Std.U64) := do
   match f with
   | 3221225601#uscalar => ok (some 0#u64)
@@ -27279,7 +27287,7 @@ def vcpu.msr_slot (f : Std.U64) : Result (Option Std.U64) := do
   | _ => ok none
 
 /-- [fl4_core::vcpu::msr_addr]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 751:0-762:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 755:0-766:1 -/
 def vcpu.msr_addr
   (v : Std.U64) (f : Std.U64) (amd : Bool) : Result (Option Std.U64) := do
   if f = 4294967294#u64
@@ -27301,7 +27309,7 @@ def vcpu.msr_addr
           vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64 o v
 
 /-- [fl4_core::vcpu::reply]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 662:0-671:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 666:0-675:1 -/
 def vcpu.reply
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (call : Bool)
   (value : Std.U64) :
@@ -27321,7 +27329,7 @@ def vcpu.reply
   sched.set_thread_state machineStoreInst s1 ct sched.TS_RUNNING
 
 /-- [fl4_core::vcpu::vmcb_hidden]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 587:0-592:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 590:0-595:1
     Visibility: public -/
 def vcpu.vmcb_hidden (f : Std.U64) : Result Bool := do
   match f with
@@ -27337,19 +27345,19 @@ def vcpu.vmcb_hidden (f : Std.U64) : Result Bool := do
   | _ => ok false
 
 /-- [fl4_core::vcpu::SVM_EVENT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 551:0-551:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 554:0-554:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.SVM_EVENT : Std.U64 := 18446744071562072063#u64
 
 /-- [fl4_core::vcpu::SVM_I1_WRITABLE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 549:0-549:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 552:0-552:45
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.SVM_I1_WRITABLE : Std.U64 := 1673494512#u64
 
 /-- [fl4_core::vcpu::valid_pat]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 458:4-462:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 461:4-465:5
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.valid_pat_loop.body
@@ -27375,7 +27383,7 @@ def vcpu.valid_pat_loop.body
   else ok (done ok1)
 
 /-- [fl4_core::vcpu::valid_pat]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 458:4-462:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 461:4-465:5
     Visibility: public -/
 @[rust_loop]
 def vcpu.valid_pat_loop
@@ -27385,14 +27393,14 @@ def vcpu.valid_pat_loop
     (i, ok1)
 
 /-- [fl4_core::vcpu::valid_pat]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 455:0-464:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 458:0-467:1
     Visibility: public -/
 @[reducible]
 def vcpu.valid_pat (pat : Std.U64) : Result Bool := do
   vcpu.valid_pat_loop pat 0#u64 true
 
 /-- [fl4_core::vcpu::canonical]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 441:0-445:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 444:0-448:1
     Visibility: public -/
 def vcpu.canonical (value : Std.U64) (width : Std.U64) : Result Bool := do
   let shift ← if width = 57#u64
@@ -27405,7 +27413,7 @@ def vcpu.canonical (value : Std.U64) (width : Std.U64) : Result Bool := do
        ok (top = i)
 
 /-- [fl4_core::vcpu::sanitize_vmcb]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 554:0-586:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 557:0-589:1
     Visibility: public -/
 def vcpu.sanitize_vmcb
   {A : Type _} (machineArchInst : machine.Arch A) (a : A) (f : Std.U64)
@@ -28549,7 +28557,7 @@ def vcpu.sanitize_vmcb
   | _ => error.illegal Std.U64
 
 /-- [fl4_core::vcpu::valid_xcr0]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 446:0-454:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 449:0-457:1
     Visibility: public -/
 def vcpu.valid_xcr0 (x : Std.U64) (host : Std.U64) : Result Bool := do
   let i ← lift (~~~ host)
@@ -28666,13 +28674,13 @@ def vcpu.valid_xcr0 (x : Std.U64) (host : Std.U64) : Result Bool := do
           else ok false
 
 /-- [fl4_core::vcpu::svm::RAX]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 246:4-246:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 249:4-249:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.RAX : Result Std.U64 := vcpu.svm.SAVE + 504#u64
 
 /-- [fl4_core::vcpu::decode]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 809:8-813:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 813:8-817:9
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.decode_loop0.body
@@ -28691,7 +28699,7 @@ def vcpu.decode_loop0.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::decode]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 809:8-813:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 813:8-817:9
     Visibility: public -/
 @[rust_loop]
 def vcpu.decode_loop0
@@ -28704,7 +28712,7 @@ def vcpu.decode_loop0
     (s, i)
 
 /-- [fl4_core::vcpu::decode]: loop body 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 877:16-888:17
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 887:16-898:17
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.decode_loop1.body
@@ -28733,7 +28741,7 @@ def vcpu.decode_loop1.body
   else ok (done (s, n))
 
 /-- [fl4_core::vcpu::decode]: loop 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 877:16-888:17
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 887:16-898:17
     Visibility: public -/
 @[rust_loop]
 def vcpu.decode_loop1
@@ -28748,7 +28756,7 @@ def vcpu.decode_loop1
     (s, i, n)
 
 /-- [fl4_core::vcpu::decode]: loop body 2:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 877:16-888:17
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 887:16-898:17
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.decode_loop2.body
@@ -28777,7 +28785,7 @@ def vcpu.decode_loop2.body
   else ok (done (s, n))
 
 /-- [fl4_core::vcpu::decode]: loop 2:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 877:16-888:17
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 887:16-898:17
     Visibility: public -/
 @[rust_loop]
 def vcpu.decode_loop2
@@ -28792,7 +28800,7 @@ def vcpu.decode_loop2
     (s, i, n)
 
 /-- [fl4_core::vcpu::decode]: loop body 3:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 952:20-959:21
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 962:20-969:21
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.decode_loop3.body
@@ -28820,7 +28828,7 @@ def vcpu.decode_loop3.body
   else ok (done (s, a))
 
 /-- [fl4_core::vcpu::decode]: loop 3:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 952:20-959:21
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 962:20-969:21
     Visibility: public -/
 @[rust_loop]
 def vcpu.decode_loop3
@@ -28835,7 +28843,7 @@ def vcpu.decode_loop3
     (s, a, old, fuel)
 
 /-- [fl4_core::vcpu::decode]: loop body 4:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 952:20-959:21
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 962:20-969:21
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.decode_loop4.body
@@ -28863,7 +28871,7 @@ def vcpu.decode_loop4.body
   else ok (done (s, a))
 
 /-- [fl4_core::vcpu::decode]: loop 4:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 952:20-959:21
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 962:20-969:21
     Visibility: public -/
 @[rust_loop]
 def vcpu.decode_loop4
@@ -28878,7 +28886,7 @@ def vcpu.decode_loop4
     (s, a, old, fuel)
 
 /-- [fl4_core::vcpu::decode]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 765:0-978:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 769:0-988:1
     Visibility: public -/
 def vcpu.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -29012,9 +29020,10 @@ def vcpu.decode
     else
       if lbl = fl4_abi.label.X86VCPUFlushTLB
       then
-        let s2 ←
-          sched.set_thread_state machineStoreInst s1 ct sched.TS_RESTART
-        ok (core.result.Result.Ok (), s2, a1)
+        let s2 ← vcpu.set machineStoreInst s1 v vcpu.SVM_CPU 0#u64
+        let s3 ←
+          sched.set_thread_state machineStoreInst s2 ct sched.TS_RESTART
+        ok (core.result.Result.Ok (), s3, a1)
       else
         if lbl = fl4_abi.label.X86VCPUReadVMCS
         then
@@ -29194,13 +29203,25 @@ def vcpu.decode
                     match cf with
                     | core.ops.control_flow.ControlFlow.Continue val =>
                       let s2 ← vcpu.set machineStoreInst s1 v f val
-                      let i2 ← vcpu.svm.RAX
+                      let b ←
+                        match f with
+                        | 1368#uscalar => ok true
+                        | 1360#uscalar => ok true
+                        | 1352#uscalar => ok true
+                        | 1232#uscalar => ok true
+                        | 1640#uscalar => ok true
+                        | _ => ok false
                       let s3 ←
-                        if f = i2
-                        then vcpu.set machineStoreInst s2 v vcpu.REGS val
+                        if b
+                        then vcpu.set machineStoreInst s2 v vcpu.SVM_CPU 0#u64
                         else ok s2
-                      let s4 ← vcpu.reply machineStoreInst s3 call val
-                      ok (core.result.Result.Ok (), s4, a1)
+                      let i2 ← vcpu.svm.RAX
+                      let s4 ←
+                        if f = i2
+                        then vcpu.set machineStoreInst s3 v vcpu.REGS val
+                        else ok s3
+                      let s5 ← vcpu.reply machineStoreInst s4 call val
+                      ok (core.result.Result.Ok (), s5, a1)
                     | core.ops.control_flow.ControlFlow.Break residual =>
                       let r1 ←
                         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
@@ -29288,13 +29309,26 @@ def vcpu.decode
                       match cf with
                       | core.ops.control_flow.ControlFlow.Continue val =>
                         let s2 ← vcpu.set machineStoreInst s1 v f val
-                        let i2 ← vcpu.svm.RAX
+                        let b ←
+                          match f with
+                          | 1368#uscalar => ok true
+                          | 1360#uscalar => ok true
+                          | 1352#uscalar => ok true
+                          | 1232#uscalar => ok true
+                          | 1640#uscalar => ok true
+                          | _ => ok false
                         let s3 ←
-                          if f = i2
-                          then vcpu.set machineStoreInst s2 v vcpu.REGS val
+                          if b
+                          then
+                            vcpu.set machineStoreInst s2 v vcpu.SVM_CPU 0#u64
                           else ok s2
-                        let s4 ← vcpu.reply machineStoreInst s3 call val
-                        ok (core.result.Result.Ok (), s4, a1)
+                        let i2 ← vcpu.svm.RAX
+                        let s4 ←
+                          if f = i2
+                          then vcpu.set machineStoreInst s3 v vcpu.REGS val
+                          else ok s3
+                        let s5 ← vcpu.reply machineStoreInst s4 call val
+                        ok (core.result.Result.Ok (), s5, a1)
                       | core.ops.control_flow.ControlFlow.Break residual =>
                         let r1 ←
                           core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
@@ -37938,7 +37972,7 @@ def syscall.after_invocation
     ok (false, s2, a3)
 
 /-- [fl4_core::vcpu::check]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1011:0-1028:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1021:0-1038:1
     Visibility: public -/
 def vcpu.check
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -38007,7 +38041,7 @@ def vcpu.check
         else ok (s, a)
 
 /-- [fl4_core::vcpu::enter]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 981:0-1009:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 991:0-1019:1
     Visibility: public -/
 def vcpu.enter
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -39342,515 +39376,515 @@ def untyped._ : Result Unit := do
   massert (untyped.RESET_CHUNK = i)
 
 /-- [fl4_core::vcpu::vmx::CONTROL_VPID]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 56:4-56:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 59:4-59:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.CONTROL_VPID : Std.U64 := 0#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_ES_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 65:4-65:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 68:4-68:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_ES_SELECTOR : Std.U64 := 3072#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_CS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 66:4-66:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 69:4-69:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_CS_SELECTOR : Std.U64 := 3074#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_SS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 67:4-67:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 70:4-70:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_SS_SELECTOR : Std.U64 := 3076#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_DS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 68:4-68:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 71:4-71:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_DS_SELECTOR : Std.U64 := 3078#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_FS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 69:4-69:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 72:4-72:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_FS_SELECTOR : Std.U64 := 3080#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_GS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 70:4-70:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 73:4-73:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_GS_SELECTOR : Std.U64 := 3082#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_TR_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 71:4-71:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 74:4-74:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_TR_SELECTOR : Std.U64 := 3084#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_IOA_ADDRESS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 72:4-72:52
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 75:4-75:52
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_IOA_ADDRESS : Std.U64 := 8192#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_IOB_ADDRESS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 73:4-73:52
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 76:4-76:52
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_IOB_ADDRESS : Std.U64 := 8194#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_MSR_ADDRESS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 74:4-74:52
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 77:4-77:52
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_MSR_ADDRESS : Std.U64 := 8196#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_EXIT_MSR_STORE_ADDRESS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 75:4-75:63
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 78:4-78:63
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_EXIT_MSR_STORE_ADDRESS : Std.U64 := 8198#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_EXIT_MSR_LOAD_ADDRESS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 76:4-76:62
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 79:4-79:62
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_EXIT_MSR_LOAD_ADDRESS : Std.U64 := 8200#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_ENTRY_MSR_LOAD_ADDRESS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 77:4-77:63
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 80:4-80:63
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_ENTRY_MSR_LOAD_ADDRESS : Std.U64 := 8202#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_EXECUTIVE_VMCS_POINTER]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 78:4-78:63
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 81:4-81:63
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_EXECUTIVE_VMCS_POINTER : Std.U64 := 8204#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_VIRTUAL_APIC_ADDRESS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 80:4-80:61
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 83:4-83:61
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_VIRTUAL_APIC_ADDRESS : Std.U64 := 8210#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_APIC_ACCESS_ADDRESS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 81:4-81:60
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 84:4-84:60
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_APIC_ACCESS_ADDRESS : Std.U64 := 8212#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_EPT_POINTER]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 82:4-82:52
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 85:4-85:52
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_EPT_POINTER : Std.U64 := 8218#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_VMCS_LINK_POINTER]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 84:4-84:56
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 87:4-87:56
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_VMCS_LINK_POINTER : Std.U64 := 10240#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_VMCS_LINK_POINTER_HIGH]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 85:4-85:61
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 88:4-88:61
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_VMCS_LINK_POINTER_HIGH : Std.U64 := 10241#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_PAT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 94:4-94:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 97:4-97:41
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_PAT : Std.U64 := 11264#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_EFER]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 95:4-95:42
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 98:4-98:42
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_EFER : Std.U64 := 11266#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_PERF_GLOBAL_CTRL]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 96:4-96:54
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 99:4-99:54
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_PERF_GLOBAL_CTRL : Std.U64 := 11268#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_PAGE_FAULT_MASK]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 100:4-100:56
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 103:4-103:56
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_PAGE_FAULT_MASK : Std.U64 := 16390#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_PAGE_FAULT_MATCH]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 101:4-101:57
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 104:4-104:57
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_PAGE_FAULT_MATCH : Std.U64 := 16392#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_CR3_TARGET_COUNT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 102:4-102:57
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 105:4-105:57
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_CR3_TARGET_COUNT : Std.U64 := 16394#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_EXIT_MSR_STORE_COUNT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 104:4-104:61
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 107:4-107:61
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_EXIT_MSR_STORE_COUNT : Std.U64 := 16398#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_EXIT_MSR_LOAD_COUNT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 105:4-105:60
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 108:4-108:60
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_EXIT_MSR_LOAD_COUNT : Std.U64 := 16400#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_ENTRY_MSR_LOAD_COUNT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 107:4-107:61
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 110:4-110:61
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_ENTRY_MSR_LOAD_COUNT : Std.U64 := 16404#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_TPR_THRESHOLD]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 111:4-111:54
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 114:4-114:54
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_TPR_THRESHOLD : Std.U64 := 16412#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_PLE_GAP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 113:4-113:48
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 116:4-116:48
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_PLE_GAP : Std.U64 := 16416#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_PLE_WINDOW]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 114:4-114:51
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 117:4-117:51
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_PLE_WINDOW : Std.U64 := 16418#u64
 
 /-- [fl4_core::vcpu::vmx::DATA_EXIT_REASON]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 116:4-116:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 119:4-119:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.DATA_EXIT_REASON : Std.U64 := 17410#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_SYSENTER_CS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 146:4-146:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 149:4-149:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_SYSENTER_CS : Std.U64 := 19456#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_CR3_TARGET0]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 151:4-151:52
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 154:4-154:52
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_CR3_TARGET0 : Std.U64 := 24584#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_CR3_TARGET1]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 152:4-152:52
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 155:4-155:52
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_CR3_TARGET1 : Std.U64 := 24586#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_CR3_TARGET2]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 153:4-153:52
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 156:4-156:52
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_CR3_TARGET2 : Std.U64 := 24588#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_CR3_TARGET3]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 154:4-154:52
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 157:4-157:52
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_CR3_TARGET3 : Std.U64 := 24590#u64
 
 /-- [fl4_core::vcpu::vmx::DATA_EXIT_QUALIFICATION]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 155:4-155:56
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 158:4-158:56
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.DATA_EXIT_QUALIFICATION : Std.U64 := 25600#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_CR0]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 181:4-181:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 184:4-184:41
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_CR0 : Std.U64 := 27648#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_CR3]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 182:4-182:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 185:4-185:41
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_CR3 : Std.U64 := 27650#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_CR4]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 183:4-183:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 186:4-186:41
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_CR4 : Std.U64 := 27652#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_FS_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 184:4-184:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 187:4-187:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_FS_BASE : Std.U64 := 27654#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_GS_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 185:4-185:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 188:4-188:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_GS_BASE : Std.U64 := 27656#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_TR_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 186:4-186:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 189:4-189:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_TR_BASE : Std.U64 := 27658#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_GDTR_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 187:4-187:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 190:4-190:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_GDTR_BASE : Std.U64 := 27660#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_IDTR_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 188:4-188:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 191:4-191:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_IDTR_BASE : Std.U64 := 27662#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_SYSENTER_ESP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 189:4-189:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 192:4-192:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_SYSENTER_ESP : Std.U64 := 27664#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_SYSENTER_EIP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 190:4-190:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 193:4-193:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_SYSENTER_EIP : Std.U64 := 27666#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_RSP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 191:4-191:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 194:4-194:41
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_RSP : Std.U64 := 27668#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_RIP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 192:4-192:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 195:4-195:41
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_RIP : Std.U64 := 27670#u64
 
 /-- [fl4_core::vcpu::svm::INTERCEPT_CR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 195:4-195:40
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 198:4-198:40
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.INTERCEPT_CR : Std.U64 := 0#u64
 
 /-- [fl4_core::vcpu::svm::INTERCEPT_DR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 196:4-196:40
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 199:4-199:40
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.INTERCEPT_DR : Std.U64 := 4#u64
 
 /-- [fl4_core::vcpu::svm::INTERCEPT_MISC1]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 198:4-198:43
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 201:4-201:43
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.INTERCEPT_MISC1 : Std.U64 := 12#u64
 
 /-- [fl4_core::vcpu::svm::INTERCEPT_MISC2]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 199:4-199:43
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 202:4-202:43
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.INTERCEPT_MISC2 : Std.U64 := 16#u64
 
 /-- [fl4_core::vcpu::svm::INTERCEPT_MISC3]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 200:4-200:43
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 203:4-203:43
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.INTERCEPT_MISC3 : Std.U64 := 20#u64
 
 /-- [fl4_core::vcpu::svm::PAUSE_FILTER]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 201:4-201:40
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 204:4-204:40
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.PAUSE_FILTER : Std.U64 := 56#u64
 
 /-- [fl4_core::vcpu::svm::IOPM_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 202:4-202:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 205:4-205:37
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.IOPM_BASE : Std.U64 := 64#u64
 
 /-- [fl4_core::vcpu::svm::MSRPM_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 203:4-203:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 206:4-206:38
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.MSRPM_BASE : Std.U64 := 72#u64
 
 /-- [fl4_core::vcpu::svm::TSC_OFFSET]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 204:4-204:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 207:4-207:38
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.TSC_OFFSET : Std.U64 := 80#u64
 
 /-- [fl4_core::vcpu::svm::ASID]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 205:4-205:32
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 208:4-208:32
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.ASID : Std.U64 := 88#u64
 
 /-- [fl4_core::vcpu::svm::EXIT_CODE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 208:4-208:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 211:4-211:37
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.EXIT_CODE : Std.U64 := 112#u64
 
 /-- [fl4_core::vcpu::svm::EXIT_INFO1]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 209:4-209:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 212:4-212:38
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.EXIT_INFO1 : Std.U64 := 120#u64
 
 /-- [fl4_core::vcpu::svm::EXIT_INFO2]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 210:4-210:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 213:4-213:38
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.EXIT_INFO2 : Std.U64 := 128#u64
 
 /-- [fl4_core::vcpu::svm::EXIT_INT_INFO]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 211:4-211:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 214:4-214:41
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.EXIT_INT_INFO : Std.U64 := 136#u64
 
 /-- [fl4_core::vcpu::svm::AVIC_VAPIC_BAR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 213:4-213:42
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 216:4-216:42
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.AVIC_VAPIC_BAR : Std.U64 := 152#u64
 
 /-- [fl4_core::vcpu::svm::GHCB]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 214:4-214:32
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 217:4-217:32
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.GHCB : Std.U64 := 160#u64
 
 /-- [fl4_core::vcpu::svm::NESTED_CR3]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 216:4-216:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 219:4-219:38
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.NESTED_CR3 : Std.U64 := 176#u64
 
 /-- [fl4_core::vcpu::svm::VIRT_EXT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 217:4-217:36
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 220:4-220:36
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.VIRT_EXT : Std.U64 := 184#u64
 
 /-- [fl4_core::vcpu::svm::CLEAN]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 218:4-218:33
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 221:4-221:33
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.CLEAN : Std.U64 := 192#u64
 
 /-- [fl4_core::vcpu::svm::NEXT_RIP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 219:4-219:36
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 222:4-222:36
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.NEXT_RIP : Std.U64 := 200#u64
 
 /-- [fl4_core::vcpu::svm::INSN_BYTES]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 220:4-220:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 223:4-223:38
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.INSN_BYTES : Std.U64 := 208#u64
 
 /-- [fl4_core::vcpu::svm::AVIC_BACKING]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 221:4-221:40
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 224:4-224:40
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.AVIC_BACKING : Std.U64 := 224#u64
 
 /-- [fl4_core::vcpu::svm::AVIC_LOGICAL]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 222:4-222:40
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 225:4-225:40
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.AVIC_LOGICAL : Std.U64 := 240#u64
 
 /-- [fl4_core::vcpu::svm::AVIC_PHYSICAL]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 223:4-223:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 226:4-226:41
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.AVIC_PHYSICAL : Std.U64 := 248#u64
 
 /-- [fl4_core::vcpu::svm::VMSA]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 224:4-224:32
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 227:4-227:32
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.VMSA : Std.U64 := 264#u64
 
 /-- [fl4_core::vcpu::svm::ES]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 226:4-226:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 229:4-229:37
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.ES : Result Std.U64 := vcpu.svm.SAVE + 0#u64
 
 /-- [fl4_core::vcpu::svm::CS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 227:4-227:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 230:4-230:37
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.CS : Result Std.U64 := vcpu.svm.SAVE + 16#u64
 
 /-- [fl4_core::vcpu::svm::SS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 228:4-228:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 231:4-231:37
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.SS : Result Std.U64 := vcpu.svm.SAVE + 32#u64
 
 /-- [fl4_core::vcpu::svm::DS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 229:4-229:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 232:4-232:37
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.DS : Result Std.U64 := vcpu.svm.SAVE + 48#u64
 
 /-- [fl4_core::vcpu::svm::FS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 230:4-230:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 233:4-233:37
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.FS : Result Std.U64 := vcpu.svm.SAVE + 64#u64
 
 /-- [fl4_core::vcpu::svm::GS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 231:4-231:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 234:4-234:37
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.GS : Result Std.U64 := vcpu.svm.SAVE + 80#u64
 
 /-- [fl4_core::vcpu::svm::GDTR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 232:4-232:39
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 235:4-235:39
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.GDTR : Result Std.U64 := vcpu.svm.SAVE + 96#u64
 
 /-- [fl4_core::vcpu::svm::LDTR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 233:4-233:39
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 236:4-236:39
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.LDTR : Result Std.U64 := vcpu.svm.SAVE + 112#u64
 
 /-- [fl4_core::vcpu::svm::IDTR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 234:4-234:39
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 237:4-237:39
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.IDTR : Result Std.U64 := vcpu.svm.SAVE + 128#u64
 
 /-- [fl4_core::vcpu::svm::TR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 235:4-235:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 238:4-238:37
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.TR : Result Std.U64 := vcpu.svm.SAVE + 144#u64
 
 /-- [fl4_core::vcpu::svm::CPL]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 236:4-236:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 239:4-239:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.CPL : Result Std.U64 := vcpu.svm.SAVE + 200#u64
 
 /-- [fl4_core::vcpu::svm::CR4]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 238:4-238:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 241:4-241:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.CR4 : Result Std.U64 := vcpu.svm.SAVE + 328#u64
 
 /-- [fl4_core::vcpu::svm::RSP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 245:4-245:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 248:4-248:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.RSP : Result Std.U64 := vcpu.svm.SAVE + 472#u64
 
 /-- [fl4_core::vcpu::svm::SYSENTER_CS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 252:4-252:46
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 255:4-255:46
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.SYSENTER_CS : Result Std.U64 := vcpu.svm.SAVE + 552#u64
 
 /-- [fl4_core::vcpu::svm::SYSENTER_ESP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 253:4-253:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 256:4-256:47
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.SYSENTER_ESP : Result Std.U64 := vcpu.svm.SAVE + 560#u64
 
 /-- [fl4_core::vcpu::svm::SYSENTER_EIP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 254:4-254:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 257:4-257:47
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.SYSENTER_EIP : Result Std.U64 := vcpu.svm.SAVE + 568#u64

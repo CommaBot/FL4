@@ -22,6 +22,9 @@ pub const XCR0: u64 = 0x5018;
 pub const CR2: u64 = 0x5020;
 pub const PENDING: u64 = 0x5028;
 pub const VALID: u64 = 0x5030;
+/// Hardware backend's last SVM core (index + 1); zero forces a TLB flush.
+/// Retype clears it, and software paging changes revoke the cached ASID.
+pub const SVM_CPU: u64 = 0x5038;
 pub const REGS: u64 = 0x5100;
 pub const MSRS: u64 = 0x5180;
 pub const EXIT: u64 = 0x5200;
@@ -627,6 +630,7 @@ pub fn init<S: Store, A: Arch>(s: &mut S, a: &A, v: u64) {
     }
 }
 pub fn reset_svm<S: Store>(s: &mut S, v: u64) {
+    set(s, v, SVM_CPU, 0);
     s.zero(v.wrapping_add(0x400), svm::END - 0x400);
     let mut off = 0x400;
     while off <= 0x490 {
@@ -816,7 +820,8 @@ pub fn decode<S: Store, A: Arch>(
             set(s, v, svm::RAX, val);
         }
     } else if lbl == label::X86VCPUFlushTLB {
-        // VMX has no VPID, and SVM flushes its ASID at every entry.
+        // VMX has no VPID. SVM must discard its retained ASID on re-entry.
+        set(s, v, SVM_CPU, 0);
     } else if lbl == label::X86VCPUReadVMCS || lbl == label::X86VCPUWriteVMCS {
         if amd {
             return illegal();
@@ -861,6 +866,11 @@ pub fn decode<S: Store, A: Arch>(
             };
             let val = sanitize_vmcb(a, f, old, value)?;
             set(s, v, f, val);
+            // Software writes do not execute the guest's architectural
+            // TLB invalidation. Even an unchanged CR3 requests a flush.
+            if matches!(f, svm::CR0 | svm::CR3 | svm::CR4 | svm::EFER | svm::G_PAT) {
+                set(s, v, SVM_CPU, 0);
+            }
             if f == svm::RAX {
                 set(s, v, REGS, val);
             }
