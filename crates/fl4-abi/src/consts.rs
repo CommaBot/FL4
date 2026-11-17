@@ -18,6 +18,7 @@ pub mod error {
 }
 
 /// `seL4_ObjectType` for x86_64 MCS with huge pages.
+#[cfg(not(feature = "aarch64"))]
 pub mod object {
     pub const Untyped: u64 = 0;
     pub const Tcb: u64 = 1;
@@ -42,6 +43,39 @@ pub mod object {
     pub const Count: u64 = 19;
 }
 
+/// `seL4_ObjectType` for AArch64 MCS without EL2. The x86 types follow as
+/// numbers no caller can pass, so the x86 object code in fl4-core compiles
+/// and never matches.
+#[cfg(feature = "aarch64")]
+pub mod object {
+    pub const Untyped: u64 = 0;
+    pub const Tcb: u64 = 1;
+    pub const Endpoint: u64 = 2;
+    pub const Notification: u64 = 3;
+    pub const CapTable: u64 = 4;
+    pub const SchedContext: u64 = 5;
+    pub const Reply: u64 = 6;
+    pub const NonArchCount: u64 = 7;
+    pub const ArmHugePage: u64 = 7;
+    pub const ArmVSpace: u64 = 8;
+    pub const ArmSmallPage: u64 = 9;
+    pub const ArmLargePage: u64 = 10;
+    pub const ArmPageTable: u64 = 11;
+    pub const Count: u64 = 12;
+    pub const X86Pdpt: u64 = u64::MAX - 11;
+    pub const X64Pml4: u64 = u64::MAX - 10;
+    pub const X64HugePage: u64 = u64::MAX - 9;
+    pub const X86Page4K: u64 = u64::MAX - 8;
+    pub const X86LargePage: u64 = u64::MAX - 7;
+    pub const X86PageTable: u64 = u64::MAX - 6;
+    pub const X86PageDirectory: u64 = u64::MAX - 5;
+    pub const X86Vcpu: u64 = u64::MAX - 4;
+    pub const X86EptPml4: u64 = u64::MAX - 3;
+    pub const X86EptPdpt: u64 = u64::MAX - 2;
+    pub const X86EptPd: u64 = u64::MAX - 1;
+    pub const X86EptPt: u64 = u64::MAX;
+}
+
 /// Object sizes (`seL4_*Bits`).
 pub mod bits {
     pub const WORD_BITS: u64 = 64;
@@ -59,7 +93,11 @@ pub mod bits {
     pub const PAGE_TABLE: u64 = 12;
     pub const ASID_POOL: u64 = 12;
     pub const ASID_POOL_INDEX: u64 = 9;
+    #[cfg(not(feature = "aarch64"))]
     pub const NUM_ASID_POOLS: u64 = 11;
+    /// AArch64: 16-bit hardware ASIDs (l4h 0016, `TCR_EL1.AS`).
+    #[cfg(feature = "aarch64")]
+    pub const NUM_ASID_POOLS: u64 = 7;
     pub const MIN_UNTYPED: u64 = 4;
     pub const MAX_UNTYPED: u64 = 47;
     pub const MIN_SCHED_CONTEXT: u64 = 7;
@@ -74,12 +112,16 @@ pub const MSG_MAX_EXTRA_CAPS: u64 = 3;
 pub const FAST_MESSAGE_REGISTERS: u64 = 4;
 /// The kernel's `USER_TOP` (C seL4 pc99 `hardware.h`): the last address
 /// below the sign-extension hole. Not libsel4's `seL4_UserTop`, which is a
-/// page lower.
+/// page lower. AArch64 without EL2 has the same value (`seL4_UserTop`).
 pub const USER_TOP: u64 = 0x0000_7fff_ffff_ffff;
 pub const NUM_PRIORITIES: u64 = 256;
 pub const MAX_PRIO: u64 = NUM_PRIORITIES - 1;
 /// FL4: standard-layout XSAVE image up to PKRU (DESIGN.md §2, §3).
+#[cfg(not(feature = "aarch64"))]
 pub const FPU_STATE_SIZE: u64 = 2696;
+/// AArch64: V0-V31, then FPSR and FPCR as 32-bit words.
+#[cfg(feature = "aarch64")]
+pub const FPU_STATE_SIZE: u64 = 64 * 8 + 8;
 
 /// `seL4_FaultType` tags.
 pub mod fault {
@@ -112,6 +154,14 @@ pub mod tcb_flag {
 /// `seL4_SchedContextFlag`.
 pub mod sc_flag {
     pub const SPORADIC: u64 = 0x1;
+}
+
+/// `seL4_ARM_VMAttributes`.
+#[cfg(feature = "aarch64")]
+pub mod arm_vm_attr {
+    pub const PAGE_CACHEABLE: u64 = 1;
+    pub const PARITY_ENABLED: u64 = 2;
+    pub const EXECUTE_NEVER: u64 = 4;
 }
 
 /// `seL4_X86_VMAttributes`.

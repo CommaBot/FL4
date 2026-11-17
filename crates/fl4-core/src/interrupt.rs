@@ -59,6 +59,7 @@ fn extra0<S: Store>(s: &S, extra: &[Slot; 3]) -> Option<Cap> {
 }
 
 /// seL4 `decodeIRQControlInvocation` with the x86 arch part.
+#[cfg(not(feature = "aarch64"))]
 pub fn decode_irq_control<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: u64, src: Slot, buf: u64, extra: &[Slot; 3]) -> KResult<()> {
     if lbl == label::IRQIssueIRQHandler {
         return decode_issue_isa(s, a, length, src, buf, extra);
@@ -94,8 +95,57 @@ pub fn decode_irq_control<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, len
     Ok(())
 }
 
+/// seL4 `decodeIRQControlInvocation` with the ARM arch part (GetTrigger,
+/// and GetTriggerCore for a banked interrupt of another core or to route
+/// an SPI). The plain `IRQIssueIRQHandler` leaves the trigger as it is.
+#[cfg(feature = "aarch64")]
+pub fn decode_irq_control<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: u64, src: Slot, buf: u64, extra: &[Slot; 3]) -> KResult<()> {
+    let ct = sched::cur_thread(s);
+    let plain = lbl == label::IRQIssueIRQHandler;
+    let with_core = lbl == label::ARMIRQIssueIRQHandlerTriggerCore;
+    if !plain && !with_core && lbl != label::ARMIRQIssueIRQHandlerTrigger {
+        return illegal();
+    }
+    let min_len = if plain { 3 } else if with_core { 5 } else { 4 };
+    let cnode = match extra0(s, extra) {
+        Some(c) if length >= min_len => c,
+        _ => return truncated(),
+    };
+    let irq_w = msg::syscall_arg(s, ct, buf, 0);
+    let (edge, index, depth) = if plain {
+        (false, msg::syscall_arg(s, ct, buf, 1), msg::syscall_arg(s, ct, buf, 2))
+    } else {
+        let d = msg::syscall_arg(s, ct, buf, 3);
+        (msg::syscall_arg(s, ct, buf, 1) != 0, msg::syscall_arg(s, ct, buf, 2), if with_core { d & 0xff } else { d })
+    };
+    let core = if with_core { msg::syscall_arg(s, ct, buf, 4) } else { 0 };
+    let max = a.max_spi();
+    if irq_w > max {
+        return range(0, max);
+    }
+    if with_core && core >= ks_get(s, ks::NUM_NODES) {
+        return Err(Exc::Sys(SysError::InvalidArgument { arg: 4 }));
+    }
+    if !plain && !with_core && irq_w < irqn::SPI_MIN && fl4_abi::config::ENABLE_SMP_SUPPORT {
+        return illegal();
+    }
+    let irq = irqn::of(irq_w, core);
+    if is_irq_active(s, irq) {
+        return Err(Exc::Sys(SysError::RevokeFirst));
+    }
+    let dest = cspace::lookup_target_slot(s, cnode, index, depth)?;
+    cdt::ensure_empty_slot(s, dest)?;
+    sched::set_thread_state(s, ct, sched::TS_RESTART);
+    if !plain {
+        a.configure_irq(irq, edge, core);
+    }
+    invoke_irq_control(s, a, irq, dest, src);
+    Ok(())
+}
+
 /// `IRQIssueIRQHandler`: ISA IRQs only through the legacy PIC
 /// (`Arch_checkIRQ`).
+#[cfg(not(feature = "aarch64"))]
 fn decode_issue_isa<S: Store, A: Arch>(s: &mut S, a: &mut A, length: u64, src: Slot, buf: u64, extra: &[Slot; 3]) -> KResult<()> {
     let cnode = match extra0(s, extra) {
         Some(c) if length >= 3 => c,
@@ -122,6 +172,7 @@ fn decode_issue_isa<S: Store, A: Arch>(s: &mut S, a: &mut A, length: u64, src: S
 }
 
 /// The PCI address of an MSI handler; the restart that follows success.
+#[cfg(not(feature = "aarch64"))]
 fn check_msi<S: Store>(s: &mut S, buf: u64) -> KResult<()> {
     let ct = sched::cur_thread(s);
     let bus = msg::syscall_arg(s, ct, buf, 2);
@@ -141,6 +192,7 @@ fn check_msi<S: Store>(s: &mut S, buf: u64) -> KResult<()> {
 }
 
 /// Check an IOAPIC pin's arguments, restart the caller and route the pin.
+#[cfg(not(feature = "aarch64"))]
 fn map_ioapic<S: Store, A: Arch>(s: &mut S, a: &mut A, buf: u64, vector: u64, remapped: bool) -> KResult<()> {
     let ct = sched::cur_thread(s);
     let ioapic = msg::syscall_arg(s, ct, buf, 2);

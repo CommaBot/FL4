@@ -15,6 +15,7 @@ use crate::schedcontext;
 use fl4_abi::consts::fault as ft;
 
 /// x86_64 `syscallMessage`.
+#[cfg(not(feature = "aarch64"))]
 pub const SYSCALL_MESSAGE: [u64; 18] = [
     reg::RAX,
     reg::RBX,
@@ -37,9 +38,11 @@ pub const SYSCALL_MESSAGE: [u64; 18] = [
 ];
 
 /// x86_64 `exceptionMessage`.
+#[cfg(not(feature = "aarch64"))]
 pub const EXCEPTION_MESSAGE: [u64; 3] = [reg::FAULT_IP, reg::RSP, reg::FLAGS];
 
 /// x86_64 `timeoutReplyMessage`.
+#[cfg(not(feature = "aarch64"))]
 pub const TIMEOUT_REPLY_MESSAGE: [u64; 19] = [
     reg::FAULT_IP,
     reg::RSP,
@@ -61,6 +64,81 @@ pub const TIMEOUT_REPLY_MESSAGE: [u64; 19] = [
     reg::R15,
     reg::TLS_BASE,
 ];
+
+/// AArch64 `syscallMessage`.
+#[cfg(feature = "aarch64")]
+pub const SYSCALL_MESSAGE: [u64; 12] = [
+    reg::X0,
+    reg::X1,
+    reg::X2,
+    reg::X3,
+    reg::X4,
+    reg::X5,
+    reg::X6,
+    reg::X7,
+    reg::FAULT_IP,
+    reg::SP_EL0,
+    reg::ELR_EL1,
+    reg::SPSR_EL1,
+];
+
+/// AArch64 `exceptionMessage`.
+#[cfg(feature = "aarch64")]
+pub const EXCEPTION_MESSAGE: [u64; 3] = [reg::FAULT_IP, reg::SP_EL0, reg::SPSR_EL1];
+
+/// AArch64 `timeoutReplyMessage`.
+#[cfg(feature = "aarch64")]
+pub const TIMEOUT_REPLY_MESSAGE: [u64; 34] = [
+    reg::FAULT_IP,
+    reg::SP_EL0,
+    reg::SPSR_EL1,
+    reg::X0,
+    reg::X1,
+    reg::X2,
+    reg::X3,
+    reg::X4,
+    reg::X5,
+    reg::X6,
+    reg::X7,
+    reg::X8,
+    reg::X16,
+    reg::X17,
+    reg::X18,
+    reg::X29,
+    reg::X30,
+    reg::X9,
+    reg::X10,
+    reg::X11,
+    reg::X12,
+    reg::X13,
+    reg::X14,
+    reg::X15,
+    reg::X19,
+    reg::X20,
+    reg::X21,
+    reg::X22,
+    reg::X23,
+    reg::X24,
+    reg::X25,
+    reg::X26,
+    reg::X27,
+    reg::X28,
+];
+
+/// Where the syscall number goes in an UnknownSyscall message. (A macro,
+/// so the x86_64 code the proofs are about keeps its literal.)
+#[cfg(not(feature = "aarch64"))]
+macro_rules! unknown_syscall_number_mr {
+    () => {
+        18
+    };
+}
+#[cfg(feature = "aarch64")]
+macro_rules! unknown_syscall_number_mr {
+    () => {
+        12
+    };
+}
 
 pub fn clear_fault<S: Store>(s: &mut S, t: Tcb) {
     t.set_fault_type(s, ft::NullFault);
@@ -190,7 +268,7 @@ pub fn set_mrs_fault<S: Store, A: Arch>(s: &mut S, a: &A, sender: Tcb, receiver:
         set_mrs_lookup_failure(s, receiver, buf, lf, 3)
     } else if ty == ft::UnknownSyscall {
         copy_mrs_fault(s, sender, receiver, &SYSCALL_MESSAGE, buf);
-        msg::set_mr(s, receiver, buf, 18, w0)
+        msg::set_mr(s, receiver, buf, unknown_syscall_number_mr!(), w0)
     } else if ty == ft::UserException {
         copy_mrs_fault(s, sender, receiver, &EXCEPTION_MESSAGE, buf);
         msg::set_mr(s, receiver, buf, 3, w0);

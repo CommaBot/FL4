@@ -14,6 +14,7 @@ pub mod capability;
 pub mod cdt;
 pub mod cnode;
 pub mod cspace;
+#[cfg_attr(feature = "aarch64", path = "aarch64/debug.rs")]
 pub mod debug;
 pub mod domain;
 pub mod endpoint;
@@ -30,6 +31,7 @@ pub mod msginfo;
 pub mod notification;
 pub mod obj;
 pub mod objects;
+#[cfg_attr(feature = "aarch64", path = "aarch64/regs.rs")]
 pub mod regs;
 pub mod sched;
 pub mod schedcontext;
@@ -40,5 +42,6 @@ pub mod tcb;
 pub mod tcbqueue;
 pub mod timer;
 pub mod untyped;
+#[cfg_attr(feature = "aarch64", path = "aarch64/vspace.rs")]
 pub mod vspace;
 pub mod vcpu;
