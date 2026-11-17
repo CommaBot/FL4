@@ -233,6 +233,43 @@ theorem Steps.cnTrace {th : TypedHeap} (hP : Placed th) {s s2 s' : S} {a : A}
     rw [capAt_capV, capAt_capV, hcap _ h1 hne']
 
 set_option maxHeartbeats 4000000 in
+/-- **A copy, move or rotate's outcome at any `X` reached by the primitive
+steps** (`cn_topX` generalised, as the IRQ caps' `XS` leaves): `X` at the
+start, `X` after every run of primitive steps from it, `XTop` from `X`. -/
+theorem cn_topXS {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {ar : A}
+    {σ : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z s ar σ) (hC : CurRun σ)
+    {X : S → A → Fl4Spec.State Unit → Prop} (hX0 : X s ar σ)
+    (hstep : ∀ s' a' σ', Steps (L := L) arI Z.th s ar σ s' a' σ' → X s' a' σ')
+    (hXX : ∀ s' a' σ', X s' a' σ' → XTop (L := L) AR s' a' σ')
+    {ct : U64} (hcur : σ.curThread = ct.bv) {blk call don : Bool}
+    {m : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation} {res : core.result.Result Unit error.Exc × S × A}
+    {root : capability.Cap} (hroot : ∃ y, IsSlot Z.th y ∧ capV (L.mem s) y = root)
+    (hq : InvPost (L := L) Z.th σ Z.G m s (res.1, res.2.1) (CnTrace (L := L) Z.th ct σ root s) ∧ res.2.2 = ar) :
+    TopPostDMX (L := L) X σ blk call don (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeCNode m) s res := by
+  obtain ⟨r, s', a'⟩ := res
+  obtain ⟨hq, rfl⟩ := hq
+  cases r with
+  | Err e =>
+    obtain ⟨rfl, e', h1, h2⟩ := hq
+    exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, Or.inl h2⟩, hX0⟩
+  | Ok u =>
+    obtain ⟨inv, hrun, σ1, hst, σ', G', hrunI, hR', hV', hM', hC', hI', hFI', hSt, s2, hne, hs2, hF, hsl, hcap, hDI,
+      hTK, hDLs, hUS, hCK, hUK⟩ := hq
+    obtain ⟨htcb, x, hk⟩ := hX.curTcb hcur
+    have hst' : Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) := by rw [← hcur]; exact hst
+    obtain ⟨hX1, hks, -⟩ := hX.restart' hC hcur hs2 hst'
+    have hstp : Steps (L := L) arI Z.th s a' σ s' a' σ' :=
+      Steps.cnTrace arI hX.rel.1 hcur hk htcb hs2 hst hC hX1.rel.2.1.1 hks hne hrunI hF hsl hcap hCK hUK
+        ⟨hR', hV', hM', hC', hI'⟩ hFI' (hSt.okv hX.rel.2.2.2.2.1) hTK hDI (hDLs hroot) (hUS σ1 σ' hst hrunI)
+    have hXa := hstep _ _ _ hstp
+    obtain ⟨Z', hZ'⟩ := hXX _ _ _ hXa
+    have hx : ((.ok (), σ') : Except Unit Unit × Fl4Spec.State Unit) ∈
+        ((Fl4Spec.invokeCnode (Z := Unit) inv).run σ1).1 := by rw [hrunI]; rfl
+    exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], σ'),
+      mem_bindE_ok hx (Set.mem_singleton _), ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩, hZ'.rel.1, hZ'.rel.2.1,
+        hZ'.rel.2.2.1, hZ'.rel.2.2.2.1, hZ'.rel.2.2.2.2.1⟩, hXa⟩
+
+set_option maxHeartbeats 4000000 in
 /-- **A copy, move or rotate's outcome at `XTop`**: from `InvPost` with
 FL4's trace (`CnTrace`) and the arch state kept, `TopPostDMX`. -/
 theorem cn_topX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {Z : XSets} {s : S} {ar : A}
@@ -308,6 +345,50 @@ theorem decode_invocation_cnode_copyX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : A
   · simp only [↓reduceIte]
     rw [WP.spec_ok]
     exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, ⟨Z, hX⟩⟩
+
+/-- **`decode_invocation_cnode_copyX` at any `X` reached by the primitive
+steps** (`cn_topXS`). -/
+theorem decode_invocation_cnode_copyXS {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S)
+    (ar : A) (σ : Fl4Spec.State Unit) (hX : XTopAt (L := L) AR Z s ar σ) (hC : CurRun σ)
+    {X : S → A → Fl4Spec.State Unit → Prop} (hX0 : X s ar σ)
+    (hstep : ∀ s' a' σ', Steps (L := L) arI Z.th s ar σ s' a' σ' → X s' a' σ')
+    (hXX : ∀ s' a' σ', X s' a' σ' → XTop (L := L) AR s' a' σ')
+    (lbl : U64) (hl : 28 ≤ lbl.val ∧ lbl.val ≤ 32) (slbl : Fl4Spec.Data)
+    (hlbl : Fl4Spec.genInvocationType slbl = cnodeLabelOf lbl)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (p r gs g : U64) (hwf : CapWf (.CNode p r gs g)) (hcv : CapValid Z.th (.CNode p r gs g))
+    (hroot : ∃ y, IsSlot Z.th y ∧ capV (L.mem s) y = .CNode p r gs g)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 : U64)
+    (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel2 Z.th (L.mem s) x0 x1 (excaps.map Prod.fst))
+    (hact : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hcur : σ.curThread = ct.bv)
+    (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (buffer : Option Fl4Spec.ObjRef) :
+    XCap (L := L) arI X s ar σ lbl length slot (.CNode p r gs g) blk call don fp buf extra slbl
+      (args.map UScalar.bv) ci sl excaps buffer ct := by
+  obtain ⟨⟨hR, hV, hM, hCd, hI⟩, hFI⟩ := And.intro hX.rel.2.1 hX.rel.2.2.1
+  have htcb := (hX.curTcb hcur).1
+  left
+  unfold DecOKDMX syscall.decode_invocation
+  rw [hct]; simp only [bind_ok]
+  cases fp
+  · simp only [Bool.false_eq_true, ↓reduceIte]
+    by_cases hcp : 28 ≤ lbl.val ∧ lbl.val ≤ 31
+    · exact WP.spec_mono (cnode_copy_refines arI Z.th s ar σ Z.G hR hV hX.rel.1 hM hCd lbl slbl hlbl hcp length buf
+        ct hct args hlen hargs _ _ ⟨hwf, rfl⟩ hcv extra x0 hx0 _ hex.one hI hFI hact hcur htcb)
+        fun res h => cn_topXS arI hX hC hX0 hstep hXX hcur hroot h
+    · have e : lbl = fl4_abi.label.CNodeRotate := UScalar.eq_of_val_eq (by rw [lbl_rotate_val]; omega)
+      subst e
+      exact WP.spec_mono (cnode_rotate_refines arI Z.th s ar σ Z.G hR hV hX.rel.1 hM hCd slbl
+        (by rw [hlbl]; simp [cnodeLabelOf]) length buf ct hct args hlen hargs _ _ ⟨hwf, rfl⟩ hcv extra x0 x1 hx0 hx1 _
+        hex hI hFI hact hcur htcb) fun res h => cn_topXS arI hX hC hX0 hstep hXX hcur hroot h
+  · simp only [↓reduceIte]
+    rw [WP.spec_ok]
+    exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, hX0⟩
 
 /-- **Hypothesis: CancelBadgedSends at `XTop`** (the endpoint side, for the
 IPC proofs; the plain `XLeaf` shape): from `XTop`, the caller's restart then
