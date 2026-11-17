@@ -114,29 +114,6 @@ def DomRelW (m : U64 → U64) (kb : U64) (σ : Fl4Spec.State Unit) : Prop :=
         (core.num.U64.wrapping_add 192#u64 (core.num.U64.wrapping_mul i 16#u64))) = 0#u64)) ∧
   σ.domainStartIndex = (m (core.num.U64.wrapping_add kb 32#u64)).val
 
-/-- The destination of a slot step lies in a live CNode (named by a CNode
-cap held in a slot) or in the kernel-state block (the IRQ node). -/
-def DestLive (th : TypedHeap) (mem : U64 → U64) (kb pd : U64) : Prop :=
-  (∃ y r gs g, IsSlot th y ∧ capV mem y = .CNode pd r gs g) ∨
-    (∀ k, th pd = some k → kb.val ≤ pd.val ∧ pd.val + objSize k ≤ kb.val + 13568)
-
-theorem DestLive.same {th : TypedHeap} {m m' : U64 → U64} {kb kb' pd : U64} (h : DestLive th m kb pd)
-    (hS : SlotsSame th m m') (hk : kb' = kb) : DestLive th m' kb' pd := by
-  subst hk
-  rcases h with ⟨y, r, gs, g, hy, hc⟩ | h
-  · exact Or.inl ⟨y, r, gs, g, hy, by rw [hS.capV hy]; exact hc⟩
-  · exact Or.inr h
-
-/-- A CNode reached by a lookup from a root held in a slot is live. -/
-theorem DestLive.of_cnRef {th : TypedHeap} {mem : U64 → U64} {c0 : capability.Cap} {kb pd : U64}
-    (h : CnRef th mem c0 pd) (hroot : ∃ y, IsSlot th y ∧ capV mem y = c0) : DestLive th mem kb pd := by
-  obtain ⟨r, gs, g, hr⟩ := h
-  rcases hr with ⟨p, r', idx, hp, hl, hc⟩ | e
-  · exact Or.inl ⟨cslotAddr (p.bv, idx), r, gs, g, AbsSlot.isSlot ⟨p, rfl, Or.inl (by rw [hl]; exact hp)⟩,
-      capV_of_capAt hc⟩
-  · obtain ⟨y, hy, hyc⟩ := hroot
-    exact Or.inl ⟨y, r, gs, g, hy, by rw [hyc, e]⟩
-
 /-- Every object of `σ'` was an object of the same type in `σ` (SpecKSz). -/
 def KSz (σ σ' : Fl4Spec.State Unit) : Prop :=
   ∀ o ko', σ'.kheap o = some ko' → ∃ ko, σ.kheap o = some ko ∧ Fl4Spec.aType ko = Fl4Spec.aType ko'
@@ -233,7 +210,11 @@ structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S 
     (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 1) = capAt (L.mem s) (slotOf t 1)) →
     TypedKept th (L.mem s) (L.mem s') →
     (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3)) →
-    KSz σ σ' → (DelInv th (L.mem s) → DelInv th (L.mem s')) → Q s a σ s' a σ'
+    KSz σ σ' → (DelInv th (L.mem s) → DelInv th (L.mem s')) → ∀ W : List Fl4Spec.CslotPtr,
+    (∀ sl ∈ W, ∃ p r, sl.1 = p.bv ∧ th p = some (.cnode r) ∧ sl.2.length = r ∧ DestLive th (L.mem s) (L.ksb s) p) →
+    (∀ y, IsSlot th y → (∀ sl ∈ W, y ≠ cslotAddr sl) → capV (L.mem s') y = capV (L.mem s) y) →
+    (∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ sl ∈ W) →
+    UtSrc th (L.mem s) (L.mem s') σ σ' → Q s a σ s' a σ'
   del : ∀ (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit) (sl : Fl4Spec.CslotPtr) (p b : U64) (w r : Bool),
     AbsSlot th sl → capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
     cdt.delete_one st arI s a (cslotAddr sl) = ok (s', a') → ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 →

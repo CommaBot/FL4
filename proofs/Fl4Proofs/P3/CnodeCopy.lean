@@ -28,6 +28,8 @@ import Fl4Proofs.P3.CnodeKey
 import Fl4Proofs.P3.CnFrame
 import Fl4Proofs.P3.CnDelInv
 import Fl4Proofs.P3.SlotCover
+import Fl4Proofs.P3.SlotLive
+import Fl4Proofs.P3.CnUtSrc
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -253,12 +255,17 @@ def invSlots : Fl4Spec.CnodeInvocation → List Fl4Spec.CslotPtr
 trace (built downstream, StepSem's `cslot`): the caller's restart, then
 writes in slot words only, every slot's cap kept but at the invocation's
 CNode slots (`invSlots`). -/
-def CnTrace (th : TypedHeap) (ct : U64) (s : S) (inv : Fl4Spec.CnodeInvocation) (s' : S) : Prop :=
+def CnTrace (th : TypedHeap) (ct : U64) (σ : Fl4Spec.State Unit) (root : capability.Cap) (s : S) (inv : Fl4Spec.CnodeInvocation) (s' : S) :
+    Prop :=
   ∃ s2, invSlots inv ≠ [] ∧ sched.set_thread_state st s ct sched.TS_RESTART = ok s2 ∧
     Vs.SlotFrame2 (L := L) th s2 s' ∧
     (∀ sl ∈ invSlots inv, ∃ p r, sl.1 = p.bv ∧ th p = some (.cnode r) ∧ sl.2.length = r) ∧
     (∀ y, IsSlot th y → (∀ sl ∈ invSlots inv, y ≠ cslotAddr sl) → capV (L.mem s') y = capV (L.mem s2) y) ∧
     (DelInv th (L.mem s2) → DelInv th (L.mem s')) ∧ TypedKept th (L.mem s2) (L.mem s') ∧
+    ((∃ y, IsSlot th y ∧ capV (L.mem s) y = root) →
+      ∀ sl ∈ invSlots inv, ∃ p, sl.1 = p.bv ∧ DestLive th (L.mem s2) (L.ksb s) p) ∧
+    (∀ σ1 σ', Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
+      (Fl4Spec.invokeCnode (Z := Unit) inv).run σ1 = ({(.ok (), σ')}, False) → UtSrc th (L.mem s2) (L.mem s') σ1 σ') ∧
     CoverKept th (L.mem s2) (L.mem s') ∧ UtKept th (L.mem s2) (L.mem s')
 
 theorem InvPost.of_run {th : TypedHeap} {σ : Fl4Spec.State Unit} {G : MdbGhost}
@@ -310,10 +317,12 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
     (hI : MdbInv (L.mem s) G) (hFI : FinInv th (L.mem s) σ G)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
-    (dsl : Fl4Spec.CslotPtr) (pd : U64) (hpd1 : dsl.1 = pd.bv) (hpd : th pd = some (.cnode dsl.2.length)) :
+    (dsl : Fl4Spec.CslotPtr) (pd : U64) (hpd1 : dsl.1 = pd.bv) (hpd : th pd = some (.cnode dsl.2.length))
+    (root : capability.Cap)
+    (hpdL : (∃ y, IsSlot th y ∧ capV (L.mem s) y = root) → DestLive th (L.mem s) (L.ksb s) pd) :
     cnode.decode_copy st s lbl length buf extra (cslotAddr dsl) ⦃ res =>
       InvPost (L := L) th σ G (copyTail slbl ((args.map UScalar.bv).drop 2) excaps dsl) s res
-        (CnTrace (L := L) th ct s) ⦄ := by
+        (CnTrace (L := L) th ct σ root s) ⦄ := by
   have hts := set_thread_state_slots th hP s ct sched.TS_RESTART htcb hact
   have hgl : IsCopyLabel (Fl4Spec.genInvocationType slbl) := by
     rw [hlbl]; unfold cnodeLabelOf IsCopyLabel
@@ -383,7 +392,8 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
     cases e1 with
     | error _ => exact hrel1.elim
     | ok sl =>
-      obtain ⟨rfl, ps, hps1, hps, -⟩ := hrel1
+      obtain ⟨rfl, ps, hps1, hps, hcr1⟩ := hrel1
+      have hpsL : DestLive th (L.mem s) (L.ksb s) ps := DestLive.of_cnRef hcr1 ⟨x0, hx0s, capV_of_capAt hc0⟩
       refine InvPost.congr (run_bind_ok hls _) ?_
       have hAs : AbsSlot th sl := ⟨ps, hps1, Or.inl hps⟩
       obtain ⟨srcC, srcA, hsc, hsca, hgs⟩ := hR.slot_cap (Z := Unit) hps1 hps
@@ -470,8 +480,8 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
             intro hu y hy
             obtain ⟨z, hz⟩ := desc_tail_child hy
             exact hut hu ((hC.has_child_iff hP hAs).2 ⟨z, hz⟩)
-          obtain ⟨s3, hs3, σ', G', hins, hR', hV', hM', hC', hI', hFI', hSt⟩ := spec_exists
-            (insert_full_fin th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hps hpd rfl rfl hsc2 hsn hdc2 nc (absCap nc)
+          obtain ⟨s3, hs3, σ', G', hins, hR', hV', hM', hC', hI', hFI', hSt, hG'⟩ := spec_exists
+            (insert_full_finG th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hps hpd rfl rfl hsc2 hsn hdc2 nc (absCap nc)
               ⟨hw', rfl⟩ hv' he' hnn hsh hbd hut' hzb hkey (copied_vcap hr2))
           have htr := Vs.insert_trace hP s2 G hM1 ((hM1.members _).2 ⟨hAs.isSlot, srcC, hsc2, hsn⟩) hAd.isSlot
             (fun h => by obtain ⟨-, c0, h0, hn⟩ := (hM1.members _).1 h; rw [hdc2] at h0
@@ -491,14 +501,29 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
               exacts [⟨ps, _, rfl, hps, rfl⟩, ⟨pd, _, rfl, hpd, rfl⟩],
             fun y hy hne => htr.2.1 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots])), hdi,
             typedKept_ins hAs.isSlot (capV_of_capAt hsc2) htr.2.1 htr.2.2.1 htr.2.2.2 hsh,
+            fun hr sl hsl => by
+              simp only [invSlots, List.mem_cons, List.not_mem_nil, or_false] at hsl
+              rcases hsl with rfl | rfl
+              exacts [⟨ps, rfl, hpsL.same hS rfl⟩, ⟨pd, rfl, (hpdL hr).same hS rfl⟩],
+            fun σ1' σ'' h1 h2 => by
+              have e1 : σ1 = σ1' := nd_single_inj (hst.symm.trans h1)
+              subst e1
+              have e2 : σ' = σ'' := nd_single_inj ((run_liftE' hins).symm.trans h2)
+              subst e2
+              exact utSrc_ins hP hM1 hC1 hC' hAs (capV_of_capAt hsc2) (capV_of_capAt hdc2) htr.2.2.1 htr.2.2.2
+                htr.2.1 hsh (copied_ut hr2) hut' (fun _ _ _ _ e => by
+                  have h := hsc2; rw [capAt_words, e] at h; exact (decode_encWf h).2) hG'
+                (fun hu => by
+                  rw [copied_ut hr2 hu]
+                  exact isPF_ut hI1 ((hM1.members _).2 ⟨hAs.isSlot, srcC, hsc2, hsn⟩) (capV_of_capAt hsc2) hu _),
             coverUt_ins hAs.isSlot hsd (capV_of_capAt hsc2) (capV_of_capAt hdc2) htr.2.2.1 htr.2.2.2 htr.2.1 hsh
               (copied_ut hr2) (fun _ _ _ _ e => by
                 have h := hsc2; rw [capAt_words, e] at h; exact (decode_encWf h).2)⟩
           rw [run_ofExcept]; simp [finishRes, hann]
         · -- move
           simp only [↓reduceIte]
-          obtain ⟨s3, hs3, σ', G', hmv, hR', hV', hM', hC', hI', hFI', hSt⟩ := spec_exists
-            (move_full_fin th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hps hpd rfl rfl hsc2 hsn hdc2 nc (absCap nc) ⟨hw', rfl⟩
+          obtain ⟨s3, hs3, σ', G', hmv, hR', hV', hM', hC', hI', hFI', hSt, hG'⟩ := spec_exists
+            (move_full_finG th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hps hpd rfl rfl hsc2 hsn hdc2 nc (absCap nc) ⟨hw', rfl⟩
               hv' he' hnn hsh (hbm rfl) hkey (copied_vcap hr2))
           have htr := Vs.move_trace hP s2 G hM1 ((hM1.members _).2 ⟨hAs.isSlot, srcC, hsc2, hsn⟩) hAd.isSlot
             (fun h => by obtain ⟨-, c0, h0, hn⟩ := (hM1.members _).1 h; rw [hdc2] at h0
@@ -518,6 +543,20 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
               exacts [⟨ps, _, rfl, hps, rfl⟩, ⟨pd, _, rfl, hpd, rfl⟩],
             fun y hy hne => htr.2.1 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots])), hdi,
             typedKept_mov hAs.isSlot htr.2.1 htr.2.2.1 htr.2.2.2 (by rw [capV_of_capAt hsc2]; exact hsh),
+            fun hr sl hsl => by
+              simp only [invSlots, List.mem_cons, List.not_mem_nil, or_false] at hsl
+              rcases hsl with rfl | rfl
+              exacts [⟨ps, rfl, hpsL.same hS rfl⟩, ⟨pd, rfl, (hpdL hr).same hS rfl⟩],
+            fun σ1' σ'' h1 h2 => by
+              have e1 : σ1 = σ1' := nd_single_inj (hst.symm.trans h1)
+              subst e1
+              have e2 : σ' = σ'' := nd_single_inj ((run_liftE' hmv).symm.trans h2)
+              subst e2
+              exact utSrc_swap hP hC1 hC' hAs hAd hG' (fun _ _ _ _ h => by rw [htr.2.2.2] at h; cases h)
+                (fun _ _ _ _ h => by
+                  rw [htr.2.2.1] at h
+                  have hu : isUt srcC = true := by rw [← isUt_of_shape hsh, h]; rfl
+                  rw [capV_of_capAt hsc2, ← copied_ut hr2 hu, h]) htr.2.1,
             coverUt_mov hAd.isSlot hsd (capV_of_capAt hsc2) (capV_of_capAt hdc2) htr.2.2.1 htr.2.2.2 htr.2.1 hsh
               hAs.isSlot (fun _ _ _ _ hc _ _ hs => by
                 have hu : isUt srcC = true := by rw [hs]; rfl
@@ -546,7 +585,7 @@ theorem cnode_copy_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb) :
     cnode.decode st arI s ar lbl length cap buf extra ⦃ res =>
       InvPost (L := L) th σ G (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
-        (res.1, res.2.1) (CnTrace (L := L) th ct s) ∧ res.2.2 = ar ⦄ := by
+        (res.1, res.2.1) (CnTrace (L := L) th ct σ cap s) ∧ res.2.2 = ar ⦄ := by
   have hgl : IsCopyLabel (Fl4Spec.genInvocationType slbl) := by
     rw [hlbl]; unfold cnodeLabelOf IsCopyLabel
     have : lbl.val = 28 ∨ lbl.val = 29 ∨ lbl.val = 30 ∨ lbl.val = 31 := by omega
@@ -589,13 +628,14 @@ theorem cnode_copy_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) (s
     cases e1 with
     | error _ => exact hrel1.elim
     | ok dsl =>
-      obtain ⟨rfl, pd, hpd1, hpd, -⟩ := hrel1
+      obtain ⟨rfl, pd, hpd1, hpd, hcrd⟩ := hrel1
       have g1 : lbl ≥ fl4_abi.label.CNodeCopy := by have := lbl_copy_val; scalar_tac
       have g2 : lbl ≤ fl4_abi.label.CNodeMutate := by have := lbl_mutate_val; scalar_tac
       simp only [g1, g2, ↓reduceIte, bind_ok]
       obtain ⟨⟨r2, s2⟩, hdc, hpost⟩ := spec_exists
         (decode_copy_rel th s σ G hR hV hP hM hC lbl slbl hlbl hl length buf ct hct (y0 :: y1 :: rest) hlen
-          (by simp) hargs extra x0 hx0 excaps hex hI hFI hact hcur htcb dsl pd hpd1 hpd)
+          (by simp) hargs extra x0 hx0 excaps hex hI hFI hact hcur htcb dsl pd hpd1 hpd cap
+          (fun hr => DestLive.of_cnRef hcrd hr))
       rw [hdc]; simp only [bind_ok, uncurry_apply_pair]
       rw [WP.spec_ok]
       simp only [List.map_cons, List.drop_succ_cons, List.drop_zero] at hpost

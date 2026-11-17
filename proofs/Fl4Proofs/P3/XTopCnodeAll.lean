@@ -89,6 +89,7 @@ theorem decode_invocation_cnodeX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask
     (hlen : length.val = args.length)
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (p r gs g : U64) (hwf : CapWf (.CNode p r gs g)) (hcv : CapValid Z.th (.CNode p r gs g))
+    (hroot : ∃ y, IsSlot Z.th y ∧ capV (L.mem s) y = .CNode p r gs g)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 : U64)
     (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
@@ -110,7 +111,7 @@ theorem decode_invocation_cnodeX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask
       slot blk call don fp ci sl buffer
   by_cases hcp : 28 ≤ lbl.val ∧ lbl.val ≤ 32
   · exact decode_invocation_cnode_copyX arI hAM s ar σ hX hKA hC hTh hDel lbl hcp slbl hlbl length buf ct hct args
-      hlen hargs p r gs g hwf hcv extra x0 x1 hx0 hx1 excaps hex hact hcur slot blk call don fp ci sl buffer
+      hlen hargs p r gs g hwf hcv hroot extra x0 x1 hx0 hx1 excaps hex hact hcur slot blk call don fp ci sl buffer
   have hcase : lbl.val = 25 ∨ lbl.val = 26 ∨ lbl.val = 27 := by omega
   rcases hcase with h | h | h
   · have e : lbl = fl4_abi.label.CNodeRevoke := UScalar.eq_of_val_eq (by rw [h, lbl_revoke_val])
