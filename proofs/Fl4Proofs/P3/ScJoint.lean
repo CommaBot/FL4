@@ -24,11 +24,11 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 
 /-- The current thread of a `JAtZ` state: the node's `CUR_THREAD` word, the
-spec's, a runnable TCB. -/
-theorem JAtZ.curRunnable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+spec's, a TCB. -/
+theorem JAtZ.curEq {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) :
-    σ.curThread = ct.bv ∧ ∃ x, σ.kheap ct.bv = some (.tcb x) ∧ Fl4Spec.runnable x.tcbState = true := by
+    σ.curThread = ct.bv ∧ ∃ x, σ.kheap ct.bv = some (.tcb x) := by
   have hS := J.xtop.fin.1.1.1
   obtain ⟨Q, R', hc, hs⟩ := hS.lists
   have hct' : ct = nodeW st s Z.c layout.node.CUR_THREAD := by
@@ -36,12 +36,22 @@ theorem JAtZ.curRunnable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.H
     rw [hct, WP.spec_ok, hc.cur] at h; exact h
   have hcur : σ.curThread = ct.bv := by rw [hs.curThread, hct']
   obtain ⟨-, x, hk⟩ := J.xtop.curTcb hcur
-  exact ⟨hcur, x, hk, J.curRun x (by rw [hcur]; exact hk)⟩
+  exact ⟨hcur, x, hk⟩
+
+/-- The current thread of a `JAtZ` state at a system call (not the idle
+thread): `curEq`, and the TCB runnable (`CurRunW.run`). -/
+theorem JAtZ.curRunnable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : σ.curThread ≠ σ.idleThread) {ct : U64}
+    (hct : sched.cur_thread st s = ok ct) :
+    σ.curThread = ct.bv ∧ ∃ x, σ.kheap ct.bv = some (.tcb x) ∧ Fl4Spec.runnable x.tcbState = true := by
+  obtain ⟨hcur, x, hk⟩ := J.curEq hct
+  exact ⟨hcur, x, hk, J.curRun.run hni x (by rw [hcur]; exact hk)⟩
 
 /-- **The SchedControl cap on `JAt`** (`decode_invocation_sched_controlXT`). -/
 theorem decode_invocation_sched_controlJAt {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction ≠ .chooseNewThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : σ.curThread ≠ σ.idleThread) (hres : σ.schedulerAction ≠ .chooseNewThread)
     (htm : TimeAgree arI) (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st Z.N Z.T Z.C Z.c)
@@ -64,7 +74,7 @@ theorem decode_invocation_sched_controlJAt {AR : A → Fl4Spec.Cr3 → Prop} {Z 
       ⦃ r => ∀ c, AR a c → AR r.2.2 c ⦄) :
     DecOKDMX (L := L) arI (XTop (L := L) AR) s a σ lbl length slot (.SchedControl cpu) blk call don fp buf extra
       slbl (args.map UScalar.bv) ci sl excaps buffer := by
-  obtain ⟨-, xc, hkc, hrun⟩ := J.curRunnable hct
+  obtain ⟨-, xc, hkc, hrun⟩ := J.curRunnable hni hct
   exact decode_invocation_sched_controlXT s a σ J.xtop (J.scExtra hres htm hmb hmax htu hmsg) lbl slbl hlbl cpu length
     buf ct hcpu hct args hlen hargs extra x0 hx0 excaps hex hsb hsc hkc hrun slot blk call don fp ci sl buffer hArch
 

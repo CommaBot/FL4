@@ -208,12 +208,12 @@ clear. Named: the target among the TCBs, `RestartSpecOK` after the restart
 [J-step, spec only], the platform's `MIN_BUDGET` [P]. -/
 theorem resumeXLeafJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit} {p : U64}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hJS : JStepHyps (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hJS : JStepHyps (L := L) arI AR Z.th)
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False)) (hpT : p ∈ Z.T)
     (hRS : RestartSpecOK p.bv σ1)
     (hmb : sporadic.min_budget arI ar ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
     ResumeXLeaf (L := L) arI AR s ar σ σ1 p := by
-  refine xleaf_restartJ J hJS hst fun s1 Ac' Lst' D' J' _ hI1 => ?_
+  refine xleaf_restartJ J hni hJS hst fun s1 Ac' Lst' D' J' _ hI1 => ?_
   have hP0 := J.ip
   have hAR : AR ar σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2
   refine WP.spec_bind (restart_tcb_irelS (ar := arI) hP0 (removeTcbHypP_ok hP0) s1 ar σ1 hI1 hpT J'.sv J'.obj

@@ -105,6 +105,21 @@ theorem curOwn_updTcb {T : Set U64} {σ : State Unit} (h : CurOwn T σ) {p : Obj
     · rw [e', Function.update_self] at hy; cases hy
     · rw [Function.update_of_ne e'] at hy; exact hown y n hy
 
+/-- `curOwn_updTcb` for the weak form (`CurOwnW`: an unowned current SC
+stays unowned, a TCB written over no SC). -/
+theorem curOwnW_updTcb {T C : Set U64} {σ : State Unit} (h : CurOwnW T C σ) {p : ObjRef} {x : Tcb}
+    (hk : σ.kheap p = some (.tcb x)) (ts : ThreadState) :
+    CurOwnW T C (stsAct (updK σ p (.tcb { x with tcbState := ts })) p) := by
+  obtain ⟨e1, -, e3, -⟩ := stsAct_fields (updK σ p (.tcb { x with tcbState := ts })) p
+  have ek : (stsAct (updK σ p (.tcb { x with tcbState := ts })) p).kheap =
+      Function.update σ.kheap p (some (.tcb { x with tcbState := ts })) := by rw [e1]; rfl
+  have ecs : (stsAct (updK σ p (.tcb { x with tcbState := ts })) p).curSc = σ.curSc := by rw [e3]; rfl
+  refine h.imp (fun o => curOwn_updTcb o hk ts) ecs fun y n hy => Or.inr ⟨y, ?_, rfl⟩
+  rw [ek] at hy
+  by_cases e' : σ.curSc = p
+  · rw [e', Function.update_self] at hy; cases hy
+  · rw [Function.update_of_ne e'] at hy; exact hy
+
 end Spec
 
 section
@@ -176,8 +191,8 @@ theorem jowes_restart {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s : S)
       (fun h => h) (J.jcov.dead q hq)
   refine ⟨Ac', Lst', D, ⟨hCR', hRF', hY', hM', J.sc_buf hwT hK, hRP', J.sc_apart hwT hK, J.sc_jpl hwT hK,
     J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn), J.sc_kern hwT hK hF hX1 hDbg (fun _ h => h),
-    J.sc_utc hwT hK hDbg, hNsc, hI1, hcur', curOwn_updTcb J.own hk _, OffOK.restart J.off _, hAI, hB',
-    J.isorted.tkw hK, hCR'', hBlk'⟩⟩
+    J.sc_utc hwT hK hDbg, hNsc, hI1, hcur', curOwnW_updTcb J.own hk _, OffOK.restart J.off _, hAI, hB',
+    J.isorted.tkw hK, Or.inl hCR'', hBlk'⟩⟩
 
 /-! ## The slot steps (an insertion, a CNode-only step) -/
 

@@ -40,7 +40,7 @@ after the install (`hSP`); the platform's facts [P]. -/
 theorem tcbXIpc_ofJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ : Fl4Spec.State Unit} {p ct buf : U64}
     {argsU : List U64} {blk call don : Bool}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hJS : JStepHyps (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hJS : JStepHyps (L := L) arI AR Z.th)
     (hres : σ.schedulerAction = .resumeCurThread) (hcur : σ.curThread = ct.bv) (hpT : p ∈ Z.T)
     (hbuf : buf ≠ 0#u64 → ∃ sp, BufMap Z.B buf sp)
     (hargs : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
@@ -59,15 +59,15 @@ theorem tcbXIpc_ofJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     (hStT : P0.StoreTotal st) (hArT : P0.ArchTotal arI) (hAK : ARKeep arI AR) (hTA : TimeAgree arI)
     (hmb : ∀ a, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
     TcbXIpc (L := L) arI AR Z.th s ar σ p ct buf argsU blk call don where
-  readRegs := fun hpne => readRegsXHypJ J hJS hcur hpne hpT hZ
-  writeRegs := writeRegsXHypJ J hJS hcur hpT (J.thT ct (J.xtop.curTcb hcur).1) hbuf hargs hmb
-  copyRegs := copyRegsXHypJ J hJS hcur hpT hsT hSK hmb
-  setPrio := fun _ _ hst hv => setPrioXLeafJ J hJS hst hv hpT hres
+  readRegs := fun hpne => readRegsXHypJ J hni hJS hcur hpne hpT hZ
+  writeRegs := writeRegsXHypJ J hni hJS hcur hpT (J.thT ct (J.xtop.curTcb hcur).1) hbuf hargs hmb
+  copyRegs := copyRegsXHypJ J hni hJS hcur hpT hsT hSK hmb
+  setPrio := fun _ _ hst hv => setPrioXLeafJ J hni hJS hst hv hpT hres
   schedTail := schedTailXHypJ arI hStT hArT hAK hTA hSP hJ2
-  suspend := fun _ hst => suspendXLeafJ J hJS hst hpT
-  resume := fun _ hst => resumeXLeafJD J hJS hst hpT (hmb ar)
-  bind := fun q hq _ _ _ hst => bindXLeafJ J hJS hst hpT (J.capN hq).1 (J.capN hq).2
-  unbind := fun h0 _ hst => unbindXLeafJ J hJS hst h0 hpT
+  suspend := fun _ hst => suspendXLeafJ J hni hJS hst hpT
+  resume := fun _ hst => resumeXLeafJD J hni hJS hst hpT (hmb ar)
+  bind := fun q hq _ _ _ hst => bindXLeafJ J hni hJS hst hpT (J.capN hq).1 (J.capN hq).2
+  unbind := fun h0 _ hst => unbindXLeafJ J hni hJS hst h0 hpT
 
 end
 

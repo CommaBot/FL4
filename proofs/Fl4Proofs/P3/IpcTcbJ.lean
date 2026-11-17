@@ -35,13 +35,13 @@ set_option maxHeartbeats 4000000 in
 /-- **`JAtZ` across the caller's restart** (module docstring). -/
 theorem jat_restart {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hJS : JStepHyps (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : σ.curThread ≠ σ.idleThread) (hJS : JStepHyps (L := L) arI AR Z.th)
     {ct : U64} (hcur : σ.curThread = ct.bv) {s1 : S} (hs1 : sched.set_thread_state st s ct sched.TS_RESTART = ok s1)
     {σ1 : Fl4Spec.State Unit} (hst : Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False)) :
     ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64), JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' s1 a σ1 := by
   have hX := J.xtop
   obtain ⟨htcb, x, hk⟩ := hX.curTcb hcur
-  have hrun : Fl4Spec.runnable x.tcbState = true := J.curRun x (by rw [hcur]; exact hk)
+  have hrun : Fl4Spec.runnable x.tcbState = true := J.curRun.run hni x (by rw [hcur]; exact hk)
   have hσ1 : σ1 = Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv := by
     rw [Notif.setThreadState_eq .restart hk] at hst
     exact ((Prod.mk.inj (Set.singleton_eq_singleton_iff.1 (congrArg Prod.fst hst))).2).symm
@@ -60,7 +60,7 @@ used; the rest on `JAtZ` after the restart (with `IRel` and the TCBs kept
 but for their states), `IRel` after. -/
 theorem xleaf_restartJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hJS : JStepHyps (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hJS : JStepHyps (L := L) arI AR Z.th)
     {g : S → Result ((core.result.Result Unit error.Exc) × S × A)} {spec : Set (Unit × Fl4Spec.State Unit) × Prop}
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
     (hI : ∀ (s1 : S) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
@@ -79,7 +79,7 @@ theorem xleaf_restartJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
   set ct := L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) with hctd
   have hcur : σ.curThread = ct.bv := by rw [hs.curThread, hctd, hc.cur]; rfl
   obtain ⟨-, x, hk⟩ := hX.curTcb hcur
-  have hrun : Fl4Spec.runnable x.tcbState = true := J.curRun x (by rw [hcur]; exact hk)
+  have hrun : Fl4Spec.runnable x.tcbState = true := J.curRun.run hni x (by rw [hcur]; exact hk)
   have hst' := hst
   rw [hcur] at hst'
   have hσ1 : σ1 = Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv := by
@@ -102,7 +102,7 @@ theorem xleaf_restartJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
   subst hct'
   obtain ⟨s1, hs1, -⟩ := spec_exists hR
   rw [hs1]
-  obtain ⟨Ac', Lst', D', J'⟩ := jat_restart J hJS hcur hs1 hst'
+  obtain ⟨Ac', Lst', D', J'⟩ := jat_restart J hni hJS hcur hs1 hst'
   have hI1 := J'.xtop.irelK J'.ks J'.buf
   rw [hcr] at hI1
   try simp only [bind_tc_ok, bind_ok]
@@ -154,14 +154,14 @@ reschedule is pending (P1's `DecPre.act`), carried across the restart (which
 keeps the release queue). -/
 theorem setPrioXLeafJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit} {p v : U64}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hJS : JStepHyps (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hJS : JStepHyps (L := L) arI AR Z.th)
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False)) (hv : v.val < 256)
     (hpT : p ∈ Z.T) (hres : σ.schedulerAction = .resumeCurThread) :
     SetPrioXLeaf (L := L) AR s ar σ σ1 p v := by
   have hNR : σ.curThread ∉ σ.releaseQueue := (J.curInv (by rw [hres]; exact fun h => nomatch h)).notRel
   obtain ⟨ct, hcur, x, hk⟩ := xtop_cur J.xtop
   obtain ⟨-, hrq, hct, -⟩ := restart_facts hk hst
-  refine xleaf_restartJ J hJS hst fun s1 Ac' Lst' D' J' _ hI1 => ?_
+  refine xleaf_restartJ J hni hJS hst fun s1 Ac' Lst' D' J' _ hI1 => ?_
   have hP0 := J.ip
   have hAR : AR ar σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2
   have hQ := Sched.qSorted_of_spec (L := L) hI1.1.toE hI1.1.toN hP0.e.tcb J'.isorted
@@ -180,11 +180,11 @@ and `ObjCover` after it, the two bound words (`bound_wr_irel`). Nothing named
 beyond the target among the TCBs. -/
 theorem unbindXLeafJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit} {p : U64}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hJS : JStepHyps (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hJS : JStepHyps (L := L) arI AR Z.th)
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
     (hb0 : L.mem s (P1.boundA p) ≠ 0#u64) (hpT : p ∈ Z.T) :
     UnbindXLeaf (L := L) AR s ar σ σ1 p := by
-  refine xleaf_restartJ J hJS hst fun s1 Ac' Lst' D' J' hkp hI1 => ?_
+  refine xleaf_restartJ J hni hJS hst fun s1 Ac' Lst' D' J' hkp hI1 => ?_
   have hP0 := J.ip
   have hAR : AR ar σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2
   have hI0 := J.xtop.irelK J.ks J.buf
@@ -214,11 +214,11 @@ target among the TCBs, the notification among the notifications and not at
 address 0 (the decode's cap, l4v `valid_cap`). -/
 theorem bindXLeafJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit} {p q : U64}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hJS : JStepHyps (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hJS : JStepHyps (L := L) arI AR Z.th)
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
     (hpT : p ∈ Z.T) (hqN : q ∈ Z.N) (hq0 : q ≠ 0#u64) :
     BindXLeaf (L := L) AR s ar σ σ1 p q := by
-  refine xleaf_restartJ J hJS hst fun s1 Ac' Lst' D' J' _ hI1 => ?_
+  refine xleaf_restartJ J hni hJS hst fun s1 Ac' Lst' D' J' _ hI1 => ?_
   have hP0 := J.ip
   have hAR : AR ar σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2
   obtain ⟨x, hk, -⟩ := hI1.1.tcb p hpT

@@ -205,7 +205,7 @@ set_option maxHeartbeats 4000000 in
 relation by `ARKeep` [P]. -/
 theorem ipcVsFrame_endpointJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hJS : JStepHyps (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hJS : JStepHyps (L := L) arI AR Z.th)
     {ct : U64} (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
     (hrun : tsCode xt.tcbState < 3) (hft : xt.tcbFault = none)
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
@@ -220,7 +220,7 @@ theorem ipcVsFrame_endpointJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : 
   rw [hcur] at hst'
   exact xleaf_of_irelJ J (fun hI => send_tail_topS hz.H hz.Bf hz.Bm hz.Tl hz.P s ar σ hI hz.ct hcur hkt hrun hft hst
     hp b blk call g gr don fun s1 hs1 => by
-      obtain ⟨Ac', Lst', D', J'⟩ := jat_restart J hJS hcur hs1 hst'
+      obtain ⟨Ac', Lst', D', J'⟩ := jat_restart J hni hJS hcur hs1 hst'
       exact ⟨J'.sv, J'.qsortedE, hU s1 Ac' Lst' D' J'⟩)
     (fun _ h => AK.send_tail hS hA hK h)
 
@@ -249,7 +249,7 @@ after the caller's restart. Named: `IpcZ`, `ReplyHyps`, `min_budget` [P], the
 reply in `Z.R`, `ARKeep` [P]. -/
 theorem ipcVsFrame_replyJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hJS : JStepHyps (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hJS : JStepHyps (L := L) arI AR Z.th)
     {ct : U64} (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
     (hrun : tsCode xt.tcbState < 3) (hft : xt.tcbFault = none)
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
@@ -262,9 +262,9 @@ theorem ipcVsFrame_replyJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
   have hst' := hst
   rw [hcur] at hst'
   obtain ⟨-, x, hk⟩ := J.xtop.curTcb hcur
-  have hrn : Fl4Spec.runnable x.tcbState = true := J.curRun x (by rw [hcur]; exact hk)
+  have hrn : Fl4Spec.runnable x.tcbState = true := J.curRun.run hni x (by rw [hcur]; exact hk)
   obtain ⟨s1, hs1, -⟩ := spec_exists (XTopAt.restart J.xtop hcur hk hrn)
-  obtain ⟨Ac', Lst', D', J'⟩ := jat_restart J hJS hcur hs1 hst'
+  obtain ⟨Ac', Lst', D', J'⟩ := jat_restart J hni hJS hcur hs1 hst'
   exact xleaf_of_irelJ J (fun hI => reply_tail_invS hz.H hz.Bf hz.Bm hz.P hRH hz.Tl hmb s ar σ hI hz.ct hcur hkt hrun
     hft hst hp g ⟨J'.sv, J'.obj, J'.isorted⟩) (fun _ h => AK.reply_tail hS hA hK h)
 

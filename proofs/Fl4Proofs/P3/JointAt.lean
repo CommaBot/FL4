@@ -167,9 +167,11 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   inv : Sched.Inv σ
   /-- `CurInv` unless a reschedule is pending (mid-entry, as `ScEntry`). -/
   cur : σ.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ
-  /-- The current SC's owner (`CurOwn`, what `schedule` from a mid-entry
-  state reads; `curOwn_of_curInv` where `CurInv` holds). -/
-  own : Sched.CurOwn Z.T σ
+  /-- The current SC's owner, or the current SC unowned (`CurOwnW`, what
+  `schedule` from a mid-entry state reads; unowned after the current thread
+  deleted itself or unbound its SC; `curOwn_of_curInv` where `CurInv`
+  holds). -/
+  own : Sched.CurOwnW Z.T Z.C σ
   off : Sched.OffOK σ
   act : Sched.ActIdle σ
   c0 : ∀ q ∈ Z.C, q ≠ 0#u64
@@ -180,7 +182,9 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   /-- The spec's SC, TCB and notification links (per-op; for the
   `SchedValid` rebuild). -/
   slink : Sched.ScLinkHyp σ
-  curRun : CurRun σ
+  /-- The current thread runnable, or the idle thread current (`CurRunW`:
+  at kernel exit `schedule` may have chosen the idle thread). -/
+  curRun : CurRunW σ
   -- 1e: P1
   blk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
     (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s

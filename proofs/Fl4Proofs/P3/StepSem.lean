@@ -159,6 +159,16 @@ def SchedStep (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (s' : S) (σ' :
 def CurRun (σ : Fl4Spec.State Unit) : Prop :=
   ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.runnable x.tcbState = true
 
+/-- **`CurRun` or the idle thread current** (l4v `ct_running or ct_idle`):
+what holds at every kernel exit (`schedule` may choose the idle thread,
+whose state is not runnable). A system call enters from a thread, not the
+idle one, so `CurRun` holds again at its decode (`CurRunW.run`). -/
+def CurRunW (σ : Fl4Spec.State Unit) : Prop :=
+  CurRun σ ∨ σ.curThread = σ.idleThread
+
+theorem CurRunW.run {σ : Fl4Spec.State Unit} (h : CurRunW σ) (hni : σ.curThread ≠ σ.idleThread) : CurRun σ :=
+  Or.resolve_right h hni
+
 /-- **Closure under the primitive steps** (module docstring). -/
 structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S → A → Fl4Spec.State Unit → Prop) :
     Prop where
