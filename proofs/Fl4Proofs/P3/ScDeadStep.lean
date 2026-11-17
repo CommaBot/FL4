@@ -103,6 +103,56 @@ theorem JAtZ.sc_out_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.H
     simp only [P1.HKind.bits] at this
     omega
 
+
+theorem Sched.Covered.mono {m : U64 → U64} {G : MdbGhost} {lo hi hi' : Nat} (h : Sched.Covered m G lo hi)
+    (hh : hi' ≤ hi) : Sched.Covered m G lo hi' := by
+  obtain ⟨y, hy, hp, hu, hb, ht⟩ := h
+  exact ⟨y, hy, hp, hu, hb, by omega⟩
+
+theorem range_thread (p : U64) (hfit : p.val + 2 ^ 12 ≤ 2 ^ 64) :
+    baseF (.Thread p) = p.val ∧ topF (.Thread p) = p.val + 2 ^ 12 - 1 :=
+  Sched.capRange (b := 12#u64) (ok_inj (ptr_eq _).symm)
+    (ok_inj (by rw [← size_eq]; simp [objects.cap_size_bits, fl4_abi.consts.bits.TCB])) (by decide) hfit
+
+theorem range_sc (p sb : U64) (hb : sb.val < 64) (hfit : p.val + 2 ^ sb.val ≤ 2 ^ 64) :
+    baseF (.SchedContext p sb) = p.val ∧ topF (.SchedContext p sb) = p.val + 2 ^ sb.val - 1 :=
+  Sched.capRange (b := sb) (ok_inj (ptr_eq _).symm)
+    (ok_inj (by rw [← size_eq]; simp [objects.cap_size_bits])) hb hfit
+
+/-- **A cap in a slot covers its object after an SC step** (both kinds of
+`JCovD`'s cover): the slot is in the MDB, its cap kept (slots apart), the
+object `H`'s of at most the cap's size and not an `other` (so not a CNode
+of `Z.th`; a TCB of `Z.th` is `H`'s, `thk`). -/
+theorem JAtZ.cover_cap {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) {x : U64} (hxS : IsSlot Z.th x)
+    {c : capability.Cap} (hc : capAt (L.mem s) x = ok c) (hnn : c ≠ .Null) (hph : physF c = true)
+    (hu : isUt c = false) {q : U64} {b : Nat} (hr : baseF c = q.val ∧ topF c = q.val + 2 ^ b - 1)
+    (hH : ∀ k, H q = some k → k.bits ≤ b ∧ ∀ z, k ≠ .other z) :
+    (∀ k, Z.th q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + max (objSize k) 1)) ∧
+    (∀ k, H q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + 2 ^ k.bits)) := by
+  have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
+    J.xtop.slotsSame_of hw fun b h => Sched.tfoot_oobj J.xtop.fin.1.1.1 h
+  obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
+  have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
+  have hxm : x ∈ Z.G.chains.flatten := (hM.members _).2 ⟨hxS, _, hc, hnn⟩
+  have hC : Sched.Covered (L.mem s') Z.G q.val (q.val + 2 ^ b) :=
+    Sched.covered_keep (Sched.covered_of_cap hxm (capV_of_capAt hc) hph hu hr)
+      fun y hy _ _ => ⟨hy, hSS.capV (hsl y hy)⟩
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  refine ⟨fun k hk => ?_, fun k hk => ?_⟩
+  swap
+  · have := Nat.pow_le_pow_right (n := 2) (by norm_num) (hH k hk).1
+    exact hC.mono (by omega)
+  rcases J.thk q k hk with rfl | ⟨r, rfl⟩
+  · have hq : H q = some .tcb := (hJ.tcb q).1 hk
+    have h12 := (hH _ hq).1
+    simp only [P1.HKind.bits] at h12
+    have := Nat.pow_le_pow_right (n := 2) (by norm_num) h12
+    exact hC.mono (by simp only [objSize]; omega)
+  · exact absurd rfl ((hH _ (hJ.cnode q r hk)).2 (r + 5))
+
 set_option maxHeartbeats 4000000 in
 /-- **The dead stay dead across an SC step** (module docstring). -/
 theorem JAtZ.deadP_sc_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}

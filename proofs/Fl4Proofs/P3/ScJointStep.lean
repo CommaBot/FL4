@@ -10,15 +10,21 @@ stacks, yield, MCP and reply placement (`ScAll.of_k`), `BlockedScActive`
 fields no SC step touches by `JAtZ.sc_frame`; `CurRun` (`curRun_sc_step`);
 the buffer words, slots apart, `JPlaced`, `JKern`, the untyped caps' facts
 and `JCovD` (ScJointRest: `JAtZ.sc_buf`, `sc_apart`, `sc_jpl`, `sc_kern`,
-`sc_utc`, `sc_jcov`; the current SC kept by `FK`, ScFieldKeep).
+`sc_utc`, `sc_jcov`; the current SC kept by `FK`, ScFieldKeep). The dead
+set: the step cuts links only (ScLinkKeep) outside Bind's SC and new thread
+or notification, so the dead stay dead (`deadP_sc_step`); Bind's pair leaves
+the dead set, covered by its caps (`cover_cap`: the invoked SC cap's slot,
+the extra cap's slot; premises `hslot`, `hslotS`, `hsb`, `hssz`, `hx0S`, the
+decode site's cap lookup and `valid_cap`).
 
 Named per-op premise (`hRest`, at the decode's post, over its spec run,
 `ScStepRest`): the current-thread, offset and switch-thread invariants and
-the current SC's owner under a pending reschedule (a), the dead set after
-(`hDead`, P3's, to prove), and P1-supplied: the node-0 `DEBUG_TCBS` word kept and `BlkOK`.
+the current SC's owner under a pending reschedule (a), and P1-supplied: the
+node-0 `DEBUG_TCBS` word kept and `BlkOK`.
 -/
 import Fl4Proofs.P3.ScJointRest
 import Fl4Proofs.P3.ScBsaOps
+import Fl4Proofs.P3.ScDeadStep
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -30,23 +36,42 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 
 /-- **The fields an SC step still owes** (the module docstring's named
-premise), at the post `(s', σ')` of a step from `s` with the dead set `D`:
-the current-thread, offset and switch-thread invariants and the current
-SC's owner under a pending reschedule (a); the dead set after, `D' ⊆ D` dead, the rest of `D` covered (`hDead`,
-P3's, to prove); the node-0 `DEBUG_TCBS` word kept and `BlkOK` (P1-supplied). -/
-def ScStepRest (arI : machine.Arch A) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s s' : S)
+premise), at the post `(s', σ')` of a step from `s`: the current-thread,
+offset and switch-thread invariants and the current SC's owner under a
+pending reschedule (a); the node-0 `DEBUG_TCBS` word kept and `BlkOK`
+(P1-supplied). -/
+def ScStepRest (arI : machine.Arch A) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (s s' : S)
     (σ' : Fl4Spec.State Unit) : Prop :=
-  ∃ (Ac' D' : Set U64), (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧
+  ∃ (Ac' : Set U64), (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧
     (σ'.schedulerAction = .chooseNewThread → CurOwn Z.T σ') ∧ OffOK σ' ∧ ActIdle σ' ∧
-    -- `hDead` (P3)
-    (D' ⊆ D ∧ (∀ q ∈ D', DeadP (L := L) H s' q) ∧
-      ∀ q ∈ D, q ∉ D' →
-        (∀ k, Z.th q = some k → Covered (L.mem s') Z.G q.val (q.val + max (objSize k) 1)) ∧
-        (∀ k, H q = some k → Covered (L.mem s') Z.G q.val (q.val + 2 ^ k.bits))) ∧
     -- P1-supplied: the node-0 `DEBUG_TCBS` word kept, `BlkOK`
     L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) ∧
     P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s'
+
+theorem retP_bind_never {α β : Type} {P : β → Prop} {m : Fl4Spec.SEMonad Unit α} {f : α → Fl4Spec.SEMonad Unit β}
+    (hm : RetP (fun _ => False) m) : RetP P (m >>= f) := by
+  intro σ x hx v hv
+  rw [ExceptT.run_bind] at hx
+  obtain ⟨⟨e, σ'⟩, he, hx⟩ := hx
+  cases e with
+  | error e => rw [Set.mem_singleton_iff.1 hx] at hv; cases hv
+  | ok a => exact (hm σ _ he a rfl).elim
+
+/-- Bind's decoded cap is the first extra cap. -/
+theorem retP_bindHead (sc : Fl4Spec.ObjRef) (excaps : List Fl4Spec.Cap) :
+    RetP (fun v => ∃ a rest, excaps = a :: rest ∧ v = .invokeSchedContextBind sc a)
+      (Fl4Spec.decodeSchedContextBind (Z := Unit) sc excaps) := by
+  unfold Fl4Spec.decodeSchedContextBind
+  cases excaps with
+  | nil =>
+    refine retP_bind_never ?_
+    unfold Fl4Spec.NonDetE.whenE; rw [if_pos List.length_nil]; exact retP_throw _
+  | cons a rest =>
+    refine retP_bind _ fun _ => ?_
+    rw [retOk_bind]
+    simp only [List.head?_cons]
+    repeat (first | exact retP_pure ⟨_, _, rfl, rfl⟩ | exact retP_throw _ | (refine retP_bind _ fun _ => ?_) | split | (dsimp only))
 
 /-- **`CurRun` after an SC step**: the restart makes the current thread
 runnable, and the invocation (`ScTKw (·=False)`) keeps every TCB state and
@@ -97,7 +122,7 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
           ({(.ok inv, σ)}, False) ∧
         Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) ∧
         Fl4Spec.invokeSchedControlConfigureFlags (Z := Unit) inv σ1 = ({((), σ')}, False)) →
-        ScStepRest (L := L) arI Z H Cs D s r.2.1 σ' ⦄) :
+        ScStepRest (L := L) arI Z H Cs s r.2.1 σ' ⦄) :
     syscall.decode_invocation st arI s a lbl length slot (.SchedControl cpu) blk call don fp buf extra
       ⦃ r => ∃ (σ' : Fl4Spec.State Unit) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
         JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.2.1 r.2.2 σ' ⦄ := by
@@ -144,13 +169,19 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     retP_configureDec slbl (args.map UScalar.bv) (excaps.map Prod.fst) σ _ (by rw [hdec]; exact Set.mem_singleton _)
       _ rfl
   have hB' : BlockedScActive σ' := bsa_configure J.bsa (hcur ▸ hkc) hrun (hcur ▸ hm1) hm2
-  obtain ⟨Ac', D', hC', hOw', hO', hAI', ⟨hDD, hDead, hCov⟩, hDbg, hBlk'⟩ :=
+  obtain ⟨Ac', hC', hOw', hO', hAI', hDbg, hBlk'⟩ :=
     hRst hr1 σ' ⟨_, σ1, hdec, he1, he2⟩
   have hF : FK σ σ' := ((fk_setThreadState _ _).of_eq he1).trans ((fk_invokeSchedControlConfigureFlags _).of_eq he2)
-  have hCR'' : CurRun σ' := curRun_sc_step hkc hcur he1 (NKT.of_eq (nkt_invokeSchedControlConfigureFlags _) he2)
   have hwT := WritesIn.tfoot_of_kfoot hw
-  exact ⟨σ', Ac', Lst', D', J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
-    (J.sc_jpl hwT hK) (J.sc_jcov hwT hDead hCov) (J.sc_kern hwT hK hF hX' hDbg hDD)
+  -- the dead set: Configure cuts links only
+  have hL : LK (fun _ => False) σ σ' := (lkm_setThreadState _ _ σ _ hm1).trans (lkm_configure _ σ1 _ hm2)
+  have hP : ∀ p x, p = ct.bv → σ.kheap p = some (.tcb x) → Fl4Spec.runnable x.tcbState = true := by
+    rintro p x rfl hk; rw [hkc] at hk; cases hk; exact hrun
+  have hDead : ∀ q ∈ D, DeadP (L := L) H s' q := fun q hq =>
+    J.deadP_sc_step hX' hwT hK hP hL hF hAI'.1 (fun h => h) (J.jcov.dead q hq)
+  have hCR'' : CurRun σ' := curRun_sc_step hkc hcur he1 (NKT.of_eq (nkt_invokeSchedControlConfigureFlags _) he2)
+  exact ⟨σ', Ac', Lst', D, J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
+    (J.sc_jpl hwT hK) (J.sc_jcov hwT hDead fun q hq hn => absurd hq hn) (J.sc_kern hwT hK hF hX' hDbg fun _ h => h)
     (J.sc_utc hwT hK hDbg) hN' hI' hC' (hC'.elim hOw' (curOwn_of_curInv hX'.fin.1.1.1 hI')) hO' hAI' hB' hCR'' hBlk'⟩
 
 set_option maxHeartbeats 4000000 in
@@ -180,6 +211,9 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     (hcapT : ∀ p, capAt (L.mem s) x0 = ok (.Thread p) → p ∈ Z.T)
     (hcapN : ∀ p b w r, capAt (L.mem s) x0 = ok (.Notification p b w r) → p ∈ Z.N ∧ p ≠ 0#u64)
     (length slot buf : U64) (blk call don fp : Bool)
+    (hslot : capAt (L.mem s) slot = ok (.SchedContext sc sb)) (hslotS : IsSlot Z.th slot) (hsb : sb.val < 64)
+    (hssz : ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → n + Fl4Spec.minSchedContextBits = sb.val)
+    (hx0S : x0 ≠ 0#u64 → IsSlot Z.th x0)
     (hArch : syscall.decode_invocation st arI s a lbl length slot (.SchedContext sc sb) blk call don fp buf extra
       ⦃ r => ∀ c, AR a c → AR r.2.2 c ⦄)
     (hRest : syscall.decode_invocation st arI s a lbl length slot (.SchedContext sc sb) blk call don fp buf extra
@@ -187,7 +221,7 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
         (Fl4Spec.decodeSchedContextInvocation (Z := Unit) slbl sc.bv (excaps.map Prod.fst)).run σ = ({(.ok inv, σ)}, False) ∧
         Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ0)}, False) ∧
         Fl4Spec.invokeSchedContext (Z := Unit) inv σ0 = ({([], σ1)}, False)) →
-        ScStepRest (L := L) arI Z H Cs D s r.2.1 σ1 ⦄) :
+        ScStepRest (L := L) arI Z H Cs s r.2.1 σ1 ⦄) :
     syscall.decode_invocation st arI s a lbl length slot (.SchedContext sc sb) blk call don fp buf extra
       ⦃ r => (∃ (σ' : Fl4Spec.State Unit) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
           JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.2.1 r.2.2 σ') ∨
@@ -290,13 +324,93 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       (f1 := decide (∀ p, inv ≠ .invokeSchedContextYieldTo p))
       ((pres_invokeSchedContext inv σ0 _ hm1).weaken (f' := (decide (∀ p, inv ≠ .invokeSchedContextYieldTo p), true))
         id (fun _ => hu))
-  obtain ⟨Ac', D', hC', hOw', hO', hAI', ⟨hDD, hDead, hCov⟩, hDbg, hBlk'⟩ :=
-    hRst hr1 σ2 ⟨inv, σ0, hrun, he0, he1⟩
+  obtain ⟨Ac', hC', hOw', hO', hAI', hDbg, hBlk'⟩ := hRst hr1 σ2 ⟨inv, σ0, hrun, he0, he1⟩
   have hF : FK σ σ2 := ((fk_setThreadState _ _).of_eq he0).trans (fk_invokeSchedContext hshape _ hm1)
   have hCR'' : CurRun σ2 := curRun_sc_step hkc hcur he0 hK1
   have hKt := hK0.trans (hK1.mono fun _ h => h.elim)
-  exact ⟨σ2, Ac', Lst', D', J.sc_frame hW hKt hX' hCR' hRF' hY' hM' (J.sc_buf hW hKt) hRP' (J.sc_apart hW hKt)
-    (J.sc_jpl hW hKt) (J.sc_jcov hW hDead hCov) (J.sc_kern hW hKt hF hX' hDbg hDD)
+  -- the dead set: the step cuts links only outside Bind's pair, which is covered (its caps)
+  have hL : LK (invLinkW inv) σ σ2 := (lkm_setThreadState _ _ σ _ hm0).trans (lk_invokeSchedContext hshape _ hm1)
+  have hP : ∀ p x, p = ct.bv → σ.kheap p = some (.tcb x) → Fl4Spec.runnable x.tcbState = true := by
+    rintro p x rfl hk; rw [hkc] at hk; cases hk; exact hrunc
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  have hH := J.kern.heap
+  have scCov : (∀ k, Z.th sc = some k → Covered (L.mem s') Z.G sc.val (sc.val + max (objSize k) 1)) ∧
+      (∀ k, H sc = some k → Covered (L.mem s') Z.G sc.val (sc.val + 2 ^ k.bits)) := by
+    obtain ⟨x, n, hk, -⟩ := hs.scs sc hsc
+    have hHs := (hJ.sc sc x n (J.c0 sc hsc) hk).2
+    have hsz := hssz x n hk
+    have hfit := hH.fits sc _ hHs
+    simp only [P1.HKind.bits] at hfit
+    rw [hsz] at hfit
+    refine J.cover_cap hW hslotS hslot (fun h => by cases h) (ok_inj (phys_eq _).symm) rfl
+      (range_sc sc sb hsb hfit) fun k hk' => ?_
+    rw [hHs] at hk'; cases hk'
+    exact ⟨by simp only [P1.HKind.bits]; omega, fun z h => by cases h⟩
+  have hcovW : ∀ q ∈ D, invLinkW inv q.bv →
+      (∀ k, Z.th q = some k → Covered (L.mem s') Z.G q.val (q.val + max (objSize k) 1)) ∧
+      (∀ k, H q = some k → Covered (L.mem s') Z.G q.val (q.val + 2 ^ k.bits)) := by
+    intro q _ hqW
+    rcases hl with l | l | ⟨l, -⟩
+    · have hg : Fl4Spec.genInvocationType slbl = .schedContextBind := by rw [hlbl, l]; unfold scLabelOf; simp
+      simp only [Fl4Spec.decodeSchedContextInvocation, hg] at hrun
+      obtain ⟨a0, rest, hex', rfl⟩ := (retP_bindHead _ _).of_run hrun
+      rcases hex with ⟨-, he⟩ | ⟨hx0n, c, a1, rest', hc, hCR, hCV, he⟩
+      · rw [he] at hex'; cases hex'
+      rw [he] at hex'
+      injection hex' with ha
+      subst ha
+      have hCa := hCR.abs
+      have hxS := hx0S hx0n
+      have hqsc : q.bv = sc.bv → q = sc := fun e => bv_inj e
+      cases a1 with
+      | threadCap t =>
+        rcases hqW with e | e
+        · rw [hqsc e]; exact scCov
+        · cases c <;> simp only [absCap, reduceCtorEq, Fl4Spec.Cap.threadCap.injEq] at hCa
+          rename_i p
+          have hq : q = p := bv_inj (e.trans hCa)
+          subst hq
+          have hHp : H q = some .tcb := (hJ.tcb q).1 hCV
+          have hfit := hH.fits q _ hHp
+          simp only [P1.HKind.bits] at hfit
+          refine J.cover_cap hW hxS hc (fun h => by cases h) (ok_inj (phys_eq _).symm) rfl (range_thread q hfit)
+            fun k hk' => ?_
+          rw [hHp] at hk'; cases hk'
+          exact ⟨by simp only [P1.HKind.bits]; omega, fun z h => by cases h⟩
+      | notificationCap n b r =>
+        rcases hqW with e | e
+        · rw [hqsc e]; exact scCov
+        · cases c <;> simp only [absCap, reduceCtorEq, Fl4Spec.Cap.notificationCap.injEq] at hCa
+          rename_i p b' x1 x2
+          have hq : q = p := bv_inj (e.trans hCa.1)
+          subst hq
+          have hty := hJ.typed x0 hxS
+          rw [capV_of_capAt hc] at hty
+          have hHp : H q = some .ntfn := (hty.2.1 q b' x1 x2 rfl).2
+          have hfit := hH.fits q _ hHp
+          simp only [P1.HKind.bits] at hfit
+          refine J.cover_cap hW hxS hc (fun h => by cases h) (ok_inj (phys_eq _).symm) rfl
+            (range_ntfn q b' x1 x2 hfit) fun k hk' => ?_
+          rw [hHp] at hk'; cases hk'
+          exact ⟨by simp only [P1.HKind.bits]; omega, fun z h => by cases h⟩
+      | _ => exact hqW.elim
+    · have hg : Fl4Spec.genInvocationType slbl = .schedContextUnbindObject := by
+        rw [hlbl, l]; unfold scLabelOf; simp
+      simp only [Fl4Spec.decodeSchedContextInvocation, hg] at hrun
+      obtain ⟨cap, rfl⟩ := (retP_unbindObjDec _ _).of_run hrun
+      exact hqW.elim
+    · have hg : Fl4Spec.genInvocationType slbl = .schedContextYieldTo := by rw [hlbl, l]; unfold scLabelOf; simp
+      simp only [Fl4Spec.decodeSchedContextInvocation, hg] at hrun
+      rw [(retP_yieldToDec _).of_run hrun] at hqW
+      exact hqW.elim
+  have hDead : ∀ q ∈ {q | q ∈ D ∧ ¬ invLinkW inv q.bv}, DeadP (L := L) H s' q := fun q hq =>
+    J.deadP_sc_step hX' hW hKt hP hL hF hAI'.1 hq.2 (J.jcov.dead q hq.1)
+  have hCov : ∀ q ∈ D, q ∉ {q | q ∈ D ∧ ¬ invLinkW inv q.bv} →
+      (∀ k, Z.th q = some k → Covered (L.mem s') Z.G q.val (q.val + max (objSize k) 1)) ∧
+      (∀ k, H q = some k → Covered (L.mem s') Z.G q.val (q.val + 2 ^ k.bits)) := fun q hq hn =>
+    hcovW q hq (by_contra fun h => hn ⟨hq, h⟩)
+  exact ⟨σ2, Ac', Lst', _, J.sc_frame hW hKt hX' hCR' hRF' hY' hM' (J.sc_buf hW hKt) hRP' (J.sc_apart hW hKt)
+    (J.sc_jpl hW hKt) (J.sc_jcov hW hDead hCov) (J.sc_kern hW hKt hF hX' hDbg fun _ h => h.1)
     (J.sc_utc hW hKt hDbg) hN' hI' hC' (hC'.elim hOw' (curOwn_of_curInv hX'.fin.1.1.1 hI')) hO' hAI' hB' hCR'' hBlk'⟩
 
 end
