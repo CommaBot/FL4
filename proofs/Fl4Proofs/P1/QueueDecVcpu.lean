@@ -49,8 +49,8 @@ theorem restart_leaf {A : Type _} {s0 sX : S} {aX : A} {ct : U64}
 
 
 /-- A reply to the caller, then a success. -/
-theorem reply_leaf {A : Type _} (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U) {s0 sX : S} {aX : A}
-    {call : Bool} {val : U64} (h : Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 sX)
+theorem reply_leaf {A : Type _} (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U P3Ok) {s0 sX : S} {aX : A}
+    {call : Bool} {val : U64} (he : EntAt st P3Ok s0) (h : Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 sX)
     (hU : UserOK st H.tcbs Cs H.omega H U sX) :
     (do
       let s3 ← vcpu.reply st sX call val
@@ -62,7 +62,7 @@ theorem reply_leaf {A : Type _} (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp 
   have nb := h.nb
   have NB : ∀ s', XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R sX s' →
       ¬ BlockedR (L.mem s' (stA (L.curW sX))) := fun s' x => by
-    rw [stA_eq, x.1.2.2.2.2.2.1 _ hct _ (by simp) (by simp) (by simp), ← stA_eq]; exact nb
+    rw [stA_eq, x.1.fr.2.2.2.2.1 _ hct _ (by simp) (by simp) (by simp), ← stA_eq]; exact nb
   unfold vcpu.reply
   refine WP.spec_bind (Pₘ := fun s3 => BXI st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac1 s3)
     (WP.spec_bind (sched.cur_thread.spec sX) fun ct ect => ?_) fun s3 h3 => (WP.spec_ok _).2 (DecPost.ok_bxi h3)
@@ -71,7 +71,7 @@ theorem reply_leaf {A : Type _} (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp 
   refine WP.spec_bind (Pₘ := fun s' => XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R sX s') ?_
     fun s1 x1 => sched.set_thread_state.running_nbr x1.bxi hct (NB _ x1)
   split
-  · refine WP.spec_bind (E.buf _ _ _ _ sX _ x0.1 hct) fun b hb => ?_
+  · refine WP.spec_bind (E.buf _ _ _ _ sX _ ⟨s0, he, h.fr⟩ x0.1 hct) fun b hb => ?_
     refine WP.spec_bind (msg.set_mr.xsv (XSV.start x0) hct hb (by simp)) ?_
     rintro ⟨_, s2⟩ ⟨x2, -⟩
     try simp only [uncurry_apply_pair]
@@ -234,7 +234,7 @@ theorem running_leaf {A : Type _} {s0 sX sY : S} {aY : A} {Ac1 : Set U64} {Q : U
   obtain ⟨Ac', hX⟩ := h.bxi
   have hct : L.curW sX ∈ H.tcbs := hX.1.choose_spec.choose_spec.curT
   have nb : ¬ BlockedR (L.mem sY (stA (L.curW sX))) := by
-    rw [stA_eq, x.1.2.2.2.2.2.1 _ hct _ (by simp) (by simp) (by simp), ← stA_eq]; exact h.nb
+    rw [stA_eq, x.1.fr.2.2.2.2.1 _ hct _ (by simp) (by simp) (by simp), ← stA_eq]; exact h.nb
   refine WP.spec_bind (sched.set_thread_state.running_nbr x.bxi hct nb) fun s5 h5 => ?_
   exact (WP.spec_ok _).2 (DecPost.ok_bxi h5)
 
@@ -288,9 +288,9 @@ theorem vcpu.msr_addr.off (v f : U64) (amd : Bool) :
          vcpu.MSRS])
 
 /-- An MSR word written, read back and replied. -/
-theorem msr_wleaf {A : Type _} (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U) (hH : HeapOK H)
+theorem msr_wleaf {A : Type _} (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U P3Ok) (hH : HeapOK H)
     {s0 sX : S} {aX : A} {call : Bool} {v x value : U64} (hv : H v = some (.other 15)) (hx : VWord v x)
-    (h : Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 sX) (hU : UserOK st H.tcbs Cs H.omega H U sX) :
+    (he : EntAt st P3Ok s0) (h : Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 sX) (hU : UserOK st H.tcbs Cs H.omega H U sX) :
     (do
       let s2 ← st.write sX x value
       let i3 ← st.read s2 x
@@ -301,18 +301,18 @@ theorem msr_wleaf {A : Type _} (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp S
   refine WP.spec_bind (LawfulStore.write_spec sX _ value) fun s2 e2 => ?_
   subst e2
   refine WP.spec_bind (LawfulStore.read_spec _ _) fun i3 _ => ?_
-  exact reply_leaf E (h.vword hH hv hk h8) (hU.ksb (L.ksb_wr _ _ _))
+  exact reply_leaf E he (h.vword hH hv hk h8) (hU.ksb (L.ksb_wr _ _ _))
 
 /-- A word read and replied. -/
-theorem read_rleaf {A : Type _} (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U)
+theorem read_rleaf {A : Type _} (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U P3Ok)
     {s0 sX : S} {aX : A} {call : Bool} {x : U64}
-    (h : Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 sX) (hU : UserOK st H.tcbs Cs H.omega H U sX) :
+    (he : EntAt st P3Ok s0) (h : Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 sX) (hU : UserOK st H.tcbs Cs H.omega H U sX) :
     (do
       let i2 ← st.read sX x
       let s2 ← vcpu.reply st sX call i2
       ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, aX)) ⦃ r s' _ =>
         DecPost st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 r s' ⦄ :=
-  WP.spec_bind (LawfulStore.read_spec _ _) fun _ _ => reply_leaf E h hU
+  WP.spec_bind (LawfulStore.read_spec _ _) fun _ _ => reply_leaf E he h hU
 
 /-- A VCPU object's word is an object word off the frame words. -/
 theorem vcpu_obj_om (hH : HeapOK H) {v o : U64} (hv : H v = some (.other 15)) (ho : o.val < 2 ^ 15)
@@ -604,9 +604,9 @@ theorem vcpu.decode.wregs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
 set_option maxHeartbeats 4000000 in
 /-- **`X86VCPUSetTCB`.** -/
 theorem vcpu.decode.settcb {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U) {s : S} (P : VcpuPl st H Cs Rp Scs Nt Z s) {a : A}
+    (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U P3Ok) {s : S} (P : VcpuPl st H Cs Rp Scs Nt Z s) {a : A}
     {len v buf : U64} {call : Bool} {extra : Aeneas.Std.Array obj.Slot 3#usize} (hv : H v = some (.other 15))
-    (D : DecPre st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac s (.Vcpu v) extra) :
+    (D : DecPre st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac s (.Vcpu v) extra) (he : EntAt st P3Ok s) :
     vcpu.decode st ar s a fl4_abi.label.X86VCPUSetTCB len v call buf extra ⦃ r s' _ =>
       DecPost st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s r s' ⦄ := by
   have c0 := Cur0.ofPre D
@@ -624,7 +624,7 @@ theorem vcpu.decode.settcb {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal
     refine WP.spec_bind (smp.remote_tcb_stall.cur0 hA a1 ptr c1) ?_
     rintro ⟨s3, a2⟩ ⟨c3, k3, -⟩
     try simp only [uncurry_apply_pair]
-    refine WP.spec_bind (vcpu.detach.cur0 hA E P c3 (hU1.ksb k3) hp) ?_
+    refine WP.spec_bind (vcpu.detach.cur0 hA E P c3 he (hU1.ksb k3) hp) ?_
     rintro ⟨s4, a3⟩ ⟨c4, k4⟩
     try simp only [uncurry_apply_pair]
     unfold vcpu.get
@@ -640,7 +640,7 @@ theorem vcpu.decode.settcb {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal
           rcases P.tcb Ac4 s4 v c4.fr hX4 hv with h0 | h1
           · rw [← ei1] at h0; subst h0; simp at eb1; exact absurd eb1 hb
           · rw [ei1]; exact h1
-        exact WP.spec_mono (vcpu.detach.cur0 hA E P c4 ((hU1.ksb k3).ksb k4) hi1) fun r ⟨c, _⟩ => c
+        exact WP.spec_mono (vcpu.detach.cur0 hA E P c4 he ((hU1.ksb k3).ksb k4) hi1) fun r ⟨c, _⟩ => c
     rintro ⟨s5, a4⟩ c5
     try simp only [uncurry_apply_pair]
     refine WP.spec_bind (vcpu.set.cur0 P.heap hv (o := vcpu.TCB) (x := ptr) (by simp [vcpu.TCB]) (by simp [vcpu.TCB])
@@ -658,9 +658,9 @@ theorem vcpu.decode.settcb {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal
 set_option maxHeartbeats 4000000 in
 /-- **`X86VCPUReadVMCS`** and **`X86VCPUWriteVMCS`** (VMX). -/
 theorem vcpu.decode.vmcs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U) (hH : HeapOK H) {s : S} {a : A}
+    (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U P3Ok) (hH : HeapOK H) {s : S} {a : A}
     {lbl len v buf : U64} {call : Bool} {extra : Aeneas.Std.Array obj.Slot 3#usize} (hv : H v = some (.other 15))
-    (D : DecPre st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac s (.Vcpu v) extra)
+    (D : DecPre st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac s (.Vcpu v) extra) (he : EntAt st P3Ok s)
     (hl : lbl = fl4_abi.label.X86VCPUReadVMCS ∨ lbl = fl4_abi.label.X86VCPUWriteVMCS) :
     vcpu.decode st ar s a lbl len v call buf extra ⦃ r s' _ =>
       DecPost st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s r s' ⦄ := by
@@ -688,14 +688,14 @@ theorem vcpu.decode.vmcs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
         split
         · exact vcpu.read_vmcs.any _ _ _
         · exact (WP.spec_ok _).2 trivial) fun val _ => ?_
-      exact reply_leaf E c1 hU1
+      exact reply_leaf E he c1 hU1
     · verr
   · -- write
     refine WP.spec_bind (P0.vcpu.sanitize_vmcs.p0 _ _ _ _ hA) fun r _ => ?_
     rcases r with val | e
     · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
       refine WP.spec_bind (vcpu.write_vmcs.cur0 hH hv c1) fun s2 ⟨c2, k2⟩ => ?_
-      exact reply_leaf E c2 (hU1.ksb k2)
+      exact reply_leaf E he c2 (hU1.ksb k2)
     · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
         bind_tc_ok]
@@ -705,9 +705,9 @@ theorem vcpu.decode.vmcs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
 set_option maxHeartbeats 8000000 in
 /-- **`X86VCPUReadVMCB`** and **`X86VCPUWriteVMCB`** (SVM). -/
 theorem vcpu.decode.vmcb {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U) (hH : HeapOK H) {s : S} {a : A}
+    (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U P3Ok) (hH : HeapOK H) {s : S} {a : A}
     {lbl len v buf : U64} {call : Bool} {extra : Aeneas.Std.Array obj.Slot 3#usize} (hv : H v = some (.other 15))
-    (D : DecPre st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac s (.Vcpu v) extra)
+    (D : DecPre st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac s (.Vcpu v) extra) (he : EntAt st P3Ok s)
     (hl : lbl = fl4_abi.label.X86VCPUReadVMCB ∨ lbl = fl4_abi.label.X86VCPUWriteVMCB) :
     vcpu.decode st ar s a lbl len v call buf extra ⦃ r s' _ =>
       DecPost st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s r s' ⦄ := by
@@ -745,7 +745,7 @@ theorem vcpu.decode.vmcb {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
     split
     · verr
     split
-    · refine WP.spec_bind (E.buf _ _ _ _ s1 _ x1.1.1 hct) fun b hb => ?_
+    · refine WP.spec_bind (E.buf _ _ _ _ s1 _ ⟨s, he, c1.fr⟩ x1.1.1 hct) fun b hb => ?_
       refine WP.spec_bind (vcpu.decode_loop1.xs hval x1 hct hb) ?_
       rintro ⟨s2, n⟩ x2
       try simp only [uncurry_apply_pair]
@@ -774,7 +774,7 @@ theorem vcpu.decode.vmcb {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
         refine WP.spec_bind (vcpu.set.cur0k hH hv (o := f) (x := val) (by omega) hf.2 c1) fun s2 ⟨c2, k2⟩ => ?_
         refine WP.spec_bind (vcpu.svm.RAX.spec) fun _ _ => ?_
         refine WP.spec_bind (Pₘ := fun s3 => Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s s3 ∧
-            L.ksb s3 = L.ksb s1) ?_ fun s3 ⟨c3, k3⟩ => reply_leaf E c3 (hU1.ksb k3)
+            L.ksb s3 = L.ksb s1) ?_ fun s3 ⟨c3, k3⟩ => reply_leaf E he c3 (hU1.ksb k3)
         split
         · exact WP.spec_mono (vcpu.set.cur0k hH hv (by simp [vcpu.REGS]) (by simp [vcpu.REGS]) c2)
             fun s3 ⟨c3, k3⟩ => ⟨c3, k3.trans k2⟩
@@ -794,9 +794,9 @@ theorem vcpu.decode.vmcb {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
 set_option maxHeartbeats 8000000 in
 /-- **`X86VCPUReadMSR`** and **`X86VCPUWriteMSR`.** -/
 theorem vcpu.decode.msr {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U) (hH : HeapOK H) {s : S} {a : A}
+    (E : XferHyps st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U P3Ok) (hH : HeapOK H) {s : S} {a : A}
     {lbl len v buf : U64} {call : Bool} {extra : Aeneas.Std.Array obj.Slot 3#usize} (hv : H v = some (.other 15))
-    (D : DecPre st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac s (.Vcpu v) extra)
+    (D : DecPre st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac s (.Vcpu v) extra) (he : EntAt st P3Ok s)
     (hl : lbl = fl4_abi.label.X86VCPUReadMSR ∨ lbl = fl4_abi.label.X86VCPUWriteMSR) :
     vcpu.decode st ar s a lbl len v call buf extra ⦃ r s' _ =>
       DecPost st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s r s' ⦄ := by
@@ -807,9 +807,9 @@ theorem vcpu.decode.msr {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar
     have hU1 : UserOK st H.tcbs Cs H.omega H U s1 := D.user.ksb k1
     repeat' (first
       | verr
-      | exact reply_leaf E c1 hU1
-      | exact read_rleaf E c1 hU1
-      | exact msr_wleaf E hH hv ‹_› c1 hU1
+      | exact reply_leaf E he c1 hU1
+      | exact read_rleaf E he c1 hU1
+      | exact msr_wleaf E hH hv ‹_› he c1 hU1
       | (refine WP.spec_bind (vcpu.msr_addr.off v f _) ?_
          rintro (_ | x) ho <;> try have hx := ho x rfl)
       | refine WP.spec_bind (hA.vcpu_capability _ _) fun _ _ => ?_
@@ -824,7 +824,7 @@ set_option maxHeartbeats 8000000 in
 theorem vcpu.decode.ioport {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {s : S}
     (P : VcpuPl st H Cs Rp Scs Nt Z s) {a : A} {lbl len v buf : U64} {call : Bool} {extra : Aeneas.Std.Array obj.Slot 3#usize}
     (hv : H v = some (.other 15))
-    (D : DecPre st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac s (.Vcpu v) extra)
+    (D : DecPre st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac s (.Vcpu v) extra) (he : EntAt st P3Ok s)
     (hxs : ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapSlotW H.tcbs H.omega H.frame sl)
     (hl : lbl = fl4_abi.label.X86VCPUEnableIOPort ∨ lbl = fl4_abi.label.X86VCPUDisableIOPort) :
     vcpu.decode st ar s a lbl len v call buf extra ⦃ r s' _ =>
@@ -933,7 +933,7 @@ set_option maxHeartbeats 4000000 in
 /-- **InvGaps' `vcpu` family**, from the VCPU objects' placement, the
 transfer's buffer placement and the extra caps' slots (`IrqPlace.extra`). -/
 theorem decGap_vcpu {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (P : VcpuPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
+    (P : VcpuPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (IPx : ∀ (Ac : Set U64) (s : S) (cap : capability.Cap) (extra : Aeneas.Std.Array obj.Slot 3#usize),
       EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapSlotW T Ω Sg sl) :
     DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .vcpu := by
@@ -948,27 +948,27 @@ theorem decGap_vcpu {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   step with sched.cur_thread.spec as ⟨ct, _⟩
   try dsimp only
   by_cases l1 : lbl = fl4_abi.label.X86VCPUSetTCB
-  · subst l1; exact vcpu.decode.settcb hA E (P.pl s hE) hv D
+  · subst l1; exact vcpu.decode.settcb hA E (P.pl s hE) hv D hE
   by_cases l2 : lbl = fl4_abi.label.X86VCPUWriteRegisters
   · subst l2; exact vcpu.decode.wregs hA (P.pl s hE).heap hv (Cur0.ofPre D)
   by_cases l3 : lbl = fl4_abi.label.X86VCPUFlushTLB
   · subst l3; exact vcpu.decode.flush hA (Cur0.ofPre D)
   by_cases l4 : lbl = fl4_abi.label.X86VCPUReadVMCS
-  · exact vcpu.decode.vmcs hA E (P.pl s hE).heap hv D (Or.inl l4)
+  · exact vcpu.decode.vmcs hA E (P.pl s hE).heap hv D hE (Or.inl l4)
   by_cases l5 : lbl = fl4_abi.label.X86VCPUWriteVMCS
-  · exact vcpu.decode.vmcs hA E (P.pl s hE).heap hv D (Or.inr l5)
+  · exact vcpu.decode.vmcs hA E (P.pl s hE).heap hv D hE (Or.inr l5)
   by_cases l6 : lbl = fl4_abi.label.X86VCPUReadVMCB
-  · exact vcpu.decode.vmcb hA E (P.pl s hE).heap hv D (Or.inl l6)
+  · exact vcpu.decode.vmcb hA E (P.pl s hE).heap hv D hE (Or.inl l6)
   by_cases l7 : lbl = fl4_abi.label.X86VCPUWriteVMCB
-  · exact vcpu.decode.vmcb hA E (P.pl s hE).heap hv D (Or.inr l7)
+  · exact vcpu.decode.vmcb hA E (P.pl s hE).heap hv D hE (Or.inr l7)
   by_cases l8 : lbl = fl4_abi.label.X86VCPUReadMSR
-  · exact vcpu.decode.msr hA E (P.pl s hE).heap hv D (Or.inl l8)
+  · exact vcpu.decode.msr hA E (P.pl s hE).heap hv D hE (Or.inl l8)
   by_cases l9 : lbl = fl4_abi.label.X86VCPUWriteMSR
-  · exact vcpu.decode.msr hA E (P.pl s hE).heap hv D (Or.inr l9)
+  · exact vcpu.decode.msr hA E (P.pl s hE).heap hv D hE (Or.inr l9)
   by_cases l10 : lbl = fl4_abi.label.X86VCPUEnableIOPort
-  · exact vcpu.decode.ioport hA (P.pl s hE) hv D hxs (Or.inl l10)
+  · exact vcpu.decode.ioport hA (P.pl s hE) hv D hE hxs (Or.inl l10)
   by_cases l11 : lbl = fl4_abi.label.X86VCPUDisableIOPort
-  · exact vcpu.decode.ioport hA (P.pl s hE) hv D hxs (Or.inr l11)
+  · exact vcpu.decode.ioport hA (P.pl s hE) hv D hE hxs (Or.inr l11)
   exact vcpu.decode.other hA (Cur0.ofPre D) l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 l11
 
 

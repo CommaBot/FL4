@@ -179,9 +179,10 @@ theorem schedcontext.bind_ntfn.blk (s : S) (c n : U64) (h : BlkOK st T Cs Ω H S
 /-! ## `set_consumed` within `XS` -/
 
 theorem schedcontext.set_consumed.xs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) {Q : U64 → U64 → List U64} {R : U64 → List U64}
+    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) {Q : U64 → U64 → List U64} {R : U64 → List U64}
     {s0 s : S} {a : A} {c t : U64} {wm : Bool}
-    (h : XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s) (hc : c ∈ Scs) (ht : t ∈ T) :
+    (h : XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s) (hc : c ∈ Scs) (ht : t ∈ T)
+    (hG : ∀ s', XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s' → XG st T Cs Ω H Sg Scs Z P3Ok s') :
     schedcontext.set_consumed st ar s a c t wm ⦃ s' => XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s' ⦄ := by
   unfold schedcontext.set_consumed
   refine WP.spec_bind (schedcontext.update_consumed.xs hA h hc) ?_
@@ -189,7 +190,7 @@ theorem schedcontext.set_consumed.xs {A : Type _} {ar : machine.Arch A} (hA : P0
   simp only at h1
   try simp only [WP.uncurry'_pair]
   split
-  · refine WP.spec_bind (E.buf _ _ _ _ s1 t h1.1 ht) fun buf hb => ?_
+  · refine WP.spec_bind (E.buf _ _ _ _ s1 t (hG s1 h1) h1.1 ht) fun buf hb => ?_
     refine WP.spec_bind (obj.Tcb.set_reg.xs (v := 0#u64) h1 ht (by simp [layout.reg.BADGE, layout.reg.RDI]))
       fun s2 h2 => ?_
     refine WP.spec_bind (msg.set_mr.xs h2 ht hb (by simp)) ?_
@@ -292,11 +293,19 @@ theorem DecPost.of_bxi {s s' : S} {r : core.result.Result Unit error.Exc} {Ac' :
     DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' :=
   ⟨Ac', h, fun e => absurd e hr⟩
 
+/-- `KO` words are `Cur0W` words. -/
+theorem KO.cur0w {s : S} {b : U64} (h : KO st T Cs Ω H Sg Scs Z s b) : Cur0W st T Cs Ω H Sg Scs Z s b := by
+  rcases h with h | h
+  · exact Or.inl h
+  · by_cases hs : b ∈ Sg
+    · exact Or.inl (kw_sg hs)
+    · exact Or.inr (Or.inr (Or.inl (Or.inr ⟨h, hs⟩)))
+
 /-- **`schedcontext.decode`** keeps the invariants. -/
 theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (Y : ScYieldGap st ar T Cs Ω H Sg Rp Scs Nt Z U)
+    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (Y : ScYieldGap st ar T Cs Ω H Sg Rp Scs Nt Z U)
     (s : S) (a : A) (lbl sc : U64) (call : Bool) (extra : Aeneas.Std.Array obj.Slot 3#usize) (b : U64)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.SchedContext sc b) extra) :
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.SchedContext sc b) extra) (he : EntAt st P3Ok s) :
     schedcontext.decode st ar s a lbl sc call extra ⦃ r s' _ => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ∧
       WritesIn st s s' (KO st T Cs Ω H Sg Scs Z s) ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -343,10 +352,13 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
     refine WP.spec_bind (sched.set_thread_state.restart_blk (Es := ∅) s1 _ h1.blk hct (runnable_ok run1).1
       (runnable_ok run1).2) fun s2 ⟨h2, f2, e2, k2⟩ => ?_
     obtain ⟨Q2, R2, x2⟩ := BXI.xs (BlkOK.bxi h2) (hU1.ksb k2.ksb)
-    refine WP.spec_bind (WP.spec_and (schedcontext.set_consumed.xs hA E x2 hsc hct)
+    have hG2 : XG st T Cs Ω H Sg Scs Z P3Ok s2 :=
+      ⟨s, he, Cur0W.trans (W1.mono fun _ hb => KO.cur0w hb) (Foot.cur0w f2 (Set.empty_subset _))⟩
+    refine WP.spec_bind (WP.spec_and (schedcontext.set_consumed.xs hA E x2 hsc hct
+        fun s' h' => XG.xs hG2 h' (hU1.ksb k2.ksb))
       (schedcontext.set_consumed.blk hA s2 a1 sc (L.curW s) call h2 hsc hct)) fun s3 ⟨x3, _, f3, _⟩ => ?_
     have hst : L.mem s3 (stA (L.curW s)) = sched.TS_RESTART := by
-      rw [stA_eq, x3.2.2.2.2.2.1 _ hct _ (by simp) (by simp) (by simp), ← stA_eq, e2]
+      rw [stA_eq, x3.fr.2.2.2.2.1 _ hct _ (by simp) (by simp) (by simp), ← stA_eq, e2]
     refine WP.spec_bind (WP.spec_and (sched.set_thread_state.running_bxi x3.bxi hct hst)
       (sched.set_thread_state.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := ∅) s3 _ _ x3.1.1 hct)) fun s4 ⟨h4, f4⟩ => ?_
     exact (WP.spec_ok _).2 ⟨DecPost.of_bxi h4 (by simp), KT (KO.trans (Foot.ko f2 (Set.empty_subset _))
@@ -498,7 +510,7 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
 
 /-- **InvGaps' `schedContext`, discharged** but for the named `ScYieldGap`. -/
 theorem decGap_sc {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (Y : ScYieldGap st ar T Cs Ω H Sg Rp Scs Nt Z U) :
+    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (Y : ScYieldGap st ar T Cs Ω H Sg Rp Scs Nt Z U) :
     DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .schedContext := by
   intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot hE
   cases cap <;> simp [capFam] at hf
@@ -508,7 +520,7 @@ theorem decGap_sc {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   try dsimp only
   split
   · exact (WP.spec_ok _).2 (DecPost.keep D.bxi (by simp))
-  · exact WP.spec_mono (schedcontext.decode.dec hA E Y s a lbl sc call extra b D) fun _ hr => hr.1
+  · exact WP.spec_mono (schedcontext.decode.dec hA E Y s a lbl sc call extra b D hE) fun _ hr => hr.1
 
 end
 

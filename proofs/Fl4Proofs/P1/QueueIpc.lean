@@ -2270,22 +2270,24 @@ a granted cap's receive slot and CDT neighbours (cap-slot words) and, for a
 timeout fault, the sender's SC's `CONSUMED` word; `xferOK_of` (QueueXfer)
 proves it from the placement facts. -/
 def XferOK (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
-    (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop :=
+    (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (G : S → Prop) : Prop :=
   ∀ (Ac X : Set U64) (Q : U64 → U64 → List U64) (R : U64 → List U64) (s : S) (a : A) (snd ep badge : U64)
     (grant : Bool) (rcv : U64), snd ∈ T → rcv ∈ T →
     SchedQueuesInvX st T Cs Ω H X s Q R → BoundInv st T Ac s → XInv st T Cs Ω Sg Rp Scs Nt Z s →
-    SCsOK st T Ω Sg Scs Z Ac s → SgOK st Ω Sg s → UserOK st T Cs Ω H U s →
+    SCsOK st T Ω Sg Scs Z Ac s → SgOK st Ω Sg s → UserOK st T Cs Ω H U s → G s →
     ipc.do_ipc_transfer st ar s a snd ep badge grant rcv ⦃ s' =>
       SchedQueuesInvX st T Cs Ω H X s' Q R ∧ BoundInv st T Ac s' ∧ XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧
-      SCsOK st T Ω Sg Scs Z Ac s' ∧ SgOK st Ω Sg s' ∧ XferFr st T Rp s s' ⦄
+      SCsOK st T Ω Sg Scs Z Ac s' ∧ SgOK st Ω Sg s' ∧ XferFr st T Rp s s' ∧ G s' ⦄
 
 /-- seL4 `receiveIPC`'s end on a sending endpoint: the head sender is
 dequeued, the message transferred, and the sender either becomes blocked on
 the receiver's reply (a call, with the reply bookkeeping and SC donation),
 inactive, or running. -/
 theorem endpoint.receive_from_sender.ipc {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    {U : Set U64} (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U) (s : S) (a : A) (thread e reply : U64)
-    (Q : U64 → U64 → List U64) (R : U64 → List U64)
+    {U : Set U64} {G : S → Prop} (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U G) (s : S) (a : A)
+    (thread e reply : U64) (Q : U64 → U64 → List U64) (R : U64 → List U64)
+    (hG : ∀ s1, H e = some .ep → (L.epState s e = 1#u64 ∨ L.epState s e = 2#u64) →
+      endpoint.ep_dequeue st s e (L.epQ s e).head = ok s1 → G s1)
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s) (hU : UserOK st T Cs Ω H U s)
     (hc : CanBlock st T Ac s thread)
@@ -2313,16 +2315,16 @@ theorem endpoint.receive_from_sender.ipc {A : Type _} {ar : machine.Arch A} (hA 
   subst eq
   have hdq := endpoint.ep_dequeue.inv s hd Q R h hdT (by simp) (Or.inl hds)
   rw [hbe] at hdq
-  refine WP.spec_bind hdq ?_
-  rintro s1 ⟨h1, f1, o1, n1, k1, c1, nc1⟩
+  refine WP.spec_bind (spec_eq' hdq) ?_
+  rintro s1 ⟨eq1, h1, f1, o1, n1, k1, c1, nc1⟩
   obtain ⟨hB1, hX1, hS1, hSg1, ea1, ec1, ei1⟩ := frame_bx h hB hX hS hSg f1 o1 n1 k1
     ⟨k1, fun y hy K a b c => f1 y hy K (by omega) c (by omega) (by omega),
       fun c hc o ho => nc1 c hc o (by omega) (by omega), fun n' hn' => o1 _ (hSg.sub _ (hX.1.ntB n' hn').2)⟩
   step with obj.Tcb.block_badge.any as ⟨badge, _⟩
   step with obj.Tcb.block_flags.any as ⟨flags, _⟩
   simp only [lift, Aeneas.Std.bind_ok]
-  refine WP.spec_bind (hxf _ _ _ _ s1 a hd e badge _ thread hdT ht h1 hB1 hX1 hS1 hSg1 (hU.ksb k1)) ?_
-  rintro s2 ⟨h2, hB2, hX2, hS2, hSg2, ea2, ec2, ei2, ecs2, f2, o2, -⟩
+  refine WP.spec_bind (hxf _ _ _ _ s1 a hd e badge _ thread hdT ht h1 hB1 hX1 hS1 hSg1 (hU.ksb k1) (hG s1 hH (Or.inl hst1) eq1)) ?_
+  rintro s2 ⟨h2, hB2, hX2, hS2, hSg2, ⟨ea2, ec2, ei2, ecs2, f2, o2, -⟩, -⟩
   refine WP.spec_bind (endpoint.unblock_sporadic.all s2 hd h2 hB2 hX2 hS2 hSg2 hdT) ?_
   rintro s3 ⟨h3, hB3, hX3, hS3, hSg3, ea3, ec3, ei3, f3, r3⟩
   step with obj.Tcb.fault_type.any as ⟨ftype, _⟩
@@ -2444,9 +2446,11 @@ is bound (`hdon`): on the syscall path the sender is the current thread,
 which has an SC in MCS, and on the fault path FL4 sets `can_donate` to
 `t.sc != 0`. -/
 theorem endpoint.send_ipc.ipc {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
-    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U) (s : S) (a : A) (blocking do_call : Bool)
+    {G : S → Prop} (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U G) (s : S) (a : A) (blocking do_call : Bool)
     (badge : U64) (can_grant can_grant_reply can_donate : Bool) (t e : U64)
     (Q : U64 → U64 → List U64) (R : U64 → List U64)
+    (hG : ∀ s1, H e = some .ep → (L.epState s e = 1#u64 ∨ L.epState s e = 2#u64) →
+      endpoint.ep_dequeue st s e (L.epQ s e).head = ok s1 → G s1)
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s) (hU : UserOK st T Cs Ω H U s)
     (hc : CanBlock st T Ac s t) (hdon : can_donate = true → L.mem s (scA t) ≠ 0#u64)
@@ -2482,13 +2486,13 @@ theorem endpoint.send_ipc.ipc {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTo
   subst eq
   have hdq := endpoint.ep_dequeue.inv s hd Q R h hdT (by simp) (Or.inr (Or.inl hds))
   rw [hbe] at hdq
-  refine WP.spec_bind hdq ?_
-  rintro s1 ⟨h1, f1, o1, n1, k1, c1, nc1⟩
+  refine WP.spec_bind (spec_eq' hdq) ?_
+  rintro s1 ⟨eq1, h1, f1, o1, n1, k1, c1, nc1⟩
   obtain ⟨hB1, hX1, hS1, hSg1, ea1, ec1, ei1⟩ := frame_bx h hB hX hS hSg f1 o1 n1 k1
     ⟨k1, fun y hy K a b c => f1 y hy K (by omega) c (by omega) (by omega),
       fun c hc o ho => nc1 c hc o (by omega) (by omega), fun n' hn' => o1 _ (hSg.sub _ (hX.1.ntB n' hn').2)⟩
-  refine WP.spec_bind (hxf _ _ _ _ s1 a t e badge can_grant hd ht hdT h1 hB1 hX1 hS1 hSg1 (hU.ksb k1)) ?_
-  rintro s2 ⟨h2, hB2, hX2, hS2, hSg2, ea2, ec2, ei2, ecs2, f2, o2, -⟩
+  refine WP.spec_bind (hxf _ _ _ _ s1 a t e badge can_grant hd ht hdT h1 hB1 hX1 hS1 hSg1 (hU.ksb k1) (hG s1 hH (Or.inr e0) eq1)) ?_
+  rintro s2 ⟨h2, hB2, hX2, hS2, hSg2, ⟨ea2, ec2, ei2, ecs2, f2, o2, -⟩, -⟩
   have F : ∀ y ∈ T, ∀ K : U64, 3328 ≤ K.val → K.val < 4096 → K.val % 8 = 0 → K.val ≠ 3496 → K.val ≠ 3504 →
       L.mem s2 (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K) :=
     fun y hy K h0 hK hK8 h1' h2' => (f2 y hy K h0 hK hK8).trans (f1 y hy K hK hK8 h1' h2')
@@ -2947,8 +2951,11 @@ invariants, only caller-level facts: `t` can block, the cap names a heap
 endpoint, a reply cap names a reply object, and `Nt` are heap notifications
 (true of the instantiation `Nt := H.ntfns`). -/
 theorem endpoint.receive_ipc.ipc {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
-    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U) (s : S) (a : A) (t : U64) (cap : capability.Cap) (blocking : Bool)
+    {G : S → Prop} (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U G) (s : S) (a : A) (t : U64)
+    (cap : capability.Cap) (blocking : Bool)
     (reply_cap : capability.Cap) (e : U64) (Q : U64 → U64 → List U64) (R : U64 → List U64)
+    (hG : ∀ s2 s1, RecvPre st ar s a t reply_cap s2 → H e = some .ep →
+      (L.epState s2 e = 1#u64 ∨ L.epState s2 e = 2#u64) → endpoint.ep_dequeue st s2 e (L.epQ s2 e).head = ok s1 → G s1)
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s) (hU : UserOK st T Cs Ω H U s)
     (hc : CanBlock st T Ac s t)
@@ -2973,9 +2980,9 @@ theorem endpoint.receive_ipc.ipc {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
       · rcases e with e | e
         · exact hc1.nb e
         · exact hc1.nrp e)
-    (fun s2 a2 r hok hc2 hr kb ib hs0 hs2 => by
+    (fun s2 a2 r hok hc2 hr kb ib hs0 hs2 hp => by
       obtain ⟨⟨Q2, R2, h2⟩, hB2, hX2, hS2, hSg2⟩ := hok
-      exact endpoint.receive_from_sender.ipc hA hxf s2 a2 t e r Q2 R2 h2 hB2 hX2 hS2 hSg2 (hU.ksb kb) hc2 hH
+      exact endpoint.receive_from_sender.ipc hA hxf s2 a2 t e r Q2 R2 (fun s1 => hG s2 s1 hp) h2 hB2 hX2 hS2 hSg2 (hU.ksb kb) hc2 hH
         ⟨hs0, hs2⟩ hr)
 
 end

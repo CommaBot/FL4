@@ -14,6 +14,7 @@ open fl4_core Fl4Proofs.P0.Consts
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
+variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U Ac : Set U64}
 variable {Q : U64 → U64 → List U64} {R : U64 → List U64}
 
@@ -365,25 +366,25 @@ variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U Ac : Set U64}
 
 set_option maxHeartbeats 8000000 in
 /-- **`read_registers`** from the caller `curW s` not blocked: the invariants after. -/
-theorem tcb.read_registers.bxi {A : Type _} {ar : machine.Arch A} (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
+theorem tcb.read_registers.bxi {A : Type _} {ar : machine.Arch A} (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     {s : S} {a : A} {src n : U64} {sus call : Bool} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hs : src ∈ T)
     (hna : L.actionW s ≠ src) (hct : L.curW s ∈ T) (hnb : ¬ BlockedR (L.mem s (stA (L.curW s))))
-    (hU : UserOK st T Cs Ω H U s) :
+    (hU : UserOK st T Cs Ω H U s) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) :
     tcb.read_registers st ar s a src sus n call ⦃ r => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ⦄ := by
   unfold tcb.read_registers
   refine WP.spec_bind (sched.cur_thread.spec s) fun ct ect => ?_
   have e : ct = L.curW s := ect
   subst e
   refine WP.spec_bind (Pₘ := fun r : S × A => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ∧ L.ksb r.1 = L.ksb s ∧
-      ¬ BlockedR (L.mem r.1 (stA (L.curW s)))) ?_ ?_
+      ¬ BlockedR (L.mem r.1 (stA (L.curW s))) ∧ XG st T Cs Ω H Sg Scs Z P3Ok r.1) ?_ ?_
   · split
     · obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
       refine WP.spec_mono (WP.spec_and (sched.suspend.blk s a src ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ hs hna)
         (sched.suspend.curR s a src (L.curW s) Q R h0 hs hB hX hSg hS hna (hX.2.2.yt.2.1 src hs) hct)) ?_
       rintro ⟨s1, a1⟩ ⟨⟨h1, f1⟩, ⟨-, -, -, -, nb⟩⟩
-      exact ⟨h1, f1.1, nb hnb⟩
-    · exact (WP.spec_ok _).2 ⟨h, rfl, hnb⟩
-  rintro ⟨s1, a1⟩ ⟨h1, k1, nb1⟩
+      exact ⟨h1, f1.1, nb hnb, hG.foot f1⟩
+    · exact (WP.spec_ok _).2 ⟨h, rfl, hnb, hG⟩
+  rintro ⟨s1, a1⟩ ⟨h1, k1, nb1, hG1⟩
   try simp only [uncurry_apply_pair]
   split
   swap
@@ -404,10 +405,10 @@ theorem tcb.read_registers.bxi {A : Type _} {ar : machine.Arch A} (E : XferHyps 
       exact WP.spec_bind (P0.msginfo.MessageInfo.to_word.p0 _) fun w _ =>
         obj.Tcb.set_reg.xs (v := w) x' hct (by simp [layout.reg.MSG_INFO, layout.reg.RSI])
     have est : L.mem s5 (stA (L.curW s)) = L.mem s1 (stA (L.curW s)) := by
-      rw [stA_eq]; exact x5.2.2.2.2.2.1 _ hct _ (by simp) (by simp) (by simp)
+      rw [stA_eq]; exact x5.fr.2.2.2.2.1 _ hct _ (by simp) (by simp) (by simp)
     refine WP.spec_bind (sched.set_thread_state.running_nbr x5.bxi hct (est ▸ nb1)) fun s6 h6 => ?_
     exact (WP.spec_ok _).2 h6
-  refine WP.spec_bind (E.buf _ _ _ _ s1 (L.curW s) x1.1 hct) fun buf hb => ?_
+  refine WP.spec_bind (E.buf _ _ _ _ s1 (L.curW s) hG1 x1.1 hct) fun buf hb => ?_
   refine WP.spec_bind (obj.Tcb.set_reg.xs (v := 0#u64) x1s hct (by simp [layout.reg.BADGE, layout.reg.RDI]))
     fun s2 x2 => ?_
   refine WP.spec_bind (tcb.read_registers_loop0.xs x2 hct) ?_
@@ -442,10 +443,11 @@ theorem tcb.read_registers.bxi {A : Type _} {ar : machine.Arch A} (E : XferHyps 
 
 set_option maxHeartbeats 4000000 in
 /-- **`ReadRegisters`** after the stall, the caller's buffer from `XferHyps`. -/
-theorem tcb.decode_read_registers.dec {A : Type _} {ar : machine.Arch A} (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
+theorem tcb.decode_read_registers.dec {A : Type _} {ar : machine.Arch A} (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     {s s1 : S} {a1 : A} {t len buf : U64} {call : Bool} {slot : obj.Slot}
     {extra : Aeneas.Std.Array obj.Slot 3#usize}
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (hE : EntAt st P3Ok s)
+    (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
     tcb.decode_read_registers st ar s1 a1 t { length := len, buf, call, slot, extra } ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -481,7 +483,8 @@ theorem tcb.decode_read_registers.dec {A : Type _} {ar : machine.Arch A} (E : Xf
   have hU2 : UserOK st T Cs Ω H U s2 := D.user.ksb (f2.1.trans h1.node.1)
   have nb2 : ¬ BlockedR (L.mem s2 (stA (L.curW s2))) := by rw [ec2, est2]; exact nbr_restart
   rw [← ec2] at hct
-  refine WP.spec_bind (tcb.read_registers.bxi E h2 ht (hna t ht) hct nb2 hU2) ?_
+  refine WP.spec_bind (tcb.read_registers.bxi E h2 ht (hna t ht) hct nb2 hU2
+    ⟨s, hE, Cur0W.trans c1.fr (Foot.cur0w f2 (Set.empty_subset _))⟩) ?_
   rintro ⟨s3, a3⟩ h3
   exact (WP.spec_ok _).2 (DecPost.ok_bxi h3)
 

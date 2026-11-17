@@ -1585,6 +1585,75 @@ theorem fin_thread.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   exact (WP.spec_ok _).2 ⟨h6, ((f4.mono (Set.empty_subset _)).trans f5).d.trans (f6.mono (Set.empty_subset _))⟩
 
 
+/-! ## Frame vocabulary: the words a kernel step from an entered state may write -/
+
+/-- The low words of the TCBs (below offset 192, where the TCB's cap slots
+lie): no invariant reads them. -/
+def TLow (T : Set U64) (b : U64) : Prop := ∃ t ∈ T, ∃ K : U64, K.val < 192 ∧ b = core.num.U64.wrapping_add t K
+
+/-- Capability-slot words as the invariants see them: TCB low words, or
+words of `Ω` outside `Sg`. -/
+def CapW (T Ω Sg : Set U64) (b : U64) : Prop := TLow T b ∨ (b ∈ Ω ∧ b ∉ Sg)
+
+/-- A user-memory word (`UserOK`'s): outside the TCBs, the nodes, `Ω` and
+the endpoints and notifications. -/
+def UserW (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (s0 : S) (b : U64) : Prop :=
+  OutsideObjs st T Cs s0 b ∧ b ∉ Ω ∧ ∀ e, (H e = some .ep ∨ H e = some .ntfn) → b.val + 8 ≤ e.val ∨ e.val + 16 ≤ b.val
+
+/-- The words a step inside a decode may write, from the decode's start
+`s0`: kernel words (`KW`, every endpoint's head), the debug-list words
+(`DbgW`), the cap-slot words (`CapW`) and user-memory words (`UserW`). -/
+def Cur0W (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Scs : Set U64)
+    (Z : U64 → Nat) (s0 : S) (b : U64) : Prop :=
+  KW st T Cs Sg Scs Z (EH H) s0 b ∨ DbgW st T Cs s0 b ∨ CapW T Ω Sg b ∨ UserW st T Cs Ω H s0 b
+
+theorem Cur0W.ksb {s0 s1 : S} {b : U64} (hk : L.ksb s1 = L.ksb s0) (h : Cur0W st T Cs Ω H Sg Scs Z s1 b) :
+    Cur0W st T Cs Ω H Sg Scs Z s0 b := by
+  rcases h with h | (⟨y, hy, e⟩ | ⟨c, hc, e⟩) | h | ⟨ho, h2⟩
+  · exact Or.inl (KW.ksb hk h)
+  · exact Or.inr (Or.inl (Or.inl ⟨y, hy, e⟩))
+  · exact Or.inr (Or.inl (Or.inr ⟨c, hc, by rw [e, nodeAt_of_ksb hk]⟩))
+  · exact Or.inr (Or.inr (Or.inl h))
+  · exact Or.inr (Or.inr (Or.inr ⟨ho.ksb hk.symm, h2⟩))
+
+/-- The transfer's words (`XferFoot`) are `Cur0W` words. -/
+theorem XferFoot.cur0w {U' : Set U64} {s : S} {b : U64} (hU : UserOK st T Cs Ω H U' s) (h : XferFoot T U' b) :
+    Cur0W st T Cs Ω H Sg Scs Z s b := by
+  rcases h with ⟨y, hy, K, hK, h8, rfl⟩ | hb
+  · by_cases hl : K.val < 192
+    · exact Or.inr (Or.inr (Or.inl (Or.inl ⟨y, hy, K, hl, rfl⟩)))
+    · exact Or.inl (Or.inl ⟨y, hy, K, by omega, by omega, by omega, by omega, rfl⟩)
+  · exact Or.inr (Or.inr (Or.inr (hU b hb)))
+
+/-- A frame of `Cur0W` words, composed. -/
+theorem Cur0W.trans {s0 s s' : S} (h : WritesIn st s0 s (Cur0W st T Cs Ω H Sg Scs Z s0))
+    (hw : WritesIn st s s' (Cur0W st T Cs Ω H Sg Scs Z s)) : WritesIn st s0 s' (Cur0W st T Cs Ω H Sg Scs Z s0) :=
+  (h.trans hw).mono fun _ hb => hb.elim id (Cur0W.ksb h.1)
+
+/-- The frame of a decode step from the decode's start `s0`: only `Cur0W`
+words written (the frame every `Cur0` state carries). -/
+abbrev Fr0 (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Scs : Set U64)
+    (Z : U64 → Nat) (s0 s : S) : Prop :=
+  WritesIn st s0 s (Cur0W st T Cs Ω H Sg Scs Z s0)
+
+/-- The words a message transfer writes: the receiver's user context and IPC
+buffer (`XferFoot`), cap-slot words (a granted cap's insert) and SC words (a
+timeout fault's `CONSUMED`). -/
+def XW (T U Ω Sg Scs : Set U64) (Z : U64 → Nat) (b : U64) : Prop :=
+  XferFoot T U b ∨ CapW T Ω Sg b ∨ ∃ c ∈ Scs, InSC c (Z c) b
+
+theorem XW.cur0w {s : S} {b : U64} (hU : UserOK st T Cs Ω H U s) (h : XW T U Ω Sg Scs Z b) :
+    Cur0W st T Cs Ω H Sg Scs Z s b := by
+  rcases h with h | h | ⟨c, hc, hb⟩
+  · exact XferFoot.cur0w hU h
+  · exact Or.inr (Or.inr (Or.inl h))
+  · exact Or.inl (kw_sc hc hb)
+
+/-- A kernel-word footprint is a `Cur0W` frame. -/
+theorem Foot.cur0w {s s' : S} {Es : Set U64} (f : Foot st T Cs Sg Scs Z Es s s') (hE : Es ⊆ EH H) :
+    WritesIn st s s' (Cur0W st T Cs Ω H Sg Scs Z s) :=
+  WritesIn.mono f fun _ hb => Or.inl (KW.mono hb hE)
+
 end
 
 end Fl4Proofs.P1

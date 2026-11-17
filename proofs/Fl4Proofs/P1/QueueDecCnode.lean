@@ -18,32 +18,6 @@ variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} 
 variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {U : Set U64}
 
-/-- A user-memory word (`UserOK`'s): outside the TCBs, the nodes, `Ω` and
-the endpoints and notifications. -/
-def UserW (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (s0 : S) (b : U64) : Prop :=
-  OutsideObjs st T Cs s0 b ∧ b ∉ Ω ∧ ∀ e, (H e = some .ep ∨ H e = some .ntfn) → b.val + 8 ≤ e.val ∨ e.val + 16 ≤ b.val
-
-/-- The words a step inside a decode may write, from the decode's start
-`s0`: kernel words (`KW`, every endpoint's head), the debug-list words
-(`DbgW`), the cap-slot words (`CapW`) and user-memory words (`UserW`). -/
-def Cur0W (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Scs : Set U64)
-    (Z : U64 → Nat) (s0 : S) (b : U64) : Prop :=
-  KW st T Cs Sg Scs Z (EH H) s0 b ∨ DbgW st T Cs s0 b ∨ CapW T Ω Sg b ∨ UserW st T Cs Ω H s0 b
-
-theorem Cur0W.ksb {s0 s1 : S} {b : U64} (hk : L.ksb s1 = L.ksb s0) (h : Cur0W st T Cs Ω H Sg Scs Z s1 b) :
-    Cur0W st T Cs Ω H Sg Scs Z s0 b := by
-  rcases h with h | (⟨y, hy, e⟩ | ⟨c, hc, e⟩) | h | ⟨ho, h2⟩
-  · exact Or.inl (KW.ksb hk h)
-  · exact Or.inr (Or.inl (Or.inl ⟨y, hy, e⟩))
-  · exact Or.inr (Or.inl (Or.inr ⟨c, hc, by rw [e, nodeAt_of_ksb hk]⟩))
-  · exact Or.inr (Or.inr (Or.inl h))
-  · exact Or.inr (Or.inr (Or.inr ⟨ho.ksb hk.symm, h2⟩))
-
-/-- A kernel-word footprint is a `Cur0W` frame. -/
-theorem Foot.cur0w {s s' : S} {Es : Set U64} (f : Foot st T Cs Sg Scs Z Es s s') (hE : Es ⊆ EH H) :
-    WritesIn st s s' (Cur0W st T Cs Ω H Sg Scs Z s) :=
-  WritesIn.mono f fun _ hb => Or.inl (KW.mono hb hE)
-
 /-- A kernel-word and debug-list footprint is a `Cur0W` frame. -/
 theorem FootD.cur0w {s s' : S} {Es : Set U64} (f : FootD st T Cs Sg Scs Z Es s s') (hE : Es ⊆ EH H) :
     WritesIn st s s' (Cur0W st T Cs Ω H Sg Scs Z s) :=
@@ -53,26 +27,6 @@ theorem FootD.cur0w {s s' : S} {Es : Set U64} (f : FootD st T Cs Sg Scs Z Es s s
 theorem NodeW.cur0w {s : S} {b : U64} (hc : L.cpu s ∈ Cs) (h : NodeW st s b) : Cur0W st T Cs Ω H Sg Scs Z s b := by
   obtain ⟨o, ho, h88, rfl⟩ := h
   exact Or.inl (kw_node hc ho h88)
-
-/-- The transfer's words (`XferFoot`) are `Cur0W` words. -/
-theorem XferFoot.cur0w {U' : Set U64} {s : S} {b : U64} (hU : UserOK st T Cs Ω H U' s) (h : XferFoot T U' b) :
-    Cur0W st T Cs Ω H Sg Scs Z s b := by
-  rcases h with ⟨y, hy, K, hK, h8, rfl⟩ | hb
-  · by_cases hl : K.val < 192
-    · exact Or.inr (Or.inr (Or.inl (Or.inl ⟨y, hy, K, hl, rfl⟩)))
-    · exact Or.inl (Or.inl ⟨y, hy, K, by omega, by omega, by omega, by omega, rfl⟩)
-  · exact Or.inr (Or.inr (Or.inr (hU b hb)))
-
-/-- A frame of `Cur0W` words, composed. -/
-theorem Cur0W.trans {s0 s s' : S} (h : WritesIn st s0 s (Cur0W st T Cs Ω H Sg Scs Z s0))
-    (hw : WritesIn st s s' (Cur0W st T Cs Ω H Sg Scs Z s)) : WritesIn st s0 s' (Cur0W st T Cs Ω H Sg Scs Z s0) :=
-  (h.trans hw).mono fun _ hb => hb.elim id (Cur0W.ksb h.1)
-
-/-- The frame of a decode step from the decode's start `s0`: only `Cur0W`
-words written (the frame every `Cur0` state carries). -/
-abbrev Fr0 (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Scs : Set U64)
-    (Z : U64 → Nat) (s0 s : S) : Prop :=
-  WritesIn st s0 s (Cur0W st T Cs Ω H Sg Scs Z s0)
 
 /-- The CDT placement facts (P3's: cap slots, `valid_caps`, `valid_mdb`). -/
 structure CdtHyps (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)

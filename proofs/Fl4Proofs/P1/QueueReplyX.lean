@@ -276,23 +276,48 @@ theorem RTail.postpone {s : S} {i : U64} (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac
   rintro s' ⟨Q', R', h1, hB1, hX1, hSg1, f1, -⟩
   exact ⟨⟨Q', R', h1⟩, hB1, hX1, hSg1, hS.fr f1⟩
 
+theorem sporadic.unblock_check.kw {X : Set U64} {Ac Es : Set U64} (s : S) (t i : U64) {Q : U64 → U64 → List U64}
+    {R : U64 → List U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T Ac s)
+    (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s) (ht : t ∈ T)
+    (i_post : i = L.mem s (scA t)) (hi0 : i ≠ 0#u64) (hiA : i ∈ Ac) :
+    sporadic.unblock_check st s i ⦃ s' => Foot st T Cs Sg Scs Z Es s s' ⦄ := by
+  have hT := h.tcbs
+  have hsub := hSg.sub
+  have hbt : L.mem s (scA t) ≠ 0#u64 := by rw [← i_post]; exact hi0
+  obtain ⟨hiS, -, -⟩ := hX.2.2.bound t ht hbt
+  rw [← i_post] at hiS
+  have hW : RefillsWF st s i (Z i) := hS.wf hiS hiA
+  have hSCin : SCin st s Ω i (Z i) := ⟨hW, hX.1.scW i hiS⟩
+  have hN' := h.nodes _ h.cur
+  have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
+  have aR : Aligned (L.nodeA s layout.node.REPROGRAM) := nodeAt_aligned hN' (by rw [rp]; omega) (by rw [rp])
+  have oR : Outside (L.nodeA s layout.node.REPROGRAM) i (Z i) :=
+    hSCin.node_out h.omega h.cur hN' (by rw [rp]; omega) (by rw [rp])
+  exact WP.spec_mono (sporadic.unblock_check.fr hW ⟨aR, oR⟩) fun s3 w => Foot.of w fun b hb => by
+    rcases hb with hb | rfl
+    · exact InRing.kw hiS hb
+    · unfold LawfulStore.nodeA; exact kw_node h.cur (by rw [rp]; omega) (by rw [rp]; omega)
+
+set_option maxHeartbeats 4000000 in
 theorem RTail.timeout {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) {s : S} {a : A} {i : U64} {f : error.Fault}
+    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) {s : S} {a : A} {i : U64} {f : error.Fault}
     (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (r : RTail st T Ac s i) (hU : UserOK st T Cs Ω H U s)
     (hcap : obj.Tcb.slot i layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl =>
-      obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄) :
+      obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) :
     faults.handle_timeout st ar s a i f ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
-  WP.spec_mono (faults.handle_timeout.bxi hA (xferOK_of hA E) s a i f h.blk hU r.cb hcap) fun r hr => by
+  WP.spec_mono (faults.handle_timeout.bxi hA (xferOK_of hA E) s a i f (XG.faultG hG h.blk hU r.cb) h.blk hU r.cb
+    hcap) fun r hr => by
     obtain ⟨s', a'⟩ := r; exact BlkOK.bxi (by simpa using hr)
 
 /-- The tail of `do_reply_transfer`: the replied-to thread with an SC is
 switched to, has its timeout fault raised, or is postponed. -/
 theorem reply_tail {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
+    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (tmoAny : ∀ (Ac : Set U64) (s : S) (t : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → t ∈ T →
       obj.Tcb.slot t layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl => obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄)
     {s3 : S} {a2 : A} {i ft : U64}
-    (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s3) (r : RTail st T Ac s3 i) (hU : UserOK st T Cs Ω H U s3) :
+    (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s3) (r : RTail st T Ac s3 i) (hU : UserOK st T Cs Ω H U s3)
+    (hG : XG st T Cs Ω H Sg Scs Z P3Ok s3) :
     (do
       let i3 ← obj.Tcb.sc st i s3
       let b2 ← obj.Sc.is_null i3
@@ -350,7 +375,7 @@ theorem reply_tail {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
       ok (s4, a2)) ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
     WP.spec_bind (r.postpone h hrun hi0) fun s4 h4 => (WP.spec_ok _).2 h4
   have TO : ∀ badge : U64, faults.handle_timeout st ar s3 a2 i (error.Fault.Timeout badge) ⦃ s' _ =>
-      BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := fun badge => r.timeout hA E h hU (tmoAny Ac s3 i h r.mem)
+      BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := fun badge => r.timeout hA E h hU (tmoAny Ac s3 i h r.mem) hG
   have VT : (do
       let b6 ← faults.valid_timeout_handler st s3 i
       if b6 then
@@ -416,12 +441,12 @@ theorem RPre.set {s : S} {i v : U64} (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) 
 set_option maxHeartbeats 4000000 in
 /-- **`do_reply_transfer`** (seL4 `doReplyTransfer`) keeps the invariants. -/
 theorem ipc.do_reply_transfer.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
+    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (tmoAny : ∀ (Ac : Set U64) (s : S) (t : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → t ∈ T →
       obj.Tcb.slot t layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl => obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄)
     (userOK : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → UserOK st T Cs Ω H U s)
     (s : S) (a : A) (ct r : U64) (grant : Bool) (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hr : r ∈ Rp)
-    (hct : ct ∈ T) :
+    (hct : ct ∈ T) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) :
     ipc.do_reply_transfer st ar s a ct r grant ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
   have hT := h.1.choose_spec.choose_spec.tcbs
@@ -442,15 +467,17 @@ theorem ipc.do_reply_transfer.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.Ar
     rw [← ev]; apply UScalar.eq_of_val_eq; simpa [sched.TS_BLOCKED_ON_REPLY] using hv
   have hni : L.idleW s ≠ i := fun e => h.2.1.idleNB (by rw [e, hst]; exact Or.inr rfl)
   refine WP.spec_bind (ipc.reply_remove.blk (Es := ∅) hA s a r i h.blk hr hiT ei.symm hst) ?_
-  rintro ⟨s3, a2⟩ ⟨h3b, st3, -, sca3, id3⟩
+  rintro ⟨s3, a2⟩ ⟨h3b, st3, F3, sca3, id3⟩
   try simp only [WP.uncurry'_pair]
   have h3 := BlkOK.bxi h3b
   obtain ⟨dq3, dr3, da3⟩ := blocked_out h3.1.choose_spec.choose_spec hiT (by rw [st3]; exact not_runnable_inactive)
   have R3 : RPre st T Ac s3 i := ⟨hiT, st3, dq3, dr3, da3, by rw [id3]; exact hni, sca3⟩
+  have hG3 : XG st T Cs Ω H Sg Scs Z P3Ok s3 := hG.foot (F3.mono (Set.empty_subset _))
   -- the SC's refills
   step with obj.Tcb.sc.spec as ⟨i2, ei2⟩
   refine WP.spec_bind (sporadic.sc_sporadic.spec s3 i2) fun b1 hb1 => ?_
-  refine WP.spec_bind (Pₘ := fun s4 => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧ RPre st T Ac s4 i) ?_ ?_
+  refine WP.spec_bind (Pₘ := fun s4 => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧ RPre st T Ac s4 i ∧
+      XG st T Cs Ω H Sg Scs Z P3Ok s4) ?_ ?_
   · split
     · rename_i hb1t
       have hi20 := (hb1 hb1t).1
@@ -458,30 +485,34 @@ theorem ipc.do_reply_transfer.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.Ar
       step with obj.node_get.spec as ⟨cs, _⟩
       split
       · obtain ⟨⟨Q, R, q3⟩, hB3, hX3, hSg3, hS3⟩ := h3
-        refine WP.spec_mono (sporadic.unblock_check.all s3 i i2 q3 hB3 hX3 hS3 hSg3 hiT ei2 hi20
-          (by rw [ei2]; exact sca3 (by rw [← ei2]; exact hi20))) ?_
-        rintro s4 ⟨q4, hB4, hX4, hS4, hSg4, ea4, -, ei4, f4, -⟩
-        refine ⟨⟨⟨Q, R, q4⟩, hB4, hX4, hSg4, hS4⟩, R3.keep ?_ ?_ ?_ ea4 ei4⟩
+        refine WP.spec_mono (WP.spec_and (sporadic.unblock_check.all s3 i i2 q3 hB3 hX3 hS3 hSg3 hiT ei2 hi20
+          (by rw [ei2]; exact sca3 (by rw [← ei2]; exact hi20)))
+          (sporadic.unblock_check.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := EH H) s3 i i2 q3 hB3 hX3 hS3 hSg3 hiT
+            ei2 hi20 (by rw [ei2]; exact sca3 (by rw [← ei2]; exact hi20)))) ?_
+        rintro s4 ⟨⟨q4, hB4, hX4, hS4, hSg4, ea4, -, ei4, f4, -⟩, F4⟩
+        refine ⟨⟨⟨Q, R, q4⟩, hB4, hX4, hSg4, hS4⟩, R3.keep ?_ ?_ ?_ ea4 ei4, hG3.foot F4⟩
         · rw [stA_eq]; exact f4 i hiT _ (by simp) (by simp)
         · rw [inqA_eq]; exact f4 i hiT _ (by simp) (by simp)
         · rw [scA_eq]; exact f4 i hiT _ (by simp) (by simp)
-      · exact (WP.spec_ok _).2 ⟨h3, R3⟩
-    · exact (WP.spec_ok _).2 ⟨h3, R3⟩
-  rintro s4 ⟨h4, R4⟩
+      · exact (WP.spec_ok _).2 ⟨h3, R3, hG3⟩
+    · exact (WP.spec_ok _).2 ⟨h3, R3, hG3⟩
+  rintro s4 ⟨h4, R4, hG4⟩
   refine WP.spec_bind (P0.obj.Tcb.fault_type.p0 st i s4 hS) fun ft _ => ?_
-  refine WP.spec_bind (Pₘ := fun r : S × A => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ∧ RTail st T Ac r.1 i) ?_ ?_
+  refine WP.spec_bind (Pₘ := fun r : S × A => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ∧ RTail st T Ac r.1 i ∧
+      XG st T Cs Ω H Sg Scs Z P3Ok r.1) ?_ ?_
   · split
     · -- the message
       obtain ⟨⟨Q, R, q4⟩, hB4, hX4, hSg4, hS4⟩ := h4
       refine WP.spec_bind (xferOK_of hA E Ac ∅ Q R s4 a2 ct 0#u64 0#u64 grant i hct hiT q4 hB4 hX4 hS4 hSg4
-        (userOK Ac s4 ⟨⟨Q, R, q4⟩, hB4, hX4, hSg4, hS4⟩)) ?_
-      rintro s5 ⟨q5, hB5, hX5, hS5, hSg5, ea5, -, ei5, -, f5, -, -⟩
+        (userOK Ac s4 ⟨⟨Q, R, q4⟩, hB4, hX4, hSg4, hS4⟩) hG4) ?_
+      rintro s5 ⟨q5, hB5, hX5, hS5, hSg5, ⟨ea5, -, ei5, -, f5, -, -⟩, hG5⟩
       have h5 : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s5 := ⟨⟨Q, R, q5⟩, hB5, hX5, hSg5, hS5⟩
       have R5 : RPre st T Ac s5 i := R4.keep (by rw [stA_eq]; exact f5 i hiT _ (by simp) (by simp) (by simp))
         (by rw [inqA_eq]; exact f5 i hiT _ (by simp) (by simp) (by simp))
         (by rw [scA_eq]; exact f5 i hiT _ (by simp) (by simp) (by simp)) ea5 ei5
-      refine WP.spec_bind (R5.set h5 not_blocked_running running_ne) fun s6 h6 => ?_
-      exact (WP.spec_ok _).2 h6
+      refine WP.spec_bind (WP.spec_and (R5.set h5 not_blocked_running running_ne)
+        (sched.set_thread_state.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := ∅) s5 i _ q5 hiT)) fun s6 ⟨h6, f6⟩ => ?_
+      exact (WP.spec_ok _).2 ⟨h6.1, h6.2, hG5.foot (f6.mono (Set.empty_subset _))⟩
     · -- the fault reply
       refine WP.spec_bind (faults.handle_fault_reply.rf (s := s4) (a := a2) (snd := ct) hT hiT) ?_
       rintro ⟨rs, s5, a3⟩ w5
@@ -493,6 +524,10 @@ theorem ipc.do_reply_transfer.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.Ar
       have R5 : RPre st T Ac s5 i := R4.keep (by rw [stA_eq]; exact f5 i hiT _ (by simp) (by simp) (by simp))
         (by rw [inqA_eq]; exact f5 i hiT _ (by simp) (by simp) (by simp))
         (by rw [scA_eq]; exact f5 i hiT _ (by simp) (by simp) (by simp)) ea5 ei5
+      have hG5 : XG st T Cs Ω H Sg Scs Z P3Ok s5 :=
+        hG4.of_fr (w5.mono fun _ hb => XferFoot.cur0w (fun b hb => absurd hb (by simp)) hb)
+      have hG6 : XG st T Cs Ω H Sg Scs Z P3Ok (L.wr s5 (faultA i) fl4_abi.consts.fault.NullFault) :=
+        hG5.foot (foot_field (K := 3376#u64) hT hiT (by simp) (by simp) (by simp) (by simp))
       unfold faults.clear_fault
       refine WP.spec_bind (obj.Tcb.set_fault_type.spec s5 i _) fun s6 e6 => ?_
       subst e6
@@ -511,18 +546,22 @@ theorem ipc.do_reply_transfer.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.Ar
           (by rw [inqA_eq]; exact fw _ (by simp) (by simp) (by simp))
           (by rw [scA_eq]; exact fw _ (by simp) (by simp) (by simp)) n6.1 n6.2.1
       split
-      · refine WP.spec_bind (R6.set h6 not_blocked_restart restart_ne) fun s7 h7 => ?_
-        exact (WP.spec_ok _).2 h7
-      · refine WP.spec_bind (R6.set h6 not_blocked_inactive inactive_ne) fun s7 h7 => ?_
-        exact (WP.spec_ok _).2 h7
-  rintro ⟨s6, a6⟩ ⟨h6, r6⟩
+      · refine WP.spec_bind (WP.spec_and (R6.set h6 not_blocked_restart restart_ne)
+          (sched.set_thread_state.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := ∅) _ i _
+            h6.1.choose_spec.choose_spec hiT)) fun s7 ⟨h7, f7⟩ => ?_
+        exact (WP.spec_ok _).2 ⟨h7.1, h7.2, hG6.foot (f7.mono (Set.empty_subset _))⟩
+      · refine WP.spec_bind (WP.spec_and (R6.set h6 not_blocked_inactive inactive_ne)
+          (sched.set_thread_state.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := ∅) _ i _
+            h6.1.choose_spec.choose_spec hiT)) fun s7 ⟨h7, f7⟩ => ?_
+        exact (WP.spec_ok _).2 ⟨h7.1, h7.2, hG6.foot (f7.mono (Set.empty_subset _))⟩
+  rintro ⟨s6, a6⟩ ⟨h6, r6, g6⟩
   try simp only [WP.uncurry'_pair]
-  exact reply_tail hA E tmoAny h6 r6 (userOK Ac s6 h6)
+  exact reply_tail hA E tmoAny h6 r6 (userOK Ac s6 h6) g6
 
 /-- **InvGaps' `reply`, discharged**, from the timeout-handler typing of any
 thread (`tmoAny`) and the user words at every `BXI` state. -/
 theorem decGap_reply {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
+    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (tmoAny : ∀ (Ac : Set U64) (s : S) (t : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → t ∈ T →
       obj.Tcb.slot t layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl => obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄)
     (userOK : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → UserOK st T Cs Ω H U s) :
@@ -538,8 +577,9 @@ theorem decGap_reply {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   subst e
   try dsimp only
   refine WP.spec_bind (sched.set_thread_state.restart_blk (Es := ∅) s _ D.bxi.blk hct (runnable_ok D.run).1
-    (runnable_ok D.run).2) fun s1 ⟨h1, _, _, _⟩ => ?_
-  refine WP.spec_bind (ipc.do_reply_transfer.bxi hA E tmoAny userOK s1 a _ p g (BlkOK.bxi h1) hpR hct) ?_
+    (runnable_ok D.run).2) fun s1 ⟨h1, f1, _, _⟩ => ?_
+  refine WP.spec_bind (ipc.do_reply_transfer.bxi hA E tmoAny userOK s1 a _ p g (BlkOK.bxi h1) hpR hct
+    (hE.xg.foot (f1.mono (Set.empty_subset _)))) ?_
   rintro ⟨s2, a2⟩ h2
   try simp only [WP.uncurry'_pair]
   exact (WP.spec_ok _).2 (DecPost.of_bxi h2 (by simp))

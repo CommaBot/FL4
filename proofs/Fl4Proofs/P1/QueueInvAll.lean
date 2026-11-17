@@ -58,12 +58,26 @@ theorem syscall.error_mrs.xs {s0 s : S} {t buf : U64} {e : error.SysError}
   · exact (WP.spec_ok _).2 h
   · exact set_mr_last h ht hb (by simp)
 
-theorem syscall.reply_error.xs (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) {s0 s : S} {t : U64}
-    {e : error.SysError} (h : XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s) (ht : t ∈ T) :
+/-- **An endpoint send's guard from `XG` at its start** (`ep_send.blk`'s:
+the restart, then the receiver dequeued). -/
+theorem XG.sendG {P3Ok : S → Prop} {Ac : Set U64} {s : S} {ct e : U64}
+    (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : CanBlock st T Ac s ct) :
+    ∀ s1 s2, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 → H e = some .ep →
+      (L.epState s1 e = 1#u64 ∨ L.epState s1 e = 2#u64) → endpoint.ep_dequeue st s1 e (L.epQ s1 e).head = ok s2 →
+      XG st T Cs Ω H Sg Scs Z P3Ok s2 := by
+  intro s1 s2 e1 hH hst e2
+  obtain ⟨Q, R, h0⟩ := h.1
+  have F1 := spec_at (sched.set_thread_state.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := EH H) s ct _ h0 hc.mem) e1
+  obtain ⟨⟨⟨Q1, R1, h1⟩, -⟩, -⟩ := spec_at (sched.set_thread_state.restart_blk (Es := ∅) s ct h hc.mem hc.nb hc.nrp) e1
+  exact (hG.foot F1).foot (spec_at (endpoint.ep_dequeue.head_kw (Scs := Scs) h1 hH hst) e2)
+
+theorem syscall.reply_error.xs (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) {s0 s : S} {t : U64}
+    {e : error.SysError} (h : XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s) (ht : t ∈ T)
+    (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) :
     syscall.reply_error st s t e ⦃ s' => XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
   unfold syscall.reply_error
-  refine WP.spec_bind (E.buf _ _ _ _ s t h.1 ht) fun buf hb => ?_
+  refine WP.spec_bind (E.buf _ _ _ _ s t hG h.1 ht) fun buf hb => ?_
   refine WP.spec_bind (obj.Tcb.set_reg.xs (v := 0#u64) h ht (by simp [layout.reg.BADGE, layout.reg.RDI]))
     fun s1 h1 => ?_
   refine WP.spec_bind (syscall.error_mrs.xs (e := e) h1 ht hb) ?_
@@ -288,7 +302,7 @@ notification sends (`ep_send.blk`, `ntfn_signal.blkF`), the rejected null and
 zombie caps and receive-only caps, and the `InvGaps`. -/
 theorem syscall.decode_invocation.dec0 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop}
     (hA : P0.ArchTotal ar)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (G : InvGaps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (G : InvGaps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (s : S) (a : A) (lbl len : U64) (slot : obj.Slot) (cap : capability.Cap)
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hslot : CapSlotW T Ω Sg slot)
@@ -322,7 +336,8 @@ theorem syscall.decode_invocation.dec0 {A : Type _} {ar : machine.Arch A} {Adm :
     subst e
     try dsimp only
     split
-    · refine WP.spec_mono (ep_send.blk hA (xferOK_of hA E) s a blk call b g gr don _ p h.blk hU hcb
+    · refine WP.spec_mono (ep_send.blk hA (xferOK_of hA E) s a blk call b g gr don _ p
+        (XG.sendG he.xg h.blk hcb) h.blk hU hcb
         (fun _ => hsc) (hcap.1 _ _ _ _ _ _ rfl)) ?_
       rintro ⟨r, s', a'⟩ hr
       simp only [WP.uncurry'_pair] at hr ⊢
@@ -366,7 +381,7 @@ theorem syscall.decode_invocation.dec0 {A : Type _} {ar : machine.Arch A} {Adm :
 (an untyped's retype, `InvGaps.untyped`; the others keep the set tuple). -/
 theorem syscall.decode_invocation.dec {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop}
     (hA : P0.ArchTotal ar) (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (G : InvGaps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (G : InvGaps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (s : S) (a : A) (lbl len : U64) (slot : obj.Slot) (cap : capability.Cap)
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hslot : CapSlotW T Ω Sg slot)
@@ -380,18 +395,29 @@ theorem syscall.decode_invocation.dec {A : Type _} {ar : machine.Arch A} {Adm : 
         obtain ⟨r1, s1, a1⟩ := r
         exact ⟨_, hσ, D.bxi.1.choose_spec.choose_spec.curT, hr⟩
 
+/-- (P3, from its post-decode relation) A decode that ends in a syscall
+error leaves an `XG` state (the error reply writes the IPC buffer). -/
+def DecErrG (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
+    (H : Heap) (Sg Scs : Set U64) (Z : U64 → Nat) (P3Ok : S → Prop) : Prop :=
+  ∀ (s0 : S) (a0 : A) (lbl len : U64) (slot : obj.Slot) (cap : capability.Cap) (blk call don fp : Bool) (buf : U64)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (e : error.SysError) (s1 : S) (a1 : A), EntAt st P3Ok s0 →
+    syscall.decode_invocation st ar s0 a0 lbl len slot cap blk call don fp buf extra =
+      ok (.Err (.Sys e), s1, a1) → XG st T Cs Ω H Sg Scs Z P3Ok s1
+
 /-- **EntryHyps' `inv`: `handle_invocation` over every cap family**, from
 the decode gaps `InvGaps`, the invocation facts `InvHyps`, the transfer's
 placement facts `XferHyps`, `recvOK`'s and the faults of the current
 thread. -/
 theorem syscall.handle_invocation.inv {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop}
     (hA : P0.ArchTotal ar) (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (G : InvGaps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (G : InvGaps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (I : InvHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     (recvOK : ∀ σ' : PSets, Adm σ' → ∀ (Ac : Set U64) (s : S), BXIs st Cs σ' Ac s →
       CanBlock st σ'.T Ac s (L.curW s) ∧ UserOK st σ'.T Cs σ'.Ω σ'.H U s)
-    (XF : ∀ σ' : PSets, Adm σ' → XferHyps st σ'.T Cs σ'.Ω σ'.H σ'.Sg σ'.Rp σ'.Scs σ'.Nt σ'.Z U)
+    (XF : ∀ σ' : PSets, Adm σ' → XferHyps st σ'.T Cs σ'.Ω σ'.H σ'.Sg σ'.Rp σ'.Scs σ'.Nt σ'.Z U P3Ok)
+    (EG : ∀ σ' : PSets, Adm σ' → DecErrG st ar σ'.T Cs σ'.Ω σ'.H σ'.Sg σ'.Scs σ'.Z P3Ok)
     (hflt : ∀ (Ac : Set U64) (s : S) (a : A) (f : error.Fault), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+      EntAt st P3Ok s →
       faults.handle_fault st ar s a (L.curW s) f ⦃ s' _ => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄)
     (s : S) (a : A) (call blk don fp : Bool) (cptr : U64) (he : EntAt st P3Ok s)
     (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hcA : L.cscW s ∈ Ac)
@@ -409,7 +435,7 @@ theorem syscall.handle_invocation.inv {A : Type _} {ar : machine.Arch A} {Adm : 
         BXIs st Cs σ' Ac' s' ∧
         (∀ e, r = .Err e → CurStep st Ac Ac' s s' ∧ L.actionW s' ≠ L.curW s' ∧
           (L.mem s' (scA (L.curW s')) ≠ 0#u64 → L.cscW s' = L.mem s' (scA (L.curW s')))) ⦄ := fun f => by
-    refine WP.spec_bind (hflt Ac s a f h) ?_
+    refine WP.spec_bind (hflt Ac s a f h he) ?_
     rintro ⟨s1, a1⟩ ⟨Ac1, h1⟩
     try simp only [WP.uncurry'_pair]
     exact (WP.spec_ok _).2 ⟨_, hσ, Ac1, h1, fun e he => by cases he⟩
@@ -437,9 +463,9 @@ theorem syscall.handle_invocation.inv {A : Type _} {ar : machine.Arch A} {Adm : 
         · exact (WP.spec_ok _).2 trivial) fun length _ => ?_
       obtain ⟨hrun, hact⟩ := I.cur Ac s he h
       obtain ⟨hcb, hU⟩ := recvOK _ hσ Ac s h
-      refine WP.spec_bind (syscall.decode_invocation.dec hA hσ E G s a info.label length r1.slot cap
-        blk call don fp buf ex ⟨h, hcA, hcap, hx ex rfl, hrun, hact, hcsc, hcb, hU⟩ (hsl r1 rfl) ecap he) ?_
-      rintro ⟨r3, s1, a1⟩ ⟨σ1, hσ1, hct1, Ac1, h1, hp⟩
+      refine WP.spec_bind (spec_eq' (syscall.decode_invocation.dec hA hσ E G s a info.label length r1.slot cap
+        blk call don fp buf ex ⟨h, hcA, hcap, hx ex rfl, hrun, hact, hcsc, hcb, hU⟩ (hsl r1 rfl) ecap he)) ?_
+      rintro ⟨r3, s1, a1⟩ ⟨eqD, σ1, hσ1, hct1, Ac1, h1, hp⟩
       try simp only [WP.uncurry'_pair]
       obtain ⟨-, hU1⟩ := recvOK σ1 hσ1 Ac1 s1 h1
       obtain ⟨Q1, R1, x1⟩ := BXI.xs h1 hU1
@@ -454,7 +480,7 @@ theorem syscall.handle_invocation.inv {A : Type _} {ar : machine.Arch A} {Adm : 
             · exact (WP.spec_ok _).2 x1
           intro s2 x2
           have hst : L.mem s2 (stA (L.curW s)) = sched.TS_RESTART := by
-            rw [stA_eq, x2.2.2.2.2.2.1 _ hct1 _ (by simp) (by simp) (by simp), ← stA_eq, ← ev, hv]
+            rw [stA_eq, x2.fr.2.2.2.2.1 _ hct1 _ (by simp) (by simp) (by simp), ← stA_eq, ← ev, hv]
           refine WP.spec_bind (sched.set_thread_state.running_bxi x2.bxi hct1 hst) fun s3 h3 => ?_
           exact (WP.spec_ok _).2 ⟨σ1, hσ1, Ac1, h3, fun e he => by cases he⟩
         · exact (WP.spec_ok _).2 ⟨σ1, hσ1, Ac1, h1, fun e he => by cases he⟩
@@ -464,7 +490,8 @@ theorem syscall.handle_invocation.inv {A : Type _} {ar : machine.Arch A} {Adm : 
         | Sys e2 =>
           try simp only
           split
-          · refine WP.spec_bind (syscall.reply_error.xs (e := e2) (XF σ1 hσ1) x1 hct1) fun s2 x2 => ?_
+          · refine WP.spec_bind (syscall.reply_error.xs (e := e2) (XF σ1 hσ1) x1 hct1
+            (EG σ1 hσ1 s a _ _ _ _ _ _ _ _ _ _ e2 s1 a1 he eqD)) fun s2 x2 => ?_
             exact (WP.spec_ok _).2 ⟨σ1, hσ1, Ac1, x2.bxi, fun e he => by cases he⟩
           · exact (WP.spec_ok _).2 ⟨σ1, hσ1, Ac1, h1, fun e he => by cases he⟩
         | Preempted =>
@@ -486,7 +513,7 @@ the transfer's (`XferHyps`), the invocation's (`InvHyps`), `tmoOK`,
 debug syscalls invoke name TCBs, and `tmoAny`. -/
 structure P3Place (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop where
-  xfer : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U
+  xfer : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok
   inv : InvHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok
   tmoOK : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     CanBlock st T Ac s (L.curW s) ∧ UserOK st T Cs Ω H U s ∧
@@ -500,6 +527,14 @@ structure P3Place (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar :
     obj.Slot.cap st (irqSlotA (L.ksb s) i) s ⦃ c => ∀ ptr b0 b1 b2, c = .Notification ptr b0 b1 b2 → ptr ∈ Nt ⦄
   dbg : ∀ (Ac : Set U64) (s : S), EntAt st P3Ok s → EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     syscall.invoked_cap st s (L.curW s) ⦃ c => ∀ x, c = .Thread x → x ∈ T ⦄
+  /-- (P3) A decode ending in a syscall error leaves an `XG` state. -/
+  errG : DecErrG st ar T Cs Ω H Sg Scs Z P3Ok
+  /-- (P3, from its post-invocation relation; `EntryHyps0.postG`) The states
+  after an invocation and its preemption point are `XG` states. -/
+  postG : ∀ (s0 : S) (a0 : A) (call blk don fp : Bool) (cptr : U64) (r : core.result.Result Unit error.Exc)
+    (s1 : S) (a1 : A), EntAt st P3Ok s0 → syscall.handle_invocation st ar s0 a0 call blk don fp cptr = ok (r, s1, a1) →
+    XG st T Cs Ω H Sg Scs Z P3Ok s1 ∧ ∀ (b : Bool) (s2 : S) (a2 : A),
+      syscall.after_invocation st ar s1 a1 r = ok (b, s2, a2) → XG st T Cs Ω H Sg Scs Z P3Ok s2
   /-- The timeout-handler cap of any thread is typed (`tmoOK`'s, for a thread
   other than the current one: the reply's caller's timeout fault). -/
   tmoAny : ∀ (Ac : Set U64) (s : S) (t : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → t ∈ T →
@@ -514,16 +549,18 @@ theorem EntryHyps.of_gaps {A : Type _} {ar : machine.Arch A} {Adm : PSets → Pr
     EntryHyps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok := by
   have hxf := xferOK_of hA P.xfer
   have hflt : ∀ (Ac : Set U64) (s : S) (a : A) (f : error.Fault), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+      EntAt st P3Ok s →
       faults.handle_fault st ar s a (L.curW s) f ⦃ s' _ => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ :=
-    fun Ac s a f h => by
+    fun Ac s a f h he => by
       obtain ⟨hc, hU, hcap⟩ := P.tmoOK Ac s h
-      exact WP.spec_mono (faults.handle_fault.bxi hA hxf s a _ f h.blk hU hc (hcap _ (Or.inr rfl)))
+      exact WP.spec_mono (faults.handle_fault.bxi hA hxf s a _ f (XG.faultG he.xg h.blk hU hc) h.blk hU hc
+        (hcap _ (Or.inr rfl)))
         fun r hr => by obtain ⟨s', a'⟩ := r; exact ⟨Ac, BlkOK.bxi (by simpa using hr)⟩
   exact EntryHyps.of hA hxf P.tmoOK
     (fun Ac s a call blk don fp cptr he h hcA _ hcsc => syscall.handle_invocation.inv hA hσ P.xfer G P.inv
       (fun σ' h' Ac s h => ⟨((PF σ' h').recvOK Ac s h).1, ((PF σ' h').recvOK Ac s h).2.1⟩)
-      (fun σ' h' => (PF σ' h').xfer) hflt s a call blk don fp cptr he h hcA hcsc)
-    P.recvOK P.irqcap (fun Ac s a n he h => syscall.debug_syscall.entry hA s a n h (P.dbg Ac s he h))
+      (fun σ' h' => (PF σ' h').xfer) (fun σ' h' => (PF σ' h').errG) hflt s a call blk don fp cptr he h hcA hcsc)
+    P.recvOK P.irqcap (fun Ac s a n he h => syscall.debug_syscall.entry hA s a n h (P.dbg Ac s he h)) P.postG
 
 /-- **Native kernel entries keep `EntryInv`, from the decode gaps `InvGaps`
 and the P3 placement facts `P3Place`** of every admissible tuple; the entry

@@ -108,19 +108,21 @@ def IpcFoot (T Cs Ω Sg Scs : Set U64) (Z : U64 → Nat) (H : P1.Heap) (U : Set 
 block, the donation condition, `UserOK`) and P1's placement premise `RS`
 (the receive slots and MDB neighbours apart from the first 256 bytes). -/
 def SendIpcFootP1 (T Cs Ω : Set U64) (H : P1.Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (Ac U : Set U64)
-    (RS : S → Prop) (ct p : U64) (blk call : Bool) (b : U64) (g gr don : Bool) : Prop :=
-  P1.XferOK st arI T Cs Ω H Sg Rp Scs Nt Z U → H p = some .ep →
+    (P3Ok : S → Prop) (RS : S → Prop) (ct p : U64) (blk call : Bool) (b : U64) (g gr don : Bool) : Prop :=
+  P1.XferOK st arI T Cs Ω H Sg Rp Scs Nt Z U (P1.XG st T Cs Ω H Sg Scs Z P3Ok) → H p = some .ep →
   ∀ (s1 : S) (a : A), P1.BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s1 → P1.CanBlock st T Ac s1 ct →
     (don = true → L.mem s1 (P1.scA ct) ≠ 0#u64) → P1.UserOK st T Cs Ω H U s1 → RS s1 →
+    P1.XG st T Cs Ω H Sg Scs Z P3Ok s1 →
     endpoint.send_ipc st arI s1 a blk call b g gr don ct p ⦃ s' _ =>
       P1.WritesIn st s1 s' (IpcFoot (L := L) T Cs Ω Sg Scs Z H U s1) ⦄
 
 /-- **P1's footprint of `do_reply_transfer`** (for the P1 side), under
 `do_reply_transfer.bxi`'s preconditions and the placement premise `RS`. -/
 def ReplyFootP1 (T Cs Ω : Set U64) (H : P1.Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (Ac U : Set U64)
-    (RS : S → Prop) (ct r : U64) (g : Bool) : Prop :=
-  P1.XferHyps st T Cs Ω H Sg Rp Scs Nt Z U → r ∈ Rp → ct ∈ T →
+    (P3Ok : S → Prop) (RS : S → Prop) (ct r : U64) (g : Bool) : Prop :=
+  P1.XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok → r ∈ Rp → ct ∈ T →
   ∀ (s1 : S) (a : A), P1.BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s1 → P1.UserOK st T Cs Ω H U s1 → RS s1 →
+    P1.XG st T Cs Ω H Sg Scs Z P3Ok s1 →
     ipc.do_reply_transfer st arI s1 a ct r g ⦃ s' _ =>
       P1.WritesIn st s1 s' (IpcFoot (L := L) T Cs Ω Sg Scs Z H U s1) ⦄
 
@@ -159,13 +161,14 @@ theorem ipcFoot_apart {T Cs Ω Sg Scs : Set U64} {Z : U64 → Nat} {H : P1.Heap}
 /-- **The endpoint cap's write footprint** (`DecWritesHyp`): the caller's
 restart (`restart_blk`, a `Foot`) then `send_ipc` (`SendIpcFootP1`). -/
 theorem decWritesHyp_endpoint {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : Set U64} {Z : U64 → Nat}
-    {Ac U : Set U64} {RS : S → Prop} (s : S) (ar : A) (lbl length slot : U64) (p b : U64) (sd rv g gr : Bool)
+    {Ac U : Set U64} {RS P3Ok : S → Prop} (s : S) (ar : A) (lbl length slot : U64) (p b : U64) (sd rv g gr : Bool)
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (hB : P1.BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (hcb : P1.CanBlock st T Ac s ct) (hdon : don = true → L.mem s (P1.scA ct) ≠ 0#u64)
-    (hUO : P1.UserOK st T Cs Ω H U s) (hxf : P1.XferOK st arI T Cs Ω H Sg Rp Scs Nt Z U)
+    (hUO : P1.UserOK st T Cs Ω H U s) (hxf : P1.XferOK st arI T Cs Ω H Sg Rp Scs Nt Z U (P1.XG st T Cs Ω H Sg Scs Z P3Ok))
     (hH : H p = some .ep) (hRS : ∀ s1, P1.Foot st T Cs Sg Scs Z (P1.EH H) s s1 → RS s1)
-    (hsend : SendIpcFootP1 (L := L) arI T Cs Ω H Sg Rp Scs Nt Z Ac U RS ct p blk call b g gr don)
+    (hXG : ∀ s1, P1.Foot st T Cs Sg Scs Z (P1.EH H) s s1 → P1.XG st T Cs Ω H Sg Scs Z P3Ok s1)
+    (hsend : SendIpcFootP1 (L := L) arI T Cs Ω H Sg Rp Scs Nt Z Ac U P3Ok RS ct p blk call b g gr don)
     (hD : KWDom (L := L) T Cs Sg Scs Z (P1.EH H) s)
     (hTk : ∀ y ∈ T, y.val + 4096 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ y.val)
     (hka : (L.ksb s).val % 8 = 0) (hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64)
@@ -185,7 +188,7 @@ theorem decWritesHyp_endpoint {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : 
     refine WP.spec_bind (P1.sched.set_thread_state.restart_blk (Es := P1.EH H) s ct hB hcb.mem hcb.nb hcb.nrp) ?_
     rintro s1 ⟨hB1, f1, hst1, -⟩
     obtain ⟨hcb1, hdon1⟩ := hcbs s1 hB1 f1 hst1
-    refine WP.spec_bind (hsend hxf hH s1 ar hB1 hcb1 hdon1 (hUO.ksb f1.1) (hRS s1 f1)) ?_
+    refine WP.spec_bind (hsend hxf hH s1 ar hB1 hcb1 hdon1 (hUO.ksb f1.1) (hRS s1 f1) (hXG s1 f1)) ?_
     rintro ⟨s2, a1⟩ f2
     simp only [WP.uncurry'] at f2
     refine (WP.spec_ok _).2 ((P1.WritesIn.trans f1 f2).mono fun x hx => ?_)
@@ -201,14 +204,15 @@ theorem decWritesHyp_endpoint {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : 
 /-- **The reply cap's write footprint** (`DecWritesHyp`): the caller's
 restart (`restart_blk`) then `do_reply_transfer` (`ReplyFootP1`). -/
 theorem decWritesHyp_reply {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : Set U64} {Z : U64 → Nat}
-    {Ac U : Set U64} {RS : S → Prop} (s : S) (ar : A) (lbl length slot : U64) (r : U64) (g : Bool)
+    {Ac U : Set U64} {RS P3Ok : S → Prop} (s : S) (ar : A) (lbl length slot : U64) (r : U64) (g : Bool)
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (hB : P1.BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (hctT : ct ∈ T) (hnb : ¬ P1.Blocked (L.mem s (P1.stA ct)))
     (hnr : L.mem s (P1.stA ct) ≠ sched.TS_BLOCKED_ON_REPLY)
-    (hUO : P1.UserOK st T Cs Ω H U s) (hE : P1.XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (hr : r ∈ Rp)
+    (hUO : P1.UserOK st T Cs Ω H U s) (hE : P1.XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (hr : r ∈ Rp)
     (hRS : ∀ s1, P1.Foot st T Cs Sg Scs Z (P1.EH H) s s1 → RS s1)
-    (hrep : ReplyFootP1 (L := L) arI T Cs Ω H Sg Rp Scs Nt Z Ac U RS ct r g)
+    (hXG : ∀ s1, P1.Foot st T Cs Sg Scs Z (P1.EH H) s s1 → P1.XG st T Cs Ω H Sg Scs Z P3Ok s1)
+    (hrep : ReplyFootP1 (L := L) arI T Cs Ω H Sg Rp Scs Nt Z Ac U P3Ok RS ct r g)
     (hD : KWDom (L := L) T Cs Sg Scs Z (P1.EH H) s)
     (hTk : ∀ y ∈ T, y.val + 4096 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ y.val)
     (hka : (L.ksb s).val % 8 = 0) (hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64) :
@@ -221,7 +225,7 @@ theorem decWritesHyp_reply {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : Set
   refine WP.spec_bind (P1.sched.set_thread_state.restart_blk (Es := P1.EH H) s ct hB hctT hnb hnr) ?_
   rintro s1 ⟨hB1, f1, -, -⟩
   obtain ⟨hq1, hb1, hx1, hs1, hg1⟩ := hB1
-  refine WP.spec_bind (hrep hE hr hctT s1 ar ⟨hq1, hb1, hx1, hg1, hs1⟩ (hUO.ksb f1.1) (hRS s1 f1)) ?_
+  refine WP.spec_bind (hrep hE hr hctT s1 ar ⟨hq1, hb1, hx1, hg1, hs1⟩ (hUO.ksb f1.1) (hRS s1 f1) (hXG s1 f1)) ?_
   rintro ⟨s2, a1⟩ f2
   simp only [WP.uncurry'] at f2
   refine (WP.spec_ok _).2 ((P1.WritesIn.trans f1 f2).mono fun x hx => ?_)

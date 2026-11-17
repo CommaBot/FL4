@@ -21,13 +21,6 @@ section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64}
 
-/-- The low words of the TCBs (below offset 192, where the TCB's cap slots
-lie): no invariant reads them. -/
-def TLow (T : Set U64) (b : U64) : Prop := ∃ t ∈ T, ∃ K : U64, K.val < 192 ∧ b = core.num.U64.wrapping_add t K
-
-/-- Capability-slot words as the invariants see them: TCB low words, or
-words of `Ω` outside `Sg`. -/
-def CapW (T Ω Sg : Set U64) (b : U64) : Prop := TLow T b ∨ (b ∈ Ω ∧ b ∉ Sg)
 
 /-- A cap slot: aligned, its four words cap-slot words (`SlotW`'s shape). -/
 def CapSlotW (T Ω Sg : Set U64) (x : U64) : Prop :=

@@ -448,7 +448,7 @@ theorem sched.activate_thread.entry (hA : P0.ArchTotal ar) (s : S) (a : A)
 /-- **`EntryHyps` with `act` discharged** (`sched.activate_thread.entry`);
 `fault` is no longer a field (`EntryHyps.fault`, from `tmoOK` and `xfer`). -/
 theorem EntryHyps.of {U : Set U64} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
-    (xfer : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U)
+    (xfer : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U (XG st T Cs Ω H Sg Scs Z P3Ok))
     (tmoOK : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
       CanBlock st T Ac s (L.curW s) ∧ UserOK st T Cs Ω H U s ∧
       ∀ i, (i = layout.tcb.SLOT_TIMEOUT_HANDLER ∨ i = layout.tcb.SLOT_FAULT_HANDLER) →
@@ -467,9 +467,13 @@ theorem EntryHyps.of {U : Set U64} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (irqcap : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → ∀ i : U64, i.val < 128 →
       obj.Slot.cap st (irqSlotA (L.ksb s) i) s ⦃ c => ∀ ptr b0 b1 b2, c = .Notification ptr b0 b1 b2 → ptr ∈ Nt ⦄)
     (debug : ∀ (Ac : Set U64) (s : S) (a : A) (n : I64), EntAt st P3Ok s → EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
-      syscall.debug_syscall st ar s a (L.curW s) n ⦃ _ s' _ => ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄) :
+      syscall.debug_syscall st ar s a (L.curW s) n ⦃ _ s' _ => ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄)
+    (postG : ∀ (s0 : S) (a0 : A) (call blk don fp : Bool) (cptr : U64) (r : core.result.Result Unit error.Exc)
+      (s1 : S) (a1 : A), EntAt st P3Ok s0 → syscall.handle_invocation st ar s0 a0 call blk don fp cptr = ok (r, s1, a1) →
+      XG st T Cs Ω H Sg Scs Z P3Ok s1 ∧ ∀ (b : Bool) (s2 : S) (a2 : A),
+        syscall.after_invocation st ar s1 a1 r = ok (b, s2, a2) → XG st T Cs Ω H Sg Scs Z P3Ok s2) :
     EntryHyps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok :=
-  ⟨⟨xfer, tmoOK, recvOK, irqcap, debug, fun Ac s a h =>
+  ⟨⟨xfer, tmoOK, recvOK, irqcap, debug, postG, fun Ac s a h =>
     WP.spec_mono (sched.activate_thread.entry hA s a h) fun r hr => by obtain ⟨s', a'⟩ := r; simpa using hr⟩, inv⟩
 
 end

@@ -609,9 +609,9 @@ set_option maxHeartbeats 4000000 in
 restart, the arch's port access, for a read with a reply the current
 thread's message registers (`XS`), then the thread set running. -/
 theorem ioport.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) {s : S} {cap : capability.Cap}
+    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) {s : S} {cap : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (a : A) (lbl len : U64) (first last x : U64) (call : Bool)
-    (buf : U64) (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) :
+    (buf : U64) (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hE : EntAt st P3Ok s) :
     ioport.decode st ar s a lbl len (.IoPort first last x) call buf ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -643,7 +643,7 @@ theorem ioport.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
     try simp only [uncurry_apply_pair]
     refine WP.spec_bind (Pₘ := fun s2 => XS st T Cs Ω H Sg Rp Scs Nt Z U Ac ∅ Q R s1 s2) ?_ ?_
     · split
-      · refine WP.spec_bind (E.buf Ac ∅ Q R s1 _ x1.1 hct) fun b hb => ?_
+      · refine WP.spec_bind (E.buf Ac ∅ Q R s1 _ (hE.xg.foot (f1.mono (Set.empty_subset _))) x1.1 hct) fun b hb => ?_
         refine WP.spec_bind (obj.Tcb.set_reg.xs (v := 0#u64) x1 hct (by simp [layout.reg.BADGE, layout.reg.RDI]))
           fun s3 x3 => ?_
         refine WP.spec_bind (msg.set_mr.xs x3 hct hb (by simp)) ?_
@@ -656,7 +656,7 @@ theorem ioport.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
       · exact (WP.spec_ok _).2 x1
     intro s2 x2
     have hst : L.mem s2 (stA (L.curW s)) = sched.TS_RESTART := by
-      rw [stA_eq, x2.2.2.2.2.2.1 _ hct _ (by simp) (by simp) (by simp), ← stA_eq, hst1]
+      rw [stA_eq, x2.fr.2.2.2.2.1 _ hct _ (by simp) (by simp) (by simp), ← stA_eq, hst1]
     refine WP.spec_bind (sched.set_thread_state.running_bxi x2.bxi hct hst) fun s3 h3 => ?_
     exact (WP.spec_ok _).2 (DecPost.ok_bxi h3)
   · split
@@ -681,14 +681,14 @@ theorem ioport.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
 /-- **InvGaps' `ioPort`, discharged** from the transfer's placement facts
 (the IPC buffer of a port read's reply). -/
 theorem decGap_ioPort {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .ioPort := by
+    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .ioPort := by
   intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot hE
   cases cap <;> simp [capFam] at hf
   rename_i first last x
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩
   try dsimp only
-  exact ioport.decode.dec hA E a lbl len first last x call buf D
+  exact ioport.decode.dec hA E a lbl len first last x call buf D hE
 
 end
 

@@ -61,7 +61,7 @@ structure InvGaps4 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar 
 theorem InvGaps4.gaps3 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {V : U64 → Prop}
     (C : CdtHyps2 st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V P3Ok)
-    (Pt : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
+    (Pt : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (G : InvGaps4 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok) :
     InvGaps3 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok :=
   have DG : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z P3Ok := fun s0 hE =>

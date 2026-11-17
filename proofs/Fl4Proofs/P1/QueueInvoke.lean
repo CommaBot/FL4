@@ -407,8 +407,11 @@ theorem CanBlock.restart {s s1 : S} {t : U64} (hc : CanBlock st T Ac s t) (hT : 
 `send_ipc`.  The caller can block (`CanBlock`, as at a receive), and the user
 words are outside the kernel objects. -/
 theorem ep_send.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
-    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U) (s : S) (a : A) (blk call : Bool) (badge : U64) (grant grant_reply don : Bool)
-    (ct e : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hU : UserOK st T Cs Ω H U s)
+    {G : S → Prop} (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U G) (s : S) (a : A) (blk call : Bool) (badge : U64)
+    (grant grant_reply don : Bool) (ct e : U64)
+    (hG : ∀ s1 s2, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 → H e = some .ep →
+      (L.epState s1 e = 1#u64 ∨ L.epState s1 e = 2#u64) → endpoint.ep_dequeue st s1 e (L.epQ s1 e).head = ok s2 → G s2)
+    (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hU : UserOK st T Cs Ω H U s)
     (hc : CanBlock st T Ac s ct) (hdon : don = true → L.mem s (scA ct) ≠ 0#u64) (hH : H e = some .ep) :
     (do
       let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
@@ -416,9 +419,10 @@ theorem ep_send.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U
       ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a1)) ⦃ r s' _ =>
       r = .Ok () ∧ BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   have hT := h.1.choose_spec.choose_spec.tcbs
-  refine WP.spec_bind (sched.set_thread_state.restart_blk (Es := ∅) s ct h hc.mem hc.nb hc.nrp) ?_
-  rintro s1 ⟨⟨⟨Q1, R1, h1⟩, hB1, hX1, hS1, hSg1⟩, -, e1, k1⟩
-  refine WP.spec_bind (endpoint.send_ipc.ipc hA hxf s1 a blk call badge grant grant_reply don ct e Q1 R1 h1 hB1 hX1
+  refine WP.spec_bind (spec_eq' (sched.set_thread_state.restart_blk (Es := ∅) s ct h hc.mem hc.nb hc.nrp)) ?_
+  rintro s1 ⟨eq1, ⟨⟨Q1, R1, h1⟩, hB1, hX1, hS1, hSg1⟩, -, e1, k1⟩
+  refine WP.spec_bind (endpoint.send_ipc.ipc hA hxf s1 a blk call badge grant grant_reply don ct e Q1 R1
+    (fun s2 => hG s1 s2 eq1) h1 hB1 hX1
     hS1 hSg1 (hU.ksb k1.ksb) (hc.restart hT k1 e1) (fun hd => by rw [k1.scf hc.mem]; exact hdon hd) hH) ?_
   rintro ⟨s2, a1⟩ h2
   try simp only [WP.uncurry'_pair] at h2 ⊢

@@ -1644,6 +1644,17 @@ theorem CanBlock.keepT {s s' : S} {t u : U64} (hc : CanBlock st T Ac s t) (hut :
   · rw [e]; exact hc.na
   · rw [e]; exact fun e' => notT_small hT (by simp) (e' ▸ hc.mem)
 
+/-- A spec of a computation that succeeds, with its result. -/
+theorem spec_eq' {α : Type _} {m : Result α} {P : α → Prop} (h : m ⦃ P ⦄) : m ⦃ v => m = ok v ∧ P v ⦄ := by
+  cases m <;> simp_all [WP.spec_ok]
+
+/-- The states `receive_ipc` reaches before its end on the endpoint: after
+`take_reply` and, for a bound notification, `maybe_return_sched_context`. -/
+def RecvPre (st : machine.Store S) {A : Type _} (ar : machine.Arch A) (s : S) (a : A) (t : U64)
+    (reply_cap : capability.Cap) (s2 : S) : Prop :=
+  ∃ r s1 a1, endpoint.take_reply st ar s a t reply_cap = ok (r, s1, a1) ∧
+    (s2 = s1 ∨ ∃ i, notification.maybe_return_sched_context st s1 i t = ok s2)
+
 /-- seL4 `receiveIPC`'s reply bookkeeping (`take_reply`): a reply object
 that names another thread is taken from it (`cancel_ipc`), so the returned
 reply object is unused or names the receiver. -/
@@ -1740,14 +1751,14 @@ theorem endpoint.receive_ipc.inv {A : Type _} (ar : machine.Arch A) (s : S) (a :
     (hrfs : ∀ (s2 : S) (a2 : A) (r : U64), BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s2 → CanBlock st T Ac s2 t →
       (r ≠ 0#u64 → r ∈ Rp ∧ (L.mem s2 (rTcbA r) = 0#u64 ∨ L.mem s2 (rTcbA r) = t)) →
       L.ksb s2 = L.ksb s → ¬ BlockedR (L.mem s2 (stA (L.idleW s2))) →
-      L.epState s2 e ≠ 0#u64 → L.epState s2 e ≠ 2#u64 →
+      L.epState s2 e ≠ 0#u64 → L.epState s2 e ≠ 2#u64 → RecvPre st ar s a t reply_cap s2 →
       endpoint.receive_from_sender st ar s2 a2 t e r ⦃ s' _ => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄) :
     endpoint.receive_ipc st ar s a t cap blocking reply_cap ⦃ s' _ => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   unfold endpoint.receive_ipc
   rw [hptr]
   simp only [Aeneas.Std.bind_ok]
-  refine WP.spec_bind (endpoint.take_reply.inv ar s a t reply_cap Q R h hB hX hS hSg hc hcap) ?_
-  rintro ⟨reply, s1, a1⟩ ⟨h1, hB1, hX1, hS1, hSg1, hc1, hi1, hr1, kb1, ib1⟩
+  refine WP.spec_bind (spec_eq' (endpoint.take_reply.inv ar s a t reply_cap Q R h hB hX hS hSg hc hcap)) ?_
+  rintro ⟨reply, s1, a1⟩ ⟨eq1, h1, hB1, hX1, hS1, hSg1, hc1, hi1, hr1, kb1, ib1⟩
   have hidle := hc.ni
   have ib1 := ib1 hB.idleNB
   try simp only [WP.uncurry'_pair]
@@ -1758,6 +1769,7 @@ theorem endpoint.receive_ipc.inv {A : Type _} (ar : machine.Arch A) (s : S) (a :
       SCsOK st T Ω Sg Scs Z Ac s2 → SgOK st Ω Sg s2 → CanBlock st T Ac s2 t →
       (reply ≠ 0#u64 → reply ∈ Rp ∧ (L.mem s2 (rTcbA reply) = 0#u64 ∨ L.mem s2 (rTcbA reply) = t)) →
       L.ksb s2 = L.ksb s → ¬ BlockedR (L.mem s2 (stA (L.idleW s2))) →
+      (s2 = s1 ∨ ∃ i, notification.maybe_return_sched_context st s1 i t = ok s2) →
       (do
         let st0 ← obj.Ep.state st e s2
         if st0 = obj.EP_IDLE then do
@@ -1767,7 +1779,7 @@ theorem endpoint.receive_ipc.inv {A : Type _} (ar : machine.Arch A) (s : S) (a :
           let s3 ← endpoint.wait_for_sender st s2 t e blocking reply
           ok (s3, a2)
         else endpoint.receive_from_sender st ar s2 a2 t e reply) ⦃ s' _ => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
-    intro s2 a2 Q2 R2 h2 hB2 hX2 hS2 hSg2 hc2 hr2 kb2 ib2
+    intro s2 a2 Q2 R2 h2 hB2 hX2 hS2 hSg2 hc2 hr2 kb2 ib2 hp2
     step with obj.Ep.state.spec as ⟨v, hv⟩
     split
     · rename_i h0
@@ -1782,22 +1794,25 @@ theorem endpoint.receive_ipc.inv {A : Type _} (ar : machine.Arch A) (s : S) (a :
       · rename_i h01 h02
         exact hrfs s2 a2 reply ⟨⟨Q2, R2, h2⟩, hB2, hX2, hS2, hSg2⟩ hc2 hr2 kb2 ib2
           (fun e0 => h01 (by rw [hv, e0, ep_idle_val])) (fun e0 => h02 (by rw [hv, e0, ep_recv_val']))
+          ⟨reply, s1, a1, eq1, hp2⟩
   -- the bound notification's SC
   have mid : ∀ (i : U64), (if blocking then notification.maybe_return_sched_context st s1 i t else ok s1)
       ⦃ s2 => ∃ Q2 R2, SchedQueuesInv st T Cs Ω H s2 Q2 R2 ∧ BoundInv st T Ac s2 ∧
         XInv st T Cs Ω Sg Rp Scs Nt Z s2 ∧ SCsOK st T Ω Sg Scs Z Ac s2 ∧ SgOK st Ω Sg s2 ∧ CanBlock st T Ac s2 t ∧
         (reply ≠ 0#u64 → reply ∈ Rp ∧ (L.mem s2 (rTcbA reply) = 0#u64 ∨ L.mem s2 (rTcbA reply) = t)) ∧
-        L.ksb s2 = L.ksb s ∧ ¬ BlockedR (L.mem s2 (stA (L.idleW s2))) ⦄ := by
+        L.ksb s2 = L.ksb s ∧ ¬ BlockedR (L.mem s2 (stA (L.idleW s2))) ∧
+        (s2 = s1 ∨ ∃ i, notification.maybe_return_sched_context st s1 i t = ok s2) ⦄ := by
     intro i
     split
-    · refine WP.spec_mono (notification.maybe_return_sched_context.inv s1 i t Q R h1 hB1 hX1 hS1 hSg1 ht
-        ⟨hc1.nq, hc1.nr, hc1.na⟩ (by rw [hi1]; exact hidle)) fun s2 hh => ?_
+    · refine WP.spec_mono (spec_eq' (notification.maybe_return_sched_context.inv s1 i t Q R h1 hB1 hX1 hS1 hSg1 ht
+        ⟨hc1.nq, hc1.nr, hc1.na⟩ (by rw [hi1]; exact hidle))) fun s2 ⟨eq2, hh⟩ => ?_
       obtain ⟨⟨Q2, R2, h2⟩, hB2, hX2, hS2, hSg2, q2, st2, na2, ii2, rt2, sa2, ks2, sc2⟩ := hh
-      refine ⟨Q2, R2, h2, hB2, hX2, hS2, hSg2, hc1.mrsc q2 st2 na2 ii2 sc2, fun hn => ?_, ks2.trans kb1, ?_⟩
+      refine ⟨Q2, R2, h2, hB2, hX2, hS2, hSg2, hc1.mrsc q2 st2 na2 ii2 sc2, fun hn => ?_, ks2.trans kb1, ?_,
+        Or.inr ⟨i, eq2⟩⟩
       · obtain ⟨r1, r2⟩ := hr1 hn
         rw [rt2 _ r1]; exact ⟨r1, r2⟩
       · rw [ii2, sa2 (L.idleW s1) h1.idleT]; exact ib1
-    · exact (WP.spec_ok _).2 ⟨Q, R, h1, hB1, hX1, hS1, hSg1, hc1, hr1, kb1, ib1⟩
+    · exact (WP.spec_ok _).2 ⟨Q, R, h1, hB1, hX1, hS1, hSg1, hc1, hr1, kb1, ib1, Or.inl rfl⟩
   step with obj.Tcb.bound_ntfn.val as ⟨i, ei⟩
   split
   · rename_i hi0
@@ -1807,10 +1822,10 @@ theorem endpoint.receive_ipc.inv {A : Type _} (ar : machine.Arch A) (s : S) (a :
       exact hcs s1 a1 i ⟨⟨Q, R, h1⟩, hB1, hX1, hS1, hSg1⟩ hc1 ei (by simpa using hi0)
         (by rw [← hv1, hva]; unfold obj.NTFN_ACTIVE; rfl)
     · refine WP.spec_bind (mid i) ?_
-      rintro s2 ⟨Q2, R2, h2, hB2, hX2, hS2, hSg2, hc2, hr2, kb2, ib2⟩
-      exact tail s2 a1 Q2 R2 h2 hB2 hX2 hS2 hSg2 hc2 hr2 kb2 ib2
+      rintro s2 ⟨Q2, R2, h2, hB2, hX2, hS2, hSg2, hc2, hr2, kb2, ib2, p2⟩
+      exact tail s2 a1 Q2 R2 h2 hB2 hX2 hS2 hSg2 hc2 hr2 kb2 ib2 p2
   · try simp only [Aeneas.Std.bind_ok]
-    exact tail s1 a1 Q R h1 hB1 hX1 hS1 hSg1 hc1 hr1 kb1 ib1
+    exact tail s1 a1 Q R h1 hB1 hX1 hS1 hSg1 hc1 hr1 kb1 ib1 (Or.inl rfl)
 
 end
 

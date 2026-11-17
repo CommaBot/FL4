@@ -915,7 +915,7 @@ set_option maxHeartbeats 4000000 in
 does not prove), `TcbPlace`, `DelGaps` and `CdtHyps`. -/
 theorem tcb.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (G : TcbGaps st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (P : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
+    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (Gd : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z P3Ok) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     {s : S} {a : A} {lbl t len buf : U64} {call : Bool} {slot : obj.Slot}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra)
@@ -931,7 +931,7 @@ theorem tcb.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   have h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1 := ⟨hb1, ea, ec, ecs, fld, wn⟩
   try simp only [uncurry_apply_pair, WP.uncurry'_pair]
   refine spec_ite (fun hc => absurd hc g18) fun _ => ?_
-  refine spec_ite (fun _ => tcb.decode_read_registers.dec E D h1) fun _ => ?_
+  refine spec_ite (fun _ => tcb.decode_read_registers.dec E D hE h1) fun _ => ?_
   refine spec_ite (fun _ => ?_) fun _ => ?_
   · exact tcb.decode_write_registers.dec hA D h1
   refine spec_ite (fun _ => ?_) fun _ => ?_
@@ -978,7 +978,7 @@ theorem tcb.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   refine spec_ite (fun _ => ?_) fun _ => ?_
   · exact tcb.set_breakpoint_checked.dec D h1
   refine spec_ite (fun _ => ?_) fun _ => ?_
-  · exact tcb.decode_get_breakpoint.dec E D h1
+  · exact tcb.decode_get_breakpoint.dec E D hE h1
   refine spec_ite (fun _ => ?_) fun _ => ?_
   · -- UnsetBreakpoint
     have hS : P0.StoreTotal st := L.total
@@ -1013,7 +1013,7 @@ theorem tcb.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
 and `CdtHyps`. -/
 theorem decGap_thread {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (G : TcbGaps st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (P : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
+    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (Gd : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z P3Ok) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) :
     DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .thread := by
   intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot hE

@@ -157,6 +157,21 @@ def CapTyped (H : Heap) (Rp Nt : Set U64) (c : capability.Cap) : Prop :=
   (∀ p b x y, c = .Notification p b x y → p ∈ Nt ∧ H p = some .ntfn) ∧
   (∀ p g, c = .Reply p g → p ∈ Rp)
 
+/-- The guard a fault IPC needs at its transfer (`XferOK`'s `G`), by the
+program reaching it: `set_fault`, then the endpoint's head dequeued. -/
+def FaultG (st : machine.Store S) [L : LawfulStore st] (H : Heap) (G : S → Prop) (s : S) (t : U64)
+    (f : error.Fault) : Prop :=
+  ∀ s1 e s2, faults.set_fault st s t f = ok s1 → H e = some .ep →
+    (L.epState s1 e = 1#u64 ∨ L.epState s1 e = 2#u64) → endpoint.ep_dequeue st s1 e (L.epQ s1 e).head = ok s2 → G s2
+
+/-- The guard a receive needs at its transfer, by the program reaching it:
+`receive_ipc`'s prefix (`RecvPre`), then the sending endpoint's head dequeued. -/
+def RecvG (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (H : Heap) (Rp : Set U64)
+    (G : S → Prop) (s : S) (a : A) : Prop :=
+  ∀ (rc : capability.Cap) (e : U64) (s2 s1 : S), (∀ p g, rc = .Reply p g → p ∈ Rp) →
+    RecvPre st ar s a (L.curW s) rc s2 → H e = some .ep → (L.epState s2 e = 1#u64 ∨ L.epState s2 e = 2#u64) →
+    endpoint.ep_dequeue st s2 e (L.epQ s2 e).head = ok s1 → G s1
+
 /-- seL4 `handleRecv`: the endpoint (or notification) cap and, with a reply
 right, the reply cap are looked up; `receive_ipc` / `receive_signal`, or a
 cap fault.  From the hypotheses at the call: the looked-up caps are typed
@@ -165,8 +180,9 @@ thread can block, the user words are outside the kernel objects (`UserOK`)
 and the message transfer writes there (`XferOK`); cap faults are the fault
 family `hfault`. -/
 theorem syscall.handle_recv.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (hNt : ∀ n ∈ Nt, H n = some .ntfn) {U : Set U64} (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U)
+    (hNt : ∀ n ∈ Nt, H n = some .ntfn) {U : Set U64} {G : S → Prop} (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U G)
     {Ac : Set U64} (s : S) (a : A) (blk rep : Bool) (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hG : RecvG st ar H Rp G s a)
     (hU : UserOK st T Cs Ω H U s) (hc : CanBlock st T Ac s (L.curW s))
     (hlk : ∀ cptr, cspace.lookup_cap st s (L.curW s) cptr ⦃ r => ∀ c, r = .Ok c → CapTyped H Rp Nt c ⦄)
     (h3 : ∀ n ∈ Nt, L.epState s n ≠ 3#u64)
@@ -187,7 +203,8 @@ theorem syscall.handle_recv.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
       (∀ p g, rc = .Reply p g → p ∈ Rp) →
       endpoint.receive_ipc st ar s a (L.curW s) c blk rc ⦃ s' _ =>
         ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ := fun c rc e hp hH hr =>
-    WP.spec_mono (endpoint.receive_ipc.ipc hA hxf s a _ c blk rc e Q R h0 hB hX hS hSg hU hc hp hH hr hNt)
+    WP.spec_mono (endpoint.receive_ipc.ipc hA hxf s a _ c blk rc e Q R (fun s2 s1 => hG rc e s2 s1 hr) h0 hB hX hS hSg
+      hU hc hp hH hr hNt)
       fun r hh => by obtain ⟨s', a'⟩ := r; exact ⟨Ac, BlkOK.bxi (by simpa using hh)⟩
   have RS : ∀ n, n ∈ Nt → H n = some .ntfn → notification.receive_signal st ar s a (L.curW s) n blk ⦃ s' _ =>
       ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ := fun n hn hH =>
@@ -352,7 +369,9 @@ fault IPC (`send_fault_ipc`, no donation), if the handler cap is an
 endpoint.  From the hypotheses at the call: the handler cap is typed, the
 thread can block, `UserOK` and `XferOK`. -/
 theorem faults.handle_timeout.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
-    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U) {Ac : Set U64} (s : S) (a : A) (t : obj.Tcb) (f : error.Fault)
+    {G : S → Prop} (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U G) {Ac : Set U64} (s : S) (a : A) (t : obj.Tcb)
+    (f : error.Fault)
+    (hG : FaultG st H G s t f)
     (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hU : UserOK st T Cs Ω H U s) (hc : CanBlock st T Ac s t)
     (hcap : obj.Tcb.slot t layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl =>
       obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄) :
@@ -367,10 +386,10 @@ theorem faults.handle_timeout.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.Ar
     all_goals first | exact (WP.spec_ok _).2 h | skip
     rename_i p b x y g gr
     have hpH := hct.1 p b x y g gr rfl
-    refine WP.spec_bind (faults.set_fault.blk s t f h ht hU hc) ?_
-    rintro s1 ⟨h1, hU1, hc1⟩
+    refine WP.spec_bind (spec_eq' (faults.set_fault.blk s t f h ht hU hc)) ?_
+    rintro s1 ⟨eq1, h1, hU1, hc1⟩
     obtain ⟨⟨Q1, R1, q1⟩, hB1, hX1, hS1, hSg1⟩ := h1
-    refine WP.spec_bind (endpoint.send_ipc.ipc hA hxf s1 a true false b g gr false t p Q1 R1 q1 hB1 hX1 hS1 hSg1
+    refine WP.spec_bind (endpoint.send_ipc.ipc hA hxf s1 a true false b g gr false t p Q1 R1 (fun s2 => hG s1 p s2 eq1) q1 hB1 hX1 hS1 hSg1
       hU1 hc1 (fun e => by cases e) hpH) ?_
     rintro ⟨s2, a1⟩ h2
     exact (WP.spec_ok _).2 (by simpa using h2)
@@ -430,7 +449,9 @@ an endpoint cap (donating the thread's SC if it has one), else the fault is
 recorded and the thread made inactive.  From the hypotheses at the call:
 the handler cap is typed, the thread can block, `UserOK` and `XferOK`. -/
 theorem faults.handle_fault.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
-    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U) {Ac : Set U64} (s : S) (a : A) (t : obj.Tcb) (f : error.Fault)
+    {G : S → Prop} (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U G) {Ac : Set U64} (s : S) (a : A) (t : obj.Tcb)
+    (f : error.Fault)
+    (hG : FaultG st H G s t f)
     (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hU : UserOK st T Cs Ω H U s) (hc : CanBlock st T Ac s t)
     (hcap : obj.Tcb.slot t layout.tcb.SLOT_FAULT_HANDLER ⦃ sl =>
       obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄) :
@@ -447,11 +468,12 @@ theorem faults.handle_fault.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
     all_goals first | exact (WP.spec_ok _).2 ⟨h, fun _ => rfl⟩ | skip
     rename_i p b x y g gr
     have hpH := hct.1 p b x y g gr rfl
-    refine WP.spec_bind (WP.spec_and (faults.set_fault.blk s t f h ht hU hc)
-      (faults.set_fault.sc s t f h.1.choose_spec.choose_spec.tcbs ht)) ?_
-    rintro s1 ⟨⟨h1, hU1, hc1⟩, sc1⟩
+    refine WP.spec_bind (spec_eq' (WP.spec_and (faults.set_fault.blk s t f h ht hU hc)
+      (faults.set_fault.sc s t f h.1.choose_spec.choose_spec.tcbs ht))) ?_
+    rintro s1 ⟨eq1, ⟨h1, hU1, hc1⟩, sc1⟩
     obtain ⟨⟨Q1, R1, q1⟩, hB1, hX1, hS1, hSg1⟩ := h1
-    refine WP.spec_bind (endpoint.send_ipc.ipc hA hxf s1 a true false b g gr (i != 0#u64) t p Q1 R1 q1 hB1 hX1
+    refine WP.spec_bind (endpoint.send_ipc.ipc hA hxf s1 a true false b g gr (i != 0#u64) t p Q1 R1
+      (fun s2 => hG s1 p s2 eq1) q1 hB1 hX1
       hS1 hSg1 hU1 hc1 (fun e => ?_) hpH) ?_
     · have hi : i ≠ 0#u64 := by simpa using e
       rw [sc1, ← ei]; exact hi
@@ -474,6 +496,183 @@ theorem faults.handle_fault.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
           fun e => absurd e hc3.na⟩) ?_
       rintro s4 ⟨h4, hB4, hX4, hS4, hSg4, -, -⟩
       exact (WP.spec_ok _).2 ⟨⟨Q3, R3, h4.congrX empty_congr⟩, hB4, hX4, hS4, hSg4⟩
+
+
+/-! ## The footprints of the steps before a transfer -/
+
+/-- A spec at a run's result. -/
+theorem spec_at {α : Type _} {m : Result α} {P : α → Prop} {x : α} (h : m ⦃ P ⦄) (e : m = ok x) : P x := by
+  rw [e] at h; exact (WP.spec_ok _).1 h
+
+theorem faults.set_fault.kw {Scs : Set U64} {Es : Set U64} (s : S) (t : obj.Tcb) (f : error.Fault) (hT : TcbPlaced T) (ht : t ∈ T) :
+    faults.set_fault st s t f ⦃ s' => Foot st T Cs Sg Scs Z Es s s' ⦄ := by
+  have W : ∀ {s₁ : S} (K v : U64), Foot st T Cs Sg Scs Z Es s s₁ → 3376 ≤ K.val → K.val < 3432 →
+      K.val % 8 = 0 → Foot st T Cs Sg Scs Z Es s (L.wr s₁ (core.num.U64.wrapping_add t K) v) :=
+    fun K v e h1 h2 h3 => e.trans (foot_field hT ht (by omega) (by omega) h3 (by omega))
+  unfold faults.set_fault
+  refine WP.spec_bind (Pₘ := fun r : S × U64 × U64 × U64 × U64 => Foot st T Cs Sg Scs Z Es s r.1) ?_ ?_
+  · split
+    all_goals first | exact (WP.spec_ok _).2 (Foot.refl s) | skip
+    · refine WP.spec_bind (P0.error.LookupFault.encode.p0 _) ?_
+      rintro ⟨lt, l0, l1⟩ -
+      try simp only [uncurry_apply_pair]
+      refine WP.spec_bind (obj.Tcb.set_lf_type.wr s t lt) fun s2 e2 => ?_
+      subst e2
+      have h2 := W (s₁ := s) 3408#u64 lt (Foot.refl s) (by simp) (by simp) (by simp)
+      refine WP.spec_bind (obj.Tcb.set_lf_w0.wr _ t l0) fun s3 e3 => ?_
+      subst e3
+      have h3 := W 3416#u64 l0 h2 (by simp) (by simp) (by simp)
+      refine WP.spec_bind (obj.Tcb.set_lf_w1.wr _ t l1) fun s4 e4 => ?_
+      subst e4
+      have h4 := W 3424#u64 l1 h3 (by simp) (by simp) (by simp)
+      refine WP.spec_bind (Pₘ := fun _ : U64 => True) ?_ fun i _ => (WP.spec_ok _).2 h4
+      split <;> exact (WP.spec_ok _).2 trivial
+    · refine WP.spec_bind (Pₘ := fun _ : U64 => True) ?_ fun i _ =>
+        (WP.spec_ok _).2 (Foot.refl s)
+      split <;> exact (WP.spec_ok _).2 trivial
+  · rintro ⟨s1, ty, w0, w1, w2⟩ hh
+    try simp only [uncurry_apply_pair]
+    simp only at hh
+    refine WP.spec_bind (obj.Tcb.set_fault_type.spec s1 t ty) fun s2 e2 => ?_
+    subst e2
+    have h2 := W (s₁ := s1) 3376#u64 ty hh (by simp) (by simp) (by simp)
+    refine WP.spec_bind (obj.Tcb.set_fault_w0.wr _ t w0) fun s3 e3 => ?_
+    subst e3
+    have h3 := W 3384#u64 w0 h2 (by simp) (by simp) (by simp)
+    refine WP.spec_bind (obj.Tcb.set_fault_w1.wr _ t w1) fun s4 e4 => ?_
+    subst e4
+    have h4 := W 3392#u64 w1 h3 (by simp) (by simp) (by simp)
+    exact WP.spec_mono (obj.Tcb.set_fault_w2.wr _ t w2) fun s5 e5 => by
+      subst e5; exact W 3400#u64 w2 h4 (by simp) (by simp) (by simp)
+
+/-- Dequeuing a sending or receiving endpoint's head writes kernel words. -/
+theorem endpoint.ep_dequeue.head_kw {Scs : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
+    {e : U64} (h : SchedQueuesInv st T Cs Ω H s Q R) (hH : H e = some .ep)
+    (hst : L.epState s e = 1#u64 ∨ L.epState s e = 2#u64) :
+    endpoint.ep_dequeue st s e (L.epQ s e).head ⦃ s' => Foot st T Cs Sg Scs Z (EH H) s s' ⦄ := by
+  have hT := h.tcbs
+  obtain ⟨E0, EQ0, hEW0⟩ := h.eps
+  have heE0 : e ∈ E0 := (hEW0.2.2.2.2.2.2.2.1 e).2 (Or.inl hH)
+  obtain ⟨hE0, -, hq0⟩ := hEW0.1 e heE0
+  have hdm : (L.epQ s e).head ∈ EQ0 e := by
+    rcases hst with e1 | e2
+    · obtain ⟨hdT, hbe, hds, -⟩ := ep_head h hH (Or.inl rfl) e1
+      have := hEW0.2.2.2.2.1 _ hdT (by simp) (Or.inl (hds rfl)); rw [hbe] at this; exact this.2
+    · obtain ⟨hdT, hbe, -, hds⟩ := ep_head h hH (Or.inr rfl) e2
+      have := hEW0.2.2.2.2.1 _ hdT (by simp) (Or.inr (Or.inl (hds rfl))); rw [hbe] at this; exact this.2
+  exact WP.spec_mono (endpoint.ep_dequeue.foot s e _ (EQ0 e) hT hE0 hq0 hdm) fun s1 w1 =>
+    Foot.of w1 fun b hb => hb.kw hq0.mem (Or.inl hH)
+
+/-- `take_reply`'s footprint: a reply object naming another thread is taken
+from it (`cancel_ipc`). -/
+theorem endpoint.take_reply.kw {Scs : Set U64} {A : Type _} (ar : machine.Arch A) (s : S) (a : A) (t : U64)
+    (cap : capability.Cap) {Q : U64 → U64 → List U64} {R : U64 → List U64}
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hSg : SgOK st Ω Sg s)
+    (hcap : ∀ p g, cap = .Reply p g → p ∈ Rp) :
+    endpoint.take_reply st ar s a t cap ⦃ r => Foot st T Cs Sg Scs Z (EH H) s r.2.1 ⦄ := by
+  unfold endpoint.take_reply
+  split
+  case h_5 p g =>
+    have hp := hcap p g rfl
+    step with obj.Reply.tcb.blk as ⟨i, ei⟩
+    step with obj.Tcb.is_null.spec as ⟨b, eb⟩
+    split
+    · exact (WP.spec_ok _).2 (Foot.refl s)
+    rename_i hb
+    have hi0 : i ≠ 0#u64 := fun e => hb (by rw [eb, e]; rfl)
+    step with tcb_ne.blk as ⟨b1, eb1⟩
+    split
+    · obtain ⟨-, hiT, -, -⟩ := hX.2.1.back p hp (by rw [← ei]; exact hi0)
+      rw [← ei] at hiT
+      refine WP.spec_bind (ipc.cancel_ipc.kw s a i h hiT hX.1 hSg.sub (fun hs => by
+          obtain ⟨h1, h2⟩ := hX.2.1.reply i hiT hs
+          exact ⟨h1, h2, hX.2.1.next _ h1, hX.2.1.prev _ h1⟩) (fun hs h0' => (hX.2.1.recv i hiT hs h0').1)) ?_
+      rintro ⟨s1, a1⟩ f1
+      exact (WP.spec_ok _).2 (by simpa using f1)
+    · exact (WP.spec_ok _).2 (Foot.refl s)
+  all_goals exact (WP.spec_ok _).2 (Foot.refl s)
+
+/-- `maybe_return_sched_context`'s footprint: the thread's SC field, the SC's
+TCB word and a reschedule. -/
+theorem notification.maybe_return_sched_context.kw {Ac : Set U64} (s : S) (n t : U64)
+    (Q : U64 → U64 → List U64) (R : U64 → List U64)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
+    (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s) (ht : t ∈ T)
+    (hout : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64 ∧ (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64 ∧
+      L.actionW s ≠ t)
+    (hidle : L.idleW s ≠ t) :
+    notification.maybe_return_sched_context st s n t ⦃ s' => Foot st T Cs Sg Scs Z (EH H) s s' ⦄ := by
+  have hT := h.tcbs
+  have hta := hT t ht
+  unfold notification.maybe_return_sched_context
+  step with obj.Ntfn.sc.any as ⟨i, _⟩
+  step with obj.Sc.is_null.spec as ⟨b, eb⟩
+  split
+  · exact (WP.spec_ok _).2 (Foot.refl s)
+  rename_i hb
+  have hi0 : i ≠ 0#u64 := fun e => hb (by rw [eb, e]; rfl)
+  step with obj.Tcb.sc.spec as ⟨i1, ei1⟩
+  split
+  · rename_i hii
+    have hsc : L.mem s (scA t) = i := by rw [← ei1, hii]
+    step with obj.Tcb.set_sc.wr as ⟨s1, e1⟩
+    step with obj.Sc.set_tcb.wr as ⟨s2, e2⟩
+    have key := unbind_state h hB hX hS hSg ht hout hidle hsc hi0
+    rw [← e1, ← e2] at key
+    have k1 := key.1
+    obtain ⟨hiS, -, -⟩ := hX.2.2.bound t ht (by rw [hsc]; exact hi0)
+    rw [hsc] at hiS
+    obtain ⟨hP, hz⟩ := hX.1.sc i hiS
+    obtain ⟨h8, h128, -⟩ := sc_lo hP hz
+    have hv := scTcbA_val (c := i) hP hz
+    have F1 : Foot st T Cs Sg Scs Z (EH H) s s1 := by
+      rw [e1, scA_eq]; exact foot_field hT ht (by simp) (by simp) (by simp) (by simp)
+    have F2 : Foot st T Cs Sg Scs Z (EH H) s s2 := by
+      rw [e2]
+      refine F1.trans (foot_wr (by unfold Aligned; rw [hv]; omega) (kw_sc hiS ⟨by rw [hv]; omega, by rw [hv]; omega⟩))
+    step with sched.cur_thread.spec as ⟨t1, et1⟩
+    step with tcb_eq.blk as ⟨b1, eb1⟩
+    split
+    · exact WP.spec_mono (sched.reschedule_required.kw s2 k1) fun s3 f3 => F2.trans f3
+    · exact (WP.spec_ok _).2 F2
+  · exact (WP.spec_ok _).2 (Foot.refl s)
+
+/-- A debug syscall that is not one returns `false` without writes. -/
+theorem syscall.debug_syscall.same {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
+    (t : obj.Tcb) (n : I64) : syscall.debug_syscall st ar s a t n ⦃ b s' _ => b = false → s' = s ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  have F : ∀ {s1 : S} {a1 : A}, (ok (true, s1, a1) : Result (Bool × S × A)) ⦃ b s' _ => b = false → s' = s ⦄ :=
+    (WP.spec_ok _).2 fun h => by cases h
+  unfold syscall.debug_syscall
+  split
+  · exact WP.spec_bind (hA.halt a) fun _ _ => F
+  split
+  · exact F
+  split
+  · refine WP.spec_bind (P0.syscall.invoked_cap.p0 st s _ hS) fun c _ => ?_
+    refine WP.spec_bind (P0.syscall.cap_type_code.p0 c) fun i _ => ?_
+    exact WP.spec_bind (P0.obj.Tcb.set_reg.p0 st t s _ i hS) fun _ _ => F
+  split
+  · refine WP.spec_bind (Pₘ := fun _ => True) ?_ fun _ _ => F
+    exact WP.spec_mono (P0.syscall.debug_name_thread.p0 st ar s a t hS hA) fun _ _ => trivial
+  have aff : (do
+      let c ← syscall.invoked_cap st s t
+      let o ← syscall.thread_of c
+      match o with
+      | none => do
+        let a1 ← ar.halt a
+        ok (true, s, a1)
+      | some target => do
+        let aff ← obj.Tcb.affinity st target s
+        let s1 ← obj.Tcb.set_reg st t s layout.reg.CAP aff
+        ok (true, s1, a)) ⦃ b s' _ => b = false → s' = s ⦄ := by
+    refine WP.spec_bind (P0.syscall.invoked_cap.p0 st s _ hS) fun c _ => ?_
+    refine WP.spec_bind (P0.syscall.thread_of.p0 c) fun o _ => ?_
+    rcases o with _ | x
+    · exact WP.spec_bind (hA.halt a) fun _ _ => F
+    · refine WP.spec_bind (P0.obj.Tcb.affinity.p0 st x s hS) fun af _ => ?_
+      exact WP.spec_bind (P0.obj.Tcb.set_reg.p0 st t s _ af hS) fun _ _ => F
+  repeat (first | exact aff | exact F | exact (WP.spec_ok _).2 (fun _ => rfl) | split)
 
 end
 

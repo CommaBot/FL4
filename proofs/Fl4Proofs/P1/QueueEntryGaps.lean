@@ -37,7 +37,7 @@ structure InvGaps2 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar 
   cnode : CnodeGaps st ar T Cs Ω H Sg Rp Scs Nt Z U
 
 theorem InvGaps2.gaps {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
+    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     (G : InvGaps2 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok) : InvGaps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok :=
   ⟨G.untyped, G.reply, decGap_cnode C G.cnode, G.thread, G.irqControl, G.irqHandler, decGap_domain ar,
     decGap_sc hA E G.yield, G.schedControl, G.vspace, G.vcpu, G.ept, G.ioPortControl, G.ioPort⟩

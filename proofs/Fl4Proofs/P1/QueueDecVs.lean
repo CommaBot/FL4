@@ -495,15 +495,15 @@ theorem vspace.decode_page_map.dec {A : Type _} {ar : machine.Arch A} (hA : P0.A
 
 /-- **`reply1`**: the reply's message registers (`XS`), then the thread set
 running. -/
-theorem vspace.reply1.bxi (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) {s : S}
+theorem vspace.reply1.bxi (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) {s : S}
     (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hU : UserOK st T Cs Ω H U s) {t : U64} (ht : t ∈ T)
-    (hr : Runnable (L.mem s (stA t))) (call : Bool) (v : U64) :
+    (hr : Runnable (L.mem s (stA t))) (call : Bool) (v : U64) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) :
     vspace.reply1 st s t call v ⦃ s' => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   obtain ⟨Q, R, x1⟩ := BXI.xs h hU
   unfold vspace.reply1
   refine WP.spec_bind (Pₘ := fun s2 => XS st T Cs Ω H Sg Rp Scs Nt Z U Ac ∅ Q R s s2) ?_ ?_
   · split
-    · refine WP.spec_bind (E.buf Ac ∅ Q R s _ x1.1 ht) fun b hb => ?_
+    · refine WP.spec_bind (E.buf Ac ∅ Q R s _ hG x1.1 ht) fun b hb => ?_
       refine WP.spec_bind (obj.Tcb.set_reg.xs (v := 0#u64) x1 ht (by simp [layout.reg.BADGE, layout.reg.RDI]))
         fun s3 x3 => ?_
       refine WP.spec_bind (msg.set_mr.xs x3 ht hb (by simp)) ?_
@@ -516,16 +516,16 @@ theorem vspace.reply1.bxi (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) {s : S}
     · exact (WP.spec_ok _).2 x1
   intro s2 x2
   have hst : L.mem s2 (stA t) = L.mem s (stA t) := by
-    rw [stA_eq, x2.2.2.2.2.2.1 _ ht _ (by simp) (by simp) (by simp), ← stA_eq]
+    rw [stA_eq, x2.fr.2.2.2.2.1 _ ht _ (by simp) (by simp) (by simp), ← stA_eq]
   exact sched.set_thread_state.running_bxi' x2.bxi ht (hst ▸ hr)
 
 set_option maxHeartbeats 4000000 in
 /-- **TestAndClearAccessed**: the entry's accessed bit cleared (a VSpace
 word), then the reply. -/
 theorem vspace.decode_test_and_clear_accessed.dec {V : U64 → Prop} {s : S} (Pd : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)  {cap0 : capability.Cap}
+    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)  {cap0 : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap0 extra)
-    (f : vspace.FrameCap) (call : Bool) :
+    (f : vspace.FrameCap) (call : Bool) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) :
     vspace.decode_test_and_clear_accessed st s f call ⦃ r =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2 ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -565,10 +565,13 @@ theorem vspace.decode_test_and_clear_accessed.dec {V : U64 → Prop} {s : S} (Pd
     have hU1 : UserOK st T Cs Ω H U (L.wr s x (old &&& ~~~i)) := D.user.ksb (L.ksb_wr _ _ _)
     have hr1 : Runnable (L.mem (L.wr s x (old &&& ~~~i)) (stA (L.curW s))) := by
       rw [stA_eq, fld _ hct _ (by simp) (by simp) (by simp), ← stA_eq]; exact D.run
+    have hG1 : XG st T Cs Ω H Sg Scs Z P3Ok (L.wr s x (old &&& ~~~i)) :=
+      hG.of_fr ((writesIn_wr_V (v := old &&& ~~~i) Pd.vs hx).mono fun b hb =>
+        Or.inr (Or.inr (Or.inl (Or.inr (Pd.vs b hb).2))))
     split
-    · exact WP.spec_bind (vspace.reply1.bxi E (BlkOK.bxi h1) hU1 hct hr1 call _) fun s2 h2 =>
+    · exact WP.spec_bind (vspace.reply1.bxi E (BlkOK.bxi h1) hU1 hct hr1 call _ hG1) fun s2 h2 =>
         (WP.spec_ok _).2 (DecPost.ok_bxi h2)
-    · exact WP.spec_bind (vspace.reply1.bxi E (BlkOK.bxi h1) hU1 hct hr1 call _) fun s2 h2 =>
+    · exact WP.spec_bind (vspace.reply1.bxi E (BlkOK.bxi h1) hU1 hct hr1 call _ hG1) fun s2 h2 =>
         (WP.spec_ok _).2 (DecPost.ok_bxi h2)
 
 
@@ -670,7 +673,7 @@ set_option maxHeartbeats 8000000 in
 theorem vspace.decode_frame.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
     {s : S} (Pd : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (Pe : EptPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
-    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) 
+    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) 
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (fp fsz : _) (fr : U64) (fd fm fe : Bool) (fa fv : U64)
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Frame fp fsz fr fd fm fe fa fv) extra) (hE : EntAt st P3Ok s)
     (a : A) (lbl len slot : U64) (call : Bool) (buf : U64) (hslot : CapSlotW T Ω Sg slot) :
@@ -716,11 +719,11 @@ theorem vspace.decode_frame.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
     refine WP.spec_bind (sched.set_thread_state.restart_blk (Es := ∅) s _ D.bxi.blk hct (runnable_ok D.run).1
       (runnable_ok D.run).2) fun s1 ⟨h1, f1, hst1, _⟩ => ?_
     refine WP.spec_bind (P0.layout.paddr.p0 _) fun i _ => ?_
-    refine WP.spec_bind (vspace.reply1.bxi E (BlkOK.bxi h1) (D.user.ksb f1.1) hct (hst1 ▸ runnable_restart) call i)
+    refine WP.spec_bind (vspace.reply1.bxi E (BlkOK.bxi h1) (D.user.ksb f1.1) hct (hst1 ▸ runnable_restart) call i (hE.xg.of_fr (Foot.cur0w f1 (Set.empty_subset _))))
       fun s2 h2 => ?_
     exact (WP.spec_ok _).2 (DecPost.ok_bxi h2)
   split
-  · refine WP.spec_bind (vspace.decode_test_and_clear_accessed.dec Pd E D _ call) ?_
+  · refine WP.spec_bind (vspace.decode_test_and_clear_accessed.dec Pd E D _ call hE.xg) ?_
     rintro ⟨r, s1⟩ hr
     exact (WP.spec_ok _).2 hr
   split
@@ -759,7 +762,7 @@ set_option maxHeartbeats 16000000 in
 theorem vspace.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
     {s : S} (Pd : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (Pe : EptPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
-    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) 
+    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) 
     {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize}
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hE : EntAt st P3Ok s)
     (hx : ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapSlotW T Ω Sg sl)
@@ -947,7 +950,7 @@ extra caps' slots) and `VsPlace`. -/
 theorem decGap_vspace {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
     (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V P3Ok) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (Pe : EptPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
-    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
+    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (Pl : IrqPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .vspace := by
   intro Ac s a lbl len slot cap blk call don fp buf extra hf D hslot hE
   cases cap <;> simp [capFam] at hf

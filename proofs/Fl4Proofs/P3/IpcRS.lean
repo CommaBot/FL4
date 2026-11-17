@@ -361,37 +361,37 @@ variable {T Cs Ω Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {H : P1.Heap} {Ac U 
 
 /-- **`SendIpcFootP1` at `RSP`**, from P1's `send_ipc.footB` with the
 transfer's footprint discharged (`xferFootOK_of`, `xferKG_rsi`). -/
-theorem sendIpcFootP1_rsp (hA : P0.ArchTotal arI) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (th : TypedHeap)
-    (ct p : U64) (blk call : Bool) (b : U64) (g gr don : Bool) :
-    SendIpcFootP1 (L := L) arI T Cs Ω H Sg Rp Scs Nt Z Ac U
+theorem sendIpcFootP1_rsp {P3Ok : S → Prop} (hA : P0.ArchTotal arI) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (th : TypedHeap) (ct p : U64) (blk call : Bool) (b : U64) (g gr don : Bool) :
+    SendIpcFootP1 (L := L) arI T Cs Ω H Sg Rp Scs Nt Z Ac U P3Ok
       (fun s => ∃ σ G, RSP (L := L) T Cs Sg Scs Z H U th σ G s) ct p blk call b g gr don := by
-  intro hxf hH s1 a hB hcb hdon hU ⟨σ, G, hr⟩
+  intro hxf hH s1 a hB hcb hdon hU ⟨σ, G, hr⟩ hG
   exact endpoint.send_ipc.footB hA hxf (xferFootOK_of hA E (xferKG_rsi (Ω := Ω) (Rp := Rp) (Nt := Nt) th)) s1 a
-    blk call b g gr don ct p hB hU hcb hdon hH (rsi_kw th) (rsi_refl hr)
+    blk call b g gr don ct p hB hU hcb hdon hH (rsi_kw th) (rsi_refl hr) hG
 
 /-- **`ReplyFootP1` at `RSP`**, from P1's `do_reply_transfer.foot`, given
 its timeout-handler and user-word premises. -/
-theorem replyFootP1_rsp (hA : P0.ArchTotal arI) (th : TypedHeap)
+theorem replyFootP1_rsp {P3Ok : S → Prop} (hA : P0.ArchTotal arI) (th : TypedHeap)
     (tmoAny : ∀ (Ac : Set U64) (s : S) (t : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → t ∈ T →
       obj.Tcb.slot t layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl => obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄)
     (userOK : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → UserOK st T Cs Ω H U s)
     (ct r : U64) (g : Bool) :
-    ReplyFootP1 (L := L) arI T Cs Ω H Sg Rp Scs Nt Z Ac U
+    ReplyFootP1 (L := L) arI T Cs Ω H Sg Rp Scs Nt Z Ac U P3Ok
       (fun s => ∃ σ G, RSP (L := L) T Cs Sg Scs Z H U th σ G s) ct r g := by
-  intro E hr hct s1 a hB _ ⟨σ, G, hrs⟩
+  intro E hr hct s1 a hB _ ⟨σ, G, hrs⟩ hG
   exact ipc.do_reply_transfer.foot hA E (xferFootOK_of hA E (xferKG_rsi (Ω := Ω) (Rp := Rp) (Nt := Nt) th)) tmoAny
-    userOK s1 a ct r g hB hr hct (rsi_kw th) (rsi_refl hrs)
+    userOK s1 a ct r g hB hr hct (rsi_kw th) (rsi_refl hrs) hG
 
 /-- **The endpoint cap's write footprint at `RSP`** (`decWritesHyp_endpoint`
 with `SendIpcFootP1` discharged): no IPC hypothesis left but P1's
 `XferHyps`. -/
-theorem decWritesHyp_endpoint_rsp (hA : P0.ArchTotal arI) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
-    {th : TypedHeap} {σ : Fl4Spec.State Unit} {G : MdbGhost} (s : S) (hR : RSP (L := L) T Cs Sg Scs Z H U th σ G s)
+theorem decWritesHyp_endpoint_rsp {P3Ok : S → Prop} (hA : P0.ArchTotal arI)
+    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) {th : TypedHeap} {σ : Fl4Spec.State Unit} {G : MdbGhost} (s : S) (hR : RSP (L := L) T Cs Sg Scs Z H U th σ G s)
     (ar : A) (lbl length slot : U64) (p b : U64) (sd rv g gr : Bool)
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (hB : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (hcb : CanBlock st T Ac s ct) (hdon : don = true → L.mem s (scA ct) ≠ 0#u64)
-    (hUO : UserOK st T Cs Ω H U s) (hH : H p = some .ep)
+    (hUO : UserOK st T Cs Ω H U s) (hH : H p = some .ep) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s)
     (hD : KWDom (L := L) T Cs Sg Scs Z (EH H) s)
     (hTk : ∀ y ∈ T, y.val + 4096 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ y.val)
     (hka : (L.ksb s).val % 8 = 0) (hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64)
@@ -400,13 +400,13 @@ theorem decWritesHyp_endpoint_rsp (hA : P0.ArchTotal arI) (E : XferHyps st T Cs 
         (don = true → L.mem s1 (scA ct) ≠ 0#u64)) :
     DecWritesHyp (L := L) arI s ar lbl length slot (.Endpoint p b sd rv g gr) blk call don fp buf extra :=
   decWritesHyp_endpoint arI s ar lbl length slot p b sd rv g gr blk call don fp buf extra hB ct hct hcb hdon hUO
-    (xferOK_of hA E) hH (fun s1 f => ⟨σ, G, hR.of_writes f fun _ hb => rsw_of_kw hb⟩)
+    (xferOK_of hA E) hH (fun s1 f => ⟨σ, G, hR.of_writes f fun _ hb => rsw_of_kw hb⟩) (fun _ f => hG.foot f)
     (sendIpcFootP1_rsp arI hA E th ct p blk call b g gr don) hD hTk hka hkf hcbs
 
 /-- **The reply cap's write footprint at `RSP`** (`decWritesHyp_reply` with
 `ReplyFootP1` discharged), given `do_reply_transfer.foot`'s timeout-handler
 and user-word premises. -/
-theorem decWritesHyp_reply_rsp (hA : P0.ArchTotal arI) {th : TypedHeap} {σ : Fl4Spec.State Unit} {G : MdbGhost}
+theorem decWritesHyp_reply_rsp {P3Ok : S → Prop} (hA : P0.ArchTotal arI) {th : TypedHeap} {σ : Fl4Spec.State Unit} {G : MdbGhost}
     (tmoAny : ∀ (Ac : Set U64) (s : S) (t : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → t ∈ T →
       obj.Tcb.slot t layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl => obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄)
     (userOK : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → UserOK st T Cs Ω H U s)
@@ -415,13 +415,13 @@ theorem decWritesHyp_reply_rsp (hA : P0.ArchTotal arI) {th : TypedHeap} {σ : Fl
     (hB : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (hctT : ct ∈ T) (hnb : ¬ Blocked (L.mem s (P1.stA ct)))
     (hnr : L.mem s (P1.stA ct) ≠ sched.TS_BLOCKED_ON_REPLY)
-    (hUO : UserOK st T Cs Ω H U s) (hE : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (hr : r ∈ Rp)
-    (hD : KWDom (L := L) T Cs Sg Scs Z (EH H) s)
+    (hUO : UserOK st T Cs Ω H U s) (hE : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (hr : r ∈ Rp)
+    (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) (hD : KWDom (L := L) T Cs Sg Scs Z (EH H) s)
     (hTk : ∀ y ∈ T, y.val + 4096 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ y.val)
     (hka : (L.ksb s).val % 8 = 0) (hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64) :
     DecWritesHyp (L := L) arI s ar lbl length slot (.Reply r g) blk call don fp buf extra :=
   decWritesHyp_reply arI s ar lbl length slot r g blk call don fp buf extra hB ct hct hctT hnb hnr hUO hE hr
-    (fun s1 f => ⟨σ, G, hR.of_writes f fun _ hb => rsw_of_kw hb⟩)
+    (fun s1 f => ⟨σ, G, hR.of_writes f fun _ hb => rsw_of_kw hb⟩) (fun _ f => hG.foot f)
     (replyFootP1_rsp arI hA th tmoAny userOK ct r g) hD hTk hka hkf
 
 end

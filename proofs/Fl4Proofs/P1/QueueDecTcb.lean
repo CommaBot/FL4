@@ -14,6 +14,7 @@ open fl4_core Fl4Proofs.P0.Consts
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
+variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {U : Set U64}
 
 /-- **The per-label shape**: `tcb.decode` with the label `lbl` on a thread
@@ -755,10 +756,11 @@ theorem tcb.reply_words.xs {Q : U64 → U64 → List U64} {R : U64 → List U64}
 
 set_option maxHeartbeats 4000000 in
 /-- **`GetBreakpoint`** after the stall, the reply's buffer from `XferHyps`. -/
-theorem tcb.decode_get_breakpoint.dec {A : Type _} (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
+theorem tcb.decode_get_breakpoint.dec {A : Type _} (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     {s s1 : S} {a1 : A} {t len buf : U64} {call : Bool}
     {slot : obj.Slot} {extra : Aeneas.Std.Array obj.Slot 3#usize}
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (hE : EntAt st P3Ok s)
+    (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
     (do
       let (r, s2) ← tcb.decode_get_breakpoint st s1 t { length := len, buf, call, slot, extra }
       ok (r, s2, a1)) ⦃ r s' _ => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
@@ -788,7 +790,7 @@ theorem tcb.decode_get_breakpoint.dec {A : Type _} (E : XferHyps st T Cs Ω H Sg
     exact (WP.spec_ok _).2 (Cur0.post c1)
   simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
   refine WP.spec_bind (tcb.restart_caller.blk (Es := ∅) s1 h1.bxi.blk (est ▸ hr.1) (est ▸ hr.2)) ?_
-  rintro s2 ⟨h2, -, est2, k⟩
+  rintro s2 ⟨h2, f2, est2, k⟩
   rw [h1.cur] at est2 k
   refine WP.spec_bind (P0.debug.get_breakpoint.p0 st s2 t bp hS) fun r1 _ => ?_
   have hU2 : UserOK st T Cs Ω H U s2 := D.user.ksb (k.ksb.trans h1.node.1)
@@ -799,11 +801,12 @@ theorem tcb.decode_get_breakpoint.dec {A : Type _} (E : XferHyps st T Cs Ω H Sg
         ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s4)) ⦃ r =>
           DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2 ⦄ := fun s3 x3 => by
     have hst : L.mem s3 (stA (L.curW s)) = sched.TS_RESTART := by
-      rw [stA_eq, x3.2.2.2.2.2.1 _ hct _ (by simp) (by simp) (by simp), ← stA_eq, est2]
+      rw [stA_eq, x3.fr.2.2.2.2.1 _ hct _ (by simp) (by simp) (by simp), ← stA_eq, est2]
     refine WP.spec_bind (sched.set_thread_state.running_bxi x3.bxi hct hst) fun s4 h4 => ?_
     exact (WP.spec_ok _).2 (DecPost.ok_bxi h4)
   split
-  · refine WP.spec_bind (E.buf _ _ _ _ s2 (L.curW s) x2.1 hct) fun b hb => ?_
+  · refine WP.spec_bind (E.buf _ _ _ _ s2 (L.curW s)
+    ⟨s, hE, Cur0W.trans c1.fr (Foot.cur0w f2 (Set.empty_subset _))⟩ x2.1 hct) fun b hb => ?_
     refine WP.spec_bind (msg.set_mr.xs x2 hct hb (by simp)) ?_
     rintro ⟨_, sa⟩ ⟨xa, -⟩
     try simp only [uncurry_apply_pair]

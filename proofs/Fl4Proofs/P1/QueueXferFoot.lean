@@ -51,11 +51,14 @@ def XSF (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Hea
       ∀ s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (fun b => XferRegW T U b ∨ ∃ c ∈ Scs, InSC c (Z c) b) →
         RS s0 s2)
 
-variable {U X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {RS : S → S → Prop}
+variable {U X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {RS : S → S → Prop} {P3Ok : S → Prop}
   {RD : S → U64 → Prop}
 
 theorem XSF.xs {s0 s : S} (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s) :
-    XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s := ⟨h.1, h.2.1⟩
+    XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s :=
+  ⟨h.1, h.2.1, h.2.2.1.mono fun _ hb => by
+    rcases hb with hb | hb | hb
+    exacts [Or.inl hb, Or.inr (Or.inl hb.1), Or.inr (Or.inr hb)]⟩
 
 theorem XSF.ksb {s0 s : S} (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s) : L.ksb s = L.ksb s0 :=
   h.2.1.2.2.2.2.2.2
@@ -71,7 +74,7 @@ theorem XSF.rs {s0 s : S} (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 
 theorem XSF.foot {s0 s s' : S} (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s)
     (hw : WritesIn st s s' (XferRegW T U)) : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s' := by
   have h' := XS.foot h.xs (hw.mono fun _ hb => hb.foot)
-  exact ⟨h'.1, h'.2, (h.2.2.1.trans hw).mono (fun b hb => hb.elim id fun hb => Or.inl hb.foot),
+  exact ⟨h'.1, h'.2.1, (h.2.2.1.trans hw).mono (fun b hb => hb.elim id fun hb => Or.inl hb.foot),
     h.2.2.2.2 _ _ h.rs (hw.mono fun b hb => Or.inl hb), h.2.2.2.2⟩
 
 /-- A write of cap-slot words apart from the kernel-global block's first 256 bytes. -/
@@ -79,7 +82,7 @@ theorem XSF.capw {s0 s s' : S} {B : U64 → Prop} (h : XSF st T Cs Ω H Sg Rp Sc
     (hw : WritesIn st s s' B) (hB : ∀ b, B b → CapW T Ω Sg b ∧ KG (L.ksb s0) b) (hrs : RS s0 s') :
     XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s' := by
   have h' := XS.capw h.xs hw fun b hb => (hB b hb).1
-  exact ⟨h'.1, h'.2, (h.2.2.1.trans hw).mono (fun b hb => hb.elim id fun hb => Or.inr (Or.inl (hB b hb))),
+  exact ⟨h'.1, h'.2.1, (h.2.2.1.trans hw).mono (fun b hb => hb.elim id fun hb => Or.inr (Or.inl (hB b hb))),
     hrs, h.2.2.2.2⟩
 
 /-- A write of an SC's `CONSUMED` word. -/
@@ -93,13 +96,9 @@ theorem XSF.consumed {s0 s : S} {c v : U64} (h : XSF st T Cs Ω H Sg Rp Scs Nt Z
   have hcv : layout.sc.CONSUMED.val = 8 := by simp [layout.sc.CONSUMED]
   have hal : Aligned (core.num.U64.wrapping_add c layout.sc.CONSUMED) := by unfold Aligned; rw [hv, hcv]; omega
   have hin : InSC c (Z c) (core.num.U64.wrapping_add c layout.sc.CONSUMED) := ⟨by rw [hv]; omega, by rw [hv]; omega⟩
-  exact ⟨h'.1, h'.2, (h.2.2.1.trans (writesIn_wr (v := v) hal)).mono (fun b hb =>
+  exact ⟨h'.1, h'.2.1, (h.2.2.1.trans (writesIn_wr (v := v) hal)).mono (fun b hb =>
     hb.elim id fun e => Or.inr (Or.inr ⟨c, hc, e ▸ hin⟩)),
     h.2.2.2.2 _ _ h.rs ((writesIn_wr (v := v) hal).mono fun b e => Or.inr ⟨c, hc, e ▸ hin⟩), h.2.2.2.2⟩
-
-/-- A spec of a computation that succeeds, with its result. -/
-theorem spec_eq' {α : Type} {m : Result α} {P : α → Prop} (h : m ⦃ P ⦄) : m ⦃ v => m = ok v ∧ P v ⦄ := by
-  cases m <;> simp_all [WP.spec_ok]
 
 /-- The slot `src` is one of the extra caps the transfer's sender looked up at
 the transfer's start `s0`. -/
@@ -247,9 +246,10 @@ theorem msg.copy_mrs.xsf {s0 s : S} {snd sb rcv rb n : U64} (h : XSF st T Cs Ω 
   rename_i h0 _
   exact msg.copy_mrs_loop1.xsf h1 hb h0
 
-theorem ipc.transfer_caps_loop.xsf (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (K : XferKG st T Cs Ω H Sg Rp Scs Nt Z U RS RD) {s0 s : S}
+theorem ipc.transfer_caps_loop.xsf (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (K : XferKG st T Cs Ω H Sg Rp Scs Nt Z U RS RD) {s0 s : S}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} {ep rb : U64} {out : msginfo.MessageInfo} {dest i : U64}
     (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s)
+    (hG : ∀ s', XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s' → XG st T Cs Ω H Sg Scs Z P3Ok s')
     (hx : ∀ sl ∈ extra.val, sl = 0#u64 ∨ CapW T Ω Sg sl) (hxp : ∀ sl ∈ extra.val, sl ≠ 0#u64 → ExtraFrom st T s0 sl)
     (hd : dest = 0#u64 ∨ (CapW T Ω Sg dest ∧ KG (L.ksb s0) dest ∧ RD s dest))
     (hb : BufOK U rb) (h0 : rb ≠ 0#u64) :
@@ -302,7 +302,7 @@ theorem ipc.transfer_caps_loop.xsf (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) 
           · exact (WP.spec_ok _).2 h1
           rename_i hb2f
           have hcn : c ≠ .Null := fun e => by subst e; simp [capability.Cap.is_null] at hb2; subst hb2; exact hb2f rfl
-          refine WP.spec_bind (WP.spec_and (E.ins _ _ _ _ s1 c slot d1 h1.1 hsw hdw.1)
+          refine WP.spec_bind (WP.spec_and (E.ins _ _ _ _ s1 c slot d1 (hG s1 h1) h1.1 hsw hdw.1)
             (K.ins _ _ _ _ s0 s1 slot d1 cap c h1.1 h1.rs hdw.2.2 hsx hcap hdc hcn hsw hdw.1 (by rw [h1.ksb]; exact hdw.2.1)))
             fun s2 ⟨hw2, hk2, hr2⟩ => ?_
           step
@@ -325,9 +325,10 @@ theorem ipc.transfer_caps_loop.xsf (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) 
     · exact (WP.spec_ok _).2 h1
   · exact ⟨h, hd⟩
 
-theorem ipc.transfer_caps.xsf (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (K : XferKG st T Cs Ω H Sg Rp Scs Nt Z U RS RD) {s0 s : S}
+theorem ipc.transfer_caps.xsf (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (K : XferKG st T Cs Ω H Sg Rp Scs Nt Z U RS RD) {s0 s : S}
     {info : msginfo.MessageInfo} {extra : Aeneas.Std.Array obj.Slot 3#usize} {ep rcv rb : U64}
     (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s) (hr : rcv ∈ T)
+    (hG : ∀ s', XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s' → XG st T Cs Ω H Sg Scs Z P3Ok s')
     (hx : ∀ sl ∈ extra.val, sl = 0#u64 ∨ CapW T Ω Sg sl) (hxp : ∀ sl ∈ extra.val, sl ≠ 0#u64 → ExtraFrom st T s0 sl)
     (hb : BufOK U rb) :
     ipc.transfer_caps st s info extra ep rcv rb ⦃ r => XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 r.2 ⦄ := by
@@ -341,7 +342,7 @@ theorem ipc.transfer_caps.xsf (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (K : 
   split
   · exact (WP.spec_ok _).2 h
   rename_i h0
-  refine WP.spec_bind (WP.spec_and (E.slot _ _ _ _ s rcv rb h.1 hr) (K.slot _ _ _ _ s0 s rcv rb h.1 h.rs hr))
+  refine WP.spec_bind (WP.spec_and (E.slot _ _ _ _ s rcv rb (hG s h) h.1 hr) (K.slot _ _ _ _ s0 s rcv rb h.1 h.rs hr))
     fun dest ⟨hd1, hd2⟩ => ?_
   have hd : dest = 0#u64 ∨ (CapW T Ω Sg dest ∧ KG (L.ksb s0) dest ∧ RD s dest) := by
     rcases hd1 with e | e
@@ -349,13 +350,14 @@ theorem ipc.transfer_caps.xsf (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (K : 
     · rcases hd2 with e' | e'
       · exact Or.inl e'
       · exact Or.inr ⟨e, by rw [← h.ksb]; exact e'.1, e'.2⟩
-  refine WP.spec_bind (ipc.transfer_caps_loop.xsf (out := out) (i := 0#u64) E K h hx hxp hd hb h0) ?_
+  refine WP.spec_bind (ipc.transfer_caps_loop.xsf (out := out) (i := 0#u64) E K h hG hx hxp hd hb h0) ?_
   rintro ⟨s2, o2, i⟩ h2
   exact (WP.spec_ok _).2 h2
 
-theorem ipc.do_normal_transfer.xsf (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (K : XferKG st T Cs Ω H Sg Rp Scs Nt Z U RS RD) {s0 : S}
+theorem ipc.do_normal_transfer.xsf (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (K : XferKG st T Cs Ω H Sg Rp Scs Nt Z U RS RD) {s0 : S}
     {snd sb ep badge rcv rb : U64} {grant : Bool}
-    (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s0) (hs : snd ∈ T) (hr : rcv ∈ T) (hb : BufOK U rb) :
+    (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s0) (hs : snd ∈ T) (hr : rcv ∈ T) (hb : BufOK U rb)
+    (hG : ∀ s', XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s' → XG st T Cs Ω H Sg Scs Z P3Ok s') :
     ipc.do_normal_transfer st s0 snd sb ep badge grant rcv rb ⦃ s' => XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
   unfold ipc.do_normal_transfer
@@ -367,7 +369,7 @@ theorem ipc.do_normal_transfer.xsf (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) 
   refine WP.spec_bind (Pₘ := fun e : Aeneas.Std.Array obj.Slot 3#usize => (∀ sl ∈ e.val, sl = 0#u64 ∨ CapW T Ω Sg sl) ∧
     ∀ sl ∈ e.val, sl ≠ 0#u64 → ExtraFrom st T s0 sl) ?_ fun extra ⟨hx, hxp⟩ => ?_
   · split
-    · refine WP.spec_bind (spec_eq' (E.extra _ _ _ _ s0 snd sb tag h.1 hs)) fun r ⟨hlk, hr'⟩ => ?_
+    · refine WP.spec_bind (spec_eq' (E.extra _ _ _ _ s0 snd sb tag (hG s0 h) h.1 hs)) fun r ⟨hlk, hr'⟩ => ?_
       rcases r with e | _
       · exact (WP.spec_ok _).2 ⟨hr' e rfl, fun sl hsl h0 => ⟨snd, hs, sb, tag, e, hlk, hsl, h0⟩⟩
       · exact (WP.spec_ok _).2 ⟨ipc.no_extra, noX⟩
@@ -376,7 +378,7 @@ theorem ipc.do_normal_transfer.xsf (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) 
   rintro ⟨n, s1⟩ h1
   simp only at h1
   try simp only [WP.uncurry'_pair]
-  refine WP.spec_bind (ipc.transfer_caps.xsf (info := tag) (ep := ep) E K h1 hr hx hxp hb) ?_
+  refine WP.spec_bind (ipc.transfer_caps.xsf (info := tag) (ep := ep) E K h1 hr hG hx hxp hb) ?_
   rintro ⟨out, s2⟩ h2
   simp only at h2
   try simp only [WP.uncurry'_pair]
@@ -607,29 +609,32 @@ theorem ipc.do_fault_transfer.xsf {A : Type _} {ar : machine.Arch A} (hA : P0.Ar
 /-- **The message transfer's footprint**: `do_ipc_transfer` writes in
 `XferW`. -/
 def XferFootOK (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
-    (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (RS : S → S → Prop) :
-    Prop :=
+    (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (RS : S → S → Prop)
+    (G : S → Prop) : Prop :=
   ∀ (Ac X : Set U64) (Q : U64 → U64 → List U64) (R : U64 → List U64) (s : S) (a : A) (snd ep badge : U64)
     (grant : Bool) (rcv : U64), snd ∈ T → rcv ∈ T →
     SchedQueuesInvX st T Cs Ω H X s Q R → BoundInv st T Ac s → XInv st T Cs Ω Sg Rp Scs Nt Z s →
-    SCsOK st T Ω Sg Scs Z Ac s → SgOK st Ω Sg s → UserOK st T Cs Ω H U s → RS s s →
+    SCsOK st T Ω Sg Scs Z Ac s → SgOK st Ω Sg s → UserOK st T Cs Ω H U s → RS s s → G s →
     ipc.do_ipc_transfer st ar s a snd ep badge grant rcv ⦃ s' =>
       WritesIn st s s' (XferW T U Ω Sg Scs Z (L.ksb s)) ∧ RS s s' ⦄
 
 /-- **The transfer's footprint, discharged** from `XferHyps` and `XferKG`. -/
-theorem xferFootOK_of {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
-    (K : XferKG st T Cs Ω H Sg Rp Scs Nt Z U RS RD) : XferFootOK st ar T Cs Ω H Sg Rp Scs Nt Z U RS := by
-  intro Ac X Q R s a snd ep badge grant rcv hs hr h hB hX hS hSg hU hrs
+theorem xferFootOK_of {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (K : XferKG st T Cs Ω H Sg Rp Scs Nt Z U RS RD) :
+    XferFootOK st ar T Cs Ω H Sg Rp Scs Nt Z U RS (XG st T Cs Ω H Sg Scs Z P3Ok) := by
+  intro Ac X Q R s a snd ep badge grant rcv hs hr h hB hX hS hSg hU hrs hG0
   have hP : P0.StoreTotal st := L.total
   have h0 : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s s := XSF.start ⟨h, hB, hX, hS, hSg, hU⟩ hrs (K.step s)
+  have hG : ∀ s', XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s s' → XG st T Cs Ω H Sg Scs Z P3Ok s' :=
+    fun s' h' => XG.xs hG0 h'.xs hU
   refine WP.spec_mono (P₀ := fun s' => XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s s') ?_
     fun s' h' => ⟨h'.2.2.1, h'.2.2.2.1⟩
   unfold ipc.do_ipc_transfer
-  refine WP.spec_bind (E.buf _ _ _ _ s rcv h0.1 hr) fun rb hb => ?_
+  refine WP.spec_bind (E.buf _ _ _ _ s rcv hG0 h0.1 hr) fun rb hb => ?_
   refine WP.spec_bind (P0.obj.Tcb.fault_type.p0 st snd s hP) fun ft _ => ?_
   split
   · refine WP.spec_bind (P0.msg.lookup_ipc_buffer.p0 st s false snd hP) fun sb _ => ?_
-    exact ipc.do_normal_transfer.xsf E K h0 hs hr hb
+    exact ipc.do_normal_transfer.xsf E K h0 hs hr hb hG
   · exact ipc.do_fault_transfer.xsf hA h0 hs hr hb
 
 end

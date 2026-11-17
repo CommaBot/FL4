@@ -111,14 +111,26 @@ theorem end_suff (hA : P0.ArchTotal ar) (s : S) (a : A) (Q : U64 → U64 → Lis
     · exact end_postpone s a Q R h hB hX hSg hS hc
   · exact end_postpone s a Q R h hB hX hSg hS hc
 
+/-- The words a budget check writes before a timeout fault, from its start
+`s0`: SC words and the current node's `CONSUMED`. -/
+def ChgW (st : machine.Store S) [L : LawfulStore st] (Scs : Set U64) (Z : U64 → Nat) (s0 : S) (b : U64) : Prop :=
+  (∃ c ∈ Scs, InSC c (Z c) b) ∨ b = L.nodeAt s0 (L.cpu s0) layout.node.CONSUMED
+
+/-- The timeout faults a budget check from `s0` raises keep the invariants
+(at states it reached writing `ChgW` words). -/
+def TmoK (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
+    (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (Ac : Set U64) (s0 : S) : Prop :=
+  ∀ (s : S) (a : A) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
+    SchedQueuesInv st T Cs Ω H s Q R → BoundInv st T Ac s → XInv st T Cs Ω Sg Rp Scs Nt Z s → SgOK st Ω Sg s →
+    SCsOK st T Ω Sg Scs Z Ac s → WritesIn st s0 s (ChgW st Scs Z s0) →
+    faults.handle_timeout st ar s a (L.curW s) f ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄
+
 /-- seL4 `endTimeslice`. -/
 theorem sched.end_timeslice.all (hA : P0.ArchTotal ar) (s : S) (a : A) (cto : Bool)
     (Q : U64 → U64 → List U64) (R : U64 → List U64)
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Scs Z Ac s) (hc : CurOK st T s)
-    (htmo : ∀ (s : S) (a : A) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
-      SchedQueuesInv st T Cs Ω H s Q R → BoundInv st T Ac s → XInv st T Cs Ω Sg Rp Scs Nt Z s → SgOK st Ω Sg s →
-      SCsOK st T Ω Sg Scs Z Ac s → faults.handle_timeout st ar s a (L.curW s) f ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄) :
+    (htmo : TmoK st ar T Cs Ω H Sg Rp Scs Nt Z Ac s) :
     sched.end_timeslice st ar s a cto ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   have E := end_suff hA s a Q R h hB hX hSg hS hc
   unfold sched.end_timeslice
@@ -138,7 +150,7 @@ theorem sched.end_timeslice.all (hA : P0.ArchTotal ar) (s : S) (a : A) (cto : Bo
     · exact E
     · split
       · step with P0.obj.Sc.badge.p0 st _ s L.total as ⟨badge⟩
-        exact htmo s a _ Q R h hB hX hSg hS
+        exact htmo s a _ Q R h hB hX hSg hS (WritesIn.refl _ _)
       · exact E
   · exact E
 
@@ -303,9 +315,7 @@ theorem sched.charge_budget.all (hA : P0.ArchTotal ar) (s : S) (a : A) (used : U
     (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Scs Z Ac s)
     (hcsc : L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s)))
     (hna : L.actionW s ≠ L.curW s) (hcA : L.cscW s ∈ Ac)
-    (htmo : ∀ (s : S) (a : A) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
-      SchedQueuesInv st T Cs Ω H s Q R → BoundInv st T Ac s → XInv st T Cs Ω Sg Rp Scs Nt Z s → SgOK st Ω Sg s →
-      SCsOK st T Ω Sg Scs Z Ac s → faults.handle_timeout st ar s a (L.curW s) f ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄) :
+    (htmo : TmoK st ar T Cs Ω H Sg Rp Scs Nt Z Ac s) :
     sched.charge_budget st ar s a used cto ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   have hcS : L.cscW s ∈ Scs := hX.2.2.cur
   have hcT0 : L.curW s ∈ T := h.curT
@@ -385,6 +395,18 @@ theorem sched.charge_budget.all (hA : P0.ArchTotal ar) (s : S) (a : A) (used : U
         out_ne_node (h2.omega _ c4) h2.cur hN2 (by rw [hco]; omega),
         out_ne_node (h2.omega _ c5) h2.cur hN2 (by rw [hco]; omega)⟩
   rw [← s3_post] at h3 hB3 hX3 hSg3 ea3 ec3 ecs3 f3 hS3
+  have W3 : WritesIn st s s3 (ChgW st Scs Z s) := by
+    obtain ⟨hP, hz⟩ := hX.1.sc _ hcS
+    obtain ⟨-, h128, -⟩ := sc_lo hP hz
+    have hv := sc_word_val hP hz (o := layout.sc.CONSUMED) (by simp [layout.sc.CONSUMED])
+    have hN2 := h2.nodes _ h2.cur
+    have wn : WritesIn st s2 s3 (fun b => b = L.nodeAt s2 (L.cpu s2) layout.node.CONSUMED) := by
+      rw [s3_post]; exact writesIn_wr (nodeAt_aligned hN2 (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]))
+    refine (w2.trans wn).mono fun b hb => ?_
+    rcases hb with (hh | rfl) | rfl
+    · exact Or.inl ⟨_, hcS, hh.inSC⟩
+    · exact Or.inl ⟨_, hcS, by rw [hv]; simp, by rw [hv]; simp [layout.sc.CONSUMED]; omega⟩
+    · exact Or.inr (by rw [nodeAt_of_ksb w2.1, w2.2.1])
   have K3 : CurK st s s3 := CurK.of h.tcbs hcT0 (ec3.trans ec2) ((f3 _ hcT0).1.trans (f2 _ hcT0).1)
     (Or.inl (ea3.trans ea2))
   step with sched.cur_thread.spec as ⟨ct, ct_post⟩
@@ -399,7 +421,11 @@ theorem sched.charge_budget.all (hA : P0.ArchTotal ar) (s : S) (a : A) (used : U
       rw [ec3, ec2, (f3 _ hcT).1, (f2 _ hcT).1]
     have hc : CurOK st T s3 := ⟨hrun, hbd, hrl, by
       rw [ecs3, ecs2, esc]; exact hcsc (by rw [← esc]; exact hbd), by rw [ea3, ea2, ec3, ec2]; exact hna, hrm⟩
-    refine WP.spec_bind (sched.end_timeslice.all hA s3 a cto Q R h3 hB3 hX3 hSg3 hS3 hc htmo) ?_
+    refine WP.spec_bind (sched.end_timeslice.all hA s3 a cto Q R h3 hB3 hX3 hSg3 hS3 hc fun s' a' f' Q' R' q' b' x' g' c' w' =>
+      htmo s' a' f' Q' R' q' b' x' g' c' ((W3.trans w').mono fun b hb => hb.elim id fun hb => by
+        rcases hb with hb | hb
+        · exact Or.inl hb
+        · exact Or.inr (by rw [hb, nodeAt_of_ksb W3.1, W3.2.1]))) ?_
     rintro ⟨s4, a1⟩ ⟨⟨Q4, R4, h4⟩, hB4, hX4, hSg4, hS4⟩
     try simp only [WP.uncurry'_pair]
     refine WP.spec_bind (sched.reschedule_required.sch s4 Q4 R4 h4 hB4 hSg4) ?_
@@ -418,9 +444,7 @@ theorem sched.check_budget.all (hA : P0.ArchTotal ar) (s : S) (a : A)
     (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Scs Z Ac s)
     (hcsc : L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s)))
     (hna : L.actionW s ≠ L.curW s) (hcA : L.cscW s ∈ Ac)
-    (htmo : ∀ (s : S) (a : A) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
-      SchedQueuesInv st T Cs Ω H s Q R → BoundInv st T Ac s → XInv st T Cs Ω Sg Rp Scs Nt Z s → SgOK st Ω Sg s →
-      SCsOK st T Ω Sg Scs Z Ac s → faults.handle_timeout st ar s a (L.curW s) f ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄) :
+    (htmo : TmoK st ar T Cs Ω H Sg Rp Scs Nt Z Ac s) :
     sched.check_budget st ar s a ⦃ r s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ (r = true → s' = s) ⦄ := by
   unfold sched.check_budget
   step with sched.cur_sc.spec as ⟨sc⟩
@@ -450,9 +474,7 @@ theorem sched.check_budget_restart.all (hA : P0.ArchTotal ar) (s : S) (a : A)
     (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Scs Z Ac s)
     (hcsc : L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s)))
     (hna : L.actionW s ≠ L.curW s) (hcA : L.cscW s ∈ Ac)
-    (htmo : ∀ (s : S) (a : A) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
-      SchedQueuesInv st T Cs Ω H s Q R → BoundInv st T Ac s → XInv st T Cs Ω Sg Rp Scs Nt Z s → SgOK st Ω Sg s →
-      SCsOK st T Ω Sg Scs Z Ac s → faults.handle_timeout st ar s a (L.curW s) f ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄) :
+    (htmo : TmoK st ar T Cs Ω H Sg Rp Scs Nt Z Ac s) :
     sched.check_budget_restart st ar s a ⦃ r s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ (r = true → s' = s) ⦄ := by
   unfold sched.check_budget_restart
   refine WP.spec_bind (sched.check_budget.all hA s a Q R h hB hX hSg hS hcsc hna hcA htmo) ?_
@@ -519,9 +541,7 @@ theorem syscall.mcs_preemption_point.all (hA : P0.ArchTotal ar) (s : S) (a : A)
     (hcsc : L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s)))
     (hna : L.actionW s ≠ L.curW s)
     (hcur : L.cscW s ∈ Ac ∨ L.mem s (scA (L.curW s)) = L.cscW s ∨ L.mem s (scA (L.curW s)) = 0#u64)
-    (htmo : ∀ (s : S) (a : A) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
-      SchedQueuesInv st T Cs Ω H s Q R → BoundInv st T Ac s → XInv st T Cs Ω Sg Rp Scs Nt Z s → SgOK st Ω Sg s →
-      SCsOK st T Ω Sg Scs Z Ac s → faults.handle_timeout st ar s a (L.curW s) f ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄) :
+    (htmo : TmoK st ar T Cs Ω H Sg Rp Scs Nt Z Ac s) :
     syscall.mcs_preemption_point st ar s a ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   unfold syscall.mcs_preemption_point
   step with sched.cur_thread.spec as ⟨ct, ct_post⟩
