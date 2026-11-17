@@ -880,8 +880,8 @@ theorem schedule_refinesWP {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4
     sched.schedule st ar s a ⦃ r => ∃ σ1 σ', Fires σ σ1 ∧ Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) ∧
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧ CurInv σ' ∧
       ActIdle σ' ∧ ∃ rf : S × A, Pf rf σ1 ∧ WritesIn st rf.1 r.1 (KFoot st T N C c rf.1 σ1) ∧
-      (RunM σ1 → ∃ σ3 : Fl4Spec.State Unit, RunW σ3 ∧
-        Fl4Spec.scAndTimer (Z := Unit) { σ3 with schedulerAction := .resumeCurThread } = ({((), σ')}, False)) ⦄ := by
+      ∃ σ3 : Fl4Spec.State Unit, OffOK σ3 ∧ (RunM σ1 → RunW σ3) ∧
+        Fl4Spec.scAndTimer (Z := Unit) { σ3 with schedulerAction := .resumeCurThread } = ({((), σ')}, False) ⦄ := by
   unfold sched.schedule
   refine WP.spec_bind (awaken_refinesW s a σ hfire) ?_
   rintro ⟨s1, a1⟩ ⟨σ1, σ2, hF, haw, hS2, hR2, hN2, ⟨hI2, hC2w, hO2, ⟨hA2, hId2⟩, hd2, hW2⟩, hcalm, hcn12, -,
@@ -937,8 +937,8 @@ theorem schedule_refinesWP {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4
           Fl4Spec.schedule (Z := Unit) σ1' = ({((), σ')}, False) ∧
           SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧ CurInv σ' ∧
           ActIdle σ' ∧ ∃ rf : S × A, Pf rf σ1' ∧ WritesIn st rf.1 r.1 (KFoot st T N C c rf.1 σ1') ∧
-          (RunM σ1' → ∃ σ3 : Fl4Spec.State Unit, RunW σ3 ∧
-            Fl4Spec.scAndTimer (Z := Unit) { σ3 with schedulerAction := .resumeCurThread } = ({((), σ')}, False)) ⦄ := by
+          ∃ σ3 : Fl4Spec.State Unit, OffOK σ3 ∧ (RunM σ1' → RunW σ3) ∧
+            Fl4Spec.scAndTimer (Z := Unit) { σ3 with schedulerAction := .resumeCurThread } = ({((), σ')}, False) ⦄ := by
     intro s3 a2 σ3 hS3 hR3 hN3 hI3 hnc hk3 hr3 hcs3 hcn3 htm3 hid3 hspec hw3 hrw3
     refine WP.spec_mono (tail_refines s3 a2 σ3 hS3 hR3 hN3 hI3 hnc
       (by rw [hcs3]; exact hcsc) (u0 := u0) (fun x n hx => hown0 x n (by rw [← hk3, ← hcs3]; exact hx))
@@ -948,7 +948,7 @@ theorem schedule_refinesWP {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4
     exact ⟨σ1, σ', hF, hspec σ' h', a1, a2, a3, a4, a5,
       a6 (IdleOK.of hId2 hid3 (by rw [hk3]) (fun hm => by rw [hr3] at hm; exact hm)), rf, hPf,
       WritesIn.kfoot_trans (WritesIn.kfoot_of_sfoot (WritesIn.sfoot_trans hwA hw3))
-        (SzKeepC.of (SzKeep.of_kheap (hk3.trans hcalm.1))) a7, fun h => ⟨σ3, hrw3 h, h'⟩⟩
+        (SzKeepC.of (SzKeep.of_kheap (hk3.trans hcalm.1))) a7, σ3, hO2.of_eq hk3 hcs3 hcn3 htm3, hrw3, h'⟩
   step with sched.action.spec' as ⟨act, hact⟩
   rw [hc.cur] at hact
   subst hact

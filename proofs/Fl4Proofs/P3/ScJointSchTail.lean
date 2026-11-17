@@ -10,7 +10,7 @@ after FL4's `schedule`, `SchTailHyps`):
   yield and MCP words by `ScAll.of_k` (FL4's `KFoot` writes, l4v's
   `schedule` a `SchS` step), the placement facts by the `sch_*` lemmas,
   `CurOwnW` from `CurInv`, `CurRunW` from `schedule_refinesWP`'s new
-  thread (`RunW.scAndTimer`); the rest (`SchTailHyps`) given.
+  thread (`RunW.scAndTimer`), `OffOK` (`OffOK.scAndTimer`); the rest (`SchTailHyps`) given.
 * `jat_scheduleT`: `jat_schedule` with `hSchedRest` replaced by `JAtZ`
   after the timers (`hfireJ`) and `SchTailHyps` after `schedule`.
 -/
@@ -19,6 +19,7 @@ import Fl4Proofs.P3.ScJointStep
 import Fl4Proofs.P3.ScJointSched
 import Fl4Proofs.P3.ScSchedSpec
 import Fl4Proofs.P3.ScSchedRun
+import Fl4Proofs.P3.ScSchedOff
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -65,8 +66,8 @@ theorem JAtZ.sch_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
 /-- **The facts after FL4's `schedule` the tail does not derive** (module
 docstring): the VSpace current-thread relation and the arch CR3 (the arch
 switch), the node-0 debug word, the new current SC's heap object and
-liveness, the dead set's objects still dead, `OffOK`, `BlockedScActive`
-and P1's `BlkOK`. -/
+liveness, the dead set's objects still dead, `BlockedScActive` and P1's
+`BlkOK`. -/
 structure SchTailHyps (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (D : Set U64)
     (s : S) (s' : S) (a' : A) (σ' : Fl4Spec.State Unit) (Ac' : Set U64) : Prop where
   curOK : Vs.CurOK st Z.th s' σ'
@@ -76,7 +77,6 @@ structure SchTailHyps (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap
   cscH : H (L.cscW s') ≠ none
   cscLive : L.cscW s' ∉ D
   dead : ∀ q ∈ D, Sched.DeadP (L := L) H s' q
-  off : Sched.OffOK σ'
   bsa : Sched.BlockedScActive σ'
   blk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s'
@@ -90,7 +90,7 @@ theorem JAtZ.sch_tail {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (hsc : Fl4Spec.schedule (Z := Unit) σ = ({((), σ')}, False))
     (hw : P1.WritesIn st s s' (KFoot st Z.T Z.N Z.C Z.c s σ))
     (hS' : SchedRel st Z.N Z.T Z.C Z.c s' σ') (hR' : NtfnStateRel Z.N Z.T (L.mem s') σ') (hN' : NSC Z.N Z.C σ')
-    (hI' : Inv σ') (hC' : CurInv σ') (hA' : ActIdle σ') (hcr : CurRunW σ')
+    (hI' : Inv σ') (hC' : CurInv σ') (hA' : ActIdle σ') (hcr : CurRunW σ') (hoff : Sched.OffOK σ')
     (hT : SchTailHyps (L := L) AR Z H Cs D s s' a' σ' Ac') :
     ∃ Lst' : U64 → List U64, JAtZ (L := L) arI AR Z H Cs Ac' Lst' D s' a' σ' := by
   have hSch : SchS σ σ' := schs_schedule.of_eq hsc
@@ -106,7 +106,7 @@ theorem JAtZ.sch_tail {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   refine ⟨Lst', J.sch_frame hwT hK hX' hCR' hRF' hY' hM' (J.sch_buf hwT hK) hRP' (J.sch_apart hwT hK)
     (J.sch_jpl hwT hK) (J.sc_jcov hwT hT.dead fun q hq hn => absurd hq hn)
     (J.sch_kern hwT hK hS' hT.dbg hT.dwNe hT.cscH hT.cscLive) (J.sch_utc hwT hK hT.dbg) hN' hI' (Or.inr hC')
-    (Or.inl (curOwn_of_curInv hS' hI' hC')) hT.off hA' hT.bsa (Or.inr hcr) hT.blk⟩
+    (Or.inl (curOwn_of_curInv hS' hI' hC')) hoff hA' hT.bsa (Or.inr hcr) hT.blk⟩
 
 /-- **The entry tail on `JAt`** with `hSchedRest` discharged (module
 docstring): `JAtZ` after the TCB timers (`hfireJ`, with `FireHypW`'s
@@ -134,8 +134,9 @@ theorem jat_scheduleT {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     s a σ hS hR J.nsc hnd hfireJ hA hsni hsend hT) hTail) ?_
   rintro r ⟨⟨σ1, σ', hF, hsc, hS', hR', hN', hI', hC', hA', rf, ⟨Ac1, Lst1, D1, J1⟩, hw, hrun⟩, hRest⟩
   obtain ⟨Ac', hTl⟩ := hRest rf σ1 σ' D1 hF hsc hw hS' hI' hC' hA'
-  obtain ⟨σ3, hr3, he3⟩ := hrun J1.curRun
-  obtain ⟨Lst', J'⟩ := J1.sch_tail hsc hw hS' hR' hN' hI' hC' hA' (RunW.scAndTimer hr3 he3) hTl
+  obtain ⟨σ3, ho3, hr3, he3⟩ := hrun
+  obtain ⟨Lst', J'⟩ := J1.sch_tail hsc hw hS' hR' hN' hI' hC' hA' (RunW.scAndTimer (hr3 J1.curRun) he3)
+    (OffOK.scAndTimer ho3 he3) hTl
   exact ⟨σ', Ac', Lst', D1, J', hC'⟩
 
 end
