@@ -15,9 +15,6 @@ conjunction of facts `JAtZ` already carries gets a producer here:
 * `ScFinPreX` (`JAtZ.scFinPreX`) from the narrower `ScCapJ` [J] (the SC cap's
   object exists in the spec, is not the idle SC, and its bound thread is not
   the idle thread: what `JAtZ` lacks);
-* the TCB leaves' state facts `SuspendOK`, `ResumeOK`, `SetPrioOK` (the
-  last at an entered state) at a `JAtZ` state (`JAtZ.suspendOK`,
-  `resumeOK`, `setPrioOK`; their consumers ask them at every `IRel` state);
 * the vtable-ASID premise `hVt` of `jat_scheduleT2` / `jat_scheduleF` /
   `jat_scheduleS` from the narrower `VtAsidJ` [J] (`hVt_ofT2`, `hVt_ofF`):
   its first half (the sets' TCBs in the typed heap) is `JAtZ.thOfT`.
@@ -158,21 +155,6 @@ theorem JAtZ.qsortedN (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : QSorte
   have hI := J.xtop.irelK J.ks J.buf
   have hQ := Sched.qSorted_of_spec (L := L) hI.1.toE hI.1.toN J.ip.e.tcb J.isorted
   exact fun n hn => hQ n (Or.inr hn)
-
-/-- **`SuspendOK` from `JAtZ`**. -/
-theorem JAtZ.suspendOK (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : SuspendOK st Z s σ :=
-  ⟨J.removeTcbOK, J.yld⟩
-
-/-- **`ResumeOK` from `JAtZ`**. -/
-theorem JAtZ.resumeOK (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : ResumeOK st Z s σ :=
-  ⟨J.removeTcbOK, J.inv.actReady⟩
-
-/-- **`SetPrioOK` from `JAtZ`** at an entered state (no reschedule pending,
-so `CurInv`: the current thread is not in the release queue). -/
-theorem JAtZ.setPrioOK (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) (p : U64) :
-    SetPrioOK st Z p s σ := by
-  have hC : CurInv σ := J.cur.resolve_left fun h => by rw [hni.2] at h; cases h
-  exact ⟨fun h => by rw [← h]; exact hC.notRel, J.sv, J.inv, J.obj, J.qsortedE, J.qsortedN⟩
 
 /-! ## The vtable-ASID premise of `jat_schedule*` -/
 
