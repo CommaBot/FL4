@@ -271,9 +271,9 @@ def cancelSt : Fl4Spec.ThreadState → Fl4Spec.ThreadState
   | .blockedOnReply _ => .inactive
   | ts => ts
 
-/-- **`reply_remove_tcb` on `IRel`** [W] (the Sc proofs'
-`reply_remove_tcb_sc_refines` with `reply_unlink_irel`, to come): from a
-thread blocked on a reply. -/
+/-- **`reply_remove_tcb` on `IRel`**: from a thread blocked on a reply.
+Proved from `RemoveTcbOK` by IpcRemoveTcb's `removeTcbHyp_of` (the Sc
+proofs' `reply_remove_tcb_sc_refines` with `reply_unlink_irel`). -/
 def RemoveTcbHyp (st : machine.Store S) [L : LawfulStore st] (th : TypedHeap) (cr : Fl4Spec.Cr3)
     (N T C E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (c : U64) : Prop :=
   ∀ (s : S) (σ : Fl4Spec.State Unit) (t : U64) (x : Fl4Spec.Tcb) (r : Fl4Spec.ObjRef),
@@ -284,7 +284,7 @@ def RemoveTcbHyp (st : machine.Store S) [L : LawfulStore st] (th : TypedHeap) (c
 set_option maxHeartbeats 8000000 in
 /-- **`cancel_ipc` on `IRel`**, in every thread state. Named: `SchedValid`,
 `ObjCover`, `Inv` [J] (the blocked thread in its queue, the queue object
-tracked, `RelIfBound`); `RemoveTcbHyp` [W]. -/
+tracked, `RelIfBound`); `RemoveTcbHyp` (IpcRemoveTcb's `removeTcbHyp_of`). -/
 theorem cancel_ipc_irel (hP0 : IPlaced N T E R B) (hRT : RemoveTcbHyp st th cr N T C E R B c)
     (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hX : IRel st th cr N T C E R B c s σ) {t : U64} (ht : t ∈ T) {x : Fl4Spec.Tcb}
