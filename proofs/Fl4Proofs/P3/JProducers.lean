@@ -8,10 +8,10 @@ conjunction of facts `JAtZ` already carries gets a producer here:
   `JPlaced.typed` and `JAtZ.hset`, the CSpace relation's `CapValid` with
   `JAtZ.thT`), and the sets' TCBs are the typed heap's (`JAtZ.thOfT`:
   `JPlaced.tcb` with `JAtZ.zH`);
-* `NtfnFinPre` (`JAtZ.ntfnFinPre`) and `EpFinPre` (`JAtZ.epFinPre`) in full;
-* `ReplyFinPre` (`JAtZ.replyFinPre`) and `ThreadFinPre`
-  (`JAtZ.threadFinPre`) but for their "at every `IRel` state" parts, which
-  are not state facts;
+* `NtfnFinPre` (`JAtZ.ntfnFinPre`), `EpFinPre` (`JAtZ.epFinPre`) and
+  `ThreadFinPre` (`JAtZ.threadFinPre`) in full;
+* `ReplyFinPre` (`JAtZ.replyFinPre`) but for its "at every `IRel` state"
+  parts, which are not state facts;
 * `ScFinPreX` (`JAtZ.scFinPreX`) from the narrower `ScCapJ` [J] (the SC cap's
   object exists in the spec, is not the idle SC, and its bound thread is not
   the idle thread: what `JAtZ` lacks);
@@ -108,13 +108,14 @@ theorem JAtZ.replyFinPre (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   ⟨J.buf, J.ip, hD, hB, J.sv, J.obj, J.inv, fun _ _ xr t hk ht => J.sv.replyTcb _ xr t hk ht,
     fun _ _ _ hA hc => J.slotR hA hc⟩
 
-/-- **`ThreadFinPre` from `JAtZ`**, but for its two parts quantified over
-every `IRel` state (`RemoveTcbHyp`, `YieldRel` there). -/
-theorem JAtZ.threadFinPre (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hRT : ∀ cr, RemoveTcbHyp st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c)
-    (hY : ∀ cr s' σ', IRel st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → YieldRel Z.T Z.C (L.mem s') σ') :
-    ThreadFinPre (L := L) Cs Z s σ :=
-  ⟨J.ks, J.buf, J.nk, J.ip, J.sv, J.obj, J.inv, J.nsc, J.otherTmOK, hRT, hY⟩
+/-- **`ThreadFinPre` from `JAtZ`**: `RemoveTcbOK`, the yield relation and
+P1's `BlkOK` (over `Z.T`, `JAtZ.tcbs_eq`) are fields of `JAtZ`. -/
+theorem JAtZ.threadFinPre (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    ThreadFinPre (L := L) Cs Z s σ := by
+  have hB := J.blk
+  rw [← J.tcbs_eq.1] at hB
+  exact ⟨J.ks, J.buf, J.nk, J.ip, J.sv, J.obj, J.inv, J.nsc, J.otherTmOK, J.removeTcbOK, J.yld,
+    _, _, _, _, _, _, _, _, _, hB⟩
 
 /-- **[J] What `JAtZ` lacks of `ScFinPreX`**: an SC cap in a slot names an
 SC of the spec (l4v `valid_cap`), not the idle SC (l4v

@@ -8,7 +8,7 @@ thread bound to no VCPU: P1's `ThreadObj`), `unbind_notification`
 (`bound_wr_irel`), the timer-tree removal (`XTopAt.tmStep`, the
 `REPROGRAM` word kept), `unbind_from_sc` (`unbind_tcb_refines` as an SC step,
 `xtop_sc_step`; the yielder's `complete_yield_to`, `ScYieldFinHyp`),
-`suspend` (`suspend_irel`), the debug-list removal, the FPU release; the
+`suspend` (`suspend_irelY`), the debug-list removal, the FPU release; the
 spec's `unbind_notification`, `unbind_from_sc`, `suspend`,
 `prepare_thread_delete`. The steps on `IRel` go back to `XTopAt` at the same
 sets by `IRel.xtopMv`; the slots and the kernel base are kept by P1's frame
@@ -17,8 +17,8 @@ gives `XTopAt` at `Z`'s ghost tree (`XTopAt.irel_same`).
 
 Named: `ThreadFinPre` [J] at the `XTopAt` states (`KsApart`, `BufWordRel`,
 the notifications apart from the kernel-global block, the IPC placement,
-`SchedValid`, `ObjCover`, `Inv`, `NSC`, `OtherTmOK`, `RemoveTcbHyp`, the
-yield relation on `IRel`); P1's
+`SchedValid`, `ObjCover`, `Inv`, `NSC`, `OtherTmOK`, `RemoveTcbOK`, the
+yield relation, P1's `BlkOK`); P1's
 `ThreadP1Hyp` and `ArchTotal`; `timer::remove`'s footprint [W] (P1's
 `timer.remove.tf`); `ScYieldFinHyp` [W]; the debug-list removal's
 footprint [W] (the TCBs' debug links and the core's `DEBUG_TCBS` word, P1's
@@ -26,7 +26,7 @@ footprint [W] (the TCBs' debug links and the core's `DEBUG_TCBS` word, P1's
 -/
 import Fl4Proofs.P3.XTopFinSc
 import Fl4Proofs.P3.XTopDbg
-import Fl4Proofs.P3.IpcSuspend
+import Fl4Proofs.P3.IpcSuspendJ
 import Fl4Proofs.P3.IpcSetPrioX
 import Fl4Proofs.P3.IpcSlotsSame
 open Aeneas Aeneas.Std Result
@@ -122,8 +122,8 @@ def ThreadFinPre (Cs : Set U64) (Z : XSets) (s : S) (σ : Fl4Spec.State Unit) : 
   (∀ n ∈ Z.N, n.val + 40 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val) ∧
   IPlaced Z.N Z.T Z.E Z.R Z.B ∧ SchedValid σ ∧ ObjCover Z.N Z.T Z.E Z.R Z.C σ ∧ Inv σ ∧ NSC Z.N Z.C σ ∧
   OtherTmOK (L := L) Z Cs s σ ∧
-  (∀ cr, RemoveTcbHyp st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c) ∧
-  (∀ cr s' σ', IRel st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → YieldRel Z.T Z.C (L.mem s') σ')
+  RemoveTcbOK st Z.N Z.T Z.C Z.E Z.R Z.c s σ ∧ YieldRel Z.T Z.C (L.mem s) σ ∧
+  ∃ (Cs' Ω Sg Rp Scs Nt Ac : Set U64) (H : P1.Heap) (Zb : U64 → Nat), P1.BlkOK st Z.T Cs' Ω H Sg Rp Scs Nt Zb Ac s
 
 set_option maxHeartbeats 16000000 in
 /-- **`XFinHyps.thread` holds** (module docstring). -/
@@ -216,9 +216,11 @@ theorem xFinThread_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (Cs : S
               (Fl4Spec.finaliseCap (Z := Unit) (.threadCap p.bv) true σ).1 ∧
             XTopAt (L := L) AR (Z.mv G V) r.2.1 r.2.2 σ' ⦄ := by
       intro s5 a5 σ5 G V hX5 he5
-      obtain ⟨hK5, hBW5, -, -, hSV5, hOC5, hInv5, -, -, hRT5, hYR5⟩ := hpre (Z.mv G V) s5 a5 σ5 rfl hX5
+      obtain ⟨hK5, hBW5, -, -, hSV5, hOC5, hInv5, -, -, hRT5, hYR5, _b1, _b2, _b3, _b4, _b5, _b6, _b7, _b8, _b9, hB5⟩ :=
+        hpre (Z.mv G V) s5 a5 σ5 rfl hX5
       have hI5 := hX5.irelK hK5 hBW5
-      refine WP.spec_bind (suspend_irel (ar := arI) hP0 (hRT5 _) s5 a5 σ5 hI5 hpZ hSV5 hOC5 hInv5 (hYR5 _)) ?_
+      refine WP.spec_bind (suspend_irelY (ar := arI) hP0 (removeTcbHypP_ok hP0) s5 a5 σ5 hI5 hpZ hSV5 hOC5 hInv5
+        (fun x hk => removeTcbOK_fault hP0 hI5 hpZ hk hRT5) hYR5 hB5) ?_
       rintro ⟨s6, a6⟩ ⟨ha6, σ6, he6, hI6⟩
       simp only at ha6
       subst ha6

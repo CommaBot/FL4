@@ -5,7 +5,7 @@ suspend, then, called, the source's registers into the caller's message
 words, the message info and `Running`) against l4v `invoke_tcb
 ReadRegisters` and the reply tail (`specTail`).
 
-The source's suspend on `IRel` (`suspend_irel`), back at `XTopAt`; the
+The source's suspend on `IRel` (`suspend_irelY`), back at `XTopAt`; the
 caller stays `Restart` (IpcStK's `st_suspend`). The badge, then the message
 words at VSpace's `RInv` (the spec's `set_mrs` state after the badge, as
 XTopReply's `replyStateB`): a register word by `regw_inv` (`rr_regw`), a

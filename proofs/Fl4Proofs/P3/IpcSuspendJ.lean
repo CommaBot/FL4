@@ -243,7 +243,7 @@ theorem yield_sfootI {s s' : S} (hT : TcbPlaced T) (hN : NodePlaced st T s c)
     exact nodeAt_ne_tfield hN ho hy hya (K := 3472#u64) (by decide) e
 
 set_option maxHeartbeats 8000000 in
-/-- **`suspend` on `IRel`, the yield-to relation carried** (`suspend_irel`
+/-- **`suspend` on `IRel`, the yield-to relation carried** (the retired `suspend_irel`
 re-scoped): `YieldRel` at the start, carried to `cancel_yield_to` across
 `cancel_ipc` (FL4: P1's `KeepT`, from `BlkOK`; the spec: `YK.yk_cancelIpc`),
 the restart PC, the dequeue and the release-queue removal (FL4: the
