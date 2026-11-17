@@ -12,8 +12,8 @@ closure** (`JStepHyps`, XTopJointStep), in the SC family's pattern
   `CurOwn`), `OffOK` (`OffOK.restart`), `ActIdle` (`ActIdle.updState`),
   `BlockedScActive` (`bk_restart`), the sorted IPC queues (`IpcSorted.tkw`), `CurRun`.
   The dead stay dead (`JAtZ.deadP_sc_step`: `ScTKw`, `LK ∅` by
-  `lkm_setThreadState`); the node-0 `DEBUG_TCBS` word kept (`set_thread_state_frame`).
-  Named (`RestartRest` [W], as `ScStepRest`'s): P1's `BlkOK` after.
+  `lkm_setThreadState`); the node-0 `DEBUG_TCBS` word kept (`set_thread_state_frame`);
+  P1's `BlkOK` after (`set_thread_state.restart_ok`).
 -/
 import Fl4Proofs.P3.XTopJointStep
 import Fl4Proofs.P3.ScJointRest
@@ -125,22 +125,16 @@ end Spec
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
-/-- **What the restart still owes** [W] (`ScStepRest`'s P1-supplied part):
-P1's `BlkOK` after (the node-0 `DEBUG_TCBS` word is kept: `set_thread_state`
-writes the TCB's state word and the scheduler-action word only, `JKern.dwNe`). -/
-def RestartRest (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s s1 : S) : Prop :=
-  ∃ (Ac' : Set U64),
-    P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
-      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s1
-
 set_option maxHeartbeats 8000000 in
-/-- **`JStepHyps.restart` from `RestartRest`** (module docstring). -/
+/-- **`JStepHyps.restart`** (module docstring): with no premise; P1's `BlkOK`
+after by `set_thread_state.restart_ok` (the current thread runnable, so
+neither blocked nor waiting for a reply), the node-0 `DEBUG_TCBS` word kept
+(`set_thread_state` writes the TCB's state word and the scheduler-action
+word only, `JKern.dwNe`). -/
 theorem jowes_restart {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (ct : U64) (x : Fl4Spec.Tcb) (s1 : S) (hcur : σ.curThread = ct.bv) (hk : σ.kheap ct.bv = some (.tcb x))
     (htcb : th ct = some .tcb) (hrun : Fl4Spec.runnable x.tcbState = true)
-    (hs1 : sched.set_thread_state st s ct sched.TS_RESTART = ok s1)
-    (hR : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → RestartRest (L := L) Z H Cs D s s1) :
+    (hs1 : sched.set_thread_state st s ct sched.TS_RESTART = ok s1) :
     JOwes (L := L) arI AR th s a σ s1 a
       (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) := by
   intro Z H Cs Ac Lst D hth J hX1
@@ -166,7 +160,19 @@ theorem jowes_restart {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s : S)
   obtain ⟨-, hY', hM', ⟨Lst', hCR', hRF'⟩, hRP', -⟩ :=
     ScAll.of_k hS J.rp J.yld J.mcp J.call J.rfree ⟨⟨hS1, hN1, hNsc, hI1⟩, hwK, hSOK⟩
   have hF : FK σ σ1 := (fk_setThreadState _ _).of_eq he1
-  obtain ⟨Ac', hBlk'⟩ := hR Z H Cs Ac Lst D hth J
+  have hBlk' : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s1 := by
+    obtain ⟨x', hk', hRt⟩ := J.xtop.ipc.tcb ct hT
+    rw [hk] at hk'; cases hk'
+    have hnbr : ¬ P1.BlockedR (L.mem s (P1.stA ct)) := fun hb => by
+      have hq := Sched.blockedR_queued hRt.st hb
+      cases hx : x.tcbState <;> simp_all [Fl4Spec.runnable, Fl4Spec.ipcQueuedThreadState]
+    have hTe : Z.T = P1.Heap.tcbs H := by
+      obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+      exact Set.ext fun t => ⟨fun h => J.zH.1 t h, fun h => J.thT t ((hJ.tcb t).2 h)⟩
+    rw [hTe] at hT
+    exact (P1.sched.set_thread_state.restart_ok (Es := ∅) J.blk hT (fun h => hnbr (Or.inl h))
+      (fun h => hnbr (Or.inr h)) hs1).1
   have hDbg : L.mem s1 (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) =
       L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) := by
     have hP := hX.rel.1
@@ -201,7 +207,7 @@ theorem jowes_restart {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s : S)
   have hDead : ∀ q ∈ D, DeadP (L := L) H s1 q := fun q hq =>
     J.deadP_sc_step hX1 hwT hK (fun p y e hy => by subst e; rw [hk] at hy; cases hy; exact hrun) hL hF hAI.1
       (fun h => h) (J.jcov.dead q hq)
-  refine ⟨Ac', Lst', D, ⟨hCR', hRF', hY', hM', J.sc_buf hwT hK, hRP', J.sc_apart hwT hK, J.sc_jpl hwT hK,
+  refine ⟨Ac, Lst', D, ⟨hCR', hRF', hY', hM', J.sc_buf hwT hK, hRP', J.sc_apart hwT hK, J.sc_jpl hwT hK,
     J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn), J.sc_kern hwT hK hF hX1 hDbg (fun _ h => h),
     J.sc_utc hwT hK hDbg, hNsc, hI1, hcur', curOwnW_updTcb J.own hk _, OffOK.restart J.off _, hAI, hB',
     J.isorted.tkw hK, Or.inl hCR'', hBlk'⟩⟩
