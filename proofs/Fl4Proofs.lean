@@ -140,6 +140,7 @@ import Fl4Proofs.P3.ScJoint
 import Fl4Proofs.P3.ScJointKeep
 import Fl4Proofs.P3.ScBsaOps
 import Fl4Proofs.P3.ScJointFrame
+import Fl4Proofs.P3.ScJointStep
 import Fl4Proofs.P3.SpecKSz
 import Fl4Proofs.P3.SpecFreeRet
 import Fl4Proofs.P3.SpecFreeRetJ

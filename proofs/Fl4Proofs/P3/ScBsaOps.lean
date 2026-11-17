@@ -160,26 +160,32 @@ theorem bka_setScTcb (q t : ObjRef) :
 
 /-! ## SC steps keeping the bound threads and making no SC inactive -/
 
-/-- Every SC of `σ'` was one of `σ` with the same size and bound thread, and
-inactive only if it was. -/
+/-- Every SC of `σ'` was one of `σ` with the same size and bound thread (or
+none), and inactive only if it was. -/
 def SKa (σ σ' : State Unit) : Prop :=
   ∀ p y n, σ'.kheap p = some (.schedContext y n) →
-    ∃ y0, σ.kheap p = some (.schedContext y0 n) ∧ y.scTcb = y0.scTcb ∧ (scActive y = false → scActive y0 = false)
+    ∃ y0, σ.kheap p = some (.schedContext y0 n) ∧ (y.scTcb = y0.scTcb ∨ y.scTcb = none) ∧
+      (scActive y = false → scActive y0 = false)
 
-theorem SKa.refl (σ : State Unit) : SKa σ σ := fun _ y _ h => ⟨y, h, rfl, id⟩
+theorem SKa.refl (σ : State Unit) : SKa σ σ := fun _ y _ h => ⟨y, h, Or.inl rfl, id⟩
 
 theorem SKa.trans {σ1 σ2 σ3 : State Unit} (h1 : SKa σ1 σ2) (h2 : SKa σ2 σ3) : SKa σ1 σ3 := by
   intro p y n h
   obtain ⟨y2, h2', e1, f1⟩ := h2 p y n h
   obtain ⟨y1, h1', e2, f2⟩ := h1 p y2 n h2'
-  exact ⟨y1, h1', e1.trans e2, fun ha => f2 (f1 ha)⟩
+  refine ⟨y1, h1', ?_, fun ha => f2 (f1 ha)⟩
+  rcases e1 with e1 | e1
+  · rcases e2 with e2 | e2
+    · exact Or.inl (e1.trans e2)
+    · exact Or.inr (e1.trans e2)
+  · exact Or.inr e1
 
 def SKaM {α : Type} (m : NonDet (State Unit) α) : Prop := ∀ σ x, x ∈ (m σ).1 → SKa σ x.2
 
 theorem skm_of {α : Type} {m : NonDet (State Unit) α} (hm : MaxK.MK m) : SKaM m := by
   intro σ x hx p y n hp
   obtain ⟨y0, hp0, e1, e2⟩ := hm σ x hx p y n hp
-  exact ⟨y0, hp0, e2, fun ha => by simpa [scActive, e1] using ha⟩
+  exact ⟨y0, hp0, Or.inl e2, fun ha => by simpa [scActive, e1] using ha⟩
 
 theorem skm_bind {α β : Type} {m : NonDet (State Unit) α} {g : α → NonDet (State Unit) β} (hm : SKaM m)
     (hg : ∀ a, SKaM (g a)) : SKaM (m >>= g) := by
@@ -205,15 +211,31 @@ theorem skm_refillMaxSet (q : ObjRef) (v : Nat) (hv : activeSc v = true) :
   · subst hpq
     simp only [Function.update_self, Option.some.injEq, KernelObject.schedContext.injEq] at hp
     obtain ⟨rfl, rfl⟩ := hp
-    exact ⟨y0, hk, rfl, fun h => by simp [scRefillMaxUpdate, scActive, hv] at h⟩
-  · simp only [Function.update_of_ne hpq] at hp; exact ⟨y, hp, rfl, id⟩
+    exact ⟨y0, hk, Or.inl rfl, fun h => by simp [scRefillMaxUpdate, scActive, hv] at h⟩
+  · simp only [Function.update_of_ne hpq] at hp; exact ⟨y, hp, Or.inl rfl, id⟩
 
 /-- **`NKT` and `SKaM` give `BKM`.** -/
 theorem bkm_of_sk {α : Type} {m : NonDet (State Unit) α} (hn : NKT m) (hs : SKaM m) : BKM m := by
   intro σ x hx
   refine ⟨(hn σ x hx).tcb_back, fun p y n hp ha => ?_⟩
   obtain ⟨y0, hp0, e1, e2⟩ := hs σ x hx p y n hp
-  exact ⟨y0, hp0, e2 ha, fun t e => Or.inl (e1 ▸ e)⟩
+  refine ⟨y0, hp0, e2 ha, fun t e => ?_⟩
+  rcases e1 with e1 | e1
+  · exact Or.inl (e1 ▸ e)
+  · rw [e1] at e; cases e
+
+/-- **An SC's bound thread cleared** (`SKaM`). -/
+theorem skm_setScTcbNone (q : ObjRef) : SKaM (setScObjRef (Z := Unit) scTcbUpdate q none) := by
+  intro σ x hx
+  obtain ⟨y0, n0, hk, e⟩ := MaxK.updSc_mem hx
+  rw [e]
+  intro p y n hp
+  by_cases hpq : p = q
+  · subst hpq
+    simp only [Function.update_self, Option.some.injEq, KernelObject.schedContext.injEq] at hp
+    obtain ⟨rfl, rfl⟩ := hp
+    exact ⟨y0, hk, Or.inr rfl, fun h => by simpa [scTcbUpdate, scActive] using h⟩
+  · simp only [Function.update_of_ne hpq] at hp; exact ⟨y, hp, Or.inl rfl, id⟩
 
 /-! ## Configure -/
 
@@ -235,6 +257,7 @@ macro "skm_step" : tactic => `(tactic| first
   | (with_reducible exact skm_refillNew _ _ _ _ (by assumption))
   | (with_reducible exact skm_refillNew _ _ _ _ (by decide))
   | (with_reducible exact skm_refillUpdate _ _ _ _ (by assumption))
+  | (with_reducible exact skm_setScTcbNone _)
   | (with_reducible refine skm_bind ?_ (fun _ => ?_))
   | (with_reducible apply skm_when)
   | (with_reducible apply skm_ite)
@@ -519,6 +542,58 @@ theorem pres_schedContextDonate (f : Bool × Bool) (q t : ObjRef) : Pres f (sche
 theorem bsa_donate {σ σ' : State Unit} (hB : BlockedScActive σ) {q t : ObjRef} (hok : ScBindOK q t σ)
     (h : ((), σ') ∈ (schedContextDonate (Z := Unit) q t σ).1) : BlockedScActive σ' :=
   hB.bk (bka_schedContextDonate q t σ hok _ h) (f1 := true) (pres_schedContextDonate (true, true) _ _ σ _ h)
+
+/-! ## The SchedContext invocations -/
+
+theorem bk_of_tk_sk {P : ObjRef → Prop} {σ σ' : State Unit} (hK : ScTKw P σ σ') (hs : SKa σ σ') : BK σ σ' := by
+  refine ⟨hK.tcb_back, fun p y n hp ha => ?_⟩
+  obtain ⟨y0, hp0, e1, e2⟩ := hs p y n hp
+  refine ⟨y0, hp0, e2 ha, fun t e => ?_⟩
+  rcases e1 with e1 | e1
+  · exact Or.inl (e1 ▸ e)
+  · rw [e1] at e; cases e
+
+set_option maxHeartbeats 1000000 in
+theorem skm_unbindTcb (q : ObjRef) : SKaM (schedContextUnbindTcb (Z := Unit) q) := by
+  unfold schedContextUnbindTcb; repeat' skm_step
+theorem skm_bindNtfn (q n : ObjRef) : SKaM (schedContextBindNtfn (Z := Unit) q n) := by
+  unfold schedContextBindNtfn; repeat' skm_step
+theorem skm_unbindNtfn (q : ObjRef) : SKaM (schedContextUnbindNtfn (Z := Unit) q) := by
+  unfold schedContextUnbindNtfn; repeat' skm_step
+set_option maxHeartbeats 2000000 in
+theorem skm_yieldTo (q : ObjRef) : SKaM (schedContextYieldTo (Z := Unit) q) := by
+  unfold schedContextYieldTo completeYieldTo setConsumed schedContextCancelYieldTo returnConsumed replyFromKernel
+  repeat' skm_step
+
+/-- **`BK` across a SchedContext invocation** of Bind, UnbindObject or
+YieldTo (an `ScTKw` step), Bind of a TCB from a state allowing it. -/
+theorem bk_invokeSchedContext {P : ObjRef → Prop} {σ0 σ1 : State Unit} {inv : SchedContextInvocation}
+    {data : List Data} (hm : (data, σ1) ∈ (invokeSchedContext (Z := Unit) inv σ0).1) (hK : ScTKw P σ0 σ1)
+    (hinv : (∃ q cap, inv = .invokeSchedContextBind q cap) ∨ (∃ q cap, inv = .invokeSchedContextUnbindObject q cap) ∨
+      (∃ q, inv = .invokeSchedContextYieldTo q))
+    (hbind : ∀ q t, inv = .invokeSchedContextBind q (.threadCap t) → ScBindOK q t σ0) : BK σ0 σ1 := by
+  have sk : ∀ {m : NonDet (State Unit) Unit}, SKaM m → (data, σ1) ∈ ((m >>= fun _ => pure ([] : List Data)) σ0).1 →
+      BK σ0 σ1 := fun h hx => by
+    obtain ⟨y, hy, hx⟩ := hx
+    have e : σ1 = y.2 := congrArg Prod.snd (Set.mem_singleton_iff.1 hx)
+    subst e
+    exact bk_of_tk_sk hK (h σ0 y hy)
+  rcases hinv with ⟨q, cap, rfl⟩ | ⟨q, cap, rfl⟩ | ⟨q, rfl⟩
+  · unfold invokeSchedContext at hm
+    cases cap
+    case threadCap t =>
+      obtain ⟨y, hy, hx⟩ := hm
+      have e : σ1 = y.2 := congrArg Prod.snd (Set.mem_singleton_iff.1 hx)
+      subst e
+      exact bka_schedContextBindTcb q t σ0 (hbind q t rfl) y hy
+    case notificationCap n b r => exact sk (skm_bindNtfn q n) hm
+    all_goals exact hm.elim
+  · unfold invokeSchedContext at hm
+    cases cap
+    case threadCap t => exact sk (skm_unbindTcb q) hm
+    case notificationCap n b r => exact sk (skm_unbindNtfn q) hm
+    all_goals exact hm.elim
+  · exact bk_of_tk_sk hK (skm_yieldTo q σ0 _ hm)
 
 end
 
