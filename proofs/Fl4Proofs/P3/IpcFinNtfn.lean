@@ -42,7 +42,7 @@ theorem unbind_maybe_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State 
     (hX : IRel st th cr N T C E R B c s σ) {n : U64} (hn : n ∈ N) :
     notification.unbind_maybe_notification st s n ⦃ s' => ∃ σ',
       Fl4Spec.unbindMaybeNotification (Z := Unit) n.bv σ = ({((), σ')}, False) ∧
-      IRel st th cr N T C E R B c s' σ' ∧ IFrame (L := L) th s s' ⦄ := by
+      IRel st th cr N T C E R B c s' σ' ∧ IFrame (L := L) th s s' ∧ WritesIn st s s' (TSW T C) ⦄ := by
   obtain ⟨xn, hkn, -⟩ := hX.1.toN.ntfn n hn
   have hx := hX.1.toN.at_ntfn hn hkn
   have hg : Fl4Spec.getNtfnObjRef (Z := Unit) Fl4Spec.Notification.ntfnBoundTcb n.bv σ =
@@ -57,7 +57,7 @@ theorem unbind_maybe_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State 
   by_cases h0 : L.mem s (nBoundA n) = 0#u64
   · have hb' : b = true := by rw [hb, h0]; rfl
     simp only [hb', ↓reduceIte, WP.spec_ok]
-    refine ⟨σ, ?_, hX, IFrame.refl _ _⟩
+    refine ⟨σ, ?_, hX, IFrame.refl _ _, WritesIn.refl _ _⟩
     unfold Fl4Spec.unbindMaybeNotification
     rw [nd_bind_one hg, hx.bound, h0, Notif.optRef_zero]; rfl
   have hb' : b = false := by rw [hb]; simp [h0]
@@ -78,8 +78,9 @@ theorem unbind_maybe_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State 
   have hpa := hP0.e.tcb _ hiT
   have hta := (a_bound hpa).1
   have hbvp := val_bound hpa
-  refine ⟨_, ?_, hX2, IRel.iframe_of hX ((writesIn_wr (s := s) (v := 0#u64) hba).trans
-    (writesIn_wr (s := L.wr s (nBoundA n) 0#u64) (v := 0#u64) hta)) fun b hb => ?_⟩
+  have hw2 := (writesIn_wr (s := s) (v := 0#u64) hba).trans
+    (writesIn_wr (s := L.wr s (nBoundA n) 0#u64) (v := 0#u64) hta)
+  refine ⟨_, ?_, hX2, IRel.iframe_of hX hw2 fun b hb => ?_, hw2.mono fun b hb => ?_⟩
   · unfold Fl4Spec.unbindMaybeNotification
     rw [nd_bind_one hg, hx.bound, Notif.optRef_ne h0]
     show (Fl4Spec.setNtfnObjRef Fl4Spec.ntfnBoundTcbUpdate n.bv none >>= fun _ =>
@@ -89,7 +90,11 @@ theorem unbind_maybe_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State 
   · rcases hb with rfl | rfl
     · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨n, hn, by rw [hbv]; omega, by rw [hbv]; omega⟩)))))
     · have e : (P1.boundA (L.mem s (nBoundA n))).val = (L.mem s (nBoundA n)).val + 3368 := hbvp
-      exact Or.inr (Or.inr (Or.inl ⟨_, hiT, by rw [e]; omega, by rw [e]; omega⟩))
+      exact Or.inr (Or.inr (Or.inl ⟨_, hiT, by first | rw [e]; omega | rw [hbvp]; omega,
+        by first | rw [e]; omega | rw [hbvp]; omega⟩))
+  · rcases hb with rfl | rfl
+    · exact NWrite.tsw hX.2.2.1 (Or.inl ⟨n, hn, by rw [hbv]; omega, by rw [hbv]; omega⟩)
+    · exact tsw_tcb hX.2.2.1 hiT (K0 := 3368) hbvp (by omega) (by omega) (by omega) (by omega)
 
 
 set_option maxHeartbeats 4000000 in
@@ -100,7 +105,7 @@ theorem maybe_unbind_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State 
       ∃ y m, σ.kheap p = some (.schedContext y m) ∧ y.scNtfn = some n.bv) :
     schedcontext.maybe_unbind_ntfn st s n ⦃ s' => ∃ σ',
       Fl4Spec.schedContextMaybeUnbindNtfn (Z := Unit) n.bv σ = ({((), σ')}, False) ∧
-      IRel st th cr N T C E R B c s' σ' ∧ IFrame (L := L) th s s' ⦄ := by
+      IRel st th cr N T C E R B c s' σ' ∧ IFrame (L := L) th s s' ∧ WritesIn st s s' (TSW T C) ⦄ := by
   have hS := hX.2.2.1
   obtain ⟨xn, hkn, -⟩ := hX.1.toN.ntfn n hn
   have hx := hX.1.toN.at_ntfn hn hkn
@@ -116,7 +121,7 @@ theorem maybe_unbind_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State 
   · subst h0
     have hb' : b = true := by rw [hb]; rfl
     simp only [hb', ↓reduceIte, WP.spec_ok]
-    refine ⟨σ, ?_, hX, IFrame.refl _ _⟩
+    refine ⟨σ, ?_, hX, IFrame.refl _ _, WritesIn.refl _ _⟩
     unfold Fl4Spec.schedContextMaybeUnbindNtfn
     rw [nd_bind_one hg, hsc, Notif.optRef_zero]; rfl
   have hb' : b = false := by rw [hb]; simp [h0]
@@ -139,7 +144,7 @@ theorem maybe_unbind_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State 
     · exact KFoot.of_nw h
     · subst h; exact KFoot.of_sw hsw
   refine ⟨σ', ?_, tk_liftCW hP0 hX (hw.mono fun b hb => Or.inl (Or.inl (hkf b hb))) hK hS' hR',
-    IRel.iframe_of hX hw fun b hb => tfoot_oobj hS (Or.inl (hkf b hb))⟩
+    IRel.iframe_of hX hw fun b hb => tfoot_oobj hS (Or.inl (hkf b hb)), hw.mono fun b hb => KFoot.tsw hS (hkf b hb)⟩
   rw [← he]
   unfold Fl4Spec.schedContextMaybeUnbindNtfn Fl4Spec.schedContextUnbindNtfn
   rw [nd_bind_one hg, hsn, nd_bind_one hgy, hyn]
@@ -192,11 +197,11 @@ theorem xFinNtfn_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
   unfold objects.finalise_cap_object
   simp only [hfin, ↓reduceIte]
   refine WP.spec_bind (maybe_unbind_irel hP0 hI hp hNs (hlink p hp)) ?_
-  rintro s1 ⟨σ1, he1, hI1, hk1⟩
+  rintro s1 ⟨σ1, he1, hI1, hk1, -⟩
   refine WP.spec_bind (unbind_maybe_irel hP0 hI1 hp) ?_
-  rintro s2 ⟨σ2, he2, hI2, hk2⟩
+  rintro s2 ⟨σ2, he2, hI2, hk2, -⟩
   refine WP.spec_bind (cancel_all_signals_irel hP0 s2 σ2 hI2 hp (ntfnQPre_of_pre (hAct p hp) he1 he2)) ?_
-  rintro s3 ⟨σ3, hm3, hI3, hk3⟩
+  rintro s3 ⟨σ3, hm3, hI3, hk3, -⟩
   rw [WP.spec_ok]
   have hmem : ((absCap capability.Cap.Null, absCap capability.Cap.Null), σ3) ∈
       (Fl4Spec.finaliseCap (Z := Unit) (absCap (.Notification p b w r)) fin σ).1 := by
