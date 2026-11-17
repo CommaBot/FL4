@@ -247,7 +247,7 @@ there. -/
 theorem writeRegsXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ : Fl4Spec.State Unit} {ct p buf : U64}
     {args : List U64} {blk call don : Bool}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hJS : JStepHyps (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hJS : JStepHyps (L := L) arI AR Z.th)
     (hcur : σ.curThread = ct.bv) (hpT : p ∈ Z.T) (hctT : ct ∈ Z.T)
     (hbuf : buf ≠ 0#u64 → ∃ sp, BufMap Z.B buf sp)
     (hargs : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
@@ -256,7 +256,7 @@ theorem writeRegsXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     WriteRegsXHyp (L := L) arI AR s σ ct p buf args blk call don := by
   intro s1 σ1 flags n a hs1 hst hn ⟨Z', hX'⟩
   have hAR : AR a σ1.archState.x64CurrentCr3 := hX'.fin.1.1.2.2.2.2.2.2
-  obtain ⟨Ac', Lst', D', J'⟩ := jat_restart J hJS hcur hs1 hst
+  obtain ⟨Ac', Lst', D', J'⟩ := jat_restart J hni hJS hcur hs1 hst
   have hP0 := J.ip
   have hI := J'.xtop.irelK J'.ks J'.buf
   obtain ⟨x, hk, -⟩ := hI.1.tcb p hpT
@@ -298,11 +298,11 @@ after the caller's restart). Named: the target among the TCBs, the
 platform's `MIN_BUDGET` [P]. -/
 theorem resumeXLeafJD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit} {p : U64}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hJS : JStepHyps (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hJS : JStepHyps (L := L) arI AR Z.th)
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False)) (hpT : p ∈ Z.T)
     (hmb : sporadic.min_budget arI ar ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
     ResumeXLeaf (L := L) arI AR s ar σ σ1 p := by
-  refine xleaf_restartJ J hJS hst fun s1 Ac' Lst' D' J' _ hI1 => ?_
+  refine xleaf_restartJ J hni hJS hst fun s1 Ac' Lst' D' J' _ hI1 => ?_
   have hP0 := J.ip
   have hAR : AR ar σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2
   refine WP.spec_bind (restart_tcb_irelS (ar := arI) hP0 (removeTcbHypP_ok hP0) s1 ar σ1 hI1 hpT J'.sv J'.obj

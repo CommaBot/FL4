@@ -77,6 +77,9 @@ theorem Sched.NSC.cn {N C : Set U64} (hN : NSC N C σ) (h : HStep σ σ') : NSC 
 theorem CurRun.cn (hR : CurRun σ) (h : HStep σ σ') : CurRun σ' := fun x hx =>
   hR x (by rw [← h.ct]; exact h.tcb.1 hx)
 
+theorem CurRunW.cn (hR : CurRunW σ) (h : HStep σ σ') : CurRunW σ' :=
+  Or.imp (fun r => r.cn h) (fun e => by rw [h.ct, h.idle]; exact e) hR
+
 theorem Sched.ScLinkHyp.cn (hL : ScLinkHyp σ) (h : HStep σ σ') : ScLinkHyp σ' := by
   refine ⟨fun sc y k f hy hf => ?_, fun sc y k n hy hn => ?_, fun t x n ht hn => ?_, fun sc y k hy hs =>
     hL.scSpor sc y k (h.sc.1 hy) hs⟩
@@ -113,6 +116,9 @@ theorem Sched.CurOwn.cn {T : Set U64} (hO : CurOwn T σ) (h : HStep σ σ') : Cu
   refine ⟨u, hu, xt, h.tcb.2 hkt, by rw [h.csc]; exact hxs, fun y n hy => ?_, fun h0 hm => ?_⟩
   · rw [h.csc] at hy; exact hown y n (h.sc.1 hy)
   · rw [h.cons] at h0; rw [h.rel] at hm; exact hnr h0 hm
+
+theorem Sched.CurOwnW.cn {T C : Set U64} (hO : CurOwnW T C σ) (h : HStep σ σ') : CurOwnW T C σ' :=
+  hO.imp (fun o => o.cn h) h.csc fun y n hy => Or.inr ⟨y, h.sc.1 hy, rfl⟩
 
 theorem specRt_cn (h : HStep σ σ') {u scp : ObjRef} {x : Tcb} {y : SchedContext} {n : Nat}
     (hk : σ.kheap u = some (.tcb x)) (hsc : x.tcbSchedContext = some scp)

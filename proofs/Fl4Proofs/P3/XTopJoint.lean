@@ -141,11 +141,11 @@ theorem JAtZ.otherTmOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
 /-- **`TimerInsHyp` on `JAt`** (P1's `set_thread_state.restart_ok` and
 `timer.insert.foot` at `JAtZ.blk`; the current thread runnable, so neither
 blocked nor waiting for a reply). -/
-theorem JAtZ.timerIns {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.timerIns {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : σ.curThread ≠ σ.idleThread)
     {ct p : U64} (hct : sched.cur_thread st s = ok ct) (hp : p ∈ Z.T) :
     TimerInsHyp (L := L) Z.T Cs s ct p := by
   intro s1 d b hs1
-  obtain ⟨hcur, x, hk, hrun⟩ := J.curRunnable hct
+  obtain ⟨hcur, x, hk, hrun⟩ := J.curRunnable hni hct
   have hctT : ct ∈ Z.T := J.thT ct (J.xtop.curTcb hcur).1
   obtain ⟨x', hk', hR⟩ := J.xtop.ipc.tcb ct hctT
   rw [hk] at hk'; cases hk'
@@ -168,7 +168,7 @@ below 3 (`NativeScope`'s, [P]) and its facts at every `XTopAt` sets of the
 state ([global]: `KsApart`, `BufWordRel`, `IPlaced`, the switch target ready,
 the endpoint among the endpoints); the copies' extra caps (`ExtraRel2`). -/
 theorem decode_invocation_cnodeJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hG : CsGlobal (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hG : CsGlobal (L := L) arI AR Z.th)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = cnodeLabelOf lbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -190,10 +190,10 @@ theorem decode_invocation_cnodeJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length (cslotAddr sl) (.CNode p r gs g) blk call don fp buf extra
       slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
   have hX := J.xtop
-  obtain ⟨hcur, -, -, -⟩ := J.curRunnable hct
+  obtain ⟨hcur, -⟩ := J.curEq hct
   obtain ⟨hwf, hcv⟩ := slot_cap_wf hX hAs hsc
   obtain ⟨K, hK, hK6, hDE⟩ := J.delE
-  exact decode_invocation_cnodeX arI hARI.toMask s ar σ hX J.ks J.curRun J.thT (hG.delNtfn arI hARI hT) hG.fin hG.pre
+  exact decode_invocation_cnodeX arI hARI.toMask s ar σ hX J.ks (J.curRun.run hni) J.thT (hG.delNtfn arI hARI hT) hG.fin hG.pre
     (hG.postDel arI hARI hT) K hK hK6 hDE lbl slbl hlbl length buf ct hct args hlen hargs p r gs g hwf hcv extra x0
     x1 hx0 hx1 excaps hex J.kern.act hcur hrun
     (fun Z' hX' => let ⟨h1, h2, h3, h4⟩ := hZ Z' hX'
@@ -212,7 +212,7 @@ the core's `CUR_THREAD` word outside the objects); the IPC/Sc leaves
 [P]), SetFlags' FPU release (`FpuRelXHyp` [P]), ReadFPU's user-frame write (`FpuFrameXHyp`
 [W], `fpuFrameX_of`), SetTimer's footprint from P1's (`JAtZ.timerIns`, `JAtZ.otherTmOK`). -/
 theorem decode_invocation_threadJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hG : CsGlobal (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hG : CsGlobal (L := L) arI AR Z.th)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
     (hA : ∀ s a σ G, WX (L := L) AR Z.th s a σ G → Notif.ActReady σ)
     (hBT : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → BufWordRel Z'.T (L.mem s') σ')
@@ -253,22 +253,22 @@ theorem decode_invocation_threadJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf extra slbl
       (argsU.map UScalar.bv) ci sl excaps buffer ct := by
   have hX := J.xtop
-  obtain ⟨hcur, -, -, -⟩ := J.curRunnable hct
+  obtain ⟨hcur, -⟩ := J.curEq hct
   have hp : Z.th p = some .tcb := (slot_cap_wf hX hAs hsc).2
   have hpT := J.thT p hp
-  exact decode_invocation_threadXL arI s ar σ hX J.ks J.curRun J.thT J.del hG.fin hG.pre (hG.postDel arI hARI hT)
+  exact decode_invocation_threadXL arI s ar σ hX J.ks (J.curRun.run hni) J.thT J.del hG.fin hG.pre (hG.postDel arI hARI hT)
     J.bound hA hBT J.ip lbl length p hp blk call don fp buf extra ct hct hcur slbl hlbl argsU hlen hargs ci sl hAs
     excaps buffer hext hstall' hNative J.kern.act hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 J.mcp hcapT hcapC hC0
     hcapN (fun i hi => hA5 i (by omega)) hI
-    (tcbXOpen_of arI s ar σ hX J.ks J.curRun J.thT J.del hBT J.ip hOK hBC hBPl hFl lbl length p hp blk call don buf
+    (tcbXOpen_of arI s ar σ hX J.ks (J.curRun.run hni) J.thT J.del hBT J.ip hOK hBC hBPl hFl lbl length p hp blk call don buf
       extra ct hct hcur slbl hlbl argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act
       (fun i hi => hA5 i (by omega)) hGb hFpu
-      (tcbXOpen4_of arI s ar σ hX J.curRun J.thT J.del lbl length p hp blk call don buf extra ct hct hcur slbl hlbl
+      (tcbXOpen4_of arI s ar σ hX (J.curRun.run hni) J.thT J.del lbl length p hp blk call don buf extra ct hct hcur slbl hlbl
         (argsU.map UScalar.bv) ci sl excaps buffer hext hstall' J.kern.act hA5
-        (tcbXOpen3_of arI hARI.toARKeep s ar σ hX J.curRun J.thT J.del lbl length p hp blk call don buf extra ct hct
+        (tcbXOpen3_of arI hARI.toARKeep s ar σ hX (J.curRun.run hni) J.thT J.del lbl length p hp blk call don buf extra ct hct
           hcur slbl hlbl argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act x0 x1 x2 hx0 hXc hFr
-          (tcbXOpen1_of arI s ar σ hX J.ks J.curRun J.del lbl length p blk call don buf extra ct hct hcur slbl hlbl
-            argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act J.otherTmOK (J.timerIns arI hct hpT)))))
+          (tcbXOpen1_of arI s ar σ hX J.ks (J.curRun.run hni) J.del lbl length p blk call don buf extra ct hct hcur slbl hlbl
+            argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act J.otherTmOK (J.timerIns arI hni hct hpT)))))
 
 set_option maxHeartbeats 4000000 in
 /-- **The IRQ control cap on `JAt`** (`decode_invocation_irq_controlX`; the
@@ -277,7 +277,7 @@ mask and `mask_irq` derived): beyond `JAtZ`, the CSpace globals, the arch
 interface [P], `HandlersActive` [J], the IOAPIC relation (`ArchIrqRel` [P]),
 the scheduler-action word apart from the IRQ states, the invoked slot. -/
 theorem decode_invocation_irq_controlJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hG : CsGlobal (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hG : CsGlobal (L := L) arI AR Z.th)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
     (hHA : HandlersActive (L.mem s) (L.ksb s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : IrqCLabel lbl slbl)
@@ -296,11 +296,11 @@ theorem decode_invocation_irq_controlJAt (s : S) (ar : A) (σ : Fl4Spec.State Un
     XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length (cslotAddr (ps.bv, idxs)) .IrqControl blk call don fp buf
       extra slbl (args.map UScalar.bv) ci (ps.bv, idxs) excaps buffer ct := by
   have hX := J.xtop
-  obtain ⟨hcur, -, -, -⟩ := J.curRunnable hct
+  obtain ⟨hcur, -⟩ := J.curEq hct
   exact decode_invocation_irq_controlX arI hARI.toMask Z.th s ar σ Z.G
     (hG.lay Z s ar σ rfl hX).1 hHA lbl slbl hlbl hrm length buf ct
     hct args hlen hargs hcur J.kern.act hact2 extra x0 hx0 excaps hex hps hls hsrcC nA hnum hnA
-    (maskIrq_total arI hT) hAR rfl rfl hX J.ks J.curRun J.thT (hG.delNtfn arI hARI hT) blk call don fp ci buffer
+    (maskIrq_total arI hT) hAR rfl rfl hX J.ks (J.curRun.run hni) J.thT (hG.delNtfn arI hARI hT) blk call don fp ci buffer
 
 set_option maxHeartbeats 4000000 in
 /-- **The IO port control cap on `JAt`** (`decode_invocation_ioport_controlX`;
@@ -308,7 +308,7 @@ the CSpace relation, `FinInv`, `MdbOKV`, `IoRel`, the caller's TCB derived):
 beyond `JAtZ`, the CSpace globals, the arch interface [P], `IoPortsAlloc`
 [J], the scheduler-action word apart from the bitmap, the invoked slot. -/
 theorem decode_invocation_ioport_controlJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hG : CsGlobal (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hG : CsGlobal (L := L) arI AR Z.th)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
     (hPA : IoPortsAlloc (L.mem s) (L.ksb s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data)
@@ -325,11 +325,11 @@ theorem decode_invocation_ioport_controlJAt (s : S) (ar : A) (σ : Fl4Spec.State
     XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length (cslotAddr (ps.bv, idxs)) .IoPortControl blk call don fp buf
       extra slbl (args.map UScalar.bv) ci (ps.bv, idxs) excaps buffer ct := by
   have hX := J.xtop
-  obtain ⟨hcur, -, -, -⟩ := J.curRunnable hct
+  obtain ⟨hcur, -⟩ := J.curEq hct
   exact decode_invocation_ioport_controlX arI hARI.toMask Z.th s ar σ Z.G
     (hG.lay Z s ar σ rfl hX).2 hPA lbl slbl hlbl length buf ct
     hct args hlen hargs hcur J.kern.act hact3 extra x0 hx0 excaps hex hps hls hsrcC rfl rfl hX J.ks
-    J.curRun J.thT (hG.delNtfn arI hARI hT) blk call don fp ci buffer
+    (J.curRun.run hni) J.thT (hG.delNtfn arI hARI hT) blk call don fp ci buffer
 
 set_option maxHeartbeats 4000000 in
 /-- **An IO port cap on `JAt`** (`decode_invocation_ioportXT`; the port
@@ -337,7 +337,7 @@ range's bounds from the invoked cap's `CapWf`, `port_in`/`port_out` total
 from `ArchTotal`): beyond `JAtZ`, the CSpace globals, the arch interface
 [P], the value read (`PortInVal` [P]) when called. -/
 theorem decode_invocation_ioportJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hG : CsGlobal (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hG : CsGlobal (L := L) arI AR Z.th)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : PortLabel lbl slbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -351,7 +351,7 @@ theorem decode_invocation_ioportJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length (cslotAddr sl) (.IoPort first last 0#u64) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
   have hX := J.xtop
-  obtain ⟨hcur, -, -, -⟩ := J.curRunnable hct
+  obtain ⟨hcur, -⟩ := J.curEq hct
   obtain ⟨⟨-, hl, hfl⟩, -⟩ := slot_cap_wf hX hAs hsc
   have hin : ∀ (a : A) p z, ∃ v a', arI.port_in a p z = ok (v, a') := by
     intro a p z
@@ -362,7 +362,7 @@ theorem decode_invocation_ioportJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     obtain ⟨a', h, -⟩ := spec_exists (hT.port_out a p z d)
     exact ⟨a', h⟩
   exact decode_invocation_ioportXT arI hARI.toMask s ar σ lbl slbl hlbl length buf ct hct args hlen hargs hcur hX
-    J.kern.act first last hfl (by simpa using hl) call hin hout hval J.ks J.curRun J.thT (hG.delNtfn arI hARI hT)
+    J.kern.act first last hfl (by simpa using hl) call hin hout hval J.ks (J.curRun.run hni) J.thT (hG.delNtfn arI hARI hT)
     (cslotAddr sl) blk don fp extra ci sl excaps buffer
 
 set_option maxHeartbeats 4000000 in
@@ -374,7 +374,7 @@ interface [P], the CSpace-level deletion premises (`FinObjHyp`, `PostDelHyp`,
 extra cap, the domain schedule's placement and P1's deletion facts, the
 invoked slot. -/
 theorem decode_invocation_irq_handlerJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hG : CsGlobal (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hG : CsGlobal (L := L) arI AR Z.th)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
     (hO : FinObjHyp (L := L) arI Z.th) (hPD : PostDelHyp (L := L) arI Z.th) (hK : NtfnKeepHyp (L := L) arI Z.th)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = irqHLabelOf lbl)
@@ -390,11 +390,11 @@ theorem decode_invocation_irq_handlerJAt (s : S) (ar : A) (σ : Fl4Spec.State Un
     XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length (cslotAddr sl) (.IrqHandler irq) blk call don fp buf extra
       slbl args ci sl excaps buffer ct := by
   have hX := J.xtop
-  obtain ⟨hcur, -, -, -⟩ := J.curRunnable hct
+  obtain ⟨hcur, -⟩ := J.curEq hct
   have hirq : irq.val < 128 := (slot_cap_wf hX hAs hsc).1
   exact decode_invocation_irq_handlerX arI hARI.toMask Z.th hX.rel.1 hO hPD hK s ar σ Z.G J.dstate
     (hG.lay Z s ar σ rfl hX).1 hX.fin.1.1.2.2.2.1 lbl slbl hlbl ct hct hcur (hX.curTcb hcur).1 J.kern.act
-    (maskIrq_total arI hT) irq hirq hok extra x0 hx0 excaps hex hxn hX.rel.2.2.2.2.1 hD hP1 rfl hX J.ks J.curRun
+    (maskIrq_total arI hT) irq hirq hok extra x0 hx0 excaps hex hxn hX.rel.2.2.2.2.1 hD hP1 rfl hX J.ks (J.curRun.run hni)
     J.thT (hG.delNtfn arI hARI hT) length (cslotAddr sl) buf blk call don fp args ci sl buffer
 
 end

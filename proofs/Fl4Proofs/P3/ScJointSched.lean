@@ -28,7 +28,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 theorem JAtZ.schedPreW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0) : SchedPreW Z.T Z.C σ :=
-  ⟨J.inv, J.cur, J.off, J.act, hd, Or.inl J.own⟩
+  ⟨J.inv, J.cur, J.off, J.act, hd, J.own⟩
 
 /-- The hypothesis on FL4's TCB timers keeping `SchedPreW` (`FireHyp` from a
 mid-entry state). -/

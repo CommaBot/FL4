@@ -24,14 +24,14 @@ heap, the caller's IPC buffer valid (`IpcBufCapOK`, `BufCover`, `BufPlaced`)
 [global, as CSpace's]. -/
 theorem readRegsXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ : Fl4Spec.State Unit} {ct p : U64}
-    {blk call don : Bool} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hJS : JStepHyps (L := L) arI AR Z.th)
+    {blk call don : Bool} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hJS : JStepHyps (L := L) arI AR Z.th)
     (hcur : σ.curThread = ct.bv) (hpne : p ≠ ct) (hpT : p ∈ Z.T)
     (hZ : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
       Endp.IpcBufCapOK σ' ∧ Endp.BufCover Z'.T Z'.B σ' ∧ Vs.BufPlaced (L := L) Z'.N Z'.C Z'.B Z'.c s' σ') :
     ReadRegsXHyp (L := L) arI AR s σ ct p blk call don := by
   intro s1 σ1 flags n a hs1 hst ⟨Zx, hXx⟩
   have hAR : AR a σ1.archState.x64CurrentCr3 := hXx.fin.1.1.2.2.2.2.2.2
-  obtain ⟨Ac', Lst', D', J'⟩ := jat_restart J hJS hcur hs1 hst
+  obtain ⟨Ac', Lst', D', J'⟩ := jat_restart J hni hJS hcur hs1 hst
   have hP0 := J.ip
   have hX := J'.xtop
   have hI1 := J'.xtop.irelK J'.ks J'.buf
