@@ -122,7 +122,9 @@ variable (arI) in
 /-- **The fields of `JAtZ` a step re-establishes** (the per-kind and per-op
 named premises' conclusion): the call stacks, yield, MCP, buffer words,
 reply placement, slots apart, `JPlaced`, the dead set, `JKern`, the untyped
-caps' facts, the scheduler invariants, P1's `BlkOK`. -/
+caps' facts, the scheduler invariants (`CurInv` unless a reschedule is
+pending, `CurOwn`; `SchedValid` rebuilt, `schedValid_rebuild`), P1's
+`BlkOK`. -/
 structure JRest (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S)
     (σ : Fl4Spec.State Unit) : Prop where
   call : Sched.CallRel (L.mem s) Z.R Z.C σ Lst
@@ -139,11 +141,11 @@ structure JRest (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List 
     Sched.UtCapP3 (L := L) arI Z.th s σ Z.G sl p sb fi
   nsc : Sched.NSC Z.N Z.C σ
   inv : Sched.Inv σ
-  cur : Sched.CurInv σ
+  cur : σ.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ
+  own : Sched.CurOwn Z.T σ
   off : Sched.OffOK σ
   act : Sched.ActIdle σ
   bsa : Sched.BlockedScActive σ
-  sv : Sched.SchedValid σ
   slink : Sched.ScLinkHyp σ
   curRun : CurRun σ
   blk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
@@ -160,8 +162,9 @@ theorem JAtZ.cs_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     JAtZ (L := L) arI AR { Z with G := G' } H Cs Ac' Lst' D' s' a' σ' :=
   ⟨hX, R.call, R.rfree, R.yld, R.mcp, R.buf, by rw [hks]; exact J.ks, J.thT, J.ip, R.rp, R.apart,
     fun n hn => by rw [hks]; exact J.nk n hn, R.jpl, J.cover.kback hkb, J.obj.kback hkb, J.zH, hC.sfree, J.hset, R.jcov,
-    R.kern, hC.del, hC.ut, J.bound, hC.finM, R.utc, R.nsc, R.inv, Or.inr R.cur, Sched.curOwn_of_curInv hX.fin.1.1.1 R.inv R.cur, R.off, R.act, J.c0, R.bsa, R.sv, R.slink, R.curRun,
-    R.blk⟩
+    R.kern, hC.del, hC.ut, J.bound, hC.finM, R.utc, R.nsc, R.inv, R.cur, R.own, R.off, R.act, J.c0, R.bsa,
+    schedValid_rebuild hX J.tcbs_eq.1 J.tcbs_eq.2 (J.obj.kback hkb) R.blk J.hset.1 J.hset.2.1 R.call R.yld J.c0 R.inv
+      R.slink, R.slink, R.curRun, R.blk⟩
 
 /-- **The CSpace fields across a step keeping every slot and the objects'
 sizes** (module docstring). -/
@@ -570,13 +573,15 @@ theorem decode_invocation_threadJ_step (s : S) (ar : A) (σ : Fl4Spec.State Unit
     (hA5 : ArgRel (st := st) s σ ct buf buffer 5) (hGb : GetBpHyp (st := st) s ct p)
     (hFpu : FpuRelXHyp (L := L) arI AR Z.th p ct)
     (hI : TcbXIpc (L := L) arI AR Z.th s ar σ p ct buf argsU blk call don)
-    (hO : TcbXOpen3 (L := L) arI (XTop (L := L) AR) s ar σ lbl p ⟨length, buf, call, cslotAddr sl, extra⟩ blk call
-      don slbl (argsU.map UScalar.bv) ci sl excaps buffer)
+    (hFr : ∀ (x ptr offset r : U64) (sz : capability.FrameSize) (m ep : Bool) (asid va : U64),
+      capV (L.mem s) x = .Frame ptr sz r false m ep asid va → FpuPass true offset r sz →
+      FpuFrameXHyp (L := L) AR Z p (core.num.U64.wrapping_add ptr offset))
+    (hTI : TimerInsHyp (L := L) Z.T Z.c s ct p)
     (hR : JPostHyp (L := L) arI AR s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf extra slbl
       (argsU.map UScalar.bv) ci sl excaps buffer ct) :
     XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf extra slbl
       (argsU.map UScalar.bv) ci sl excaps buffer ct :=
-  XCap.jat arI (decode_invocation_threadJAt arI s ar σ J hG hARI hT hA hBT hOK hBC hBPl hFl lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl hAs hsc excaps buffer hext hstall' hNative hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapT hcapC hC0 hcapN hA5 hGb hFpu hI hO) J hR
+  XCap.jat arI (decode_invocation_threadJAt arI s ar σ J hG hARI hT hA hBT hOK hBC hBPl hFl lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl hAs hsc excaps buffer hext hstall' hNative hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapT hcapC hC0 hcapN hA5 hGb hFpu hI hFr hTI) J hR
 
 set_option maxHeartbeats 4000000 in
 /-- **`decode_invocation_ioportJAt`, `JAt` after**, with the per-op premise (`JPostHyp` [W]). -/

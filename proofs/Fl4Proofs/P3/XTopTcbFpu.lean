@@ -17,6 +17,7 @@ P3 (DESIGN.md §9), CSpace and TCB: **ReadFPU and WriteFPU at `XTop`**
   is `XTopAt` after FL4's writes of the frame's words at some machine state.
 -/
 import Fl4Proofs.P3.XTopTcbBp
+import Fl4Proofs.P3.XTopReply
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -131,6 +132,134 @@ theorem XTopAt.tcbWrF {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a :
     have h8 := domOffs_lt' ho
     have hv := ksW_val (kb := L.ksb s) (o := o) (by omega)
     exact hne _ (by unfold P1.Aligned; rw [hv]; omega) (by rw [hv]; omega)
+
+set_option maxHeartbeats 4000000 in
+/-- **`XTopAt.frameStep` with the written words outside the VSpace objects**
+(in place of "among the other objects": the user words). -/
+theorem XTopAt.frameStepV {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {a a' : A}
+    {σ σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z s a σ) {W : U64 → Prop} (hw : P1.WritesIn st s s' W)
+    (hWV : ∀ b, W b → ¬ VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) b)
+    (hWE : ∀ b, W b → ¬ Endp.EFoot Z.T Z.E Z.R Z.B b) (hWN : ∀ b, W b → ¬ Notif.NFoot Z.N Z.T b)
+    (hWK : ¬ W (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT))
+    (hkh : σ'.kheap = σ.kheap) (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
+    (hct : σ'.curThread = σ.curThread)
+    (hum : σ'.machineState.underlyingMemory = σ.machineState.underlyingMemory)
+    (hasid : σ'.archState.x64AsidTable = σ.archState.x64AsidTable)
+    (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
+    (hSch' : Sched.SchedRel st Z.N Z.T Z.C Z.c s' σ')
+    (hIrq' : IrqRel (L.mem s') (L.ksb s) σ') (hIo' : IoRel (L.mem s') (L.ksb s) σ')
+    (hD' : DomRel (L.mem s') (L.ksb s) σ') (hAR' : AR a' σ'.archState.x64CurrentCr3) :
+    XTopAt (L := L) AR Z s' a' σ' := by
+  obtain ⟨⟨⟨⟨hSch, hEp, hNt, -, -, hKr, -⟩, hP⟩, hR, hPt, hPI, hCO⟩, ⟨hPl, hCR, hFI, -, hMO, hIA, hSA⟩, -, hE⟩ := hX
+  have hk : L.ksb s' = L.ksb s := hw.1
+  have hvobj : ∀ b, VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) b → ¬ W b :=
+    fun b hv hb => hWV b hb hv
+  have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
+    slotsSame_of_vobj hPl fun b hb hv => hw.mem_eq hb (hvobj b hv)
+  have hEp' : Endp.EpStateRel Z.T Z.E Z.R Z.B (L.mem s') σ' :=
+    Endp.EpStateRel.frame hEp hP.ep (fun b hb hf => hw.mem_eq hb fun h => hWE b h hf)
+      ⟨fun p x h => by rw [hkh]; exact h, fun p x h => ⟨x, by rw [hkh]; exact h, rfl⟩,
+        fun p x h => ⟨x, by rw [hkh]; exact h, rfl, rfl, rfl, rfl, rfl⟩, hum⟩
+  have hNt' : Notif.NtfnStateRel Z.N Z.T (L.mem s') σ' :=
+    Notif.NtfnStateRel.frame hNt hSch.placed (fun b hb hf => hw.mem_eq hb fun h => hWN b h hf)
+      ⟨fun p x h => by rw [hkh]; exact h, fun p x h => ⟨x, by rw [hkh]; exact h, rfl, rfl, rfl⟩⟩
+  have hKr' : KRootRel (L.mem s') (L.ksb s') σ' := by
+    unfold KRootRel globCr3 at hKr ⊢
+    have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
+    have hka := hP.vs.ksb_al
+    have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
+      unfold layout.ks.KERNEL_ROOT
+      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+    rw [hk, hw.mem_eq (by unfold P1.Aligned; rw [hkv]; omega) hWK, hgp]
+    exact hKr
+  have hvw : ∀ b, VsWrite Z.P (L.ksb s) b → L.mem s' b = L.mem s b := fun b hb =>
+    hw.mem_eq (VsWrite.aligned hP.vs hb) (hvobj b (vsWrite_vobj hP.vs hb))
+  have hSz : Sched.SzKeep σ σ' := Sched.SzKeep.of_kheap hkh
+  refine ⟨⟨⟨⟨hSch', hEp', hNt', by rw [hk]; exact hIrq', by rw [hk]; exact hIo', hKr', hAR'⟩, ?_⟩, ?_, ?_,
+    fun q hq lo hl => ?_, hCO.of_same hSS hct⟩,
+    ⟨hPl, crel_same hCR hSS hkh hcdt horig, hFI.of_same hCR.2.2.1 hSS (KSub.of_kheap hkh),
+      by rw [hk]; exact hD', by rw [hk]; exact MdbOKV.of_same hCR.2.2.1 hSS hMO, by rw [hk]; exact hIA,
+      hSA.mono hSz⟩, IpcRel.of hNt' hEp' (sched_sc hSch'), hE.mono hk hSz⟩
+  · refine ⟨hP.ep, by rw [hk]; exact hP.vs, hP.pt, hP.pl, fun x hx => by
+      rw [hk]; exact hP.disj x (OObj.of_same hk hkh hx), fun x h1 h2 => ?_,
+      hP.po, hP.ps, by rw [hk]; exact hP.pv, by rw [hk]; exact hP.vo, by rw [hk]; exact hP.sd, by rw [hk]; exact hP.tko⟩
+    have hnb : L.nodeBase s' Z.c = L.nodeBase s Z.c := by simp [P1.LawfulStore.nodeBase, hk]
+    rw [hnb] at h1 h2; exact hP.nodeE x h1 h2
+  · rw [hk]
+    refine hR.frame hvw hasid fun p hp => ?_
+    rw [hkh]
+  · refine hPt.frame (fun b ⟨q, hq, i, hi, e⟩ => ?_) fun q hq => by rw [hkh]
+    subst e
+    have hv := table_vobj (th := Z.th) (P := Z.P) hP.pt hq hi (L.ksb s)
+    exact hw.mem_eq (hP.po _ ⟨q, hq, i, hi, rfl⟩).1 (hvobj _ hv)
+  · have hwv : VsWrite Z.P (L.ksb s) (peA q lo) := Or.inr ⟨q, hq, lo, hl, rfl⟩
+    rw [hvw _ hwv]; exact hPI q hq lo hl
+
+/-- **A user word** (ReadFPU's frame words) [J]: aligned, apart from the
+kernel-global area, the node, the TCBs and the SCs (`Far`), from the VSpace
+objects (and so the slots), the endpoints, the replies and the
+notifications (l4v `valid_cap` of a frame cap with `pspace_distinct`). -/
+structure UserW (Z : XSets) (s : S) (σ : Fl4Spec.State Unit) (b : U64) : Prop where
+  al : P1.Aligned b
+  far : Sched.Far st Z.T Z.C Z.c s σ b
+  vobj : ¬ VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) b
+  ep : ∀ e ∈ Z.E, b.val + 8 ≤ e.val ∨ e.val + 16 ≤ b.val
+  rep : ∀ r ∈ Z.R, b.val + 8 ≤ r.val ∨ r.val + 32 ≤ b.val
+  ntfn : ∀ n ∈ Z.N, b.val + 8 ≤ n.val ∨ n.val + 64 ≤ b.val
+
+set_option maxHeartbeats 4000000 in
+/-- **A user word not an IPC-buffer word, written**, keeps `XTopAt` (the
+spec's state kept). -/
+theorem XTopAt.userWr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (hX : XTopAt (L := L) AR Z s a σ) {b : U64} (hu : UserW (L := L) Z s σ b) (hnB : ∀ wp ∈ Z.B, wp.1 ≠ b)
+    (v : U64) : XTopAt (L := L) AR Z (L.wr s b v) a σ := by
+  have hSch := hX.fin.1.1.1
+  have hP := hX.fin.1.2
+  obtain ⟨Q, R0, hc, -⟩ := hSch.lists
+  have hT := hc.tcbs
+  have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
+  have hka := hP.vs.ksb_al
+  have hnb : L.nodeBase s Z.c = (L.ksb s).val + 13568 + Z.c.val * 4288 := rfl
+  obtain ⟨hf1, hf2, -⟩ := hu.far
+  have hw : P1.WritesIn st s (L.wr s b v) (· = b) := P1.writesIn_wr hu.al
+  have hne : ∀ x : U64, P1.Aligned x → x.val ≠ b.val → L.mem (L.wr s b v) x = L.mem s x :=
+    fun x hx h => hw.mem_eq hx fun e => h (by rw [e])
+  have hbal : b.val % 8 = 0 := hu.al
+  refine hX.frameStepV hw (fun x hx => by subst hx; exact hu.vobj) (fun x hx hf => ?_) (fun x hx hf => ?_)
+    (fun hx => ?_) rfl rfl rfl rfl rfl rfl rfl (hSch.wr_far hu.al hu.far v) ?_ ?_ ?_ hX.fin.1.1.2.2.2.2.2.2
+  · subst hx
+    rcases hf with ⟨e, he, h⟩ | ⟨r, hr, h⟩ | ⟨t, ht, h | h⟩ | ⟨wp, hwp, h⟩
+    · have := hu.ep e he; have := (hP.ep.ep e he).1; omega
+    · have := hu.rep r hr; have := (hP.ep.rep r hr).1; omega
+    · have := hf2 t ht; have := h.range; have := (hT t ht).align; omega
+    · have := hf2 t ht; unfold Endp.TL at h; have := (hT t ht).align; omega
+    · exact hnB wp hwp h.symm
+  · subst hx
+    rcases hf with ⟨n, hn, h1, h2⟩ | ⟨t, ht, h⟩
+    · have := hu.ntfn n hn; omega
+    · have hv := nfootT_val (hT t ht) h
+      have := hf2 t ht; have := (hT t ht).align; omega
+  · have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
+      unfold layout.ks.KERNEL_ROOT
+      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+    have := congrArg UScalar.val hx
+    rw [hkv] at this; omega
+  · have hI := hX.fin.1.1.2.2.2.1
+    refine ⟨fun i hi => ?_, fun i hi => hI.node i hi⟩
+    have hv := irqStA_val hkf hi
+    rw [hne _ (by unfold P1.Aligned; rw [hv]; omega) (by omega)]
+    exact hI.st i hi
+  · have hI := hX.fin.1.1.2.2.2.2.1
+    intro p hp
+    have hwi : (wI p).val < 1024 := by rw [wI_val hp]; omega
+    have hv := ioA_val hkf hwi
+    unfold bitOf
+    rw [hne _ (by unfold P1.Aligned; rw [hv]; omega) (by omega)]
+    exact hI p hp
+  · refine hX.rel.2.2.2.1.frame (fun o ho => ?_) rfl rfl
+    have h8 := domOffs_lt' ho
+    have hv := ksW_val (kb := L.ksb s) (o := o) (by omega)
+    exact hne _ (by unfold P1.Aligned; rw [hv]; omega) (by omega)
 
 /-- `XTopAt` at another arch state related to the same CR3. -/
 theorem XTopAt.arch {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a a' : A} {σ : Fl4Spec.State Unit}
@@ -411,6 +540,28 @@ def FpuFrameXHyp (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (p frame : U64) :
     tcb.copy_words st s (core.num.U64.wrapping_add p layout.tcb.FPU) frame 337#u64 ⦃ s' =>
       ∃ ms, XTopAt (L := L) AR Z s' a { σ with machineState := ms } ⦄
 
+/-- **`FpuFrameXHyp` from the frame's words being user words** [J] (`UserW`;
+`BufPlaced` [J]): each word written either an IPC-buffer word (the spec's
+memory stored as FL4's, `bufw_inv`) or none (`XTopAt.userWr`). -/
+theorem fpuFrameX_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (p frame : U64)
+    (hUW : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), XTopAt (L := L) AR Z s a σ →
+      (∀ i : U64, i.val < 337 →
+        UserW (L := L) Z s σ (core.num.U64.wrapping_add frame (core.num.U64.wrapping_mul i 8#u64))) ∧
+      BufPlaced (L := L) Z.N Z.C Z.B Z.c s σ) :
+    FpuFrameXHyp (L := L) AR Z p frame := by
+  intro s a σ hX
+  refine copy_words_inv (fun s' => ∃ ms, XTopAt (L := L) AR Z s' a { σ with machineState := ms }) s _ frame _
+    ⟨σ.machineState, hX⟩ ?_
+  rintro s2 i ⟨ms, h2⟩ hi v
+  obtain ⟨hu, hBP⟩ := hUW _ _ _ h2
+  by_cases hB : ∃ wp ∈ Z.B, wp.1 = core.num.U64.wrapping_add frame (core.num.U64.wrapping_mul i 8#u64)
+  · obtain ⟨wp, hwp, e⟩ := hB
+    rw [← e]
+    have hI := bufw_inv (L := L) s2 a _ h2.toRInv hBP hwp v
+    exact ⟨_, h2.ofRInv hI (L.ksb_wr _ _ _) (Sched.SzKeep.of_kheap rfl)⟩
+  · push_neg at hB
+    exact ⟨ms, h2.userWr (hu i hi) hB v⟩
+
 set_option maxHeartbeats 8000000 in
 /-- **The FPU work at `XTop`** (`FpuHypX`): the restart, `fpu_flush`, the
 copy (WriteFPU: into the TCB's FPU image, `XTopAt.tcbWrF`; ReadFPU: into the
@@ -420,7 +571,9 @@ theorem fpuHypX_of {AR : A → Fl4Spec.Cr3 → Prop} (hARI : ARKeep arI AR) {Z :
     (σ : Fl4Spec.State Unit) (hX : XTopAt (L := L) AR Z s ar σ) (hC : CurRun σ) (ct p : U64)
     (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (hpT : p ∈ Z.T)
     (c : tcb.Ctx) (toFrame blk call don : Bool)
-    (hFr : toFrame = true → ∀ ptr offset : U64, FpuFrameXHyp (L := L) AR Z p (core.num.U64.wrapping_add ptr offset)) :
+    (hFr : toFrame = true → ∀ (x ptr offset r : U64) (sz : capability.FrameSize) (m ep : Bool) (asid va : U64),
+      capV (L.mem s) x = .Frame ptr sz r false m ep asid va → FpuPass toFrame offset r sz →
+      FpuFrameXHyp (L := L) AR Z p (core.num.U64.wrapping_add ptr offset)) :
     FpuHypX (L := L) arI (XTop (L := L) AR) s ar σ ct p c toFrame blk call don := by
   intro s1 σ1 x ptr offset r asid va m ep sz hs1 hst1 hx hx0 hl ho hc hpass
   obtain ⟨hX1, -, -⟩ := hX.restart' hC hcur hs1 hst1
@@ -489,7 +642,7 @@ theorem fpuHypX_of {AR : A → Fl4Spec.Cr3 → Prop} (hARI : ARKeep arI AR) {Z :
     rw [hrc]; simp only [bind_ok]
     refine WP.spec_bind (hARI.fpu_flush ar p _ hAR1) fun a1 ha1 => ?_
     simp only [hsz, hwd, bind_ok, lift, obj.Tcb.fpu_addr]
-    refine WP.spec_bind (hFr rfl ptr offset s1 a1 σ1 (hX1.arch ha1)) ?_
+    refine WP.spec_bind (hFr rfl x ptr offset r sz m ep asid va hc ⟨hr1, hr3, hm, hlt, hrm⟩ s1 a1 σ1 (hX1.arch ha1)) ?_
     rintro s2 ⟨ms, h2⟩
     try simp only [↓reduceIte]
     refine (WP.spec_ok _).2 ⟨rfl, { σ1 with machineState := ms }, ?_, ⟨Z, h2⟩⟩
@@ -515,7 +668,9 @@ theorem tcb_fpuX {AR : A → Fl4Spec.Cr3 → Prop} (hAK : ARKeep arI AR) {Z : XS
     (call : Bool) (slot : obj.Slot) (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 x2 : U64)
     (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps)
-    (hFr : toFrame = true → ∀ ptr offset : U64, FpuFrameXHyp (L := L) AR Z p (core.num.U64.wrapping_add ptr offset))
+    (hFr : toFrame = true → ∀ (x ptr offset r : U64) (sz : capability.FrameSize) (m ep : Bool) (asid va : U64),
+      capV (L.mem s) x = .Frame ptr sz r false m ep asid va → FpuPass toFrame offset r sz →
+      FpuFrameXHyp (L := L) AR Z p (core.num.U64.wrapping_add ptr offset))
     (blk don : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (buffer : Option Fl4Spec.ObjRef) :
     TcbOKX (L := L) arI (XTop (L := L) AR) s ar σ (if toFrame then fl4_abi.label.TCBReadFPU else fl4_abi.label.TCBWriteFPU)
       p ⟨length, buf, call, slot, extra⟩ blk call don slbl (args.map UScalar.bv) ci sl excaps buffer := by
@@ -567,7 +722,9 @@ theorem tcbXOpen3_of {AR : A → Fl4Spec.Cr3 → Prop} (hAK : ARKeep arI AR) {Z 
     (hact : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (x0 x1 x2 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps)
-    (hFr : ∀ ptr offset : U64, FpuFrameXHyp (L := L) AR Z p (core.num.U64.wrapping_add ptr offset))
+    (hFr : ∀ (x ptr offset r : U64) (sz : capability.FrameSize) (m ep : Bool) (asid va : U64),
+      capV (L.mem s) x = .Frame ptr sz r false m ep asid va → FpuPass true offset r sz →
+      FpuFrameXHyp (L := L) AR Z p (core.num.U64.wrapping_add ptr offset))
     (hO : TcbXOpen1 (L := L) arI (XTop (L := L) AR) s ar σ lbl p ⟨length, buf, call, cslotAddr sl, extra⟩ blk call
       don slbl (argsU.map UScalar.bv) ci sl excaps buffer) :
     TcbXOpen3 (L := L) arI (XTop (L := L) AR) s ar σ lbl p ⟨length, buf, call, cslotAddr sl, extra⟩ blk call
