@@ -507,9 +507,19 @@ pub fn exit() -> ! {
         fpu::switch_to(ct.0, ct.flags(s) & fl4_abi::consts::tcb_flag::FPU_DISABLED != 0);
         let pc = percpu::get();
         let fs = ct.reg(s, reg::FS_BASE);
-        if fs != pc.fs_base { cpu::set_fs_base(fs); pc.fs_base = fs; }
         let gs = ct.reg(s, reg::GS_BASE);
-        if gs != pc.gs_base { cpu::set_gs_base(gs); pc.gs_base = gs; }
+        if cpu::fsgsbase() {
+            // The thread's own changes reached the TCB (save_user).
+            if fs != pc.fs_base { cpu::set_fs_base(fs); pc.fs_base = fs; }
+            if gs != pc.gs_base { cpu::set_gs_base(gs); pc.gs_base = gs; }
+        } else {
+            // Loading FS or GS in user mode changes the base behind the
+            // kernel's back: compare with what the CPU holds.
+            if cpu::rdmsr(cpu::msr::FS_BASE) != fs { cpu::wrmsr(cpu::msr::FS_BASE, fs); }
+            if cpu::rdmsr(cpu::msr::GS_BASE) != gs { cpu::wrmsr(cpu::msr::GS_BASE, gs); }
+            pc.fs_base = fs;
+            pc.gs_base = gs;
+        }
         if fl4_abi::config::HARDWARE_DEBUG_API { load_debug_state(s, ct); }
         let cr3 = if tlb::skim() { tlb::take_exit_cr3() } else { 0 };
         let entry_top = crate::gdt::entry_top(core as usize);
