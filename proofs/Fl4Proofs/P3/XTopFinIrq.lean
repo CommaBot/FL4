@@ -101,9 +101,9 @@ theorem xFinIrq_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
     show objects.finalise_cap_object st arI s a (.IrqHandler i) true ⦃ r => FinXPost (L := L) AR Z s σ sl (.IrqHandler i) r ⦄
     rw [hfo, WP.spec_ok]; unfold FinXPost
     refine ⟨rfl, trivial, hcw, σ, Z.G, (by rw [← hfd, hfin]; exact hspec σ (by rw [e2]; exact Set.mem_singleton _)), hDS, hcv,
-      fun _ _ _ => Or.inl rfl, MdbStep.refl hDS.1.2.2.1, hX, rfl⟩
+      fun _ _ _ => Or.inl rfl, MdbStep.refl hDS.1.2.2.1, ⟨Z.vs, hX⟩, rfl⟩
   · -- a notification cap: `delete_one`
-    have hW : WXZ (L := L) AR Z (L.ksb s) s a σ Z.G := ⟨hX, hK, hTh, rfl⟩
+    have hW : WXZ (L := L) AR Z (L.ksb s) s a σ Z.G := ⟨⟨Z.vs, hX⟩, hK, hTh, rfl⟩
     have hd := delete_one_xtopK arI (hN Z rfl) hXD hKeep s a σ hDS hW hA' (by rw [hcs]; exact hn)
     rw [hcs] at hd
     refine WP.spec_bind hd ?_

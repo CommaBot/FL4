@@ -41,7 +41,7 @@ def FinXPost (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (σ : Fl4Spec
     (∀ y, IsSlot Z.th y → y ≠ cslotAddr sl → capV (L.mem r.2.1) y = capV (L.mem s) y ∨
       (capV (L.mem r.2.1) y = .Null ∧ isZb (capV (L.mem s) y) = false)) ∧
     MdbStep (L.mem s) Z.G (L.mem r.2.1) G' ∧
-    XTopAt (L := L) AR { Z with G := G' } r.2.1 r.2.2 σ' ∧ L.ksb r.2.1 = L.ksb s
+    (∃ V', XTopAt (L := L) AR (Z.mv G' V') r.2.1 r.2.2 σ') ∧ L.ksb r.2.1 = L.ksb s
 
 /-- **Hypothesis: the finalisation of a cap of kind `K` at `XTop`**: from
 `XTopAt` (with `KsApart`, the typed heap's TCBs among the sets') and
