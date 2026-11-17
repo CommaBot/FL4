@@ -132,7 +132,7 @@ theorem SchedRel.memFrame {s s' : S} {σ : Fl4Spec.State Unit} (hS : Sched.Sched
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
     exact hm _ (by unfold Aligned; rw [hv]; omega) (Or.inr (Or.inl (by rw [hv]; omega)))
   have ha : Sched.SAgree st T C c s s' := by
-    refine ⟨hksb, hcpu, fun o ho h8 _ _ _ _ => hnode o ho h8, fun y hy K hK => ?_, hks 8#u64 (by decide) (by decide)
+    refine ⟨hksb, hcpu, fun o ho h8 _ _ _ _ _ => hnode o ho h8, fun y hy K hK => ?_, hks 8#u64 (by decide) (by decide)
       (by decide), hks 16#u64 (by decide) (by decide) (by decide), fun sc hsc a hal hin => ?_⟩
     · obtain ⟨h1, h2, -⟩ := Sched.schedField_ok hK
       have hya := hc.tcbs y hy

@@ -20,12 +20,12 @@ the notifications apart from the kernel-global block, the IPC placement,
 `SchedValid`, `ObjCover`, `Inv`, `NSC`, `OtherTmOK`, `RemoveTcbHyp`, the
 yield relation on `IRel`); the thread cap's object among the TCBs [J]; P1's
 `ThreadP1Hyp` and `ArchTotal`; `timer::remove`'s footprint [W] (P1's
-`timer.remove.tf`); `ScYieldFinHyp` [W]; the debug-list removal keeping
-`XTopAt` [W] (its words, the TCBs' debug links and the node's
-`DEBUG_TCBS` word, are read by no relation); the FPU release at `XTop` [P].
+`timer.remove.tf`); `ScYieldFinHyp` [W]; the debug-list removal's
+footprint [W] (the TCBs' debug links and the core's `DEBUG_TCBS` word, P1's
+`DbgW`; such writes keep `XTopAt`, `XTopAt.dbgStep`); the FPU release at `XTop` [P].
 -/
 import Fl4Proofs.P3.XTopFinSc
-import Fl4Proofs.P3.XTopTimer
+import Fl4Proofs.P3.XTopDbg
 import Fl4Proofs.P3.IpcSuspend
 import Fl4Proofs.P3.IpcSetPrioX
 import Fl4Proofs.P3.IpcSlotsSame
@@ -137,7 +137,7 @@ theorem xFinThread_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (Cs : S
         L.mem s' (L.nodeAt s Z.c layout.node.REPROGRAM) = L.mem s (L.nodeAt s Z.c layout.node.REPROGRAM) ⦄)
     (hY : ∀ (Z : XSets) q, Z.th = th → ScYieldFinHyp (L := L) arI AR Z q)
     (hDbg : ∀ (Z : XSets) s a σ (p : U64), Z.th = th → XTopAt (L := L) AR Z s a σ → p ∈ Z.T →
-      objects.debug_remove st s p ⦃ s' => XTopAt (L := L) AR Z s' a σ ⦄)
+      objects.debug_remove st s p ⦃ s' => P1.WritesIn st s s' (DbgWc (L := L) Z.T Z.c s) ⦄)
     (hFpu : ∀ (Z : XSets) s a σ (p : U64), Z.th = th → XTopAt (L := L) AR Z s a σ →
       arI.fpu_release a p ⦃ a' => ∃ σ', ((), σ') ∈ (Fl4Spec.fpuRelease (Z := Unit) p.bv σ).1 ∧
         XTopAt (L := L) AR Z s a' σ' ⦄) :
@@ -226,7 +226,8 @@ theorem xFinThread_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (Cs : S
       subst ha6
       obtain ⟨G6, V6, hX6⟩ := IRel.xtopMv hI6 hX5.fin.1.1.2.2.2.2.2.2
       refine WP.spec_bind (hDbg (Z.mv G6 V6) s6 a6 σ6 p rfl hX6 hpZ) ?_
-      intro s7 hX7
+      intro s7 hw7
+      have hX7 := hX6.dbgStep hw7
       refine WP.spec_bind (hFpu (Z.mv G6 V6) s7 a6 σ6 p rfl hX7) ?_
       rintro a8 ⟨σ8, hm8, hX8⟩
       simp only [P1.tcb_slot_ctable, bind_ok, WP.spec_ok]

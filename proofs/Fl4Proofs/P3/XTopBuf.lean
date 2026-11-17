@@ -222,7 +222,7 @@ theorem XTopAt.tcbWrA {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a :
   have hN := hc.node
   have hnd := hN.disj t ht
   have hSA : Sched.SAgree st Z.T Z.C Z.c s (L.wr s (wa) v) := by
-    refine ⟨hw.1, hw.2.1, fun o ho h8 _ _ _ _ => hne _ (P1.nodeAt_aligned hN ho h8) ?_, fun y hy K hK => ?_,
+    refine ⟨hw.1, hw.2.1, fun o ho h8 _ _ _ _ _ => hne _ (P1.nodeAt_aligned hN ho h8) ?_, fun y hy K hK => ?_,
       hne _ ?_ ?_, hne _ ?_ ?_, fun sc hsc b hb hin => hne _ hb ?_⟩
     · rw [P1.nodeAt_val hN ho]; omega
     · obtain ⟨h1, h2, -⟩ := Sched.schedField_ok hK

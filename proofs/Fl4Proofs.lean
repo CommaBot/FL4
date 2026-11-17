@@ -112,6 +112,7 @@ import Fl4Proofs.P3.IpcFinNtfn
 import Fl4Proofs.P3.IpcCancelAllIpc
 import Fl4Proofs.P3.IpcFinReply
 import Fl4Proofs.P3.XTopFinVs
+import Fl4Proofs.P3.XTopDbg
 import Fl4Proofs.P3.XTopFinSc
 import Fl4Proofs.P3.XTopFinThread
 import Fl4Proofs.P3.XTopYield

@@ -110,17 +110,17 @@ theorem SchedSpec.transfer {T C C' : Set U64} {c : U64} {s s' : S} {Q : U64 → 
     (hscs : ∀ sc ∈ C, ∃ x n, σ'.kheap sc.bv = some (.schedContext x n) ∧ ScRelW st s' sc x n) :
     SchedSpec st T C c s' Q R σ' := by
   have w : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → o.val ≠ 16 → o.val ≠ 56 → o.val ≠ 104 → o.val ≠ 112 →
-      nodeW st s' c o = nodeW st s c o :=
-    fun o h1 h2 h3 h4 h5 h6 => ha.nodeW h1 h2 h3 h4 h5 h6
+      o.val ≠ 88 → nodeW st s' c o = nodeW st s c o :=
+    fun o h1 h2 h3 h4 h5 h6 h7 => ha.nodeW h1 h2 h3 h4 h5 h6 h7
   refine ⟨fun p hp => by rw [e1]; exact h.rq p hp, fun d p hd => by rw [e1]; exact h.rqDom d p hd,
     by rw [e2]; exact h.rel, ?_, ?_, ?_, ?_, ?_, fun t ht => ?_, fun t ht => ?_, hscs,
-    by rw [w _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])]; exact h.idleSc,
+    by rw [w _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])]; exact h.idleSc,
     by rw [e8, dtA_ksb ha.ksb, ha.dt]; exact h.domTime,
-    by rw [e9, w layout.node.IDLE_THREAD (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])]; exact h.idleTh⟩
-  · rw [e3, w _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])]; exact h.curThread
-  · rw [e4, w _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])]; exact h.curSc
-  · rw [e5, w _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])]; exact h.curTime
-  · rw [e6, w _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])]; exact h.consumed
+    by rw [e9, w layout.node.IDLE_THREAD (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])]; exact h.idleTh⟩
+  · rw [e3, w _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])]; exact h.curThread
+  · rw [e4, w _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])]; exact h.curSc
+  · rw [e5, w _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])]; exact h.curTime
+  · rw [e6, w _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])]; exact h.consumed
   · rw [e7, curDomA_ksb ha.ksb, ha.dom]; exact h.curDom
   · obtain ⟨x, hk, h1, h2, h3, h4⟩ := h.tcb t ht
     exact ⟨x, htcb t ht x hk, h1, by rw [ha.dom' ht]; exact h2, by rw [ha.scw ht]; exact h3,
@@ -210,7 +210,7 @@ theorem SchedRel.sc_updateW {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec
   have hoth : ∀ sc ∈ C, sc ≠ sc0 → ScAgree st s s' sc := fun sc hsc hne a ha hin =>
     hw.mem_eq ha (hS.scDisjIn hsc hsc0 hne hk hin)
   have hag : SAgree st T {sc | sc ∈ C ∧ sc ≠ sc0} c s s' := by
-    refine ⟨hk', hw.2.1, fun o ho h8 _ _ _ _ => nout o ho h8, fun y hy K hK => ?_, ?_, ?_,
+    refine ⟨hk', hw.2.1, fun o ho h8 _ _ _ _ _ => nout o ho h8, fun y hy K hK => ?_, ?_, ?_,
       fun sc ⟨hsc, hne⟩ => hoth sc hsc hne⟩
     · obtain ⟨h1, h2, -⟩ := schedField_ok hK
       refine hw.mem_eq (field_aligned (hc.tcbs y hy) h1 h2) fun hin => ?_
@@ -267,7 +267,7 @@ theorem SchedRel.set_repr {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.Stat
   set s' := L.wr s (L.nodeAt s c layout.node.REPROGRAM) v
   have hk : L.ksb s' = L.ksb s := L.ksb_wr _ _ _
   have hag : SAgree st T C c s s' := by
-    refine ⟨hk, L.cpu_wr _ _ _, fun o ho h8 _ hne _ _ => ?_, fun y hy K hK => ?_, ?_, ?_, fun sc hsc => ?_⟩
+    refine ⟨hk, L.cpu_wr _ _ _, fun o ho h8 _ hne _ _ _ => ?_, fun y hy K hK => ?_, ?_, ?_, fun sc hsc => ?_⟩
     · refine rd_wr_ne hA (nodeAt_aligned hN ho h8) fun e => hne ?_
       have := congrArg UScalar.val e
       rw [nodeAt_val hN (by omega), nodeAt_val hN ho] at this; omega
