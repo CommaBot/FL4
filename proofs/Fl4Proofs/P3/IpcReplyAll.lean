@@ -37,13 +37,12 @@ theorem replyHyps_of (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R 
     (hO : ∀ s σ, IRel st th cr N T C E R B c s σ → Sched.ObjCover N T E R C σ)
     (hV : ∀ s σ, IRel st th cr N T C E R B c s σ → TmoCapsValid σ)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ (a : A) v, ar.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hTOI : ∀ s σ, IRel st th cr N T C E R B c s σ → SVK.TailOK σ) :
+    (htu : ∀ (a : A) v, ar.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
     ReplyHyps st ar th cr N T C E R B c :=
   ReplyHyps.ofL hH hBf hBm (ipcEpTailHyps_top hP0) hP0 hSV (remove_top hP0 hD hJ)
     (fun s σ t sc x y n hX ht _ hk _ hsc hky hnrq => postponeOK_of (hInv s σ hX) hk hsc hky hnrq)
     (tmoXfer_top hH hBf hBm hP0 hmax htu)
-    (fun s σ t x p bd r hX _ hk hh => epE_of (hO s σ hX) (hV s σ hX) hk hh) hInv hTOI
+    (fun s σ t x p bd r hX _ hk hh => epE_of (hO s σ hX) (hV s σ hX) hk hh) hInv
 
 end
 

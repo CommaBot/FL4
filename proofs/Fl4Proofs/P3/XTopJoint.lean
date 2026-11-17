@@ -184,7 +184,7 @@ theorem decode_invocation_cnodeJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (hrun : ∀ xt, σ.kheap ct.bv = some (.tcb xt) → tsCode xt.tcbState < 3)
     (hZ : ∀ Z' : XSets, XTopAt (L := L) AR Z' s ar σ → KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s) ∧
       BufWordRel Z'.T (L.mem s) σ ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B)
-    (hQ : ∀ e, Sched.EpQPre σ e) (hsw : ∀ u, σ.schedulerAction = .switchThread u → u ≠ σ.curThread)
+    (hQ : ∀ e, Sched.EpQPre σ e)
     (hE : ∀ (Z' : XSets) (e b : U64) (sl : Fl4Spec.CslotPtr), XTopAt (L := L) AR Z' s ar σ → AbsSlot Z.th sl →
       capV (L.mem s) (cslotAddr sl) = .Endpoint e b true true true true → e ∈ Z'.E)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
@@ -198,7 +198,7 @@ theorem decode_invocation_cnodeJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (hG.postDel arI hARI hT) K hK hK6 hDE lbl slbl hlbl length buf ct hct args hlen hargs p r gs g hwf hcv
     ⟨cslotAddr sl, hAs.isSlot, hsc⟩ extra x0 x1 hx0 hx1 excaps hex J.kern.act hcur hrun
     (fun Z' hX' => let ⟨h1, h2, h3⟩ := hZ Z' hX'
-      ⟨h1, h2, h3, hX'.fin.1.cur_mem hcur.symm⟩) hQ (by rw [← hcur]; exact hsw) hE (cslotAddr sl) blk call don fp ci sl buffer
+      ⟨h1, h2, h3, hX'.fin.1.cur_mem hcur.symm⟩) hQ (fun u hu => by rw [hni.2] at hu; cases hu) hE (cslotAddr sl) blk call don fp ci sl buffer
 
 set_option maxHeartbeats 4000000 in
 /-- **The Thread cap on `JAt`** (`decode_invocation_threadXL`, with

@@ -187,12 +187,12 @@ theorem ipcVsFrame_reply {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ �
       (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' →
         Sched.ObjCover Z.N Z.T Z.E Z.R Z.C σ') ∧
       (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → Sched.IpcSorted σ') ∧
-      p ∈ Z.R)
+      p ∈ Z.R) (hNS : SVK.NoSwitch σ)
     (hS : P0.StoreTotal st) (hA : P0.ArchTotal arI) (hK : ARKeep arI AR) :
     IpcVsFrame (L := L) arI AR s a σ σ1 ct blk call don (.Reply p g) :=
   xleaf_of_irel (fun Z hX => ⟨(hZ Z hX).1.ks, (hZ Z hX).1.bt⟩) (fun Z hX hI =>
     let ⟨hz, hRH, hSV, hOC, hIS, hp⟩ := hZ Z hX
-    reply_tail_inv hz.H hz.Bf hz.Bm hz.P hRH hz.Tl hmb hSV hOC hIS s a σ hI hz.ct hcur hkt hrun hft hst hp g hz.tail)
+    reply_tail_inv hz.H hz.Bf hz.Bm hz.P hRH hz.Tl hmb hSV hOC hIS s a σ hI hz.ct hcur hkt hrun hft hst hp g hz.tail hNS)
     (fun _ h => AK.reply_tail hS hA hK h)
 
 end

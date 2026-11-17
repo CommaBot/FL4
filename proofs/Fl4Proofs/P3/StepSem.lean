@@ -195,9 +195,9 @@ theorem CurRunW.run {σ : Fl4Spec.State Unit} (h : CurRunW σ) (hni : σ.curThre
 
 /-- **A system call's entry state** (l4v `ct_running` and
 `scheduler_action = resume_cur_thread` at kernel entry): not the idle
-thread, no reschedule pending (`schedule` ends in `resumeCurThread`). -/
+thread, the action `resumeCurThread` (`schedule` ends in it). -/
 def Entered (σ : Fl4Spec.State Unit) : Prop :=
-  σ.curThread ≠ σ.idleThread ∧ σ.schedulerAction ≠ .chooseNewThread
+  σ.curThread ≠ σ.idleThread ∧ σ.schedulerAction = .resumeCurThread
 
 /-- **`CurRunW` unless a reschedule is pending** (`JAtZ.curRun`, mid-entry:
 a blocking step leaves the current thread blocked with `chooseNewThread`). -/
@@ -205,7 +205,7 @@ def CurRunM (σ : Fl4Spec.State Unit) : Prop :=
   σ.schedulerAction = .chooseNewThread ∨ CurRunW σ
 
 theorem CurRunM.run {σ : Fl4Spec.State Unit} (h : CurRunM σ) (hni : Entered σ) : CurRun σ :=
-  (h.resolve_left hni.2).run hni.1
+  (h.resolve_left fun e => by rw [hni.2] at e; cases e).run hni.1
 
 /-- **Closure under the primitive steps** (module docstring). -/
 structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S → A → Fl4Spec.State Unit → Prop) :
