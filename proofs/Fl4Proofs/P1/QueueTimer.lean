@@ -518,10 +518,25 @@ theorem TKeep.wr_node {s0 s : S} {c o v : U64} (h : TKeep st T s0 s) (hT : TcbPl
 timer fields and node timer-tree words (`TKeep`: the other TCB fields are kept). -/
 def TF (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64)
     (Z : U64 → Nat) (Ac : Set U64) (s0 s : S) : Prop :=
-  TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s ∧ Foot st T Cs Sg Scs Z ∅ s0 s ∧ ANI st s0 s ∧ TKeep st T s0 s
+  TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s ∧ Foot st T Cs Sg Scs Z ∅ s0 s ∧ ANI st s0 s ∧ TKeep st T s0 s ∧
+    WritesIn st s0 s (TW st T Cs s0)
 
 theorem TF.start {s : S} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s s :=
-  ⟨h, Foot.refl _, ANI.refl _, TKeep.refl _⟩
+  ⟨h, Foot.refl _, ANI.refl _, TKeep.refl _, WritesIn.refl _ _⟩
+
+/-- A timer field's write, in the timer words `TW`. -/
+theorem TW.wr_field {s0 s : S} {y K v : U64} (w : WritesIn st s0 s (TW st T Cs s0)) (hT : TcbPlaced T) (hy : y ∈ T)
+    (hK : 3528 ≤ K.val) (hK' : K.val < 3576) (h8 : K.val % 8 = 0) :
+    WritesIn st s0 (L.wr s (core.num.U64.wrapping_add y K) v) (TW st T Cs s0) :=
+  (w.trans (writesIn_wr (field_aligned (hT y hy) (by omega) h8))).mono fun b hb =>
+    hb.elim id fun e => Or.inl ⟨y, hy, K, hK, hK', e⟩
+
+/-- A timer node word's write (`TIMER_ROOT`, `TIMER_MIN`), in `TW`. -/
+theorem TW.wr_node {s0 s : S} {c o v : U64} (w : WritesIn st s0 s (TW st T Cs s0)) (hN : NodePlaced st T s c)
+    (hc : c ∈ Cs) (ho : o.val = 104 ∨ o.val = 112) :
+    WritesIn st s0 (L.wr s (L.nodeAt s c o) v) (TW st T Cs s0) :=
+  (w.trans (writesIn_wr (nodeAt_aligned hN (by omega) (by omega)))).mono fun b hb =>
+    hb.elim id fun e => Or.inr ⟨c, hc, o, ho, by rw [e, nodeAt_of_ksb w.1]⟩
 
 theorem TF.tm {s0 s : S} (h : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) : TimerOK st T Cs s := h.1.tm
 theorem TF.tcbs {s0 s : S} (h : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) : TcbPlaced T := h.1.tcbs
@@ -532,14 +547,16 @@ theorem TF.wr_ptr {s0 s : S} {x K v : U64} (h : TF st T Cs Ω H Sg Rp Scs Nt Z A
     TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 (L.wr s (core.num.U64.wrapping_add x K) v) :=
   ⟨h.1.wr_ptr hx hK hv, h.2.1.trans (foot_field h.tcbs hx (by omega) (by omega) (by omega) (by omega)),
     h.2.2.1.trans (ani_field h.tcbs (h.nodes _ h.1.1.choose_spec.choose_spec.cur) hx (by omega) (by omega)),
-    h.2.2.2.wr_field h.tcbs hx (by omega) (by omega) (by omega)⟩
+    h.2.2.2.1.wr_field h.tcbs hx (by omega) (by omega) (by omega),
+    TW.wr_field h.2.2.2.2 h.tcbs hx (by omega) (by omega) (by omega)⟩
 
 theorem TF.wr_ht {s0 s : S} {x v : U64} (h : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s)
     (hx : x ∈ T) (hc : x ∈ T → L.mem s (tdA x) ≠ 0#u64 → ∀ c : U64, c.val = v.val >>> 8 → c ∈ Cs) :
     TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 (L.wr s (thA x) v) :=
   ⟨h.1.wr_ht hx hc, h.2.1.trans (foot_field (K := 3568#u64) h.tcbs hx (by simp) (by simp) (by simp) (by simp)),
     h.2.2.1.trans (ani_field (K := 3568#u64) h.tcbs (h.nodes _ h.1.1.choose_spec.choose_spec.cur) hx (by simp) (by simp)),
-    h.2.2.2.wr_field (K' := 3568#u64) h.tcbs hx (by simp) (by simp) (by simp)⟩
+    h.2.2.2.1.wr_field (K' := 3568#u64) h.tcbs hx (by simp) (by simp) (by simp),
+    TW.wr_field (K := 3568#u64) h.2.2.2.2 h.tcbs hx (by simp) (by simp) (by simp)⟩
 
 theorem TF.wr_node {s0 s : S} {c o v : U64} (h : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hc : c ∈ Cs)
     (ho : o.val = 104 ∨ o.val = 112) (hv : Tz T v) :
@@ -547,7 +564,8 @@ theorem TF.wr_node {s0 s : S} {c o v : U64} (h : TF st T Cs Ω H Sg Rp Scs Nt Z 
   ⟨h.1.wr_node hc ho hv, h.2.1.trans (foot_node (h.nodes c hc) hc (by omega) (by omega) (by omega)),
     h.2.2.1.trans (ani_node (h.nodes c hc) (h.nodes _ h.1.1.choose_spec.choose_spec.cur) (by omega) (by omega)
       (fun _ => by omega)),
-    h.2.2.2.wr_node h.tcbs (h.nodes c hc) (by omega) (by omega)⟩
+    h.2.2.2.1.wr_node h.tcbs (h.nodes c hc) (by omega) (by omega),
+    TW.wr_node h.2.2.2.2 (h.nodes c hc) hc ho⟩
 
 theorem TF.wr_clear {s0 s : S} {t : U64} (h : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (ht : t ∈ T) :
     TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 (L.wr (L.wr s (thA t) 0#u64) (tdA t) 0#u64) :=
@@ -557,8 +575,10 @@ theorem TF.wr_clear {s0 s : S} {t : U64} (h : TF st T Cs Ω H Sg Rp Scs Nt Z Ac 
       (by simp))).trans (ani_field (K := 3528#u64) h.tcbs
         ((h.nodes _ h.1.1.choose_spec.choose_spec.cur).ksb (L.ksb_wr _ _ _) |> fun hh => by
           rw [LawfulStore.cpu_wr]; exact hh) ht (by simp) (by simp)),
-    (h.2.2.2.wr_field (K' := 3568#u64) h.tcbs ht (by simp) (by simp) (by simp)).wr_field (K' := 3528#u64) h.tcbs ht
-      (by simp) (by simp) (by simp)⟩
+    (h.2.2.2.1.wr_field (K' := 3568#u64) h.tcbs ht (by simp) (by simp) (by simp)).wr_field (K' := 3528#u64) h.tcbs ht
+      (by simp) (by simp) (by simp),
+    TW.wr_field (K := 3528#u64) (TW.wr_field (K := 3568#u64) h.2.2.2.2 h.tcbs ht (by simp) (by simp) (by simp))
+      h.tcbs ht (by simp) (by simp) (by simp)⟩
 
 theorem timer.core_of.csf {s0 : S} (s : S) (t : U64) (h : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (ht : t ∈ T)
     (hd : L.mem s (tdA t) ≠ 0#u64) : timer.core_of st s t ⦃ c => c ∈ Cs ⦄ :=

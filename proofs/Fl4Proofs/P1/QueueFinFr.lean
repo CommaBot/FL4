@@ -20,7 +20,7 @@ theorem timer.remove.keepF (s : S) (t : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt
     timer.remove st s t ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ TKeep st T s s' ∧
       ∀ y ∈ T, L.mem s' (scA y) = L.mem s (scA y) ∧ L.mem s' (boundA y) = L.mem s (boundA y) ∧
         L.mem s' (stA y) = L.mem s (stA y) ⦄ :=
-  WP.spec_mono (timer.remove.tf (s0 := s) s t (TF.start h) ht) fun s' ⟨h', _, _, k⟩ =>
+  WP.spec_mono (timer.remove.tf (s0 := s) s t (TF.start h) ht) fun s' ⟨h', _, _, k, _⟩ =>
     ⟨h', k, fun y hy => ⟨by rw [scA_eq]; exact k y hy _ (by simp) (by simp) (by simp),
       k y hy 3368#u64 (by simp) (by simp) (by simp), by rw [stA_eq]; exact k y hy _ (by simp) (by simp) (by simp)⟩⟩
 

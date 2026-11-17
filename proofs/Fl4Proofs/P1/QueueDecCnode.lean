@@ -15,19 +15,20 @@ open fl4_core Fl4Proofs.P0.Consts
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
+variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {U : Set U64}
 
 /-- The CDT placement facts (P3's: cap slots, `valid_caps`, `valid_mdb`). -/
 structure CdtHyps (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
-    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) : Prop where
-  tgt : ∀ (Ac : Set U64) (s : S) (c : capability.Cap) (i d : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (P3Ok : S → Prop) : Prop where
+  tgt : ∀ (Ac : Set U64) (s : S) (c : capability.Cap) (i d : U64), EntAt st P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     cspace.lookup_target_slot st s c i d ⦃ r => ∀ x, r = .Ok x → CapW T Ω Sg x ⦄
-  src : ∀ (Ac : Set U64) (s : S) (c : capability.Cap) (i d : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+  src : ∀ (Ac : Set U64) (s : S) (c : capability.Cap) (i d : U64), EntAt st P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     cspace.lookup_source_slot st s c i d ⦃ r => ∀ x, r = .Ok x → CapW T Ω Sg x ⦄
   rot : ∀ (Ac : Set U64) (s : S) (b : U64) (e : Aeneas.Std.Array obj.Slot 3#usize) (d : U64),
-    BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    EntAt st P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     cnode.rotate_slots st s b e d ⦃ r => ∀ x, r = .Ok x → CapW T Ω Sg x.1 ∧ CapW T Ω Sg x.2 ⦄
-  slotcap : ∀ (Ac : Set U64) (s : S) (x : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → CapW T Ω Sg x →
+  slotcap : ∀ (Ac : Set U64) (s : S) (x : U64), EntAt st P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → CapW T Ω Sg x →
     obj.Slot.cap st x s ⦃ c => CapOK st T Rp Scs Nt H s c ⦄
   /-- The insertion footprint for the helper taking the previously loaded
   source cap. This is a placement obligation for either source-cap value;
@@ -89,9 +90,9 @@ local macro "errleaf" : tactic => `(tactic| first
      first | exact D.err _ | exact (WP.spec_ok _).2 (D.err _)))
 
 set_option maxHeartbeats 2000000 in
-theorem cnode.decode_copy.dec (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) {s : S} {cap : capability.Cap}
+theorem cnode.decode_copy.dec (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {s : S} {cap : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (lbl len buf dest : U64)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hd : CapW T Ω Sg dest) :
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hE : EntAt st P3Ok s) (hd : CapW T Ω Sg dest) :
     cnode.decode_copy st s lbl len buf extra dest ⦃ r => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2 ⦄ := by
   have hS : P0.StoreTotal st := L.total
   unfold cnode.decode_copy
@@ -115,7 +116,7 @@ theorem cnode.decode_copy.dec (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) {s : S} 
   · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
     errleaf
   simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
-  refine WP.spec_bind (C.src Ac s root si sd D.bxi) fun r1 hr1 => ?_
+  refine WP.spec_bind (C.src Ac s root si sd hE D.bxi) fun r1 hr1 => ?_
   rcases r1 with v | e1
   swap
   · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
@@ -143,9 +144,9 @@ theorem cnode.decode_copy.dec (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) {s : S} 
     exact restart_capw D fun s1 h1 => C.mv Ac s1 nc v dest h1 hv hd
 
 set_option maxHeartbeats 2000000 in
-theorem cnode.decode_rotate.dec (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) {s : S} {cap : capability.Cap}
+theorem cnode.decode_rotate.dec (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {s : S} {cap : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (len buf dest : U64)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hd : CapW T Ω Sg dest) :
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hE : EntAt st P3Ok s) (hd : CapW T Ω Sg dest) :
     cnode.decode_rotate st s len buf extra dest ⦃ r => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2 ⦄ := by
   have hS : P0.StoreTotal st := L.total
   have hct : L.curW s ∈ T := D.bxi.1.choose_spec.choose_spec.curT
@@ -168,7 +169,7 @@ theorem cnode.decode_rotate.dec (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) {s : S
   subst e
   refine WP.spec_bind (P0.msg.syscall_arg.p0 st s _ buf _ hS) fun pd _ => ?_
   refine WP.spec_bind (P0.msg.syscall_arg.p0 st s _ buf _ hS) fun sd _ => ?_
-  refine WP.spec_bind (C.rot Ac s buf extra dest D.bxi) fun r hr => ?_
+  refine WP.spec_bind (C.rot Ac s buf extra dest hE D.bxi) fun r hr => ?_
   rcases r with ⟨src, pv⟩ | e
   swap
   · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
@@ -197,14 +198,14 @@ theorem cnode.decode_rotate.dec (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) {s : S
     refine WP.spec_bind (C.mv Ac s4 ns src pv (BlkOK.bxi h4) hsrc hpv) fun s5 w5 => ?_
     exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi (blk_of_capw h4 w5 fun _ hb => hb).1))
 
-theorem cnode.decode_cancel_badged_sends.dec (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) {s : S}
+theorem cnode.decode_cancel_badged_sends.dec (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {s : S}
     {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize} (dest : U64)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hd : CapW T Ω Sg dest) :
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hE : EntAt st P3Ok s) (hd : CapW T Ω Sg dest) :
     cnode.decode_cancel_badged_sends st s dest ⦃ r => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2 ⦄ := by
   have hct : L.curW s ∈ T := D.bxi.1.choose_spec.choose_spec.curT
   unfold cnode.decode_cancel_badged_sends
   simp only [error.illegal, bind_ok]
-  refine WP.spec_bind (C.slotcap Ac s dest D.bxi hd) fun c hc => ?_
+  refine WP.spec_bind (C.slotcap Ac s dest hE D.bxi hd) fun c hc => ?_
   refine WP.spec_bind (cnode.full_endpoint.ep c) fun o ho => ?_
   rcases o with _ | ⟨p, b⟩
   · errleaf
@@ -229,10 +230,10 @@ theorem lift2 {A : Type _} {s : S} {a : A} {m : Result ((core.result.Result Unit
 
 set_option maxHeartbeats 4000000 in
 /-- **`cnode.decode`** keeps the invariants. -/
-theorem cnode.decode.dec {A : Type _} {ar : machine.Arch A} (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z)
+theorem cnode.decode.dec {A : Type _} {ar : machine.Arch A} (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     (G : CnodeGaps st ar T Cs Ω H Sg Rp Scs Nt Z U) {s : S} {cap : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (a : A) (lbl len buf : U64)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (c : capability.Cap) :
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hE : EntAt st P3Ok s) (c : capability.Cap) :
     cnode.decode st ar s a lbl len c buf extra ⦃ r s' _ => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
   unfold cnode.decode
@@ -248,7 +249,7 @@ theorem cnode.decode.dec {A : Type _} {ar : machine.Arch A} (C : CdtHyps st T Cs
   subst e
   refine WP.spec_bind (P0.msg.syscall_arg.p0 st s _ buf _ hS) fun idx _ => ?_
   refine WP.spec_bind (P0.msg.syscall_arg.p0 st s _ buf _ hS) fun dep _ => ?_
-  refine WP.spec_bind (C.tgt Ac s c idx dep D.bxi) fun r hr => ?_
+  refine WP.spec_bind (C.tgt Ac s c idx dep hE D.bxi) fun r hr => ?_
   rcases r with v | e
   swap
   · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
@@ -257,24 +258,24 @@ theorem cnode.decode.dec {A : Type _} {ar : machine.Arch A} (C : CdtHyps st T Cs
   simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
   repeat' (first
     | exact (WP.spec_ok _).2 (D.err _)
-    | exact lift2 (cnode.decode_copy.dec C lbl len buf v D hv)
-    | exact lift2 (cnode.decode_cancel_badged_sends.dec C v D hv)
-    | exact lift2 (cnode.decode_rotate.dec C len buf v D hv)
+    | exact lift2 (cnode.decode_copy.dec C lbl len buf v D hE hv)
+    | exact lift2 (cnode.decode_cancel_badged_sends.dec C v D hE hv)
+    | exact lift2 (cnode.decode_rotate.dec C len buf v D hE hv)
     | exact G.del Ac s a _ extra v D hv
     | exact G.rev Ac s a _ extra v D hv
     | split)
 
 /-- **InvGaps' `cnode`, discharged** but for the named `CnodeGaps`. -/
-theorem decGap_cnode {A : Type _} {ar : machine.Arch A} (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z)
-    (G : CnodeGaps st ar T Cs Ω H Sg Rp Scs Nt Z U) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .cnode := by
-  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot
+theorem decGap_cnode {A : Type _} {ar : machine.Arch A} (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
+    (G : CnodeGaps st ar T Cs Ω H Sg Rp Scs Nt Z U) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .cnode := by
+  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot hE
   cases cap <;> simp [capFam] at hf
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩
   try dsimp only
   split
   · exact (WP.spec_ok _).2 (DecPost.keep D.bxi (by simp))
-  · exact cnode.decode.dec C G a lbl len buf D _
+  · exact cnode.decode.dec C G a lbl len buf D hE _
 
 end
 

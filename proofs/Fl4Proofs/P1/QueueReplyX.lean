@@ -12,6 +12,7 @@ open fl4_core Fl4Proofs.P0.Consts
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
+variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {U : Set U64}
 
 /-! ## `handle_fault_reply` writes the receiver's user context -/
@@ -525,8 +526,8 @@ theorem decGap_reply {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (tmoAny : ∀ (Ac : Set U64) (s : S) (t : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → t ∈ T →
       obj.Tcb.slot t layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl => obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄)
     (userOK : ∀ (Ac : Set U64) (s : S), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → UserOK st T Cs Ω H U s) :
-    DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .reply := by
-  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot
+    DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .reply := by
+  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot hE
   cases cap <;> simp [capFam] at hf
   rename_i p g
   have hpR : p ∈ Rp := D.cap.1.2.2 p g rfl

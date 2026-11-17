@@ -14,6 +14,7 @@ open fl4_core Fl4Proofs.P0.Consts
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
+variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {U : Set U64}
 
 /-- The four words of a cap slot are cap-slot words. -/
@@ -437,8 +438,8 @@ theorem cnode_rev {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
 /-- `CdtHyps` with the target slot of a CNode operation a whole cap slot
 (its four words cap-slot words). -/
 structure CdtHyps2 (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
-    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) : Prop extends CdtHyps st T Cs Ω H Sg Rp Scs Nt Z where
-  tgtW : ∀ (Ac : Set U64) (s : S) (c : capability.Cap) (i d : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (P3Ok : S → Prop) : Prop extends CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok where
+  tgtW : ∀ (Ac : Set U64) (s : S) (c : capability.Cap) (i d : U64), EntAt st P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     cspace.lookup_target_slot st s c i d ⦃ r => ∀ x, r = .Ok x → SlotW T Ω Sg x ⦄
 
 set_option hygiene false in
@@ -452,9 +453,9 @@ local macro "errleaf2" : tactic => `(tactic| first
 set_option maxHeartbeats 4000000 in
 /-- **`cnode.decode`**, Delete and Revoke included. -/
 theorem cnode.decode.dec2 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (C : CdtHyps2 st T Cs Ω H Sg Rp Scs Nt Z) (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) {s : S}
+    (C : CdtHyps2 st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) {s : S}
     {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize} (a : A) (lbl len buf : U64)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (c : capability.Cap) :
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hE : EntAt st P3Ok s) (c : capability.Cap) :
     cnode.decode st ar s a lbl len c buf extra ⦃ r s' _ => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
   unfold cnode.decode
@@ -470,7 +471,7 @@ theorem cnode.decode.dec2 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
   subst e
   refine WP.spec_bind (P0.msg.syscall_arg.p0 st s _ buf _ hS) fun idx _ => ?_
   refine WP.spec_bind (P0.msg.syscall_arg.p0 st s _ buf _ hS) fun dep _ => ?_
-  refine WP.spec_bind (WP.spec_and (C.tgt Ac s c idx dep D.bxi) (C.tgtW Ac s c idx dep D.bxi)) fun r hr => ?_
+  refine WP.spec_bind (WP.spec_and (C.tgt Ac s c idx dep hE D.bxi) (C.tgtW Ac s c idx dep hE D.bxi)) fun r hr => ?_
   rcases r with v | e
   swap
   · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
@@ -480,25 +481,25 @@ theorem cnode.decode.dec2 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
   simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
   repeat' (first
     | exact (WP.spec_ok _).2 (D.err _)
-    | exact lift2 (cnode.decode_copy.dec C.toCdtHyps lbl len buf v D hv)
-    | exact lift2 (cnode.decode_cancel_badged_sends.dec C.toCdtHyps v D hv)
-    | exact lift2 (cnode.decode_rotate.dec C.toCdtHyps len buf v D hv)
+    | exact lift2 (cnode.decode_copy.dec C.toCdtHyps lbl len buf v D hE hv)
+    | exact lift2 (cnode.decode_cancel_badged_sends.dec C.toCdtHyps v D hE hv)
+    | exact lift2 (cnode.decode_rotate.dec C.toCdtHyps len buf v D hE hv)
     | exact cnode_del hA G D hvW
     | exact cnode_rev hA G D hvW
     | split)
 
 /-- **InvGaps' `cnode`, discharged** from `CdtHyps2` and `DelGaps`. -/
 theorem decGap_cnode2 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (C : CdtHyps2 st T Cs Ω H Sg Rp Scs Nt Z) (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) :
-    DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .cnode := by
-  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot
+    (C : CdtHyps2 st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) :
+    DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .cnode := by
+  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot hE
   cases cap <;> simp [capFam] at hf
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩
   try dsimp only
   split
   · exact (WP.spec_ok _).2 (DecPost.keep D.bxi (by simp))
-  · exact cnode.decode.dec2 hA C G a lbl len buf D _
+  · exact cnode.decode.dec2 hA C G a lbl len buf D hE _
 
 end
 

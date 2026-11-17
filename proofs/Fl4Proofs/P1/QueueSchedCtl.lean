@@ -12,6 +12,7 @@ open fl4_core Fl4Proofs.P0.Consts
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
+variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {s : S}
 
 theorem not_prot_scw {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64}
@@ -1100,11 +1101,11 @@ theorem schedcontext.configure_flags.blk {A : Type _} {ar : machine.Arch A} (hA 
 `SchedControl` cap's core is a core, and an SC cap in an extra slot has its
 object's size bits. -/
 structure ScCtlPlace (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
-    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
+    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop where
   core : ∀ (Ac : Set U64) (s : S) (cap : capability.Cap) (extra : Aeneas.Std.Array obj.Slot 3#usize),
-    DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ cpu, cap = .SchedControl cpu → cpu ∈ Cs
+    EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ cpu, cap = .SchedControl cpu → cpu ∈ Cs
   size : ∀ (Ac : Set U64) (s : S) (cap : capability.Cap) (extra : Aeneas.Std.Array obj.Slot 3#usize),
-    DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ sl ∈ extra.val, sl ≠ 0#u64 →
+    EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ sl ∈ extra.val, sl ≠ 0#u64 →
       obj.Slot.cap st sl s ⦃ c => ∀ ptr sz, c = .SchedContext ptr sz → sz.val = Z ptr ⦄
 
 set_option hygiene false in
@@ -1117,21 +1118,22 @@ local macro "errD" : tactic => `(tactic| first
 set_option maxHeartbeats 8000000 in
 /-- **`SchedControl_ConfigureFlags`** keeps the invariants, from `ScCtlPlace`. -/
 theorem schedcontext.decode_sched_control.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    {U : Set U64} (Pl : ScCtlPlace st T Cs Ω H Sg Rp Scs Nt Z U) {a : A} {lbl cpu len buf : U64}
-    {extra : Aeneas.Std.Array obj.Slot 3#usize} (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.SchedControl cpu) extra) :
+    {U : Set U64} (Pl : ScCtlPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) {a : A} {lbl cpu len buf : U64}
+    {extra : Aeneas.Std.Array obj.Slot 3#usize} (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.SchedControl cpu) extra)
+    (hE : EntAt st P3Ok s) :
     schedcontext.decode_sched_control st ar s a lbl cpu len buf extra ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
   have hct : L.curW s ∈ T := D.bxi.1.choose_spec.choose_spec.curT
   have hT := D.bxi.1.choose_spec.choose_spec.tcbs
-  have hcpu := Pl.core Ac s _ extra D cpu rfl
+  have hcpu := Pl.core Ac s _ extra hE D cpu rfl
   unfold schedcontext.decode_sched_control
   split
   · errD
   step with sched.cur_thread.spec as ⟨ct, ect⟩
   refine WP.spec_bind (schedcontext.extra_cap.gen (P := fun c => CapOK st T Rp Scs Nt H s c ∧
       ∀ ptr sz, c = .SchedContext ptr sz → sz.val = Z ptr)
-    (fun sl hsl h0 => WP.spec_and (D.extra s (WritesIn.refl _ _) sl hsl h0) (Pl.size Ac s _ extra D sl hsl h0))) ?_
+    (fun sl hsl h0 => WP.spec_and (D.extra s (WritesIn.refl _ _) sl hsl h0) (Pl.size Ac s _ extra hE D sl hsl h0))) ?_
   rintro o ho
   rcases o with _ | c
   · errD
@@ -1200,15 +1202,15 @@ theorem schedcontext.decode_sched_control.dec {A : Type _} {ar : machine.Arch A}
 
 /-- **InvGaps' `schedControl`, discharged** from `ScCtlPlace`. -/
 theorem decGap_schedControl {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
-    (Pl : ScCtlPlace st T Cs Ω H Sg Rp Scs Nt Z U) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .schedControl := by
-  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot
+    (Pl : ScCtlPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .schedControl := by
+  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot hE
   cases cap <;> simp [capFam] at hf
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩
   try dsimp only
   split
   · exact (WP.spec_ok _).2 (DecPost.keep D.bxi (by simp))
-  · exact schedcontext.decode_sched_control.dec hA Pl D
+  · exact schedcontext.decode_sched_control.dec hA Pl D hE
 
 end
 

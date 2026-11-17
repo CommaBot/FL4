@@ -18,6 +18,7 @@ open fl4_core Fl4Proofs.P0.Consts
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
+variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {U : Set U64}
 
 /-- A region holding no word P1 tracks: aligned, not wrapping, its words in
@@ -54,26 +55,26 @@ unmap and MakePool clear and the ASID table's entries hold no tracked words,
 the subframe destination slots are cap slots, and the EPT steps on frames
 (VT-x: not yet refined, DESIGN §5). -/
 structure VsPlace (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
-    (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
+    (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop where
   /-- A table cap's table (cleared by its unmap). -/
   tbl : ∀ (Ac : Set U64) (s : S) (cap : capability.Cap) (extra : Aeneas.Std.Array obj.Slot 3#usize),
-    DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ ptr m asd va,
+    EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ ptr m asd va,
       (cap = .PageTable ptr m asd va ∨ cap = .PageDirectory ptr m asd va ∨ cap = .Pdpt ptr m asd va) →
       FreeRegion Ω Sg ptr 4096#u64
   /-- MakePool's untyped (its first page is cleared for the pool). -/
   pool : ∀ (Ac : Set U64) (s : S) (cap : capability.Cap) (extra : Aeneas.Std.Array obj.Slot 3#usize),
-    DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ x ∈ extra.val, x ≠ 0#u64 →
+    EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ x ∈ extra.val, x ≠ 0#u64 →
       obj.Slot.cap st x s ⦃ c => ∀ ptr sb fi dev, c = .Untyped ptr sb fi dev → FreeRegion Ω Sg ptr 4096#u64 ⦄
   /-- The ASID table's entries hold no tracked words (MakePool's pool install). -/
   aset : ∀ (Ac : Set U64) (s : S) (hi v : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     vspace.set_asid_table st s hi v ⦃ s1 => WritesIn st s s1 (fun b => b ∈ Ω ∧ b ∉ Sg) ⦄
   /-- The subframe destination slots. -/
-  sub : ∀ (Ac : Set U64) (s : S) (x i d off cnt : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+  sub : ∀ (Ac : Set U64) (s : S) (x i d off cnt : U64), EntAt st P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     vspace.subframe_dest st s x i d off cnt ⦃ r => ∀ dst, r = .Ok dst → ∀ j : U64, j.val < cnt.val →
       obj.Slot.index dst (core.num.U64.wrapping_add off j) ⦃ sl => CapW T Ω Sg sl ⦄ ⦄
   /-- EPT: mapping a frame into an EPT (VT-x: not yet refined, DESIGN §5). -/
   eptMap : ∀ (Ac : Set U64) (s : S) (a : A) (len : U64) (cap : capability.Cap) (slot buf : U64)
-    (extra : Aeneas.Std.Array obj.Slot 3#usize), DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra →
+    (extra : Aeneas.Std.Array obj.Slot 3#usize), EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra →
     ept.map_frame st ar s a len cap slot buf extra ⦃ r s' _ => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄
   /-- EPT: unmapping a frame from an EPT (VT-x: not yet refined, DESIGN §5). -/
   eptUnmap : ∀ (Ac : Set U64) (s0 s : S) (a : A) (asid vaddr ptr bits : U64),
@@ -292,9 +293,9 @@ theorem vspace.decode_table_map.dec {A : Type _} {ar : machine.Arch A} (hA : P0.
 set_option maxHeartbeats 4000000 in
 /-- **The paging-structure caps' decode** (map, unmap). -/
 theorem vspace.decode_table.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U) {s : S}
+    (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) {s : S}
     {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize}
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra)
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hE : EntAt st P3Ok s)
     (a : A) (lbl len slot buf : U64) (hslot : CapSlotW T Ω Sg slot) :
     vspace.decode_table st ar s a lbl len slot cap buf extra ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
@@ -307,7 +308,7 @@ theorem vspace.decode_table.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
     try dsimp only
     split
     · exact vspace.decode_table_unmap.dec hA Pd D a slot _ _ ptr m asd va hslot
-        (Vs.tbl _ _ _ _ D ptr m asd va (by simp))
+        (Vs.tbl _ _ _ _ hE D ptr m asd va (by simp))
     split
     swap
     · errV
@@ -509,7 +510,7 @@ theorem vspace.decode_test_and_clear_accessed.dec {V : U64 → Prop} (Pd : DelPl
 
 /-- **`insert_subframes`**: the subframe caps' insertions under the source
 slot, into cap slots. -/
-theorem vspace.insert_subframes.cur0 (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) {s0 s : S}
+theorem vspace.insert_subframes.cur0 (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {s0 s : S}
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) {src dest first base count vm : U64} (hsrc : CapW T Ω Sg src)
     (hd : ∀ j : U64, j.val < count.val → obj.Slot.index dest (core.num.U64.wrapping_add first j) ⦃ sl =>
       CapW T Ω Sg sl ⦄) :
@@ -540,10 +541,10 @@ theorem vspace.insert_subframes.cur0 (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) {
 
 set_option maxHeartbeats 4000000 in
 /-- **DeriveSubframe**: the restart and the subframe caps' insertions. -/
-theorem vspace.derive_subframe.dec {A : Type _} {ar : machine.Arch A} (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z)
-    (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U) {s : S} {cap0 : capability.Cap}
+theorem vspace.derive_subframe.dec {A : Type _} {ar : machine.Arch A} (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
+    (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) {s : S} {cap0 : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap0 extra)
-    (a : A) (len src : U64) (cap : capability.Cap) (buf : U64) (hsrc : CapSlotW T Ω Sg src) :
+    (hE : EntAt st P3Ok s) (a : A) (len src : U64) (cap : capability.Cap) (buf : U64) (hsrc : CapSlotW T Ω Sg src) :
     vspace.derive_subframe st ar s a len src cap buf extra ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -580,7 +581,7 @@ theorem vspace.derive_subframe.dec {A : Type _} {ar : machine.Arch A} (C : CdtHy
   · errV
   split
   · errV
-  refine WP.spec_bind (Vs.sub Ac s x ni nd no cnt hb) fun r hr => ?_
+  refine WP.spec_bind (Vs.sub Ac s x ni nd no cnt hE hb) fun r hr => ?_
   rcases r with dst | e
   swap
   · errV
@@ -603,10 +604,10 @@ theorem vspace.derive_subframe.dec {A : Type _} {ar : machine.Arch A} (C : CdtHy
 set_option maxHeartbeats 8000000 in
 /-- **The frame caps' decode**. -/
 theorem vspace.decode_frame.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U)
-    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) {s : S}
+    (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) {s : S}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (fp fsz : _) (fr : U64) (fd fm fe : Bool) (fa fv : U64)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Frame fp fsz fr fd fm fe fa fv) extra)
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Frame fp fsz fr fd fm fe fa fv) extra) (hE : EntAt st P3Ok s)
     (a : A) (lbl len slot : U64) (call : Bool) (buf : U64) (hslot : CapSlotW T Ω Sg slot) :
     vspace.decode_frame st ar s a lbl len slot (.Frame fp fsz fr fd fm fe fa fv) call buf extra ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
@@ -616,7 +617,7 @@ theorem vspace.decode_frame.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
   unfold vspace.decode_frame
   simp only [vspace.as_frame, bind_ok]
   split
-  · exact Vs.eptMap _ _ _ _ _ _ _ _ D
+  · exact Vs.eptMap _ _ _ _ _ _ _ _ hE D
   split
   · split
     · split
@@ -658,7 +659,7 @@ theorem vspace.decode_frame.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
     rintro ⟨r, s1⟩ hr
     exact (WP.spec_ok _).2 hr
   split
-  · exact vspace.derive_subframe.dec C Vs D a len slot _ buf hslot
+  · exact vspace.derive_subframe.dec C Vs D hE a len slot _ buf hslot
   · errV
 
 
@@ -691,10 +692,10 @@ theorem mask511_mul8 (x : U64) (y : U64) (hy : y.val = (x &&& 511#u64).val * 8) 
 set_option maxHeartbeats 16000000 in
 /-- **`vspace.decode`** over the VSpace family's caps. -/
 theorem vspace.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U)
-    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) {s : S}
+    (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) {s : S}
     {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize}
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra)
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hE : EntAt st P3Ok s)
     (hx : ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapSlotW T Ω Sg sl)
     (a : A) (lbl len slot : U64) (call : Bool) (buf : U64) (hslot : CapSlotW T Ω Sg slot) :
     vspace.decode st ar s a lbl len slot cap call buf extra ⦃ r s' _ =>
@@ -708,10 +709,10 @@ theorem vspace.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
   cases cap
   all_goals try (simp only [error.invalid_cap, bind_ok]; exact (WP.spec_ok _).2 (D.err _))
   case Frame fp fsz fr fd fm fe fa fv =>
-    exact vspace.decode_frame.dec hA Pd Vs C E fp fsz fr fd fm fe fa fv D a lbl len slot call buf hslot
-  case PageTable => exact vspace.decode_table.dec hA Pd Vs D a lbl len slot buf hslot
-  case PageDirectory => exact vspace.decode_table.dec hA Pd Vs D a lbl len slot buf hslot
-  case Pdpt => exact vspace.decode_table.dec hA Pd Vs D a lbl len slot buf hslot
+    exact vspace.decode_frame.dec hA Pd Vs C E fp fsz fr fd fm fe fa fv D hE a lbl len slot call buf hslot
+  case PageTable => exact vspace.decode_table.dec hA Pd Vs D hE a lbl len slot buf hslot
+  case PageDirectory => exact vspace.decode_table.dec hA Pd Vs D hE a lbl len slot buf hslot
+  case Pdpt => exact vspace.decode_table.dec hA Pd Vs D hE a lbl len slot buf hslot
   case Pml4 ptr mapped asid =>
     try dsimp only
     split
@@ -741,7 +742,7 @@ theorem vspace.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
     · errV
     refine WP.spec_bind (P0.msg.syscall_arg.p0 st s _ buf _ hS) fun idx _ => ?_
     refine WP.spec_bind (P0.msg.syscall_arg.p0 st s _ buf _ hS) fun dep _ => ?_
-    refine WP.spec_bind (WP.spec_and (P0.obj.Slot.cap.p0 st x s hS) (Vs.pool _ _ _ _ D x hxm hx0)) fun ut ⟨_, hut⟩ => ?_
+    refine WP.spec_bind (WP.spec_and (P0.obj.Slot.cap.p0 st x s hS) (Vs.pool _ _ _ _ hE D x hxm hx0)) fun ut ⟨_, hut⟩ => ?_
     refine WP.spec_bind (P0.obj.Slot.cap.p0 st y s hS) fun root _ => ?_
     refine WP.spec_bind (P0.vspace.decode_loop0.p0 st s 0#u64 hS) fun i _ => ?_
     split
@@ -762,7 +763,7 @@ theorem vspace.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
       swap
       · errV
       simp only [irq_branch_ok, bind_ok]
-      refine WP.spec_bind (C.tgt Ac s root idx dep hb) fun r1 hr1 => ?_
+      refine WP.spec_bind (C.tgt Ac s root idx dep hE hb) fun r1 hr1 => ?_
       rcases r1 with v | e
       swap
       · errV
@@ -878,16 +879,16 @@ theorem vspace.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
 placement facts, the transfer's (a reply's buffer), `IrqPlace.extra` (the
 extra caps' slots) and `VsPlace`. -/
 theorem decGap_vspace {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
-    (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U)
-    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
-    (Pl : IrqPlace st T Cs Ω H Sg Rp Scs Nt Z U) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .vspace := by
-  intro Ac s a lbl len slot cap blk call don fp buf extra hf D hslot
+    (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
+    (Pl : IrqPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .vspace := by
+  intro Ac s a lbl len slot cap blk call don fp buf extra hf D hslot hE
   cases cap <;> simp [capFam] at hf
   all_goals
     unfold syscall.decode_invocation
     step with sched.cur_thread.spec as ⟨ct, _⟩
     try dsimp only
-    exact vspace.decode.dec hA Pd Vs C E D (Pl.extra _ _ _ _ D) a lbl len slot call buf hslot
+    exact vspace.decode.dec hA Pd Vs C E D hE (Pl.extra _ _ _ _ hE D) a lbl len slot call buf hslot
 
 end
 

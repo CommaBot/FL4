@@ -14,6 +14,7 @@ open fl4_core Fl4Proofs.P0.Consts
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
+variable {P3Ok : S → Prop}
 variable {T Cs Ω : Set U64} {H : Heap} {Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U Ac : Set U64}
 
 /-- An EPT table at `s`: every walk from it ends at an aligned untracked
@@ -24,11 +25,13 @@ def EptTbl (st : machine.Store S) (Ω Sg : Set U64) (s : S) (r : U64) : Prop :=
 /-- **The EPT tables' placement** (P3's): a found EPT root is an EPT table,
 and an invoked non-root EPT table cap's table holds no tracked word. -/
 structure EptPlace (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
-    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
-  find : ∀ (Ac : Set U64) (s : S) (asid : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop where
+  /-- At the caller's restart after the decode's start `s0` (its footprint `Foot`). -/
+  find : ∀ (Ac : Set U64) (s0 s : S) (asid : U64), EntAt st P3Ok s0 → Foot st T Cs Sg Scs Z ∅ s0 s →
+    BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     ept.find st s asid ⦃ r => ∀ r1, r = .Ok r1 → EptTbl st Ω Sg s r1 ⦄
   tbl : ∀ (Ac : Set U64) (s : S) (cap : capability.Cap) (extra : Aeneas.Std.Array obj.Slot 3#usize),
-    DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ ptr level m asid va,
+    EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ ptr level m asid va,
       cap = .Ept ptr level m asid va → level ≠ 0#u64 → FreeRegion Ω Sg ptr 4096#u64
 
 /-- **`ept.unmap`** from a found EPT table: at most one EPT entry cleared. -/
@@ -79,6 +82,14 @@ theorem ept.unmap.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   · split
     · exact (WP.spec_ok _).2 h
     · exact fin
+
+/-- The caller's restart at the decode's start, with its footprint. -/
+theorem Cur0.restartF {s : S} {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize}
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) :
+    sched.set_thread_state st s (L.curW s) sched.TS_RESTART ⦃ s1 => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s s1 ∧
+      Foot st T Cs Sg Scs Z ∅ s s1 ⦄ :=
+  WP.spec_and (Cur0.restart D) (WP.spec_mono (sched.set_thread_state.restart_blk (Es := ∅) s _ D.bxi.blk
+    D.bxi.1.choose_spec.choose_spec.curT (runnable_ok D.run).1 (runnable_ok D.run).2) fun _ h => h.2.1)
 
 /-- A found root's walk, through `ept.root` and `ept.slot`. -/
 theorem ept.slot.place {s : S} {r gpa level : U64} (hr : EptTbl st Ω Sg s r) :
@@ -133,11 +144,11 @@ local macro "eerr" : tactic => `(tactic| first
 set_option maxHeartbeats 8000000 in
 /-- **`ept.decode`** on an EPT table cap. -/
 theorem ept.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (P : EptPlace st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U) {s : S} {a : A}
+    (P : EptPlace st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U P3Ok) {s : S} {a : A}
     {lbl len buf : U64} {slot : obj.Slot} {ptr level asid vaddr : U64} {mapped : Bool}
     {extra : Aeneas.Std.Array obj.Slot 3#usize}
     (D : DecPre st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac s (.Ept ptr level mapped asid vaddr) extra)
-    (hslot : CapSlotW H.tcbs H.omega H.frame slot) :
+    (hslot : CapSlotW H.tcbs H.omega H.frame slot) (hE : EntAt st P3Ok s) :
     ept.decode st ar s a lbl len (.Ept ptr level mapped asid vaddr) slot buf extra ⦃ r s' _ =>
       DecPost st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s r s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -149,7 +160,7 @@ theorem ept.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   swap
   · eerr
   rename_i hl0
-  have hz := P.tbl Ac s _ extra D ptr level mapped asid vaddr rfl (by simpa using hl0)
+  have hz := P.tbl Ac s _ extra hE D ptr level mapped asid vaddr rfl (by simpa using hl0)
   refine WP.spec_bind (Pₘ := fun _ => True) (by
     split
     · exact (WP.spec_ok _).2 trivial
@@ -164,11 +175,11 @@ theorem ept.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     split
     swap
     · exact (WP.spec_ok _).2 (Cur0.post c0)
-    refine WP.spec_bind (Cur0.restart D) fun s1 h1 => ?_
+    refine WP.spec_bind (Cur0.restartF D) fun s1 ⟨h1, f1⟩ => ?_
     obtain ⟨Ac1, hb1⟩ := h1.bxi
     refine WP.spec_bind (Pₘ := fun r : S × A => Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s r.1) ?_ ?_
     · split
-      · refine WP.spec_bind (ept.unmap.cur0 hA a asid vaddr ptr level true (P.find Ac1 s1 asid hb1) h1) ?_
+      · refine WP.spec_bind (ept.unmap.cur0 hA a asid vaddr ptr level true (P.find Ac1 s s1 asid hE f1 hb1) h1) ?_
         rintro ⟨s3, a2⟩ h3
         try simp only [uncurry_apply_pair]
         refine WP.spec_bind (LawfulStore.zero_spec s3 ptr 4096#u64) fun s4 e4 => ?_
@@ -200,7 +211,7 @@ theorem ept.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   split
   · eerr
   refine WP.spec_bind (P0.obj.Slot.cap.p0 st x s hS) fun c _ => ?_
-  refine WP.spec_bind (ept.root.place (P.find Ac s · D.bxi)) ?_
+  refine WP.spec_bind (ept.root.place (P.find Ac s s · hE (WritesIn.refl _ _) D.bxi)) ?_
   rintro (⟨r1, asid1⟩ | er) hr
   all_goals
     refine WP.spec_bind (Pₘ := fun c => c = _) ((WP.spec_ok _).2 rfl) fun cf ecf => ?_
@@ -239,9 +250,9 @@ theorem ept.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
 
 /-- **The EPT tables' placement for the decode** (P3's), over the heap's sets. -/
 structure EptPlaceH (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
-    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
+    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop where
   sets : T = H.tcbs ∧ Ω = H.omega ∧ Sg = H.frame
-  pl : EptPlace st T Cs Ω H Sg Rp Scs Nt Z U
+  pl : EptPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok
 
 end
 
@@ -251,16 +262,16 @@ variable {T Cs Ω : Set U64} {H : Heap} {Sg Rp Scs Nt : Set U64} {Z : U64 → Na
 
 /-- **InvGaps' `ept` family**, from the EPT tables' placement. -/
 theorem decGap_ept {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (P : EptPlaceH st T Cs Ω H Sg Rp Scs Nt Z U) :
-    DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .ept := by
+    (P : EptPlaceH st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) :
+    DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .ept := by
   obtain ⟨⟨eT, eΩ, eSg⟩, Pl⟩ := P
   subst eT eΩ eSg
-  intro Ac s a lbl len slot cap blk call don fp buf extra hf D hslot
+  intro Ac s a lbl len slot cap blk call don fp buf extra hf D hslot hE
   cases cap <;> simp [capFam] at hf
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩
   try dsimp only
-  exact ept.decode.dec hA Pl D hslot
+  exact ept.decode.dec hA Pl D hslot hE
 
 end
 

@@ -11,6 +11,7 @@ open fl4_core Fl4Proofs.P0.Consts
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
+variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {U X : Set U64}
 
 /-! ## Two writes in either order -/
@@ -444,8 +445,8 @@ theorem schedcontext.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
 /-- **InvGaps' `schedContext`, discharged** but for the named `ScYieldGap`. -/
 theorem decGap_sc {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) (Y : ScYieldGap st ar T Cs Ω H Sg Rp Scs Nt Z U) :
-    DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .schedContext := by
-  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot
+    DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .schedContext := by
+  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot hE
   cases cap <;> simp [capFam] at hf
   rename_i sc b
   unfold syscall.decode_invocation

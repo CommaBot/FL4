@@ -13,6 +13,7 @@ open fl4_core Fl4Proofs.P0.Consts
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
+variable {P3Ok : S → Prop}
 variable {H : Heap} {Cs Rp Scs Nt : Set U64} {Z : U64 → Nat} {U Ac : Set U64}
 
 /-- `Cur0` at a decode's start. -/
@@ -915,11 +916,11 @@ theorem vcpu.decode.other {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
 the heap's, the VCPU objects' placement (`VcpuPl`), and an invoked VCPU cap
 names a VCPU object. -/
 structure VcpuPlace (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
-    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
+    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop where
   sets : T = H.tcbs ∧ Ω = H.omega ∧ Sg = H.frame
   pl : VcpuPl st H Cs Rp Scs Nt Z
   cap : ∀ (Ac : Set U64) (s : S) (v : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize),
-    DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Vcpu v) extra → H v = some (.other 15)
+    EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Vcpu v) extra → H v = some (.other 15)
 
 end
 
@@ -931,17 +932,17 @@ set_option maxHeartbeats 4000000 in
 /-- **InvGaps' `vcpu` family**, from the VCPU objects' placement, the
 transfer's buffer placement and the extra caps' slots (`IrqPlace.extra`). -/
 theorem decGap_vcpu {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (P : VcpuPlace st T Cs Ω H Sg Rp Scs Nt Z U) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
+    (P : VcpuPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U)
     (IPx : ∀ (Ac : Set U64) (s : S) (cap : capability.Cap) (extra : Aeneas.Std.Array obj.Slot 3#usize),
-      DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapSlotW T Ω Sg sl) :
-    DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .vcpu := by
+      EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapSlotW T Ω Sg sl) :
+    DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .vcpu := by
   obtain ⟨eT, eΩ, eSg⟩ := P.sets
   subst eT eΩ eSg
-  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot
+  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot hE
   cases cap <;> simp [capFam] at hf
   rename_i v
-  have hv := P.cap Ac s v extra D
-  have hxs := IPx Ac s _ extra D
+  have hv := P.cap Ac s v extra hE D
+  have hxs := IPx Ac s _ extra hE D
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩
   try dsimp only
@@ -971,7 +972,7 @@ theorem decGap_vcpu {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
 
 
 /-- The VCPU list's placement, for the I/O-port caps' finalisation. -/
-theorem VcpuPlace.ioPl (P : VcpuPlace st T Cs Ω H Sg Rp Scs Nt Z U) : IoPortPlace st T Cs Ω H Sg Rp Scs Nt Z := by
+theorem VcpuPlace.ioPl (P : VcpuPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) : IoPortPlace st T Cs Ω H Sg Rp Scs Nt Z := by
   obtain ⟨eT, eΩ, eSg⟩ := P.sets
   subst eT eΩ eSg
   exact P.pl.ioPl

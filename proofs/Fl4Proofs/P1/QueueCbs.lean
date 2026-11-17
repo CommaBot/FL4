@@ -352,16 +352,28 @@ theorem timer.insert_fixup.tf (s : S) (c z : U64) (h : TF st T Cs Ω H Sg Rp Scs
   refine WP.spec_bind (timer.root.tzf s1 c h1 hc) fun r hr => ?_
   exact timer.set_red.tf s1 r false h1 hr
 
+/-- **`timer.remove`'s fine footprint**: `TInv` kept, only the timer words
+`TW` (the TCB timer fields 3528–3576, the cores' `TIMER_ROOT` and
+`TIMER_MIN`) written. -/
+theorem timer.remove.tw (s : S) (t : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T) :
+    timer.remove st s t ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ WritesIn st s s' (TW st T Cs s) ⦄ :=
+  WP.spec_mono (timer.remove.tf (s0 := s) s t (TF.start h) ht) fun _ h' => ⟨h'.1, h'.2.2.2.2⟩
+
 /-- **`timer.insert` with its footprint** (P3's `SetTimerHyp`): arming `t`'s
 timer keeps `TInv` (`BlkOK`) and writes only footprint words (TCB timer
-fields, the tree root and min words and `REPROGRAM` of the core). -/
+fields, the tree root and min words and `REPROGRAM` of the core): coarsely
+`Foot`, finely the timer words `TW` and the current core's `REPROGRAM`. -/
 theorem timer.insert.foot (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T) :
-    timer.insert st s t d bd ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ Foot st T Cs Sg Scs Z ∅ s s' ⦄ := by
+    timer.insert st s t d bd ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ Foot st T Cs Sg Scs Z ∅ s s' ∧
+      WritesIn st s s' (fun b => TW st T Cs s b ∨ b = L.nodeAt s (L.cpu s) layout.node.REPROGRAM) ⦄ := by
   have htz : Tz T t := Tz.of_mem ht
   unfold timer.insert
   refine WP.spec_bind (timer.remove.tf (s0 := s) s t (TF.start h) ht) fun s1 h1 => ?_
+  have TWR : ∀ {sa : S}, WritesIn st s sa (TW st T Cs s) →
+      WritesIn st s sa (fun b => TW st T Cs s b ∨ b = L.nodeAt s (L.cpu s) layout.node.REPROGRAM) :=
+    fun w => w.mono fun _ hb => Or.inl hb
   split
-  · exact (WP.spec_ok _).2 ⟨h1.1, h1.2.1⟩
+  · exact (WP.spec_ok _).2 ⟨h1.1, h1.2.1, TWR h1.2.2.2.2⟩
   refine WP.spec_bind (L.cur_cpu_spec s1) fun cpu ec => ?_
   have hc : cpu ∈ Cs := by
     obtain ⟨⟨Q, R, h0⟩, -⟩ := h1.1
@@ -386,6 +398,9 @@ theorem timer.insert.foot (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Sc
   try simp only [WP.uncurry'_pair]
   have hT := h2.tcbs
   have hN2 := h2.nodes _ h2.1.1.choose_spec.choose_spec.cur
+  have FW : ∀ {sa : S} (K v : U64), WritesIn st s sa (TW st T Cs s) → 3528 ≤ K.val → K.val < 3576 → K.val % 8 = 0 →
+      WritesIn st s (L.wr sa (core.num.U64.wrapping_add t K) v) (TW st T Cs s) :=
+    fun K v w a1 a2 a3 => TW.wr_field w hT ht a1 a2 a3
   have FA : ∀ {sa : S} (K v : U64), Foot st T Cs Sg Scs Z ∅ s sa → ANI st s sa → NodePlaced st T sa (L.cpu sa) →
       192 ≤ K.val → K.val < 4096 → K.val % 8 = 0 → K.val ≠ 3576 → K.val ≠ 3584 →
       Foot st T Cs Sg Scs Z ∅ s (L.wr sa (core.num.U64.wrapping_add t K) v) ∧
@@ -423,24 +438,36 @@ theorem timer.insert.foot (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Sc
     rw [or1_shr8, shl8_shr8 (h1.1.cpu_small hc) hi1] at hcv
     rw [show c = cpu from UScalar.eq_of_val_eq hcv]; exact hc
   obtain ⟨f8, n8, -⟩ := FA (K := 3568#u64) (i ||| 1#u64) f7 n7 N7 (by simp) (by simp) (by simp) (by simp) (by simp)
-  have k8 := ((((((h2.2.2.2.wr_field (K' := 3528#u64) (v := d) hT ht (by simp) (by simp) (by simp)).wr_field
+  have w8 := FW (K := 3568#u64) (i ||| 1#u64) (FW (K := 3552#u64) 0#u64 (FW (K := 3544#u64) 0#u64
+    (FW (K := 3560#u64) p (FW (K := 3536#u64) bd (FW (K := 3528#u64) d h2.2.2.2.2 (by simp) (by simp) (by simp))
+      (by simp) (by simp) (by simp)) (by simp) (by simp) (by simp)) (by simp) (by simp) (by simp))
+      (by simp) (by simp) (by simp)) (by simp) (by simp) (by simp)
+  have k8 := ((((((h2.2.2.2.1.wr_field (K' := 3528#u64) (v := d) hT ht (by simp) (by simp) (by simp)).wr_field
     (K' := 3536#u64) (v := bd) hT ht (by simp) (by simp) (by simp)).wr_field (K' := 3560#u64) (v := p) hT ht
     (by simp) (by simp) (by simp)).wr_field (K' := 3544#u64) (v := 0#u64) hT ht (by simp) (by simp) (by simp)).wr_field
     (K' := 3552#u64) (v := 0#u64) hT ht (by simp) (by simp) (by simp)).wr_field (K' := 3568#u64) (v := i ||| 1#u64)
     hT ht (by simp) (by simp) (by simp))
-  refine WP.spec_bind (timer.insert_fixup.tf (s0 := s) _ cpu t ⟨h8, f8, n8, k8⟩ hc htz) fun s9 h9 => ?_
+  refine WP.spec_bind (timer.insert_fixup.tf (s0 := s) _ cpu t ⟨h8, f8, n8, k8, w8⟩ hc htz) fun s9 h9 => ?_
   split
   · refine WP.spec_bind (obj.node_set.spec s9 cpu _ t) fun s10 e10 => ?_
     subst e10
     have h10 := h9.1.wr_node hc (o := layout.node.TIMER_MIN) (by rw [timer_min_val]; simp) htz
     have f10 := h9.2.1.trans (foot_node (v := t) (h9.nodes cpu hc) hc (by rw [timer_min_val]; omega)
       (by rw [timer_min_val]) (by rw [timer_min_val]; omega))
+    have w10 := TW.wr_node (v := t) h9.2.2.2.2 (h9.nodes cpu hc) hc (o := layout.node.TIMER_MIN)
+      (by rw [timer_min_val]; simp)
     refine WP.spec_mono (obj.node_set.spec _ cpu _ 1#u64) fun s11 e11 => ?_
     subst e11
     have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
-    refine ⟨reprogram_at.tinv h10 hc, f10.trans ?_⟩
-    exact foot_node (h10.nodes cpu hc) hc (by rw [rp]; omega) (by rw [rp]) (by rw [rp]; omega)
-  · exact (WP.spec_ok _).2 ⟨h9.1, h9.2.1⟩
+    refine ⟨reprogram_at.tinv h10 hc, f10.trans ?_, ?_⟩
+    · exact foot_node (h10.nodes cpu hc) hc (by rw [rp]; omega) (by rw [rp]) (by rw [rp]; omega)
+    · have hcs : cpu = L.cpu s := by rw [ec, h1.2.2.2.2.2.1]
+      refine ((TWR w10).trans (writesIn_wr (nodeAt_aligned (h10.nodes cpu hc) (by rw [rp]; omega)
+        (by rw [rp])))).mono fun b hb => ?_
+      rcases hb with hb | hb
+      · exact hb
+      · right; rw [hb, nodeAt_of_ksb w10.1, hcs]
+  · exact (WP.spec_ok _).2 ⟨h9.1, h9.2.1, TWR h9.2.2.2.2⟩
 
 end timer
 

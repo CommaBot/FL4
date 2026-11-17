@@ -281,7 +281,7 @@ theorem notification.unbind_notification.curR (s : S) (t u : U64) (h : BlkOK st 
 
 theorem timer.remove.curR (s : S) (t u : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T)
     (hu : u ∈ T) : timer.remove st s t ⦃ s' => CurR st u s s' ⦄ :=
-  WP.spec_mono (timer.remove.tf2 (s0 := s) s t (TF2.start h) ht) fun s' ⟨⟨_, _, an, tk⟩, ecs⟩ =>
+  WP.spec_mono (timer.remove.tf2 (s0 := s) s t (TF2.start h) ht) fun s' ⟨⟨_, _, an, tk, _⟩, ecs⟩ =>
     ⟨an.2.2, ecs, Or.inl (by rw [scA_eq]; exact tk u hu _ (by simp) (by simp) (by simp)),
       Or.inl an.1, fun hb => by rw [stA_eq, tk u hu _ (by simp) (by simp) (by simp), ← stA_eq]; exact hb⟩
 
@@ -483,7 +483,7 @@ theorem fin_thread.curR {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar
   refine WP.spec_bind (WP.spec_and (notification.unbind_notification.blkF s1 p h1 hp)
     (notification.unbind_notification.curR s1 p u h1 hp hu)) fun s2 ⟨⟨h2, f2, n2⟩, c2⟩ => ?_
   refine WP.spec_bind (WP.spec_and (timer.remove.tf (s0 := s2) s2 p (TF.start h2) hp)
-    (timer.remove.curR s2 p u h2 hp hu)) fun s3 ⟨⟨h3, f3, n3, k3⟩, c3⟩ => ?_
+    (timer.remove.curR s2 p u h2 hp hu)) fun s3 ⟨⟨h3, f3, n3, k3, _⟩, c3⟩ => ?_
   have ea3 : L.actionW s3 = L.actionW s := by rw [n3.1, n2.1, ea1]
   have ei3 : L.idleW s3 = L.idleW s := by rw [n3.2.1, n2.2.1, ei1]
   have c13 := (c1.trans c2).trans c3

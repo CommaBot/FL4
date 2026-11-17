@@ -21,6 +21,7 @@ open fl4_core Fl4Proofs.P0.Consts
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
+variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {U : Set U64}
 
 theorem SlotW.capw0 {x : U64} (h : SlotW T Ω Sg x) : CapW T Ω Sg x := by
@@ -46,7 +47,7 @@ theorem interrupt.set_irq_state.blk {A : Type _} {ar : machine.Arch A} (hA : P0.
 /-- **`invoke_irq_control`**: the IRQ-state write and the IrqHandler cap's
 insertion under the IrqControl cap's slot. -/
 theorem interrupt.invoke_irq_control.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) (s : S) (a : A) (irq handler control : U64)
+    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (s : S) (a : A) (irq handler control : U64)
     (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hi : irq.val < 128) (hh : CapW T Ω Sg handler)
     (hc : CapW T Ω Sg control) :
     interrupt.invoke_irq_control st ar s a irq handler control ⦃ r => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ⦄ := by
@@ -161,7 +162,7 @@ set_option hygiene false in
 arch-specific step `m` (keeping `BlkOK`, or an error with `s`), then the
 invocation. -/
 local macro "irqtail" : tactic => `(tactic| (
-  refine WP.spec_bind (C.tgt Ac s _ _ _ D.bxi) fun r hr => ?_
+  refine WP.spec_bind (C.tgt Ac s _ _ _ hE D.bxi) fun r hr => ?_
   rcases r with v | e
   swap
   · errI
@@ -176,9 +177,9 @@ local macro "irqtail" : tactic => `(tactic| (
 set_option maxHeartbeats 4000000 in
 /-- **`decode_issue_isa`** (IRQIssueIRQHandler without IOAPICs). -/
 theorem interrupt.decode_issue_isa.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) {s : S} {cap : capability.Cap}
+    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {s : S} {cap : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (a : A) (len src buf : U64)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hsrc : CapW T Ω Sg src) :
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hE : EntAt st P3Ok s) (hsrc : CapW T Ω Sg src) :
     interrupt.decode_issue_isa st ar s a len src buf extra ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -218,16 +219,16 @@ theorem interrupt.decode_issue_isa.dec {A : Type _} {ar : machine.Arch A} (hA : 
 set_option maxHeartbeats 8000000 in
 /-- **`decode_irq_control`** keeps the invariants. -/
 theorem interrupt.decode_irq_control.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) {s : S} {cap : capability.Cap}
+    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {s : S} {cap : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (a : A) (lbl len slot buf : U64)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hslot : CapW T Ω Sg slot) :
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hE : EntAt st P3Ok s) (hslot : CapW T Ω Sg slot) :
     interrupt.decode_irq_control st ar s a lbl len slot buf extra ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
   have hct : L.curW s ∈ T := D.bxi.1.choose_spec.choose_spec.curT
   unfold interrupt.decode_irq_control
   split
-  · exact interrupt.decode_issue_isa.dec hA C a len slot buf D hslot
+  · exact interrupt.decode_issue_isa.dec hA C a len slot buf D hE hslot
   split
   · split
     · split
@@ -392,13 +393,13 @@ theorem interrupt.decode_irq_control.dec {A : Type _} {ar : machine.Arch A} (hA 
 
 /-- **InvGaps' `irqControl`, discharged** from the CSpace placement facts. -/
 theorem decGap_irqControl {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .irqControl := by
-  intro Ac s a lbl len slot cap blk call don fp buf extra hf D hslot
+    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .irqControl := by
+  intro Ac s a lbl len slot cap blk call don fp buf extra hf D hslot hE
   cases cap <;> simp [capFam] at hf
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩
   try dsimp only
-  exact interrupt.decode_irq_control.dec hA C a lbl len slot buf D (SlotW.capw0 hslot)
+  exact interrupt.decode_irq_control.dec hA C a lbl len slot buf D hE (SlotW.capw0 hslot)
 
 
 /-! ## The IRQ handler family -/
@@ -407,11 +408,12 @@ theorem decGap_irqControl {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
 of an IrqHandler cap, and the extra caps' slots being cap slots, from
 `lookup_extra_caps`; the latter is also the VSpace family's). -/
 structure IrqPlace (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
-    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
+    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop where
   irq : ∀ (Ac : Set U64) (s : S) (cap : capability.Cap) (extra : Aeneas.Std.Array obj.Slot 3#usize),
-    DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ i, cap = .IrqHandler i → i.val < 128
+    EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ i, cap = .IrqHandler i → i.val < 128
   extra : ∀ (Ac : Set U64) (s : S) (cap : capability.Cap) (extra : Aeneas.Std.Array obj.Slot 3#usize),
-    DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapSlotW T Ω Sg sl
+    EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ sl ∈ extra.val, sl ≠ 0#u64 →
+      CapSlotW T Ω Sg sl
 
 /-- **`delete_one` of an IRQ's handler slot**: no cap, or a notification
 cap's finalisation and the slot's emptying (as `finGap_irq`). -/
@@ -440,7 +442,7 @@ set_option maxHeartbeats 4000000 in
 /-- **`decode_irq_handler`** (Ack, SetIRQHandler, ClearIRQHandler) keeps the
 invariants. -/
 theorem interrupt.decode_irq_handler.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) {V : U64 → Prop} (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V)
+    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {V : U64 → Prop} (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V)
     {s : S} {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize} (a : A) (lbl irq : U64)
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hi : irq.val < 128)
     (hx : ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapW T Ω Sg sl) :
@@ -498,16 +500,16 @@ theorem interrupt.decode_irq_handler.dec {A : Type _} {ar : machine.Arch A} (hA 
 /-- **InvGaps' `irqHandler`, discharged** from the CSpace and deletion
 placement facts and `IrqPlace`. -/
 theorem decGap_irqHandler {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) {V : U64 → Prop} (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V)
-    (Pl : IrqPlace st T Cs Ω H Sg Rp Scs Nt Z U) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .irqHandler := by
-  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot
+    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {V : U64 → Prop} (P : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V)
+    (Pl : IrqPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .irqHandler := by
+  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot hE
   cases cap <;> simp [capFam] at hf
   rename_i irq
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩
   try dsimp only
-  exact interrupt.decode_irq_handler.dec hA C P a lbl irq D (Pl.irq _ _ _ _ D irq rfl)
-    (fun sl h1 h2 => SlotW.capw0 (Pl.extra _ _ _ _ D sl h1 h2))
+  exact interrupt.decode_irq_handler.dec hA C P a lbl irq D (Pl.irq _ _ _ _ hE D irq rfl)
+    (fun sl h1 h2 => SlotW.capw0 (Pl.extra _ _ _ _ hE D sl h1 h2))
 
 
 /-! ## The I/O port families -/
@@ -519,9 +521,9 @@ set_option maxHeartbeats 4000000 in
 /-- **`ioport.decode_control`** (IOPortControl_Issue) keeps the invariants:
 the restart, the I/O-port bitmap words (`set_mask.cur0`) and the IoPort cap's
 insertion under the control cap's slot. -/
-theorem ioport.decode_control.dec (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) {A : Type _} {ar : machine.Arch A}
+theorem ioport.decode_control.dec (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {A : Type _} {ar : machine.Arch A}
     {s : S} {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize} (a : A) (lbl len slot buf : U64)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hslot : CapW T Ω Sg slot) :
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hE : EntAt st P3Ok s) (hslot : CapW T Ω Sg slot) :
     ioport.decode_control st ar s a lbl len slot buf extra ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -564,14 +566,14 @@ theorem ioport.decode_control.dec (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) {A :
   exact WP.spec_mono (C.ins Ac3 s3 _ c0 slot v hb3 hslot hv) fun s4 w => h3.capw w fun _ hb => hb
 
 /-- **InvGaps' `ioPortControl`, discharged** from the CSpace placement facts. -/
-theorem decGap_ioPortControl {A : Type _} {ar : machine.Arch A} (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z) :
-    DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .ioPortControl := by
-  intro Ac s a lbl len slot cap blk call don fp buf extra hf D hslot
+theorem decGap_ioPortControl {A : Type _} {ar : machine.Arch A} (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) :
+    DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .ioPortControl := by
+  intro Ac s a lbl len slot cap blk call don fp buf extra hf D hslot hE
   cases cap <;> simp [capFam] at hf
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩
   try dsimp only
-  exact ioport.decode_control.dec C a lbl len slot buf D (SlotW.capw0 hslot)
+  exact ioport.decode_control.dec C a lbl len slot buf D hE (SlotW.capw0 hslot)
 
 set_option maxHeartbeats 4000000 in
 /-- **`ioport.decode`** (the port reads and writes) keeps the invariants: the
@@ -650,8 +652,8 @@ theorem ioport.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
 /-- **InvGaps' `ioPort`, discharged** from the transfer's placement facts
 (the IPC buffer of a port read's reply). -/
 theorem decGap_ioPort {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .ioPort := by
-  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot
+    (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .ioPort := by
+  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot hE
   cases cap <;> simp [capFam] at hf
   rename_i first last x
   unfold syscall.decode_invocation

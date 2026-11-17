@@ -13,6 +13,7 @@ open fl4_core Fl4Proofs.P0.Consts
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
+variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {U : Set U64}
 
 /-- A write of a kernel-global word keeps `BlkOK`. -/
@@ -165,8 +166,8 @@ theorem domain.decode.dec (s : S) (lbl len buf : U64) (extra : Aeneas.Std.Array 
   · exact Er _
 
 /-- **InvGaps' `domain`, discharged.** -/
-theorem decGap_domain {A : Type _} (ar : machine.Arch A) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .domain := by
-  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot
+theorem decGap_domain {A : Type _} (ar : machine.Arch A) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .domain := by
+  intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot hE
   cases cap <;> simp [capFam] at hf
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩

@@ -31,13 +31,13 @@ is null or an endpoint cap (P3's `FhSlotHyp`), the slot part of the install
 from an extra slot (P3's `inst_hslot`), and the target is not the idle
 thread. -/
 structure SspHyps (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
-    (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
+    (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop where
   fh : ∀ (Ac : Set U64) (s : S) (t : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize),
-    DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra →
+    EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra →
     ∀ s1 : S, (∀ b, Aligned b → CapW T Ω Sg b → L.mem s1 b = L.mem s b) →
       obj.Slot.cap st (slotIdx t layout.tcb.SLOT_FAULT_HANDLER) s1 ⦃ c => NullOrEp H c ⦄
   slot : ∀ (Ac : Set U64) (s : S) (t : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize),
-    DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra →
+    EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra →
     ∀ (sl src : U64) (nc : capability.Cap), src ∈ extra.val → src ≠ 0#u64 →
     ∀ (s1 : S) (a1 : A), (∀ b, Aligned b → CapW T Ω Sg b → L.mem s1 b = L.mem s b) →
       cdt.empty_slot st ar s1 a1 (slotIdx t layout.tcb.SLOT_FAULT_HANDLER) .Null ⦃ r =>
@@ -46,30 +46,32 @@ structure SspHyps (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar :
           cdt.insert st r.1 nc src (slotIdx t layout.tcb.SLOT_FAULT_HANDLER) ⦃ s3 =>
             WritesIn st r.1 s3 (CapW T Ω Sg) ⦄ ⦄ ⦄
   idle : ∀ (Ac : Set U64) (s : S) (t : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize),
-    DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra → t ≠ L.idleW s
+    EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra → t ≠ L.idleW s
 
 /-- The thread-family labels P1 does not prove (`SetEPTRoot`, VT-x: not yet
 refined, DESIGN §5), and `SetSchedParams`' premises (`SspHyps`). -/
 structure TcbGaps (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
-    (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
-  ssp : SspHyps st ar T Cs Ω H Sg Rp Scs Nt Z U
+    (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop where
+  ssp : SspHyps st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok
   setEPTRoot : TcbGap st ar T Cs Ω H Sg Rp Scs Nt Z U fl4_abi.label.TCBSetEPTRoot
 
 /-- The placement facts of the priority labels (P3's): TCBs' MCPs are
 priorities (seL4's `word8`), the current thread at a decode has an SC, and
 the extra caps' slots are cap slots (`SetIPCBuffer`'s insert). -/
 structure TcbPlace (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
-    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) : Prop where
-  mcp : ∀ (Ac : Set U64) (s : S) (t : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → t ∈ T →
+    (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop where
+  /-- A thread's MCP (at the decode's start; P1 carries it past the stall). -/
+  mcp : ∀ (Ac : Set U64) (s : S) (t : U64), EntAt st P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → t ∈ T →
     (L.mem s (core.num.U64.wrapping_add t 3440#u64)).val < 256
   curSc : ∀ (Ac : Set U64) (s : S) (cap : capability.Cap) (extra : Aeneas.Std.Array obj.Slot 3#usize),
-    DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → L.mem s (scA (L.curW s)) ≠ 0#u64
+    EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → L.mem s (scA (L.curW s)) ≠ 0#u64
   /-- The extra caps' slots are cap slots. -/
   extraW : ∀ (Ac : Set U64) (s : S) (cap : capability.Cap) (extra : Aeneas.Std.Array obj.Slot 3#usize),
-    DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapW T Ω Sg sl
+    EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra → ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapW T Ω Sg sl
   /-- `ReadFPU`/`WriteFPU`'s frame: the user words of the frame cap in the
   first extra slot, at the given offset, are user words (`FpuFrameOK`). -/
-  fpu : ∀ (Ac : Set U64) (s : S) (c : tcb.Ctx), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+  fpu : ∀ (Ac : Set U64) (s0 s : S) (c : tcb.Ctx), EntAt st P3Ok s0 → WritesIn st s0 s (NodeW st s0) →
+    BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     tcb.extra c 0#usize ⦃ o => ∀ x, o = some x → tcb.arg st s c 0#u64 ⦃ off =>
       obj.Slot.cap st x s ⦃ cp => ∀ ptr sz r d m ep asid va, cp = .Frame ptr sz r d m ep asid va →
         FpuFrameOK U (core.num.U64.wrapping_add ptr off) ⦄ ⦄ ⦄
@@ -170,8 +172,9 @@ set_option maxHeartbeats 2000000 in
 /-- **`SetPriority` / `SetMCPriority`** after the stall. -/
 theorem tcb.decode_set_priority.dec {A : Type _} {ar : machine.Arch A} {s s1 : S} {a1 : A} {t len buf : U64}
     {call : Bool} {slot : obj.Slot} {extra : Aeneas.Std.Array obj.Slot 3#usize} (prio : Bool)
-    (P : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U)
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
+    (P : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (hE : EntAt st P3Ok s)
+    (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
     tcb.decode_set_priority st ar s1 a1 t { length := len, buf, call, slot, extra } prio ⦃ r s' _ =>
       DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
@@ -201,9 +204,9 @@ theorem tcb.decode_set_priority.dec {A : Type _} {ar : machine.Arch A} {s s1 : S
   swap
   · errS
   simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
-  have hv : p.val < 256 := lt_of_le_of_lt (hle rfl) (P.mcp Ac s1 auth h1.bxi hauth)
+  have hv : p.val < 256 := lt_of_le_of_lt (hle rfl) (by rw [h1.fld auth hauth 3440#u64 (by simp) (by simp)]; exact P.mcp Ac s auth hE D.bxi hauth)
   refine WP.spec_bind (h1.restart D) fun s2 ⟨h2, hna, ec2, k⟩ => ?_
-  have hsc0 := P.curSc Ac s _ _ D
+  have hsc0 := P.curSc Ac s _ _ hE D
   split
   · unfold tcb.thread_control_sched
     simp only [lift, bind_ok, tcb.SCHED_UPDATE_PRIO, tcb.SCHED_UPDATE_FAULT, tcb.SCHED_UPDATE_MCP,
@@ -322,7 +325,7 @@ set_option maxHeartbeats 4000000 in
 /-- **`SetIPCBuffer`** after the stall, from `DelGaps` (the buffer slot's
 delete), `CdtHyps` (the insert) and the extra slots' placement. -/
 theorem tcb.decode_set_ipc_buffer.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z)
+    (G : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     {s s1 : S} {a1 : A} {t len buf : U64} {call : Bool} {slot : obj.Slot}
     {extra : Aeneas.Std.Array obj.Slot 3#usize}
     (hxw : ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapW T Ω Sg sl)
@@ -502,9 +505,10 @@ theorem tcb.decode_set_tls_base.dec {A : Type _} {s s1 : S} {a1 : A} {t len buf 
 
 /-- **`ReadFPU`/`WriteFPU`** after the stall. -/
 theorem tcb.fpu_transfer.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (P : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U) {s s1 : S} {a1 : A} {t : U64} {c : tcb.Ctx} {tf : Bool}
+    (P : TcbPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) {s s1 : S} {a1 : A} {t : U64} {c : tcb.Ctx} {tf : Bool}
     {extra : Aeneas.Std.Array obj.Slot 3#usize}
-    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s (.Thread t) extra) (hE : EntAt st P3Ok s)
+    (h1 : Stalled st T Cs Ω H Sg Rp Scs Nt Z Ac s s1) :
     tcb.fpu_transfer st ar s1 a1 t c tf ⦃ r s' _ => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
   have ht : t ∈ T := D.cap.2.1 t rfl
   have hct : L.curW s ∈ T := D.bxi.1.choose_spec.choose_spec.curT
@@ -513,7 +517,7 @@ theorem tcb.fpu_transfer.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTot
   have hr := runnable_ok D.run
   have hU1 : UserOK st T Cs Ω H U s1 := D.user.ksb h1.node.1
   refine WP.spec_mono (tcb.fpu_transfer.blk hA s1 a1 t c tf h1.bxi.blk ht (est ▸ hr.1) (est ▸ hr.2) hU1
-    (P.fpu Ac s1 c h1.bxi)) ?_
+    (P.fpu Ac s s1 c hE h1.node h1.bxi)) ?_
   rintro ⟨r, s', a'⟩ ⟨-, e | ⟨s2, e2, w⟩⟩
   · simp only at e
     subst e
