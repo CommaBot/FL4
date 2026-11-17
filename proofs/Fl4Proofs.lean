@@ -309,6 +309,10 @@ import Fl4Proofs.P3.TcbHypsX
 import Fl4Proofs.P3.TcbReadRegsSpec
 import Fl4Proofs.P3.DomRecDel
 import Fl4Proofs.P3.TcbDom
+import Fl4Proofs.P3.CurVs
+import Fl4Proofs.P3.CurVsOps
+import Fl4Proofs.P3.CurRecDel
+import Fl4Proofs.P3.CurTcb
 import Fl4Proofs.P3.SchedValidLinks
 import Fl4Proofs.P3.CnodeDom
 import Fl4Proofs.P3.AllDom
