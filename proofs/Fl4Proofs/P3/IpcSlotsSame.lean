@@ -31,6 +31,20 @@ theorem IRel.slotsSame_of {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U
   obtain ⟨P, L4, L3, L2, L1, -, -, -, -, hP⟩ := hV.ex
   exact slotsSame_of_vobj hB.1 fun b hb hv => hw.mem_eq hb fun hwb => hP.disj b (hWO b hwb) hv
 
+/-- **The slots and the kernel-global base kept** (what the IPC lemmas
+return for the deletion closure). -/
+def IFrame (th : TypedHeap) (s s' : S) : Prop := SlotsSame th (L.mem s) (L.mem s') ∧ L.ksb s' = L.ksb s
+
+theorem IFrame.refl (th : TypedHeap) (s : S) : IFrame (L := L) th s s := ⟨SlotsSame.refl _ _, rfl⟩
+
+theorem IFrame.trans {th : TypedHeap} {s1 s2 s3 : S} (h1 : IFrame (L := L) th s1 s2) (h2 : IFrame (L := L) th s2 s3) :
+    IFrame (L := L) th s1 s3 := ⟨h1.1.trans h2.1, h2.2.trans h1.2⟩
+
+theorem IRel.iframe_of {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)}
+    {c : U64} {s s' : S} {σ : Fl4Spec.State Unit} (h : IRel st th cr N T C E R B c s σ) {W : U64 → Prop}
+    (hw : P1.WritesIn st s s' W) (hWO : ∀ b, W b → OObj st N T C E R B c s σ b) : IFrame (L := L) th s s' :=
+  ⟨IRel.slotsSame_of h hw hWO, hw.1⟩
+
 /-- **The IPC words are words of the other objects.** -/
 theorem iwords_oobj {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {s : S}
     {σ : Fl4Spec.State Unit} {b : U64} (h : IWords N T E R B b) : OObj st N T C E R B c s σ b := by
