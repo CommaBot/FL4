@@ -255,7 +255,7 @@ theorem xFinThread_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (Cs : S
         let i1 ← obj.Sc.yield_from st i s6
         let b1 ← obj.Tcb.is_null i1
         if b1 = true then ok (s6, a) else schedcontext.complete_yield_to st arI s6 a i1) ⦃ r =>
-        ∃ σ5, XTopAt (L := L) AR (Z.mv G3 V3) r.1 r.2 σ5 ∧
+        ∃ σ5, ∃ V : XVs, XTopAt (L := L) AR (Z.mv G3 V) r.1 r.2 σ5 ∧
           Fl4Spec.unbindFromSc (Z := Unit) p.bv σ3 = ({((), σ5)}, False) ⦄ := by
       refine WP.spec_bind (unbind_tcb_refines s4 σ3 hS4 hR4 hNS4 hInv4 hiC hky hpZ hyt) ?_
       rintro s5 ⟨σ4, he4, hS5, hR5, -, -, -, hw5, -⟩
@@ -271,18 +271,18 @@ theorem xFinThread_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (Cs : S
       by_cases j0 : j = 0#u64
       · have hb1' : b1 = true := by rw [hb1, j0]; rfl
         simp only [hb1', ↓reduceIte, WP.spec_ok]
-        refine ⟨σ4, hX5, unbindFromSc_some hk4 hsp he4 hk5 ?_⟩
+        refine ⟨σ4, V3, hX5, unbindFromSc_some hk4 hsp he4 hk5 ?_⟩
         rw [hx5.yieldFrom, ← scYieldFromA_eq, ← hj, j0, Notif.optRef_zero]; rfl
       · have hb1' : b1 = false := by rw [hb1]; simp [j0]
         simp only [hb1', Bool.false_eq_true, ↓reduceIte]
         rw [hj]
         refine WP.spec_mono (hY (Z.mv G3 V3) i rfl s5 a σ4 hX5 (by rw [← hj]; exact j0)) ?_
-        rintro ⟨s6, a6⟩ ⟨σ6, e6, hX6, -, -, -⟩
-        refine ⟨σ6, hX6, unbindFromSc_some hk4 hsp he4 hk5 ?_⟩
+        rintro ⟨s6, a6⟩ ⟨σ6, V6, e6, hX6, -, -, -⟩
+        refine ⟨σ6, V6, hX6, unbindFromSc_some hk4 hsp he4 hk5 ?_⟩
         rw [hx5.yieldFrom, ← scYieldFromA_eq, Notif.optRef_ne (by rw [← hj]; exact j0)]; exact e6
     refine WP.spec_bind hin ?_
-    rintro ⟨s5, a5⟩ ⟨σ5, hX5, he5⟩
-    exact fin6 s5 a5 σ5 G3 V3 hX5 he5
+    rintro ⟨s5, a5⟩ ⟨σ5, V5, hX5, he5⟩
+    exact fin6 s5 a5 σ5 G3 V5 hX5 he5
   refine WP.spec_mono (WP.spec_and (P1.fin_cap_thread.slots hAT s a p true false hB hpX hna hidle hv0) hch) ?_
   rintro ⟨⟨r1, r2⟩, s', a'⟩ ⟨⟨e, -, f, hW⟩, σ', G, V, hm, hX'⟩
   simp only [Prod.mk.injEq, ite_true] at e
