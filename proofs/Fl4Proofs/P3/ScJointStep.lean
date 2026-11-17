@@ -7,15 +7,17 @@ From the producer's post: `XTopAt` (`xtop_sc_step`), the scheduler and
 notification relations, `NSC`, `Inv` (`decode_configure_refines`), the call
 stacks, yield, MCP and reply placement (`ScAll.of_k`), `BlockedScActive`
 (`bsa_configure`, the decoded `REFILL_MAX` from `retP_configureDec`); the
-fields no SC step touches by `JAtZ.sc_frame`.
+fields no SC step touches by `JAtZ.sc_frame`; `CurRun` (`curRun_sc_step`);
+the buffer words, slots apart, `JPlaced`, `JKern`, the untyped caps' facts
+and `JCovD` (ScJointRest: `JAtZ.sc_buf`, `sc_apart`, `sc_jpl`, `sc_kern`,
+`sc_utc`, `sc_jcov`; the current SC kept by `FK`, ScFieldKeep).
 
-Named per-op premise (`hRest`, at the decode's post, over its spec run):
-the current-thread and offset invariants, `ActIdle`, `CurRun` (a), the
-frames still to prove: buffer words, slots apart, `JPlaced`, the dead set,
-`JKern`, the untyped caps' facts (c), `SchedValid` (b, a rebuild), and P1's
-`BlkOK` (P1's decode gap).
+Named per-op premise (`hRest`, at the decode's post, over its spec run,
+`ScStepRest`): the current-thread, offset and switch-thread invariants (a),
+`SchedValid` (b, a rebuild), the dead set after (`hDead`, P3's, to prove),
+and P1-supplied: the node-0 `DEBUG_TCBS` word kept and `BlkOK`.
 -/
-import Fl4Proofs.P3.ScJointFrame
+import Fl4Proofs.P3.ScJointRest
 import Fl4Proofs.P3.ScBsaOps
 open Aeneas Aeneas.Std Result
 
@@ -28,23 +30,47 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 
 /-- **The fields an SC step still owes** (the module docstring's named
-premise), at the post `(s', a', σ')`. -/
-def ScStepRest (arI : machine.Arch A) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (s' : S) (σ' : Fl4Spec.State Unit) :
-    Prop :=
-  ∃ (Ac' D' : Set U64), CurInv σ' ∧ OffOK σ' ∧ ActIdle σ' ∧ SchedValid σ' ∧ CurRun σ' ∧
-    BufWordRel Z.T (L.mem s') σ' ∧ SlotsApart (st := st) Z.th Z.T Z.N Z.C Z.R Z.c s' σ' ∧
-    (∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ') ∧ JCovD (L := L) Z.th H Z.G D' Cs s' ∧
-    JKern (L := L) H Cs D' Z.th s' σ' ∧
-    (∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
-      UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi) ∧
+premise), at the post `(s', σ')` of a step from `s` with the dead set `D`:
+the current-thread, offset and switch-thread invariants (a); `SchedValid`
+(b); the dead set after, `D' ⊆ D` dead, the rest of `D` covered (`hDead`,
+P3's, to prove); the node-0 `DEBUG_TCBS` word kept and `BlkOK` (P1-supplied). -/
+def ScStepRest (arI : machine.Arch A) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s s' : S)
+    (σ' : Fl4Spec.State Unit) : Prop :=
+  ∃ (Ac' D' : Set U64), (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧ OffOK σ' ∧ ActIdle σ' ∧ SchedValid σ' ∧
+    -- `hDead` (P3)
+    (D' ⊆ D ∧ (∀ q ∈ D', DeadP (L := L) H s' q) ∧
+      ∀ q ∈ D, q ∉ D' →
+        (∀ k, Z.th q = some k → Covered (L.mem s') Z.G q.val (q.val + max (objSize k) 1)) ∧
+        (∀ k, H q = some k → Covered (L.mem s') Z.G q.val (q.val + 2 ^ k.bits))) ∧
+    -- P1-supplied: the node-0 `DEBUG_TCBS` word kept, `BlkOK`
+    L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) ∧
     P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s'
+
+/-- **`CurRun` after an SC step**: the restart makes the current thread
+runnable, and the invocation (`ScTKw (·=False)`) keeps every TCB state and
+the current thread. -/
+theorem curRun_sc_step {σ σ0 σ' : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x : Fl4Spec.Tcb}
+    (hkc : σ.kheap t = some (.tcb x)) (hct : σ.curThread = t)
+    (he0 : Fl4Spec.setThreadState (Z := Unit) t .restart σ = ({((), σ0)}, False))
+    (hK1 : ScTKw (fun _ => False) σ0 σ') : CurRun σ' := by
+  have hσ0 := the_result (Fl4Proofs.P3.Notif.setThreadState_eq .restart hkc) he0
+  have hk0 : σ0.kheap t = some (.tcb { x with tcbState := .restart }) := by
+    rw [hσ0, stsAct_kheap]; simp [updK]
+  have hc0 : σ0.curThread = t := by
+    rw [hσ0]; unfold stsAct; split_ifs <;> exact hct
+  intro y hy
+  obtain ⟨y', hy', -, hs⟩ := hK1.tcb hk0
+  rw [hK1.ct, hc0, hy'] at hy; cases hy
+  rcases hs with e | ⟨h, -⟩
+  · rw [e]; rfl
+  · exact h.elim
 
 set_option maxHeartbeats 2000000 in
 /-- **The SchedControl cap on `JAt`, `JAt` after** (module docstring). -/
 theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction ≠ .chooseNewThread)
     (htm : TimeAgree arI) (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st Z.N Z.T Z.C Z.c)
@@ -70,7 +96,7 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
           ({(.ok inv, σ)}, False) ∧
         Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) ∧
         Fl4Spec.invokeSchedControlConfigureFlags (Z := Unit) inv σ1 = ({((), σ')}, False)) →
-        ScStepRest (L := L) arI Z H Cs r.2.1 σ' ⦄) :
+        ScStepRest (L := L) arI Z H Cs D s r.2.1 σ' ⦄) :
     syscall.decode_invocation st arI s a lbl length slot (.SchedControl cpu) blk call don fp buf extra
       ⦃ r => ∃ (σ' : Fl4Spec.State Unit) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
         JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.2.1 r.2.2 σ' ⦄ := by
@@ -90,7 +116,7 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     rw [hct]; simp only [bind_ok]
     cases fp
     · simp only [Bool.false_eq_true, ↓reduceIte]
-      exact WP.spec_mono (decode_configure_refines htm Z.th s a σ hS hR J.nsc J.inv J.cur J.off lbl slbl hlbl cpu
+      exact WP.spec_mono (decode_configure_refines htm Z.th s a σ hS hR J.nsc J.inv (J.curInv hres) J.off lbl slbl hlbl cpu
         length buf ct hcpu hct args hlen hargs extra x0 hx0 _ hex hsb hsc hkc hrun) fun r h => Or.inr ⟨by trivial, h⟩
     · simp only [↓reduceIte, WP.spec_ok]
       exact Or.inl ⟨by trivial, by trivial⟩
@@ -117,10 +143,14 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     retP_configureDec slbl (args.map UScalar.bv) (excaps.map Prod.fst) σ _ (by rw [hdec]; exact Set.mem_singleton _)
       _ rfl
   have hB' : BlockedScActive σ' := bsa_configure J.bsa (hcur ▸ hkc) hrun (hcur ▸ hm1) hm2
-  obtain ⟨Ac', D', hC', hO', hAI', hSV', hCR'', hBuf', hAp', hJP', hJC', hJK', hUt', hBlk'⟩ :=
+  obtain ⟨Ac', D', hC', hO', hAI', hSV', ⟨hDD, hDead, hCov⟩, hDbg, hBlk'⟩ :=
     hRst hr1 σ' ⟨_, σ1, hdec, he1, he2⟩
-  exact ⟨σ', Ac', Lst', D', J.sc_frame (WritesIn.tfoot_of_kfoot hw) hK hX' hCR' hRF' hY' hM' hBuf' hRP' hAp' hJP'
-    hJC' hJK' hUt' hN' hI' hC' hO' hAI' hB' hSV' hCR'' hBlk'⟩
+  have hF : FK σ σ' := ((fk_setThreadState _ _).of_eq he1).trans ((fk_invokeSchedControlConfigureFlags _).of_eq he2)
+  have hCR'' : CurRun σ' := curRun_sc_step hkc hcur he1 (NKT.of_eq (nkt_invokeSchedControlConfigureFlags _) he2)
+  have hwT := WritesIn.tfoot_of_kfoot hw
+  exact ⟨σ', Ac', Lst', D', J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
+    (J.sc_jpl hwT hK) (J.sc_jcov hwT hDead hCov) (J.sc_kern hwT hK hF hX' hDbg hDD)
+    (J.sc_utc hwT hK hDbg) hN' hI' hC' hO' hAI' hB' hSV' hCR'' hBlk'⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **The SchedContext cap on `JAt`** for Bind, UnbindObject and a YieldTo
@@ -131,7 +161,7 @@ YieldTo returning at once has replied (its `XTop` the reply leaf's, the
 second disjunct). Named per-op premise `hRest` (module docstring). -/
 theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction ≠ .chooseNewThread)
     (htm : TimeAgree arI) (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st Z.N Z.T Z.C Z.c)
@@ -156,7 +186,7 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
         (Fl4Spec.decodeSchedContextInvocation (Z := Unit) slbl sc.bv (excaps.map Prod.fst)).run σ = ({(.ok inv, σ)}, False) ∧
         Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ0)}, False) ∧
         Fl4Spec.invokeSchedContext (Z := Unit) inv σ0 = ({([], σ1)}, False)) →
-        ScStepRest (L := L) arI Z H Cs r.2.1 σ1 ⦄) :
+        ScStepRest (L := L) arI Z H Cs D s r.2.1 σ1 ⦄) :
     syscall.decode_invocation st arI s a lbl length slot (.SchedContext sc sb) blk call don fp buf extra
       ⦃ r => (∃ (σ' : Fl4Spec.State Unit) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
           JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.2.1 r.2.2 σ') ∨
@@ -259,10 +289,14 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       (f1 := decide (∀ p, inv ≠ .invokeSchedContextYieldTo p))
       ((pres_invokeSchedContext inv σ0 _ hm1).weaken (f' := (decide (∀ p, inv ≠ .invokeSchedContextYieldTo p), true))
         id (fun _ => hu))
-  obtain ⟨Ac', D', hC', hO', hAI', hSV', hCR'', hBuf', hAp', hJP', hJC', hJK', hUt', hBlk'⟩ :=
+  obtain ⟨Ac', D', hC', hO', hAI', hSV', ⟨hDD, hDead, hCov⟩, hDbg, hBlk'⟩ :=
     hRst hr1 σ2 ⟨inv, σ0, hrun, he0, he1⟩
-  exact ⟨σ2, Ac', Lst', D', J.sc_frame hW (hK0.trans (hK1.mono fun _ h => h.elim)) hX' hCR' hRF' hY' hM' hBuf' hRP'
-    hAp' hJP' hJC' hJK' hUt' hN' hI' hC' hO' hAI' hB' hSV' hCR'' hBlk'⟩
+  have hF : FK σ σ2 := ((fk_setThreadState _ _).of_eq he0).trans (fk_invokeSchedContext hshape _ hm1)
+  have hCR'' : CurRun σ2 := curRun_sc_step hkc hcur he0 hK1
+  have hKt := hK0.trans (hK1.mono fun _ h => h.elim)
+  exact ⟨σ2, Ac', Lst', D', J.sc_frame hW hKt hX' hCR' hRF' hY' hM' (J.sc_buf hW hKt) hRP' (J.sc_apart hW hKt)
+    (J.sc_jpl hW hKt) (J.sc_jcov hW hDead hCov) (J.sc_kern hW hKt hF hX' hDbg hDD)
+    (J.sc_utc hW hKt hDbg) hN' hI' hC' hO' hAI' hB' hSV' hCR'' hBlk'⟩
 
 end
 

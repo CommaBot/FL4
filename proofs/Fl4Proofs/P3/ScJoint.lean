@@ -41,7 +41,7 @@ theorem JAtZ.curRunnable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.H
 /-- **The SchedControl cap on `JAt`** (`decode_invocation_sched_controlXT`). -/
 theorem decode_invocation_sched_controlJAt {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction ≠ .chooseNewThread)
     (htm : TimeAgree arI) (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st Z.N Z.T Z.C Z.c)
@@ -65,13 +65,13 @@ theorem decode_invocation_sched_controlJAt {AR : A → Fl4Spec.Cr3 → Prop} {Z 
     DecOKDMX (L := L) arI (XTop (L := L) AR) s a σ lbl length slot (.SchedControl cpu) blk call don fp buf extra
       slbl (args.map UScalar.bv) ci sl excaps buffer := by
   obtain ⟨-, xc, hkc, hrun⟩ := J.curRunnable hct
-  exact decode_invocation_sched_controlXT s a σ J.xtop (J.scExtra htm hmb hmax htu hmsg) lbl slbl hlbl cpu length
+  exact decode_invocation_sched_controlXT s a σ J.xtop (J.scExtra hres htm hmb hmax htu hmsg) lbl slbl hlbl cpu length
     buf ct hcpu hct args hlen hargs extra x0 hx0 excaps hex hsb hsc hkc hrun slot blk call don fp ci sl buffer hArch
 
 /-- **The SchedContext cap on `JAt`** (`decode_invocation_sched_contextXT`). -/
 theorem decode_invocation_sched_contextJAt {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction ≠ .chooseNewThread)
     (htm : TimeAgree arI) (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st Z.N Z.T Z.C Z.c)
@@ -96,7 +96,7 @@ theorem decode_invocation_sched_contextJAt {AR : A → Fl4Spec.Cr3 → Prop} {Z 
       slbl args ci sl excaps buffer ∨
     DecOKRMX (L := L) arI (fun _ _ _ => True) s a σ lbl length slot (.SchedContext sc sb) blk call don fp buf extra
       slbl args ci sl excaps buffer ct :=
-  decode_invocation_sched_contextXT s a σ J.xtop (J.scExtra htm hmb hmax htu hmsg) lbl slbl hlbl sb hsc hpi hl hback
+  decode_invocation_sched_contextXT s a σ J.xtop (J.scExtra hres htm hmb hmax htu hmsg) lbl slbl hlbl sb hsc hpi hl hback
     hbn hct hcs extra x0 hx0 excaps hex hcapT hcapN length slot buf blk call don fp args ci sl buffer hArch
 
 /-! ## The untyped retype on `JAt` -/

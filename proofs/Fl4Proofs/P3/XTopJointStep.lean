@@ -159,7 +159,7 @@ theorem JAtZ.cs_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     JAtZ (L := L) arI AR { Z with G := G' } H Cs Ac' Lst' D' s' a' σ' :=
   ⟨hX, R.call, R.rfree, R.yld, R.mcp, R.buf, by rw [hks]; exact J.ks, J.thT, J.ip, R.rp, R.apart,
     fun n hn => by rw [hks]; exact J.nk n hn, R.jpl, J.cover.kback hkb, J.obj.kback hkb, J.zH, hC.sfree, R.jcov,
-    R.kern, hC.del, hC.ut, J.bound, hC.finM, R.utc, R.nsc, R.inv, R.cur, R.off, R.act, J.c0, R.bsa, R.sv, R.curRun,
+    R.kern, hC.del, hC.ut, J.bound, hC.finM, R.utc, R.nsc, R.inv, Or.inr R.cur, R.off, R.act, J.c0, R.bsa, R.sv, R.curRun,
     R.blk⟩
 
 /-- **The CSpace fields across a step keeping every slot and the objects'

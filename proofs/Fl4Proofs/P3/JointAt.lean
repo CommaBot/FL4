@@ -152,7 +152,8 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   -- 1d: the scheduler
   nsc : Sched.NSC Z.N Z.C σ
   inv : Sched.Inv σ
-  cur : Sched.CurInv σ
+  /-- `CurInv` unless a reschedule is pending (mid-entry, as `ScEntry`). -/
+  cur : σ.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ
   off : Sched.OffOK σ
   act : Sched.ActIdle σ
   c0 : ∀ q ∈ Z.C, q ≠ 0#u64
@@ -203,14 +204,20 @@ theorem ipcZ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (cr : Fl4Spec.Cr3
     IpcZ (L := L) arI cr s σ ct Z :=
   ⟨J.ks, J.buf, hH, hBf, hBm, hact, J.ip, hct⟩
 
-/-- `ScExtra` (the SC decodes' bundle), given the [global] platform facts. -/
-theorem scExtra (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (htm : Sched.TimeAgree arI)
+/-- `CurInv` when no reschedule is pending. -/
+theorem curInv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (h : σ.schedulerAction ≠ .chooseNewThread) :
+    Sched.CurInv σ := J.cur.resolve_left h
+
+/-- `ScExtra` (the SC decodes' bundle), given the [global] platform facts and
+no reschedule pending. -/
+theorem scExtra (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction ≠ .chooseNewThread)
+    (htm : Sched.TimeAgree arI)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     (hmsg : Sched.MsgOK st Z.N Z.T Z.C Z.c) :
     Sched.ScExtra (L := L) arI Z s a σ :=
-  ⟨J.nsc, J.inv, J.cur, J.off, J.yld, J.act, J.mcp, J.c0, ⟨Lst, J.call, J.rfree⟩, J.rp, J.apart, J.ip, J.nk,
+  ⟨J.nsc, J.inv, J.curInv hres, J.off, J.yld, J.act, J.mcp, J.c0, ⟨Lst, J.call, J.rfree⟩, J.rp, J.apart, J.ip, J.nk,
     htm, hmb, hmax, htu, hmsg⟩
 
 /-- `RemoveOK` (`reply_remove`'s bundle) at `r` and its caller `t`, given the

@@ -140,6 +140,9 @@ import Fl4Proofs.P3.ScJoint
 import Fl4Proofs.P3.ScJointKeep
 import Fl4Proofs.P3.ScBsaOps
 import Fl4Proofs.P3.ScJointFrame
+import Fl4Proofs.P3.ScCurKeep
+import Fl4Proofs.P3.ScFieldKeep
+import Fl4Proofs.P3.ScJointRest
 import Fl4Proofs.P3.ScJointStep
 import Fl4Proofs.P3.SpecKSz
 import Fl4Proofs.P3.SpecFreeRet
