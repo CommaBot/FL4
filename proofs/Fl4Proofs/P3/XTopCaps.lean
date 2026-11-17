@@ -93,7 +93,7 @@ theorem stepClosed_xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) 
       ⟨hw.1, hw.2.1, fun b hb hn => hw.2.2 b hb fun h => hn (Sched.slotSpan_wd hPl hb h)⟩
     exact ⟨G', XTopAt.slotStep hX hw' hcn hkc hCR hFI hMO hTS, hw.1⟩
   · subst hth
-    exact ⟨Z.G, hX.schedStep hK hTh hS, hS.2 Z.N Z.T Z.C Z.c hTh hX.fin.1.1.1
+    exact ⟨Z.G, hX.schedStep hK hTh hS, hS.2.1 Z.N Z.T Z.C Z.c hTh hX.fin.1.1.1
       hX.fin.1.1.2.2.1 |>.2.1.1⟩
   · subst hth
     have hPl := hX.rel.1

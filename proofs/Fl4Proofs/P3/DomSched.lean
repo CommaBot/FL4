@@ -19,6 +19,9 @@ P3 (DESIGN.md §9), domains: **the domain cap at the composite relation**
 -/
 import Fl4Proofs.P3.XTopCaps
 import Fl4Proofs.P3.IpcSchedLift
+import Fl4Proofs.P1.QueueSlots
+import Fl4Proofs.P1.QueueYield
+import Fl4Proofs.P1.QueueFinal
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -157,14 +160,50 @@ theorem schedStep_of_run {th : TypedHeap} {s s' : S} {σ σ' : Fl4Spec.State Uni
     (hds : σ'.domainStartIndex = σ.domainStartIndex)
     (href : ∀ (N T C : Set U64) (c : U64), (∀ t, th t = some .tcb → t ∈ T) → Sched.SchedRel st N T C c s σ →
       Notif.NtfnStateRel N T (L.mem s) σ →
-      prog ⦃ s'' => Sched.SchedRel st N T C c s'' σ' ∧ P1.WritesIn st s s'' (Sched.SFootI st T c s) ⦄) :
+      prog ⦃ s'' => Sched.SchedRel st N T C c s'' σ' ∧ P1.WritesIn st s s'' (Sched.SFootI st T c s) ⦄)
+    (hQ : SchedQOK σ σ') (hB : BlkKeep (L := L) th s s') :
     SchedStep (L := L) th s σ s' σ' := by
-  refine ⟨hK, fun N T C c hTh hS hN => ?_⟩
+  refine ⟨hK, fun N T C c hTh hS hN => ?_, hQ, hB⟩
   have h := href N T C c hTh hS hN
   rw [hrun, WP.spec_ok] at h
   obtain ⟨h1, h2⟩ := h
   exact ⟨h1, h2.mono fun b hb => sfootI_schW hb, fun hD => domRel_iff.1
     ((domRel_iff.2 hD).of_same (domSame_of_sfootI hS h2) hdl hds)⟩
+
+/-- **`reschedule_required`'s ready queues and action** (`SchedQOK`): the
+switch target enqueued when schedulable, the action `chooseNewThread`. -/
+theorem rescheduleRequired_qok {σ σ' : Fl4Spec.State Unit} (hA : Notif.ActReady σ)
+    (he : Fl4Spec.rescheduleRequired (Z := Unit) σ = ({((), σ')}, False)) : SchedQOK σ σ' := by
+  have out : ∀ {σ2 : Fl4Spec.State Unit}, Fl4Spec.rescheduleRequired (Z := Unit) σ = ({((), σ2)}, False) →
+      σ' = σ2 := fun h2 =>
+      (Prod.mk.inj (Set.singleton_eq_singleton_iff.1 (congrArg Prod.fst (he.symm.trans h2)))).2
+  cases ha : σ.schedulerAction with
+  | switchThread t =>
+    by_cases hs : Fl4Spec.schedulable t σ = true
+    · obtain ⟨x, -, -, -, hk, -⟩ := Sched.schedulable_inv hs
+      have e := out (Sched.rescheduleRequired_sched ha hs hA (Sched.tcbSchedAction_gen hk Fl4Spec.tcbSchedEnqueue))
+      subst e
+      refine ⟨fun d p u hu => ?_, Or.inl rfl⟩
+      simp only [Sched.setQ] at hu
+      split_ifs at hu with hdp
+      · unfold Fl4Spec.tcbSchedEnqueue at hu
+        split_ifs at hu
+        · exact Or.inl ⟨_, _, hu⟩
+        · rcases List.mem_cons.1 hu with rfl | hu
+          · exact Or.inr hs
+          · exact Or.inl ⟨_, _, hu⟩
+      · exact Or.inl ⟨d, p, hu⟩
+    · have e := out (Sched.rescheduleRequired_notsched ha (by simpa using hs))
+      subst e
+      exact ⟨fun d p u hu => Or.inl ⟨d, p, hu⟩, Or.inl rfl⟩
+  | resumeCurThread =>
+    have e := out (Sched.rescheduleRequired_noswitch (fun t h => by rw [ha] at h; cases h))
+    subst e
+    exact ⟨fun d p u hu => Or.inl ⟨d, p, hu⟩, Or.inl rfl⟩
+  | chooseNewThread =>
+    have e := out (Sched.rescheduleRequired_noswitch (fun t h => by rw [ha] at h; cases h))
+    subst e
+    exact ⟨fun d p u hu => Or.inl ⟨d, p, hu⟩, Or.inl rfl⟩
 
 /-- `reschedule_required` as a scheduler step (`ActReady`). -/
 theorem schedStep_resched {th : TypedHeap} {s s' : S} {σ σ' : Fl4Spec.State Unit} (hA : Notif.ActReady σ)
@@ -172,14 +211,18 @@ theorem schedStep_resched {th : TypedHeap} {s s' : S} {σ σ' : Fl4Spec.State Un
     (he : Fl4Spec.rescheduleRequired (Z := Unit) σ = ({((), σ')}, False)) (hK : SchedK σ σ')
     (hdl : σ'.domainList = σ.domainList) (hds : σ'.domainStartIndex = σ.domainStartIndex) :
     SchedStep (L := L) th s σ s' σ' :=
-  schedStep_of_run hrun hK hdl hds fun N T C c _ hS hN =>
+  schedStep_of_run hrun hK hdl hds (fun N T C c _ hS hN =>
     WP.spec_mono (WP.spec_and (Sched.reschedule_required_refines s σ hN hS hA) (Sched.reschedule_required_sfootI hS))
       fun s'' h => by
         obtain ⟨⟨σ3, he3, -, -, -, hS3⟩, hw⟩ := h
         rw [he] at he3
         have e := (Prod.mk.inj (Set.singleton_eq_singleton_iff.1 (congrArg Prod.fst he3))).2
         subst e
-        exact ⟨hS3, hw⟩
+        exact ⟨hS3, hw⟩) (rescheduleRequired_qok hA he)
+    fun _ _ _ _ _ _ _ _ _ _ _ h => by
+      have h' := P1.sched.reschedule_required.blk s h
+      rw [hrun, WP.spec_ok] at h'
+      exact h'.1
 
 /-- `SlotsSame` from writes of the other objects' words. -/
 theorem XTopAt.slotsSame_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {a : A} {σ : Fl4Spec.State Unit}
@@ -303,7 +346,16 @@ theorem dequeue_schedStep {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {t 
   rw [Sched.tcbSchedAction_gen hk] at he
   have e := (Prod.mk.inj (singleton_out he)).2
   subst e
-  refine ⟨hS', hfe, hw, schedStep_of_run hrun (by constructor <;> rfl) rfl rfl fun N' T' C' c' hTh' hS'' _ => ?_⟩
+  refine ⟨hS', hfe, hw, schedStep_of_run hrun (by constructor <;> rfl) rfl rfl (fun N' T' C' c' hTh' hS'' _ => ?_)
+    ⟨fun d p u hu => ?_, Or.inr rfl⟩ fun _ _ _ _ _ _ _ _ _ _ hTh' h => ?_⟩
+  rotate_left
+  · simp only [Sched.setQ] at hu
+    split_ifs at hu with hdp
+    · exact Or.inl ⟨_, _, (List.mem_filter.1 hu).1⟩
+    · exact Or.inl ⟨d, p, hu⟩
+  · have h' := P1.sched.dequeue.blkY s t h (hTh' t htcb)
+    rw [hrun, WP.spec_ok] at h'
+    exact h'.1
   refine WP.spec_mono (WP.spec_and (Sched.dequeue_refines s σ hS'' t (hTh' t htcb))
     (Ipc.dequeue_sfootI hS'' (hTh' t htcb))) fun s'' h => ?_
   obtain ⟨⟨σ3, he3, -, -, -, hS3⟩, hw3⟩ := h
@@ -316,7 +368,10 @@ theorem dequeue_schedStep {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {t 
 theorem enqueue_schedStep {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {t : U64} (htcb : th t = some .tcb)
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) {N T C : Set U64} {c : U64}
     (hS : Sched.SchedRel st N T C c s σ) (ht : t ∈ T)
-    (hr : (L.mem s (P1.inqA t) &&& sched.Q_QUEUED) = 0#u64 → (L.mem s (P1.inqA t) &&& sched.Q_RELEASE) = 0#u64) :
+    (hr : (L.mem s (P1.inqA t) &&& sched.Q_QUEUED) = 0#u64 → (L.mem s (P1.inqA t) &&& sched.Q_RELEASE) = 0#u64)
+    (hsch : Fl4Spec.schedulable t.bv σ = true) (hrn : P1.Runnable (L.mem s (P1.stA t)))
+    (hbd : L.mem s (P1.scA t) ≠ 0#u64) (hrl : (L.mem s (P1.inqA t) &&& sched.Q_RELEASE) = 0#u64)
+    (hrm : L.rmax s (L.mem s (P1.scA t)) ≠ 0#u64) :
     sched.enqueue st s t ⦃ s' =>
       Sched.SchedRel st N T C c s' (Sched.setQ σ x.tcbDomain x.tcbPriority
         (Fl4Spec.tcbSchedEnqueue t.bv (σ.readyQueues x.tcbDomain x.tcbPriority))) ∧
@@ -329,7 +384,22 @@ theorem enqueue_schedStep {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {t 
   rw [Sched.tcbSchedAction_gen hk] at he
   have e := (Prod.mk.inj (singleton_out he)).2
   subst e
-  refine ⟨hS', hfe, hw, schedStep_of_run hrun (by constructor <;> rfl) rfl rfl fun N' T' C' c' hTh' hS'' _ => ?_⟩
+  refine ⟨hS', hfe, hw, schedStep_of_run hrun (by constructor <;> rfl) rfl rfl (fun N' T' C' c' hTh' hS'' _ => ?_)
+    ⟨fun d p u hu => ?_, Or.inr rfl⟩ fun _ _ _ _ _ _ _ _ _ _ hTh' h => ?_⟩
+  rotate_left
+  · simp only [Sched.setQ] at hu
+    split_ifs at hu with hdp
+    · unfold Fl4Spec.tcbSchedEnqueue at hu
+      split_ifs at hu
+      · exact Or.inl ⟨_, _, hu⟩
+      · rcases List.mem_cons.1 hu with rfl | hu
+        · exact Or.inr hsch
+        · exact Or.inl ⟨_, _, hu⟩
+    · exact Or.inl ⟨d, p, hu⟩
+  · have hba := (h.2.2.2.1.act _ (h.2.2.1.2.2.bound t (hTh' t htcb) hbd).1).2 hrm
+    have h' := P1.sched.enqueue.blkY s t h (hTh' t htcb) hrn hbd hba hrl
+    rw [hrun, WP.spec_ok] at h'
+    exact h'.1
   refine WP.spec_mono (WP.spec_and (Sched.enqueue_refines s σ hS'' t (hTh' t htcb) hr)
     (Sched.enqueue_sfootI hS'' (hTh' t htcb))) fun s'' h => ?_
   obtain ⟨⟨σ3, he3, -, -, -, hS3⟩, hw3⟩ := h
@@ -349,7 +419,8 @@ theorem writesIn_same {s : S} {a : U64} (ha : P1.Aligned a) :
 /-- **A write keeping every word** as a scheduler step. -/
 theorem same_schedStep {th : TypedHeap} {s s' : S} {σ : Fl4Spec.State Unit}
     (hw : P1.WritesIn st s s' (fun _ => False)) : SchedStep (L := L) th s σ s' σ := by
-  refine ⟨by constructor <;> rfl, fun N T C c _ hS _ => ?_⟩
+  refine ⟨by constructor <;> rfl, fun N T C c _ hS _ => ?_, SchedQOK.refl σ,
+    fun _ _ _ _ _ _ _ _ _ _ _ h => (P1.blk_of_capw h hw fun _ hb => hb.elim).1⟩
   have hw' : P1.WritesIn st s s' (Sched.SFootI st T c s) := hw.mono fun _ h => h.elim
   exact ⟨hS.stableW (hw.mono fun _ h => h.elim) ⟨rfl, rfl, fun _ => Or.inl rfl⟩, hw.mono fun _ h => h.elim,
     fun hD => domRel_iff.1 ((domRel_iff.2 hD).of_same (domSame_of_sfootI hS hw') rfl rfl)⟩
@@ -425,8 +496,8 @@ theorem domSetHyp_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {ar :
   have hNb : Notif.NtfnStateRel Z.N Z.T (L.mem sb) σa :=
     Notif.NtfnStateRel.frame hNa hS1.placed (fun a ha _ => hsame.mem_eq ha id) (kview_of_kheap rfl)
   -- `is_schedulable`, then `enqueue` when schedulable
-  refine WP.spec_bind (Sched.sched.is_schedulable.spec' sb t) ?_
-  rintro b hb
+  refine WP.spec_bind (WP.spec_and (Sched.sched.is_schedulable.spec' sb t) (P1.sched.is_schedulable.spec' sb t)) ?_
+  rintro b ⟨hb, hbP⟩
   have hbs : b = Fl4Spec.schedulable t.bv σa := hb.trans (Sched.schedulable_eq hNb hSb ht)
   have hif : (if b = true then sched.enqueue st sb t else ok sb) ⦃ sc => ∃ σc,
       Sched.SchedRel st Z.N Z.T Z.C Z.c sc σc ∧ Notif.NtfnStateRel Z.N Z.T (L.mem sc) σc ∧
@@ -439,7 +510,8 @@ theorem domSetHyp_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {ar :
     · rw [if_pos hb1]
       have hb2 := hb1; rw [hb] at hb2
       have hr0 := (of_decide_eq_true hb2).2.2.2
-      refine WP.spec_mono (enqueue_schedStep htcb hka hSb ht fun _ => hr0) ?_
+      obtain ⟨hrn, hbd, hrl, hrm⟩ := hbP hb1
+      refine WP.spec_mono (enqueue_schedStep htcb hka hSb ht (fun _ => hr0) (by rw [← hbs, hb1]) hrn hbd hrl hrm) ?_
       rintro sc ⟨hSc, hfec, hwc, hstc⟩
       refine ⟨_, hSc, Notif.NtfnStateRel.frame hNb hS1.placed hfec (kview_of_kheap rfl), hwc, hstc,
         mem_when (fun _ => by rw [Sched.tcbSchedAction_gen hka]; rfl) (fun h => by rw [← hbs, hb1] at h; cases h),

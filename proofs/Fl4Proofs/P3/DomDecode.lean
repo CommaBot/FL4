@@ -18,6 +18,7 @@ each about the states the decode reaches.
 -/
 import Fl4Proofs.P3.DecodeTop
 import Fl4Proofs.P3.NtfnSched
+import Fl4Proofs.P1.QueueSlots
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -515,6 +516,47 @@ theorem Sched.SchedRel.domW {N T C : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4
   · rw [nwo _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])]; exact hs.idleSc
   · rw [hK.idle, nwo _ (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])]; exact hs.idleTh
 
+/-- **Writes of the domain schedule's words keep P1's `BlkOK`**: they are
+kernel-state words, in `Ω` and no SC's (`SgOK`). -/
+theorem blkKeep_domKW {th : TypedHeap} {s s' : S} (hw : P1.WritesIn st s s' (DomKW (L.ksb s)))
+    (hka : (L.ksb s).val % 8 = 0) : BlkKeep (L := L) th s s' := by
+  intro T Cs Ω H Sg Rp Scs Nt Z Ac _ h
+  have hw' : P1.WritesIn st s s' (fun b => DomKW (L.ksb s) b ∧ P1.Aligned b) :=
+    ⟨hw.1, hw.2.1, fun b hb hn => hw.2.2 b hb fun h => hn ⟨h, hb⟩⟩
+  have hSg := h.2.2.2.2
+  have h0 := h.1.choose_spec.choose_spec
+  refine (P1.blk_of_capw h hw' fun b hb => ?_).1
+  obtain ⟨⟨K, hK, e⟩, hal⟩ := hb
+  have hb8 : b.val % 8 = 0 := hal
+  refine Or.inr ⟨?_, fun hm => ?_⟩
+  · simp only [List.mem_cons, List.not_mem_nil, or_false] at hK
+    rcases hK with rfl | rfl | rfl | rfl | rfl | rfl | rfl
+    all_goals first
+      | (have eb : b = core.num.U64.wrapping_add (L.ksb s) 16#u64 :=
+            UScalar.eq_of_val_eq (by rw [P1.ks_val h0 (by decide)]; simpa using e)
+         rw [eb]; exact hSg.ksΩ _ (by decide) (by decide))
+      | (have eb : b = core.num.U64.wrapping_add (L.ksb s) 24#u64 :=
+            UScalar.eq_of_val_eq (by rw [P1.ks_val h0 (by decide)]; simpa using e)
+         rw [eb]; exact hSg.ksΩ _ (by decide) (by decide))
+      | (have eb : b = core.num.U64.wrapping_add (L.ksb s) 32#u64 :=
+            UScalar.eq_of_val_eq (by rw [P1.ks_val h0 (by decide)]; simpa using e)
+         rw [eb]; exact hSg.ksΩ _ (by decide) (by decide))
+      | (have eb : b = core.num.U64.wrapping_add (L.ksb s) 192#u64 :=
+            UScalar.eq_of_val_eq (by rw [P1.ks_val h0 (by decide)]; simpa using e)
+         rw [eb]; exact hSg.ksΩ _ (by decide) (by decide))
+      | (have eb : b = core.num.U64.wrapping_add (L.ksb s) 200#u64 :=
+            UScalar.eq_of_val_eq (by rw [P1.ks_val h0 (by decide)]; simpa using e)
+         rw [eb]; exact hSg.ksΩ _ (by decide) (by decide))
+      | (have eb : b = core.num.U64.wrapping_add (L.ksb s) 208#u64 :=
+            UScalar.eq_of_val_eq (by rw [P1.ks_val h0 (by decide)]; simpa using e)
+         rw [eb]; exact hSg.ksΩ _ (by decide) (by decide))
+      | (have eb : b = core.num.U64.wrapping_add (L.ksb s) 216#u64 :=
+            UScalar.eq_of_val_eq (by rw [P1.ks_val h0 (by decide)]; simpa using e)
+         rw [eb]; exact hSg.ksΩ _ (by decide) (by decide))
+  · have := hSg.ks b hm
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hK
+    omega
+
 /-- **ScheduleSetStart's writes as a scheduler step** (`SchedStep`): the
 start, the domain time and index words, against `domain_set_start`'s
 updates. -/
@@ -540,7 +582,7 @@ theorem schedStep_start (th : TypedHeap) (s1 : S) (σ1 : Fl4Spec.State Unit) {kb
     rw [startS, mem_ks_ne _ _ hkf hka (by decide) (by decide) (by decide) (by decide) (by decide),
       mem_ks_same _ _ hkf hka (by decide) (by decide)]
   refine ⟨by constructor <;> rfl, fun N T C c _ hS _ => ⟨hS.domW hw (by constructor <;> rfl) rfl rfl ?_,
-    hw.mono fun b hb => Or.inr (Or.inr hb), fun hD => ?_⟩⟩
+    hw.mono fun b hb => Or.inr (Or.inr hb), fun hD => ?_⟩, ⟨fun d p _ hu => Or.inl ⟨d, p, hu⟩, Or.inr rfl⟩, blkKeep_domKW hw hka⟩
   · show (0 : BitVec 64) = (L.mem (startS (L := L) s1 kb y0) (ksW kb 16#u64)).bv
     rw [h16]; rfl
   · obtain ⟨hl1, hent1, -⟩ := domRel_iff.2 hD
@@ -715,7 +757,7 @@ theorem schedStep_conf (th : TypedHeap) (s1 : S) (σ1 : Fl4Spec.State Unit) {kb 
     (writesIn_ksW (L.wr s1 (ksW (L.ksb s1) 192#u64) y1) y2 hkf hka (o := 200#u64) (by simp))
   refine ⟨by constructor <;> rfl, fun N T C c _ hS _ => ⟨hS.domW hw (by constructor <;> rfl) rfl rfl ?_,
     hw.mono fun b hb => Or.inr (Or.inr hb), fun hD => domRel_iff.1
-      (domRel_conf s1 hkf hka σ1 y1 y2 h1 h2 (domRel_iff.2 hD))⟩⟩
+      (domRel_conf s1 hkf hka σ1 y1 y2 h1 h2 (domRel_iff.2 hD))⟩, ⟨fun d p _ hu => Or.inl ⟨d, p, hu⟩, Or.inr rfl⟩, blkKeep_domKW hw hka⟩
   obtain ⟨Q, R0, hc, hs⟩ := hS.lists
   show σ1.domainTime = (L.mem _ (ksW (L.ksb s1) 16#u64)).bv
   rw [mem_ks_ne _ _ hkf hka (by decide) (by decide) (by decide) (by decide) (by decide),
