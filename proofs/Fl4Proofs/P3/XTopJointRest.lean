@@ -252,8 +252,9 @@ theorem jowes_slotOf {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : Md
   obtain ⟨hJC, Ac', D', hjpl, hjc, hkern, hutc, hblk⟩ := hR Z H Cs Ac Lst D rfl J hX'
   refine ⟨hJC, Ac', Lst, D', ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 mk,
     J.buf.frame kb (fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_keepC hkc), hjpl,
-    hjc, hkern, hutc, J.nsc.cn hC, J.inv.cn hC, CurInvW.cn J.cur hC, J.own.cn hC, J.off.cn hC, J.act.cn hC,
-    J.bsa.cn hC, J.isorted.cn hC, J.curRun.cn hC, hblk⟩⟩
+    hjc, hkern, hutc, J.nsc.cn hC.toHStep, J.inv.cn hC, CurInvW.cn J.cur hC, J.own.cn hC.toHStep, J.off.cn hC.toHStep,
+    J.act.cn hC,
+    J.bsa.cn hC.toHStep, J.isorted.cn hC.toHStep, J.curRun.cn hC.toHStep, hblk⟩⟩
 
 /-- **`JStepHyps.slot` from `SlotRest`** (an insertion between two CNodes'
 slots: `CnK`, and `KeepC` from the two CNodes, `capInsert_nko`). -/
@@ -276,6 +277,182 @@ theorem jowes_ins {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : MdbGh
     · obtain ⟨cs, h, -⟩ := hSt.cnode ps rs hps; exact ⟨rs, cs, h⟩
     · rw [Set.mem_singleton_iff.1 hp]; obtain ⟨cs, h, -⟩ := hSt.cnode pd rd hpd; exact ⟨rd, cs, h⟩)
   exact jowes_slotOf arI s s' a σ σ' hcn hkc hw hR Z H Cs Ac Lst D rfl J hX'
+
+/-! ## A kernel-state step -/
+
+/-- **A word outside the kernel-state block is kept by `KsW` writes** (the
+kernel-state steps' write set). -/
+theorem ksW_keep {s s' : S} (hw : P1.WritesIn st s s' (KsW (L.ksb s))) {b : U64} (hb : P1.Aligned b)
+    (hout : b.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ b.val) : L.mem s' b = L.mem s b :=
+  hw.mem_eq hb fun h => by obtain ⟨K, h1, h2, -, e⟩ := h; omega
+
+/-- **The scheduler's words a kernel-state step keeps** (as `inSlot_keeps`):
+the TCBs, the SCs and the replies lie outside the kernel-state block. -/
+theorem ksW_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} (hw : P1.WritesIn st s s' (KsW (L.ksb s))) :
+    (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t)) ∧ (∀ t ∈ Z.T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
+    (∀ t ∈ Z.T, L.mem s' (tIpcBufA t) = L.mem s (tIpcBufA t)) ∧
+    (∀ q ∈ Z.C, L.mem s' (scReplyA q) = L.mem s (scReplyA q)) ∧
+    (∀ r ∈ Z.R, L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧ L.mem s' (rNextA r) = L.mem s (rNextA r)) := by
+  have hS := J.xtop.fin.1.1.1
+  obtain ⟨Q, R0, hc, hs⟩ := hS.lists
+  have hT := hc.tcbs
+  have hko : ∀ t ∈ Z.T, t.val + 4096 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ t.val := fun t ht => by
+    rcases hc.ksOut t ht with h | h <;> omega
+  have hnb : L.nodeBase s Z.c = (L.ksb s).val + 13568 + Z.c.val * 4288 := rfl
+  refine ⟨fun t ht => ksW_keep hw (mcpA_aligned hT ht) (by rw [mcpA_val hT ht]; rcases hko t ht with h | h <;> omega),
+    fun t ht => ksW_keep hw (yieldA_aligned hT ht) (by rw [yieldA_val hT ht]; rcases hko t ht with h | h <;> omega),
+    fun t ht => ksW_keep hw (tIpcBufA_aligned (hT t ht)) (by
+      rw [tIpcBufA_val (hT t ht)]; rcases hko t ht with h | h <;> omega), fun q hq => ?_, fun r hr => ?_⟩
+  · obtain ⟨hal, hv, hfit⟩ := sc_reply_word hS hq
+    obtain ⟨x, n, hk, hx⟩ := hs.scs q hq
+    have := (hS.scOutIn hq (a := scReplyA q) ⟨by rw [hv]; omega, by rw [hv]; omega⟩).2.2.2
+    exact ksW_keep hw hal (by omega)
+  · have hal := J.rp.align r hr
+    have h8 := rPrevA_val hal
+    have h16 := rNextA_val hal
+    have hk := J.rp.ksb r hr
+    exact ⟨ksW_keep hw (J.rp.aligned hr (Or.inl h8)) (by omega), ksW_keep hw (J.rp.aligned hr (Or.inr h16)) (by omega)⟩
+
+/-- **What a kernel-state step still owes** [W]: the joint placement (its
+IRQ-node caps lie in the kernel-state block), the dead set, the kernel words,
+the untyped caps' facts and P1's `BlkOK`. -/
+def KsRest (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s' : S) (σ' : Fl4Spec.State Unit) : Prop :=
+  ∃ (Ac' D' : Set U64), (∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ') ∧
+    JCovD (L := L) Z.th H Z.G D' Cs s' ∧ JKern (L := L) H Cs D' Z.th s' σ' ∧
+    (∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+      UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi) ∧
+    P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s'
+
+set_option maxHeartbeats 4000000 in
+/-- **`JStepHyps.ks` from `KsRest`**: FL4 writes kernel-state words only
+(`ksW_keeps`), the spec keeps the heap and the scheduler's fields (`KsStep`,
+so `CnStep`). -/
+theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit)
+    (hw : P1.WritesIn st s s' (KsW (L.ksb s))) (hO : KsStep σ σ')
+    (hR : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → XTopAt (L := L) AR Z s' a' σ' →
+      KsRest (L := L) arI Z H Cs D s' σ') :
+    JOwes (L := L) arI AR th s a σ s' a' σ' := by
+  intro Z H Cs Ac Lst D hth J hX'
+  have hC : CnStep σ σ' := ⟨⟨fun p => Or.inl (by rw [hO.kh]), hO.rel, hO.ct, hO.csc, hO.ctime, hO.cons, hO.idle⟩,
+    hO.rq, hO.act⟩
+  obtain ⟨k1, k2, kb, k3, k4⟩ := ksW_keeps arI J hw
+  have ck : Sched.CKeep σ σ' := ⟨fun q y n hq => ⟨y, hC.sc.2 hq, rfl⟩, fun q x hq => ⟨x, (hC.look (fun _ _ e => by cases e)).2 hq,
+    rfl, rfl⟩, fun p x n hp => ⟨x, hC.sc.1 hp⟩⟩
+  have yk : YKeep σ σ' := ⟨fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩, fun p x n hp => ⟨x, hC.sc.2 hp, rfl⟩,
+    fun p y n hp => ⟨y, hC.sc.1 hp, rfl⟩⟩
+  have mk : McpKeep σ σ' := fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩
+  obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
+  have hRF' := RFree.carry J.rfree J.call k4 ck
+  obtain ⟨Ac', D', hjpl, hjc, hkern, hutc, hblk⟩ := hR Z H Cs Ac Lst D hth J hX'
+  exact ⟨Ac', Lst, D', ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 mk,
+    J.buf.frame kb (fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_kheap hO.kh), hjpl,
+    hjc, hkern, hutc, J.nsc.cn hC.toHStep, J.inv.cn hC, CurInvW.cn J.cur hC, J.own.cn hC.toHStep, J.off.cn hC.toHStep,
+    J.act.cn hC,
+    J.bsa.cn hC.toHStep, J.isorted.cn hC.toHStep, J.curRun.cn hC.toHStep, hblk⟩⟩
+
+/-! ## A scheduler step -/
+
+/-- **The scheduler's words a scheduler step keeps** (as `inSlot_keeps`, for
+`SchW`: the TCBs' queue words, the node, the domain words). -/
+theorem schW_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} (hw : P1.WritesIn st s s' (SchW (L := L) Z.T Z.c s)) :
+    (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t)) ∧ (∀ t ∈ Z.T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
+    (∀ t ∈ Z.T, L.mem s' (tIpcBufA t) = L.mem s (tIpcBufA t)) ∧
+    (∀ q ∈ Z.C, L.mem s' (scReplyA q) = L.mem s (scReplyA q)) ∧
+    (∀ r ∈ Z.R, L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧ L.mem s' (rNextA r) = L.mem s (rNextA r)) := by
+  have hS := J.xtop.fin.1.1.1
+  have hP := J.xtop.fin.1.2
+  obtain ⟨Q, R0, hc, hs⟩ := hS.lists
+  have hT := hc.tcbs
+  have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
+  have hko : ∀ t ∈ Z.T, t.val + 4096 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ t.val := fun t ht => by
+    rcases hc.ksOut t ht with h | h <;> omega
+  have hnb : L.nodeBase s Z.c = (L.ksb s).val + 13568 + Z.c.val * 4288 := rfl
+  have hnd := hc.node.disj
+  -- a word apart from the TCBs' queue words, the node and the domain words
+  have keep : ∀ b : U64, P1.Aligned b → (∀ y ∈ Z.T, b.val ≠ y.val + 3480 ∧ b.val ≠ y.val + 3488 ∧ b.val ≠ y.val + 3592) →
+      (b.val < L.nodeBase s Z.c ∨ L.nodeBase s Z.c + 4288 ≤ b.val) →
+      (b.val + 8 ≤ (L.ksb s).val + 16 ∨ (L.ksb s).val + 216 < b.val) → L.mem s' b = L.mem s b := by
+    intro b hb h1 h2 h3
+    refine hw.mem_eq hb fun hb' => ?_
+    rcases schW_val hT hkf hb' with ⟨y, hy, e | e | e⟩ | ⟨g1, g2⟩ | ⟨g1, g2, -⟩
+    · exact (h1 y hy).1 e
+    · exact (h1 y hy).2.1 e
+    · exact (h1 y hy).2.2 e
+    · omega
+    · omega
+  have tw : ∀ t ∈ Z.T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 → K.val ≠ 3480 → K.val ≠ 3488 → K.val ≠ 3592 →
+      L.mem s' (core.num.U64.wrapping_add t K) = L.mem s (core.num.U64.wrapping_add t K) := by
+    intro t ht K h1 h8 n1 n2 n3
+    have hv := Notif.tfield_val (hT t ht) h1 (K := K)
+    refine keep _ (P1.field_aligned (hT t ht) h1 h8) (fun y hy => ?_) ?_ ?_
+    · by_cases e : y = t
+      · subst e; omega
+      · have := tcb_disj hP.ep ht hy e; omega
+    · have := hnd t ht; omega
+    · rcases hko t ht with h | h <;> omega
+  refine ⟨fun t ht => tw t ht 3440#u64 (by simp) (by simp) (by simp) (by simp) (by simp),
+    fun t ht => tw t ht 3472#u64 (by simp) (by simp) (by simp) (by simp) (by simp),
+    fun t ht => tw t ht 3512#u64 (by simp) (by simp) (by simp) (by simp) (by simp), fun q hq => ?_, fun r hr => ?_⟩
+  · obtain ⟨hal, hv, -⟩ := sc_reply_word hS hq
+    obtain ⟨-, o1, o2, o3⟩ := hS.scOutIn hq (a := scReplyA q) ⟨by rw [hv]; omega, by rw [hv]; omega⟩
+    refine keep _ hal (fun y hy => ?_) (by omega) (by omega)
+    rcases o2 y hy with h | h <;> omega
+  · have hal := J.rp.align r hr
+    have h8 := rPrevA_val hal
+    have h16 := rNextA_val hal
+    have hk := J.rp.ksb r hr
+    have ht := J.rp.tcb r hr
+    refine ⟨keep _ (J.rp.aligned hr (Or.inl h8)) (fun y hy => ?_) (by omega) (by omega),
+      keep _ (J.rp.aligned hr (Or.inr h16)) (fun y hy => ?_) (by omega) (by omega)⟩
+    · rcases ht y hy with h | h <;> omega
+    · rcases ht y hy with h | h <;> omega
+
+/-- **What a scheduler step still owes** [W]: `Inv` (its ready queues), the
+current thread's invariant and `ActIdle` (the action changed), the joint
+placement, the dead set, the kernel words, the untyped caps' facts and P1's
+`BlkOK`. -/
+def SchedRest (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s' : S) (σ' : Fl4Spec.State Unit) : Prop :=
+  Inv σ' ∧ (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧ ActIdle σ' ∧
+  ∃ (Ac' D' : Set U64), (∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ') ∧
+    JCovD (L := L) Z.th H Z.G D' Cs s' ∧ JKern (L := L) H Cs D' Z.th s' σ' ∧
+    (∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+      UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi) ∧
+    P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s'
+
+set_option maxHeartbeats 4000000 in
+/-- **`JStepHyps.sched` from `SchedRest`**: FL4 writes the scheduler's words
+(`schW_keeps`), the spec keeps the heap (`SchedK`, so `HStep`). -/
+theorem jowes_sched {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit)
+    (hS : SchedStep (L := L) th s σ s' σ')
+    (hR : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → XTopAt (L := L) AR Z s' a σ' →
+      SchedRest (L := L) arI Z H Cs D s' σ') :
+    JOwes (L := L) arI AR th s a σ s' a σ' := by
+  intro Z H Cs Ac Lst D hth J hX'
+  subst hth
+  obtain ⟨hK, hS2⟩ := hS
+  have hw := (hS2 Z.N Z.T Z.C Z.c J.thT J.xtop.fin.1.1.1 J.xtop.fin.1.1.2.2.1).2.1
+  have hC : HStep σ σ' := ⟨fun p => Or.inl (by rw [hK.kh]), hK.rel, hK.ct, hK.csc, hK.ctime, hK.cons, hK.idle⟩
+  obtain ⟨k1, k2, kb, k3, k4⟩ := schW_keeps arI J hw
+  have ck : Sched.CKeep σ σ' := ⟨fun q y n hq => ⟨y, hC.sc.2 hq, rfl⟩, fun q x hq => ⟨x, (hC.look (fun _ _ e => by cases e)).2 hq,
+    rfl, rfl⟩, fun p x n hp => ⟨x, hC.sc.1 hp⟩⟩
+  have yk : YKeep σ σ' := ⟨fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩, fun p x n hp => ⟨x, hC.sc.2 hp, rfl⟩,
+    fun p y n hp => ⟨y, hC.sc.1 hp, rfl⟩⟩
+  have mk : McpKeep σ σ' := fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩
+  obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
+  have hRF' := RFree.carry J.rfree J.call k4 ck
+  obtain ⟨hI', hcur', hA', Ac', D', hjpl, hjc, hkern, hutc, hblk⟩ := hR Z H Cs Ac Lst D rfl J hX'
+  exact ⟨Ac', Lst, D', ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 mk,
+    J.buf.frame kb (fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_kheap hK.kh), hjpl,
+    hjc, hkern, hutc, J.nsc.cn hC, hI', hcur', J.own.cn hC, J.off.cn hC, hA', J.bsa.cn hC, J.isorted.cn hC,
+    J.curRun.cn hC, hblk⟩⟩
 
 end
 
