@@ -8,8 +8,15 @@ base kept (`IFrame`).
 * `ep_restart_irel`: one queued thread's step (dequeue, reply unlink for a
   receiver with a reply, restart). Named: `ActReady` and the reply
   back-links (`ReplyBack`, l4v `sym_refs`) at the `IRel` states.
+* `cancel_all_ipc_irel`: the loop and the reschedule.
+* `xFinEp_of`: **`XFinHyps.ep`**, at `Z.mv Z.G V'` (`XTopAt.irel_same`),
+  the spec's finalisation keeping the caps (`finEp_nkc`). Named (`EpFinPre`,
+  at the `XTopAt` states): `BufWordRel`, the IPC placement, `ActReady` and
+  `ReplyBack` at the `IRel` states, the endpoint caps' objects among `Z.E`.
 -/
 import Fl4Proofs.P3.IpcCancelSignals
+import Fl4Proofs.P3.IpcFinNtfn
+import Fl4Proofs.P3.SpecFinFrames
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Ipc
@@ -256,6 +263,204 @@ theorem ep_restart_irel (hP0 : IPlaced N T E R B)
 
 end Restart
 
+/-! ## The loop -/
+
+section Loop
+variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
+variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
+
+variable (st th cr N T C E R B c) in
+/-- The loop invariant: the queue still to visit is the endpoint's, from
+FL4's next thread, the spec's outcomes from it among the whole's, the slots
+and the base kept since `s0`. -/
+def AInv (e : U64) (s0 : S) (σ0 : Fl4Spec.State Unit) (q0 : List Fl4Spec.ObjRef) (x : S × U64 × U64) : Prop :=
+  ∃ σ' y, ∃ rest : List U64, IRel st th cr N T C E R B c x.1 σ' ∧ σ'.kheap e.bv = some (.endpoint y) ∧
+    y.epQueue = rest.map UScalar.bv ∧ x.2.1 = rest.headD 0#u64 ∧ rest.length ≤ x.2.2.val ∧
+    (∀ z, z ∈ (Fl4Spec.NonDet.mapMx (rre e) (rest.map UScalar.bv) σ').1 →
+      z ∈ (Fl4Spec.NonDet.mapMx (rre e) q0 σ0).1) ∧ IFrame (L := L) th s0 x.1
+
+set_option maxHeartbeats 4000000 in
+/-- **The loop of `cancel_all_ipc`** on `IRel`. -/
+theorem all_ipc_loop (hP0 : IPlaced N T E R B)
+    (hAct : ∀ s σ, IRel st th cr N T C E R B c s σ → ActReady σ)
+    (hRB : ∀ s σ, IRel st th cr N T C E R B c s σ → ReplyBack σ)
+    {e : U64} (he : e ∈ E) (s0 : S) (σ0 : Fl4Spec.State Unit) (q0 : List Fl4Spec.ObjRef) (x0 : S × U64 × U64)
+    (h0 : AInv st th cr N T C E R B c e s0 σ0 q0 x0) :
+    endpoint.cancel_all_ipc_loop st x0.1 e x0.2.1 x0.2.2 ⦃ s' => ∃ σf,
+      ((), σf) ∈ (Fl4Spec.NonDet.mapMx (rre e) q0 σ0).1 ∧ IRel st th cr N T C E R B c s' σf ∧
+      IFrame (L := L) th s0 s' ⦄ := by
+  have hP := hP0.e
+  unfold endpoint.cancel_all_ipc_loop
+  apply loop.spec_decr_nat (measure := fun x : S × U64 × U64 => x.2.2.val)
+    (inv := AInv st th cr N T C E R B c e s0 σ0 q0) _ _ x0 ?_ h0
+  rintro ⟨s, t, fuel⟩ ⟨σ', y, rest, hX, hky, hq, ht, hlen, hinc, hss⟩
+  simp only at hX hky hq ht hlen hinc hss ⊢
+  have hEP := hX.1.toE.at_ep he hky
+  obtain ⟨xs, hQ, hxs, -⟩ := hEP.queue
+  have hxs' : xs = rest := by
+    rw [hq] at hxs
+    exact (List.map_injective_iff.2 (fun a b h => eq_of_bv h) hxs).symm
+  subst hxs'
+  unfold endpoint.cancel_all_ipc_loop.body
+  step with obj.Tcb.is_null.spec as ⟨bn, hbn⟩
+  cases xs with
+  | nil =>
+    simp only [List.headD_nil] at ht
+    subst ht
+    simp only [hbn, decide_true, ↓reduceIte, WP.spec_ok]
+    exact ⟨σ', hinc _ rfl, hX, hss⟩
+  | cons t0 rest' =>
+    simp only [List.headD_cons] at ht
+    subst t
+    have ht00 : t0 ≠ 0#u64 := hQ.ne0 hP.tcb t0 (by simp)
+    simp only [hbn, ht00, decide_false, Bool.false_eq_true, ↓reduceIte]
+    have hf0 : fuel > 0#u64 := by
+      simp only [List.length_cons] at hlen
+      show (0#u64 : U64).val < fuel.val; simp; omega
+    simp only [hf0, ↓reduceIte]
+    step as ⟨fuel1, hfuel1⟩
+    have hseg := hQ.seg
+    rw [show t0 :: rest' = [] ++ t0 :: rest' from rfl, Seg_mid] at hseg
+    obtain ⟨-, -, hnext, -⟩ := hseg
+    unfold tcbqueue.next_of
+    step with tcbqueue.next.spec as ⟨nx, hnx⟩
+    try simp only [bind_ok]
+    refine ep_restart_irel hP0 hAct hRB s σ' hX he hky hq _ fun s4 σ'' y' hres hX4 hky4 hq4 hss4 => ?_
+    rw [WP.spec_ok]
+    refine ⟨⟨σ'', y', rest', hX4, hky4, hq4, by rw [hnx, hnext], ?_, ?_, hss.trans hss4⟩, ?_⟩
+    · rw [hfuel1]; simp only [List.length_cons] at hlen; scalar_tac
+    · exact fun z hz => hinc z (by rw [List.map_cons]; exact mapMx_cons_mem (l := rest'.map UScalar.bv) hres z hz)
+    · rw [hfuel1]; scalar_tac
+
+set_option maxHeartbeats 4000000 in
+/-- **`cancel_all_ipc` on `IRel`**, the slots and the base kept. -/
+theorem cancel_all_ipc_irel (hP0 : IPlaced N T E R B)
+    (hAct : ∀ s σ, IRel st th cr N T C E R B c s σ → ActReady σ)
+    (hRB : ∀ s σ, IRel st th cr N T C E R B c s σ → ReplyBack σ)
+    (s : S) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ) {e : U64} (he : e ∈ E) :
+    endpoint.cancel_all_ipc st s e ⦃ s' => ∃ σ',
+      ((), σ') ∈ (Fl4Spec.cancelAllIpc (Z := Unit) e.bv σ).1 ∧ IRel st th cr N T C E R B c s' σ' ∧
+      IFrame (L := L) th s s' ⦄ := by
+  have hP := hP0.e
+  obtain ⟨y, hky, hEP⟩ := hX.1.toE.ep e he
+  unfold endpoint.cancel_all_ipc
+  step with obj.Ep.state.spec as ⟨i, hi⟩
+  rw [epState_eq] at hi
+  have hsp : Fl4Spec.cancelAllIpc (Z := Unit) e.bv σ = (match y with
+        | .idleEP => (pure () : Fl4Spec.SMonad Unit Unit)
+        | _ => (do Fl4Spec.NonDet.mapMx (fun t => Fl4Spec.removeAndRestartEpQueuedThread t e.bv) y.epQueue
+                   Fl4Spec.rescheduleRequired)) σ := by
+    unfold Fl4Spec.cancelAllIpc
+    rw [nd_bind_one (getEndpoint_eq hky)]
+    cases y <;> first | rfl | simp only [Notif.nd_pure_bind']
+  -- the walk over a nonempty queue
+  have walk : ∀ q : List Fl4Spec.ObjRef, y.epQueue = q → i ≠ obj.EP_IDLE →
+      (do
+        let q ← endpoint.get_queue st s e
+        let s1 ← endpoint.cancel_all_ipc_loop st s e q.head layout.WALK_FUEL
+        sched.reschedule_required st s1) ⦃ s' => ∃ σ',
+        ((), σ') ∈ ((Fl4Spec.NonDet.mapMx (rre e) q >>= fun _ => Fl4Spec.rescheduleRequired (Z := Unit)) σ).1 ∧
+        IRel st th cr N T C E R B c s' σ' ∧ IFrame (L := L) th s s' ⦄ := by
+    intro q hyq _
+    obtain ⟨xs, hQ, hqx, -⟩ := hEP.queue
+    step with endpoint.get_queue.spec as ⟨qq, hqq⟩
+    have hfuel : layout.WALK_FUEL.val = 2 ^ 64 - 1 := by simp [layout.WALK_FUEL, U64.rMax]
+    have hI0 : AInv st th cr N T C E R B c e s σ q (s, qq.head, layout.WALK_FUEL) :=
+      ⟨σ, y, xs, hX, hky, hqx, by rw [hqq, epQ_eq, hQ.head], by rw [hfuel]; exact len_le_max xs hQ.nodup (hQ.ne0 hP.tcb),
+        fun z hz => by rw [← hyq, hqx]; exact hz, IFrame.refl _ _⟩
+    refine WP.spec_bind (all_ipc_loop hP0 hAct hRB he s σ q _ hI0) ?_
+    rintro s1 ⟨σf, hmf, hXf, hss1⟩
+    refine WP.spec_mono (WP.spec_and (resched_irel hP0 s1 σf hXf (hAct _ _ hXf))
+      (reschedule_required_sfootI hXf.2.2.1)) ?_
+    rintro s2 ⟨⟨σr, hrs, -, hX2⟩, hw2⟩
+    exact ⟨σr, ⟨((), σf), hmf, by show ((), σr) ∈ (Fl4Spec.rescheduleRequired σf).1; rw [hrs]; rfl⟩, hX2,
+      hss1.trans (IRel.iframe_of hXf hw2 fun b hb => sfootI_oobj hP.tcb hb)⟩
+  cases y with
+  | idleEP =>
+    have h0 : i = obj.EP_IDLE := by rw [hi, hEP.1, ep_state_vals.1]
+    simp only [h0, ↓reduceIte, WP.spec_ok]
+    exact ⟨σ, by rw [hsp]; exact Set.mem_singleton _, hX, IFrame.refl _ _⟩
+  | sendEP q =>
+    have h0 : i ≠ obj.EP_IDLE := by rw [hi, hEP.1, ep_state_vals.1]; decide
+    simp only [h0, ↓reduceIte]
+    refine WP.spec_mono (walk q rfl h0) ?_
+    rintro s' ⟨σ', hm, hX', hss⟩
+    exact ⟨σ', by rw [hsp]; exact hm, hX', hss⟩
+  | recvEP q =>
+    have h0 : i ≠ obj.EP_IDLE := by rw [hi, hEP.1, ep_state_vals.1]; decide
+    simp only [h0, ↓reduceIte]
+    refine WP.spec_mono (walk q rfl h0) ?_
+    rintro s' ⟨σ', hm, hX', hss⟩
+    exact ⟨σ', by rw [hsp]; exact hm, hX', hss⟩
+
+end Loop
+
 end
 
 end Fl4Proofs.P3.Ipc
+
+namespace Fl4Proofs.P3
+open fl4_core Classical Fl4Proofs.P1 Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc Fl4Proofs.P3.Sched
+
+noncomputable section
+
+section
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
+
+theorem finWork_ep {e b : U64} {x1 x2 x3 x4 : Bool} {fb : Bool} (h : FinWork (.Endpoint e b x1 x2 x3 x4) fb) :
+    fb = true := by
+  unfold FinWork at h
+  rcases h with ⟨hb | ⟨f, l, o, e, -⟩, -⟩ | ⟨p, sz, r, d, ep, asid, va, e⟩
+  · exact hb
+  · cases e
+  · cases e
+
+/-- **What an endpoint cap's finalisation at `XTop` reads** (module docstring). -/
+def EpFinPre (Z : XSets) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
+  BufWordRel Z.T (L.mem s) σ ∧ IPlaced Z.N Z.T Z.E Z.R Z.B ∧
+  (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → ActReady σ') ∧
+  (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → ReplyBack σ') ∧
+  ∀ sl e b x1 x2 x3 x4, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.Endpoint e b x1 x2 x3 x4) → e ∈ Z.E
+
+set_option maxHeartbeats 8000000 in
+/-- **`XFinHyps.ep` holds** (module docstring). -/
+theorem xFinEp_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
+    (hpre : ∀ (Z : XSets) s a σ, Z.th = th → XTopAt (L := L) AR Z s a σ → EpFinPre (L := L) Z s σ) :
+    XFinAt (L := L) arI FinEpK AR th := by
+  intro Z s a σ sl c hth hX hK hTh ⟨e, b, x1, x2, x3, x4, hc0⟩ hDS hA hc hk hw
+  subst hth hc0
+  obtain ⟨hBW, hP0, hAct, hRB, heE⟩ := hpre Z s a σ rfl hX
+  have he := heE sl e b x1 x2 x3 x4 hA hc
+  have hfin := finWork_ep hw
+  set fin := decide (Fl4Spec.isFinalCap' (absCap (.Endpoint e b x1 x2 x3 x4)) σ) with hfd
+  have hI := hX.irelK hK hBW
+  have hAR : AR a σ.archState.x64CurrentCr3 := hX.fin.1.1.2.2.2.2.2.2
+  have hfc : objects.finalise_cap st arI s a (.Endpoint e b x1 x2 x3 x4) fin false =
+      objects.finalise_cap_object st arI s a (.Endpoint e b x1 x2 x3 x4) fin := by
+    simp [objects.finalise_cap]
+  rw [hfc]
+  unfold objects.finalise_cap_object
+  simp only [hfin, ↓reduceIte]
+  refine WP.spec_bind (cancel_all_ipc_irel hP0 hAct hRB s σ hI he) ?_
+  rintro s3 ⟨σ3, hm3, hI3, hk3⟩
+  rw [WP.spec_ok]
+  have hmem : ((absCap capability.Cap.Null, absCap capability.Cap.Null), σ3) ∈
+      (Fl4Spec.finaliseCap (Z := Unit) (absCap (.Endpoint e b x1 x2 x3 x4)) fin σ).1 := by
+    rw [hfin]
+    show _ ∈ (Fl4Spec.NonDet.liftM (fun _ => (Fl4Spec.Cap.nullCap, Fl4Spec.Cap.nullCap)) (Fl4Spec.NonDet.when true
+      (Fl4Spec.cancelAllIpc e.bv)) σ).1
+    unfold Fl4Spec.NonDet.liftM Fl4Spec.NonDet.when
+    simp only [↓reduceIte]
+    exact mem_bind_nd (x := ((), σ3)) hm3 (Set.mem_singleton _)
+  have hck := finEp_nkc e.bv b.bv _ fin σ _ hmem
+  obtain ⟨V', hX3⟩ := XTopAt.irel_same hX hI3 hAR hk3.1 hck.cdt hck.orig hck.ks hk3.2
+  have hM := hDS.1.2.2.1
+  refine ⟨rfl, trivial, trivial, σ3, Z.G, hmem, DState.of_same hDS hk3.1 hX3.rel.2.1 hck.ks, ?_,
+    fun y hy _ => Or.inl (hk3.1.capV hy), MdbStep.of_same hM hk3.1, ⟨V', hX3⟩, hk3.2⟩
+  rw [hk3.1.capV hA.isSlot]; exact capV_of_capAt hc
+
+end
+
+end
+
+end Fl4Proofs.P3
