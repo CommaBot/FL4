@@ -59,12 +59,13 @@ structure Sk (σ σ' : State Unit) : Prop where
   cdt : σ'.cdt = σ.cdt
   orig : σ'.isOriginalCap = σ.isOriginalCap
   arch : σ'.archState = σ.archState
+  dt : σ'.domainTime = σ.domainTime
 
-theorem Sk.refl (σ : State Unit) : Sk σ σ := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+theorem Sk.refl (σ : State Unit) : Sk σ σ := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem Sk.trans {σ1 σ2 σ3 : State Unit} (h1 : Sk σ1 σ2) (h2 : Sk σ2 σ3) : Sk σ1 σ3 :=
   ⟨h2.ct.trans h1.ct, h2.idle.trans h1.idle, h2.cons.trans h1.cons, h2.tm.trans h1.tm, h2.csc.trans h1.csc,
-    h2.rel.trans h1.rel, h2.cdt.trans h1.cdt, h2.orig.trans h1.orig, h2.arch.trans h1.arch⟩
+    h2.rel.trans h1.rel, h2.cdt.trans h1.cdt, h2.orig.trans h1.orig, h2.arch.trans h1.arch, h2.dt.trans h1.dt⟩
 
 /-- A notification object kept, or a non-waiting one replaced by a
 non-waiting one. -/
@@ -90,16 +91,33 @@ theorem NObj.queue {a b : Ntfn} (h : NObj a b) : b.ntfnQueue.Sublist a.ntfnQueue
     | waitingNtfn l => exact absurd rfl (hb l)
     | _ => exact List.nil_sublist _
 
-/-- **One object's change by a notification `r`'s finalisation** (`cur`
-the current SC; `q`: no thread restarted, no refill and no queue changed):
-a TCB's state (a thread blocked on `r` restarted) and bound notification; an
-SC's refills (not the current SC's) and notification; `r`'s queue (shorter)
-and SC (cleared); a non-waiting object may become another non-waiting one
-(`NObj`: a signal's badge). -/
+/-- **A TCB's state and saved context by a notification `r`'s step**: kept,
+or (`q = false`) a thread blocked on `r` restarted (`cancel_all_signals`) or
+woken running with its context changed (`send_signal`: the badge register). -/
+def TChg (q : Bool) (r : ObjRef) (x : Tcb) (st : ThreadState) (ar : ArchTcb) : Prop :=
+  (st = x.tcbState ∧ ar = x.tcbArch) ∨
+    (q = false ∧ x.tcbState = .blockedOnNotification r ∧ (st = .restart ∨ st = .running))
+
+theorem TChg.trans {q : Bool} {r : ObjRef} {x : Tcb} {st1 st2 : ThreadState} {ar1 ar2 : ArchTcb}
+    (h1 : TChg q r x st1 ar1) {bn1 : Option ObjRef}
+    (h2 : TChg q r { x with tcbState := st1, tcbBoundNotification := bn1, tcbArch := ar1 } st2 ar2) :
+    TChg q r x st2 ar2 := by
+  rcases h2 with ⟨e1, e2⟩ | ⟨hq2, e1, e7⟩ <;> rcases h1 with ⟨e3, e4⟩ | ⟨hq1, e5, e6⟩
+  · exact Or.inl ⟨e1.trans e3, e2.trans e4⟩
+  · exact Or.inr ⟨hq1, e5, by rw [e1]; exact e6⟩
+  · simp only at e1
+    exact Or.inr ⟨hq2, by rw [← e3]; exact e1, e7⟩
+  · simp only at e1; rcases e6 with e | e <;> rw [e] at e1 <;> cases e1
+
+/-- **One object's change by a notification `r`'s step** (`cur` the current
+SC; `q`: no thread restarted or woken, no refill and no queue changed): a
+TCB's state and context (`TChg`) and bound notification; an SC's refills
+(not the current SC's) and notification; `r`'s queue (shorter) and SC
+(cleared); a non-waiting object may become another non-waiting one (`NObj`:
+a signal's badge). -/
 def NChg (q : Bool) (r cur p : ObjRef) (o o' : KernelObject) : Prop :=
-  (∃ x st bn, o = .tcb x ∧ o' = .tcb { x with tcbState := st, tcbBoundNotification := bn } ∧
-    (st = x.tcbState ∨ (q = false ∧ x.tcbState = .blockedOnNotification r ∧ st = .restart)) ∧
-    (bn = x.tcbBoundNotification ∨ bn = none)) ∨
+  (∃ x st bn ar, o = .tcb x ∧ o' = .tcb { x with tcbState := st, tcbBoundNotification := bn, tcbArch := ar } ∧
+    TChg q r x st ar ∧ (bn = x.tcbBoundNotification ∨ bn = none)) ∨
   (∃ y n rf nt, o = .schedContext y n ∧ o' = .schedContext { y with scRefills := rf, scNtfn := nt } n ∧
     (p = cur ∨ q = true → rf = y.scRefills) ∧ (nt = y.scNtfn ∨ nt = none)) ∨
   (∃ x y, o = .notification x ∧ o' = .notification y ∧ p = r ∧
@@ -115,25 +133,19 @@ theorem or_none_trans {α : Type} {a b c : Option α} (h1 : b = a ∨ b = none) 
 
 theorem NChg.trans {q : Bool} {r cur p : ObjRef} {o1 o2 o3 : KernelObject} (h1 : NChg q r cur p o1 o2)
     (h2 : NChg q r cur p o2 o3) : NChg q r cur p o1 o3 := by
-  rcases h1 with ⟨x, st, bn, rfl, rfl, hs, hb⟩ | ⟨y, n, rf, nt, rfl, rfl, hr, hn⟩ |
+  rcases h1 with ⟨x, st, bn, ar, rfl, rfl, hs, hb⟩ | ⟨y, n, rf, nt, rfl, rfl, hr, hn⟩ |
     ⟨x, y, rfl, rfl, hp, hq, hq', hs, hw, hb⟩
-  · rcases h2 with ⟨x2, st2, bn2, e, rfl, hs2, hb2⟩ | ⟨_, _, _, _, e, -⟩ | ⟨_, _, e, -⟩ <;> cases e
-    refine Or.inl ⟨x, st2, bn2, rfl, rfl, ?_, or_none_trans hb hb2⟩
-    simp only at hs2
-    rcases hs2 with rfl | ⟨hq2, e1, rfl⟩ <;> rcases hs with rfl | ⟨hq1, e3, rfl⟩
-    · exact Or.inl rfl
-    · exact Or.inr ⟨hq1, e3, rfl⟩
-    · exact Or.inr ⟨hq2, e1, rfl⟩
-    · cases e1
-  · rcases h2 with ⟨_, _, _, e, -⟩ | ⟨y2, n2, rf2, nt2, e, rfl, hr2, hn2⟩ | ⟨_, _, e, -⟩ <;> cases e
+  · rcases h2 with ⟨x2, st2, bn2, ar2, e, rfl, hs2, hb2⟩ | ⟨_, _, _, _, e, -⟩ | ⟨_, _, e, -⟩ <;> cases e
+    exact Or.inl ⟨x, st2, bn2, ar2, rfl, rfl, hs.trans hs2, or_none_trans hb hb2⟩
+  · rcases h2 with ⟨_, _, _, _, e, -⟩ | ⟨y2, n2, rf2, nt2, e, rfl, hr2, hn2⟩ | ⟨_, _, e, -⟩ <;> cases e
     exact Or.inr (Or.inl ⟨y, n, rf2, nt2, rfl, rfl, fun h => (hr2 h).trans (hr h), or_none_trans hn hn2⟩)
-  · rcases h2 with ⟨_, _, _, e, -⟩ | ⟨_, _, _, _, e, -⟩ | ⟨y2, z, e, rfl, -, hq2, hq2', hs2, hw2, hb2⟩ <;> cases e
+  · rcases h2 with ⟨_, _, _, _, e, -⟩ | ⟨_, _, _, _, e, -⟩ | ⟨y2, z, e, rfl, -, hq2, hq2', hs2, hw2, hb2⟩ <;> cases e
     refine Or.inr (Or.inr ⟨x, z, rfl, rfl, hp, hq2.trans hq, fun h => (hq' h).trans (hq2' h),
       or_none_trans hs hs2, fun h => (hw h).trans (hw2 ((hw h).nw h)), or_none_trans hb hb2⟩)
 
 theorem NChg.weak {r cur p : ObjRef} {o o' : KernelObject} (h : NChg true r cur p o o') : NChg false r cur p o o' := by
-  rcases h with ⟨x, st, bn, h1, h2, hs, hb⟩ | ⟨y, n, rf, nt, h1, h2, hr, hn⟩ | ⟨x, y, h1, h2, hp, hq, -, hs, hw, hb⟩
-  · refine Or.inl ⟨x, st, bn, h1, h2, ?_, hb⟩
+  rcases h with ⟨x, st, bn, ar, h1, h2, hs, hb⟩ | ⟨y, n, rf, nt, h1, h2, hr, hn⟩ | ⟨x, y, h1, h2, hp, hq, -, hs, hw, hb⟩
+  · refine Or.inl ⟨x, st, bn, ar, h1, h2, ?_, hb⟩
     rcases hs with e | ⟨e, -⟩
     · exact Or.inl e
     · cases e
@@ -172,14 +184,14 @@ theorem NFr.ofSk {q : Bool} {r : ObjRef} {σ σ' : State Unit} (hs : Sk σ σ')
 
 theorem NFr.upd {q : Bool} {r : ObjRef} {σ : State Unit} {p : ObjRef} {o o' : KernelObject}
     (hk : σ.kheap p = some o) (hc : NChg q r σ.curSc p o o') : NFr q r σ (updK σ p o') := by
-  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, fun _ => ⟨rfl, rfl⟩, fun p' => ?_⟩
+  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, fun _ => ⟨rfl, rfl⟩, fun p' => ?_⟩
   by_cases e : p' = p
   · subst e; exact Or.inr ⟨o, o', hk, by simp [updK], hc⟩
   · exact Or.inl (by simp [updK, e])
 
 theorem NFr.sts (r : ObjRef) (σ : State Unit) (t : ObjRef) : NFr false r σ (Notif.stsAct σ t) := by
   unfold Notif.stsAct; split
-  · exact NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun e => by cases e) rfl
+  · exact NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun e => by cases e) rfl
   · exact NFr.refl _ _ _
 
 /-- Only the ready queues and the scheduler action changed. -/
@@ -188,7 +200,7 @@ def QOnly (σ σ' : State Unit) : Prop :=
 
 theorem QOnly.nfr {r : ObjRef} {σ σ' : State Unit} (h : QOnly σ σ') : NFr false r σ σ' := by
   obtain ⟨rq, act, rfl⟩ := h
-  exact NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun e => by cases e) rfl
+  exact NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun e => by cases e) rfl
 
 /-- **`reschedule_required`'s outcome**: only the queues and the action
 (`choose_new_thread`) changed. -/
@@ -465,13 +477,13 @@ theorem inv_ntfn_iter {σ σ5 : State Unit} {r t : ObjRef} {l : List ObjRef} (h 
          | waitingNtfn l' => exact hw l' ho
          | _ => simp [ntfnQueueOf, ho, Ntfn.ntfnQueue] at hq, Or.inl rfl⟩))
   have hF2 : NFr false r σ1 σ2' := NFr.upd (o' := .tcb x') hkt1
-    (Or.inl ⟨x, .restart, x.tcbBoundNotification, rfl, rfl, Or.inr ⟨rfl, hxs, rfl⟩, Or.inl rfl⟩)
+    (Or.inl ⟨x, .restart, x.tcbBoundNotification, x.tcbArch, rfl, rfl, Or.inr ⟨rfl, hxs, Or.inl rfl⟩, Or.inl rfl⟩)
   have hF3 : NFr false r σ2 σ3 := by
     rcases hshape with e | ⟨c, y, z, k, -, hky, e, hz, hcc⟩
     · rw [e]; exact NFr.refl _ _ _
     · rw [e]
       have h0 : NFr false r σ2 { σ2 with reprogramTimer := true } :=
-        NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun e => by cases e) rfl
+        NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun e => by cases e) rfl
       refine h0.trans (NFr.upd (σ := { σ2 with reprogramTimer := true }) (o' := .schedContext z k) hky
         (Or.inr (Or.inl ⟨y, k, z.scRefills, y.scNtfn, rfl, congrArg (fun w => KernelObject.schedContext w k) hz,
           fun h => absurd (h.resolve_right (by simp)) hcc, Or.inl rfl⟩)))
@@ -542,24 +554,45 @@ section
 variable {q : Bool} {r : ObjRef} {σ σ' : State Unit}
 
 theorem NFr.tcbF (h : NFr q r σ σ') {p : ObjRef} {x : Tcb} (hp : σ.kheap p = some (.tcb x)) :
-    ∃ st bn, σ'.kheap p = some (.tcb { x with tcbState := st, tcbBoundNotification := bn }) ∧
-      (st = x.tcbState ∨ (q = false ∧ x.tcbState = .blockedOnNotification r ∧ st = .restart)) ∧
-      (bn = x.tcbBoundNotification ∨ bn = none) := by
+    ∃ st bn ar, σ'.kheap p = some (.tcb { x with tcbState := st, tcbBoundNotification := bn, tcbArch := ar }) ∧
+      TChg q r x st ar ∧ (bn = x.tcbBoundNotification ∨ bn = none) := by
   rcases h.kh p with e | ⟨o, o', h1, h2, hc⟩
-  · exact ⟨x.tcbState, x.tcbBoundNotification, by rw [e, hp], Or.inl rfl, Or.inl rfl⟩
+  · exact ⟨x.tcbState, x.tcbBoundNotification, x.tcbArch, by rw [e, hp], Or.inl ⟨rfl, rfl⟩, Or.inl rfl⟩
   · rw [hp] at h1; cases h1
-    rcases hc with ⟨x', st, bn, e1, rfl, hs, hb⟩ | ⟨_, _, _, _, e1, -⟩ | ⟨_, _, e1, -⟩ <;> cases e1
-    exact ⟨st, bn, h2, hs, hb⟩
+    rcases hc with ⟨x', st, bn, ar, e1, rfl, hs, hb⟩ | ⟨_, _, _, _, e1, -⟩ | ⟨_, _, e1, -⟩ <;> cases e1
+    exact ⟨st, bn, ar, h2, hs, hb⟩
 
 theorem NFr.tcbB (h : NFr q r σ σ') {p : ObjRef} {y : Tcb} (hp : σ'.kheap p = some (.tcb y)) :
-    ∃ x st bn, σ.kheap p = some (.tcb x) ∧ y = { x with tcbState := st, tcbBoundNotification := bn } ∧
-      (st = x.tcbState ∨ (q = false ∧ x.tcbState = .blockedOnNotification r ∧ st = .restart)) ∧
-      (bn = x.tcbBoundNotification ∨ bn = none) := by
+    ∃ x st bn ar, σ.kheap p = some (.tcb x) ∧
+      y = { x with tcbState := st, tcbBoundNotification := bn, tcbArch := ar } ∧
+      TChg q r x st ar ∧ (bn = x.tcbBoundNotification ∨ bn = none) := by
   rcases h.kh p with e | ⟨o, o', h1, h2, hc⟩
-  · exact ⟨y, y.tcbState, y.tcbBoundNotification, by rw [← e, hp], rfl, Or.inl rfl, Or.inl rfl⟩
+  · exact ⟨y, y.tcbState, y.tcbBoundNotification, y.tcbArch, by rw [← e, hp], rfl, Or.inl ⟨rfl, rfl⟩, Or.inl rfl⟩
   · rw [hp] at h2; cases h2
-    rcases hc with ⟨x, st, bn, rfl, e2, hs, hb⟩ | ⟨_, _, _, _, -, e2, -⟩ | ⟨_, _, -, e2, -⟩ <;> cases e2
-    exact ⟨x, st, bn, h1, rfl, hs, hb⟩
+    rcases hc with ⟨x, st, bn, ar, rfl, e2, hs, hb⟩ | ⟨_, _, _, _, -, e2, -⟩ | ⟨_, _, -, e2, -⟩ <;> cases e2
+    exact ⟨x, st, bn, ar, h1, rfl, hs, hb⟩
+
+/-- A TCB's state kept unless it was blocked on `r`. -/
+theorem TChg.st {q : Bool} {r : ObjRef} {x : Tcb} {st : ThreadState} {ar : ArchTcb} (h : TChg q r x st ar)
+    (hx : x.tcbState ≠ .blockedOnNotification r) : st = x.tcbState := by
+  rcases h with ⟨e, -⟩ | ⟨-, e, -⟩
+  · exact e
+  · exact absurd e hx
+
+/-- With `q = true`, a TCB's state and context kept. -/
+theorem TChg.quiet {r : ObjRef} {x : Tcb} {st : ThreadState} {ar : ArchTcb} (h : TChg true r x st ar) :
+    st = x.tcbState ∧ ar = x.tcbArch := by
+  rcases h with e | ⟨e, -⟩
+  · exact e
+  · cases e
+
+/-- A TCB's state: kept, or no longer IPC-queued. -/
+theorem TChg.ipcQ {q : Bool} {r : ObjRef} {x : Tcb} {st : ThreadState} {ar : ArchTcb} (h : TChg q r x st ar)
+    (hq : ipcQueuedThreadState st = true) : ipcQueuedThreadState x.tcbState = true := by
+  rcases h with ⟨e, -⟩ | ⟨-, -, e | e⟩
+  · rw [← e]; exact hq
+  · rw [e] at hq; simp [ipcQueuedThreadState] at hq
+  · rw [e] at hq; simp [ipcQueuedThreadState] at hq
 
 theorem NFr.scF (h : NFr q r σ σ') {p : ObjRef} {y : SchedContext} {n : Nat} (hp : σ.kheap p = some (.schedContext y n)) :
     ∃ rf nt, σ'.kheap p = some (.schedContext { y with scRefills := rf, scNtfn := nt } n) ∧
@@ -567,7 +600,7 @@ theorem NFr.scF (h : NFr q r σ σ') {p : ObjRef} {y : SchedContext} {n : Nat} (
   rcases h.kh p with e | ⟨o, o', h1, h2, hc⟩
   · exact ⟨y.scRefills, y.scNtfn, by rw [e, hp], fun _ => rfl, Or.inl rfl⟩
   · rw [hp] at h1; cases h1
-    rcases hc with ⟨_, _, _, e1, -⟩ | ⟨y', n', rf, nt, e1, rfl, hr, hn⟩ | ⟨_, _, e1, -⟩ <;> cases e1
+    rcases hc with ⟨_, _, _, _, e1, -⟩ | ⟨y', n', rf, nt, e1, rfl, hr, hn⟩ | ⟨_, _, e1, -⟩ <;> cases e1
     exact ⟨rf, nt, h2, hr, hn⟩
 
 theorem NFr.scB (h : NFr q r σ σ') {p : ObjRef} {z : SchedContext} {n : Nat} (hp : σ'.kheap p = some (.schedContext z n)) :
@@ -576,7 +609,7 @@ theorem NFr.scB (h : NFr q r σ σ') {p : ObjRef} {z : SchedContext} {n : Nat} (
   rcases h.kh p with e | ⟨o, o', h1, h2, hc⟩
   · exact ⟨z, z.scRefills, z.scNtfn, by rw [← e, hp], rfl, fun _ => rfl, Or.inl rfl⟩
   · rw [hp] at h2; cases h2
-    rcases hc with ⟨_, _, _, -, e2, -⟩ | ⟨y, n', rf, nt, rfl, e2, hr, hn⟩ | ⟨_, _, -, e2, -⟩ <;> cases e2
+    rcases hc with ⟨_, _, _, _, -, e2, -⟩ | ⟨y, n', rf, nt, rfl, e2, hr, hn⟩ | ⟨_, _, -, e2, -⟩ <;> cases e2
     exact ⟨y, rf, nt, h1, rfl, hr, hn⟩
 
 theorem NFr.ntfnB (h : NFr q r σ σ') {p : ObjRef} {y : Notification} (hp : σ'.kheap p = some (.notification y)) :
@@ -587,7 +620,7 @@ theorem NFr.ntfnB (h : NFr q r σ σ') {p : ObjRef} {y : Notification} (hp : σ'
   rcases h.kh p with e | ⟨o, o', h1, h2, hc⟩
   · exact ⟨y, by rw [← e, hp], fun _ => rfl, List.Sublist.refl _, fun _ => Or.inl rfl, Or.inl rfl, fun _ => Or.inl rfl, Or.inl rfl⟩
   · rw [hp] at h2; cases h2
-    rcases hc with ⟨_, _, _, -, e2, -⟩ | ⟨_, _, _, _, -, e2, -⟩ | ⟨x, y', rfl, e2, hpr, hq, hq', hs, hw, hb⟩ <;> cases e2
+    rcases hc with ⟨_, _, _, _, -, e2, -⟩ | ⟨_, _, _, _, -, e2, -⟩ | ⟨x, y', rfl, e2, hpr, hq, hq', hs, hw, hb⟩ <;> cases e2
     exact ⟨x, h1, fun hne => absurd hpr hne, hq, hq', hs, hw, hb⟩
 
 theorem NFr.othB (h : NFr q r σ σ') {p : ObjRef} {o' : KernelObject} (hp : σ'.kheap p = some o')
@@ -596,7 +629,7 @@ theorem NFr.othB (h : NFr q r σ σ') {p : ObjRef} {o' : KernelObject} (hp : σ'
   rcases h.kh p with e | ⟨o, o'', k1, k2, hc⟩
   · rw [← e, hp]
   · rw [hp] at k2; cases k2
-    rcases hc with ⟨_, _, _, -, e2, -⟩ | ⟨_, _, _, _, -, e2, -⟩ | ⟨_, _, -, e2, -⟩
+    rcases hc with ⟨_, _, _, _, -, e2, -⟩ | ⟨_, _, _, _, -, e2, -⟩ | ⟨_, _, -, e2, -⟩
     · exact absurd e2 (h1 _)
     · exact absurd e2 (h2 _ _)
     · exact absurd e2 (h3 _)
@@ -607,7 +640,7 @@ theorem NFr.othF (h : NFr q r σ σ') {p : ObjRef} {o : KernelObject} (hp : σ.k
   rcases h.kh p with e | ⟨o0, o', k1, k2, hc⟩
   · rw [e, hp]
   · rw [hp] at k1; cases k1
-    rcases hc with ⟨_, _, _, e1, -⟩ | ⟨_, _, _, _, e1, -⟩ | ⟨_, _, e1, -⟩
+    rcases hc with ⟨_, _, _, _, e1, -⟩ | ⟨_, _, _, _, e1, -⟩ | ⟨_, _, e1, -⟩
     · exact absurd e1 (h1 _)
     · exact absurd e1 (h2 _ _)
     · exact absurd e1 (h3 _)
@@ -619,7 +652,7 @@ theorem NFr.kind (h : NFr q r σ σ') (p : ObjRef) :
   rcases h.kh p with e | ⟨o, o', h1, h2, hc⟩
   · exact ⟨fun o ho => ⟨o, by rw [e, ho], rfl⟩, fun o' ho => ⟨o', by rw [← e, ho], rfl⟩⟩
   · have ha : aType o' = aType o := by
-      rcases hc with ⟨x, st, bn, rfl, rfl, -⟩ | ⟨y, n, rf, nt, rfl, rfl, -⟩ | ⟨x, y, rfl, rfl, -⟩ <;> rfl
+      rcases hc with ⟨x, st, bn, ar, rfl, rfl, -⟩ | ⟨y, n, rf, nt, rfl, rfl, -⟩ | ⟨x, y, rfl, rfl, -⟩ <;> rfl
     exact ⟨fun o0 ho0 => ⟨o', h2, by rw [h1] at ho0; cases ho0; exact ha⟩,
       fun o0 ho0 => ⟨o, h1, by rw [h2] at ho0; cases ho0; exact ha⟩⟩
 
@@ -634,16 +667,16 @@ theorem NFr.ckeep (h : NFr q r σ σ') : Sched.CKeep σ σ' := by
 
 theorem NFr.ykeep (h : NFr q r σ σ') : YKeep σ σ' := by
   refine ⟨fun p x hp => ?_, fun p y n hp => ?_, fun p z n hp => ?_⟩
-  · obtain ⟨st, bn, hp', -⟩ := h.tcbF hp; exact ⟨_, hp', rfl⟩
+  · obtain ⟨st, bn, ar, hp', -⟩ := h.tcbF hp; exact ⟨_, hp', rfl⟩
   · obtain ⟨rf, nt, hp', -⟩ := h.scF hp; exact ⟨_, hp', rfl⟩
   · obtain ⟨y0, rf, nt, hy0, rfl, -⟩ := h.scB hp; exact ⟨y0, hy0, rfl⟩
 
 theorem NFr.mcpKeep (h : NFr q r σ σ') : McpKeep σ σ' := fun p x hp => by
-  obtain ⟨st, bn, hp', -⟩ := h.tcbF hp; exact ⟨_, hp', rfl⟩
+  obtain ⟨st, bn, ar, hp', -⟩ := h.tcbF hp; exact ⟨_, hp', rfl⟩
 
 theorem NFr.bufKeep (h : NFr q r σ σ') :
     ∀ p x, σ.kheap p = some (.tcb x) → ∃ y, σ'.kheap p = some (.tcb y) ∧ y.tcbIpcBuffer = x.tcbIpcBuffer :=
-  fun p x hp => by obtain ⟨st, bn, hp', -⟩ := h.tcbF hp; exact ⟨_, hp', rfl⟩
+  fun p x hp => by obtain ⟨st, bn, ar, hp', -⟩ := h.tcbF hp; exact ⟨_, hp', rfl⟩
 
 
 theorem NFr.prio (h : NFr q r σ σ') (u : ObjRef) : prioOf σ' u = prioOf σ u := by
@@ -653,19 +686,19 @@ theorem NFr.prio (h : NFr q r σ σ') (u : ObjRef) : prioOf σ' u = prioOf σ u 
   | some o =>
     cases o with
     | tcb x =>
-      obtain ⟨st, bn, hk', -⟩ := h.tcbF hk
+      obtain ⟨st, bn, ar, hk', -⟩ := h.tcbF hk
       rw [hk']; rfl
     | _ =>
       cases hk' : σ'.kheap u with
       | none => rfl
       | some o' => cases o' with
-        | tcb y => obtain ⟨x, -, -, hx, -⟩ := h.tcbB hk'; rw [hk] at hx; cases hx
+        | tcb y => obtain ⟨x, -, -, -, hx, -⟩ := h.tcbB hk'; rw [hk] at hx; cases hx
         | _ => rfl
   | none =>
     cases hk' : σ'.kheap u with
     | none => rfl
     | some o' => cases o' with
-      | tcb y => obtain ⟨x, -, -, hx, -⟩ := h.tcbB hk'; rw [hk] at hx; cases hx
+      | tcb y => obtain ⟨x, -, -, -, hx, -⟩ := h.tcbB hk'; rw [hk] at hx; cases hx
       | _ => rfl
 
 theorem NFr.nsc {N C : Set U64} (h : NFr q r σ σ') (hN : NSC N C σ) : NSC N C σ' := by
@@ -684,7 +717,7 @@ theorem NFr.isorted (h : NFr q r σ σ') (hS : IpcSorted σ) : IpcSorted σ' := 
 
 theorem NFr.own {T C : Set U64} (h : NFr q r σ σ') (hO : CurOwnW T C σ) : CurOwnW T C σ' := by
   rcases hO with ⟨u, hu, xt, hkt, hxs, hown, hnr⟩ | ⟨hcs, hun⟩
-  · obtain ⟨st, bn, hkt', -⟩ := h.tcbF hkt
+  · obtain ⟨st, bn, ar, hkt', -⟩ := h.tcbF hkt
     refine Or.inl ⟨u, hu, _, hkt', by rw [h.sk.csc]; exact hxs, fun y n hy => ?_, fun h0 hm => ?_⟩
     · rw [h.sk.csc] at hy
       obtain ⟨y0, rf, nt, hy0, rfl, -⟩ := h.scB hy
@@ -706,22 +739,17 @@ theorem NFr.off (h : NFr q r σ σ') (hO : OffOK σ) : OffOK σ' := by
 
 theorem NFr.idleOK (h : NFr q r σ σ') (hO : IdleOK σ) : IdleOK σ' := by
   obtain ⟨x, hx, h1, h2, h3⟩ := hO
-  obtain ⟨st, bn, hx', hs, -⟩ := h.tcbF hx
-  refine ⟨{ x with tcbState := st, tcbBoundNotification := bn }, by rw [h.sk.idle]; exact hx', h1, ?_,
+  obtain ⟨st, bn, ar, hx', hs, -⟩ := h.tcbF hx
+  refine ⟨{ x with tcbState := st, tcbBoundNotification := bn, tcbArch := ar }, by rw [h.sk.idle]; exact hx', h1, ?_,
     by rw [h.sk.idle, h.sk.rel]; exact h3⟩
   show st = _
-  rcases hs with e | ⟨-, e, -⟩
-  · rw [e]; exact h2
-  · rw [h2] at e; cases e
+  rw [hs.st (by rw [h2]; nofun)]; exact h2
 
 theorem NFr.bsa (h : NFr q r σ σ') (hB : BlockedScActive σ) : BlockedScActive σ' := by
   refine ⟨fun p z n t y hp hyt hy hq => ?_, fun p z n hp hr => ?_⟩
   · obtain ⟨y0, rf, nt, hy0, rfl, -⟩ := h.scB hp
-    obtain ⟨x, st, bn, hx, rfl, hs, -⟩ := h.tcbB hy
-    have hq0 : ipcQueuedThreadState x.tcbState = true := by
-      rcases hs with e | ⟨-, -, e⟩
-      · rw [← e]; exact hq
-      · simp [e, ipcQueuedThreadState] at hq
+    obtain ⟨x, st, bn, ar, hx, rfl, hs, -⟩ := h.tcbB hy
+    have hq0 : ipcQueuedThreadState x.tcbState = true := hs.ipcQ hq
     exact hB.tcb p y0 n t x hy0 hyt hx hq0
   · obtain ⟨y0, rf, nt, hy0, rfl, -⟩ := h.scB hp
     exact hB.replies p y0 n hy0 hr
@@ -729,24 +757,23 @@ theorem NFr.bsa (h : NFr q r σ σ') (hB : BlockedScActive σ) : BlockedScActive
 /-- `NFr true` keeps what the scheduler reads (`SFr`). -/
 theorem NFr.sfr (h : NFr true r σ σ') : SFr σ σ' := by
   refine ⟨fun p x hp => ?_, fun p y hp => ?_, fun p y n hp => ?_, fun p y n hp => ?_, h.sk.tm, h.sk.rel⟩
-  · obtain ⟨st, bn, hp', hs, -⟩ := h.tcbF hp
+  · obtain ⟨st, bn, ar, hp', hs, -⟩ := h.tcbF hp
     refine ⟨_, hp', ?_, rfl⟩
-    rcases hs with e | ⟨e, -⟩
-    · rw [← e]
-    · cases e
-  · obtain ⟨x, -, -, hx, -⟩ := h.tcbB hp; exact ⟨x, hx⟩
+    show runnable st = _
+    rw [hs.quiet.1]
+  · obtain ⟨x, -, -, -, hx, -⟩ := h.tcbB hp; exact ⟨x, hx⟩
   · obtain ⟨rf, nt, hp', hr, -⟩ := h.scF hp
     have e : rf = y.scRefills := hr (Or.inr rfl)
     subst e
     exact ⟨_, hp', rfl, rfl, rfl, rfl, rfl⟩
   · obtain ⟨y0, -, -, hy0, -⟩ := h.scB hp; exact ⟨y0, hy0⟩
 
-theorem NFr.curInv (h : NFr true r σ σ') (hC : CurInv σ) : CurInv σ' := by
+theorem NFr.curInv (h : NFr q r σ σ') (hC : CurInv σ) : CurInv σ' := by
   obtain ⟨xt, hkt, hxs, hnb⟩ := hC.tcb
   obtain ⟨x, n, hx⟩ := hC.sc
-  obtain ⟨st, bn, hkt', hs, -⟩ := h.tcbF hkt
+  obtain ⟨st, bn, ar, hkt', hs, -⟩ := h.tcbF hkt
   obtain ⟨rf, nt, hx', -⟩ := h.scF hx
-  have hst : st = xt.tcbState := by rcases hs with e | ⟨e, -⟩; exact e; cases e
+  have hst : st = xt.tcbState := hs.st (hnb.1 r)
   refine ⟨⟨_, by rw [h.sk.ct]; exact hkt', by rw [h.sk.csc]; exact hxs, by rw [hst]; exact hnb⟩,
     ⟨_, n, by rw [h.sk.csc]; exact hx'⟩, fun hne y m hy => ?_, by rw [h.sk.ct, h.sk.rel]; exact hC.notRel⟩
   rw [h.sk.csc] at hne hy
@@ -758,12 +785,12 @@ theorem NFr.actIdle (h : NFr true r σ σ') (hA : ActIdle σ) : ActIdle σ' := b
   rw [(h.act rfl).1] at ht
   rw [h.sfr.schedulable]; exact hA.1 t ht
 
-theorem NFr.curRunW (h : NFr true r σ σ') (hR : CurRunW σ) : CurRunW σ' := by
+theorem NFr.curRunW (h : NFr q r σ σ') (hR : CurRunW σ) : CurRunW σ' := by
   rcases hR with hR | e
   · refine Or.inl fun y hy => ?_
     rw [h.sk.ct] at hy
-    obtain ⟨x, st, bn, hx, rfl, hs, -⟩ := h.tcbB hy
-    have hst : st = x.tcbState := by rcases hs with e | ⟨e, -⟩; exact e; cases e
+    obtain ⟨x, st, bn, ar, hx, rfl, hs, -⟩ := h.tcbB hy
+    have hst : st = x.tcbState := hs.st (fun e => by have := hR x hx; rw [e] at this; simp [runnable] at this)
     show runnable st = true
     rw [hst]; exact hR x hx
   · exact Or.inr (by rw [h.sk.ct, h.sk.idle]; exact e)
@@ -847,7 +874,7 @@ theorem umn_nfr {σ σ' : State Unit} {r : ObjRef} {n : Notification} (hk : σ.k
         (Or.inr (Or.inr ⟨n, _, rfl, rfl, rfl, List.Sublist.refl _, fun _ => Or.inl rfl, Or.inl rfl, fun _ => Or.inl rfl,
           Or.inr rfl⟩))).trans
       (NFr.upd (o' := .tcb (tcbBoundNotificationUpdate (fun _ => none) x)) hkt1
-        (Or.inl ⟨x, x.tcbState, none, rfl, rfl, Or.inl rfl, Or.inr rfl⟩)), fun hI => ?_,
+        (Or.inl ⟨x, x.tcbState, none, x.tcbArch, rfl, rfl, Or.inl ⟨rfl, rfl⟩, Or.inr rfl⟩)), fun hI => ?_,
       ntfnBoundTcbUpdate (fun _ => none) n, ?_, rfl, rfl⟩
     · have hI1 : Inv σ1 := hI.updNtfn hk (fun p hp => hI.ntfnSc r n p hk hp)
       exact hI1.tcbUpd hkt1 _ rfl rfl
@@ -870,7 +897,7 @@ theorem finNtfn_spec {σ σ1 σ2 σ3 : State Unit} {r : ObjRef} {n : Notificatio
   have hb' : ∀ t, n1.ntfnBoundTcb = some t → ∃ x, σ1.kheap t = some (.tcb x) := by
     intro t ht
     obtain ⟨x, hx⟩ := hb t (hb1 ▸ ht)
-    obtain ⟨st, bn, hx', -⟩ := F1.tcbF hx
+    obtain ⟨st, bn, ar, hx', -⟩ := F1.tcbF hx
     exact ⟨_, hx'⟩
   obtain ⟨F2, I2, n2, hk2, ho2, -⟩ := umn_nfr hk1 hb' h2
   have F12 := F1.trans F2
@@ -882,8 +909,8 @@ theorem finNtfn_spec {σ σ1 σ2 σ3 : State Unit} {r : ObjRef} {n : Notificatio
     rw [hq2]
     refine ⟨hnd, fun u hu => ?_⟩
     obtain ⟨xu, hxu, hs⟩ := hbl u hu
-    obtain ⟨st, bn, hxu', hst, -⟩ := F12.tcbF hxu
-    have : st = xu.tcbState := by rcases hst with e | ⟨e, -⟩; exact e; cases e
+    obtain ⟨st, bn, ar, hxu', hst, -⟩ := F12.tcbF hxu
+    have : st = xu.tcbState := hst.quiet.1
     exact ⟨_, hxu', by rw [this]; exact hs⟩
   obtain ⟨I3, B3, F3, ha3⟩ := inv_cancelAllSignals (I2 (I1 hI)) (F12.bsa hB) hk2 hV2 h3
   refine ⟨I3, B3, F12.weak.trans F3, ?_⟩

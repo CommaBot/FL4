@@ -40,7 +40,7 @@ theorem Sched.Inv.rt {σ : State Unit} (h : Inv σ) (v : Bool) : Inv { σ with r
 
 /-- The spec's frame of a timer-flag change (`NFr` with nothing else changed). -/
 theorem Sched.NFr.rt (r : ObjRef) (σ : State Unit) (v : Bool) : NFr true r σ { σ with reprogramTimer := v } :=
-  NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun _ => ⟨rfl, rfl⟩) rfl
+  NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun _ => ⟨rfl, rfl⟩) rfl
 
 end Spec
 
