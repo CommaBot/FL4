@@ -454,7 +454,7 @@ theorem dk_spec_notDom {fp : Bool} {slbl : Data} {args : List Data} {ci : CapRef
   intro inv σ1 hd he y hy
   have h1 := setThreadState_dom hkt he
   have hi := hd.okAll (okAll_decode_notDom fp slbl args ci sl (absCap c) excaps buffer (absCap_ne_domain hc))
-  have h2 := dke_fl4Perform blk call don inv hi σ1 y hy
+  have h2 := Vs.DK.dom (dke_fl4Perform blk call don inv hi) hy
   exact ⟨h2.1.trans h1.1, h2.2.trans h1.2⟩
 
 end

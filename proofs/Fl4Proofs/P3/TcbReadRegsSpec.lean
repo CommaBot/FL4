@@ -317,7 +317,7 @@ theorem readRegsSpecHyp_of {S : Type} {st : machine.Store S} [L : P1.LawfulStore
       exact ⟨σ2, h2, x2, hk2⟩
     · exact ⟨σ1, Set.mem_singleton _, xp, hkp⟩
   have hK2 : CKeep σ1 σ2 := nkc_when (nkc_suspend _) σ1 _ h2
-  have hD2 := Vs.dk_when _ (Vs.dk_suspend' p.bv) σ1 _ h2
+  have hD2 := Vs.DK.dom (Vs.dk_when _ (Vs.dk_suspend' p.bv)) h2
   have hX2 : XK p.bv σ1 σ2 := pxk_when pxk_suspend σ1 _ h2
   set regs := (Fl4Spec.frame_registers ++ Fl4Spec.gp_registers).take (Fl4Spec.unat n.bv) with hregs
   have hrd := Endp.asUser_read_eq hkp2 (f := Fl4Spec.NonDet.mapM Fl4Spec.getRegister regs)

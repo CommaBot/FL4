@@ -6,13 +6,13 @@ current thread in no release queue), the facts after `set_mcp`
 carried from it (a `TView` step), and the spec's facts after `set_priority`
 proved (TcbSpecInv's `setPriority_inv`: the target is not the current thread
 on both SC branches, by the decoder's `ScDec` for an unbind and `BindOK` for
-a bind; the current thread kept by the restart and the install, CurTcb's
-`ctke_installTcbCap'`).
+a bind; the current thread kept by the restart and the install, TcbDom's
+`dke_installTcbCap'`).
 -/
 import Fl4Proofs.P3.IpcSchedTail
 import Fl4Proofs.P3.IpcCopyRegsJ
 import Fl4Proofs.P3.TcbSpecInv
-import Fl4Proofs.P3.CurTcb
+import Fl4Proofs.P3.TcbDom
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -28,7 +28,7 @@ open Fl4Proofs.P3.Notif (inClass released)
 CSpace side's install], with the current thread in no release queue
 (l4v `ct_not_in_release_q`): at `SchedTailXHyp`'s hypotheses. (The former
 `SetPrioSpecOK` is proved by `setPriority_inv`, with the current thread kept
-by the install from the spec frame `ctke_installTcbCap'`.) -/
+by the install from the spec frame `dke_installTcbCap'`.) -/
 def InstallJ (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (ct : U64) : Prop :=
   ∀ (s1 : S) (σ1 : Fl4Spec.State Unit) (a : A) (p mcp prio scv x2 : U64) (scf : Bool) (ssl : Fl4Spec.CslotPtr)
     (fh : Fl4Spec.Cap × Fl4Spec.CslotPtr) (q : Fl4Spec.ObjRef) (sco : Option (Option Fl4Spec.ObjRef))
@@ -64,8 +64,8 @@ theorem schedTailXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {s : S
   intro s1 σ1 a p mcp prio scv x2 scf ssl fh q sco s2 a1 σ2 G2 hs1 hst1 hp hm hpr h1 h2 h3 hD hpI hx2 hinsI hins hDS
     hWX
   have hct2 : σ2.curThread = σ.curThread :=
-    ((Vs.CurK.ctke_installTcbCap' p.bv ssl 3 (some fh)) σ1 _ hins).1.trans
-      ((Vs.CurK.ctk_setThreadState' ct.bv .restart) σ ((), σ1) (by rw [hst1]; exact Set.mem_singleton _)).1
+    (Vs.DK.ct (Vs.dke_installTcbCap' p.bv ssl 3 (some fh)) hins).trans
+      (Vs.DK.ct (Vs.dk_setThreadState' ct.bv .restart) (σ := σ) (x := ((), σ1)) (by rw [hst1]; exact Set.mem_singleton _))
   obtain ⟨Z, H, Cs, Ac, Lst, D, hth, J2, hNR2⟩ :=
     hJ2 s1 σ1 a p mcp prio scv x2 scf ssl fh q sco s2 a1 σ2 G2 hs1 hst1 hp hm hpr h1 h2 h3 hD hpI hx2 hinsI hins hDS hWX
   have hX := J2.xtop

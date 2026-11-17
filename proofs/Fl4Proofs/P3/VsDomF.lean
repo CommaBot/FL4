@@ -134,7 +134,7 @@ theorem dk_spec_arch {fp : Bool} {slbl : Fl4Spec.Data} {args : List Fl4Spec.Data
   rw [e] at hd
   obtain ⟨i, rfl⟩ := decOut_liftME_inv hd
   have h1 := setThreadState_dom hkt he
-  have h2 := dke_fl4ArchPerformInvocation i σ1 y hy
+  have h2 := Vs.DK.dom (dke_fl4ArchPerformInvocation i) hy
   exact ⟨h2.1.trans h1.1, h2.2.trans h1.2⟩
 
 section

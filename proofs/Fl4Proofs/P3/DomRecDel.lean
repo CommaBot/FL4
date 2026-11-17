@@ -430,7 +430,7 @@ theorem dk_recDelF {f : RecDelCall → NonDet (State Unit) (Except Unit (Bool ×
 theorem dk_recDel (c : RecDelCall) : DKE (recDel (Z := Unit) c) := by
   intro σ x hx
   let f : RecDelCall → NonDet (State Unit) (Except Unit (Bool × Cap)) := fun _ t =>
-    ({y | y.2.domainList = t.domainList ∧ y.2.domainStartIndex = t.domainStartIndex}, True)
+    ({y | schedF y.2 = schedF t}, True)
   have hf : ∀ k t, RDF f k t ≤ f k t := fun k t =>
     ⟨fun y hy => dk_recDelF (f := f) (fun _ _ _ hz => hz) k t y hy, fun _ => trivial⟩
   exact (lfp_le_prefixed RDF f hf c σ).1 hx
@@ -455,7 +455,7 @@ theorem dk_capRevokeF {f : CslotPtr → NonDet (State Unit) (Except Unit Unit)}
 theorem dk_capRevoke (sl : CslotPtr) : DKE (capRevoke (Z := Unit) sl) := by
   intro σ x hx
   let f : CslotPtr → NonDet (State Unit) (Except Unit Unit) := fun _ t =>
-    ({y | y.2.domainList = t.domainList ∧ y.2.domainStartIndex = t.domainStartIndex}, True)
+    ({y | schedF y.2 = schedF t}, True)
   have hf : ∀ k t, (fun r c => capRevokeF (Z := Unit) r c) f k t ≤ f k t := fun k t =>
     ⟨fun y hy => dk_capRevokeF (f := f) (fun _ _ _ hz => hz) k t y hy, fun _ => trivial⟩
   exact (lfp_le_prefixed _ f hf sl σ).1 hx

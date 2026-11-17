@@ -170,8 +170,8 @@ theorem dk_spec_thread {fp : Bool} {slbl : Data} {args : List Data} {ci : CapRef
   have h1 := setThreadState_dom hkt he
   have h2 : y.2.domainList = σ1.domainList ∧ y.2.domainStartIndex = σ1.domainStartIndex := by
     rcases hd.okAll (okAll_specDec_threadK fp slbl args ci sl p excaps buffer) with ⟨t, rfl⟩ | ⟨t, rfl⟩
-    · exact Vs.dke_fl4PerformTcb blk call don t σ1 y hy
-    · exact Vs.dke_fl4PerformFl4Tcb blk call don t σ1 y hy
+    · exact Vs.DK.dom (Vs.dke_fl4PerformTcb blk call don t) hy
+    · exact Vs.DK.dom (Vs.dke_fl4PerformFl4Tcb blk call don t) hy
   exact ⟨h2.1.trans h1.1, h2.2.trans h1.2⟩
 
 section

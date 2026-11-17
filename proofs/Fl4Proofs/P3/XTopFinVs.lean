@@ -137,7 +137,7 @@ theorem xFinRest_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (hA : Arc
   rintro r ⟨⟨h1, h2, h3, σ', G', hm, hDS', hcv, hoth, hmS, ⟨hS', hW⟩, hx'⟩, -⟩
   have hkb : L.ksb r.2.1 = L.ksb s := hW.1
   have hdom := dom_of_foot hS (Or.inr hW)
-  have hdk := Vs.dk_finaliseCap _ _ σ _ hm
+  have hdk := Vs.DK.dom (Vs.dk_finaliseCap _ _) hm
   have hsk := szKeep_finVs hv hm
   obtain ⟨hPl, -, -, hD, hMO, hIA, -⟩ := hX.rel
   refine ⟨h1, h2, h3, σ', G', hm, hDS', hcv, hoth, hmS, ⟨Z.vs, ⟨hS', hx'⟩,
