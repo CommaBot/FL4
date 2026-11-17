@@ -53,6 +53,91 @@ theorem fullF_zombie {a c u : capability.Cap} (h : fullF a c = some u) {p zt n :
   rintro rfl
   cases a <;> cases c <;> simp [fullF] at h
 
+/-- The caps naming an endpoint, a notification or a reply (the objects
+`CapTyped` constrains). -/
+def tyObj : capability.Cap → Bool
+  | .Endpoint .. => true
+  | .Notification .. => true
+  | .Reply .. => true
+  | _ => false
+
+theorem tyObj_of_shape {c d : capability.Cap} (h : shape c = shape d) : tyObj c = tyObj d := by
+  cases c <;> cases d <;> simp_all [shape, tyObj]
+
+/-- **The slots' caps keep their objects**: each cap after names no endpoint,
+notification or reply, or is of the shape of a cap before (P3's `CapTyped`
+is kept, `JPlaced.slot`). -/
+def TypedKept (th : TypedHeap) (m m' : U64 → U64) : Prop :=
+  ∀ a, IsSlot th a → tyObj (capV m' a) = false ∨ ∃ b, IsSlot th b ∧ shape (capV m' a) = shape (capV m b)
+
+theorem TypedKept.refl (th : TypedHeap) (m : U64 → U64) : TypedKept th m m :=
+  fun a ha => Or.inr ⟨a, ha, rfl⟩
+
+theorem TypedKept.trans {th : TypedHeap} {m1 m2 m3 : U64 → U64} (h1 : TypedKept th m1 m2) (h2 : TypedKept th m2 m3) :
+    TypedKept th m1 m3 := by
+  intro a ha
+  rcases h2 a ha with h | ⟨b, hb, hs⟩
+  · exact Or.inl h
+  rcases h1 b hb with h' | ⟨c, hc, hs'⟩
+  · exact Or.inl (by rw [tyObj_of_shape hs]; exact h')
+  · exact Or.inr ⟨c, hc, hs.trans hs'⟩
+
+/-- A step writing one cap `c` (of the shape of a cap before, or naming no
+endpoint, notification or reply). -/
+theorem typedKept_set {th : TypedHeap} {m m' : U64 → U64} {d : U64} {c : capability.Cap}
+    (hcap : ∀ a, IsSlot th a → capV m' a = if a = d then c else capV m a)
+    (hc : tyObj c = false ∨ ∃ b, IsSlot th b ∧ shape c = shape (capV m b)) : TypedKept th m m' := by
+  intro a ha
+  rw [hcap a ha]
+  split_ifs
+  · exact hc
+  · exact Or.inr ⟨a, ha, rfl⟩
+
+theorem fullF_tyObj {a c u : capability.Cap} (h : fullF a c = some u) : tyObj u = false := by
+  unfold fullF at h
+  split at h
+  · split_ifs at h <;> cases h <;> rfl
+  · cases h
+
+/-- **`cdt::insert`'s caps keep their objects** (`insert_trace`'s caps). -/
+theorem typedKept_ins {th : TypedHeap} {m m' : U64 → U64} {src dest : U64} {srcC c : capability.Cap}
+    (hs : IsSlot th src) (hsv : capV m src = srcC)
+    (hoth : ∀ y, IsSlot th y → y ≠ src → y ≠ dest → capV m' y = capV m y) (hdc : capV m' dest = c)
+    (hsc : capV m' src = (fullF srcC c).getD srcC) (hsh : shape c = shape srcC) : TypedKept th m m' := by
+  intro a ha
+  by_cases h1 : a = dest
+  · subst h1; rw [hdc]; exact Or.inr ⟨src, hs, by rw [hsv]; exact hsh⟩
+  by_cases h2 : a = src
+  · subst h2; rw [hsc]
+    cases hf : fullF srcC c with
+    | none => exact Or.inr ⟨a, hs, by rw [hsv]; rfl⟩
+    | some u => exact Or.inl (fullF_tyObj hf)
+  · exact Or.inr ⟨a, ha, by rw [hoth a ha h2 h1]⟩
+
+/-- **`cdt::move_cap`'s caps keep their objects.** -/
+theorem typedKept_mov {th : TypedHeap} {m m' : U64 → U64} {src dest : U64} {c : capability.Cap}
+    (hs : IsSlot th src) (hoth : ∀ y, IsSlot th y → y ≠ src → y ≠ dest → capV m' y = capV m y)
+    (hdc : capV m' dest = c) (hsc : capV m' src = .Null) (hsh : shape c = shape (capV m src)) :
+    TypedKept th m m' := by
+  intro a ha
+  by_cases h1 : a = dest
+  · subst h1; rw [hdc]; exact Or.inr ⟨src, hs, hsh⟩
+  by_cases h2 : a = src
+  · subst h2; rw [hsc]; exact Or.inl rfl
+  · exact Or.inr ⟨a, ha, by rw [hoth a ha h2 h1]⟩
+
+/-- **`cdt::swap`'s caps keep their objects.** -/
+theorem typedKept_swap {th : TypedHeap} {m m' : U64 → U64} {s1 s2 : U64} {c1 c2 : capability.Cap}
+    (hs1 : IsSlot th s1) (hs2 : IsSlot th s2) (hoth : ∀ y, IsSlot th y → y ≠ s1 → y ≠ s2 → capV m' y = capV m y)
+    (h2c : capV m' s2 = c1) (h1c : capV m' s1 = c2) (hsh1 : shape c1 = shape (capV m s1))
+    (hsh2 : shape c2 = shape (capV m s2)) : TypedKept th m m' := by
+  intro a ha
+  by_cases e2 : a = s2
+  · subst e2; rw [h2c]; exact Or.inr ⟨s1, hs1, hsh1⟩
+  by_cases e1 : a = s1
+  · subst e1; rw [h1c]; exact Or.inr ⟨s2, hs2, hsh2⟩
+  · exact Or.inr ⟨a, ha, by rw [hoth a ha e1 e2]⟩
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 

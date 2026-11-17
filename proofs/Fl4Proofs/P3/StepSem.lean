@@ -195,6 +195,8 @@ structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S 
     P1.WritesIn st s s' (InSlot th) → CRel th (L.mem s') σ' G' → FinInv th (L.mem s') σ' G' →
     MdbOKV (L.ksb s) (L.mem s') G' →
     (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 1) = capAt (L.mem s) (slotOf t 1)) →
+    TypedKept th (L.mem s) (L.mem s') →
+    (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3)) →
     (DelInv th (L.mem s) → DelInv th (L.mem s')) → Q s a σ s' a σ'
   sched : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit), SchedStep (L := L) th s σ s' σ' → Q s a σ s' a σ'
   cslot : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit) (G' : MdbGhost), Ipc.CnK σ σ' →
@@ -205,6 +207,8 @@ structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S 
     P1.WritesIn st s s' (InSlot th) → CRel th (L.mem s') σ' G' → FinInv th (L.mem s') σ' G' →
     MdbOKV (L.ksb s) (L.mem s') G' →
     (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 1) = capAt (L.mem s) (slotOf t 1)) →
+    TypedKept th (L.mem s) (L.mem s') →
+    (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3)) →
     KSz σ σ' → (DelInv th (L.mem s) → DelInv th (L.mem s')) → Q s a σ s' a σ'
   del : ∀ (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit) (sl : Fl4Spec.CslotPtr) (p b : U64) (w r : Bool),
     AbsSlot th sl → capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
@@ -312,11 +316,11 @@ theorem Steps.insert {th : TypedHeap} (hP : Placed th) {s s' : S} {a : A} {σ σ
     (hcap : ∀ y, IsSlot th y → y ≠ cslotAddr (pd.bv, idxd) → capV (L.mem s') y = capV (L.mem s) y)
     (hnull : capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null)
     (hnu : ∀ p sb fi d, capV (L.mem s') (cslotAddr (pd.bv, idxd)) ≠ .Untyped p sb fi d)
-    (hDl : DelInv th (L.mem s) → DelInv th (L.mem s')) :
+    (hTK : TypedKept th (L.mem s) (L.mem s')) (hDl : DelInv th (L.mem s) → DelInv th (L.mem s')) :
     Steps (L := L) arI th s a σ s' a σ' := by
   intro Q hQ
   refine hQ.slot s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu
-    ⟨hF.1, hF.2.1, fun b hb hn => hF.2.2 b hb fun ⟨x, k, hx, hk, e⟩ => hn ⟨x, hx, ?_⟩⟩ hCR hFI hMO (fun t ht => ?_) hDl
+    ⟨hF.1, hF.2.1, fun b hb hn => hF.2.2 b hb fun ⟨x, k, hx, hk, e⟩ => hn ⟨x, hx, ?_⟩⟩ hCR hFI hMO (fun t ht => ?_) hTK (fun t ht => ?_) hDl
   · have hf := hx.fit hP
     have := hk.lt
     have hv := wordOf_val (a := x) (k := k) (by omega)
@@ -328,6 +332,16 @@ theorem Steps.insert {th : TypedHeap} (hP : Placed th) {s s' : S} {a : A} {σ σ
       have hpp : p = pd := P1.eq_of_bv hp1.symm
       subst hpp
       have := IsSlotAt.apart hP (Or.inr ⟨ht, by decide⟩ : IsSlotAt th t 1) hi (fun hh => by
+        obtain ⟨h, -⟩ := hh; subst h; rw [hpd] at ht; cases ht)
+      rw [e, hp2] at this; omega
+    rw [capAt_capV, capAt_capV, hcap _ h1 hne]
+  · have h1 : IsSlot th (slotOf t 3) := ⟨t, 3, Or.inr ⟨ht, by decide⟩, rfl⟩
+    have hne : slotOf t 3 ≠ cslotAddr (pd.bv, idxd) := by
+      intro e
+      obtain ⟨p, i, hi, hp1, hp2⟩ := AbsSlot.at (th := th) (sl := (pd.bv, idxd)) ⟨pd, rfl, Or.inl (by simpa [hld] using hpd)⟩
+      have hpp : p = pd := P1.eq_of_bv hp1.symm
+      subst hpp
+      have := IsSlotAt.apart hP (Or.inr ⟨ht, by decide⟩ : IsSlotAt th t 3) hi (fun hh => by
         obtain ⟨h, -⟩ := hh; subst h; rw [hpd] at ht; cases ht)
       rw [e, hp2] at this; omega
     rw [capAt_capV, capAt_capV, hcap _ h1 hne]

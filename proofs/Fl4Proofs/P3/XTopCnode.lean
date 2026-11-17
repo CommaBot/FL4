@@ -172,7 +172,7 @@ theorem Steps.cnTrace {th : TypedHeap} (hP : Placed th) {s s2 s' : S} {a : A}
     (hcap : ∀ y, IsSlot th y → (∀ sl ∈ invSlots inv, y ≠ cslotAddr sl) → capV (L.mem s') y = capV (L.mem s2) y)
     (hCK : CoverKept th (L.mem s2) (L.mem s')) (hUK : UtKept th (L.mem s2) (L.mem s'))
     (hCR : CRel th (L.mem s') σ' G') (hFI : FinInv th (L.mem s') σ' G') (hMO : MdbOKV (L.ksb s) (L.mem s') G')
-    (hDl : DelInv th (L.mem s2) → DelInv th (L.mem s')) :
+    (hTK : TypedKept th (L.mem s2) (L.mem s')) (hDl : DelInv th (L.mem s2) → DelInv th (L.mem s')) :
     Steps (L := L) arI th s a σ s' a σ' := by
   refine (Steps.restart arI hcur hk htcb hs2 hst hC).trans arI fun Q hQ => ?_
   have hmem : ((.ok (), σ') : Except Unit Unit × Fl4Spec.State Unit) ∈
@@ -190,7 +190,7 @@ theorem Steps.cnTrace {th : TypedHeap} (hP : Placed th) {s s2 s' : S} {a : A}
     · exact Or.inl (by rw [← invoke_orig hne hmem sl hs]; exact h)
   refine hQ.cslot s2 s' a σ1 σ' G' hcn hkc hCK hUK horig
     ⟨hF.1, hF.2.1, fun b hb hn => hF.2.2 b hb fun ⟨y, k, hy, hk', e⟩ => hn ⟨y, hy, ?_⟩⟩ hCR hFI
-    (by rw [hks]; exact hMO) (fun t ht => ?_) (invoke_ksz hne hmem) hDl
+    (by rw [hks]; exact hMO) (fun t ht => ?_) hTK (fun t ht => ?_) (invoke_ksz hne hmem) hDl
   · have hf := hy.fit hP
     have := hk'.lt
     have hv := wordOf_val (a := y) (k := k) (by omega)
@@ -203,6 +203,17 @@ theorem Steps.cnTrace {th : TypedHeap} (hP : Placed th) {s s2 s' : S} {a : A}
       have hpp : p = q := P1.eq_of_bv (hp1.symm.trans hq1)
       subst hpp
       have := IsSlotAt.apart hP (Or.inr ⟨ht, by decide⟩ : IsSlotAt th t 1) hi (fun hh => by
+        obtain ⟨h, -⟩ := hh; subst h; rw [hq2] at ht; cases ht)
+      rw [e, hp2] at this; omega
+    rw [capAt_capV, capAt_capV, hcap _ h1 hne']
+  · have h1 : IsSlot th (slotOf t 3) := ⟨t, 3, Or.inr ⟨ht, by decide⟩, rfl⟩
+    have hne' : ∀ sl ∈ invSlots inv, slotOf t 3 ≠ cslotAddr sl := by
+      intro sl hsl' e
+      obtain ⟨q, r, hq1, hq2, hq3⟩ := hsl sl hsl'
+      obtain ⟨p, i, hi, hp1, hp2⟩ := AbsSlot.at (th := th) (sl := sl) ⟨q, hq1, Or.inl (by rw [hq3]; exact hq2)⟩
+      have hpp : p = q := P1.eq_of_bv (hp1.symm.trans hq1)
+      subst hpp
+      have := IsSlotAt.apart hP (Or.inr ⟨ht, by decide⟩ : IsSlotAt th t 3) hi (fun hh => by
         obtain ⟨h, -⟩ := hh; subst h; rw [hq2] at ht; cases ht)
       rw [e, hp2] at this; omega
     rw [capAt_capV, capAt_capV, hcap _ h1 hne']
@@ -226,13 +237,13 @@ theorem cn_topX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {Z : XSe
     exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, Or.inl h2⟩, ⟨Z, hX⟩⟩
   | Ok u =>
     obtain ⟨inv, hrun, σ1, hst, σ', G', hrunI, hR', hV', hM', hC', hI', hFI', hSt, s2, hne, hs2, hF, hsl, hcap, hDI,
-      hCK, hUK⟩ := hq
+      hTK, hCK, hUK⟩ := hq
     obtain ⟨htcb, x, hk⟩ := hX.curTcb hcur
     have hst' : Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) := by rw [← hcur]; exact hst
     obtain ⟨hX1, hks, -⟩ := hX.restart' hC hcur hs2 hst'
     have hstp : Steps (L := L) arI Z.th s a' σ s' a' σ' :=
       Steps.cnTrace arI hX.rel.1 hcur hk htcb hs2 hst hC hX1.rel.2.1.1 hks hne hrunI hF hsl hcap hCK hUK
-        ⟨hR', hV', hM', hC', hI'⟩ hFI' (hSt.okv hX.rel.2.2.2.2.1) hDI
+        ⟨hR', hV', hM', hC', hI'⟩ hFI' (hSt.okv hX.rel.2.2.2.2.1) hTK hDI
     obtain ⟨Z', hZ'⟩ := hstp.xtop arI hAM hDel rfl hX hKA hTh
     have hx : ((.ok (), σ') : Except Unit Unit × Fl4Spec.State Unit) ∈
         ((Fl4Spec.invokeCnode (Z := Unit) inv).run σ1).1 := by rw [hrunI]; rfl
