@@ -23,7 +23,7 @@ supply).
   CNode cap with `JAt` after (`JAtPre` if preempted); the per-op premise
   `JPostHyp` [W] only at CancelBadgedSends and the invalid labels.
 -/
-import Fl4Proofs.P3.XTopJointDelR
+import Fl4Proofs.P3.XTopJointPP
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -250,12 +250,16 @@ set_option maxHeartbeats 4000000 in
 labels by their primitive steps (`decode_invocation_cnode_copyXS`,
 `Steps.jat` with `JStepHyps`), Revoke and Delete by the deletion at `J`
 (`decode_invocation_cnode_{revoke,delete}J`: `JDelHyp` from the deletion
-loop's named steps `JDelParts` [J], `JDelHyp.of_parts`), the per-op premise (`JPostHyp` [W]) only at the other labels
+loop's named steps `JDelParts` [J], `JDelHyp.of_parts`; the preemption point by
+`jPreemptHyp_of`: the platform's `PPPlat` [P] and `PPReady` [J]), the per-op premise (`JPostHyp` [W]) only at the other labels
 (CancelBadgedSends, the invalid ones). -/
 theorem decode_invocation_cnodeJ_steps (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hG : CsGlobal (L := L) arI AR Z.th)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hJ : JStepHyps (L := L) arI AR Z.th)
     (hJDP : JDelParts (L := L) arI AR Z.th)
+    (hAK : ARKeep arI AR) (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
+    (hRd : ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S) (a' : A)
+      (σ' : Fl4Spec.State Unit), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σ' → PPReady Z'.T σ')
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = cnodeLabelOf lbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -279,8 +283,8 @@ theorem decode_invocation_cnodeJ_steps (s : S) (ar : A) (σ : Fl4Spec.State Unit
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl)
       (.CNode p r gs g) blk call don fp buf extra slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
   have hX := J.xtop
-  have hJD := JDelHyp.of_parts arI hJDP
-  have hJP := hJDP.pp
+  have hJP := jPreemptHyp_of arI hAK hT hnd hPP Z.th hRd
+  have hJD := JDelHyp.of_parts arI hJDP hJP
   obtain ⟨hwf, hcv⟩ := slot_cap_wf hX hAs hsc
   by_cases hcp : 28 ≤ lbl.val ∧ lbl.val ≤ 32
   · obtain ⟨hcur, -⟩ := J.curEq hct

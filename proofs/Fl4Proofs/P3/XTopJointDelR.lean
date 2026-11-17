@@ -26,8 +26,10 @@ some of them proved here.
   slot), `JEmptyUtHyp` (`DelUtFact` after emptying a ready CNode slot: the
   known `valid_untyped` gap, as `DelUtHyp`), `JEmptyTcbHyp` (emptying a
   ready TCB slot: `jowes_slotD` keeps TCB slot 3), `JPostDelHyp` (a cleanup
-  cap's `post_cap_deletion`), `JPreemptHyp`.
-* `JDelHyp.of_parts`: `JDelHyp` from `JDelParts` (`delHyp_fullWR`).
+  cap's `post_cap_deletion`).
+* `JDelHyp.of_parts`: `JDelHyp` from `JDelParts` and `JPreemptHyp`
+  (`delHyp_fullWR`; `JPreemptHyp` from the platform and `PPReady`,
+  XTopJointPP's `jPreemptHyp_of`).
 -/
 import Fl4Proofs.P3.XTopJointStep
 import Fl4Proofs.P3.XTopJointEmpty
@@ -183,7 +185,6 @@ structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   empUt : JEmptyUtHyp (L := L) arI AR th
   empTcb : JEmptyTcbHyp (L := L) arI AR th
   post : JPostDelHyp (L := L) arI AR th
-  pp : JPreemptHyp (L := L) arI AR th
 
 /-! ## The proved steps -/
 
@@ -341,13 +342,14 @@ theorem emptyHypJ (hUt : JEmptyUtHyp (L := L) arI AR th) (hT : JEmptyTcbHyp (L :
   · exact hT Z H Cs kb hth s s' a σ σ' G G' sl hW hRd hD1 hD2 hF hes hA hxn hx0 hoth hmS hcn
 
 /-- **`JDelHyp` from the named steps** (`delHyp_fullWR` at `WJ`, `RdJ`). -/
-theorem JDelHyp.of_parts (h : JDelParts (L := L) arI AR th) : JDelHyp (L := L) arI AR th := by
+theorem JDelHyp.of_parts (h : JDelParts (L := L) arI AR th) (hpp : JPreemptHyp (L := L) arI AR th) :
+    JDelHyp (L := L) arI AR th := by
   intro Z H Cs kb K hth hK hK6 s a σ G c hCR hE hA hxm
   obtain ⟨V, Ac, Lst, D, J, -⟩ := hE.2
   have hP : Placed th := hth ▸ J.xtop.rel.1
   have hH : DelHypsWR (L := L) arI (WJ (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb)
       (RdJ (L := L) (A := A) H) th :=
-    ⟨finJ arI h.fin Z H Cs kb hth, rdTrivJ arI h.triv Z H Cs kb hth, h.pp Z H Cs kb hth, h.post Z H Cs kb hth,
+    ⟨finJ arI h.fin Z H Cs kb hth, rdTrivJ arI h.triv Z H Cs kb hth, hpp Z H Cs kb hth, h.post Z H Cs kb hth,
       h.zomb Z H Cs kb hth, h.swap Z H Cs kb hth, emptyHypJ arI h.empUt h.empTcb Z H Cs kb hth⟩
   subst hth
   exact delHyp_fullWR arI _ _ _ Z.th hP (finalHyp_full Z.th hP) hH K hK hK6 s a σ G c hCR hE hA hxm
