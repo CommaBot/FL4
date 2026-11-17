@@ -283,9 +283,10 @@ theorem irq_set_refines (th : TypedHeap) (hP : Placed th)
       rcases hM3.next_mem hsrcm with h | ⟨h, -⟩
       · exact Or.inl h
       · exact Or.inr ((hM3.members _).1 h).1
-    refine WP.spec_bind (WP.spec_and (WP.spec_and hins (insert_caps_nofull hP s3 G2 hM3 hsrcm hns hdestm hsrcx
-      (.Notification p b true r) he rfl)) (Vs.insert_frame2 hP s3 (.Notification p b true r) x0 _ hxs hns _ hsrcx hnx)) ?_
-    rintro s4 ⟨⟨⟨σ', G', hci, hR', hV', hM', hC', hI', hFI', hSti⟩, hcap4⟩, hF4⟩
+    refine WP.spec_bind (WP.spec_and (WP.spec_and (WP.spec_and hins (insert_caps_nofull hP s3 G2 hM3 hsrcm hns hdestm hsrcx
+      (.Notification p b true r) he rfl)) (Vs.insert_frame2 hP s3 (.Notification p b true r) x0 _ hxs hns _ hsrcx hnx))
+      (insert_delinv hP s3 G2 hM3 hD3 hsrcm hns hdestm hsrcx (.Notification p b true r) he rfl (by simp) rfl)) ?_
+    rintro s4 ⟨⟨⟨⟨σ', G', hci, hR', hV', hM', hC', hI', hFI', hSti⟩, hcap4⟩, hF4⟩, hD4⟩
     rw [WP.spec_ok]
     have hmst : MdbStep (L.mem s) G (L.mem s4) G' :=
       (MdbStep.same_left hM hS hmS3).trans (hSti (fun h => absurd h (by simp [isUt])))
@@ -297,7 +298,7 @@ theorem irq_set_refines (th : TypedHeap) (hP : Placed th)
         (Steps.deleteOne arI hR1 hA hok3 (by rw [cslotAddr_nil]; exact hr3) hdel)).trans arI
         (Steps.insert arI hP hps (hL.node irq hirq) (idxd := []) rfl hci hF4 ⟨hR', hV', hM', hC', hI'⟩ hFI'
           (by rw [hk3]; exact hmst.okv hFR) (fun y hy hne => ?_) hdst3
-          (fun p sb fi d h => ?_))
+          (fun p sb fi d h => ?_) (fun _ => hD4))
       · rw [hcap4 y hy, if_neg (by rwa [cslotAddr_nil] at hne)]
       · rw [cslotAddr_nil, hcap4 _ hns, if_pos rfl] at h; cases h
     show _ ∈ ((Fl4Spec.getIrqSlot _ >>= fun irqSlot => Fl4Spec.capDeleteOne irqSlot >>= fun _ =>

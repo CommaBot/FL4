@@ -469,9 +469,12 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
     · exact Or.inl h
     · exact Or.inr ((hM2.members _).1 h).1
   have hfrm := insert_frame hP s3 (.IoPort first last 0#u64) _ _ hAs.isSlot hAd.isSlot _ hsrc3 hnx
-  refine WP.spec_bind (WP.spec_and (WP.spec_and hins hfrm)
-    (Vs.insert_frame2 hP s3 (.IoPort first last 0#u64) _ _ hAs.isSlot hAd.isSlot _ hsrc3 hnx)) ?_
-  rintro s4 ⟨⟨⟨σ', G', hci, hR', hV', hM', hC', hI', hFI', hcap4, ⟨bG, hGe⟩, hSt4⟩, hF4⟩, hF4'⟩
+  refine WP.spec_bind (WP.spec_and (WP.spec_and (WP.spec_and hins hfrm)
+    (Vs.insert_frame2 hP s3 (.IoPort first last 0#u64) _ _ hAs.isSlot hAd.isSlot _ hsrc3 hnx))
+    (insert_delinv_imp hP s3 G hM2 ((hM2.members _).2 ⟨hAs.isSlot, _, hsrc3, by simp⟩) hAd.isSlot
+      (capV_null_not_mem hM2 (capV_of_capAt hdst3)) hsrc3 (.IoPort first last 0#u64) ⟨hfv, hlv, canonical_zero⟩
+      (by simp) rfl)) ?_
+  rintro s4 ⟨⟨⟨⟨σ', G', hci, hR', hV', hM', hC', hI', hFI', hcap4, ⟨bG, hGe⟩, hSt4⟩, hF4⟩, hF4'⟩, hdi⟩
   rw [WP.spec_ok]
   have hk3 : L.ksb s3 = L.ksb s := hM3.1.trans hkb
   have hstp : CurRun σ → Steps (L := L) arI th s ar σ s4 ar σ' := fun hC =>
@@ -479,7 +482,7 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
       (Steps.insert arI hP hps hpd rfl hci hF4' ⟨hR', hV', hM', hC', hI'⟩ hFI'
         (by rw [hk3]; exact (MdbStep.same_left hM hS23 hSt4).okv hFR)
         (fun y hy hne => by rw [hcap4 y hy, if_neg hne]) hdst3
-        (fun p sb fi d h => by rw [hcap4 _ hAd.isSlot, if_pos rfl] at h; cases h))
+        (fun p sb fi d h => by rw [hcap4 _ hAd.isSlot, if_pos rfl] at h; cases h) hdi)
   have hkeep := capInsert_keeps (absCap (.IoPort first last 0#u64)) (ps.bv, idxs) (pd.bv, db) σ2 ((), σ')
     (by rw [hci]; rfl)
   have hIo4 : IoRel (L.mem s4) (L.ksb s) σ' := by

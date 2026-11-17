@@ -15,6 +15,7 @@ import Fl4Proofs.P3.CnodeDecode
 import Fl4Proofs.P3.SpecNKO
 import Fl4Proofs.P3.XTopStepT
 import Fl4Proofs.P3.SlotOrig
+import Fl4Proofs.P3.SpecKSz
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -97,6 +98,29 @@ theorem invoke_cn {inv : CnodeInvocation} (hne : invSlots inv ≠ []) {σ σ' : 
   | deleteCall _ => exact absurd rfl hne
   | cancelBadgedSendsCall _ => exact absurd rfl hne
 
+/-- **The spec side of a CNode copy, move or rotate keeps the objects'
+kinds** (`KSz`). -/
+theorem invoke_ksz {inv : CnodeInvocation} (hne : invSlots inv ≠ []) {σ σ' : State Unit}
+    (h : ((.ok (), σ') : Except Unit Unit × State Unit) ∈ ((invokeCnode (Z := Unit) inv).run σ).1) : KSz σ σ' := by
+  cases inv with
+  | insertCall c a b =>
+    obtain ⟨x, hx, e⟩ := Sched.liftE_mem_inv h
+    simp only at e; subst e
+    exact capInsert_nkz c a b σ x hx
+  | moveCall c a b =>
+    obtain ⟨x, hx, e⟩ := Sched.liftE_mem_inv h
+    simp only at e; subst e
+    exact capMove_nkz c a b σ x hx
+  | rotateCall c1 c2 a b d =>
+    obtain ⟨x, hx, e⟩ := Sched.liftE_mem_inv h
+    simp only at e; subst e
+    split_ifs at hx with hs
+    · exact capSwap_nkz c1 a c2 b σ x hx
+    · exact nkz_bind (capMove_nkz c2 b d) (fun _ => capMove_nkz c1 a b) σ x hx
+  | revokeCall _ => exact absurd rfl hne
+  | deleteCall _ => exact absurd rfl hne
+  | cancelBadgedSendsCall _ => exact absurd rfl hne
+
 /-- **The spec's original bits of a CNode copy, move or rotate** are kept
 off the invocation's slots (`capInsert_orig`, `capMove_orig`,
 `capSwap_orig`). -/
@@ -147,7 +171,8 @@ theorem Steps.cnTrace {th : TypedHeap} (hP : Placed th) {s s2 s' : S} {a : A}
     (hsl : ∀ sl ∈ invSlots inv, ∃ p r, sl.1 = p.bv ∧ th p = some (.cnode r) ∧ sl.2.length = r)
     (hcap : ∀ y, IsSlot th y → (∀ sl ∈ invSlots inv, y ≠ cslotAddr sl) → capV (L.mem s') y = capV (L.mem s2) y)
     (hCK : CoverKept th (L.mem s2) (L.mem s')) (hUK : UtKept th (L.mem s2) (L.mem s'))
-    (hCR : CRel th (L.mem s') σ' G') (hFI : FinInv th (L.mem s') σ' G') (hMO : MdbOKV (L.ksb s) (L.mem s') G') :
+    (hCR : CRel th (L.mem s') σ' G') (hFI : FinInv th (L.mem s') σ' G') (hMO : MdbOKV (L.ksb s) (L.mem s') G')
+    (hDl : DelInv th (L.mem s2) → DelInv th (L.mem s')) :
     Steps (L := L) arI th s a σ s' a σ' := by
   refine (Steps.restart arI hcur hk htcb hs2 hst hC).trans arI fun Q hQ => ?_
   have hmem : ((.ok (), σ') : Except Unit Unit × Fl4Spec.State Unit) ∈
@@ -165,7 +190,7 @@ theorem Steps.cnTrace {th : TypedHeap} (hP : Placed th) {s s2 s' : S} {a : A}
     · exact Or.inl (by rw [← invoke_orig hne hmem sl hs]; exact h)
   refine hQ.cslot s2 s' a σ1 σ' G' hcn hkc hCK hUK horig
     ⟨hF.1, hF.2.1, fun b hb hn => hF.2.2 b hb fun ⟨y, k, hy, hk', e⟩ => hn ⟨y, hy, ?_⟩⟩ hCR hFI
-    (by rw [hks]; exact hMO) fun t ht => ?_
+    (by rw [hks]; exact hMO) (fun t ht => ?_) (invoke_ksz hne hmem) hDl
   · have hf := hy.fit hP
     have := hk'.lt
     have hv := wordOf_val (a := y) (k := k) (by omega)
@@ -200,14 +225,14 @@ theorem cn_topX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {Z : XSe
     obtain ⟨rfl, e', h1, h2⟩ := hq
     exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, Or.inl h2⟩, ⟨Z, hX⟩⟩
   | Ok u =>
-    obtain ⟨inv, hrun, σ1, hst, σ', G', hrunI, hR', hV', hM', hC', hI', hFI', hSt, s2, hne, hs2, hF, hsl, hcap, hCK,
-      hUK⟩ := hq
+    obtain ⟨inv, hrun, σ1, hst, σ', G', hrunI, hR', hV', hM', hC', hI', hFI', hSt, s2, hne, hs2, hF, hsl, hcap, hDI,
+      hCK, hUK⟩ := hq
     obtain ⟨htcb, x, hk⟩ := hX.curTcb hcur
     have hst' : Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) := by rw [← hcur]; exact hst
     obtain ⟨hX1, hks, -⟩ := hX.restart' hC hcur hs2 hst'
     have hstp : Steps (L := L) arI Z.th s a' σ s' a' σ' :=
       Steps.cnTrace arI hX.rel.1 hcur hk htcb hs2 hst hC hX1.rel.2.1.1 hks hne hrunI hF hsl hcap hCK hUK
-        ⟨hR', hV', hM', hC', hI'⟩ hFI' (hSt.okv hX.rel.2.2.2.2.1)
+        ⟨hR', hV', hM', hC', hI'⟩ hFI' (hSt.okv hX.rel.2.2.2.2.1) hDI
     obtain ⟨Z', hZ'⟩ := hstp.xtop arI hAM hDel rfl hX hKA hTh
     have hx : ((.ok (), σ') : Except Unit Unit × Fl4Spec.State Unit) ∈
         ((Fl4Spec.invokeCnode (Z := Unit) inv).run σ1).1 := by rw [hrunI]; rfl

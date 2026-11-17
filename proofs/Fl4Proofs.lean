@@ -102,6 +102,7 @@ import Fl4Proofs.P3.MoveRefine
 import Fl4Proofs.P3.EmptyRefine
 import Fl4Proofs.P3.SwapRefine
 import Fl4Proofs.P3.CnFrame
+import Fl4Proofs.P3.CnDelInv
 import Fl4Proofs.P3.CnodeCopy
 import Fl4Proofs.P3.Delete
 import Fl4Proofs.P3.CnodeOther
