@@ -414,7 +414,7 @@ theorem schW_val {T : Set U64} {c : U64} {s : S} (hT : P1.TcbPlaced T) (hkf : (L
   · exact Or.inl ⟨y, hy, Or.inl (by rw [Notif.tfield_val (hT y hy) (by decide)]; rfl)⟩
   · exact Or.inl ⟨y, hy, Or.inr (Or.inl (by rw [Notif.tfield_val (hT y hy) (by decide)]; rfl))⟩
   · exact Or.inl ⟨y, hy, Or.inr (Or.inr (by rw [Notif.tfield_val (hT y hy) (by decide)]; rfl))⟩
-  · exact Or.inr (Or.inl h)
+  · exact Or.inr (Or.inl ⟨h.1, h.2.1⟩)
   · have := domKW_val h
     exact Or.inr (Or.inr ⟨by omega, by omega, by omega⟩)
 
@@ -474,7 +474,7 @@ theorem XTopAt.schedStep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S
     rcases hb with ⟨y, hy, rfl | rfl | rfl⟩ | h | h
     all_goals first
       | exact tcb_oobj hy (hT y hy) (by decide) (by decide)
-      | exact Or.inl h
+      | exact Or.inl ⟨h.1, h.2.1⟩
       | (have := domKW_val h
          exact Or.inr (Or.inl ⟨by omega, by omega⟩))
   · -- not read by the endpoint relation

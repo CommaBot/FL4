@@ -29,23 +29,26 @@ section
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 
 /-- **The scheduler's written words**: the `Sched` links and `IN_QUEUES`
-word of TCBs, and core `c`'s node. -/
+word of TCBs, and core `c`'s node but its `DEBUG_TCBS` word (88). -/
 def SFootI (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (c : U64) (s : S) (b : U64) : Prop :=
   (∃ y ∈ T, b = core.num.U64.wrapping_add y 3480#u64 ∨ b = core.num.U64.wrapping_add y 3488#u64 ∨
     b = core.num.U64.wrapping_add y 3592#u64) ∨
-  (L.nodeBase s c ≤ b.val ∧ b.val < L.nodeBase s c + 4288)
+  (L.nodeBase s c ≤ b.val ∧ b.val < L.nodeBase s c + 4288 ∧ b.val ≠ L.nodeBase s c + 88)
 
 /-- A queue footprint is in the scheduler's written words. -/
 theorem qfoot_sfootI {T : Set U64} {c : U64} {s : S} {W : List U64} {P : Nat → Prop} {t b : U64}
     (hT : TcbPlaced T) (hW : ∀ w ∈ W, w ∈ T) (ht : t ∈ T) (hN : NodePlaced st T s c) (hcpu : L.cpu s = c)
-    (h : L.QFoot s W c P t b) : SFootI st T c s b := by
-  rcases h with ⟨w, hw, e | e⟩ | ⟨o, -, ho, -, e⟩ | e | ⟨o, -, ho, -, e⟩
+    (h : L.QFoot s W c P t b) (hP : ¬ P 88) : SFootI st T c s b := by
+  rcases h with ⟨w, hw, e | e⟩ | ⟨o, hPo, ho, -, e⟩ | e | ⟨o, ho120, ho, -, e⟩
   · exact Or.inl ⟨w, hW w hw, Or.inl e⟩
   · exact Or.inl ⟨w, hW w hw, Or.inr (Or.inl e)⟩
-  · exact Or.inr ⟨by rw [e, nodeAt_val hN ho]; omega, by rw [e, nodeAt_val hN ho]; omega⟩
+  · have h88 : o.val ≠ 88 := fun e8 => hP (e8 ▸ hPo)
+    exact Or.inr ⟨by rw [e, nodeAt_val hN ho]; omega, by rw [e, nodeAt_val hN ho]; omega,
+      by rw [e, nodeAt_val hN ho]; omega⟩
   · exact Or.inl ⟨t, ht, Or.inr (Or.inr e)⟩
   · rw [hcpu] at e
-    exact Or.inr ⟨by rw [e, nodeAt_val hN ho]; omega, by rw [e, nodeAt_val hN ho]; omega⟩
+    exact Or.inr ⟨by rw [e, nodeAt_val hN ho]; omega, by rw [e, nodeAt_val hN ho]; omega,
+      by rw [e, nodeAt_val hN ho]; omega⟩
 
 theorem SFootI.ksb {T : Set U64} {c : U64} {s s' : S} (h : L.ksb s' = L.ksb s) {b : U64} :
     SFootI st T c s' b ↔ SFootI st T c s b := by
@@ -73,15 +76,15 @@ theorem enqueue_sfootI {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State U
   refine WP.spec_mono (sched.enqueue.foot s t _ hc.tcbs ht hp hN hN' (hR1.1.rel _ hp) hnq) ?_
   rintro s' ⟨hw, -⟩
   rw [haf] at hw
-  refine hw.mono fun b hb => qfoot_sfootI hc.tcbs (fun w hw' => ?_) ht hc.node hc.cur hb
+  refine hw.mono fun b hb => qfoot_sfootI hc.tcbs (fun w hw' => ?_) ht hc.node hc.cur hb (by omega)
   rcases List.mem_cons.1 hw' with rfl | hw'
   · exact ht
   · exact (hc.ready.1.rel _ hp).mem w hw'
 
 /-- A node word is in the footprint. -/
-theorem sfootI_node {T : Set U64} {c : U64} {s : S} (hN : NodePlaced st T s c) {o : U64} (ho : o.val < 4288) :
-    SFootI st T c s (L.nodeAt s c o) :=
-  Or.inr ⟨by rw [nodeAt_val hN ho]; omega, by rw [nodeAt_val hN ho]; omega⟩
+theorem sfootI_node {T : Set U64} {c : U64} {s : S} (hN : NodePlaced st T s c) {o : U64} (ho : o.val < 4288)
+    (h88 : o.val ≠ 88) : SFootI st T c s (L.nodeAt s c o) :=
+  Or.inr ⟨by rw [nodeAt_val hN ho]; omega, by rw [nodeAt_val hN ho]; omega, by rw [nodeAt_val hN ho]; omega⟩
 
 /-- **`reschedule_required`'s footprint.** -/
 theorem reschedule_required_sfootI {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
@@ -99,7 +102,7 @@ theorem reschedule_required_sfootI {N T C : Set U64} {c : U64} {s : S} {σ : Fl4
         (by simp [layout.node.SCHED_ACTION])
     · rw [hb, nodeAt_ksb h1.1, h1.2.1, hc.cur]
       have ho : (layout.node.SCHED_ACTION).val < 4288 := by simp [layout.node.SCHED_ACTION]
-      refine (SFootI.ksb h1.1).2 (Or.inr ⟨by rw [nodeAt_val hN ho]; omega, by rw [nodeAt_val hN ho]; omega⟩)
+      exact (SFootI.ksb h1.1).2 (sfootI_node hN ho (by simp [layout.node.SCHED_ACTION]))
   unfold sched.reschedule_required
   step with sched.action.spec' as ⟨act, hact'⟩
   rw [hc.cur] at hact'
@@ -155,7 +158,7 @@ theorem possible_switch_to_sfootI {N T C : Set U64} {c : U64} {s : S} {σ : Fl4S
     have ho : (layout.node.SCHED_ACTION).val < 4288 := by simp [layout.node.SCHED_ACTION]
     rw [show L.cpu s = c from hc.cur]
     exact (writesIn_wr (nodeAt_aligned hc.node ho (by simp [layout.node.SCHED_ACTION]))).mono fun b hb =>
-      hb ▸ sfootI_node hc.node ho
+      hb ▸ sfootI_node hc.node ho (by simp [layout.node.SCHED_ACTION])
 
 
 end
@@ -289,13 +292,24 @@ theorem node_word {s : S} (hN : NodePlaced st T s c) {b : U64} (h1 : L.nodeBase 
   apply UScalar.eq_of_val_eq
   rw [nodeAt_val hN (by rw [hv]; omega), hv]; omega
 
+/-- **No word of core `c`'s node is read by the merged relation.** -/
+theorem nodeRange_not_ifoot (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) (hA : EpSchedApart st T C E R B c s σ) {b : U64}
+    (g1 : L.nodeBase s c ≤ b.val) (g2 : b.val < L.nodeBase s c + 4288) (h2 : IFoot N T E R B b) : False := by
+  obtain ⟨Q, R0, hc, -⟩ := hS.lists
+  obtain ⟨o, ho, rfl⟩ := node_word hc.node g1 g2
+  rcases h2 with hE | ⟨n, hn, n1, n2⟩ | ⟨t, ht, e⟩
+  · exact hA.node _ g1 g2 hE
+  · exact hS.nodeNW o ho (Or.inl ⟨n, hn, n1, n2⟩)
+  · exact nodeAt_ne_tfield hc.node ho ht (hc.tcbs t ht) (K := 3464#u64) (by simp) e
+
 /-- **No word the scheduler writes is read by the merged relation.** -/
 theorem sfootI_not_ifoot (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) (hA : EpSchedApart st T C E R B c s σ) {b : U64} (h1 : SFootI st T c s b)
     (h2 : IFoot N T E R B b) : False := by
   obtain ⟨Q, R0, hc, -⟩ := hS.lists
   have hP := hP0.e
-  rcases h1 with ⟨y, hy, hb⟩ | ⟨g1, g2⟩
+  rcases h1 with ⟨y, hy, hb⟩ | ⟨g1, g2, -⟩
   · have hya := hP.tcb y hy
     obtain ⟨K, hK, hbv⟩ : ∃ K : Nat, (K = 3480 ∨ K = 3488 ∨ K = 3592) ∧ b.val = y.val + K := by
       rcases hb with rfl | rfl | rfl
@@ -327,7 +341,7 @@ theorem sfootI_not_ifoot (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State U
 /-- **Every word the scheduler writes is an IPC or node word.** -/
 theorem sfootI_iwords (hT : TcbPlaced T) {s : S} {b : U64} (h : SFootI st T c s b) :
     IWords N T E R B b ∨ NodeW (L.ksb s) c b := by
-  rcases h with ⟨y, hy, hb⟩ | ⟨g1, g2⟩
+  rcases h with ⟨y, hy, hb⟩ | ⟨g1, g2, -⟩
   · have hya := hT y hy
     refine Or.inl (Or.inl ⟨y, hy, ?_⟩)
     rcases hb with rfl | rfl | rfl <;> (rw [tfield_val hya (by decide)]; simp)
@@ -337,7 +351,7 @@ theorem sfootI_iwords (hT : TcbPlaced T) {s : S} {b : U64} (h : SFootI st T c s 
 /-- The wake tail writes no IPC-buffer word outside the node. -/
 theorem sfootI_nobuf (hT : TcbPlaced T) {s : S} {b : U64} (h : SFootI st T c s b) :
     NodeW (L.ksb s) c b ∨ NoBufW T b := by
-  rcases h with ⟨y, hy, hb⟩ | ⟨g1, g2⟩
+  rcases h with ⟨y, hy, hb⟩ | ⟨g1, g2, -⟩
   · refine Or.inr ?_
     rcases hb with rfl | rfl | rfl <;> exact NoBufW.off hT hy (by decide) (by decide)
   · have hnb : L.nodeBase s c = (L.ksb s).val + 13568 + c.val * 4288 := rfl

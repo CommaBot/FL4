@@ -181,6 +181,7 @@ theorem release_remove_sfootI {s : S} {σ : Fl4Spec.State Unit}
   rintro s' ⟨hw, -⟩
   rw [haf] at hw
   exact hw.mono fun b hb => qfoot_sfootI hc.tcbs (fun w hw' => hc.release.mem w hw') ht hc.node hc.cur hb
+    (by simp [RelOffs])
 
 theorem cancelSt_code (ts : Fl4Spec.ThreadState) :
     tsCode (cancelSt ts) ≠ 3 ∧ tsCode (cancelSt ts) ≠ 4 ∧ tsCode (cancelSt ts) ≠ 6 := by

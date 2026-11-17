@@ -235,7 +235,7 @@ theorem yield_sfootI {s s' : S} (hT : TcbPlaced T) (hN : NodePlaced st T s c)
     L.mem s' (yieldA y) = L.mem s (yieldA y) := by
   have hya := hT y hy
   refine hw.mem_eq (field_aligned hya (by decide) (by decide)) fun hb => ?_
-  rcases hb with ⟨y', hy', hb⟩ | ⟨g1, g2⟩
+  rcases hb with ⟨y', hy', hb⟩ | ⟨g1, g2, -⟩
   · have hya' := hT y' hy'
     rcases hb with e | e | e <;>
       exact tfield_ne hya hya' (K1 := 3472#u64) (by decide) (by decide) (fun _ => by decide) e
