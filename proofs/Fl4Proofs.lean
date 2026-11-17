@@ -361,4 +361,5 @@ import Fl4Proofs.P3.IpcTcbJ
 import Fl4Proofs.P3.IpcYK
 import Fl4Proofs.P3.IpcSuspendJ
 import Fl4Proofs.P3.IpcResumeJ
+import Fl4Proofs.P3.ScRestartSpec
 import Fl4Proofs.P3.IpcWriteRegsJ
