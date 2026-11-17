@@ -21,14 +21,14 @@ open Fl4Spec
 owner (whose budget it charges; seL4 then postpones it in `charge_budget`
 if needed), if the owner is not in the release queue. -/
 theorem Inv.budgetPost {σ σ' : State Unit} (h : Inv σ) {p u0 : ObjRef} {y : SchedContext} {m : Nat}
-    (hk : σ.kheap p = some (.schedContext y m)) (hpost : BudgetPost σ σ' p) (hown : y.scTcb = some u0)
+    (hk : σ.kheap p = some (.schedContext y m)) (hpost : BudgetPost σ σ' p) (hown : y.scTcb = some u0 ∨ y.scTcb = none)
     (hnr : u0 ∉ σ.releaseQueue) (hper : y.scPeriod ≠ 0) : InvBut σ' u0 := by
   obtain ⟨y', rfl, hy', hne', hpos', hsum', hmin'⟩ := hpost y m hk
   have hkp : ∀ q, q ≠ p → (updSc σ p y' m).kheap q = σ.kheap q := fun q hq => by simp [updK, hq]
   have hky : (updSc σ p y' m).kheap p = some (.schedContext y' m) := by simp [updK]
   have hown' : ∀ u x, σ.kheap u = some (.tcb x) → x.tcbSchedContext = some p → u = u0 := fun u x hx hp => by
     obtain ⟨w, n, h1, h2⟩ := h.back u x p hx hp
-    rw [hk] at h1; cases h1; rw [hown] at h2; cases h2; rfl
+    rw [hk] at h1; cases h1; rcases hown with e | e <;> rw [e] at h2 <;> cases h2; rfl
   have hnr' : ∀ u ∈ σ.releaseQueue, ∀ x, σ.kheap u = some (.tcb x) → x.tcbSchedContext ≠ some p :=
     fun u hu x hx hp => hnr (hown' u x hx hp ▸ hu)
   have htcb : ∀ u x, (updSc σ p y' m).kheap u = some (.tcb x) → σ.kheap u = some (.tcb x) := fun u x hx => by
@@ -101,7 +101,7 @@ theorem budget_check_refines_inv {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hrr : L.rperiod s (nodeW st s c layout.node.CUR_SC) ≠ 0#u64) (usage : U64)
     {u0 : Fl4Spec.ObjRef} (hown : ∀ y m, σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext y m) →
-      y.scTcb = some u0) (hnr : u0 ∉ σ.releaseQueue) :
+      y.scTcb = some u0 ∨ y.scTcb = none) (hnr : u0 ∉ σ.releaseQueue) :
     sporadic.budget_check st ar s a usage ⦃ s' => ∃ σ', Fl4Spec.refillBudgetCheck (Z := Unit) usage.bv σ =
       ({((), σ')}, False) ∧ FootEq N T (L.mem s) (L.mem s') ∧ KView σ σ' ∧ SchedRel st N T C c s' σ' ∧
       InvBut σ' u0 ∧ BudgetPost σ σ' (nodeW st s c layout.node.CUR_SC).bv ∧

@@ -191,11 +191,39 @@ theorem CurOwn.sub {T : Set U64} {σ σ' : State Unit} (h : CurOwn T σ) (hc : C
     fun x n hx => hown x n (by rw [hk, h2] at hx; exact hx),
     fun h0 hm => hnr (by rw [← h4]; exact h0) (hsub _ hm)⟩
 
+/-- **The current SC owned, or bound to no thread** (after the current
+thread's deletion of its own TCB, or of its SC's binding): an SC of `C`
+naming no thread. -/
+def CurOwnW (T C : Set U64) (σ : State Unit) : Prop :=
+  CurOwn T σ ∨ ((∃ sc ∈ C, sc.bv = σ.curSc) ∧ ∀ x n, σ.kheap σ.curSc = some (.schedContext x n) → x.scTcb = none)
+
+theorem CurOwnW.sub {T C : Set U64} {σ σ' : State Unit} (h : CurOwnW T C σ) (hc : Calm σ σ')
+    (hsub : ∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue) : CurOwnW T C σ' := by
+  rcases h with h | ⟨hcs, hun⟩
+  · exact Or.inl (h.sub hc hsub)
+  · obtain ⟨hk, -, h2, -⟩ := hc
+    exact Or.inr ⟨by rw [h2]; exact hcs, fun x n hx => hun x n (by rw [hk, h2] at hx; exact hx)⟩
+
+/-- **`CurOwnW` across a step** whose owned case is kept and which keeps the
+current SC and does not bind it. -/
+theorem CurOwnW.imp {T C : Set U64} {σ σ' : State Unit} (h : CurOwnW T C σ) (h1 : CurOwn T σ → CurOwn T σ')
+    (h2 : σ'.curSc = σ.curSc)
+    (h3 : ∀ x n, σ'.kheap σ.curSc = some (.schedContext x n) →
+      x.scTcb = none ∨ ∃ y, σ.kheap σ.curSc = some (.schedContext y n) ∧ x.scTcb = y.scTcb) :
+    CurOwnW T C σ' := by
+  rcases h with h | ⟨hcs, hun⟩
+  · exact Or.inl (h1 h)
+  · refine Or.inr ⟨by rw [h2]; exact hcs, fun x n hx => ?_⟩
+    rw [h2] at hx
+    rcases h3 x n hx with e | ⟨y, hy, e⟩
+    · exact e
+    · rw [e]; exact hun y n hy
+
 /-- **`schedule`'s precondition mid-entry** (`SchedPre` with `CurInv` only
-unless a reschedule is pending, and the current SC's owner). -/
-def SchedPreW (T : Set U64) (σ : State Unit) : Prop :=
+unless a reschedule is pending, and the current SC owned or unbound). -/
+def SchedPreW (T C : Set U64) (σ : State Unit) : Prop :=
   Inv σ ∧ (σ.schedulerAction = .chooseNewThread ∨ CurInv σ) ∧ OffOK σ ∧ ActIdle σ ∧ σ.domainTime ≠ 0 ∧
-    CurOwn T σ
+    CurOwnW T C σ
 
 /-- A notification signal (l4v `send_signal`). -/
 def Signal (σ σ' : State Unit) : Prop := ∃ n b, sendSignal (Z := Unit) n b σ = ({((), σ')}, False)
@@ -459,16 +487,16 @@ theorem curOwn_of_curInv {N C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State U
   rw [hx] at hky; cases hky; rw [hyt, hs.curThread]
 
 theorem SchedPre.toW {N C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
-    (hS : SchedRel st N T C c s σ) (h : SchedPre σ) : SchedPreW T σ :=
-  ⟨h.1, Or.inr h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2, curOwn_of_curInv hS h.1 h.2.1⟩
+    (hS : SchedRel st N T C c s σ) (h : SchedPre σ) : SchedPreW T C σ :=
+  ⟨h.1, Or.inr h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2, Or.inl (curOwn_of_curInv hS h.1 h.2.1)⟩
 
 /-- **`awaken_refines` from `SchedPreW`.** -/
 theorem awaken_refinesW {A : Type} {ar : machine.Arch A} {N C : Set U64} {c : U64} (s : S) (a : A)
     (σ : Fl4Spec.State Unit)
     (hfire : timer.fire st ar s a ⦃ r => ∃ σ1, Fires σ σ1 ∧ SchedRel st N T C c r.1 σ1 ∧
-      NtfnStateRel N T (L.mem r.1) σ1 ∧ NSC N C σ1 ∧ SchedPreW T σ1 ⦄) :
+      NtfnStateRel N T (L.mem r.1) σ1 ∧ NSC N C σ1 ∧ SchedPreW T C σ1 ⦄) :
     sched.awaken st ar s a ⦃ r => ∃ σ1 σ2, Fires σ σ1 ∧ Fl4Spec.awaken (Z := Unit) σ1 = ({((), σ2)}, False) ∧
-      SchedRel st N T C c r.1 σ2 ∧ NtfnStateRel N T (L.mem r.1) σ2 ∧ NSC N C σ2 ∧ SchedPreW T σ2 ∧ Calm σ1 σ2 ∧
+      SchedRel st N T C c r.1 σ2 ∧ NtfnStateRel N T (L.mem r.1) σ2 ∧ NSC N C σ2 ∧ SchedPreW T C σ2 ∧ Calm σ1 σ2 ∧
       ∀ u ∈ σ2.releaseQueue, u ∈ σ1.releaseQueue ⦄ := by
   unfold sched.awaken
   refine WP.spec_bind hfire ?_

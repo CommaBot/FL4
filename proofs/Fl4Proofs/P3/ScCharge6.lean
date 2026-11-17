@@ -315,7 +315,7 @@ theorem charge_head_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
       have hne := refills_ne' hx.wf
       have hI3 : InvBut (updSc σ sc.bv { x with scRefills := (rrResetL (L.refills s sc)).map toRefill } n) ct.bv :=
         hI.refillUpd hk rfl (by simp [rrResetL]) (fun _ hp => absurd hper hp)
-          (fun _ _ => rrResetL_rr hx.refills (hI.rr _ x n hk (hact hid x n hk) hper)) hown hnr
+          (fun _ _ => rrResetL_rr hx.refills (hI.rr _ x n hk (hact hid x n hk) hper)) (Or.inl hown) hnr
       refine fin s3 _ rfl ?_ hS3 (by rw [← hl]; rw [← hl] at hkv; exact hR.frame hS.placed hf hkv)
         (hN.kview hR hkv) hI3 (TmoKeep.of_kheap (RingAt.kfoot hS hscC hring) (fun b hb => kfoot_tslot hS hct hb)
           (hupd _ _ _))
@@ -326,7 +326,7 @@ theorem charge_head_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
         intro e; have := hrr ▸ e0; simp [e] at this
       simp only [e0, Bool.false_eq_true, ↓reduceIte]
       refine WP.spec_bind (budget_check_refines_inv s a σ hS hI hscC (hact hid) hmrt hmb h0 used
-        (fun y m h => by rw [hk] at h; cases h; exact hown) hnr) ?_
+        (fun y m h => by rw [hk] at h; cases h; exact Or.inl hown) hnr) ?_
       rintro s3 ⟨σ3, h1, hf, hkv, hS3, hI3, hpost, hw3⟩
       obtain ⟨y', rfl, hy', -⟩ := hpost x n hk
       exact fin s3 y' hy' (by rw [if_neg (by simpa using hper)]; exact h1) hS3 (hR.frame hS.placed hf hkv)

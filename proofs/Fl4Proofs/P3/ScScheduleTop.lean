@@ -592,7 +592,7 @@ theorem tail_refines {N T C : Set U64} {c : U64} (s3 : S) (a2 : A) (σ3 : Fl4Spe
       NotIpcBlk xt.tcbState ∧ σ3.curThread ∉ σ3.releaseQueue ∧
       (scp ≠ Fl4Spec.idleScPtr → ∀ x n, σ3.kheap scp = some (.schedContext x n) → Fl4Spec.scActive x = true))
     (hcsc : ∃ sc ∈ C, sc.bv = σ3.curSc)
-    {u0 : Fl4Spec.ObjRef} (hown0 : ∀ x n, σ3.kheap σ3.curSc = some (.schedContext x n) → x.scTcb = some u0)
+    {u0 : Fl4Spec.ObjRef} (hown0 : ∀ x n, σ3.kheap σ3.curSc = some (.schedContext x n) → x.scTcb = some u0 ∨ x.scTcb = none)
     (hback : ∀ xt, σ3.kheap u0 = some (.tcb xt) → xt.tcbSchedContext = some σ3.curSc)
     (hnr : 0 < σ3.consumedTime → u0 ∉ σ3.releaseQueue) (hoff : OffOK σ3)
     (hT : TimeAgree ar)
@@ -737,7 +737,7 @@ theorem schedule_refinesW {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4S
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ)
     (hnd : Fl4Spec.numDomains = 1)
     (hfire : timer.fire st ar s a ⦃ r => ∃ σ1, Fires σ σ1 ∧ SchedRel st N T C c r.1 σ1 ∧
-      NtfnStateRel N T (L.mem r.1) σ1 ∧ NSC N C σ1 ∧ SchedPreW T σ1 ⦄) (hA : ArchSw st ar N T C c) (hsni : SniHyp st ar N T C c) (hsend : SendHyp st ar N T C c)
+      NtfnStateRel N T (L.mem r.1) σ1 ∧ NSC N C σ1 ∧ SchedPreW T C σ1 ⦄) (hA : ArchSw st ar N T C c) (hsni : SniHyp st ar N T C c) (hsend : SendHyp st ar N T C c)
     (hT : TimeAgree ar) :
     sched.schedule st ar s a ⦃ r => ∃ σ1 σ', Fires σ σ1 ∧ Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) ∧
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧ CurInv σ' ∧
@@ -748,15 +748,25 @@ theorem schedule_refinesW {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4S
   have hsp := schedule_unfold haw hnd
   simp only [check_domain_time_refines, bind_ok]
   obtain ⟨Q, R, hc, hs⟩ := hS2.lists
-  obtain ⟨u0w, hu0T, xt0, hkt0, hxs0, hown0, hnr0⟩ := hW2
-  have hback : ∀ xt, σ2.kheap u0w.bv = some (.tcb xt) → xt.tcbSchedContext = some σ2.curSc := by
-    intro xt hk; rw [hkt0] at hk; cases hk; exact hxs0
-  have hcsc : ∃ sc ∈ C, sc.bv = σ2.curSc := by
-    obtain ⟨x', hk', -, -, hsct, -⟩ := hs.tcb u0w hu0T
-    rw [hkt0] at hk'; cases hk'
-    rw [hxs0] at hsct
-    obtain ⟨h0, hbv⟩ := optRef_some hsct.symm
-    exact ⟨_, hs.scMem _ hu0T h0, hbv⟩
+  -- the outgoing SC's owner `u0`, or (unbound) the SC itself, which no thread names
+  obtain ⟨u0, hown0, hback, hnr0, hcsc⟩ : ∃ u0 : Fl4Spec.ObjRef,
+      (∀ x n, σ2.kheap σ2.curSc = some (.schedContext x n) → x.scTcb = some u0 ∨ x.scTcb = none) ∧
+      (∀ xt, σ2.kheap u0 = some (.tcb xt) → xt.tcbSchedContext = some σ2.curSc) ∧
+      (0 < σ2.consumedTime → u0 ∉ σ2.releaseQueue) ∧ ∃ sc ∈ C, sc.bv = σ2.curSc := by
+    rcases hW2 with ⟨u0w, hu0T, xt0, hkt0, hxs0, hown0, hnr0⟩ | ⟨⟨sc, hscC, hscv⟩, hun⟩
+    · refine ⟨u0w.bv, fun x n hx => Or.inl (hown0 x n hx), fun xt hk => ?_, hnr0, ?_⟩
+      · rw [hkt0] at hk; cases hk; exact hxs0
+      · obtain ⟨x', hk', -, -, hsct, -⟩ := hs.tcb u0w hu0T
+        rw [hkt0] at hk'; cases hk'
+        rw [hxs0] at hsct
+        obtain ⟨h0, hbv⟩ := optRef_some hsct.symm
+        exact ⟨_, hs.scMem _ hu0T h0, hbv⟩
+    · obtain ⟨y, n, hky, -⟩ := hs.scs sc hscC
+      rw [hscv] at hky
+      refine ⟨σ2.curSc, fun x n hx => Or.inr (hun x n hx), fun xt hk => ?_, fun _ hm => ?_, sc, hscC, hscv⟩
+      · rw [hky] at hk; cases hk
+      · obtain ⟨xu, -, -, -, h1, -⟩ := hI2.rel _ hm
+        rw [hky] at h1; cases h1
   -- the tail after a branch ending in `σ3`
   have tail : ∀ (s3 : S) (a2 : A) (σ3 : Fl4Spec.State Unit),
       SchedRel st N T C c s3 σ3 → NtfnStateRel N T (L.mem s3) σ3 → NSC N C σ3 → Inv σ3 →
@@ -786,7 +796,7 @@ theorem schedule_refinesW {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4S
           ActIdle σ' ⦄ := by
     intro s3 a2 σ3 hS3 hR3 hN3 hI3 hnc hk3 hr3 hcs3 hcn3 htm3 hid3 hspec
     refine WP.spec_mono (tail_refines s3 a2 σ3 hS3 hR3 hN3 hI3 hnc
-      (by rw [hcs3]; exact hcsc) (u0 := u0w.bv) (fun x n hx => hown0 x n (by rw [← hk3, ← hcs3]; exact hx))
+      (by rw [hcs3]; exact hcsc) (u0 := u0) (fun x n hx => hown0 x n (by rw [← hk3, ← hcs3]; exact hx))
       (fun xt hx => by rw [hcs3]; exact hback xt (by rw [← hk3]; exact hx)) (fun h0 hm => hnr0 (by rw [← hcn3]; exact h0) (by rw [← hr3]; exact hm))
       (hO2.of_eq hk3 hcs3 hcn3 htm3) hT hsni hsend) ?_
     rintro r ⟨σ', h', a1, a2, a3, a4, a5, a6⟩

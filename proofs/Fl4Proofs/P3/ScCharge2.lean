@@ -83,12 +83,12 @@ theorem Inv.refillUpd {σ : State Unit} (h : Inv σ) {p u0 : ObjRef} {y y' : Sch
     (hk : σ.kheap p = some (.schedContext y m)) (hy' : y' = { y with scRefills := y'.scRefills })
     (hne' : y'.scRefills ≠ []) (hok : scActive y' = true → y'.scPeriod ≠ 0 → RefOK y')
     (hrr : scActive y' = true → y'.scPeriod = 0 → RRok y')
-    (hown : y.scTcb = some u0) (hnr : u0 ∉ σ.releaseQueue) : InvBut (updSc σ p y' m) u0 := by
+    (hown : y.scTcb = some u0 ∨ y.scTcb = none) (hnr : u0 ∉ σ.releaseQueue) : InvBut (updSc σ p y' m) u0 := by
   have hkp : ∀ q, q ≠ p → (updSc σ p y' m).kheap q = σ.kheap q := fun q hq => by simp [updK, hq]
   have hky : (updSc σ p y' m).kheap p = some (.schedContext y' m) := by simp [updK]
   have hown' : ∀ u x, σ.kheap u = some (.tcb x) → x.tcbSchedContext = some p → u = u0 := fun u x hx hp => by
     obtain ⟨w, n, h1, h2⟩ := h.back u x p hx hp
-    rw [hk] at h1; cases h1; rw [hown] at h2; cases h2; rfl
+    rw [hk] at h1; cases h1; rcases hown with e | e <;> rw [e] at h2 <;> cases h2; rfl
   have hnr' : ∀ u ∈ σ.releaseQueue, ∀ x, σ.kheap u = some (.tcb x) → x.tcbSchedContext ≠ some p :=
     fun u hu x hx hp => hnr (hown' u x hx hp ▸ hu)
   have htcb : ∀ u x, (updSc σ p y' m).kheap u = some (.tcb x) → σ.kheap u = some (.tcb x) := fun u x hx => by

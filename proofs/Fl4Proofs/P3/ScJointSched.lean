@@ -27,16 +27,16 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 /-- **`schedule`'s mid-entry precondition from `JAtZ`** and the domain scope. -/
 theorem JAtZ.schedPreW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0) : SchedPreW Z.T σ :=
-  ⟨J.inv, J.cur, J.off, J.act, hd, J.own⟩
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0) : SchedPreW Z.T Z.C σ :=
+  ⟨J.inv, J.cur, J.off, J.act, hd, Or.inl J.own⟩
 
 /-- The hypothesis on FL4's TCB timers keeping `SchedPreW` (`FireHyp` from a
 mid-entry state). -/
 def FireHypW (st : machine.Store S) [L : P1.LawfulStore st] (ar : machine.Arch A) (N T C : Set U64) (c : U64) :
     Prop :=
   ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), SchedRel st N T C c s σ → NtfnStateRel N T (L.mem s) σ →
-    NSC N C σ → SchedPreW T σ → timer.fire st ar s a ⦃ r => ∃ σ1, Fires σ σ1 ∧ SchedRel st N T C c r.1 σ1 ∧
-      NtfnStateRel N T (L.mem r.1) σ1 ∧ NSC N C σ1 ∧ SchedPreW T σ1 ⦄
+    NSC N C σ → SchedPreW T C σ → timer.fire st ar s a ⦃ r => ∃ σ1, Fires σ σ1 ∧ SchedRel st N T C c r.1 σ1 ∧
+      NtfnStateRel N T (L.mem r.1) σ1 ∧ NSC N C σ1 ∧ SchedPreW T C σ1 ⦄
 
 /-- **The entry tail on `JAt`** (module docstring). -/
 theorem jat_schedule {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}

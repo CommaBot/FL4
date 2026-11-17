@@ -186,7 +186,7 @@ theorem ssc_tail_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
     (hscC : nodeW st s c layout.node.CUR_SC ∈ C) (nsc : U64)
     {u0 : Fl4Spec.ObjRef} (hown0 : ∀ x n, σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) →
-      x.scTcb = some u0)
+      x.scTcb = some u0 ∨ x.scTcb = none)
     (hback : ∀ xt, σ.kheap u0 = some (.tcb xt) → xt.tcbSchedContext = some σ.curSc)
     (hnr : 0 < σ.consumedTime → u0 ∉ σ.releaseQueue) (hoff : OffOK σ)
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
@@ -257,7 +257,7 @@ theorem switch_sched_context_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
     (hb0 : L.mem s (scA (nodeW st s c layout.node.CUR_THREAD)) ≠ 0#u64)
     (hctr : (nodeW st s c layout.node.CUR_THREAD).bv ∉ σ.releaseQueue)
     {u0 : Fl4Spec.ObjRef} (hown0 : ∀ x n, σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) →
-      x.scTcb = some u0)
+      x.scTcb = some u0 ∨ x.scTcb = none)
     (hback : ∀ xt, σ.kheap u0 = some (.tcb xt) → xt.tcbSchedContext = some σ.curSc)
     (hnr : 0 < σ.consumedTime → u0 ∉ σ.releaseQueue) (hoff : OffOK σ)
     (hna : (L.rmax s (L.mem s (scA (nodeW st s c layout.node.CUR_THREAD)))).val ≠ 0)
@@ -431,7 +431,7 @@ theorem switch_sched_context_cur {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
       σ.kheap (L.mem s (scA (nodeW st s c layout.node.CUR_THREAD))).bv = some (.schedContext x n) →
       Fl4Spec.scActive x = true)
     {u0 : Fl4Spec.ObjRef} (hown0 : ∀ x n, σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) →
-      x.scTcb = some u0)
+      x.scTcb = some u0 ∨ x.scTcb = none)
     (hback : ∀ xt, σ.kheap u0 = some (.tcb xt) → xt.tcbSchedContext = some σ.curSc)
     (hnr : 0 < σ.consumedTime → u0 ∉ σ.releaseQueue) (hoff : OffOK σ)
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)

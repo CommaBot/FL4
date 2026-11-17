@@ -116,7 +116,7 @@ theorem commit_refill_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : 
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
     (hscC : nodeW st s c layout.node.CUR_SC ∈ C) {x : Fl4Spec.SchedContext} {n : Nat}
     (hk : σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n)) (hact : Fl4Spec.scActive x = true)
-    {u0 : Fl4Spec.ObjRef} (hown : x.scTcb = some u0)
+    {u0 : Fl4Spec.ObjRef} (hown : x.scTcb = some u0 ∨ x.scTcb = none)
     (hnr : 0 < (nodeW st s c layout.node.CONSUMED).bv → u0 ∉ σ.releaseQueue)
     (hsuf0 : 0 < (nodeW st s c layout.node.CONSUMED).bv → x.scPeriod = 0 →
       Fl4Spec.refillSufficient (nodeW st s c layout.node.CONSUMED).bv (Fl4Spec.refillHd x) = true)
@@ -237,7 +237,7 @@ theorem commit_time_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
     (hscC : nodeW st s c layout.node.CUR_SC ∈ C)
     {u0 : Fl4Spec.ObjRef} (hown0 : ∀ x n, σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) →
-      x.scTcb = some u0)
+      x.scTcb = some u0 ∨ x.scTcb = none)
     (hidle : (nodeW st s c layout.node.IDLE_SC).bv = Fl4Spec.idleScPtr)
     (hnr : 0 < σ.consumedTime → u0 ∉ σ.releaseQueue) (hoff : OffOK σ)
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
@@ -248,7 +248,7 @@ theorem commit_time_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
       HFP σ σ' (nodeW st s c layout.node.CUR_SC).bv ∧ WritesIn st s s' (KFoot st T N C c s σ) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x, n, hk, hx⟩ := hs.scs _ hscC
-  have hown : x.scTcb = some u0 := hown0 x n hk
+  have hown : x.scTcb = some u0 ∨ x.scTcb = none := hown0 x n hk
   have hsp0 : ∀ σ1, commitHead σ = ({((), σ1)}, False) → Fl4Spec.commitTime (Z := Unit) σ =
       ({((), { σ1 with consumedTime := 0 })}, False) := fun σ1 h1 => by
     rw [commitTime_eq, nd_bind_one h1]; rfl

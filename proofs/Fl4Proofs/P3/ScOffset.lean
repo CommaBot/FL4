@@ -25,7 +25,7 @@ theorem commit_time_inv {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spe
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
     (hscC : nodeW st s c layout.node.CUR_SC ∈ C)
     {u0 : Fl4Spec.ObjRef} (hown0 : ∀ x n, σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) →
-      x.scTcb = some u0)
+      x.scTcb = some u0 ∨ x.scTcb = none)
     (hback : ∀ xt, σ.kheap u0 = some (.tcb xt) → xt.tcbSchedContext = some σ.curSc)
     (hidle : (nodeW st s c layout.node.IDLE_SC).bv = Fl4Spec.idleScPtr)
     (hnr : 0 < σ.consumedTime → u0 ∉ σ.releaseQueue) (hoff : OffOK σ)
