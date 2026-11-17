@@ -18,7 +18,9 @@ pub struct PerCpu {
     /// The IRQ a poll accepted.
     pub polled_irq: u64,
     /// TCB whose FPU state is live in this core's registers (0 = none).
-    pub fpu_owner: u64,
+    /// Other cores read it (fpu::owner_core): written with Release after
+    /// the save or restore it reports, read with Acquire.
+    pub fpu_owner: AtomicU64,
     /// CR0.TS is set (the current thread may not use the FPU).
     pub ts_set: bool,
     /// User FS/GS bases currently loaded.
@@ -62,7 +64,7 @@ impl PerCpu {
             idle: false,
             polling: false,
             polled_irq: NO_IRQ,
-            fpu_owner: 0,
+            fpu_owner: AtomicU64::new(0),
             ts_set: false,
             fs_base: 0,
             gs_base: 0,
