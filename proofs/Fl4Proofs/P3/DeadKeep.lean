@@ -26,7 +26,7 @@ set_option maxHeartbeats 4000000 in
 theorem JAtZ.deadP_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
-    (hX' : XTopAt (L := L) AR Z s' a' σ')
+    {G' : MdbGhost} (hX' : XTopAt (L := L) AR { Z with G := G' } s' a' σ')
     {q : U64}
     (hT : ∀ x, σ.kheap q.bv = some (.tcb x) → tsCode x.tcbState = 0 → ∃ y, σ'.kheap q.bv = some (.tcb y) ∧
       y.tcbState = x.tcbState ∧ y.tcbBoundNotification = x.tcbBoundNotification ∧
@@ -256,7 +256,7 @@ every object but the CNodes kept, `HStep`). -/
 theorem JAtZ.deadP_hstep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
-    (hX' : XTopAt (L := L) AR Z s' a' σ') (hC : HStep σ σ')
+    {G' : MdbGhost} (hX' : XTopAt (L := L) AR { Z with G := G' } s' a' σ') (hC : HStep σ σ')
     (hRW : ∀ q ∈ Z.C, L.mem s' (P1.scReplyA q) = L.mem s (P1.scReplyA q))
     (hOut : ∀ q z, H q = some (.sc z) → ∀ K : U64, K.val % 8 = 0 → K.val < 128 →
       L.mem s' (scW q K) = L.mem s (scW q K)) (hAS : ActSched σ')
@@ -284,22 +284,25 @@ theorem JAtZ.jcov_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
   exact ⟨by rw [hks]; exact h1, fun c hc' => by rw [hnb]; exact h2 c hc'⟩
 
 /-- **`JKern` across a step** keeping the kernel-state base, the core, the
-current thread and SC, the original bits, the global PML4 and the arch
+current thread and SC, the original bits (new ones only at `AbsSlot`s), the
+global PML4 and the arch
 objects (ScJointRest's `sc_kern` for any write set). -/
 theorem JAtZ.kern_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
     {D' : Set U64}
-    (hks : L.ksb s' = L.ksb s) (hcpu : L.cpu s' = L.cpu s) (hX' : XTopAt (L := L) AR Z s' a' σ')
-    (hct : σ'.curThread = σ.curThread) (hcsc : σ'.curSc = σ.curSc) (horig : σ'.isOriginalCap = σ.isOriginalCap)
+    (hks : L.ksb s' = L.ksb s) (hcpu : L.cpu s' = L.cpu s)
+    (hS' : Sched.SchedRel st Z.N Z.T Z.C Z.c s' σ')
+    (hct : σ'.curThread = σ.curThread) (hcsc : σ'.curSc = σ.curSc)
+    (horig : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot Z.th sl)
     (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
     (hao : ∀ p ao, σ.kheap p = some (.archObj ao) → σ'.kheap p = some (.archObj ao))
     (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))
-    (hD : D' ⊆ D) : JKern (L := L) H Cs D' Z.th s' σ' := by
+    (hcl : L.cscW s ∉ D') : JKern (L := L) H Cs D' Z.th s' σ' := by
   have K := J.kern
   have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hks
   obtain ⟨Q, R, hc, hs⟩ := J.xtop.fin.1.1.1.lists
-  obtain ⟨Q', R', hc', hs'⟩ := hX'.fin.1.1.1.lists
+  obtain ⟨Q', R', hc', hs'⟩ := hS'.lists
   have ecw : L.curW s' = L.curW s := by
     apply P1.eq_of_bv
     have h1 := hs'.curThread; have h2 := hs.curThread
@@ -318,14 +321,14 @@ theorem JAtZ.kern_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     rw [← h1, ← h2, hcsc]
   have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
   obtain ⟨pt, hpt⟩ := K.gpm
-  refine ⟨fun sl h => K.orig sl (by rw [← horig]; exact h), by rw [ecw, hct]; exact K.cur,
+  refine ⟨fun sl h => (horig sl h).elim (K.orig sl) id, by rw [ecw, hct]; exact K.cur,
     by rw [ecw]; exact K.curT, by rw [hcpu, hna]; exact K.act, by rw [hna]; exact K.dwAl,
     by rw [hna]; exact K.dwObj, by rw [hna, hna, hcpu, ecw]; exact K.dwNe, ?_,
     ⟨pt, by rw [hgp]; exact hao _ _ hpt⟩, by rw [hgp]; exact K.ga, by rw [hgp]; exact K.gf,
     K.heap, K.h0, by rw [hks]; exact K.hks, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
-    fun h => K.cscLive (hD (by rw [ecs] at h; exact h)), K.csLt⟩
+    fun h => hcl (by rw [ecs] at h; exact h), K.csLt⟩
   rw [hna, hDbg]; exact K.head
 
 
