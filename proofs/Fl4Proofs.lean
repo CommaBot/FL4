@@ -410,3 +410,7 @@ import Fl4Proofs.P3.IpcSignalWakeSpec
 import Fl4Proofs.P3.IpcSignalWake
 import Fl4Proofs.P3.JProducers
 import Fl4Proofs.P3.XTopJointCnDel
+import Fl4Proofs.P3.IpcSignalBoundFr
+import Fl4Proofs.P3.IpcSignalBoundSpec
+import Fl4Proofs.P3.IpcSignalBound
+import Fl4Proofs.P3.ScSignalBoundJ
