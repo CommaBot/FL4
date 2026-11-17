@@ -44,6 +44,49 @@ theorem OffOK.of_eq {σ σ' : State Unit} (h : OffOK σ) (hk : σ'.kheap = σ.kh
   rw [hcn] at h0 ⊢; rw [htm]; rw [hk, hcs] at hy
   exact h h0 y n hy
 
+/-- The current thread runnable, or the idle thread current (P3's `CurRunW`,
+unfolded). -/
+def RunW (σ : State Unit) : Prop :=
+  (∀ x, σ.kheap σ.curThread = some (.tcb x) → runnable x.tcbState = true) ∨ σ.curThread = σ.idleThread
+
+/-- `RunW` unless a reschedule is pending (P3's `CurRunM`, unfolded). -/
+def RunM (σ : State Unit) : Prop := σ.schedulerAction = .chooseNewThread ∨ RunW σ
+
+theorem RunW.calm {σ σ' : State Unit} (h : RunW σ) (hc : Calm σ σ') : RunW σ' := by
+  obtain ⟨hk, hct, -, -, -, hid, -⟩ := hc
+  rcases h with h | h
+  · exact Or.inl fun x hx => h x (by rw [← hk, ← hct]; exact hx)
+  · exact Or.inr (by rw [hct, hid]; exact h)
+
+theorem RunM.calm {σ σ' : State Unit} (h : RunM σ) (hc : Calm σ σ')
+    (hcn : σ.schedulerAction = .chooseNewThread → σ'.schedulerAction = .chooseNewThread) : RunM σ' := by
+  rcases h with h | h
+  · exact Or.inl (hcn h)
+  · exact Or.inr (h.calm hc)
+
+/-- `RunW` of the new current thread after `schedule`'s branch (as
+`newcur_of`): the idle thread, a schedulable one (runnable), or the current
+one (`hW`). -/
+theorem RunW.of_new2 {σ σ3 : State Unit}
+    (h : σ3.curThread = σ.idleThread ∨ schedulable σ3.curThread σ = true)
+    (hk : σ3.kheap = σ.kheap) (hid : σ3.idleThread = σ.idleThread) : RunW σ3 := by
+  rcases h with h | h
+  · exact Or.inr (h.trans hid.symm)
+  · obtain ⟨x, scp, y, n, h1, h2, h3, -⟩ := schedulable_inv h
+    exact Or.inl fun x' hx' => by rw [hk, h1] at hx'; cases hx'; exact h3
+
+theorem RunW.of_new {σ σ3 : State Unit}
+    (h : σ3.curThread = σ.idleThread ∨ schedulable σ3.curThread σ = true ∨ σ3.curThread = σ.curThread)
+    (hk : σ3.kheap = σ.kheap) (hid : σ3.idleThread = σ.idleThread) (hW : σ3.curThread = σ.curThread → RunW σ) :
+    RunW σ3 := by
+  rcases h with h | h | h
+  · exact Or.inr (h.trans hid.symm)
+  · obtain ⟨x, scp, y, n, h1, h2, h3, -⟩ := schedulable_inv h
+    exact Or.inl fun x' hx' => by rw [hk, h1] at hx'; cases hx'; exact h3
+  · rcases hW h with hr | hi
+    · exact Or.inl fun x hx => hr x (by rw [← h, ← hk]; exact hx)
+    · exact Or.inr (by rw [h, hi, hid])
+
 /-- The new current thread after `schedule`'s branch: the idle thread, a
 schedulable thread, or the current one. -/
 theorem newcur_of {σ σ' : State Unit} (h : σ'.curThread = σ.idleThread ∨ schedulable σ'.curThread σ = true ∨
@@ -836,11 +879,14 @@ theorem schedule_refinesWP {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4
     (hT : TimeAgree ar) :
     sched.schedule st ar s a ⦃ r => ∃ σ1 σ', Fires σ σ1 ∧ Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) ∧
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧ CurInv σ' ∧
-      ActIdle σ' ∧ ∃ rf : S × A, Pf rf σ1 ∧ WritesIn st rf.1 r.1 (KFoot st T N C c rf.1 σ1) ⦄ := by
+      ActIdle σ' ∧ ∃ rf : S × A, Pf rf σ1 ∧ WritesIn st rf.1 r.1 (KFoot st T N C c rf.1 σ1) ∧
+      (RunM σ1 → ∃ σ3 : Fl4Spec.State Unit, RunW σ3 ∧
+        Fl4Spec.scAndTimer (Z := Unit) { σ3 with schedulerAction := .resumeCurThread } = ({((), σ')}, False)) ⦄ := by
   unfold sched.schedule
   refine WP.spec_bind (awaken_refinesW s a σ hfire) ?_
-  rintro ⟨s1, a1⟩ ⟨σ1, σ2, hF, haw, hS2, hR2, hN2, ⟨hI2, hC2w, hO2, ⟨hA2, hId2⟩, hd2, hW2⟩, hcalm, -,
+  rintro ⟨s1, a1⟩ ⟨σ1, σ2, hF, haw, hS2, hR2, hN2, ⟨hI2, hC2w, hO2, ⟨hA2, hId2⟩, hd2, hW2⟩, hcalm, hcn12, -,
     rf, hPf, -, hwA⟩
+  have hM2 : RunM σ1 → RunM σ2 := fun h => h.calm hcalm hcn12
   have hsp := schedule_unfold haw hnd
   simp only [check_domain_time_refines, bind_ok]
   obtain ⟨Q, R, hc, hs⟩ := hS2.lists
@@ -873,7 +919,7 @@ theorem schedule_refinesWP {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4
       σ3.consumedTime = σ2.consumedTime → σ3.curTime = σ2.curTime → σ3.idleThread = σ2.idleThread →
       (∀ σ', Fl4Spec.scAndTimer (Z := Unit) { σ3 with schedulerAction := .resumeCurThread } = ({((), σ')}, False) →
         Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False)) →
-      WritesIn st s1 s3 (SFoot st T c s1) →
+      WritesIn st s1 s3 (SFoot st T c s1) → (RunM σ1 → RunW σ3) →
       (do
         let s4 ← sched.set_action st s3 sched.ACTION_RESUME_CURRENT
         let (s5, a3) ← sched.switch_sched_context st ar s4 a2
@@ -890,8 +936,10 @@ theorem schedule_refinesWP {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4
         smp.send_pending st ar s6 a4) ⦃ r => ∃ σ1' σ', Fires σ σ1' ∧
           Fl4Spec.schedule (Z := Unit) σ1' = ({((), σ')}, False) ∧
           SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧ CurInv σ' ∧
-          ActIdle σ' ∧ ∃ rf : S × A, Pf rf σ1' ∧ WritesIn st rf.1 r.1 (KFoot st T N C c rf.1 σ1') ⦄ := by
-    intro s3 a2 σ3 hS3 hR3 hN3 hI3 hnc hk3 hr3 hcs3 hcn3 htm3 hid3 hspec hw3
+          ActIdle σ' ∧ ∃ rf : S × A, Pf rf σ1' ∧ WritesIn st rf.1 r.1 (KFoot st T N C c rf.1 σ1') ∧
+          (RunM σ1' → ∃ σ3 : Fl4Spec.State Unit, RunW σ3 ∧
+            Fl4Spec.scAndTimer (Z := Unit) { σ3 with schedulerAction := .resumeCurThread } = ({((), σ')}, False)) ⦄ := by
+    intro s3 a2 σ3 hS3 hR3 hN3 hI3 hnc hk3 hr3 hcs3 hcn3 htm3 hid3 hspec hw3 hrw3
     refine WP.spec_mono (tail_refines s3 a2 σ3 hS3 hR3 hN3 hI3 hnc
       (by rw [hcs3]; exact hcsc) (u0 := u0) (fun x n hx => hown0 x n (by rw [← hk3, ← hcs3]; exact hx))
       (fun xt hx => by rw [hcs3]; exact hback xt (by rw [← hk3]; exact hx)) (fun h0 hm => hnr0 (by rw [← hcn3]; exact h0) (by rw [← hr3]; exact hm))
@@ -900,7 +948,7 @@ theorem schedule_refinesWP {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4
     exact ⟨σ1, σ', hF, hspec σ' h', a1, a2, a3, a4, a5,
       a6 (IdleOK.of hId2 hid3 (by rw [hk3]) (fun hm => by rw [hr3] at hm; exact hm)), rf, hPf,
       WritesIn.kfoot_trans (WritesIn.kfoot_of_sfoot (WritesIn.sfoot_trans hwA hw3))
-        (SzKeepC.of (SzKeep.of_kheap (hk3.trans hcalm.1))) a7⟩
+        (SzKeepC.of (SzKeep.of_kheap (hk3.trans hcalm.1))) a7, fun h => ⟨σ3, hrw3 h, h'⟩⟩
   step with sched.action.spec' as ⟨act, hact⟩
   rw [hc.cur] at hact
   subst hact
@@ -915,7 +963,7 @@ theorem schedule_refinesWP {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4
     simp only [hb, Bool.false_eq_true, ↓reduceIte, bind_ok]
     refine tail s1 a1 σ2 hS2 hR2 hN2 hI2
       (newcur_of (Or.inr (Or.inr rfl)) rfl rfl hId2 (hC2w.resolve_left (by rw [hres]; intro e; cases e))) rfl rfl rfl rfl rfl rfl (fun σ' h' => ?_)
-      (WritesIn.refl _ _)
+      (WritesIn.refl _ _) (fun h => (hM2 h).resolve_left (by rw [hres]; intro e; cases e))
     rw [hsp, hres]; rw [resume_self hres] at h'; exact h'
   · have hb : (nodeW st s1 c layout.node.SCHED_ACTION != sched.ACTION_RESUME_CURRENT) = true := by
       rw [resume_val']; simpa using h0
@@ -964,6 +1012,10 @@ theorem schedule_refinesWP {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4
           · exact Or.inl (h.trans htk4.2.2.1)
           · exact Or.inr (by rw [← schedulable_heap (σ' := σ4) hq4.1 hq4.2.1]; exact h)) g2 g3 hId2)
         g2 g3 g4 g5 g6 g7 (fun σ' h' => ?_) (WritesIn.sfoot_trans hwq4 hwb3)
+        (fun _ => RunW.of_new2 (σ := σ2) (by
+          rcases hnc3 with h | h
+          · exact Or.inl (h.trans htk4.2.2.1)
+          · exact Or.inr (by rw [← schedulable_heap (σ' := σ4) hq4.1 hq4.2.1]; exact h)) g2 g7)
       rw [hsp, hcn]
       exact (nd_bind_one hw4 _).trans ((nd_bind_one h3 _).trans h')
     · -- switch to the candidate
@@ -998,6 +1050,7 @@ theorem schedule_refinesWP {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4
       refine tail s3 a2 σ3 hS3 hR3 hN3 hI3
         (newcur_of g1 g2 g3 hId2 (hC2w.resolve_left (by rw [hsw]; intro e; cases e)))
         g2 g3 g4 g5 g6 g7 (fun σ' h' => ?_) (WritesIn.sfoot_trans hwq4 hwb3)
+        (fun h => RunW.of_new g1 g2 g7 fun _ => (hM2 h).resolve_left (by rw [hsw]; intro e; cases e))
       rw [hsp, hsw]
       rw [hct4, ← ect] at h3
       exact (nd_bind_one h3 _).trans h'

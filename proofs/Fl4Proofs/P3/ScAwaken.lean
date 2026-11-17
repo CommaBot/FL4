@@ -498,6 +498,7 @@ theorem awaken_refinesW {A : Type} {ar : machine.Arch A} {N C : Set U64} {c : U6
       NtfnStateRel N T (L.mem r.1) σ1 ∧ NSC N C σ1 ∧ SchedPreW T C σ1 ∧ Pf r σ1 ⦄) :
     sched.awaken st ar s a ⦃ r => ∃ σ1 σ2, Fires σ σ1 ∧ Fl4Spec.awaken (Z := Unit) σ1 = ({((), σ2)}, False) ∧
       SchedRel st N T C c r.1 σ2 ∧ NtfnStateRel N T (L.mem r.1) σ2 ∧ NSC N C σ2 ∧ SchedPreW T C σ2 ∧ Calm σ1 σ2 ∧
+      (σ1.schedulerAction = .chooseNewThread → σ2.schedulerAction = .chooseNewThread) ∧
       (∀ u ∈ σ2.releaseQueue, u ∈ σ1.releaseQueue) ∧
       ∃ rf : S × A, Pf rf σ1 ∧ r.2 = rf.2 ∧ WritesIn st rf.1 r.1 (SFoot st T c rf.1) ⦄ := by
   unfold sched.awaken
@@ -507,7 +508,7 @@ theorem awaken_refinesW {A : Type} {ar : machine.Arch A} {N C : Set U64} {c : U6
   rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, ⟨hA2, hcn2⟩, hc2, hsub, hw2⟩
   rw [WP.spec_ok]
   refine ⟨σ1, σ2, hF, h2, hS2, hR2, hN2, ⟨hI2, ?_, hO1.calm hc2, ⟨hA2, hId1.sub hc2 hsub⟩,
-    by rw [hc2.2.2.2.2.2.2.2]; exact hd1, hW1.sub hc2 hsub⟩, hc2, hsub, (s1, a1), hPf, rfl, hw2⟩
+    by rw [hc2.2.2.2.2.2.2.2]; exact hd1, hW1.sub hc2 hsub⟩, hc2, hcn2, hsub, (s1, a1), hPf, rfl, hw2⟩
   rcases hC1 with e | hC
   · exact Or.inl (hcn2 e)
   · exact Or.inr (hC.sub hc2 hsub)
