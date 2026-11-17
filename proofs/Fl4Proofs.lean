@@ -338,6 +338,7 @@ import Fl4Proofs.P3.XTopDelOne
 import Fl4Proofs.P3.XTopFinIrq
 import Fl4Proofs.P3.XTopJoint
 import Fl4Proofs.P3.XTopJointStep
+import Fl4Proofs.P3.DeadKeep
 import Fl4Proofs.P3.XTopJointRest
 import Fl4Proofs.P3.XTopTcbBp
 import Fl4Proofs.P3.XTopTcbFpu
