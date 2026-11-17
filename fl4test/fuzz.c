@@ -151,8 +151,13 @@ static int fuzz_program(seL4_Word arg, seL4_Word b, seL4_Word c, seL4_Word d)
             seL4_UserContext regs;
             err = seL4_TCB_ReadRegisters(x, 0, 0, 1 + w % (sizeof(regs) / sizeof(seL4_Word)), &regs);
             if (err == 0) {
+#ifdef CONFIG_ARCH_AARCH64
+                r->mr0 = regs.pc ^ regs.sp << 1 ^ regs.spsr << 2 ^ regs.x0 << 3;
+                r->mr1 = regs.tpidr_el0 ^ regs.tpidrro_el0 << 1 ^ regs.x15;
+#else
                 r->mr0 = regs.rip ^ regs.rsp << 1 ^ regs.rflags << 2 ^ regs.rax << 3;
                 r->mr1 = regs.fs_base ^ regs.gs_base << 1 ^ regs.r15;
+#endif
             }
             break;
         }
@@ -255,7 +260,11 @@ static int test_fuzz(env_t env)
             r->fmr1 = seL4_GetMR(2);
             seL4_UserContext regs;
             test_error_eq(seL4_TCB_ReadRegisters(get_helper_tcb(&t), 0, 0, sizeof(regs) / sizeof(seL4_Word), &regs), 0);
+#ifdef CONFIG_ARCH_AARCH64
+            regs.pc += 4;
+#else
             regs.rip += 2;
+#endif
             test_error_eq(seL4_TCB_WriteRegisters(get_helper_tcb(&t), 1, 0, sizeof(regs) / sizeof(seL4_Word), &regs), 0);
         }
         for (int i = 0; i < FUZZ_STEPS; i++) {

@@ -20,7 +20,13 @@
 
 static uint64_t tsc(void)
 {
+#ifdef CONFIG_ARCH_AARCH64
+    uint64_t v;
+    __asm__ volatile("isb; mrs %0, cntvct_el0" : "=r"(v));
+    return v;
+#else
     return __builtin_ia32_rdtsc();
+#endif
 }
 
 static int scale_server(seL4_Word ep, seL4_Word reply, seL4_Word c, seL4_Word d)
@@ -169,9 +175,15 @@ static int kworker(seL4_Word arg, seL4_Word b, seL4_Word c, seL4_Word d)
                 err = err ? err : seL4_CNode_Delete(w->dst.root, w->dst.capPtr, w->dst.capDepth);
                 break;
             case W_MAP:
+#ifdef CONFIG_ARCH_AARCH64
+                err = seL4_ARM_Page_Unmap(w->frame);
+                err = err ? err : seL4_ARM_Page_Map(w->frame, w->pd, w->vaddr, seL4_AllRights,
+                                                    seL4_ARM_Default_VMAttributes);
+#else
                 err = seL4_X86_Page_Unmap(w->frame);
                 err = err ? err : seL4_X86_Page_Map(w->frame, w->pd, w->vaddr, seL4_AllRights,
                                                     seL4_X86_Default_VMAttributes);
+#endif
                 break;
             }
             ops++;

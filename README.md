@@ -11,6 +11,9 @@ first-class SMP and fine-grained locking. See [DESIGN.md](DESIGN.md).
 | `crates/fl4-abi` | ABI numbering generated from `interfaces/` and the build configuration |
 | `crates/fl4-kernel` | The x86_64 kernel image (boot, glue) |
 | `crates/fl4-arch-x86_64` | x86_64 hardware backend |
+| `crates/fl4-kernel-aarch64` | The AArch64 kernel image (boot, glue) |
+| `crates/fl4-arch-aarch64` | AArch64 hardware backend |
+| `crates/fl4-efi`, `fl4-bootinfo` | The AArch64 UEFI loader and its boot protocol |
 | `crates/fl4-sync`, `fl4-store` | Transaction runtime and object store |
 | `crates/fl4-sim` | Deterministic simulator |
 | `interfaces/` | The one interface definition (seL4's XML, pruned to FL4's configuration, plus FL4 methods) |
@@ -29,6 +32,10 @@ cargo xtask sel4test [--release] [--smp N] [--setup ...]
 cargo xtask extract                              # Charon + Aeneas -> proofs/Fl4Core
 (cd proofs && lake build)                        # check the proofs
 ```
+
+`--arch aarch64` selects the AArch64 kernel for `run`, `sel4test`,
+`fl4test` and `uefi` (setups `tcg`, `tcg-gicv3`, `tcg-el2`, `tcg-a57`,
+`tcg-acpi`, and `kvm` or `hvf` on an Arm host).
 
 Host dependencies live in `$FL4_DEPS` (default `~/Projects/fl4-deps`):
 `venv/` with `sel4-deps`, and an `aeneas/` checkout with Charon built.
@@ -69,6 +76,37 @@ an `n2d-standard-2` AMD Milan VM with `--confidential-compute-type=SEV`,
 `--maintenance-policy=TERMINATE` and an NVMe boot disk. The serial log should
 report both `NVMe Identify DMA passed` and `shared and private frame lifecycle
 passed`. [GCE confidential VM configuration](https://docs.cloud.google.com/confidential-computing/confidential-vm/docs/create-a-confidential-vm-instance)
+
+## AArch64
+
+FL4 runs on AArch64 machines with UEFI firmware, at EL1 (it leaves EL2
+when firmware starts it there) and without virtualization support. One
+image serves every platform: `fl4.efi` is a UEFI application with the
+kernel built in. Its load options name the root task and further boot
+modules, and the remaining words are the kernel command line:
+
+```
+fl4.efi rootserver=\EFI\fl4\rootserver module=\EFI\fl4\data.bin
+```
+
+A root task can be built in too (`FL4_ROOTSERVER_ELF` when building
+`fl4-efi`); seL4 CMake projects for `PLATFORM=qemu-arm-virt` produce such
+an image in place of an elfloader image. The kernel finds the GIC (v2 or
+v3), the cores and PSCI conduit, the console UART (PL011, SBSA or 16550)
+and the timer in the ACPI tables (MADT, GTDT, SPCR, FADT), or in the
+device tree when there is no ACPI, which it also passes to the root task
+in BootInfo. Other cores start through PSCI `CPU_ON`. The MCS timer is the
+EL1 virtual timer at the `CNTFRQ_EL0` rate; ASIDs are the 16-bit hardware
+ASIDs; TLB maintenance is broadcast, with no IPIs; FP/SIMD switching is
+lazy. A trapped syscall (`seL4_TCBFlag_trapSyscalls`) reports x8, the
+Linux syscall number, and BootInfo carries the boot core's ID registers
+(l4h 0015, 0016, 0018). The hardware debug API is not implemented on
+AArch64 (`KernelHardwareDebugAPI` is off).
+
+`fl4-core` selects the architecture with its `aarch64` feature. The
+x86_64 core, which the proofs are about, is unchanged by it; the AArch64
+VSpace, register and interrupt code (`crates/fl4-core/src/aarch64`) is
+not extracted or proved yet.
 
 ## x86 virtualization
 

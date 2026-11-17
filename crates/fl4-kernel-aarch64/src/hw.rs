@@ -469,11 +469,21 @@ pub fn discover(rsdp: u64, dtb: u64) -> Option<Hw> {
     None
 }
 
-/// The device tree blob's size from its header.
+/// The device tree blob's size: up to the end of its last block, which
+/// can be far less than the header's total size (QEMU pads its blob to
+/// 1 MiB, more than sel4test's heap holds for a copy).
 pub fn dtb_size(dtb: u64) -> u64 {
-    if be32(dtb) == 0xd00d_feed {
-        be32(dtb + 4) as u64
-    } else {
-        0
+    if be32(dtb) != 0xd00d_feed {
+        return 0;
     }
+    let total = be32(dtb + 4) as u64;
+    let structs = be32(dtb + 8) as u64 + be32(dtb + 36) as u64;
+    let strings = be32(dtb + 12) as u64 + be32(dtb + 32) as u64;
+    // The memory reservation block ends with an all-zero entry.
+    let mut rsv = be32(dtb + 16) as u64;
+    while rsv + 16 <= total && (be32(dtb + rsv) | be32(dtb + rsv + 4) | be32(dtb + rsv + 8) | be32(dtb + rsv + 12)) != 0 {
+        rsv += 16;
+    }
+    let used = structs.max(strings).max(rsv + 16).max(40);
+    ((used + 7) & !7).min(total)
 }

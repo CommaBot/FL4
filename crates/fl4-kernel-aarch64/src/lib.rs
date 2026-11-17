@@ -185,7 +185,10 @@ fn build_extra_bi(buf: &mut [u8], h: &hw::Hw, dtb: u64, dtb_len: u64, bi: &BootI
         let len = (dtb_len + 7) & !7;
         hdr(buf, &mut off, id::FDT, 16 + len);
         let src = unsafe { core::slice::from_raw_parts(pptr(dtb) as *const u8, dtb_len as usize) };
+        let at = off;
         put(buf, &mut off, src);
+        // The copy's total size is what was copied.
+        buf[at + 4..at + 8].copy_from_slice(&(dtb_len as u32).to_be_bytes());
         off = (off + 7) & !7;
     }
     off
@@ -327,7 +330,7 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
     }
 
     // The extra BootInfo, in memory taken from the free RAM.
-    let dtb_len = if bi.dtb != 0 { hw::dtb_size(bi.dtb).min(bi.dtb_len.max(hw::dtb_size(bi.dtb))) } else { 0 };
+    let dtb_len = if bi.dtb != 0 { hw::dtb_size(bi.dtb) } else { 0 };
     let extra_size = EXTRA_FIXED + ((dtb_len + 16 + PAGE) & !(PAGE - 1));
     let extra_pa = match free.take(extra_size) {
         Some(p) => p,

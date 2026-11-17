@@ -175,12 +175,8 @@ typedef enum {
 #define seL4_LargePageBits 21
 #define seL4_HugePageBits 30
 #define seL4_SlotBits 5
-#if defined(CONFIG_HARDWARE_DEBUG_API) || \
-    (defined(CONFIG_ARM_HYPERVISOR_SUPPORT) && defined(CONFIG_ENABLE_SMP_SUPPORT) && defined(CONFIG_BENCHMARK_TRACK_UTILISATION) && !defined(CONFIG_KERNEL_MCS))
+/* FL4: TCBs are always 4 KiB (registers, FP/SIMD state, debug state). */
 #define seL4_TCBBits 12
-#else
-#define seL4_TCBBits 11
-#endif
 #define seL4_EndpointBits 4
 #ifdef CONFIG_KERNEL_MCS
 #define seL4_NotificationBits 6

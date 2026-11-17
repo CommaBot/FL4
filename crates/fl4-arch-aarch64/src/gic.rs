@@ -203,6 +203,12 @@ pub fn init_cpu(gicr: u64) {
         wr(c + GICC_BPR, 0);
         wr(c + GICC_CTLR, 3);
     }
+    // The kernel owns these banked interrupts on every online core.
+    use fl4_core::layout::irq;
+    let bank = if version() == 3 { gicr + GICR_SGI } else { gicd() };
+    wr(bank + GICD_ISENABLER,
+       (1 << irq::TIMER_ID) | (1 << irq::REMOTE_CALL_ID) | (1 << irq::RESCHEDULE_ID));
+    cpu::dsb_sy();
 }
 
 fn msr_s(reg: &str, v: u64) {

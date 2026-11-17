@@ -331,7 +331,8 @@ macro_rules! trapped_syscall_number {
 }
 
 /// seL4 `handleSyscall` and `slowpath`: `number` is the syscall number
-/// from RDX (x7 on AArch64, as a signed value).
+/// from RDX (as a signed value).
+// (On AArch64 the number is from x7.)
 pub fn handle_syscall<S: Store, A: Arch>(s: &mut S, a: &mut A, number: i64) {
     let t = sched::cur_thread(s);
     // The syscall instruction is two bytes long.

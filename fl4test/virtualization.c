@@ -2,7 +2,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <sel4/sel4.h>
+#ifdef CONFIG_VTX
 #include <sel4/arch/vmenter.h>
+#endif
 #include <vka/object.h>
 #include <vka/capops.h>
 #include <vspace/vspace.h>

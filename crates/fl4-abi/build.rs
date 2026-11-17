@@ -192,7 +192,7 @@ fn main() {
     writeln!(o, "    pub const nArchInvocationLabels: u64 = {};", all.len()).unwrap();
     writeln!(o, "}}\n").unwrap();
 
-    writeln!(o, "/// System call numbers (`rdx` on x86_64, `x7` on AArch64).").unwrap();
+    writeln!(o, "{}", if aarch64 { "/// System call numbers (`x7` on AArch64)." } else { "/// System call numbers (`rdx` on x86_64)." }).unwrap();
     writeln!(o, "#[allow(non_upper_case_globals)]\npub mod syscall {{").unwrap();
     let sc = syscalls(&config, &ifaces.join("syscall.xml"));
     let n_api = 11;

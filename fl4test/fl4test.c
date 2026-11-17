@@ -15,16 +15,54 @@
 
 #include "../helpers.h"
 
+/* The kernel's time units: the TSC on x86_64, the virtual counter on
+ * AArch64. */
 static uint64_t rdtsc(void)
 {
+#ifdef CONFIG_ARCH_AARCH64
+    uint64_t v;
+    __asm__ volatile("isb; mrs %0, cntvct_el0" : "=r"(v));
+    return v;
+#else
     return __builtin_ia32_rdtsc();
+#endif
 }
+
+#ifdef CONFIG_ARCH_AARCH64
+#define PAGE_UNMAP seL4_ARM_Page_Unmap
+#define PAGE_MAP seL4_ARM_Page_Map
+#define DEFAULT_ATTR seL4_ARM_Default_VMAttributes
+#define EXECUTE_NEVER seL4_ARM_ExecuteNever
+#define PAGE_TEST_AND_CLEAR_ACCESSED seL4_ARM_Page_TestAndClearAccessed
+typedef seL4_ARM_Page_TestAndClearAccessed_t test_and_clear_t;
+#define PAGE_DERIVE_SUBFRAME seL4_ARM_Page_DeriveSubframe
+#define ASID_MAKE_POOL seL4_ARM_ASIDControl_MakePool
+#else
+#define PAGE_UNMAP seL4_X86_Page_Unmap
+#define PAGE_MAP seL4_X86_Page_Map
+#define DEFAULT_ATTR seL4_X86_Default_VMAttributes
+#define EXECUTE_NEVER seL4_X86_ExecuteNever
+#define PAGE_TEST_AND_CLEAR_ACCESSED seL4_X86_Page_TestAndClearAccessed
+typedef seL4_X86_Page_TestAndClearAccessed_t test_and_clear_t;
+#define PAGE_DERIVE_SUBFRAME seL4_X86_Page_DeriveSubframe
+#define ASID_MAKE_POOL seL4_X86_ASIDControl_MakePool
+#endif
 
 /* ---- l4h 0001: seL4_TCBFlag_trapSyscalls ---------------------------- */
 
+/* The number a trapped AArch64 syscall reports is x8, the Linux syscall
+ * number (l4h 0015); seL4's own number goes in x7. */
+#define TRAP_X8 172
+
 static int yield_once(seL4_Word a, seL4_Word b, seL4_Word c, seL4_Word d)
 {
+#ifdef CONFIG_ARCH_AARCH64
+    register seL4_Word x7 __asm__("x7") = (seL4_Word) seL4_SysYield;
+    register seL4_Word x8 __asm__("x8") = TRAP_X8;
+    __asm__ volatile("svc #0" : "+r"(x7), "+r"(x8) : : "x0", "x1", "x2", "x3", "x4", "x5", "x6", "memory");
+#else
     seL4_Yield();
+#endif
     return 0;
 }
 
@@ -49,12 +87,18 @@ static int test_trap_syscalls(env_t env)
     seL4_Word badge;
     seL4_MessageInfo_t tag = api_recv(fault_ep, &badge, reply.cptr);
     test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) seL4_Fault_UnknownSyscall);
+#ifdef CONFIG_ARCH_AARCH64
+    test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_Syscall), (seL4_Word) TRAP_X8);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_X7), (seL4_Word) seL4_SysYield);
+#else
     test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_Syscall), (seL4_Word) seL4_SysYield);
+#endif
     cleanup_helper(env, &t);
     return sel4test_get_result();
 }
 DEFINE_TEST(FL4TRAP0001, "trapSyscalls sends syscalls to the fault handler (l4h 0001)", test_trap_syscalls, true)
 
+#ifdef CONFIG_ARCH_X86_64
 /* int $0xa0, the first gate open to user space, with RAX = 39 (Linux's
  * getpid). */
 extern char fl4trap_int_ip[];
@@ -102,13 +146,20 @@ static int test_trap_int_gate(env_t env)
 }
 DEFINE_TEST(FL4TRAP0002, "int $N on an open gate: UnknownSyscall, or #GP with trapSyscalls (l4h 0001)",
             test_trap_int_gate, true)
+#endif
 
 /* One syscall instruction with RDX = n, as a Linux program would make with
  * whatever RDX happens to hold. */
 static int syscall_once(seL4_Word n, seL4_Word b, seL4_Word c, seL4_Word d)
 {
+#ifdef CONFIG_ARCH_AARCH64
+    register seL4_Word x7 __asm__("x7") = n;
+    register seL4_Word x8 __asm__("x8") = n ^ 0x1000;
+    __asm__ volatile("svc #0" : "+r"(x7), "+r"(x8) : : "x0", "x1", "x2", "x3", "x4", "x5", "x6", "memory");
+#else
     seL4_Word rax = 39;
     asm volatile("syscall" : "+a"(rax) : "d"(n) : "rcx", "r11", "memory");
+#endif
     return 0;
 }
 
@@ -133,7 +184,11 @@ static int test_trap_syscall_sweep(env_t env)
         seL4_Word badge;
         seL4_MessageInfo_t tag = api_recv(fault_ep, &badge, reply.cptr);
         test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) seL4_Fault_UnknownSyscall);
+#ifdef CONFIG_ARCH_AARCH64
+        test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_Syscall), ((seL4_Word) (seL4_Int64) n) ^ 0x1000);
+#else
         test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_Syscall), (seL4_Word) (seL4_Int64) n);
+#endif
         cleanup_helper(env, &t);
     }
     return sel4test_get_result();
@@ -198,6 +253,66 @@ static void *map_frame(env_t env, seL4_CPtr *cap)
     return vspace_map_pages(&env->vspace, cap, NULL, seL4_AllRights, 1, seL4_PageBits, 1);
 }
 
+#ifdef CONFIG_ARCH_AARCH64
+/* AArch64: an image written to a thread reads back, V0-V31 then FPSR and
+ * FPCR, with their undefined bits cleared. */
+static int test_fpu_read_write(env_t env)
+{
+    helper_thread_t t;
+    create_helper_thread(env, &t);
+    seL4_CPtr fcap;
+    uint8_t *frame = map_frame(env, &fcap);
+    test_assert(frame != NULL);
+    test_error_eq(seL4_TCB_ReadFPU(get_helper_tcb(&t), fcap, 0), seL4_NoError);
+    for (int i = 0; i < 16; i++) {
+        frame[16 + i] = 0xa0 + i;
+    }
+    uint32_t fpsr = 0xffffffffu, fpcr = 0xffffffffu;
+    memcpy(frame + 512, &fpsr, 4);
+    memcpy(frame + 516, &fpcr, 4);
+    test_error_eq(seL4_TCB_WriteFPU(get_helper_tcb(&t), fcap, 0), seL4_NoError);
+    memset(frame, 0, FPU_BYTES);
+    test_error_eq(seL4_TCB_ReadFPU(get_helper_tcb(&t), fcap, 0), seL4_NoError);
+    for (int i = 0; i < 16; i++) {
+        test_eq((int) frame[16 + i], 0xa0 + i);
+    }
+    memcpy(&fpsr, frame + 512, 4);
+    memcpy(&fpcr, frame + 516, 4);
+    test_eq(fpsr, 0xf800009fu);
+    test_eq(fpcr, 0x07ff9f07u);
+    test_neq(seL4_TCB_ReadFPU(get_helper_tcb(&t), fcap, 8), seL4_NoError);
+    cleanup_helper(env, &t);
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4FPU0001, "TCB_ReadFPU and TCB_WriteFPU round trip, sanitised (l4h 0002)", test_fpu_read_write, true)
+
+static int read_fpcr(seL4_Word a, seL4_Word b, seL4_Word c, seL4_Word d)
+{
+    uint64_t v;
+    __asm__ volatile("mrs %0, fpcr" : "=r"(v));
+    return (int)(v & 0xffffffff);
+}
+
+/* A thread starts with the FP/SIMD state written to it. */
+static int test_fpu_write_runs(env_t env)
+{
+    helper_thread_t t;
+    create_helper_thread(env, &t);
+    seL4_CPtr fcap;
+    uint8_t *frame = map_frame(env, &fcap);
+    test_assert(frame != NULL);
+    test_error_eq(seL4_TCB_ReadFPU(get_helper_tcb(&t), fcap, 0), seL4_NoError);
+    /* Flush-to-zero and default NaN. */
+    uint32_t fpcr = (1u << 24) | (1u << 25);
+    memcpy(frame + 516, &fpcr, 4);
+    test_error_eq(seL4_TCB_WriteFPU(get_helper_tcb(&t), fcap, 0), seL4_NoError);
+    start_helper(env, &t, read_fpcr, 0, 0, 0, 0);
+    test_eq(wait_for_helper(&t), (int) fpcr);
+    cleanup_helper(env, &t);
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4FPU0002, "A thread runs with the FPU state written to it (l4h 0002)", test_fpu_write_runs, true)
+#else
 /* An image written to a thread reads back in the standard XSAVE layout,
  * with MXCSR's reserved bits cleared. */
 static int test_fpu_read_write(env_t env)
@@ -272,17 +387,18 @@ static int test_fpu_write_runs(env_t env)
     return sel4test_get_result();
 }
 DEFINE_TEST(FL4FPU0002, "A thread runs with the FPU state written to it (l4h 0002)", test_fpu_write_runs, true)
+#endif
 
 /* ---- l4h 0009: seL4_X86_ExecuteNever; 0023: TestAndClearAccessed ----- */
 
 /* Map `cap` at `vaddr` with `attr`, after vspace has made the page tables. */
 static int remap(env_t env, seL4_CPtr cap, void *vaddr, seL4_Word attr)
 {
-    int err = seL4_X86_Page_Unmap(cap);
+    int err = PAGE_UNMAP(cap);
     if (err) {
         return err;
     }
-    return seL4_X86_Page_Map(cap, env->page_directory, (seL4_Word) vaddr, seL4_AllRights, attr);
+    return PAGE_MAP(cap, env->page_directory, (seL4_Word) vaddr, seL4_AllRights, attr);
 }
 
 static int jump_to(seL4_Word target, seL4_Word b, seL4_Word c, seL4_Word d)
@@ -297,8 +413,13 @@ static int test_execute_never(env_t env)
     seL4_CPtr fcap;
     uint8_t *page = map_frame(env, &fcap);
     test_assert(page != NULL);
+#ifdef CONFIG_ARCH_AARCH64
+    uint32_t ret = 0xd65f03c0;
+    memcpy(page, &ret, 4);
+#else
     page[0] = 0xc3; /* ret */
-    test_error_eq(remap(env, fcap, page, seL4_X86_Default_VMAttributes | seL4_X86_ExecuteNever), seL4_NoError);
+#endif
+    test_error_eq(remap(env, fcap, page, DEFAULT_ATTR | EXECUTE_NEVER), seL4_NoError);
 
     helper_thread_t t;
     vka_object_t reply;
@@ -327,16 +448,24 @@ static int test_accessed(env_t env)
     volatile uint8_t *page = map_frame(env, &fcap);
     test_assert(page != NULL);
     (void) page[0];
-    seL4_X86_Page_TestAndClearAccessed_t r = seL4_X86_Page_TestAndClearAccessed(fcap);
+    test_and_clear_t r = PAGE_TEST_AND_CLEAR_ACCESSED(fcap);
+#ifdef CONFIG_ARCH_AARCH64
+    if (r.error == seL4_IllegalOperation) {
+        /* Without hardware access-flag management (TCR_EL1.HA) a cleared
+         * flag would fault, so the kernel refuses. */
+        printf("No hardware access flags; skipping\n");
+        return sel4test_get_result();
+    }
+#endif
     test_error_eq(r.error, seL4_NoError);
     test_eq(r.accessed, (seL4_Word) 1);
-    r = seL4_X86_Page_TestAndClearAccessed(fcap);
+    r = PAGE_TEST_AND_CLEAR_ACCESSED(fcap);
     test_error_eq(r.error, seL4_NoError);
     test_eq(r.accessed, (seL4_Word) 0);
     /* The bit was cleared without a flush: drop the TLB entry, then touch. */
-    test_error_eq(remap(env, fcap, (void *) page, seL4_X86_Default_VMAttributes), seL4_NoError);
+    test_error_eq(remap(env, fcap, (void *) page, DEFAULT_ATTR), seL4_NoError);
     (void) page[1];
-    r = seL4_X86_Page_TestAndClearAccessed(fcap);
+    r = PAGE_TEST_AND_CLEAR_ACCESSED(fcap);
     test_eq(r.accessed, (seL4_Word) 1);
     return sel4test_get_result();
 }
@@ -359,7 +488,7 @@ static int test_derive_subframe(env_t env)
     /* The aliases go in a new 4-slot CNode, then move to our CSpace. */
     vka_object_t cn;
     test_error_eq(vka_alloc_cnode_object(&env->vka, 2, &cn), 0);
-    int err = seL4_X86_Page_DeriveSubframe(large, env->cspace_root, cn.cptr, seL4_WordBits, 0, 0x3000, 4, seL4_AllRights);
+    int err = PAGE_DERIVE_SUBFRAME(large, env->cspace_root, cn.cptr, seL4_WordBits, 0, 0x3000, 4, seL4_AllRights);
     test_error_eq(err, seL4_NoError);
     seL4_CPtr subs[4];
     for (int i = 0; i < 4; i++) {
@@ -381,6 +510,7 @@ static int test_derive_subframe(env_t env)
 }
 DEFINE_TEST(FL4VM0003, "Page_DeriveSubframe aliases a 2 MiB frame (l4h 0029)", test_derive_subframe, true)
 
+#ifdef CONFIG_ARCH_X86_64
 /* ---- l4h 0028: user selectors ---------------------------------------- */
 
 static int test_user_selectors(env_t env)
@@ -433,6 +563,7 @@ static int test_defer_flush(env_t env)
     return sel4test_get_result();
 }
 DEFINE_TEST(FL4VM0004, "DeferFlush remaps take effect after PML4_Flush (l4h 0017)", test_defer_flush, true)
+#endif
 
 /* ---- FL4: TCB_CopyRegisters stalls a running source ------------------- */
 
@@ -536,15 +667,24 @@ DEFINE_TEST(FL4PERF0001, "IPC round trip cost (printed, not checked)", test_ipc_
 
 /* ---- Lazy FPU switching (DESIGN.md §3) ------------------------------ */
 
+/* xmm1 on x86_64, d1 (the low half of v1) on AArch64. */
 static inline void xmm1_set(uint64_t v)
 {
+#ifdef CONFIG_ARCH_AARCH64
+    __asm__ volatile("fmov d1, %0" :: "r"(v) : "v1");
+#else
     __asm__ volatile("movq %0, %%xmm1" :: "r"(v) : "xmm1");
+#endif
 }
 
 static inline uint64_t xmm1_get(void)
 {
     uint64_t v;
+#ifdef CONFIG_ARCH_AARCH64
+    __asm__ volatile("fmov %0, d1" : "=r"(v));
+#else
     __asm__ volatile("movq %%xmm1, %0" : "=r"(v));
+#endif
     return v;
 }
 
@@ -604,15 +744,23 @@ static int add_one(seL4_Word a, seL4_Word b, seL4_Word c, seL4_Word d)
  * mapping caps carry the high ASID bits. Remapping a frame checks that its
  * cap still names the process's ASID.
  */
+#ifdef CONFIG_ARCH_AARCH64
+/* AArch64 has 16-bit ASIDs (l4h 0016): 128 pools. Make all the rest, so a
+ * process in the last one runs with an ASID near 2^16. */
+#define ASID_POOLS 127
+#else
+#define ASID_POOLS 200
+#endif
+
 static int test_high_asids(env_t env)
 {
     seL4_CPtr pool = 0;
-    for (int i = 0; i < 200; i++) {
+    for (int i = 0; i < ASID_POOLS; i++) {
         seL4_CPtr ut = vka_alloc_untyped_leaky(&env->vka, seL4_ASIDPoolBits);
         test_assert(ut);
         cspacepath_t path;
         test_eq(vka_cspace_alloc_path(&env->vka, &path), 0);
-        test_eq(seL4_X86_ASIDControl_MakePool(env->asid_ctrl, ut, env->cspace_root, path.capPtr, path.capDepth),
+        test_eq(ASID_MAKE_POOL(env->asid_ctrl, ut, env->cspace_root, path.capPtr, path.capDepth),
                 seL4_NoError);
         pool = path.capPtr;
     }
@@ -621,15 +769,16 @@ static int test_high_asids(env_t env)
     void *v = vspace_new_pages(&t.process.vspace, seL4_AllRights, 1, seL4_PageBits);
     test_assert(v != NULL);
     seL4_CPtr frame = vspace_get_cap(&t.process.vspace, v);
-    test_eq(seL4_X86_Page_Map(frame, t.process.pd.cptr, (seL4_Word) v, seL4_AllRights, seL4_X86_Default_VMAttributes),
+    test_eq(PAGE_MAP(frame, t.process.pd.cptr, (seL4_Word) v, seL4_AllRights, DEFAULT_ATTR),
             seL4_NoError);
     start_helper(env, &t, add_one, 41, 0, 0, 0);
     test_eq(wait_for_helper(&t), 42);
     cleanup_helper(env, &t);
     return sel4test_get_result();
 }
-DEFINE_TEST(FL4ASID0001, "A process with an ASID above 2^16 runs, and its mapping caps keep the ASID", test_high_asids, true)
+DEFINE_TEST(FL4ASID0001, "A process with an ASID in the last pool runs, and its mapping caps keep the ASID", test_high_asids, true)
 
+#ifdef CONFIG_ARCH_X86_64
 /* ---- Unmap of PAT mappings ------------------------------------------- */
 
 static int read_byte(seL4_Word addr, seL4_Word b, seL4_Word c, seL4_Word d)
@@ -913,3 +1062,4 @@ static int test_fs_base_after_selector_load(env_t env)
 }
 DEFINE_TEST(FL4TLS0001, "A selector load in one thread does not change the FS base of the next",
             test_fs_base_after_selector_load, true)
+#endif
