@@ -5,25 +5,9 @@ deletion's premises are stated at `JAtZ` states (not at every `XTopAt`
 state, as `XFinHyps`/`XPreemptHyp`, whose [J] premises no invariant can
 supply).
 
-* `WJ Z H Cs kb`: `JAtZ` at the sets `Z.mv G V` (the MDB ghost the loop's,
-  the VSpace sets, the active SCs, the call stacks and the dead set chosen),
-  P1's heap `H`, the cores `Cs` and the kernel-state base `kb` fixed;
-  `EJ`: with `DelE`.
-* `JDelHyp` [J]: one cap's deletion (FL4's exposed `delete` of an MDB slot,
-  preemptible) at `EJ` (`DelHypW`'s shape, the revoke's and the delete's
-  premise). Not derived from `DelW`'s four W-premises at `WJ`: `SlotHypW`
-  quantifies over every slot edit with the slot words' frame and a `CnK`
-  spec step, among them the removal of the only cap of a live object (a
-  runnable TCB, a waited-on endpoint), after which `JCovD` (every object
-  covered or dead) fails; so `SlotHypW` at a `JAtZ`-carrying `W` is false.
-  The edit's facts that make it true (the emptied or zombified slot's cap
-  finalised: its objects dead, `DeadP`, or covered by another cap) are known
-  to the loop at the edit (after `fin_step`) but not passed to `SlotHypW`;
-  discharging `JDelHyp` needs the loop to thread them (a `FinObjHypW` post
-  naming the finalised slot, consumed by the zombie write and the empty).
-  Besides, `JDelHyp` owes the untyped caps' facts after a deletion
-  (`DelUtFact`, the known `valid_untyped` gap, XTopJointDel).
-* `JPreemptHyp` [J]: the preemption point at `WJ` (`PPHypDW`).
+* `WJ`, `EJ`, `JDelHyp`, `JPreemptHyp` [J] and `JDelParts` (the named steps
+  of the deletion loop at `WJ`, from which `JDelHyp.of_parts` derives
+  `JDelHyp`): XTopJointDelR.
 * `EJ.restart`: the caller's restart keeps `EJ` (`JStepHyps.restart`).
 * `cn_del_topJ`: a Delete's or Revoke's outcome at `EJ` gives `TopPostDMX`
   at `JAt`.
@@ -34,7 +18,7 @@ supply).
   CNode cap with `JAt` after; the per-op premise `JPostHyp` [W] only at
   CancelBadgedSends and the invalid labels.
 -/
-import Fl4Proofs.P3.XTopJointStep
+import Fl4Proofs.P3.XTopJointDelR
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -44,33 +28,6 @@ noncomputable section
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
-
-/-- **The deletion's invariant at `J`** (module docstring). -/
-def WJ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (s : S) (a : A)
-    (σ : Fl4Spec.State Unit) (G : MdbGhost) : Prop :=
-  ∃ (V : XVs) (Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR (Z.mv G V) H Cs Ac Lst D s a σ ∧ L.ksb s = kb
-
-/-- `WJ` with `DelE` (the CSpace deletion's invariant and fuel bound). -/
-abbrev EJ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (K : Nat) (s : S)
-    (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) : Prop :=
-  DelE (L := L) Z.th K s σ ∧ WJ (L := L) arI AR Z H Cs kb s a σ G
-
-/-- **Hypothesis: one cap's deletion at `J`** [J] (module docstring): FL4's
-exposed `delete` of an MDB slot from `EJ` (a `JAtZ` state at the sets
-`Z.mv G V`), a spec outcome of `cap_delete` of the same kind, the CSpace
-relation, `EJ` after and the ghost step (`DelHypW`). -/
-def JDelHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
-  ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (K : Nat), Z.th = th →
-    (∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) → 6 ≤ K →
-    DelHypW (L := L) arI psiD th (EJ (L := L) arI AR Z H Cs kb K)
-
-/-- **Hypothesis: the preemption point at `J`** [J]: from `WJ` (a `JAtZ`
-state), the cap slots kept, a spec outcome of the same kind, the CSpace
-relation and `WJ` after at the same MDB ghost (`PPHypDW`). -/
-def JPreemptHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
-  ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
-    PPHypDW (L := L) arI (WJ (L := L) arI AR Z H Cs kb) th
 
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64}
@@ -206,13 +163,13 @@ set_option maxHeartbeats 4000000 in
 /-- **The CNode cap, `JAt` after**: the copy, mint, move, mutate and rotate
 labels by their primitive steps (`decode_invocation_cnode_copyXS`,
 `Steps.jat` with `JStepHyps`), Revoke and Delete by the deletion at `J`
-(`decode_invocation_cnode_{revoke,delete}J`: `JDelHyp` [J], `JPreemptHyp`
-[J]), the per-op premise (`JPostHyp` [W]) only at the other labels
+(`decode_invocation_cnode_{revoke,delete}J`: `JDelHyp` from the deletion
+loop's named steps `JDelParts` [J], `JDelHyp.of_parts`), the per-op premise (`JPostHyp` [W]) only at the other labels
 (CancelBadgedSends, the invalid ones). -/
 theorem decode_invocation_cnodeJ_steps (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hG : CsGlobal (L := L) arI AR Z.th)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hJ : JStepHyps (L := L) arI AR Z.th)
-    (hJD : JDelHyp (L := L) arI AR Z.th) (hJP : JPreemptHyp (L := L) arI AR Z.th)
+    (hJDP : JDelParts (L := L) arI AR Z.th)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = cnodeLabelOf lbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -236,6 +193,8 @@ theorem decode_invocation_cnodeJ_steps (s : S) (ar : A) (σ : Fl4Spec.State Unit
     XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.CNode p r gs g) blk call don fp buf extra
       slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
   have hX := J.xtop
+  have hJD := JDelHyp.of_parts arI hJDP
+  have hJP := hJDP.pp
   obtain ⟨hwf, hcv⟩ := slot_cap_wf hX hAs hsc
   by_cases hcp : 28 ≤ lbl.val ∧ lbl.val ≤ 32
   · obtain ⟨hcur, -⟩ := J.curEq hct
