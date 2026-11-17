@@ -40,7 +40,7 @@ after the install (`hSP`); the platform's facts [P]. -/
 theorem tcbXIpc_ofJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ : Fl4Spec.State Unit} {p ct buf : U64}
     {argsU : List U64} {blk call don : Bool}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hJS : JStepHyps (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hJS : JStepHyps (L := L) arI AR Z.th)
     (hres : σ.schedulerAction = .resumeCurThread) (hcur : σ.curThread = ct.bv) (hpT : p ∈ Z.T)
     (hbuf : buf ≠ 0#u64 → ∃ sp, BufMap Z.B buf sp)
     (hargs : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →

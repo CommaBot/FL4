@@ -183,8 +183,9 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   `SchedValid` rebuild). -/
   slink : Sched.ScLinkHyp σ
   /-- The current thread runnable, or the idle thread current (`CurRunW`:
-  at kernel exit `schedule` may have chosen the idle thread). -/
-  curRun : CurRunW σ
+  at kernel exit `schedule` may have chosen the idle thread), unless a
+  reschedule is pending (`CurRunM`: mid-entry after a blocking step). -/
+  curRun : CurRunM σ
   -- 1e: P1
   blk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
     (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s

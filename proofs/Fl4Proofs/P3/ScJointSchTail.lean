@@ -105,7 +105,7 @@ theorem JAtZ.sch_tail {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   refine ⟨Lst', J.sch_frame hwT hK hX' hCR' hRF' hY' hM' (J.sch_buf hwT hK) hRP' (J.sch_apart hwT hK)
     (J.sch_jpl hwT hK) (J.sc_jcov hwT hT.dead fun q hq hn => absurd hq hn)
     (J.sch_kern hwT hK hS' hT.dbg hT.dwNe hT.cscH hT.cscLive) (J.sch_utc hwT hK hT.dbg) hN' hI' (Or.inr hC')
-    (Or.inl (curOwn_of_curInv hS' hI' hC')) hT.off hA' hT.bsa hT.curRun hT.blk⟩
+    (Or.inl (curOwn_of_curInv hS' hI' hC')) hT.off hA' hT.bsa (Or.inr hT.curRun) hT.blk⟩
 
 /-- **The entry tail on `JAt`** with `hSchedRest` discharged (module
 docstring): `JAtZ` after the TCB timers (`hfireJ`, with `FireHypW`'s
