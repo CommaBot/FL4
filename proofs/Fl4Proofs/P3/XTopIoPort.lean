@@ -70,6 +70,75 @@ def PortInXHyp (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (ar : A) (σ : Fl4Spec.
   XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length slot (.IoPort first last 0#u64) blk call don fp buf extra
     slbl args ci sl excaps buffer ct
 
+/-- **The IO port cap at any `X` reached by the primitive steps** (as
+`decode_invocation_ioportX`; `In` given at `X`). -/
+theorem decode_invocation_ioportXS {AR : A → Fl4Spec.Cr3 → Prop}
+    (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : PortLabel lbl slbl)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (first last : U64) (hfl : first.val ≤ last.val) (hl16 : last.val < 65536) (call : Bool)
+    (hout : ∀ (a : A) p z d, ∃ a', arI.port_out a p z d = ok a')
+    {Z : XSets} (hth : Z.th = th) (hXZ : XTopAt (L := L) AR Z s ar σ) (hC : CurRun σ)
+    {X : S → A → Fl4Spec.State Unit → Prop} (hX0 : X s ar σ)
+    (hstep : ∀ s' a' σ', Steps (L := L) arI th s ar σ s' a' σ' → X s' a' σ')
+    (hXX : ∀ s' a' σ', X s' a' σ' → XTop (L := L) AR s' a' σ')
+    (slot : U64) (blk don fp : Bool) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ci : Fl4Spec.CapRef)
+    (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
+    (hIn : 64 ≤ lbl.val ∧ lbl.val ≤ 66 → XCap (L := L) arI X s ar σ lbl length slot (.IoPort first last 0#u64) blk
+      call don fp buf extra slbl (args.map UScalar.bv) ci sl excaps buffer ct) :
+    XCap (L := L) arI X s ar σ lbl length slot (.IoPort first last 0#u64) blk call don fp buf extra
+      slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
+  by_cases hI : 64 ≤ lbl.val ∧ lbl.val ≤ 66
+  · exact hIn hI
+  left
+  unfold DecOKDMX syscall.decode_invocation
+  rw [hct]; simp only [bind_ok]
+  obtain ⟨-, hlO, hlX⟩ := hlbl
+  have herr : ∀ {Q : Fl4Spec.ArchInvocation → S → A → Prop} (res : core.result.Result Unit error.Exc × S × A),
+      (∀ inv s' a', (Fl4Spec.decodePortInvocation (Z := Unit) slbl (args.map UScalar.bv)
+          (.ioPortCap (BitVec.ofNat 16 first.val) (BitVec.ofNat 16 last.val))).run σ = ({(.ok inv, σ)}, False) →
+        Q inv s' a' → TopPostDMX (L := L) X σ blk call don
+          (specDec fp slbl (args.map UScalar.bv) ci sl (.IoPort first last 0#u64) excaps buffer) s
+          (.Ok (), s', a')) →
+      PortPost σ (Fl4Spec.decodePortInvocation slbl (args.map UScalar.bv)
+        (.ioPortCap (BitVec.ofNat 16 first.val) (BitVec.ofNat 16 last.val))) s ar Q res →
+      TopPostDMX (L := L) X σ blk call don
+        (specDec fp slbl (args.map UScalar.bv) ci sl (.IoPort first last 0#u64) excaps buffer) s res := by
+    intro Q res hok h
+    obtain ⟨r, s', a'⟩ := res
+    cases r with
+    | Err e =>
+      obtain ⟨rfl, rfl, e', h1, h2⟩ := h
+      exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err (run_liftME_err h1), h2⟩, hX0⟩
+    | Ok u => obtain ⟨inv, hrun, hq⟩ := h; exact hok inv s' a' hrun hq
+  by_cases hO : 67 ≤ lbl.val ∧ lbl.val ≤ 69
+  · refine WP.spec_mono (port_out_refines arI th hP s ar σ lbl hO slbl (hlO hO) length buf ct hct args
+      hlen hargs htcb hact first last hfl hl16 call hout) fun res h => herr res (fun inv s' a' hrun hq => ?_) h
+    obtain ⟨port, data, raw, -, -, rfl, ha1, -, hr1⟩ := hq
+    obtain ⟨x, hk, -⟩ := hXZ.rel.2.1.1.tcb ct (by rw [hth]; exact htcb)
+    set σ1 := Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv with hσ1
+    have hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) := by
+      rw [hcur, Notif.setThreadState_eq .restart hk]
+    obtain ⟨ms, hu, hmem⟩ := port_out_perform σ1 (BitVec.ofNat 16 port.val) raw.bv (portSz lbl)
+    have hstp : Steps (L := L) arI th s ar σ s' a' { σ1 with machineState := ms } :=
+      (Steps.restart arI hcur hk htcb hr1 hst hC).trans arI
+        ((Steps.ksSpec arI (s := s') (σ := σ1) (σ' := { σ1 with machineState := ms })
+          (by constructor <;> first | rfl | exact hu) rfl rfl (fun h => ⟨h.st, h.node⟩) (fun h => h)).trans arI
+          (Steps.arch arI (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨_, _, _, ha1⟩)))))))
+    have hXa := hstep _ _ _ hstp
+    obtain ⟨Z', hZ'⟩ := hXX _ _ _ hXa
+    exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok (run_liftME_ok hrun)), σ1, hst, (.ok [], { σ1 with machineState := ms }),
+      hmem, ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩, hZ'.rel.1, hZ'.rel.2.1, hZ'.rel.2.2.1, hZ'.rel.2.2.2.1,
+        hZ'.rel.2.2.2.2.1⟩, hXa⟩
+  · have hX : lbl.val < 64 ∨ 69 < lbl.val := by omega
+    exact WP.spec_mono (port_other_refines arI s ar σ lbl hX slbl (hlX hX) length buf ct hct _ first last call)
+      fun res h => herr res (fun _ _ _ _ h => h.elim) h
+
+
 /-- **`IoXHyp` for the IO port cap**: `Out`, the errors and the other
 labels proved; `In` from `PortInXHyp`. Beyond `port_out_refines`'
 hypotheses, `XTopAt` at its typed heap, `KsApart`, the current thread
