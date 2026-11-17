@@ -228,9 +228,17 @@ def SchedPreW (T C : Set U64) (σ : State Unit) : Prop :=
 /-- A notification signal (l4v `send_signal`). -/
 def Signal (σ σ' : State Unit) : Prop := ∃ n b, sendSignal (Z := Unit) n b σ = ({((), σ')}, False)
 
-/-- A sequence of notification signals: the spec-visible effect of FL4's
+/-- One TCB timer fired (`timer::fire`'s loop body, l4h 0003): its thread's
+bound notification signalled, if it has one (`Signal`), then the core's
+timer reprogram requested (FL4 sets `REPROGRAM` after every fired timer,
+which `SchedRel` relates to `reprogram_timer`; the l4h timer queue itself is
+not modelled, as for SetTimer). -/
+def Fire (σ σ' : State Unit) : Prop :=
+  ∃ σ1, (σ1 = σ ∨ Signal σ σ1) ∧ σ' = { σ1 with reprogramTimer := true }
+
+/-- A sequence of fired TCB timers (`Fire`): the spec-visible effect of FL4's
 TCB timers (`timer::fire`, l4h 0003). -/
-def Fires : State Unit → State Unit → Prop := Relation.ReflTransGen Signal
+def Fires : State Unit → State Unit → Prop := Relation.ReflTransGen Fire
 
 end Spec
 

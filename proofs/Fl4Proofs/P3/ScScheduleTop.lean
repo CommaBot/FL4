@@ -17,7 +17,7 @@ P3 (DESIGN.md §9), scheduler: **`schedule` refines l4v `schedule`**
   `SniHyp`), then FL4's SMP IPIs (`SendHyp`).
 * `schedule_refines`: FL4's `schedule` runs its TCB timers first
   (`timer::fire`, l4h 0003, the hypothesis `FireHyp`: a sequence of
-  notification signals, `Fires`); l4v's `schedule` runs from the state after
+  fired timers, each a notification signal and a reprogram request, `Fires`); l4v's `schedule` runs from the state after
   them.
 * `schedule_refinesW`: the same from a mid-entry state, `SchedPreW`
   (`CurInv` only unless a reschedule is pending, the current SC's owner
@@ -859,7 +859,7 @@ theorem enq_ct_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State U
       rfl, hct, FootEq.rfl', hS, WritesIn.refl _ _⟩
 
 /-- The hypothesis on FL4's TCB timers (`timer::fire`, l4h 0003) at every
-related state: a sequence of notification signals, keeping the relations
+related state: a sequence of fired timers (`Fires`), keeping the relations
 and `SchedPre`. -/
 def FireHyp (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (N T C : Set U64) (c : U64) : Prop :=
   ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), SchedRel st N T C c s σ → NtfnStateRel N T (L.mem s) σ →
@@ -1074,7 +1074,7 @@ theorem schedule_refinesW {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4S
 /-- **`schedule` refines l4v `schedule`**, ending in `Inv` and `CurInv`.
 
 FL4's `schedule` starts with its TCB timers (`timer::fire`, l4h 0003), a
-sequence of notification signals (`Fires`); l4v's `schedule` runs from the
+sequence of fired timers (`Fires`: notification signals and reprogram requests); l4v's `schedule` runs from the
 state after them. Hypotheses: `SchedPre` (`Inv`, `CurInv`, `OffOK`,
 `ActIdle`, and the domain scope, domain time nonzero), one domain,
 the TCB timers (`FireHyp`), the arch thread switch (`ArchSw`), timer

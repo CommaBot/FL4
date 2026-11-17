@@ -31,7 +31,10 @@ theorem JAtZ.schedPreW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
   ⟨J.inv, J.cur, J.off, J.act, hd, J.own⟩
 
 /-- The hypothesis on FL4's TCB timers keeping `SchedPreW` (`FireHyp` from a
-mid-entry state). -/
+mid-entry state). Stated at every related state, it is not derivable from
+the relations alone (a woken thread's facts come from `JAtZ`); on `JAtZ` the
+timers are proved by `JAtZ.fireJ` (ScFireJ, given `SignalJHyp`), used by
+`jat_scheduleF`. -/
 def FireHypW (st : machine.Store S) [L : P1.LawfulStore st] (ar : machine.Arch A) (N T C : Set U64) (c : U64) :
     Prop :=
   ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), SchedRel st N T C c s σ → NtfnStateRel N T (L.mem s) σ →
