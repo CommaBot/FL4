@@ -1131,7 +1131,7 @@ theorem retype_cont_pml4N {A' : Type} (arI : machine.Arch A') (ar : A') (th : Ty
     (hzero : ZeroRegion (L.mem s) (p.val + fi.val) (p.val + 2 ^ sb.val))
     -- the reset of a used region
     (hsb4 : 4 ≤ sb.val) (hN : NoStraddle th p.val (p.val + 2 ^ sb.val))
-    (hns : ∀ a ∈ G.chains.flatten, a.val < p.val ∨ p.val + 2 ^ sb.val ≤ a.val)
+    (hns : (¬ ∃ x, σ.cdt x = some (pp.bv, idx)) → ∀ a ∈ G.chains.flatten, a.val < p.val ∨ p.val + 2 ^ sb.val ≤ a.val)
     (hrcb : Fl4Spec.resetChunkBits = 16) (hppS : PPFrame)
     (hPP : ∀ k0 v0 : U64, PPHyp (L := L) arI th p sb (fun t => L.ksb t = k0 ∧
       L.mem t (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = v0))
@@ -1399,7 +1399,7 @@ theorem retype_cont_pml4N {A' : Type} (arI : machine.Arch A') (ar : A') (th : Ty
   have hgpm1 : HasPm σ1 σ1.archState.x64GlobalPml4 := by
     rw [harch1']; obtain ⟨pt, hpt⟩ := hgpm; exact ⟨pt, by rw [hk1', Function.update_of_ne hgct]; exact hpt⟩
   refine WP.spec_mono (retype_reset_pml4 (L := L) (arI := arI) ar th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hU1 hpp hidx hcap1 hfi0 hnd
-    hpal hsb4 hhigh hN hns hzero1 hrcb hppS hPP2
+    hpal hsb4 hhigh hN (hns hnc) hzero1 hrcb hppS hPP2
     (ekept_dw hP hAs.isSlot (L.nodeAt s2 0#u64 layout.node.DEBUG_TCBS) (by rw [hDW2]; exact hDWal) (by rw [hDW2]; exact hDWreg)
       (by rw [hDW2]; exact hDWobj _ hAs.isSlot) hpfit _ _) ⟨rfl, rfl⟩ (fun _ h => h.1) horig2
     nt us _ ht hn8 hus hgpm1 (by rw [harch1']; exact hga) (by rw [harch1']; exact hgf)
@@ -1446,7 +1446,7 @@ theorem untyped_retype_refines_fl4P {A' : Type} (arI : machine.Arch A') (th : Ty
     (hfree : RegionFree th (p.val + fi.val) (p.val + 2 ^ sb.val))
     (hzero : ZeroRegion (L.mem s) (p.val + fi.val) (p.val + 2 ^ sb.val))
     (hsb4 : 4 ≤ sb.val) (hN : NoStraddle th p.val (p.val + 2 ^ sb.val))
-    (hns : ∀ a ∈ G.chains.flatten, a.val < p.val ∨ p.val + 2 ^ sb.val ≤ a.val)
+    (hns : (¬ ∃ x, σ.cdt x = some (pp.bv, idx)) → ∀ a ∈ G.chains.flatten, a.val < p.val ∨ p.val + 2 ^ sb.val ≤ a.val)
     (hrcb : Fl4Spec.resetChunkBits = 16) (hppS : PPFrame)
     (hPP : ∀ k0 v0 : U64, PPHyp (L := L) arI th p sb (fun t => L.ksb t = k0 ∧
       L.mem t (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = v0))

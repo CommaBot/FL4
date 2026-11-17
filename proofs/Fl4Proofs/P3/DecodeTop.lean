@@ -373,7 +373,7 @@ theorem decode_invocation_untyped (th : TypedHeap) (s : S) (ar : A)
     (hfree : RegionFree th (p.val + fi.val) (p.val + 2 ^ sb.val))
     (hzero : ZeroRegion (L.mem s) (p.val + fi.val) (p.val + 2 ^ sb.val))
     (hsb4 : 4 ≤ sb.val) (hN : NoStraddle th p.val (p.val + 2 ^ sb.val))
-    (hns : ∀ a ∈ G.chains.flatten, a.val < p.val ∨ p.val + 2 ^ sb.val ≤ a.val)
+    (hns : (¬ ∃ x, σ.cdt x = some (pp.bv, idx)) → ∀ a ∈ G.chains.flatten, a.val < p.val ∨ p.val + 2 ^ sb.val ≤ a.val)
     (hrcb : Fl4Spec.resetChunkBits = 16) (hppS : PPFrame)
     (hPP : ∀ k0 v0 : U64, PPHyp (L := L) arI th p sb (fun t => L.ksb t = k0 ∧
       L.mem t (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = v0))

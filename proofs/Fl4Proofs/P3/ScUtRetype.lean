@@ -192,7 +192,13 @@ structure UtCapP3 {A' : Type} (arI : machine.Arch A') (th : TypedHeap) (s : S) (
   zero : ZeroRegion (L.mem s) (p.val + fi.val) (p.val + 2 ^ sb.val)
   sb4 : 4 ≤ sb.val
   nostr : NoStraddle th p.val (p.val + 2 ^ sb.val)
-  ns : ∀ a ∈ G.chains.flatten, a.val < p.val ∨ p.val + 2 ^ sb.val ≤ a.val
+  /-- No MDB slot in the cap's free part [p+fi, p+2^sb) (l4v `valid_untyped`'s
+  free-index part: what is retyped from the cap lies below `p + fi`). -/
+  nsFree : ∀ a ∈ G.chains.flatten, a.val < p.val + fi.val ∨ p.val + 2 ^ sb.val ≤ a.val
+  /-- No MDB slot anywhere in the region when the cap has no children: a CNode
+  retyped from the cap can hold slots in the region only while the cap has a
+  descendant (the CNode's caps). Used by the reset, which only runs then. -/
+  ns : (¬ ∃ x, σ.cdt x = some sl) → ∀ a ∈ G.chains.flatten, a.val < p.val ∨ p.val + 2 ^ sb.val ≤ a.val
   pp : ∀ k0 v0 : U64, PPHyp (L := L) arI th p sb (fun t => L.ksb t = k0 ∧
     L.mem t (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = v0)
   rst : (¬ ∃ x, σ.cdt x = some sl) → fi.val ≠ 0 →
