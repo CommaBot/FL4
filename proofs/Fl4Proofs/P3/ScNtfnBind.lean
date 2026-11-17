@@ -310,6 +310,67 @@ theorem unbind_ntfn_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.St
     exact hA1.keepE (E := fun _ => False) (TKeepE.updSc _ hk1 rfl) (fun u hu => Or.inl hu) (Or.inl rfl) rfl
       (fun _ _ h => h) id
 
+/-- `unbind_ntfn_refines` without the invariants (and their posts). -/
+theorem unbind_ntfn_refines0 {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State Unit)
+    (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ)
+    {p : U64} (hp : p ∈ C) (hp0 : p ≠ 0#u64) {y : Fl4Spec.SchedContext} {m : Nat}
+    (hk : σ.kheap p.bv = some (.schedContext y m)) (hbn : ∀ n : U64, y.scNtfn = some n.bv → n ∈ N) :
+    schedcontext.unbind_ntfn st s p ⦃ s' => ∃ σ',
+      Fl4Spec.schedContextUnbindNtfn (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
+      SchedRel st N T C c s' σ' ∧ NtfnStateRel N T (L.mem s') σ' ∧
+      WritesIn st s s' (fun b => NW N b ∨ b = scW p 40#u64) ∧ CKeep σ σ' ⦄ := by
+  have hP := hS.placed
+  obtain ⟨Q, R, hc, hs⟩ := hS.lists
+  obtain ⟨x', n', hk', hx⟩ := hs.scs p hp
+  rw [hk] at hk'; cases hk'
+  have hg : Fl4Spec.getScObjRef (Z := Unit) Fl4Spec.SchedContext.scNtfn p.bv σ = ({(y.scNtfn, σ)}, False) := by
+    unfold Fl4Spec.getScObjRef; rw [nd_bind_one (getSchedContext_eq hk)]; rfl
+  unfold schedcontext.unbind_ntfn
+  step with obj.Sc.is_null.spec' as ⟨b, hb⟩
+  simp only [hb, hp0, decide_false, Bool.false_eq_true, ↓reduceIte]
+  step with obj.Sc.ntfn.spec2 as ⟨i, hi⟩
+  have hyi : y.scNtfn = optRef i := by rw [hx.ntfn, hi]
+  by_cases hi0 : i = 0#u64
+  · subst hi0
+    simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
+    refine ⟨σ, ?_, hS, hR, WritesIn.refl _ _, CKeep.refl σ⟩
+    unfold Fl4Spec.schedContextUnbindNtfn
+    rw [nd_bind_one hg, hyi, optRef_zero]; rfl
+  have hne : (i != 0#u64) = true := by simpa using hi0
+  simp only [hne, ↓reduceIte]
+  have hyn : y.scNtfn = some i.bv := by rw [hyi, optRef_ne hi0]
+  have hn := hbn i hyn
+  obtain ⟨x, hkn, -⟩ := hR.ntfn i hn
+  have hnp : i.bv ≠ p.bv := fun e => by rw [e, hk] at hkn; cases hkn
+  refine WP.spec_bind (obj.Ntfn.set_sc.spec2 s i 0#u64) ?_
+  rintro s1 rfl
+  have hR1 := NtfnStateRel.set_sc hR hP hn hkn 0#u64
+  have hS1 := hS.set_ntfn_sc hn hkn { x with ntfnSc := optRef 0#u64 } 0#u64
+  rw [optRef_zero] at hR1 hS1
+  set σ1 := updK σ i.bv (.notification { x with ntfnSc := none }) with hσ1
+  have hk1 : σ1.kheap p.bv = some (.schedContext y m) := by simp [σ1, updK, Ne.symm hnp, hk]
+  refine WP.spec_mono (obj.Sc.set_ntfn.spec2 _ p 0#u64) ?_
+  rintro s2 rfl
+  obtain ⟨hS2, hf2, hK2⟩ := hS1.set_sc_ntfn hp hk1 0#u64
+  rw [optRef_zero] at hS2 hK2
+  have hw1 : WritesIn st s (L.wr s (nScA i) 0#u64) (NW N) := by
+    obtain ⟨ha, -⟩ := nword (T := T) hP hn (K := 32#u64) (by simp) (by simp)
+    rw [← nScA_eq] at ha
+    have hv : (nScA i).val = i.val + 32 := by rw [nScA_eq, nfield_val (hP.ntfn i hn) (by simp)]; rfl
+    exact (writesIn_wr ha).mono fun b hb => ⟨i, hn, by rw [hb, hv]; omega, by rw [hb, hv]; omega⟩
+  have ha40 := (hx.hdr (K := 40#u64) (by simp) (by simp)).1
+  have hw : WritesIn st s (L.wr (L.wr s (nScA i) 0#u64) (scW p 40#u64) 0#u64)
+      (fun b => NW N b ∨ b = scW p 40#u64) :=
+    (hw1.trans (writesIn_wr ha40)).mono fun b hb => hb
+  refine ⟨_, ?_, hS2, hR1.frame hS1.placed hf2 hK2, hw,
+    (CKeep.updOther hkn (fun _ _ e => by cases e) (fun _ e => by cases e) (fun _ _ e => by cases e)).trans
+      (CKeep.updSc (y' := { y with scNtfn := none }) hk1 rfl)⟩
+  · unfold Fl4Spec.schedContextUnbindNtfn
+    rw [nd_bind_one hg, hyn]
+    show (Fl4Spec.setNtfnObjRef Fl4Spec.ntfnScUpdate i.bv none >>= _) σ = _
+    rw [nd_bind_one (setNtfnSc_eq _ hkn)]
+    exact updateSchedContext_eq hk1 _
+
 end
 
 end
