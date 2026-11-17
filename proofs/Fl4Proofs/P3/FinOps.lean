@@ -260,7 +260,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
 /-- **`cdt::insert` of a derived cap refines `cap_insert` and keeps `MdbInv`
 and `FinInv`**, for a cap naming the source's object. -/
-theorem insert_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+theorem insert_full_finG (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
     (hM : MdbLinks th (L.mem s) G) (hC : CdtRel th (L.mem s) σ G) (hI : MdbInv (L.mem s) G)
     (hFI : FinInv th (L.mem s) σ G)
@@ -278,7 +278,9 @@ theorem insert_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
       ∃ σ' G', Fl4Spec.capInsert (Z := Unit) a (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False) ∧
         StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
         CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G' ∧ FinInv th (L.mem s') σ' G' ∧
-        ((isUt srcC = true → c = srcC) → MdbStep (L.mem s) G (L.mem s') G') ⦄ := by
+        ((isUt srcC = true → c = srcC) → MdbStep (L.mem s) G (L.mem s') G') ∧
+        G' = insG G (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd))
+          (isPF (revOf (L.mem s) (cslotAddr (ps.bv, idxs))) srcC c (revF c srcC)) ⦄ := by
   have hAs : AbsSlot th (ps.bv, idxs) := ⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩
   have hAd : AbsSlot th (pd.bv, idxd) := ⟨pd, rfl, Or.inl (by simpa [hld] using hpd)⟩
   have hsrcm := (hM.members _).2 ⟨hAs.isSlot, srcC, hsrcC, hsnn⟩
@@ -319,11 +321,37 @@ theorem insert_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
   subst e e3 e4
   rw [h1, WP.spec_ok]
   obtain ⟨σ', G', hins, hR', hV', hM', hC', hG'⟩ := hpost hsib
-  refine ⟨σ', G', hins, hR', hV', hM', hC', ?_, ⟨hFI.kt.sub (ksub_of_eq (capInsert_nks _ _ _) hins), ?_⟩, ?_⟩
+  refine ⟨σ', G', hins, hR', hV', hM', hC', ?_, ⟨hFI.kt.sub (ksub_of_eq (capInsert_nks _ _ _) hins), ?_⟩, ?_,
+    by rw [hG', hb]⟩
   · rw [hG', hb]; exact hinv
   · have hnd := hM'.tree.nodup
     rw [hG', hb] at hnd ⊢; exact hfin _ hnd
   · rw [hG', hb]; exact hstep
+
+
+/-- `insert_full_finG` without the ghost's shape. -/
+theorem insert_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+    (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
+    (hM : MdbLinks th (L.mem s) G) (hC : CdtRel th (L.mem s) σ G) (hI : MdbInv (L.mem s) G)
+    (hFI : FinInv th (L.mem s) σ G)
+    {ps pd : U64} {rs rd : Nat} (hps : th ps = some (.cnode rs)) (hpd : th pd = some (.cnode rd))
+    {idxs idxd : List Bool} (hls : idxs.length = rs) (hld : idxd.length = rd)
+    {srcC : capability.Cap} (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok srcC)
+    (hsnn : srcC ≠ .Null)
+    (hdst : capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null)
+    (c : capability.Cap) (a : Fl4Spec.Cap) (hca : CapRel c a) (hcv : CapValid th c) (he : EncWf c)
+    (hcnn : c ≠ .Null) (hsh : shape c = shape srcC) (hbd : badgeF c = badgeF srcC ∨ badgeF srcC = 0#u64)
+    (hut : isUt srcC = true → ∀ y, ¬ Mdb.Desc G.par y (cslotAddr (ps.bv, idxs))) (hzb : isZb srcC = false)
+    (hkey : okey c = okey srcC)
+    (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 srcC → Vs.VCapOK P L4 L3 L2 L1 c) :
+    cdt.insert st s c (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd)) ⦃ s' =>
+      ∃ σ' G', Fl4Spec.capInsert (Z := Unit) a (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False) ∧
+        StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
+        CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G' ∧ FinInv th (L.mem s') σ' G' ∧
+        ((isUt srcC = true → c = srcC) → MdbStep (L.mem s) G (L.mem s') G') ⦄ :=
+  WP.spec_mono (insert_full_finG th s σ G hR hV hP hM hC hI hFI hps hpd hls hld hsrcC hsnn hdst c a hca hcv he
+      hcnn hsh hbd hut hzb hkey hv)
+    fun _ ⟨σ', G', h0, h1, h2, h3, h4, h5, h6, h7, _⟩ => ⟨σ', G', h0, h1, h2, h3, h4, h5, h6, h7⟩
 
 /-- **`cdt::insert` of a control cap's child refines `cap_insert` and keeps
 `MdbInv` and `FinInv`**, the new cap overlapping no cap of the MDB. -/
@@ -393,7 +421,7 @@ theorem insert_ctl_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (
 
 /-- **`cdt::move_cap` refines `cap_move` and keeps `MdbInv` and `FinInv`**,
 for a new cap of the old one's shape, badge and object. -/
-theorem move_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+theorem move_full_finG (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
     (hM : MdbLinks th (L.mem s) G) (hC : CdtRel th (L.mem s) σ G) (hI : MdbInv (L.mem s) G)
     (hFI : FinInv th (L.mem s) σ G)
@@ -410,7 +438,8 @@ theorem move_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : Md
       ∃ σ' G', Fl4Spec.capMove (Z := Unit) a (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False) ∧
         StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
         CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G' ∧ FinInv th (L.mem s') σ' G' ∧
-        ((isUt srcC = true → c = srcC) → MdbStep (L.mem s) G (L.mem s') G') ⦄ := by
+        ((isUt srcC = true → c = srcC) → MdbStep (L.mem s) G (L.mem s') G') ∧
+        G' = renG G (Equiv.swap (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd))) ⦄ := by
   have hAs : AbsSlot th (ps.bv, idxs) := ⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩
   have hAd : AbsSlot th (pd.bv, idxd) := ⟨pd, rfl, Or.inl (by simpa [hld] using hpd)⟩
   have hsrcm := (hM.members _).2 ⟨hAs.isSlot, srcC, hsrcC, hsnn⟩
@@ -434,13 +463,37 @@ theorem move_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : Md
   rw [h1, WP.spec_ok]
   obtain ⟨σ', G', hmv, hR', hV', hM', hC', hG'⟩ := hpost
   refine ⟨σ', G', hmv, hR', hV', hM', hC', by rw [hG']; exact hinv,
-    ⟨hFI.kt.sub (ksub_of_eq (capMove_nks _ _ _) hmv), ?_⟩, by rw [hG']; exact hstep⟩
+    ⟨hFI.kt.sub (ksub_of_eq (capMove_nks _ _ _) hmv), ?_⟩, by rw [hG']; exact hstep, hG'⟩
   have hnd := hM'.tree.nodup
   rw [hG'] at hnd ⊢; exact hfin hnd
 
+
+/-- `move_full_finG` without the ghost's shape. -/
+theorem move_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+    (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
+    (hM : MdbLinks th (L.mem s) G) (hC : CdtRel th (L.mem s) σ G) (hI : MdbInv (L.mem s) G)
+    (hFI : FinInv th (L.mem s) σ G)
+    {ps pd : U64} {rs rd : Nat} (hps : th ps = some (.cnode rs)) (hpd : th pd = some (.cnode rd))
+    {idxs idxd : List Bool} (hls : idxs.length = rs) (hld : idxd.length = rd)
+    {srcC : capability.Cap} (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok srcC)
+    (hsnn : srcC ≠ .Null)
+    (hdst : capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null)
+    (c : capability.Cap) (a : Fl4Spec.Cap) (hca : CapRel c a) (hcv : CapValid th c) (he : EncWf c)
+    (hcnn : c ≠ .Null) (hsh : shape c = shape srcC) (hbd : badgeF c = badgeF srcC)
+    (hkey : okey c = okey srcC)
+    (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 srcC → Vs.VCapOK P L4 L3 L2 L1 c) :
+    cdt.move_cap st s c (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd)) ⦃ s' =>
+      ∃ σ' G', Fl4Spec.capMove (Z := Unit) a (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False) ∧
+        StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
+        CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G' ∧ FinInv th (L.mem s') σ' G' ∧
+        ((isUt srcC = true → c = srcC) → MdbStep (L.mem s) G (L.mem s') G') ⦄ :=
+  WP.spec_mono (move_full_finG th s σ G hR hV hP hM hC hI hFI hps hpd hls hld hsrcC hsnn hdst c a hca hcv he hcnn
+      hsh hbd hkey hv)
+    fun _ ⟨σ', G', h0, h1, h2, h3, h4, h5, h6, h7, _⟩ => ⟨σ', G', h0, h1, h2, h3, h4, h5, h6, h7⟩
+
 /-- **`cdt::swap` refines `cap_swap` and keeps `MdbInv` and `FinInv`**, for
 new caps of the old ones' shapes, badges and objects. -/
-theorem swap_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+theorem swap_full_finG (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
     (hM : MdbLinks th (L.mem s) G) (hC : CdtRel th (L.mem s) σ G) (hI : MdbInv (L.mem s) G)
     (hFI : FinInv th (L.mem s) σ G)
@@ -459,7 +512,8 @@ theorem swap_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : Md
       ∃ σ' G', Fl4Spec.capSwap (Z := Unit) a1 (p1.bv, i1) a2 (p2.bv, i2) σ = ({((), σ')}, False) ∧
         StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
         CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G' ∧ FinInv th (L.mem s') σ' G' ∧
-        ((isUt o1 = true → c1 = o1) → (isUt o2 = true → c2 = o2) → MdbStep (L.mem s) G (L.mem s') G') ⦄ := by
+        ((isUt o1 = true → c1 = o1) → (isUt o2 = true → c2 = o2) → MdbStep (L.mem s) G (L.mem s') G') ∧
+        G' = renG G (Equiv.swap (cslotAddr (p1.bv, i1)) (cslotAddr (p2.bv, i2))) ⦄ := by
   have hA1 : AbsSlot th (p1.bv, i1) := ⟨p1, rfl, Or.inl (by simpa [hl1] using hp1)⟩
   have hA2 : AbsSlot th (p2.bv, i2) := ⟨p2, rfl, Or.inl (by simpa [hl2] using hp2)⟩
   have hAne : cslotAddr (p1.bv, i1) ≠ cslotAddr (p2.bv, i2) := fun h => hne (cslotAddr_inj hP hA1 hA2 h)
@@ -485,9 +539,35 @@ theorem swap_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : Md
   obtain ⟨σ', G', hsw, hG', hR', hV', hM', hC'⟩ := hpost
   refine ⟨σ', G', hsw, hR', hV', hM', hC', by rw [hG']; exact hinv,
     ⟨hFI.kt.sub (ksub_of_eq (capSwap_nks _ _ _ _) hsw), ?_⟩, fun u1 u2 => by
-      rw [hG']; rw [capV_of_capAt ho1, capV_of_capAt ho2] at hstep; exact hstep u1 u2⟩
+      rw [hG']; rw [capV_of_capAt ho1, capV_of_capAt ho2] at hstep; exact hstep u1 u2, hG'⟩
   have hnd := hM'.tree.nodup
   rw [hG'] at hnd ⊢; exact hfin hnd
+
+/-- `swap_full_finG` without the ghost's shape. -/
+theorem swap_full_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+    (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
+    (hM : MdbLinks th (L.mem s) G) (hC : CdtRel th (L.mem s) σ G) (hI : MdbInv (L.mem s) G)
+    (hFI : FinInv th (L.mem s) σ G)
+    {p1 p2 : U64} {r1 r2 : Nat} (hp1 : th p1 = some (.cnode r1)) (hp2 : th p2 = some (.cnode r2))
+    {i1 i2 : List Bool} (hl1 : i1.length = r1) (hl2 : i2.length = r2)
+    (hne : (p1.bv, i1) ≠ (p2.bv, i2))
+    {o1 o2 : capability.Cap} (ho1 : capAt (L.mem s) (cslotAddr (p1.bv, i1)) = ok o1) (hon1 : o1 ≠ .Null)
+    (ho2 : capAt (L.mem s) (cslotAddr (p2.bv, i2)) = ok o2) (hon2 : o2 ≠ .Null)
+    (c1 : capability.Cap) (a1 : Fl4Spec.Cap) (hca1 : CapRel c1 a1) (hcv1 : CapValid th c1) (he1 : EncWf c1)
+    (hcn1 : c1 ≠ .Null) (hsh1 : shape c1 = shape o1) (hbd1 : badgeF c1 = badgeF o1) (hk1 : okey c1 = okey o1)
+    (c2 : capability.Cap) (a2 : Fl4Spec.Cap) (hca2 : CapRel c2 a2) (hcv2 : CapValid th c2) (he2 : EncWf c2)
+    (hcn2 : c2 ≠ .Null) (hsh2 : shape c2 = shape o2) (hbd2 : badgeF c2 = badgeF o2) (hk2 : okey c2 = okey o2)
+    (hv1 : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 o1 → Vs.VCapOK P L4 L3 L2 L1 c1)
+    (hv2 : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 o2 → Vs.VCapOK P L4 L3 L2 L1 c2) :
+    cdt.swap st s c1 (cslotAddr (p1.bv, i1)) c2 (cslotAddr (p2.bv, i2)) ⦃ s' =>
+      ∃ σ' G', Fl4Spec.capSwap (Z := Unit) a1 (p1.bv, i1) a2 (p2.bv, i2) σ = ({((), σ')}, False) ∧
+        StateRel th (L.mem s') σ' ∧ SlotsValid th (L.mem s') ∧ MdbLinks th (L.mem s') G' ∧
+        CdtRel th (L.mem s') σ' G' ∧ MdbInv (L.mem s') G' ∧ FinInv th (L.mem s') σ' G' ∧
+        ((isUt o1 = true → c1 = o1) → (isUt o2 = true → c2 = o2) → MdbStep (L.mem s) G (L.mem s') G') ⦄ :=
+  WP.spec_mono (swap_full_finG th s σ G hR hV hP hM hC hI hFI hp1 hp2 hl1 hl2 hne ho1 hon1 ho2 hon2 c1 a1 hca1
+      hcv1 he1 hcn1 hsh1 hbd1 hk1 c2 a2 hca2 hcv2 he2 hcn2 hsh2 hbd2 hk2 hv1 hv2)
+    fun _ ⟨σ', G', h0, h1, h2, h3, h4, h5, h6, h7, _⟩ => ⟨σ', G', h0, h1, h2, h3, h4, h5, h6, h7⟩
+
 
 end
 

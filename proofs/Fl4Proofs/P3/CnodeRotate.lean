@@ -125,10 +125,12 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
     (hI : MdbInv (L.mem s) G) (hFI : FinInv th (L.mem s) σ G)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
-    (dsl : Fl4Spec.CslotPtr) (pd : U64) (hpd1 : dsl.1 = pd.bv) (hpd : th pd = some (.cnode dsl.2.length)) :
+    (dsl : Fl4Spec.CslotPtr) (pd : U64) (hpd1 : dsl.1 = pd.bv) (hpd : th pd = some (.cnode dsl.2.length))
+    (root : capability.Cap)
+    (hpdL : (∃ y, IsSlot th y ∧ capV (L.mem s) y = root) → DestLive th (L.mem s) (L.ksb s) pd) :
     cnode.decode_rotate st s length buf extra (cslotAddr dsl) ⦃ res =>
       InvPost (L := L) th σ G (copyTail slbl ((args.map UScalar.bv).drop 2) excaps dsl) s res
-        (CnTrace (L := L) th ct s) ⦄ := by
+        (CnTrace (L := L) th ct σ root s) ⦄ := by
   have hts := set_thread_state_slots th hP s ct sched.TS_RESTART htcb hact
   have hAd : AbsSlot th dsl := ⟨pd, hpd1, Or.inl hpd⟩
   unfold cnode.decode_rotate
@@ -183,7 +185,8 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
     cases ee1 with
     | error _ => exact hrel1.elim
     | ok sl =>
-      obtain ⟨rfl, ps, hps1, hps, -⟩ := hrel1
+      obtain ⟨rfl, ps, hps1, hps, hcr1⟩ := hrel1
+      have hpsL : DestLive th (L.mem s) (L.ksb s) ps := DestLive.of_cnRef hcr1 ⟨x1, hx1s, capV_of_capAt hc1⟩
       refine InvPost.congr (run_bind_ok hls _) ?_
       have hAs : AbsSlot th sl := ⟨ps, hps1, Or.inl hps⟩
       simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
@@ -208,7 +211,9 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
         cases ee2 with
         | error _ => exact hrel2.elim
         | ok pl =>
-          obtain ⟨rfl, ppv, hpl1, hpl, -⟩ := hrel2
+          obtain ⟨rfl, ppv, hpl1, hpl, hcr2⟩ := hrel2
+          have hplL : DestLive th (L.mem s) (L.ksb s) ppv :=
+            DestLive.of_cnRef hcr2 ⟨x0, hx0s, capV_of_capAt hc0⟩
           refine InvPost.congr (run_bind_ok hlp _) ?_
           have hAp : AbsSlot th pl := ⟨ppv, hpl1, Or.inl hpl⟩
           simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok, slot_eq_eq]
@@ -328,8 +333,8 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
             have hsc2 : capAt (L.mem s2) (cslotAddr (ps.bv, sb)) = ok srcC := by rw [hS.capAt hAs.isSlot, hsc]
             have hpc2 : capAt (L.mem s2) (cslotAddr (ppv.bv, pb)) = ok pivC := by rw [hS.capAt hAp.isSlot, hpc]
             simp only [show decide (cslotAddr (ps.bv, sb) = cslotAddr (pd.bv, db)) = true from decide_eq_true e3, ↓reduceIte]
-            obtain ⟨s3, hs3, σ', G', hsw', hR', hV', hM', hC', hI', hFI', hSt⟩ := spec_exists
-              (swap_full_fin th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hps hpl rfl rfl (fun h => e1' h.symm) hsc2 hsn hpc2 hpn
+            obtain ⟨s3, hs3, σ', G', hsw', hR', hV', hM', hC', hI', hFI', hSt, hG'⟩ := spec_exists
+              (swap_full_finG th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hps hpl rfl rfl (fun h => e1' h.symm) hsc2 hsn hpc2 hpn
                 ns (absCap ns) ⟨hnsw, rfl⟩ (hnscv th hscv) hnse hnsn hshs hbds' (update_okey hns hnsn)
                 np (absCap np) ⟨hnpw, rfl⟩ (hnpcv th hpcv) hnpe hnpn hshp hbdp' (update_okey hnp hnpn)
                 (update_vcap hns) (update_vcap hnp))
@@ -342,7 +347,14 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
             rw [hs3, WP.spec_ok] at hdi
             rw [hs3]; simp only [bind_ok]
             rw [WP.spec_ok]
-            refine ⟨.rotateCall (absCap ns) (absCap np) (ps.bv, sb) (ppv.bv, pb) (pd.bv, db), ?_, σ1, hst, σ', G', ?_,
+            have hrunI : (Fl4Spec.invokeCnode (Z := Unit)
+                (.rotateCall (absCap ns) (absCap np) (ps.bv, sb) (ppv.bv, pb) (pd.bv, db))).run σ1 =
+                ({(.ok (), σ')}, False) := by
+              unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption
+              simp only [e3', ↓reduceIte]
+              simp only [e3'] at hsw'
+              exact run_liftE' hsw'
+            refine ⟨.rotateCall (absCap ns) (absCap np) (ps.bv, sb) (ppv.bv, pb) (pd.bv, db), ?_, σ1, hst, σ', G', hrunI,
               hR', hV', hM', hC', hI', hFI', MdbStep.same_left hM hS (hSt (update_ut hns) (update_ut hnp)),
               s2, by simp [invSlots], hs2, htr.1, fun sl hsl => by
                 simp only [invSlots, List.mem_cons, List.not_mem_nil, or_false] at hsl
@@ -351,6 +363,24 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
               fun y hy hne => htr.2.1 y hy (hne _ (by simp [invSlots])) (hne _ (by simp [invSlots])), hdi,
               typedKept_swap hAs.isSlot hAp.isSlot htr.2.1 htr.2.2.1 htr.2.2.2
                 (by rw [capV_of_capAt hsc2]; exact hshs) (by rw [capV_of_capAt hpc2]; exact hshp),
+              fun hr sl hsl => by
+                simp only [invSlots, List.mem_cons, List.not_mem_nil, or_false] at hsl
+                rcases hsl with rfl | rfl | rfl
+                exacts [⟨ps, rfl, hpsL.same hS rfl⟩, ⟨ppv, rfl, hplL.same hS rfl⟩, ⟨pd, rfl, (hpdL hr).same hS rfl⟩],
+              fun σ1' σ'' h1 h2 => by
+                have e1 : σ1 = σ1' := nd_single_inj (hst.symm.trans h1)
+                subst e1
+                have e2 : σ' = σ'' := nd_single_inj (hrunI.symm.trans h2)
+                subst e2
+                exact utSrc_swap hP hC1 hC' hAs hAp hG'
+                  (fun _ _ _ _ h => by
+                    rw [htr.2.2.2] at h
+                    have hu : isUt pivC = true := by rw [← isUt_of_shape hshp, h]; rfl
+                    rw [capV_of_capAt hpc2, ← update_ut hnp hu, h])
+                  (fun _ _ _ _ h => by
+                    rw [htr.2.2.1] at h
+                    have hu : isUt srcC = true := by rw [← isUt_of_shape hshs, h]; rfl
+                    rw [capV_of_capAt hsc2, ← update_ut hns hu, h]) htr.2.1,
               coverUt_swap hAs.isSlot hAp.isSlot (fun h => e1 h.symm) (capV_of_capAt hsc2) (capV_of_capAt hpc2)
                 htr.2.2.1 htr.2.2.2 htr.2.1 hshs hshp (fun _ _ _ _ hc _ _ hs => by
                 have hu : isUt srcC = true := by rw [hs]; rfl
@@ -358,11 +388,7 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
                 (fun _ _ _ _ hc _ _ hs => by
                 have hu : isUt pivC = true := by rw [hs]; rfl
                 rw [update_ut hnp hu, hs] at hc; cases hc; exact Or.inl le_rfl)⟩
-            · simp only [hnsan, hnpan, Fl4Spec.NonDetE.whenE, ↓reduceIte, ndE_pure_bind]; rfl
-            · unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption
-              simp only [e3', ↓reduceIte]
-              simp only [e3'] at hsw'
-              exact run_liftE' hsw'
+            simp only [hnsan, hnpan, Fl4Spec.NonDetE.whenE, ↓reduceIte, ndE_pure_bind]; rfl
 
           · have e3' : (ps.bv, sb) ≠ (pd.bv, db) := fun h => e3 (by rw [h])
             simp only [show decide (cslotAddr (ps.bv, sb) ≠ cslotAddr (pd.bv, db)) = true from decide_eq_true e3, ↓reduceIte]
@@ -465,8 +491,8 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
             have hpm : cslotAddr (ppv.bv, pb) ∈ G.chains.flatten := (hM1.members _).2 ⟨hAp.isSlot, pivC, hpc2, hpn⟩
             have hdm : cslotAddr (pd.bv, db) ∉ G.chains.flatten := by
               intro h; obtain ⟨-, c0, h0, hn⟩ := (hM1.members _).1 h; rw [hdc2] at h0; exact hn (eq_of_ok_eq h0).symm
-            obtain ⟨s3, hs3, σ2, G2, hmv1, hR2, hV2, hM2, hC2, hI2, hFI2, hSt2⟩ := spec_exists
-              (move_full_fin th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hpl hpd rfl rfl hpc2 hpn hdc2 np (absCap np) ⟨hnpw, rfl⟩
+            obtain ⟨s3, hs3, σ2, G2, hmv1, hR2, hV2, hM2, hC2, hI2, hFI2, hSt2, hG2⟩ := spec_exists
+              (move_full_finG th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hFI1 hpl hpd rfl rfl hpc2 hpn hdc2 np (absCap np) ⟨hnpw, rfl⟩
                 (hnpcv th hpcv) hnpe hnpn hshp hbdp' (update_okey hnp hnpn) (update_vcap hnp))
             obtain ⟨s3', hs3', hcaps⟩ := spec_exists (move_caps (L := L) hP s2 G hM1 hpm hAd.isSlot hdm np hnpe)
             rw [hs3] at hs3'; cases eq_of_ok_eq hs3'
@@ -475,8 +501,8 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
               rw [hcaps _ hAs.isSlot, if_neg e3, if_neg (fun h => e1 h.symm), hsc2]
             have hpc3 : capAt (L.mem s3) (cslotAddr (ppv.bv, pb)) = ok .Null := by
               rw [hcaps _ hAp.isSlot, if_neg e2, if_pos rfl]
-            obtain ⟨s4, hs4, σ', G', hmv2, hR', hV', hM', hC', hI', hFI', hSt⟩ := spec_exists
-              (move_full_fin th s3 σ2 G2 hR2 hV2 hP hM2 hC2 hI2 hFI2 hps hpl rfl rfl hsc3 hsn hpc3 ns (absCap ns) ⟨hnsw, rfl⟩
+            obtain ⟨s4, hs4, σ', G', hmv2, hR', hV', hM', hC', hI', hFI', hSt, hG'⟩ := spec_exists
+              (move_full_finG th s3 σ2 G2 hR2 hV2 hP hM2 hC2 hI2 hFI2 hps hpl rfl rfl hsc3 hsn hpc3 ns (absCap ns) ⟨hnsw, rfl⟩
                 (hnscv th hscv) hnse hnsn hshs hbds' (update_okey hns hnsn) (update_vcap hns))
             have htr1 := Vs.move_trace hP s2 G hM1 hpm hAd.isSlot hdm np hnpe
             rw [hs3, WP.spec_ok] at htr1
@@ -493,7 +519,15 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
             rw [hs4, WP.spec_ok] at hdi2
             rw [hs4]; simp only [bind_ok]
             rw [WP.spec_ok]
-            refine ⟨.rotateCall (absCap ns) (absCap np) (ps.bv, sb) (ppv.bv, pb) (pd.bv, db), ?_, σ1, hst, σ', G', ?_,
+            have hrunI : (Fl4Spec.invokeCnode (Z := Unit)
+                (.rotateCall (absCap ns) (absCap np) (ps.bv, sb) (ppv.bv, pb) (pd.bv, db))).run σ1 =
+                ({(.ok (), σ')}, False) := by
+              unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption
+              simp only [e3', ↓reduceIte]
+              apply run_liftE'
+              show (Fl4Spec.capMove _ _ _ >>= fun _ => Fl4Spec.capMove _ _ _) σ1 = _
+              rw [nd_bind_one hmv1]; exact hmv2
+            refine ⟨.rotateCall (absCap ns) (absCap np) (ps.bv, sb) (ppv.bv, pb) (pd.bv, db), ?_, σ1, hst, σ', G', hrunI,
               hR', hV', hM', hC', hI', hFI',
               (MdbStep.same_left hM hS (hSt2 (update_ut hnp))).trans (hSt (update_ut hns)),
               s2, by simp [invSlots], hs2, ⟨htr2.1.1.trans htr1.1.1, htr2.1.2.1.trans htr1.1.2.1,
@@ -506,6 +540,25 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
               fun hD => hdi2 (hdi1 hD),
               (typedKept_mov hAp.isSlot htr1.2.1 htr1.2.2.1 htr1.2.2.2 (by rw [capV_of_capAt hpc2]; exact hshp)).trans
                 (typedKept_mov hAs.isSlot htr2.2.1 htr2.2.2.1 htr2.2.2.2 (by rw [capV_of_capAt hsc3]; exact hshs)),
+              fun hr sl hsl => by
+                simp only [invSlots, List.mem_cons, List.not_mem_nil, or_false] at hsl
+                rcases hsl with rfl | rfl | rfl
+                exacts [⟨ps, rfl, hpsL.same hS rfl⟩, ⟨ppv, rfl, hplL.same hS rfl⟩, ⟨pd, rfl, (hpdL hr).same hS rfl⟩],
+              fun σ1' σ'' h1 h2 => by
+                have e1 : σ1 = σ1' := nd_single_inj (hst.symm.trans h1)
+                subst e1
+                have e2 : σ' = σ'' := nd_single_inj (hrunI.symm.trans h2)
+                subst e2
+                exact (utSrc_swap hP hC1 hC2 hAp hAd hG2 (fun _ _ _ _ h => by rw [htr1.2.2.2] at h; cases h)
+                  (fun _ _ _ _ h => by
+                    rw [htr1.2.2.1] at h
+                    have hu : isUt pivC = true := by rw [← isUt_of_shape hshp, h]; rfl
+                    rw [capV_of_capAt hpc2, ← update_ut hnp hu, h]) htr1.2.1).trans
+                  (utSrc_swap hP hC2 hC' hAs hAp hG' (fun _ _ _ _ h => by rw [htr2.2.2.2] at h; cases h)
+                  (fun _ _ _ _ h => by
+                    rw [htr2.2.2.1] at h
+                    have hu : isUt srcC = true := by rw [← isUt_of_shape hshs, h]; rfl
+                    rw [capV_of_capAt hsc3, ← update_ut hns hu, h]) htr2.2.1),
               (coverUt_mov hAd.isSlot (fun e => hdm (e ▸ hpm)) (capV_of_capAt hpc2) (capV_of_capAt hdc2)
                 htr1.2.2.1 htr1.2.2.2 htr1.2.1 hshp hAp.isSlot (fun _ _ _ _ hc _ _ hs => by
                 have hu : isUt pivC = true := by rw [hs]; rfl
@@ -522,12 +575,7 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
                 htr2.2.2.1 htr2.2.2.2 htr2.2.1 hshs hAs.isSlot (fun _ _ _ _ hc _ _ hs => by
                 have hu : isUt srcC = true := by rw [hs]; rfl
                 rw [update_ut hns hu, hs] at hc; cases hc; exact Or.inl le_rfl)).2⟩
-            · simp only [hnsan, hnpan, Fl4Spec.NonDetE.whenE, ↓reduceIte, ndE_pure_bind]; rfl
-            · unfold Fl4Spec.invokeCnode Fl4Spec.withoutPreemption
-              simp only [e3', ↓reduceIte]
-              apply run_liftE'
-              show (Fl4Spec.capMove _ _ _ >>= fun _ => Fl4Spec.capMove _ _ _) σ1 = _
-              rw [nd_bind_one hmv1]; exact hmv2
+            simp only [hnsan, hnpan, Fl4Spec.NonDetE.whenE, ↓reduceIte, ndE_pure_bind]; rfl
 
 
 /-- **CNode Rotate**, decode and invoke: FL4's `cnode::decode` at label
@@ -553,7 +601,7 @@ theorem cnode_rotate_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
     (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb) :
     cnode.decode st arI s ar fl4_abi.label.CNodeRotate length cap buf extra ⦃ res =>
       InvPost (L := L) th σ G (Fl4Spec.decodeCnodeInvocation slbl (args.map UScalar.bv) a excaps) s
-        (res.1, res.2.1) (CnTrace (L := L) th ct s) ∧ res.2.2 = ar ⦄ := by
+        (res.1, res.2.1) (CnTrace (L := L) th ct σ cap s) ∧ res.2.2 = ar ⦄ := by
   have hin : Fl4Spec.genInvocationType slbl ∈
       Fl4Spec.GenInvocationLabels.uptoEnum .cnodeRevoke .cnodeRotate := by rw [hlbl]; decide
   unfold cnode.decode
@@ -595,7 +643,7 @@ theorem cnode_rotate_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
     cases e1 with
     | error _ => exact hrel1.elim
     | ok dsl =>
-      obtain ⟨rfl, pd, hpd1, hpd, -⟩ := hrel1
+      obtain ⟨rfl, pd, hpd1, hpd, hcrd⟩ := hrel1
       have g1 : fl4_abi.label.CNodeRotate ≥ fl4_abi.label.CNodeCopy := by
         have := lbl_copy_val; have := lbl_rotate_val; scalar_tac
       have g2 : ¬ fl4_abi.label.CNodeRotate ≤ fl4_abi.label.CNodeMutate := by
@@ -606,7 +654,8 @@ theorem cnode_rotate_refines {A : Type} (arI : machine.Arch A) (th : TypedHeap) 
       simp only [g1, g2, k1, k2, k3, ↓reduceIte, bind_ok]
       obtain ⟨⟨r2, s2⟩, hdc, hpost⟩ := spec_exists
         (decode_rotate_rel th s σ G hR hV hP hM hC slbl hlbl length buf ct hct (y0 :: y1 :: rest) hlen
-          (by simp) hargs extra x0 x1 hx0 hx1 excaps hex hI hFI hact hcur htcb dsl pd hpd1 hpd)
+          (by simp) hargs extra x0 x1 hx0 hx1 excaps hex hI hFI hact hcur htcb dsl pd hpd1 hpd cap
+          (fun hr => DestLive.of_cnRef hcrd hr))
       rw [hdc]; simp only [bind_ok, uncurry_apply_pair]
       rw [WP.spec_ok]
       simp only [List.map_cons, List.drop_succ_cons, List.drop_zero] at hpost

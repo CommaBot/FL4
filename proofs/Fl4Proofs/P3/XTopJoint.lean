@@ -194,8 +194,8 @@ theorem decode_invocation_cnodeJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
   obtain ⟨hwf, hcv⟩ := slot_cap_wf hX hAs hsc
   obtain ⟨K, hK, hK6, hDE⟩ := J.delE
   exact decode_invocation_cnodeX arI hARI.toMask s ar σ hX J.ks (J.curRun.run hni) J.thT (hG.delNtfn arI hARI hT) hG.fin hG.pre
-    (hG.postDel arI hARI hT) K hK hK6 hDE lbl slbl hlbl length buf ct hct args hlen hargs p r gs g hwf hcv extra x0
-    x1 hx0 hx1 excaps hex J.kern.act hcur hrun
+    (hG.postDel arI hARI hT) K hK hK6 hDE lbl slbl hlbl length buf ct hct args hlen hargs p r gs g hwf hcv
+    ⟨cslotAddr sl, hAs.isSlot, hsc⟩ extra x0 x1 hx0 hx1 excaps hex J.kern.act hcur hrun
     (fun Z' hX' => let ⟨h1, h2, h3, h4⟩ := hZ Z' hX'
       ⟨h1, h2, h3, hX'.fin.1.cur_mem hcur.symm, h4⟩) hE (cslotAddr sl) blk call don fp ci sl buffer
 

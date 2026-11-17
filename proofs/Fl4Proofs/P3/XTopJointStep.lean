@@ -252,7 +252,11 @@ structure JStepHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
     (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 1) = capAt (L.mem s) (slotOf t 1)) →
     TypedKept th (L.mem s) (L.mem s') →
     (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3)) →
-    KSz σ σ' → (DelInv th (L.mem s) → DelInv th (L.mem s')) → JOwesCs (L := L) arI AR th G' s a σ s' a σ'
+    KSz σ σ' → (DelInv th (L.mem s) → DelInv th (L.mem s')) → ∀ W : List Fl4Spec.CslotPtr,
+    (∀ sl ∈ W, ∃ p r, sl.1 = p.bv ∧ th p = some (.cnode r) ∧ sl.2.length = r ∧ DestLive th (L.mem s) (L.ksb s) p) →
+    (∀ y, IsSlot th y → (∀ sl ∈ W, y ≠ cslotAddr sl) → capV (L.mem s') y = capV (L.mem s) y) →
+    (∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ sl ∈ W) →
+    UtSrc th (L.mem s) (L.mem s') σ σ' → JOwesCs (L := L) arI AR th G' s a σ s' a σ'
   del : ∀ (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit) (sl : Fl4Spec.CslotPtr) (p b : U64) (w r : Bool),
     AbsSlot th sl → capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
     cdt.delete_one st arI s a (cslotAddr sl) = ok (s', a') → ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 →
@@ -291,7 +295,7 @@ theorem stepClosed_jat {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {
     fun s s' a a' σ σ' hw hO hdk hdl hds hirq hio harch Z H Cs Ac Lst D hth J => ?_,
     fun s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu hw hCR hFI hMO hTS hTK hT3 hDL hDl Z H Cs Ac Lst D hth J => ?_,
     fun s s' a σ σ' hS Z H Cs Ac Lst D hth J => ?_,
-    fun s s' a σ σ' G' hcn hkc hCK hUK horig hw hCR hFI hMO hTS hTK hT3 hkz hDl Z H Cs Ac Lst D hth J => ?_,
+    fun s s' a σ σ' G' hcn hkc hCK hUK horig hw hCR hFI hMO hTS hTK hT3 hkz hDl W hW hcW hoW hUS Z H Cs Ac Lst D hth J => ?_,
     fun s s' a a' σ σ' sl p b w r hA hc hd hm Z H Cs Ac Lst D hth J => ?_⟩
   · obtain ⟨G1, Ac1, Lst1, D1, J1⟩ := h1 Z H Cs Ac Lst D hth J
     exact h2 { Z with G := G1 } H Cs Ac1 Lst1 D1 hth J1
@@ -351,7 +355,7 @@ theorem stepClosed_jat {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {
     have hw' : P1.WritesIn st s s' (Sched.SlotWd Z.th) :=
       ⟨hw.1, hw.2.1, fun b hb hn => hw.2.2 b hb fun h => hn (Sched.slotSpan_wd hPl hb h)⟩
     have hX1 := XTopAt.slotStep hX hw' hcn hkc hCR hFI hMO hTS
-    obtain ⟨hC, Ac', Lst', D', R⟩ := hJ.cslot s s' a σ σ' G' hcn hkc hCK hUK horig hw hCR hFI hMO hTS hTK hT3 hkz hDl Z H Cs Ac Lst D rfl J hX1
+    obtain ⟨hC, Ac', Lst', D', R⟩ := hJ.cslot s s' a σ σ' G' hcn hkc hCK hUK horig hw hCR hFI hMO hTS hTK hT3 hkz hDl W hW hcW hoW hUS Z H Cs Ac Lst D rfl J hX1
     exact ⟨G', Ac', Lst', D', J.cs_frame hw.1 hX1 (KBack.of_keepC hkc) hC R⟩
   · -- a notification cap's deletion
     obtain ⟨G', hX1, hks, hkb, hC, Ac', Lst', D', R⟩ := hJ.del s s' a a' σ σ' sl p b w r hA hc hd hm Z H Cs Ac Lst D
