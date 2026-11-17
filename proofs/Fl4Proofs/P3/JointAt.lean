@@ -220,16 +220,17 @@ theorem delE (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
 /-- `ScLinkHyp`. -/
 theorem link (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : Sched.ScLinkHyp σ := J.sv.toLink
 
-/-- `IpcZ`, given the IPC tails' [global] hypotheses (re-scoped by the fold). -/
+/-- `IpcZ`, given the IPC tails' [global] hypotheses (re-scoped by the fold); its
+`TailOK` from `ActIdle` and `Inv` (`tailOK_of`). -/
 theorem ipcZ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (cr : Fl4Spec.Cr3) {ct : U64}
     (hH : IpcSchedHyps st arI Z.N Z.T Z.E Z.R Z.B (SRT st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c
       (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c)))
     (hBf : EpBufHyps st Z.T Z.E Z.R Z.B (SRT st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c)))
     (hBm : EpBufMapHyps st Z.T Z.E Z.R Z.B (SRT st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c
       (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c)))
-    (htail : SVK.TailOK σ) (hct : ct ∈ Z.T) :
+    (hct : ct ∈ Z.T) :
     IpcZ (L := L) arI cr s σ ct Z :=
-  ⟨J.ks, J.buf, hH, hBf, hBm, htail, J.ip, hct⟩
+  ⟨J.ks, J.buf, hH, hBf, hBm, tailOK_of J.act.1 J.inv, J.ip, hct⟩
 
 /-- `CurInv` when no reschedule is pending. -/
 theorem curInv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (h : σ.schedulerAction ≠ .chooseNewThread) :
