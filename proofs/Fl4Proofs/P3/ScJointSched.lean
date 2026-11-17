@@ -8,7 +8,7 @@ and `CurInv` after.
   `JAtZ` and the domain scope.
 * `FireHypW`: the TCB timers' hypothesis keeping `SchedPreW`.
 * `jat_schedule`: `schedule_refinesW` gives `Inv`, `CurInv` and `ActIdle`
-  after; named premise `hSchedRest` (as `ScStepRest`): the rest of `JAtZ`
+  after; named premise `hSchedRest` (as the SC steps' `ScStepP1`): the rest of `JAtZ`
   at `schedule`'s post, given those (`schedule`'s frame: the timers,
   `awaken`, `choose_thread`, `switch_sched_context`, the arch switch).
 -/

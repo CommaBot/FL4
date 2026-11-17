@@ -1,6 +1,6 @@
 /-
 P3 (DESIGN.md §9), scheduling contexts: **the dead stay dead across an SC
-step** (`hDead` of `ScStepRest`).
+step** (the SC steps' dead set).
 
 `deadP_sc_step`: from `JAtZ` before, `XTopAt` after, FL4's writes in the SC
 footprint (`TFoot`), the spec step changing only scheduling fields

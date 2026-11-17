@@ -17,14 +17,24 @@ the dead set, covered by its caps (`cover_cap`: the invoked SC cap's slot,
 the extra cap's slot; premises `hslot`, `hslotS`, `hsb`, `hssz`, `hx0S`, the
 decode site's cap lookup and `valid_cap`).
 
+The mid-entry facts (`CurInv` unless a reschedule is pending, `CurOwn`
+under one, `OffOK`, `ActIdle`): the restart keeps them (`restart_mid`; the
+entry action `resume_cur_thread`, premise `hres`), and the invocation is a
+`MidK` step (ScMidKeep: Bind, UnbindObject, YieldTo, the decodes'
+checks `rdp_decode*Pre` and `hback` placing the SC's thread off the current
+and idle ones) or, for Configure of an SC other than the current one, a
+`MidKn` step (its `possible_switch_to`; `ActIdle` then from
+`decode_configure_refinesA`, premise `hpi`).
+
 Named per-op premise (`hRest`, at the decode's post, over its spec run,
-`ScStepRest`): the current-thread, offset and switch-thread invariants and
-the current SC's owner under a pending reschedule (a), and P1-supplied: the
-node-0 `DEBUG_TCBS` word kept and `BlkOK`.
+`ScStepP1`): P1-supplied, the node-0 `DEBUG_TCBS` word kept and `BlkOK`;
+and for Configure of the current SC [W] the mid-entry facts but `ActIdle`
+(`MidA`: a reschedule follows; the commit, the postponed current thread).
 -/
 import Fl4Proofs.P3.ScJointRest
 import Fl4Proofs.P3.ScBsaOps
 import Fl4Proofs.P3.ScDeadStep
+import Fl4Proofs.P3.ScMidKeep
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -35,16 +45,10 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 
-/-- **The fields an SC step still owes** (the module docstring's named
-premise), at the post `(s', σ')` of a step from `s`: the current-thread,
-offset and switch-thread invariants and the current SC's owner under a
-pending reschedule (a); the node-0 `DEBUG_TCBS` word kept and `BlkOK`
-(P1-supplied). -/
-def ScStepRest (arI : machine.Arch A) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (s s' : S)
-    (σ' : Fl4Spec.State Unit) : Prop :=
-  ∃ (Ac' : Set U64), (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧
-    (σ'.schedulerAction = .chooseNewThread → CurOwn Z.T σ') ∧ OffOK σ' ∧ ActIdle σ' ∧
-    -- P1-supplied: the node-0 `DEBUG_TCBS` word kept, `BlkOK`
+/-- **The P1-supplied part of an SC step** (the node-0 `DEBUG_TCBS` word kept,
+`BlkOK` after). -/
+def ScStepP1 (Z : XSets) (H : P1.Heap) (Cs : Set U64) (s s' : S) : Prop :=
+  ∃ (Ac' : Set U64),
     L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) ∧
     P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s'
@@ -96,7 +100,7 @@ set_option maxHeartbeats 2000000 in
 /-- **The SchedControl cap on `JAt`, `JAt` after** (module docstring). -/
 theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction ≠ .chooseNewThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction = .resumeCurThread)
     (htm : TimeAgree arI) (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st Z.N Z.T Z.C Z.c)
@@ -113,16 +117,19 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       ∃ x, σ.kheap p.bv = some (.schedContext x (sb.val - Fl4Spec.minSchedContextBits)) ∧
         ∀ t : U64, x.scTcb = some t.bv →
           t ∈ Z.T ∧ ∃ xt, σ.kheap t.bv = some (.tcb xt) ∧ xt.tcbSchedContext = some p.bv)
+    (hpi : ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ Fl4Spec.idleScPtr)
     (slot : U64) (blk call don fp : Bool)
     (hArch : syscall.decode_invocation st arI s a lbl length slot (.SchedControl cpu) blk call don fp buf extra
       ⦃ r => ∀ c, AR a c → AR r.2.2 c ⦄)
     (hRest : syscall.decode_invocation st arI s a lbl length slot (.SchedControl cpu) blk call don fp buf extra
-      ⦃ r => r.1 = .Ok () → ∀ σ', (∃ inv σ1,
+      ⦃ r => r.1 = .Ok () → ∀ σ' inv σ1,
         (Fl4Spec.decodeSchedControlInvocationFlags (Z := Unit) slbl (args.map UScalar.bv) (excaps.map Prod.fst)).run σ =
-          ({(.ok inv, σ)}, False) ∧
-        Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) ∧
-        Fl4Spec.invokeSchedControlConfigureFlags (Z := Unit) inv σ1 = ({((), σ')}, False)) →
-        ScStepRest (L := L) arI Z H Cs s r.2.1 σ' ⦄) :
+          ({(.ok inv, σ)}, False) →
+        Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) →
+        Fl4Spec.invokeSchedControlConfigureFlags (Z := Unit) inv σ1 = ({((), σ')}, False) →
+        ScStepP1 (L := L) Z H Cs s r.2.1 ∧
+        -- [W] the current SC reconfigured (a reschedule follows)
+        ((∃ b per mr bd fl, inv = .invokeSchedControlConfigureFlags σ.curSc b per mr bd fl) → MidA Z.T σ') ⦄) :
     syscall.decode_invocation st arI s a lbl length slot (.SchedControl cpu) blk call don fp buf extra
       ⦃ r => ∃ (σ' : Fl4Spec.State Unit) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
         JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.2.1 r.2.2 σ' ⦄ := by
@@ -130,6 +137,7 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
   have hS := hX.fin.1.1.1
   have hR := hX.fin.1.1.2.2.1
   obtain ⟨hcur, xc, hkc, hrun⟩ := J.curRunnable hct
+  have hC := J.curInv (by rw [hres]; simp)
   have key : syscall.decode_invocation st arI s a lbl length slot (.SchedControl cpu) blk call don fp buf extra
       ⦃ res => (fp = true ∧ res = (.Err (.Sys (.InvalidCapability 0#u64)), s, a)) ∨
         (fp = false ∧ Sched.CPost σ (Fl4Spec.decodeSchedControlInvocationFlags (Z := Unit) slbl (args.map UScalar.bv)
@@ -137,12 +145,14 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
         (fun inv res => ∃ σ1 σ', Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) ∧
           Fl4Spec.invokeSchedControlConfigureFlags (Z := Unit) inv σ1 = ({((), σ')}, False) ∧
           res.1 = .Ok () ∧ SchedRel st Z.N Z.T Z.C Z.c res.2.1 σ' ∧ NtfnStateRel Z.N Z.T (L.mem res.2.1) σ' ∧
-          NSC Z.N Z.C σ' ∧ Inv σ' ∧ P1.WritesIn st s res.2.1 (KFoot st Z.T Z.N Z.C Z.c s σ)) res) ⦄ := by
+          NSC Z.N Z.C σ' ∧ Inv σ' ∧ P1.WritesIn st s res.2.1 (KFoot st Z.T Z.N Z.C Z.c s σ) ∧
+          (σ1.schedulerAction = .resumeCurThread → IdleOK σ1 →
+            (∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ Fl4Spec.idleScPtr) → ActIdle σ')) res) ⦄ := by
     unfold syscall.decode_invocation
     rw [hct]; simp only [bind_ok]
     cases fp
     · simp only [Bool.false_eq_true, ↓reduceIte]
-      exact WP.spec_mono (decode_configure_refines htm Z.th s a σ hS hR J.nsc J.inv (J.curInv hres) J.off lbl slbl hlbl cpu
+      exact WP.spec_mono (decode_configure_refinesA htm Z.th s a σ hS hR J.nsc J.inv hC J.off lbl slbl hlbl cpu
         length buf ct hcpu hct args hlen hargs extra x0 hx0 _ hex hsb hsc hkc hrun) fun r h => Or.inr ⟨by trivial, h⟩
     · simp only [↓reduceIte, WP.spec_ok]
       exact Or.inl ⟨by trivial, by trivial⟩
@@ -150,7 +160,7 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
   rintro ⟨r0, s', a'⟩ ⟨hA, hq, hRst⟩
   rcases hq with ⟨rfl, he⟩ | ⟨rfl, hq⟩
   · cases he; exact ⟨σ, Ac, Lst, D, J⟩
-  rcases hq with ⟨e, e', he, -, -⟩ | ⟨inv, hdec, σ1, σ', he1, he2, hr1, hS', hR', hN', hI', hw⟩
+  rcases hq with ⟨e, e', he, -, -⟩ | ⟨inv, hdec, σ1, σ', he1, he2, hr1, hS', hR', hN', hI', hw, hAc⟩
   · cases he; exact ⟨σ, Ac, Lst, D, J⟩
   have hm1 : ((), σ1) ∈ (Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ).1 := by rw [he1]; exact Set.mem_singleton _
   have hm2 : ((), σ') ∈ (Fl4Spec.invokeSchedControlConfigureFlags (Z := Unit) inv σ1).1 := by
@@ -165,12 +175,57 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       (pres_invokeSchedControlConfigureFlags (true, true) _ σ1 _ hm2)
   obtain ⟨-, hY', hM', ⟨Lst', hCR', hRF'⟩, hRP', -⟩ :=
     ScAll.of_k hS J.rp J.yld J.mcp J.call J.rfree ⟨⟨hS', hR', hN', hI'⟩, hw, hSOK⟩
-  obtain ⟨p, b, per, k, badge, flag, rfl⟩ :=
-    retP_configureDec slbl (args.map UScalar.bv) (excaps.map Prod.fst) σ _ (by rw [hdec]; exact Set.mem_singleton _)
+  obtain ⟨⟨Ac', hDbg, hBlk'⟩, hCurA⟩ := hRst hr1 σ' inv σ1 hdec he1 he2
+  obtain ⟨a0, rest, hex', q, sz, rfl, b, per, k, badge, flag, rfl⟩ :=
+    (rdp_decodeCfgHead slbl (args.map UScalar.bv) (excaps.map Prod.fst) σ _ (by rw [hdec]; exact Set.mem_singleton _)).2
       _ rfl
   have hB' : BlockedScActive σ' := bsa_configure J.bsa (hcur ▸ hkc) hrun (hcur ▸ hm1) hm2
-  obtain ⟨Ac', hC', hOw', hO', hAI', hDbg, hBlk'⟩ :=
-    hRst hr1 σ' ⟨_, σ1, hdec, he1, he2⟩
+  -- the configured SC is the extra cap's
+  obtain ⟨p, sb, hcap, hpq⟩ : ∃ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) ∧ p.bv = q := by
+    rcases hex with ⟨-, he⟩ | ⟨-, c, a1, rest', hc, hCR, -, he⟩
+    · rw [he] at hex'; cases hex'
+    rw [he] at hex'
+    injection hex' with ha
+    have hCa := hCR.abs
+    rw [ha] at hCa
+    cases c <;> simp only [absCap, reduceCtorEq, Fl4Spec.Cap.schedContextCap.injEq] at hCa
+    exact ⟨_, _, hc, hCa.1.symm⟩
+  -- the mid-entry facts: the restart keeps them; Configure of another SC is `MidKn`
+  have hcs : Fl4Spec.schedulable σ.curThread σ = true := ct_schedulable hC J.act J.inv (hcur ▸ hkc) hrun
+  obtain ⟨hres1, hC1, hO1, hA1, hI1⟩ := restart_mid hcur hkc (hcur ▸ hcs) hres hC J.off J.act J.inv
+  have hσ1 := the_result (Fl4Proofs.P3.Notif.setThreadState_eq .restart hkc) he1
+  rw [← hσ1] at hres1 hC1 hO1 hA1 hI1
+  have hAI' : ActIdle σ' := hAc hres1 hA1.2 hpi
+  have hctT : ct ∈ Z.T := J.thT ct (J.kern.curT ▸ by rw [show L.curW s = ct from P1.eq_of_bv (by rw [← J.kern.cur, hcur])])
+  have hf1 := stsAct_fields (Fl4Proofs.P3.Notif.updK σ ct.bv (.tcb { xc with tcbState := .restart })) ct.bv
+  have hct1 : σ1.curThread = ct.bv := by rw [hσ1, hf1.2.1]; exact hcur
+  have hcs1 : σ1.curSc = σ.curSc := by rw [hσ1, hf1.2.2.1]; rfl
+  have hid1 : σ1.idleThread = σ.idleThread := by
+    rw [hσ1]; unfold Fl4Proofs.P3.Notif.stsAct; split_ifs <;> rfl
+  obtain ⟨hC', hOw', hO'⟩ : MidA Z.T σ' := by
+    by_cases hq : q = σ.curSc
+    · exact hCurA ⟨_, _, _, _, _, by rw [hq]⟩
+    obtain ⟨hpC, -, x, hkx, hbnd⟩ := hsc p sb hcap
+    have hpc : p.bv ≠ ct.bv := fun e => by rw [e, hkc] at hkx; cases hkx
+    have hkx1 : σ1.kheap p.bv = some (.schedContext x (sb.val - Fl4Spec.minSchedContextBits)) := by
+      rw [hσ1, (stsAct_fields _ _).1]; simp [Fl4Proofs.P3.Notif.updK, hpc, hkx]
+    obtain ⟨xt, hkt, hxs, -⟩ := hC.tcb
+    have ht : ∀ t, x.scTcb = some t → t ≠ σ1.idleThread ∧ t ≠ σ1.curThread := by
+      intro t ht
+      obtain ⟨-, xt', hkt', hxt'⟩ := hbnd ⟨t⟩ ht
+      have hkt2 : σ.kheap t = some (.tcb xt') := hkt'
+      refine ⟨fun e => ?_, fun e => ?_⟩
+      · rw [hid1] at e
+        obtain ⟨xi, hki, hsi, -⟩ := J.act.2
+        rw [e, hki] at hkt2; cases hkt2; rw [hsi] at hxt'
+        exact hpi p sb hcap (Option.some.inj hxt').symm
+      · rw [hct1, ← hcur] at e
+        rw [e, hkt] at hkt2; cases hkt2; rw [hxs] at hxt'
+        exact hq (by rw [← hpq]; exact (Option.some.inj hxt').symm)
+    have hK1 := mkn_configure (b := b) (per := per) (mr := k + Fl4Spec.MIN_REFILLS) (badge := badge) (flag := flag)
+      (hpq ▸ hkx1) (by rw [hcs1]; exact hq) ht (by simp [Fl4Spec.activeSc, Fl4Spec.MIN_REFILLS])
+      _ hm2
+    exact hK1.mid3 hC1 hO1 hI1 ⟨ct, hctT, hct1.symm⟩
   have hF : FK σ σ' := ((fk_setThreadState _ _).of_eq he1).trans ((fk_invokeSchedControlConfigureFlags _).of_eq he2)
   have hwT := WritesIn.tfoot_of_kfoot hw
   -- the dead set: Configure cuts links only
@@ -184,6 +239,7 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     (J.sc_jpl hwT hK) (J.sc_jcov hwT hDead fun q hq hn => absurd hq hn) (J.sc_kern hwT hK hF hX' hDbg fun _ h => h)
     (J.sc_utc hwT hK hDbg) hN' hI' hC' (hC'.elim hOw' (curOwn_of_curInv hX'.fin.1.1.1 hI')) hO' hAI' hB' hCR'' hBlk'⟩
 
+
 set_option maxHeartbeats 4000000 in
 /-- **The SchedContext cap on `JAt`** for Bind, UnbindObject and a YieldTo
 from an SC yielded to by none: when the invocation returns no data, `JAt`
@@ -193,7 +249,7 @@ YieldTo returning at once has replied (its `XTop` the reply leaf's, the
 second disjunct). Named per-op premise `hRest` (module docstring). -/
 theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction ≠ .chooseNewThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction = .resumeCurThread)
     (htm : TimeAgree arI) (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st Z.N Z.T Z.C Z.c)
@@ -221,7 +277,7 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
         (Fl4Spec.decodeSchedContextInvocation (Z := Unit) slbl sc.bv (excaps.map Prod.fst)).run σ = ({(.ok inv, σ)}, False) ∧
         Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ0)}, False) ∧
         Fl4Spec.invokeSchedContext (Z := Unit) inv σ0 = ({([], σ1)}, False)) →
-        ScStepRest (L := L) arI Z H Cs s r.2.1 σ1 ⦄) :
+        ScStepP1 (L := L) Z H Cs s r.2.1 ⦄) :
     syscall.decode_invocation st arI s a lbl length slot (.SchedContext sc sb) blk call don fp buf extra
       ⦃ r => (∃ (σ' : Fl4Spec.State Unit) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
           JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.2.1 r.2.2 σ') ∨
@@ -239,6 +295,7 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     rw [hct, WP.spec_ok, hc.cur] at h; exact h
   have hcur : σ.curThread = ct.bv := by rw [hs.curThread, hct']
   obtain ⟨xc, -, -, -, hkc, -, hrunc, -⟩ := schedulable_inv hcs
+  have hctT : ct ∈ Z.T := hct' ▸ hc.curT
   have key : syscall.decode_invocation st arI s a lbl length slot (.SchedContext sc sb) blk call don fp buf extra
       ⦃ res => (fp = true ∧ res = (.Err (.Sys (.InvalidCapability 0#u64)), s, a)) ∨
         (fp = false ∧ Sched.CPost σ (Fl4Spec.decodeSchedContextInvocation (Z := Unit) slbl sc.bv (excaps.map Prod.fst)) s a
@@ -324,7 +381,79 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       (f1 := decide (∀ p, inv ≠ .invokeSchedContextYieldTo p))
       ((pres_invokeSchedContext inv σ0 _ hm1).weaken (f' := (decide (∀ p, inv ≠ .invokeSchedContextYieldTo p), true))
         id (fun _ => hu))
-  obtain ⟨Ac', hC', hOw', hO', hAI', hDbg, hBlk'⟩ := hRst hr1 σ2 ⟨inv, σ0, hrun, he0, he1⟩
+  obtain ⟨Ac', hDbg, hBlk'⟩ := hRst hr1 σ2 ⟨inv, σ0, hrun, he0, he1⟩
+  -- the mid-entry facts: the restart keeps them, the invocation is a `MidK` step
+  have hC := J.curInv (by rw [hres]; simp)
+  obtain ⟨hres0, hC0, hO0, hA0, hI0⟩ := restart_mid hcur hkc hcs hres hC J.off J.act J.inv
+  rw [← hσ0] at hres0 hC0 hO0 hA0 hI0
+  have hf0 := stsAct_fields (Fl4Proofs.P3.Notif.updK σ ct.bv (.tcb { xc with tcbState := .restart })) ct.bv
+  have hct0 : σ0.curThread = ct.bv := by rw [hσ0, hf0.2.1]; exact hcur
+  have hcs0 : σ0.curSc = σ.curSc := by rw [hσ0, hf0.2.2.1]; rfl
+  have hid0 : σ0.idleThread = σ.idleThread := by
+    rw [hσ0]; unfold Fl4Proofs.P3.Notif.stsAct; split_ifs <;> rfl
+  -- the current SC's thread is the current thread
+  obtain ⟨xt, hkt, hxs, -⟩ := hC.tcb
+  obtain ⟨ycs, ncs, hkcs, hycs⟩ := J.inv.back _ xt σ.curSc hkt hxs
+  -- the SC's bound thread (if any) is not idle (`hback`)
+  have hnid : ∀ y n t, σ.kheap sc.bv = some (.schedContext y n) → y.scTcb = some t → t ≠ σ.idleThread := by
+    intro y n t hy ht
+    obtain ⟨x, n', hk, hx⟩ := hs.scs sc hsc
+    rw [hk] at hy; cases hy
+    rw [hx.tcb] at ht
+    obtain ⟨h0, rfl⟩ := Sched.optRef_some ht
+    exact (hback h0).2.2
+  have hpc : sc.bv ≠ ct.bv := fun e => by
+    obtain ⟨x, n', hk, -⟩ := hs.scs sc hsc; rw [e, hkc] at hk; cases hk
+  have hMid : MidK σ0 σ2 := by
+    rcases hl with l | l | ⟨l, -⟩
+    · have hg : Fl4Spec.genInvocationType slbl = .schedContextBind := by rw [hlbl, l]; unfold scLabelOf; simp
+      simp only [Fl4Spec.decodeSchedContextInvocation, hg] at hrun
+      have hpre := (rdp_decodeBindPre _ _ σ _ (by rw [hrun]; exact Set.mem_singleton _)).2 _ rfl
+      obtain ⟨cap, rfl⟩ := (retP_bindDec _ _).of_run hrun
+      cases cap
+      case threadCap t =>
+        obtain ⟨⟨y, n, hy, hyt⟩, xt0, hkt0, hxt0⟩ := hpre t rfl
+        have hP : BindPre sc.bv t σ0 := by
+          refine ⟨fun e => ?_, fun e => ?_, fun e => ?_⟩
+          · rw [hcs0] at e; rw [e, hkcs] at hy; cases hy; rw [hycs] at hyt; cases hyt
+          · rw [hct0, ← hcur] at e; rw [e, hkt] at hkt0; cases hkt0; rw [hxs] at hxt0; cases hxt0
+          · rw [hid0] at e
+            obtain ⟨xi, hki, hsi, -⟩ := J.act.2
+            rw [e, hki] at hkt0; cases hkt0; rw [hsi] at hxt0; cases hxt0
+        exact (mka_bind_ret (mka_schedContextBindTcb _ _) _) σ0 hP _ hm1
+      case notificationCap n b r =>
+        exact (mka_bind_ret (mka_schedContextBindNtfn _ _) _) σ0 trivial _ hm1
+      all_goals exact (mka_fail (P := fun _ => True)) σ0 trivial _ hm1
+    · have hg : Fl4Spec.genInvocationType slbl = .schedContextUnbindObject := by
+        rw [hlbl, l]; unfold scLabelOf; simp
+      simp only [Fl4Spec.decodeSchedContextInvocation, hg] at hrun
+      have hpre := (rdp_decodeUnbindObjPre _ _ σ _ (by rw [hrun]; exact Set.mem_singleton _)).2 _ rfl
+      obtain ⟨cap, rfl⟩ := (retP_unbindObjDec _ _).of_run hrun
+      cases cap
+      case threadCap t =>
+        obtain ⟨⟨y, n, hy, hyt⟩, htc⟩ := hpre t rfl
+        have hP : sc.bv ≠ σ0.curSc ∧ ∀ y' n' t', σ0.kheap sc.bv = some (.schedContext y' n') → y'.scTcb = some t' →
+            t' ≠ σ0.curThread ∧ t' ≠ σ0.idleThread := by
+          refine ⟨fun e => ?_, fun y' n' t' hy' ht' => ?_⟩
+          · rw [hcs0] at e; rw [e, hkcs] at hy; cases hy; rw [hycs] at hyt; cases hyt; exact htc rfl
+          · rw [hko _ hpc, hy] at hy'; cases hy'; rw [hyt] at ht'; cases ht'
+            rw [hct0, ← hcur, hid0]; exact ⟨htc, hnid y n t hy hyt⟩
+        exact (mka_bind_ret (mka_schedContextUnbindTcb _) _) σ0 hP _ hm1
+      case notificationCap n b r =>
+        exact (mka_bind_ret (mka_schedContextUnbindNtfn _) _) σ0 trivial _ hm1
+      all_goals exact (mka_fail (P := fun _ => True)) σ0 trivial _ hm1
+    · have hg : Fl4Spec.genInvocationType slbl = .schedContextYieldTo := by rw [hlbl, l]; unfold scLabelOf; simp
+      simp only [Fl4Spec.decodeSchedContextInvocation, hg] at hrun
+      obtain ⟨y, n, t, hy, hyt, htc⟩ := (rdp_decodeYieldToPre _ σ _ (by rw [hrun]; exact Set.mem_singleton _)).2 _ rfl
+      rw [(retP_yieldToDec _).of_run hrun] at hm1
+      rcases hshape with ⟨q, cap, e⟩ | ⟨q, cap, e⟩ | ⟨q, x, n', e, hk0, hyf⟩
+      · rw [(retP_yieldToDec _).of_run hrun] at e; cases e
+      · rw [(retP_yieldToDec _).of_run hrun] at e; cases e
+      · rw [(retP_yieldToDec _).of_run hrun] at e; cases e
+        rw [hko _ hpc, hy] at hk0; cases hk0
+        exact mka_schedContextYieldTo (by rw [hko _ hpc]; exact hy) hyf (fun t' ht' => by
+          rw [hyt] at ht'; cases ht'; rw [hct0, ← hcur, hid0]; exact ⟨hnid y n t hy hyt, htc⟩) _ hm1
+  obtain ⟨hC', hOw', hO', hAI'⟩ := hMid.mid (T := Z.T) hres0 hC0 hO0 hA0 hI0 ⟨ct, hctT, hct0.symm⟩
   have hF : FK σ σ2 := ((fk_setThreadState _ _).of_eq he0).trans (fk_invokeSchedContext hshape _ hm1)
   have hCR'' : CurRun σ2 := curRun_sc_step hkc hcur he0 hK1
   have hKt := hK0.trans (hK1.mono fun _ h => h.elim)

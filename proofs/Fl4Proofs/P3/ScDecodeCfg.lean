@@ -24,8 +24,10 @@ theorem absMax_eq {sb : Nat} (h : sb < 64) : absMax sb = Fl4Spec.maxNumRefills s
   rw [if_neg (by omega)]
 
 /-- **`decode_sched_control` refines decode, `Restart`, and
-`invoke_sched_control_configure_flags`.** -/
-theorem decode_configure_refines (hT : TimeAgree ar) {N T C : Set U64} {c : U64} (th : TypedHeap) (s : S) (a : A)
+`invoke_sched_control_configure_flags`**, with `ActIdle` after when the
+action is `resume_cur_thread` after the restart and the SC is not the idle
+SC (`configure_flags_refines`). -/
+theorem decode_configure_refinesA (hT : TimeAgree ar) {N T C : Set U64} {c : U64} (th : TypedHeap) (s : S) (a : A)
     (σ : Fl4Spec.State Unit) (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ)
     (hN : NSC N C σ) (hI : Inv σ) (hC : CurInv σ) (hO : OffOK σ)
     (lbl : U64) (slbl : Fl4Spec.Data)
@@ -47,7 +49,9 @@ theorem decode_configure_refines (hT : TimeAgree ar) {N T C : Set U64} {c : U64}
         (fun inv res => ∃ σ1 σ', Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) ∧
           Fl4Spec.invokeSchedControlConfigureFlags (Z := Unit) inv σ1 = ({((), σ')}, False) ∧
           res.1 = .Ok () ∧ SchedRel st N T C c res.2.1 σ' ∧ NtfnStateRel N T (L.mem res.2.1) σ' ∧
-          NSC N C σ' ∧ Inv σ' ∧ WritesIn st s res.2.1 (KFoot st T N C c s σ)) res ⦄ := by
+          NSC N C σ' ∧ Inv σ' ∧ WritesIn st s res.2.1 (KFoot st T N C c s σ) ∧
+          (σ1.schedulerAction = .resumeCurThread → IdleOK σ1 →
+            (∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ Fl4Spec.idleScPtr) → ActIdle σ')) res ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hct' : ct = nodeW st s c layout.node.CUR_THREAD := by
     have h := sched.cur_thread.spec' (L := L) s
@@ -104,12 +108,44 @@ theorem decode_configure_refines (hT : TimeAgree ar) {N T C : Set U64} {c : U64}
     exact Nat.mod_eq_of_lt (by rw [hsz]; omega)
   refine WP.spec_bind (configure_flags_refines s1 a σ1 hS1 hR1 hN1 hI1 hC1 hO1 hpC hp0 hkp1 hbnd1 cpu budget
     period (core.num.U64.wrapping_add er sporadic.MIN_REFILLS) bd fl hcpu (by rw [hmr]; omega) (by rw [hmr, Nat.sub_add_cancel h7, absMax_eq h64]; exact hle) hmb hbp hT) ?_
-  rintro ⟨s2, a2⟩ ⟨σ', hcfg, hS2, hR2, hN2, hI2, -, hw2⟩
+  rintro ⟨s2, a2⟩ ⟨σ', hcfg, hS2, hR2, hN2, hI2, hA2, hw2⟩
   have hkc1 : σ1.kheap ct.bv = some (.tcb { xc with tcbState := .restart }) := by rw [stsAct_kheap]; simp [updK]
   refine (WP.spec_ok _).mpr ⟨σ1, σ', h1, ?_, rfl, hS2, hR2, hN2, hI2,
-    WritesIn.kfoot_trans (WritesIn.kfoot_of_sfoot hw1) (SzKeepC.of (SzKeep.of_tcb hk1 hkc1)) hw2⟩
+    WritesIn.kfoot_trans (WritesIn.kfoot_of_sfoot hw1) (SzKeepC.of (SzKeep.of_tcb hk1 hkc1)) hw2,
+    fun h1 h2 h3 => hA2 h1 h2 (h3 p sb hc0)⟩
   rw [← hbud, ← hper, ← hmr]
   exact hcfg
+
+/-- **`decode_sched_control` refines decode, `Restart`, and
+`invoke_sched_control_configure_flags`.** -/
+theorem decode_configure_refines (hT : TimeAgree ar) {N T C : Set U64} {c : U64} (th : TypedHeap) (s : S) (a : A)
+    (σ : Fl4Spec.State Unit) (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ)
+    (hN : NSC N C σ) (hI : Inv σ) (hC : CurInv σ) (hO : OffOK σ)
+    (lbl : U64) (slbl : Fl4Spec.Data)
+    (hlbl : Fl4Spec.genInvocationType slbl = .schedControlConfigureFlags ↔
+      lbl = fl4_abi.label.SchedControlConfigureFlags)
+    (cpu length buf ct : U64) (hcpu : cpu = c) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (excaps : List Fl4Spec.Cap) (hex : ExtraRel th (L.mem s) x0 excaps)
+    (hsb : ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → sb.val < 64)
+    (hsc : ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p ∈ C ∧ p ≠ 0#u64 ∧
+      ∃ x, σ.kheap p.bv = some (.schedContext x (sb.val - Fl4Spec.minSchedContextBits)) ∧
+        ∀ t : U64, x.scTcb = some t.bv →
+          t ∈ T ∧ ∃ xt, σ.kheap t.bv = some (.tcb xt) ∧ xt.tcbSchedContext = some p.bv)
+    {xc : Fl4Spec.Tcb} (hkc : σ.kheap ct.bv = some (.tcb xc)) (hrun : Fl4Spec.runnable xc.tcbState = true) :
+    schedcontext.decode_sched_control st ar s a lbl cpu length buf extra ⦃ res =>
+      CPost σ (Fl4Spec.decodeSchedControlInvocationFlags (Z := Unit) slbl (args.map UScalar.bv) excaps) s a
+        (fun inv res => ∃ σ1 σ', Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) ∧
+          Fl4Spec.invokeSchedControlConfigureFlags (Z := Unit) inv σ1 = ({((), σ')}, False) ∧
+          res.1 = .Ok () ∧ SchedRel st N T C c res.2.1 σ' ∧ NtfnStateRel N T (L.mem res.2.1) σ' ∧
+          NSC N C σ' ∧ Inv σ' ∧ WritesIn st s res.2.1 (KFoot st T N C c s σ)) res ⦄ := by
+  refine WP.spec_mono (decode_configure_refinesA hT th s a σ hS hR hN hI hC hO lbl slbl hlbl cpu length buf ct hcpu hct
+    args hlen hargs extra x0 hx0 excaps hex hsb hsc hkc hrun) fun r h => ?_
+  rcases h with h | ⟨i, h1, σ1, σ', e1, e2, e3, e4, e5, e6, e7, e8, -⟩
+  · exact Or.inl h
+  · exact Or.inr ⟨i, h1, σ1, σ', e1, e2, e3, e4, e5, e6, e7, e8⟩
 
 end
 
