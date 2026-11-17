@@ -145,6 +145,8 @@ import Fl4Proofs.P3.ScFieldKeep
 import Fl4Proofs.P3.ScJointRest
 import Fl4Proofs.P3.ScJointStep
 import Fl4Proofs.P3.ScJointSched
+import Fl4Proofs.P3.ScLinkKeep
+import Fl4Proofs.P3.ScDeadStep
 import Fl4Proofs.P3.SpecKSz
 import Fl4Proofs.P3.SpecFreeRet
 import Fl4Proofs.P3.SpecFreeRetJ

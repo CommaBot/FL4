@@ -12,7 +12,7 @@ the ghost call stacks `Lst`, the dead set `D`), grouped as the plan's 1a–1e:
 * 1c CSpace: `DelInv`, `UtInv`, the CNode-size and fuel bound (`DelBound`),
   the untyped caps' facts (`UtCapP3`);
 * 1d scheduler: `NSC`, `Inv`, `CurInv`, `OffOK`, `ActIdle`, `BlockedScActive`
-  ([J]), `SchedValid`, `CurRun`;
+  ([J]), `SchedValid`, `IpcSorted`, `CurRun`;
 * 1e P1: `BlkOK` over `H`'s sets.
 
 Projections to each leaf bundle: `WX`, `DState`, `IpcZ`, `ScExtra`,
@@ -34,6 +34,7 @@ import Fl4Proofs.P3.XTopTcbAll
 import Fl4Proofs.P3.IpcSendDon
 import Fl4Proofs.P3.ScXProd
 import Fl4Proofs.P3.ScUtRetype
+import Fl4Proofs.P3.ScIpcSorted
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -124,6 +125,9 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   -- 1b: placement
   ks : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)
   thT : ∀ t, Z.th t = some .tcb → t ∈ Z.T
+  /-- [carried] `Z.th` holds TCBs and CNodes only (its one producer, the
+  retype's `ThX`, adds `thKindN`'s kinds; deletions only drop entries). -/
+  thk : ∀ q k, Z.th q = some k → k = .tcb ∨ ∃ r, k = .cnode r
   ip : IPlaced Z.N Z.T Z.E Z.R Z.B
   rp : Sched.RPlaced st Z.N Z.T Z.C Z.R Z.c s σ
   apart : Sched.SlotsApart (st := st) Z.th Z.T Z.N Z.C Z.R Z.c s σ
@@ -166,6 +170,8 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   c0 : ∀ q ∈ Z.C, q ≠ 0#u64
   bsa : Sched.BlockedScActive σ
   sv : Sched.SchedValid σ
+  /-- The spec's IPC queues sorted by priority (l4v `sorted_ipc_queues`). -/
+  isorted : Sched.IpcSorted σ
   /-- The spec's SC, TCB and notification links (per-op; for the
   `SchedValid` rebuild). -/
   slink : Sched.ScLinkHyp σ

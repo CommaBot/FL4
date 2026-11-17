@@ -10,7 +10,7 @@ closure** (`JStepHyps`, XTopJointStep), in the SC family's pattern
   caps' facts, the dead set (ScJointRest's `sc_*` frames), `NSC`, `Inv`
   (`Inv.restart`), the current thread's invariants (`CurInv.restart`,
   `CurOwn`), `OffOK` (`OffOK.restart`), `ActIdle` (`ActIdle.updState`),
-  `BlockedScActive` (`bk_restart`), the SC/TCB/notification links, `CurRun`.
+  `BlockedScActive` (`bk_restart`), the sorted IPC queues (`IpcSorted.tkw`), `CurRun`.
   Named (`RestartRest` [W], as `ScStepRest`'s): the dead set after, the
   node-0 `DEBUG_TCBS` word kept, P1's `BlkOK` after.
 -/
@@ -171,7 +171,7 @@ theorem jowes_restart {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s : S)
   refine ⟨Ac', Lst', D', ⟨hCR', hRF', hY', hM', J.sc_buf hwT hK, hRP', J.sc_apart hwT hK, J.sc_jpl hwT hK,
     J.sc_jcov hwT hDead hCov, J.sc_kern hwT hK hF hX1 hDbg hDD, J.sc_utc hwT hK hDbg, hNsc, hI1, hcur',
     curOwn_updTcb J.own hk _, OffOK.restart J.off _, (ActIdle.updState J.act hk hrun .restart rfl).ofSts ct.bv, hB',
-    scLink_updTcb J.slink hk _, hCR'', hBlk'⟩⟩
+    J.isorted.tkw hK, hCR'', hBlk'⟩⟩
 
 end
 

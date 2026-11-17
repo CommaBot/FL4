@@ -82,6 +82,50 @@ theorem Sched.ObjCover.tkw {N T E R C : Set U64} {P : ObjRef → Prop} {σ σ' :
   · obtain ⟨ko, hk, -, -, -, -, h1⟩ := hK.kind_back ho
     obtain ⟨y0, k0, rfl⟩ := h1 ⟨y, k, rfl⟩; exact h.sc o y0 k0 hk
 
+theorem Sched.ScTKw.ntfn' {P : ObjRef → Prop} {σ σ' : State Unit} (h : Sched.ScTKw P σ σ') {p : ObjRef}
+    {x : Notification} (hk : σ.kheap p = some (.notification x)) :
+    ∃ y, σ'.kheap p = some (.notification y) ∧ y.ntfnObj = x.ntfnObj ∧ y.ntfnBoundTcb = x.ntfnBoundTcb := by
+  have := h.kh p
+  rw [hk] at this
+  cases e : σ'.kheap p with
+  | none => rw [e] at this; exact this.elim
+  | some o =>
+    rw [e] at this
+    rcases this with rfl | ⟨_, _, e1, -⟩ | ⟨_, _, _, e1, -⟩ | ⟨x1, y, e1, rfl, hy⟩ | ⟨_, _, e1, -⟩
+    · exact ⟨x, rfl, rfl, rfl⟩
+    all_goals (try cases e1)
+    refine ⟨y, rfl, ?_, ?_⟩
+    · rw [hy]
+    · rw [hy]
+
+/-- The SC code's spec step keeps every priority (`TcbSchedOnly`). -/
+theorem Sched.ScTKw.prioOf {P : ObjRef → Prop} {σ σ' : State Unit} (h : Sched.ScTKw P σ σ') (u : ObjRef) :
+    Sched.prioOf σ' u = Sched.prioOf σ u := by
+  unfold Sched.prioOf; rw [Sched.tcbsOf_eq, Sched.tcbsOf_eq]
+  have := h.kh u
+  revert this
+  cases σ.kheap u <;> cases σ'.kheap u <;> simp only [Sched.OTK, imp_self, IsEmpty.forall_iff]
+  rename_i a b
+  rintro (rfl | ⟨x, y, rfl, rfl, hso, -⟩ | ⟨x, y, n, rfl, rfl⟩ | ⟨x, y, rfl, rfl, -⟩ | ⟨x, y, rfl, rfl, -⟩)
+  · rfl
+  · simp only [Option.map_some, Option.getD_some]; rw [hso]
+  all_goals rfl
+
+/-- **The SC code's spec step keeps the IPC queues sorted**: endpoints kept,
+notifications' queues kept, priorities kept. -/
+theorem Sched.IpcSorted.tkw {P : ObjRef → Prop} {σ σ' : State Unit} (h : Sched.IpcSorted σ)
+    (hK : Sched.ScTKw P σ σ') : Sched.IpcSorted σ' := by
+  refine h.frame (fun p x' hk => ?_) (fun p x' hk => ?_) hK.prioOf
+  · obtain ⟨ko, hk0, -, h1, -⟩ := hK.kind_back hk
+    obtain ⟨x0, rfl⟩ := h1 ⟨x', rfl⟩
+    rw [hK.ep hk0] at hk; cases hk
+    exact ⟨_, hk0, rfl⟩
+  · obtain ⟨ko, hk0, h1, -⟩ := hK.kind_back hk
+    obtain ⟨x0, rfl⟩ := h1 ⟨x', rfl⟩
+    obtain ⟨y, hy, ho, -⟩ := hK.ntfn' hk0
+    rw [hk] at hy; cases hy
+    exact ⟨_, hk0, by rw [ho]⟩
+
 end Spec
 
 theorem FinM.of_capV {mem mem' : U64 → U64} {G : MdbGhost} (hF : FinM mem G)
@@ -116,6 +160,29 @@ theorem schedValid_rebuild {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1
   rw [hTe] at hY
   exact Sched.schedValid_of_blk hB hI hCv hE hN hCR hY hC0 (Sched.epRdyHyp_of hI hCv hInv) hSL
 
+/-- **`ScLinkHyp` by the rebuild** (`scLinkHyp_of`): from `XTopAt` (the IPC
+relation's TCBs and notifications, the SC relation's `TCB`, `NTFN` and
+`SPORADIC` words), the sets' TCBs being `H`'s, `ObjCover`, P1's `BlkOK`
+(`ScExtra0`: the words name `H`'s TCBs and notifications), `H`'s
+notifications in the set, `JPlaced` (the SCs are `H`'s) and no null SC. So
+no step owes the spec's links: they follow from the relation and P1's
+invariant at the post. -/
+theorem scLink_rebuild {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z s a σ)
+    (hTe : Z.T = P1.Heap.tcbs H) (hCv : Sched.ObjCover Z.N Z.T Z.E Z.R Z.C σ)
+    (hB : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s)
+    (hN : ∀ n, H n = some .ntfn → n ∈ Z.N) (hjpl : ∃ Tr Cq, Sched.JPlaced (L := L) Z.th H Tr Cq s σ)
+    (hC0 : ∀ q ∈ Z.C, q ≠ 0#u64) : Sched.ScLinkHyp σ := by
+  have hI := hX.ipc
+  obtain ⟨Q, R, -, hs⟩ := hX.fin.1.1.1.lists
+  obtain ⟨Tr, Cq, hJ⟩ := hjpl
+  obtain ⟨-, -, hXi, -, -⟩ := hB
+  rw [hTe] at hI hCv
+  refine Sched.scLinkHyp_of hI hCv hs.scs (fun c hc => ?_) hXi.2.2.toScExtra0 fun n hn => hN n hn
+  obtain ⟨x, n, hk, -⟩ := hs.scs c hc
+  exact ⟨_, (hJ.sc c x n (hC0 c hc) hk).2⟩
+
 /-- The sets' TCBs and replies are `H`'s. -/
 theorem JAtZ.tcbs_eq {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
@@ -142,7 +209,7 @@ theorem JAtZ.sc_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
       Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi)
     (hnsc : Sched.NSC Z.N Z.C σ') (hinv : Sched.Inv σ') (hcur : σ'.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ')
     (hown : Sched.CurOwn Z.T σ') (hoff : Sched.OffOK σ')
-    (hact : Sched.ActIdle σ') (hbsa : Sched.BlockedScActive σ') (hsl : Sched.ScLinkHyp σ') (hcr : CurRun σ')
+    (hact : Sched.ActIdle σ') (hbsa : Sched.BlockedScActive σ') (hcr : CurRun σ')
     (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s') :
     JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' s' a' σ' := by
@@ -151,12 +218,13 @@ theorem JAtZ.sc_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     J.xtop.slotsSame_of hw fun b h => Sched.tfoot_oobj J.xtop.fin.1.1.1 h
   obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
   have hsl' : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
+  have hsl : Sched.ScLinkHyp σ' := scLink_rebuild hX J.tcbs_eq.1 (J.obj.tkw hK) hblk J.hset.2.1 hjpl J.c0
   have hsv : Sched.SchedValid σ' := schedValid_rebuild hX J.tcbs_eq.1 J.tcbs_eq.2 (J.obj.tkw hK) hblk J.hset.1
     J.hset.2.1 hcall hyl J.c0 hinv hsl
-  refine ⟨hX, hcall, hrf, hyl, hmcp, hbuf, by rw [hks]; exact J.ks, J.thT, J.ip, hrp, hap,
+  refine ⟨hX, hcall, hrf, hyl, hmcp, hbuf, by rw [hks]; exact J.ks, J.thT, J.thk, J.ip, hrp, hap,
     fun n hn => by rw [hks]; exact J.nk n hn, hjpl, J.cover.tkw hK, J.obj.tkw hK, J.zH, ?_, J.hset, hjc, hkern,
     J.del.of_same hSS, UtInv.of_same hM J.ut hSS, J.bound, fun G hG => ?_, hutc, hnsc, hinv, hcur, hown, hoff, hact,
-    J.c0, hbsa, hsv, hsl, hcr, hblk⟩
+    J.c0, hbsa, hsv, J.isorted.tkw hK, hsl, hcr, hblk⟩
   · refine SpecFree.frame J.sfree (fun x' hx' p sb fi' d hc => ⟨x', hx', fi', d, ?_, le_rfl⟩) hK.ksz
     rw [← hSS.capV (hsl' x' hx')]; exact hc
   · have hG0 : MdbLinks Z.th (L.mem s) G := hG.of_same_symm hSS
