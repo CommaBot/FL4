@@ -145,7 +145,7 @@ and domain-schedule words (start, table). -/
 def SchW (T : Set U64) (c : U64) (s : S) (b : U64) : Prop :=
   (∃ y ∈ T, b = core.num.U64.wrapping_add y 3480#u64 ∨ b = core.num.U64.wrapping_add y 3488#u64 ∨
     b = core.num.U64.wrapping_add y 3592#u64) ∨
-  (L.nodeBase s c ≤ b.val ∧ b.val < L.nodeBase s c + 4288) ∨ DomKW (L.ksb s) b
+  (L.nodeBase s c ≤ b.val ∧ b.val < L.nodeBase s c + 4288 ∧ b.val ≠ L.nodeBase s c + 88) ∨ DomKW (L.ksb s) b
 
 /-- **A scheduler step** (`set_domain`, `reschedule_required`, the domain
 schedule's start and configuration): the spec changes only the scheduler's

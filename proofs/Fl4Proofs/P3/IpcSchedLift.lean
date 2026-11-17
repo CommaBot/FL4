@@ -276,7 +276,7 @@ theorem scw_not_ifoot (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State Unit
     · have hv := congrArg UScalar.val h
       rw [scA_val (hP0.e.tcb t ht)] at hv
       have := hT t ht; omega
-  · exact sfootI_not_ifoot hP0 hS hA (Or.inr ⟨g1, g2⟩) h2
+  · exact nodeRange_not_ifoot hP0 hS hA g1 g2 h2
 
 /-- **The frame of `RelTopB`** for FL4 writing IPC words, node words and SC
 words (no slot, `ScApart`; not the domain words, `hSD`). -/
@@ -496,6 +496,7 @@ theorem dequeue_sfootI {s : S} {σ : Fl4Spec.State Unit}
   rintro s' ⟨hw, -⟩
   rw [haf] at hw
   exact hw.mono fun b hb => qfoot_sfootI hc.tcbs (fun w hw' => (hc.ready.1.rel _ hp).mem w hw') ht hc.node hc.cur hb
+    (by omega)
 
 /-- **`release_enqueue`'s footprint** at the precision of `SFootI`. -/
 theorem release_enqueue_sfootI {s : S} {σ : Fl4Spec.State Unit}
@@ -510,7 +511,7 @@ theorem release_enqueue_sfootI {s : S} {σ : Fl4Spec.State Unit}
   refine WP.spec_mono (sched.release_enqueue.foot s t _ hc.tcbs ht htR hN hN' hrel) ?_
   rintro s' ⟨hw, -⟩
   rw [haf] at hw
-  refine hw.mono fun b hb => qfoot_sfootI hc.tcbs (fun w hw' => ?_) ht hc.node hc.cur hb
+  refine hw.mono fun b hb => qfoot_sfootI hc.tcbs (fun w hw' => ?_) ht hc.node hc.cur hb (by simp [RelOffs])
   rcases List.mem_cons.1 hw' with rfl | hw'
   · exact ht
   · exact hc.release.mem w hw'
@@ -520,7 +521,7 @@ theorem scIn_not_sfootI {s s' : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N
     (hsc : sc ∈ C) (hin : ScIn st s sc a) (hk : L.ksb s' = L.ksb s) : ¬ SFootI st T c s' a := by
   obtain ⟨-, hn, hT, -⟩ := hS.scOutIn hsc hin
   obtain ⟨Q, R, hc, -⟩ := hS.lists
-  rintro (⟨y, hy, hb⟩ | ⟨g1, g2⟩)
+  rintro (⟨y, hy, hb⟩ | ⟨g1, g2, -⟩)
   · have hya := hc.tcbs y hy
     have := hT y hy
     rcases hb with rfl | rfl | rfl <;> (rw [tfield_val hya (by decide)] at this; simp at this <;> omega)
@@ -567,7 +568,7 @@ theorem postpone_sfootI {s : S} {σ : Fl4Spec.State Unit}
   have hal : Aligned (L.nodeAt s2 cpu layout.node.REPROGRAM) := nodeAt_aligned hN2 ho (by simp [layout.node.REPROGRAM])
   refine WritesIn.sfootI_trans (WritesIn.sfootI_trans hw1 hw2) ((writesIn_wr hal).mono fun b hb => ?_)
   subst hb
-  exact sfootI_node hN2 ho
+  exact sfootI_node hN2 ho (by simp [layout.node.REPROGRAM])
 
 /-- **What `postpone` needs of the spec beyond `IRel`** (l4v `valid_sched`
 and `sym_refs`): the release queue sorted with SCs (`RelOK`), the thread in

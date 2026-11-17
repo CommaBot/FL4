@@ -141,7 +141,7 @@ theorem domSame_of_sfootI {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.S
     rcases ho with rfl | rfl | rfl | rfl | rfl <;> decide
   have hv := ksW_val (kb := L.ksb s) (o := o) (by omega)
   refine hw.mem_eq (ksW_al (by omega) (by omega) h8.1 h8.2) fun hb => ?_
-  rcases hb with ⟨y, hy, h⟩ | ⟨g1, g2⟩
+  rcases hb with ⟨y, hy, h⟩ | ⟨g1, g2, -⟩
   · have hv' := tfield3_val (hc.tcbs y hy) h
     rw [hv] at hv'
     rcases hc.ksOut y hy with h' | h' <;> omega
@@ -193,7 +193,7 @@ theorem sfootI_oobj {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U
   rcases h with ⟨y, hy, rfl | rfl | rfl⟩ | h
   all_goals first
     | exact tcb_oobj hy (hT y hy) (by decide) (by decide)
-    | exact Or.inl h
+    | exact Or.inl ⟨h.1, h.2.1⟩
 
 /-- The current thread of `XTopAt`: a TCB of the typed heap, in the spec. -/
 theorem XTopAt.curTcb {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A} {σ : Fl4Spec.State Unit}
