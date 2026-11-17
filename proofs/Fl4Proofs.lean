@@ -333,3 +333,5 @@ import Fl4Proofs.P3.IpcRelQ
 import Fl4Proofs.P3.IpcTcbBind
 import Fl4Proofs.P3.IpcRemoveTcb
 import Fl4Proofs.P3.IpcSuspend
+import Fl4Proofs.P3.IpcTscK
+import Fl4Proofs.P3.IpcResume
