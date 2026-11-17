@@ -415,3 +415,4 @@ import Fl4Proofs.P3.IpcSignalBoundFr
 import Fl4Proofs.P3.IpcSignalBoundSpec
 import Fl4Proofs.P3.IpcSignalBound
 import Fl4Proofs.P3.ScSignalBoundJ
+import Fl4Proofs.P3.XTopJointEmpty
