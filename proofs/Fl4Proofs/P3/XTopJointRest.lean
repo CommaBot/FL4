@@ -11,16 +11,19 @@ closure** (`JStepHyps`, XTopJointStep), in the SC family's pattern
   (`Inv.restart`), the current thread's invariants (`CurInv.restart`,
   `CurOwn`), `OffOK` (`OffOK.restart`), `ActIdle` (`ActIdle.updState`),
   `BlockedScActive` (`bk_restart`), the sorted IPC queues (`IpcSorted.tkw`), `CurRun`.
-  Named (`RestartRest` [W], as `ScStepRest`'s): the dead set after, the
+  The dead stay dead (`JAtZ.deadP_sc_step`: `ScTKw`, `LK ∅` by
+  `lkm_setThreadState`). Named (`RestartRest` [W], as `ScStepRest`'s): the
   node-0 `DEBUG_TCBS` word kept, P1's `BlkOK` after.
 -/
 import Fl4Proofs.P3.XTopJointStep
 import Fl4Proofs.P3.ScJointRest
 import Fl4Proofs.P3.ScJointStep
+import Fl4Proofs.P3.SpecKeepC
+import Fl4Proofs.P3.ScDeadStep
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
-open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc Fl4Proofs.P3.Sched
+open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc Fl4Proofs.P3.Sched Fl4Proofs.P1
 
 noncomputable section
 
@@ -105,14 +108,10 @@ end Spec
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
-/-- **What the restart still owes** [W] (`ScStepRest`'s P1-supplied and
-dead-set parts): the dead set after, the node-0 `DEBUG_TCBS` word kept, P1's
-`BlkOK` after. -/
+/-- **What the restart still owes** [W] (`ScStepRest`'s P1-supplied parts):
+the node-0 `DEBUG_TCBS` word kept, P1's `BlkOK` after. -/
 def RestartRest (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s s1 : S) : Prop :=
-  ∃ (Ac' D' : Set U64), (D' ⊆ D ∧ (∀ q ∈ D', DeadP (L := L) H s1 q) ∧
-      ∀ q ∈ D, q ∉ D' →
-        (∀ k, Z.th q = some k → Covered (L.mem s1) Z.G q.val (q.val + max (objSize k) 1)) ∧
-        (∀ k, H q = some k → Covered (L.mem s1) Z.G q.val (q.val + 2 ^ k.bits))) ∧
+  ∃ (Ac' : Set U64),
     L.mem s1 (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) ∧
     P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s1
@@ -150,7 +149,7 @@ theorem jowes_restart {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s : S)
   obtain ⟨-, hY', hM', ⟨Lst', hCR', hRF'⟩, hRP', -⟩ :=
     ScAll.of_k hS J.rp J.yld J.mcp J.call J.rfree ⟨⟨hS1, hN1, hNsc, hI1⟩, hwK, hSOK⟩
   have hF : FK σ σ1 := (fk_setThreadState _ _).of_eq he1
-  obtain ⟨Ac', D', ⟨hDD, hDead, hCov⟩, hDbg, hBlk'⟩ := hR Z H Cs Ac Lst D hth J
+  obtain ⟨Ac', hDbg, hBlk'⟩ := hR Z H Cs Ac Lst D hth J
   have hkc : σ.kheap σ.curThread = some (.tcb x) := by rw [hcur]; exact hk
   have hcur' : σ1.schedulerAction = .chooseNewThread ∨ CurInv σ1 := by
     rcases J.cur with h | h
@@ -168,10 +167,115 @@ theorem jowes_restart {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s : S)
     rw [show σ1.curThread = σ.curThread from (stsAct_fields _ _).2.1, hcur, stsAct_kheap, updK_kheap,
       Function.update_self] at hy
     cases hy; rfl
-  refine ⟨Ac', Lst', D', ⟨hCR', hRF', hY', hM', J.sc_buf hwT hK, hRP', J.sc_apart hwT hK, J.sc_jpl hwT hK,
-    J.sc_jcov hwT hDead hCov, J.sc_kern hwT hK hF hX1 hDbg hDD, J.sc_utc hwT hK hDbg, hNsc, hI1, hcur',
-    curOwn_updTcb J.own hk _, OffOK.restart J.off _, (ActIdle.updState J.act hk hrun .restart rfl).ofSts ct.bv, hB',
+  have hAI : ActIdle σ1 := (ActIdle.updState J.act hk hrun .restart rfl).ofSts ct.bv
+  have hL : LK (fun _ => False) σ σ1 := (lkm_setThreadState (W := fun _ => False) _ _).of_eq he1
+  have hDead : ∀ q ∈ D, DeadP (L := L) H s1 q := fun q hq =>
+    J.deadP_sc_step hX1 hwT hK (fun p y e hy => by subst e; rw [hk] at hy; cases hy; exact hrun) hL hF hAI.1
+      (fun h => h) (J.jcov.dead q hq)
+  refine ⟨Ac', Lst', D, ⟨hCR', hRF', hY', hM', J.sc_buf hwT hK, hRP', J.sc_apart hwT hK, J.sc_jpl hwT hK,
+    J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn), J.sc_kern hwT hK hF hX1 hDbg (fun _ h => h),
+    J.sc_utc hwT hK hDbg, hNsc, hI1, hcur', curOwn_updTcb J.own hk _, OffOK.restart J.off _, hAI, hB',
     J.isorted.tkw hK, hCR'', hBlk'⟩⟩
+
+/-! ## The slot steps (an insertion, a CNode-only step) -/
+
+/-- **A word outside every slot is kept by writes of slot words** (the slot
+steps' write set, `InSlot`). -/
+theorem inSlot_keep {th : TypedHeap} {s s' : S} (hw : P1.WritesIn st s s' (InSlot th)) {b : U64} (hb : P1.Aligned b)
+    (hout : ∀ a, IsSlot th a → b.val < a.val ∨ a.val + 32 ≤ b.val) : L.mem s' b = L.mem s b :=
+  hw.mem_eq hb fun ⟨a, ha, h1, h2⟩ => by rcases hout a ha with h | h <;> omega
+
+/-- **The scheduler's words a slot step keeps** (from `SlotsApart`): the TCBs'
+`MCP`, `YIELD_TO` and IPC-buffer words, the SCs' `REPLY` words, the replies'
+links. -/
+theorem inSlot_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} (hw : P1.WritesIn st s s' (InSlot Z.th)) :
+    (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t)) ∧ (∀ t ∈ Z.T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
+    (∀ t ∈ Z.T, L.mem s' (tIpcBufA t) = L.mem s (tIpcBufA t)) ∧
+    (∀ q ∈ Z.C, L.mem s' (scReplyA q) = L.mem s (scReplyA q)) ∧
+    (∀ r ∈ Z.R, L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧ L.mem s' (rNextA r) = L.mem s (rNextA r)) := by
+  have hS := J.xtop.fin.1.1.1
+  obtain ⟨Q, R0, hc, -⟩ := hS.lists
+  have hT := hc.tcbs
+  have hA := J.apart
+  have tw : ∀ t ∈ Z.T, ∀ b : U64, P1.Aligned b → t.val + 256 ≤ b.val → b.val < t.val + 4096 → L.mem s' b = L.mem s b :=
+    fun t ht b hb h1 h2 => inSlot_keep hw hb fun x hx => by rcases (hA x hx).1 t ht with h | h <;> omega
+  refine ⟨fun t ht => tw t ht _ (mcpA_aligned hT ht) (by rw [mcpA_val hT ht]; omega) (by rw [mcpA_val hT ht]; omega),
+    fun t ht => tw t ht _ (yieldA_aligned hT ht) (by rw [yieldA_val hT ht]; omega) (by rw [yieldA_val hT ht]; omega),
+    fun t ht => tw t ht _ (tIpcBufA_aligned (hT t ht)) (by rw [tIpcBufA_val (hT t ht)]; omega)
+      (by rw [tIpcBufA_val (hT t ht)]; omega), fun q hq => ?_, fun r hr => ?_⟩
+  · obtain ⟨hal, hv, hfit⟩ := sc_reply_word hS hq
+    obtain ⟨x, n, hk, -⟩ := (hS.lists.choose_spec.choose_spec.2).scs q hq
+    have hf := hfit x n hk
+    exact inSlot_keep hw hal fun y hy => by
+      rcases (hA y hy).2.2.2.1 q hq x n hk with h | h <;> omega
+  · have hal := J.rp.align r hr
+    have h8 := rPrevA_val hal
+    have h16 := rNextA_val hal
+    refine ⟨inSlot_keep hw (J.rp.aligned hr (Or.inl h8)) fun y hy => ?_,
+      inSlot_keep hw (J.rp.aligned hr (Or.inr h16)) fun y hy => ?_⟩
+    · rcases (hA y hy).2.2.2.2 r hr with h | h <;> omega
+    · rcases (hA y hy).2.2.2.2 r hr with h | h <;> omega
+
+/-- **What a slot step still owes** [W]: the CSpace fields after (`JCs`), the
+joint placement, the dead set, the kernel words, the untyped caps' facts and
+P1's `BlkOK` (each reads the caps changed). -/
+def SlotRest (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s' : S) (σ' : Fl4Spec.State Unit) : Prop :=
+  JCs (L := L) Z s' σ' ∧ ∃ (Ac' D' : Set U64), (∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ') ∧
+    JCovD (L := L) Z.th H Z.G D' Cs s' ∧ JKern (L := L) H Cs D' Z.th s' σ' ∧
+    (∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+      UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi) ∧
+    P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s'
+
+set_option maxHeartbeats 4000000 in
+/-- **A slot step's `JOwesCs` from `SlotRest`**: FL4 writes slot words only
+(`inSlot_keeps`), the spec changes CNodes only (`CnStep`, SpecKeepC). -/
+theorem jowes_slotOf {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : MdbGhost} (s s' : S) (a : A)
+    (σ σ' : Fl4Spec.State Unit) (hcn : Ipc.CnK σ σ') (hkc : KeepC σ σ') (hw : P1.WritesIn st s s' (InSlot th))
+    (hR : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → XTopAt (L := L) AR { Z with G := G' } s' a σ' →
+      SlotRest (L := L) arI { Z with G := G' } H Cs D s' σ') :
+    JOwesCs (L := L) arI AR th G' s a σ s' a σ' := by
+  intro Z H Cs Ac Lst D hth J hX'
+  subst hth
+  have hC := CnStep.of_cnK hcn hkc
+  obtain ⟨k1, k2, kb, k3, k4⟩ := inSlot_keeps arI J hw
+  have ck : Sched.CKeep σ σ' := ⟨fun q y n hq => ⟨y, hC.sc.2 hq, rfl⟩, fun q x hq => ⟨x, (hC.look (fun _ _ e => by cases e)).2 hq,
+    rfl, rfl⟩, fun p x n hp => ⟨x, hC.sc.1 hp⟩⟩
+  have yk : YKeep σ σ' := ⟨fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩, fun p x n hp => ⟨x, hC.sc.2 hp, rfl⟩,
+    fun p y n hp => ⟨y, hC.sc.1 hp, rfl⟩⟩
+  have mk : McpKeep σ σ' := fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩
+  obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
+  have hRF' := RFree.carry J.rfree J.call k4 ck
+  obtain ⟨hJC, Ac', D', hjpl, hjc, hkern, hutc, hblk⟩ := hR Z H Cs Ac Lst D rfl J hX'
+  refine ⟨hJC, Ac', Lst, D', ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 mk,
+    J.buf.frame kb (fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_keepC hkc), hjpl,
+    hjc, hkern, hutc, J.nsc.cn hC, J.inv.cn hC, CurInvW.cn J.cur hC, J.own.cn hC, J.off.cn hC, J.act.cn hC,
+    J.bsa.cn hC, J.isorted.cn hC, J.curRun.cn hC, hblk⟩⟩
+
+/-- **`JStepHyps.slot` from `SlotRest`** (an insertion between two CNodes'
+slots: `CnK`, and `KeepC` from the two CNodes, `capInsert_nko`). -/
+theorem jowes_ins {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : MdbGhost} (s s' : S) (a : A)
+    (σ σ' : Fl4Spec.State Unit) (c : Fl4Spec.Cap) (ps pd : U64) (rs rd : Nat) (idxs idxd : List Bool)
+    (hps : th ps = some (.cnode rs)) (hpd : th pd = some (.cnode rd))
+    (hci : Fl4Spec.capInsert (Z := Unit) c (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False))
+    (hw : P1.WritesIn st s s' (InSlot th))
+    (hR : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → XTopAt (L := L) AR { Z with G := G' } s' a σ' →
+      SlotRest (L := L) arI { Z with G := G' } H Cs D s' σ') :
+    JOwesCs (L := L) arI AR th G' s a σ s' a σ' := by
+  intro Z H Cs Ac Lst D hth J hX'
+  have hmem : ((), σ') ∈ (Fl4Spec.capInsert (Z := Unit) c (ps.bv, idxs) (pd.bv, idxd) σ).1 := by rw [hci]; rfl
+  have hcn := capInsert_nkn c _ _ σ _ hmem
+  have hSt := J.xtop.rel.2.1.1
+  subst hth
+  have hkc : KeepC σ σ' := keepC_of hcn (capInsert_nko c _ _ σ _ hmem) (by
+    rintro p (rfl | hp)
+    · obtain ⟨cs, h, -⟩ := hSt.cnode ps rs hps; exact ⟨rs, cs, h⟩
+    · rw [Set.mem_singleton_iff.1 hp]; obtain ⟨cs, h, -⟩ := hSt.cnode pd rd hpd; exact ⟨rd, cs, h⟩)
+  exact jowes_slotOf arI s s' a σ σ' hcn hkc hw hR Z H Cs Ac Lst D rfl J hX'
 
 end
 
