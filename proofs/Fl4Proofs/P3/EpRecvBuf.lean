@@ -28,7 +28,7 @@ theorem receive_ipc_send_buf_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Prop}
     (hcaps : ∀ e' dd, xs.tcbState = .blockedOnSend e' dd → GC ∨ dd.senderCanGrant = false ∨ ipcBufOf false xs = none ∨
       Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0)
     (cb : U64) (c1 c2 c3 c4 : Bool) {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64}
-    (hrc : ReplyArg R (L.mem s) rc rc' rv) (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) (blk : Bool) :
+    (hrc : ReplyArg R (L.mem s) rc rc' rv) (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) (hTO : SVK.TailOK σ) (blk : Bool) :
     endpoint.receive_ipc st ar s a t (.Endpoint e cb c1 c2 c3 c4) blk rc ⦃ r => r.2 = a ∧
       ¬ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1 ∧
@@ -126,7 +126,8 @@ theorem receive_ipc_send_buf_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Prop}
   have hspec := receiveIpc_send_eq b rights blk hsr hkt hbn hk hks hse hstd (hcall _ _ hstd) e2' hA hks3
     (hs3f.trans hfs)
   rw [hspec]
-  refine WP.spec_mono (hTl.switchTo s4 a _ sd' hR4 hS4 hsT) ?_
+  refine WP.spec_mono (hTl.switchTo s4 a _ sd' hR4 hS4 hsT
+    (actW_recv hTO hk hks (by rw [hstd]; rfl) e2' hks2 hA hks3)) ?_
   rintro ⟨s5, a5⟩ ⟨ha5, hnf, σ', hm, hf, hv, hS'⟩
   exact ⟨ha5, hnf, σ', hm, hR4.frame hP hf hv, hS'⟩
 
@@ -145,12 +146,12 @@ theorem receive_ipc_send_buf (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E
     (hcaps : ∀ e' dd, xs.tcbState = .blockedOnSend e' dd → dd.senderCanGrant = false ∨ ipcBufOf false xs = none ∨
       Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0)
     (cb : U64) (c1 c2 c3 c4 : Bool) {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64}
-    (hrc : ReplyArg R (L.mem s) rc rc' rv) (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) (blk : Bool) :
+    (hrc : ReplyArg R (L.mem s) rc rc' rv) (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) (hTO : SVK.TailOK σ) (blk : Bool) :
     endpoint.receive_ipc st ar s a t (.Endpoint e cb c1 c2 c3 c4) blk rc ⦃ r => r.2 = a ∧
       ¬ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1 ∧
         EpStateRel T E R B (L.mem r.1) σ' ∧ SR r.1 σ' ⦄ :=
-  receive_ipc_send_buf_gen (EpHyps.stepsBuf (ar := ar) hH hBf hBm (fun _ => True) (fun _ _ => trivial)) hTl hP s a σ hR hSR ht hkt hnb hbn hrb he hk hks hfs hcall (fun e' dd h => Or.inr (hcaps e' dd h)) cb c1 c2 c3 c4 hrc b rights blk
+  receive_ipc_send_buf_gen (EpHyps.stepsBuf (ar := ar) hH hBf hBm (fun _ => True) (fun _ _ => trivial)) hTl hP s a σ hR hSR ht hkt hnb hbn hrb he hk hks hfs hcall (fun e' dd h => Or.inr (hcaps e' dd h)) cb c1 c2 c3 c4 hrc b rights hTO blk
 
 end
 

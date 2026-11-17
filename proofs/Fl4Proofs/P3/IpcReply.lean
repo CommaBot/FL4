@@ -303,6 +303,13 @@ structure ReplyHyps : Prop where
 
 
 
+theorem sv_specFaultReply (sender receiver : Fl4Spec.ObjRef) (f : Fl4Spec.Fault) :
+    SVK.SVM (specFaultReply sender receiver f) := by
+  unfold specFaultReply
+  exact SVK.sv_bind (SVK.sv_getMessageInfo' _) fun _ => SVK.sv_bind (SVK.sv_lookupIpcBuffer' _ _) fun _ =>
+    SVK.sv_bind (SVK.sv_getMrs' _ _ _) fun _ => SVK.sv_bind (SVK.sv_handleFaultReply' _ _ _ _) fun _ =>
+      SVK.sv_bind (SVK.sv_threadSet' (fun tcb => { tcb with tcbFault := none }) (fun _ => rfl) _) fun _ => SVK.sv_setThreadState' _ _
+
 set_option maxHeartbeats 8000000 in
 /-- **The tail of `do_reply_transfer`** (`ReplyHyps.tail`): no SC or not
 runnable, nothing; ready and sufficient, `possible_switch_to`
@@ -323,9 +330,9 @@ theorem reply_tail_top (hTl : IpcEpTailHyps st A N T E R B (SRT st th cr N T C E
     t.bv ∉ σ.releaseQueue →
     (∀ x p y n, σ.kheap t.bv = some (.tcb x) → x.tcbSchedContext = some p →
       σ.kheap p = some (.schedContext y n) → Fl4Spec.scActive y = true) → Sched.IpcSorted σ →
-    (ft = 0#u64 ↔ fault = none) → (ft = 5#u64 ↔ ∃ b, fault = some (.timeout b)) →
+    (ft = 0#u64 ↔ fault = none) → (ft = 5#u64 ↔ ∃ b, fault = some (.timeout b)) → SVK.ActReadyW σ →
     fl4ReplyTail st ar t ft s a ⦃ res => ∃ z ∈ (specReplyTail t.bv fault σ).1, IRel st th cr N T C E R B c res.1 z.2 ⦄ := by
-  intro s a σ t ft fault hX ht hnrq hact hS0 hf0 hf5
+  intro s a σ t ft fault hX ht hnrq hact hS0 hf0 hf5 hAW
   obtain ⟨hIR, hSRT⟩ := hX
   have hS := hSRT.2.1
   obtain ⟨Q, R0, hc, hsp⟩ := hS.lists
@@ -379,7 +386,7 @@ theorem reply_tail_top (hTl : IpcEpTailHyps st A N T E R B (SRT st th cr N T C E
       have := congrArg (fun q => (b5, σ) ∈ q.1) hb5; simpa using this.symm
     by_cases hsf : b5 = true
     · rw [if_pos hsf]
-      refine WP.spec_mono (hTl.switchTo s a σ t hIR hSRT ht) ?_
+      refine WP.spec_mono (hTl.switchTo s a σ t hIR hSRT ht hAW) ?_
       rintro _ ⟨-, -, σ', hm, hf, hv, hS'⟩
       refine ⟨((), σ'), ?_, hIR.frame hP0 hf hv, hS'⟩
       rw [hspec, if_pos ⟨hb4' ▸ hrd, hb5' ▸ hsf⟩]; exact hm
@@ -441,7 +448,8 @@ theorem do_reply_transfer_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ)
     (hV : Sched.SchedValid σ) (hO : Sched.ObjCover N T E R C σ) (hS0 : Sched.IpcSorted σ)
     {ct : U64} (hct : ct ∈ T) {xc : Fl4Spec.Tcb} (hkc : σ.kheap ct.bv = some (.tcb xc))
-    (hcf : xc.tcbFault = none) (hcs : tsCode xc.tcbState < 3) {r : U64} (hr : r ∈ R) (g : Bool) :
+    (hcf : xc.tcbFault = none) (hcs : tsCode xc.tcbState < 3) {r : U64} (hr : r ∈ R) (g : Bool)
+    (hTO : SVK.TailOK σ) :
     ipc.do_reply_transfer st ar s a ct r g ⦃ res =>
       ∃ z ∈ (Fl4Spec.doReplyTransfer (Z := Unit) ct.bv r.bv g σ).1, IRel st th cr N T C E R B c res.1 z.2 ⦄ := by
   obtain ⟨hIR, hSRT⟩ := hX
@@ -485,11 +493,17 @@ theorem do_reply_transfer_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N
   rw [if_neg (by rw [hne]; simp)]
   have hit : i ≠ ct := by
     rintro rfl; rw [hkc] at hkx; cases hkx; rw [hst] at hcs; simp [tsCode] at hcs
+  have hW0 : SVK.WakeOK σ i.bv := (SVK.SVS.refl σ).wakeOK hTO fun x' hx' => by
+    rw [hkx] at hx'; cases hx'; rw [hst]; rfl
   refine WP.spec_bind (hRH.remove s a σ r i x ⟨hIR, hSRT⟩ hr hiT hkx hst) ?_
   rintro ⟨s1, a1⟩ ⟨-, σ1, x1, hrm, hX1, hkx1, hx1s, hx1f, hact1, hoth1⟩
+  have hW1 : SVK.WakeOK σ1 i.bv :=
+    SVK.wk_replyRemove i.bv r.bv σ ((), σ1) (by rw [hrm]; exact Set.mem_singleton _) hW0
   obtain ⟨xc1, hkc1, hxc1f, hxc1s⟩ := hoth1 ct.bv xc (fun e => hit (P1.eq_of_bv e).symm) hkc
   refine hRH.unblock s1 σ1 i x1 _ _ hX1 hiT hkx1 ?_
   intro s2 σ2 hub hX2 hpres
+  have hW2 : SVK.WakeOK σ2 i.bv := SVK.unblock_wakeOK hkx1 (some false) (some false) hW1
+    (by rw [hub]; exact Set.mem_singleton _)
   have hkx2 := hpres _ _ hkx1
   have hkc2 := hpres _ _ hkc1
   obtain ⟨hIR2, hSRT2⟩ := hX2
@@ -558,8 +572,13 @@ theorem do_reply_transfer_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N
       · exact QPK.qp_bind (QPK.qp_doIpcTransfer' _ _ _ _ _) (fun _ => QPK.qp_setThreadState' _ _) σ2 z1 hz1
       · exact qp_specFaultReply ct.bv i.bv f σ2 z1 hz1
     have hSz : Sched.IpcSorted z1.2 := (hQ1.trans (hQ12.trans hQ2z)).sorted hS0
+    -- the switch target's SC ready at the tail (`WakeOK` of the receiver, kept)
+    have hV2z : SVK.SVS σ2 z1.2 := by
+      rcases hbr with ⟨-, hz1⟩ | ⟨f, -, hz1⟩
+      · exact SVK.sv_bind (SVK.sv_doIpcTransfer' _ _ _ _ _) (fun _ => SVK.sv_setThreadState' _ _) σ2 z1 hz1
+      · exact sv_specFaultReply ct.bv i.bv f σ2 z1 hz1
     exact WP.spec_mono (reply_tail_top hTl hP0 hmb hRH.tmo s3 a2 z1.2 i ft x1.tcbFault hX3 hiT hnrz hactz hSz hft0
-      hft5)
+      hft5 (hV2z.wakeOK' hW2).1)
       fun _ ⟨z, hz, hXz⟩ =>
       ⟨z, mem_doReplyTransfer hkr hrep hkx hst g hrm hub hkx2 hbr hz, hXz⟩
 
@@ -580,7 +599,7 @@ theorem reply_tail_inv (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E 
     {ct : U64} (hct : ct ∈ T) (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
     (hrun : tsCode xt.tcbState < 3) (hft : xt.tcbFault = none)
     {σ1 : Fl4Spec.State Unit} (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
-    {p : U64} (hp : p ∈ R) (g : Bool) :
+    {p : U64} (hp : p ∈ R) (g : Bool) (hTO : SVK.TailOK σ) :
     (do
       let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
       let (s2, a1) ← ipc.do_reply_transfer st ar s1 a ct p g
@@ -610,7 +629,7 @@ theorem reply_tail_inv (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E 
   have hc1 : (stsAct (updK σ ct.bv (.tcb { xt with tcbState := .restart })) ct.bv).curThread = ct.bv := by
     unfold stsAct; split_ifs <;> exact hcur
   refine WP.spec_bind (do_reply_transfer_top hH hBf hBm hP0 hRH hTl hmb s1 a _ hX1 (hSV _ _ hX1) (hOC _ _ hX1) (hIS _ _ hX1) hct hkt1
-    hft (by simp [tsCode]) hp g) ?_
+    hft (by simp [tsCode]) hp g (tailOK_sts hTO hkt rfl)) ?_
   rintro ⟨s2, a1⟩ ⟨z, hz, hIR2, hSRT2⟩
   apply (WP.spec_ok _).2
   exact ⟨rfl, z, by rw [hc1]; exact hz, (SRT.relTop ⟨hIR2, hSRT2⟩).1, hIR2, hSRT2⟩
@@ -654,13 +673,13 @@ theorem decode_reply_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C 
     (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (buffer : Option Fl4Spec.ObjRef) (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (hcT : ct ∈ T) (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
-    (hrun : tsCode xt.tcbState < 3) (hft : xt.tcbFault = none) (hp : p ∈ R) :
+    (hrun : tsCode xt.tcbState < 3) (hft : xt.tcbFault = none) (hp : p ∈ R) (hTO : SVK.TailOK σ) :
     DecOKDMX (L := L) ar (fun s _ σ => IRel st th cr N T C E R B c s σ) s a σ lbl length slot (.Reply p g)
       blk call don fp buf extra slbl args ci sl excaps buffer := by
   obtain ⟨σ1, hst⟩ : ∃ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) := by
     rw [hcur, Notif.setThreadState_eq .restart hkt]; exact ⟨_, rfl⟩
   exact decode_replyDMX ar _ s a σ lbl length slot p g blk call don fp buf extra slbl args ci sl excaps buffer ct hct
-    hst (reply_tail_inv hH hBf hBm hP0 hRH hTl hmb hSV hOC hIS s a σ hX hcT hcur hkt hrun hft hst hp g)
+    hst (reply_tail_inv hH hBf hBm hP0 hRH hTl hmb hSV hOC hIS s a σ hX hcT hcur hkt hrun hft hst hp g hTO)
 
 end
 

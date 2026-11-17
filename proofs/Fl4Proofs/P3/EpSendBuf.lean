@@ -27,7 +27,7 @@ theorem send_ipc_recv_buf_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Prop} (h
       Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xt.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0)
     (hback : ∀ e' r dd xr, xd.tcbState = .blockedOnReceive e' (some r) dd → σ.kheap r = some (.reply xr) →
       xr.replyTcb = some d.bv)
-    (blk : Bool) :
+    (hTO : SVK.TailOK σ) (blk : Bool) :
     endpoint.send_ipc st ar s a blk false badge g gr false t e ⦃ r => r.2 = a ∧
       ¬ (Fl4Spec.sendIpc (Z := Unit) blk false badge.bv g gr false t.bv e.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.sendIpc (Z := Unit) blk false badge.bv g gr false t.bv e.bv σ).1 ∧
@@ -144,7 +144,8 @@ theorem send_ipc_recv_buf_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Prop} (h
     rintro s5 ⟨hR5, hS5⟩
     have hspec := sendIpc_recv_eq hk hkd hde hstd blk badge.bv g gr e2 hU hkt3 hft hkd3 (t := t.bv)
     rw [hspec]
-    refine WP.spec_mono (hTl.wakeTail s5 a _ d' hR5 hS5 hdT) ?_
+    refine WP.spec_mono (hTl.wakeTail s5 a _ d' hR5 hS5 hdT
+      (wake_recv hTO hk hkd (by rw [hstd]; rfl) e2 hU hkd3)) ?_
     rintro ⟨s7, a7⟩ ⟨ha7, hnf, σ', hm, hf, hv, hS'⟩
     exact ⟨ha7, hnf, σ', hm, hR5.frame hP hf hv, hS'⟩
 
@@ -162,12 +163,12 @@ theorem send_ipc_recv_buf (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T E R 
       Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xt.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0)
     (hback : ∀ e' r dd xr, xd.tcbState = .blockedOnReceive e' (some r) dd → σ.kheap r = some (.reply xr) →
       xr.replyTcb = some d.bv)
-    (blk : Bool) :
+    (hTO : SVK.TailOK σ) (blk : Bool) :
     endpoint.send_ipc st ar s a blk false badge g gr false t e ⦃ r => r.2 = a ∧
       ¬ (Fl4Spec.sendIpc (Z := Unit) blk false badge.bv g gr false t.bv e.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.sendIpc (Z := Unit) blk false badge.bv g gr false t.bv e.bv σ).1 ∧
         EpStateRel T E R B (L.mem r.1) σ' ∧ SR r.1 σ' ⦄ :=
-  send_ipc_recv_buf_gen (EpHyps.stepsBuf (ar := ar) hH hBf hBm (fun _ => True) (fun _ _ => trivial)) hTl hP s a σ hR hSR ht hkt hnb hft he hk hkd hrb badge g gr (Or.inr hcaps) hback blk
+  send_ipc_recv_buf_gen (EpHyps.stepsBuf (ar := ar) hH hBf hBm (fun _ => True) (fun _ _ => trivial)) hTl hP s a σ hR hSR ht hkt hnb hft he hk hkd hrb badge g gr (Or.inr hcaps) hback hTO blk
 
 end
 

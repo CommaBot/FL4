@@ -243,7 +243,7 @@ theorem sendRest_of (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B
       (∃ x, σ.kheap r.bv = some (.reply x) ∧ x.replyTcb = some t.bv) → PushDonOK st N T C R c s σ t d r) :
     ∀ s σ, IRel st th cr N T C E R B c s σ →
       SendRest st ar (IRel st th cr N T C E R B c) T s a σ blk call badge g gr don t e := by
-  intro s σ hX d q xd hk hd hkd hdon ht xt hkt hnb hns hft hV
+  intro s σ hX d q xd hk hd hkd hdon ht xt hkt hnb hns hft hV hTO
   subst hdon
   obtain ⟨hR, hSR⟩ := hX
   have hback := hback_of hV hkd
@@ -273,24 +273,24 @@ theorem sendRest_of (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R B
   · cases hrb : ipcBufOf true xd with
     | none =>
       exact WP.spec_mono (send_ipc_recvD_gen hXs.toEpSteps (hTl.tail hP) hP.e s a σ hR.toE hSB ht hkt hnb hft he hk
-        hkd hrb badge g gr (Or.inl trivial) hback hD blk) cv
+        hkd hrb badge g gr (Or.inl trivial) hback hD hTO blk) cv
     | some rp =>
       exact WP.spec_mono (send_ipc_recv_bufD_gen hXs (hTl.tail hP) hP.e s a σ hR.toE hSB ht hkt hnb hft he hk
-        hkd hrb badge g gr (Or.inl trivial) hback hD blk) cv
+        hkd hrb badge g gr (Or.inl trivial) hback hD hTO blk) cv
   · have hXf := fun s1 σ1 => xferX_top (st := st) (xt := xd) hH hBf hBm hP ht hd htd
       (fun b h => by rw [hft] at h; cases h) a e g s1 σ1 badge
     by_cases hgg : g = true ∨ gr = true
     · by_cases hrp : ∀ e' rep dd, xd.tcbState = .blockedOnReceive e' rep dd → rep ≠ none
       · exact WP.spec_mono (send_ipc_callXD_gen (don := true) hXs.toEpSteps (hTl.tail hP) hP.e s a σ hR.toE hSB ht
-          hkt hnb hns he hk hkd badge g gr hXf hback hgg hrp (pushD_irel hH hP hPDK a ht hd htd hns) blk) cv
+          hkt hnb hns he hk hkd badge g gr hXf hback hgg hrp (pushD_irel hH hP hPDK a ht hd htd hns) hTO blk) cv
       · refine WP.spec_mono (send_ipc_call_inactiveX_gen (don := true) hXs.toEpSteps (hTl.tail hP) hP.e s a σ
-          hR.toE hSB ht hkt hnb hns he hk hkd badge g gr hXf hback (Or.inr ?_) blk) cv
+          hR.toE hSB ht hkt hnb hns he hk hkd badge g gr hXf hback (Or.inr ?_) hTO blk) cv
         intro e' rep dd hs
         by_contra hn
         refine hrp fun e'' rep' dd' hs' => ?_
         rw [hs] at hs'; cases hs'; exact hn
     · refine WP.spec_mono (send_ipc_call_inactiveX_gen (don := true) hXs.toEpSteps (hTl.tail hP) hP.e s a σ
-        hR.toE hSB ht hkt hnb hns he hk hkd badge g gr hXf hback (Or.inl ?_) blk) cv
+        hR.toE hSB ht hkt hnb hns he hk hkd badge g gr hXf hback (Or.inl ?_) hTO blk) cv
       cases g <;> cases gr <;> simp_all
 
 end Rest

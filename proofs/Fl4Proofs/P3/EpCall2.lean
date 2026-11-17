@@ -64,7 +64,7 @@ theorem send_ipc_call_inactive_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Pro
     (hback : ∀ e' r dd xr, xd.tcbState = .blockedOnReceive e' (some r) dd → σ.kheap r = some (.reply xr) →
       xr.replyTcb = some d.bv)
     (hno : (g = false ∧ gr = false) ∨ ∀ e' rep dd, xd.tcbState = .blockedOnReceive e' rep dd → rep = none)
-    (blk : Bool) :
+    (hTO : SVK.TailOK σ) (blk : Bool) :
     endpoint.send_ipc st ar s a blk true badge g gr false t e ⦃ r => r.2 = a ∧
       ¬ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr false t.bv e.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr false t.bv e.bv σ).1 ∧
@@ -198,7 +198,8 @@ theorem send_ipc_call_inactive_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Pro
       rintro s5 ⟨hR5, hS5⟩
       have hspec := sendIpc_callInactive_eq (don := false) hk hkd hde htd' hstd blk badge.bv _ _ hcond e2 hU hkt3 hkd3 (t := t.bv)
       rw [hspec]
-      refine WP.spec_mono (hTl.wakeTail s5 _ _ d' hR5 hS5 hdT) ?_
+      refine WP.spec_mono (hTl.wakeTail s5 _ _ d' hR5 hS5 hdT
+      (wake_callInactive hTO hk hkd (by rw [hstd]; rfl) htd' e2 hU hkt3 hkd3)) ?_
       rintro ⟨s7, a7⟩ ⟨ha7, hnf, σ', hm, hf, hv, hS'⟩
       exact ⟨ha7, hnf, σ', hm, hR5.frame hP hf hv, hS'⟩
 
@@ -227,7 +228,8 @@ theorem send_ipc_call_inactive_gen {NS : Fl4Spec.ThreadState → Prop} {GC : Pro
       rintro s5 ⟨hR5, hS5⟩
       have hspec := sendIpc_callInactive_eq (don := false) hk hkd hde htd' hstd blk badge.bv _ _ hcond e2 hU hkt3 hkd3 (t := t.bv)
       rw [hspec]
-      refine WP.spec_mono (hTl.wakeTail s5 _ _ d' hR5 hS5 hdT) ?_
+      refine WP.spec_mono (hTl.wakeTail s5 _ _ d' hR5 hS5 hdT
+      (wake_callInactive hTO hk hkd (by rw [hstd]; rfl) htd' e2 hU hkt3 hkd3)) ?_
       rintro ⟨s7, a7⟩ ⟨ha7, hnf, σ', hm, hf, hv, hS'⟩
       exact ⟨ha7, hnf, σ', hm, hR5.frame hP hf hv, hS'⟩
 
@@ -245,12 +247,12 @@ theorem send_ipc_call_inactive (hH : EpHyps st T E R B SR) (hBf : EpBufHyps st T
     (hback : ∀ e' r dd xr, xd.tcbState = .blockedOnReceive e' (some r) dd → σ.kheap r = some (.reply xr) →
       xr.replyTcb = some d.bv)
     (hno : (g = false ∧ gr = false) ∨ ∀ e' rep dd, xd.tcbState = .blockedOnReceive e' rep dd → rep = none)
-    (blk : Bool) :
+    (hTO : SVK.TailOK σ) (blk : Bool) :
     endpoint.send_ipc st ar s a blk true badge g gr false t e ⦃ r => r.2 = a ∧
       ¬ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr false t.bv e.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.sendIpc (Z := Unit) blk true badge.bv g gr false t.bv e.bv σ).1 ∧
         EpStateRel T E R B (L.mem r.1) σ' ∧ SR r.1 σ' ⦄ :=
-  send_ipc_call_inactive_gen (EpHyps.steps (ar := ar) hH hBf (fun _ => True) (fun _ _ => trivial)) hTl hP s a σ hR hSR ht hkt hnb hft trivial he hk hkd hrb badge g gr (Or.inr hcaps) hback hno blk
+  send_ipc_call_inactive_gen (EpHyps.steps (ar := ar) hH hBf (fun _ => True) (fun _ _ => trivial)) hTl hP s a σ hR hSR ht hkt hnb hft trivial he hk hkd hrb badge g gr (Or.inr hcaps) hback hno hTO blk
 
 end
 

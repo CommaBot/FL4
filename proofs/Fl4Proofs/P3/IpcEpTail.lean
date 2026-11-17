@@ -140,31 +140,49 @@ section Tail
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
 variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
+/-- **`ActReadyW` gives `ActReady`**: a schedulable target's SC is active,
+hence ready and sufficient. -/
+theorem actReady_of_w {σ : Fl4Spec.State Unit} (h : SVK.ActReadyW σ) : ActReady σ := by
+  intro u hu hs
+  obtain ⟨x, scp, y, n, hk, hsc, -, hky, hact, -⟩ := Sched.schedulable_inv hs
+  obtain ⟨hne, hsf, hrd⟩ := h u hu x scp y n hk hsc hky hact
+  exact ⟨x, scp, hk, hsc, by rw [Sched.getScRefillSufficient_eq hky hne, hsf],
+    by rw [Sched.getScRefillReady_eq hky hne, hrd]⟩
+
+/-- **`ActReady` after the woken thread's sporadic check** from `WakeOK`. -/
+theorem actReady_unblock {σ σ1 : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x : Fl4Spec.Tcb}
+    (hk : σ.kheap t = some (.tcb x)) (hW : SVK.WakeOK σ t)
+    (hu : specUnblock t σ = ({((), σ1)}, False)) : ActReady σ1 :=
+  actReady_of_w (SVK.unblock_wake hk _ _ hW (by
+    show ((), σ1) ∈ (specUnblock t σ).1
+    rw [hu]; exact Set.mem_singleton _)).1
+
 set_option maxHeartbeats 1000000 in
 /-- **`IpcEpTailHyps` for `SRT … SRE`**: the sporadic check by
-`unblock_irel`, the switch by `switch_top`; named: the switch target ready
-(`hAct`). -/
-theorem ipcEpTailHyps_top (hP0 : IPlaced N T E R B)
-    (hAct : ∀ s σ, IpcRel N T E R B (L.mem s) σ → SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ →
-      ActReady σ) :
+`unblock_irel`, the switch by `switch_top`, the switch target ready after
+the check by `WakeOK` (`actReady_unblock`). -/
+theorem ipcEpTailHyps_top (hP0 : IPlaced N T E R B) :
     IpcEpTailHyps st A N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c)) := by
   have sw : ∀ s (a : A) σ (t : U64), IpcRel N T E R B (L.mem s) σ →
-      SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ → t ∈ T →
+      SRT st th cr N T C E R B c (SRE st N T C E R B c) s σ → t ∈ T → SVK.ActReadyW σ →
       (do
         let s1 ← sched.possible_switch_to st s t
         ok (s1, a)) ⦃ r => r.2 = a ∧ TailPostI st N T E R B (SRT st th cr N T C E R B c (SRE st N T C E R B c))
           s σ (Fl4Spec.possibleSwitchTo t.bv) r.1 ⦄ := by
-    intro s a σ t hR hS ht
-    refine WP.spec_bind (switch_top hP0 s σ hR hS (hAct s σ hR hS) t ht) ?_
+    intro s a σ t hR hS ht hA
+    refine WP.spec_bind (switch_top hP0 s σ hR hS (actReady_of_w hA) t ht) ?_
     rintro s1 ⟨σ1, heq, -, hf, hv, hS1⟩
     rw [WP.spec_ok]
     exact ⟨rfl, by rw [heq]; exact id, σ1, by rw [heq]; rfl, hf, hv, hS1⟩
-  refine ⟨fun s a σ t hR hS ht => ?_, fun s σ t hR hS ht => ?_, sw, fun σ σ' t x h hk => ?_⟩
+  refine ⟨fun s a σ t hR hS ht hW => ?_, fun s σ t hR hS ht => ?_, sw, fun σ σ' t x h hk => ?_⟩
   · rw [endpoint_unblock_sporadic_eq]
     refine WP.spec_bind (unblock_irel hP0 s σ ⟨hR, hS⟩ t ht) ?_
     rintro s1 ⟨σ1, hu, hf1, hv1, hR1, hS1⟩
     have hR1' : IpcRel N T E R B (L.mem s1) σ1 := hR1
-    refine WP.spec_mono (sw s1 a σ1 t hR1' hS1 ht) ?_
+    obtain ⟨x, hk, -⟩ := hR.tcb t ht
+    refine WP.spec_mono (sw s1 a σ1 t hR1' hS1 ht (SVK.unblock_wake hk _ _ hW (by
+      show ((), σ1) ∈ (specUnblock t.bv σ).1
+      rw [hu]; exact Set.mem_singleton _)).1) ?_
     rintro r ⟨ha, hn, σ2, hm, hf2, hv2, hS2⟩
     have hsp : specWakeTailE t.bv σ = Fl4Spec.possibleSwitchTo (Z := Unit) t.bv σ1 := by
       have e : specWakeTailE t.bv = (specUnblock t.bv >>= fun _ => Fl4Spec.possibleSwitchTo t.bv) := by
