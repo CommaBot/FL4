@@ -16,6 +16,7 @@ kernel-global words (`JKern`), the untyped caps' facts, the scheduler
 invariants and P1's `BlkOK`.
 -/
 import Fl4Proofs.P3.JointAt
+import Fl4Proofs.P3.SchedValidLinks
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -97,6 +98,32 @@ theorem FinM.of_capV {mem mem' : U64 → U64} {G : MdbGhost} (hF : FinM mem G)
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 
+/-- **`SchedValid` by the rebuild** (`schedValid_of_blk`): from `XTopAt`,
+the sets being `H`'s TCBs and replies, `ObjCover`, P1's `BlkOK`, `H`'s
+endpoints and notifications in the sets, the call stacks, yield, `Inv` and
+the spec's links. -/
+theorem schedValid_rebuild {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {s : S} {a : A} {σ : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z s a σ)
+    (hTe : Z.T = P1.Heap.tcbs H) (hRe : Z.R = P1.Heap.replies H) (hCv : Sched.ObjCover Z.N Z.T Z.E Z.R Z.C σ)
+    (hB : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s)
+    (hE : ∀ e, H e = some .ep → e ∈ Z.E) (hN : ∀ n, H n = some .ntfn → n ∈ Z.N)
+    (hCR : Sched.CallRel (L.mem s) Z.R Z.C σ Lst) (hY : Sched.YieldRel Z.T Z.C (L.mem s) σ)
+    (hC0 : ∀ q ∈ Z.C, q ≠ 0#u64) (hInv : Sched.Inv σ) (hSL : Sched.ScLinkHyp σ) : Sched.SchedValid σ := by
+  have hI := hX.ipc
+  rw [hTe, hRe] at hI hCv
+  rw [hRe] at hCR
+  rw [hTe] at hY
+  exact Sched.schedValid_of_blk hB hI hCv hE hN hCR hY hC0 (Sched.epRdyHyp_of hI hCv hInv) hSL
+
+/-- The sets' TCBs and replies are `H`'s. -/
+theorem JAtZ.tcbs_eq {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : Z.T = P1.Heap.tcbs H ∧ Z.R = P1.Heap.replies H := by
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  exact ⟨Set.ext fun t => ⟨fun h => J.zH.1 t h, fun h => J.thT t ((hJ.tcb t).2 h)⟩,
+    Set.ext fun r => ⟨fun h => J.zH.2.2.1 r h, fun h => J.hset.2.2 r h⟩⟩
+
 set_option maxHeartbeats 1000000 in
 /-- **`JAtZ` across an SC step** (module docstring). -/
 theorem JAtZ.sc_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
@@ -115,7 +142,7 @@ theorem JAtZ.sc_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
       Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi)
     (hnsc : Sched.NSC Z.N Z.C σ') (hinv : Sched.Inv σ') (hcur : σ'.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ')
     (hown : Sched.CurOwn Z.T σ') (hoff : Sched.OffOK σ')
-    (hact : Sched.ActIdle σ') (hbsa : Sched.BlockedScActive σ') (hsv : Sched.SchedValid σ') (hcr : CurRun σ')
+    (hact : Sched.ActIdle σ') (hbsa : Sched.BlockedScActive σ') (hsl : Sched.ScLinkHyp σ') (hcr : CurRun σ')
     (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s') :
     JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' s' a' σ' := by
@@ -123,13 +150,15 @@ theorem JAtZ.sc_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
     J.xtop.slotsSame_of hw fun b h => Sched.tfoot_oobj J.xtop.fin.1.1.1 h
   obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
-  have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
+  have hsl' : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
+  have hsv : Sched.SchedValid σ' := schedValid_rebuild hX J.tcbs_eq.1 J.tcbs_eq.2 (J.obj.tkw hK) hblk J.hset.1
+    J.hset.2.1 hcall hyl J.c0 hinv hsl
   refine ⟨hX, hcall, hrf, hyl, hmcp, hbuf, by rw [hks]; exact J.ks, J.thT, J.ip, hrp, hap,
-    fun n hn => by rw [hks]; exact J.nk n hn, hjpl, J.cover.tkw hK, J.obj.tkw hK, J.zH, ?_, hjc, hkern,
+    fun n hn => by rw [hks]; exact J.nk n hn, hjpl, J.cover.tkw hK, J.obj.tkw hK, J.zH, ?_, J.hset, hjc, hkern,
     J.del.of_same hSS, UtInv.of_same hM J.ut hSS, J.bound, fun G hG => ?_, hutc, hnsc, hinv, hcur, hown, hoff, hact,
-    J.c0, hbsa, hsv, hcr, hblk⟩
+    J.c0, hbsa, hsv, hsl, hcr, hblk⟩
   · refine SpecFree.frame J.sfree (fun x' hx' p sb fi' d hc => ⟨x', hx', fi', d, ?_, le_rfl⟩) hK.ksz
-    rw [← hSS.capV (hsl x' hx')]; exact hc
+    rw [← hSS.capV (hsl' x' hx')]; exact hc
   · have hG0 : MdbLinks Z.th (L.mem s) G := hG.of_same_symm hSS
     have hsl' : ∀ x ∈ G.chains.flatten, IsSlot Z.th x := fun x h => ((hG0.members x).1 h).1
     exact (J.finM G hG0).of_capV fun x hx => hSS.capV (hsl' x hx)

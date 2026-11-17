@@ -136,6 +136,10 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   zH : (∀ t ∈ Z.T, H t = some .tcb) ∧ (∀ e ∈ Z.E, H e = some .ep) ∧ (∀ r ∈ Z.R, H r = some .reply) ∧
     (∀ n ∈ Z.N, H n = some .ntfn)
   sfree : Sched.SpecFree (L.mem s) Z.G σ
+  /-- [carried] `H`'s endpoints, notifications and replies are the sets'
+  (the converse of `zH`; for the `SchedValid` rebuild). -/
+  hset : (∀ e, H e = some .ep → e ∈ Z.E) ∧ (∀ n, H n = some .ntfn → n ∈ Z.N) ∧
+    (∀ r, H r = some .reply → r ∈ Z.R)
   jcov : Sched.JCovD (L := L) Z.th H Z.G D Cs s
   kern : JKern (L := L) H Cs D Z.th s σ
   -- 1c: CSpace
@@ -162,6 +166,9 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   c0 : ∀ q ∈ Z.C, q ≠ 0#u64
   bsa : Sched.BlockedScActive σ
   sv : Sched.SchedValid σ
+  /-- The spec's SC, TCB and notification links (per-op; for the
+  `SchedValid` rebuild). -/
+  slink : Sched.ScLinkHyp σ
   curRun : CurRun σ
   -- 1e: P1
   blk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)

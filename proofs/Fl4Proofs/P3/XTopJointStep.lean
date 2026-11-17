@@ -144,6 +144,7 @@ structure JRest (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List 
   act : Sched.ActIdle σ
   bsa : Sched.BlockedScActive σ
   sv : Sched.SchedValid σ
+  slink : Sched.ScLinkHyp σ
   curRun : CurRun σ
   blk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
     (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s
@@ -158,8 +159,8 @@ theorem JAtZ.cs_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (hC : JCs (L := L) { Z with G := G' } s' σ') (R : JRest (L := L) arI { Z with G := G' } H Cs Ac' Lst' D' s' σ') :
     JAtZ (L := L) arI AR { Z with G := G' } H Cs Ac' Lst' D' s' a' σ' :=
   ⟨hX, R.call, R.rfree, R.yld, R.mcp, R.buf, by rw [hks]; exact J.ks, J.thT, J.ip, R.rp, R.apart,
-    fun n hn => by rw [hks]; exact J.nk n hn, R.jpl, J.cover.kback hkb, J.obj.kback hkb, J.zH, hC.sfree, R.jcov,
-    R.kern, hC.del, hC.ut, J.bound, hC.finM, R.utc, R.nsc, R.inv, Or.inr R.cur, Sched.curOwn_of_curInv hX.fin.1.1.1 R.inv R.cur, R.off, R.act, J.c0, R.bsa, R.sv, R.curRun,
+    fun n hn => by rw [hks]; exact J.nk n hn, R.jpl, J.cover.kback hkb, J.obj.kback hkb, J.zH, hC.sfree, J.hset, R.jcov,
+    R.kern, hC.del, hC.ut, J.bound, hC.finM, R.utc, R.nsc, R.inv, Or.inr R.cur, Sched.curOwn_of_curInv hX.fin.1.1.1 R.inv R.cur, R.off, R.act, J.c0, R.bsa, R.sv, R.slink, R.curRun,
     R.blk⟩
 
 /-- **The CSpace fields across a step keeping every slot and the objects'

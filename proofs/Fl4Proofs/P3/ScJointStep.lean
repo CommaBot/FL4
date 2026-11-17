@@ -15,7 +15,7 @@ and `JCovD` (ScJointRest: `JAtZ.sc_buf`, `sc_apart`, `sc_jpl`, `sc_kern`,
 Named per-op premise (`hRest`, at the decode's post, over its spec run,
 `ScStepRest`): the current-thread, offset and switch-thread invariants and
 the current SC's owner under a pending reschedule (a),
-`SchedValid` (b, a rebuild), the dead set after (`hDead`, P3's, to prove),
+`ScLinkHyp` (b: `SchedValid` is rebuilt, `schedValid_rebuild`), the dead set after (`hDead`, P3's, to prove),
 and P1-supplied: the node-0 `DEBUG_TCBS` word kept and `BlkOK`.
 -/
 import Fl4Proofs.P3.ScJointRest
@@ -33,13 +33,13 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 /-- **The fields an SC step still owes** (the module docstring's named
 premise), at the post `(s', σ')` of a step from `s` with the dead set `D`:
 the current-thread, offset and switch-thread invariants and the current
-SC's owner under a pending reschedule (a); `SchedValid`
-(b); the dead set after, `D' ⊆ D` dead, the rest of `D` covered (`hDead`,
+SC's owner under a pending reschedule (a); the spec's links
+(`ScLinkHyp`, for the `SchedValid` rebuild, b); the dead set after, `D' ⊆ D` dead, the rest of `D` covered (`hDead`,
 P3's, to prove); the node-0 `DEBUG_TCBS` word kept and `BlkOK` (P1-supplied). -/
 def ScStepRest (arI : machine.Arch A) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s s' : S)
     (σ' : Fl4Spec.State Unit) : Prop :=
   ∃ (Ac' D' : Set U64), (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧
-    (σ'.schedulerAction = .chooseNewThread → CurOwn Z.T σ') ∧ OffOK σ' ∧ ActIdle σ' ∧ SchedValid σ' ∧
+    (σ'.schedulerAction = .chooseNewThread → CurOwn Z.T σ') ∧ OffOK σ' ∧ ActIdle σ' ∧ ScLinkHyp σ' ∧
     -- `hDead` (P3)
     (D' ⊆ D ∧ (∀ q ∈ D', DeadP (L := L) H s' q) ∧
       ∀ q ∈ D, q ∉ D' →
@@ -146,14 +146,14 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     retP_configureDec slbl (args.map UScalar.bv) (excaps.map Prod.fst) σ _ (by rw [hdec]; exact Set.mem_singleton _)
       _ rfl
   have hB' : BlockedScActive σ' := bsa_configure J.bsa (hcur ▸ hkc) hrun (hcur ▸ hm1) hm2
-  obtain ⟨Ac', D', hC', hOw', hO', hAI', hSV', ⟨hDD, hDead, hCov⟩, hDbg, hBlk'⟩ :=
+  obtain ⟨Ac', D', hC', hOw', hO', hAI', hSL', ⟨hDD, hDead, hCov⟩, hDbg, hBlk'⟩ :=
     hRst hr1 σ' ⟨_, σ1, hdec, he1, he2⟩
   have hF : FK σ σ' := ((fk_setThreadState _ _).of_eq he1).trans ((fk_invokeSchedControlConfigureFlags _).of_eq he2)
   have hCR'' : CurRun σ' := curRun_sc_step hkc hcur he1 (NKT.of_eq (nkt_invokeSchedControlConfigureFlags _) he2)
   have hwT := WritesIn.tfoot_of_kfoot hw
   exact ⟨σ', Ac', Lst', D', J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
     (J.sc_jpl hwT hK) (J.sc_jcov hwT hDead hCov) (J.sc_kern hwT hK hF hX' hDbg hDD)
-    (J.sc_utc hwT hK hDbg) hN' hI' hC' (hC'.elim hOw' (curOwn_of_curInv hX'.fin.1.1.1 hI')) hO' hAI' hB' hSV' hCR'' hBlk'⟩
+    (J.sc_utc hwT hK hDbg) hN' hI' hC' (hC'.elim hOw' (curOwn_of_curInv hX'.fin.1.1.1 hI')) hO' hAI' hB' hSL' hCR'' hBlk'⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **The SchedContext cap on `JAt`** for Bind, UnbindObject and a YieldTo
@@ -292,14 +292,14 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       (f1 := decide (∀ p, inv ≠ .invokeSchedContextYieldTo p))
       ((pres_invokeSchedContext inv σ0 _ hm1).weaken (f' := (decide (∀ p, inv ≠ .invokeSchedContextYieldTo p), true))
         id (fun _ => hu))
-  obtain ⟨Ac', D', hC', hOw', hO', hAI', hSV', ⟨hDD, hDead, hCov⟩, hDbg, hBlk'⟩ :=
+  obtain ⟨Ac', D', hC', hOw', hO', hAI', hSL', ⟨hDD, hDead, hCov⟩, hDbg, hBlk'⟩ :=
     hRst hr1 σ2 ⟨inv, σ0, hrun, he0, he1⟩
   have hF : FK σ σ2 := ((fk_setThreadState _ _).of_eq he0).trans (fk_invokeSchedContext hshape _ hm1)
   have hCR'' : CurRun σ2 := curRun_sc_step hkc hcur he0 hK1
   have hKt := hK0.trans (hK1.mono fun _ h => h.elim)
   exact ⟨σ2, Ac', Lst', D', J.sc_frame hW hKt hX' hCR' hRF' hY' hM' (J.sc_buf hW hKt) hRP' (J.sc_apart hW hKt)
     (J.sc_jpl hW hKt) (J.sc_jcov hW hDead hCov) (J.sc_kern hW hKt hF hX' hDbg hDD)
-    (J.sc_utc hW hKt hDbg) hN' hI' hC' (hC'.elim hOw' (curOwn_of_curInv hX'.fin.1.1.1 hI')) hO' hAI' hB' hSV' hCR'' hBlk'⟩
+    (J.sc_utc hW hKt hDbg) hN' hI' hC' (hC'.elim hOw' (curOwn_of_curInv hX'.fin.1.1.1 hI')) hO' hAI' hB' hSL' hCR'' hBlk'⟩
 
 end
 
