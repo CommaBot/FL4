@@ -15,8 +15,8 @@ donation on `IRel`** (`SendRest`).
   `send_ipc_call_inactiveX_gen` (a call without reply or grant, where the
   donation flag plays no part) and `send_ipc_callXD_gen` with `pushD_irel`;
   named: the donation facts (`DonNCOK`, `PushDonOK`).
-* `ipcVsFrame_endpointD`: IpcXTop's `ipcVsFrame_endpoint` with `SendRest`
-  by `sendRest_of`.
+* (`SendRest` is consumed by IpcCapJ's `ipcVsFrame_endpointJ`; the former
+  `ipcVsFrame_endpointD` over IpcXTop's `ipcVsFrame_endpoint` is retired.)
 -/
 import Fl4Proofs.P3.EpSendD
 import Fl4Proofs.P3.IpcDonate
@@ -304,30 +304,6 @@ open fl4_core Fl4Proofs.P1 Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
-
-/-- **`IpcVsFrame` for an endpoint cap with the send right**, the donating
-sends by `sendRest_of`. Named at `Z`: `IpcZ`, `SchedValid` and `QSorted` on
-`IRel`, the endpoint in `Z.E`, `DonNCOK` and `PushDonOK`; the arch
-relation by `ARKeep`. -/
-theorem ipcVsFrame_endpointD {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ σ1 : Fl4Spec.State Unit}
-    {ct : U64} (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
-    (hrun : tsCode xt.tcbState < 3) (hft : xt.tcbFault = none)
-    (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
-    (blk call don : Bool) (p b : U64) (rv g gr : Bool)
-    (hZ : ∀ Z : XSets, XTopAt (L := L) AR Z s a σ → IpcZ (L := L) arI σ.archState.x64CurrentCr3 s σ ct Z ∧
-      (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → Sched.SchedValid σ') ∧
-      (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → QSorted st Z.T Z.E s') ∧
-      p ∈ Z.E ∧
-      (∀ (t d : U64) s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → t ∈ Z.T →
-        d ∈ Z.T → DonNCOK st Z.N Z.C s' σ' t d) ∧
-      (∀ (t d r : U64) s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → t ∈ Z.T →
-        d ∈ Z.T → r ∈ Z.R → (∃ x, σ'.kheap r.bv = some (.reply x) ∧ x.replyTcb = some t.bv) →
-        PushDonOK st Z.N Z.T Z.C Z.R Z.c s' σ' t d r))
-    (hS : P0.StoreTotal st) (hA : P0.ArchTotal arI) (hK : ARKeep arI AR) :
-    IpcVsFrame (L := L) arI AR s a σ σ1 ct blk call don (.Endpoint p b true rv g gr) :=
-  ipcVsFrame_endpoint arI hcur hkt hrun hft hst blk call don p b rv g gr (fun Z hX =>
-    let ⟨hz, hSV, hso, hp, hDN, hPDK⟩ := hZ Z hX
-    ⟨hz, hSV, hso, hp, sendRest_of hz.H hz.Bf hz.Bm hz.Tl hz.P hDN hp a blk call b g gr don ct hPDK⟩) hS hA hK
 
 end
 

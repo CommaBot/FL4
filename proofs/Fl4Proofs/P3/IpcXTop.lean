@@ -82,23 +82,6 @@ theorem xtopAt_of_irel {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a 
   rintro r ⟨⟨h1, z, hz, hRT, hIz⟩, ha⟩
   exact ⟨h1, z, hz, hRT, IRel.xtop hIz ha⟩
 
-/-- **The XLeaf shape** (TopXAll's `XLeaf (XTop AR)`): for every `Z` the
-entry's `XTopAt Z` holds at, `KsApart` and the leaf on `IRel` at `Z.th`. -/
-theorem xleaf_of_irel {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    {prog : Result ((core.result.Result Unit error.Exc) × S × A)} {spec : Set (Unit × Fl4Spec.State Unit) × Prop}
-    (hKA : ∀ Z : XSets, XTopAt (L := L) AR Z s a σ → KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s) ∧
-      BufWordRel Z.T (L.mem s) σ)
-    (hI : ∀ Z : XSets, XTopAt (L := L) AR Z s a σ →
-      IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ → prog ⦃ r => r.1 = .Ok () ∧
-        ∃ z ∈ spec.1, RelTopM (L := L) r.2.1 z.2 ∧
-          IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c r.2.1 z.2 ⦄)
-    (hAk : ∀ cr, AR a cr → prog ⦃ r => AR r.2.2 cr ⦄) :
-    XLeaf (L := L) (XTop (L := L) AR) s a σ prog spec := by
-  rintro ⟨Z, hZ⟩
-  refine WP.spec_mono (xtopAt_of_irel hZ (hKA Z hZ).1 (hKA Z hZ).2 (hI Z hZ) hAk) ?_
-  rintro r ⟨h1, z, hz, hRT, ⟨Z', -, -, -, -, -, -, -, -, hZ'⟩, -⟩
-  exact ⟨h1, z, hz, hRT, Z', hZ'⟩
-
 end
 
 
@@ -130,70 +113,6 @@ theorem IpcZ.Tl {cr : Fl4Spec.Cr3} {s : S} {σ : Fl4Spec.State Unit} {ct : U64} 
     IpcEpTailHyps st A Z.N Z.T Z.E Z.R Z.B (SRT st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c
       (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c)) :=
   ipcEpTailHyps_top h.P
-
-/-- **`IpcVsFrame` for an endpoint cap with the send right**: `send_tail_top`
-at every `Z` the entry's `XTopAt` holds at. Named: `IpcZ` and the send
-tail's own hypotheses at `Z` (`SchedValid`, `QSorted` on `IRel`, the
-endpoint in `Z.E`, `SendRest`); the arch relation by `ARKeep` (`AK.send_tail`). -/
-theorem ipcVsFrame_endpoint {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ σ1 : Fl4Spec.State Unit}
-    {ct : U64} (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
-    (hrun : tsCode xt.tcbState < 3) (hft : xt.tcbFault = none)
-    (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
-    (blk call don : Bool) (p b : U64) (rv g gr : Bool)
-    (hZ : ∀ Z : XSets, XTopAt (L := L) AR Z s a σ → IpcZ (L := L) arI σ.archState.x64CurrentCr3 s σ ct Z ∧
-      (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → Sched.SchedValid σ') ∧
-      (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → QSorted st Z.T Z.E s') ∧
-      p ∈ Z.E ∧
-      (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' →
-        SendRest st arI (IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c) Z.T s' a σ' blk call b
-          g gr don ct p))
-    (hS : P0.StoreTotal st) (hA : P0.ArchTotal arI) (hK : ARKeep arI AR) :
-    IpcVsFrame (L := L) arI AR s a σ σ1 ct blk call don (.Endpoint p b true rv g gr) :=
-  xleaf_of_irel (fun Z hX => ⟨(hZ Z hX).1.ks, (hZ Z hX).1.bt⟩) (fun Z hX hI =>
-    let ⟨hz, hSV, hso, hp, hU⟩ := hZ Z hX
-    send_tail_top hz.H hz.Bf hz.Bm hz.Tl hz.P hSV hso s a σ hI hz.ct hcur hkt hrun hft hst hp b blk call g gr don hz.tail hU)
-    (fun _ h => AK.send_tail hS hA hK h)
-
-/-- **`IpcVsFrame` for a notification cap with the send right**:
-`send_tail_ntfn` at every `Z`. Named: `IpcZ`, no thread `RunningVM` on
-`IRel`, the notification in `Z.N`; the arch relation by `ARKeep`. -/
-theorem ipcVsFrame_notification {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ σ1 : Fl4Spec.State Unit}
-    {ct : U64} (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
-    (hrun : tsCode xt.tcbState < 3)
-    (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
-    (blk call don : Bool) (p b : U64) (rv : Bool)
-    (hZ : ∀ Z : XSets, XTopAt (L := L) AR Z s a σ → IpcZ (L := L) arI σ.archState.x64CurrentCr3 s σ ct Z ∧
-      (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → NativeScope σ') ∧
-      p ∈ Z.N)
-    (hS : P0.StoreTotal st) (hA : P0.ArchTotal arI) (hK : ARKeep arI AR) :
-    IpcVsFrame (L := L) arI AR s a σ σ1 ct blk call don (.Notification p b true rv) :=
-  xleaf_of_irel (fun Z hX => ⟨(hZ Z hX).1.ks, (hZ Z hX).1.bt⟩) (fun Z hX hI =>
-    let ⟨hz, hvm, hp⟩ := hZ Z hX
-    send_tail_ntfn hz.H hz.Bf hz.Bm hz.P hvm s a σ hI hz.ct hcur hkt hrun hst hp b)
-    (fun _ h => AK.signal_tail hS hA hK h)
-
-/-- **`IpcVsFrame` for a reply cap**: `reply_tail_inv` at every `Z`. Named:
-`IpcZ`, `ReplyHyps`, `min_budget`, `SchedValid` and `ObjCover` on `IRel`,
-the reply in `Z.R`; the arch relation by `ARKeep`. -/
-theorem ipcVsFrame_reply {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ σ1 : Fl4Spec.State Unit}
-    {ct : U64} (hcur : σ.curThread = ct.bv) {xt : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb xt))
-    (hrun : tsCode xt.tcbState < 3) (hft : xt.tcbFault = none)
-    (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
-    (blk call don : Bool) (p : U64) (g : Bool)
-    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hZ : ∀ Z : XSets, XTopAt (L := L) AR Z s a σ → IpcZ (L := L) arI σ.archState.x64CurrentCr3 s σ ct Z ∧
-      ReplyHyps st arI Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c ∧
-      (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → Sched.SchedValid σ') ∧
-      (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' →
-        Sched.ObjCover Z.N Z.T Z.E Z.R Z.C σ') ∧
-      (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → Sched.IpcSorted σ') ∧
-      p ∈ Z.R) (hNS : SVK.NoSwitch σ)
-    (hS : P0.StoreTotal st) (hA : P0.ArchTotal arI) (hK : ARKeep arI AR) :
-    IpcVsFrame (L := L) arI AR s a σ σ1 ct blk call don (.Reply p g) :=
-  xleaf_of_irel (fun Z hX => ⟨(hZ Z hX).1.ks, (hZ Z hX).1.bt⟩) (fun Z hX hI =>
-    let ⟨hz, hRH, hSV, hOC, hIS, hp⟩ := hZ Z hX
-    reply_tail_inv hz.H hz.Bf hz.Bm hz.P hRH hz.Tl hmb hSV hOC hIS s a σ hI hz.ct hcur hkt hrun hft hst hp g hz.tail hNS)
-    (fun _ h => AK.reply_tail hS hA hK h)
 
 end
 

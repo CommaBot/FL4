@@ -1,7 +1,7 @@
 /-
 P3 (DESIGN.md §9), TCB invocations: **Suspend on `IRel`** (`sched::suspend`
-against l4v `suspend`), and its leaf at `XTop` (XTopTcbSched's
-`SuspendXLeaf`).
+against l4v `suspend`); the leaf from `JAtZ` is IpcSuspendJ's
+`suspendXLeafJ` (`suspendXLeaf_of` is retired).
 
 `cancel_ipc` (`cancel_ipc_irel`), the restart PC of a running thread
 (`reg_wr_irel`: XTopTcbSched's register write at `IRel`), the scheduler
@@ -289,32 +289,6 @@ noncomputable section
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
-
-/-- **What Suspend needs beyond `IRel`**, at a state: `reply_remove_tcb`'s
-facts (`RemoveTcbOK`: the call stacks, `RPlaced`, `NSC`, `Inv`,
-`SchedValid`, `ObjCover`) and the yield-to relation `YieldRel` [J]. -/
-def SuspendOK (st : machine.Store S) [L : P1.LawfulStore st] (Z : XSets) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
-  RemoveTcbOK st Z.N Z.T Z.C Z.E Z.R Z.c s σ ∧ YieldRel Z.T Z.C (L.mem s) σ
-
-/-- **`SuspendXLeaf`**: the restart (`xleaf_restart`), then `suspend_irel`.
-Named, at every `Z` the entry's `XTopAt` holds at: `KsApart`, the IPC
-placement, the target among the TCBs, `SuspendOK` on `IRel`; `BufWordRel`
-at `XTopAt`; `CurRun` [J]. -/
-theorem suspendXLeaf_of {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit} {p : U64}
-    (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False)) (hC : CurRun σ)
-    (hZ : ∀ Z : XSets, XTopAt (L := L) AR Z s ar σ → KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s) ∧
-      IPlaced Z.N Z.T Z.E Z.R Z.B ∧ p ∈ Z.T ∧
-      (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → SuspendOK st Z s' σ'))
-    (hBW : ∀ (Z : XSets) s' a' σ', XTopAt (L := L) AR Z s' a' σ' → BufWordRel Z.T (L.mem s') σ') :
-    SuspendXLeaf (L := L) arI AR s ar σ σ1 p := by
-  refine xleaf_restart hst hC (fun Z hX => (hZ Z hX).1) hBW fun Z s1 hX _ _ hI1 => ?_
-  obtain ⟨-, hP0, hpT, hOK⟩ := hZ Z hX
-  have hAR : AR ar σ.archState.x64CurrentCr3 := hX.fin.1.1.2.2.2.2.2.2
-  obtain ⟨⟨Lst, -, -, -, -, hInv, -, hSV, hOC⟩, -⟩ := hOK _ _ hI1
-  refine WP.spec_bind (suspend_irel (ar := arI) hP0 (removeTcbHyp_of hP0 fun s' σ' h => (hOK s' σ' h).1)
-    s1 ar σ1 hI1 hpT hSV hOC hInv fun s' σ' h => (hOK s' σ' h).2) ?_
-  rintro ⟨s2, a2⟩ ⟨rfl, σ2, hm, hI2⟩
-  exact (WP.spec_ok _).2 ⟨rfl, hAR, ((), σ2), by rw [hm]; exact Set.mem_singleton _, hI2⟩
 
 end
 

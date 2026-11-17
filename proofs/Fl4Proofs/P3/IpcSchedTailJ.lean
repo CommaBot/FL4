@@ -2,15 +2,17 @@
 P3 (DESIGN.md §9), TCB invocations: **SetSchedParams' scheduler step from
 `JAtZ`** (the fold's re-scoping of `schedTailXHyp_of`): `JAtZ` after the
 fault-handler install (`InstallJ`, the CSpace side's install step, with the
-current thread in no release queue and kept), the facts after `set_mcp`
+current thread in no release queue), the facts after `set_mcp`
 carried from it (a `TView` step), and the spec's facts after `set_priority`
 proved (TcbSpecInv's `setPriority_inv`: the target is not the current thread
 on both SC branches, by the decoder's `ScDec` for an unbind and `BindOK` for
-a bind).
+a bind; the current thread kept by the restart and the install, CurTcb's
+`ctke_installTcbCap'`).
 -/
 import Fl4Proofs.P3.IpcSchedTail
 import Fl4Proofs.P3.IpcCopyRegsJ
 import Fl4Proofs.P3.TcbSpecInv
+import Fl4Proofs.P3.CurTcb
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -24,16 +26,9 @@ open Fl4Proofs.P3.Notif (inClass released)
 
 /-- **`JAtZ` after SetSchedParams' fault-handler install** [J-step, the
 CSpace side's install], with the current thread in no release queue
-(l4v `ct_not_in_release_q`), and the current thread kept by the install
-[spec frame: `install_tcb_cap` writes no `cur_thread`; no `cur_thread`
-frame of its deletion path (`cap_delete`, `finalise_cap`) exists yet; FL4-side
-it is P1's `CaiFr.cur` with `SchedSpec.curThread` at both `XTopAt`s]. It
-replaces the former `SetPrioSpecOK` (`Inv`/`ObjCover`/`NSC` after
-`set_priority`), now proved by `setPriority_inv` from `JAtZ` and this fact
-(the unbind target is not the current thread by `ScDec` at entry): `JAtZ`
-alone does not give it, since with `ChooseNewThread` (an endpoint
-finalisation in the install) `CurInv` is not a `JAtZ` fact and a requeued
-current thread's SC need not be active. At `SchedTailXHyp`'s hypotheses. -/
+(l4v `ct_not_in_release_q`): at `SchedTailXHyp`'s hypotheses. (The former
+`SetPrioSpecOK` is proved by `setPriority_inv`, with the current thread kept
+by the install from the spec frame `ctke_installTcbCap'`.) -/
 def InstallJ (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (ct : U64) : Prop :=
   ∀ (s1 : S) (σ1 : Fl4Spec.State Unit) (a : A) (p mcp prio scv x2 : U64) (scf : Bool) (ssl : Fl4Spec.CslotPtr)
     (fh : Fl4Spec.Cap × Fl4Spec.CslotPtr) (q : Fl4Spec.ObjRef) (sco : Option (Option Fl4Spec.ObjRef))
@@ -49,8 +44,7 @@ def InstallJ (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (σ : Fl
     (.ok (), σ2) ∈ ((Fl4Spec.installTcbCap (Z := Unit) p.bv ssl 3 (some fh)).run σ1).1 →
     DState (L := L) th s2 σ2 G2 → WX (L := L) AR th s2 a1 σ2 G2 →
     ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th ∧
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s2 a1 σ2 ∧ σ2.curThread ∉ σ2.releaseQueue ∧
-      σ2.curThread = σ.curThread
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s2 a1 σ2 ∧ σ2.curThread ∉ σ2.releaseQueue
 
 set_option maxHeartbeats 32000000 in
 /-- **`SchedTailXHyp` from `JAtZ`** (module docstring). Named: the spec's
@@ -69,7 +63,10 @@ theorem schedTailXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {s : S
     SchedTailXHyp (L := L) arI AR th s σ ct := by
   intro s1 σ1 a p mcp prio scv x2 scf ssl fh q sco s2 a1 σ2 G2 hs1 hst1 hp hm hpr h1 h2 h3 hD hpI hx2 hinsI hins hDS
     hWX
-  obtain ⟨Z, H, Cs, Ac, Lst, D, hth, J2, hNR2, hct2⟩ :=
+  have hct2 : σ2.curThread = σ.curThread :=
+    ((Vs.CurK.ctke_installTcbCap' p.bv ssl 3 (some fh)) σ1 _ hins).1.trans
+      ((Vs.CurK.ctk_setThreadState' ct.bv .restart) σ ((), σ1) (by rw [hst1]; exact Set.mem_singleton _)).1
+  obtain ⟨Z, H, Cs, Ac, Lst, D, hth, J2, hNR2⟩ :=
     hJ2 s1 σ1 a p mcp prio scv x2 scf ssl fh q sco s2 a1 σ2 G2 hs1 hst1 hp hm hpr h1 h2 h3 hD hpI hx2 hinsI hins hDS hWX
   have hX := J2.xtop
   have hKA := J2.ks

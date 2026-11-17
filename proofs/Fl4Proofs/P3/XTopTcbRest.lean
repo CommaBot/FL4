@@ -12,7 +12,6 @@ side's leaves, the labels still open and the [J]/[P] facts as premises
 * `TcbXOpen`: FL4's debug, FPU, timer labels and SetFlags; its data labels
   (GetBreakpoint, ConfigureSingleStepping, SetFlags) are proved in
   XTopTcbData (`tcbXOpen_of`), the other four [W] (`TcbXOpen4`).
-* `tcbXIpc_setPrio`: the SetPriority leaf from IpcSetPrioX's `setPrioXLeaf_of`.
 -/
 import Fl4Proofs.P3.XTopTcbTls
 import Fl4Proofs.P3.IpcSetPrioX
@@ -68,20 +67,6 @@ structure TcbXIpc (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (ar
   unbind : L.mem s (P1.boundA p) ≠ 0#u64 → ∀ σ1,
     Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
     UnbindXLeaf (L := L) AR s ar σ σ1 p
-
-/-- **`TcbXIpc`'s SetPriority field from the IPC side's `setPrioXLeaf_of`**
-(IpcSetPrioX: its per-`Z` premises at the decode's state, `BufWordRel` at
-every `XTopAt`, the caller runnable). -/
-theorem tcbXIpc_setPrio {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {ar : A} {σ : Fl4Spec.State Unit} {p : U64}
-    (hC : CurRun σ)
-    (hZ : ∀ Z : XSets, XTopAt (L := L) AR Z s ar σ → KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s) ∧
-      IPlaced Z.N Z.T Z.E Z.R Z.B ∧ p ∈ Z.T ∧
-      (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → Notif.ActReady σ') ∧
-      (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → SetPrioOK st Z p s' σ'))
-    (hBW : ∀ (Z : XSets) s' a' σ', XTopAt (L := L) AR Z s' a' σ' → BufWordRel Z.T (L.mem s') σ') :
-    ∀ σ1 (v : U64), Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
-      v.val < 256 → SetPrioXLeaf (L := L) AR s ar σ σ1 p v :=
-  fun _ _ hst hv => setPrioXLeaf_of hst hv hC hZ hBW
 
 set_option maxHeartbeats 4000000 in
 /-- **`TcbXRest` from the wrappers**: the IPC/Sc leaves (`TcbXIpc`), the
