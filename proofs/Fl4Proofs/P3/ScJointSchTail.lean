@@ -65,18 +65,46 @@ theorem JAtZ.sch_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     by rw [hcpu]; exact K.cpuCs, J.zH.1 _ hcT, hcscH, hcscL, K.csLt⟩
   rw [hna, hDbg]; exact K.head
 
+/-- **The new current SC after a scheduler step**: `H`'s (the spec's SC,
+`JPlaced`) and not dead (bound to the current thread, `CurInv`: its `TCB`
+word is not 0, as a dead SC's is). -/
+theorem JAtZ.sch_csc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ')
+    (hS' : SchedRel st Z.N Z.T Z.C Z.c s' σ') (hI' : Inv σ') (hC' : CurInv σ')
+    (hdead : ∀ q ∈ D, Sched.DeadP (L := L) H s' q) : H (L.cscW s') ≠ none ∧ L.cscW s' ∉ D := by
+  obtain ⟨Q', R', hc', hs'⟩ := hS'.lists
+  have ecs : L.cscW s' = nodeW st s' Z.c layout.node.CUR_SC := by
+    unfold P1.LawfulStore.cscW P1.LawfulStore.nodeA nodeW; rw [hc'.cur]
+  have hcv0 : σ'.curSc = (L.cscW s').bv := by rw [ecs]; exact hs'.curSc
+  obtain ⟨x, n, hx⟩ := hC'.sc
+  have hobj0 := J.obj.tkw hK.toTK
+  obtain ⟨c, hcC, hcv⟩ := hobj0.sc _ _ _ hx
+  have hcw : c = L.cscW s' := P1.eq_of_bv (hcv.trans hcv0)
+  rw [← hcw]
+  obtain ⟨Tr, Cq, hJ⟩ := J.sch_jpl hw hK
+  have hxc : σ'.kheap c.bv = some (.schedContext x n) := by rw [hcv]; exact hx
+  have hHc := (hJ.sc c x n (J.c0 c hcC) hxc).2
+  refine ⟨(by rw [hHc]; exact fun h => by cases h), fun hD => ?_⟩
+  have d := ((hdead c hD).2.2.2.2 _ hHc).1
+  obtain ⟨x', n', hk', hR⟩ := hs'.scs c hcC
+  rw [hxc] at hk'; cases hk'
+  obtain ⟨u, -, xt, -, -, hown, -⟩ := curOwn_of_curInv hS' hI' hC'
+  have h1 := hR.tcb
+  rw [hown x n hx, show scW c 24#u64 = P1.scTcbA c from scW_tcb c, d, optRef_zero] at h1
+  cases h1
+
 /-- **The facts after FL4's `schedule` the tail does not derive** (module
 docstring): the VSpace current-thread relation and the arch CR3 (the arch
-switch), the node-0 debug word, the new current SC's heap object and
-liveness, the dead set's objects still dead and P1's `BlkOK`. -/
+switch), the node-0 debug word, the dead set's objects still dead and P1's
+`BlkOK`. -/
 structure SchTailHyps (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (D : Set U64)
     (s : S) (s' : S) (a' : A) (σ' : Fl4Spec.State Unit) (Ac' : Set U64) : Prop where
   curOK : Vs.CurOK st Z.th s' σ'
   ar : AR a' σ'.archState.x64CurrentCr3
   dbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)
   dwNe : (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS).val ≠ (P1.stA (L.curW s')).val
-  cscH : H (L.cscW s') ≠ none
-  cscLive : L.cscW s' ∉ D
   dead : ∀ q ∈ D, Sched.DeadP (L := L) H s' q
   blk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s'
@@ -106,7 +134,7 @@ theorem JAtZ.sch_tail {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     ScAll.of_k hS J.rp J.yld J.mcp J.call J.rfree ⟨⟨hS', hR', hN', hI'⟩, hw, hSch.2⟩
   refine ⟨Lst', J.sch_frame hwT hK hX' hCR' hRF' hY' hM' (J.sch_buf hwT hK) hRP' (J.sch_apart hwT hK)
     (J.sch_jpl hwT hK) (J.sc_jcov hwT hT.dead fun q hq hn => absurd hq hn)
-    (J.sch_kern hwT hK hS' hT.dbg hT.dwNe hT.cscH hT.cscLive) (J.sch_utc hwT hK hT.dbg) hN' hI' (Or.inr hC')
+    (J.sch_kern hwT hK hS' hT.dbg hT.dwNe (J.sch_csc hwT hK hS' hI' hC' hT.dead).1 (J.sch_csc hwT hK hS' hI' hC' hT.dead).2) (J.sch_utc hwT hK hT.dbg) hN' hI' (Or.inr hC')
     (Or.inl (curOwn_of_curInv hS' hI' hC')) hoff hA' hbsa (Or.inr hcr) hT.blk⟩
 
 /-- **The entry tail on `JAt`** with `hSchedRest` discharged (module
