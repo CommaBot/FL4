@@ -19,6 +19,12 @@ P3 (DESIGN.md §9), scheduler: **`schedule` refines l4v `schedule`**
   (`timer::fire`, l4h 0003, the hypothesis `FireHyp`: a sequence of
   notification signals, `Fires`); l4v's `schedule` runs from the state after
   them.
+* `schedule_refinesW`: the same from a mid-entry state, `SchedPreW`
+  (`CurInv` only unless a reschedule is pending, the current SC's owner
+  `CurOwn`, ScAwaken); `schedule_refines` its corollary (`SchedPre.toW`).
+  The outgoing SC's commit needs its owner out of the release queue only
+  while time is to be charged (`0 < consumed_time`, l4v
+  `cur_sc_in_release_q_imp_zero_consumed`).
 -/
 import Fl4Proofs.P3.ScAwaken
 import Fl4Proofs.P3.ScPlatform
@@ -59,6 +65,23 @@ theorem newcur_of {σ σ' : State Unit} (h : σ'.curThread = σ.idleThread ∨ s
   · rw [h]
     obtain ⟨xt, hkt, hxs, hnb⟩ := hC.tcb
     exact ⟨xt, σ.curSc, hkt, hxs, hnb, hC.notRel, fun hne x n hx => hC.active hne x n hx⟩
+
+/-- `newcur_of` for a new thread that is idle or schedulable (no `CurInv`). -/
+theorem newcur_of2 {σ σ' : State Unit} (h : σ'.curThread = σ.idleThread ∨ schedulable σ'.curThread σ = true)
+    (hk : σ'.kheap = σ.kheap) (hr : σ'.releaseQueue = σ.releaseQueue) (hId : IdleOK σ) :
+    ∃ xt scp, σ'.kheap σ'.curThread = some (.tcb xt) ∧ xt.tcbSchedContext = some scp ∧
+      NotIpcBlk xt.tcbState ∧ σ'.curThread ∉ σ'.releaseQueue ∧
+      (scp ≠ idleScPtr → ∀ x n, σ'.kheap scp = some (.schedContext x n) → scActive x = true) := by
+  rw [hk, hr]
+  rcases h with h | h
+  · rw [h]
+    obtain ⟨x, h1, h2, h3, h4⟩ := hId
+    refine ⟨x, idleScPtr, h1, h2, ?_, h4, fun hne => absurd rfl hne⟩
+    rw [h3]; exact NotIpcBlk.idle
+  · obtain ⟨x, scp, y, n, h1, h2, h3, h4, h5, h6⟩ := schedulable_inv h
+    refine ⟨x, scp, h1, h2, ?_, h6, fun _ x' n' hx => ?_⟩
+    · exact NotIpcBlk.of_runnable h3
+    · rw [h4] at hx; cases hx; exact h5
 
 end Spec
 
@@ -571,7 +594,7 @@ theorem tail_refines {N T C : Set U64} {c : U64} (s3 : S) (a2 : A) (σ3 : Fl4Spe
     (hcsc : ∃ sc ∈ C, sc.bv = σ3.curSc)
     {u0 : Fl4Spec.ObjRef} (hown0 : ∀ x n, σ3.kheap σ3.curSc = some (.schedContext x n) → x.scTcb = some u0)
     (hback : ∀ xt, σ3.kheap u0 = some (.tcb xt) → xt.tcbSchedContext = some σ3.curSc)
-    (hnr : u0 ∉ σ3.releaseQueue) (hoff : OffOK σ3)
+    (hnr : 0 < σ3.consumedTime → u0 ∉ σ3.releaseQueue) (hoff : OffOK σ3)
     (hT : TimeAgree ar)
     (hsni : SniHyp st ar N T C c) (hsend : SendHyp st ar N T C c) :
     (do
@@ -706,40 +729,40 @@ def FireHyp (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (N
     NSC N C σ → SchedPre σ → timer.fire st ar s a ⦃ r => ∃ σ1, Fires σ σ1 ∧ SchedRel st N T C c r.1 σ1 ∧
       NtfnStateRel N T (L.mem r.1) σ1 ∧ NSC N C σ1 ∧ SchedPre σ1 ⦄
 
-/-- **`schedule` refines l4v `schedule`**, ending in `Inv` and `CurInv`.
-
-FL4's `schedule` starts with its TCB timers (`timer::fire`, l4h 0003), a
-sequence of notification signals (`Fires`); l4v's `schedule` runs from the
-state after them. Hypotheses: `SchedPre` (`Inv`, `CurInv`, `OffOK`,
-`ActIdle`, and the domain scope, domain time nonzero), one domain,
-the TCB timers (`FireHyp`), the arch thread switch (`ArchSw`), timer
-programming (`SniHyp`), the SMP IPIs (`SendHyp`), and the platform
-constants. It ends in `Inv`, `CurInv` and `ActIdle`. -/
-theorem schedule_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hP : SchedPre σ)
+/-- **`schedule` refines l4v `schedule` from a mid-entry state**
+(`SchedPreW`: `CurInv` only unless a reschedule is pending, the current SC's
+owner `CurOwn`), ending in `Inv`, `CurInv` and `ActIdle`. The TCB timers'
+hypothesis is stated at `σ` (`hfire`, keeping `SchedPreW`). -/
+theorem schedule_refinesW {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ)
     (hnd : Fl4Spec.numDomains = 1)
-    (hfire : FireHyp st ar N T C c) (hA : ArchSw st ar N T C c) (hsni : SniHyp st ar N T C c) (hsend : SendHyp st ar N T C c)
+    (hfire : timer.fire st ar s a ⦃ r => ∃ σ1, Fires σ σ1 ∧ SchedRel st N T C c r.1 σ1 ∧
+      NtfnStateRel N T (L.mem r.1) σ1 ∧ NSC N C σ1 ∧ SchedPreW T σ1 ⦄) (hA : ArchSw st ar N T C c) (hsni : SniHyp st ar N T C c) (hsend : SendHyp st ar N T C c)
     (hT : TimeAgree ar) :
     sched.schedule st ar s a ⦃ r => ∃ σ1 σ', Fires σ σ1 ∧ Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) ∧
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧ CurInv σ' ∧
       ActIdle σ' ⦄ := by
   unfold sched.schedule
-  refine WP.spec_bind (awaken_refines s a σ (hfire s a σ hS hR hN hP)) ?_
-  rintro ⟨s1, a1⟩ ⟨σ1, σ2, hF, haw, hS2, hR2, hN2, ⟨hI2, hC2, hO2, ⟨hA2, hId2⟩, hd2⟩, -, -⟩
+  refine WP.spec_bind (awaken_refinesW s a σ hfire) ?_
+  rintro ⟨s1, a1⟩ ⟨σ1, σ2, hF, haw, hS2, hR2, hN2, ⟨hI2, hC2w, hO2, ⟨hA2, hId2⟩, hd2, hW2⟩, -, -⟩
   have hsp := schedule_unfold haw hnd
   simp only [check_domain_time_refines, bind_ok]
   obtain ⟨Q, R, hc, hs⟩ := hS2.lists
-  obtain ⟨hscC, -, -, -, -, -, -⟩ := CurInv.facts hS2 hI2 hC2
-  obtain ⟨xt0, hkt0, hxs0, -⟩ := hC2.tcb
-  have hown0 : ∀ x n, σ2.kheap σ2.curSc = some (.schedContext x n) → x.scTcb = some σ2.curThread := by
-    intro x n hx; obtain ⟨y, m, hy, hyt⟩ := hI2.back _ xt0 _ hkt0 hxs0; rw [hx] at hy; cases hy; exact hyt
-  have hback : ∀ xt, σ2.kheap σ2.curThread = some (.tcb xt) → xt.tcbSchedContext = some σ2.curSc := by
+  obtain ⟨u0w, hu0T, xt0, hkt0, hxs0, hown0, hnr0⟩ := hW2
+  have hback : ∀ xt, σ2.kheap u0w.bv = some (.tcb xt) → xt.tcbSchedContext = some σ2.curSc := by
     intro xt hk; rw [hkt0] at hk; cases hk; exact hxs0
-  have hcsc : ∃ sc ∈ C, sc.bv = σ2.curSc := ⟨_, hscC, hs.curSc.symm⟩
+  have hcsc : ∃ sc ∈ C, sc.bv = σ2.curSc := by
+    obtain ⟨x', hk', -, -, hsct, -⟩ := hs.tcb u0w hu0T
+    rw [hkt0] at hk'; cases hk'
+    rw [hxs0] at hsct
+    obtain ⟨h0, hbv⟩ := optRef_some hsct.symm
+    exact ⟨_, hs.scMem _ hu0T h0, hbv⟩
   -- the tail after a branch ending in `σ3`
   have tail : ∀ (s3 : S) (a2 : A) (σ3 : Fl4Spec.State Unit),
       SchedRel st N T C c s3 σ3 → NtfnStateRel N T (L.mem s3) σ3 → NSC N C σ3 → Inv σ3 →
-      (σ3.curThread = σ2.idleThread ∨ Fl4Spec.schedulable σ3.curThread σ2 = true ∨ σ3.curThread = σ2.curThread) →
+      (∃ xt scp, σ3.kheap σ3.curThread = some (.tcb xt) ∧ xt.tcbSchedContext = some scp ∧
+        NotIpcBlk xt.tcbState ∧ σ3.curThread ∉ σ3.releaseQueue ∧
+        (scp ≠ Fl4Spec.idleScPtr → ∀ x n, σ3.kheap scp = some (.schedContext x n) → Fl4Spec.scActive x = true)) →
       σ3.kheap = σ2.kheap → σ3.releaseQueue = σ2.releaseQueue → σ3.curSc = σ2.curSc →
       σ3.consumedTime = σ2.consumedTime → σ3.curTime = σ2.curTime → σ3.idleThread = σ2.idleThread →
       (∀ σ', Fl4Spec.scAndTimer (Z := Unit) { σ3 with schedulerAction := .resumeCurThread } = ({((), σ')}, False) →
@@ -762,9 +785,9 @@ theorem schedule_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
           SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧ CurInv σ' ∧
           ActIdle σ' ⦄ := by
     intro s3 a2 σ3 hS3 hR3 hN3 hI3 hnc hk3 hr3 hcs3 hcn3 htm3 hid3 hspec
-    refine WP.spec_mono (tail_refines s3 a2 σ3 hS3 hR3 hN3 hI3 (newcur_of hnc hk3 hr3 hId2 hC2)
-      (by rw [hcs3]; exact hcsc) (u0 := σ2.curThread) (fun x n hx => hown0 x n (by rw [← hk3, ← hcs3]; exact hx))
-      (fun xt hx => by rw [hcs3]; exact hback xt (by rw [← hk3]; exact hx)) (by rw [hr3]; exact hC2.notRel)
+    refine WP.spec_mono (tail_refines s3 a2 σ3 hS3 hR3 hN3 hI3 hnc
+      (by rw [hcs3]; exact hcsc) (u0 := u0w.bv) (fun x n hx => hown0 x n (by rw [← hk3, ← hcs3]; exact hx))
+      (fun xt hx => by rw [hcs3]; exact hback xt (by rw [← hk3]; exact hx)) (fun h0 hm => hnr0 (by rw [← hcn3]; exact h0) (by rw [← hr3]; exact hm))
       (hO2.of_eq hk3 hcs3 hcn3 htm3) hT hsni hsend) ?_
     rintro r ⟨σ', h', a1, a2, a3, a4, a5, a6⟩
     exact ⟨σ1, σ', hF, hspec σ' h', a1, a2, a3, a4, a5,
@@ -781,7 +804,8 @@ theorem schedule_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
     have hb : (nodeW st s1 c layout.node.SCHED_ACTION != sched.ACTION_RESUME_CURRENT) = false := by
       rw [resume_val', h0]; rfl
     simp only [hb, Bool.false_eq_true, ↓reduceIte, bind_ok]
-    refine tail s1 a1 σ2 hS2 hR2 hN2 hI2 (Or.inr (Or.inr rfl)) rfl rfl rfl rfl rfl rfl (fun σ' h' => ?_)
+    refine tail s1 a1 σ2 hS2 hR2 hN2 hI2
+      (newcur_of (Or.inr (Or.inr rfl)) rfl rfl hId2 (hC2w.resolve_left (by rw [hres]; intro e; cases e))) rfl rfl rfl rfl rfl rfl (fun σ' h' => ?_)
     rw [hsp, hres]; rw [resume_self hres] at h'; exact h'
   · have hb : (nodeW st s1 c layout.node.SCHED_ACTION != sched.ACTION_RESUME_CURRENT) = true := by
       rw [resume_val']; simpa using h0
@@ -824,7 +848,12 @@ theorem schedule_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
         (hA.2 s4 a1 σ4 hS4 hR4) hd4) ?_
       rintro ⟨s3, a2⟩ ⟨σ3, h3, hS3, hR3, hN3, hI3, hnc3, hcs3, hr3, hk3, htk3⟩
       obtain ⟨g1, g2, g3, g4, g5, g6, g7⟩ := conv σ3 hnc3 hk3 hr3 hcs3 htk3
-      refine tail s3 a2 σ3 hS3 hR3 hN3 hI3 g1 g2 g3 g4 g5 g6 g7 (fun σ' h' => ?_)
+      refine tail s3 a2 σ3 hS3 hR3 hN3 hI3
+        (newcur_of2 (by
+          rcases hnc3 with h | h
+          · exact Or.inl (h.trans htk4.2.2.1)
+          · exact Or.inr (by rw [← schedulable_heap (σ' := σ4) hq4.1 hq4.2.1]; exact h)) g2 g3 hId2)
+        g2 g3 g4 g5 g6 g7 (fun σ' h' => ?_)
       rw [hsp, hcn]
       exact (nd_bind_one hw4 _).trans ((nd_bind_one h3 _).trans h')
     · -- switch to the candidate
@@ -856,11 +885,35 @@ theorem schedule_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
       refine WP.spec_bind (switch_branch_refines s4 a1 σ2 σ4 hS4 hR4 hN4 hI4 hA hd4 hwT hsch4 _ hidle4 hwhen) ?_
       rintro ⟨s3, a2⟩ ⟨σ3, h3, hS3, hR3, hN3, hI3, hnc3, hcs3, hr3, hk3, htk3⟩
       obtain ⟨g1, g2, g3, g4, g5, g6, g7⟩ := conv σ3 hnc3 hk3 hr3 hcs3 htk3
-      refine tail s3 a2 σ3 hS3 hR3 hN3 hI3 g1 g2 g3 g4 g5 g6 g7 (fun σ' h' => ?_)
+      refine tail s3 a2 σ3 hS3 hR3 hN3 hI3
+        (newcur_of g1 g2 g3 hId2 (hC2w.resolve_left (by rw [hsw]; intro e; cases e)))
+        g2 g3 g4 g5 g6 g7 (fun σ' h' => ?_)
       rw [hsp, hsw]
       rw [hct4, ← ect] at h3
       exact (nd_bind_one h3 _).trans h'
 
+
+/-- **`schedule` refines l4v `schedule`**, ending in `Inv` and `CurInv`.
+
+FL4's `schedule` starts with its TCB timers (`timer::fire`, l4h 0003), a
+sequence of notification signals (`Fires`); l4v's `schedule` runs from the
+state after them. Hypotheses: `SchedPre` (`Inv`, `CurInv`, `OffOK`,
+`ActIdle`, and the domain scope, domain time nonzero), one domain,
+the TCB timers (`FireHyp`), the arch thread switch (`ArchSw`), timer
+programming (`SniHyp`), the SMP IPIs (`SendHyp`), and the platform
+constants. It ends in `Inv`, `CurInv` and `ActIdle`. A corollary of
+`schedule_refinesW`. -/
+theorem schedule_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hP : SchedPre σ)
+    (hnd : Fl4Spec.numDomains = 1)
+    (hfire : FireHyp st ar N T C c) (hA : ArchSw st ar N T C c) (hsni : SniHyp st ar N T C c) (hsend : SendHyp st ar N T C c)
+    (hT : TimeAgree ar) :
+    sched.schedule st ar s a ⦃ r => ∃ σ1 σ', Fires σ σ1 ∧ Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) ∧
+      SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧ CurInv σ' ∧
+      ActIdle σ' ⦄ :=
+  schedule_refinesW s a σ hS hR hN hnd
+    (WP.spec_mono (hfire s a σ hS hR hN hP) fun _ ⟨σ1, h1, h2, h3, h4, h5⟩ => ⟨σ1, h1, h2, h3, h4, h5.toW h2⟩)
+    hA hsni hsend hT
 end
 end
 end Fl4Proofs.P3.Sched

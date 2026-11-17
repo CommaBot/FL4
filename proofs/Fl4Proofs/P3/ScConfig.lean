@@ -1006,7 +1006,7 @@ theorem cfg_pre_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spe
     have hkb : σb.kheap = σ.kheap := rfl
     refine WP.spec_bind (commit_time_refines s4 a2 σb hS4 hR4 hN4 hIb (by rw [hcs]; exact hp) (u0 := t.bv)
       (fun y m hy => by rw [hcs, hkb, hk] at hy; cases hy; exact hxt) hS4.idle
-      (by show t.bv ∉ (σ.releaseQueue.filter fun x => decide (t.bv ≠ x)); rw [hflt]; exact htR)
+      (fun _ => by show t.bv ∉ (σ.releaseQueue.filter fun x => decide (t.bv ≠ x)); rw [hflt]; exact htR)
       (OffOK.of_eq hO rfl rfl rfl rfl) (hT.mrt a2) (hT.mb a2)) ?_
     rintro s5 ⟨σc, hcm, hS5, hR5, hN5, hI5, hK6, -, hwc⟩
     rw [WP.spec_ok]

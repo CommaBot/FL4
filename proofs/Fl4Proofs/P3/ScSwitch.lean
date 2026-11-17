@@ -188,7 +188,7 @@ theorem ssc_tail_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
     {u0 : Fl4Spec.ObjRef} (hown0 : ∀ x n, σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) →
       x.scTcb = some u0)
     (hback : ∀ xt, σ.kheap u0 = some (.tcb xt) → xt.tcbSchedContext = some σ.curSc)
-    (hnr : u0 ∉ σ.releaseQueue) (hoff : OffOK σ)
+    (hnr : 0 < σ.consumedTime → u0 ∉ σ.releaseQueue) (hoff : OffOK σ)
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
     (do
@@ -259,7 +259,7 @@ theorem switch_sched_context_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
     {u0 : Fl4Spec.ObjRef} (hown0 : ∀ x n, σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) →
       x.scTcb = some u0)
     (hback : ∀ xt, σ.kheap u0 = some (.tcb xt) → xt.tcbSchedContext = some σ.curSc)
-    (hnr : u0 ∉ σ.releaseQueue) (hoff : OffOK σ)
+    (hnr : 0 < σ.consumedTime → u0 ∉ σ.releaseQueue) (hoff : OffOK σ)
     (hna : (L.rmax s (L.mem s (scA (nodeW st s c layout.node.CUR_THREAD)))).val ≠ 0)
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
@@ -357,7 +357,7 @@ theorem switch_sched_context_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
           · obtain ⟨y, m, hy⟩ := e7
             rw [e, hy] at hxu; cases hxu
           · rw [e6 _ e] at hxu; rw [e1]; exact hback xu hxu)
-        (by rw [e3]; exact hnr)
+        (by rw [e3, e5]; exact hnr)
         (fun hc0 y m hy => by
           rw [e5] at hc0; rw [e1, hs.curSc, hko, ← hs.curSc] at hy
           rw [e5, e4]; exact hoff hc0 y m hy) hmrt hmb) ?_
@@ -433,7 +433,7 @@ theorem switch_sched_context_cur {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
     {u0 : Fl4Spec.ObjRef} (hown0 : ∀ x n, σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) →
       x.scTcb = some u0)
     (hback : ∀ xt, σ.kheap u0 = some (.tcb xt) → xt.tcbSchedContext = some σ.curSc)
-    (hnr : u0 ∉ σ.releaseQueue) (hoff : OffOK σ)
+    (hnr : 0 < σ.consumedTime → u0 ∉ σ.releaseQueue) (hoff : OffOK σ)
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
     sched.switch_sched_context st ar s a ⦃ r => ∃ σ', Fl4Spec.switchSchedContext (Z := Unit) σ = ({((), σ')}, False) ∧

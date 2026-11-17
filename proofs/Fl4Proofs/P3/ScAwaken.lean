@@ -12,6 +12,8 @@ P3 (DESIGN.md §9), scheduler: **`awaken`** (Schedule_A) and its pieces.
   SC and times, the idle thread, the domain).
 * `awaken_loop_refines`: FL4's loop against l4v's `whileLoop`, given fewer
   release-queue members than the fuel.
+* `SchedPreW`, `CurOwn`, `awaken_refinesW`: `awaken` from a mid-entry state
+  (a pending reschedule stays pending, `possibleSwitchTo_cn`).
 -/
 import Fl4Proofs.P3.ScSchedule
 open Aeneas Aeneas.Std Result
@@ -147,11 +149,53 @@ theorem OffOK.calm {σ σ' : State Unit} (h : OffOK σ) (hc : Calm σ σ') : Off
   rw [h4] at h0 ⊢; rw [h3]; rw [hk, h2] at hy
   exact h h0 y n hy
 
+/-- `possible_switch_to` keeps a pending reschedule pending. -/
+theorem possibleSwitchTo_cn {σ σ' : State Unit} (h : Inv σ) {t : ObjRef} (hs : schedulable t σ = true)
+    (he : possibleSwitchTo (Z := Unit) t σ = ({((), σ')}, False))
+    (hcn : σ.schedulerAction = .chooseNewThread) : σ'.schedulerAction = .chooseNewThread := by
+  obtain ⟨x, -, -, -, hk, -⟩ := schedulable_inv hs
+  rw [possibleSwitchTo_unfold hk] at he
+  split_ifs at he with g1 g2 g3
+  · rw [tcbSchedAction_gen hk] at he
+    rw [pair_eq he]; exact hcn
+  · obtain ⟨σ1, h1, hq1, -⟩ := rescheduleRequired_calm h.actReady
+    rw [nd_bind_one h1] at he
+    have hk1 : σ1.kheap t = some (.tcb x) := by rw [hq1.1]; exact hk
+    rw [tcbSchedAction_gen hk1] at he
+    rw [pair_eq he]
+    rw [rescheduleRequired_noswitch (fun t h => by rw [hcn] at h; cases h)] at h1
+    have e := pair_eq h1
+    first | (rw [← e]; rfl) | (rw [e]; rfl) | (subst e; rfl)
+  · exact absurd hcn (by rw [not_not.1 g3]; intro e; cases e)
+  · rw [pair_eq he]; exact hcn
+
 /-- What `schedule` assumes of its state besides `SchedRel`: the invariants
 `Inv`, `CurInv`, `OffOK` and `ActIdle`, and the domain scope (domain time
 nonzero, so the domain does not end). -/
 def SchedPre (σ : State Unit) : Prop :=
   Inv σ ∧ CurInv σ ∧ OffOK σ ∧ ActIdle σ ∧ σ.domainTime ≠ 0
+
+/-- **The current SC's owner** (what `schedule`'s commit of the outgoing SC
+reads when no `CurInv` holds): a TCB `u` of `T` bound to the current SC,
+which names it, and out of the release queue while time is to be charged. -/
+def CurOwn (T : Set U64) (σ : State Unit) : Prop :=
+  ∃ u ∈ T, ∃ xt, σ.kheap u.bv = some (.tcb xt) ∧ xt.tcbSchedContext = some σ.curSc ∧
+    (∀ x n, σ.kheap σ.curSc = some (.schedContext x n) → x.scTcb = some u.bv) ∧
+    (0 < σ.consumedTime → u.bv ∉ σ.releaseQueue)
+
+theorem CurOwn.sub {T : Set U64} {σ σ' : State Unit} (h : CurOwn T σ) (hc : Calm σ σ')
+    (hsub : ∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue) : CurOwn T σ' := by
+  obtain ⟨hk, -, h2, -, h4, -⟩ := hc
+  obtain ⟨u, hu, xt, hkt, hxs, hown, hnr⟩ := h
+  exact ⟨u, hu, xt, by rw [hk]; exact hkt, by rw [h2]; exact hxs,
+    fun x n hx => hown x n (by rw [hk, h2] at hx; exact hx),
+    fun h0 hm => hnr (by rw [← h4]; exact h0) (hsub _ hm)⟩
+
+/-- **`schedule`'s precondition mid-entry** (`SchedPre` with `CurInv` only
+unless a reschedule is pending, and the current SC's owner). -/
+def SchedPreW (T : Set U64) (σ : State Unit) : Prop :=
+  Inv σ ∧ (σ.schedulerAction = .chooseNewThread ∨ CurInv σ) ∧ OffOK σ ∧ ActIdle σ ∧ σ.domainTime ≠ 0 ∧
+    CurOwn T σ
 
 /-- A notification signal (l4v `send_signal`). -/
 def Signal (σ σ' : State Unit) : Prop := ∃ n b, sendSignal (Z := Unit) n b σ = ({((), σ')}, False)
@@ -293,14 +337,16 @@ theorem awaken_loop_refines {N C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
     (hA : ActSched σ) (fuel : U64) (hf : σ.releaseQueue.length < fuel.val) :
     sched.awaken_loop st s fuel ⦃ s' => ∃ σ', Fl4Spec.awaken (Z := Unit) σ = ({((), σ')}, False) ∧
-      SchedRel st N T C c s' σ' ∧ NtfnStateRel N T (L.mem s') σ' ∧ NSC N C σ' ∧ Inv σ' ∧ ActSched σ' ∧
+      SchedRel st N T C c s' σ' ∧ NtfnStateRel N T (L.mem s') σ' ∧ NSC N C σ' ∧ Inv σ' ∧
+      (ActSched σ' ∧ (σ.schedulerAction = .chooseNewThread → σ'.schedulerAction = .chooseNewThread)) ∧
       Calm σ σ' ∧ ∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue ⦄ := by
   unfold sched.awaken_loop
   apply loop.spec_decr_nat (measure := fun x => x.2.val) (inv := fun x => ∃ σk,
-    SchedRel st N T C c x.1 σk ∧ NtfnStateRel N T (L.mem x.1) σk ∧ NSC N C σk ∧ Inv σk ∧ ActSched σk ∧
+    SchedRel st N T C c x.1 σk ∧ NtfnStateRel N T (L.mem x.1) σk ∧ NSC N C σk ∧ Inv σk ∧
+    (ActSched σk ∧ (σ.schedulerAction = .chooseNewThread → σk.schedulerAction = .chooseNewThread)) ∧
     σk.releaseQueue.length < x.2.val ∧ Fl4Spec.awaken (Z := Unit) σ = Fl4Spec.awaken (Z := Unit) σk ∧
     Calm σ σk ∧ ∀ u ∈ σk.releaseQueue, u ∈ σ.releaseQueue)
-  · rintro ⟨sk, fk⟩ ⟨σk, hSk, hRk, hNk, hIk, hAk, hlen, hloop, hcalm, hsub⟩
+  · rintro ⟨sk, fk⟩ ⟨σk, hSk, hRk, hNk, hIk, ⟨hAk, hCk⟩, hlen, hloop, hcalm, hsub⟩
     dsimp only at *
     obtain ⟨Q, R, hc, hs⟩ := hSk.lists
     unfold sched.awaken_loop.body
@@ -319,7 +365,7 @@ theorem awaken_loop_refines {N C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
       have hb' : b = true := by rw [hb, hhd]; rfl
       simp only [hb', ↓reduceIte, WP.spec_ok]
       have hq : σk.releaseQueue = [] := by rw [hs.rel]; rfl
-      refine ⟨σk, ?_, hSk, hRk, hNk, hIk, hAk, hcalm, hsub⟩
+      refine ⟨σk, ?_, hSk, hRk, hNk, hIk, hAk, hCk, hcalm, hsub⟩
       rw [hloop]; unfold Fl4Spec.awaken
       exact wl_done (by rw [readRQ_nil hq]; simp [Fl4Spec.the])
     | cons t R0 =>
@@ -368,7 +414,7 @@ theorem awaken_loop_refines {N C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
         have hA1 : ActSched (setRel σk (R0.map UScalar.bv) true) :=
           hAk.sub rfl (fun u hu => by rw [hq]; exact List.mem_cons_of_mem _ hu) rfl
         refine ⟨⟨σ2, hS2, hR1.frame hS1.placed hf2 (KView.of_kheap hk2), ?_, hI1.qchange hq2,
-          possibleSwitchTo_actSched hI1 hsch hA1 he2, ?_, ?_,
+          possibleSwitchTo_actSched hI1 hsch hA1 he2, fun h => possibleSwitchTo_cn hI1 hsch he2 (hCk h), ?_, ?_,
           hcalm.trans ((Calm.refl _).trans hc2), fun u hu => ?_⟩, ?_⟩
         · intro m hm x0 p hx hp; rw [hk2] at hx; exact hNk m hm x0 p hx hp
         · rw [hq2.2.1]; show (R0.map UScalar.bv).length < fk1.val
@@ -380,10 +426,10 @@ theorem awaken_loop_refines {N C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
         · rw [hfk1]; omega
       · have hr' : b1 = false := by simpa using hr
         simp only [hr', Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-        refine ⟨σk, ?_, hSk, hRk, hNk, hIk, hAk, hcalm, hsub⟩
+        refine ⟨σk, ?_, hSk, hRk, hNk, hIk, hAk, hCk, hcalm, hsub⟩
         rw [hloop]; unfold Fl4Spec.awaken
         exact wl_done (by rw [hC, hr']; simp)
-  · exact ⟨σ, hS, hR, hN, hI, hA, hf, rfl, Calm.refl σ, fun _ h => h⟩
+  · exact ⟨σ, hS, hR, hN, hI, ⟨hA, id⟩, hf, rfl, Calm.refl σ, fun _ h => h⟩
 
 /-- The release queue is shorter than `WALK_FUEL`: its members are distinct
 TCB addresses, none of them 0 or 1. -/
@@ -401,6 +447,41 @@ theorem rel_len_lt {N C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
   have := nodup_length_le hnd
   simp at this; omega
 
+/-- **The current thread owns the current SC** under `CurInv`. -/
+theorem curOwn_of_curInv {N C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) (hI : Inv σ) (hC : CurInv σ) : CurOwn T σ := by
+  obtain ⟨Q, R, hc, hs⟩ := hS.lists
+  obtain ⟨xt, hkt, hxs, -⟩ := hC.tcb
+  have hct := hc.curT
+  refine ⟨_, hct, xt, by rw [← hs.curThread]; exact hkt, hxs, fun x n hx => ?_, fun _ => by
+    rw [← hs.curThread]; exact hC.notRel⟩
+  obtain ⟨y, m, hky, hyt⟩ := hI.back _ xt _ hkt hxs
+  rw [hx] at hky; cases hky; rw [hyt, hs.curThread]
+
+theorem SchedPre.toW {N C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) (h : SchedPre σ) : SchedPreW T σ :=
+  ⟨h.1, Or.inr h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2, curOwn_of_curInv hS h.1 h.2.1⟩
+
+/-- **`awaken_refines` from `SchedPreW`.** -/
+theorem awaken_refinesW {A : Type} {ar : machine.Arch A} {N C : Set U64} {c : U64} (s : S) (a : A)
+    (σ : Fl4Spec.State Unit)
+    (hfire : timer.fire st ar s a ⦃ r => ∃ σ1, Fires σ σ1 ∧ SchedRel st N T C c r.1 σ1 ∧
+      NtfnStateRel N T (L.mem r.1) σ1 ∧ NSC N C σ1 ∧ SchedPreW T σ1 ⦄) :
+    sched.awaken st ar s a ⦃ r => ∃ σ1 σ2, Fires σ σ1 ∧ Fl4Spec.awaken (Z := Unit) σ1 = ({((), σ2)}, False) ∧
+      SchedRel st N T C c r.1 σ2 ∧ NtfnStateRel N T (L.mem r.1) σ2 ∧ NSC N C σ2 ∧ SchedPreW T σ2 ∧ Calm σ1 σ2 ∧
+      ∀ u ∈ σ2.releaseQueue, u ∈ σ1.releaseQueue ⦄ := by
+  unfold sched.awaken
+  refine WP.spec_bind hfire ?_
+  rintro ⟨s1, a1⟩ ⟨σ1, hF, hS1, hR1, hN1, hI1, hC1, hO1, ⟨hA1, hId1⟩, hd1, hW1⟩
+  refine WP.spec_bind (awaken_loop_refines s1 σ1 hS1 hR1 hN1 hI1 hA1 _ (rel_len_lt hS1)) ?_
+  rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, ⟨hA2, hcn2⟩, hc2, hsub⟩
+  rw [WP.spec_ok]
+  refine ⟨σ1, σ2, hF, h2, hS2, hR2, hN2, ⟨hI2, ?_, hO1.calm hc2, ⟨hA2, hId1.sub hc2 hsub⟩,
+    by rw [hc2.2.2.2.2.2.2.2]; exact hd1, hW1.sub hc2 hsub⟩, hc2, hsub⟩
+  rcases hC1 with e | hC
+  · exact Or.inl (hcn2 e)
+  · exact Or.inr (hC.sub hc2 hsub)
+
 /-- **`awaken` refines l4v `awaken`**, after FL4's TCB timers (`timer::fire`,
 the hypothesis `hfire`: a sequence of signals, keeping the relations and
 `SchedPre`). -/
@@ -415,7 +496,7 @@ theorem awaken_refines {A : Type} {ar : machine.Arch A} {N C : Set U64} {c : U64
   refine WP.spec_bind hfire ?_
   rintro ⟨s1, a1⟩ ⟨σ1, hF, hS1, hR1, hN1, hI1, hC1, hO1, ⟨hA1, hId1⟩, hd1⟩
   refine WP.spec_bind (awaken_loop_refines s1 σ1 hS1 hR1 hN1 hI1 hA1 _ (rel_len_lt hS1)) ?_
-  rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, hA2, hc2, hsub⟩
+  rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, ⟨hA2, -⟩, hc2, hsub⟩
   rw [WP.spec_ok]
   exact ⟨σ1, σ2, hF, h2, hS2, hR2, hN2, ⟨hI2, hC1.sub hc2 hsub, hO1.calm hc2, ⟨hA2, hId1.sub hc2 hsub⟩,
     by rw [hc2.2.2.2.2.2.2.2]; exact hd1⟩, hc2, hsub⟩
