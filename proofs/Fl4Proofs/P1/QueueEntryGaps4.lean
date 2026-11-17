@@ -13,6 +13,7 @@ import Fl4Proofs.P1.QueueDecUt
 import Fl4Proofs.P1.QueueUtRetype
 import Fl4Proofs.P1.QueueFinIo
 import Fl4Proofs.P1.QueueDecVcpu
+import Fl4Proofs.P1.QueueDecEpt
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -47,8 +48,8 @@ structure InvGaps4 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar 
   /-- The VCPU objects' placement (the VCPU family is proved, `decGap_vcpu`; the
   I/O-port caps' finalisation from it, `VcpuPlace.ioPl`). -/
   vcpuPl : VcpuPlace st T Cs Ω H Sg Rp Scs Nt Z U
-  /-- EPT (VT-x: not yet refined, DESIGN §5). -/
-  ept : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U .ept
+  /-- The EPT tables' placement (the EPT family is proved, `decGap_ept`). -/
+  eptPl : EptPlaceH st T Cs Ω H Sg Rp Scs Nt Z U
   /-- The finalisations of CNode `Delete`/`Revoke` P1 does not prove: the
   VT-x kinds (VCPUs, EPTs, EPT frames; not yet refined, DESIGN §5). -/
   fin : FinGap st ar T Cs Ω H Sg Rp Scs Nt Z fun c => (∃ x1, c = .Vcpu x1) ∨
@@ -64,7 +65,7 @@ theorem InvGaps4.gaps3 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop}
     InvGaps3 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U :=
   ⟨decGap_untyped hA hσ (G.utPl.choose_spec.1.utPlace hA) G.utPl.choose_spec.2, decGap_thread hA G.thread Pt E (delGaps_of hA Pd ((⟨finGap_ioPort hA G.vcpuPl.ioPl, G.fin⟩ : FinGaps st ar T Cs Ω H Sg Rp Scs Nt Z).kinds hA Pd)) C.toCdtHyps,
     decGap_irqControl hA C.toCdtHyps, decGap_irqHandler hA C.toCdtHyps Pd G.irqPl,
-    decGap_schedControl hA G.scCtl, decGap_vspace hA Pd G.vsPl C.toCdtHyps E G.irqPl, decGap_vcpu hA G.vcpuPl E G.irqPl.extra, G.ept, decGap_ioPortControl C.toCdtHyps,
+    decGap_schedControl hA G.scCtl, decGap_vspace hA Pd G.vsPl C.toCdtHyps E G.irqPl, decGap_vcpu hA G.vcpuPl E G.irqPl.extra, decGap_ept hA G.eptPl, decGap_ioPortControl C.toCdtHyps,
     decGap_ioPort hA E, scYieldGap_holds hA U, delGaps_of hA Pd ((⟨finGap_ioPort hA G.vcpuPl.ioPl, G.fin⟩ : FinGaps st ar T Cs Ω H Sg Rp Scs Nt Z).kinds hA Pd)⟩
 
 /-- The placement facts and gaps of an admissible set tuple (`InvGaps4`'s
