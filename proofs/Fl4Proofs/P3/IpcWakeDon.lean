@@ -327,6 +327,112 @@ theorem wk_replyRemove (d r : ObjRef) : WK d (replyRemove (Z := Unit) d r) := by
     | (apply wk_svm; sv_auto; done)
     | (dsimp only))
 
+/-! ## No switch pending (`NoSwitch`), kept by the reply path -/
+
+/-- No switch target pending (l4v `scheduler_action ≠ switch_thread`; at a
+system call's entry the action is `resume_cur_thread`). -/
+def NoSwitch (σ : State Unit) : Prop := ∀ u, σ.schedulerAction ≠ .switchThread u
+
+/-- With no switch pending, `TailOK` is `SCBack`. -/
+theorem tailOK_of_ns {σ : State Unit} (h : NoSwitch σ) (hB : SCBack σ) : TailOK σ :=
+  ⟨fun u hu => absurd hu (h u), hB, fun u hu => absurd hu (h u)⟩
+
+/-- Every outcome of `m` keeps the action or makes it `choose_new_thread`. -/
+def AM {α : Type} (m : NonDet (State Unit) α) : Prop :=
+  ∀ σ x, x ∈ (m σ).1 → x.2.schedulerAction = σ.schedulerAction ∨ x.2.schedulerAction = .chooseNewThread
+
+theorem AM.noSwitch {α : Type} {m : NonDet (State Unit) α} (h : AM m) {σ : State Unit} {x : α × State Unit}
+    (hx : x ∈ (m σ).1) (hN : NoSwitch σ) : NoSwitch x.2 := by
+  intro u hu
+  rcases h σ x hx with e | e
+  · exact hN u (e ▸ hu)
+  · rw [e] at hu; cases hu
+
+theorem am_bind {α β : Type} {m : NonDet (State Unit) α} {g : α → NonDet (State Unit) β}
+    (hm : AM m) (hg : ∀ a, AM (g a)) : AM (m >>= g) := by
+  intro σ x ⟨y, hy, hx⟩
+  rcases hg y.1 y.2 x hx with e | e
+  · rw [e]; exact hm σ y hy
+  · exact Or.inr e
+
+theorem am_svm {α : Type} {m : NonDet (State Unit) α} (h : SVM m) : AM m := fun σ x hx => (h σ x hx).2.2
+
+theorem am_when (P : Prop) [Decidable P] {m : NonDet (State Unit) Unit} (h : AM m) : AM (NonDet.when P m) := by
+  unfold NonDet.when; split
+  · exact h
+  · exact am_svm (sv_pure _)
+
+theorem am_threadSet (f : Tcb → Tcb) (t : ObjRef) : AM (threadSet (Z := Unit) f t) := by
+  intro σ x hx
+  obtain ⟨xt, -, e⟩ := threadSet_mem hx
+  rw [e]; exact Or.inl rfl
+
+theorem am_updSc (q : ObjRef) (f : SchedContext → SchedContext) : AM (updateSchedContext (Z := Unit) q f) := by
+  intro σ x hx
+  obtain ⟨y0, n0, -, e⟩ := updSc_mem hx
+  rw [e]; exact Or.inl rfl
+
+theorem am_donate (c d : ObjRef) : AM (schedContextDonate (Z := Unit) c d) := by
+  unfold schedContextDonate
+  repeat' (first
+    | exact am_threadSet _ _
+    | exact am_updSc _ _
+    | exact am_svm (sv_testReschedule' _)
+    | exact am_svm (sv_tcbReleaseRemove' _)
+    | exact am_svm (sv_tcbSchedAction' _ _)
+    | (refine am_bind ?_ (fun _ => ?_))
+    | (apply am_when)
+    | split
+    | (apply am_svm; sv_auto; done)
+    | (dsimp only))
+
+theorem am_replyRemove (d r : ObjRef) : AM (replyRemove (Z := Unit) d r) := by
+  unfold replyRemove
+  dsimp only
+  repeat' (first
+    | exact am_donate _ _
+    | exact am_svm (sv_replyUnlinkTcb _ _)
+    | exact am_svm (sv_replyUnlinkSc' _ _)
+    | exact am_svm (sv_getSimpleKo' _ _)
+    | exact am_svm (sv_getTcbObjRef' _ _)
+    | (refine am_bind ?_ (fun _ => ?_))
+    | (apply am_when)
+    | split
+    | (apply am_svm; sv_auto; done)
+    | (dsimp only))
+
+/-- The sporadic check keeps the action (`os_ifCond`). -/
+theorem unblock_act {σ σ1 : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t = some (.tcb x))
+    (a b : Option Bool)
+    (hu : ((), σ1) ∈ ((getTcbObjRef (Z := Unit) Tcb.tcbSchedContext t >>= fun o =>
+      ifCondRefillUnblockCheck (Z := Unit) o a b) σ).1) : σ1.schedulerAction = σ.schedulerAction := by
+  obtain ⟨y0, hy0, hx⟩ := hu
+  have hy : y0 = (x.tcbSchedContext, σ) := by
+    unfold getTcbObjRef threadGet at hy0
+    obtain ⟨z, hz, hz2⟩ := hy0
+    unfold NonDet.getsThe getTcb readObject at hz
+    rw [hk] at hz
+    rw [Set.mem_singleton_iff.1 hz] at hz2
+    exact Set.mem_singleton_iff.1 hz2
+  subst hy
+  cases hsc : x.tcbSchedContext with
+  | none =>
+    rw [hsc] at hx
+    have : σ1 = σ := by
+      unfold ifCondRefillUnblockCheck at hx; simp only [NonDet.maybeM] at hx
+      exact (Prod.mk.inj (Set.mem_singleton_iff.1 hx)).2
+    rw [this]
+  | some p =>
+    rw [hsc] at hx
+    exact (os_ifCond p a b σ ((), σ1) hx).2.2.2
+
+theorem noSwitch_sts {σ : State Unit} (h : NoSwitch σ) (t : ObjRef) (o : KernelObject) :
+    NoSwitch (stsAct (updK σ t o) t) := by
+  intro u hu
+  rcases (svs_stsAct (updK σ t o) t).2.2 with e | e
+  · exact h u (e ▸ hu)
+  · rw [e] at hu; cases hu
+
 end
 
 end Fl4Proofs.P3.SVK
