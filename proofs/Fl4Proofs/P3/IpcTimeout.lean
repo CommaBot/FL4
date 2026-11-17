@@ -581,6 +581,8 @@ theorem ReplyHyps.ofT (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
         Fl4Spec.replyRemove (Z := Unit) t.bv r.bv σ = ({((), σ')}, False) ∧ IRel st th cr N T C E R B c res.1 σ' ∧
         σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = .inactive ∧ x'.tcbFault = x.tcbFault ∧
         (∀ p y n, σ'.kheap p = some (.schedContext y n) → y.scTcb = some t.bv → Fl4Spec.scActive y = true) ∧
+        t.bv ∉ σ'.releaseQueue ∧
+        (∀ p, x'.tcbSchedContext = some p → ∃ y n, σ'.kheap p = some (.schedContext y n) ∧ y.scTcb = some t.bv) ∧
         ∀ p y, p ≠ t.bv → σ.kheap p = some (.tcb y) → ∃ y', σ'.kheap p = some (.tcb y') ∧
           y'.tcbFault = y.tcbFault ∧ y'.tcbState = y.tcbState ⦄)
     (hunb : ∀ s σ (t : U64) (x : Fl4Spec.Tcb) (k : S → Result (S × A)) (P : S × A → Prop),
@@ -601,10 +603,9 @@ theorem ReplyHyps.ofT (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N T C E R
             then sporadic.unblock_check st s i2
             else ok s
           else ok s
-        k s2) ⦃ P ⦄)
-    (hinv : ∀ s σ, IRel st th cr N T C E R B c s σ → Sched.Inv σ) :
+        k s2) ⦃ P ⦄) :
     ReplyHyps st ar th cr N T C E R B c :=
-  ReplyHyps.of hH hBf hBm hP hrem hunb (reply_tmo_top hH hBf hBm hTl hP hSV hTH) hinv
+  ReplyHyps.of hH hBf hBm hP hrem hunb (reply_tmo_top hH hBf hBm hTl hP hSV hTH)
 
 end SendF
 

@@ -255,6 +255,8 @@ structure ReplyHyps : Prop where
       Fl4Spec.replyRemove (Z := Unit) t.bv r.bv σ = ({((), σ')}, False) ∧ IRel st th cr N T C E R B c res.1 σ' ∧
       σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = .inactive ∧ x'.tcbFault = x.tcbFault ∧
       (∀ p y n, σ'.kheap p = some (.schedContext y n) → y.scTcb = some t.bv → Fl4Spec.scActive y = true) ∧
+      t.bv ∉ σ'.releaseQueue ∧
+      (∀ p, x'.tcbSchedContext = some p → ∃ y n, σ'.kheap p = some (.schedContext y n) ∧ y.scTcb = some t.bv) ∧
       ∀ p y, p ≠ t.bv → σ.kheap p = some (.tcb y) → ∃ y', σ'.kheap p = some (.tcb y') ∧
         y'.tcbFault = y.tcbFault ∧ y'.tcbState = y.tcbState ⦄
   unblock : ∀ s σ (t : U64) (x : Fl4Spec.Tcb) (k : S → Result (S × A)) (P : S × A → Prop),
@@ -297,9 +299,6 @@ structure ReplyHyps : Prop where
     (ft = 5#u64 ↔ ∃ b, fault = some (.timeout b)) → SVK.TailOK σ →
     fl4ReplyTmo st ar t ft sc s a ⦃ res => ∃ z ∈ (specReplyTmo t.bv fault y sc.bv σ).1,
       IRel st th cr N T C E R B c res.1 z.2 ⦄
-  /-- The Sc proofs' `Inv` at related states (for the SC's back-pointer at
-  the tail). -/
-  inv : ∀ s σ, IRel st th cr N T C E R B c s σ → Sched.Inv σ
 
 
 
@@ -496,7 +495,7 @@ theorem do_reply_transfer_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N
   have hW0 : SVK.WakeOK σ i.bv := (SVK.SVS.refl σ).wakeOK hTO fun x' hx' => by
     rw [hkx] at hx'; cases hx'; rw [hst]; rfl
   refine WP.spec_bind (hRH.remove s a σ r i x ⟨hIR, hSRT⟩ hr hiT hkx hst) ?_
-  rintro ⟨s1, a1⟩ ⟨-, σ1, x1, hrm, hX1, hkx1, hx1s, hx1f, hact1, hoth1⟩
+  rintro ⟨s1, a1⟩ ⟨-, σ1, x1, hrm, hX1, hkx1, hx1s, hx1f, hact1, hnr1, hback1, hoth1⟩
   have hW1 : SVK.WakeOK σ1 i.bv :=
     SVK.wk_replyRemove i.bv r.bv σ ((), σ1) (by rw [hrm]; exact Set.mem_singleton _) hW0
   have hN1 : SVK.NoSwitch σ1 :=
@@ -550,18 +549,25 @@ theorem do_reply_transfer_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N
       rcases hbr with ⟨-, hz1⟩ | ⟨f, -, hz1⟩
       · exact MaxK.mk_bind (MaxK.mk_doIpcTransfer' _ _ _ _ _) (fun _ => MaxK.mk_setThreadState' _ _) σ2 z1 hz1
       · exact mk_specFaultReply ct.bv i.bv f σ2 z1 hz1
+    -- the switch target's SC ready at the tail (`WakeOK` of the receiver, kept)
+    have hV2z : SVK.SVS σ2 z1.2 := by
+      rcases hbr with ⟨-, hz1⟩ | ⟨f, -, hz1⟩
+      · exact SVK.sv_bind (SVK.sv_doIpcTransfer' _ _ _ _ _) (fun _ => SVK.sv_setThreadState' _ _) σ2 z1 hz1
+      · exact sv_specFaultReply ct.bv i.bv f σ2 z1 hz1
+    -- the receiver's SC at the tail was its SC after `reply_remove` (`SVS`; the unblock keeps the TCBs),
+    -- bound back to it there (`remove`'s post), hence active then and at the tail (`MaxK.SCK`)
     have hactz : ∀ x p y n, z1.2.kheap i.bv = some (.tcb x) → x.tcbSchedContext = some p →
         z1.2.kheap p = some (.schedContext y n) → Fl4Spec.scActive y = true := by
       intro x p y n hk hp hky
-      obtain ⟨y', n', hky', hyt⟩ := (hRH.inv s3 z1.2 hX3).back i.bv x p hk hp
-      rw [hky] at hky'; cases hky'
-      obtain ⟨y0, hy0, hm, ht⟩ := (hK12.trans hK2z) p y n hky
-      have := hact1 p y0 n hy0 (ht ▸ hyt)
+      have e := hV2z.1 i.bv
+      rw [hk, hkx2] at e
+      have e' : x.tcbSchedContext = x1.tcbSchedContext := by simpa [SVK.sv] using e
+      obtain ⟨y1, n1, hky1, hyt1⟩ := hback1 p (by rw [← e']; exact hp)
+      obtain ⟨y0, hy0, hm, -⟩ := (hK12.trans hK2z) p y n hky
+      have := hact1 p y1 n1 hky1 hyt1
+      rw [hky1] at hy0; cases hy0
       simpa [Fl4Spec.scActive, hm] using this
     -- the receiver, inactive after `reply_remove`, is not released at the tail (`RelQ.RQK`)
-    have hnr1 : i.bv ∉ σ1.releaseQueue := fun hm => by
-      obtain ⟨x', _, _, _, h1, -, h3, -⟩ := (hRH.inv s1 σ1 hX1).rel i.bv hm
-      rw [hkx1] at h1; cases h1; rw [hx1s] at h3; cases h3
     have hR12 : RelQ.RQK σ1 σ2 := RelQ.rq_unblock i.bv σ1 ((), σ2) (by rw [hub]; rfl)
     have hR2z : RelQ.RQK σ2 z1.2 := by
       rcases hbr with ⟨-, hz1⟩ | ⟨f, -, hz1⟩
@@ -576,11 +582,6 @@ theorem do_reply_transfer_top (hH : IpcSchedHyps st ar N T E R B (SRT st th cr N
       · exact QPK.qp_bind (QPK.qp_doIpcTransfer' _ _ _ _ _) (fun _ => QPK.qp_setThreadState' _ _) σ2 z1 hz1
       · exact qp_specFaultReply ct.bv i.bv f σ2 z1 hz1
     have hSz : Sched.IpcSorted z1.2 := (hQ1.trans (hQ12.trans hQ2z)).sorted hS0
-    -- the switch target's SC ready at the tail (`WakeOK` of the receiver, kept)
-    have hV2z : SVK.SVS σ2 z1.2 := by
-      rcases hbr with ⟨-, hz1⟩ | ⟨f, -, hz1⟩
-      · exact SVK.sv_bind (SVK.sv_doIpcTransfer' _ _ _ _ _) (fun _ => SVK.sv_setThreadState' _ _) σ2 z1 hz1
-      · exact sv_specFaultReply ct.bv i.bv f σ2 z1 hz1
     exact WP.spec_mono (reply_tail_top hTl hP0 hmb hRH.tmo s3 a2 z1.2 i ft x1.tcbFault hX3 hiT hnrz hactz hSz hft0
       hft5 (SVK.tailOK_of_ns (fun u hu => by
         rcases hV2z.2.2 with e | e
