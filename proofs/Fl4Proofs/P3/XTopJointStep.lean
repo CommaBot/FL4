@@ -693,6 +693,42 @@ theorem decode_invocation_ioportJ_step (s : S) (ar : A) (σ : Fl4Spec.State Unit
       buf extra slbl (args.map UScalar.bv) ci sl excaps buffer ct :=
   XCap.jat arI (decode_invocation_ioportJAt arI s ar σ J hni hG hARI hT lbl slbl hlbl length buf ct hct args hlen hargs sl hAs first last hsc call hval blk don fp extra ci excaps buffer) J hR
 
+set_option maxHeartbeats 4000000 in
+/-- **An IO port cap, `JAt` after**: `Out`, the errors and the other labels by
+their primitive steps (`decode_invocation_ioportXS`, `Steps.jat` with
+`JStepHyps`), the per-op premise (`JPostHyp` [W]) only at `In` (64..66,
+whose reply writes the caller's message words). -/
+theorem decode_invocation_ioportJ_steps (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : σ.curThread ≠ σ.idleThread) (hG : CsGlobal (L := L) arI AR Z.th)
+    (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hJ : JStepHyps (L := L) arI AR Z.th)
+    (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : PortLabel lbl slbl)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (sl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th sl) (first last : U64)
+    (hsc : capV (L.mem s) (cslotAddr sl) = .IoPort first last 0#u64) (call : Bool)
+    (hval : call = true → PortInVal arI)
+    (blk don fp : Bool) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ci : Fl4Spec.CapRef)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
+    (hR : 64 ≤ lbl.val ∧ lbl.val ≤ 66 → JPostHyp (L := L) arI AR s ar σ lbl length (cslotAddr sl)
+      (.IoPort first last 0#u64) blk call don fp buf extra slbl (args.map UScalar.bv) ci sl excaps buffer ct) :
+    XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.IoPort first last 0#u64) blk call don fp
+      buf extra slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
+  by_cases hI : 64 ≤ lbl.val ∧ lbl.val ≤ 66
+  · exact XCap.jat arI (decode_invocation_ioportJAt arI s ar σ J hni hG hARI hT lbl slbl hlbl length buf ct hct args
+      hlen hargs sl hAs first last hsc call hval blk don fp extra ci excaps buffer) J (hR hI)
+  have hX := J.xtop
+  obtain ⟨hcur, -⟩ := J.curEq hct
+  obtain ⟨⟨-, hl, hfl⟩, -⟩ := slot_cap_wf hX hAs hsc
+  have hout : ∀ (a : A) p z d, ∃ a', arI.port_out a p z d = ok a' := by
+    intro a p z d
+    obtain ⟨a', h, -⟩ := spec_exists (hT.port_out a p z d)
+    exact ⟨a', h⟩
+  exact decode_invocation_ioportXS arI Z.th hX.rel.1 s ar σ lbl slbl hlbl length buf ct hct args hlen hargs hcur
+    (hX.curTcb hcur).1 J.kern.act first last hfl (by simpa using hl) call hout rfl hX (J.curRun.run hni)
+    ⟨Z, H, Cs, Ac, Lst, D, J⟩ (fun _ _ _ h => Steps.jat arI hARI.toMask hJ h rfl J) (fun _ _ _ h => JAt.xtop arI h)
+    (cslotAddr sl) blk don fp extra ci sl excaps buffer (fun h => absurd h hI)
+
 end
 
 end
