@@ -103,10 +103,12 @@ Linux syscall number, and BootInfo carries the boot core's ID registers
 (l4h 0015, 0016, 0018). The hardware debug API is not implemented on
 AArch64 (`KernelHardwareDebugAPI` is off).
 
-`fl4-core` selects the architecture with its `aarch64` feature. The
-x86_64 core, which the proofs are about, is unchanged by it; the AArch64
-VSpace, register and interrupt code (`crates/fl4-core/src/aarch64`) is
-not extracted or proved yet.
+The shared kernel modules live in `crates/fl4-core/src`. Architecture-specific
+implementations are grouped by subsystem under `src/arch/x86_64` and
+`src/arch/aarch64`. The crate root selects one directory for the build
+(default x86_64, or the `aarch64` feature). Each implementation contributes
+items to the same public modules, preserving the paths used by the backends
+and by the x86_64 proof extraction. Proofs currently cover x86_64.
 
 ## x86 virtualization
 

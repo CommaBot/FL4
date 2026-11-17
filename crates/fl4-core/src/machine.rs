@@ -6,6 +6,8 @@
 //! live in this memory, so the store is the whole kernel state apart from
 //! the hardware. `Arch` is everything else the core asks the machine to do.
 
+arch_items!("machine.rs");
+
 /// Kernel memory.
 pub trait Store {
     /// Address bits for (private, shared) page-table leaves. Both are zero on native hardware.
@@ -118,22 +120,7 @@ pub trait Arch {
     /// Ask the cores in `mask` to reschedule (seL4 `doMaskReschedule`).
     fn send_reschedule(&mut self, mask: u64);
 
-    /// AArch64 cache maintenance (seL4 `doFlush`): operation `op`
-    /// (`vspace::CACHE_*`) over `len` bytes at `vaddr` in the address space
-    /// `root` with ASID `asid`, physically at `paddr`.
-    #[cfg(feature = "aarch64")]
-    fn cache_op(&mut self, op: u64, root: u64, asid: u64, vaddr: u64, len: u64, paddr: u64);
-    /// AArch64: hardware sets access flags (TCR_EL1.HA), so a cleared flag
-    /// does not fault.
-    #[cfg(feature = "aarch64")]
-    fn hw_access_flag(&self) -> bool;
-    /// AArch64: the largest SPI the interrupt controller has.
-    #[cfg(feature = "aarch64")]
-    fn max_spi(&self) -> u64;
-    /// AArch64: configure interrupt `irq` as edge (true) or level triggered
-    /// and, for an SPI, route it to `core`.
-    #[cfg(feature = "aarch64")]
-    fn configure_irq(&mut self, irq: u64, edge: bool, core: u64);
+    arch_machine_methods!();
 
     /// Debug console.
     fn putc(&mut self, c: u64);

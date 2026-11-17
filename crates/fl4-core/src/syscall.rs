@@ -300,35 +300,7 @@ fn check_interrupt<S: Store, A: Arch>(s: &mut S, a: &mut A, irq: u64) {
 /// `Arch::take_pending_irq` when no interrupt is pending.
 pub const NO_IRQ: u64 = u64::MAX;
 
-/// The length of the syscall instruction (SYSCALL, SVC). A macro, so the
-/// x86_64 code the proofs are about keeps its literal.
-#[cfg(not(feature = "aarch64"))]
-macro_rules! syscall_insn_len {
-    () => {
-        2
-    };
-}
-#[cfg(feature = "aarch64")]
-macro_rules! syscall_insn_len {
-    () => {
-        4
-    };
-}
-
-/// The number a trapped syscall reports: the seL4 number register on
-/// x86_64, x8 (the Linux syscall number) on AArch64 (l4h 0015).
-#[cfg(not(feature = "aarch64"))]
-macro_rules! trapped_syscall_number {
-    ($s:expr, $t:expr, $number:expr) => {
-        $number as u64
-    };
-}
-#[cfg(feature = "aarch64")]
-macro_rules! trapped_syscall_number {
-    ($s:expr, $t:expr, $number:expr) => {
-        $t.reg($s, reg::X8)
-    };
-}
+arch_items!("syscall.rs");
 
 /// seL4 `handleSyscall` and `slowpath`: `number` is the syscall number
 /// from RDX (as a signed value).
@@ -584,22 +556,6 @@ pub fn handle_user_exception<S: Store, A: Arch>(s: &mut S, a: &mut A, number: u6
     finish(s, a);
 }
 
-/// Whether a fault's code says it was an instruction fetch: bit 4 of the
-/// x86 page-fault error code; on AArch64 the ESR's class (instruction
-/// abort from EL0).
-#[cfg(not(feature = "aarch64"))]
-macro_rules! instruction_fault {
-    ($code:expr) => {
-        ($code >> 4) & 1 != 0
-    };
-}
-#[cfg(feature = "aarch64")]
-macro_rules! instruction_fault {
-    ($code:expr) => {
-        ($code >> 26) & 0x3f == 0x20
-    };
-}
-
 /// A user page fault (seL4 `handleVMFaultEvent`).
 pub fn handle_vm_fault<S: Store, A: Arch>(s: &mut S, a: &mut A, addr: u64, code: u64) {
     if budget_ok(s, a) {
@@ -608,25 +564,6 @@ pub fn handle_vm_fault<S: Store, A: Arch>(s: &mut S, a: &mut A, addr: u64, code:
         faults::handle_fault(s, a, t, vspace::vm_fault(addr, code, instruction));
     }
     finish(s, a);
-}
-
-/// `int $N` from user space on a gate it may use: seL4 reports this as an
-/// unknown syscall whose number combines the vector and EAX.
-#[cfg(not(feature = "aarch64"))]
-pub fn handle_trap_syscall<S: Store, A: Arch>(s: &mut S, a: &mut A, vector: u64) {
-    let t = sched::cur_thread(s);
-    let ip = t.reg(s, reg::FAULT_IP).wrapping_sub(2);
-    t.set_reg(s, reg::FAULT_IP, ip);
-    // l4h 0001: a thread with trapSyscalls set has only its syscall
-    // instructions as system calls. `int $N` gets the #GP it raises where
-    // the gate is closed, with the IDT vector in the error code.
-    if t.flags(s) & tcb_flag::TRAP_SYSCALLS != 0 {
-        handle_user_exception(s, a, 13, (vector << 3) | 2);
-        return;
-    }
-    let eax = t.reg(s, reg::RAX);
-    let num = (vector << 24) | (eax & 0x00ff_ffff);
-    handle_unknown_syscall(s, a, num as i64);
 }
 
 /// #DB and #BP with the hardware debug API. The time the thread ran is

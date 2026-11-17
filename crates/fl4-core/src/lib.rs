@@ -9,13 +9,33 @@
 #![forbid(unsafe_code)]
 #![allow(clippy::too_many_arguments, clippy::needless_range_loop)]
 
+// Select the source directory once. Keeping the items in their original
+// Rust modules also keeps the declaration paths consumed by Aeneas stable.
+macro_rules! select_arch {
+    ($dir:literal, $debug:literal, $regs:literal, $vspace:literal) => {
+        macro_rules! arch_items {
+            ($file:literal) => {
+                include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/", $dir, "/", $file));
+            };
+        }
+        #[path = $debug]
+        pub mod debug;
+        #[path = $regs]
+        pub mod regs;
+        #[path = $vspace]
+        pub mod vspace;
+    };
+}
+#[cfg(feature = "aarch64")]
+select_arch!("arch/aarch64", "arch/aarch64/debug.rs", "arch/aarch64/regs.rs", "arch/aarch64/vspace.rs");
+#[cfg(not(feature = "aarch64"))]
+select_arch!("arch/x86_64", "arch/x86_64/debug.rs", "arch/x86_64/regs.rs", "arch/x86_64/vspace.rs");
+
 pub mod boot;
 pub mod capability;
 pub mod cdt;
 pub mod cnode;
 pub mod cspace;
-#[cfg_attr(feature = "aarch64", path = "aarch64/debug.rs")]
-pub mod debug;
 pub mod domain;
 pub mod endpoint;
 pub mod ept;
@@ -31,8 +51,6 @@ pub mod msginfo;
 pub mod notification;
 pub mod obj;
 pub mod objects;
-#[cfg_attr(feature = "aarch64", path = "aarch64/regs.rs")]
-pub mod regs;
 pub mod sched;
 pub mod schedcontext;
 pub mod smp;
@@ -42,6 +60,4 @@ pub mod tcb;
 pub mod tcbqueue;
 pub mod timer;
 pub mod untyped;
-#[cfg_attr(feature = "aarch64", path = "aarch64/vspace.rs")]
-pub mod vspace;
 pub mod vcpu;
