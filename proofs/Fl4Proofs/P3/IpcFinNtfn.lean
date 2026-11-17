@@ -7,6 +7,12 @@ slots kept** (toward `XFinHyps.ntfn`).
 * `maybe_unbind_irel`: `maybe_unbind_ntfn` (`unbind_ntfn_refines0`, lifted by
   `tk_liftCW`). Named, at the start state: the notification's SC among `C`
   (`NSC`) and bound back to it (l4v `sym_refs` for the SC binding).
+* `xFinNtfn_of`: **`XFinHyps.ntfn`** from the three (and
+  `cancel_all_signals_irel`), at `Z.mv Z.G V'` (`XTopAt.irel_same`), the
+  spec's finalisation keeping the caps (`finNtfn_nkc`). Named (`NtfnFinPre`,
+  at the `XTopAt` states): `BufWordRel`, the IPC placement, `NSC`, the SC
+  back-links, the switch targets ready at the `IRel` states (as
+  `cancel_badged_irel`), the notification caps' objects among `Z.N`.
 -/
 import Fl4Proofs.P3.IpcSlotsSame
 import Fl4Proofs.P3.IpcCancelSignals
@@ -14,6 +20,9 @@ import Fl4Proofs.P3.IpcTcbBind
 import Fl4Proofs.P3.IpcSchedTail
 import Fl4Proofs.P3.ScNtfnBind
 import Fl4Proofs.P3.ScXProd
+import Fl4Proofs.P3.SpecCaps
+import Fl4Proofs.P3.DelOne
+import Fl4Proofs.P3.TcbCaps
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Ipc
@@ -31,7 +40,7 @@ theorem unbind_maybe_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State 
     (hX : IRel st th cr N T C E R B c s σ) {n : U64} (hn : n ∈ N) :
     notification.unbind_maybe_notification st s n ⦃ s' => ∃ σ',
       Fl4Spec.unbindMaybeNotification (Z := Unit) n.bv σ = ({((), σ')}, False) ∧
-      IRel st th cr N T C E R B c s' σ' ∧ SlotsSame th (L.mem s) (L.mem s') ⦄ := by
+      IRel st th cr N T C E R B c s' σ' ∧ IFrame (L := L) th s s' ⦄ := by
   obtain ⟨xn, hkn, -⟩ := hX.1.toN.ntfn n hn
   have hx := hX.1.toN.at_ntfn hn hkn
   have hg : Fl4Spec.getNtfnObjRef (Z := Unit) Fl4Spec.Notification.ntfnBoundTcb n.bv σ =
@@ -46,7 +55,7 @@ theorem unbind_maybe_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State 
   by_cases h0 : L.mem s (nBoundA n) = 0#u64
   · have hb' : b = true := by rw [hb, h0]; rfl
     simp only [hb', ↓reduceIte, WP.spec_ok]
-    refine ⟨σ, ?_, hX, SlotsSame.refl _ _⟩
+    refine ⟨σ, ?_, hX, IFrame.refl _ _⟩
     unfold Fl4Spec.unbindMaybeNotification
     rw [nd_bind_one hg, hx.bound, h0, Notif.optRef_zero]; rfl
   have hb' : b = false := by rw [hb]; simp [h0]
@@ -67,7 +76,7 @@ theorem unbind_maybe_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State 
   have hpa := hP0.e.tcb _ hiT
   have hta := (a_bound hpa).1
   have hbvp := val_bound hpa
-  refine ⟨_, ?_, hX2, IRel.slotsSame_of hX ((writesIn_wr (s := s) (v := 0#u64) hba).trans
+  refine ⟨_, ?_, hX2, IRel.iframe_of hX ((writesIn_wr (s := s) (v := 0#u64) hba).trans
     (writesIn_wr (s := L.wr s (nBoundA n) 0#u64) (v := 0#u64) hta)) fun b hb => ?_⟩
   · unfold Fl4Spec.unbindMaybeNotification
     rw [nd_bind_one hg, hx.bound, Notif.optRef_ne h0]
@@ -89,7 +98,7 @@ theorem maybe_unbind_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State 
       ∃ y m, σ.kheap p = some (.schedContext y m) ∧ y.scNtfn = some n.bv) :
     schedcontext.maybe_unbind_ntfn st s n ⦃ s' => ∃ σ',
       Fl4Spec.schedContextMaybeUnbindNtfn (Z := Unit) n.bv σ = ({((), σ')}, False) ∧
-      IRel st th cr N T C E R B c s' σ' ∧ SlotsSame th (L.mem s) (L.mem s') ⦄ := by
+      IRel st th cr N T C E R B c s' σ' ∧ IFrame (L := L) th s s' ⦄ := by
   have hS := hX.2.2.1
   obtain ⟨xn, hkn, -⟩ := hX.1.toN.ntfn n hn
   have hx := hX.1.toN.at_ntfn hn hkn
@@ -105,7 +114,7 @@ theorem maybe_unbind_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State 
   · subst h0
     have hb' : b = true := by rw [hb]; rfl
     simp only [hb', ↓reduceIte, WP.spec_ok]
-    refine ⟨σ, ?_, hX, SlotsSame.refl _ _⟩
+    refine ⟨σ, ?_, hX, IFrame.refl _ _⟩
     unfold Fl4Spec.schedContextMaybeUnbindNtfn
     rw [nd_bind_one hg, hsc, Notif.optRef_zero]; rfl
   have hb' : b = false := by rw [hb]; simp [h0]
@@ -128,7 +137,7 @@ theorem maybe_unbind_irel (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State 
     · exact KFoot.of_nw h
     · subst h; exact KFoot.of_sw hsw
   refine ⟨σ', ?_, tk_liftCW hP0 hX (hw.mono fun b hb => Or.inl (Or.inl (hkf b hb))) hK hS' hR',
-    IRel.slotsSame_of hX hw fun b hb => tfoot_oobj hS (Or.inl (hkf b hb))⟩
+    IRel.iframe_of hX hw fun b hb => tfoot_oobj hS (Or.inl (hkf b hb))⟩
   rw [← he]
   unfold Fl4Spec.schedContextMaybeUnbindNtfn Fl4Spec.schedContextUnbindNtfn
   rw [nd_bind_one hg, hsn, nd_bind_one hgy, hyn]
@@ -139,3 +148,77 @@ end
 end
 
 end Fl4Proofs.P3.Ipc
+
+namespace Fl4Proofs.P3
+open fl4_core Classical Fl4Proofs.P1 Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc Fl4Proofs.P3.Sched
+
+noncomputable section
+
+section
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
+
+theorem finWork_ntfn {p b : U64} {w r : Bool} {fb : Bool} (h : FinWork (.Notification p b w r) fb) : fb = true := by
+  unfold FinWork at h
+  rcases h with ⟨hb | ⟨f, l, o, e, -⟩, -⟩ | ⟨p, sz, r, d, ep, asid, va, e⟩
+  · exact hb
+  · cases e
+  · cases e
+
+/-- **What a notification cap's finalisation at `XTop` reads** (module
+docstring). -/
+def NtfnFinPre (Z : XSets) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
+  BufWordRel Z.T (L.mem s) σ ∧ IPlaced Z.N Z.T Z.E Z.R Z.B ∧ NSC Z.N Z.C σ ∧
+  (∀ n ∈ Z.N, ∀ xn p, σ.kheap n.bv = some (.notification xn) → xn.ntfnSc = some p →
+    ∃ y m, σ.kheap p = some (.schedContext y m) ∧ y.scNtfn = some n.bv) ∧
+  (∀ s' σ', IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' → ActReady σ') ∧
+  ∀ sl p b w r, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.Notification p b w r) → p ∈ Z.N
+
+set_option maxHeartbeats 8000000 in
+/-- **`XFinHyps.ntfn` holds** (module docstring). -/
+theorem xFinNtfn_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
+    (hpre : ∀ (Z : XSets) s a σ, Z.th = th → XTopAt (L := L) AR Z s a σ → NtfnFinPre (L := L) Z s σ) :
+    XFinAt (L := L) arI FinNtfnK AR th := by
+  intro Z s a σ sl c hth hX hK hTh ⟨p, b, w, r, hc0⟩ hDS hA hc hk hw
+  subst hth hc0
+  obtain ⟨hBW, hP0, hNs, hlink, hAct, hpN⟩ := hpre Z s a σ rfl hX
+  have hp := hpN sl p b w r hA hc
+  have hfin := finWork_ntfn hw
+  set fin := decide (Fl4Spec.isFinalCap' (absCap (.Notification p b w r)) σ) with hfd
+  have hI := hX.irelK hK hBW
+  have hAR : AR a σ.archState.x64CurrentCr3 := hX.fin.1.1.2.2.2.2.2.2
+  rw [finalise_cap_ntfn arI s a p b w r fin false]
+  unfold objects.finalise_cap_object
+  simp only [hfin, ↓reduceIte]
+  refine WP.spec_bind (maybe_unbind_irel hP0 hI hp hNs (hlink p hp)) ?_
+  rintro s1 ⟨σ1, he1, hI1, hk1⟩
+  refine WP.spec_bind (unbind_maybe_irel hP0 hI1 hp) ?_
+  rintro s2 ⟨σ2, he2, hI2, hk2⟩
+  refine WP.spec_bind (cancel_all_signals_irel hP0 hAct s2 σ2 hI2 hp) ?_
+  rintro s3 ⟨σ3, hm3, hI3, hk3⟩
+  rw [WP.spec_ok]
+  have hmem : ((absCap capability.Cap.Null, absCap capability.Cap.Null), σ3) ∈
+      (Fl4Spec.finaliseCap (Z := Unit) (absCap (.Notification p b w r)) fin σ).1 := by
+    rw [hfin]
+    show _ ∈ (Fl4Spec.NonDet.liftM (fun _ => (Fl4Spec.Cap.nullCap, Fl4Spec.Cap.nullCap)) (Fl4Spec.NonDet.when true
+      (do
+        Fl4Spec.schedContextMaybeUnbindNtfn p.bv
+        Fl4Spec.unbindMaybeNotification p.bv
+        Fl4Spec.cancelAllSignals p.bv)) σ).1
+    unfold Fl4Spec.NonDet.liftM Fl4Spec.NonDet.when
+    simp only [↓reduceIte]
+    refine mem_bind_nd (x := ((), σ3)) ?_ (Set.mem_singleton _)
+    refine mem_bind_nd (x := ((), σ1)) (by rw [he1]; rfl) ?_
+    exact mem_bind_nd (x := ((), σ2)) (by rw [he2]; rfl) hm3
+  have hck := finNtfn_nkc p.bv b.bv _ fin σ _ hmem
+  have hkk := (hk1.trans hk2).trans hk3
+  obtain ⟨V', hX3⟩ := XTopAt.irel_same hX hI3 hAR hkk.1 hck.cdt hck.orig hck.ks hkk.2
+  have hM := hDS.1.2.2.1
+  refine ⟨rfl, trivial, trivial, σ3, Z.G, hmem, DState.of_same hDS hkk.1 hX3.rel.2.1 hck.ks, ?_,
+    fun y hy _ => Or.inl (hkk.1.capV hy), MdbStep.of_same hM hkk.1, ⟨V', hX3⟩, hkk.2⟩
+  rw [hkk.1.capV hA.isSlot]; exact capV_of_capAt hc
+
+end
+
+end
+
+end Fl4Proofs.P3
