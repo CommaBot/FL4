@@ -280,16 +280,22 @@ pub fn capability(field: u64) -> u64 {
         return fpu::xcr0();
     }
     if field == 1 {
-        return if cpu::cpuid(7, 0).ecx & (1 << 16) != 0 {
-            57
-        } else {
-            48
-        };
+        return canonical_width(cpu::read_cr4());
     }
     if backend() != 1 || !(0x480..0x4a0).contains(&field) {
         return 0;
     }
     CAPS[(field - 0x480) as usize].load(Ordering::Relaxed)
+}
+/// Virtual-address width of the host's paging (VCPU capability 1): what
+/// CR4.LA57 says it runs, not what CPUID says the CPU could. FL4 uses
+/// 4-level paging, so this is 48 even on CPUs with LA57.
+fn canonical_width(cr4: u64) -> u64 {
+    if cr4 & (1 << 12) != 0 {
+        57
+    } else {
+        48
+    }
 }
 fn vmread(f: u64) -> u64 {
     let mut value = 0;
@@ -1217,6 +1223,12 @@ mod tests {
             assert_eq!(control_msr(base, true), address);
             assert_eq!(control_msr(base, false), base);
         }
+    }
+    #[test]
+    fn address_width_follows_the_paging_mode_in_use() {
+        // A CPU with LA57 (CPUID.07H:ECX[16]) that runs 4-level paging.
+        assert_eq!(canonical_width(0x0035_06f0), 48);
+        assert_eq!(canonical_width(0x0035_06f0 | 1 << 12), 57);
     }
     #[test]
     fn physical_addresses_cover_both_kernel_mappings() {
