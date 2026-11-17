@@ -356,3 +356,7 @@ import Fl4Proofs.P3.IpcStK
 import Fl4Proofs.P3.IpcReadRegs
 import Fl4Proofs.P3.IpcSchedTail
 import Fl4Proofs.P3.IpcTcbJ
+import Fl4Proofs.P3.IpcYK
+import Fl4Proofs.P3.IpcSuspendJ
+import Fl4Proofs.P3.IpcResumeJ
+import Fl4Proofs.P3.IpcWriteRegsJ

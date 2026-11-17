@@ -281,14 +281,26 @@ def RemoveTcbHyp (st : machine.Store S) [L : LawfulStore st] (th : TypedHeap) (c
     ipc.reply_remove_tcb st s t ⦃ s' => ∃ σ' x', Fl4Spec.replyRemoveTcb (Z := Unit) t.bv r σ = ({((), σ')}, False) ∧
       IRel st th cr N T C E R B c s' σ' ∧ σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = .inactive ⦄
 
+/-- `RemoveTcbHyp` at the states satisfying `P` (the re-scoping: `P` the
+facts carried to the one state `cancel_ipc` calls it at). -/
+def RemoveTcbHypP (st : machine.Store S) [L : LawfulStore st] (th : TypedHeap) (cr : Fl4Spec.Cr3)
+    (N T C E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (c : U64) (P : S → Fl4Spec.State Unit → Prop) : Prop :=
+  ∀ (s : S) (σ : Fl4Spec.State Unit) (t : U64) (x : Fl4Spec.Tcb) (r : Fl4Spec.ObjRef),
+    IRel st th cr N T C E R B c s σ → P s σ → t ∈ T → σ.kheap t.bv = some (.tcb x) →
+    x.tcbState = .blockedOnReply r →
+    ipc.reply_remove_tcb st s t ⦃ s' => ∃ σ' x', Fl4Spec.replyRemoveTcb (Z := Unit) t.bv r σ = ({((), σ')}, False) ∧
+      IRel st th cr N T C E R B c s' σ' ∧ σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = .inactive ⦄
+
 set_option maxHeartbeats 8000000 in
 /-- **`cancel_ipc` on `IRel`**, in every thread state. Named: `SchedValid`,
 `ObjCover`, `Inv` [J] (the blocked thread in its queue, the queue object
 tracked, `RelIfBound`); `RemoveTcbHyp` (IpcRemoveTcb's `removeTcbHyp_of`). -/
-theorem cancel_ipc_irel (hP0 : IPlaced N T E R B) (hRT : RemoveTcbHyp st th cr N T C E R B c)
+theorem cancel_ipc_irelP {P : S → Fl4Spec.State Unit → Prop} (hP0 : IPlaced N T E R B)
+    (hRT : RemoveTcbHypP st th cr N T C E R B c P)
     (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hX : IRel st th cr N T C E R B c s σ) {t : U64} (ht : t ∈ T) {x : Fl4Spec.Tcb}
-    (hk : σ.kheap t.bv = some (.tcb x)) (hSV : SchedValid σ) (hOC : ObjCover N T E R C σ) (hInv : Inv σ) :
+    (hk : σ.kheap t.bv = some (.tcb x)) (hSV : SchedValid σ) (hOC : ObjCover N T E R C σ) (hInv : Inv σ)
+    (hPf : P (L.wr s (tFaultA t) 0#u64) (updK σ t.bv (.tcb { x with tcbFault := none }))) :
     ipc.cancel_ipc st ar s a t ⦃ r => r.2 = a ∧ ∃ σ' x', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
       IRel st th cr N T C E R B c r.1 σ' ∧ σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = cancelSt x.tcbState ⦄ := by
   have hP := hP0.e
@@ -379,7 +391,8 @@ theorem cancel_ipc_irel (hP0 : IPlaced N T E R B) (hRT : RemoveTcbHyp st th cr N
     rw [hw, hstw, e3, tsVals.2.2.2.1, tsVals.2.2.1, tsVals.2.2.2.2]
     simp only [show (5#u64 : U64) ≠ 4#u64 by decide, show (5#u64 : U64) ≠ 3#u64 by decide,
       show (5#u64 : U64) ≠ 6#u64 by decide, ↓reduceIte]
-    refine WP.spec_bind (hRT _ _ t { x with tcbFault := none } rp ⟨hR1, hS1⟩ ht (by simp [updK]) (show x.tcbState = _ from hts)) ?_
+    refine WP.spec_bind (hRT _ _ t { x with tcbFault := none } rp ⟨hR1, hS1⟩ hPf ht (by simp [updK])
+      (show x.tcbState = _ from hts)) ?_
     rintro s2 ⟨σ', x', h2, h3, h4, h5⟩
     simp only [WP.spec_ok]
     refine ⟨trivial, σ', x', ?_, h3, h4, by rw [h5]; rfl⟩
@@ -402,6 +415,17 @@ theorem cancel_ipc_irel (hP0 : IPlaced N T E R B) (hRT : RemoveTcbHyp st th cr N
   | idleThreadState =>
     have h := plain (by simp [hts]) (by simp [hts]) (by simp [hts]) (by simp [hts]) (by rw [hts]; rfl)
     rw [hts] at h; exact h
+
+/-- **`cancel_ipc` on `IRel`** with `RemoveTcbHyp` at every state
+(`cancel_ipc_irelP` at `P := True`). -/
+theorem cancel_ipc_irel (hP0 : IPlaced N T E R B) (hRT : RemoveTcbHyp st th cr N T C E R B c)
+    (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (hX : IRel st th cr N T C E R B c s σ) {t : U64} (ht : t ∈ T) {x : Fl4Spec.Tcb}
+    (hk : σ.kheap t.bv = some (.tcb x)) (hSV : SchedValid σ) (hOC : ObjCover N T E R C σ) (hInv : Inv σ) :
+    ipc.cancel_ipc st ar s a t ⦃ r => r.2 = a ∧ ∃ σ' x', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
+      IRel st th cr N T C E R B c r.1 σ' ∧ σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = cancelSt x.tcbState ⦄ :=
+  cancel_ipc_irelP (P := fun _ _ => True) hP0 (fun s σ t x r h _ => hRT s σ t x r h) s a σ hX ht hk hSV hOC hInv
+    trivial
 
 end All
 

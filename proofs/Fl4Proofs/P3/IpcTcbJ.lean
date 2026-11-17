@@ -147,22 +147,24 @@ theorem restart_facts {σ σ1 : Fl4Spec.State Unit} {x : Fl4Spec.Tcb} (hk : σ.k
 set_option maxHeartbeats 4000000 in
 /-- **SetPriority from `JAtZ`** (`setPrioXLeaf_of` re-scoped): the restart
 (`xleaf_restartJ`), `set_priority_irel` with `JAtZ`'s `SchedValid`, `Inv`
-(hence `ActReady`) and `ObjCover` after the restart. Named [J], not carried
-by `JAtZ`: the queues sorted (`IpcSorted`), the current thread in no
-release queue (l4v `ct_not_in_release_q`; `CurInv.notRel` when no reschedule
-is pending). -/
+(hence `ActReady`), `ObjCover` and sorted queues (`IpcSorted`, hence
+`QSorted`) after the restart. The current thread in no release queue (l4v
+`ct_not_in_release_q`) is `CurInv.notRel` at the decode's start, where no
+reschedule is pending (P1's `DecPre.act`), carried across the restart (which
+keeps the release queue). -/
 theorem setPrioXLeafJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit} {p v : U64}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hJS : JStepHyps (L := L) arI AR Z.th)
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False)) (hv : v.val < 256)
-    (hpT : p ∈ Z.T) (hSort : Sched.IpcSorted σ) (hNR : σ.curThread ∉ σ.releaseQueue) :
+    (hpT : p ∈ Z.T) (hres : σ.schedulerAction ≠ .chooseNewThread) :
     SetPrioXLeaf (L := L) AR s ar σ σ1 p v := by
+  have hNR : σ.curThread ∉ σ.releaseQueue := (J.curInv hres).notRel
   obtain ⟨ct, hcur, x, hk⟩ := xtop_cur J.xtop
-  obtain ⟨-, hrq, hct, hso⟩ := restart_facts hk hst
+  obtain ⟨-, hrq, hct, -⟩ := restart_facts hk hst
   refine xleaf_restartJ J hJS hst fun s1 Ac' Lst' D' J' _ hI1 => ?_
   have hP0 := J.ip
   have hAR : AR ar σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2
-  have hQ := Sched.qSorted_of_spec (L := L) hI1.1.toE hI1.1.toN hP0.e.tcb (hso hSort)
+  have hQ := Sched.qSorted_of_spec (L := L) hI1.1.toE hI1.1.toN hP0.e.tcb J'.isorted
   refine WP.spec_bind (set_priority_irel hP0 hI1 hpT v hv J'.inv.actReady
     (fun h => by rw [hrq]; rw [hct] at h; rw [← h]; exact hNR) J'.sv J'.inv J'.obj
     (fun e he => hQ e (Or.inl he)) (fun e he => hQ e (Or.inr he))) ?_

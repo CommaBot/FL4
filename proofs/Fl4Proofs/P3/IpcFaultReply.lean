@@ -245,12 +245,13 @@ the sanitised `vs`. -/
 def RgInv (s0 : S) (σ0 : Fl4Spec.State Unit) (rcv : U64) (x0 : Fl4Spec.Tcb) (s : S)
     (rs : List Fl4Spec.Register) (vs : List Fl4Spec.Word) : Prop :=
   EpStateRel T E R B (L.mem s) (updK σ0 rcv.bv (.tcb (sanRegs x0 rs vs))) ∧
-    SR s (updK σ0 rcv.bv (.tcb (sanRegs x0 rs vs))) ∧ Agree (L.mem s0) (L.mem s) (fun b => ¬ RcvReg rcv b)
+    SR s (updK σ0 rcv.bv (.tcb (sanRegs x0 rs vs))) ∧ Agree (L.mem s0) (L.mem s) (fun b => ¬ RcvReg rcv b) ∧
+    L.ksb s = L.ksb s0
 
 theorem rgInv_init {s0 : S} {σ0 : Fl4Spec.State Unit} (hR : EpStateRel T E R B (L.mem s0) σ0) (hSR : SR s0 σ0)
     {rcv : U64} {x0 : Fl4Spec.Tcb} (hk0 : σ0.kheap rcv.bv = some (.tcb x0)) :
     RgInv (L := L) T E R B SR s0 σ0 rcv x0 s0 [] [] := by
-  unfold RgInv; rw [show sanRegs x0 [] [] = x0 from rfl, updK_self hk0]; exact ⟨hR, hSR, Agree.rfl'⟩
+  unfold RgInv; rw [show sanRegs x0 [] [] = x0 from rfl, updK_self hk0]; exact ⟨hR, hSR, Agree.rfl', rfl⟩
 
 /-- Writing the next sanitised register of the receiver. -/
 theorem set_reg_rg_inv (hH : EpHyps st T E R B SR) (hP : EPlaced T E R B) {s0 : S} {σ0 : Fl4Spec.State Unit}
@@ -269,7 +270,8 @@ theorem set_reg_rg_inv (hH : EpHyps st T E R B SR) (hP : EPlaced T E R B) {s0 : 
   rw [e] at hR1 hS1
   have ha := a_reg hra r
   exact ⟨hR1, hH.stable _ _ _ _ hI.2.1 hW1 hS1, fun b hb hn =>
-    (agree_wr (L := L) (s := s) (v := w) ha.1 b hb (fun h => hn ⟨_, h⟩)).trans (hI.2.2 b hb hn)⟩
+    (agree_wr (L := L) (s := s) (v := w) ha.1 b hb (fun h => hn ⟨_, h⟩)).trans (hI.2.2.1 b hb hn),
+    by rw [L.ksb_wr]; exact hI.2.2.2⟩
 
 /-- A receiver register word is no other TCB's field nor a buffer word, so
 the sender's words survive the copy. -/
@@ -347,7 +349,7 @@ theorem cmfr_loop0 (hH : EpHyps st T E R B SR) (hP : EPlaced T E R B) {s0 : S} {
     rw [hw]
     simp only [bind_ok]
     have hvv : (L.mem s' (regA snd (regIdx (mrIdx i.val)))).bv = V[i.val]! := by
-      rw [snd_reg_keep hP hs hr hne hI'.2.2, hreg, (hV i.val (by omega)).2]
+      rw [snd_reg_keep hP hs hr hne hI'.2.2.1, hreg, (hV i.val (by omega)).2]
     rw [hvv] at hwv
     have hl : (Lr.take i.val).length = (V.take i.val).length := by
       simp [List.length_take]; have := (hV i.val (by omega)).1; omega
@@ -412,7 +414,7 @@ theorem cmfr_loop1 (hH : EpHyps st T E R B SR) (hP : EPlaced T E R B) {s0 : S} {
     rintro v rfl
     have hw := hms k (by omega)
     have hvv : (L.mem s' (fl4BufA sw k)).bv = V[i.val]! := by
-      rw [buf_keep hP hr hI'.2.2 hw, hR0.buf _ hw, (hV i.val hi4 hin).2, hkv]
+      rw [buf_keep hP hr hI'.2.2.1 hw, hR0.buf _ hw, (hV i.val hi4 hin).2, hkv]
     obtain ⟨w, hw', hwv⟩ := sanitise_eq Lr[i.val] (L.mem s' (fl4BufA sw k))
     rw [hw']
     simp only [bind_ok]
@@ -577,7 +579,7 @@ theorem handle_fault_reply_rel {A : Type} {ar : machine.Arch A} (hH : EpHyps st 
     refine WP.spec_bind (cmfr_top (L := L) hH hBf hBm hP s σ hR hSR hs hr hne hks hkr hsl hl tag.length hle) ?_
     intro s2 hI
     rw [hlv] at hI
-    refine (WP.spec_ok _).2 ⟨rfl, _, by rw [hspec, hlab0], hI.1, hI.2.1, hI.2.2, fun p hp => by simp [hp],
+    refine (WP.spec_ok _).2 ⟨rfl, _, by rw [hspec, hlab0], hI.1, hI.2.1, hI.2.2.1, fun p hp => by simp [hp],
       sanRegs xr lst V, by simp only [updK_kheap, Function.update_self]; rfl, (sanRegs_fields _ _ _).1,
       (sanRegs_fields _ _ _).2⟩
   cases f with

@@ -249,7 +249,7 @@ theorem wrRead_of (hP : EPlaced T E R B) {s0 : S} {σ0 : Fl4Spec.State Unit}
         | cons v vs =>
           show (setReg x0 .faultIP (Fl4Spec.sanitiseRegister false .faultIP v)).tcbArch.tcbContext.userRegs (mrIdx 3) = _
           rw [Notif.setReg_regs, Function.update_of_ne (by decide)]
-    · exact snd_reg_keep hP hct hd hcd hI.2.2 _
+    · exact snd_reg_keep hP hct hd hcd hI.2.2.1 _
   · rw [if_neg h4, if_neg h4]
     by_cases hb : buf != 0#u64
     · rw [if_pos hb, if_pos hb]
@@ -260,7 +260,7 @@ theorem wrRead_of (hP : EPlaced T E R B) {s0 : S} {σ0 : Fl4Spec.State Unit}
       set k := core.num.U64.wrapping_add i2 1#u64 with hk
       have hkv : k.val = i2.val + 1 := by
         rw [hk]; simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-      exact buf_keep hP hd hI.2.2 (hbm hb0 k (by omega))
+      exact buf_keep hP hd hI.2.2.1 (hbm hb0 k (by omega))
     · rw [if_neg hb, if_neg hb]
 
 end Read
@@ -389,7 +389,7 @@ theorem write_registers_irel (hP0 : IPlaced N T E R B) (hRT : RemoveTcbHyp st th
   intro s2 hI2
   unfold RgInv at hI2
   rw [sanRegs_take x wrRegs V n'.val (by rw [wrRegs_length]; omega)] at hI2
-  obtain ⟨hE2, hS2, hA2⟩ := hI2
+  obtain ⟨hE2, hS2, hA2, -⟩ := hI2
   set x2 := sanRegs x wrRegs V with hx2
   have hk2 : (updK σ p.bv (.tcb x2)).kheap p.bv = some (.tcb x2) := by simp [updK]
   have hN2 := ntfn_lift_rcv hP0.toC hX.1.toN hE2 hp (hA2.mono fun _ h => h.1)
