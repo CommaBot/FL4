@@ -433,10 +433,7 @@ theorem donate_bound_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
   have hji : j = c := by rw [hj]; exact hc7.aff t ht
   clear hj
   subst j
-  simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, bind_ok]
-  step as ⟨s8, hs8⟩
-  subst hs8
-  obtain ⟨hS8, hf8⟩ := hS7.wr_same (field_aligned (hc.tcbs t ht) (K := 3520#u64) (by simp) (by simp)) (hc7.aff t ht)
+  simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, bind_ok, WP.spec_ok]
   -- the invariant
   have hnp : ∀ u x, σ4.kheap u = some (.tcb x) → x.tcbSchedContext ≠ some sc.bv := by
     intro u x hx hu
@@ -456,7 +453,7 @@ theorem donate_bound_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
     unfold released at this ⊢
     rw [show σ6.curTime = σ.curTime from htm4]; exact this
   -- the footprint
-  have hw8 : WritesIn st s (L.wr (L.wr (L.wr s5 (scW sc 24#u64) t) (scA t) sc) (affA t) c)
+  have hw8 : WritesIn st s (L.wr (L.wr s5 (scW sc 24#u64) t) (scA t) sc)
       (fun b => SFoot st T c s b ∨ b = scW sc 24#u64) := by
     obtain ⟨x', n', hk', hx⟩ := hs.scs sc hsc
     have a24 : Aligned (scW sc 24#u64) := (hx.hdr (K := 24#u64) (by simp) (by simp)).1
@@ -465,20 +462,15 @@ theorem donate_bound_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
     have e2 : WritesIn st (L.wr s5 (scW sc 24#u64) t) (L.wr (L.wr s5 (scW sc 24#u64) t) (scA t) sc)
         (SFoot st T c (L.wr s5 (scW sc 24#u64) t)) :=
       writesIn_tcb (K := 3464#u64) hc.tcbs ht (by unfold SOff SOffL; decide) (by simp) sc
-    have e3 : WritesIn st (L.wr (L.wr s5 (scW sc 24#u64) t) (scA t) sc)
-        (L.wr (L.wr (L.wr s5 (scW sc 24#u64) t) (scA t) sc) (affA t) c)
-        (SFoot st T c (L.wr (L.wr s5 (scW sc 24#u64) t) (scA t) sc)) :=
-      writesIn_tcb (K := 3520#u64) hc.tcbs ht (by unfold SOff SOffL; decide) (by simp) c
-    refine (((hw4.trans e1).trans e2).trans e3).mono fun b hb => ?_
-    rcases hb with ((h | h) | h) | h
+    refine ((hw4.trans e1).trans e2).mono fun b hb => ?_
+    rcases hb with (h | h) | h
     · exact Or.inl h
     · exact Or.inr h
-    · exact Or.inl ((SFoot.ksb (by simp [k5])).1 h)
     · exact Or.inl ((SFoot.ksb (by simp [k5])).1 h)
   have hkσ6 : σ6.kheap sc.bv = some (.schedContext { y with scTcb := some t.bv } n) := by simp [σ6, updK, hpt]
   have hkt6 : σ6.kheap t.bv = some (.tcb { xt with tcbSchedContext := some sc.bv }) := by simp [σ6, updK]
   have hko6 : ∀ q, q ≠ sc.bv → q ≠ t.bv → σ6.kheap q = σ4.kheap q := fun q h1 h2 => by simp [σ6, updK, h1, h2]
-  refine ⟨σ6, ?_, hS8, hR7.frame hS7.placed hf8 (KView.refl _), hN4.updSc.updTcb, hI6, hw8, hkσ6,
+  refine ⟨σ6, ?_, hS7, hR7, hN4.updSc.updTcb, hI6, hw8, hkσ6,
     fun q h1 h2 h3 => by rw [hko6 q h1 h3, hko4 q h2], by rw [hko6 _ (Ne.symm hpf) hftb]; exact hkf4, hkt6,
     hct4, htm4, hid4⟩
   -- the spec

@@ -1089,12 +1089,9 @@ theorem cfg_resume_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4
   have hi : i = c := by rw [i_post]; exact hc.aff t ht
   subst hi
   simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, bind_ok]
-  step as ⟨s4, s4_post⟩
-  subst s4_post
-  obtain ⟨hS3, hf3⟩ := hS.wr_same (field_aligned (hc.tcbs t ht) (K := 3520#u64) (by simp) (by simp)) (hc.aff t ht)
-  have hR3 : NtfnStateRel N T (L.mem (L.wr s (affA t) i)) σ := hR.frame hP hf3 (KView.refl σ)
-  have hw4 : WritesIn st s (L.wr s (affA t) i) (SFoot st T i s) :=
-    writesIn_tcb (K := 3520#u64) hc.tcbs ht (by unfold SOff SOffL; decide) (by simp) i
+  have hS3 := hS
+  have hR3 : NtfnStateRel N T (L.mem s) σ := hR
+  have hw4 : WritesIn st s s (SFoot st T i s) := WritesIn.refl _ _
   -- `resume`
   have hRel : RelOK σ :=
     ⟨fun u hu => by obtain ⟨x, p, -, -, h1, h2, -⟩ := hI.rel u hu; exact ⟨x, p, h1, h2⟩, hI.sorted,
@@ -1102,7 +1099,7 @@ theorem cfg_resume_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4
         obtain ⟨x, p, y, n, h1, h2, -, h4, h5⟩ := hI.rel u hu
         rw [hx] at h1; cases h1; rw [hp] at h2; cases h2; exact ⟨y, n, h4, h5⟩⟩
   have hkp' : ∃ y' n', σ.kheap p.bv = some (.schedContext y' n') := ⟨y, n, hk⟩
-  refine WP.spec_bind (resume_refines (L.wr s (affA t) i) a σ hR3 hS3 hRel (hT.mb a) hp hp0 ht (word24_of hS3 hp hk hyt)
+  refine WP.spec_bind (resume_refines s a σ hR3 hS3 hRel (hT.mb a) hp hp0 ht (word24_of hS3 hp hk hyt)
     (scA_of hS3 ht hkt hxp) (fun x hx => by rw [hkt] at hx; cases hx; exact hnq.1 _ _)) ?_
   rintro ⟨s6, a4⟩ ⟨rfl, σr, hrs, hkr, har, htr, -, -, hf6, hw6, hS6⟩
   have hw46 := WritesIn.sfoot_trans hw4 hw6

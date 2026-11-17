@@ -159,13 +159,8 @@ theorem donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec
   obtain ⟨Q2, R2, hc2, hs2⟩ := hS2.lists
   have hi : i = cpu := by rw [i_post]; exact hc2.aff t ht
   subst hi
-  simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, bind_ok]
-  step as ⟨s4, s4_post⟩
-  subst s4_post
-  have w3 := WritesIn.kfoot_sfoot w2 (writesIn_tcb (K := 3520#u64) hc.tcbs ht (by unfold SOff SOffL; decide) (by simp) i)
-  obtain ⟨hS3, hf3⟩ := hS2.wr_same (field_aligned (hc.tcbs t ht) (K := 3520#u64) (by simp) (by simp))
-    (hc2.aff t ht)
-  refine ⟨xs, ns, xt, hks, hkt, ?_, FootEq.trans' (FootEq.trans' hf1 hf2) hf3, KView.trans hv1 hv2, hS3, w3⟩
+  simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, bind_ok, WP.spec_ok]
+  refine ⟨xs, ns, xt, hks, hkt, ?_, FootEq.trans' hf1 hf2, KView.trans hv1 hv2, hS2, w2⟩
   -- the spec
   have hg : Fl4Spec.getScObjRef (Z := Unit) Fl4Spec.SchedContext.scTcb sc.bv σ = ({(xs.scTcb, σ)}, False) := by
     unfold Fl4Spec.getScObjRef; rw [nd_bind_one (getSchedContext_eq hks)]; rfl

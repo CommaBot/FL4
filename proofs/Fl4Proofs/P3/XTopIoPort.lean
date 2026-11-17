@@ -129,7 +129,7 @@ theorem decode_invocation_ioportX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMas
       (Steps.restart arI hcur hk htcb hr1 hst hC).trans arI
         ((Steps.ksSpec arI (s := s') (σ := σ1) (σ' := { σ1 with machineState := ms })
           (by constructor <;> first | rfl | exact hu) rfl rfl (fun h => ⟨h.st, h.node⟩) (fun h => h)).trans arI
-          (Steps.arch arI (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨_, _, _, ha1⟩)))))))
+          (Steps.arch arI (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨_, _, _, ha1⟩))))))))
     obtain ⟨Z', hZ'⟩ := hstp.xtop arI hAM hDel hth hX0 hKA hTh
     exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok (run_liftME_ok hrun)), σ1, hst, (.ok [], { σ1 with machineState := ms }),
       hmem, ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩, hZ'.rel.1, hZ'.rel.2.1, hZ'.rel.2.2.1, hZ'.rel.2.2.2.1,

@@ -92,26 +92,15 @@ theorem restart_hB (s : S) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
 
 /-! ## `bind_tcb` with its footprint -/
 
-/-- `migrate_tcb` writes the thread's affinity field. -/
+/-- `migrate_tcb` writes the thread's affinity field and, when the thread
+changes core, the debug-list words (`FootD`). -/
 theorem smp.migrate_tcb.kw {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
-    (t cpu : U64) (hT : TcbPlaced T) (ht : t ∈ T) :
-    smp.migrate_tcb st ar s a t cpu ⦃ s' _ => Foot st T Cs Sg Scs Z Es s s' ⦄ := by
-  unfold smp.migrate_tcb
-  step with obj.Tcb.affinity.spec as ⟨af, eaf⟩
-  refine WP.spec_bind (Pₘ := fun r : A × obj.Tcb => r.2 = t) ?_ ?_
-  · split
-    · refine WP.spec_bind (hA.fpu_flush a t) fun a2 _ => ?_
-      refine WP.spec_bind (hA.fpu_release a2 t) fun a3 _ => ?_
-      exact (WP.spec_ok _).2 rfl
-    · exact (WP.spec_ok _).2 rfl
-  rintro ⟨a2, t2⟩ e2
-  simp only at e2
-  subst t2
-  try simp only [WP.uncurry'_pair]
-  step with obj.Tcb.set_affinity.wr as ⟨s4, e4⟩
-  subst e4
-  try simp only [WP.spec_ok]
-  rw [affA_eq]; exact foot_field hT ht (by simp) (by simp) (by simp) (by simp)
+    (t cpu : U64) (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodePlaced st T s c) (hD : DbgTz st T Cs s)
+    (hc : L.mem s (affA t) ∈ Cs) (hcpu : cpu ∈ Cs) (ht : t ∈ T) :
+    smp.migrate_tcb st ar s a t cpu ⦃ s' _ => FootD st T Cs Sg Scs Z Es s s' ⦄ :=
+  WP.spec_mono (smp.migrate_tcb.frame hA s a t cpu hT hN hD hc hcpu ht) fun _ ⟨w, -⟩ =>
+    w.mono fun b hb => hb.elim (fun e => Or.inl (by
+      rw [e, affA_eq]; exact kw_field ht (by simp) (by simp) (by simp))) Or.inr
 
 /-- **`bind_tcb` with its footprint**: `schedcontext.bind_tcb.blk` and the
 words it writes (the thread's `SC` and affinity fields, the SC's `TCB` word,
@@ -122,7 +111,7 @@ theorem schedcontext.bind_tcb.blkF {A : Type _} {ar : machine.Arch A} (hA : P0.A
     (ht0 : L.mem s (scA t) = 0#u64) (hc0 : L.mem s (scTcbA sc) = 0#u64)
     (hbA : BlockedR (L.mem s (stA t)) → sc ∈ Ac) :
     schedcontext.bind_tcb st ar s a sc t ⦃ s' _ => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
-      Foot st T Cs Sg Scs Z Es s s' ⦄ := by
+      FootD st T Cs Sg Scs Z Es s s' ⦄ := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   have hT := h0.tcbs
   have hta := hT t ht
@@ -191,17 +180,17 @@ theorem schedcontext.bind_tcb.blkF {A : Type _} {ar : machine.Arch A} (hA : P0.A
   have hc' : cpu ∈ Cs := by rw [ecpu, core2]; exact hcore
   refine WP.spec_bind (WP.spec_and (migrate_tail hA s2 a sc t cpu Q R h2 hB2 hX2 hS2 hSg2 ht (by rw [iq2]; exact htq)
     (by rw [iq2]; exact htr) hc' hsc) (smp.migrate_tcb.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := Es) (Cs := Cs)
-      hA s2 a t cpu h2.tcbs ht)) ?_
+      hA s2 a t cpu h2.tcbs h2.nodes ⟨hX2.2.2.tm.dn, hX2.2.2.tm.dp, hX2.2.2.tm.dh⟩ (h2.aff t ht) hc' ht)) ?_
   rintro ⟨s3, a1⟩ ⟨⟨⟨⟨Q3, R3, h3⟩, hB3, hX3, hS3, hSg3⟩, -, -, -, sc3, -, ea3⟩, fw3⟩
   try simp only [WP.uncurry'_pair]
   rw [sc2] at sc3
-  have fw3' : Foot st T Cs Sg Scs Z Es s s3 := fw2.trans fw3
+  have fw3' : FootD st T Cs Sg Scs Z Es s s3 := fw2.d.trans fw3
   -- the sporadic unblock check
   step with sporadic.sc_sporadic.spec as ⟨b, eb⟩
   refine WP.spec_bind (Pₘ := fun s4 => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧ L.mem s4 (scA t) = sc ∧
-      L.actionW s4 = L.actionW s ∧ Foot st T Cs Sg Scs Z Es s s4) ?_ ?_
+      L.actionW s4 = L.actionW s ∧ FootD st T Cs Sg Scs Z Es s s4) ?_ ?_
   · have ok3 : (ok s3 : Result S) ⦃ s4 => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧ L.mem s4 (scA t) = sc ∧
-        L.actionW s4 = L.actionW s ∧ Foot st T Cs Sg Scs Z Es s s4 ⦄ :=
+        L.actionW s4 = L.actionW s ∧ FootD st T Cs Sg Scs Z Es s s4 ⦄ :=
       (WP.spec_ok _).2 ⟨⟨⟨Q3, R3, h3⟩, hB3, hX3, hS3, hSg3⟩, sc3, by rw [ea3, ea2], fw3'⟩
     split
     · step with sporadic.sc_active.val as ⟨b1, eb1⟩
@@ -226,7 +215,7 @@ theorem schedcontext.bind_tcb.blkF {A : Type _} {ar : machine.Arch A} (hA : P0.A
             · exact hb.kw hsc
             · exact kw_node h3.cur (by rw [rp]; omega) (by rw [rp]; omega)
           exact ⟨⟨⟨Q3, R3, h4⟩, hB4, hX4, hS4, hSg4⟩, by rw [scA_eq, f4 t ht _ (by simp) (by simp), ← scA_eq]; exact sc3,
-            by rw [ea4, ea3, ea2], fw3'.trans fw4⟩
+            by rw [ea4, ea3, ea2], fw3'.trans fw4.d⟩
         · exact ok3
       · exact ok3
     · exact ok3
@@ -244,7 +233,7 @@ theorem schedcontext.bind_tcb.blkF {A : Type _} {ar : machine.Arch A} (hA : P0.A
     (schedcontext.resume.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := Es) hA s4 a1 sc Q4 R4 h4 hres)) ?_
   rintro ⟨s5, a2⟩ ⟨⟨Q5, R5, h5, hB5, hX5, hSg5, f5⟩, fw5⟩
   have hS5 := hS4.fr f5
-  have fw5' : Foot st T Cs Sg Scs Z Es s s5 := fw4.trans fw5
+  have fw5' : FootD st T Cs Sg Scs Z Es s s5 := fw4.trans fw5.d
   try simp only [WP.uncurry'_pair]
   -- enqueue if schedulable
   step with sched.is_schedulable.spec' as ⟨b3, eb3⟩
@@ -259,7 +248,7 @@ theorem schedcontext.bind_tcb.blkF {A : Type _} {ar : machine.Arch A} (hA : P0.A
       (sched.reschedule_required.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := Es) s6 h6)) ?_
     rintro s7 ⟨⟨⟨⟨Q7, R7, h7⟩, hB7, f7⟩, -, -, -⟩, fw7⟩
     exact (WP.spec_ok _).2 ⟨⟨⟨Q7, R7, h7⟩, hB7, (hX5.fr f6).fr f7, (hS5.fr f6).fr f7, (hSg5.fr f6).fr f7⟩,
-      fw5'.trans (fw6.trans fw7)⟩
+      fw5'.trans (fw6.trans fw7).d⟩
   · exact (WP.spec_ok _).2 ⟨⟨⟨Q5, R5, h5⟩, hB5, hX5, hS5, hSg5⟩, fw5'⟩
 
 /-! ## The SchedContext invocations (after their decode)
@@ -367,7 +356,7 @@ theorem sc_bind_tcb.blkF {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
       let (s3, a2) ← schedcontext.bind_tcb st ar s2 a sc t
       ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s3, a2)) ⦃ r s' _ =>
-      r = .Ok () ∧ BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ Foot st T Cs Sg Scs Z ∅ s s' ⦄ := by
+      r = .Ok () ∧ BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ FootD st T Cs Sg Scs Z ∅ s s' ⦄ := by
   refine WP.spec_bind (sched.set_thread_state.restart_blk (Es := ∅) s ct h hct (runnable_ok hr).1
     (runnable_ok hr).2) ?_
   rintro s2 ⟨h2, f2, e2, k2⟩
@@ -382,7 +371,7 @@ theorem sc_bind_tcb.blkF {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
     (by rw [(k2.fix sc hsc).1]; exact hc0) hbA2) ?_
   rintro ⟨s3, a2⟩ ⟨h3, f3⟩
   try simp only [WP.uncurry'_pair]
-  exact (WP.spec_ok _).2 ⟨by first | trivial | rfl, h3, f2.trans f3⟩
+  exact (WP.spec_ok _).2 ⟨by first | trivial | rfl, h3, f2.d.trans f3⟩
 
 /-! ## The endpoint and notification invocations (`decode_invocation`'s
 `Endpoint` and `Notification` branches: restart, then `send_ipc` /

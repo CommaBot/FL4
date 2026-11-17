@@ -101,7 +101,7 @@ memory), and cap-slot words (`CapW`: a grant's receive slot and its MDB
 neighbours) apart from the first 256 bytes of the kernel-global block. -/
 def IpcFoot (T Cs Ω Sg Scs : Set U64) (Z : U64 → Nat) (H : P1.Heap) (U : Set U64) (s : S) (b : U64) : Prop :=
   P1.KW st T Cs Sg Scs Z (P1.EH H) s b ∨ P1.XferFoot T U b ∨
-    (P1.CapW T Ω Sg b ∧ (b.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ b.val))
+    (P1.CapW T Ω Sg b ∧ (b.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ b.val)) ∨ P1.DbgW st T Cs s b
 
 /-- **P1's footprint of `send_ipc`** (for the P1 side), under
 `send_ipc.ipc`'s preconditions (`XferOK`, an endpoint, a caller that can
@@ -132,13 +132,14 @@ words since they are not in `Ω` (`UserOK`) while the kernel-global words are
 (`SCsOK.ksΩ`); the cap-slot words by their own condition. -/
 theorem ipcFoot_apart {T Cs Ω Sg Scs : Set U64} {Z : U64 → Nat} {H : P1.Heap} {U Ac : Set U64} {s : S}
     (hD : KWDom (L := L) T Cs Sg Scs Z (P1.EH H) s) (hTP : P1.TcbPlaced T)
+    (hN : ∀ c ∈ Cs, P1.NodePlaced st T s c)
     (hTk : ∀ y ∈ T, y.val + 4096 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ y.val)
     (hUO : P1.UserOK st T Cs Ω H U s) (hSC : P1.SCsOK st T Ω Sg Scs Z Ac s)
     (hka : (L.ksb s).val % 8 = 0) (hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64) :
     ∀ b, P1.Aligned b → IpcFoot (L := L) T Cs Ω Sg Scs Z H U s b →
       b.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ b.val := by
   intro b hb h
-  rcases h with h | (⟨y, hy, K, hK, -, rfl⟩ | h) | ⟨-, h⟩
+  rcases h with h | (⟨y, hy, K, hK, -, rfl⟩ | h) | ⟨-, h⟩ | (⟨y, hy, e | e⟩ | ⟨c, hc, e⟩)
   · exact hD b hb h
   · have hf := (hTP y hy).fits
     have hv : (core.num.U64.wrapping_add y K).val = y.val + K.val := by
@@ -157,6 +158,17 @@ theorem ipcFoot_apart {T Cs Ω Sg Scs : Set U64} {Z : U64 → Nat} {H : P1.Heap}
     rw [e] at hm
     exact (hUO b h).2.1 hm
   · exact h
+  · have hf := (hTP y hy).fits
+    have h3 : (3576#u64).val = 3576 := by simp
+    rw [e, show P1.dnA y = core.num.U64.wrapping_add y 3576#u64 from rfl, P1.field_val (hTP y hy) (by simp)]
+    rcases hTk y hy with e' | e' <;> omega
+  · have hf := (hTP y hy).fits
+    have h3 : (3584#u64).val = 3584 := by simp
+    rw [e, show P1.dpA y = core.num.U64.wrapping_add y 3584#u64 from rfl, P1.field_val (hTP y hy) (by simp)]
+    rcases hTk y hy with e' | e' <;> omega
+  · rw [e, P1.nodeAt_val (hN c hc) (by simp [layout.node.DEBUG_TCBS])]
+    unfold P1.LawfulStore.nodeBase
+    right; omega
 
 /-- **The endpoint cap's write footprint** (`DecWritesHyp`): the caller's
 restart (`restart_blk`, a `Foot`) then `send_ipc` (`SendIpcFootP1`). -/
@@ -178,7 +190,7 @@ theorem decWritesHyp_endpoint {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : 
     DecWritesHyp (L := L) arI s ar lbl length slot (.Endpoint p b sd rv g gr) blk call don fp buf extra := by
   obtain ⟨⟨Q, R, hq⟩, -, -, hSC, -⟩ := id hB
   refine ⟨IpcFoot (L := L) T Cs Ω Sg Scs Z H U s,
-    ipcFoot_apart hD hq.tcbs hTk hUO hSC hka hkf, ?_⟩
+    ipcFoot_apart hD hq.tcbs hq.nodes hTk hUO hSC hka hkf, ?_⟩
   unfold syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   cases sd
@@ -195,10 +207,11 @@ theorem decWritesHyp_endpoint {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : 
     rcases hx with hx | hx
     · exact Or.inl hx
     unfold IpcFoot at hx
-    rcases hx with hx | hx | ⟨hc, hl⟩
+    rcases hx with hx | hx | ⟨hc, hl⟩ | hx
     · exact Or.inl (P1.KW.ksb f1.1 hx)
     · exact Or.inr (Or.inl hx)
-    · rw [f1.1] at hl; exact Or.inr (Or.inr ⟨hc, hl⟩)
+    · rw [f1.1] at hl; exact Or.inr (Or.inr (Or.inl ⟨hc, hl⟩))
+    · exact Or.inr (Or.inr (Or.inr (P1.DbgW.ksb f1.1 hx)))
 
 
 /-- **The reply cap's write footprint** (`DecWritesHyp`): the caller's
@@ -219,7 +232,7 @@ theorem decWritesHyp_reply {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : Set
     DecWritesHyp (L := L) arI s ar lbl length slot (.Reply r g) blk call don fp buf extra := by
   obtain ⟨⟨Q, R, hq⟩, -, -, hSC, -⟩ := id hB
   refine ⟨IpcFoot (L := L) T Cs Ω Sg Scs Z H U s,
-    ipcFoot_apart hD hq.tcbs hTk hUO hSC hka hkf, ?_⟩
+    ipcFoot_apart hD hq.tcbs hq.nodes hTk hUO hSC hka hkf, ?_⟩
   unfold syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   refine WP.spec_bind (P1.sched.set_thread_state.restart_blk (Es := P1.EH H) s ct hB hctT hnb hnr) ?_
@@ -232,10 +245,11 @@ theorem decWritesHyp_reply {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : Set
   rcases hx with hx | hx
   · exact Or.inl hx
   unfold IpcFoot at hx
-  rcases hx with hx | hx | ⟨hc, hl⟩
+  rcases hx with hx | hx | ⟨hc, hl⟩ | hx
   · exact Or.inl (P1.KW.ksb f1.1 hx)
   · exact Or.inr (Or.inl hx)
-  · rw [f1.1] at hl; exact Or.inr (Or.inr ⟨hc, hl⟩)
+  · rw [f1.1] at hl; exact Or.inr (Or.inr (Or.inl ⟨hc, hl⟩))
+  · exact Or.inr (Or.inr (Or.inr (P1.DbgW.ksb f1.1 hx)))
 
 end
 
