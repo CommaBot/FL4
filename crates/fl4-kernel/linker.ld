@@ -27,19 +27,45 @@ SECTIONS
 
     . = ALIGN(4096);
     . += KERNEL_OFFSET;
+    /* The skim window (spec.rs) maps only the skim parts into user
+     * address spaces: the entry and exit code, the data it touches before
+     * switching to the kernel's tables, and the per-core entry stacks and
+     * descriptor tables. Each part starts and ends on a page boundary so
+     * that nothing else shares its pages. (The skim part of .bss is
+     * .bss.skim: LLVM leaves only sections named .bss* without contents.)
+     * The boundary symbols are hidden, so that disassemblers name the
+     * functions that start at them rather than the boundaries. */
     .text : AT(ADDR(.text) - KERNEL_OFFSET) {
+        HIDDEN(__text_start = .);
+        HIDDEN(__skim_text_start = .);
+        *(.skim.text .skim.text.*)
+        . = ALIGN(4096);
+        HIDDEN(__skim_text_end = .);
         *(.text .text.*)
+        HIDDEN(__text_end = .);
     } :text
     . = ALIGN(4096);
     .rodata : AT(ADDR(.rodata) - KERNEL_OFFSET) {
+        HIDDEN(__rodata_start = .);
+        HIDDEN(__skim_rodata_start = .);
+        *(.skim.rodata .skim.rodata.*)
+        . = ALIGN(4096);
+        HIDDEN(__skim_rodata_end = .);
         *(.rodata .rodata.*)
+        HIDDEN(__rodata_end = .);
     } :rodata
     . = ALIGN(4096);
     .data : AT(ADDR(.data) - KERNEL_OFFSET) {
+        HIDDEN(__data_start = .);
         *(.data .data.*)
     } :data
     .bss : AT(ADDR(.bss) - KERNEL_OFFSET) {
         __bss_start = .;
+        . = ALIGN(4096);
+        HIDDEN(__skim_bss_start = .);
+        *(.bss.skim .bss.skim.*)
+        . = ALIGN(4096);
+        HIDDEN(__skim_bss_end = .);
         *(.bss .bss.*)
         *(COMMON)
         . = ALIGN(4096);

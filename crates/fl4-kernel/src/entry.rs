@@ -11,6 +11,7 @@ use fl4_arch_x86_64::arch;
 use fl4_store::{Phys, PhysStore};
 use fl4_sync::SerialGate;
 use fl4_arch_x86_64::smp;
+use core::sync::atomic::{AtomicU64, Ordering};
 
 core::arch::global_asm!(
     include_str!("../../fl4-arch-x86_64/src/spec.S"), include_str!("entry.S"),
@@ -20,12 +21,27 @@ core::arch::global_asm!(
     spec_legacy = const fl4_arch_x86_64::spec::policy::LEGACY_IBRS,
     spec_bhb = const fl4_arch_x86_64::spec::policy::BHB,
     spec_ibhf = const fl4_arch_x86_64::spec::policy::IBHF,
+    skim_cpu_size = const crate::gdt::SKIM_CPU_SIZE,
     options(att_syntax)
 );
 
 extern "C" {
     fn fl4_restore_user(regs: u64, stack_top: u64, cr3: u64) -> !;
     fn fl4_idle(stack_top: u64) -> !;
+    static fl4_vectors: u8;
+    static fl4_common_entry: u8;
+}
+
+/// The CR3 value entry.S switches to on every entry with the skim window
+/// (the kernel's tables, PCID 0), or 0 without it. Read on the user's
+/// tables, so in the skim window.
+#[no_mangle]
+#[link_section = ".bss.skim"]
+static FL4_KERNEL_CR3: AtomicU64 = AtomicU64::new(0);
+
+/// Set once on the boot core, before any core runs user code.
+pub fn set_kernel_cr3(v: u64) {
+    FL4_KERNEL_CR3.store(v, Ordering::Relaxed);
 }
 
 /// The frame entry.S builds (see there).
@@ -263,22 +279,34 @@ fn run_entry(irq: bool, serial: bool, body: impl FnMut(&mut PhysStore, &mut Phys
     fl4_sync::run_entry(&KernelEnv { serial }, &GATE, irq, body)
 }
 
-/// Called by entry.S for every kernel entry.
-/// Back to the interrupted user code without a kernel entry: with the skim
-/// window, onto the user's tables again.
-fn resume_user() {
+/// Back to the interrupted user code without a kernel entry: the CR3 value
+/// entry.S loads before it returns (with the skim window, the user's tables
+/// again; 0 for none).
+fn resume_user() -> u64 {
     if tlb::skim() {
-        cpu::write_cr3(percpu::get().exit_cr3);
+        tlb::take_exit_cr3()
+    } else {
+        0
     }
 }
 
+/// A #DB in kernel mode at the first instruction of an entry stub or the
+/// SYSCALL entry: a single-stepped SYSCALL, or a MOV SS / POP SS with a
+/// data breakpoint whose #DB the CPU held until after the SYSCALL or INT n
+/// that followed (CVE-2018-8897). It belongs to user mode; the entry it
+/// interrupted goes on.
+fn deferred_user_debug(f: &Frame) -> bool {
+    let start = unsafe { &fl4_vectors as *const u8 as u64 };
+    let end = unsafe { &fl4_common_entry as *const u8 as u64 };
+    f.vector == 1 && (start..end).contains(&f.rip)
+}
+
+/// Called by entry.S for every kernel entry, on the kernel's tables; from
+/// user mode, on the core's kernel stack. Returns only to resume the
+/// interrupted code at once, with the CR3 value to load first (0: what the
+/// entry interrupted).
 #[no_mangle]
-extern "C" fn fl4_entry(f: &mut Frame) {
-    // With the skim window user tables map only the kernel image: switch
-    // to the kernel's before touching anything else.
-    if f.cs & 3 != 0 && tlb::skim() {
-        cpu::write_cr3(percpu::get().kernel_cr3);
-    }
+extern "C" fn fl4_entry(f: &mut Frame) -> u64 {
     let v = f.vector;
     let irq = (VEC_IRQ_MIN..=VEC_IRQ_MAX).contains(&v);
     if f.cs & 3 == 0 {
@@ -292,12 +320,12 @@ extern "C" fn fl4_entry(f: &mut Frame) {
                     pc.polled_irq = v - VEC_IRQ_MIN;
                 }
                 f.rflags &= !RFLAGS_IF;
-                return;
+                return 0;
             }
             if pc.idle && v == TIMER_VECTOR as u64 && timer::early() {
                 // Back to idle (l4h 0012); fl4_idle's loop halts again.
                 apic::eoi();
-                return;
+                return 0;
             }
             if pc.idle {
                 pc.idle = false;
@@ -311,7 +339,14 @@ extern "C" fn fl4_entry(f: &mut Frame) {
             }
         }
         if v == 2 {
-            return;
+            return 0;
+        }
+        if deferred_user_debug(f) {
+            // Breakpoints come back on the way out to the thread
+            // (load_debug_state).
+            cpu::write_dr7(0x400);
+            cpu::write_dr6(0xffff_0ff0);
+            return 0;
         }
         kernel_fault(f);
     }
@@ -319,8 +354,7 @@ extern "C" fn fl4_entry(f: &mut Frame) {
     // (l4h 0012): acknowledge it and go back to the thread.
     if v == TIMER_VECTOR as u64 && timer::early() {
         apic::eoi();
-        resume_user();
-        return;
+        return resume_user();
     }
     // #NM on the lazy FPU path (fpu.rs): load the thread's FPU state and
     // let it retry the instruction. A thread with the FPU disabled gets
@@ -330,8 +364,7 @@ extern "C" fn fl4_entry(f: &mut Frame) {
         let ct = sched::cur_thread(&s);
         if ct.flags(&s) & fl4_abi::consts::tcb_flag::FPU_DISABLED == 0 {
             fpu::lazy_load(ct.0);
-            resume_user();
-            return;
+            return resume_user();
         }
     }
     // The bench profile's MSR syscalls (DESIGN.md §3) touch only the
@@ -342,13 +375,11 @@ extern "C" fn fl4_entry(f: &mut Frame) {
             f.r10 = cpu::rdmsr(f.rdi as u32);
             // seL4_MessageInfo_new(0, 0, 0, 1).
             f.rsi = 1;
-            resume_user();
-            return;
+            return resume_user();
         }
         if n == fl4_abi::syscall::SysX86DangerousWRMSR {
             cpu::wrmsr(f.rdi as u32, f.r10);
-            resume_user();
-            return;
+            return resume_user();
         }
     }
     save_user(&mut store(), f);
@@ -481,7 +512,8 @@ pub fn exit() -> ! {
         if gs != pc.gs_base { cpu::set_gs_base(gs); pc.gs_base = gs; }
         if fl4_abi::config::HARDWARE_DEBUG_API { load_debug_state(s, ct); }
         let cr3 = if tlb::skim() { tlb::take_exit_cr3() } else { 0 };
-        unsafe { fl4_restore_user(ct.0 + tl::REGS, stack_top, cr3) }
+        let entry_top = crate::gdt::entry_top(core as usize);
+        unsafe { fl4_restore_user(ct.0 + tl::REGS, entry_top, cr3) }
     }
 }
 

@@ -19,41 +19,78 @@ struct Gdt([u64; GDT_ENTRIES]);
 #[repr(C, align(16))]
 struct Tss([u32; 26]);
 
-#[repr(C, align(16))]
+#[repr(C, align(4096))]
 struct Idt([u64; 512]);
 
-/// Stacks for the entries that can arrive while the kernel still (or
-/// again) runs on the user's stack pointer: the instructions between
-/// SYSCALL and the switch to the kernel stack, and between loading the
-/// user's RSP and SYSRET. Without them the CPU would push its frame
-/// wherever user code pointed RSP. One stack per vector, so an NMI during
-/// #DB (or the reverse) does not overwrite the other's frame.
+/// NMI, #DB, #MC and #DF run on stacks of their own (IST1..IST4), as they
+/// can arrive while the kernel still (or again) runs on the user's stack
+/// pointer: between SYSCALL and the switch to the entry stack, and between
+/// loading the user's RSP and SYSRET. Without them the CPU would push its
+/// frame wherever user code pointed RSP. One stack per vector, so an NMI
+/// during #DB (or the reverse) does not overwrite the other's frame.
 const IST_VECTORS: [usize; 4] = [2, 1, 18, 8]; // NMI, #DB, #MC, #DF
-const IST_BYTES: usize = 4096;
+const STACK_BYTES: usize = 4096;
 
-#[repr(C, align(16))]
-struct IstStacks([[u8; IST_BYTES]; 4]);
+#[repr(C, align(4096))]
+struct Stack([u8; STACK_BYTES]);
 
-struct Tables {
-    gdt: [Gdt; MAX_CPUS],
-    tss: [Tss; MAX_CPUS],
-    idt: Idt,
-    ist: [IstStacks; MAX_CPUS],
+/// One core's entry area, in the skim window (paging.rs): everything the
+/// CPU and entry.S touch before an entry from user mode has switched to the
+/// kernel's tables, and after an exit has switched to the user's.
+///
+/// Entries from user mode arrive on `entry_stack` (TSS.RSP0, and SYSCALL's
+/// stack through `gs_block`) or an IST stack; entry.S then moves the frame
+/// to the core's kernel stack in KSTACKS (`gs_block[2]`), which the user's
+/// tables do not map. entry.S finds the area from the stack pointer: areas
+/// are `size_of::<SkimCpu>()`-aligned, a power of two.
+#[repr(C, align(32768))]
+struct SkimCpu {
+    /// KERNEL_GS_BASE points here: entry stack top, a scratch word for
+    /// SYSCALL, kernel stack top, core index.
+    gs_block: [u64; 4],
+    gdt: Gdt,
+    tss: Tss,
+    entry_stack: Stack,
+    ist: [Stack; 4],
 }
 
-struct Cell(UnsafeCell<Tables>);
+pub const SKIM_CPU_SIZE: usize = core::mem::size_of::<SkimCpu>();
+const _: () = assert!(SKIM_CPU_SIZE.is_power_of_two() && core::mem::align_of::<SkimCpu>() == SKIM_CPU_SIZE);
+// entry.S reads the kernel stack top at offset 16.
+const _: () = assert!(core::mem::offset_of!(SkimCpu, gs_block) == 0);
+
+struct SkimTables {
+    idt: Idt,
+    cpus: [SkimCpu; MAX_CPUS],
+}
+
+struct Cell(UnsafeCell<SkimTables>);
 unsafe impl Sync for Cell {}
 
-static TABLES: Cell = Cell(UnsafeCell::new(Tables {
-    gdt: [const { Gdt([0; GDT_ENTRIES]) }; MAX_CPUS],
-    tss: [const { Tss([0; 26]) }; MAX_CPUS],
+#[link_section = ".bss.skim"]
+static TABLES: Cell = Cell(UnsafeCell::new(SkimTables {
     idt: Idt([0; 512]),
-    ist: [const { IstStacks([[0; IST_BYTES]; 4]) }; MAX_CPUS],
+    cpus: [const {
+        SkimCpu {
+            gs_block: [0; 4],
+            gdt: Gdt([0; GDT_ENTRIES]),
+            tss: Tss([0; 26]),
+            entry_stack: Stack([0; STACK_BYTES]),
+            ist: [const { Stack([0; STACK_BYTES]) }; 4],
+        }
+    }; MAX_CPUS],
 }));
 
 extern "C" {
     static fl4_vectors: u8;
     fn fl4_syscall_entry();
+}
+
+/// Top of core `cpu`'s entry stack, where exits to user mode build the
+/// frame they return through.
+pub fn entry_top(cpu: usize) -> u64 {
+    let t = unsafe { &*TABLES.0.get() };
+    t.cpus[cpu].entry_stack.0.as_ptr() as u64 + STACK_BYTES as u64
 }
 
 #[repr(C, packed)]
@@ -82,10 +119,14 @@ pub fn init_idt() {
 }
 
 /// Load the GDT, TSS and IDT on core `cpu`, with `stack_top` as the
-/// kernel stack for entries from user mode, and set up SYSCALL.
+/// kernel stack entries from user mode move to, and set up SYSCALL.
 pub fn init_core(cpu: usize, stack_top: u64) {
     let t = unsafe { &mut *TABLES.0.get() };
-    let g = &mut t.gdt[cpu].0;
+    percpu::register_entry_areas(t.cpus.as_ptr() as u64, SKIM_CPU_SIZE as u64);
+    let c = &mut t.cpus[cpu];
+    let entry = c.entry_stack.0.as_ptr() as u64 + STACK_BYTES as u64;
+    c.gs_block = [entry, 0, stack_top, cpu as u64];
+    let g = &mut c.gdt.0;
     g[0] = 0;
     g[1] = 0;
     g[2] = 0x00af_9a00_0000_ffff; // 0x10 kernel code
@@ -94,13 +135,13 @@ pub fn init_core(cpu: usize, stack_top: u64) {
     g[5] = 0x00cf_f200_0000_ffff; // 0x28 user data
     g[6] = 0x00af_fa00_0000_ffff; // 0x30 user code (64-bit)
     g[7] = 0;
-    let tss = &mut t.tss[cpu];
+    let tss = &mut c.tss;
     tss.0 = [0; 26];
-    tss.0[1] = stack_top as u32;
-    tss.0[2] = (stack_top >> 32) as u32;
+    tss.0[1] = entry as u32;
+    tss.0[2] = (entry >> 32) as u32;
     // IST1..IST4 (TSS bytes 36..68).
     for i in 0..IST_VECTORS.len() {
-        let top = t.ist[cpu].0[i].as_ptr() as u64 + IST_BYTES as u64;
+        let top = c.ist[i].0.as_ptr() as u64 + STACK_BYTES as u64;
         tss.0[9 + 2 * i] = top as u32;
         tss.0[10 + 2 * i] = (top >> 32) as u32;
     }
@@ -147,5 +188,5 @@ pub fn init_core(cpu: usize, stack_top: u64) {
     wrmsr(msr::FMASK, 0x4_7700);
     wrmsr(msr::FS_BASE, 0);
     wrmsr(msr::GS_BASE, 0);
-    wrmsr(msr::KERNEL_GS_BASE, percpu::get_for(cpu) as *const _ as u64);
+    wrmsr(msr::KERNEL_GS_BASE, c.gs_block.as_ptr() as u64);
 }

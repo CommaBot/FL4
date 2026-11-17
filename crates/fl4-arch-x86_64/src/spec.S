@@ -110,7 +110,8 @@
     xorl %r15d, %r15d
 .endm
 
-.pushsection .rodata
+/* Read by fl4_clear_buffers on the user's tables too: in the skim window. */
+.pushsection .skim.rodata, "a", @progbits
 .balign 2
 .Lfl4_clear_selector:
     .word 0x18
