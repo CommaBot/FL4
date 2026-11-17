@@ -319,10 +319,10 @@ fn restore(t: u64) {
 
 fn set_ts(on: bool) {
     let pc = percpu::get();
-    if pc.ts_set != on {
+    if pc.ts_set.get() != on {
         let c = read_cr0();
         write_cr0(if on { c | CR0_TS } else { c & !CR0_TS });
-        pc.ts_set = on;
+        pc.ts_set.set(on);
     }
 }
 
@@ -332,8 +332,7 @@ pub fn switch_to(t: u64, fpu_disabled: bool) {
         set_ts(true);
         return;
     }
-    let pc = percpu::get();
-    if pc.fpu_owner.load(Ordering::Relaxed) == t {
+    if percpu::fpu_owner(percpu::cpu_index()) == t {
         set_ts(false);
         return;
     }
@@ -352,13 +351,12 @@ pub fn switch_to(t: u64, fpu_disabled: bool) {
 
 /// Save the owner's state, if any, and load `t`'s.
 fn load(t: u64) {
-    let pc = percpu::get();
-    let owner = pc.fpu_owner.load(Ordering::Relaxed);
+    let owner = percpu::fpu_owner(percpu::cpu_index());
     if owner != 0 {
         save(owner);
     }
     restore(t);
-    percpu::get().fpu_owner.store(t, Ordering::Release);
+    percpu::set_fpu_owner(t);
 }
 
 /// #NM from thread `t` on the lazy path: give it the FPU. Runs in the
@@ -370,7 +368,7 @@ pub fn lazy_load(t: u64) {
         core::ptr::write_volatile(use_count(t), n.saturating_add(1).max(1));
     }
     set_ts(false);
-    if percpu::get().fpu_owner.load(Ordering::Relaxed) != t {
+    if percpu::fpu_owner(percpu::cpu_index()) != t {
         load(t);
     }
 }
@@ -379,8 +377,8 @@ pub fn lazy_load(t: u64) {
 /// goes back to what it was: from a remote call, the interrupted thread may
 /// be one that must still trap on its first FPU instruction.
 pub fn flush_local(t: u64) {
-    if percpu::get().fpu_owner.load(Ordering::Relaxed) == t {
-        let ts = percpu::get().ts_set;
+    if percpu::fpu_owner(percpu::cpu_index()) == t {
+        let ts = percpu::get().ts_set.get();
         set_ts(false);
         save(t);
         set_ts(ts);
@@ -389,15 +387,14 @@ pub fn flush_local(t: u64) {
 
 /// Forget `t`'s state if it is live on this core.
 pub fn forget_local(t: u64) {
-    let pc = percpu::get();
-    if pc.fpu_owner.load(Ordering::Relaxed) == t {
-        pc.fpu_owner.store(0, Ordering::Release);
+    if percpu::fpu_owner(percpu::cpu_index()) == t {
+        percpu::set_fpu_owner(0);
     }
 }
 
 /// The core whose registers hold `t`'s FPU state, if any.
 fn owner_core(t: u64) -> Option<usize> {
-    (0..percpu::MAX_CPUS).find(|&c| percpu::get_for(c).fpu_owner.load(Ordering::Acquire) == t)
+    (0..percpu::MAX_CPUS).find(|&c| percpu::fpu_owner(c) == t)
 }
 
 /// Whether some core's registers hold `t`'s FPU state.

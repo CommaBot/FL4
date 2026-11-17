@@ -1,6 +1,6 @@
 //! Per-core backend state, and which core the caller runs on.
-use core::cell::UnsafeCell;
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::cell::{Cell, UnsafeCell};
+use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 /// Cores the backend has room for.
 pub const MAX_CPUS: usize = 16;
@@ -9,89 +9,117 @@ pub const NO_IRQ: u64 = u64::MAX;
 
 #[repr(C)]
 pub struct PerCpu {
-    /// Top of this core's kernel stack in KSTACKS.
-    pub stack_top: u64,
     /// The core is in the idle loop.
-    pub idle: bool,
+    pub idle: Cell<bool>,
     /// The kernel is polling for an interrupt (`take_pending_irq`).
-    pub polling: bool,
+    pub polling: Cell<bool>,
     /// The IRQ a poll accepted.
-    pub polled_irq: u64,
-    /// TCB whose FPU state is live in this core's registers (0 = none).
-    /// Other cores read it (fpu::owner_core): written with Release after
-    /// the save or restore it reports, read with Acquire.
-    pub fpu_owner: AtomicU64,
+    pub polled_irq: Cell<u64>,
     /// CR0.TS is set (the current thread may not use the FPU).
-    pub ts_set: bool,
+    pub ts_set: Cell<bool>,
     /// User FS/GS bases currently loaded.
-    pub fs_base: u64,
-    pub gs_base: u64,
+    pub fs_base: Cell<u64>,
+    pub gs_base: Cell<u64>,
     /// Debug registers hold a thread's breakpoints.
-    pub dr_loaded: bool,
-    /// The user address space this core runs (CR3 value and ASID). With
+    pub dr_loaded: Cell<bool>,
+    /// The user address space this core runs (CR3 value). With
     /// the skim window the kernel runs on its own tables (entry.S loads
     /// them on every entry) and `exit_cr3` is what the exit to user code
     /// loads.
-    pub cr3: u64,
-    pub asid: u64,
-    pub exit_cr3: u64,
+    pub cr3: Cell<u64>,
+    pub exit_cr3: Cell<u64>,
     /// The ASIDs this core's PCIDs hold (tlb.rs).
-    pub pcids: [crate::tlb::Slot; crate::tlb::SLOTS],
-    pub apic_id: u32,
+    pub pcids: [Cell<crate::tlb::Slot>; crate::tlb::SLOTS],
     /// This core holds the serial gate.
-    pub gate_held: bool,
+    pub gate_held: Cell<bool>,
     /// The deadline the timer is armed for (TSC ticks; 0 = none).
-    pub armed: u64,
+    pub armed: Cell<u64>,
     /// A transaction runs on this core (Arch effects are queued).
-    pub tx: bool,
-    pub effects: [crate::arch::Effect; crate::arch::MAX_EFFECTS],
-    pub neffects: usize,
+    pub tx: Cell<bool>,
+    pub effects: [Cell<crate::arch::Effect>; crate::arch::MAX_EFFECTS],
+    pub neffects: Cell<usize>,
     /// An interrupt accepted during the current entry, offered again if
     /// the entry's transaction reruns.
-    pub held_irq: u64,
+    pub held_irq: Cell<u64>,
     /// The current run of the entry (transaction attempt or serial run)
     /// was given `held_irq`.
-    pub held_used: bool,
+    pub held_used: Cell<bool>,
     /// Initialized locally before enabling virtualization.
-    pub spec_plan: Option<crate::spec::policy::Plan>,
-    pub spec_rejected: Option<crate::spec::policy::Rejected>,
+    pub spec_plan: Cell<Option<crate::spec::policy::Plan>>,
+    pub spec_rejected: Cell<Option<crate::spec::policy::Rejected>>,
 }
 
 impl PerCpu {
     const fn new() -> PerCpu {
         PerCpu {
-            stack_top: 0,
-            idle: false,
-            polling: false,
-            polled_irq: NO_IRQ,
-            fpu_owner: AtomicU64::new(0),
-            ts_set: false,
-            fs_base: 0,
-            gs_base: 0,
-            dr_loaded: false,
-            cr3: 0,
-            asid: 0,
-            exit_cr3: 0,
-            pcids: [crate::tlb::Slot::EMPTY; crate::tlb::SLOTS],
-            apic_id: 0,
-            gate_held: false,
-            armed: 0,
-            tx: false,
-            effects: [crate::arch::Effect::Ack; crate::arch::MAX_EFFECTS],
-            neffects: 0,
-            held_irq: NO_IRQ,
-            held_used: false,
-            spec_plan: None,
-            spec_rejected: None,
+            idle: Cell::new(false),
+            polling: Cell::new(false),
+            polled_irq: Cell::new(NO_IRQ),
+            ts_set: Cell::new(false),
+            fs_base: Cell::new(0),
+            gs_base: Cell::new(0),
+            dr_loaded: Cell::new(false),
+            cr3: Cell::new(0),
+            exit_cr3: Cell::new(0),
+            pcids: [const { Cell::new(crate::tlb::Slot::EMPTY) }; crate::tlb::SLOTS],
+            gate_held: Cell::new(false),
+            armed: Cell::new(0),
+            tx: Cell::new(false),
+            effects: [const { Cell::new(crate::arch::Effect::Ack) }; crate::arch::MAX_EFFECTS],
+            neffects: Cell::new(0),
+            held_irq: Cell::new(NO_IRQ),
+            held_used: Cell::new(false),
+            spec_plan: Cell::new(None),
+            spec_rejected: Cell::new(None),
         }
     }
 }
 
-struct Cells(UnsafeCell<[PerCpu; MAX_CPUS]>);
-// SAFETY: each core touches only its own entry, with interrupts disabled.
-unsafe impl Sync for Cells {}
+struct Locals([PerCpu; MAX_CPUS]);
+// SAFETY: get() indexes by the running CPU. PerCpu contains Cell and
+// cannot be shared across threads through a reference.
+unsafe impl Sync for Locals {}
+static PERCPU: Locals = Locals([const { PerCpu::new() }; MAX_CPUS]);
 
-static PERCPU: Cells = Cells(UnsafeCell::new([const { PerCpu::new() }; MAX_CPUS]));
+/// Fields accessed from another CPU. The AP publishes its APIC ID before
+/// joining the online mask; the FPU and TLB protocols synchronize separately.
+struct Shared {
+    pub apic_id: AtomicU32,
+    pub fpu_owner: AtomicU64,
+    pub asid: AtomicU64,
+}
+
+static SHARED: [Shared; MAX_CPUS] = [const {
+    Shared { apic_id: AtomicU32::new(0), fpu_owner: AtomicU64::new(0), asid: AtomicU64::new(0) }
+}; MAX_CPUS];
+
+fn shared(cpu: usize) -> &'static Shared {
+    &SHARED[cpu]
+}
+
+pub fn apic_id(cpu: usize) -> u32 {
+    shared(cpu).apic_id.load(Ordering::Relaxed)
+}
+
+pub fn set_apic_id(id: u32) {
+    shared(cpu_index()).apic_id.store(id, Ordering::Relaxed);
+}
+
+pub(crate) fn fpu_owner(cpu: usize) -> u64 {
+    shared(cpu).fpu_owner.load(Ordering::Acquire)
+}
+
+pub(crate) fn set_fpu_owner(owner: u64) {
+    shared(cpu_index()).fpu_owner.store(owner, Ordering::Release);
+}
+
+pub(crate) fn current_asid(cpu: usize) -> u64 {
+    shared(cpu).asid.load(Ordering::SeqCst)
+}
+
+pub(crate) fn publish_asid(asid: u64) {
+    shared(cpu_index()).asid.store(asid, Ordering::SeqCst);
+}
 
 #[repr(C, align(4096))]
 pub struct Stacks(pub UnsafeCell<[[u8; KSTACK_SIZE]; MAX_CPUS]>);
@@ -134,25 +162,15 @@ pub fn cpu_index() -> usize {
     index_of(rsp, KSTACKS.0.get() as u64, SKIM_BASE.load(Ordering::Relaxed), SKIM_STRIDE.load(Ordering::Relaxed))
 }
 
-/// This core's state. Callers run with interrupts disabled and must not
-/// hold two of these references at once.
-#[allow(clippy::mut_from_ref)]
-pub fn get() -> &'static mut PerCpu {
-    get_for(cpu_index())
+/// The current CPU's private state. Field accesses borrow only shared
+/// references, including when a nested entry uses the same CPU.
+pub fn get() -> &'static PerCpu {
+    &PERCPU.0[cpu_index()]
 }
 
-#[allow(clippy::mut_from_ref)]
-pub fn get_for(i: usize) -> &'static mut PerCpu {
-    unsafe { &mut (*PERCPU.0.get())[i] }
-}
-
-/// Set up `i`'s stack top; returns it.
-pub fn init(i: usize) -> u64 {
-    let base = unsafe { (*KSTACKS.0.get())[i].as_ptr() as u64 };
-    let top = base + KSTACK_SIZE as u64;
-    let p = get_for(i);
-    p.stack_top = top;
-    top
+pub fn stack_top(cpu: usize) -> u64 {
+    assert!(cpu < MAX_CPUS);
+    KSTACKS.0.get() as u64 + ((cpu + 1) * KSTACK_SIZE) as u64
 }
 
 #[cfg(test)]

@@ -55,7 +55,7 @@ pub fn multi() -> bool {
 
 fn ipi(c: usize, vector: u32) {
     // Fixed delivery, physical destination, assert.
-    apic::send_ipi(percpu::get_for(c).apic_id, vector | (1 << 14));
+    apic::send_ipi(percpu::apic_id(c), vector | (1 << 14));
 }
 
 /// Make the cores in `mask` (other than this one) run a remote call, and

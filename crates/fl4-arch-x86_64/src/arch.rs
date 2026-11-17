@@ -40,7 +40,7 @@ pub enum Effect {
 pub const MAX_EFFECTS: usize = 64;
 
 fn in_tx() -> bool {
-    percpu::get().tx
+    percpu::get().tx.get()
 }
 
 fn serial_needed() {
@@ -50,23 +50,23 @@ fn serial_needed() {
 /// Queue `e` if a transaction runs; returns whether it did.
 fn defer(e: Effect) -> bool {
     let pc = percpu::get();
-    if !pc.tx {
+    if !pc.tx.get() {
         return false;
     }
-    if pc.neffects == MAX_EFFECTS {
+    if pc.neffects.get() == MAX_EFFECTS {
         serial_needed();
     } else {
-        pc.effects[pc.neffects] = e;
-        pc.neffects += 1;
+        pc.effects[pc.neffects.get()].set(e);
+        pc.neffects.set(pc.neffects.get() + 1);
     }
     true
 }
 
 /// Run the effects the committed transaction queued.
 pub fn apply_effects() {
-    let n = percpu::get().neffects;
+    let n = percpu::get().neffects.get();
     for i in 0..n {
-        match percpu::get().effects[i] {
+        match percpu::get().effects[i].get() {
             Effect::Deadline(t) => timer::set_deadline(t),
             Effect::Mask(irq, m) => ioapic::mask(irq, m),
             Effect::Forget(irq) => ioapic::forget(irq),
@@ -76,12 +76,12 @@ pub fn apply_effects() {
             Effect::Putc(c) => serial::putc(c),
         }
     }
-    percpu::get().neffects = 0;
+    percpu::get().neffects.set(0);
 }
 
 /// Drop the effects of a transaction that did not commit.
 pub fn discard_effects() {
-    percpu::get().neffects = 0;
+    percpu::get().neffects.set(0);
 }
 
 /// IRQ `irq` is free again (its handler was deleted): mask its pin and drop
@@ -134,18 +134,18 @@ impl Arch for PhysArch {
     /// transaction that reruns sees it again.
     fn take_pending_irq(&mut self) -> u64 {
         let pc = percpu::get();
-        if pc.held_irq != percpu::NO_IRQ {
-            pc.held_used = true;
-            return pc.held_irq;
+        if pc.held_irq.get() != percpu::NO_IRQ {
+            pc.held_used.set(true);
+            return pc.held_irq.get();
         }
-        pc.polled_irq = percpu::NO_IRQ;
-        pc.polling = true;
+        pc.polled_irq.set(percpu::NO_IRQ);
+        pc.polling.set(true);
         cpu::enable_interrupts_briefly();
         let pc = percpu::get();
-        pc.polling = false;
-        pc.held_irq = pc.polled_irq;
-        pc.held_used = pc.held_irq != percpu::NO_IRQ;
-        pc.polled_irq
+        pc.polling.set(false);
+        pc.held_irq.set(pc.polled_irq.get());
+        pc.held_used.set(pc.held_irq.get() != percpu::NO_IRQ);
+        pc.polled_irq.get()
     }
     fn mask_irq(&mut self, irq: u64, mask: bool) {
         if !defer(Effect::Mask(irq, mask)) {
@@ -198,7 +198,7 @@ impl Arch for PhysArch {
             serial_needed();
             return true;
         }
-        ioapic::map(ioapic, pin, level, polarity, vector, percpu::get_for(0).apic_id, 0, 0);
+        ioapic::map(ioapic, pin, level, polarity, vector, percpu::apic_id(0), 0, 0);
         true
     }
     fn ioapic_map_remapped(&mut self, ioapic: u64, pin: u64, level: u64, polarity: u64, vector: u64, handle: u64) -> bool {

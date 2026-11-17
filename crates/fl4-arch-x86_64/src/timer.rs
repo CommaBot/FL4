@@ -175,7 +175,7 @@ pub fn now() -> u64 {
 
 /// Interrupt at TSC value `ticks` (or as soon as possible if it passed).
 pub fn set_deadline(ticks: u64) {
-    crate::percpu::get().armed = ticks;
+    crate::percpu::get().armed.set(ticks);
     if DEADLINE.load(Ordering::Relaxed) {
         wrmsr(msr::TSC_DEADLINE, if ticks == 0 { 1 } else { ticks });
     } else {
@@ -201,7 +201,7 @@ fn arm_countdown(ticks: u64) {
 /// interrupt the hardware (or a hypervisor) delivers a little before the
 /// deadline finds the deadline MSR cleared: it is due, not stale.
 pub fn early() -> bool {
-    let armed = crate::percpu::get().armed;
+    let armed = crate::percpu::get().armed.get();
     if armed == 0 || rdtsc() >= armed {
         return false;
     }

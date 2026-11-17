@@ -54,7 +54,7 @@ fn wait_us(us: u64) {
 pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {
     unsafe { FEATURES = f };
     let max = (MAX_NODES as usize).min(percpu::MAX_CPUS);
-    let bsp = percpu::get().apic_id;
+    let bsp = percpu::apic_id(percpu::cpu_index());
     let smt_shift = fl4_arch_x86_64::spec::smt_shift();
     let tramp = unsafe { &fl4_ap_trampoline as *const u8 };
     let len = unsafe { &fl4_ap_trampoline_end as *const u8 as usize } - tramp as usize;
@@ -67,7 +67,7 @@ pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {
             continue;
         }
         let c = next;
-        let stack_top = percpu::init(c);
+        let stack_top = percpu::stack_top(c);
         unsafe {
             core::ptr::copy_nonoverlapping(tramp, pptr(AP_BASE) as *mut u8, len);
             let d = (pptr(AP_BASE) as usize + data_off) as *mut u64;
@@ -123,19 +123,19 @@ extern "C" fn fl4_ap_main(c: u64) -> ! {
     let f = unsafe { FEATURES };
     cpu::write_cr3(paging::root_paddr());
     cpu::write_cr4(f.cr4);
-    let stack_top = percpu::get_for(c as usize).stack_top;
+    let stack_top = percpu::stack_top(c as usize);
     gdt::init_core(c as usize, stack_top);
     cpu::init_pat();
     fpu::init();
     if !fl4_arch_x86_64::spec::init_core(false) { reject_ap(REJECT_SPEC); }
     if !fl4_arch_x86_64::vm::init(false) { reject_ap(REJECT_VM); }
-    percpu::get().cr3 = paging::root_paddr();
+    percpu::get().cr3.set(paging::root_paddr());
     apic::enable(pptr(apic::base_paddr()));
     apic::write(apic::REG_SVR, (1 << 8) | 0xff);
     apic::write(apic::REG_LVT_LINT0, 1 << 16);
     apic::write(apic::REG_LVT_LINT1, 1 << 16);
     apic::write(apic::REG_LVT_ERROR, 1 << 16);
-    percpu::get().apic_id = apic::id();
+    percpu::set_apic_id(apic::id());
     timer::init_core(TIMER_VECTOR);
     smp::set_online(c as usize);
     while !BOOT_DONE.load(Ordering::Acquire) {

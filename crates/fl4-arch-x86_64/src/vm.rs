@@ -637,7 +637,7 @@ pub fn run<S: Store>(s: &mut S, v: u64, tcb: u64, root: u64) -> u64 {
             cpu::write_dr(i, 0);
         }
     }
-    percpu::get().dr_loaded = false;
+    percpu::get().dr_loaded.set(false);
     let mut run = Run {
         regs: [0; 15],
         reserved: 0,
