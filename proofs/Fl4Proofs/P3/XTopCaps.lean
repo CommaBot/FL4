@@ -67,7 +67,7 @@ theorem stepClosed_xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) 
     fun s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci _ _ _ _ hw hCR hFI hMO hTS _ _ _ _ Z hth hX hK hTh => ?_,
     fun s s' a σ σ' hS Z hth hX hK hTh => ?_,
     fun s s' a σ σ' G' hcn hkc _ _ _ hw hCR hFI hMO hTS _ _ _ _ _ _ _ _ _ Z hth hX hK hTh => ?_,
-    fun s s' a a' σ σ' sl p b w r hA hc hd hm Z hth hX hK hTh =>
+    fun s s' a a' σ σ' sl p b w r hA _ hc hd hm Z hth hX hK hTh =>
       hDel Z s s' a a' σ σ' sl p b w r hth hX hK hTh hA hc hd hm⟩
   · obtain ⟨G1, V1, hX1, hk1⟩ := h1 Z hth hX hK hTh
     obtain ⟨G2, V2, hX2, hk2⟩ := h2 (Z.mv G1 V1) hth hX1 (by rw [hk1]; exact hK) hTh
