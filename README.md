@@ -37,8 +37,12 @@ Host dependencies live in `$FL4_DEPS` (default `~/Projects/fl4-deps`):
 
 FL4 exposes the seL4 VCPU/EPT API and the l4h extensions from patches
 0038–0043. One image selects Intel VT-x or AMD-V at boot. On unsupported
-CPUs, firmware-disabled virtualization, or the SKIM path, boot continues
+CPUs, firmware-disabled virtualization, missing mitigation microcode or
+capabilities, or the SKIM path on the boot processor, native boot continues
 and retyping VCPU/EPT objects returns `seL4_InvalidArgument` for the type.
+Incompatible enabled application processors or their startup timeouts halt boot
+before userspace starts; an already-selected backend is not downgraded during
+AP startup. Disabled CPU hotplug slots are not started.
 `KernelVTX` and `KernelX86_64VTX64BitGuests` are always enabled in the ABI.
 
 Use `seL4_X86_ASIDPool_Assign` for an EPT root and
@@ -71,6 +75,23 @@ MSR and descriptor-table work. Guest FPU state is the bound TCB's;
 XCR0, CR2, syscall MSRs, descriptor-table limits, and host state are
 restored on successful and failed entries.
 
+VT-x supports Intel CPUs reporting `RDCL_NO` (hardware Meltdown immunity);
+AMD-V supports Zen 2 and newer. Required security microcode must be installed
+by firmware. Enhanced/Automatic IBRS are used when present; older supported
+CPUs use software return-stack protection. IBPB runs on kernel entry and VM
+exit, including the return to the userspace VMM. Intel additionally uses
+legacy IBRS, PBRSB, and BHI protection where needed. Memory-form VERW clears
+CPU buffers before guest/user entry and idle on affected CPUs. SMT siblings
+are parked on SRSO-affected AMD and MDS/MMIO-affected Intel CPUs; STIBP is
+enabled when supported. Missing required protections disable virtualization
+on the boot processor with a diagnostic. Nested hosts must expose mitigation
+capabilities accurately. See [the security policy](docs/virtualization-security.md) for
+firmware checks, SMT restrictions, and validation limits.
+
+The requirements are checked on each core. VMX event and instruction metadata
+is copied only where architecturally defined; invalid vector/error fields
+and undefined instruction bits are zeroed before reaching the VMM.
+
 Virtualization regression tests run real guests and cover field restrictions,
 CPUID/HLT exits, repeated entry, failed entry, GPRs, notifications,
 replacement of cached nested mappings, explicit guest TLB invalidation,
@@ -78,10 +99,13 @@ same-value CR3 writes, cross-core rebinding, migration,
 revocation, and deletion of a running VCPU:
 
 ```
-cargo test -p fl4-core
-FL4_TESTS='^FL4VCPU' cargo xtask fl4test --smp 4 --setup kvm
-FL4_TESTS='^FL4VCPU' cargo xtask fl4test --smp 2 --setup kvm-no-vm
-FL4_TESTS='^FL4VCPU' cargo xtask fl4test --smp 1 --setup kvm-no-pmu
+cargo test -p fl4-core -p fl4-arch-x86_64
+FL4_EXPECT_VM=present FL4_TESTS='^FL4VCPU' cargo xtask fl4test --smp 4 --setup kvm
+FL4_EXPECT_VM=absent FL4_TESTS='^FL4VCPU' cargo xtask fl4test --smp 2 --setup kvm-no-vm
+FL4_EXPECT_VM=present FL4_TESTS='^FL4VCPU' cargo xtask fl4test --smp 2 --setup kvm-no-ibrs
+FL4_EXPECT_VM=absent FL4_TESTS='^FL4VCPU' cargo xtask fl4test --smp 2 --setup kvm-no-ibpb
+FL4_EXPECT_VM=absent FL4_TESTS='^FL4VCPU' cargo xtask fl4test --smp 2 --setup kvm-no-rdcl
+FL4_EXPECT_VM=present FL4_TESTS='^FL4VCPU' cargo xtask fl4test --smp 1 --setup kvm-no-pmu
 FL4_P0_STRICT=1 cargo xtask gate
 ```
 
@@ -100,6 +124,13 @@ VMCS path has stateful host tests and a two-core Bochs 3.0 VMX run covering
 repeated and failed entry, mapping replacement, migration, revocation and
 deletion. That emulator run enabled guest IF for the timer and loop tests:
 the IF-clear timer test also hangs with the original backend in Bochs.
+The RSB/PBRSB/BHB sequences have a host assembly regression checking register
+and stack restoration and a linked-kernel instruction-order check. The Bochs
+run predates the current mitigation policy. The available AMD runner lacks
+TSA microcode: positive guest tests use an explicitly labelled QEMU
+`VERW_CLEAR` capability fixture, while the unmodified capability set correctly
+disables virtualization. These runs validate control flow, not hardware TSA
+protection. See the security policy for reproduction commands.
 Intel hardware validation of the retained VMCS path remains outstanding.
 VMX performance-MSR switching is enabled only when CPUID exposes a suitable
 PMU; a PMU-present Intel hardware runtime has not been tested.

@@ -68,9 +68,11 @@ fl4_vmx_run:
     load_guest
     movq (%rax), %rax
     jne .Lvmresume
+    fl4_clear_buffers
     vmlaunch
     jmp .Lentry_failed
 .Lvmresume:
+    fl4_clear_buffers
     vmresume
 .Lentry_failed:
     pushq $1
@@ -84,7 +86,10 @@ fl4_vmx_exit:
     movq %rcx, (%rax)
     popq %rcx
     movq %rcx, 176(%rax)
+    movl 200(%rax), %r11d
+    fl4_spec_barrier %r11d
     cld
+    fl4_clear_guest_gprs
     restore_host
 
 .global fl4_svm_run
@@ -95,13 +100,20 @@ fl4_svm_run:
     load_guest
     movq 128(%rax), %rax
     vmload %rax
+    fl4_clear_buffers
     vmrun %rax
     cli
     vmsave %rax
     save_guest 8
     addq $8, %rsp
+    movl 200(%rax), %r11d
     movq 136(%rax), %rax
     vmload %rax
+    /* Restore host segment/MSR state first, then invalidate guest branch
+     * predictions and, on Zen 2/3, overwrite the RAP. GIF stays clear
+     * until after the barrier; no RET or indirect branch precedes it. */
+    fl4_spec_barrier %r11d
     cld
+    fl4_clear_guest_gprs
     stgi
     restore_host
