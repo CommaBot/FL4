@@ -16,12 +16,13 @@ premises of the plan's §2 are derived (the CSpace relation, `FinInv`,
   discharge `XPostDelHyp` and `XDelNtfnHyp` (XTopPostDel, XTopDelOne).
 * `decode_invocation_cnodeJAt`: the CNode cap.
 * `decode_invocation_threadJAt`: the Thread cap (TcbXRest from the IPC/Sc
-  leaves `TcbXIpc`, the open labels `TcbXOpen4`).
+  leaves `TcbXIpc`, the open labels `TcbXOpen3`).
 -/
 import Fl4Proofs.P3.ScJoint
 import Fl4Proofs.P3.XTopFinIrq
 import Fl4Proofs.P3.XTopPortIn
 import Fl4Proofs.P3.XTopIrqH
+import Fl4Proofs.P3.XTopTcbBp
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -119,7 +120,7 @@ heap [global]: `ActReady` (at `WX`), `BufWordRel`, the IPC-buffer caps
 facts (the extra caps, the authority's and the SC caps' objects, no null SC,
 the target not idle, the argument reads, the remote stall the identity [P],
 the core's `CUR_THREAD` word outside the objects); the IPC/Sc leaves
-(`TcbXIpc`), the open labels (`TcbXOpen4`), GetBreakpoint's read (`GetBpHyp`
+(`TcbXIpc`), the open labels (`TcbXOpen3`), the arguments (`ArgRel` [J], five), GetBreakpoint's read (`GetBpHyp`
 [P]), SetFlags' FPU release (`FpuRelXHyp` [P]). -/
 theorem decode_invocation_threadJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hG : CsGlobal (L := L) arI AR Z.th)
@@ -154,10 +155,10 @@ theorem decode_invocation_threadJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (hcapT : ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T)
     (hcapC : ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ Z.C) (hC0 : ∀ q ∈ Z.C, q ≠ 0#u64)
     (hcapN : ∀ q b w r, capV (L.mem s) x0 = .Notification q b w r → q ∈ Z.N)
-    (hA2 : ArgRel (st := st) s σ ct buf buffer 2) (hGb : GetBpHyp (st := st) s ct p)
+    (hA5 : ArgRel (st := st) s σ ct buf buffer 5) (hGb : GetBpHyp (st := st) s ct p)
     (hFpu : FpuRelXHyp (L := L) arI AR Z.th p ct)
     (hI : TcbXIpc (L := L) arI AR Z.th s ar σ p ct buf argsU blk call don)
-    (hO : TcbXOpen4 (L := L) arI (XTop (L := L) AR) s ar σ lbl p ⟨length, buf, call, cslotAddr sl, extra⟩ blk call
+    (hO : TcbXOpen3 (L := L) arI (XTop (L := L) AR) s ar σ lbl p ⟨length, buf, call, cslotAddr sl, extra⟩ blk call
       don slbl (argsU.map UScalar.bv) ci sl excaps buffer) :
     XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf extra slbl
       (argsU.map UScalar.bv) ci sl excaps buffer ct := by
@@ -168,9 +169,12 @@ theorem decode_invocation_threadJAt (s : S) (ar : A) (σ : Fl4Spec.State Unit)
   exact decode_invocation_threadXL arI s ar σ hX J.ks J.curRun J.thT J.del hG.fin hG.pre (hG.postDel arI hARI hT)
     J.bound hA hBT J.ip lbl length p hp blk call don fp buf extra ct hct hcur slbl hlbl argsU hlen hargs ci sl hAs
     excaps buffer hext hstall' hNative J.kern.act hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 J.mcp hcapT hcapC hC0
-    hcapN (fun i hi => hA2 i (by omega)) hI
+    hcapN (fun i hi => hA5 i (by omega)) hI
     (tcbXOpen_of arI s ar σ hX J.ks J.curRun J.thT J.del hBT J.ip hOK hBC hBPl hFl lbl length p hp blk call don buf
-      extra ct hct hcur slbl hlbl argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act hA2 hGb hFpu hO)
+      extra ct hct hcur slbl hlbl argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act
+      (fun i hi => hA5 i (by omega)) hGb hFpu
+      (tcbXOpen4_of arI s ar σ hX J.curRun J.thT J.del lbl length p hp blk call don buf extra ct hct hcur slbl hlbl
+        (argsU.map UScalar.bv) ci sl excaps buffer hext hstall' J.kern.act hA5 hO))
 
 set_option maxHeartbeats 4000000 in
 /-- **The IRQ control cap on `JAt`** (`decode_invocation_irq_controlX`; the

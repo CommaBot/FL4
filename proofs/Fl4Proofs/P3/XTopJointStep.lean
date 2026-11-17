@@ -566,16 +566,16 @@ theorem decode_invocation_threadJ_step (s : S) (ar : A) (σ : Fl4Spec.State Unit
     (hcapT : ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T)
     (hcapC : ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ Z.C) (hC0 : ∀ q ∈ Z.C, q ≠ 0#u64)
     (hcapN : ∀ q b w r, capV (L.mem s) x0 = .Notification q b w r → q ∈ Z.N)
-    (hA2 : ArgRel (st := st) s σ ct buf buffer 2) (hGb : GetBpHyp (st := st) s ct p)
+    (hA5 : ArgRel (st := st) s σ ct buf buffer 5) (hGb : GetBpHyp (st := st) s ct p)
     (hFpu : FpuRelXHyp (L := L) arI AR Z.th p ct)
     (hI : TcbXIpc (L := L) arI AR Z.th s ar σ p ct buf argsU blk call don)
-    (hO : TcbXOpen4 (L := L) arI (XTop (L := L) AR) s ar σ lbl p ⟨length, buf, call, cslotAddr sl, extra⟩ blk call
+    (hO : TcbXOpen3 (L := L) arI (XTop (L := L) AR) s ar σ lbl p ⟨length, buf, call, cslotAddr sl, extra⟩ blk call
       don slbl (argsU.map UScalar.bv) ci sl excaps buffer)
     (hR : JPostHyp (L := L) arI AR s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf extra slbl
       (argsU.map UScalar.bv) ci sl excaps buffer ct) :
     XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf extra slbl
       (argsU.map UScalar.bv) ci sl excaps buffer ct :=
-  XCap.jat arI (decode_invocation_threadJAt arI s ar σ J hG hARI hT hA hBT hOK hBC hBPl hFl lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl hAs hsc excaps buffer hext hstall' hNative hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapT hcapC hC0 hcapN hA2 hGb hFpu hI hO) J hR
+  XCap.jat arI (decode_invocation_threadJAt arI s ar σ J hG hARI hT hA hBT hOK hBC hBPl hFl lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl hAs hsc excaps buffer hext hstall' hNative hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapT hcapC hC0 hcapN hA5 hGb hFpu hI hO) J hR
 
 set_option maxHeartbeats 4000000 in
 /-- **`decode_invocation_ioportJAt`, `JAt` after**, with the per-op premise (`JPostHyp` [W]). -/
