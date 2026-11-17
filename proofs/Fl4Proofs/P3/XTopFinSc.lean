@@ -194,9 +194,9 @@ of the yielder, `XTopAt Z` after, the slots and the kernel base kept, the
 spec's caps kept. -/
 def ScYieldFinHyp (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (p : U64) : Prop :=
   ∀ s a σ, XTopAt (L := L) AR Z s a σ → L.mem s (scYieldFromA p) ≠ 0#u64 →
-    schedcontext.complete_yield_to st arI s a (L.mem s (scYieldFromA p)) ⦃ r => ∃ σ',
+    schedcontext.complete_yield_to st arI s a (L.mem s (scYieldFromA p)) ⦃ r => ∃ σ', ∃ V' : XVs,
       Fl4Spec.completeYieldTo (Z := Unit) (L.mem s (scYieldFromA p)).bv σ = ({((), σ')}, False) ∧
-      XTopAt (L := L) AR Z r.1 r.2 σ' ∧ SlotsSame Z.th (L.mem s) (L.mem r.1) ∧ L.ksb r.1 = L.ksb s ∧
+      XTopAt (L := L) AR (Z.mv Z.G V') r.1 r.2 σ' ∧ SlotsSame Z.th (L.mem s) (L.mem r.1) ∧ L.ksb r.1 = L.ksb s ∧
       Fl4Proofs.P3.CKeep σ σ' ⦄
 
 /-- **What an SC cap's finalisation at `XTop` reads** [J] (module docstring). -/
@@ -291,7 +291,7 @@ theorem xFinSc_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
   obtain ⟨Q3, R3, hc3, hs3⟩ := hS3.lists
   obtain ⟨y3, n3, hk3, hx3⟩ := hs3.scs p hpC
   -- the inactive SC and the post
-  have fin5 : ∀ (s4 : S) (a4 : A) (σ4 : Fl4Spec.State Unit), XTopAt (L := L) AR Z s4 a4 σ4 →
+  have fin5 : ∀ (s4 : S) (a4 : A) (σ4 : Fl4Spec.State Unit) (V : XVs), XTopAt (L := L) AR (Z.mv Z.G V) s4 a4 σ4 →
       SlotsSame Z.th (L.mem s) (L.mem s4) → L.ksb s4 = L.ksb s → Fl4Proofs.P3.CKeep σ σ4 →
       Fl4Spec.schedContextUnbindYieldFrom (Z := Unit) p.bv σ3 = ({((), σ4)}, False) →
       (do
@@ -299,7 +299,7 @@ theorem xFinSc_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
         let s6 ← obj.Sc.set_sporadic st p s5 0#u64
         ok ((capability.Cap.Null, capability.Cap.Null), s6, a4)) ⦃ r =>
         FinXPost (L := L) AR Z s σ sl (.SchedContext p sb) r ⦄ := by
-    intro s4 a4 σ4 hX4 hss4 kb4 hck4 he4
+    intro s4 a4 σ4 V hX4 hss4 kb4 hck4 he4
     have hS4 := hX4.fin.1.1.1
     have hR4 := hX4.fin.1.1.2.2.1
     obtain ⟨Q4, R4, hc4, hs4⟩ := hS4.lists
@@ -324,7 +324,7 @@ theorem xFinSc_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
     have hck := hck4.trans hK6.ckeep
     refine ⟨rfl, trivial, trivial, _, Z.G, ?_, DState.of_same hDS hssA hX6.rel.2.1 hck.ks,
       by rw [hssA.capV hA.isSlot]; exact capV_of_capAt hc, fun y hy _ => Or.inl (hssA.capV hy),
-      MdbStep.of_same hDS.1.2.2.1 hssA, ⟨Z.vs, hX6⟩, hW6.1.trans kb4⟩
+      MdbStep.of_same hDS.1.2.2.1 hssA, ⟨V, hX6⟩, hW6.1.trans kb4⟩
     rw [← hfd, hfin]
     exact finSc_mem he1 he2 he3 he4 he5
   -- the yielder
@@ -333,14 +333,14 @@ theorem xFinSc_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
   by_cases h0 : i = 0#u64
   · have hb : b0 = true := by rw [hb0, h0]; rfl
     simp only [hb, ↓reduceIte, bind_ok]
-    refine fin5 s3 a1 σ3 hX3 hssA3 kb3 hck3 (unbindYieldFrom_none hk3 ?_)
+    refine fin5 s3 a1 σ3 Z.vs hX3 hssA3 kb3 hck3 (unbindYieldFrom_none hk3 ?_)
     rw [hx3.yieldFrom, ← scYieldFromA_eq, ← hi, h0, Notif.optRef_zero]
   · have hb : b0 = false := by rw [hb0]; simp [h0]
     simp only [hb, Bool.false_eq_true, ↓reduceIte]
     rw [hi]
     refine WP.spec_bind (hYp s3 a1 σ3 hX3 (by rw [← hi]; exact h0)) ?_
-    rintro ⟨s4, a4⟩ ⟨σ4, e4, hX4, hss4, kb4, hck4⟩
-    refine fin5 s4 a4 σ4 hX4 (hssA3.trans hss4) (kb4.trans kb3) (hck3.trans hck4) (unbindYieldFrom_some hk3 ?_ e4)
+    rintro ⟨s4, a4⟩ ⟨σ4, V4, e4, hX4, hss4, kb4, hck4⟩
+    refine fin5 s4 a4 σ4 V4 hX4 (hssA3.trans hss4) (kb4.trans kb3) (hck3.trans hck4) (unbindYieldFrom_some hk3 ?_ e4)
     rw [hx3.yieldFrom, ← scYieldFromA_eq, Notif.optRef_ne (by rw [← hi]; exact h0)]
 
 end
