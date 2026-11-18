@@ -32,12 +32,16 @@ impl tx::Mem for Phys {
 
 pub struct PhysStore {
     pub ks_base: u64,
+    pub frame_masks: (u64, u64),
     pub cpu: u64,
     /// Run inside this core's transaction.
     pub tx: bool,
 }
 
 impl Store for PhysStore {
+    #[inline(always)]
+    fn frame_masks(&self) -> (u64, u64) { self.frame_masks }
+
     #[inline(always)]
     fn read(&self, addr: u64) -> u64 {
         debug_assert!(addr & 7 == 0);
@@ -102,6 +106,7 @@ impl Store for PhysStore {
 /// branch. The runtime chooses the mode and provides the synchronization.
 pub struct EntryStore<const TX: bool> {
     ks_base: u64,
+    frame_masks: (u64, u64),
     cpu: u64,
 }
 
@@ -110,6 +115,7 @@ impl PhysStore {
         debug_assert_eq!(self.tx, TX);
         EntryStore {
             ks_base: self.ks_base,
+            frame_masks: self.frame_masks,
             cpu: self.cpu,
         }
     }
@@ -118,11 +124,13 @@ impl PhysStore {
 impl<const TX: bool> EntryStore<TX> {
     #[inline(always)]
     fn phys(&self) -> PhysStore {
-        PhysStore { ks_base: self.ks_base, cpu: self.cpu, tx: TX }
+        PhysStore { ks_base: self.ks_base, frame_masks: self.frame_masks, cpu: self.cpu, tx: TX }
     }
 }
 
 impl<const TX: bool> Store for EntryStore<TX> {
+    #[inline(always)]
+    fn frame_masks(&self) -> (u64, u64) { self.frame_masks }
     #[inline(always)]
     fn read(&self, addr: u64) -> u64 { self.phys().read(addr) }
     #[inline(always)]

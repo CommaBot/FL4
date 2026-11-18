@@ -300,7 +300,7 @@ open fl4_core
 @[step] theorem vcpu.CR0_OWNED.spec : vcpu.CR0_OWNED ⦃ v => v = 2147155904#u64 ⦄ := by
   unfold vcpu.CR0_OWNED; step*
 
-@[step] theorem vcpu.CR4_ALLOWED.spec : vcpu.CR4_ALLOWED ⦃ v => v = 3612671#u64 ⦄ := by
+@[step] theorem vcpu.CR4_ALLOWED.spec : vcpu.CR4_ALLOWED ⦃ v => v = 3608575#u64 ⦄ := by
   unfold vcpu.CR4_ALLOWED; step*
 
 @[step] theorem sporadic.min_budget_us.spec : sporadic.min_budget_us ⦃ v => v = 20#u64 ⦄ := by
@@ -878,6 +878,9 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem fl4_abi.label.TCBSetEPTRoot.val_eq : fl4_abi.label.TCBSetEPTRoot.val = 88 := by
   unfold fl4_abi.label.TCBSetEPTRoot; rfl
+
+@[simp, scalar_tac_simps] theorem fl4_abi.label.UntypedRetypeShared.val_eq : fl4_abi.label.UntypedRetypeShared.val = 89 := by
+  unfold fl4_abi.label.UntypedRetypeShared; rfl
 
 @[simp, scalar_tac_simps] theorem fl4_abi.config.NUM_DOMAINS.val_eq : fl4_abi.config.NUM_DOMAINS.val = 1 := by
   unfold fl4_abi.config.NUM_DOMAINS; rfl

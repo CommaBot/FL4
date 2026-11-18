@@ -216,6 +216,7 @@ theorem vspace.page_entry_slot.vs {V : U64 → Prop} {s0 : S} (Pd : DelPlaceAt s
 theorem vspace.mapped_entry.vs {V : U64 → Prop} {s0 : S} (Pd : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s0) {s : S}
     (hf : Fr0 st T Cs Ω H Sg Scs Z s0 s) (hb : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (f : vspace.FrameCap) (root : U64) :
     vspace.mapped_entry st s f root ⦃ o => ∀ x, o = some x → V x ⦄ := by
+  have hS : P0.StoreTotal st := L.total
   unfold vspace.mapped_entry
   refine WP.spec_bind (P0.layout.paddr.p0 _) fun pa _ => ?_
   refine WP.spec_bind (Pₘ := fun _ => True) (by cases f.size <;> exact (WP.spec_ok _).2 trivial) fun large _ => ?_
@@ -419,7 +420,7 @@ local macro "pmtail" : tactic => `(tactic| (
   · errV
   have hv := hr3 v rfl
   simp only [irq_branch_ok, bind_ok]
-  refine WP.spec_bind (P0.layout.paddr.p0 _) fun _ _ => ?_
+  refine WP.spec_bind (P0.vspace.frame_address.p0 st ar s a _ hS hA) fun _ _ => ?_
   refine WP.spec_bind (P0.vspace.make_user_page.p0 st s _ _ _ _ hS) fun en _ => ?_
   refine WP.spec_bind (Cur0.restart D) fun s1 h1 => ?_
   refine WP.spec_bind (obj.Slot.set_cap.capw (s := s1) hslot) fun s2 w2 => ?_

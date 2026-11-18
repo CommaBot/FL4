@@ -21,7 +21,7 @@ first-class SMP and fine-grained locking. See [DESIGN.md](DESIGN.md).
 
 ## Tasks
 
-All kernel runs happen inside QEMU; FL4 is never booted on the host.
+Development runs use QEMU. The AMD SEV guest test runs on a confidential VM.
 
 ```
 cargo xtask run [--setup kvm|kvm-reduced|tcg]   # boot the standalone kernel
@@ -32,6 +32,43 @@ cargo xtask extract                              # Charon + Aeneas -> proofs/Fl4
 
 Host dependencies live in `$FL4_DEPS` (default `~/Projects/fl4-deps`):
 `venv/` with `sel4-deps`, and an `aeneas/` checkout with Charon built.
+
+## AMD SEV guests
+
+The x86_64 image detects base AMD Secure Encrypted Virtualization (SEV) at
+boot. Kernel and userspace RAM, page tables, boot modules and firmware ACPI
+data start private. Device MMIO uses shared mappings. The serial banner shows
+the active C-bit. SEV-ES, SEV-SNP and nested virtualization inside an SEV
+guest are outside the supported configuration.
+
+The extra BootInfo record `SEL4_BOOTINFO_HEADER_SHARED_DMA` tells drivers
+that DMA requires shared RAM. Drivers allocate buffers with
+`seL4_Untyped_RetypeShared(source, size_bits, root, node_index, node_depth, node_offset, num_objects)`.
+The call takes ordinary RAM from the same allocation watermark as
+`seL4_Untyped_Retype`. It creates up to 256 contiguous 4 KiB frames or one
+2 MiB frame per call and installs one cap per consecutive empty destination
+slot. Zero index and depth address the supplied root CNode directly.
+
+The frames start zeroed, including for uncached access. Copies of a frame cap
+share its visibility. `seL4_X86_Page_GetAddress` returns the GPA to program
+into the device. [Userspace NVMe example](xtask/tests/sev_guest.c)
+
+Shared frames have device-frame restrictions, including exclusion from IPC
+buffers and subframe derivation. Stop DMA before revoking the source or
+deleting the last frame cap. Final deletion unmaps the frame, flushes the
+shared alias, and zeros the private memory before reuse. On native hardware
+drivers use ordinary RAM and the invocation returns `seL4_IllegalOperation`.
+In an SEV guest a device untyped returns `seL4_InvalidCapability` and an
+unsupported frame size returns `seL4_InvalidArgument`. [AMD memory encryption](https://docs.kernel.org/arch/x86/amd-memory-encryption.html)
+
+`xtask/scripts/sev-smoke-image.sh` builds `build/sev-smoke/fl4-sev.tar.gz`
+with a GRUB EFI loader and a test root task. The script requires the sel4test
+build dependencies, GRUB's x86_64 EFI tools, sgdisk and mtools. Import the
+archive as a GCE image with `UEFI_COMPATIBLE,SEV_CAPABLE,GVNIC`. Boot it on
+an `n2d-standard-2` AMD Milan VM with `--confidential-compute-type=SEV`,
+`--maintenance-policy=TERMINATE` and an NVMe boot disk. The serial log should
+report both `NVMe Identify DMA passed` and `shared and private frame lifecycle
+passed`. [GCE confidential VM configuration](https://docs.cloud.google.com/confidential-computing/confidential-vm/docs/create-a-confidential-vm-instance)
 
 ## x86 virtualization
 
@@ -109,14 +146,14 @@ FL4_EXPECT_VM=present FL4_TESTS='^FL4VCPU' cargo xtask fl4test --smp 1 --setup k
 FL4_P0_STRICT=1 cargo xtask gate
 ```
 
-The strict extraction/proof gate passes. The proof project builds with the
-expanded capability and TCB layouts,
-VM thread state, and mixed native/nested ASID pools. All 1,045 extracted
-core functions have checked totality proofs with zero `sorry`s. Existing
-P1/P3 native proofs are ported; VMEnter, SetEPTRoot, EPT mapping, guest-root
-ASID assignment, and VCPU/EPT functional refinement remain outside their
-semantic scope. The entry/exit assembly and architecture backend remain
-trusted. See [DESIGN.md §9](DESIGN.md#9-proof-plan) for the exact claims.
+P0 checks totality for every extracted core function. For guest memory,
+`guest_pte_roundtrip` proves that constructing a 4 KiB, 2 MiB or 1 GiB
+leaf, extracting its address and removing the visibility bits recovers the
+frame's aligned GPA. The store laws admit private and shared address masks.
+The native l4v page and untyped refinements assume plain frame addresses.
+The l4v semantic scope excludes SEV memory sharing, VMEnter, SetEPTRoot, EPT
+mapping, guest-root ASID assignment, and VCPU/EPT refinement. The entry/exit
+assembly and architecture backend are trusted. See [DESIGN.md §9](DESIGN.md#9-proof-plan) for the exact claims.
 
 Real-guest execution passes on AMD-V under QEMU/KVM, including SMP,
 release, reduced-feature and no-PMU configurations. The retained Intel

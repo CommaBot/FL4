@@ -97,6 +97,18 @@ fn switch_vspace(root: u64, asid: u64) {
 }
 
 impl Arch for PhysArch {
+    fn private_device_frame(&self, paddr: u64) -> bool { crate::sev::private_device(paddr) }
+
+    fn dma_ram(&self, base: u64, bytes: u64) -> bool { crate::sev::is_dma_ram(base, bytes) }
+
+    fn dma_frame(&mut self, base: u64, bytes: u64, shared: bool) {
+        if in_tx() {
+            serial_needed();
+        } else {
+            crate::sev::transition(base, bytes, shared);
+        }
+    }
+
     fn virtualization(&self) -> u64 { crate::vm::backend() }
     fn vcpu_capability(&self, field: u64) -> u64 { crate::vm::capability(field) }
     fn vcpu_barrier(&mut self) { if in_tx() { serial_needed(); } }

@@ -32,6 +32,48 @@ open fl4_core Fl4Proofs.P1 Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3
 
 noncomputable section
 
+/-- Removing the visibility bits recovers an untagged GPA for either polarity. -/
+theorem untag_address (pa priv sh : BitVec 64) (hg : pa &&& (priv ||| sh) = 0) (tag : BitVec 64)
+    (ht : tag = priv ∨ tag = sh) : (pa ||| tag) &&& ~~~(priv ||| sh) = pa := by
+  have clear : pa &&& ~~~(priv ||| sh) = pa := by
+    calc
+      _ = (pa &&& (priv ||| sh)) ||| (pa &&& ~~~(priv ||| sh)) := by simp [hg]
+      _ = pa := by rw [← BitVec.and_or_distrib_left, BitVec.or_not_self, BitVec.and_allOnes]
+  have drop (x y : BitVec 64) : x &&& ~~~(x ||| y) = 0 := by
+    rw [BitVec.not_or, ← BitVec.and_assoc, BitVec.and_not_self]; simp
+  rw [BitVec.and_or_distrib_right, clear]
+  rcases ht with ht | ht
+  · rw [ht, drop]; simp
+  · rw [ht, BitVec.or_comm priv sh, drop]; simp
+
+/-- Frame leaf selection and GPA recovery, including private firmware device caps. -/
+theorem sev_frame_address {S A : Type} (st : machine.Store S) (ar : machine.Arch A)
+    (s : S) (a : A) (f : vspace.FrameCap) (pa priv sh : U64) (firmware : Bool)
+    (hp : layout.paddr f.ptr = ok pa) (hm : st.frame_masks s = ok (priv, sh))
+    (hen : priv ||| sh ≠ 0#u64) (hgpa : pa.bv &&& (priv.bv ||| sh.bv) = 0)
+    (hd : ar.private_device_frame a pa = ok firmware) :
+    let tag := if f.is_device && !firmware then sh else priv
+    vspace.frame_address st ar s a f = ok (pa ||| tag) ∧ vspace.frame_gpa st s (pa ||| tag) = ok pa := by
+  have recover (tag : U64) (ht : tag.bv = priv.bv ∨ tag.bv = sh.bv) :
+      (pa ||| tag) &&& ~~~(priv ||| sh) = pa := eq_of_bv (untag_address _ _ _ hgpa _ ht)
+  cases hf : f.is_device <;> cases firmware <;>
+    simp [vspace.frame_address, vspace.frame_gpa, hp, hm, hf, hd, lift, recover priv (Or.inl rfl), recover sh (Or.inr rfl)] <;>
+    rintro rfl rfl <;> exact False.elim (hen rfl)
+
+theorem frame_address_plain {S A : Type} {st : machine.Store S} [PlainStore st] (ar : machine.Arch A)
+    (s : S) (a : A) (f : vspace.FrameCap) : vspace.frame_address st ar s a f = layout.paddr f.ptr := by
+  simp [vspace.frame_address, layout.paddr, PlainStore.frame_masks_eq, lift]
+
+/-- On the native address format, reading a leaf returns its GPA. -/
+theorem frame_gpa_plain {S : Type} {st : machine.Store S} [PlainStore st] (s : S) (p : U64) :
+    vspace.frame_gpa st s p = ok p := by
+  simp only [vspace.frame_gpa, PlainStore.frame_masks_eq, lift, bind_ok]
+  change ok (p &&& ~~~(0#u64 ||| 0#u64)) = ok p
+  congr 1
+  apply eq_of_bv
+  change p.bv &&& BitVec.allOnes 64 = p.bv
+  exact BitVec.and_allOnes
+
 /-! ## Bits -/
 
 theorem nat_and_hi (n : Nat) (hn : n < 2 ^ 64) : n &&& (2 ^ 64 - 1 - (2 ^ 12 - 1)) = 2 ^ 12 * (n / 2 ^ 12) := by

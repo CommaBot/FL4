@@ -16,7 +16,7 @@ mod trace;
 use core::cell::UnsafeCell;
 use core::fmt::Write;
 use fl4_arch_x86_64::arch::{PhysArch, TIMER_VECTOR};
-use fl4_arch_x86_64::{apic, cpu, fbcon, fpu, ioapic, percpu, pic, serial, spec, timer, tlb};
+use fl4_arch_x86_64::{apic, cpu, fbcon, fpu, ioapic, percpu, pic, serial, sev, spec, timer, tlb};
 use bootmem::Ranges;
 use fl4_core::boot::{BootParams, Region, MAX_REGIONS, PADDR_USER_DEVICE_TOP};
 use fl4_core::layout::{ks, pptr, PADDR_TOP};
@@ -87,6 +87,9 @@ struct Statics {
     idle: IdleArea,
     extra: ExtraBi,
     mods: KeptModules,
+    dma_ram: Ranges,
+    private_devices: Ranges,
+    sev_memory: sev::Memory,
 }
 
 struct Cell(UnsafeCell<Statics>);
@@ -96,6 +99,9 @@ static STATICS: Cell = Cell(UnsafeCell::new(Statics {
     ks: KsArea([0; ks::SIZE as usize]),
     idle: IdleArea([[0; 8192]; percpu::MAX_CPUS]),
     extra: ExtraBi([0; 4096]),
+    dma_ram: Ranges::new(),
+    private_devices: Ranges::new(),
+    sev_memory: sev::Memory { ram: &[], private_devices: &[] },
     mods: KeptModules { n: 0, paddr: [0; mboot::MAX_MODULES], size: [0; mboot::MAX_MODULES] },
 }));
 
@@ -172,6 +178,9 @@ fn build_extra_bi(buf: &mut [u8], a: &acpi::Info, mb: &mboot::BootInfo, k: &Kept
     }
     hdr(buf, &mut off, 5, 20);
     put_bytes(buf, &mut off, &(timer::tsc_mhz() as u32).to_le_bytes());
+    if sev::mask() != 0 {
+        hdr(buf, &mut off, fl4_abi::consts::bootinfo_header::SHARED_DMA, 16);
+    }
     if k.n > 0 {
         // seL4_X86_BootModules_t: count, then (paddr, size, name[64]).
         hdr(buf, &mut off, fl4_abi::consts::bootinfo_header::X86_BOOT_MODULES, 16 + 8 + 80 * k.n as u64);
@@ -195,9 +204,13 @@ fn cpu_features() -> (bool, bool, bool) {
 }
 
 #[no_mangle]
-pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
+pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64) -> ! {
     serial::init();
     kprintln!("FL4: seL4 17.0 (MCS) API kernel, x86_64");
+    sev::init(private_mask);
+    if private_mask != 0 {
+        kprintln!("FL4: AMD SEV guest, C-bit {}", private_mask.trailing_zeros());
+    }
     let mb = match mboot::parse(magic, info as u64) {
         Some(b) => b,
         None => fail("no usable multiboot information"),
@@ -226,7 +239,8 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
         cr4 |= 1 << 8;
     }
     cpu::write_cr4(cr4);
-    let (kernel_root, window_top) = paging::init(nx, spec::skim());
+    let gpa_top = sev::gpa_top(cpu::max_paddr(), private_mask);
+    let (kernel_root, window_top) = paging::init(nx, spec::skim(), gpa_top);
     let stack_top = percpu::stack_top(0);
     gdt::init_idt();
     gdt::init_core(0, stack_top);
@@ -246,13 +260,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
         None => fail("no ACPI tables"),
     };
     pic::disable();
-    let apic_base = apic::base_paddr();
-    apic::enable(pptr(apic_base));
-    // The xAPIC page and each IOAPIC are reached through the kernel
-    // window, which maps only [0, window_top).
-    if !apic::is_x2apic() && !apic_base.checked_add(PAGE).is_some_and(|e| e <= window_top) {
-        fail("local APIC registers outside the kernel window");
-    }
+    let apic_base = apic::enable(window_top).unwrap_or_else(|| fail("local APIC outside the physical window"));
     apic::write(apic::REG_SVR, (1 << 8) | 0xff);
     apic::write(apic::REG_LVT_LINT0, 1 << 16);
     apic::write(apic::REG_LVT_LINT1, 1 << 16);
@@ -267,10 +275,9 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
         kprintln!("FL4: {} IOAPICs: only the first {} are used", acpi.n_ioapics, ioapic::MAX_IOAPICS);
     }
     for i in 0..acpi.n_ioapics.min(ioapic::MAX_IOAPICS) {
-        if !acpi.ioapics[i].checked_add(IOAPIC_WINDOW).is_some_and(|e| e <= window_top) {
-            fail("IOAPIC registers outside the kernel window");
-        }
-        ioapic::add(pptr(acpi.ioapics[i]));
+        let addr = sev::mmio_ptr(acpi.ioapics[i], IOAPIC_WINDOW, window_top)
+            .unwrap_or_else(|| fail("IOAPIC outside the physical window"));
+        ioapic::add(addr);
     }
     timer::init(TIMER_VECTOR);
     kprintln!(
@@ -291,7 +298,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
     let fb_console = mboot::has_option(&mb, b"fb_console");
 
     // The other cores, if any (each sets itself up and waits).
-    let ncpus = smp::start_aps(&acpi.cpus[..acpi.n_cpus], smp::Features { cr4: cpu::read_cr4(), efer_nx: nx });
+    let ncpus = smp::start_aps(&acpi.cpus[..acpi.n_cpus], smp::Features { cr4: cpu::read_cr4(), efer_nx: nx, window_top });
     if ncpus > 1 {
         kprintln!("FL4: {} cores running", ncpus);
     }
@@ -304,10 +311,8 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
     // half (P3's `UtWin`: every untyped at or above PPTR_BASE). Nothing
     // goes past what the CPU can address either (MAXPHYADDR): a mapping
     // of it would set reserved bits in a paging, EPT or NPT entry.
-    let max_paddr = cpu::max_paddr();
-    let ram_top = bootmem::top(&[PADDR_TOP, window_top, max_paddr]);
-    let device_top = bootmem::top(&[PADDR_TOP, PADDR_USER_DEVICE_TOP, max_paddr]);
-    let ram = bootmem::ram(mb.mmap[..mb.n_mmap].iter().map(|e| (e.base, e.len, e.ty)), HIGHMEM_PADDR, ram_top);
+    let device_top = bootmem::top(&[PADDR_TOP, PADDR_USER_DEVICE_TOP, gpa_top]);
+    let ram = bootmem::ram(mb.mmap[..mb.n_mmap].iter().map(|e| (e.base, e.len, e.ty)), HIGHMEM_PADDR, window_top);
 
     // The root task: the first module, loaded into RAM above everything
     // else (seL4 `load_boot_module`).
@@ -351,7 +356,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
             Some(f) => {
                 let end = f.addr.saturating_add(f.pitch as u64 * f.height as u64);
                 let on_ram = (0..ram.n).any(|j| f.addr < ram.r[j].end && ram.r[j].start < end);
-                f.addr >= HIGHMEM_PADDR && !on_ram && fbcon::init(f.addr, f.pitch, f.width, f.height, f.bpp, f.ty)
+                f.addr >= HIGHMEM_PADDR && !on_ram && fbcon::init(f.addr, window_top, f.pitch, f.width, f.height, f.bpp, f.ty)
             }
             None => false,
         };
@@ -387,9 +392,37 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
         p.free[i] = Region { start: pptr(free.r[i].start), end: pptr(free.r[i].end) };
         p.n_free += 1;
     }
-    for i in 0..dev.n.min(MAX_REGIONS) {
-        p.device[i] = dev.r[i];
-        p.n_device += 1;
+    // At most one interval per firmware entry and one for the kept modules.
+    // Keep every private boundary even if BootParams can export fewer ranges.
+    let mut firmware = bootmem::RangeList::<{ mboot::MAX_MMAP + 1 }>::new();
+    if private_mask != 0 {
+        firmware.add(image.p_end, mods);
+        for e in &mb.mmap[..mb.n_mmap] {
+            if e.len != 0 && matches!(e.ty, 1 | 3 | 4) {
+                let start = e.base & !(PAGE - 1);
+                let end = e.base.saturating_add(e.len).saturating_add(PAGE - 1) & !(PAGE - 1);
+                firmware.add(start, end);
+            }
+        }
+    }
+    let mut omitted = 0;
+    bootmem::device_regions(&dev.r[..dev.n], &firmware.r[..firmware.n], |r, private| {
+        if let Some(slot) = p.device.get_mut(p.n_device as usize) {
+            *slot = r;
+            p.n_device += 1;
+            if private { st.private_devices.add(r.start, r.end); }
+        } else {
+            omitted += 1;
+        }
+    });
+    if omitted != 0 { kprintln!("FL4: {} device memory regions exceed the boot range limit", omitted); }
+    if private_mask != 0 {
+        st.dma_ram = free;
+        st.sev_memory = sev::Memory {
+            ram: &st.dma_ram.r[..st.dma_ram.n],
+            private_devices: &st.private_devices.r[..st.private_devices.n],
+        };
+        sev::install(&st.sev_memory);
     }
 
     // Kernel state, then the root task.
