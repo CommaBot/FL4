@@ -455,14 +455,15 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 
 /-- **[J-step] `cancel_ipc` at `J` of a thread whose state satisfies `P`**,
 the spec's outcome and `JAtZ` after, at every `JAtZ` state of the typed heap
-`th`. -/
+`th`, the dead set kept (a blocked thread is not dead, and `cancel_ipc`
+revives nothing). -/
 def JCancelAt (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (P : Fl4Spec.ThreadState → Prop) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
     ∀ t ∈ Z.T, ∀ x, σ.kheap t.bv = some (.tcb x) → P x.tcbState →
     ipc.cancel_ipc st arI s a t ⦃ r => r.2 = a ∧ ∃ σ', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
-      ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' r.1 r.2 σ' ⦄
+      ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D r.1 r.2 σ' ⦄
 
 variable {arI}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
@@ -513,8 +514,8 @@ theorem JAtZ.suspendJ
       revert hfree
       cases x.tcbState <;> simp [IpcFree, Fl4Spec.epBlocked, Fl4Spec.ntfnBlocked]
     have hP : ipc.cancel_ipc st arI s a t ⦃ r => r.2 = a ∧ ∃ σ', Fl4Spec.cancelIpc (Z := Unit) t.bv σ =
-        ({((), σ')}, False) ∧ ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-          JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ := by
+        ({((), σ')}, False) ∧ ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64),
+          JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D r.1 r.2 σ' ⦄ := by
       rcases hcases with h | h | h | h
       · exact hSd Z H Cs Ac Lst D s a σ rfl J t ht x hk h
       · exact hRv Z H Cs Ac Lst D s a σ rfl J t ht x hk h
@@ -522,7 +523,7 @@ theorem JAtZ.suspendJ
       · exact hRp Z H Cs Ac Lst D s a σ rfl J t ht x hk h
     refine WP.spec_mono (WP.spec_and hP (cancel_ipc_irelP (ar := arI) hP0 (removeTcbHypP_ok hP0) s a σ hI ht hk
       J.sv J.obj J.inv (removeTcbOK_fault hP0 hI ht hk J.removeTcbOK))) ?_
-    rintro r ⟨⟨h1, σ1, h2, V, Ac1, Lst1, D1, J1⟩, -, σ1', x1, h2', -, hk1, hs1⟩
+    rintro r ⟨⟨h1, σ1, h2, V, Ac1, Lst1, J1⟩, -, σ1', x1, h2', -, hk1, hs1⟩
     have e1 : σ1' = σ1 := by
       rw [h2] at h2'; exact ((Prod.mk.inj (Set.singleton_injective (congrArg Prod.fst h2'))).2).symm
     subst e1
@@ -532,7 +533,7 @@ theorem JAtZ.suspendJ
       obtain ⟨xi, hki, -, hti, -⟩ := J1.act.2
       rw [← e, hk1] at hki; cases hki; rw [hin] at hti; cases hti
     refine ⟨h1, σ1', h2', x1, hk1, by rw [hin]; exact ⟨rfl, rfl, fun _ e => by cases e⟩, fun u hu => ?_, hid1,
-      V, Ac1, Lst1, D1, J1⟩
+      V, Ac1, Lst1, D, J1⟩
     rintro rfl
     obtain ⟨y, -, -, -, hky, -, hrun, -⟩ := schedulable_inv (J1.act.1 _ hu)
     rw [hk1] at hky; cases hky; rw [hin] at hrun; cases hrun

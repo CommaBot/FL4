@@ -4,7 +4,7 @@ set** (toward `sched.restart` at `J`): after `cancel_ipc`, a stopped thread
 `t` (now `Inactive`) set to `Restart`, the sporadic unblock check, the SC's
 `resume` and the switch (`restartTailF`), against the spec's
 `specRestartTail`, on the scheduler and notification relations with
-`KFoot` as the write set (`restart_tail_kfoot`, as IpcResumeJ's
+`KFoot` as the write set and the four steps' spec outcomes (`restart_tail_kfoot`, as IpcResumeJ's
 `restart_tcb_irelS` on `IRel`, here on `SchedRel` so that the SC step
 machinery `JAtZ.sc_frame` applies). The spec facts the steps read after the
 unblock check are `RestartSpecOK`'s (premise `hRS`, discharged at the
@@ -50,6 +50,16 @@ def specRestartTail (t : Fl4Spec.ObjRef) (sc : Option Fl4Spec.ObjRef) : Fl4Spec.
   Fl4Spec.NonDet.maybeM Fl4Spec.schedContextResume sc
   Fl4Spec.testPossibleSwitchTo t
 
+/-- `specRestartTail` from its four steps' outcomes. -/
+theorem specRestartTail_eq {t : Fl4Spec.ObjRef} {sc : Option Fl4Spec.ObjRef} {σ σb σc σd σe : Fl4Spec.State Unit}
+    (hb : Fl4Spec.setThreadState (Z := Unit) t .restart σ = ({((), σb)}, False))
+    (hc : Fl4Spec.ifSporadicCurScTestRefillUnblockCheck (Z := Unit) sc σb = ({((), σc)}, False))
+    (hd : Fl4Spec.NonDet.maybeM (Fl4Spec.schedContextResume (Z := Unit)) sc σc = ({((), σd)}, False))
+    (he : Fl4Spec.testPossibleSwitchTo (Z := Unit) t σd = ({((), σe)}, False)) :
+    specRestartTail t sc σ = ({((), σe)}, False) := by
+  unfold specRestartTail
+  rw [nd_bind_one hb, nd_bind_one hc, nd_bind_one hd, he]
+
 /-- A deterministic step's member outcome is its only one. -/
 theorem det_single {α : Type} {m : Fl4Spec.SMonad Unit α} (hd : Det m) {σ : Fl4Spec.State Unit} {x : α × Fl4Spec.State Unit}
     (hx : x ∈ (m σ).1) (hn : ¬ (m σ).2) : m σ = ({x}, False) := by
@@ -69,7 +79,11 @@ theorem restart_tail_kfoot (s : S) (a : A) (σ : Fl4Spec.State Unit)
       ∀ σd, Fl4Spec.NonDet.maybeM (Fl4Spec.schedContextResume (Z := Unit)) x.tcbSchedContext σc =
         ({((), σd)}, False) → Inv σd)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
-    restartTailF st ar s a t ⦃ r => r.2 = a ∧ ∃ σ', specRestartTail t.bv x.tcbSchedContext σ = ({((), σ')}, False) ∧
+    restartTailF st ar s a t ⦃ r => r.2 = a ∧ ∃ σb σc σd σ',
+      Fl4Spec.setThreadState (Z := Unit) t.bv .restart σ = ({((), σb)}, False) ∧
+      Fl4Spec.ifSporadicCurScTestRefillUnblockCheck (Z := Unit) x.tcbSchedContext σb = ({((), σc)}, False) ∧
+      Fl4Spec.NonDet.maybeM (Fl4Spec.schedContextResume (Z := Unit)) x.tcbSchedContext σc = ({((), σd)}, False) ∧
+      Fl4Spec.testPossibleSwitchTo (Z := Unit) t.bv σd = ({((), σ')}, False) ∧
       NtfnStateRel N T (L.mem r.1) σ' ∧ SchedRel st N T C c r.1 σ' ∧ Inv σ' ∧
       P1.WritesIn st s r.1 (KFoot st T N C c s σ) ⦄ := by
   have hP := hS.placed
@@ -144,12 +158,6 @@ theorem restart_tail_kfoot (s : S) (a : A) (σ : Fl4Spec.State Unit)
       refine ⟨rfl, σd, ?_, hRd, hSd, hId, hwd⟩
       unfold Fl4Spec.testPossibleSwitchTo
       rw [nd_gets_bind, show Fl4Spec.schedulable t.bv σd = false by simpa using hsch]; rfl
-  have hfin : ∀ σd σe, Fl4Spec.NonDet.maybeM (Fl4Spec.schedContextResume (Z := Unit)) x.tcbSchedContext σc =
-      ({((), σd)}, False) → Fl4Spec.testPossibleSwitchTo (Z := Unit) t.bv σd = ({((), σe)}, False) →
-      specRestartTail t.bv x.tcbSchedContext σ = ({((), σe)}, False) := by
-    intro σd σe h1 h2
-    unfold specRestartTail
-    rw [nd_bind_one hstb, nd_bind_one hu', nd_bind_one h1, h2]
   -- the resume
   by_cases hi0 : L.mem s2 (P1.scA t) = 0#u64
   · unfold schedcontext.resume
@@ -160,7 +168,7 @@ theorem restart_tail_kfoot (s : S) (a : A) (σ : Fl4Spec.State Unit)
         ({((), σc)}, False) := by rw [hxi, hi0, optRef_zero]; rfl
     refine WP.spec_mono (tail s3 σc hRc hSc (hInvd σc hm0) hw3') ?_
     rintro r ⟨h1, σe, h2, h3, h4, h5, h6⟩
-    exact ⟨h1, σe, hfin σc σe hm0 h2, h3, h4, h5, h6⟩
+    exact ⟨h1, σb, σc, σc, σe, hstb, hu', hm0, h2, h3, h4, h5, h6⟩
   have hiC : L.mem s2 (P1.scA t) ∈ C := by rw [← hi3]; exact hsc.scMem t ht (by rw [hi3]; exact hi0)
   have hxcs : xc.tcbSchedContext = some (L.mem s2 (P1.scA t)).bv := by rw [hxc, hxi, Notif.optRef_ne hi0]
   obtain ⟨y, n, hky, hyt⟩ := hBackc xc _ hkc hxcs
@@ -176,7 +184,7 @@ theorem restart_tail_kfoot (s : S) (a : A) (σ : Fl4Spec.State Unit)
   refine WP.spec_mono (tail s4 σd (hRc.frame hSd.placed hfd (KView.of_kheap hkd)) hSd (hInvd σd hm1)
     (WritesIn.kfoot_trans hw3' (SzKeepC.of (SzKeep.refl σ)) (WritesIn.kfoot_of_sfoot hwd))) ?_
   rintro r ⟨h1, σe, h2, h3, h4, h5, h6⟩
-  exact ⟨h1, σe, hfin σd σe hm1 h2, h3, h4, h5, h6⟩
+  exact ⟨h1, σb, σc, σd, σe, hstb, hu', hm1, h2, h3, h4, h5, h6⟩
 
 end
 

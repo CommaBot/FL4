@@ -35,8 +35,8 @@ theorem JAtZ.cancelRecvJ (hRR : RecvReplyLinksHyp (L := L) arI AR H Cs)
     (hkt : σ.kheap t.bv = some (.tcb xt)) {ep : Fl4Spec.ObjRef} {ro : Option Fl4Spec.ObjRef}
     {d : Fl4Spec.ReceiverPayload} (hst : xt.tcbState = .blockedOnReceive ep ro d) :
     ipc.cancel_ipc st arI s a t ⦃ r => r.2 = a ∧ ∃ σ', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
-      ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ := by
+      ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D r.1 r.2 σ' ⦄ := by
   have hI := J.xtop.irelK J.ks J.buf
   have hP0 := J.ip
   have hrb : Fl4Spec.receiveBlocked xt.tcbState = true := by rw [hst]; rfl
@@ -86,7 +86,7 @@ theorem JAtZ.cancelRecvJ (hRR : RecvReplyLinksHyp (L := L) arI AR H Cs)
     simp [tsCode] at h3
   obtain ⟨V', J'⟩ := J.wake_postB hI1 hF hw hblk hfoot F I3 B3 hAI3 hcur3 hrun3
     (fun d hd xr' hx hxt => recvReplyHyp_of hRR Z Ac Lst D s _ σ J d hd xr' t.bv xt hx hxt hkt hrb) ht'
-  exact ⟨V', Ac, Lst, D, J'⟩
+  exact ⟨V', Ac, Lst, J'⟩
 
 end
 

@@ -191,8 +191,8 @@ set_option maxHeartbeats 8000000 in
 theorem JAtZ.cancelSendJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hst : ∃ e d, x.tcbState = .blockedOnSend e d) :
     ipc.cancel_ipc st arI s a t ⦃ r => r.2 = a ∧ ∃ σ', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
-      ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ := by
+      ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D r.1 r.2 σ' ⦄ := by
   obtain ⟨e, d, hst⟩ := hst
   have hI := J.xtop.irelK J.ks J.buf
   obtain ⟨xe, hke, hqe⟩ := J.sv.sendQ _ _ _ _ hk hst
@@ -214,7 +214,7 @@ theorem JAtZ.cancelSendJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : 
   have I3 := cancel_kb_inv J.inv hk (by rw [hst]; rfl) hm hrib
   have hF : IFrame (L := L) Z.th s s' := IRel.iframe_of hI hW fun b hb => CnW.oobj hI.2.2.1 hb
   obtain ⟨V', J'⟩ := J.kfrStep hIR hF hW hbk hfoot F I3 hact htD
-  exact ⟨rfl, σ', hc, V', Ac, Lst, D, J'⟩
+  exact ⟨rfl, σ', hc, V', Ac, Lst, J'⟩
 
 set_option maxHeartbeats 8000000 in
 /-- **`cancel_ipc` at `J` of a thread blocked on a notification** (module
@@ -222,8 +222,8 @@ docstring). -/
 theorem JAtZ.cancelNtfnJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hst : ∃ n, x.tcbState = .blockedOnNotification n) :
     ipc.cancel_ipc st arI s a t ⦃ r => r.2 = a ∧ ∃ σ', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
-      ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ := by
+      ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D r.1 r.2 σ' ⦄ := by
   obtain ⟨n, hst⟩ := hst
   have hI := J.xtop.irelK J.ks J.buf
   obtain ⟨xn, hkn, hqn⟩ := J.sv.ntfnW _ _ _ hk hst
@@ -245,7 +245,7 @@ theorem JAtZ.cancelNtfnJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : 
   have I3 := cancel_kb_inv J.inv hk (by rw [hst]; rfl) hm hrib
   have hF : IFrame (L := L) Z.th s s' := IRel.iframe_of hI hW fun b hb => CnW.oobj hI.2.2.1 hb
   obtain ⟨V', J'⟩ := J.kfrStep hIR hF hW hbk hfoot F I3 hact htD
-  exact ⟨rfl, σ', hc, V', Ac, Lst, D, J'⟩
+  exact ⟨rfl, σ', hc, V', Ac, Lst, J'⟩
 
 end
 

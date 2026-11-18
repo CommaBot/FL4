@@ -154,18 +154,19 @@ theorem JAtZ.cover_cap {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
   · exact absurd rfl ((hH _ (hJ.cnode q r hk)).2 (r + 5))
 
 set_option maxHeartbeats 4000000 in
-/-- **The dead stay dead across an SC step** (module docstring); a thread
-whose state may change (`P`) keeps an `Inactive` state. -/
-theorem JAtZ.deadP_sc_stepG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+/-- **The dead stay dead across an SC step** (module docstring), for one
+dead object `q`: if `q` is a thread whose state may change (`P`), it keeps an
+`Inactive` state (`deadP_sc_stepG` for every such thread). -/
+theorem JAtZ.deadP_sc_stepQ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
     (hX' : XTopAt (L := L) AR Z s' a' σ')
     (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ))
-    {P : Fl4Spec.ObjRef → Prop} (hK : ScTKw P σ σ')
-    (hP : ∀ p x, P p → σ.kheap p = some (.tcb x) → tsCode x.tcbState = 0 →
-      ∀ y, σ'.kheap p = some (.tcb y) → y.tcbState = x.tcbState)
+    {P : Fl4Spec.ObjRef → Prop} (hK : ScTKw P σ σ') {q : U64}
+    (hP : ∀ x, P q.bv → σ.kheap q.bv = some (.tcb x) → tsCode x.tcbState = 0 →
+      ∀ y, σ'.kheap q.bv = some (.tcb y) → y.tcbState = x.tcbState)
     {W : Fl4Spec.ObjRef → Prop} (hL : LK W σ σ') (hF : FK σ σ') (hAS : ActSched σ')
-    {q : U64} (hW : ¬ W q.bv) (hd : DeadP (L := L) H s q) : DeadP (L := L) H s' q := by
+    (hW : ¬ W q.bv) (hd : DeadP (L := L) H s q) : DeadP (L := L) H s' q := by
   have hX := J.xtop
   have hS := hX.fin.1.1.1
   have hS' := hX'.fin.1.1.1
@@ -186,7 +187,7 @@ theorem JAtZ.deadP_sc_stepG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     have hstate : x'.tcbState = x.tcbState := by
       rcases hst with e | ⟨hp, -, -⟩
       · exact e
-      · exact hP _ _ hp hk hst0 _ hk'
+      · exact hP _ hp hk hst0 _ hk'
     have hxs : x.tcbSchedContext = none := by rw [hR.sc, d2, optRef_zero]
     have hxs' : x'.tcbSchedContext = none := by
       obtain ⟨y2, hy2, e⟩ := hL.tcb hW hk
@@ -290,6 +291,21 @@ theorem JAtZ.deadP_sc_stepG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       · rw [← scW_tcb, J.sc_out_keep hw hq hqC (by decide) (by decide), scW_tcb]; exact d1
       · rw [scReplyA_eq', J.sc_out_keep hw hq hqC (by decide) (by decide), ← scReplyA_eq']; exact d2
       · rw [← scW_ntfn, J.sc_out_keep hw hq hqC (by decide) (by decide), scW_ntfn]; exact d3
+
+set_option maxHeartbeats 400000 in
+/-- **The dead stay dead across an SC step** (module docstring); a thread
+whose state may change (`P`) keeps an `Inactive` state. -/
+theorem JAtZ.deadP_sc_stepG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
+    (hX' : XTopAt (L := L) AR Z s' a' σ')
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ))
+    {P : Fl4Spec.ObjRef → Prop} (hK : ScTKw P σ σ')
+    (hP : ∀ p x, P p → σ.kheap p = some (.tcb x) → tsCode x.tcbState = 0 →
+      ∀ y, σ'.kheap p = some (.tcb y) → y.tcbState = x.tcbState)
+    {W : Fl4Spec.ObjRef → Prop} (hL : LK W σ σ') (hF : FK σ σ') (hAS : ActSched σ')
+    {q : U64} (hW : ¬ W q.bv) (hd : DeadP (L := L) H s q) : DeadP (L := L) H s' q :=
+  J.deadP_sc_stepQ hX' hw hK (fun x => hP _ x) hL hF hAS hW hd
 
 /-- **The dead stay dead across an SC step** (module docstring;
 `deadP_sc_stepG` with the changed threads runnable). -/

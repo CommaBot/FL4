@@ -259,9 +259,9 @@ theorem JAtZ.replyRemoveTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {r t : U64} {x : Fl4Spec.Tcb} (hr : r ∈ Z.R) (ht : t ∈ Z.T) (hk : σ.kheap t.bv = some (.tcb x))
     (hst : x.tcbState = .blockedOnReply r.bv) :
     ipc.reply_remove_tcb st s t ⦃ s' => P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H)
-      (P1.Heap.replies H) (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s' → ∃ σ' V' Lst' D',
+      (P1.Heap.replies H) (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s' → ∃ σ' V' Lst',
       Fl4Spec.replyRemoveTcb (Z := Unit) t.bv r.bv σ = ({((), σ')}, False) ∧
-      JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac Lst' D' s' a σ' ∧
+      JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac Lst' D s' a σ' ∧
       SlotsSame Z.th (L.mem s) (L.mem s') ∧ L.ksb s' = L.ksb s ⦄ := by
   have hI := J.xtop.irelK J.ks J.buf
   have hS := J.xtop.fin.1.1.1
@@ -676,7 +676,7 @@ theorem JAtZ.replyRemoveTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       hrun, hblk⟩
   have hC0 := JCs.same J hF.1 hksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨σ', V', Lst', D, hrm, J.cs_frameV hks hX3 hkb hC R, hF.1, hks⟩
+  exact ⟨σ', V', Lst', hrm, J.cs_frameV hks hX3 hkb hC R, hF.1, hks⟩
 
 set_option maxHeartbeats 8000000 in
 /-- **`cancel_ipc` of a thread blocked on its reply, at `J`** (module
@@ -685,8 +685,8 @@ theorem JAtZ.cancelReplyJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t :
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) {rp : Fl4Spec.ObjRef}
     (hst : x.tcbState = .blockedOnReply rp) :
     ipc.cancel_ipc st arI s a t ⦃ res => res.2 = a ∧ ∃ σ', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
-      ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' res.1 res.2 σ' ⦄ := by
+      ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D res.1 res.2 σ' ⦄ := by
   have hP0 := J.ip
   have hX := J.xtop.irelK J.ks J.buf
   have hta := hP0.e.tcb t ht
@@ -709,8 +709,8 @@ theorem JAtZ.cancelReplyJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t :
   have hmain : ipc.cancel_ipc st arI s a t ⦃ res => P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H
       (P1.Heap.frame H) (P1.Heap.replies H) (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac res.1 →
       res.2 = a ∧ ∃ σ', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
-      ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' res.1 res.2 σ' ⦄ := by
+      ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D res.1 res.2 σ' ⦄ := by
     unfold ipc.cancel_ipc faults.clear_fault
     step with Fl4Proofs.P1.obj.Tcb.set_fault_type.spec as ⟨s1', hs1'⟩
     have e1 : s1' = L.wr s (tFaultA t) 0#u64 := by rw [hs1']; unfold fl4_abi.consts.fault.NullFault; rfl
@@ -723,8 +723,8 @@ theorem JAtZ.cancelReplyJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t :
     intro s2 h2
     rw [WP.spec_ok]
     intro hblk
-    obtain ⟨σ', V', Lst', D', he, J', -, -⟩ := h2 hblk
-    refine ⟨rfl, σ', ?_, V', Ac, Lst', D', J'⟩
+    obtain ⟨σ', V', Lst', he, J', -, -⟩ := h2 hblk
+    refine ⟨rfl, σ', ?_, V', Ac, Lst', J'⟩
     unfold Fl4Spec.cancelIpc
     rw [nd_bind_one (getThreadState_eq hk), nd_bind_one (threadSet_eq _ hk), hst]
     rw [hst] at he
