@@ -55,11 +55,9 @@ Named premises:
   `unbind_all_tcbs_refines`), `unbindReply`
   (`unbind_reply_refines`; its write is a call-stack word `CallW'`, outside
   `JAtZ.sc_frame`'s `TFoot`).
-* `JYieldToHyp` [J-step], the yielder's `complete_yield_to`: the statement of
-  `JThreadFinHyps.yieldTo`, so one premise serves both finalisations
-  (`JThreadFinHyps.yieldToH`; XTop: `ScYieldFinHyp`, its reply writes
-  registers outside `TFoot` and its `IRel` proof asks `YieldRel` at every
-  `IRel` state).
+* `JYieldToHyp`, the yielder's `complete_yield_to` of an SC of the set:
+  proved (`jYieldToHyp_of`, XTopJointYield's `JAtZ.completeYieldJ`) from the
+  platform's `ticks_to_us` [P] (`JThreadFinHyps.ticks`, `yieldToH`).
 -/
 import Fl4Proofs.P3.XTopJointEmpty
 import Fl4Proofs.P3.ScDeadStep
@@ -110,19 +108,34 @@ def JScFinHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
           JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' res.2.1 res.2.2 σ' ∧
           SlotsSame Z.th (L.mem s) (L.mem res.2.1) ∧ L.ksb res.2.1 = L.ksb s ⦄
 
-/-- **Hypothesis: the yielder's `complete_yield_to` at `J`** [J-step]: the
-statement of XTopJointFinThread's `JThreadFinHyps.yieldTo` (one premise
-shared by the thread and the SC finalisations; XTop: `ScYieldFinHyp`). -/
+/-- **The yielder's `complete_yield_to` at `J`**, of an SC `q` of the set
+(shared by the thread and the SC finalisations; XTop: `ScYieldFinHyp`);
+proved by `jYieldToHyp_of` from XTopJointYield's `JAtZ.completeYieldJ`. -/
 def JYieldToHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S)
     (a : A) (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
-    ∀ q : U64, L.mem s (scYieldFromA q) ≠ 0#u64 →
+    ∀ q ∈ Z.C, L.mem s (scYieldFromA q) ≠ 0#u64 →
       schedcontext.complete_yield_to st arI s a (L.mem s (scYieldFromA q)) ⦃ r => ∃ σ',
         Fl4Spec.completeYieldTo (Z := Unit) (L.mem s (scYieldFromA q)).bv σ = ({((), σ')}, False) ∧
         JTP (L := L) arI AR Z H Cs r.1 r.2 σ' ⦄
 
-theorem JThreadFinHyps.yieldToH {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
-    (h : JThreadFinHyps (L := L) arI AR th) : JYieldToHyp (L := L) arI AR th := h.yieldTo
+/-- **`JYieldToHyp` proved** (`JAtZ.completeYieldJ`; the yielder in `Z.T` by
+`YieldRel.frm`), from the platform's `ticks_to_us` and `getMaxTicksToUs` [P]. -/
+theorem jYieldToHyp_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (hT : P0.ArchTotal arI)
+    (hticks : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv ∧
+      ∀ (a : A) (v : U64), arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
+    JYieldToHyp (L := L) arI AR th := by
+  intro Z H Cs Ac Lst D s a σ _ J q hq h0
+  obtain ⟨Q, R, hc, hs⟩ := J.xtop.fin.1.1.1.lists
+  obtain ⟨y5, n5, hk5, hx5⟩ := hs.scs q hq
+  have e5 : y5.scYieldFrom = some (L.mem s (scYieldFromA q)).bv := by
+    rw [hx5.yieldFrom, ← scYieldFromA_eq, Notif.optRef_ne h0]
+  obtain ⟨t, ht, et, -⟩ := J.yld.frm q hq y5 n5 hk5 _ e5
+  have hjT : L.mem s (scYieldFromA q) ∈ Z.T := by rw [← P1.eq_of_bv et]; exact ht
+  exact J.completeYieldJ hT hticks.1 (hticks.2 a) hjT
+
+theorem JThreadFinHyps.yieldToH {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (hT : P0.ArchTotal arI)
+    (h : JThreadFinHyps (L := L) arI AR th) : JYieldToHyp (L := L) arI AR th := jYieldToHyp_of arI hT h.ticks
 
 /-- **The SC steps of a final SC cap's finalisation at `J`** [J-step], each
 one FL4 step at a `JAtZ` state against the spec's, `JAtZ` after (`JTP`);
@@ -274,7 +287,7 @@ theorem JAtZ.finScJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     rw [hi]
     have hy : L.mem s3 (scYieldFromA p) ≠ 0#u64 → L.mem s3 (scYieldFromA p) ∈ P1.Heap.tcbs H := fun hy0 =>
       J3.blk.2.2.1.2.2.yt.2.2 p hpS hy0
-    refine WP.spec_bind (WP.spec_and (hY (Z.mv Z.G V3) H Cs Ac3 Lst3 D3 s3 a1 σ3 rfl J3 p (by rw [← hi]; exact h0))
+    refine WP.spec_bind (WP.spec_and (hY (Z.mv Z.G V3) H Cs Ac3 Lst3 D3 s3 a1 σ3 rfl J3 p hpC (by rw [← hi]; exact h0))
       (P1.schedcontext.complete_yield_to.blkS hT s3 a1 _ p J3.blk hy hpS)) ?_
     rintro ⟨s4, a4⟩ ⟨⟨σ4, e4, V4, Ac4, Lst4, D4, J4⟩, hP4⟩
     try simp only [WP.uncurry'_pair] at hP4
