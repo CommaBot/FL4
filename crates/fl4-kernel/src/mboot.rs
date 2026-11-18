@@ -10,6 +10,16 @@ pub const MAX_MMAP: usize = 128;
 /// The root task's image and up to eight more modules (l4h 0021).
 pub const MAX_MODULES: usize = 9;
 const MODULE_NAME_LEN: usize = 64;
+/// boot.S maps [0, 4 GiB) when the kernel parses the information: every
+/// read stays below this, whatever addresses and sizes it holds.
+const BOOT_MAP_TOP: u64 = 1 << 32;
+/// Multiboot 1 information up to the framebuffer type byte.
+const MB1_INFO_LEN: u64 = 110;
+
+/// Whether `[p, p + len)` lies in the boot mapping.
+fn inside(p: u64, len: u64) -> bool {
+    p <= BOOT_MAP_TOP && len <= BOOT_MAP_TOP - p
+}
 
 #[derive(Clone, Copy, Default)]
 pub struct MemRegion {
@@ -38,8 +48,10 @@ pub struct BootInfo {
     pub n_modules: usize,
     /// RSDP copied from Multiboot 2 tags, if any.
     pub rsdp: Option<u64>,
-    /// The command line (a C string's physical address), or 0.
+    /// The command line (a C string's physical address), or 0, and how
+    /// many bytes of it may be read (it may end earlier, at a NUL).
     pub cmdline: u64,
+    pub cmdline_len: u64,
     /// The framebuffer the boot loader set up, if any.
     pub fb: Option<Framebuffer>,
 }
@@ -81,7 +93,7 @@ impl BootInfo {
         }
         let mut module = Module { start, end, ..Module::EMPTY };
         if name_addr != 0 {
-            let limit = name_len.min((MODULE_NAME_LEN - 1) as u64);
+            let limit = name_len.min((MODULE_NAME_LEN - 1) as u64).min(BOOT_MAP_TOP.saturating_sub(name_addr));
             for i in 0..limit {
                 let byte = rd8(name_addr + i);
                 if byte == 0 {
@@ -101,6 +113,10 @@ pub fn has_option(b: &BootInfo, opt: &[u8]) -> bool {
     if b.cmdline == 0 {
         return false;
     }
+    // The line ends at its NUL or its last readable byte, whichever comes
+    // first: past it reads as NUL.
+    let end = b.cmdline + b.cmdline_len;
+    let rd8 = |p: u64| if p < end { rd8(p) } else { 0 };
     let mut p = b.cmdline;
     loop {
         while rd8(p) == b' ' {
@@ -129,20 +145,28 @@ pub fn has_option(b: &BootInfo, opt: &[u8]) -> bool {
 }
 
 pub fn parse(magic: u32, info: u64) -> Option<BootInfo> {
-    let mut b = BootInfo { mmap: [MemRegion::default(); MAX_MMAP], n_mmap: 0, modules: [Module::EMPTY; MAX_MODULES], n_modules: 0, rsdp: None, cmdline: 0, fb: None };
+    let mut b = BootInfo { mmap: [MemRegion::default(); MAX_MMAP], n_mmap: 0, modules: [Module::EMPTY; MAX_MODULES], n_modules: 0, rsdp: None, cmdline: 0, cmdline_len: 0, fb: None };
     if magic == MB1_MAGIC {
+        if !inside(info, MB1_INFO_LEN) {
+            return None;
+        }
         let flags = rd32(info);
         if flags & (1 << 2) != 0 {
             b.cmdline = rd32(info + 16) as u64;
+            b.cmdline_len = BOOT_MAP_TOP - b.cmdline;
         }
         if flags & (1 << 12) != 0 {
             b.fb = Some(Framebuffer { addr: rd64(info + 88), pitch: rd32(info + 96), width: rd32(info + 100), height: rd32(info + 104), bpp: rd8(info + 108), ty: rd8(info + 109) });
         }
         if flags & (1 << 3) != 0 {
-            let n = rd32(info + 20) as u64;
+            // Entries past the ones kept are only counted (add_module).
+            let n = (rd32(info + 20) as u64).min(MAX_MODULES as u64 + 1);
             let addr = rd32(info + 24) as u64;
             for i in 0..n {
                 let m = addr + 16 * i;
+                if !inside(m, 12) {
+                    break;
+                }
                 b.add_module(rd32(m) as u64, rd32(m + 4) as u64, rd32(m + 8) as u64, MODULE_NAME_LEN as u64);
             }
         }
@@ -151,20 +175,34 @@ pub fn parse(magic: u32, info: u64) -> Option<BootInfo> {
         }
         let len = rd32(info + 44) as u64;
         let addr = rd32(info + 48) as u64;
+        let end = (addr + len).min(BOOT_MAP_TOP);
         let mut p = addr;
-        while p < addr + len && b.n_mmap < MAX_MMAP {
+        // An entry's size word does not count itself; the entry is at
+        // least base, length and type (20 bytes).
+        while b.n_mmap < MAX_MMAP && p + 24 <= end {
             let size = rd32(p) as u64;
+            if size < 20 {
+                break;
+            }
             b.mmap[b.n_mmap] = MemRegion { base: rd64(p + 4), len: rd64(p + 12), ty: rd32(p + 20) };
             b.n_mmap += 1;
             p += size + 4;
         }
         Some(b)
     } else if magic == MB2_MAGIC {
+        // The whole information, as its total size gives it, in the
+        // mapping: every tag the walk visits lies inside it.
+        if !inside(info, 8) || !inside(info, rd32(info) as u64) {
+            return None;
+        }
         crate::mb2::tags(info, rd32, |t, ty, size| match ty {
-            1 => b.cmdline = t + 8,
-            8 => b.fb = Some(Framebuffer { addr: rd64(t + 8), pitch: rd32(t + 16), width: rd32(t + 20), height: rd32(t + 24), bpp: rd8(t + 28), ty: rd8(t + 29) }),
+            1 => {
+                b.cmdline = t + 8;
+                b.cmdline_len = size - 8;
+            }
+            8 if size >= 30 => b.fb = Some(Framebuffer { addr: rd64(t + 8), pitch: rd32(t + 16), width: rd32(t + 20), height: rd32(t + 24), bpp: rd8(t + 28), ty: rd8(t + 29) }),
             3 if size >= 16 => b.add_module(rd32(t + 8) as u64, rd32(t + 12) as u64, t + 16, size - 16),
-            6 => {
+            6 if size >= 16 => {
                 let esz = rd32(t + 8) as u64;
                 let mut e = t + 16;
                 while e + esz <= t + size && b.n_mmap < MAX_MMAP && esz >= 20 {
@@ -173,7 +211,8 @@ pub fn parse(magic: u32, info: u64) -> Option<BootInfo> {
                     e += esz;
                 }
             }
-            14 | 15 => {
+            // RSDP 1.0 is 20 bytes, 2.0 36.
+            14 | 15 if size >= 8 + if ty == 14 { 20 } else { 36 } => {
                 if b.rsdp.is_none() || ty == 15 {
                     b.rsdp = Some(t + 8);
                 }

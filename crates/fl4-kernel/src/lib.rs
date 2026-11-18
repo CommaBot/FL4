@@ -343,21 +343,25 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64) -> ! {
     let reserved = [(KERNEL_PHYS_START, mods_end), (image.p_start, image.p_end), (apic_base, apic_base + PAGE)];
     let ioapics = acpi.ioapics[..acpi.n_ioapics].iter().map(|&b| (b, b + IOAPIC_WINDOW));
     let mut dev = bootmem::device(&ram, device_top, reserved.into_iter().chain(ioapics));
+    // The framebuffer console (l4h 0020), if asked for: only on device
+    // memory as it is before the modules join it, so never on RAM, the
+    // kernel's image and statics, the boot modules, the root task or the
+    // APIC and IOAPIC registers (a loader may report any of them as
+    // reserved), nor in low memory (which holds the APs' boot code).
+    let fb_ok = |f: &mboot::Framebuffer| {
+        f.addr >= HIGHMEM_PADDR
+            && f.addr.checked_add(f.pitch as u64 * f.height as u64).is_some_and(|end| dev.contains(f.addr, end))
+    };
+    let fb = mb.fb.filter(|f| fb_console && fb_ok(f));
     // The other modules (l4h 0021): copied above the image, out of the way
     // of everything, and handed over as device untypeds, which retype
     // without clearing.
     let st = unsafe { &mut *STATICS.0.get() };
     let mods = keep_modules(&mb, image.p_end, &ram, &mut st.mods);
     dev.add(image.p_end, mods);
-    // The framebuffer console (l4h 0020), if asked for: never on RAM or low
-    // memory (which holds the APs' boot code).
     if fb_console {
-        let ok = match mb.fb {
-            Some(f) => {
-                let end = f.addr.saturating_add(f.pitch as u64 * f.height as u64);
-                let on_ram = (0..ram.n).any(|j| f.addr < ram.r[j].end && ram.r[j].start < end);
-                f.addr >= HIGHMEM_PADDR && !on_ram && fbcon::init(f.addr, window_top, f.pitch, f.width, f.height, f.bpp, f.ty)
-            }
+        let ok = match fb {
+            Some(f) => fbcon::init(f.addr, window_top, f.pitch, f.width, f.height, f.bpp, f.ty),
             None => false,
         };
         match mb.fb {

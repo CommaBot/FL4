@@ -84,3 +84,106 @@ fn multiboot2_owns_names_and_keeps_reads_inside_each_module_tag() {
     assert!(guest.name[13..].iter().all(|&byte| byte == 0));
     assert_eq!(&boot.modules[1].name[..4], b"sdk\0");
 }
+
+/// Parse `memory` (information at its offset `info`), then look for
+/// `opt` on the command line while the memory is still in place.
+fn parse_with_option(magic: u32, memory: &[u8], info: u64, opt: &[u8]) -> Option<(mboot::BootInfo, bool)> {
+    MEMORY.with(|base| base.set(memory.as_ptr() as u64));
+    let boot = mboot::parse(magic, info);
+    let found = boot.as_ref().map(|b| mboot::has_option(b, opt));
+    MEMORY.with(|base| base.set(0));
+    Some((boot?, found?))
+}
+
+/// A Multiboot 2 mmap tag at `offset` with one available entry.
+fn mb2_mmap(memory: &mut [u8], offset: usize) {
+    words(memory, offset, &[6, 40, 24, 0, 0x100000, 0, 0x100000, 0, 1, 0]);
+}
+
+/// Audit F6(a): the command line is read within its tag. A line with no
+/// NUL ends with the tag; an empty tag (size 8) is an empty line, not the
+/// bytes of the next tag.
+#[test]
+fn multiboot2_command_lines_stay_inside_their_tag() {
+    let mut memory = [0u8; 128];
+    words(&mut memory, 0, &[80, 0]);
+    // "fb_console" with no NUL; the padding after it is not the line.
+    words(&mut memory, 8, &[1, 18]);
+    memory[16..26].copy_from_slice(b"fb_console");
+    memory[26..32].copy_from_slice(b"=nope!");
+    mb2_mmap(&mut memory, 32);
+    words(&mut memory, 72, &[0, 8]);
+    let (_, found) = parse_with_option(mboot::MB2_MAGIC, &memory, 0, b"fb_console").unwrap();
+    assert!(found);
+
+    let mut memory = [0u8; 128];
+    words(&mut memory, 0, &[88, 0]);
+    words(&mut memory, 8, &[1, 8]);
+    // The next tag, an unknown one, whose payload reads like an option.
+    words(&mut memory, 16, &[0x99, 24]);
+    memory[24..35].copy_from_slice(b"fb_console\0");
+    mb2_mmap(&mut memory, 40);
+    words(&mut memory, 80, &[0, 8]);
+    let (boot, found) = parse_with_option(mboot::MB2_MAGIC, &memory, 0, b"fb_console").unwrap();
+    assert_eq!(boot.cmdline_len, 0);
+    assert!(!found);
+}
+
+/// Audit F6(a): framebuffer, mmap and RSDP tags too short for what they
+/// describe are ignored rather than read past their end.
+#[test]
+fn multiboot2_short_tags_are_ignored() {
+    let mut memory = [0u8; 160];
+    words(&mut memory, 0, &[152, 0]);
+    // Framebuffer: 22 bytes of the 30 its fields take.
+    words(&mut memory, 8, &[8, 22, 0xe000_0000, 0, 4096, 1024]);
+    // Memory map: header only, then a real one.
+    words(&mut memory, 32, &[6, 8]);
+    mb2_mmap(&mut memory, 40);
+    // RSDP 2.0 (tag 15) of 28 bytes, then RSDP 1.0 (tag 14) of 28.
+    words(&mut memory, 80, &[15, 28]);
+    words(&mut memory, 112, &[14, 28]);
+    words(&mut memory, 144, &[0, 8]);
+    let boot = parse(mboot::MB2_MAGIC, &memory);
+    assert!(boot.fb.is_none());
+    assert_eq!(boot.n_mmap, 1);
+    assert_eq!(boot.rsdp, Some(112 + 8));
+}
+
+/// Audit F6(a): information that the boot mapping ([0, 4 GiB)) does not
+/// hold is refused before any read of it.
+#[test]
+fn information_outside_the_boot_mapping_is_refused() {
+    // Reads would land 4 GiB past this array: refused without one.
+    let memory = [0u8; 8];
+    for magic in [mboot::MB1_MAGIC, mboot::MB2_MAGIC] {
+        assert!(parse_with_option(magic, &memory, (1 << 32) - 4, b"x").is_none());
+    }
+    // Multiboot 2 whose total size runs past 4 GiB.
+    let mut memory = [0u8; 16];
+    words(&mut memory, 0, &[u32::MAX, 0, 0, 8]);
+    MEMORY.with(|base| base.set(memory.as_ptr() as u64));
+    assert!(mboot::parse(mboot::MB2_MAGIC, 0).is_none());
+    MEMORY.with(|base| base.set(0));
+}
+
+/// Audit F6(a): a Multiboot 1 module count past what is kept reads only
+/// one entry more (to report it), and an mmap entry whose size cannot hold
+/// an entry ends the map.
+#[test]
+fn multiboot1_bounds_modules_and_mmap_entries() {
+    let mut memory = [0u8; 512];
+    words(&mut memory, 0, &[(1 << 3) | (1 << 6)]);
+    // 2^32 - 1 modules at 128; 10 entries (160 bytes) are there.
+    words(&mut memory, 20, &[u32::MAX, 128]);
+    for i in 0..10 {
+        words(&mut memory, 128 + 16 * i, &[0x100000, 0x101000, 0, 0]);
+    }
+    // mmap at 300: one good entry, then one of size 0.
+    words(&mut memory, 44, &[48, 300]);
+    words(&mut memory, 300, &[20, 0x100000, 0, 0x100000, 0, 1]);
+    words(&mut memory, 324, &[0, 0x200000, 0, 0x100000, 0, 1]);
+    let boot = parse(mboot::MB1_MAGIC, &memory);
+    assert_eq!(boot.n_modules, mboot::MAX_MODULES);
+    assert_eq!(boot.n_mmap, 1);
+}
