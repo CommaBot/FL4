@@ -241,13 +241,18 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
     }
 
     // Interrupt controllers and the timer.
-    let acpi = match acpi::init(mb.rsdp) {
+    let acpi = match acpi::init(mb.rsdp, window_top) {
         Some(a) => a,
         None => fail("no ACPI tables"),
     };
     pic::disable();
     let apic_base = apic::base_paddr();
     apic::enable(pptr(apic_base));
+    // The xAPIC page and each IOAPIC are reached through the kernel
+    // window, which maps only [0, window_top).
+    if !apic::is_x2apic() && !apic_base.checked_add(PAGE).is_some_and(|e| e <= window_top) {
+        fail("local APIC registers outside the kernel window");
+    }
     apic::write(apic::REG_SVR, (1 << 8) | 0xff);
     apic::write(apic::REG_LVT_LINT0, 1 << 16);
     apic::write(apic::REG_LVT_LINT1, 1 << 16);
@@ -262,6 +267,9 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
         kprintln!("FL4: {} IOAPICs: only the first {} are used", acpi.n_ioapics, ioapic::MAX_IOAPICS);
     }
     for i in 0..acpi.n_ioapics.min(ioapic::MAX_IOAPICS) {
+        if !acpi.ioapics[i].checked_add(IOAPIC_WINDOW).is_some_and(|e| e <= window_top) {
+            fail("IOAPIC registers outside the kernel window");
+        }
         ioapic::add(pptr(acpi.ioapics[i]));
     }
     timer::init(TIMER_VECTOR);

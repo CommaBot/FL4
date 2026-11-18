@@ -16,31 +16,61 @@ fn checksum(table: &mut [u8], offset: usize) {
     table[offset] = table.iter().fold(0u8, |sum, byte| sum.wrapping_add(*byte)).wrapping_neg();
 }
 
-fn parse(entries: &[u8]) -> acpi::Info {
-    let mut madt = vec![0; 44];
-    madt.extend_from_slice(entries);
+/// RSDP (at 0), XSDT (at 64) and an MADT of `entries` (at 128), in that
+/// order in one buffer, so a window top can cut between them.
+fn tables(entries: &[u8]) -> Vec<u8> {
+    let mut buf = vec![0u8; 128 + 44 + entries.len()];
+    let base = buf.as_ptr() as u64;
+    let madt = &mut buf[128..];
+    madt[44..].copy_from_slice(entries);
     let len = madt.len() as u32;
     madt[..4].copy_from_slice(b"APIC");
     madt[4..8].copy_from_slice(&len.to_le_bytes());
     madt[8] = 6;
-    checksum(&mut madt, 9);
+    checksum(madt, 9);
 
-    let mut xsdt = [0u8; 44];
+    let xsdt = &mut buf[64..108];
     xsdt[..4].copy_from_slice(b"XSDT");
     xsdt[4..8].copy_from_slice(&44u32.to_le_bytes());
     xsdt[8] = 1;
-    xsdt[36..44].copy_from_slice(&(madt.as_ptr() as u64).to_le_bytes());
-    checksum(&mut xsdt, 9);
+    xsdt[36..44].copy_from_slice(&(base + 128).to_le_bytes());
+    checksum(xsdt, 9);
 
-    let mut rsdp = [0u8; 36];
+    let rsdp = &mut buf[..36];
     rsdp[..8].copy_from_slice(b"RSD PTR ");
     rsdp[15] = 2;
     rsdp[20..24].copy_from_slice(&36u32.to_le_bytes());
-    rsdp[24..32].copy_from_slice(&(xsdt.as_ptr() as u64).to_le_bytes());
+    rsdp[24..32].copy_from_slice(&(base + 64).to_le_bytes());
     checksum(&mut rsdp[..20], 8);
-    checksum(&mut rsdp, 32);
+    checksum(rsdp, 32);
+    buf
+}
 
-    acpi::init(Some(rsdp.as_ptr() as u64)).expect("valid RSDP")
+fn parse(entries: &[u8]) -> acpi::Info {
+    let t = tables(entries);
+    acpi::init(Some(t.as_ptr() as u64), u64::MAX).expect("valid RSDP")
+}
+
+/// Tables the kernel window does not map (from `top` on) are not read:
+/// the kernel would fault on them, or read its own image as tables.
+#[test]
+fn tables_past_the_window_top_are_skipped() {
+    let entries = lapic(5, 1);
+    let t = tables(&entries);
+    let base = t.as_ptr() as u64;
+    let end = base + t.len() as u64;
+    let rsdp = Some(base);
+    let info = acpi::init(rsdp, end).expect("valid RSDP");
+    assert_eq!(&info.cpus[..info.n_cpus], &[5]);
+    // The MADT's last byte, its header, or all of it past the top.
+    for top in [end - 1, base + 128 + 8, base + 128] {
+        let info = acpi::init(rsdp, top).expect("valid RSDP");
+        assert_eq!(info.n_cpus, 0, "top {:#x}", top - base);
+    }
+    // The XSDT, or its pointer to the MADT, past the top: no tables.
+    for top in [base + 107, base + 64 + 4] {
+        assert!(acpi::init(rsdp, top).is_none(), "top {:#x}", top - base);
+    }
 }
 
 fn lapic(id: u8, flags: u32) -> [u8; 8] {
@@ -186,7 +216,7 @@ fn an_acpi_1_rsdp_uses_the_rsdt_and_only_its_20_bytes() {
     rsdp[15] = 0;
     rsdp[16..20].copy_from_slice(&(rsdt.as_ptr() as u64 as u32).to_le_bytes());
     checksum(&mut rsdp[..20], 8);
-    let info = acpi::init(Some(rsdp.as_ptr() as u64)).expect("valid RSDP");
+    let info = acpi::init(Some(rsdp.as_ptr() as u64), u64::MAX).expect("valid RSDP");
     assert_eq!(&info.cpus[..info.n_cpus], &[3]);
     assert_eq!(&info.rsdp[..20], &rsdp[..20]);
     assert!(info.rsdp[20..].iter().all(|&b| b == 0));
@@ -204,5 +234,5 @@ fn a_root_table_shorter_than_its_header_gives_no_tables() {
     rsdp[24..32].copy_from_slice(&(xsdt.as_ptr() as u64).to_le_bytes());
     checksum(&mut rsdp[..20], 8);
     checksum(&mut rsdp, 32);
-    assert!(acpi::init(Some(rsdp.as_ptr() as u64)).is_none());
+    assert!(acpi::init(Some(rsdp.as_ptr() as u64), u64::MAX).is_none());
 }

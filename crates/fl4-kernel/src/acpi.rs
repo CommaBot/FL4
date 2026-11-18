@@ -35,6 +35,13 @@ fn rd64(p: u64) -> u64 {
     unsafe { core::ptr::read_unaligned(pptr(p) as *const u64) }
 }
 
+/// `[p, p + len)` is in the kernel window's mapping of `[0, top)`: the
+/// window maps only that much (paging.rs), and past it lies the kernel
+/// image's mapping and then nothing.
+fn mapped(p: u64, len: u64, top: u64) -> bool {
+    matches!(p.checked_add(len), Some(end) if end <= top)
+}
+
 fn checksum(p: u64, len: u64) -> bool {
     let mut s: u8 = 0;
     for i in 0..len {
@@ -73,11 +80,19 @@ fn valid_rsdp(p: u64) -> bool {
     rd64(p) == u64::from_le_bytes(*b"RSD PTR ") && checksum(p, 20)
 }
 
+/// An RSDP at `p` below `top`, which the kernel can read.
+fn valid_rsdp_below(p: u64, top: u64) -> bool {
+    mapped(p, 20, top) && valid_rsdp(p)
+}
+
 /// The RSDP at `p` (valid) has ACPI 2.0 fields: revision 2 or later, a
 /// length that covers them, and the extended checksum over that length.
-fn rsdp_v2(p: u64) -> bool {
+fn rsdp_v2(p: u64, top: u64) -> bool {
+    if !mapped(p, RSDP_LEN as u64, top) {
+        return false;
+    }
     let len = rd32(p + 20) as u64;
-    rd8(p + 15) >= 2 && (RSDP_LEN as u64..=4096).contains(&len) && checksum(p, len)
+    rd8(p + 15) >= 2 && (RSDP_LEN as u64..=4096).contains(&len) && mapped(p, len, top) && checksum(p, len)
 }
 
 /// Parse the ACPI tables. `given` is the RSDP the bootloader passed
@@ -86,14 +101,15 @@ fn rsdp_v2(p: u64) -> bool {
 ///
 /// Every length comes from firmware: tables and MADT entries are read only
 /// within their own lengths, and those that are too short for their fields
-/// are skipped.
-pub fn init(given: Option<u64>) -> Option<Info> {
+/// are skipped. So are tables not wholly below `top`, the end of the
+/// physical memory the kernel window maps.
+pub fn init(given: Option<u64>, top: u64) -> Option<Info> {
     let rsdp = match given {
-        Some(p) if valid_rsdp(p) => p,
+        Some(p) if valid_rsdp_below(p, top) => p,
         _ => find_rsdp()?,
     };
     let mut info = Info { rsdp: [0; RSDP_LEN], cpus: [0; MAX_CPUS], n_cpus: 0, ioapics: [0; MAX_IOAPICS], n_ioapics: 0, ioapics_lost: false };
-    let v2 = rsdp_v2(rsdp);
+    let v2 = rsdp_v2(rsdp, top);
     for i in 0..if v2 { RSDP_LEN } else { 20 } {
         info.rsdp[i] = rd8(rsdp + i as u64);
     }
@@ -102,25 +118,28 @@ pub fn init(given: Option<u64>) -> Option<Info> {
     } else {
         (rd32(rsdp + 16) as u64, 4, *b"RSDT")
     };
+    if !mapped(root, SDT_HEADER, top) {
+        return None;
+    }
     let len = rd32(root + 4) as u64;
-    if sig(root) != u32::from_le_bytes(root_sig) || len < SDT_HEADER {
+    if sig(root) != u32::from_le_bytes(root_sig) || len < SDT_HEADER || !mapped(root, len, top) {
         return None;
     }
     let madt_sig = u32::from_le_bytes(*b"APIC");
     for i in 0..(len - SDT_HEADER) / entry {
         let e = root + SDT_HEADER + i * entry;
         let t = if entry == 8 { rd64(e) } else { rd32(e) as u64 };
-        if sig(t) == madt_sig {
-            parse_madt(t, &mut info);
+        if mapped(t, SDT_HEADER, top) && sig(t) == madt_sig {
+            parse_madt(t, top, &mut info);
         }
     }
     Some(info)
 }
 
-fn parse_madt(t: u64, info: &mut Info) {
+fn parse_madt(t: u64, top: u64, info: &mut Info) {
     let len = rd32(t + 4) as u64;
     let end = match t.checked_add(len) {
-        Some(e) if len >= MADT_HEADER => e,
+        Some(e) if len >= MADT_HEADER && e <= top => e,
         _ => return,
     };
     let mut p = t + MADT_HEADER;
