@@ -14,7 +14,7 @@ use fl4_arch_x86_64::smp;
 use core::sync::atomic::{AtomicU64, Ordering};
 
 core::arch::global_asm!(
-    include_str!("../../fl4-arch-x86_64/src/spec.S"), include_str!("sysret.S"), include_str!("entry.S"),
+    include_str!("../../fl4-arch-x86_64/src/spec.S"), include_str!("sysret.S"), include_str!("bad_iret.S"), include_str!("entry.S"),
     spec_ibpb = const fl4_arch_x86_64::spec::policy::IBPB,
     spec_rsb = const fl4_arch_x86_64::spec::policy::RSB,
     spec_pbrsb = const fl4_arch_x86_64::spec::policy::PBRSB,
@@ -556,11 +556,19 @@ pub fn exit() -> ! {
                 continue;
             }
         }
-        let core = s.cur_cpu();
-        let idle = ct.0 == node_get(s, core, node::IDLE_THREAD);
         // Another core invalidated the ASID this core ran: if it was
         // deleted, run the current thread on what its VSpace cap now names
         // (the kernel's tables, where it faults), not on the deleted ones.
+        // That reads the thread's cap, the ASID table and a pool, which a
+        // serial entry on another core may be deleting (and the memory
+        // reused) unless this core holds the gate: after a transaction, or
+        // from the idle loop, it does not.
+        if percpu::get().vspace_stale.get() && smp::multi() && !percpu::get().gate_held.get() {
+            lock();
+            continue;
+        }
+        let core = s.cur_cpu();
+        let idle = ct.0 == node_get(s, core, node::IDLE_THREAD);
         if percpu::get().vspace_stale.replace(false) {
             let mut a = PhysArch;
             if idle {

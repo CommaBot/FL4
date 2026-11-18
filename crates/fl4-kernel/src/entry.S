@@ -119,9 +119,13 @@ fl4_common_entry:
 .Lcr3_done:
     /* From user mode: move the frame to the kernel stack. The entry area
      * holding this stack is size-aligned; its third word is the top of
-     * the core's kernel stack. */
+     * the core's kernel stack. A fault of an IRET to user mode belongs to
+     * the user (bad_iret.S) and goes the same way. */
     testb $3, 18*8(%rbp)
-    jz .Lon_stack
+    jnz .Lfrom_user
+    fl4_bad_iret .Lcommon_iret, .Lrestore_iret, .Lfrom_user
+    jmp .Lon_stack
+.Lfrom_user:
     movq %rbp, %rax
     andq $-{skim_cpu_size}, %rax
     movq 16(%rax), %rdi
@@ -195,6 +199,7 @@ fl4_common_entry:
     movq $0, -128(%rsp)
     movq $0, -136(%rsp)
     fl4_clear_buffers
+.Lcommon_iret:
     iretq
 
 /* fl4_restore_user(regs: *const u64, stack_top: u64, cr3: u64) -> !
@@ -250,6 +255,7 @@ fl4_restore_user:
     movq $0, (%rsp)
     addq $8, %rsp
     fl4_clear_buffers
+.Lrestore_iret:
     iretq
 
 3:  /* SYSRET path. The frame on the entry stack: user rsp, cr3, rdi. */
