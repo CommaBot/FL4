@@ -38,7 +38,10 @@ XTopFinThread's `xFinThread_of`:
   or a TCB by P1's `TimerOK.dh`, `dbgw_utc` with the new head outside the
   childless untyped regions: the old head by `UtCapP3.rst`, its successor by
   `JThreadFinHyps.utTcb` and `ut_free`, `dbgRemove_head`);
-* the FPU release (`JThreadFinHyps.fpu` [P]).
+* the FPU release (`JAtZ.fpuReleaseJ`, XTopJointFpu: FL4's `fpu_release`
+  changes only the arch state, kept related by `ARKeep` [P]; the spec's
+  changes only the thread's FPU image and `tcbCurFpu`, the FPU owner and the
+  machine state, read by no relation of `JAtZ`).
 
 The finalised thread's slot is ready after (`JAtZ.tcb_ready`, as
 `JAtZ.ep_ready`: the TCB the only object of `H` in the cap's range, dead by
@@ -49,7 +52,9 @@ thread and `JAtZ` lacks: not the scheduler's switch target, l4v
 `valid_sched_action`; not the idle thread, l4v `valid_global_refs`; its VCPU
 word zero, native threads; ScPlace's `JState`); [J] `utTcb` (core 0's
 debug-list successor of the head covered by a cap, l4v
-`if_live_then_nonz_cap` for FL4's debug list); [P] `fpu`; [P] `ticks`.
+`if_live_then_nonz_cap` for FL4's debug list); [P] `ticks`. The FPU
+release needs `ARKeep` [P] (`finThreadJ`'s `hK`, the top level's
+`JDelParts.arKeep`).
 -/
 import Fl4Proofs.P3.XTopFinThread
 import Fl4Proofs.P3.ScFireJ
@@ -61,6 +66,7 @@ import Fl4Proofs.P3.XTopJointSuspend
 import Fl4Proofs.P3.XTopJointCancelRecv
 import Fl4Proofs.P3.XTopJointCancelReply
 import Fl4Proofs.P3.XTopJointCancel
+import Fl4Proofs.P3.XTopJointFpu
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -108,11 +114,6 @@ structure JThreadFinHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Pr
     L.mem s (P1.dnA (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))) ≠ 0#u64 →
     Covered (L.mem s) Z.G (L.mem s (P1.dnA (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)))).val
       ((L.mem s (P1.dnA (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)))).val + 1)
-  /-- [P] The FPU release at `J` (XTop: `xFinThread_of`'s `hFpu`). -/
-  fpu : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S)
-    (a : A) (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
-    ∀ t ∈ Z.T, arI.fpu_release a t ⦃ a' => ∃ σ', ((), σ') ∈ (Fl4Spec.fpuRelease (Z := Unit) t.bv σ).1 ∧
-      JTP (L := L) arI AR Z H Cs s a' σ' ⦄
 
 variable {arI}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
@@ -687,8 +688,8 @@ theorem JAtZ.dbgRemoveJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
 
 set_option maxHeartbeats 16000000 in
 /-- **`JAtZ` across a final thread cap's finalisation** (module docstring),
-the steps of `JThreadFinHyps` given. -/
-theorem JAtZ.finThreadJ (hAT : P0.ArchTotal arI) (hF : JThreadFinHyps (L := L) arI AR Z.th)
+the steps of `JThreadFinHyps` given, the FPU release's arch step by `ARKeep` [P]. -/
+theorem JAtZ.finThreadJ (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR) (hF : JThreadFinHyps (L := L) arI AR Z.th)
     (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyHyp (L := L) arI AR H Cs)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hp : p ∈ Z.T)
     (hv0 : L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64) (hna : L.actionW s ≠ p) (hidle : L.idleW s ≠ p) :
@@ -758,10 +759,10 @@ theorem JAtZ.finThreadJ (hAT : P0.ArchTotal arI) (hF : JThreadFinHyps (L := L) a
     subst ha6
     refine WP.spec_bind (J6.dbgRemoveJ (hF.utTcb (Z.mv Z.G V6) H Cs Ac6 Lst6 D6 s6 _ σ6 rfl J6) hp) ?_
     intro s7 J7
-    refine WP.spec_bind (hF.fpu (Z.mv Z.G V6) H Cs Ac6 Lst6 D6 s7 _ σ6 rfl J7 p hp) ?_
-    rintro a8 ⟨σ8, hm8, V8, Ac8, Lst8, D8, J8⟩
+    refine WP.spec_bind (J7.fpuReleaseJ hK hp) ?_
+    rintro a8 ⟨σ8, hm8, V8, J8⟩
     simp only [P1.tcb_slot_ctable, bind_ok, WP.spec_ok]
-    exact ⟨σ8, finThread_mem he3 he5 he6 hm8, V8, Ac8, Lst8, D8, J8⟩
+    exact ⟨σ8, finThread_mem he3 he5 he6 hm8, V8, Ac6, Lst6, D6, J8⟩
   -- `unbind_from_sc`
   obtain ⟨Q4, R4, hc4, hs4⟩ := J4.xtop.fin.1.1.1.lists
   obtain ⟨x4, hk4, -, -, hsc4, -⟩ := hs4.tcb p hp
