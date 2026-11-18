@@ -14,7 +14,9 @@ platform constant `numDomains = 1` (PORTING.md, "Platform constants");
 The scheduler steps are hypotheses for the scheduler's proofs: `DomSetHyp`
 (DomainSetSet's `set_domain` against `invoke_set_domain`) and `DomResHyp`
 (ScheduleSetStart's `reschedule_required` against `reschedule_required`),
-each about the states the decode reaches.
+each about the states the decode reaches. DomainSetSet first stalls its
+target (`remote_tcb_stall`, #24): `DomStallHyp`, a no-op on one core
+(`domStallHyp_of` in DomSched, from `SchedRel`).
 -/
 import Fl4Proofs.P3.DecodeTop
 import Fl4Proofs.P3.NtfnSched
@@ -174,7 +176,7 @@ end
 /-! ## The relation -/
 
 section
-variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type}
 
 
 /-- The offset of entry `i`'s domain word in the kernel-global area
@@ -312,11 +314,29 @@ def DomPost (th : TypedHeap) (σ : Fl4Spec.State Unit) (G : MdbGhost)
       DomRel (L.mem res.2) (L.ksb res.2) y.2 ∧
       (CurRun σ → ∀ (A : Type) (arI : machine.Arch A) (a : A), Steps (L := L) arI th s a σ res.2 a y.2))
 
+/-- `DomPost` of `domain::decode`'s result with the arch state: the arch
+state `a` given back (the DomainSetSet target's stall is a no-op,
+`DomStallHyp`). -/
+def DomPostA (th : TypedHeap) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+    (m : Fl4Spec.SEMonad Unit Fl4Spec.DomainInvocation) (s : S) (a : A) :
+    core.result.Result Unit error.Exc × S × A → Prop
+  | (r, s', a') => a' = a ∧ DomPost (L := L) th σ G m s (r, s')
+
+/-- **DomainSetSet's stall of its target is a no-op** (`remote_tcb_stall_id`:
+on one core every thread has the current core's affinity). -/
+def DomStallHyp (arI : machine.Arch A) (th : TypedHeap) (s : S) (a : A) : Prop :=
+  ∀ p, th p = some .tcb → smp.remote_tcb_stall st arI s a p = ok (s, a)
+
+/-- A `let` of a pair of variables at a pair (the stall's no-op result). -/
+theorem dom_let_pair {α β γ : Type} (x : α) (y : β) (f : α → β → Result γ) (Q : γ → Prop)
+    (h : f x y ⦃ res => Q res ⦄) : (let (s1, a1) := (x, y); f s1 a1) ⦃ res => Q res ⦄ := h
+
 theorem dom_err {th : TypedHeap} {σ : Fl4Spec.State Unit} {G : MdbGhost}
     {m : Fl4Spec.SEMonad Unit Fl4Spec.DomainInvocation} {s : S} {e : error.Exc} {e' : Fl4Spec.SyscallError}
-    (h : m.run σ = ({(.error e', σ)}, False)) (he : SysErrRel e e') :
-    (ok ((.Err e, s) : core.result.Result Unit error.Exc × S)) ⦃ res => DomPost (L := L) th σ G m s res ⦄ := by
-  rw [WP.spec_ok]; exact Or.inl ⟨e, rfl, rfl, e', h, he⟩
+    {a : A} (h : m.run σ = ({(.error e', σ)}, False)) (he : SysErrRel e e') :
+    (ok ((.Err e, s, a) : core.result.Result Unit error.Exc × S × A)) ⦃ res =>
+      DomPostA (L := L) th σ G m s a res ⦄ := by
+  rw [WP.spec_ok]; exact ⟨rfl, Or.inl ⟨e, rfl, rfl, e', h, he⟩⟩
 
 /-- The CSpace parts and `FinInv` carried by a step that keeps the slots. -/
 theorem crel_step {th : TypedHeap} {m m' : U64 → U64} {σ σ' : Fl4Spec.State Unit} {G : MdbGhost}
@@ -592,7 +612,7 @@ theorem schedStep_start (th : TypedHeap) (s1 : S) (σ1 : Fl4Spec.State Unit) {kb
     exact hent1 i hi
 
 /-- **DomainScheduleSetStart.** -/
-theorem dom_start_refines (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+theorem dom_start_refines (arI : machine.Arch A) (th : TypedHeap) (hP : Placed th) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
@@ -604,8 +624,8 @@ theorem dom_start_refines (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spe
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hRes : DomResHyp (L := L) th s σ ct) :
-    domain.decode st s fl4_abi.label.DomainScheduleSetStart length buf extra ⦃ res =>
-      DomPost (L := L) th σ G (Fl4Spec.decodeDomainInvocation slbl (args.map UScalar.bv) excs) s res ⦄ := by
+    domain.decode st arI s a fl4_abi.label.DomainScheduleSetStart length buf extra ⦃ res =>
+      DomPostA (L := L) th σ G (Fl4Spec.decodeDomainInvocation slbl (args.map UScalar.bv) excs) s a res ⦄ := by
   set kb := L.ksb s with hkbdef
   unfold domain.decode
   have n1 : ¬ fl4_abi.label.DomainScheduleSetStart = fl4_abi.label.DomainSetSet := by
@@ -662,6 +682,7 @@ theorem dom_start_refines (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spe
   refine WP.spec_bind (hRes s1 σ1 y0 hs1 hst1 hy) ?_
   rintro s5 ⟨hS5, hkb5, hDS5, y, hy5, hK, hSR, hcdt, hio, hdl, hst5, hss⟩
   rw [WP.spec_ok]
+  refine ⟨rfl, ?_⟩
   -- the slots and the domain words of the writes
   set s4 := startS (L := L) s1 kb y0 with hs4
   have hS4 : SlotsSame th (L.mem s1) (L.mem s4) := by
@@ -766,7 +787,7 @@ theorem schedStep_conf (th : TypedHeap) (s1 : S) (σ1 : Fl4Spec.State Unit) {kb 
 
 /-- ScheduleConfigure's invocation: the entry written, with the CSpace parts,
 `FinInv` and `DomRel`. -/
-theorem dom_conf_ok (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+theorem dom_conf_ok (th : TypedHeap) (hP : Placed th) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
     (ct : U64) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
@@ -780,13 +801,14 @@ theorem dom_conf_ok (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.Stat
     (do
       let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
       let s2 ← sched.set_dom_sched st s1 y0 y1 y2
-      ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2)) ⦃ res =>
-      DomPost (L := L) th σ G m s res ⦄ := by
+      ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a)) ⦃ res =>
+      DomPostA (L := L) th σ G m s a res ⦄ := by
   set kb := L.ksb s with hkbdef
   obtain ⟨s1, hs1, hS1, hkb1, σ1, hst1, hCR1, hFI1, hDR1, -, hstR⟩ :=
     dom_restart th hP s σ G hCR hFI hDR ct hcur htcb hact hkf hka hksO hactK
   rw [hs1]; simp only [bind_ok, set_dom_sched_eq, hkb1]
   rw [WP.spec_ok]
+  refine ⟨rfl, ?_⟩
   have hy0 : y0 = 0#u64 := UScalar.eq_of_val_eq (by rw [h0]; rfl)
   subst hy0
   have e0 : entOff 0#u64 = 192#u64 := rfl
@@ -816,7 +838,7 @@ theorem maxdur_eq : domain.MAX_DURATION = ok ⟨BitVec.ofNat 64 (2 ^ 56 - 1)⟩ 
   rfl
 
 /-- **DomainScheduleConfigure.** -/
-theorem dom_conf_refines (hcfg : DomConfig) (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.State Unit)
+theorem dom_conf_refines (arI : machine.Arch A) (hcfg : DomConfig) (th : TypedHeap) (hP : Placed th) (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
@@ -828,8 +850,8 @@ theorem dom_conf_refines (hcfg : DomConfig) (th : TypedHeap) (hP : Placed th) (s
     (length buf : U64) (args : List U64) (hlen : length.val = args.length)
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) :
-    domain.decode st s fl4_abi.label.DomainScheduleConfigure length buf extra ⦃ res =>
-      DomPost (L := L) th σ G (Fl4Spec.decodeDomainInvocation slbl (args.map UScalar.bv) excs) s res ⦄ := by
+    domain.decode st arI s a fl4_abi.label.DomainScheduleConfigure length buf extra ⦃ res =>
+      DomPostA (L := L) th σ G (Fl4Spec.decodeDomainInvocation slbl (args.map UScalar.bv) excs) s a res ⦄ := by
   set kb := L.ksb s with hkbdef
   unfold domain.decode
   have n1 : ¬ fl4_abi.label.DomainScheduleConfigure = fl4_abi.label.DomainSetSet := by
@@ -891,10 +913,10 @@ theorem dom_conf_refines (hcfg : DomConfig) (th : TypedHeap) (hP : Placed th) (s
       (do
         let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
         let s2 ← sched.set_dom_sched st s1 y0 y1 y2
-        ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2)) ⦃ res =>
-        DomPost (L := L) th σ G (Fl4Spec.decodeDomainInvocation slbl (List.map UScalar.bv (y0 :: y1 :: y2 :: rest))
-          excs) s res ⦄ := fun hc5 =>
-    dom_conf_ok th hP s σ G hCR hFI ⟨hl, hent, hstart⟩ ct hcur htcb hact hkf hka hksO hactK _ y0 y1 y2 hy0 hy1 hy2
+        ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a)) ⦃ res =>
+        DomPostA (L := L) th σ G (Fl4Spec.decodeDomainInvocation slbl (List.map UScalar.bv (y0 :: y1 :: y2 :: rest))
+          excs) s a res ⦄ := fun hc5 =>
+    dom_conf_ok th hP s a σ G hCR hFI ⟨hl, hent, hstart⟩ ct hcur htcb hact hkf hka hksO hactK _ y0 y1 y2 hy0 hy1 hy2
       (by rw [hmap, hspec, if_neg (by omega), if_neg (by omega), if_neg nc3, if_neg nc4, if_neg hc5]; rfl)
   have hk2 : obj.ks_get st s layout.ks.DOM_SCHED_START = ok (L.mem s (ksW kb 32#u64)) := by
     rw [ks_get_eq, show layout.ks.DOM_SCHED_START = 32#u64 by unfold layout.ks.DOM_SCHED_START; rfl]
@@ -918,7 +940,7 @@ theorem dom_conf_refines (hcfg : DomConfig) (th : TypedHeap) (hP : Placed th) (s
     · rw [if_neg c5]; exact hok (fun h => c5 (hst.2 h.1))
 
 /-- **DomainSetSet.** -/
-theorem dom_set_refines (hcfg : DomConfig) (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.State Unit)
+theorem dom_set_refines (arI : machine.Arch A) (hcfg : DomConfig) (th : TypedHeap) (hP : Placed th) (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
@@ -931,9 +953,9 @@ theorem dom_set_refines (hcfg : DomConfig) (th : TypedHeap) (hP : Placed th) (s 
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraSRel th (L.mem s) x0 excs)
-    (hSet : DomSetHyp (L := L) th s σ ct) :
-    domain.decode st s fl4_abi.label.DomainSetSet length buf extra ⦃ res =>
-      DomPost (L := L) th σ G (Fl4Spec.decodeDomainInvocation slbl (args.map UScalar.bv) excs) s res ⦄ := by
+    (hSet : DomSetHyp (L := L) th s σ ct) (hstall : DomStallHyp (st := st) arI th s a) :
+    domain.decode st arI s a fl4_abi.label.DomainSetSet length buf extra ⦃ res =>
+      DomPostA (L := L) th σ G (Fl4Spec.decodeDomainInvocation slbl (args.map UScalar.bv) excs) s a res ⦄ := by
   set kb := L.ksb s with hkbdef
   unfold domain.decode
   rw [hct]; simp only [bind_ok, ↓reduceIte]
@@ -966,10 +988,10 @@ theorem dom_set_refines (hcfg : DomConfig) (th : TypedHeap) (hP : Placed th) (s 
   have hcv : CapValid th (capV (L.mem s) x0) := hCR.2.1.abs hAs (by rw [← hxe]; exact capAt_capV _ _)
   generalize hcx : capV (L.mem s) x0 = c at hcv ⊢
   have hother : (∀ p, c ≠ .Thread p) →
-      (ok ((core.result.Result.Err (error.Exc.Sys (error.SysError.InvalidArgument 1#u64))), s) :
-        Result (core.result.Result Unit error.Exc × S)) ⦃ res =>
-      DomPost (L := L) th σ G (Fl4Spec.decodeDomainInvocation slbl (y0.bv :: rest.map UScalar.bv)
-        ((absCap c, (ps.bv, idxs)) :: rest')) s res ⦄ := by
+      (ok ((core.result.Result.Err (error.Exc.Sys (error.SysError.InvalidArgument 1#u64))), s, a) :
+        Result (core.result.Result Unit error.Exc × S × A)) ⦃ res =>
+      DomPostA (L := L) th σ G (Fl4Spec.decodeDomainInvocation slbl (y0.bv :: rest.map UScalar.bv)
+        ((absCap c, (ps.bv, idxs)) :: rest')) s a res ⦄ := by
     intro hc
     refine dom_err (dec_set_other hg _ _ nc1 _ (fun p e => ?_) _ _) rfl
     cases c <;> simp [absCap] at e
@@ -977,12 +999,18 @@ theorem dom_set_refines (hcfg : DomConfig) (th : TypedHeap) (hP : Placed th) (s 
   cases c with
   | Thread ptr =>
     simp only
+    rw [hstall ptr hcv]; simp only [bind_ok]
+    refine dom_let_pair s a (fun s2 a1 => do
+      let s3 ← sched.set_thread_state st s2 ct sched.TS_RESTART
+      let s4 ← sched.set_domain st s3 ptr y0
+      ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s4, a1)) _ ?_
     obtain ⟨s1, hs1, hS1, hkb1, σ1, hst1, hCR1, hFI1, hDR1, -, hstR⟩ :=
       dom_restart th hP s σ G hCR hFI hDR ct hcur htcb hact hkf hka hksO hactK
     rw [hs1]; simp only [bind_ok]
     refine WP.spec_bind (hSet s1 σ1 ptr y0 hs1 hst1 hcv hy0) ?_
     rintro s2 ⟨hS2, hkb2, hDS, y, hy, hK, hSR, hcdt, hio, hdl, hst, hss⟩
     rw [WP.spec_ok]
+    refine ⟨rfl, ?_⟩
     have hR2 : StateRel th (L.mem s2) y.2 := (hSR _ hCR1.1).of_caps (fun x hx => hS2.capAt hx)
     obtain ⟨hCR2, hFI2⟩ := crel_step hCR1 hFI1 hS2 hK hR2 hcdt hio
     refine Or.inr ⟨rfl, .invokeDomainSet ptr.bv (Fl4Spec.ucast Fl4Spec.domainLen y0.bv),
@@ -1002,8 +1030,9 @@ def domLabelOf (lbl : U64) : Fl4Spec.GenInvocationLabels :=
 /-- **FL4's `domain::decode` refines l4v's domain invocations, every
 label**: `decode_domain_invocation`, `set_thread_state Restart` and
 `invoke_domain`, with the CSpace relation, `FinInv` and `DomRel` after them.
-The scheduler steps are `DomSetHyp` and `DomResHyp`. -/
-theorem domain_decode_refines (hcfg : DomConfig) (th : TypedHeap) (hP : Placed th) (s : S)
+The scheduler steps are `DomSetHyp` and `DomResHyp`; DomainSetSet's stall of
+its target is `DomStallHyp`. -/
+theorem domain_decode_refines (arI : machine.Arch A) (hcfg : DomConfig) (th : TypedHeap) (hP : Placed th) (s : S) (a : A)
     (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
@@ -1016,25 +1045,26 @@ theorem domain_decode_refines (hcfg : DomConfig) (th : TypedHeap) (hP : Placed t
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraSRel th (L.mem s) x0 excs)
-    (hSet : DomSetHyp (L := L) th s σ ct) (hRes : DomResHyp (L := L) th s σ ct) :
-    domain.decode st s lbl length buf extra ⦃ res =>
-      DomPost (L := L) th σ G (Fl4Spec.decodeDomainInvocation slbl (args.map UScalar.bv) excs) s res ⦄ := by
+    (hSet : DomSetHyp (L := L) th s σ ct) (hRes : DomResHyp (L := L) th s σ ct)
+    (hstall : DomStallHyp (st := st) arI th s a) :
+    domain.decode st arI s a lbl length buf extra ⦃ res =>
+      DomPostA (L := L) th σ G (Fl4Spec.decodeDomainInvocation slbl (args.map UScalar.bv) excs) s a res ⦄ := by
   by_cases h37 : lbl.val = 37
   · have e : lbl = fl4_abi.label.DomainSetSet := UScalar.eq_of_val_eq (by rw [h37]; simp [fl4_abi.label.DomainSetSet])
     subst e
-    exact dom_set_refines hcfg th hP s σ G hCR hFI hDR ct hct hcur htcb hact hkf hka hksO hactK slbl
-      (by rw [hlbl]; simp [domLabelOf, h37]) length buf args hlen hargs extra x0 hx0 excs hex hSet
+    exact dom_set_refines arI hcfg th hP s a σ G hCR hFI hDR ct hct hcur htcb hact hkf hka hksO hactK slbl
+      (by rw [hlbl]; simp [domLabelOf, h37]) length buf args hlen hargs extra x0 hx0 excs hex hSet hstall
   by_cases h38 : lbl.val = 38
   · have e : lbl = fl4_abi.label.DomainScheduleConfigure :=
       UScalar.eq_of_val_eq (by rw [h38]; simp [fl4_abi.label.DomainScheduleConfigure])
     subst e
-    exact dom_conf_refines hcfg th hP s σ G hCR hFI hDR ct hct hcur htcb hact hkf hka hksO hactK slbl
+    exact dom_conf_refines arI hcfg th hP s a σ G hCR hFI hDR ct hct hcur htcb hact hkf hka hksO hactK slbl
       (by rw [hlbl]; simp [domLabelOf, h38]) length buf args hlen hargs extra excs
   by_cases h39 : lbl.val = 39
   · have e : lbl = fl4_abi.label.DomainScheduleSetStart :=
       UScalar.eq_of_val_eq (by rw [h39]; simp [fl4_abi.label.DomainScheduleSetStart])
     subst e
-    exact dom_start_refines th hP s σ G hCR hFI hDR ct hct hcur htcb hact hkf hka hksO hactK slbl
+    exact dom_start_refines arI th hP s a σ G hCR hFI hDR ct hct hcur htcb hact hkf hka hksO hactK slbl
       (by rw [hlbl]; simp [domLabelOf, h39]) length buf args hlen hargs extra excs hRes
   have hg : Fl4Spec.genInvocationType slbl = .invalidInvocation := by rw [hlbl]; simp [domLabelOf, h37, h38, h39]
   unfold domain.decode
@@ -1066,6 +1096,7 @@ theorem decode_invocation_domain (hcfg : DomConfig) (th : TypedHeap) (hP : Place
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraSRel th (L.mem s) x0 excs)
     (hSet : DomSetHyp (L := L) th s σ ct) (hRes : DomResHyp (L := L) th s σ ct)
+    (hstall : DomStallHyp (st := st) arI th s ar)
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef) :
     DecOK (L := L) arI s ar σ lbl length slot .Domain blk call don fp buf extra slbl (args.map UScalar.bv) ci sl
@@ -1074,11 +1105,11 @@ theorem decode_invocation_domain (hcfg : DomConfig) (th : TypedHeap) (hP : Place
   rw [hct]; simp only [bind_ok]
   cases fp
   · simp only [Bool.false_eq_true, ↓reduceIte]
-    refine WP.spec_bind (domain_decode_refines hcfg th hP s σ G hCR hFI hDR ct hct hcur htcb hact hkf hka hksO hactK
-      lbl slbl hlbl length buf args hlen hargs extra x0 hx0 excs hex hSet hRes) ?_
-    rintro ⟨r0, s'⟩ hq
-    simp only [uncurry_apply_pair]
-    rw [WP.spec_ok]
+    refine WP.spec_mono (domain_decode_refines arI hcfg th hP s ar σ G hCR hFI hDR ct hct hcur htcb hact hkf hka
+      hksO hactK lbl slbl hlbl length buf args hlen hargs extra x0 hx0 excs hex hSet hRes hstall) ?_
+    rintro ⟨r0, s', a'⟩ ⟨ha', hq⟩
+    subst a'
+    try simp only [WP.uncurry'_pair]
     apply top_of_lift (f := Fl4Spec.Fl4Invocation.invokeDomain)
     rcases hq with ⟨e, he, hs', e', h1, h2⟩ | ⟨he, inv, hrun, σ1, hst, y, hy, -, hCR', hFI', -, -, -⟩
     · exact Or.inl ⟨e, he, hs', e', h1, Or.inl h2⟩

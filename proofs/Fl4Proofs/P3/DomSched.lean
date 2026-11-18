@@ -32,6 +32,16 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
+/-- `DomStallHyp` from the scheduler relation: every TCB of the typed heap is
+in `T`, whose threads have the current core's affinity. -/
+theorem domStallHyp_of {th : TypedHeap} {s : S} {a : A} {N T C : Set U64} {c : U64}
+    {σ : Fl4Spec.State Unit} (hS : Sched.SchedRel st N T C c s σ) (hT : ∀ t, th t = some .tcb → t ∈ T) :
+    DomStallHyp (st := st) arI th s a := by
+  intro p hp
+  have h := Sched.remote_tcb_stall_id (ar := arI) a hS (hT p hp)
+  revert h
+  cases smp.remote_tcb_stall st arI s a p <;> simp [WP.spec_ok, WP.spec_vis, WP.spec_div]
+
 /-- **The domain cap at any `X` reached by the primitive steps** (as
 `decode_invocation_domainX`, from `DomPost`'s `Steps`). -/
 theorem decode_invocation_domainXS {AR : A → Fl4Spec.Cr3 → Prop} (hcfg : DomConfig)
@@ -48,7 +58,8 @@ theorem decode_invocation_domainXS {AR : A → Fl4Spec.Cr3 → Prop} (hcfg : Dom
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraSRel th (L.mem s) x0 excs)
-    (hSet : DomSetHyp (L := L) th s σ ct) (hRes : DomResHyp (L := L) th s σ ct) (hC : CurRun σ)
+    (hSet : DomSetHyp (L := L) th s σ ct) (hRes : DomResHyp (L := L) th s σ ct)
+    (hstall : DomStallHyp (st := st) arI th s ar) (hC : CurRun σ)
     {X : S → A → Fl4Spec.State Unit → Prop} (hX0 : X s ar σ)
     (hstep : ∀ s' a' σ', Steps (L := L) arI th s ar σ s' a' σ' → X s' a' σ')
     (hXX : ∀ s' a' σ', X s' a' σ' → XTop (L := L) AR s' a' σ')
@@ -61,11 +72,11 @@ theorem decode_invocation_domainXS {AR : A → Fl4Spec.Cr3 → Prop} (hcfg : Dom
   rw [hct]; simp only [bind_ok]
   cases fp
   · simp only [Bool.false_eq_true, ↓reduceIte]
-    refine WP.spec_bind (domain_decode_refines hcfg th hP s σ G hCR hFI hDR ct hct hcur htcb hact hkf hka hksO hactK
-      lbl slbl hlbl length buf args hlen hargs extra x0 hx0 excs hex hSet hRes) ?_
-    rintro ⟨r0, s'⟩ hq
-    simp only [uncurry_apply_pair]
-    rw [WP.spec_ok]
+    refine WP.spec_mono (domain_decode_refines arI hcfg th hP s ar σ G hCR hFI hDR ct hct hcur htcb hact hkf hka
+      hksO hactK lbl slbl hlbl length buf args hlen hargs extra x0 hx0 excs hex hSet hRes hstall) ?_
+    rintro ⟨r0, s', a'⟩ ⟨ha', hq⟩
+    subst a'
+    try simp only [WP.uncurry'_pair]
     rcases hq with ⟨e, he, hs', e', h1, h2⟩ | ⟨he, inv, hrun, σ1, hst, y, hy, -, -, -, -, -, hstp⟩
     · simp only at he hs'
       subst hs'
@@ -115,11 +126,11 @@ theorem decode_invocation_domainX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMas
   rw [hct]; simp only [bind_ok]
   cases fp
   · simp only [Bool.false_eq_true, ↓reduceIte]
-    refine WP.spec_bind (domain_decode_refines hcfg th hP s σ G hCR hFI hDR ct hct hcur htcb hact hkf hka hksO hactK
-      lbl slbl hlbl length buf args hlen hargs extra x0 hx0 excs hex hSet hRes) ?_
-    rintro ⟨r0, s'⟩ hq
-    simp only [uncurry_apply_pair]
-    rw [WP.spec_ok]
+    refine WP.spec_mono (domain_decode_refines arI hcfg th hP s ar σ G hCR hFI hDR ct hct hcur htcb hact hkf hka
+      hksO hactK lbl slbl hlbl length buf args hlen hargs extra x0 hx0 excs hex hSet hRes (domStallHyp_of arI hX0.fin.1.1.1 hTh)) ?_
+    rintro ⟨r0, s', a'⟩ ⟨ha', hq⟩
+    subst a'
+    try simp only [WP.uncurry'_pair]
     rcases hq with ⟨e, he, hs', e', h1, h2⟩ | ⟨he, inv, hrun, σ1, hst, y, hy, -, -, -, -, -, hstp⟩
     · simp only at he hs'
       subst hs'

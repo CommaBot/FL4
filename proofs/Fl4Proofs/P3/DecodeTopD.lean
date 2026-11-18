@@ -151,6 +151,7 @@ theorem decode_invocation_domainD (hcfg : DomConfig) (th : TypedHeap) (hP : Plac
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraSRel th (L.mem s) x0 excs)
     (hSet : DomSetHyp (L := L) th s σ ct) (hRes : DomResHyp (L := L) th s σ ct)
+    (hstall : DomStallHyp (st := st) arI th s ar)
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef) :
     DecOKD (L := L) arI s ar σ lbl length slot .Domain blk call don fp buf extra slbl (args.map UScalar.bv) ci sl
@@ -159,11 +160,11 @@ theorem decode_invocation_domainD (hcfg : DomConfig) (th : TypedHeap) (hP : Plac
   rw [hct]; simp only [bind_ok]
   cases fp
   · simp only [Bool.false_eq_true, ↓reduceIte]
-    refine WP.spec_bind (domain_decode_refines hcfg th hP s σ G hCR hFI hDR ct hct hcur htcb hact hkf hka hksO hactK
-      lbl slbl hlbl length buf args hlen hargs extra x0 hx0 excs hex hSet hRes) ?_
-    rintro ⟨r0, s'⟩ hq
-    simp only [uncurry_apply_pair]
-    rw [WP.spec_ok]
+    refine WP.spec_mono (domain_decode_refines arI hcfg th hP s ar σ G hCR hFI hDR ct hct hcur htcb hact hkf hka
+      hksO hactK lbl slbl hlbl length buf args hlen hargs extra x0 hx0 excs hex hSet hRes hstall) ?_
+    rintro ⟨r0, s', a'⟩ ⟨ha', hq⟩
+    subst a'
+    try simp only [WP.uncurry'_pair]
     rcases hq with ⟨e, he, hs', e', h1, h2⟩ | ⟨he, inv, hrun, σ1, hst, y, hy, -, hCR', hFI', -, hDR', -⟩
     · exact Or.inl ⟨e, he, hs', e', run_liftME_err h1, Or.inl h2⟩
     · have hm : ((.ok [], y.2) : Except Unit (List Fl4Spec.Data) × Fl4Spec.State Unit) ∈

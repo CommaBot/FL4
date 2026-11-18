@@ -2205,7 +2205,7 @@ def obj.ks_get
   machineStoreInst.read s i1
 
 /-- [fl4_core::layout::ks::KERNEL_ROOT]
-    Source: 'crates/fl4-core/src/layout.rs', lines 253:4-253:36
+    Source: 'crates/fl4-core/src/layout.rs', lines 256:4-256:36
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.KERNEL_ROOT : Std.U64 := 48#u64
 
@@ -2886,7 +2886,7 @@ def sporadic.maybe_add_empty_tail
   else ok s
 
 /-- [fl4_core::layout::ks::IOPORT_WORDS]
-    Source: 'crates/fl4-core/src/layout.rs', lines 268:4-268:45
+    Source: 'crates/fl4-core/src/layout.rs', lines 271:4-271:45
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.ks.IOPORT_WORDS : Result Std.U64 := 65536#u64 / 64#u64
@@ -2897,7 +2897,7 @@ def layout.ks.IOPORT_WORDS : Result Std.U64 := 65536#u64 / 64#u64
 @[global_simps, irreducible] def layout.WORD : Std.U64 := 8#u64
 
 /-- [fl4_core::layout::ks::DOM_SCHEDULE]
-    Source: 'crates/fl4-core/src/layout.rs', lines 263:4-263:44
+    Source: 'crates/fl4-core/src/layout.rs', lines 266:4-266:44
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.ks.DOM_SCHEDULE : Result Std.U64 := 24#u64 * layout.WORD
@@ -2910,7 +2910,7 @@ def layout.NUM_DOMAIN_SCHEDULES : Std.U64 :=
   fl4_abi.config.NUM_DOMAIN_SCHEDULES
 
 /-- [fl4_core::layout::ks::IRQ_STATE]
-    Source: 'crates/fl4-core/src/layout.rs', lines 264:4-264:78
+    Source: 'crates/fl4-core/src/layout.rs', lines 267:4-267:78
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.ks.IRQ_STATE : Result Std.U64 := do
@@ -2920,20 +2920,20 @@ def layout.ks.IRQ_STATE : Result Std.U64 := do
   i2 + i1
 
 /-- [fl4_core::layout::irq::MAX]
-    Source: 'crates/fl4-core/src/layout.rs', lines 206:4-206:36
+    Source: 'crates/fl4-core/src/layout.rs', lines 209:4-209:36
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.irq.MAX : Result Std.U64 := 159#u64 - 32#u64
 
 /-- [fl4_core::layout::irq::COUNT]
-    Source: 'crates/fl4-core/src/layout.rs', lines 207:4-207:35
+    Source: 'crates/fl4-core/src/layout.rs', lines 210:4-210:35
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.irq.COUNT : Result Std.U64 := do let i ← layout.irq.MAX
                                             i + 1#u64
 
 /-- [fl4_core::layout::ks::IRQ_NODE]
-    Source: 'crates/fl4-core/src/layout.rs', lines 266:4-266:77
+    Source: 'crates/fl4-core/src/layout.rs', lines 269:4-269:77
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.ks.IRQ_NODE : Result Std.U64 := do
@@ -2946,7 +2946,7 @@ def layout.ks.IRQ_NODE : Result Std.U64 := do
   i5 * 32#u64
 
 /-- [fl4_core::layout::ks::IOPORT_BITMAP]
-    Source: 'crates/fl4-core/src/layout.rs', lines 267:4-267:69
+    Source: 'crates/fl4-core/src/layout.rs', lines 270:4-270:69
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.ks.IOPORT_BITMAP : Result Std.U64 := do
@@ -2956,7 +2956,7 @@ def layout.ks.IOPORT_BITMAP : Result Std.U64 := do
   i2 + i1
 
 /-- [fl4_core::layout::ks::NODES]
-    Source: 'crates/fl4-core/src/layout.rs', lines 269:4-269:80
+    Source: 'crates/fl4-core/src/layout.rs', lines 272:4-272:80
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.ks.NODES : Result Std.U64 := do
@@ -2969,7 +2969,7 @@ def layout.ks.NODES : Result Std.U64 := do
   i5 * 64#u64
 
 /-- [fl4_core::layout::node::L1_BITMAP]
-    Source: 'crates/fl4-core/src/layout.rs', lines 236:4-236:35
+    Source: 'crates/fl4-core/src/layout.rs', lines 239:4-239:35
     Visibility: public -/
 @[global_simps, irreducible] def layout.node.L1_BITMAP : Std.U64 := 128#u64
 
@@ -2980,7 +2980,7 @@ def layout.ks.NODES : Result Std.U64 := do
 def layout.NUM_DOMAINS : Std.U64 := fl4_abi.config.NUM_DOMAINS
 
 /-- [fl4_core::layout::node::L2_BITMAP]
-    Source: 'crates/fl4-core/src/layout.rs', lines 237:4-237:62
+    Source: 'crates/fl4-core/src/layout.rs', lines 240:4-240:62
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.node.L2_BITMAP : Result Std.U64 := do
@@ -2988,18 +2988,18 @@ def layout.node.L2_BITMAP : Result Std.U64 := do
   layout.node.L1_BITMAP + i
 
 /-- [fl4_core::layout::NUM_PRIORITIES]
-    Source: 'crates/fl4-core/src/layout.rs', lines 191:0-191:36
+    Source: 'crates/fl4-core/src/layout.rs', lines 194:0-194:36
     Visibility: public -/
 @[global_simps, irreducible] def layout.NUM_PRIORITIES : Std.U64 := 256#u64
 
 /-- [fl4_core::layout::L2_BITMAP_WORDS]
-    Source: 'crates/fl4-core/src/layout.rs', lines 192:0-192:53
+    Source: 'crates/fl4-core/src/layout.rs', lines 195:0-195:53
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.L2_BITMAP_WORDS : Result Std.U64 := layout.NUM_PRIORITIES / 64#u64
 
 /-- [fl4_core::layout::node::READY_QUEUES]
-    Source: 'crates/fl4-core/src/layout.rs', lines 238:4-238:83
+    Source: 'crates/fl4-core/src/layout.rs', lines 241:4-241:83
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.node.READY_QUEUES : Result Std.U64 := do
@@ -3010,7 +3010,7 @@ def layout.node.READY_QUEUES : Result Std.U64 := do
   i3 + i2
 
 /-- [fl4_core::layout::node::SIZE_RAW]
-    Source: 'crates/fl4-core/src/layout.rs', lines 240:4-240:85
+    Source: 'crates/fl4-core/src/layout.rs', lines 243:4-243:85
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.node.SIZE_RAW : Result Std.U64 := do
@@ -3021,7 +3021,7 @@ def layout.node.SIZE_RAW : Result Std.U64 := do
   i3 + i2
 
 /-- [fl4_core::layout::node::SIZE]
-    Source: 'crates/fl4-core/src/layout.rs', lines 241:4-241:52
+    Source: 'crates/fl4-core/src/layout.rs', lines 244:4-244:52
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.node.SIZE : Result Std.U64 := do
@@ -3057,7 +3057,7 @@ def obj.node_get
   machineStoreInst.read s i1
 
 /-- [fl4_core::layout::node::CUR_TIME]
-    Source: 'crates/fl4-core/src/layout.rs', lines 219:4-219:33
+    Source: 'crates/fl4-core/src/layout.rs', lines 222:4-222:33
     Visibility: public -/
 @[global_simps, irreducible] def layout.node.CUR_TIME : Std.U64 := 48#u64
 
@@ -3547,7 +3547,7 @@ def obj.Tcb.affinity
   machineStoreInst.read s i1
 
 /-- [fl4_core::layout::node::DEBUG_TCBS]
-    Source: 'crates/fl4-core/src/layout.rs', lines 227:4-227:35
+    Source: 'crates/fl4-core/src/layout.rs', lines 230:4-230:35
     Visibility: public -/
 @[global_simps, irreducible] def layout.node.DEBUG_TCBS : Std.U64 := 88#u64
 
@@ -3572,27 +3572,27 @@ def objects.debug_append
   obj.node_set machineStoreInst s3 cpu layout.node.DEBUG_TCBS t1
 
 /-- [fl4_core::layout::ks::DOMAIN_TIME]
-    Source: 'crates/fl4-core/src/layout.rs', lines 249:4-249:36
+    Source: 'crates/fl4-core/src/layout.rs', lines 252:4-252:36
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.DOMAIN_TIME : Std.U64 := 16#u64
 
 /-- [fl4_core::layout::ks::CUR_DOMAIN]
-    Source: 'crates/fl4-core/src/layout.rs', lines 248:4-248:34
+    Source: 'crates/fl4-core/src/layout.rs', lines 251:4-251:34
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.CUR_DOMAIN : Std.U64 := 8#u64
 
 /-- [fl4_core::layout::ks::NUM_NODES]
-    Source: 'crates/fl4-core/src/layout.rs', lines 247:4-247:33
+    Source: 'crates/fl4-core/src/layout.rs', lines 250:4-250:33
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.NUM_NODES : Std.U64 := 0#u64
 
 /-- [fl4_core::layout::node::SCHED_ACTION]
-    Source: 'crates/fl4-core/src/layout.rs', lines 215:4-215:37
+    Source: 'crates/fl4-core/src/layout.rs', lines 218:4-218:37
     Visibility: public -/
 @[global_simps, irreducible] def layout.node.SCHED_ACTION : Std.U64 := 16#u64
 
 /-- [fl4_core::layout::node::IDLE_THREAD]
-    Source: 'crates/fl4-core/src/layout.rs', lines 214:4-214:35
+    Source: 'crates/fl4-core/src/layout.rs', lines 217:4-217:35
     Visibility: public -/
 @[global_simps, irreducible] def layout.node.IDLE_THREAD : Std.U64 := 8#u64
 
@@ -5549,22 +5549,22 @@ def obj.Tcb.set_flags
   machineStoreInst.write s i1 v
 
 /-- [fl4_core::layout::node::REPROGRAM]
-    Source: 'crates/fl4-core/src/layout.rs', lines 220:4-220:34
+    Source: 'crates/fl4-core/src/layout.rs', lines 223:4-223:34
     Visibility: public -/
 @[global_simps, irreducible] def layout.node.REPROGRAM : Std.U64 := 56#u64
 
 /-- [fl4_core::layout::node::IDLE_SC]
-    Source: 'crates/fl4-core/src/layout.rs', lines 217:4-217:32
+    Source: 'crates/fl4-core/src/layout.rs', lines 220:4-220:32
     Visibility: public -/
 @[global_simps, irreducible] def layout.node.IDLE_SC : Std.U64 := 32#u64
 
 /-- [fl4_core::layout::node::CUR_SC]
-    Source: 'crates/fl4-core/src/layout.rs', lines 216:4-216:31
+    Source: 'crates/fl4-core/src/layout.rs', lines 219:4-219:31
     Visibility: public -/
 @[global_simps, irreducible] def layout.node.CUR_SC : Std.U64 := 24#u64
 
 /-- [fl4_core::layout::node::CUR_THREAD]
-    Source: 'crates/fl4-core/src/layout.rs', lines 213:4-213:34
+    Source: 'crates/fl4-core/src/layout.rs', lines 216:4-216:34
     Visibility: public -/
 @[global_simps, irreducible] def layout.node.CUR_THREAD : Std.U64 := 0#u64
 
@@ -5658,7 +5658,7 @@ def boot.create_idle_threads
 @[global_simps, irreducible] def vspace.ASID_LOW_BITS : Std.U64 := 9#u64
 
 /-- [fl4_core::layout::MAX_NODES]
-    Source: 'crates/fl4-core/src/layout.rs', lines 194:0-194:95
+    Source: 'crates/fl4-core/src/layout.rs', lines 197:0-197:95
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.MAX_NODES : Std.U64 :=
@@ -5667,7 +5667,7 @@ def layout.MAX_NODES : Std.U64 :=
   else fl4_abi.config.MAX_NUM_NODES
 
 /-- [fl4_core::layout::ks::ASID_TABLE]
-    Source: 'crates/fl4-core/src/layout.rs', lines 271:4-271:63
+    Source: 'crates/fl4-core/src/layout.rs', lines 274:4-274:63
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.ks.ASID_TABLE : Result Std.U64 := do
@@ -5835,19 +5835,19 @@ def boot.init_bootinfo
   ok (s11, { r with b })
 
 /-- [fl4_core::layout::irq::RESCHEDULE_IPI]
-    Source: 'crates/fl4-core/src/layout.rs', lines 205:4-205:47
+    Source: 'crates/fl4-core/src/layout.rs', lines 208:4-208:47
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.irq.RESCHEDULE_IPI : Result Std.U64 := 159#u64 - 32#u64
 
 /-- [fl4_core::layout::irq::REMOTE_CALL_IPI]
-    Source: 'crates/fl4-core/src/layout.rs', lines 204:4-204:48
+    Source: 'crates/fl4-core/src/layout.rs', lines 207:4-207:48
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.irq.REMOTE_CALL_IPI : Result Std.U64 := 158#u64 - 32#u64
 
 /-- [fl4_core::layout::irq::TIMER]
-    Source: 'crates/fl4-core/src/layout.rs', lines 203:4-203:38
+    Source: 'crates/fl4-core/src/layout.rs', lines 206:4-206:38
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.irq.TIMER : Result Std.U64 := 157#u64 - 32#u64
@@ -7834,7 +7834,7 @@ def sched.is_cur_domain_expired
   else ok false
 
 /-- [fl4_core::layout::node::CONSUMED]
-    Source: 'crates/fl4-core/src/layout.rs', lines 218:4-218:33
+    Source: 'crates/fl4-core/src/layout.rs', lines 221:4-221:33
     Visibility: public -/
 @[global_simps, irreducible] def layout.node.CONSUMED : Std.U64 := 40#u64
 
@@ -7916,7 +7916,7 @@ def sched.cur_sc
 def sched.MAX_WORK_UNITS_PER_PREEMPTION : Std.U64 := 100#u64
 
 /-- [fl4_core::layout::ks::WORK_UNITS]
-    Source: 'crates/fl4-core/src/layout.rs', lines 252:4-252:35
+    Source: 'crates/fl4-core/src/layout.rs', lines 255:4-255:35
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.WORK_UNITS : Std.U64 := 40#u64
 
@@ -8694,7 +8694,7 @@ def vcpu.get
 @[global_simps, irreducible] def vcpu.TCB : Std.U64 := 20480#u64
 
 /-- [fl4_core::layout::node::IPI_PENDING]
-    Source: 'crates/fl4-core/src/layout.rs', lines 235:4-235:37
+    Source: 'crates/fl4-core/src/layout.rs', lines 238:4-238:37
     Visibility: public -/
 @[global_simps, irreducible] def layout.node.IPI_PENDING : Std.U64 := 120#u64
 
@@ -8764,7 +8764,7 @@ def vcpu.stall
 @[global_simps, irreducible] def vcpu.NEXT : Std.U64 := 20488#u64
 
 /-- [fl4_core::layout::ks::VCPU_HEAD]
-    Source: 'crates/fl4-core/src/layout.rs', lines 260:4-260:34
+    Source: 'crates/fl4-core/src/layout.rs', lines 263:4-263:34
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.VCPU_HEAD : Std.U64 := 80#u64
 
@@ -9751,7 +9751,7 @@ def vcpu.finalise
   else ok (s3, a2)
 
 /-- [fl4_core::layout::node::TIMER_ROOT]
-    Source: 'crates/fl4-core/src/layout.rs', lines 230:4-230:36
+    Source: 'crates/fl4-core/src/layout.rs', lines 233:4-233:36
     Visibility: public -/
 @[global_simps, irreducible] def layout.node.TIMER_ROOT : Std.U64 := 104#u64
 
@@ -10298,7 +10298,7 @@ def obj.Tcb.timer_deadline
   machineStoreInst.read s i1
 
 /-- [fl4_core::layout::node::TIMER_MIN]
-    Source: 'crates/fl4-core/src/layout.rs', lines 232:4-232:35
+    Source: 'crates/fl4-core/src/layout.rs', lines 235:4-235:35
     Visibility: public -/
 @[global_simps, irreducible] def layout.node.TIMER_MIN : Std.U64 := 112#u64
 
@@ -11623,7 +11623,7 @@ def sched.set_reprogram_on
   obj.node_set machineStoreInst s cpu layout.node.REPROGRAM 1#u64
 
 /-- [fl4_core::layout::node::RELEASE_HEAD]
-    Source: 'crates/fl4-core/src/layout.rs', lines 223:4-223:37
+    Source: 'crates/fl4-core/src/layout.rs', lines 226:4-226:37
     Visibility: public -/
 @[global_simps, irreducible] def layout.node.RELEASE_HEAD : Std.U64 := 64#u64
 
@@ -15580,12 +15580,12 @@ def sched.dom_sched_duration
   obj.ks_get machineStoreInst s i4
 
 /-- [fl4_core::layout::ks::DOM_SCHED_START]
-    Source: 'crates/fl4-core/src/layout.rs', lines 251:4-251:40
+    Source: 'crates/fl4-core/src/layout.rs', lines 254:4-254:40
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.DOM_SCHED_START : Std.U64 := 32#u64
 
 /-- [fl4_core::layout::ks::DOM_SCHED_IDX]
-    Source: 'crates/fl4-core/src/layout.rs', lines 250:4-250:38
+    Source: 'crates/fl4-core/src/layout.rs', lines 253:4-253:38
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.DOM_SCHED_IDX : Std.U64 := 24#u64
 
@@ -15608,113 +15608,116 @@ def error.invalid_arg
     arg)))
 
 /-- [fl4_core::domain::decode]:
-    Source: 'crates/fl4-core/src/domain.rs', lines 16:0-81:1
+    Source: 'crates/fl4-core/src/domain.rs', lines 16:0-85:1
     Visibility: public -/
 def domain.decode
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (lbl : Std.U64)
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64)
   (length : Std.U64) (buf : Std.U64) (extra : Array obj.Slot 3#usize) :
-  Result ((core.result.Result Unit error.Exc) × S)
+  Result ((core.result.Result Unit error.Exc) × S × A)
   := do
   let ct ← sched.cur_thread machineStoreInst s
   if lbl = fl4_abi.label.DomainSetSet
   then
     if length = 0#u64
     then let r ← error.truncated Unit
-         ok (r, s)
+         ok (r, s, a)
     else
       let dom ← msg.syscall_arg machineStoreInst s ct buf 0#u64
       if dom >= layout.NUM_DOMAINS
       then let r ← error.invalid_arg Unit 0#u64
-           ok (r, s)
+           ok (r, s, a)
       else
         let s1 ← Array.index_usize extra 0#usize
         let b ← obj.Slot.is_null s1
         if b
         then let r ← error.truncated Unit
-             ok (r, s)
+             ok (r, s, a)
         else
           let c ← obj.Slot.cap machineStoreInst s1 s
           match c with
           | capability.Cap.Null =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.Untyped _ _ _ _ =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.Endpoint _ _ _ _ _ _ =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.Notification _ _ _ _ =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.Reply _ _ =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.CNode _ _ _ _ =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.Thread ptr =>
-            let s2 ←
-              sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
-            let s3 ← sched.set_domain machineStoreInst s2 ptr dom
-            ok (core.result.Result.Ok (), s3)
+            let (s2, a1) ←
+              smp.remote_tcb_stall machineStoreInst machineArchInst s a ptr
+            let s3 ←
+              sched.set_thread_state machineStoreInst s2 ct sched.TS_RESTART
+            let s4 ← sched.set_domain machineStoreInst s3 ptr dom
+            ok (core.result.Result.Ok (), s4, a1)
           | capability.Cap.IrqControl =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.IrqHandler _ =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.Zombie _ _ _ =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.Domain =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.SchedContext _ _ =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.SchedControl _ =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.Frame _ _ _ _ _ _ _ _ =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.PageTable _ _ _ _ =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.PageDirectory _ _ _ _ =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.Pdpt _ _ _ _ =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.Pml4 _ _ _ =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.Vcpu _ =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.Ept _ _ _ _ _ =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.AsidControl =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.AsidPool _ _ =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.IoPortControl =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
           | capability.Cap.IoPort _ _ _ =>
             let r ← error.invalid_arg Unit 1#u64
-            ok (r, s)
+            ok (r, s, a)
   else
     if lbl = fl4_abi.label.DomainScheduleConfigure
     then
       if length < 3#u64
       then let r ← error.truncated Unit
-           ok (r, s)
+           ok (r, s, a)
       else
         let index ← msg.syscall_arg machineStoreInst s ct buf 0#u64
         let dom ← msg.syscall_arg machineStoreInst s ct buf 1#u64
@@ -15724,24 +15727,24 @@ def domain.decode
         then
           let i1 ← layout.NUM_DOMAIN_SCHEDULES - 2#u64
           let r ← error.range Unit 0#u64 i1
-          ok (r, s)
+          ok (r, s, a)
         else
           if dom >= layout.NUM_DOMAINS
           then
             let i1 ← layout.NUM_DOMAINS - 1#u64
             let r ← error.range Unit 0#u64 i1
-            ok (r, s)
+            ok (r, s, a)
           else
             let i1 ← domain.MAX_DURATION
             if duration > i1
             then let r ← error.invalid_arg Unit 2#u64
-                 ok (r, s)
+                 ok (r, s, a)
             else
               if duration = 0#u64
               then
                 if dom != 0#u64
                 then let r ← error.invalid_arg Unit 1#u64
-                     ok (r, s)
+                     ok (r, s, a)
                 else
                   let i2 ←
                     obj.ks_get machineStoreInst s layout.ks.DOM_SCHED_START
@@ -15749,7 +15752,7 @@ def domain.decode
                   then
                     if duration = 0#u64
                     then let r ← error.invalid_arg Unit 2#u64
-                         ok (r, s)
+                         ok (r, s, a)
                     else
                       let s1 ←
                         sched.set_thread_state machineStoreInst s ct
@@ -15757,7 +15760,7 @@ def domain.decode
                       let s2 ←
                         sched.set_dom_sched machineStoreInst s1 index dom
                           duration
-                      ok (core.result.Result.Ok (), s2)
+                      ok (core.result.Result.Ok (), s2, a)
                   else
                     let s1 ←
                       sched.set_thread_state machineStoreInst s ct
@@ -15765,7 +15768,7 @@ def domain.decode
                     let s2 ←
                       sched.set_dom_sched machineStoreInst s1 index dom
                         duration
-                    ok (core.result.Result.Ok (), s2)
+                    ok (core.result.Result.Ok (), s2, a)
               else
                 let i2 ←
                   obj.ks_get machineStoreInst s layout.ks.DOM_SCHED_START
@@ -15773,7 +15776,7 @@ def domain.decode
                 then
                   if duration = 0#u64
                   then let r ← error.invalid_arg Unit 2#u64
-                       ok (r, s)
+                       ok (r, s, a)
                   else
                     let s1 ←
                       sched.set_thread_state machineStoreInst s ct
@@ -15781,32 +15784,32 @@ def domain.decode
                     let s2 ←
                       sched.set_dom_sched machineStoreInst s1 index dom
                         duration
-                    ok (core.result.Result.Ok (), s2)
+                    ok (core.result.Result.Ok (), s2, a)
                 else
                   let s1 ←
                     sched.set_thread_state machineStoreInst s ct
                       sched.TS_RESTART
                   let s2 ←
                     sched.set_dom_sched machineStoreInst s1 index dom duration
-                  ok (core.result.Result.Ok (), s2)
+                  ok (core.result.Result.Ok (), s2, a)
     else
       if lbl = fl4_abi.label.DomainScheduleSetStart
       then
         if length < 1#u64
         then let r ← error.truncated Unit
-             ok (r, s)
+             ok (r, s, a)
         else
           let index ← msg.syscall_arg machineStoreInst s ct buf 0#u64
           if index >= layout.NUM_DOMAIN_SCHEDULES
           then
             let i ← layout.NUM_DOMAIN_SCHEDULES - 1#u64
             let r ← error.range Unit 0#u64 i
-            ok (r, s)
+            ok (r, s, a)
           else
             let i ← sched.dom_sched_duration machineStoreInst s index
             if i = 0#u64
             then let r ← error.invalid_arg Unit 0#u64
-                 ok (r, s)
+                 ok (r, s, a)
             else
               let s1 ←
                 sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
@@ -15818,9 +15821,9 @@ def domain.decode
               let s4 ←
                 obj.ks_set machineStoreInst s3 layout.ks.DOM_SCHED_IDX i1
               let s5 ← sched.reschedule_required machineStoreInst s4
-              ok (core.result.Result.Ok (), s5)
+              ok (core.result.Result.Ok (), s5, a)
       else let r ← error.illegal Unit
-           ok (r, s)
+           ok (r, s, a)
 
 /-- [fl4_core::endpoint::FLAG_GRANT]
     Source: 'crates/fl4-core/src/endpoint.rs', lines 14:0-14:26 -/
@@ -19336,18 +19339,18 @@ def interrupt.extra0
        ok (some c)
 
 /-- [fl4_core::layout::irq::USER_MAX]
-    Source: 'crates/fl4-core/src/layout.rs', lines 202:4-202:41
+    Source: 'crates/fl4-core/src/layout.rs', lines 205:4-205:41
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.irq.USER_MAX : Result Std.U64 := 155#u64 - 32#u64
 
 /-- [fl4_core::layout::irq::USER_MIN]
-    Source: 'crates/fl4-core/src/layout.rs', lines 201:4-201:33
+    Source: 'crates/fl4-core/src/layout.rs', lines 204:4-204:33
     Visibility: public -/
 @[global_simps, irreducible] def layout.irq.USER_MIN : Std.U64 := 16#u64
 
 /-- [fl4_core::layout::irq::INT_OFFSET]
-    Source: 'crates/fl4-core/src/layout.rs', lines 198:4-198:37
+    Source: 'crates/fl4-core/src/layout.rs', lines 201:4-201:37
     Visibility: public -/
 @[global_simps, irreducible] def layout.irq.INT_OFFSET : Std.U64 := 32#u64
 
@@ -19438,12 +19441,12 @@ def interrupt.check_msi
         ok (core.result.Result.Ok (), s1)
 
 /-- [fl4_core::layout::irq::ISA_MAX]
-    Source: 'crates/fl4-core/src/layout.rs', lines 200:4-200:32
+    Source: 'crates/fl4-core/src/layout.rs', lines 203:4-203:32
     Visibility: public -/
 @[global_simps, irreducible] def layout.irq.ISA_MAX : Std.U64 := 15#u64
 
 /-- [fl4_core::layout::irq::ISA_MIN]
-    Source: 'crates/fl4-core/src/layout.rs', lines 199:4-199:31
+    Source: 'crates/fl4-core/src/layout.rs', lines 202:4-202:31
     Visibility: public -/
 @[global_simps, irreducible] def layout.irq.ISA_MIN : Std.U64 := 0#u64
 
@@ -20023,7 +20026,7 @@ def notification.send_signal
       ok (s1, a)
 
 /-- [fl4_core::layout::node::ARMED]
-    Source: 'crates/fl4-core/src/layout.rs', lines 226:4-226:30
+    Source: 'crates/fl4-core/src/layout.rs', lines 229:4-229:30
     Visibility: public -/
 @[global_simps, irreducible] def layout.node.ARMED : Std.U64 := 80#u64
 
@@ -20617,46 +20620,56 @@ def layout.reg.NBSEND_RECV_DEST : Std.U64 := layout.reg.R13
     Visibility: public -/
 @[global_simps, irreducible] def layout.sc.R_AMOUNT : Std.U64 := 8#u64
 
+/-- [fl4_core::layout::_]
+    Source: 'crates/fl4-core/src/layout.rs', lines 193:0-193:70 -/
+@[global_simps, irreducible]
+def layout._ : Result Unit := do
+  massert ((layout.NUM_DOMAINS = 1#u64) || (fl4_abi.config.MAX_NUM_NODES =
+    1#u64))
+  if layout.NUM_DOMAINS = 1#u64
+  then ok ()
+  else ok ()
+
 /-- [fl4_core::layout::node::RELEASE_TAIL]
-    Source: 'crates/fl4-core/src/layout.rs', lines 224:4-224:51
+    Source: 'crates/fl4-core/src/layout.rs', lines 227:4-227:51
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.node.RELEASE_TAIL : Result Std.U64 :=
   layout.node.RELEASE_HEAD + 8#u64
 
 /-- [fl4_core::layout::node::SCHED_CONTROL_USED]
-    Source: 'crates/fl4-core/src/layout.rs', lines 228:4-228:43
+    Source: 'crates/fl4-core/src/layout.rs', lines 231:4-231:43
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.node.SCHED_CONTROL_USED : Std.U64 := 96#u64
 
 /-- [fl4_core::layout::ks::BOOT_TIME]
-    Source: 'crates/fl4-core/src/layout.rs', lines 254:4-254:34
+    Source: 'crates/fl4-core/src/layout.rs', lines 257:4-257:34
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.BOOT_TIME : Std.U64 := 56#u64
 
 /-- [fl4_core::layout::ks::BOOT_SCRATCH]
-    Source: 'crates/fl4-core/src/layout.rs', lines 256:4-256:37
+    Source: 'crates/fl4-core/src/layout.rs', lines 259:4-259:37
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.BOOT_SCRATCH : Std.U64 := 64#u64
 
 /-- [fl4_core::layout::ks::FEATURES]
-    Source: 'crates/fl4-core/src/layout.rs', lines 258:4-258:33
+    Source: 'crates/fl4-core/src/layout.rs', lines 261:4-261:33
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.FEATURES : Std.U64 := 72#u64
 
 /-- [fl4_core::layout::ks::FEATURE_NX]
-    Source: 'crates/fl4-core/src/layout.rs', lines 259:4-259:34
+    Source: 'crates/fl4-core/src/layout.rs', lines 262:4-262:34
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.FEATURE_NX : Std.U64 := 1#u64
 
 /-- [fl4_core::layout::ks::NUM_ASID_POOLS]
-    Source: 'crates/fl4-core/src/layout.rs', lines 272:4-272:41
+    Source: 'crates/fl4-core/src/layout.rs', lines 275:4-275:41
     Visibility: public -/
 @[global_simps, irreducible] def layout.ks.NUM_ASID_POOLS : Std.U64 := 2048#u64
 
 /-- [fl4_core::layout::ks::SIZE]
-    Source: 'crates/fl4-core/src/layout.rs', lines 273:4-273:61
+    Source: 'crates/fl4-core/src/layout.rs', lines 276:4-276:61
     Visibility: public -/
 @[global_simps, irreducible]
 def layout.ks.SIZE : Result Std.U64 := do
@@ -37591,8 +37604,7 @@ def syscall.decode_invocation
       ok (core.result.Result.Err (error.Exc.Sys
         (error.SysError.InvalidCapability 0#u64)), s, a)
     else
-      let (r, s1) ← domain.decode machineStoreInst s lbl length buf extra
-      ok (r, s1, a)
+      domain.decode machineStoreInst machineArchInst s a lbl length buf extra
   | capability.Cap.SchedContext ptr _ =>
     if first_phase
     then
