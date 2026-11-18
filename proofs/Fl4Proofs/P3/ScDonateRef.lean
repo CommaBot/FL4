@@ -178,14 +178,14 @@ theorem donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec
 set_option maxHeartbeats 1000000 in
 /-- **`maybe_donate_sched_context` refines `maybe_donate_sc`**, given
 `DonatePre`'s facts (see the module docstring); it keeps `ActReady`. -/
-theorem maybe_donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
+theorem maybe_donate_refinesA {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hR : NtfnStateRel N T (L.mem s) σ) (hS : SchedRel st N T C c s σ) (hRel : RelOK σ)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (t n : U64) (ht : t ∈ T) (hn : n ∈ N)
     (hnC : L.mem s (nScA n) ≠ 0#u64 → L.mem s (nScA n) ∈ C)
     (hnq : L.mem s (scA t) = 0#u64 → ∀ x, σ.kheap t.bv = some (.tcb x) →
       t.bv ∉ σ.readyQueues x.tcbDomain x.tcbPriority) :
-    notification.maybe_donate_sched_context st ar s a t n ⦃ r => ∃ σ1,
+    notification.maybe_donate_sched_context st ar s a t n ⦃ r => r.2 = a ∧ ∃ σ1,
       Fl4Spec.maybeDonateSc (Z := Unit) t.bv n.bv σ = ({((), σ1)}, False) ∧ FootEq N T (L.mem s) (L.mem r.1) ∧
       KView σ σ1 ∧ SchedRel st N T C c r.1 σ1 ∧ WritesIn st s r.1 (KFoot st T N C c s σ) ∧
       (ActReady σ → ActReady σ1) ⦄ := by
@@ -202,7 +202,7 @@ theorem maybe_donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
       · exact Or.inl h1
     refine WP.spec_mono (maybe_donate_nodonate s a σ hR hS t n ht hn hno) ?_
     rintro r ⟨rfl, he⟩
-    exact ⟨σ, he, FootEq.rfl', KView.refl σ, hS, WritesIn.refl _ _, id⟩
+    exact ⟨rfl, σ, he, FootEq.rfl', KView.refl σ, hS, WritesIn.refl _ _, id⟩
   obtain ⟨h0, hsc0, htw0⟩ := hd
   set sc := L.mem s (nScA n) with hscdef
   have hscC := hnC hsc0
@@ -272,7 +272,7 @@ theorem maybe_donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
       · have et : p ≠ t.bv := by rintro rfl; rw [hkd_t] at hy; cases hy
         exact ⟨y', by rw [← hkd_o p et e]; exact hy, rfl⟩)
   refine WP.spec_mono (resume_refines s1 a1 σd hR1 hS1 hRel1 hmb hscC hsc0 ht htw1 hts1 hnq1) ?_
-  rintro ⟨s2, a2⟩ ⟨-, σr, hres, hkr, har, hctr, hrqr, htsr, hf2, hw2, hS2⟩
+  rintro ⟨s2, a2⟩ ⟨ha2, σr, hres, hkr, har, hctr, hrqr, htsr, hf2, hw2, hS2⟩
   obtain ⟨xs', ns', hks', hxs⟩ := hs.scs sc hscC
   rw [hks] at hks'; cases hks'
   have hspec : Fl4Spec.maybeDonateSc (Z := Unit) t.bv n.bv σ = Fl4Spec.schedContextResume (Z := Unit) sc.bv σd := by
@@ -286,7 +286,7 @@ theorem maybe_donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
     rw [nd_bind_one hg, hxs.tcb, htw0, optRef_zero]
     simp only [Fl4Spec.NonDet.when, ↓reduceIte]
     rw [nd_bind_one hdon]
-  refine ⟨σr, by rw [hspec]; exact hres, FootEq.trans' hf1 hf2, KView.trans hv1 (KView.of_kheap hkr), hS2,
+  refine ⟨ha2, σr, by rw [hspec]; exact hres, FootEq.trans' hf1 hf2, KView.trans hv1 (KView.of_kheap hkr), hS2,
     WritesIn.kfoot_sfoot hw1 hw2, fun hA => ?_⟩
   refine hA.donate (t := t.bv) (sc := sc.bv) (xs := xs) (xs' := { xs with scTcb := some t.bv }) (xt := xt0)
     (xt' := { xt0 with tcbSchedContext := some sc.bv }) (fun p h1 h2 => by rw [hkr, hkd_o p h1 h2]) hks
@@ -295,6 +295,21 @@ theorem maybe_donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
   obtain ⟨e, h1, h2⟩ := htsr h
   subst e
   exact ⟨h1, h2⟩
+
+
+/-- `maybe_donate_refinesA` without the arch value. -/
+theorem maybe_donate_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (hR : NtfnStateRel N T (L.mem s) σ) (hS : SchedRel st N T C c s σ) (hRel : RelOK σ)
+    (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (t n : U64) (ht : t ∈ T) (hn : n ∈ N)
+    (hnC : L.mem s (nScA n) ≠ 0#u64 → L.mem s (nScA n) ∈ C)
+    (hnq : L.mem s (scA t) = 0#u64 → ∀ x, σ.kheap t.bv = some (.tcb x) →
+      t.bv ∉ σ.readyQueues x.tcbDomain x.tcbPriority) :
+    notification.maybe_donate_sched_context st ar s a t n ⦃ r => ∃ σ1,
+      Fl4Spec.maybeDonateSc (Z := Unit) t.bv n.bv σ = ({((), σ1)}, False) ∧ FootEq N T (L.mem s) (L.mem r.1) ∧
+      KView σ σ1 ∧ SchedRel st N T C c r.1 σ1 ∧ WritesIn st s r.1 (KFoot st T N C c s σ) ∧
+      (ActReady σ → ActReady σ1) ⦄ :=
+  WP.spec_mono (maybe_donate_refinesA s a σ hR hS hRel hmb t n ht hn hnC hnq) fun _ h => h.2
 
 end
 

@@ -22,17 +22,21 @@ ScFireJ), by the notification's state.
 * The idle notification bound to a thread blocked receiving, without SC
   donation: `JAtZ.signal_boundJ` (ScSignalBoundJ: its `cancel_ipc`, then the
   wake, in the frame `CFr`), with the named premise `RecvReplyHyp` [J].
-* `SignalRestJHyp` [J]: the other branches (the woken thread given the
-  notification's SC, the thread having none and the SC bound to no thread:
-  `schedContextDonate`/`Resume`, for a waiting notification's head or a bound
-  thread blocked receiving; or the bound thread `RunningVM`, FL4's remote
-  stall).
-* `signalJHyp_of`: `SignalJHyp` from `SignalRestJHyp`, `RecvReplyHyp` and P1's
-  `ArchTotal`; `jat_scheduleS`: `jat_scheduleF` with it.
+* The wakes with an SC donation (the woken thread given the notification's
+  SC, the thread having none and the SC bound to no thread:
+  `schedContextDonate`/`Resume`), for a waiting notification's head or a
+  bound thread blocked receiving: `JAtZ.signal_waitDJ`, `JAtZ.signal_boundDJ`
+  (ScSignalDonJ, in the frame `DWFr`), with `DonCurHyp` [J] (the donated SC is
+  not the current SC) and the platform's `MIN_BUDGET` [P].
+* `SignalRestJHyp` [P]: the remaining branch, the bound thread `RunningVM`
+  (FL4's remote stall, VT-x).
+* `signalJHyp_of`: `SignalJHyp` from `SignalRestJHyp`, `RecvReplyHyp`,
+  `DonCurHyp`, `MIN_BUDGET` and P1's `ArchTotal`; `jat_scheduleS`:
+  `jat_scheduleF` with it.
 -/
 import Fl4Proofs.P3.ScFireJ
 import Fl4Proofs.P3.IpcSignalWake
-import Fl4Proofs.P3.ScSignalBoundJ
+import Fl4Proofs.P3.ScSignalDonJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -174,25 +178,18 @@ theorem JAtZ.wake_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
   exact ⟨V', J.cs_frameV hks hX3 F.kback hC R⟩
 
 variable (arI) in
-/-- **The waking signals with a donation on `JAtZ`** [J] (module
-docstring): `SignalJHyp`'s statement where `send_signal` wakes the head of a
-waiting notification by donating the notification's SC to it (the head
-without an SC, the SC bound to no thread: `schedContextDonate`,
-`schedContextResume`), or wakes the idle notification's bound thread blocked
-receiving (its `cancel_ipc` first) with such a donation (`¬ NoDon`), or
-stalls a remote `RunningVM` thread (FL4 runs no VT-x guest). The waiting
-case and the bound-receiver case without donation are proved
-(`JAtZ.wake_post`, `JAtZ.signal_boundJ`). -/
+/-- **The remote `RunningVM` signal on `JAtZ`** [P] (module docstring):
+`SignalJHyp`'s statement where `send_signal` finds the idle notification's
+bound thread `RunningVM` (FL4's remote stall; FL4 runs no VT-x guest in the
+semantic scope, DESIGN §5). The waking cases (a waiting notification's head,
+the bound thread blocked receiving, donating the notification's SC or not)
+are proved (`JAtZ.signal_waitDJ`, `JAtZ.signal_boundDJ`, ScSignalDonJ). -/
 def SignalRestJHyp (AR : A → Fl4Spec.Cr3 → Prop) (H : P1.Heap) (Cs : Set U64) : Prop :=
   ∀ (Z : XSets) (Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (n badge : U64) (x : Fl4Spec.Notification), JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → n ∈ Z.N →
     σ.kheap n.bv = some (.notification x) →
-    ((∃ d l xd cq y k, x.ntfnObj = .waitingNtfn (d :: l) ∧ σ.kheap d = some (.tcb xd) ∧
-        xd.tcbSchedContext = none ∧ x.ntfnSc = some cq ∧ σ.kheap cq = some (.schedContext y k) ∧
-        y.scTcb = none) ∨
-      (x.ntfnObj = .idleNtfn ∧ ∃ t tcb, x.ntfnBoundTcb = some t ∧
-      σ.kheap t = some (.tcb tcb) ∧ ((Fl4Spec.receiveBlocked tcb.tcbState = true ∧ ¬ NoDon Z.C σ t n.bv) ∨
-        tcb.tcbState = .runningVM))) →
+    (x.ntfnObj = .idleNtfn ∧ ∃ t tcb, x.ntfnBoundTcb = some t ∧
+      σ.kheap t = some (.tcb tcb) ∧ tcb.tcbState = .runningVM) →
     notification.send_signal st arI s a n badge ⦃ r => ∃ (σ' : Fl4Spec.State Unit) (V' : XVs) (Ac' : Set U64)
       (Lst' : U64 → List U64) (D' : Set U64),
       Fl4Spec.sendSignal (Z := Unit) n.bv badge.bv σ = ({((), σ')}, False) ∧ σ'.domainTime = σ.domainTime ∧
@@ -201,7 +198,8 @@ def SignalRestJHyp (AR : A → Fl4Spec.Cr3 → Prop) (H : P1.Heap) (Cs : Set U64
 set_option maxHeartbeats 8000000 in
 /-- **`SignalJHyp` from the waking signals' premise** (module docstring). -/
 theorem signalJHyp_of (hAT : P0.ArchTotal arI) (hW : SignalRestJHyp (L := L) arI AR H Cs)
-    (hRR : RecvReplyHyp (L := L) arI AR H Cs) :
+    (hRR : RecvReplyHyp (L := L) arI AR H Cs) (hDC : DonCurHyp (L := L) arI AR H Cs)
+    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
     SignalJHyp (L := L) arI AR H Cs := by
   intro Z Ac Lst D s a σ n badge J hn
   obtain ⟨x, hk, hx⟩ := J.xtop.ipc.toN.ntfn n hn
@@ -232,57 +230,8 @@ theorem signalJHyp_of (hAT : P0.ArchTotal arI) (hW : SignalRestJHyp (L := L) arI
       (by rw [ho]; intro l e; cases e) (fun l e => by simp [Fl4Spec.ntfnObjUpdate] at e) rfl rfl
       (sendSignal_active_eq hk ho badge.bv) (send_signal_activeI (ar := arI) J.ip s a σ hI.1 hn hk ho badge)
   | waitingNtfn l =>
-    by_cases hdon : ∃ d l' xd cq y k, x.ntfnObj = .waitingNtfn (d :: l') ∧ σ.kheap d = some (.tcb xd) ∧
-        xd.tcbSchedContext = none ∧ x.ntfnSc = some cq ∧ σ.kheap cq = some (.schedContext y k) ∧
-        y.scTcb = none
-    · exact hW Z Ac Lst D s a σ n badge x J hn hk (Or.inl hdon)
-    -- no donation: the head woken (IpcSignalWake, IpcSignalWakeSpec)
-    have hND : ∀ d l', l = d :: l' → NoDon Z.C σ d n.bv := by
-      intro d l' e xt xn h1 h2
-      have hxn : xn = x := by
-        rw [hk] at h2; exact (Fl4Spec.KernelObject.notification.inj (Option.some.inj h2)).symm
-      rw [hxn]
-      by_cases hs : xt.tcbSchedContext = none
-      · obtain hc | ⟨cq, hc⟩ : x.ntfnSc = none ∨ ∃ cq, x.ntfnSc = some cq := by
-          cases x.ntfnSc <;> simp
-        · exact Or.inr (Or.inl hc)
-        · obtain ⟨y, k, hky⟩ := J.inv.ntfnSc n.bv x cq hk hc
-          obtain ⟨sc, hscC, hscv⟩ := J.nsc n hn x cq hk hc
-          refine Or.inr (Or.inr ⟨sc, hscC, by rw [hc, hscv], y, k, by rw [hscv]; exact hky, fun hy => hdon
-            ⟨d, l', xt, cq, y, k, by rw [ho, e], h1, hs, hc, hky, hy⟩⟩)
-      · exact Or.inl hs
-    have hbl := (J.sv.ntfnQ n.bv x hk).2
-    refine WP.spec_mono (WP.spec_and (send_signal_wait_irel (ar := arI) J.ip s a σ hI J.inv hn hk ho hbl hND badge)
-      (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH))) ?_
-    rintro ⟨s', a'⟩ ⟨⟨ea, d, xd, σ', hmq, hkd, hxs, hdon', hsend, hmw, hIR, hF, hFS⟩, hb⟩
-    try simp only [WP.uncurry'_pair] at hb
-    obtain ⟨hb, -, hfoot⟩ := hb
-    have hfoot := hfoot (J.donCore hn)
-    subst ea
-    have hdn : d.bv ≠ n.bv := by intro e; rw [e, hk] at hkd; cases hkd
-    have hk1 : (updK σ n.bv (.notification (afterDequeue x d))).kheap d.bv = some (.tcb xd) := by
-      simp [updK, hdn, hkd]
-    have hsub : (afterDequeue x d).ntfnObj.ntfnQueue.Sublist x.ntfnObj.ntfnQueue := by
-      show (match Fl4Spec.removeAll d.bv (Fl4Spec.ntfnQueueOf x) with
-        | [] => Fl4Spec.Ntfn.idleNtfn
-        | _ => Fl4Spec.Ntfn.waitingNtfn (Fl4Spec.removeAll d.bv (Fl4Spec.ntfnQueueOf x))).ntfnQueue.Sublist
-          (Fl4Spec.ntfnQueueOf x)
-      split
-      · exact List.nil_sublist _
-      · unfold Fl4Spec.removeAll; apply List.filter_sublist
-    have F1 : NFr false n.bv σ (updK σ n.bv (.notification (afterDequeue x d))) :=
-      NFr.upd hk (Or.inr (Or.inr ⟨x, afterDequeue x d, rfl, rfl, rfl, hsub, (fun h => by cases h), Or.inl rfl,
-        fun hw => absurd ho (hw l), Or.inl rfl⟩))
-    have hI1 : Inv (updK σ n.bv (.notification (afterDequeue x d))) :=
-      J.inv.updNtfn hk (fun p hp => J.inv.ntfnSc n.bv x p hk hp)
-    have hAI1 : ActIdle (updK σ n.bv (.notification (afterDequeue x d))) :=
-      ⟨fun u hu => F1.sched (J.act.1 u hu), F1.idleOK J.act.2⟩
-    have hcur1 : (updK σ n.bv (.notification (afterDequeue x d))).schedulerAction = .chooseNewThread ∨
-        CurInv (updK σ n.bv (.notification (afterDequeue x d))) := Or.imp id F1.curInv J.cur
-    have hrun1 : CurRunM (updK σ n.bv (.notification (afterDequeue x d))) := Or.imp id F1.curRunW J.curRun
-    obtain ⟨I', B', F2, AI', cur', run'⟩ := wake_spec hI1 (F1.bsa J.bsa) hAI1 hcur1 hrun1 hk1 hxs hdon' hmw
-    obtain ⟨V', J'⟩ := J.wake_post hIR hF hFS hb hfoot (F1.trans F2) I' B' AI' cur' run'
-    exact ⟨σ', V', Ac, Lst, D, hsend, (F1.trans F2).sk.dt, J'⟩
+    exact J.signal_waitDJ hAT hmb hn hk ho (fun cq y k hc hky hyt => hDC Z Ac Lst D s a σ J n hn x cq y k hk hc hky hyt)
+      badge
   | idleNtfn =>
     cases hb : x.ntfnBoundTcb with
     | none =>
@@ -295,12 +244,11 @@ theorem signalJHyp_of (hAT : P0.ArchTotal arI) (hW : SignalRestJHyp (L := L) arI
       obtain ⟨tcb, hkt, -⟩ := hI.1.tcb _ (hx.bound_mem hb0)
       rw [hbt] at hkt
       by_cases hrb : Fl4Spec.receiveBlocked tcb.tcbState = true
-      · by_cases hND : NoDon Z.C σ t n.bv
-        · exact J.signal_boundJ hAT hRR hn hk ho (t := L.mem s (nBoundA n)) (by rw [hbt]; exact hb)
-            (by rw [hbt]; exact hkt) hrb (by rw [hbt]; exact hND) badge
-        · exact hW Z Ac Lst D s a σ n badge x J hn hk (Or.inr ⟨ho, t, tcb, hb, hkt, Or.inl ⟨hrb, hND⟩⟩)
+      · exact J.signal_boundDJ hAT hRR hmb hn hk ho (t := L.mem s (nBoundA n)) (by rw [hbt]; exact hb)
+          (by rw [hbt]; exact hkt) hrb
+          (fun cq y k hc hky hyt => hDC Z Ac Lst D s a σ J n hn x cq y k hk hc hky hyt) badge
       by_cases hvm : tcb.tcbState = .runningVM
-      · exact hW Z Ac Lst D s a σ n badge x J hn hk (Or.inr ⟨ho, t, tcb, hb, hkt, Or.inr hvm⟩)
+      · exact hW Z Ac Lst D s a σ n badge x J hn hk ⟨ho, t, tcb, hb, hkt, hvm⟩
       have hrb' : Fl4Spec.receiveBlocked tcb.tcbState = false := by simpa using hrb
       exact post (Fl4Spec.ntfnObjUpdate (fun _ => .activeNtfn badge.bv) x)
         (by rw [ho]; intro l e; cases e) (fun l e => by simp [Fl4Spec.ntfnObjUpdate] at e) rfl rfl
@@ -318,6 +266,8 @@ theorem jat_scheduleS {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       (D1 : Set U64), JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
         Z.th t = some .tcb ∧ ∀ p asid, capAt (L.mem s1) (slotOf t 1) = ok (.Pml4 p true asid) → asid ≠ 0#u64)
     (hW : SignalRestJHyp (L := L) arI AR H Cs) (hRR : RecvReplyHyp (L := L) arI AR H Cs)
+    (hDC : DonCurHyp (L := L) arI AR H Cs)
+    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hA : ArchSw st arI Z.N Z.T Z.C Z.c)
     (hsni : SniHyp st arI Z.N Z.T Z.C Z.c) (hsend : SendHyp st arI Z.N Z.T Z.C Z.c) (hT : TimeAgree arI)
     (hTail : sched.schedule st arI s a ⦃ r => ∀ (rf : S × A) σ1 σ' (D1 : Set U64), Fires σ σ1 →
@@ -328,7 +278,7 @@ theorem jat_scheduleS {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     sched.schedule st arI s a ⦃ r => ∃ (σ' : Fl4Spec.State Unit) (V' : XVs) (Ac' : Set U64)
       (Lst' : U64 → List U64) (D' : Set U64), JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' r.1 r.2 σ' ∧
         CurInv σ' ⦄ :=
-  jat_scheduleF s a σ J hd hnd hAT hVt (signalJHyp_of hAT hW hRR) hA hsni hsend hT hTail
+  jat_scheduleF s a σ J hd hnd hAT hVt (signalJHyp_of hAT hW hRR hDC hmb) hA hsni hsend hT hTail
 
 end
 
