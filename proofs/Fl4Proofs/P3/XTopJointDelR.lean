@@ -61,6 +61,12 @@ some of them proved here.
   (P1's `fin_cap_sc.dead`, `JAtZ.sc_ready`), the current SC kept (P1's
   `fin_sc.curR`); with `JScCapHyp` [J] and `JScCurHyp` [J] (not an l4v
   invariant: `JKern`'s current SC must stay covered).
+* A final thread cap's finalisation (`jFinAt_thread`): XTopJointFinThread's
+  `JAtZ.finThreadJ` (the notification unbind, timer removal and debug-list
+  removal proved; `unbind_tcb`, `complete_yield_to`, `suspend` and the
+  narrow facts from `JThreadFinHyps` [J]/[P]), the slots by P1's
+  `fin_cap_thread.slots`, the thread dead after (P1's `fin_cap_thread.dead`,
+  `JAtZ.tcb_ready`).
 * The empty of a ready slot (`emptyHypJ`): a CNode slot by `emptyJR`, a TCB
   slot by `emptyJRT` (a step changing the TCB's caps only, `KeepCT`), both
   with `JEmptyUtHyp`.
@@ -76,6 +82,7 @@ import Fl4Proofs.P3.XTopJointFinReply
 import Fl4Proofs.P3.XTopJointFinVs
 import Fl4Proofs.P3.XTopJointFinFrIo
 import Fl4Proofs.P3.XTopJointFinSc
+import Fl4Proofs.P3.XTopJointFinThread
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -283,6 +290,8 @@ def VsK (c : capability.Cap) : Prop :=
     (∃ p m a v, c = .Pdpt p m a v) ∨ (∃ p m a, c = .Pml4 p m a) ∨ ∃ p b, c = .AsidPool p b
 /-- A scheduling-context cap. -/
 def ScK (c : capability.Cap) : Prop := ∃ p sb, c = .SchedContext p sb
+/-- A thread (TCB) cap. -/
+def TcbK (c : capability.Cap) : Prop := ∃ t, c = .Thread t
 
 /-- **Hypothesis: `reply_remove` at `J`** [J] (the reply cap's finalisation
 of a thread blocked on the reply; the receiver's case is proved,
@@ -306,7 +315,7 @@ def JReplyRemoveHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
 
 /-- **The named steps of the deletion at `J`** (module docstring). -/
 structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
-  fin : JFinAtF (L := L) arI AR th (fun c => ¬ NtfnK c ∧ ¬ FrIoK c ∧ ¬ IrqK c ∧ ¬ EpK c ∧ ¬ RpK c ∧ ¬ VsK c ∧ ¬ ScK c)
+  fin : JFinAtF (L := L) arI AR th (fun c => ¬ NtfnK c ∧ ¬ FrIoK c ∧ ¬ IrqK c ∧ ¬ EpK c ∧ ¬ RpK c ∧ ¬ VsK c ∧ ¬ ScK c ∧ ¬ TcbK c)
   irq : JIrqSlotHyp (L := L) arI AR th
   /-- ScSignalBoundJ's `RecvReplyHyp` [J] (l4v `valid_replies`), at every
   `P1.Heap` and set of cores: a final endpoint cap's finalisation frees the
@@ -330,6 +339,9 @@ structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   scFin : JScFinHyp (L := L) arI AR th
   scCap : JScCapHyp (L := L) arI AR th
   scCur : JScCurHyp (L := L) arI AR th
+  /-- The steps of a final thread cap's finalisation at `J` not proved
+  (XTopJointFinThread's `JThreadFinHyps`). -/
+  thread : JThreadFinHyps (L := L) arI AR th
   triv : JRdTrivHyp (L := L) arI AR th
   zomb : JZombieHyp (L := L) arI AR th
   swap : JSwapHyp (L := L) arI AR th
@@ -747,6 +759,41 @@ theorem jFinAt_sc (hT : P0.ArchTotal arI) (hF : JScFinHyp (L := L) arI AR th) (h
   exact ⟨rfl, trivial, trivial, σ1, G, hmem1, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
     fun y hy _ => Or.inl (hSS1.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS1,
     ⟨V1, Ac1, Lst1, D1, J1, hks1.trans hkb⟩, JAtZ.sc_ready arI J1 hcv1 hHp hdp (by rw [hcr.2.1]; exact hcur)⟩
+/-- **A final thread cap's finalisation at `J`** (XTopJointFinThread's
+`JAtZ.finThreadJ`, from `JThreadFinHyps`), the slots kept and the kernel
+base by P1's `fin_cap_thread.slots`, the thread dead after by P1's
+`fin_cap_thread.dead` (`JAtZ.tcb_ready`). -/
+theorem jFinAt_thread (hT : P0.ArchTotal arI) (hF : JThreadFinHyps (L := L) arI AR th) :
+    JFinAtF (L := L) arI AR th TcbK := by
+  intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨p, hce⟩ hfin
+  subst hce hth
+  obtain ⟨V, Ac, Lst, D, J, hkb⟩ := hW
+  have hcv := capV_of_capAt hc
+  have hthp : Z.th p = some .tcb := hDS.1.2.1.abs hA hc
+  have hpT : p ∈ Z.T := J.thT p hthp
+  have hpH : H p = some .tcb := J.zH.1 p hpT
+  obtain ⟨hna, hidle, hv0⟩ := hF.obj (Z.mv G V) H Cs Ac Lst D s a σ rfl J _ p hA.isSlot hcv
+  rw [decide_eq_true hfin]
+  refine WP.spec_mono (WP.spec_and (WP.spec_and (JAtZ.finThreadJ (Z := Z.mv G V) hF J hpT hv0)
+    (P1.fin_cap_thread.dead (ar := arI) hT s a p false J.blk hpH hna hidle hv0))
+    (P1.fin_cap_thread.slots (ar := arI) hT s a p true false J.blk hpH hna hidle hv0)) ?_
+  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨⟨σ1, hm1, V1, Ac1, Lst1, D1, J1⟩, d1, d2, d3, d4, d5⟩, e, -, f, hW1⟩
+  simp only [ite_true, Prod.mk.injEq] at e
+  obtain ⟨rfl, rfl⟩ := e
+  have hSS1 : SlotsSame Z.th (L.mem s) (L.mem s1) :=
+    slotsSame_of_capw J.xtop.rel.1 (J.slotCapW (tLowSlots_all _)) hW1
+  have hks1 : L.ksb s1 = L.ksb s := f.1
+  have hdp : DeadP (L := L) H s1 p :=
+    ⟨fun _ => ⟨d1, d2, d3, Ne.symm d4, Ne.symm d5⟩, fun h => (by rw [hpH] at h; cases h),
+      fun h => (by rw [hpH] at h; cases h), fun h => (by rw [hpH] at h; cases h),
+      fun z h => (by rw [hpH] at h; cases h)⟩
+  have hcv1 : capV (L.mem s1) (cslotAddr sl) = .Thread p := by
+    rw [hSS1.capV hA.isSlot, hcv]
+  refine ⟨rfl, trivial, trivial, σ1, G, ?_, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
+    fun y hy _ => Or.inl (hSS1.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS1,
+    ⟨V1, Ac1, Lst1, D1, J1, hks1.trans hkb⟩, J1.tcb_ready hcv1 hpH hdp⟩
+  rw [absCap_zombieTcb]
+  exact hm1
 
 theorem okey_of_finObj {c : capability.Cap} (hk : FinObjKind c) : okey c ≠ none := by
   cases c <;> simp_all [FinObjKind, okey]
@@ -822,7 +869,9 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
     · exact jFinAt_vs arI h.archRef h.vsCaps h.vsApart Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hvs hfin
     by_cases hsc : ScK c
     · exact jFinAt_sc arI hT h.scFin h.scCap h.scCur Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hsc hfin
-    · exact h.fin Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨hn, hfi, hq, he, hr, hvs, hsc⟩ hfin
+    by_cases ht : TcbK c
+    · exact jFinAt_thread arI hT h.thread Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ht hfin
+    · exact h.fin Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨hn, hfi, hq, he, hr, hvs, hsc, ht⟩ hfin
   · exact jFin_nonfinal arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi hfin
 
 /-- The trivially finalised caps but untyped ones are not physical. -/
