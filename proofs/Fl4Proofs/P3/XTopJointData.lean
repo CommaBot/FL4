@@ -173,20 +173,22 @@ theorem JAtZ.userWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     have U := J.utc sl p sb fi dev hsl hcap0
     have hxm : cslotAddr sl ∈ Z.G.chains.flatten :=
       (hM.members _).2 ⟨hsl.isSlot, _, hcap0, fun h => by cases h⟩
-    refine ⟨U.pal, U.pfit, U.fiLe, U.high, by rw [hcpu, hna]; exact U.actZ, U.free, ?_, U.sb4, U.nostr, U.nsFree,
+    have B := notDev_back (capV_of_capAt hcap) (capV_of_capAt hcap0)
+    refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free, ?_,
+      U.sb4, U.nostr, U.nsFree,
       fun h0 => U.ns (by rw [F.cdt] at h0; exact h0),
-      fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, by rw [hna]; exact U.dwReg,
-      by rw [F.gpml4]; exact U.gReg⟩
-    · intro w hal' h1 h2
+      fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, fun g => by rw [hna]; exact U.dwReg (B g),
+      fun g => by rw [F.gpml4]; exact U.gReg (B g)⟩
+    · intro g w hal' h1 h2
       rw [hW.mem_eq hal' fun hb => ?_]
-      · exact U.zero w hal' h1 h2
+      · exact U.zero (B g) w hal' h1 h2
       subst hb
       obtain ⟨o, ko, hko, g1, g2⟩ := hObj
       have := J.sfree _ hxm p sb fi dev hcv o ko hko
       omega
-    · intro h0 hf0
+    · intro g h0 hf0
       rw [F.cdt] at h0
-      obtain ⟨r1, r3⟩ := U.rst h0 hf0
+      obtain ⟨r1, r3⟩ := U.rst (B g) h0 hf0
       exact ⟨fun sl' h => r1 sl' (by rw [← F.orig]; exact h), by rw [hna, hDbg]; exact r3⟩
   -- the spec's frames
   have ck : Sched.CKeep σ σ1 := ⟨fun q y n hq => ⟨y, F.sc.2 hq, rfl⟩,
@@ -201,7 +203,7 @@ theorem JAtZ.userWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s1 σ1 :=
     ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩),
       J.buf.frame kb (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩), hRP',
-      J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead, hkern,
+      J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle), hkern,
       hutc, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
       J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
   exact J.cs_frame (G' := Z.G) hkb hX1 F.kback (JCs.same J hSS F.ksz) R
