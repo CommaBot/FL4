@@ -1,7 +1,7 @@
 //! The GIC, version 2 or 3 as found at boot (ACPI MADT or the device
 //! tree). All interrupts are group 1 at one priority; the kernel takes
 //! them one at a time with interrupts masked except in the idle loop.
-use crate::{cpu, percpu};
+use crate::{cpu, gic_layout, percpu};
 use core::sync::atomic::{AtomicU64, Ordering};
 
 pub const SPURIOUS: u64 = 1023;
@@ -81,18 +81,22 @@ pub fn init_dist(version: u64, gicd: u64, gicc: u64) {
     VERSION.store(version, Ordering::Relaxed);
     GICD.store(gicd, Ordering::Relaxed);
     GICC.store(gicc, Ordering::Relaxed);
-    let lines = ((rd(gicd + GICD_TYPER) as u64 & 0x1f) + 1) * 32;
-    LINES.store(lines.min(1020), Ordering::Relaxed);
+    let lines = gic_layout::dist_lines(rd(gicd + GICD_TYPER));
+    LINES.store(lines, Ordering::Relaxed);
     wr(gicd + GICD_CTLR, 0);
     if version == 3 {
         v3_wait_rwp(gicd + GICD_CTLR);
     }
+    // Only the registers of implemented interrupts below 1020: the last
+    // word of a 1024-line distributor also has bits for the special
+    // INTIDs, and the registers past them are reserved.
     let mut i = 32;
     while i < lines {
-        wr(gicd + GICD_ICENABLER + i / 8, u32::MAX);
-        wr(gicd + GICD_ICPENDR + i / 8, u32::MAX);
-        wr(gicd + GICD_ICACTIVER + i / 8, u32::MAX);
-        wr(gicd + GICD_IGROUPR + i / 8, u32::MAX);
+        let bits = gic_layout::bank_bits(i, lines);
+        wr(gicd + GICD_ICENABLER + i / 8, bits);
+        wr(gicd + GICD_ICPENDR + i / 8, bits);
+        wr(gicd + GICD_ICACTIVER + i / 8, bits);
+        wr(gicd + GICD_IGROUPR + i / 8, bits);
         i += 32;
     }
     let mut i = 32;
@@ -119,36 +123,39 @@ pub fn init_dist(version: u64, gicd: u64, gicc: u64) {
             i += 1;
         }
     } else {
+        // To the boot core's interface, which need not be interface 0.
+        let targets = gic_layout::v2_targets(rd(gicd + GICD_ITARGETSR));
         let mut i = 32;
         while i < lines {
-            wr(gicd + GICD_ITARGETSR + i, 0x0101_0101);
+            wr(gicd + GICD_ITARGETSR + i, targets);
             i += 4;
         }
         wr(gicd + GICD_CTLR, 3);
     }
 }
 
-/// GICv3: find this core's redistributor in the frames from `base`
-/// (`len` bytes, 0 if unknown: until the frame marked last).
+/// GICv3: find this core's redistributor in the `len` mapped bytes from
+/// `base`: only a frame wholly inside them, up to the frame marked last.
 pub fn find_redistributor(base: u64, len: u64) -> Option<u64> {
+    gic_layout::find_frame(base, len, affinity(), typer)
+}
+
+/// How many bytes from `base` the redistributors in its `len` mapped bytes
+/// take, VLPI frames included (`gic_layout::span`): none of it is for user
+/// space.
+pub fn redistributor_span(base: u64, len: u64) -> u64 {
+    gic_layout::span(base, len, typer)
+}
+
+/// The calling core's affinity as GICR_TYPER[63:32] gives it.
+fn affinity() -> u64 {
     let me = cpu::mpidr();
-    let aff = ((me >> 32) & 0xff) << 24 | (me & 0xff_ffff);
-    let mut a = base;
-    loop {
-        let typer = unsafe { core::ptr::read_volatile((a + 8) as *const u64) };
-        if typer >> 32 == aff {
-            return Some(a);
-        }
-        // VLPIs add two 64 KiB frames.
-        let size = if typer & (1 << 1) != 0 { 0x4_0000 } else { 0x2_0000 };
-        if typer & (1 << 4) != 0 {
-            return None;
-        }
-        a += size;
-        if len != 0 && a >= base + len {
-            return None;
-        }
-    }
+    ((me >> 32) & 0xff) << 24 | (me & 0xff_ffff)
+}
+
+/// GICR_TYPER of the redistributor at `frame`.
+fn typer(frame: u64) -> u64 {
+    unsafe { core::ptr::read_volatile((frame + 8) as *const u64) }
 }
 
 /// The calling core's interface. GICv3: `gicr` is its redistributor.

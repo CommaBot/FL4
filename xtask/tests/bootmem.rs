@@ -183,3 +183,28 @@ fn device_untypeds_reach_high_bars() {
         assert!(blocks < 100, "{bits}: {blocks} device untypeds");
     }
 }
+
+/// Audit F4: RAM that does not fit the list is reported (the kernel then
+/// refuses to boot), not left out to become device memory.
+#[test]
+fn ram_past_the_list_is_reported_lost() {
+    let entries: Vec<(u64, u64, u32)> = (0..256u64).map(|i| (MIB + i * 2 * MIB, MIB, 1)).collect();
+    let ram = bootmem::ram(entries.iter().copied(), MIB, TOP);
+    assert_eq!(ram.n, 256);
+    assert!(!ram.lost);
+    let mut full = Ranges::new();
+    for i in 0..full.r.len() as u64 {
+        full.add(i * 2 * MIB, i * 2 * MIB + MIB);
+    }
+    assert!(!full.lost);
+    full.add(1 << 40, (1 << 40) + MIB);
+    assert!(full.lost);
+    assert!(!overlaps(&full, 1 << 40, (1 << 40) + MIB));
+    // A split of a full list by `remove` too.
+    let mut full = Ranges::new();
+    for i in 0..full.r.len() as u64 {
+        full.add(i * 4 * MIB, i * 4 * MIB + 3 * MIB);
+    }
+    full.remove(MIB, 2 * MIB);
+    assert!(full.lost);
+}

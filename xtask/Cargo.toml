@@ -4,3 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
+
+[dev-dependencies]
+# Host tests of the AArch64 kernel's boot code (tests/aarch64_boot.rs).
+fl4-bootinfo = { path = "../crates/fl4-bootinfo" }

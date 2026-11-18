@@ -65,7 +65,8 @@ fn scale_mhz(mul: u32, shift: i8) -> u32 {
 }
 
 /// MHz, the unit FL4 publishes in bootinfo. The buffer is in the kernel
-/// image mapping, not the physical-memory window. Only the boot core calls
+/// image mapping, not the physical-memory window: KVM gets its physical
+/// address from `cpu::image_paddr`, wherever the loader put the image. Only the boot core calls
 /// this; unregister before returning so KVM stops writing to the buffer.
 pub fn tsc_mhz() -> u32 {
     // KVM writes this buffer through its shared view. In an encrypted
@@ -74,7 +75,7 @@ pub fn tsc_mhz() -> u32 {
     let Some(msr) = clock_msr() else { return 0 };
     let clock = addr_of_mut!(CLOCK);
     compiler_fence(Ordering::SeqCst);
-    wrmsr(msr, (clock as u64).wrapping_sub(0xffff_ffff_8000_0000) | 1);
+    wrmsr(msr, crate::cpu::image_paddr(clock as u64) | 1);
     let mut mhz = 0;
     for _ in 0..10000 {
         // x86 orders the loads; volatile reads and compiler fences keep
@@ -156,7 +157,12 @@ mod tests {
                 h.writes.push((msr, value));
                 if value & 1 != 0 {
                     assert_eq!(value & 31, 1);
-                    let p = (value & !1).wrapping_add(0xffff_ffff_8000_0000) as *mut u8;
+                    // KVM writes the guest-physical address it was given:
+                    // where the buffer is once the loader moved the image.
+                    let buffer = core::ptr::addr_of!(super::super::CLOCK) as u64;
+                    let delta = crate::cpu::image_delta();
+                    assert_eq!(value & !1, crate::cpu::image_paddr_at(buffer, delta), "pvclock buffer address");
+                    let p = buffer as *mut u8;
                     unsafe {
                         p.cast::<u32>().write_volatile(h.version);
                         p.add(24).cast::<u32>().write_volatile(h.mul);
@@ -170,6 +176,9 @@ mod tests {
     #[test]
     fn scale_features_and_buffer_lifetime() {
         use io::Host;
+        // As fl4-efi does: the image 2 MiB aligned, away from 1 MiB. (The
+        // only test in this crate that reads the delta.)
+        crate::cpu::set_image_delta(0x3fe0_0000);
         let check = |host: Host, expected, msr| {
             io::HOST.set(host);
             assert_eq!(super::tsc_mhz(), expected);

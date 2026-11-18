@@ -124,7 +124,7 @@ const FB_TYPE_RGB: u8 = 1;
 pub fn init(paddr: u64, window_top: u64, pitch: u32, width: u32, height: u32, bpp: u8, ty: u8) -> bool {
     let size = pitch as u64 * height as u64;
     let bytes = bpp as u64 / 8;
-    if ty != FB_TYPE_RGB || (bpp != 24 && bpp != 32) || width < 640 || height < 400 || (pitch as u64) < width as u64 * bytes {
+    if !usable(crate::sev::snp::active(), pitch, width, height, bpp, ty) {
         return false;
     }
     let Some(base) = mmio_ptr(paddr, size, window_top.min(1 << 32)) else { return false };
@@ -137,6 +137,20 @@ pub fn init(paddr: u64, window_top: u64, pitch: u32, width: u32, height: u32, bp
     CURSOR.store(0, Ordering::Relaxed);
     BASE.store(base, Ordering::Release);
     true
+}
+
+/// A framebuffer this console can draw on. Never in an SEV-SNP guest:
+/// `glyph` stores straight to the shared mapping, unaligned and 64 bits
+/// wide, which there is a #VC (NPF on shared MMIO) the kernel answers by
+/// terminating the guest; SNP MMIO goes through the GHCB, 4 bytes at a
+/// time (`sev::write_mmio32`).
+fn usable(snp: bool, pitch: u32, width: u32, height: u32, bpp: u8, ty: u8) -> bool {
+    let bytes = bpp as u64 / 8;
+    !snp && ty == FB_TYPE_RGB
+        && (bpp == 24 || bpp == 32)
+        && width >= 640
+        && height >= 400
+        && pitch as u64 >= width as u64 * bytes
 }
 
 fn glyph(row: u64, col: u64, c: u8) {
@@ -193,4 +207,21 @@ pub fn putc(c: u8) {
     }
     glyph(row, col, c);
     CURSOR.store(row << 32 | (col + 1), Ordering::Relaxed);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snp_guests_never_draw_on_the_framebuffer() {
+        assert!(usable(false, 4096, 1024, 768, 32, FB_TYPE_RGB));
+        assert!(usable(false, 1920, 640, 400, 24, FB_TYPE_RGB));
+        assert!(!usable(true, 4096, 1024, 768, 32, FB_TYPE_RGB));
+        assert!(!usable(false, 4096, 1024, 768, 16, FB_TYPE_RGB));
+        assert!(!usable(false, 4096, 1024, 768, 32, 0));
+        assert!(!usable(false, 2559, 640, 400, 32, FB_TYPE_RGB));
+        assert!(!usable(false, 4096, 639, 768, 32, FB_TYPE_RGB));
+        assert!(!usable(false, 4096, 1024, 399, 32, FB_TYPE_RGB));
+    }
 }

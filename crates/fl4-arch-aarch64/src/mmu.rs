@@ -6,18 +6,24 @@ use fl4_core::layout;
 
 /// Physical ranges the kernel window maps (for cache maintenance through
 /// it), set at boot.
-/// As many as the kernel's window can have (fl4-kernel-aarch64 `fl4_boot`).
-const MAX_RANGES: usize = 128;
+/// As many as the kernel's window can have (fl4-kernel-aarch64 `fl4_boot`,
+/// `bootmem::MAX_RANGES`: every memory map entry and then some).
+pub const MAX_RANGES: usize = 272;
 static RANGES: [(AtomicU64, AtomicU64); MAX_RANGES] = [const { (AtomicU64::new(0), AtomicU64::new(0)) }; MAX_RANGES];
 static NRANGES: AtomicUsize = AtomicUsize::new(0);
 
-pub fn add_window_range(start: u64, end: u64) {
+/// Note a range the window maps; false, with nothing noted, when there is
+/// no room (the caller fails the boot).
+#[must_use]
+pub fn add_window_range(start: u64, end: u64) -> bool {
     let n = NRANGES.load(Ordering::Relaxed);
-    if n < MAX_RANGES {
-        RANGES[n].0.store(start, Ordering::Relaxed);
-        RANGES[n].1.store(end, Ordering::Relaxed);
-        NRANGES.store(n + 1, Ordering::Release);
+    if n == MAX_RANGES {
+        return false;
     }
+    RANGES[n].0.store(start, Ordering::Relaxed);
+    RANGES[n].1.store(end, Ordering::Relaxed);
+    NRANGES.store(n + 1, Ordering::Release);
+    true
 }
 
 /// `[start, start + len)` (physical) lies in one range the kernel window
@@ -28,6 +34,18 @@ pub fn in_window(start: u64, len: u64) -> bool {
         let s = RANGES[i].0.load(Ordering::Relaxed);
         let e = RANGES[i].1.load(Ordering::Relaxed);
         s <= start && start.wrapping_add(len) <= e && start.wrapping_add(len) >= start
+    })
+}
+
+/// Any byte of `[start, start + len)` (physical) is in a range the kernel
+/// window maps.
+pub fn overlaps_window(start: u64, len: u64) -> bool {
+    let end = start.saturating_add(len);
+    let n = NRANGES.load(Ordering::Acquire);
+    (0..n).any(|i| {
+        let s = RANGES[i].0.load(Ordering::Relaxed);
+        let e = RANGES[i].1.load(Ordering::Relaxed);
+        s < end && start < e
     })
 }
 
@@ -60,7 +78,12 @@ pub fn set_empty_root(root: u64) {
 
 /// Run on the address space `root` (kernel virtual) with `asid`.
 pub fn switch(root: u64, asid: u64) {
-    let v = layout::paddr(root) | (asid << 48);
+    switch_to(layout::paddr(root) | (asid << 48));
+}
+
+/// Run on TTBR0 value `v` (table address and ASID): `switch`, and the way
+/// back from `cache_op`'s detour, so that too follows the module comment.
+fn switch_to(v: u64) {
     let me = percpu::cpu_index();
     if percpu::ttbr0(me) != v {
         crate::msr!("ttbr0_el1", v);
@@ -146,7 +169,12 @@ pub fn cache_op(op: u64, root: u64, asid: u64, vaddr: u64, len: u64, paddr: u64)
     let (va, switched) = if in_window(paddr, len) {
         (layout::pptr(paddr), None)
     } else {
+        // Under the serial gate in an SMP kernel (`cache_rule`). Page-table
+        // writes of this entry reach the walker before it walks them.
+        // PSTATE.PAN does not apply ("no effect on ... data cache
+        // instructions, except DC ZVA", DDI 0487J.a).
         let old = percpu::ttbr0(percpu::cpu_index());
+        publish_tables();
         switch(root, asid);
         (vaddr, Some(old))
     };
@@ -160,8 +188,6 @@ pub fn cache_op(op: u64, root: u64, asid: u64, vaddr: u64, len: u64, paddr: u64)
         cpu::sync_icache(va, len);
     }
     if let Some(old) = switched {
-        crate::msr!("ttbr0_el1", old);
-        cpu::isb();
-        percpu::set_ttbr0(old);
+        switch_to(old);
     }
 }

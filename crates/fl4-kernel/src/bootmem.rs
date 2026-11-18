@@ -5,21 +5,31 @@ use fl4_core::boot::Region;
 
 const PAGE: u64 = 4096;
 
-/// A small sorted list of half-open physical ranges.
-pub type Ranges = RangeList<64>;
+/// A sorted list of half-open physical ranges: room for one per memory
+/// map entry (`mboot::MAX_MMAP`, 256) and the splits the kernel's own
+/// memory and devices make in them.
+pub type Ranges = RangeList<272>;
 
 pub struct RangeList<const N: usize> {
     pub r: [Region; N],
     pub n: usize,
+    /// A range did not fit and is missing. A list the kernel decides RAM
+    /// or private memory from must then not be used: what it misses would
+    /// become user space's (shared) device memory.
+    pub lost: bool,
 }
 
 impl<const N: usize> RangeList<N> {
     pub const fn new() -> Self {
-        Self { r: [Region::EMPTY; N], n: 0 }
+        Self { r: [Region::EMPTY; N], n: 0, lost: false }
     }
 
     pub fn add(&mut self, start: u64, end: u64) {
-        if start >= end || self.n == self.r.len() {
+        if start >= end {
+            return;
+        }
+        if self.n == self.r.len() {
+            self.lost = true;
             return;
         }
         let mut i = self.n;
@@ -47,6 +57,7 @@ impl<const N: usize> RangeList<N> {
 
     pub fn remove(&mut self, start: u64, end: u64) {
         let mut res = Self::new();
+        res.lost = self.lost;
         for j in 0..self.n {
             let c = self.r[j];
             if c.end <= start || c.start >= end {

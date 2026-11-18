@@ -168,5 +168,6 @@ fl4_ap_high:
 .section .bss
 .balign 16
 fl4_boot_stack:
-    .space 65536
+    /* fl4_boot keeps its memory lists here (bootmem.rs, 272 ranges each). */
+    .space 131072
 fl4_boot_stack_top:

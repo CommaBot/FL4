@@ -22,6 +22,28 @@ pub const LOAD_TOP: u64 = 0x0000_7f80_0000_0000;
 /// segments end at or below it.
 pub const USER_END: u64 = 0x0000_8000_0000_0000;
 
+/// The boot frames fl4-core maps right after the root task's image
+/// (`boot::root_layout`): its IPC buffer and BootInfo frame, then the
+/// extra BootInfo. That is never empty on AArch64 (the ID registers), so
+/// the image ends at least this far below `USER_END`.
+pub const ROOT_TAIL_MIN: u64 = 3 * 4096;
+
+/// Whether the boot frames after a root task image ending at virtual
+/// `v_end` fit below `USER_END`, with `extra_len` bytes of extra BootInfo
+/// (mapped as fl4-core does: rounded up to a power of two of at least a
+/// page, `boot::extra_bi_size_bits`). Past it they would be mapped, and
+/// given out as caps, at addresses user space must not have.
+pub fn root_tail_fits(v_end: u64, extra_len: u64) -> bool {
+    let extra = if extra_len == 0 {
+        Some(0)
+    } else {
+        extra_len.checked_add(4095).map(|l| l & !4095).and_then(u64::checked_next_power_of_two)
+    };
+    extra
+        .and_then(|e| v_end.checked_add(2 * 4096)?.checked_add(e))
+        .is_some_and(|end| end <= USER_END)
+}
+
 pub const MAX_MMAP: usize = 256;
 pub const MAX_MODULES: usize = 8;
 pub const CMDLINE_LEN: usize = 256;
@@ -130,6 +152,22 @@ pub fn fdt_header(h: &[u8; 40]) -> Option<Fdt> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn root_task_boot_frames_stay_in_user_space() {
+        // IPC buffer, BootInfo, one page of extra BootInfo: exactly up to
+        // the end, and not a page further.
+        assert!(root_tail_fits(USER_END - 3 * 4096, 1));
+        assert!(root_tail_fits(USER_END - 3 * 4096, 4096));
+        assert!(!root_tail_fits(USER_END - 2 * 4096, 4096));
+        // fl4-core maps 5 pages of extra BootInfo as 8.
+        assert!(!root_tail_fits(USER_END - 7 * 4096, 5 * 4096));
+        assert!(root_tail_fits(USER_END - 10 * 4096, 5 * 4096));
+        assert!(root_tail_fits(USER_END - 2 * 4096, 0));
+        // No wrapping past 2^64.
+        assert!(!root_tail_fits(u64::MAX - 4096, 4096));
+        assert!(!root_tail_fits(0x1000, u64::MAX));
+    }
 
     fn header(total: u32, off_struct: u32, size_struct: u32, off_strings: u32, size_strings: u32) -> [u8; 40] {
         let mut h = [0u8; 40];

@@ -5,9 +5,11 @@
 #![no_std]
 
 pub mod arch;
+pub mod cache_rule;
 pub mod cpu;
 pub mod fpu;
 pub mod gic;
+pub mod gic_layout;
 pub mod mmu;
 pub mod percpu;
 pub mod serial;

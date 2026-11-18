@@ -41,11 +41,14 @@ struct State {
     ident: u64,
     empty: u64,
     next_device: u64,
+    /// What the processor can address (and the window's RAM, none of
+    /// which is a device).
+    pa_top: u64,
 }
 
 struct Cell(UnsafeCell<State>);
 unsafe impl Sync for Cell {}
-static ST: Cell = Cell(UnsafeCell::new(State { used: 0, region_pa: 0, region_len: 0, root: 0, ident: 0, empty: 0, next_device: DEVICE_BASE }));
+static ST: Cell = Cell(UnsafeCell::new(State { used: 0, region_pa: 0, region_len: 0, root: 0, ident: 0, empty: 0, next_device: DEVICE_BASE, pa_top: 0 }));
 
 fn st() -> &'static mut State {
     unsafe { &mut *ST.0.get() }
@@ -103,7 +106,8 @@ fn map(root: u64, va: u64, pa: u64, len: u64, attr: u64) {
     let mut off = 0;
     while off < len {
         let v = va + off;
-        let p = pa + off;
+        // Output address bits only, whatever the caller passed.
+        let p = (pa + off) & ADDR_MASK;
         let left = len - off;
         let l1 = next(root, v, 39);
         if v & ((1 << 30) - 1) == 0 && p & ((1 << 30) - 1) == 0 && left >= 1 << 30 {
@@ -128,12 +132,13 @@ fn normal() -> u64 {
 }
 
 /// Build the kernel's tables: the kernel region with W^X, and the window
-/// over `ram` (physical ranges). Returns the TTBR1 value. Runs on the
-/// loader's boot tables.
-pub fn init(region_pa: u64, region_len: u64, ram: &[(u64, u64)]) -> u64 {
+/// over `ram` (physical ranges). Device mappings stay below `pa_top`.
+/// Returns the TTBR1 value. Runs on the loader's boot tables.
+pub fn init(region_pa: u64, region_len: u64, ram: &[(u64, u64)], pa_top: u64) -> u64 {
     let s = st();
     s.region_pa = region_pa;
     s.region_len = region_len;
+    s.pa_top = pa_top;
     let root = alloc_table();
     s.root = root;
     let text_end = unsafe { &__text_end as *const u8 as u64 } - KERNEL_VBASE;
@@ -149,7 +154,9 @@ pub fn init(region_pa: u64, region_len: u64, ram: &[(u64, u64)]) -> u64 {
             continue;
         }
         map(root, PPTR_BASE + start, start, end - start, normal() | D_UXN | D_PXN);
-        mmu::add_window_range(start, end);
+        if !mmu::add_window_range(start, end) {
+            crate::fail("too many RAM ranges for the window");
+        }
     }
     // The identity map of the kernel region, for cores starting up, and
     // the empty table of threads without an address space.
@@ -180,10 +187,15 @@ pub fn empty_root() -> u64 {
 }
 
 /// Map `len` bytes of device registers at `pa`; returns their address.
-pub fn map_device(pa: u64, len: u64) -> u64 {
+/// None for registers past what the processor can address (a descriptor
+/// with them would have reserved bits set) or on RAM the window maps as
+/// normal memory (two mappings with different memory types).
+pub fn map_device(pa: u64, len: u64) -> Option<u64> {
     let s = st();
-    let base = pa & !(PAGE - 1);
-    let size = (pa + len - base + PAGE - 1) & !(PAGE - 1);
+    let (base, size) = crate::bootmem::device_pages(pa, len, s.pa_top)?;
+    if mmu::overlaps_window(base, size) {
+        return None;
+    }
     // Keep each mapping 64 KiB aligned.
     let va = (s.next_device + 0xffff) & !0xffff;
     if va + size > DEVICE_TOP {
@@ -193,5 +205,5 @@ pub fn map_device(pa: u64, len: u64) -> u64 {
     map(s.root, va, base, size, (ATTR_DEVICE_NGNRNE << 2) | D_AF | D_UXN | D_PXN);
     cpu::dsb_ishst();
     cpu::isb();
-    va + (pa - base)
+    Some(va + (pa - base))
 }

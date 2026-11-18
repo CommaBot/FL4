@@ -187,3 +187,56 @@ fn multiboot1_bounds_modules_and_mmap_entries() {
     assert_eq!(boot.n_modules, mboot::MAX_MODULES);
     assert_eq!(boot.n_mmap, 1);
 }
+
+/// A Multiboot 2 information with one mmap tag of `entries` (base, len,
+/// type), 24 bytes each.
+fn mb2_with_mmap(entries: &[(u64, u64, u32)]) -> Vec<u8> {
+    let tag = 16 + 24 * entries.len();
+    let total = 8 + tag + 8;
+    let mut memory = vec![0u8; total];
+    words(&mut memory, 0, &[total as u32, 0]);
+    words(&mut memory, 8, &[6, tag as u32, 24, 0]);
+    for (i, &(base, len, ty)) in entries.iter().enumerate() {
+        let e = 24 + 24 * i;
+        words(&mut memory, e, &[base as u32, (base >> 32) as u32, len as u32, (len >> 32) as u32, ty, 0]);
+    }
+    words(&mut memory, 8 + tag, &[0, 8]);
+    memory
+}
+
+/// GRUB passes UEFI's own map on, often 150-300 entries, many of them
+/// neighbours of one type. They merge, and none past the 128th is lost:
+/// RAM up there would otherwise become user space's device memory.
+#[test]
+fn multiboot2_maps_merge_neighbours_and_keep_every_entry() {
+    // 300 contiguous 1 MiB entries alternating in pairs of types 1 and 1,
+    // then reserved: 100 runs of (RAM, RAM, reserved).
+    let mut entries = Vec::new();
+    for i in 0..300u64 {
+        entries.push((0x10_0000 + i * 0x10_0000, 0x10_0000, if i % 3 == 2 { 2 } else { 1 }));
+    }
+    // And RAM at the top, where the loader puts things.
+    entries.push((1 << 40, 1 << 30, 1));
+    let memory = mb2_with_mmap(&entries);
+    let boot = parse(mboot::MB2_MAGIC, &memory);
+    assert!(!boot.mmap_lost);
+    assert_eq!(boot.n_mmap, 201);
+    assert_eq!((boot.mmap[0].base, boot.mmap[0].len, boot.mmap[0].ty), (0x10_0000, 0x20_0000, 1));
+    let last = boot.mmap[boot.n_mmap - 1];
+    assert_eq!((last.base, last.len, last.ty), (1 << 40, 1 << 30, 1));
+}
+
+/// A map with more distinct entries than the kernel keeps is reported, so
+/// the kernel refuses to boot rather than lose what is past the limit.
+#[test]
+fn multiboot2_maps_past_the_limit_are_reported() {
+    let mut entries = Vec::new();
+    for i in 0..mboot::MAX_MMAP as u64 + 1 {
+        entries.push((i * 0x20_0000, 0x10_0000, 1));
+    }
+    let boot = parse(mboot::MB2_MAGIC, &mb2_with_mmap(&entries));
+    assert_eq!(boot.n_mmap, mboot::MAX_MMAP);
+    assert!(boot.mmap_lost);
+    let boot = parse(mboot::MB2_MAGIC, &mb2_with_mmap(&entries[..mboot::MAX_MMAP]));
+    assert!(!boot.mmap_lost);
+}
