@@ -44,6 +44,13 @@ some of them proved here.
   `reply_remove` of a thread blocked on the reply from `JReplyRemoveHyp`
   [J]), the reply dead after (P1's `fin_cap_reply.dead`,
   `JAtZ.reply_ready`); with `RecvReplyHyp` [J] and `P0.ArchTotal` [P].
+* A final native VSpace cap's finalisation (`jFinAt_vs`: page table, page
+  directory, PDPT, PML4, ASID pool caps): XTopJointFinVs's `JAtZ.finVsJ`
+  (`JAtZ` after at the same sets, the spec's frame `ArFr`), the slot ready
+  (`JAtZ.vs_ready`: no object of `H` but `other` ones in the cap's frame);
+  from `ArchRefines` [P], `JVsCapsHyp` [J] (l4v `valid_cap`) and
+  `JVsApartHyp` [J] (the VSpace frames and the ASID table apart from `H`'s
+  objects, the nodes and the untyped free parts), `JDelParts` fields.
 * The empty of a ready slot (`emptyHypJ`): a CNode slot by `emptyJR`, a TCB
   slot by `emptyJRT` (a step changing the TCB's caps only, `KeepCT`), both
   with `JEmptyUtHyp`.
@@ -56,6 +63,7 @@ import Fl4Proofs.P3.XTopJointStep
 import Fl4Proofs.P3.XTopJointEmpty
 import Fl4Proofs.P3.XTopJointFinEp
 import Fl4Proofs.P3.XTopJointFinReply
+import Fl4Proofs.P3.XTopJointFinVs
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -246,7 +254,7 @@ def JReplyRemoveHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
 
 /-- **The named steps of the deletion at `J`** (module docstring). -/
 structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
-  fin : JFinAtF (L := L) arI AR th (fun c => ¬ NtfnK c ∧ ¬ FrIoK c ∧ ¬ IrqK c ∧ ¬ EpK c ∧ ¬ RpK c)
+  fin : JFinAtF (L := L) arI AR th (fun c => ¬ NtfnK c ∧ ¬ FrIoK c ∧ ¬ IrqK c ∧ ¬ EpK c ∧ ¬ RpK c ∧ ¬ VsK c)
   irq : JIrqSlotHyp (L := L) arI AR th
   /-- ScSignalBoundJ's `RecvReplyHyp` [J] (l4v `valid_replies`), at every
   `P1.Heap` and set of cores: a final endpoint cap's finalisation frees the
@@ -254,6 +262,14 @@ structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   recvRep : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyHyp (L := L) arI AR H Cs
   /-- `reply_remove` at `J`, for a final reply cap's finalisation. -/
   replyRm : JReplyRemoveHyp (L := L) arI AR th
+  /-- The x86 backend's obligations (VsArch's `ArchRefines` [P]), for a final
+  native VSpace cap's finalisation. -/
+  archRef : ArchRefines arI AR
+  /-- XTopJointFinVs's `JVsCapsHyp` [J] (l4v `valid_cap` for the arch caps). -/
+  vsCaps : JVsCapsHyp (L := L) arI AR th
+  /-- XTopJointFinVs's `JVsApartHyp` [J] (the VSpace frames and the ASID table
+  apart from `H`'s objects, the nodes and the untyped free parts). -/
+  vsApart : JVsApartHyp (L := L) arI AR th
   finFrIo : JFinAt (L := L) arI AR th FrIoK
   triv : JRdTrivHyp (L := L) arI AR th
   zomb : JZombieHyp (L := L) arI AR th
@@ -603,6 +619,30 @@ theorem jFinAt_reply (hT : P0.ArchTotal arI)
     fun y hy _ => Or.inl (hSS1.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS1,
     ⟨V1, Ac1, Lst1, D1, J1, hks1.trans hkb⟩, JAtZ.reply_ready arI J1 hA.isSlot hcv1 hdp⟩
 
+set_option maxHeartbeats 4000000 in
+/-- **A final native VSpace cap's finalisation at `J`** (XTopJointFinVs's
+`JAtZ.finVsJ`; the slot ready, `JAtZ.vs_ready`), from `ArchRefines` [P],
+`JVsCapsHyp` [J] and `JVsApartHyp` [J]. -/
+theorem jFinAt_vs (hAR : ArchRefines arI AR) (hVC : JVsCapsHyp (L := L) arI AR th)
+    (hAp : JVsApartHyp (L := L) arI AR th) : JFinAtF (L := L) arI AR th VsK := by
+  intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ hv hfin
+  obtain ⟨V, Ac, Lst, D, J, hkb⟩ := hW
+  have hVC0 := hVC (Z.mv G V) H Cs Ac Lst D s a σ hth J
+  have Ap := hAp (Z.mv G V) H Cs Ac Lst D s a σ hth J
+  subst hth
+  have hcv := capV_of_capAt hc
+  have hxm : cslotAddr sl ∈ G.chains.flatten := (hDS.1.2.2.1.members _).2 ⟨hA.isSlot, _, hc, fun h => by
+    subst h
+    rcases hv with ⟨_, _, _, _, e⟩ | ⟨_, _, _, _, e⟩ | ⟨_, _, _, _, e⟩ | ⟨_, _, _, e⟩ | ⟨_, _, e⟩ <;> cases e⟩
+  rw [decide_eq_true hfin]
+  refine WP.spec_mono (J.finVsJ hAR hVC0 Ap hDS hA hc hv) ?_
+  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨h1, h2, h3, σ1, hm, J1, hSS, hks⟩
+  simp only at h1 h2 h3 hm J1 hSS hks ⊢
+  have hcv1 : capV (L.mem s1) (cslotAddr sl) = c := by rw [hSS.capV hA.isSlot, hcv]
+  exact ⟨h1, h2, h3, σ1, G, hm, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
+    fun y hy _ => Or.inl (hSS.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS,
+    ⟨V, Ac, Lst, D, J1, hks.trans hkb⟩, J.vs_ready Ap hVC0 hxm hcv hv hcv1⟩
+
 theorem okey_of_finObj {c : capability.Cap} (hk : FinObjKind c) : okey c ≠ none := by
   cases c <;> simp_all [FinObjKind, okey]
 
@@ -673,7 +713,9 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
     · exact jFinAt_ep arI h.recvRep Z H Cs kb hth s a σ G sl c hDS hW hA hc hk he hfin
     by_cases hr : RpK c
     · exact jFinAt_reply arI hT h.recvRep h.replyRm Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hr hfin
-    · exact h.fin Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨hn, hfi, hq, he, hr⟩ hfin
+    by_cases hvs : VsK c
+    · exact jFinAt_vs arI h.archRef h.vsCaps h.vsApart Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hvs hfin
+    · exact h.fin Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨hn, hfi, hq, he, hr, hvs⟩ hfin
   · exact jFin_nonfinal arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi hfin
 
 /-- The trivially finalised caps but untyped ones are not physical. -/
