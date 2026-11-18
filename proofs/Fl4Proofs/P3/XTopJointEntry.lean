@@ -605,7 +605,7 @@ on the cap:
 |---|---|---|
 | Null, Zombie | the decode fails, the state unchanged | — |
 | Notification | `decode_notificationDMX`, `notifLeafJ` | — (`SignalRestJHyp` [J] in `JEntryGlob`) |
-| Reply | `decode_replyDMX`, `replyLeafJ` | `JReplyRestHyp` (the rest after `reply_remove` outside `ReplyRestNoSc`, `ReplyRestSw`) [W] |
+| Reply | `decode_replyDMX`, `replyLeafJ` | `JReplyRestHyp` (the rest after `reply_remove` and the sporadic unblock test outside `ReplyRestNoSc`, `ReplyRestSw`, `ReplyRestPost`) [W] |
 | Endpoint | `decode_endpointDMX`, `sendLeafJ` | `JSendRestHyp` (a blocking send, or one to a receiver) [W] |
 | CNode | `decode_invocation_cnodeJ_steps` | `JCnodePath` (front end) |
 | Thread | `decode_invocation_threadJ_step` | `JThreadPath` (incl. `JPostHyp` at `TcbJOpen`); SetEPTRoot `JVtxScope` [scope] |
