@@ -22,13 +22,15 @@ yield relation, P1's `BlkOK`); P1's
 `ThreadP1Hyp` and `ArchTotal`; `timer::remove`'s footprint [W] (P1's
 `timer.remove.tf`); `ScYieldFinHyp` [W]; the debug-list removal's
 footprint [W] (the TCBs' debug links and the core's `DEBUG_TCBS` word, P1's
-`DbgW`; such writes keep `XTopAt`, `XTopAt.dbgStep`); the FPU release at `XTop` [P].
+`DbgW`; such writes keep `XTopAt`, `XTopAt.dbgStep`); for the FPU release
+(XTopFpuRel's `XTopAt.fpuReleaseX`), `ARKeep` [P].
 -/
 import Fl4Proofs.P3.XTopFinSc
 import Fl4Proofs.P3.XTopDbg
 import Fl4Proofs.P3.IpcSuspendJ
 import Fl4Proofs.P3.IpcSetPrioX
 import Fl4Proofs.P3.IpcSlotsSame
+import Fl4Proofs.P3.XTopFpuRel
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -136,9 +138,7 @@ theorem xFinThread_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (Cs : S
     (hY : ∀ (Z : XSets) q, Z.th = th → ScYieldFinHyp (L := L) arI AR Z q)
     (hDbg : ∀ (Z : XSets) s a σ (p : U64), Z.th = th → XTopAt (L := L) AR Z s a σ → p ∈ Z.T →
       objects.debug_remove st s p ⦃ s' => P1.WritesIn st s s' (DbgWc (L := L) Z.T Z.c s) ⦄)
-    (hFpu : ∀ (Z : XSets) s a σ (p : U64), Z.th = th → XTopAt (L := L) AR Z s a σ →
-      arI.fpu_release a p ⦃ a' => ∃ σ', ((), σ') ∈ (Fl4Spec.fpuRelease (Z := Unit) p.bv σ).1 ∧
-        XTopAt (L := L) AR Z s a' σ' ⦄) :
+    (hARK : ARKeep arI AR) :
     XFinAt (L := L) arI FinThreadK AR th := by
   intro Z s a σ sl c hth hX hK hTh ⟨p, hc0⟩ hDS hA hc hk hw
   subst hth hc0
@@ -228,10 +228,11 @@ theorem xFinThread_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (Cs : S
       refine WP.spec_bind (hDbg (Z.mv G6 V6) s6 a6 σ6 p rfl hX6 hpZ) ?_
       intro s7 hw7
       have hX7 := hX6.dbgStep hw7
-      refine WP.spec_bind (hFpu (Z.mv G6 V6) s7 a6 σ6 p rfl hX7) ?_
-      rintro a8 ⟨σ8, hm8, hX8⟩
+      obtain ⟨hK7, hBW7, -⟩ := hpre (Z.mv G6 V6) s7 a6 σ6 rfl hX7
+      refine WP.spec_bind (hX7.fpuReleaseX hARK hK7 hBW7 hP0 hpZ) ?_
+      rintro a8 ⟨σ8, hm8, -, -, V8, hX8⟩
       simp only [P1.tcb_slot_ctable, bind_ok, WP.spec_ok]
-      exact ⟨σ8, G6, V6, finThread_mem he3 he5 he6 hm8, hX8⟩
+      exact ⟨σ8, G6, V8, finThread_mem he3 he5 he6 hm8, hX8⟩
     -- `unbind_from_sc`
     have hS4 := hX4.fin.1.1.1
     have hR4 := hX4.fin.1.1.2.2.1

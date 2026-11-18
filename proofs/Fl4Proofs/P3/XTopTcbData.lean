@@ -12,11 +12,12 @@ P3 (DESIGN.md §9), TCB invocations: **the data labels at `XTop`**
   lookup, `BufWordRel`, `IpcBufCapOK`, `BufCover`, VSpace's `BufPlaced`).
 * `FlagsRel` (FL4's flags word against the spec's `tcb_flags`, with
   `FlagsRel.frame`, `FlagsRel.set`), `flags_new` (the new flags word's flags),
-  `FpuRelXHyp` [P]; `tcb_set_flagsX`: SetFlags.
+  `tcb_set_flagsX`: SetFlags (its FPU release by XTopFpuRel's `XTopAt.fpuReleaseX`, `ARKeep` [P]).
 * `TcbXOpen4`, `tcbXOpen_of`: TcbXOpen from the four labels still open.
 -/
 import Fl4Proofs.P3.XTopReply
 import Fl4Proofs.P3.TcbDataX
+import Fl4Proofs.P3.XTopFpuRel
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -432,22 +433,11 @@ theorem flags_eq (s : S) (t : U64) : obj.Tcb.flags st t s = ok (L.mem s (tFlagsW
   rw [h]; simp only [bind_ok, lift]
   exact L.read_eq _ _
 
-/-- **The FPU release of SetFlags** [P] (the arch backend with the spec's
-FPU model): from `XTop` at the typed heap `th`, FL4's `fpu_release` of the
-target against the spec's `fpu_release`, `XTop` after, the current thread and
-the caller's state kept. -/
-def FpuRelXHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (p ct : U64) : Prop :=
-  ∀ (Z : XSets) s a σ, Z.th = th → XTopAt (L := L) AR Z s a σ → σ.curThread = ct.bv →
-    arI.fpu_release a p ⦃ a' => ∃ σ', ((), σ') ∈ (Fl4Spec.fpuRelease (Z := Unit) p.bv σ).1 ∧
-      σ'.curThread = σ.curThread ∧
-      (∀ x, σ.kheap ct.bv = some (.tcb x) → ∃ y, σ'.kheap ct.bv = some (.tcb y) ∧ y.tcbState = x.tcbState) ∧
-      ∃ Z' : XSets, Z'.th = th ∧ XTopAt (L := L) AR Z' s a' σ' ⦄
-
 set_option maxHeartbeats 16000000 in
 /-- **TcbXOpen's SetFlags at `XTop`**, called or not: the restart, FL4's
 flags read (`FlagsRel`, a per-`Z` relation) and write (`XTopAt.tcbWrA`)
 against the spec's `set_flags` (`TcbBufStep`), the FPU release when the
-FPU is disabled (`FpuRelXHyp` [P]), then the data tail of the new flags
+FPU is disabled (XTopFpuRel's `XTopAt.fpuReleaseX`, from `ARKeep` [P]), then the data tail of the new flags
 word. -/
 theorem tcb_set_flagsX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (hX : XTopAt (L := L) AR Z s ar σ) (hC : CurRun σ) (hTh : ∀ t, Z.th t = some .tcb → t ∈ Z.T)
@@ -460,7 +450,9 @@ theorem tcb_set_flagsX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar
     (hcur : σ.curThread = ct.bv)
     (hact : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hstall : smp.remote_tcb_stall st arI s ar p = ok (s, ar))
-    (hFpu : FpuRelXHyp (L := L) arI AR Z.th p ct)
+    (hK : ARKeep arI AR) (hKA : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s))
+    (hBT : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → BufWordRel Z'.T (L.mem s') σ')
+    (hP0 : IPlaced Z.N Z.T Z.E Z.R Z.B)
     (call : Bool) (slot : obj.Slot) (extra : Aeneas.Std.Array obj.Slot 3#usize) (blk don : Bool)
     (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (buffer : Option Fl4Spec.ObjRef) :
@@ -592,11 +584,12 @@ theorem tcb_set_flagsX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar
       exact Or.inr ⟨hres, hne, _, hdec, σ1, hst1, [f2.bv], σ3, hmem, z, hz, hRT, hXT⟩
   by_cases hF : ((f2 &&& fl4_abi.consts.tcb_flag.FPU_DISABLED) != 0#u64) = true
   · simp only [hF, ↓reduceIte]
-    refine WP.spec_bind (hFpu Z s2 ar σ2 rfl hX2 hcur2) ?_
-    rintro a1 ⟨σ3, h3, hc3, hst3, Z3, hth3, hX3⟩
+    have hks2 : L.ksb s2 = L.ksb s := (L.ksb_wr _ _ _).trans hk1
+    refine WP.spec_bind (hX2.fpuReleaseX hK (by rw [hks2]; exact hKA) (hBT Z s2 ar σ2 rfl hX2) hP0 hpT) ?_
+    rintro a1 ⟨σ3, h3, hc3, hst3, V3, hX3⟩
     obtain ⟨y2, hky2, hrs2⟩ := hkc2
-    obtain ⟨y3, hky3, hrs3⟩ := hst3 y2 hky2
-    refine tail a1 σ3 Z3 ?_ hX3 hth3 (by rw [hc3]; exact hcur2) ⟨y3, hky3, by rw [hrs3, hrs2]⟩
+    obtain ⟨y3, hky3, hrs3⟩ := hst3 _ y2 hky2
+    refine tail a1 σ3 (Z.mv Z.G V3) ?_ hX3 rfl (by rw [hc3]; exact hcur2) ⟨y3, hky3, by rw [hrs3, hrs2]⟩
     unfold Fl4Spec.NonDet.when; rw [if_pos (hfpu.1 hF)]; exact h3
   · simp only [Bool.not_eq_true] at hF
     simp only [hF, Bool.false_eq_true, ↓reduceIte]
@@ -627,7 +620,7 @@ set_option maxHeartbeats 4000000 in
 `tcb_single_stepX`, `tcb_set_flagsX`): the four labels still open, and their
 premises (`ArgRel` [J] for two arguments, `GetBpHyp` [P], `BufWordRel` and
 `FlagsRel` (per-`Z` relations), `IpcBufCapOK`, `BufCover`, `BufPlaced` [J],
-`FpuRelXHyp` [P]). -/
+`ARKeep` [P] for SetFlags' FPU release). -/
 theorem tcbXOpen_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (hX : XTopAt (L := L) AR Z s ar σ) (hKA : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)) (hC : CurRun σ)
     (hTh : ∀ t, Z.th t = some .tcb → t ∈ Z.T) (hDI : DelInv Z.th (L.mem s))
@@ -650,7 +643,7 @@ theorem tcbXOpen_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar : 
     (hstall' : ∀ q, smp.remote_tcb_stall st arI s ar q = ok (s, ar))
     (hact : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hA2 : ArgRel (st := st) s σ ct buf buffer 2) (hG : GetBpHyp (st := st) s ct p)
-    (hFpu : FpuRelXHyp (L := L) arI AR Z.th p ct)
+    (hK : ARKeep arI AR)
     (hO : TcbXOpen4 (L := L) arI (XTop (L := L) AR) s ar σ lbl p ⟨length, buf, call, cslotAddr sl, extra⟩ blk call
       don slbl (argsU.map UScalar.bv) ci sl excaps buffer) :
     TcbXOpen (L := L) arI (XTop (L := L) AR) s ar σ lbl p ⟨length, buf, call, cslotAddr sl, extra⟩ blk call
@@ -668,7 +661,7 @@ theorem tcbXOpen_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar : 
       buffer hA2 call _ extra blk don _ ci sl excaps
   · rintro rfl
     exact tcb_set_flagsX arI s ar σ hX hC hTh hDI hFl p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct
-      hct argsU hlen hargs hcur hact (hstall' p) hFpu call _ extra blk don ci sl excaps buffer
+      hct argsU hlen hargs hcur hact (hstall' p) hK hKA hBT hP0 call _ extra blk don ci sl excaps buffer
 
 end
 

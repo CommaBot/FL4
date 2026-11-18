@@ -633,7 +633,6 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
       NoChildrenRel (st := st) s σ x0 sl)
     (hcapC : x1 ≠ 0#u64 → ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ Z.C)
     (hA5 : ArgRel (st := st) s σ ct buf buffer 5) (hGb : GetBpHyp (st := st) s ct p)
-    (hFpu : FpuRelXHyp (L := L) arI AR Z.th p ct)
     (hI : TcbXIpc (L := L) arI AR Z.th s ar σ p ct buf argsU blk call don)
     (hFr : ∀ (x ptr offset r : U64) (sz : capability.FrameSize) (m ep : Bool) (asid va : U64),
       capV (L.mem s) x = .Frame ptr sz r false m ep asid va → FpuPass true offset r sz →
@@ -642,7 +641,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
       (argsU.map UScalar.bv) ci sl excaps buffer ct) :
     XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf extra slbl
       (argsU.map UScalar.bv) ci sl excaps buffer ct :=
-  XCap.jat arI (decode_invocation_threadJAt arI s ar σ J hni hG hARI hT hA hBT hOK hBC hBPl hFl lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl hAs hsc excaps buffer hext hstall' hNative hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb hFpu hI hFr) J hR
+  XCap.jat arI (decode_invocation_threadJAt arI s ar σ J hni hG hARI hT hA hBT hOK hBC hBPl hFl lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl hAs hsc excaps buffer hext hstall' hNative hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb hI hFr) J hR
 
 set_option maxHeartbeats 4000000 in
 /-- **`decode_invocation_ioportJAt`, `JAt` after**, with the per-op premise (`JPostHyp` [W]). -/

@@ -217,7 +217,7 @@ notification caps' objects from `XcRel` and `JPlaced`),
 the target not idle, the argument reads, the remote stall the identity [P],
 the core's `CUR_THREAD` word outside the objects); the IPC/Sc leaves
 (`TcbXIpc`), the arguments (`ArgRel` [J], five), GetBreakpoint's read (`GetBpHyp`
-[P]), SetFlags' FPU release (`FpuRelXHyp` [P]), ReadFPU's user-frame write (`FpuFrameXHyp`
+[P]), SetFlags' FPU release (from `ARIface`), ReadFPU's user-frame write (`FpuFrameXHyp`
 [W], `fpuFrameX_of`), SetTimer's footprint from P1's (`JAtZ.timerIns`, `JAtZ.otherTmOK`). -/
 theorem decode_invocation_threadJAt [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hG : CsGlobal (L := L) arI AR Z.th)
@@ -251,7 +251,6 @@ theorem decode_invocation_threadJAt [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A
       NoChildrenRel (st := st) s σ x0 sl)
     (hcapC : x1 ≠ 0#u64 → ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ Z.C)
     (hA5 : ArgRel (st := st) s σ ct buf buffer 5) (hGb : GetBpHyp (st := st) s ct p)
-    (hFpu : FpuRelXHyp (L := L) arI AR Z.th p ct)
     (hI : TcbXIpc (L := L) arI AR Z.th s ar σ p ct buf argsU blk call don)
     (hFr : ∀ (x ptr offset r : U64) (sz : capability.FrameSize) (m ep : Bool) (asid va : U64),
       capV (L.mem s) x = .Frame ptr sz r false m ep asid va → FpuPass true offset r sz →
@@ -288,7 +287,7 @@ theorem decode_invocation_threadJAt [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A
     hcapN (fun i hi => hA5 i (by omega)) hI
     (tcbXOpen_of arI s ar σ hX J.ks (J.curRun.run hni) J.thT J.del hBT J.ip hOK hBC hBPl hFl lbl length p hp blk call don buf
       extra ct hct hcur slbl hlbl argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act
-      (fun i hi => hA5 i (by omega)) hGb hFpu
+      (fun i hi => hA5 i (by omega)) hGb hARI.toARKeep
       (tcbXOpen4_of arI s ar σ hX (J.curRun.run hni) J.thT J.del lbl length p hp blk call don buf extra ct hct hcur slbl hlbl
         (argsU.map UScalar.bv) ci sl excaps buffer hext hstall' J.kern.act hA5
         (tcbXOpen3_of arI hARI.toARKeep s ar σ hX (J.curRun.run hni) J.thT J.del lbl length p hp blk call don buf extra ct hct
