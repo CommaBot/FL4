@@ -33,6 +33,13 @@ pub const NUM_MRS: u64 = 30;
 pub const CR4_ALLOWED: u64 = 0x0fff | (1 << 16) | (1 << 17) | (1 << 18) | (1 << 20) | (1 << 21);
 pub const CR0_OWNED: u64 = (3 << 29) | (0x3ff << 19) | (1 << 17) | (0x3ff << 6);
 pub const EXCEPTIONS: u64 = (1 << 1) | (1 << 17) | (1 << 18);
+/// Guest IA32_DEBUGCTL bits a VMM may set: BTF (single-step on branches)
+/// only. VM entry loads the rest as written, and none is virtualized: LBR
+/// and the FREEZE bits drive the host's LBR and PMU state, TR, BTS and
+/// BTINT store branch records through the host's IA32_DS_AREA (which VM
+/// entry does not switch) or send them on the bus, which can hang the core
+/// (Xen XSA-269). KVM likewise refuses them without LBR virtualization.
+pub const DEBUGCTL_ALLOWED: u64 = 1 << 1;
 pub const PIN_ALLOWED: u64 = (1 << 0) | (1 << 3) | (1 << 5);
 pub const PRIMARY_ALLOWED: u64 = 0xfbd9_9e8c;
 pub const PRIMARY_FORCED: u64 = (1 << 10)
@@ -539,6 +546,7 @@ pub fn sanitize_vmcs<A: Arch>(a: &A, f: u64, value: u64) -> KResult<u64> {
             let fixed = a.vcpu_capability(0x488);
             (value | fixed) & a.vcpu_capability(0x489) & (fixed | CR4_ALLOWED)
         }
+        GUEST_DEBUGCTRL => value & DEBUGCTL_ALLOWED,
         _ => value,
     };
     // VMCS field widths; VM-entry checks handle guest-only invalid state.

@@ -716,6 +716,27 @@ fn suspending_a_vm_preserves_the_syscall_restart_context() {
     assert_eq!(vcpu::bound(&s, t), v);
 }
 
+/// A VMM may give its guest BTF (bit 1) of IA32_DEBUGCTL and nothing else:
+/// LBR (0), BUS_LOCK_DETECT (2), TR (6), BTS (7), BTINT (8),
+/// BTS_OFF_OS/USR (9, 10), the FREEZE bits (12, 14), RTM_DEBUG (15) and
+/// every reserved bit act on the host's state or bus.
+#[test]
+fn guests_get_only_single_step_on_branches_in_debugctl() {
+    use vcpu::vmx::*;
+    let intel = Machine {
+        backend: 1,
+        ..Default::default()
+    };
+    let write = |v| vcpu::sanitize_vmcs(&intel, GUEST_DEBUGCTRL, v).ok().unwrap();
+    assert_eq!(write(u64::MAX), 1 << 1);
+    assert_eq!(write(1 << 1), 1 << 1);
+    for bit in [0, 2, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 63] {
+        assert_eq!(write(1 << bit), 0, "bit {bit}");
+    }
+    // TR without BTS: branch trace messages on the bus.
+    assert_eq!(write((1 << 6) | (1 << 1)), 1 << 1);
+}
+
 /// FL4's host runs 4-level paging (VCPU capability 1 is 48), so a guest
 /// may not turn on CR4.LA57 (bit 12) on either backend.
 #[test]
