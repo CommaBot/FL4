@@ -217,7 +217,7 @@ theorem JAtZ.zombieJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl :
       exact U.zero w hal' h1 h2
     · obtain ⟨r1, r2, r3⟩ := U.rst (hnc h0) hf0
       exact ⟨fun sl' h => r1 sl' (by rw [← hok sl' id]; exact h), r2, by rw [hna, hDbg]; exact r3⟩
-  obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 hkc hw hFI2 hMO hkz hTK hT3 hDl2 hUK hjc J.kern.cscLive
+  obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 hkc hw hFI2 hMO hkz hTK hT3 hDl2 hUK hjc
     (fun sl' h => Or.inl (by rw [← hok sl' id]; exact h)) hutc
   exact ⟨hks, KBack.of_keepCT hkc, hJC, Ac, Lst, D, R⟩
 
@@ -419,7 +419,7 @@ theorem JAtZ.swapJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : F
         · exact AbsSlot.restrict hP U.nostr (home_abs hZ) (by rw [hHa]; exact hpOut (hnc h0))
         · exact AbsSlot.restrict hP U.nostr hA (U.ns (hnc h0) _ hxG)
       · exact r1 sl' (by rw [← hok sl' hd]; exact h)
-  obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 hkc hw hFI2 hMO hkz hTK hT3 hDl2 hUK hjc J.kern.cscLive
+  obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 hkc hw hFI2 hMO hkz hTK hT3 hDl2 hUK hjc
     (fun sl' h => by
       by_cases hd : sl' = homeSl p zt ∨ sl' = sl
       · rcases hd with rfl | rfl
