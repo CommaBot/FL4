@@ -163,7 +163,7 @@ structure boot.Pick where
   start : Std.U64
 
 /-- Trait declaration: [fl4_core::machine::Arch]
-    Source: 'crates/fl4-core/src/machine.rs', lines 43:0-126:1
+    Source: 'crates/fl4-core/src/machine.rs', lines 35:0-111:1
     Visibility: public -/
 structure machine.Arch (Self : Type _) where
   private_device_frame : Self → Std.U64 → Result Bool
@@ -368,7 +368,7 @@ def ept.root.closure (S : Type _) := Unit
 def ept.slot.closure (S : Type _) := Unit
 
 /-- [fl4_core::vspace::TableCap]
-    Source: 'crates/fl4-core/src/vspace.rs', lines 735:0-743:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 720:0-728:1 -/
 structure vspace.TableCap where
   map_lbl : Std.U64
   unmap_lbl : Std.U64

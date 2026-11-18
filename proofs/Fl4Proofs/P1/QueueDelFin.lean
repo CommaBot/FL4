@@ -141,6 +141,7 @@ theorem vspace.unmap_pdpt.vs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTot
     vspace.unmap_pdpt st ar s a asid vaddr pdpt ⦃ r => WritesIn st s r.1 V ⦄ := by
   have hS : P0.StoreTotal st := L.total
   have i1 := hA.invalidate_asid
+  have i2 := hA.invalidate_page_structures
   unfold vspace.unmap_pdpt
   refine WP.spec_bind hpml fun r hr => ?_
   rcases r with r1 | e

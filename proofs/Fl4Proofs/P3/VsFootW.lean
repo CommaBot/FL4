@@ -263,6 +263,7 @@ theorem VsPdptInnerHyps.foot (hH : VsPdptInnerHyps st A ar L4 SR) :
   flushAllOK := hH.flushAllOK
   flushAllH := fun s a σ vs asid h =>
     WP.spec_mono (hH.flushAllH s a σ vs asid h.1) fun _ ⟨σ', h1, h2⟩ => ⟨σ', h1, h2, h.2⟩
+  psKeep := fun s a σ asid h => WP.spec_mono (hH.psKeep s a σ asid h.1) fun _ h1 => ⟨h1, h.2⟩
 
 theorem VsPdptUnmapHyps.foot (hPl : Placed th) (hH : VsPdptUnmapHyps st A ar th P L4 L3 L2 L1 SR) :
     VsPdptUnmapHyps st A ar th P L4 L3 L2 L1 (FootSR st SR s0 W) where

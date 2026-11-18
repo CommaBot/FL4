@@ -25255,7 +25255,7 @@ def syscall.reply_error
   msg.set_msg_info machineStoreInst s3 t mi
 
 /-- [fl4_core::vspace::with_mapping]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 853:0-861:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 838:0-846:1 -/
 def vspace.with_mapping
   (c : capability.Cap) (mapped : Bool) (asid : Std.U64) (vaddr : Std.U64) :
   Result capability.Cap
@@ -25303,7 +25303,7 @@ def vspace.failed_lookup
     lf)))
 
 /-- [fl4_core::vspace::table_entry_slot]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 810:0-822:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 795:0-807:1 -/
 def vspace.table_entry_slot
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64)
   (vaddr : Std.U64) (level : Std.U64) :
@@ -25480,7 +25480,7 @@ def vspace.make_user_table
   ok (i6 ||| i7)
 
 /-- [fl4_core::vspace::decode_table_map]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 825:0-851:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 810:0-836:1 -/
 def vspace.decode_table_map
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64)
@@ -25554,7 +25554,7 @@ def vspace.decode_table_map
          ok (r, s, a)
 
 /-- [fl4_core::vspace::decode_table_unmap]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 789:0-807:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 774:0-792:1 -/
 def vspace.decode_table_unmap
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot)
@@ -25595,7 +25595,7 @@ def vspace.decode_table_unmap
       a)
 
 /-- [fl4_core::vspace::as_table]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 745:0-756:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 730:0-741:1 -/
 def vspace.as_table
   (c : capability.Cap) : Result (Option vspace.TableCap) := do
   match c with
@@ -25655,7 +25655,7 @@ def vspace.as_table
   | capability.Cap.IoPort _ _ _ => ok none
 
 /-- [fl4_core::vspace::decode_table]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 759:0-786:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 744:0-771:1 -/
 def vspace.decode_table
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64)
@@ -25694,7 +25694,7 @@ def vspace.decode_table
            ok (r, s, a)
 
 /-- [fl4_core::vspace::insert_subframes]: loop body 0:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 717:4-729:5 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 702:4-714:5 -/
 @[rust_loop_body]
 def vspace.insert_subframes_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Slot)
@@ -25716,7 +25716,7 @@ def vspace.insert_subframes_loop.body
   else ok (done s)
 
 /-- [fl4_core::vspace::insert_subframes]: loop 0:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 717:4-729:5 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 702:4-714:5 -/
 @[rust_loop]
 def vspace.insert_subframes_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot)
@@ -25730,7 +25730,7 @@ def vspace.insert_subframes_loop
     (s, i)
 
 /-- [fl4_core::vspace::insert_subframes]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 715:0-730:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 700:0-715:1 -/
 @[reducible]
 def vspace.insert_subframes
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot)
@@ -25742,7 +25742,7 @@ def vspace.insert_subframes
     0#u64
 
 /-- [fl4_core::vspace::ensure_empty_run]: loop body 0:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 708:4-713:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 693:4-698:1 -/
 @[rust_loop_body]
 def vspace.ensure_empty_run_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64)
@@ -25767,7 +25767,7 @@ def vspace.ensure_empty_run_loop.body
   else ok (done (core.result.Result.Ok ()))
 
 /-- [fl4_core::vspace::ensure_empty_run]: loop 0:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 708:4-713:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 693:4-698:1 -/
 @[rust_loop]
 def vspace.ensure_empty_run_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64)
@@ -25780,7 +25780,7 @@ def vspace.ensure_empty_run_loop
     i
 
 /-- [fl4_core::vspace::ensure_empty_run]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 706:0-713:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 691:0-698:1 -/
 @[reducible]
 def vspace.ensure_empty_run
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64)
@@ -25790,7 +25790,7 @@ def vspace.ensure_empty_run
   vspace.ensure_empty_run_loop machineStoreInst s dest first count 0#u64
 
 /-- [fl4_core::vspace::cnode_of]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 645:0-650:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 630:0-635:1 -/
 def vspace.cnode_of
   (c : capability.Cap) : Result (Option (Std.U64 × Std.U64)) := do
   match c with
@@ -25820,7 +25820,7 @@ def vspace.cnode_of
   | capability.Cap.IoPort _ _ _ => ok none
 
 /-- [fl4_core::vspace::subframe_dest]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 687:0-704:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 672:0-689:1 -/
 def vspace.subframe_dest
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (node_slot : obj.Slot) (node_index : Std.U64) (node_depth : Std.U64)
@@ -25885,7 +25885,7 @@ def vspace.subframe_dest
         else ok (core.result.Result.Ok dest)
 
 /-- [fl4_core::vspace::large_ram_frame]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 637:0-642:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 622:0-627:1 -/
 def vspace.large_ram_frame
   (c : capability.Cap) : Result (Option (Std.U64 × Std.U64)) := do
   match c with
@@ -25922,7 +25922,7 @@ def vspace.large_ram_frame
   | capability.Cap.IoPort _ _ _ => ok none
 
 /-- [fl4_core::vspace::derive_subframe]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 653:0-683:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 638:0-668:1 -/
 def vspace.derive_subframe
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64)
@@ -26007,7 +26007,7 @@ def vspace.derive_subframe
          ok (r, s, a)
 
 /-- [fl4_core::vspace::mapped_entry]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 601:0-615:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 586:0-600:1 -/
 def vspace.mapped_entry
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (f : vspace.FrameCap) (root : Std.U64) :
@@ -26078,7 +26078,7 @@ def vspace.reply1
 def vspace.P_ACCESSED : Result Std.U64 := 1#u64 <<< 5#i32
 
 /-- [fl4_core::vspace::decode_test_and_clear_accessed]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 617:0-634:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 602:0-619:1 -/
 def vspace.decode_test_and_clear_accessed
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (f : vspace.FrameCap) (call : Bool) :
@@ -26129,7 +26129,7 @@ def vspace.decode_test_and_clear_accessed
          ok (r, s)
 
 /-- [fl4_core::vspace::page_entry_slot]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 581:0-598:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 566:0-583:1 -/
 def vspace.page_entry_slot
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64)
   (vaddr : Std.U64) (size : capability.FrameSize) :
@@ -26397,7 +26397,7 @@ def vspace.make_user_page
   ok (i10 ||| i11)
 
 /-- [fl4_core::vspace::decode_page_map]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 534:0-577:1 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 519:0-562:1 -/
 def vspace.decode_page_map
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64)
@@ -26744,7 +26744,7 @@ def vspace.decode_frame
                    ok (r, s, a)
 
 /-- [fl4_core::vspace::decode]: loop body 0:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 905:12-907:13
+    Source: 'crates/fl4-core/src/vspace.rs', lines 890:12-892:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop0.body
@@ -26761,7 +26761,7 @@ def vspace.decode_loop0.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 0:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 905:12-907:13
+    Source: 'crates/fl4-core/src/vspace.rs', lines 890:12-892:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop0
@@ -26773,7 +26773,7 @@ def vspace.decode_loop0
     i
 
 /-- [fl4_core::vspace::decode]: loop body 1:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 949:12-951:13
+    Source: 'crates/fl4-core/src/vspace.rs', lines 934:12-936:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop1.body
@@ -26798,7 +26798,7 @@ def vspace.decode_loop1.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 1:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 949:12-951:13
+    Source: 'crates/fl4-core/src/vspace.rs', lines 934:12-936:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop1
@@ -26811,7 +26811,7 @@ def vspace.decode_loop1
     i
 
 /-- [fl4_core::vspace::decode]: loop body 2:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 949:12-951:13
+    Source: 'crates/fl4-core/src/vspace.rs', lines 934:12-936:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop2.body
@@ -26836,7 +26836,7 @@ def vspace.decode_loop2.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 2:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 949:12-951:13
+    Source: 'crates/fl4-core/src/vspace.rs', lines 934:12-936:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop2
@@ -26849,7 +26849,7 @@ def vspace.decode_loop2
     i
 
 /-- [fl4_core::vspace::decode]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 865:0-964:1
+    Source: 'crates/fl4-core/src/vspace.rs', lines 850:0-949:1
     Visibility: public -/
 def vspace.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -40318,14 +40318,14 @@ def vspace.VRoot.Insts.CoreMarkerCopy : core.marker.Copy vspace.VRoot := {
 }
 
 /-- [fl4_core::vspace::{impl core::clone::Clone for fl4_core::vspace::TableCap}::clone]:
-    Source: 'crates/fl4-core/src/vspace.rs', lines 734:9-734:14
+    Source: 'crates/fl4-core/src/vspace.rs', lines 719:9-719:14
     Visibility: public -/
 def vspace.TableCap.Insts.CoreCloneClone.clone
   (self : vspace.TableCap) : Result vspace.TableCap := do
   ok self
 
 /-- Trait implementation: [fl4_core::vspace::{impl core::clone::Clone for fl4_core::vspace::TableCap}]
-    Source: 'crates/fl4-core/src/vspace.rs', lines 734:9-734:14 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 719:9-719:14 -/
 @[reducible]
 def vspace.TableCap.Insts.CoreCloneClone : core.clone.Clone vspace.TableCap
   := {
@@ -40333,7 +40333,7 @@ def vspace.TableCap.Insts.CoreCloneClone : core.clone.Clone vspace.TableCap
 }
 
 /-- Trait implementation: [fl4_core::vspace::{impl core::marker::Copy for fl4_core::vspace::TableCap}]
-    Source: 'crates/fl4-core/src/vspace.rs', lines 734:16-734:20 -/
+    Source: 'crates/fl4-core/src/vspace.rs', lines 719:16-719:20 -/
 @[reducible]
 def vspace.TableCap.Insts.CoreMarkerCopy : core.marker.Copy vspace.TableCap
   := {

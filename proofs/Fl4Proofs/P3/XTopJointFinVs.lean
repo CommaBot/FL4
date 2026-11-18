@@ -91,6 +91,7 @@ theorem VsPdptInnerHyps.footN (hH : VsPdptInnerHyps st A ar L4 SR) :
   flushAllOK := hH.flushAllOK
   flushAllH := fun s a σ vs asid h =>
     WP.spec_mono (hH.flushAllH s a σ vs asid h.1) fun _ ⟨σ', h1, h2⟩ => ⟨σ', h1, h2, h.2⟩
+  psKeep := fun s a σ asid h => WP.spec_mono (hH.psKeep s a σ asid h.1) fun _ h1 => ⟨h1, h.2⟩
 
 /-- **`VsFinHyps` at the narrow footprint**: the page-table words and the
 ASID-table and pool words (no slot, TCB-state or scheduler-action word: the

@@ -184,6 +184,8 @@ theorem VsPdptInnerHyps.fin (hH : VsPdptInnerHyps st A ar L4 SR) :
   flushAllOK := hH.flushAllOK
   flushAllH := fun s a σ vs asid h => WP.spec_mono (hH.flushAllH s a σ vs asid h.1)
     fun _ ⟨σ', hm, hS⟩ => ⟨σ', hm, h.kstep hS (KStep.mop hm)⟩
+  psKeep := fun s a σ asid h => WP.spec_mono (hH.psKeep s a σ asid h.1)
+    fun _ hS => ⟨hS, h.2.1, h.2.2.1, h.2.2.2⟩
 
 theorem VsUnmapPageHyps.fin (hH : VsUnmapPageHyps st A ar L3 L2 L1 SR) :
     VsUnmapPageHyps st A ar L3 L2 L1 (FinSR st SR W s0 σ0) where
