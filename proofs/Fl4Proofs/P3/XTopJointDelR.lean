@@ -21,7 +21,7 @@ some of them proved here.
   `JEmptyUtHyp`).
 * Named premises [J] (`JDelParts`), each one step of the loop at `WJ`:
   `JFinAtF` (a final object cap's finalisation, but notification, IRQ
-  handler, frame and IO port caps, with `RdJ` after; a non-final one's is `jFin_nonfinal`:
+  handler, endpoint, frame and IO port caps, with `RdJ` after; a non-final one's is `jFin_nonfinal`:
   nothing, the slot ready by another cap alike it), `JFinAt FrIoK` (frame and
   IO port caps, finalised with work even when not final),
   `JRdTrivHyp` (`RdJ` at a zombie), `JZombieHyp` (a zombie
@@ -33,6 +33,12 @@ some of them proved here.
   `delete_oneJ` (`jFinNtfnK`, every slot kept, then `emptyHypJ`); from
   `JIrqSlotHyp` [J] (the node's slots null or notification caps, l4v
   `valid_irq_node`), `JEmptyUtHyp` and `IntLayout` [P].
+* A final endpoint cap's finalisation (`jFinAt_ep`): XTopJointFinEp's
+  `JAtZ.finEpJ` (`cancel_all_ipc`, `JAtZ` after), the endpoint dead after
+  (P1's `fin_cap_ep.dead`, `JAtZ.ep_ready`); from `RecvReplyHyp` [J]
+  (ScSignalBoundJ, l4v `valid_replies`: the replies it frees, of threads
+  blocked receiving, are detached and unlinked), carried by `JDelParts` at
+  every `P1.Heap` and set of cores.
 * The empty of a ready slot (`emptyHypJ`): a CNode slot by `emptyJR`, a TCB
   slot by `emptyJRT` (a step changing the TCB's caps only, `KeepCT`), both
   with `JEmptyUtHyp`.
@@ -43,6 +49,7 @@ some of them proved here.
 -/
 import Fl4Proofs.P3.XTopJointStep
 import Fl4Proofs.P3.XTopJointEmpty
+import Fl4Proofs.P3.XTopJointFinEp
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -205,10 +212,17 @@ def JIrqSlotHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
     ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost), WJ (L := L) arI AR Z H Cs kb s a σ G →
       ∀ i : U64, i.val < 128 → IrqSlotOK (L.mem s) (nodeA (L.ksb s) i)
 
+/-- An endpoint cap. -/
+def EpK (c : capability.Cap) : Prop := ∃ e b x1 x2 x3 x4, c = .Endpoint e b x1 x2 x3 x4
+
 /-- **The named steps of the deletion at `J`** (module docstring). -/
 structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
-  fin : JFinAtF (L := L) arI AR th (fun c => ¬ NtfnK c ∧ ¬ FrIoK c ∧ ¬ IrqK c)
+  fin : JFinAtF (L := L) arI AR th (fun c => ¬ NtfnK c ∧ ¬ FrIoK c ∧ ¬ IrqK c ∧ ¬ EpK c)
   irq : JIrqSlotHyp (L := L) arI AR th
+  /-- ScSignalBoundJ's `RecvReplyHyp` [J] (l4v `valid_replies`), at every
+  `P1.Heap` and set of cores: a final endpoint cap's finalisation frees the
+  replies of the threads blocked receiving on it. -/
+  recvRep : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyHyp (L := L) arI AR H Cs
   finFrIo : JFinAt (L := L) arI AR th FrIoK
   triv : JRdTrivHyp (L := L) arI AR th
   zomb : JZombieHyp (L := L) arI AR th
@@ -431,6 +445,69 @@ theorem jFinAt_irq (hUt : JEmptyUtHyp (L := L) arI AR th) (hOK : JIrqSlotHyp (L 
     · subst e; refine Or.inr ⟨hx1, ?_⟩; rw [hn]; rfl
     · exact Or.inl (hoth1 y hy e)
 
+/-- **An endpoint cap's slot is ready once the endpoint is dead** (as
+XTopJointEmpty's `JAtZ.ntfn_ready`). -/
+theorem JAtZ.ep_ready {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx : IsSlot Z.th x) {p b : U64}
+    {x1 x2 x3 x4 : Bool} (hcv : capV (L.mem s) x = .Endpoint p b x1 x2 x3 x4) (hd : DeadP (L := L) H s p) :
+    EmptyReady (L := L) H Z.G s x := by
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  have hHp : H p = some .ep := (hJ.typed _ hx).1 p b x1 x2 x3 x4 hcv
+  have hpfit : p.val + 2 ^ 4 ≤ 2 ^ 64 := J.kern.heap.fits p _ hHp
+  obtain ⟨e1, e2⟩ := range_ep p b x1 x2 x3 x4 hpfit
+  unfold EmptyReady
+  rw [hcv, e1, e2]
+  intro _ _
+  have hout : ∀ q k, H q = some k → q ≠ p → q.val + 2 ^ k.bits ≤ p.val ∨ p.val + 2 ^ 4 ≤ q.val := by
+    intro q k hq hne
+    have := J.kern.heap.disj q k p .ep hq hHp hne
+    simpa only [show (P1.HKind.ep).bits = 4 from rfl] using this
+  refine ⟨fun lo hi hlh h1 h2 => ?_, fun z hz h1 h2 => ?_⟩
+  · right
+    intro q hq
+    by_cases e : q = p
+    · subst e; exact hd
+    · cases hk : H q with
+      | none => exact deadP_none hk
+      | some k =>
+        exfalso
+        have : 1 ≤ 2 ^ k.bits := Nat.one_le_two_pow
+        rcases hout q k hk e with h | h <;> omega
+  · exfalso
+    have hne : L.cscW s ≠ p := fun e => by rw [e, hHp] at hz; cases hz
+    have : 1 ≤ 2 ^ (P1.HKind.sc z).bits := Nat.one_le_two_pow
+    rcases hout _ _ hz hne with h | h <;> omega
+
+set_option maxHeartbeats 4000000 in
+/-- **A final endpoint cap's finalisation at `J`** (XTopJointFinEp's
+`JAtZ.finEpJ`, the endpoint dead after by P1's `fin_cap_ep.dead`), from
+`RecvReplyHyp` [J]. -/
+theorem jFinAt_ep (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyHyp (L := L) arI AR H Cs) :
+    JFinAtF (L := L) arI AR th EpK := by
+  intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨e, b, x1, x2, x3, x4, hce⟩ hfin
+  subst hce hth
+  obtain ⟨V, Ac, Lst, D, J, hkb⟩ := hW
+  have hcv := capV_of_capAt hc
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  have hHe : H e = some .ep := (hJ.typed _ hA.isSlot).1 e b x1 x2 x3 x4 hcv
+  have heE : e ∈ (Z.mv G V).E := J.hset.1 e hHe
+  rw [decide_eq_true hfin]
+  refine WP.spec_mono (WP.spec_and (J.finEpJ (hRR H Cs) heE)
+    (P1.fin_cap_ep.dead (ar := arI) s a e b x1 x2 x3 x4 false J.blk hHe)) ?_
+  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨e1, e2, σ1, V1, hmem1, J1, -, hSS1, hks1⟩, d1⟩
+  simp only at e1 e2 hmem1 J1 hSS1 hks1 d1
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj e1
+  subst e2
+  have hdp : DeadP (L := L) H s1 e :=
+    ⟨fun h => (by rw [hHe] at h; cases h), fun _ => d1, fun h => (by rw [hHe] at h; cases h),
+      fun h => (by rw [hHe] at h; cases h), fun z h => (by rw [hHe] at h; cases h)⟩
+  have hcv1 : capV (L.mem s1) (cslotAddr sl) = .Endpoint e b x1 x2 x3 x4 := by
+    rw [hSS1.capV hA.isSlot, hcv]
+  exact ⟨rfl, trivial, trivial, σ1, G, hmem1, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
+    fun y hy _ => Or.inl (hSS1.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS1,
+    ⟨V1, Ac, Lst, D, J1, hks1.trans hkb⟩, JAtZ.ep_ready arI J1 hA.isSlot hcv1 hdp⟩
+
 theorem okey_of_finObj {c : capability.Cap} (hk : FinObjKind c) : okey c ≠ none := by
   cases c <;> simp_all [FinObjKind, okey]
 
@@ -496,7 +573,9 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
   by_cases hfin : Fl4Spec.isFinalCap' (absCap c) σ
   · by_cases hq : IrqK c
     · exact jFinAt_irq arI h.empUt h.irq hLayI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hq hfin
-    · exact h.fin Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨hn, hfi, hq⟩ hfin
+    by_cases he : EpK c
+    · exact jFinAt_ep arI h.recvRep Z H Cs kb hth s a σ G sl c hDS hW hA hc hk he hfin
+    · exact h.fin Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨hn, hfi, hq, he⟩ hfin
   · exact jFin_nonfinal arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi hfin
 
 /-- The trivially finalised caps but untyped ones are not physical. -/
