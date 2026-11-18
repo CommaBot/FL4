@@ -256,9 +256,11 @@ theorem wake_spec {σ1 σ' : State Unit} {r t : ObjRef} {x : Tcb} {badge : Word}
   · rcases hcur with e | hC
     · exact Or.inl (hcn e)
     · exact Or.inr (FF.curInv hC)
-  · rcases hrun with e | hR
-    · exact Or.inl (hcn e)
-    · exact Or.inr (FF.curRunW hR)
+  · refine hrun.of_act FF.curRunW fun e => ?_
+    rcases hact with e' | e' | ⟨e1, -, -⟩
+    · rw [e']; exact e
+    · exact act_cn_nr e'
+    · exact absurd e1 e
 
 end Spec
 

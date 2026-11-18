@@ -71,7 +71,7 @@ theorem JAtZ.cancelRecvJ (hRR : RecvReplyHyp (L := L) arI AR H Cs)
   have hrun3 : CurRunM σ1 := by
     rcases hact with e | e
     · exact J.curRun.imp (fun h => by rw [e]; exact h) F.curRunW
-    · exact Or.inl e
+    · exact Or.inl (act_cn_nr e)
   have hF : IFrame (L := L) Z.th s s3 := IRel.iframe_of hI hw fun b hb => CnW.oobj hI.2.2.1 hb
   have ht' : ∀ q ∈ D, q.bv ≠ t.bv := by
     intro q hq e

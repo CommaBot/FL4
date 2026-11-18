@@ -197,7 +197,7 @@ theorem unbindTcb_mid {T C : Set U64} {σ σ' : State Unit} {i t : ObjRef} {y : 
     exact hoff h0 y1 n1 h1
   · -- `CurRunM`
     by_cases htc : t = σ.curThread
-    · exact Or.inl (a1 htc)
+    · exact Or.inl (act_cn_nr (a1 htc))
     rcases hcr with h | h | h
     · exact Or.inl (by rw [b1 htc]; exact h)
     · refine Or.inr (Or.inl fun x' hx' => ?_)

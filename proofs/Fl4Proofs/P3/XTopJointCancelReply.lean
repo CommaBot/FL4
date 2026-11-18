@@ -468,19 +468,28 @@ theorem JAtZ.replyRemoveTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       · exact hcn (h5.trans (e'.trans e))
       · exact hcn (h5.trans e')
     have CI := J.curInv h0
-    have hCR : CurRunW σ := J.curRun.resolve_left h0
     obtain ⟨xc, hkc, hscc, hnb⟩ := CI.tcb
-    have hct : σ.curThread ≠ t.bv := by
-      intro e
-      rcases hCR with h | h
-      · have := h x (by rw [e]; exact hk); rw [hst] at this; simp [Fl4Spec.runnable] at this
-      · obtain ⟨xi, hki, -, hti, -⟩ := J.act.2
-        rw [← h, e, hk] at hki; cases hki; rw [hst] at hti; cases hti
-    obtain ⟨x', hx', es, -, esc⟩ := tcbF _ xc hkc hct
-    refine ⟨⟨x', by rw [hct']; exact hx', ?_, by rw [es]; exact hnb⟩, ?_, ?_, ?_⟩
-    · rcases esc with e | ⟨-, hdA, -⟩
-      · rw [e, hcsc']; exact hscc
-      · exact absurd rfl (dA _ hdA hcn).1
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · by_cases hct : σ.curThread = t.bv
+      · -- the current thread is the caller (a switch pending): its SC kept
+        rw [hct, hk] at hkc; cases hkc
+        obtain ⟨x2, hx2, hsc2⟩ := hD.tcb t.bv _ hk
+        rw [hk5t] at hx2; cases hx2
+        refine ⟨_, by rw [hct', hct]; exact kt', ?_, ?_⟩
+        · dsimp only
+          rcases hsc2 with e | ⟨-, e⟩ | ⟨-, hdA, -⟩
+          · rw [e, hcsc']; exact hscc
+          · rw [hscc] at e; cases e
+          · exact absurd hct.symm (dA _ hdA hcn).1
+        · refine ⟨?_, ?_, ?_⟩
+          · intro _ e; simp at e
+          · intro _ _ e; simp at e
+          · intro _ _ _ e; simp at e
+      · obtain ⟨x', hx', es, -, esc⟩ := tcbF _ xc hkc hct
+        refine ⟨x', by rw [hct']; exact hx', ?_, by rw [es]; exact hnb⟩
+        rcases esc with e | ⟨-, hdA, -⟩
+        · rw [e, hcsc']; exact hscc
+        · exact absurd rfl (dA _ hdA hcn).1
     · obtain ⟨y0, n0, hy0⟩ := CI.sc
       obtain ⟨y', hy'⟩ := scF _ _ _ hy0
       exact ⟨y', n0, by rw [hcsc']; exact hy'⟩
@@ -491,15 +500,16 @@ theorem JAtZ.replyRemoveTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       simpa [Fl4Spec.scActive, em] using this
     · intro hm; rw [hct'] at hm; exact CI.notRel (hRQ _ hm)
   have hrun : CurRunM σ' := by
-    by_cases hcn : σ'.schedulerAction = .chooseNewThread
-    · exact Or.inl hcn
+    by_cases hnr : σ'.schedulerAction ≠ .resumeCurThread
+    · exact Or.inl hnr
     right
-    have h5 : σ'.schedulerAction = σ5.schedulerAction := hact'.resolve_left hcn
-    have h0 : σ.schedulerAction ≠ .chooseNewThread := by
+    have hr' : σ'.schedulerAction = .resumeCurThread := not_not.1 hnr
+    have h5 : σ'.schedulerAction = σ5.schedulerAction := hact'.resolve_left (by rw [hr']; intro e; cases e)
+    have h0 : ¬ σ.schedulerAction ≠ .resumeCurThread := by
       intro e
       rcases hD.act with e' | e'
-      · exact hcn (h5.trans (e'.trans e))
-      · exact hcn (h5.trans e')
+      · exact hnr (by rw [h5, e']; exact e)
+      · exact hnr (by rw [h5, e']; intro e; cases e)
     rcases J.curRun.resolve_left h0 with h | h
     · left
       intro x' hx'

@@ -139,10 +139,8 @@ theorem CurRunW.cn (hR : CurRunW σ) (h : HStep σ σ') : CurRunW σ' :=
   Or.imp (fun r => r.cn h) (fun e => by rw [h.ct, h.idle]; exact e) hR
 
 theorem CurRunM.cn (hR : CurRunM σ) (h : HStep σ σ')
-    (ha : σ'.schedulerAction = .chooseNewThread ∨ σ'.schedulerAction = σ.schedulerAction) : CurRunM σ' := by
-  rcases ha with e | e
-  · exact Or.inl e
-  · exact Or.imp (fun e' => by rw [e]; exact e') (fun r => r.cn h) hR
+    (ha : σ'.schedulerAction = .chooseNewThread ∨ σ'.schedulerAction = σ.schedulerAction) : CurRunM σ' :=
+  hR.of_cn (fun r => r.cn h) ha
 
 theorem Sched.ScLinkHyp.cn (hL : ScLinkHyp σ) (h : HStep σ σ') : ScLinkHyp σ' := by
   refine ⟨fun sc y k f hy hf => ?_, fun sc y k n hy hn => ?_, fun t x n ht hn => ?_, fun sc y k hy hs =>

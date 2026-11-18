@@ -22,9 +22,9 @@ FL4's `sched::suspend` against the spec's `suspend`, from `JAtZ` before to
   whole-`suspend` lemmas, `sched.suspend.blk`).
 
 Named premises of `JAtZ.suspendJ`: the thread neither the switch target nor
-idle (as `JThreadFinHyps.obj`), and, if current, no switch pending
-(`hcs`: `CurRunM` after, since `set_thread_state` reschedules only a resumed
-current thread).
+idle (as `JThreadFinHyps.obj`). The current thread may be suspended with a
+switch pending: `CurRunM` allows a non-runnable current thread whenever the
+action is not `resumeCurThread` (`SusF.curRun`).
 -/
 import Fl4Proofs.P3.XTopJointSuspendSpec
 open Aeneas Aeneas.Std Result
@@ -98,8 +98,7 @@ set_option maxHeartbeats 16000000 in
 /-- **`suspend`'s scheduler tail at `J`** (module docstring). -/
 theorem JAtZ.suspendScJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hfree : IpcFree x.tcbState)
-    (hsa : ∀ u, σ.schedulerAction = .switchThread u → u ≠ t.bv) (hid : t.bv ≠ σ.idleThread)
-    (hcs : σ.curThread = t.bv → ∀ u, σ.schedulerAction ≠ .switchThread u) :
+    (hsa : ∀ u, σ.schedulerAction = .switchThread u → u ≠ t.bv) (hid : t.bv ≠ σ.idleThread) :
     (do
       let s3 ← sched.dequeue st s t
       let s4 ← sched.release_remove st s3 t
@@ -309,7 +308,7 @@ theorem JAtZ.suspendScJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U
   refine ⟨_, hsp, Lst', D, J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
     (J.sc_jpl hW hK) (J.sc_jcov hW hdead fun q hq hn => absurd hq hn) (J.sc_kern hW hK hF.fk hX' hDbg fun _ h => h)
     (J.sc_utc hW hK hDbg) hNSC hInv (J.cur.imp (fun e => hF.act.elim (fun e' => e'.trans e) id) hF.curInv)
-    (hF.own J.own) (hF.off J.off) hAI (hF.bsa J.bsa) (hF.curRun J.curRun hcs) hblk⟩
+    (hF.own J.own) (hF.off J.off) hAI (hF.bsa J.bsa) (hF.curRun J.curRun) hblk⟩
 
 
 set_option maxHeartbeats 8000000 in
@@ -477,8 +476,7 @@ theorem JAtZ.suspendJ
     (hRv : JCancelAt (L := L) arI AR Z.th fun ts => ∃ e r d, ts = .blockedOnReceive e r d)
     (hRp : JCancelAt (L := L) arI AR Z.th fun ts => ∃ r, ts = .blockedOnReply r) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {t : U64} (ht : t ∈ Z.T)
-    (hsa : ∀ u, σ.schedulerAction = .switchThread u → u ≠ t.bv) (hid : t.bv ≠ σ.idleThread)
-    (hcs : σ.curThread = t.bv → ∀ u, σ.schedulerAction ≠ .switchThread u) :
+    (hsa : ∀ u, σ.schedulerAction = .switchThread u → u ≠ t.bv) (hid : t.bv ≠ σ.idleThread) :
     sched.suspend st arI s a t ⦃ r => r.2 = a ∧ ∃ σ', Fl4Spec.suspend (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
       ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
         JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ := by
@@ -504,13 +502,12 @@ theorem JAtZ.suspendJ
   have hcan : ipc.cancel_ipc st arI s a t ⦃ r => r.2 = a ∧ ∃ σ1,
       Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ1)}, False) ∧ ∃ x1, σ1.kheap t.bv = some (.tcb x1) ∧
       IpcFree x1.tcbState ∧ (∀ u, σ1.schedulerAction = .switchThread u → u ≠ t.bv) ∧ t.bv ≠ σ1.idleThread ∧
-      (σ1.curThread = t.bv → ∀ u, σ1.schedulerAction ≠ .switchThread u) ∧
       ∃ (V : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D1 : Set U64),
         JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac1 Lst1 D1 r.1 r.2 σ1 ⦄ := by
     by_cases hfree : IpcFree x.tcbState
     · refine WP.spec_mono (J.cancelFreeJ ht hk hfree) ?_
       rintro r ⟨h1, h2, V, J1⟩
-      exact ⟨h1, _, h2, { x with tcbFault := none }, by simp [updK], hfree, hsa, hid, hcs, V, Ac, Lst, D, J1⟩
+      exact ⟨h1, _, h2, { x with tcbFault := none }, by simp [updK], hfree, hsa, hid, V, Ac, Lst, D, J1⟩
     have hcases : (∃ e d, x.tcbState = .blockedOnSend e d) ∨ (∃ e r d, x.tcbState = .blockedOnReceive e r d) ∨
         (∃ n, x.tcbState = .blockedOnNotification n) ∨ (∃ r, x.tcbState = .blockedOnReply r) := by
       revert hfree
@@ -535,14 +532,10 @@ theorem JAtZ.suspendJ
       obtain ⟨xi, hki, -, hti, -⟩ := J1.act.2
       rw [← e, hk1] at hki; cases hki; rw [hin] at hti; cases hti
     refine ⟨h1, σ1', h2', x1, hk1, by rw [hin]; exact ⟨rfl, rfl, fun _ e => by cases e⟩, fun u hu => ?_, hid1,
-      fun hc u hu => ?_, V, Ac1, Lst1, D1, J1⟩
-    · rintro rfl
-      obtain ⟨y, -, -, -, hky, -, hrun, -⟩ := schedulable_inv (J1.act.1 _ hu)
-      rw [hk1] at hky; cases hky; rw [hin] at hrun; cases hrun
-    · rcases J1.curRun with h | h | h
-      · rw [hu] at h; cases h
-      · have := h x1 (by rw [hc]; exact hk1); rw [hin] at this; cases this
-      · exact hid1 (hc ▸ h)
+      V, Ac1, Lst1, D1, J1⟩
+    rintro rfl
+    obtain ⟨y, -, -, -, hky, -, hrun, -⟩ := schedulable_inv (J1.act.1 _ hu)
+    rw [hk1] at hky; cases hky; rw [hin] at hrun; cases hrun
   -- the restart PC and the scheduler tail
   have hmain : sched.suspend st arI s a t ⦃ r => ∀ Ac', P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H
       (P1.Heap.frame H) (P1.Heap.replies H) (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' r.1 →
@@ -552,14 +545,14 @@ theorem JAtZ.suspendJ
           JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ := by
     unfold sched.suspend
     refine WP.spec_bind (WP.spec_and hcan hkwc) ?_
-    rintro ⟨s1, a1⟩ ⟨⟨h1, σ1, hc1, x1, hk1, hf1, hsa1, hid1, hcs1, V1, Ac1, Lst1, D1, J1⟩, hks1, hd1⟩
+    rintro ⟨s1, a1⟩ ⟨⟨h1, σ1, hc1, x1, hk1, hf1, hsa1, hid1, V1, Ac1, Lst1, D1, J1⟩, hks1, hd1⟩
     simp only at h1 hks1 hd1
     subst h1
     step with P1.obj.Tcb.state.spec as ⟨i, hi⟩
     refine WP.spec_bind (J1.restartPcJ ht hk1 hi) ?_
     rintro s2 ⟨σ2, x2, hw2, hk2, hs2, hct2, hact2, hidle2, hks2, hd2, V2, J2⟩
     refine WP.spec_mono (J2.suspendScJ ht hk2 (by rw [hs2]; exact hf1) (by rw [hact2]; exact hsa1)
-      (by rw [hidle2]; exact hid1) (by rw [hct2, hact2]; exact hcs1)) ?_
+      (by rw [hidle2]; exact hid1)) ?_
     rintro r ⟨hr2, hr⟩ Ac' hblk hd6
     have hn1 := P1.nodeAt_of_ksb hks1
     have hn2 := P1.nodeAt_of_ksb hks2

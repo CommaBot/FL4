@@ -169,6 +169,45 @@ theorem possibleSwitchTo_cn {σ σ' : State Unit} (h : Inv σ) {t : ObjRef} (hs 
   · exact absurd hcn (by rw [not_not.1 g3]; intro e; cases e)
   · rw [pair_eq he]; exact hcn
 
+/-- `reschedule_required` leaves a reschedule pending (as ScMidCur's
+`rescheduleRequired_cn`). -/
+theorem rescheduleRequired_cnA {σ : State Unit} {x : Unit × State Unit}
+    (hx : x ∈ (rescheduleRequired (Z := Unit) σ).1) : x.2.schedulerAction = .chooseNewThread := by
+  unfold rescheduleRequired setSchedulerAction at hx
+  obtain ⟨y, -, hx⟩ := hx
+  generalize y.1 = act at hx
+  cases act with
+  | switchThread t =>
+    obtain ⟨z, -, hx⟩ := hx
+    obtain ⟨w, -, hx⟩ := hx
+    rw [Set.mem_singleton_iff.1 hx]
+  | resumeCurThread =>
+    first | (rw [Set.mem_singleton_iff.1 hx]) | (obtain ⟨w, -, hx⟩ := hx; rw [Set.mem_singleton_iff.1 hx])
+  | chooseNewThread =>
+    first | (rw [Set.mem_singleton_iff.1 hx]) | (obtain ⟨w, -, hx⟩ := hx; rw [Set.mem_singleton_iff.1 hx])
+
+/-- `possible_switch_to` resumes nothing newly: a pending reschedule or
+switch stays one or the other. -/
+theorem possibleSwitchTo_nr {σ σ' : State Unit} (h : Inv σ) {t : ObjRef} (hs : schedulable t σ = true)
+    (he : possibleSwitchTo (Z := Unit) t σ = ({((), σ')}, False))
+    (hnr : σ.schedulerAction ≠ .resumeCurThread) : σ'.schedulerAction ≠ .resumeCurThread := by
+  obtain ⟨x, -, -, -, hk, -⟩ := schedulable_inv hs
+  rw [possibleSwitchTo_unfold hk] at he
+  split_ifs at he
+  · rw [tcbSchedAction_gen hk] at he
+    rw [pair_eq he]; exact hnr
+  · obtain ⟨σ1, h1, hq1, -⟩ := rescheduleRequired_calm h.actReady
+    have hc1 : σ1.schedulerAction = .chooseNewThread :=
+      rescheduleRequired_cnA (x := ((), σ1)) (by rw [h1]; exact Set.mem_singleton _)
+    rw [nd_bind_one h1] at he
+    have hk1 : σ1.kheap t = some (.tcb x) := by rw [hq1.1]; exact hk
+    rw [tcbSchedAction_gen hk1] at he
+    rw [pair_eq he]
+    intro e
+    have e' : σ1.schedulerAction = .resumeCurThread := e
+    rw [hc1] at e'; cases e'
+  · rw [pair_eq he]; exact hnr
+
 /-- What `schedule` assumes of its state besides `SchedRel`: the invariants
 `Inv`, `CurInv`, `OffOK` and `ActIdle`, and the domain scope (domain time
 nonzero, so the domain does not end). -/
@@ -374,15 +413,17 @@ theorem awaken_loop_refines {N C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
     (hA : ActSched σ) (fuel : U64) (hf : σ.releaseQueue.length < fuel.val) :
     sched.awaken_loop st s fuel ⦃ s' => ∃ σ', Fl4Spec.awaken (Z := Unit) σ = ({((), σ')}, False) ∧
       SchedRel st N T C c s' σ' ∧ NtfnStateRel N T (L.mem s') σ' ∧ NSC N C σ' ∧ Inv σ' ∧
-      (ActSched σ' ∧ (σ.schedulerAction = .chooseNewThread → σ'.schedulerAction = .chooseNewThread)) ∧
+      (ActSched σ' ∧ (σ.schedulerAction = .chooseNewThread → σ'.schedulerAction = .chooseNewThread) ∧
+        (σ.schedulerAction ≠ .resumeCurThread → σ'.schedulerAction ≠ .resumeCurThread)) ∧
       Calm σ σ' ∧ (∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue) ∧ WritesIn st s s' (SFoot st T c s) ⦄ := by
   unfold sched.awaken_loop
   apply loop.spec_decr_nat (measure := fun x => x.2.val) (inv := fun x => ∃ σk,
     SchedRel st N T C c x.1 σk ∧ NtfnStateRel N T (L.mem x.1) σk ∧ NSC N C σk ∧ Inv σk ∧
-    (ActSched σk ∧ (σ.schedulerAction = .chooseNewThread → σk.schedulerAction = .chooseNewThread)) ∧
+    (ActSched σk ∧ (σ.schedulerAction = .chooseNewThread → σk.schedulerAction = .chooseNewThread) ∧
+      (σ.schedulerAction ≠ .resumeCurThread → σk.schedulerAction ≠ .resumeCurThread)) ∧
     σk.releaseQueue.length < x.2.val ∧ Fl4Spec.awaken (Z := Unit) σ = Fl4Spec.awaken (Z := Unit) σk ∧
     Calm σ σk ∧ (∀ u ∈ σk.releaseQueue, u ∈ σ.releaseQueue) ∧ WritesIn st s x.1 (SFoot st T c s))
-  · rintro ⟨sk, fk⟩ ⟨σk, hSk, hRk, hNk, hIk, ⟨hAk, hCk⟩, hlen, hloop, hcalm, hsub, hwk⟩
+  · rintro ⟨sk, fk⟩ ⟨σk, hSk, hRk, hNk, hIk, ⟨hAk, hCk, hNRk⟩, hlen, hloop, hcalm, hsub, hwk⟩
     dsimp only at *
     obtain ⟨Q, R, hc, hs⟩ := hSk.lists
     unfold sched.awaken_loop.body
@@ -401,7 +442,7 @@ theorem awaken_loop_refines {N C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
       have hb' : b = true := by rw [hb, hhd]; rfl
       simp only [hb', ↓reduceIte, WP.spec_ok]
       have hq : σk.releaseQueue = [] := by rw [hs.rel]; rfl
-      refine ⟨σk, ?_, hSk, hRk, hNk, hIk, hAk, hCk, hcalm, hsub, hwk⟩
+      refine ⟨σk, ?_, hSk, hRk, hNk, hIk, hAk, hCk, hNRk, hcalm, hsub, hwk⟩
       rw [hloop]; unfold Fl4Spec.awaken
       exact wl_done (by rw [readRQ_nil hq]; simp [Fl4Spec.the])
     | cons t R0 =>
@@ -451,7 +492,8 @@ theorem awaken_loop_refines {N C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
         have hA1 : ActSched (setRel σk (R0.map UScalar.bv) true) :=
           hAk.sub rfl (fun u hu => by rw [hq]; exact List.mem_cons_of_mem _ hu) rfl
         refine ⟨⟨σ2, hS2, hR1.frame hS1.placed hf2 (KView.of_kheap hk2), ?_, hI1.qchange hq2,
-          possibleSwitchTo_actSched hI1 hsch hA1 he2, fun h => possibleSwitchTo_cn hI1 hsch he2 (hCk h), ?_, ?_,
+          possibleSwitchTo_actSched hI1 hsch hA1 he2, fun h => possibleSwitchTo_cn hI1 hsch he2 (hCk h),
+            fun h => possibleSwitchTo_nr hI1 hsch he2 (hNRk h), ?_, ?_,
           hcalm.trans ((Calm.refl _).trans hc2), fun u hu => ?_, WritesIn.sfoot_trans (WritesIn.sfoot_trans hwk hw1) hw2⟩, ?_⟩
         · intro m hm x0 p hx hp; rw [hk2] at hx; exact hNk m hm x0 p hx hp
         · rw [hq2.2.1]; show (R0.map UScalar.bv).length < fk1.val
@@ -463,10 +505,10 @@ theorem awaken_loop_refines {N C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
         · rw [hfk1]; omega
       · have hr' : b1 = false := by simpa using hr
         simp only [hr', Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-        refine ⟨σk, ?_, hSk, hRk, hNk, hIk, hAk, hCk, hcalm, hsub, hwk⟩
+        refine ⟨σk, ?_, hSk, hRk, hNk, hIk, hAk, hCk, hNRk, hcalm, hsub, hwk⟩
         rw [hloop]; unfold Fl4Spec.awaken
         exact wl_done (by rw [hC, hr']; simp)
-  · exact ⟨σ, hS, hR, hN, hI, ⟨hA, id⟩, hf, rfl, Calm.refl σ, fun _ h => h, WritesIn.refl _ _⟩
+  · exact ⟨σ, hS, hR, hN, hI, ⟨hA, id, id⟩, hf, rfl, Calm.refl σ, fun _ h => h, WritesIn.refl _ _⟩
 
 /-- The release queue is shorter than `WALK_FUEL`: its members are distinct
 TCB addresses, none of them 0 or 1. -/
@@ -507,16 +549,17 @@ theorem awaken_refinesW {A : Type} {ar : machine.Arch A} {N C : Set U64} {c : U6
     sched.awaken st ar s a ⦃ r => ∃ σ1 σ2, Fires σ σ1 ∧ Fl4Spec.awaken (Z := Unit) σ1 = ({((), σ2)}, False) ∧
       SchedRel st N T C c r.1 σ2 ∧ NtfnStateRel N T (L.mem r.1) σ2 ∧ NSC N C σ2 ∧ SchedPreW T C σ2 ∧ Calm σ1 σ2 ∧
       (σ1.schedulerAction = .chooseNewThread → σ2.schedulerAction = .chooseNewThread) ∧
+      (σ1.schedulerAction ≠ .resumeCurThread → σ2.schedulerAction ≠ .resumeCurThread) ∧
       (∀ u ∈ σ2.releaseQueue, u ∈ σ1.releaseQueue) ∧
       ∃ rf : S × A, Pf rf σ1 ∧ r.2 = rf.2 ∧ WritesIn st rf.1 r.1 (SFoot st T c rf.1) ⦄ := by
   unfold sched.awaken
   refine WP.spec_bind hfire ?_
   rintro ⟨s1, a1⟩ ⟨σ1, hF, hS1, hR1, hN1, ⟨hI1, hC1, hO1, ⟨hA1, hId1⟩, hd1, hW1⟩, hPf⟩
   refine WP.spec_bind (awaken_loop_refines s1 σ1 hS1 hR1 hN1 hI1 hA1 _ (rel_len_lt hS1)) ?_
-  rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, ⟨hA2, hcn2⟩, hc2, hsub, hw2⟩
+  rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, ⟨hA2, hcn2, hnr2⟩, hc2, hsub, hw2⟩
   rw [WP.spec_ok]
   refine ⟨σ1, σ2, hF, h2, hS2, hR2, hN2, ⟨hI2, ?_, hO1.calm hc2, ⟨hA2, hId1.sub hc2 hsub⟩,
-    by rw [hc2.2.2.2.2.2.2.2]; exact hd1, hW1.sub hc2 hsub⟩, hc2, hcn2, hsub, (s1, a1), hPf, rfl, hw2⟩
+    by rw [hc2.2.2.2.2.2.2.2]; exact hd1, hW1.sub hc2 hsub⟩, hc2, hcn2, hnr2, hsub, (s1, a1), hPf, rfl, hw2⟩
   rcases hC1 with e | hC
   · exact Or.inl (hcn2 e)
   · exact Or.inr (hC.sub hc2 hsub)

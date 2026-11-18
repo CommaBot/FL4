@@ -200,13 +200,34 @@ thread, the action `resumeCurThread` (`schedule` ends in it). -/
 def Entered (σ : Fl4Spec.State Unit) : Prop :=
   σ.curThread ≠ σ.idleThread ∧ σ.schedulerAction = .resumeCurThread
 
-/-- **`CurRunW` unless a reschedule is pending** (`JAtZ.curRun`, mid-entry:
-a blocking step leaves the current thread blocked with `chooseNewThread`). -/
+/-- **`CurRunW` unless a reschedule or switch is pending** (`JAtZ.curRun`,
+mid-entry: a blocking step leaves the current thread blocked with
+`chooseNewThread`; a revoke that first wakes a thread (`switchThread`) and
+then finalises the current thread's TCB leaves it `Inactive` with the switch
+pending, `set_thread_state` turning only `resumeCurThread` into
+`chooseNewThread`; l4v's `ct_in_state` is likewise only required while the
+current thread is resumed). `schedule` re-establishes `CurRunW`: it keeps the
+current thread only when resumed. -/
 def CurRunM (σ : Fl4Spec.State Unit) : Prop :=
-  σ.schedulerAction = .chooseNewThread ∨ CurRunW σ
+  σ.schedulerAction ≠ .resumeCurThread ∨ CurRunW σ
 
 theorem CurRunM.run {σ : Fl4Spec.State Unit} (h : CurRunM σ) (hni : Entered σ) : CurRun σ :=
-  (h.resolve_left fun e => by rw [hni.2] at e; cases e).run hni.1
+  (h.resolve_left fun e => e hni.2).run hni.1
+
+/-- A pending reschedule is no resumption. -/
+theorem act_cn_nr {a : Fl4Spec.SchedulerAction} (e : a = .chooseNewThread) : a ≠ .resumeCurThread := by
+  rw [e]; intro h; cases h
+
+/-- `CurRunM` after a step that keeps `CurRunW` and resumes nothing newly. -/
+theorem CurRunM.of_act {σ σ' : Fl4Spec.State Unit} (hR : CurRunM σ) (hW : CurRunW σ → CurRunW σ')
+    (ha : σ.schedulerAction ≠ .resumeCurThread → σ'.schedulerAction ≠ .resumeCurThread) : CurRunM σ' :=
+  hR.imp ha hW
+
+/-- `CurRunM` after a step that keeps `CurRunW` and keeps the action or
+requests a reschedule. -/
+theorem CurRunM.of_cn {σ σ' : Fl4Spec.State Unit} (hR : CurRunM σ) (hW : CurRunW σ → CurRunW σ')
+    (ha : σ'.schedulerAction = .chooseNewThread ∨ σ'.schedulerAction = σ.schedulerAction) : CurRunM σ' :=
+  hR.of_act hW fun e => ha.elim act_cn_nr fun e' => by rw [e']; exact e
 
 /-- **Closure under the primitive steps** (module docstring). -/
 structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S → A → Fl4Spec.State Unit → Prop) :

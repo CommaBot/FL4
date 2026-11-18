@@ -180,7 +180,7 @@ theorem JAtZ.finEpJ (hRR : RecvReplyHyp (L := L) arI AR H Cs) (J : JAtZ (L := L)
     · rw [e']; exact J.cur
   have hrun3 : CurRunM σ3 := by
     rcases hact with e' | e'
-    · exact Or.inl e'
+    · exact Or.inl (act_cn_nr e')
     · rw [e']; exact J.curRun
   -- the dead stay dead
   have hdead : ∀ q ∈ D, DeadP (L := L) H s3 q := J.deadP_efr F hS3 hI3.1 hw k3 hAI3.1

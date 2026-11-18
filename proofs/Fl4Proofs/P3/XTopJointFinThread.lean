@@ -27,8 +27,9 @@ XTopFinThread's `xFinThread_of`:
   `jCancel_recv` (from `RecvReplyHyp` [J], `finThreadJ`'s `hRR`), reply by
   XTopJointCancelReply's `jCancel_reply`, send and notification by
   XTopJointCancel's `jCancel_send`, `jCancel_ntfn`; the restart PC; the scheduler
-  tail as one SC step), the thread neither the switch target nor idle, and,
-  if current, with no switch pending (`JThreadFinHyps.curSw`), carried in
+  tail as one SC step), the thread neither the switch target nor idle
+  (the current thread may be suspended with a switch pending: `CurRunM`
+  only asks `CurRunW` while the action is `resumeCurThread`), carried in
   spec terms across the unbinds (`unbindTcb_shape`, `completeYieldTo_ca`);
 * the debug-list removal (`JAtZ.dbgRemoveJ`): P1's `debug_remove.frame` at
   the current core (the thread's affinity), so the words written are
@@ -46,10 +47,7 @@ P1's `fin_cap_thread.dead`).
 thread and `JAtZ` lacks: not the scheduler's switch target, l4v
 `valid_sched_action`; not the idle thread, l4v `valid_global_refs`; its VCPU
 word zero, native threads; ScPlace's `JState`); [J] `utTcb` (no TCB in a
-childless untyped's region, l4v `valid_untyped`); [P] `fpu`; and the steps
-not proved here, each one FL4 call at a `JAtZ` state with its spec outcome
-and `JAtZ` after (undone work): [J] `curSw` (`CurRunM` after `suspend` of the current
-thread); [P] `ticks`.
+childless untyped's region, l4v `valid_untyped`); [P] `fpu`; [P] `ticks`.
 -/
 import Fl4Proofs.P3.XTopFinThread
 import Fl4Proofs.P3.ScFireJ
@@ -93,13 +91,6 @@ structure JThreadFinHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Pr
   `complete_yield_to`, `JAtZ.completeYieldJ`; as XTopYield's `scYieldFinHyp_of`). -/
   ticks : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv ∧
     ∀ (a : A) (v : U64), arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄
-  /-- [J] A thread cap's thread, if current, has no switch pending: what
-  `CurRunM` needs after `suspend` makes it `Inactive` (`set_thread_state`
-  reschedules only a resumed current thread; `JAtZ.suspendJ`'s `hcs`). -/
-  curSw : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
-    (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
-    ∀ (x p : U64), IsSlot Z.th x → capV (L.mem s) x = .Thread p →
-      σ.curThread = p.bv → ∀ u, σ.schedulerAction ≠ .switchThread u
   /-- [J] No TCB lies in the region of a childless untyped cap with a
   nonzero free index (l4v `valid_untyped`: an object in an untyped's region
   descends from it); what `UtCapP3.rst` needs of the debug list's new head
@@ -600,8 +591,7 @@ the steps of `JThreadFinHyps` given. -/
 theorem JAtZ.finThreadJ (hAT : P0.ArchTotal arI) (hF : JThreadFinHyps (L := L) arI AR Z.th)
     (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyHyp (L := L) arI AR H Cs)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hp : p ∈ Z.T)
-    (hv0 : L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64) (hna : L.actionW s ≠ p) (hidle : L.idleW s ≠ p)
-    (hcs : σ.curThread = p.bv → ∀ u, σ.schedulerAction ≠ .switchThread u) :
+    (hv0 : L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64) (hna : L.actionW s ≠ p) (hidle : L.idleW s ≠ p) :
     objects.finalise_cap st arI s a (.Thread p) true false ⦃ r => ∃ σ',
       ((Fl4Spec.Cap.zombie p.bv none 6, Fl4Spec.Cap.nullCap), σ') ∈
         (Fl4Spec.finaliseCap (Z := Unit) (.threadCap p.bv) true σ).1 ∧
@@ -662,11 +652,7 @@ theorem JAtZ.finThreadJ (hAT : P0.ArchTotal arI) (hF : JThreadFinHyps (L := L) a
       · exact hsa u (by rw [← e]; exact hu)
       · rw [e] at hu; cases hu
     have hid5 : p.bv ≠ σ5.idleThread := by rw [hi5]; exact hid
-    have hcs5 : σ5.curThread = p.bv → ∀ u, σ5.schedulerAction ≠ .switchThread u := fun hc u hu => by
-      rcases ha5 with e | e
-      · exact hcs (by rw [← hc5]; exact hc) u (by rw [← e]; exact hu)
-      · rw [e] at hu; cases hu
-    refine WP.spec_bind (JAtZ.suspendJ (Z := Z.mv Z.G V5) (jCancel_send arI) (jCancel_ntfn arI) (jCancel_recv arI hRR) (jCancel_reply arI) J5 hp hsa5 hid5 hcs5) ?_
+    refine WP.spec_bind (JAtZ.suspendJ (Z := Z.mv Z.G V5) (jCancel_send arI) (jCancel_ntfn arI) (jCancel_recv arI hRR) (jCancel_reply arI) J5 hp hsa5 hid5) ?_
     rintro ⟨s6, a6⟩ ⟨ha6, σ6, he6, V6, Ac6, Lst6, D6, J6⟩
     simp only at ha6
     subst ha6

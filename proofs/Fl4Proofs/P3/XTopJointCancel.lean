@@ -135,7 +135,7 @@ theorem JAtZ.kfrStep (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : Fl4S
     · rw [e1, e0]
     · exact e1
   have hcur3 : σ'.schedulerAction = .chooseNewThread ∨ CurInv σ' := J.cur.imp hcn F.curInv
-  have hrun3 : CurRunM σ' := J.curRun.imp hcn F.curRunW
+  have hrun3 : CurRunM σ' := J.curRun.of_cn F.curRunW hact.symm
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_kfr F hS3 hIR.1 hw k3 hAI3.1 ht
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl

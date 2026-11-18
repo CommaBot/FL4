@@ -13,8 +13,8 @@ are one `J` step with one spec frame:
   with their yield-from cut. `susF_of`: the spec's steps give it.
 * What it keeps: `ScTKw` (`SusF.tkw`, `t` IPC-free), `LK`, `FK`, `CKeep`,
   `NSC`, `CurInv`, `CurOwnW`, `OffOK`, `ActIdle` (`t` neither the switch
-  target nor idle), `BlockedScActive`, `CurRunM` (`t`, if current, with no
-  switch pending).
+  target nor idle), `BlockedScActive`, `CurRunM` (`t` may be current: a
+  resumed current thread is rescheduled, any other action keeps `CurRunM`).
 * `suspendSc_inv`: `Inv` after (TcbSpecInv's `suspend_inv` without the
   `cancel_ipc` and restart-PC steps).
 -/
@@ -331,23 +331,22 @@ theorem SusF.bsa (hB : BlockedScActive σ) : BlockedScActive σ' := by
     rw [e] at hr ⊢
     exact hB.replies p z n hz hr
 
-theorem SusF.curRun (hR : CurRunM σ) (hcs : σ.curThread = t → ∀ u, σ.schedulerAction ≠ .switchThread u) :
-    CurRunM σ' := by
-  by_cases hcn : σ'.schedulerAction = .chooseNewThread
-  · exact Or.inl hcn
+/-- `CurRunM` after `suspend`: a resumed current thread is rescheduled
+(`F.actc`); with any other action pending the current thread may be the
+suspended one. -/
+theorem SusF.curRun (hR : CurRunM σ) : CurRunM σ' := by
+  by_cases hnr : σ'.schedulerAction ≠ .resumeCurThread
+  · exact Or.inl hnr
+  have hr' : σ'.schedulerAction = .resumeCurThread := not_not.1 hnr
+  have ha : σ'.schedulerAction = σ.schedulerAction := F.act.resolve_right (by rw [hr']; intro e; cases e)
+  have h0 : ¬ σ.schedulerAction ≠ .resumeCurThread := fun e => e (by rw [← ha]; exact hr')
   right
-  have ha : σ'.schedulerAction = σ.schedulerAction := F.act.resolve_right hcn
-  have h0 : σ.schedulerAction ≠ .chooseNewThread := fun e => hcn (ha.trans e)
   rcases hR.resolve_left h0 with h | h
   · left
     intro y hy
     rw [F.ct] at hy
     by_cases hct : σ.curThread = t
-    · exfalso
-      cases hsa : σ.schedulerAction with
-      | resumeCurThread => exact hcn (F.actc hct hsa)
-      | chooseNewThread => exact h0 hsa
-      | switchThread u => exact hcs hct u hsa
+    · exact absurd (F.actc hct (not_not.1 h0)) (by rw [hr']; intro e; cases e)
     · exact h y (F.tcbB hy hct)
   · right; rw [F.ct, F.idle]; exact h
 

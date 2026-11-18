@@ -249,9 +249,9 @@ theorem JAtZ.finNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
       · exact Or.inr (Fq.curInv hC)
   have hrun3 : CurRunM σ3 := by
     rcases hact with e | Fq
-    · exact Or.inl e
+    · exact Or.inl (act_cn_nr e)
     · rcases J.curRun with e | hR
-      · exact Or.inl (by rw [(Fq.act rfl).1, e])
+      · exact Or.inl (by rw [(Fq.act rfl).1]; exact e)
       · exact Or.inr (Fq.curRunW hR)
   -- the dead stay dead
   have hdead : ∀ q ∈ D, DeadP (L := L) H s3 q := J.deadP_nfr F hS3 hI3.1 hw k3 hAI3.1

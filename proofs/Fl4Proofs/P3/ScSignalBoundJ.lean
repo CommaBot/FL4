@@ -495,7 +495,7 @@ theorem JAtZ.signal_boundJ (hAT : P0.ArchTotal arI) (hRRH : RecvReplyHyp (L := L
     · rw [e1, e0]
     · exact e1
   have hcur1 : σ1.schedulerAction = .chooseNewThread ∨ CurInv σ1 := J.cur.imp hcn F1.curInv
-  have hrun1 : CurRunM σ1 := J.curRun.imp hcn F1.curRunW
+  have hrun1 : CurRunM σ1 := J.curRun.of_cn F1.curRunW hact1.symm
   have hx1 : x1 = { tcb with tcbFault := none, tcbState := .inactive } := by
     rw [hk1] at hk1'; cases hk1'; rfl
   have hsa : ∀ p y k, x1.tcbSchedContext = some p → σ1.kheap p = some (.schedContext y k) →
