@@ -2489,8 +2489,8 @@ theorem domain.MAX_DURATION.p0  :
     error.invalid_arg T arg ⦃ _ => True ⦄ := by
   unfold error.invalid_arg; p0_auto
 
-@[step] theorem domain.decode.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (lbl : Std.U64) (length : Std.U64) (buf : Std.U64) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) :
-    domain.decode machineStoreInst s lbl length buf extra ⦃ _ => True ⦄ := by
+@[step] theorem domain.decode.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (length : Std.U64) (buf : Std.U64) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    domain.decode machineStoreInst machineArchInst s a lbl length buf extra ⦃ _ => True ⦄ := by
   unfold domain.decode; p0_auto
 
 @[step] theorem tcbqueue.insert_after.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (l : tcbqueue.Link) (t : obj.Tcb) (before : obj.Tcb) (hS : StoreTotal machineStoreInst) :
@@ -3133,6 +3133,10 @@ theorem layout.tcb.TIMER_BADGE.p0  :
 theorem layout.tcb.END.p0  :
     layout.tcb.END ⦃ _ => True ⦄ := by
   exact WP.spec_mono Consts.layout.tcb.END.spec (fun _ _ => trivial)
+
+@[step] theorem layout._.p0  :
+    layout._ ⦃ _ => True ⦄ := by
+  unfold layout._; p0_auto
 
 theorem layout.node.RELEASE_TAIL.p0  :
     layout.node.RELEASE_TAIL ⦃ _ => True ⦄ := by

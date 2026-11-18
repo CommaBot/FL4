@@ -1,7 +1,8 @@
 /-
 P1: InvGaps' `domain` family: `domain.decode` (SetSet, ScheduleConfigure,
 ScheduleSetStart) keeps the invariants, from `DecPre`.  SetSet is the
-caller's restart and `set_domain` (`set_domain.blkF`); the schedule
+target's stall (`remote_tcb_stall.bxi`), the caller's restart and `set_domain`
+(`set_domain.blkF`); the schedule
 invocations write kernel-global words (outside the frame words, so cap-slot
 words for `blk_of_capw`) and reschedule.
 -/
@@ -52,23 +53,26 @@ theorem sched.set_dom_sched.blk (s : S) (i d du : U64) (h : BlkOK st T Cs Ω H S
 
 set_option maxHeartbeats 2000000 in
 /-- **`domain.decode`** keeps the invariants. -/
-theorem domain.decode.dec (s : S) (lbl len buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
+theorem domain.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
+    (lbl len buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s .Domain extra) :
-    domain.decode st s lbl len buf extra ⦃ r => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2 ⦄ := by
+    domain.decode st ar s a lbl len buf extra ⦃ r => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2.1 ⦄ := by
   have hS : P0.StoreTotal st := L.total
   have h := D.bxi
   have hct : L.curW s ∈ T := h.1.choose_spec.choose_spec.curT
   have Er : ∀ e : error.SysError, (ok ((core.result.Result.Err (error.Exc.Sys e) : core.result.Result Unit error.Exc),
-      s) : Result _) ⦃ r => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2 ⦄ := fun e =>
+      s, a) : Result _) ⦃ r => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2.1 ⦄ := fun e =>
     (WP.spec_ok _).2 (DecPost.of_bxi h (by simp))
   have RS := sched.set_thread_state.restart_blk (Es := ∅) s _ h.blk hct (runnable_ok D.run).1 (runnable_ok D.run).2
   unfold domain.decode
   step with sched.cur_thread.spec as ⟨ct, ect⟩
   have e : ct = L.curW s := ect
   subst e
-  simp only [error.illegal, error.truncated, error.invalid_cap, error.invalid_arg, error.range, bind_ok]
-  split
+  clear ect
+  simp only [error.illegal, error.truncated, error.invalid_arg, error.range, bind_ok]
+  by_cases hl1 : lbl = fl4_abi.label.DomainSetSet
   · -- SetSet
+    rw [if_pos hl1]
     split
     · exact Er _
     refine WP.spec_bind (P0.msg.syscall_arg.p0 st s _ buf _ hS) fun dom _ => ?_
@@ -87,19 +91,28 @@ theorem domain.decode.dec (s : S) (lbl len buf : U64) (extra : Aeneas.Std.Array 
     rename_i ptr
     have hpT : ptr ∈ T := hc.2.1 ptr rfl
     dsimp only
-    refine WP.spec_bind RS fun s2 ⟨h2, _, _, _⟩ => ?_
+    -- the stall of a thread running on another core
+    refine WP.spec_bind (smp.remote_tcb_stall.bxi hA s a ptr h) ?_
+    rintro ⟨s1, a1⟩ ⟨h1, -, ec1, -, -, f1, -, -⟩
+    try simp only [WP.uncurry'_pair]
+    have run1 : Runnable (L.mem s1 (stA (L.curW s))) := by
+      rw [stA_eq, f1 _ hct _ (by simp) (by simp), ← stA_eq]; exact D.run
+    refine WP.spec_bind (sched.set_thread_state.restart_blk (Es := ∅) s1 _ h1.blk hct (runnable_ok run1).1
+      (runnable_ok run1).2) fun s2 ⟨h2, _, _, _⟩ => ?_
     refine WP.spec_bind (sched.set_domain.blkF s2 ptr dom h2 hpT) fun s3 ⟨h3, _⟩ => ?_
     exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi h3))
+  rw [if_neg hl1]
   have CF : ∀ index dom du : U64, index.val < 1 → (do
       let s1 ← sched.set_thread_state st s (L.curW s) sched.TS_RESTART
       let s2 ← sched.set_dom_sched st s1 index dom du
-      ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2)) ⦃ r =>
-        DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2 ⦄ := fun index dom du hi =>
+      ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a)) ⦃ r =>
+        DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2.1 ⦄ := fun index dom du hi =>
     WP.spec_bind RS fun s2 ⟨h2, _, _, _⟩ =>
       WP.spec_bind (sched.set_dom_sched.blk s2 index dom du h2 hi) fun s3 h3 =>
         (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi h3))
-  split
+  by_cases hl2 : lbl = fl4_abi.label.DomainScheduleConfigure
   · -- ScheduleConfigure
+    rw [if_pos hl2]
     split
     · exact Er _
     refine WP.spec_bind (P0.msg.syscall_arg.p0 st s _ buf _ hS) fun index _ => ?_
@@ -118,16 +131,16 @@ theorem domain.decode.dec (s : S) (lbl len buf : U64) (extra : Aeneas.Std.Array 
     unfold domain.MAX_DURATION
     step as ⟨m1, _⟩
     step as ⟨m2, _⟩
-    have KG : ∀ {P : Prop} [Decidable P] (k : Result ((core.result.Result Unit error.Exc) × S)),
-        k ⦃ r => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2 ⦄ →
+    have KG : ∀ {P : Prop} [Decidable P] (k : Result ((core.result.Result Unit error.Exc) × S × A)),
+        k ⦃ r => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2.1 ⦄ →
         (do
           let i2 ← obj.ks_get st s layout.ks.DOM_SCHED_START
           if index = i2 then k
           else do
             let s1 ← sched.set_thread_state st s (L.curW s) sched.TS_RESTART
             let s2 ← sched.set_dom_sched st s1 index dom du
-            ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2)) ⦃ r =>
-              DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2 ⦄ := fun k hk => by
+            ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a)) ⦃ r =>
+              DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 r.2.1 ⦄ := fun k hk => by
       refine WP.spec_bind (P0.obj.ks_get.p0 st s _ hS) fun i2 _ => ?_
       split
       · exact hk
@@ -141,8 +154,10 @@ theorem domain.decode.dec (s : S) (lbl len buf : U64) (extra : Aeneas.Std.Array 
         first | exact CF _ _ _ hix' | exact Er _ | (split <;> first | exact Er _ | exact CF _ _ _ hix')
     · refine KG (P := True) _ ?_
       first | exact CF _ _ _ hix' | exact Er _ | (split <;> first | exact Er _ | exact CF _ _ _ hix')
-  split
+  rw [if_neg hl2]
+  by_cases hl3 : lbl = fl4_abi.label.DomainScheduleSetStart
   · -- ScheduleSetStart
+    rw [if_pos hl3]
     split
     · exact Er _
     refine WP.spec_bind (P0.msg.syscall_arg.p0 st s _ buf _ hS) fun index _ => ?_
@@ -163,20 +178,19 @@ theorem domain.decode.dec (s : S) (lbl len buf : U64) (extra : Aeneas.Std.Array 
       (by simp [layout.ks.DOM_SCHED_IDX])) fun s5 h5 => ?_
     refine WP.spec_bind (sched.reschedule_required.blk s5 h5.1) fun s6 h6 => ?_
     exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi h6.1))
-  · exact Er _
+  rw [if_neg hl3]
+  exact Er _
 
 /-- **InvGaps' `domain`, discharged.** -/
-theorem decGap_domain {A : Type _} (ar : machine.Arch A) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .domain := by
+theorem decGap_domain {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .domain := by
   intro Ac s a lbl len slot cap blk call don fp buf extra hf D _hslot hE
   cases cap <;> simp [capFam] at hf
   unfold syscall.decode_invocation
   step with sched.cur_thread.spec as ⟨ct, _⟩
-  try dsimp only
   split
   · exact (WP.spec_ok _).2 (DecPost.keep D.bxi (by simp))
-  · refine WP.spec_bind (domain.decode.dec s lbl len buf extra D) ?_
-    rintro ⟨r, s1⟩ hr
-    exact (WP.spec_ok _).2 hr
+  · exact WP.spec_mono (domain.decode.dec hA s a lbl len buf extra D) fun r hr => by
+      obtain ⟨r, s', a'⟩ := r; exact hr
 
 end
 

@@ -39,7 +39,7 @@ theorem InvGaps3.gaps {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} 
     (P : P3Place st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (C : CdtHyps2 st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     (G : InvGaps3 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok) : InvGaps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok :=
   ⟨G.untyped, decGap_reply hA P.xfer P.tmoAny (fun Ac s h => (P.blkU Ac s h).2), decGap_cnode2 hA C G.del,
-    G.thread, G.irqControl, G.irqHandler, decGap_domain ar, decGap_sc hA P.xfer G.yield, G.schedControl, G.vspace,
+    G.thread, G.irqControl, G.irqHandler, decGap_domain hA, decGap_sc hA P.xfer G.yield, G.schedControl, G.vspace,
     G.vcpu, G.ept, G.ioPortControl, G.ioPort⟩
 
 /-- **Native kernel entries keep `EntryInv`**, from `InvGaps3`, `CdtHyps2`
