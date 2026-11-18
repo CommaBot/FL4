@@ -22,12 +22,17 @@ some of them proved here.
 * Named premises [J] (`JDelParts`), each one step of the loop at `WJ`:
   `JFinAtF` (a final object cap's finalisation, but notification, IRQ
   handler, endpoint, frame and IO port caps, with `RdJ` after; a non-final one's is `jFin_nonfinal`:
-  nothing, the slot ready by another cap alike it), `JFinAt FrIoK` (frame and
-  IO port caps, finalised with work even when not final),
+  nothing, the slot ready by another cap alike it),
   `JRdTrivHyp` (`RdJ` at a zombie), `JZombieHyp` (a zombie
   written over a cap alike it), `JSwapHyp` (a zombie swapped with its first
   slot), `JEmptyUtHyp` (`DelUtFact` after emptying a ready slot: the known
   `valid_untyped` gap, as `DelUtHyp`).
+* The frame and IO port caps' finalisation, final or not (`jFinAt_frio`,
+  XTopJointFinFrIo): an unmapped frame's and an unowned IO port cap's do
+  nothing; a VSpace-mapped frame's from `JFrMapHyp` [J] (undone: the unmap's
+  `JRest` frame), the VT-x work (EPT-mapped frames, owned IO ports) from
+  `JFrVtHyp` [J]; the slot ready after by `JFrameApartHyp` [J] (a frame's
+  memory holds no kernel object; an IO port cap is not physical).
 * A final IRQ handler cap's finalisation (`jFinAt_irq`, as XTopFinIrq):
   the IRQ node slot's cap deleted, null or a notification cap by
   `delete_oneJ` (`jFinNtfnK`, every slot kept, then `emptyHypJ`); from
@@ -64,6 +69,7 @@ import Fl4Proofs.P3.XTopJointEmpty
 import Fl4Proofs.P3.XTopJointFinEp
 import Fl4Proofs.P3.XTopJointFinReply
 import Fl4Proofs.P3.XTopJointFinVs
+import Fl4Proofs.P3.XTopJointFinFrIo
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -158,6 +164,38 @@ def JFinAtF (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (Kd : capability.
 
 /-- A frame cap or an IO port cap (finalised with work when not final). -/
 def FrIoK (c : capability.Cap) : Prop := isFrame c = true ∨ ∃ f l o, c = .IoPort f l o
+
+/-- **Hypothesis: a VSpace-mapped frame cap's finalisation at `J`** [J]
+(`FrMapK`, final or not: FL4's `vspace::unmap_page`, the spec's
+`unmap_page`), `WJ` after (the readiness from `JFrameApartHyp`). Undone:
+XTopFinVs's `xFinRest_of` proves the step at `XTop` (from `VsCapsIn` [J],
+`ArchRefines` [P]), but its footprint (`VsFootW0`: the slot, page-table, TCB
+state and scheduler-action words) and the spec side (`archFinaliseCap`) are
+too coarse for `JRest`'s frame; it needs the unmap's own footprint (the
+page-table words) apart from `H`'s objects, the slots and the nodes, and the
+spec step changing the arch objects only. -/
+def JFrMapHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
+  ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
+    FinObjHypWRK (L := L) arI (WJ (L := L) arI AR Z H Cs kb) (fun _ _ _ _ _ => True) th FrMapK
+
+/-- **Hypothesis: the VT-x work of a finalisation at `J`** [J] (`FrVtK`: an
+EPT-mapped frame cap's `ept::unmap`, an owned IO port cap's
+`vcpu::revoke_ports`; outside the semantic scope, DESIGN §5, as `XFinHyps.vm`
+and `XFinHyps.io` at `XTop`), `WJ` after. -/
+def JFrVtHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
+  ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
+    FinObjHypWRK (L := L) arI (WJ (L := L) arI AR Z H Cs kb) (fun _ _ _ _ _ => True) th FrVtK
+
+/-- **Hypothesis: a frame's memory holds no kernel object** [J] (l4v
+`valid_cap` of a frame cap, `typ_at (AArch (AUserData sz))` or device memory,
+with `pspace_distinct`): at `WJ`, no object of P1's heap `H` meets the range
+of a frame cap in a slot. `JAtZ` carries no fact on frames' memory (`JCovD`
+asks every object covered, not uncovered by frames). -/
+def JFrameApartHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
+  ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
+    ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost), WJ (L := L) arI AR Z H Cs kb s a σ G →
+      ∀ x, IsSlot th x → isFrame (capV (L.mem s) x) = true →
+      ∀ q k, H q = some k → q.val + 2 ^ k.bits ≤ baseF (capV (L.mem s) x) ∨ topF (capV (L.mem s) x) < q.val
 
 /-- **Hypothesis: a zombie's slot is ready at `J`** [J] (`RdTrivHyp` for
 zombies; their finalisation leaves the state as it is): the objects in the
@@ -276,7 +314,9 @@ structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   /-- XTopJointFinVs's `JVsApartHyp` [J] (the VSpace frames and the ASID table
   apart from `H`'s objects, the nodes and the untyped free parts). -/
   vsApart : JVsApartHyp (L := L) arI AR th
-  finFrIo : JFinAt (L := L) arI AR th FrIoK
+  frMap : JFrMapHyp (L := L) arI AR th
+  frVt : JFrVtHyp (L := L) arI AR th
+  frApart : JFrameApartHyp (L := L) arI AR th
   triv : JRdTrivHyp (L := L) arI AR th
   zomb : JZombieHyp (L := L) arI AR th
   swap : JSwapHyp (L := L) arI AR th
@@ -649,6 +689,21 @@ theorem jFinAt_vs (hAR : ArchRefines arI AR) (hVC : JVsCapsHyp (L := L) arI AR t
     fun y hy _ => Or.inl (hSS.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS,
     ⟨V, Ac, Lst, D, J1, hks.trans hkb⟩, J.vs_ready Ap hVC0 hxm hcv hv hcv1⟩
 
+/-- **The frame and IO port caps' finalisation at `J`**, final or not
+(XTopJointFinFrIo's `finFrIo_of`): an unmapped frame's and an unowned IO
+port cap's do nothing; a VSpace-mapped frame's from `JFrMapHyp` [J], the
+VT-x work from `JFrVtHyp` [J]; the slot ready after (an IO port cap is not
+physical; a frame's memory holds no object of `H`, `JFrameApartHyp` [J]). -/
+theorem jFinAt_frio (hM : JFrMapHyp (L := L) arI AR th) (hV : JFrVtHyp (L := L) arI AR th)
+    (hAp : JFrameApartHyp (L := L) arI AR th) : JFinAt (L := L) arI AR th FrIoK := by
+  intro Z H Cs kb hth
+  refine finFrIo_of arI (hM Z H Cs kb hth) (hV Z H Cs kb hth) ?_
+  intro s a σ G sl c hW hA hcv hk
+  refine EmptyReady.frio hcv hk fun hf => ?_
+  have h := hAp Z H Cs kb hth s a σ G hW _ hA.isSlot (by rw [hcv]; exact hf)
+  rw [hcv] at h
+  exact h
+
 theorem okey_of_finObj {c : capability.Cap} (hk : FinObjKind c) : okey c ≠ none := by
   cases c <;> simp_all [FinObjKind, okey]
 
@@ -701,7 +756,7 @@ theorem jFin_nonfinal [Fl4Proofs.P1.PlainStore st] (Z : XSets) (H : P1.Heap) (Cs
 
 /-- The object caps' finalisation at `J`, from the notification caps'
 (`jFinAt_ntfn`), the non-final caps' (`jFin_nonfinal`), the final caps'
-(`JDelParts.fin`) and the frame and IO port caps' (`JDelParts.finFrIo`). -/
+(`JDelParts.fin`) and the frame and IO port caps' (`jFinAt_frio`). -/
 theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
     (hLayI : ∀ (Z : XSets) s a σ, Z.th = th → XTopAt (L := L) AR Z s a σ → IntLayout th (L.ksb s))
     (hT : P0.ArchTotal arI) (Z : XSets) (H : P1.Heap) (Cs : Set U64)
@@ -711,7 +766,7 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
   by_cases hn : NtfnK c
   · exact jFinAt_ntfn arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hn
   by_cases hfi : FrIoK c
-  · exact h.finFrIo Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi
+  · exact jFinAt_frio arI h.frMap h.frVt h.frApart Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi
   by_cases hfin : Fl4Spec.isFinalCap' (absCap c) σ
   · by_cases hq : IrqK c
     · exact jFinAt_irq arI h.empUt h.irq hLayI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hq hfin
