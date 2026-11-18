@@ -25,10 +25,12 @@ preservation, in the shape of the SC family's `sched_controlJ_step`).
 * `decode_invocation_{irq_control, ioport_control, irq_handler}J_step`: the
   three `Steps`-producing cap leaves, `JAt` after (`XCap` at `JAt`), the
   decode errors at the start's `JAtZ`.
-* `XCap.jat` and `decode_invocation_threadJ_step`: the thread cap's leaves,
-  whose post is not a `Steps` run, with the per-op named premise `JPostHyp`
-  (at the decode's post, over the spec's outcome: `JAt`), the unchanged
-  states (decode errors) discharged by the start's `JAtZ`. (The CNode cap's
+* `XCap.jat`: a cap's leaves whose post is not a `Steps` run, with the
+  per-op named premise `JPostHyp` (at the decode's post, over the spec's
+  outcome: `JAt`), the unchanged states (decode errors) discharged by the
+  start's `JAtZ`. The Thread cap (XTopJointTcb's
+  `decode_invocation_threadJ_step`) takes it only at its labels not yet
+  proved at `JAt` (`TcbJOpen`). (The CNode cap's
   labels are proved at `JAt` in XTopJointCnDel/XTopJointCbs, the IO port
   cap's in XTopJointPortIn.)
 -/
@@ -571,50 +573,6 @@ theorem decode_invocation_domainJ_step (hcfg : DomConfig) (s : S) (ar : A) (σ :
     hx0 excs hex (domSetHyp_of hX J.thT hC hA hcur) (domResHyp_of hX J.ks J.thT hC hA hcur)
     (domStallHyp_of arI hX.fin.1.1.1 J.thT) hC ⟨Z, H, Cs, Ac, Lst, D, J⟩ (fun _ _ _ h => Steps.jat arI hARI.toMask hJ h rfl J) (fun _ _ _ h => JAt.xtop arI h)
     slot blk call don fp ci sl buffer
-
-set_option maxHeartbeats 4000000 in
-/-- **`decode_invocation_threadJAt`, `JAt` after**, with the per-op premise (`JPostHyp` [W]). -/
-theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hG : CsGlobal (L := L) arI AR Z.th)
-    (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
-    (hA : ∀ s a σ G, WX (L := L) AR Z.th s a σ G → Notif.ActReady σ)
-    (hBT : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → BufWordRel Z'.T (L.mem s') σ')
-    (hOK : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.IpcBufCapOK σ')
-    (hBC : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.BufCover Z'.T Z'.B σ')
-    (hBPl : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
-      Vs.BufPlaced (L := L) Z'.N Z'.C Z'.B Z'.c s' σ')
-    (hFl : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → FlagsRel Z'.T (L.mem s') σ')
-    (lbl length : U64) (p : U64)
-    (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ct : U64)
-    (hct : sched.cur_thread st s = ok ct)
-    (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = tcbLabelOf lbl)
-    (argsU : List U64) (hlen : length.val = argsU.length)
-    (hargs : ∀ (i : U64) x, argsU[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
-    (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th sl)
-    (hsc : capV (L.mem s) (cslotAddr sl) = .Thread p)
-    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
-    (hext : Fl4Spec.genInvocationType slbl = .invalidInvocation → Fl4Spec.fl4TcbExtLabelOf slbl = tcbExtOf lbl)
-    (hstall' : ∀ q, smp.remote_tcb_stall st arI s ar q = ok (s, ar))
-    (hNative : lbl ≠ fl4_abi.label.TCBSetEPTRoot)
-    (hcw : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD))
-    (hpI : p ≠ L.idleW s)
-    (x0 x1 x2 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
-    (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
-    (hx2 : Aeneas.Std.Array.index_usize extra 2#usize = ok x2)
-    (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps) (hnc : NcHyp (st := st) s σ x0 x1 x2)
-    (hnc0 : ∀ sl : Fl4Spec.CslotPtr, x0 = cslotAddr sl → isUt (capV (L.mem s) x0) = true →
-      NoChildrenRel (st := st) s σ x0 sl)
-    (hcapC : x1 ≠ 0#u64 → ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ Z.C)
-    (hA5 : ArgRel (st := st) s σ ct buf buffer 5) (hGb : GetBpHyp (st := st) s ct p)
-    (hI : TcbXIpc (L := L) arI AR Z.th s ar σ p ct buf argsU blk call don)
-    (hFr : ∀ (x ptr offset r : U64) (sz : capability.FrameSize) (m ep : Bool) (asid va : U64),
-      capV (L.mem s) x = .Frame ptr sz r false m ep asid va → FpuPass true offset r sz →
-      FpuFrameXHyp (L := L) AR Z p (core.num.U64.wrapping_add ptr offset))
-    (hR : JPostHyp (L := L) arI AR s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf extra slbl
-      (argsU.map UScalar.bv) ci sl excaps buffer ct) :
-    XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf extra slbl
-      (argsU.map UScalar.bv) ci sl excaps buffer ct :=
-  XCap.jat arI (decode_invocation_threadJAt arI s ar σ J hni hG hARI hT hA hBT hOK hBC hBPl hFl lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl hAs hsc excaps buffer hext hstall' hNative hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb hI hFr) J hR
 
 end
 

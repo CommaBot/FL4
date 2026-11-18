@@ -1,6 +1,6 @@
 /-
 P3 (DESIGN.md §9), TCB: **the Thread cap at `JAt`, label by label**
-(`decode_invocation_threadJ`, in the shape of the CNode cap's
+(`decode_invocation_threadJ_step`, in the shape of the CNode cap's
 `decode_invocation_cnodeJ_steps`).
 
 * `TcbJOpen`: the Thread cap's labels whose `JAt` step is not yet proved;
@@ -9,7 +9,21 @@ P3 (DESIGN.md §9), TCB: **the Thread cap at `JAt`, label by label**
 * Every other label through `decode_invocation_threadX` at `X := JAt`: the
   labels of no TCB invocation (and the fast-path flag's decode error) are the
   spec's `IllegalOperation` with the state unchanged (`tcb_illegalX`, `JAt`
-  at the start).
+  at the start); the labels proved here, each with its decode errors at the
+  start's `JAtZ`:
+  - Suspend (`tcb_suspendJ`: `JAtZ.restartJ`, then `JAtZ.suspendJ` with the
+    four cancel steps; `RecvReplyLinksHyp` [J] for `jCancel_recv`, already
+    `JDelParts.recvRep`);
+  - UnbindNotification (`tcb_unbind_ntfnJ`: the restart, `JAtZ.unbindNJ`);
+  - Set/UnsetBreakpoint (`tcb_set_bpJ`, `tcb_unset_bpJ`: the restart, the
+    debug words by `JAtZ.dbgWrJ`, the spec state kept);
+  - SetTLSBase (`tcb_set_tlsJ`: the restart, `JAtZ.regWrJ`, the reschedule
+    as a scheduler step `JAtZ.schedJ`).
+* `JAtZ.restartJ`: the caller's restart at `J` (`jowes_restart`, no premise).
+* `JAtZ.reg_frameG`, `JAtZ.dbgWrJ`: XTopJointRegFrame's register frame
+  widened to the TCBs' debug words (offsets 448..512, read by no relation),
+  and one debug word written at `J`.
+* `JAtZ.schedJ`: a scheduler step at `J` (`jowes_sched`).
 -/
 import Fl4Proofs.P3.XTopJointDelR
 import Fl4Proofs.P3.XTopJointReply
@@ -646,7 +660,7 @@ set_option maxHeartbeats 4000000 in
 /-- **The Thread cap, `JAt` after** (module docstring): the labels of
 `TcbJOpen` by `decode_invocation_threadJAt` and `XCap.jat` with the per-op
 premise (`JPostHyp` [W], only at those labels); the others proved. -/
-theorem decode_invocation_threadJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hG : CsGlobal (L := L) arI AR Z.th)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
     (hA : ∀ s a σ G, WX (L := L) AR Z.th s a σ G → Notif.ActReady σ)
