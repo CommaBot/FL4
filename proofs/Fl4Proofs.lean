@@ -436,5 +436,6 @@ import Fl4Proofs.P3.XTopJointRemove
 import Fl4Proofs.P3.XTopJointDelR
 import Fl4Proofs.P3.XTopJointData
 import Fl4Proofs.P3.XTopJointReadRegs
+import Fl4Proofs.P3.XTopJointTcbMisc
 import Fl4Proofs.P3.XTopJointTcb
 import Fl4Proofs.P3.IdleCovered
