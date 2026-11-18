@@ -11,7 +11,9 @@
 //! never touches the FPU between IPCs then costs no FPU work at all. On
 //! Intel CPUs, where #NM-deferred state can leak through speculation, the
 //! switch stays eager: the incoming thread's state is loaded on the way
-//! out of the kernel, whether it uses the FPU or not.
+//! out of the kernel, whether it uses the FPU or not, and a thread that
+//! runs with CR0.TS set (seL4_TCBFlag_fpuDisabled) finds the registers in
+//! their initial state, the last owner's saved (`scrub_local`).
 //!
 //! A thread that uses the FPU every time it runs would pay a trap and two
 //! CR0.TS writes on top of the swap, which costs more than the eager
@@ -81,6 +83,31 @@ const COMPACTED: u64 = 1 << 63;
 
 #[repr(C, align(64))]
 struct Scratch([u8; 512]);
+
+/// An image of the initial FPU state, for every restore instruction:
+/// FCW 0x37f and MXCSR 0x1f80 in the legacy area (FXRSTOR loads all of
+/// it: empty x87 stack, XMM registers 0), XSTATE_BV 0 (XRSTOR and XRSTORS
+/// put every requested component in its initial state, reading no
+/// component data) and XCOMP_BV `compacted` (XRSTORS needs bit 63, XRSTOR
+/// takes the standard format, 0); the other header bytes are 0, as both
+/// require. The 1 KiB covers the legacy area and the header with room.
+#[repr(C, align(64))]
+struct InitImage([u8; 1024]);
+
+const fn init_image(compacted: bool) -> InitImage {
+    let mut b = [0u8; 1024];
+    b[0] = 0x7f;
+    b[1] = 0x03;
+    b[24] = 0x80;
+    b[25] = 0x1f;
+    if compacted {
+        b[HDR as usize + 15] = 0x80;
+    }
+    InitImage(b)
+}
+
+static INIT_STANDARD: InitImage = init_image(false);
+static INIT_COMPACTED: InitImage = init_image(true);
 
 /// PKRU.
 const PKRU: u64 = 1 << 9;
@@ -358,9 +385,42 @@ fn set_ts(on: bool) {
     }
 }
 
+/// Put every enabled FPU component in its initial state. CR0.TS is clear.
+fn load_init() {
+    unsafe {
+        match insn() {
+            Insn::Xsaves => asm!("xrstors64 [{}]", in(reg) INIT_COMPACTED.0.as_ptr(), in("eax") u32::MAX, in("edx") u32::MAX, options(nostack)),
+            Insn::Fxsave => asm!("fxrstor64 [{}]", in(reg) INIT_STANDARD.0.as_ptr(), options(nostack)),
+            _ => asm!("xrstor64 [{}]", in(reg) INIT_STANDARD.0.as_ptr(), in("eax") u32::MAX, in("edx") u32::MAX, options(nostack)),
+        }
+    }
+    percpu::get().fpu_clean.set(true);
+}
+
+/// Where switching is eager (LazyFP-affected Intel), a thread that runs
+/// with CR0.TS set must find no other thread's state in the registers:
+/// its FPU instructions trap (#NM), but they can read the registers
+/// speculatively before they do. Save the owner's state, if any, and
+/// leave the initial state there.
+fn scrub_local() {
+    let owner = percpu::fpu_owner(percpu::cpu_index());
+    if owner == 0 && percpu::get().fpu_clean.get() {
+        return;
+    }
+    set_ts(false);
+    if owner != 0 {
+        save(owner);
+        percpu::set_fpu_owner(0);
+    }
+    load_init();
+}
+
 /// Exit path: make the FPU right for thread `t`.
 pub fn switch_to(t: u64, fpu_disabled: bool) {
     if fpu_disabled {
+        if !lazy() {
+            scrub_local();
+        }
         set_ts(true);
         return;
     }
@@ -388,6 +448,7 @@ fn load(t: u64) {
         save(owner);
     }
     restore(t);
+    percpu::get().fpu_clean.set(false);
     percpu::set_fpu_owner(t);
 }
 
@@ -417,7 +478,8 @@ pub fn flush_local(t: u64) {
     }
 }
 
-/// Forget `t`'s state if it is live on this core.
+/// Forget `t`'s state if it is live on this core. The registers keep it
+/// (`fpu_clean` stays clear) until a load or `scrub_local` replaces it.
 pub fn forget_local(t: u64) {
     if percpu::fpu_owner(percpu::cpu_index()) == t {
         percpu::set_fpu_owner(0);
@@ -434,6 +496,9 @@ pub fn release_local(t: u64) {
         set_ts(false);
         save(t);
         percpu::set_fpu_owner(0);
+        if !lazy() {
+            load_init();
+        }
         set_ts(true);
     }
 }
@@ -525,6 +590,59 @@ mod tests {
             }
         }
         end
+    }
+
+    #[test]
+    fn the_initial_images_hold_the_initial_state_and_valid_headers() {
+        for (img, xcomp) in [(&INIT_STANDARD, 0u64), (&INIT_COMPACTED, COMPACTED)] {
+            assert_eq!(img.0.as_ptr() as usize % 64, 0);
+            let b = &img.0;
+            let word = |o: usize| u64::from_le_bytes(b[o..o + 8].try_into().unwrap());
+            assert_eq!(u16::from_le_bytes([b[0], b[1]]), 0x037f);
+            assert_eq!(u32::from_le_bytes([b[24], b[25], b[26], b[27]]), 0x1f80);
+            // Everything else in the legacy area is 0: FSW, FTW (all
+            // empty), FOP, pointers, ST0..7, XMM0..15.
+            assert!(b[2..24].iter().chain(&b[28..512]).all(|&x| x == 0));
+            assert_eq!(word(HDR as usize), 0);
+            assert_eq!(word(HDR as usize + 8), xcomp);
+            assert!(b[HDR as usize + 16..].iter().all(|&x| x == 0));
+        }
+    }
+
+    /// FXRSTOR and (with XSAVE) XRSTOR of the image leave no register
+    /// value behind; XRSTORS needs ring 0.
+    #[cfg(target_arch = "x86_64")]
+    #[test]
+    fn restoring_the_initial_image_clears_the_registers() {
+        let read = || {
+            let mut x = [0u64; 2];
+            let mut mxcsr = 0u32;
+            let mut fcw = 0u16;
+            let mut fsw = 0u16;
+            unsafe {
+                asm!("movdqu [{x}], xmm7", "stmxcsr dword ptr [{m}]", "fnstcw word ptr [{c}]", "fnstsw word ptr [{w}]",
+                     x = in(reg) x.as_mut_ptr(), m = in(reg) &mut mxcsr, c = in(reg) &mut fcw, w = in(reg) &mut fsw,
+                     options(nostack));
+            }
+            (x, mxcsr, fcw, fsw)
+        };
+        let dirty = || unsafe {
+            let m = 0x1f80u32 | (3 << 13);
+            asm!("pcmpeqd xmm7, xmm7", "fld1", "fld1", "ldmxcsr dword ptr [{}]", in(reg) &m,
+                 clobber_abi("C"), options(nostack));
+        };
+        dirty();
+        unsafe { asm!("fxrstor64 [{}]", in(reg) INIT_STANDARD.0.as_ptr(), clobber_abi("C"), options(nostack)) };
+        assert_eq!(read(), ([0, 0], 0x1f80, 0x037f, 0));
+        if cpuid(1, 0).ecx & (1 << 27) != 0 {
+            dirty();
+            // x87, SSE and AVX only: the host may keep others (AMX) armed.
+            unsafe {
+                asm!("xrstor64 [{}]", in(reg) INIT_STANDARD.0.as_ptr(), in("eax") 7u32, in("edx") 0u32,
+                     clobber_abi("C"), options(nostack))
+            };
+            assert_eq!(read(), ([0, 0], 0x1f80, 0x037f, 0));
+        }
     }
 
     #[test]
