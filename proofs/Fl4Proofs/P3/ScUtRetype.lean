@@ -659,7 +659,7 @@ theorem resetOK_of {A' : Type} {arI : machine.Arch A'} {H : Heap} {Cs : Set U64}
     refine Mdb.not_desc_of_no_child fun z hz => hnc ?_
     exact (J.cdt.has_child_iff J.placed hAs).2 ⟨z, by rw [← J.slotEq]; exact hz⟩
   have RD := region_deadP J.jcov J.ut J.mdb hx (by rw [← hdv]; exact hcx) (lo := p.val) (hi := p.val + 2 ^ sb.val) (Or.inr ⟨hnd, le_rfl⟩) le_rfl
-  obtain ⟨hk1, hk2⟩ := J.jcov.ks slot hx p sb fi (by rw [← hdv]; exact hcx)
+  obtain ⟨hk1, hk2, -⟩ := J.jcov.ks slot hx p sb fi (by rw [← hdv]; exact hcx)
   refine ⟨hcapS, U.pal, U.pfit, dead_dropOK J RD hfr hks hcpu hcw hcs hact hrun (hKR fun q k hq hr => (RD q k hq hr).1)
     (hDT fun q k hq hr => (RD q k hq hr).1) (by rcases hk1 with h | h <;> omega), ⟨fun c hc => ?_, ?_⟩,
     U.fiLe, U.sb4, capAt_untyped_inv J.capEq⟩
@@ -886,7 +886,7 @@ theorem createOK_noreset {A' : Type} {arI : machine.Arch A'} {H : Heap} {Cs : Se
   simp only [capability.Cap.Untyped.injEq] at hc0
   obtain ⟨rfl, rfl, rfl, rfl⟩ := hc0
   have U := J.utc p sb fi dev rfl hdv
-  obtain ⟨hk1, hk2⟩ := J.jcov.ks slot hx p sb fi (by rw [← hdv]; exact hcx)
+  obtain ⟨hk1, hk2, -⟩ := J.jcov.ks slot hx p sb fi (by rw [← hdv]; exact hcx)
   have hfitW : A + w * k ≤ 2 ^ 64 := le_trans hAs U.pfit
   have hpos : 0 < A := by
     have := U.high (notDev_ram (by rw [← J.slotEq, capV_of_capAt J.capEq, hdv])); omega
@@ -1001,7 +1001,7 @@ theorem createOK_reset {A' : Type} {arI : machine.Arch A'} {H : Heap} {Cs : Set 
   obtain ⟨Tr, C, hJP⟩ := J.jpl
   obtain ⟨-, hx, hcx⟩ := J.slot_mem (by simp)
   have U := J.utc p sb fi dev rfl hdv
-  obtain ⟨hk1, hk2⟩ := J.jcov.ks slot hx p sb fi (by rw [← hdv]; exact hcx)
+  obtain ⟨hk1, hk2, -⟩ := J.jcov.ks slot hx p sb fi (by rw [← hdv]; exact hcx)
   have hfitW : A + w * k ≤ 2 ^ 64 := le_trans hhi U.pfit
   have hpos : 0 < A := by
     have := U.high (notDev_ram (by rw [← J.slotEq, capV_of_capAt J.capEq, hdv])); omega

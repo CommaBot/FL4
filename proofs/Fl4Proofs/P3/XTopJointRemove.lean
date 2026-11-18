@@ -392,7 +392,7 @@ theorem JAtZ.rmW_utc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} 
       · have hth : Z.th y = some .tcb := (hJ.tcb y).2 (J.zH.1 y hy)
         have := U.free y .tcb hth
         simp only [objSize] at this; omega
-      · have := (J.jcov.ks _ hxm p sb fi (ramCap_of_notDev hcv (B g))).2 Z.c hcC
+      · have := (J.jcov.ks _ hxm p sb fi (ramCap_of_notDev hcv (B g))).2.1 Z.c hcC
         omega
       · obtain ⟨x, hx, -⟩ := hR.ntfn n hn
         have := J.sfree _ hxm p sb fi (by rw [hcv, hdv]) n.bv _ hx

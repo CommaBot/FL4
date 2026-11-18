@@ -162,15 +162,18 @@ theorem IdleOut.keep {th : TypedHeap} {H : Heap} {G G' : MdbGhost} {s s' : S}
   obtain ⟨y, hy, fi', hc'⟩ := hut x hx p sb fi false hc
   exact h y hy p sb fi' hc' q ((idleAt_of hidl).1 hq)
 
-/-- **The RAM untyped regions miss the kernel-state block and every core's
-node** (l4v `valid_global_refs` for untyped caps, as `IdleOut`). Not asked
-of device untypeds: since losfair/FL4#34 a device untyped's pointer
-`paddr + PPTR_BASE` may lie in the kernel image, where the kernel-state
-block and the nodes are (statics of the image). -/
+/-- **The RAM untyped regions miss the kernel-state block, every core's
+node, and the VSpace ASID-table area `[ksb+288000, ksb+288000+16384)`**
+(l4v `valid_global_refs` for untyped caps, as `IdleOut`: the kernel
+window/globals lie in no untyped region; all three are statics of the
+kernel image). Not asked of device untypeds: since losfair/FL4#34 a device
+untyped's pointer `paddr + PPTR_BASE` may lie in the kernel image, where
+the kernel-state block, the nodes and the ASID table are. -/
 def UtKsApart (G : MdbGhost) (Cs : Set U64) (s : S) : Prop :=
   ∀ x ∈ G.chains.flatten, ∀ p sb fi, capV (L.mem s) x = .Untyped p sb fi false →
     (p.val + 2 ^ sb.val ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val) ∧
-    ∀ c ∈ Cs, p.val + 2 ^ sb.val ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ p.val
+    (∀ c ∈ Cs, p.val + 2 ^ sb.val ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ p.val) ∧
+    (p.val + 2 ^ sb.val ≤ (L.ksb s).val + 288000 ∨ (L.ksb s).val + 288000 + 16384 ≤ p.val)
 
 /-- **`UtKsApart` across a step** keeping the kernel-state base and the
 untyped regions (each after an old one, same device flag). -/
@@ -179,8 +182,8 @@ theorem UtKsApart.keep {G G' : MdbGhost} {Cs : Set U64} {s s' : S} (h : UtKsApar
   intro x hx p sb fi hc
   obtain ⟨y, hy, fi', hc'⟩ := hut x hx p sb fi false hc
   have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
-  obtain ⟨h1, h2⟩ := h y hy p sb fi' hc'
-  exact ⟨by rw [hks]; exact h1, fun c hc => by rw [hnb]; exact h2 c hc⟩
+  obtain ⟨h1, h2, h3⟩ := h y hy p sb fi' hc'
+  exact ⟨by rw [hks]; exact h1, fun c hc => by rw [hnb]; exact h2 c hc, by rw [hks]; exact h3⟩
 
 /-- **Every object is covered by a cap, or is exempt** (`ExAt`: an idle
 object, `IdleAt`, or one inside the kernel-state block, `KsObj`), the idle objects outside the RAM untyped regions, and the RAM untyped caps
@@ -251,7 +254,7 @@ theorem oobj_childless (hJ : JCov (L := L) th H G Cs s) {Tr C0 : Set U64} {σ : 
         omega
   rcases hO with ⟨o1, o2⟩ | ⟨o1, o2⟩ | ⟨t, ht, o1, o2⟩ | ⟨e, he, o1, o2⟩ | ⟨r, hr, o1, o2⟩ | ⟨n, hn, o1, o2⟩ |
       ⟨q, hq, y, n, hk, o1, o2⟩ | ⟨wp, hw, o1, o2⟩
-  · have := hks.2 c hc; omega
+  · have := hks.2.1 c hc; omega
   · have := hks.1; omega
   · exact hobj (hT t ht) (by omega) (by simp only [HKind.bits]; omega)
   · exact hobj (hE e he) (by omega) (by simp only [HKind.bits]; omega)

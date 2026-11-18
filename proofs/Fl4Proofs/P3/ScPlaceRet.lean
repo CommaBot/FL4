@@ -238,9 +238,9 @@ theorem JCovD.retype (h : JCovD (L := L) th H G D Cs s)
       · exact hdead q hd hn (hq.trans ho.symm) (h.dead q hd)
       · exact absurd hn' hn
   · obtain ⟨x0, hx0, p0, sb0, fi0, hc0, h1, h2⟩ := ram_from hE hdv hx hcx
-    obtain ⟨k1, k2⟩ := h.ks x0 hx0 p0 sb0 fi0 hc0
+    obtain ⟨k1, k2, k3⟩ := h.ks x0 hx0 p0 sb0 fi0 hc0
     have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp [LawfulStore.nodeBase, hksb]
-    refine ⟨by rw [hksb]; omega, fun c hc => ?_⟩
+    refine ⟨by rw [hksb]; omega, fun c hc => ?_, by rw [hksb]; omega⟩
     rw [hnb]; have := k2 c hc; omega
   · -- the idle objects: outside the old region holding the new one, and no new object
     have hi0 := (idleAt_of hidl).1 hi

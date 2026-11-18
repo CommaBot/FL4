@@ -205,7 +205,7 @@ theorem JAtZ.tmw_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     · have hth : Z.th y = some .tcb := (hJ.tcb y).2 (J.zH.1 y hy)
       have := U.free y .tcb hth
       simp only [objSize] at this; omega
-    · have := (J.jcov.ks _ hxm p sb fi (ramCap_of_notDev hcv (B g))).2 c hc
+    · have := (J.jcov.ks _ hxm p sb fi (ramCap_of_notDev hcv (B g))).2.1 c hc
       omega
   · intro g h0 hf0
     rw [hcdt] at h0

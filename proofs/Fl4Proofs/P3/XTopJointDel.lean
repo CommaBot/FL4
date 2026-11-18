@@ -431,10 +431,10 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     have hcx0 : capV (L.mem s) x = .Untyped p' sb fi false := by rw [← hoth2 x hxs e]; exact hcx
     have hxm : x ∈ Z.G.chains.flatten :=
       (J.xtop.rel.2.1.2.2.1.members x).2 ⟨hxs, _, capAt_capV _ _, by rw [hcx0]; nofun⟩
-    obtain ⟨k1, k2⟩ := J.jcov.ks x hxm p' sb fi hcx0
+    obtain ⟨k1, k2, k3⟩ := J.jcov.ks x hxm p' sb fi hcx0
     have hks : L.ksb s2 = L.ksb s := hw.1
     have hnb : ∀ c, L.nodeBase s2 c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
-    exact ⟨by rw [hks]; exact k1, fun c hc => by rw [hnb]; exact k2 c hc⟩
+    exact ⟨by rw [hks]; exact k1, fun c hc => by rw [hnb]; exact k2 c hc, by rw [hks]; exact k3⟩
   have hjc := J.jcov.step hunc (fun q' _ hd => J.deadP_slot hX2 hcn2 (KeepC.t hkc) hw hd) hks2
     (J.jcov.idleOut.keep hidl (J.utFrom hM2 hUK))
   have horig : ∀ sl', (setCnodeSlot (emptySlotCdtState σ (q.bv, idx)) q.bv idx.length cs idx .nullCap).isOriginalCap sl' = true →

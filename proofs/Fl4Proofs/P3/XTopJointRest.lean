@@ -1078,7 +1078,7 @@ theorem jowes_sched {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S
       fun k0 v0 => by simpa only [hna] using U.pp k0 v0, fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g),
       fun g => by rw [hK.arch]; exact U.gReg (B g)⟩
     · have hapart := J.jcov.ks _ hxm p sb fi (ramCap_of_notDev hcv (B g))
-      have hnd := hapart.2 Z.c hcZ
+      have hnd := hapart.2.1 Z.c hcZ
       rw [hw.mem_eq hal fun hb => ?_]
       · exact U.zero (B g) w hal h1 h2
       rcases schW_val hcq.tcbs hkf hb with ⟨y, hy, e⟩ | ⟨g1, g2⟩ | ⟨g1, g2, -⟩
