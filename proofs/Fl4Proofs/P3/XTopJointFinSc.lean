@@ -15,13 +15,14 @@ clears `REFILL_MAX` and `SPORADIC`; it never writes the current-SC word.
 
 Named premises:
 
-* `JScCapHyp` [J]: an SC cap in a slot names an SC of P1's heap of the
-  cap's size (l4v `valid_cap`'s `obj_bits`, P1's `CapTyped` lacks SC caps),
-  whose bound thread, if any, is neither the scheduler action nor the idle
-  thread (P1's `fin_cap_sc` preconditions; l4v `valid_sched_action`,
-  `valid_global_refs`; the CSpace side's `JState.sc`/`JState.act`), an SC
-  of the spec's heap other than the idle SC (JProducers' `ScCapJ`: l4v
-  `valid_cap`, `valid_global_refs`).
+* `JScCapHyp` [J]: an SC cap in a slot names an SC of the spec of the
+  cap's size (l4v `valid_cap`'s `obj_bits`), not the idle SC (l4v
+  `valid_global_refs`), whose bound thread, if any, is not the scheduler's
+  switch target (l4v `valid_sched_action`; P1's `fin_cap_sc` precondition,
+  as `JThreadFinHyps.obj` for a thread cap). The rest is derived
+  (`JAtZ.scCapFacts`): the SC is P1's heap's of the cap's size (`JPlaced.sc`,
+  the pointer non-null by `CapValid`), one of `Z.C` (`ObjCover`), its bound
+  thread not the idle thread (`scBack_of`, `IdleOK`).
 * `JScCurHyp` [J]: a final SC cap's SC is not the current SC word. **Not an
   l4v invariant**: it is false exactly when the deleted cap is the last cap
   to `ksCurSC`, i.e. (under `CurInv`) the invoking thread deletes or
@@ -65,16 +66,65 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
-/-- **Hypothesis: an SC cap's object at `J`** [J] (module docstring). -/
+/-- **Hypothesis: an SC cap's object at `J`** [J] (module docstring): the
+spec's SC of the cap's size (l4v `valid_cap`'s `obj_bits`), not the idle SC
+(l4v `valid_global_refs`), whose bound thread is not the scheduler's switch
+target (l4v `valid_sched_action`, as `JThreadFinHyps.obj`). The rest of what
+the finalisation reads of the SC is `JAtZ.scCapFacts`. -/
 def JScCapHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
     ∀ (sl : Fl4Spec.CslotPtr) (p sb : U64), AbsSlot Z.th sl →
       capAt (L.mem s) (cslotAddr sl) = ok (.SchedContext p sb) →
-      H p = some (.sc sb.val) ∧
+      (∃ y n, σ.kheap p.bv = some (.schedContext y n) ∧ n + Fl4Spec.minSchedContextBits = sb.val) ∧
+      p.bv ≠ Fl4Spec.idleScPtr ∧
+      ∀ y n t, σ.kheap p.bv = some (.schedContext y n) → y.scTcb = some t →
+        ∀ u, σ.schedulerAction = .switchThread u → u ≠ t
+
+/-- **What the finalisation reads of an SC cap's SC, from `JAtZ` and
+`JScCapHyp`**: the SC is `H`'s of the cap's size (`JPlaced.sc`, the cap's
+pointer non-null by `CapValid`) and one of `Z.C` (`ObjCover`); its bound
+thread (one of `Z.T`, an SC's thread holding it: `scBack_of`) is not the
+idle thread (`IdleOK`: the idle thread holds the idle SC) and, by the
+switch-target clause, not the action word (`JAtZ.words_of_spec`). -/
+theorem JAtZ.scCapFacts {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr} {p sb : U64}
+    (hA : AbsSlot Z.th sl) (hc : capAt (L.mem s) (cslotAddr sl) = ok (.SchedContext p sb))
+    (hC : (∃ y n, σ.kheap p.bv = some (.schedContext y n) ∧ n + Fl4Spec.minSchedContextBits = sb.val) ∧
+      p.bv ≠ Fl4Spec.idleScPtr ∧
+      ∀ y n t, σ.kheap p.bv = some (.schedContext y n) → y.scTcb = some t →
+        ∀ u, σ.schedulerAction = .switchThread u → u ≠ t) :
+    H p = some (.sc sb.val) ∧ p ∈ Z.C ∧ p ≠ 0#u64 ∧
       (L.mem s (P1.scTcbA p) ≠ 0#u64 → L.actionW s ≠ L.mem s (P1.scTcbA p)) ∧
       (L.mem s (P1.scTcbA p) ≠ 0#u64 → L.idleW s ≠ L.mem s (P1.scTcbA p)) ∧
-      (∃ y n, σ.kheap p.bv = some (.schedContext y n)) ∧ p.bv ≠ Fl4Spec.idleScPtr
+      (∃ y n, σ.kheap p.bv = some (.schedContext y n)) ∧ p.bv ≠ Fl4Spec.idleScPtr := by
+  obtain ⟨⟨y, n, hk, hn⟩, hpi, hsa⟩ := hC
+  have hp0 : p ≠ 0#u64 := J.xtop.rel.2.1.2.1.abs hA hc
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  have hHp : H p = some (.sc sb.val) := by rw [← hn]; exact (hJ.sc p y n hp0 hk).2
+  have hpC : p ∈ Z.C := by
+    obtain ⟨q, hq, hqp⟩ := J.obj.sc _ y n hk
+    rw [← P1.eq_of_bv hqp]; exact hq
+  have hpS : p ∈ P1.Heap.scs H := ⟨_, hHp⟩
+  have hw : L.mem s (P1.scTcbA p) ≠ 0#u64 →
+      L.actionW s ≠ L.mem s (P1.scTcbA p) ∧ L.idleW s ≠ L.mem s (P1.scTcbA p) := by
+    intro h0
+    obtain ⟨Q, R, hc', hs⟩ := J.xtop.fin.1.1.1.lists
+    obtain ⟨y', n', hk', hx⟩ := hs.scs p hpC
+    rw [hk] at hk'; cases hk'
+    have hf : y.scTcb = some (L.mem s (P1.scTcbA p)).bv := by
+      rw [hx.tcb, ← scTcbA_eq, Notif.optRef_ne h0]
+    obtain ⟨u, huT, hu, x, hkx, hxs⟩ := scBack_of J.xtop.fin.1.1.1 J.blk.2.2.1 J.tcbs_eq.1.symm hpC hpS hp0 hk hf
+    have hu' : u = L.mem s (P1.scTcbA p) := P1.eq_of_bv hu
+    subst hu'
+    refine J.words_of_spec huT (hsa y n _ hk hf) fun e => ?_
+    obtain ⟨xi, hki, hsci, -⟩ := J.act.2
+    rw [← e, hkx] at hki
+    cases hki
+    rw [hxs] at hsci
+    exact hpi (Option.some.inj hsci)
+  exact ⟨hHp, hpC, hp0, fun h => (hw h).1, fun h => (hw h).2, ⟨y, n, hk⟩, hpi⟩
 
 /-- **Hypothesis: a final SC cap's SC is not the current SC** [J] (module
 docstring: not an l4v invariant, a gap of `JKern`'s current SC). -/
@@ -266,13 +316,10 @@ theorem jScFin_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (hT : P0.Ar
     (hY : JYieldToHyp (L := L) arI AR th) (hC : JScCapHyp (L := L) arI AR th) :
     JScFinHyp (L := L) arI AR th := by
   intro Z H Cs Ac Lst D s a σ hth J sl p sb hA hc _ hcur
-  obtain ⟨hHp, hna, hidle, ⟨y0, n0, hk0⟩, hpi⟩ := hC Z H Cs Ac Lst D s a σ hth J sl p sb hA hc
+  have hC' := hC Z H Cs Ac Lst D s a σ hth J sl p sb hA hc
   subst hth
-  have hpC : p ∈ Z.C := by
-    obtain ⟨q, hq, hqp⟩ := J.obj.sc _ y0 n0 hk0
-    rw [← P1.eq_of_bv hqp]; exact hq
+  obtain ⟨hHp, hpC, hp0, hna, hidle, -, hpi⟩ := JAtZ.scCapFacts arI J hA hc hC'
   have hpS : p ∈ P1.Heap.scs H := ⟨_, hHp⟩
-  have hp0 : p ≠ 0#u64 := fun e => by rw [e, J.kern.h0] at hHp; cases hHp
   refine WP.spec_mono (WP.spec_and (JAtZ.finScJ arI hT hY J hpC hp0 hpi hcur hpS hna hidle)
     (P1.fin_cap_sc.slots (ar := arI) hT s a p sb true false J.blk hpS hp0 hna hidle)) ?_
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨σ1, hm1, V1, Ac1, Lst1, D1, J1⟩, e, -, f, hW1⟩
