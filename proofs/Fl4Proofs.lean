@@ -416,6 +416,9 @@ import Fl4Proofs.P3.XTopJointPost
 import Fl4Proofs.P3.XTopJointCnDel
 import Fl4Proofs.P3.IpcSignalBoundFr
 import Fl4Proofs.P3.IpcSignalBoundSpec
+import Fl4Proofs.P3.IpcCancelFr
+import Fl4Proofs.P3.IpcCancelF
+import Fl4Proofs.P3.XTopJointCancel
 import Fl4Proofs.P3.IpcSignalBound
 import Fl4Proofs.P3.ScSignalBoundJ
 import Fl4Proofs.P3.XTopJointEmpty
