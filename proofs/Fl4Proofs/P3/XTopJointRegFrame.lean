@@ -27,8 +27,9 @@ open Fl4Spec Classical
 noncomputable section
 
 /-- **A quiet step** (module docstring): the scheduler's abstract fields
-kept; every object kept but TCBs changed in their saved context and yield-to
-and SCs changed in their consumed time and yield-from. -/
+kept; every object kept but TCBs changed in their saved context, yield-to
+and fault (`cancel_ipc`'s fault clear) and SCs changed in their consumed time
+and yield-from. -/
 structure QKY (σ σ' : State Unit) : Prop where
   ct : σ'.curThread = σ.curThread
   csc : σ'.curSc = σ.curSc
@@ -42,7 +43,7 @@ structure QKY (σ σ' : State Unit) : Prop where
   arch : σ'.archState = σ.archState
   kh : ∀ p, σ'.kheap p = σ.kheap p ∨
     (∃ x y, σ.kheap p = some (.tcb x) ∧ σ'.kheap p = some (.tcb y) ∧
-      y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo }) ∨
+      y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault }) ∨
     (∃ z w n, σ.kheap p = some (.schedContext z n) ∧ σ'.kheap p = some (.schedContext w n) ∧
       w = { z with scConsumed := w.scConsumed, scYieldFrom := w.scYieldFrom })
 
@@ -50,7 +51,7 @@ structure QKY (σ σ' : State Unit) : Prop where
 theorem QKY.upd2 {σ : State Unit} {p t : ObjRef} {z w : SchedContext} {n : Nat} {x x' : Tcb}
     (hkp : σ.kheap p = some (.schedContext z n)) (hkt : σ.kheap t = some (.tcb x))
     (hw : w = { z with scConsumed := w.scConsumed, scYieldFrom := w.scYieldFrom })
-    (hx : x' = { x with tcbArch := x'.tcbArch, tcbYieldTo := x'.tcbYieldTo }) :
+    (hx : x' = { x with tcbArch := x'.tcbArch, tcbYieldTo := x'.tcbYieldTo, tcbFault := x'.tcbFault }) :
     QKY σ (updK (updSc σ p w n) t (.tcb x')) := by
   have hpt : p ≠ t := by rintro rfl; rw [hkp] at hkt; cases hkt
   refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q => ?_⟩
@@ -65,14 +66,14 @@ variable {σ σ' : State Unit} (h : QKY σ σ')
 include h
 
 theorem QKY.tcb {p : ObjRef} {x : Tcb} (hk : σ.kheap p = some (.tcb x)) :
-    ∃ y, σ'.kheap p = some (.tcb y) ∧ y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo } := by
+    ∃ y, σ'.kheap p = some (.tcb y) ∧ y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault } := by
   rcases h.kh p with e | ⟨a, b, ha, hb, e⟩ | ⟨z, w, n, ha, -, -⟩
   · exact ⟨x, e.trans hk, rfl⟩
   · rw [hk] at ha; cases ha; exact ⟨b, hb, e⟩
   · rw [hk] at ha; cases ha
 
 theorem QKY.tcb_back {p : ObjRef} {y : Tcb} (hk : σ'.kheap p = some (.tcb y)) :
-    ∃ x, σ.kheap p = some (.tcb x) ∧ y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo } := by
+    ∃ x, σ.kheap p = some (.tcb x) ∧ y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault } := by
   rcases h.kh p with e | ⟨a, b, ha, hb, e⟩ | ⟨z, w, n, -, hb, -⟩
   · exact ⟨y, by rw [← e]; exact hk, rfl⟩
   · rw [hk] at hb; cases hb; exact ⟨a, ha, e⟩
@@ -298,14 +299,19 @@ words. -/
 def RegCW (T C : Set U64) (b : U64) : Prop :=
   (∃ y ∈ T, y.val + 256 ≤ b.val ∧ b.val < y.val + 448) ∨ ∃ q ∈ C, b = scW q 8#u64
 
+/-- `RegCW` with the TCBs' fault words (offset 3376, `cancel_ipc`'s
+`clear_fault`). -/
+def RegFW (T C : Set U64) (b : U64) : Prop := RegCW T C b ∨ ∃ y ∈ T, b.val = y.val + 3376
+
 set_option maxHeartbeats 8000000 in
 /-- **`JAtZ` across a register step** (module docstring): FL4 writing TCB
-registers and SCs' consumed words, the spec a quiet step keeping the yield
-fields (`YKeep`), `Inv` after given (`Inv.scFields`, `ArchStep.inv`). -/
-theorem JAtZ.reg_frame (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+registers and fault words and SCs' consumed words, the spec a quiet step
+keeping the yield fields (`YKeep`), `Inv` after given (`Inv.scFields`,
+`ArchStep.inv`). -/
+theorem JAtZ.reg_frameF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
     {Ac' : Set U64}
     (hI3 : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ')
-    (hw : P1.WritesIn st s s' (RegCW Z.T Z.C)) (hA : QKY σ σ') (hyk : YKeep σ σ') (hInv : Inv σ')
+    (hw : P1.WritesIn st s s' (RegFW Z.T Z.C)) (hA : QKY σ σ') (hyk : YKeep σ σ') (hInv : Inv σ')
     (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s')
     (hfoot : P1.WritesIn st s s' (P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H)
@@ -316,16 +322,18 @@ theorem JAtZ.reg_frame (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S
   have hS := J.xtop.fin.1.1.1
   obtain ⟨Q, R0, hc, hs⟩ := hS.lists
   have hF : IFrame (L := L) Z.th s s' := IRel.iframe_of hI hw fun b hb => by
-    rcases hb with hb | ⟨q, hq, rfl⟩
+    rcases hb with (hb | ⟨q, hq, rfl⟩) | ⟨y, hy, hb⟩
     · obtain ⟨y, hy, h1, h2⟩ := hb
       exact Or.inr (Or.inr (Or.inl ⟨y, hy, h1, by omega⟩))
     · obtain ⟨x0, n0, hk0, hx0⟩ := hs.scs q hq
       exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl
         ⟨q, hq, x0, n0, hk0, hx0.in_obj (hx0.hdr (K := 8#u64) (by simp) (by simp)).2⟩))))))
+    · exact Or.inr (Or.inr (Or.inl ⟨y, hy, by omega, by omega⟩))
   have hwF : P1.WritesIn st s s' (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ) := hw.mono fun b hb => by
-    rcases hb with ⟨y, hy, k1, k2⟩ | ⟨q, hq, rfl⟩
+    rcases hb with (⟨y, hy, k1, k2⟩ | ⟨q, hq, rfl⟩) | ⟨y, hy, hb⟩
     · exact Or.inr ⟨y, hy, b.val - y.val, by omega, by omega, by omega, by omega, by omega, by omega⟩
     · exact Or.inl (KFoot.of_sw (sw_hdr hS hq (K := 8#u64) (by simp) (by simp) (by decide)))
+    · exact Or.inr ⟨y, hy, 3376, by omega, by omega, by omega, by omega, by omega, hb⟩
   have hck : Fl4Proofs.P3.CKeep σ σ' := hA.ckeepP
   have hAR : AR a σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2
   obtain ⟨V', hX3⟩ := XTopAt.irel_same J.xtop hI3 hAR hF.1 hck.cdt hck.orig hck.ks hF.2
@@ -353,6 +361,18 @@ theorem JAtZ.reg_frame (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S
   have hC0 := JCs.same J hF.1 hA.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   exact ⟨V', J.cs_frameV hks hX3 hA.kback hC R⟩
+
+/-- **`JAtZ` across a register step** (`reg_frameF` without fault words). -/
+theorem JAtZ.reg_frame (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+    {Ac' : Set U64}
+    (hI3 : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ')
+    (hw : P1.WritesIn st s s' (RegCW Z.T Z.C)) (hA : QKY σ σ') (hyk : YKeep σ σ') (hInv : Inv σ')
+    (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s')
+    (hfoot : P1.WritesIn st s s' (P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H)
+      (P1.Heap.scBits H) ∅ s)) :
+    ∃ V', JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst D s' a σ' :=
+  J.reg_frameF hI3 (hw.mono fun _ h => Or.inl h) hA hyk hInv hblk hfoot
 
 end
 
