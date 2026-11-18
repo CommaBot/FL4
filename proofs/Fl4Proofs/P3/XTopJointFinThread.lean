@@ -47,8 +47,8 @@ The finalised thread's slot is ready after (`JAtZ.tcb_ready`, as
 `JAtZ.ep_ready`: the TCB the only object of `H` in the cap's range, dead by
 P1's `fin_cap_thread.dead`).
 
-`JThreadFinHyps`: [J] `obj` (its VCPU word zero, native threads; ScPlace's
-`JState`); [J] `idle` (no slot holds a thread cap to the idle thread, l4v
+`JThreadFinHyps`: [scope] `obj` (its VCPU word zero, native threads; VT-x
+outside the semantic scope, DESIGN §5, as `JVtHyps`); [J] `idle` (no slot holds a thread cap to the idle thread, l4v
 `valid_global_refs` for threads); [J] `utTcb` (core 0's
 debug-list successor of the head covered by a cap, l4v
 `if_live_then_nonz_cap` for FL4's debug list); [P] `ticks`. The FPU
@@ -90,8 +90,11 @@ abbrev JTP (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set
 /-- **The steps of a thread's finalisation at `J` not proved here** (module
 docstring), each at every `JAtZ` state of the typed heap `th`. -/
 structure JThreadFinHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
-  /-- [J] What P1's thread finalisation reads of a thread cap's thread that
-  `JAtZ` lacks (ScPlace's `JState`): its VCPU word zero (native threads). -/
+  /-- [scope] The thread is native: its VCPU word zero (ScPlace's `JState.vcpu`).
+  A scope premise like `JVtHyps` (VT-x outside the semantic scope, DESIGN §5:
+  the spec has no TCB–VCPU binding, and FL4's `vcpu::detach` of a bound
+  thread, with its VM-exit report, has no spec counterpart); no l4v
+  invariant. -/
   obj : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
     ∀ (x p : U64), IsSlot Z.th x → capV (L.mem s) x = .Thread p →
