@@ -56,6 +56,11 @@ some of them proved here.
   from `ArchRefines` [P], `JVsCapsHyp` [J] (l4v `valid_cap`) and
   `JVsApartHyp` [J] (the VSpace frames and the ASID table apart from `H`'s
   objects, the nodes and the untyped free parts), `JDelParts` fields.
+* A final SC cap's finalisation (`jFinAt_sc`): XTopJointFinSc's
+  `JScFinHyp` [J] (the finalisation at `J`, undone work), the SC dead after
+  (P1's `fin_cap_sc.dead`, `JAtZ.sc_ready`), the current SC kept (P1's
+  `fin_sc.curR`); with `JScCapHyp` [J] and `JScCurHyp` [J] (not an l4v
+  invariant: `JKern`'s current SC must stay covered).
 * The empty of a ready slot (`emptyHypJ`): a CNode slot by `emptyJR`, a TCB
   slot by `emptyJRT` (a step changing the TCB's caps only, `KeepCT`), both
   with `JEmptyUtHyp`.
@@ -70,6 +75,7 @@ import Fl4Proofs.P3.XTopJointFinEp
 import Fl4Proofs.P3.XTopJointFinReply
 import Fl4Proofs.P3.XTopJointFinVs
 import Fl4Proofs.P3.XTopJointFinFrIo
+import Fl4Proofs.P3.XTopJointFinSc
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -275,6 +281,8 @@ directory, PDPT, PML4 or ASID pool cap. -/
 def VsK (c : capability.Cap) : Prop :=
   (∃ p m a v, c = .PageTable p m a v) ∨ (∃ p m a v, c = .PageDirectory p m a v) ∨
     (∃ p m a v, c = .Pdpt p m a v) ∨ (∃ p m a, c = .Pml4 p m a) ∨ ∃ p b, c = .AsidPool p b
+/-- A scheduling-context cap. -/
+def ScK (c : capability.Cap) : Prop := ∃ p sb, c = .SchedContext p sb
 
 /-- **Hypothesis: `reply_remove` at `J`** [J] (the reply cap's finalisation
 of a thread blocked on the reply; the receiver's case is proved,
@@ -298,7 +306,7 @@ def JReplyRemoveHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
 
 /-- **The named steps of the deletion at `J`** (module docstring). -/
 structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
-  fin : JFinAtF (L := L) arI AR th (fun c => ¬ NtfnK c ∧ ¬ FrIoK c ∧ ¬ IrqK c ∧ ¬ EpK c ∧ ¬ RpK c ∧ ¬ VsK c)
+  fin : JFinAtF (L := L) arI AR th (fun c => ¬ NtfnK c ∧ ¬ FrIoK c ∧ ¬ IrqK c ∧ ¬ EpK c ∧ ¬ RpK c ∧ ¬ VsK c ∧ ¬ ScK c)
   irq : JIrqSlotHyp (L := L) arI AR th
   /-- ScSignalBoundJ's `RecvReplyHyp` [J] (l4v `valid_replies`), at every
   `P1.Heap` and set of cores: a final endpoint cap's finalisation frees the
@@ -317,6 +325,11 @@ structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   frMap : JFrMapHyp (L := L) arI AR th
   frVt : JFrVtHyp (L := L) arI AR th
   frApart : JFrameApartHyp (L := L) arI AR th
+  /-- A final SC cap's finalisation at `J` (XTopJointFinSc: `JScFinHyp`,
+  undone work; `JScCapHyp`; `JScCurHyp`, not an l4v invariant). -/
+  scFin : JScFinHyp (L := L) arI AR th
+  scCap : JScCapHyp (L := L) arI AR th
+  scCur : JScCurHyp (L := L) arI AR th
   triv : JRdTrivHyp (L := L) arI AR th
   zomb : JZombieHyp (L := L) arI AR th
   swap : JSwapHyp (L := L) arI AR th
@@ -703,6 +716,37 @@ theorem jFinAt_frio (hM : JFrMapHyp (L := L) arI AR th) (hV : JFrVtHyp (L := L) 
   have h := hAp Z H Cs kb hth s a σ G hW _ hA.isSlot (by rw [hcv]; exact hf)
   rw [hcv] at h
   exact h
+/-- **A final SC cap's finalisation at `J`** (`JScFinHyp` [J], the SC dead
+after by P1's `fin_cap_sc.dead`, the current SC kept by `fin_sc.curR`,
+`JAtZ.sc_ready`), from `JScCapHyp` [J] and `JScCurHyp` [J]. -/
+theorem jFinAt_sc (hT : P0.ArchTotal arI) (hF : JScFinHyp (L := L) arI AR th) (hC : JScCapHyp (L := L) arI AR th)
+    (hCur : JScCurHyp (L := L) arI AR th) : JFinAtF (L := L) arI AR th ScK := by
+  intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨p, sb, hce⟩ hfin
+  subst hce hth
+  obtain ⟨V, Ac, Lst, D, J, hkb⟩ := hW
+  have hcv := capV_of_capAt hc
+  obtain ⟨hHp, hna, hidle⟩ := hC (Z.mv G V) H Cs Ac Lst D s a σ rfl J sl p sb hA hc
+  have hcur := hCur (Z.mv G V) H Cs Ac Lst D s a σ rfl J sl p sb hA hc hfin
+  have hpS : p ∈ P1.Heap.scs H := ⟨_, hHp⟩
+  have hp0 : p ≠ 0#u64 := fun e => by rw [e, J.kern.h0] at hHp; cases hHp
+  have hcR : objects.finalise_cap st arI s a (.SchedContext p sb) true false ⦃ r =>
+      P1.CurR st (L.curW s) s r.2.1 ⦄ := by
+    rw [P1.fin_cap_eq_obj (by simp)]
+    exact P1.fin_sc.curR hT s a p sb (L.curW s) true J.blk hpS hp0 hna hidle J.kern.curH
+  rw [decide_eq_true hfin]
+  refine WP.spec_mono (WP.spec_and (hF (Z.mv G V) H Cs Ac Lst D s a σ rfl J sl p sb hA hc hfin hcur)
+    (WP.spec_and (P1.fin_cap_sc.dead (ar := arI) hT s a p sb false J.blk hpS hp0 hna hidle) hcR)) ?_
+  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨e1, σ1, V1, Ac1, Lst1, D1, hmem1, J1, hSS1, hks1⟩, ⟨d1, d2, d3⟩, hcr⟩
+  simp only at e1 hmem1 J1 hSS1 hks1 d1 d2 d3 hcr
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj e1
+  have hdp : DeadP (L := L) H s1 p :=
+    ⟨fun h => (by rw [hHp] at h; cases h), fun h => (by rw [hHp] at h; cases h),
+      fun h => (by rw [hHp] at h; cases h), fun h => (by rw [hHp] at h; cases h), fun _ _ => ⟨d1, d2, d3⟩⟩
+  have hcv1 : capV (L.mem s1) (cslotAddr sl) = .SchedContext p sb := by
+    rw [hSS1.capV hA.isSlot, hcv]
+  exact ⟨rfl, trivial, trivial, σ1, G, hmem1, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
+    fun y hy _ => Or.inl (hSS1.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS1,
+    ⟨V1, Ac1, Lst1, D1, J1, hks1.trans hkb⟩, JAtZ.sc_ready arI J1 hcv1 hHp hdp (by rw [hcr.2.1]; exact hcur)⟩
 
 theorem okey_of_finObj {c : capability.Cap} (hk : FinObjKind c) : okey c ≠ none := by
   cases c <;> simp_all [FinObjKind, okey]
@@ -776,7 +820,9 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
     · exact jFinAt_reply arI hT h.recvRep h.replyRm Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hr hfin
     by_cases hvs : VsK c
     · exact jFinAt_vs arI h.archRef h.vsCaps h.vsApart Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hvs hfin
-    · exact h.fin Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨hn, hfi, hq, he, hr, hvs⟩ hfin
+    by_cases hsc : ScK c
+    · exact jFinAt_sc arI hT h.scFin h.scCap h.scCur Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hsc hfin
+    · exact h.fin Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨hn, hfi, hq, he, hr, hvs, hsc⟩ hfin
   · exact jFin_nonfinal arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi hfin
 
 /-- The trivially finalised caps but untyped ones are not physical. -/
