@@ -326,6 +326,17 @@ abbrev JCapOpen (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (ar : A) (σ : Fl4Spec
   XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl) c blk call don fp
     buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct
 
+/-- **A VT-x cap's decode** (VCPU, EPT) [scope]: outside the semantic scope
+(DESIGN §9: the VCPU/EPT invocation families have no functional refinement
+yet; P0 covers their extracted core), as ScSignalJ's `SignalRestJHyp`'s
+`RunningVM` case: the cap's statement at `JAt`, named. -/
+abbrev JVtxScope (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl length : U64)
+    (c : capability.Cap) (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
+    (slbl : Fl4Spec.Data) (argsU : List U64) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) (ct : U64) : Prop :=
+  XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl) c blk call don fp
+    buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct
+
 /-- The SchedControl path: ScJointStep's `decode_invocation_sched_controlJ`
 premises. -/
 structure JSchedCPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
@@ -469,6 +480,10 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : F
   | .Domain => JDomPath (L := L) Z s lbl slbl extra excaps
   | .SchedControl cpu => JSchedCPath (L := L) arI AR Z s ar σ lbl length cpu blk call don fp buf extra slbl argsU sl
       excaps ct
+  | .Vcpu p => JVtxScope (L := L) arI AR s ar σ lbl length (.Vcpu p) blk call don fp buf extra slbl argsU ci sl excaps
+      buffer ct
+  | .Ept p l m asid va => JVtxScope (L := L) arI AR s ar σ lbl length (.Ept p l m asid va) blk call don fp buf extra
+      slbl argsU ci sl excaps buffer ct
   | c => JCapOpen (L := L) arI AR s ar σ lbl length c blk call don fp buf extra slbl argsU ci sl excaps buffer ct
 
 end
@@ -495,7 +510,8 @@ on the cap:
 | IO port | `decode_invocation_ioportJ` | `PortLabel`; a nonzero third field whole [W] |
 | IRQ control, IO port control, IRQ handler, Domain | `decode_invocation_{irq_control,ioport_control,irq_handler,domain}J` | `JIrqCPath`, `JIoCPath`, `JIrqHPath`, `JDomPath` |
 | SchedControl | `decode_invocation_sched_controlJ` | `JSchedCPath` |
-| SchedContext, Untyped, Frame, PageTable, PageDirectory, PDPT, PML4, ASID control, ASID pool, VCPU, EPT | — | `JCapOpen` [W] |
+| VCPU, EPT | — | `JVtxScope` [scope] |
+| SchedContext, Untyped, Frame, PageTable, PageDirectory, PDPT, PML4, ASID control, ASID pool | — | `JCapOpen` [W] |
 -/
 theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
