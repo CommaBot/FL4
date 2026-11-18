@@ -232,6 +232,12 @@ def EpK (c : capability.Cap) : Prop := ∃ e b x1 x2 x3 x4, c = .Endpoint e b x1
 /-- A reply cap. -/
 def RpK (c : capability.Cap) : Prop := ∃ p g, c = .Reply p g
 
+/-- A native VSpace cap finalised with work when final: a page table, page
+directory, PDPT, PML4 or ASID pool cap. -/
+def VsK (c : capability.Cap) : Prop :=
+  (∃ p m a v, c = .PageTable p m a v) ∨ (∃ p m a v, c = .PageDirectory p m a v) ∨
+    (∃ p m a v, c = .Pdpt p m a v) ∨ (∃ p m a, c = .Pml4 p m a) ∨ ∃ p b, c = .AsidPool p b
+
 /-- **Hypothesis: `reply_remove` at `J`** [J] (the reply cap's finalisation
 of a thread blocked on the reply; the receiver's case is proved,
 XTopJointFinReply): from `JAtZ`, FL4's `reply_remove` against the spec's
