@@ -25,7 +25,7 @@ spec's `callKernel`); P1 has only `handle_syscall.entry` (`EntryInv`).
 * `handle_invocation_refinesJ`: the composition.
 
 `JAtZ` is used only through the J decodes, `J.xtop`, `J.curEq` and
-`JDelParts.thr.idle`, so changes of `JAtZ`'s fields leave this module alone.
+`SpecGlob` at entry, so changes of `JAtZ`'s fields leave this module alone.
 -/
 import Fl4Proofs.P3.XTopJointTcb
 import Fl4Proofs.P3.XTopJointCnDel
@@ -237,7 +237,7 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   tot : P0.ArchTotal arI
   /-- [J]/[P] XTopJointDelR's `JDelParts`: the deletion's named steps (its
   own fields tagged there; `live` (`LiveJ` [J]), `recvRep`
-  (`RecvReplyLinksHyp` [J]) and `thr.idle` [J] are also used by the IO port
+  (`RecvReplyLinksHyp` [J]) are also used by the IO port
   and Thread decodes). -/
   delParts : JDelParts (L := L) arI AR th
   /-- [P] one domain. -/
@@ -284,6 +284,11 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
 structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) : Prop where
   /-- [J] no reschedule or switch pending at the invocation (`Entered`). -/
   ni : Entered σ
+  /-- [J] the spec's global references at the invocation (SpecGlob: the IRQ
+  node's slots null or notification caps, no cap but a frame cap naming an
+  IRQ node CNode or the idle thread; l4v `valid_irq_node`,
+  `valid_global_refs`), carried by the deletion loop. -/
+  sg : SpecGlob σ
   /-- [J] `hRd0`: at a zero consumed time the current SC's head ready (l4v
   `cur_sc_offset_ready 0`; ScEntryRd's `OffReady.rd0` from `OffReady` at
   the invocation, which `budget_ok_offReady` gives from `OffReady` at
@@ -580,7 +585,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
   case CNode p r gs g =>
     have hN : JCnodePath (L := L) Z s lbl slbl extra excaps := hN
     obtain ⟨x0, x1, hx0, hx1, hex⟩ := hN.hex
-    exact decode_invocation_cnodeJ_steps arI s ar σ J hni hG.ari hG.tot hG.delParts hG.nd hG.pp hE.rd0 hG.lay lbl
+    exact decode_invocation_cnodeJ_steps arI s ar σ J hni hG.ari hG.tot hG.delParts hE.sg hG.nd hG.pp hE.rd0 hG.lay lbl
       slbl hN.hlbl length buf ct hct argsU hlen hargs sl hAs p r gs g hsc extra x0 x1 hx0 hx1 excaps hex hE.epQ
       hE.epE blk call don fp ci buffer
   case Thread p =>
@@ -588,8 +593,15 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     by_cases hn : lbl = fl4_abi.label.TCBSetEPTRoot
     · exact hEpt hn
     obtain ⟨hlbl, hext, ⟨x0, x1, x2, hx0, hx1, hx2, hXc, hnc, hnc0, hcapC⟩, hA5, hGb, hI, hFr, hR⟩ := hN hn
-    have hpI : p ≠ L.idleW s :=
-      (hG.delParts.thr.idle Z H Cs Ac Lst D s ar σ rfl J _ p hAs.isSlot hsc).symm
+    have hpI : p ≠ L.idleW s := by
+      -- no cap but a frame cap names the idle thread (`SpecGlob.idle`)
+      intro e
+      obtain ⟨c0, ac0, hc0, hca0, hg0⟩ := J.dstate.1.1.abs_cap hAs
+      rw [capAt_capV, hsc] at hc0; cases eq_of_ok_eq hc0
+      rw [hca0.abs] at hg0
+      have ha0 := (getCap_set_iff σ sl.1 sl.2 _).1 (congrArg Prod.fst hg0)
+      apply hE.sg.idle sl.1 sl.2 _ ha0 (by simp [IsPageCap, absCap])
+      rw [JAtZ.idleThread_eq arI J, ← e]; simp [absCap, Fl4Spec.objRefs]
     exact (decode_invocation_threadJ_step arI s ar σ J hni hG.csG hG.ari hG.tot hG.actReady hG.bufT hG.ipcBufOK
       hG.bufCover hG.bufPlaced hG.flags lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl
       hAs hsc excaps buffer hext hE.stall hn hE.cw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb hI hFr
