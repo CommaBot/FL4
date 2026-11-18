@@ -242,13 +242,6 @@ theorem flushPS_top (s : S) (a : A) (σ : Fl4Spec.State Unit) (vs : Fl4Spec.ObjR
         TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a' σ' ⦄ :=
   WP.spec_mono (hA.invPS a _ asid hS.1.2.2.2.2.2.2) fun _ h => flush_of_sok (invPSCA_ok _ _) hS h
 
-/-- A paging-structure flush the spec does not have keeps the relation
-with the same spec state (CR3 stays). -/
-theorem psKeep_top (s : S) (a : A) (σ : Fl4Spec.State Unit) (asid : U64)
-    (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ) :
-    ar.invalidate_page_structures a asid ⦃ a' => TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a' σ ⦄ :=
-  WP.spec_mono (hA.invPS a _ asid hS.1.2.2.2.2.2.2) fun _ h => TopSR.cr3 hS _ h
-
 omit hA in
 theorem flushAllOK_top (σ : Fl4Spec.State Unit) (vs : Fl4Spec.ObjRef) (asid : Fl4Spec.Asid) :
     ¬ (Fl4Spec.flushAll (Z := Unit) vs asid σ).2 := (flushAll_ok vs asid σ).1

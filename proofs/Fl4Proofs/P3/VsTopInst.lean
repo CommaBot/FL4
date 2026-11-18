@@ -152,7 +152,6 @@ theorem vsPdptInnerHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spe
   pml4Stable := fun s s' a σ σ' hS hw hc => pml4Stable_top s s' a σ σ' hS hw hc
   flushAllOK := fun σ vs asid => flushAllOK_top σ vs asid
   flushAllH := fun s a σ vs asid hS => flushAllH_top hA s a σ vs asid hS
-  psKeep := fun s a σ asid hS => psKeep_top hA s a σ asid hS
 
 /-- `VsFrameUnmapHyps` for the composite relation (the restart field given). -/
 theorem vsFrameUnmapHyps_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} (hA : ArchRefines arI AR) :

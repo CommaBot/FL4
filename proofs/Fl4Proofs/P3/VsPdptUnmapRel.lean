@@ -2,10 +2,9 @@
 P3 (DESIGN.md §9), VSpace: **PDPT `Unmap` refines l4v** (VsPdUnmapRel one
 level up). FL4's `unmap_pdpt` against l4v `unmap_pdpt`: the PML4 slot is
 computed (no lookup); FL4's `invalidate_asid` is matched by an outcome of
-l4v's `flush_pdpt` (`flush_all`, `flushAllH`); FL4 then flushes the paging-
-structure cache after the store, which l4v does not (`psKeep`: the spec
-state stays). Then the zeroing of the unmapped PDPT against l4v's
-`InvalidPDPTE` stores.
+l4v's `flush_pdpt` (`flush_all`, `flushAllH`); neither flushes the paging-
+structure cache afterwards. Then the zeroing of the unmapped PDPT against
+l4v's `InvalidPDPTE` stores.
 -/
 import Fl4Proofs.P3.VsPdptUnmap
 import Fl4Proofs.P3.VsFoot
@@ -29,9 +28,6 @@ structure VsPdptInnerHyps (A : Type) (ar : machine.Arch A) (L4 : Set U64)
     ¬ (Fl4Spec.flushPdpt (Z := Unit) vs asid σ).2
   flushAllH : ∀ s a σ (vs : Fl4Spec.ObjRef) (asid : U64), SR s a σ → ar.invalidate_asid a asid ⦃ a' =>
     ∃ σ', ((), σ') ∈ (Fl4Spec.flushPdpt (Z := Unit) vs asid.bv σ).1 ∧ SR s a' σ' ⦄
-  /-- FL4's paging-structure flush after the store, which l4v's `unmap_pdpt`
-  does not have: it keeps the relation with the same spec state. -/
-  psKeep : ∀ s a σ (asid : U64), SR s a σ → ar.invalidate_page_structures a asid ⦃ a' => SR s a' σ ⦄
 
 /-- The hypotheses of the unmap. -/
 structure VsPdptUnmapHyps (A : Type) (ar : machine.Arch A) (th : TypedHeap) (P L4 L3 L2 L1 : Set U64)
@@ -235,7 +231,8 @@ theorem unmap_pdpt_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L
       obtain ⟨g, hg', -⟩ := hR.pool p hp
       have : p.bv ≠ q.bv := kheap_ne hg' hk (fun _ h1 h2 => by subst h1; cases h2)
       simp [hσs, updK, this]
-    refine WP.spec_bind (hH.psKeep s1 a1 σs asid hSs) fun a2 hS2 => ?_
+    refine WP.spec_bind (hH.flushPSKeep s1 a1 σs asid hSs) ?_
+    intro a2 hS2
     refine (WP.spec_ok _).2 ⟨?_, ?_, σs, ?_, ⟨hS2, hSts, hSVs, hRs, hPts⟩, L.ksb_wr _ _ _⟩
     · rw [hun]
       refine nd_nofail_bind (hH.flushAllOK σ q.bv asid.bv) (fun y hy => ?_)
@@ -412,9 +409,7 @@ theorem pdpt_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L
         flushAllOK := hH.flushAllOK
         flushAllH := fun s' a' σ' vs asid ⟨h1, h2, h3⟩ => WP.spec_mono (hH.flushAllH s' a' σ' vs asid h1)
           (fun a'' ⟨σ'', hm, hS''⟩ => ⟨σ'', hm, hS'', h2, h3.trans (by
-            obtain ⟨ms, rfl⟩ := doMachineOp_mem hm; exact KFoot.ms _ ms)⟩)
-        psKeep := fun s' a' σ' asid ⟨h1, h2, h3⟩ => WP.spec_mono (hH.psKeep s' a' σ' asid h1)
-          (fun _ hS'' => ⟨hS'', h2, h3⟩) }
+            obtain ⟨ms, rfl⟩ := doMachineOp_mem hm; exact KFoot.ms _ ms)⟩) }
     have hU1 : UR st th P L4 L3 L2 L1 SR' s1 a σ1 := ⟨⟨hS1, SlotFoot.refl _ _, KFoot.refl _⟩, hSt1, hSV1, hR1, hPt1⟩
     refine WP.spec_bind (Pₘ := fun p => ∃ σu, ((), σu) ∈ (Fl4Spec.unmapPdpt (Z := Unit) asid0.bv va0.bv ptr.bv σ1).1 ∧
         ¬ (Fl4Spec.unmapPdpt (Z := Unit) asid0.bv va0.bv ptr.bv σ1).2 ∧
