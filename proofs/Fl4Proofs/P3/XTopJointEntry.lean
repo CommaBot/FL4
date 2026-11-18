@@ -411,12 +411,9 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : F
         let (s2, a1) ← endpoint.send_ipc st arI s1 ar blk call b g gr don ct p
         ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a1))
         (Fl4Spec.sendIpc (Z := Unit) blk call b.bv g gr don σ1.curThread p.bv σ1)
-  | .Reply p g => ∀ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
-      XLeaf (L := L) (JAt (L := L) arI AR) s ar σ (do
-        let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
-        let (s2, a1) ← ipc.do_reply_transfer st arI s1 ar ct p g
-        ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a1))
-        (Fl4Spec.doReplyTransfer (Z := Unit) σ1.curThread p.bv g σ1)
+  | .Reply p g => ∀ s1 σ1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+      Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
+      JReplyRestHyp (L := L) arI AR s1 ar σ1 ct p g
   | .CNode .. => JCnodePath (L := L) Z s lbl slbl extra excaps
   | .Thread p =>
       (lbl = fl4_abi.label.TCBSetEPTRoot →
@@ -451,7 +448,8 @@ on the cap:
 |---|---|---|
 | Null, Zombie | the decode fails, the state unchanged | — |
 | Notification | `decode_notificationDMX`, `notifLeafJ` | — (`SignalRestJHyp` [J] in `JEntryGlob`) |
-| Endpoint, Reply | `decode_{endpoint,reply}DMX` | the leaf (`send_ipc`, `do_reply_transfer`) at `JAt` [W] |
+| Reply | `decode_replyDMX`, `replyLeafJ` | `JReplyRestHyp` (the rest after `reply_remove`) [W] |
+| Endpoint | `decode_endpointDMX` | the leaf (`send_ipc`) at `JAt` [W] |
 | CNode | `decode_invocation_cnodeJ_steps` | `JCnodePath` (front end) |
 | Thread | `decode_invocation_threadJ_step` | `JThreadPath` (incl. `JPostHyp` at `TcbJOpen`); SetEPTRoot whole [W] |
 | IO port | `decode_invocation_ioportJ` | `PortLabel`; a nonzero third field whole [W] |
@@ -499,7 +497,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
         hG.pp.minBudget J hni hct hAs hc hst hX0)) hPre
   case Reply p g =>
     exact XCap.toP arI (Or.inl (decode_replyDMX arI _ s ar σ lbl length _ p g blk call don fp buf extra slbl _ ci sl
-      excaps buffer ct hct hst (hN σ1 hst hX0))) hPre
+      excaps buffer ct hct hst (replyLeafJ hG.tot J hni hct hAs hc hst hN hX0))) hPre
   case CNode p r gs g =>
     have hN : JCnodePath (L := L) Z s lbl slbl extra excaps := hN
     obtain ⟨x0, x1, hx0, hx1, hex⟩ := hN.hex
