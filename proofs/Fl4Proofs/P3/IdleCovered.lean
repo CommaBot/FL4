@@ -30,7 +30,7 @@ theorem JCovD.idle_uncovered (s : S) (Cs : Set U64) :
   refine ⟨⟨fun q k hq => by simp at hq, fun q k hq => ?_, fun _ h => h.elim,
     fun x hx => by simp at hx, fun x hx => by simp at hx⟩, ?_⟩
   · by_cases e : q = L.idleW s
-    · exact Or.inr (Or.inr (Or.inl e))
+    · exact Or.inr (Or.inr (Or.inl (Or.inl e)))
     · simp only [e, if_false] at hq; cases hq
   · rintro ⟨y, hy, -⟩
     simp at hy

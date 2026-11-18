@@ -135,7 +135,7 @@ theorem JAtZ.sc_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     by rw [ecw]; exact K.curT, by rw [hcpu, hna]; exact K.act, by rw [hna]; exact K.dwAl,
     by rw [hna]; exact K.dwObj, by rw [hna, hna, hcpu, ecw]; exact K.dwNe, ?_,
     ⟨pt, by rw [hK.arch]; exact hK.archObj hpt⟩, by rw [hK.arch]; exact K.ga, by rw [hK.arch]; exact K.gf,
-    K.heap, K.h0, by rw [hks]; exact K.hks, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
+    K.heap, K.h0, by rw [hks]; exact K.hks, by rw [hks]; exact K.hksIn, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
     K.csLt, K.cs0⟩
@@ -187,13 +187,13 @@ theorem JAtZ.sc_jcov {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     · by_cases h : q ∈ D'
       · exact Or.inr (Or.inl h)
       · exact Or.inl ((hcov q hd h).1 k hq)
-    · exact Or.inr (Or.inr ((Sched.idleAt_of hidl).2 hi))
+    · exact Or.inr (Or.inr ((Sched.exAt_of hidl hks).2 hi))
   · rcases JC.h q k hq with hc | hd | hi
     · exact Or.inl (Sched.covered_keep hc hk)
     · by_cases h : q ∈ D'
       · exact Or.inr (Or.inl h)
       · exact Or.inl ((hcov q hd h).2 k hq)
-    · exact Or.inr (Or.inr ((Sched.idleAt_of hidl).2 hi))
+    · exact Or.inr (Or.inr ((Sched.exAt_of hidl hks).2 hi))
 
 set_option maxHeartbeats 1000000 in
 /-- **The untyped caps' facts after an SC step**: the caps kept (slots

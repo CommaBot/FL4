@@ -100,6 +100,28 @@ of affinity `Z.c` (`SchedCore.aff`), and the spec's idle SC is the one at
 `idle_sc_ptr`. -/
 def IdleAt (s : S) (q : U64) : Prop := q = L.idleW s ∨ q.bv = Fl4Spec.idleScPtr
 
+/-- **An object inside the kernel-state block** (`[lo, hi)` within
+`[ksb, ksb + 13568)`): the IRQ node's one-slot CNodes (`IntLayout.node`)
+and the rest of the block, which `H` holds as `other` objects (P1's
+`SgOK.ksΩ` puts every block word in `Ω = Heap.omega H`). No cap names
+them (l4v `valid_global_refs`: the IRQ node and the kernel's globals are
+global references), so `JCov` exempts them from its cover, as `IdleAt`. -/
+def KsIn (s : S) (lo hi : Nat) : Prop := (L.ksb s).val ≤ lo ∧ hi ≤ (L.ksb s).val + 13568
+
+/-- **The objects at `q` lie inside the kernel-state block** (`KsIn`, of
+`th`'s and of `H`'s object there). -/
+def KsObj (th : TypedHeap) (H : Heap) (s : S) (q : U64) : Prop :=
+  (∀ k, th q = some k → KsIn (L := L) s q.val (q.val + max (objSize k) 1)) ∧
+  (∀ k, H q = some k → KsIn (L := L) s q.val (q.val + 2 ^ k.bits))
+
+/-- **An object `JCov` exempts from its cover**: an idle object (`IdleAt`)
+or one inside the kernel-state block (`KsObj`). -/
+def ExAt (th : TypedHeap) (H : Heap) (s : S) (q : U64) : Prop := IdleAt (L := L) s q ∨ KsObj (L := L) th H s q
+
+theorem exAt_of {th : TypedHeap} {H : Heap} {s s' : S} (hidl : L.idleW s' = L.idleW s) (hks : L.ksb s' = L.ksb s)
+    {q : U64} : ExAt (L := L) th H s' q ↔ ExAt (L := L) th H s q := by
+  unfold ExAt IdleAt KsObj KsIn; rw [hidl, hks]
+
 /-- **The idle objects lie outside every RAM untyped region** (l4v
 `valid_global_refs` for untyped caps: no cap's range holds a global
 object): the idle address is outside each non-device untyped cap's region,
@@ -152,12 +174,12 @@ theorem UtKsApart.keep {G G' : MdbGhost} {Cs : Set U64} {s s' : S} (h : UtKsApar
   obtain ⟨h1, h2⟩ := h y hy p sb fi' hc'
   exact ⟨by rw [hks]; exact h1, fun c hc => by rw [hnb]; exact h2 c hc⟩
 
-/-- **Every object is covered by a cap, or is an idle object** (`IdleAt`),
-the idle objects outside the RAM untyped regions, and the RAM untyped caps
+/-- **Every object is covered by a cap, or is exempt** (`ExAt`: an idle
+object, `IdleAt`, or one inside the kernel-state block, `KsObj`), the idle objects outside the RAM untyped regions, and the RAM untyped caps
 miss the kernel-state block and the core nodes (module docstring). -/
 structure JCov (thp : TypedHeap) (H : Heap) (G : MdbGhost) (Cs : Set U64) (s : S) : Prop where
-  th : ∀ q k, thp q = some k → Covered (L.mem s) G q.val (q.val + max (objSize k) 1) ∨ IdleAt (L := L) s q
-  h : ∀ q k, H q = some k → Covered (L.mem s) G q.val (q.val + 2 ^ k.bits) ∨ IdleAt (L := L) s q
+  th : ∀ q k, thp q = some k → Covered (L.mem s) G q.val (q.val + max (objSize k) 1) ∨ ExAt (L := L) thp H s q
+  h : ∀ q k, H q = some k → Covered (L.mem s) G q.val (q.val + 2 ^ k.bits) ∨ ExAt (L := L) thp H s q
   ks : UtKsApart (L := L) G Cs s
   idleOut : IdleOut (L := L) thp H G s
 
@@ -176,10 +198,13 @@ theorem restrictTh_childless (hJ : JCov (L := L) th H G Cs s) (hU : UtInv (L.mem
     cases hk : th q with
     | none => rfl
     | some k =>
-      rcases hJ.th q k hk with hc | hi
+      rcases hJ.th q k hk with hc | hi | hi
       · have := ut_free hU hI hx hcx hnd (by omega) hc
         omega
       · have := (hJ.idleOut x hx p sb fi hcx q hi).2.1 k hk
+        omega
+      · obtain ⟨k1, k2⟩ := hi.1 k hk
+        have := (hJ.ks x hx p sb fi hcx).1
         omega
   · rfl
 
@@ -209,9 +234,12 @@ theorem oobj_childless (hJ : JCov (L := L) th H G Cs s) {Tr C0 : Set U64} {σ : 
   have hks := hJ.ks x hx p sb fi hcx
   have hobj : ∀ {q : U64} {k : HKind}, H q = some k → q.val ≤ a.val → a.val < q.val + 2 ^ k.bits → False :=
     fun {q k} hq l1 l2 => by
-      rcases hJ.h q k hq with hcv | hi
+      rcases hJ.h q k hq with hcv | hi | hi
       · exact nin hcv l1 l2
       · have := (hJ.idleOut x hx p sb fi hcx q hi).2.2 k hq
+        omega
+      · obtain ⟨k1, k2⟩ := hi.2 k hq
+        have := hks.1
         omega
   rcases hO with ⟨o1, o2⟩ | ⟨o1, o2⟩ | ⟨t, ht, o1, o2⟩ | ⟨e, he, o1, o2⟩ | ⟨r, hr, o1, o2⟩ | ⟨n, hn, o1, o2⟩ |
       ⟨q, hq, y, n, hk, o1, o2⟩ | ⟨wp, hw, o1, o2⟩

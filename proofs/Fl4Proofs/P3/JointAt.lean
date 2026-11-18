@@ -102,7 +102,9 @@ structure JKern (H : P1.Heap) (Cs D : Set U64) (th : TypedHeap) (s : S) (σ : Fl
   gf : σ.archState.x64GlobalPml4.toNat + 4096 ≤ 2 ^ 64
   heap : P1.HeapOK H
   h0 : H 0#u64 = none
-  hks : ∀ p k, H p = some k → p.val + 2 ^ k.bits ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val
+  hks : ∀ p k, H p = some k → (∀ z, k ≠ .other z) → p.val + 2 ^ k.bits ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val
+  hksIn : ∀ p z, H p = some (.other z) → p.val + 2 ^ z ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val ∨
+    ((L.ksb s).val ≤ p.val ∧ p.val + 2 ^ z ≤ (L.ksb s).val + 13568)
   hnd : ∀ p k, H p = some k → ∀ c ∈ Cs, p.val + 2 ^ k.bits ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ p.val
   ksbFit : (L.ksb s).val + 13568 ≤ 2 ^ 64
   ksbAl : (L.ksb s).val % 8 = 0
@@ -354,7 +356,7 @@ theorem utJoint (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.sch
     hnode, hidx, hslot, hcap, hext,
     fun p sb fi dev e hd => J.utc _ p sb fi dev hAs (by rw [← hslot, hcap, e]) hd,
     J.kern.dwAl, J.kern.dwObj, J.kern.dwNe, J.kern.head, J.kern.gpm, J.kern.ga, J.kern.gf, J.kern.heap,
-    J.kern.h0, J.kern.hks, J.kern.hnd, J.kern.ksbFit, J.kern.ksbAl, J.kern.nodeFit, J.kern.cpuCs,
+    J.kern.h0, J.kern.hks, J.kern.hksIn, J.kern.hnd, J.kern.ksbFit, J.kern.ksbAl, J.kern.nodeFit, J.kern.cpuCs,
     J.kern.curH, J.kern.cscH, J.cscLive.resolve_right hres, J.jpl⟩
 
 /-- `UtP3Ok` (P1's `P3Ok` for the untyped retype), no reschedule pending. -/

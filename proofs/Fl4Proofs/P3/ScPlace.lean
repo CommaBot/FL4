@@ -98,8 +98,14 @@ structure JPlaced (th : TypedHeap) (H : Heap) (Tr C : Set U64) (s : S) (σ : Fl4
   tr : ∀ t, th t = some .tcb → t ∈ Tr
   sc : ∀ (c : U64) y n, c ≠ 0#u64 → σ.kheap c.bv = some (.schedContext y n) →
     c ∈ C ∧ H c = some (.sc (n + Fl4Spec.minSchedContextBits))
-  /-- `H`'s objects lie outside the kernel-global area. -/
-  ks : ∀ p k, H p = some k → p.val + 2 ^ k.bits ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val
+  /-- `H`'s objects but the `other` ones lie outside the kernel-global area
+  (`H` holds the kernel-state block itself as `other` objects: the IRQ
+  node's CNodes, `cnode`, and the rest of the block, the words P1's
+  `SgOK.ksΩ` puts in `Ω`). -/
+  ks : ∀ p k, H p = some k → (∀ z, k ≠ .other z) → p.val + 2 ^ k.bits ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val
+  /-- `H`'s `other` objects lie outside the kernel-global area or inside it. -/
+  ksIn : ∀ p z, H p = some (.other z) → p.val + 2 ^ z ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val ∨
+    ((L.ksb s).val ≤ p.val ∧ p.val + 2 ^ z ≤ (L.ksb s).val + 13568)
   typed : ∀ a, IsSlot th a → CapTyped H (Heap.replies H) (Heap.ntfns H) (capV (L.mem s) a)
   /-- The IRQ handler slots (the kernel-global IRQ node) hold typed caps too. -/
   irq : ∀ i : U64, i.val < 128 → CapTyped H (Heap.replies H) (Heap.ntfns H) (capV (L.mem s) (nodeA (L.ksb s) i))
@@ -472,7 +478,7 @@ theorem JPlaced.step (h : JPlaced (L := L) th H Tr C s σ) {s' : S} {σ' : Fl4Sp
       ∃ y0, σ.kheap c.bv = some (.schedContext y0 n))
     (hk : L.ksb s' = L.ksb s) (hI : ∀ i : U64, i.val < 128 → ChgZ (L.mem s) (L.mem s') (nodeA (L.ksb s) i)) :
     JPlaced (L := L) th H Tr C s' σ' := by
-  refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk => ?_, by rw [hk]; exact h.ks, fun a ha => ?_,
+  refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk => ?_, by rw [hk]; exact h.ks, by rw [hk]; exact h.ksIn, fun a ha => ?_,
     fun i hi => by rw [hk]; exact capTyped_of_chgZ (h.irq i hi) (hI i hi), fun t ht => ?_, fun a ha => ?_⟩
   · obtain ⟨y0, hk0⟩ := hsc c y n hc hk
     exact h.sc c y0 n hc hk0
@@ -497,7 +503,7 @@ theorem JPlaced.same (h : JPlaced (L := L) th H Tr C s σ) {s' : S} {σ' : Fl4Sp
     (hk : L.ksb s' = L.ksb s)
     (hI : ∀ i : U64, i.val < 128 → capV (L.mem s') (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i)) :
     JPlaced (L := L) th H Tr C s' σ' := by
-  refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk => ?_, by rw [hk]; exact h.ks, fun a ha => ?_,
+  refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk => ?_, by rw [hk]; exact h.ks, by rw [hk]; exact h.ksIn, fun a ha => ?_,
     fun i hi => by rw [hk, hI i hi]; exact h.irq i hi, fun t ht => ?_, fun a ha => by
       rw [hS.capV ha]; exact h.cobj a ha⟩
   · obtain ⟨y0, hk0⟩ := hsc c y n hc hk

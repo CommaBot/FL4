@@ -49,11 +49,13 @@ def DeadP (H : Heap) (s : S) (q : U64) : Prop :=
     L.mem s (scNtfnA q) = 0#u64)
 
 /-- **`JCov` with a dead set** (module docstring): every object of `th`
-and `H` covered, dead, or an idle object (`IdleAt`, outside the untyped
-regions: `idleOut`). -/
+and `H` covered, dead, or exempt (`ExAt`): an idle object (`IdleAt`,
+outside the untyped regions: `idleOut`) or one inside the kernel-state block
+(`KsObj`: the IRQ node's CNodes and `H`'s other block objects; not dead,
+`D` holding only reclaimable objects). -/
 structure JCovD (thp : TypedHeap) (H : Heap) (G : MdbGhost) (D : Set U64) (Cs : Set U64) (s : S) : Prop where
-  th : ∀ q k, thp q = some k → Covered (L.mem s) G q.val (q.val + max (objSize k) 1) ∨ q ∈ D ∨ IdleAt (L := L) s q
-  h : ∀ q k, H q = some k → Covered (L.mem s) G q.val (q.val + 2 ^ k.bits) ∨ q ∈ D ∨ IdleAt (L := L) s q
+  th : ∀ q k, thp q = some k → Covered (L.mem s) G q.val (q.val + max (objSize k) 1) ∨ q ∈ D ∨ ExAt (L := L) thp H s q
+  h : ∀ q k, H q = some k → Covered (L.mem s) G q.val (q.val + 2 ^ k.bits) ∨ q ∈ D ∨ ExAt (L := L) thp H s q
   dead : ∀ q ∈ D, DeadP (L := L) H s q
   ks : UtKsApart (L := L) G Cs s
   idleOut : IdleOut (L := L) thp H G s
@@ -74,20 +76,20 @@ def Uncov (th : TypedHeap) (H : Heap) (mem : U64 → U64) (G : MdbGhost) (I : U6
 covered (and not idle), which must then be dead, and the dead stay dead;
 the RAM untyped caps after miss the kernel area and the idle objects. -/
 theorem JCovD.step (h : JCovD (L := L) th H G D Cs s) {s' : S} {G' : MdbGhost}
-    (hunc : ∀ q, q ∈ Uncov th H (L.mem s') G' (IdleAt (L := L) s') → DeadP (L := L) H s' q)
+    (hunc : ∀ q, q ∈ Uncov th H (L.mem s') G' (ExAt (L := L) th H s') → DeadP (L := L) H s' q)
     (hdead : ∀ q ∈ D, DeadP (L := L) H s q → DeadP (L := L) H s' q)
     (hks : UtKsApart (L := L) G' Cs s')
     (hio : IdleOut (L := L) th H G' s') :
-    JCovD (L := L) th H G' (D ∪ Uncov th H (L.mem s') G' (IdleAt (L := L) s')) Cs s' := by
+    JCovD (L := L) th H G' (D ∪ Uncov th H (L.mem s') G' (ExAt (L := L) th H s')) Cs s' := by
   refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => ?_, hks, hio⟩
   · by_cases hc : Covered (L.mem s') G' q.val (q.val + max (objSize k) 1)
     · exact Or.inl hc
-    · by_cases hi : IdleAt (L := L) s' q
+    · by_cases hi : ExAt (L := L) th H s' q
       · exact Or.inr (Or.inr hi)
       · exact Or.inr (Or.inl (Or.inr ⟨hi, Or.inl ⟨k, hq, hc⟩⟩))
   · by_cases hc : Covered (L.mem s') G' q.val (q.val + 2 ^ k.bits)
     · exact Or.inl hc
-    · by_cases hi : IdleAt (L := L) s' q
+    · by_cases hi : ExAt (L := L) th H s' q
       · exact Or.inr (Or.inr hi)
       · exact Or.inr (Or.inl (Or.inr ⟨hi, Or.inr ⟨k, hq, hc⟩⟩))
   · rcases hq with hq | hq
@@ -111,17 +113,17 @@ theorem JCovD.same (h : JCovD (L := L) th H G D Cs s) {s' : S} {G' : MdbGhost}
       y ∈ G'.chains.flatten ∧ capV (L.mem s') y = capV (L.mem s) y)
     (hdead : ∀ q ∈ D, DeadP (L := L) H s q → DeadP (L := L) H s' q)
     (hks : UtKsApart (L := L) G' Cs s')
-    (hidl : L.idleW s' = L.idleW s) (hio : IdleOut (L := L) th H G' s') :
+    (hidl : L.idleW s' = L.idleW s) (hkb : L.ksb s' = L.ksb s) (hio : IdleOut (L := L) th H G' s') :
     JCovD (L := L) th H G' D Cs s' := by
   refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => hdead q hq (h.dead q hq), hks, hio⟩
   · rcases h.th q k hq with hc | hd | hi
     · exact Or.inl (covered_keep hc hk)
     · exact Or.inr (Or.inl hd)
-    · exact Or.inr (Or.inr ((idleAt_of hidl).2 hi))
+    · exact Or.inr (Or.inr ((exAt_of hidl hkb).2 hi))
   · rcases h.h q k hq with hc | hd | hi
     · exact Or.inl (covered_keep hc hk)
     · exact Or.inr (Or.inl hd)
-    · exact Or.inr (Or.inr ((idleAt_of hidl).2 hi))
+    · exact Or.inr (Or.inr ((exAt_of hidl hkb).2 hi))
 
 /-- **`JCovD` across the removal of one slot's cap** (`delete`'s
 `empty_slot`, after the finalisation): every other cap of the MDB is kept;
@@ -134,8 +136,8 @@ theorem JCovD.delete (h : JCovD (L := L) th H G D Cs s) {s' : S} {G' : MdbGhost}
       Covered (L.mem s') G' lo hi ∨ (∀ q, q.val = lo → DeadP (L := L) H s' q))
     (hdead : ∀ q ∈ D, DeadP (L := L) H s q → DeadP (L := L) H s' q)
     (hks : UtKsApart (L := L) G' Cs s')
-    (hidl : L.idleW s' = L.idleW s) (hio : IdleOut (L := L) th H G' s') :
-    JCovD (L := L) th H G' (D ∪ Uncov th H (L.mem s') G' (IdleAt (L := L) s')) Cs s' := by
+    (hidl : L.idleW s' = L.idleW s) (hkb : L.ksb s' = L.ksb s) (hio : IdleOut (L := L) th H G' s') :
+    JCovD (L := L) th H G' (D ∪ Uncov th H (L.mem s') G' (ExAt (L := L) th H s')) Cs s' := by
   have cov : ∀ {lo hi : Nat}, lo < hi → Covered (L.mem s) G lo hi →
       Covered (L.mem s') G' lo hi ∨ (∀ q, q.val = lo → DeadP (L := L) H s' q) := by
     intro lo hi hlh hc
@@ -152,13 +154,13 @@ theorem JCovD.delete (h : JCovD (L := L) th H G D Cs s) {s' : S} {G' : MdbGhost}
       · exact absurd hc' hnc
       · exact hd' q rfl
     · exact hdead q hd (h.dead q hd)
-    · exact absurd ((idleAt_of hidl).2 hi) hni
+    · exact absurd ((exAt_of hidl hkb).2 hi) hni
   · rcases h.h q k hq with hc | hd | hi
     · rcases cov (by have := Nat.one_le_two_pow (n := k.bits); omega) hc with hc' | hd'
       · exact absurd hc' hnc
       · exact hd' q rfl
     · exact hdead q hd (h.dead q hd)
-    · exact absurd ((idleAt_of hidl).2 hi) hni
+    · exact absurd ((exAt_of hidl hkb).2 hi) hni
 
 /-- **An object meeting a childless RAM untyped region is dead** (`ut_free`:
 a covered object misses the region; `idleOut`: so does an idle one), so a
@@ -174,11 +176,19 @@ theorem dead_childless (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem s) 
   · rcases h.th q k hq with hc | hd | hi
     · exact absurd (ut_free hU hI hx hcx hnd (by omega) hc) hm
     · exact ⟨hd, h.dead q hd⟩
-    · exact absurd ((h.idleOut x hx p sb fi hcx q hi).2.1 k hq) hm
+    · rcases hi with hi | hi
+      · exact absurd ((h.idleOut x hx p sb fi hcx q hi).2.1 k hq) hm
+      · obtain ⟨k1, k2⟩ := hi.1 k hq
+        have := (h.ks x hx p sb fi hcx).1
+        omega
   · rcases h.h q k hq with hc | hd | hi
     · exact absurd (ut_free hU hI hx hcx hnd (by have := Nat.one_le_two_pow (n := k.bits); omega) hc) hm
     · exact ⟨hd, h.dead q hd⟩
-    · exact absurd ((h.idleOut x hx p sb fi hcx q hi).2.2 k hq) hm
+    · rcases hi with hi | hi
+      · exact absurd ((h.idleOut x hx p sb fi hcx q hi).2.2 k hq) hm
+      · obtain ⟨k1, k2⟩ := hi.2 k hq
+        have := (h.ks x hx p sb fi hcx).1
+        omega
 
 end
 

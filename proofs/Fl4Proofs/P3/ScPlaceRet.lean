@@ -58,6 +58,31 @@ theorem src_idleOut (h : JCovD (L := L) th H G D Cs s) (hE : RetExp th th' (L.me
   obtain ⟨rfl, rfl, rfl, rfl⟩ := hcs
   exact ⟨p0, sb0, hpA, hAs, h.idleOut xs hxs p0 sb0 fi0 hc0⟩
 
+/-- **The source cap's region holds the window, off the kernel-state
+block** (`UtKsApart`, the source a RAM untyped). -/
+theorem src_ks (h : JCovD (L := L) th H G D Cs s) (hE : RetExp th th' (L.mem s) m' G G' A k w dslot cj xs)
+    (hdv : ∃ p0 sb0 fi0, capV (L.mem s) xs = .Untyped p0 sb0 fi0 false) :
+    ∃ p1 sb1 : U64, p1.val ≤ A ∧ A + w * k ≤ p1.val + 2 ^ sb1.val ∧
+      (p1.val + 2 ^ sb1.val ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p1.val) := by
+  obtain ⟨hxs, p1, sb1, fi1, fi2, d1, hcs, -, hpA, -, hAs, -, -⟩ := hE.usrc
+  obtain ⟨p0, sb0, fi0, hc0⟩ := hdv
+  rw [hc0] at hcs
+  simp only [capability.Cap.Untyped.injEq] at hcs
+  obtain ⟨rfl, rfl, rfl, rfl⟩ := hcs
+  exact ⟨p0, sb0, hpA, hAs, (h.ks xs hxs p0 sb0 fi0 hc0).1⟩
+
+/-- **No new object in the kernel-state block** (`src_ks`). -/
+theorem newQ_not_ks (h : JCovD (L := L) th H G D Cs s)
+    (hE : RetExp th th' (L.mem s) m' G G' A k w dslot cj xs)
+    (hdv : ∃ p0 sb0 fi0, capV (L.mem s) xs = .Untyped p0 sb0 fi0 false) {q : U64} (hn : NewQ A k w cj q)
+    (h1 : (L.ksb s).val ≤ q.val) (h2 : q.val < (L.ksb s).val + 13568) : False := by
+  obtain ⟨p1, sb1, hpA, hAs, hko⟩ := src_ks h hE hdv
+  obtain ⟨j, hj, hv, -⟩ := hn
+  have h3 : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right _ hj
+  rw [Nat.add_mul, Nat.one_mul] at h3
+  have := hE.k1
+  omega
+
 /-- **The objects meeting the new objects' window are dead**: uncovered
 (`ut_free_fi`, `ut_free`), so in the dead set; not idle, the source a RAM
 untyped (`src_idleOut`). -/
@@ -74,16 +99,21 @@ theorem retype_window_dead (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem
     · rcases ut_free_fi hU hx0 hc0 hlh hc with e | e <;> omega
     · rcases ut_free hU hI hx0 hc0 h3 hlh hc with e | e <;> omega
   obtain ⟨p1, sb1, hpA, hAs, io⟩ := src_idleOut h hE hdv
+  obtain ⟨p2, sb2, hpA2, hAs2, hko⟩ := src_ks h hE hdv
   refine ⟨fun q kd hq hm => ?_, fun q kd hq hm => ?_⟩
-  · rcases h.h q kd hq with hc | hd | hi
+  · rcases h.h q kd hq with hc | hd | hi | hi
     · exact absurd hc (miss (by have := Nat.one_le_two_pow (n := kd.bits); omega) hm)
     · exact ⟨hd, h.dead q hd⟩
     · have := (io q hi).2.2 kd hq
       unfold MeetsW at hm; omega
-  · rcases h.th q kd hq with hc | hd | hi
+    · obtain ⟨k1, k2⟩ := hi.2 kd hq
+      unfold MeetsW at hm; omega
+  · rcases h.th q kd hq with hc | hd | hi | hi
     · exact absurd hc (miss (by omega) hm)
     · exact ⟨hd, h.dead q hd⟩
     · have := (io q hi).2.1 kd hq
+      unfold MeetsW at hm; omega
+    · obtain ⟨k1, k2⟩ := hi.1 kd hq
       unfold MeetsW at hm; omega
 
 /-- **No new object at an idle address**: the window lies in an untyped
@@ -165,6 +195,17 @@ theorem JCovD.retype (h : JCovD (L := L) th H G D Cs s)
     JCovD (L := L) th' H' G' {q | q ∈ D ∧ ¬ NewQ A k w cj q} Cs s' := by
   have hkeep : ∀ y ∈ G.chains.flatten, physF (capV (L.mem s) y) = true → isUt (capV (L.mem s) y) = false →
       y ∈ G'.chains.flatten ∧ capV (L.mem s') y = capV (L.mem s) y := fun y hy _ hu => hE.keep y hy hu
+  -- an object inside the kernel-state block stays so: no new object there
+  have hKs : ∀ q, KsObj (L := L) th H s q → (L.ksb s).val ≤ q.val → q.val < (L.ksb s).val + 13568 →
+      KsObj (L := L) th' H' s' q := by
+    intro q hq h1 h2
+    refine ⟨fun kd hk => ?_, fun kd hk => ?_⟩
+    · rcases hE.th q kd hk with ⟨ho, -⟩ | ⟨hn, -⟩
+      · have := hq.1 kd ho; unfold KsIn at this ⊢; rw [hksb]; exact this
+      · exact (newQ_not_ks h hE hdv hn h1 h2).elim
+    · rcases hH' q kd hk with ⟨ho, -⟩ | ⟨hn, -⟩
+      · have := hq.2 kd ho; unfold KsIn at this ⊢; rw [hksb]; exact this
+      · exact (newQ_not_ks h hE hdv hn h1 h2).elim
   refine ⟨fun q kd hq => ?_, fun q kd hq => ?_, fun q ⟨hd, hn⟩ => ?_, fun x hx p sb fi hcx => ?_,
     fun x hx p sb fi hcx q hi => ?_⟩
   · rcases hE.th q kd hq with ⟨ho, h0⟩ | ⟨hn, hsz⟩
@@ -173,13 +214,21 @@ theorem JCovD.retype (h : JCovD (L := L) th H G D Cs s)
       · by_cases hn : NewQ A k w cj q
         · exact Or.inl (hE.cov_new hn (by rw [h0 hn]; have := hE.k1; omega))
         · exact Or.inr (Or.inl ⟨hd, hn⟩)
-      · exact Or.inr (Or.inr ((idleAt_of hidl).2 hi))
+      · rcases hi with hi | hi
+        · exact Or.inr (Or.inr (Or.inl ((idleAt_of hidl).2 hi)))
+        · obtain ⟨k1, k2⟩ := hi.1 kd ho
+          have := le_max_right (objSize kd) 1
+          exact Or.inr (Or.inr (Or.inr (hKs q hi k1 (by omega))))
     · exact Or.inl (hE.cov_new hn (by have := hE.k1; omega))
   · rcases hH' q kd hq with ⟨ho, hn⟩ | ⟨hn, hsz⟩
     · rcases h.h q kd ho with hc | hd | hi
       · exact Or.inl (covered_keep hc hkeep)
       · exact Or.inr (Or.inl ⟨hd, hn⟩)
-      · exact Or.inr (Or.inr ((idleAt_of hidl).2 hi))
+      · rcases hi with hi | hi
+        · exact Or.inr (Or.inr (Or.inl ((idleAt_of hidl).2 hi)))
+        · obtain ⟨k1, k2⟩ := hi.2 kd ho
+          have := Nat.one_le_two_pow (n := kd.bits)
+          exact Or.inr (Or.inr (Or.inr (hKs q hi k1 (by omega))))
     · exact Or.inl (hE.cov_new hn hsz)
   · cases hq : H' q with
     | none =>
@@ -316,8 +365,12 @@ theorem region_dead (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem s) G) 
     · rcases ut_free_fi hU hx0 hc0 hlh hc with e | e <;> omega
     · rcases ut_free hU hI hx0 hc0 hnd hlh hc with e | e <;> omega
   · exact ⟨hd, h.dead q hd⟩
-  · have := (h.idleOut x0 hx0 p0 sb0 fi0 hc0 q hi).2.2 kd hq
-    rcases hreg with ⟨h1, h2⟩ | ⟨-, h1, h2⟩ <;> omega
+  · rcases hi with hi | hi
+    · have := (h.idleOut x0 hx0 p0 sb0 fi0 hc0 q hi).2.2 kd hq
+      rcases hreg with ⟨h1, h2⟩ | ⟨-, h1, h2⟩ <;> omega
+    · obtain ⟨k1, k2⟩ := hi.2 kd hq
+      have := (h.ks x0 hx0 p0 sb0 fi0 hc0).1
+      rcases hreg with ⟨h1, h2⟩ | ⟨-, h1, h2⟩ <;> omega
 
 /-- **`JCovD` and `BlkOK` across retype from P1's `RetypeP1Step`** (the
 region `[lo, hi)` of an untyped cap's free part or of a childless one,

@@ -458,7 +458,7 @@ theorem JAtZ.kern_dbg (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     by rw [ecw]; exact K.curT, by rw [hcpu, hna]; exact K.act, by rw [hna]; exact K.dwAl,
     by rw [hna]; exact K.dwObj, by rw [hna, hna, hcpu, ecw]; exact K.dwNe, ?_,
     K.gpm, K.ga, K.gf,
-    K.heap, K.h0, by rw [hks]; exact K.hks, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
+    K.heap, K.h0, by rw [hks]; exact K.hks, by rw [hks]; exact K.hksIn, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
     K.csLt, K.cs0⟩
@@ -528,7 +528,7 @@ theorem JAtZ.dbgw_step (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hirq : ∀ i : U64, i.val < 128 → capV (L.mem s') (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i) :=
     irqNode_keep hw J.kern.ksbFit J.kern.ksbAl fun b hb => by
       rcases J.dbgw_word hb with ⟨y, hy, g1, g2⟩ | e
-      · have := hJ.ks y _ (J.zH.1 y hy); simp only [P1.HKind.bits] at this; omega
+      · have := hJ.ks y _ (J.zH.1 y hy) (fun _ e => by cases e); simp only [P1.HKind.bits] at this; omega
       · simp only [P1.LawfulStore.nodeBase] at e; omega
   have hSS := J.dbgw_slots hw
   -- the dead stay dead

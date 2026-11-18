@@ -293,7 +293,7 @@ theorem Sched.JPlaced.slotT {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s s
     rcases hT a ha with hn | ⟨b, hb, hs⟩
     · exact capTyped_of_tyObj hn
     · exact capTyped_of_shape hs (h.typed b hb)
-  refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk' => ?_, by rw [hk]; exact h.ks,
+  refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk' => ?_, by rw [hk]; exact h.ks, by rw [hk]; exact h.ksIn,
     fun a ha => hty' a ha, fun i hi => by rw [hk]; exact hty' _ (hirqS i hi), fun t ht => ?_, fun a ha => ?_⟩
   · rcases hkc c.bv with e | ⟨r, cs, cs', -, h2⟩ | ⟨x, y', -, h2, -⟩
     · rw [e] at hk'; exact h.sc c y n hc hk'

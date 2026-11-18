@@ -372,7 +372,7 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     have : 1 ≤ 2 ^ k'.bits := Nat.one_le_two_pow
     omega
   have hidl : L.idleW s2 = L.idleW s := J.idleW_keep hX2.fin.1.1.1 (CnStep.of_cnK hcn2).idle
-  have hunc : ∀ q', q' ∈ Uncov Z.th H (L.mem s2) G2 (IdleAt (L := L) s2) → DeadP (L := L) H s2 q' := by
+  have hunc : ∀ q', q' ∈ Uncov Z.th H (L.mem s2) G2 (ExAt (L := L) Z.th H s2) → DeadP (L := L) H s2 q' := by
     intro q' hq'
     by_cases hD : q' ∈ D
     · exact J.deadP_slot hX2 hcn2 (KeepC.t hkc) hw (J.jcov.dead q' hD)
@@ -390,7 +390,7 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
           · rw [(hJ.tcb q').1 hk] at hHp; cases hHp
           · rw [hJ.cnode q' r' hk] at hHp; cases hHp
       · exact absurd hD' hD
-      · exact absurd ((idleAt_of hidl).2 hi) hni
+      · exact absurd ((exAt_of hidl hw.1).2 hi) hni
     · rcases J.jcov.h q' k hk with hcv | hD' | hi
       · rcases hcovA _ _ hcv with h | ⟨g1, g2, hd⟩
         · exact absurd h hnc
@@ -398,7 +398,7 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
           subst e
           exact J.deadP_slot hX2 hcn2 (KeepC.t hkc) hw hd
       · exact absurd hD' hD
-      · exact absurd ((idleAt_of hidl).2 hi) hni
+      · exact absurd ((exAt_of hidl hw.1).2 hi) hni
   have hks2 : UtKsApart (L := L) G2 Cs s2 := by
     intro x hx p' sb fi hcx
     obtain ⟨hxs, c1, hc1, hn1⟩ := (hM2.members x).1 hx

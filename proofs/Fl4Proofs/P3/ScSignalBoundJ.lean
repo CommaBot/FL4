@@ -186,13 +186,13 @@ theorem JAtZ.cnW_irq (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
   refine irqNode_keep hw hkf J.kern.ksbAl (fun b hb => ?_) i hi
   rcases hb with hb | hb
   · rcases finW_cases hS hb with ⟨y, hy, g1, g2⟩ | ⟨g1, g2⟩ | ⟨n, hn, g1, g2⟩ | ⟨sc, hsc, x, n, hk, g1, g2⟩
-    · have := hJ.ks y _ (J.zH.1 y hy); simp only [P1.HKind.bits] at this; omega
+    · have := hJ.ks y _ (J.zH.1 y hy) (fun _ e => by cases e); simp only [P1.HKind.bits] at this; omega
     · simp only [P1.LawfulStore.nodeBase] at g1; omega
     · have := J.nk n hn; omega
     · have := (hS.scOut sc hsc x n hk b ⟨g1, g2⟩).2.2.2; omega
   · rcases hb with ⟨e, he, h⟩ | ⟨r, hr, h⟩
-    · have := hJ.ks e _ (J.zH.2.1 e he); simp only [P1.HKind.bits] at this; unfold EW at h; omega
-    · have := hJ.ks r _ (J.zH.2.2.1 r hr); simp only [P1.HKind.bits] at this; omega
+    · have := hJ.ks e _ (J.zH.2.1 e he) (fun _ e => by cases e); simp only [P1.HKind.bits] at this; unfold EW at h; omega
+    · have := hJ.ks r _ (J.zH.2.2.1 r hr) (fun _ e => by cases e); simp only [P1.HKind.bits] at this; omega
 
 set_option maxHeartbeats 1000000 in
 /-- **The untyped caps' facts after a `CnW` step** (`finW_utc`; the endpoints

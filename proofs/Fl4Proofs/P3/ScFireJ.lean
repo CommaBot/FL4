@@ -276,7 +276,7 @@ theorem JAtZ.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
   have hirq : ∀ i : U64, i.val < 128 → capV (L.mem s') (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i) :=
     irqNode_keep hw J.kern.ksbFit J.kern.ksbAl fun b hb => by
       rcases J.tmw_word hb with ⟨y, hy, g1, g2⟩ | ⟨c, hc, o, ho, e⟩
-      · have := hJ.ks y _ (J.zH.1 y hy); simp only [P1.HKind.bits] at this; omega
+      · have := hJ.ks y _ (J.zH.1 y hy) (fun _ e => by cases e); simp only [P1.HKind.bits] at this; omega
       · simp only [P1.LawfulStore.nodeBase] at e; omega
   have hSS := J.tmw_slots hw
   -- the dead stay dead

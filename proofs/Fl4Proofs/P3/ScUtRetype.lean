@@ -304,7 +304,9 @@ structure UtJoint {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs : Set U64) 
   and the nodes, which do not wrap. -/
   heap : HeapOK H
   h0 : H 0#u64 = none
-  hks : ∀ p k, H p = some k → p.val + 2 ^ k.bits ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val
+  hks : ∀ p k, H p = some k → (∀ z, k ≠ .other z) → p.val + 2 ^ k.bits ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val
+  hksIn : ∀ p z, H p = some (.other z) → p.val + 2 ^ z ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val ∨
+    ((L.ksb s).val ≤ p.val ∧ p.val + 2 ^ z ≤ (L.ksb s).val + 13568)
   hnd : ∀ p k, H p = some k → ∀ c ∈ Cs, p.val + 2 ^ k.bits ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ p.val
   ksbFit : (L.ksb s).val + 13568 ≤ 2 ^ 64
   ksbAl : (L.ksb s).val % 8 = 0
@@ -411,24 +413,34 @@ def DbgTimerKept (H : Heap) (D : U64 → Prop) (Cs : Set U64) (s : S) : Prop :=
 
 /-- **`DropOK` of a region** from its parts: the heap well formed, the
 region's objects dead, the current thread and SC off it, the heap's objects
-off the kernel-global area and the nodes, and the kept links
-(`KeptRefsP3`, `DbgTimerKept`). -/
+off the kernel-global area (but `other` ones inside it, which the region,
+off the area, misses) and the nodes, and the kept links (`KeptRefsP3`,
+`DbgTimerKept`). -/
 theorem dropOK_of {H : Heap} {Cs : Set U64} {s : S} {lo hi : Nat} (hH : HeapOK H) (h0 : H 0#u64 = none)
     (hdead : ∀ q k, H q = some k → RegionD H lo hi q → DeadQ st H s q)
     (hcur : ¬ RegionD H lo hi (L.curW s)) (hcsc : ¬ RegionD H lo hi (L.cscW s))
-    (hks : ∀ p k, H p = some k → p.val + 2 ^ k.bits ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val)
+    (hks : ∀ p k, H p = some k → (∀ z, k ≠ .other z) →
+      p.val + 2 ^ k.bits ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val)
+    (hksIn : ∀ p z, H p = some (.other z) → p.val + 2 ^ z ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val ∨
+      ((L.ksb s).val ≤ p.val ∧ p.val + 2 ^ z ≤ (L.ksb s).val + 13568))
+    (hreg : hi ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ lo)
     (hnd : ∀ p k, H p = some k → ∀ c ∈ Cs, p.val + 2 ^ k.bits ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ p.val)
     (hK : KeptRefsP3 (L := L) H (RegionD H lo hi) s) (hT : DbgTimerKept (L := L) H (RegionD H lo hi) Cs s)
     (hksf : (L.ksb s).val + 13568 ≤ 2 ^ 64) :
     DropOK st H (RegionD H lo hi) Cs s := by
   obtain ⟨k1, k2, k3, k4, k5, k6, k7, k8⟩ := hK
   obtain ⟨t1, t2⟩ := hT
-  refine ⟨hH, h0, hdead, hcur, hcsc, fun o ho _ p k hp _ hin => ?_, fun c hc b h1 h2 p k hp _ hin => ?_,
+  refine ⟨hH, h0, hdead, hcur, hcsc, fun o ho _ p k hp hr hin => ?_, fun c hc b h1 h2 p k hp _ hin => ?_,
     k1, k2, k3, k4, k5, k6, k7, k8, t1, t2⟩
   · have hv : (core.num.U64.wrapping_add (L.ksb s) o).val = (L.ksb s).val + o.val := by
       simp only [core.num.U64.wrapping_add_val_eq]
       exact Nat.mod_eq_of_lt (by rw [show UScalar.size UScalarTy.U64 = 2 ^ 64 by simp [U64.size, U64.numBits]]; omega)
-    unfold InObj at hin; rw [hv] at hin; have := hks p k hp; omega
+    unfold InObj at hin; rw [hv] at hin
+    by_cases ho : ∃ z, k = .other z
+    · obtain ⟨z, rfl⟩ := ho
+      unfold RegionD at hr; rw [hp] at hr; simp only [Option.elim, MeetsR, HKind.bits] at hr hin
+      have := hksIn p z hp; omega
+    · have := hks p k hp (fun z e => ho ⟨z, e⟩); omega
   · unfold InObj at hin; have := hnd p k hp c hc; omega
 
 /-- **The objects meeting an untyped cap's free part are dead** (or, for a
@@ -452,8 +464,12 @@ theorem region_deadP {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set U64}
     · rcases ut_free_fi hU hx hcx (by omega) hc with e | e <;> omega
     · rcases ut_free hU hI hx hcx hnd (by omega) hc with e | e <;> omega
   · exact ⟨hd, hJ.dead q hd⟩
-  · have := (hJ.idleOut x hx p sb fi hcx q hi).2.2 k hq
-    rcases hlo with hlo | ⟨-, hlo⟩ <;> omega
+  · rcases hi with hi | hi
+    · have := (hJ.idleOut x hx p sb fi hcx q hi).2.2 k hq
+      rcases hlo with hlo | ⟨-, hlo⟩ <;> omega
+    · obtain ⟨k1, k2⟩ := hi.2 k hq
+      have := (hJ.ks x hx p sb fi hcx).1
+      rcases hlo with hlo | ⟨-, hlo⟩ <;> omega
 
 /-- A field word of an object: inside it and aligned. -/
 theorem field_in {q K : U64} {b : Nat} (hal : q.val % 2 ^ b = 0) (hfit : q.val + 2 ^ b ≤ 2 ^ 64) (hb : 3 ≤ b)
@@ -563,7 +579,8 @@ theorem dead_dropOK {A' : Type} {arI : machine.Arch A'} {H : Heap} {Cs : Set U64
     (hks : L.ksb s = L.ksb s0) (hcpu : L.cpu s = L.cpu s0)
     (hcw : L.curW s = L.curW s0) (hcs : L.cscW s = L.cscW s0) (hact : ∀ y ∈ H.tcbs, L.actionW s ≠ y)
     (hrun : Runnable (L.mem s0 (stA (L.curW s0))))
-    (hKR : KeptRefsP3 (L := L) H (RegionD H lo hi) s) (hDT : DbgTimerKept (L := L) H (RegionD H lo hi) Cs s) :
+    (hKR : KeptRefsP3 (L := L) H (RegionD H lo hi) s) (hDT : DbgTimerKept (L := L) H (RegionD H lo hi) Cs s)
+    (hreg : hi ≤ (L.ksb s0).val ∨ (L.ksb s0).val + 13568 ≤ lo) :
     DropOK st H (RegionD H lo hi) Cs s := by
   -- the current thread is not dead
   have hcurN : ∀ k, H (L.curW s0) = some k → ¬ RegionD H lo hi (L.curW s0) := by
@@ -595,7 +612,8 @@ theorem dead_dropOK {A' : Type} {arI : machine.Arch A'} {H : Heap} {Cs : Set U64
     · rw [hiv, hst] at e; simp [layout.node.IDLE_THREAD] at e; omega
     · rw [hiv, hav] at e; simp [layout.node.IDLE_THREAD, layout.node.SCHED_ACTION] at e
   refine dropOK_of J.heap J.h0 (fun q k hq hr => ?_) (fun hr => ?_) (fun hr => ?_)
-    (fun p' k hp => by rw [hks]; exact J.hks p' k hp) (fun p' k hp c hc => by rw [hnb]; exact J.hnd p' k hp c hc)
+    (fun p' k hp => by rw [hks]; exact J.hks p' k hp) (fun p' z hp => by rw [hks]; exact J.hksIn p' z hp)
+    (by rw [hks]; exact hreg) (fun p' k hp c hc => by rw [hnb]; exact J.hnd p' k hp c hc)
     hKR hDT (by rw [hks]; exact J.ksbFit)
   · obtain ⟨-, hdp⟩ := RD q k hq hr
     have hqc : q ≠ L.curW s0 := by rintro rfl; exact hcurN k hq hr
@@ -643,7 +661,7 @@ theorem resetOK_of {A' : Type} {arI : machine.Arch A'} {H : Heap} {Cs : Set U64}
   have RD := region_deadP J.jcov J.ut J.mdb hx (by rw [← hdv]; exact hcx) (lo := p.val) (hi := p.val + 2 ^ sb.val) (Or.inr ⟨hnd, le_rfl⟩) le_rfl
   obtain ⟨hk1, hk2⟩ := J.jcov.ks slot hx p sb fi (by rw [← hdv]; exact hcx)
   refine ⟨hcapS, U.pal, U.pfit, dead_dropOK J RD hfr hks hcpu hcw hcs hact hrun (hKR fun q k hq hr => (RD q k hq hr).1)
-    (hDT fun q k hq hr => (RD q k hq hr).1), ⟨fun c hc => ?_, ?_⟩,
+    (hDT fun q k hq hr => (RD q k hq hr).1) (by rcases hk1 with h | h <;> omega), ⟨fun c hc => ?_, ?_⟩,
     U.fiLe, U.sb4, capAt_untyped_inv J.capEq⟩
   · have : L.nodeBase s c = L.nodeBase s0 c := by simp [LawfulStore.nodeBase, hks]
     rw [this]; rcases hk2 c hc with h | h
@@ -883,7 +901,8 @@ theorem createOK_noreset {A' : Type} {arI : machine.Arch A'} {H : Heap} {Cs : Se
     · rw [hnb]; rcases hk2 c hc with h | h <;> omega
     · rw [hks]; rcases hk1 with h | h <;> omega
   refine createOK_core J.placed J.heap (dead_dropOK J RD hfr hks hcpu hcw hcs hact hrun
-    (hKR fun q kd hq hr => (RD q kd hq hr).1) (hDT fun q kd hq hr => (RD q kd hq hr).1)) hRON hTm
+    (hKR fun q kd hq hr => (RD q kd hq hr).1) (hDT fun q kd hq hr => (RD q kd hq hr).1)
+    (by rcases hk1 with h | h <;> omega)) hRON hTm
     (slotCapW_of_in J.placed J.heap (fun a ha => hJP.slot_in ha)) (fun v hv => ?_) hW hWZ hk hAk hTn hZ hn5 hk12
     hDbgT h0Cs hfitW hpos
   obtain ⟨o1, o2⟩ := slot_word_off hJP J.hnd hv

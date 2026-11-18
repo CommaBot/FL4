@@ -548,7 +548,7 @@ theorem JAtZ.bindNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n : U64
   have hidl := J.idleW_keep hS3 F.idle
   have hjc : JCovD (L := L) Z.th H Z.G D' Cs (L.wr (L.wr s (nBoundA n) t) (P1.boundA t) n) := by
     exact hJ0.same (fun y hy _ _ => ⟨hy, hF.1.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
-      (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) hidl
+      (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) hidl hks
       (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩)
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq (L.wr (L.wr s (nBoundA n) t) (P1.boundA t) n) σ' := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl

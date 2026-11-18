@@ -107,11 +107,11 @@ theorem JPlaced.irqApart {th : TypedHeap} {H : Heap} {Tr C0 : Set U64} {s : S} {
   intro i hi
   have hv := nodeA_val hf hi
   refine ⟨by rw [hv]; omega, fun t ht => ?_, ?_, fun n hn => ?_, fun q hq x n hk => ?_, fun r hr => ?_⟩
-  · have := h.ks t _ (hT t ht); simp only [HKind.bits] at this; rw [hv]; omega
+  · have := h.ks t _ (hT t ht) (fun _ e => by cases e); simp only [HKind.bits] at this; rw [hv]; omega
   · rw [hv]; left; simp only [LawfulStore.nodeBase]; omega
-  · have := h.ks n _ (hN n hn); simp only [HKind.bits] at this; rw [hv]; omega
-  · have := h.ks q _ (h.sc q x n (hC q hq) hk).2; simp only [HKind.bits] at this; rw [hv]; have := Nat.pow_le_pow_right (show 0 < 2 by decide) (Nat.le_add_right n Fl4Spec.minSchedContextBits); omega
-  · have := h.ks r _ (hR r hr); simp only [HKind.bits] at this; rw [hv]; omega
+  · have := h.ks n _ (hN n hn) (fun _ e => by cases e); simp only [HKind.bits] at this; rw [hv]; omega
+  · have := h.ks q _ (h.sc q x n (hC q hq) hk).2 (fun _ e => by cases e); simp only [HKind.bits] at this; rw [hv]; have := Nat.pow_le_pow_right (show 0 < 2 by decide) (Nat.le_add_right n Fl4Spec.minSchedContextBits); omega
+  · have := h.ks r _ (hR r hr) (fun _ e => by cases e); simp only [HKind.bits] at this; rw [hv]; omega
 
 /-- **`SlotsApart` from `JPlaced`**: the slots lie in CNodes and in the TCBs'
 first 192 bytes; the objects of `H` are disjoint, and the core's node is

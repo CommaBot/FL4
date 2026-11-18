@@ -328,7 +328,7 @@ theorem JAtZ.wideW_irq {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
   have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := J.kern.ksbFit
   refine irqNode_keep hw hkf J.kern.ksbAl (fun b hb => ?_) i hi
   rcases hb with ⟨y, hy, g1, g2⟩ | ⟨g1, g2⟩ | ⟨n, hn, g1, g2⟩ | ⟨sc, hsc, x, n, hk, g1, g2⟩
-  · have := hJ.ks y _ (J.zH.1 y hy); simp only [P1.HKind.bits] at this; omega
+  · have := hJ.ks y _ (J.zH.1 y hy) (fun _ e => by cases e); simp only [P1.HKind.bits] at this; omega
   · simp only [P1.LawfulStore.nodeBase] at g1; omega
   · have := J.nk n hn; omega
   · have := (hS.scOut sc hsc x n hk b ⟨g1, g2⟩).2.2.2; omega

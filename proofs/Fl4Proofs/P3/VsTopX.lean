@@ -902,9 +902,15 @@ theorem mpPlacedHyp_of {H : P1.Heap} {G : MdbGhost} {Cs Tr C0 : Set U64} {s : S}
     · have := Sched.ut_free hU hI hx hcx hnd (by omega) hcv
       rw [h2] at this
       omega
-    · have := (hJC.idleOut x hx _ _ _ hcx q hi).2.1 k hq
-      rw [h2] at this
-      omega
+    · rcases hi with hi | hi
+      · have := (hJC.idleOut x hx _ _ _ hcx q hi).2.1 k hq
+        rw [h2] at this
+        omega
+      · obtain ⟨k1, k2⟩ := hi.1 k hq
+        have := (hJC.ks x hx _ _ _ hcx).1
+        rw [h2] at this
+        have := le_max_left (objSize k) 1
+        omega
   have hoob := Sched.oobj_out hJC hJP hU hI hx hcx hnd hc hT hE hR hN hC hB hk hsc
   rw [h2] at hoob
   have hpool : ∀ b, VsWrite (insert p P) (L.ksb s') b → VsWrite P (L.ksb s') b ∨

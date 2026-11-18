@@ -225,7 +225,7 @@ theorem JAtZ.ksW_scKeep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     {q : U64} {z : Nat} (hq : H q = some (.sc z)) {K : U64} (hK8 : K.val % 8 = 0) (hK : K.val < 128) :
     L.mem s' (scW q K) = L.mem s (scW q K) := by
   obtain ⟨hal, hv, hf⟩ := J.scW_in hq hK8 hK
-  have := J.kern.hks q _ hq
+  have := J.kern.hks q _ hq (fun _ e => by cases e)
   simp only [P1.HKind.bits] at this
   refine hw.mem_eq hal fun h => ?_
   obtain ⟨K', h1, h2, -, e⟩ := h
@@ -243,7 +243,7 @@ theorem JAtZ.schW_scKeep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.H
   have hP := J.xtop.fin.1.2
   obtain ⟨Q, R0, hc, -⟩ := hS.lists
   have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
-  have hks := J.kern.hks q _ hq
+  have hks := J.kern.hks q _ hq (fun _ e => by cases e)
   have hcC : Z.c ∈ Cs := hc.cur ▸ J.kern.cpuCs
   have hnd := J.kern.hnd q _ hq Z.c hcC
   simp only [P1.HKind.bits] at hks hnd
@@ -284,7 +284,7 @@ theorem JAtZ.jcov_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
   obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
   have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
   refine J.jcov.same (fun y hy _ _ => ⟨hy, hSS.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
-    (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩) hidl
+    (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩) hidl hks
     (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩)
 
 theorem covered_keepC {th : TypedHeap} {m m' : U64 → U64} {G G' : MdbGhost} {lo hi : Nat}
@@ -318,8 +318,8 @@ theorem JAtZ.jcov_cover {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     JCovD (L := L) Z.th H G' D Cs s' := by
   obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
   refine ⟨fun q k hq => (J.jcov.th q k hq).imp (fun hc => covered_keepC hM hM' hc hC)
-      (Or.imp_right (idleAt_of hidl).2),
-    fun q k hq => (J.jcov.h q k hq).imp (fun hc => covered_keepC hM hM' hc hC) (Or.imp_right (idleAt_of hidl).2),
+      (Or.imp_right (exAt_of hidl hks).2),
+    fun q k hq => (J.jcov.h q k hq).imp (fun hc => covered_keepC hM hM' hc hC) (Or.imp_right (exAt_of hidl hks).2),
     hdead, J.jcov.ks.keep hks (J.utFrom hM' hU), J.jcov.idleOut.keep hidl (J.utFrom hM' hU)⟩
 
 /-- **`SpecFree` across a step moving caps** (`UtKept`: each untyped region
@@ -394,7 +394,7 @@ theorem JAtZ.kern_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     by rw [ecw]; exact K.curT, by rw [hcpu, hna]; exact K.act, by rw [hna]; exact K.dwAl,
     by rw [hna]; exact K.dwObj, by rw [hna, hna, hcpu, ecw]; exact K.dwNe, ?_,
     ⟨pt, by rw [hgp]; exact hao _ _ hpt⟩, by rw [hgp]; exact K.ga, by rw [hgp]; exact K.gf,
-    K.heap, K.h0, by rw [hks]; exact K.hks, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
+    K.heap, K.h0, by rw [hks]; exact K.hks, by rw [hks]; exact K.hksIn, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
     K.csLt, K.cs0⟩
