@@ -332,7 +332,8 @@ abbrev JCapOpen (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (ar : A) (σ : Fl4Spec
   XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl) c blk call don fp
     buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct
 
-/-- **A VT-x cap's decode** (VCPU, EPT) [scope]: outside the semantic scope
+/-- **A VT-x cap's decode** (VCPU, EPT, an EPT-mapped frame, an IO port
+owned by a VCPU, a TCB's SetEPTRoot) [scope]: outside the semantic scope
 (DESIGN §9: the VCPU/EPT invocation families have no functional refinement
 yet; P0 covers their extracted core), as ScSignalJ's `SignalRestJHyp`'s
 `RunningVM` case: the cap's statement at `JAt`, named. -/
@@ -468,13 +469,13 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : F
   | .CNode .. => JCnodePath (L := L) Z s lbl slbl extra excaps
   | .Thread p =>
       (lbl = fl4_abi.label.TCBSetEPTRoot →
-        JCapOpen (L := L) arI AR s ar σ lbl length (.Thread p) blk call don fp buf extra slbl argsU ci sl excaps buffer
+        JVtxScope (L := L) arI AR s ar σ lbl length (.Thread p) blk call don fp buf extra slbl argsU ci sl excaps buffer
           ct) ∧
       (lbl ≠ fl4_abi.label.TCBSetEPTRoot →
         JThreadPath (L := L) arI AR Z s ar σ lbl length p blk call don fp buf extra slbl argsU ci sl excaps buffer ct)
   | .IoPort first last z =>
       (z = 0#u64 → PortLabel lbl slbl) ∧
-      (z ≠ 0#u64 → JCapOpen (L := L) arI AR s ar σ lbl length (.IoPort first last z) blk call don fp buf extra slbl
+      (z ≠ 0#u64 → JVtxScope (L := L) arI AR s ar σ lbl length (.IoPort first last z) blk call don fp buf extra slbl
         argsU ci sl excaps buffer ct)
   | .IrqControl => JIrqCPath (L := L) Z s lbl slbl extra excaps
   | .IoPortControl => JIoCPath (L := L) Z s lbl slbl extra excaps
@@ -525,13 +526,13 @@ on the cap:
 | Reply | `decode_replyDMX`, `replyLeafJ` | `JReplyRestHyp` (the rest after `reply_remove`) [W] |
 | Endpoint | `decode_endpointDMX`, `sendLeafJ` | `JSendRestHyp` (a blocking send, or one to a receiver) [W] |
 | CNode | `decode_invocation_cnodeJ_steps` | `JCnodePath` (front end) |
-| Thread | `decode_invocation_threadJ_step` | `JThreadPath` (incl. `JPostHyp` at `TcbJOpen`); SetEPTRoot whole [W] |
-| IO port | `decode_invocation_ioportJ` | `PortLabel`; a nonzero third field whole [W] |
+| Thread | `decode_invocation_threadJ_step` | `JThreadPath` (incl. `JPostHyp` at `TcbJOpen`); SetEPTRoot `JVtxScope` [scope] |
+| IO port | `decode_invocation_ioportJ` | `PortLabel`; a VT-x port (nonzero `vcpu` field) `JVtxScope` [scope] |
 | IRQ control, IO port control, IRQ handler, Domain | `decode_invocation_{irq_control,ioport_control,irq_handler,domain}J` | `JIrqCPath`, `JIoCPath`, `JIrqHPath`, `JDomPath` |
 | SchedControl | `decode_invocation_sched_controlJ` | `JSchedCPath` |
 | PageTable, PageDirectory, PDPT, PML4, ASID pool, native Frame, ASID control | `decode_invocation_{page_table,page_directory,pdpt,pml4,asid_pool,frame,asid_control}J` (XTopJointVsCap) | `J{Pt,Pd,Pdpt,Pml4,Pool,Frame,AsidC}Path` (labels, extra [W]; `JPostHyp` [W]) |
-| VCPU, EPT, EPT-mapped Frame | — | `JVtxScope` [scope] |
-| SchedContext, Untyped | — | `JCapOpen` [W] |
+| VCPU, EPT, EPT-mapped Frame, VT-x IO port, TCB SetEPTRoot | — | `JVtxScope` [scope] |
+| Untyped | — | `JCapOpen` [W] |
 -/
 theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
