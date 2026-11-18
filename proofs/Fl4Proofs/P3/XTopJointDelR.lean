@@ -23,10 +23,11 @@ some of them proved here.
   `JFinAt` (the other object caps' finalisation, with `RdJ` after),
   `JRdTrivHyp` (`RdJ` at a zombie), `JZombieHyp` (a zombie
   written over a cap alike it), `JSwapHyp` (a zombie swapped with its first
-  slot), `JEmptyUtHyp` (`DelUtFact` after emptying a ready CNode slot: the
-  known `valid_untyped` gap, as `DelUtHyp`), `JEmptyTcbHyp` (emptying a
-  ready TCB slot: `jowes_slotD` keeps TCB slot 3), `JPostDelHyp` (a cleanup
-  cap's `post_cap_deletion`).
+  slot), `JEmptyUtHyp` (`DelUtFact` after emptying a ready slot: the known
+  `valid_untyped` gap, as `DelUtHyp`).
+* The empty of a ready slot (`emptyHypJ`): a CNode slot by `emptyJR`, a TCB
+  slot by `emptyJRT` (a step changing the TCB's caps only, `KeepCT`), both
+  with `JEmptyUtHyp`.
 * `JDelHyp.of_parts`: `JDelHyp` from `JDelParts`, `JPreemptHyp` and
   `JPostDelHyp` (`delHyp_fullWR`; `JPreemptHyp` from the platform and
   `PPReady`, XTopJointPP's `jPreemptHyp_of`; `JPostDelHyp` from the
@@ -163,20 +164,6 @@ def JEmptyUtHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
         σ.cdt sl = some u → (∀ x, σ.cdt x = some u → x = sl) → (∀ x, σ.cdt x ≠ some sl) →
         DelUtFact (L := L) th s' σ' up usb ufi
 
-/-- **Hypothesis: emptying a ready TCB slot keeps `WJ`** [J] (`EmptyHypWR`
-at `WJ` off the CNode slots; `jowes_slotD` keeps TCB slot 3). -/
-def JEmptyTcbHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
-  ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
-    ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit) (G G' : MdbGhost) (sl : Fl4Spec.CslotPtr),
-      WJ (L := L) arI AR Z H Cs kb s a σ G → RdJ (L := L) (A := A) H s a σ G (cslotAddr sl) →
-      DState (L := L) th s σ G → DState (L := L) th s' σ' G' → Vs.SlotFrame2 (L := L) th s s' →
-      ((), σ') ∈ (Fl4Spec.emptySlot (Z := Unit) sl .nullCap σ).1 → AbsSlot th sl →
-      capV (L.mem s) (cslotAddr sl) ≠ .Null → capV (L.mem s') (cslotAddr sl) = .Null →
-      (∀ y, IsSlot th y → y ≠ cslotAddr sl → capV (L.mem s') y = capV (L.mem s) y) →
-      MdbStep (L.mem s) G (L.mem s') G' →
-      ¬ (∃ q, sl.1 = q.bv ∧ th q = some (.cnode sl.2.length)) →
-      WJ (L := L) arI AR Z H Cs kb s' a σ' G'
-
 /-- **The named steps of the deletion at `J`** (module docstring). -/
 structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
   fin : JFinAt (L := L) arI AR th (fun c => ¬ NtfnK c)
@@ -184,7 +171,6 @@ structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   zomb : JZombieHyp (L := L) arI AR th
   swap : JSwapHyp (L := L) arI AR th
   empUt : JEmptyUtHyp (L := L) arI AR th
-  empTcb : JEmptyTcbHyp (L := L) arI AR th
 
 /-! ## The proved steps -/
 
@@ -324,22 +310,23 @@ theorem rdTrivJ (hRT : JRdTrivHyp (L := L) arI AR th) (Z : XSets) (H : P1.Heap) 
   · exact absurd ho hnk
 
 /-- **Emptying a ready slot at `J`** (`EmptyHypWR` at `WJ`): a CNode slot by
-`emptyJR` (with `JEmptyUtHyp`), a TCB slot by `JEmptyTcbHyp`. -/
-theorem emptyHypJ (hUt : JEmptyUtHyp (L := L) arI AR th) (hT : JEmptyTcbHyp (L := L) arI AR th) (Z : XSets)
+`emptyJR`, a TCB slot by `emptyJRT`, both with `JEmptyUtHyp`. -/
+theorem emptyHypJ (hUt : JEmptyUtHyp (L := L) arI AR th) (Z : XSets)
     (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
     EmptyHypWR (L := L) (WJ (L := L) arI AR Z H Cs kb) (RdJ (L := L) (A := A) H) th := by
   intro s s' a σ σ' G G' sl hW hRd hD1 hD2 hF hes hA hxn hx0 hoth hmS
-  by_cases hcn : ∃ q, sl.1 = q.bv ∧ th q = some (.cnode sl.2.length)
-  · have hU := hUt Z H Cs kb hth s s' a σ σ' G G' sl hW hRd hD1 hD2 hF hes hA hxn hx0 hoth hmS
-    subst hth
-    obtain ⟨V, Ac, Lst, D, J, hkb⟩ := hW
-    have hnk := emptySlot_null_nkn _ σ ((), σ') hes
-    obtain ⟨⟨V2, hX2⟩, -, -, -⟩ := slotHypW_XZ AR (Z.mv G V) kb s s' a σ σ' G G'
-      ⟨⟨V, J.xtop⟩, J.ks, J.thT, hkb⟩ hD1 hD2 hF hnk hmS
-    obtain ⟨hks, hkb2, hR⟩ := J.emptyJR hA hcn hxn hRd hes hD2 hx0 hoth hX2 (SlotFrame2.writesIn hF) hnk
-    obtain ⟨hC, Ac', Lst', D', R⟩ := hR hU
-    exact ⟨V2, Ac', Lst', D', J.cs_frameV hks hX2 hkb2 hC R, hks.trans hkb⟩
-  · exact hT Z H Cs kb hth s s' a σ σ' G G' sl hW hRd hD1 hD2 hF hes hA hxn hx0 hoth hmS hcn
+  have hU := hUt Z H Cs kb hth s s' a σ σ' G G' sl hW hRd hD1 hD2 hF hes hA hxn hx0 hoth hmS
+  subst hth
+  obtain ⟨V, Ac, Lst, D, J, hkb⟩ := hW
+  have hnk := emptySlot_null_nkn _ σ ((), σ') hes
+  obtain ⟨⟨V2, hX2⟩, -, -, -⟩ := slotHypW_XZ AR (Z.mv G V) kb s s' a σ σ' G G'
+    ⟨⟨V, J.xtop⟩, J.ks, J.thT, hkb⟩ hD1 hD2 hF hnk hmS
+  obtain ⟨hks, hkb2, hR⟩ : L.ksb s' = L.ksb s ∧ KBack σ σ' ∧ _ := by
+    by_cases hcn : ∃ q, sl.1 = q.bv ∧ Z.th q = some (.cnode sl.2.length)
+    · exact J.emptyJR hA hcn hxn hRd hes hD2 hx0 hoth hX2 (SlotFrame2.writesIn hF) hnk
+    · exact J.emptyJRT hA hcn hxn hRd hes hD2 hx0 hoth hX2 (SlotFrame2.writesIn hF) hnk
+  obtain ⟨hC, Ac', Lst', D', R⟩ := hR hU
+  exact ⟨V2, Ac', Lst', D', J.cs_frameV hks hX2 hkb2 hC R, hks.trans hkb⟩
 
 /-- **`JDelHyp` from the named steps** (`delHyp_fullWR` at `WJ`, `RdJ`). -/
 theorem JDelHyp.of_parts (h : JDelParts (L := L) arI AR th) (hpp : JPreemptHyp (L := L) arI AR th)
@@ -350,7 +337,7 @@ theorem JDelHyp.of_parts (h : JDelParts (L := L) arI AR th) (hpp : JPreemptHyp (
   have hH : DelHypsWR (L := L) arI (WJ (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb)
       (RdJ (L := L) (A := A) H) th :=
     ⟨finJ arI h.fin Z H Cs kb hth, rdTrivJ arI h.triv Z H Cs kb hth, hpp Z H Cs kb hth, hpost Z H Cs kb hth,
-      h.zomb Z H Cs kb hth, h.swap Z H Cs kb hth, emptyHypJ arI h.empUt h.empTcb Z H Cs kb hth⟩
+      h.zomb Z H Cs kb hth, h.swap Z H Cs kb hth, emptyHypJ arI h.empUt Z H Cs kb hth⟩
   subst hth
   exact delHyp_fullWR arI _ _ _ Z.th hP (finalHyp_full Z.th hP) hH K hK hK6 s a σ G c hCR hE hA hxm
 

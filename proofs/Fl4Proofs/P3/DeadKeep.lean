@@ -267,10 +267,10 @@ theorem JAtZ.deadP_hstep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.H
     (hOut : ∀ q z, H q = some (.sc z) → ∀ K : U64, K.val % 8 = 0 → K.val < 128 →
       L.mem s' (scW q K) = L.mem s (scW q K)) (hAS : ActSched σ')
     {q : U64} (hd : DeadP (L := L) H s q) : DeadP (L := L) H s' q :=
-  J.deadP_keep hX'.fin.1.1.1 hX'.ipc (fun x hx _ => ⟨x, hC.tcb.2 hx, rfl, rfl, Or.inl rfl⟩)
-    (fun x hx => (hC.look (fun _ _ e => by cases e)).2 hx)
+  J.deadP_keep hX'.fin.1.1.1 hX'.ipc (fun x hx _ => let ⟨y, hy, hc⟩ := hC.tcbF hx; ⟨y, hy, hc.st, hc.ntfn, Or.inl hc.sc⟩)
+    (fun x hx => (hC.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 hx)
     (fun x hx => ⟨x, hC.ntfn.2 hx, Or.inl rfl, rfl, Or.inl rfl⟩)
-    (fun x hx => ⟨x, (hC.look (fun _ _ e => by cases e)).2 hx, rfl⟩)
+    (fun x hx => ⟨x, (hC.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 hx, rfl⟩)
     (fun x n hx => ⟨x, hC.sc.2 hx, Or.inl rfl, Or.inl rfl⟩) (hRW q) (fun z hz _ => hOut q z hz) hC.idle hAS hd
 
 /-- **`JCovD` across a step keeping every slot and the dead dead**
