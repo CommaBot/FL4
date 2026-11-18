@@ -32,6 +32,7 @@ import Fl4Proofs.P3.XTopJointCnDel
 import Fl4Proofs.P3.TopXAll
 import Fl4Proofs.P3.XTopJointIpcJ
 import Fl4Proofs.P3.XTopJointVsCap
+import Fl4Proofs.P3.XTopJointUt
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -501,6 +502,32 @@ structure JDomPath (Z : XSets) (s : S) (lbl : U64) (slbl : Fl4Spec.Data) (extra 
   hlbl : Fl4Spec.genInvocationType slbl = domLabelOf lbl
   hex : ∃ x0, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 ∧ ExtraSRel Z.th (L.mem s) x0 excaps
 
+/-- The RAM Untyped path (native object types): XTopJointUt's
+`decode_invocation_untypedJ` premises. -/
+structure JUtPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (lbl length p sb fi : U64) (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
+    (slbl : Fl4Spec.Data) (argsU : List U64) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) (ct : U64) : Prop where
+  /-- [W] the front end's label. -/
+  hlbl : Fl4Spec.genInvocationType slbl = .untypedRetype ↔ lbl = fl4_abi.label.UntypedRetype
+  /-- [W] the front end's extra slot (`ExtraRel`). -/
+  hex : ∃ x0, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 ∧ ExtraRel Z.th (L.mem s) x0 (excaps.map Prod.fst)
+  /-- [P] `CONFIG_RETYPE_FAN_OUT_LIMIT` is FL4's 256. -/
+  fan : Fl4Spec.retypeFanOutLimit = 256#64
+  /-- [scope] a VT-x object type (14 to 18: VMCS, EPT tables). -/
+  vtx : ∀ x, argsU.head? = some x → 14 ≤ x.val → x.val < 19 →
+    JVtxScope (L := L) arI AR s ar σ lbl length (.Untyped p sb fi false) blk call don fp buf extra slbl argsU ci sl
+      excaps buffer ct
+  /-- [P] one core (as `JEntryAt.stall`, `JSchedCPath.core`): the sets' core
+  is core 0, the core of the TCBs and SCs a retype makes (their affinity and
+  `CORE` words are 0, ScFresh's `SchedRel.add_tcbs`, ScFreshSc's
+  `SchedRel.add_scs`). -/
+  core0 : Z.c = 0#u64
+  /-- [W] the retype after the decode (XTopJointUt's `JUtRetHyp`), asked on
+  core 0 only (on another core `JAtZ`'s one-core sets do not hold the new
+  core-0 TCBs and SCs, so the statement need not hold there). -/
+  ret : Z.c = 0#u64 → JUtRetHyp (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU
+
 /-- **Per cap, the premises of its decode path** (`decOK_J`'s table). -/
 def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl length : U64)
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data)
@@ -556,7 +583,11 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : F
       buffer ct
   | .Ept p l m asid va => JVtxScope (L := L) arI AR s ar σ lbl length (.Ept p l m asid va) blk call don fp buf extra
       slbl argsU ci sl excaps buffer ct
-  | c => JCapOpen (L := L) arI AR s ar σ lbl length c blk call don fp buf extra slbl argsU ci sl excaps buffer ct
+  | .Untyped p sb fi dev =>
+      (dev = true → JCapOpen (L := L) arI AR s ar σ lbl length (.Untyped p sb fi dev) blk call don fp buf extra slbl
+        argsU ci sl excaps buffer ct) ∧
+      (dev = false → JUtPath (L := L) arI AR Z s ar σ lbl length p sb fi blk call don fp buf extra slbl argsU ci sl
+        excaps buffer ct)
 
 end
 
@@ -585,7 +616,8 @@ on the cap:
 | SchedControl | `decode_invocation_sched_controlJ` | `JSchedCPath` |
 | PageTable, PageDirectory, PDPT, PML4, ASID pool, native Frame, ASID control | `decode_invocation_{page_table,page_directory,pdpt,pml4,asid_pool,frame,asid_control}J` (XTopJointVsCap) | `J{Pt,Pd,Pdpt,Pml4,Pool,Frame,AsidC}Path` (labels, extra [W]; `JPostHyp` [W]) |
 | VCPU, EPT, EPT-mapped Frame, VT-x IO port, TCB SetEPTRoot | — | `JVtxScope` [scope] |
-| Untyped | — | `JCapOpen` [W] |
+| Untyped (RAM, native types) | `decode_invocation_untypedJ` (XTopJointUt) | `JUtPath` (label, extra [W], fan-out, core 0 [P], `JUtRetHyp` [W]: the retype after the decode); VT-x types `JVtxScope` [scope] |
+| Untyped (device, losfair/FL4#34) | — | `JCapOpen` [W] |
 -/
 theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
@@ -785,6 +817,18 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       ct := hN
     exact (decode_invocation_asid_controlJ arI s ar σ J hni hN.mp lbl slbl hN.hlM length buf ct hct argsU hlen hargs
       extra excaps hN.hext (cslotAddr sl) blk call don fp ci sl buffer hN.post).toP arI hPre
+  case Untyped p sb fi dev =>
+    obtain ⟨hDv, hU⟩ := hN
+    cases dev
+    · have hN := hU rfl
+      by_cases hv : ∃ x, argsU.head? = some x ∧ 14 ≤ x.val ∧ x.val < 19
+      · obtain ⟨x, hx, h1, h2⟩ := hv
+        exact hN.vtx x hx h1 h2
+      obtain ⟨x0, hx0, hex⟩ := hN.hex
+      exact decode_invocation_untypedJ arI s ar σ J lbl slbl hN.hlbl length buf ct hct argsU hlen hargs
+        (fun x hx => Classical.byContradiction fun hn => hv ⟨x, hx, by omega, by omega⟩) sl hAs p sb fi hc extra x0
+        hx0 excaps hex hN.fan blk call don fp ci buffer (hN.ret hN.core0)
+    · exact hDv rfl
   all_goals exact hN
 
 /-- **The premises of one invocation at `J`** (`handle_invocation_refinesJ`):
