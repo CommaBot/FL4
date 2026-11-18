@@ -369,6 +369,7 @@ import Fl4Proofs.P3.XTopFinIrq
 import Fl4Proofs.P3.XTopJoint
 import Fl4Proofs.P3.XTopJointStep
 import Fl4Proofs.P3.XTopJointPortIn
+import Fl4Proofs.P3.XTopJointReply
 import Fl4Proofs.P3.DeadKeep
 import Fl4Proofs.P3.SlotOrig
 import Fl4Proofs.P3.SlotCover

@@ -3,7 +3,7 @@ P3 (DESIGN.md §9), IO ports: **the IO port cap with `JAt` after, every
 label** (XTopJointStep's per-op premise `JPostHyp` narrowed, at `In`, to the
 reply step `JReplyHyp`).
 
-* `JReplyHyp` [J]: from `JAtZ` at a state whose current thread is
+* `JReplyHyp` (proved: XTopJointReply's `jReplyHyp`): from `JAtZ` at a state whose current thread is
   `Restart`, FL4's `vspace::reply1` (the reply registers, when called, and
   `set_thread_state Running`) against the spec's success tail (`specTail`),
   `JAt` at every outcome related by `XTop` (l4v: `reply_from_kernel` and
@@ -32,7 +32,8 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64}
 
-/-- **Hypothesis: the reply step at `J`** [J] (module docstring). -/
+/-- **The reply step at `J`** (module docstring); proved by XTopJointReply's
+`jReplyHyp`. -/
 def JReplyHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
