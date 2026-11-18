@@ -465,6 +465,32 @@ theorem other_ntfn {th : TypedHeap} (hP : Placed th) {s : S} {σ : Fl4Spec.State
   subst hk
   exact ⟨_, _, _, rfl⟩
 
+/-- A non-final object cap but a frame has another cap alike it (the same
+object key) in the MDB (as `other_ntfn`). -/
+theorem other_key {th : TypedHeap} (hP : Placed th) {s : S} {σ : Fl4Spec.State Unit} {G : MdbGhost}
+    (hDS : DState (L := L) th s σ G) {sl : Fl4Spec.CslotPtr} (hA : AbsSlot th sl) {c : capability.Cap}
+    (hcv : capV (L.mem s) (cslotAddr sl) = c) (hk : FinObjKind c) (hf : isFrame c = false)
+    (hfin : ¬ Fl4Spec.isFinalCap' (absCap c) σ) :
+    ∃ y ∈ G.chains.flatten, y ≠ cslotAddr sl ∧ okey (capV (L.mem s) y) = okey c := by
+  obtain ⟨⟨hR, hV, hM, hC, hI⟩, hD, hF⟩ := hDS
+  have hNF : NeedsFin c := Or.inl ⟨hk, hf⟩
+  have hne : Fl4Spec.genObjRefs (absCap (capV (L.mem s) (cslotAddr sl))) ≠ ∅ := by
+    rw [hcv]; exact needsFin_refs hNF
+  rw [← hcv] at hfin
+  have hx : cslotAddr sl ∈ G.chains.flatten :=
+    (hM.members _).2 ⟨hA.isSlot, _, capAt_capV _ _, by rw [hcv]; rintro rfl; exact hk⟩
+  have hzx : isZb (capV (L.mem s) (cslotAddr sl)) = false := by
+    rw [hcv]; cases c <;> simp only [FinObjKind] at hk <;> rfl
+  by_contra hno
+  apply hfin
+  refine (final_iff hP hR hM hF hA hne).2 fun y hy hyx hov => hno ⟨y, hy, hyx, ?_⟩
+  have hzy : isZb (capV (L.mem s) y) = false := by
+    cases h : isZb (capV (L.mem s) y)
+    · rfl
+    · exact absurd hov.symm (hF.fm.zfin y hy _ hx hyx h)
+  rw [← hcv]
+  exact (hF.fm.key _ hx y hy (Ne.symm hyx) hov hzx hzy (by rw [hcv, hf]; simp)).symm
+
 set_option maxHeartbeats 16000000 in
 /-- **`JStepHyps.del` from `DelUtHyp`** (module docstring): the finalisation
 (`finNtfnJ` when final, nothing otherwise), then the slot emptied

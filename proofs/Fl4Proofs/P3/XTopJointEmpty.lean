@@ -330,6 +330,16 @@ theorem deadP_none {H : P1.Heap} {s : S} {q : U64} (h : H q = none) : DeadP (L :
   ⟨fun e => (by rw [h] at e; cases e), fun e => (by rw [h] at e; cases e), fun e => (by rw [h] at e; cases e),
     fun e => (by rw [h] at e; cases e), fun z e => (by rw [h] at e; cases e)⟩
 
+/-- **A slot is ready when another MDB cap covers its cap's range** (a
+non-final object cap's other cap alike it, `other_key`). -/
+theorem EmptyReady.of_cover {H : P1.Heap} {G : MdbGhost} {s : S} {x y : U64} (hy : y ∈ G.chains.flatten)
+    (hne : y ≠ x) (hp : physF (capV (L.mem s) x) = true → physF (capV (L.mem s) y) = true)
+    (hu : isUt (capV (L.mem s) y) = false) (hb : baseF (capV (L.mem s) y) ≤ baseF (capV (L.mem s) x))
+    (ht : topF (capV (L.mem s) x) ≤ topF (capV (L.mem s) y)) : EmptyReady (L := L) H G s x := by
+  intro hpx _
+  exact ⟨fun lo hi _ h1 h2 => Or.inl ⟨y, hy, hne, hp hpx, hu, le_trans hb h1, by omega⟩,
+    fun z _ h1 h2 => ⟨y, hy, hne, hp hpx, hu, le_trans hb h1, by omega⟩⟩
+
 /-- **A notification cap's slot is ready to be emptied** when the
 notification is dead (after a final cap's finalisation, P1's
 `fin_cap_ntfn.dead`) or another cap to it is in the MDB (a non-final cap,

@@ -20,7 +20,10 @@ some of them proved here.
   (`emptyHypJ`: `emptyJR`, the untyped caps' facts after from
   `JEmptyUtHyp`).
 * Named premises [J] (`JDelParts`), each one step of the loop at `WJ`:
-  `JFinAt` (the other object caps' finalisation, with `RdJ` after),
+  `JFinAtF` (a final object cap's finalisation, but notification, frame and
+  IO port caps, with `RdJ` after; a non-final one's is `jFin_nonfinal`:
+  nothing, the slot ready by another cap alike it), `JFinAt FrIoK` (frame and
+  IO port caps, finalised with work even when not final),
   `JRdTrivHyp` (`RdJ` at a zombie), `JZombieHyp` (a zombie
   written over a cap alike it), `JSwapHyp` (a zombie swapped with its first
   slot), `JEmptyUtHyp` (`DelUtFact` after emptying a ready slot: the known
@@ -109,6 +112,27 @@ def JFinAt (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (Kd : capability.C
   ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
     FinObjHypWRK (L := L) arI (WJ (L := L) arI AR Z H Cs kb) (RdJ (L := L) (A := A) H) th Kd
 
+/-- **Hypothesis: a final cap's finalisation at `J`, for the object caps of
+the kinds `Kd`** [J]: `JFinAt` for final caps only (a non-final cap's,
+`jFin_nonfinal`, is proved for every object cap but frames and IO port caps). -/
+def JFinAtF (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (Kd : capability.Cap → Prop) : Prop :=
+  ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
+  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (c : capability.Cap),
+    DState (L := L) th s σ G → WJ (L := L) arI AR Z H Cs kb s a σ G → AbsSlot th sl →
+    capAt (L.mem s) (cslotAddr sl) = ok c → FinObjKind c → Kd c → Fl4Spec.isFinalCap' (absCap c) σ →
+    objects.finalise_cap st arI s a c (decide (Fl4Spec.isFinalCap' (absCap c) σ)) false ⦃ r =>
+      r.1.1 = finRem c (decide (Fl4Spec.isFinalCap' (absCap c) σ)) ∧ CleanCap r.1.2 ∧ CapWf r.1.2 ∧
+      ∃ σ' G', ((absCap r.1.1, absCap r.1.2), σ') ∈
+          (Fl4Spec.finaliseCap (Z := Unit) (absCap c) (decide (Fl4Spec.isFinalCap' (absCap c) σ)) σ).1 ∧
+        DState (L := L) th r.2.1 σ' G' ∧ capV (L.mem r.2.1) (cslotAddr sl) = c ∧
+        (∀ y, IsSlot th y → y ≠ cslotAddr sl → capV (L.mem r.2.1) y = capV (L.mem s) y ∨
+          (capV (L.mem r.2.1) y = .Null ∧ isZb (capV (L.mem s) y) = false)) ∧
+        MdbStep (L.mem s) G (L.mem r.2.1) G' ∧ WJ (L := L) arI AR Z H Cs kb r.2.1 r.2.2 σ' G' ∧
+        RdJ (L := L) (A := A) H r.2.1 r.2.2 σ' G' (cslotAddr sl) ⦄
+
+/-- A frame cap or an IO port cap (finalised with work when not final). -/
+def FrIoK (c : capability.Cap) : Prop := isFrame c = true ∨ ∃ f l o, c = .IoPort f l o
+
 /-- **Hypothesis: a zombie's slot is ready at `J`** [J] (`RdTrivHyp` for
 zombies; their finalisation leaves the state as it is): the objects in the
 zombie's range (its CNode, or its TCB) dead or covered by another cap.
@@ -166,7 +190,8 @@ def JEmptyUtHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
 
 /-- **The named steps of the deletion at `J`** (module docstring). -/
 structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
-  fin : JFinAt (L := L) arI AR th (fun c => ¬ NtfnK c)
+  fin : JFinAtF (L := L) arI AR th (fun c => ¬ NtfnK c ∧ ¬ FrIoK c)
+  finFrIo : JFinAt (L := L) arI AR th FrIoK
   triv : JRdTrivHyp (L := L) arI AR th
   zomb : JZombieHyp (L := L) arI AR th
   swap : JSwapHyp (L := L) arI AR th
@@ -212,15 +237,70 @@ theorem jFinAt_ntfn : JFinAt (L := L) arI AR th NtfnK := by
     exact ⟨rfl, trivial, trivial, σ, G, hmem, hDS, hcv, fun y _ _ => Or.inl rfl, MdbStep.refl hDS.1.2.2.1,
       ⟨V, Ac, Lst, D, J, hkb⟩, J.ntfn_ready hA.isSlot hcv (Or.inr (other_ntfn hP hDS hA hcv hfin))⟩
 
-/-- The object caps' finalisation at `J`, from the notification caps' and the
-others' (`JFinAt`). -/
-theorem finJ (hF : JFinAt (L := L) arI AR th (fun c => ¬ NtfnK c)) (Z : XSets) (H : P1.Heap) (Cs : Set U64)
+theorem okey_of_finObj {c : capability.Cap} (hk : FinObjKind c) : okey c ≠ none := by
+  cases c <;> simp_all [FinObjKind, okey]
+
+theorem isUt_of_finObj {c : capability.Cap} (hk : FinObjKind c) : isUt c = false := by
+  cases c <;> simp_all [FinObjKind, isUt]
+
+/-- **A non-final cap's finalisation at `J`**, every object cap but frames
+and IO port caps: nothing (`fin_idle`), the slot ready by another cap alike
+it (`other_key`, `EmptyReady.of_cover`). -/
+theorem jFin_nonfinal (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th)
+    (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (c : capability.Cap)
+    (hDS : DState (L := L) th s σ G) (hW : WJ (L := L) arI AR Z H Cs kb s a σ G) (hA : AbsSlot th sl)
+    (hc : capAt (L.mem s) (cslotAddr sl) = ok c) (hk : FinObjKind c) (hfi : ¬ FrIoK c)
+    (hfin : ¬ Fl4Spec.isFinalCap' (absCap c) σ) :
+    objects.finalise_cap st arI s a c (decide (Fl4Spec.isFinalCap' (absCap c) σ)) false ⦃ r =>
+      r.1.1 = finRem c (decide (Fl4Spec.isFinalCap' (absCap c) σ)) ∧ CleanCap r.1.2 ∧ CapWf r.1.2 ∧
+      ∃ σ' G', ((absCap r.1.1, absCap r.1.2), σ') ∈
+          (Fl4Spec.finaliseCap (Z := Unit) (absCap c) (decide (Fl4Spec.isFinalCap' (absCap c) σ)) σ).1 ∧
+        DState (L := L) th r.2.1 σ' G' ∧ capV (L.mem r.2.1) (cslotAddr sl) = c ∧
+        (∀ y, IsSlot th y → y ≠ cslotAddr sl → capV (L.mem r.2.1) y = capV (L.mem s) y ∨
+          (capV (L.mem r.2.1) y = .Null ∧ isZb (capV (L.mem s) y) = false)) ∧
+        MdbStep (L.mem s) G (L.mem r.2.1) G' ∧ WJ (L := L) arI AR Z H Cs kb r.2.1 r.2.2 σ' G' ∧
+        RdJ (L := L) (A := A) H r.2.1 r.2.2 σ' G' (cslotAddr sl) ⦄ := by
+  subst hth
+  have hP : Placed Z.th := by obtain ⟨V, Ac, Lst, D, J, -⟩ := hW; exact J.xtop.rel.1
+  have hcv := capV_of_capAt hc
+  have hf : isFrame c = false := by
+    cases h : isFrame c
+    · rfl
+    · exact absurd (Or.inl h) hfi
+  have hio : ∀ f l o, c ≠ .IoPort f l o := fun f l o e => hfi (Or.inr ⟨f, l, o, e⟩)
+  rw [decide_eq_false hfin]
+  obtain ⟨cl, he, hmem, -, hrem, hnio⟩ := fin_idle (st := st) (L := L) arI s a σ c hk false (by
+    rintro (⟨h | ⟨f, l, o, e, -⟩, -⟩ | ⟨p, sz, r, d, ep, asid, va, e⟩)
+    · cases h
+    · exact hio _ _ _ e
+    · subst e; simp [isFrame] at hf)
+  have hcl0 : cl = .Null := hnio (fun f l e => hio f l 0#u64 e)
+  subst hcl0
+  obtain ⟨y, hy, hne, hky⟩ := other_key hP hDS hA hcv hk hf hfin
+  have hn : okey c ≠ none := okey_of_finObj hk
+  have hsh : shape (capV (L.mem s) y) = shape c := shape_of_key hky (by rw [hky]; exact hn)
+  obtain ⟨eb, et, ep⟩ := range_of_shape hsh
+  have hut : isUt (capV (L.mem s) y) = false := by
+    rw [isUt_of_shape hsh]; exact isUt_of_finObj hk
+  rw [he, WP.spec_ok]
+  exact ⟨hrem.symm, trivial, trivial, σ, G, hmem, hDS, hcv, fun y _ _ => Or.inl rfl, MdbStep.refl hDS.1.2.2.1,
+    hW, EmptyReady.of_cover (x := cslotAddr sl) hy hne (fun h => by rw [ep]; rw [hcv] at h; exact h) hut
+      (by rw [eb, hcv]) (by rw [et, hcv])⟩
+
+/-- The object caps' finalisation at `J`, from the notification caps'
+(`jFinAt_ntfn`), the non-final caps' (`jFin_nonfinal`), the final caps'
+(`JDelParts.fin`) and the frame and IO port caps' (`JDelParts.finFrIo`). -/
+theorem finJ (h : JDelParts (L := L) arI AR th) (Z : XSets) (H : P1.Heap) (Cs : Set U64)
     (kb : U64) (hth : Z.th = th) :
     FinObjHypWR (L := L) arI (WJ (L := L) arI AR Z H Cs kb) (RdJ (L := L) (A := A) H) th := by
   intro s a σ G sl c hDS hW hA hc hk _
   by_cases hn : NtfnK c
   · exact jFinAt_ntfn arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hn
-  · exact hF Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hn
+  by_cases hfi : FrIoK c
+  · exact h.finFrIo Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi
+  by_cases hfin : Fl4Spec.isFinalCap' (absCap c) σ
+  · exact h.fin Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨hn, hfi⟩ hfin
+  · exact jFin_nonfinal arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi hfin
 
 /-- The trivially finalised caps but untyped ones are not physical. -/
 theorem physF_triv (c : capability.Cap) (ht : TrivFin c) (hu : isUt c = false) : physF c = false := by
@@ -336,7 +416,7 @@ theorem JDelHyp.of_parts (h : JDelParts (L := L) arI AR th) (hpp : JPreemptHyp (
   have hP : Placed th := hth ▸ J.xtop.rel.1
   have hH : DelHypsWR (L := L) arI (WJ (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb)
       (RdJ (L := L) (A := A) H) th :=
-    ⟨finJ arI h.fin Z H Cs kb hth, rdTrivJ arI h.triv Z H Cs kb hth, hpp Z H Cs kb hth, hpost Z H Cs kb hth,
+    ⟨finJ arI h Z H Cs kb hth, rdTrivJ arI h.triv Z H Cs kb hth, hpp Z H Cs kb hth, hpost Z H Cs kb hth,
       h.zomb Z H Cs kb hth, h.swap Z H Cs kb hth, emptyHypJ arI h.empUt Z H Cs kb hth⟩
   subst hth
   exact delHyp_fullWR arI _ _ _ Z.th hP (finalHyp_full Z.th hP) hH K hK hK6 s a σ G c hCR hE hA hxm
