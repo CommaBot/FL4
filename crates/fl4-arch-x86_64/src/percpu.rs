@@ -17,6 +17,9 @@ pub struct PerCpu {
     pub polled_irq: Cell<u64>,
     /// CR0.TS is set (the current thread may not use the FPU).
     pub ts_set: Cell<bool>,
+    /// The FPU registers hold the initial state and no thread's (fpu.rs
+    /// `scrub_local`).
+    pub fpu_clean: Cell<bool>,
     /// User FS/GS bases currently loaded.
     pub fs_base: Cell<u64>,
     pub gs_base: Cell<u64>,
@@ -58,6 +61,7 @@ impl PerCpu {
             polling: Cell::new(false),
             polled_irq: Cell::new(NO_IRQ),
             ts_set: Cell::new(false),
+            fpu_clean: Cell::new(false),
             fs_base: Cell::new(0),
             gs_base: Cell::new(0),
             dr_loaded: Cell::new(false),
