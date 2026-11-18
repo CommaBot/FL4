@@ -748,7 +748,7 @@ theorem MidKn.mid3 {T : Set U64} {σ σ' : State Unit} (hK : MidKn σ σ') (hC :
     · rcases hc with hc | hc
       · exact hc hcn
       · rw [h0] at hc; simp at hc
-  refine ⟨?_, fun hcn => ?_, fun hpos y n hy => ?_⟩
+  refine ⟨?_, fun hcn => ?_, fun hpos y n hy _ => ?_⟩
   · by_cases hcn : σ'.schedulerAction = .chooseNewThread
     · exact Or.inl hcn
     right
@@ -767,7 +767,7 @@ theorem MidKn.mid3 {T : Set U64} {σ σ' : State Unit} (hK : MidKn σ σ') (hC :
     have hc : σ'.consumedTime = σ.consumedTime := hK.cons.resolve_right hne
     rw [hK.csc, hy0'] at hy; cases hy
     have hpos0 : 0 < σ.consumedTime := by rw [← hc]; exact hpos
-    obtain ⟨g1, g2, g3⟩ := hO hpos0 y0 n0 hy0
+    obtain ⟨g1, g2, g3⟩ := hO hpos0 y0 n0 hy0 (fun hid => hC.active hid y0 n0 hy0)
     have hr : refillHd y0' = refillHd y0 := by unfold refillHd; rw [f3 hne]
     rw [hr, hc, hK.time]
     exact ⟨g1, g2, g3⟩
@@ -1091,7 +1091,7 @@ theorem MidK.mid {T : Set U64} {σ σ' : State Unit} (hK : MidK σ σ')
     · rcases hc with hc | hc
       · exact hc hcn
       · rw [h0] at hc; simp at hc
-  refine ⟨?_, fun hcn => ?_, fun hpos y n hy => ?_, ⟨fun t ht => ?_, ?_⟩⟩
+  refine ⟨?_, fun hcn => ?_, fun hpos y n hy _ => ?_, ⟨fun t ht => ?_, ?_⟩⟩
   · by_cases hcn : σ'.schedulerAction = .chooseNewThread
     · exact Or.inl hcn
     right
@@ -1110,7 +1110,7 @@ theorem MidK.mid {T : Set U64} {σ σ' : State Unit} (hK : MidK σ σ')
     have hc := hK.consNe hne
     rw [hK.csc, hy0'] at hy; cases hy
     have hpos0 : 0 < σ.consumedTime := by rw [← hc]; exact hpos
-    obtain ⟨g1, g2, g3⟩ := hO hpos0 y0 n0 hy0
+    obtain ⟨g1, g2, g3⟩ := hO hpos0 y0 n0 hy0 (fun hid => hC.active hid y0 n0 hy0)
     have hr : refillHd y0' = refillHd y0 := by unfold refillHd; rw [f3 hne]
     rw [hr, hc, hK.time]
     exact ⟨g1, g2, g3⟩

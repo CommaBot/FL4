@@ -185,16 +185,16 @@ theorem unbindTcb_mid {T C : Set U64} {σ σ' : State Unit} {i t : ObjRef} {y : 
       · rw [e2, kt] at h; cases h
       rw [ko _ e2 e] at h; exact hun _ _ h
   · -- `OffOK`
-    intro h0 y1 n1 h1
+    intro h0 y1 n1 h1 ha
     rw [cn] at h0 ⊢; rw [tm]
-    rw [cs] at h1
+    rw [cs] at h1 ha
     by_cases e : σ.curSc = i
     · rw [e, ki] at h1; cases h1
-      exact hoff h0 y n (by rw [e]; exact hks)
+      exact hoff h0 y n (by rw [e]; exact hks) ha
     by_cases e2 : σ.curSc = t
     · rw [e2, kt] at h1; cases h1
     rw [ko _ e2 e] at h1
-    exact hoff h0 y1 n1 h1
+    exact hoff h0 y1 n1 h1 ha
   · -- `CurRunM`
     by_cases htc : t = σ.curThread
     · exact Or.inl (act_cn_nr (a1 htc))

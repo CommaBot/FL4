@@ -291,7 +291,7 @@ theorem JAtZ.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
   have hkern := J.kern_keep hks hw.2.1 hS' F.sk.ct F.sk.csc (fun sl h => Or.inl (by rw [← F.sk.orig]; exact h))
     (by rw [F.sk.arch])
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) hDbg
-    (D' := D) J.kern.cscLive
+    (D' := D)
   have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s' σ' :=
     ⟨hCR', hRF', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
       J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hSS hdead, hkern,

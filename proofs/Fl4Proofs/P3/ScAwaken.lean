@@ -145,9 +145,9 @@ theorem CurInv.sub {σ σ' : State Unit} (h : CurInv σ) (hc : Calm σ σ')
 
 theorem OffOK.calm {σ σ' : State Unit} (h : OffOK σ) (hc : Calm σ σ') : OffOK σ' := by
   obtain ⟨hk, -, h2, h3, h4, -⟩ := hc
-  intro h0 y n hy
-  rw [h4] at h0 ⊢; rw [h3]; rw [hk, h2] at hy
-  exact h h0 y n hy
+  intro h0 y n hy ha
+  rw [h4] at h0 ⊢; rw [h3]; rw [hk, h2] at hy; rw [h2] at ha
+  exact h h0 y n hy ha
 
 /-- `possible_switch_to` keeps a pending reschedule pending. -/
 theorem possibleSwitchTo_cn {σ σ' : State Unit} (h : Inv σ) {t : ObjRef} (hs : schedulable t σ = true)

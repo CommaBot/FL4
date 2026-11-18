@@ -58,7 +58,11 @@ theorem commit_time_inv {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spe
   have ht' : σ'.curTime = σ.curTime := e5
   -- the released head
   by_cases hc : 0 < σ.consumedTime
-  · obtain ⟨hsuf, hr', hr0⟩ := hoff hc x0 m (by rw [hcs]; exact hx0)
+  · have hact0 : Fl4Spec.scActive x0 = true := by
+      obtain ⟨y1, hy1, -, hm1⟩ := hsc x0 m hx0
+      rw [h3'] at hy1; cases hy1
+      unfold Fl4Spec.scActive Fl4Spec.activeSc at h4' ⊢; rw [← hm1]; exact h4'
+    obtain ⟨hsuf, hr', hr0⟩ := hoff hc x0 m (by rw [hcs]; exact hx0) (fun _ => hact0)
     obtain ⟨hmin, htm⟩ := hHF.1 hc hsuf
     refine ⟨?_, ?_⟩
     · show Fl4Spec.refillReady' 0 σ'.curTime (Fl4Spec.refillHd y) = true

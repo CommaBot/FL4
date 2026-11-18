@@ -79,7 +79,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 
 /-- **[carried] The kernel-global placement and the current thread** (what
 `UtJoint` reads): the original caps' slots, the current thread (a TCB of
-`th` and of `H`, the spec's), the current SC (an `H` object, live), the
+`th` and of `H`, the spec's), the current SC (an `H` object; live unless a reschedule is pending, derived: `JAtZ.cscLive`), the
 scheduler-action word outside the objects, core 0's debug-list head and
 word, the global PML4, and `H` well formed and off the kernel-global area
 and the nodes. Several are derivable (`cur`, `curT`: `SchedRel`/`CurOK`;
@@ -110,7 +110,6 @@ structure JKern (H : P1.Heap) (Cs D : Set U64) (th : TypedHeap) (s : S) (σ : Fl
   cpuCs : L.cpu s ∈ Cs
   curH : H (L.curW s) = some .tcb
   cscH : H (L.cscW s) ≠ none
-  cscLive : L.cscW s ∉ D
   /-- [carried] The cores are numbered below 64 (boot; `Cs` never grows). -/
   csLt : ∀ c ∈ Cs, c.val < 64
   /-- [carried] Core 0, the boot core, is among the cores (boot; `Cs` never
@@ -240,6 +239,36 @@ theorem ipcZ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (cr : Fl4Spec.Cr3
 theorem curInv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (h : σ.schedulerAction ≠ .chooseNewThread) :
     Sched.CurInv σ := J.cur.resolve_left h
 
+/-- **The current SC is live unless a reschedule is pending**: outside the
+dead set, or `chooseNewThread`. Derived, not carried: under `CurInv` the
+current thread is bound to the current SC, so (`Inv.back`) the SC's `TCB`
+word names it, while a dead SC's `TCB` word is null (`DeadP`). A dead
+current SC arises only when the current thread finalises the last cap to its
+own SC, which unbinds it and asks for a reschedule. -/
+theorem cscLive (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    L.cscW s ∉ D ∨ σ.schedulerAction = .chooseNewThread := by
+  by_cases hcn : σ.schedulerAction = .chooseNewThread
+  · exact Or.inr hcn
+  refine Or.inl fun hD => ?_
+  have hC := J.curInv hcn
+  obtain ⟨xt, hkt, hsc, -⟩ := hC.tcb
+  obtain ⟨y, n, hy, hyt⟩ := J.inv.back _ xt _ hkt hsc
+  obtain ⟨Q, R, hc, hs⟩ := J.xtop.fin.1.1.1.lists
+  have ecs : L.cscW s = Sched.nodeW st s Z.c layout.node.CUR_SC := by
+    unfold P1.LawfulStore.cscW P1.LawfulStore.nodeA Sched.nodeW; rw [hc.cur]
+  obtain ⟨q, hq, hqp⟩ := J.obj.sc _ y n hy
+  have eq : q = L.cscW s := P1.eq_of_bv (by rw [hqp, hs.curSc, ecs])
+  subst eq
+  obtain ⟨y', n', hk', hx'⟩ := hs.scs _ hq
+  have hk2 : σ.kheap σ.curSc = some (.schedContext y' n') := by rw [← hqp]; exact hk'
+  have e : y' = y := by rw [hy] at hk2; cases hk2; rfl
+  have hp0 : L.cscW s ≠ 0#u64 := J.c0 _ hq
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  have hH := (hJ.sc _ y' n' hp0 hk').2
+  have d := (J.jcov.dead _ hD).2.2.2.2 _ hH
+  have h0 : y'.scTcb = none := by rw [hx'.tcb, ← Sched.scTcbA_eq, d.1, Notif.optRef_zero]
+  rw [e, hyt] at h0; cases h0
+
 /-- `ScExtra` (the SC decodes' bundle), given the [global] platform facts and
 no reschedule pending. -/
 theorem scExtra (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction ≠ .chooseNewThread)
@@ -290,8 +319,10 @@ theorem pushDonOK (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t d r : U64
     PushDonOK st Z.N Z.T Z.C Z.R Z.c s σ t d r :=
   ⟨J.nsc, J.inv, J.rp, hiso, ⟨Lst, J.call, hdet, J.rfree⟩, hrel⟩
 
-/-- `UtJoint` (the untyped decode's bundle) at an invoked CNode slot. -/
-theorem utJoint (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {slot : obj.Slot} {cap : capability.Cap}
+/-- `UtJoint` (the untyped decode's bundle) at an invoked CNode slot, no
+reschedule pending (an invocation runs with `resume_cur_thread`: the current
+SC live, `cscLive`). -/
+theorem utJoint (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction ≠ .chooseNewThread) {slot : obj.Slot} {cap : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} {pp : U64} {rs : Nat} {idx : List Bool}
     (hnode : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) (hslot : slot = cslotAddr (pp.bv, idx))
     (hcap : capAt (L.mem s) slot = ok cap)
@@ -304,16 +335,16 @@ theorem utJoint (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {slot : obj.Sl
     fun p sb fi dev e => J.utc _ p sb fi dev hAs (by rw [← hslot, hcap, e]),
     J.kern.dwAl, J.kern.dwObj, J.kern.dwNe, J.kern.head, J.kern.gpm, J.kern.ga, J.kern.gf, J.kern.heap,
     J.kern.h0, J.kern.hks, J.kern.hnd, J.kern.ksbFit, J.kern.ksbAl, J.kern.nodeFit, J.kern.cpuCs,
-    J.kern.curH, J.kern.cscH, J.kern.cscLive, J.jpl⟩
+    J.kern.curH, J.kern.cscH, J.cscLive.resolve_right hres, J.jpl⟩
 
-/-- `UtP3Ok` (P1's `P3Ok` for the untyped retype). -/
-theorem utP3Ok (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {slot : obj.Slot} {cap : capability.Cap}
+/-- `UtP3Ok` (P1's `P3Ok` for the untyped retype), no reschedule pending. -/
+theorem utP3Ok (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction ≠ .chooseNewThread) {slot : obj.Slot} {cap : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} {pp : U64} {rs : Nat} {idx : List Bool}
     (hnode : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) (hslot : slot = cslotAddr (pp.bv, idx))
     (hcap : capAt (L.mem s) slot = ok cap)
     (hext : ∀ x ∈ extra.val, x ≠ 0#u64 → ∃ c a, capAt (L.mem s) x = ok c ∧ CapRel c a ∧ CapValid Z.th c) :
     Sched.UtP3Ok (L := L) arI H Cs s slot cap extra :=
-  ⟨_, _, _, _, _, _, _, J.utJoint hnode hidx hslot hcap hext⟩
+  ⟨_, _, _, _, _, _, _, J.utJoint hres hnode hidx hslot hcap hext⟩
 
 /-- Today's `JointInv` body at this state (P1's `BlkOK` with `JPlaced`,
 `SpecCover`, `SpecFree`). -/

@@ -33,7 +33,7 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 
 /-- **`JKern` across a scheduler step** (module docstring): the current SC
-word's heap object and liveness (`hcscH`, `hcscL`), the node-0
+word's heap object (`hcscH`), the node-0
 `DEBUG_TCBS` word kept and apart from the new thread's state word (`hDbg`,
 `hdw`) given. -/
 theorem JAtZ.sch_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
@@ -43,7 +43,7 @@ theorem JAtZ.sch_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (hS' : SchedRel st Z.N Z.T Z.C Z.c s' σ')
     (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))
     (hdw : (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS).val ≠ (P1.stA (L.curW s')).val)
-    (hcscH : H (L.cscW s') ≠ none) (hcscL : L.cscW s' ∉ D) : JKern (L := L) H Cs D Z.th s' σ' := by
+    (hcscH : H (L.cscW s') ≠ none) : JKern (L := L) H Cs D Z.th s' σ' := by
   have K := J.kern
   have hks : L.ksb s' = L.ksb s := hw.1
   have hcpu : L.cpu s' = L.cpu s := hw.2.1
@@ -62,7 +62,7 @@ theorem JAtZ.sch_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     ⟨pt, by rw [hK.gpml4]; exact hT.archObj hpt⟩, by rw [hK.gpml4]; exact K.ga, by rw [hK.gpml4]; exact K.gf,
     K.heap, K.h0, by rw [hks]; exact K.hks, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
-    by rw [hcpu]; exact K.cpuCs, J.zH.1 _ hcT, hcscH, hcscL, K.csLt, K.cs0⟩
+    by rw [hcpu]; exact K.cpuCs, J.zH.1 _ hcT, hcscH, K.csLt, K.cs0⟩
   rw [hna, hDbg]; exact K.head
 
 /-- **The new current SC after a scheduler step**: `H`'s (the spec's SC,
@@ -134,7 +134,7 @@ theorem JAtZ.sch_tail {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     ScAll.of_k hS J.rp J.yld J.mcp J.call J.rfree ⟨⟨hS', hR', hN', hI'⟩, hw, hSch.2⟩
   refine ⟨Lst', J.sch_frame hwT hK hX' hCR' hRF' hY' hM' (J.sch_buf hwT hK) hRP' (J.sch_apart hwT hK)
     (J.sch_jpl hwT hK) (J.sc_jcov hwT hT.dead fun q hq hn => absurd hq hn)
-    (J.sch_kern hwT hK hS' hT.dbg hT.dwNe (J.sch_csc hwT hK hS' hI' hC' hT.dead).1 (J.sch_csc hwT hK hS' hI' hC' hT.dead).2) (J.sch_utc hwT hK hT.dbg) hN' hI' (Or.inr hC')
+    (J.sch_kern hwT hK hS' hT.dbg hT.dwNe (J.sch_csc hwT hK hS' hI' hC' hT.dead).1) (J.sch_utc hwT hK hT.dbg) hN' hI' (Or.inr hC')
     (Or.inl (curOwn_of_curInv hS' hI' hC')) hoff hA' hbsa (Or.inr hcr) hT.blk⟩
 
 /-- **The entry tail on `JAt`** with `hSchedRest` discharged (module

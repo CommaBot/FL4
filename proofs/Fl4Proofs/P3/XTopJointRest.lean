@@ -662,7 +662,7 @@ theorem jowes_slotOf {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : Md
     have e := congrArg (fun z => z.archState.x64GlobalPml4) hcn.1; exact e
   have hkern := J.kern_keep hw.1 hw.2.1 hX'.fin.1.1.1 hC.ct hC.csc horig hgp
     (fun p ao h => (hC.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 h) hDbg
-    (D' := D) J.kern.cscLive
+    (D' := D)
   refine ⟨hJC, Ac, Lst, D, ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 mk,
     J.buf.frame kb (fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.buf⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_keepC hkc), hjpl,
     hjc, hkern, hutc, J.nsc.cn hC.toHStep, J.inv.cn hC, CurInvW.cn J.cur hC, J.own.cn hC.toHStep, J.off.cn hC.toHStep,
@@ -844,7 +844,7 @@ theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (
       (by simp [layout.node.DEBUG_TCBS])
     exact ksW_keep hw J.kern.dwAl (by rw [hv]; omega)
   have hkern := J.kern_keep hw.1 hw.2.1 hX'.fin.1.1.1 hO.ct hO.csc (fun sl h => Or.inl (by rw [← hO.orig]; exact h)) hO.gpml4 (fun p ao h => by rw [hO.kh]; exact h)
-    hDbg (D' := D) J.kern.cscLive
+    hDbg (D' := D)
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
     J.xtop.slotsSame_of hw fun b hb => by obtain ⟨K, h1, h2, -, e⟩ := hb; exact Or.inr (Or.inl ⟨by omega, by omega⟩)
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := fun q hq =>
@@ -1054,7 +1054,7 @@ theorem jowes_sched {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S
         | omega
         | (rcases hko y hy with h | h <;> omega)
   have hkern := J.kern_keep hw.1 hw.2.1 hX'.fin.1.1.1 hK.ct hK.csc (fun sl h => Or.inl (by rw [← hK.orig]; exact h)) (by rw [hK.arch])
-    (fun p ao h => by rw [hK.kh]; exact h) hDbg (D' := D) J.kern.cscLive
+    (fun p ao h => by rw [hK.kh]; exact h) hDbg (D' := D)
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
     J.xtop.slotsSame_of hw fun b hb => schW_oobj J.xtop.fin.1.1.1.placed.tcb hb
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := fun q hq =>

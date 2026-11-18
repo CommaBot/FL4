@@ -75,9 +75,8 @@ some of them proved here.
 * A final SC cap's finalisation (`jFinAt_sc`): XTopJointFinSc's
   `JScFinHyp` (the finalisation at `J`, by `jScFin_of` from the proved SC
   steps and `jYieldToHyp_of` from the thread's [P] `ticks`), the SC dead after
-  (P1's `fin_cap_sc.dead`, `JAtZ.sc_ready`), the current SC kept (P1's
-  `fin_sc.curR`); with `JScCapHyp` [J] and `JScCurHyp` [J] (not an l4v
-  invariant: `JKern`'s current SC must stay covered).
+  (P1's `fin_cap_sc.dead`, `JAtZ.sc_ready`); with `JScCapHyp` [J]. The SC
+  may be the current SC (XTopJointFinSc's docstring).
 * A final thread cap's finalisation (`jFinAt_thread`): XTopJointFinThread's
   `JAtZ.finThreadJ` (the notification unbind, timer removal, `unbind_tcb`,
   `complete_yield_to`, `suspend` (its `cancel_ipc`: send, notification and
@@ -413,10 +412,8 @@ structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   vt : JVtHyps (L := L) arI AR th
   frApart : JFrameApartHyp (L := L) arI AR th
   /-- A final SC cap's finalisation at `J` (XTopJointFinSc: `jScFin_of`
-  with `JThreadFinHyps.yieldToH` (proved from `ticks` [P]); `JScCapHyp`;
-  `JScCurHyp`, not an l4v invariant). -/
+  with `JThreadFinHyps.yieldToH` (proved from `ticks` [P]); `JScCapHyp`). -/
   scCap : JScCapHyp (L := L) arI AR th
-  scCur : JScCurHyp (L := L) arI AR th
   /-- The steps of a final thread cap's finalisation at `J` not proved
   (XTopJointFinThread's `JThreadFinHyps`). -/
   thread : JThreadFinHyps (L := L) arI AR th
@@ -670,7 +667,7 @@ theorem JAtZ.ep_ready {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     intro q k hq hne
     have := J.kern.heap.disj q k p .ep hq hHp hne
     simpa only [show (P1.HKind.ep).bits = 4 from rfl] using this
-  refine ⟨fun lo hi hlh h1 h2 => ?_, fun z hz h1 h2 => ?_⟩
+  refine fun lo hi hlh h1 h2 => ?_
   · right
     intro q hq
     by_cases e : q = p
@@ -681,10 +678,6 @@ theorem JAtZ.ep_ready {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
         exfalso
         have : 1 ≤ 2 ^ k.bits := Nat.one_le_two_pow
         rcases hout q k hk e with h | h <;> omega
-  · exfalso
-    have hne : L.cscW s ≠ p := fun e => by rw [e, hHp] at hz; cases hz
-    have : 1 ≤ 2 ^ (P1.HKind.sc z).bits := Nat.one_le_two_pow
-    rcases hout _ _ hz hne with h | h <;> omega
 
 set_option maxHeartbeats 4000000 in
 /-- **A final endpoint cap's finalisation at `J`** (XTopJointFinEp's
@@ -733,7 +726,7 @@ theorem JAtZ.reply_ready {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     intro q k hq hne
     have := J.kern.heap.disj q k p .reply hq hHp hne
     simpa only [show (P1.HKind.reply).bits = 5 from rfl] using this
-  refine ⟨fun lo hi hlh h1 h2 => ?_, fun z hz h1 h2 => ?_⟩
+  refine fun lo hi hlh h1 h2 => ?_
   · right
     intro q hq
     by_cases e : q = p
@@ -744,10 +737,6 @@ theorem JAtZ.reply_ready {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
         exfalso
         have : 1 ≤ 2 ^ k.bits := Nat.one_le_two_pow
         rcases hout q k hk e with h | h <;> omega
-  · exfalso
-    have hne : L.cscW s ≠ p := fun e => by rw [e, hHp] at hz; cases hz
-    have : 1 ≤ 2 ^ (P1.HKind.sc z).bits := Nat.one_le_two_pow
-    rcases hout _ _ hz hne with h | h <;> omega
 
 set_option maxHeartbeats 4000000 in
 /-- **A final reply cap's finalisation at `J`** (XTopJointFinReply's
@@ -889,27 +878,22 @@ theorem jFinAt_frio [Fl4Proofs.P1.PlainStore st] (hM : JFrMapHyp (L := L) arI AR
     | _ => cases hf
   · exact EmptyReady.of_nonphys (by rw [hcv]; exact physF_ioPort f l o)
 /-- **A final SC cap's finalisation at `J`** (`JScFinHyp` [J], the SC dead
-after by P1's `fin_cap_sc.dead`, the current SC kept by `fin_sc.curR`,
-`JAtZ.sc_ready`), from `JScCapHyp` [J] and `JScCurHyp` [J]. -/
-theorem jFinAt_sc (hT : P0.ArchTotal arI) (hF : JScFinHyp (L := L) arI AR th) (hC : JScCapHyp (L := L) arI AR th)
-    (hCur : JScCurHyp (L := L) arI AR th) : JFinAtF (L := L) arI AR th ScK := by
+after by P1's `fin_cap_sc.dead`, `JAtZ.sc_ready`), from `JScCapHyp` [J];
+the SC may be the current SC. -/
+theorem jFinAt_sc (hT : P0.ArchTotal arI) (hF : JScFinHyp (L := L) arI AR th) (hC : JScCapHyp (L := L) arI AR th) :
+    JFinAtF (L := L) arI AR th ScK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨p, sb, hce⟩ hfin
   subst hce hth
   obtain ⟨V, Ac, Lst, D, J, hkb⟩ := hW
   have hcv := capV_of_capAt hc
   obtain ⟨hHp, -, hp0, hna, hidle, -⟩ :=
     JAtZ.scCapFacts arI J hA hc (hC (Z.mv G V) H Cs Ac Lst D s a σ rfl J sl p sb hA hc)
-  have hcur := hCur (Z.mv G V) H Cs Ac Lst D s a σ rfl J sl p sb hA hc hfin
   have hpS : p ∈ P1.Heap.scs H := ⟨_, hHp⟩
-  have hcR : objects.finalise_cap st arI s a (.SchedContext p sb) true false ⦃ r =>
-      P1.CurR st (L.curW s) s r.2.1 ⦄ := by
-    rw [P1.fin_cap_eq_obj (by simp)]
-    exact P1.fin_sc.curR hT s a p sb (L.curW s) true J.blk hpS hp0 hna hidle J.kern.curH
   rw [decide_eq_true hfin]
-  refine WP.spec_mono (WP.spec_and (hF (Z.mv G V) H Cs Ac Lst D s a σ rfl J sl p sb hA hc hfin hcur)
-    (WP.spec_and (P1.fin_cap_sc.dead (ar := arI) hT s a p sb false J.blk hpS hp0 hna hidle) hcR)) ?_
-  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨e1, σ1, V1, Ac1, Lst1, D1, hmem1, J1, hSS1, hks1⟩, ⟨d1, d2, d3⟩, hcr⟩
-  simp only at e1 hmem1 J1 hSS1 hks1 d1 d2 d3 hcr
+  refine WP.spec_mono (WP.spec_and (hF (Z.mv G V) H Cs Ac Lst D s a σ rfl J sl p sb hA hc hfin)
+    (P1.fin_cap_sc.dead (ar := arI) hT s a p sb false J.blk hpS hp0 hna hidle)) ?_
+  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨e1, σ1, V1, Ac1, Lst1, D1, hmem1, J1, hSS1, hks1⟩, ⟨d1, d2, d3⟩⟩
+  simp only at e1 hmem1 J1 hSS1 hks1 d1 d2 d3
   obtain ⟨rfl, rfl⟩ := Prod.mk.inj e1
   have hdp : DeadP (L := L) H s1 p :=
     ⟨fun h => (by rw [hHp] at h; cases h), fun h => (by rw [hHp] at h; cases h),
@@ -918,7 +902,7 @@ theorem jFinAt_sc (hT : P0.ArchTotal arI) (hF : JScFinHyp (L := L) arI AR th) (h
     rw [hSS1.capV hA.isSlot, hcv]
   exact ⟨rfl, trivial, trivial, σ1, G, hmem1, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
     fun y hy _ => Or.inl (hSS1.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS1,
-    ⟨V1, Ac1, Lst1, D1, J1, hks1.trans hkb⟩, JAtZ.sc_ready arI J1 hcv1 hHp hdp (by rw [hcr.2.1]; exact hcur)⟩
+    ⟨V1, Ac1, Lst1, D1, J1, hks1.trans hkb⟩, JAtZ.sc_ready arI J1 hcv1 hHp hdp⟩
 /-- **A final thread cap's finalisation at `J`** (XTopJointFinThread's
 `JAtZ.finThreadJ`, from `JThreadFinHyps`), the slots kept and the kernel
 base by P1's `fin_cap_thread.slots`, the thread dead after by P1's
@@ -1029,7 +1013,7 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
     by_cases hvs : VsK c
     · exact jFinAt_vs arI h.archRef h.vsCaps h.vsApart Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hvs hfin
     by_cases hsc : ScK c
-    · exact jFinAt_sc arI hT (jScFin_of arI hT (JThreadFinHyps.yieldToH arI hT h.thread) h.scCap) h.scCap h.scCur Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hsc hfin
+    · exact jFinAt_sc arI hT (jScFin_of arI hT (JThreadFinHyps.yieldToH arI hT h.thread) h.scCap) h.scCap Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hsc hfin
     by_cases ht : TcbK c
     · exact jFinAt_thread arI hT h.thread h.recvRep Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ht hfin
     by_cases hvt : EptK c ∨ VcpuK c
@@ -1089,7 +1073,7 @@ theorem JAtZ.cnode_ready {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     have := J.kern.heap.disj q' k q _ hq' hHq hne
     simpa only [show (P1.HKind.other (r.val + 5)).bits = r.val + 5 from rfl, e5] using this
   have h32 : 1 ≤ 2 ^ r.val := Nat.one_le_two_pow
-  refine ⟨fun lo hi hlh h1 h2 => Or.inr fun q' hq' => ?_, fun z hz h1 h2 => ?_⟩
+  refine fun lo hi hlh h1 h2 => Or.inr fun q' hq' => ?_
   · by_cases e : q' = q
     · subst e; exact deadP_other hHq
     · cases hk : H q' with
@@ -1098,10 +1082,6 @@ theorem JAtZ.cnode_ready {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
         exfalso
         have : 1 ≤ 2 ^ k.bits := Nat.one_le_two_pow
         rcases hout q' k hk e with h | h <;> omega
-  · exfalso
-    have hne : L.cscW s ≠ q := fun e => by rw [e, hHq] at hz; cases hz
-    have : 1 ≤ 2 ^ (P1.HKind.sc z).bits := Nat.one_le_two_pow
-    rcases hout _ _ hz hne with h | h <;> omega
 
 /-- **The readiness at `J` of a cap finalised without effect** (`RdTrivHyp`
 at `WJ`): the trivial caps cover nothing, a CNode cap's CNode is dead for

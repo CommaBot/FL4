@@ -56,7 +56,7 @@ theorem EmptyReady.of_apartO {H : P1.Heap} {G : MdbGhost} {s : S} {x : U64}
       q.val + 2 ^ k.bits ≤ baseF (capV (L.mem s) x) ∨ topF (capV (L.mem s) x) < q.val) :
     EmptyReady (L := L) H G s x := by
   intro _ _
-  refine ⟨fun lo hi hlh h1 h2 => Or.inr fun q hq => ?_, fun z hz h1 h2 => ?_⟩
+  refine fun lo hi hlh h1 h2 => Or.inr fun q hq => ?_
   · cases hk : H q with
     | none => exact deadP_none hk
     | some k =>
@@ -68,9 +68,6 @@ theorem EmptyReady.of_apartO {H : P1.Heap} {G : MdbGhost} {s : S} {x : U64}
       · exfalso
         have : 1 ≤ 2 ^ k.bits := Nat.one_le_two_pow
         rcases hap q k hk (fun z e => ho ⟨z, e⟩) with h | h <;> omega
-  · exfalso
-    have : 1 ≤ 2 ^ (P1.HKind.sc z).bits := Nat.one_le_two_pow
-    rcases hap _ _ hz (fun _ e => by cases e) with h | h <;> omega
 
 /-- **A VCPU cap's VCPU at a `JAtZ` state** [J] (module docstring): bound to
 no thread, its list neighbours' link words VT-x words, its range apart from

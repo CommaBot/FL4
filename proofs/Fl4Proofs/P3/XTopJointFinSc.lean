@@ -9,9 +9,16 @@ clears `REFILL_MAX` and `SPORADIC`; it never writes the current-SC word.
 
 * `JAtZ.sc_ready`: an SC cap's slot is ready (`EmptyReady`) once the SC is
   dead (P1's `fin_cap_sc.dead`: its `TCB`, `REPLY` and `NTFN` words null),
-  given the cap's size is the SC's (`JScCapHyp`) and the SC is not the
-  current SC (`EmptyReady`'s current-SC clause: no other cap covers the SC
-  of a final cap).
+  given the cap's size is the SC's (`JScCapHyp`).
+* The SC may be the current SC (the invoking thread deleting or revoking the
+  last cap to its own bound SC, or to the SC it runs on). seL4 and FL4 then
+  leave `ksCurSC` naming the dead, inactive SC until the next `schedule`,
+  whose `commit_time` skips an inactive SC. `JAtZ` allows it: unbinding the
+  current thread asks for a reschedule (and `CurInv` cannot hold once the
+  current SC has no thread, `Inv.back`), `OffOK` asks nothing of an inactive
+  current SC, `EmptyReady` asks nothing of the current SC, and the current
+  SC's liveness is derived (`JAtZ.cscLive`) only while no reschedule is
+  pending.
 
 Named premises:
 
@@ -23,25 +30,8 @@ Named premises:
   (`JAtZ.scCapFacts`): the SC is P1's heap's of the cap's size (`JPlaced.sc`,
   the pointer non-null by `CapValid`), one of `Z.C` (`ObjCover`), its bound
   thread not the idle thread (`scBack_of`, `IdleOK`).
-* `JScCurHyp` [J]: a final SC cap's SC is not the current SC word. **Not an
-  l4v invariant**: it is false exactly when the deleted cap is the last cap
-  to `ksCurSC`, i.e. (under `CurInv`) the invoking thread deletes or
-  revokes the last cap to its own bound SC, or (with a reply's donated SC
-  current) the last cap to the SC it runs on; or, mid-entry with a pending
-  reschedule (`CurOwnW`'s second case), the last cap to an unowned current
-  SC. All are reachable by a user thread holding the only cap to its SC.
-  seL4 and FL4 then leave `ksCurSC` dangling, inactive, until the next
-  `schedule` (whose `commit_time` skips an inactive SC). It is what `JAtZ`
-  needs as it stands: `JKern.cscH`/`cscLive` keep the current SC in `H` and
-  out of the dead set, `EmptyReady`'s current-SC clause asks another cap to
-  cover it (a final cap's SC has none), and `CurInv.active` asks the
-  current SC active (false after `set_inactive`). Dropping it needs `JKern`
-  and `EmptyReady` to accept a dead, uncovered, inactive current SC under a
-  pending reschedule (`CurInv` already gives way to `chooseNewThread`), and
-  the current-SC case of the steps (the spec's `unbind_all_tcbs` of the
-  current thread reschedules).
-* `JScFinHyp`: from `JAtZ`, FL4's `finalise_cap` of a final SC cap (not the
-  current SC) against the spec's, `JAtZ` after: **proved** from the steps
+* `JScFinHyp`: from `JAtZ`, FL4's `finalise_cap` of a final SC cap
+  against the spec's, `JAtZ` after: **proved** from the steps
   (`jScFin_of`, `JAtZ.finScJ`, as XTop's `xFinSc_of`), the SC's links
   cleared and the current SC word kept between steps by P1's per-step
   lemmas, the slots and base by P1's `fin_cap_sc.slots`. Every SC step is
@@ -126,24 +116,15 @@ theorem JAtZ.scCapFacts {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     exact hpi (Option.some.inj hsci)
   exact ⟨hHp, hpC, hp0, fun h => (hw h).1, fun h => (hw h).2, ⟨y, n, hk⟩, hpi⟩
 
-/-- **Hypothesis: a final SC cap's SC is not the current SC** [J] (module
-docstring: not an l4v invariant, a gap of `JKern`'s current SC). -/
-def JScCurHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
-  ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
-    (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
-    ∀ (sl : Fl4Spec.CslotPtr) (p sb : U64), AbsSlot Z.th sl →
-      capAt (L.mem s) (cslotAddr sl) = ok (.SchedContext p sb) →
-      Fl4Spec.isFinalCap' (absCap (.SchedContext p sb)) σ → L.cscW s ≠ p
-
-/-- **A final SC cap's finalisation at `J`** (module docstring; asked of an
-SC other than the current one): the statement `jFinAt_sc` reads, proved by
+/-- **A final SC cap's finalisation at `J`** (module docstring; the SC may
+be the current one): the statement `jFinAt_sc` reads, proved by
 `jScFin_of` from the SC steps. -/
 def JScFinHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
     ∀ (sl : Fl4Spec.CslotPtr) (p sb : U64), AbsSlot Z.th sl →
       capAt (L.mem s) (cslotAddr sl) = ok (.SchedContext p sb) →
-      Fl4Spec.isFinalCap' (absCap (.SchedContext p sb)) σ → L.cscW s ≠ p →
+      Fl4Spec.isFinalCap' (absCap (.SchedContext p sb)) σ →
       objects.finalise_cap st arI s a (.SchedContext p sb) true false ⦃ res =>
         res.1 = (capability.Cap.Null, capability.Cap.Null) ∧
         ∃ σ' V' Ac' Lst' D', ((absCap res.1.1, absCap res.1.2), σ') ∈
@@ -181,12 +162,11 @@ theorem JThreadFinHyps.yieldToH {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHea
     (h : JThreadFinHyps (L := L) arI AR th) : JYieldToHyp (L := L) arI AR th := jYieldToHyp_of arI hT h.ticks
 
 /-- **An SC cap's slot is ready once the SC is dead** (as `JAtZ.ep_ready`),
-the cap of the SC's size and the SC not the current one. -/
+the cap of the SC's size. -/
 theorem JAtZ.sc_ready {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} {p sb : U64}
-    (hcv : capV (L.mem s) x = .SchedContext p sb) (hHp : H p = some (.sc sb.val)) (hd : DeadP (L := L) H s p)
-    (hcur : L.cscW s ≠ p) :
+    (hcv : capV (L.mem s) x = .SchedContext p sb) (hHp : H p = some (.sc sb.val)) (hd : DeadP (L := L) H s p) :
     EmptyReady (L := L) H Z.G s x := by
   have hpfit : p.val + 2 ^ sb.val ≤ 2 ^ 64 := by
     have := J.kern.heap.fits p _ hHp
@@ -209,7 +189,7 @@ theorem JAtZ.sc_ready {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     have := J.kern.heap.disj q k p (.sc sb.val) hq hHp hne
     simpa only [P1.HKind.bits] using this
   have hpos : 1 ≤ 2 ^ sb.val := Nat.one_le_two_pow
-  refine ⟨fun lo hi hlh h1 h2 => ?_, fun z hz h1 h2 => ?_⟩
+  refine fun lo hi hlh h1 h2 => ?_
   · right
     intro q hq
     by_cases e : q = p
@@ -220,9 +200,6 @@ theorem JAtZ.sc_ready {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
         exfalso
         have : 1 ≤ 2 ^ k.bits := Nat.one_le_two_pow
         rcases hout q k hk e with h | h <;> omega
-  · exfalso
-    have : 1 ≤ 2 ^ (P1.HKind.sc z).bits := Nat.one_le_two_pow
-    rcases hout _ _ hz hcur with h | h <;> omega
 
 set_option maxHeartbeats 16000000 in
 /-- **`JAtZ` across a final SC cap's finalisation** (as XTop's `xFinSc_of`),
@@ -236,7 +213,7 @@ theorem JAtZ.finScJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (hT : P0.ArchTotal arI) (hY : JYieldToHyp (L := L) arI AR Z.th)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p sb : U64} (hpC : p ∈ Z.C) (hp0 : p ≠ 0#u64)
-    (hpi : p.bv ≠ Fl4Spec.idleScPtr) (hcur : L.cscW s ≠ p) (hpS : p ∈ P1.Heap.scs H)
+    (hpi : p.bv ≠ Fl4Spec.idleScPtr) (hpS : p ∈ P1.Heap.scs H)
     (hna : L.mem s (P1.scTcbA p) ≠ 0#u64 → L.actionW s ≠ L.mem s (P1.scTcbA p))
     (hidle : L.mem s (P1.scTcbA p) ≠ 0#u64 → L.idleW s ≠ L.mem s (P1.scTcbA p)) :
     objects.finalise_cap st arI s a (.SchedContext p sb) true false ⦃ r => ∃ σ',
@@ -251,20 +228,17 @@ theorem JAtZ.finScJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     (P1.schedcontext.unbind_all_tcbs.blk hT s a p J.blk hpS hp0 hna hidle)) ?_
   rintro ⟨s1, a1⟩ ⟨⟨σ1, he1, V1, Ac1, Lst1, D1, J1⟩, hP1⟩
   try simp only [WP.uncurry'_pair] at hP1
-  obtain ⟨-, -, -, -, t1, c1⟩ := hP1
-  have hcur1 : L.cscW s1 ≠ p := by rw [c1]; exact hcur
+  obtain ⟨-, -, -, -, t1, -⟩ := hP1
   -- `unbind_ntfn`
   refine WP.spec_bind (WP.spec_and (JAtZ.unbindNtfnJ arI J1 hpC hp0)
     (P1.schedcontext.unbind_ntfn.blk s1 p J1.blk fun _ => hpS)) ?_
-  rintro s2 ⟨⟨σ2, he2, V2, Ac2, Lst2, D2, J2⟩, -, -, t2, c2, n2⟩
-  have hcur2 : L.cscW s2 ≠ p := by rw [c2]; exact hcur1
+  rintro s2 ⟨⟨σ2, he2, V2, Ac2, Lst2, D2, J2⟩, -, -, t2, -, n2⟩
   have t2' : L.mem s2 (P1.scTcbA p) = 0#u64 := by rw [t2, t1]
   -- `unbind_reply`
   refine WP.spec_bind (WP.spec_and
     (JAtZ.unbindReplyJ arI J2 hpC hp0)
     (P1.schedcontext.unbind_reply.blk s2 p p J2.blk (fun _ => hpS) hpS)) ?_
   rintro s3 ⟨⟨σ3, he3, V3, Ac3, Lst3, D3, J3⟩, -, -, k3, r3⟩
-  have hcur3 : L.cscW s3 ≠ p := by rw [k3.2.2.1]; exact hcur2
   have t3 : L.mem s3 (P1.scTcbA p) = 0#u64 := by rw [k3.1, t2']
   have n3 : L.mem s3 (P1.scNtfnA p) = 0#u64 := by rw [k3.2.1, n2 hp0]
   have r3' : L.mem s3 (P1.scReplyA p) = 0#u64 := r3 hp0
@@ -272,7 +246,7 @@ theorem JAtZ.finScJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
   obtain ⟨y3, n3', hk3, hx3⟩ := hs3.scs p hpC
   -- the inactive SC and the post
   have fin5 : ∀ (s4 : S) (a4 : A) (σ4 : Fl4Spec.State Unit) (V4 : XVs) (Ac4 : Set U64) (Lst4 : U64 → List U64)
-      (D4 : Set U64), JAtZ (L := L) arI AR (Z.mv Z.G V4) H Cs Ac4 Lst4 D4 s4 a4 σ4 → L.cscW s4 ≠ p →
+      (D4 : Set U64), JAtZ (L := L) arI AR (Z.mv Z.G V4) H Cs Ac4 Lst4 D4 s4 a4 σ4 →
       L.mem s4 (P1.scTcbA p) = 0#u64 → L.mem s4 (P1.scNtfnA p) = 0#u64 → L.mem s4 (P1.scReplyA p) = 0#u64 →
       Fl4Spec.schedContextUnbindYieldFrom (Z := Unit) p.bv σ3 = ({((), σ4)}, False) →
       (do
@@ -282,11 +256,11 @@ theorem JAtZ.finScJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
           ((Fl4Spec.Cap.nullCap, Fl4Spec.Cap.nullCap), σ') ∈
             (Fl4Spec.finaliseCap (Z := Unit) (absCap (.SchedContext p sb)) true σ).1 ∧
           JTP (L := L) arI AR Z H Cs r.2.1 r.2.2 σ' ⦄ := by
-    intro s4 a4 σ4 V4 Ac4 Lst4 D4 J4 hcur4 t4 n4 r4 he4
+    intro s4 a4 σ4 V4 Ac4 Lst4 D4 J4 t4 n4 r4 he4
     step with obj.Sc.set_refill_max.spec as ⟨s5, hs5⟩
     step with obj.Sc.set_sporadic.spec2 as ⟨s6, hs6⟩
     subst hs5 hs6
-    obtain ⟨σ5, he5, V5, Ac5, Lst5, D5, J5⟩ := JAtZ.setInactiveJ arI J4 hpC hp0 hpi hcur4 t4 n4 r4
+    obtain ⟨σ5, he5, V5, Ac5, Lst5, D5, J5⟩ := JAtZ.setInactiveJ arI J4 hpC hp0 hpi t4 n4 r4
     exact ⟨σ5, finSc_mem he1 he2 he3 he4 he5, V5, Ac5, Lst5, D5, J5⟩
   -- the yielder
   step with obj.Sc.yield_from.spec' as ⟨i, hi⟩
@@ -294,7 +268,7 @@ theorem JAtZ.finScJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
   by_cases h0 : i = 0#u64
   · have hb : b0 = true := by rw [hb0, h0]; rfl
     simp only [hb, ↓reduceIte, bind_ok]
-    refine fin5 s3 a1 σ3 V3 Ac3 Lst3 D3 J3 hcur3 t3 n3 r3' (unbindYieldFrom_none hk3 ?_)
+    refine fin5 s3 a1 σ3 V3 Ac3 Lst3 D3 J3 t3 n3 r3' (unbindYieldFrom_none hk3 ?_)
     rw [hx3.yieldFrom, ← scYieldFromA_eq, ← hi, h0, Notif.optRef_zero]
   · have hb : b0 = false := by rw [hb0]; simp [h0]
     simp only [hb, Bool.false_eq_true, ↓reduceIte]
@@ -306,7 +280,7 @@ theorem JAtZ.finScJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     rintro ⟨s4, a4⟩ ⟨⟨σ4, e4, V4, Ac4, Lst4, D4, J4⟩, hP4⟩
     try simp only [WP.uncurry'_pair] at hP4
     obtain ⟨-, -, -, k4⟩ := hP4
-    refine fin5 s4 a4 σ4 V4 Ac4 Lst4 D4 J4 (by rw [k4.2.2.1]; exact hcur3) (by rw [k4.1, t3])
+    refine fin5 s4 a4 σ4 V4 Ac4 Lst4 D4 J4 (by rw [k4.1, t3])
       (by rw [k4.2.1, n3]) (k4.2.2.2 r3') (unbindYieldFrom_some hk3 ?_ e4)
     rw [hx3.yieldFrom, ← scYieldFromA_eq, Notif.optRef_ne (by rw [← hi]; exact h0)]
 
@@ -315,12 +289,12 @@ kernel-state base kept by P1's `fin_cap_sc.slots`. -/
 theorem jScFin_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (hT : P0.ArchTotal arI)
     (hY : JYieldToHyp (L := L) arI AR th) (hC : JScCapHyp (L := L) arI AR th) :
     JScFinHyp (L := L) arI AR th := by
-  intro Z H Cs Ac Lst D s a σ hth J sl p sb hA hc _ hcur
+  intro Z H Cs Ac Lst D s a σ hth J sl p sb hA hc _
   have hC' := hC Z H Cs Ac Lst D s a σ hth J sl p sb hA hc
   subst hth
   obtain ⟨hHp, hpC, hp0, hna, hidle, -, hpi⟩ := JAtZ.scCapFacts arI J hA hc hC'
   have hpS : p ∈ P1.Heap.scs H := ⟨_, hHp⟩
-  refine WP.spec_mono (WP.spec_and (JAtZ.finScJ arI hT hY J hpC hp0 hpi hcur hpS hna hidle)
+  refine WP.spec_mono (WP.spec_and (JAtZ.finScJ arI hT hY J hpC hp0 hpi hpS hna hidle)
     (P1.fin_cap_sc.slots (ar := arI) hT s a p sb true false J.blk hpS hp0 hna hidle)) ?_
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨σ1, hm1, V1, Ac1, Lst1, D1, J1⟩, e, -, f, hW1⟩
   simp only [Prod.mk.injEq] at e

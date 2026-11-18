@@ -298,10 +298,10 @@ theorem KFr.own {T C : Set U64} (h : KFr t σ σ') (hO : CurOwnW T C σ) : CurOw
     exact hun y n (h.scB hy)
 
 theorem KFr.off (h : KFr t σ σ') (hO : OffOK σ) : OffOK σ' := by
-  intro hc y n hy
+  intro hc y n hy ha
   rw [h.sk.cons] at hc ⊢; rw [h.sk.tm]
-  rw [h.sk.csc] at hy
-  exact hO hc y n (h.scB hy)
+  rw [h.sk.csc] at hy ha
+  exact hO hc y n (h.scB hy) ha
 
 theorem KFr.idleOK (h : KFr t σ σ') (hO : IdleOK σ) : IdleOK σ' := by
   obtain ⟨x, hx, h1, h2, h3⟩ := hO

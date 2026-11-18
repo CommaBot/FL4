@@ -261,7 +261,7 @@ theorem JAtZ.finNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   have hkern := J.kern_keep hks hw.2.1 hS3 F.sk.ct F.sk.csc (fun sl h => Or.inl (by rw [← F.sk.orig]; exact h))
     (by rw [F.sk.arch])
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) hDbg
-    (D' := D) J.kern.cscLive
+    (D' := D)
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s3 σ3 :=
     ⟨hCR', hRF', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
       J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead, hkern,

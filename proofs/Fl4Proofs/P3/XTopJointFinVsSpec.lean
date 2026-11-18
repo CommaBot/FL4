@@ -255,10 +255,10 @@ theorem Sched.CurInv.ar (hI : CurInv σ) (h : ArFr σ σ') : CurInv σ' := by
   exact hI.active hne y m (h.sc.1 hy)
 
 theorem Sched.OffOK.ar (hO : OffOK σ) (h : ArFr σ σ') : OffOK σ' := by
-  intro hc y n hy
+  intro hc y n hy ha
   rw [h.cons] at hc ⊢; rw [h.time]
-  rw [h.csc] at hy
-  exact hO hc y n (h.sc.1 hy)
+  rw [h.csc] at hy ha
+  exact hO hc y n (h.sc.1 hy) ha
 
 theorem Sched.ActIdle.ar (hA : ActIdle σ) (h : ArFr σ σ') : ActIdle σ' := by
   obtain ⟨hS, x, hx, h1, h2, h3⟩ := hA

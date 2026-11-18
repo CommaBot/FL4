@@ -191,7 +191,7 @@ theorem JAtZ.finEpJ (hRR : RecvReplyHyp (L := L) arI AR H Cs) (J : JAtZ (L := L)
     (by rw [F.sk.arch])
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
       (fun _ e => by cases e)) hDbg
-    (D' := D) J.kern.cscLive
+    (D' := D)
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s3 σ3 :=
     ⟨hCR', hRF', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
       J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead, hkern,

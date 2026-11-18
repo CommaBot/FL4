@@ -76,7 +76,7 @@ theorem jowes_slotD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     (hT3 : ∀ t, Z.th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3) ∨
       capV (L.mem s') (slotOf t 3) = .Null)
     (hDl : DelInv Z.th (L.mem s')) (hUK : UtKept Z.th (L.mem s) (L.mem s'))
-    {D' : Set U64} (hjc : JCovD (L := L) Z.th H G' D' Cs s') (hcl : L.cscW s ∉ D')
+    {D' : Set U64} (hjc : JCovD (L := L) Z.th H G' D' Cs s')
     (horig : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot Z.th sl)
     (hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
       UtCapP3 (L := L) arI Z.th s' σ' G' sl p sb fi) :
@@ -106,7 +106,7 @@ theorem jowes_slotD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
   have hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4 := by
     have e := congrArg (fun z => z.archState.x64GlobalPml4) hcn.1; exact e
   have hkern := J.kern_keep hw.1 hw.2.1 hX'.fin.1.1.1 hC.ct hC.csc horig hgp
-    (fun p ao h => (hC.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 h) hDbg (D' := D') hcl
+    (fun p ao h => (hC.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 h) hDbg (D' := D')
   exact ⟨⟨hJC0.del, hJC0.ut, hJC0.finM, hJC0.sfree⟩, ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 mk,
     J.buf.frame kb' (fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.buf⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_keepCT hkc), hjpl,
     hjc, hkern, hutc, J.nsc.cn hC.toHStep, J.inv.cn hC, CurInvW.cn J.cur hC, J.own.cn hC.toHStep, J.off.cn hC.toHStep,
@@ -400,21 +400,6 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     have hnb : ∀ c, L.nodeBase s2 c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
     exact ⟨by rw [hks]; exact k1, fun c hc => by rw [hnb]; exact k2 c hc⟩
   have hjc := J.jcov.step hunc (fun q' _ hd => J.deadP_slot hX2 hcn2 (KeepC.t hkc) hw hd) hks2
-  have hcl : L.cscW s ∉ D ∪ Uncov Z.th H (L.mem s2) G2 := by
-    obtain ⟨z, hz⟩ := J.csc_sc
-    rintro (h | h)
-    · exact J.kern.cscLive h
-    · have hcp : L.cscW s ≠ p := fun e => by rw [e, hHp] at hz; cases hz
-      rcases h with ⟨k, hk, hnc⟩ | ⟨k, hk, hnc⟩
-      · rcases J.thk _ k hk with rfl | ⟨r', rfl⟩
-        · rw [(hJ.tcb _).1 hk] at hz; cases hz
-        · rw [hJ.cnode _ r' hk] at hz; cases hz
-      · rw [hz] at hk; cases hk
-        rcases J.jcov.h _ _ hz with hcv | hD'
-        · rcases hcovA _ _ hcv with h | ⟨g1, g2, -⟩
-          · exact hnc h
-          · exact hcp (hin _ _ hz g1 g2)
-        · exact J.kern.cscLive hD'
   have horig : ∀ sl', (setCnodeSlot (emptySlotCdtState σ (q.bv, idx)) q.bv idx.length cs idx .nullCap).isOriginalCap sl' = true →
       σ.isOriginalCap sl' = true := fun sl' h => by
     by_cases e : sl' = (q.bv, idx)
@@ -422,7 +407,7 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     · simpa [setCnodeSlot, emptySlotCdtState, Function.update_of_ne e] using h
   refine ⟨rfl, _, G2, V2, by rw [he]; exact Set.mem_singleton _, hX2, hw.1, KBack.of_keepC hkc, fun hUt => ?_⟩
   have hutc := J.del_utc (G' := G2) (sl := (q.bv, idx)) (fun y hy e => hoth2 y hy e) hnull2 hw rfl horig hgp hM2 hUt
-  obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 (KeepC.t hkc) hw hFI2 hMO hkz hTK (fun t ht => Or.inl (hT3 t ht)) hDl2 hUK hjc hcl
+  obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 (KeepC.t hkc) hw hFI2 hMO hkz hTK (fun t ht => Or.inl (hT3 t ht)) hDl2 hUK hjc
     (fun sl' h => Or.inl (horig sl' h)) hutc
   exact ⟨hJC, Ac, Lst, _, R⟩
 

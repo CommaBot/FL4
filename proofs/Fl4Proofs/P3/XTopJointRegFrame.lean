@@ -210,11 +210,11 @@ theorem QKY.own {T C : Set U64} (hO : CurOwnW T C σ) : CurOwnW T C σ' := by
     rw [e2]; exact hun z n hz
 
 theorem QKY.off (hO : OffOK σ) : OffOK σ' := by
-  intro h0 y n hy
+  intro h0 y n hy ha
   rw [h.cons] at h0 ⊢; rw [h.tm]
-  rw [h.csc] at hy
+  rw [h.csc] at hy ha
   obtain ⟨z, hz, e2⟩ := h.sc_back hy
-  rw [e2]; exact hO h0 z n hz
+  rw [e2] at ha ⊢; exact hO h0 z n hz ha
 
 theorem QKY.curRunW (hR : CurRunW σ) : CurRunW σ' := by
   rcases hR with hR | hR
@@ -352,7 +352,7 @@ theorem JAtZ.reg_frameF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : 
   have hkern := J.kern_keep hks hwF.2.1 hS3 hA.ct hA.csc (fun sl h => Or.inl (by rw [← hA.orig]; exact h))
     (by rw [hA.arch])
     (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hDbg
-    (D' := D) J.kern.cscLive
+    (D' := D)
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac' Lst D s' σ' :=
     ⟨hCR', hRF', J.yld.frame k2 hyk, J.mcp.frame k1 hA.mcpKeep, J.buf.frame kb hA.bufKeep, hRP',
       J.apart.sc_frame hks hA.szKeep, hjpl, J.jcov_keep hks hF.1 hdead, hkern,

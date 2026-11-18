@@ -324,7 +324,7 @@ theorem commit_time_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
       refine WP.spec_bind (commit_refill_refines s a σ hS hR hN hI hscC hk hact hown (fun h => hnr (by rw [hs.consumed]; exact h))
         (fun h0 _ => by
           rw [← hs.consumed] at h0 ⊢
-          exact (hoff h0 x n (by rw [hs.curSc]; exact hk)).1) hmrt hmb) ?_
+          exact (hoff h0 x n (by rw [hs.curSc]; exact hk) (fun _ => hact)).1) hmrt hmb) ?_
       rintro s3 ⟨y', h3, hy', hS3, hR3, hN3, hI3, hHF, hw3⟩
       have hk3 : (updSc σ (nodeW st s c layout.node.CUR_SC).bv y' n).kheap (nodeW st s c layout.node.CUR_SC).bv =
           some (.schedContext y' n) := by simp [updK]

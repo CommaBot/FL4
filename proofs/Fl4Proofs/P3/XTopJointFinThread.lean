@@ -226,7 +226,7 @@ theorem JAtZ.nfrStep (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} 
   have hkern := J.kern_keep hks hw.2.1 hS3 F.sk.ct F.sk.csc (fun sl h => Or.inl (by rw [← F.sk.orig]; exact h))
     (by rw [F.sk.arch])
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) hDbg
-    (D' := D) J.kern.cscLive
+    (D' := D)
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
     ⟨hCR', hRF', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
       J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead, hkern,
@@ -450,7 +450,7 @@ theorem JAtZ.kern_dbg (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     K.heap, K.h0, by rw [hks]; exact K.hks, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
-    by rw [ecs]; exact K.cscLive, K.csLt, K.cs0⟩
+    K.csLt, K.cs0⟩
   rw [hna]; exact hhead
 
 set_option maxHeartbeats 8000000 in
@@ -847,7 +847,7 @@ theorem JAtZ.tcb_ready (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U6
     intro q k hq hne
     have := J.kern.heap.disj q k p .tcb hq hHp hne
     simpa only [show (P1.HKind.tcb).bits = 12 from rfl] using this
-  refine ⟨fun lo hi hlh h1 h2 => ?_, fun z hz h1 h2 => ?_⟩
+  refine fun lo hi hlh h1 h2 => ?_
   · right
     intro q hq
     by_cases e : q = p
@@ -858,10 +858,6 @@ theorem JAtZ.tcb_ready (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U6
         exfalso
         have : 1 ≤ 2 ^ k.bits := Nat.one_le_two_pow
         rcases hout q k hk e with h | h <;> omega
-  · exfalso
-    have hne : L.cscW s ≠ p := fun e => by rw [e, hHp] at hz; cases hz
-    have : 1 ≤ 2 ^ (P1.HKind.sc z).bits := Nat.one_le_two_pow
-    rcases hout _ _ hz hne with h | h <;> omega
 
 end
 

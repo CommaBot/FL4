@@ -360,8 +360,8 @@ theorem JAtZ.kern_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     (horig : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot Z.th sl)
     (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
     (hao : ∀ p ao, σ.kheap p = some (.archObj ao) → σ'.kheap p = some (.archObj ao))
-    (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))
-    (hcl : L.cscW s ∉ D') : JKern (L := L) H Cs D' Z.th s' σ' := by
+    (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
+    JKern (L := L) H Cs D' Z.th s' σ' := by
   have K := J.kern
   have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hks
   obtain ⟨Q, R, hc, hs⟩ := J.xtop.fin.1.1.1.lists
@@ -391,7 +391,7 @@ theorem JAtZ.kern_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     K.heap, K.h0, by rw [hks]; exact K.hks, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
-    fun h => hcl (by rw [ecs] at h; exact h), K.csLt, K.cs0⟩
+    K.csLt, K.cs0⟩
   rw [hna, hDbg]; exact K.head
 
 

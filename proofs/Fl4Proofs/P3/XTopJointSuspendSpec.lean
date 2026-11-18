@@ -298,10 +298,10 @@ theorem SusF.own {T C : Set U64} (hO : CurOwnW T C σ) : CurOwnW T C σ' := by
     rw [F.csc] at hy; obtain ⟨z, hz, e⟩ := F.scB hy; rw [e]; exact hun z n hz
 
 theorem SusF.off (hO : OffOK σ) : OffOK σ' := by
-  intro h0 y n hy
-  rw [F.cons] at h0 ⊢; rw [F.tm]; rw [F.csc] at hy
+  intro h0 y n hy ha
+  rw [F.cons] at h0 ⊢; rw [F.tm]; rw [F.csc] at hy ha
   obtain ⟨z, hz, e⟩ := F.scB hy
-  rw [e]; exact hO h0 z n hz
+  rw [e] at ha ⊢; exact hO h0 z n hz ha
 
 theorem SusF.sched {u : ObjRef} (hu : u ≠ t) (hs : schedulable u σ = true) : schedulable u σ' = true := by
   obtain ⟨y, scp, z, n, hk, hsc, hrun, hkz, hac, hnr⟩ := schedulable_inv hs

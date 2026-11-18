@@ -166,9 +166,14 @@ theorem CurInv.restart {σ : State Unit} (h : CurInv σ) {xt : Tcb} (hk : σ.khe
 /-- l4v `cur_sc_offset_ready` / `cur_sc_offset_sufficient` (for a positive
 consumed time), with the current SC's head ready: the head can pay the
 consumed time, keep `MIN_BUDGET`, and is not after the current time when
-moved by it. -/
+moved by it. Asked of an active current SC (or the idle SC) only, as l4v's
+`cur_sc_offset_ready` is asked under `cur_sc_active`: `commit_time` (spec
+and FL4) charges only an active SC other than the idle one, and a current SC
+made inactive by its own finalisation (the current thread deleting the last
+cap to its SC) has no refills. -/
 def OffOK (σ : State Unit) : Prop :=
   0 < σ.consumedTime → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) →
+    (σ.curSc ≠ idleScPtr → scActive y = true) →
     refillSufficient σ.consumedTime (refillHd y) = true ∧
     refillReady' σ.consumedTime σ.curTime (refillHd y) = true ∧ refillReady σ.curTime (refillHd y) = true
 
@@ -182,7 +187,7 @@ def OffReady (σ : State Unit) : Prop :=
 theorem OffReady.ok {σ : State Unit} (h : OffReady σ)
     (hs : ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) →
       refillSufficient σ.consumedTime (refillHd y) = true) : OffOK σ := by
-  intro _ y n hy
+  intro _ y n hy _
   have h1 := h y n hy
   refine ⟨hs y n hy, ?_, ?_⟩
   · simp only [refillReady', decide_eq_true_eq, BitVec.le_def, BitVec.toNat_add]
@@ -199,12 +204,12 @@ theorem OffOK.restart {σ : State Unit} (h : OffOK σ) {t : ObjRef} {xt : Tcb} (
   have e2 : ∀ σ0 : State Unit, (stsAct σ0 t).consumedTime = σ0.consumedTime ∧ (stsAct σ0 t).curTime = σ0.curTime ∧
       (stsAct σ0 t).curSc = σ0.curSc := fun σ0 => by unfold stsAct; split_ifs <;> exact ⟨rfl, rfl, rfl⟩
   obtain ⟨ec, et, es⟩ := e2 (updK σ t (.tcb { xt with tcbState := ts }))
-  intro hc y n hy
-  rw [ek, es] at hy; rw [ec] at hc
+  intro hc y n hy ha
+  rw [ek, es] at hy; rw [es] at ha; rw [ec] at hc
   have hy' : (updK σ t (.tcb { xt with tcbState := ts })).kheap σ.curSc = some (.schedContext y n) := hy
   have hne : σ.curSc ≠ t := by rintro e; rw [e] at hy'; simp [updK] at hy'
   simp only [updK_kheap, ne_eq, hne, not_false_eq_true, Function.update_of_ne] at hy'
-  have := h hc y n hy'
+  have := h hc y n hy' ha
   simp only [ec, et]; exact this
 
 theorem rescheduleRequired_action {σ σ' : State Unit} (hA : ActReady σ)

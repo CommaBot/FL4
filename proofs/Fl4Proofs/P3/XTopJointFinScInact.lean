@@ -4,12 +4,16 @@ final SC cap's finalisation, XTopJointFinSc's `JAtZ.finScJ`):
 `REFILL_MAX` and `SPORADIC` of an SC cleared, against the spec's
 `sched_context_set_inactive`, from `JAtZ` to `JAtZ` (`JAtZ.setInactiveJ`).
 
-The SC is not the current SC and its thread, notification and reply words
-are null (the earlier unbinds). The spec side (`Sched.InactOK`): only the SC
-changes, no thread is bound to it (`Inv.back`) and its call stack is empty
-(`CallRel`: the `REPLY` word heads it, a reply is never null), so `Inv`,
-`CurInv`, `CurOwnW`, `OffOK`, `ActIdle`, `BlockedScActive` and `CurRunM`
-are kept although the SC becomes inactive. FL4's side: XTop's
+The SC's thread, notification and reply words are null (the earlier
+unbinds). The spec side (`Sched.InactOK`): only the SC changes, no thread is
+bound to it (`Inv.back`) and its call stack is empty (`CallRel`: the `REPLY`
+word heads it, a reply is never null), so `Inv`, `CurInv`, `CurOwnW`,
+`OffOK`, `ActIdle`, `BlockedScActive` and `CurRunM` are kept although the SC
+becomes inactive. The SC may be the current SC (the current thread deleting
+the last cap to its own SC): `CurInv` then cannot hold (its current thread
+is bound to the current SC, `Inv.back`), so a reschedule is pending
+(`JAtZ.cur`); `CurOwnW` holds unowned, and `OffOK` asks nothing of an
+inactive current SC other than the idle SC. FL4's side: XTop's
 `SchedRel.set_inactive`, `xtop_sc_step`; the call stacks, yield and MCP
 words by `ScAll.of_k` (`Pres` of the spec step); `JAtZ.sc_frame` for the
 rest, P1's `BlkOK` by `deact_all` (the SC leaves the active set), the dead
@@ -27,13 +31,11 @@ section Spec
 
 theorem scActive_inact (x : SchedContext) : scActive (inactSc x) = false := rfl
 
-/-- The SC `p` made inactive: an SC other than the current one, no thread
-bound to it, an empty call stack. -/
+/-- The SC `p` made inactive: no thread bound to it, an empty call stack. -/
 structure InactOK (σ : State Unit) (p : ObjRef) (y : SchedContext) (m : Nat) : Prop where
   hk : σ.kheap p = some (.schedContext y m)
   tcb : y.scTcb = none
   rep : y.scReplies = []
-  csc : p ≠ σ.curSc
 
 variable {σ : State Unit} {p : ObjRef} {y : SchedContext} {m : Nat}
 
@@ -50,9 +52,9 @@ theorem InactOK.tcb' (h : InactOK σ p y m) {q : ObjRef} {x : Tcb} :
   · subst e; simp [updK, h.hk]
   · rw [h.ko e]
 
-theorem InactOK.kcs (h : InactOK σ p y m) :
+theorem InactOK.kcs (h : InactOK σ p y m) (hcsc : p ≠ σ.curSc) :
     (updSc σ p (inactSc y) m).kheap (updSc σ p (inactSc y) m).curSc = σ.kheap σ.curSc :=
-  h.ko (Ne.symm h.csc)
+  h.ko (Ne.symm hcsc)
 
 /-- No thread is bound to the SC (`Inv.back`). -/
 theorem InactOK.nb (h : InactOK σ p y m) (hI : Inv σ) {u : ObjRef} {x : Tcb} (hx : σ.kheap u = some (.tcb x)) :
@@ -106,24 +108,43 @@ theorem InactOK.inv (h : InactOK σ p y m) (hI : Inv σ) : Inv (updSc σ p (inac
   · exact hI.ne q y' n (inact q y' n hy ha) ha
   · exact hI.rr q y' n (inact q y' n hy ha) ha hp0
 
-theorem InactOK.curInv (h : InactOK σ p y m) (hC : CurInv σ) : CurInv (updSc σ p (inactSc y) m) := by
+/-- A thread bound to an SC is bound to an SC other than `p` (`Inv.back`). -/
+theorem InactOK.ne_of_bound (h : InactOK σ p y m) (hI : Inv σ) {u : ObjRef} {x : Tcb} {q : ObjRef}
+    (hx : σ.kheap u = some (.tcb x)) (hq : x.tcbSchedContext = some q) : p ≠ q :=
+  fun e => h.nb hI hx (e ▸ hq)
+
+theorem InactOK.curInv (h : InactOK σ p y m) (hI : Inv σ) (hC : CurInv σ) : CurInv (updSc σ p (inactSc y) m) := by
   obtain ⟨xt, hkt, hsc, hnb⟩ := hC.tcb
+  have hcsc := h.ne_of_bound hI hkt hsc
   obtain ⟨y0, n0, hy0⟩ := hC.sc
-  refine ⟨⟨xt, h.tcb'.2 hkt, hsc, hnb⟩, ⟨y0, n0, by rw [h.kcs]; exact hy0⟩, fun hid y' n hy => ?_,
+  refine ⟨⟨xt, h.tcb'.2 hkt, hsc, hnb⟩, ⟨y0, n0, by rw [h.kcs hcsc]; exact hy0⟩, fun hid y' n hy => ?_,
     hC.notRel⟩
-  rw [h.kcs] at hy
+  rw [h.kcs hcsc] at hy
   exact hC.active hid y' n hy
 
-theorem InactOK.own {T C : Set U64} (h : InactOK σ p y m) (hO : CurOwnW T C σ) :
+theorem InactOK.own {T C : Set U64} (h : InactOK σ p y m) (hI : Inv σ) (hO : CurOwnW T C σ) :
     CurOwnW T C (updSc σ p (inactSc y) m) := by
   rcases hO with ⟨u, hu, xt, hkt, hxs, hown, hnr⟩ | ⟨hcs, hun⟩
-  · exact Or.inl ⟨u, hu, xt, h.tcb'.2 hkt, hxs, fun x n hx => hown x n (by rwa [h.kcs] at hx), hnr⟩
-  · exact Or.inr ⟨hcs, fun x n hx => hun x n (by rwa [h.kcs] at hx)⟩
+  · have hcsc := h.ne_of_bound hI hkt hxs
+    exact Or.inl ⟨u, hu, xt, h.tcb'.2 hkt, hxs, fun x n hx => hown x n (by rwa [h.kcs hcsc] at hx), hnr⟩
+  · refine Or.inr ⟨hcs, fun x n hx => ?_⟩
+    by_cases hcsc : p = σ.curSc
+    · subst hcsc
+      simp [updK] at hx
+      obtain ⟨rfl, -⟩ := hx
+      exact h.tcb
+    · exact hun x n (by rwa [h.kcs hcsc] at hx)
 
-theorem InactOK.off (h : InactOK σ p y m) (hO : OffOK σ) : OffOK (updSc σ p (inactSc y) m) := by
-  intro hpos y' n hy
-  rw [h.kcs] at hy
-  exact hO hpos y' n hy
+theorem InactOK.off (h : InactOK σ p y m) (hpi : p ≠ idleScPtr) (hO : OffOK σ) :
+    OffOK (updSc σ p (inactSc y) m) := by
+  intro hpos y' n hy ha
+  by_cases hcsc : p = σ.curSc
+  · subst hcsc
+    simp [updK] at hy
+    obtain ⟨rfl, -⟩ := hy
+    exact absurd ((scActive_inact y).symm.trans (ha hpi)) Bool.false_ne_true
+  · rw [h.kcs hcsc] at hy
+    exact hO hpos y' n hy ha
 
 theorem InactOK.sched (h : InactOK σ p y m) (hI : Inv σ) {t : ObjRef} (hs : schedulable t σ = true) :
     schedulable t (updSc σ p (inactSc y) m) = true := by
@@ -181,7 +202,7 @@ a step of XTopJointFinSc's `JAtZ.finScJ`, proved. -/
 theorem JAtZ.setInactiveJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hpC : p ∈ Z.C) (hp0 : p ≠ 0#u64)
-    (hpi : p.bv ≠ Fl4Spec.idleScPtr) (hcur : L.cscW s ≠ p) (t0 : L.mem s (P1.scTcbA p) = 0#u64)
+    (hpi : p.bv ≠ Fl4Spec.idleScPtr) (t0 : L.mem s (P1.scTcbA p) = 0#u64)
     (n0 : L.mem s (P1.scNtfnA p) = 0#u64) (r0 : L.mem s (P1.scReplyA p) = 0#u64) :
     ∃ σ', Fl4Spec.schedContextSetInactive (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
       JTP (L := L) arI AR Z H Cs (L.wr (L.wr s (maxA p) 0#u64) (scW p 64#u64) 0#u64) a σ' := by
@@ -205,9 +226,6 @@ theorem JAtZ.setInactiveJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
       (TFoot st Z.T Z.N Z.C Z.c s σ) := hWK.mono fun b hb => Or.inl hb
   have hX' := xtop_sc_step (ct := σ.curThread) J.xtop J.ip J.nk hW6 (hK6.mono fun _ h => h.elim) hS6 hR6 id
   -- the spec side
-  have ecs : L.cscW s = nodeW st s Z.c layout.node.CUR_SC := by
-    unfold P1.LawfulStore.cscW P1.LawfulStore.nodeA nodeW; rw [hc.cur]
-  have hcsc : p.bv ≠ σ.curSc := fun e => hcur (P1.eq_of_bv (by rw [ecs, ← hs.curSc]; exact e)).symm
   have hrep : x.scReplies = [] := by
     obtain ⟨⟨y1, n1, hk1, hy1⟩, hLR, -, hSW⟩ := J.call.stack p hpC
     rw [hk] at hk1; cases hk1
@@ -221,7 +239,7 @@ theorem JAtZ.setInactiveJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
       have hH := J.zH.2.2.1 r hrR
       have : r = 0#u64 := by rw [← hr]; exact r0
       rw [this, J.kern.h0] at hH; cases hH
-  have hO : InactOK σ p.bv x n := ⟨hk, by rw [hx.tcb, ← scTcbA_eq, t0, Notif.optRef_zero], hrep, hcsc⟩
+  have hO : InactOK σ p.bv x n := ⟨hk, by rw [hx.tcb, ← scTcbA_eq, t0, Notif.optRef_zero], hrep⟩
   have hI' := hO.inv J.inv
   have hSOK : SOK (true, true) σ (updSc σ p.bv (inactSc x) n) :=
     Pres.of_eq (pres_schedContextSetInactive (true, true) p.bv) he5
@@ -260,7 +278,7 @@ theorem JAtZ.setInactiveJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
   exact ⟨Z.vs, Ac \ {p}, Lst', D, J.sc_frame hW6 hK6 hX' hCR' hRF' hY' hM' (J.sc_buf hW6 hK6) hRP'
     (J.sc_apart hW6 hK6) (J.sc_jpl hW6 hK6) (J.sc_jcov hW6 hDead fun q hq hn => absurd hq hn)
     (J.sc_kern hW6 hK6 hF hX' hDbg fun _ h => h) (J.sc_utc hW6 hK6 hDbg) J.nsc.updSc hI'
-    (J.cur.imp id hO.curInv) (hO.own J.own) (hO.off J.off) hact' (hO.bsa J.bsa) (hO.curRun J.curRun) hblk'⟩
+    (J.cur.imp id (hO.curInv J.inv)) (hO.own J.inv J.own) (hO.off hpi J.off) hact' (hO.bsa J.bsa) (hO.curRun J.curRun) hblk'⟩
 
 end
 

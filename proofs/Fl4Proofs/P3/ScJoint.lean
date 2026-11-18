@@ -124,13 +124,16 @@ theorem decode_invocation_sched_contextJAt {AR : A → Fl4Spec.Cr3 → Prop} {Z 
 /-! ## The untyped retype on `JAt` -/
 
 /-- **P1's `P3Ok` on `JAt`**: the joint invariant at the decode's start
-(over P1's heap `H` and cores `Cs`), and the invoked slot a CNode slot of
-the typed heap holding the cap, the extra caps related. -/
+(over P1's heap `H` and cores `Cs`) with no reschedule pending (l4v: an
+invocation runs under `resume_cur_thread`; it keeps the current SC live,
+`JAtZ.cscLive`), and the invoked slot a CNode slot of the typed heap holding
+the cap, the extra caps related. -/
 def UtJOk (arI : machine.Arch A) (H : P1.Heap) (Cs : Set U64) (s : S) (slot : U64) (cap : capability.Cap)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) : Prop :=
   ∃ (AR : A → Fl4Spec.Cr3 → Prop) (a : A) (σ : Fl4Spec.State Unit) (Z : XSets) (Ac : Set U64)
     (Lst : U64 → List U64) (D : Set U64) (pp : U64) (rs : Nat) (idx : List Bool),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ Z.th pp = some (.cnode rs) ∧ idx.length = rs ∧
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ σ.schedulerAction ≠ .chooseNewThread ∧
+      Z.th pp = some (.cnode rs) ∧ idx.length = rs ∧
       slot = cslotAddr (pp.bv, idx) ∧ capAt (L.mem s) slot = ok cap ∧
       ∀ x ∈ extra.val, x ≠ 0#u64 → ∃ c a, capAt (L.mem s) x = ok c ∧ CapRel c a ∧ CapValid Z.th c
 
@@ -146,8 +149,8 @@ def RegionUnrefJ (arI : machine.Arch A) (H : P1.Heap) (Cs : Set U64) : Prop :=
 
 theorem utOkRU_J {H : P1.Heap} {Cs : Set U64} (hRU : RegionUnrefJ (L := L) arI H Cs) :
     UtOkRU (L := L) arI H Cs (UtJOk (L := L) arI H Cs) := by
-  rintro s0 s slot cap extra ⟨AR, a, σ, Z, Ac, Lst, D, pp, rs, idx, J, hn, hi, hsl, hc, hx⟩ hrs
-  exact ⟨Z.th, Z.G, D, σ, pp, rs, idx, J.utJoint hn hi hsl hc hx, hRU AR Z Ac Lst D s0 s a σ J hrs⟩
+  rintro s0 s slot cap extra ⟨AR, a, σ, Z, Ac, Lst, D, pp, rs, idx, J, hres, hn, hi, hsl, hc, hx⟩ hrs
+  exact ⟨Z.th, Z.G, D, σ, pp, rs, idx, J.utJoint hres hn hi hsl hc hx, hRU AR Z Ac Lst D s0 s a σ J hrs⟩
 
 /-- **P1's `UtRetypeP3` at `UtJOk`** (`utRetypeP3_gen`): `JAt` at the
 decode's start ⇒ the retype's `CreateOK` (P1's kernel entry). Named:

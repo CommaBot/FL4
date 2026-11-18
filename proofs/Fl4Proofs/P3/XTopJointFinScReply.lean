@@ -110,12 +110,12 @@ theorem RFr.own {T C : Set U64} (h : RFr σ σ') (hO : CurOwnW T C σ) : CurOwnW
     · exact hun y0 n hy0
 
 theorem RFr.off (h : RFr σ σ') (hO : OffOK σ) : OffOK σ' := by
-  intro hc y n hy
+  intro hc y n hy ha
   rw [h.cons] at hc ⊢; rw [h.tm]
-  rw [h.csc] at hy
+  rw [h.csc] at hy ha
   obtain ⟨y0, hy0, e | e⟩ := h.scB hy <;> subst e
-  · exact hO hc _ n hy0
-  · exact hO hc y0 n hy0
+  · exact hO hc _ n hy0 ha
+  · exact hO hc y0 n hy0 ha
 
 theorem RFr.bsa (h : RFr σ σ') (hB : BlockedScActive σ) : BlockedScActive σ' := by
   refine ⟨fun p z n t x hp hyt hx hq => ?_, fun p z n hp hr => ?_⟩
@@ -267,7 +267,7 @@ theorem JAtZ.sc_kernW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     K.heap, K.h0, by rw [hks]; exact K.hks, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
-    fun h => K.cscLive (hD (by rw [ecs] at h; exact h)), K.csLt, K.cs0⟩
+    K.csLt, K.cs0⟩
   rw [hna, hDbg]; exact K.head
 
 

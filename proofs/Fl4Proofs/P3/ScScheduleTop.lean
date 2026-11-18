@@ -40,9 +40,9 @@ open Fl4Spec
 
 theorem OffOK.of_eq {σ σ' : State Unit} (h : OffOK σ) (hk : σ'.kheap = σ.kheap) (hcs : σ'.curSc = σ.curSc)
     (hcn : σ'.consumedTime = σ.consumedTime) (htm : σ'.curTime = σ.curTime) : OffOK σ' := by
-  intro h0 y n hy
-  rw [hcn] at h0 ⊢; rw [htm]; rw [hk, hcs] at hy
-  exact h h0 y n hy
+  intro h0 y n hy ha
+  rw [hcn] at h0 ⊢; rw [htm]; rw [hk, hcs] at hy; rw [hcs] at ha
+  exact h h0 y n hy ha
 
 /-- The current thread runnable, or the idle thread current (P3's `CurRunW`,
 unfolded). -/

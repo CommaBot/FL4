@@ -636,14 +636,17 @@ theorem JAtZ.replyRemoveJ (hT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H 
     · exact e
   -- the scheduler invariants
   have hoff : OffOK σ' := by
-    intro hpos y n hy
-    rw [hcsc'] at hy
+    intro hpos y n hy ha
+    rw [hcsc'] at hy ha
     rw [hcons'] at hpos ⊢
     rw [htime']
-    obtain ⟨y0, hy0, er, -, -⟩ := scB _ y n hy
+    obtain ⟨y0, hy0, er, em, -⟩ := scB _ y n hy
     have hr0 : Fl4Spec.refillHd y = Fl4Spec.refillHd y0 := by unfold Fl4Spec.refillHd; rw [er]
     rw [hr0]
-    exact J.off hpos y0 n hy0
+    exact J.off hpos y0 n hy0 fun h => by
+      have := ha h
+      show Fl4Spec.activeSc y0.scRefillMax = true
+      rw [← em]; exact this
   have hown : CurOwnW Z.T Z.C σ' := by
     have hcscC : ∃ sc ∈ Z.C, sc.bv = σ.curSc := by
       rcases J.own with ⟨u, hu, xt, hkt, hxs, -, -⟩ | ⟨h, -⟩
@@ -923,7 +926,7 @@ theorem JAtZ.replyRemoveJ (hT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H 
     exact hK.keep_other hp (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
       (fun _ e => by cases e)
   have hkern := J.kern_keep hks hw.2.1 hIR.2.2.1 hct' hcsc' (fun sl h => Or.inl (by rw [← hCK.orig]; exact h))
-    (by rw [harch]) hao hDbg (D' := D) J.kern.cscLive
+    (by rw [harch]) hao hDbg (D' := D)
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst' D s' σ' :=
     ⟨hCR', hRF', J.yld.frame k2 hyk, J.mcp.frame k1 hmk, J.buf.frame kb hbk, hRP',
       J.apart.sc_frame hks szk, hjpl, J.jcov_keep hks hF.1 hdead, hkern,

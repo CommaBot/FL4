@@ -371,9 +371,9 @@ theorem switch_sched_context_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
             rw [e, hy] at hxu; cases hxu
           · rw [e6 _ e] at hxu; rw [e1]; exact hback xu hxu)
         (by rw [e3, e5]; exact hnr)
-        (fun hc0 y m hy => by
-          rw [e5] at hc0; rw [e1, hs.curSc, hko, ← hs.curSc] at hy
-          rw [e5, e4]; exact hoff hc0 y m hy) hmrt hmb) ?_
+        (fun hc0 y m hy ha => by
+          rw [e5] at hc0; rw [e1, hs.curSc, hko, ← hs.curSc] at hy; rw [e1] at ha
+          rw [e5, e4]; exact hoff hc0 y m hy ha) hmrt hmb) ?_
       rintro r ⟨σ', h1, h3⟩
       refine ⟨σ', by rw [pre σ2 h2]; exact h1, ?_⟩
       obtain ⟨a1, a2, a3, a4, a5, a6, a7, a8, a9, a10⟩ := h3

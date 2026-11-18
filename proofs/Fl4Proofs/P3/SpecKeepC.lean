@@ -167,10 +167,10 @@ theorem Sched.CurInv.cn (hI : CurInv σ) (h : HStep σ σ') : CurInv σ' := by
   exact hI.active hne y m (h.sc.1 hy)
 
 theorem Sched.OffOK.cn (hO : OffOK σ) (h : HStep σ σ') : OffOK σ' := by
-  intro hc y n hy
+  intro hc y n hy ha
   rw [h.cons] at hc ⊢; rw [h.time]
-  rw [h.csc] at hy
-  exact hO hc y n (h.sc.1 hy)
+  rw [h.csc] at hy ha
+  exact hO hc y n (h.sc.1 hy) ha
 
 theorem Sched.ActIdle.cn (hA : ActIdle σ) (h : CnStep σ σ') : ActIdle σ' := by
   obtain ⟨hS, x, hx, h1, h2, h3⟩ := hA

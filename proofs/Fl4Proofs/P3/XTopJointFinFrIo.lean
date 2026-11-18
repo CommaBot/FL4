@@ -42,22 +42,18 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
 /-- **A slot is ready when no object of `H` meets its cap's range**: the
-range's words off `H`'s objects (dead, `deadP_none`), the current SC (an
-`H` object) outside it. -/
+range's words off `H`'s objects (dead, `deadP_none`). -/
 theorem EmptyReady.of_apart {H : P1.Heap} {G : MdbGhost} {s : S} {x : U64}
     (hap : ∀ q k, H q = some k → q.val + 2 ^ k.bits ≤ baseF (capV (L.mem s) x) ∨ topF (capV (L.mem s) x) < q.val) :
     EmptyReady (L := L) H G s x := by
   intro _ _
-  refine ⟨fun lo hi hlh h1 h2 => Or.inr fun q hq => ?_, fun z hz h1 h2 => ?_⟩
+  refine fun lo hi hlh h1 h2 => Or.inr fun q hq => ?_
   · cases hk : H q with
     | none => exact deadP_none hk
     | some k =>
       exfalso
       have : 1 ≤ 2 ^ k.bits := Nat.one_le_two_pow
       rcases hap q k hk with h | h <;> omega
-  · exfalso
-    have : 1 ≤ 2 ^ (P1.HKind.sc z).bits := Nat.one_le_two_pow
-    rcases hap _ _ hz with h | h <;> omega
 
 /-- **A slot of a non-physical cap is ready** (`EmptyReady` asks nothing of it). -/
 theorem EmptyReady.of_nonphys {H : P1.Heap} {G : MdbGhost} {s : S} {x : U64}

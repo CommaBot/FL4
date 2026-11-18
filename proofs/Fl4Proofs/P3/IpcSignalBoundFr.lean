@@ -457,13 +457,13 @@ theorem CFr.own {T C : Set U64} (h : CFr r t σ σ') (hO : CurOwnW T C σ) : Cur
     exact hun y0 n hy0
 
 theorem CFr.off (h : CFr r t σ σ') (hO : OffOK σ) : OffOK σ' := by
-  intro hc y n hy
+  intro hc y n hy ha
   rw [h.sk.cons] at hc ⊢; rw [h.sk.tm]
-  rw [h.sk.csc] at hy
+  rw [h.sk.csc] at hy ha
   obtain ⟨y0, rf, nt, hy0, rfl, hr, -⟩ := h.scB hy
   have e : rf = y0.scRefills := hr rfl
   subst e
-  exact hO hc y0 n hy0
+  exact hO hc y0 n hy0 ha
 
 theorem CFr.idleOK (h : CFr r t σ σ') (hO : IdleOK σ) : IdleOK σ' := by
   obtain ⟨x, hx, h1, h2, h3⟩ := hO

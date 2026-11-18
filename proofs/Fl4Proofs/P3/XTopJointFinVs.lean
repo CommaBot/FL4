@@ -425,7 +425,7 @@ theorem JAtZ.kern_keepA {s : S} {a : A} {σ : Fl4Spec.State Unit}
     K.heap, K.h0, by rw [hks]; exact K.hks, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
-    by rw [ecs]; exact K.cscLive, K.csLt, K.cs0⟩
+    K.csLt, K.cs0⟩
   rw [hna, hDbg]; exact K.head
 
 set_option maxHeartbeats 16000000 in
@@ -681,7 +681,7 @@ theorem JAtZ.vs_ready {s : S} {a : A} {σ : Fl4Spec.State Unit}
   unfold EmptyReady
   rw [hcv']
   intro _ _
-  refine ⟨fun lo hi hlh h1 h2 => Or.inr fun q hq => ?_, fun z hz h1 h2 => ?_⟩
+  refine fun lo hi hlh h1 h2 => Or.inr fun q hq => ?_
   · cases hk : H q with
     | none => exact deadP_none hk
     | some k =>
@@ -691,9 +691,6 @@ theorem JAtZ.vs_ready {s : S} {a : A} {σ : Fl4Spec.State Unit}
           fun e => (by rw [hk] at e; cases e), fun e => (by rw [hk] at e; cases e),
           fun z' e => (by rw [hk] at e; cases e)⟩
       · exact (noH q k hk (fun z e => ho ⟨z, e⟩) (by omega) (by omega)).elim
-  · exfalso
-    have : 1 ≤ 2 ^ (P1.HKind.sc z).bits := Nat.one_le_two_pow
-    exact noH _ _ hz (fun _ e => by cases e) (by omega) (by omega)
 
 end
 

@@ -9,8 +9,10 @@ deletion's last slot edit at `J`.
   deletion knows after the cap's finalisation (a final cap's objects dead,
   P1's `fin_cap_*.dead`; a non-final cap's objects covered by another cap):
   each range inside the cap's is covered by another cap, or its object is
-  dead (`DeadP`), as `JCovD.delete` reads it; and the current SC, when inside
-  the cap's range, covered by another cap (`JKern.cscLive`).
+  dead (`DeadP`), as `JCovD.delete` reads it. Nothing is asked of the
+  current SC: it may die with the slot (the current thread finalising the
+  last cap to its own SC), `JAtZ.cscLive` gives it live while no reschedule
+  is pending.
 * `JAtZ.emptyJ`: from `JAtZ` and `EmptyReady`, FL4's `empty_slot` with a
   null cleanup has a spec outcome with `XTopAt`, the kernel-state base and the
   kinds kept, and (given `DelUtFact` after, the known `valid_untyped` gap)
@@ -37,11 +39,8 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 covering cap only (physical, not untyped: `Covered` reads no other). -/
 def EmptyReady (H : P1.Heap) (G : MdbGhost) (s : S) (x : U64) : Prop :=
   physF (capV (L.mem s) x) = true → isUt (capV (L.mem s) x) = false →
-  (∀ lo hi, lo < hi → baseF (capV (L.mem s) x) ≤ lo → hi ≤ topF (capV (L.mem s) x) + 1 →
-    OtherCov (L.mem s) G x lo hi ∨ ∀ q : U64, q.val = lo → DeadP (L := L) H s q) ∧
-  ∀ z, H (L.cscW s) = some (.sc z) → baseF (capV (L.mem s) x) ≤ (L.cscW s).val →
-    (L.cscW s).val + 2 ^ (P1.HKind.sc z).bits ≤ topF (capV (L.mem s) x) + 1 →
-    OtherCov (L.mem s) G x (L.cscW s).val ((L.cscW s).val + 2 ^ (P1.HKind.sc z).bits)
+  ∀ lo hi, lo < hi → baseF (capV (L.mem s) x) ≤ lo → hi ≤ topF (capV (L.mem s) x) + 1 →
+    OtherCov (L.mem s) G x lo hi ∨ ∀ q : U64, q.val = lo → DeadP (L := L) H s q
 
 /-- **`JCovD.delete` with the removed cap's readiness asked only of a
 covering cap.** -/
@@ -142,7 +141,7 @@ theorem JAtZ.emptyJCore {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
       hi ≤ topF (capV (L.mem s) (cslotAddr sl)) + 1 →
       Covered (L.mem s2) G2 lo hi ∨ (∀ q' : U64, q'.val = lo → DeadP (L := L) H s2 q') := by
     intro hp hu lo hi hlh h1 h2
-    rcases (hrd hp hu).1 lo hi hlh h1 h2 with h | h
+    rcases hrd hp hu lo hi hlh h1 h2 with h | h
     · exact Or.inl (ocov _ _ h)
     · exact Or.inr fun q' hq' => J.deadP_slot hX2 hcn2 hkc hw (h q' hq')
   have hks2 : ∀ x ∈ G2.chains.flatten, ∀ p' sb fi d, capV (L.mem s2) x = .Untyped p' sb fi d →
@@ -159,26 +158,9 @@ theorem JAtZ.emptyJCore {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     have hnb : ∀ c, L.nodeBase s2 c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
     exact ⟨by rw [hks]; exact k1, fun c hc => by rw [hnb]; exact k2 c hc⟩
   have hjc := J.jcov.deleteG hk hx (fun q' _ hd => J.deadP_slot hX2 hcn2 hkc hw hd) hks2
-  have hcl : L.cscW s ∉ D ∪ Uncov Z.th H (L.mem s2) G2 := by
-    obtain ⟨z, hz⟩ := J.csc_sc
-    rintro (h | h)
-    · exact J.kern.cscLive h
-    · rcases h with ⟨k, hk', hnc⟩ | ⟨k, hk', hnc⟩
-      · rcases J.thk _ k hk' with rfl | ⟨r', rfl⟩
-        · rw [(hJ.tcb _).1 hk'] at hz; cases hz
-        · rw [hJ.cnode _ r' hk'] at hz; cases hz
-      · rw [hz] at hk'; cases hk'
-        rcases J.jcov.h _ _ hz with hcv | hD'
-        · obtain ⟨y, hy, hp, hu, hb, ht⟩ := hcv
-          by_cases hyx : y = cslotAddr sl
-          · subst hyx
-            exact hnc (ocov _ _ ((hrd hp hu).2 z hz hb ht))
-          · obtain ⟨hy', e⟩ := hk y hy hyx hp hu
-            exact hnc ⟨y, hy', by rw [e]; exact hp, by rw [e]; exact hu, by rw [e]; exact hb, by rw [e]; exact ht⟩
-        · exact J.kern.cscLive hD'
   refine ⟨hw.1, KBack.of_keepCT hkc, fun hUt => ?_⟩
   have hutc := J.del_utc (G' := G2) (sl := sl) (fun y hy e => hoth2 y hy e) hnull2 hw hcdt horig hgp hM2 hUt
-  obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 hkc hw hFI2 hMO hkz hTK hT3 hDl2 hUK hjc hcl
+  obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 hkc hw hFI2 hMO hkz hTK hT3 hDl2 hUK hjc
     (fun sl' h => Or.inl (horig sl' h)) hutc
   exact ⟨hJC, Ac, Lst, _, R⟩
 set_option maxHeartbeats 16000000 in
@@ -337,8 +319,7 @@ theorem EmptyReady.of_cover {H : P1.Heap} {G : MdbGhost} {s : S} {x y : U64} (hy
     (hu : isUt (capV (L.mem s) y) = false) (hb : baseF (capV (L.mem s) y) ≤ baseF (capV (L.mem s) x))
     (ht : topF (capV (L.mem s) x) ≤ topF (capV (L.mem s) y)) : EmptyReady (L := L) H G s x := by
   intro hpx _
-  exact ⟨fun lo hi _ h1 h2 => Or.inl ⟨y, hy, hne, hp hpx, hu, le_trans hb h1, by omega⟩,
-    fun z _ h1 h2 => ⟨y, hy, hne, hp hpx, hu, le_trans hb h1, by omega⟩⟩
+  exact fun lo hi _ h1 h2 => Or.inl ⟨y, hy, hne, hp hpx, hu, le_trans hb h1, by omega⟩
 
 /-- **A notification cap's slot is ready to be emptied** when the
 notification is dead (after a final cap's finalisation, P1's
@@ -370,7 +351,7 @@ theorem JAtZ.ntfn_ready {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     intro q k hq hne
     have := J.kern.heap.disj q k p .ntfn hq hHp hne
     simpa only [show (P1.HKind.ntfn).bits = 6 from rfl] using this
-  refine ⟨fun lo hi hlh h1 h2 => ?_, fun z hz h1 h2 => ?_⟩
+  refine fun lo hi hlh h1 h2 => ?_
   · rcases hpd with hd | ho
     · right
       intro q hq
@@ -383,12 +364,6 @@ theorem JAtZ.ntfn_ready {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
           have : 1 ≤ 2 ^ k.bits := Nat.one_le_two_pow
           rcases hout q k hk e with h | h <;> omega
     · exact Or.inl (hoc ho lo hi h1 h2)
-  · rcases hpd with hd | ho
-    · exfalso
-      have hne : L.cscW s ≠ p := fun e => by rw [e, hHp] at hz; cases hz
-      have : 1 ≤ 2 ^ (P1.HKind.sc z).bits := Nat.one_le_two_pow
-      rcases hout _ _ hz hne with h | h <;> omega
-    · exact hoc ho _ _ h1 h2
 
 end
 
