@@ -353,7 +353,9 @@ structure JSchedCPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar 
   msg : MsgOK st Z.N Z.T Z.C Z.c
   /-- [W] the front end's label. -/
   hlbl : Fl4Spec.genInvocationType slbl = .schedControlConfigureFlags ↔ lbl = fl4_abi.label.SchedControlConfigureFlags
-  /-- [J] the cap's core is the current one (l4v `valid_cap` of the SchedControl cap; one core). -/
+  /-- [P] one core (as `JEntryAt.stall`): the cap's core is the current one
+  (`decode_configure_refines` needs it; with several cores a SchedControl cap
+  of another core is valid, l4v `valid_cap` only bounds its core). -/
   core : cpu = Z.c
   /-- [W] the front end's extra slot (`ExtraRel`); [J] an SC extra cap valid
   (l4v `valid_cap`, its SC's bound TCB back-linked: `sym_refs`) and not the
