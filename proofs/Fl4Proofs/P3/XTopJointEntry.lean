@@ -405,12 +405,9 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : F
     (argsU : List U64) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (buffer : Option Fl4Spec.ObjRef) (ct : U64) : capability.Cap → Prop
   | .Null | .Zombie .. | .Notification .. => True
-  | .Endpoint p b sd _ g gr => ∀ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
-      sd = true → XLeaf (L := L) (JAt (L := L) arI AR) s ar σ (do
-        let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
-        let (s2, a1) ← endpoint.send_ipc st arI s1 ar blk call b g gr don ct p
-        ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a1))
-        (Fl4Spec.sendIpc (Z := Unit) blk call b.bv g gr don σ1.curThread p.bv σ1)
+  | .Endpoint p b sd _ g gr => ∀ s1 σ1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+      Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
+      sd = true → JSendRestHyp (L := L) arI AR s1 ar σ1 blk call b g gr don ct p
   | .Reply p g => ∀ s1 σ1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
       JReplyRestHyp (L := L) arI AR s1 ar σ1 ct p g
@@ -449,7 +446,7 @@ on the cap:
 | Null, Zombie | the decode fails, the state unchanged | — |
 | Notification | `decode_notificationDMX`, `notifLeafJ` | — (`SignalRestJHyp` [J] in `JEntryGlob`) |
 | Reply | `decode_replyDMX`, `replyLeafJ` | `JReplyRestHyp` (the rest after `reply_remove`) [W] |
-| Endpoint | `decode_endpointDMX` | the leaf (`send_ipc`) at `JAt` [W] |
+| Endpoint | `decode_endpointDMX`, `sendLeafJ` | `JSendRestHyp` (a blocking send, or one to a receiver) [W] |
 | CNode | `decode_invocation_cnodeJ_steps` | `JCnodePath` (front end) |
 | Thread | `decode_invocation_threadJ_step` | `JThreadPath` (incl. `JPostHyp` at `TcbJOpen`); SetEPTRoot whole [W] |
 | IO port | `decode_invocation_ioportJ` | `PortLabel`; a nonzero third field whole [W] |
@@ -490,7 +487,8 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, hX0⟩
   case Endpoint p b sd rv g gr =>
     exact XCap.toP arI (Or.inl (decode_endpointDMX arI _ s ar σ lbl length _ p b sd rv g gr blk call don fp buf extra
-      slbl _ ci sl excaps buffer ct hct hX0 hst fun hsd => hN σ1 hst hsd hX0)) hPre
+      slbl _ ci sl excaps buffer ct hct hX0 hst fun hsd => sendLeafJ J hni hct hAs hc hst blk call g gr don
+        (fun s1 σ1' h1 h2 => hN s1 σ1' h1 h2 hsd) hX0)) hPre
   case Notification p b sd rv =>
     exact XCap.toP arI (Or.inl (decode_notificationDMX arI _ s ar σ lbl length _ p b sd rv blk call don fp buf extra
       slbl _ ci sl excaps buffer ct hct hX0 hst fun _ => notifLeafJ hG.tot (hG.sigRest H Cs) (hG.delParts.recvRep H Cs)

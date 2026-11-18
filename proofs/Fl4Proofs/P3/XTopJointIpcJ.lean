@@ -13,6 +13,9 @@ against the spec's, from `JAtZ` at the invocation to `JAt` after.
   where nothing happens (no thread on the reply, or one not blocked on it)
   and `reply_remove` (`JAtZ.replyRemoveJ`), the rest after it named
   (`JReplyRestHyp` [W]).
+* `sendLeafJ`: the restart, then `sendXferJ`: `send_ipc` at `J` where
+  nothing happens (a non-blocking send to an endpoint without receivers),
+  the blocking send and the send to a receiver named (`JSendRestHyp` [W]).
 -/
 import Fl4Proofs.P3.XTopJointTcb
 import Fl4Proofs.P3.ScSignalJ
@@ -264,6 +267,76 @@ theorem replyLeafJ (hAT : P0.ArchTotal arI)
   apply (WP.spec_ok _).2
   exact ⟨rfl, z, hz, J'.xtop.relTop, Z', H', Cs', Ac', Lst', D', J'⟩
 
+
+variable (arI) in
+/-- **[W] The endpoint cap's `send_ipc` at `J` where it blocks or meets a
+receiver** (`sendLeafJ`): after the caller's restart (`s1`, `σ1`), a
+blocking send, or one to an endpoint with receivers, ends at `JAt` with an
+outcome of the spec's `send_ipc`. The restart and a non-blocking send to an
+endpoint without receivers (nothing happens, `send_ipc_noblock`) are proved.
+What is left has an `IRel` proof (IpcLeaves's `send_ipc_top`: the block,
+`send_ipc_blockI`; the receiver's dequeue, `do_ipc_transfer`, the reply
+push or the caller's block, the SC donation and the switch,
+`send_ipc_recvG` / `send_ipc_callX_gen`, `SendRest`) but no J frame. l4v:
+`send_ipc_invs` / `send_ipc_corres`. -/
+def JSendRestHyp (AR : A → Fl4Spec.Cr3 → Prop) (s1 : S) (ar : A) (σ1 : Fl4Spec.State Unit)
+    (blk call : Bool) (b : U64) (g gr don : Bool) (ct p : U64) : Prop :=
+  ∀ x : Fl4Spec.Endpoint, σ1.kheap p.bv = some (.endpoint x) → (blk = true ∨ ¬ CanBlock false x) →
+    endpoint.send_ipc st arI s1 ar blk call b g gr don ct p ⦃ r =>
+      ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk call b.bv g gr don ct.bv p.bv σ1).1, JAt (L := L) arI AR r.1 r.2 z.2 ⦄
+
+set_option maxHeartbeats 4000000 in
+/-- **`send_ipc` at `J`** but for `JSendRestHyp` (a non-blocking send to an
+endpoint without receivers: nothing happens on either side). -/
+theorem sendXferJ {s1 : S} {ar : A} {σ1 : Fl4Spec.State Unit}
+    (J1 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s1 ar σ1) {ct p : U64} (hp : p ∈ Z.E)
+    (blk call : Bool) (b : U64) (g gr don : Bool)
+    (hR : JSendRestHyp (L := L) arI AR s1 ar σ1 blk call b g gr don ct p) :
+    endpoint.send_ipc st arI s1 ar blk call b g gr don ct p ⦃ r =>
+      ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk call b.bv g gr don ct.bv p.bv σ1).1, JAt (L := L) arI AR r.1 r.2 z.2 ⦄ := by
+  have hJ1 : JAt (L := L) arI AR s1 ar σ1 := ⟨_, _, _, _, _, _, J1⟩
+  have hI := J1.xtop.irelK J1.ks J1.buf
+  obtain ⟨x, hk, -⟩ := hI.1.ep p hp
+  by_cases hnb : blk = false ∧ CanBlock false x
+  · obtain ⟨rfl, hc⟩ := hnb
+    refine WP.spec_mono (send_ipc_noblock (ar := arI) s1 ar σ1 hI.1.toE hp hk hc call b g gr don ct) ?_
+    rintro r ⟨rfl, h2⟩
+    exact ⟨((), σ1), by rw [h2]; exact Set.mem_singleton _, hJ1⟩
+  refine hR x hk ?_
+  cases blk
+  · exact Or.inr fun h => hnb ⟨rfl, h⟩
+  · exact Or.inl rfl
+
+set_option maxHeartbeats 4000000 in
+/-- **The endpoint cap's leaf at `J`** but for `JSendRestHyp` (`sendXferJ`
+after the caller's restart, `JAtZ.restartJ`; the cap's endpoint in `E`,
+`JAtZ.slotE`). -/
+theorem sendLeafJ {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
+    {sl : Fl4Spec.CslotPtr} (hA : AbsSlot Z.th sl) {p b : U64} {x1 x2 x3 x4 : Bool}
+    (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Endpoint p b x1 x2 x3 x4))
+    (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
+    (blk call : Bool) (g gr don : Bool)
+    (hR : ∀ s1 σ1', sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+      Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1')}, False) →
+      JSendRestHyp (L := L) arI AR s1 ar σ1' blk call b g gr don ct p) :
+    XLeaf (L := L) (JAt (L := L) arI AR) s ar σ (do
+        let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
+        let (s2, a1) ← endpoint.send_ipc st arI s1 ar blk call b g gr don ct p
+        ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a1))
+      (Fl4Spec.sendIpc (Z := Unit) blk call b.bv g gr don σ1.curThread p.bv σ1) := by
+  intro _
+  have hpE := J.slotE hA hc
+  obtain ⟨s1, σ1', x, -, hst1, -, hcur, -, -, -, hcur1, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
+  obtain rfl := restart_out_eq hst1 hst
+  have hc1 : σ1'.curThread = ct.bv := hcur1.trans hcur
+  rw [hs1]
+  simp only [bind_ok]
+  rw [hc1]
+  refine WP.spec_bind (sendXferJ J1 hpE blk call b g gr don (hR s1 σ1' hs1 hst1)) ?_
+  rintro ⟨s2, a2⟩ ⟨z, hz, Z', H', Cs', Ac', Lst', D', J'⟩
+  apply (WP.spec_ok _).2
+  exact ⟨rfl, z, hz, J'.xtop.relTop, Z', H', Cs', Ac', Lst', D', J'⟩
 
 end
 
