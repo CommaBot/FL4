@@ -22,9 +22,8 @@ P3 (DESIGN.md §9), CSpace: **the zombie steps of the deletion at `J`**
   the TCBs' fault-handler slots neither of the two: `JPlaced.fh`, the
   objects apart), the CDT's children renamed (`CdtRel` before and after),
   the untyped caps' facts after from those before but for the first slot,
-  linked after, which must miss the region of an untyped cap without
-  children: a CNode zombie's CNode does (`UtCapP3`'s `free`, `rst`), a TCB
-  zombie's TCB is asked (`hTZ`).
+  linked after, which misses the region of an untyped cap without children
+  (the zombie, a physical cap of the MDB covering it, by `ut_free`).
 -/
 import Fl4Proofs.P3.XTopJointEmpty
 import Fl4Proofs.P3.ScDeadStep
@@ -242,16 +241,11 @@ relationally** (module docstring): from the facts of the swap (the spec's
 `cap_swap_for_delete`, `DState` after at the ghost tree renamed, the two
 slots' caps swapped and the others kept, `XTopAt` after, the slot words'
 frame, `CnK`), the kernel-state base, `KBack`, `JCs` and `JRest` after.
-`hTZ`: a TCB zombie's TCB lies in no childless untyped region with a
-non-zero free index (the first slot, linked after, must miss the regions of
-the untyped caps without children). No longer needed: the zombie, a physical
-cap of the MDB based at the first slot, misses them (`ut_free`). -/
+The first slot, linked after, misses the regions of the untyped caps without
+children: the zombie, a physical cap of the MDB based at it, does (`ut_free`). -/
 theorem JAtZ.swapJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr}
     (hA : AbsSlot Z.th sl) {p zt n : U64} (hz : capV (L.mem s) (cslotAddr sl) = .Zombie p zt n)
     (hpx : p ≠ cslotAddr sl)
-    (hTZ : zt.val = 65 → ∀ u up usb ufi udev, AbsSlot Z.th u →
-      capV (L.mem s) (cslotAddr u) = .Untyped up usb ufi udev → (¬ ∃ y, σ.cdt y = some u) → ufi.val ≠ 0 →
-      p.val < up.val ∨ up.val + 2 ^ usb.val ≤ p.val)
     {s2 : S} {σ2 : Fl4Spec.State Unit} {V2 : XVs}
     (hsw : Fl4Spec.capSwapForDelete (Z := Unit) (homeSl p zt) sl σ = ({((), σ2)}, False))
     (hDS2 : DState (L := L) Z.th s2 σ2 (renG Z.G (Equiv.swap p (cslotAddr sl))))
