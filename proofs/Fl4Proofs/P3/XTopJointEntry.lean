@@ -451,6 +451,12 @@ structure JThreadPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar 
   hGb : GetBpHyp (st := st) s ct p
   /-- [W] XTopTcbRest's `TcbXIpc` (the IPC steps of the Thread cap). -/
   hI : TcbXIpc (L := L) arI AR Z.th s ar σ p ct buf argsU blk call don
+  /-- [W] WriteRegisters at `JAt` (XTopJointTcb's `tcb_write_regsJ`): the
+  caller's buffer mapped and the syscall arguments after the caller's
+  restart (IpcWriteRegsJ's `writeRegsXHypJ`'s `hbuf`, `hargs`). -/
+  hWR : lbl = fl4_abi.label.TCBWriteRegisters → (buf ≠ 0#u64 → ∃ sp, BufMap Z.B buf sp) ∧
+    ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+      ∀ (i : U64) x, argsU[i.val]? = some x → msg.syscall_arg st s1 ct buf i = ok x
   /-- [W] XTopTcbFpu's `FpuFrameXHyp` (the FPU frame). -/
   hFr : ∀ (x ptr offset r : U64) (sz : capability.FrameSize) (m ep : Bool) (asid va : U64),
     capV (L.mem s) x = .Frame ptr sz r false m ep asid va → FpuPass true offset r sz →
@@ -632,7 +638,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     obtain ⟨hEpt, hN⟩ := hN
     by_cases hn : lbl = fl4_abi.label.TCBSetEPTRoot
     · exact hEpt hn
-    obtain ⟨hlbl, hext, ⟨x0, x1, x2, hx0, hx1, hx2, hXc, hnc, hnc0, hcapC⟩, hA5, hGb, hI, hFr, hR⟩ := hN hn
+    obtain ⟨hlbl, hext, ⟨x0, x1, x2, hx0, hx1, hx2, hXc, hnc, hnc0, hcapC⟩, hA5, hGb, hI, hWR, hFr, hR⟩ := hN hn
     have hpI : p ≠ L.idleW s := by
       -- no cap but a frame cap names the idle thread (`SpecGlob.idle`)
       intro e
@@ -645,7 +651,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     exact (decode_invocation_threadJ_step arI s ar σ J hni hG.csG hG.ari hG.tot hG.actReady hG.bufT hG.ipcBufOK
       hG.bufCover hG.bufPlaced hG.flags lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl
       hAs hsc excaps buffer hext hE.stall hn hE.cw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb hI hFr
-      hG.delParts.recvRep hG.pp.minBudget hR).toP arI hPre
+      hG.delParts.recvRep hG.pp.minBudget hWR hR).toP arI hPre
   case IoPort first last z =>
     obtain ⟨hz, hOpen⟩ := hN
     by_cases h0 : z = 0#u64
