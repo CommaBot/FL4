@@ -554,6 +554,17 @@ pub fn exit() -> ! {
         }
         let core = s.cur_cpu();
         let idle = ct.0 == node_get(s, core, node::IDLE_THREAD);
+        // Another core invalidated the ASID this core ran: if it was
+        // deleted, run the current thread on what its VSpace cap now names
+        // (the kernel's tables, where it faults), not on the deleted ones.
+        if percpu::get().vspace_stale.replace(false) {
+            let mut a = PhysArch;
+            if idle {
+                fl4_core::vspace::set_kernel_vm_root(s, &mut a);
+            } else {
+                fl4_core::vspace::set_vm_root(s, &mut a, ct);
+            }
+        }
         unlock();
         let stack_top = percpu::stack_top(percpu::cpu_index());
         if idle {

@@ -25,6 +25,9 @@ pub struct PerCpu {
     pub ttbr0: u64,
     /// `mmu::ASID_GEN` when this core last flushed its TLB for it.
     pub asid_gen: u64,
+    /// Another core invalidated the ASID this core runs: the exit checks
+    /// that it still names the current thread's VSpace (`mmu::retired`).
+    pub vspace_stale: bool,
     /// MPIDR_EL1 affinity of this core.
     pub mpidr: u64,
     /// GICv3: this core's redistributor (kernel virtual address). GICv2:
@@ -59,6 +62,7 @@ impl PerCpu {
             fp_enabled: true,
             ttbr0: 0,
             asid_gen: 0,
+            vspace_stale: false,
             mpidr: 0,
             gicr: 0,
             gic_cpu: 0,

@@ -2,8 +2,8 @@
 //! reschedule IPIs, as SGIs; starting cores with PSCI. A remote call is
 //! made with the serial gate held; targets service it in their interrupt
 //! handler or while spinning on the gate, and the caller waits for every
-//! acknowledgement. TLB maintenance needs no remote calls: it is
-//! broadcast (l4h 0015).
+//! acknowledgement. TLB maintenance is broadcast (l4h 0015); only cores
+//! running an invalidated ASID are called, to check it on their way out.
 use crate::{gic, percpu};
 use core::sync::atomic::{AtomicU64, Ordering};
 use fl4_core::layout::irq;
@@ -12,6 +12,7 @@ pub const CALL_STALL: u64 = 1;
 pub const CALL_FPU_SAVE: u64 = 4;
 pub const CALL_FPU_DROP: u64 = 5;
 pub const CALL_FPU_RELEASE: u64 = 6;
+pub const CALL_ASID: u64 = 7;
 
 pub static TX_COMMITS: AtomicU64 = AtomicU64::new(0);
 pub static TX_ABORTS: AtomicU64 = AtomicU64::new(0);
@@ -83,6 +84,7 @@ pub fn service(stall: impl FnOnce()) -> bool {
         CALL_FPU_SAVE => crate::fpu::flush_local(a0),
         CALL_FPU_DROP => crate::fpu::forget_local(a0),
         CALL_FPU_RELEASE => crate::fpu::release_local(a0),
+        CALL_ASID => crate::mmu::retired(a0),
         _ => {}
     }
     CALL.pending.fetch_and(!me, Ordering::AcqRel);

@@ -778,6 +778,82 @@ static int test_high_asids(env_t env)
 }
 DEFINE_TEST(FL4ASID0001, "A process with an ASID in the last pool runs, and its mapping caps keep the ASID", test_high_asids, true)
 
+/* ---- A deleted address space stops its threads on other cores -------- */
+
+/* About 0.1 s of the counter rdtsc reads. */
+static uint64_t settle_ticks(void)
+{
+#ifdef CONFIG_ARCH_AARCH64
+    uint64_t f;
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(f));
+    return f / 10;
+#else
+    return 200000000ull;
+#endif
+}
+#define SETTLE_TICKS settle_ticks()
+
+static int spin_count(seL4_Word addr, seL4_Word b, seL4_Word c, seL4_Word d)
+{
+    volatile seL4_Word *p = (volatile seL4_Word *) addr;
+    for (;;) {
+        *p = *p + 1;
+    }
+    return 0;
+}
+
+/* The counter once it moves past `from`, or `from` after `ticks`. */
+static seL4_Word count_after(volatile seL4_Word *p, seL4_Word from, uint64_t ticks)
+{
+    uint64_t end = rdtsc() + ticks;
+    while (*p == from && rdtsc() < end) {
+    }
+    return *p;
+}
+
+/*
+ * A thread runs alone on another core while its VSpace is deleted by
+ * revoking the cap its TCB's copy was derived from, which reaches the TCB
+ * without a TCB invocation. The core must stop using the deleted tables
+ * (the thread then faults); running on would let it walk them after their
+ * memory is reused.
+ */
+static int test_deleted_vspace_on_other_core(env_t env)
+{
+    if (env->cores < 2) {
+        return sel4test_get_result();
+    }
+    helper_thread_t t;
+    create_helper_process(env, &t);
+    /* Its fault, once the VSpace is gone, goes where no one waits. */
+    seL4_CPtr fault_ep = vka_alloc_endpoint_leaky(&env->vka);
+    test_error_eq(api_tcb_set_space(get_helper_tcb(&t), fault_ep, t.process.cspace.cptr,
+                                    api_make_guard_skip_word(seL4_WordBits - t.process.cspace_size),
+                                    t.process.pd.cptr, seL4_NilData), seL4_NoError);
+    seL4_CPtr fcap;
+    volatile seL4_Word *counter = map_frame(env, &fcap);
+    test_assert(counter != NULL);
+    *counter = 0;
+    void *there = vspace_share_mem(&env->vspace, &t.process.vspace, (void *) counter, 1, seL4_PageBits,
+                                   seL4_AllRights, true);
+    test_assert(there != NULL);
+    set_helper_affinity(env, &t, 1);
+    start_helper(env, &t, spin_count, (seL4_Word) there, 0, 0, 0);
+    test_assert(count_after(counter, 0, 50 * SETTLE_TICKS) != 0);
+
+    test_error_eq(seL4_CNode_Revoke(env->cspace_root, t.process.pd.cptr, seL4_WordBits), seL4_NoError);
+    test_error_eq(seL4_CNode_Delete(env->cspace_root, t.process.pd.cptr, seL4_WordBits), seL4_NoError);
+    seL4_Word before = count_after(counter, (seL4_Word) -1, SETTLE_TICKS);
+    seL4_Word after = count_after(counter, before, 5 * SETTLE_TICKS);
+    test_eq(after, before);
+
+    /* The process cannot be torn down without its VSpace: stop and leak it. */
+    test_error_eq(seL4_TCB_Suspend(get_helper_tcb(&t)), seL4_NoError);
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4ASID0002, "A VSpace deleted while its thread runs on another core stops that thread",
+            test_deleted_vspace_on_other_core, true)
+
 #ifdef CONFIG_ARCH_X86_64
 /* ---- Unmap of PAT mappings ------------------------------------------- */
 

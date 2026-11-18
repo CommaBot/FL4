@@ -81,6 +81,31 @@ pub fn invalidate_asid(asid: u64) {
     }
 }
 
+/// The cores other than this one whose current ASID is `asid`.
+pub fn cores_on(asid: u64) -> u64 {
+    let me = percpu::cpu_index();
+    let online = crate::smp::online_mask();
+    let mut m = 0;
+    for c in 0..percpu::MAX_CPUS {
+        let ttbr0 = unsafe { core::ptr::read_volatile(&percpu::get_for(c).ttbr0) };
+        if c != me && online & (1 << c) != 0 && ttbr0 >> 48 == asid {
+            m |= 1 << c;
+        }
+    }
+    m
+}
+
+/// Remote side of `invalidate_asid` (`smp::CALL_ASID`): the broadcast
+/// invalidation has run, but if the ASID was deleted this core still
+/// walks the deleted tables, which can be reused. The exit sets the
+/// address space again from the current thread's VSpace cap.
+pub fn retired(asid: u64) {
+    let pc = percpu::get();
+    if pc.ttbr0 >> 48 == asid {
+        pc.vspace_stale = true;
+    }
+}
+
 /// Everything, on every core (boot).
 pub fn invalidate_all() {
     unsafe {

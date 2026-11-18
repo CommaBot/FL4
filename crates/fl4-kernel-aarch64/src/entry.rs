@@ -276,6 +276,19 @@ pub fn exit() -> ! {
     let ct = sched::cur_thread(s);
     let core = s.cur_cpu();
     let idle = ct.0 == node_get(s, core, node::IDLE_THREAD);
+    // The ASID this core ran was invalidated by another core: if it was
+    // deleted, run the current thread on what its VSpace cap now names
+    // (the empty table, where it faults), not on the deleted tables.
+    let pc = percpu::get();
+    if pc.vspace_stale {
+        pc.vspace_stale = false;
+        let mut a = PhysArch;
+        if idle {
+            fl4_core::vspace::set_kernel_vm_root(s, &mut a);
+        } else {
+            fl4_core::vspace::set_vm_root(s, &mut a, ct);
+        }
+    }
     unlock();
     if idle {
         percpu::get().idle = true;

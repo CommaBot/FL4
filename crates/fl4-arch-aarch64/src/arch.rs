@@ -173,11 +173,14 @@ impl Arch for PhysArch {
         }
         crate::mmu::invalidate_page(asid, vaddr);
     }
+    // Cores running the ASID are also interrupted: if it was deleted they
+    // must stop walking its tables (`mmu::retired`).
     fn invalidate_asid(&mut self, asid: u64) {
         if in_tx() {
             return serial_needed();
         }
         crate::mmu::invalidate_asid(asid);
+        smp::remote_call(smp::CALL_ASID, asid, 0, crate::mmu::cores_on(asid));
     }
     fn invalidate_page_structures(&mut self, asid: u64) {
         self.invalidate_asid(asid)

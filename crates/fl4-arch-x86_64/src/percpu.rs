@@ -13,6 +13,10 @@ pub struct PerCpu {
     pub idle: Cell<bool>,
     /// The kernel is polling for an interrupt (`take_pending_irq`).
     pub polling: Cell<bool>,
+    /// Another core invalidated the ASID this core runs: the exit checks
+    /// that it still names the current thread's VSpace (tlb.rs
+    /// `remote_invalidate_asid`).
+    pub vspace_stale: Cell<bool>,
     /// The IRQ a poll accepted.
     pub polled_irq: Cell<u64>,
     /// CR0.TS is set (the current thread may not use the FPU).
@@ -59,6 +63,7 @@ impl PerCpu {
         PerCpu {
             idle: Cell::new(false),
             polling: Cell::new(false),
+            vspace_stale: Cell::new(false),
             polled_irq: Cell::new(NO_IRQ),
             ts_set: Cell::new(false),
             fpu_clean: Cell::new(false),
