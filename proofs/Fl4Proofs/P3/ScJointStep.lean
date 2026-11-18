@@ -105,6 +105,17 @@ theorem curRun_sc_step {σ σ0 σ' : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x
   · rw [e]; rfl
   · exact h.elim
 
+/-- `return_consumed` returns a word (the consumed time), so Consumed
+always replies. -/
+theorem returnConsumed_ne_nil {p : Fl4Spec.ObjRef} {σ σ' : Fl4Spec.State Unit} {d : List Fl4Spec.Data}
+    (h : (d, σ') ∈ (Fl4Spec.returnConsumed (Z := Unit) p σ).1) : d ≠ [] := by
+  unfold Fl4Spec.returnConsumed at h
+  rw [nd_bind_apply'] at h
+  obtain ⟨⟨c, σm⟩, -, h2⟩ := h
+  rw [nd_pure_apply'] at h2
+  obtain ⟨rfl, -⟩ := Prod.mk.inj (Set.mem_singleton_iff.1 h2)
+  simp [Fl4Spec.wordsFromTime]
+
 set_option maxHeartbeats 2000000 in
 /-- **The SchedControl cap on `JAt`, `JAt` after** (module docstring). -/
 theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
@@ -268,12 +279,14 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
 
 
 set_option maxHeartbeats 4000000 in
-/-- **The SchedContext cap on `JAt`** for Bind, UnbindObject and a YieldTo
-from an SC yielded to by none: when the invocation returns no data, `JAt`
+/-- **The SchedContext cap on `JAt`** for Consumed, Bind, UnbindObject and a
+YieldTo from an SC yielded to by none: when the invocation returns no data
+(never for Consumed: `returnConsumed_ne_nil`), `JAt`
 after (`XTop` by `xtop_sc_step`, the relations by `ScAll`, `BlockedScActive`
 by `bk_invokeSchedContext` with Bind's decode check, `rdp_decodeBind`); a
 YieldTo returning at once has replied (its `XTop` the reply leaf's, the
-second disjunct). Named per-op premise `hRest` (module docstring). -/
+second disjunct, as Consumed always). Named per-op premise `hRest` (module
+docstring). -/
 theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction = .resumeCurThread)
@@ -282,7 +295,8 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st Z.N Z.T Z.C Z.c)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = scLabelOf lbl)
     {sc : U64} (sb : U64) (hsc : sc ∈ Z.C) (hpi : sc.bv ≠ Fl4Spec.idleScPtr)
-    (hl : lbl = fl4_abi.label.SchedContextBind ∨ lbl = fl4_abi.label.SchedContextUnbindObject ∨
+    (hl : lbl = fl4_abi.label.SchedContextConsumed ∨ lbl = fl4_abi.label.SchedContextBind ∨
+      lbl = fl4_abi.label.SchedContextUnbindObject ∨
       (lbl = fl4_abi.label.SchedContextYieldTo ∧ L.mem s (P1.scYieldFromA sc) = 0#u64))
     (hback : L.mem s (scW sc 24#u64) ≠ 0#u64 →
       L.mem s (scW sc 24#u64) ∈ Z.T ∧ L.mem s (P1.scA (L.mem s (scW sc 24#u64))) = sc ∧
@@ -381,6 +395,23 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       by rw [specTail_of_restart hkr hrs, hdo]; exact Set.mem_singleton _⟩
   left
   subst hd; subst hσ
+  -- Consumed always replies: `return_consumed` returns a word
+  replace hl : lbl = fl4_abi.label.SchedContextBind ∨ lbl = fl4_abi.label.SchedContextUnbindObject ∨
+      (lbl = fl4_abi.label.SchedContextYieldTo ∧ L.mem s (P1.scYieldFromA sc) = 0#u64) := by
+    rcases hl with l | hl
+    · exfalso
+      have hg : Fl4Spec.genInvocationType slbl = .schedContextConsumed := by rw [hlbl, l]; unfold scLabelOf; simp
+      simp only [Fl4Spec.decodeSchedContextInvocation, hg] at hrun
+      have e : inv = .invokeSchedContextConsumed sc.bv :=
+        (retP_pure (P := fun v => v = Fl4Spec.SchedContextInvocation.invokeSchedContextConsumed sc.bv) rfl :
+          RetP _ (Fl4Spec.NonDetE.returnOk (Fl4Spec.SchedContextInvocation.invokeSchedContextConsumed sc.bv))).of_run hrun
+      subst e
+      have hm : (([] : List Fl4Spec.Data), σ2) ∈ (Fl4Spec.returnConsumed (Z := Unit) sc.bv σ0).1 := by
+        rw [show Fl4Spec.returnConsumed (Z := Unit) sc.bv σ0 =
+          Fl4Spec.invokeSchedContext (Z := Unit) (.invokeSchedContextConsumed sc.bv) σ0 from rfl, he1]
+        exact Set.mem_singleton _
+      exact returnConsumed_ne_nil hm rfl
+    · exact hl
   have hm0 : ((), σ0) ∈ (Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ).1 := by rw [he0]; exact Set.mem_singleton _
   have hm1 : (([] : List Fl4Spec.Data), σ2) ∈ (Fl4Spec.invokeSchedContext (Z := Unit) inv σ0).1 := by
     rw [he1]; exact Set.mem_singleton _
@@ -606,12 +637,13 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
 
 /-- **The `set_consumed` reply at `J`** (ScXProd's `ScReplyLeaf` at `JAt`,
 on the SchedContext decode's run) [W]: when FL4's decode has replied (the
-caller `Running`: an at-once YieldTo's `set_consumed` to the caller, then
-`set_thread_state Running`), the spec's outcome after the restart, the
-invocation (`return_consumed`) and the reply tail (`reply_from_kernel` when
-a call, `Running`) is at `JAt`. l4v: `invoke_sched_context`'s
-`sched_context_yield_to` with the target not switched to, and
-`handle_invocation`'s reply, keep `invs`. -/
+caller `Running`: Consumed's `return_consumed`, or an at-once YieldTo's
+`set_consumed` to the caller, then `set_thread_state Running`), the spec's
+outcome after the restart, the invocation (`return_consumed`) and the reply
+tail (`reply_from_kernel` when a call, `Running`) is at `JAt`. l4v:
+`invoke_sched_context`'s `return_consumed`, its `sched_context_yield_to`
+with the target not switched to, and `handle_invocation`'s reply, keep
+`invs`. -/
 def ScReplyJ (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) (lbl length slot : U64)
     (sc sb : U64) (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (slbl : Fl4Spec.Data) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (ct : U64) : Prop :=
@@ -625,8 +657,8 @@ def ScReplyJ (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.Sta
       JAt (L := L) arI AR r.2.1 r.2.2 σ2 ⦄
 
 set_option maxHeartbeats 2000000 in
-/-- **The SchedContext cap, `XCap` at `JAt`**, for Bind, UnbindObject and a
-YieldTo from an SC yielded to by none: `sched_contextJ_step`'s outcome (the
+/-- **The SchedContext cap, `XCap` at `JAt`**, for Consumed, Bind,
+UnbindObject and a YieldTo from an SC yielded to by none: `sched_contextJ_step`'s outcome (the
 spec's decode failing with the state unchanged, or the decode, restart and
 invocation with no data and `JAtZ` after), else FL4 has replied and the
 outcome is `ScReplyJ`'s. Premises as `sched_contextJ_step`'s and
@@ -639,7 +671,8 @@ theorem decode_invocation_sched_contextJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : 
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st Z.N Z.T Z.C Z.c)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = scLabelOf lbl)
     {sc : U64} (sb : U64) (hsc : sc ∈ Z.C) (hpi : sc.bv ≠ Fl4Spec.idleScPtr)
-    (hl : lbl = fl4_abi.label.SchedContextBind ∨ lbl = fl4_abi.label.SchedContextUnbindObject ∨
+    (hl : lbl = fl4_abi.label.SchedContextConsumed ∨ lbl = fl4_abi.label.SchedContextBind ∨
+      lbl = fl4_abi.label.SchedContextUnbindObject ∨
       (lbl = fl4_abi.label.SchedContextYieldTo ∧ L.mem s (P1.scYieldFromA sc) = 0#u64))
     (hback : L.mem s (scW sc 24#u64) ≠ 0#u64 →
       L.mem s (scW sc 24#u64) ∈ Z.T ∧ L.mem s (P1.scA (L.mem s (scW sc 24#u64))) = sc ∧

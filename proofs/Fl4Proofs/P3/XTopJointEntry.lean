@@ -384,10 +384,11 @@ structure JSchedCPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar 
         Fl4Spec.invokeSchedControlConfigureFlags (Z := Unit) inv σ1 = ({((), σ')}, False) →
         ScStepP1 (L := L) Z H Cs s r.2.1 ⦄
 
-/-- **The SchedContext invocations with a J producer**: Bind, UnbindObject,
-and a YieldTo from an SC yielded to by none. -/
+/-- **The SchedContext invocations with a J producer**: Consumed, Bind,
+UnbindObject, and a YieldTo from an SC yielded to by none. -/
 def ScJLabel (s : S) (lbl sc : U64) : Prop :=
-  lbl = fl4_abi.label.SchedContextBind ∨ lbl = fl4_abi.label.SchedContextUnbindObject ∨
+  lbl = fl4_abi.label.SchedContextConsumed ∨ lbl = fl4_abi.label.SchedContextBind ∨
+    lbl = fl4_abi.label.SchedContextUnbindObject ∨
     (lbl = fl4_abi.label.SchedContextYieldTo ∧ L.mem s (P1.scYieldFromA sc) = 0#u64)
 
 /-- The SchedContext path (`ScJLabel`): ScJointStep's
@@ -612,7 +613,7 @@ on the cap:
 | Thread | `decode_invocation_threadJ_step` | `JThreadPath` (incl. `JPostHyp` at `TcbJOpen`); SetEPTRoot `JVtxScope` [scope] |
 | IO port | `decode_invocation_ioportJ` | `PortLabel`; a VT-x port (nonzero `vcpu` field) `JVtxScope` [scope] |
 | IRQ control, IO port control, IRQ handler, Domain | `decode_invocation_{irq_control,ioport_control,irq_handler,domain}J` | `JIrqCPath`, `JIoCPath`, `JIrqHPath`, `JDomPath` |
-| SchedContext (Bind, UnbindObject, a YieldTo from an SC yielded to by none) | `decode_invocation_sched_contextJ` | `JSchedCtxPath` (incl. `ScReplyJ` [W]); the rest whole [W] |
+| SchedContext (Consumed, Bind, UnbindObject, a YieldTo from an SC yielded to by none) | `decode_invocation_sched_contextJ` | `JSchedCtxPath` (incl. `ScReplyJ` [W]); the rest whole [W] |
 | SchedControl | `decode_invocation_sched_controlJ` | `JSchedCPath` |
 | PageTable, PageDirectory, PDPT, PML4, ASID pool, native Frame, ASID control | `decode_invocation_{page_table,page_directory,pdpt,pml4,asid_pool,frame,asid_control}J` (XTopJointVsCap) | `J{Pt,Pd,Pdpt,Pml4,Pool,Frame,AsidC}Path` (labels, extra [W]; `JPostHyp` [W]) |
 | VCPU, EPT, EPT-mapped Frame, VT-x IO port, TCB SetEPTRoot | — | `JVtxScope` [scope] |
