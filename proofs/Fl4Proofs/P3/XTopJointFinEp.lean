@@ -102,7 +102,7 @@ set_option maxHeartbeats 8000000 in
 /-- **`JAtZ` across a final endpoint cap's finalisation** (module
 docstring): at `Z.mv Z.G V'`, the dead set and P1's sets kept. From
 `RecvReplyHyp` [J]. -/
-theorem JAtZ.finEpJ (hRR : RecvReplyHyp (L := L) arI AR H Cs) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.finEpJ (hRR : RecvReplyLinksHyp (L := L) arI AR H Cs) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {e b : U64} {x1 x2 x3 x4 : Bool} (he : e ∈ Z.E) :
     objects.finalise_cap st arI s a (.Endpoint e b x1 x2 x3 x4) true false ⦃ res =>
       res.1 = (capability.Cap.Null, capability.Cap.Null) ∧ res.2.2 = a ∧ ∃ σ' V',
@@ -165,7 +165,7 @@ theorem JAtZ.finEpJ (hRR : RecvReplyHyp (L := L) arI AR H Cs) (J : JAtZ (L := L)
     rcases hc with e' | ⟨⟨t, hxt, xt, hkt, hrb⟩, -⟩
     · obtain ⟨h1, h2, h3⟩ := J.rfree d hd ⟨x, hx, e' ▸ hyt⟩
       exact ⟨h1, by rw [r2]; exact h2, by rw [r1]; exact h3⟩
-    · obtain ⟨h1, h2, h3⟩ := hRR Z Ac Lst D s a σ J d hd x t xt hx hxt hkt hrb
+    · obtain ⟨h1, h2, h3⟩ := recvReplyHyp_of hRR Z Ac Lst D s a σ J d hd x t xt hx hxt hkt hrb
       exact ⟨h1, by rw [r2]; exact h2, by rw [r1]; exact h3⟩
   have hDbg := J.kw_dbg hfoot
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s3 σ3 := hI3.2.2.1

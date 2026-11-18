@@ -299,7 +299,7 @@ theorem JAtZ.signal_waitDJ (hAT : P0.ArchTotal arI)
 set_option maxHeartbeats 8000000 in
 /-- **The idle notification's bound receiver woken, donating or not, keeps
 `JAtZ`** (module docstring; `JAtZ.signal_boundJ` with `wake_specG`). -/
-theorem JAtZ.signal_boundDJ (hAT : P0.ArchTotal arI) (hRRH : RecvReplyHyp (L := L) arI AR H Cs)
+theorem JAtZ.signal_boundDJ (hAT : P0.ArchTotal arI) (hRRH : RecvReplyLinksHyp (L := L) arI AR H Cs)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification}
     (hk : σ.kheap n.bv = some (.notification x)) (hidle : x.ntfnObj = .idleNtfn) {t : U64} {tcb : Fl4Spec.Tcb}
@@ -375,7 +375,7 @@ theorem JAtZ.signal_boundDJ (hAT : P0.ArchTotal arI) (hRRH : RecvReplyHyp (L := 
       fun b h => h.elim id Or.inl
   have hRR : ∀ q ∈ Z.R, ∀ xr, σ.kheap q.bv = some (.reply xr) → xr.replyTcb = some t.bv →
       Detached Z.C Lst q ∧ L.mem s (rNextA q) = 0#u64 ∧ L.mem s (rPrevA q) = 0#u64 :=
-    fun q hq xr hx' hxt => hRRH Z Ac Lst D s _ σ J q hq xr t.bv tcb hx' hxt hkt hrb
+    fun q hq xr hx' hxt => recvReplyHyp_of hRRH Z Ac Lst D s _ σ J q hq xr t.bv tcb hx' hxt hkt hrb
   have htD := J.not_dead_of_st htT hkt (by rw [hst]; simp [tsCode])
   obtain ⟨V', J'⟩ := J.wake_postD hIR (hF1.trans hF2) hw hbk hfoot FF I' B' AI' cur' run' hRR htD ⟨t, htT, rfl⟩
   exact ⟨σ', V', Ac, Lst, D, hsend, FF.sk.dt, J'⟩

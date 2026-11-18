@@ -90,6 +90,33 @@ theorem frame_apart_of_obj {H : P1.Heap} (hH : P1.HeapOK H) {p : U64} {sz : capa
   · simp only [P1.HKind.bits] at h
     exact Or.inr (by omega)
 
+/-- **A frame inside an `other` object of `H` misses `H`'s other objects**
+(`HeapOK.disj`): the containing object need not start at the frame's base
+(a 4 KiB alias of a page of a large frame, `DeriveSubframe`, lies inside the
+large frame's object). Generalises `frame_apart_of_obj`. -/
+theorem frame_apart_of_in {H : P1.Heap} (hH : P1.HeapOK H) {p q : U64} {sz : capability.FrameSize}
+    {r : U64} {d m ep : Bool} {a va : U64} {n : Nat} (hq : H q = some (.other n)) (h1 : q.val ≤ p.val)
+    (h2 : p.val + 2 ^ frameBitsN sz ≤ q.val + 2 ^ n) :
+    ∀ q' k, H q' = some k → (∀ z, k ≠ .other z) →
+      q'.val + 2 ^ k.bits ≤ baseF (.Frame p sz r d m ep a va) ∨ topF (.Frame p sz r d m ep a va) < q'.val := by
+  intro q' k hq' hko
+  obtain ⟨bs, ts⟩ := Vs.frame_range p sz r d m a va ep
+  have hqq : q' ≠ q := fun e => by subst e; rw [hq] at hq'; cases hq'; exact hko n rfl
+  have hfb : (fbitsF sz).val = frameBitsN sz := by rw [fbitsF_val]; cases sz <;> rfl
+  have hm : (maskF (fbitsF sz)).val = 2 ^ frameBitsN sz - 1 := by
+    rw [maskF_val (by rw [hfb]; cases sz <;> decide), hfb]
+  have h1' : 1 ≤ 2 ^ frameBitsN sz := Nat.one_le_two_pow
+  have hp64 : p.val + 2 ^ frameBitsN sz ≤ 2 ^ 64 := by
+    have := hH.fits q _ hq; simp only [P1.HKind.bits] at this; omega
+  have htv : topF (.Frame p sz r d m ep a va) = p.val + 2 ^ frameBitsN sz - 1 := by
+    rw [ts]; simp [core.num.U64.wrapping_add_val_eq, U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits, hm]
+    omega
+  rw [bs, htv]
+  rcases hH.disj q' k q _ hq' hq hqq with h | h
+  · exact Or.inl (by omega)
+  · simp only [P1.HKind.bits] at h
+    exact Or.inr (by omega)
+
 /-- **A frame or IO port cap's slot is ready** when, for a frame, no object
 of `H` meets its range. -/
 theorem EmptyReady.frio {H : P1.Heap} {G : MdbGhost} {s : S} {x : U64} {c : capability.Cap}

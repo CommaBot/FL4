@@ -479,7 +479,7 @@ set_option maxHeartbeats 8000000 in
 receiving, without SC donation, keeps `JAtZ`** (module docstring): FL4's side
 `send_signal_bound_irel`, the spec's `cancelIpc_recv_cfr`, `cancel_recv_inv`,
 `wake_specB`, then `wake_postB`. -/
-theorem JAtZ.signal_boundJ (hAT : P0.ArchTotal arI) (hRRH : RecvReplyHyp (L := L) arI AR H Cs)
+theorem JAtZ.signal_boundJ (hAT : P0.ArchTotal arI) (hRRH : RecvReplyLinksHyp (L := L) arI AR H Cs)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification}
     (hk : σ.kheap n.bv = some (.notification x)) (hidle : x.ntfnObj = .idleNtfn) {t : U64} {tcb : Fl4Spec.Tcb}
     (hb : x.ntfnBoundTcb = some t.bv) (hkt : σ.kheap t.bv = some (.tcb tcb))
@@ -555,7 +555,7 @@ theorem JAtZ.signal_boundJ (hAT : P0.ArchTotal arI) (hRRH : RecvReplyHyp (L := L
       fun b h => h.elim id Or.inl
   have hRR : ∀ d ∈ Z.R, ∀ xr, σ.kheap d.bv = some (.reply xr) → xr.replyTcb = some t.bv →
       Detached Z.C Lst d ∧ L.mem s (rNextA d) = 0#u64 ∧ L.mem s (rPrevA d) = 0#u64 :=
-    fun d hd xr hx' hxt => hRRH Z Ac Lst D s _ σ J d hd xr t.bv tcb hx' hxt hkt hrb
+    fun d hd xr hx' hxt => recvReplyHyp_of hRRH Z Ac Lst D s _ σ J d hd xr t.bv tcb hx' hxt hkt hrb
   have htD : ∀ q ∈ D, q.bv ≠ t.bv := by
     intro q hq eq
     have hqt : q = t := P1.eq_of_bv eq

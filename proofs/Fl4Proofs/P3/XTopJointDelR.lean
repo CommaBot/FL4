@@ -38,7 +38,7 @@ some of them proved here.
   `jFrVt_of` (XTopJointFinVtJ's `JAtZ.frVtJ`, from `ARKeep` [P] and
   `JVtHyps` [J]); the slot ready after by `JFrameApartHyp` [J] (a frame
   cap's frame is an `other` object of `H`, so its memory holds no object
-  of `H` but `other` ones: `frame_apart_of_obj`; an IO port cap is not
+  of `H` but `other` ones: `frame_apart_of_in`; an IO port cap is not
   physical).
 * A final VT-x object cap's finalisation (`jFinAt_vt`, XTopJointFinVtJ): an
   EPT cap but a mapped root's (`EptK`: nothing, or `ept::unmap` of a mapped
@@ -269,10 +269,13 @@ def JFrVtHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
 /-- **Hypothesis: a frame cap's frame is an object of `H`** [J] (l4v
 `valid_cap` of a frame cap: `typ_at (AArch (AUserData sz))` or, for a device
 frame, `typ_at (AArch (ADeviceData sz))`; device frames need no separate
-premise): at `WJ`, `H` holds at the base of a frame cap in a slot an `other`
-object of at least the frame's size (P1's heap's image of the spec's frame,
-`SpecCover.arch`). The frame's memory then holds no object of `H` but `other`
-ones (`frame_apart_of_obj`, from `HeapOK.disj`: l4v `pspace_distinct`).
+premise): at `WJ`, `H` holds an `other` object containing a frame cap's
+range (P1's heap's image of the spec's frame, `SpecCover.arch`; not
+necessarily at the cap's base: a 4 KiB alias of a page of a large frame,
+`DeriveSubframe`, lies inside the large frame's object, where `H` holds no
+object at the alias's own base). The frame's memory then holds no object of
+`H` but `other` ones (`frame_apart_of_in`, from `HeapOK.disj`: l4v
+`pspace_distinct`).
 Not derivable: `JAtZ` carries no fact on frame caps' objects (`CapValid`
 gives a frame cap only its alignment; `SpecCover.arch` maps the spec's frames
 into `H`, not frame caps to the spec's frames; `UtInv` places a frame inside
@@ -283,7 +286,7 @@ def JFrameApartHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
     ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost), WJ (L := L) arI AR Z H Cs kb s a σ G →
       ∀ x, IsSlot th x → ∀ p sz r d m ep a' va, capV (L.mem s) x = .Frame p sz r d m ep a' va →
-        ∃ n, frameBitsN sz ≤ n ∧ H p = some (.other n)
+        ∃ q n, H q = some (.other n) ∧ q.val ≤ p.val ∧ p.val + 2 ^ frameBitsN sz ≤ q.val + 2 ^ n
 
 /-- **A zombie's slot is ready at `J`** (`RdTrivHyp` for zombies; their
 finalisation leaves the state as it is): the objects in the zombie's range
@@ -415,10 +418,11 @@ structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   fin : JFinAtF (L := L) arI AR th (fun c => ¬ NtfnK c ∧ ¬ FrIoK c ∧ ¬ IrqK c ∧ ¬ EpK c ∧ ¬ RpK c ∧ ¬ VsK c ∧ ¬ ScK c ∧ ¬ TcbK c ∧
     ¬ (EptK c ∨ VcpuK c) ∧ ¬ EptRootK c)
   irq : JIrqSlotHyp (L := L) arI AR th
-  /-- ScSignalBoundJ's `RecvReplyHyp` [J] (l4v `valid_replies`), at every
+  /-- ScSignalBoundJ's `RecvReplyLinksHyp` [J] (l4v `valid_replies`; gives `RecvReplyHyp` by
+  `recvReplyHyp_of`), at every
   `P1.Heap` and set of cores: a final endpoint cap's finalisation frees the
   replies of the threads blocked receiving on it. -/
-  recvRep : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyHyp (L := L) arI AR H Cs
+  recvRep : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L := L) arI AR H Cs
   /-- The x86 backend's obligations (VsArch's `ArchRefines` [P]), for a final
   native VSpace cap's finalisation. -/
   archRef : ArchRefines arI AR
@@ -708,7 +712,7 @@ set_option maxHeartbeats 4000000 in
 /-- **A final endpoint cap's finalisation at `J`** (XTopJointFinEp's
 `JAtZ.finEpJ`, the endpoint dead after by P1's `fin_cap_ep.dead`), from
 `RecvReplyHyp` [J]. -/
-theorem jFinAt_ep (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyHyp (L := L) arI AR H Cs) :
+theorem jFinAt_ep (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L := L) arI AR H Cs) :
     JFinAtF (L := L) arI AR th EpK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨e, b, x1, x2, x3, x4, hce⟩ hfin
   subst hce hth
@@ -768,7 +772,7 @@ set_option maxHeartbeats 4000000 in
 `JAtZ.finReplyJ`, the reply dead after by P1's `fin_cap_reply.dead`), from
 `RecvReplyHyp` [J] and `JReplyRemoveHyp` [J]. -/
 theorem jFinAt_reply [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI)
-    (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyHyp (L := L) arI AR H Cs)
+    (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L := L) arI AR H Cs)
     (hRm : JReplyRemoveHyp (L := L) arI AR th) : JFinAtF (L := L) arI AR th RpK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨p, g, hce⟩ hfin
   subst hce hth
@@ -918,7 +922,7 @@ theorem jFinAt_vt (hAR : ArchRefines arI AR) (hK : ARKeep arI AR) (hV : JVtHyps 
 port cap's do nothing; a VSpace-mapped frame's from `JFrMapHyp` (`jFrMap_of`), the
 VT-x work from `JFrVtHyp` [J]; the slot ready after (an IO port cap is not
 physical; a frame's memory holds no object of `H` but `other` ones,
-`frame_apart_of_obj` from `JFrameApartHyp` [J], `EmptyReady.of_apartO`). -/
+`frame_apart_of_in` from `JFrameApartHyp` [J], `EmptyReady.of_apartO`). -/
 theorem jFinAt_frio [Fl4Proofs.P1.PlainStore st] (hM : JFrMapHyp (L := L) arI AR th) (hV : JFrVtHyp (L := L) arI AR th)
     (hAp : JFrameApartHyp (L := L) arI AR th) : JFinAt (L := L) arI AR th FrIoK := by
   intro Z H Cs kb hth
@@ -927,9 +931,9 @@ theorem jFinAt_frio [Fl4Proofs.P1.PlainStore st] (hM : JFrMapHyp (L := L) arI AR
   rcases hk with hf | ⟨f, l, o, rfl⟩
   · cases c with
     | Frame p sz r d m ep a' va =>
-      obtain ⟨n, hn, hp⟩ := hAp Z H Cs kb hth s a σ G hW _ hA.isSlot p sz r d m ep a' va hcv
+      obtain ⟨q, n, hq, h1, h2⟩ := hAp Z H Cs kb hth s a σ G hW _ hA.isSlot p sz r d m ep a' va hcv
       obtain ⟨V, Ac, Lst, D, J, -⟩ := hW
-      exact EmptyReady.of_apartO (by rw [hcv]; exact frame_apart_of_obj J.kern.heap hp hn)
+      exact EmptyReady.of_apartO (by rw [hcv]; exact frame_apart_of_in J.kern.heap hq h1 h2)
     | _ => cases hf
   · exact EmptyReady.of_nonphys (by rw [hcv]; exact physF_ioPort f l o)
 /-- **A final SC cap's finalisation at `J`** (`JScFinHyp` [J], the SC dead
@@ -963,7 +967,7 @@ theorem jFinAt_sc (hT : P0.ArchTotal arI) (hF : JScFinHyp (L := L) arI AR th) (h
 base by P1's `fin_cap_thread.slots`, the thread dead after by P1's
 `fin_cap_thread.dead` (`JAtZ.tcb_ready`). -/
 theorem jFinAt_thread (hT : P0.ArchTotal arI) (hK : ARKeep arI AR) (hF : JThreadFinHyps (L := L) arI AR th)
-    (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyHyp (L := L) arI AR H Cs) :
+    (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L := L) arI AR H Cs) :
     JFinAtF (L := L) arI AR th TcbK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨p, hce⟩ hfin
   subst hce hth

@@ -200,7 +200,7 @@ def SignalRestJHyp (AR : A → Fl4Spec.Cr3 → Prop) (H : P1.Heap) (Cs : Set U64
 set_option maxHeartbeats 8000000 in
 /-- **`SignalJHyp` from the waking signals' premise** (module docstring). -/
 theorem signalJHyp_of (hAT : P0.ArchTotal arI) (hW : SignalRestJHyp (L := L) arI AR H Cs)
-    (hRR : RecvReplyHyp (L := L) arI AR H Cs)
+    (hRR : RecvReplyLinksHyp (L := L) arI AR H Cs)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
     SignalJHyp (L := L) arI AR H Cs := by
   intro Z Ac Lst D s a σ n badge J hn
@@ -266,7 +266,7 @@ theorem jat_scheduleS {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
         Z.th t = some .tcb ∧ ∀ p asid, capAt (L.mem s1) (slotOf t 1) = ok (.Pml4 p true asid) → asid ≠ 0#u64)
-    (hW : SignalRestJHyp (L := L) arI AR H Cs) (hRR : RecvReplyHyp (L := L) arI AR H Cs)
+    (hW : SignalRestJHyp (L := L) arI AR H Cs) (hRR : RecvReplyLinksHyp (L := L) arI AR H Cs)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hA : ArchSw st arI Z.N Z.T Z.C Z.c)
     (hsni : SniHyp st arI Z.N Z.T Z.C Z.c) (hsend : SendHyp st arI Z.N Z.T Z.C Z.c) (hT : TimeAgree arI)

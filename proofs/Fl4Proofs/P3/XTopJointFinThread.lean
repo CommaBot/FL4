@@ -690,7 +690,7 @@ set_option maxHeartbeats 16000000 in
 /-- **`JAtZ` across a final thread cap's finalisation** (module docstring),
 the steps of `JThreadFinHyps` given, the FPU release's arch step by `ARKeep` [P]. -/
 theorem JAtZ.finThreadJ (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR) (hF : JThreadFinHyps (L := L) arI AR Z.th)
-    (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyHyp (L := L) arI AR H Cs)
+    (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L := L) arI AR H Cs)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hp : p ∈ Z.T)
     (hv0 : L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64) (hna : L.actionW s ≠ p) (hidle : L.idleW s ≠ p) :
     objects.finalise_cap st arI s a (.Thread p) true false ⦃ r => ∃ σ',
