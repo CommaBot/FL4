@@ -546,15 +546,10 @@ theorem JAtZ.bindNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n : U64
           · exact Or.inr (Or.inl ⟨hd, e1, e2⟩)
       · exact Or.inr (Or.inr hi)
   have hidl := J.idleW_keep hS3 F.idle
-  have hnb : ∀ c, L.nodeBase (L.wr (L.wr s (nBoundA n) t) (P1.boundA t) n) c = L.nodeBase s c := fun c => by
-    simp only [P1.LawfulStore.nodeBase, hks]
   have hjc : JCovD (L := L) Z.th H Z.G D' Cs (L.wr (L.wr s (nBoundA n) t) (P1.boundA t) n) := by
-    refine hJ0.same (fun y hy _ _ => ⟨hy, hF.1.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
-      (fun x hx p sb fi d hc => ?_) hidl
+    exact hJ0.same (fun y hy _ _ => ⟨hy, hF.1.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
+      (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) hidl
       (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩)
-    rw [hF.1.capV (hsl x hx)] at hc
-    obtain ⟨h1, h2⟩ := J.jcov.ks x hx p sb fi d hc
-    exact ⟨by rw [hks]; exact h1, fun c hc' => by rw [hnb]; exact h2 c hc'⟩
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq (L.wr (L.wr s (nBoundA n) t) (P1.boundA t) n) σ' := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
     exact ⟨Tr, Cq, hJ.same hF.1 (fun q y m _ hq => F.szKeep q.bv y m hq) hks (J.finW_irq hw)⟩
