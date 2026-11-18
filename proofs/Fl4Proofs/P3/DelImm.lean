@@ -204,14 +204,14 @@ theorem immediate_loop [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.
   · simp only [cdt.cap_removable, bind_ok, ↓reduceIte, WP.spec_ok]
     refine ⟨σ1, G1, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, le_trans hcd1 hcd, le_trans hps1 hps,
       fun h => absurd (h.symm.trans (by rw [hx1])) (Ne.symm hcn), hmS1, Or.inl ⟨_, rfl, hcl, hclw,
-      htr _ (rd_fin_removable hg hcan hmem trivial), hcz1, fun _ => hRd1⟩, hW1⟩
+      htr _ (rd_fin_removable hg hcan hmem trivial), hcz1, fun _ => hRd1 (Or.inl rfl)⟩, hW1⟩
   obtain ⟨hrm, hrmS⟩ := removable_zombie hP hz.zok hA
   rw [hrm]; simp only [bind_ok]
   by_cases hrmv : n.val = 0 ∨ (n.val = 1 ∧ p = cslotAddr sl)
   · simp only [hrmv, decide_true, ↓reduceIte, WP.spec_ok]
     refine ⟨σ1, G1, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, le_trans hcd1 hcd, le_trans hps1 hps,
       fun h => absurd (h.symm.trans (by rw [hx1])) (Ne.symm hcn), hmS1, Or.inl ⟨_, rfl, hcl, hclw,
-      htr _ (rd_fin_removable hg hcan hmem (hrmS.2 hrmv)), hcz1, fun _ => hRd1⟩, hW1⟩
+      htr _ (rd_fin_removable hg hcan hmem (hrmS.2 hrmv)), hcz1, fun _ => hRd1 (Or.inr ⟨p, zt, n, rfl, hrmv⟩)⟩, hW1⟩
   simp only [hrmv, decide_false, Bool.false_eq_true, ↓reduceIte]
   have hn1 : 1 ≤ n.val := by omega
   have hnrm : ¬ Fl4Spec.capRemoveable (absCap (.Zombie p zt n)) sl := fun h => hrmv (hrmS.1 h)

@@ -272,14 +272,14 @@ theorem deferred_loop [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.S
   · -- nothing remains: done
     simp only [cdt.cap_removable, bind_ok, ↓reduceIte, WP.spec_ok]
     refine ⟨σ1, G1, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, by dsimp only at *; omega, by dsimp only at *; omega, hch1', hsc1, hmS1, Or.inl ⟨_, rfl, hcl, hclw,
-      fun h => by simp at h, fun _ _ => hRd1, htr _ (rd_fin_removable hg hcan hmem trivial)⟩, hW1⟩
+      fun h => by simp at h, fun _ _ => hRd1 (Or.inl rfl), htr _ (rd_fin_removable hg hcan hmem trivial)⟩, hW1⟩
   -- a zombie remains
   obtain ⟨hrm, hrmS⟩ := removable_zombie hP hz.zok hA
   rw [hrm]; simp only [bind_ok]
   by_cases hrmv : n.val = 0 ∨ (n.val = 1 ∧ p = cslotAddr sl)
   · simp only [hrmv, decide_true, ↓reduceIte, WP.spec_ok]
     refine ⟨σ1, G1, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, by dsimp only at *; omega, by dsimp only at *; omega, hch1', hsc1, hmS1, Or.inl ⟨_, rfl, hcl, hclw,
-      fun h => by simp at h, fun _ _ => hRd1, htr _ (rd_fin_removable hg hcan hmem (hrmS.2 hrmv))⟩, hW1⟩
+      fun h => by simp at h, fun _ _ => hRd1 (Or.inr ⟨p, zt, n, rfl, hrmv⟩), htr _ (rd_fin_removable hg hcan hmem (hrmS.2 hrmv))⟩, hW1⟩
   simp only [hrmv, decide_false, Bool.false_eq_true, ↓reduceIte]
   have hxn1 : capV (L.mem s1) (cslotAddr sl) ≠ .Null := by rw [hx1]; exact hcn
   apply WP.spec_bind (WP.spec_and (set_zombie th s1 σ1 G1 hR1 hV1 hP hM1 hC1 hI1 hD1 hA hxn1 hz.wf hz.enc hz.zok

@@ -294,7 +294,7 @@ XTopJointCbs's `decode_invocation_cnode_cancelJ` (the caller's restart by `JStep
 `JAtZ.cancelBadgedJ`), the invalid labels by `decode_invocation_cnode_illegalJ`. -/
 theorem decode_invocation_cnodeJ_steps [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
-    (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hUt : DelUtHyp (L := L) arI AR Z.th)
+    (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
     (hJDP : JDelParts (L := L) arI AR Z.th)
     (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
     (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
@@ -317,7 +317,7 @@ theorem decode_invocation_cnodeJ_steps [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl)
       (.CNode p r gs g) blk call don fp buf extra slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
-  have hJ := JStepHyps.of_ut arI hUt
+  have hJ := JStepHyps.of_ut arI (delUtHyp_of_live arI hJDP.live)
   have hX := J.xtop
   have hJP := jPreemptHyp_of (L := L) arI hARI.toARKeep hT hnd hPP Z.th
   have hP0 := J.ppr0_start arI hni hRd0

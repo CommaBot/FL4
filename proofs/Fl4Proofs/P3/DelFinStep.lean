@@ -35,7 +35,7 @@ def FinPost (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
       (capV (L.mem r.2.1) y = .Null ∧ isZb (capV (L.mem s) y) = false)) ∧
     CleanCap r.1.2 ∧ CapWf r.1.2 ∧ (isZb c = true → r.1.1 = c) ∧
     (r.1.1 = .Null ∨ ∃ p zt n, r.1.1 = .Zombie p zt n ∧ ZCond th (L.mem r.2.1) G1 x p zt n) ∧
-    MdbStep (L.mem s) G (L.mem r.2.1) G1 ∧ W r.2.1 r.2.2 σ1 G1 ∧ Rd r.2.1 r.2.2 σ1 G1 x
+    MdbStep (L.mem s) G (L.mem r.2.1) G1 ∧ W r.2.1 r.2.2 σ1 G1 ∧ (RmOK r.1.1 x → Rd r.2.1 r.2.2 σ1 G1 x)
 
 theorem finalise_triv (s : S) (a : A) (c : capability.Cap) (fin : Bool) (h : TrivFin c) :
     objects.finalise_cap st arI s a c fin false = ok ((.Null, .Null), s, a) := by
@@ -58,14 +58,14 @@ theorem finalise_cap_frame_fin [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) {c :
 cap of a slot of the typed heap. -/
 theorem fin_step [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap)
-    (hO : FinObjHypWR (L := L) arI W Rd th) (hRT : RdTrivHyp (L := L) W Rd th) (hF : FinalHyp (L := L) th)
+    (hO : FinObjHypWRc (L := L) arI W Rd th) (hRT : RdTrivHyp (L := L) W Rd th) (hF : FinalHyp (L := L) th)
     (hP : Placed th) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hDS : DState (L := L) th s σ G) (hW : W s a σ G) {sl : Fl4Spec.CslotPtr} (hA : AbsSlot th sl)
     {c : capability.Cap} (hc : capAt (L.mem s) (cslotAddr sl) = ok c) (hcn : c ≠ .Null)
     (b : Bool) (hb : NeedsFin c → b = decide (Fl4Spec.isFinalCap' (absCap c) σ)) :
     objects.finalise_cap st arI s a c b false ⦃ r =>
       FinPost (L := L) W Rd th s σ G (cslotAddr sl) c r ⦄ := by
-  have hRd : ¬ FinObjKind c → Rd s a σ G (cslotAddr sl) := hRT s a σ G sl c hDS hW hA hc hcn
+  have hRd := hRT s a σ G sl c hDS hW hA hc hcn
   obtain ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ := hDS
   have hcvx := capV_of_capAt hc
   have hcv := hV.abs hA hc
@@ -77,9 +77,11 @@ theorem fin_step [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Spec.State Uni
   rcases cap_cases c hcn with ht | ⟨p, r, gs, g, rfl⟩ | ⟨p, zt, n, rfl⟩ | ho
   · rw [finalise_triv arI s a c b ht, WP.spec_ok]
     refine ⟨σ, G, mem_single (finaliseCap_trivF σ c _ ht), ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, hcvx, hsame,
-      trivial, trivial, fun h => ?_, Or.inl rfl, MdbStep.refl hM, hW, hRd ?_⟩
+      trivial, trivial, fun h => ?_, Or.inl rfl, MdbStep.refl hM, hW, fun _ => hRd ?_ ?_ ?_⟩
     · cases c <;> simp [TrivFin] at ht <;> simp [isZb] at h
     · cases c <;> simp [TrivFin] at ht <;> simp [FinObjKind]
+    · rintro p r gs g rfl; simp [TrivFin] at ht
+    · rintro p zt n rfl; simp [TrivFin] at ht
   · -- a CNode cap
     rw [hb (Or.inr (Or.inl ⟨_, _, _, _, rfl⟩))]
     obtain ⟨hcvp, -⟩ := hcv
@@ -93,7 +95,17 @@ theorem fin_step [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Spec.State Uni
       rw [e, WP.spec_ok]
       refine ⟨σ, G, ?_, ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, hcvx, hsame, trivial, trivial, fun h => by simp [isZb] at h,
         Or.inr ⟨p, r, z, rfl, cnode_zcond hR hP hM hA hc hfin hcvp hr hen.1 z hzv⟩, MdbStep.refl hM, hW,
-        hRd (by simp [FinObjKind])⟩
+        fun hrm => hRd (by simp [FinObjKind]) (fun p' r' gs' g' e _ => by
+          cases e
+          rcases hrm with e0 | ⟨p1, zt1, n1, e1, h1⟩
+          · cases e0
+          · cases e1
+            have h2 : 1 ≤ 2 ^ r.val := Nat.one_le_two_pow
+            rcases h1 with h1 | ⟨h1, h3⟩
+            · omega
+            · refine ⟨?_, h3⟩
+              have : 2 ^ r.val = 2 ^ 0 := by rw [← hzv, h1]; rfl
+              exact Nat.pow_right_injective (le_refl 2) this) (fun _ _ _ e => by cases e)⟩
       rw [decide_eq_true hfin]
       have hzb : zombieBits r = some r.val := zombieBits_cnode (by omega)
       simp only [absCap, Fl4Spec.finaliseCap, ↓reduceIte, hzb, hzv]; rfl
@@ -103,7 +115,8 @@ theorem fin_step [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Spec.State Uni
         simp [objects.finalise_cap, objects.finalise_cap_object]
       rw [e, WP.spec_ok]
       refine ⟨σ, G, ?_, ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, hcvx, hsame, trivial, trivial, fun h => by simp [isZb] at h,
-        Or.inl rfl, MdbStep.refl hM, hW, hRd (by simp [FinObjKind])⟩
+        Or.inl rfl, MdbStep.refl hM, hW,
+        fun _ => hRd (by simp [FinObjKind]) (fun _ _ _ _ e hf => absurd (e ▸ hf) hfin) (fun _ _ _ e => by cases e)⟩
       rw [decide_eq_false hfin]
       simp only [absCap, Fl4Spec.finaliseCap, Bool.false_eq_true, ↓reduceIte]; rfl
   · -- a zombie
@@ -114,7 +127,12 @@ theorem fin_step [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Spec.State Uni
       simp [objects.finalise_cap, objects.finalise_cap_object]
     rw [e, WP.spec_ok]
     refine ⟨σ, G, ?_, ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, hcvx, hsame, trivial, trivial, fun _ => rfl,
-      Or.inr ⟨p, zt, n, rfl, ?_⟩, MdbStep.refl hM, hW, hRd (by simp [FinObjKind])⟩
+      Or.inr ⟨p, zt, n, rfl, ?_⟩, MdbStep.refl hM, hW,
+      fun hrm => hRd (by simp [FinObjKind]) (fun _ _ _ _ e => by cases e) (fun p' zt' n' e => by
+        cases e
+        rcases hrm with e0 | ⟨p1, zt1, n1, e1, h1⟩
+        · cases e0
+        · cases e1; exact h1)⟩
     · rw [decide_eq_true hfz]
       show _ ∈ ((Fl4Spec.NonDet.assert _ >>= fun _ => pure _) σ).1
       exact mem_bind_nd (x := ((), σ)) ⟨rfl, rfl⟩ rfl
