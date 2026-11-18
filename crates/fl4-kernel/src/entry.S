@@ -231,9 +231,11 @@ fl4_common_entry:
     movq $0, -120(%rsp)
     movq $0, -128(%rsp)
     movq $0, -136(%rsp)
-    fl4_clear_buffers
+    /* The SNP poison check loads memory: before the buffers are cleared,
+     * so VERW; LFENCE stays last before the return (as in fl4_idle). */
     cmpb $0, FL4_SNP_POISONED(%rip)
     jne .Lpoisoned
+    fl4_clear_buffers
 .Lcommon_iret:
     iretq
 
@@ -296,9 +298,9 @@ fl4_restore_user:
     popq %rdi
     movq $0, (%rsp)
     addq $8, %rsp
-    fl4_clear_buffers
     cmpb $0, FL4_SNP_POISONED(%rip)
     jne .Lpoisoned
+    fl4_clear_buffers
 .Lrestore_iret:
     iretq
 
@@ -334,9 +336,9 @@ fl4_restore_user:
     movq $0, (%rsp)
     addq $8, %rsp
     popq %rsp
-    fl4_clear_buffers
     cmpb $0, FL4_SNP_POISONED(%rip)
     jne .Lpoisoned
+    fl4_clear_buffers
     sysretq
 
 /* fl4_idle(stack_top: u64) -> !: the idle thread, on the kernel stack and
