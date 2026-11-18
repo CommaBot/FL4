@@ -146,7 +146,7 @@ pub fn lazy_load(t: u64) {
 }
 
 /// Write `t`'s state back to its TCB if it is live on this core.
-pub fn flush_local(t: u64) {
+fn flush_local(t: u64) {
     if percpu::get().fpu_owner == t {
         save(t);
     }
@@ -161,11 +161,17 @@ pub fn forget_local(t: u64) {
 }
 
 /// Save `t`'s state to its TCB and forget it, if it is live on this core.
+/// EL0 access ends up trapped: a thread that was running with the
+/// registers (one whose FP/SIMD was just disabled) traps on its next
+/// FP/SIMD instruction instead of changing registers no one saves; any
+/// other thread on this core had it trapped already, as a thread that does
+/// not own the registers runs so.
 pub fn release_local(t: u64) {
     let pc = percpu::get();
     if pc.fpu_owner == t {
         save(t);
         pc.fpu_owner = 0;
+        set_enabled(false);
     }
 }
 
@@ -177,12 +183,32 @@ pub fn is_live(t: u64) -> bool {
     owner_core(t).is_some()
 }
 
+/// The remote call `flush` makes for state live on core `owner`, if any,
+/// when it runs on core `me`.
+///
+/// Another core gives the state up, not just saves it: it still owns the
+/// registers otherwise, and its next load for another thread (`lazy_load`
+/// on an FP/SIMD trap, or an exit's `switch_to`, neither under the serial
+/// gate) saves them over `t`'s image while this core reads or rewrites it
+/// (TCB_ReadFPU, TCB_WriteFPU's copy and `sanitise`). `t` does not run
+/// there (callers stall or migrate it first), so the release takes nothing
+/// from the thread that does.
+fn flush_call(owner: Option<usize>, me: usize) -> Option<(u64, usize)> {
+    match owner {
+        Some(c) if c != me => Some((crate::smp::CALL_FPU_RELEASE, c)),
+        _ => None,
+    }
+}
+
 /// Write `t`'s live state, wherever it is, back to its TCB. The caller
-/// holds the serial gate when another core may hold the state.
+/// holds the serial gate when another core may hold the state; it is no
+/// longer live there afterwards (`flush_call`).
 pub fn flush(t: u64) {
-    match owner_core(t) {
-        Some(c) if c == percpu::cpu_index() => flush_local(t),
-        Some(c) => crate::smp::remote_call(crate::smp::CALL_FPU_SAVE, t, 0, 1 << c),
+    let owner = owner_core(t);
+    let me = percpu::cpu_index();
+    match flush_call(owner, me) {
+        Some((call, c)) => crate::smp::remote_call(call, t, 0, 1 << c),
+        None if owner == Some(me) => flush_local(t),
         None => {}
     }
 }
@@ -220,3 +246,4 @@ pub fn sanitise(t: u64) {
         core::ptr::write_volatile(w, fpsr as u64 | ((fpcr as u64) << 32));
     }
 }
+

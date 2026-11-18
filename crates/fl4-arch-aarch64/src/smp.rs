@@ -9,7 +9,6 @@ use core::sync::atomic::{AtomicU64, Ordering};
 use fl4_core::layout::irq;
 
 pub const CALL_STALL: u64 = 1;
-pub const CALL_FPU_SAVE: u64 = 4;
 pub const CALL_FPU_DROP: u64 = 5;
 pub const CALL_FPU_RELEASE: u64 = 6;
 pub const CALL_ASID: u64 = 7;
@@ -81,7 +80,6 @@ pub fn service(stall: impl FnOnce()) -> bool {
     let stalled = kind == CALL_STALL;
     match kind {
         CALL_STALL => stall(),
-        CALL_FPU_SAVE => crate::fpu::flush_local(a0),
         CALL_FPU_DROP => crate::fpu::forget_local(a0),
         CALL_FPU_RELEASE => crate::fpu::release_local(a0),
         CALL_ASID => crate::mmu::retired(a0),
