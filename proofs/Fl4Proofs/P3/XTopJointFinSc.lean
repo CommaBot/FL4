@@ -44,24 +44,23 @@ Named premises:
   (`jScFin_of`, `JAtZ.finScJ`, as XTop's `xFinSc_of`), the SC's links
   cleared and the current SC word kept between steps by P1's per-step
   lemmas, the slots and base by P1's `fin_cap_sc.slots`. The notification
-  unbind and the inactive SC are proved (`JAtZ.unbindNtfnJ`,
-  `JAtZ.setInactiveJ`).
+  and reply unbinds and the inactive SC are proved (`JAtZ.unbindNtfnJ`,
+  `JAtZ.unbindReplyJ`, `JAtZ.setInactiveJ`).
 * `JScFinSteps` [J-step], the remaining steps, each one FL4 call at a `JAtZ`
   state against the spec's step, `JAtZ` after (`JTP`), for an SC of the
   SCs, non-null, not the idle SC, not the current SC word, its earlier links
   cleared: `unbindAll` (`unbind_all_tcbs`; when its thread is the current
   thread the spec reschedules, so `MidK`'s current-thread clauses fail and
   `CurInv`/`CurOwnW` need the pending reschedule; the XTop side is
-  `unbind_all_tcbs_refines`), `unbindReply`
-  (`unbind_reply_refines`; its write is a call-stack word `CallW'`, outside
-  `JAtZ.sc_frame`'s `TFoot`).
+  `unbind_all_tcbs_refines`). The reply unbind is proved
+  (XTopJointFinScReply's `JAtZ.unbindReplyJ`).
 * `JYieldToHyp`, the yielder's `complete_yield_to` of an SC of the set:
   proved (`jYieldToHyp_of`, XTopJointYield's `JAtZ.completeYieldJ`) from the
   platform's `ticks_to_us` [P] (`JThreadFinHyps.ticks`, `yieldToH`).
 -/
 import Fl4Proofs.P3.XTopJointEmpty
 import Fl4Proofs.P3.ScDeadStep
-import Fl4Proofs.P3.XTopJointFinScNtfn
+import Fl4Proofs.P3.XTopJointFinScReply
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -144,8 +143,8 @@ word, with the SC's links cleared by the earlier steps (P1's
 `unbind_all_tcbs.blk`, `unbind_ntfn.blk`, `unbind_reply.blk`). XTop:
 `xFinSc_of`'s steps (`unbind_all_tcbs_refines`, `unbind_ntfn_refines`,
 `unbind_reply_refines`, each with `xtop_sc_step` or `xtop_sc_stepCW`). The
-notification unbind and the inactive SC are proved (XTopJointFinScNtfn's
-`JAtZ.unbindNtfnJ`, XTopJointFinScInact's `JAtZ.setInactiveJ`). -/
+notification and reply unbinds and the inactive SC are proved
+(`JAtZ.unbindNtfnJ`, `JAtZ.unbindReplyJ`, `JAtZ.setInactiveJ`). -/
 structure JScFinSteps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
   /-- `unbind_all_tcbs` at `J` (its thread neither the scheduler action nor
   idle, P1's `unbind_all_tcbs.blk` preconditions). -/
@@ -157,15 +156,6 @@ structure JScFinSteps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop 
       schedcontext.unbind_all_tcbs st arI s a p ⦃ r => ∃ σ',
         Fl4Spec.schedContextUnbindAllTcbs (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
         JTP (L := L) arI AR Z H Cs r.1 r.2 σ' ⦄
-  /-- `unbind_reply` at `J`, the SC's thread and notification unbound (its
-  writes: the head reply's `NEXT` word, a call-stack word `CallW'`). -/
-  unbindReply : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S)
-    (a : A) (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
-    ∀ p : U64, p ∈ Z.C → p ≠ 0#u64 → p.bv ≠ Fl4Spec.idleScPtr → L.cscW s ≠ p →
-      L.mem s (P1.scTcbA p) = 0#u64 → L.mem s (P1.scNtfnA p) = 0#u64 →
-      schedcontext.unbind_reply st s p ⦃ s' => ∃ σ',
-        Fl4Spec.schedContextUnbindReply (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
-        JTP (L := L) arI AR Z H Cs s' a σ' ⦄
 
 /-- **An SC cap's slot is ready once the SC is dead** (as `JAtZ.ep_ready`),
 the cap of the SC's size and the SC not the current one. -/
@@ -247,7 +237,7 @@ theorem JAtZ.finScJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
   have t2' : L.mem s2 (P1.scTcbA p) = 0#u64 := by rw [t2, t1]
   -- `unbind_reply`
   refine WP.spec_bind (WP.spec_and
-    (hS.unbindReply (Z.mv Z.G V2) H Cs Ac2 Lst2 D2 s2 a1 σ2 rfl J2 p hpC hp0 hpi hcur2 t2' (n2 hp0))
+    (JAtZ.unbindReplyJ arI J2 hpC hp0)
     (P1.schedcontext.unbind_reply.blk s2 p p J2.blk (fun _ => hpS) hpS)) ?_
   rintro s3 ⟨⟨σ3, he3, V3, Ac3, Lst3, D3, J3⟩, -, -, k3, r3⟩
   have hcur3 : L.cscW s3 ≠ p := by rw [k3.2.2.1]; exact hcur2
