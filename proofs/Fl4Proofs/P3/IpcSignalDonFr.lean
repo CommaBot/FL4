@@ -15,15 +15,18 @@ queue, so:
   frame's `tsc` and `scb` say which may change).
 * `DWFr r t`: `SkD`; the release queue grows only by `t`, whose SC was none;
   objectwise `DChg`; a TCB's SC changes only for `t`, from none; an SC's
-  thread changes only for an SC that is not the current one and is a
-  notification's SC (so not dead).
+  thread changes only for a notification's SC (so not dead) that is not the
+  current one, or with `t` then owning the current SC (`CurOwnT`: its SC, the
+  SC's thread, not in the release queue while time is consumed).
 * `DWFr.ofCFr`, `DWFr.ofNFr`, `DWFr.trans`, the per-kind lemmas and `CFr`'s
   keep lemmas (`own`, `off`, `curInv`, `curRunW`, `idleOK`, `sched`: a TCB
   whose SC changes had none, so it is not the current thread, the owner or
-  the idle thread; the current SC's thread is kept).
+  the idle thread; the current SC's thread is kept, or `t` owns it: `own`
+  then takes `t` as `CurOwnW`'s owner).
 * `donate_dfr`: `maybeDonateSc t r` from a state where `t` is in no queue is
-  a `DWFr r t` step keeping the action, given that a donated SC is not the
-  current SC.
+  a `DWFr r t` step keeping the action, given `OffOK`: a donated current SC
+  has a ready and sufficient head refill while time is consumed, so `t` is
+  not postponed then.
 -/
 import Fl4Proofs.P3.IpcSignalBoundSpec
 open Aeneas Aeneas.Std Result
@@ -91,6 +94,14 @@ theorem DChg.trans {r t cur p : ObjRef} {o1 o2 o3 : KernelObject} (h1 : DChg r t
       ⟨_, _, e, -⟩ | ⟨x2, e, rfl, hx2⟩ <;> cases e
     simp at hx2
 
+/-- **`t` owns the current SC**: `t`'s SC is the current SC, the current SC's
+thread is `t`, and `t` is not in the release queue while time is consumed
+(`CurOwn`'s owner; after a donation of the current SC to `t`). -/
+def CurOwnT (t : ObjRef) (σ : State Unit) : Prop :=
+  ∃ xt, σ.kheap t = some (.tcb xt) ∧ xt.tcbSchedContext = some σ.curSc ∧
+    (∀ x n, σ.kheap σ.curSc = some (.schedContext x n) → x.scTcb = some t) ∧
+    (0 < σ.consumedTime → t ∉ σ.releaseQueue)
+
 /-- **The spec's frame of a wake-up with a donation** (module docstring). -/
 structure DWFr (r t : ObjRef) (σ σ' : State Unit) : Prop where
   sk : SkD σ σ'
@@ -100,7 +111,8 @@ structure DWFr (r t : ObjRef) (σ σ' : State Unit) : Prop where
   tsc : ∀ p x y, σ.kheap p = some (.tcb x) → σ'.kheap p = some (.tcb y) → y.tcbSchedContext ≠ x.tcbSchedContext →
     p = t ∧ x.tcbSchedContext = none
   scb : ∀ p y n z m, σ.kheap p = some (.schedContext y n) → σ'.kheap p = some (.schedContext z m) →
-    z.scTcb ≠ y.scTcb → p ≠ σ.curSc ∧ ∃ q xq, σ.kheap q = some (.notification xq) ∧ xq.ntfnSc = some p
+    z.scTcb ≠ y.scTcb → (p ≠ σ.curSc ∨ CurOwnT t σ') ∧ ∃ q xq, σ.kheap q = some (.notification xq) ∧
+      xq.ntfnSc = some p
 
 section
 variable {r t : ObjRef} {σ σ' : State Unit}
@@ -259,12 +271,12 @@ theorem DWFr.tsc_some (h : DWFr r t σ σ') {p : ObjRef} {x y : Tcb} (hx : σ.kh
   have := (h.tsc p x y hx hy (fun e => hne (e.trans hc))).2
   rw [hc] at this; cases this
 
-/-- The current SC's thread kept. -/
-theorem DWFr.cur_tcb (h : DWFr r t σ σ') {y z : SchedContext} {n m : Nat}
+/-- The current SC's thread kept, unless `t` owns it after. -/
+theorem DWFr.cur_tcb (h : DWFr r t σ σ') (hT : ¬ CurOwnT t σ') {y z : SchedContext} {n m : Nat}
     (hy : σ.kheap σ.curSc = some (.schedContext y n)) (hz : σ'.kheap σ.curSc = some (.schedContext z m)) :
     z.scTcb = y.scTcb := by
   by_contra hne
-  exact (h.scb _ y n z m hy hz hne).1 rfl
+  exact ((h.scb _ y n z m hy hz hne).1.resolve_right hT) rfl
 
 /-- A thread in the release queue after was there before, or is `t` without
 an SC before. -/
@@ -273,6 +285,20 @@ theorem DWFr.relT (h : DWFr r t σ σ') {u : ObjRef} {x : Tcb} (hx : σ.kheap u 
   rcases h.rel u hu with h' | ⟨rfl, hn⟩
   · exact h'
   · have := hn x hx; rw [hc] at this; cases this
+
+/-- `t`'s ownership of the current SC is kept (its SC, the SC's thread unless
+`t` owns it after anyway, the release queue grown only by SC-less `t`). -/
+theorem DWFr.curOwnT (h : DWFr r t σ σ') (hc : CurOwnT t σ) : CurOwnT t σ' := by
+  by_cases hT : CurOwnT t σ'
+  · exact hT
+  obtain ⟨xt, hkt, hxs, hown, hnr⟩ := hc
+  obtain ⟨st, bn, fl, ar, sc, hkt', -⟩ := h.tcbF hkt
+  refine ⟨_, hkt', by rw [h.sk.csc]; exact h.tsc_some hkt hkt' hxs, fun y n hy => ?_, fun h0 hm => ?_⟩
+  · rw [h.sk.csc] at hy
+    obtain ⟨y0, rf, nt, tc, hy0, rfl, -⟩ := h.scB hy
+    rw [h.cur_tcb hT hy0 hy]; exact hown y0 n hy0
+  · rw [h.sk.cons] at h0
+    exact hnr h0 (h.relT hkt hxs hm)
 
 end
 
@@ -320,7 +346,8 @@ theorem DWFr.trans {r t : ObjRef} {σ1 σ2 σ3 : State Unit} (h1 : DWFr r t σ1 
       rcases hs with e1 | e1
       · rw [← e1]; exact hqs
       · rw [e1] at hqs; cases hqs
-    · exact h1.scb p y n _ n hy hy2 e
+    · obtain ⟨h3, h4⟩ := h1.scb p y n _ n hy hy2 e
+      exact ⟨h3.imp_right h2.curOwnT, h4⟩
 
 /-- `CFr r t` is a `DWFr r t`. -/
 theorem DWFr.ofCFr {r t : ObjRef} {σ σ' : State Unit} (h : CFr r t σ σ') : DWFr r t σ σ' := by
@@ -409,20 +436,25 @@ theorem DWFr.isorted (h : DWFr r t σ σ') (hS : IpcSorted σ) : IpcSorted σ' :
   · obtain ⟨x, hx, -, hsub, -⟩ := h.ntfnB hp
     exact ((hS.2 p x hx).sublist hsub).congr fun u _ => h.prio u
 
-theorem DWFr.own {T C : Set U64} (h : DWFr r t σ σ') (hO : CurOwnW T C σ) : CurOwnW T C σ' := by
+theorem DWFr.own {T C : Set U64} (h : DWFr r t σ σ') (ht : ∃ u ∈ T, u.bv = t) (hO : CurOwnW T C σ) :
+    CurOwnW T C σ' := by
+  by_cases hT : CurOwnT t σ'
+  · obtain ⟨u, hu, rfl⟩ := ht
+    obtain ⟨xt, hkt, hxs, hown, hnr⟩ := hT
+    exact Or.inl ⟨u, hu, xt, hkt, hxs, hown, hnr⟩
   rcases hO with ⟨u, hu, xt, hkt, hxs, hown, hnr⟩ | ⟨hcs, hun⟩
   · obtain ⟨st, bn, fl, ar, sc, hkt', -⟩ := h.tcbF hkt
     refine Or.inl ⟨u, hu, _, hkt', by rw [h.sk.csc]; exact h.tsc_some hkt hkt' hxs, fun y n hy => ?_,
       fun h0 hm => ?_⟩
     · rw [h.sk.csc] at hy
       obtain ⟨y0, rf, nt, tc, hy0, rfl, -⟩ := h.scB hy
-      rw [h.cur_tcb hy0 hy]; exact hown y0 n hy0
+      rw [h.cur_tcb hT hy0 hy]; exact hown y0 n hy0
     · rw [h.sk.cons] at h0
       exact hnr h0 (h.relT hkt hxs hm)
   · refine Or.inr ⟨by rw [h.sk.csc]; exact hcs, fun y n hy => ?_⟩
     rw [h.sk.csc] at hy
     obtain ⟨y0, rf, nt, tc, hy0, rfl, -⟩ := h.scB hy
-    rw [h.cur_tcb hy0 hy]; exact hun y0 n hy0
+    rw [h.cur_tcb hT hy0 hy]; exact hun y0 n hy0
 
 theorem DWFr.off (h : DWFr r t σ σ') (hO : OffOK σ) : OffOK σ' := by
   intro hc y n hy ha
@@ -514,11 +546,11 @@ theorem BlockedScActive.of_kheapD {σ σ' : State Unit} (h : BlockedScActive σ)
     fun p z n hp hr => h.replies p z n (hk ▸ hp) hr⟩
 
 /-- **A donation's outcome is a `DWFr` step**: `t` (without an SC) given the
-SC `p` (bound to no thread, not current, `n`'s SC), the heap of `donSt`, the
+SC `p` (bound to no thread, `n`'s SC; not current, or `t` owns it after), the heap of `donSt`, the
 release queue grown by `t` at most. -/
 theorem DWFr.of_donSt {r t n p : ObjRef} {σ σ' : State Unit} {ys : SchedContext} {ns : Nat} {xt : Tcb}
     {xn : Notification} (hks : σ.kheap p = some (.schedContext ys ns)) (hkt : σ.kheap t = some (.tcb xt))
-    (hpt : p ≠ t) (h0 : xt.tcbSchedContext = none) (hpc : p ≠ σ.curSc)
+    (hpt : p ≠ t) (h0 : xt.tcbSchedContext = none) (hpc : p ≠ σ.curSc ∨ CurOwnT t σ')
     (hkn : σ.kheap n = some (.notification xn)) (hsc : xn.ntfnSc = some p)
     (hk : σ'.kheap = (donSt σ p t ys ns xt).kheap) (hs : SkD σ σ')
     (hrel : ∀ u ∈ σ'.releaseQueue, u = t ∨ u ∈ σ.releaseQueue) : DWFr r t σ σ' := by
@@ -549,6 +581,24 @@ theorem DWFr.of_donSt {r t n p : ObjRef} {σ σ' : State Unit} {ys : SchedContex
     · have e1 : q ≠ t := by rintro rfl; rw [hkt] at hy; cases hy
       rw [ko q e1 e2, hy] at hz; cases hz; exact absurd rfl hne
 
+/-- A sufficient head refill at some usage is sufficient at none. -/
+theorem suff0_of_suff {c : Time} {r : Refill} (h : refillSufficient c r = true) : refillSufficient 0 r = true := by
+  apply suff0_of
+  unfold refillSufficient refillCapacity at h
+  simp only [decide_eq_true_eq] at h
+  have hp := min_budget_pos
+  split_ifs at h with hlt
+  · bv_omega
+  · bv_omega
+
+/-- `CurOwnT` from its parts. -/
+theorem curOwnT_of {t p : ObjRef} {σ : State Unit} {x : Tcb} {y : SchedContext} {n : Nat}
+    (kt : σ.kheap t = some (.tcb x)) (hxs : x.tcbSchedContext = some p)
+    (kp : σ.kheap p = some (.schedContext y n)) (hyt : y.scTcb = some t) (hp : p = σ.curSc)
+    (hrel : 0 < σ.consumedTime → t ∉ σ.releaseQueue) : CurOwnT t σ := by
+  subst hp
+  exact ⟨x, kt, hxs, fun x' m hx => by rw [kp] at hx; cases hx; exact hyt, hrel⟩
+
 set_option maxHeartbeats 4000000 in
 /-- **`maybe_donate_sc` as a `DWFr` step** (module docstring), from a state
 with `Inv` where `t` is in no queue: the action kept; `Inv` after, with the
@@ -556,8 +606,7 @@ release-queue fact the sporadic check needs (`Inv.donate`); and the donated
 SC's facts. -/
 theorem donate_dfr {σ σ' : State Unit} (h : Inv σ) {r t n : ObjRef} {xt : Tcb} {xn : Notification}
     (hkt : σ.kheap t = some (.tcb xt)) (hkn : σ.kheap n = some (.notification xn)) (hnq : NotQueued σ t)
-    (hpc : ∀ p ys k, xt.tcbSchedContext = none → xn.ntfnSc = some p → σ.kheap p = some (.schedContext ys k) →
-      ys.scTcb = none → p ≠ σ.curSc)
+    (hoff : OffOK σ)
     (hB : BlockedScActive σ) (hnipc : ∀ x, σ.kheap t = some (.tcb x) → ipcQueuedThreadState x.tcbState = false)
     (he : maybeDonateSc (Z := Unit) t n σ = ({((), σ')}, False)) :
     DWFr r t σ σ' ∧ σ'.schedulerAction = σ.schedulerAction ∧ σ'.curTime = σ.curTime ∧
@@ -589,7 +638,6 @@ theorem donate_dfr {σ σ' : State Unit} (h : Inv σ) {r t n : ObjRef} {xt : Tcb
       rw [hst] at he
       simp only [NonDet.when, ↓reduceIte] at he
       rw [nd_bind_one (schedContextDonate_eq hks hst hkt hpt)] at he
-      have hpc' : p ≠ σ.curSc := hpc p ys ns h0 hsc hks hst
       have hb := h.donated hks hst hkt hpt hnq
       have hBd : BlockedScActive (donSt σ p t ys ns xt) :=
         bsa_donate hB (fun _ _ _ => Or.inr hnipc) (by rw [schedContextDonate_eq hks hst hkt hpt]; exact Set.mem_singleton _)
@@ -615,14 +663,25 @@ theorem donate_dfr {σ σ' : State Unit} (h : Inv σ) {r t n : ObjRef} {xt : Tcb
             exact ⟨xu, scp, yu, nu, h1, h2, h4, hb.ne _ _ _ h4 h5, specRt_eq h1 h2 h4 (hb.ne _ _ _ h4 h5)⟩)
         rw [hp] at he
         rw [pair_eq he]
-        refine ⟨DWFr.of_donSt hks hkt hpt h0 hpc' hkn hsc rfl ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+        have hcz : p = σ.curSc → ¬ 0 < σ.consumedTime := fun hpcur h0' => by
+          obtain ⟨hsuf, -, hrdy⟩ := hoff h0' ys ns (by rw [← hpcur]; exact hks) (fun _ => hact)
+          exact hc.2 ⟨hrdy, suff0_of_suff hsuf⟩
+        refine ⟨DWFr.of_donSt hks hkt hpt h0 ?_ hkn hsc rfl ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
           (fun u hu => mem_specInsT.1 hu), rfl, rfl, fun d q hq hm => ?_, hBd.of_kheapD rfl⟩
+        · by_cases hpcur : p = σ.curSc
+          · exact Or.inr (curOwnT_of (by exact kt) rfl (by exact kp) rfl (by exact hpcur)
+              (fun h0' => absurd (by exact h0') (hcz hpcur)))
+          · exact Or.inl hpcur
         simp only [setRel, setQ] at hm
         split at hm
         · unfold tcbSchedDequeue at hm
           simp at hm
         · exact hq hm
       · rw [pair_eq he]
+        have hpc' : p ≠ σ.curSc ∨ CurOwnT t σd := by
+          by_cases hpcur : p = σ.curSc
+          · exact Or.inr (curOwnT_of kt rfl kp rfl hpcur (fun _ => hnq.2))
+          · exact Or.inl hpcur
         exact ⟨DWFr.of_donSt hks hkt hpt h0 hpc' hkn hsc rfl ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
           (fun u hu => Or.inr hu), rfl, rfl, fun d q hq => hq, hBd⟩
 

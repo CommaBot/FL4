@@ -85,8 +85,7 @@ theorem wake_tailD {σ3 σd σ' : State Unit} {r t : ObjRef} {x3 : Tcb} {xn : No
     (hcur3 : σ3.schedulerAction = .chooseNewThread ∨ CurInv σ3) (hrun3 : CurRunM σ3)
     (hk3 : σ3.kheap t = some (.tcb x3)) (hxr : x3.tcbState = .running)
     (hkn3 : σ3.kheap r = some (.notification xn)) (hnq3 : NotQueued σ3 t)
-    (hpc3 : ∀ p ys k, x3.tcbSchedContext = none → xn.ntfnSc = some p → σ3.kheap p = some (.schedContext ys k) →
-      ys.scTcb = none → p ≠ σ3.curSc)
+    (hoff3 : OffOK σ3)
     (hsp3 : ∀ c y k, σ3.kheap c = some (.schedContext y k) → y.scSporadic = true → scActive y = true)
     (hD : maybeDonateSc (Z := Unit) t r σ3 = ({((), σd)}, False))
     (hm : ((), σ') ∈ (specWakeTail t r σ3).1) :
@@ -98,7 +97,7 @@ theorem wake_tailD {σ3 σd σ' : State Unit} {r t : ObjRef} {x3 : Tcb} {xn : No
   have hnipc : ∀ x, σ3.kheap t = some (.tcb x) → ipcQueuedThreadState x.tcbState = false := fun x hx => by
     rw [hk3] at hx; cases hx; rw [hxr]; rfl
   -- the donation
-  obtain ⟨Fd, had, -, -, Bd⟩ := donate_dfr (r := r) hI3 hk3 hkn3 hnq3 hpc3 hB3 hnipc hD
+  obtain ⟨Fd, had, -, -, Bd⟩ := donate_dfr (r := r) hI3 hk3 hkn3 hnq3 hoff3 hB3 hnipc hD
   obtain ⟨Id, hrq⟩ := Inv.donate hI3 hk3 hkn3 hrun3' hnq3 hD
   have AId : ActIdle σd := ActIdle.donate hAI3 hI3 hk3 hkn3 hnq3 hD
   obtain ⟨xd, hkd⟩ : ∃ xd, σd.kheap t = some (.tcb xd) := by
@@ -225,8 +224,7 @@ theorem wake_specG {σ1 σd σ' : State Unit} {r t : ObjRef} {x : Tcb} {xn : Not
     (hcur : σ1.schedulerAction = .chooseNewThread ∨ CurInv σ1) (hrun : CurRunM σ1)
     (hkt : σ1.kheap t = some (.tcb x)) (hxr : runnable x.tcbState = false)
     (F3 : CFr r t σ1 (wakeSt3 σ1 t x badge)) (hkn : σ1.kheap r = some (.notification xn))
-    (hpc : ∀ p ys k, x.tcbSchedContext = none → xn.ntfnSc = some p → σ1.kheap p = some (.schedContext ys k) →
-      ys.scTcb = none → p ≠ σ1.curSc)
+    (hoff : OffOK σ1)
     (hsp : ∀ c y k, σ1.kheap c = some (.schedContext y k) → y.scSporadic = true → scActive y = true)
     (hD : maybeDonateSc (Z := Unit) t r (wakeSt3 σ1 t x badge) = ({((), σd)}, False))
     (hm : ((), σ') ∈ (specWake t r badge σ1).1) :
@@ -256,11 +254,7 @@ theorem wake_specG {σ1 σd σ' : State Unit} {r t : ObjRef} {x : Tcb} {xn : Not
     intro c y k hc
     have hct : c ≠ t := by rintro rfl; rw [hk3] at hc; cases hc
     rw [hkp3 c hct] at hc; exact hsp c y k hc
-  have hpc3 : ∀ p ys k, x3.tcbSchedContext = none → xn.ntfnSc = some p → σ3.kheap p = some (.schedContext ys k) →
-      ys.scTcb = none → p ≠ σ3.curSc := by
-    intro p ys k h0 hs hp hy
-    have hpt : p ≠ t := by rintro rfl; rw [hk3] at hp; cases hp
-    rw [hkp3 p hpt] at hp; rw [F3.sk.csc]; exact hpc p ys k h0 hs hp hy
+  have hoff3 : OffOK σ3 := F3.off hoff
   have ha3 : σ3.schedulerAction = σ1.schedulerAction ∨ σ3.schedulerAction = .chooseNewThread :=
     (stsAct_heap σA t).2.2.2
   have hcn3 : σ1.schedulerAction = .chooseNewThread → σ3.schedulerAction = .chooseNewThread := fun e => by
@@ -281,7 +275,7 @@ theorem wake_specG {σ1 σd σ' : State Unit} {r t : ObjRef} {x : Tcb} {xn : Not
     (hrun.of_act F3.curRunW fun e => by
       rcases ha3 with e' | e'
       · rw [e']; exact e
-      · exact act_cn_nr e') hk3 rfl hkn3 hnq3 hpc3 hsp3 hD hm
+      · exact act_cn_nr e') hk3 rfl hkn3 hnq3 hoff3 hsp3 hD hm
   exact ⟨I', B', (DWFr.ofCFr F3).trans F', AI', cur', run'⟩
 
 end Spec
