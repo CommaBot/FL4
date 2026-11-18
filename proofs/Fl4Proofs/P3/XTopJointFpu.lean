@@ -97,8 +97,8 @@ theorem JAtZ.arFrS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {a' : A} {�
       fun h0 => U.ns (by rw [F.cdt] at h0; exact h0), U.pp, ?_, U.dwReg, by rw [F.gpml4]; exact U.gReg⟩
     intro h0 hf0
     rw [F.cdt] at h0
-    obtain ⟨r1, r2, r3⟩ := U.rst h0 hf0
-    exact ⟨fun sl' h => r1 sl' (by rw [← F.orig]; exact h), r2, r3⟩
+    obtain ⟨r1, r3⟩ := U.rst h0 hf0
+    exact ⟨fun sl' h => r1 sl' (by rw [← F.orig]; exact h), r3⟩
   have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s σ' :=
     ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩),
       J.buf.frame kb (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩), hRP',
