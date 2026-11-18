@@ -121,12 +121,12 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel Z.th (L.mem s) x0 (excaps.map Prod.fst))
-    (hsb : ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → sb.val < 64)
-    (hsc : ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p ∈ Z.C ∧ p ≠ 0#u64 ∧
+    (hsb : x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → sb.val < 64)
+    (hsc : x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p ∈ Z.C ∧ p ≠ 0#u64 ∧
       ∃ x, σ.kheap p.bv = some (.schedContext x (sb.val - Fl4Spec.minSchedContextBits)) ∧
         ∀ t : U64, x.scTcb = some t.bv →
           t ∈ Z.T ∧ ∃ xt, σ.kheap t.bv = some (.tcb xt) ∧ xt.tcbSchedContext = some p.bv)
-    (hpi : ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ Fl4Spec.idleScPtr)
+    (hpi : x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ Fl4Spec.idleScPtr)
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef)
     (hArch : syscall.decode_invocation st arI s a lbl length slot (.SchedControl cpu) blk call don fp buf extra
@@ -162,7 +162,7 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
           res.1 = .Ok () ∧ SchedRel st Z.N Z.T Z.C Z.c res.2.1 σ' ∧ NtfnStateRel Z.N Z.T (L.mem res.2.1) σ' ∧
           NSC Z.N Z.C σ' ∧ Inv σ' ∧ P1.WritesIn st s res.2.1 (KFoot st Z.T Z.N Z.C Z.c s σ) ∧
           (σ1.schedulerAction = .resumeCurThread → IdleOK σ1 →
-            (∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ Fl4Spec.idleScPtr) → ActIdle σ')) res) ⦄ := by
+            (x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ Fl4Spec.idleScPtr) → ActIdle σ')) res) ⦄ := by
     unfold syscall.decode_invocation
     rw [hct]; simp only [bind_ok]
     cases fp
@@ -196,15 +196,15 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       _ rfl
   have hB' : BlockedScActive σ' := bsa_configure J.bsa (hcur ▸ hkc) hrun (hcur ▸ hm1) hm2
   -- the configured SC is the extra cap's
-  obtain ⟨p, sb, hcap, hpq⟩ : ∃ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) ∧ p.bv = q := by
-    rcases hex with ⟨-, he⟩ | ⟨-, -, c, a1, rest', hc, hCR, -, he⟩
+  obtain ⟨p, sb, hx0n, hcap, hpq⟩ : ∃ p sb, x0 ≠ 0#u64 ∧ capAt (L.mem s) x0 = ok (.SchedContext p sb) ∧ p.bv = q := by
+    rcases hex with ⟨-, he⟩ | ⟨hx0n, -, c, a1, rest', hc, hCR, -, he⟩
     · rw [he] at hex'; cases hex'
     rw [he] at hex'
     injection hex' with ha
     have hCa := hCR.abs
     rw [ha] at hCa
     cases c <;> simp only [absCap, reduceCtorEq, Fl4Spec.Cap.schedContextCap.injEq] at hCa
-    exact ⟨_, _, hc, hCa.1.symm⟩
+    exact ⟨_, _, hx0n, hc, hCa.1.symm⟩
   -- the mid-entry facts: the restart keeps them; Configure of another SC is `MidKn`
   have hcs : Fl4Spec.schedulable σ.curThread σ = true := ct_schedulable hC J.act J.inv (hcur ▸ hkc) hrun
   obtain ⟨hres1, hC1, hO1, hA1, hI1⟩ := restart_mid hcur hkc (hcur ▸ hcs) hres hC J.off J.act J.inv
@@ -218,7 +218,7 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
   have hid1 : σ1.idleThread = σ.idleThread := by
     rw [hσ1]; unfold Fl4Proofs.P3.Notif.stsAct; split_ifs <;> rfl
   obtain ⟨hC', hOw', hO'⟩ : MidA Z.T σ' := by
-    obtain ⟨hpC, -, x, hkx, hbnd⟩ := hsc p sb hcap
+    obtain ⟨hpC, -, x, hkx, hbnd⟩ := hsc hx0n p sb hcap
     have hpc : p.bv ≠ ct.bv := fun e => by rw [e, hkc] at hkx; cases hkx
     have hkx1 : σ1.kheap p.bv = some (.schedContext x (sb.val - Fl4Spec.minSchedContextBits)) := by
       rw [hσ1, (stsAct_fields _ _).1]; simp [Fl4Proofs.P3.Notif.updK, hpc, hkx]
@@ -244,7 +244,7 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       · rw [hid1] at e
         obtain ⟨xi, hki, hsi, -⟩ := J.act.2
         rw [e, hki] at hkt2; cases hkt2; rw [hsi] at hxt'
-        exact hpi p sb hcap (Option.some.inj hxt').symm
+        exact hpi hx0n p sb hcap (Option.some.inj hxt').symm
       · rw [hct1, ← hcur] at e
         rw [e, hkt] at hkt2; cases hkt2; rw [hxs] at hxt'
         exact hq (by rw [← hpq]; exact (Option.some.inj hxt').symm)
@@ -601,12 +601,12 @@ theorem decode_invocation_sched_controlJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : 
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel Z.th (L.mem s) x0 (excaps.map Prod.fst))
-    (hsb : ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → sb.val < 64)
-    (hsc : ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p ∈ Z.C ∧ p ≠ 0#u64 ∧
+    (hsb : x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → sb.val < 64)
+    (hsc : x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p ∈ Z.C ∧ p ≠ 0#u64 ∧
       ∃ x, σ.kheap p.bv = some (.schedContext x (sb.val - Fl4Spec.minSchedContextBits)) ∧
         ∀ t : U64, x.scTcb = some t.bv →
           t ∈ Z.T ∧ ∃ xt, σ.kheap t.bv = some (.tcb xt) ∧ xt.tcbSchedContext = some p.bv)
-    (hpi : ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ Fl4Spec.idleScPtr)
+    (hpi : x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ Fl4Spec.idleScPtr)
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef)
     (hArch : syscall.decode_invocation st arI s a lbl length slot (.SchedControl cpu) blk call don fp buf extra

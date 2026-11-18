@@ -331,7 +331,7 @@ theorem decode_invocation_sched_controlJ {N T C R : Set U64} {c : U64} (hT : Tim
   cases fp
   · simp only [Bool.false_eq_true, ↓reduceIte]
     refine WP.spec_mono (decode_configure_refines hT th s a σ hS hR hN hI hC hO lbl slbl hlbl cpu length buf ct
-      hcpu hct args hlen hargs extra x0 hx0 _ hex hsb hsc hkc hrun) ?_
+      hcpu hct args hlen hargs extra x0 hx0 _ hex (fun _ => hsb) (fun _ => hsc) hkc hrun) ?_
     rintro ⟨r0, s', a'⟩ hq
     apply top_of_liftFJ (f := Fl4Spec.Fl4Invocation.invokeSchedControl)
     rcases hq with ⟨e, e', he, hrun', herr⟩ | ⟨inv, hrun', σ1, σ', he1, he2, hr1, -, -, -, -, hw⟩

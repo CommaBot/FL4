@@ -362,16 +362,10 @@ structure JSchedCPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar 
   (`decode_configure_refines` needs it; with several cores a SchedControl cap
   of another core is valid, l4v `valid_cap` only bounds its core). -/
   core : cpu = Z.c
-  /-- [W] the front end's extra slot (`ExtraRel`); [J] an SC extra cap valid
-  (l4v `valid_cap`, its SC's bound TCB back-linked: `sym_refs`) and not the
-  idle SC (l4v: no user cap names `idle_sc_ptr`). -/
-  hx : ∃ x0, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 ∧ ExtraRel Z.th (L.mem s) x0 (excaps.map Prod.fst) ∧
-    (∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → sb.val < 64) ∧
-    (∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p ∈ Z.C ∧ p ≠ 0#u64 ∧
-      ∃ x, σ.kheap p.bv = some (.schedContext x (sb.val - Fl4Spec.minSchedContextBits)) ∧
-        ∀ t : U64, x.scTcb = some t.bv →
-          t ∈ Z.T ∧ ∃ xt, σ.kheap t.bv = some (.tcb xt) ∧ xt.tcbSchedContext = some p.bv) ∧
-    (∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ Fl4Spec.idleScPtr)
+  /-- [W] the front end's extra slot (`ExtraRel`). An SC extra cap's facts
+  (size, object, back-link, not the idle SC) are `JAtZ.scCtlExtra`'s, asked
+  only of a present cap (`x0 ≠ 0`, a slot of the typed heap). -/
+  hx : ∃ x0, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 ∧ ExtraRel Z.th (L.mem s) x0 (excaps.map Prod.fst)
   /-- [P] the decode's timer and IPI operations keep `AR`. -/
   arch : syscall.decode_invocation st arI s ar lbl length (cslotAddr sl) (.SchedControl cpu) blk call don fp buf extra
     ⦃ r => ∀ c, AR ar c → AR r.2.2 c ⦄
@@ -648,9 +642,15 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       buf argsU hlen hargs extra x0 hx0 excaps hex _ blk call don fp ci sl buffer).toP arI hPre
   case SchedControl cpu =>
     have hN : JSchedCPath (L := L) arI AR Z s ar σ lbl length cpu blk call don fp buf extra slbl argsU sl excaps ct := hN
-    obtain ⟨x0, hx0, hex, hsb, hsc0, hpi⟩ := hN.hx
+    obtain ⟨x0, hx0, hex⟩ := hN.hx
+    have hxS : x0 ≠ 0#u64 → IsSlot Z.th x0 := fun h => by
+      rcases hex with ⟨e, -⟩ | ⟨-, hs, -⟩
+      · exact absurd e h
+      · exact hs
     exact (decode_invocation_sched_controlJ s ar σ J hni hN.tm hN.mb hN.max hN.tu hN.msg lbl slbl hN.hlbl cpu length
-      buf ct hN.core hct argsU hlen hargs extra x0 hx0 excaps hex hsb hsc0 hpi (cslotAddr sl) blk call don fp ci sl
+      buf ct hN.core hct argsU hlen hargs extra x0 hx0 excaps hex
+      (fun h _ _ hc => (J.scCtlExtra arI (hxS h) hc).1) (fun h _ _ hc => (J.scCtlExtra arI (hxS h) hc).2.1)
+      (fun h _ _ hc => (J.scCtlExtra arI (hxS h) hc).2.2) (cslotAddr sl) blk call don fp ci sl
       buffer hN.arch (hN.rest H Cs Ac Lst D J)).toP arI hPre
   case PageTable ptr mp asid va =>
     have hN : JPtPath (L := L) arI AR Z s ar σ lbl length (.PageTable ptr mp asid va) blk call don fp buf extra slbl argsU

@@ -144,6 +144,53 @@ theorem JAtZ.scCapFacts {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     exact hpi (Option.some.inj hsci)
   exact ⟨hHp, hpC, hp0, fun h => (hw h).1, fun h => (hw h).2, ⟨y, n, hk⟩, hpi⟩
 
+/-- **An SC cap in a slot, as SchedControl's decode reads it** (l4v
+`valid_cap`, `sym_refs`, `valid_global_refs`), from `JAtZ` (the slot any
+slot of the typed heap, e.g. an extra cap's, `ExtraRel`'s `IsSlot`): the
+cap's size below 64 (`H`'s SC of the cap's size fits, `JPlaced.cobj`,
+`HeapOK.fits`, the pointer non-null), its SC one of `Z.C` (`JAtZ.hscC`),
+the spec's of the cap's size (`JPlaced.sc`), whose bound thread is one of
+`Z.T` holding it (`scBack_of`), and not the idle SC (`JPlaced.cobj`). -/
+theorem JAtZ.scCtlExtra {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x p sb : U64} (hx : IsSlot Z.th x)
+    (hc : capAt (L.mem s) x = ok (.SchedContext p sb)) :
+    sb.val < 64 ∧
+      (p ∈ Z.C ∧ p ≠ 0#u64 ∧
+        ∃ y, σ.kheap p.bv = some (.schedContext y (sb.val - Fl4Spec.minSchedContextBits)) ∧
+          ∀ t : U64, y.scTcb = some t.bv →
+            t ∈ Z.T ∧ ∃ xt, σ.kheap t.bv = some (.tcb xt) ∧ xt.tcbSchedContext = some p.bv) ∧
+      p.bv ≠ Fl4Spec.idleScPtr := by
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  have hO := hJ.cobj _ hx
+  rw [capV_of_capAt hc] at hO
+  obtain ⟨hH, hpi⟩ := hO
+  have hpC : p ∈ Z.C := J.hscC p _ hH
+  have hp0 : p ≠ 0#u64 := J.c0 p hpC
+  obtain ⟨Q, R, hc', hs⟩ := J.xtop.fin.1.1.1.lists
+  obtain ⟨y, n, hk, -⟩ := hs.scs p hpC
+  have hH' := (hJ.sc p y n hp0 hk).2
+  rw [hH] at hH'
+  have hn : sb.val = n + Fl4Spec.minSchedContextBits := HKind.sc.inj (Option.some.inj hH')
+  have hpfit : p.val + 2 ^ sb.val ≤ 2 ^ 64 := by
+    have := J.kern.heap.fits p _ hH
+    simpa only [P1.HKind.bits] using this
+  have hp1 : 1 ≤ p.val := by
+    rcases Nat.eq_zero_or_pos p.val with h | h
+    · exact absurd (UScalar.eq_of_val_eq (by rw [h]; rfl)) hp0
+    · exact h
+  have hsb : sb.val < 64 := by
+    by_contra hge
+    have : 2 ^ 64 ≤ 2 ^ sb.val := Nat.pow_le_pow_right (by decide) (by omega)
+    omega
+  have hpS : p ∈ P1.Heap.scs H := ⟨_, hH⟩
+  refine ⟨hsb, ⟨hpC, hp0, y, by rw [hn, Nat.add_sub_cancel]; exact hk, fun t ht => ?_⟩, hpi⟩
+  obtain ⟨u, huT, hu, xt, hkt, hxt⟩ :=
+    scBack_of J.xtop.fin.1.1.1 J.blk.2.2.1 J.tcbs_eq.1.symm hpC hpS hp0 hk ht
+  have e := P1.eq_of_bv hu
+  subst e
+  exact ⟨huT, xt, hkt, hxt⟩
+
 /-- **A final SC cap's finalisation at `J`** (module docstring; the SC may
 be the current one): the statement `jFinAt_sc` reads, proved by
 `jScFin_of` from the SC steps. -/

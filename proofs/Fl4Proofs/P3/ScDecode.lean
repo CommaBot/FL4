@@ -103,9 +103,9 @@ theorem decode_sched_control_refines (hT : TimeAgree ar) (th : TypedHeap) (s : S
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List Fl4Spec.Cap) (hex : ExtraRel th (L.mem s) x0 excaps)
-    (hsb : ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → sb.val < 64)
+    (hsb : x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → sb.val < 64)
     (Q : Fl4Spec.SchedControlInvocation → core.result.Result Unit error.Exc × S × A → Prop)
-    (hQ : ∀ (p sb bu pu er bd fl budget period : U64), capAt (L.mem s) x0 = ok (.SchedContext p sb) →
+    (hQ : ∀ (p sb bu pu er bd fl budget period : U64), x0 ≠ 0#u64 → capAt (L.mem s) x0 = ok (.SchedContext p sb) →
       args[0]? = some bu → args[1]? = some pu → args[2]? = some er → args[3]? = some bd → args[4]? = some fl →
       budget.bv = Fl4Spec.usToTicks bu.bv → period.bv = Fl4Spec.usToTicks pu.bv →
       Fl4Spec.MIN_BUDGET ≤ budget.bv → budget.val ≤ period.val → er.val + 2 ≤ Fl4Spec.maxNumRefills sb.val →
@@ -218,7 +218,7 @@ theorem decode_sched_control_refines (hT : TimeAgree ar) (th : TypedHeap) (s : S
   case SchedContext p sb =>
     dsimp only
     have h7 : 7 ≤ sb.val := hwf
-    have h64 := hsb p sb hc0
+    have h64 := hsb hx0n p sb hc0
     refine WP.spec_bind (refill_absolute_max_eq sb hwf h64) ?_
     intro mr hmr
     simp only [lift, bind_ok]
@@ -266,7 +266,7 @@ theorem decode_sched_control_refines (hT : TimeAgree ar) (th : TypedHeap) (s : S
         have : ¬ (core.num.U64.wrapping_sub mr sporadic.MIN_REFILLS).val < er.val := g6
         omega
       simp only [g6, ↓reduceIte]
-      refine WP.spec_mono (hQ p sb bu pu er bd fl budget period hc0 rfl rfl rfl rfl rfl hbud hper hmbB hbp hle) ?_
+      refine WP.spec_mono (hQ p sb bu pu er bd fl budget period hx0n hc0 rfl rfl rfl rfl rfl hbud hper hmbB hbp hle) ?_
       intro res h
       refine Or.inr ⟨_, ?_, h⟩
       rw [dec_run_bind hA]

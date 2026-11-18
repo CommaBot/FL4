@@ -38,8 +38,8 @@ theorem decode_configure_refinesA (hT : TimeAgree ar) {N T C : Set U64} {c : U64
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List Fl4Spec.Cap) (hex : ExtraRel th (L.mem s) x0 excaps)
-    (hsb : ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → sb.val < 64)
-    (hsc : ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p ∈ C ∧ p ≠ 0#u64 ∧
+    (hsb : x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → sb.val < 64)
+    (hsc : x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p ∈ C ∧ p ≠ 0#u64 ∧
       ∃ x, σ.kheap p.bv = some (.schedContext x (sb.val - Fl4Spec.minSchedContextBits)) ∧
         ∀ t : U64, x.scTcb = some t.bv →
           t ∈ T ∧ ∃ xt, σ.kheap t.bv = some (.tcb xt) ∧ xt.tcbSchedContext = some p.bv)
@@ -51,7 +51,7 @@ theorem decode_configure_refinesA (hT : TimeAgree ar) {N T C : Set U64} {c : U64
           res.1 = .Ok () ∧ SchedRel st N T C c res.2.1 σ' ∧ NtfnStateRel N T (L.mem res.2.1) σ' ∧
           NSC N C σ' ∧ Inv σ' ∧ WritesIn st s res.2.1 (KFoot st T N C c s σ) ∧
           (σ1.schedulerAction = .resumeCurThread → IdleOK σ1 →
-            (∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ Fl4Spec.idleScPtr) → ActIdle σ')) res ⦄ := by
+            (x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ Fl4Spec.idleScPtr) → ActIdle σ')) res ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hct' : ct = nodeW st s c layout.node.CUR_THREAD := by
     have h := sched.cur_thread.spec' (L := L) s
@@ -60,9 +60,9 @@ theorem decode_configure_refinesA (hT : TimeAgree ar) {N T C : Set U64} {c : U64
   have hcur : σ.curThread = ct.bv := by rw [hs.curThread, hct']
   refine decode_sched_control_refines hT th s a σ lbl slbl hlbl cpu length buf ct hct args hlen hargs extra x0 hx0
     excaps hex hsb _ ?_
-  intro p sb bu pu er bd fl budget period hc0 _ _ _ _ _ hbud hper hmb hbp hle
-  obtain ⟨hpC, hp0, x, hkp, hbnd⟩ := hsc p sb hc0
-  have h64 := hsb p sb hc0
+  intro p sb bu pu er bd fl budget period hx0n hc0 _ _ _ _ _ hbud hper hmb hbp hle
+  obtain ⟨hpC, hp0, x, hkp, hbnd⟩ := hsc hx0n p sb hc0
+  have h64 := hsb hx0n p sb hc0
   have hpc : p.bv ≠ ct.bv := fun e => by rw [e, hkc] at hkp; cases hkp
   have hv : (sched.TS_RESTART).val = tsCode .restart := by rw [tsVals.2.1]; rfl
   refine WP.spec_bind (WP.spec_and (set_thread_state_refines s σ hR hS hctT hkc (not_in_ntfnQueue hR hctT hkc hrun)
@@ -112,7 +112,7 @@ theorem decode_configure_refinesA (hT : TimeAgree ar) {N T C : Set U64} {c : U64
   have hkc1 : σ1.kheap ct.bv = some (.tcb { xc with tcbState := .restart }) := by rw [stsAct_kheap]; simp [updK]
   refine (WP.spec_ok _).mpr ⟨σ1, σ', h1, ?_, rfl, hS2, hR2, hN2, hI2,
     WritesIn.kfoot_trans (WritesIn.kfoot_of_sfoot hw1) (SzKeepC.of (SzKeep.of_tcb hk1 hkc1)) hw2,
-    fun h1 h2 h3 => hA2 h1 h2 (h3 p sb hc0)⟩
+    fun h1 h2 h3 => hA2 h1 h2 (h3 hx0n p sb hc0)⟩
   rw [← hbud, ← hper, ← hmr]
   exact hcfg
 
@@ -129,8 +129,8 @@ theorem decode_configure_refines (hT : TimeAgree ar) {N T C : Set U64} {c : U64}
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List Fl4Spec.Cap) (hex : ExtraRel th (L.mem s) x0 excaps)
-    (hsb : ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → sb.val < 64)
-    (hsc : ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p ∈ C ∧ p ≠ 0#u64 ∧
+    (hsb : x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → sb.val < 64)
+    (hsc : x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p ∈ C ∧ p ≠ 0#u64 ∧
       ∃ x, σ.kheap p.bv = some (.schedContext x (sb.val - Fl4Spec.minSchedContextBits)) ∧
         ∀ t : U64, x.scTcb = some t.bv →
           t ∈ T ∧ ∃ xt, σ.kheap t.bv = some (.tcb xt) ∧ xt.tcbSchedContext = some p.bv)
