@@ -326,6 +326,47 @@ abbrev JCapOpen (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (ar : A) (σ : Fl4Spec
   XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl) c blk call don fp
     buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct
 
+/-- The SchedControl path: ScJointStep's `decode_invocation_sched_controlJ`
+premises. -/
+structure JSchedCPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (lbl length cpu : U64) (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
+    (slbl : Fl4Spec.Data) (argsU : List U64) (sl : Fl4Spec.CslotPtr)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (ct : U64) : Prop where
+  /-- [P] the platform's timer constants (`TimeAgree`, `min_budget`, `maxTicksToUs`, `ticks_to_us`). -/
+  tm : TimeAgree arI
+  mb : sporadic.min_budget arI ar ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄
+  max : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv
+  tu : ∀ v, arI.ticks_to_us ar v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄
+  /-- [W] ScYieldTo's `MsgOK` (the `set_consumed` message leaf, `ScExtra`'s). -/
+  msg : MsgOK st Z.N Z.T Z.C Z.c
+  /-- [W] the front end's label. -/
+  hlbl : Fl4Spec.genInvocationType slbl = .schedControlConfigureFlags ↔ lbl = fl4_abi.label.SchedControlConfigureFlags
+  /-- [J] the cap's core is the current one (l4v `valid_cap` of the SchedControl cap; one core). -/
+  core : cpu = Z.c
+  /-- [W] the front end's extra slot (`ExtraRel`); [J] an SC extra cap valid
+  (l4v `valid_cap`, its SC's bound TCB back-linked: `sym_refs`) and not the
+  idle SC (l4v: no user cap names `idle_sc_ptr`). -/
+  hx : ∃ x0, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 ∧ ExtraRel Z.th (L.mem s) x0 (excaps.map Prod.fst) ∧
+    (∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → sb.val < 64) ∧
+    (∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p ∈ Z.C ∧ p ≠ 0#u64 ∧
+      ∃ x, σ.kheap p.bv = some (.schedContext x (sb.val - Fl4Spec.minSchedContextBits)) ∧
+        ∀ t : U64, x.scTcb = some t.bv →
+          t ∈ Z.T ∧ ∃ xt, σ.kheap t.bv = some (.tcb xt) ∧ xt.tcbSchedContext = some p.bv) ∧
+    (∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ Fl4Spec.idleScPtr)
+  /-- [P] the decode's timer and IPI operations keep `AR`. -/
+  arch : syscall.decode_invocation st arI s ar lbl length (cslotAddr sl) (.SchedControl cpu) blk call don fp buf extra
+    ⦃ r => ∀ c, AR ar c → AR r.2.2 c ⦄
+  /-- [P] ScJointStep's `ScStepP1` (P1-supplied: the debug word kept, `BlkOK` after). -/
+  rest : ∀ (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ →
+    syscall.decode_invocation st arI s ar lbl length (cslotAddr sl) (.SchedControl cpu) blk call don fp buf extra
+      ⦃ r => r.1 = .Ok () → ∀ σ' inv σ1,
+        (Fl4Spec.decodeSchedControlInvocationFlags (Z := Unit) slbl (argsU.map UScalar.bv) (excaps.map Prod.fst)).run σ =
+          ({(.ok inv, σ)}, False) →
+        Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) →
+        Fl4Spec.invokeSchedControlConfigureFlags (Z := Unit) inv σ1 = ({((), σ')}, False) →
+        ScStepP1 (L := L) Z H Cs s r.2.1 ⦄
+
 /-- The CNode path [W] (the front end's label and extra slots). -/
 structure JCnodePath (Z : XSets) (s : S) (lbl : U64) (slbl : Fl4Spec.Data) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) : Prop where
@@ -426,6 +467,8 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : F
   | .IoPortControl => JIoCPath (L := L) Z s lbl slbl extra excaps
   | .IrqHandler irq => JIrqHPath (L := L) Z s lbl slbl extra excaps ct irq
   | .Domain => JDomPath (L := L) Z s lbl slbl extra excaps
+  | .SchedControl cpu => JSchedCPath (L := L) arI AR Z s ar σ lbl length cpu blk call don fp buf extra slbl argsU sl
+      excaps ct
   | c => JCapOpen (L := L) arI AR s ar σ lbl length c blk call don fp buf extra slbl argsU ci sl excaps buffer ct
 
 end
@@ -451,7 +494,8 @@ on the cap:
 | Thread | `decode_invocation_threadJ_step` | `JThreadPath` (incl. `JPostHyp` at `TcbJOpen`); SetEPTRoot whole [W] |
 | IO port | `decode_invocation_ioportJ` | `PortLabel`; a nonzero third field whole [W] |
 | IRQ control, IO port control, IRQ handler, Domain | `decode_invocation_{irq_control,ioport_control,irq_handler,domain}J` | `JIrqCPath`, `JIoCPath`, `JIrqHPath`, `JDomPath` |
-| SchedContext, SchedControl, Untyped, Frame, PageTable, PageDirectory, PDPT, PML4, ASID control, ASID pool, VCPU, EPT | — | `JCapOpen` [W] |
+| SchedControl | `decode_invocation_sched_controlJ` | `JSchedCPath` |
+| SchedContext, Untyped, Frame, PageTable, PageDirectory, PDPT, PML4, ASID control, ASID pool, VCPU, EPT | — | `JCapOpen` [W] |
 -/
 theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
@@ -553,6 +597,12 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     obtain ⟨x0, hx0, hex⟩ := hN.hex
     exact (decode_invocation_domainJ arI hG.dom s ar σ J hni hG.ari hUt ct hct hE.ksO hE.actK lbl slbl hN.hlbl length
       buf argsU hlen hargs extra x0 hx0 excaps hex _ blk call don fp ci sl buffer).toP arI hPre
+  case SchedControl cpu =>
+    have hN : JSchedCPath (L := L) arI AR Z s ar σ lbl length cpu blk call don fp buf extra slbl argsU sl excaps ct := hN
+    obtain ⟨x0, hx0, hex, hsb, hsc0, hpi⟩ := hN.hx
+    exact (decode_invocation_sched_controlJ s ar σ J hni hN.tm hN.mb hN.max hN.tu hN.msg lbl slbl hN.hlbl cpu length
+      buf ct hN.core hct argsU hlen hargs extra x0 hx0 excaps hex hsb hsc0 hpi (cslotAddr sl) blk call don fp ci sl
+      buffer hN.arch (hN.rest H Cs Ac Lst D J)).toP arI hPre
   all_goals exact hN
 
 /-- **The premises of one invocation at `J`** (`handle_invocation_refinesJ`):
