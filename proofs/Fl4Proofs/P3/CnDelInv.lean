@@ -54,18 +54,20 @@ theorem fullF_zombie {a c u : capability.Cap} (h : fullF a c = some u) {p zt n :
   cases a <;> cases c <;> simp [fullF] at h
 
 /-- The caps naming an endpoint, a notification or a reply (the objects
-`CapTyped` constrains). -/
+`CapTyped` constrains), a frame or an EPT table (`CapObjH`). -/
 def tyObj : capability.Cap → Bool
   | .Endpoint .. => true
   | .Notification .. => true
   | .Reply .. => true
+  | .Frame .. => true
+  | .Ept .. => true
   | _ => false
 
 theorem tyObj_of_shape {c d : capability.Cap} (h : shape c = shape d) : tyObj c = tyObj d := by
   cases c <;> cases d <;> simp_all [shape, tyObj]
 
 /-- **The slots' caps keep their objects**: each cap after names no endpoint,
-notification or reply, or is of the shape of a cap before (P3's `CapTyped`
+notification, reply, frame or EPT table, or is of the shape of a cap before (P3's `CapTyped`
 is kept, `JPlaced.slot`). -/
 def TypedKept (th : TypedHeap) (m m' : U64 → U64) : Prop :=
   ∀ a, IsSlot th a → tyObj (capV m' a) = false ∨ ∃ b, IsSlot th b ∧ shape (capV m' a) = shape (capV m b)

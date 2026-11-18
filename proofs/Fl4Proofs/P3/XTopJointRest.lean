@@ -294,7 +294,7 @@ theorem Sched.JPlaced.slotT {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s s
     · exact capTyped_of_tyObj hn
     · exact capTyped_of_shape hs (h.typed b hb)
   refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk' => ?_, by rw [hk]; exact h.ks,
-    fun a ha => hty' a ha, fun i hi => by rw [hk]; exact hty' _ (hirqS i hi), fun t ht => ?_⟩
+    fun a ha => hty' a ha, fun i hi => by rw [hk]; exact hty' _ (hirqS i hi), fun t ht => ?_, fun a ha => ?_⟩
   · rcases hkc c.bv with e | ⟨r, cs, cs', -, h2⟩ | ⟨x, y', -, h2, -⟩
     · rw [e] at hk'; exact h.sc c y n hc hk'
     · rw [h2] at hk'; cases hk'
@@ -303,6 +303,9 @@ theorem Sched.JPlaced.slotT {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s s
     · rw [capAt_capV, capAt_capV] at e
       rw [cslot_tcb3, eq_of_ok_eq e, ← cslot_tcb3]; exact h.fh t ht
     · left; rw [cslot_tcb3]; exact e
+  · rcases hT a ha with hn | ⟨b, hb, hs⟩
+    · exact capObjH_of_tyObj hn
+    · exact capObjH_of_shape hs (h.cobj b hb)
 
 theorem Sched.JPlaced.slot {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
     (h : JPlaced (L := L) th H Tr C s σ) (hkc : KeepC σ σ') (hk : L.ksb s' = L.ksb s) (hL : IntLayout th (L.ksb s))

@@ -562,7 +562,8 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
       simp only [newKind]; simp; rw [hn']; unfold Fl4Spec.minSchedContextBits; omega
   refine ⟨heapOK_out hJP.heap hO hlo hhi hk1 hAk (fun kd hK => ?_) hfit hlt hsc7, hP', fun q => ⟨fun h => ?_, fun h => ?_⟩,
     fun p r h => ?_, fun q h => Or.inr h,
-    fun c y n' hc hk => ⟨Or.inr ⟨hc, y, n', hk⟩, hSC c y n' hc hk⟩, fun p kd hp => ?_, fun a ha => ?_, fun i hi => ?_, fun t' ht' => ?_⟩
+    fun c y n' hc hk => ⟨Or.inr ⟨hc, y, n', hk⟩, hSC c y n' hc hk⟩, fun p kd hp => ?_, fun a ha => ?_, fun i hi => ?_, fun t' ht' => ?_,
+    fun a ha => ?_⟩
   -- the new objects' size divides the slot size
   · rw [hRk]; exact Nat.pow_dvd_pow 2 ((Nat.pow_le_pow_iff_right (by decide)).1 (hbits kd hK))
   -- TCBs
@@ -708,6 +709,71 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
       · left
         by_contra hne
         exact hm ((hM'.members _).2 ⟨⟨p3, i3, hi3, ha3⟩, _, capAt_capV _ _, hne⟩)
+  -- the slots' EPT and frame caps' objects
+  · by_cases hm : a ∈ G'.chains.flatten
+    · rcases hE.gmem a hm with ha0 | ⟨j, hj, rfl⟩
+      · cases hu : isUt (capV (L.mem s) a)
+        · obtain ⟨-, e⟩ := hE.keep a ha0 hu
+          rw [e]
+          have hC := hJP.cobj a ((hM.members a).1 ha0).1
+          -- an apartness from `H`'s objects carries over: the cap's own range is
+          -- covered, so it misses the dropped region and the new objects
+          have hkeepA : ∀ c, capV (L.mem s) a = c → physF c = true → FrApartH H c → FrApartH H' c := by
+            intro c hc hp hA q kq hq hkq
+            have hbt := hU.reg a ha0 (by rw [hc]; exact hp)
+            rw [hc] at hbt
+            have hcv := hunc (baseF c) (topF c + 1) (by omega) ⟨a, ha0, by rw [hc]; exact hp, hu, by rw [hc], by rw [hc]⟩
+            rw [hO q] at hq
+            split_ifs at hq with h1 h2
+            · obtain ⟨j, hj, hv, ha1, ha2⟩ := newAt_val h1.1 hk1
+              have hb := hbits kq hq
+              rw [← hRk] at hb
+              have hb1 : 1 ≤ 2 ^ kq.bits := Nat.one_le_two_pow
+              omega
+            · exact hA q kq hq hkq
+          cases hc : capV (L.mem s) a with
+          | Ept p lv m' a' va =>
+            rw [hc] at hC
+            obtain ⟨⟨n2, hH, hb, ht⟩, hA⟩ := hC
+            have hp : physF (.Ept p lv m' a' va) = true := ok_inj (phys_eq _).symm
+            exact ⟨⟨n2, hkeepH p _ hH ⟨a, ha0, by rw [hc]; exact hp, hu, by rw [hc]; exact hb,
+              by rw [hc]; simp only [HKind.bits]; exact ht⟩, hb, ht⟩, hkeepA _ hc hp hA⟩
+          | Frame p sz r d m' ep a' va =>
+            rw [hc] at hC
+            exact hkeepA _ hc (ok_inj (phys_eq _).symm) hC
+          | _ => trivial
+        · obtain ⟨q, sz, f, d, e⟩ := isUt_iff.1 (hE.utk a ha0 hu)
+          rw [e]; trivial
+      · rw [hE.newc j hj]
+        have hb := hE.cbase j hj
+        have ht := hE.ctop j hj
+        have hnk : ∀ p sz r d m' ep a' va, cj j = .Frame p sz r d m' ep a' va → newKind n us = none := by
+          rw [hcjE]; unfold cjOf
+          apply newCapOf_ind (fun c => ∀ p sz r d m' ep a' va, c = .Frame p sz r d m' ep a' va → newKind n us = none)
+          all_goals (intros; simp_all [newKind])
+        have hne : ∀ p lv m' a' va, cj j ≠ .Ept p lv m' a' va := by
+          rw [hcjE]; unfold cjOf
+          apply newCapOf_ind (fun c => ∀ p lv m' a' va, c ≠ .Ept p lv m' a' va)
+          all_goals (intros; simp_all)
+        cases hc : cj j with
+        | Ept p lv m' a' va => exact absurd hc (hne p lv m' a' va)
+        | Frame p sz r d m' ep a' va =>
+          have hK := hnk p sz r d m' ep a' va hc
+          rw [hc] at hb ht
+          intro q kq hq hkq
+          rw [hO q] at hq
+          split_ifs at hq with h1 h2
+          · rw [hK] at h1; exact absurd h1.2 (by simp)
+          · have hm' : ¬ MeetsR lo hi q.val (q.val + 2 ^ kq.bits) := fun hm' => h2 ⟨kq, hq, hm'⟩
+            unfold MeetsR at hm'
+            have : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right _ hj
+            rw [Nat.add_mul, Nat.one_mul] at this
+            rw [hb, ht]; omega
+        | _ => trivial
+    · have hnull : capV (L.mem res.2.1) a = .Null := by
+        by_contra hne
+        exact hm ((hM'.members a).2 ⟨ha, _, capAt_capV _ _, hne⟩)
+      rw [hnull]; trivial
 
 end
 

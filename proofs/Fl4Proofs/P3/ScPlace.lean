@@ -31,6 +31,53 @@ open fl4_core Fl4Proofs.P3 Fl4Proofs.P1
 
 noncomputable section
 
+/-- A cap's range meets no object of `H` but `other` ones. -/
+def FrApartH (H : Heap) (c : capability.Cap) : Prop :=
+  ∀ q k, H q = some k → (∀ z, k ≠ .other z) → q.val + 2 ^ k.bits ≤ baseF c ∨ topF c < q.val
+
+/-- **The objects of a slot's EPT or frame cap** (l4v `valid_cap` with
+`pspace_distinct`, beyond P1's `CapTyped`): an EPT cap names an `other`
+object of `H` inside its range (so a non-null table, `H` holding nothing at
+0); an EPT or frame cap's range meets no object of `H` but `other` ones (the frames
+are user memory; stated by range, not by an object at the frame's base,
+since a 4 KiB alias of a page of a large frame has no object of its own). -/
+def CapObjH (H : Heap) : capability.Cap → Prop
+  | .Ept p lv m a va => (∃ n, H p = some (.other n) ∧ baseF (.Ept p lv m a va) ≤ p.val ∧
+      p.val + 2 ^ n ≤ topF (.Ept p lv m a va) + 1) ∧ FrApartH H (.Ept p lv m a va)
+  | .Frame p sz r d m ep a va => FrApartH H (.Frame p sz r d m ep a va)
+  | _ => True
+
+theorem capObjH_null {H : Heap} : CapObjH H .Null := trivial
+
+/-- `CapObjH` reads a cap's shape only. -/
+theorem capObjH_of_shape {H : Heap} {c d : capability.Cap} (h : shape c = shape d) (hd : CapObjH H d) :
+    CapObjH H c := by
+  obtain ⟨hb, ht, -⟩ := range_of_shape h
+  cases c with
+  | Ept p lv m a va =>
+    cases d <;> simp only [shape, reduceCtorEq, capability.Cap.Ept.injEq] at h
+    obtain ⟨rfl, -⟩ := h
+    obtain ⟨⟨n, h1, h2, h3⟩, hA⟩ := hd
+    refine ⟨⟨n, h1, by rw [hb]; exact h2, by rw [ht]; exact h3⟩, fun q k hq hk => ?_⟩
+    rw [hb, ht]; exact hA q k hq hk
+  | Frame p sz r d' m ep a va =>
+    cases d <;> simp only [shape, reduceCtorEq] at h
+    intro q k hq hk
+    rw [hb, ht]; exact hd q k hq hk
+  | _ => trivial
+
+/-- A cap naming no endpoint, notification, reply, frame or EPT table has
+no `CapObjH` fact. -/
+theorem capObjH_of_tyObj {H : Heap} {c : capability.Cap} (h : tyObj c = false) : CapObjH H c := by
+  cases c <;> first | trivial | simp [tyObj] at h
+
+theorem capObjH_of_chgZ {H : Heap} {m m' : U64 → U64} {y : U64}
+    (h : CapObjH H (capV m y)) (hz : ChgZ m m' y) : CapObjH H (capV m' y) := by
+  rcases hz with e | e | ⟨zt, k, e⟩
+  · rw [e]; exact h
+  · rw [e]; trivial
+  · rw [e]; trivial
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
@@ -50,6 +97,8 @@ structure JPlaced (th : TypedHeap) (H : Heap) (Tr C : Set U64) (s : S) (σ : Fl4
   irq : ∀ i : U64, i.val < 128 → CapTyped H (Heap.replies H) (Heap.ntfns H) (capV (L.mem s) (nodeA (L.ksb s) i))
   fh : ∀ t, th t = some .tcb → capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Null ∨
     ∃ ep b0 b1 b2 b3 b4, capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Endpoint ep b0 b1 b2 b3 b4
+  /-- The slots' EPT and frame caps' objects (`CapObjH`). -/
+  cobj : ∀ a, IsSlot th a → CapObjH H (capV (L.mem s) a)
 
 variable {th : TypedHeap} {H : Heap} {Tr C : Set U64} {s : S} {σ : Fl4Spec.State Unit}
 
@@ -402,6 +451,7 @@ objects at nonzero addresses were SCs before (`hsc`). -/
 theorem JPlaced.step (h : JPlaced (L := L) th H Tr C s σ) {s' : S} {σ' : Fl4Spec.State Unit} (X : U64 → Prop)
     (hZ : ∀ y, IsSlot th y → ¬ X y → ChgZ (L.mem s) (L.mem s') y)
     (hX : ∀ y, IsSlot th y → X y → CapTyped H (Heap.replies H) (Heap.ntfns H) (capV (L.mem s') y))
+    (hXo : ∀ y, IsSlot th y → X y → CapObjH H (capV (L.mem s') y))
     (hF : ∀ t, th t = some .tcb →
       capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) =
         capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) ∨
@@ -412,7 +462,7 @@ theorem JPlaced.step (h : JPlaced (L := L) th H Tr C s σ) {s' : S} {σ' : Fl4Sp
     (hk : L.ksb s' = L.ksb s) (hI : ∀ i : U64, i.val < 128 → ChgZ (L.mem s) (L.mem s') (nodeA (L.ksb s) i)) :
     JPlaced (L := L) th H Tr C s' σ' := by
   refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk => ?_, by rw [hk]; exact h.ks, fun a ha => ?_,
-    fun i hi => by rw [hk]; exact capTyped_of_chgZ (h.irq i hi) (hI i hi), fun t ht => ?_⟩
+    fun i hi => by rw [hk]; exact capTyped_of_chgZ (h.irq i hi) (hI i hi), fun t ht => ?_, fun a ha => ?_⟩
   · obtain ⟨y0, hk0⟩ := hsc c y n hc hk
     exact h.sc c y0 n hc hk0
   · by_cases hx : X a
@@ -421,6 +471,9 @@ theorem JPlaced.step (h : JPlaced (L := L) th H Tr C s σ) {s' : S} {σ' : Fl4Sp
   · rcases hF t ht with e | e
     · rw [e]; exact h.fh t ht
     · exact e
+  · by_cases hx : X a
+    · exact hXo a ha hx
+    · exact capObjH_of_chgZ (h.cobj a ha) (hZ a ha hx)
 
 /-- **`JPlaced` across a step keeping every slot** (the scheduler-side TCB
 invocations: `set_priority`, `set_mcpriority`, the SC bind and unbind, the
@@ -434,7 +487,8 @@ theorem JPlaced.same (h : JPlaced (L := L) th H Tr C s σ) {s' : S} {σ' : Fl4Sp
     (hI : ∀ i : U64, i.val < 128 → capV (L.mem s') (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i)) :
     JPlaced (L := L) th H Tr C s' σ' := by
   refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk => ?_, by rw [hk]; exact h.ks, fun a ha => ?_,
-    fun i hi => by rw [hk, hI i hi]; exact h.irq i hi, fun t ht => ?_⟩
+    fun i hi => by rw [hk, hI i hi]; exact h.irq i hi, fun t ht => ?_, fun a ha => by
+      rw [hS.capV ha]; exact h.cobj a ha⟩
   · obtain ⟨y0, hk0⟩ := hsc c y n hc hk
     exact h.sc c y0 n hc hk0
   · rw [hS.capV ha]; exact h.typed a ha

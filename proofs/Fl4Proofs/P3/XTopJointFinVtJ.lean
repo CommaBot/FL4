@@ -15,11 +15,9 @@ EPT or a VCPU cap keeps the state; FL4's writes land in VT-x words.
     spec (`find_vspace_for_asid` fails: its pool entry is guest-tagged,
     `nativeAsidRoot`; l4v `valid_cap` of the mapped frame, its mapping in the
     EPT of the ASID);
-  - `eptObj`: an EPT cap's range holds no object of `H` but `other` ones
-    (l4v `valid_cap` with `pspace_distinct`);
-  - `eptNz`: an EPT cap's table is non-null (l4v `valid_cap`, no object at
-    0; `delete_asid` of a mapped root matches the spec only for a non-null
-    root, VsDel's `delete_asid_relR`);
+  (an EPT cap's range holding no object of `H` but `other` ones and its
+    table non-null are no longer premises: `JAtZ.ept_obj`, `JAtZ.ept_ne0`,
+    from `JPlaced.cobj`, ScPlace's `CapObjH`);
   - `vcpu` (`VtVcpuPlace`): a VCPU cap's VCPU is bound to no thread (its
     `TCB` word zero: l4v `sym_refs` of the VCPU–TCB binding, the threads
     being native, ScPlace's `JState.vcpu`), its list neighbours' link words
@@ -104,17 +102,6 @@ structure JVtHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wher
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
     ∀ x p sz r d asid va, IsSlot Z.th x → capV (L.mem s) x = .Frame p sz r d true true asid va →
       ∃ e, ExceptT.run (Fl4Spec.findVspaceForAsid (Z := Unit) asid.bv) σ = ({(.error e, σ)}, False)
-  /-- An EPT cap's range holds no object of `H` but `other` ones. -/
-  eptObj : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
-    (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
-    ∀ x p lv m asid va, IsSlot Z.th x → capV (L.mem s) x = .Ept p lv m asid va →
-      ∀ q k, H q = some k → (∀ z, k ≠ .other z) →
-        q.val + 2 ^ k.bits ≤ baseF (.Ept p lv m asid va) ∨ topF (.Ept p lv m asid va) < q.val
-  /-- An EPT cap names a non-null table (l4v `valid_cap`: no object at 0);
-  what `delete_asid` of a mapped EPT root needs (`jFinAt_eptRoot`). -/
-  eptNz : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
-    (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
-    ∀ x p lv m asid va, IsSlot Z.th x → capV (L.mem s) x = .Ept p lv m asid va → p ≠ 0#u64
   /-- A VCPU cap's VCPU (`VtVcpuPlace`). -/
   vcpu : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
@@ -144,6 +131,28 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
   {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64}
   {D : Set U64}
+
+/-- A slot's EPT or frame cap's objects (`JPlaced.cobj`). -/
+theorem JAtZ.cobj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {x : U64} (hx : IsSlot Z.th x) : Sched.CapObjH H (capV (L.mem s) x) := by
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl; exact hJ.cobj x hx
+
+/-- **An EPT cap's range holds no object of `H` but `other` ones** (l4v
+`valid_cap` with `pspace_distinct`; `JPlaced.cobj`). -/
+theorem JAtZ.ept_obj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {x p lv asid va : U64} {m : Bool} (hx : IsSlot Z.th x) (hcv : capV (L.mem s) x = .Ept p lv m asid va) :
+    ∀ q k, H q = some k → (∀ z, k ≠ .other z) →
+      q.val + 2 ^ k.bits ≤ baseF (.Ept p lv m asid va) ∨ topF (.Ept p lv m asid va) < q.val := by
+  have h := J.cobj hx; rw [hcv] at h; exact h.2
+
+/-- **An EPT cap names a non-null table** (l4v `valid_cap`: no object at 0;
+`JPlaced.cobj`, `H` holding nothing at 0). -/
+theorem JAtZ.ept_ne0 {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {x p lv asid va : U64} {m : Bool} (hx : IsSlot Z.th x) (hcv : capV (L.mem s) x = .Ept p lv m asid va) :
+    p ≠ 0#u64 := by
+  have h := J.cobj hx; rw [hcv] at h
+  obtain ⟨⟨n, hH, -⟩, -⟩ := h
+  rintro rfl; rw [J.kern.h0] at hH; cases hH
 
 set_option maxHeartbeats 4000000 in
 /-- **The VT-x work of a finalisation at `J`** (module docstring), final or
@@ -203,7 +212,7 @@ theorem JAtZ.finEptJ (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.Sta
   obtain ⟨p, lv, m, asid, va, rfl, hnr⟩ := hk
   have hcv := capV_of_capAt hc
   have har := J.xtop.fin.1.1.2.2.2.2.2.2
-  have hap := hV.eptObj Z H Cs Ac Lst D s a σ rfl J _ p lv m asid va hA'.isSlot hcv
+  have hap := J.ept_obj hA'.isSlot hcv
   have hm : ((absCap .Null, absCap .Null), σ) ∈
       (Fl4Spec.finaliseCap (Z := Unit) (absCap (.Ept p lv m asid va)) true σ).1 := by
     cases m
