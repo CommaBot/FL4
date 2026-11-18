@@ -4,7 +4,7 @@
 //! user 32-bit code 0x23, user data 0x2b, user 64-bit code 0x33, TSS 0x40.
 use core::arch::asm;
 use core::cell::UnsafeCell;
-use fl4_arch_x86_64::cpu::{rdmsr, wrmsr, msr};
+use fl4_arch_x86_64::cpu::{self, rdmsr, wrmsr, msr};
 use fl4_arch_x86_64::percpu::{self, MAX_CPUS};
 
 pub const KERNEL_CS: u16 = 0x10;
@@ -189,4 +189,12 @@ pub fn init_core(cpu: usize, stack_top: u64) {
     wrmsr(msr::FS_BASE, 0);
     wrmsr(msr::GS_BASE, 0);
     wrmsr(msr::KERNEL_GS_BASE, c.gs_block.as_ptr() as u64);
+    // No breakpoint the boot loader left: the debug registers are reloaded
+    // only for threads that use them (HARDWARE_DEBUG_API) and, on Intel,
+    // around VM entries; AMD guests run with the host's DR0..DR3.
+    cpu::write_dr7(0x400);
+    for i in 0..4 {
+        cpu::write_dr(i, 0);
+    }
+    cpu::write_dr6(0xffff_0ff0);
 }
