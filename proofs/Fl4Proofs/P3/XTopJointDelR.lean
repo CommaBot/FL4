@@ -58,7 +58,8 @@ some of them proved here.
   `JVsApartHyp` [J] (the VSpace frames and the ASID table apart from `H`'s
   objects, the nodes and the untyped free parts), `JDelParts` fields.
 * A final SC cap's finalisation (`jFinAt_sc`): XTopJointFinSc's
-  `JScFinHyp` [J] (the finalisation at `J`, undone work), the SC dead after
+  `JScFinHyp` (the finalisation at `J`, by `jScFin_of` from the SC steps
+  `JScFinSteps` [J-step] and the thread's `yieldTo`), the SC dead after
   (P1's `fin_cap_sc.dead`, `JAtZ.sc_ready`), the current SC kept (P1's
   `fin_sc.curR`); with `JScCapHyp` [J] and `JScCurHyp` [J] (not an l4v
   invariant: `JKern`'s current SC must stay covered).

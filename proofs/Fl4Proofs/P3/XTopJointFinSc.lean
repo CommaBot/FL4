@@ -23,29 +23,47 @@ Named premises:
   of the spec's heap other than the idle SC (JProducers' `ScCapJ`: l4v
   `valid_cap`, `valid_global_refs`).
 * `JScCurHyp` [J]: a final SC cap's SC is not the current SC word. **Not an
-  l4v invariant** (a thread may delete the last cap to its own SC; seL4 and
-  FL4 leave `ksCurSC` dangling, inactive, until the next `schedule`). It is
-  what `JAtZ` needs as it stands: `JKern.cscH`/`cscLive` keep the current
-  SC in `H` and out of the dead set, so `EmptyReady` asks another cap to
-  cover it, which a final cap's SC lacks. Dropping it needs `JKern` to
-  accept an uncovered inactive current SC (and `schedule`'s side to read
-  no field of it but `REFILL_MAX`).
-* `JScFinHyp` [J], **a whole-operation premise (undone work)**: from
-  `JAtZ`, FL4's `finalise_cap` of a final SC cap (not the current SC)
-  against the spec's `finalise_cap`, `JAtZ` after at fresh VSpace sets,
-  the slots and the kernel-state base kept. Proved at `XTop` only
-  (XTopFinSc's `xFinSc_of`, with `ScYieldFinHyp`); the `JAtZ` lift across
-  the five steps is not: the `JRest` fields (`JAtZ.sc_frame` for the three
-  unbinds and the inactive SC, but `CallW'` words for `unbind_reply`; the
-  yielder's `complete_yield_to` writes registers outside `TFoot` and its
-  `IRel` proof asks `YieldRel` at every `IRel` state), the scheduler
-  fields (`CurOwnW`, `OffOK`, `CurInv` when the SC's thread is the current
-  thread: the spec reschedules), the dead set and P1's `BlkOK` per step
-  (P1 proves it for the whole, `fin_cap_sc.slots`).
+  l4v invariant**: it is false exactly when the deleted cap is the last cap
+  to `ksCurSC`, i.e. (under `CurInv`) the invoking thread deletes or
+  revokes the last cap to its own bound SC, or (with a reply's donated SC
+  current) the last cap to the SC it runs on; or, mid-entry with a pending
+  reschedule (`CurOwnW`'s second case), the last cap to an unowned current
+  SC. All are reachable by a user thread holding the only cap to its SC.
+  seL4 and FL4 then leave `ksCurSC` dangling, inactive, until the next
+  `schedule` (whose `commit_time` skips an inactive SC). It is what `JAtZ`
+  needs as it stands: `JKern.cscH`/`cscLive` keep the current SC in `H` and
+  out of the dead set, `EmptyReady`'s current-SC clause asks another cap to
+  cover it (a final cap's SC has none), and `CurInv.active` asks the
+  current SC active (false after `set_inactive`). Dropping it needs `JKern`
+  and `EmptyReady` to accept a dead, uncovered, inactive current SC under a
+  pending reschedule (`CurInv` already gives way to `chooseNewThread`), and
+  the current-SC case of the steps (the spec's `unbind_all_tcbs` of the
+  current thread reschedules).
+* `JScFinHyp`: from `JAtZ`, FL4's `finalise_cap` of a final SC cap (not the
+  current SC) against the spec's, `JAtZ` after: **proved** from the steps
+  (`jScFin_of`, `JAtZ.finScJ`, as XTop's `xFinSc_of`), the SC's links
+  cleared and the current SC word kept between steps by P1's per-step
+  lemmas, the slots and base by P1's `fin_cap_sc.slots`. The last step, the
+  inactive SC, is proved (XTopJointFinScInact's `JAtZ.setInactiveJ`).
+* `JScFinSteps` [J-step], the remaining steps, each one FL4 call at a `JAtZ`
+  state against the spec's step, `JAtZ` after (`JTP`), for an SC of the
+  SCs, non-null, not the idle SC, not the current SC word, its earlier links
+  cleared: `unbindAll` (`unbind_all_tcbs`; when its thread is the current
+  thread the spec reschedules, so `MidK`'s current-thread clauses fail and
+  `CurInv`/`CurOwnW` need the pending reschedule; the XTop side is
+  `unbind_all_tcbs_refines`), `unbindNtfn` (`unbind_ntfn_refines`; the frame
+  as `setInactiveJ`'s plus the notification's `SC` link), `unbindReply`
+  (`unbind_reply_refines`; its write is a call-stack word `CallW'`, outside
+  `JAtZ.sc_frame`'s `TFoot`).
+* `JYieldToHyp` [J-step], the yielder's `complete_yield_to`: the statement of
+  `JThreadFinHyps.yieldTo`, so one premise serves both finalisations
+  (`JThreadFinHyps.yieldToH`; XTop: `ScYieldFinHyp`, its reply writes
+  registers outside `TFoot` and its `IRel` proof asks `YieldRel` at every
+  `IRel` state).
 -/
 import Fl4Proofs.P3.XTopJointEmpty
 import Fl4Proofs.P3.ScDeadStep
-import Fl4Proofs.P3.XTopJointFinThread
+import Fl4Proofs.P3.XTopJointFinScInact
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -76,9 +94,9 @@ def JScCurHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
       capAt (L.mem s) (cslotAddr sl) = ok (.SchedContext p sb) →
       Fl4Spec.isFinalCap' (absCap (.SchedContext p sb)) σ → L.cscW s ≠ p
 
-/-- **Hypothesis: a final SC cap's finalisation at `J`** [J] (module
-docstring: a whole-operation premise, undone work; asked of an SC other
-than the current one). -/
+/-- **A final SC cap's finalisation at `J`** (module docstring; asked of an
+SC other than the current one): the statement `jFinAt_sc` reads, proved by
+`jScFin_of` from the SC steps. -/
 def JScFinHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
@@ -112,8 +130,9 @@ asked of an SC `p` of the SCs, not null, not the idle SC, not the current SC
 word, with the SC's links cleared by the earlier steps (P1's
 `unbind_all_tcbs.blk`, `unbind_ntfn.blk`, `unbind_reply.blk`). XTop:
 `xFinSc_of`'s steps (`unbind_all_tcbs_refines`, `unbind_ntfn_refines`,
-`unbind_reply_refines`, `SchedRel.set_inactive`, each with `xtop_sc_step`
-or `xtop_sc_stepCW`). -/
+`unbind_reply_refines`, each with `xtop_sc_step` or `xtop_sc_stepCW`). The
+last step, the inactive SC, is proved (XTopJointFinScInact's
+`JAtZ.setInactiveJ`). -/
 structure JScFinSteps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
   /-- `unbind_all_tcbs` at `J` (its thread neither the scheduler action nor
   idle, P1's `unbind_all_tcbs.blk` preconditions). -/
@@ -142,14 +161,6 @@ structure JScFinSteps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop 
       schedcontext.unbind_reply st s p ⦃ s' => ∃ σ',
         Fl4Spec.schedContextUnbindReply (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
         JTP (L := L) arI AR Z H Cs s' a σ' ⦄
-  /-- The SC made inactive (`REFILL_MAX` and `SPORADIC` cleared) at `J`, its
-  thread, notification and reply unbound. -/
-  setInactive : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S)
-    (a : A) (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
-    ∀ p : U64, p ∈ Z.C → p ≠ 0#u64 → p.bv ≠ Fl4Spec.idleScPtr → L.cscW s ≠ p →
-      L.mem s (P1.scTcbA p) = 0#u64 → L.mem s (P1.scNtfnA p) = 0#u64 → L.mem s (P1.scReplyA p) = 0#u64 →
-      ∃ σ', Fl4Spec.schedContextSetInactive (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
-        JTP (L := L) arI AR Z H Cs (L.wr (L.wr s (maxA p) 0#u64) (scW p 64#u64) 0#u64) a σ'
 
 /-- **An SC cap's slot is ready once the SC is dead** (as `JAtZ.ep_ready`),
 the cap of the SC's size and the SC not the current one. -/
@@ -200,7 +211,8 @@ set_option maxHeartbeats 16000000 in
 from the SC steps `JScFinSteps` and the yielder's `JYieldToHyp`; the SC's
 links cleared and the current SC word kept along the way by P1's per-step
 lemmas (`unbind_all_tcbs.blk`, `unbind_ntfn.blk`, `unbind_reply.blk`,
-`complete_yield_to.blkS`) at each step's `BlkOK`. -/
+`complete_yield_to.blkS`) at each step's `BlkOK`; the inactive SC by
+`JAtZ.setInactiveJ`. -/
 theorem JAtZ.finScJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (hT : P0.ArchTotal arI) (hS : JScFinSteps (L := L) arI AR Z.th) (hY : JYieldToHyp (L := L) arI AR Z.th)
@@ -255,8 +267,7 @@ theorem JAtZ.finScJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     step with obj.Sc.set_refill_max.spec as ⟨s5, hs5⟩
     step with obj.Sc.set_sporadic.spec2 as ⟨s6, hs6⟩
     subst hs5 hs6
-    obtain ⟨σ5, he5, V5, Ac5, Lst5, D5, J5⟩ :=
-      hS.setInactive (Z.mv Z.G V4) H Cs Ac4 Lst4 D4 s4 a4 σ4 rfl J4 p hpC hp0 hpi hcur4 t4 n4 r4
+    obtain ⟨σ5, he5, V5, Ac5, Lst5, D5, J5⟩ := JAtZ.setInactiveJ arI J4 hpC hp0 hpi hcur4 t4 n4 r4
     exact ⟨σ5, finSc_mem he1 he2 he3 he4 he5, V5, Ac5, Lst5, D5, J5⟩
   -- the yielder
   step with obj.Sc.yield_from.spec' as ⟨i, hi⟩
