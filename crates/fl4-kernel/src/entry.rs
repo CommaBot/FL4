@@ -320,9 +320,15 @@ extern "C" fn fl4_entry(f: &mut Frame) -> u64 {
         let pc = percpu::get();
         if (VEC_IRQ_MIN..=VEC_SPURIOUS).contains(&v) {
             if pc.polling.get() {
-                // take_pending_irq accepted an interrupt: record it and
-                // go back with interrupts off so only one is taken. (This
-                // core holds the gate, so no remote call is meant for it.)
+                // take_pending_irq or the VCPU exit path polled an interrupt:
+                // record it and go back with interrupts off so only one is
+                // taken. A remote call cannot be left unserviced here: it
+                // is made only under the serial gate, which this core
+                // holds, or which no core holds while this core runs a
+                // transaction (SerialGate drains them first; a transaction
+                // that needs a remote call goes serial), and the VCPU exit
+                // path services remote calls right after its poll. Taken
+                // here, REMOTE_CALL_VECTOR needs only its EOI (handle_ipi).
                 if v <= VEC_IRQ_MAX {
                     pc.polled_irq.set(v - VEC_IRQ_MIN);
                 } else {

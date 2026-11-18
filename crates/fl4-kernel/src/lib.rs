@@ -5,6 +5,7 @@
 mod acpi;
 mod entry;
 mod gdt;
+mod mb2;
 mod mboot;
 mod paging;
 mod smp;

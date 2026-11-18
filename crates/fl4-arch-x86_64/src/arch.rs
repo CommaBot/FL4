@@ -198,8 +198,10 @@ impl Arch for PhysArch {
             serial_needed();
             return true;
         }
-        ioapic::map(ioapic, pin, level, polarity, vector, percpu::apic_id(0), 0, 0);
-        true
+        // False only for a boot CPU whose x2APIC ID a compatibility entry
+        // cannot name; the pin then stays as it was (masked, unless an
+        // earlier request routed it).
+        ioapic::map(ioapic, pin, level, polarity, vector, percpu::apic_id(0), 0, 0)
     }
     fn ioapic_map_remapped(&mut self, ioapic: u64, pin: u64, level: u64, polarity: u64, vector: u64, handle: u64) -> bool {
         if ioapic >= ioapic::count() || pin >= ioapic::pins(ioapic) {
@@ -211,8 +213,7 @@ impl Arch for PhysArch {
         }
         let high = (((handle & 0x7fff) as u32) << 17) | (1 << 16);
         let lo_extra = (((handle >> 15) & 1) as u32) << 11;
-        ioapic::map(ioapic, pin, level, polarity, vector, 0, high, lo_extra);
-        true
+        ioapic::map(ioapic, pin, level, polarity, vector, 0, high, lo_extra)
     }
     fn num_ioapics(&self) -> u64 {
         ioapic::count()
