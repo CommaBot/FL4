@@ -294,21 +294,19 @@ theorem JAtZ.restartTailJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (Or.inl (hC'.elim hOw' (curOwn_of_curInv hX'.fin.1.1.1 hI'))) hO' hAI (J.bsa.bk hBK hsok) hcr hblk⟩
 
 set_option maxHeartbeats 16000000 in
-/-- **`sched::restart` at `J`** (module docstring). -/
-theorem JAtZ.restartTcbJ (hAT : P0.ArchTotal arI)
+/-- **`sched::restart` at `J`** (module docstring), the target not dead
+(`htD`; `JAtZ.restartTcbJ` from its cap in a slot by `JAtZ.undead`). -/
+theorem JAtZ.restartTcbJD (hAT : P0.ArchTotal arI)
     (hSd : JCancelAt (L := L) arI AR Z.th fun ts => ∃ e d, ts = .blockedOnSend e d)
     (hNt : JCancelAt (L := L) arI AR Z.th fun ts => ∃ n, ts = .blockedOnNotification n)
     (hRv : JCancelAt (L := L) arI AR Z.th fun ts => ∃ e r d, ts = .blockedOnReceive e r d)
     (hRp : JCancelAt (L := L) arI AR Z.th fun ts => ∃ r, ts = .blockedOnReply r)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) {x0 : U64}
-    (hxS : IsSlot Z.th x0) (hcap : capAt (L.mem s) x0 = ok (.Thread t))
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) (htD : t ∉ D)
     (hC : CurInv σ) (hns : ∀ u, σ.schedulerAction ≠ .switchThread u) (hcr : CurRun σ) :
     sched.restart st arI s a t ⦃ r => r.2 = a ∧ ∃ σ', Fl4Spec.restart (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
       ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
         JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ := by
-  have J0 := J.undead hxS hcap ht
-  have htD : t ∉ D \ {t} := fun h => h.2 rfl
   have hP0 := J.ip
   have hI := J.xtop.irelK J.ks J.buf
   have htH : t ∈ P1.Heap.tcbs H := J.zH.1 t ht
@@ -371,12 +369,12 @@ theorem JAtZ.restartTcbJ (hAT : P0.ArchTotal arI)
     have hcan : ipc.cancel_ipc st arI s a t ⦃ r => r.2 = a ∧ ∃ σa,
         Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σa)}, False) ∧ ∃ xa, σa.kheap t.bv = some (.tcb xa) ∧
         xa.tcbState = .inactive ∧ ∃ (V : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64),
-          JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac1 Lst1 (D \ {t}) r.1 r.2 σa ⦄ := by
+          JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac1 Lst1 D r.1 r.2 σa ⦄ := by
       by_cases hfree : IpcFree x.tcbState
       · have hin : x.tcbState = .inactive := by
           revert hfree hc
           cases x.tcbState <;> simp [IpcFree, Fl4Spec.epBlocked, Fl4Spec.ntfnBlocked, Fl4Spec.runnable, Fl4Spec.idle]
-        refine WP.spec_mono (J0.cancelFreeJ ht hk hfree) ?_
+        refine WP.spec_mono (J.cancelFreeJ ht hk hfree) ?_
         rintro r ⟨h1, h2, V, J1⟩
         exact ⟨h1, _, h2, { x with tcbFault := none }, by simp [updK], hin, V, Ac, Lst, J1⟩
       have hcases : (∃ e d, x.tcbState = .blockedOnSend e d) ∨ (∃ e r d, x.tcbState = .blockedOnReceive e r d) ∨
@@ -385,12 +383,12 @@ theorem JAtZ.restartTcbJ (hAT : P0.ArchTotal arI)
         cases x.tcbState <;> simp [IpcFree, Fl4Spec.epBlocked, Fl4Spec.ntfnBlocked]
       have hP : ipc.cancel_ipc st arI s a t ⦃ r => r.2 = a ∧ ∃ σ', Fl4Spec.cancelIpc (Z := Unit) t.bv σ =
           ({((), σ')}, False) ∧ ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64),
-            JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' (D \ {t}) r.1 r.2 σ' ⦄ := by
+            JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D r.1 r.2 σ' ⦄ := by
         rcases hcases with h | h | h | h
-        · exact hSd Z H Cs Ac Lst (D \ {t}) s a σ rfl J0 t ht x hk h
-        · exact hRv Z H Cs Ac Lst (D \ {t}) s a σ rfl J0 t ht x hk h
-        · exact hNt Z H Cs Ac Lst (D \ {t}) s a σ rfl J0 t ht x hk h
-        · exact hRp Z H Cs Ac Lst (D \ {t}) s a σ rfl J0 t ht x hk h
+        · exact hSd Z H Cs Ac Lst D s a σ rfl J t ht x hk h
+        · exact hRv Z H Cs Ac Lst D s a σ rfl J t ht x hk h
+        · exact hNt Z H Cs Ac Lst D s a σ rfl J t ht x hk h
+        · exact hRp Z H Cs Ac Lst D s a σ rfl J t ht x hk h
       refine WP.spec_mono (WP.spec_and hP (cancel_ipc_irelP (ar := arI) hP0 (removeTcbHypP_ok hP0) s a σ hI ht hk
         J.sv J.obj J.inv (removeTcbOK_fault hP0 hI ht hk J.removeTcbOK))) ?_
       rintro r ⟨⟨h1, σ1, h2, V, Ac1, Lst1, J1⟩, -, σ1', x1, h2', -, hk1, hs1⟩
@@ -445,13 +443,29 @@ theorem JAtZ.restartTcbJ (hAT : P0.ArchTotal arI)
     rintro r ⟨hr2, hr⟩ Ac' hblk hd6
     have hn1 := P1.nodeAt_of_ksb hks1
     obtain ⟨σ', he', Lst', J'⟩ := hr Ac' hblk (by rw [hn1, hd6, hd1])
-    refine ⟨hr2, σ', ?_, V1, Ac', Lst', D \ {t}, by rw [hr2]; exact J'⟩
+    refine ⟨hr2, σ', ?_, V1, Ac', Lst', D, by rw [hr2]; exact J'⟩
     rw [hspec0, Fl4Spec.NonDet.when, if_pos hc, nd_bind_one hca]
     rw [hxsa] at he'
     exact he'
   refine WP.spec_mono (WP.spec_and hP1 hmain) ?_
   rintro ⟨s6, a6⟩ ⟨⟨hb6, hd6⟩, hM⟩
   exact hM Ac hb6 hd6
+
+/-- **`sched::restart` at `J`** (`JAtZ.restartTcbJD` after `JAtZ.undead`):
+the target's cap in a slot. -/
+theorem JAtZ.restartTcbJ (hAT : P0.ArchTotal arI)
+    (hSd : JCancelAt (L := L) arI AR Z.th fun ts => ∃ e d, ts = .blockedOnSend e d)
+    (hNt : JCancelAt (L := L) arI AR Z.th fun ts => ∃ n, ts = .blockedOnNotification n)
+    (hRv : JCancelAt (L := L) arI AR Z.th fun ts => ∃ e r d, ts = .blockedOnReceive e r d)
+    (hRp : JCancelAt (L := L) arI AR Z.th fun ts => ∃ r, ts = .blockedOnReply r)
+    (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) {x0 : U64}
+    (hxS : IsSlot Z.th x0) (hcap : capAt (L.mem s) x0 = ok (.Thread t))
+    (hC : CurInv σ) (hns : ∀ u, σ.schedulerAction ≠ .switchThread u) (hcr : CurRun σ) :
+    sched.restart st arI s a t ⦃ r => r.2 = a ∧ ∃ σ', Fl4Spec.restart (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
+      ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ :=
+  (J.undead hxS hcap ht).restartTcbJD hAT hSd hNt hRv hRp hmb ht (fun h => h.2 rfl) hC hns hcr
 
 end
 
