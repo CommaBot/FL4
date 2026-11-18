@@ -25,6 +25,9 @@ final reply cap's finalisation).
   popped reply's SC is bound to another thread (`scBack_of`: its thread has
   it, so it is not the caller, which has none) or to none (its thread
   deleted while the caller waited; ScCallPopRef's `donate_unbound_refines`).
+* `JAtZ.replyRemoveJD` also returns the dead set unchanged and the thread
+  `Inactive` after (for the reply's rest, XTopJointIpcJ); `replyRemoveJ` is
+  it without them (`JReplyRemoveHyp`).
 -/
 import Fl4Proofs.P3.XTopJointFinReply
 import Fl4Proofs.P3.IpcRemoveSpecJ
@@ -501,13 +504,14 @@ theorem lk_scAt {W : Fl4Spec.ObjRef → Prop} {σ σ' : Fl4Spec.State Unit} (h :
 set_option maxHeartbeats 16000000 in
 /-- **`JAtZ` after `reply_remove`**
 (module docstring). -/
-theorem JAtZ.replyRemoveJ (hT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.replyRemoveJD (hT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {r t : U64} {x : Fl4Spec.Tcb} (hr : r ∈ Z.R) (ht : t ∈ Z.T) (hk : σ.kheap t.bv = some (.tcb x))
     (hst : x.tcbState = .blockedOnReply r.bv) :
     ipc.reply_remove st arI s a r t ⦃ res => res.2 = a ∧ ∃ σ' V' Ac' Lst' D',
       Fl4Spec.replyRemove (Z := Unit) t.bv r.bv σ = ({((), σ')}, False) ∧
       JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' res.1 res.2 σ' ∧
-      SlotsSame Z.th (L.mem s) (L.mem res.1) ∧ L.ksb res.1 = L.ksb s ⦄ := by
+      SlotsSame Z.th (L.mem s) (L.mem res.1) ∧ L.ksb res.1 = L.ksb s ∧
+      D' = D ∧ (∃ x', σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = .inactive) ⦄ := by
   have hI := J.xtop.irelK J.ks J.buf
   have hS := J.xtop.fin.1.1.1
   obtain ⟨Q0, R0, hc, hs⟩ := hS.lists
@@ -941,7 +945,19 @@ theorem JAtZ.replyRemoveJ (hT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H 
       hrun, hblk⟩
   have hC0 := JCs.same J hF.1 hksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨σ', V', Ac, Lst', D, hrm, J.cs_frameV hks hX3 hkb hC R, hF.1, hks⟩
+  exact ⟨σ', V', Ac, Lst', D, hrm, J.cs_frameV hks hX3 hkb hC R, hF.1, hks, rfl, _, kt', rfl⟩
+
+/-- **`reply_remove` at `J`** (`replyRemoveJD` without the dead set kept and
+the thread's `Inactive` after). -/
+theorem JAtZ.replyRemoveJ (hT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {r t : U64} {x : Fl4Spec.Tcb} (hr : r ∈ Z.R) (ht : t ∈ Z.T) (hk : σ.kheap t.bv = some (.tcb x))
+    (hst : x.tcbState = .blockedOnReply r.bv) :
+    ipc.reply_remove st arI s a r t ⦃ res => res.2 = a ∧ ∃ σ' V' Ac' Lst' D',
+      Fl4Spec.replyRemove (Z := Unit) t.bv r.bv σ = ({((), σ')}, False) ∧
+      JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' res.1 res.2 σ' ∧
+      SlotsSame Z.th (L.mem s) (L.mem res.1) ∧ L.ksb res.1 = L.ksb s ⦄ :=
+  WP.spec_mono (J.replyRemoveJD hT hr ht hk hst) fun _ ⟨h1, σ', V', Ac', Lst', D', h2, h3, h4, h5, _⟩ =>
+    ⟨h1, σ', V', Ac', Lst', D', h2, h3, h4, h5⟩
 
 end
 
