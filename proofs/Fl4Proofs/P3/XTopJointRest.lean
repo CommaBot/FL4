@@ -434,11 +434,13 @@ theorem JAtZ.ins_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
       rw [hx] at h1
       exact hdnm (hM.tree.par_mem _ _ h1.symm).1
     · exact ⟨x, by rw [hcdt x e]; exact hx⟩
-  refine ⟨U.pal, U.pfit, U.fiLe, U.high, by rw [hcpu, hna]; exact U.actZ, U.free, fun w hal h1 h2 => ?_, U.sb4,
+  have B := notDev_back (capV_of_capAt hcap') hcv
+  refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free,
+    fun g w hal h1 h2 => ?_, U.sb4,
     U.nostr, fun y hy => ?_, fun h0 y hy => ?_, fun k0 v0 => by simpa only [hna] using U.pp k0 v0,
-    fun h0 hf0 => ?_, by rw [hna]; exact U.dwReg, by rw [hgp]; exact U.gReg⟩
+    fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g), fun g => by rw [hgp]; exact U.gReg (B g)⟩
   · rw [hw.mem_eq hal fun ⟨y, hy, h1', h2'⟩ => by rcases hobj y hy with e | e <;> omega]
-    exact U.zero w hal h1 h2
+    exact U.zero (B g) w hal h1 h2
   · have := hobj y ((hM'.members y).1 hy).1
     omega
   · have hnc := hnc' h0
@@ -452,7 +454,7 @@ theorem JAtZ.ins_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
       have hym : y ∈ Z.G.chains.flatten := (hM.members y).2 ⟨hys, c0, hc0, hn⟩
       exact U.ns hnc y hym
   · have hnc := hnc' h0
-    obtain ⟨r1, r3⟩ := U.rst hnc hf0
+    obtain ⟨r1, r3⟩ := U.rst (B g) hnc hf0
     refine ⟨fun sl' h => ?_, by rw [hna, hDbg]; exact r3⟩
     by_cases e : sl' = (q0.bv, idxd)
     · subst e
@@ -558,9 +560,9 @@ theorem JAtZ.cn_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
       UtCapP3 (L := L) arI Z.th s' σ' G' sl p sb fi := by
   intro sl p sb fi dev hsl hcap'
   obtain ⟨hP, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
-  obtain ⟨sl0, fi0, d0, hs0, hc0, hcase⟩ := hUS sl p sb fi dev hsl (capV_of_capAt hcap')
-  have hcap0 : capAt (L.mem s) (cslotAddr sl0) = ok (.Untyped p sb fi0 d0) := by rw [capAt_capV, hc0]
-  have U := J.utc sl0 p sb fi0 d0 hs0 hcap0
+  obtain ⟨sl0, fi0, hs0, hc0, hcase⟩ := hUS sl p sb fi dev hsl (capV_of_capAt hcap')
+  have hcap0 : capAt (L.mem s) (cslotAddr sl0) = ok (.Untyped p sb fi0 dev) := by rw [capAt_capV, hc0]
+  have U := J.utc sl0 p sb fi0 dev hs0 hcap0
   have hks : L.ksb s' = L.ksb s := hw.1
   have hcpu : L.cpu s' = L.cpu s := hw.2.1
   have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hks
@@ -584,12 +586,15 @@ theorem JAtZ.cn_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
       exact Or.inl ((hM.members y).2 ⟨hys, c0, hc0, hn⟩)
     · push_neg at e
       exact Or.inr e
+  have B : NotDev (L.mem s') (cslotAddr sl) p sb fi → NotDev (L.mem s) (cslotAddr sl0) p sb fi0 :=
+    notDev_of_flag (capV_of_capAt hcap') hc0
   rcases hcase with ⟨rfl, hcd⟩ | ⟨hfull, hch⟩
-  · refine ⟨U.pal, U.pfit, U.fiLe, U.high, by rw [hcpu, hna]; exact U.actZ, U.free, fun w hal h1 h2 => ?_, U.sb4,
+  · refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free,
+      fun g w hal h1 h2 => ?_, U.sb4,
       U.nostr, fun y hy => ?_, fun h0 y hy => ?_, fun k0 v0 => by simpa only [hna] using U.pp k0 v0,
-      fun h0 hf0 => ?_, by rw [hna]; exact U.dwReg, by rw [hgp]; exact U.gReg⟩
+      fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g), fun g => by rw [hgp]; exact U.gReg (B g)⟩
     · rw [hw.mem_eq hal fun ⟨y, hy, h1', h2'⟩ => by rcases hobj y hy with e | e <;> omega]
-      exact U.zero w hal h1 h2
+      exact U.zero (B g) w hal h1 h2
     · have := hobj y ((hM'.members y).1 hy).1
       omega
     · have hnc := hcd h0
@@ -597,16 +602,16 @@ theorem JAtZ.cn_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
       · exact U.ns hnc y hym
       · exact (J.live_slot arI hs0 hc0 hnc (hW w hwW)).1
     · have hnc := hcd h0
-      obtain ⟨r1, r3⟩ := U.rst hnc hf0
+      obtain ⟨r1, r3⟩ := U.rst (B g) hnc hf0
       refine ⟨fun sl' h => ?_, by rw [hna, hDbg]; exact r3⟩
       rcases hoW sl' h with h' | hwW
       · exact r1 sl' h'
       · exact (J.live_slot arI hs0 hc0 hnc (hW sl' hwW)).2
-  · refine ⟨U.pal, U.pfit, by omega, U.high, by rw [hcpu, hna]; exact U.actZ,
+  · refine ⟨U.pal, U.pfit, by omega, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g),
       fun q k hk => by rcases U.nostr q k hk with h | h | h <;> omega,
-      fun w _ h1 h2 => by omega, U.sb4, U.nostr, fun y _ => by omega, fun h0 => absurd hch h0,
-      fun k0 v0 => by simpa only [hna] using U.pp k0 v0, fun h0 => absurd hch h0, by rw [hna]; exact U.dwReg,
-      by rw [hgp]; exact U.gReg⟩
+      fun _ w _ h1 h2 => by omega, U.sb4, U.nostr, fun y _ => by omega, fun h0 => absurd hch h0,
+      fun k0 v0 => by simpa only [hna] using U.pp k0 v0, fun _ h0 => absurd hch h0,
+      fun g => by rw [hna]; exact U.dwReg (B g), fun g => by rw [hgp]; exact U.gReg (B g)⟩
 
 /-- **What a slot step still owes** [W] (each reads the caps changed): the covering caps
 surviving and no new untyped region (`CoverKept`, `UtKept`: `jcov_cover`),
@@ -869,15 +874,16 @@ theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (
     have hfi := U.fiLe
     have hk8 := J.kern.ksbAl
     have hapart := (J.jcov.ks _ hxm p sb fi dev hcv).1
-    refine ⟨U.pal, U.pfit, U.fiLe, U.high, by rw [hcpu, hna]; exact U.actZ, U.free, fun w hal h1 h2 => ?_, U.sb4,
+    have B := notDev_back (capV_of_capAt hcap) (capV_of_capAt hcap0)
+    refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free, fun g w hal h1 h2 => ?_, U.sb4,
       U.nostr, U.nsFree, fun h0 => U.ns (by rw [hO.cdt] at h0; exact h0),
-      fun k0 v0 => by simpa only [hna] using U.pp k0 v0, fun h0 hf0 => ?_, by rw [hna]; exact U.dwReg,
-      by rw [hO.gpml4]; exact U.gReg⟩
+      fun k0 v0 => by simpa only [hna] using U.pp k0 v0, fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g),
+      fun g => by rw [hO.gpml4]; exact U.gReg (B g)⟩
     · have hw8 : w.val % 8 = 0 := hal
       rw [ksW_keep hw hal (by omega)]
-      exact U.zero w hal h1 h2
+      exact U.zero (B g) w hal h1 h2
     · rw [hO.cdt] at h0
-      obtain ⟨r1, r3⟩ := U.rst h0 hf0
+      obtain ⟨r1, r3⟩ := U.rst (B g) h0 hf0
       exact ⟨fun sl' h => r1 sl' (by rw [← hO.orig]; exact h), by rw [hna, hDbg]; exact r3⟩
   exact ⟨Ac, Lst, D, ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 mk,
     J.buf.frame kb (fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.buf⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_kheap hO.kh),
@@ -1034,12 +1040,13 @@ theorem jowes_sched {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S
     have hcZ : Z.c ∈ Cs := by rw [← hcq.cur]; exact J.kern.cpuCs
     have hnd := hapart.2 Z.c hcZ
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-    refine ⟨U.pal, U.pfit, U.fiLe, U.high, by rw [hcpu, hna]; exact U.actZ, U.free, fun w hal h1 h2 => ?_, U.sb4,
+    have B := notDev_back (capV_of_capAt hcap) (capV_of_capAt hcap0)
+    refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free, fun g w hal h1 h2 => ?_, U.sb4,
       U.nostr, U.nsFree, fun h0 => U.ns (by rw [hK.cdt] at h0; exact h0),
-      fun k0 v0 => by simpa only [hna] using U.pp k0 v0, fun h0 hf0 => ?_, by rw [hna]; exact U.dwReg,
-      by rw [hK.arch]; exact U.gReg⟩
+      fun k0 v0 => by simpa only [hna] using U.pp k0 v0, fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g),
+      fun g => by rw [hK.arch]; exact U.gReg (B g)⟩
     · rw [hw.mem_eq hal fun hb => ?_]
-      · exact U.zero w hal h1 h2
+      · exact U.zero (B g) w hal h1 h2
       rcases schW_val hcq.tcbs hkf hb with ⟨y, hy, e⟩ | ⟨g1, g2⟩ | ⟨g1, g2, -⟩
       · have hty : Z.th y = some .tcb := (hJ.tcb y).2 (J.zH.1 y hy)
         have := U.free y _ hty
@@ -1048,7 +1055,7 @@ theorem jowes_sched {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S
       · omega
       · have := hapart.1; omega
     · rw [hK.cdt] at h0
-      obtain ⟨r1, r3⟩ := U.rst h0 hf0
+      obtain ⟨r1, r3⟩ := U.rst (B g) h0 hf0
       exact ⟨fun sl' h => r1 sl' (by rw [← hK.orig]; exact h), by rw [hna, hDbg]; exact r3⟩
   have hI : ∀ i : U64, i.val < 128 → capV (L.mem s') (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i) :=
     irqNode_keep hw hkf J.kern.ksbAl fun b hb => by

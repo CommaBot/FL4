@@ -558,7 +558,7 @@ theorem emptyHypJ [Fl4Proofs.P1.PlainStore st] (Z : XSets)
     (SlotFrame2.writesIn hF).mono fun b hb => slotWd_range J.xtop.rel.1 hb
   have hU : ∀ u up usb ufi udev, AbsSlot Z.th u → capAt (L.mem s) (cslotAddr u) = ok (.Untyped up usb ufi udev) →
       σ.cdt sl = some u → (∀ x, σ.cdt x = some u → x = sl) → (∀ x, σ.cdt x ≠ some sl) →
-      DelUtFact (L := L) Z.th s' σ' up usb ufi := fun u up usb ufi udev hu hcu hpar honly hleaf =>
+      DelUtFact (L := L) Z.th s' σ' up usb ufi udev := fun u up usb ufi udev hu hcu hpar honly hleaf =>
     let ⟨h1, h2⟩ := hRL
     J.delUtFact_of hA hD2 hX2.rel.2.2.2.2.1.1.2.1 hx0 hoth hw hcs.1 hcs.2 hu hcu hpar honly hleaf h1 h2
   obtain ⟨hC, Ac', Lst', D', R⟩ := hR hU

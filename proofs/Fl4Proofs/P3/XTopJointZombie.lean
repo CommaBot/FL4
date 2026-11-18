@@ -204,12 +204,14 @@ theorem JAtZ.zombieJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl :
       rcases U.free q k hk with e | e <;> omega
     have hnc : (¬ ∃ x, σ2.cdt x = some u) → ¬ ∃ x, σ.cdt x = some u :=
       fun h0 ⟨x, hx⟩ => h0 ⟨x, by rw [hcd x id]; exact hx⟩
-    refine ⟨U.pal, U.pfit, U.fiLe, U.high, by rw [hcpu, hna]; exact U.actZ, U.free, fun w hal' h1 h2 => ?_, U.sb4,
+    have B := notDev_back (capV_of_capAt hcap') hcv
+    refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free,
+      fun g w hal' h1 h2 => ?_, U.sb4,
       U.nostr, U.nsFree, fun h0 => U.ns (hnc h0), fun k0 v0 => by simpa only [hna] using U.pp k0 v0,
-      fun h0 hf0 => ?_, by rw [hna]; exact U.dwReg, by rw [hgp]; exact U.gReg⟩
+      fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g), fun g => by rw [hgp]; exact U.gReg (B g)⟩
     · rw [hw.mem_eq hal' fun ⟨y, hy, h1', h2'⟩ => by rcases hobj y hy with e | e <;> omega]
-      exact U.zero w hal' h1 h2
-    · obtain ⟨r1, r3⟩ := U.rst (hnc h0) hf0
+      exact U.zero (B g) w hal' h1 h2
+    · obtain ⟨r1, r3⟩ := U.rst (B g) (hnc h0) hf0
       exact ⟨fun sl' h => r1 sl' (by rw [← hok sl' id]; exact h), by rw [hna, hDbg]; exact r3⟩
   obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 hkc hw hFI2 hMO hkz hTK hT3 hDl2 hUK hjc
     (fun sl' h => Or.inl (by rw [← hok sl' id]; exact h)) hutc
@@ -389,11 +391,14 @@ theorem JAtZ.swapJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : F
         ⟨_, hxG, hpz, by rw [hz]; rfl, by rw [hbz], by omega⟩
       have := ut_free J.ut J.xtop.rel.2.1.2.2.2.2 hu0m hc0 (nodesc_of_cdt hP hC hu0 hn) (Nat.lt_succ_self _) hcov
       omega
-    refine ⟨U.pal, U.pfit, U.fiLe, U.high, by rw [hcpu, hna]; exact U.actZ, U.free, fun w hal' h1 h2 => ?_, U.sb4,
+    have B : NotDev (L.mem s2) (cslotAddr u) up sb fi → NotDev (L.mem s) (cslotAddr u0) up sb fi := fun g => by
+      unfold NotDev at *; rw [hc0]; rw [hcu] at g; exact g
+    refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free,
+      fun g w hal' h1 h2 => ?_, U.sb4,
       U.nostr, fun y hy => ?_, fun h0 y hy => ?_, fun k0 v0 => by simpa only [hna] using U.pp k0 v0,
-      fun h0 hf0 => ?_, by rw [hna]; exact U.dwReg, by rw [hgp]; exact U.gReg⟩
+      fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g), fun g => by rw [hgp]; exact U.gReg (B g)⟩
     · rw [hw.mem_eq hal' fun ⟨y, hy, h1', h2'⟩ => by rcases hobj y hy with e | e <;> omega]
-      exact U.zero w hal' h1 h2
+      exact U.zero (B g) w hal' h1 h2
     · have := hobj y ((hM2.members y).1 hy).1
       omega
     · have hy0 : Equiv.swap p (cslotAddr sl) y ∈ Z.G.chains.flatten := by
@@ -403,7 +408,7 @@ theorem JAtZ.swapJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : F
       · by_cases hyx : y = cslotAddr sl
         · subst hyx; exact U.ns (hnc h0) _ hxG
         · rw [Equiv.swap_apply_of_ne_of_ne hyp hyx] at hy0; exact U.ns (hnc h0) _ hy0
-    · obtain ⟨r1, r3⟩ := U.rst (hnc h0) hf0
+    · obtain ⟨r1, r3⟩ := U.rst (B g) (hnc h0) hf0
       refine ⟨fun sl' h => ?_, by rw [hna, hDbg]; exact r3⟩
       by_cases hd : sl' = homeSl p zt ∨ sl' = sl
       · rcases hd with rfl | rfl

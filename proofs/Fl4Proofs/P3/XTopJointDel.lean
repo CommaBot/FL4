@@ -119,9 +119,9 @@ childless) has no MDB slot in its region and no original cap in its region
 (and the debug head out of it), as `UtCapP3`'s childless clauses (`ns`, `rst`) need (l4v
 `valid_untyped`'s `descendants_range_in`: the objects of a region are named
 by the region's descendants only). -/
-def DelUtFact (th : TypedHeap) (s' : S) (σ' : Fl4Spec.State Unit) (p sb fi : U64) : Prop :=
+def DelUtFact (th : TypedHeap) (s' : S) (σ' : Fl4Spec.State Unit) (p sb fi : U64) (d : Bool) : Prop :=
   (∀ y, IsSlot th y → capV (L.mem s') y ≠ .Null → y.val < p.val ∨ p.val + 2 ^ sb.val ≤ y.val) ∧
-  (fi.val ≠ 0 →
+  (d = false → fi.val ≠ 0 →
     (∀ sl, σ'.isOriginalCap sl = true → AbsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) sl) ∧
     ¬ (p.val ≤ (L.mem s' (L.nodeAt s' 0#u64 layout.node.DEBUG_TCBS)).val ∧
       (L.mem s' (L.nodeAt s' 0#u64 layout.node.DEBUG_TCBS)).val < p.val + 2 ^ sb.val))
@@ -143,7 +143,7 @@ theorem JAtZ.del_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4) (hM' : MdbLinks Z.th (L.mem s') G')
     (hUt : ∀ u up usb ufi udev, AbsSlot Z.th u → capAt (L.mem s) (cslotAddr u) = ok (.Untyped up usb ufi udev) →
       σ.cdt sl = some u → (∀ x, σ.cdt x = some u → x = sl) → (∀ x, σ.cdt x ≠ some sl) →
-      DelUtFact (L := L) Z.th s' σ' up usb ufi) :
+      DelUtFact (L := L) Z.th s' σ' up usb ufi udev) :
     ∀ u p sb fi dev, AbsSlot Z.th u → capAt (L.mem s') (cslotAddr u) = ok (.Untyped p sb fi dev) →
       UtCapP3 (L := L) arI Z.th s' σ' G' u p sb fi := by
   intro u p sb fi dev hu hcap'
@@ -196,19 +196,21 @@ theorem JAtZ.del_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     have e : y ≠ cslotAddr sl := fun e => by rw [e, capAt_capV, hnull] at h0'; exact hn (eq_of_ok_eq h0').symm
     have hc0 : capAt (L.mem s) y = ok c0 := by rw [capAt_capV, ← hcap y hys e, ← capAt_capV]; exact h0'
     exact (hM.members y).2 ⟨hys, c0, hc0, hn⟩
-  refine ⟨U.pal, U.pfit, U.fiLe, U.high, by rw [hcpu, hna]; exact U.actZ, U.free, fun w hal h1 h2 => ?_, U.sb4,
+  have B := notDev_back (capV_of_capAt hcap') hcv
+  refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free,
+    fun g w hal h1 h2 => ?_, U.sb4,
     U.nostr, fun y hy => U.nsFree y (hmem y hy), fun h0 y hy => ?_, fun k0 v0 => by simpa only [hna] using U.pp k0 v0,
-    fun h0 hf0 => ?_, by rw [hna]; exact U.dwReg, by rw [hgp]; exact U.gReg⟩
+    fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g), fun g => by rw [hgp]; exact U.gReg (B g)⟩
   · rw [hw.mem_eq hal fun ⟨y, hy, h1', h2'⟩ => by rcases hobj y hy with e | e <;> omega]
-    exact U.zero w hal h1 h2
+    exact U.zero (B g) w hal h1 h2
   · rcases hnc' h0 with hnc | ⟨g1, g2, g3⟩
     · exact U.ns hnc y (hmem y hy)
     · obtain ⟨hys, c0, h0', hn⟩ := (hM'.members y).1 hy
       exact (hUt u p sb fi dev hu hcap0 g1 g2 g3).1 y hys (by rw [show capV (L.mem s') y = c0 from capV_of_capAt h0']; exact hn)
   · rcases hnc' h0 with hnc | ⟨g1, g2, g3⟩
-    · obtain ⟨r1, r3⟩ := U.rst hnc hf0
+    · obtain ⟨r1, r3⟩ := U.rst (B g) hnc hf0
       exact ⟨fun sl' h => r1 sl' (horig sl' h), by rw [hna, hDbg]; exact r3⟩
-    · exact (hUt u p sb fi dev hu hcap0 g1 g2 g3).2 hf0
+    · exact (hUt u p sb fi dev hu hcap0 g1 g2 g3).2 (devF_of_notDev (capV_of_capAt hcap') g) hf0
 
 theorem KBack.trans' {σ1 σ2 σ3 : Fl4Spec.State Unit} (h1 : KBack σ1 σ2) (h2 : KBack σ2 σ3) : KBack σ1 σ3 := by
   intro o ko3 h3
@@ -258,7 +260,7 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
       σ'.isOriginalCap = (emptySlotCdtState σ sl).isOriginalCap ∧
       ((∀ u up usb ufi udev, AbsSlot Z.th u → capAt (L.mem s) (cslotAddr u) = ok (.Untyped up usb ufi udev) →
         σ.cdt sl = some u → (∀ x, σ.cdt x = some u → x = sl) → (∀ x, σ.cdt x ≠ some sl) →
-        DelUtFact (L := L) Z.th res.1 σ' up usb ufi) →
+        DelUtFact (L := L) Z.th res.1 σ' up usb ufi udev) →
        JCs (L := L) (Z.mv G' V') res.1 σ' ∧
         ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
           JRest (L := L) arI (Z.mv G' V') H Cs Ac' Lst' D' res.1 σ') ⦄ := by

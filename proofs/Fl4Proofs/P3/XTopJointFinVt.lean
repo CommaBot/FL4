@@ -116,15 +116,16 @@ theorem JAtZ.vt_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
   have U := J.utc sl p sb fi dev hsl hcap0
   have hxm : cslotAddr sl ∈ Z.G.chains.flatten :=
     (hM.members _).2 ⟨hsl.isSlot, _, hcap0, fun h => by cases h⟩
-  refine ⟨U.pal, U.pfit, U.fiLe, U.high, by rw [hcpu, hna]; exact U.actZ, U.free, ?_, U.sb4, U.nostr, U.nsFree,
-    fun h0 => U.ns h0, fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, by rw [hna]; exact U.dwReg,
-    U.gReg⟩
-  · intro w hal h1 h2
+  have B := notDev_back (capV_of_capAt hcap) (capV_of_capAt hcap0)
+  refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free, ?_, U.sb4, U.nostr, U.nsFree,
+    fun h0 => U.ns h0, fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, fun g => by rw [hna]; exact U.dwReg (B g),
+    fun g => U.gReg (B g)⟩
+  · intro g w hal h1 h2
     rw [hw.mem_eq hal fun hb => ?_]
-    · exact U.zero w hal h1 h2
+    · exact U.zero (B g) w hal h1 h2
     rcases hb.ut _ hxm p sb fi dev hcv with e | e <;> omega
-  · intro h0 hf0
-    obtain ⟨r1, r3⟩ := U.rst h0 hf0
+  · intro g h0 hf0
+    obtain ⟨r1, r3⟩ := U.rst (B g) h0 hf0
     exact ⟨r1, by rw [hna, hDbg]; exact r3⟩
 
 set_option maxHeartbeats 16000000 in

@@ -70,7 +70,7 @@ theorem utSrc_ins (hP : Placed th) (hM : MdbLinks th m G) (hC : CdtRel th m σ G
   by_cases ed : cslotAddr sl = cslotAddr ds
   · rw [ed, hc'] at hc
     have hu : isUt srcC = true := by rw [← isUt_of_shape hsh, hc]; rfl
-    refine ⟨ss, fi, d, hsA, by rw [hsc, ← hutc hu, hc], Or.inl ⟨rfl, fun _ h1 => ?_⟩⟩
+    refine ⟨ss, fi, hsA, by rw [hsc, ← hutc hu, hc], Or.inl ⟨rfl, fun _ h1 => ?_⟩⟩
     obtain ⟨a, ha⟩ := (hC.has_child_iff hP hsA).1 h1
     exact hnc hu a (Relation.TransGen.single ha)
   by_cases es : cslotAddr sl = cslotAddr ss
@@ -78,7 +78,7 @@ theorem utSrc_ins (hP : Placed th) (hM : MdbLinks th m G) (hC : CdtRel th m σ G
     cases hf : fullF srcC c with
     | none =>
       rw [hf, Option.getD_none] at hc
-      exact ⟨sl, fi, d, hsl, by rw [es, hsc, hc], Or.inl ⟨rfl, keep sl hsl⟩⟩
+      exact ⟨sl, fi, hsl, by rw [es, hsc, hc], Or.inl ⟨rfl, keep sl hsl⟩⟩
     | some v =>
       rw [hf, Option.getD_some] at hc
       subst hc
@@ -91,11 +91,11 @@ theorem utSrc_ins (hP : Placed th) (hM : MdbLinks th m G) (hC : CdtRel th m σ G
       simp only [Option.some.injEq, capability.Cap.Untyped.injEq] at hf
       obtain ⟨rfl, rfl, hfi, rfl⟩ := hf
       have hu : isUt (capability.Cap.Untyped p1 b1 f1 d1) = true := rfl
-      refine ⟨sl, f1, d1, hsl, by rw [es, hsc], Or.inr ⟨?_, ?_⟩⟩
+      refine ⟨sl, f1, hsl, by rw [es, hsc], Or.inr ⟨?_, ?_⟩⟩
       · rw [← hfi]; exact shl_one_val (hsb _ _ _ _ rfl)
       · refine (hC'.has_child_iff hP hsl).2 ⟨cslotAddr ds, ?_⟩
         rw [hpar', Function.update_self, hb hu, if_pos rfl, es]
-  · exact ⟨sl, fi, d, hsl, by rw [← ho _ hsl.isSlot es ed]; exact hc, Or.inl ⟨rfl, keep sl hsl⟩⟩
+  · exact ⟨sl, fi, hsl, by rw [← ho _ hsl.isSlot es ed]; exact hc, Or.inl ⟨rfl, keep sl hsl⟩⟩
 
 /-- **A renaming's untyped caps** (`cdt::move_cap`, `cdt::swap`, `renG` by
 the swap of the two slots): each slot's untyped cap after is the other's
@@ -123,11 +123,11 @@ theorem utSrc_swap (hP : Placed th) (hC : CdtRel th m σ G) (hC' : CdtRel th m' 
     exact (hC'.has_child_iff hP hs1).2 ⟨e a, by rw [hpar a _ ha, he1]⟩
   by_cases e1 : cslotAddr sl = cslotAddr s1
   · rw [e1] at hc
-    exact ⟨s2, fi, d, h2A, hc1 _ _ _ _ hc, Or.inl ⟨rfl, keep s2 sl h2A hsl (by rw [e1, he, Equiv.swap_apply_right])⟩⟩
+    exact ⟨s2, fi, h2A, hc1 _ _ _ _ hc, Or.inl ⟨rfl, keep s2 sl h2A hsl (by rw [e1, he, Equiv.swap_apply_right])⟩⟩
   by_cases e2 : cslotAddr sl = cslotAddr s2
   · rw [e2] at hc
-    exact ⟨s1, fi, d, h1A, hc2 _ _ _ _ hc, Or.inl ⟨rfl, keep s1 sl h1A hsl (by rw [e2, he, Equiv.swap_apply_left])⟩⟩
-  · exact ⟨sl, fi, d, hsl, by rw [← ho _ hsl.isSlot e1 e2]; exact hc,
+    exact ⟨s1, fi, h1A, hc2 _ _ _ _ hc, Or.inl ⟨rfl, keep s1 sl h1A hsl (by rw [e2, he, Equiv.swap_apply_left])⟩⟩
+  · exact ⟨sl, fi, hsl, by rw [← ho _ hsl.isSlot e1 e2]; exact hc,
       Or.inl ⟨rfl, keep sl sl hsl hsl (by rw [he, Equiv.swap_apply_of_ne_of_ne e1 e2])⟩⟩
 
 end

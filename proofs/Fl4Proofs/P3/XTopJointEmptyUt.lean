@@ -104,7 +104,7 @@ theorem JAtZ.delUtFact_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
     (hdbg : L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) ≠ 0#u64 →
       OtherCov (L.mem s) Z.G (cslotAddr sl) (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val
         ((L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val + 1)) :
-    DelUtFact (L := L) Z.th s' σ' up usb ufi := by
+    DelUtFact (L := L) Z.th s' σ' up usb ufi udev := by
   obtain ⟨hP, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
   obtain ⟨⟨-, -, hM2, hC2, hI2⟩, -, -⟩ := hDS2
   have hune : u ≠ sl := fun e => by subst e; exact hleaf u hpar
@@ -144,7 +144,7 @@ theorem JAtZ.delUtFact_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
   have hks : L.ksb s' = L.ksb s := hw.1
   have hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
     hw.mem_eq J.kern.dwAl fun ⟨x, hx, h1, h2⟩ => J.kern.dwObj x hx ⟨h1, h2⟩
-  refine ⟨fun y hy hn => ?_, fun _ => ⟨fun x hx => ?_, ?_⟩⟩
+  refine ⟨fun y hy hn => ?_, fun hd _ => ⟨fun x hx => ?_, ?_⟩⟩
   · have hyx : y ≠ cslotAddr sl := fun e => hn (by rw [e]; exact hnull)
     exact out y (hlive y hy hyx (Or.inl (by rw [← hoth y hy hyx]; exact hn)))
   · rw [hor] at hx
@@ -158,7 +158,7 @@ theorem JAtZ.delUtFact_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
     by_cases hz : L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = 0#u64
     · rw [hz]
       rintro ⟨h1, -⟩
-      have hh := U.high
+      have hh := U.high (by unfold NotDev; rw [hcv, hd]; simp)
       have h0' : (0#u64 : U64).val = 0 := rfl
       have e64 : (2 : Nat) ^ 64 - 2 ^ 47 = 18446603336221196288 := by norm_num
       rw [h0'] at h1

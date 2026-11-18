@@ -193,22 +193,23 @@ theorem JAtZ.tmw_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     (hM.members _).2 ⟨hsl.isSlot, _, hcap0, fun h => by cases h⟩
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   have hfi := U.fiLe
-  refine ⟨U.pal, U.pfit, U.fiLe, U.high, by rw [hcpu, hna]; exact U.actZ, U.free, ?_, U.sb4, U.nostr, U.nsFree,
+  have B := notDev_back (capV_of_capAt hcap) (capV_of_capAt hcap0)
+  refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free, ?_, U.sb4, U.nostr, U.nsFree,
     fun h0 => U.ns (by rw [hcdt] at h0; exact h0),
-    fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, by rw [hna]; exact U.dwReg,
-    by rw [harch]; exact U.gReg⟩
-  · intro w hal h1 h2
+    fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, fun g => by rw [hna]; exact U.dwReg (B g),
+    fun g => by rw [harch]; exact U.gReg (B g)⟩
+  · intro g w hal h1 h2
     rw [hw.mem_eq hal fun hb => ?_]
-    · exact U.zero w hal h1 h2
+    · exact U.zero (B g) w hal h1 h2
     rcases J.tmw_word hb with ⟨y, hy, g1, g2⟩ | ⟨c, hc, o, ho, e⟩
     · have hth : Z.th y = some .tcb := (hJ.tcb y).2 (J.zH.1 y hy)
       have := U.free y .tcb hth
       simp only [objSize] at this; omega
     · have := (J.jcov.ks _ hxm p sb fi dev hcv).2 c hc
       omega
-  · intro h0 hf0
+  · intro g h0 hf0
     rw [hcdt] at h0
-    obtain ⟨r1, r3⟩ := U.rst h0 hf0
+    obtain ⟨r1, r3⟩ := U.rst (B g) h0 hf0
     exact ⟨fun sl' h => r1 sl' (by rw [← horig]; exact h), by rw [hna, hDbg]; exact r3⟩
 
 set_option maxHeartbeats 8000000 in

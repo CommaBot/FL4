@@ -40,20 +40,20 @@ theorem DestLive.of_cnRef {th : TypedHeap} {mem : U64 → U64} {c0 : capability.
 
 /-- **Where a CNode-only step's untyped caps come from**: each untyped cap of
 a slot after was one of a slot before over the same region, with the same
-free index and a child then if it has none now, or is now full and has a
+free index and device flag and a child then if it has none now, or is now full and has a
 child (a copy's source, `cap_insert`'s `set_untyped_cap_as_full`). -/
 def UtSrc (th : TypedHeap) (m m' : U64 → U64) (σ σ' : Fl4Spec.State Unit) : Prop :=
   ∀ sl p sb fi d, AbsSlot th sl → capV m' (cslotAddr sl) = .Untyped p sb fi d →
-    ∃ sl0 fi0 d0, AbsSlot th sl0 ∧ capV m (cslotAddr sl0) = .Untyped p sb fi0 d0 ∧
+    ∃ sl0 fi0, AbsSlot th sl0 ∧ capV m (cslotAddr sl0) = .Untyped p sb fi0 d ∧
       ((fi0 = fi ∧ ((¬ ∃ x, σ'.cdt x = some sl) → ¬ ∃ x, σ.cdt x = some sl0)) ∨
         (fi.val = 2 ^ sb.val ∧ ∃ x, σ'.cdt x = some sl))
 
 theorem UtSrc.trans {th : TypedHeap} {m1 m2 m3 : U64 → U64} {σ1 σ2 σ3 : Fl4Spec.State Unit}
     (h1 : UtSrc th m1 m2 σ1 σ2) (h2 : UtSrc th m2 m3 σ2 σ3) : UtSrc th m1 m3 σ1 σ3 := by
   intro sl p sb fi d hs hc
-  obtain ⟨sl1, fi1, d1, hs1, hc1, h⟩ := h2 sl p sb fi d hs hc
-  obtain ⟨sl0, fi0, d0, hs0, hc0, h'⟩ := h1 sl1 p sb fi1 d1 hs1 hc1
-  refine ⟨sl0, fi0, d0, hs0, hc0, ?_⟩
+  obtain ⟨sl1, fi1, hs1, hc1, h⟩ := h2 sl p sb fi d hs hc
+  obtain ⟨sl0, fi0, hs0, hc0, h'⟩ := h1 sl1 p sb fi1 d hs1 hc1
+  refine ⟨sl0, fi0, hs0, hc0, ?_⟩
   rcases h with ⟨rfl, hn⟩ | hB
   · rcases h' with ⟨rfl, hn'⟩ | ⟨hf, hx⟩
     · exact Or.inl ⟨rfl, fun h => hn' (hn h)⟩

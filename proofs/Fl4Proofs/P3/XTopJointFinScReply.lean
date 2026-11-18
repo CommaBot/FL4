@@ -337,13 +337,14 @@ theorem JAtZ.sc_utcR {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   have hcC : Z.c ∈ Cs := hc.cur ▸ J.kern.cpuCs
   have hfi := U.fiLe
-  refine ⟨U.pal, U.pfit, U.fiLe, U.high, by rw [hcpu, hna]; exact U.actZ, U.free, ?_, U.sb4, U.nostr, U.nsFree,
+  have B := notDev_back (capV_of_capAt hcap) (capV_of_capAt hcap0)
+  refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free, ?_, U.sb4, U.nostr, U.nsFree,
     fun h0 => U.ns (by rw [hK.cdt] at h0; exact h0),
-    fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, by rw [hna]; exact U.dwReg,
-    by rw [hK.arch]; exact U.gReg⟩
-  · intro w hal h1 h2
+    fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, fun g => by rw [hna]; exact U.dwReg (B g),
+    fun g => by rw [hK.arch]; exact U.gReg (B g)⟩
+  · intro g w hal h1 h2
     rw [hw.mem_eq hal fun hb => ?_]
-    · exact U.zero w hal h1 h2
+    · exact U.zero (B g) w hal h1 h2
     rcases hb with ⟨r, hr, rfl⟩ | ⟨c, hc', rfl⟩
     · obtain ⟨x, hx, -⟩ := J.call.reply r hr
       have hv := Sched.rNextA_val (J.rp.align r hr)
@@ -357,9 +358,9 @@ theorem JAtZ.sc_utcR {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
       simp only [Fl4Spec.objBits, UScalar.bv_toNat] at this
       rw [Nat.add_comm Fl4Spec.minSchedContextBits n] at this
       omega
-  · intro h0 hf0
+  · intro g h0 hf0
     rw [hK.cdt] at h0
-    obtain ⟨r1, r3⟩ := U.rst h0 hf0
+    obtain ⟨r1, r3⟩ := U.rst (B g) h0 hf0
     exact ⟨fun sl' h => r1 sl' (by rw [← hK.orig]; exact h), by rw [hna, hDbg]; exact r3⟩
 
 

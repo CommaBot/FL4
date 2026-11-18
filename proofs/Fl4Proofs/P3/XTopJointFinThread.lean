@@ -389,7 +389,7 @@ theorem JAtZ.dbgw_utc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (DbgWc (L := L) Z.T Z.c s))
     (hSS : SlotsSame Z.th (L.mem s) (L.mem s'))
     (hhd : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) →
-      (¬ ∃ x, σ.cdt x = some sl) → fi.val ≠ 0 →
+      NotDev (L.mem s) (cslotAddr sl) p sb fi → (¬ ∃ x, σ.cdt x = some sl) → fi.val ≠ 0 →
       ¬ (p.val ≤ (L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val ∧
         (L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val < p.val + 2 ^ sb.val)) :
     ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
@@ -408,20 +408,21 @@ theorem JAtZ.dbgw_utc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   obtain ⟨Q, R0, hcq, -⟩ := J.xtop.fin.1.1.1.lists
   have hcC : Z.c ∈ Cs := hcq.cur ▸ J.kern.cpuCs
-  refine ⟨U.pal, U.pfit, U.fiLe, U.high, by rw [hcpu, hna]; exact U.actZ, U.free, ?_, U.sb4, U.nostr, U.nsFree,
-    U.ns, fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, by rw [hna]; exact U.dwReg, U.gReg⟩
-  · intro w hal h1 h2
+  have B := notDev_back (capV_of_capAt hcap) (capV_of_capAt hcap0)
+  refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free, ?_, U.sb4, U.nostr, U.nsFree,
+    U.ns, fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, fun g => by rw [hna]; exact U.dwReg (B g), fun g => U.gReg (B g)⟩
+  · intro g w hal h1 h2
     rw [hw.mem_eq hal fun hb => ?_]
-    · exact U.zero w hal h1 h2
+    · exact U.zero (B g) w hal h1 h2
     rcases J.dbgw_word hb with ⟨y, hy, g1, g2⟩ | e
     · have hth : Z.th y = some .tcb := (hJ.tcb y).2 (J.zH.1 y hy)
       have := U.free y .tcb hth
       simp only [objSize] at this; omega
     · have := (J.jcov.ks _ hxm p sb fi dev hcv).2 Z.c hcC
       omega
-  · intro h0 hf0
-    obtain ⟨r1, -⟩ := U.rst h0 hf0
-    exact ⟨r1, by rw [hna]; exact hhd sl p sb fi dev hsl hcap0 h0 hf0⟩
+  · intro g h0 hf0
+    obtain ⟨r1, -⟩ := U.rst (B g) h0 hf0
+    exact ⟨r1, by rw [hna]; exact hhd sl p sb fi dev hsl hcap0 (B g) h0 hf0⟩
 
 /-- **`JKern` across debug-list writes** (`kern_keep` with the spec state
 kept and core 0's list head re-established, `hhead`, instead of kept). -/
@@ -476,7 +477,7 @@ theorem JAtZ.dbgw_step (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       (Z.th (L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) = some .tcb ∧
         TcbOk (L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))))
     (hhd : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) →
-      (¬ ∃ x, σ.cdt x = some sl) → fi.val ≠ 0 →
+      NotDev (L.mem s) (cslotAddr sl) p sb fi → (¬ ∃ x, σ.cdt x = some sl) → fi.val ≠ 0 →
       ¬ (p.val ≤ (L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val ∧
         (L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val < p.val + 2 ^ sb.val)) :
     JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a σ := by
@@ -663,11 +664,11 @@ theorem JAtZ.dbgRemoveJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       rw [e12] at hal hfit
       refine ⟨(hJ.tcb _).2 hv, show _ ∧ _ from ⟨?_, by omega⟩⟩
       rw [← Nat.mod_mod_of_dvd _ (by norm_num : (32 : Nat) ∣ 4096), hal, Nat.zero_mod]
-  · intro sl p sb fi dev hsl hcap h0 hf0
+  · intro sl p sb fi dev hsl hcap g h0 hf0
     rcases hdh with e | hv
     · rw [e]
       rintro ⟨h1, -⟩
-      have hh := (J.utc sl p sb fi dev hsl hcap).high
+      have hh := (J.utc sl p sb fi dev hsl hcap).high g
       have h0' : (0#u64 : U64).val = 0 := rfl
       have e64 : (2 : Nat) ^ 64 - 2 ^ 47 = 18446603336221196288 := by norm_num
       rw [h0'] at h1
@@ -675,12 +676,12 @@ theorem JAtZ.dbgRemoveJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       omega
     · have U := J.utc sl p sb fi dev hsl hcap
       rcases hhd0 with e | ⟨e1, e2⟩
-      · rw [e]; exact (U.rst h0 hf0).2
+      · rw [e]; exact (U.rst g h0 hf0).2
       · rw [e2]
         by_cases hz : L.mem s (P1.dnA t) = 0#u64
         · rw [hz]
           rintro ⟨h1, -⟩
-          have hh := U.high
+          have hh := U.high g
           have h0' : (0#u64 : U64).val = 0 := rfl
           have e64 : (2 : Nat) ^ 64 - 2 ^ 47 = 18446603336221196288 := by norm_num
           rw [h0'] at h1

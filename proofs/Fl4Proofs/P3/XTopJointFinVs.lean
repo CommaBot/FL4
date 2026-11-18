@@ -360,13 +360,14 @@ theorem JAtZ.vs_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
     have := J.sfree _ hxm p sb fi dev hcv q.bv ko hk
     simp only [hb, UScalar.bv_toNat] at this
     omega
-  refine ⟨U.pal, U.pfit, U.fiLe, U.high, by rw [hcpu, hna]; exact U.actZ, U.free, ?_, U.sb4, U.nostr, U.nsFree,
+  have B := notDev_back (capV_of_capAt hcap) (capV_of_capAt hcap0)
+  refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free, ?_, U.sb4, U.nostr, U.nsFree,
     fun h0 => U.ns (by rw [hcdt] at h0; exact h0),
-    fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, by rw [hna]; exact U.dwReg,
-    by rw [hgp]; exact U.gReg⟩
-  · intro w hal h1 h2
+    fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, fun g => by rw [hna]; exact U.dwReg (B g),
+    fun g => by rw [hgp]; exact U.gReg (B g)⟩
+  · intro g w hal h1 h2
     rw [hw.mem_eq hal fun hb => ?_]
-    · exact U.zero w hal h1 h2
+    · exact U.zero (B g) w hal h1 h2
     rcases hb with ⟨q, hq, i, hi, rfl⟩ | ⟨⟨hi, hh, rfl⟩ | ⟨q, hq, lo, hl, rfl⟩⟩
     · have hf := tbl_fit (J.xtop.fin.1.2.pt q hq)
       have hv := peA_val hf hi
@@ -384,9 +385,9 @@ theorem JAtZ.vs_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
       have hv := peA_val hf hl
       obtain ⟨f, hk, -⟩ := hVR.pool q hq
       rcases spec4k q _ hk rfl (peA q lo) (by omega) (by omega) with e | e <;> omega
-  · intro h0 hf0
+  · intro g h0 hf0
     rw [hcdt] at h0
-    obtain ⟨r1, r3⟩ := U.rst h0 hf0
+    obtain ⟨r1, r3⟩ := U.rst (B g) h0 hf0
     exact ⟨fun sl' h => r1 sl' (by rw [← horig]; exact h), by rw [hna, hDbg]; exact r3⟩
 
 /-- **`JKern` across an arch step** (`kern_keep` with the global PML4 kept a

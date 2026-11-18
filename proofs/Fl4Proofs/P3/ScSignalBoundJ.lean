@@ -222,13 +222,14 @@ theorem JAtZ.cnW_utc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} 
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   have hcC : Z.c ∈ Cs := hc.cur ▸ J.kern.cpuCs
   have hfi := U.fiLe
-  refine ⟨U.pal, U.pfit, U.fiLe, U.high, by rw [hcpu, hna]; exact U.actZ, U.free, ?_, U.sb4, U.nostr, U.nsFree,
+  have B := notDev_back (capV_of_capAt hcap) (capV_of_capAt hcap0)
+  refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free, ?_, U.sb4, U.nostr, U.nsFree,
     fun h0 => U.ns (by rw [hcdt] at h0; exact h0),
-    fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, by rw [hna]; exact U.dwReg,
-    by rw [harch]; exact U.gReg⟩
-  · intro w hal h1 h2
+    fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, fun g => by rw [hna]; exact U.dwReg (B g),
+    fun g => by rw [harch]; exact U.gReg (B g)⟩
+  · intro g w hal h1 h2
     rw [hw.mem_eq hal fun hb => ?_]
-    · exact U.zero w hal h1 h2
+    · exact U.zero (B g) w hal h1 h2
     rcases hb with hb | hb
     · rcases finW_cases hS hb with ⟨y, hy, g1, g2⟩ | ⟨g1, g2⟩ | ⟨n, hn, g1, g2⟩ | ⟨sc, hsc, x, n, hk, g1, g2⟩
       · have hth : Z.th y = some .tcb := (hJ.tcb y).2 (J.zH.1 y hy)
@@ -254,9 +255,9 @@ theorem JAtZ.cnW_utc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} 
         have := J.sfree _ hxm p sb fi dev hcv r.bv _ hx
         simp only [Fl4Spec.objBits, Fl4Spec.replyBits, UScalar.bv_toNat] at this
         omega
-  · intro h0 hf0
+  · intro g h0 hf0
     rw [hcdt] at h0
-    obtain ⟨r1, r3⟩ := U.rst h0 hf0
+    obtain ⟨r1, r3⟩ := U.rst (B g) h0 hf0
     exact ⟨fun sl' h => r1 sl' (by rw [← horig]; exact h), by rw [hna, hDbg]; exact r3⟩
 
 set_option maxHeartbeats 4000000 in

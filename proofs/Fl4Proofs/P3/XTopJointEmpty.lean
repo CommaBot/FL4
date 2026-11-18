@@ -99,7 +99,7 @@ theorem JAtZ.emptyJCore {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     L.ksb s2 = L.ksb s ∧ KBack σ σ2 ∧
       ((∀ u up usb ufi udev, AbsSlot Z.th u → capAt (L.mem s) (cslotAddr u) = ok (.Untyped up usb ufi udev) →
         σ.cdt sl = some u → (∀ x, σ.cdt x = some u → x = sl) → (∀ x, σ.cdt x ≠ some sl) →
-        DelUtFact (L := L) Z.th s2 σ2 up usb ufi) →
+        DelUtFact (L := L) Z.th s2 σ2 up usb ufi udev) →
        JCs (L := L) (Z.mv G2 V2) s2 σ2 ∧
         ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
           JRest (L := L) arI (Z.mv G2 V2) H Cs Ac' Lst' D' s2 σ2) := by
@@ -181,7 +181,7 @@ theorem JAtZ.emptyJR {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     L.ksb s2 = L.ksb s ∧ KBack σ σ2 ∧
       ((∀ u up usb ufi udev, AbsSlot Z.th u → capAt (L.mem s) (cslotAddr u) = ok (.Untyped up usb ufi udev) →
         σ.cdt sl = some u → (∀ x, σ.cdt x = some u → x = sl) → (∀ x, σ.cdt x ≠ some sl) →
-        DelUtFact (L := L) Z.th s2 σ2 up usb ufi) →
+        DelUtFact (L := L) Z.th s2 σ2 up usb ufi udev) →
        JCs (L := L) (Z.mv G2 V2) s2 σ2 ∧
         ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
           JRest (L := L) arI (Z.mv G2 V2) H Cs Ac' Lst' D' s2 σ2) := by
@@ -240,7 +240,7 @@ theorem JAtZ.emptyJRT {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     L.ksb s2 = L.ksb s ∧ KBack σ σ2 ∧
       ((∀ u up usb ufi udev, AbsSlot Z.th u → capAt (L.mem s) (cslotAddr u) = ok (.Untyped up usb ufi udev) →
         σ.cdt sl = some u → (∀ x, σ.cdt x = some u → x = sl) → (∀ x, σ.cdt x ≠ some sl) →
-        DelUtFact (L := L) Z.th s2 σ2 up usb ufi) →
+        DelUtFact (L := L) Z.th s2 σ2 up usb ufi udev) →
        JCs (L := L) (Z.mv G2 V2) s2 σ2 ∧
         ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
           JRest (L := L) arI (Z.mv G2 V2) H Cs Ac' Lst' D' s2 σ2) := by
@@ -285,7 +285,7 @@ theorem JAtZ.emptyJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
       L.ksb res.1 = L.ksb s ∧ KBack σ σ' ∧
       ((∀ u up usb ufi udev, AbsSlot Z.th u → capAt (L.mem s) (cslotAddr u) = ok (.Untyped up usb ufi udev) →
         σ.cdt sl = some u → (∀ x, σ.cdt x = some u → x = sl) → (∀ x, σ.cdt x ≠ some sl) →
-        DelUtFact (L := L) Z.th res.1 σ' up usb ufi) →
+        DelUtFact (L := L) Z.th res.1 σ' up usb ufi udev) →
        JCs (L := L) (Z.mv G' V') res.1 σ' ∧
         ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
           JRest (L := L) arI (Z.mv G' V') H Cs Ac' Lst' D' res.1 σ') ⦄ := by

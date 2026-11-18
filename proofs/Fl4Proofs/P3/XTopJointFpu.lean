@@ -94,10 +94,10 @@ theorem JAtZ.arFrS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {a' : A} {�
     intro sl p sb fi dev hsl hcap
     have U := J.utc sl p sb fi dev hsl hcap
     refine ⟨U.pal, U.pfit, U.fiLe, U.high, U.actZ, U.free, U.zero, U.sb4, U.nostr, U.nsFree,
-      fun h0 => U.ns (by rw [F.cdt] at h0; exact h0), U.pp, ?_, U.dwReg, by rw [F.gpml4]; exact U.gReg⟩
-    intro h0 hf0
+      fun h0 => U.ns (by rw [F.cdt] at h0; exact h0), U.pp, ?_, U.dwReg, fun g => by rw [F.gpml4]; exact U.gReg g⟩
+    intro g h0 hf0
     rw [F.cdt] at h0
-    obtain ⟨r1, r3⟩ := U.rst h0 hf0
+    obtain ⟨r1, r3⟩ := U.rst g h0 hf0
     exact ⟨fun sl' h => r1 sl' (by rw [← F.orig]; exact h), r3⟩
   have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s σ' :=
     ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩),
