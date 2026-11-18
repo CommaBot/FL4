@@ -228,7 +228,7 @@ theorem JAtZ.deadP_sc_stepQ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
         apply P1.eq_of_bv
         have h1 := hs'.idleTh; have h2 := hs.idleTh
         unfold nodeW at h1 h2
-        rw [hc'.cur, hc.cur, ← h1, ← h2, hF.2]
+        rw [hc'.cur, hc.cur, ← h1, ← h2, hF.2.1]
       rw [ei]; exact d5
   · -- an endpoint
     have hqE : q ∈ Z.E := J.hset.1 q hq

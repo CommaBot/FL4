@@ -179,7 +179,7 @@ theorem JAtZ.zombieJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl :
         by rw [hoth2 y hy e]⟩
   have hjc : Sched.JCovD (L := L) Z.th H Z.G D Cs s2 :=
     J.jcov_cover hw.1 hM2 hCK hUK (fun q hq => J.deadP_slot hX2 hcn2 hkc hw (J.jcov.dead q hq))
-      (J.idleW_keep hX2.fin.1.1.1 (CnStep.of_cnK hcn2).idle)
+      (J.idleW_keep hX2.fin.1.1.1 (CnStep.of_cnK hcn2).idle (CnStep.of_cnK hcn2).isc)
   -- the untyped caps' facts after: all kept
   have hks : L.ksb s2 = L.ksb s := hw.1
   have hcpu : L.cpu s2 = L.cpu s := hw.2.1
@@ -327,7 +327,7 @@ theorem JAtZ.swapJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : F
     exact ⟨_, he y hy, by rw [e2]; exact hp, by rw [e2]; exact hu, by rw [e2], by rw [e2]⟩
   have hjc : Sched.JCovD (L := L) Z.th H (renG Z.G (Equiv.swap p (cslotAddr sl))) D Cs s2 :=
     J.jcov_cover hw.1 hM2 hCK hUK (fun q hq => J.deadP_slot hX2 hcn2 hkc hw (J.jcov.dead q hq))
-      (J.idleW_keep hX2.fin.1.1.1 (CnStep.of_cnK hcn2).idle)
+      (J.idleW_keep hX2.fin.1.1.1 (CnStep.of_cnK hcn2).idle (CnStep.of_cnK hcn2).isc)
   -- the untyped caps' facts after
   have hks : L.ksb s2 = L.ksb s := hw.1
   have hcpu : L.cpu s2 = L.cpu s := hw.2.1

@@ -977,7 +977,9 @@ arbitrary aligned address next to the idle TCB: every MCS architecture on
 address is inside the 8KiB `init_irq_node_ptr` region (`kernel_base +
 0x2000 .. 0x3fff`, X64 Init_A), and the global paging structures follow up
 to `kernel_base + 0x6000`, so this uses the next free page (aligned for
-the idle SC's `min_sched_context_bits + 0` bits). -/
+the idle SC's `min_sched_context_bits + 0` bits). FL4 deviation: the
+operations read the state field `AbstractState.idleSc` instead (one idle SC
+per core); this constant is only its initial value in `initASt`. -/
 def idleScPtr : VSpaceRef := kernelBase + 0x7000
 
 /-- l4v: Machine_A.X64_A.nat_to_cref. -/

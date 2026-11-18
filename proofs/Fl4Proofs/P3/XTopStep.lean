@@ -147,7 +147,8 @@ theorem ostep_of_cnk {σ σ' : Fl4Spec.State Unit} (hcn : CnK σ σ') (hkc : Kee
     (by have e := congrArg Fl4Spec.AbstractState.curSc h; exact e), (by have e := congrArg Fl4Spec.AbstractState.curTime h; exact e),
     (by have e := congrArg Fl4Spec.AbstractState.consumedTime h; exact e), (by have e := congrArg Fl4Spec.AbstractState.reprogramTimer h; exact e),
     (by have e := congrArg Fl4Spec.AbstractState.curDomain h; exact e), (by have e := congrArg Fl4Spec.AbstractState.domainTime h; exact e),
-    (by have e := congrArg Fl4Spec.AbstractState.idleThread h; exact e), (by have e := congrArg Fl4Spec.AbstractState.interruptStates h; exact e),
+    (by have e := congrArg Fl4Spec.AbstractState.idleThread h; exact e), (by have e := congrArg Fl4Spec.AbstractState.idleSc h; exact e),
+    (by have e := congrArg Fl4Spec.AbstractState.interruptStates h; exact e),
     (by have e := congrArg Fl4Spec.AbstractState.interruptIrqNode h; exact e),
     (by exact congrArg (fun a => a.archState.x64AllocatedIoPorts) h), (by exact congrArg (fun a => a.archState.x64GlobalPml4) h),
     fun q hq => ?_⟩, (by have e := congrArg Fl4Spec.AbstractState.machineState h; exact e), (by have e := congrArg Fl4Spec.AbstractState.archState h; exact e)⟩
@@ -243,8 +244,8 @@ theorem Sched.SchedRel.ksStep {N T C : Set U64} {c : U64} {s : S} {σ σ' : Fl4S
   refine ⟨fun p hp => by rw [hO.rq]; exact hs.rq p hp, fun d p hd => by rw [hO.rq]; exact hs.rqDom d p hd,
     by rw [hO.rel]; exact hs.rel, by rw [hO.ct]; exact hs.curThread, by rw [hO.csc]; exact hs.curSc,
     by rw [hO.ctime]; exact hs.curTime, by rw [hO.cons]; exact hs.consumed, by rw [hO.cdom]; exact hs.curDom,
-    fun t ht => by rw [hO.kh]; exact hs.tcb t ht, hs.scMem, fun sc hsc => by rw [hO.kh]; exact hs.scs sc hsc,
-    hs.idleSc, by rw [hO.dtime]; exact hs.domTime, by rw [hO.idle]; exact hs.idleTh⟩
+    fun t ht => by rw [hO.kh]; exact hs.tcb t ht, hs.scMem, fun sc hsc => by rw [hO.kh, hO.isc]; exact hs.scs sc hsc,
+    by rw [hO.isc]; exact hs.idleSc, by rw [hO.dtime]; exact hs.domTime, by rw [hO.idle]; exact hs.idleTh⟩
 
 /-- The scheduler relation across writes in `KsW`. -/
 theorem Sched.SchedRel.ksW {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}

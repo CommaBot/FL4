@@ -101,7 +101,8 @@ theorem JAtZ.sch_apart {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
 theorem JAtZ.sch_jpl {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
-    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ') :
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ')
+    (hiw : Sched.idleScW (L := L) s' = Sched.idleScW (L := L) s) :
     ∃ Tr Cq, Sched.JPlaced (L := L) Z.th H Tr Cq s' σ' := by
   have hS := J.xtop.fin.1.1.1
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
@@ -110,7 +111,7 @@ theorem JAtZ.sch_jpl {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
   have hwU : P1.WritesIn st s s' (UFoot st Z.T Z.N Z.C Z.R Z.c s σ) := hw.mono fun b hb => Or.inl hb
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') := slotsSame_of_ufoot hJ.pl hS J.rp J.apart hwU
   have hIA := hJ.irqApart (c := Z.c) J.zH.1 J.zH.2.2.2 J.c0 J.zH.2.2.1 J.kern.ksbFit
-  exact ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => hz q.bv y n hq) hw.1 (irq_of_ufoot hS J.rp hIA hwU)⟩
+  exact ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => hz q.bv y n hq) hw.1 (irq_of_ufoot hS J.rp hIA hwU) hiw⟩
 
 
 set_option maxHeartbeats 1000000 in

@@ -245,7 +245,7 @@ theorem unbind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Sta
   · -- `ActIdle`: no switch-thread action, the idle thread untouched
     have hip : σ.idleThread ≠ p.bv := by
       obtain ⟨xi, h1, -⟩ := hId; intro e; rw [e, hk] at h1; cases h1
-    refine ActIdle.of_noswitch (IdleOK.of hId hc1.2.2.2.2.2.1 ?_ ?_) (ha1 ha0)
+    refine ActIdle.of_noswitch (IdleOK.of hId hc1.2.2.2.2.2.1 ?_ ?_ hc1.isc) (ha1 ha0)
     · show (updSc (updK σ3 i.bv _) p.bv _ n).kheap σ.idleThread = _
       simp only [updSc, updK_kheap, Function.update_of_ne hip, Function.update_of_ne (Ne.symm hti)]
       show σ1.kheap σ.idleThread = _
@@ -258,7 +258,7 @@ theorem unbind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Sta
 other than the idle SC (the spec's test; FL4 has none). -/
 theorem unbind_all_tcbs_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
-    {p : U64} (hp : p ∈ C) (hpi : p.bv ≠ Fl4Spec.idleScPtr) {y : Fl4Spec.SchedContext} {n : Nat}
+    {p : U64} (hp : p ∈ C) (hpi : p.bv ≠ σ.idleSc) {y : Fl4Spec.SchedContext} {n : Nat}
     (hk : σ.kheap p.bv = some (.schedContext y n))
     (hbnd : ∀ t : U64, y.scTcb = some t.bv → t ∈ T ∧ t.bv ≠ σ.idleThread) :
     schedcontext.unbind_all_tcbs st ar s a p ⦃ r => r.2 = a ∧ ∃ σ',
@@ -278,7 +278,7 @@ theorem unbind_all_tcbs_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ 
     simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
     refine ⟨trivial, σ, ?_, hS, hR, hN, hI, fun _ h => h, WritesIn.refl _ _, CKeep.refl σ⟩
     unfold Fl4Spec.schedContextUnbindAllTcbs
-    rw [nd_bind_one (getSchedContext_eq hk), hyi, optRef_zero]
+    rw [nd_bind_one (getSchedContext_eq hk), hyi, optRef_zero, nd_gets_bind]
     unfold Fl4Spec.NonDet.when; rw [if_neg (by simp)]; rfl
   · have hyt : y.scTcb = some i.bv := by rw [hyi, optRef_ne hi0]
     obtain ⟨hiT, hti⟩ := hbnd i hyt
@@ -293,7 +293,7 @@ theorem unbind_all_tcbs_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ 
     rw [WP.spec_ok]
     refine ⟨rfl, σ2, ?_, hS2, hR2, hN2, hI2, fun ha0 hA => hA2 ha0 hA.2 hti, hw2, hck2⟩
     unfold Fl4Spec.schedContextUnbindAllTcbs
-    rw [nd_bind_one (getSchedContext_eq hk)]
+    rw [nd_bind_one (getSchedContext_eq hk), nd_gets_bind]
     unfold Fl4Spec.NonDet.when; rw [if_pos ⟨by rw [hyt]; simp, hpi⟩]; exact h2
 
 end

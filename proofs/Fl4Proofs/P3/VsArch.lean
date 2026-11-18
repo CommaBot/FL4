@@ -174,14 +174,14 @@ theorem TopSR.machine {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a a'
     TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a'
       (cr3Upd { σ with machineState := ms } cr) :=
   TopSR.step (Rw := fun _ => False) (Rg := fun _ => False) hS rfl rfl (fun _ _ _ _ => rfl) (fun _ h => h.elim)
-    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ hq => absurd rfl hq⟩
+    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ hq => absurd rfl hq⟩
     (fun _ h => h.elim) (fun wp _ => by show Endp.loadWordAt ms.underlyingMemory _ = _; rw [hum]) (fun _ => hA)
 
 theorem TopSR.cr3 {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a a' : A} {σ : Fl4Spec.State Unit}
     (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a σ) (cr : Fl4Spec.Cr3) (hA : AR a' cr) :
     TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a' (cr3Upd σ cr) :=
   TopSR.step (Rw := fun _ => False) (Rg := fun _ => False) hS rfl rfl (fun _ _ _ _ => rfl) (fun _ h => h.elim)
-    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ hq => absurd rfl hq⟩
+    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ hq => absurd rfl hq⟩
     (fun _ h => h.elim) (fun wp _ => rfl) (fun _ => hA)
 
 theorem TopSR.machine' {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a a' : A} {σ : Fl4Spec.State Unit}
@@ -189,7 +189,7 @@ theorem TopSR.machine' {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a a
     (hum : ms.underlyingMemory = σ.machineState.underlyingMemory) (hA : AR a' σ.archState.x64CurrentCr3) :
     TopSR st th P L4 L3 L2 L1 N T C E R B c AR s a' { σ with machineState := ms } :=
   TopSR.step (Rw := fun _ => False) (Rg := fun _ => False) hS rfl rfl (fun _ _ _ _ => rfl) (fun _ h => h.elim)
-    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ hq => absurd rfl hq⟩
+    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ hq => absurd rfl hq⟩
     (fun _ h => h.elim) (fun wp _ => by show Endp.loadWordAt ms.underlyingMemory _ = _; rw [hum]) (fun _ => hA)
 
 /-- From an `SOK` operation and an arch step keeping CR3: an outcome related

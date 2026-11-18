@@ -32,7 +32,7 @@ scheduler action nor the idle thread. -/
 theorem JAtZ.unbindAllJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hpC : p ∈ Z.C) (hp0 : p ≠ 0#u64)
-    (hpi : p.bv ≠ Fl4Spec.idleScPtr)
+    (hpi : p.bv ≠ σ.idleSc)
     (hna : L.mem s (P1.scTcbA p) ≠ 0#u64 → L.actionW s ≠ L.mem s (P1.scTcbA p))
     (hidle : L.mem s (P1.scTcbA p) ≠ 0#u64 → L.idleW s ≠ L.mem s (P1.scTcbA p)) :
     schedcontext.unbind_all_tcbs st arI s a p ⦃ r => ∃ σ',
@@ -53,7 +53,7 @@ theorem JAtZ.unbindAllJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
     refine ⟨σ, ?_, Z.vs, Ac, Lst, D, J⟩
     unfold Fl4Spec.schedContextUnbindAllTcbs
-    rw [nd_bind_one (getSchedContext_eq hk), hyi, optRef_zero]
+    rw [nd_bind_one (getSchedContext_eq hk), hyi, optRef_zero, Notif.nd_gets_bind]
     unfold Fl4Spec.NonDet.when; rw [if_neg (by simp)]; rfl
   · have hyt : y.scTcb = some i.bv := by rw [hyi, Notif.optRef_ne hi0]
     have h0 : L.mem s (P1.scTcbA p) ≠ 0#u64 := by rw [hiw]; exact hi0
@@ -77,7 +77,7 @@ theorem JAtZ.unbindAllJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     rw [WP.spec_ok]
     refine ⟨σ2, ?_, Z.vs, Ac2, Lst2, D2, J2⟩
     unfold Fl4Spec.schedContextUnbindAllTcbs
-    rw [nd_bind_one (getSchedContext_eq hk)]
+    rw [nd_bind_one (getSchedContext_eq hk), Notif.nd_gets_bind]
     unfold Fl4Spec.NonDet.when; rw [if_pos ⟨by rw [hyt]; simp, hpi⟩]; exact h2
 
 end

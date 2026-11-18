@@ -303,7 +303,7 @@ theorem resume_keep {σ σ' : State Unit} {t p : ObjRef} (h : InvBut σ t) {x : 
         exact ⟨xu, scp, yu, nu, h1, h2, h4, h.ne _ _ _ h4 h5, specRt_eq h1 h2 h4 (h.ne _ _ _ h4 h5)⟩)
     rw [hp] at he
     rw [pair_eq he]
-    exact ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, rfl, fun u hu => mem_specInsT.1 hu⟩
+    exact ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, rfl, fun u hu => mem_specInsT.1 hu⟩
   · rw [pair_eq he]
     exact ⟨Calm.refl σ, rfl, fun u hu => Or.inr hu⟩
 
@@ -555,7 +555,7 @@ theorem SchedRel.set_sc_badge {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.
   obtain ⟨x', n', hk', hx⟩ := hs.scs sc hsc
   rw [hk] at hk'; cases hk'
   obtain ⟨hst, ep, em, hw, hv, hwr⟩ := hx.wr_hdr (K := 48#u64) (by simp [HdrK]) v
-  have hx' : ScRelW st (L.wr s (scW sc 48#u64) v) sc { x with scBadge := v.bv } n :=
+  have hx' : ScRelW st σ.idleSc (L.wr s (scW sc 48#u64) v) sc { x with scBadge := v.bv } n :=
     ⟨hx.pl, by rw [ep]; exact hx.period, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.consumed, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.tcb, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.ntfn, by rw [hv], by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.yieldFrom, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.sporadic, fun h0 => by rw [em]; exact hx.spor (by rwa [hw _ (by simp) (by simp) (by decide)] at h0), fun h0 => by rw [em]; exact hx.idle h0, by rw [em]; exact hx.max, fun h0 => ScRel1.ofWF (hst (by rwa [em] at h0)).1 (by rw [ep]; exact hx.period) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.consumed) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.tcb) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.ntfn) (by rw [hv]) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.yieldFrom) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.sporadic) (by rw [em]; exact hx.max) (by rw [(hst (by rwa [em] at h0)).2]; exact (hx.act (by rwa [em] at h0)).refills)⟩
   exact ⟨hS.sc_updateW hsc hk (hwr.mono fun b hb => hx.in_obj hb) (hw _ (by simp) (by simp) (by decide)) _ hx',
     scin_footEq hS hsc hwr, KView.of_sc hk⟩
@@ -572,7 +572,7 @@ theorem SchedRel.set_sc_sporadic {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Sp
   obtain ⟨x', n', hk', hx⟩ := hs.scs sc hsc
   rw [hk] at hk'; cases hk'
   obtain ⟨hst, ep, em, hw, hv, hwr⟩ := hx.wr_hdr (K := 64#u64) (by simp [HdrK]) v
-  have hx' : ScRelW st (L.wr s (scW sc 64#u64) v) sc { x with scSporadic := decide (v ≠ 0#u64) } n :=
+  have hx' : ScRelW st σ.idleSc (L.wr s (scW sc 64#u64) v) sc { x with scSporadic := decide (v ≠ 0#u64) } n :=
     ⟨hx.pl, by rw [ep]; exact hx.period, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.consumed, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.tcb, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.ntfn, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.badge, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.yieldFrom, by rw [hv], fun h0 => by rw [em]; exact hact (by rwa [hv] at h0), fun h0 => by rw [em]; exact hx.idle h0, by rw [em]; exact hx.max, fun h0 => ScRel1.ofWF (hst (by rwa [em] at h0)).1 (by rw [ep]; exact hx.period) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.consumed) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.tcb) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.ntfn) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.badge) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.yieldFrom) (by rw [hv]) (by rw [em]; exact hx.max) (by rw [(hst (by rwa [em] at h0)).2]; exact (hx.act (by rwa [em] at h0)).refills)⟩
   exact ⟨hS.sc_updateW hsc hk (hwr.mono fun b hb => hx.in_obj hb) (hw _ (by simp) (by simp) (by decide)) _ hx',
     scin_footEq hS hsc hwr, KView.of_sc hk⟩
@@ -913,7 +913,7 @@ theorem remote_tcb_stall_id {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.St
 def PreKeep (σ σ1 : Fl4Spec.State Unit) (p : Fl4Spec.ObjRef) (x : Fl4Spec.SchedContext) (n : Nat) : Prop :=
   (∀ q, q ≠ p → σ1.kheap q = σ.kheap q) ∧
   (∃ y1, σ1.kheap p = some (.schedContext y1 n) ∧ y1.scTcb = x.scTcb ∧ y1.scRefillMax = x.scRefillMax) ∧
-  σ1.curThread = σ.curThread ∧ σ1.idleThread = σ.idleThread ∧ σ1.curTime = σ.curTime ∧
+  σ1.curThread = σ.curThread ∧ σ1.idleThread = σ.idleThread ∧ σ1.idleSc = σ.idleSc ∧ σ1.curTime = σ.curTime ∧
   σ1.schedulerAction = σ.schedulerAction ∧ ∀ u ∈ σ1.releaseQueue, u ∈ σ.releaseQueue
 
 /-- **`configure_flags`' first step, for a bound thread `t`**: it leaves the
@@ -1011,19 +1011,19 @@ theorem cfg_pre_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spe
     rintro s5 ⟨σc, hcm, hS5, hR5, hN5, hI5, hK6, -, hwc⟩
     rw [WP.spec_ok]
     rw [hcs] at hK6
-    obtain ⟨k1, k2, k3, k4, k5, k6, k7, k8, k9⟩ := hK6
+    obtain ⟨k1, k2, k3, k4, k5, k6, ki, k7, k8, k9⟩ := hK6
     refine ⟨σc, hsp σc (by unfold Fl4Spec.NonDet.when; rw [if_pos (show σb.curSc = p.bv from hcp)]; exact hcm),
       hS5, hR5, hN5, hI5,
       ⟨fun d q => by rw [k7]; exact hNQb.1 d q, by rw [k3]; exact hNQb.2⟩,
       WritesIn.kfoot_trans hw34 (SzKeepC.of (SzKeep.of_kheap rfl)) hwc, fun q hq => by rw [k8 q hq]; rfl,
-      ?_, k2, k6, k5, k4, fun u hu => by rw [k3] at hu; exact (List.mem_filter.1 hu).1⟩
+      ?_, k2, k6, ki, k5, k4, fun u hu => by rw [k3] at hu; exact (List.mem_filter.1 hu).1⟩
     obtain ⟨y1, h1, h2, h3⟩ := k9 x n hk
     exact ⟨y1, h1, h2, h3⟩
   · simp only [hcs, decide_false, Bool.false_eq_true, ↓reduceIte, bind_ok]
     rw [WP.spec_ok]
     have hcp : ¬ σb.curSc = p.bv := fun e => hcs (eq_of_bv (by rw [hcs4]; exact e))
     refine ⟨σb, hsp σb (by unfold Fl4Spec.NonDet.when; rw [if_neg hcp]; rfl), hS4, hR4, hN4, hIb', hNQb, hw34,
-      fun q _ => rfl, ⟨x, hk, rfl, rfl⟩, rfl, rfl, rfl, rfl, fun u hu => (List.mem_filter.1 hu).1⟩
+      fun q _ => rfl, ⟨x, hk, rfl, rfl⟩, rfl, rfl, rfl, rfl, rfl, fun u hu => (List.mem_filter.1 hu).1⟩
 
 theorem tcb_ne_eq (a b : obj.Tcb) :
     core.cmp.PartialEq.ne.trait_default obj.Tcb.Insts.CoreCmpPartialEqTcb a b = ok (decide (a ≠ b)) := by
@@ -1110,7 +1110,7 @@ theorem cfg_resume_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4
   have hAr : σ.schedulerAction = .resumeCurThread → IdleOK σ → t.bv ≠ σ.idleThread →
       ActIdle σr ∧ σr.schedulerAction = .resumeCurThread := fun ha0 hid hti =>
     ⟨ActIdle.of_noswitch (IdleOK.of hid hkeep.1.2.2.2.2.2.1 (by rw [hkr])
-      (fun hm => (hkeep.2.2 _ hm).resolve_left (fun e => hti e.symm)))
+      (fun hm => (hkeep.2.2 _ hm).resolve_left (fun e => hti e.symm)) hkeep.1.isc)
       (fun u => by rw [hkeep.2.1, ha0]; simp), by rw [hkeep.2.1, ha0]⟩
   obtain ⟨Q6, R6, hc6, hs6⟩ := hS6.lists
   step with LawfulStore.cur_cpu_spec as ⟨i1, hi1⟩
@@ -1338,7 +1338,7 @@ theorem configure_flags_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ 
         (.invokeSchedControlConfigureFlags p.bv budget.bv period.bv mr.val badge.bv flags.bv) σ =
         ({((), σ')}, False) ∧
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧
-      (σ.schedulerAction = .resumeCurThread → IdleOK σ → p.bv ≠ Fl4Spec.idleScPtr → ActIdle σ') ∧
+      (σ.schedulerAction = .resumeCurThread → IdleOK σ → p.bv ≠ σ.idleSc → ActIdle σ') ∧
       WritesIn st s r.1 (KFoot st T N C c s σ) ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨x', n', hk', hx⟩ := hs.scs p hp
@@ -1395,7 +1395,7 @@ theorem configure_flags_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ 
     have hip : i.bv ≠ p.bv := fun e => by rw [e, hk] at hkt; cases hkt
     simp only [hi0, decide_false, Bool.false_eq_true, ↓reduceIte]
     refine WP.spec_bind (cfg_pre_refines s a σ hS hR hN hI hC hO hp hk hiT hxt hT) ?_
-    rintro ⟨s1, a1⟩ ⟨σ1, hpre, hS1, hR1, hN1, hI1, hnq1, hw1, hq1, ⟨y1, hk1, hy1t, -⟩, -, hid1, -, hact1, hrq1⟩
+    rintro ⟨s1, a1⟩ ⟨σ1, hpre, hS1, hR1, hN1, hI1, hnq1, hw1, hq1, ⟨y1, hk1, hy1t, -⟩, -, hid1, hisc1, -, hact1, hrq1⟩
     have hkt1 : σ1.kheap i.bv = some (.tcb xt) := by rw [hq1 _ hip]; exact hkt
     have hown1 : ∀ u xu, σ1.kheap u = some (.tcb xu) → xu.tcbSchedContext = some p.bv → u = i.bv := by
       intro u xu hu hxu

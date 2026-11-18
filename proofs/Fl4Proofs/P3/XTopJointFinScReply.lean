@@ -43,6 +43,7 @@ variable {σ σ' : State Unit}
 theorem RFr.ct (h : RFr σ σ') : σ'.curThread = σ.curThread := by obtain ⟨k, rfl⟩ := h.st; rfl
 theorem RFr.csc (h : RFr σ σ') : σ'.curSc = σ.curSc := by obtain ⟨k, rfl⟩ := h.st; rfl
 theorem RFr.idle (h : RFr σ σ') : σ'.idleThread = σ.idleThread := by obtain ⟨k, rfl⟩ := h.st; rfl
+theorem RFr.isc (h : RFr σ σ') : σ'.idleSc = σ.idleSc := by obtain ⟨k, rfl⟩ := h.st; rfl
 theorem RFr.rel (h : RFr σ σ') : σ'.releaseQueue = σ.releaseQueue := by obtain ⟨k, rfl⟩ := h.st; rfl
 theorem RFr.cons (h : RFr σ σ') : σ'.consumedTime = σ.consumedTime := by obtain ⟨k, rfl⟩ := h.st; rfl
 theorem RFr.tm (h : RFr σ σ') : σ'.curTime = σ.curTime := by obtain ⟨k, rfl⟩ := h.st; rfl
@@ -80,7 +81,7 @@ theorem RFr.lk (h : RFr σ σ') : LK (fun _ => False) σ σ' := fun q => Or.inr 
   · rw [e1, e2]; exact ⟨fun _ e => (by cases e), fun _ _ e => (by cases e), fun _ e => (by cases e)⟩
   · rw [e1, e2]; exact LObj.sc (Or.inl rfl) (Or.inl rfl))
 
-theorem RFr.fk (h : RFr σ σ') : FK σ σ' := ⟨h.csc, h.idle⟩
+theorem RFr.fk (h : RFr σ σ') : FK σ σ' := ⟨h.csc, h.idle, h.isc⟩
 
 theorem RFr.curInv (h : RFr σ σ') (hC : CurInv σ) : CurInv σ' := by
   obtain ⟨xt, hkt, hxs, hnb⟩ := hC.tcb
@@ -90,7 +91,7 @@ theorem RFr.curInv (h : RFr σ σ') (hC : CurInv σ) : CurInv σ' := by
   · rcases h.scF hx with e | e
     · exact ⟨x, n, by rw [h.csc]; exact e⟩
     · exact ⟨_, n, by rw [h.csc]; exact e⟩
-  · rw [h.csc] at hne hy
+  · rw [h.csc, h.isc] at hne; rw [h.csc] at hy
     obtain ⟨y0, hy0, e | e⟩ := h.scB hy <;> subst e
     · exact hC.active hne _ m hy0
     · exact hC.active hne y0 m hy0
@@ -112,7 +113,7 @@ theorem RFr.own {T C : Set U64} (h : RFr σ σ') (hO : CurOwnW T C σ) : CurOwnW
 theorem RFr.off (h : RFr σ σ') (hO : OffOK σ) : OffOK σ' := by
   intro hc y n hy ha
   rw [h.cons] at hc ⊢; rw [h.tm]
-  rw [h.csc] at hy ha
+  rw [h.csc] at hy; rw [h.csc, h.isc] at ha
   obtain ⟨y0, hy0, e | e⟩ := h.scB hy <;> subst e
   · exact hO hc _ n hy0 ha
   · exact hO hc y0 n hy0 ha
@@ -282,7 +283,7 @@ theorem JAtZ.sc_jcovS {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (hcov : ∀ q ∈ D, q ∉ D' →
       (∀ k, Z.th q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + max (objSize k) 1)) ∧
       (∀ k, H q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + 2 ^ k.bits)))
-    (hidl : L.idleW s' = L.idleW s) :
+    (hidl : Sched.IdleKeep (L := L) s s') :
     Sched.JCovD (L := L) Z.th H Z.G D' Cs s' := by
   obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
   have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
@@ -442,7 +443,7 @@ theorem JAtZ.deadP_stepG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.H
         apply P1.eq_of_bv
         have h1 := hs'.idleTh; have h2 := hs.idleTh
         unfold nodeW at h1 h2
-        rw [hc'.cur, hc.cur, ← h1, ← h2, hF.2]
+        rw [hc'.cur, hc.cur, ← h1, ← h2, hF.2.1]
       rw [ei]; exact d5
   · -- an endpoint
     have hqE : q ∈ Z.E := J.hset.1 q hq
@@ -562,7 +563,8 @@ theorem JAtZ.unbindReplyJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') := slotsSame_of_ufoot hJ.pl hS J.rp J.apart hwU
   have hIA := hJ.irqApart (c := Z.c) J.zH.1 J.zH.2.2.2 J.c0 J.zH.2.2.1 J.kern.ksbFit
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' :=
-    ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => hK.szKeep q.bv y n hq) hks (irq_of_ufoot hS J.rp hIA hwU)⟩
+    ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => hK.szKeep q.bv y n hq) hks (irq_of_ufoot hS J.rp hIA hwU)
+      (J.idleW_keep hX'.fin.1.1.1 hF.fk.2.1 hF.fk.2.2).2⟩
   -- yield, MCP, buffer words
   have hsok : SOK (true, false) σ σ' := Pres.of_eq (pres_schedContextUnbindReply p.bv) he
   obtain ⟨-, hY', hM', -, -, -⟩ := ScAll.of_u hS J.rp J.yld J.mcp
@@ -632,7 +634,7 @@ theorem JAtZ.unbindReplyJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
   -- the rest
   have hDbg := J.kw_dbg (hfoot.mono (Set.empty_subset _))
   exact ⟨σ', he, Z.vs, Ac, Lst', D, J.sc_frameS hks hSS hK hX' hCR' hRF' hRR' hY' hM' hbuf hRP'
-    (J.apart.sc_frame hks hK.szKeep) hjpl (J.sc_jcovS hks hSS hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.fk.2))
+    (J.apart.sc_frame hks hK.szKeep) hjpl (J.sc_jcovS hks hSS hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.fk.2.1 hF.fk.2.2))
     (J.sc_kernW hw hK hF.fk hX' hDbg fun _ h => h) (J.sc_utcR hwR hSS hK hDbg) hN' hI'
     (J.cur.imp (fun e => by rw [hF.act]; exact e) hF.curInv) (hF.own J.own) (hF.off J.off) hact'
     (hF.bsa J.bsa) (hF.curRun J.curRun) hblk⟩

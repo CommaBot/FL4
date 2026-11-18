@@ -38,6 +38,7 @@ structure HStep (σ σ' : State Unit) : Prop where
   time : σ'.curTime = σ.curTime
   cons : σ'.consumedTime = σ.consumedTime
   idle : σ'.idleThread = σ.idleThread
+  isc : σ'.idleSc = σ.idleSc
 
 /-- A slot step: only CNode objects and TCBs' caps change; the scheduler's
 fields kept. -/
@@ -49,7 +50,8 @@ theorem CnStep.of_cnK {σ σ' : State Unit} (hK : CnK σ σ') : CnStep σ σ' :=
   ⟨⟨KeepCT.of_cnK hK, (by have e := congrArg AbstractState.releaseQueue hK.1; exact e),
     (by have e := congrArg AbstractState.curThread hK.1; exact e), (by have e := congrArg AbstractState.curSc hK.1; exact e),
     (by have e := congrArg AbstractState.curTime hK.1; exact e),
-    (by have e := congrArg AbstractState.consumedTime hK.1; exact e), (by have e := congrArg AbstractState.idleThread hK.1; exact e)⟩,
+    (by have e := congrArg AbstractState.consumedTime hK.1; exact e), (by have e := congrArg AbstractState.idleThread hK.1; exact e),
+    (by have e := congrArg AbstractState.idleSc hK.1; exact e)⟩,
     (by have e := congrArg AbstractState.readyQueues hK.1; exact e),
     (by have e := congrArg AbstractState.schedulerAction hK.1; exact e)⟩
 
@@ -174,19 +176,19 @@ theorem Sched.CurInv.cn (hI : CurInv σ) (h : HStep σ σ') : CurInv σ' := by
   obtain ⟨yt, hyt, hc⟩ := h.tcbF hkt
   refine ⟨⟨yt, by rw [h.ct]; exact hyt, by rw [h.csc, hc.sc]; exact hxs, by rw [hc.st]; exact hnb⟩,
     ⟨x, n, by rw [h.csc]; exact h.sc.2 hx⟩, fun hne y m hy => ?_, by rw [h.ct, h.rel]; exact hI.notRel⟩
-  rw [h.csc] at hne hy
+  rw [h.csc, h.isc] at hne; rw [h.csc] at hy
   exact hI.active hne y m (h.sc.1 hy)
 
 theorem Sched.OffOK.cn (hO : OffOK σ) (h : HStep σ σ') : OffOK σ' := by
   intro hc y n hy ha
   rw [h.cons] at hc ⊢; rw [h.time]
-  rw [h.csc] at hy ha
+  rw [h.csc] at hy; rw [h.csc, h.isc] at ha
   exact hO hc y n (h.sc.1 hy) ha
 
 theorem Sched.ActIdle.cn (hA : ActIdle σ) (h : CnStep σ σ') : ActIdle σ' := by
   obtain ⟨hS, x, hx, h1, h2, h3⟩ := hA
   obtain ⟨y, hy, hc⟩ := h.tcbF hx
-  refine ⟨fun t ht => ?_, y, by rw [h.idle]; exact hy, by rw [hc.sc]; exact h1, by rw [hc.st]; exact h2,
+  refine ⟨fun t ht => ?_, y, by rw [h.idle]; exact hy, by rw [hc.sc, h.isc]; exact h1, by rw [hc.st]; exact h2,
     by rw [h.idle, h.rel]; exact h3⟩
   rw [h.act] at ht
   rw [h.toHStep.sched_eq]; exact hS t ht

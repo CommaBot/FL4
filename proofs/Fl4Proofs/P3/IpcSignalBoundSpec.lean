@@ -185,8 +185,8 @@ theorem wake_specB {σ1 σ' : State Unit} {r t : ObjRef} {x : Tcb} {badge : Word
   unfold specWakeTail at hm
   rw [nd_bind_one hND, nd_gets_bind] at hm
   have hS3 : Sk σ1 σ3 :=
-    (show Sk σ1 σA from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩).trans
-      ((Sk.stsAct σA t).trans (show Sk σ2 σ3 from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩))
+    (show Sk σ1 σA from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩).trans
+      ((Sk.stsAct σA t).trans (show Sk σ2 σ3 from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩))
   have F3 : CFr r t σ1 σ3 := by
     refine ⟨hS3, fun p => ?_⟩
     by_cases e : p = t

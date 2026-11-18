@@ -259,6 +259,7 @@ theorem JAtZ.suspendScJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U
     (f4 (fun τ : Fl4Spec.State Unit => τ.consumedTime) (fun _ => rfl) (by rw [hσ4, e3]; rfl))
     (f4 (fun τ : Fl4Spec.State Unit => τ.curTime) (fun _ => rfl) (by rw [hσ4, e3]; rfl))
     (f4 (fun τ : Fl4Spec.State Unit => τ.idleThread) (fun _ => rfl) (by rw [hσ4, e3]; rfl))
+    (f4 (fun τ : Fl4Spec.State Unit => τ.idleSc) (fun _ => rfl) (by rw [hσ4, e3]; rfl))
     (hr5.trans (by rw [hσ4, e3]; rfl))
     (f4 (fun τ : Fl4Spec.State Unit => τ.schedulerAction) (fun _ => rfl) (by rw [hσ4, e3]; rfl))
     (f4 (fun τ : Fl4Spec.State Unit => τ.machineState.underlyingMemory) (fun _ => rfl) (by rw [hσ4, e3]; rfl))
@@ -306,7 +307,7 @@ theorem JAtZ.suspendScJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U
         cases hx : x.tcbState <;> simp_all [tsCode])
       (hF.lk (W := fun _ => False)) hF.fk hAI.1 (fun h => h) (J.jcov.dead q hq)
   refine ⟨_, hsp, Lst', J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
-    (J.sc_jpl hW hK) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.fk.2)) (J.sc_kern hW hK hF.fk hX' hDbg fun _ h => h)
+    (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hF.fk.2.1 hF.fk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.fk.2.1 hF.fk.2.2)) (J.sc_kern hW hK hF.fk hX' hDbg fun _ h => h)
     (J.sc_utc hW hK hDbg) hNSC hInv (J.cur.imp (fun e => hF.act.elim (fun e' => e'.trans e) id) hF.curInv)
     (hF.own J.own) (hF.off J.off) hAI (hF.bsa J.bsa) (hF.curRun J.curRun) hblk⟩
 
@@ -371,7 +372,7 @@ theorem JAtZ.cancelFreeJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : 
       (P1.Heap.scs H) (P1.Heap.scBits H) ∅ s) :=
     foot_field (K := 3376#u64) hTH htH (by simp) (by simp) (by simp) (by simp)
   have hA : QKY σ (updK σ t.bv (.tcb { x with tcbFault := none })) := by
-    refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun p => ?_⟩
+    refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun p => ?_⟩
     by_cases hp : p = t.bv
     · subst hp; exact Or.inr (Or.inl ⟨x, { x with tcbFault := none }, hk, by simp [updK], rfl⟩)
     · exact Or.inl (by simp [updK, hp])
@@ -432,7 +433,7 @@ theorem JAtZ.restartPcJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U
         (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) ∅ s) := by
       rw [hreq]; exact foot_field (K := 392#u64) hTH htH (by simp) (by simp) (by simp) (by simp)
     have hA : QKY σ (updK σ t.bv (.tcb (setReg x .faultIP ip.bv))) := by
-      refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun p => ?_⟩
+      refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun p => ?_⟩
       by_cases hp : p = t.bv
       · subst hp; exact Or.inr (Or.inl ⟨x, setReg x .faultIP ip.bv, hk, by simp [updK], rfl⟩)
       · exact Or.inl (by simp [updK, hp])

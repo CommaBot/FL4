@@ -73,7 +73,7 @@ theorem unblock_frameS {σ σ' : State Unit} (hI : Inv σ) {t : ObjRef} {x : Tcb
   · subst e
     refine ⟨?_, rfl⟩
     have h0 : NFr false r σ { σ with reprogramTimer := true } :=
-      NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun e => by cases e) rfl
+      NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun e => by cases e) rfl
     exact h0.trans (NFr.upd (σ := { σ with reprogramTimer := true }) (o' := .schedContext z k) hky
       (Or.inr (Or.inl ⟨y, k, z.scRefills, y.scNtfn, rfl, congrArg (fun w => KernelObject.schedContext w k) hz,
         fun h => absurd (h.resolve_right (by simp)) hcc, Or.inl rfl⟩)))
@@ -183,8 +183,8 @@ theorem wake_f3 {σ1 : State Unit} {r t : ObjRef} {x : Tcb} (hkt : σ1.kheap t =
     show (updK σ2 t (.tcb x3)).kheap p = _
     simp only [updK, Function.update_of_ne hp]; exact hkp2 p hp
   have hS3 : Sk σ1 (wakeSt3 σ1 t x badge) :=
-    (show Sk σ1 σA from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩).trans
-      ((Sk.stsAct σA t).trans (show Sk σ2 (updK σ2 t (.tcb x3)) from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩))
+    (show Sk σ1 σA from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩).trans
+      ((Sk.stsAct σA t).trans (show Sk σ2 (updK σ2 t (.tcb x3)) from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩))
   refine ⟨hS3, (fun e => by cases e), fun p => ?_⟩
   by_cases e : p = t
   · subst e
@@ -207,8 +207,8 @@ theorem wake_f3B {σ1 : State Unit} {r t : ObjRef} {x : Tcb} (hkt : σ1.kheap t 
     show (updK σ2 t (.tcb x3)).kheap p = _
     simp only [updK, Function.update_of_ne hp]; exact hkp2 p hp
   have hS3 : Sk σ1 (wakeSt3 σ1 t x badge) :=
-    (show Sk σ1 σA from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩).trans
-      ((Sk.stsAct σA t).trans (show Sk σ2 (updK σ2 t (.tcb x3)) from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩))
+    (show Sk σ1 σA from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩).trans
+      ((Sk.stsAct σA t).trans (show Sk σ2 (updK σ2 t (.tcb x3)) from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩))
   refine ⟨hS3, fun p => ?_⟩
   by_cases e : p = t
   · subst e

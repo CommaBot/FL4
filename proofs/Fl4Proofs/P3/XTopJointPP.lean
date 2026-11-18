@@ -216,13 +216,13 @@ theorem JAtZ.timestampJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
     · exact Or.inl (Or.inr (hnb _ (by simp [layout.node.CONSUMED])))
   have hwT : P1.WritesIn st s s' (TFoot st Z.T Z.N Z.C Z.c s σ) := WritesIn.tfoot_of_kfoot hwK
   have hK : ScTKw (fun _ => False) σ σ' :=
-    ⟨fun p => OTK.refl _ _, hum2, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+    ⟨fun p => OTK.refl _ _, hum2, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
   have hX' : XTopAt (L := L) AR Z s' a2 σ' := xtop_sc_step hX J.ip J.nk hwT (ct := σ.curThread) (hK.mono fun _ h => h.elim) hS2 hR2 fun _ => hAa2 hAR'
   refine ⟨hX', fun hO' hOw' => ?_⟩
   obtain ⟨-, hY', hM', ⟨Lst', hCR', hRF'⟩, hRP', -⟩ :=
     ScAll.of_k hS J.rp J.yld J.mcp J.call J.rfree ⟨⟨hS2, hR2, hN2, hI2⟩, hwK,
-      ⟨fun p => ORel.refl _ _, rfl, rfl, rfl, rfl⟩⟩
-  have hF : FK σ σ' := ⟨rfl, rfl⟩
+      ⟨fun p => ORel.refl _ _, rfl, rfl, rfl, rfl, rfl⟩⟩
+  have hF : FK σ σ' := ⟨rfl, rfl, rfl⟩
   have hL : LK (fun _ => False) σ σ' := fun p => Or.inr (OL.refl _)
   have hAI' : ActIdle σ' := hA2 J.act
   have hDead : ∀ q ∈ D, DeadP (L := L) H s' q := fun q hq =>
@@ -243,7 +243,7 @@ theorem JAtZ.timestampJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
     · have := congrArg UScalar.val hb; rw [hd, h1] at this; simp at this; omega
     · have := congrArg UScalar.val hb; rw [hd, h2] at this; simp at this; omega
   exact ⟨Ac, Lst', D, J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
-    (J.sc_jpl hwT hK) (J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2)) (J.sc_kern hwT hK hF hX' hDbg fun _ h => h)
+    (J.sc_jpl hwT hK (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2) (J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2)) (J.sc_kern hwT hK hF hX' hDbg fun _ h => h)
     (J.sc_utc hwT hK hDbg) hN2 hI2 (J.cur.imp id hC2) hOw' hO' hAI' (J.bsa.tkw hK fun p y n h hy => ⟨y, h, hy, fun _ h => h, id⟩) J.curRun hBlk'⟩
 
 end

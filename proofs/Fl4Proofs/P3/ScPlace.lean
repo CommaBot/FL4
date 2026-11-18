@@ -42,21 +42,23 @@ object of `H` inside its range (so a non-null table, `H` holding nothing at
 are user memory; stated by range, not by an object at the frame's base,
 since a 4 KiB alias of a page of a large frame has no object of its own).
 An SC cap names an SC of `H` of the cap's size (l4v `valid_cap`'s
-`obj_bits`), not the idle SC (l4v `valid_global_refs`: the boot's
+`obj_bits`), not the idle SC `isc` (l4v `valid_global_refs`: the boot's
 `create_idle_threads` gives the idle SC no cap, and a retype's new SCs lie in
-a RAM untyped's region, which misses the idle objects, `IdleOut`). -/
-def CapObjH (H : Heap) : capability.Cap → Prop
+a RAM untyped's region, which misses the idle objects, `IdleOut`). `JPlaced`
+takes `isc` the current core's `IDLE_SC` node word (`idleScW`), which is the
+spec's `idle_sc` (`SchedSpec.idleSc`). -/
+def CapObjH (H : Heap) (isc : U64) : capability.Cap → Prop
   | .Ept p lv m a va => (∃ n, H p = some (.other n) ∧ baseF (.Ept p lv m a va) ≤ p.val ∧
       p.val + 2 ^ n ≤ topF (.Ept p lv m a va) + 1) ∧ FrApartH H (.Ept p lv m a va)
   | .Frame p sz r d m ep a va => FrApartH H (.Frame p sz r d m ep a va)
-  | .SchedContext p sb => H p = some (.sc sb.val) ∧ p.bv ≠ Fl4Spec.idleScPtr
+  | .SchedContext p sb => H p = some (.sc sb.val) ∧ p ≠ isc
   | _ => True
 
-theorem capObjH_null {H : Heap} : CapObjH H .Null := trivial
+theorem capObjH_null {H : Heap} {isc : U64} : CapObjH H isc .Null := trivial
 
 /-- `CapObjH` reads a cap's shape only. -/
-theorem capObjH_of_shape {H : Heap} {c d : capability.Cap} (h : shape c = shape d) (hd : CapObjH H d) :
-    CapObjH H c := by
+theorem capObjH_of_shape {H : Heap} {isc : U64} {c d : capability.Cap} (h : shape c = shape d) (hd : CapObjH H isc d) :
+    CapObjH H isc c := by
   obtain ⟨hb, ht, -⟩ := range_of_shape h
   cases c with
   | Ept p lv m a va =>
@@ -76,11 +78,11 @@ theorem capObjH_of_shape {H : Heap} {c d : capability.Cap} (h : shape c = shape 
 
 /-- A cap naming no endpoint, notification, reply, frame or EPT table has
 no `CapObjH` fact. -/
-theorem capObjH_of_tyObj {H : Heap} {c : capability.Cap} (h : tyObj c = false) : CapObjH H c := by
+theorem capObjH_of_tyObj {H : Heap} {isc : U64} {c : capability.Cap} (h : tyObj c = false) : CapObjH H isc c := by
   cases c <;> first | trivial | simp [tyObj] at h
 
-theorem capObjH_of_chgZ {H : Heap} {m m' : U64 → U64} {y : U64}
-    (h : CapObjH H (capV m y)) (hz : ChgZ m m' y) : CapObjH H (capV m' y) := by
+theorem capObjH_of_chgZ {H : Heap} {isc : U64} {m m' : U64 → U64} {y : U64}
+    (h : CapObjH H isc (capV m y)) (hz : ChgZ m m' y) : CapObjH H isc (capV m' y) := by
   rcases hz with e | e | ⟨zt, k, e⟩
   · rw [e]; exact h
   · rw [e]; trivial
@@ -88,6 +90,31 @@ theorem capObjH_of_chgZ {H : Heap} {m m' : U64 → U64} {y : U64}
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
+
+/-- The current core's `IDLE_SC` node word (the spec's `idle_sc`, by
+`SchedSpec.idleSc`), as `L.idleW` is its `IDLE_THREAD` word. -/
+def idleScW (s : S) : U64 := L.mem s (L.nodeAt s (L.cpu s) layout.node.IDLE_SC)
+
+/-- **The `IDLE_SC` word is the spec's `idle_sc`** (`SchedSpec.idleSc`, the
+current core `c` by `SchedCore.cur`). -/
+theorem SchedRel.idleScW_bv {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) : (idleScW (L := L) s).bv = σ.idleSc := by
+  obtain ⟨Q, R, hc, hs⟩ := hS.lists
+  have h := hs.idleSc
+  unfold nodeW at h
+  unfold idleScW; rw [hc.cur]; exact h
+
+/-- **Not the `IDLE_SC` word, so not the spec's `idle_sc`.** -/
+theorem SchedRel.ne_idleSc {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) {p : U64} (hp : p ≠ idleScW (L := L) s) : p.bv ≠ σ.idleSc := fun e =>
+  hp (P1.eq_of_bv (e.trans hS.idleScW_bv.symm))
+
+/-- **The `IDLE_SC` word kept** when both states are related and the spec
+keeps `idle_sc`. -/
+theorem idleScW_keep_of {N T C N' T' C' : Set U64} {c c' : U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) (hS' : SchedRel st N' T' C' c' s' σ') (h : σ'.idleSc = σ.idleSc) :
+    idleScW (L := L) s' = idleScW (L := L) s :=
+  P1.eq_of_bv (by rw [hS'.idleScW_bv, hS.idleScW_bv, h])
 
 /-- **The joint placement invariant** (module docstring). -/
 structure JPlaced (th : TypedHeap) (H : Heap) (Tr C : Set U64) (s : S) (σ : Fl4Spec.State Unit) : Prop where
@@ -111,8 +138,9 @@ structure JPlaced (th : TypedHeap) (H : Heap) (Tr C : Set U64) (s : S) (σ : Fl4
   irq : ∀ i : U64, i.val < 128 → CapTyped H (Heap.replies H) (Heap.ntfns H) (capV (L.mem s) (nodeA (L.ksb s) i))
   fh : ∀ t, th t = some .tcb → capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Null ∨
     ∃ ep b0 b1 b2 b3 b4, capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Endpoint ep b0 b1 b2 b3 b4
-  /-- The slots' EPT and frame caps' objects (`CapObjH`). -/
-  cobj : ∀ a, IsSlot th a → CapObjH H (capV (L.mem s) a)
+  /-- The slots' EPT, frame and SC caps' objects (`CapObjH`; the idle SC
+  the current core's `IDLE_SC` word). -/
+  cobj : ∀ a, IsSlot th a → CapObjH H (idleScW (L := L) s) (capV (L.mem s) a)
 
 variable {th : TypedHeap} {H : Heap} {Tr C : Set U64} {s : S} {σ : Fl4Spec.State Unit}
 
@@ -468,7 +496,7 @@ objects at nonzero addresses were SCs before (`hsc`). -/
 theorem JPlaced.step (h : JPlaced (L := L) th H Tr C s σ) {s' : S} {σ' : Fl4Spec.State Unit} (X : U64 → Prop)
     (hZ : ∀ y, IsSlot th y → ¬ X y → ChgZ (L.mem s) (L.mem s') y)
     (hX : ∀ y, IsSlot th y → X y → CapTyped H (Heap.replies H) (Heap.ntfns H) (capV (L.mem s') y))
-    (hXo : ∀ y, IsSlot th y → X y → CapObjH H (capV (L.mem s') y))
+    (hXo : ∀ y, IsSlot th y → X y → CapObjH H (idleScW (L := L) s') (capV (L.mem s') y))
     (hF : ∀ t, th t = some .tcb →
       capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) =
         capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) ∨
@@ -476,7 +504,8 @@ theorem JPlaced.step (h : JPlaced (L := L) th H Tr C s σ) {s' : S} {σ' : Fl4Sp
       ∃ ep b0 b1 b2 b3 b4, capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Endpoint ep b0 b1 b2 b3 b4)
     (hsc : ∀ (c : U64) y n, c ≠ 0#u64 → σ'.kheap c.bv = some (.schedContext y n) →
       ∃ y0, σ.kheap c.bv = some (.schedContext y0 n))
-    (hk : L.ksb s' = L.ksb s) (hI : ∀ i : U64, i.val < 128 → ChgZ (L.mem s) (L.mem s') (nodeA (L.ksb s) i)) :
+    (hk : L.ksb s' = L.ksb s) (hI : ∀ i : U64, i.val < 128 → ChgZ (L.mem s) (L.mem s') (nodeA (L.ksb s) i))
+    (hiw : idleScW (L := L) s' = idleScW (L := L) s) :
     JPlaced (L := L) th H Tr C s' σ' := by
   refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk => ?_, by rw [hk]; exact h.ks, by rw [hk]; exact h.ksIn, fun a ha => ?_,
     fun i hi => by rw [hk]; exact capTyped_of_chgZ (h.irq i hi) (hI i hi), fun t ht => ?_, fun a ha => ?_⟩
@@ -490,7 +519,7 @@ theorem JPlaced.step (h : JPlaced (L := L) th H Tr C s σ) {s' : S} {σ' : Fl4Sp
     · exact e
   · by_cases hx : X a
     · exact hXo a ha hx
-    · exact capObjH_of_chgZ (h.cobj a ha) (hZ a ha hx)
+    · rw [hiw]; exact capObjH_of_chgZ (h.cobj a ha) (hZ a ha hx)
 
 /-- **`JPlaced` across a step keeping every slot** (the scheduler-side TCB
 invocations: `set_priority`, `set_mcpriority`, the SC bind and unbind, the
@@ -501,11 +530,12 @@ theorem JPlaced.same (h : JPlaced (L := L) th H Tr C s σ) {s' : S} {σ' : Fl4Sp
     (hsc : ∀ (c : U64) y n, c ≠ 0#u64 → σ'.kheap c.bv = some (.schedContext y n) →
       ∃ y0, σ.kheap c.bv = some (.schedContext y0 n))
     (hk : L.ksb s' = L.ksb s)
-    (hI : ∀ i : U64, i.val < 128 → capV (L.mem s') (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i)) :
+    (hI : ∀ i : U64, i.val < 128 → capV (L.mem s') (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i))
+    (hiw : idleScW (L := L) s' = idleScW (L := L) s) :
     JPlaced (L := L) th H Tr C s' σ' := by
   refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk => ?_, by rw [hk]; exact h.ks, by rw [hk]; exact h.ksIn, fun a ha => ?_,
     fun i hi => by rw [hk, hI i hi]; exact h.irq i hi, fun t ht => ?_, fun a ha => by
-      rw [hS.capV ha]; exact h.cobj a ha⟩
+      rw [hS.capV ha, hiw]; exact h.cobj a ha⟩
   · obtain ⟨y0, hk0⟩ := hsc c y n hc hk
     exact h.sc c y0 n hc hk0
   · rw [hS.capV ha]; exact h.typed a ha

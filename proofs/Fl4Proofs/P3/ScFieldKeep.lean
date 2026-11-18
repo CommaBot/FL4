@@ -17,13 +17,14 @@ open Fl4Spec Classical
 
 noncomputable section
 
-/-- The current SC and the idle thread kept. -/
-def FK (σ σ' : State Unit) : Prop := σ'.curSc = σ.curSc ∧ σ'.idleThread = σ.idleThread
+/-- The current SC, the idle thread and the idle SC kept. -/
+def FK (σ σ' : State Unit) : Prop :=
+  σ'.curSc = σ.curSc ∧ σ'.idleThread = σ.idleThread ∧ σ'.idleSc = σ.idleSc
 
-theorem FK.refl (σ : State Unit) : FK σ σ := ⟨rfl, rfl⟩
+theorem FK.refl (σ : State Unit) : FK σ σ := ⟨rfl, rfl, rfl⟩
 
 theorem FK.trans {σ1 σ2 σ3 : State Unit} (h1 : FK σ1 σ2) (h2 : FK σ2 σ3) : FK σ1 σ3 :=
-  ⟨h2.1.trans h1.1, h2.2.trans h1.2⟩
+  ⟨h2.1.trans h1.1, h2.2.1.trans h1.2.1, h2.2.2.trans h1.2.2⟩
 
 /-- Every outcome keeps the current SC and the idle thread. -/
 def FKA {α : Type} (m : NonDet (State Unit) α) : Prop := ∀ σ x, x ∈ (m σ).1 → FK σ x.2
@@ -107,13 +108,13 @@ theorem fk_getObject (p : ObjRef) : FKA (getObject (Z := Unit) p) := fk_getsThe 
 theorem fk_setObject (p : ObjRef) (o : KernelObject) : FKA (setObject (Z := Unit) p o) := by
   intro σ x hx
   obtain ⟨k, -, -, e⟩ := setObject_mem hx
-  rw [e]; exact ⟨rfl, rfl⟩
+  rw [e]; exact ⟨rfl, rfl, rfl⟩
 
 theorem fk_doExtendedOp (eop : DetExtMonad Unit) : FKA (doExtendedOp (Z := Unit) eop) := by
   unfold doExtendedOp
   refine fk_bind fk_get (fun _ => fk_bind (fk_selectF _) (fun _ => ?_))
   split
-  exact fk_modify (fun σ => ⟨rfl, rfl⟩)
+  exact fk_modify (fun σ => ⟨rfl, rfl, rfl⟩)
 
 theorem fk_whileLoop {α : Type} {C : α → State Unit → Prop} {B : α → NonDet (State Unit) α}
     (hB : ∀ r, FKA (B r)) (r : α) : FKA (NonDet.whileLoop C B r) := by
@@ -142,8 +143,8 @@ macro "fk_step0" : tactic => `(tactic| first
   | with_reducible exact fk_assert _ | with_reducible exact fk_assertOpt _
   | with_reducible exact fk_getObject _ | with_reducible exact fk_getsThe _
   | with_reducible exact fk_selectF _ | with_reducible exact fk_setObject _ _
-  | ((with_reducible apply fk_modify); intro _; exact ⟨rfl, rfl⟩)
-  | ((with_reducible apply fk_get_put); intro _; exact ⟨rfl, rfl⟩)
+  | ((with_reducible apply fk_modify); intro _; exact ⟨rfl, rfl, rfl⟩)
+  | ((with_reducible apply fk_get_put); intro _; exact ⟨rfl, rfl, rfl⟩)
   | with_reducible exact fk_doExtendedOp _
   | (with_reducible refine fk_bind ?_ (fun _ => ?_))
   | (with_reducible refine fk_bind' ?_ (fun _ => ?_))

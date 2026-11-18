@@ -34,7 +34,7 @@ theorem insStable_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s s' : S) (a
   obtain ⟨p, r, cs, idx, a', cdt, io, hk, rfl⟩ := hI
   have hO := OStep.cnode hk idx a'
   refine TopSR.step0 hS (fun b h => ?_) hw
-    ⟨hO.rq, hO.rel, hO.ct, hO.act, hO.csc, hO.ctime, hO.cons, hO.repr, hO.cdom, hO.dtime, hO.idle, hO.ist,
+    ⟨hO.rq, hO.rel, hO.ct, hO.act, hO.csc, hO.ctime, hO.cons, hO.repr, hO.cdom, hO.dtime, hO.idle, hO.isc, hO.ist,
       hO.inode, hO.io, hO.gpml4, hO.kh⟩ rfl rfl
   obtain ⟨x, k, hx, hk', rfl⟩ := h
   have hf := hx.fit hS.2.pl

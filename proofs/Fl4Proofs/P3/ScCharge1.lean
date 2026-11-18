@@ -48,7 +48,7 @@ theorem SchedRel.set_sc_consumed {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Sp
   obtain ⟨x', n', hk', hx⟩ := hs.scs sc hsc
   rw [hk] at hk'; cases hk'
   obtain ⟨hst, ep, em, hw, hv, hwr⟩ := hx.wr_hdr (K := 8#u64) (by simp [HdrK]) v
-  have hx' : ScRelW st (L.wr s (scW sc 8#u64) v) sc { x with scConsumed := v.bv } n :=
+  have hx' : ScRelW st σ.idleSc (L.wr s (scW sc 8#u64) v) sc { x with scConsumed := v.bv } n :=
     ⟨hx.pl, by rw [ep]; exact hx.period, by rw [hv], by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.tcb, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.ntfn, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.badge, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.yieldFrom, by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.sporadic, fun h0 => by rw [em]; exact hx.spor (by rwa [hw _ (by simp) (by simp) (by decide)] at h0), fun h0 => by rw [em]; exact hx.idle h0, by rw [em]; exact hx.max, fun h0 => ScRel1.ofWF (hst (by rwa [em] at h0)).1 (by rw [ep]; exact hx.period) (by rw [hv]) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.tcb) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.ntfn) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.badge) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.yieldFrom) (by rw [hw _ (by simp) (by simp) (by decide)]; exact hx.sporadic) (by rw [em]; exact hx.max) (by rw [(hst (by rwa [em] at h0)).2]; exact (hx.act (by rwa [em] at h0)).refills)⟩
   exact ⟨hS.sc_updateW hsc hk (hwr.mono fun b hb => hx.in_obj hb) (hw _ (by simp) (by simp) (by decide)) _ hx', scin_footEq hS hsc hwr,
     KView.of_sc hk⟩

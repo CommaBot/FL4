@@ -27,7 +27,8 @@ open Fl4Spec
 /-- `charge_budget` up to the consumed-time reset. -/
 def chargeHead (consumed : Ticks) : SMonad Unit Unit := do
   let cscPtr ← Fl4Spec.NonDet.gets fun s : State Unit => s.curSc
-  Fl4Spec.NonDet.when (cscPtr ≠ idleScPtr) <| do
+  let isc ← Fl4Spec.NonDet.gets fun s : State Unit => s.idleSc
+  Fl4Spec.NonDet.when (cscPtr ≠ isc) <| do
     let robin ← isRoundRobin cscPtr
     if robin
     then refillResetRr cscPtr
@@ -46,9 +47,9 @@ def chargeTail (canTimeout : Bool) : SMonad Unit Unit := do
 
 theorem chargeBudget_eq (consumed : Ticks) (can : Bool) (σ : State Unit) :
     chargeBudget (Z := Unit) consumed can σ = (chargeHead consumed >>= fun _ => chargeTail can) σ := by
-  unfold chargeHead
-  rw [nd_bind_assoc']
-  rfl
+  unfold chargeHead chargeBudget
+  simp only [nd_bind_assoc', nd_gets_bind]
+  all_goals rfl
 
 theorem chargeTail_eq (can : Bool) (σ : State Unit) {t : ObjRef} (ht : σ.curThread = t) :
     chargeTail can σ = (if schedulable t { σ with consumedTime := 0 } = true then
@@ -215,12 +216,12 @@ theorem charge_head_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
     (hscC : nodeW st s c layout.node.CUR_SC ∈ C)
     (htw : L.mem s (scW (nodeW st s c layout.node.CUR_SC) 24#u64) = nodeW st s c layout.node.CUR_THREAD)
-    (hact : (nodeW st s c layout.node.CUR_SC).bv ≠ Fl4Spec.idleScPtr → ∀ x n,
+    (hact : (nodeW st s c layout.node.CUR_SC).bv ≠ σ.idleSc → ∀ x n,
       σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) → Fl4Spec.scActive x = true)
     (hnr : (nodeW st s c layout.node.CUR_THREAD).bv ∉ σ.releaseQueue)
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) (used : U64) (b : Bool)
-    (hb : b = decide ((nodeW st s c layout.node.CUR_SC).bv ≠ Fl4Spec.idleScPtr)) :
+    (hb : b = decide ((nodeW st s c layout.node.CUR_SC).bv ≠ σ.idleSc)) :
     (if b then do
       let b1 ← sporadic.is_round_robin st s (nodeW st s c layout.node.CUR_SC)
       let s3 ← if b1 then do
@@ -252,14 +253,14 @@ theorem charge_head_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
   have hupd : ∀ (σ0 : Fl4Spec.State Unit) (y : Fl4Spec.SchedContext) (m : Nat),
       (updSc σ0 sc.bv y m).kheap ct.bv = σ0.kheap ct.bv := fun σ0 y m => by
     simp [updK, Function.update_of_ne hcts]
-  have hspec : chargeHead used.bv σ = Fl4Spec.NonDet.when (sc.bv ≠ Fl4Spec.idleScPtr) (do
+  have hspec : chargeHead used.bv σ = Fl4Spec.NonDet.when (sc.bv ≠ σ.idleSc) (do
       let robin ← Fl4Spec.isRoundRobin (Z := Unit) sc.bv
       if robin
       then Fl4Spec.refillResetRr sc.bv
       else Fl4Spec.refillBudgetCheck used.bv
       Fl4Spec.updateSchedContext sc.bv (fun y => { y with scConsumed := y.scConsumed + used.bv })) σ := by
-    unfold chargeHead; rw [nd_gets_bind, hs.curSc]
-  by_cases hid : sc.bv ≠ Fl4Spec.idleScPtr
+    unfold chargeHead; rw [nd_gets_bind, nd_gets_bind, hs.curSc]
+  by_cases hid : sc.bv ≠ σ.idleSc
   · have hb' : b = true := by rw [hb]; simpa using hid
     simp only [hb', ↓reduceIte]
     have hrr : decide (L.rperiod s sc = 0#u64) = decide (x.scPeriod = 0) := by
@@ -425,7 +426,7 @@ theorem charge_tail_refines {N T C : Set U64} {c : U64} (s2 : S) (a : A) (σ2 : 
     · rw [hspec, nd_bind_one h4, nd_bind_one h5']
       rfl
     · have hid5 : IdleOK σ5 := (hid4 (IdleOK.of hid rfl rfl id)).of hcm5.2.2.2.2.2.1
-        (by rw [hcm5.1]) (fun hm => by rw [hq5.2.1] at hm; exact hm)
+        (by rw [hcm5.1]) (fun hm => by rw [hq5.2.1] at hm; exact hm) hcm5.isc
       exact hid5.of rfl rfl id
   · simp only [Bool.not_eq_true] at hsch
     simp only [hsch, Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
@@ -452,8 +453,8 @@ theorem charge_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : 
     (hscC : nodeW st s c layout.node.CUR_SC ∈ C) (hsc0 : nodeW st s c layout.node.CUR_SC ≠ 0#u64)
     (htw : L.mem s (scW (nodeW st s c layout.node.CUR_SC) 24#u64) = nodeW st s c layout.node.CUR_THREAD)
     (hts : L.mem s (scA (nodeW st s c layout.node.CUR_THREAD)) = nodeW st s c layout.node.CUR_SC)
-    (hidle : (nodeW st s c layout.node.IDLE_SC).bv = Fl4Spec.idleScPtr)
-    (hact : (nodeW st s c layout.node.CUR_SC).bv ≠ Fl4Spec.idleScPtr → ∀ x n,
+    (hidle : (nodeW st s c layout.node.IDLE_SC).bv = σ.idleSc)
+    (hact : (nodeW st s c layout.node.CUR_SC).bv ≠ σ.idleSc → ∀ x n,
       σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) → Fl4Spec.scActive x = true)
     (hnr : (nodeW st s c layout.node.CUR_THREAD).bv ∉ σ.releaseQueue)
     (hnb : ∀ xt, σ.kheap (nodeW st s c layout.node.CUR_THREAD).bv = some (.tcb xt) →
@@ -495,13 +496,13 @@ theorem charge_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : 
   rw [sc_ne_eq]
   simp only [bind_ok]
   have hb : decide (nodeW st s c layout.node.CUR_SC ≠ nodeW st s c layout.node.IDLE_SC) =
-      decide ((nodeW st s c layout.node.CUR_SC).bv ≠ Fl4Spec.idleScPtr) := by
+      decide ((nodeW st s c layout.node.CUR_SC).bv ≠ σ.idleSc) := by
     rw [← hidle]
     apply decide_eq_decide.2
     exact ⟨fun h e => h (eq_of_bv e), fun h e => h (by rw [e])⟩
   refine WP.spec_bind (charge_head_refines s a σ hS hR hN hI hscC htw hact hnr hmrt hmb used _ hb) ?_
   rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, hK, hTK⟩
-  have ⟨hcs, hcc, _, _, _, _, _, hfr, hsck⟩ := hK
+  have ⟨hcs, hcc, _, _, _, _, _, _, hfr, hsck⟩ := hK
   obtain ⟨y2, hky, hyt, -⟩ := hsck x n hk
   have hkt2 : σ2.kheap (nodeW st s c layout.node.CUR_THREAD).bv = some (.tcb xt) := by
     rw [hfr _ (fun e => by rw [e, hk] at hkt; cases hkt)]; exact hkt

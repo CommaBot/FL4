@@ -48,6 +48,7 @@ structure MidK (σ σ' : State Unit) : Prop where
   csc : σ'.curSc = σ.curSc
   time : σ'.curTime = σ.curTime
   idle : σ'.idleThread = σ.idleThread
+  isc : σ'.idleSc = σ.idleSc
   cons : σ'.consumedTime = σ.consumedTime ∨ σ'.consumedTime = 0
   cn : σ.schedulerAction = .chooseNewThread → σ'.schedulerAction = .chooseNewThread
   sw : ∀ t, σ'.schedulerAction = .switchThread t → σ.schedulerAction = .switchThread t
@@ -60,7 +61,7 @@ structure MidK (σ σ' : State Unit) : Prop where
     (t ≠ σ.idleThread ∧ (t ≠ σ.curThread ∨ (σ'.consumedTime = 0 ∧ σ'.schedulerAction = .chooseNewThread)))
 
 theorem MidK.refl (σ : State Unit) : MidK σ σ :=
-  ⟨rfl, rfl, rfl, rfl, Or.inl rfl, id, fun _ h => h, MidT.refl _ _, MidT.refl _ _,
+  ⟨rfl, rfl, rfl, rfl, rfl, Or.inl rfl, id, fun _ h => h, MidT.refl _ _, MidT.refl _ _,
     fun y _ h => ⟨y, h, rfl, id, fun _ => rfl⟩, fun _ h => Or.inl h⟩
 
 theorem MidK.cons0 {σ σ' : State Unit} (h : MidK σ σ') (h0 : σ.consumedTime = 0) : σ'.consumedTime = 0 := by
@@ -73,7 +74,7 @@ theorem MidK.consNe {σ σ' : State Unit} (h : MidK σ σ') (h0 : σ'.consumedTi
   h.cons.resolve_right h0
 
 theorem MidK.trans {σ1 σ2 σ3 : State Unit} (h1 : MidK σ1 σ2) (h2 : MidK σ2 σ3) : MidK σ1 σ3 := by
-  refine ⟨h2.ct.trans h1.ct, h2.csc.trans h1.csc, h2.time.trans h1.time, h2.idle.trans h1.idle, ?_,
+  refine ⟨h2.ct.trans h1.ct, h2.csc.trans h1.csc, h2.time.trans h1.time, h2.idle.trans h1.idle, h2.isc.trans h1.isc, ?_,
     fun h => h2.cn (h1.cn h), fun t h => h1.sw t (h2.sw t h), ?_, ?_, ?_, ?_⟩
   · rcases h2.cons with e | e
     · rw [e]; exact h1.cons
@@ -112,7 +113,7 @@ theorem MidK.upd {σ : State Unit} {p : ObjRef} {o o' : KernelObject} (hk : σ.k
       obtain ⟨y, rfl, h1, h2⟩ := ht x rfl hq
       exact ⟨y, by simp, h1, h2⟩
     · exact ⟨x, by simp [Function.update_of_ne e, hx], rfl, rfl⟩
-  refine ⟨rfl, rfl, rfl, rfl, Or.inl rfl, id, fun _ h => h, tk _ (Or.inl rfl), tk _ (Or.inr rfl), fun y n hy => ?_,
+  refine ⟨rfl, rfl, rfl, rfl, rfl, Or.inl rfl, id, fun _ h => h, tk _ (Or.inl rfl), tk _ (Or.inr rfl), fun y n hy => ?_,
     fun _ h => Or.inl h⟩
   by_cases e : σ.curSc = p
   · rw [e] at hy ⊢
@@ -222,8 +223,9 @@ theorem mka_getObject (p : ObjRef) : MidKA P (getObject (Z := Unit) p) := mka_ge
 theorem MidK.of_fields {σ σ' : State Unit} (hk : σ'.kheap = σ.kheap) (h1 : σ'.curThread = σ.curThread)
     (h2 : σ'.curSc = σ.curSc) (h3 : σ'.curTime = σ.curTime) (h4 : σ'.idleThread = σ.idleThread)
     (h5 : σ'.consumedTime = σ.consumedTime) (h6 : σ'.schedulerAction = σ.schedulerAction)
-    (h7 : σ'.releaseQueue = σ.releaseQueue) : MidK σ σ' := by
-  refine ⟨h1, h2, h3, h4, Or.inl h5, fun h => by rw [h6]; exact h, fun t h => by rw [← h6]; exact h,
+    (h7 : σ'.releaseQueue = σ.releaseQueue) (h8 : σ'.idleSc = σ.idleSc := by first | rfl | assumption) :
+    MidK σ σ' := by
+  refine ⟨h1, h2, h3, h4, h8, Or.inl h5, fun h => by rw [h6]; exact h, fun t h => by rw [← h6]; exact h,
     fun x hx => ⟨x, by rw [hk]; exact hx, rfl, rfl⟩, fun x hx => ⟨x, by rw [hk]; exact hx, rfl, rfl⟩,
     fun y n hy => ⟨y, by rw [hk]; exact hy, rfl, id, fun _ => rfl⟩, fun t ht => Or.inl (by rw [← h7]; exact ht)⟩
 
@@ -299,14 +301,14 @@ end Obj
 /-! ## Specific state updates -/
 
 theorem MidK.choose (σ : State Unit) : MidK σ { σ with schedulerAction := .chooseNewThread } :=
-  ⟨rfl, rfl, rfl, rfl, Or.inl rfl, fun _ => rfl, fun _ h => (by cases h), MidT.refl _ _, MidT.refl _ _,
+  ⟨rfl, rfl, rfl, rfl, rfl, Or.inl rfl, fun _ => rfl, fun _ h => (by cases h), MidT.refl _ _, MidT.refl _ _,
     fun y _ h => ⟨y, h, rfl, id, fun _ => rfl⟩, fun _ h => Or.inl h⟩
 
 /-- A release queue whose new members are neither the idle nor the current thread. -/
 theorem MidK.relq (σ : State Unit) (q : List ObjRef)
     (hq : ∀ u ∈ q, u ∈ σ.releaseQueue ∨ (u ≠ σ.idleThread ∧ u ≠ σ.curThread)) (b : Bool) :
     MidK σ { σ with releaseQueue := q, reprogramTimer := b } :=
-  ⟨rfl, rfl, rfl, rfl, Or.inl rfl, id, fun _ h => h, MidT.refl _ _, MidT.refl _ _,
+  ⟨rfl, rfl, rfl, rfl, rfl, Or.inl rfl, id, fun _ h => h, MidT.refl _ _, MidT.refl _ _,
     fun y _ h => ⟨y, h, rfl, id, fun _ => rfl⟩, fun u hu => (hq u hu).imp id fun h => ⟨h.1, Or.inl h.2⟩⟩
 
 /-! ## Read-only operations -/
@@ -688,6 +690,7 @@ structure MidKn (σ σ' : State Unit) : Prop where
   csc : σ'.curSc = σ.curSc
   time : σ'.curTime = σ.curTime
   idle : σ'.idleThread = σ.idleThread
+  isc : σ'.idleSc = σ.idleSc
   cons : σ'.consumedTime = σ.consumedTime ∨ σ'.consumedTime = 0
   cn : σ.schedulerAction = .chooseNewThread → σ'.schedulerAction = .chooseNewThread
   ctT : MidT σ σ' σ.curThread
@@ -699,7 +702,7 @@ structure MidKn (σ σ' : State Unit) : Prop where
     (t ≠ σ.idleThread ∧ (t ≠ σ.curThread ∨ (σ'.consumedTime = 0 ∧ σ'.schedulerAction = .chooseNewThread)))
 
 theorem MidK.toN {σ σ' : State Unit} (h : MidK σ σ') : MidKn σ σ' :=
-  ⟨h.ct, h.csc, h.time, h.idle, h.cons, h.cn, h.ctT, h.idT, h.cscS, h.rq⟩
+  ⟨h.ct, h.csc, h.time, h.idle, h.isc, h.cons, h.cn, h.ctT, h.idT, h.cscS, h.rq⟩
 
 theorem MidKn.cons0 {σ σ' : State Unit} (h : MidKn σ σ') (h0 : σ.consumedTime = 0) : σ'.consumedTime = 0 := by
   rcases h.cons with e | e
@@ -707,7 +710,7 @@ theorem MidKn.cons0 {σ σ' : State Unit} (h : MidKn σ σ') (h0 : σ.consumedTi
   · exact e
 
 theorem MidKn.trans {σ1 σ2 σ3 : State Unit} (h1 : MidKn σ1 σ2) (h2 : MidKn σ2 σ3) : MidKn σ1 σ3 := by
-  refine ⟨h2.ct.trans h1.ct, h2.csc.trans h1.csc, h2.time.trans h1.time, h2.idle.trans h1.idle, ?_,
+  refine ⟨h2.ct.trans h1.ct, h2.csc.trans h1.csc, h2.time.trans h1.time, h2.idle.trans h1.idle, h2.isc.trans h1.isc, ?_,
     fun h => h2.cn (h1.cn h), ?_, ?_, ?_, ?_⟩
   · rcases h2.cons with e | e
     · rw [e]; exact h1.cons
@@ -754,7 +757,7 @@ theorem MidKn.mid3 {T : Set U64} {σ σ' : State Unit} (hK : MidKn σ σ') (hC :
     right
     refine ⟨⟨xt', by rw [hK.ct]; exact hkt', by rw [e1, hK.csc]; exact hsc, by rw [e2]; exact hnb⟩,
       ⟨y0', n0, by rw [hK.csc]; exact hy0'⟩, fun hid y m hy => ?_, fun hm => hnr' (Or.inl hcn) (by rw [← hK.ct]; exact hm)⟩
-    rw [hK.csc] at hid hy
+    rw [hK.csc, hK.isc] at hid; rw [hK.csc] at hy
     rw [hy0'] at hy; cases hy
     exact f2 (hC.active hid y0 n0 hy0)
   · obtain ⟨u, hu, hub⟩ := hcT
@@ -800,7 +803,7 @@ theorem mkn_possibleSwitchTo {t : ObjRef} {σ : State Unit} (ht : t ≠ σ.idleT
       · rename_i hres
         rw [Set.mem_singleton_iff.1 hx]
         have hr : σ.schedulerAction = .resumeCurThread := by rw [← hv5]; simpa using hres
-        refine ⟨rfl, rfl, rfl, rfl, Or.inl rfl, fun h => (by rw [hr] at h; cases h), MidT.refl _ _, MidT.refl _ _,
+        refine ⟨rfl, rfl, rfl, rfl, rfl, Or.inl rfl, fun h => (by rw [hr] at h; cases h), MidT.refl _ _, MidT.refl _ _,
           fun y _ h => ⟨y, h, rfl, id, fun _ => rfl⟩, fun _ h => Or.inl h⟩
   · rw [Set.mem_singleton_iff.1 hx]; exact (MidK.refl σ).toN
 
@@ -937,7 +940,7 @@ theorem ct_schedulable {σ : State Unit} (hC : CurInv σ) (hA : ActIdle σ) (hI 
   obtain ⟨xt, hkt, hsc, -⟩ := hC.tcb
   rw [hk] at hkt; cases hkt
   obtain ⟨y, n, hy⟩ := hC.sc
-  have hni : σ.curSc ≠ idleScPtr := by
+  have hni : σ.curSc ≠ σ.idleSc := by
     intro e
     obtain ⟨xi, hki, hsi, hti, -⟩ := hA.2
     obtain ⟨y1, n1, hy1, h1⟩ := hI.back _ _ _ hk hsc
@@ -1097,7 +1100,7 @@ theorem MidK.mid {T : Set U64} {σ σ' : State Unit} (hK : MidK σ σ')
     right
     refine ⟨⟨xt', by rw [hK.ct]; exact hkt', by rw [e1, hK.csc]; exact hsc, by rw [e2]; exact hnb⟩,
       ⟨y0', n0, by rw [hK.csc]; exact hy0'⟩, fun hid y m hy => ?_, fun hm => hnr' (Or.inl hcn) (by rw [← hK.ct]; exact hm)⟩
-    rw [hK.csc] at hid hy
+    rw [hK.csc, hK.isc] at hid; rw [hK.csc] at hy
     rw [hy0'] at hy; cases hy
     exact f2 (hC.active hid y0 n0 hy0)
   · obtain ⟨u, hu, hub⟩ := hcT
@@ -1117,7 +1120,7 @@ theorem MidK.mid {T : Set U64} {σ σ' : State Unit} (hK : MidK σ σ')
   · rw [hK.sw t ht] at hres; cases hres
   · obtain ⟨xi, hki, hsi, hti, hri⟩ := hA.2
     obtain ⟨xi', hki', g1, g2⟩ := hK.idT xi hki
-    refine ⟨xi', by rw [hK.idle]; exact hki', by rw [g1]; exact hsi, by rw [g2]; exact hti, fun hm => ?_⟩
+    refine ⟨xi', by rw [hK.idle]; exact hki', by rw [g1, hK.isc]; exact hsi, by rw [g2]; exact hti, fun hm => ?_⟩
     rw [hK.idle] at hm
     rcases hK.rq _ hm with h | ⟨h, -⟩
     · exact hri h

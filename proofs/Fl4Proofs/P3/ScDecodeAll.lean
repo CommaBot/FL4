@@ -119,7 +119,7 @@ theorem sc_decode_refines {N T C R : Set U64} {c : U64} (hT : TimeAgree ar) (th 
     {Lst : U64 → List U64} (hCR : CallRel (L.mem s) R C σ Lst) (hRP : RPlaced st N T C R c s σ)
     (hRF : RFree (L.mem s) R C σ Lst)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = scLabelOf lbl)
-    {sc : U64} (hsc : sc ∈ C) (hpi : sc.bv ≠ Fl4Spec.idleScPtr)
+    {sc : U64} (hsc : sc ∈ C) (hpi : sc.bv ≠ σ.idleSc)
     (hback : L.mem s (scW sc 24#u64) ≠ 0#u64 →
       L.mem s (scW sc 24#u64) ∈ T ∧ L.mem s (scA (L.mem s (scW sc 24#u64))) = sc ∧
       (L.mem s (scW sc 24#u64)).bv ≠ σ.idleThread)

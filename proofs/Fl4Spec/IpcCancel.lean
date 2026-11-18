@@ -5,8 +5,8 @@ queues (MCS).
 Ports `spec/abstract/IpcCancel_A`. Its `arch_requalify` lines refer to
 `Fl4Spec.Retype` (ArchIpcCancel_A) and `Fl4Spec.Machine`. l4v imports
 `Init_A` here only for `idle_sc_ptr`, which on RISCV64 `rt` lives in
-`Machine_A`; on X64 it is `Fl4Spec.idleScPtr` (rt X64 gap, see Machine), so
-X64/Init_A is not needed. The lemma `sc_with_reply_def2` is not ported.
+`Machine_A`; here it is the state field `idleSc` (FL4 deviation: one idle SC
+per core, see `AbstractState.idleSc`), so X64/Init_A is not needed. The lemma `sc_with_reply_def2` is not ported.
 -/
 import Fl4Spec.TcbAcc
 
@@ -445,7 +445,8 @@ is one (l4v: "FIXME RT: remove check on whether sc_ptr ~= idle_sc_ptr",
 VER-1413). -/
 def schedContextUnbindAllTcbs (scPtr : ObjRef) : SMonad Z Unit := do
   let sc ← getSchedContext scPtr
-  NonDet.when (sc.scTcb ≠ none ∧ scPtr ≠ idleScPtr) <| schedContextUnbindTcb scPtr
+  let isc ← NonDet.gets fun s : State Z => s.idleSc
+  NonDet.when (sc.scTcb ≠ none ∧ scPtr ≠ isc) <| schedContextUnbindTcb scPtr
 
 end
 

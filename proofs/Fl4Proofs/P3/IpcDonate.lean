@@ -30,7 +30,7 @@ open Fl4Spec
 noncomputable section
 
 theorem ScTKw.ofFalse {P : ObjRef → Prop} {σ σ' : State Unit} (h : ScTKw (fun _ => False) σ σ') : ScTKw P σ σ' :=
-  ⟨fun p => (h.kh p).mono False.elim, h.um, h.cdt, h.orig, h.dl, h.dsi, h.arch, h.ist, h.inode, h.ct⟩
+  ⟨fun p => (h.kh p).mono False.elim, h.um, h.cdt, h.orig, h.dl, h.dsi, h.arch, h.ist, h.inode, h.ct, h.isc⟩
 
 theorem nkt_schedContextDonate (sc t : ObjRef) : NKT (schedContextDonate (Z := Unit) sc t) := by
   unfold schedContextDonate testReschedule

@@ -53,6 +53,7 @@ structure KsStep (σ σ' : Fl4Spec.State Unit) : Prop where
   cdom : σ'.curDomain = σ.curDomain
   dtime : σ'.domainTime = σ.domainTime
   idle : σ'.idleThread = σ.idleThread
+  isc : σ'.idleSc = σ.idleSc
   inode : σ'.interruptIrqNode = σ.interruptIrqNode
   um : σ'.machineState.underlyingMemory = σ.machineState.underlyingMemory
   asidT : σ'.archState.x64AsidTable = σ.archState.x64AsidTable
@@ -60,7 +61,7 @@ structure KsStep (σ σ' : Fl4Spec.State Unit) : Prop where
   cr3 : σ'.archState.x64CurrentCr3 = σ.archState.x64CurrentCr3
 
 theorem KsStep.refl (σ : Fl4Spec.State Unit) : KsStep σ σ :=
-  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 /-- A word of a slot of the typed heap. -/
 def InSlot (th : TypedHeap) (b : U64) : Prop := ∃ a, IsSlot th a ∧ a.val ≤ b.val ∧ b.val < a.val + 32
@@ -79,18 +80,19 @@ structure SchedK (σ σ' : Fl4Spec.State Unit) : Prop where
   repr : σ'.reprogramTimer = σ.reprogramTimer
   cdom : σ'.curDomain = σ.curDomain
   idle : σ'.idleThread = σ.idleThread
+  isc : σ'.idleSc = σ.idleSc
   inode : σ'.interruptIrqNode = σ.interruptIrqNode
   ist : σ'.interruptStates = σ.interruptStates
   ms : σ'.machineState = σ.machineState
   arch : σ'.archState = σ.archState
 
 theorem SchedK.refl (σ : Fl4Spec.State Unit) : SchedK σ σ :=
-  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem SchedK.trans {σ1 σ2 σ3 : Fl4Spec.State Unit} (h1 : SchedK σ1 σ2) (h2 : SchedK σ2 σ3) : SchedK σ1 σ3 :=
   ⟨h2.kh.trans h1.kh, h2.cdt.trans h1.cdt, h2.orig.trans h1.orig, h2.rel.trans h1.rel, h2.ct.trans h1.ct,
     h2.csc.trans h1.csc, h2.ctime.trans h1.ctime, h2.cons.trans h1.cons, h2.repr.trans h1.repr,
-    h2.cdom.trans h1.cdom, h2.idle.trans h1.idle, h2.inode.trans h1.inode, h2.ist.trans h1.ist,
+    h2.cdom.trans h1.cdom, h2.idle.trans h1.idle, h2.isc.trans h1.isc, h2.inode.trans h1.inode, h2.ist.trans h1.ist,
     h2.ms.trans h1.ms, h2.arch.trans h1.arch⟩
 
 /-- **The domain schedule relation** as DomDecode states it (`DomRel`,

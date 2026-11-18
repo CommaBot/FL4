@@ -146,7 +146,7 @@ variable {S : Type _} (st : machine.Store S) [L : LawfulStore st]
 the object placed, `spor` (a sporadic SC is active, P1's), and, when the SC
 is active (`REFILL_MAX ≠ 0`, the spec's `sc_active`), the full `ScRel1`. A
 fresh SC (all words zero, the spec's `default_sched_context`) is related. -/
-structure ScRelW (s : S) (sc : U64) (x : Fl4Spec.SchedContext) (n : Nat) : Prop where
+structure ScRelW (isc : Fl4Spec.ObjRef) (s : S) (sc : U64) (x : Fl4Spec.SchedContext) (n : Nat) : Prop where
   pl : Placed sc (n + Fl4Spec.minSchedContextBits)
   period : x.scPeriod = (L.rperiod s sc).bv
   consumed : x.scConsumed = (L.mem s (scW sc 8#u64)).bv
@@ -156,8 +156,9 @@ structure ScRelW (s : S) (sc : U64) (x : Fl4Spec.SchedContext) (n : Nat) : Prop 
   yieldFrom : x.scYieldFrom = optRef (L.mem s (scW sc 56#u64))
   sporadic : x.scSporadic = decide (L.mem s (scW sc 64#u64) ≠ 0#u64)
   spor : L.mem s (scW sc 64#u64) ≠ 0#u64 → (L.rmax s sc).val ≠ 0
-  /-- The idle SC is configured (at boot, and never again). -/
-  idle : sc.bv = Fl4Spec.idleScPtr → (L.rmax s sc).val ≠ 0
+  /-- The idle SC (`isc`, the spec's `idle_sc`) is configured (at boot, and never
+  again). -/
+  idle : sc.bv = isc → (L.rmax s sc).val ≠ 0
   max : (L.rmax s sc).val = x.scRefillMax
   act : (L.rmax s sc).val ≠ 0 → ScRel1 st s sc x n
 
@@ -186,29 +187,29 @@ theorem ScRel1.ofWF {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat}
 
 /-- A configured SC's relation is the weak one. -/
 theorem ScRel1.toW {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRel1 st s sc x n) :
-    ScRelW st s sc x n :=
+    ScRelW st isc s sc x n :=
   ⟨h.wf.placed, h.period, h.consumed, h.tcb, h.ntfn, h.badge, h.yieldFrom, h.sporadic, fun _ => h.rmax_ne0,
     fun _ => h.rmax_ne0, h.max, fun _ => h⟩
 
 /-- An active SC (`sc_active`): the full relation. -/
-theorem ScRelW.strong {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRelW st s sc x n)
+theorem ScRelW.strong {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRelW st isc s sc x n)
     (ha : Fl4Spec.scActive x = true) : ScRel1 st s sc x n :=
   h.act (by rw [h.max]; intro e; simp [Fl4Spec.scActive, Fl4Spec.activeSc, e] at ha)
 
-theorem ScRelW.rmax_ne {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRelW st s sc x n)
+theorem ScRelW.rmax_ne {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRelW st isc s sc x n)
     (ha : Fl4Spec.scActive x = true) : (L.rmax s sc).val ≠ 0 := by
   rw [h.max]; intro e; simp [Fl4Spec.scActive, Fl4Spec.activeSc, e] at ha
 
-theorem ScRelW.active_of_rmax {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRelW st s sc x n)
+theorem ScRelW.active_of_rmax {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRelW st isc s sc x n)
     (hr : (L.rmax s sc).val ≠ 0) : Fl4Spec.scActive x = true := by
   unfold Fl4Spec.scActive Fl4Spec.activeSc; rw [← h.max]; simp; omega
 
 /-- A sporadic SC: the full relation. -/
-theorem ScRelW.strongS {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRelW st s sc x n)
+theorem ScRelW.strongS {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRelW st isc s sc x n)
     (hs : L.mem s (scW sc 64#u64) ≠ 0#u64) : ScRel1 st s sc x n :=
   h.act (h.spor hs)
 
-theorem ScRelW.bounds {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRelW st s sc x n) :
+theorem ScRelW.bounds {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRelW st isc s sc x n) :
     sc.val % 8 = 0 ∧ 96 + 16 * (L.rmax s sc).val ≤ 2 ^ (n + Fl4Spec.minSchedContextBits) ∧
       sc.val + 96 + 16 * (L.rmax s sc).val ≤ 2 ^ 64 := by
   by_cases h0 : (L.rmax s sc).val = 0
@@ -225,19 +226,19 @@ theorem ScRelW.bounds {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h
   · obtain ⟨h8, hm, hfit⟩ := (h.act h0).wf.bounds
     exact ⟨h8, hm, by omega⟩
 
-theorem ScRelW.hdr {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRelW st s sc x n) {K : U64}
+theorem ScRelW.hdr {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRelW st isc s sc x n) {K : U64}
     (hK : K.val < 96) (hK8 : K.val % 8 = 0) : Aligned (scW sc K) ∧ ScIn st s sc (scW sc K) := by
   obtain ⟨h8, h2, hfit⟩ := h.bounds
   have hv := scW_val (sc := sc) (K := K) (by omega)
   exact ⟨by unfold Aligned; rw [hv]; omega, by unfold ScIn; rw [hv]; omega⟩
 
-theorem ScRelW.in_obj {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRelW st s sc x n) {a : U64}
+theorem ScRelW.in_obj {s : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRelW st isc s sc x n) {a : U64}
     (ha : ScIn st s sc a) : ScObj sc n a := by
   obtain ⟨h8, hm, hfit⟩ := h.bounds
   unfold ScIn at ha; exact ⟨ha.1, by omega⟩
 
-theorem ScRelW.agree {s s' : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRelW st s sc x n)
-    (ha : ScAgree st s s' sc) : ScRelW st s' sc x n := by
+theorem ScRelW.agree {s s' : S} {sc : U64} {x : Fl4Spec.SchedContext} {n : Nat} (h : ScRelW st isc s sc x n)
+    (ha : ScAgree st s s' sc) : ScRelW st isc s' sc x n := by
   have hw : ∀ K : U64, K.val < 96 → K.val % 8 = 0 → L.mem s' (scW sc K) = L.mem s (scW sc K) :=
     fun K h1 h2 => ha _ (h.hdr h1 h2).1 (h.hdr h1 h2).2
   have em : L.rmax s' sc = L.rmax s sc := by

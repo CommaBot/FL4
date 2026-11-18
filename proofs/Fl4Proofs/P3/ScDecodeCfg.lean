@@ -51,7 +51,7 @@ theorem decode_configure_refinesA (hT : TimeAgree ar) {N T C : Set U64} {c : U64
           res.1 = .Ok () ∧ SchedRel st N T C c res.2.1 σ' ∧ NtfnStateRel N T (L.mem res.2.1) σ' ∧
           NSC N C σ' ∧ Inv σ' ∧ WritesIn st s res.2.1 (KFoot st T N C c s σ) ∧
           (σ1.schedulerAction = .resumeCurThread → IdleOK σ1 →
-            (x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ Fl4Spec.idleScPtr) → ActIdle σ')) res ⦄ := by
+            (x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ σ.idleSc) → ActIdle σ')) res ⦄ := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hct' : ct = nodeW st s c layout.node.CUR_THREAD := by
     have h := sched.cur_thread.spec' (L := L) s
@@ -112,7 +112,7 @@ theorem decode_configure_refinesA (hT : TimeAgree ar) {N T C : Set U64} {c : U64
   have hkc1 : σ1.kheap ct.bv = some (.tcb { xc with tcbState := .restart }) := by rw [stsAct_kheap]; simp [updK]
   refine (WP.spec_ok _).mpr ⟨σ1, σ', h1, ?_, rfl, hS2, hR2, hN2, hI2,
     WritesIn.kfoot_trans (WritesIn.kfoot_of_sfoot hw1) (SzKeepC.of (SzKeep.of_tcb hk1 hkc1)) hw2,
-    fun h1 h2 h3 => hA2 h1 h2 (h3 hx0n p sb hc0)⟩
+    fun h1 h2 h3 => hA2 h1 h2 (by rw [hσ1, stsAct_idleSc]; exact h3 hx0n p sb hc0)⟩
   rw [← hbud, ← hper, ← hmr]
   exact hcfg
 

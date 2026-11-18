@@ -322,7 +322,8 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
     {p0 sb0 fi0 : U64} {d0 : Bool} (hcs0 : capV (L.mem s) (cslotAddr sl) = .Untyped p0 sb0 fi0 d0) (hd0 : d0 = false)
     (hg : ∀ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
       Fl4Spec.getCap (Z := Unit) sl σ1 = ({(.untypedCap d0 p0.bv sb0.val fi0.val, σ1)}, False))
-    (hbelow : rs = false → p0.val + fi0.val ≤ rb.toNat) (hdevS : n = 5 → d0 = false) :
+    (hbelow : rs = false → p0.val + fi0.val ≤ rb.toNat) (hdevS : n = 5 → d0 = false)
+    (hiw : idleScW (L := L) res.2.1 = idleScW (L := L) s) :
     ∃ (th' : TypedHeap) (σ' : Fl4Spec.State Unit) (A k w lo hi : Nat),
       A = rb.toNat ∧ k = 2 ^ bitsApi t us ∧ w = slots.length ∧ lo ≤ A ∧ A + w * k ≤ hi ∧
       ((lo = A ∧ hi = A + w * k) ∨ ∃ (ct : U64) (s0 sR : S) (a1 : A') (p sb fi : U64) (d : Bool),
@@ -713,7 +714,7 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
             simp only [HKind.bits] at hfit hlt
             exact ⟨hkeepH p _ hH (covered_of_cap ha0 hc (ok_inj (phys_eq _).symm) rfl
               (capRange (b := sb) (ok_inj (ptr_eq _).symm)
-                (ok_inj (by rw [← size_eq]; simp [objects.cap_size_bits])) hlt hfit)), hpi⟩
+                (ok_inj (by rw [← size_eq]; simp [objects.cap_size_bits])) hlt hfit)), by rw [hiw]; exact hpi⟩
           | _ => trivial
         · obtain ⟨q, sz, f, d, e⟩ := isUt_iff.1 (hE.utk a ha0 hu)
           rw [e]; trivial
@@ -760,7 +761,7 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
           obtain ⟨rfl, rfl, rfl, rfl⟩ := e0'
           have hd : d0 = false := hdevS rfl
           subst hd
-          have hI := (hJ.idleOut _ hxG _ _ _ hcs0 _ (Or.inr hi)).1
+          have hI := (hJ.idleOut _ hxG _ _ _ hcs0 _ (Or.inr (hi.trans hiw))).1
           have : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right _ hj
           rw [Nat.add_mul, Nat.one_mul] at this
           rw [hv] at hI; omega

@@ -32,6 +32,7 @@ structure QKM (σ σ' : State Unit) : Prop where
   tm : σ'.curTime = σ.curTime
   cons : σ'.consumedTime = σ.consumedTime
   idle : σ'.idleThread = σ.idleThread
+  isc : σ'.idleSc = σ.idleSc
   act : σ'.schedulerAction = σ.schedulerAction
   rel : σ'.releaseQueue = σ.releaseQueue
   cdt : σ'.cdt = σ.cdt
@@ -46,7 +47,7 @@ structure QKM (σ σ' : State Unit) : Prop where
 /-- The MCP update of one TCB is a `QKM` step. -/
 theorem QKM.mcp {σ : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t = some (.tcb x)) (m : Priority) :
     QKM σ (updK σ t (.tcb { x with tcbMcpriority := m })) := by
-  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q => ?_⟩
+  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q => ?_⟩
   by_cases e1 : q = t
   · subst e1; exact Or.inr (Or.inl ⟨x, { x with tcbMcpriority := m }, hk, by simp [updK], rfl⟩)
   · exact Or.inl (by simp [updK, e1])
@@ -54,7 +55,7 @@ theorem QKM.mcp {σ : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t = some
 /-- The IPC-buffer update of one TCB is a `QKM` step. -/
 theorem QKM.ipcBuf {σ : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t = some (.tcb x)) (b : VSpaceRef) :
     QKM σ (updK σ t (.tcb { x with tcbIpcBuffer := b })) := by
-  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q => ?_⟩
+  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q => ?_⟩
   by_cases e1 : q = t
   · subst e1; exact Or.inr (Or.inl ⟨x, { x with tcbIpcBuffer := b }, hk, by simp [updK], rfl⟩)
   · exact Or.inl (by simp [updK, e1])
@@ -198,7 +199,7 @@ theorem QKM.actIdle (hA : ActIdle σ) : ActIdle σ' := by
   refine ⟨fun u hu => h.sched (hA.1 u (by rw [← h.act]; exact hu)), ?_⟩
   obtain ⟨x, h1, h2, h3, h4⟩ := hA.2
   obtain ⟨y, hy, e⟩ := h.tcb h1
-  exact ⟨y, by rw [h.idle]; exact hy, by rw [e]; exact h2, by rw [e]; exact h3, by rw [h.idle, h.rel]; exact h4⟩
+  exact ⟨y, by rw [h.idle]; exact hy, by rw [e, h.isc]; exact h2, by rw [e]; exact h3, by rw [h.idle, h.rel]; exact h4⟩
 
 theorem QKM.curInv (hC : CurInv σ) : CurInv σ' := by
   obtain ⟨xt, hkc, hcs, hnb⟩ := hC.tcb
@@ -207,7 +208,7 @@ theorem QKM.curInv (hC : CurInv σ) : CurInv σ' := by
   obtain ⟨w1, hw1, -⟩ := h.sc hk1
   refine ⟨⟨y, by rw [h.ct]; exact hy, by rw [e, h.csc]; exact hcs, by rw [e]; exact hnb⟩,
     ⟨w1, n1, by rw [h.csc]; exact hw1⟩, fun hne x n hx => ?_, fun hm => hC.notRel ?_⟩
-  · rw [h.csc] at hne hx
+  · rw [h.csc, h.isc] at hne; rw [h.csc] at hx
     obtain ⟨z, hz, e2⟩ := h.sc_back hx
     rw [e2]; exact hC.active hne z n hz
   · rw [h.ct, h.rel] at hm; exact hm
@@ -228,7 +229,7 @@ theorem QKM.own {T C : Set U64} (hO : CurOwnW T C σ) : CurOwnW T C σ' := by
 theorem QKM.off (hO : OffOK σ) : OffOK σ' := by
   intro h0 y n hy ha
   rw [h.cons] at h0 ⊢; rw [h.tm]
-  rw [h.csc] at hy ha
+  rw [h.csc] at hy; rw [h.csc, h.isc] at ha
   obtain ⟨z, hz, e2⟩ := h.sc_back hy
   rw [e2] at ha ⊢; exact hO h0 z n hz ha
 
@@ -257,7 +258,7 @@ theorem QKM.bsa (hB : BlockedScActive σ) : BlockedScActive σ' := by
     rw [e2] at hr ⊢
     exact hB.replies p z n hz hr
 
-theorem QKM.fk : FK σ σ' := ⟨h.csc, h.idle⟩
+theorem QKM.fk : FK σ σ' := ⟨h.csc, h.idle, h.isc⟩
 
 theorem QKM.lk {W : ObjRef → Prop} : LK W σ σ' := fun p => Or.inr (by
   rcases h.kh p with e | ⟨a, b, ha, hb, e⟩ | ⟨z, w, n, ha, hb, e⟩
@@ -541,7 +542,8 @@ theorem JAtZ.mcpWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} 
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_qm hA hS3 hI3.1 hwW k3 hAI3.1
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-    exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => hA.szKeep q.bv y n hq) hks (J.wideW_irq hwW)⟩
+    exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => hA.szKeep q.bv y n hq) hks (J.wideW_irq hwW)
+      (J.idleW_keep hS3 hA.idle hA.isc).2⟩
   have hkern := J.kern_keep hks hwW.2.1 hS3 hA.ct hA.csc (fun sl h => Or.inl (by rw [← hA.orig]; exact h))
     (by rw [hA.arch])
     (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hDbg
@@ -559,7 +561,7 @@ theorem JAtZ.mcpWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} 
       · exact ⟨y, by simpa [hσ', updK, e] using hq, rfl⟩
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 hyk, J.mcp.set hT ht hk hv, hBW, hRP',
-      J.apart.sc_frame hks hA.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hA.idle), hkern,
+      J.apart.sc_frame hks hA.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hA.idle hA.isc), hkern,
       J.wideW_utc hwW hF.1 hA.cdt hA.orig hA.arch hDbg, hA.nsc J.nsc, J.inv.updSame hk rfl rfl, hA.cur J.cur,
       hA.own J.own, hA.off J.off, hAI3, hA.bsa J.bsa, hA.isorted J.isorted, hA.curRunM J.curRun, hblk⟩
   have hC0 := JCs.same J hF.1 hA.ksz

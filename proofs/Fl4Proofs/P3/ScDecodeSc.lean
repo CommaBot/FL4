@@ -375,7 +375,7 @@ the call-stack relation to `unbind_reply`. -/
 theorem unbind_invoke_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
     {Lst : U64 → List U64} (hCR : CallRel (L.mem s) R C σ Lst) (hRP : RPlaced st N T C R c s σ)
-    {sc : U64} (hsc : sc ∈ C) (hsc0 : sc ≠ 0#u64) (hpi : sc.bv ≠ Fl4Spec.idleScPtr)
+    {sc : U64} (hsc : sc ∈ C) (hsc0 : sc ≠ 0#u64) (hpi : sc.bv ≠ σ.idleSc)
     {y : Fl4Spec.SchedContext} {n : Nat} (hk : σ.kheap sc.bv = some (.schedContext y n))
     (hbnd : ∀ t : U64, y.scTcb = some t.bv → t ∈ T ∧ t.bv ≠ σ.idleThread)
     (hbn : ∀ m : U64, y.scNtfn = some m.bv → m ∈ N)
@@ -415,8 +415,10 @@ theorem unbind_invoke_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ 
   have hRF1 := RFree.carry hRF hCR (callWords_of_sfoot hS hRP hw1).2 hck1
   have hid1 : σ1.idleThread = σ.idleThread := by
     rw [hσ1]; unfold Fl4Proofs.P3.Notif.stsAct; split <;> rfl
+  have hisc1 : σ1.idleSc = σ.idleSc := by
+    rw [hσ1]; unfold Fl4Proofs.P3.Notif.stsAct; split <;> rfl
   -- `unbind_all_tcbs`
-  refine WP.spec_bind (unbind_all_tcbs_refines s1 a σ1 hS1 hR1 hN1 hI1 hsc hpi hk1
+  refine WP.spec_bind (unbind_all_tcbs_refines s1 a σ1 hS1 hR1 hN1 hI1 hsc (by rw [hisc1]; exact hpi) hk1
     (fun t ht => by rw [hid1]; exact hbnd t ht)) ?_
   rintro ⟨s2, a2⟩ ⟨ha2, σ2, he2, hS2, hR2, hN2, hI2, -, hw2, hck2⟩
   simp only at ha2 hS2 hR2 hw2

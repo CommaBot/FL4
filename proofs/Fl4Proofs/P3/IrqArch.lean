@@ -604,7 +604,7 @@ theorem irq_ioapic_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (�
       (Fl4Spec.ucast 64 (BitVec.ofNat 8 z.val) + Fl4Spec.irqIntOffset), rfl, σ1, hst, σ', G', ?_, hCR', hIR', hFI', hHA', hFR',
       fun hD => (hdk1 hD).trans (hdk2 (hD.toK.same (hdk1 hD).1)),
       fun hC => ((((hstp1 hC).trans arI (Steps.arch arI (s := s1) (σ := σ1) (Or.inr (Or.inr (Or.inl ⟨_, _, _, _, _, _, hmap⟩))))).trans arI
-        (Steps.ksSpec arI (s := s1) (a := a1) (⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hums, rfl, rfl, rfl⟩ : KsStep σ1 σa) rfl rfl (fun h => ⟨h.st, h.node⟩) id)).trans arI
+        (Steps.ksSpec arI (s := s1) (a := a1) (⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hums, rfl, rfl, rfl⟩ : KsStep σ1 σa) rfl rfl (fun h => ⟨h.st, h.node⟩) id)).trans arI
         (Steps.ksSpec arI (s := s1) (a := a1) (σ := σa) (σ' := σb) (by constructor <;> rfl) rfl rfl (fun h => ⟨h.st, h.node⟩) id)).trans arI hstp2⟩
   refine mem_liftE (x := ((), σ')) ?_
   refine mem_bind_nd (x := ((), σa)) hms' ?_
@@ -846,7 +846,7 @@ theorem irq_remap_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ
       (Fl4Spec.ucast 64 (BitVec.ofNat 8 z.val) + Fl4Spec.irqIntOffset) y7.bv, rfl, σ1, hst, σ', G', ?_, hCR', hIR', hFI', hHA', hFR',
       fun hD => (hdk1 hD).trans (hdk2 (hD.toK.same (hdk1 hD).1)),
       fun hC => ((((hstp1 hC).trans arI (Steps.arch arI (s := s1) (σ := σ1) (Or.inr (Or.inr (Or.inr (Or.inl ⟨_, _, _, _, _, _, _, hmap⟩)))))).trans arI
-        (Steps.ksSpec arI (s := s1) (a := a1) (⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hums, rfl, rfl, rfl⟩ : KsStep σ1 σa) rfl rfl (fun h => ⟨h.st, h.node⟩) id)).trans arI
+        (Steps.ksSpec arI (s := s1) (a := a1) (⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hums, rfl, rfl, rfl⟩ : KsStep σ1 σa) rfl rfl (fun h => ⟨h.st, h.node⟩) id)).trans arI
         (Steps.ksSpec arI (s := s1) (a := a1) (σ := σa) (σ' := σb) (by constructor <;> rfl) rfl rfl (fun h => ⟨h.st, h.node⟩) id)).trans arI hstp2⟩
   refine mem_liftE (x := ((), σ')) ?_
   refine mem_bind_nd (x := ((), σa)) hms' ?_

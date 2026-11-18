@@ -186,7 +186,8 @@ theorem JAtZ.finEpJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hdead : ∀ q ∈ D, DeadP (L := L) H s3 q := J.deadP_efr F hS3 hI3.1 hw k3 hAI3.1
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s3 σ3 := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-    exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => F.szKeep q.bv y n hq) hks (J.cnW_irq hw)⟩
+    exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => F.szKeep q.bv y n hq) hks (J.cnW_irq hw)
+      (J.idleW_keep hS3 F.sk.idle F.sk.isc).2⟩
   have hkern := J.kern_keep hks hw.2.1 hS3 F.sk.ct F.sk.csc (fun sl h => Or.inl (by rw [← F.sk.orig]; exact h))
     (by rw [F.sk.arch])
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
@@ -195,7 +196,7 @@ theorem JAtZ.finEpJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hRR' := J.rrecv.frame k4 F.khrb
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s3 σ3 :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
-      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle), hkern,
+      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc), hkern,
       J.cnW_utc hw hF.1 F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, I3, hcur3, F.own J.own, F.off J.off,
       hAI3, B3, F.isorted J.isorted, hrun3, hblk⟩
   have hC0 := JCs.same J hF.1 F.ksz

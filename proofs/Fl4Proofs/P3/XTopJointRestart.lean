@@ -148,6 +148,7 @@ structure RCn (t : ObjRef) (x : Tcb) (σ σ' : State Unit) : Prop where
   tm : σ'.curTime = σ.curTime
   cons : σ'.consumedTime = σ.consumedTime
   idle : σ'.idleThread = σ.idleThread
+  isc : σ'.idleSc = σ.idleSc
   act : σ'.schedulerAction = .chooseNewThread
   tcb : ∀ q xq, σ.kheap q = some (.tcb xq) → ∃ y, σ'.kheap q = some (.tcb y) ∧
     y.tcbSchedContext = xq.tcbSchedContext ∧ (q ≠ t → y = xq)
@@ -159,7 +160,7 @@ structure RCn (t : ObjRef) (x : Tcb) (σ σ' : State Unit) : Prop where
 theorem RCn.init {t : ObjRef} {x : Tcb} {σ : State Unit} (hk : σ.kheap t = some (.tcb x))
     (hcn : σ.schedulerAction = .chooseNewThread) (ts : ThreadState) :
     RCn t x σ (updK σ t (.tcb { x with tcbState := ts })) := by
-  refine ⟨rfl, rfl, rfl, rfl, hcn, fun q xq hq => ?_, fun y n hy => ?_, fun u hu => Or.inl hu⟩
+  refine ⟨rfl, rfl, rfl, rfl, rfl, hcn, fun q xq hq => ?_, fun y n hy => ?_, fun u hu => Or.inl hu⟩
   · by_cases e : q = t
     · subst e; rw [hk] at hq; cases hq
       exact ⟨{ x with tcbState := ts }, by simp [updK], rfl, fun h => (h rfl).elim⟩
@@ -175,9 +176,10 @@ theorem RCn.next {t : ObjRef} {x : Tcb} {σ σ1 σ2 : State Unit} (h : RCn t x �
     (h1 : σ2.curSc = σ1.curSc) (h2 : σ2.curTime = σ1.curTime) (h3 : σ2.consumedTime = σ1.consumedTime)
     (h4 : σ2.idleThread = σ1.idleThread) (h5 : σ2.schedulerAction = .chooseNewThread)
     (hrq : ∀ u ∈ σ2.releaseQueue, u ∈ σ1.releaseQueue ∨
-      (u = t ∧ (0 < σ.consumedTime → x.tcbSchedContext ≠ some σ.curSc))) :
+      (u = t ∧ (0 < σ.consumedTime → x.tcbSchedContext ≠ some σ.curSc)))
+    (h6 : σ2.idleSc = σ1.idleSc := by first | rfl | assumption) :
     RCn t x σ σ2 := by
-  refine ⟨h1.trans h.csc, h2.trans h.tm, h3.trans h.cons, h4.trans h.idle, h5, fun q xq hq => ?_,
+  refine ⟨h1.trans h.csc, h2.trans h.tm, h3.trans h.cons, h4.trans h.idle, h6.trans h.isc, h5, fun q xq hq => ?_,
     fun y n hy => ?_, fun u hu => ?_⟩
   · obtain ⟨y, hy, f1, f2⟩ := h.tcb q xq hq
     refine ⟨y, ?_, f1, f2⟩
@@ -210,7 +212,7 @@ theorem RCn.close {T C : Set U64} {t : ObjRef} {x : Tcb} {σ σ' : State Unit} (
     · exact Or.inr ⟨by rw [R.csc]; exact hcs, fun z n hz => by rw [R.csc] at hz; exact hun z n (R.sc z n hz)⟩
   · intro h0 y n hy ha
     rw [R.cons] at h0 ⊢; rw [R.tm]
-    rw [R.csc] at hy ha
+    rw [R.csc] at hy; rw [R.csc, R.isc] at ha
     exact hO h0 y n (R.sc y n hy) ha
   unfold ActIdle
   refine ⟨fun u hu => ?_, ?_⟩
@@ -219,7 +221,7 @@ theorem RCn.close {T C : Set U64} {t : ObjRef} {x : Tcb} {σ σ' : State Unit} (
     obtain ⟨y, hy, -, e2⟩ := R.tcb _ xi h1
     have e := e2 (Ne.symm hti)
     subst e
-    refine ⟨y, by rw [R.idle]; exact hy, h2, h3, fun hm => ?_⟩
+    refine ⟨y, by rw [R.idle]; exact hy, by rw [R.isc]; exact h2, h3, fun hm => ?_⟩
     rw [R.idle] at hm
     rcases R.rq _ hm with h | ⟨e, -⟩
     · exact h4 h
@@ -269,7 +271,7 @@ theorem resume_keepR {σ σ' : State Unit} {t p : ObjRef} (h : InvBut σ t) {x :
         exact ⟨xu, scp, yu, nu, h1, h2, h4, h.ne _ _ _ h4 h5, specRt_eq h1 h2 h4 (h.ne _ _ _ h4 h5)⟩)
     rw [hp] at he
     rw [pair_eq he]
-    refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, rfl, fun u hu => ?_⟩
+    refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, rfl, fun u hu => ?_⟩
     rcases mem_specInsT.1 hu with e | hu'
     · exact Or.inr ⟨e, hact, hc.2⟩
     · exact Or.inl hu'
@@ -358,7 +360,7 @@ theorem restartTail_specCn {T C : Set U64} {σ σb σc σd σ' : State Unit} {t 
       have hd' : schedContextResume (Z := Unit) p σc = ({((), σd)}, False) := hd
       obtain ⟨hcal, hact, hrq⟩ := resume_keepR hIc hkyc hytc hkc hxs hnqc hd'
       refine Rc.next (fun q hq => absurd (by rw [hcal.1]) hq) hcal.2.2.1 hcal.2.2.2.1 hcal.2.2.2.2.1
-        hcal.2.2.2.2.2.1 (by rw [hact]; exact Rc.act) (fun u hu => ?_)
+        hcal.2.2.2.2.2.1 (by rw [hact]; exact Rc.act) (fun u hu => ?_) hcal.2.2.2.2.2.2.2.2
       rcases hrq u hu with h | ⟨e, hac, hnr⟩
       · exact Or.inl h
       refine Or.inr ⟨e, fun h0 hcur => ?_⟩
@@ -378,6 +380,7 @@ theorem restartTail_specCn {T C : Set U64} {σ σb σc σd σ' : State Unit} {t 
       have hq := possibleSwitchTo_qchange hId hs he'
       exact Rd.next (fun q hq' => absurd (by rw [hcal.1]) hq') hcal.2.2.1 hcal.2.2.2.1 hcal.2.2.2.2.1
         hcal.2.2.2.2.2.1 (possibleSwitchTo_cn hId hs he' Rd.act) (fun u hu => Or.inl (by rw [← hq.2.1]; exact hu))
+        hcal.2.2.2.2.2.2.2.2
     · rw [show schedulable t σd = false by simpa using hs] at he
       have e : σ' = σd :=
         the_result (show NonDet.when (false = true) (possibleSwitchTo (Z := Unit) t) σd = ({((), σd)}, False) from rfl) he
@@ -506,7 +509,7 @@ theorem restartTail_specJ {σ σb σc σd σ' : State Unit} {t : ObjRef} {x : Tc
     refine ⟨fun u hu => (hns u (mk.sw u hu)).elim, ?_⟩
     obtain ⟨xi, h1, h2, h3, h4⟩ := hA.2
     obtain ⟨y, hy, e1, e2⟩ := mk.idT xi h1
-    refine ⟨y, by rw [mk.idle]; exact hy, by rw [e1]; exact h2, by rw [e2]; exact h3, fun hm => ?_⟩
+    refine ⟨y, by rw [mk.idle]; exact hy, by rw [e1, mk.isc]; exact h2, by rw [e2]; exact h3, fun hm => ?_⟩
     rw [mk.idle] at hm
     rcases mk.rq _ hm with h | ⟨h, -⟩
     · exact h4 h
@@ -551,7 +554,7 @@ theorem JAtZ.undead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x t : U64
   exact { J with
     jcov := J.sc_jcov hw (fun q hq => J.jcov.dead q hq.1) (fun q hq hn => by
       have e : q = t := Classical.byContradiction fun e => hn ⟨hq, e⟩
-      subst e; exact hcov) rfl
+      subst e; exact hcov) ⟨rfl, rfl⟩
     kern := J.sc_kern hw hK (FK.refl σ) J.xtop rfl Set.sdiff_subset }
 
 set_option maxHeartbeats 16000000 in
@@ -640,7 +643,7 @@ theorem JAtZ.restartTailJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     J.deadP_sc_stepQ hX' hwT hK (fun _ hp => absurd (show q = t from P1.eq_of_bv hp) (fun e => htD (e ▸ hq)))
       hL hF hAI.1 (fun h => h) (J.jcov.dead q hq)
   exact ⟨Lst', J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
-    (J.sc_jpl hwT hK) (J.sc_jcov hwT hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2))
+    (J.sc_jpl hwT hK (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2) (J.sc_jcov hwT hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2))
     (J.sc_kern hwT hK hF hX' hDbg fun _ h => h) (J.sc_utc hwT hK hDbg) hN' hI' hC'
     hOw' hO' hAI (J.bsa.bk hBK hsok) hcr hblk⟩
 

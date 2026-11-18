@@ -30,7 +30,7 @@ open Fl4Spec
 noncomputable section
 
 /-- The scalar fields `reply_remove` keeps. -/
-def rsF (σ : State Unit) := (σ.idleThread, σ.curSc, σ.consumedTime, σ.curTime)
+def rsF (σ : State Unit) := (σ.idleThread, σ.curSc, σ.consumedTime, σ.curTime, σ.idleSc)
 
 /-- An `FK rsF` lemma of a spec function. -/
 syntax "rsf_leaf" : tactic

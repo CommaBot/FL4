@@ -66,7 +66,8 @@ theorem SchedRel.spec_congr {N T C : Set U64} {c : U64} {s : S} {σ σ' : Fl4Spe
     (h2 : σ'.releaseQueue = σ.releaseQueue) (h3 : σ'.curThread = σ.curThread)
     (h4 : σ'.schedulerAction = σ.schedulerAction) (h5 : σ'.curSc = σ.curSc) (h6 : σ'.curTime = σ.curTime)
     (h7 : σ'.consumedTime = σ.consumedTime) (h8 : σ'.reprogramTimer = σ.reprogramTimer)
-    (h9 : σ'.curDomain = σ.curDomain) (h10 : σ'.domainTime = σ.domainTime) (h11 : σ'.idleThread = σ.idleThread) :
+    (h9 : σ'.curDomain = σ.curDomain) (h10 : σ'.domainTime = σ.domainTime) (h11 : σ'.idleThread = σ.idleThread)
+    (h12 : σ'.idleSc = σ.idleSc := by first | rfl | assumption) :
     SchedRel st N T C c s σ' := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   refine ⟨hS.placed, hS.nodeNW, hS.domNW, hS.dtNW, scOut_transfer rfl (SzKeep.of_kheap hk) hS.scOut,
@@ -75,7 +76,7 @@ theorem SchedRel.spec_congr {N T C : Set U64} {c : U64} {s : S} {σ σ' : Fl4Spe
   exact ⟨fun p hp => by rw [h1]; exact hs.rq p hp, fun d p hd => by rw [h1]; exact hs.rqDom d p hd,
     by rw [h2]; exact hs.rel, by rw [h3]; exact hs.curThread, by rw [h5]; exact hs.curSc,
     by rw [h6]; exact hs.curTime, by rw [h7]; exact hs.consumed, by rw [h9]; exact hs.curDom,
-    fun t ht => by rw [hk]; exact hs.tcb t ht, hs.scMem, fun sc hsc => by rw [hk]; exact hs.scs sc hsc, hs.idleSc,
+    fun t ht => by rw [hk]; exact hs.tcb t ht, hs.scMem, fun sc hsc => by rw [hk, h12]; exact hs.scs sc hsc, by rw [h12]; exact hs.idleSc,
     by rw [h10]; exact hs.domTime, by rw [h11]; exact hs.idleTh⟩
 
 /-- Writing the node's `CUR_TIME` word. -/

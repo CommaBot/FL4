@@ -211,7 +211,7 @@ theorem bind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
   subst hbb
   -- the unblock check
   have P2 : ∀ s3 : S, SchedRel st N T C j s3 σd → NtfnStateRel N T (L.mem s3) σd →
-      ScRelW st s3 p { y with scTcb := some t.bv } n →
+      ScRelW st σd.idleSc s3 p { y with scTcb := some t.bv } n →
       (if y.scSporadic = true then do
           let b1 ← sporadic.sc_active st s3 p
           if b1 = true then do
@@ -263,11 +263,11 @@ theorem bind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
       ∃ yu, σu.kheap p.bv = some (.schedContext yu n) ∧ yu.scTcb = some t.bv ∧
         (∀ q, q ≠ p.bv → σu.kheap q = σd.kheap q) ∧ σu.releaseQueue = σd.releaseQueue ∧
         σu.readyQueues = σd.readyQueues ∧ σu.schedulerAction = σd.schedulerAction ∧
-        σu.idleThread = σd.idleThread ∧
+        σu.idleThread = σd.idleThread ∧ σu.idleSc = σd.idleSc ∧
         (Fl4Spec.runnable xt.tcbState = false → inClass xt.tcbState → Fl4Spec.scActive yu = true →
           released σu yu) ∧ InvBut σu t.bv := by
     rintro σu (rfl | ⟨hya, he⟩)
-    · exact ⟨_, hkd, rfl, fun _ _ => rfl, rfl, rfl, rfl, rfl, fun h1 h2 h3 => hblk h1 h2 h3, hId⟩
+    · exact ⟨_, hkd, rfl, fun _ _ => rfl, rfl, rfl, rfl, rfl, rfl, fun h1 h2 h3 => hblk h1 h2 h3, hId⟩
     · have hm : ((), σu) ∈ (Fl4Spec.refillUnblockCheck (Z := Unit) p.bv σd).1 := by rw [he]; rfl
       have hnr : Fl4Spec.refillReady σd.curTime (Fl4Spec.refillHd { y with scTcb := some t.bv }) = true →
           ({ y with scTcb := some t.bv } : Fl4Spec.SchedContext).scPeriod ≠ 0 →
@@ -282,15 +282,15 @@ theorem bind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
           rw [hk] at h1; cases h1; rw [hy0] at h2; cases h2
       have hIu := hId.unblock hkd (hne hya) hnr hm
       rcases unblock_result hkd (hne hya) hm with ⟨rfl, -⟩ | ⟨z, rfl, hzR, hzt, hzy, hrdy, hzne, hper⟩
-      · exact ⟨_, hkd, rfl, fun _ _ => rfl, rfl, rfl, rfl, rfl, fun h1 h2 h3 => hblk h1 h2 h3, hIu⟩
-      · refine ⟨z, by simp [updK], by rw [hzy], fun q hq => by simp [updK, hq], rfl, rfl, rfl, rfl,
+      · exact ⟨_, hkd, rfl, fun _ _ => rfl, rfl, rfl, rfl, rfl, rfl, fun h1 h2 h3 => hblk h1 h2 h3, hIu⟩
+      · refine ⟨z, by simp [updK], by rw [hzy], fun q hq => by simp [updK, hq], rfl, rfl, rfl, rfl, rfl,
           fun _ _ ha => ?_, hIu⟩
         have hact' : Fl4Spec.scActive ({ y with scTcb := some t.bv } : Fl4Spec.SchedContext) = true := by
           rw [← ha, hzy]
         exact ⟨ready_now _ _ hzt, sufficient_of_refOK (hzR (hId.refills p.bv _ n hkd hact' hper))⟩
   refine WP.spec_bind (P2 _ hS3 hR3 hx3) ?_
   rintro s4 ⟨σu, hun, hS4, hR4, hor, hw4⟩
-  obtain ⟨yu, hku, hyu, hqu, hrqu, hrdu, hactu, hidu, hrelu, hIu⟩ := U σu hor
+  obtain ⟨yu, hku, hyu, hqu, hrqu, hrdu, hactu, hidu, hiscu, hrelu, hIu⟩ := U σu hor
   have hzd : SzKeep σ σd := by
     rw [hσd]; exact (SzKeep.updK hkt fun _ _ e => by cases e).trans
       (SzKeep.updK hka fun x m e => by cases e; exact ⟨y, rfl⟩)
@@ -328,7 +328,7 @@ theorem bind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
       (by simp only [σd, updSc, updK_kheap, Function.update_of_ne hip, Function.update_of_ne (Ne.symm hti)]) id
     have hIdu : IdleOK σu := IdleOK.of hIdd hidu (hqu _ hip) (by rw [hrqu]; exact id)
     refine ⟨IdleOK.of hIdu hkeep.1.2.2.2.2.2.1 (by rw [hkr]) (fun hm => (hkeep.2.2 _ hm).resolve_left
-      (fun e => hti (by rw [← e]; exact hidu))), ?_⟩
+      (fun e => hti (by rw [← e]; exact hidu))) hkeep.1.isc, ?_⟩
     rw [hkeep.2.1, hactu]; exact ha0
   -- the spec up to the schedulable test
   have hsp : ∀ σ', (Fl4Spec.NonDet.gets (Fl4Spec.schedulable (Z := Unit) t.bv) >>= fun sched =>

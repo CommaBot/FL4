@@ -136,17 +136,19 @@ theorem pair_fst_eq {α : Type} {a b : α} {σ : State Unit}
 
 theorem CurInv.sub {σ σ' : State Unit} (h : CurInv σ) (hc : Calm σ σ')
     (hsub : ∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue) : CurInv σ' := by
+  have hi := hc.isc
   obtain ⟨hk, h1, h2, -⟩ := hc
   obtain ⟨xt, hkt, hxs, hnb⟩ := h.tcb
   obtain ⟨x, n, hx⟩ := h.sc
   exact ⟨⟨xt, by rw [hk, h1]; exact hkt, by rw [h2]; exact hxs, hnb⟩, ⟨x, n, by rw [hk, h2]; exact hx⟩,
-    fun hid y m hy => h.active (h2 ▸ hid) y m (by rw [hk, h2] at hy; exact hy),
+    fun hid y m hy => h.active (by rw [← h2, ← hi]; exact hid) y m (by rw [hk, h2] at hy; exact hy),
     fun hm => h.notRel (by rw [← h1]; exact hsub _ hm)⟩
 
 theorem OffOK.calm {σ σ' : State Unit} (h : OffOK σ) (hc : Calm σ σ') : OffOK σ' := by
+  have hi := hc.isc
   obtain ⟨hk, -, h2, h3, h4, -⟩ := hc
   intro h0 y n hy ha
-  rw [h4] at h0 ⊢; rw [h3]; rw [hk, h2] at hy; rw [h2] at ha
+  rw [h4] at h0 ⊢; rw [h3]; rw [hk, h2] at hy; rw [h2, hi] at ha
   exact h h0 y n hy ha
 
 /-- `possible_switch_to` keeps a pending reschedule pending. -/
@@ -559,7 +561,7 @@ theorem awaken_refinesW {A : Type} {ar : machine.Arch A} {N C : Set U64} {c : U6
   rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, ⟨hA2, hcn2, hnr2⟩, hc2, hsub, hw2⟩
   rw [WP.spec_ok]
   refine ⟨σ1, σ2, hF, h2, hS2, hR2, hN2, ⟨hI2, ?_, hO1.calm hc2, ⟨hA2, hId1.sub hc2 hsub⟩,
-    by rw [hc2.2.2.2.2.2.2.2]; exact hd1, hW1.sub hc2 hsub⟩, hc2, hcn2, hnr2, hsub, (s1, a1), hPf, rfl, hw2⟩
+    by rw [hc2.2.2.2.2.2.2.2.1]; exact hd1, hW1.sub hc2 hsub⟩, hc2, hcn2, hnr2, hsub, (s1, a1), hPf, rfl, hw2⟩
   rcases hC1 with e | hC
   · exact Or.inl (hcn2 e)
   · exact Or.inr (hC.sub hc2 hsub)
@@ -581,7 +583,7 @@ theorem awaken_refines {A : Type} {ar : machine.Arch A} {N C : Set U64} {c : U64
   rintro s2 ⟨σ2, h2, hS2, hR2, hN2, hI2, ⟨hA2, -⟩, hc2, hsub, -⟩
   rw [WP.spec_ok]
   exact ⟨σ1, σ2, hF, h2, hS2, hR2, hN2, ⟨hI2, hC1.sub hc2 hsub, hO1.calm hc2, ⟨hA2, hId1.sub hc2 hsub⟩,
-    by rw [hc2.2.2.2.2.2.2.2]; exact hd1⟩, hc2, hsub⟩
+    by rw [hc2.2.2.2.2.2.2.2.1]; exact hd1⟩, hc2, hsub⟩
 
 end
 end

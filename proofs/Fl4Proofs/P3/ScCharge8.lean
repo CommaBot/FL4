@@ -21,7 +21,8 @@ open Fl4Spec
 def commitHead : SMonad Unit Unit := do
   let csc ← Fl4Spec.NonDet.gets fun s : State Unit => s.curSc
   let active ← getScActive csc
-  Fl4Spec.NonDet.when (active ∧ csc ≠ idleScPtr) <| do
+  let isc ← Fl4Spec.NonDet.gets fun s : State Unit => s.idleSc
+  Fl4Spec.NonDet.when (active ∧ csc ≠ isc) <| do
     let consumed ← Fl4Spec.NonDet.gets fun s : State Unit => s.consumedTime
     Fl4Spec.NonDet.when (0 < consumed) <| do
       let robin ← isRoundRobin csc
@@ -34,7 +35,13 @@ theorem commitTime_eq (σ : State Unit) :
     commitTime (Z := Unit) σ =
       (commitHead >>= fun _ => Fl4Spec.NonDet.modify fun s : State Unit => { s with consumedTime := 0 }) σ := by
   unfold commitTime commitHead
-  rw [nd_bind_assoc', nd_gets_bind, nd_gets_bind, nd_bind_assoc']
+  simp only [nd_bind_assoc', nd_gets_bind]
+  have e : ∀ (m : SMonad Unit Bool) (F G : Bool → SMonad Unit Unit), (∀ a s, F a s = G a s) →
+      (m >>= F) σ = (m >>= G) σ :=
+    fun m F G h => by rw [show F = G from funext fun a => funext fun s => h a s]
+  apply e
+  intro a s
+  simp only [nd_bind_assoc']
 
 theorem getScActive_eq {σ : State Unit} {p : ObjRef} {x : SchedContext} {n : Nat}
     (hk : σ.kheap p = some (.schedContext x n)) :
@@ -238,7 +245,7 @@ theorem commit_time_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
     (hscC : nodeW st s c layout.node.CUR_SC ∈ C)
     {u0 : Fl4Spec.ObjRef} (hown0 : ∀ x n, σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) →
       x.scTcb = some u0 ∨ x.scTcb = none)
-    (hidle : (nodeW st s c layout.node.IDLE_SC).bv = Fl4Spec.idleScPtr)
+    (hidle : (nodeW st s c layout.node.IDLE_SC).bv = σ.idleSc)
     (hnr : 0 < σ.consumedTime → u0 ∉ σ.releaseQueue) (hoff : OffOK σ)
     (hmrt : sporadic.max_release_time ar a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
@@ -273,7 +280,7 @@ theorem commit_time_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
       hI1.congr rfl rfl rfl rfl, hK1, hH1, WritesIn.kfoot_sfoot hw1
         ((writesIn_wr (nodeAt_aligned hNd ho (by simp [layout.node.CONSUMED]))).mono fun b hb => hb ▸ sfoot_node hNd ho)⟩
   have hsph : commitHead σ = Fl4Spec.NonDet.when (Fl4Spec.scActive x = true ∧ (nodeW st s c layout.node.CUR_SC).bv ≠
-      Fl4Spec.idleScPtr) (do
+      σ.idleSc) (do
         let consumed ← Fl4Spec.NonDet.gets fun s : Fl4Spec.State Unit => s.consumedTime
         Fl4Spec.NonDet.when (0 < consumed) (do
           let robin ← Fl4Spec.isRoundRobin (Z := Unit) (nodeW st s c layout.node.CUR_SC).bv
@@ -283,8 +290,8 @@ theorem commit_time_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
         Fl4Spec.updateSchedContext (nodeW st s c layout.node.CUR_SC).bv
           fun sc => { sc with scConsumed := sc.scConsumed + consumed }) σ := by
     unfold commitHead
-    rw [nd_gets_bind, hs.curSc, nd_bind_one (getScActive_eq hk)]
-  have hnone : ¬ (Fl4Spec.scActive x = true ∧ (nodeW st s c layout.node.CUR_SC).bv ≠ Fl4Spec.idleScPtr) →
+    rw [nd_gets_bind, hs.curSc, nd_bind_one (getScActive_eq hk), nd_gets_bind]
+  have hnone : ¬ (Fl4Spec.scActive x = true ∧ (nodeW st s c layout.node.CUR_SC).bv ≠ σ.idleSc) →
       sched.set_consumed st s 0#u64 ⦃ s' => ∃ σ', Fl4Spec.commitTime (Z := Unit) σ = ({((), σ')}, False) ∧
         SchedRel st N T C c s' σ' ∧ NtfnStateRel N T (L.mem s') σ' ∧ NSC N C σ' ∧
         InvBut σ' u0 ∧
@@ -315,7 +322,7 @@ theorem commit_time_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
       rw [← hid]
       simp only [bind_ok]
       exact hnone (fun h => h.2 (by rw [hid, hidle]))
-    · have hid2 : (nodeW st s c layout.node.CUR_SC).bv ≠ Fl4Spec.idleScPtr := by
+    · have hid2 : (nodeW st s c layout.node.CUR_SC).bv ≠ σ.idleSc := by
         rw [← hidle]; exact bv_ne hid
       simp only [hid, ne_eq, not_false_eq_true, decide_true, ↓reduceIte]
       step with sched.consumed.spec' as ⟨cn, hcn⟩

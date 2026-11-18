@@ -224,12 +224,12 @@ theorem SchedRel.specFrame {Rg : Fl4Spec.ObjRef → Prop} {s : S} {σ σ' : Fl4S
   refine ⟨fun p hp => by rw [hO.rq]; exact hs.rq p hp, fun d p hd => by rw [hO.rq]; exact hs.rqDom d p hd,
     by rw [hO.rel]; exact hs.rel, by rw [hO.ct]; exact hs.curThread, by rw [hO.csc]; exact hs.curSc,
     by rw [hO.ctime]; exact hs.curTime, by rw [hO.cons]; exact hs.consumed, by rw [hO.cdom]; exact hs.curDom,
-    fun t ht => ?_, hs.scMem, fun sc hsc => ?_, hs.idleSc, by rw [hO.dtime]; exact hs.domTime,
+    fun t ht => ?_, hs.scMem, fun sc hsc => ?_, by rw [hO.isc]; exact hs.idleSc, by rw [hO.dtime]; exact hs.domTime,
     by rw [hO.idle]; exact hs.idleTh⟩
   · obtain ⟨x, hk, h1⟩ := hs.tcb t ht
     exact ⟨x, by rw [hO.keep (hT t ht) (by rw [hk]; exact passive_tcb)]; exact hk, h1⟩
   · obtain ⟨x, n, hk, e⟩ := hs.scs sc hsc
-    exact ⟨x, n, by rw [hO.keep (hC sc hsc) (by rw [hk]; exact passive_sc)]; exact hk, e⟩
+    exact ⟨x, n, by rw [hO.keep (hC sc hsc) (by rw [hk]; exact passive_sc)]; exact hk, by rw [hO.isc]; exact e⟩
 
 theorem EpStateRel.specFrame {Rg : Fl4Spec.ObjRef → Prop} {m : U64 → U64} {σ σ' : Fl4Spec.State Unit}
     (hR : Endp.EpStateRel T E R B m σ) (hO : OStep Rg σ σ') (hT : ∀ t ∈ T, ¬ Rg t.bv)

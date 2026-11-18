@@ -114,14 +114,14 @@ theorem KFr.trans {t : ObjRef} {σ1 σ2 σ3 : State Unit} (h1 : KFr t σ1 σ2) (
 
 theorem KFr.upd {t : ObjRef} {σ : State Unit} {p : ObjRef} {o o' : KernelObject}
     (hk : σ.kheap p = some o) (hc : KChg t p o o') : KFr t σ (updK σ p o') := by
-  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, fun p' => ?_⟩
+  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, fun p' => ?_⟩
   by_cases e : p' = p
   · subst e; exact Or.inr ⟨o, o', hk, by simp [updK], hc⟩
   · exact Or.inl (by simp [updK, e])
 
 theorem KFr.sts (t : ObjRef) (σ : State Unit) (u : ObjRef) : KFr t σ (Notif.stsAct σ u) := by
   unfold Notif.stsAct; split
-  · exact ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, fun _ => Or.inl rfl⟩
+  · exact ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, fun _ => Or.inl rfl⟩
   · exact KFr.refl _ _
 
 /-- `t`, `KbIn`, set `Inactive`. -/
@@ -300,13 +300,13 @@ theorem KFr.own {T C : Set U64} (h : KFr t σ σ') (hO : CurOwnW T C σ) : CurOw
 theorem KFr.off (h : KFr t σ σ') (hO : OffOK σ) : OffOK σ' := by
   intro hc y n hy ha
   rw [h.sk.cons] at hc ⊢; rw [h.sk.tm]
-  rw [h.sk.csc] at hy ha
+  rw [h.sk.csc] at hy; rw [h.sk.csc, h.sk.isc] at ha
   exact hO hc y n (h.scB hy) ha
 
 theorem KFr.idleOK (h : KFr t σ σ') (hO : IdleOK σ) : IdleOK σ' := by
   obtain ⟨x, hx, h1, h2, h3⟩ := hO
   obtain ⟨st, fl, hx', hs⟩ := h.tcbF hx
-  refine ⟨{ x with tcbState := st, tcbFault := fl }, by rw [h.sk.idle]; exact hx', h1, ?_,
+  refine ⟨{ x with tcbState := st, tcbFault := fl }, by rw [h.sk.idle]; exact hx', by rw [h.sk.isc]; exact h1, ?_,
     by rw [h.sk.idle, h.sk.rel]; exact h3⟩
   show st = _
   rw [hs.st (by rw [h2]; rintro (⟨_, _, e⟩ | ⟨_, _, _, e⟩ | ⟨_, e⟩ | e) <;> cases e)]; exact h2
@@ -322,7 +322,7 @@ theorem KFr.curInv (h : KFr t σ σ') (hC : CurInv σ) : CurInv σ' := by
   obtain ⟨st, fl, hkt', hs⟩ := h.tcbF hkt
   refine ⟨⟨_, by rw [h.sk.ct]; exact hkt', by rw [h.sk.csc]; exact hxs, hs.notIpc hnb⟩,
     ⟨x, n, by rw [h.sk.csc]; exact h.scF hx⟩, fun hne y m hy => ?_, by rw [h.sk.ct, h.sk.rel]; exact hC.notRel⟩
-  rw [h.sk.csc] at hne hy
+  rw [h.sk.csc, h.sk.isc] at hne; rw [h.sk.csc] at hy
   exact hC.active hne y m (h.scB hy)
 
 theorem KFr.curRunW (h : KFr t σ σ') (hR : CurRunW σ) : CurRunW σ' := by

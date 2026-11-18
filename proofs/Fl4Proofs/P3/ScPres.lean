@@ -88,16 +88,18 @@ structure SOK (f : Bool × Bool) (σ σ' : State Unit) : Prop where
   orig : σ'.isOriginalCap = σ.isOriginalCap
   dl : σ'.domainList = σ.domainList
   dsi : σ'.domainStartIndex = σ.domainStartIndex
+  /-- No spec operation writes `idle_sc`. -/
+  isc : σ'.idleSc = σ.idleSc
 
-theorem SOK.refl (f : Bool × Bool) (σ : State Unit) : SOK f σ σ := ⟨fun p => ORel.refl f _, rfl, rfl, rfl, rfl⟩
+theorem SOK.refl (f : Bool × Bool) (σ : State Unit) : SOK f σ σ := ⟨fun p => ORel.refl f _, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem SOK.trans {f : Bool × Bool} {σ1 σ2 σ3 : State Unit} (h1 : SOK f σ1 σ2) (h2 : SOK f σ2 σ3) : SOK f σ1 σ3 :=
   ⟨fun p => (h1.kh p).trans (h2.kh p), h2.cdt.trans h1.cdt, h2.orig.trans h1.orig, h2.dl.trans h1.dl,
-    h2.dsi.trans h1.dsi⟩
+    h2.dsi.trans h1.dsi, h2.isc.trans h1.isc⟩
 
 theorem SOK.weaken {f f' : Bool × Bool} {σ σ' : State Unit} (h : SOK f σ σ') (h1 : f'.1 = true → f.1 = true)
     (h2 : f'.2 = true → f.2 = true) : SOK f' σ σ' := by
-  refine ⟨fun p => ?_, h.cdt, h.orig, h.dl, h.dsi⟩
+  refine ⟨fun p => ?_, h.cdt, h.orig, h.dl, h.dsi, h.isc⟩
   have := h.kh p
   revert this; cases σ.kheap p <;> cases σ'.kheap p <;> simp only [ORel] <;>
     first | exact id | exact fun h' => PK.weaken h' h1 h2
@@ -105,7 +107,7 @@ theorem SOK.weaken {f f' : Bool × Bool} {σ σ' : State Unit} (h : SOK f σ σ'
 /-- An update of `σ` at `p` with `o'`, `PK`-related to the object there. -/
 theorem SOK.upd {f : Bool × Bool} {σ : State Unit} {p : ObjRef} {o o' : KernelObject} (hk : σ.kheap p = some o)
     (h : PK f o o') : SOK f σ { σ with kheap := Function.update σ.kheap p (some o') } := by
-  refine ⟨fun q => ?_, rfl, rfl, rfl, rfl⟩
+  refine ⟨fun q => ?_, rfl, rfl, rfl, rfl, rfl⟩
   by_cases e : q = p
   · subst e; simp only [Function.update_self, hk, ORel]; exact h
   · simp only [Function.update_of_ne e]; exact ORel.refl f _
@@ -184,21 +186,21 @@ theorem pres_liftM {α β : Type} (g : α → β) {m : NonDet (State Unit) α} (
 
 theorem pres_modify {g : State Unit → State Unit}
     (hg : ∀ σ, (g σ).kheap = σ.kheap ∧ (g σ).cdt = σ.cdt ∧ (g σ).isOriginalCap = σ.isOriginalCap ∧
-      (g σ).domainList = σ.domainList ∧ (g σ).domainStartIndex = σ.domainStartIndex) :
+      (g σ).domainList = σ.domainList ∧ (g σ).domainStartIndex = σ.domainStartIndex ∧ (g σ).idleSc = σ.idleSc) :
     Pres f (NonDet.modify g) := by
   intro σ x hx; rw [Set.mem_singleton_iff.1 hx]
-  obtain ⟨e1, e2, e3, e4, e5⟩ := hg σ
-  exact ⟨fun p => by rw [e1]; exact ORel.refl f _, e2, e3, e4, e5⟩
+  obtain ⟨e1, e2, e3, e4, e5, e6⟩ := hg σ
+  exact ⟨fun p => by rw [e1]; exact ORel.refl f _, e2, e3, e4, e5, e6⟩
 
 theorem pres_get_put {g : State Unit → State Unit}
     (hg : ∀ σ, (g σ).kheap = σ.kheap ∧ (g σ).cdt = σ.cdt ∧ (g σ).isOriginalCap = σ.isOriginalCap ∧
-      (g σ).domainList = σ.domainList ∧ (g σ).domainStartIndex = σ.domainStartIndex) :
+      (g σ).domainList = σ.domainList ∧ (g σ).domainStartIndex = σ.domainStartIndex ∧ (g σ).idleSc = σ.idleSc) :
     Pres f (NonDet.get >>= fun s => NonDet.put (g s)) := by
   intro σ x ⟨y, hy, hx⟩
   rw [Set.mem_singleton_iff.1 hy] at hx
   rw [Set.mem_singleton_iff.1 hx]
-  obtain ⟨e1, e2, e3, e4, e5⟩ := hg σ
-  exact ⟨fun p => by rw [e1]; exact ORel.refl f _, e2, e3, e4, e5⟩
+  obtain ⟨e1, e2, e3, e4, e5, e6⟩ := hg σ
+  exact ⟨fun p => by rw [e1]; exact ORel.refl f _, e2, e3, e4, e5, e6⟩
 
 theorem pres_getObject (p : ObjRef) : Pres f (getObject (Z := Unit) p) := pres_getsThe _
 
@@ -206,13 +208,13 @@ theorem pres_doMachineOp {α : Type} (mop : NonDet MachineState α) : Pres f (do
   unfold doMachineOp
   refine pres_bind (pres_gets _) (fun _ => pres_bind (pres_selectF _) (fun x => ?_))
   obtain ⟨r, ms⟩ := x
-  exact pres_bind (pres_modify (fun σ => ⟨rfl, rfl, rfl, rfl, rfl⟩)) (fun _ => pres_pure _)
+  exact pres_bind (pres_modify (fun σ => ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩)) (fun _ => pres_pure _)
 
 theorem pres_doExtendedOp (eop : DetExtMonad Unit) : Pres f (doExtendedOp (Z := Unit) eop) := by
   unfold doExtendedOp
   refine pres_bind pres_get (fun _ => pres_bind (pres_selectF _) (fun _ => ?_))
   split
-  exact pres_modify (fun σ => ⟨rfl, rfl, rfl, rfl, rfl⟩)
+  exact pres_modify (fun σ => ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩)
 
 theorem pres_whileLoop {α : Type} {C : α → State Unit → Prop} {B : α → NonDet (State Unit) α}
     (hB : ∀ r, Pres f (B r)) (r : α) : Pres f (NonDet.whileLoop C B r) := by

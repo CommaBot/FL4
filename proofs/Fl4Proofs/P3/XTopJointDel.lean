@@ -99,7 +99,7 @@ theorem jowes_slotDF {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     exact (P1.blk_of_capw J.blk hw' (J.slotCapW P1.tlow_slots)).1
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' :=
     let ⟨Tr, Cq, hJ⟩ := J.jpl
-    ⟨Tr, Cq, hJ.slotTF hkc hw.1 J.intL hTK hfh⟩
+    ⟨Tr, Cq, hJ.slotTF hkc hw.1 J.intL hTK hfh (J.idleW_keep hX'.fin.1.1.1 hC.idle hC.isc).2⟩
   obtain ⟨-, ⟨-, -, hM', -, -⟩, -⟩ := hX'.rel
   have hJC0 := J.jcs_slot hM' hMO hFI hUK hkz hDl
   have hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
@@ -396,7 +396,7 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     rw [show (P1.HKind.ntfn).bits = 6 from rfl] at this
     have : 1 ≤ 2 ^ k'.bits := Nat.one_le_two_pow
     omega
-  have hidl : L.idleW s2 = L.idleW s := J.idleW_keep hX2.fin.1.1.1 (CnStep.of_cnK hcn2).idle
+  have hidl : Sched.IdleKeep (L := L) s s2 := J.idleW_keep hX2.fin.1.1.1 (CnStep.of_cnK hcn2).idle (CnStep.of_cnK hcn2).isc
   have hunc : ∀ q', q' ∈ Uncov Z.th H (L.mem s2) G2 (ExAt (L := L) Z.th H s2) → DeadP (L := L) H s2 q' := by
     intro q' hq'
     by_cases hD : q' ∈ D

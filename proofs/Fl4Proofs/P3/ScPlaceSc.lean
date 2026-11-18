@@ -193,8 +193,8 @@ theorem JPlaced.ufoot {th : TypedHeap} {H : Heap} {Tr C0 : Set U64} {s s' : S} {
     (h : JPlaced (L := L) th H Tr C0 s σ) {N T C R : Set U64} {c : U64} {f : Bool × Bool}
     (hS : SchedRel st N T C c s σ) (hRP : RPlaced st N T C R c s σ) (hIA : IrqApart (st := st) T N C R c s σ)
     (hSS : SlotsSame th (L.mem s) (L.mem s')) (hw : WritesIn st s s' (UFoot st T N C R c s σ))
-    (hsok : SOK f σ σ') : JPlaced (L := L) th H Tr C0 s' σ' :=
-  h.same hSS (sok_sc hsok) hw.1 (irq_of_ufoot hS hRP hIA hw)
+    (hsok : SOK f σ σ') (hiw : idleScW (L := L) s' = idleScW (L := L) s) : JPlaced (L := L) th H Tr C0 s' σ' :=
+  h.same hSS (sok_sc hsok) hw.1 (irq_of_ufoot hS hRP hIA hw) hiw
 
 /-- `TopPostF` with `J` at the post states. -/
 def TopPostFJ (J : S → Fl4Spec.State Unit → Prop) (σ : Fl4Spec.State Unit) (blk call don : Bool)
@@ -248,7 +248,7 @@ theorem decode_invocation_sched_contextJ {N T C R : Set U64} {c : U64} (hT : Tim
     (hRF : RFree (L.mem s) R C σ Lst) (hA : SlotsApart (st := st) th T N C R c s σ)
     {H : Heap} {Tr C0 : Set U64} (hJ : JPlaced (L := L) th H Tr C0 s σ) (hIA : IrqApart (st := st) T N C R c s σ)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = scLabelOf lbl)
-    {sc : U64} (sb : U64) (hsc : sc ∈ C) (hpi : sc.bv ≠ Fl4Spec.idleScPtr)
+    {sc : U64} (sb : U64) (hsc : sc ∈ C) (hpi : sc.bv ≠ σ.idleSc)
     (hback : L.mem s (scW sc 24#u64) ≠ 0#u64 →
       L.mem s (scW sc 24#u64) ∈ T ∧ L.mem s (scA (L.mem s (scW sc 24#u64))) = sc ∧
       (L.mem s (scW sc 24#u64)).bv ≠ σ.idleThread)
@@ -279,7 +279,7 @@ theorem decode_invocation_sched_contextJ {N T C R : Set U64} {c : U64} (hT : Tim
       hback hbn hct hcs call extra x0 hx0 _ hex hcapT hcapN hmb hmax htu hmsg) ?_
     rintro ⟨r0, s', a'⟩ hq
     apply top_of_liftFJ (f := Fl4Spec.Fl4Invocation.invokeSchedContext)
-    rcases hq with ⟨e, e', he, hrun, herr⟩ | ⟨inv, hrun, hr1, σ0, data, σ1, σ2, he0, he1, -, ⟨hall, -⟩⟩
+    rcases hq with ⟨e, e', he, hrun, herr⟩ | ⟨inv, hrun, hr1, σ0, data, σ1, σ2, he0, he1, hcase, ⟨hall, -⟩⟩
     · cases he
       exact Or.inl ⟨e, rfl, rfl, e', hrun, herr⟩
     · have hSS := slotsSame_of_ufoot hP hS hRP hA hall.2.2.2.2.2
@@ -291,7 +291,13 @@ theorem decode_invocation_sched_contextJ {N T C R : Set U64} {c : U64} (hT : Tim
           (((pres_invokeSchedContext inv).of_eq he1).weaken (fun h => by cases h) (fun h => by cases h))
         obtain ⟨h1, h2⟩ := crel_of_sok hCRel hFI hSS hsok
         exact ⟨h1, h2, FrameInv.of_same hCRel.2.2.1 hFR hSS,
-          hJ.ufoot hS hRP hIA hSS hall.2.2.2.2.2 hsok⟩
+          hJ.ufoot hS hRP hIA hSS hall.2.2.2.2.2 hsok
+            (idleScW_keep_of hS hall.1.1 (by
+              have h12 : SOK (false, false) σ1 σ2 := by
+                rcases hcase with ⟨-, rfl⟩ | ⟨-, h⟩
+                · exact SOK.refl _ _
+                · exact (pres_bind (pres_when _ (pres_replyFromKernel _ _ _)) fun _ => pres_setThreadState _ _ _).of_eq h
+              exact h12.isc.trans hsok.isc))⟩
   · simp only [↓reduceIte, WP.spec_ok]
     exact Or.inl ⟨_, rfl, rfl, _, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩
 
@@ -334,7 +340,7 @@ theorem decode_invocation_sched_controlJ {N T C R : Set U64} {c : U64} (hT : Tim
       hcpu hct args hlen hargs extra x0 hx0 _ hex (fun _ => hsb) (fun _ => hsc) hkc hrun) ?_
     rintro ⟨r0, s', a'⟩ hq
     apply top_of_liftFJ (f := Fl4Spec.Fl4Invocation.invokeSchedControl)
-    rcases hq with ⟨e, e', he, hrun', herr⟩ | ⟨inv, hrun', σ1, σ', he1, he2, hr1, -, -, -, -, hw⟩
+    rcases hq with ⟨e, e', he, hrun', herr⟩ | ⟨inv, hrun', σ1, σ', he1, he2, hr1, hS', -, -, -, hw⟩
     · cases he
       exact Or.inl ⟨e, rfl, rfl, e', hrun', herr⟩
     · have hwU : WritesIn st s s' (UFoot st T N C R c s σ) := hw.mono fun b hb => Or.inl (Or.inl hb)
@@ -346,7 +352,8 @@ theorem decode_invocation_sched_controlJ {N T C R : Set U64} {c : U64} (hT : Tim
       · have hsok : SOK (false, false) σ σ' := ((pres_setThreadState _ _ _).of_eq he1).trans
           ((pres_invokeSchedControlConfigureFlags _ inv).of_eq he2)
         obtain ⟨h1, h2⟩ := crel_of_sok hCRel hFI hSS hsok
-        exact ⟨h1, h2, FrameInv.of_same hCRel.2.2.1 hFR hSS, hJ.ufoot hS hRP hIA hSS hwU hsok⟩
+        exact ⟨h1, h2, FrameInv.of_same hCRel.2.2.1 hFR hSS, hJ.ufoot hS hRP hIA hSS hwU hsok
+          (idleScW_keep_of hS hS' hsok.isc)⟩
   · simp only [↓reduceIte, WP.spec_ok]
     exact Or.inl ⟨_, rfl, rfl, _, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩
 

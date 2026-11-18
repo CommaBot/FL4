@@ -23,18 +23,21 @@ section Spec
 open Fl4Spec
 
 /-- What `awaken` keeps: the heap and the current thread, SC, time,
-consumed time, idle thread, domain and domain time. -/
+consumed time, idle thread, domain, domain time and idle SC. -/
 def Calm (σ σ' : State Unit) : Prop :=
   σ'.kheap = σ.kheap ∧ σ'.curThread = σ.curThread ∧ σ'.curSc = σ.curSc ∧ σ'.curTime = σ.curTime ∧
     σ'.consumedTime = σ.consumedTime ∧ σ'.idleThread = σ.idleThread ∧ σ'.curDomain = σ.curDomain ∧
-    σ'.domainTime = σ.domainTime
+    σ'.domainTime = σ.domainTime ∧ σ'.idleSc = σ.idleSc
 
-theorem Calm.refl (σ : State Unit) : Calm σ σ := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+theorem Calm.refl (σ : State Unit) : Calm σ σ := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+theorem Calm.isc {σ σ' : State Unit} (h : Calm σ σ') : σ'.idleSc = σ.idleSc := h.2.2.2.2.2.2.2.2
 
 theorem Calm.trans {σ₁ σ₂ σ₃ : State Unit} (h₁ : Calm σ₁ σ₂) (h₂ : Calm σ₂ σ₃) : Calm σ₁ σ₃ :=
   ⟨h₂.1.trans h₁.1, h₂.2.1.trans h₁.2.1, h₂.2.2.1.trans h₁.2.2.1, h₂.2.2.2.1.trans h₁.2.2.2.1,
     h₂.2.2.2.2.1.trans h₁.2.2.2.2.1, h₂.2.2.2.2.2.1.trans h₁.2.2.2.2.2.1,
-    h₂.2.2.2.2.2.2.1.trans h₁.2.2.2.2.2.2.1, h₂.2.2.2.2.2.2.2.trans h₁.2.2.2.2.2.2.2⟩
+    h₂.2.2.2.2.2.2.1.trans h₁.2.2.2.2.2.2.1, h₂.2.2.2.2.2.2.2.1.trans h₁.2.2.2.2.2.2.2.1,
+    h₂.2.2.2.2.2.2.2.2.trans h₁.2.2.2.2.2.2.2.2⟩
 
 theorem rescheduleRequired_calm {σ : State Unit} (hA : ActReady σ) :
     ∃ σ1, rescheduleRequired (Z := Unit) σ = ({((), σ1)}, False) ∧ QChange σ σ1 ∧ Calm σ σ1 := by
@@ -76,7 +79,7 @@ def ActSched (σ : State Unit) : Prop :=
 
 /-- The idle thread: bound to the idle SC, in the idle state, not released. -/
 def IdleOK (σ : State Unit) : Prop :=
-  ∃ x, σ.kheap σ.idleThread = some (.tcb x) ∧ x.tcbSchedContext = some idleScPtr ∧
+  ∃ x, σ.kheap σ.idleThread = some (.tcb x) ∧ x.tcbSchedContext = some σ.idleSc ∧
     x.tcbState = .idleThreadState ∧ σ.idleThread ∉ σ.releaseQueue
 
 /-- `schedulable` survives a smaller release queue on the same heap. -/
@@ -132,9 +135,10 @@ theorem possibleSwitchTo_actSched {σ σ' : State Unit} (h : Inv σ) {t : ObjRef
 
 theorem IdleOK.sub {σ σ' : State Unit} (h : IdleOK σ) (hc : Calm σ σ')
     (hsub : ∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue) : IdleOK σ' := by
-  obtain ⟨hk, -, -, -, -, h5, -⟩ := hc
   obtain ⟨x, h1, h2, h3, h4⟩ := h
-  exact ⟨x, by rw [hk, h5]; exact h1, h2, h3, fun hm => h4 (by rw [← h5]; exact hsub _ hm)⟩
+  have hi := hc.isc
+  obtain ⟨hk, -, -, -, -, h5, -⟩ := hc
+  exact ⟨x, by rw [hk, h5]; exact h1, by rw [hi]; exact h2, h3, fun hm => h4 (by rw [← h5]; exact hsub _ hm)⟩
 
 
 /-- **The switch-thread and idle-thread invariant.** -/
@@ -202,9 +206,9 @@ theorem ActIdle.keepE {E : ObjRef → Prop} {σ σ' : State Unit} (h : ActIdle �
     (hr : ∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue ∨ E u)
     (ha : σ'.schedulerAction = σ.schedulerAction ∨ ∀ t, σ'.schedulerAction ≠ .switchThread t)
     (hid : σ'.idleThread = σ.idleThread) (hEa : ∀ t, σ.schedulerAction = .switchThread t → ¬ E t)
-    (hEi : ¬ E σ.idleThread) : ActIdle σ' := by
+    (hEi : ¬ E σ.idleThread) (hisc : σ'.idleSc = σ.idleSc := by first | rfl | assumption) : ActIdle σ' := by
   obtain ⟨hA, x, h1, h2, h3, h4⟩ := h
-  refine ⟨fun t ht => ?_, x, by rw [hid]; exact hk.1 _ x hEi h1, h2, h3, fun hm => ?_⟩
+  refine ⟨fun t ht => ?_, x, by rw [hid]; exact hk.1 _ x hEi h1, by rw [hisc]; exact h2, h3, fun hm => ?_⟩
   · rcases ha with e | e
     · rw [e] at ht
       exact schedulable_keep (hA t ht) hk (hEa t ht) fun hm => (hr t hm).resolve_right (hEa t ht)
@@ -218,13 +222,14 @@ theorem ActIdle.keepE {E : ObjRef → Prop} {σ σ' : State Unit} (h : ActIdle �
 theorem ActIdle.keep {σ σ' : State Unit} (h : ActIdle σ) (hk : TKeep σ σ')
     (hr : ∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue)
     (ha : σ'.schedulerAction = σ.schedulerAction ∨ ∀ t, σ'.schedulerAction ≠ .switchThread t)
-    (hid : σ'.idleThread = σ.idleThread) : ActIdle σ' :=
-  h.keepE hk (fun u hu => Or.inl (hr u hu)) ha hid (fun _ _ h => h) (fun h => h)
+    (hid : σ'.idleThread = σ.idleThread) (hisc : σ'.idleSc = σ.idleSc := by first | rfl | assumption) :
+    ActIdle σ' :=
+  h.keepE hk (fun u hu => Or.inl (hr u hu)) ha hid (fun _ _ h => h) (fun h => h) hisc
 
 theorem ActIdle.calm {σ σ' : State Unit} (h : ActIdle σ) (hc : Calm σ σ')
     (hr : ∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue)
     (ha : σ'.schedulerAction = σ.schedulerAction ∨ ∀ t, σ'.schedulerAction ≠ .switchThread t) : ActIdle σ' :=
-  h.keep (TKeepE.of_kheap _ hc.1) hr ha hc.2.2.2.2.2.1
+  h.keep (TKeepE.of_kheap _ hc.1) hr ha hc.2.2.2.2.2.1 hc.isc
 
 /-! ## The notification code's steps -/
 
@@ -243,7 +248,7 @@ theorem ActIdle.stable {σ σ' : State Unit} (h : ActIdle σ) (hn : NtfnStep σ 
     · rw [e]; exact h3
     · exact hr
   · obtain ⟨x', hk', -, hsc', -⟩ := NtfnStep.tcbSched hn hi1
-    refine ⟨x', by rw [eid]; exact hk', hsc'.trans hi2, ?_, by rw [eid, e2]; exact hi4⟩
+    refine ⟨x', by rw [eid]; exact hk', by rw [NtfnStep.idleSc hn]; exact hsc'.trans hi2, ?_, by rw [eid, e2]; exact hi4⟩
     rcases hb _ xi x' hi1 hk' with e | ⟨-, hne, -⟩
     · rw [e]; exact hi3
     · exact absurd hi3 hne
@@ -263,7 +268,7 @@ theorem ActIdle.block {σ σ' : State Unit} {t : ObjRef} (h : ActIdle σ) (hn : 
     exact schedulable_of (σ := σ') hk' (hsc'.trans h2) (by rw [hoth u x x' h1 hk' (hta u hu)]; exact h3)
       (NtfnStep.sc hn h4) h5 (by rw [e2]; exact h6)
   · obtain ⟨x', hk', -, hsc', -⟩ := NtfnStep.tcbSched hn hi1
-    exact ⟨x', by rw [eid]; exact hk', hsc'.trans hi2, by rw [hoth _ xi x' hi1 hk' (Ne.symm hti)]; exact hi3,
+    exact ⟨x', by rw [eid]; exact hk', by rw [NtfnStep.idleSc hn]; exact hsc'.trans hi2, by rw [hoth _ xi x' hi1 hk' (Ne.symm hti)]; exact hi3,
       by rw [eid, e2]; exact hi4⟩
 
 theorem ActIdle.ofSts {σ : State Unit} (h : ActIdle σ) (t : ObjRef) : ActIdle (stsAct σ t) := by
@@ -277,7 +282,7 @@ theorem ActIdle.possibleSwitchTo {σ σ' : State Unit} (h : ActIdle σ) (hI : In
   have hq := possibleSwitchTo_qchange hI hs he
   have hc := possibleSwitchTo_calm hI hs he
   obtain ⟨x, h1, h2, h3, h4⟩ := h.2
-  exact ⟨possibleSwitchTo_actSched hI hs h.1 he, x, by rw [hc.2.2.2.2.2.1, hc.1]; exact h1, h2, h3,
+  exact ⟨possibleSwitchTo_actSched hI hs h.1 he, x, by rw [hc.2.2.2.2.2.1, hc.1]; exact h1, by rw [hc.isc]; exact h2, h3,
     by rw [hc.2.2.2.2.2.1, hq.2.1]; exact h4⟩
 
 /-- **`refill_unblock_check` keeps `ActIdle`.** -/
@@ -476,9 +481,10 @@ theorem ActIdle.ret {σ σ' : State Unit} (h : ActIdle σ) (hI : Inv σ) {n t : 
 /-- `IdleOK` when the idle TCB is kept and the idle thread is not released. -/
 theorem IdleOK.of {σ σ' : State Unit} (h : IdleOK σ) (hid : σ'.idleThread = σ.idleThread)
     (hk : σ'.kheap σ.idleThread = σ.kheap σ.idleThread)
-    (hr : σ.idleThread ∈ σ'.releaseQueue → σ.idleThread ∈ σ.releaseQueue) : IdleOK σ' := by
+    (hr : σ.idleThread ∈ σ'.releaseQueue → σ.idleThread ∈ σ.releaseQueue)
+    (hisc : σ'.idleSc = σ.idleSc := by first | rfl | assumption) : IdleOK σ' := by
   obtain ⟨x, h1, h2, h3, h4⟩ := h
-  exact ⟨x, by rw [hid, hk]; exact h1, h2, h3, fun hm => h4 (hr (hid ▸ hm))⟩
+  exact ⟨x, by rw [hid, hk]; exact h1, by rw [hisc]; exact h2, h3, fun hm => h4 (hr (hid ▸ hm))⟩
 
 /-- The idle thread is not schedulable. -/
 theorem IdleOK.not_sched {σ : State Unit} (h : IdleOK σ) : schedulable σ.idleThread σ = false := by

@@ -28,6 +28,7 @@ structure MidKW (σ σ' : State Unit) : Prop where
   csc : σ'.curSc = σ.curSc
   time : σ'.curTime = σ.curTime
   idle : σ'.idleThread = σ.idleThread
+  isc : σ'.idleSc = σ.idleSc
   cons : σ'.consumedTime = σ.consumedTime ∨ σ'.consumedTime = 0
   cn : σ.schedulerAction = .chooseNewThread → σ'.schedulerAction = .chooseNewThread
   ctT : MidT σ σ' σ.curThread
@@ -37,7 +38,7 @@ structure MidKW (σ σ' : State Unit) : Prop where
   rq : ∀ t ∈ σ'.releaseQueue, t ∈ σ.releaseQueue ∨ (t ≠ σ.idleThread ∧ (t ≠ σ.curThread ∨ σ'.consumedTime = 0))
 
 theorem MidKW.refl (σ : State Unit) : MidKW σ σ :=
-  ⟨rfl, rfl, rfl, rfl, Or.inl rfl, id, MidT.refl _ _, MidT.refl _ _, fun y _ h => ⟨y, h, rfl, id⟩,
+  ⟨rfl, rfl, rfl, rfl, rfl, Or.inl rfl, id, MidT.refl _ _, MidT.refl _ _, fun y _ h => ⟨y, h, rfl, id⟩,
     fun _ h => Or.inl h⟩
 
 theorem MidKW.cons0 {σ σ' : State Unit} (h : MidKW σ σ') (h0 : σ.consumedTime = 0) : σ'.consumedTime = 0 := by
@@ -46,7 +47,7 @@ theorem MidKW.cons0 {σ σ' : State Unit} (h : MidKW σ σ') (h0 : σ.consumedTi
   · exact e
 
 theorem MidKW.trans {σ1 σ2 σ3 : State Unit} (h1 : MidKW σ1 σ2) (h2 : MidKW σ2 σ3) : MidKW σ1 σ3 := by
-  refine ⟨h2.ct.trans h1.ct, h2.csc.trans h1.csc, h2.time.trans h1.time, h2.idle.trans h1.idle, ?_,
+  refine ⟨h2.ct.trans h1.ct, h2.csc.trans h1.csc, h2.time.trans h1.time, h2.idle.trans h1.idle, h2.isc.trans h1.isc, ?_,
     fun h => h2.cn (h1.cn h), ?_, ?_, ?_, ?_⟩
   · rcases h2.cons with e | e
     · rw [e]; exact h1.cons
@@ -70,7 +71,7 @@ theorem MidKW.trans {σ1 σ2 σ3 : State Unit} (h1 : MidKW σ1 σ2) (h2 : MidKW 
       exact Or.inr ⟨hi, hc⟩
 
 theorem MidK.toW {σ σ' : State Unit} (h : MidK σ σ') : MidKW σ σ' := by
-  refine ⟨h.ct, h.csc, h.time, h.idle, h.cons, h.cn, h.ctT, h.idT, fun y n hy => ?_, fun t ht => ?_⟩
+  refine ⟨h.ct, h.csc, h.time, h.idle, h.isc, h.cons, h.cn, h.ctT, h.idT, fun y n hy => ?_, fun t ht => ?_⟩
   · obtain ⟨y', h1, h2, h3, -⟩ := h.cscS y n hy; exact ⟨y', h1, h2, h3⟩
   · rcases h.rq t ht with e | ⟨hi, hc⟩
     · exact Or.inl e
@@ -79,8 +80,9 @@ theorem MidK.toW {σ σ' : State Unit} (h : MidK σ σ') : MidKW σ σ' := by
 theorem MidKW.of_fields {σ σ' : State Unit} (hk : σ'.kheap = σ.kheap) (h1 : σ'.curThread = σ.curThread)
     (h2 : σ'.curSc = σ.curSc) (h3 : σ'.curTime = σ.curTime) (h4 : σ'.idleThread = σ.idleThread)
     (h5 : σ'.consumedTime = σ.consumedTime) (h6 : σ'.schedulerAction = σ.schedulerAction)
-    (h7 : σ'.releaseQueue = σ.releaseQueue) : MidKW σ σ' :=
-  (MidK.of_fields hk h1 h2 h3 h4 h5 h6 h7).toW
+    (h7 : σ'.releaseQueue = σ.releaseQueue) (h8 : σ'.idleSc = σ.idleSc := by first | rfl | assumption) :
+    MidKW σ σ' :=
+  (MidK.of_fields hk h1 h2 h3 h4 h5 h6 h7 h8).toW
 
 /-! ## The monad -/
 
@@ -168,7 +170,7 @@ theorem mkwa_updateSchedContext {g : SchedContext → SchedContext} {p : ObjRef}
   obtain ⟨k, hk', -, e⟩ := setObject_mem hx
   rw [hk] at hk'; cases hk'
   rw [e]
-  refine ⟨rfl, rfl, rfl, rfl, Or.inl rfl, id, fun x' hx' => ?_, fun x' hx' => ?_, fun y' n' hy' => ?_,
+  refine ⟨rfl, rfl, rfl, rfl, rfl, Or.inl rfl, id, fun x' hx' => ?_, fun x' hx' => ?_, fun y' n' hy' => ?_,
     fun _ h => Or.inl h⟩
   · by_cases e' : σ.curThread = p
     · rw [e', hk] at hx'; cases hx'
@@ -222,7 +224,7 @@ theorem mkw_commitTime {σ σ' : State Unit} {r : Unit} (h : (r, σ') ∈ (commi
     unf_refills
     mkw_auto
   refine ⟨k.trans ?_, rfl⟩
-  exact ⟨rfl, rfl, rfl, rfl, Or.inr rfl, id, MidT.refl _ _, MidT.refl _ _, fun y _ h => ⟨y, h, rfl, id⟩,
+  exact ⟨rfl, rfl, rfl, rfl, rfl, Or.inr rfl, id, MidT.refl _ _, MidT.refl _ _, fun y _ h => ⟨y, h, rfl, id⟩,
     fun _ h => Or.inl h⟩
 
 theorem mkwa_refillNew (p : ObjRef) (m : Nat) (b per : Ticks) (hv : activeSc m = true) :
@@ -247,7 +249,7 @@ theorem mkwa_tcbReleaseEnqueue (t : ObjRef) :
   obtain ⟨y, hy, hx⟩ := hx
   rw [Set.mem_singleton_iff.1 hy] at hx
   have h1 : MidKW σ { σ with releaseQueue := q' } :=
-    ⟨rfl, rfl, rfl, rfl, Or.inl rfl, id, MidT.refl _ _, MidT.refl _ _, fun y _ h => ⟨y, h, rfl, id⟩,
+    ⟨rfl, rfl, rfl, rfl, rfl, Or.inl rfl, id, MidT.refl _ _, MidT.refl _ _, fun y _ h => ⟨y, h, rfl, id⟩,
       fun u hu => by
         rcases hq' u hu with rfl | h
         · exact Or.inr ⟨hti, htc⟩

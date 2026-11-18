@@ -72,14 +72,15 @@ theorem JAtZ.sc_apart {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
 theorem JAtZ.sc_jpl {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
-    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.ScTKw P σ σ') :
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.ScTKw P σ σ')
+    (hiw : Sched.idleScW (L := L) s' = Sched.idleScW (L := L) s) :
     ∃ Tr Cq, Sched.JPlaced (L := L) Z.th H Tr Cq s' σ' := by
   have hS := J.xtop.fin.1.1.1
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   have hwU : P1.WritesIn st s s' (UFoot st Z.T Z.N Z.C Z.R Z.c s σ) := hw.mono fun b hb => Or.inl hb
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') := slotsSame_of_ufoot hJ.pl hS J.rp J.apart hwU
   have hIA := hJ.irqApart (c := Z.c) J.zH.1 J.zH.2.2.2 J.c0 J.zH.2.2.1 J.kern.ksbFit
-  exact ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => hK.szKeep q.bv y n hq) hw.1 (irq_of_ufoot hS J.rp hIA hwU)⟩
+  exact ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => hK.szKeep q.bv y n hq) hw.1 (irq_of_ufoot hS J.rp hIA hwU) hiw⟩
 
 
 /-- The arch objects are kept across an `ScTKw` step. -/
@@ -142,21 +143,27 @@ theorem JAtZ.sc_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
   rw [hna, hDbg]; exact K.head
 
 
-/-- **The idle word kept**: both states relate the current core's
-`IDLE_THREAD` word to the spec's `idle_thread` (`SchedSpec.idleTh`), which
-the step keeps. -/
+/-- **The idle words kept**: both states relate the current core's
+`IDLE_THREAD` and `IDLE_SC` words to the spec's `idle_thread` and `idle_sc`
+(`SchedSpec.idleTh`, `SchedSpec.idleSc`), which the step keeps. -/
 theorem JAtZ.idleW_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
-    (hS' : Sched.SchedRel st Z.N Z.T Z.C Z.c s' σ') (hid : σ'.idleThread = σ.idleThread) :
-    L.idleW s' = L.idleW s := by
+    (hS' : Sched.SchedRel st Z.N Z.T Z.C Z.c s' σ') (hid : σ'.idleThread = σ.idleThread)
+    (hisc : σ'.idleSc = σ.idleSc) : Sched.IdleKeep (L := L) s s' := by
   obtain ⟨Q, R, hc, hs⟩ := J.xtop.fin.1.1.1.lists
   obtain ⟨Q', R', hc', hs'⟩ := hS'.lists
-  unfold P1.LawfulStore.idleW
-  apply P1.eq_of_bv
-  have h1 := hs'.idleTh; have h2 := hs.idleTh
-  unfold nodeW at h1 h2
-  rw [hc'.cur, hc.cur, ← h1, ← h2, hid]
+  constructor
+  · unfold P1.LawfulStore.idleW
+    apply P1.eq_of_bv
+    have h1 := hs'.idleTh; have h2 := hs.idleTh
+    unfold nodeW at h1 h2
+    rw [hc'.cur, hc.cur, ← h1, ← h2, hid]
+  · unfold Sched.idleScW
+    apply P1.eq_of_bv
+    have h1 := hs'.idleSc; have h2 := hs.idleSc
+    unfold nodeW at h1 h2
+    rw [hc'.cur, hc.cur, h1, h2, hisc]
 
 /-- **`JCovD` after an SC step**, the dead set shrinking to `D'`: the dead
 of `D'` dead after (`hdead`), the others of `D` covered after (`hcov`). -/
@@ -168,7 +175,7 @@ theorem JAtZ.sc_jcov {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     (hcov : ∀ q ∈ D, q ∉ D' →
       (∀ k, Z.th q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + max (objSize k) 1)) ∧
       (∀ k, H q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + 2 ^ k.bits)))
-    (hidl : L.idleW s' = L.idleW s) :
+    (hidl : Sched.IdleKeep (L := L) s s') :
     Sched.JCovD (L := L) Z.th H Z.G D' Cs s' := by
   have hks : L.ksb s' = L.ksb s := hw.1
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=

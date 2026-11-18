@@ -71,7 +71,7 @@ def JScCapHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
     ∀ (sl : Fl4Spec.CslotPtr) (p sb : U64), AbsSlot Z.th sl →
       capAt (L.mem s) (cslotAddr sl) = ok (.SchedContext p sb) →
       (∃ y n, σ.kheap p.bv = some (.schedContext y n) ∧ n + Fl4Spec.minSchedContextBits = sb.val) ∧
-      p.bv ≠ Fl4Spec.idleScPtr
+      p.bv ≠ σ.idleSc
 
 /-- **An SC cap names a spec SC of its size, not the idle SC** (l4v
 `valid_cap`, `valid_global_refs`): the cap's SC is `H`'s of the cap's size
@@ -83,11 +83,12 @@ theorem JAtZ.scCap {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr} {p sb : U64}
     (hA : AbsSlot Z.th sl) (hc : capAt (L.mem s) (cslotAddr sl) = ok (.SchedContext p sb)) :
     (∃ y n, σ.kheap p.bv = some (.schedContext y n) ∧ n + Fl4Spec.minSchedContextBits = sb.val) ∧
-      p.bv ≠ Fl4Spec.idleScPtr := by
+      p.bv ≠ σ.idleSc := by
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   have hO := hJ.cobj _ hA.isSlot
   rw [capV_of_capAt hc] at hO
-  obtain ⟨hH, hpi⟩ := hO
+  obtain ⟨hH, hpi0⟩ := hO
+  have hpi := J.xtop.fin.1.1.1.ne_idleSc hpi0
   have hpC : p ∈ Z.C := J.hscC p _ hH
   obtain ⟨Q, R, hc', hs⟩ := J.xtop.fin.1.1.1.lists
   obtain ⟨y, n, hk, -⟩ := hs.scs p hpC
@@ -110,13 +111,13 @@ theorem JAtZ.scCapFacts {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr} {p sb : U64}
     (hA : AbsSlot Z.th sl) (hc : capAt (L.mem s) (cslotAddr sl) = ok (.SchedContext p sb))
     (hC : (∃ y n, σ.kheap p.bv = some (.schedContext y n) ∧ n + Fl4Spec.minSchedContextBits = sb.val) ∧
-      p.bv ≠ Fl4Spec.idleScPtr ∧
+      p.bv ≠ σ.idleSc ∧
       ∀ y n t, σ.kheap p.bv = some (.schedContext y n) → y.scTcb = some t →
         ∀ u, σ.schedulerAction = .switchThread u → u ≠ t) :
     H p = some (.sc sb.val) ∧ p ∈ Z.C ∧ p ≠ 0#u64 ∧
       (L.mem s (P1.scTcbA p) ≠ 0#u64 → L.actionW s ≠ L.mem s (P1.scTcbA p)) ∧
       (L.mem s (P1.scTcbA p) ≠ 0#u64 → L.idleW s ≠ L.mem s (P1.scTcbA p)) ∧
-      (∃ y n, σ.kheap p.bv = some (.schedContext y n)) ∧ p.bv ≠ Fl4Spec.idleScPtr := by
+      (∃ y n, σ.kheap p.bv = some (.schedContext y n)) ∧ p.bv ≠ σ.idleSc := by
   obtain ⟨⟨y, n, hk, hn⟩, hpi, hsa⟩ := hC
   have hp0 : p ≠ 0#u64 := J.xtop.rel.2.1.2.1.abs hA hc
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
@@ -160,11 +161,12 @@ theorem JAtZ.scCtlExtra {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
         ∃ y, σ.kheap p.bv = some (.schedContext y (sb.val - Fl4Spec.minSchedContextBits)) ∧
           ∀ t : U64, y.scTcb = some t.bv →
             t ∈ Z.T ∧ ∃ xt, σ.kheap t.bv = some (.tcb xt) ∧ xt.tcbSchedContext = some p.bv) ∧
-      p.bv ≠ Fl4Spec.idleScPtr := by
+      p.bv ≠ σ.idleSc := by
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   have hO := hJ.cobj _ hx
   rw [capV_of_capAt hc] at hO
-  obtain ⟨hH, hpi⟩ := hO
+  obtain ⟨hH, hpi0⟩ := hO
+  have hpi := J.xtop.fin.1.1.1.ne_idleSc hpi0
   have hpC : p ∈ Z.C := J.hscC p _ hH
   have hp0 : p ≠ 0#u64 := J.c0 p hpC
   obtain ⟨Q, R, hc', hs⟩ := J.xtop.fin.1.1.1.lists
@@ -202,7 +204,7 @@ theorem JAtZ.scCtxCap {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x p sb : U64} (hx : IsSlot Z.th x)
     (hc : capAt (L.mem s) x = ok (.SchedContext p sb)) :
-    p ∈ Z.C ∧ p.bv ≠ Fl4Spec.idleScPtr ∧ sb.val < 64 ∧
+    p ∈ Z.C ∧ p.bv ≠ σ.idleSc ∧ sb.val < 64 ∧
       (∀ y n, σ.kheap p.bv = some (.schedContext y n) → n + Fl4Spec.minSchedContextBits = sb.val) ∧
       (L.mem s (scW p 24#u64) ≠ 0#u64 →
         L.mem s (scW p 24#u64) ∈ Z.T ∧ L.mem s (P1.scA (L.mem s (scW p 24#u64))) = p ∧
@@ -333,7 +335,7 @@ theorem JAtZ.finScJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (hT : P0.ArchTotal arI) (hY : JYieldToHyp (L := L) arI AR Z.th)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p sb : U64} (hpC : p ∈ Z.C) (hp0 : p ≠ 0#u64)
-    (hpi : p.bv ≠ Fl4Spec.idleScPtr) (hpS : p ∈ P1.Heap.scs H)
+    (hpi : p.bv ≠ σ.idleSc) (hpS : p ∈ P1.Heap.scs H)
     (hna : L.mem s (P1.scTcbA p) ≠ 0#u64 → L.actionW s ≠ L.mem s (P1.scTcbA p))
     (hidle : L.mem s (P1.scTcbA p) ≠ 0#u64 → L.idleW s ≠ L.mem s (P1.scTcbA p)) :
     objects.finalise_cap st arI s a (.SchedContext p sb) true false ⦃ r => ∃ σ',
@@ -380,7 +382,14 @@ theorem JAtZ.finScJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     step with obj.Sc.set_refill_max.spec as ⟨s5, hs5⟩
     step with obj.Sc.set_sporadic.spec2 as ⟨s6, hs6⟩
     subst hs5 hs6
-    obtain ⟨σ5, he5, V5, Ac5, Lst5, D5, J5⟩ := JAtZ.setInactiveJ arI J4 hpC hp0 hpi t4 n4 r4
+    have hpi4 : p.bv ≠ σ4.idleSc := by
+      have e4 : σ4.idleSc = σ3.idleSc :=
+        isk_schedContextUnbindYieldFrom p.bv σ3 ((), σ4) (by rw [he4]; exact Set.mem_singleton _)
+      rw [e4, ((pres_schedContextUnbindReply p.bv).of_eq he3).isc,
+        ((pres_schedContextUnbindNtfn (f := (true, true)) p.bv).of_eq he2).isc,
+        ((pres_schedContextUnbindAllTcbs (f := (true, true)) p.bv).of_eq he1).isc]
+      exact hpi
+    obtain ⟨σ5, he5, V5, Ac5, Lst5, D5, J5⟩ := JAtZ.setInactiveJ arI J4 hpC hp0 hpi4 t4 n4 r4
     exact ⟨σ5, finSc_mem he1 he2 he3 he4 he5, V5, Ac5, Lst5, D5, J5⟩
   -- the yielder
   step with obj.Sc.yield_from.spec' as ⟨i, hi⟩

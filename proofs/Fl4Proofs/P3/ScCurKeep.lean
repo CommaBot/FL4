@@ -42,13 +42,15 @@ structure CurK (σ σ' : State Unit) : Prop where
   ct : σ'.curThread = σ.curThread
   csc : σ'.curSc = σ.curSc
   time : σ'.curTime = σ.curTime
+  isc : σ'.idleSc = σ.idleSc
   cn : σ.schedulerAction = .chooseNewThread → σ'.schedulerAction = .chooseNewThread
   keep : σ'.schedulerAction = .chooseNewThread ∨ CurKeep σ σ'
 
-theorem CurK.refl (σ : State Unit) : CurK σ σ := ⟨rfl, rfl, rfl, id, Or.inr (CurKeep.refl σ)⟩
+theorem CurK.refl (σ : State Unit) : CurK σ σ := ⟨rfl, rfl, rfl, rfl, id, Or.inr (CurKeep.refl σ)⟩
 
 theorem CurK.trans {σ1 σ2 σ3 : State Unit} (h1 : CurK σ1 σ2) (h2 : CurK σ2 σ3) : CurK σ1 σ3 := by
-  refine ⟨h2.ct.trans h1.ct, h2.csc.trans h1.csc, h2.time.trans h1.time, fun h => h2.cn (h1.cn h), ?_⟩
+  refine ⟨h2.ct.trans h1.ct, h2.csc.trans h1.csc, h2.time.trans h1.time, h2.isc.trans h1.isc,
+    fun h => h2.cn (h1.cn h), ?_⟩
   rcases h2.keep with e | k2
   · exact Or.inl e
   rcases h1.keep with e | k1
@@ -78,7 +80,7 @@ theorem CurInvW.ck {σ σ' : State Unit} (h : CurInvW σ) (hK : CurK σ σ') : C
   obtain ⟨x', hx', fa⟩ := kb x n hx
   refine ⟨⟨y, by rw [hK.ct]; exact hy, by rw [e1, hK.csc]; exact hsc, f1 hnb⟩, ⟨x', n, by rw [hK.csc]; exact hx'⟩,
     fun hid y2 m hy2 => ?_, fun hm => hC.notRel (kc (by rw [← hK.ct]; exact hm))⟩
-  rw [hK.csc] at hid hy2
+  rw [hK.csc, hK.isc] at hid; rw [hK.csc] at hy2
   rw [hx'] at hy2; cases hy2
   exact fa (hC.active hid x n hx)
 
@@ -172,7 +174,7 @@ theorem cka_setObject {P : State Unit → Prop} (p : ObjRef) (o : KernelObject)
   intro σ hσ x hx
   obtain ⟨k, hk, -, e⟩ := MaxK.mk_setObject_mem hx
   rw [e]
-  refine ⟨rfl, rfl, rfl, id, Or.inr ⟨fun xt hxt => ?_, fun y n hy => ?_, id⟩⟩
+  refine ⟨rfl, rfl, rfl, rfl, id, Or.inr ⟨fun xt hxt => ?_, fun y n hy => ?_, id⟩⟩
   · by_cases hp : σ.curThread = p
     · obtain ⟨y, rfl, e1, e2⟩ := ht σ hσ hp.symm xt (hp ▸ hxt)
       exact ⟨y, by rw [hp]; simp, e1, e2⟩

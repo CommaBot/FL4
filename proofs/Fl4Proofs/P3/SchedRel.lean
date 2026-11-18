@@ -98,9 +98,10 @@ structure SchedSpec (T C : Set U64) (c : U64) (s : S) (Q : U64 → List U64) (R 
   tcb : ∀ t ∈ T, ∃ x, σ.kheap t.bv = some (.tcb x) ∧ x.tcbDomain = 0 ∧ L.mem s (domA t) = 0#u64 ∧
     x.tcbSchedContext = optRef (L.mem s (scA t)) ∧ (L.mem s (prioA t)).val = x.tcbPriority.toNat
   scMem : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 → L.mem s (scA t) ∈ C
-  scs : ∀ sc ∈ C, ∃ x n, σ.kheap sc.bv = some (.schedContext x n) ∧ ScRelW st s sc x n
-  /-- The idle SC word is the spec's `idle_sc_ptr` (fixed at boot). -/
-  idleSc : (nodeW st s c layout.node.IDLE_SC).bv = Fl4Spec.idleScPtr
+  scs : ∀ sc ∈ C, ∃ x n, σ.kheap sc.bv = some (.schedContext x n) ∧ ScRelW st σ.idleSc s sc x n
+  /-- The idle SC word is the spec's `idle_sc` (this core's, fixed at boot; FL4
+  deviation from l4v's constant `idle_sc_ptr`, see `AbstractState.idleSc`). -/
+  idleSc : (nodeW st s c layout.node.IDLE_SC).bv = σ.idleSc
   /-- `domain_time` is the `DOMAIN_TIME` word. -/
   domTime : σ.domainTime = (L.mem s (dtA st s)).bv
   /-- `idle_thread` is the node's `IDLE_THREAD` word. -/
@@ -481,6 +482,9 @@ theorem NtfnStep.domainTime {σ σ' : Fl4Spec.State Unit} (h : NtfnStep σ σ') 
 theorem NtfnStep.idleThread {σ σ' : Fl4Spec.State Unit} (h : NtfnStep σ σ') : σ'.idleThread = σ.idleThread := by
   have := congrArg Fl4Spec.AbstractState.idleThread h.2.1; exact this
 
+theorem NtfnStep.idleSc {σ σ' : Fl4Spec.State Unit} (h : NtfnStep σ σ') : σ'.idleSc = σ.idleSc := by
+  have := congrArg Fl4Spec.AbstractState.idleSc h.2.1; exact this
+
 theorem NtfnStep.tcbSched {σ σ' : Fl4Spec.State Unit} (h : NtfnStep σ σ') {p : Fl4Spec.ObjRef} {x : Fl4Spec.Tcb}
     (hk : σ.kheap p = some (.tcb x)) : ∃ y, σ'.kheap p = some (.tcb y) ∧ y.tcbDomain = x.tcbDomain ∧
       y.tcbSchedContext = x.tcbSchedContext ∧ y.tcbPriority = x.tcbPriority := by
@@ -541,6 +545,9 @@ theorem NtfnStepW.domainTime {σ σ' : Fl4Spec.State Unit} (h : NtfnStepW σ σ'
 theorem NtfnStepW.idleThread {σ σ' : Fl4Spec.State Unit} (h : NtfnStepW σ σ') : σ'.idleThread = σ.idleThread := by
   have := congrArg Fl4Spec.AbstractState.idleThread h.2.1; exact this
 
+theorem NtfnStepW.idleSc {σ σ' : Fl4Spec.State Unit} (h : NtfnStepW σ σ') : σ'.idleSc = σ.idleSc := by
+  have := congrArg Fl4Spec.AbstractState.idleSc h.2.1; exact this
+
 theorem NtfnStepW.tcbSched {σ σ' : Fl4Spec.State Unit} (h : NtfnStepW σ σ') {p : Fl4Spec.ObjRef} {x : Fl4Spec.Tcb}
     (hk : σ.kheap p = some (.tcb x)) : ∃ y, σ'.kheap p = some (.tcb y) ∧ y.tcbDomain = x.tcbDomain ∧
       y.tcbSchedContext = x.tcbSchedContext ∧ y.tcbPriority = x.tcbPriority := by
@@ -589,13 +596,13 @@ theorem SchedRel.of_sagree {N T C : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4S
     by rw [e2]; exact hs'.rel, by rw [e3]; exact hs'.curThread,
     by rw [e5]; exact hs'.curSc, by rw [e6]; exact hs'.curTime, by rw [e7]; exact hs'.consumed,
     by rw [e9]; exact hs'.curDom, fun t ht => ?_, hs'.scMem,
-    fun sc hsc => ?_, hs'.idleSc, by rw [NtfnStepW.domainTime hn]; exact hs'.domTime,
+    fun sc hsc => ?_, by rw [NtfnStepW.idleSc hn]; exact hs'.idleSc, by rw [NtfnStepW.domainTime hn]; exact hs'.domTime,
     by rw [NtfnStepW.idleThread hn]; exact hs'.idleTh⟩
   · obtain ⟨x, hk, h1, h2, h3, h4⟩ := hs'.tcb t ht
     obtain ⟨y, hky, f1, f2, f3⟩ := NtfnStepW.tcbSched hn hk
     exact ⟨y, hky, f1.trans h1, h2, f2.trans h3, f3 ▸ h4⟩
   · obtain ⟨x, n, hk, e⟩ := hs'.scs sc hsc
-    exact ⟨x, n, NtfnStepW.sc hn hk, e⟩
+    exact ⟨x, n, NtfnStepW.sc hn hk, by rw [NtfnStepW.idleSc hn]; exact e⟩
 
 /-- **The scheduler relation is kept by a notification step** that may also
 change notifications' bound TCB and SC (`NtfnStepW`). -/

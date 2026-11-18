@@ -137,7 +137,7 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       ∃ x, σ.kheap p.bv = some (.schedContext x (sb.val - Fl4Spec.minSchedContextBits)) ∧
         ∀ t : U64, x.scTcb = some t.bv →
           t ∈ Z.T ∧ ∃ xt, σ.kheap t.bv = some (.tcb xt) ∧ xt.tcbSchedContext = some p.bv)
-    (hpi : x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ Fl4Spec.idleScPtr)
+    (hpi : x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ σ.idleSc)
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef)
     (hArch : syscall.decode_invocation st arI s a lbl length slot (.SchedControl cpu) blk call don fp buf extra
@@ -173,7 +173,7 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
           res.1 = .Ok () ∧ SchedRel st Z.N Z.T Z.C Z.c res.2.1 σ' ∧ NtfnStateRel Z.N Z.T (L.mem res.2.1) σ' ∧
           NSC Z.N Z.C σ' ∧ Inv σ' ∧ P1.WritesIn st s res.2.1 (KFoot st Z.T Z.N Z.C Z.c s σ) ∧
           (σ1.schedulerAction = .resumeCurThread → IdleOK σ1 →
-            (x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ Fl4Spec.idleScPtr) → ActIdle σ')) res) ⦄ := by
+            (x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ σ.idleSc) → ActIdle σ')) res) ⦄ := by
     unfold syscall.decode_invocation
     rw [hct]; simp only [bind_ok]
     cases fp
@@ -273,7 +273,7 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     J.deadP_sc_step hX' hwT hK hP hL hF hAI'.1 (fun h => h) (J.jcov.dead q hq)
   have hCR'' : CurRun σ' := curRun_sc_step hkc hcur he1 (NKT.of_eq (nkt_invokeSchedControlConfigureFlags _) he2)
   exact ⟨σ', Ac', Lst', D, J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
-    (J.sc_jpl hwT hK) (J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2)) (J.sc_kern hwT hK hF hX' hDbg fun _ h => h)
+    (J.sc_jpl hwT hK (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2) (J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2)) (J.sc_kern hwT hK hF hX' hDbg fun _ h => h)
     (J.sc_utc hwT hK hDbg) hN' hI' hC' (Or.inl (hC'.elim hOw' (curOwn_of_curInv hX'.fin.1.1.1 hI'))) hO' hAI' hB' (Or.inr (Or.inl hCR'')) hBlk',
     Or.inr ⟨hr1, rfl, _, σ1, hdec, he1, he2⟩⟩
 
@@ -294,7 +294,7 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st Z.N Z.T Z.C Z.c)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = scLabelOf lbl)
-    {sc : U64} (sb : U64) (hsc : sc ∈ Z.C) (hpi : sc.bv ≠ Fl4Spec.idleScPtr)
+    {sc : U64} (sb : U64) (hsc : sc ∈ Z.C) (hpi : sc.bv ≠ σ.idleSc)
     (hl : lbl = fl4_abi.label.SchedContextConsumed ∨ lbl = fl4_abi.label.SchedContextBind ∨
       lbl = fl4_abi.label.SchedContextUnbindObject ∨
       (lbl = fl4_abi.label.SchedContextYieldTo ∧ L.mem s (P1.scYieldFromA sc) = 0#u64))
@@ -630,7 +630,7 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       (∀ k, H q = some k → Covered (L.mem s') Z.G q.val (q.val + 2 ^ k.bits)) := fun q hq hn =>
     hcovW q hq (by_contra fun h => hn ⟨hq, h⟩)
   exact ⟨σ2, Ac', Lst', _, J.sc_frame hW hKt hX' hCR' hRF' hY' hM' (J.sc_buf hW hKt) hRP' (J.sc_apart hW hKt)
-    (J.sc_jpl hW hKt) (J.sc_jcov hW hDead hCov (J.idleW_keep hX'.fin.1.1.1 hF.2)) (J.sc_kern hW hKt hF hX' hDbg fun _ h => h.1)
+    (J.sc_jpl hW hKt (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2) (J.sc_jcov hW hDead hCov (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2)) (J.sc_kern hW hKt hF hX' hDbg fun _ h => h.1)
     (J.sc_utc hW hKt hDbg) hN' hI' hC' (Or.inl (hC'.elim hOw' (curOwn_of_curInv hX'.fin.1.1.1 hI'))) hO' hAI' hB' (Or.inr (Or.inl hCR'')) hBlk',
     Or.inr ⟨hr1, rfl, inv, σ0, hrun, he0, he1⟩⟩
 
@@ -671,7 +671,7 @@ theorem decode_invocation_sched_contextJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : 
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st Z.N Z.T Z.C Z.c)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = scLabelOf lbl)
-    {sc : U64} (sb : U64) (hsc : sc ∈ Z.C) (hpi : sc.bv ≠ Fl4Spec.idleScPtr)
+    {sc : U64} (sb : U64) (hsc : sc ∈ Z.C) (hpi : sc.bv ≠ σ.idleSc)
     (hl : lbl = fl4_abi.label.SchedContextConsumed ∨ lbl = fl4_abi.label.SchedContextBind ∨
       lbl = fl4_abi.label.SchedContextUnbindObject ∨
       (lbl = fl4_abi.label.SchedContextYieldTo ∧ L.mem s (P1.scYieldFromA sc) = 0#u64))
@@ -749,7 +749,7 @@ theorem decode_invocation_sched_controlJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : 
       ∃ x, σ.kheap p.bv = some (.schedContext x (sb.val - Fl4Spec.minSchedContextBits)) ∧
         ∀ t : U64, x.scTcb = some t.bv →
           t ∈ Z.T ∧ ∃ xt, σ.kheap t.bv = some (.tcb xt) ∧ xt.tcbSchedContext = some p.bv)
-    (hpi : x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ Fl4Spec.idleScPtr)
+    (hpi : x0 ≠ 0#u64 → ∀ p sb, capAt (L.mem s) x0 = ok (.SchedContext p sb) → p.bv ≠ σ.idleSc)
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef)
     (hArch : syscall.decode_invocation st arI s a lbl length slot (.SchedControl cpu) blk call don fp buf extra

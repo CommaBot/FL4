@@ -113,7 +113,7 @@ theorem JCovD.same (h : JCovD (L := L) th H G D Cs s) {s' : S} {G' : MdbGhost}
       y ∈ G'.chains.flatten ∧ capV (L.mem s') y = capV (L.mem s) y)
     (hdead : ∀ q ∈ D, DeadP (L := L) H s q → DeadP (L := L) H s' q)
     (hks : UtKsApart (L := L) G' Cs s')
-    (hidl : L.idleW s' = L.idleW s) (hkb : L.ksb s' = L.ksb s) (hio : IdleOut (L := L) th H G' s') :
+    (hidl : IdleKeep (L := L) s s') (hkb : L.ksb s' = L.ksb s) (hio : IdleOut (L := L) th H G' s') :
     JCovD (L := L) th H G' D Cs s' := by
   refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => hdead q hq (h.dead q hq), hks, hio⟩
   · rcases h.th q k hq with hc | hd | hi
@@ -136,7 +136,7 @@ theorem JCovD.delete (h : JCovD (L := L) th H G D Cs s) {s' : S} {G' : MdbGhost}
       Covered (L.mem s') G' lo hi ∨ (∀ q, q.val = lo → DeadP (L := L) H s' q))
     (hdead : ∀ q ∈ D, DeadP (L := L) H s q → DeadP (L := L) H s' q)
     (hks : UtKsApart (L := L) G' Cs s')
-    (hidl : L.idleW s' = L.idleW s) (hkb : L.ksb s' = L.ksb s) (hio : IdleOut (L := L) th H G' s') :
+    (hidl : IdleKeep (L := L) s s') (hkb : L.ksb s' = L.ksb s) (hio : IdleOut (L := L) th H G' s') :
     JCovD (L := L) th H G' (D ∪ Uncov th H (L.mem s') G' (ExAt (L := L) th H s')) Cs s' := by
   have cov : ∀ {lo hi : Nat}, lo < hi → Covered (L.mem s) G lo hi →
       Covered (L.mem s') G' lo hi ∨ (∀ q, q.val = lo → DeadP (L := L) H s' q) := by

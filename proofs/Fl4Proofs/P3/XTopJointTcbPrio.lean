@@ -551,7 +551,7 @@ theorem JAtZ.prioCur (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hne : σ
       (L.mem s (P1.inqA t) &&& sched.Q_RELEASE) = 0#u64 ∧ L.mem s (P1.scA t) ≠ 0#u64 ∧ L.mem s (P1.scA t) ∈ Ac) := by
   obtain ⟨xt, hkt, hxs, -⟩ := hC.tcb
   obtain ⟨y, n, hky⟩ := hC.sc
-  have hnidle : σ.curSc ≠ Fl4Spec.idleScPtr := by
+  have hnidle : σ.curSc ≠ σ.idleSc := by
     intro e
     obtain ⟨xi, hki, hsi, -, -⟩ := J.act.2
     obtain ⟨y1, n1, hk1, hb1⟩ := J.inv.back _ _ _ hkt hxs
@@ -640,7 +640,8 @@ theorem JAtZ.setPrioJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_pfr F hS3 hIR.1 hw k3 hAI3.1
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-    exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => F.szKeep q.bv y n hq) hks (J.cnW_irq hw)⟩
+    exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => F.szKeep q.bv y n hq) hks (J.cnW_irq hw)
+      (J.idleW_keep hS3 F.sk.idle F.sk.isc).2⟩
   have hkern := J.kern_keep hks hw.2.1 hS3 F.sk.ct F.sk.csc (fun sl h => Or.inl (by rw [← F.sk.orig]; exact h))
     (by rw [F.sk.arch])
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)) hDbg
@@ -648,7 +649,7 @@ theorem JAtZ.setPrioJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hRR' := J.rrecv.frame k4 F.khrb
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
-      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle), hkern,
+      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc), hkern,
       J.cnW_utc hw hF.1 F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, I3, F.cur J.cur, F.own J.own, F.off J.off,
       hAI3, F.bsa J.bsa, S3, F.curRunM J.curRun, hblk⟩
   have hC0 := JCs.same J hF.1 F.ksz

@@ -142,7 +142,7 @@ theorem JCovD.retype_post {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set
         WinPlaced rb.toNat (2 ^ bitsApi t us) slots.length n us ∧
         (∀ q kd, H1 q = some kd → H q = some kd) ∧
         (∀ q, H1 q = H q → DeadP (L := L) H s q → DeadQ st H1 sR q))
-    (hidl : L.idleW res.2.1 = L.idleW s)
+    (hidl : Sched.IdleKeep (L := L) s res.2.1)
     (hdv : ∃ p0 sb0 fi0, capV (L.mem s) (cslotAddr sl) = .Untyped p0 sb0 fi0 false) :
     ∃ th' G' A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj (cslotAddr sl) ∧
       ∃ (H' : Heap) (Ac' : Set U64),

@@ -135,7 +135,7 @@ theorem EFr.trans {e : ObjRef} {P : ObjRef → Prop} {σ1 σ2 σ3 : State Unit} 
 
 theorem QOnly.efr {e : ObjRef} {P : ObjRef → Prop} {σ σ' : State Unit} (h : QOnly σ σ') : EFr e P σ σ' := by
   obtain ⟨rq, act, rfl⟩ := h
-  exact ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, fun _ => Or.inl rfl⟩
+  exact ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, fun _ => Or.inl rfl⟩
 
 /-! ### The scheduler invariant across one thread -/
 
@@ -194,7 +194,7 @@ theorem rtinf_inv {σ σ5 : State Unit} {t : ObjRef} {x : Tcb} (hI : Inv σ) (hk
     have hrel2 : σ2.releaseQueue = σ.releaseQueue := by rw [hσ2, hr2]; rfl
     have hkt2 : σ2.kheap t = some (.tcb x') := by rw [hk2]; exact hkt2'
     have hkp2b : ∀ q, q ≠ t → σ2.kheap q = σ.kheap q := fun q h1 => by rw [hk2, hkp2 q h1]
-    have hS2 : Sk σ σ2 := (show Sk σ σ2' from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩).trans
+    have hS2 : Sk σ σ2 := (show Sk σ σ2' from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩).trans
       (Sk.stsAct σ2' t)
     rw [nd_bind_one hst,
       nd_bind_one (show getTcbObjRef (Z := Unit) Tcb.tcbSchedContext t σ2 = _ from threadGet_eq _ hkt2)] at hm
@@ -251,7 +251,7 @@ theorem rtinf_inv {σ σ5 : State Unit} {t : ObjRef} {x : Tcb} (hI : Inv σ) (hk
     have hS3 : Sk σ2 σ3 := by
       rcases hshape with e | ⟨c, y, z, k, -, -, e, -, -⟩
       · rw [e]; exact Sk.refl _
-      · rw [e]; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+      · rw [e]; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
     -- the switch
     obtain ⟨σ6, he6, hk6, -, -, -⟩ := pst_ok hkt3 hI3.actReady
     have hm' : ((), σ5) ∈ (possibleSwitchTo (Z := Unit) t σ3).1 := hm
@@ -275,7 +275,7 @@ theorem rtinf_inv {σ σ5 : State Unit} {t : ObjRef} {x : Tcb} (hI : Inv σ) (hk
     obtain ⟨σ7, he7, hq7⟩ := pst_q hkt3 hI3.actReady
     have e57 : σ5 = σ7 := (Prod.mk.inj (singleton_one_eq (he6.symm.trans he7))).2
     have hS5 : Sk σ3 σ5 := by
-      rw [e57]; obtain ⟨rq, act, rfl⟩ := hq7; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+      rw [e57]; obtain ⟨rq, act, rfl⟩ := hq7; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
     refine ⟨hI5, hS2.trans (hS3.trans hS5), ⟨.restart, Or.inl rfl, by rw [hk6]; exact hkt3⟩, fun p hpt hpc => ?_,
       fun c y k hc hky => ?_⟩
     · rw [hk6]
@@ -300,7 +300,7 @@ theorem rtinf_inv {σ σ5 : State Unit} {t : ObjRef} {x : Tcb} (hI : Inv σ) (hk
     simp only at e5
     subst e5
     refine ⟨hI.deactivate hkt hnr, (show Sk σ (updK σ t (.tcb { x with tcbState := .inactive })) from
-      ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩).trans (Sk.stsAct _ t),
+      ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩).trans (Sk.stsAct _ t),
       ⟨.inactive, Or.inr rfl, by rw [stsAct_kheap]; simp [updK]⟩, fun p hpt _ => ?_, fun c y k _ hky => ?_⟩
     · rw [stsAct_kheap]; simp [updK, hpt]
     · have hct : c ≠ t := by rintro rfl; rw [hkt] at hky; cases hky
@@ -404,7 +404,7 @@ theorem inv_ep_iter {P : ObjRef → Prop} {σ σ5 : State Unit} {e t : ObjRef} {
         refine ⟨xr, hkr1, ?_, hxrt⟩
         rw [stsAct_kheap]; simp [updK, Ne.symm htr, hσ1']
       · exact (show Sk σ1 (updK σ1' t (.tcb { xt with tcbState := .inactive })) from
-          ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩).trans (Sk.stsAct _ t)
+          ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩).trans (Sk.stsAct _ t)
       · exact ((Ipc.SKeep.updK (fun _ h => by cases h) (fun _ _ h => by cases h)).trans
           (Ipc.SKeep.updK (o := .tcb { xt with tcbState := .inactive }) (fun y h => ⟨xt, hkt1', by cases h; rfl⟩)
             (fun _ _ h => by cases h))).trans (Ipc.SKeep.stsAct _ _)
@@ -436,7 +436,7 @@ theorem inv_ep_iter {P : ObjRef → Prop} {σ σ5 : State Unit} {e t : ObjRef} {
   -- the objects at the end
   have hkeep : ∀ p, p ≠ t → p ≠ e → ro ≠ some p → xt.tcbSchedContext ≠ some p → σ5.kheap p = σ.kheap p :=
     fun p h1 h2 h3 h4 => by rw [hkp5 p h1 h4, hkp2 p h1 h3, hkp1 p h2]
-  have hS12 : Sk σ σ2 := (show Sk σ σ1 from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩).trans hS2
+  have hS12 : Sk σ σ2 := (show Sk σ σ1 from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩).trans hS2
   have hS : Sk σ σ5 := hS12.trans hS5
   have F : EFr e P σ σ5 := by
     refine ⟨hS, fun p => ?_⟩
@@ -719,7 +719,7 @@ theorem EFr.own {T C : Set U64} (h : EFr e P σ σ') (hO : CurOwnW T C σ) : Cur
 theorem EFr.off (h : EFr e P σ σ') (hO : OffOK σ) : OffOK σ' := by
   intro hc y n hy ha
   rw [h.sk.cons] at hc ⊢; rw [h.sk.tm]
-  rw [h.sk.csc] at hy ha
+  rw [h.sk.csc] at hy; rw [h.sk.csc, h.sk.isc] at ha
   obtain ⟨y0, rf, hy0, rfl, hr⟩ := h.scB hy
   have e' : rf = y0.scRefills := hr rfl
   subst e'
@@ -728,7 +728,7 @@ theorem EFr.off (h : EFr e P σ σ') (hO : OffOK σ) : OffOK σ' := by
 theorem EFr.idleOK (h : EFr e P σ σ') (hO : IdleOK σ) : IdleOK σ' := by
   obtain ⟨x, hx, h1, h2, h3⟩ := hO
   obtain ⟨st, hx', hs⟩ := h.tcbF hx
-  refine ⟨{ x with tcbState := st }, by rw [h.sk.idle]; exact hx', h1, ?_, by rw [h.sk.idle, h.sk.rel]; exact h3⟩
+  refine ⟨{ x with tcbState := st }, by rw [h.sk.idle]; exact hx', by rw [h.sk.isc]; exact h1, ?_, by rw [h.sk.idle, h.sk.rel]; exact h3⟩
   show st = _
   rw [hs.st (by rw [h2]; simp [epBlocked])]; exact h2
 

@@ -34,7 +34,7 @@ open Fl4Spec Classical
 
 theorem Sk.stsAct (σ : State Unit) (t : ObjRef) : Sk σ (Notif.stsAct σ t) := by
   unfold Notif.stsAct; split
-  · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
   · exact Sk.refl σ
 
 /-- **`possible_switch_to`'s action**: kept, `choose_new_thread`, or a switch
@@ -109,7 +109,7 @@ theorem unblock_frame {σ σ' : State Unit} (hI : Inv σ) {t : ObjRef} {x : Tcb}
   · subst e
     refine ⟨?_, rfl⟩
     have h0 : NFr false r σ { σ with reprogramTimer := true } :=
-      NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun e => by cases e) rfl
+      NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun e => by cases e) rfl
     exact h0.trans (NFr.upd (σ := { σ with reprogramTimer := true }) (o' := .schedContext z k) hky
       (Or.inr (Or.inl ⟨y, k, z.scRefills, y.scNtfn, rfl, congrArg (fun w => KernelObject.schedContext w k) hz,
         fun h => absurd (h.resolve_right (by simp)) hcc, Or.inl rfl⟩)))
@@ -188,8 +188,8 @@ theorem wake_spec {σ1 σ' : State Unit} {r t : ObjRef} {x : Tcb} {badge : Word}
   rw [nd_bind_one hND, nd_gets_bind] at hm
   -- the frame to `σ3`
   have hS3 : Sk σ1 σ3 :=
-    (show Sk σ1 σA from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩).trans
-      ((Sk.stsAct σA t).trans (show Sk σ2 σ3 from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩))
+    (show Sk σ1 σA from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩).trans
+      ((Sk.stsAct σA t).trans (show Sk σ2 σ3 from ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩))
   have F3 : NFr false r σ1 σ3 := by
     refine ⟨hS3, (fun e => by cases e), fun p => ?_⟩
     by_cases e : p = t

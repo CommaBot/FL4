@@ -40,7 +40,7 @@ theorem Sched.Inv.rt {σ : State Unit} (h : Inv σ) (v : Bool) : Inv { σ with r
 
 /-- The spec's frame of a timer-flag change (`NFr` with nothing else changed). -/
 theorem Sched.NFr.rt (r : ObjRef) (σ : State Unit) (v : Bool) : NFr true r σ { σ with reprogramTimer := v } :=
-  NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun _ => ⟨rfl, rfl⟩) rfl
+  NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun _ => ⟨rfl, rfl⟩) rfl
 
 end Spec
 
@@ -282,21 +282,21 @@ theorem JAtZ.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
   -- the dead stay dead
   have hAI : ActIdle σ' := F.actIdle J.act
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := fun q hq =>
-    J.deadP_hstep (G' := Z.G) hX' ⟨fun p => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun q hq => k3 q hq) hOut
+    J.deadP_hstep (G' := Z.G) hX' ⟨fun p => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun q hq => k3 q hq) hOut
       hAI.1 (J.jcov.dead q hq)
   have ck := F.ckeep
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hks ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
   have hRR' := J.rrecv.frame k4 F.khrb
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' :=
-    ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => F.szKeep q.bv y n hq) hks hirq⟩
+    ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => F.szKeep q.bv y n hq) hks hirq (J.idleW_keep hS' F.sk.idle F.sk.isc).2⟩
   have hkern := J.kern_keep hks hw.2.1 hS' F.sk.ct F.sk.csc (fun sl h => Or.inl (by rw [← F.sk.orig]; exact h))
     (by rw [F.sk.arch])
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) hDbg
     (D' := D)
   have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
-      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hSS hdead (J.idleW_keep hS' F.sk.idle), hkern,
+      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hSS hdead (J.idleW_keep hS' F.sk.idle F.sk.isc), hkern,
       J.tmw_utc hw hSS F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, J.inv.rt _,
       J.cur.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curInv, F.own J.own, F.off J.off,
       hAI, F.bsa J.bsa, F.isorted J.isorted,

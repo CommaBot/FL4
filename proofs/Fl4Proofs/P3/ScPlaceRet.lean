@@ -190,7 +190,7 @@ theorem JCovD.retype (h : JCovD (L := L) th H G D Cs s)
     (hE : RetExp th th' (L.mem s) (L.mem s') G G' A k w dslot cj xs)
     (hH' : ∀ q kd, H' q = some kd → (H q = some kd ∧ ¬ NewQ A k w cj q) ∨ (NewQ A k w cj q ∧ 2 ^ kd.bits ≤ k))
     (hdead : ∀ q ∈ D, ¬ NewQ A k w cj q → H' q = H q → DeadP (L := L) H s q → DeadP (L := L) H' s' q)
-    (hksb : L.ksb s' = L.ksb s) (hidl : L.idleW s' = L.idleW s)
+    (hksb : L.ksb s' = L.ksb s) (hidl : IdleKeep (L := L) s s')
     (hdv : ∃ p0 sb0 fi0, capV (L.mem s) xs = .Untyped p0 sb0 fi0 false) :
     JCovD (L := L) th' H' G' {q | q ∈ D ∧ ¬ NewQ A k w cj q} Cs s' := by
   have hkeep : ∀ y ∈ G.chains.flatten, physF (capV (L.mem s) y) = true → isUt (capV (L.mem s) y) = false →
@@ -317,7 +317,7 @@ theorem JCovD.retype_p1 (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem s)
     (hE : RetExp th th' (L.mem s) (L.mem s') G G' A k w dslot cj xs) (hksb : L.ksb s' = L.ksb s)
     (hb : BlkOK st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
       (Heap.scBits H) Ac s)
-    (hP1 : RetypeP1Hyp st s s' H Cs Ac A k w (NewQ A k w cj)) (hidl : L.idleW s' = L.idleW s)
+    (hP1 : RetypeP1Hyp st s s' H Cs Ac A k w (NewQ A k w cj)) (hidl : IdleKeep (L := L) s s')
     (hdv : ∃ p0 sb0 fi0, capV (L.mem s) xs = .Untyped p0 sb0 fi0 false) :
     ∃ (H' : Heap) (Ac' : Set U64),
       BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H') (Heap.ntfns H')
@@ -392,7 +392,7 @@ theorem JCovD.retype_step (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem 
       (Heap.scBits H) Ac s)
     (hdrop : DropOK st H (RegionD H lo hi) Cs s) (hnode : RegionOffNodes st Cs s lo hi)
     (hdbg : DbgLinksOK st H Cs s' lo hi A k w n) (hwp : WinPlaced A k w n us) (h0Cs : 0#u64 ∈ Cs)
-    (hidl : L.idleW s' = L.idleW s) (hdv : ∃ p0 sb0 fi0, capV (L.mem s) xs = .Untyped p0 sb0 fi0 false) :
+    (hidl : IdleKeep (L := L) s s') (hdv : ∃ p0 sb0 fi0, capV (L.mem s) xs = .Untyped p0 sb0 fi0 false) :
     ∃ (H' : Heap) (Ac' : Set U64),
       BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H') (Heap.ntfns H')
         (Heap.scBits H') Ac' s' ∧

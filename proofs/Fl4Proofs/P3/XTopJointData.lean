@@ -42,7 +42,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 /-- A machine-state-only spec step is an `ArFr` step. -/
 theorem arFr_setUm (σ : Fl4Spec.State Unit) (um : Fl4Spec.Word → Fl4Spec.Word8) : ArFr σ (Endp.setUm σ um) :=
-  ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 open Fl4Proofs.P1 in
 set_option maxHeartbeats 16000000 in
@@ -199,12 +199,12 @@ theorem JAtZ.userWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hRF' := RFree.carry J.rfree J.call k4 ck
   have hRR' := J.rrecv.frame k4 F.khrb
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s1 σ1 :=
-    ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => F.szKeep q.bv y n hq) hkb hirq⟩
+    ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => F.szKeep q.bv y n hq) hkb hirq (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc).2⟩
   have hkern := J.kern_keepA hkb hcpu hX1.fin.1.1.1 F hDbg
   have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s1 σ1 :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 yk, J.mcp.frame k1 (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩),
       J.buf.frame kb (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩), hRP',
-      J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle), hkern,
+      J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc), hkern,
       hutc, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
       J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
   exact J.cs_frame (G' := Z.G) hkb hX1 F.kback (JCs.same J hSS F.ksz) R

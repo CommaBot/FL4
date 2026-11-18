@@ -60,12 +60,13 @@ structure Sk (σ σ' : State Unit) : Prop where
   orig : σ'.isOriginalCap = σ.isOriginalCap
   arch : σ'.archState = σ.archState
   dt : σ'.domainTime = σ.domainTime
+  isc : σ'.idleSc = σ.idleSc
 
-theorem Sk.refl (σ : State Unit) : Sk σ σ := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+theorem Sk.refl (σ : State Unit) : Sk σ σ := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem Sk.trans {σ1 σ2 σ3 : State Unit} (h1 : Sk σ1 σ2) (h2 : Sk σ2 σ3) : Sk σ1 σ3 :=
   ⟨h2.ct.trans h1.ct, h2.idle.trans h1.idle, h2.cons.trans h1.cons, h2.tm.trans h1.tm, h2.csc.trans h1.csc,
-    h2.rel.trans h1.rel, h2.cdt.trans h1.cdt, h2.orig.trans h1.orig, h2.arch.trans h1.arch, h2.dt.trans h1.dt⟩
+    h2.rel.trans h1.rel, h2.cdt.trans h1.cdt, h2.orig.trans h1.orig, h2.arch.trans h1.arch, h2.dt.trans h1.dt, h2.isc.trans h1.isc⟩
 
 /-- A notification object kept, or a non-waiting one replaced by a
 non-waiting one. -/
@@ -184,14 +185,14 @@ theorem NFr.ofSk {q : Bool} {r : ObjRef} {σ σ' : State Unit} (hs : Sk σ σ')
 
 theorem NFr.upd {q : Bool} {r : ObjRef} {σ : State Unit} {p : ObjRef} {o o' : KernelObject}
     (hk : σ.kheap p = some o) (hc : NChg q r σ.curSc p o o') : NFr q r σ (updK σ p o') := by
-  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, fun _ => ⟨rfl, rfl⟩, fun p' => ?_⟩
+  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, fun _ => ⟨rfl, rfl⟩, fun p' => ?_⟩
   by_cases e : p' = p
   · subst e; exact Or.inr ⟨o, o', hk, by simp [updK], hc⟩
   · exact Or.inl (by simp [updK, e])
 
 theorem NFr.sts (r : ObjRef) (σ : State Unit) (t : ObjRef) : NFr false r σ (Notif.stsAct σ t) := by
   unfold Notif.stsAct; split
-  · exact NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun e => by cases e) rfl
+  · exact NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun e => by cases e) rfl
   · exact NFr.refl _ _ _
 
 /-- Only the ready queues and the scheduler action changed. -/
@@ -200,7 +201,7 @@ def QOnly (σ σ' : State Unit) : Prop :=
 
 theorem QOnly.nfr {r : ObjRef} {σ σ' : State Unit} (h : QOnly σ σ') : NFr false r σ σ' := by
   obtain ⟨rq, act, rfl⟩ := h
-  exact NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun e => by cases e) rfl
+  exact NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun e => by cases e) rfl
 
 /-- **`reschedule_required`'s outcome**: only the queues and the action
 (`choose_new_thread`) changed. -/
@@ -483,7 +484,7 @@ theorem inv_ntfn_iter {σ σ5 : State Unit} {r t : ObjRef} {l : List ObjRef} (h 
     · rw [e]; exact NFr.refl _ _ _
     · rw [e]
       have h0 : NFr false r σ2 { σ2 with reprogramTimer := true } :=
-        NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun e => by cases e) rfl
+        NFr.ofSk ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun e => by cases e) rfl
       refine h0.trans (NFr.upd (σ := { σ2 with reprogramTimer := true }) (o' := .schedContext z k) hky
         (Or.inr (Or.inl ⟨y, k, z.scRefills, y.scNtfn, rfl, congrArg (fun w => KernelObject.schedContext w k) hz,
           fun h => absurd (h.resolve_right (by simp)) hcc, Or.inl rfl⟩)))
@@ -731,7 +732,7 @@ theorem NFr.own {T C : Set U64} (h : NFr q r σ σ') (hO : CurOwnW T C σ) : Cur
 theorem NFr.off (h : NFr q r σ σ') (hO : OffOK σ) : OffOK σ' := by
   intro hc y n hy ha
   rw [h.sk.cons] at hc ⊢; rw [h.sk.tm]
-  rw [h.sk.csc] at hy ha
+  rw [h.sk.csc] at hy; rw [h.sk.csc, h.sk.isc] at ha
   obtain ⟨y0, rf, nt, hy0, rfl, hr, -⟩ := h.scB hy
   have e : rf = y0.scRefills := hr (Or.inl rfl)
   subst e
@@ -740,7 +741,7 @@ theorem NFr.off (h : NFr q r σ σ') (hO : OffOK σ) : OffOK σ' := by
 theorem NFr.idleOK (h : NFr q r σ σ') (hO : IdleOK σ) : IdleOK σ' := by
   obtain ⟨x, hx, h1, h2, h3⟩ := hO
   obtain ⟨st, bn, ar, hx', hs, -⟩ := h.tcbF hx
-  refine ⟨{ x with tcbState := st, tcbBoundNotification := bn, tcbArch := ar }, by rw [h.sk.idle]; exact hx', h1, ?_,
+  refine ⟨{ x with tcbState := st, tcbBoundNotification := bn, tcbArch := ar }, by rw [h.sk.idle]; exact hx', by rw [h.sk.isc]; exact h1, ?_,
     by rw [h.sk.idle, h.sk.rel]; exact h3⟩
   show st = _
   rw [hs.st (by rw [h2]; nofun)]; exact h2
@@ -776,7 +777,7 @@ theorem NFr.curInv (h : NFr q r σ σ') (hC : CurInv σ) : CurInv σ' := by
   have hst : st = xt.tcbState := hs.st (hnb.1 r)
   refine ⟨⟨_, by rw [h.sk.ct]; exact hkt', by rw [h.sk.csc]; exact hxs, by rw [hst]; exact hnb⟩,
     ⟨_, n, by rw [h.sk.csc]; exact hx'⟩, fun hne y m hy => ?_, by rw [h.sk.ct, h.sk.rel]; exact hC.notRel⟩
-  rw [h.sk.csc] at hne hy
+  rw [h.sk.csc, h.sk.isc] at hne; rw [h.sk.csc] at hy
   obtain ⟨y0, rf', nt', hy0, rfl, -⟩ := h.scB hy
   exact hC.active hne y0 m hy0
 

@@ -130,6 +130,7 @@ def initASt {Z : Type} [StateExt Z] : State Z :=
     isOriginalCap := initIoc,
     curThread := idleThreadPtr,
     idleThread := idleThreadPtr,
+    idleSc := idleScPtr,
     consumedTime := 0,
     curTime := 0,
     curSc := idleScPtr,

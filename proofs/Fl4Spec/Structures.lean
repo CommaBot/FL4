@@ -591,6 +591,15 @@ structure AbstractState where
   isOriginalCap : CslotPtr → Bool
   curThread : ObjRef
   idleThread : ObjRef
+  /-- This core's idle scheduling context. **Deviation from l4v**, where
+  `idle_sc_ptr` is a constant (Machine_A; here `idleScPtr`): FL4 is
+  multi-core with one idle SC per core, placed at boot in a kernel `.bss`
+  array (fl4-core `create_idle_threads`: `idle_base + c * idle_stride +
+  4096`), so no fixed address is right for every core. The spec is a
+  per-core view, and this field is that core's idle SC, read wherever l4v
+  reads `idle_sc_ptr` (like `idle_thread`). It is `idleScPtr` in
+  `initASt` and no operation writes it. -/
+  idleSc : ObjRef
   /-- amount of time since kernel time was last updated -/
   consumedTime : Time
   /-- current time at kernel entry -/
@@ -613,7 +622,7 @@ structure AbstractState where
   archState : ArchState
 
 instance : Nonempty AbstractState :=
-  ⟨⟨fun _ => none, fun _ => none, fun _ => false, 0, 0, 0, 0, 0, false, .resumeCurThread, [], 0, 0,
+  ⟨⟨fun _ => none, fun _ => none, fun _ => false, 0, 0, 0, 0, 0, 0, false, .resumeCurThread, [], 0, 0,
     0, 0, fun _ _ => [], [], undefined, fun _ => 0, fun _ => .irqInactive, default⟩⟩
 
 /-- l4v: Structures_A.state (`'a state = abstract_state + exst :: 'a`): the

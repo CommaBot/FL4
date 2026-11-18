@@ -51,6 +51,28 @@ theorem setInactive_eq {σ : State Unit} {p : ObjRef} {x : SchedContext} {n : Na
     updSc_updSc]
   rfl
 
+/-- Every outcome of `m` keeps `idle_sc` (no spec operation writes it; VsDom's
+generic `FK` with the projection `idleSc`, by the monad's combinators). -/
+abbrev ISK {α : Type} (m : NonDet (State Unit) α) : Prop := Vs.FK (fun σ : State Unit => σ.idleSc) m
+
+theorem isk_zipWithMx {α β γ : Type} {g : α → β → NonDet (State Unit) γ} (h : ∀ a b, ISK (g a b)) :
+    ∀ l1 l2, ISK (NonDet.zipWithMx g l1 l2)
+  | a :: l1, b :: l2 => Vs.dk_bind (h a b) (fun _ => isk_zipWithMx h l1 l2)
+  | [], _ => Vs.dk_pure' _
+  | _ :: _, [] => Vs.dk_pure' _
+
+/-- **`sched_context_unbind_yield_from` keeps `idle_sc`.** -/
+theorem isk_schedContextUnbindYieldFrom (p : ObjRef) : ISK (schedContextUnbindYieldFrom (Z := Unit) p) := by
+  unfold ISK schedContextUnbindYieldFrom completeYieldTo setConsumed schedContextUpdateConsumed replyFromKernel
+    setMessageInfo schedContextCancelYieldTo
+  repeat' (first
+    | dk_step0
+    | (refine isk_zipWithMx (fun _ _ => ?_) _ _)
+    | unfold setScObjRef | unfold setTcbObjRef
+    | unfold getSchedContext | unfold getObject | unfold setObject | unfold updateSchedContext
+    | unfold setSchedContext | unfold threadGet | unfold threadSet | unfold getTcbObjRef | unfold asUser
+    | unfold setMrs | unfold lookupIpcBuffer | unfold getCap | unfold doMachineOp | unfold storeWordOffs)
+
 theorem nkt_schedContextUnbindAllTcbs (p : ObjRef) : NKT (schedContextUnbindAllTcbs (Z := Unit) p) := by
   unfold schedContextUnbindAllTcbs
   repeat (first | exact nkt_schedContextUnbindTcb _ | nkt_step2)
@@ -102,7 +124,7 @@ related by its header words), the notification words and the spec's views
 kept. -/
 theorem SchedRel.set_inactive {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) {sc : U64} (hsc : sc ∈ C) {x : Fl4Spec.SchedContext} {n : Nat}
-    (hk : σ.kheap sc.bv = some (.schedContext x n)) (hid : sc.bv ≠ Fl4Spec.idleScPtr) :
+    (hk : σ.kheap sc.bv = some (.schedContext x n)) (hid : sc.bv ≠ σ.idleSc) :
     SchedRel st N T C c (L.wr (L.wr s (maxA sc) 0#u64) (scW sc 64#u64) 0#u64) (updSc σ sc.bv (inactSc x) n) ∧
       FootEq N T (L.mem s) (L.mem (L.wr (L.wr s (maxA sc) 0#u64) (scW sc 64#u64) 0#u64)) ∧
       KView σ (updSc σ sc.bv (inactSc x) n) ∧
@@ -134,7 +156,7 @@ theorem SchedRel.set_inactive {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.
     rd_wr_eq a64.1
   have hrm : L.rmax (L.wr (L.wr s (scW sc 72#u64) 0#u64) (scW sc 64#u64) 0#u64) sc = 0#u64 := by
     simp only [LawfulStore.rmax, maxA_eq]; exact m72
-  have hx' : ScRelW st (L.wr (L.wr s (scW sc 72#u64) 0#u64) (scW sc 64#u64) 0#u64) sc (inactSc x) n := by
+  have hx' : ScRelW st σ.idleSc (L.wr (L.wr s (scW sc 72#u64) 0#u64) (scW sc 64#u64) 0#u64) sc (inactSc x) n := by
     refine ⟨hx.pl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun h => absurd m64 h, fun h => absurd h hid, ?_,
       fun h => (h (by rw [hrm]; rfl)).elim⟩
     · have := hx.period
@@ -205,7 +227,7 @@ def ScFinPreX (Z : XSets) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
   IPlaced Z.N Z.T Z.E Z.R Z.B ∧ NSC Z.N Z.C σ ∧ Inv σ ∧
   (∃ Lst, CallRel (L.mem s) Z.R Z.C σ Lst ∧ RPlaced st Z.N Z.T Z.C Z.R Z.c s σ ∧ RFree (L.mem s) Z.R Z.C σ Lst) ∧
   ∀ sl p sb, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.SchedContext p sb) →
-    p ∈ Z.C ∧ p ≠ 0#u64 ∧ p.bv ≠ Fl4Spec.idleScPtr ∧
+    p ∈ Z.C ∧ p ≠ 0#u64 ∧ p.bv ≠ σ.idleSc ∧
     ∀ y n, σ.kheap p.bv = some (.schedContext y n) →
       (∀ t : U64, y.scTcb = some t.bv → t ∈ Z.T ∧ t.bv ≠ σ.idleThread) ∧ (∀ m : U64, y.scNtfn = some m.bv → m ∈ Z.N)
 
@@ -301,6 +323,9 @@ theorem xFinSc_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
         ok ((capability.Cap.Null, capability.Cap.Null), s6, a4)) ⦃ r =>
         FinXPost (L := L) AR Z s σ sl (.SchedContext p sb) r ⦄ := by
     intro s4 a4 σ4 V hX4 hss4 kb4 hck4 he4
+    have hisc4 : σ4.idleSc = σ.idleSc :=
+      (isk_schedContextUnbindYieldFrom p.bv σ3 ((), σ4) (by rw [he4]; exact Set.mem_singleton _)).trans
+        (hK1.trans (hK2.trans hK3)).isc
     have hS4 := hX4.fin.1.1.1
     have hR4 := hX4.fin.1.1.2.2.1
     obtain ⟨Q4, R4, hc4, hs4⟩ := hS4.lists
@@ -308,7 +333,7 @@ theorem xFinSc_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
     step with obj.Sc.set_refill_max.spec as ⟨s5, hs5⟩
     step with obj.Sc.set_sporadic.spec2 as ⟨s6, hs6⟩
     subst hs5 hs6
-    obtain ⟨hS6, hFE, hKV, hw6⟩ := hS4.set_inactive hpC hk4 hpi
+    obtain ⟨hS6, hFE, hKV, hw6⟩ := hS4.set_inactive hpC hk4 (by rw [hisc4]; exact hpi)
     have hR6 := hR4.frame hS4.placed hFE hKV
     have he5 := setInactive_eq hk4
     have hK6 : ScTKw (fun q => q = σ.curThread) σ4 (updSc σ4 p.bv (inactSc y4) n4) :=

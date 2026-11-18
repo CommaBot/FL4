@@ -532,8 +532,8 @@ theorem Sched.SchedRel.domW {N T C : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4
   · have e : L.mem s' (P1.scA t) = L.mem s (P1.scA t) := by rw [P1.scA, htf t ht _ (by decide) (by decide)]
     rw [e] at h0 ⊢; exact hs.scMem t ht h0
   · obtain ⟨x, n, hkx, e⟩ := hs.scs sc hsc'
-    exact ⟨x, n, by rw [hK.kh]; exact hkx, e.agree (hsc sc hsc')⟩
-  · rw [nwo _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])]; exact hs.idleSc
+    exact ⟨x, n, by rw [hK.kh]; exact hkx, by rw [hK.isc]; exact e.agree (hsc sc hsc')⟩
+  · rw [hK.isc, nwo _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])]; exact hs.idleSc
   · rw [hK.idle, nwo _ (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])]; exact hs.idleTh
 
 /-- **Writes of the domain schedule's words keep P1's `BlkOK`**: they are

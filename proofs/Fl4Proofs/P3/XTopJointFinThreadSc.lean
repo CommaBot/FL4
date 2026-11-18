@@ -41,17 +41,18 @@ kept; the action choose-new if `P`, else kept. -/
 theorem whenResched_fields {σ : State Unit} (hA : ActReady σ) (P : Prop) [Decidable P] :
     ∃ σ1, (if P then rescheduleRequired (Z := Unit) else NonDet.pure ()) σ = ({((), σ1)}, False) ∧
       σ1.kheap = σ.kheap ∧ σ1.curThread = σ.curThread ∧ σ1.curSc = σ.curSc ∧ σ1.curTime = σ.curTime ∧
-      σ1.consumedTime = σ.consumedTime ∧ σ1.idleThread = σ.idleThread ∧ σ1.releaseQueue = σ.releaseQueue ∧
+      σ1.consumedTime = σ.consumedTime ∧ σ1.idleThread = σ.idleThread ∧ σ1.idleSc = σ.idleSc ∧
+      σ1.releaseQueue = σ.releaseQueue ∧
       (P → σ1.schedulerAction = .chooseNewThread) ∧ (¬ P → σ1.schedulerAction = σ.schedulerAction) := by
   by_cases hP : P
   · rw [if_pos hP]
     obtain ⟨σ1, e1, hq1, hc1⟩ := rescheduleRequired_calm hA
     obtain ⟨σ2, e2, -, -, -, ha2⟩ := resched_ok hA
     have ha1 : σ1.schedulerAction = .chooseNewThread := by rw [← the_result e1 e2]; exact ha2
-    exact ⟨σ1, e1, hc1.1, hc1.2.1, hc1.2.2.1, hc1.2.2.2.1, hc1.2.2.2.2.1, hc1.2.2.2.2.2.1, hq1.2.1,
+    exact ⟨σ1, e1, hc1.1, hc1.2.1, hc1.2.2.1, hc1.2.2.2.1, hc1.2.2.2.2.1, hc1.2.2.2.2.2.1, hc1.isc, hq1.2.1,
       fun _ => ha1, fun h => absurd hP h⟩
   · rw [if_neg hP]
-    exact ⟨σ, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun h => absurd h hP, fun _ => rfl⟩
+    exact ⟨σ, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun h => absurd h hP, fun _ => rfl⟩
 
 /-- **The spec's `sched_context_unbind_tcb`** of an SC bound to `t` (module
 docstring). -/
@@ -63,7 +64,7 @@ theorem unbindTcb_shape {σ : State Unit} {i t : ObjRef} {y : SchedContext} {n :
       σ'.kheap i = some (.schedContext (scTcbUpdate (fun _ => none) y) n) ∧
       (∀ q, q ≠ t → q ≠ i → σ'.kheap q = σ.kheap q) ∧
       σ'.curThread = σ.curThread ∧ σ'.curSc = σ.curSc ∧ σ'.curTime = σ.curTime ∧
-      σ'.consumedTime = σ.consumedTime ∧ σ'.idleThread = σ.idleThread ∧
+      σ'.consumedTime = σ.consumedTime ∧ σ'.idleThread = σ.idleThread ∧ σ'.idleSc = σ.idleSc ∧
       (∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue) ∧
       (t = σ.curThread → σ'.schedulerAction = .chooseNewThread) ∧
       (¬ t = σ.curThread → σ'.schedulerAction = σ.schedulerAction) := by
@@ -73,7 +74,7 @@ theorem unbindTcb_shape {σ : State Unit} {i t : ObjRef} {y : SchedContext} {n :
     nd_bind_one (show NonDet.assertOpt (σ := State Unit) (some t) σ = ({(t, σ)}, False) from rfl),
     Notif.nd_gets_bind]
   unfold NonDet.when
-  obtain ⟨σ1, he1, k1, c1, s1, t1, n1, i1, r1, a1, b1⟩ := whenResched_fields hA (t = σ.curThread)
+  obtain ⟨σ1, he1, k1, c1, s1, t1, n1, i1, isc1, r1, a1, b1⟩ := whenResched_fields hA (t = σ.curThread)
   rw [nd_bind_one he1]
   have hkt1 : σ1.kheap t = some (.tcb x) := by rw [k1]; exact hkt
   rw [nd_bind_one (tcbSchedAction_gen hkt1 _)]
@@ -96,7 +97,7 @@ theorem unbindTcb_shape {σ : State Unit} {i t : ObjRef} {y : SchedContext} {n :
   have hrq : ∀ u ∈ σ2.releaseQueue, u ∈ σ.releaseQueue := fun u hu => by
     have hu' : u ∈ σ1.releaseQueue.filter (fun u => decide (t ≠ u)) := hu
     rw [← r1]; exact (List.mem_filter.1 hu').1
-  refine ⟨_, rfl, ?_, ?_, fun q hq1 hq2 => ?_, c1, s1, t1, n1, i1, hrq, a1, b1⟩
+  refine ⟨_, rfl, ?_, ?_, fun q hq1 hq2 => ?_, c1, s1, t1, n1, i1, isc1, hrq, a1, b1⟩
   · simp [updSc, updK, hts]
   · simp [updSc, updK]
   · simp only [updSc, updK, Function.update_of_ne hq1, Function.update_of_ne hq2]; rw [hk2]
@@ -112,7 +113,7 @@ theorem unbindTcb_mid {T C : Set U64} {σ σ' : State Unit} {i t : ObjRef} {y : 
     (he : schedContextUnbindTcb (Z := Unit) i σ = ({((), σ')}, False)) :
     (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧ CurOwnW T C σ' ∧ OffOK σ' ∧ ActIdle σ' ∧
       CurRunM σ' ∧ FK σ σ' := by
-  obtain ⟨σ2, e2, kt, ki, ko, ct, cs, tm, cn, hidl, rq, a1, b1⟩ := unbindTcb_shape hI.actReady hks hy hkt
+  obtain ⟨σ2, e2, kt, ki, ko, ct, cs, tm, cn, hidl, hisc, rq, a1, b1⟩ := unbindTcb_shape hI.actReady hks hy hkt
   have e := the_result e2 he
   subst e
   have hti : t ≠ i := by rintro rfl; rw [hkt] at hks; cases hks
@@ -139,7 +140,7 @@ theorem unbindTcb_mid {T C : Set U64} {σ σ' : State Unit} {i t : ObjRef} {y : 
       rw [hks] at h1; cases h1; rw [hy] at h2; cases h2; exact hut rfl
     exact schedulable_of (by rw [ko _ hut hui]; exact hku) hsc hrun (by rw [ko _ hst hsi]; exact hky) hac
       (fun h => hnr (rq _ h))
-  refine ⟨?_, ?_, ?_, hAct, ?_, ⟨cs, hidl⟩⟩
+  refine ⟨?_, ?_, ?_, hAct, ?_, ⟨cs, hidl, hisc⟩⟩
   · -- `CurInv` unless a reschedule is pending
     by_cases htc : t = σ.curThread
     · exact Or.inl (a1 htc)
@@ -157,7 +158,7 @@ theorem unbindTcb_mid {T C : Set U64} {σ σ' : State Unit} {i t : ObjRef} {y : 
       rw [e, hks] at h1; cases h1; rw [hy] at h2; cases h2; exact htc rfl
     refine ⟨⟨xt, by rw [ct, ko _ hct hci]; exact hkc, by rw [cs]; exact hcs, hnb⟩, ⟨y1, n1, by rw [cs, ko _ hcst hcsi]; exact hk1⟩,
       fun hne y3 n3 h3 => ?_, fun h => hC.notRel (by rw [ct] at h; exact rq _ h)⟩
-    rw [cs] at hne h3; rw [ko _ hcst hcsi] at h3
+    rw [cs, hisc] at hne; rw [cs] at h3; rw [ko _ hcst hcsi] at h3
     exact hC.active hne y3 n3 h3
   · -- `CurOwnW`
     rcases hown with ⟨u, hu, xt, hku, hxt, hown, hnr⟩ | ⟨hcs, hun⟩
@@ -187,7 +188,7 @@ theorem unbindTcb_mid {T C : Set U64} {σ σ' : State Unit} {i t : ObjRef} {y : 
   · -- `OffOK`
     intro h0 y1 n1 h1 ha
     rw [cn] at h0 ⊢; rw [tm]
-    rw [cs] at h1 ha
+    rw [cs] at h1; rw [cs, hisc] at ha
     by_cases e : σ.curSc = i
     · rw [e, ki] at h1; cases h1
       exact hoff h0 y n (by rw [e]; exact hks) ha
@@ -328,7 +329,7 @@ theorem JAtZ.unbindTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t i :
     J.deadP_sc_step hX' hW hK (fun _ _ h => h.elim) hL hF hact'.1 (fun h => h) (J.jcov.dead q hq)
   have hDbg := J.kw_dbg (hfoot.mono (Set.empty_subset _))
   exact ⟨σ', he, Ac, Lst', D, J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
-    (J.sc_jpl hW hK) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2)) (J.sc_kern hW hK hF hX' hDbg fun _ h => h)
+    (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2)) (J.sc_kern hW hK hF hX' hDbg fun _ h => h)
     (J.sc_utc hW hK hDbg) hN' hI' hcur' hown' hoff' hact' hB' hcr' hblk⟩
 
 end

@@ -107,14 +107,15 @@ theorem SchedSpec.transfer {T C C' : Set U64} {c : U64} {s s' : S} {Q : U64 → 
     (e6 : σ'.consumedTime = σ.consumedTime) (e7 : σ'.curDomain = σ.curDomain)
     (e8 : σ'.domainTime = σ.domainTime) (e9 : σ'.idleThread = σ.idleThread)
     (htcb : ∀ t ∈ T, ∀ x, σ.kheap t.bv = some (.tcb x) → σ'.kheap t.bv = some (.tcb x))
-    (hscs : ∀ sc ∈ C, ∃ x n, σ'.kheap sc.bv = some (.schedContext x n) ∧ ScRelW st s' sc x n) :
+    (hscs : ∀ sc ∈ C, ∃ x n, σ'.kheap sc.bv = some (.schedContext x n) ∧ ScRelW st σ'.idleSc s' sc x n)
+    (e10 : σ'.idleSc = σ.idleSc := by first | rfl | assumption) :
     SchedSpec st T C c s' Q R σ' := by
   have w : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → o.val ≠ 16 → o.val ≠ 56 → o.val ≠ 104 → o.val ≠ 112 →
       o.val ≠ 88 → nodeW st s' c o = nodeW st s c o :=
     fun o h1 h2 h3 h4 h5 h6 h7 => ha.nodeW h1 h2 h3 h4 h5 h6 h7
   refine ⟨fun p hp => by rw [e1]; exact h.rq p hp, fun d p hd => by rw [e1]; exact h.rqDom d p hd,
     by rw [e2]; exact h.rel, ?_, ?_, ?_, ?_, ?_, fun t ht => ?_, fun t ht => ?_, hscs,
-    by rw [w _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])]; exact h.idleSc,
+    by rw [e10, w _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])]; exact h.idleSc,
     by rw [e8, dtA_ksb ha.ksb, ha.dt]; exact h.domTime,
     by rw [e9, w layout.node.IDLE_THREAD (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])]; exact h.idleTh⟩
   · rw [e3, w _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])]; exact h.curThread
@@ -199,7 +200,7 @@ theorem SchedRel.sc_updateW {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec
     (hS : SchedRel st N T C c s σ) {sc0 : U64} (hsc0 : sc0 ∈ C) {x0 : Fl4Spec.SchedContext} {n : Nat}
     (hk : σ.kheap sc0.bv = some (.schedContext x0 n)) (hw : WritesIn st s s' (ScObj sc0 n))
     (hc0 : L.mem s' (scW sc0 16#u64) = L.mem s (scW sc0 16#u64))
-    (x : Fl4Spec.SchedContext) (hx : ScRelW st s' sc0 x n) :
+    (x : Fl4Spec.SchedContext) (hx : ScRelW st σ.idleSc s' sc0 x n) :
     SchedRel st N T C c s' (updSc σ sc0.bv x n) := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   have hN := hc.node

@@ -341,7 +341,8 @@ scheduling context. -/
 def commitTime : SMonad Z Unit := do
   let csc ← NonDet.gets fun s : State Z => s.curSc
   let active ← getScActive csc
-  NonDet.when (active ∧ csc ≠ idleScPtr) <| do
+  let isc ← NonDet.gets fun s : State Z => s.idleSc
+  NonDet.when (active ∧ csc ≠ isc) <| do
     let consumed ← NonDet.gets fun s : State Z => s.consumedTime
     NonDet.when (0 < consumed) <| do
       let robin ← isRoundRobin csc

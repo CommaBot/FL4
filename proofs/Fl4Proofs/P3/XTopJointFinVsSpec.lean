@@ -38,7 +38,7 @@ def eraseA : Option KernelObject → Option KernelObject
 def archF (σ : State Unit) :=
   ((fun p => eraseA (σ.kheap p)), (fun p => (σ.kheap p).map aType), σ.cdt, σ.isOriginalCap, σ.curThread,
     σ.idleThread, σ.consumedTime, σ.curTime, σ.curSc, σ.reprogramTimer, σ.schedulerAction, σ.domainTime,
-    σ.readyQueues, σ.releaseQueue, σ.archState.x64GlobalPml4, σ.curDomain)
+    σ.readyQueues, σ.releaseQueue, σ.archState.x64GlobalPml4, σ.curDomain, σ.idleSc)
 
 theorem archF_eq {σ σ' : State Unit} (h1 : ∀ q, eraseA (σ'.kheap q) = eraseA (σ.kheap q))
     (h2 : ∀ q, (σ'.kheap q).map aType = (σ.kheap q).map aType) (hc : σ'.cdt = σ.cdt)
@@ -47,9 +47,10 @@ theorem archF_eq {σ σ' : State Unit} (h1 : ∀ q, eraseA (σ'.kheap q) = erase
     (h8 : σ'.reprogramTimer = σ.reprogramTimer) (h9 : σ'.schedulerAction = σ.schedulerAction)
     (h10 : σ'.domainTime = σ.domainTime) (h11 : σ'.readyQueues = σ.readyQueues)
     (h12 : σ'.releaseQueue = σ.releaseQueue) (h13 : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
-    (h14 : σ'.curDomain = σ.curDomain) : archF σ' = archF σ := by
+    (h14 : σ'.curDomain = σ.curDomain) (h15 : σ'.idleSc = σ.idleSc := by first | rfl | assumption) :
+    archF σ' = archF σ := by
   unfold archF
-  rw [funext h1, funext h2, hc, ho, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14]
+  rw [funext h1, funext h2, hc, ho, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15]
 
 theorem archF_upd {σ : State Unit} {p : ObjRef} {a0 a : ArchKernelObj} (hk : σ.kheap p = some (.archObj a0))
     (ht : aaType a0 = aaType a) :
@@ -105,6 +106,7 @@ structure ArFr (σ σ' : State Unit) : Prop where
   cons : σ'.consumedTime = σ.consumedTime
   time : σ'.curTime = σ.curTime
   csc : σ'.curSc = σ.curSc
+  isc : σ'.idleSc = σ.idleSc
   repr : σ'.reprogramTimer = σ.reprogramTimer
   act : σ'.schedulerAction = σ.schedulerAction
   dt : σ'.domainTime = σ.domainTime
@@ -123,8 +125,8 @@ theorem eraseA_cases (o : Option KernelObject) :
 
 theorem ArFr.of_eq {σ σ' : State Unit} (h : archF σ' = archF σ) : ArFr σ σ' := by
   simp only [archF, Prod.mk.injEq] at h
-  obtain ⟨h1, h2, hc, ho, hct, hid, hcons, htime, hcsc, hrep, hact, hdt, hrq, hrel, hgp, hcd⟩ := h
-  refine ⟨fun p => ?_, hc, ho, hct, hid, hcons, htime, hcsc, hrep, hact, hdt, hrq, hrel, hgp, hcd⟩
+  obtain ⟨h1, h2, hc, ho, hct, hid, hcons, htime, hcsc, hrep, hact, hdt, hrq, hrel, hgp, hcd, hisc⟩ := h
+  refine ⟨fun p => ?_, hc, ho, hct, hid, hcons, htime, hcsc, hisc, hrep, hact, hdt, hrq, hrel, hgp, hcd⟩
   have e1 : eraseA (σ'.kheap p) = eraseA (σ.kheap p) := congrFun h1 p
   have e2 : (σ'.kheap p).map aType = (σ.kheap p).map aType := congrFun h2 p
   rcases eraseA_cases (σ.kheap p) with ⟨f1, -⟩ | ⟨a, g1⟩ <;>
@@ -260,19 +262,19 @@ theorem Sched.CurInv.ar (hI : CurInv σ) (h : ArFr σ σ') : CurInv σ' := by
   obtain ⟨yt, hyt, hc⟩ := h.tcbF hkt
   refine ⟨⟨yt, by rw [h.ct]; exact hyt, by rw [h.csc, hc.sc]; exact hxs, by rw [hc.st]; exact hnb⟩,
     ⟨x, n, by rw [h.csc]; exact h.sc.2 hx⟩, fun hne y m hy => ?_, by rw [h.ct, h.rel]; exact hI.notRel⟩
-  rw [h.csc] at hne hy
+  rw [h.csc, h.isc] at hne; rw [h.csc] at hy
   exact hI.active hne y m (h.sc.1 hy)
 
 theorem Sched.OffOK.ar (hO : OffOK σ) (h : ArFr σ σ') : OffOK σ' := by
   intro hc y n hy ha
   rw [h.cons] at hc ⊢; rw [h.time]
-  rw [h.csc] at hy ha
+  rw [h.csc] at hy; rw [h.csc, h.isc] at ha
   exact hO hc y n (h.sc.1 hy) ha
 
 theorem Sched.ActIdle.ar (hA : ActIdle σ) (h : ArFr σ σ') : ActIdle σ' := by
   obtain ⟨hS, x, hx, h1, h2, h3⟩ := hA
   obtain ⟨y, hy, hc⟩ := h.tcbF hx
-  refine ⟨fun t ht => ?_, y, by rw [h.idle]; exact hy, by rw [hc.sc]; exact h1, by rw [hc.st]; exact h2,
+  refine ⟨fun t ht => ?_, y, by rw [h.idle]; exact hy, by rw [hc.sc, h.isc]; exact h1, by rw [hc.st]; exact h2,
     by rw [h.idle, h.rel]; exact h3⟩
   rw [h.act] at ht
   rw [h.sched_eq]; exact hS t ht

@@ -123,24 +123,25 @@ structure ScTKw (P : ObjRef → Prop) (σ σ' : State Unit) : Prop where
   ist : σ'.interruptStates = σ.interruptStates
   inode : σ'.interruptIrqNode = σ.interruptIrqNode
   ct : σ'.curThread = σ.curThread
+  isc : σ'.idleSc = σ.idleSc
 
 theorem ScTKw.refl (P : ObjRef → Prop) (σ : State Unit) : ScTKw P σ σ :=
-  ⟨fun _ => OTK.refl _ _, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  ⟨fun _ => OTK.refl _ _, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem ScTKw.trans {P : ObjRef → Prop} {σ1 σ2 σ3 : State Unit} (h1 : ScTKw P σ1 σ2) (h2 : ScTKw P σ2 σ3) :
     ScTKw P σ1 σ3 :=
   ⟨fun p => (h1.kh p).trans (h2.kh p), h2.um.trans h1.um, h2.cdt.trans h1.cdt, h2.orig.trans h1.orig,
     h2.dl.trans h1.dl, h2.dsi.trans h1.dsi, h2.arch.trans h1.arch, h2.ist.trans h1.ist, h2.inode.trans h1.inode,
-    h2.ct.trans h1.ct⟩
+    h2.ct.trans h1.ct, h2.isc.trans h1.isc⟩
 
 theorem ScTKw.mono {P Q : ObjRef → Prop} {σ σ' : State Unit} (h : ScTKw P σ σ') (hPQ : ∀ p, P p → Q p) :
     ScTKw Q σ σ' :=
-  ⟨fun p => (h.kh p).mono (hPQ p), h.um, h.cdt, h.orig, h.dl, h.dsi, h.arch, h.ist, h.inode, h.ct⟩
+  ⟨fun p => (h.kh p).mono (hPQ p), h.um, h.cdt, h.orig, h.dl, h.dsi, h.arch, h.ist, h.inode, h.ct, h.isc⟩
 
 /-- An update of `σ` at `p` with `o'`, `TKObj`-related to the object there. -/
 theorem ScTKw.upd {P : ObjRef → Prop} {σ : State Unit} {p : ObjRef} {o o' : KernelObject} (hk : σ.kheap p = some o)
     (h : TKObj (P p) o o') : ScTKw P σ { σ with kheap := Function.update σ.kheap p (some o') } := by
-  refine ⟨fun q => ?_, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  refine ⟨fun q => ?_, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
   by_cases e : q = p
   · subst e; simp only [Function.update_self, hk, OTK]; exact h
   · simp only [Function.update_of_ne e]; exact OTK.refl _ _
@@ -220,11 +221,11 @@ def TKKeep (σ σ' : State Unit) : Prop :=
   σ'.kheap = σ.kheap ∧ σ'.machineState.underlyingMemory = σ.machineState.underlyingMemory ∧ σ'.cdt = σ.cdt ∧
     σ'.isOriginalCap = σ.isOriginalCap ∧ σ'.domainList = σ.domainList ∧ σ'.domainStartIndex = σ.domainStartIndex ∧
     σ'.archState = σ.archState ∧ σ'.interruptStates = σ.interruptStates ∧
-    σ'.interruptIrqNode = σ.interruptIrqNode ∧ σ'.curThread = σ.curThread
+    σ'.interruptIrqNode = σ.interruptIrqNode ∧ σ'.curThread = σ.curThread ∧ σ'.idleSc = σ.idleSc
 
 theorem ScTKw.of_keep {P : ObjRef → Prop} {σ σ' : State Unit} (h : TKKeep σ σ') : ScTKw P σ σ' := by
-  obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩ := h
-  exact ⟨fun p => by rw [e1]; exact OTK.refl _ _, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩
+  obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11⟩ := h
+  exact ⟨fun p => by rw [e1]; exact OTK.refl _ _, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11⟩
 
 theorem nkt_modify {g : State Unit → State Unit} (hg : ∀ σ, TKKeep σ (g σ)) : NKT (NonDet.modify g) := by
   intro σ x hx; rw [Set.mem_singleton_iff.1 hx]; exact ScTKw.of_keep (hg σ)
@@ -242,7 +243,7 @@ theorem nkt_doExtendedOp (eop : DetExtMonad Unit) : NKT (doExtendedOp (Z := Unit
   unfold doExtendedOp
   refine nkt_bind nkt_get (fun _ => nkt_bind (nkt_selectF _) (fun _ => ?_))
   split
-  exact nkt_modify (fun σ => ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩)
+  exact nkt_modify (fun σ => ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩)
 
 theorem nkt_whileLoop {α : Type} {C : α → State Unit → Prop} {B : α → NonDet (State Unit) α}
     (hB : ∀ r, NKT (B r)) (r : α) : NKT (NonDet.whileLoop C B r) := by
@@ -337,8 +338,8 @@ macro "nkt_step0" : tactic => `(tactic| first
   | with_reducible exact nkt_assert _ | with_reducible exact nkt_assertOpt _
   | with_reducible exact nkt_getObject _ | with_reducible exact nkt_getsThe _
   | with_reducible exact nkt_selectF _
-  | ((with_reducible apply nkt_modify); intro _; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩)
-  | ((with_reducible apply nkt_get_put); intro _; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩)
+  | ((with_reducible apply nkt_modify); intro _; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩)
+  | ((with_reducible apply nkt_get_put); intro _; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩)
   | with_reducible exact nkt_doExtendedOp _
   | ((with_reducible apply nkt_threadSet); intro _; exact Or.inr (Or.inl ⟨_, _, rfl, rfl, rfl, Or.inl rfl⟩))
   | with_reducible exact nkt_updateSchedContext _ _
@@ -393,7 +394,7 @@ theorem nkt_postpone (p : ObjRef) : NKT (postpone (Z := Unit) p) := by
   unfold postpone
   refine nkt_bind (nkt_getScObjRef _ _) fun _ => nkt_bind (nkt_assertOpt _) fun _ => ?_
   exact nkt_bind (nkt_tcbSchedAction _ _) fun _ => nkt_bind (nkt_tcbReleaseEnqueue _) fun _ =>
-    nkt_modify (fun σ => ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩)
+    nkt_modify (fun σ => ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩)
 
 theorem nkt_schedContextResume (p : ObjRef) : NKT (schedContextResume (Z := Unit) p) := by
   unfold schedContextResume getScRefillReady getScRefillSufficient getTcbQueue

@@ -32,10 +32,10 @@ theorem scW_ntfn (c : U64) : scW c 40#u64 = scNtfnA c := by unfold scW scNtfnA l
 /-- **`ScLinkHyp` from the relations and P1's `ScExtra0`.** -/
 theorem scLinkHyp_of {N T E R C Cs Scs Nt : Set U64} {B : Set (U64 × Word)} {s : S} {σ : State Unit}
     (hI : Ipc.IpcRel N T E R B (L.mem s) σ) (hCv : ObjCover N T E R C σ)
-    (hscs : ∀ c ∈ C, ∃ x n, σ.kheap c.bv = some (.schedContext x n) ∧ ScRelW st s c x n)
+    (hscs : ∀ c ∈ C, ∃ x n, σ.kheap c.bv = some (.schedContext x n) ∧ ScRelW st isc s c x n)
     (hCS : ∀ c ∈ C, c ∈ Scs) (hX : ScExtra0 st T Cs Scs Nt s) (hNt : ∀ n ∈ Nt, n ∈ N) :
     ScLinkHyp σ := by
-  have scOf : ∀ sc y k, σ.kheap sc = some (.schedContext y k) → ∃ c ∈ C, c.bv = sc ∧ ScRelW st s c y k := by
+  have scOf : ∀ sc y k, σ.kheap sc = some (.schedContext y k) → ∃ c ∈ C, c.bv = sc ∧ ScRelW st isc s c y k := by
     intro sc y k hk
     obtain ⟨c, hc, rfl⟩ := hCv.sc sc y k hk
     obtain ⟨x, n, hk', hr⟩ := hscs c hc

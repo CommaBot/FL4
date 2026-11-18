@@ -193,7 +193,7 @@ theorem CFr.ofNFr {r t : ObjRef} {σ σ' : State Unit} (h : NFr false r σ σ') 
 
 theorem CFr.upd {r t : ObjRef} {σ : State Unit} {p : ObjRef} {o o' : KernelObject}
     (hk : σ.kheap p = some o) (hc : CChg r t σ.curSc p o o') : CFr r t σ (updK σ p o') := by
-  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, fun p' => ?_⟩
+  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, fun p' => ?_⟩
   by_cases e : p' = p
   · subst e; exact Or.inr ⟨o, o', hk, by simp [updK], hc⟩
   · exact Or.inl (by simp [updK, e])
@@ -459,7 +459,7 @@ theorem CFr.own {T C : Set U64} (h : CFr r t σ σ') (hO : CurOwnW T C σ) : Cur
 theorem CFr.off (h : CFr r t σ σ') (hO : OffOK σ) : OffOK σ' := by
   intro hc y n hy ha
   rw [h.sk.cons] at hc ⊢; rw [h.sk.tm]
-  rw [h.sk.csc] at hy ha
+  rw [h.sk.csc] at hy; rw [h.sk.csc, h.sk.isc] at ha
   obtain ⟨y0, rf, nt, hy0, rfl, hr, -⟩ := h.scB hy
   have e : rf = y0.scRefills := hr rfl
   subst e
@@ -469,7 +469,7 @@ theorem CFr.idleOK (h : CFr r t σ σ') (hO : IdleOK σ) : IdleOK σ' := by
   obtain ⟨x, hx, h1, h2, h3⟩ := hO
   obtain ⟨st, bn, fl, ar, hx', hs⟩ := h.tcbF hx
   refine ⟨{ x with tcbState := st, tcbBoundNotification := bn, tcbFault := fl, tcbArch := ar },
-    by rw [h.sk.idle]; exact hx', h1, ?_, by rw [h.sk.idle, h.sk.rel]; exact h3⟩
+    by rw [h.sk.idle]; exact hx', by rw [h.sk.isc]; exact h1, ?_, by rw [h.sk.idle, h.sk.rel]; exact h3⟩
   show st = _
   rw [hs.st (by rw [h2]; nofun) (by rw [h2]; rintro (⟨_, _, _, e⟩ | e) <;> cases e)]; exact h2
 
@@ -488,7 +488,7 @@ theorem CFr.curInv (h : CFr r t σ σ') (hC : CurInv σ) : CurInv σ' := by
   obtain ⟨rf, nt, hx', -⟩ := h.scF hx
   refine ⟨⟨_, by rw [h.sk.ct]; exact hkt', by rw [h.sk.csc]; exact hxs, hs.notIpc hnb⟩,
     ⟨_, n, by rw [h.sk.csc]; exact hx'⟩, fun hne y m hy => ?_, by rw [h.sk.ct, h.sk.rel]; exact hC.notRel⟩
-  rw [h.sk.csc] at hne hy
+  rw [h.sk.csc, h.sk.isc] at hne; rw [h.sk.csc] at hy
   obtain ⟨y0, rf', nt', hy0, rfl, -⟩ := h.scB hy
   exact hC.active hne y0 m hy0
 

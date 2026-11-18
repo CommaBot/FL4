@@ -248,7 +248,7 @@ theorem finThread_nkc (r : ObjRef) (fin : Bool) : NKC (finaliseCap (Z := Unit) (
 
 theorem nkc_schedContextUnbindAllTcbs (sc : ObjRef) : NKC (schedContextUnbindAllTcbs (Z := Unit) sc) := by
   unfold schedContextUnbindAllTcbs
-  exact nkc_bind (nkc_getSchedContext _) (fun _ => nkc_when (nkc_schedContextUnbindTcb _))
+  exact nkc_bind (nkc_getSchedContext _) (fun _ => nkc_bind (nkc_gets _) (fun _ => nkc_when (nkc_schedContextUnbindTcb _)))
 
 theorem nkc_schedContextUnbindNtfn (sc : ObjRef) : NKC (schedContextUnbindNtfn (Z := Unit) sc) := by
   unfold schedContextUnbindNtfn

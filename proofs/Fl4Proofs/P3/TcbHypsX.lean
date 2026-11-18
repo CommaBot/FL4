@@ -198,7 +198,7 @@ variable {f : Bool × Bool}
 theorem pres_setX64CurrentFpuOwner (o : Option ObjRef) : Pres f (setX64CurrentFpuOwner (Z := Unit) o) := by
   unfold setX64CurrentFpuOwner
   exact pres_bind (pres_gets _) (fun _ => pres_bind (pres_maybeM (fun _ => pres_archThreadSet _ _) _) (fun _ =>
-    pres_bind (pres_modify (fun σ => ⟨rfl, rfl, rfl, rfl, rfl⟩)) (fun _ =>
+    pres_bind (pres_modify (fun σ => ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩)) (fun _ =>
       pres_maybeM (fun _ => pres_archThreadSet _ _) _)))
 
 /-- **`fpu_release`** keeps what the CSpace relation and the domain schedule read. -/

@@ -53,7 +53,7 @@ theorem Sched.JCovD.deleteG {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {D Cs 
       Covered (L.mem s') G' lo hi ∨ (∀ q : U64, q.val = lo → DeadP (L := L) H s' q))
     (hdead : ∀ q ∈ D, DeadP (L := L) H s q → DeadP (L := L) H s' q)
     (hks : UtKsApart (L := L) G' Cs s')
-    (hidl : L.idleW s' = L.idleW s) (hkb : L.ksb s' = L.ksb s) (hio : IdleOut (L := L) th H G' s') :
+    (hidl : Sched.IdleKeep (L := L) s s') (hkb : L.ksb s' = L.ksb s) (hio : IdleOut (L := L) th H G' s') :
     Sched.JCovD (L := L) th H G' (D ∪ Uncov th H (L.mem s') G' (ExAt (L := L) th H s')) Cs s' := by
   have cov : ∀ {lo hi : Nat}, lo < hi → Covered (L.mem s) G lo hi →
       Covered (L.mem s') G' lo hi ∨ (∀ q : U64, q.val = lo → DeadP (L := L) H s' q) := by
@@ -157,7 +157,7 @@ theorem JAtZ.emptyJCore {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     have hks : L.ksb s2 = L.ksb s := hw.1
     have hnb : ∀ c, L.nodeBase s2 c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
     exact ⟨by rw [hks]; exact k1, fun c hc => by rw [hnb]; exact k2 c hc⟩
-  have hidl : L.idleW s2 = L.idleW s := J.idleW_keep hX2.fin.1.1.1 (CnStep.of_cnK hcn2).idle
+  have hidl : Sched.IdleKeep (L := L) s s2 := J.idleW_keep hX2.fin.1.1.1 (CnStep.of_cnK hcn2).idle (CnStep.of_cnK hcn2).isc
   have hjc := J.jcov.deleteG hk hx (fun q' _ hd => J.deadP_slot hX2 hcn2 hkc hw hd) hks2 hidl hw.1
     (J.jcov.idleOut.keep hidl (J.utFrom hM2 hUK))
   refine ⟨hw.1, KBack.of_keepCT hkc, fun hUt => ?_⟩

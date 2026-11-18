@@ -113,7 +113,7 @@ theorem CnK.ikview {σ σ' : State Unit} (h : CnK σ σ') : IKView σ σ' := by
 /-- The scheduler's fields are kept. -/
 theorem CnK.schedStep {σ σ' : State Unit} (h : CnK σ σ') : SchedStep σ σ' := by
   have e := h.1
-  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, fun p x hp => ?_, fun p x n hp => ?_, fun p x n hp => ?_⟩
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, fun p x hp => ?_, fun p x n hp => ?_, fun p x n hp => ?_⟩
   · have := congrArg AbstractState.readyQueues e; exact this
   · have := congrArg AbstractState.releaseQueue e; exact this
   · have := congrArg AbstractState.curThread e; exact this
@@ -125,6 +125,7 @@ theorem CnK.schedStep {σ σ' : State Unit} (h : CnK σ σ') : SchedStep σ σ' 
   · have := congrArg AbstractState.curDomain e; exact this
   · have := congrArg AbstractState.domainTime e; exact this
   · have := congrArg AbstractState.idleThread e; exact this
+  · have := congrArg AbstractState.idleSc e; exact this
   · obtain ⟨y, hy, hab⟩ := h.tcb hp
     exact ⟨y, hy, hab.2.2.2.2.2.2.2.2.1, hab.2.2.2.2.2.1, hab.2.2.2.2.2.2.2.1⟩
   · exact h.other hp (fun _ _ e => by cases e) (fun _ e => by cases e)

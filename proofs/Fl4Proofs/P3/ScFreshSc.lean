@@ -31,7 +31,7 @@ variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
 /-- **A fresh SC's relation**: header words 0, placed, not the idle SC. -/
 theorem ScRelW.fresh {s : S} {sc : U64} {n : Nat} (hpl : Fl4Proofs.P1.Placed sc (n + Fl4Spec.minSchedContextBits))
     (hm : ∀ K : U64, K.val < 96 → K.val % 8 = 0 → L.mem s (scW sc K) = 0#u64)
-    (hid : sc.bv ≠ Fl4Spec.idleScPtr) : ScRelW st s sc Fl4Spec.defaultSchedContext n := by
+    (hid : sc.bv ≠ isc) : ScRelW st isc s sc Fl4Spec.defaultSchedContext n := by
   have hmax : L.rmax s sc = 0#u64 := by simp only [LawfulStore.rmax, maxA_eq]; exact hm _ (by simp) (by simp)
   have hper : L.rperiod s sc = 0#u64 := by simp only [LawfulStore.rperiod, periodA_eq]; exact hm _ (by simp) (by simp)
   refine ⟨hpl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun h => ?_, fun h => absurd h hid, ?_, fun h => ?_⟩
@@ -55,7 +55,7 @@ theorem SchedRel.add_scs {N T C Wc : Set U64} {c : U64} {s : S} {σ σ' : Fl4Spe
     (hS : SchedRel st N T C c s σ) (hc0 : c = 0#u64)
     (hpl : ∀ sc ∈ Wc, Fl4Proofs.P1.Placed sc (n + Fl4Spec.minSchedContextBits))
     (hm : ∀ sc ∈ Wc, ∀ K : U64, K.val < 96 → K.val % 8 = 0 → L.mem s (scW sc K) = 0#u64)
-    (hid : ∀ sc ∈ Wc, sc.bv ≠ Fl4Spec.idleScPtr)
+    (hid : ∀ sc ∈ Wc, sc.bv ≠ σ.idleSc)
     (hout : ∀ sc ∈ Wc, ∀ a : U64, ScObj sc n a → ¬ NWrite N T a ∧
       (a.val < L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ a.val) ∧ (∀ t ∈ T, a.val < t.val ∨ t.val + 4096 ≤ a.val) ∧
       (a.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ a.val))
@@ -65,7 +65,7 @@ theorem SchedRel.add_scs {N T C Wc : Set U64} {c : U64} {s : S} {σ σ' : Fl4Spe
     (hσ : SpecAdd σ σ' (SWc Wc) (fun _ => .schedContext Fl4Spec.defaultSchedContext n)) :
     SchedRel st N T (C ∪ Wc) c s σ' := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
-  obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11⟩ := hσ.f
+  obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12⟩ := hσ.f
   have hnew : ∀ sc ∈ Wc, σ'.kheap sc.bv = some (.schedContext Fl4Spec.defaultSchedContext n) :=
     fun sc h => (hσ.new _ ⟨sc, h, rfl⟩).2
   -- an SC object of `σ'` at an address of `C ∪ Wc`
@@ -97,14 +97,14 @@ theorem SchedRel.add_scs {N T C Wc : Set U64} {c : U64} {s : S} {σ σ' : Fl4Spe
   · refine ⟨fun p hp => by rw [e1]; exact hs.rq p hp, fun d p hd => by rw [e1]; exact hs.rqDom d p hd,
       by rw [e2]; exact hs.rel, by rw [e3]; exact hs.curThread, by rw [e5]; exact hs.curSc,
       by rw [e6]; exact hs.curTime, by rw [e7]; exact hs.consumed, by rw [e9]; exact hs.curDom,
-      fun t ht => ?_, fun t ht h0 => Or.inl (hs.scMem t ht h0), fun sc hsc => ?_, hs.idleSc,
+      fun t ht => ?_, fun t ht h0 => Or.inl (hs.scMem t ht h0), fun sc hsc => ?_, by rw [e12]; exact hs.idleSc,
       by rw [e10]; exact hs.domTime, by rw [e11]; exact hs.idleTh⟩
     · obtain ⟨x, hk, h1, h2, h3, h4⟩ := hs.tcb t ht
       exact ⟨x, hσ.kold hk, h1, h2, h3, h4⟩
     · rcases hsc with hsc | hsc
       · obtain ⟨x, m, hk, e⟩ := hs.scs sc hsc
-        exact ⟨x, m, hσ.kold hk, e⟩
-      · exact ⟨_, n, hnew sc hsc, ScRelW.fresh (hpl sc hsc) (hm sc hsc) (hid sc hsc)⟩
+        exact ⟨x, m, hσ.kold hk, by rw [e12]; exact e⟩
+      · exact ⟨_, n, hnew sc hsc, ScRelW.fresh (hpl sc hsc) (hm sc hsc) (by rw [e12]; exact hid sc hsc)⟩
 
 set_option maxHeartbeats 1000000 in
 /-- **The scheduler relation of a core whose sets gain nothing** (for `c ≠ 0`
@@ -119,7 +119,7 @@ theorem SchedRel.frame_new {N T C : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4S
     (hσ : SpecAdd σ σ' W o) :
     SchedRel st N T C c s' σ' := by
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
-  obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11⟩ := hσ.f
+  obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12⟩ := hσ.f
   have hk := ha.ksb
   have hnb : L.nodeBase s' c = L.nodeBase s c := by simp [LawfulStore.nodeBase, hk]
   -- the SCs of `C` are old ones
@@ -143,12 +143,12 @@ theorem SchedRel.frame_new {N T C : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4S
   · refine ⟨fun p hp => by rw [e1]; exact hs'.rq p hp, fun d p hd => by rw [e1]; exact hs'.rqDom d p hd,
       by rw [e2]; exact hs'.rel, by rw [e3]; exact hs'.curThread, by rw [e5]; exact hs'.curSc,
       by rw [e6]; exact hs'.curTime, by rw [e7]; exact hs'.consumed, by rw [e9]; exact hs'.curDom,
-      fun t ht => ?_, hs'.scMem, fun sc hsc => ?_, hs'.idleSc, by rw [e10]; exact hs'.domTime,
+      fun t ht => ?_, hs'.scMem, fun sc hsc => ?_, by rw [e12]; exact hs'.idleSc, by rw [e10]; exact hs'.domTime,
       by rw [e11]; exact hs'.idleTh⟩
     · obtain ⟨x, hk', h1, h2, h3, h4⟩ := hs'.tcb t ht
       exact ⟨x, hσ.kold hk', h1, h2, h3, h4⟩
     · obtain ⟨x, m, hk', e⟩ := hs'.scs sc hsc
-      exact ⟨x, m, hσ.kold hk', e⟩
+      exact ⟨x, m, hσ.kold hk', by rw [e12]; exact e⟩
 
 section Spec
 open Fl4Spec

@@ -34,7 +34,7 @@ structure CurInv (σ : State Unit) : Prop where
   tcb : ∃ xt, σ.kheap σ.curThread = some (.tcb xt) ∧ xt.tcbSchedContext = some σ.curSc ∧
     NotIpcBlk xt.tcbState
   sc : ∃ x n, σ.kheap σ.curSc = some (.schedContext x n)
-  active : σ.curSc ≠ idleScPtr → ∀ x n, σ.kheap σ.curSc = some (.schedContext x n) → scActive x = true
+  active : σ.curSc ≠ σ.idleSc → ∀ x n, σ.kheap σ.curSc = some (.schedContext x n) → scActive x = true
   notRel : σ.curThread ∉ σ.releaseQueue
 
 /-- What the budget operations keep: the current SC and thread, the release
@@ -43,17 +43,17 @@ SC at `p`, and that SC's TCB and refill max. -/
 def HeadKeeps (σ σ2 : State Unit) (p : ObjRef) : Prop :=
   σ2.curSc = σ.curSc ∧ σ2.curThread = σ.curThread ∧ σ2.releaseQueue = σ.releaseQueue ∧
     σ2.schedulerAction = σ.schedulerAction ∧ σ2.curTime = σ.curTime ∧ σ2.idleThread = σ.idleThread ∧
-    σ2.readyQueues = σ.readyQueues ∧ (∀ q, q ≠ p → σ2.kheap q = σ.kheap q) ∧
+    σ2.idleSc = σ.idleSc ∧ σ2.readyQueues = σ.readyQueues ∧ (∀ q, q ≠ p → σ2.kheap q = σ.kheap q) ∧
     ∀ x n, σ.kheap p = some (.schedContext x n) → ∃ y, σ2.kheap p = some (.schedContext y n) ∧
       y.scTcb = x.scTcb ∧ y.scRefillMax = x.scRefillMax
 
 theorem HeadKeeps.refl (σ : State Unit) (p : ObjRef) : HeadKeeps σ σ p :=
-  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ _ => rfl, fun x _ h => ⟨x, h, rfl, rfl⟩⟩
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ _ => rfl, fun x _ h => ⟨x, h, rfl, rfl⟩⟩
 
 theorem HeadKeeps.updSc {σ : State Unit} {p : ObjRef} {x y : SchedContext} {n : Nat}
     (hk : σ.kheap p = some (.schedContext x n)) (hy : y.scTcb = x.scTcb) (hm : y.scRefillMax = x.scRefillMax) :
     HeadKeeps σ (updSc σ p y n) p :=
-  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q hq => by simp [updK, hq], fun x' n' h => by
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q hq => by simp [updK, hq], fun x' n' h => by
     rw [hk] at h; cases h; exact ⟨y, by simp [updK], hy, hm⟩⟩
 
 
@@ -61,8 +61,8 @@ theorem HeadKeeps.updSc {σ : State Unit} {p : ObjRef} {x y : SchedContext} {n :
 an SC at `p`. -/
 theorem ActIdle.headKeeps {σ σ' : State Unit} (h : ActIdle σ) {p : ObjRef} (hk : HeadKeeps σ σ' p)
     (hp : ∃ x n, σ.kheap p = some (.schedContext x n)) : ActIdle σ' := by
-  obtain ⟨-, -, e3, e4, -, e6, -, hfr, hsc⟩ := hk
-  refine h.keep ⟨fun q x _ hx => ?_, fun q y n hy => ?_⟩ (fun u hu => by rw [e3] at hu; exact hu) (Or.inl e4) e6
+  obtain ⟨-, -, e3, e4, -, e6, e7, -, hfr, hsc⟩ := hk
+  refine h.keep ⟨fun q x _ hx => ?_, fun q y n hy => ?_⟩ (fun u hu => by rw [e3] at hu; exact hu) (Or.inl e4) e6 e7
   · have : q ≠ p := by rintro rfl; obtain ⟨x0, n0, h0⟩ := hp; rw [hx] at h0; cases h0
     rw [hfr q this]; exact hx
   · by_cases e : q = p
@@ -72,15 +72,15 @@ theorem ActIdle.headKeeps {σ σ' : State Unit} (h : ActIdle σ) {p : ObjRef} (h
 
 theorem IdleOK.headKeeps {σ σ' : State Unit} (h : IdleOK σ) {p : ObjRef} (hk : HeadKeeps σ σ' p)
     (hp : ∃ x n, σ.kheap p = some (.schedContext x n)) : IdleOK σ' := by
-  obtain ⟨-, -, e3, -, -, e6, -, hfr, -⟩ := hk
-  refine h.of e6 (hfr _ fun e => ?_) (fun hm => by rw [e3] at hm; exact hm)
+  obtain ⟨-, -, e3, -, -, e6, e7, -, hfr, -⟩ := hk
+  refine h.of e6 (hfr _ fun e => ?_) (fun hm => by rw [e3] at hm; exact hm) e7
   obtain ⟨x, h1, -⟩ := h; obtain ⟨y, n, hy⟩ := hp; rw [← e, h1] at hy; cases hy
 
 /-- `CurInv` is kept by a step that keeps what `HeadKeeps` names, for an SC
 at `p`. -/
 theorem CurInv.keeps {σ σ' : State Unit} (h : CurInv σ) {p : ObjRef} (hk : HeadKeeps σ σ' p)
     (hp : ∃ x n, σ.kheap p = some (.schedContext x n)) : CurInv σ' := by
-  obtain ⟨e1, e2, e3, -, -, -, -, hfr, hsc⟩ := hk
+  obtain ⟨e1, e2, e3, -, -, -, ei, -, hfr, hsc⟩ := hk
   obtain ⟨xt, hkt, hxs, hnb⟩ := h.tcb
   have hctp : σ.curThread ≠ p := by
     rintro e; obtain ⟨x, n, hx⟩ := hp; rw [← e, hkt] at hx; cases hx
@@ -97,7 +97,7 @@ theorem CurInv.keeps {σ σ' : State Unit} (h : CurInv σ) {p : ObjRef} (hk : He
   · obtain ⟨x, n, hx⟩ := h.sc
     obtain ⟨y, hy, -⟩ := hcs x n hx
     exact ⟨y, n, by rw [e1]; exact hy⟩
-  · rw [e1] at hid hx
+  · rw [e1, ei] at hid; rw [e1] at hx
     obtain ⟨x0, n0, hx0⟩ := h.sc
     obtain ⟨y, hy, hm⟩ := hcs x0 n0 hx0
     have := h.active hid x0 n0 hx0
@@ -107,12 +107,12 @@ theorem CurInv.keeps {σ σ' : State Unit} (h : CurInv σ) {p : ObjRef} (hk : He
 /-- `CurInv` only reads the heap, the current thread and SC and the release
 queue. -/
 theorem CurInv.congr {σ σ' : State Unit} (h : CurInv σ) (hk : σ'.kheap = σ.kheap)
-    (h1 : σ'.curThread = σ.curThread) (h2 : σ'.curSc = σ.curSc) (h3 : σ'.releaseQueue = σ.releaseQueue) :
-    CurInv σ' := by
+    (h1 : σ'.curThread = σ.curThread) (h2 : σ'.curSc = σ.curSc) (h3 : σ'.releaseQueue = σ.releaseQueue)
+    (h4 : σ'.idleSc = σ.idleSc := by first | rfl | assumption) : CurInv σ' := by
   obtain ⟨xt, hkt, hxs, hnb⟩ := h.tcb
   obtain ⟨x, n, hx⟩ := h.sc
   exact ⟨⟨xt, by rw [hk, h1]; exact hkt, by rw [h2]; exact hxs, hnb⟩, ⟨x, n, by rw [hk, h2]; exact hx⟩,
-    fun hid y m hy => h.active (h2 ▸ hid) y m (by rw [hk, h2] at hy; exact hy), by rw [h1, h3]; exact h.notRel⟩
+    fun hid y m hy => h.active (by rw [← h2, ← h4]; exact hid) y m (by rw [hk, h2] at hy; exact hy), by rw [h1, h3]; exact h.notRel⟩
 
 /-- **`CurInv` is kept by the notification code's steps that block no
 thread** (`SchedHyps.stable`'s steps: `NtfnStep` with `NoBlock`). -/
@@ -127,7 +127,7 @@ theorem CurInv.stable {σ σ' : State Unit} (h : CurInv σ) (hn : NtfnStep σ σ
   · rcases hb _ xt y hkt hky with e' | ⟨hr, -⟩
     · rw [e']; exact hnb
     · exact NotIpcBlk.of_runnable hr
-  · rw [e5] at hid hz; rw [hx'] at hz; cases hz; exact h.active hid x n hx
+  · rw [e5, NtfnStep.idleSc hn] at hid; rw [e5] at hz; rw [hx'] at hz; cases hz; exact h.active hid x n hx
 
 /-- Blocking the current thread asks for a new one: after `set_thread_state`'s
 action step, the scheduler action is not `resume_cur_thread` if the current
@@ -143,6 +143,9 @@ theorem stsAct_fields (σ : State Unit) (t : ObjRef) : (stsAct σ t).kheap = σ.
     (stsAct σ t).curThread = σ.curThread ∧ (stsAct σ t).curSc = σ.curSc ∧
     (stsAct σ t).releaseQueue = σ.releaseQueue := by
   unfold stsAct; split_ifs <;> exact ⟨rfl, rfl, rfl, rfl⟩
+
+theorem stsAct_idleSc (σ : State Unit) (t : ObjRef) : (stsAct σ t).idleSc = σ.idleSc := by
+  unfold stsAct; split_ifs <;> rfl
 
 theorem stsAct_action (σ : State Unit) (t : ObjRef) : (stsAct σ t).schedulerAction = .chooseNewThread ∨
     (stsAct σ t).schedulerAction = σ.schedulerAction := by
@@ -161,7 +164,7 @@ theorem CurInv.restart {σ : State Unit} (h : CurInv σ) {xt : Tcb} (hk : σ.khe
   have h1 : CurInv (updK σ σ.curThread (.tcb { xt with tcbState := .restart })) :=
     ⟨⟨{ xt with tcbState := .restart }, by simp [updK], hxs, NotIpcBlk.of_runnable rfl⟩, ⟨x, n, by simp [updK, hne, hx]⟩,
       fun hid y m hy => h.active hid y m (by simpa [updK, hne] using hy), h.notRel⟩
-  exact h1.congr e1 e2 e3 e4
+  exact h1.congr e1 e2 e3 e4 (stsAct_idleSc _ _)
 
 /-- l4v `cur_sc_offset_ready` / `cur_sc_offset_sufficient` (for a positive
 consumed time), with the current SC's head ready: the head can pay the
@@ -173,7 +176,7 @@ made inactive by its own finalisation (the current thread deleting the last
 cap to its SC) has no refills. -/
 def OffOK (σ : State Unit) : Prop :=
   0 < σ.consumedTime → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) →
-    (σ.curSc ≠ idleScPtr → scActive y = true) →
+    (σ.curSc ≠ σ.idleSc → scActive y = true) →
     refillSufficient σ.consumedTime (refillHd y) = true ∧
     refillReady' σ.consumedTime σ.curTime (refillHd y) = true ∧ refillReady σ.curTime (refillHd y) = true
 
@@ -202,10 +205,11 @@ theorem OffOK.restart {σ : State Unit} (h : OffOK σ) {t : ObjRef} {xt : Tcb} (
   have ek : (stsAct (updK σ t (.tcb { xt with tcbState := ts })) t).kheap = (updK σ t (.tcb { xt with tcbState := ts })).kheap :=
     stsAct_kheap _ _
   have e2 : ∀ σ0 : State Unit, (stsAct σ0 t).consumedTime = σ0.consumedTime ∧ (stsAct σ0 t).curTime = σ0.curTime ∧
-      (stsAct σ0 t).curSc = σ0.curSc := fun σ0 => by unfold stsAct; split_ifs <;> exact ⟨rfl, rfl, rfl⟩
-  obtain ⟨ec, et, es⟩ := e2 (updK σ t (.tcb { xt with tcbState := ts }))
+      (stsAct σ0 t).curSc = σ0.curSc ∧ (stsAct σ0 t).idleSc = σ0.idleSc := fun σ0 => by
+    unfold stsAct; split_ifs <;> exact ⟨rfl, rfl, rfl, rfl⟩
+  obtain ⟨ec, et, es, ei⟩ := e2 (updK σ t (.tcb { xt with tcbState := ts }))
   intro hc y n hy ha
-  rw [ek, es] at hy; rw [es] at ha; rw [ec] at hc
+  rw [ek, es] at hy; rw [es, ei] at ha; rw [ec] at hc
   have hy' : (updK σ t (.tcb { xt with tcbState := ts })).kheap σ.curSc = some (.schedContext y n) := hy
   have hne : σ.curSc ≠ t := by rintro e; rw [e] at hy'; simp [updK] at hy'
   simp only [updK_kheap, ne_eq, hne, not_false_eq_true, Function.update_of_ne] at hy'
@@ -252,7 +256,7 @@ section
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 
 theorem SchedRel.idle {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ) :
-    (nodeW st s c layout.node.IDLE_SC).bv = Fl4Spec.idleScPtr := hS.lists.choose_spec.choose_spec.2.idleSc
+    (nodeW st s c layout.node.IDLE_SC).bv = σ.idleSc := hS.lists.choose_spec.choose_spec.2.idleSc
 
 theorem word24_of {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ)
     {sc t : U64} (hsc : sc ∈ C) {x : Fl4Spec.SchedContext} {n : Nat}
@@ -281,7 +285,7 @@ theorem CurInv.facts {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Uni
     nodeW st s c layout.node.CUR_SC ∈ C ∧ nodeW st s c layout.node.CUR_SC ≠ 0#u64 ∧
     L.mem s (scW (nodeW st s c layout.node.CUR_SC) 24#u64) = nodeW st s c layout.node.CUR_THREAD ∧
     L.mem s (scA (nodeW st s c layout.node.CUR_THREAD)) = nodeW st s c layout.node.CUR_SC ∧
-    ((nodeW st s c layout.node.CUR_SC).bv ≠ Fl4Spec.idleScPtr → ∀ x n,
+    ((nodeW st s c layout.node.CUR_SC).bv ≠ σ.idleSc → ∀ x n,
       σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) → Fl4Spec.scActive x = true) ∧
     (nodeW st s c layout.node.CUR_THREAD).bv ∉ σ.releaseQueue ∧
     (∀ xt, σ.kheap (nodeW st s c layout.node.CUR_THREAD).bv = some (.tcb xt) →

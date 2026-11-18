@@ -60,7 +60,7 @@ theorem JAtZ.tcbArchJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64
   have hI3 := irel_tcbArch J.ip hI ht hk ta hr
   have hAS : ArchStep σ (updK σ t.bv (.tcb { x with tcbArch := ta })) := archStep_updTcb hk rfl
   have hA : QKY σ (updK σ t.bv (.tcb { x with tcbArch := ta })) := by
-    refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q => ?_⟩
+    refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q => ?_⟩
     by_cases e : q = t.bv
     · subst e; exact Or.inr (Or.inl ⟨x, { x with tcbArch := ta }, hk, by simp [updK], rfl⟩)
     · exact Or.inl (by simp [updK, e])
@@ -88,7 +88,7 @@ theorem JAtZ.arFrS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {a' : A} {�
   have hRF' := RFree.carry J.rfree J.call k4 ck
   have hRR' := J.rrecv.frame k4 F.khrb
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s σ' :=
-    ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => F.szKeep q.bv y n hq) rfl (fun _ _ => rfl)⟩
+    ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => F.szKeep q.bv y n hq) rfl (fun _ _ => rfl) rfl⟩
   have hkern := J.kern_keepA rfl rfl hX.fin.1.1.1 F rfl
   have hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
       Sched.UtCapP3 (L := L) arI Z.th s σ' Z.G sl p sb fi := by
@@ -110,7 +110,7 @@ theorem JAtZ.arFrS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {a' : A} {�
 /-- The FPU owner's and the machine state's change is an `ArFr` step. -/
 theorem arFr_fpuOwner (σ : Fl4Spec.State Unit) (ms : Fl4Spec.MachineState) (o : Option Fl4Spec.ObjRef) :
     ArFr σ { σ with machineState := ms, archState := { σ.archState with x64CurrentFpuOwner := o } } :=
-  ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 set_option maxHeartbeats 8000000 in
 /-- **FL4's `fpu_release` at `J`** (module docstring): against an outcome of

@@ -59,7 +59,7 @@ theorem SpecAdd.f (h : SpecAdd σ σ' W o) :
     σ'.readyQueues = σ.readyQueues ∧ σ'.releaseQueue = σ.releaseQueue ∧ σ'.curThread = σ.curThread ∧
     σ'.schedulerAction = σ.schedulerAction ∧ σ'.curSc = σ.curSc ∧ σ'.curTime = σ.curTime ∧
     σ'.consumedTime = σ.consumedTime ∧ σ'.reprogramTimer = σ.reprogramTimer ∧ σ'.curDomain = σ.curDomain ∧
-    σ'.domainTime = σ.domainTime ∧ σ'.idleThread = σ.idleThread := by
+    σ'.domainTime = σ.domainTime ∧ σ'.idleThread = σ.idleThread ∧ σ'.idleSc = σ.idleSc := by
   have e := h.abs
   exact ⟨(by have := congrArg Fl4Spec.AbstractState.readyQueues e; exact this),
     (by have := congrArg Fl4Spec.AbstractState.releaseQueue e; exact this),
@@ -71,7 +71,8 @@ theorem SpecAdd.f (h : SpecAdd σ σ' W o) :
     (by have := congrArg Fl4Spec.AbstractState.reprogramTimer e; exact this),
     (by have := congrArg Fl4Spec.AbstractState.curDomain e; exact this),
     (by have := congrArg Fl4Spec.AbstractState.domainTime e; exact this),
-    (by have := congrArg Fl4Spec.AbstractState.idleThread e; exact this)⟩
+    (by have := congrArg Fl4Spec.AbstractState.idleThread e; exact this),
+    (by have := congrArg Fl4Spec.AbstractState.idleSc e; exact this)⟩
 
 end
 
@@ -161,11 +162,11 @@ theorem SchedSpec.add_tcbs {T C W : Set U64} {c : U64} {s : S} {Q : U64 → List
     (hσ : SpecAdd σ σ' (TW W) (fun _ => .tcb (Fl4Spec.defaultTcb 0)))
     (hm : ∀ t ∈ W, ∀ K, SchedField K → L.mem s (core.num.U64.wrapping_add t K) = 0#u64) :
     SchedSpec st (T ∪ W) C c s Q R σ' := by
-  obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11⟩ := hσ.f
+  obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12⟩ := hσ.f
   refine ⟨fun p hp => by rw [e1]; exact h.rq p hp, fun d p hd => by rw [e1]; exact h.rqDom d p hd,
     by rw [e2]; exact h.rel, by rw [e3]; exact h.curThread, by rw [e5]; exact h.curSc, by rw [e6]; exact h.curTime,
     by rw [e7]; exact h.consumed, by rw [e9]; exact h.curDom, fun t ht => ?_, fun t ht => ?_,
-    fun sc hsc => ?_, h.idleSc, by rw [e10]; exact h.domTime, by rw [e11]; exact h.idleTh⟩
+    fun sc hsc => ?_, by rw [e12]; exact h.idleSc, by rw [e10]; exact h.domTime, by rw [e11]; exact h.idleTh⟩
   · rcases ht with ht | ht
     · obtain ⟨x, hk, h1, h2, h3, h4⟩ := h.tcb t ht
       exact ⟨x, hσ.kold hk, h1, h2, h3, h4⟩
@@ -178,7 +179,7 @@ theorem SchedSpec.add_tcbs {T C W : Set U64} {c : U64} {s : S} {Q : U64 → List
     · exact h.scMem t ht
     · intro h0; exact absurd (hm t ht 3464#u64 (by simp [SchedField])) h0
   · obtain ⟨x, n, hk, e⟩ := h.scs sc hsc
-    exact ⟨x, n, hσ.kold hk, e⟩
+    exact ⟨x, n, hσ.kold hk, by rw [e12]; exact e⟩
 
 set_option maxHeartbeats 1000000 in
 /-- **The scheduler relation over the new TCBs** (module docstring). -/

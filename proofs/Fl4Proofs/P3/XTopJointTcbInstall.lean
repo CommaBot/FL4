@@ -132,7 +132,7 @@ theorem JAtZ.insTJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (fun sl e => capInsert_orig c _ _ σ ((), σ') hmem sl e) hgp hM'
     fun _ _ _ _ _ hsl hcv _ hnc => J.live_slotT arI hsl hcv hnc ht hn hlive
   have hjc := J.jcov_cover hw.1 hM' hCK hUK (fun q hq => J.deadP_slot hX1 hcn hkc hw (J.jcov.dead q hq))
-    (J.idleW_keep hX1.fin.1.1.1 (CnStep.of_cnK hcn).idle)
+    (J.idleW_keep hX1.fin.1.1.1 (CnStep.of_cnK hcn).idle (CnStep.of_cnK hcn).isc)
   obtain ⟨hJC, R⟩ := jowes_slotDF J hX1 hcn hkc hw hFI' hMO hkz hTK hfh' hDl' hUK hjc horig hutc
   exact ⟨Ac, Lst, D, J.cs_frameV hw.1 hX1 (KBack.of_keepCT hkc) hJC R⟩
 
@@ -445,7 +445,8 @@ theorem JAtZ.bufWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} 
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_qm hA hS3 hI3.1 hwW k3 hAI3.1
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-    exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => hA.szKeep q.bv y n hq) hks (J.wideW_irq hwW)⟩
+    exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => hA.szKeep q.bv y n hq) hks (J.wideW_irq hwW)
+      (J.idleW_keep hS3 hA.idle hA.isc).2⟩
   have hkern := J.kern_keep hks hwW.2.1 hS3 hA.ct hA.csc (fun sl h => Or.inl (by rw [← hA.orig]; exact h))
     (by rw [hA.arch])
     (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hDbg
@@ -463,7 +464,7 @@ theorem JAtZ.bufWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} 
       · exact ⟨y, by simpa [hσ', Notif.updK, e] using hq, rfl⟩
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 hyk, J.mcp.frame k1 (mcpKeep_buf hk v.bv), hBW, hRP',
-      J.apart.sc_frame hks hA.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hA.idle), hkern,
+      J.apart.sc_frame hks hA.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hA.idle hA.isc), hkern,
       J.wideW_utc hwW hF.1 hA.cdt hA.orig hA.arch hDbg, hA.nsc J.nsc, J.inv.updSame hk rfl rfl, hA.cur J.cur,
       hA.own J.own, hA.off J.off, hAI3, hA.bsa J.bsa, hA.isorted J.isorted, hA.curRunM J.curRun, hblk⟩
   have hC0 := JCs.same J hF.1 hA.ksz

@@ -424,7 +424,7 @@ theorem tk_of_archF {α : Type} {m : NonDet (State Unit) α} (h : Vs.FK archF m)
   intro σ _ x hx
   have e := h σ x hx
   simp only [archF, Prod.mk.injEq] at e
-  obtain ⟨e1, -, -, -, -, -, e5, e6, e7, -, -, -, -, e12, -, -⟩ := e
+  obtain ⟨e1, -, -, -, -, -, e5, e6, e7, -, -, -, -, e12, -, -, -⟩ := e
   have k : ∀ q o, (∀ a, o ≠ KernelObject.archObj a) → x.2.kheap q = some o → σ.kheap q = some o := by
     intro q o ho hq
     have := congrFun e1 q

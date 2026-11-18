@@ -84,7 +84,7 @@ theorem JAtZ.sch_csc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
   obtain ⟨c, hcC, hcv⟩ := hobj0.sc _ _ _ hx
   have hcw : c = L.cscW s' := P1.eq_of_bv (hcv.trans hcv0)
   rw [← hcw]
-  obtain ⟨Tr, Cq, hJ⟩ := J.sch_jpl hw hK
+  obtain ⟨Tr, Cq, hJ⟩ := J.sch_jpl hw hK (Sched.idleScW_keep_of J.xtop.fin.1.1.1 hS' hK.isc)
   have hxc : σ'.kheap c.bv = some (.schedContext x n) := by rw [hcv]; exact hx
   have hHc := (hJ.sc c x n (J.c0 c hcC) hxc).2
   refine ⟨(by rw [hHc]; exact fun h => by cases h), fun hD => ?_⟩
@@ -134,8 +134,10 @@ theorem JAtZ.sch_tail {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   obtain ⟨-, hY', hM', ⟨Lst', hCR', hRF'⟩, hRP', -⟩ :=
     ScAll.of_k hS J.rp J.yld J.mcp J.call J.rfree ⟨⟨hS', hR', hN', hI'⟩, hw, hSch.2⟩
   refine ⟨Lst', J.sch_frame hwT hK hX' hCR' hRF' hY' hM' (J.sch_buf hwT hK) hRP' (J.sch_apart hwT hK)
-    (J.sch_jpl hwT hK) (J.sc_jcov hwT hT.dead (fun q hq hn => absurd hq hn)
-      (J.idleW_keep hS' (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _))))
+    (J.sch_jpl hwT hK (J.idleW_keep hS' (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _)).1
+        (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _)).2).2) (J.sc_jcov hwT hT.dead (fun q hq hn => absurd hq hn)
+      (J.idleW_keep hS' (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _)).1
+        (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _)).2))
     (J.sch_kern hwT hK hS' hT.dbg hT.dwNe (J.sch_csc hwT hK hS' hI' hC' hT.dead).1) (J.sch_utc hwT hK hT.dbg) hN' hI' (Or.inr hC')
     (Or.inl (curOwn_of_curInv hS' hI' hC')) hoff hA' hbsa (Or.inr hcr) hT.blk⟩
 

@@ -135,7 +135,7 @@ theorem InactOK.own {T C : Set U64} (h : InactOK σ p y m) (hI : Inv σ) (hO : C
       exact h.tcb
     · exact hun x n (by rwa [h.kcs hcsc] at hx)
 
-theorem InactOK.off (h : InactOK σ p y m) (hpi : p ≠ idleScPtr) (hO : OffOK σ) :
+theorem InactOK.off (h : InactOK σ p y m) (hpi : p ≠ σ.idleSc) (hO : OffOK σ) :
     OffOK (updSc σ p (inactSc y) m) := by
   intro hpos y' n hy ha
   by_cases hcsc : p = σ.curSc
@@ -202,7 +202,7 @@ a step of XTopJointFinSc's `JAtZ.finScJ`, proved. -/
 theorem JAtZ.setInactiveJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hpC : p ∈ Z.C) (hp0 : p ≠ 0#u64)
-    (hpi : p.bv ≠ Fl4Spec.idleScPtr) (t0 : L.mem s (P1.scTcbA p) = 0#u64)
+    (hpi : p.bv ≠ σ.idleSc) (t0 : L.mem s (P1.scTcbA p) = 0#u64)
     (n0 : L.mem s (P1.scNtfnA p) = 0#u64) (r0 : L.mem s (P1.scReplyA p) = 0#u64) :
     ∃ σ', Fl4Spec.schedContextSetInactive (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
       JTP (L := L) arI AR Z H Cs (L.wr (L.wr s (maxA p) 0#u64) (scW p 64#u64) 0#u64) a σ' := by
@@ -253,7 +253,7 @@ theorem JAtZ.setInactiveJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
       rw [hk, show (updSc σ p.bv (inactSc x) n).kheap p.bv = some (.schedContext (inactSc x) n) by simp [updK]]
       exact LObj.sc (Or.inl rfl) (Or.inl rfl)
     · rw [hO.ko e]; exact OL.refl _)
-  have hF : Sched.FK σ (updSc σ p.bv (inactSc x) n) := ⟨rfl, rfl⟩
+  have hF : Sched.FK σ (updSc σ p.bv (inactSc x) n) := ⟨rfl, rfl, rfl⟩
   have hDead : ∀ q ∈ D, DeadP (L := L) H (L.wr (L.wr s (maxA p) 0#u64) (scW p 64#u64) 0#u64) q := fun q hq =>
     J.deadP_sc_step hX' hW6 hK6 (fun _ _ h _ => h.elim) hL hF hact'.1 (fun h => h) (J.jcov.dead q hq)
   -- P1
@@ -276,7 +276,7 @@ theorem JAtZ.setInactiveJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
   rw [esp] at hblk' hfoot
   have hDbg := J.kw_dbg (hfoot.mono (Set.empty_subset _))
   exact ⟨Z.vs, Ac \ {p}, Lst', D, J.sc_frame hW6 hK6 hX' hCR' hRF' hY' hM' (J.sc_buf hW6 hK6) hRP'
-    (J.sc_apart hW6 hK6) (J.sc_jpl hW6 hK6) (J.sc_jcov hW6 hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2))
+    (J.sc_apart hW6 hK6) (J.sc_jpl hW6 hK6 (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2) (J.sc_jcov hW6 hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2))
     (J.sc_kern hW6 hK6 hF hX' hDbg fun _ h => h) (J.sc_utc hW6 hK6 hDbg) J.nsc.updSc hI'
     (J.cur.imp id (hO.curInv J.inv)) (hO.own J.inv J.own) (hO.off hpi J.off) hact' (hO.bsa J.bsa) (hO.curRun J.curRun) hblk'⟩
 

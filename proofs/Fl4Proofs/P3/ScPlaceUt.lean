@@ -91,14 +91,14 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
 /-- **The current core's idle objects**: its idle thread (`L.idleW`, the
-node's `IDLE_THREAD` word) and the idle SC (the spec's `idle_sc_ptr`, the
-node's `IDLE_SC` word by `SchedSpec.idleSc`). FL4's boot
+node's `IDLE_THREAD` word) and its idle SC (`idleScW`, the node's `IDLE_SC`
+word, which is the spec's `idle_sc` by `SchedSpec.idleSc`). FL4's boot
 (`create_idle_threads`) gives them no cap, so `JCov` exempts them from its
 cover (l4v: the idle thread is a global reference, not named by a cap,
 `valid_global_refs`). Only the current core's: `H`'s TCBs are `Z.T`'s, all
-of affinity `Z.c` (`SchedCore.aff`), and the spec's idle SC is the one at
-`idle_sc_ptr`. -/
-def IdleAt (s : S) (q : U64) : Prop := q = L.idleW s ∨ q.bv = Fl4Spec.idleScPtr
+of affinity `Z.c` (`SchedCore.aff`), and the spec's `idle_sc` is this
+core's idle SC. -/
+def IdleAt (s : S) (q : U64) : Prop := q = L.idleW s ∨ q = idleScW (L := L) s
 
 /-- **An object inside the kernel-state block** (`[lo, hi)` within
 `[ksb, ksb + 13568)`): the IRQ node's one-slot CNodes (`IntLayout.node`)
@@ -118,9 +118,17 @@ def KsObj (th : TypedHeap) (H : Heap) (s : S) (q : U64) : Prop :=
 or one inside the kernel-state block (`KsObj`). -/
 def ExAt (th : TypedHeap) (H : Heap) (s : S) (q : U64) : Prop := IdleAt (L := L) s q ∨ KsObj (L := L) th H s q
 
-theorem exAt_of {th : TypedHeap} {H : Heap} {s s' : S} (hidl : L.idleW s' = L.idleW s) (hks : L.ksb s' = L.ksb s)
+/-- The idle words (`IdleAt`'s) kept from `s` to `s'`. -/
+def IdleKeep (s s' : S) : Prop := L.idleW s' = L.idleW s ∧ idleScW (L := L) s' = idleScW (L := L) s
+
+theorem IdleKeep.refl (s : S) : IdleKeep (L := L) s s := ⟨rfl, rfl⟩
+
+theorem IdleKeep.trans {s1 s2 s3 : S} (h1 : IdleKeep (L := L) s1 s2) (h2 : IdleKeep (L := L) s2 s3) :
+    IdleKeep (L := L) s1 s3 := ⟨h2.1.trans h1.1, h2.2.trans h1.2⟩
+
+theorem exAt_of {th : TypedHeap} {H : Heap} {s s' : S} (hidl : IdleKeep (L := L) s s') (hks : L.ksb s' = L.ksb s)
     {q : U64} : ExAt (L := L) th H s' q ↔ ExAt (L := L) th H s q := by
-  unfold ExAt IdleAt KsObj KsIn; rw [hidl, hks]
+  unfold ExAt IdleAt KsObj KsIn; rw [hidl.1, hidl.2, hks]
 
 /-- **The idle objects lie outside every RAM untyped region** (l4v
 `valid_global_refs` for untyped caps: no cap's range holds a global
@@ -135,9 +143,9 @@ def IdleOut (th : TypedHeap) (H : Heap) (G : MdbGhost) (s : S) : Prop :=
     (∀ k, th q = some k → q.val + max (objSize k) 1 ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q.val) ∧
     (∀ k, H q = some k → q.val + 2 ^ k.bits ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q.val)
 
-theorem idleAt_of {s s' : S} (hidl : L.idleW s' = L.idleW s) {q : U64} :
+theorem idleAt_of {s s' : S} (hidl : IdleKeep (L := L) s s') {q : U64} :
     IdleAt (L := L) s' q ↔ IdleAt (L := L) s q := by
-  unfold IdleAt; rw [hidl]
+  unfold IdleAt; rw [hidl.1, hidl.2]
 
 /-- The untyped caps after a step are old ones with the same region and
 device flag. -/
@@ -148,7 +156,7 @@ def UtFrom (G G' : MdbGhost) (m m' : U64 → U64) : Prop :=
 /-- **`IdleOut` across a step** keeping the idle word, the heaps, and the
 untyped regions (each after an old one). -/
 theorem IdleOut.keep {th : TypedHeap} {H : Heap} {G G' : MdbGhost} {s s' : S}
-    (h : IdleOut (L := L) th H G s) (hidl : L.idleW s' = L.idleW s) (hut : UtFrom G G' (L.mem s) (L.mem s')) :
+    (h : IdleOut (L := L) th H G s) (hidl : IdleKeep (L := L) s s') (hut : UtFrom G G' (L.mem s) (L.mem s')) :
     IdleOut (L := L) th H G' s' := by
   intro x hx p sb fi hc q hq
   obtain ⟨y, hy, fi', hc'⟩ := hut x hx p sb fi false hc

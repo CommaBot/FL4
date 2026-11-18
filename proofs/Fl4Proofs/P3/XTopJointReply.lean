@@ -98,7 +98,7 @@ theorem JAtZ.regWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} 
     exact foot_field hTH htH (by rw [hKv]; omega) (by rw [hKv]; omega) (by rw [hKv]; omega)
       ⟨by rw [hKv]; omega, by rw [hKv]; omega⟩
   have hA : QKY σ (updK σ t.bv (.tcb (setReg x r v.bv))) := by
-    refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun p => ?_⟩
+    refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun p => ?_⟩
     by_cases hp : p = t.bv
     · subst hp; exact Or.inr (Or.inl ⟨x, setReg x r v.bv, hk, by simp [updK], rfl⟩)
     · exact Or.inl (by simp [updK, hp])
@@ -151,13 +151,14 @@ theorem JAtZ.runJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (h
   have e_cons : σ6.consumedTime = σ.consumedTime := by rw [hrec]; rfl
   have e_tm : σ6.curTime = σ.curTime := by rw [hrec]; rfl
   have e_idle : σ6.idleThread = σ.idleThread := by rw [hrec]; rfl
+  have e_isc : σ6.idleSc = σ.idleSc := by rw [hrec]; rfl
   have e_rel : σ6.releaseQueue = σ.releaseQueue := by rw [hrec]; rfl
   have hW : P1.WritesIn st s s6 (TFoot st Z.T Z.N Z.C Z.c s σ) := WritesIn.tfoot_sfoot (P1.WritesIn.refl _ _) hw6
   have hfx : IpcFree x.tcbState := by
     rw [hrs]; exact ⟨rfl, rfl, fun _ e => by cases e⟩
   have hK : ScTKw (fun p => p = t.bv) σ σ6 := by
     refine ⟨fun p => ?_, by rw [hrec]; rfl, by rw [hrec]; rfl, by rw [hrec]; rfl, by rw [hrec]; rfl,
-      by rw [hrec]; rfl, by rw [hrec]; rfl, by rw [hrec]; rfl, by rw [hrec]; rfl, e_ct⟩
+      by rw [hrec]; rfl, by rw [hrec]; rfl, by rw [hrec]; rfl, by rw [hrec]; rfl, e_ct, e_isc⟩
     by_cases hp : p = t.bv
     · subst hp; rw [hk, hk6]
       show TKObj _ _ _
@@ -217,10 +218,10 @@ theorem JAtZ.runJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (h
         · rw [← e]; exact hu
       exact hsched u (J.act.1 u hu0)
     · obtain ⟨y, h1, h2, h3, h4⟩ := J.act.2
-      exact ⟨y, by rw [e_idle, hkp _ hidt]; exact h1, h2, h3, by rw [e_idle, e_rel]; exact h4⟩
+      exact ⟨y, by rw [e_idle, hkp _ hidt]; exact h1, by rw [e_isc]; exact h2, h3, by rw [e_idle, e_rel]; exact h4⟩
   have hoff : OffOK σ6 := by
     intro h0 y n hy ha
-    rw [e_cons] at h0 ⊢; rw [e_tm]; rw [e_csc] at hy ha
+    rw [e_cons] at h0 ⊢; rw [e_tm]; rw [e_csc] at hy; rw [e_csc, e_isc] at ha
     by_cases e : σ.curSc = t.bv
     · rw [e, hk6] at hy; cases hy
     · rw [hkp _ e] at hy; exact J.off h0 y n hy ha
@@ -245,7 +246,7 @@ theorem JAtZ.runJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (h
             · intro _ _ _ e; cases e
           exact ⟨x6, by rw [e_ct, hct]; exact hk6, by rw [e_csc]; exact hcs, hnb6⟩
         · exact ⟨xt, by rw [e_ct, hkp _ hct]; exact hkc, by rw [e_csc]; exact hcs, hnb⟩
-      · rw [e_csc] at hne' hy
+      · rw [e_csc, e_isc] at hne'; rw [e_csc] at hy
         rw [hkp _ hne] at hy
         exact hC.active hne' y n hy
   have hown6 : CurOwnW Z.T Z.C σ6 := by
@@ -288,13 +289,13 @@ theorem JAtZ.runJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (h
       · intro y n ey; cases ey
       · intro y ey; cases ey
     · rw [hkp p hp]; exact OL.refl _)
-  have hfk : FK σ σ6 := ⟨e_csc, e_idle⟩
+  have hfk : FK σ σ6 := ⟨e_csc, e_idle, e_isc⟩
   have hdead : ∀ q ∈ D, DeadP (L := L) H s6 q := fun q hq =>
     J.deadP_sc_stepG hX' hW hK (fun p x' hp hk' h0 y hy => by
         subst hp; rw [hk] at hk'; cases hk'; rw [hrs] at h0; simp [tsCode] at h0)
       hlk hfk hAI.1 (fun h => h) (J.jcov.dead q hq)
   exact ⟨Lst', D, J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
-    (J.sc_jpl hW hK) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hfk.2)) (J.sc_kern hW hK hfk hX' hDbg fun _ h => h)
+    (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2)) (J.sc_kern hW hK hfk hX' hDbg fun _ h => h)
     (J.sc_utc hW hK hDbg) hNSC hInv hcur6 hown6 hoff hAI (BlockedScActive.tkw J.bsa hK fun p y n hp ha => by
       by_cases e : p = t.bv
       · rw [e, hk6] at hp; cases hp

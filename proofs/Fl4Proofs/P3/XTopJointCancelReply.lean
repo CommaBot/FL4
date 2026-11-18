@@ -238,7 +238,7 @@ theorem JAtZ.faultClearJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : 
       (P1.Heap.scs H) (P1.Heap.scBits H) ∅ s) :=
     foot_field (K := 3376#u64) hTH htH (by simp) (by simp) (by simp) (by simp)
   have hA : QKY σ (updK σ t.bv (.tcb { x with tcbFault := none })) := by
-    refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun p => ?_⟩
+    refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun p => ?_⟩
     by_cases hp : p = t.bv
     · subst hp; exact Or.inr (Or.inl ⟨x, { x with tcbFault := none }, hk, by simp [updK], rfl⟩)
     · exact Or.inl (by simp [updK, hp])
@@ -311,7 +311,7 @@ theorem JAtZ.replyRemoveTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     rw [hσ']; unfold unlinkSt stsAct; split_ifs <;> exact hK.arch
   have hsF : Vs.rsF σ' = Vs.rsF σ := Vs.rsf_replyRemoveTcb t.bv r.bv σ ((), σ') hmem
   simp only [Vs.rsF, Prod.mk.injEq] at hsF
-  obtain ⟨hidle', hcsc', hcons', htime'⟩ := hsF
+  obtain ⟨hidle', hcsc', hcons', htime', hisc'⟩ := hsF
   have hRQ : RelQ.RQK σ σ' := RelQ.rq_replyRemoveTcb' t.bv r.bv σ ((), σ') hmem
   have hCK : Fl4Proofs.P3.CKeep σ σ' := nkc_replyRemoveTcb t.bv r.bv σ ((), σ') hmem
   have hrq_t : t.bv ∉ σ.releaseQueue := fun hm => by
@@ -379,7 +379,7 @@ theorem JAtZ.replyRemoveTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   -- the scheduler invariants
   have hoff : OffOK σ' := by
     intro hpos y n hy ha
-    rw [hcsc'] at hy ha
+    rw [hcsc'] at hy; rw [hcsc', hisc'] at ha
     rw [hcons'] at hpos ⊢
     rw [htime']
     obtain ⟨y0, hy0, er, em, -⟩ := scB _ y n hy
@@ -458,7 +458,7 @@ theorem JAtZ.replyRemoveTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     obtain ⟨x', hx', es, -, esc⟩ := tcbF _ xi hki hit
     refine ⟨x', by rw [hidle']; exact hx', ?_, by rw [es]; exact hti, by rw [hidle']; exact fun hm => hri (hRQ _ hm)⟩
     rcases esc with e | ⟨-, -, y0, n0, hy0, hyt0⟩
-    · rw [e]; exact hsi
+    · rw [e, hisc']; exact hsi
     · exact (J.idle_noStack hy0 (hQ y0 n0 hy0) hyt0).elim
   have hcur : σ'.schedulerAction = .chooseNewThread ∨ CurInv σ' := by
     by_cases hcn : σ'.schedulerAction = .chooseNewThread
@@ -497,7 +497,7 @@ theorem JAtZ.replyRemoveTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       obtain ⟨y', hy'⟩ := scF _ _ _ hy0
       exact ⟨y', n0, by rw [hcsc']; exact hy'⟩
     · intro hne y n hy
-      rw [hcsc'] at hne hy
+      rw [hcsc', hisc'] at hne; rw [hcsc'] at hy
       obtain ⟨y0, hy0, -, em, -⟩ := scB _ y n hy
       have := CI.active hne y0 n hy0
       simpa [Fl4Spec.scActive, em] using this
@@ -658,7 +658,8 @@ theorem JAtZ.replyRemoveTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   obtain ⟨V', hX3⟩ := XTopAt.irel_same J.xtop hIR hAR hF.1 hCK.cdt hCK.orig hCK.ks hks
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-    exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => szk q.bv y n hq) hks (J.rmW_irq hw)⟩
+    exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => szk q.bv y n hq) hks (J.rmW_irq hw)
+      (J.idleW_keep hIR.2.2.1 hidle' hisc').2⟩
   have hDbg := J.kw_dbg hfoot
   have hao : ∀ p ao, σ.kheap p = some (.archObj ao) → σ'.kheap p = some (.archObj ao) := by
     intro p ao hp
@@ -677,7 +678,7 @@ theorem JAtZ.replyRemoveTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     exact ⟨h1, h2⟩
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst' D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 hyk, J.mcp.frame k1 hmk, J.buf.frame kb hbk, hRP',
-      J.apart.sc_frame hks szk, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hIR.2.2.1 hidle'), hkern,
+      J.apart.sc_frame hks szk, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hIR.2.2.1 hidle' hisc'), hkern,
       J.rmW_utc hw hF.1 hCK.cdt hCK.orig harch hDbg, hN', hI', hcur, hown, hoff, ⟨hAS, hidl⟩, hbsa, hiso,
       hrun, hblk⟩
   have hC0 := JCs.same J hF.1 hksz

@@ -22,8 +22,8 @@ macro "pres_step0" : tactic => `(tactic| first
   | with_reducible exact pres_assert _ | with_reducible exact pres_assertOpt _
   | with_reducible exact pres_getObject _ | with_reducible exact pres_getsThe _
   | with_reducible exact pres_selectF _
-  | ((with_reducible apply pres_modify); intro _; exact ⟨rfl, rfl, rfl, rfl, rfl⟩)
-  | ((with_reducible apply pres_get_put); intro _; exact ⟨rfl, rfl, rfl, rfl, rfl⟩)
+  | ((with_reducible apply pres_modify); intro _; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩)
+  | ((with_reducible apply pres_get_put); intro _; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩)
   | with_reducible exact pres_doMachineOp _ | with_reducible exact pres_doExtendedOp _
   | with_reducible exact pres_asUser _ _
   | with_reducible exact pres_archThreadSet _ _ | with_reducible exact pres_setObject_ntfn _ _
@@ -93,7 +93,7 @@ theorem pres_postpone (p : ObjRef) : Pres f (postpone (Z := Unit) p) := by
   unfold postpone
   refine pres_bind (pres_getScObjRef f _ _) fun _ => pres_bind (pres_assertOpt _) fun _ => ?_
   exact pres_bind (pres_tcbSchedAction f _ _) fun _ => pres_bind (pres_tcbReleaseEnqueue f _) fun _ =>
-    pres_modify (fun σ => ⟨rfl, rfl, rfl, rfl, rfl⟩)
+    pres_modify (fun σ => ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩)
 
 theorem pres_schedContextResume (p : ObjRef) : Pres f (schedContextResume (Z := Unit) p) := by
   unfold schedContextResume getScRefillReady getScRefillSufficient getTcbQueue
@@ -143,7 +143,8 @@ theorem pres_schedContextUnbindTcb (sc : ObjRef) : Pres f (schedContextUnbindTcb
 
 theorem pres_schedContextUnbindAllTcbs (sc : ObjRef) : Pres f (schedContextUnbindAllTcbs (Z := Unit) sc) := by
   unfold schedContextUnbindAllTcbs
-  exact pres_bind (pres_getSchedContext f _) fun _ => pres_when _ (pres_schedContextUnbindTcb f _)
+  exact pres_bind (pres_getSchedContext f _) fun _ => pres_bind (pres_gets _) fun _ =>
+    pres_when _ (pres_schedContextUnbindTcb f _)
 
 theorem pres_schedContextUpdateConsumed (sc : ObjRef) :
     Pres f (schedContextUpdateConsumed (Z := Unit) sc) := by

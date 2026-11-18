@@ -41,8 +41,8 @@ theorem ik_whileLoop {α : Type} {C : α → State Unit → Prop} {B : α → No
     (hB : ∀ r, IKA (B r)) (r : α) : IKA (NonDet.whileLoop C B r) := by
   intro σ x hx
   induction hx with
-  | done _ => rfl
-  | step _ hm _ ih => exact ih.trans (hB _ _ _ hm)
+  | done _ => exact ⟨rfl, rfl⟩
+  | step _ hm _ ih => exact ⟨ih.1.trans (hB _ _ _ hm).1, ih.2.trans (hB _ _ _ hm).2⟩
 
 end Comb
 
@@ -101,7 +101,7 @@ macro "ik_step0" : tactic => `(tactic| first
   | with_reducible exact IKA.of_fk (fk_threadGet _ _)
   | with_reducible exact IKA.of_fk (fk_getSchedContext _)
   | with_reducible exact IKA.of_fk (fk_doExtendedOp _)
-  | ((with_reducible apply ik_modify); intro _; rfl)
+  | ((with_reducible apply ik_modify); intro _; exact ⟨rfl, rfl⟩)
   | (with_reducible refine ik_bind ?_ (fun _ => ?_))
   | (with_reducible refine ik_bind' ?_ (fun _ => ?_))
   | (with_reducible apply ik_ite) | (with_reducible apply ik_when)

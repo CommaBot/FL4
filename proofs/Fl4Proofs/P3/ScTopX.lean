@@ -55,7 +55,7 @@ theorem decode_invocation_sched_contextX {N T C R : Set U64} {c : U64} (hT : Tim
     (hRF : RFree (L.mem s) R C σ Lst) (hA : SlotsApart (st := st) th T N C R c s σ)
     (hNk : ∀ n ∈ N, n.val + 40 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = scLabelOf lbl)
-    {sc : U64} (sb : U64) (hsc : sc ∈ C) (hpi : sc.bv ≠ Fl4Spec.idleScPtr)
+    {sc : U64} (sb : U64) (hsc : sc ∈ C) (hpi : sc.bv ≠ σ.idleSc)
     (hback : L.mem s (scW sc 24#u64) ≠ 0#u64 →
       L.mem s (scW sc 24#u64) ∈ T ∧ L.mem s (scA (L.mem s (scW sc 24#u64))) = sc ∧
       (L.mem s (scW sc 24#u64)).bv ≠ σ.idleThread)

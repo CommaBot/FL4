@@ -88,7 +88,7 @@ theorem JAtZ.switchJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64}
   have hsok : SOK (true, true) σ σ' := pres_possibleSwitchTo (f := (true, true)) t.bv σ _ mem
   obtain ⟨-, hY', hM', ⟨Lst', hCR', hRF'⟩, hRP', -⟩ :=
     ScAll.of_k hS J.rp J.yld J.mcp J.call J.rfree ⟨⟨hS', hR', hN', hI'⟩, hwK, hsok⟩
-  have hF : FK σ σ' := ⟨hc.2.2.1, hc.2.2.2.2.2.1⟩
+  have hF : FK σ σ' := ⟨hc.2.2.1, hc.2.2.2.2.2.1, hK.isc⟩
   have hMK := mkn_possibleSwitchTo ⟨hti, htc⟩ _ mem
   have hAI : ActIdle σ' := J.act.possibleSwitchTo J.inv hs he
   have hBK : BK σ σ' := bkm_of (nkt_possibleSwitchTo t.bv) (MaxK.mk_possibleSwitchTo' t.bv) σ _ mem
@@ -103,7 +103,7 @@ theorem JAtZ.switchJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64}
     rw [hc.2.2.2.2.1] at h0 ⊢
     rw [hc.2.2.2.1]
     rw [hc.1, hc.2.2.1] at hy
-    rw [hc.2.2.1] at ha
+    rw [hc.2.2.1, hc.2.2.2.2.2.2.2.2] at ha
     exact J.off h0 y n hy ha
   have hcr : CurRunM σ' := by
     by_cases hr : σ'.schedulerAction = .resumeCurThread
@@ -122,7 +122,7 @@ theorem JAtZ.switchJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64}
     J.deadP_sc_stepQ hX' hwT hK (fun _ hp => hp.elim) hL hF hAI.1 (fun h => h) (J.jcov.dead q hq)
   have hDbg := J.kw_dbg hfoot
   exact ⟨σ', he, Lst', J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
-    (J.sc_jpl hwT hK) (J.sc_jcov hwT hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2))
+    (J.sc_jpl hwT hK (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2) (J.sc_jcov hwT hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2))
     (J.sc_kern hwT hK hF hX' hDbg fun _ h => h) (J.sc_utc hwT hK hDbg) hN' hI' hcur hown hoff hAI hbsa hcr hblk⟩
 
 end

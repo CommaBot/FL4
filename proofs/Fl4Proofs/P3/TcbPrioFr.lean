@@ -75,17 +75,17 @@ theorem PFr.trans {t : ObjRef} {σ1 σ2 σ3 : State Unit} (h1 : PFr t σ1 σ2) (
 
 theorem PFr.upd {t : ObjRef} {σ : State Unit} {p : ObjRef} {o o' : KernelObject}
     (hk : σ.kheap p = some o) (hc : PChg t p o o') : PFr t σ (updK σ p o') := by
-  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, Or.inl rfl, fun p' => ?_⟩
+  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, Or.inl rfl, fun p' => ?_⟩
   by_cases e : p' = p
   · subst e; exact Or.inr ⟨o, o', hk, by simp [updK], hc⟩
   · exact Or.inl (by simp [updK, e])
 
 theorem PFr.setq (t : ObjRef) (σ : State Unit) (d : Domain) (p : Priority) (q : List ObjRef) :
     PFr t σ (setQ σ d p q) :=
-  ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, Or.inl rfl, fun _ => Or.inl rfl⟩
+  ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, Or.inl rfl, fun _ => Or.inl rfl⟩
 
 theorem PFr.cn (t : ObjRef) (σ : State Unit) : PFr t σ { σ with schedulerAction := .chooseNewThread } :=
-  ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, Or.inr rfl, fun _ => Or.inl rfl⟩
+  ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, Or.inr rfl, fun _ => Or.inl rfl⟩
 
 /-! ### Per kind -/
 
@@ -226,13 +226,13 @@ theorem PFr.own {T C : Set U64} (h : PFr t σ σ') (hO : CurOwnW T C σ) : CurOw
 theorem PFr.off (h : PFr t σ σ') (hO : OffOK σ) : OffOK σ' := by
   intro hc y n hy ha
   rw [h.sk.cons] at hc ⊢; rw [h.sk.tm]
-  rw [h.sk.csc] at hy ha
+  rw [h.sk.csc] at hy; rw [h.sk.csc, h.sk.isc] at ha
   exact hO hc y n (h.scB hy) ha
 
 theorem PFr.idleOK (h : PFr t σ σ') (hO : IdleOK σ) : IdleOK σ' := by
   obtain ⟨x, hx, h1, h2, h3⟩ := hO
   obtain ⟨pr, hx'⟩ := h.tcbF hx
-  exact ⟨{ x with tcbPriority := pr }, by rw [h.sk.idle]; exact hx', h1, h2, by rw [h.sk.idle, h.sk.rel]; exact h3⟩
+  exact ⟨{ x with tcbPriority := pr }, by rw [h.sk.idle]; exact hx', by rw [h.sk.isc]; exact h1, h2, by rw [h.sk.idle, h.sk.rel]; exact h3⟩
 
 theorem PFr.bsa (h : PFr t σ σ') (hB : BlockedScActive σ) : BlockedScActive σ' := by
   refine ⟨fun p z n u y hp hyt hy hq => ?_, fun p z n hp hr => hB.replies p z n (h.scB hp) hr⟩
@@ -245,7 +245,7 @@ theorem PFr.curInv (h : PFr t σ σ') (hC : CurInv σ) : CurInv σ' := by
   obtain ⟨pr, hkt'⟩ := h.tcbF hkt
   refine ⟨⟨{ xt with tcbPriority := pr }, by rw [h.sk.ct]; exact hkt', by rw [h.sk.csc]; exact hxs, hnb⟩,
     ⟨x, n, by rw [h.sk.csc]; exact h.scF hx⟩, fun hne y m hy => ?_, by rw [h.sk.ct, h.sk.rel]; exact hC.notRel⟩
-  rw [h.sk.csc] at hne hy
+  rw [h.sk.csc, h.sk.isc] at hne; rw [h.sk.csc] at hy
   exact hC.active hne y m (h.scB hy)
 
 theorem PFr.curRunW (h : PFr t σ σ') (hR : CurRunW σ) : CurRunW σ' := by

@@ -40,7 +40,7 @@ theorem EpStep.abs (h : EpStep σ σ') :
     σ'.readyQueues = σ.readyQueues ∧ σ'.releaseQueue = σ.releaseQueue ∧ σ'.curThread = σ.curThread ∧
     σ'.schedulerAction = σ.schedulerAction ∧ σ'.curSc = σ.curSc ∧ σ'.curTime = σ.curTime ∧
     σ'.consumedTime = σ.consumedTime ∧ σ'.reprogramTimer = σ.reprogramTimer ∧ σ'.curDomain = σ.curDomain ∧
-    σ'.domainTime = σ.domainTime ∧ σ'.idleThread = σ.idleThread := by
+    σ'.domainTime = σ.domainTime ∧ σ'.idleThread = σ.idleThread ∧ σ'.idleSc = σ.idleSc := by
   have e := h.2.1
   exact ⟨(by have := congrArg Fl4Spec.AbstractState.readyQueues e; exact this),
     (by have := congrArg Fl4Spec.AbstractState.releaseQueue e; exact this),
@@ -52,7 +52,8 @@ theorem EpStep.abs (h : EpStep σ σ') :
     (by have := congrArg Fl4Spec.AbstractState.reprogramTimer e; exact this),
     (by have := congrArg Fl4Spec.AbstractState.curDomain e; exact this),
     (by have := congrArg Fl4Spec.AbstractState.domainTime e; exact this),
-    (by have := congrArg Fl4Spec.AbstractState.idleThread e; exact this)⟩
+    (by have := congrArg Fl4Spec.AbstractState.idleThread e; exact this),
+    (by have := congrArg Fl4Spec.AbstractState.idleSc e; exact this)⟩
 
 theorem EpStep.tcbSched (h : EpStep σ σ') {p : Fl4Spec.ObjRef} {x : Fl4Spec.Tcb}
     (hk : σ.kheap p = some (.tcb x)) : ∃ y, σ'.kheap p = some (.tcb y) ∧ y.tcbDomain = x.tcbDomain ∧
@@ -78,7 +79,7 @@ def SchedStep (σ σ' : Fl4Spec.State Unit) : Prop :=
   (σ'.readyQueues = σ.readyQueues ∧ σ'.releaseQueue = σ.releaseQueue ∧ σ'.curThread = σ.curThread ∧
     σ'.schedulerAction = σ.schedulerAction ∧ σ'.curSc = σ.curSc ∧ σ'.curTime = σ.curTime ∧
     σ'.consumedTime = σ.consumedTime ∧ σ'.reprogramTimer = σ.reprogramTimer ∧ σ'.curDomain = σ.curDomain ∧
-    σ'.domainTime = σ.domainTime ∧ σ'.idleThread = σ.idleThread) ∧
+    σ'.domainTime = σ.domainTime ∧ σ'.idleThread = σ.idleThread ∧ σ'.idleSc = σ.idleSc) ∧
   (∀ p x, σ.kheap p = some (.tcb x) → ∃ y, σ'.kheap p = some (.tcb y) ∧ y.tcbDomain = x.tcbDomain ∧
       y.tcbSchedContext = x.tcbSchedContext ∧ y.tcbPriority = x.tcbPriority) ∧
   (∀ p x n, σ.kheap p = some (.schedContext x n) → σ'.kheap p = some (.schedContext x n)) ∧
@@ -91,7 +92,7 @@ theorem EpStep.schedStep (h : EpStep σ σ') : SchedStep σ σ' :=
 theorem SchedStep.updK_tcb {p : Fl4Spec.ObjRef} {x x' : Fl4Spec.Tcb} (hk : σ.kheap p = some (.tcb x))
     (h1 : x'.tcbDomain = x.tcbDomain) (h2 : x'.tcbSchedContext = x.tcbSchedContext)
     (h3 : x'.tcbPriority = x.tcbPriority) : SchedStep σ (updK σ p (.tcb x')) := by
-  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, fun q y hq => ?_, fun q y n hq => ?_,
+  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, fun q y hq => ?_, fun q y n hq => ?_,
     SzKeep.updK hk (fun _ _ h => by cases h)⟩
   · by_cases e : q = p
     · subst e; rw [hk] at hq; cases hq
@@ -190,7 +191,7 @@ theorem _root_.Fl4Proofs.P3.Sched.SchedRel.of_sagreeE {s s' : S} {σ σ' : Fl4Sp
     (hn : SchedStep σ σ') : SchedRel st N T C c s' σ' := by
   obtain ⟨Q, R0, hc, hs⟩ := hS.lists
   have hs' := hs.agree ha
-  obtain ⟨⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11⟩, hnT, hnS, hnZ⟩ := hn
+  obtain ⟨⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12⟩, hnT, hnS, hnZ⟩ := hn
   refine ⟨hS.placed, fun o ho => by rw [Sched.nodeAt_ksb (st := st) ha.ksb]; exact hnw o ho,
     by rw [curDomA_ksb ha.ksb]; exact hdw, by rw [dtA_ksb ha.ksb]; exact htw,
     scOut_transfer ha.ksb hnZ hS.scOut,
@@ -201,12 +202,12 @@ theorem _root_.Fl4Proofs.P3.Sched.SchedRel.of_sagreeE {s s' : S} {σ σ' : Fl4Sp
     by rw [e2]; exact hs'.rel, by rw [e3]; exact hs'.curThread,
     by rw [e5]; exact hs'.curSc, by rw [e6]; exact hs'.curTime, by rw [e7]; exact hs'.consumed,
     by rw [e9]; exact hs'.curDom, fun t ht => ?_, hs'.scMem,
-    fun sc hsc => ?_, hs'.idleSc, by rw [e10]; exact hs'.domTime, by rw [e11]; exact hs'.idleTh⟩
+    fun sc hsc => ?_, by rw [e12]; exact hs'.idleSc, by rw [e10]; exact hs'.domTime, by rw [e11]; exact hs'.idleTh⟩
   · obtain ⟨x, hk, h1, h2, h3, h4⟩ := hs'.tcb t ht
     obtain ⟨y, hky, f1, f2, f3⟩ := hnT _ _ hk
     exact ⟨y, hky, f1.trans h1, h2, f2.trans h3, f3 ▸ h4⟩
   · obtain ⟨x, n, hk, e⟩ := hs'.scs sc hsc
-    exact ⟨x, n, hnS _ _ _ hk, e⟩
+    exact ⟨x, n, hnS _ _ _ hk, by rw [e12]; exact e⟩
 
 /-- **The scheduler relation is kept by an endpoint step.** -/
 theorem _root_.Fl4Proofs.P3.Sched.SchedRel.stableE {s s' : S} {σ σ' : Fl4Spec.State Unit} (hP : EPlaced T E R B)

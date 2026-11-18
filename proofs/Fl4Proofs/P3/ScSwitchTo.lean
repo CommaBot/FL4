@@ -215,13 +215,13 @@ def ArchKeeps (σ σ' : Fl4Spec.State Unit) : Prop :=
   σ'.kheap = σ.kheap ∧ σ'.readyQueues = σ.readyQueues ∧ σ'.releaseQueue = σ.releaseQueue ∧
     σ'.curThread = σ.curThread ∧ σ'.curSc = σ.curSc ∧ σ'.curTime = σ.curTime ∧
     σ'.consumedTime = σ.consumedTime ∧ σ'.schedulerAction = σ.schedulerAction ∧ σ'.idleThread = σ.idleThread ∧
-    σ'.curDomain = σ.curDomain ∧ σ'.domainTime = σ.domainTime
+    σ'.curDomain = σ.curDomain ∧ σ'.domainTime = σ.domainTime ∧ σ'.idleSc = σ.idleSc
 
 /-- What a thread switch keeps besides the heap: the times, the idle thread
 and the domain. -/
 def TK (σ σ' : Fl4Spec.State Unit) : Prop :=
   σ'.curTime = σ.curTime ∧ σ'.consumedTime = σ.consumedTime ∧ σ'.idleThread = σ.idleThread ∧
-    σ'.curDomain = σ.curDomain ∧ σ'.domainTime = σ.domainTime
+    σ'.curDomain = σ.curDomain ∧ σ'.domainTime = σ.domainTime ∧ σ'.idleSc = σ.idleSc
 
 /-- **`switch_to_thread` refines l4v `switch_to_thread`**, keeping `Inv`. The
 address-space and FPU switch is the arch hypothesis `hvm`. -/
@@ -238,7 +238,7 @@ theorem switch_to_thread_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
   obtain ⟨xt, hkt, -⟩ := hs.tcb t ht
   unfold sched.switch_to_thread
   refine WP.spec_bind (spec_and_eq hvm fun r hr => set_vm_root_s hr) ?_
-  rintro ⟨s1, a1⟩ ⟨⟨σ1, h1, hS1, hR1, ek, eq, er, ect, esc, etm, ecn, eact, eid, ecd, edt⟩, hs1⟩
+  rintro ⟨s1, a1⟩ ⟨⟨σ1, h1, hS1, hR1, ek, eq, er, ect, esc, etm, ecn, eact, eid, ecd, edt, eisc⟩, hs1⟩
   simp only at hs1; subst s1
   have hkt1 : σ1.kheap t.bv = some (.tcb xt) := by rw [ek]; exact hkt
   refine WP.spec_bind (WP.spec_and (dequeue_refines s σ1 hS1 t ht) (dequeue_sfoot hS1 ht)) ?_
@@ -270,7 +270,7 @@ theorem switch_to_thread_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
   · rw [er2, er]
   · rw [ek2, ek]
   · rw [e2]; exact eact
-  · rw [e2]; exact ⟨etm, ecn, eid, ecd, edt⟩
+  · rw [e2]; exact ⟨etm, ecn, eid, ecd, edt, eisc⟩
 
 /-- **`switch_to_idle_thread` refines l4v `switch_to_idle_thread`**, keeping
 `Inv`. -/
@@ -290,7 +290,7 @@ theorem switch_to_idle_thread_refines {N T C : Set U64} {c : U64} (s : S) (a : A
   rw [hc.cur] at hit
   subst it
   refine WP.spec_bind (spec_and_eq hvm fun r hr => set_kernel_vm_root_s hr) ?_
-  rintro ⟨s1, a1⟩ ⟨⟨σ1, h1, hS1, hR1, ek, eq, er, ect, esc, etm, ecn, eact, eid, ecd, edt⟩, hs1⟩
+  rintro ⟨s1, a1⟩ ⟨⟨σ1, h1, hS1, hR1, ek, eq, er, ect, esc, etm, ecn, eact, eid, ecd, edt, eisc⟩, hs1⟩
   simp only at hs1; subst s1
   refine WP.spec_bind (sched.set_cur_thread.spec2 s _) ?_
   rintro s2 rfl
@@ -301,7 +301,7 @@ theorem switch_to_idle_thread_refines {N T C : Set U64} {c : U64} (s : S) (a : A
   obtain ⟨hS2, hf2, -⟩ := hS1.set_cur_thread hiT
   refine ⟨{ σ1 with curThread := (nodeW st s c layout.node.IDLE_THREAD).bv }, ?_, hS2,
     hR1.frame hS1.placed hf2 (KView.of_kheap rfl), ?_, fun hI => (hI.congr ek eq er etm).congr rfl rfl rfl rfl,
-    hidleT, esc, er, ek, eact, ⟨etm, ecn, eid, ecd, edt⟩,
+    hidleT, esc, er, ek, eact, ⟨etm, ecn, eid, ecd, edt, eisc⟩,
     sfoot_wr_node hc.node (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD]) _⟩
   · unfold Fl4Spec.switchToIdleThread
     rw [nd_gets_bind, nd_bind_one h1, ← hidleT]

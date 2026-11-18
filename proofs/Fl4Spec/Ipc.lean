@@ -535,7 +535,8 @@ def refillResetRr (cscPtr : ObjRef) : SMonad Z Unit := do
 context. -/
 def chargeBudget (consumed : Ticks) (canTimeout : Bool) : SMonad Z Unit := do
   let cscPtr ← NonDet.gets fun s : State Z => s.curSc
-  NonDet.when (cscPtr ≠ idleScPtr) <| do
+  let isc ← NonDet.gets fun s : State Z => s.idleSc
+  NonDet.when (cscPtr ≠ isc) <| do
     let robin ← isRoundRobin cscPtr
     if robin
     then refillResetRr cscPtr

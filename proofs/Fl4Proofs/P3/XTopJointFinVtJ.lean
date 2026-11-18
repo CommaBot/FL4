@@ -134,7 +134,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 
 /-- A slot's EPT or frame cap's objects (`JPlaced.cobj`). -/
 theorem JAtZ.cobj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    {x : U64} (hx : IsSlot Z.th x) : Sched.CapObjH H (capV (L.mem s) x) := by
+    {x : U64} (hx : IsSlot Z.th x) : Sched.CapObjH H (Sched.idleScW (L := L) s) (capV (L.mem s) x) := by
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl; exact hJ.cobj x hx
 
 /-- **An EPT cap's range holds no object of `H` but `other` ones** (l4v

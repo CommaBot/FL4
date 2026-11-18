@@ -50,15 +50,16 @@ structure SkD (σ σ' : State Unit) : Prop where
   orig : σ'.isOriginalCap = σ.isOriginalCap
   arch : σ'.archState = σ.archState
   dt : σ'.domainTime = σ.domainTime
+  isc : σ'.idleSc = σ.idleSc
 
-theorem SkD.refl (σ : State Unit) : SkD σ σ := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+theorem SkD.refl (σ : State Unit) : SkD σ σ := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem SkD.trans {σ1 σ2 σ3 : State Unit} (h1 : SkD σ1 σ2) (h2 : SkD σ2 σ3) : SkD σ1 σ3 :=
   ⟨h2.ct.trans h1.ct, h2.idle.trans h1.idle, h2.cons.trans h1.cons, h2.tm.trans h1.tm, h2.csc.trans h1.csc,
-    h2.cdt.trans h1.cdt, h2.orig.trans h1.orig, h2.arch.trans h1.arch, h2.dt.trans h1.dt⟩
+    h2.cdt.trans h1.cdt, h2.orig.trans h1.orig, h2.arch.trans h1.arch, h2.dt.trans h1.dt, h2.isc.trans h1.isc⟩
 
 theorem Sk.toD {σ σ' : State Unit} (h : Sk σ σ') : SkD σ σ' :=
-  ⟨h.ct, h.idle, h.cons, h.tm, h.csc, h.cdt, h.orig, h.arch, h.dt⟩
+  ⟨h.ct, h.idle, h.cons, h.tm, h.csc, h.cdt, h.orig, h.arch, h.dt, h.isc⟩
 
 /-- **One object's change** (module docstring). -/
 def DChg (r t cur p : ObjRef) (o o' : KernelObject) : Prop :=
@@ -459,7 +460,7 @@ theorem DWFr.own {T C : Set U64} (h : DWFr r t σ σ') (ht : ∃ u ∈ T, u.bv =
 theorem DWFr.off (h : DWFr r t σ σ') (hO : OffOK σ) : OffOK σ' := by
   intro hc y n hy ha
   rw [h.sk.cons] at hc ⊢; rw [h.sk.tm]
-  rw [h.sk.csc] at hy ha
+  rw [h.sk.csc] at hy; rw [h.sk.csc, h.sk.isc] at ha
   obtain ⟨y0, rf, nt, tc, hy0, rfl, hr, -⟩ := h.scB hy
   have e : rf = y0.scRefills := hr rfl
   subst e
@@ -468,7 +469,7 @@ theorem DWFr.off (h : DWFr r t σ σ') (hO : OffOK σ) : OffOK σ' := by
 theorem DWFr.idleOK (h : DWFr r t σ σ') (hO : IdleOK σ) : IdleOK σ' := by
   obtain ⟨x, hx, h1, h2, h3⟩ := hO
   obtain ⟨st, bn, fl, ar, sc, hx', hs⟩ := h.tcbF hx
-  refine ⟨_, by rw [h.sk.idle]; exact hx', h.tsc_some hx hx' h1, ?_,
+  refine ⟨_, by rw [h.sk.idle]; exact hx', by rw [h.sk.isc]; exact h.tsc_some hx hx' h1, ?_,
     fun hm => h3 (h.relT hx h1 (by rw [← h.sk.idle]; exact hm))⟩
   show st = _
   rw [hs.st (by rw [h2]; nofun) (by rw [h2]; rintro (⟨_, _, _, e⟩ | e) <;> cases e)]; exact h2
@@ -480,7 +481,7 @@ theorem DWFr.curInv (h : DWFr r t σ σ') (hC : CurInv σ) : CurInv σ' := by
   obtain ⟨rf, nt, tc, hx', -⟩ := h.scF hx
   refine ⟨⟨_, by rw [h.sk.ct]; exact hkt', by rw [h.sk.csc]; exact h.tsc_some hkt hkt' hxs, hs.notIpc hnb⟩,
     ⟨_, n, by rw [h.sk.csc]; exact hx'⟩, fun hne y m hy => ?_, fun hm => ?_⟩
-  · rw [h.sk.csc] at hne hy
+  · rw [h.sk.csc, h.sk.isc] at hne; rw [h.sk.csc] at hy
     obtain ⟨y0, rf', nt', tc', hy0, rfl, -⟩ := h.scB hy
     exact hC.active hne y0 m hy0
   · rw [h.sk.ct] at hm
@@ -666,7 +667,7 @@ theorem donate_dfr {σ σ' : State Unit} (h : Inv σ) {r t n : ObjRef} {xt : Tcb
         have hcz : p = σ.curSc → ¬ 0 < σ.consumedTime := fun hpcur h0' => by
           obtain ⟨hsuf, -, hrdy⟩ := hoff h0' ys ns (by rw [← hpcur]; exact hks) (fun _ => hact)
           exact hc.2 ⟨hrdy, suff0_of_suff hsuf⟩
-        refine ⟨DWFr.of_donSt hks hkt hpt h0 ?_ hkn hsc rfl ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+        refine ⟨DWFr.of_donSt hks hkt hpt h0 ?_ hkn hsc rfl ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
           (fun u hu => mem_specInsT.1 hu), rfl, rfl, fun d q hq hm => ?_, hBd.of_kheapD rfl⟩
         · by_cases hpcur : p = σ.curSc
           · exact Or.inr (curOwnT_of (by exact kt) rfl (by exact kp) rfl (by exact hpcur)
@@ -682,7 +683,7 @@ theorem donate_dfr {σ σ' : State Unit} (h : Inv σ) {r t n : ObjRef} {xt : Tcb
           by_cases hpcur : p = σ.curSc
           · exact Or.inr (curOwnT_of kt rfl kp rfl hpcur (fun _ => hnq.2))
           · exact Or.inl hpcur
-        exact ⟨DWFr.of_donSt hks hkt hpt h0 hpc' hkn hsc rfl ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+        exact ⟨DWFr.of_donSt hks hkt hpt h0 hpc' hkn hsc rfl ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
           (fun u hu => Or.inr hu), rfl, rfl, fun d q hq => hq, hBd⟩
 
 /-- No reply bound to a receiver gained (`ScRecvLinks`' `KhRB`). -/

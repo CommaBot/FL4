@@ -61,7 +61,7 @@ theorem SFrame.tcbUpd {σ : State Unit} {p : ObjRef} {x : Tcb} (hk : σ.kheap p 
     (est : x'.tcbState = x.tcbState) (esc : x'.tcbSchedContext = x.tcbSchedContext)
     (ep : x'.tcbPriority = x.tcbPriority) (ed : x'.tcbDomain = x.tcbDomain) :
     SFrame σ (updK σ p (.tcb x')) := by
-  refine ⟨fun q y hq => ?_, fun q y m hq => ?_, rfl, rfl, rfl, rfl⟩
+  refine ⟨fun q y hq => ?_, fun q y m hq => ?_, rfl, rfl, rfl, rfl, rfl⟩
   · by_cases h : q = p
     · subst h; rw [hk] at hq; cases hq
       exact ⟨x', by simp [updK], est, esc, ep, ed⟩

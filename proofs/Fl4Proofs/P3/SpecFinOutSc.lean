@@ -368,7 +368,7 @@ theorem unbindAll_out {σ : State Unit} {sc : ObjRef} {y : SchedContext} {k : Na
     ∃ σ1 y1, ((), σ1) ∈ (schedContextUnbindAllTcbs (Z := Unit) sc σ).1 ∧ KF σ σ1 ∧
       σ1.kheap sc = some (.schedContext y1 k) ∧ y1.scNtfn = y.scNtfn := by
   unfold schedContextUnbindAllTcbs
-  rw [nd_bind_one (getSchedContext_eq hks)]
+  rw [nd_bind_one (getSchedContext_eq hks), Notif.nd_gets_bind]
   unfold NonDet.when
   split_ifs with hc
   · obtain ⟨t, hy⟩ := Option.ne_none_iff_exists'.1 hc.1

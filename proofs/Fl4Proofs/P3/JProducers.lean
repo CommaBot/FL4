@@ -124,7 +124,7 @@ idle thread (l4v `sym_refs` between an SC and its TCB, with the idle
 thread bound to the idle SC). -/
 def ScCapJ (Z : XSets) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
   ∀ sl p sb, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.SchedContext p sb) →
-    (∃ y n, σ.kheap p.bv = some (.schedContext y n)) ∧ p.bv ≠ Fl4Spec.idleScPtr ∧
+    (∃ y n, σ.kheap p.bv = some (.schedContext y n)) ∧ p.bv ≠ σ.idleSc ∧
     ∀ y n, σ.kheap p.bv = some (.schedContext y n) → ∀ t, y.scTcb = some t → t ≠ σ.idleThread
 
 /-- **`ScFinPreX` from `JAtZ` and `ScCapJ`**: the SC among the SCs by

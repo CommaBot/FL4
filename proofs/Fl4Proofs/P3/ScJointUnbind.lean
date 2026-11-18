@@ -42,7 +42,7 @@ action word (`JAtZ.words_of_spec`) and not the idle word (the idle thread
 holds the idle SC, `ActIdle`). -/
 theorem JAtZ.scWordsNS {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hpC : p ∈ Z.C) (hp0 : p ≠ 0#u64)
-    (hpi : p.bv ≠ Fl4Spec.idleScPtr) (hns : ∀ u, σ.schedulerAction = .switchThread u → False) :
+    (hpi : p.bv ≠ σ.idleSc) (hns : ∀ u, σ.schedulerAction = .switchThread u → False) :
     (L.mem s (P1.scTcbA p) ≠ 0#u64 → L.actionW s ≠ L.mem s (P1.scTcbA p)) ∧
       (L.mem s (P1.scTcbA p) ≠ 0#u64 → L.idleW s ≠ L.mem s (P1.scTcbA p)) := by
   have hw : L.mem s (P1.scTcbA p) ≠ 0#u64 →
@@ -71,7 +71,7 @@ restart (`JAtZ.restartJ`), then `unbind_all_tcbs`, `unbind_ntfn` and
 `unbind_reply` of the SC at `J`; the spec's restart and Unbind. -/
 theorem JAtZ.scUnbindJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
-    (hct : sched.cur_thread st s = ok ct) {sc : U64} (hsc : sc ∈ Z.C) (hpi : sc.bv ≠ Fl4Spec.idleScPtr) :
+    (hct : sched.cur_thread st s = ok ct) {sc : U64} (hsc : sc ∈ Z.C) (hpi : sc.bv ≠ σ.idleSc) :
     (do
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
       let (s3, a2) ← schedcontext.unbind_all_tcbs st arI s2 a sc
@@ -86,8 +86,10 @@ theorem JAtZ.scUnbindJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
   obtain ⟨s1, σ1, x, -, he0, -, hcur, -, hns, -, -, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
   rw [hs1]; simp only [bind_ok]
   have hp0 : sc ≠ 0#u64 := J1.c0 sc hsc
-  obtain ⟨hna, hidle⟩ := J1.scWordsNS hsc hp0 hpi hns
-  refine WP.spec_bind (JAtZ.unbindAllJ arI J1 hsc hp0 hpi hna hidle) ?_
+  have hpi1 : sc.bv ≠ σ1.idleSc := by
+    rw [((pres_setThreadState (f := (true, true)) _ _).of_eq he0).isc]; exact hpi
+  obtain ⟨hna, hidle⟩ := J1.scWordsNS hsc hp0 hpi1 hns
+  refine WP.spec_bind (JAtZ.unbindAllJ arI J1 hsc hp0 hpi1 hna hidle) ?_
   rintro ⟨s2, a2⟩ ⟨σ2, he2, V2, Ac2, Lst2, D2, J2⟩
   refine WP.spec_bind (JAtZ.unbindNtfnJ arI J2 hsc hp0) ?_
   rintro s3 ⟨σ3, he3, V3, Ac3, Lst3, D3, J3⟩
@@ -108,7 +110,7 @@ theorem decode_invocation_sched_context_unbindJ (s : S) (a : A) (σ : Fl4Spec.St
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = scLabelOf lbl)
     (l42 : lbl = fl4_abi.label.SchedContextUnbind)
-    {sc : U64} (sb : U64) (hsc : sc ∈ Z.C) (hpi : sc.bv ≠ Fl4Spec.idleScPtr)
+    {sc : U64} (sb : U64) (hsc : sc ∈ Z.C) (hpi : sc.bv ≠ σ.idleSc)
     (hback : L.mem s (scW sc 24#u64) ≠ 0#u64 →
       L.mem s (scW sc 24#u64) ∈ Z.T ∧ L.mem s (P1.scA (L.mem s (scW sc 24#u64))) = sc ∧
       (L.mem s (scW sc 24#u64)).bv ≠ σ.idleThread)

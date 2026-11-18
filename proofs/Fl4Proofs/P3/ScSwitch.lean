@@ -119,19 +119,21 @@ the scheduler action are kept. -/
 def SwKeep (σ σ' : State Unit) : Prop :=
   (∀ q x, σ.kheap q = some (.tcb x) → σ'.kheap q = some (.tcb x)) ∧
   (∀ q y0 m, σ.kheap q = some (.schedContext y0 m) → ∃ y, σ'.kheap q = some (.schedContext y m) ∧
-    y.scRefillMax = y0.scRefillMax) ∧ σ'.idleThread = σ.idleThread ∧ σ'.schedulerAction = σ.schedulerAction
+    y.scRefillMax = y0.scRefillMax) ∧ σ'.idleThread = σ.idleThread ∧ σ'.idleSc = σ.idleSc ∧
+  σ'.schedulerAction = σ.schedulerAction
 
-theorem SwKeep.refl (σ : State Unit) : SwKeep σ σ := ⟨fun _ _ h => h, fun _ y0 _ h => ⟨y0, h, rfl⟩, rfl, rfl⟩
+theorem SwKeep.refl (σ : State Unit) : SwKeep σ σ := ⟨fun _ _ h => h, fun _ y0 _ h => ⟨y0, h, rfl⟩, rfl, rfl, rfl⟩
 
 theorem SwKeep.trans {σ₁ σ₂ σ₃ : State Unit} (h₁ : SwKeep σ₁ σ₂) (h₂ : SwKeep σ₂ σ₃) : SwKeep σ₁ σ₃ :=
   ⟨fun q x h => h₂.1 q x (h₁.1 q x h), fun q y0 m h => by
     obtain ⟨y1, h1, e1⟩ := h₁.2.1 q y0 m h
     obtain ⟨y2, h2, e2⟩ := h₂.2.1 q y1 m h1
-    exact ⟨y2, h2, e2.trans e1⟩, h₂.2.2.1.trans h₁.2.2.1, h₂.2.2.2.trans h₁.2.2.2⟩
+    exact ⟨y2, h2, e2.trans e1⟩, h₂.2.2.1.trans h₁.2.2.1, h₂.2.2.2.1.trans h₁.2.2.2.1, h₂.2.2.2.2.trans h₁.2.2.2.2⟩
 
 theorem SwKeep.of_kheap {σ σ' : State Unit} (h : σ'.kheap = σ.kheap) (hi : σ'.idleThread = σ.idleThread)
-    (ha : σ'.schedulerAction = σ.schedulerAction) : SwKeep σ σ' :=
-  ⟨fun q x hq => by rw [h]; exact hq, fun q y0 m hq => ⟨y0, by rw [h]; exact hq, rfl⟩, hi, ha⟩
+    (ha : σ'.schedulerAction = σ.schedulerAction) (hisc : σ'.idleSc = σ.idleSc := by first | rfl | assumption) :
+    SwKeep σ σ' :=
+  ⟨fun q x hq => by rw [h]; exact hq, fun q y0 m hq => ⟨y0, by rw [h]; exact hq, rfl⟩, hi, hisc, ha⟩
 
 /-- **`ActIdle` under `SwKeep`**, with the release queue and the action kept. -/
 theorem ActIdle.swKeep {σ σ' : State Unit} (h : ActIdle σ) (hk : SwKeep σ σ')
@@ -139,17 +141,17 @@ theorem ActIdle.swKeep {σ σ' : State Unit} (h : ActIdle σ) (hk : SwKeep σ σ
     (ha : σ'.schedulerAction = σ.schedulerAction ∨ ∀ t, σ'.schedulerAction ≠ .switchThread t) : ActIdle σ' :=
   h.keep ⟨fun q x _ hq => hk.1 q x hq, fun q y0 m hq => by
     obtain ⟨y, h1, h2⟩ := hk.2.1 q y0 m hq
-    exact ⟨y, h1, by unfold scActive activeSc; rw [h2]⟩⟩ (fun u hu => by rw [hr] at hu; exact hu) ha hk.2.2.1
+    exact ⟨y, h1, by unfold scActive activeSc; rw [h2]⟩⟩ (fun u hu => by rw [hr] at hu; exact hu) ha hk.2.2.1 hk.2.2.2.1
 
 theorem IdleOK.swKeep {σ σ' : State Unit} (h : IdleOK σ) (hk : SwKeep σ σ')
     (hr : σ'.releaseQueue = σ.releaseQueue) : IdleOK σ' := by
   obtain ⟨x, h1, h2, h3, h4⟩ := h
-  exact ⟨x, by rw [hk.2.2.1]; exact hk.1 _ _ h1, h2, h3, by rw [hk.2.2.1, hr]; exact h4⟩
+  exact ⟨x, by rw [hk.2.2.1]; exact hk.1 _ _ h1, by rw [hk.2.2.2.1]; exact h2, h3, by rw [hk.2.2.1, hr]; exact h4⟩
 
 theorem SwKeep.of_headKeeps {σ σ' : State Unit} {p : ObjRef} (h : HeadKeeps σ σ' p)
     (hp : ∃ y n, σ.kheap p = some (.schedContext y n)) : SwKeep σ σ' := by
-  obtain ⟨-, -, -, hact, -, hid, -, hfr, hsc⟩ := h
-  refine ⟨fun q x hq => ?_, fun q y0 m hq => ?_, hid, hact⟩
+  obtain ⟨-, -, -, hact, -, hid, hisc, -, hfr, hsc⟩ := h
+  refine ⟨fun q x hq => ?_, fun q y0 m hq => ?_, hid, hisc, hact⟩
   · have : q ≠ p := by
       rintro rfl; obtain ⟨y, n, hy⟩ := hp; rw [hq] at hy; cases hy
     rw [hfr _ this]; exact hq
@@ -372,7 +374,7 @@ theorem switch_sched_context_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
           · rw [e6 _ e] at hxu; rw [e1]; exact hback xu hxu)
         (by rw [e3, e5]; exact hnr)
         (fun hc0 y m hy ha => by
-          rw [e5] at hc0; rw [e1, hs.curSc, hko, ← hs.curSc] at hy; rw [e1] at ha
+          rw [e5] at hc0; rw [e1, hs.curSc, hko, ← hs.curSc] at hy; rw [e1, e8.2.2.2.1] at ha
           rw [e5, e4]; exact hoff hc0 y m hy ha) hmrt hmb) ?_
       rintro r ⟨σ', h1, h3⟩
       refine ⟨σ', by rw [pre σ2 h2]; exact h1, ?_⟩
@@ -416,7 +418,7 @@ theorem switch_sched_context_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
       have hsw : SwKeep σ σ2 := by
         rcases unblock_result hkr' hne' hm with ⟨rfl, -⟩ | ⟨z, rfl, -, -, hzy, -⟩
         · exact SwKeep.of_kheap rfl rfl rfl
-        · refine ⟨fun q xq hq => ?_, fun q y0 m hq => ?_, rfl, rfl⟩
+        · refine ⟨fun q xq hq => ?_, fun q y0 m hq => ?_, rfl, rfl, rfl⟩
           · have : q ≠ nsc.bv := by rintro rfl; rw [hk'] at hq; cases hq
             simp only [updK_kheap, ne_eq, this, not_false_eq_true, Function.update_of_ne]; exact hq
           · by_cases e : q = nsc.bv
@@ -444,7 +446,7 @@ theorem switch_sched_context_cur {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
     (hctr : (nodeW st s c layout.node.CUR_THREAD).bv ∉ σ.releaseQueue)
     (hnb : ∀ xt, σ.kheap (nodeW st s c layout.node.CUR_THREAD).bv = some (.tcb xt) →
       NotIpcBlk xt.tcbState)
-    (hact : (L.mem s (scA (nodeW st s c layout.node.CUR_THREAD))).bv ≠ Fl4Spec.idleScPtr → ∀ x n,
+    (hact : (L.mem s (scA (nodeW st s c layout.node.CUR_THREAD))).bv ≠ σ.idleSc → ∀ x n,
       σ.kheap (L.mem s (scA (nodeW st s c layout.node.CUR_THREAD))).bv = some (.schedContext x n) →
       Fl4Spec.scActive x = true)
     {u0 : Fl4Spec.ObjRef} (hown0 : ∀ x n, σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) →
@@ -464,18 +466,18 @@ theorem switch_sched_context_cur {N T C : Set U64} {c : U64} (s : S) (a : A) (σ
   obtain ⟨x', n', hk', -⟩ := hs.scs _ (hs.scMem _ hct hb0)
   have hna : (L.rmax s (L.mem s (scA (nodeW st s c layout.node.CUR_THREAD)))).val ≠ 0 := by
     obtain ⟨x0, n0, hk0, hx0⟩ := hs.scs _ (hs.scMem _ hct hb0)
-    by_cases hi : (L.mem s (scA (nodeW st s c layout.node.CUR_THREAD))).bv = Fl4Spec.idleScPtr
+    by_cases hi : (L.mem s (scA (nodeW st s c layout.node.CUR_THREAD))).bv = σ.idleSc
     · exact hx0.idle hi
     · exact hx0.rmax_ne (hact hi x0 n0 hk0)
   refine WP.spec_mono (switch_sched_context_refines s a σ hS hR hN hI hscC hb0 hctr hown0 hback hnr hoff hna hmrt hmb) ?_
   rintro r ⟨σ', h1, h2, h3, h4, h5, e1, e2, e3, hsw, e4, hw⟩
   refine ⟨σ', h1, h2, h3, h4, h5, ⟨⟨xt, ?_, ?_, hnb xt hkt⟩, ?_, fun hid y m hy => ?_, ?_⟩,
-    fun hA => hA.swKeep hsw e3 (Or.inl hsw.2.2.2), e4, hw⟩
+    fun hA => hA.swKeep hsw e3 (Or.inl hsw.2.2.2.2), e4, hw⟩
   · rw [e2, hs.curThread]; exact hsw.1 _ _ hkt
   · rw [e1]; exact hxs
   · obtain ⟨y, hy, -⟩ := hsw.2.1 _ _ _ hk'
     exact ⟨y, n', by rw [e1]; exact hy⟩
-  · rw [e1] at hid hy
+  · rw [e1, hsw.2.2.2.1] at hid; rw [e1] at hy
     obtain ⟨y1, hy1, hm1⟩ := hsw.2.1 _ _ _ hk'
     rw [hy] at hy1; cases hy1
     have := hact hid x' n' hk'

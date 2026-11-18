@@ -269,7 +269,7 @@ invocation `ScTKw`-steps); a YieldTo returning at once has replied
 theorem decode_invocation_sched_contextXT {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : XTopAt (L := L) AR Z s a σ) (hE : ScExtra (L := L) ar Z s a σ)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = scLabelOf lbl)
-    {sc : U64} (sb : U64) (hsc : sc ∈ Z.C) (hpi : sc.bv ≠ Fl4Spec.idleScPtr)
+    {sc : U64} (sb : U64) (hsc : sc ∈ Z.C) (hpi : sc.bv ≠ σ.idleSc)
     (hl : lbl = fl4_abi.label.SchedContextBind ∨ lbl = fl4_abi.label.SchedContextUnbindObject ∨
       (lbl = fl4_abi.label.SchedContextYieldTo ∧ L.mem s (scYieldFromA sc) = 0#u64))
     (hback : L.mem s (scW sc 24#u64) ≠ 0#u64 →

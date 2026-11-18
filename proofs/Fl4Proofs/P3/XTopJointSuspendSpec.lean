@@ -116,6 +116,7 @@ structure SusF (t : ObjRef) (x : Tcb) (σ σ' : State Unit) : Prop where
   cons : σ'.consumedTime = σ.consumedTime
   tm : σ'.curTime = σ.curTime
   idle : σ'.idleThread = σ.idleThread
+  isc : σ'.idleSc = σ.idleSc
   rel : ∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue
   relt : t ∉ σ'.releaseQueue
   act : σ'.schedulerAction = σ.schedulerAction ∨ σ'.schedulerAction = .chooseNewThread
@@ -146,7 +147,7 @@ theorem susF_of {σ σ5 : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t = 
     (h5o : ∀ p, p ≠ t → σ5.kheap p = σ.kheap p ∨ ∃ z n, σ.kheap p = some (.schedContext z n) ∧
       σ5.kheap p = some (.schedContext { z with scYieldFrom := none } n))
     (hct : σ5.curThread = σ.curThread) (hcsc : σ5.curSc = σ.curSc) (hcons : σ5.consumedTime = σ.consumedTime)
-    (htm : σ5.curTime = σ.curTime) (hidle : σ5.idleThread = σ.idleThread)
+    (htm : σ5.curTime = σ.curTime) (hidle : σ5.idleThread = σ.idleThread) (hisc : σ5.idleSc = σ.idleSc)
     (hrel : σ5.releaseQueue = σ.releaseQueue.filter fun u => decide (t ≠ u))
     (hact : σ5.schedulerAction = σ.schedulerAction)
     (hum : σ5.machineState.underlyingMemory = σ.machineState.underlyingMemory) (hcdt : σ5.cdt = σ.cdt)
@@ -156,7 +157,7 @@ theorem susF_of {σ σ5 : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t = 
     SusF t x σ (stsAct (updK σ5 t (.tcb { { x with tcbYieldTo := none } with tcbState := .inactive })) t) := by
   have hA := stsAct_action (updK σ5 t (.tcb { { x with tcbYieldTo := none } with tcbState := .inactive })) t
   rw [stsAct_rec]
-  refine ⟨hct, hcsc, hcons, htm, hidle, fun u hu => ?_, fun hu => ?_, ?_, fun hc hr => ?_, hk, ?_, fun p hp => ?_,
+  refine ⟨hct, hcsc, hcons, htm, hidle, hisc, fun u hu => ?_, fun hu => ?_, ?_, fun hc hr => ?_, hk, ?_, fun p hp => ?_,
     hum, hcdt, horig, hdl, hdsi, harch, hist, hin⟩
   · change u ∈ σ5.releaseQueue at hu
     rw [hrel] at hu
@@ -225,7 +226,7 @@ theorem SusF.oth {p : ObjRef} {o : KernelObject} (ho : ∀ x, o ≠ .tcb x) (hs 
 
 /-- `ScTKw` for an IPC-free thread. -/
 theorem SusF.tkw (hfree : IpcFree x.tcbState) : ScTKw (fun p => p = t) σ σ' := by
-  refine ⟨fun p => ?_, F.um, F.cdt, F.orig, F.dl, F.dsi, F.arch, F.ist, F.inode, F.ct⟩
+  refine ⟨fun p => ?_, F.um, F.cdt, F.orig, F.dl, F.dsi, F.arch, F.ist, F.inode, F.ct, F.isc⟩
   by_cases hpt : p = t
   · subst hpt; rw [F.hk, F.hk']
     show TKObj _ _ _
@@ -255,7 +256,7 @@ theorem SusF.lk {W : ObjRef → Prop} : LK W σ σ' := fun p => Or.inr (by
       · intro y m ey; cases ey; exact ⟨_, rfl, Or.inl rfl, Or.inl rfl⟩
       · intro y ey; cases ey)
 
-theorem SusF.fk : FK σ σ' := ⟨F.csc, F.idle⟩
+theorem SusF.fk : FK σ σ' := ⟨F.csc, F.idle, F.isc⟩
 
 theorem SusF.nsc {N C : Set U64} (hN : NSC N C σ) : NSC N C σ' :=
   fun n hn y p hy hp => hN n hn y p ((F.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).1 hy) hp
@@ -279,7 +280,7 @@ theorem SusF.curInv (hC : CurInv σ) : CurInv σ' := by
       · intro _ _ _ e; simp at e
     · exact ⟨xt, by rw [F.ct]; exact F.tcbF hkc hct, by rw [F.csc]; exact hcs, hnb⟩
   · obtain ⟨w, hw, -⟩ := F.scF hk1; exact ⟨w, n1, by rw [F.csc]; exact hw⟩
-  · rw [F.csc] at hne hy
+  · rw [F.csc, F.isc] at hne; rw [F.csc] at hy
     obtain ⟨z, hz, e⟩ := F.scB hy
     rw [e]; exact hC.active hne z n hz
 
@@ -299,7 +300,7 @@ theorem SusF.own {T C : Set U64} (hO : CurOwnW T C σ) : CurOwnW T C σ' := by
 
 theorem SusF.off (hO : OffOK σ) : OffOK σ' := by
   intro h0 y n hy ha
-  rw [F.cons] at h0 ⊢; rw [F.tm]; rw [F.csc] at hy ha
+  rw [F.cons] at h0 ⊢; rw [F.tm]; rw [F.csc] at hy; rw [F.csc, F.isc] at ha
   obtain ⟨z, hz, e⟩ := F.scB hy
   rw [e] at ha ⊢; exact hO h0 z n hz ha
 
@@ -317,7 +318,7 @@ theorem SusF.actIdle (hA : ActIdle σ) (hsa : ∀ u, σ.schedulerAction = .switc
       · rw [e] at hu; cases hu
     exact F.sched (hsa u hu0) (hA.1 u hu0)
   · obtain ⟨y, h1, h2, h3, h4⟩ := hA.2
-    exact ⟨y, by rw [F.idle]; exact F.tcbF h1 (Ne.symm hid), h2, h3,
+    exact ⟨y, by rw [F.idle]; exact F.tcbF h1 (Ne.symm hid), by rw [F.isc]; exact h2, h3,
       fun hm => h4 (by rw [F.idle] at hm; exact F.rel _ hm)⟩
 
 theorem SusF.bsa (hB : BlockedScActive σ) : BlockedScActive σ' := by

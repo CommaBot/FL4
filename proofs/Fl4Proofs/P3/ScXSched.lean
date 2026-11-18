@@ -36,24 +36,25 @@ structure SchStep (P : ObjRef → Prop) (σ σ' : State Unit) : Prop where
   asid : σ'.archState.x64AsidTable = σ.archState.x64AsidTable
   ist : σ'.interruptStates = σ.interruptStates
   inode : σ'.interruptIrqNode = σ.interruptIrqNode
+  isc : σ'.idleSc = σ.idleSc
 
 theorem SchStep.refl (P : ObjRef → Prop) (σ : State Unit) : SchStep P σ σ :=
-  ⟨fun _ => OTK.refl _ _, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  ⟨fun _ => OTK.refl _ _, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem SchStep.trans {P : ObjRef → Prop} {σ1 σ2 σ3 : State Unit} (h1 : SchStep P σ1 σ2) (h2 : SchStep P σ2 σ3) :
     SchStep P σ1 σ3 :=
   ⟨fun p => (h1.kh p).trans (h2.kh p), h2.um.trans h1.um, h2.cdt.trans h1.cdt, h2.orig.trans h1.orig,
     h2.dl.trans h1.dl, h2.dsi.trans h1.dsi, h2.io.trans h1.io, h2.gpml4.trans h1.gpml4, h2.asid.trans h1.asid,
-    h2.ist.trans h1.ist, h2.inode.trans h1.inode⟩
+    h2.ist.trans h1.ist, h2.inode.trans h1.inode, h2.isc.trans h1.isc⟩
 
 theorem ScTKw.toSch {P : ObjRef → Prop} {σ σ' : State Unit} (h : ScTKw P σ σ') : SchStep P σ σ' :=
-  ⟨h.kh, h.um, h.cdt, h.orig, h.dl, h.dsi, by rw [h.arch], by rw [h.arch], by rw [h.arch], h.ist, h.inode⟩
+  ⟨h.kh, h.um, h.cdt, h.orig, h.dl, h.dsi, by rw [h.arch], by rw [h.arch], by rw [h.arch], h.ist, h.inode, h.isc⟩
 
 /-- The state `σ'` with `σ`'s current thread and arch state. -/
 def schBack (σ σ' : State Unit) : State Unit := { σ' with curThread := σ.curThread, archState := σ.archState }
 
 theorem SchStep.toTK {P : ObjRef → Prop} {σ σ' : State Unit} (h : SchStep P σ σ') : ScTKw P σ (schBack σ σ') :=
-  ⟨h.kh, h.um, h.cdt, h.orig, h.dl, h.dsi, rfl, h.ist, h.inode, rfl⟩
+  ⟨h.kh, h.um, h.cdt, h.orig, h.dl, h.dsi, rfl, h.ist, h.inode, rfl, h.isc⟩
 
 end Spec
 

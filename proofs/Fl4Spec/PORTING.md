@@ -274,7 +274,12 @@ Conventions of the ported base layer that later modules rely on.
     `idleScPtr = kernel_base + 0x7000` in Machine: X64 Init_A puts the 8KiB
     IRQ node at `kernel_base + 0x2000` and the global paging structures up to
     `kernel_base + 0x6000`. IpcCancel_A imports Init_A only for it, so
-    X64/Init_A is not a prerequisite of IpcCancel here.
+    X64/Init_A is not a prerequisite of IpcCancel here. **FL4 deviation:**
+    the operations read the state field `idleSc` (next to `idleThread`)
+    instead of the constant: FL4 is multi-core with one idle SC per core,
+    placed at boot in a `.bss` array, and the spec is a per-core view, so
+    `idleSc` is that core's idle SC; `idleScPtr` is only its initial value
+    in `initASt`.
   - `timerPrecision` (RISCV64 Arch_Structs_B, Haskell `usToTicks 1`) is in
     X64/Structs; the C kernel's x86 `getTimerPrecision` is `usToTicks(1)`.
   - `make_arch_fault_msg` uses label 6 (C x86 `seL4_Fault_VMFault` with

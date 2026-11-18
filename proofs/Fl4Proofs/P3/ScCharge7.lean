@@ -56,8 +56,8 @@ theorem check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
     (hscC : nodeW st s c layout.node.CUR_SC ∈ C) (hsc0 : nodeW st s c layout.node.CUR_SC ≠ 0#u64)
     (htw : L.mem s (scW (nodeW st s c layout.node.CUR_SC) 24#u64) = nodeW st s c layout.node.CUR_THREAD)
     (hts : L.mem s (scA (nodeW st s c layout.node.CUR_THREAD)) = nodeW st s c layout.node.CUR_SC)
-    (hidle : (nodeW st s c layout.node.IDLE_SC).bv = Fl4Spec.idleScPtr)
-    (hact : (nodeW st s c layout.node.CUR_SC).bv ≠ Fl4Spec.idleScPtr → ∀ x n,
+    (hidle : (nodeW st s c layout.node.IDLE_SC).bv = σ.idleSc)
+    (hact : (nodeW st s c layout.node.CUR_SC).bv ≠ σ.idleSc → ∀ x n,
       σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) → Fl4Spec.scActive x = true)
     (hnr : (nodeW st s c layout.node.CUR_THREAD).bv ∉ σ.releaseQueue)
     (hnb : ∀ xt, σ.kheap (nodeW st s c layout.node.CUR_THREAD).bv = some (.tcb xt) →
@@ -90,7 +90,7 @@ theorem check_budget_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
   rw [hc.cur] at hsc' hcn
   subst hsc' hcn
   have hax : Fl4Spec.scActive x = true := by
-    by_cases hi : (nodeW st s c layout.node.CUR_SC).bv = Fl4Spec.idleScPtr
+    by_cases hi : (nodeW st s c layout.node.CUR_SC).bv = σ.idleSc
     · exact hx.active_of_rmax (hx.idle hi)
     · exact hact hi x n hk
   refine WP.spec_bind (sufficient_refines s a σ hS hscC hk hax _ hmb) ?_
@@ -149,8 +149,8 @@ theorem check_budget_restart_refines {N T C : Set U64} {c : U64} (s : S) (a : A)
     (hscC : nodeW st s c layout.node.CUR_SC ∈ C) (hsc0 : nodeW st s c layout.node.CUR_SC ≠ 0#u64)
     (htw : L.mem s (scW (nodeW st s c layout.node.CUR_SC) 24#u64) = nodeW st s c layout.node.CUR_THREAD)
     (hts : L.mem s (scA (nodeW st s c layout.node.CUR_THREAD)) = nodeW st s c layout.node.CUR_SC)
-    (hidle : (nodeW st s c layout.node.IDLE_SC).bv = Fl4Spec.idleScPtr)
-    (hact : (nodeW st s c layout.node.CUR_SC).bv ≠ Fl4Spec.idleScPtr → ∀ x n,
+    (hidle : (nodeW st s c layout.node.IDLE_SC).bv = σ.idleSc)
+    (hact : (nodeW st s c layout.node.CUR_SC).bv ≠ σ.idleSc → ∀ x n,
       σ.kheap (nodeW st s c layout.node.CUR_SC).bv = some (.schedContext x n) → Fl4Spec.scActive x = true)
     (hnr : (nodeW st s c layout.node.CUR_THREAD).bv ∉ σ.releaseQueue)
     (hnb : ∀ xt, σ.kheap (nodeW st s c layout.node.CUR_THREAD).bv = some (.tcb xt) →
