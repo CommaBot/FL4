@@ -8,7 +8,9 @@ use fl4_arch_aarch64::{mmu, serial, smp};
 use fl4_core::layout::pptr;
 
 pub const MAX_CPUS: usize = 64;
-pub const MAX_GICR: usize = 8;
+/// Redistributor ranges: one per core when the MADT's GICC entries give
+/// them (and the kernel reserves every one of them, started or not).
+pub const MAX_GICR: usize = MAX_CPUS;
 pub const RSDP_LEN: usize = 36;
 
 pub struct Hw {
@@ -21,6 +23,9 @@ pub struct Hw {
     /// frame marked last).
     pub gicr: [(u64, u64); MAX_GICR],
     pub n_gicr: usize,
+    /// The tables gave more redistributor ranges than `gicr` holds: the
+    /// rest would be user space's device memory, so the boot fails.
+    pub gicr_lost: bool,
     /// Enabled cores' MPIDR affinities, the boot core first.
     pub cpus: [u64; MAX_CPUS],
     pub n_cpus: usize,
@@ -44,6 +49,7 @@ impl Hw {
             gicc: 0,
             gicr: [(0, 0); MAX_GICR],
             n_gicr: 0,
+            gicr_lost: false,
             cpus: [0; MAX_CPUS],
             n_cpus: 0,
             uart_kind: serial::KIND_NONE,
@@ -55,6 +61,19 @@ impl Hw {
             rsdp: [0; RSDP_LEN],
             has_rsdp: false,
         }
+    }
+
+    /// Note a redistributor range (not again if one starts there).
+    fn add_gicr(&mut self, base: u64, len: u64) {
+        if self.gicr[..self.n_gicr].iter().any(|x| x.0 == base) {
+            return;
+        }
+        if self.n_gicr == MAX_GICR {
+            self.gicr_lost = true;
+            return;
+        }
+        self.gicr[self.n_gicr] = (base, len);
+        self.n_gicr += 1;
     }
 
     /// Add a core; the boot core always ends up first.
@@ -115,14 +134,30 @@ fn table_len(t: u64) -> Option<u64> {
     (len >= 36 && mapped(t, len)).then_some(len)
 }
 
-fn acpi_tables(rsdp: u64, mut f: impl FnMut(&[u8; 4], u64, u64)) -> bool {
-    if !mapped(rsdp, RSDP_LEN as u64) || rd64(rsdp) != u64::from_le_bytes(*b"RSD PTR ") || !checksum(rsdp, 20) {
-        return false;
+/// The RSDP at `p`: its signature and ACPI 1.0 checksum (20 bytes) hold.
+/// Then whether it has ACPI 2.0 fields (fl4-kernel acpi.rs): revision 2 or
+/// later, a length that covers them and the extended checksum over it.
+fn rsdp(p: u64) -> Option<bool> {
+    if !mapped(p, 20) || rd64(p) != u64::from_le_bytes(*b"RSD PTR ") || !checksum(p, 20) {
+        return None;
     }
-    let (root, entry) = if rd8(rsdp + 15) >= 2 && rd64(rsdp + 24) != 0 { (rd64(rsdp + 24), 8) } else { (rd32(rsdp + 16) as u64, 4) };
+    if rd8(p + 15) < 2 || !mapped(p, RSDP_LEN as u64) {
+        return Some(false);
+    }
+    let len = rd32(p + 20) as u64;
+    Some((RSDP_LEN as u64..=4096).contains(&len) && mapped(p, len) && checksum(p, len))
+}
+
+fn acpi_tables(rsdp_p: u64, mut f: impl FnMut(&[u8; 4], u64, u64)) -> bool {
+    let Some(v2) = rsdp(rsdp_p) else { return false };
+    let (root, entry, sig) = if v2 && rd64(rsdp_p + 24) != 0 {
+        (rd64(rsdp_p + 24), 8, *b"XSDT")
+    } else {
+        (rd32(rsdp_p + 16) as u64, 4, *b"RSDT")
+    };
     let len = match table_len(root) {
-        Some(l) => l,
-        None => return false,
+        Some(l) if rd32(root).to_le_bytes() == sig => l,
+        _ => return false,
     };
     let mut off = 36;
     while off + entry <= len {
@@ -136,9 +171,9 @@ fn acpi_tables(rsdp: u64, mut f: impl FnMut(&[u8; 4], u64, u64)) -> bool {
     true
 }
 
-fn parse_acpi(rsdp: u64, hw: &mut Hw) -> bool {
+fn parse_acpi(rsdp_p: u64, hw: &mut Hw) -> bool {
     let mut madt = false;
-    let ok = acpi_tables(rsdp, |sig, t, len| match sig {
+    let ok = acpi_tables(rsdp_p, |sig, t, len| match sig {
         b"APIC" => {
             madt = true;
             let mut off = 44;
@@ -159,22 +194,18 @@ fn parse_acpi(rsdp: u64, hw: &mut Hw) -> bool {
                         if hw.gicc == 0 {
                             hw.gicc = rd64(e + 32);
                         }
+                        // A core's RD and SGI frames; GICv4 VLPI frames
+                        // after them are found at boot (`gic::redistributor_span`).
                         let r = rd64(e + 60);
-                        if r != 0 && hw.n_gicr < MAX_GICR && !hw.gicr[..hw.n_gicr].iter().any(|x| x.0 == r) {
-                            hw.gicr[hw.n_gicr] = (r, 0x2_0000);
-                            hw.n_gicr += 1;
+                        if r != 0 {
+                            hw.add_gicr(r, fl4_arch_aarch64::gic_layout::GICR_FRAME);
                         }
                     }
                     0x0c if l >= 21 => {
                         hw.gicd = rd64(e + 8);
                         hw.gic_version = rd8(e + 20) as u64;
                     }
-                    0x0e if l >= 16 => {
-                        if hw.n_gicr < MAX_GICR {
-                            hw.gicr[hw.n_gicr] = (rd64(e + 4), rd32(e + 12) as u64);
-                            hw.n_gicr += 1;
-                        }
-                    }
+                    0x0e if l >= 16 => hw.add_gicr(rd64(e + 4), rd32(e + 12) as u64),
                     _ => {}
                 }
                 off += l;
@@ -226,8 +257,10 @@ fn parse_acpi(rsdp: u64, hw: &mut Hw) -> bool {
     if hw.gic_version >= 3 {
         hw.gic_version = 3;
     }
-    for i in 0..RSDP_LEN {
-        hw.rsdp[i] = rd8(rsdp + i as u64);
+    // As much of the RSDP as its revision has (fl4-kernel acpi.rs).
+    let n = if rsdp(rsdp_p) == Some(true) { RSDP_LEN } else { 20 };
+    for i in 0..n {
+        hw.rsdp[i] = rd8(rsdp_p + i as u64);
     }
     hw.has_rsdp = true;
     hw.source = "ACPI";
@@ -418,12 +451,10 @@ fn parse_dt(dtb: u64, hw: &mut Hw) -> bool {
                 // Then the redistributor regions (#redistributor-regions);
                 // GICC, GICH and GICV may follow, which are not regions.
                 hw.n_gicr = 0;
+                hw.gicr_lost = false;
                 for &r in &n.reg[1..n.n_reg] {
                     if hw.n_gicr == 0 || r.1 >= 0x2_0000 {
-                        if hw.n_gicr < MAX_GICR {
-                            hw.gicr[hw.n_gicr] = r;
-                            hw.n_gicr += 1;
-                        }
+                        hw.add_gicr(r.0, r.1);
                     }
                 }
             }

@@ -80,6 +80,37 @@ pub fn rdmsr(msr: u32) -> u64 {
     ((hi as u64) << 32) | lo as u64
 }
 
+/// Where the kernel image is linked: its first byte is at this virtual
+/// address (fl4-kernel's linker script, fl4-efi's `KERNEL_OFFSET`).
+pub const KERNEL_OFFSET: u64 = 0xffff_ffff_8000_0000;
+
+/// How far above its linked physical address the loader put the image:
+/// 0 for Multiboot, fl4-efi's 2 MiB aligned allocation otherwise. Set once, by the boot core, first.
+static IMAGE_DELTA: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
+
+pub fn set_image_delta(delta: u64) {
+    IMAGE_DELTA.store(delta, core::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn image_delta() -> u64 {
+    IMAGE_DELTA.load(core::sync::atomic::Ordering::Relaxed)
+}
+
+/// The physical address of `v`, an address in the kernel image's mapping
+/// at `KERNEL_OFFSET`, for an image moved up by `delta`.
+pub const fn image_paddr_at(v: u64, delta: u64) -> u64 {
+    v.wrapping_sub(KERNEL_OFFSET).wrapping_add(delta)
+}
+
+/// The physical address of `v`, an address in the kernel image (its
+/// code, statics and stacks). Hardware that is given one (VMXON, VMCS,
+/// host-save and bitmap pages, paravirtual clock buffers, page tables)
+/// must get it from here: the image is not at `v - KERNEL_OFFSET` when
+/// a loader moved it.
+pub fn image_paddr(v: u64) -> u64 {
+    image_paddr_at(v, image_delta())
+}
+
 /// CR4.FSGSBASE is set: user code may change its FS and GS bases itself.
 static FSGSBASE: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
 
@@ -325,6 +356,12 @@ mod tests {
         assert_eq!(phys_addr_bits(0x8000_0008, 0x3020), 36);
         assert_eq!(phys_addr_bits(0x8000_0008, 0x00ff), 52);
         assert_eq!(phys_addr_bits(0x8000_0008, 0), 36);
+    }
+
+    #[test]
+    fn image_addresses_follow_the_loader_delta() {
+        assert_eq!(image_paddr_at(0xffff_ffff_8012_3000, 0), 0x12_3000);
+        assert_eq!(image_paddr_at(0xffff_ffff_8012_3000, 0x3fe0_0000), 0x3ff2_3000);
     }
 
     #[test]

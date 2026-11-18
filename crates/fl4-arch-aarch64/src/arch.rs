@@ -250,9 +250,11 @@ impl Arch for PhysArch {
     }
 
     fn cache_op(&mut self, op: u64, root: u64, asid: u64, vaddr: u64, len: u64, paddr: u64) {
-        // Discarding data cannot be repeated or undone: a transaction
-        // that later fails must not have done it.
-        if op == fl4_core::vspace::CACHE_INVALIDATE && in_tx() {
+        // Invalidation, and anything through the user mapping, only on
+        // the committed state (`cache_rule::needs_gate`).
+        if in_tx()
+            && crate::cache_rule::needs_gate(op == fl4_core::vspace::CACHE_INVALIDATE, crate::mmu::in_window(paddr, len))
+        {
             return serial_needed();
         }
         crate::mmu::cache_op(op, root, asid, vaddr, len, paddr)

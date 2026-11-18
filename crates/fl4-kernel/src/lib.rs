@@ -222,6 +222,11 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
         Some(b) => b,
         None => fail("no usable multiboot information"),
     };
+    // What a cut-short map left out could be RAM or firmware memory, which
+    // would become user space's device memory.
+    if mb.mmap_lost {
+        fail("more memory map entries than the kernel keeps");
+    }
 
     // CPU: paging features, our own page tables, descriptor tables, FPU.
     let (nx, smep, smap) = cpu_features();
@@ -323,6 +328,9 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     // mapping of it would set reserved bits in a paging, EPT or NPT entry.
     let device_top = bootmem::top(&[PADDR_USER_DEVICE_TOP, gpa_top]);
     let ram = bootmem::ram(mb.mmap[..mb.n_mmap].iter().map(|e| (e.base, e.len, e.ty)), HIGHMEM_PADDR, window_top);
+    if ram.lost {
+        fail("more RAM ranges than the kernel keeps");
+    }
 
     // The root task: the first module, loaded into RAM above everything
     // else (seL4 `load_boot_module`).
@@ -445,6 +453,10 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
         }
     });
     if omitted != 0 { kprintln!("FL4: {} device memory regions exceed the boot range limit", omitted); }
+    // A private boundary left out would hand private memory over as shared.
+    if firmware.lost || st.private_devices.lost {
+        fail("more firmware memory ranges than the kernel keeps");
+    }
     if private_mask != 0 {
         st.dma_ram = free;
         st.sev_memory = sev::Memory {

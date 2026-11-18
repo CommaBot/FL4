@@ -510,7 +510,9 @@ extern "efiapi" fn efi_main(image: Handle, system: *mut SystemTable) -> Status {
     };
     // A file from the boot volume: checked before anything is copied (a
     // segment with more file than memory bytes would overrun its pages).
-    let rl = match elf::check(root_file, 0, USER_END) {
+    // Its boot frames follow it in user space (the kernel checks them
+    // with the extra BootInfo's size).
+    let rl = match elf::check(root_file, 0, USER_END - fl4_bootinfo::ROOT_TAIL_MIN) {
         Some(l) => l,
         None => fail("no valid AArch64 root task (pass rootserver=\\path)"),
     };

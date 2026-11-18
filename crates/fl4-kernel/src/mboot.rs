@@ -3,10 +3,11 @@ use fl4_core::layout::pptr;
 
 pub const MB1_MAGIC: u32 = 0x2bad_b002;
 pub const MB2_MAGIC: u32 = 0x36d7_6289;
-/// Memory map entries kept. UEFI maps often have more than the 50 the
-/// BootInfo record holds (`lib.rs`, `BI_MMAP`); every entry counts for
-/// finding RAM.
-pub const MAX_MMAP: usize = 128;
+/// Memory map entries kept, adjacent ones of a type merged. UEFI maps
+/// often have more than the 50 the BootInfo record holds (`lib.rs`,
+/// `BI_MMAP`); every entry counts for finding RAM, so a map with more is
+/// refused (`BootInfo::mmap_lost`) rather than cut short.
+pub const MAX_MMAP: usize = 256;
 /// The root task's image and up to eight more modules (l4h 0021).
 pub const MAX_MODULES: usize = 9;
 const MODULE_NAME_LEN: usize = 64;
@@ -44,6 +45,10 @@ impl Module {
 pub struct BootInfo {
     pub mmap: [MemRegion; MAX_MMAP],
     pub n_mmap: usize,
+    /// The memory map had more entries than `mmap` holds. What it left out
+    /// could be RAM or firmware memory, which would become user space's
+    /// device memory: the kernel does not boot.
+    pub mmap_lost: bool,
     pub modules: [Module; MAX_MODULES],
     pub n_modules: usize,
     /// RSDP copied from Multiboot 2 tags, if any.
@@ -80,6 +85,25 @@ fn rd64(p: u64) -> u64 {
 }
 
 impl BootInfo {
+    /// Note a memory map entry: merged into the one before it if it has
+    /// the same type and starts where that ends.
+    fn add_mmap(&mut self, base: u64, len: u64, ty: u32) {
+        if let Some(last) = self.mmap[..self.n_mmap].last_mut() {
+            if last.ty == ty && last.base.checked_add(last.len) == Some(base) {
+                if let Some(l) = last.len.checked_add(len) {
+                    last.len = l;
+                    return;
+                }
+            }
+        }
+        if self.n_mmap == MAX_MMAP {
+            self.mmap_lost = true;
+            return;
+        }
+        self.mmap[self.n_mmap] = MemRegion { base, len, ty };
+        self.n_mmap += 1;
+    }
+
     /// Note a module. One that ends before it starts is ignored (l4h 0021:
     /// its 32-bit difference looks positive), as are any past the limit.
     fn add_module(&mut self, start: u64, end: u64, name_addr: u64, name_len: u64) {
@@ -145,7 +169,7 @@ pub fn has_option(b: &BootInfo, opt: &[u8]) -> bool {
 }
 
 pub fn parse(magic: u32, info: u64) -> Option<BootInfo> {
-    let mut b = BootInfo { mmap: [MemRegion::default(); MAX_MMAP], n_mmap: 0, modules: [Module::EMPTY; MAX_MODULES], n_modules: 0, rsdp: None, cmdline: 0, cmdline_len: 0, fb: None };
+    let mut b = BootInfo { mmap: [MemRegion::default(); MAX_MMAP], n_mmap: 0, mmap_lost: false, modules: [Module::EMPTY; MAX_MODULES], n_modules: 0, rsdp: None, cmdline: 0, cmdline_len: 0, fb: None };
     if magic == MB1_MAGIC {
         if !inside(info, MB1_INFO_LEN) {
             return None;
@@ -179,13 +203,12 @@ pub fn parse(magic: u32, info: u64) -> Option<BootInfo> {
         let mut p = addr;
         // An entry's size word does not count itself; the entry is at
         // least base, length and type (20 bytes).
-        while b.n_mmap < MAX_MMAP && p + 24 <= end {
+        while p + 24 <= end {
             let size = rd32(p) as u64;
             if size < 20 {
                 break;
             }
-            b.mmap[b.n_mmap] = MemRegion { base: rd64(p + 4), len: rd64(p + 12), ty: rd32(p + 20) };
-            b.n_mmap += 1;
+            b.add_mmap(rd64(p + 4), rd64(p + 12), rd32(p + 20));
             p += size + 4;
         }
         Some(b)
@@ -205,9 +228,8 @@ pub fn parse(magic: u32, info: u64) -> Option<BootInfo> {
             6 if size >= 16 => {
                 let esz = rd32(t + 8) as u64;
                 let mut e = t + 16;
-                while e + esz <= t + size && b.n_mmap < MAX_MMAP && esz >= 20 {
-                    b.mmap[b.n_mmap] = MemRegion { base: rd64(e), len: rd64(e + 8), ty: rd32(e + 16) };
-                    b.n_mmap += 1;
+                while e + esz <= t + size && esz >= 20 {
+                    b.add_mmap(rd64(e), rd64(e + 8), rd32(e + 16));
                     e += esz;
                 }
             }

@@ -259,12 +259,17 @@ struct Msr {
     value: u64,
 }
 
-fn physical(ptr: u64) -> u64 {
+/// The physical address of `ptr`, in the window over physical memory or
+/// in the kernel image, which the loader moved up by `delta`.
+fn physical_at(ptr: u64, delta: u64) -> u64 {
     if ptr >= layout::PPTR_TOP {
-        ptr.wrapping_sub(0xffff_ffff_8000_0000)
+        cpu::image_paddr_at(ptr, delta)
     } else {
         layout::paddr(ptr)
     }
+}
+fn physical(ptr: u64) -> u64 {
+    physical_at(ptr, cpu::image_delta())
 }
 fn local() -> &'static mut Core {
     unsafe { &mut (*CORES.0.get())[percpu::cpu_index()] }
@@ -1286,8 +1291,18 @@ mod tests {
     }
     #[test]
     fn physical_addresses_cover_both_kernel_mappings() {
-        assert_eq!(physical(layout::pptr(0x123000)), 0x123000);
-        assert_eq!(physical(0xffffffff80123000), 0x123000);
+        assert_eq!(physical_at(layout::pptr(0x123000), 0), 0x123000);
+        assert_eq!(physical_at(0xffffffff80123000, 0), 0x123000);
+    }
+    #[test]
+    fn physical_addresses_of_statics_follow_a_moved_image() {
+        // fl4-efi loads the image 2 MiB aligned wherever it found room:
+        // VMXON regions, VMCSs, host-save areas and bitmaps in the image
+        // are there, not at their offset from KERNEL_OFFSET (which is
+        // free RAM the root task gets).
+        let delta = 0x7e00_0000;
+        assert_eq!(physical_at(0xffffffff80123000, delta), 0x7e12_3000);
+        assert_eq!(physical_at(layout::pptr(0x123000), delta), 0x123000);
     }
     #[test]
     fn msr_bitmaps_grant_only_the_requested_register() {

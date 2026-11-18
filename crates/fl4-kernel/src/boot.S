@@ -168,7 +168,8 @@ boot_stack32_top:
     .section .bss
     .align 4096
     .global boot_stack_top
-boot_stack: .skip 65536
+    /* fl4_boot keeps its memory lists here (bootmem.rs, 272 ranges each). */
+boot_stack: .skip 131072
 boot_stack_top:
 
     /* Entry from the x86 EFI loader, already on private long-mode tables.

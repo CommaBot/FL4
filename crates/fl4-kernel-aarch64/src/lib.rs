@@ -4,6 +4,7 @@
 //! ACPI or the device tree at boot.
 #![no_std]
 
+mod bootmem;
 mod entry;
 mod hw;
 mod paging;
@@ -12,6 +13,7 @@ mod smp;
 use core::cell::UnsafeCell;
 use core::fmt::Write;
 use fl4_arch_aarch64::arch::PhysArch;
+use bootmem::Ranges;
 use fl4_arch_aarch64::{cpu, fpu, gic, percpu, serial, timer};
 use fl4_bootinfo::{mem, BootInfo, KERNEL_VBASE, MAGIC};
 use fl4_core::boot::{BootParams, Region, MAX_REGIONS, PADDR_USER_DEVICE_TOP};
@@ -70,78 +72,6 @@ static STATICS: Cell = Cell(UnsafeCell::new(Statics { ks: KsArea([0; ks::SIZE as
 pub fn fail(msg: &str) -> ! {
     kprintln!("FL4 boot failed: {}", msg);
     cpu::halt_forever()
-}
-
-/// A small sorted list of half-open physical ranges.
-#[derive(Clone, Copy)]
-struct Ranges {
-    r: [Region; 128],
-    n: usize,
-}
-
-impl Ranges {
-    const fn new() -> Ranges {
-        Ranges { r: [Region::EMPTY; 128], n: 0 }
-    }
-
-    fn add(&mut self, start: u64, end: u64) {
-        if start >= end || self.n == self.r.len() {
-            return;
-        }
-        let mut i = self.n;
-        while i > 0 && self.r[i - 1].start > start {
-            self.r[i] = self.r[i - 1];
-            i -= 1;
-        }
-        self.r[i] = Region { start, end };
-        self.n += 1;
-        let mut out = 0;
-        for j in 0..self.n {
-            let cur = self.r[j];
-            if out > 0 && cur.start <= self.r[out - 1].end {
-                if cur.end > self.r[out - 1].end {
-                    self.r[out - 1].end = cur.end;
-                }
-            } else {
-                self.r[out] = cur;
-                out += 1;
-            }
-        }
-        self.n = out;
-    }
-
-    fn remove(&mut self, start: u64, end: u64) {
-        let mut res = Ranges::new();
-        for j in 0..self.n {
-            let c = self.r[j];
-            if c.end <= start || c.start >= end {
-                res.add(c.start, c.end);
-            } else {
-                if c.start < start {
-                    res.add(c.start, start);
-                }
-                if c.end > end {
-                    res.add(end, c.end);
-                }
-            }
-        }
-        *self = res;
-    }
-
-    /// Take `len` bytes, page aligned, from the top of the highest range
-    /// that has them.
-    fn take(&mut self, len: u64) -> Option<u64> {
-        let len = (len + PAGE - 1) & !(PAGE - 1);
-        for j in (0..self.n).rev() {
-            let c = self.r[j];
-            if c.end - c.start >= len {
-                let start = c.end - len;
-                self.remove(start, c.end);
-                return Some(start);
-            }
-        }
-        None
-    }
 }
 
 fn put(buf: &mut [u8], off: &mut usize, b: &[u8]) {
@@ -213,9 +143,7 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
     let mut ram = Ranges::new();
     let mut usable = Ranges::new();
     for e in &bi.mmap[..(bi.n_mmap as usize).min(fl4_bootinfo::MAX_MMAP)] {
-        let start = (e.base + PAGE - 1) & !(PAGE - 1);
-        let end = (e.base + e.len) & !(PAGE - 1);
-        let end = end.min(PADDR_TOP).min(pa_top);
+        let Some((start, end)) = bootmem::entry_pages(e.base, e.len, PADDR_TOP.min(pa_top)) else { continue };
         if e.cacheable != 0 && (e.kind == mem::FREE || e.kind == mem::FIRMWARE) {
             ram.add(start, end);
         }
@@ -223,11 +151,16 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
             usable.add(start, end);
         }
     }
-    let mut window = [(0u64, 0u64); 128];
+    // RAM a full list left out would go to user space as device memory,
+    // or be handed out as free memory the window does not map.
+    if ram.lost || usable.lost {
+        fail("too many memory map ranges");
+    }
+    let mut window = [(0u64, 0u64); bootmem::MAX_RANGES];
     for i in 0..ram.n {
         window[i] = (ram.r[i].start, ram.r[i].end);
     }
-    let ttbr1 = paging::init(bi.region_paddr, bi.region_len, &window[..ram.n]);
+    let ttbr1 = paging::init(bi.region_paddr, bi.region_len, &window[..ram.n], pa_top);
     paging::activate(ttbr1);
     percpu::init(0);
     smp::init_core_regs();
@@ -237,8 +170,13 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
         Some(h) => h,
         None => cpu::halt_forever(),
     };
-    if h.uart_kind != serial::KIND_NONE {
-        let base = paging::map_device(h.uart_base, 0x1000);
+    // A UART the tables put where the kernel cannot map it as a device
+    // (past the physical address size, or in RAM) is no console.
+    let uart = match h.uart_kind {
+        serial::KIND_NONE => None,
+        _ => paging::map_device(h.uart_base, 0x1000),
+    };
+    if let Some(base) = uart {
         serial::init(h.uart_kind, base, h.uart_shift, h.uart_wide);
     }
     kprintln!("FL4: seL4 17.0 (MCS) API kernel, AArch64");
@@ -253,22 +191,36 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
     if h.gicd == 0 {
         fail("no GIC distributor");
     }
+    // A redistributor left out of the tables' count would go to user
+    // space as device memory.
+    if h.gicr_lost {
+        fail("more GIC redistributors than the kernel records");
+    }
 
     // Interrupt controller, timer, FP/SIMD.
-    let gicd = paging::map_device(h.gicd, 0x1_0000);
+    let device = |pa: u64, len: u64, what: &str| match paging::map_device(pa, len) {
+        Some(va) => va,
+        None => fail(what),
+    };
+    let gicd = device(h.gicd, 0x1_0000, "GIC distributor not mappable");
     let mut gicr_va = [(0u64, 0u64); hw::MAX_GICR];
     let mut dev_used = Ranges::new();
     dev_used.add(h.gicd, h.gicd + 0x1_0000);
-    if fl4_abi::config::PRINTING && h.uart_kind != serial::KIND_NONE {
+    if fl4_abi::config::PRINTING && uart.is_some() {
         dev_used.add(h.uart_base & !(PAGE - 1), (h.uart_base & !(PAGE - 1)) + PAGE);
     }
     let gicc = if h.gic_version == 3 {
         for i in 0..h.n_gicr {
             let (base, len) = h.gicr[i];
-            // An unsized range (MADT GICC entries): one frame per core.
-            let len = if len == 0 { 0x4_0000 * h.n_cpus as u64 } else { len };
-            gicr_va[i] = (paging::map_device(base, len), len);
-            dev_used.add(base, base + len);
+            // An unsized range: up to one GICv4 redistributor per core.
+            let len = if len == 0 { fl4_arch_aarch64::gic_layout::GICR_FRAME_VLPI * h.n_cpus as u64 } else { len };
+            let va = device(base, len, "GIC redistributors not mappable");
+            gicr_va[i] = (va, len);
+            // A MADT GICC entry sizes a core's RD and SGI frames only;
+            // GICv4 adds two VLPI frames, which are not user space's
+            // either (they hold tables the GIC writes to memory).
+            let span = gic::redistributor_span(va, len).max(len);
+            dev_used.add(base, base.saturating_add(span));
         }
         smp::set_gicr(&gicr_va[..h.n_gicr]);
         0
@@ -277,7 +229,7 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
             fail("no GICv2 CPU interface");
         }
         dev_used.add(h.gicc, h.gicc + 0x2000);
-        paging::map_device(h.gicc, 0x2000)
+        device(h.gicc, 0x2000, "GIC CPU interface not mappable")
     };
     gic::init_dist(h.gic_version, gicd, gicc);
     gic::init_cpu(smp::find_gicr());
@@ -350,6 +302,12 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
     free.remove(extra_pa, extra_pa + extra_size);
     let extra = unsafe { core::slice::from_raw_parts_mut(pptr(extra_pa) as *mut u8, extra_size as usize) };
     let extra_len = build_extra_bi(extra, &h, bi.dtb, dtb_len, bi, &mods[..extra_mods]);
+    // The boot frames go after the image in user space (fl4-core
+    // `root_layout`): all of them below its end.
+    let root_v_end = root.v_start.checked_add(root.p_end - root.p_start);
+    if !root_v_end.is_some_and(|end| fl4_bootinfo::root_tail_fits(end, extra_len as u64)) {
+        fail("root task image too close to the end of user space");
+    }
     if has_option(bi, b"fb_console") {
         kprintln!("FL4: fb_console is not supported on AArch64");
     }

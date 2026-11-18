@@ -7,11 +7,10 @@
 //! data not executable.
 use fl4_arch_x86_64::sev;
 use core::cell::UnsafeCell;
-use core::sync::atomic::{AtomicU64, Ordering};
-use fl4_arch_x86_64::cpu::{cpuid, write_cr3};
+use fl4_arch_x86_64::cpu::{self, cpuid, write_cr3};
 use fl4_core::layout::{PADDR_TOP, PPTR_BASE};
 
-pub const KERNEL_OFFSET: u64 = 0xffff_ffff_8000_0000;
+pub const KERNEL_OFFSET: u64 = cpu::KERNEL_OFFSET;
 /// With 2 MiB pages the window covers at most this much physical memory.
 pub const SMALL_WINDOW_GIB: usize = 16;
 
@@ -90,15 +89,16 @@ fn sym(s: &u8) -> u64 {
     s as *const u8 as u64
 }
 
-static IMAGE_DELTA: AtomicU64 = AtomicU64::new(0);
-
+/// The loader's move of the image (`fl4_arch_x86_64::cpu`, which the
+/// backend's VMX/SVM and paravirtual clock code reads too).
 pub fn set_image_delta(delta: u64) {
-    IMAGE_DELTA.store(delta, Ordering::Relaxed);
+    cpu::set_image_delta(delta);
 }
 
 /// Physical address of something in the kernel image.
 pub fn image_paddr(v: u64) -> u64 {
-    v - KERNEL_OFFSET + IMAGE_DELTA.load(Ordering::Relaxed)
+    debug_assert!(v >= KERNEL_OFFSET);
+    cpu::image_paddr(v)
 }
 
 pub fn text_bounds() -> (u64, u64) {
@@ -114,7 +114,7 @@ pub fn has_huge_pages() -> bool {
 fn map_image(pd: &mut Table, pts: &mut [Table; IMAGE_PTS], start: u64, end: u64, flags: u64) {
     let mut off = (start - KERNEL_OFFSET) & !0xfff;
     let end = (end - KERNEL_OFFSET + 0xfff) & !0xfff;
-    let delta = IMAGE_DELTA.load(Ordering::Relaxed);
+    let delta = cpu::image_delta();
     while off < end {
         let pd_i = (off >> 21) as usize;
         assert!(pd_i < IMAGE_PTS, "FL4: kernel image too large for its page tables");
