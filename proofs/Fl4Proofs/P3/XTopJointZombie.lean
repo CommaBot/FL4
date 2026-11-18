@@ -52,7 +52,7 @@ theorem JAtZ.obj_ready (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U6
   have hout : ∀ q' k', H q' = some k' → q' ≠ q → q'.val + 2 ^ k'.bits ≤ q.val ∨ q.val + 2 ^ k.bits ≤ q'.val :=
     fun q' k' hq' hne => J.kern.heap.disj q' k' q k hq' hHq hne
   have h1k : 1 ≤ 2 ^ k.bits := Nat.one_le_two_pow
-  refine ⟨fun lo hi hlh h1 h2 => ?_, fun z hz h1 h2 => ?_⟩
+  intro lo hi hlh h1 h2
   · right
     intro q' hq'
     by_cases e : q' = q
@@ -63,11 +63,6 @@ theorem JAtZ.obj_ready (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U6
         exfalso
         have : 1 ≤ 2 ^ k'.bits := Nat.one_le_two_pow
         rcases hout q' k' hk' e with h | h <;> omega
-  · exfalso
-    have hne : L.cscW s ≠ q := fun e => by
-      rw [e, hHq] at hz; exact hk z (Option.some.inj hz)
-    have : 1 ≤ 2 ^ (P1.HKind.sc z).bits := Nat.one_le_two_pow
-    rcases hout _ _ hz hne with h | h <;> omega
 
 /-- The range of a zombie over a CNode of radix `zt` (`zt + 5 < 64`). -/
 theorem range_zombieCn (p zt n : U64) (hne : zt ≠ capability.ZOMBIE_TCB) (hr : zt.val + 5 < 64)
