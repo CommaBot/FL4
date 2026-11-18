@@ -248,7 +248,7 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     J.deadP_sc_step hX' hwT hK hP hL hF hAI'.1 (fun h => h) (J.jcov.dead q hq)
   have hCR'' : CurRun σ' := curRun_sc_step hkc hcur he1 (NKT.of_eq (nkt_invokeSchedControlConfigureFlags _) he2)
   exact ⟨σ', Ac', Lst', D, J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
-    (J.sc_jpl hwT hK) (J.sc_jcov hwT hDead fun q hq hn => absurd hq hn) (J.sc_kern hwT hK hF hX' hDbg fun _ h => h)
+    (J.sc_jpl hwT hK) (J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2)) (J.sc_kern hwT hK hF hX' hDbg fun _ h => h)
     (J.sc_utc hwT hK hDbg) hN' hI' hC' (Or.inl (hC'.elim hOw' (curOwn_of_curInv hX'.fin.1.1.1 hI'))) hO' hAI' hB' (Or.inr (Or.inl hCR'')) hBlk'⟩
 
 
@@ -563,7 +563,7 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       (∀ k, H q = some k → Covered (L.mem s') Z.G q.val (q.val + 2 ^ k.bits)) := fun q hq hn =>
     hcovW q hq (by_contra fun h => hn ⟨hq, h⟩)
   exact ⟨σ2, Ac', Lst', _, J.sc_frame hW hKt hX' hCR' hRF' hY' hM' (J.sc_buf hW hKt) hRP' (J.sc_apart hW hKt)
-    (J.sc_jpl hW hKt) (J.sc_jcov hW hDead hCov) (J.sc_kern hW hKt hF hX' hDbg fun _ h => h.1)
+    (J.sc_jpl hW hKt) (J.sc_jcov hW hDead hCov (J.idleW_keep hX'.fin.1.1.1 hF.2)) (J.sc_kern hW hKt hF hX' hDbg fun _ h => h.1)
     (J.sc_utc hW hKt hDbg) hN' hI' hC' (Or.inl (hC'.elim hOw' (curOwn_of_curInv hX'.fin.1.1.1 hI'))) hO' hAI' hB' (Or.inr (Or.inl hCR'')) hBlk'⟩
 
 end

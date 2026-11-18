@@ -560,7 +560,7 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
             coverUt_mov hAd.isSlot hsd (capV_of_capAt hsc2) (capV_of_capAt hdc2) htr.2.2.1 htr.2.2.2 htr.2.1 hsh
               hAs.isSlot (fun _ _ _ _ hc _ _ hs => by
                 have hu : isUt srcC = true := by rw [hs]; rfl
-                rw [copied_ut hr2 hu, hs] at hc; cases hc; exact Or.inl le_rfl)⟩
+                rw [copied_ut hr2 hu, hs] at hc; cases hc; exact ⟨rfl, Or.inl le_rfl⟩)⟩
           rw [run_ofExcept]; simp [finishRes, hann]
 
 /-- **FL4's CNode Copy, Mint, Move and Mutate refine l4v's**: for labels

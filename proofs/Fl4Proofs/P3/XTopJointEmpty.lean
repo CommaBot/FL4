@@ -54,8 +54,9 @@ theorem Sched.JCovD.deleteG {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {D Cs 
     (hdead : ∀ q ∈ D, DeadP (L := L) H s q → DeadP (L := L) H s' q)
     (hks : ∀ x ∈ G'.chains.flatten, ∀ p sb fi d, capV (L.mem s') x = .Untyped p sb fi d →
       (p.val + 2 ^ sb.val ≤ (L.ksb s').val ∨ (L.ksb s').val + 13568 ≤ p.val) ∧
-      ∀ c ∈ Cs, p.val + 2 ^ sb.val ≤ L.nodeBase s' c ∨ L.nodeBase s' c + 4288 ≤ p.val) :
-    Sched.JCovD (L := L) th H G' (D ∪ Uncov th H (L.mem s') G') Cs s' := by
+      ∀ c ∈ Cs, p.val + 2 ^ sb.val ≤ L.nodeBase s' c ∨ L.nodeBase s' c + 4288 ≤ p.val)
+    (hidl : L.idleW s' = L.idleW s) (hio : IdleOut (L := L) th H G' s') :
+    Sched.JCovD (L := L) th H G' (D ∪ Uncov th H (L.mem s') G' (IdleAt (L := L) s')) Cs s' := by
   have cov : ∀ {lo hi : Nat}, lo < hi → Covered (L.mem s) G lo hi →
       Covered (L.mem s') G' lo hi ∨ (∀ q : U64, q.val = lo → DeadP (L := L) H s' q) := by
     intro lo hi hlh hc
@@ -64,18 +65,21 @@ theorem Sched.JCovD.deleteG {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {D Cs 
     · subst hyx; exact hx hp hu lo hi hlh hb ht
     · obtain ⟨hy', e⟩ := hk y hy hyx hp hu
       exact Or.inl ⟨y, hy', by rw [e]; exact hp, by rw [e]; exact hu, by rw [e]; exact hb, by rw [e]; exact ht⟩
-  refine h.step (fun q hq => ?_) hdead hks
+  refine h.step (fun q hq => ?_) hdead hks hio
+  obtain ⟨hni, hq⟩ := hq
   rcases hq with ⟨k, hq, hnc⟩ | ⟨k, hq, hnc⟩
-  · rcases h.th q k hq with hc | hd
+  · rcases h.th q k hq with hc | hd | hi
     · rcases cov (by omega) hc with hc' | hd'
       · exact absurd hc' hnc
       · exact hd' q rfl
     · exact hdead q hd (h.dead q hd)
-  · rcases h.h q k hq with hc | hd
+    · exact absurd ((idleAt_of hidl).2 hi) hni
+  · rcases h.h q k hq with hc | hd | hi
     · rcases cov (by have := Nat.one_le_two_pow (n := k.bits); omega) hc with hc' | hd'
       · exact absurd hc' hnc
       · exact hd' q rfl
     · exact hdead q hd (h.dead q hd)
+    · exact absurd ((idleAt_of hidl).2 hi) hni
 
 set_option maxHeartbeats 16000000 in
 /-- **Emptying a ready CNode slot keeps `JAtZ`, relationally**: from the
@@ -121,7 +125,7 @@ theorem JAtZ.emptyJCore {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     · left; rw [capAt_capV, capAt_capV, hoth2 _ h1 hne]
   have hUK : UtKept Z.th (L.mem s) (L.mem s2) := fun x hx p' sb fi d h => by
     have e : x ≠ cslotAddr sl := fun e => by rw [e, hnull2] at h; cases h
-    exact ⟨x, hx, fi, d, by rw [← hoth2 x hx e]; exact h, Or.inl le_rfl⟩
+    exact ⟨x, hx, fi, by rw [← hoth2 x hx e]; exact h, Or.inl le_rfl⟩
   -- the cover after
   have hmemA : ∀ y, IsSlot Z.th y → capV (L.mem s2) y ≠ .Null → y ∈ G2.chains.flatten := fun y hy hn =>
     (hM2.members y).2 ⟨hy, _, capAt_capV _ _, hn⟩
@@ -157,7 +161,9 @@ theorem JAtZ.emptyJCore {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     have hks : L.ksb s2 = L.ksb s := hw.1
     have hnb : ∀ c, L.nodeBase s2 c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
     exact ⟨by rw [hks]; exact k1, fun c hc => by rw [hnb]; exact k2 c hc⟩
-  have hjc := J.jcov.deleteG hk hx (fun q' _ hd => J.deadP_slot hX2 hcn2 hkc hw hd) hks2
+  have hidl : L.idleW s2 = L.idleW s := J.idleW_keep hX2.fin.1.1.1 (CnStep.of_cnK hcn2).idle
+  have hjc := J.jcov.deleteG hk hx (fun q' _ hd => J.deadP_slot hX2 hcn2 hkc hw hd) hks2 hidl
+    (J.jcov.idleOut.keep hidl (J.utFrom hM2 hUK))
   refine ⟨hw.1, KBack.of_keepCT hkc, fun hUt => ?_⟩
   have hutc := J.del_utc (G' := G2) (sl := sl) (fun y hy e => hoth2 y hy e) hnull2 hw hcdt horig hgp hM2 hUt
   obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 hkc hw hFI2 hMO hkz hTK hT3 hDl2 hUK hjc

@@ -142,6 +142,22 @@ theorem JAtZ.sc_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
   rw [hna, hDbg]; exact K.head
 
 
+/-- **The idle word kept**: both states relate the current core's
+`IDLE_THREAD` word to the spec's `idle_thread` (`SchedSpec.idleTh`), which
+the step keeps. -/
+theorem JAtZ.idleW_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+    (hS' : Sched.SchedRel st Z.N Z.T Z.C Z.c s' σ') (hid : σ'.idleThread = σ.idleThread) :
+    L.idleW s' = L.idleW s := by
+  obtain ⟨Q, R, hc, hs⟩ := J.xtop.fin.1.1.1.lists
+  obtain ⟨Q', R', hc', hs'⟩ := hS'.lists
+  unfold P1.LawfulStore.idleW
+  apply P1.eq_of_bv
+  have h1 := hs'.idleTh; have h2 := hs.idleTh
+  unfold nodeW at h1 h2
+  rw [hc'.cur, hc.cur, ← h1, ← h2, hid]
+
 /-- **`JCovD` after an SC step**, the dead set shrinking to `D'`: the dead
 of `D'` dead after (`hdead`), the others of `D` covered after (`hcov`). -/
 theorem JAtZ.sc_jcov {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
@@ -151,7 +167,8 @@ theorem JAtZ.sc_jcov {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     (hdead : ∀ q ∈ D', Sched.DeadP (L := L) H s' q)
     (hcov : ∀ q ∈ D, q ∉ D' →
       (∀ k, Z.th q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + max (objSize k) 1)) ∧
-      (∀ k, H q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + 2 ^ k.bits))) :
+      (∀ k, H q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + 2 ^ k.bits)))
+    (hidl : L.idleW s' = L.idleW s) :
     Sched.JCovD (L := L) Z.th H Z.G D' Cs s' := by
   have hks : L.ksb s' = L.ksb s := hw.1
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
@@ -162,17 +179,20 @@ theorem JAtZ.sc_jcov {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
       y ∈ Z.G.chains.flatten ∧ capV (L.mem s') y = capV (L.mem s) y :=
     fun y hy _ _ => ⟨hy, hSS.capV (hsl y hy)⟩
   have JC := J.jcov
-  refine ⟨fun q k hq => ?_, fun q k hq => ?_, hdead, fun x hx p sb fi d hc => ?_⟩
-  · rcases JC.th q k hq with hc | hd
+  refine ⟨fun q k hq => ?_, fun q k hq => ?_, hdead, fun x hx p sb fi d hc => ?_,
+    JC.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩⟩
+  · rcases JC.th q k hq with hc | hd | hi
     · exact Or.inl (Sched.covered_keep hc hk)
     · by_cases h : q ∈ D'
-      · exact Or.inr h
+      · exact Or.inr (Or.inl h)
       · exact Or.inl ((hcov q hd h).1 k hq)
-  · rcases JC.h q k hq with hc | hd
+    · exact Or.inr (Or.inr ((Sched.idleAt_of hidl).2 hi))
+  · rcases JC.h q k hq with hc | hd | hi
     · exact Or.inl (Sched.covered_keep hc hk)
     · by_cases h : q ∈ D'
-      · exact Or.inr h
+      · exact Or.inr (Or.inl h)
       · exact Or.inl ((hcov q hd h).2 k hq)
+    · exact Or.inr (Or.inr ((Sched.idleAt_of hidl).2 hi))
   · rw [hSS.capV (hsl x hx)] at hc
     have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
     obtain ⟨h1, h2⟩ := JC.ks x hx p sb fi d hc

@@ -239,7 +239,7 @@ theorem JAtZ.nfrStep (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} 
     (D' := D)
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
     ⟨hCR', hRF', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
-      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead, hkern,
+      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle), hkern,
       J.finW_utc hw hF.1 F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, I3, hcur3, F.own J.own, F.off J.off,
       hAI3, F.bsa J.bsa, F.isorted J.isorted, hrun3, hblk⟩
   have hC0 := JCs.same J hF.1 F.ksz
@@ -543,7 +543,7 @@ theorem JAtZ.dbgw_step (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hkern := J.kern_dbg hks hw.2.1 hS' hhead
   have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s' σ :=
     ⟨hCR', hRF', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
-      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hSS hdead, hkern,
+      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hSS hdead (J.idleW_keep hS' rfl), hkern,
       J.dbgw_utc hw hSS hhd, J.nsc, J.inv, J.cur, J.own, J.off, J.act, J.bsa, J.isorted, J.curRun, hblk⟩
   exact J.cs_frame (G' := Z.G) hks hX' F.kback (JCs.same J hSS F.ksz) R
 

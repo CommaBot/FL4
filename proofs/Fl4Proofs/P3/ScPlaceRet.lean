@@ -43,10 +43,27 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 variable {th th' : TypedHeap} {H H' : Heap} {G G' : MdbGhost} {D Cs : Set U64} {s s' : S} {m' : U64 → U64}
   {A k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap} {xs : U64}
 
+/-- **The source cap's region holds the window, the idle objects outside
+it** (`idleOut`, the source a RAM untyped). -/
+theorem src_idleOut (h : JCovD (L := L) th H G D Cs s) (hE : RetExp th th' (L.mem s) m' G G' A k w dslot cj xs)
+    (hdv : ∃ p0 sb0 fi0, capV (L.mem s) xs = .Untyped p0 sb0 fi0 false) :
+    ∃ p1 sb1 : U64, p1.val ≤ A ∧ A + w * k ≤ p1.val + 2 ^ sb1.val ∧ ∀ q, IdleAt (L := L) s q →
+      (q.val < p1.val ∨ p1.val + 2 ^ sb1.val ≤ q.val) ∧
+      (∀ kd, th q = some kd → q.val + max (objSize kd) 1 ≤ p1.val ∨ p1.val + 2 ^ sb1.val ≤ q.val) ∧
+      (∀ kd, H q = some kd → q.val + 2 ^ kd.bits ≤ p1.val ∨ p1.val + 2 ^ sb1.val ≤ q.val) := by
+  obtain ⟨hxs, p1, sb1, fi1, fi2, d1, hcs, -, hpA, -, hAs, -, -⟩ := hE.usrc
+  obtain ⟨p0, sb0, fi0, hc0⟩ := hdv
+  rw [hc0] at hcs
+  simp only [capability.Cap.Untyped.injEq] at hcs
+  obtain ⟨rfl, rfl, rfl, rfl⟩ := hcs
+  exact ⟨p0, sb0, hpA, hAs, h.idleOut xs hxs p0 sb0 fi0 hc0⟩
+
 /-- **The objects meeting the new objects' window are dead**: uncovered
-(`ut_free_fi`, `ut_free`), so in the dead set. -/
+(`ut_free_fi`, `ut_free`), so in the dead set; not idle, the source a RAM
+untyped (`src_idleOut`). -/
 theorem retype_window_dead (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem s) G) (hI : MdbInv (L.mem s) G)
-    (hE : RetExp th th' (L.mem s) m' G G' A k w dslot cj xs) :
+    (hE : RetExp th th' (L.mem s) m' G G' A k w dslot cj xs)
+    (hdv : ∃ p0 sb0 fi0, capV (L.mem s) xs = .Untyped p0 sb0 fi0 false) :
     (∀ q kd, H q = some kd → MeetsW A k w q.val (q.val + 2 ^ kd.bits) → q ∈ D ∧ DeadP (L := L) H s q) ∧
     (∀ q kd, th q = some kd → MeetsW A k w q.val (q.val + max (objSize kd) 1) → q ∈ D ∧ DeadP (L := L) H s q) := by
   obtain ⟨x0, hx0, p0, sb0, fi0, d0, hc0, h1, h2, h3⟩ := hE.src
@@ -56,13 +73,32 @@ theorem retype_window_dead (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem
     rcases h3 with h3 | h3
     · rcases ut_free_fi hU hx0 hc0 hlh hc with e | e <;> omega
     · rcases ut_free hU hI hx0 hc0 h3 hlh hc with e | e <;> omega
+  obtain ⟨p1, sb1, hpA, hAs, io⟩ := src_idleOut h hE hdv
   refine ⟨fun q kd hq hm => ?_, fun q kd hq hm => ?_⟩
-  · rcases h.h q kd hq with hc | hd
+  · rcases h.h q kd hq with hc | hd | hi
     · exact absurd hc (miss (by have := Nat.one_le_two_pow (n := kd.bits); omega) hm)
     · exact ⟨hd, h.dead q hd⟩
-  · rcases h.th q kd hq with hc | hd
+    · have := (io q hi).2.2 kd hq
+      unfold MeetsW at hm; omega
+  · rcases h.th q kd hq with hc | hd | hi
     · exact absurd hc (miss (by omega) hm)
     · exact ⟨hd, h.dead q hd⟩
+    · have := (io q hi).2.1 kd hq
+      unfold MeetsW at hm; omega
+
+/-- **No new object at an idle address**: the window lies in an untyped
+region, the idle objects outside (`idleOut`). -/
+theorem newQ_not_idle (h : JCovD (L := L) th H G D Cs s)
+    (hE : RetExp th th' (L.mem s) m' G G' A k w dslot cj xs)
+    (hdv : ∃ p0 sb0 fi0, capV (L.mem s) xs = .Untyped p0 sb0 fi0 false) {q : U64} (hn : NewQ A k w cj q)
+    (hi : IdleAt (L := L) s q) : False := by
+  obtain ⟨p1, sb1, h1, h2, io⟩ := src_idleOut h hE hdv
+  obtain ⟨j, hj, hv, -⟩ := hn
+  have := (io q hi).1
+  have h3 : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right _ hj
+  rw [Nat.add_mul, Nat.one_mul] at h3
+  have := hE.k1
+  omega
 
 /-- A new object's range is covered by its new cap. -/
 theorem _root_.Fl4Proofs.P3.RetExp.cov_new {m m' : U64 → U64} (hE : RetExp th th' m m' G G' A k w dslot cj xs) {q : U64}
@@ -80,22 +116,26 @@ theorem JCovD.retype (h : JCovD (L := L) th H G D Cs s)
     (hE : RetExp th th' (L.mem s) (L.mem s') G G' A k w dslot cj xs)
     (hH' : ∀ q kd, H' q = some kd → (H q = some kd ∧ ¬ NewQ A k w cj q) ∨ (NewQ A k w cj q ∧ 2 ^ kd.bits ≤ k))
     (hdead : ∀ q ∈ D, ¬ NewQ A k w cj q → H' q = H q → DeadP (L := L) H s q → DeadP (L := L) H' s' q)
-    (hksb : L.ksb s' = L.ksb s) :
+    (hksb : L.ksb s' = L.ksb s) (hidl : L.idleW s' = L.idleW s)
+    (hdv : ∃ p0 sb0 fi0, capV (L.mem s) xs = .Untyped p0 sb0 fi0 false) :
     JCovD (L := L) th' H' G' {q | q ∈ D ∧ ¬ NewQ A k w cj q} Cs s' := by
   have hkeep : ∀ y ∈ G.chains.flatten, physF (capV (L.mem s) y) = true → isUt (capV (L.mem s) y) = false →
       y ∈ G'.chains.flatten ∧ capV (L.mem s') y = capV (L.mem s) y := fun y hy _ hu => hE.keep y hy hu
-  refine ⟨fun q kd hq => ?_, fun q kd hq => ?_, fun q ⟨hd, hn⟩ => ?_, fun x hx p sb fi d hcx => ?_⟩
+  refine ⟨fun q kd hq => ?_, fun q kd hq => ?_, fun q ⟨hd, hn⟩ => ?_, fun x hx p sb fi d hcx => ?_,
+    fun x hx p sb fi hcx q hi => ?_⟩
   · rcases hE.th q kd hq with ⟨ho, h0⟩ | ⟨hn, hsz⟩
-    · rcases h.th q kd ho with hc | hd
+    · rcases h.th q kd ho with hc | hd | hi
       · exact Or.inl (covered_keep hc hkeep)
       · by_cases hn : NewQ A k w cj q
         · exact Or.inl (hE.cov_new hn (by rw [h0 hn]; have := hE.k1; omega))
-        · exact Or.inr ⟨hd, hn⟩
+        · exact Or.inr (Or.inl ⟨hd, hn⟩)
+      · exact Or.inr (Or.inr ((idleAt_of hidl).2 hi))
     · exact Or.inl (hE.cov_new hn (by have := hE.k1; omega))
   · rcases hH' q kd hq with ⟨ho, hn⟩ | ⟨hn, hsz⟩
-    · rcases h.h q kd ho with hc | hd
+    · rcases h.h q kd ho with hc | hd | hi
       · exact Or.inl (covered_keep hc hkeep)
-      · exact Or.inr ⟨hd, hn⟩
+      · exact Or.inr (Or.inl ⟨hd, hn⟩)
+      · exact Or.inr (Or.inr ((idleAt_of hidl).2 hi))
     · exact Or.inl (hE.cov_new hn hsz)
   · cases hq : H' q with
     | none =>
@@ -109,6 +149,52 @@ theorem JCovD.retype (h : JCovD (L := L) th H G D Cs s)
     have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp [LawfulStore.nodeBase, hksb]
     refine ⟨by rw [hksb]; omega, fun c hc => ?_⟩
     rw [hnb]; have := k2 c hc; omega
+  · -- the idle objects: outside the old region holding the new one, and no new object
+    have hi0 := (idleAt_of hidl).1 hi
+    -- a RAM untyped region after lies in one before, of a RAM cap (a new cap's in the source's)
+    obtain ⟨p0, sb0, h1, h2, o1, o2, o3⟩ : ∃ p0 sb0 : U64, p0.val ≤ p.val ∧ p.val + 2 ^ sb.val ≤ p0.val + 2 ^ sb0.val ∧
+        (q.val < p0.val ∨ p0.val + 2 ^ sb0.val ≤ q.val) ∧
+        (∀ kd, th q = some kd → q.val + max (objSize kd) 1 ≤ p0.val ∨ p0.val + 2 ^ sb0.val ≤ q.val) ∧
+        (∀ kd, H q = some kd → q.val + 2 ^ kd.bits ≤ p0.val ∨ p0.val + 2 ^ sb0.val ≤ q.val) := by
+      by_cases hnew : ∃ j, j < w ∧ x = dslot j
+      · obtain ⟨j, hj, rfl⟩ := hnew
+        obtain ⟨p1, sb1, hpA, hAs, io⟩ := src_idleOut h hE hdv
+        have hc := hE.newc j hj
+        rw [hcx] at hc
+        have hb := hE.cbase j hj
+        have ht := hE.ctop j hj
+        rw [← hc] at hb ht
+        have := hE.k1
+        obtain ⟨b1, t1, -⟩ := ut_range (capV_ut_sb hcx) (by rw [hb, ht]; omega)
+        have h3 : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right _ hj
+        rw [Nat.add_mul, Nat.one_mul] at h3
+        have h4 := Nat.one_le_two_pow (n := sb.val)
+        exact ⟨p1, sb1, by omega, by omega, io q hi0⟩
+      · have hxG : x ∈ G.chains.flatten := by
+          rcases hE.gmem x hx with h' | ⟨j, hj, e⟩
+          · exact h'
+          · exact absurd ⟨j, hj, e⟩ hnew
+        obtain ⟨hxs, p1, sb1, fi1, fi2, d1, hcs, hcs', -, -, -, -, hoth⟩ := hE.usrc
+        cases hu : isUt (capV (L.mem s) x)
+        · have := (hE.keep x hxG hu).2
+          rw [hcx] at this
+          rw [← this] at hu; cases hu
+        · by_cases ex : x = xs
+          · rw [ex, hcs'] at hcx
+            simp only [capability.Cap.Untyped.injEq] at hcx
+            obtain ⟨e1, e2, -, e4⟩ := hcx
+            rw [e1, e2, e4] at hcs
+            exact ⟨p, sb, le_rfl, le_rfl, h.idleOut xs hxs p sb fi1 hcs q hi0⟩
+          · have e := hoth x hxG hu ex
+            rw [hcx] at e
+            exact ⟨p, sb, le_rfl, le_rfl, h.idleOut x hxG p sb fi e.symm q hi0⟩
+    refine ⟨by omega, fun kd hq => ?_, fun kd hq => ?_⟩
+    · rcases hE.th q kd hq with ⟨ho, -⟩ | ⟨hn, -⟩
+      · have := o2 kd ho; omega
+      · exact (newQ_not_idle h hE hdv hn hi0).elim
+    · rcases hH' q kd hq with ⟨ho, -⟩ | ⟨hn, -⟩
+      · have := o3 kd ho; omega
+      · exact (newQ_not_idle h hE hdv hn hi0).elim
 
 end
 
@@ -138,13 +224,14 @@ theorem JCovD.retype_p1 (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem s)
     (hE : RetExp th th' (L.mem s) (L.mem s') G G' A k w dslot cj xs) (hksb : L.ksb s' = L.ksb s)
     (hb : BlkOK st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
       (Heap.scBits H) Ac s)
-    (hP1 : RetypeP1Hyp st s s' H Cs Ac A k w (NewQ A k w cj)) :
+    (hP1 : RetypeP1Hyp st s s' H Cs Ac A k w (NewQ A k w cj)) (hidl : L.idleW s' = L.idleW s)
+    (hdv : ∃ p0 sb0 fi0, capV (L.mem s) xs = .Untyped p0 sb0 fi0 false) :
     ∃ (H' : Heap) (Ac' : Set U64),
       BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H') (Heap.ntfns H')
         (Heap.scBits H') Ac' s' ∧
       JCovD (L := L) th' H' G' {q | q ∈ D ∧ ¬ NewQ A k w cj q} Cs s' := by
-  obtain ⟨H', Ac', hb', -, hshape, hdead⟩ := hP1 hb fun q kd hq hm => ((retype_window_dead h hU hI hE).1 q kd hq hm).2
-  refine ⟨H', Ac', hb', h.retype hE (fun q kd hq => ?_) (fun q _ _ e hd => hdead q e hd) hksb⟩
+  obtain ⟨H', Ac', hb', -, hshape, hdead⟩ := hP1 hb fun q kd hq hm => ((retype_window_dead h hU hI hE hdv).1 q kd hq hm).2
+  refine ⟨H', Ac', hb', h.retype hE (fun q kd hq => ?_) (fun q _ _ e hd => hdead q e hd) hksb hidl hdv⟩
   rcases hshape q kd hq with ⟨ho, hm⟩ | hn
   · refine Or.inl ⟨ho, fun hn => hm ?_⟩
     obtain ⟨j, hj, hv, -⟩ := hn
@@ -171,20 +258,22 @@ theorem DeadP_iff {q : U64} : DeadP (L := L) H s q ↔ DeadQ st H s q := Iff.rfl
 /-- **The objects meeting a region of an untyped cap's free part, or of a
 childless untyped cap, are dead** (uncovered, so in the dead set). -/
 theorem region_dead (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem s) G) (hI : MdbInv (L.mem s) G)
-    {lo hi : Nat} {x0 : U64} (hx0 : x0 ∈ G.chains.flatten) {p0 sb0 fi0 : U64} {d0 : Bool}
-    (hc0 : capV (L.mem s) x0 = .Untyped p0 sb0 fi0 d0)
+    {lo hi : Nat} {x0 : U64} (hx0 : x0 ∈ G.chains.flatten) {p0 sb0 fi0 : U64}
+    (hc0 : capV (L.mem s) x0 = .Untyped p0 sb0 fi0 false)
     (hreg : (p0.val + fi0.val ≤ lo ∧ hi ≤ p0.val + 2 ^ sb0.val) ∨
       ((∀ y, ¬ Mdb.Desc G.par y x0) ∧ p0.val ≤ lo ∧ hi ≤ p0.val + 2 ^ sb0.val)) :
     ∀ q kd, H q = some kd → MeetsR lo hi q.val (q.val + 2 ^ kd.bits) → q ∈ D ∧ DeadP (L := L) H s q := by
   intro q kd hq hm
   unfold MeetsR at hm
-  rcases h.h q kd hq with hc | hd
+  rcases h.h q kd hq with hc | hd | hi
   · exfalso
     have hlh : q.val < q.val + 2 ^ kd.bits := by have := Nat.one_le_two_pow (n := kd.bits); omega
     rcases hreg with ⟨h1, h2⟩ | ⟨hnd, h1, h2⟩
     · rcases ut_free_fi hU hx0 hc0 hlh hc with e | e <;> omega
     · rcases ut_free hU hI hx0 hc0 hnd hlh hc with e | e <;> omega
   · exact ⟨hd, h.dead q hd⟩
+  · have := (h.idleOut x0 hx0 p0 sb0 fi0 hc0 q hi).2.2 kd hq
+    rcases hreg with ⟨h1, h2⟩ | ⟨-, h1, h2⟩ <;> omega
 
 /-- **`JCovD` and `BlkOK` across retype from P1's `RetypeP1Step`** (the
 region `[lo, hi)` of an untyped cap's free part or of a childless one,
@@ -205,14 +294,15 @@ theorem JCovD.retype_step (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem 
     (hb : BlkOK st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
       (Heap.scBits H) Ac s)
     (hdrop : DropOK st H (RegionD H lo hi) Cs s) (hnode : RegionOffNodes st Cs s lo hi)
-    (hdbg : DbgLinksOK st H Cs s' lo hi A k w n) (hwp : WinPlaced A k w n us) (h0Cs : 0#u64 ∈ Cs) :
+    (hdbg : DbgLinksOK st H Cs s' lo hi A k w n) (hwp : WinPlaced A k w n us) (h0Cs : 0#u64 ∈ Cs)
+    (hidl : L.idleW s' = L.idleW s) (hdv : ∃ p0 sb0 fi0, capV (L.mem s) xs = .Untyped p0 sb0 fi0 false) :
     ∃ (H' : Heap) (Ac' : Set U64),
       BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H') (Heap.ntfns H')
         (Heap.scBits H') Ac' s' ∧
       JCovD (L := L) th' H' G' {q | q ∈ D ∧ ¬ NewQ A k w cj q} Cs s' := by
   obtain ⟨H', Ac', hb', -, hshape, -, hdead⟩ :=
     (P1.retypeP1Step : RetypeP1Step st s s' H Cs Ac lo hi A k w n us) hb hlo hhi hbits hdrop hnode hw hwin hdbg hwp h0Cs
-  refine ⟨H', Ac', hb', h.retype hE (fun q kd hq => ?_) (fun q _ _ e hd => hdead q e hd) hksb⟩
+  refine ⟨H', Ac', hb', h.retype hE (fun q kd hq => ?_) (fun q _ _ e hd => hdead q e hd) hksb hidl hdv⟩
   rcases hshape q kd hq with ⟨ho, hm⟩ | ⟨⟨j, hj, hv⟩, hk⟩
   · refine Or.inl ⟨ho, fun ⟨j, hj, hv, _⟩ => hm ?_⟩
     unfold MeetsR

@@ -125,6 +125,7 @@ import Fl4Proofs.P3.ScSchTailP1
 import Fl4Proofs.P3.ScSchedLK
 import Fl4Proofs.P3.ScDeadSch
 import Fl4Proofs.P3.ScSchedRun
+import Fl4Proofs.P3.ScSchedIdle
 import Fl4Proofs.P3.ScSchedOff
 import Fl4Proofs.P3.ScSchedBsa
 import Fl4Proofs.P3.CnodeCopy
@@ -435,3 +436,4 @@ import Fl4Proofs.P3.XTopJointRemove
 import Fl4Proofs.P3.XTopJointDelR
 import Fl4Proofs.P3.XTopJointData
 import Fl4Proofs.P3.XTopJointTcb
+import Fl4Proofs.P3.IdleCovered

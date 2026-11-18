@@ -425,7 +425,7 @@ cap with no children, its whole region): uncovered (`ut_free_fi`,
 `ut_free`), so in `JCovD`'s dead set. -/
 theorem region_deadP {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set U64} {s : S}
     (hJ : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem s) G) (hI : MdbInv (L.mem s) G)
-    {x : U64} (hx : x ∈ G.chains.flatten) {p sb fi : U64} {d : Bool} (hcx : capV (L.mem s) x = .Untyped p sb fi d)
+    {x : U64} (hx : x ∈ G.chains.flatten) {p sb fi : U64} (hcx : capV (L.mem s) x = .Untyped p sb fi false)
     {lo hi : Nat} (hlo : p.val + fi.val ≤ lo ∨ ((∀ y, ¬ Mdb.Desc G.par y x) ∧ p.val ≤ lo))
     (hhi : hi ≤ p.val + 2 ^ sb.val) :
     ∀ q k, H q = some k → RegionD H lo hi q → q ∈ D ∧ DeadP (L := L) H s q := by
@@ -434,13 +434,15 @@ theorem region_deadP {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set U64}
   rw [hq] at hm
   simp only [Option.elim] at hm
   unfold MeetsR at hm
-  rcases hJ.h q k hq with hc | hd
+  rcases hJ.h q k hq with hc | hd | hi
   · exfalso
     have h1 := Nat.one_le_two_pow (n := k.bits)
     rcases hlo with hlo | ⟨hnd, hlo⟩
     · rcases ut_free_fi hU hx hcx (by omega) hc with e | e <;> omega
     · rcases ut_free hU hI hx hcx hnd (by omega) hc with e | e <;> omega
   · exact ⟨hd, hJ.dead q hd⟩
+  · have := (hJ.idleOut x hx p sb fi hcx q hi).2.2 k hq
+    rcases hlo with hlo | ⟨-, hlo⟩ <;> omega
 
 /-- A field word of an object: inside it and aligned. -/
 theorem field_in {q K : U64} {b : Nat} (hal : q.val % 2 ^ b = 0) (hfit : q.val + 2 ^ b ≤ 2 ^ 64) (hb : 3 ≤ b)
@@ -609,6 +611,7 @@ theorem resetOK_of {A' : Type} {arI : machine.Arch A'} {H : Heap} {Cs : Set U64}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} {slot : obj.Slot} {p sb fi : U64} {dev : Bool}
     {th : TypedHeap} {G : MdbGhost} {D : Set U64} {σ : Fl4Spec.State Unit} {pp : U64} {rs : Nat} {idx : List Bool}
     (J : UtJoint (L := L) arI H Cs s0 slot (.Untyped p sb fi dev) extra th G D σ pp rs idx)
+    (hdv : dev = false)
     (hfr : Frame2 (L := L) s0 s (stA (L.curW s0)) (L.nodeAt s0 (L.cpu s0) layout.node.SCHED_ACTION))
     (hks : L.ksb s = L.ksb s0) (hcpu : L.cpu s = L.cpu s0)
     (hcw : L.curW s = L.curW s0) (hcs : L.cscW s = L.cscW s0) (hact : ∀ y ∈ H.tcbs, L.actionW s ≠ y)
@@ -626,7 +629,7 @@ theorem resetOK_of {A' : Type} {arI : machine.Arch A'} {H : Heap} {Cs : Set U64}
     intro y
     refine Mdb.not_desc_of_no_child fun z hz => hnc ?_
     exact (J.cdt.has_child_iff J.placed hAs).2 ⟨z, by rw [← J.slotEq]; exact hz⟩
-  have RD := region_deadP J.jcov J.ut J.mdb hx hcx (lo := p.val) (hi := p.val + 2 ^ sb.val) (Or.inr ⟨hnd, le_rfl⟩) le_rfl
+  have RD := region_deadP J.jcov J.ut J.mdb hx (by rw [← hdv]; exact hcx) (lo := p.val) (hi := p.val + 2 ^ sb.val) (Or.inr ⟨hnd, le_rfl⟩) le_rfl
   obtain ⟨hk1, hk2⟩ := J.jcov.ks slot hx p sb fi dev hcx
   refine ⟨hcapS, U.pal, U.pfit, dead_dropOK J RD hfr hks hcpu hcw hcs hact hrun (hKR fun q k hq hr => (RD q k hq hr).1)
     (hDT fun q k hq hr => (RD q k hq hr).1), ⟨fun c hc => ?_, ?_⟩,
@@ -861,7 +864,7 @@ theorem createOK_noreset {A' : Type} {arI : machine.Arch A'} {H : Heap} {Cs : Se
   have hnb : ∀ c, L.nodeBase s c = L.nodeBase s0 c := fun c => by simp [LawfulStore.nodeBase, hks]
   have RD : ∀ q kd, H q = some kd → RegionD H A (A + w * k) q → q ∈ D ∧ DeadP (L := L) H s0 q := by
     intro q kd hq hr
-    refine (retype_window_dead J.jcov J.ut J.mdb hE).1 q kd hq ?_
+    refine (retype_window_dead J.jcov J.ut J.mdb hE ⟨p, sb, fi, by rw [← hdv]; exact hcx⟩).1 q kd hq ?_
     unfold RegionD at hr; rw [hq] at hr; simp only [Option.elim] at hr
     unfold MeetsR at hr; unfold MeetsW; omega
   have hRON : RegionOffNodes st Cs s A (A + w * k) := by
@@ -1214,7 +1217,7 @@ theorem utRetypeP3_gen [P1.PlainStore st] {A' : Type} (arI : machine.Arch A') (h
   have hnc : reset = true → ¬ ∃ x, σ.cdt x = some (pp.bv, idx) := fun h => by
     have := hctx.resetEq; rw [h] at this; simpa using this.symm
   have hROK : reset = true → ResetOK st H Cs s slot ptr sb fi dev := fun h =>
-    resetOK_of J hfr hks hcpu hcw hcs hact hrun hcapS' (hnc h) (fun hd => (hRUJ _ _ hd).1)
+    resetOK_of J (hND _ _ _ _ _ _ _ hP3') hfr hks hcpu hcw hcs hact hrun hcapS' (hnc h) (fun hd => (hRUJ _ _ hd).1)
       (fun hd => (hRUJ _ _ hd).2)
   refine ⟨hROK, ?_⟩
   rw [hv, WP.spec_ok]

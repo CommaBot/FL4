@@ -276,7 +276,7 @@ theorem JAtZ.setInactiveJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
   rw [esp] at hblk' hfoot
   have hDbg := J.kw_dbg (hfoot.mono (Set.empty_subset _))
   exact ⟨Z.vs, Ac \ {p}, Lst', D, J.sc_frame hW6 hK6 hX' hCR' hRF' hY' hM' (J.sc_buf hW6 hK6) hRP'
-    (J.sc_apart hW6 hK6) (J.sc_jpl hW6 hK6) (J.sc_jcov hW6 hDead fun q hq hn => absurd hq hn)
+    (J.sc_apart hW6 hK6) (J.sc_jpl hW6 hK6) (J.sc_jcov hW6 hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2))
     (J.sc_kern hW6 hK6 hF hX' hDbg fun _ h => h) (J.sc_utc hW6 hK6 hDbg) J.nsc.updSc hI'
     (J.cur.imp id (hO.curInv J.inv)) (hO.own J.inv J.own) (hO.off hpi J.off) hact' (hO.bsa J.bsa) (hO.curRun J.curRun) hblk'⟩
 

@@ -89,22 +89,66 @@ theorem ut_free {mem : U64 → U64} {G : MdbGhost} (hU : UtInv mem G) (hI : MdbI
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
-/-- **Every object is covered by a cap**, and the untyped caps miss the
+/-- **The current core's idle objects**: its idle thread (`L.idleW`, the
+node's `IDLE_THREAD` word) and the idle SC (the spec's `idle_sc_ptr`, the
+node's `IDLE_SC` word by `SchedSpec.idleSc`). FL4's boot
+(`create_idle_threads`) gives them no cap, so `JCov` exempts them from its
+cover (l4v: the idle thread is a global reference, not named by a cap,
+`valid_global_refs`). Only the current core's: `H`'s TCBs are `Z.T`'s, all
+of affinity `Z.c` (`SchedCore.aff`), and the spec's idle SC is the one at
+`idle_sc_ptr`. -/
+def IdleAt (s : S) (q : U64) : Prop := q = L.idleW s ∨ q.bv = Fl4Spec.idleScPtr
+
+/-- **The idle objects lie outside every RAM untyped region** (l4v
+`valid_global_refs` for untyped caps: no cap's range holds a global
+object): the idle address is outside each non-device untyped cap's region,
+and so are the typed-heap and `H` objects at it. Not asked of device
+untypeds: since losfair/FL4#34 a device untyped's pointer
+`paddr + PPTR_BASE` may lie in the kernel image, where the idle objects
+are. -/
+def IdleOut (th : TypedHeap) (H : Heap) (G : MdbGhost) (s : S) : Prop :=
+  ∀ x ∈ G.chains.flatten, ∀ p sb fi, capV (L.mem s) x = .Untyped p sb fi false → ∀ q, IdleAt (L := L) s q →
+    (q.val < p.val ∨ p.val + 2 ^ sb.val ≤ q.val) ∧
+    (∀ k, th q = some k → q.val + max (objSize k) 1 ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q.val) ∧
+    (∀ k, H q = some k → q.val + 2 ^ k.bits ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q.val)
+
+theorem idleAt_of {s s' : S} (hidl : L.idleW s' = L.idleW s) {q : U64} :
+    IdleAt (L := L) s' q ↔ IdleAt (L := L) s q := by
+  unfold IdleAt; rw [hidl]
+
+/-- The untyped caps after a step are old ones with the same region and
+device flag. -/
+def UtFrom (G G' : MdbGhost) (m m' : U64 → U64) : Prop :=
+  ∀ x ∈ G'.chains.flatten, ∀ p sb fi d, capV m' x = .Untyped p sb fi d →
+    ∃ y ∈ G.chains.flatten, ∃ fi', capV m y = .Untyped p sb fi' d
+
+/-- **`IdleOut` across a step** keeping the idle word, the heaps, and the
+untyped regions (each after an old one). -/
+theorem IdleOut.keep {th : TypedHeap} {H : Heap} {G G' : MdbGhost} {s s' : S}
+    (h : IdleOut (L := L) th H G s) (hidl : L.idleW s' = L.idleW s) (hut : UtFrom G G' (L.mem s) (L.mem s')) :
+    IdleOut (L := L) th H G' s' := by
+  intro x hx p sb fi hc q hq
+  obtain ⟨y, hy, fi', hc'⟩ := hut x hx p sb fi false hc
+  exact h y hy p sb fi' hc' q ((idleAt_of hidl).1 hq)
+
+/-- **Every object is covered by a cap, or is an idle object** (`IdleAt`),
+the idle objects outside the untyped regions, and the untyped caps miss the
 kernel-state block and the core nodes (module docstring). -/
-structure JCov (th : TypedHeap) (H : Heap) (G : MdbGhost) (Cs : Set U64) (s : S) : Prop where
-  th : ∀ q k, th q = some k → Covered (L.mem s) G q.val (q.val + max (objSize k) 1)
-  h : ∀ q k, H q = some k → Covered (L.mem s) G q.val (q.val + 2 ^ k.bits)
+structure JCov (thp : TypedHeap) (H : Heap) (G : MdbGhost) (Cs : Set U64) (s : S) : Prop where
+  th : ∀ q k, thp q = some k → Covered (L.mem s) G q.val (q.val + max (objSize k) 1) ∨ IdleAt (L := L) s q
+  h : ∀ q k, H q = some k → Covered (L.mem s) G q.val (q.val + 2 ^ k.bits) ∨ IdleAt (L := L) s q
   ks : ∀ x ∈ G.chains.flatten, ∀ p sb fi d, capV (L.mem s) x = .Untyped p sb fi d →
     (p.val + 2 ^ sb.val ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val) ∧
     ∀ c ∈ Cs, p.val + 2 ^ sb.val ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ p.val
+  idleOut : IdleOut (L := L) thp H G s
 
 variable {th : TypedHeap} {H : Heap} {G : MdbGhost} {Cs : Set U64} {s : S}
 
 /-- **No object of `th` in a childless untyped region**, so `restrictTh` to
 outside it is `th` (MpPlacedHyp's (b)). -/
 theorem restrictTh_childless (hJ : JCov (L := L) th H G Cs s) (hU : UtInv (L.mem s) G) (hI : MdbInv (L.mem s) G)
-    {x : U64} (hx : x ∈ G.chains.flatten) {p sb fi : U64} {d : Bool}
-    (hcx : capV (L.mem s) x = .Untyped p sb fi d) (hnd : ∀ y, ¬ Mdb.Desc G.par y x) :
+    {x : U64} (hx : x ∈ G.chains.flatten) {p sb fi : U64}
+    (hcx : capV (L.mem s) x = .Untyped p sb fi false) (hnd : ∀ y, ¬ Mdb.Desc G.par y x) :
     restrictTh th p.val (p.val + 2 ^ sb.val) = th := by
   funext q
   unfold restrictTh
@@ -113,8 +157,11 @@ theorem restrictTh_childless (hJ : JCov (L := L) th H G Cs s) (hU : UtInv (L.mem
     cases hk : th q with
     | none => rfl
     | some k =>
-      have := ut_free hU hI hx hcx hnd (by omega) (hJ.th q k hk)
-      omega
+      rcases hJ.th q k hk with hc | hi
+      · have := ut_free hU hI hx hcx hnd (by omega) hc
+        omega
+      · have := (hJ.idleOut x hx p sb fi hcx q hi).2.1 k hk
+        omega
   · rfl
 
 /-- A covered byte is outside a childless untyped region. -/
@@ -130,8 +177,8 @@ theorem notin_childless (hU : UtInv (L.mem s) G) (hI : MdbInv (L.mem s) G)
 the IPC-buffer words covered. -/
 theorem oobj_childless (hJ : JCov (L := L) th H G Cs s) {Tr C0 : Set U64} {σ : Fl4Spec.State Unit}
     (hP : JPlaced (L := L) th H Tr C0 s σ) (hU : UtInv (L.mem s) G) (hI : MdbInv (L.mem s) G)
-    {x : U64} (hx : x ∈ G.chains.flatten) {p sb fi : U64} {d : Bool}
-    (hcx : capV (L.mem s) x = .Untyped p sb fi d) (hnd : ∀ y, ¬ Mdb.Desc G.par y x)
+    {x : U64} (hx : x ∈ G.chains.flatten) {p sb fi : U64}
+    (hcx : capV (L.mem s) x = .Untyped p sb fi false) (hnd : ∀ y, ¬ Mdb.Desc G.par y x)
     {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} (hc : c ∈ Cs)
     (hT : ∀ t ∈ T, H t = some .tcb) (hE : ∀ e ∈ E, H e = some .ep) (hR : ∀ r ∈ R, H r = some .reply)
     (hN : ∀ n ∈ N, H n = some .ntfn) (hC : ∀ q ∈ C, q ≠ 0#u64)
@@ -140,16 +187,22 @@ theorem oobj_childless (hJ : JCov (L := L) th H G Cs s) {Tr C0 : Set U64} {σ : 
   intro a h1 h2 hO
   have nin : ∀ {lo hi : Nat}, Covered (L.mem s) G lo hi → lo ≤ a.val → a.val < hi → False :=
     fun hcv l1 l2 => by have := notin_childless hU hI hx hcx hnd hcv l1 l2; omega
-  have hks := hJ.ks x hx p sb fi d hcx
+  have hks := hJ.ks x hx p sb fi false hcx
+  have hobj : ∀ {q : U64} {k : HKind}, H q = some k → q.val ≤ a.val → a.val < q.val + 2 ^ k.bits → False :=
+    fun {q k} hq l1 l2 => by
+      rcases hJ.h q k hq with hcv | hi
+      · exact nin hcv l1 l2
+      · have := (hJ.idleOut x hx p sb fi hcx q hi).2.2 k hq
+        omega
   rcases hO with ⟨o1, o2⟩ | ⟨o1, o2⟩ | ⟨t, ht, o1, o2⟩ | ⟨e, he, o1, o2⟩ | ⟨r, hr, o1, o2⟩ | ⟨n, hn, o1, o2⟩ |
       ⟨q, hq, y, n, hk, o1, o2⟩ | ⟨wp, hw, o1, o2⟩
   · have := hks.2 c hc; omega
   · have := hks.1; omega
-  · exact nin (hJ.h t _ (hT t ht)) (by omega) (by simp only [HKind.bits]; omega)
-  · exact nin (hJ.h e _ (hE e he)) (by omega) (by simp only [HKind.bits]; omega)
-  · exact nin (hJ.h r _ (hR r hr)) (by omega) (by simp only [HKind.bits]; omega)
-  · exact nin (hJ.h n _ (hN n hn)) (by omega) (by simp only [HKind.bits]; omega)
-  · exact nin (hJ.h q _ (hP.sc q y n (hC q hq) hk).2) o1 (by simp only [HKind.bits]; have := Nat.pow_le_pow_right (show 0 < 2 by decide) (Nat.le_add_right n Fl4Spec.minSchedContextBits); omega)
+  · exact hobj (hT t ht) (by omega) (by simp only [HKind.bits]; omega)
+  · exact hobj (hE e he) (by omega) (by simp only [HKind.bits]; omega)
+  · exact hobj (hR r hr) (by omega) (by simp only [HKind.bits]; omega)
+  · exact hobj (hN n hn) (by omega) (by simp only [HKind.bits]; omega)
+  · exact hobj (hP.sc q y n (hC q hq) hk).2 o1 (by simp only [HKind.bits]; have := Nat.pow_le_pow_right (show 0 < 2 by decide) (Nat.le_add_right n Fl4Spec.minSchedContextBits); omega)
   · exact nin (hB wp hw) o1 o2
 
 /-- **`OObj` at an outcome** keeping the kernel-state base and creating no
@@ -181,8 +234,8 @@ theorem buf_byte {w : Fl4Spec.Word} (hw : w.toNat + 8 ≤ 2 ^ 64) {i : Int} (hi 
 IPC-buffer bytes covered. -/
 theorem regOKTop_childless (hJ : JCov (L := L) th H G Cs s) {Tr C0 : Set U64} {σ : Fl4Spec.State Unit}
     (hP : JPlaced (L := L) th H Tr C0 s σ) (hU : UtInv (L.mem s) G) (hI : MdbInv (L.mem s) G)
-    {x : U64} (hx : x ∈ G.chains.flatten) {p sb fi : U64} {d : Bool}
-    (hcx : capV (L.mem s) x = .Untyped p sb fi d) (hnd : ∀ y, ¬ Mdb.Desc G.par y x) (hsb : sb.val = 12)
+    {x : U64} (hx : x ∈ G.chains.flatten) {p sb fi : U64}
+    (hcx : capV (L.mem s) x = .Untyped p sb fi false) (hnd : ∀ y, ¬ Mdb.Desc G.par y x) (hsb : sb.val = 12)
     (hpal : p.val % 4096 = 0) (hpf : p.val + 4096 ≤ 2 ^ 64)
     {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} (hc : c ∈ Cs)
     (hT : ∀ t ∈ T, H t = some .tcb) (hE : ∀ e ∈ E, H e = some .ep) (hR : ∀ r ∈ R, H r = some .reply)
@@ -203,8 +256,8 @@ theorem regOKTop_childless (hJ : JCov (L := L) th H G Cs s) {Tr C0 : Set U64} {�
 base and creates no SC. -/
 theorem oobj_out (hJ : JCov (L := L) th H G Cs s) {Tr C0 : Set U64} {σ σ' : Fl4Spec.State Unit} {s' : S}
     (hP : JPlaced (L := L) th H Tr C0 s σ) (hU : UtInv (L.mem s) G) (hI : MdbInv (L.mem s) G)
-    {x : U64} (hx : x ∈ G.chains.flatten) {p sb fi : U64} {d : Bool}
-    (hcx : capV (L.mem s) x = .Untyped p sb fi d) (hnd : ∀ y, ¬ Mdb.Desc G.par y x)
+    {x : U64} (hx : x ∈ G.chains.flatten) {p sb fi : U64}
+    (hcx : capV (L.mem s) x = .Untyped p sb fi false) (hnd : ∀ y, ¬ Mdb.Desc G.par y x)
     {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} (hc : c ∈ Cs)
     (hT : ∀ t ∈ T, H t = some .tcb) (hE : ∀ e ∈ E, H e = some .ep) (hR : ∀ r ∈ R, H r = some .reply)
     (hN : ∀ n ∈ N, H n = some .ntfn) (hC : ∀ q ∈ C, q ≠ 0#u64)

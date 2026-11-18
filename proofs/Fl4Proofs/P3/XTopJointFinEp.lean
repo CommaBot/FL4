@@ -194,7 +194,7 @@ theorem JAtZ.finEpJ (hRR : RecvReplyLinksHyp (L := L) arI AR H Cs) (J : JAtZ (L 
     (D' := D)
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s3 σ3 :=
     ⟨hCR', hRF', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
-      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead, hkern,
+      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle), hkern,
       J.cnW_utc hw hF.1 F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, I3, hcur3, F.own J.own, F.off J.off,
       hAI3, B3, F.isorted J.isorted, hrun3, hblk⟩
   have hC0 := JCs.same J hF.1 F.ksz

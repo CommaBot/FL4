@@ -243,7 +243,7 @@ theorem JAtZ.timestampJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
     · have := congrArg UScalar.val hb; rw [hd, h1] at this; simp at this; omega
     · have := congrArg UScalar.val hb; rw [hd, h2] at this; simp at this; omega
   exact ⟨Ac, Lst', D, J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
-    (J.sc_jpl hwT hK) (J.sc_jcov hwT hDead fun q hq hn => absurd hq hn) (J.sc_kern hwT hK hF hX' hDbg fun _ h => h)
+    (J.sc_jpl hwT hK) (J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2)) (J.sc_kern hwT hK hF hX' hDbg fun _ h => h)
     (J.sc_utc hwT hK hDbg) hN2 hI2 (J.cur.imp id hC2) hOw' hO' hAI' (J.bsa.tkw hK fun p y n h hy => ⟨y, h, hy, fun _ h => h, id⟩) J.curRun hBlk'⟩
 
 end

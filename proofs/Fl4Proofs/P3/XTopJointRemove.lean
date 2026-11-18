@@ -930,7 +930,7 @@ theorem JAtZ.replyRemoveJ (hT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H 
     (by rw [harch]) hao hDbg (D' := D)
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst' D s' σ' :=
     ⟨hCR', hRF', J.yld.frame k2 hyk, J.mcp.frame k1 hmk, J.buf.frame kb hbk, hRP',
-      J.apart.sc_frame hks szk, hjpl, J.jcov_keep hks hF.1 hdead, hkern,
+      J.apart.sc_frame hks szk, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hIR.2.2.1 hidle'), hkern,
       J.rmW_utc hw hF.1 hCK.cdt hCK.orig harch hDbg, hN', hI', hcur, hown, hoff, ⟨hAS, hidl⟩, hbsa, hiso,
       hrun, hblk⟩
   have hC0 := JCs.same J hF.1 hksz

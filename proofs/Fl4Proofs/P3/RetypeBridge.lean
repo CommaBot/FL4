@@ -141,7 +141,9 @@ theorem JCovD.retype_post {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set
           (2 ^ bitsApi t us) slots.length n ∧
         WinPlaced rb.toNat (2 ^ bitsApi t us) slots.length n us ∧
         (∀ q kd, H1 q = some kd → H q = some kd) ∧
-        (∀ q, H1 q = H q → DeadP (L := L) H s q → DeadQ st H1 sR q)) :
+        (∀ q, H1 q = H q → DeadP (L := L) H s q → DeadQ st H1 sR q))
+    (hidl : L.idleW res.2.1 = L.idleW s)
+    (hdv : ∃ p0 sb0 fi0, capV (L.mem s) (cslotAddr sl) = .Untyped p0 sb0 fi0 false) :
     ∃ th' G' A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj (cslotAddr sl) ∧
       ∃ (H' : Heap) (Ac' : Set U64),
         BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H')
@@ -155,7 +157,7 @@ theorem JCovD.retype_post {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set
     hor'.elim (fun ⟨a, b, _, _, _⟩ => Or.inl ⟨a, b⟩) (fun ⟨a1, _, _, _, _, h, _⟩ => Or.inr ⟨a1, h⟩)
   obtain ⟨H1, Ac1, hb1, hPR, hSC, h0Cs, hh0, -, hdrop, hnode, hdbg, hwp, hsub, hdk⟩ := hstep' ct s0 sR thR hct hs0 hor hsl
   subst eA ek ew
-  have hwd := (retype_window_dead hJ hU hI hE).1
+  have hwd := (retype_window_dead hJ hU hI hE hdv).1
   have hnewQ : ∀ q, NewAt rb.toNat (2 ^ bitsApi t us) slots.length q → (newKind n us).isSome →
       NewQ rb.toNat (2 ^ bitsApi t us) slots.length cj q := by
     rintro q ⟨j, hj, hq⟩ hs
@@ -168,7 +170,7 @@ theorem JCovD.retype_post {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set
     (fun hT => hn1 (hnt.2 hT)) hfit
     (fun hs ho w hw h1 h2 => ((hWZ (hnZ hs ho)) w hw h1 h2).imp id (fun ⟨hT, hj⟩ => ⟨hnt.2 hT, hj⟩))
     (fun h => hn1 h)
-  refine ⟨th', G', _, _, _, dslot, cj, hE, H', Ac', hb', hJ.retype hE (fun q kd hq => ?_) (fun q hqD hnq e hd => ?_) hks⟩
+  refine ⟨th', G', _, _, _, dslot, cj, hE, H', Ac', hb', hJ.retype hE (fun q kd hq => ?_) (fun q hqD hnq e hd => ?_) hks hidl hdv⟩
   · rcases hshape q kd hq with ⟨h1, hm⟩ | ⟨hna, hk⟩
     · refine Or.inl ⟨hsub q kd h1, ?_⟩
       rintro ⟨j, hj, hv, -⟩

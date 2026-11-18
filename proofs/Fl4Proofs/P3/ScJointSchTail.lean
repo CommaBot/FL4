@@ -20,6 +20,7 @@ import Fl4Proofs.P3.ScJointStep
 import Fl4Proofs.P3.ScJointSched
 import Fl4Proofs.P3.ScSchedSpec
 import Fl4Proofs.P3.ScSchedRun
+import Fl4Proofs.P3.ScSchedIdle
 import Fl4Proofs.P3.ScSchedOff
 import Fl4Proofs.P3.ScSchedBsa
 open Aeneas Aeneas.Std Result
@@ -133,7 +134,8 @@ theorem JAtZ.sch_tail {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   obtain ⟨-, hY', hM', ⟨Lst', hCR', hRF'⟩, hRP', -⟩ :=
     ScAll.of_k hS J.rp J.yld J.mcp J.call J.rfree ⟨⟨hS', hR', hN', hI'⟩, hw, hSch.2⟩
   refine ⟨Lst', J.sch_frame hwT hK hX' hCR' hRF' hY' hM' (J.sch_buf hwT hK) hRP' (J.sch_apart hwT hK)
-    (J.sch_jpl hwT hK) (J.sc_jcov hwT hT.dead fun q hq hn => absurd hq hn)
+    (J.sch_jpl hwT hK) (J.sc_jcov hwT hT.dead (fun q hq hn => absurd hq hn)
+      (J.idleW_keep hS' (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _))))
     (J.sch_kern hwT hK hS' hT.dbg hT.dwNe (J.sch_csc hwT hK hS' hI' hC' hT.dead).1) (J.sch_utc hwT hK hT.dbg) hN' hI' (Or.inr hC')
     (Or.inl (curOwn_of_curInv hS' hI' hC')) hoff hA' hbsa (Or.inr hcr) hT.blk⟩
 

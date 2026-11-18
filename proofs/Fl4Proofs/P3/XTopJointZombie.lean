@@ -165,7 +165,7 @@ theorem JAtZ.zombieJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl :
     · left; rw [capAt_capV, capAt_capV, hoth2 _ h1 hne]
   have hUK : UtKept Z.th (L.mem s) (L.mem s2) := fun x hx p' sb fi d h => by
     have e : x ≠ cslotAddr sl := fun e => by rw [e, hz2] at h; cases h
-    exact ⟨x, hx, fi, d, by rw [← hoth2 x hx e]; exact h, Or.inl le_rfl⟩
+    exact ⟨x, hx, fi, by rw [← hoth2 x hx e]; exact h, Or.inl le_rfl⟩
   have hCK : CoverKept Z.th (L.mem s) (L.mem s2) := by
     intro y hy hp hu
     by_cases e : y = cslotAddr sl
@@ -178,7 +178,8 @@ theorem JAtZ.zombieJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl :
     · exact ⟨y, hy, by rw [hoth2 y hy e]; exact hp, by rw [hoth2 y hy e]; exact hu, by rw [hoth2 y hy e],
         by rw [hoth2 y hy e]⟩
   have hjc : Sched.JCovD (L := L) Z.th H Z.G D Cs s2 :=
-    J.jcov_cover hw.1 hM2 hCK hUK fun q hq => J.deadP_slot hX2 hcn2 hkc hw (J.jcov.dead q hq)
+    J.jcov_cover hw.1 hM2 hCK hUK (fun q hq => J.deadP_slot hX2 hcn2 hkc hw (J.jcov.dead q hq))
+      (J.idleW_keep hX2.fin.1.1.1 (CnStep.of_cnK hcn2).idle)
   -- the untyped caps' facts after: all kept
   have hks : L.ksb s2 = L.ksb s := hw.1
   have hcpu : L.cpu s2 = L.cpu s := hw.2.1
@@ -318,14 +319,15 @@ theorem JAtZ.swapJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : F
     left
     rw [capAt_capV, capAt_capV, hcap' _ h1, Equiv.swap_apply_of_ne_of_ne hp3 hx3]
   have hUK : UtKept Z.th (L.mem s) (L.mem s2) := fun y hy p' sb fi d h =>
-    ⟨_, he y hy, fi, d, by rw [← hcap' y hy]; exact h, Or.inl le_rfl⟩
+    ⟨_, he y hy, fi, by rw [← hcap' y hy]; exact h, Or.inl le_rfl⟩
   have hCK : CoverKept Z.th (L.mem s) (L.mem s2) := by
     intro y hy hp hu
     have e2 : capV (L.mem s2) (Equiv.swap p (cslotAddr sl) y) = capV (L.mem s) y := by
       rw [hcap' _ (he y hy), Equiv.swap_apply_self]
     exact ⟨_, he y hy, by rw [e2]; exact hp, by rw [e2]; exact hu, by rw [e2], by rw [e2]⟩
   have hjc : Sched.JCovD (L := L) Z.th H (renG Z.G (Equiv.swap p (cslotAddr sl))) D Cs s2 :=
-    J.jcov_cover hw.1 hM2 hCK hUK fun q hq => J.deadP_slot hX2 hcn2 hkc hw (J.jcov.dead q hq)
+    J.jcov_cover hw.1 hM2 hCK hUK (fun q hq => J.deadP_slot hX2 hcn2 hkc hw (J.jcov.dead q hq))
+      (J.idleW_keep hX2.fin.1.1.1 (CnStep.of_cnK hcn2).idle)
   -- the untyped caps' facts after
   have hks : L.ksb s2 = L.ksb s := hw.1
   have hcpu : L.cpu s2 = L.cpu s := hw.2.1

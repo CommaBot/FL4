@@ -280,7 +280,8 @@ theorem JAtZ.sc_jcovS {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (hdead : ∀ q ∈ D', Sched.DeadP (L := L) H s' q)
     (hcov : ∀ q ∈ D, q ∉ D' →
       (∀ k, Z.th q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + max (objSize k) 1)) ∧
-      (∀ k, H q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + 2 ^ k.bits))) :
+      (∀ k, H q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + 2 ^ k.bits)))
+    (hidl : L.idleW s' = L.idleW s) :
     Sched.JCovD (L := L) Z.th H Z.G D' Cs s' := by
   obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
   have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
@@ -288,17 +289,20 @@ theorem JAtZ.sc_jcovS {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
       y ∈ Z.G.chains.flatten ∧ capV (L.mem s') y = capV (L.mem s) y :=
     fun y hy _ _ => ⟨hy, hSS.capV (hsl y hy)⟩
   have JC := J.jcov
-  refine ⟨fun q k hq => ?_, fun q k hq => ?_, hdead, fun x hx p sb fi d hc => ?_⟩
-  · rcases JC.th q k hq with hc | hd
+  refine ⟨fun q k hq => ?_, fun q k hq => ?_, hdead, fun x hx p sb fi d hc => ?_,
+    JC.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩⟩
+  · rcases JC.th q k hq with hc | hd | hi
     · exact Or.inl (Sched.covered_keep hc hk)
     · by_cases h : q ∈ D'
-      · exact Or.inr h
+      · exact Or.inr (Or.inl h)
       · exact Or.inl ((hcov q hd h).1 k hq)
-  · rcases JC.h q k hq with hc | hd
+    · exact Or.inr (Or.inr ((Sched.idleAt_of hidl).2 hi))
+  · rcases JC.h q k hq with hc | hd | hi
     · exact Or.inl (Sched.covered_keep hc hk)
     · by_cases h : q ∈ D'
-      · exact Or.inr h
+      · exact Or.inr (Or.inl h)
       · exact Or.inl ((hcov q hd h).2 k hq)
+    · exact Or.inr (Or.inr ((Sched.idleAt_of hidl).2 hi))
   · rw [hSS.capV (hsl x hx)] at hc
     have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
     obtain ⟨h1, h2⟩ := JC.ks x hx p sb fi d hc
@@ -624,7 +628,7 @@ theorem JAtZ.unbindReplyJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
   -- the rest
   have hDbg := J.kw_dbg (hfoot.mono (Set.empty_subset _))
   exact ⟨σ', he, Z.vs, Ac, Lst', D, J.sc_frameS hks hSS hK hX' hCR' hRF' hY' hM' hbuf hRP'
-    (J.apart.sc_frame hks hK.szKeep) hjpl (J.sc_jcovS hks hSS hDead fun q hq hn => absurd hq hn)
+    (J.apart.sc_frame hks hK.szKeep) hjpl (J.sc_jcovS hks hSS hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.fk.2))
     (J.sc_kernW hw hK hF.fk hX' hDbg fun _ h => h) (J.sc_utcR hwR hSS hK hDbg) hN' hI'
     (J.cur.imp (fun e => by rw [hF.act]; exact e) hF.curInv) (hF.own J.own) (hF.off J.off) hact'
     (hF.bsa J.bsa) (hF.curRun J.curRun) hblk⟩

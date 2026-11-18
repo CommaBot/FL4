@@ -247,7 +247,7 @@ theorem JAtZ.vtJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) ar
   have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s1 σ :=
     ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩),
       J.buf.frame kb (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩), hRP',
-      J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead, hkern,
+      J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle), hkern,
       J.vt_utc hW hSS hDbg, J.nsc, J.inv, J.cur, J.own, J.off, hAI, J.bsa, J.isorted, J.curRun, hblk⟩
   exact ⟨J.cs_frame (G' := Z.G) hkb hX1 F.kback (JCs.same J hSS F.ksz) R, hSS, hkb⟩
 

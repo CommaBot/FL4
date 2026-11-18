@@ -380,8 +380,8 @@ theorem mpPlaced (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hD : D = ∅
     MpPlacedHyp st Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.N Z.T Z.C Z.E Z.R Z.B Z.c AR s σ Z.G := by
   subst hD
   have hJC : Sched.JCov (L := L) Z.th H Z.G Cs s :=
-    ⟨fun q k hq => (J.jcov.th q k hq).resolve_right (by simp), fun q k hq => (J.jcov.h q k hq).resolve_right (by simp),
-      J.jcov.ks⟩
+    ⟨fun q k hq => (J.jcov.th q k hq).imp_right fun h => h.resolve_left (by simp),
+      fun q k hq => (J.jcov.h q k hq).imp_right fun h => h.resolve_left (by simp), J.jcov.ks, J.jcov.idleOut⟩
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   obtain ⟨-, ⟨-, -, -, -, hI⟩, -⟩ := J.xtop.rel
   exact mpPlacedHyp_of hJC hJ J.ut hI hc J.zH.1 J.zH.2.1 J.zH.2.2.1 J.zH.2.2.2 J.c0 hB

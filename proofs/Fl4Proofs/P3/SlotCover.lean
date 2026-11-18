@@ -33,11 +33,11 @@ def CoverKept (th : TypedHeap) (m m' : U64 → U64) : Prop :=
       baseF (capV m' y') = baseF (capV m y) ∧ topF (capV m' y') = topF (capV m y)
 
 /-- **No new untyped region**: each untyped cap of a slot after has one of a
-slot before over the same region, its free index then no larger (or the new
-one full). -/
+slot before over the same region and with the same device flag, its free
+index then no larger (or the new one full). -/
 def UtKept (th : TypedHeap) (m m' : U64 → U64) : Prop :=
   ∀ x, IsSlot th x → ∀ p sb fi d, capV m' x = .Untyped p sb fi d →
-    ∃ y, IsSlot th y ∧ ∃ fi' d', capV m y = .Untyped p sb fi' d' ∧ (fi'.val ≤ fi.val ∨ 2 ^ sb.val ≤ fi.val)
+    ∃ y, IsSlot th y ∧ ∃ fi', capV m y = .Untyped p sb fi' d ∧ (fi'.val ≤ fi.val ∨ 2 ^ sb.val ≤ fi.val)
 
 variable {th : TypedHeap} {m m1 m' : U64 → U64}
 
@@ -45,7 +45,7 @@ theorem CoverKept.refl (th : TypedHeap) (m : U64 → U64) : CoverKept th m m :=
   fun y hy hp hu => ⟨y, hy, hp, hu, rfl, rfl⟩
 
 theorem UtKept.refl (th : TypedHeap) (m : U64 → U64) : UtKept th m m :=
-  fun x hx _ _ fi d h => ⟨x, hx, fi, d, h, Or.inl le_rfl⟩
+  fun x hx _ _ fi _ h => ⟨x, hx, fi, h, Or.inl le_rfl⟩
 
 theorem CoverKept.trans (h1 : CoverKept th m m1) (h2 : CoverKept th m1 m') : CoverKept th m m' := by
   intro y hy hp hu
@@ -55,15 +55,15 @@ theorem CoverKept.trans (h1 : CoverKept th m m1) (h2 : CoverKept th m1 m') : Cov
 
 theorem UtKept.trans (h1 : UtKept th m m1) (h2 : UtKept th m1 m') : UtKept th m m' := by
   intro x hx p sb fi d h
-  obtain ⟨y1, hy1, fi1, d1, h1', e1⟩ := h2 x hx p sb fi d h
-  obtain ⟨y2, hy2, fi2, d2, h2', e2⟩ := h1 y1 hy1 p sb fi1 d1 h1'
-  refine ⟨y2, hy2, fi2, d2, h2', ?_⟩
+  obtain ⟨y1, hy1, fi1, h1', e1⟩ := h2 x hx p sb fi d h
+  obtain ⟨y2, hy2, fi2, h2', e2⟩ := h1 y1 hy1 p sb fi1 d h1'
+  refine ⟨y2, hy2, fi2, h2', ?_⟩
   omega
 
 /-- Slots whose caps are kept keep both. -/
 theorem coverUt_same (ho : ∀ y, IsSlot th y → capV m' y = capV m y) : CoverKept th m m' ∧ UtKept th m m' :=
   ⟨fun y hy hp hu => ⟨y, hy, by rw [ho y hy]; exact hp, by rw [ho y hy]; exact hu, by rw [ho y hy],
-    by rw [ho y hy]⟩, fun x hx p sb fi d h => ⟨x, hx, fi, d, by rw [← ho x hx]; exact h, Or.inl le_rfl⟩⟩
+    by rw [ho y hy]⟩, fun x hx p sb fi d h => ⟨x, hx, fi, by rw [← ho x hx]; exact h, Or.inl le_rfl⟩⟩
 
 /-- **`cdt::insert`'s slot changes** (a derived cap `c` of `src`'s `srcC`
 into the null `dest`, `src` set full if untyped). -/
@@ -88,12 +88,12 @@ theorem coverUt_ins {src dest : U64} {c srcC : capability.Cap} (hs : IsSlot th s
     · subst ed
       rw [hc'] at h
       have hu : isUt srcC = true := by rw [← isUt_of_shape hsh, h]; rfl
-      exact ⟨src, hs, fi, d, by rw [hsc, ← hut hu, h], Or.inl le_rfl⟩
+      exact ⟨src, hs, fi, by rw [hsc, ← hut hu, h], Or.inl le_rfl⟩
     by_cases es : x = src
     · subst es
       rw [hs'] at h
       cases hf : fullF srcC c with
-      | none => rw [hf, Option.getD_none] at h; exact ⟨x, hx, fi, d, by rw [hsc]; exact h, Or.inl le_rfl⟩
+      | none => rw [hf, Option.getD_none] at h; exact ⟨x, hx, fi, by rw [hsc]; exact h, Or.inl le_rfl⟩
       | some v =>
         rw [hf, Option.getD_some] at h
         subst h
@@ -101,10 +101,10 @@ theorem coverUt_ins {src dest : U64} {c srcC : capability.Cap} (hs : IsSlot th s
         split_ifs at hf with hpb
         cases hf
         have h64 := hsb _ _ _ _ rfl
-        refine ⟨x, hx, _, _, by rw [hsc], Or.inr ?_⟩
+        refine ⟨x, hx, _, by rw [hsc], Or.inr ?_⟩
         show 2 ^ _ ≤ (1#64 <<< (_ % 64)).toNat
         rw [shl_one_val h64]
-    · exact ⟨x, hx, fi, d, by rw [← ho x hx es ed]; exact h, Or.inl le_rfl⟩
+    · exact ⟨x, hx, fi, by rw [← ho x hx es ed]; exact h, Or.inl le_rfl⟩
 
 /-- **`cdt::move_cap`'s slot changes** (`src`'s cap, as `c` of its shape, into
 the null `dest`; `src` nulled). -/
@@ -112,7 +112,7 @@ theorem coverUt_mov {src dest : U64} {c srcC : capability.Cap} (hd : IsSlot th d
     (hsc : capV m src = srcC) (hdn : capV m dest = .Null) (hc' : capV m' dest = c) (hs' : capV m' src = .Null)
     (ho : ∀ y, IsSlot th y → y ≠ src → y ≠ dest → capV m' y = capV m y)
     (hsh : shape c = shape srcC) (hs : IsSlot th src)
-    (hfi : ∀ p sb fi d, c = .Untyped p sb fi d → ∀ fi' d', srcC = .Untyped p sb fi' d' → fi'.val ≤ fi.val ∨ 2 ^ sb.val ≤ fi.val) :
+    (hfi : ∀ p sb fi d, c = .Untyped p sb fi d → ∀ fi' d', srcC = .Untyped p sb fi' d' → d' = d ∧ (fi'.val ≤ fi.val ∨ 2 ^ sb.val ≤ fi.val)) :
     CoverKept th m m' ∧ UtKept th m m' := by
   obtain ⟨hb, ht, hph⟩ := range_of_shape hsh
   refine ⟨fun y hy hp hu => ?_, fun x hx p sb fi d h => ?_⟩
@@ -131,10 +131,12 @@ theorem coverUt_mov {src dest : U64} {c srcC : capability.Cap} (hd : IsSlot th d
       subst h
       cases srcC <;> simp only [shape, reduceCtorEq, capability.Cap.Untyped.injEq] at hsh
       obtain ⟨rfl, rfl, -, -⟩ := hsh
-      exact ⟨src, hs, _, _, hsc, hfi _ _ _ _ rfl _ _ rfl⟩
+      obtain ⟨e, h'⟩ := hfi _ _ _ _ rfl _ _ rfl
+      subst e
+      exact ⟨src, hs, _, hsc, h'⟩
     by_cases es : x = src
     · subst es; rw [hs'] at h; cases h
-    · exact ⟨x, hx, fi, d, by rw [← ho x hx es ed]; exact h, Or.inl le_rfl⟩
+    · exact ⟨x, hx, fi, by rw [← ho x hx es ed]; exact h, Or.inl le_rfl⟩
 
 /-- **`cdt::swap`'s slot changes** (`s1`'s cap, as `c1` of its shape, into
 `s2`, and `s2`'s, as `c2`, into `s1`). -/
@@ -142,8 +144,8 @@ theorem coverUt_swap {s1 s2 : U64} {c1 c2 o1 o2 : capability.Cap} (h1 : IsSlot t
     (hne : s1 ≠ s2) (ho1 : capV m s1 = o1) (ho2 : capV m s2 = o2) (hc2' : capV m' s2 = c1)
     (hc1' : capV m' s1 = c2) (ho : ∀ y, IsSlot th y → y ≠ s1 → y ≠ s2 → capV m' y = capV m y)
     (hsh1 : shape c1 = shape o1) (hsh2 : shape c2 = shape o2)
-    (hfi1 : ∀ p sb fi d, c1 = .Untyped p sb fi d → ∀ fi' d', o1 = .Untyped p sb fi' d' → fi'.val ≤ fi.val ∨ 2 ^ sb.val ≤ fi.val)
-    (hfi2 : ∀ p sb fi d, c2 = .Untyped p sb fi d → ∀ fi' d', o2 = .Untyped p sb fi' d' → fi'.val ≤ fi.val ∨ 2 ^ sb.val ≤ fi.val) :
+    (hfi1 : ∀ p sb fi d, c1 = .Untyped p sb fi d → ∀ fi' d', o1 = .Untyped p sb fi' d' → d' = d ∧ (fi'.val ≤ fi.val ∨ 2 ^ sb.val ≤ fi.val))
+    (hfi2 : ∀ p sb fi d, c2 = .Untyped p sb fi d → ∀ fi' d', o2 = .Untyped p sb fi' d' → d' = d ∧ (fi'.val ≤ fi.val ∨ 2 ^ sb.val ≤ fi.val)) :
     CoverKept th m m' ∧ UtKept th m m' := by
   obtain ⟨hb1, ht1, hph1⟩ := range_of_shape hsh1
   obtain ⟨hb2, ht2, hph2⟩ := range_of_shape hsh2
@@ -171,13 +173,17 @@ theorem coverUt_swap {s1 s2 : U64} {c1 c2 o1 o2 : capability.Cap} (h1 : IsSlot t
     · subst e2
       rw [hc2'] at h
       obtain ⟨fi', d', e⟩ := ut hsh1 h
-      exact ⟨s1, h1, fi', d', by rw [ho1, e], hfi1 _ _ _ _ h _ _ e⟩
+      obtain ⟨ed, h'⟩ := hfi1 _ _ _ _ h _ _ e
+      subst ed
+      exact ⟨s1, h1, fi', by rw [ho1, e], h'⟩
     by_cases e1 : x = s1
     · subst e1
       rw [hc1'] at h
       obtain ⟨fi', d', e⟩ := ut hsh2 h
-      exact ⟨s2, h2, fi', d', by rw [ho2, e], hfi2 _ _ _ _ h _ _ e⟩
-    · exact ⟨x, hx, fi, d, by rw [← ho x hx e1 e2]; exact h, Or.inl le_rfl⟩
+      obtain ⟨ed, h'⟩ := hfi2 _ _ _ _ h _ _ e
+      subst ed
+      exact ⟨s2, h2, fi', by rw [ho2, e], h'⟩
+    · exact ⟨x, hx, fi, by rw [← ho x hx e1 e2]; exact h, Or.inl le_rfl⟩
 
 end
 

@@ -329,7 +329,7 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     rw [capAt_capV, capAt_capV, hoth2 _ h1 hne]
   have hUK : UtKept Z.th (L.mem s) (L.mem s2) := fun x hx p' sb fi d h => by
     have e : x ≠ cslotAddr (q.bv, idx) := fun e => by rw [e, hnull2] at h; cases h
-    exact ⟨x, hx, fi, d, by rw [← hoth2 x hx e]; exact h, Or.inl le_rfl⟩
+    exact ⟨x, hx, fi, by rw [← hoth2 x hx e]; exact h, Or.inl le_rfl⟩
   -- the cover after
   have hmemA : ∀ y, IsSlot Z.th y → capV (L.mem s2) y ≠ .Null → y ∈ G2.chains.flatten := fun y hy hn =>
     (hM2.members y).2 ⟨hy, _, capAt_capV _ _, hn⟩
@@ -368,12 +368,14 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     rw [show (P1.HKind.ntfn).bits = 6 from rfl] at this
     have : 1 ≤ 2 ^ k'.bits := Nat.one_le_two_pow
     omega
-  have hunc : ∀ q', q' ∈ Uncov Z.th H (L.mem s2) G2 → DeadP (L := L) H s2 q' := by
+  have hidl : L.idleW s2 = L.idleW s := J.idleW_keep hX2.fin.1.1.1 (CnStep.of_cnK hcn2).idle
+  have hunc : ∀ q', q' ∈ Uncov Z.th H (L.mem s2) G2 (IdleAt (L := L) s2) → DeadP (L := L) H s2 q' := by
     intro q' hq'
     by_cases hD : q' ∈ D
     · exact J.deadP_slot hX2 hcn2 (KeepC.t hkc) hw (J.jcov.dead q' hD)
+    obtain ⟨hni, hq'⟩ := hq'
     rcases hq' with ⟨k, hk, hnc⟩ | ⟨k, hk, hnc⟩
-    · rcases J.jcov.th q' k hk with hcv | hD'
+    · rcases J.jcov.th q' k hk with hcv | hD' | hi
       · rcases hcovA _ _ hcv with h | ⟨g1, g2, hd⟩
         · exact absurd h hnc
         · exfalso
@@ -385,13 +387,15 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
           · rw [(hJ.tcb q').1 hk] at hHp; cases hHp
           · rw [hJ.cnode q' r' hk] at hHp; cases hHp
       · exact absurd hD' hD
-    · rcases J.jcov.h q' k hk with hcv | hD'
+      · exact absurd ((idleAt_of hidl).2 hi) hni
+    · rcases J.jcov.h q' k hk with hcv | hD' | hi
       · rcases hcovA _ _ hcv with h | ⟨g1, g2, hd⟩
         · exact absurd h hnc
         · have e := hin q' k hk g1 g2
           subst e
           exact J.deadP_slot hX2 hcn2 (KeepC.t hkc) hw hd
       · exact absurd hD' hD
+      · exact absurd ((idleAt_of hidl).2 hi) hni
   have hks2 : ∀ x ∈ G2.chains.flatten, ∀ p' sb fi d, capV (L.mem s2) x = .Untyped p' sb fi d →
       (p'.val + 2 ^ sb.val ≤ (L.ksb s2).val ∨ (L.ksb s2).val + 13568 ≤ p'.val) ∧
       ∀ c ∈ Cs, p'.val + 2 ^ sb.val ≤ L.nodeBase s2 c ∨ L.nodeBase s2 c + 4288 ≤ p'.val := by
@@ -406,6 +410,7 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     have hnb : ∀ c, L.nodeBase s2 c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
     exact ⟨by rw [hks]; exact k1, fun c hc => by rw [hnb]; exact k2 c hc⟩
   have hjc := J.jcov.step hunc (fun q' _ hd => J.deadP_slot hX2 hcn2 (KeepC.t hkc) hw hd) hks2
+    (J.jcov.idleOut.keep hidl (J.utFrom hM2 hUK))
   have horig : ∀ sl', (setCnodeSlot (emptySlotCdtState σ (q.bv, idx)) q.bv idx.length cs idx .nullCap).isOriginalCap sl' = true →
       σ.isOriginalCap sl' = true := fun sl' h => by
     by_cases e : sl' = (q.bv, idx)
