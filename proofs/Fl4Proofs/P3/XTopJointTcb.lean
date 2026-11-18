@@ -17,6 +17,9 @@ P3 (DESIGN.md §9), TCB: **the Thread cap at `JAt`, label by label**
   - UnbindNotification (`tcb_unbind_ntfnJ`: the restart, `JAtZ.unbindNJ`);
   - Set/UnsetBreakpoint (`tcb_set_bpJ`, `tcb_unset_bpJ`: the restart, the
     debug words by `JAtZ.dbgWrJ`, the spec state kept);
+  - ReadRegisters (`tcb_read_regsJ`: the restart, then XTopJointReadRegs'
+    `JAtZ.readRegsJ`: the source's suspend by `JAtZ.suspendJ`, the copy
+    loops at `JAtZ`, `JAtZ.rrTailJ`);
   - SetTLSBase (`tcb_set_tlsJ`: the restart, `JAtZ.regWrJ`, the reschedule
     as a scheduler step `JAtZ.schedJ`);
   - GetBreakpoint (`tcb_get_bpJ`: the restart, then XTopJointData's data
@@ -32,6 +35,7 @@ P3 (DESIGN.md §9), TCB: **the Thread cap at `JAt`, label by label**
 import Fl4Proofs.P3.XTopJointDelR
 import Fl4Proofs.P3.XTopJointReply
 import Fl4Proofs.P3.XTopJointData
+import Fl4Proofs.P3.XTopJointReadRegs
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -40,12 +44,12 @@ open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4
 noncomputable section
 
 /-- **The Thread cap's labels still open at `JAt`** (their `JPostHyp` [W]
-taken): the TCB invocation labels (2..24) but Suspend (12),
+taken): the TCB invocation labels (3..24) but Suspend (12),
 UnbindNotification (15), SetBreakpoint (16), GetBreakpoint (17),
 UnsetBreakpoint (18), ConfigureSingleStepping (19), SetTLSBase (20) and
 SetFlags (21). -/
 def TcbJOpen (lbl : U64) : Prop :=
-  2 ≤ lbl.val ∧ lbl.val ≤ 24 ∧ lbl.val ≠ 12 ∧ lbl.val ≠ 15 ∧ lbl.val ≠ 16 ∧ lbl.val ≠ 17 ∧ lbl.val ≠ 18 ∧
+  3 ≤ lbl.val ∧ lbl.val ≤ 24 ∧ lbl.val ≠ 12 ∧ lbl.val ≠ 15 ∧ lbl.val ≠ 16 ∧ lbl.val ≠ 17 ∧ lbl.val ≠ 18 ∧
     lbl.val ≠ 19 ∧ lbl.val ≠ 20 ∧ lbl.val ≠ 21
 
 section
@@ -1302,6 +1306,125 @@ theorem tcb_get_bpJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L
     · exact tail 1#u64
     · exact tail 0#u64
 
+
+set_option maxHeartbeats 8000000 in
+/-- **The ReadRegisters label at `JAt`** (as `tcb_read_regsX`): TcbCtl's
+decode, the caller's restart (`JAtZ.restartJ`), then XTopJointReadRegs'
+`JAtZ.readRegsJ` (the source's suspend, the copy loops, the reply tail). -/
+theorem tcb_read_regsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (hni : Entered σ) (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L := L) arI AR H Cs)
+    (hOK : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.IpcBufCapOK σ')
+    (hBC : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.BufCover Z'.T Z'.B σ')
+    (hBPl : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
+      Vs.BufPlaced (L := L) Z'.N Z'.C Z'.B Z'.c s' σ')
+    (p : U64) (hpT : p ∈ Z.T) (hpI : p ≠ L.idleW s) (slbl : Fl4Spec.Data)
+    (hlbl : Fl4Spec.genInvocationType slbl = .tcbReadRegisters)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (hstall : smp.remote_tcb_stall st arI s ar p = ok (s, ar))
+    (call : Bool) (slot : obj.Slot) (extra : Aeneas.Std.Array obj.Slot 3#usize) (blk don : Bool)
+    (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (buffer : Option Fl4Spec.ObjRef) :
+    TcbOKRX (L := L) arI (JAt (L := L) arI AR) s ar σ fl4_abi.label.TCBReadRegisters p ⟨length, buf, call, slot, extra⟩
+      blk call don slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
+  have hX := J.xtop
+  obtain ⟨hcur, -⟩ := J.curEq hct
+  have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  have htcb := (hX.curTcb hcur).1
+  have hdec0 : specDec false slbl (args.map UScalar.bv) ci sl (.Thread p) excaps buffer =
+      Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
+        (Fl4Spec.decodeReadRegisters (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv)) := by
+    show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) sl excaps buffer = _
+    rw [fl4DecodeTcb_spec (by rw [hlbl]; decide) (by rw [hlbl]; decide)]
+    unfold Fl4Spec.decodeTcbInvocation
+    rw [hlbl]
+  unfold TcbOKRX
+  rw [decode_read_eq arI s ar p _ hstall, hdec0]
+  unfold tcb.decode_read_registers
+  by_cases h1 : length < 2#u64
+  · simp only [h1, ↓reduceIte, error.truncated, bind_ok]
+    refine (WP.spec_ok _).2 (Or.inl ⟨_, rfl, rfl, ⟨.truncatedMessage, ?_, Or.inl trivial⟩, hJ0⟩)
+    apply run_liftME_err
+    have : args.length < 2 := by scalar_tac
+    match args, this with
+    | [], _ => rfl
+    | [_], _ => rfl
+  simp only [h1, ↓reduceIte]
+  obtain ⟨y0, y1, rest, rfl⟩ : ∃ y0 y1 rest, args = y0 :: y1 :: rest := by
+    match args, hlen with
+    | y0 :: y1 :: rest, _ => exact ⟨_, _, _, rfl⟩
+    | [], h => exfalso; simp at h; scalar_tac
+    | [_], h => exfalso; simp at h; scalar_tac
+  have ha0 : tcb.arg st s ⟨length, buf, call, slot, extra⟩ 0#u64 = ok y0 := by
+    unfold tcb.arg; rw [hct]; simp only [bind_ok]; exact hargs 0#u64 y0 (by simp)
+  have ha1 : tcb.arg st s ⟨length, buf, call, slot, extra⟩ 1#u64 = ok y1 := by
+    unfold tcb.arg; rw [hct]; simp only [bind_ok]; exact hargs 1#u64 y1 (by simp)
+  rw [ha0, ha1]; simp only [bind_ok, nregs_eq]
+  have hsp : ∀ (k : Unit → Fl4Spec.SEMonad Unit Fl4Spec.TcbInvocation),
+      (Fl4Spec.decodeReadRegisters (Z := Unit) ((y0 :: y1 :: rest).map UScalar.bv) (.threadCap p.bv)) =
+      (Fl4Spec.rangeCheck (Z := Unit) y1.bv 1 (BitVec.ofNat 64 20) >>= fun _ => do
+        let self ← Fl4Spec.NonDetE.liftE (Fl4Spec.NonDet.gets fun s : Fl4Spec.State Unit => s.curThread)
+        Fl4Spec.NonDetE.whenE (p.bv = self) (Fl4Spec.NonDetE.throwError .illegalOperation)
+        Fl4Spec.NonDetE.returnOk (Fl4Spec.TcbInvocation.readRegisters p.bv (Fl4Spec.testBit y0.bv 0) y1.bv
+          Fl4Spec.ArchDefaultExtraRegisters)) := by
+    intro _
+    simp only [Fl4Spec.decodeReadRegisters, List.map_cons, nregs_spec, retOk_bind]
+  rw [hsp (fun _ => Fl4Spec.NonDetE.returnOk (Fl4Spec.TcbInvocation.suspend 0))]
+  have hrng := range20_iff y1
+  by_cases hr : 1 ≤ y1.val ∧ y1.val ≤ 20
+  · have hn1 : ¬ y1 < 1#u64 := by scalar_tac
+    have hn2 : ¬ y1 > 20#u64 := by scalar_tac
+    simp only [hn1, hn2, ↓reduceIte, hct, bind_ok, tcb_eq_ct]
+    have hrc : (Fl4Spec.rangeCheck (Z := Unit) y1.bv 1 (BitVec.ofNat 64 20)).run σ = ({(.ok (), σ)}, False) := by
+      unfold Fl4Spec.rangeCheck Fl4Spec.NonDetE.unlessE; rw [if_pos (hrng.2 hr)]; rfl
+    by_cases hpc : p = ct
+    · subst hpc
+      simp only [decide_true, ↓reduceIte, error.illegal, bind_ok]
+      refine (WP.spec_ok _).2 ?_
+      apply Or.inl
+      refine ⟨_, rfl, rfl, ⟨.illegalOperation, ?_, Or.inl trivial⟩, hJ0⟩
+      apply run_liftME_err
+      rw [run_bind_ok hrc, run_bind_ok (run_liftE (m := Fl4Spec.NonDet.gets fun s : Fl4Spec.State Unit =>
+        s.curThread) rfl), whenE_pos (by show p.bv = σ.curThread; rw [hcur])]
+      exact run_bind_error (m := (Fl4Spec.NonDetE.throwError Fl4Spec.SyscallError.illegalOperation :
+        Fl4Spec.SEMonad Unit Unit)) rfl _
+    · simp only [decide_eq_false hpc, Bool.false_eq_true, ↓reduceIte]
+      obtain ⟨s1, σ1, x1, hrc1, hst1, hk1, -, hσ1, hns, hid1, hcu1, -, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
+      have hkc1 : σ1.kheap ct.bv = some (.tcb { x1 with tcbState := .restart }) := by
+        rw [hσ1, Notif.stsAct_kheap]; simp [Notif.updK]
+      rw [hrc1]; simp only [bind_ok, lift]
+      have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
+          (Fl4Spec.rangeCheck (Z := Unit) y1.bv 1 (BitVec.ofNat 64 20) >>= fun _ => do
+            let self ← Fl4Spec.NonDetE.liftE (Fl4Spec.NonDet.gets fun s : Fl4Spec.State Unit => s.curThread)
+            Fl4Spec.NonDetE.whenE (p.bv = self) (Fl4Spec.NonDetE.throwError .illegalOperation)
+            Fl4Spec.NonDetE.returnOk (Fl4Spec.TcbInvocation.readRegisters p.bv (Fl4Spec.testBit y0.bv 0) y1.bv
+              Fl4Spec.ArchDefaultExtraRegisters))).run σ =
+          ({(.ok (.invokeTCB (.readRegisters p.bv (Fl4Spec.testBit y0.bv 0) y1.bv
+            Fl4Spec.ArchDefaultExtraRegisters)), σ)}, False) := by
+        apply run_liftME_ok
+        rw [run_bind_ok hrc, run_bind_ok (run_liftE (m := Fl4Spec.NonDet.gets fun s : Fl4Spec.State Unit =>
+          s.curThread) rfl), whenE_neg (by show ¬ p.bv = σ.curThread; rw [hcur, bv_eq_iff']; exact hpc), retOk_bind]
+        rfl
+      refine WP.spec_bind (J1.readRegsJ (blk := blk) (don := don) hRR hOK hBC hBPl hns
+        (by rw [hid1]; exact J.ne_idle hpI) (by rw [hcu1]; exact hcur) hkc1 rfl hpc hpT y0 y1) ?_
+      rintro ⟨s2, a2⟩ ⟨hne, rr, σy, hm, z, hz, hRz, hXz⟩
+      exact (WP.spec_ok _).2 (Or.inr ⟨rfl, hne, _, DecOut.of_eq hdec, σ1, hst1, rr, σy, hm, z, hz, hRz, hXz⟩)
+  · have hrc : (Fl4Spec.rangeCheck (Z := Unit) y1.bv 1 (BitVec.ofNat 64 20)).run σ =
+        ({(.error (.rangeError 1 (BitVec.ofNat 64 20)), σ)}, False) := by
+      unfold Fl4Spec.rangeCheck Fl4Spec.NonDetE.unlessE; rw [if_neg (fun h => hr (hrng.1 h))]; rfl
+    have herr : ErrRel (.Sys (.RangeError 1#u64 20#u64)) (.rangeError 1 (BitVec.ofNat 64 20)) :=
+      Or.inl ⟨rfl, rfl⟩
+    by_cases hn1 : y1 < 1#u64
+    · simp only [hn1, ↓reduceIte, error.range, bind_ok]
+      refine (WP.spec_ok _).2 (Or.inl ⟨_, rfl, rfl, ⟨_, ?_, herr⟩, hJ0⟩)
+      exact run_liftME_err (run_bind_error hrc _)
+    · have hn2 : y1 > 20#u64 := by scalar_tac
+      simp only [hn1, hn2, ↓reduceIte, error.range, bind_ok]
+      refine (WP.spec_ok _).2 (Or.inl ⟨_, rfl, rfl, ⟨_, ?_, herr⟩, hJ0⟩)
+      exact run_liftME_err (run_bind_error hrc _)
+
+
 end
 
 section
@@ -1358,7 +1481,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
   · exact XCap.jat arI (decode_invocation_threadJAt arI s ar σ J hni hG hARI hT hA hBT hOK hBC hBPl hFl lbl length p
       blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl hAs hsc excaps buffer hext hstall' hNative hcw
       hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb hI hFr) J (hR hop)
-  have no : ∀ l : U64, 2 ≤ l.val → l.val ≤ 24 → l.val ≠ 12 → l.val ≠ 15 → l.val ≠ 16 → l.val ≠ 17 →
+  have no : ∀ l : U64, 3 ≤ l.val → l.val ≤ 24 → l.val ≠ 12 → l.val ≠ 15 → l.val ≠ 16 → l.val ≠ 17 →
       l.val ≠ 18 → l.val ≠ 19 → l.val ≠ 20 → l.val ≠ 21 → lbl = l → False :=
     fun l h1 h2 h3 h4 h5 h5' h6 h7 h8 h9 h => hop (h ▸ ⟨h1, h2, h3, h4, h5, h5', h6, h7, h8, h9⟩)
   have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
@@ -1367,7 +1490,10 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
   exact decode_invocation_threadX arI s ar σ hJ0 lbl length (cslotAddr sl) p blk call don fp buf extra ct hct slbl
     hlbl _ ci sl excaps buffer hext (hstall' p) hNative
     {
-      readRegisters := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      readRegisters := fun h => by
+        subst h
+        exact tcb_read_regsJ arI s ar σ J hni hRR hOK hBC hBPl p hpT hpI slbl (by rw [hlbl]; simp [tcbLabelOf])
+          length buf ct hct argsU hlen hargs (hstall' p) call (cslotAddr sl) extra blk don ci sl excaps buffer,
       writeRegisters := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
       copyRegisters := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
       configure := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
