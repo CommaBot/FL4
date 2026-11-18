@@ -389,39 +389,28 @@ theorem JAtZ.kern_keepA {s : S} {a : A} {σ : Fl4Spec.State Unit}
   rw [hna, hDbg]; exact K.head
 
 set_option maxHeartbeats 16000000 in
-/-- **`JAtZ` across a final native VSpace cap's finalisation** (module
-docstring): at the same sets, the dead set and P1's sets kept. From
+/-- **`JAtZ` across a native VSpace finalisation doing work** (module
+docstring; `vs_fin`'s caps: a VSpace-mapped frame, final or not, or a final
+table or pool cap): at the same sets, the dead set and P1's sets kept. From
 `VsCapsIn` and `VsApart` [J] at the state and `ArchRefines` [P]. -/
-theorem JAtZ.finVsJ (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit}
+theorem JAtZ.finVsJb (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hVC : VsCapsIn Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G) (Ap : VsApart (L := L) Z H Cs s)
     {sl : Fl4Spec.CslotPtr} {c : capability.Cap} (hDS : DState (L := L) Z.th s σ Z.G) (hAs : AbsSlot Z.th sl)
-    (hc : capAt (L.mem s) (cslotAddr sl) = ok c)
-    (hv : (∃ p m a v, c = .PageTable p m a v) ∨ (∃ p m a v, c = .PageDirectory p m a v) ∨
-      (∃ p m a v, c = .Pdpt p m a v) ∨ (∃ p m a, c = .Pml4 p m a) ∨ ∃ p b, c = .AsidPool p b) :
-    objects.finalise_cap st arI s a c true false ⦃ r =>
-      r.1.1 = finRem c true ∧ CleanCap r.1.2 ∧ CapWf r.1.2 ∧ ∃ σ',
-        ((absCap r.1.1, absCap r.1.2), σ') ∈ (Fl4Spec.finaliseCap (Z := Unit) (absCap c) true σ).1 ∧
+    (hc : capAt (L.mem s) (cslotAddr sl) = ok c) (hvf : IsVsFin c)
+    (hac : ∃ ac, absCap c = .archObjectCap ac) (b : Bool) (hw : FinWork c b) :
+    objects.finalise_cap st arI s a c b false ⦃ r =>
+      r.1.1 = finRem c b ∧ CleanCap r.1.2 ∧ CapWf r.1.2 ∧ ∃ σ',
+        ((absCap r.1.1, absCap r.1.2), σ') ∈ (Fl4Spec.finaliseCap (Z := Unit) (absCap c) b σ).1 ∧
         JAtZ (L := L) arI AR Z H Cs Ac Lst D r.2.1 r.2.2 σ' ∧ SlotsSame Z.th (L.mem s) (L.mem r.2.1) ∧
         L.ksb r.2.1 = L.ksb s ⦄ := by
   have hS := J.xtop.fin.1
-  have hvf : IsVsFin c := by
-    rcases hv with ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, rfl⟩ | ⟨_, _, rfl⟩ <;> trivial
-  have hac : ∃ ac, absCap c = .archObjectCap ac := by
-    rcases hv with ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, rfl⟩ | ⟨_, _, rfl⟩ <;>
-      exact ⟨_, rfl⟩
-  have hw : FinWork c true := by
-    refine Or.inl ⟨Or.inl rfl, ?_, ?_⟩
-    · rcases hv with ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, rfl⟩ | ⟨_, _, rfl⟩ <;> rfl
-    · intro f l e
-      rcases hv with ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, rfl⟩ | ⟨_, _, rfl⟩ <;>
-        cases e
   have hH : VsFinHyps st A arI Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1
       (FootSR st (TopSR st Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.N Z.T Z.C Z.E Z.R Z.B Z.c AR) s (VsW Z (L.ksb s))) :=
     VsFinHyps.footN (fun _ h => Or.inl h) (fun _ h => Or.inr h) (vsFinHyps_top hA)
   refine WP.spec_mono (vs_fin hH s a σ Z.G sl hDS hAs
     ⟨hS.2.pl, hS.2.pt, hS.2.ps, hS.2.pv, hS.2.po, hS.2.vo, hS.2.sd, hS.2.vs,
-      ⟨⟨hS, P1.WritesIn.refl _ _⟩, J.xtop.fin.2⟩, hVC⟩ c hc hvf true hw) ?_
+      ⟨⟨hS, P1.WritesIn.refl _ _⟩, J.xtop.fin.2⟩, hVC⟩ c hc hvf b hw) ?_
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨h1, h2, h3, σ1, G1, hm, hDS1, -, -, -, ⟨hS1, hW⟩, hx1⟩, hSS⟩
   simp only at h1 h2 h3 hm hDS1 hS1 hW hx1 hSS ⊢
   obtain ⟨ac, hacE⟩ := hac
@@ -555,6 +544,33 @@ theorem JAtZ.finVsJ (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.Stat
       J.vs_utc Ap hW hSS F.cdt F.orig F.gpml4 hDbg, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
       J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
   exact ⟨h1, h2, h3, σ1, hm, J.cs_frame (G' := Z.G) hkb hX1 F.kback (JCs.same J hSS F.ksz) R, hSS, hkb⟩
+
+/-- **`JAtZ` across a final native VSpace cap's finalisation** (`finVsJb`
+at a table or pool cap). -/
+theorem JAtZ.finVsJ (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hVC : VsCapsIn Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G) (Ap : VsApart (L := L) Z H Cs s)
+    {sl : Fl4Spec.CslotPtr} {c : capability.Cap} (hDS : DState (L := L) Z.th s σ Z.G) (hAs : AbsSlot Z.th sl)
+    (hc : capAt (L.mem s) (cslotAddr sl) = ok c)
+    (hv : (∃ p m a v, c = .PageTable p m a v) ∨ (∃ p m a v, c = .PageDirectory p m a v) ∨
+      (∃ p m a v, c = .Pdpt p m a v) ∨ (∃ p m a, c = .Pml4 p m a) ∨ ∃ p b, c = .AsidPool p b) :
+    objects.finalise_cap st arI s a c true false ⦃ r =>
+      r.1.1 = finRem c true ∧ CleanCap r.1.2 ∧ CapWf r.1.2 ∧ ∃ σ',
+        ((absCap r.1.1, absCap r.1.2), σ') ∈ (Fl4Spec.finaliseCap (Z := Unit) (absCap c) true σ).1 ∧
+        JAtZ (L := L) arI AR Z H Cs Ac Lst D r.2.1 r.2.2 σ' ∧ SlotsSame Z.th (L.mem s) (L.mem r.2.1) ∧
+        L.ksb r.2.1 = L.ksb s ⦄ := by
+  have hvf : IsVsFin c := by
+    rcases hv with ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, rfl⟩ | ⟨_, _, rfl⟩ <;> trivial
+  have hac : ∃ ac, absCap c = .archObjectCap ac := by
+    rcases hv with ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, rfl⟩ | ⟨_, _, rfl⟩ <;>
+      exact ⟨_, rfl⟩
+  have hw : FinWork c true := by
+    refine Or.inl ⟨Or.inl rfl, ?_, ?_⟩
+    · rcases hv with ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, rfl⟩ | ⟨_, _, rfl⟩ <;> rfl
+    · intro f l e
+      rcases hv with ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, rfl⟩ | ⟨_, _, rfl⟩ <;>
+        cases e
+  exact J.finVsJb hA hVC Ap hDS hAs hc hvf hac true hw
 
 /-- **A VSpace cap's slot is ready** (module docstring): its frame `p`, a
 VSpace frame of the sets, holds no object of `H` but `other` ones, so every

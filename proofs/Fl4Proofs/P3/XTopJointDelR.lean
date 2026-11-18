@@ -29,8 +29,9 @@ some of them proved here.
   `valid_untyped` gap, as `DelUtHyp`).
 * The frame and IO port caps' finalisation, final or not (`jFinAt_frio`,
   XTopJointFinFrIo): an unmapped frame's and an unowned IO port cap's do
-  nothing; a VSpace-mapped frame's from `JFrMapHyp` [J] (undone: the unmap's
-  `JRest` frame), the VT-x work (EPT-mapped frames, owned IO ports) from
+  nothing; a VSpace-mapped frame's unmap by `jFrMap_of` (XTopJointFinVs's
+  `JAtZ.finVsJb`, from `ArchRefines` [P], `JVsCapsHyp` [J] and
+  `JVsApartHyp` [J]), the VT-x work (EPT-mapped frames, owned IO ports) from
   `JFrVtHyp` [J]; the slot ready after by `JFrameApartHyp` [J] (a frame's
   memory holds no kernel object; an IO port cap is not physical).
 * A final IRQ handler cap's finalisation (`jFinAt_irq`, as XTopFinIrq):
@@ -178,15 +179,9 @@ def JFinAtF (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (Kd : capability.
 /-- A frame cap or an IO port cap (finalised with work when not final). -/
 def FrIoK (c : capability.Cap) : Prop := isFrame c = true ∨ ∃ f l o, c = .IoPort f l o
 
-/-- **Hypothesis: a VSpace-mapped frame cap's finalisation at `J`** [J]
-(`FrMapK`, final or not: FL4's `vspace::unmap_page`, the spec's
-`unmap_page`), `WJ` after (the readiness from `JFrameApartHyp`). Undone:
-XTopFinVs's `xFinRest_of` proves the step at `XTop` (from `VsCapsIn` [J],
-`ArchRefines` [P]), but its footprint (`VsFootW0`: the slot, page-table, TCB
-state and scheduler-action words) and the spec side (`archFinaliseCap`) are
-too coarse for `JRest`'s frame; it needs the unmap's own footprint (the
-page-table words) apart from `H`'s objects, the slots and the nodes, and the
-spec step changing the arch objects only. -/
+/-- **A VSpace-mapped frame cap's finalisation at `J`** (`FrMapK`, final or
+not: FL4's `vspace::unmap_page`, the spec's `unmap_page`), `WJ` after (the
+readiness from `JFrameApartHyp`); proved, `jFrMap_of`. -/
 def JFrMapHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
     FinObjHypWRK (L := L) arI (WJ (L := L) arI AR Z H Cs kb) (fun _ _ _ _ _ => True) th FrMapK
@@ -203,7 +198,11 @@ def JFrVtHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
 `valid_cap` of a frame cap, `typ_at (AArch (AUserData sz))` or device memory,
 with `pspace_distinct`): at `WJ`, no object of P1's heap `H` meets the range
 of a frame cap in a slot. `JAtZ` carries no fact on frames' memory (`JCovD`
-asks every object covered, not uncovered by frames). -/
+asks every object covered, not uncovered by frames). Not narrowed as
+`VsApart` was: `TopPlaced.disj` (`JAtZ.vobj_apart`) separates the other
+subsystems' objects from the VSpace objects (`VObj`: the CNodes, the TCBs'
+slots, the tables and pools, the ASID table), and a frame's memory is none
+of these; `VsCapsIn` (`VCapOK`) gives a frame cap only its alignment. -/
 def JFrameApartHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
     ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost), WJ (L := L) arI AR Z H Cs kb s a σ G →
@@ -331,7 +330,6 @@ structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   /-- XTopJointFinVs's `JVsApartHyp` [J] (the VSpace frames and the ASID table
   apart from `H`'s objects, the nodes and the untyped free parts). -/
   vsApart : JVsApartHyp (L := L) arI AR th
-  frMap : JFrMapHyp (L := L) arI AR th
   frVt : JFrVtHyp (L := L) arI AR th
   frApart : JFrameApartHyp (L := L) arI AR th
   /-- A final SC cap's finalisation at `J` (XTopJointFinSc: `JScFinHyp`,
@@ -714,9 +712,31 @@ theorem jFinAt_vs (hAR : ArchRefines arI AR) (hVC : JVsCapsHyp (L := L) arI AR t
     fun y hy _ => Or.inl (hSS.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS,
     ⟨V, Ac, Lst, D, J1, hks.trans hkb⟩, J.vs_ready Ap hVC0 hxm hcv hv hcv1⟩
 
+set_option maxHeartbeats 4000000 in
+/-- **A VSpace-mapped frame cap's finalisation at `J`** (XTopJointFinVs's
+`JAtZ.finVsJb`, final or not), from `ArchRefines` [P], `JVsCapsHyp` [J] and
+`JVsApartHyp` [J]. -/
+theorem jFrMap_of (hAR : ArchRefines arI AR) (hVC : JVsCapsHyp (L := L) arI AR th)
+    (hAp : JVsApartHyp (L := L) arI AR th) : JFrMapHyp (L := L) arI AR th := by
+  intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨p, sz, r, d, asid, va, hce⟩
+  obtain ⟨V, Ac, Lst, D, J, hkb⟩ := hW
+  have hVC0 := hVC (Z.mv G V) H Cs Ac Lst D s a σ hth J
+  have Ap := hAp (Z.mv G V) H Cs Ac Lst D s a σ hth J
+  subst hth hce
+  have hcv := capV_of_capAt hc
+  refine WP.spec_mono (J.finVsJb hAR hVC0 Ap hDS hA hc rfl ⟨_, rfl⟩ _
+    (Or.inr ⟨p, sz, r, d, false, asid, va, rfl⟩)) ?_
+  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨h1, h2, h3, σ1, hm, J1, hSS, hks⟩
+  simp only at h1 h2 h3 hm J1 hSS hks ⊢
+  have hcv1 : capV (L.mem s1) (cslotAddr sl) = .Frame p sz r d true false asid va := by
+    rw [hSS.capV hA.isSlot, hcv]
+  exact ⟨h1, h2, h3, σ1, G, hm, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
+    fun y hy _ => Or.inl (hSS.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS,
+    ⟨V, Ac, Lst, D, J1, hks.trans hkb⟩, trivial⟩
+
 /-- **The frame and IO port caps' finalisation at `J`**, final or not
 (XTopJointFinFrIo's `finFrIo_of`): an unmapped frame's and an unowned IO
-port cap's do nothing; a VSpace-mapped frame's from `JFrMapHyp` [J], the
+port cap's do nothing; a VSpace-mapped frame's from `JFrMapHyp` (`jFrMap_of`), the
 VT-x work from `JFrVtHyp` [J]; the slot ready after (an IO port cap is not
 physical; a frame's memory holds no object of `H`, `JFrameApartHyp` [J]). -/
 theorem jFinAt_frio (hM : JFrMapHyp (L := L) arI AR th) (hV : JFrVtHyp (L := L) arI AR th)
@@ -857,7 +877,7 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
   by_cases hn : NtfnK c
   · exact jFinAt_ntfn arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hn
   by_cases hfi : FrIoK c
-  · exact jFinAt_frio arI h.frMap h.frVt h.frApart Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi
+  · exact jFinAt_frio arI (jFrMap_of arI h.archRef h.vsCaps h.vsApart) h.frVt h.frApart Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi
   by_cases hfin : Fl4Spec.isFinalCap' (absCap c) σ
   · by_cases hq : IrqK c
     · exact jFinAt_irq arI h.empUt h.irq hLayI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hq hfin
