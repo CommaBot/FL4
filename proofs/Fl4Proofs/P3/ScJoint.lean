@@ -135,7 +135,7 @@ def UtJOk (arI : machine.Arch A) (H : P1.Heap) (Cs : Set U64) (s : S) (slot : U6
     JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ σ.schedulerAction ≠ .chooseNewThread ∧
       Z.th pp = some (.cnode rs) ∧ idx.length = rs ∧
       slot = cslotAddr (pp.bv, idx) ∧ capAt (L.mem s) slot = ok cap ∧
-      ∀ x ∈ extra.val, x ≠ 0#u64 → ∃ c a, capAt (L.mem s) x = ok c ∧ CapRel c a ∧ CapValid Z.th c
+      ∀ x ∈ extra.val, x ≠ 0#u64 → IsSlot Z.th x ∧ ∃ c a, capAt (L.mem s) x = ok c ∧ CapRel c a ∧ CapValid Z.th c
 
 /-- **[J] `RegionUnref` on `JAt`** (`RegionUnref`'s docstring): after the
 restart from a `JAt` state, the kept objects' links and FL4's timer and

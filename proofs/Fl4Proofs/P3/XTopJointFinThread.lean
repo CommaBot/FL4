@@ -411,8 +411,8 @@ theorem JAtZ.dbgw_utc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     · have := (J.jcov.ks _ hxm p sb fi dev hcv).2 Z.c hcC
       omega
   · intro h0 hf0
-    obtain ⟨r1, r2, -⟩ := U.rst h0 hf0
-    exact ⟨r1, r2, by rw [hna]; exact hhd sl p sb fi dev hsl hcap0 h0 hf0⟩
+    obtain ⟨r1, -⟩ := U.rst h0 hf0
+    exact ⟨r1, by rw [hna]; exact hhd sl p sb fi dev hsl hcap0 h0 hf0⟩
 
 /-- **`JKern` across debug-list writes** (`kern_keep` with the spec state
 kept and core 0's list head re-established, `hhead`, instead of kept). -/
@@ -666,7 +666,7 @@ theorem JAtZ.dbgRemoveJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       omega
     · have U := J.utc sl p sb fi dev hsl hcap
       rcases hhd0 with e | ⟨e1, e2⟩
-      · rw [e]; exact (U.rst h0 hf0).2.2
+      · rw [e]; exact (U.rst h0 hf0).2
       · rw [e2]
         by_cases hz : L.mem s (P1.dnA t) = 0#u64
         · rw [hz]

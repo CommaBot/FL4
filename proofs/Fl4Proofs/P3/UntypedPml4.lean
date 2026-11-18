@@ -1140,7 +1140,6 @@ theorem retype_cont_pml4N {A' : Type} (arI : machine.Arch A') (ar : A') (th : Ty
       L.mem t (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = v0))
     (hRst : (¬ ∃ x, σ.cdt x = some (pp.bv, idx)) → fi.val ≠ 0 →
       (∀ sl, σ.isOriginalCap sl = true → AbsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) sl) ∧
-      (∀ q r, th q = some (.cnode r) → ¬ (p.val ≤ q.val ∧ q.val < p.val + 2 ^ sb.val)) ∧
       ¬ (p.val ≤ (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val ∧
         (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val < p.val + 2 ^ sb.val))
     (bitsApi : Fl4Spec.ApiObjectType → Nat → Nat)
@@ -1291,7 +1290,13 @@ theorem retype_cont_pml4N {A' : Type} (arI : machine.Arch A') (ar : A') (th : Ty
   obtain ⟨hrs, hfi0⟩ := hcase
   have hnc : ¬ ∃ x, σ.cdt x = some (pp.bv, idx) := by
     have := hctx.resetEq; rw [hrs] at this; simpa using this.symm
-  obtain ⟨horigR, hcnR, hheadR⟩ := hRst hnc hfi0
+  obtain ⟨horigR, hheadR⟩ := hRst hnc hfi0
+  -- the destination CNode, named by a cap in the MDB, misses the childless region
+  have hdout0 : ¬ (p.val ≤ dest.val ∧ dest.val < p.val + 2 ^ sb.val) := by
+    obtain ⟨y, rr, gs, g, hy, hcy⟩ := hctx.cnode.2.2.2
+    have hAs0 : AbsSlot th (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩
+    exact cnode_off_childless hU hI ((hM.members _).2 ⟨hAs0.isSlot, _, hcap, by simp⟩) (capV_of_capAt hcap)
+      (nodesc_of_cdt hP hC hAs0 hnc) ((hM.members y).2 ⟨hy, _, hcy, by simp⟩) (capV_of_capAt hcy)
   have hdev : dev = false := by
     cases hd : dev
     · rfl
@@ -1341,7 +1346,7 @@ theorem retype_cont_pml4N {A' : Type} (arI : machine.Arch A') (ar : A') (th : Ty
   have hnd := nodesc_of_cdt hP hC1 hAs (by rw [hcdt1]; exact hnc)
   have horig2 : ∀ sl, σ1.isOriginalCap sl = true → AbsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) sl := by
     rw [hio1]; exact horigR
-  have hdout := hcnR dest r hdest
+  have hdout := hdout0
   have hPP2 : PPHyp (L := L) arI th p sb (fun t => L.ksb t = L.ksb s2 ∧
       L.mem t (L.nodeAt s2 0#u64 layout.node.DEBUG_TCBS) = L.mem s2 (L.nodeAt s2 0#u64 layout.node.DEBUG_TCBS)) := by
     rw [hDW2]; exact hPP _ _
@@ -1458,7 +1463,6 @@ theorem untyped_retype_refines_fl4P [Fl4Proofs.P1.PlainStore st] {A' : Type} (ar
       L.mem t (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = v0))
     (hRst : (¬ ∃ x, σ.cdt x = some (pp.bv, idx)) → fi.val ≠ 0 →
       (∀ sl, σ.isOriginalCap sl = true → AbsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) sl) ∧
-      (∀ q r, th q = some (.cnode r) → ¬ (p.val ≤ q.val ∧ q.val < p.val + 2 ^ sb.val)) ∧
       ¬ (p.val ≤ (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val ∧
         (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val < p.val + 2 ^ sb.val))
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)

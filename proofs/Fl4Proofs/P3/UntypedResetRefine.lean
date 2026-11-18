@@ -323,6 +323,33 @@ theorem nodesc_of_cdt {th : TypedHeap} {mem : U64 → U64} {σ : Fl4Spec.State U
   have hAq := (hC.cdt_slot sl' q hq).2
   exact hno ⟨sl', by rw [hq, cslotAddr_inj hP hAq hAs hqe]⟩
 
+/-- **A CNode named by a cap of the MDB misses a childless untyped cap's
+region** (as ScPlaceUt's `ut_free`; l4v `untyped_children_in_mdb`: a cap
+meeting the region descends from the untyped cap): the reset's destination
+CNode, named by the decode's node cap, survives the region's reset. -/
+theorem cnode_off_childless {mem : U64 → U64} {G : MdbGhost} (hU : UtInv mem G) (hI : MdbInv mem G) {x : U64}
+    (hx : x ∈ G.chains.flatten) {p sb fi : U64} {d : Bool} (hcx : capV mem x = .Untyped p sb fi d)
+    (hnd : ∀ y, ¬ Mdb.Desc G.par y x) {y : U64} (hy : y ∈ G.chains.flatten) {q r gs g : U64}
+    (hcy : capV mem y = .CNode q r gs g) : ¬ (p.val ≤ q.val ∧ q.val < p.val + 2 ^ sb.val) := by
+  have hsb := capV_ut_sb hcx
+  have hreg := hU.reg x hx (by rw [hcx]; exact ok_inj (phys_eq _).symm)
+  rw [hcx] at hreg
+  obtain ⟨b1, t1, -⟩ := ut_range hsb hreg
+  have hpy : physF (capV mem y) = true := by rw [hcy]; exact ok_inj (phys_eq _).symm
+  have hregy := hU.reg y hy hpy
+  have hby : baseF (capV mem y) = q.val := by
+    rw [hcy]; unfold baseF; rw [show ptrF (.CNode q r gs g) = q from ok_inj (ptr_eq _).symm]
+  have hyx : y ≠ x := by rintro rfl; rw [hcx] at hcy; cases hcy
+  by_cases hdj : Disj (capV mem y) (capV mem x)
+  · unfold Disj at hdj
+    rw [hcx, b1, t1] at hdj
+    have := Nat.one_le_two_pow (n := sb.val)
+    omega
+  · rcases hU.drange x hx p sb fi d hcx y hy hyx hpy hdj with h | h
+    · exact absurd h (hnd y)
+    · have := hI.anc_ut h (by rw [hcx]; rfl)
+      rw [hcy] at this; simp [isUt] at this
+
 theorem and_not_mask (x m : U64) (hm : m.val = 65535) : (x &&& ~~~m).val = x.val / 65536 * 65536 := by
   have hmb : m.bv = 65535#64 := BitVec.eq_of_toNat_eq hm
   show (x.bv &&& ~~~m.bv).toNat = _

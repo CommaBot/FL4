@@ -102,7 +102,10 @@ structure RetCtx (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (sl : Fl4Spe
   ty : objTypeOf nt.val = some t
   size : us.val < 64 ∧ zOf nt.val us.val ≤ 47 ∧ ¬ (nt.val = 4 ∧ us.val = 0) ∧ ¬ (nt.val = 0 ∧ us.val < 4) ∧
     ¬ (nt.val = 5 ∧ us.val < 7)
-  cnode : th dest = some (.cnode r) ∧ r < 64 ∧ r ≠ 0
+  /-- The destination CNode, of radix `r`, named by a CNode cap held in a slot
+  (the decode's node cap: the extra cap or the slot its lookup reaches). -/
+  cnode : th dest = some (.cnode r) ∧ r < 64 ∧ r ≠ 0 ∧
+    ∃ y rr gs g, IsSlot th y ∧ capAt (L.mem s) y = ok (.CNode dest rr gs g)
   window : 1 ≤ win.val ∧ win.val ≤ 256 ∧ off.val + win.val ≤ 2 ^ r
   empty : ∀ i : Nat, off.val ≤ i → i < off.val + win.val →
     capAt (L.mem s) (slotAddr dest.bv (BitVec.ofNat 64 i)) = ok .Null
@@ -182,7 +185,7 @@ theorem untyped_decode_refines_with [Fl4Proofs.P1.PlainStore st] (bitsApi : Fl4S
     simp only [Fl4Spec.NonDetE.whenE, this, ↓reduceIte, Fl4Spec.NonDetE.throwError, ndE_throw_bind]; rfl
   have h6' : ¬ (args.map UScalar.bv).length < 6 := by simp; scalar_tac
   simp only [h6, ↓reduceIte, Fl4Spec.NonDetE.whenE, h6', ndE_pure_bind, hx0, bind_ok, obj.Slot.is_null]
-  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, -, c0, a0, rest0, hc0, hca0, hcv0, rfl⟩
+  rcases hex with ⟨rfl, rfl⟩ | ⟨hx0n, hx0s, c0, a0, rest0, hc0, hca0, hcv0, rfl⟩
   · simp only [↓reduceIte, error.truncated, bind_ok, decide_true]
     apply UPost.err (e := .Sys .TruncatedMessage) (e' := .truncatedMessage) _ trivial
     simp only [List.length_nil, ↓reduceIte, Fl4Spec.NonDetE.throwError, ndE_throw_bind]; rfl
@@ -262,14 +265,15 @@ theorem untyped_decode_refines_with [Fl4Proofs.P1.PlainStore st] (bitsApi : Fl4S
           let nodeSlot ← Fl4Spec.lookupTargetSlot a0 (Fl4Spec.dataToCptr idx.bv) dep.val
           Fl4Spec.NonDetE.liftE (Fl4Spec.getCap nodeSlot) : Fl4Spec.SEMonad Unit Fl4Spec.Cap).run σ =
         ({(.error e', σ)}, False) ∧ SysErrRel e e') ∨
-      (∃ nc, CapWf nc ∧ CapValid th nc ∧ untyped.retype_dest st s x0 idx dep off win = ok (tailOf dep off win nc) ∧
+      (∃ nc, CapWf nc ∧ CapValid th nc ∧ (∃ y, IsSlot th y ∧ capAt (L.mem s) y = ok nc) ∧
+        untyped.retype_dest st s x0 idx dep off win = ok (tailOf dep off win nc) ∧
       (if dep.val = 0 then pure a0 else do
           let nodeSlot ← Fl4Spec.lookupTargetSlot a0 (Fl4Spec.dataToCptr idx.bv) dep.val
           Fl4Spec.NonDetE.liftE (Fl4Spec.getCap nodeSlot) : Fl4Spec.SEMonad Unit Fl4Spec.Cap).run σ =
         ({(.ok (absCap nc), σ)}, False)) := by
     by_cases h0 : dep = 0#u64
     · subst h0
-      refine Or.inr ⟨c0, hca0.1, hcv0, retype_dest_zero s x0 idx off win c0 hc0 hca0.1, ?_⟩
+      refine Or.inr ⟨c0, hca0.1, hcv0, ⟨x0, hx0s, hc0⟩, retype_dest_zero s x0 idx off win c0 hc0 hca0.1, ?_⟩
       simp only [show (0#u64 : U64).val = 0 from rfl, ↓reduceIte, ← hca0.abs]; rfl
     have h0' : dep.val ≠ 0 := fun h => h0 (UScalar.eq_of_val_eq h)
     simp only [h0', ↓reduceIte]
@@ -291,9 +295,10 @@ theorem untyped_decode_refines_with [Fl4Proofs.P1.PlainStore st] (bitsApi : Fl4S
         obtain ⟨rfl, pp, hpp1, hpp, -⟩ := hrel
         obtain ⟨c', a', hc', hca', hg⟩ := hR.slot_cap hpp1 hpp
         have hcv' : CapValid th c' := hV.abs ⟨pp, hpp1, Or.inl hpp⟩ hc'
-        refine Or.inr ⟨c', hca'.1, hcv', retype_dest_ok s x0 idx dep off win h0 c0 hc0 _ hl' c' hc' hca'.1, ?_⟩
+        refine Or.inr ⟨c', hca'.1, hcv', ⟨_, AbsSlot.isSlot ⟨pp, hpp1, Or.inl hpp⟩, hc'⟩,
+          retype_dest_ok s x0 idx dep off win h0 c0 hc0 _ hl' c' hc' hca'.1, ?_⟩
         rw [run_bind_ok hlt, run_liftE hg, ← hca'.abs]
-  rcases hnode with ⟨e, e', hrd, hsn, hrel⟩ | ⟨nc, hncw, hncv, hrd, hsn⟩
+  rcases hnode with ⟨e, e', hrd, hsn, hrel⟩ | ⟨nc, hncw, hncv, hncy, hrd, hsn⟩
   · rw [hrd]; fl4_break
     exact UPost.err (run_bind_error hsn _) hrel
   rw [hrd]
@@ -432,7 +437,7 @@ theorem untyped_decode_refines_with [Fl4Proofs.P1.PlainStore st] (bitsApi : Fl4S
       rw [align_up_eq _ _ (by omega), hzv, core.num.U64.wrapping_add_bv_eq]
     have hctx : ∀ (hdev : dev = true → Fl4Spec.isFrameType t = true ∨ t = .untyped),
         RetCtx (L := L) th s σ sl sb fi dev nt us ptr off win t r.val R fiv :=
-      fun hdev => ⟨ht, ⟨by omega, hz47, hsB, hsC, hsD⟩, ⟨hthp, hr64, hr0⟩, ⟨hw1.1, hw1.2, hwin⟩, hemp,
+      fun hdev => ⟨ht, ⟨by omega, hz47, hsB, hsC, hsD⟩, ⟨hthp, hr64, hr0, let ⟨y, hy, hcy⟩ := hncy; ⟨y, r, gs, g, hy, hcy⟩⟩, ⟨hw1.1, hw1.2, hwin⟩, hemp,
         hRv.symm, hfiv', hsb, by rw [← hi4]; have : ¬ i4.val < win.val := hm; omega, hdev⟩
     have hsucc : ∀ (hdev : dev = true → Fl4Spec.isFrameType t = true ∨ t = .untyped),
         (do

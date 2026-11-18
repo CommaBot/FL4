@@ -31,8 +31,7 @@ some of them proved here.
   childless untyped region: `JSwapHyp`, a zombie swapped with its first
   slot, from it, `jSwapHyp_of`), `JEmptyUtHyp` (liveness of the slots in use and the debug head
   apart from the emptied slot, from which XTopJointEmptyUt's
-  `JAtZ.delUtFact_of` gives `DelUtFact` after; and `UtCapP3.rst`'s CNode
-  clause, which is not an invariant: see `JEmptyUtHyp`).
+  `JAtZ.delUtFact_of` gives `DelUtFact` after).
 * The frame and IO port caps' finalisation, final or not (`jFinAt_frio`,
   XTopJointFinFrIo): an unmapped frame's and an unowned IO port cap's do
   nothing; a VSpace-mapped frame's unmap by `jFrMap_of` (XTopJointFinVs's
@@ -359,20 +358,15 @@ def JPostDelHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
 /-- **Hypothesis: liveness of what a childless untyped's region must miss,
 when a ready slot holding its only child is emptied** [J]
 (XTopJointEmptyUt; `JAtZ.delUtFact_of` derives `DelUtFact` after from it,
-by `ut_free`). Three parts, at the `WJ` state before:
+by `ut_free`). Two parts, at the `WJ` state before:
 * every other slot holding a cap or an original bit is live apart from the
   emptied one (`SlotLiveAt`: covered by another cap, or in the kernel block;
   l4v `if_unsafe_then_cap`, with `cap_removeable`: a zombie goes once its
   slots are empty);
 * core 0's debug-list head, when not null, covered by another cap (FL4's
-  debug list holds the unfinalised TCBs; l4v `if_live_then_nonz_cap`);
-* `UtCapP3.rst`'s CNode clause after (no CNode of `th` in the region when
-  the free index is not zero). **Not an invariant**: `th` keeps a CNode after
-  its last cap goes, so emptying the last cap of a CNode retyped from the
-  untyped falsifies it. The fix is upstream: `UtCapP3.rst` should ask only
-  what the reset needs (the retype's destination CNode off the region, which
-  holds since that CNode is live: covered, `ut_free`).
-Was: `DelUtFact` after, outright. -/
+  debug list holds the unfinalised TCBs; l4v `if_live_then_nonz_cap`).
+Was: `DelUtFact` after, outright (with a CNode clause that was not an
+invariant; `UtCapP3.rst` no longer has it). -/
 def JEmptyUtHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
     ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (sl : Fl4Spec.CslotPtr),
@@ -385,8 +379,7 @@ def JEmptyUtHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
           SlotLiveAt (L.mem s) G (L.ksb s) (cslotAddr sl) y) ∧
         (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) ≠ 0#u64 →
           OtherCov (L.mem s) G (cslotAddr sl) (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val
-            ((L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val + 1)) ∧
-        (ufi.val ≠ 0 → ∀ q r, th q = some (.cnode r) → ¬ (up.val ≤ q.val ∧ q.val < up.val + 2 ^ usb.val))
+            ((L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val + 1))
 
 /-- An IRQ handler cap. -/
 def IrqK (c : capability.Cap) : Prop := ∃ i, c = .IrqHandler i
@@ -562,8 +555,8 @@ theorem emptyHypJ [Fl4Proofs.P1.PlainStore st] (hUt : JEmptyUtHyp (L := L) arI A
   have hU : ∀ u up usb ufi udev, AbsSlot Z.th u → capAt (L.mem s) (cslotAddr u) = ok (.Untyped up usb ufi udev) →
       σ.cdt sl = some u → (∀ x, σ.cdt x = some u → x = sl) → (∀ x, σ.cdt x ≠ some sl) →
       DelUtFact (L := L) Z.th s' σ' up usb ufi := fun u up usb ufi udev hu hcu hpar honly hleaf =>
-    let ⟨h1, h2, h3⟩ := hL u up usb ufi udev hu hcu hpar honly hleaf
-    J.delUtFact_of hA hD2 hX2.rel.2.2.2.2.1.1.2.1 hx0 hoth hw hcs.1 hcs.2 hu hcu hpar honly hleaf h1 h2 h3
+    let ⟨h1, h2⟩ := hL u up usb ufi udev hu hcu hpar honly hleaf
+    J.delUtFact_of hA hD2 hX2.rel.2.2.2.2.1.1.2.1 hx0 hoth hw hcs.1 hcs.2 hu hcu hpar honly hleaf h1 h2
   obtain ⟨hC, Ac', Lst', D', R⟩ := hR hU
   exact ⟨V2, Ac', Lst', D', J.cs_frameV hks hX2 hkb2 hC R, hks.trans hkb⟩
 

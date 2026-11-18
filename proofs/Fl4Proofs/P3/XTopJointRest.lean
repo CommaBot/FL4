@@ -449,8 +449,8 @@ theorem JAtZ.ins_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
       have hym : y ∈ Z.G.chains.flatten := (hM.members y).2 ⟨hys, c0, hc0, hn⟩
       exact U.ns hnc y hym
   · have hnc := hnc' h0
-    obtain ⟨r1, r2, r3⟩ := U.rst hnc hf0
-    refine ⟨fun sl' h => ?_, r2, by rw [hna, hDbg]; exact r3⟩
+    obtain ⟨r1, r3⟩ := U.rst hnc hf0
+    refine ⟨fun sl' h => ?_, by rw [hna, hDbg]; exact r3⟩
     by_cases e : sl' = (q0.bv, idxd)
     · subst e
       have hl := hlive hnc
@@ -594,8 +594,8 @@ theorem JAtZ.cn_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
       · exact U.ns hnc y hym
       · exact (J.live_slot arI hs0 hc0 hnc (hW w hwW)).1
     · have hnc := hcd h0
-      obtain ⟨r1, r2, r3⟩ := U.rst hnc hf0
-      refine ⟨fun sl' h => ?_, r2, by rw [hna, hDbg]; exact r3⟩
+      obtain ⟨r1, r3⟩ := U.rst hnc hf0
+      refine ⟨fun sl' h => ?_, by rw [hna, hDbg]; exact r3⟩
       rcases hoW sl' h with h' | hwW
       · exact r1 sl' h'
       · exact (J.live_slot arI hs0 hc0 hnc (hW sl' hwW)).2
@@ -874,8 +874,8 @@ theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (
       rw [ksW_keep hw hal (by omega)]
       exact U.zero w hal h1 h2
     · rw [hO.cdt] at h0
-      obtain ⟨r1, r2, r3⟩ := U.rst h0 hf0
-      exact ⟨fun sl' h => r1 sl' (by rw [← hO.orig]; exact h), r2, by rw [hna, hDbg]; exact r3⟩
+      obtain ⟨r1, r3⟩ := U.rst h0 hf0
+      exact ⟨fun sl' h => r1 sl' (by rw [← hO.orig]; exact h), by rw [hna, hDbg]; exact r3⟩
   exact ⟨Ac, Lst, D, ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 mk,
     J.buf.frame kb (fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.buf⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_kheap hO.kh),
     J.jpl_keep arI hSS hO.kh hw.1 hI, J.jcov_keep hw.1 hSS hdead, hkern, hutc, J.nsc.cn hC.toHStep, J.inv.cn hC, CurInvW.cn J.cur hC, J.own.cn hC.toHStep, J.off.cn hC.toHStep,
@@ -1045,8 +1045,8 @@ theorem jowes_sched {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S
       · omega
       · have := hapart.1; omega
     · rw [hK.cdt] at h0
-      obtain ⟨r1, r2, r3⟩ := U.rst h0 hf0
-      exact ⟨fun sl' h => r1 sl' (by rw [← hK.orig]; exact h), r2, by rw [hna, hDbg]; exact r3⟩
+      obtain ⟨r1, r3⟩ := U.rst h0 hf0
+      exact ⟨fun sl' h => r1 sl' (by rw [← hK.orig]; exact h), by rw [hna, hDbg]; exact r3⟩
   have hI : ∀ i : U64, i.val < 128 → capV (L.mem s') (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i) :=
     irqNode_keep hw hkf J.kern.ksbAl fun b hb => by
       rcases schW_val hcq.tcbs hkf hb with ⟨y, hy, e | e | e⟩ | ⟨g1, g2⟩ | ⟨g1, g2, -⟩

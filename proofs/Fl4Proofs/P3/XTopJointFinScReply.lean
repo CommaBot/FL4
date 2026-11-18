@@ -359,8 +359,8 @@ theorem JAtZ.sc_utcR {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
       omega
   · intro h0 hf0
     rw [hK.cdt] at h0
-    obtain ⟨r1, r2, r3⟩ := U.rst h0 hf0
-    exact ⟨fun sl' h => r1 sl' (by rw [← hK.orig]; exact h), r2, by rw [hna, hDbg]; exact r3⟩
+    obtain ⟨r1, r3⟩ := U.rst h0 hf0
+    exact ⟨fun sl' h => r1 sl' (by rw [← hK.orig]; exact h), by rw [hna, hDbg]; exact r3⟩
 
 
 set_option maxHeartbeats 4000000 in

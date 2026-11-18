@@ -208,8 +208,8 @@ theorem JAtZ.tmw_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       omega
   · intro h0 hf0
     rw [hcdt] at h0
-    obtain ⟨r1, r2, r3⟩ := U.rst h0 hf0
-    exact ⟨fun sl' h => r1 sl' (by rw [← horig]; exact h), r2, by rw [hna, hDbg]; exact r3⟩
+    obtain ⟨r1, r3⟩ := U.rst h0 hf0
+    exact ⟨fun sl' h => r1 sl' (by rw [← horig]; exact h), by rw [hna, hDbg]; exact r3⟩
 
 set_option maxHeartbeats 8000000 in
 /-- **`JAtZ` across timer-word writes** (module docstring): the timer words

@@ -115,15 +115,14 @@ theorem jowes_slotD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
 
 /-- **What a deletion cannot re-establish of an untyped cap** [J]: an untyped
 cap left childless by the deletion (the deleted cap its only child, itself
-childless) has no MDB slot and no CNode in its region and the original caps
-in its region, as `UtCapP3`'s childless clauses (`ns`, `rst`) need (l4v
+childless) has no MDB slot in its region and no original cap in its region
+(and the debug head out of it), as `UtCapP3`'s childless clauses (`ns`, `rst`) need (l4v
 `valid_untyped`'s `descendants_range_in`: the objects of a region are named
 by the region's descendants only). -/
 def DelUtFact (th : TypedHeap) (s' : S) (σ' : Fl4Spec.State Unit) (p sb fi : U64) : Prop :=
   (∀ y, IsSlot th y → capV (L.mem s') y ≠ .Null → y.val < p.val ∨ p.val + 2 ^ sb.val ≤ y.val) ∧
   (fi.val ≠ 0 →
     (∀ sl, σ'.isOriginalCap sl = true → AbsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) sl) ∧
-    (∀ q r, th q = some (.cnode r) → ¬ (p.val ≤ q.val ∧ q.val < p.val + 2 ^ sb.val)) ∧
     ¬ (p.val ≤ (L.mem s' (L.nodeAt s' 0#u64 layout.node.DEBUG_TCBS)).val ∧
       (L.mem s' (L.nodeAt s' 0#u64 layout.node.DEBUG_TCBS)).val < p.val + 2 ^ sb.val))
 
@@ -207,8 +206,8 @@ theorem JAtZ.del_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     · obtain ⟨hys, c0, h0', hn⟩ := (hM'.members y).1 hy
       exact (hUt u p sb fi dev hu hcap0 g1 g2 g3).1 y hys (by rw [show capV (L.mem s') y = c0 from capV_of_capAt h0']; exact hn)
   · rcases hnc' h0 with hnc | ⟨g1, g2, g3⟩
-    · obtain ⟨r1, r2, r3⟩ := U.rst hnc hf0
-      exact ⟨fun sl' h => r1 sl' (horig sl' h), r2, by rw [hna, hDbg]; exact r3⟩
+    · obtain ⟨r1, r3⟩ := U.rst hnc hf0
+      exact ⟨fun sl' h => r1 sl' (horig sl' h), by rw [hna, hDbg]; exact r3⟩
     · exact (hUt u p sb fi dev hu hcap0 g1 g2 g3).2 hf0
 
 theorem KBack.trans' {σ1 σ2 σ3 : Fl4Spec.State Unit} (h1 : KBack σ1 σ2) (h2 : KBack σ2 σ3) : KBack σ1 σ3 := by

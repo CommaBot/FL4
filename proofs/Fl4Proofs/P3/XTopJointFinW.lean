@@ -187,8 +187,8 @@ theorem JAtZ.finW_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
       omega
   · intro h0 hf0
     rw [hcdt] at h0
-    obtain ⟨r1, r2, r3⟩ := U.rst h0 hf0
-    exact ⟨fun sl' h => r1 sl' (by rw [← horig]; exact h), r2, by rw [hna, hDbg]; exact r3⟩
+    obtain ⟨r1, r3⟩ := U.rst h0 hf0
+    exact ⟨fun sl' h => r1 sl' (by rw [← horig]; exact h), by rw [hna, hDbg]; exact r3⟩
 
 /-- **Core 0's `DEBUG_TCBS` word is kept by P1's footprint** (`KW` leaves it
 out; core 0 among the cores, `JKern.cs0`). -/

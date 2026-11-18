@@ -14,12 +14,10 @@ apply to it. They follow (`JAtZ.delUtFact_of`) from:
 * core 0's debug-list head, when not null, covered by a cap other than
   `sl`'s (FL4's debug list holds the TCBs not finalised; the analogue of l4v
   `if_live_then_nonz_cap`);
-* `UtCapP3.rst`'s CNode clause itself (no CNode of the typed heap in the
-  region), which no invariant can give: `th` keeps a CNode after its last
-  cap's deletion (dead), so emptying a CNode's last cap, the only child of
-  the untyped it was retyped from, falsifies the clause. That clause is
-  stronger than the retype needs (only its destination CNode, which is live,
-  must miss the region); it stays a premise.
+(`UtCapP3.rst` no longer asks that no CNode of the typed heap lie in the
+region, which no invariant gives since `th` keeps a CNode after its last cap
+goes: the reset derives its destination CNode off the region from that
+CNode's cap, `RetCtx.cnode`, `cnode_off_childless`.)
 The cover is moved to the state after (the covering cap is not `sl`'s) and
 `ut_free` keeps the covered range off the childless region.
 
@@ -86,7 +84,7 @@ set_option maxHeartbeats 4000000 in
 whose only child was the emptied slot `sl` (itself childless) is childless
 after; the slots in use, the original slots and the debug-list head, covered
 by caps other than `sl`'s (or in the kernel block, which the untyped regions
-miss, `JCovD.ks`), miss its region (`ut_free`); the CNode clause is given. -/
+miss, `JCovD.ks`), miss its region (`ut_free`). -/
 theorem JAtZ.delUtFact_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
@@ -105,8 +103,7 @@ theorem JAtZ.delUtFact_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
       SlotLiveAt (L.mem s) Z.G (L.ksb s) (cslotAddr sl) y)
     (hdbg : L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) ≠ 0#u64 →
       OtherCov (L.mem s) Z.G (cslotAddr sl) (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val
-        ((L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val + 1))
-    (hcn : ufi.val ≠ 0 → ∀ q r, Z.th q = some (.cnode r) → ¬ (up.val ≤ q.val ∧ q.val < up.val + 2 ^ usb.val)) :
+        ((L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val + 1)) :
     DelUtFact (L := L) Z.th s' σ' up usb ufi := by
   obtain ⟨hP, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
   obtain ⟨⟨-, -, hM2, hC2, hI2⟩, -, -⟩ := hDS2
@@ -147,7 +144,7 @@ theorem JAtZ.delUtFact_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
   have hks : L.ksb s' = L.ksb s := hw.1
   have hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
     hw.mem_eq J.kern.dwAl fun ⟨x, hx, h1, h2⟩ => J.kern.dwObj x hx ⟨h1, h2⟩
-  refine ⟨fun y hy hn => ?_, fun hf => ⟨fun x hx => ?_, hcn hf, ?_⟩⟩
+  refine ⟨fun y hy hn => ?_, fun _ => ⟨fun x hx => ?_, ?_⟩⟩
   · have hyx : y ≠ cslotAddr sl := fun e => hn (by rw [e]; exact hnull)
     exact out y (hlive y hy hyx (Or.inl (by rw [← hoth y hy hyx]; exact hn)))
   · rw [hor] at hx

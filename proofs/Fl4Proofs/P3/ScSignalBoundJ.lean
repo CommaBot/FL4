@@ -256,8 +256,8 @@ theorem JAtZ.cnW_utc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} 
         omega
   · intro h0 hf0
     rw [hcdt] at h0
-    obtain ⟨r1, r2, r3⟩ := U.rst h0 hf0
-    exact ⟨fun sl' h => r1 sl' (by rw [← horig]; exact h), r2, by rw [hna, hDbg]; exact r3⟩
+    obtain ⟨r1, r3⟩ := U.rst h0 hf0
+    exact ⟨fun sl' h => r1 sl' (by rw [← horig]; exact h), by rw [hna, hDbg]; exact r3⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **The dead stay dead across a `CFr` step** with the footprint `CnW`

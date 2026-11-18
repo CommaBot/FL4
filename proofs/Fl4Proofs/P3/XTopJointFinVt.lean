@@ -124,8 +124,8 @@ theorem JAtZ.vt_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
     · exact U.zero w hal h1 h2
     rcases hb.ut _ hxm p sb fi dev hcv with e | e <;> omega
   · intro h0 hf0
-    obtain ⟨r1, r2, r3⟩ := U.rst h0 hf0
-    exact ⟨r1, r2, by rw [hna, hDbg]; exact r3⟩
+    obtain ⟨r1, r3⟩ := U.rst h0 hf0
+    exact ⟨r1, by rw [hna, hDbg]; exact r3⟩
 
 set_option maxHeartbeats 16000000 in
 /-- **`JAtZ` across `VtOut` writes** (module docstring): the spec state

@@ -27,14 +27,15 @@ typed heap, of radix `r` (below 64, nonzero), the window within it. -/
 theorem dest_of_retype_dest {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit}
     (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s))
     {x : U64} {c : capability.Cap} {a : Fl4Spec.Cap} (hc : capAt (L.mem s) x = ok c) (hca : CapRel c a)
-    (hcv : CapValid th c) {idx dep off win dest : U64}
+    (hcv : CapValid th c) (hxs : IsSlot th x) {idx dep off win dest : U64}
     (h : untyped.retype_dest st s x idx dep off win = ok (.Ok dest)) :
     ∃ r : Nat, th dest = some (.cnode r) ∧ r < 64 ∧ r ≠ 0 ∧ 1 ≤ win.val ∧ win.val ≤ 256 ∧
-      off.val + win.val ≤ 2 ^ r := by
+      off.val + win.val ≤ 2 ^ r ∧ ∃ y rr gs g, IsSlot th y ∧ capAt (L.mem s) y = ok (.CNode dest rr gs g) := by
   -- the node cap, and `retype_dest` as its tail
-  have key : ∃ nc, CapWf nc ∧ CapValid th nc ∧ untyped.retype_dest st s x idx dep off win = ok (tailOf dep off win nc) := by
+  have key : ∃ nc, CapWf nc ∧ CapValid th nc ∧ (∃ y, IsSlot th y ∧ capAt (L.mem s) y = ok nc) ∧
+      untyped.retype_dest st s x idx dep off win = ok (tailOf dep off win nc) := by
     by_cases h0 : dep = 0#u64
-    · subst h0; exact ⟨c, hca.1, hcv, retype_dest_zero s x idx off win c hc hca.1⟩
+    · subst h0; exact ⟨c, hca.1, hcv, ⟨x, hxs, hc⟩, retype_dest_zero s x idx off win c hc hca.1⟩
     obtain ⟨r, hr, e1, -, hrel⟩ := spec_exists
       (lookup_slot_for_cnode_op_refines (Z := Unit) th s σ hR hV false c a hca hcv idx dep)
     have hl' : cspace.lookup_target_slot st s c idx dep = ok r := hr
@@ -48,8 +49,9 @@ theorem dest_of_retype_dest {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit}
         obtain ⟨rfl, pp, hpp1, hpp, -⟩ := hrel
         obtain ⟨c', a', hc', hca', -⟩ := hR.slot_cap hpp1 hpp
         have hcv' : CapValid th c' := hV.abs ⟨pp, hpp1, Or.inl hpp⟩ hc'
-        exact ⟨c', hca'.1, hcv', retype_dest_ok s x idx dep off win h0 c hc _ hl' c' hc' hca'.1⟩
-  obtain ⟨nc, hw, hv, he⟩ := key
+        exact ⟨c', hca'.1, hcv', ⟨_, AbsSlot.isSlot ⟨pp, hpp1, Or.inl hpp⟩, hc'⟩,
+          retype_dest_ok s x idx dep off win h0 c hc _ hl' c' hc' hca'.1⟩
+  obtain ⟨nc, hw, hv, ⟨y, hy, hcy⟩, he⟩ := key
   rw [he] at h
   cases nc with
   | CNode ptr r gs g =>
@@ -59,7 +61,7 @@ theorem dest_of_retype_dest {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit}
     simp only [tailOf, destRes] at h
     split_ifs at h with e1 e2 e3 <;> simp only [ok.injEq, reduceCtorEq, core.result.Result.Ok.injEq] at h
     subst h
-    exact ⟨r.val, hth, hr64, hr0, by omega, by omega, by omega⟩
+    exact ⟨r.val, hth, hr64, hr0, by omega, by omega, by omega, y, r, gs, g, hy, hcy⟩
   | _ => simp only [tailOf, ok.injEq, reduceCtorEq] at h
 
 /-- **`RetCtx` from P1's decode facts** (`UtArgs`'s parts, the extra cap at
@@ -71,7 +73,7 @@ theorem retCtx_of_args {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {G : M
     {sl : Fl4Spec.CslotPtr} (hAs : AbsSlot th sl) {p sb fi : U64} {dev : Bool}
     (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev))
     {x : U64} {c : capability.Cap} {a : Fl4Spec.Cap} (hc : capAt (L.mem s) x = ok c) (hca : CapRel c a)
-    (hcv : CapValid th c) {idx dep val nt us dest off win aligned : U64} {reset : Bool}
+    (hcv : CapValid th c) (hxs : IsSlot th x) {idx dep val nt us dest off win aligned : U64} {reset : Bool}
     (hsz : untyped.retype_size nt us = ok (.Ok val))
     (hdst : untyped.retype_dest st s x idx dep off win = ok (.Ok dest))
     (hemp : untyped.ensure_empty_slots st s dest off (core.num.U64.wrapping_add off win) = ok (.Ok ()))
@@ -113,7 +115,7 @@ theorem retCtx_of_args {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {G : M
     show (BitVec.ofNat 64 (zOf nt.val us.val)).toNat = _
     simp; omega
   -- the destination
-  obtain ⟨r, hth, hr64, hr0, hw1, hw2, hwin⟩ := dest_of_retype_dest hR hV hc hca hcv hdst
+  obtain ⟨r, hth, hr64, hr0, hw1, hw2, hwin, hlive⟩ := dest_of_retype_dest hR hV hc hca hcv hxs hdst
   have hpow : 2 ^ r < 2 ^ 64 := Nat.pow_lt_pow_right (by decide) hr64
   have hsum : (core.num.U64.wrapping_add off win).val = off.val + win.val := by
     simp [core.num.U64.wrapping_add_val_eq, U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits]; omega
@@ -161,7 +163,7 @@ theorem retCtx_of_args {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {G : M
     rw [core.num.U64.wrapping_sub_bv_eq]; exact congrArg (· - fiv.bv) hi2
   have hi4 : i4.val = (1#64 <<< sb.val - fiv.bv).toNat >>> zOf nt.val us.val := by
     rw [hs4.1, hz63, ← hFB]; rfl
-  refine ⟨t, r, ⟨ht, ⟨by omega, hz47, hsB, hsC, hsD⟩, ⟨hth, hr64, hr0⟩, ⟨hw1, hw2, hwin⟩, hempty, hrEq, hfivd,
+  refine ⟨t, r, ⟨ht, ⟨by omega, hz47, hsB, hsC, hsD⟩, ⟨hth, hr64, hr0, hlive⟩, ⟨hw1, hw2, hwin⟩, hempty, hrEq, hfivd,
     hsb, by rw [← hi4]; exact hwi, fun hd => ?_⟩, ?_⟩
   · rcases hdev hd with h | h
     · rw [is_frame_type_eq] at h
@@ -201,9 +203,14 @@ structure UtCapP3 {A' : Type} (arI : machine.Arch A') (th : TypedHeap) (s : S) (
   ns : (¬ ∃ x, σ.cdt x = some sl) → ∀ a ∈ G.chains.flatten, a.val < p.val ∨ p.val + 2 ^ sb.val ≤ a.val
   pp : ∀ k0 v0 : U64, PPHyp (L := L) arI th p sb (fun t => L.ksb t = k0 ∧
     L.mem t (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = v0)
+  /-- The reset's facts when the cap has no children and a used region: the
+  original caps' slots and core 0's debug-list head off the region. (No
+  clause on the typed heap's CNodes: `th` keeps a CNode after its last cap
+  goes, so none can be kept off the region; the reset derives its
+  destination CNode off it from that CNode's cap, `RetCtx.cnode`,
+  `cnode_off_childless`.) -/
   rst : (¬ ∃ x, σ.cdt x = some sl) → fi.val ≠ 0 →
     (∀ sl, σ.isOriginalCap sl = true → AbsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) sl) ∧
-    (∀ q r, th q = some (.cnode r) → ¬ (p.val ≤ q.val ∧ q.val < p.val + 2 ^ sb.val)) ∧
     ¬ (p.val ≤ (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val ∧
       (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val < p.val + 2 ^ sb.val)
   dwReg : ¬ (p.val ≤ (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS).val ∧
@@ -235,7 +242,8 @@ structure UtJoint {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs : Set U64) 
   idxLen : idx.length = rs
   slotEq : slot = cslotAddr (pp.bv, idx)
   capEq : capAt (L.mem s) slot = ok cap
-  extraRel : ∀ x ∈ extra.val, x ≠ 0#u64 → ∃ c a, capAt (L.mem s) x = ok c ∧ CapRel c a ∧ CapValid th c
+  /-- The extra caps' slots: slots of the typed heap, their caps related. -/
+  extraRel : ∀ x ∈ extra.val, x ≠ 0#u64 → IsSlot th x ∧ ∃ c a, capAt (L.mem s) x = ok c ∧ CapRel c a ∧ CapValid th c
   utc : ∀ p sb fi dev, cap = .Untyped p sb fi dev → UtCapP3 (L := L) arI th s σ G (pp.bv, idx) p sb fi
   dwAl : P1.Aligned (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)
   dwObj : ∀ a, IsSlot th a → ¬ (a.val ≤ (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS).val ∧
@@ -292,13 +300,13 @@ theorem retype_postN {A' : Type} (arI : machine.Arch A') {H : Heap} {Cs : Set U6
           p.bv (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val)
           dev) res ⦄ := by
   obtain ⟨x, hxe, hx0, idx', dep, val, hsz, -, hdst, hemp, hrsE, hal, hmem, hdev⟩ := hA
-  obtain ⟨c, a, hc, hca, hcv⟩ := J.extraRel x hxe hx0
+  obtain ⟨hxs, c, a, hc, hca, hcv⟩ := J.extraRel x hxe hx0
   have hAs : AbsSlot th (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [J.idxLen] using J.node)⟩
   have hcap : capAt (L.mem s0) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi dev) := by
     rw [← J.slotEq]; exact J.capEq
   rw [J.slotEq] at hrsE
   obtain ⟨fiv, hfiv⟩ : ∃ fiv : U64, fiv = if reset then 0#u64 else fi := ⟨_, rfl⟩
-  obtain ⟨t, r, hctx, haleq⟩ := retCtx_of_args J.rel J.valid J.placed J.links J.cdt J.mdb hAs hcap hc hca hcv hsz hdst
+  obtain ⟨t, r, hctx, haleq⟩ := retCtx_of_args J.rel J.valid J.placed J.links J.cdt J.mdb hAs hcap hc hca hcv hxs hsz hdst
     hemp hrsE hal hmem hdev fiv hfiv
   have U := J.utc p sb fi dev rfl
   have hct : sched.cur_thread st s0 = ok (L.curW s0) := cur_thread_eq s0
