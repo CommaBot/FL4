@@ -30,6 +30,7 @@ spec's `callKernel`); P1 has only `handle_syscall.entry` (`EntryInv`).
 import Fl4Proofs.P3.XTopJointTcb
 import Fl4Proofs.P3.XTopJointCnDel
 import Fl4Proofs.P3.TopXAll
+import Fl4Proofs.P3.XTopJointIpcJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -272,6 +273,11 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   dom : DomConfig
   /-- [P] the port-in values (`PortInVal`, the IO port decode for a call). -/
   portIn : PortInVal arI
+  /-- [J] ScSignalJ's `SignalRestJHyp` (a notification's bound thread
+  `RunningVM`: FL4's remote stall, VT-x, outside the spec model), at every
+  `P1.Heap` and set of cores as `JDelParts.recvRep`: the notification cap's
+  `send_signal` (`notifLeafJ`). -/
+  sigRest : ∀ (H : P1.Heap) (Cs : Set U64), SignalRestJHyp (L := L) arI AR H Cs
 
 /-- **The premises at the entry state**, each exactly as a J decode takes it. -/
 structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) : Prop where
@@ -398,19 +404,13 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : F
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data)
     (argsU : List U64) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (buffer : Option Fl4Spec.ObjRef) (ct : U64) : capability.Cap → Prop
-  | .Null | .Zombie .. => True
+  | .Null | .Zombie .. | .Notification .. => True
   | .Endpoint p b sd _ g gr => ∀ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
       sd = true → XLeaf (L := L) (JAt (L := L) arI AR) s ar σ (do
         let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
         let (s2, a1) ← endpoint.send_ipc st arI s1 ar blk call b g gr don ct p
         ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a1))
         (Fl4Spec.sendIpc (Z := Unit) blk call b.bv g gr don σ1.curThread p.bv σ1)
-  | .Notification p b sd _ => ∀ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
-      sd = true → XLeaf (L := L) (JAt (L := L) arI AR) s ar σ (do
-        let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
-        let (s2, a1) ← notification.send_signal st arI s1 ar p b
-        ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a1))
-        (Fl4Spec.sendSignal (Z := Unit) p.bv b.bv σ1)
   | .Reply p g => ∀ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
       XLeaf (L := L) (JAt (L := L) arI AR) s ar σ (do
         let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
@@ -450,7 +450,8 @@ on the cap:
 | cap | from | still named (`JPath`) |
 |---|---|---|
 | Null, Zombie | the decode fails, the state unchanged | — |
-| Endpoint, Notification, Reply | `decode_{endpoint,notification,reply}DMX` | the leaf (`send_ipc`, `send_signal`, `do_reply_transfer`) at `JAt` [W] |
+| Notification | `decode_notificationDMX`, `notifLeafJ` | — (`SignalRestJHyp` [J] in `JEntryGlob`) |
+| Endpoint, Reply | `decode_{endpoint,reply}DMX` | the leaf (`send_ipc`, `do_reply_transfer`) at `JAt` [W] |
 | CNode | `decode_invocation_cnodeJ_steps` | `JCnodePath` (front end) |
 | Thread | `decode_invocation_threadJ_step` | `JThreadPath` (incl. `JPostHyp` at `TcbJOpen`); SetEPTRoot whole [W] |
 | IO port | `decode_invocation_ioportJ` | `PortLabel`; a nonzero third field whole [W] |
@@ -494,7 +495,8 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       slbl _ ci sl excaps buffer ct hct hX0 hst fun hsd => hN σ1 hst hsd hX0)) hPre
   case Notification p b sd rv =>
     exact XCap.toP arI (Or.inl (decode_notificationDMX arI _ s ar σ lbl length _ p b sd rv blk call don fp buf extra
-      slbl _ ci sl excaps buffer ct hct hX0 hst fun hsd => hN σ1 hst hsd hX0)) hPre
+      slbl _ ci sl excaps buffer ct hct hX0 hst fun _ => notifLeafJ hG.tot (hG.sigRest H Cs) (hG.delParts.recvRep H Cs)
+        hG.pp.minBudget J hni hct hAs hc hst hX0)) hPre
   case Reply p g =>
     exact XCap.toP arI (Or.inl (decode_replyDMX arI _ s ar σ lbl length _ p g blk call don fp buf extra slbl _ ci sl
       excaps buffer ct hct hst (hN σ1 hst hX0))) hPre
