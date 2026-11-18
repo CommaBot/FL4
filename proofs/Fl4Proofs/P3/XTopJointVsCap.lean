@@ -18,7 +18,12 @@ unmapping inside finalisation is proved at `J`, XTopJointFinVs's
   `valid_cap`/`cap_range` disjointness, as `decode_invocation_frame_thX`);
   the ASID pool its extra cap native ([scope]: guest-root assignment, DESIGN
   §9).
-* `J{Pt,Pd,Pdpt,Pml4,Pool,Frame}Path`: each cap's premises, as
+* `decode_invocation_asid_controlJ`: `MakePool`, the RAM untyped caps apart
+  from the kernel-state block from `JCovD.ks` (`UtKsOut`); `MpPlacedHyp`
+  and the childless untyped's region facts (`JMpExtra`) [J] (l4v
+  `valid_untyped`, `descendants_range_in`; VsTopX proves them from the
+  dead-free `JCov` only).
+* `J{Pt,Pd,Pdpt,Pml4,Pool,Frame,AsidC}Path`: each cap's premises, as
   XTopJointEntry's `JPath` names them.
 -/
 import Fl4Proofs.P3.VsThX
@@ -254,6 +259,59 @@ theorem decode_invocation_frameJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (
     J.kern.act (J.curRun.run hni) args hlen hargs hpc hidx hcap (Or.inl trivial) hno extra excaps hex.hext hex.hxs
     blk call don fp ci buffer hDR hX.esa hIA.dom) J hR
 
+/-- **The front end's extra caps of `MakePool`** [W], with the childless
+untyped's region facts [J] (`MpRegion`, `RegOKTop`: l4v `valid_untyped`
+and `descendants_range_in` for a childless untyped's region; VsTopX's
+`regOKTop_childless` derives `RegOKTop` from the dead-free `JCov`). -/
+def JMpExtra (Z : XSets) (s : S) (σ : Fl4Spec.State Unit)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) : Prop :=
+  (∃ o0 o1, vspace.extra extra 0#usize = ok o0 ∧ vspace.extra extra 1#usize = ok o1 ∧
+      (o0 = none ∨ o1 = none) ∧ excaps.length ≤ 1) ∨
+    ∃ (pp : U64) (rs : Nat) (idx : List Bool) (y : obj.Slot) (uc : capability.Cap) (uc' : Fl4Spec.Cap)
+      (rc : capability.Cap) (rc' : Fl4Spec.Cap) (ysl : Fl4Spec.CslotPtr)
+      (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)),
+      Z.th pp = some (.cnode rs) ∧ idx.length = rs ∧
+      vspace.extra extra 0#usize = ok (some (cslotAddr (pp.bv, idx))) ∧ vspace.extra extra 1#usize = ok (some y) ∧
+      capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok uc ∧ CapRel uc uc' ∧
+      capAt (L.mem s) y = ok rc ∧ CapRel rc rc' ∧ CapValid Z.th rc ∧
+      excaps = (uc', (pp.bv, idx)) :: (rc', ysl) :: rest ∧
+      ∀ p fi, uc = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false →
+        (¬ ∃ sl, σ.cdt sl = some (pp.bv, idx)) →
+        MpRegion Z.th Z.G Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) p ∧
+          RegOKTop (L := L) Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ p
+
+set_option maxHeartbeats 4000000 in
+/-- **The ASID control cap at `JAt`** (`decode_invocation_asid_control_thX`;
+the RAM untyped caps apart from the kernel-state block from `JCovD.ks`).
+`hMP` [J]: VsTopX's `MpPlacedHyp` (the new pool's region holds no object of
+the typed heap but the retyped untyped's: l4v `valid_untyped`,
+`descendants_range_in`; VsTopX's `mpPlacedHyp_of` proves it from the
+dead-free `JCov`, not yet from `JCovD`). -/
+theorem decode_invocation_asid_controlJ (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (hMP : MpPlacedHyp st Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.N Z.T Z.C Z.E Z.R Z.B Z.c AR s σ Z.G)
+    (lbl : U64) (slbl : Fl4Spec.Data)
+    (hlM : lbl = fl4_abi.label.X86ASIDControlMakePool ↔
+      Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDControlMakePool)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64) (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hext : JMpExtra (L := L) Z s σ extra excaps)
+    (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (buffer : Option Fl4Spec.ObjRef)
+    (hR : JPostHyp (L := L) arI AR s ar σ lbl length slot .AsidControl blk call don fp buf extra slbl
+      (args.map UScalar.bv) ci sl excaps buffer ct) :
+    XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length slot .AsidControl blk call don fp buf extra slbl
+      (args.map UScalar.bv) ci sl excaps buffer ct := by
+  have hX := J.xtop
+  obtain ⟨hcur, htcb⟩ := J.ctTcb arI hct
+  obtain ⟨-, hCR, hFI, hDR, hMO, hIA, -⟩ := hX.rel
+  have hUK : UtKsOut (L.ksb s) (L.mem s) Z.G := fun x hx p sb fi h => (J.jcov.ks x hx p sb fi h).1
+  exact XCap.jat arI ((decode_invocation_asid_control_thX arI Z.th s ar σ Z.G hCR hFI J.ut hMO hDR hX.fin.1
+    hX.fin.2.1 hX.fin.2.2.1 hX.fin.2.2.2.1 hX.fin.2.2.2.2 hMP lbl slbl hlM length buf ct hct hcur htcb J.kern.act
+    (J.curRun.run hni) args hlen hargs extra excaps hext hUK slot blk call don fp ci sl buffer hX.esa
+    hIA.dom).imp arI fun _ _ _ ⟨_, hx⟩ => xtop_of_finXR hx) J hR
+
 /-! ## The VSpace caps' paths (XTopJointEntry's `JPath`) -/
 
 /-- The page table path: the labels and extra cap [W], `JPostHyp` [W]. -/
@@ -350,6 +408,20 @@ structure JFramePath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
   ex : JVsExtra (L := L) Z s extra excaps
   post : JPostHyp (L := L) arI AR s ar σ lbl length (cslotAddr sl) (.Frame p sz rt d m false asid va) blk call don fp
     buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct
+
+/-- The ASID control path: the label [W], the extra caps (`JMpExtra`, [W]
+with the region facts [J]), `MpPlacedHyp` [J], `JPostHyp` [W]. -/
+structure JAsidCPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (lbl length : U64) (blk call don fp : Bool) (buf : U64)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data) (argsU : List U64) (ci : Fl4Spec.CapRef)
+    (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
+    (ct : U64) : Prop where
+  hlM : lbl = fl4_abi.label.X86ASIDControlMakePool ↔
+    Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDControlMakePool
+  mp : MpPlacedHyp st Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.N Z.T Z.C Z.E Z.R Z.B Z.c AR s σ Z.G
+  hext : JMpExtra (L := L) Z s σ extra excaps
+  post : JPostHyp (L := L) arI AR s ar σ lbl length (cslotAddr sl) .AsidControl blk call don fp buf extra slbl
+    (argsU.map UScalar.bv) ci sl excaps buffer ct
 
 end
 

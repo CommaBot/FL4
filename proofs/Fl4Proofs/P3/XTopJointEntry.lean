@@ -496,6 +496,8 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : F
         slbl argsU ci sl excaps buffer ct) ∧
       (ep = false → JFramePath (L := L) arI AR Z s ar σ lbl length p sz rt d m asid va blk call don fp buf extra slbl
         argsU ci sl excaps buffer ct)
+  | .AsidControl => JAsidCPath (L := L) arI AR Z s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps
+      buffer ct
   | .Vcpu p => JVtxScope (L := L) arI AR s ar σ lbl length (.Vcpu p) blk call don fp buf extra slbl argsU ci sl excaps
       buffer ct
   | .Ept p l m asid va => JVtxScope (L := L) arI AR s ar σ lbl length (.Ept p l m asid va) blk call don fp buf extra
@@ -526,9 +528,9 @@ on the cap:
 | IO port | `decode_invocation_ioportJ` | `PortLabel`; a nonzero third field whole [W] |
 | IRQ control, IO port control, IRQ handler, Domain | `decode_invocation_{irq_control,ioport_control,irq_handler,domain}J` | `JIrqCPath`, `JIoCPath`, `JIrqHPath`, `JDomPath` |
 | SchedControl | `decode_invocation_sched_controlJ` | `JSchedCPath` |
-| PageTable, PageDirectory, PDPT, PML4, ASID pool, native Frame | `decode_invocation_{page_table,page_directory,pdpt,pml4,asid_pool,frame}J` (XTopJointVsCap) | `J{Pt,Pd,Pdpt,Pml4,Pool,Frame}Path` (labels, extra [W]; `JPostHyp` [W]) |
+| PageTable, PageDirectory, PDPT, PML4, ASID pool, native Frame, ASID control | `decode_invocation_{page_table,page_directory,pdpt,pml4,asid_pool,frame,asid_control}J` (XTopJointVsCap) | `J{Pt,Pd,Pdpt,Pml4,Pool,Frame,AsidC}Path` (labels, extra [W]; `JPostHyp` [W]) |
 | VCPU, EPT, EPT-mapped Frame | — | `JVtxScope` [scope] |
-| SchedContext, Untyped, ASID control | — | `JCapOpen` [W] |
+| SchedContext, Untyped | — | `JCapOpen` [W] |
 -/
 theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
@@ -689,6 +691,11 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       exact (decode_invocation_frameJ arI s ar σ J hni hG.delParts.archRef hVC lbl slbl hF.hlbl hF.hlGA length buf ct
         hct argsU hlen hargs hth0 rfl hc hF.hno extra excaps hF.ex blk call don fp ci buffer hF.post).toP arI hPre
     · exact hV rfl
+  case AsidControl =>
+    have hN : JAsidCPath (L := L) arI AR Z s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps buffer
+      ct := hN
+    exact (decode_invocation_asid_controlJ arI s ar σ J hni hN.mp lbl slbl hN.hlM length buf ct hct argsU hlen hargs
+      extra excaps hN.hext (cslotAddr sl) blk call don fp ci sl buffer hN.post).toP arI hPre
   all_goals exact hN
 
 /-- **The premises of one invocation at `J`** (`handle_invocation_refinesJ`):
