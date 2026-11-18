@@ -1,8 +1,8 @@
 /-
 P3 (DESIGN.md §9), VSpace: **the VSpace MDB invariant** `VsMdbInv`:
 `VsCapInv` (every VSpace cap of the MDB placed in its ghost set, the sets
-existential) and `UtKsOut` (the untyped regions apart from the
-kernel-global area), with one step lemma per `MdbStep` constructor (`keep`,
+existential) and `UtKsOut` (the RAM untyped regions apart from the
+kernel-global area; device untypeds unconstrained, losfair/FL4#34), with one step lemma per `MdbStep` constructor (`keep`,
 `recap`, `setFi`, `insert`, `nonphys`, `remove`, `rename`, `frameAlias`,
 `pool`, `retype`; `trans` is composition).
 
@@ -16,7 +16,10 @@ statements survive renames there. Beyond the constructors' facts:
   `hqal`; from `Within` and `CapValid`);
 * `pool`: the pool's base (`hb`);
 * `retype`: the new caps placed in new ghost sets (`hvc`), and the new
-  untyped caps inside the parent's region (`hin`).
+  untyped caps inside the parent's region (`hin`), with its device flag
+  (`hdv`);
+* `insert`: the inserted cap and `src`'s new cap untyped only as `src`'s
+  was, device flag included (`hl`, `hl1`; `shape` forgets it).
 
 The base case (boot) is not done: there is no P3 state relation for boot.
 -/
@@ -44,9 +47,11 @@ theorem utOut_nonphys {ksb : U64} {c : capability.Cap} (h : physF c = false) : U
   cases c <;> simp only [UtOut]
   rw [physF_ut] at h; cases h
 
-theorem utOut_of_shape {ksb : U64} {c' c : capability.Cap} (hsh : shape c' = shape c) (h : UtOut ksb c) :
+theorem utOut_of_like {ksb : U64} {c' c : capability.Cap} (hl : UtLike c' c) (h : UtOut ksb c) :
     UtOut ksb c' := by
-  cases c' <;> cases c <;> simp_all [shape, UtOut]
+  cases c' with
+  | Untyped p sb fi d => obtain ⟨fi', rfl⟩ := hl p sb fi d rfl; exact h
+  | _ => simp [UtOut]
 
 theorem utOut_of_ut {ksb : U64} {c' c : capability.Cap}
     (hut : ∀ p sb fi d, c' = .Untyped p sb fi d ↔ c = .Untyped p sb fi d) (h : UtOut ksb c) : UtOut ksb c' := by
@@ -112,6 +117,7 @@ theorem VsMdbInv.setFi (h : VsMdbInv ksb mem G) {x p sb fi f : U64} {d : Bool}
 theorem VsMdbInv.insert (h : VsMdbInv ksb mem G) {src dest : U64} (hsrc : src ∈ G.chains.flatten) (b : Bool)
     {c c1 : capability.Cap} (hcd : capV mem' dest = c) (hcs : capV mem' src = c1)
     (hsh : shape c = shape (capV mem src)) (hsh1 : shape c1 = shape (capV mem src))
+    (hl : UtLike c (capV mem src)) (hl1 : UtLike c1 (capV mem src))
     (hv : ∀ P L4 L3 L2 L1 : Set U64, VCapOK P L4 L3 L2 L1 (capV mem src) → VCapOK P L4 L3 L2 L1 c)
     (hv1 : ∀ P L4 L3 L2 L1 : Set U64, VCapOK P L4 L3 L2 L1 (capV mem src) → VCapOK P L4 L3 L2 L1 c1)
     (hc : ∀ z ∈ G.chains.flatten, z ≠ src → z ≠ dest → capV mem' z = capV mem z) :
@@ -120,13 +126,13 @@ theorem VsMdbInv.insert (h : VsMdbInv ksb mem G) {src dest : U64} (hsrc : src �
   have hdl : ∀ z ∈ G.chains.flatten, z ≠ dest → z ≠ src → capV mem' z = capV mem z :=
     fun z hz h1 h2 => hc z hz h2 h1
   refine ⟨⟨P, L4, L3, L2, L1, hV.insert hsrc b (by rw [hcd]; exact hv _ _ _ _ _ (hV src hsrc))
-    fun z hz hzd hok => ?_⟩, hU.insert hsrc b (by rw [hcd]; exact utOut_of_shape hsh ((utKsOut_iff.1 hU) src hsrc))
+    fun z hz hzd hok => ?_⟩, hU.insert hsrc b (by rw [hcd]; exact utOut_of_like hl ((utKsOut_iff.1 hU) src hsrc))
     fun z hz hzd hok => ?_⟩
   · by_cases e : z = src
     · subst e; rw [hcs]; exact hv1 _ _ _ _ _ hok
     · rw [hdl z hz hzd e]; exact hok
   · by_cases e : z = src
-    · subst e; rw [hcs]; exact utOut_of_shape hsh1 hok
+    · subst e; rw [hcs]; exact utOut_of_like hl1 hok
     · rw [hdl z hz hzd e]; exact hok
 
 /-- **`nonphys`**: a non-physical cap inserted, the MDB's caps kept. -/
@@ -197,7 +203,8 @@ theorem VsMdbInv.retype {mem0 memf : U64 → U64} {G0 Gf : MdbGhost} (h : VsMdbI
     (hF1 : ∀ x ∈ Gf.chains.flatten, x ∈ G0.chains.flatten ∨ ∃ j, j < w ∧ x = dslot j)
     (hnew : ∀ j, j < w → capV memf (dslot j) = cj j)
     {Pn L4n L3n L2n L1n : Set U64} (hvc : ∀ j, j < w → VCapOK Pn L4n L3n L2n L1n (cj j))
-    (hin : ∀ j, j < w → ∀ q us f d, cj j = .Untyped q us f d → p.val ≤ q.val ∧ q.val + 2 ^ us.val ≤ p.val + 2 ^ sb.val) :
+    (hin : ∀ j, j < w → ∀ q us f d, cj j = .Untyped q us f d → p.val ≤ q.val ∧ q.val + 2 ^ us.val ≤ p.val + 2 ^ sb.val)
+    (hdv : ∀ j, j < w → ∀ q us f d, cj j = .Untyped q us f d → d = dev) :
     VsMdbInv ksb memf Gf := by
   obtain ⟨⟨P, L4, L3, L2, L1, hV⟩, hU⟩ := h
   rw [utKsOut_iff] at hU
@@ -220,7 +227,7 @@ theorem VsMdbInv.retype {mem0 memf : U64 → U64} {G0 Gf : MdbGhost} (h : VsMdbI
       | Untyped q us f d =>
         obtain ⟨h1, h2⟩ := hin j hj q us f d hcj
         have := hU src hsrc; rw [hcs] at this
-        exact utOut_within this h1 h2
+        exact utOut_within this h1 h2 (hdv j hj q us f d hcj)
       | _ => simp [UtOut]
 
 end

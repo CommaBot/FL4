@@ -170,6 +170,9 @@ structure RetypeDelta (th : TypedHeap) (mem0 mem1 memf : U64 → U64) (G0 Gf : M
   ctop : ∀ j, j < w → topF (cj j) = A + j * k + k - 1
   cut : ∀ j, j < w → isUt (cj j) = true → ∃ us d, cj j = .Untyped ⟨BitVec.ofNat 64 (A + j * k)⟩ us 0#u64 d ∧
     2 ^ us.val = k
+  /-- The new untyped caps are device caps exactly when the parent is
+  (`create_object`: `is_device: device`). -/
+  cdev : ∀ j, j < w → ∀ q us f d, cj j = .Untyped q us f d → d = dev
   dnot : ∀ j, j < w → dslot j ∉ G0.chains.flatten
   dinj : ∀ j l, j < w → l < w → dslot j = dslot l → j = l
   F1 : ∀ x ∈ Gf.chains.flatten, x ∈ G0.chains.flatten ∨ ∃ j, j < w ∧ x = dslot j
@@ -179,29 +182,113 @@ structure RetypeDelta (th : TypedHeap) (mem0 mem1 memf : U64 → U64) (G0 Gf : M
   F3 : ∀ y x, Mdb.Desc Gf.par y x ↔ Mdb.Desc G0.par y x ∨
     ∃ j, j < w ∧ y = dslot j ∧ (x = src ∨ Mdb.Desc G0.par src x)
 
+/-- **The physical address of a kernel pointer**, as a number: layout.rs's
+`p.wrapping_sub(PPTR_BASE)` (`PPTR_BASE = 2^64 - 2^39`), i.e.
+`(p + 2^39) mod 2^64`. For a pointer of the kernel window it is below
+`2^39`; a device untyped's pointer is `paddr + PPTR_BASE` wrapping
+(`layout::pptr`), which for `paddr ≥ 512 GiB` lies in the lower half. -/
+def paddrN (p : U64) : Nat := (p.val + 549755813888) % 18446744073709551616
+
 /-- **A new cap of retype placed for the VSpace invariant** (`Vs.VCapOK`
-in fresh ghost sets, `MdbStep.vs`): a VSpace cap unmapped, at or above
-`PPTR_BASE` and aligned to its size; retype makes no ASID pool. -/
+in fresh ghost sets, `MdbStep.vs`): a VSpace cap unmapped, its physical
+address (`paddrN`) below `2^47` and aligned to its size, a PML4 at or above
+`PPTR_BASE` (non-null); retype makes no ASID pool. Frames (and, from the
+same bound, tables) are stated by physical address, not `PPTR_BASE ≤ p`:
+a frame retyped from a device untyped above 512 GiB has a pointer in the
+lower half (boot hands out device memory up to `PADDR_USER_DEVICE_TOP`,
+losfair/FL4#34). -/
 def NewVPlaced : capability.Cap → Prop
-  | .PageTable p mp _ _ => mp = false ∧ layout.PPTR_BASE.val ≤ p.val ∧ p.val % 2 ^ 12 = 0
-  | .PageDirectory p mp _ _ => mp = false ∧ layout.PPTR_BASE.val ≤ p.val ∧ p.val % 2 ^ 12 = 0
-  | .Pdpt p mp _ _ => mp = false ∧ layout.PPTR_BASE.val ≤ p.val ∧ p.val % 2 ^ 12 = 0
+  | .PageTable p mp _ _ => mp = false ∧ paddrN p < 2 ^ 47 ∧ p.val % 2 ^ 12 = 0
+  | .PageDirectory p mp _ _ => mp = false ∧ paddrN p < 2 ^ 47 ∧ p.val % 2 ^ 12 = 0
+  | .Pdpt p mp _ _ => mp = false ∧ paddrN p < 2 ^ 47 ∧ p.val % 2 ^ 12 = 0
   | .Pml4 p mp _ => mp = false ∧ layout.PPTR_BASE.val ≤ p.val
-  | .Frame p sz _ _ m _ _ _ => m = false ∧ layout.PPTR_BASE.val ≤ p.val ∧ p.val % 2 ^ frameBitsN sz = 0
+  | .Frame p sz _ _ m _ _ _ => m = false ∧ paddrN p < 2 ^ 47 ∧ p.val % 2 ^ frameBitsN sz = 0
   | .AsidPool _ _ => False
   | _ => True
 
-/-- An untyped cap at or above `PPTR_BASE`; the other caps impose
-nothing. -/
+/-- **An untyped cap placed** (fl4-kernel's boot, `create_untypeds_for_region`
+blocks aligned by pointer; retype keeps it for the children): a RAM
+(non-device) untyped at or above `PPTR_BASE` (RAM stops at the kernel
+window's top); a device untyped's physical range `[paddrN p, paddrN p + 2^sb)`
+below `PADDR_USER_DEVICE_TOP = 2^47` (its pointer may wrap to the lower
+half, losfair/FL4#34). The other caps impose nothing. -/
 def UtW : capability.Cap → Prop
-  | .Untyped p _ _ _ => layout.PPTR_BASE.val ≤ p.val
+  | .Untyped p sb _ d => (d = false → layout.PPTR_BASE.val ≤ p.val) ∧ (d = true → paddrN p + 2 ^ sb.val ≤ 2 ^ 47)
   | _ => True
 
-/-- **The untyped regions in the kernel window**: every untyped cap of the
-MDB at or above `PPTR_BASE` (what retype's new VSpace caps need for their
-physical addresses, `NewVPlaced`). -/
+theorem paddrN_lt {p : U64} (hb : layout.PPTR_BASE.val ≤ p.val) : paddrN p < 2 ^ 39 := by
+  have := Fl4Proofs.P0.Consts.layout.PPTR_BASE.val_eq
+  have : p.val < 2 ^ 64 := p.hBounds
+  unfold paddrN; omega
+
+/-- An untyped cap inside a placed one, with its device flag, is placed. -/
+theorem utW_within {p sb fi q us f : U64} {d : Bool} (h : UtW (.Untyped p sb fi d)) (h1 : p.val ≤ q.val)
+    (h2 : q.val + 2 ^ us.val ≤ p.val + 2 ^ sb.val) : UtW (.Untyped q us f d) := by
+  have := Fl4Proofs.P0.Consts.layout.PPTR_BASE.val_eq
+  have : p.val < 2 ^ 64 := p.hBounds
+  have : q.val < 2 ^ 64 := q.hBounds
+  simp only [UtW, paddrN] at h ⊢
+  exact ⟨fun e => by have := h.1 e; omega, fun e => by have := h.2 e; omega⟩
+
+/-- A pointer inside a placed untyped region has its physical address below
+`2^47`. -/
+theorem paddrN_within {p sb fi : U64} {d : Bool} (h : UtW (.Untyped p sb fi d)) {q : U64} (h1 : p.val ≤ q.val)
+    (h2 : q.val < p.val + 2 ^ sb.val) : paddrN q < 2 ^ 47 := by
+  have := Fl4Proofs.P0.Consts.layout.PPTR_BASE.val_eq
+  have : p.val < 2 ^ 64 := p.hBounds
+  have : q.val < 2 ^ 64 := q.hBounds
+  simp only [UtW, paddrN] at h ⊢
+  cases d
+  · have := h.1 rfl; omega
+  · have := h.2 rfl; omega
+
+theorem utW_nonphys {c : capability.Cap} (h : physF c = false) : UtW c := by
+  cases c <;> simp only [UtW]
+  rw [show physF (.Untyped _ _ _ _) = true from ok_inj (phys_eq _).symm] at h; cases h
+
+theorem utW_ram {p sb fi : U64} (h : UtW (.Untyped p sb fi false)) : layout.PPTR_BASE.val ≤ p.val := h.1 rfl
+
+/-- **The untyped regions placed**: every untyped cap of the MDB `UtW`
+(what retype's new VSpace caps need for their physical addresses,
+`NewVPlaced`). -/
 def UtWin (mem : U64 → U64) (G : MdbGhost) : Prop :=
   ∀ x ∈ G.chains.flatten, UtW (capV mem x)
+
+/-- `c'` is untyped only as `c` is, with the same region and device flag
+(what the untyped-cap invariants need of an inserted cap; `shape` forgets
+the device flag). -/
+def UtLike (c' c : capability.Cap) : Prop :=
+  ∀ p sb fi d, c' = .Untyped p sb fi d → ∃ fi', c = .Untyped p sb fi' d
+
+/-- An inserted cap (`InsCtx`): `src`'s own cap when untyped, else of its
+shape. -/
+theorem utLike_ins {c s : capability.Cap} (hutc : isUt s = true → c = s) (hsh : shape c = shape s) :
+    UtLike c s := by
+  intro p sb fi d hc
+  subst hc
+  cases s with
+  | Untyped p' sb' fi' d' => exact ⟨fi, (hutc rfl).symm⟩
+  | _ => simp [shape] at hsh
+
+/-- `src`'s cap after an insertion (set full when untyped). -/
+theorem utLike_fullF (s c : capability.Cap) : UtLike ((fullF s c).getD s) s := by
+  intro p sb fi d h
+  cases hf : fullF s c with
+  | none => rw [hf] at h; exact ⟨fi, h⟩
+  | some c' =>
+    rw [hf] at h
+    cases s with
+    | Untyped p1 b1 f1 d1 =>
+      cases c with
+      | Untyped p2 b2 f2 d2 =>
+        simp only [fullF] at hf
+        split_ifs at hf
+        cases hf
+        simp only [Option.getD_some, capability.Cap.Untyped.injEq] at h
+        obtain ⟨rfl, rfl, -, rfl⟩ := h
+        exact ⟨f1, rfl⟩
+      | _ => simp [fullF] at hf
+    | _ => simp [fullF] at hf
 
 /-- An insertion grows every chain. -/
 theorem insG_chains_sub (G : MdbGhost) (src dest : U64) (b : Bool) :
@@ -285,7 +372,7 @@ inductive MdbStep : (U64 → U64) → MdbGhost → (U64 → U64) → MdbGhost �
       (h : RetypeDelta th mem0 mem1 memf G0 Gf src p sb fi nfi dev A k w dslot cj) (hI : MdbInv mem0 G0)
       (hch : ∀ ch ∈ G0.chains, ∃ ch' ∈ Gf.chains, ∀ z ∈ ch, z ∈ ch')
       (hr : ∀ z ∈ G0.chains.flatten, revOf memf z = revOf mem0 z)
-      (hvc : layout.PPTR_BASE.val ≤ p.val → ∀ j, j < w → NewVPlaced (cj j)) :
+      (hvc : UtW (.Untyped p sb fi dev) → ∀ j, j < w → NewVPlaced (cj j)) :
       MdbStep mem0 G0 memf Gf
   /-- Two steps in sequence. -/
   | trans {mem1 mem2 mem3 : U64 → U64} {G1 G2 G3 : MdbGhost} :

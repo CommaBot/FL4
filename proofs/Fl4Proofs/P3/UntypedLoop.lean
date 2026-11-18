@@ -854,10 +854,14 @@ end
 end
 
 /-- **Retype's new caps placed for the VSpace invariant** (`MdbStep.retype`'s
-`hvc`): the region at or above `PPTR_BASE`, each object aligned to its
-size. -/
-theorem cjOf_vplaced {n : Nat} {us : U64} {dev : Bool} {A k w : Nat} {p : U64} (hk : k = 2 ^ zOf n us.val)
-    (hA : A % k = 0) (hpA : p.val ≤ A) (hfit : A + w * k ≤ 2 ^ 64) (hpb : layout.PPTR_BASE.val ≤ p.val) :
+`hvc`): the objects inside a placed untyped region (`UtW`: so their
+physical addresses are below `2^47`), each aligned to its size; a PML4 only
+from a RAM untyped (`hdn`: a device untyped makes no PML4), so at or above
+`PPTR_BASE`. -/
+theorem cjOf_vplaced {n : Nat} {us : U64} {dev : Bool} {A k w : Nat} {p sb fi : U64} (hk : k = 2 ^ zOf n us.val)
+    (hA : A % k = 0) (hpA : p.val ≤ A) (hfit : A + w * k ≤ 2 ^ 64) (hin : A + w * k ≤ p.val + 2 ^ sb.val)
+    (hdn : dev = true → n ≠ 8)
+    (hpb : UtW (.Untyped p sb fi dev)) :
     ∀ j, j < w → NewVPlaced (cjOf n us dev A k j) := by
   intro j hj
   have hm : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right k hj
@@ -866,13 +870,30 @@ theorem cjOf_vplaced {n : Nat} {us : U64} {dev : Bool} {A k w : Nat} {p : U64} (
   have hbv : (⟨BitVec.ofNat 64 (A + j * k)⟩ : U64).val = A + j * k := by
     show (BitVec.ofNat 64 (A + j * k)).toNat = _; simp; omega
   have hal : (A + j * k) % k = 0 := by rw [Nat.add_mul_mod_self_right, hA]
-  have hpbA : 18446743523953737728 ≤ A + j * k := by have := Fl4Proofs.P0.Consts.layout.PPTR_BASE.val_eq; omega
+  have hph : paddrN (⟨BitVec.ofNat 64 (A + j * k)⟩ : U64) < 2 ^ 47 :=
+    paddrN_within hpb (by rw [hbv]; omega) (by rw [hbv]; omega)
+  have hpml : n = 8 → layout.PPTR_BASE.val ≤ A + j * k := fun hn => by
+    cases dev
+    · have := utW_ram hpb; omega
+    · exact absurd hn (hdn rfl)
   unfold cjOf
   apply newCapOf_ind
   all_goals first
-    | trivial
+    | (intros; exact True.intro)
     | (intro hn; subst hn; simp only [NewVPlaced]; done)
+    | (intro hn; subst hn; exact ⟨rfl, by rw [hbv]; exact hpml rfl⟩)
     | (intro hn; subst hn; simp only [zOf] at hk; norm_num at hk; subst hk
-       simp [NewVPlaced, frameBitsN, hbv, hpbA, hal])
+       refine ⟨rfl, hph, ?_⟩
+       rw [hbv]; try simp only [frameBitsN]
+       omega)
+
+/-- Retype's new untyped caps carry the parent's device flag. -/
+theorem cjOf_dev {n : Nat} {us : U64} {dev : Bool} {A k j : Nat} {q us' f : U64} {d : Bool}
+    (h : cjOf n us dev A k j = .Untyped q us' f d) : d = dev := by
+  have hu : isUt (cjOf n us dev A k j) = true := by rw [h]; rfl
+  unfold cjOf at h hu
+  rw [(isUt_newCap hu).2] at h
+  injection h with _ _ _ e
+  exact e.symm
 
 end Fl4Proofs.P3

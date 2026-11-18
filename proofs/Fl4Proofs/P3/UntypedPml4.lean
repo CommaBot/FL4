@@ -617,7 +617,8 @@ theorem retype_full_pml4 {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
     (bitsApi : Fl4Spec.ApiObjectType → Nat → Nat) (hb : bitsApi (.archObject .pml4Obj) us.val = zOf nt.val us.val)
     (hgpm : HasPm σ σ.archState.x64GlobalPml4) (hga : σ.archState.x64GlobalPml4.toNat % 4096 = 0)
     (hgf : σ.archState.x64GlobalPml4.toNat + 4096 ≤ 2 ^ 64)
-    (hgreg : ¬ (p.val ≤ σ.archState.x64GlobalPml4.toNat ∧ σ.archState.x64GlobalPml4.toNat < p.val + 2 ^ sb.val)) :
+    (hgreg : ¬ (p.val ≤ σ.archState.x64GlobalPml4.toNat ∧ σ.archState.x64GlobalPml4.toNat < p.val + 2 ^ sb.val))
+    (hdev8 : dev = false) :
     untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) false
       ⟨Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)⟩ nt us dest off win dev ⦃ res =>
       res.1 = .Ok () ∧ res.2.2 = ar ∧ ∃ σ' G' th',
@@ -851,7 +852,8 @@ theorem retype_full_pml4 {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
           (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off.val + j))) (cjOf nt.val us dev aligned.val k) := by
       refine ⟨hM, hsrcm, hcv0, hcs1, fun x hx hxs => hco1 x ((hM.members x).1 hx).1 hxs, hfiL, hA1,
         by omega, by omega, by omega, fun j _ => physF_newCap _ _ _ _, fun j hj => ?_, fun j hj => ?_,
-        fun j hj hu => ?_, fun j hj hm => ?_, fun j l hj hl he => ?_, hT1, hT1b, hT2a, hT2b, hT3⟩
+        fun j hj hu => ?_, fun j _ q us' f d hc => cjOf_dev hc, fun j hj hm => ?_, fun j l hj hl he => ?_, hT1, hT1b,
+        hT2a, hT2b, hT3⟩
       · have h1 : (j + 1) * k ≤ win.val * k := Nat.mul_le_mul_right _ hj
         rw [Nat.add_mul, Nat.one_mul] at h1
         obtain ⟨c1, -⟩ := newCap_range (n := nt.val) (by omega) ⟨BitVec.ofNat 64 (A + j * k)⟩ us dev hus hzv
@@ -889,7 +891,8 @@ theorem retype_full_pml4 {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
         (hW2.mono fun w h => by rw [halv] at h; exact h)
     refine ⟨rfl, ha2, σf, Gf, th', ?_, hP', hRf, hVf, hMf, hCf, hIf, ⟨hRD.utinv hU, MdbStep.retype hRD hI hChf
           (fun z hz => by rw [hRvf z hz, hupd.rv ((hM.members z).1 hz).1])
-          (cjOf_vplaced rfl hA2 (by omega) (by omega))⟩, hZf,
+          (cjOf_vplaced rfl hA2 (by omega) (by omega) (by have := hRD.hAw; omega)
+            (fun hd => by rw [hdev8] at hd; cases hd))⟩, hZf,
       fun hFI => ⟨(hKb hFI).sub (ksub_of_eq (nks_mapMx (nks_createCap _ _ _ _) _) hmx),
         hFf (hFI.fm.recap hM.tree.nodup src (by rw [hcs1, hcv0]; exact CapSim.of_shape rfl rfl)
           (fun z hz hzs => hco1 z ((hM.members z).1 hz).1 hzs))⟩, hks2, hW, A, k, win.val, _, _,
@@ -1071,7 +1074,7 @@ theorem retype_reset_pml4 (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State
     (fun sl h => horig sl (by rw [← hio]; exact h)) hpp' hidx hcap1 hpal hfit (by simp) hhigh nt us _ ht hnt hus
     hdest' hr off win hwin hw1 hmem he1 (by simpa using RegionFree.restrict hN) (hZ rfl) bitsApi hb
     (by rw [harch]; obtain ⟨pt, hpt⟩ := hgpm; exact ⟨pt, by rw [hkh _ hgout hgne]; exact hpt⟩)
-    (by rw [harch]; exact hga) (by rw [harch]; exact hgf) (by rw [harch]; exact hgreg)) ?_
+    (by rw [harch]; exact hga) (by rw [harch]; exact hgf) (by rw [harch]; exact hgreg) rfl) ?_
   rintro res ⟨h1, -, σ', G', th'', hrun, h⟩
   exact ⟨h1, σ', G', th'', hrun, h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2.1, h.2.2.2.2.2.2.1,
     h.2.2.2.2.2.2.2.2⟩
@@ -1175,7 +1178,7 @@ theorem retype_cont_pml4N {A' : Type} (arI : machine.Arch A') (ar : A') (th : Ty
       exact hcase ⟨by rw [hctx.resetEq]; simpa using hnc, hf⟩
     have hactZ' : ¬ (p.val + fi.val ≤ (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION).val ∧
         (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION).val < p.val + 2 ^ sb.val) := fun h => hactZ ⟨by omega, h.2⟩
-    obtain ⟨ht, ⟨hus, hz47, hsB, hsC, hsD⟩, ⟨hdest, hr64, -⟩, ⟨hw1, -, hwin⟩, hempty, hreset, hfiv, -, hmem, -⟩ := hctx
+    obtain ⟨ht, ⟨hus, hz47, hsB, hsC, hsD⟩, ⟨hdest, hr64, -⟩, ⟨hw1, -, hwin⟩, hempty, hreset, hfiv, -, hmem, hdevc⟩ := hctx
     -- set_thread_state
     have htf := hP.fits ct _ htcb
     have hta := hP.align ct _ htcb
@@ -1230,6 +1233,9 @@ theorem retype_cont_pml4N {A' : Type} (arI : machine.Arch A') (ar : A') (th : Ty
     have hfull := retype_full_pml4 (L := L) arI ar th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hU1 horig1 hpp hidx hcap1 hpal hpfit
       hfi hhigh nt us _ ht hn8 hus hdest (by omega) off win hwin hw1 hmem hempty1 hfree hzero1 bitsApi (by rw [← htP]; exact hb) hgpm1
       (by rw [harch1']; exact hga) (by rw [harch1']; exact hgf) (by rw [harch1']; exact hgreg)
+      (by cases hd : dev
+          · rfl
+          · exact absurd hn8 (dev_nt ht (hdevc hd)).2.2)
     rw [← htP] at hfull
     have hWA2 : (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)).toNat % 2 ^ zOf nt.val us.val = 0 :=
       (retype_region p fiv sb.val (zOf nt.val us.val) win.val (capAt_untyped_inv hcap) (by omega) hpal hpfit hfi hw1 hmem).2.1

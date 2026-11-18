@@ -895,7 +895,8 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
         (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off.val + j))) (cjOf nt.val us dev aligned.val k) := by
       refine ⟨hM, hsrcm, hcv0, hcs1, fun x hx hxs => hco1 x ((hM.members x).1 hx).1 hxs, hfiL, hA1,
         by omega, by omega, by omega, fun j _ => physF_newCap _ _ _ _, fun j hj => ?_, fun j hj => ?_,
-        fun j hj hu => ?_, fun j hj hm => ?_, fun j l hj hl he => ?_, hT1, hT1b, hT2a, hT2b, hT3⟩
+        fun j hj hu => ?_, fun j _ q us' f d hc => cjOf_dev hc, fun j hj hm => ?_, fun j l hj hl he => ?_, hT1, hT1b,
+        hT2a, hT2b, hT3⟩
       · have h1 : (j + 1) * k ≤ win.val * k := Nat.mul_le_mul_right _ hj
         rw [Nat.add_mul, Nat.one_mul] at h1
         obtain ⟨c1, -⟩ := newCap_range (n := nt.val) (by omega) ⟨BitVec.ofNat 64 (A + j * k)⟩ us dev hus hzv
@@ -959,7 +960,7 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
   · -- the untyped invariant
     exact ⟨hRD.utinv hU, MdbStep.retype hRD hI hChf
         (fun z hz => by rw [hRvf z hz, hupd.rv ((hM.members z).1 hz).1])
-          (cjOf_vplaced rfl hA2 (by omega) (by omega))⟩
+          (cjOf_vplaced rfl hA2 (by omega) (by omega) (by have := hRD.hAw; omega) (fun _ => by omega))⟩
   · rw [← hk4] at hZf; exact hZf
 
 end

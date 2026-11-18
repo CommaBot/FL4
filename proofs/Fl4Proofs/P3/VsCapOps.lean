@@ -156,16 +156,22 @@ theorem vcap_pool {P L4 L3 L2 L1 : Set U64} {p base i : U64} (hbase : base.val =
 
 /-! ## The untyped regions apart from the kernel-global area -/
 
-/-- **The untyped regions lie apart from the kernel-global area** (the
-placement of `MakePool`'s pool page; per primitive as `VsCapsIn`). -/
+/-- **The RAM untyped regions lie apart from the kernel-global area** (the
+placement of `MakePool`'s pool page; per primitive as `VsCapsIn`). Device
+untypeds are not constrained: boot hands out device memory up to
+`PADDR_USER_DEVICE_TOP` (losfair/FL4#34), and a device untyped's pointer
+(`paddr + PPTR_BASE`, wrapping) for `paddr ∈ [510 GiB, 512 GiB)` has the
+values of the kernel image's addresses. Only RAM untypeds become kernel
+objects (a device untyped retypes only to frames and untypeds, untyped.rs;
+`MakePool` takes a non-device cap). -/
 def UtKsOut (ksb : U64) (mem : U64 → U64) (G : MdbGhost) : Prop :=
-  ∀ x ∈ G.chains.flatten, ∀ p sb fi : U64, ∀ d : Bool, capV mem x = .Untyped p sb fi d →
+  ∀ x ∈ G.chains.flatten, ∀ p sb fi : U64, capV mem x = .Untyped p sb fi false →
     p.val + 2 ^ sb.val ≤ ksb.val ∨ ksb.val + 13568 ≤ p.val
 
-/-- An untyped cap whose region lies apart from the kernel-global area
-(any other cap). -/
+/-- A RAM untyped cap whose region lies apart from the kernel-global area
+(a device untyped, any other cap). -/
 def UtOut (ksb : U64) : capability.Cap → Prop
-  | .Untyped p sb _ _ => p.val + 2 ^ sb.val ≤ ksb.val ∨ ksb.val + 13568 ≤ p.val
+  | .Untyped p sb _ d => d = false → p.val + 2 ^ sb.val ≤ ksb.val ∨ ksb.val + 13568 ≤ p.val
   | _ => True
 
 section
@@ -175,13 +181,14 @@ theorem utKsOut_iff : UtKsOut ksb mem G ↔ ∀ x ∈ G.chains.flatten, UtOut ks
   constructor
   · intro h x hx
     cases e : capV mem x <;> simp only [UtOut]
-    exact h x hx _ _ _ _ e
-  · intro h x hx p sb fi d e
-    have := h x hx; rw [e] at this; exact this
+    intro hd; subst hd
+    exact h x hx _ _ _ e
+  · intro h x hx p sb fi e
+    have := h x hx; rw [e] at this; exact this rfl
 
 theorem UtKsOut.of_caps (h : UtKsOut ksb mem G) (hc : ∀ z ∈ G.chains.flatten, capV mem' z = capV mem z) :
     UtKsOut ksb mem' G :=
-  fun x hx p sb fi d e => h x hx p sb fi d (by rw [← hc x hx]; exact e)
+  fun x hx p sb fi e => h x hx p sb fi (by rw [← hc x hx]; exact e)
 
 /-- One slot's cap replaced by one apart from the kernel-global area. -/
 theorem UtKsOut.recap (h : UtKsOut ksb mem G) (x0 : U64) (hx : UtOut ksb (capV mem' x0))
@@ -222,18 +229,21 @@ theorem UtKsOut.insert (h : UtKsOut ksb mem G) {src dest : U64} (hsrc : src ∈ 
     · subst e; exact hcd
     · exact hcap x hx0 e (h x hx0)
 
-/-- An untyped cap within one apart from the kernel-global area is apart. -/
+/-- An untyped cap within one apart from the kernel-global area, with its
+device flag, is apart. -/
 theorem utOut_within {p sb q sb' : U64} {fi fi' : U64} {d d' : Bool}
-    (h : UtOut ksb (.Untyped p sb fi d)) (h1 : p.val ≤ q.val) (h2 : q.val + 2 ^ sb'.val ≤ p.val + 2 ^ sb.val) :
+    (h : UtOut ksb (.Untyped p sb fi d)) (h1 : p.val ≤ q.val) (h2 : q.val + 2 ^ sb'.val ≤ p.val + 2 ^ sb.val)
+    (hd : d' = d) :
     UtOut ksb (.Untyped q sb' fi' d') := by
-  simp only [UtOut] at h ⊢; omega
+  subst hd
+  simp only [UtOut] at h ⊢; intro e; have := h e; omega
 
 /-- **`MakePool`'s pool page apart from the kernel-global area**, from the
 untyped placement. -/
 theorem UtKsOut.pool {th : TypedHeap} (h : UtKsOut ksb mem G) (hM : MdbLinks th mem G) {x : U64}
     (hx : IsSlot th x) {p fi : U64} (hc : capAt mem x = ok (.Untyped p fl4_abi.consts.bits.ASID_POOL fi false)) :
     p.val + 4096 ≤ ksb.val ∨ ksb.val + 13568 ≤ p.val := by
-  have := h x ((hM.members x).2 ⟨hx, _, hc, by simp⟩) p _ fi false (capV_of_capAt hc)
+  have := h x ((hM.members x).2 ⟨hx, _, hc, by simp⟩) p _ fi (capV_of_capAt hc)
   have e : fl4_abi.consts.bits.ASID_POOL.val = 12 := by unfold fl4_abi.consts.bits.ASID_POOL; rfl
   rw [e] at this; simpa using this
 
