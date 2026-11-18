@@ -187,7 +187,7 @@ theorem decode_invocation_page_table_topX (th : TypedHeap) (s : S) (ar : A) (σ 
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     DecOKMX (L := L) arI (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageTable ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
-  DecOKMQX.toX arI (decode_invocation_page_tableX arI th hS.2.pl s ar σ G hCR hFI hMO (fun _ _ _ _ => trivial) (vs_x0T hS hR hPt hPI hCur hCR hFI hMO) (fun _ _ _ hSR hR' hPt' hCR' hFI' hMO' hK => vs_x_afterT hS hPI hCur hSR hR' hPt' hCR' hFI' hMO' hK) ((vsPtMapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ((vsPtUnmapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
+  DecOKMQX.toX arI (decode_invocation_page_tableX arI th hS.2.pl s ar σ G hCR hFI hMO (fun _ _ _ _ => trivial) (vs_x0T hS hR hPt hPI hCur hCR hFI hMO) (fun _ _ _ hSR hR' hPt' hCR' hFI' hMO' hK _ => vs_x_afterT hS hPI hCur hSR hR' hPt' hCR' hFI' hMO' hK) ((vsPtMapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ((vsPtUnmapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
     hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer) (fun _ _ _ h => h)
 
@@ -272,7 +272,7 @@ theorem decode_invocation_page_directory_topX (th : TypedHeap) (s : S) (ar : A) 
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     DecOKMX (L := L) arI (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageDirectory ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
-  DecOKMQX.toX arI (decode_invocation_page_directoryX arI th hS.2.pl s ar σ G hCR hFI hMO (fun _ _ _ _ => trivial) (vs_x0T hS hR hPt hPI hCur hCR hFI hMO) (fun _ _ _ hSR hR' hPt' hCR' hFI' hMO' hK => vs_x_afterT hS hPI hCur hSR hR' hPt' hCR' hFI' hMO' hK) ((vsPdMapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ((vsPdUnmapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
+  DecOKMQX.toX arI (decode_invocation_page_directoryX arI th hS.2.pl s ar σ G hCR hFI hMO (fun _ _ _ _ => trivial) (vs_x0T hS hR hPt hPI hCur hCR hFI hMO) (fun _ _ _ hSR hR' hPt' hCR' hFI' hMO' hK _ => vs_x_afterT hS hPI hCur hSR hR' hPt' hCR' hFI' hMO' hK) ((vsPdMapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ((vsPdUnmapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
     hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer) (fun _ _ _ h => h)
 
@@ -357,7 +357,7 @@ theorem decode_invocation_pdpt_topX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     DecOKMX (L := L) arI (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Pdpt ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
-  DecOKMQX.toX arI (decode_invocation_pdptX arI th hS.2.pl s ar σ G hCR hFI hMO (fun _ _ _ _ => trivial) (vs_x0T hS hR hPt hPI hCur hCR hFI hMO) (fun _ _ _ hSR hR' hPt' hCR' hFI' hMO' hK => vs_x_afterT hS hPI hCur hSR hR' hPt' hCR' hFI' hMO' hK) ((vsPdptMapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ((vsPdptUnmapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
+  DecOKMQX.toX arI (decode_invocation_pdptX arI th hS.2.pl s ar σ G hCR hFI hMO (fun _ _ _ _ => trivial) (vs_x0T hS hR hPt hPI hCur hCR hFI hMO) (fun _ _ _ hSR hR' hPt' hCR' hFI' hMO' hK _ => vs_x_afterT hS hPI hCur hSR hR' hPt' hCR' hFI' hMO' hK) ((vsPdptMapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ((vsPdptUnmapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
     hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer) (fun _ _ _ h => h)
 
@@ -612,7 +612,7 @@ theorem decode_invocation_frame_capX [Fl4Proofs.P1.PlainStore st] (th : TypedHea
       (asid := asid) (va := va) (d := d) (m := m) hcap hno hMO hVC extra excaps hext'' blk call don fp ci buffer
   have h := decode_invocation_frameX arI th hS.2.pl s ar σ G hCR hFI hMO (fun _ _ _ _ => trivial)
     hX0
-    (fun _ _ _ hSR hR' hPt' hCR' hFI' hMO' hK => vs_x_afterT hS hPI hCur hSR hR' hPt' hCR' hFI' hMO' hK)
+    (fun _ _ _ hSR hR' hPt' hCR' hFI' hMO' hK _ => vs_x_afterT hS hPI hCur hSR hR' hPt' hCR' hFI' hMO' hK)
     ((vsFrameHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl)
     ((vsFrameHypsL_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl)
     ((vsFrameUnmapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl)
@@ -840,7 +840,7 @@ theorem decode_invocation_asid_pool_capX (th : TypedHeap) (s : S) (ar : A) (σ :
     hH ⟨⟨hS, P1.WritesIn.refl _ _⟩, hPt⟩ hS.2.vs hS.2.sd hR hS.2.vo
     lbl slbl hlA length buf ct hct hcur htcb hact hrun ptr base hok.2.1 hok.2.2 extra excaps hNative hext'
     (X := FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) (vs_x0T hS hR hPt hPI hCur hCR hFI hMO)
-    (fun s' a' σ' hSR hR' hAW hCR' hFI' hMO' hK => ⟨⟨hSR.1.1, hR', hSR.2, fun p hp lo hl hne => ?_,
+    (fun s' a' σ' hSR hR' hAW hCR' hFI' hMO' hK _ => ⟨⟨hSR.1.1, hR', hSR.2, fun p hp lo hl hne => ?_,
       CurOK.of_inv hCur hK hCR'.2.2.1 hMO'.2.2⟩, ⟨G, hCR', hFI', by rw [hSR.1.2.1]; exact hMO'⟩, hSR.1.2.1,
       KFoot.szKeep hK⟩)
     slot blk call don fp args ci sl buffer) (fun _ _ _ h => h)
