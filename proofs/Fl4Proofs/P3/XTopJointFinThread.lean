@@ -19,7 +19,8 @@ XTopFinThread's `xFinThread_of`:
   (`JAtZ.unbindTcbJ`, XTopJointFinThreadSc: an SC step by `JAtZ.sc_frame`,
   the thread neither the switch target nor idle, carried in spec terms from
   `obj`'s words by `JAtZ.spec_of_words`) and the yielder's `complete_yield_to`
-  (`JThreadFinHyps.yieldTo`), the yield-from word read against the spec's at
+  (`JAtZ.completeYieldJ`, XTopJointYield: a register step `JAtZ.reg_frame`
+  then an SC step), the yield-from word read against the spec's at
   `JAtZ`;
 * `suspend` (`JThreadFinHyps.suspend`);
 * the debug-list removal (`JAtZ.dbgRemoveJ`): P1's `debug_remove.frame` at
@@ -40,13 +41,14 @@ thread and `JAtZ` lacks: not the scheduler's switch target, l4v
 word zero, native threads; ScPlace's `JState`); [J] `utTcb` (no TCB in a
 childless untyped's region, l4v `valid_untyped`); [P] `fpu`; and the steps
 not proved here, each one FL4 call at a `JAtZ` state with its spec outcome
-and `JAtZ` after (undone work): `yieldTo`, `suspend`.
+and `JAtZ` after (undone work): `suspend`; [P] `ticks`.
 -/
 import Fl4Proofs.P3.XTopFinThread
 import Fl4Proofs.P3.ScFireJ
 import Fl4Proofs.P3.ScDeadStep
 import Fl4Proofs.P3.XTopJointEmpty
 import Fl4Proofs.P3.XTopJointFinThreadSc
+import Fl4Proofs.P3.XTopJointYield
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -75,14 +77,10 @@ structure JThreadFinHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Pr
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
     ∀ (x p : U64), IsSlot Z.th x → capV (L.mem s) x = .Thread p →
       L.actionW s ≠ p ∧ L.idleW s ≠ p ∧ L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64
-  /-- [J-step] The yielder's `complete_yield_to` at `J` (XTop:
-  `ScYieldFinHyp`, `scYieldFinHyp_of`). -/
-  yieldTo : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S)
-    (a : A) (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
-    ∀ q : U64, L.mem s (scYieldFromA q) ≠ 0#u64 →
-      schedcontext.complete_yield_to st arI s a (L.mem s (scYieldFromA q)) ⦃ r => ∃ σ',
-        Fl4Spec.completeYieldTo (Z := Unit) (L.mem s (scYieldFromA q)).bv σ = ({((), σ')}, False) ∧
-        JTP (L := L) arI AR Z H Cs r.1 r.2 σ' ⦄
+  /-- [P] The platform's `ticks_to_us` and `getMaxTicksToUs` (the yielder's
+  `complete_yield_to`, `JAtZ.completeYieldJ`; as XTopYield's `scYieldFinHyp_of`). -/
+  ticks : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv ∧
+    ∀ (a : A) (v : U64), arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄
   /-- [J-step] `suspend` at `J` (XTop: `suspend_irelY`; its `cancel_ipc`
   of a thread blocked on a reply runs `reply_remove`, `JReplyRemoveHyp`). -/
   suspend : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S)
@@ -585,7 +583,7 @@ theorem JAtZ.dbgRemoveJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
 set_option maxHeartbeats 16000000 in
 /-- **`JAtZ` across a final thread cap's finalisation** (module docstring),
 the steps of `JThreadFinHyps` given. -/
-theorem JAtZ.finThreadJ (hF : JThreadFinHyps (L := L) arI AR Z.th)
+theorem JAtZ.finThreadJ (hAT : P0.ArchTotal arI) (hF : JThreadFinHyps (L := L) arI AR Z.th)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hp : p ∈ Z.T)
     (hv0 : L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64) (hna : L.actionW s ≠ p) (hidle : L.idleW s ≠ p) :
     objects.finalise_cap st arI s a (.Thread p) true false ⦃ r => ∃ σ',
@@ -685,7 +683,12 @@ theorem JAtZ.finThreadJ (hF : JThreadFinHyps (L := L) arI AR Z.th)
     · have hb1' : b1 = false := by rw [hb1]; simp [j0]
       simp only [hb1', Bool.false_eq_true, ↓reduceIte]
       rw [hj]
-      refine WP.spec_mono (hF.yieldTo (Z.mv Z.G V3) H Cs Ac5 Lst5 D5 s5 a σ4 rfl J5 i (by rw [← hj]; exact j0)) ?_
+      have hjT : L.mem s5 (scYieldFromA i) ∈ Z.T := by
+        have e5 : y5.scYieldFrom = some (L.mem s5 (scYieldFromA i)).bv := by
+          rw [hx5.yieldFrom, ← scYieldFromA_eq, Notif.optRef_ne (by rw [← hj]; exact j0)]
+        obtain ⟨t, ht, et, -⟩ := J5.yld.frm i hiC y5 n5 hk5 _ e5
+        rw [← P1.eq_of_bv et]; exact ht
+      refine WP.spec_mono (J5.completeYieldJ hAT hF.ticks.1 (hF.ticks.2 a) hjT) ?_
       rintro ⟨s6, a6⟩ ⟨σ6, e6, V6, Ac6, Lst6, D6, J6⟩
       refine ⟨σ6, ⟨V6, Ac6, Lst6, D6, J6⟩, unbindFromSc_some hk4 hsp he4 hk5 ?_⟩
       rw [hx5.yieldFrom, ← scYieldFromA_eq, Notif.optRef_ne (by rw [← hj]; exact j0)]; exact e6
