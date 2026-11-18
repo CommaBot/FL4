@@ -9,6 +9,9 @@ members = [
     "crates/fl4-arch-x86_64",
     "crates/fl4-arch-aarch64",
     "crates/fl4-kernel",
+    "crates/fl4-kernel-aarch64",
+    "crates/fl4-bootinfo",
+    "crates/fl4-efi",
     "crates/fl4-sim",
     "xtask",
 ]

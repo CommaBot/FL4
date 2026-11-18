@@ -44,6 +44,8 @@ fn fail(msg: &str) -> ! {
 
 struct Opts {
     release: bool,
+    /// x86_64 (default) or aarch64.
+    arch: String,
     setup: String,
     smp: u32,
     timeout: u64,
@@ -52,7 +54,7 @@ struct Opts {
 }
 
 fn parse(args: &[String]) -> Opts {
-    let mut o = Opts { release: false, setup: "kvm".into(), smp: 1, timeout: 1800, seeds: 200, rest: vec![] };
+    let mut o = Opts { release: false, arch: "x86_64".into(), setup: String::new(), smp: 1, timeout: 1800, seeds: 200, rest: vec![] };
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -60,6 +62,13 @@ fn parse(args: &[String]) -> Opts {
             "--setup" => {
                 i += 1;
                 o.setup = args[i].clone();
+            }
+            "--arch" => {
+                i += 1;
+                o.arch = args[i].clone();
+                if o.arch != "x86_64" && o.arch != "aarch64" {
+                    fail(&format!("unknown architecture {} (x86_64, aarch64)", o.arch));
+                }
             }
             "--smp" => {
                 i += 1;
@@ -77,7 +86,89 @@ fn parse(args: &[String]) -> Opts {
         }
         i += 1;
     }
+    if o.setup.is_empty() {
+        // AArch64 runs under TCG unless asked otherwise (the test machine
+        // is x86_64, DESIGN.md section 12).
+        o.setup = if o.arch == "aarch64" { "tcg".into() } else { "kvm".into() };
+    }
     o
+}
+
+fn aarch64(o: &Opts) -> bool {
+    o.arch == "aarch64"
+}
+
+/// The AArch64 UEFI firmware (edk2 for QEMU's virt machine).
+fn aarch64_firmware() -> PathBuf {
+    if let Some(p) = env::var_os("FL4_AARCH64_FIRMWARE") {
+        return PathBuf::from(p);
+    }
+    for p in ["/usr/share/qemu-efi-aarch64/QEMU_EFI.fd", "/usr/share/AAVMF/AAVMF_CODE.fd", "/opt/homebrew/share/qemu/edk2-aarch64-code.fd", "/usr/share/edk2/aarch64/QEMU_EFI.fd"] {
+        if Path::new(p).exists() {
+            return PathBuf::from(p);
+        }
+    }
+    fail("no AArch64 UEFI firmware found (set FL4_AARCH64_FIRMWARE)")
+}
+
+/// QEMU for an AArch64 image: the virt machine with UEFI firmware, booting
+/// `esp` (a directory with EFI/BOOT/BOOTAA64.EFI). The setups cover the
+/// device tree and ACPI, GICv2 and GICv3, and entry at EL1 and EL2.
+fn qemu_cmd_aarch64(setup: &str, smp: u32, esp: &Path) -> Command {
+    let mut c = Command::new("qemu-system-aarch64");
+    let (accel, cpu, machine) = match setup {
+        "tcg" => ("tcg", "max", "virt,acpi=off"),
+        "tcg-gicv3" => ("tcg", "max", "virt,acpi=off,gic-version=3"),
+        "tcg-el2" => ("tcg", "max", "virt,acpi=off,gic-version=3,virtualization=on"),
+        "tcg-a57" => ("tcg", "cortex-a57", "virt,acpi=off"),
+        "tcg-acpi" => ("tcg", "max", "virt,acpi=on,gic-version=3"),
+        "kvm" => ("kvm", "host", "virt,acpi=off,gic-version=host"),
+        "hvf" => ("hvf", "host", "virt,acpi=off"),
+        s => fail(&format!("unknown AArch64 setup {s} (tcg, tcg-gicv3, tcg-el2, tcg-a57, tcg-acpi, kvm, hvf)")),
+    };
+    c.args(["-accel", accel, "-machine", machine, "-cpu", cpu, "-m", "2G", "-smp"]).arg(smp.to_string());
+    c.args(["-display", "none", "-serial", "stdio", "-no-reboot", "-monitor", "none", "-net", "none", "-bios"]).arg(aarch64_firmware());
+    c.arg("-drive").arg(format!("format=raw,file=fat:rw:{}", esp.display()));
+    if let Ok(extra) = env::var("FL4_QEMU_ARGS") {
+        c.args(extra.split_whitespace());
+    }
+    c
+}
+
+/// An EFI system partition directory that boots `image` (fl4-efi with the
+/// root task built in).
+fn aarch64_esp(image: &Path, dir: &Path) -> PathBuf {
+    let esp = dir.join("esp");
+    let _ = fs::remove_dir_all(&esp);
+    fs::create_dir_all(esp.join("EFI/BOOT")).unwrap();
+    fs::copy(image, esp.join("EFI/BOOT/BOOTAA64.EFI")).unwrap();
+    esp
+}
+
+/// Build the AArch64 kernel and fl4-efi with `root` built in; returns the
+/// UEFI image.
+fn build_aarch64_image(o: &Opts, root_elf: &Path) -> PathBuf {
+    let r = root();
+    let mut c = Command::new("cargo");
+    c.current_dir(&r).args(["build", "--release", "-p", "fl4-kernel-aarch64", "--target", "aarch64-unknown-none-softfloat"]);
+    if o.release {
+        c.arg("--features=release-profile");
+    }
+    run(&mut c);
+    let out = r.join("build/aarch64");
+    fs::create_dir_all(&out).unwrap();
+    let elf = out.join("kernel.elf");
+    // The toolchain's own lld, so no cross linker is needed.
+    let sysroot = Command::new("rustc").args(["--print", "sysroot"]).output().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default();
+    let lld = fs::read_dir(Path::new(&sysroot).join("lib/rustlib")).ok()
+        .and_then(|d| d.flatten().map(|e| e.path().join("bin/rust-lld")).find(|p| p.exists()))
+        .unwrap_or_else(|| fail("rust-lld not found"));
+    run(Command::new(lld).args(["-flavor", "gnu", "-n", "-static", "--gc-sections", "--build-id=none", "--strip-debug", "-u", "fl4_boot", "-T"])
+        .arg(r.join("crates/fl4-kernel-aarch64/linker.ld")).arg("--whole-archive")
+        .arg(r.join("target/aarch64-unknown-none-softfloat/release/libfl4_kernel_aarch64.a")).arg("-o").arg(&elf));
+    run(Command::new("cargo").current_dir(&r).env("FL4_KERNEL_ELF", &elf).env("FL4_ROOTSERVER_ELF", root_elf)
+        .args(["build", "--release", "-p", "fl4-efi", "--target", "aarch64-unknown-uefi"]));
+    r.join("target/aarch64-unknown-uefi/release/fl4-efi.efi")
 }
 
 /// Build the standalone kernel image (default configuration).
@@ -425,7 +516,7 @@ fn kbench(o: &Opts) {
             if kernel == "sel4" {
                 rest.extend(["-DKernelPrinting=ON".to_string(), "-DKernelSkimWindow=OFF".to_string()]);
             }
-            let ko = Opts { release: true, setup: o.setup.clone(), smp, timeout: 120, seeds: 0, rest };
+            let ko = Opts { release: true, arch: o.arch.clone(), setup: o.setup.clone(), smp, timeout: 120, seeds: 0, rest };
             let b = sel4test_build(&ko, false);
             let log = b.join("kbench.log");
             let out = run_qemu(
@@ -508,6 +599,16 @@ fn sel4test_ws() -> PathBuf {
         let keep = format!("    if(NOT ReleasePrinting)\n  {off}    endif()\n");
         fs::write(&settings, text.replacen(off, &keep, 1)).unwrap();
     }
+    // AArch64: the root server image is FL4's UEFI loader with the kernel
+    // and the root task built in, not an elfloader image (cmake/
+    // CMakeLists.txt defines fl4_declare_rootserver).
+    let rs = ws.join("tools/seL4/cmake-tool/helpers/rootserver.cmake");
+    let text = fs::read_to_string(&rs).unwrap();
+    let arm = "  elseif(KernelArchARM OR KernelArchRiscV)\n";
+    if !text.contains("fl4_declare_rootserver") && text.contains(arm) {
+        let hook = format!("  elseif(KernelArchARM AND COMMAND fl4_declare_rootserver)\n    fl4_declare_rootserver(${{rootservername}})\n{arm}");
+        fs::write(&rs, text.replacen(arm, &hook, 1)).unwrap();
+    }
     link(&r.join(if upstream() { "vendor/seL4" } else { "cmake" }), &ws.join("kernel"));
     link(Path::new("tools/seL4/cmake-tool/init-build.sh"), &ws.join("init-build.sh"));
     link(Path::new("projects/sel4test/easy-settings.cmake"), &ws.join("easy-settings.cmake"));
@@ -546,7 +647,7 @@ fn sel4test_build(o: &Opts, fl4test: bool) -> PathBuf {
     }
     // FL4_TESTS=<regex> runs only the matching tests, in its own build.
     let only = env::var("FL4_TESTS").ok().or(if fl4test { Some(FL4TEST_REGEX.into()) } else { None });
-    let mut name = format!("build-{}-smp{}", if o.release { "release" } else { "debug" }, o.smp);
+    let mut name = format!("build-{}{}-smp{}", if aarch64(o) { "aarch64-" } else { "" }, if o.release { "release" } else { "debug" }, o.smp);
     if let Some(r) = &only {
         name += "-";
         name.extend(r.chars().filter(|c| c.is_ascii_alphanumeric()));
@@ -561,7 +662,19 @@ fn sel4test_build(o: &Opts, fl4test: bool) -> PathBuf {
     if !b.join("build.ninja").exists() {
         fs::create_dir_all(&b).unwrap();
         let mut c = Command::new("../init-build.sh");
-        c.current_dir(&b).args(["-DPLATFORM=x86_64", "-DMCS=ON", "-DSIMULATION=OFF"]);
+        if aarch64(o) {
+            // QEMU's virt machine is FL4's AArch64 platform name. sel4test
+            // runs it as a simulation target: without a platform timer
+            // unless FL4_ARM_TIMER=1 exports the physical timer to user
+            // space for its generic timer driver.
+            c.current_dir(&b).args(["-DPLATFORM=qemu-arm-virt", "-DAARCH64=TRUE", "-DMCS=ON", "-DCROSS_COMPILER_PREFIX=aarch64-linux-gnu-"]);
+            if env::var("FL4_ARM_TIMER").as_deref() == Ok("1") {
+                c.args(["-DSel4testAllowSettingsOverride=ON", "-DSIMULATION=OFF", "-DKernelArmExportPCNTUser=ON", "-DKernelArmExportPTMRUser=ON",
+                    "-DKernelIsMCS=ON", "-DKernelArmTLSReg=tpidru", "-DLibPlatSupportHaveTimer=ON"]);
+            }
+        } else {
+            c.current_dir(&b).args(["-DPLATFORM=x86_64", "-DMCS=ON", "-DSIMULATION=OFF"]);
+        }
         c.arg(format!("-DRELEASE={}", if o.release { "ON" } else { "OFF" }));
         c.arg(format!("-DSMP={}", if o.smp > 1 { "ON" } else { "OFF" }));
         if o.smp > 1 {
@@ -676,7 +789,29 @@ fn fuzz(o: &Opts) {
 /// passes, start every core, and start the root task. That is where this
 /// check ends: sel4test's driver cannot go further on UEFI, because its
 /// timer set-up looks for the RSDP in the BIOS areas from user space.
+/// AArch64: boot sel4test's image through UEFI with ACPI (no device tree)
+/// on GICv3 and check the kernel finds the cores and starts the root task.
+fn uefi_aarch64(o: &Opts) {
+    let b = sel4test_build(o, false);
+    let dir = root().join("build/uefi-aarch64");
+    fs::create_dir_all(&dir).unwrap();
+    let esp = aarch64_esp(&b.join("images/sel4test-driver-image-arm-qemu-arm-virt"), &dir);
+    let smp = o.smp.max(1);
+    let setup = if o.setup == "tcg" { "tcg-acpi" } else { o.setup.as_str() };
+    let out = run_qemu(qemu_cmd_aarch64(setup, smp, &esp), 300, &["FL4: starting the root task", "FL4 boot failed", "FL4 panic"], &dir.join("serial.log"));
+    for l in out.lines().filter(|l| l.contains("FL4")) {
+        eprintln!("xtask: uefi: {}", l.trim_end());
+    }
+    if !out.contains("hardware from the ACPI") || !out.contains(&format!("FL4: {smp} core(s) running")) || !out.contains("FL4: starting the root task") {
+        fail("UEFI boot did not reach the root task");
+    }
+    eprintln!("xtask: uefi: booted through UEFI with ACPI on {smp} core(s)");
+}
+
 fn uefi(o: &Opts) {
+    if aarch64(o) {
+        return uefi_aarch64(o);
+    }
     let b = sel4test_build(o, false);
     let dir = root().join("build/uefi");
     let esp = dir.join("esp/EFI/BOOT");
@@ -728,11 +863,16 @@ fn uefi(o: &Opts) {
 
 fn sel4test_once(o: &Opts, fl4test: bool) -> Result<(), Vec<String>> {
     let b = sel4test_build(o, fl4test);
-    let k = b.join("images/kernel-x86_64-pc99");
-    let i = b.join("images/sel4test-driver-image-x86_64-pc99");
     let log = b.join("sel4test.log");
-    let stop = ["All is well in the universe", "Test suite failed", "Halting...", "FL4 panic", "FL4 boot failed:"];
-    let out = run_qemu(qemu_cmd(&o.setup, o.smp, &k, Some(&i)), o.timeout, &stop, &log);
+    let stop = ["All is well in the universe", "Test suite failed", "Halting...", "FL4 panic", "FL4 boot failed:", "FL4: halted"];
+    let out = if aarch64(o) {
+        let esp = aarch64_esp(&b.join("images/sel4test-driver-image-arm-qemu-arm-virt"), &b);
+        run_qemu(qemu_cmd_aarch64(&o.setup, o.smp, &esp), o.timeout, &stop, &log)
+    } else {
+        let k = b.join("images/kernel-x86_64-pc99");
+        let i = b.join("images/sel4test-driver-image-x86_64-pc99");
+        run_qemu(qemu_cmd(&o.setup, o.smp, &k, Some(&i)), o.timeout, &stop, &log)
+    };
     if let Ok(expected) = env::var("FL4_EXPECT_VM") {
         if !vm_expectation_ok(&out, &expected) {
             eprintln!("xtask: expected virtualization {expected}; inspect the CPU mitigation diagnostic in {}", log.display());
@@ -972,6 +1112,12 @@ fn main() {
         "kernel" => {
             build_kernel(&o);
         }
+        "run" if aarch64(&o) => {
+            let root_elf = o.rest.first().map(PathBuf::from).unwrap_or_else(|| fail("usage: cargo xtask run --arch aarch64 <root task ELF>"));
+            let image = build_aarch64_image(&o, &root_elf);
+            let esp = aarch64_esp(&image, &root().join("build/aarch64"));
+            run_qemu(qemu_cmd_aarch64(&o.setup, o.smp, &esp), o.timeout, &["FL4: halted", "FL4 panic", "FL4 boot failed"], &root().join("build/run.log"));
+        }
         "run" => {
             let k = build_kernel(&o);
             let initrd = o.rest.first().map(PathBuf::from);
@@ -992,7 +1138,7 @@ fn main() {
         "bench" => bench(&o),
         "kbench" => kbench(&o),
         _ => {
-            eprintln!("usage: cargo xtask <kernel|run|sel4test-build|sel4test|fl4test|extract|gate|sim|mutants|fuzz|trusted|bench [fl4|sel4]|kbench> [--release] [--setup kvm|kvm-reduced|tcg] [--smp N] [--timeout S] [--seeds N]");
+            eprintln!("usage: cargo xtask <kernel|run|sel4test-build|sel4test|fl4test|uefi|extract|gate|sim|mutants|fuzz|trusted|bench [fl4|sel4]|kbench> [--arch x86_64|aarch64] [--release] [--setup kvm|kvm-reduced|tcg|...] [--smp N] [--timeout S] [--seeds N]");
             exit(2);
         }
     }

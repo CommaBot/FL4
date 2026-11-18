@@ -1,0 +1,8 @@
+[package]
+name = "fl4-bootinfo"
+description = "What FL4's UEFI loader hands the AArch64 kernel (trusted)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]

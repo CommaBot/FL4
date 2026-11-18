@@ -14,53 +14,7 @@ use crate::sched;
 use crate::schedcontext;
 use fl4_abi::consts::fault as ft;
 
-/// x86_64 `syscallMessage`.
-pub const SYSCALL_MESSAGE: [u64; 18] = [
-    reg::RAX,
-    reg::RBX,
-    reg::RCX,
-    reg::RDX,
-    reg::RSI,
-    reg::RDI,
-    reg::RBP,
-    reg::R8,
-    reg::R9,
-    reg::R10,
-    reg::R11,
-    reg::R12,
-    reg::R13,
-    reg::R14,
-    reg::R15,
-    reg::FAULT_IP,
-    reg::RSP,
-    reg::FLAGS,
-];
-
-/// x86_64 `exceptionMessage`.
-pub const EXCEPTION_MESSAGE: [u64; 3] = [reg::FAULT_IP, reg::RSP, reg::FLAGS];
-
-/// x86_64 `timeoutReplyMessage`.
-pub const TIMEOUT_REPLY_MESSAGE: [u64; 19] = [
-    reg::FAULT_IP,
-    reg::RSP,
-    reg::FLAGS,
-    reg::RAX,
-    reg::RBX,
-    reg::RCX,
-    reg::RDX,
-    reg::RSI,
-    reg::RDI,
-    reg::RBP,
-    reg::R8,
-    reg::R9,
-    reg::R10,
-    reg::R11,
-    reg::R12,
-    reg::R13,
-    reg::R14,
-    reg::R15,
-    reg::TLS_BASE,
-];
+arch_items!("faults.rs");
 
 pub fn clear_fault<S: Store>(s: &mut S, t: Tcb) {
     t.set_fault_type(s, ft::NullFault);
@@ -190,7 +144,7 @@ pub fn set_mrs_fault<S: Store, A: Arch>(s: &mut S, a: &A, sender: Tcb, receiver:
         set_mrs_lookup_failure(s, receiver, buf, lf, 3)
     } else if ty == ft::UnknownSyscall {
         copy_mrs_fault(s, sender, receiver, &SYSCALL_MESSAGE, buf);
-        msg::set_mr(s, receiver, buf, 18, w0)
+        msg::set_mr(s, receiver, buf, unknown_syscall_number_mr!(), w0)
     } else if ty == ft::UserException {
         copy_mrs_fault(s, sender, receiver, &EXCEPTION_MESSAGE, buf);
         msg::set_mr(s, receiver, buf, 3, w0);

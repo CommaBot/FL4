@@ -300,16 +300,19 @@ fn check_interrupt<S: Store, A: Arch>(s: &mut S, a: &mut A, irq: u64) {
 /// `Arch::take_pending_irq` when no interrupt is pending.
 pub const NO_IRQ: u64 = u64::MAX;
 
+arch_items!("syscall.rs");
+
 /// seL4 `handleSyscall` and `slowpath`: `number` is the syscall number
 /// from RDX (as a signed value).
+// (On AArch64 the number is from x7.)
 pub fn handle_syscall<S: Store, A: Arch>(s: &mut S, a: &mut A, number: i64) {
     let t = sched::cur_thread(s);
     // The syscall instruction is two bytes long.
     let next = t.reg(s, reg::NEXT_IP);
-    t.set_reg(s, reg::FAULT_IP, next.wrapping_sub(2));
+    t.set_reg(s, reg::FAULT_IP, next.wrapping_sub(syscall_insn_len!()));
     // l4h 0001: a thread with trapSyscalls set never makes seL4 calls.
     if t.flags(s) & tcb_flag::TRAP_SYSCALLS != 0 {
-        unknown_syscall_fault(s, a, number as u64);
+        unknown_syscall_fault(s, a, trapped_syscall_number!(s, t, number));
         return;
     }
     if number < sc::SYSCALL_MIN || number > sc::SYSCALL_MAX {
@@ -557,28 +560,10 @@ pub fn handle_user_exception<S: Store, A: Arch>(s: &mut S, a: &mut A, number: u6
 pub fn handle_vm_fault<S: Store, A: Arch>(s: &mut S, a: &mut A, addr: u64, code: u64) {
     if budget_ok(s, a) {
         let t = sched::cur_thread(s);
-        let instruction = (code >> 4) & 1 != 0;
+        let instruction = instruction_fault!(code);
         faults::handle_fault(s, a, t, vspace::vm_fault(addr, code, instruction));
     }
     finish(s, a);
-}
-
-/// `int $N` from user space on a gate it may use: seL4 reports this as an
-/// unknown syscall whose number combines the vector and EAX.
-pub fn handle_trap_syscall<S: Store, A: Arch>(s: &mut S, a: &mut A, vector: u64) {
-    let t = sched::cur_thread(s);
-    let ip = t.reg(s, reg::FAULT_IP).wrapping_sub(2);
-    t.set_reg(s, reg::FAULT_IP, ip);
-    // l4h 0001: a thread with trapSyscalls set has only its syscall
-    // instructions as system calls. `int $N` gets the #GP it raises where
-    // the gate is closed, with the IDT vector in the error code.
-    if t.flags(s) & tcb_flag::TRAP_SYSCALLS != 0 {
-        handle_user_exception(s, a, 13, (vector << 3) | 2);
-        return;
-    }
-    let eax = t.reg(s, reg::RAX);
-    let num = (vector << 24) | (eax & 0x00ff_ffff);
-    handle_unknown_syscall(s, a, num as i64);
 }
 
 /// #DB and #BP with the hardware debug API. The time the thread ran is

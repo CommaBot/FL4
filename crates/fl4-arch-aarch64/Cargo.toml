@@ -1,9 +1,11 @@
 [package]
 name = "fl4-arch-aarch64"
-description = "FL4 AArch64 backend (placeholder until after M5)"
+description = "FL4 AArch64 hardware backend (trusted): GIC, generic timer, MMU, FP/SIMD, PSCI"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-fl4-core = { path = "../fl4-core" }
+fl4-abi = { path = "../fl4-abi", features = ["aarch64"] }
+fl4-core = { path = "../fl4-core", features = ["aarch64"] }
+fl4-store = { path = "../fl4-store" }

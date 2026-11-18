@@ -212,9 +212,13 @@ pub fn remote_invalidate_page(asid: u64, vaddr: u64) {
     }
 }
 
+/// If the ASID was deleted, this core still runs its tables, which can be
+/// reused once the call returns: the exit sets the address space again
+/// from the current thread's VSpace cap.
 pub fn remote_invalidate_asid(asid: u64) {
     if percpu::current_asid(percpu::cpu_index()) == asid {
         local_invalidate_asid(asid);
+        percpu::get().vspace_stale.set(true);
     }
 }
 

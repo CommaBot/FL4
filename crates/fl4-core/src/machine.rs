@@ -6,6 +6,8 @@
 //! live in this memory, so the store is the whole kernel state apart from
 //! the hardware. `Arch` is everything else the core asks the machine to do.
 
+arch_items!("machine.rs");
+
 /// Kernel memory.
 pub trait Store {
     /// Address bits for (private, shared) page-table leaves. Both are zero on native hardware.
@@ -117,6 +119,8 @@ pub trait Arch {
     fn remote_stall(&mut self, cpu: u64);
     /// Ask the cores in `mask` to reschedule (seL4 `doMaskReschedule`).
     fn send_reschedule(&mut self, mask: u64);
+
+    arch_machine_methods!();
 
     /// Debug console.
     fn putc(&mut self, c: u64);

@@ -8,6 +8,9 @@
 
 # Boot and entry: assembly and the glue around it.
 entry: crates/fl4-kernel/src
+entry: crates/fl4-kernel-aarch64/src
+entry: crates/fl4-efi/src
+entry: crates/fl4-bootinfo/src
 
 # Hardware backends.
 hardware: crates/fl4-arch-x86_64/src
