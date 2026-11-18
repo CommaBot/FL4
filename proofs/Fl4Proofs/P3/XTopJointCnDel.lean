@@ -17,8 +17,10 @@ supply).
 * `cn_del_topJ`: a Delete's or Revoke's outcome at `EJ` (`EJP` if preempted)
   gives `TopPostDMXP` at `JAt`, `JAtPre`.
 * `decode_invocation_cnode_{revoke,delete}J`: the Revoke and Delete labels
-  with `JAt` after (`JAtPre` if preempted), from `JAtZ` at the start,
-  `JStepHyps`, `JDelHyp`, `JPreemptHyp`.
+  with `JAt` after (`JAtPre` if preempted), from `JAtZ` and `PPR0` (ScPPR)
+  at the start, `JStepHyps`, `JDelHyp`, `JPreemptHyp`.
+* `JAtZ.ppr0_start`: `PPR0` at the invocation's start, from `Entered` and
+  the current SC's head ready at a zero consumed time (`hRd0` [J]).
 * `decode_invocation_cnodeJ_steps` (moved here from XTopJointStep): the
   CNode cap with `JAt` after (`JAtPre` if preempted); the per-op premise
   `JPostHyp` [W] only at CancelBadgedSends and the invalid labels.
@@ -40,7 +42,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 /-- **The caller's restart keeps `EJ`** (`JStepHyps.restart`, `cs_frame`). -/
 theorem EJ.restart (hJ : JStepHyps (L := L) arI AR Z.th) {s : S} {ar : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) {K : Nat}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hP0 : PPR0 σ) {K : Nat}
     (hDE : DelE (L := L) Z.th K s σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) :
     ∀ s1 σ1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 → SlotsSame Z.th (L.mem s) (L.mem s1) →
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
@@ -62,7 +64,27 @@ theorem EJ.restart (hJ : JStepHyps (L := L) arI AR Z.th) {s : S} {ar : A} {σ : 
   obtain ⟨hkb, hkz⟩ := kback_ksz_upd (σ' := Notif.stsAct (Notif.updK σ ct.bv
     (.tcb { x with tcbState := .restart })) ct.bv) hk (by rw [stsAct_kheap]; rfl)
   obtain ⟨Ac', Lst', D', R⟩ := hJ.restart s ar σ ct x s1 hcur hk htcb hrun hs1 Z H Cs Ac Lst D rfl J hX1
-  exact ⟨Z.vs, Ac', Lst', D', J.cs_frame hk1 hX1 hkb (JCs.same J hSS hkz) R, hk1⟩
+  exact ⟨Z.vs, Ac', Lst', D', J.cs_frame hk1 hX1 hkb (JCs.same J hSS hkz) R, hk1,
+    hP0.of_ppk (PPK.restart hk .restart)⟩
+
+/-- **`PPR0` at the invocation's start**: at a zero consumed time, the
+current SC's head ready when active (`hRd0` [J], l4v `cur_sc_offset_ready 0`
+at the invocation: the running thread's SC released), and no reschedule
+pending (`Entered`), so the current thread is the current SC's only thread
+(`CurInv`, `Inv.back`) and outside the release queue (`CurInv.notRel`). -/
+theorem JAtZ.ppr0_start {s : S} {ar : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
+      Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true) : PPR0 σ := by
+  intro h0
+  refine ⟨hRd0 h0, fun u xt hu hus hur => ?_⟩
+  have hC := J.curInv (by rw [hni.2]; exact fun h => by cases h)
+  obtain ⟨xc, hkc, hsc, -⟩ := hC.tcb
+  obtain ⟨y, n, hy, hyt⟩ := J.inv.back u xt _ hu hus
+  obtain ⟨y', n', hy', hyt'⟩ := J.inv.back _ xc _ hkc hsc
+  rw [hy] at hy'; cases hy'
+  rw [hyt] at hyt'; cases hyt'
+  exact hC.notRel hur
 
 /-! ## The outcome after a preemption -/
 
@@ -160,7 +182,7 @@ set_option maxHeartbeats 4000000 in
 `cn_del_topJ`. -/
 theorem decode_invocation_cnode_revokeJ (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hJ : JStepHyps (L := L) arI AR Z.th)
-    (hJD : JDelHyp (L := L) arI AR Z.th) (hJP : JPreemptHyp (L := L) arI AR Z.th)
+    (hJD : JDelHyp (L := L) arI AR Z.th) (hJP : JPreemptHyp (L := L) arI AR Z.th) (hP0 : PPR0 σ)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .cnodeRevoke)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -191,9 +213,9 @@ theorem decode_invocation_cnode_revokeJ (s : S) (ar : A) (σ : Fl4Spec.State Uni
       args hlen hargs _ _ ⟨hwf, rfl⟩ hcv extra _ hI J.kern.act hcur htcb (EJ (L := L) arI AR Z H Cs (L.ksb s) K)
       (EJP (L := L) arI AR Z H Cs (L.ksb s) K)
       psiD psiD_slotsSame (hJD Z H Cs (L.ksb s) K rfl hK hK6)
-      (rppHyp_fullW arI (WJ (L := L) arI AR Z H Cs (L.ksb s)) (WJP (L := L) arI AR Z H Cs (L.ksb s)) Z.th K
+      (rppHyp_fullW arI (WJR (L := L) arI AR Z H Cs (L.ksb s)) (WJP (L := L) arI AR Z H Cs (L.ksb s)) Z.th K
         (hJP Z H Cs (L.ksb s) rfl))
-      (EJ.restart arI hJ J hni hDE hct)
+      (EJ.restart arI hJ J hni hP0 hDE hct)
       (fun _ _ _ G1 hCR hE1 => ⟨hE1.1.2.2.1, hE1.1.2.2.2 G1 hCR.2.2.1⟩)
       (fun _ _ _ G1 hCR hE1 => ⟨hE1.1.2.2.1, hE1.1.2.2.2 G1 hCR.2.2.1⟩) hfew)
       fun res h => cn_del_topJ arI J h
@@ -209,7 +231,7 @@ set_option maxHeartbeats 4000000 in
 `decode_invocation_cnode_revokeJ`, by `cnode_delete_refinesW` at `EJ`. -/
 theorem decode_invocation_cnode_deleteJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hJ : JStepHyps (L := L) arI AR Z.th)
-    (hJD : JDelHyp (L := L) arI AR Z.th)
+    (hJD : JDelHyp (L := L) arI AR Z.th) (hP0 : PPR0 σ)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .cnodeDelete)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -235,7 +257,7 @@ theorem decode_invocation_cnode_deleteJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar
     exact WP.spec_mono (cnode_delete_refinesW arI Z.th s ar σ Z.G hR hV hP hM hCd slbl hlbl length buf ct hct
       args hlen hargs _ _ ⟨hwf, rfl⟩ hcv extra _ hI J.kern.act hcur htcb (EJ (L := L) arI AR Z H Cs (L.ksb s) K)
       (EJP (L := L) arI AR Z H Cs (L.ksb s) K)
-      psiD (hJD Z H Cs (L.ksb s) K rfl hK hK6) (EJ.restart arI hJ J hni hDE hct)
+      psiD (hJD Z H Cs (L.ksb s) K rfl hK hK6) (EJ.restart arI hJ J hni hP0 hDE hct)
       (fun _ _ _ G1 hCR hE1 => ⟨hE1.1.2.2.1, hE1.1.2.2.2 G1 hCR.2.2.1⟩)
       (fun _ _ _ G1 hCR hE1 => ⟨hE1.1.2.2.1, hE1.1.2.2.2 G1 hCR.2.2.1⟩))
       fun res h => cn_del_topJ arI J h
@@ -252,7 +274,9 @@ labels by their primitive steps (`decode_invocation_cnode_copyXS`,
 `Steps.jat` with `JStepHyps`), Revoke and Delete by the deletion at `J`
 (`decode_invocation_cnode_{revoke,delete}J`: `JDelHyp` from the deletion
 loop's named steps `JDelParts` [J], `JDelHyp.of_parts`; the preemption point by
-`jPreemptHyp_of`: the platform's `PPPlat` [P] and `PPReady` [J]; the cleanups by `jPostDelHyp_of`:
+`jPreemptHyp_of` from the platform's `PPPlat` [P], with `PPR0` carried by the loop from the
+start (`JAtZ.ppr0_start`: `hRd0` [J], the current SC's head ready at a zero consumed time) and
+kept by the finalisations (`JDelParts.finPP` [J]); the cleanups by `jPostDelHyp_of`:
 the kernel-state layout and the arch IRQ operations [P]), the per-op premise (`JPostHyp` [W]) only at the other labels
 (CancelBadgedSends, the invalid ones). -/
 theorem decode_invocation_cnodeJ_steps [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
@@ -260,8 +284,8 @@ theorem decode_invocation_cnodeJ_steps [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hJ : JStepHyps (L := L) arI AR Z.th)
     (hJDP : JDelParts (L := L) arI AR Z.th)
     (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
-    (hRd : ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S) (a' : A)
-      (σ' : Fl4Spec.State Unit), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σ' → PPReady Z'.T σ')
+    (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
+      Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
     (hLay : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
       IntLayout Z.th (L.ksb s') ∧ IoLayout Z.th (L.ksb s'))
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = cnodeLabelOf lbl)
@@ -287,7 +311,8 @@ theorem decode_invocation_cnodeJ_steps [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl)
       (.CNode p r gs g) blk call don fp buf extra slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
   have hX := J.xtop
-  have hJP := jPreemptHyp_of arI hARI.toARKeep hT hnd hPP Z.th hRd
+  have hJP := jPreemptHyp_of (L := L) arI hARI.toARKeep hT hnd hPP Z.th
+  have hP0 := J.ppr0_start arI hni hRd0
   have hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a' := fun a i m => by
     obtain ⟨a', h, -⟩ := spec_exists (hT.mask_irq a i m); exact ⟨a', h⟩
   have hfree : ∀ (a : A) (irq : U64), ∃ a', arI.irq_free a irq = ok a' := fun a i => by
@@ -305,11 +330,11 @@ theorem decode_invocation_cnodeJ_steps [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
   · rcases (show lbl.val = 25 ∨ lbl.val = 26 by omega) with h | h
     · have e : lbl = fl4_abi.label.CNodeRevoke := UScalar.eq_of_val_eq (by rw [h, lbl_revoke_val])
       subst e
-      exact decode_invocation_cnode_revokeJ arI s ar σ J hni hJ hJD hJP slbl (by rw [hlbl]; simp [cnodeLabelOf])
+      exact decode_invocation_cnode_revokeJ arI s ar σ J hni hJ hJD hJP hP0 slbl (by rw [hlbl]; simp [cnodeLabelOf])
         length buf ct hct args hlen hargs p r gs g hwf hcv extra excaps (cslotAddr sl) blk call don fp ci sl buffer
     · have e : lbl = fl4_abi.label.CNodeDelete := UScalar.eq_of_val_eq (by rw [h, lbl_delete_val])
       subst e
-      exact decode_invocation_cnode_deleteJ arI s ar σ J hni hJ hJD slbl (by rw [hlbl]; simp [cnodeLabelOf])
+      exact decode_invocation_cnode_deleteJ arI s ar σ J hni hJ hJD hP0 slbl (by rw [hlbl]; simp [cnodeLabelOf])
         length buf ct hct args hlen hargs p r gs g hwf hcv extra excaps (cslotAddr sl) blk call don fp ci sl buffer
   · exact (decode_invocation_cnodeJ_step arI s ar σ J hni hG hARI hT lbl slbl hlbl length buf ct hct args hlen hargs
       sl hAs p r gs g hsc extra x0 x1 hx0 hx1 excaps hex hrun hZ hQ hE blk call don fp ci buffer (hR hrd hcp)).toP arI

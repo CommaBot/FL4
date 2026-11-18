@@ -28,16 +28,16 @@ theorem jPostDelHyp_of {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {
     (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
     (hfree : ∀ (a : A) (irq : U64), ∃ a', arI.irq_free a irq = ok a') :
     JPostDelHyp (L := L) arI AR th := by
-  intro Z H Cs kb hth s a σ G cl _ ⟨V, Ac, Lst, D, J, hkb⟩ hcl hcln hclw
+  intro Z H Cs kb hth s a σ G cl _ ⟨V, Ac, Lst, D, J, hkb, hp0⟩ hcl hcln hclw
   subst hth
   have hX := J.xtop
   have hLy := hLay (Z.mv G V) s a σ rfl hX
   have hfin : ∀ (s' : S) (a' : A) (σ' : Fl4Spec.State Unit), SlotsSame (Z.mv G V).th (L.mem s) (L.mem s') →
       P1.WritesIn st s s' (KsW (L.ksb s)) → KsStep σ σ' → XTopAt (L := L) AR (Z.mv G V) s' a' σ' →
-      WJ (L := L) arI AR Z H Cs kb s' a' σ' G := fun s' a' σ' hSS hw hO hX' => by
+      WJR (L := L) arI AR Z H Cs kb s' a' σ' G := fun s' a' σ' hSS hw hO hX' => by
     obtain ⟨Ac', Lst', D', R⟩ := jowes_ks arI s s' a a' σ σ' hw hO _ H Cs Ac Lst D rfl J hX'
     exact ⟨V, Ac', Lst', D', J.cs_frame hw.1 hX' (KBack.of_kheap hO.kh) (JCs.same J hSS (KSz.of_kheap hO.kh)) R,
-      by rw [hw.1]; exact hkb⟩
+      by rw [hw.1]; exact hkb, hp0.of_ppk (PPK.of_ksStep hO)⟩
   cases cl <;> simp only [CleanCap] at hcl
   · exact absurd rfl hcln
   · refine WP.spec_mono (post_irqX arI hAM hX J.ks (hLy.1) hmask hfree _ hclw) ?_

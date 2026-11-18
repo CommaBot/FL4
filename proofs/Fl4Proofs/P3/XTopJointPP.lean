@@ -18,6 +18,14 @@ XTopJointDelR), by its steps.
   read neither the time nor the consumed time kept as they are; `OffOK` and
   `CurOwnW` (its owner off the release queue once time is consumed) asked
   after.
+* `JAtZ.ppJ`: the preemption point from `JAtZ` and `PPR0` (ScPPR), `JAtZ`
+  and `PPR0` after when not preempted. When it does not preempt, the current
+  SC is active and its head sufficient for the consumed time; the head's
+  readiness (`OffOK`) moves with the time (`rdy_shift`: the time and the
+  consumed time grow alike), from `OffOK` before for a positive consumed
+  time, from `PPR0` for a zero one; so does `CurOwnW`'s release-queue clause.
+* `jPreemptHyp_of`: `JPreemptHyp` (at `WJR`, the loop carrying `PPR0`) from
+  the platform's facts (`PPPlat`, `ARKeep`, totality) [P] alone.
 -/
 import Fl4Proofs.P3.XTopJointDelR
 open Aeneas Aeneas.Std Result
@@ -320,14 +328,6 @@ structure PPPlat (AR : A → Fl4Spec.Cr3 → Prop) : Prop where
   irqAR : ∀ a c, AR a c → arI.irq_pending a ⦃ r => AR r.2 c ⦄
   minBudget : ∀ a, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄
 
-/-- **What a preemption point needs beyond `JAtZ`** [J] (l4v
-`cur_sc_offset_ready`, and the current SC's owner off the release queue,
-as `ct_not_in_release_q`): the current SC's head refill not after the current
-time with the consumed time (`OffReady`), its owner not released. -/
-def PPReady (T : Set U64) (σ : Fl4Spec.State Unit) : Prop :=
-  Sched.OffReady σ ∧ ∀ u ∈ T, ∀ xt, σ.kheap u.bv = some (.tcb xt) → xt.tcbSchedContext = some σ.curSc →
-    u.bv ∉ σ.releaseQueue
-
 /-- The current SC is one of `C` (its owner's, or `CurOwnW`'s unowned SC). -/
 theorem cursc_in {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) (hO : Sched.CurOwnW T C σ) : nodeW st s c layout.node.CUR_SC ∈ C := by
@@ -358,19 +358,36 @@ theorem getsThe_some {σ : Type} {α : Type} {f : σ → Option α} {s : σ} {v 
     simp [Fl4Spec.NonDet.pure] at this
     rw [this]
 
+/-- A nonzero consumed time is positive. -/
+theorem bv_pos {x : BitVec 64} (h : ¬ x = 0) : 0 < x := by
+  rw [BitVec.lt_def]
+  have : x.toNat ≠ 0 := fun e => h (BitVec.eq_of_toNat_eq (by simpa using e))
+  show 0 < x.toNat; omega
+
+theorem bv_add0 (x : BitVec 64) : x + 0 = x := BitVec.add_zero x
+
+/-- **The head's readiness moved by the elapsed time**: a head ready with
+the consumed time stays so when the time and the consumed time grow by the
+same amount (`n - t`, `t ≤ n`), in wrapping arithmetic. -/
+theorem rdy_shift {r c t n : BitVec 64} (h1 : r + c ≤ t) (h2 : r ≤ t) (htn : t ≤ n) :
+    r + (c + (n - t)) ≤ n ∧ r ≤ n := by
+  have hr := r.isLt; have hc := c.isLt; have ht := t.isLt; have hn := n.isLt
+  simp only [BitVec.le_def, BitVec.toNat_add, BitVec.toNat_sub, Nat.reducePow] at h1 h2 htn hr hc ht hn ⊢
+  constructor <;> omega
+
 set_option maxHeartbeats 16000000 in
 /-- **The preemption point from `JAtZ`** (module docstring): an outcome of
 the spec's of the same kind, `XTopAt` after, and `JAtZ` after when not
 preempted. -/
 theorem JAtZ.ppJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1) (hP : PPPlat arI AR) (hRd : PPReady Z.T σ) :
+    (hnd : Fl4Spec.numDomains = 1) (hP : PPPlat arI AR) (hRd : PPR0 σ) :
     sched.preemption_point st arI s a ⦃ r => ∃ σ',
       ((r.1 = .Ok () ∧ (.ok (), σ') ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1) ∨
         (r.1 = .Err .Preempted ∧ (.error (), σ') ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1)) ∧
       XTopAt (L := L) AR Z r.2.1 r.2.2 σ' ∧
-      (r.1 = .Ok () → ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.2.1 r.2.2 σ') ⦄ := by
+      (r.1 = .Ok () → (∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+        JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.2.1 r.2.2 σ') ∧ PPR0 σ') ⦄ := by
   generalize hPP : ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1 = PPs
   unfold sched.preemption_point
   step with obj.ks_get.spec as ⟨i, _⟩
@@ -383,12 +400,17 @@ theorem JAtZ.ppJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
   · rw [WP.spec_ok]
     obtain ⟨y, hy, rfl⟩ := pp_ok σ
     rw [hPP] at hy
-    exact ⟨σ, Or.inl ⟨rfl, hy⟩, J1.xtop, fun _ => ⟨Ac1, Lst1, D1, J1⟩⟩
+    exact ⟨σ, Or.inl ⟨rfl, hy⟩, J1.xtop, fun _ => ⟨⟨Ac1, Lst1, D1, J1⟩, hRd⟩⟩
   step with obj.ks_set.spec as ⟨s2, e2⟩
   subst e2
   obtain ⟨Ac2, Lst2, D2, J2⟩ := J1.workUnitsJ arI 0#u64
   refine WP.spec_bind (J2.timestampJ arI hAK hA hnd (hP.now a σ)) ?_
-  rintro ⟨s3, a1⟩ ⟨σ1, hE1, hk1, hcs1, hrq1, hct1, har1, hum1, hOR1, hK⟩
+  rintro ⟨s3, a1⟩ ⟨σ1, hE1, hk1, hcs1, hrq1, hct1, har1, hum1, -, hK⟩
+  -- the time and the consumed time after the update
+  obtain ⟨r0, -, ms0, hm0, hle0, -⟩ := spec_exists (hP.now a σ)
+  have hσ1 := the_result (updateTimeStamp_eq' hnd hm0) hE1
+  have hct1' : σ1.curTime = r0.1.bv := by rw [hσ1]
+  have hcn1 : σ1.consumedTime = σ.consumedTime + (r0.1.bv - σ.curTime) := by rw [hσ1]
   -- the arch relation after the time update
   have hX1 := (hK σ1.machineState a1 hum1 id).1
   have hAR1 : AR a1 σ.archState.x64CurrentCr3 := by
@@ -406,12 +428,15 @@ theorem JAtZ.ppJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
   obtain ⟨Q, R0, hc, hs⟩ := hS2.lists
   -- the current SC's owner
   have hOw2 : CurOwnW Z.T Z.C σ2 := by
-    rcases J.own with ⟨u, hu, xt, hk, hxs, hb', -⟩ | ⟨⟨c', hc', hcv'⟩, h2⟩
+    rcases J.own with ⟨u, hu, xt, hk, hxs, hb', hnr⟩ | ⟨⟨c', hc', hcv'⟩, h2⟩
     · refine Or.inl ⟨u, hu, xt, ?_, ?_, fun x n h => hb' x n ?_, fun _ => ?_⟩
       · show σ1.kheap u.bv = _; rw [hk1]; exact hk
       · show _ = some σ1.curSc; rw [hcs1]; exact hxs
       · rw [← hk1, ← hcs1]; exact h
-      · show u.bv ∉ σ1.releaseQueue; rw [hrq1]; exact hRd.2 u hu xt hk hxs
+      · show u.bv ∉ σ1.releaseQueue; rw [hrq1]
+        by_cases h0 : σ.consumedTime = 0
+        · exact (hRd h0).2 u.bv xt hk hxs
+        · exact hnr (bv_pos h0)
     · exact Or.inr ⟨⟨c', hc', hcv'.trans hcs1.symm⟩, fun x n h => h2 x n (by rw [← hk1, ← hcs1]; exact h)⟩
   -- FL4's reads
   step with sched.cur_sc.spec' as ⟨sc, hsc⟩
@@ -457,14 +482,47 @@ theorem JAtZ.ppJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
     have hirq : irq = none := by
       by_contra h; exact absurd (hiff.2 h) (by simp)
     rw [if_neg (by simp [hirq, hexp, hact, hrs, hok])] at hy
-    refine ⟨σ2, Or.inl ⟨by simp, hy⟩, hX2', fun _ => hJ2' ?_ hOw2⟩
     have hx' := hx.strong hact
     have hne : x.scRefills ≠ [] := by rw [hx'.refills]; exact refills_ne hx'.wf
     have hr2 := getsThe_some (getScRefillSufficient_eq hkx' hne σ2.consumedTime)
     rw [hrs, hok] at hr2
-    refine Sched.OffReady.ok (hOR1 hRd.1) fun y m hy' => ?_
-    rw [hkx'] at hy'; cases hy'
-    exact (Option.some.inj hr2).symm
+    -- the current SC's head before the update, then after
+    have hkσ : σ.kheap σ.curSc = some (.schedContext x n) := by
+      rw [← hk1, ← hcs1]; exact hkx'
+    have hrd : (Fl4Spec.refillHd x).rTime + σ.consumedTime ≤ σ.curTime ∧ (Fl4Spec.refillHd x).rTime ≤ σ.curTime := by
+      by_cases h0 : σ.consumedTime = 0
+      · have h := (hRd h0).1 x n hkσ hact
+        simp only [Fl4Spec.refillReady, Fl4Spec.refillReady', decide_eq_true_eq, bv_add0] at h
+        rw [h0, bv_add0]; exact ⟨h, h⟩
+      · obtain ⟨-, h1, h2⟩ := J.off (bv_pos h0) x n hkσ (fun _ => hact)
+        simp only [Fl4Spec.refillReady, Fl4Spec.refillReady', decide_eq_true_eq, bv_add0] at h1 h2
+        exact ⟨h1, h2⟩
+    obtain ⟨hs1, hs2⟩ := rdy_shift hrd.1 hrd.2 hle0
+    have e1 : σ2.consumedTime = σ.consumedTime + (r0.1.bv - σ.curTime) := hcn1
+    have e2 : σ2.curTime = r0.1.bv := hct1'
+    have hO2 : OffOK σ2 := by
+      intro _ y m hy' _
+      rw [hkx'] at hy'; cases hy'
+      refine ⟨(Option.some.inj hr2).symm, ?_, ?_⟩
+      · simp only [Fl4Spec.refillReady, Fl4Spec.refillReady', decide_eq_true_eq]; rw [e1, e2]; exact hs1
+      · simp only [Fl4Spec.refillReady, Fl4Spec.refillReady', decide_eq_true_eq, bv_add0]; rw [e2]; exact hs2
+    have hP2 : PPR0 σ2 := by
+      intro _
+      refine ⟨fun y m hy' _ => ?_, fun u xt hu hus hur => ?_⟩
+      · rw [hkx'] at hy'; cases hy'
+        simp only [Fl4Spec.refillReady, Fl4Spec.refillReady', decide_eq_true_eq, bv_add0]; rw [e2]; exact hs2
+      · have hu' : σ.kheap u = some (.tcb xt) := by rw [← hk1]; exact hu
+        have hus' : xt.tcbSchedContext = some σ.curSc := by rw [← hcs1]; exact hus
+        have hur' : u ∉ σ.releaseQueue → False := fun h => h (by rw [← hrq1]; exact hur)
+        by_cases h0 : σ.consumedTime = 0
+        · exact hur' ((hRd h0).2 u xt hu' hus')
+        · obtain ⟨y', n', hy', hyt⟩ := J.inv.back u xt _ hu' hus'
+          rcases J.own with ⟨u0, -, xt0, -, -, hb0, hnr0⟩ | ⟨-, hun⟩
+          · have := hb0 y' n' hy'
+            rw [hyt] at this; cases this
+            exact hur' (hnr0 (bv_pos h0))
+          · rw [hun y' n' hy'] at hyt; cases hyt
+    refine ⟨σ2, Or.inl ⟨by simp, hy⟩, hX2', fun _ => ⟨hJ2' hO2 hOw2, hP2⟩⟩
   · change (if (true = true) then ok (core.result.Result.Err error.Exc.Preempted, s3, a2)
       else ok (core.result.Result.Ok (), s3, a2)) ⦃ r => _ ⦄
     rw [if_pos rfl, WP.spec_ok]
@@ -473,18 +531,16 @@ theorem JAtZ.ppJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
 
 set_option maxHeartbeats 4000000 in
-/-- **`JPreemptHyp` from the preemption point at `J`** (`JAtZ.ppJ`): the
-platform's [P] (`PPPlat`, `ARKeep`, totality) and `PPReady` [J] at `JAtZ`
-states. The slots kept: the preemption point writes `WORK_UNITS` and the
+/-- **`JPreemptHyp` from the preemption point at `J`** (`JAtZ.ppJ`, at
+`WJR`: `PPR0` carried by the loop): the platform's [P] (`PPPlat`, `ARKeep`,
+totality). The slots kept: the preemption point writes `WORK_UNITS` and the
 current core's time words only (P1's `preemption_point.pp`). -/
 theorem jPreemptHyp_of (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
-    (hP : PPPlat arI AR) (th : TypedHeap)
-    (hRd : ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s : S) (a : A)
-      (σ : Fl4Spec.State Unit), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s a σ → PPReady Z'.T σ) :
+    (hP : PPPlat arI AR) (th : TypedHeap) :
     JPreemptHyp (L := L) arI AR th := by
-  intro Z H Cs kb hth s a σ G _ ⟨V, Ac, Lst, D, J, hkb⟩
+  intro Z H Cs kb hth s a σ G _ ⟨V, Ac, Lst, D, J, hkb, hp0⟩
   obtain ⟨⟨r1, s', a'⟩, hr, ⟨σ', hcase, hX', hJ'⟩, -, hw⟩ :=
-    spec_exists (WP.spec_and (J.ppJ arI hAK hA hnd hP (hRd _ H Cs Ac Lst D s a σ J))
+    spec_exists (WP.spec_and (J.ppJ arI hAK hA hnd hP hp0)
       (P1.sched.preemption_point.pp hA s a J.blk))
   rw [hr, WP.spec_ok]
   simp only at hcase hX' hJ' hw ⊢
@@ -511,8 +567,8 @@ theorem jPreemptHyp_of (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4S
   have hks : L.ksb s' = L.ksb s := hw.1
   refine ⟨hth ▸ hSS, σ', hcase, hth ▸ hX'.rel.2.1, ?_⟩
   rcases hcase with ⟨rfl, -⟩ | ⟨rfl, hm⟩
-  · obtain ⟨Ac', Lst', D', J'⟩ := hJ' rfl
-    exact ⟨V, Ac', Lst', D', J', by rw [hks]; exact hkb⟩
+  · obtain ⟨⟨Ac', Lst', D', J'⟩, hp'⟩ := hJ' rfl
+    exact ⟨V, Ac', Lst', D', J', by rw [hks]; exact hkb, hp'⟩
   · exact ⟨s, a, σ, ⟨V, Ac, Lst, D, J, hkb⟩, hr, hm, hX'.rel.2.2.2.1, hX'.rel.2.2.2.2.1⟩
 
 

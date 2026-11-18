@@ -10,8 +10,11 @@ some of them proved here.
   the VSpace sets, the active SCs, the call stacks and the dead set chosen),
   P1's heap `H`, the cores `Cs` and the kernel-state base `kb` fixed;
   `EJ`: with `DelE`. `RdJ H`: `EmptyReady` (XTopJointEmpty).
+* `WJR`: `WJ` and ScPPR's `PPR0` (what the loop's preemption points need of
+  a zero consumed time), the loop's invariant; `EJ`: `WJR` with `DelE`.
 * `JDelHyp`: one cap's deletion at `EJ` (`DelHypW`'s shape, the revoke's and
-  the delete's premise); `JPreemptHyp` [J]: the preemption point at `WJ`.
+  the delete's premise); `JPreemptHyp`: the preemption point at `WJR`
+  (proved, XTopJointPP's `jPreemptHyp_of`, from the platform's [P] facts).
 * Proved steps: a notification cap's finalisation (`jFinAt_ntfn`: P3's
   `finNtfnJ`, P1's `fin_cap_ntfn.dead`, or `fin_idle` and another cap,
   `other_ntfn`); the readiness of the caps finalised without effect but
@@ -99,9 +102,11 @@ some of them proved here.
   slot by `emptyJRT` (a step changing the TCB's caps only, `KeepCT`), both
   with `JEmptyUtHyp`.
 * `JDelHyp.of_parts`: `JDelHyp` from `JDelParts`, `JPreemptHyp` and
-  `JPostDelHyp` (`delHyp_fullWR`; `JPreemptHyp` from the platform and
-  `PPReady`, XTopJointPP's `jPreemptHyp_of`; `JPostDelHyp` from the
-  kernel-state layout, XTopJointPost's `jPostDelHyp_of`).
+  `JPostDelHyp` (`delHyp_fullWR` at `WJR`; `JPreemptHyp` from the platform,
+  XTopJointPP's `jPreemptHyp_of`; `JPostDelHyp` from the kernel-state
+  layout, XTopJointPost's `jPostDelHyp_of`); `PPR0` kept by the slot edits
+  (`PPK.of_cnK`) and by the finalisations (`JFinPPHyp` [J],
+  `JDelParts.finPP`: the spec's `finalise_cap` keeps it).
 -/
 import Fl4Proofs.P3.XTopJointStep
 import Fl4Proofs.P3.XTopJointEmptyUt
@@ -114,6 +119,7 @@ import Fl4Proofs.P3.XTopJointFinSc
 import Fl4Proofs.P3.XTopJointFinThread
 import Fl4Proofs.P3.XTopJointRemove
 import Fl4Proofs.P3.XTopJointZombie
+import Fl4Proofs.P3.ScPPR
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -130,10 +136,30 @@ def WJ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64
   ∃ (V : XVs) (Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
     JAtZ (L := L) arI AR (Z.mv G V) H Cs Ac Lst D s a σ ∧ L.ksb s = kb
 
-/-- `WJ` with `DelE` (the CSpace deletion's invariant and fuel bound). -/
+/-- `WJ` and `PPR0` (the deletion loop's invariant at `J`, XTopJointPP). -/
+def WJR (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (s : S) (a : A)
+    (σ : Fl4Spec.State Unit) (G : MdbGhost) : Prop :=
+  ∃ (V : XVs) (Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+    JAtZ (L := L) arI AR (Z.mv G V) H Cs Ac Lst D s a σ ∧ L.ksb s = kb ∧ PPR0 σ
+
+theorem WJR.wj {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs : Set U64} {kb : U64} {s : S} {a : A}
+    {σ : Fl4Spec.State Unit} {G : MdbGhost} (h : WJR (L := L) arI AR Z H Cs kb s a σ G) :
+    WJ (L := L) arI AR Z H Cs kb s a σ G :=
+  let ⟨V, Ac, Lst, D, J, hk, _⟩ := h; ⟨V, Ac, Lst, D, J, hk⟩
+
+theorem WJ.wjr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs : Set U64} {kb : U64} {s : S} {a : A}
+    {σ : Fl4Spec.State Unit} {G : MdbGhost} (h : WJ (L := L) arI AR Z H Cs kb s a σ G) (hp : PPR0 σ) :
+    WJR (L := L) arI AR Z H Cs kb s a σ G :=
+  let ⟨V, Ac, Lst, D, J, hk⟩ := h; ⟨V, Ac, Lst, D, J, hk, hp⟩
+
+theorem WJR.pp {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs : Set U64} {kb : U64} {s : S} {a : A}
+    {σ : Fl4Spec.State Unit} {G : MdbGhost} (h : WJR (L := L) arI AR Z H Cs kb s a σ G) : PPR0 σ :=
+  let ⟨_, _, _, _, _, _, hp⟩ := h; hp
+
+/-- `WJR` with `DelE` (the CSpace deletion's invariant and fuel bound). -/
 abbrev EJ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (K : Nat) (s : S)
     (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) : Prop :=
-  DelE (L := L) Z.th K s σ ∧ WJ (L := L) arI AR Z H Cs kb s a σ G
+  DelE (L := L) Z.th K s σ ∧ WJR (L := L) arI AR Z H Cs kb s a σ G
 
 /-- **The deletion's state after a preemption at `J`**: the post of a
 preempting preemption point from `WJ` (FL4's `preemption_point` returning
@@ -167,14 +193,33 @@ def JDelHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
     (∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) → 6 ≤ K →
     DelHypW (L := L) arI psiD th (EJ (L := L) arI AR Z H Cs kb K) (EJP (L := L) arI AR Z H Cs kb K)
 
-/-- **Hypothesis: the preemption point at `J`** [J]: from `WJ` (a `JAtZ`
-state), the cap slots kept, a spec outcome of the same kind, the CSpace
-relation and `WJ` after at the same MDB ghost, `WJP` after a preemption
+/-- **The preemption point at `J`**: from `WJR` (a `JAtZ` state with
+`PPR0`), the cap slots kept, a spec outcome of the same kind, the CSpace
+relation and `WJR` after at the same MDB ghost, `WJP` after a preemption
 (`PPHypDW`). FL4's preemption point runs `update_timestamp` (the SC and
-time fields). -/
+time fields). Proved from the platform's [P] facts (XTopJointPP's
+`jPreemptHyp_of`). -/
 def JPreemptHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
-    PPHypDW (L := L) arI (WJ (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb) th
+    PPHypDW (L := L) arI (WJR (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb) th
+
+/-- **Hypothesis: a cap's finalisation keeps `PPR0`** [J]: from a `JAtZ`
+state, every outcome of the spec's `finalise_cap` of a cap in a slot keeps
+`PPR0` (ScPPR: at a zero consumed time, the current SC's head ready when
+active, its threads outside the release queue). l4v: `finalise_cap`
+preserves `cur_time`, `consumed_time` and `cur_sc` (crunch), changes the
+current SC's refills only by `sched_context_set_inactive` (the SC then
+inactive), never enqueues a thread for release, and binds a thread to the
+current SC only by `reply_remove`'s donation to a caller blocked on the
+reply, hence outside the release queue (`valid_release_q`: its members are
+runnable). A spec-side fact about `finalise_cap` alone, not proved here. -/
+def JFinPPHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
+  ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
+    (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
+    ∀ (sl : Fl4Spec.CslotPtr) (c : capability.Cap), AbsSlot th sl → capAt (L.mem s) (cslotAddr sl) = ok c →
+      FinObjKind c → ∀ (x : Fl4Spec.Cap × Fl4Spec.Cap) (σ' : Fl4Spec.State Unit),
+      (x, σ') ∈ (Fl4Spec.finaliseCap (Z := Unit) (absCap c) (decide (Fl4Spec.isFinalCap' (absCap c) σ)) σ).1 →
+      PPR0 σ → PPR0 σ'
 
 /-! ## The named steps -/
 
@@ -305,11 +350,11 @@ def JSwapUtHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
       ∀ u up usb ufi udev, AbsSlot th u → capV (L.mem s) (cslotAddr u) = .Untyped up usb ufi udev →
         (¬ ∃ y, σ.cdt y = some u) → ufi.val ≠ 0 → p.val < up.val ∨ up.val + 2 ^ usb.val ≤ p.val
 
-/-- **Hypothesis: a cleanup cap's `post_cap_deletion` keeps `WJ`** [J]
-(`PostDelHypW` at `WJ`). -/
+/-- **A cleanup cap's `post_cap_deletion` keeps `WJR`** (`PostDelHypW` at
+`WJR`; proved, XTopJointPost's `jPostDelHyp_of`). -/
 def JPostDelHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
-    PostDelHypW (L := L) arI (WJ (L := L) arI AR Z H Cs kb) th
+    PostDelHypW (L := L) arI (WJR (L := L) arI AR Z H Cs kb) th
 
 /-- **Hypothesis: liveness of what a childless untyped's region must miss,
 when a ready slot holding its only child is emptied** [J]
@@ -431,6 +476,9 @@ structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   `JSwapHyp` from it, `jSwapHyp_of`). -/
   swapUt : JSwapUtHyp (L := L) arI AR th
   empUt : JEmptyUtHyp (L := L) arI AR th
+  /-- A cap's finalisation keeps `PPR0` (`JFinPPHyp` [J], the spec's
+  `finalise_cap` alone): what the preemption points of the loop need. -/
+  finPP : JFinPPHyp (L := L) arI AR th
 
 /-! ## The proved steps -/
 
@@ -1181,7 +1229,9 @@ theorem jSwapHyp_of (hU : JSwapUtHyp (L := L) arI AR th) : JSwapHyp (L := L) arI
     (SlotFrame2.writesIn hF) hnk
   exact ⟨V2, Ac', Lst', D', J.cs_frameV hks hX2 hkb2 hC R, hks.trans hkb⟩
 
-/-- **`JDelHyp` from the named steps** (`delHyp_fullWR` at `WJ`, `RdJ`). -/
+/-- **`JDelHyp` from the named steps** (`delHyp_fullWR` at `WJR`, `RdJ`):
+the steps at `WJ`, with `PPR0` after a finalisation by `JFinPPHyp` and
+after a slot edit by `PPK.of_cnK`. -/
 theorem JDelHyp.of_parts [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th) (hpp : JPreemptHyp (L := L) arI AR th)
     (hpost : JPostDelHyp (L := L) arI AR th)
     (hLayI : ∀ (Z : XSets) s a σ, Z.th = th → XTopAt (L := L) AR Z s a σ → IntLayout th (L.ksb s))
@@ -1190,10 +1240,31 @@ theorem JDelHyp.of_parts [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) ar
   intro Z H Cs kb K hth hK hK6 s a σ G c hCR hE hA hxm
   obtain ⟨V, Ac, Lst, D, J, -⟩ := hE.2
   have hP : Placed th := hth ▸ J.xtop.rel.1
-  have hH : DelHypsWR (L := L) arI (WJ (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb)
-      (RdJ (L := L) (A := A) H) th :=
-    ⟨finJ arI h hLayI hT Z H Cs kb hth, rdTrivJ arI (jRdTrivHyp_of arI h.zTcb) Z H Cs kb hth, hpp Z H Cs kb hth,
-      hpost Z H Cs kb hth, jZombieHyp arI Z H Cs kb hth, jSwapHyp_of arI h.swapUt Z H Cs kb hth, emptyHypJ arI h.empUt Z H Cs kb hth⟩
+  have hF := finJ (L := L) arI h hLayI hT Z H Cs kb hth
+  have hZ := jZombieHyp (L := L) (AR := AR) arI Z H Cs kb hth
+  have hS := jSwapHyp_of (L := L) arI h.swapUt Z H Cs kb hth
+  have hEm := emptyHypJ (L := L) arI h.empUt Z H Cs kb hth
+  have hH : DelHypsWR (L := L) arI (WJR (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb)
+      (RdJ (L := L) (A := A) H) th := by
+    refine ⟨?_, ?_, hpp Z H Cs kb hth, hpost Z H Cs kb hth, ?_, ?_, ?_⟩
+    · intro s a σ G sl c hDS hW hA hc hk hKd
+      have hW' := hW.wj arI
+      obtain ⟨V, Ac, Lst, D, J, -, hp0⟩ := hW
+      refine WP.spec_mono (hF s a σ G sl c hDS hW' hA hc hk hKd) ?_
+      rintro r ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, h9, h10⟩
+      exact ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8,
+        h9.wjr arI (h.finPP (Z.mv G V) H Cs Ac Lst D s a σ hth J sl c hA hc hk _ σ' h4 hp0), h10⟩
+    · intro s a σ G sl c hDS hW hA hc hcn hnk
+      exact rdTrivJ arI (jRdTrivHyp_of arI h.zTcb) Z H Cs kb hth s a σ G sl c hDS (hW.wj arI) hA hc hcn hnk
+    · intro s s' a σ σ' G sl p zt n hW hD1 hD2 hFr hsc hA hxn hz hal hoth hmS
+      exact (hZ s s' a σ σ' G sl p zt n (hW.wj arI) hD1 hD2 hFr hsc hA hxn hz hal hoth hmS).wjr arI
+        (hW.pp arI |>.of_ppk (PPK.of_cnK (Ipc.nkn_setCap _ _ σ ((), σ') (mem_of_single hsc))))
+    · intro s s' a σ σ' G G' sl p zt n hW hD1 hD2 hFr hsw hA hz hpx hG' hcap hmS
+      exact (hS s s' a σ σ' G G' sl p zt n (hW.wj arI) hD1 hD2 hFr hsw hA hz hpx hG' hcap hmS).wjr arI
+        (hW.pp arI |>.of_ppk (PPK.of_cnK (capSwapForDelete_nkn _ _ σ ((), σ') (mem_of_single hsw))))
+    · intro s s' a σ σ' G G' sl hW hRd hD1 hD2 hFr hes hA hxn hx0 hoth hmS
+      exact (hEm s s' a σ σ' G G' sl (hW.wj arI) hRd hD1 hD2 hFr hes hA hxn hx0 hoth hmS).wjr arI
+        (hW.pp arI |>.of_ppk (PPK.of_cnK (emptySlot_null_nkn _ σ ((), σ') hes)))
   subst hth
   exact delHyp_fullWR arI _ _ _ Z.th hP (finalHyp_full Z.th hP) hH K hK hK6 s a σ G c hCR hE hA hxm
 
