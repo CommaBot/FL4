@@ -18,7 +18,11 @@ P3 (DESIGN.md §9), TCB: **the Thread cap at `JAt`, label by label**
   - Set/UnsetBreakpoint (`tcb_set_bpJ`, `tcb_unset_bpJ`: the restart, the
     debug words by `JAtZ.dbgWrJ`, the spec state kept);
   - SetTLSBase (`tcb_set_tlsJ`: the restart, `JAtZ.regWrJ`, the reschedule
-    as a scheduler step `JAtZ.schedJ`).
+    as a scheduler step `JAtZ.schedJ`);
+  - GetBreakpoint (`tcb_get_bpJ`: the restart, then XTopJointData's data
+    reply tail: the five words by `JAtZ.setmrJ`, `MR4` a buffer word by
+    `JAtZ.userWrJ`, then `JAtZ.replyTailJ`; `XTop`'s facts by the same steps
+    at `RInv` and `data_tail_core`, `WP.spec_and`).
 * `JAtZ.restartJ`: the caller's restart at `J` (`jowes_restart`, no premise).
 * `JAtZ.reg_frameG`, `JAtZ.dbgWrJ`: XTopJointRegFrame's register frame
   widened to the TCBs' debug words (offsets 448..512, read by no relation),
@@ -27,6 +31,7 @@ P3 (DESIGN.md §9), TCB: **the Thread cap at `JAt`, label by label**
 -/
 import Fl4Proofs.P3.XTopJointDelR
 import Fl4Proofs.P3.XTopJointReply
+import Fl4Proofs.P3.XTopJointData
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -36,11 +41,12 @@ noncomputable section
 
 /-- **The Thread cap's labels still open at `JAt`** (their `JPostHyp` [W]
 taken): the TCB invocation labels (2..24) but Suspend (12),
-UnbindNotification (15), SetBreakpoint (16), UnsetBreakpoint (18),
-ConfigureSingleStepping (19), SetTLSBase (20) and SetFlags (21). -/
+UnbindNotification (15), SetBreakpoint (16), GetBreakpoint (17),
+UnsetBreakpoint (18), ConfigureSingleStepping (19), SetTLSBase (20) and
+SetFlags (21). -/
 def TcbJOpen (lbl : U64) : Prop :=
-  2 ≤ lbl.val ∧ lbl.val ≤ 24 ∧ lbl.val ≠ 12 ∧ lbl.val ≠ 15 ∧ lbl.val ≠ 16 ∧ lbl.val ≠ 18 ∧ lbl.val ≠ 19 ∧
-    lbl.val ≠ 20 ∧ lbl.val ≠ 21
+  2 ≤ lbl.val ∧ lbl.val ≤ 24 ∧ lbl.val ≠ 12 ∧ lbl.val ≠ 15 ∧ lbl.val ≠ 16 ∧ lbl.val ≠ 17 ∧ lbl.val ≠ 18 ∧
+    lbl.val ≠ 19 ∧ lbl.val ≠ 20 ∧ lbl.val ≠ 21
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
@@ -1134,6 +1140,168 @@ theorem tcb_set_flagsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :
     rw [if_neg (fun h => by have := hfpu.2 h; rw [hF] at this; cases this)]
     exact Set.mem_singleton _
 
+
+set_option maxHeartbeats 32000000 in
+/-- **The GetBreakpoint label at `JAt`** (as `tcb_get_bpX`): the breakpoint
+number's check, the caller's restart (`JAtZ.restartJ`), the read (`GetBpHyp`
+[P]), then the data tail of the five words, each step at `RInv` (for
+`XTop`'s facts, `data_tail_core`) and at `JAtZ` (`JAtZ.setmrJ`, the buffer
+word `MR4` by `JAtZ.userWrJ` with `JAtZ.bufWord`; `JAtZ.replyTailJ`). -/
+theorem tcb_get_bpJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (hni : Entered σ)
+    (hOK : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.IpcBufCapOK σ')
+    (hBC : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.BufCover Z'.T Z'.B σ')
+    (hBPl : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
+      Vs.BufPlaced (L := L) Z'.N Z'.C Z'.B Z'.c s' σ')
+    (p : U64) (slbl : Fl4Spec.Data)
+    (hlbl : Fl4Spec.genInvocationType slbl = .invalidInvocation)
+    (hext : Fl4Spec.fl4TcbExtLabelOf slbl = some .getBreakpoint)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct)
+    (hstall : smp.remote_tcb_stall st arI s ar p = ok (s, ar)) (buffer : Option Fl4Spec.ObjRef)
+    (hA : ArgRel (st := st) s σ ct buf buffer 1) (hG : GetBpHyp (st := st) s ct p)
+    (call : Bool) (slot : obj.Slot) (extra : Aeneas.Std.Array obj.Slot 3#usize) (blk don : Bool)
+    (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) :
+    TcbOKRX (L := L) arI (JAt (L := L) arI AR) s ar σ fl4_abi.label.TCBGetBreakpoint p
+      ⟨length, buf, call, slot, extra⟩ blk call don slbl args ci sl excaps buffer ct := by
+  have hX := J.xtop
+  obtain ⟨hcur, -⟩ := J.curEq hct
+  obtain ⟨htcb, xc, hkc⟩ := hX.curTcb hcur
+  have hctT : ct ∈ Z.T := J.thT ct htcb
+  have hdec0 : specDec false slbl args ci sl (.Thread p) excaps buffer =
+      Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
+        (Fl4Spec.decodeFl4GetBreakpoint (Z := Unit) buffer p.bv) := by
+    show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl args (.threadCap p.bv) sl excaps buffer = _
+    rw [fl4DecodeTcb_ext hlbl hext]; rfl
+  unfold TcbOKRX
+  rw [decode_getbp_eq arI s ar p _ hstall, hdec0]
+  obtain ⟨bp, hbp, hbs⟩ := arg_rel hA hct hcur ⟨length, buf, call, slot, extra⟩ rfl 0#u64 (by decide)
+  have hsp : (Fl4Spec.decodeFl4GetBreakpoint (Z := Unit) buffer p.bv).run σ =
+      (Fl4Spec.fl4CheckBpNum (Z := Unit) bp.bv >>= fun _ =>
+        Fl4Spec.NonDetE.returnOk (Fl4Spec.Fl4TcbInvocation.getBreakpoint p.bv bp.bv)).run σ := by
+    unfold Fl4Spec.decodeFl4GetBreakpoint
+    exact run_bind_ok hbs _
+  unfold tcb.decode_get_breakpoint
+  rw [hct]; simp only [bind_ok]; rw [hbp]; simp only [bind_ok]; rw [check_bp_eq]
+  by_cases hb : bp ≥ 4#u64
+  · simp only [hb, ↓reduceIte, core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
+      bind_tc_ok]
+    refine (WP.spec_ok _).2 (Or.inl ⟨_, rfl, rfl, ⟨_, ?_, bp_err⟩, ⟨Z, H, Cs, Ac, Lst, D, J⟩⟩)
+    apply run_liftME_err
+    rw [hsp]
+    exact run_bind_error (by rw [checkBp_run, if_pos hb]) _
+  simp only [hb, ↓reduceIte, core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+  obtain ⟨s1, σ1, x0, hrc1, hst1, hk0, -, hσ1, -, -, hcu1, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
+  rw [hkc] at hk0; cases hk0
+  set xr : Fl4Spec.Tcb := { xc with tcbState := .restart }
+  have hkc1 : σ1.kheap ct.bv = some (.tcb xr) := by
+    rw [hσ1, Notif.stsAct_kheap]; simp [Notif.updK, xr]
+  have hcurY : ct.bv = σ1.curThread := by rw [hcu1, hcur]
+  have hX1 := J1.xtop
+  have hact1 : OutsideObjects Z.th (L.nodeAt s1 (L.cpu s1) layout.node.SCHED_ACTION) := J1.kern.act
+  rw [hrc1]; simp only [bind_ok]
+  obtain ⟨r1, hr1⟩ := hG s1 bp hs1
+  rw [hr1]; simp only [bind_ok]
+  have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
+      (Fl4Spec.decodeFl4GetBreakpoint (Z := Unit) buffer p.bv)).run σ =
+      ({(.ok (.invokeFl4TCB (.getBreakpoint p.bv bp.bv)), σ)}, False) := by
+    apply run_liftME_ok
+    rw [hsp, run_bind_ok (by rw [checkBp_run, if_neg hb])]
+    rfl
+  have hy : ∀ rr : List Fl4Spec.Data, rr.length = 5 → (.ok rr, σ1) ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit)
+      blk call don (.invokeFl4TCB (.getBreakpoint p.bv bp.bv))).run σ1).1 :=
+    fun rr h => mem_liftE (x := (rr, σ1)) ⟨h, rfl⟩
+  refine WP.spec_bind (Pₘ := fun x : core.result.Result Unit error.Exc × S =>
+    TopPostRMX (L := L) (JAt (L := L) arI AR) σ blk call don (Fl4Spec.NonDetE.liftME
+      Fl4Spec.Fl4Invocation.invokeFl4TCB (Fl4Spec.decodeFl4GetBreakpoint (Z := Unit) buffer p.bv)) ct s
+      (x.1, x.2, ar)) ?_ fun x hx => (WP.spec_ok _).2 hx
+  cases call
+  · simp only [Bool.false_eq_true, ↓reduceIte]
+    refine WP.spec_bind (WP.spec_and (nodata_tail_core hX1 hcurY hkc1 rfl hact1 [0, 0, 0, 0, 0])
+      (J1.runJ hctT hkc1 rfl)) ?_
+    rintro s2 ⟨⟨hne, z, hz, hRT, -⟩, Lst', D', J5⟩
+    refine (WP.spec_ok _).2 (Or.inr ⟨rfl, hne, _, DecOut.of_eq hdec, σ1, hst1, _, σ1, hy _ rfl, z, hz, hRT, ?_⟩)
+    have hrs1 : xr.tcbState = .restart := rfl
+    unfold specTail at hz
+    rw [nd_bind_one (Notif.getThreadState_eq hkc1)] at hz
+    simp only [hrs1] at hz
+    rw [Endp.nd_when_false (by simp), Notif.nd_pure_bind', Notif.setThreadState_eq .running hkc1] at hz
+    rw [Set.mem_singleton_iff.1 hz]
+    exact ⟨_, _, _, _, _, _, J5⟩
+  · simp only [↓reduceIte]
+    have hOK1 := hOK Z s1 ar σ1 rfl hX1
+    obtain ⟨x', hk', hwx⟩ := J1.buf ct hctT
+    rw [hkc1] at hk'; cases hk'
+    refine WP.spec_bind (lookup_buf_full s1 σ1 hX1.rel.2.1.1 hX1.rel.2.1.2.1 htcb hkc1 hOK1 true) ?_
+    rintro bf ⟨hw0, hwp⟩
+    have hbm : ∀ q, Endp.ipcBufOf true xr = some q → Endp.BufMap Z.B bf q := fun q hq =>
+      hBC Z s1 ar σ1 rfl hX1 ct hctT xr true q hkc1 hq bf (hwp hwx q hq)
+    have hBP1 := hBPl Z s1 ar σ1 rfl hX1
+    have hWOK : ∀ q, Endp.ipcBufOf true xr = some q → ∀ i : U64, i.val < 128 →
+        BufWordOK H σ1 (Endp.fl4BufA bf i) := fun q hq i hi =>
+      J1.bufWord hOK1 htcb hkc1 hq i.val hi (by rw [fl4BufA_bv, hwp hwx q hq])
+    have hI0 : Vs.RInv (L := L) Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.N Z.T Z.C Z.E Z.R Z.B Z.c AR Z.G s1 ar
+        (MrS σ1 ct.bv xr (Endp.ipcBufOf true xr) []) := by
+      rw [MrS_nil hkc1]; exact hX1.toRInv
+    have J0 : JAtZ (L := L) arI AR Z H Cs Ac1 Lst1 D1 s1 ar (MrS σ1 ct.bv xr (Endp.ipcBufOf true xr) []) := by
+      rw [MrS_nil hkc1]; exact J1
+    refine WP.spec_bind (WP.spec_and (setmr_reg_inv σ1 ct htcb hcurY xr _ bf s1 ar [] hI0 0#u64 rfl (by decide)
+      r1.vaddr) (J0.setmrJ hctT hkc1 bf hw0 hbm hBP1 hWOK 0#u64 rfl (by decide) r1.vaddr)) ?_
+    rintro ⟨l2, s2⟩ ⟨⟨-, hI2, hk2, hc2⟩, -, -, V2, J2⟩
+    simp only at hI2 hk2 hc2 J2
+    refine WP.spec_bind (WP.spec_and (setmr_reg_inv σ1 ct htcb hcurY xr _ bf s2 ar _ hI2 1#u64 rfl (by simp) r1.ty)
+      (J2.setmrJ hctT hkc1 bf hw0 hbm (hBP1.mono hk2 fun _ _ _ h => h) hWOK 1#u64 rfl (by simp) r1.ty)) ?_
+    rintro ⟨l3, s3⟩ ⟨⟨-, hI3, hk3, hc3⟩, -, -, V3, J3⟩
+    simp only at hI3 hk3 hc3 J3
+    refine WP.spec_bind (WP.spec_and (setmr_reg_inv σ1 ct htcb hcurY xr _ bf s3 ar _ hI3 2#u64 rfl (by simp) r1.size)
+      (J3.setmrJ hctT hkc1 bf hw0 hbm (hBP1.mono (hk3.trans hk2) fun _ _ _ h => h) hWOK 2#u64 rfl (by simp)
+        r1.size)) ?_
+    rintro ⟨l4, s4⟩ ⟨⟨-, hI4, hk4, hc4⟩, -, -, V4, J4⟩
+    simp only at hI4 hk4 hc4 J4
+    refine WP.spec_bind (WP.spec_and (setmr_reg_inv σ1 ct htcb hcurY xr _ bf s4 ar _ hI4 3#u64 rfl (by simp) r1.rw)
+      (J4.setmrJ hctT hkc1 bf hw0 hbm (hBP1.mono (hk4.trans (hk3.trans hk2)) fun _ _ _ h => h) hWOK 3#u64 rfl
+        (by simp) r1.rw)) ?_
+    rintro ⟨l5, s5⟩ ⟨⟨-, hI5, hk5, hc5⟩, -, -, V5, J5⟩
+    simp only at hI5 hk5 hc5 J5
+    have hks5 : L.ksb s5 = L.ksb s1 := hk5.trans (hk4.trans (hk3.trans hk2))
+    have hcp5 : L.cpu s5 = L.cpu s1 := hc5.trans (hc4.trans (hc3.trans hc2))
+    have hBP5 : Vs.BufPlaced (L := L) Z.N Z.C Z.B Z.c s5 σ1 := hBP1.mono hks5 (fun _ _ _ h => h)
+    have tail : ∀ v : U64, (do
+        let (len, s6) ← msg.set_mr st s5 ct bf 4#u64 v
+        let s7 ← tcb.reply_words st s6 ct len
+        let s8 ← sched.set_thread_state st s7 ct sched.TS_RUNNING
+        ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s8)) ⦃ res =>
+          TopPostRMX (L := L) (JAt (L := L) arI AR) σ blk true don (Fl4Spec.NonDetE.liftME
+            Fl4Spec.Fl4Invocation.invokeFl4TCB (Fl4Spec.decodeFl4GetBreakpoint (Z := Unit) buffer p.bv)) ct s
+            (res.1, res.2, ar) ⦄ := by
+      intro v
+      refine WP.spec_bind (WP.spec_and (Vs.setmr_inv σ1 ct htcb hcurY hkc1 _ bf hw0 hbm s5 ar _ hI5 hBP5 4#u64 rfl
+        (by simp) v) (J5.setmrJ hctT hkc1 bf hw0 hbm hBP5 hWOK 4#u64 rfl (by simp) v)) ?_
+      rintro ⟨len, s6⟩ ⟨⟨hlen, hI6, hk6, hc6⟩, -, -, V6, J6⟩
+      simp only at hlen hI6 hk6 hc6 J6
+      have hfr : ∀ q, Endp.ipcBufOf true xr = some q → ∀ z ∈ Endp.mrPairs
+          ([] ++ [r1.vaddr.bv] ++ [r1.ty.bv] ++ [r1.size.bv] ++ [r1.rw.bv] ++ [v.bv]),
+          (Endp.bufAddr q z.1).toNat % 8 = 0 ∧ Fl4Spec.inUserFrame (Endp.bufAddr q z.1) σ1 :=
+        fun q hq z hz => ⟨Endp.bufAddr_aligned hX1.fin.1.2.ep (hbm q hq) z.1,
+          buf_frame_of_ok hOK1 hkc1 hq z.1 (mrPairs_lt hz)⟩
+      have hl5 : ([] ++ [r1.vaddr.bv] ++ [r1.ty.bv] ++ [r1.size.bv] ++ [r1.rw.bv] ++ [v.bv]).length = 5 := rfl
+      have hn128 : len.val < 128 := by rw [hlen]; cases Endp.ipcBufOf true xr <;> simp [mrLen]
+      show (do
+        let s7 ← tcb.reply_words st s6 ct len
+        let s8 ← sched.set_thread_state st s7 ct sched.TS_RUNNING
+        ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s8)) ⦃ _ ⦄
+      rw [← Std.bind_assoc]
+      refine WP.spec_bind (WP.spec_and (data_tail_core hX1 hcurY hkc1 rfl hact1 hI6 (hk6.trans hks5)
+        (hc6.trans hcp5) (by rw [hl5]; decide) hfr len (by rw [hlen]; simp) hn128)
+        (J6.replyTailJ hctT hkc1 rfl (by rw [hl5]; decide) hfr len (by rw [hlen]; simp) hn128)) ?_
+      rintro s8 ⟨⟨hne, z, hz, hRT, -⟩, hJ8⟩
+      exact (WP.spec_ok _).2 (Or.inr ⟨rfl, hne, _, DecOut.of_eq hdec, σ1, hst1, _, σ1, hy _ hl5, z, hz, hRT,
+        hJ8 z hz⟩)
+    split
+    · exact tail 1#u64
+    · exact tail 0#u64
+
 end
 
 section
@@ -1190,31 +1358,31 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
   · exact XCap.jat arI (decode_invocation_threadJAt arI s ar σ J hni hG hARI hT hA hBT hOK hBC hBPl hFl lbl length p
       blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl hAs hsc excaps buffer hext hstall' hNative hcw
       hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb hI hFr) J (hR hop)
-  have no : ∀ l : U64, 2 ≤ l.val → l.val ≤ 24 → l.val ≠ 12 → l.val ≠ 15 → l.val ≠ 16 → l.val ≠ 18 →
-      l.val ≠ 19 → l.val ≠ 20 → l.val ≠ 21 → lbl = l → False :=
-    fun l h1 h2 h3 h4 h5 h6 h7 h8 h9 h => hop (h ▸ ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9⟩)
+  have no : ∀ l : U64, 2 ≤ l.val → l.val ≤ 24 → l.val ≠ 12 → l.val ≠ 15 → l.val ≠ 16 → l.val ≠ 17 →
+      l.val ≠ 18 → l.val ≠ 19 → l.val ≠ 20 → l.val ≠ 21 → lbl = l → False :=
+    fun l h1 h2 h3 h4 h5 h5' h6 h7 h8 h9 h => hop (h ▸ ⟨h1, h2, h3, h4, h5, h5', h6, h7, h8, h9⟩)
   have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
   have hp : Z.th p = some .tcb := (slot_cap_wf J.xtop hAs hsc).2
   have hpT : p ∈ Z.T := J.thT p hp
   exact decode_invocation_threadX arI s ar σ hJ0 lbl length (cslotAddr sl) p blk call don fp buf extra ct hct slbl
     hlbl _ ci sl excaps buffer hext (hstall' p) hNative
     {
-      readRegisters := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      writeRegisters := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      copyRegisters := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      configure := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setPriority := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setMCPriority := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setSchedParams := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setTimeoutEndpoint := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setIPCBuffer := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setSpace := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      readRegisters := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      writeRegisters := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      copyRegisters := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      configure := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setPriority := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setMCPriority := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setSchedParams := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setTimeoutEndpoint := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setIPCBuffer := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setSpace := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
       suspend := fun h => by
         subst h
         exact tcb_suspendJ arI s ar σ J hni hRR p hpT hpI slbl (by rw [hlbl]; simp [tcbLabelOf]) (hstall' p) ct hct _
           blk call don _ ci sl excaps buffer,
-      resume := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      bindNotification := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      resume := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      bindNotification := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
       unbindNotification := fun h => by
         subst h
         exact tcb_unbind_ntfnJ arI s ar σ J hni p hpT slbl (by rw [hlbl]; simp [tcbLabelOf]) (hstall' p) ct hct
@@ -1225,7 +1393,12 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
           simp [tcbExtOf])
         exact tcb_set_bpJ arI s ar σ J hni p hpT slbl hg he length buf ct hct (hstall' p) buffer hA5 call
           (cslotAddr sl) extra blk don _ ci sl excaps,
-      getBreakpoint := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      getBreakpoint := fun h => by
+        subst h
+        obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf]) (show tcbExtOf _ = some .getBreakpoint by
+          simp [tcbExtOf])
+        exact tcb_get_bpJ arI s ar σ J hni hOK hBC hBPl p slbl hg he length buf ct hct (hstall' p) buffer
+          (fun i hi => hA5 i (by omega)) hGb call (cslotAddr sl) extra blk don _ ci sl excaps,
       unsetBreakpoint := fun h => by
         subst h
         obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf]) (show tcbExtOf _ = some .unsetBreakpoint by
@@ -1246,9 +1419,9 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
         subst h
         exact tcb_set_flagsJ arI s ar σ J hni hFl p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct argsU
           hlen hargs (hstall' p) hARI.toARKeep call (cslotAddr sl) extra blk don ci sl excaps buffer,
-      readFPU := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      writeFPU := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setTimer := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim }
+      readFPU := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      writeFPU := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setTimer := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim }
 
 end
 
