@@ -244,8 +244,8 @@ slots' caps swapped and the others kept, `XTopAt` after, the slot words'
 frame, `CnK`), the kernel-state base, `KBack`, `JCs` and `JRest` after.
 `hTZ`: a TCB zombie's TCB lies in no childless untyped region with a
 non-zero free index (the first slot, linked after, must miss the regions of
-the untyped caps without children; a CNode zombie's CNode does by
-`UtCapP3`'s `free` and `rst`). -/
+the untyped caps without children). No longer needed: the zombie, a physical
+cap of the MDB based at the first slot, misses them (`ut_free`). -/
 theorem JAtZ.swapJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr}
     (hA : AbsSlot Z.th sl) {p zt n : U64} (hz : capV (L.mem s) (cslotAddr sl) = .Zombie p zt n)
     (hpx : p ≠ cslotAddr sl)
@@ -384,15 +384,17 @@ theorem JAtZ.swapJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : F
     -- the first slot misses the region of a childless untyped cap
     have hpOut : (¬ ∃ y, σ.cdt y = some u0) → p.val < up.val ∨ up.val + 2 ^ sb.val ≤ p.val := by
       intro hn
-      by_cases hf0 : fi.val = 0
-      · rcases hZ with ⟨-, h, -⟩ | ⟨-, h, -⟩
-        · have := U.free p _ h; simp only [objSize] at this; omega
-        · have := U.free p _ h; simp only [objSize] at this
-          have : 1 ≤ 2 ^ zt.val := Nat.one_le_two_pow
-          omega
-      · rcases hZ with ⟨h65, -, -⟩ | ⟨-, h, -⟩
-        · exact hTZ h65 u0 up sb fi dev hu0 hc0 hn hf0
-        · have := (U.rst hn hf0).2.1 p _ h; omega
+      -- the zombie, a physical cap of the MDB based at `p`, misses the region
+      have hu0m : cslotAddr u0 ∈ Z.G.chains.flatten :=
+        (hM.members _).2 ⟨hu0.isSlot, _, capAt_capV _ _, by rw [hc0]; nofun⟩
+      have hpz : physF (capV (L.mem s) (cslotAddr sl)) = true := by rw [hz]; exact ok_inj (phys_eq _).symm
+      have hreg := J.ut.reg _ hxG hpz
+      have hbz : baseF (capV (L.mem s) (cslotAddr sl)) = p.val := by
+        rw [hz]; unfold baseF; rw [show ptrF (.Zombie p zt n) = p from ok_inj (ptr_eq _).symm]
+      have hcov : Covered (L.mem s) Z.G p.val (p.val + 1) :=
+        ⟨_, hxG, hpz, by rw [hz]; rfl, by rw [hbz], by omega⟩
+      have := ut_free J.ut J.xtop.rel.2.1.2.2.2.2 hu0m hc0 (nodesc_of_cdt hP hC hu0 hn) (Nat.lt_succ_self _) hcov
+      omega
     refine ⟨U.pal, U.pfit, U.fiLe, U.high, by rw [hcpu, hna]; exact U.actZ, U.free, fun w hal' h1 h2 => ?_, U.sb4,
       U.nostr, fun y hy => ?_, fun h0 y hy => ?_, fun k0 v0 => by simpa only [hna] using U.pp k0 v0,
       fun h0 hf0 => ?_, by rw [hna]; exact U.dwReg, by rw [hgp]; exact U.gReg⟩
