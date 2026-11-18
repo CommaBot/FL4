@@ -446,5 +446,6 @@ import Fl4Proofs.P3.XTopJointTcb
 import Fl4Proofs.P3.IdleCovered
 import Fl4Proofs.P3.XTopJointIpcJ
 import Fl4Proofs.P3.XTopJointXfer
+import Fl4Proofs.P3.XTopJointRunI
 import Fl4Proofs.P3.XTopJointEntry
 import Fl4Proofs.P3.KsHeap
