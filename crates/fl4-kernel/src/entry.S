@@ -190,14 +190,11 @@ fl4_common_entry:
  * spec.rs) is loaded after the last read of the TCB, which the user's
  * tables do not map; the entry stack is in the skim window, which they
  * do. What earlier entries and exits left on the entry stack is cleared
- * first, so no other thread's registers stay there.
+ * first, so no other thread's registers stay there, and the CR3 value
+ * kept there is cleared before the exit.
  *
- * A thread whose context SYSCALL saved (Error = -1, as in seL4; changing
- * its registers through the API clears it) leaves by SYSRET, which loads
- * RIP from rcx and RFLAGS from r11, both of which SYSCALL clobbered. Only
- * if the return address is in the canonical lower half: SYSRET to a
- * non-canonical address faults in ring 0 on Intel, after the user's RSP
- * is loaded. Everything else leaves by IRET. */
+ * A thread whose registers are still as SYSCALL left them leaves by
+ * SYSRET (fl4_sysret_check, sysret.S); everything else by IRET. */
     .align 16
     .global fl4_restore_user
 fl4_restore_user:
@@ -207,11 +204,8 @@ fl4_restore_user:
     movq $0, (%rsi,%rcx,8)
     incq %rcx
     jnz .Lclear_entry
-    movq 14*8(%rdi), %rcx
-    shrq $47, %rcx
-    jnz 1f
-    cmpq $-1, 15*8(%rdi)
-    je 3f
+    fl4_sysret_check %rdi, %rcx, 1f
+    jmp 3f
 1:
     pushq $0x2b
     pushq 16*8(%rdi)
@@ -240,6 +234,7 @@ fl4_restore_user:
     movq %rdi, %cr3
 2:
     popq %rdi
+    movq $0, (%rsp)
     addq $8, %rsp
     fl4_clear_buffers
     iretq
@@ -273,6 +268,7 @@ fl4_restore_user:
     movl $0x18, %edi
     movl %edi, %ss
     popq %rdi
+    movq $0, (%rsp)
     addq $8, %rsp
     popq %rsp
     fl4_clear_buffers

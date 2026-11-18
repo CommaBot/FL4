@@ -100,5 +100,20 @@ for name, instructions in [
                     and instructions[i - 2][1] == "verw",
                     name + ": missing final memory-form VERW/fence before " + op)
             require("(%rip)" in instructions[i - 2][2], name + ": VERW must use memory")
+# The user return takes SYSRET only for an untouched SYSCALL context
+# (sysret.S): RCX = NextIP, R11 = FLAGS, no TF/RF, and leaves no CR3 on the
+# entry stack.
+user = functions["fl4_restore_user"]
+user_ops = [op for _, op, _ in user]
+sysret = user_ops.index("sysretq")
+def before_sysret(pred):
+    return any(pred(op, arg) for _, op, arg in user[:sysret])
+require(before_sysret(lambda op, arg: op.startswith("cmp") and "0x98(%rdi)" in arg)
+        and before_sysret(lambda op, arg: op.startswith("cmp") and "0x90(%rdi)" in arg),
+        "user return: SYSRET without the RCX/R11 checks")
+require(before_sysret(lambda op, arg: op.startswith("test") and arg.startswith("$0x10100,")),
+        "user return: SYSRET without the TF/RF check")
+require(sum(1 for _, op, arg in user if op.startswith("mov") and arg == "$0x0,(%rsp)") == 2,
+        "user return: CR3 left on the entry stack")
 require(not any(n.startswith("fl4_test_") for n in functions), "test trampoline in kernel")
 print("VM assembly: entry/exit barriers, fenced guards, RAP/PBRSB, BHB, VERW and GIF ordering verified")
