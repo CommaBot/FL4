@@ -16,7 +16,9 @@ XTopFinThread's `xFinThread_of`:
   footprint `TW`, the `REPROGRAM` word kept, `JAtZ.tmw_step`; the spec state
   kept);
 * `unbind_from_sc`: nothing without an SC; else `unbind_tcb`
-  (`JThreadFinHyps.unbindTcb`) and the yielder's `complete_yield_to`
+  (`JAtZ.unbindTcbJ`, XTopJointFinThreadSc: an SC step by `JAtZ.sc_frame`,
+  the thread neither the switch target nor idle, carried in spec terms from
+  `obj`'s words by `JAtZ.spec_of_words`) and the yielder's `complete_yield_to`
   (`JThreadFinHyps.yieldTo`), the yield-from word read against the spec's at
   `JAtZ`;
 * `suspend` (`JThreadFinHyps.suspend`);
@@ -38,12 +40,13 @@ thread and `JAtZ` lacks: not the scheduler's switch target, l4v
 word zero, native threads; ScPlace's `JState`); [J] `utTcb` (no TCB in a
 childless untyped's region, l4v `valid_untyped`); [P] `fpu`; and the steps
 not proved here, each one FL4 call at a `JAtZ` state with its spec outcome
-and `JAtZ` after (undone work): `unbindTcb`, `yieldTo`, `suspend`.
+and `JAtZ` after (undone work): `yieldTo`, `suspend`.
 -/
 import Fl4Proofs.P3.XTopFinThread
 import Fl4Proofs.P3.ScFireJ
 import Fl4Proofs.P3.ScDeadStep
 import Fl4Proofs.P3.XTopJointEmpty
+import Fl4Proofs.P3.XTopJointFinThreadSc
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -72,14 +75,6 @@ structure JThreadFinHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Pr
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
     ∀ (x p : U64), IsSlot Z.th x → capV (L.mem s) x = .Thread p →
       L.actionW s ≠ p ∧ L.idleW s ≠ p ∧ L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64
-  /-- [J-step] `unbind_tcb` of a thread's SC at `J` (the SC step of
-  `unbind_from_sc`; XTop: `unbind_tcb_refines`, `xtop_sc_step`). -/
-  unbindTcb : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S)
-    (a : A) (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
-    ∀ (t i : U64) (x : Fl4Spec.Tcb), t ∈ Z.T → i ∈ Z.C → σ.kheap t.bv = some (.tcb x) →
-      x.tcbSchedContext = some i.bv → schedcontext.unbind_tcb st s i ⦃ s' => ∃ σ',
-        Fl4Spec.schedContextUnbindTcb (Z := Unit) i.bv σ = ({((), σ')}, False) ∧
-        JTP (L := L) arI AR Z H Cs s' a σ' ⦄
   /-- [J-step] The yielder's `complete_yield_to` at `J` (XTop:
   `ScYieldFinHyp`, `scYieldFinHyp_of`). -/
   yieldTo : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S)
@@ -185,16 +180,6 @@ theorem unbindN_nfr {σ : State Unit} {t n : ObjRef} {x : Tcb} {xn : Notificatio
 
 end Spec
 
-/-- `KW` with no endpoint words is inside `KW` with any. -/
-theorem kw_empty_mono {T' Cs' Sg Scs : Set U64} {Zf : U64 → Nat} {s0 : S} {b : U64}
-    (h : P1.KW st T' Cs' Sg Scs Zf ∅ s0 b) (E : Set U64) : P1.KW st T' Cs' Sg Scs Zf E s0 b := by
-  rcases h with h | h | h | h | ⟨e, he, -⟩
-  · exact Or.inl h
-  · exact Or.inr (Or.inl h)
-  · exact Or.inr (Or.inr (Or.inl h))
-  · exact Or.inr (Or.inr (Or.inr (Or.inl h)))
-  · simp at he
-
 set_option maxHeartbeats 8000000 in
 /-- **`JAtZ` across a quiet notification-frame step** (`finNtfnJ`'s
 assembly for one step): `IRel` after, the slots kept (`IFrame`), FL4's
@@ -249,7 +234,8 @@ the spec frame `unbindN_nfr`, P1's `unbind_notification.blkF`; then
 theorem JAtZ.unbindNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
     (h0 : L.mem s (P1.boundA t) ≠ 0#u64) :
     notification.unbind_notification st s t ⦃ s' => ∃ σ',
-      Fl4Spec.unbindNotification (Z := Unit) t.bv σ = ({((), σ')}, False) ∧ JTP (L := L) arI AR Z H Cs s' a σ' ⦄ := by
+      Fl4Spec.unbindNotification (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
+      σ'.schedulerAction = σ.schedulerAction ∧ σ'.idleThread = σ.idleThread ∧ JTP (L := L) arI AR Z H Cs s' a σ' ⦄ := by
   have hI := J.xtop.irelK J.ks J.buf
   have hP0 := J.ip
   obtain ⟨x, xn, hk, hb, hn, hkn⟩ := bound_ntfn_of hI J.sv J.obj ht h0
@@ -284,7 +270,7 @@ theorem JAtZ.unbindNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64
   obtain ⟨F, I3⟩ := unbindN_nfr hkn hk J.inv
   have hck : CKeep σ _ := nkc_unbindNotification t.bv σ _ (by rw [he]; exact Set.mem_singleton _)
   obtain ⟨V', J'⟩ := J.nfrStep hX2 hF hw F I3 hck hblk hfoot
-  exact ⟨_, he, V', Ac, Lst, D, J'⟩
+  exact ⟨_, he, rfl, rfl, V', Ac, Lst, D, J'⟩
 
 /-! ## The debug-list removal at `J` -/
 
@@ -601,7 +587,7 @@ set_option maxHeartbeats 16000000 in
 the steps of `JThreadFinHyps` given. -/
 theorem JAtZ.finThreadJ (hF : JThreadFinHyps (L := L) arI AR Z.th)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hp : p ∈ Z.T)
-    (hv0 : L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64) :
+    (hv0 : L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64) (hna : L.actionW s ≠ p) (hidle : L.idleW s ≠ p) :
     objects.finalise_cap st arI s a (.Thread p) true false ⦃ r => ∃ σ',
       ((Fl4Spec.Cap.zombie p.bv none 6, Fl4Spec.Cap.nullCap), σ') ∈
         (Fl4Spec.finaliseCap (Z := Unit) (.threadCap p.bv) true σ).1 ∧
@@ -613,6 +599,7 @@ theorem JAtZ.finThreadJ (hF : JThreadFinHyps (L := L) arI AR Z.th)
   unfold objects.finalise_cap_object
   simp only [↓reduceIte]
   have hS0 := J.xtop.fin.1.1.1
+  obtain ⟨hsa, hid⟩ := J.spec_of_words hna hidle
   -- the remote stall and the VCPU detach
   refine WP.spec_bind (remote_tcb_stall_id (ar := arI) a hS0 hp) ?_
   rintro ⟨s1, a1⟩ he1
@@ -627,16 +614,17 @@ theorem JAtZ.finThreadJ (hF : JThreadFinHyps (L := L) arI AR Z.th)
   -- `unbind_notification`
   have h3 : notification.unbind_notification st s p ⦃ s3 => ∃ σ3,
       Fl4Spec.unbindNotification (Z := Unit) p.bv σ = ({((), σ3)}, False) ∧
+      σ3.schedulerAction = σ.schedulerAction ∧ σ3.idleThread = σ.idleThread ∧
       JTP (L := L) arI AR Z H Cs s3 a σ3 ⦄ := by
     by_cases h0 : L.mem s (P1.boundA p) = 0#u64
     · rw [unbind_ntfn_zero s p h0, WP.spec_ok]
       have hI0 := J.xtop.irelK J.ks J.buf
       obtain ⟨x, hk, hx⟩ := hI0.1.tcb p hp
-      refine ⟨σ, unbindNtfn_none hk ?_, Z.vs, Ac, Lst, D, J⟩
+      refine ⟨σ, unbindNtfn_none hk ?_, rfl, rfl, Z.vs, Ac, Lst, D, J⟩
       rw [hx.bound, show tBoundA p = P1.boundA p from rfl, h0, Notif.optRef_zero]
     · exact J.unbindNJ hp h0
   refine WP.spec_bind h3 ?_
-  rintro s3 ⟨σ3, he3, V3, Ac3, Lst3, D3, J3⟩
+  rintro s3 ⟨σ3, he3, ha3, hi3, V3, Ac3, Lst3, D3, J3⟩
   -- the timer-tree removal
   refine WP.spec_bind (J3.tmRemoveJ hp) ?_
   intro s4 J4
@@ -683,8 +671,8 @@ theorem JAtZ.finThreadJ (hF : JThreadFinHyps (L := L) arI AR Z.th)
       if b1 = true then ok (s6, a) else schedcontext.complete_yield_to st arI s6 a i1) ⦃ r =>
       ∃ σ5, JTP (L := L) arI AR Z H Cs r.1 r.2 σ5 ∧
         Fl4Spec.unbindFromSc (Z := Unit) p.bv σ3 = ({((), σ5)}, False) ⦄ := by
-    refine WP.spec_bind (hF.unbindTcb (Z.mv Z.G V3) H Cs Ac3 Lst3 D3 s4 a σ3 rfl J4 p i x4 hp hiC hk4 hsp) ?_
-    rintro s5 ⟨σ4, he4, V5, Ac5, Lst5, D5, J5⟩
+    refine WP.spec_bind (J4.unbindTcbJ hp hiC hk4 hsp (by rw [ha3]; exact hsa) (by rw [hi3]; exact hid)) ?_
+    rintro s5 ⟨σ4, he4, Ac5, Lst5, D5, J5⟩
     obtain ⟨Q5, R5, hc5, hs5⟩ := J5.xtop.fin.1.1.1.lists
     obtain ⟨y5, n5, hk5, hx5⟩ := hs5.scs i hiC
     step with obj.Sc.yield_from.spec' as ⟨j, hj⟩
@@ -692,12 +680,12 @@ theorem JAtZ.finThreadJ (hF : JThreadFinHyps (L := L) arI AR Z.th)
     by_cases j0 : j = 0#u64
     · have hb1' : b1 = true := by rw [hb1, j0]; rfl
       simp only [hb1', ↓reduceIte, WP.spec_ok]
-      refine ⟨σ4, ⟨V5, Ac5, Lst5, D5, J5⟩, unbindFromSc_some hk4 hsp he4 hk5 ?_⟩
+      refine ⟨σ4, ⟨V3, Ac5, Lst5, D5, J5⟩, unbindFromSc_some hk4 hsp he4 hk5 ?_⟩
       rw [hx5.yieldFrom, ← scYieldFromA_eq, ← hj, j0, Notif.optRef_zero]; rfl
     · have hb1' : b1 = false := by rw [hb1]; simp [j0]
       simp only [hb1', Bool.false_eq_true, ↓reduceIte]
       rw [hj]
-      refine WP.spec_mono (hF.yieldTo (Z.mv Z.G V5) H Cs Ac5 Lst5 D5 s5 a σ4 rfl J5 i (by rw [← hj]; exact j0)) ?_
+      refine WP.spec_mono (hF.yieldTo (Z.mv Z.G V3) H Cs Ac5 Lst5 D5 s5 a σ4 rfl J5 i (by rw [← hj]; exact j0)) ?_
       rintro ⟨s6, a6⟩ ⟨σ6, e6, V6, Ac6, Lst6, D6, J6⟩
       refine ⟨σ6, ⟨V6, Ac6, Lst6, D6, J6⟩, unbindFromSc_some hk4 hsp he4 hk5 ?_⟩
       rw [hx5.yieldFrom, ← scYieldFromA_eq, Notif.optRef_ne (by rw [← hj]; exact j0)]; exact e6

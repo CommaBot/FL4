@@ -63,8 +63,8 @@ some of them proved here.
   `fin_sc.curR`); with `JScCapHyp` [J] and `JScCurHyp` [J] (not an l4v
   invariant: `JKern`'s current SC must stay covered).
 * A final thread cap's finalisation (`jFinAt_thread`): XTopJointFinThread's
-  `JAtZ.finThreadJ` (the notification unbind, timer removal and debug-list
-  removal proved; `unbind_tcb`, `complete_yield_to`, `suspend` and the
+  `JAtZ.finThreadJ` (the notification unbind, timer removal, `unbind_tcb`
+  and debug-list removal proved; `complete_yield_to`, `suspend` and the
   narrow facts from `JThreadFinHyps` [J]/[P]), the slots by P1's
   `fin_cap_thread.slots`, the thread dead after (P1's `fin_cap_thread.dead`,
   `JAtZ.tcb_ready`).
@@ -794,7 +794,7 @@ theorem jFinAt_thread (hT : P0.ArchTotal arI) (hF : JThreadFinHyps (L := L) arI 
   have hpH : H p = some .tcb := J.zH.1 p hpT
   obtain ⟨hna, hidle, hv0⟩ := hF.obj (Z.mv G V) H Cs Ac Lst D s a σ rfl J _ p hA.isSlot hcv
   rw [decide_eq_true hfin]
-  refine WP.spec_mono (WP.spec_and (WP.spec_and (JAtZ.finThreadJ (Z := Z.mv G V) hF J hpT hv0)
+  refine WP.spec_mono (WP.spec_and (WP.spec_and (JAtZ.finThreadJ (Z := Z.mv G V) hF J hpT hv0 hna hidle)
     (P1.fin_cap_thread.dead (ar := arI) hT s a p false J.blk hpH hna hidle hv0))
     (P1.fin_cap_thread.slots (ar := arI) hT s a p true false J.blk hpH hna hidle hv0)) ?_
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨⟨σ1, hm1, V1, Ac1, Lst1, D1, J1⟩, d1, d2, d3, d4, d5⟩, e, -, f, hW1⟩
