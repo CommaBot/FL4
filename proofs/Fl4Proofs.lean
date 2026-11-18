@@ -98,6 +98,7 @@ import Fl4Proofs.P1.QueueDecVs
 import Fl4Proofs.P1.QueueDecUt
 import Fl4Proofs.P1.QueueFootD
 import Fl4Proofs.P1.QueueFootS
+import Fl4Proofs.P1.QueueRestartFoot
 import Fl4Proofs.P1.QueueRecv
 import Fl4Proofs.P2.Runtime
 import Fl4Proofs.P3.Lookup
