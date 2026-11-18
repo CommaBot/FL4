@@ -17,10 +17,21 @@ noncomputable section
 section Spec
 open Fl4Spec
 
-/-- A step changing only CNode objects, the ready queues and the scheduler
-action (a scheduler step's or a CNode-only step's shape). -/
+/-- Every object kept, a CNode replaced by one of the same size, or a TCB by
+one alike but for its caps (`CapsOnly`). -/
+def KeepCT (σ σ' : State Unit) : Prop :=
+  ∀ p, σ'.kheap p = σ.kheap p ∨ (∃ r cs cs', σ.kheap p = some (.cnode r cs) ∧ σ'.kheap p = some (.cnode r cs')) ∨
+    ∃ x y, σ.kheap p = some (.tcb x) ∧ σ'.kheap p = some (.tcb y) ∧ CapsOnly x y
+
+theorem KeepC.t {σ σ' : State Unit} (h : KeepC σ σ') : KeepCT σ σ' := fun p =>
+  (h p).imp_right Or.inl
+
+theorem KeepCT.of_cnK {σ σ' : State Unit} (h : CnK σ σ') : KeepCT σ σ' := fun p => h.2 p
+
+/-- A step changing only CNode objects and TCBs' caps, the ready queues and
+the scheduler action (a scheduler step's or a slot step's shape). -/
 structure HStep (σ σ' : State Unit) : Prop where
-  kc : KeepC σ σ'
+  kc : KeepCT σ σ'
   rel : σ'.releaseQueue = σ.releaseQueue
   ct : σ'.curThread = σ.curThread
   csc : σ'.curSc = σ.curSc
@@ -28,54 +39,101 @@ structure HStep (σ σ' : State Unit) : Prop where
   cons : σ'.consumedTime = σ.consumedTime
   idle : σ'.idleThread = σ.idleThread
 
-/-- A CNode-only step: only CNode objects change; the scheduler's fields
-kept. -/
+/-- A slot step: only CNode objects and TCBs' caps change; the scheduler's
+fields kept. -/
 structure CnStep (σ σ' : State Unit) : Prop extends HStep σ σ' where
   rq : σ'.readyQueues = σ.readyQueues
   act : σ'.schedulerAction = σ.schedulerAction
 
-theorem CnStep.of_cnK {σ σ' : State Unit} (hK : CnK σ σ') (hC : KeepC σ σ') : CnStep σ σ' :=
-  ⟨⟨hC, (by have e := congrArg AbstractState.releaseQueue hK.1; exact e),
+theorem CnStep.of_cnK {σ σ' : State Unit} (hK : CnK σ σ') : CnStep σ σ' :=
+  ⟨⟨KeepCT.of_cnK hK, (by have e := congrArg AbstractState.releaseQueue hK.1; exact e),
     (by have e := congrArg AbstractState.curThread hK.1; exact e), (by have e := congrArg AbstractState.curSc hK.1; exact e),
     (by have e := congrArg AbstractState.curTime hK.1; exact e),
     (by have e := congrArg AbstractState.consumedTime hK.1; exact e), (by have e := congrArg AbstractState.idleThread hK.1; exact e)⟩,
     (by have e := congrArg AbstractState.readyQueues hK.1; exact e),
     (by have e := congrArg AbstractState.schedulerAction hK.1; exact e)⟩
 
+theorem Ipc.CapsOnly.st {x y : Tcb} (h : CapsOnly x y) : y.tcbState = x.tcbState := h.1
+theorem Ipc.CapsOnly.buf {x y : Tcb} (h : CapsOnly x y) : y.tcbIpcBuffer = x.tcbIpcBuffer := h.2.1
+theorem Ipc.CapsOnly.ntfn {x y : Tcb} (h : CapsOnly x y) : y.tcbBoundNotification = x.tcbBoundNotification := h.2.2.2.1
+theorem Ipc.CapsOnly.mcp {x y : Tcb} (h : CapsOnly x y) : y.tcbMcpriority = x.tcbMcpriority := h.2.2.2.2.1
+theorem Ipc.CapsOnly.sc {x y : Tcb} (h : CapsOnly x y) : y.tcbSchedContext = x.tcbSchedContext := h.2.2.2.2.2.1
+theorem Ipc.CapsOnly.yld {x y : Tcb} (h : CapsOnly x y) : y.tcbYieldTo = x.tcbYieldTo := h.2.2.2.2.2.2.1
+theorem Ipc.CapsOnly.prio {x y : Tcb} (h : CapsOnly x y) : y.tcbPriority = x.tcbPriority := h.2.2.2.2.2.2.2.1
+
+theorem KBack.of_keepCT {σ σ' : State Unit} (h : KeepCT σ σ') : KBack σ σ' := by
+  intro o ko' ho
+  rcases h o with e | ⟨r, cs, cs', h1, h2⟩ | ⟨x, y, h1, h2, -⟩
+  · rw [e] at ho; exact ⟨ko', ho, id, id, id, id, id, id⟩
+  · rw [h2] at ho; cases ho
+    refine ⟨_, h1, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> simp
+  · rw [h2] at ho; cases ho
+    refine ⟨_, h1, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> simp
+
+theorem SzKeep.of_keepCT {σ σ' : State Unit} (h : KeepCT σ σ') : Sched.SzKeep σ σ' := by
+  intro p x n hp
+  rcases h p with e | ⟨r, cs, cs', h1, h2⟩ | ⟨x', y, h1, h2, -⟩
+  · exact ⟨x, e ▸ hp⟩
+  · rw [h2] at hp; cases hp
+  · rw [h2] at hp; cases hp
+
 variable {σ σ' : State Unit}
 
-/-- A lookup of a non-CNode object is the same after. -/
-theorem HStep.look (h : HStep σ σ') {p : ObjRef} {ko : KernelObject} (hko : ∀ r cs, ko ≠ .cnode r cs) :
-    σ'.kheap p = some ko ↔ σ.kheap p = some ko := by
-  rcases h.kc p with e | ⟨r, cs, cs', h1, h2⟩
+/-- A lookup of an object other than a CNode or a TCB is the same after. -/
+theorem HStep.look (h : HStep σ σ') {p : ObjRef} {ko : KernelObject} (hko : ∀ r cs, ko ≠ .cnode r cs)
+    (hkt : ∀ x, ko ≠ .tcb x) : σ'.kheap p = some ko ↔ σ.kheap p = some ko := by
+  rcases h.kc p with e | ⟨r, cs, cs', h1, h2⟩ | ⟨x, y, h1, h2, -⟩
   · rw [e]
   · rw [h1, h2]; exact ⟨fun e => absurd (Option.some.inj e).symm (hko _ _), fun e => absurd (Option.some.inj e).symm (hko _ _)⟩
+  · rw [h1, h2]; exact ⟨fun e => absurd (Option.some.inj e).symm (hkt _), fun e => absurd (Option.some.inj e).symm (hkt _)⟩
 
-theorem HStep.tcb (h : HStep σ σ') {p : ObjRef} {x : Tcb} :
-    σ'.kheap p = some (.tcb x) ↔ σ.kheap p = some (.tcb x) := h.look (fun _ _ e => by cases e)
+/-- A TCB before is one alike but for its caps after. -/
+theorem HStep.tcbF (h : HStep σ σ') {p : ObjRef} {x : Tcb} (hx : σ.kheap p = some (.tcb x)) :
+    ∃ y, σ'.kheap p = some (.tcb y) ∧ CapsOnly x y := by
+  rcases h.kc p with e | ⟨r, cs, cs', h1, h2⟩ | ⟨x', y, h1, h2, h3⟩
+  · exact ⟨x, by rw [e, hx], CapsOnly.refl x⟩
+  · rw [hx] at h1; cases h1
+  · rw [hx] at h1; cases h1; exact ⟨y, h2, h3⟩
+
+/-- A TCB after is one alike but for its caps before. -/
+theorem HStep.tcbB (h : HStep σ σ') {p : ObjRef} {y : Tcb} (hy : σ'.kheap p = some (.tcb y)) :
+    ∃ x, σ.kheap p = some (.tcb x) ∧ CapsOnly x y := by
+  rcases h.kc p with e | ⟨r, cs, cs', h1, h2⟩ | ⟨x, y', h1, h2, h3⟩
+  · exact ⟨y, by rw [← e, hy], CapsOnly.refl y⟩
+  · rw [hy] at h2; cases h2
+  · rw [hy] at h2; cases h2; exact ⟨x, h1, h3⟩
+
 theorem HStep.sc (h : HStep σ σ') {p : ObjRef} {y : SchedContext} {n : Nat} :
-    σ'.kheap p = some (.schedContext y n) ↔ σ.kheap p = some (.schedContext y n) := h.look (fun _ _ e => by cases e)
+    σ'.kheap p = some (.schedContext y n) ↔ σ.kheap p = some (.schedContext y n) :=
+  h.look (fun _ _ e => by cases e) (fun _ e => by cases e)
 theorem HStep.ntfn (h : HStep σ σ') {p : ObjRef} {x : Notification} :
-    σ'.kheap p = some (.notification x) ↔ σ.kheap p = some (.notification x) := h.look (fun _ _ e => by cases e)
+    σ'.kheap p = some (.notification x) ↔ σ.kheap p = some (.notification x) :=
+  h.look (fun _ _ e => by cases e) (fun _ e => by cases e)
 
 theorem HStep.sched_eq (h : HStep σ σ') (t : ObjRef) : Fl4Spec.schedulable t σ' = Fl4Spec.schedulable t σ := by
   cases e : Fl4Spec.schedulable t σ with
   | true =>
     obtain ⟨x, scp, y, n, h1, h2, h3, h4, h5, h6⟩ := schedulable_inv e
-    exact schedulable_of (h.tcb.2 h1) h2 h3 (h.sc.2 h4) h5 (by rw [h.rel]; exact h6)
+    obtain ⟨x', hx', hc⟩ := h.tcbF h1
+    exact schedulable_of hx' (by rw [hc.sc]; exact h2) (by rw [hc.st]; exact h3) (h.sc.2 h4) h5
+      (by rw [h.rel]; exact h6)
   | false =>
     cases e' : Fl4Spec.schedulable t σ' with
     | false => rfl
     | true =>
       obtain ⟨x, scp, y, n, h1, h2, h3, h4, h5, h6⟩ := schedulable_inv e'
-      rw [schedulable_of (h.tcb.1 h1) h2 h3 (h.sc.1 h4) h5 (by rw [← h.rel]; exact h6)] at e
+      obtain ⟨x', hx', hc⟩ := h.tcbB h1
+      rw [schedulable_of hx' (by rw [← hc.sc]; exact h2) (by rw [← hc.st]; exact h3) (h.sc.1 h4) h5
+        (by rw [← h.rel]; exact h6)] at e
       cases e
 
 theorem Sched.NSC.cn {N C : Set U64} (hN : NSC N C σ) (h : HStep σ σ') : NSC N C σ' :=
   fun n hn x p hx hp => hN n hn x p (h.ntfn.1 hx) hp
 
-theorem CurRun.cn (hR : CurRun σ) (h : HStep σ σ') : CurRun σ' := fun x hx =>
-  hR x (by rw [← h.ct]; exact h.tcb.1 hx)
+theorem CurRun.cn (hR : CurRun σ) (h : HStep σ σ') : CurRun σ' := fun y hy => by
+  rw [h.ct] at hy
+  obtain ⟨x, hx, hc⟩ := h.tcbB hy
+  rw [hc.st]; exact hR x hx
 
 theorem CurRunW.cn (hR : CurRunW σ) (h : HStep σ σ') : CurRunW σ' :=
   Or.imp (fun r => r.cn h) (fun e => by rw [h.ct, h.idle]; exact e) hR
@@ -89,18 +147,23 @@ theorem CurRunM.cn (hR : CurRunM σ) (h : HStep σ σ')
 theorem Sched.ScLinkHyp.cn (hL : ScLinkHyp σ) (h : HStep σ σ') : ScLinkHyp σ' := by
   refine ⟨fun sc y k f hy hf => ?_, fun sc y k n hy hn => ?_, fun t x n ht hn => ?_, fun sc y k hy hs =>
     hL.scSpor sc y k (h.sc.1 hy) hs⟩
-  · obtain ⟨x, hx⟩ := hL.scTcb sc y k f (h.sc.1 hy) hf; exact ⟨x, h.tcb.2 hx⟩
+  · obtain ⟨x, hx⟩ := hL.scTcb sc y k f (h.sc.1 hy) hf
+    obtain ⟨x', hx', -⟩ := h.tcbF hx; exact ⟨x', hx'⟩
   · obtain ⟨x, hx⟩ := hL.scNtfn sc y k n (h.sc.1 hy) hn; exact ⟨x, h.ntfn.2 hx⟩
-  · obtain ⟨x', hx'⟩ := hL.tcbNtfn t x n (h.tcb.1 ht) hn; exact ⟨x', h.ntfn.2 hx'⟩
+  · obtain ⟨x0, hx0, hc⟩ := h.tcbB ht
+    obtain ⟨x', hx'⟩ := hL.tcbNtfn t x0 n hx0 (by rw [← hc.ntfn]; exact hn); exact ⟨x', h.ntfn.2 hx'⟩
 
 theorem Sched.BlockedScActive.cn (hB : BlockedScActive σ) (h : HStep σ σ') : BlockedScActive σ' :=
-  ⟨fun p y n t x hp hyt hx hq => hB.tcb p y n t x (h.sc.1 hp) hyt (h.tcb.1 hx) hq,
+  ⟨fun p y n t x hp hyt hx hq => by
+      obtain ⟨x0, hx0, hc⟩ := h.tcbB hx
+      exact hB.tcb p y n t x0 (h.sc.1 hp) hyt hx0 (by rw [← hc.st]; exact hq),
     fun p y n hp hr => hB.replies p y n (h.sc.1 hp) hr⟩
 
 theorem Sched.CurInv.cn (hI : CurInv σ) (h : HStep σ σ') : CurInv σ' := by
   obtain ⟨xt, hkt, hxs, hnb⟩ := hI.tcb
   obtain ⟨x, n, hx⟩ := hI.sc
-  refine ⟨⟨xt, by rw [h.ct]; exact h.tcb.2 hkt, by rw [h.csc]; exact hxs, hnb⟩,
+  obtain ⟨yt, hyt, hc⟩ := h.tcbF hkt
+  refine ⟨⟨yt, by rw [h.ct]; exact hyt, by rw [h.csc, hc.sc]; exact hxs, by rw [hc.st]; exact hnb⟩,
     ⟨x, n, by rw [h.csc]; exact h.sc.2 hx⟩, fun hne y m hy => ?_, by rw [h.ct, h.rel]; exact hI.notRel⟩
   rw [h.csc] at hne hy
   exact hI.active hne y m (h.sc.1 hy)
@@ -113,13 +176,16 @@ theorem Sched.OffOK.cn (hO : OffOK σ) (h : HStep σ σ') : OffOK σ' := by
 
 theorem Sched.ActIdle.cn (hA : ActIdle σ) (h : CnStep σ σ') : ActIdle σ' := by
   obtain ⟨hS, x, hx, h1, h2, h3⟩ := hA
-  refine ⟨fun t ht => ?_, x, by rw [h.idle]; exact h.tcb.2 hx, h1, h2, by rw [h.idle, h.rel]; exact h3⟩
+  obtain ⟨y, hy, hc⟩ := h.tcbF hx
+  refine ⟨fun t ht => ?_, y, by rw [h.idle]; exact hy, by rw [hc.sc]; exact h1, by rw [hc.st]; exact h2,
+    by rw [h.idle, h.rel]; exact h3⟩
   rw [h.act] at ht
   rw [h.toHStep.sched_eq]; exact hS t ht
 
 theorem Sched.CurOwn.cn {T : Set U64} (hO : CurOwn T σ) (h : HStep σ σ') : CurOwn T σ' := by
   obtain ⟨u, hu, xt, hkt, hxs, hown, hnr⟩ := hO
-  refine ⟨u, hu, xt, h.tcb.2 hkt, by rw [h.csc]; exact hxs, fun y n hy => ?_, fun h0 hm => ?_⟩
+  obtain ⟨yt, hyt, hc⟩ := h.tcbF hkt
+  refine ⟨u, hu, yt, hyt, by rw [h.csc, hc.sc]; exact hxs, fun y n hy => ?_, fun h0 hm => ?_⟩
   · rw [h.csc] at hy; exact hown y n (h.sc.1 hy)
   · rw [h.cons] at h0; rw [h.rel] at hm; exact hnr h0 hm
 
@@ -129,7 +195,8 @@ theorem Sched.CurOwnW.cn {T C : Set U64} (hO : CurOwnW T C σ) (h : HStep σ σ'
 theorem specRt_cn (h : HStep σ σ') {u scp : ObjRef} {x : Tcb} {y : SchedContext} {n : Nat}
     (hk : σ.kheap u = some (.tcb x)) (hsc : x.tcbSchedContext = some scp)
     (hky : σ.kheap scp = some (.schedContext y n)) (hne : y.scRefills ≠ []) : specRt σ' u = specRt σ u := by
-  rw [specRt_eq (h.tcb.2 hk) hsc (h.sc.2 hky) hne, specRt_eq hk hsc hky hne]
+  obtain ⟨x', hx', hc⟩ := h.tcbF hk
+  rw [specRt_eq hx' (by rw [hc.sc]; exact hsc) (h.sc.2 hky) hne, specRt_eq hk hsc hky hne]
 
 theorem Sched.Inv.cn (hI : Inv σ) (h : CnStep σ σ') : Inv σ' := by
   refine ⟨fun d p u hu => ?_, fun u hu => ?_, ?_, fun u x hx hc => ?_, fun p y n hy => hI.refills p y n (h.sc.1 hy),
@@ -137,32 +204,40 @@ theorem Sched.Inv.cn (hI : Inv σ) (h : CnStep σ σ') : Inv σ' := by
     fun p y n hy => hI.rr p y n (h.sc.1 hy)⟩
   · rw [h.rq] at hu
     obtain ⟨x, scp, y, n, h1, h2, h3, h4, h5⟩ := hI.rq d p u hu
-    exact ⟨x, scp, y, n, h.tcb.2 h1, h2, h3, h.sc.2 h4, h5⟩
+    obtain ⟨x', hx', hc⟩ := h.tcbF h1
+    exact ⟨x', scp, y, n, hx', by rw [hc.sc]; exact h2, by rw [hc.st]; exact h3, h.sc.2 h4, h5⟩
   · rw [h.rel] at hu
     obtain ⟨x, scp, y, n, h1, h2, h3, h4, h5⟩ := hI.rel u hu
-    exact ⟨x, scp, y, n, h.tcb.2 h1, h2, h3, h.sc.2 h4, h5⟩
+    obtain ⟨x', hx', hc⟩ := h.tcbF h1
+    exact ⟨x', scp, y, n, hx', by rw [hc.sc]; exact h2, by rw [hc.st]; exact h3, h.sc.2 h4, h5⟩
   · rw [h.rel]
     refine List.Pairwise.imp_of_mem (fun {a b} ha hb hab => ?_) hI.sorted
     obtain ⟨xa, pa, ya, na, h1, h2, -, h4, h5⟩ := hI.rel a ha
     obtain ⟨xb, pb, yb, nb, g1, g2, -, g4, g5⟩ := hI.rel b hb
     rw [specRt_cn h.toHStep h1 h2 h4 (hI.ne _ _ _ h4 h5), specRt_cn h.toHStep g1 g2 g4 (hI.ne _ _ _ g4 g5)]
     exact hab
-  · intro x' scp y n h1 h2 h3 h4 h5
+  · obtain ⟨x0, hx0, hc0⟩ := h.tcbB hx
+    intro x' scp y n h1 h2 h3 h4 h5
     rw [h.rel] at h5
-    have hr := hI.rd u x (h.tcb.1 hx) hc x' scp y n (h.tcb.1 h1) h2 (h.sc.1 h3) h4 h5
+    rw [hx] at h1; cases h1
+    have hr := hI.rd u x0 hx0 (by rw [← hc0.st]; exact hc) x0 scp y n hx0 (by rw [← hc0.sc]; exact h2)
+      (h.sc.1 h3) h4 h5
     unfold released at hr ⊢; rw [h.time]; exact hr
-  · obtain ⟨y, n, hy, hyt⟩ := hI.back u x p (h.tcb.1 hx) hp
+  · obtain ⟨x0, hx0, hc0⟩ := h.tcbB hx
+    obtain ⟨y, n, hy, hyt⟩ := hI.back u x0 p hx0 (by rw [← hc0.sc]; exact hp)
     exact ⟨y, n, h.sc.2 hy, hyt⟩
   · obtain ⟨y, n, hy⟩ := hI.ntfnSc q x p (h.ntfn.1 hx) hp
     exact ⟨y, n, h.sc.2 hy⟩
 
 theorem prioOf_cn (h : HStep σ σ') (u : ObjRef) : Sched.prioOf σ' u = Sched.prioOf σ u := by
-  rcases h.kc u with e | ⟨r, cs, cs', h1, h2⟩
+  rcases h.kc u with e | ⟨r, cs, cs', h1, h2⟩ | ⟨x, y, h1, h2, h3⟩
   · unfold Sched.prioOf tcbsOf tcbsOfKh optMap; rw [e]
   · unfold Sched.prioOf tcbsOf tcbsOfKh optMap; rw [h1, h2]; rfl
+  · rw [Sched.prioOf_eq h1, Sched.prioOf_eq h2, h3.prio]
 
 theorem Sched.IpcSorted.cn (hS : IpcSorted σ) (h : HStep σ σ') : IpcSorted σ' :=
-  ⟨fun p x hp => (hS.1 p x ((h.look (fun _ _ e => by cases e)).1 hp)).congr fun u _ => prioOf_cn h u,
+  ⟨fun p x hp => (hS.1 p x ((h.look (fun _ _ e => by cases e) (fun _ e => by cases e)).1 hp)).congr
+      fun u _ => prioOf_cn h u,
     fun p x hp => (hS.2 p x (h.ntfn.1 hp)).congr fun u _ => prioOf_cn h u⟩
 
 theorem CurInvW.cn (hC : σ.schedulerAction = .chooseNewThread ∨ CurInv σ) (h : CnStep σ σ') :

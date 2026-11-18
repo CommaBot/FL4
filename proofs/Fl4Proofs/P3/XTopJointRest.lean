@@ -279,10 +279,11 @@ theorem cslot_tcb3 (t : U64) : cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3) = slotO
 /-- **`JPlaced` after a slot step** (CNodes' contents changed only, `KeepC`):
 the caps keep their objects (`TypedKept`, the IRQ node's slots among the
 slots, `IntLayout`), the TCBs' fault-handler slots kept. -/
-theorem Sched.JPlaced.slot {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
-    (h : JPlaced (L := L) th H Tr C s σ) (hkc : KeepC σ σ') (hk : L.ksb s' = L.ksb s) (hL : IntLayout th (L.ksb s))
+theorem Sched.JPlaced.slotT {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
+    (h : JPlaced (L := L) th H Tr C s σ) (hkc : KeepCT σ σ') (hk : L.ksb s' = L.ksb s) (hL : IntLayout th (L.ksb s))
     (hT : TypedKept th (L.mem s) (L.mem s'))
-    (hT3 : ∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3)) :
+    (hT3 : ∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3) ∨
+      capV (L.mem s') (slotOf t 3) = .Null) :
     JPlaced (L := L) th H Tr C s' σ' := by
   have hirqS : ∀ i : U64, i.val < 128 → IsSlot th (nodeA (L.ksb s) i) := fun i hi => by
     have hA : AbsSlot th ((nodeA (L.ksb s) i).bv, []) := ⟨_, rfl, Or.inl (by simpa using hL.node i hi)⟩
@@ -294,12 +295,21 @@ theorem Sched.JPlaced.slot {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s s'
     · exact capTyped_of_shape hs (h.typed b hb)
   refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk' => ?_, by rw [hk]; exact h.ks,
     fun a ha => hty' a ha, fun i hi => by rw [hk]; exact hty' _ (hirqS i hi), fun t ht => ?_⟩
-  · rcases hkc c.bv with e | ⟨r, cs, cs', -, h2⟩
+  · rcases hkc c.bv with e | ⟨r, cs, cs', -, h2⟩ | ⟨x, y', -, h2, -⟩
     · rw [e] at hk'; exact h.sc c y n hc hk'
     · rw [h2] at hk'; cases hk'
-  · have e := hT3 t ht
-    rw [capAt_capV, capAt_capV] at e
-    rw [cslot_tcb3, eq_of_ok_eq e, ← cslot_tcb3]; exact h.fh t ht
+    · rw [h2] at hk'; cases hk'
+  · rcases hT3 t ht with e | e
+    · rw [capAt_capV, capAt_capV] at e
+      rw [cslot_tcb3, eq_of_ok_eq e, ← cslot_tcb3]; exact h.fh t ht
+    · left; rw [cslot_tcb3]; exact e
+
+theorem Sched.JPlaced.slot {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
+    (h : JPlaced (L := L) th H Tr C s σ) (hkc : KeepC σ σ') (hk : L.ksb s' = L.ksb s) (hL : IntLayout th (L.ksb s))
+    (hT : TypedKept th (L.mem s) (L.mem s'))
+    (hT3 : ∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3)) :
+    JPlaced (L := L) th H Tr C s' σ' :=
+  h.slotT (KeepC.t hkc) hk hL hT fun t ht => Or.inl (hT3 t ht)
 
 theorem sizeF_cnode (q r g gb : U64) :
     sizeF (.CNode q r g gb) = core.num.U64.wrapping_add r fl4_abi.consts.bits.SLOT := ok_inj (size_eq _).symm
@@ -621,13 +631,13 @@ theorem jowes_slotOf {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : Md
     JOwesCs (L := L) arI AR th G' s a σ s' a σ' := by
   intro Z H Cs Ac Lst D hth J hX'
   subst hth
-  have hC := CnStep.of_cnK hcn hkc
+  have hC := CnStep.of_cnK hcn
   obtain ⟨k1, k2, kb, k3, k4⟩ := inSlot_keeps arI J hw
-  have ck : Sched.CKeep σ σ' := ⟨fun q y n hq => ⟨y, hC.sc.2 hq, rfl⟩, fun q x hq => ⟨x, (hC.look (fun _ _ e => by cases e)).2 hq,
+  have ck : Sched.CKeep σ σ' := ⟨fun q y n hq => ⟨y, hC.sc.2 hq, rfl⟩, fun q x hq => ⟨x, (hC.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 hq,
     rfl, rfl⟩, fun p x n hp => ⟨x, hC.sc.1 hp⟩⟩
-  have yk : YKeep σ σ' := ⟨fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩, fun p x n hp => ⟨x, hC.sc.2 hp, rfl⟩,
+  have yk : YKeep σ σ' := ⟨fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.yld⟩, fun p x n hp => ⟨x, hC.sc.2 hp, rfl⟩,
     fun p y n hp => ⟨y, hC.sc.1 hp, rfl⟩⟩
-  have mk : McpKeep σ σ' := fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩
+  have mk : McpKeep σ σ' := fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.mcp⟩
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
   obtain ⟨hCK, hUK, horig, hutc⟩ := hR Z H Cs Ac Lst D rfl J hX'
@@ -651,10 +661,10 @@ theorem jowes_slotOf {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : Md
   have hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4 := by
     have e := congrArg (fun z => z.archState.x64GlobalPml4) hcn.1; exact e
   have hkern := J.kern_keep hw.1 hw.2.1 hX'.fin.1.1.1 hC.ct hC.csc horig hgp
-    (fun p ao h => (hC.look (fun _ _ e => by cases e)).2 h) hDbg
+    (fun p ao h => (hC.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 h) hDbg
     (D' := D) J.kern.cscLive
   refine ⟨hJC, Ac, Lst, D, ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 mk,
-    J.buf.frame kb (fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_keepC hkc), hjpl,
+    J.buf.frame kb (fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.buf⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_keepC hkc), hjpl,
     hjc, hkern, hutc, J.nsc.cn hC.toHStep, J.inv.cn hC, CurInvW.cn J.cur hC, J.own.cn hC.toHStep, J.off.cn hC.toHStep,
     J.act.cn hC,
     J.bsa.cn hC.toHStep, J.isorted.cn hC.toHStep, J.curRun.cn hC.toHStep (Or.inr hC.act), hblk⟩⟩
@@ -803,11 +813,11 @@ theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (
   have hC : CnStep σ σ' := ⟨⟨fun p => Or.inl (by rw [hO.kh]), hO.rel, hO.ct, hO.csc, hO.ctime, hO.cons, hO.idle⟩,
     hO.rq, hO.act⟩
   obtain ⟨k1, k2, kb, k3, k4⟩ := ksW_keeps arI J hw
-  have ck : Sched.CKeep σ σ' := ⟨fun q y n hq => ⟨y, hC.sc.2 hq, rfl⟩, fun q x hq => ⟨x, (hC.look (fun _ _ e => by cases e)).2 hq,
+  have ck : Sched.CKeep σ σ' := ⟨fun q y n hq => ⟨y, hC.sc.2 hq, rfl⟩, fun q x hq => ⟨x, (hC.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 hq,
     rfl, rfl⟩, fun p x n hp => ⟨x, hC.sc.1 hp⟩⟩
-  have yk : YKeep σ σ' := ⟨fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩, fun p x n hp => ⟨x, hC.sc.2 hp, rfl⟩,
+  have yk : YKeep σ σ' := ⟨fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.yld⟩, fun p x n hp => ⟨x, hC.sc.2 hp, rfl⟩,
     fun p y n hp => ⟨y, hC.sc.1 hp, rfl⟩⟩
-  have mk : McpKeep σ σ' := fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩
+  have mk : McpKeep σ σ' := fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.mcp⟩
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
   have hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
@@ -867,7 +877,7 @@ theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (
       obtain ⟨r1, r2, r3⟩ := U.rst h0 hf0
       exact ⟨fun sl' h => r1 sl' (by rw [← hO.orig]; exact h), r2, by rw [hna, hDbg]; exact r3⟩
   exact ⟨Ac, Lst, D, ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 mk,
-    J.buf.frame kb (fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_kheap hO.kh),
+    J.buf.frame kb (fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.buf⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_kheap hO.kh),
     J.jpl_keep arI hSS hO.kh hw.1 hI, J.jcov_keep hw.1 hSS hdead, hkern, hutc, J.nsc.cn hC.toHStep, J.inv.cn hC, CurInvW.cn J.cur hC, J.own.cn hC.toHStep, J.off.cn hC.toHStep,
     J.act.cn hC,
     J.bsa.cn hC.toHStep, J.isorted.cn hC.toHStep, J.curRun.cn hC.toHStep (Or.inr hC.act), hblk⟩⟩
@@ -947,11 +957,11 @@ theorem jowes_sched {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S
   have hw := (hS2 Z.N Z.T Z.C Z.c J.thT J.xtop.fin.1.1.1 J.xtop.fin.1.1.2.2.1).2.1
   have hC : HStep σ σ' := ⟨fun p => Or.inl (by rw [hK.kh]), hK.rel, hK.ct, hK.csc, hK.ctime, hK.cons, hK.idle⟩
   obtain ⟨k1, k2, kb, k3, k4⟩ := schW_keeps arI J hw
-  have ck : Sched.CKeep σ σ' := ⟨fun q y n hq => ⟨y, hC.sc.2 hq, rfl⟩, fun q x hq => ⟨x, (hC.look (fun _ _ e => by cases e)).2 hq,
+  have ck : Sched.CKeep σ σ' := ⟨fun q y n hq => ⟨y, hC.sc.2 hq, rfl⟩, fun q x hq => ⟨x, (hC.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 hq,
     rfl, rfl⟩, fun p x n hp => ⟨x, hC.sc.1 hp⟩⟩
-  have yk : YKeep σ σ' := ⟨fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩, fun p x n hp => ⟨x, hC.sc.2 hp, rfl⟩,
+  have yk : YKeep σ σ' := ⟨fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.yld⟩, fun p x n hp => ⟨x, hC.sc.2 hp, rfl⟩,
     fun p y n hp => ⟨y, hC.sc.1 hp, rfl⟩⟩
-  have mk : McpKeep σ σ' := fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩
+  have mk : McpKeep σ σ' := fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.mcp⟩
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
   -- the spec's scheduler invariants after
@@ -1050,7 +1060,7 @@ theorem jowes_sched {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := fun q hq =>
     J.deadP_hstep hX' hC k3 (fun q z hq K h8 hK => J.schW_scKeep hw hq h8 hK) hA'.1 (J.jcov.dead q hq)
   exact ⟨Ac, Lst, D, ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 mk,
-    J.buf.frame kb (fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_kheap hK.kh),
+    J.buf.frame kb (fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.buf⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_kheap hK.kh),
     J.jpl_keep arI hSS hK.kh hw.1 hI, J.jcov_keep hw.1 hSS hdead, hkern, hutc, J.nsc.cn hC, hI', hcur', J.own.cn hC, J.off.cn hC, hA', J.bsa.cn hC, J.isorted.cn hC,
     J.curRun.cn hC hQ.2, hblk⟩⟩
 

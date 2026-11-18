@@ -52,14 +52,14 @@ theorem JAtZ.deadP_slot {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
     {G' : MdbGhost} {V' : XVs} (hX' : XTopAt (L := L) AR (Z.mv G' V') s' a' σ')
-    (hcn : Ipc.CnK σ σ') (hkc : KeepC σ σ') (hw : P1.WritesIn st s s' (InSlot Z.th))
+    (hcn : Ipc.CnK σ σ') (hkc : KeepCT σ σ') (hw : P1.WritesIn st s s' (InSlot Z.th))
     {q : U64} (hd : DeadP (L := L) H s q) : DeadP (L := L) H s' q := by
-  have hC := CnStep.of_cnK hcn hkc
+  have hC := CnStep.of_cnK hcn
   obtain ⟨-, -, -, k3, -⟩ := inSlot_keeps arI J hw
-  exact J.deadP_keep hX'.fin.1.1.1 hX'.ipc (fun x hx _ => ⟨x, hC.tcb.2 hx, rfl, rfl, Or.inl rfl⟩)
-    (fun x hx => (hC.look (fun _ _ e => by cases e)).2 hx)
+  exact J.deadP_keep hX'.fin.1.1.1 hX'.ipc (fun x hx _ => let ⟨y, hy, hc⟩ := hC.tcbF hx; ⟨y, hy, hc.st, hc.ntfn, Or.inl hc.sc⟩)
+    (fun x hx => (hC.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 hx)
     (fun x hx => ⟨x, hC.ntfn.2 hx, Or.inl rfl, rfl, Or.inl rfl⟩)
-    (fun x hx => ⟨x, (hC.look (fun _ _ e => by cases e)).2 hx, rfl⟩)
+    (fun x hx => ⟨x, (hC.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 hx, rfl⟩)
     (fun x n hx => ⟨x, hC.sc.2 hx, Or.inl rfl, Or.inl rfl⟩) (fun hqC => k3 q hqC)
     (fun z hz _ K h8 hK => J.inSlot_scKeep hw hz h8 hK) hC.idle (J.act.cn hC).1 hd
 
@@ -70,23 +70,24 @@ theorem jowes_slotD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
     {G' : MdbGhost} {V' : XVs} (hX' : XTopAt (L := L) AR (Z.mv G' V') s' a' σ')
-    (hcn : Ipc.CnK σ σ') (hkc : KeepC σ σ') (hw : P1.WritesIn st s s' (InSlot Z.th))
+    (hcn : Ipc.CnK σ σ') (hkc : KeepCT σ σ') (hw : P1.WritesIn st s s' (InSlot Z.th))
     {kb : U64} (hFI : FinInv Z.th (L.mem s') σ' G') (hMO : MdbOKV kb (L.mem s') G') (hkz : KSz σ σ')
     (hTK : TypedKept Z.th (L.mem s) (L.mem s'))
-    (hT3 : ∀ t, Z.th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3))
+    (hT3 : ∀ t, Z.th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3) ∨
+      capV (L.mem s') (slotOf t 3) = .Null)
     (hDl : DelInv Z.th (L.mem s')) (hUK : UtKept Z.th (L.mem s) (L.mem s'))
     {D' : Set U64} (hjc : JCovD (L := L) Z.th H G' D' Cs s') (hcl : L.cscW s ∉ D')
     (horig : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot Z.th sl)
     (hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
       UtCapP3 (L := L) arI Z.th s' σ' G' sl p sb fi) :
     JCs (L := L) (Z.mv G' V') s' σ' ∧ JRest (L := L) arI (Z.mv G' V') H Cs Ac Lst D' s' σ' := by
-  have hC := CnStep.of_cnK hcn hkc
+  have hC := CnStep.of_cnK hcn
   obtain ⟨k1, k2, kb', k3, k4⟩ := inSlot_keeps arI J hw
-  have ck : Sched.CKeep σ σ' := ⟨fun q y n hq => ⟨y, hC.sc.2 hq, rfl⟩, fun q x hq => ⟨x, (hC.look (fun _ _ e => by cases e)).2 hq,
+  have ck : Sched.CKeep σ σ' := ⟨fun q y n hq => ⟨y, hC.sc.2 hq, rfl⟩, fun q x hq => ⟨x, (hC.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 hq,
     rfl, rfl⟩, fun p x n hp => ⟨x, hC.sc.1 hp⟩⟩
-  have yk : YKeep σ σ' := ⟨fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩, fun p x n hp => ⟨x, hC.sc.2 hp, rfl⟩,
+  have yk : YKeep σ σ' := ⟨fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.yld⟩, fun p x n hp => ⟨x, hC.sc.2 hp, rfl⟩,
     fun p y n hp => ⟨y, hC.sc.1 hp, rfl⟩⟩
-  have mk : McpKeep σ σ' := fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩
+  have mk : McpKeep σ σ' := fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.mcp⟩
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
   have hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
@@ -97,7 +98,7 @@ theorem jowes_slotD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     exact (P1.blk_of_capw J.blk hw' (J.slotCapW P1.tlow_slots)).1
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' :=
     let ⟨Tr, Cq, hJ⟩ := J.jpl
-    ⟨Tr, Cq, hJ.slot hkc hw.1 J.intL hTK hT3⟩
+    ⟨Tr, Cq, hJ.slotT hkc hw.1 J.intL hTK hT3⟩
   obtain ⟨-, ⟨-, -, hM', -, -⟩, -⟩ := hX'.rel
   have hJC0 := J.jcs_slot hM' hMO hFI hUK hkz hDl
   have hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
@@ -105,9 +106,9 @@ theorem jowes_slotD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
   have hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4 := by
     have e := congrArg (fun z => z.archState.x64GlobalPml4) hcn.1; exact e
   have hkern := J.kern_keep hw.1 hw.2.1 hX'.fin.1.1.1 hC.ct hC.csc horig hgp
-    (fun p ao h => (hC.look (fun _ _ e => by cases e)).2 h) hDbg (D' := D') hcl
+    (fun p ao h => (hC.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 h) hDbg (D' := D') hcl
   exact ⟨⟨hJC0.del, hJC0.ut, hJC0.finM, hJC0.sfree⟩, ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 mk,
-    J.buf.frame kb' (fun p x hp => ⟨x, hC.tcb.2 hp, rfl⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_keepC hkc), hjpl,
+    J.buf.frame kb' (fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.buf⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_keepCT hkc), hjpl,
     hjc, hkern, hutc, J.nsc.cn hC.toHStep, J.inv.cn hC, CurInvW.cn J.cur hC, J.own.cn hC.toHStep, J.off.cn hC.toHStep,
     J.act.cn hC,
     J.bsa.cn hC.toHStep, J.isorted.cn hC.toHStep, J.curRun.cn hC.toHStep (Or.inr hC.act), hblk⟩⟩
@@ -364,7 +365,7 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
   have hunc : ∀ q', q' ∈ Uncov Z.th H (L.mem s2) G2 → DeadP (L := L) H s2 q' := by
     intro q' hq'
     by_cases hD : q' ∈ D
-    · exact J.deadP_slot hX2 hcn2 hkc hw (J.jcov.dead q' hD)
+    · exact J.deadP_slot hX2 hcn2 (KeepC.t hkc) hw (J.jcov.dead q' hD)
     rcases hq' with ⟨k, hk, hnc⟩ | ⟨k, hk, hnc⟩
     · rcases J.jcov.th q' k hk with hcv | hD'
       · rcases hcovA _ _ hcv with h | ⟨g1, g2, hd⟩
@@ -383,7 +384,7 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
         · exact absurd h hnc
         · have e := hin q' k hk g1 g2
           subst e
-          exact J.deadP_slot hX2 hcn2 hkc hw hd
+          exact J.deadP_slot hX2 hcn2 (KeepC.t hkc) hw hd
       · exact absurd hD' hD
   have hks2 : ∀ x ∈ G2.chains.flatten, ∀ p' sb fi d, capV (L.mem s2) x = .Untyped p' sb fi d →
       (p'.val + 2 ^ sb.val ≤ (L.ksb s2).val ∨ (L.ksb s2).val + 13568 ≤ p'.val) ∧
@@ -398,7 +399,7 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     have hks : L.ksb s2 = L.ksb s := hw.1
     have hnb : ∀ c, L.nodeBase s2 c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
     exact ⟨by rw [hks]; exact k1, fun c hc => by rw [hnb]; exact k2 c hc⟩
-  have hjc := J.jcov.step hunc (fun q' _ hd => J.deadP_slot hX2 hcn2 hkc hw hd) hks2
+  have hjc := J.jcov.step hunc (fun q' _ hd => J.deadP_slot hX2 hcn2 (KeepC.t hkc) hw hd) hks2
   have hcl : L.cscW s ∉ D ∪ Uncov Z.th H (L.mem s2) G2 := by
     obtain ⟨z, hz⟩ := J.csc_sc
     rintro (h | h)
@@ -421,7 +422,7 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     · simpa [setCnodeSlot, emptySlotCdtState, Function.update_of_ne e] using h
   refine ⟨rfl, _, G2, V2, by rw [he]; exact Set.mem_singleton _, hX2, hw.1, KBack.of_keepC hkc, fun hUt => ?_⟩
   have hutc := J.del_utc (G' := G2) (sl := (q.bv, idx)) (fun y hy e => hoth2 y hy e) hnull2 hw rfl horig hgp hM2 hUt
-  obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 hkc hw hFI2 hMO hkz hTK hT3 hDl2 hUK hjc hcl
+  obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 (KeepC.t hkc) hw hFI2 hMO hkz hTK (fun t ht => Or.inl (hT3 t ht)) hDl2 hUK hjc hcl
     (fun sl' h => Or.inl (horig sl' h)) hutc
   exact ⟨hJC, Ac, Lst, _, R⟩
 
