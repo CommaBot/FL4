@@ -104,12 +104,24 @@ fn caps() -> Caps {
     }
 }
 
+/// Whether the kernel needs the skim window (Meltdown, rogue data cache
+/// load): on Intel CPUs that do not report RDCL_NO, and on CPUs of vendors
+/// whose immunity FL4 cannot tell. AMD and Hygon (AMD's Zen design) are
+/// not affected.
+fn needs_skim(vendor: Vendor, hygon: bool, arch: u64) -> bool {
+    match vendor {
+        Vendor::Amd => false,
+        Vendor::Intel => arch & RDCL_NO == 0,
+        Vendor::Other => !hygon,
+    }
+}
+
 pub fn detect() {
     let c = caps();
-    SKIM.store(
-        c.vendor == Vendor::Intel && c.arch & RDCL_NO == 0,
-        Ordering::Relaxed,
-    );
+    let v = cpuid(0, 0);
+    // "HygonGenuine".
+    let hygon = (v.ebx, v.edx, v.ecx) == (0x6f67_7948, 0x6e65_476e, 0x656e_6975);
+    SKIM.store(needs_skim(c.vendor, hygon, c.arch), Ordering::Relaxed);
 }
 
 /// Probe and initialize each logical CPU after its GDT/IDT is installed,
@@ -315,6 +327,17 @@ pub fn describe() -> Status {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn skim_window_fails_closed_for_unknown_vendors() {
+        assert!(!needs_skim(Vendor::Amd, false, 0));
+        assert!(needs_skim(Vendor::Intel, false, 0));
+        assert!(!needs_skim(Vendor::Intel, false, RDCL_NO));
+        assert!(!needs_skim(Vendor::Other, true, 0));
+        // Other vendors' architectural capabilities are not read.
+        assert!(needs_skim(Vendor::Other, false, 0));
+        assert!(needs_skim(Vendor::Other, false, RDCL_NO));
+    }
 
     #[test]
     fn smt_admission_retains_bsp_and_one_thread_per_other_core() {

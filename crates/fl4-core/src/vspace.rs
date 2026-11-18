@@ -310,6 +310,10 @@ pub fn unmap_pdpt<S: Store, A: Arch>(s: &mut S, a: &mut A, asid: u64, vaddr: u64
     }
     a.invalidate_asid(asid);
     s.write(slot, 0);
+    // As for the lower levels: a core running the address space may have
+    // cached the entry again (speculative walks) between the flush and the
+    // write. (l4v's `unmap_pdpt` has no such flush; it keeps the spec state.)
+    a.invalidate_page_structures(asid);
 }
 
 /// seL4 `deleteASID`.

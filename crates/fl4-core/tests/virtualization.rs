@@ -626,6 +626,18 @@ fn an_ept_mapping_without_read_rights_gives_no_guest_access() {
     )
     .is_ok());
     assert_eq!(s.read(layout::pptr(0x5000)), 0);
+    // The cap is not marked mapped either: its deletion must not unmap
+    // what another cap of the same frame maps there later.
+    assert!(matches!(frame_slot.cap(&s), Cap::Frame { mapped: false, is_ept: false, asid: 0, vaddr: 0, .. }));
+    let sibling = Slot(0x32000);
+    t.set_reg(&mut s, reg::R8, 3);
+    assert!(ept::map_frame(&mut s, &mut a, 3, cap, sibling, 0, &[root_slot, Slot(0), Slot(0)]).is_ok());
+    let live = s.read(layout::pptr(0x5000));
+    assert_eq!(live & 0x000f_ffff_ffff_f007, 0x6000 | 7);
+    assert!(matches!(sibling.cap(&s), Cap::Frame { mapped: true, is_ept: true, asid: 1, vaddr: 0, .. }));
+    let phantom = frame_slot.cap(&s);
+    objects::finalise_cap(&mut s, &mut a, phantom, true, false);
+    assert_eq!(s.read(layout::pptr(0x5000)), live);
 }
 
 #[test]

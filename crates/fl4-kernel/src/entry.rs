@@ -455,6 +455,33 @@ fn dispatch_entry<S: fl4_core::machine::Store>(
     cr2: u64,
     dr6: u64,
 ) {
+    // l4v's ThreadControlCaps (seL4_TCB_SetSpace, _Configure) installs a
+    // thread's new VSpace root without switching to it, even when the
+    // thread runs: it would go back to user mode on the old root, and keep
+    // running there after another core deletes that root's last cap (a
+    // remote thread is stalled first, so switches when it runs again).
+    // So when the current thread's root cap changed in an entry that did
+    // not switch threads, switch to its new root here, in the entry.
+    let ct = sched::cur_thread(s);
+    let vroot = ct.slot(tl::SLOT_VTABLE).cap(s);
+    dispatch_handler(s, a, v, irq, number, error, cr2, dr6);
+    if sched::cur_thread(s) == ct && ct.slot(tl::SLOT_VTABLE).cap(s) != vroot {
+        fl4_core::vspace::set_vm_root(s, a, ct);
+    }
+}
+
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+fn dispatch_handler<S: fl4_core::machine::Store>(
+    s: &mut S,
+    a: &mut PhysArch,
+    v: u64,
+    irq: bool,
+    number: i64,
+    error: u64,
+    cr2: u64,
+    dr6: u64,
+) {
     if v == VEC_SYSCALL {
         syscall::handle_syscall(s, a, number);
     } else if irq {

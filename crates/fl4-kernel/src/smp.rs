@@ -49,6 +49,13 @@ fn wait_us(us: u64) {
     }
 }
 
+// Every per-core array the cores index by `percpu::cpu_index` without a
+// bounds check (the transaction runtime's states, the serial gate's slots)
+// and every core bit mask (u64) covers each core `start_aps` may start.
+const _: () = assert!(
+    percpu::MAX_CPUS <= fl4_store::tx::MAX_CPUS && percpu::MAX_CPUS <= fl4_sync::MAX_CPUS && percpu::MAX_CPUS <= 64
+);
+
 /// Start every other core listed in the MADT, up to the kernel's node
 /// limit. Returns the number of cores running, the boot core included.
 pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {

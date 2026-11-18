@@ -1,0 +1,110 @@
+//! Physical memory at boot: which ranges are RAM, where the root task's
+//! image goes, and what user space gets as device memory. No kernel
+//! dependencies but `Region`, so xtask's host tests include this file too.
+use fl4_core::boot::Region;
+
+const PAGE: u64 = 4096;
+
+/// A small sorted list of half-open physical ranges.
+pub struct Ranges {
+    pub r: [Region; 64],
+    pub n: usize,
+}
+
+impl Ranges {
+    pub const fn new() -> Ranges {
+        Ranges { r: [Region::EMPTY; 64], n: 0 }
+    }
+
+    pub fn add(&mut self, start: u64, end: u64) {
+        if start >= end || self.n == self.r.len() {
+            return;
+        }
+        let mut i = self.n;
+        while i > 0 && self.r[i - 1].start > start {
+            self.r[i] = self.r[i - 1];
+            i -= 1;
+        }
+        self.r[i] = Region { start, end };
+        self.n += 1;
+        // Merge overlapping or touching neighbours.
+        let mut out = 0;
+        for j in 0..self.n {
+            let cur = self.r[j];
+            if out > 0 && cur.start <= self.r[out - 1].end {
+                if cur.end > self.r[out - 1].end {
+                    self.r[out - 1].end = cur.end;
+                }
+            } else {
+                self.r[out] = cur;
+                out += 1;
+            }
+        }
+        self.n = out;
+    }
+
+    pub fn remove(&mut self, start: u64, end: u64) {
+        let mut res = Ranges::new();
+        for j in 0..self.n {
+            let c = self.r[j];
+            if c.end <= start || c.start >= end {
+                res.add(c.start, c.end);
+            } else {
+                if c.start < start {
+                    res.add(c.start, start);
+                }
+                if c.end > end {
+                    res.add(end, c.end);
+                }
+            }
+        }
+        *self = res;
+    }
+
+    /// Whether one range holds all of `[start, end)`.
+    pub fn contains(&self, start: u64, end: u64) -> bool {
+        start <= end && (0..self.n).any(|j| self.r[j].start <= start && end <= self.r[j].end)
+    }
+
+    /// The lowest page-aligned address from `min` on where one range holds
+    /// `size` bytes (seL4 `find_load_paddr`).
+    pub fn find(&self, min: u64, size: u64) -> Option<u64> {
+        (0..self.n).find_map(|j| {
+            let start = self.r[j].start.max(min).checked_add(PAGE - 1)? & !(PAGE - 1);
+            (start.checked_add(size)? <= self.r[j].end).then_some(start)
+        })
+    }
+}
+
+/// The RAM the kernel may use: the whole pages of each available (type 1)
+/// memory map entry `(base, len, type)` from `low` on and below `top`. An
+/// entry that starts below `low` (one that covers low memory and more)
+/// counts from `low`; one that ends past 2^64 ends there.
+pub fn ram(entries: impl IntoIterator<Item = (u64, u64, u32)>, low: u64, top: u64) -> Ranges {
+    let mut ram = Ranges::new();
+    for (base, len, ty) in entries {
+        if ty != 1 {
+            continue;
+        }
+        let Some(start) = base.max(low).checked_add(PAGE - 1) else { continue };
+        let end = base.saturating_add(len) & !(PAGE - 1);
+        ram.add(start & !(PAGE - 1), end.min(top));
+    }
+    ram
+}
+
+/// What user space gets as device memory: everything below `top` that is
+/// neither RAM nor in one of the `reserved` ranges (the kernel's own image
+/// and boot modules, the local APIC, the IOAPICs), each widened to whole
+/// pages.
+pub fn device(ram: &Ranges, top: u64, reserved: impl IntoIterator<Item = (u64, u64)>) -> Ranges {
+    let mut dev = Ranges::new();
+    dev.add(0, top);
+    for i in 0..ram.n {
+        dev.remove(ram.r[i].start, ram.r[i].end);
+    }
+    for (start, end) in reserved {
+        dev.remove(start & !(PAGE - 1), end.saturating_add(PAGE - 1) & !(PAGE - 1));
+    }
+    dev
+}

@@ -249,10 +249,11 @@ impl Arch for PhysArch {
     // FPU images are written by XSAVE, not through the store: anything that
     // would touch live state, or write an image, runs serially.
     fn fpu_flush(&mut self, tcb: u64) {
-        // Bringing a compacted image back to the standard format writes
-        // the TCB outside the store.
+        // Bringing a compacted image back to the standard format, or
+        // clearing components the save skipped, writes the TCB outside the
+        // store.
         if in_tx() {
-            if fpu::is_live(tcb) || fpu::compacting() {
+            if fpu::is_live(tcb) || fpu::flush_writes() {
                 serial_needed();
             }
             return;
@@ -281,7 +282,7 @@ impl Arch for PhysArch {
             }
             return;
         }
-        fpu::forget(tcb)
+        fpu::release(tcb)
     }
 
     fn remote_stall(&mut self, cpu: u64) {
