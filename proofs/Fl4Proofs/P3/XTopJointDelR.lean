@@ -374,6 +374,17 @@ theorem jZombieTcbHyp_of_live {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
   exact (hLv (Z.mv G V) H Cs Ac Lst D s a σ hth J).zdead x (by show IsSlot Z.th x; rw [hth]; exact hx) p zt n hz h65
 
 
+/-- **The spec's idle thread is the current core's `IDLE_THREAD` word**
+(`SchedSpec.idleTh`). -/
+theorem JAtZ.idleThread_eq {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : σ.idleThread = (L.idleW s).bv := by
+  obtain ⟨Q, R, hc, hs⟩ := J.xtop.fin.1.1.1.lists
+  unfold P1.LawfulStore.idleW
+  have h2 := hs.idleTh
+  unfold nodeW at h2
+  rw [hc.cur, ← h2]
+
 /-- An IRQ handler cap. -/
 def IrqK (c : capability.Cap) : Prop := ∃ i, c = .IrqHandler i
 
@@ -438,10 +449,6 @@ structure JThreadFinHypsU (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : P
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
     ∀ (x p : U64), IsSlot Z.th x → capV (L.mem s) x = .Thread p →
       L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64
-  /-- [J] XTopJointFinThread's `JThreadFinHyps.idle`. -/
-  idle : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
-    (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
-    ∀ (x p : U64), IsSlot Z.th x → capV (L.mem s) x = .Thread p → L.idleW s ≠ p
   /-- [P] XTopJointFinThread's `JThreadFinHyps.ticks`. -/
   ticks : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv ∧
     ∀ (a : A) (v : U64), arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄
@@ -485,7 +492,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
 
 /-- `JThreadFinHyps` from `JDelParts` (`utTcb` from `LiveJ`, `utTcb_of_live`). -/
 theorem JDelParts.thread (h : JDelParts (L := L) arI AR th) : JThreadFinHyps (L := L) arI AR th :=
-  ⟨h.thr.obj, h.thr.idle, h.thr.ticks, utTcb_of_live arI h.live⟩
+  ⟨h.thr.obj, h.thr.ticks, utTcb_of_live arI h.live⟩
 
 /-- **A notification cap's finalisation at `J`, every slot kept** (module
 docstring): `jFinAt_ntfn`'s post with the cleanup null and every slot's cap
@@ -1009,7 +1016,15 @@ theorem jFinAt_thread (hT : P0.ArchTotal arI) (hK : ARKeep arI AR) (hF : JThread
   have hpT : p ∈ Z.T := J.thT p hthp
   have hpH : H p = some .tcb := J.zH.1 p hpT
   have hv0 := hF.obj (Z.mv G V) H Cs Ac Lst D s a σ rfl J _ p hA.isSlot hcv
-  have hidle := hF.idle (Z.mv G V) H Cs Ac Lst D s a σ rfl J _ p hA.isSlot hcv
+  -- not the idle thread: no cap names it (the spec's, `SpecGlob.idle`)
+  have hidle : L.idleW s ≠ p := by
+    intro e
+    obtain ⟨c0, ac0, hc0, hca0, hg0⟩ := hDS.1.1.abs_cap hA
+    rw [hc] at hc0; cases eq_of_ok_eq hc0
+    rw [hca0.abs] at hg0
+    have ha0 := (getCap_set_iff σ sl.1 sl.2 _).1 (congrArg Prod.fst hg0)
+    apply hsg.idle sl.1 sl.2 _ ha0 (by simp [IsPageCap, absCap])
+    rw [JAtZ.idleThread_eq arI J, e]; simp [absCap, Fl4Spec.objRefs]
   have hna : L.actionW s ≠ p := J.action_ne_of_noSwitch hpT hns
   rw [decide_eq_true hfin]
   refine WP.spec_mono (WP.spec_and (WP.spec_and (JAtZ.finThreadJ (Z := Z.mv G V) hT hK hF hRR J hpT hv0 hna hidle)

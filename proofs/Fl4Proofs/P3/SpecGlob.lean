@@ -5,7 +5,8 @@ loop** (`SpecGlob`), spec side only.
 * `SpecGlob σ`: the IRQ node's slots hold null or notification caps (l4v
   `valid_irq_node` with the IRQ handler slots' contents; IntInv's
   `SpecIrqNode`, `SpecGlob.irqNode`), and no cap but a frame cap names an
-  IRQ node CNode (l4v `valid_global_refs`, the IRQ node in `global_refs`;
+  IRQ node CNode or the idle thread (l4v `valid_global_refs`, the IRQ node
+  and the idle thread in `global_refs`;
   frame caps left out: a device frame's base is a physical address that
   #34's device untypeds may place anywhere).
 * `SlotK σ σ'`: every cap of `σ'` is null or the cap of `σ` in the same
@@ -53,6 +54,8 @@ structure SpecGlob (σ : State Unit) : Prop where
     a = .nullCap ∨ ∃ r b rs, a = .notificationCap r b rs
   /-- No cap but a frame cap names an IRQ node CNode. -/
   ref : ∀ p cref a, capOpt (σ.kheap p) cref = some a → ¬ IsPageCap a → NodeFree σ a
+  /-- No cap but a frame cap names the idle thread. -/
+  idle : ∀ p cref a, capOpt (σ.kheap p) cref = some a → ¬ IsPageCap a → σ.idleThread ∉ objRefs a
 
 /-- **IntInv's `SpecIrqNode` from `SpecGlob`.** -/
 theorem SpecGlob.irqNode {σ : State Unit} (h : SpecGlob σ) : SpecIrqNode σ := by
@@ -79,8 +82,8 @@ theorem SlotK.of_kheap {σ σ' : State Unit} (h : σ'.kheap = σ.kheap) : SlotK 
 
 /-- **`SpecGlob` across a step emptying caps only, the IRQ node kept.** -/
 theorem SpecGlob.of_slotK {σ σ' : State Unit} (h : SpecGlob σ) (hk : SlotK σ σ')
-    (hn : σ'.interruptIrqNode = σ.interruptIrqNode) : SpecGlob σ' := by
-  refine ⟨fun irq a ha => ?_, fun p cref a ha hp => ?_⟩
+    (hn : σ'.interruptIrqNode = σ.interruptIrqNode) (hi : σ'.idleThread = σ.idleThread) : SpecGlob σ' := by
+  refine ⟨fun irq a ha => ?_, fun p cref a ha hp => ?_, fun p cref a ha hp => ?_⟩
   · rw [hn] at ha
     rcases hk _ _ _ ha with e | h'
     · exact Or.inl e
@@ -88,11 +91,15 @@ theorem SpecGlob.of_slotK {σ σ' : State Unit} (h : SpecGlob σ) (hk : SlotK σ
   · rcases hk _ _ _ ha with e | h'
     · subst e; intro irq; simp [objRefs]
     · intro irq; rw [hn]; exact h.ref p cref a h' hp irq
+  · rcases hk _ _ _ ha with e | h'
+    · subst e; simp [objRefs]
+    · rw [hi]; exact h.idle p cref a h' hp
 
-/-- `SpecGlob` across a step keeping the heap and the IRQ node. -/
+/-- `SpecGlob` across a step keeping the heap, the IRQ node and the idle
+thread. -/
 theorem SpecGlob.of_eq {σ σ' : State Unit} (h : SpecGlob σ) (hk : σ'.kheap = σ.kheap)
-    (hn : σ'.interruptIrqNode = σ.interruptIrqNode) : SpecGlob σ' :=
-  h.of_slotK (SlotK.of_kheap hk) hn
+    (hn : σ'.interruptIrqNode = σ.interruptIrqNode) (hi : σ'.idleThread = σ.idleThread) : SpecGlob σ' :=
+  h.of_slotK (SlotK.of_kheap hk) hn hi
 
 /-- `CKeep` (SpecCaps: CNodes and TCB caps kept, none created) empties no
 cap. -/
@@ -313,12 +320,13 @@ theorem nsk_finaliseCap (c : Cap) (b : Bool) : NSK (finaliseCap (Z := Unit) c b)
 /-- **`finalise_cap` keeps `SpecGlob`.** -/
 theorem SpecGlob.fin {c : Cap} {b : Bool} {σ : State Unit} {x : (Cap × Cap) × State Unit}
     (hx : x ∈ (finaliseCap (Z := Unit) c b σ).1) (h : SpecGlob σ) : SpecGlob x.2 :=
-  h.of_slotK (nsk_finaliseCap c b σ x hx) ((gk_finaliseCap c b).inode hx)
+  h.of_slotK (nsk_finaliseCap c b σ x hx) ((gk_finaliseCap c b).inode hx) ((gk_finaliseCap c b).idle hx)
 
 /-- **`empty_slot` with a null cleanup keeps `SpecGlob`.** -/
 theorem SpecGlob.empty {sl : CslotPtr} {σ σ' : State Unit}
     (hx : ((), σ') ∈ (emptySlot (Z := Unit) sl .nullCap σ).1) (h : SpecGlob σ) : SpecGlob σ' :=
   h.of_slotK (nsk_emptySlot_null sl σ _ hx) ((gk_emptySlot' sl .nullCap).inode hx)
+    ((gk_emptySlot' sl .nullCap).idle hx)
 
 /-- **The preemption point keeps `SpecGlob`** (it writes no object). -/
 theorem SpecGlob.pp {σ σ' : State Unit} {r : Except Unit Unit}
@@ -326,11 +334,13 @@ theorem SpecGlob.pp {σ σ' : State Unit} {r : Except Unit Unit}
   have hk : FKE (fun σ : State Unit => σ.kheap) (preemptionPoint (Z := Unit)) := by
     unfold preemptionPoint orChoiceE updateTimeStamp getScActive; kh_auto
   exact h.of_eq (hk σ _ hx) (GK.inode (show GK (ExceptT.run (preemptionPoint (Z := Unit))) from gke_preemptionPoint') hx)
+    (GK.idle (show GK (ExceptT.run (preemptionPoint (Z := Unit))) from gke_preemptionPoint') hx)
 
 /-- **`set_thread_state` keeps `SpecGlob`** (the caller's restart). -/
 theorem SpecGlob.sts {t : ObjRef} {ts : ThreadState} {σ σ' : State Unit}
     (hx : ((), σ') ∈ (setThreadState (Z := Unit) t ts σ).1) (h : SpecGlob σ) : SpecGlob σ' :=
   h.of_slotK (SlotK.of_ckeep (nkc_setThreadState t ts σ _ hx)) ((gk_setThreadState' t ts).inode hx)
+    ((gk_setThreadState' t ts).idle hx)
 
 /-! ## The slot edits writing caps -/
 
@@ -343,7 +353,8 @@ theorem SpecGlob.setCap {c a0 : Cap} {sl : CslotPtr} {σ σ' : State Unit}
     SpecGlob σ' := by
   obtain ⟨o, r⟩ := sl
   have hn : σ'.interruptIrqNode = σ.interruptIrqNode := (gk_setCap c (o, r)).inode hx
-  refine ⟨fun irq a ha => ?_, fun p cref a ha hpa => ?_⟩
+  have hi : σ'.idleThread = σ.idleThread := (gk_setCap c (o, r)).idle hx
+  refine ⟨fun irq a ha => ?_, fun p cref a ha hpa => ?_, fun p cref a ha hpa => ?_⟩
   · rw [hn] at ha
     rcases setCap_capOpt hx _ _ _ ha with ⟨e1, e2, -⟩ | ⟨-, h'⟩
     · exact absurd (by rw [e1, e2]) (hnode irq)
@@ -353,6 +364,10 @@ theorem SpecGlob.setCap {c a0 : Cap} {sl : CslotPtr} {σ σ' : State Unit}
     rcases setCap_capOpt hx _ _ _ ha with ⟨-, -, rfl⟩ | ⟨-, h'⟩
     · rw [hrefs]; exact h.ref o r a0 ha0 hp0 irq
     · exact h.ref p cref a h' hpa irq
+  · rw [hi]
+    rcases setCap_capOpt hx _ _ _ ha with ⟨-, -, rfl⟩ | ⟨-, h'⟩
+    · rw [hrefs]; exact h.idle o r a0 ha0 hp0
+    · exact h.idle p cref a h' hpa
 
 /-- The caps after `cap_swap`: each one of `σ`'s, at its slot off the two
 swapped. -/
@@ -388,13 +403,14 @@ theorem SpecGlob.swap {s1 s2 : CslotPtr} {c1 c2 : Cap} {σ σ' : State Unit}
     (hn1 : ∀ irq, s1 ≠ (σ.interruptIrqNode irq, [])) (hn2 : ∀ irq, s2 ≠ (σ.interruptIrqNode irq, [])) :
     SpecGlob σ' := by
   have hn : σ'.interruptIrqNode = σ.interruptIrqNode := (gk_capSwapForDelete' s1 s2).inode hx
+  have hi : σ'.idleThread = σ.idleThread := (gk_capSwapForDelete' s1 s2).idle hx
   have e1 := (getCap_set_iff σ s1.1 s1.2 c1).1 (congrArg Prod.fst hc1)
   have e2 := (getCap_set_iff σ s2.1 s2.2 c2).1 (congrArg Prod.fst hc2)
   unfold capSwapForDelete NonDet.when at hx
   split at hx
   · rw [nd_bind_single hc1, nd_bind_single hc2] at hx
     have hs := capSwap_capOpt hx
-    refine ⟨fun irq a ha => ?_, fun p cref a ha hpa => ?_⟩
+    refine ⟨fun irq a ha => ?_, fun p cref a ha hpa => ?_, fun p cref a ha hpa => ?_⟩
     · rw [hn] at ha
       rcases hs _ _ _ ha with ⟨e, -⟩ | ⟨e, -⟩ | ⟨-, -, h'⟩
       · exact absurd e.symm (hn2 irq)
@@ -405,6 +421,11 @@ theorem SpecGlob.swap {s1 s2 : CslotPtr} {c1 c2 : Cap} {σ σ' : State Unit}
       · exact h.ref _ _ _ e1 hpa irq
       · exact h.ref _ _ _ e2 hpa irq
       · exact h.ref p cref a h' hpa irq
+    · rw [hi]
+      rcases hs _ _ _ ha with ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨-, -, h'⟩
+      · exact h.idle _ _ _ e1 hpa
+      · exact h.idle _ _ _ e2 hpa
+      · exact h.idle p cref a h' hpa
   · have e : σ' = σ := congrArg Prod.snd (Set.mem_singleton_iff.1 hx)
     rw [e]; exact h
 

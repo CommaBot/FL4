@@ -37,7 +37,7 @@ theorem jPostDelHyp_of {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {
       WJR (L := L) arI AR Z H Cs kb s' a' σ' G := fun s' a' σ' hSS hw hO hX' => by
     obtain ⟨Ac', Lst', D', R⟩ := jowes_ks arI s s' a a' σ σ' hw hO _ H Cs Ac Lst D rfl J hX'
     exact ⟨V, Ac', Lst', D', J.cs_frame hw.1 hX' (KBack.of_kheap hO.kh) (JCs.same J hSS (KSz.of_kheap hO.kh)) R,
-      by rw [hw.1]; exact hkb, fun u e => hns u (by rw [← hO.act]; exact e), hsg.of_eq hO.kh hO.inode, hp0.of_ppk (PPK.of_ksStep hO)⟩
+      by rw [hw.1]; exact hkb, fun u e => hns u (by rw [← hO.act]; exact e), hsg.of_eq hO.kh hO.inode hO.idle, hp0.of_ppk (PPK.of_ksStep hO)⟩
   cases cl <;> simp only [CleanCap] at hcl
   · exact absurd rfl hcln
   · refine WP.spec_mono (post_irqX arI hAM hX J.ks (hLy.1) hmask hfree _ hclw) ?_

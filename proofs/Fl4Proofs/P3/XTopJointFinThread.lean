@@ -48,15 +48,16 @@ The finalised thread's slot is ready after (`JAtZ.tcb_ready`, as
 P1's `fin_cap_thread.dead`).
 
 `JThreadFinHyps`: [scope] `obj` (its VCPU word zero, native threads; VT-x
-outside the semantic scope, DESIGN §5, as `JVtHyps`); [J] `idle` (no slot holds a thread cap to the idle thread, l4v
-`valid_global_refs` for threads); [J] `utTcb` (core 0's
+outside the semantic scope, DESIGN §5, as `JVtHyps`); [J] `utTcb` (core 0's
 debug-list successor of the head covered by a cap, l4v
 `if_live_then_nonz_cap` for FL4's debug list); [P] `ticks`. The FPU
 release needs `ARKeep` [P] (`finThreadJ`'s `hK`, the top level's
 `JDelParts.arKeep`). That the thread is not the scheduler's switch target
 (P1's `fin_cap_thread` precondition) is no premise: no switch is pending
 during a deletion (SpecNoSwitch's `NoSwitch`, carried by the deletion loop's
-`WJ`; `JAtZ.action_ne_of_noSwitch`).
+`WJ`; `JAtZ.action_ne_of_noSwitch`), nor the idle thread (`finThreadJ`'s
+`hidle`: no cap names the idle thread, the spec's `SpecGlob.idle`, l4v
+`valid_global_refs`, carried by `WJ`; XTopJointDelR's `jFinAt_thread`).
 -/
 import Fl4Proofs.P3.XTopFinThread
 import Fl4Proofs.P3.ScFireJ
@@ -99,11 +100,6 @@ structure JThreadFinHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Pr
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
     ∀ (x p : U64), IsSlot Z.th x → capV (L.mem s) x = .Thread p →
       L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64
-  /-- [J] No slot holds a thread cap to the idle thread (l4v
-  `valid_global_refs` for threads). -/
-  idle : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
-    (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
-    ∀ (x p : U64), IsSlot Z.th x → capV (L.mem s) x = .Thread p → L.idleW s ≠ p
   /-- [P] The platform's `ticks_to_us` and `getMaxTicksToUs` (the yielder's
   `complete_yield_to`, `JAtZ.completeYieldJ`; as XTopYield's `scYieldFinHyp_of`). -/
   ticks : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv ∧
