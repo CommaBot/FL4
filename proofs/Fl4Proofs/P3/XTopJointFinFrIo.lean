@@ -67,6 +67,33 @@ theorem EmptyReady.of_nonphys {H : P1.Heap} {G : MdbGhost} {s : S} {x : U64}
 /-- An IO port cap is not physical. -/
 theorem physF_ioPort (f l o : U64) : physF (.IoPort f l o) = false := ok_inj (phys_eq _).symm
 
+/-- **A frame whose memory is an `other` object of `H` misses `H`'s other
+objects** (`HeapOK.disj`): when `H` holds at a frame cap's base an `other`
+object of at least the frame's size (l4v `valid_cap`'s `typ_at` of the
+frame), no object of `H` but `other` ones meets the frame cap's range. -/
+theorem frame_apart_of_obj {H : P1.Heap} (hH : P1.HeapOK H) {p : U64} {sz : capability.FrameSize}
+    {r : U64} {d m ep : Bool} {a va : U64} {n : Nat} (hp : H p = some (.other n)) (hn : frameBitsN sz ≤ n) :
+    ∀ q k, H q = some k → (∀ z, k ≠ .other z) →
+      q.val + 2 ^ k.bits ≤ baseF (.Frame p sz r d m ep a va) ∨ topF (.Frame p sz r d m ep a va) < q.val := by
+  intro q k hq hko
+  obtain ⟨bs, ts⟩ := Vs.frame_range p sz r d m a va ep
+  have hqp : q ≠ p := fun e => by subst e; rw [hp] at hq; cases hq; exact hko n rfl
+  have hfit := hH.fits p _ hp
+  have hfb : (fbitsF sz).val = frameBitsN sz := by rw [fbitsF_val]; cases sz <;> rfl
+  have hm : (maskF (fbitsF sz)).val = 2 ^ frameBitsN sz - 1 := by
+    rw [maskF_val (by rw [hfb]; cases sz <;> decide), hfb]
+  have hle : 2 ^ frameBitsN sz ≤ 2 ^ n := Nat.pow_le_pow_right (by decide) hn
+  have h1 : 1 ≤ 2 ^ frameBitsN sz := Nat.one_le_two_pow
+  have htv : topF (.Frame p sz r d m ep a va) = p.val + 2 ^ frameBitsN sz - 1 := by
+    rw [ts]; simp [core.num.U64.wrapping_add_val_eq, U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits, hm]
+    simp only [P1.HKind.bits] at hfit
+    omega
+  rw [bs, htv]
+  rcases hH.disj q k p _ hq hp hqp with h | h
+  · exact Or.inl h
+  · simp only [P1.HKind.bits] at h
+    exact Or.inr (by omega)
+
 /-- **A frame or IO port cap's slot is ready** when, for a frame, no object
 of `H` meets its range. -/
 theorem EmptyReady.frio {H : P1.Heap} {G : MdbGhost} {s : S} {x : U64} {c : capability.Cap}

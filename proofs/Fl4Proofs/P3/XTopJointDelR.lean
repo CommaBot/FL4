@@ -33,8 +33,9 @@ some of them proved here.
   `JAtZ.finVsJb`, from `ArchRefines` [P], `JVsCapsHyp` [J] and
   `JVsApartHyp` [J]), the VT-x work (EPT-mapped frames, owned IO ports) by
   `jFrVt_of` (XTopJointFinVtJ's `JAtZ.frVtJ`, from `ARKeep` [P] and
-  `JVtHyps` [J]); the slot ready after by `JFrameApartHyp` [J] (a frame's
-  memory holds no object of `H` but `other` ones; an IO port cap is not
+  `JVtHyps` [J]); the slot ready after by `JFrameApartHyp` [J] (a frame
+  cap's frame is an `other` object of `H`, so its memory holds no object
+  of `H` but `other` ones: `frame_apart_of_obj`; an IO port cap is not
   physical).
 * A final VT-x object cap's finalisation (`jFinAt_vt`, XTopJointFinVtJ): an
   EPT cap but a mapped root's (`EptK`: nothing, or `ept::unmap` of a mapped
@@ -66,8 +67,8 @@ some of them proved here.
   (`JAtZ` after at the same sets, the spec's frame `ArFr`), the slot ready
   (`JAtZ.vs_ready`: no object of `H` but `other` ones in the cap's frame);
   from `ArchRefines` [P], `JVsCapsHyp` [J] (l4v `valid_cap`) and
-  `JVsApartHyp` [J] (the VSpace frames and the ASID table apart from `H`'s
-  objects, the nodes and the untyped free parts), `JDelParts` fields.
+  `JVsApartHyp` [J] (the ASID table apart from `H`'s SCs outside `Z.C` and
+  the untyped free parts, the VSpace frames from the nodes), `JDelParts` fields.
 * A final SC cap's finalisation (`jFinAt_sc`): XTopJointFinSc's
   `JScFinHyp` (the finalisation at `J`, by `jScFin_of` from the proved SC
   steps and `jYieldToHyp_of` from the thread's [P] `ticks`), the SC dead after
@@ -209,27 +210,24 @@ def JFrVtHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
     FinObjHypWRK (L := L) arI (WJ (L := L) arI AR Z H Cs kb) (fun _ _ _ _ _ => True) th FrVtK
 
-/-- **Hypothesis: a frame's memory holds no kernel object** [J] (l4v
-`valid_cap` of a frame cap, `typ_at (AArch (AUserData sz))` or, for a device
-frame, `typ_at (AArch (ADeviceData sz))`, with `pspace_distinct`; device
-frames need no separate premise): at `WJ`, no object of P1's heap `H` but
-the `other` ones (the arch objects, the frame itself among them:
-`SpecCover.arch` puts the spec's `dataPage` at the frame's base in `H` as an
-`other` object, so a frame's range meets `H` whenever its frame is a spec
-object; `other` objects are dead for `DeadP`, `EmptyReady.of_apartO`) meets
-the range of a frame cap in a slot. Not derivable: `JAtZ` carries no fact on
-frames' memory (`JCovD` asks every object covered, not uncovered by frames;
-`UtInv` places a frame inside its parent untyped, below the free index, but
-does not separate it from its siblings; boot frames have no parent), and
-`TopPlaced.disj` (`JAtZ.vobj_apart`) separates the other subsystems' objects
-only from the VSpace objects (`VObj`), of which a frame's memory is none;
-`VsCapsIn` (`VCapOK`) gives a frame cap only its alignment. -/
+/-- **Hypothesis: a frame cap's frame is an object of `H`** [J] (l4v
+`valid_cap` of a frame cap: `typ_at (AArch (AUserData sz))` or, for a device
+frame, `typ_at (AArch (ADeviceData sz))`; device frames need no separate
+premise): at `WJ`, `H` holds at the base of a frame cap in a slot an `other`
+object of at least the frame's size (P1's heap's image of the spec's frame,
+`SpecCover.arch`). The frame's memory then holds no object of `H` but `other`
+ones (`frame_apart_of_obj`, from `HeapOK.disj`: l4v `pspace_distinct`).
+Not derivable: `JAtZ` carries no fact on frame caps' objects (`CapValid`
+gives a frame cap only its alignment; `SpecCover.arch` maps the spec's frames
+into `H`, not frame caps to the spec's frames; `UtInv` places a frame inside
+its parent untyped, below the free index, but does not separate it from its
+siblings, and boot frames have no parent; `TopPlaced.disj` separates the
+other subsystems' objects only from the VSpace objects). -/
 def JFrameApartHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
     ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost), WJ (L := L) arI AR Z H Cs kb s a σ G →
-      ∀ x, IsSlot th x → isFrame (capV (L.mem s) x) = true →
-      ∀ q k, H q = some k → (∀ z, k ≠ .other z) →
-        q.val + 2 ^ k.bits ≤ baseF (capV (L.mem s) x) ∨ topF (capV (L.mem s) x) < q.val
+      ∀ x, IsSlot th x → ∀ p sz r d m ep a' va, capV (L.mem s) x = .Frame p sz r d m ep a' va →
+        ∃ n, frameBitsN sz ≤ n ∧ H p = some (.other n)
 
 /-- **Hypothesis: a zombie's slot is ready at `J`** [J] (`RdTrivHyp` for
 zombies; their finalisation leaves the state as it is): the objects in the
@@ -347,8 +345,9 @@ structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   archRef : ArchRefines arI AR
   /-- XTopJointFinVs's `JVsCapsHyp` [J] (l4v `valid_cap` for the arch caps). -/
   vsCaps : JVsCapsHyp (L := L) arI AR th
-  /-- XTopJointFinVs's `JVsApartHyp` [J] (the VSpace frames and the ASID table
-  apart from `H`'s objects, the nodes and the untyped free parts). -/
+  /-- XTopJointFinVs's `JVsApartHyp` [J] (the ASID table
+  apart from `H`'s SCs outside `Z.C` and the untyped free parts, the VSpace
+  frames from the nodes). -/
   vsApart : JVsApartHyp (L := L) arI AR th
   /-- The x86 backend's VCPU barrier keeps the arch relation (`ARKeep` [P]),
   for the VT-x finalisations (`jFrVt_of`, `jFinAt_vt`). -/
@@ -736,7 +735,7 @@ theorem jFinAt_vs [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hVC :
   have hcv1 : capV (L.mem s1) (cslotAddr sl) = c := by rw [hSS.capV hA.isSlot, hcv]
   exact ⟨h1, h2, h3, σ1, G, hm, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
     fun y hy _ => Or.inl (hSS.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS,
-    ⟨V, Ac, Lst, D, J1, hks.trans hkb⟩, J.vs_ready Ap hVC0 hxm hcv hv hcv1⟩
+    ⟨V, Ac, Lst, D, J1, hks.trans hkb⟩, J.vs_ready hVC0 hxm hcv hv hcv1⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **A VSpace-mapped frame cap's finalisation at `J`** (XTopJointFinVs's
@@ -809,14 +808,19 @@ theorem jFinAt_vt (hAR : ArchRefines arI AR) (hK : ARKeep arI AR) (hV : JVtHyps 
 port cap's do nothing; a VSpace-mapped frame's from `JFrMapHyp` (`jFrMap_of`), the
 VT-x work from `JFrVtHyp` [J]; the slot ready after (an IO port cap is not
 physical; a frame's memory holds no object of `H` but `other` ones,
-`JFrameApartHyp` [J], `EmptyReady.of_apartO`). -/
+`frame_apart_of_obj` from `JFrameApartHyp` [J], `EmptyReady.of_apartO`). -/
 theorem jFinAt_frio [Fl4Proofs.P1.PlainStore st] (hM : JFrMapHyp (L := L) arI AR th) (hV : JFrVtHyp (L := L) arI AR th)
     (hAp : JFrameApartHyp (L := L) arI AR th) : JFinAt (L := L) arI AR th FrIoK := by
   intro Z H Cs kb hth
   refine finFrIo_of arI (hM Z H Cs kb hth) (hV Z H Cs kb hth) ?_
   intro s a σ G sl c hW hA hcv hk
   rcases hk with hf | ⟨f, l, o, rfl⟩
-  · exact EmptyReady.of_apartO (hAp Z H Cs kb hth s a σ G hW _ hA.isSlot (by rw [hcv]; exact hf))
+  · cases c with
+    | Frame p sz r d m ep a' va =>
+      obtain ⟨n, hn, hp⟩ := hAp Z H Cs kb hth s a σ G hW _ hA.isSlot p sz r d m ep a' va hcv
+      obtain ⟨V, Ac, Lst, D, J, -⟩ := hW
+      exact EmptyReady.of_apartO (by rw [hcv]; exact frame_apart_of_obj J.kern.heap hp hn)
+    | _ => cases hf
   · exact EmptyReady.of_nonphys (by rw [hcv]; exact physF_ioPort f l o)
 /-- **A final SC cap's finalisation at `J`** (`JScFinHyp` [J], the SC dead
 after by P1's `fin_cap_sc.dead`, the current SC kept by `fin_sc.curR`,

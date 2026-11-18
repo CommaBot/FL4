@@ -10,15 +10,15 @@ toward `JDelParts`' `jFinAt_vs`, as XTopJointFinEp for endpoints).
   `SlotsSame`, as IpcSlotsSame's `irel_same`).
 * The spec's side: XTopJointFinVsSpec's `ArFr` (only arch objects, of the
   same arch type, the ASID table, the CR3 and the machine state change).
-* `VsApart` [J] (`JVsApartHyp`): the VSpace frames (the tables and pools of
-  the sets) and the ASID table lie apart from `H`'s SCs outside `Z.C`, the
-  frames from the cores' nodes, the ASID table outside the untyped caps'
-  free parts (l4v `pspace_distinct` of the arch objects against the others,
+* `VsApart` [J] (`JVsApartHyp`): the ASID table lies apart from `H`'s SCs
+  outside `Z.C` and outside the untyped caps' free parts
+  (l4v `pspace_distinct` of the kernel's global data against the objects,
   and the kernel's global data outside untyped memory, `valid_global_refs`).
-  `JAtZ` relates the VSpace sets to the spec's arch objects only, not to
-  `H`; `H`'s other objects are derived apart (`JAtZ.vobj_apart`: the
-  endpoints, notifications, replies and `Z.C`'s SCs by `TopPlaced.disj`; the
-  TCBs by `TopPlaced.po`/`vo`).
+  `H`'s other objects are derived apart (`JAtZ.vobj_apart`: the endpoints,
+  notifications, replies and `Z.C`'s SCs by `TopPlaced.disj`; the TCBs by
+  `TopPlaced.po`/`vo`; every SC from the VSpace frames by `JAtZ.vsFr_sc`,
+  the cores' nodes by `JAtZ.vsFr_node`: a frame is a spec arch object, so
+  an `other` object of `H`, `SpecCover.arch`, `HeapOK.disj`, `JKern.hnd`).
 * `JAtZ.finVsJ`: `JAtZ` after at the same sets: every `H` object word, node
   word and kernel-state word but the VSpace ones kept (`VsW`, `objW`,
   `nodeW`), so the call stacks, yield, MCP, buffer words, `JPlaced`, the
@@ -127,14 +127,12 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
 /-- **The VSpace frames apart** (module docstring). -/
 structure VsApart (Z : XSets) (H : P1.Heap) (Cs : Set U64) (s : S) : Prop where
-  /-- A VSpace frame and the ASID table overlap no SC of `H` outside `Z.C`
-  (the other objects of `H` but the `other` ones: `TopPlaced.disj`,
-  `JAtZ.vobj_apart`, and the TCBs outside the VSpace words, `TopPlaced.po`). -/
+  /-- The ASID table overlaps no SC of `H` outside `Z.C` (the other objects
+  of `H` but the `other` ones: `TopPlaced.disj`, `JAtZ.vobj_apart`, and the
+  TCBs outside the VSpace words, `TopPlaced.po`; the VSpace frames apart
+  from every SC of `H`: `JAtZ.vsFr_sc`). -/
   scOut : ∀ p z, H p = some (.sc z) → p ∉ Z.C →
-    (∀ q, VsFr Z q → q.val + 4096 ≤ p.val ∨ p.val + 2 ^ z ≤ q.val) ∧
-    ((L.ksb s).val + 288000 + 16384 ≤ p.val ∨ p.val + 2 ^ z ≤ (L.ksb s).val + 288000)
-  /-- A VSpace frame overlaps no core's node. -/
-  node : ∀ q, VsFr Z q → ∀ c ∈ Cs, q.val + 4096 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ q.val
+    (L.ksb s).val + 288000 + 16384 ≤ p.val ∨ p.val + 2 ^ z ≤ (L.ksb s).val + 288000
   /-- The ASID table lies outside the untyped caps' free parts. -/
   utTbl : ∀ x ∈ Z.G.chains.flatten, ∀ p sb fi d, capV (L.mem s) x = .Untyped p sb fi d →
     (L.ksb s).val + 288000 + 16384 ≤ p.val + fi.val ∨ p.val + 2 ^ sb.val ≤ (L.ksb s).val + 288000
@@ -197,6 +195,48 @@ theorem vsFr_al {kb q : U64}
   · exact hVP.pal q hq
   · exact ⟨hPP q hq, tbl_fit (hPP q hq)⟩
 
+/-- **A VSpace frame is an `other` object of `H` of at least a page**: a
+spec arch object (`VsRel.pool`, `PtRel`), so `H`'s (`SpecCover.arch`). -/
+theorem JAtZ.vsFr_other {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {q : U64} (hq : VsFr Z q) : ∃ n, 12 ≤ n ∧ H q = some (.other n) := by
+  have hF := J.xtop.fin
+  have hk : ∃ ao, σ.kheap q.bv = some (.archObj ao) := by
+    rcases hq with hq | hq | hq | hq | hq
+    · obtain ⟨f, hf, -⟩ := hF.2.1.pool q hq; exact ⟨_, hf⟩
+    · obtain ⟨f, hf, -⟩ := hF.2.2.1.l4 q hq; exact ⟨_, hf⟩
+    · obtain ⟨f, hf, -⟩ := hF.2.2.1.l3 q hq; exact ⟨_, hf⟩
+    · obtain ⟨f, hf, -⟩ := hF.2.2.1.l2 q hq; exact ⟨_, hf⟩
+    · obtain ⟨f, hf, -⟩ := hF.2.2.1.l1 q hq; exact ⟨_, hf⟩
+  obtain ⟨ao, hao⟩ := hk
+  obtain ⟨n, hn, hH⟩ := J.cover.arch _ ao hao
+  exact ⟨n, hn, hH⟩
+
+/-- **A VSpace frame lies apart from every SC of `H`** (`JAtZ.vsFr_other`,
+`HeapOK.disj`). -/
+theorem JAtZ.vsFr_sc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {q : U64} (hq : VsFr Z q) {p : U64} {z : Nat} (hp : H p = some (.sc z)) :
+    q.val + 4096 ≤ p.val ∨ p.val + 2 ^ z ≤ q.val := by
+  obtain ⟨n, hn, hH⟩ := J.vsFr_other hq
+  have hne : p ≠ q := fun e => by subst e; rw [hp] at hH; cases hH
+  have h4 : 2 ^ 12 ≤ 2 ^ n := Nat.pow_le_pow_right (by decide) hn
+  rcases J.kern.heap.disj p _ q _ hp hH hne with h | h
+  · simp only [P1.HKind.bits] at h
+    exact Or.inr h
+  · simp only [P1.HKind.bits] at h
+    exact Or.inl (by omega)
+
+/-- **A VSpace frame overlaps no core's node** (`JAtZ.vsFr_other`,
+`JKern.hnd`). -/
+theorem JAtZ.vsFr_node {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {q : U64} (hq : VsFr Z q) {c : U64} (hc : c ∈ Cs) :
+    q.val + 4096 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ q.val := by
+  obtain ⟨n, hn, hH⟩ := J.vsFr_other hq
+  have h4 : 2 ^ 12 ≤ 2 ^ n := Nat.pow_le_pow_right (by decide) hn
+  rcases J.kern.hnd q _ hH c hc with h | h
+  · simp only [P1.HKind.bits] at h
+    exact Or.inl (by omega)
+  · exact Or.inr h
+
 /-- **An address of the VSpace objects lies in no endpoint, notification,
 reply or SC of `Z.C`** (`TopPlaced.disj`: those are the other subsystems'
 objects). -/
@@ -250,20 +290,20 @@ theorem JAtZ.vsObjW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
   | sc z =>
     by_cases hpC : p ∈ Z.C
     · exact J.vobj_apart hv hp (Or.inr (Or.inr (Or.inr ⟨z, rfl, hpC⟩)))
-    · obtain ⟨e1, e2⟩ := Ap.scOut p z hp hpC
+    · have e2 := Ap.scOut p z hp hpC
       simp only [P1.HKind.bits]
       rcases vsW_val hP.pt hP.vs hb with ⟨q, hq, -, -, h1, h2, -⟩ | ⟨h1, h2, -⟩
-      · rcases e1 q hq with e | e <;> omega
+      · rcases J.vsFr_sc hq hp with e | e <;> omega
       · rcases e2 with e | e <;> omega
   | other z => exact absurd rfl (hk z)
 
 /-- A VSpace word lies in no core's node. -/
 theorem JAtZ.vsNodeW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (Ap : VsApart (L := L) Z H Cs s) {b : U64} (hb : VsW Z (L.ksb s) b) {c : U64} (hc : c ∈ Cs) :
+    {b : U64} (hb : VsW Z (L.ksb s) b) {c : U64} (hc : c ∈ Cs) :
     b.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ b.val := by
   have hS := J.xtop.fin.1
   rcases vsW_val hS.2.pt hS.2.vs hb with ⟨q, hq, -, -, h1, h2, -⟩ | ⟨h1, h2, -⟩
-  · rcases Ap.node q hq c hc with e | e <;> omega
+  · rcases J.vsFr_node hq hc with e | e <;> omega
   · have h64 := J.kern.csLt c hc
     have hnb : L.nodeBase s c = (L.ksb s).val + 13568 + c.val * 4288 := rfl
     have : c.val * 4288 + 4288 ≤ 64 * 4288 := by omega
@@ -487,7 +527,7 @@ theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s :
       L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) := by
     have hdv := P1.nodeAt_val hN0 (off := layout.node.DEBUG_TCBS) (by simp [layout.node.DEBUG_TCBS])
     have hdo : layout.node.DEBUG_TCBS.val < 4288 := by simp [layout.node.DEBUG_TCBS]
-    exact hW.mem_eq J.kern.dwAl fun hb => by rcases J.vsNodeW Ap hb J.kern.cs0 with e | e <;> omega
+    exact hW.mem_eq J.kern.dwAl fun hb => by rcases J.vsNodeW hb J.kern.cs0 with e | e <;> omega
   have hirq : ∀ i : U64, i.val < 128 → capV (L.mem s1) (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i) :=
     irqNode_keep hW J.kern.ksbFit J.kern.ksbAl fun b hb => by rcases J.vsKsW hb with e | e <;> omega
   -- the dead stay dead
@@ -508,7 +548,7 @@ theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s :
     · rcases J.vsObjW Ap hb (p := t) (k := .tcb) ht (fun _ e => by cases e) with e | e
       · left; omega
       · right; simpa [P1.HKind.bits] using e
-    · rcases J.vsNodeW Ap hb hc with e | e <;> omega
+    · rcases J.vsNodeW hb hc with e | e <;> omega
     · rcases he with he | he
       · have hb8 : b.val % 8 = 0 := J.vsW_al hb
         have ha := hHk.align e _ he
@@ -576,7 +616,7 @@ theorem JAtZ.finVsJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s : 
 VSpace frame of the sets, holds no object of `H` but `other` ones, so every
 object in its range is dead, and the current SC is not in it. -/
 theorem JAtZ.vs_ready {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Ap : VsApart (L := L) Z H Cs s)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hVC : VsCapsIn Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G) {x : U64} (hx : x ∈ Z.G.chains.flatten)
     {c : capability.Cap} (hcv : capV (L.mem s) x = c)
     (hv : (∃ p m a v, c = .PageTable p m a v) ∨ (∃ p m a v, c = .PageDirectory p m a v) ∨
@@ -636,7 +676,7 @@ theorem JAtZ.vs_ready {s : S} {a : A} {σ : Fl4Spec.State Unit}
         by_cases hqC : q ∈ Z.C
         · rcases J.vobj_apart (hVq q g1 g2) hq (Or.inr (Or.inr (Or.inr ⟨z, rfl, hqC⟩))) with e | e <;> omega
         · simp only [P1.HKind.bits] at this
-          rcases (Ap.scOut q z hq hqC).1 p hp with e | e <;> omega
+          rcases J.vsFr_sc hp hq with e | e <;> omega
       | other z => exact hk z rfl
   unfold EmptyReady
   rw [hcv']
