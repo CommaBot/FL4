@@ -7,6 +7,7 @@
 pub mod arch;
 pub mod cache_rule;
 pub mod cpu;
+pub mod el0_access;
 pub mod fpu;
 pub mod gic;
 pub mod gic_layout;

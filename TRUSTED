@@ -16,6 +16,11 @@ entry: crates/fl4-bootinfo/src
 hardware: crates/fl4-arch-x86_64/src
 hardware: crates/fl4-arch-aarch64/src
 
+# fl4-core's AArch64 slice: compiled only with `--features aarch64`, so
+# not extracted by Charon/Aeneas (`cargo xtask extract` builds the x86_64
+# core) and not covered by the proofs.
+unverified-core: crates/fl4-core/src/arch/aarch64
+
 # The transaction runtime (tested by fl4-sim, modelled in P2).
 runtime: crates/fl4-store/src
 runtime: crates/fl4-sync/src

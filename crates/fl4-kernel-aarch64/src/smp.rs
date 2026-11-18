@@ -4,7 +4,7 @@
 //! the kernel's tables, sets itself up and waits for the boot core.
 use crate::{entry, kprintln, paging};
 use core::sync::atomic::{AtomicBool, Ordering};
-use fl4_arch_aarch64::{cpu, fpu, gic, percpu, smp, timer};
+use fl4_arch_aarch64::{cpu, el0_access, fpu, gic, percpu, smp, timer};
 use fl4_core::layout::{pptr, MAX_NODES};
 use fl4_core::sched;
 
@@ -60,14 +60,19 @@ pub fn init_core_regs() {
         unsafe { core::arch::asm!(".arch_extension pan", "msr pan, #1") };
     }
     fl4_arch_aarch64::msr!("sctlr_el1", sctlr);
-    // No debug events and no EL0 PMU access: both reset to UNKNOWN values
-    // the firmware may have left set, and the kernel has no hardware
-    // debug API on AArch64 to manage them.
-    fl4_arch_aarch64::msr!("mdscr_el1", 0);
-    let pmuver = (fl4_arch_aarch64::mrs!("id_aa64dfr0_el1") >> 8) & 0xf;
-    if pmuver != 0 && pmuver != 0xf {
+    // No debug events, and no EL0 access to the debug communications
+    // channel or the PMU: both reset to UNKNOWN values the firmware may
+    // have left set, the kernel has no hardware debug API on AArch64 to
+    // manage them, and it switches none of their state between threads
+    // (`el0_access`).
+    fl4_arch_aarch64::msr!("mdscr_el1", el0_access::MDSCR_EL1);
+    if el0_access::has_pmu(fl4_arch_aarch64::mrs!("id_aa64dfr0_el1")) {
         fl4_arch_aarch64::msr!("pmuserenr_el0", 0);
     }
+    // AMUSERENR_EL0 is not touched: UNDEFINED without FEAT_AMUv1, its EN
+    // bit resets to 0, and with CPTR_EL3.TAM set (TF-A without
+    // ENABLE_FEAT_AMU) an EL1 access traps to EL3 and can stop the
+    // firmware, while EL0 then cannot reach the monitors either.
     cpu::isb();
 }
 

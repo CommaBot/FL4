@@ -1,3 +1,5 @@
+// x86_64 only: the AArch64 core has other registers and Arch methods.
+#![cfg(not(feature = "aarch64"))]
 use fl4_abi::label;
 use fl4_core::capability::{Cap, FrameSize};
 use fl4_core::error::{Exc, SysError};
