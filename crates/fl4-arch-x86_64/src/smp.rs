@@ -12,7 +12,6 @@ pub const RESCHEDULE_VECTOR: u32 = (irq::RESCHEDULE_IPI + irq::INT_OFFSET) as u3
 pub const CALL_STALL: u64 = 1;
 pub const CALL_INVLPG: u64 = 2;
 pub const CALL_FLUSH_TLB: u64 = 3;
-pub const CALL_FPU_SAVE: u64 = 4;
 pub const CALL_FPU_DROP: u64 = 5;
 pub const CALL_EPT: u64 = 6;
 pub const CALL_FPU_RELEASE: u64 = 7;
@@ -97,7 +96,6 @@ pub fn service(stall: impl FnOnce()) -> bool {
         CALL_STALL => stall(),
         CALL_INVLPG => crate::tlb::remote_invalidate_page(a0, a1),
         CALL_FLUSH_TLB => crate::tlb::remote_invalidate_asid(a0),
-        CALL_FPU_SAVE => crate::fpu::flush_local(a0),
         CALL_EPT => crate::vm::invalidate_local(a0),
         CALL_FPU_DROP => crate::fpu::forget_local(a0),
         CALL_FPU_RELEASE => crate::fpu::release_local(a0),

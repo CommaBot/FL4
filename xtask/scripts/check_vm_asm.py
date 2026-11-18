@@ -115,5 +115,16 @@ require(before_sysret(lambda op, arg: op.startswith("test") and arg.startswith("
         "user return: SYSRET without the TF/RF check")
 require(sum(1 for _, op, arg in user if op.startswith("mov") and arg == "$0x0,(%rsp)") == 2,
         "user return: CR3 left on the entry stack")
+# Every IDT stub goes through fl4_vector_entry, which clears RFLAGS (AC:
+# SMAP) before the common entry: gates keep the interrupted AC.
+stubs = functions["fl4_vectors"]
+vector_entry = functions.get("fl4_vector_entry", [])
+jumps = [arg for _, op, arg in stubs if op == "jmp"]
+require(len(jumps) == 256 and all(a.endswith("<fl4_vector_entry>") for a in jumps),
+        "IDT stub that bypasses fl4_vector_entry")
+require([op for _, op, _ in vector_entry[:3]] == ["push", "popf", "jmp"]
+        and vector_entry[0][2] == "$0x2"
+        and vector_entry[2][2].endswith("<fl4_common_entry>"),
+        "fl4_vector_entry must load RFLAGS = 2 before fl4_common_entry")
 require(not any(n.startswith("fl4_test_") for n in functions), "test trampoline in kernel")
-print("VM assembly: entry/exit barriers, fenced guards, RAP/PBRSB, BHB, VERW and GIF ordering verified")
+print("VM assembly: RFLAGS cleared on IDT entries, entry/exit barriers, fenced guards, RAP/PBRSB, BHB, VERW and GIF ordering verified")

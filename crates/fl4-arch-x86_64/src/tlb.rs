@@ -121,13 +121,35 @@ pub fn switch(cr3: u64, asid: u64) {
         flush = slot.claim(asid, g);
         cell.set(slot);
     }
-    let v = cr3 | t | if flush { 0 } else { NOFLUSH };
+    let (now, v) = plan(cr3, t, flush, pcid(), skim());
+    if let Some(p) = now {
+        invpcid(1, p, 0);
+    }
     pc.cr3.set(cr3 | t);
-    if SKIM.load(Ordering::Relaxed) {
+    if skim() {
         // The kernel stays on its own tables; the exit loads these.
         pc.exit_cr3.set(v);
     } else {
         cpu::write_cr3(v);
+    }
+}
+
+/// A switch to `cr3` on PCID `t` (0 without PCIDs), which must be flushed
+/// first if `flush`: the PCID to flush with INVPCID at once, if any, and
+/// the CR3 value to load (now, or with the skim window at the exit).
+///
+/// With the skim window and PCIDs the flush cannot wait for the exit: the
+/// slot already records the ASID and generation as flushed, and another
+/// switch before the exit (an interrupt's entry after a transaction's
+/// effects, a deleted ASID's caller going on to another thread) replaces
+/// the exit's CR3 value. A later switch back would then keep the stale
+/// entries. INVPCID is there whenever both are on (`init`). Without PCIDs
+/// every CR3 load flushes, so the exit's load is enough.
+fn plan(cr3: u64, t: u64, flush: bool, pcid: bool, skim: bool) -> (Option<u64>, u64) {
+    if skim && pcid && flush {
+        (Some(t), cr3 | t | NOFLUSH)
+    } else {
+        (None, cr3 | t | if flush { 0 } else { NOFLUSH })
     }
 }
 
@@ -262,5 +284,68 @@ mod tests {
         assert!(!e.claim(5, 1));
         assert!(e.claim(5 + 512 * 512, 1));
         assert!(e.claim(5, 1));
+    }
+
+    /// One core with the skim window and PCIDs, `switch` and
+    /// `take_exit_cr3` over a model TLB: `stale[pcid]` marks entries left
+    /// from before an invalidation, which an INVPCID of the PCID or a CR3
+    /// load of it without the no-flush bit clears.
+    struct Core {
+        slots: [Slot; SLOTS],
+        exit: u64,
+        stale: [bool; SLOTS + 1],
+    }
+
+    impl Core {
+        fn switch(&mut self, cr3: u64, asid: u64, g: u64) {
+            let t = slot(asid) as u64 + 1;
+            let flush = self.slots[slot(asid)].claim(asid, g);
+            let (now, v) = plan(cr3, t, flush, true, true);
+            if let Some(p) = now {
+                self.stale[p as usize] = false;
+            }
+            self.exit = v;
+        }
+
+        fn exit(&mut self) {
+            if self.exit & NOFLUSH == 0 {
+                self.stale[(self.exit & 0xfff) as usize] = false;
+            }
+        }
+    }
+
+    /// Another core unmaps a page of ASID A (bumping its generation) while
+    /// this core holds A's entries in a PCID but runs something else. This
+    /// core switches to A, then to B before any exit (an interrupt after a
+    /// transaction's effects), exits on B, and later switches back to A:
+    /// A must not run on its old entries.
+    #[test]
+    fn a_switch_replaced_before_the_exit_still_flushes() {
+        let (a, b) = (5u64, 6u64);
+        let (ta, tb) = (slot(a) + 1, slot(b) + 1);
+        let mut c = Core { slots: [Slot::EMPTY; SLOTS], exit: 0, stale: [false; SLOTS + 1] };
+        c.switch(0xa000, a, 0);
+        c.exit();
+        // The remote unmap: A's generation moves, A's PCID keeps the entry.
+        c.stale[ta] = true;
+        c.switch(0xa000, a, 1);
+        c.switch(0xb000, b, 0);
+        c.exit();
+        assert!(!c.stale[tb]);
+        c.switch(0xa000, a, 1);
+        c.exit();
+        assert!(!c.stale[ta], "ASID A runs on entries from before the unmap");
+    }
+
+    #[test]
+    fn plans_without_the_skim_window_or_pcids_load_cr3_as_before() {
+        // Without the skim window the CR3 load itself flushes.
+        assert_eq!(plan(0xa000, 3, true, true, false), (None, 0xa003));
+        assert_eq!(plan(0xa000, 3, false, true, false), (None, 0xa003 | NOFLUSH));
+        // Without PCIDs every exit's load flushes.
+        assert_eq!(plan(0xa000, 0, true, false, true), (None, 0xa000));
+        // Skim and PCIDs: the flush is done now, the exit keeps the PCID.
+        assert_eq!(plan(0xa000, 3, true, true, true), (Some(3), 0xa003 | NOFLUSH));
+        assert_eq!(plan(0xa000, 3, false, true, true), (None, 0xa003 | NOFLUSH));
     }
 }

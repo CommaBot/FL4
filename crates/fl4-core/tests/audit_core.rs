@@ -477,3 +477,23 @@ fn pdpt_unmap_flushes_paging_structures_after_clearing_the_entry() {
     assert_eq!(s.read(slot), 0);
     assert_eq!(a.events, [("invalidate_asid", 1), ("invalidate_ps", 1)]);
 }
+
+/// Audit F5(a): the entry saves FaultIP at the `int $N` itself, so that a
+/// remote stall cancelling the entry restarts it rather than skipping it.
+/// The handler takes the address from NextIP, whatever FaultIP holds, and
+/// reports the instruction once, not two bytes before it.
+#[cfg(not(feature = "aarch64"))]
+#[test]
+fn a_trap_gate_syscall_reports_the_int_instruction() {
+    for saved in [0x1000, 0x1002, 0xdead] {
+        let mut s = Memory::default();
+        let mut a = Machine::default();
+        let t = Tcb(0x40_0000);
+        node_set(&mut s, 0, node::CUR_THREAD, t.0);
+        t.set_flags(&mut s, fl4_abi::consts::tcb_flag::TRAP_SYSCALLS);
+        t.set_reg(&mut s, reg::NEXT_IP, 0x1002);
+        t.set_reg(&mut s, reg::FAULT_IP, saved);
+        syscall::handle_trap_syscall(&mut s, &mut a, 0xa0);
+        assert_eq!(t.reg(&s, reg::FAULT_IP), 0x1000, "FaultIP {saved:#x} before the handler");
+    }
+}

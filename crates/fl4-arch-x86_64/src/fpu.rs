@@ -467,9 +467,9 @@ pub fn lazy_load(t: u64) {
 }
 
 /// Write `t`'s state back to its TCB if it is live on this core. CR0.TS
-/// goes back to what it was: from a remote call, the interrupted thread may
-/// be one that must still trap on its first FPU instruction.
-pub fn flush_local(t: u64) {
+/// goes back to what it was: the current thread may be one that must still
+/// trap on its first FPU instruction.
+fn flush_local(t: u64) {
     if percpu::fpu_owner(percpu::cpu_index()) == t {
         let ts = percpu::get().ts_set.get();
         set_ts(false);
@@ -513,13 +513,33 @@ pub fn is_live(t: u64) -> bool {
     owner_core(t).is_some()
 }
 
+/// The remote call `flush` makes for state live on core `owner`, if any,
+/// when it runs on core `me`.
+///
+/// Another core gives the state up, not just saves it: it still owns the
+/// registers otherwise, and its next load for another thread (`lazy_load`
+/// on #NM, which runs without the serial gate, or an exit's `switch_to`)
+/// saves them over `t`'s image while this core converts or rewrites that
+/// image (`to_standard`, `clear_init`, TCB_WriteFPU's copy and
+/// `sanitise`): a torn image whose XRSTORS faults in the kernel. `t` does
+/// not run there (callers stall or migrate it first), so the release takes
+/// nothing from the thread that does.
+fn flush_call(owner: Option<usize>, me: usize) -> Option<(u64, usize)> {
+    match owner {
+        Some(c) if c != me => Some((crate::smp::CALL_FPU_RELEASE, c)),
+        _ => None,
+    }
+}
+
 /// Write `t`'s live state, wherever it is, back to its TCB, in the
 /// standard format. The caller holds the serial gate when another core may
-/// hold the state.
+/// hold the state; it is no longer live there afterwards (`flush_call`).
 pub fn flush(t: u64) {
-    match owner_core(t) {
-        Some(c) if c == percpu::cpu_index() => flush_local(t),
-        Some(c) => crate::smp::remote_call(crate::smp::CALL_FPU_SAVE, t, 0, 1 << c),
+    let owner = owner_core(t);
+    let me = percpu::cpu_index();
+    match flush_call(owner, me) {
+        Some((call, c)) => crate::smp::remote_call(call, t, 0, 1 << c),
+        None if owner == Some(me) => flush_local(t),
         None => {}
     }
     if XSAVE.load(Ordering::Relaxed) {
@@ -643,6 +663,17 @@ mod tests {
             };
             assert_eq!(read(), ([0, 0], 0x1f80, 0x037f, 0));
         }
+    }
+
+    /// State live on another core is released there, so that core never
+    /// saves over the image `flush` hands back; on this core it is saved
+    /// and stays live.
+    #[test]
+    fn a_remote_flush_releases_the_state() {
+        assert_eq!(flush_call(Some(1), 0), Some((crate::smp::CALL_FPU_RELEASE, 1)));
+        assert_eq!(flush_call(Some(0), 1), Some((crate::smp::CALL_FPU_RELEASE, 0)));
+        assert_eq!(flush_call(Some(2), 2), None);
+        assert_eq!(flush_call(None, 0), None);
     }
 
     #[test]

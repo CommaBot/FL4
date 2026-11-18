@@ -171,3 +171,25 @@ fn fragmented_firmware_keeps_visibility_boundaries_in_gpa_order() {
         assert_eq!(private, i % 2 == 1);
     }
 }
+
+/// Audit F6(b): the framebuffer console takes a framebuffer only if device
+/// memory holds all of it (fl4-kernel lib.rs), so not one the loader puts
+/// over the kernel's statics or a module it reports as reserved, nor over
+/// the local APIC or an IOAPIC, though none of them is RAM.
+#[test]
+fn a_framebuffer_over_reserved_kernel_or_apic_memory_is_no_device_memory() {
+    let image_end = 0x80_0000;
+    let ram = bootmem::ram([(image_end, 0x1000_0000, 1)], MIB, 1 << 40);
+    let ioapic = 0xfec0_0000;
+    let dev = bootmem::device(&ram, TOP, [(KERNEL, image_end), (0xfee0_0000, 0xfee0_1000), (ioapic, ioapic + 0x20)]);
+    // A real one, in a PCI hole.
+    assert!(dev.contains(0xc000_0000, 0xc000_0000 + 1024 * 768 * 4));
+    // Over the kernel's statics, which the loader reported as reserved.
+    assert!(!dev.contains(KERNEL + 0x1000, KERNEL + 0x2000));
+    // Running from device memory into the kernel image.
+    assert!(!dev.contains(KERNEL - 0x1000, KERNEL + 0x1000));
+    // Over the local APIC or an IOAPIC.
+    assert!(!dev.contains(0xfee0_0000, 0xfee0_0400));
+    assert!(!dev.contains(0xfe00_0000, 0xfee0_0000 + 0x10));
+    assert!(!dev.contains(ioapic, ioapic + 0x10));
+}

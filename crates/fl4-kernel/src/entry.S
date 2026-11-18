@@ -40,9 +40,22 @@ fl4_vectors:
     pushq $0
     .endif
     pushq $vecnum
-    jmp fl4_common_entry
+    jmp fl4_vector_entry
     .set vecnum, vecnum + 1
     .endr
+
+    /* Interrupt and trap gates leave RFLAGS.AC as the interrupted code had
+     * it, and user code may set it (POPFQ): with AC set SMAP stops nothing
+     * for the whole entry, nor in the idle loop or around VMRUN, which
+     * keeps the host's RFLAGS. Start from RFLAGS = 2 (AC, DF, TF, NT and
+     * IF clear; IF is clear already). An entry from kernel mode gets its
+     * RFLAGS back from the frame. SYSCALL clears them through FMASK. */
+    .align 16
+    .global fl4_vector_entry
+fl4_vector_entry:
+    pushq $2
+    popfq
+    jmp fl4_common_entry
 
     .align 16
     .global fl4_syscall_entry

@@ -524,6 +524,46 @@ static int test_user_selectors(env_t env)
 }
 DEFINE_TEST(FL4SEL0001, "User code runs with the Linux selectors (l4h 0028)", test_user_selectors, true)
 
+/* A far return to 0x23, Linux's 32-bit user code selector. */
+extern char fl4sel_lret_ip[];
+static int far_return_to_compat(seL4_Word a, seL4_Word b, seL4_Word c, seL4_Word d)
+{
+    __asm__ volatile("pushq $0x23\n\t"
+                     "leaq 1f(%%rip), %%rax\n\t"
+                     "pushq %%rax\n"
+                     "fl4sel_lret_ip: lretq\n"
+                     "1: ud2"
+                     : : : "rax", "memory");
+    return 0;
+}
+
+/* User code runs in 64-bit mode only: 0x23 names no code segment, so the
+ * far return raises #GP with the selector as its error code instead of
+ * entering compatibility mode (whose SYSCALL and 32-bit EIP the entry
+ * code does not expect), where the ud2 would fault. */
+static int test_no_compat_mode(env_t env)
+{
+    helper_thread_t t;
+    vka_object_t reply;
+    test_error_eq(vka_alloc_reply(&env->vka, &reply), 0);
+    seL4_CPtr fault_ep = vka_alloc_endpoint_leaky(&env->vka);
+    create_helper_thread(env, &t);
+    int error = api_tcb_set_space(get_helper_tcb(&t), fault_ep, env->cspace_root,
+                                  api_make_guard_skip_word(seL4_WordBits - env->cspace_size_bits),
+                                  env->page_directory, seL4_NilData);
+    test_error_eq(error, seL4_NoError);
+    start_helper(env, &t, far_return_to_compat, 0, 0, 0, 0);
+    seL4_Word badge;
+    seL4_MessageInfo_t tag = api_recv(fault_ep, &badge, reply.cptr);
+    test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) seL4_Fault_UserException);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UserException_Number), (seL4_Word) 13);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UserException_Code), (seL4_Word) 0x20);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UserException_FaultIP), (seL4_Word) fl4sel_lret_ip);
+    cleanup_helper(env, &t);
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4SEL0002, "A far return to the 32-bit user selector faults: no compatibility mode", test_no_compat_mode, true)
+
 /* ---- l4h 0017: seL4_X86_DeferFlush and seL4_X64_PML4_Flush ------------ */
 
 static int write_byte(seL4_Word addr, seL4_Word b, seL4_Word c, seL4_Word d)
