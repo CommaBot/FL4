@@ -1,7 +1,11 @@
 //! GDT, TSS, IDT and the SYSCALL MSRs.
 //!
 //! Selectors follow Linux (l4h 0028): kernel code 0x10, kernel data 0x18,
-//! user 32-bit code 0x23, user data 0x2b, user 64-bit code 0x33, TSS 0x40.
+//! user data 0x2b, user 64-bit code 0x33, TSS 0x40. Linux's 32-bit user
+//! code 0x23 stays a null descriptor: FL4 runs user code in 64-bit mode
+//! only (every exit loads 0x33), and with no compatibility-mode code
+//! segment (nor an LDT) user code cannot leave it by a far return. SYSRET to
+//! 64-bit mode takes 0x33 and 0x2b from STAR without reading the GDT.
 use core::arch::asm;
 use core::cell::UnsafeCell;
 use fl4_arch_x86_64::cpu::{self, rdmsr, wrmsr, msr};
@@ -131,7 +135,7 @@ pub fn init_core(cpu: usize, stack_top: u64) {
     g[1] = 0;
     g[2] = 0x00af_9a00_0000_ffff; // 0x10 kernel code
     g[3] = 0x00cf_9200_0000_ffff; // 0x18 kernel data
-    g[4] = 0x00cf_fa00_0000_ffff; // 0x20 user code (32-bit)
+    g[4] = 0; // 0x20: no 32-bit user code
     g[5] = 0x00cf_f200_0000_ffff; // 0x28 user data
     g[6] = 0x00af_fa00_0000_ffff; // 0x30 user code (64-bit)
     g[7] = 0;
@@ -168,6 +172,7 @@ pub fn init_core(cpu: usize, stack_top: u64) {
             "mov fs, {zero:e}",
             "mov gs, {zero:e}",
             "ltr {tss:x}",
+            "lldt {zero:x}",
             "lidt [{ip}]",
             gp = in(reg) &gp,
             ip = in(reg) &ip,
@@ -183,7 +188,13 @@ pub fn init_core(cpu: usize, stack_top: u64) {
     wrmsr(msr::EFER, rdmsr(msr::EFER) | 1);
     wrmsr(msr::STAR, (0x23u64 << 48) | ((KERNEL_CS as u64) << 32));
     wrmsr(msr::LSTAR, fl4_syscall_entry as *const () as u64);
+    // Compatibility-mode SYSCALL (AMD) cannot happen without a 32-bit
+    // code segment; CSTAR still names an entry rather than address 0.
     wrmsr(msr::CSTAR, fl4_syscall_entry as *const () as u64);
+    // No SYSENTER (valid in 64-bit mode on Intel): with SYSENTER_CS 0 it
+    // raises #GP, whatever the boot loader left here. VM exits set it to 0
+    // too (vm.rs HOST_SYSENTER_CS).
+    wrmsr(msr::SYSENTER_CS, 0);
     // Clear TF, IF, DF, IOPL, NT and AC on entry.
     wrmsr(msr::FMASK, 0x4_7700);
     wrmsr(msr::FS_BASE, 0);

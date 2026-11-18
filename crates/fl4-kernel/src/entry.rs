@@ -117,9 +117,13 @@ fn save_user(s: &mut PhysStore, f: &Frame) {
     // -1 marks a context SYSCALL saved: it leaves by SYSRET (entry.S).
     w(s, reg::ERROR, if f.vector == VEC_SYSCALL { u64::MAX } else { f.error });
     w(s, reg::RSP, f.rsp);
-    // A syscall restarts at the syscall instruction (two bytes long), for
-    // when a remote stall cancels the entry before handle_syscall runs.
-    w(s, reg::FAULT_IP, if f.vector == VEC_SYSCALL { f.rip.wrapping_sub(2) } else { f.rip });
+    // A syscall or `int $N` on a trap gate restarts at that instruction
+    // (two bytes long), for when a remote stall cancels the entry before
+    // handle_syscall or handle_trap_syscall runs: from FAULT_IP, the
+    // restart would skip it. Stray interrupts on trap vectors never get
+    // here (apic::ack_stray in fl4_entry).
+    let two_byte = f.vector == VEC_SYSCALL || (VEC_TRAP_MIN..VEC_SPURIOUS).contains(&f.vector);
+    w(s, reg::FAULT_IP, if two_byte { f.rip.wrapping_sub(2) } else { f.rip });
     w(s, reg::R11, f.r11);
     w(s, reg::RCX, f.rcx);
     // With FSGSBASE the thread may have moved its FS or GS base itself.

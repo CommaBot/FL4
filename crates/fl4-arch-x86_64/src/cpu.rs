@@ -269,6 +269,7 @@ pub fn enable_interrupts_briefly() {
 
 pub mod msr {
     pub const APIC_BASE: u32 = 0x1b;
+    pub const SYSENTER_CS: u32 = 0x174;
     pub const TSC_DEADLINE: u32 = 0x6e0;
     pub const PAT: u32 = 0x277;
     pub const EFER: u32 = 0xc000_0080;

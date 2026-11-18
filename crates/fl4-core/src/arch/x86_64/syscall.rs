@@ -25,10 +25,13 @@ macro_rules! instruction_fault {
 
 /// `int $N` from user space on a gate it may use: seL4 reports this as an
 /// unknown syscall whose number combines the vector and EAX.
+/// The fault address is the `int $N` itself (two bytes long), from
+/// NextIP as for a syscall: FaultIP may already name it (the entry saves
+/// it so for a stall that cancels the entry before this runs).
 pub fn handle_trap_syscall<S: Store, A: Arch>(s: &mut S, a: &mut A, vector: u64) {
     let t = sched::cur_thread(s);
-    let ip = t.reg(s, reg::FAULT_IP).wrapping_sub(2);
-    t.set_reg(s, reg::FAULT_IP, ip);
+    let next = t.reg(s, reg::NEXT_IP);
+    t.set_reg(s, reg::FAULT_IP, next.wrapping_sub(2));
     // l4h 0001: a thread with trapSyscalls set has only its syscall
     // instructions as system calls. `int $N` gets the #GP it raises where
     // the gate is closed, with the IDT vector in the error code.
