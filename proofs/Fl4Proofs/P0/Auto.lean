@@ -849,6 +849,10 @@ theorem vcpu.PIN_ALLOWED.p0  :
     vcpu.PIN_ALLOWED ⦃ _ => True ⦄ := by
   exact WP.spec_mono Consts.vcpu.PIN_ALLOWED.spec (fun _ _ => trivial)
 
+theorem vcpu.DEBUGCTL_ALLOWED.p0  :
+    vcpu.DEBUGCTL_ALLOWED ⦃ _ => True ⦄ := by
+  exact WP.spec_mono Consts.vcpu.DEBUGCTL_ALLOWED.spec (fun _ _ => trivial)
+
 theorem vcpu.EXCEPTIONS.p0  :
     vcpu.EXCEPTIONS ⦃ _ => True ⦄ := by
   exact WP.spec_mono Consts.vcpu.EXCEPTIONS.spec (fun _ _ => trivial)

@@ -225,6 +225,9 @@ open fl4_core
 @[step] theorem vcpu.PIN_ALLOWED.spec : vcpu.PIN_ALLOWED ⦃ v => v = 41#u64 ⦄ := by
   unfold vcpu.PIN_ALLOWED; step*
 
+@[step] theorem vcpu.DEBUGCTL_ALLOWED.spec : vcpu.DEBUGCTL_ALLOWED ⦃ v => v = 2#u64 ⦄ := by
+  unfold vcpu.DEBUGCTL_ALLOWED; step*
+
 @[step] theorem vcpu.EXCEPTIONS.spec : vcpu.EXCEPTIONS ⦃ v => v = 393218#u64 ⦄ := by
   unfold vcpu.EXCEPTIONS; step*
 
